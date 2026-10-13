@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.93** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.94** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -755,7 +755,11 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   beim Festschreiben in `outro_text` eingefroren). **Seit 1.8.93 (Punkt 3)**: das Guthaben des Kunden sind die nicht zugeordneten
   Reste seiner Zahlungen und die Guthaben aus Endrechnungen zusammen (`app/payments.py::customer_balance()`, je Kunde für Finanzen und
   Dashboard `customer_balances()`); ein Zahlungsausgang erstattet beides (`book_customer_refund()`, aus einem Rest über
-  `PaymentRefundSource`: Rest der Zahlung sinkt, nur als Ganzes zurück, die Zahlung selbst erst danach).
+  `PaymentRefundSource`: Rest der Zahlung sinkt, nur als Ganzes zurück, die Zahlung selbst erst danach). **Seit 1.8.94** (vor dem
+  Abnahmetest): „Bezahlt (gesamt)“ in Finanzen abzüglich der Erstattungen an Schlussrechnungen (`overview.refunded`); Zahlbetrag genau
+  0 € -> fester Satz statt der Zahlungsbedingungen, kein Schlusstext (`app/invoices.py::nothing_due()`, im Entwurf live, beim
+  Festschreiben eingefroren); „Zahlung zurücknehmen“ nur ohne Grund (`app/payments.py::reverse_block_reason()`); enthaltene Rechnungen
+  im Zahlungsdialog und bei „Rest zuordnen“ gruppiert unter ihrer Schlussrechnung (`settled_in`, `_zahlung_gruppen.html`).
 - `Reminder`: hängt an überfälligen Rechnungen, hat Stufen (1./2./3. Mahnung), jede Stufe mit
   eigenen Fristen/Gebühren/Textvorlagen (`ReminderLevel`). `Reminder.text` ist beim Anlegen
   (`create_reminder()`) eine reine Kopie von `ReminderLevel.text_template` mit noch
@@ -1076,7 +1080,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   1.8.90 Punkte 6–7: Schlussrechnung unter 0 €, Erstattungsbetrag, Guthaben und Zahlungsausgang, E-Mail mit Zahlbetrag -- R4c vollständig;
   Nacharbeiten R4c ab 1.8.91: Finanzen und Dashboard zählen je Auftrag den Zahlbetrag, "enthalten in Schlussrechnung …"; seit 1.8.92
   Schlusstext bei Erstattung aus den Einstellungen; seit 1.8.93 Guthaben des Kunden aus Rest und Überzahlung, eine Erstattung für
-  beides -- Nacharbeiten vollständig)
+  beides -- Nacharbeiten vollständig; vor dem Abnahmetest 1.8.94: Bezahlt abzüglich Erstattungen, Zahlbetrag 0 €, Zurücknehmen mit
+  Grund, enthaltene Rechnungen gruppiert, Klicktest-Helfer „neu geladen“)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Zahlungen** (Zahlungsstufe Z1 seit 1.8.78: Zahlungseingang mit Zuordnungen, Skonto und Einbehalt, Rest am Kunden,
   Zahlstand abgeleitet, Gegenbuchung statt Ändern, Sperrreihenfolge, Storno erst nach gelösten Zuordnungen, Finanzen/Dashboard mit
@@ -1567,7 +1572,13 @@ mit Nummer, neuer Zahlbetrag nach Zahlung auf den Abschlag, 412 px dunkel, Monte
 Schlussrechnung −119 € mit Erstattungsbetrag und Satz statt Skonto, finalisieren, Guthaben, Erstattung buchen, zu viel 409, Kundenakte
 mit Guthaben und Zahlungsausgang, zurücknehmen, 412 px dunkel, Monteurin 403) und
 `klicktest_browser_datum.py` (1.8.87, Instanz und Browser-Uhr um 00:30 Uhr, Browser in UTC und New York: Monteur-Zeiterfassung mit der
-Buchung von heute, Stundenzettel, Büro-Zeiterfassung, Aufgaben überfällig, Plantafel, Kalender).
+Buchung von heute, Stundenzettel, Büro-Zeiterfassung, Aufgaben überfällig, Plantafel, Kalender) und `klicktest_zahlungen_kleinkram.py`
+(1.8.94, Finanzen „Bezahlt (gesamt)“ abzüglich Erstattungen, Kundenakte mit Grund statt „Zahlung zurücknehmen“ und gruppiertem „Rest
+zuordnen“, Zahlungsdialog gruppiert und umverteilt gebucht, Zahlbetrag 0 € mit Satz und ohne Schlusstext, 412 px dunkel, Monteurin 403).
+**Nach einer Aktion, die neu lädt** (seit 1.8.94), nie eine feste Pause oder einen Statustext als Beleg nehmen -- viele Seiten setzen
+ihn vor dem Neuladen --, sondern `await tab.warte_auf_neu_geladene_liste("…click()", "#liste")` (wartet, bis keine Anfrage der Seite
+mehr unterwegs und die Liste neu gezeichnet ist; ohne Aktion nach `oeffnen()`, bevor geprüft wird, dass etwas NICHT erscheint);
+`tests/test_v397_klicktest_helfer.py`. Ruft der Test die async-Funktion der Seite direkt auf, wartet `tab.js()` ihr Ende schon ab.
 Ein
 Klicktest, der als
 Monteur `/mobil` öffnet,

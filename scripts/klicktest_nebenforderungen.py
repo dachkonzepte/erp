@@ -162,8 +162,9 @@ async def pruefen(tab, seed, p):
     p.pruefe("Vorschlag Verzug ab Zustellung der 1. Mahnung",
              [f"Vorschlag: Verzug ab {seed['verzug']}" in vorschlag, f"Zugang der 1. Mahnung {seed['m1_nr']}" in vorschlag],
              [True, True])
-    await tab.js(_knopf("Verzugsbeginn bestätigen") + ".click()")
-    p.pruefe("Verzugsbeginn bestätigt", await tab.warten(
+    # Seit 1.8.94: confirmStart() setzt den Text vor loadAndRenderReminders() (nicht abgewartet) -- erst nach dem Neuladen lesen.
+    await tab.warte_auf_neu_geladene_liste(_knopf("Verzugsbeginn bestätigen") + ".click()")
+    p.pruefe("Verzugsbeginn bestätigt", await tab.js(
         f"(document.querySelector('[data-verzug]')?.textContent||'').includes('Verzug ab {seed['verzug']}')"), True)
     p.pruefe("Mahnkarte: Stufe 1 erreicht", await tab.js(
         "document.getElementById('reminderStatusInfo').textContent.startsWith('Erreicht: Stufe 1')"), True)

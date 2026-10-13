@@ -62,14 +62,17 @@ function renderMetrics(){
   const retained=open.reduce((s,i)=>s+Number(ov(i).retained),0);
   // Seit 1.8.93 (Nacharbeit R4c Punkt 3): Guthaben der Kunden = nicht zugeordnete Reste + Überzahlungen aus Schlussrechnungen.
   const creditSum=unallocated.reduce((s,r)=>s+Number(r.total),0);
-  const paidTotal=allInvoices.filter(i=>i.payment).reduce((s,i)=>s+Number(i.payment.paid),0);
+  // Seit 1.8.94: "Bezahlt (gesamt)" = Zahlungen auf Rechnungen abzüglich der Zahlungsausgänge an Schlussrechnungen (ov(i).refunded);
+  // eine Erstattung aus dem Rest einer Zahlung zieht nichts ab -- der Rest zählte hier nie mit.
+  const refundedTotal=allInvoices.filter(ov).reduce((s,i)=>s+Number(ov(i).refunded||0),0);
+  const paidTotal=allInvoices.filter(i=>i.payment).reduce((s,i)=>s+Number(i.payment.paid),0)-refundedTotal;
   const unallocatedSum=unallocated.reduce((s,r)=>s+Number(r.rest),0);
   document.getElementById('metrics').innerHTML=`
     <div class="metric"><small>Offene Rechnungen</small><b data-offen-anzahl>${open.length}</b></div>
     <div class="metric"><small>Offener Betrag</small><b data-offen-betrag>${money(openSum)}</b></div>
     ${retained?`<div class="metric"><small>davon Einbehalt</small><b>${money(retained)}</b></div>`:''}
     <div class="metric"><small>Überfällig</small><b style="${overdue.length?'color:var(--danger)':''}">${overdue.length}</b></div>
-    <div class="metric"><small>Bezahlt (gesamt)</small><b data-bezahlt>${money(paidTotal)}</b></div>
+    <div class="metric"><small>Bezahlt (gesamt)</small><b data-bezahlt>${money(paidTotal)}</b>${refundedTotal?`<div class="muted small" data-erstattet>abzüglich Erstattungen ${money(refundedTotal)}</div>`:''}</div>
     ${creditSum?`<div class="metric"><small>Guthaben der Kunden</small><b data-guthaben>${money(creditSum)}</b>${unallocatedSum?`<div class="muted small" data-nicht-zugeordnet>davon nicht zugeordnet ${money(unallocatedSum)}</div>`:''}</div>`:''}
 `;
 }

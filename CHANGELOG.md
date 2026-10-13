@@ -4,6 +4,22 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.94 – Kleinkram vor dem Abnahmetest: Bezahlt abzüglich Erstattungen, Zahlbetrag 0 €, Zurücknehmen mit Grund, enthaltene Rechnungen gruppiert, Klicktest-Helfer
+
+Fünf kleine Punkte vor dem Abnahmetest. In Finanzen zieht „Bezahlt (gesamt)“ jetzt die Zahlungsausgänge an Schlussrechnungen ab
+(darunter „abzüglich Erstattungen …“); eine Erstattung aus dem Rest einer Zahlung zieht nichts ab, der Rest zählte dort nie. Lautet der
+Zahlbetrag einer Schlussrechnung genau 0 €, steht statt „Zahlbar rein netto bis …“ der Satz „Mit den geleisteten Zahlungen ist der
+Zahlbetrag ausgeglichen – es ist nichts mehr zu zahlen.“, und der Schlusstext mit der Zahlungsaufforderung entfällt -- im Entwurf live,
+beim Finalisieren eingefroren; die E-Mail sagt dasselbe. In der Kundenakte steht „Zahlung zurücknehmen“ nur noch, wo es geht, sonst der
+Grund (dieselbe Prüfung wie beim Zurücknehmen). Im Zahlungsdialog und bei „Rest zuordnen“ stehen Rechnungen, die in einer Schlussrechnung
+abgezogen sind, gruppiert unter ihr mit „enthalten in Schlussrechnung …“; gebucht wird weiter je Rechnung.
+
+Für die Klicktests gibt es einen gemeinsamen Helfer `Tab.warte_auf_neu_geladene_liste()`: er zählt die Anfragen der Seite und wartet
+nach einer Aktion, bis nichts mehr unterwegs ist und die Liste neu gezeichnet ist. Sechs Klicktests, die nach einem Speichern auf einen
+vor dem Neuladen gesetzten Text oder eine feste Pause warteten, nutzen ihn. Beim Nachsehen, warum `klicktest_checkliste_abschnitte` in
+1.8.93 einmal rot war, zeigte sich ein Fehler der Checklistenseite selbst: sie übernimmt eine spät eintreffende, veraltete
+Speicher-Antwort (nachgestellt, nur gemeldet, `docs/archiv/befund-vor-echtbetrieb.md`, "Vor dem Abnahmetest").
+
 ## 1.8.93 – Guthaben des Kunden: Rest und Überzahlung zusammen, eine Erstattung für beides (Nacharbeiten R4c, Punkt 3)
 
 In der Kundenakte stehen der nicht zugeordnete Rest seiner Zahlungen und das Guthaben aus Schlussrechnungen mit Überzahlung jetzt

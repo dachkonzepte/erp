@@ -147,13 +147,11 @@ async def pruefen(tab, seed, p):
     p.pruefe("Auswahl: Knopf mit Anzahl", await tab.js("document.getElementById('bulkCreateBtn').textContent"),
              "Entwürfe für Auswahl anlegen (3)")
     await _bild(tab, "zur_mahnung_faellig", "dueCard", dunkel=True)
-    await tab.js("document.getElementById('bulkCreateBtn').click()")
-    p.pruefe("drei Entwürfe angelegt", await tab.warten(
-        "document.getElementById('bulkStatus').textContent==='3 Entwürfe angelegt.'"), True)
     # Seit 1.8.87: der Text steht vor dem Neuladen der Liste (createSelectedReminders(): erst Text, dann reload()) -- erst auf
-    # die neu geladene Liste warten, dann lesen (bis 1.8.86 las der Klicktest sofort und sah je nach Tempo noch die alte).
-    await tab.warten("document.querySelectorAll('#dueRows tr[data-faellig]').length===0"
-                     "&&document.querySelectorAll('#attentionRows .pill.entwurf').length===3")
+    # die neu geladene Liste warten, dann lesen (bis 1.8.86 las der Klicktest sofort und sah je nach Tempo noch die alte); seit
+    # 1.8.94 über den gemeinsamen Helfer.
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('bulkCreateBtn').click()", "#dueRows")
+    p.pruefe("drei Entwürfe angelegt", await tab.js("document.getElementById('bulkStatus').textContent"), "3 Entwürfe angelegt.")
     p.pruefe("Liste danach leer, Entwürfe in 'Weitere'", await tab.js(
         "[document.querySelectorAll('#dueRows tr[data-faellig]').length,"
         "document.querySelectorAll('#attentionRows .pill.entwurf').length]"), [0, 3])

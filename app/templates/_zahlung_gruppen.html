@@ -1,0 +1,44 @@
+<script>
+/* Geteilter Helfer (seit 1.8.94) für den Zahlungsdialog der Rechnungsseite und "Rest zuordnen" in der Kundenakte: eine Rechnung, die
+   in einer gültigen Schlussrechnung abgezogen ist (zeile.settled_in, app/payments.py::settled_in_map()), steht gruppiert unter ihrer
+   Schlussrechnung, mit dem Hinweis "enthalten in Schlussrechnung …". Gebucht wird weiter je Rechnung -- nur die Anzeige wird
+   gruppiert, die Zeilen (und ihr Index, z. B. im Vorschlag) bleiben, wie sie sind.
+
+   zahlungsGruppen(zeilen) -> [{schluss: {invoice_id, invoice_number} | null, zeilen: [{zeile, index}]}]
+     ohne schluss: eine einzelne Rechnung, die in keiner Endrechnung enthalten ist. In einer Gruppe steht die Schlussrechnung selbst
+     zuerst (sofern sie unter den Zeilen ist -- eine Schlussrechnung ohne eigenen offenen Betrag fehlt dort), danach die enthaltenen in
+     ihrer Reihenfolge; die Gruppe steht dort, wo ihre erste Zeile stand.
+   zahlungsOptionen(zeilen, beschriftung) -> HTML der <option>-Elemente, je Gruppe ein <optgroup label="Schlussrechnung …">
+     beschriftung(zeile) Text der Option (wird hier maskiert, also kein HTML übergeben); an eine enthaltene Rechnung hängt der
+     Helfer " · enthalten in Schlussrechnung …" an.
+   enthaltenText(zeile) -> "enthalten in Schlussrechnung R-…", "" ohne settled_in.
+   tests/test_v397_kleinkram_zahlungen.py führt den Helfer in node aus. */
+function enthaltenText(zeile) {
+  return zeile && zeile.settled_in ? `enthalten in Schlussrechnung ${zeile.settled_in.invoice_number || ''}` : '';
+}
+function zahlungsGruppen(zeilen) {
+  const schluesse = new Map();
+  for (const z of zeilen) if (z.settled_in) schluesse.set(z.settled_in.invoice_id, z.settled_in);
+  const gruppen = [], nachSchluss = new Map();
+  zeilen.forEach((zeile, index) => {
+    const id = zeile.settled_in ? zeile.settled_in.invoice_id : (schluesse.has(zeile.invoice_id) ? zeile.invoice_id : null);
+    if (id == null) { gruppen.push({schluss: null, zeilen: [{zeile, index}]}); return; }
+    let gruppe = nachSchluss.get(id);
+    if (!gruppe) { gruppe = {schluss: schluesse.get(id), zeilen: []}; nachSchluss.set(id, gruppe); gruppen.push(gruppe); }
+    gruppe.zeilen.push({zeile, index});
+  });
+  for (const g of gruppen) {
+    if (!g.schluss) continue;
+    const kopf = g.zeilen.findIndex(e => e.zeile.invoice_id === g.schluss.invoice_id);
+    if (kopf > 0) g.zeilen.unshift(...g.zeilen.splice(kopf, 1));
+  }
+  return gruppen;
+}
+function zahlungsOptionen(zeilen, beschriftung) {
+  const m = s => String(s ?? '').replace(/[&<>'"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'}[c]));
+  const option = z => `<option value="${m(z.invoice_id)}"${z.settled_in ? ' data-enthalten' : ''}>${m(beschriftung(z) + (z.settled_in ? ' · ' + enthaltenText(z) : ''))}</option>`;
+  return zahlungsGruppen(zeilen).map(g => g.schluss
+    ? `<optgroup label="${m('Schlussrechnung ' + (g.schluss.invoice_number || ''))}" data-gruppe="${m(g.schluss.invoice_id)}">${g.zeilen.map(e => option(e.zeile)).join('')}</optgroup>`
+    : option(g.zeilen[0].zeile)).join('');
+}
+</script>

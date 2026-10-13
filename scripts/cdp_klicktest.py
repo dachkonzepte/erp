@@ -69,6 +69,11 @@ Zwei Fallen aus früheren Runden, hier bereits abgefangen: `Runtime.evaluate` li
 JS-Fehler ohne Prüfung von `exceptionDetails` ein leeres Ergebnis statt eines Fehlers
 (`Tab.js()` sammelt ihn in `tab.fehler`); und Seiten laden ihre Daten per fetch() nach, erst
 eine Bereitschaftsbedingung (`Tab.oeffnen(pfad, bedingung)`) sagt, wann geprüft werden darf.
+
+Eine dritte (seit 1.8.94): nach einer Aktion, die speichert und neu lädt, belegen weder ein Statustext (oft vor dem
+Neuladen gesetzt) noch eine feste Pause, dass die Anzeige neu ist. Dafür
+`await tab.warte_auf_neu_geladene_liste("…click()", "#liste")` -- wartet, bis keine Anfrage der Seite mehr läuft und die
+Liste neu gezeichnet ist; ohne Aktion direkt nach `oeffnen()`, bevor geprüft wird, dass etwas NICHT erscheint.
 """
 
 from __future__ import annotations
@@ -143,6 +148,31 @@ def _befuellen_im_kindprozess(befuellen, ziel: Path) -> None:
 # CDP
 # ---------------------------------------------------------------------------
 
+# Seit 1.8.94: zählt die Anfragen der Seite (fetch und XMLHttpRequest) für Tab.warte_auf_neu_geladene_liste() -- in jedes neu
+# geladene Dokument eingesetzt (_lauf()). ruhigSeit: Zeitpunkt (performance.now()), an dem zuletzt eine Anfrage fertig wurde.
+ANFRAGEN_ZAEHLER = """(()=>{if(window.__dkAnfragen)return;
+const z=window.__dkAnfragen={gestartet:0,offen:0,ruhigSeit:performance.now()};
+const fertig=()=>{z.offen--;z.ruhigSeit=performance.now()};
+const f=window.fetch;
+window.fetch=function(...a){z.gestartet++;z.offen++;let p;try{p=f.apply(this,a)}catch(e){fertig();throw e}p.then(fertig,fertig);return p};
+const s=XMLHttpRequest.prototype.send;
+XMLHttpRequest.prototype.send=function(...a){z.gestartet++;z.offen++;this.addEventListener('loadend',fertig,{once:true});return s.apply(this,a)};
+})()"""
+
+
+def neu_geladen_bedingung(vorher: int | None, mit_liste: bool, ruhe: float) -> str:
+    """JS-Bedingung für Tab.warte_auf_neu_geladene_liste() (seit 1.8.94): seit dem Stand vorher (None: ohne Aktion) mindestens
+    eine Anfrage gestartet, keine mehr unterwegs, seit ruhe Sekunden keine fertig geworden; mit_liste: keins der vorher
+    gemerkten Listenelemente hängt noch im Dokument. tests/test_v397_klicktest_helfer.py führt sie in node aus."""
+    teile = ["!!z"]
+    if vorher is not None:
+        teile.append(f"z.gestartet>{int(vorher)}")
+    teile += ["z.offen===0", f"performance.now()-z.ruhigSeit>={int(ruhe * 1000)}"]
+    if mit_liste:
+        teile.append("(window.__dkAlteListe||[]).every(n=>!n.isConnected)")
+    return "(()=>{const z=window.__dkAnfragen;return " + "&&".join(teile) + "})()"
+
+
 class Tab:
     """Eine Browser-Seite. fehler sammelt JS-Ausnahmen und console.error seit dem letzten oeffnen()."""
 
@@ -204,6 +234,39 @@ class Tab:
                 pass  # Navigation noch nicht fertig
         self.nicht_geladen.append(pfad)
         print(f"XX  {pfad}: Seite nicht bereit ({bereit[:80]})")
+        return False
+
+    async def warte_auf_neu_geladene_liste(self, aktion: str | None = None, liste: str | None = None, *, timeout: float = 15,
+                                           ruhe: float = 0.3) -> bool:
+        """Seit 1.8.94: löst die JS-Aktion aus (z. B. einen Klick) und wartet, bis die Seite danach neu geladen hat -- erst dann
+        stimmt, was sie nach einem Speichern oder Buchen per fetch nachlädt und neu zeichnet (Liste, Kennzeichen, Hinweis).
+        Ein Statustext ist dafür kein Beleg: viele Seiten setzen ihn vor dem Neuladen ("3 Entwürfe angelegt.", dann
+        `await reload()`), und eine sofortige Änderung (Kachel markiert) belegt nur die eine Antwort, nicht eine zweite, die
+        noch unterwegs ist.
+
+        Neu geladen heißt: seit der Aktion mindestens eine Anfrage der Seite gestartet (fetch oder XMLHttpRequest, gezählt
+        von ANFRAGEN_ZAEHLER), keine mehr unterwegs und `ruhe` Sekunden keine neue -- so liegen auch Ketten wie Speichern ->
+        reload() und deren Zeichnen dahinter. Mit `liste` (CSS-Selektor) zusätzlich: keins der Elemente, die vor der Aktion
+        darin standen, hängt noch im Dokument (die Liste ist neu gezeichnet). Ohne `aktion` (nach `oeffnen()`): nur warten, bis
+        die Seite nichts mehr nachlädt -- vor einer Prüfung, dass etwas NICHT erscheint. Eine Anfrage, die die Seite erst nach
+        der Ruhezeit startet (entprellte Eingabe), ist nicht erfasst. Zeitüberschreitung: Meldung und False, der Test zählt
+        dann als nicht wie erwartet (nicht_geladen)."""
+        vorher = await self.js(
+            "(()=>{const z=window.__dkAnfragen;"
+            + (f"window.__dkAlteListe=[...document.querySelectorAll({json.dumps(liste)})].flatMap(l=>[...l.children]);"
+               if liste else "")
+            + "return z?z.gestartet:null})()")
+        if vorher is None:
+            self.nicht_geladen.append(f"Anfragenzähler fehlt ({liste or aktion or 'Seite'})")
+            print("XX  Anfragenzähler fehlt -- Seite nicht über oeffnen() geladen?")
+            return False
+        if aktion is not None:
+            await self.js(aktion)
+        if await self.warten(neu_geladen_bedingung(vorher if aktion is not None else None, liste is not None, ruhe), timeout):
+            return True
+        stand = await self.js("JSON.stringify(window.__dkAnfragen)")
+        self.nicht_geladen.append(f"nicht neu geladen: {liste or aktion or 'Seite'}")
+        print(f"XX  nicht neu geladen ({liste or aktion or 'Seite'}), Anfragen {stand}")
         return False
 
     async def warten(self, bedingung: str, timeout: float = 15) -> bool:
@@ -413,6 +476,7 @@ async def _lauf(pruefen, seed, cdp_port: int, base_url: str, shots: Path) -> boo
         tab = Tab(ws, base_url, shots)
         for domain in ("Page", "Runtime", "Network"):
             await tab.cmd(f"{domain}.enable")
+        await tab.cmd("Page.addScriptToEvaluateOnNewDocument", source=ANFRAGEN_ZAEHLER)  # seit 1.8.94
         await tab.fenster(1400, 1000)
         await pruefen(tab, seed, p)
     ok = all(p.ergebnisse) and not tab.nicht_geladen

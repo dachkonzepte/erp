@@ -64,6 +64,7 @@ class DunningState:
     is_final: bool = False  # gültige Endrechnung (Schlussrechnung mit Abzügen)
     own_part: Decimal = ZERO  # seit 1.8.90: eigener Teil am Zahlbetrag (an einer Überzahlung negativ, abzüglich Erstattungen)
     credit: Decimal = ZERO  # seit 1.8.90: Guthaben des Kunden aus der Endrechnung (noch zu erstatten)
+    refunded: Decimal = ZERO  # seit 1.8.94: an der Endrechnung schon erstattet (Zahlungsausgänge, nicht zurückgenommen), positiv
 
     @property
     def own_dunnable(self) -> Decimal:
@@ -157,7 +158,7 @@ def dunning_states(db: Session, invoices: Iterable[Invoice], *, on: date | None 
         own_part = own.dunnable if own is not None else min(payable_gross(inv), ZERO) + sums[inv.id].refunded
         total = own_part + sum((p.open for p in parts), ZERO)
         result[inv.id] = DunningState(invoice=inv, own=own, dunnable=max(total, ZERO), deducted=parts, is_final=True,
-                                      own_part=own_part, credit=max(-total, ZERO))
+                                      own_part=own_part, credit=max(-total, ZERO), refunded=sums[inv.id].refunded)
     return result
 
 
@@ -205,11 +206,15 @@ def overview(state, dunning: DunningState | None) -> dict | None:
     gültigen Endrechnung je Auftrag nur noch ihr Zahlbetrag -- positiv als offen (davon Einbehalt), negativ als Guthaben. Eine darin
     abgezogene Rechnung mit offenem Betrag zählt nicht mehr einzeln ("enthalten in Schlussrechnung …"); bezahlt bleibt bezahlt.
     Sonst der Zahlstand der Rechnung (app/payments.py). state: PaymentState der Rechnung, None wenn sie nie offen ist; None auch
-    zurück, wenn sie nicht zählt (Entwurf, Storno, storniert)."""
+    zurück, wenn sie nicht zählt (Entwurf, Storno, storniert). Seit 1.8.94 "refunded": an der Endrechnung schon erstattet
+    (Zahlungsausgänge) -- Finanzen zieht es von "Bezahlt (gesamt)" ab."""
     from .payments import STATE_LABELS  # lokal wie in dunning_states()
+
+    refunded = dunning.refunded if dunning is not None else ZERO
 
     def row(key, label, *, open_=ZERO, retained=ZERO, credit=ZERO, settled_in=None):
         return {"state": key, "state_label": label, "open": open_, "retained": retained, "credit": credit,
+                "refunded": refunded,
                 "settled_in": ({"invoice_id": settled_in.id, "invoice_number": settled_in.invoice_number}
                                if settled_in is not None else None)}
 

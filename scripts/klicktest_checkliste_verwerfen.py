@@ -114,8 +114,6 @@ def _name_direkt_aendern(db_url: str, checklist_id: int, alt: str, neu: str) -> 
 
 
 async def pruefen(tab, seed, p):
-    import asyncio
-
     cid, f = seed["checklist"], seed["fields"]
     await tab.cmd("Page.addScriptToEvaluateOnNewDocument", source=CONFIRM)
     api = f"/api/checklists/{cid}"
@@ -159,8 +157,9 @@ async def pruefen(tab, seed, p):
     await tab.anmelden(seed["cookies"]["mia"])
     await tab.fenster(390, 844, mobil=True)
     await tab.oeffnen(f"/checklisten/{cid}", bereit)
-    await tab.js(f"(()=>{{const el=document.querySelector('#q_{f['ende']} input');el.value='17:15';el.dispatchEvent(new Event('input'));el.dispatchEvent(new Event('blur'))}})()")
-    await asyncio.sleep(0.5)
+    # Seit 1.8.94: auf die gespeicherte Antwort warten statt einer festen Pause.
+    await tab.warte_auf_neu_geladene_liste(
+        f"(()=>{{const el=document.querySelector('#q_{f['ende']} input');el.value='17:15';el.dispatchEvent(new Event('input'));el.dispatchEvent(new Event('blur'))}})()")
     p.pruefe("Ende gespeichert", await tab.js(f"fetch('{api}').then(r=>r.json()).then(d=>d.answers['{f['ende']}']?.value)"), "17:15")
     await _unterschreiben(tab, f["sig2"], "Karl Kollege")
     await tab.warten(f"document.querySelector('#q_{f['sig2']} .seal')", 10)

@@ -105,8 +105,6 @@ def _antwort_direkt_aendern(db_url: str, checklist_id: int, field_key: str, wert
 
 
 async def pruefen(tab, seed, p):
-    import asyncio
-
     cid, f = seed["checklist"], seed["fields"]
     await tab.cmd("Page.addScriptToEvaluateOnNewDocument", source=CONFIRM)
     api = f"/api/checklists/{cid}"
@@ -151,10 +149,12 @@ async def pruefen(tab, seed, p):
         await tab.js(f"fetch('{api}').then(r=>r.json()).then(d=>d.attachments.filter(a=>a.kind==='unterschrift').length)")],
         [fehlt, True, 1])
 
-    await tab.js(f"(()=>{{const el=document.querySelector('#q_{f['ende']} input');el.value='16:30';el.dispatchEvent(new Event('input'));el.dispatchEvent(new Event('blur'))}})()")
-    await tab.js(f"document.querySelector('#q_{f['befund']} .tile').click()")
-    await tab.warten(f"document.querySelector('#q_{f['befund']} .tile.on')", 10)
-    await asyncio.sleep(0.3)
+    # Seit 1.8.94: zwei Speichern gleichzeitig unterwegs (Ende per blur, dann die Kachel) -- die markierte Kachel belegt nur die
+    # zweite Antwort; erst wenn beide da sind, wird der Hinweis gelesen (bis 1.8.93 nach 0,3 s, im Gesamtlauf einmal rot).
+    await tab.warte_auf_neu_geladene_liste(
+        f"(()=>{{const el=document.querySelector('#q_{f['ende']} input');el.value='16:30';el.dispatchEvent(new Event('input'));el.dispatchEvent(new Event('blur'))}})();"
+        f"document.querySelector('#q_{f['befund']} .tile').click()")
+    p.pruefe("Kachel markiert", await tab.js(f"!!document.querySelector('#q_{f['befund']} .tile.on')"), True)
     p.pruefe("Hinweis weg nach der Antwort", await tab.js(hinweis), None)
     antworten = await tab.js(f"fetch('{api}').then(r=>r.json()).then(d=>[d.answers['{f['ende']}']?.value,d.answers['{f['befund']}']?.value])")
     p.pruefe("Abschnitt 2 nach der Unterschrift gespeichert", antworten, ["16:30", "ja"])

@@ -97,8 +97,6 @@ async def _mobil(tab, p, wer: str, theme: str):
 
 
 async def pruefen(tab, seed, p):
-    import asyncio
-
     await tab.cmd("Page.addScriptToEvaluateOnNewDocument", source=CONFIRM)
     auftrag = seed["auftrag"]
 
@@ -194,7 +192,7 @@ async def pruefen(tab, seed, p):
     await _unterschreiben(tab, f[K + "unterschrift_entscheidung"], "Olga Office")
     await tab.warten(f"document.querySelector('#q_{f[K + 'unterschrift_entscheidung']} .sig')")
     await tab.oeffnen(f"/orders/{auftrag}", "document.getElementById('orderTitle').textContent.includes('AUF-KT-1')")
-    await asyncio.sleep(0.5)  # loadOpenConcerns() läuft nach dem Auftrag
+    await tab.warte_auf_neu_geladene_liste()  # loadOpenConcerns() läuft nach dem Auftrag; seit 1.8.94 statt 0,5 s Pause
     p.pruefe("Büro: Hinweis nach der Entscheidung weg", await tab.js(
         "[document.getElementById('concernAlert').hidden, document.getElementById('concernAlert').textContent]"), [True, ""])
     p.pruefe("Büro: keine JS-Fehler", tab.fehler, [])
@@ -203,7 +201,7 @@ async def pruefen(tab, seed, p):
     await tab.anmelden(seed["cookies"]["mia"])
     await tab.fenster(412, 900, mobil=True)
     await _mobil(tab, p, "Monteurin", "dark")
-    await asyncio.sleep(0.3)
+    await tab.warte_auf_neu_geladene_liste()  # seit 1.8.94: "Kommende Termine" lädt eigens nach -- statt 0,3 s Pause
     p.pruefe("Monteurin: nach der Entscheidung kein Hinweis", await tab.js("document.querySelectorAll('.concern-alert').length"), 0)
     await tab.bild("4_monteurin_mobil_ohne_hinweis_dunkel")
     p.pruefe("Monteurin: keine JS-Fehler (Ende)", tab.fehler, [])

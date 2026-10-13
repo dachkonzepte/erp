@@ -2345,6 +2345,9 @@ class InvoiceOut(BaseModel):
     outro_text: str | None
     outro_text_2: str | None = None
     refund_outro_text: str | None = None  # seit 1.8.92: Schlusstext bei Erstattung (Entwurf einer Schlussrechnung)
+    # Seit 1.8.94: Zahlbetrag genau 0 € -- fester Satz statt der Zahlungsbedingungen, kein Schlusstext (im Entwurf: nothing_due_outro).
+    nothing_due: bool = False
+    nothing_due_outro: bool = False
     payment_terms: str | None
     tax_key_id: int | None = None
     tax_notice_text: str | None = None
@@ -2567,6 +2570,7 @@ class PaymentOut(BaseModel):
     # erstattet ist {refund_payment_id, amount, paid_on}.
     refund_sources: list[dict] = Field(default_factory=list)
     refunded_from_rest: list[dict] = Field(default_factory=list)
+    reverse_block_reason: str | None = None  # seit 1.8.94: warum "Zahlung zurücknehmen" nicht geht (None: es geht)
 
 
 class CustomerPaymentsOut(BaseModel):
@@ -2591,6 +2595,7 @@ class OpenInvoiceOut(BaseModel):
     payment: PaymentStateOut
     skonto_offer: dict | None = None  # {until, amount}
     charges: list[dict] = []  # seit 1.8.81: offene Nebenforderungen {charge_id, kind, label, open}
+    settled_in: dict | None = None  # seit 1.8.94: in dieser gültigen Endrechnung abgezogen {invoice_id, invoice_number}
 
 
 class PaymentProposalLineOut(BaseModel):
@@ -2606,6 +2611,7 @@ class PaymentProposalLineOut(BaseModel):
     einbehalt: Decimal
     skonto_offer: dict | None = None  # {until, amount, in_period}
     charges: list[dict] = []  # seit 1.8.81, § 367 BGB: {charge_id, kind, label, open, amount}
+    settled_in: dict | None = None  # seit 1.8.94: in dieser gültigen Endrechnung abgezogen {invoice_id, invoice_number}
 
 
 class PaymentProposalOut(BaseModel):

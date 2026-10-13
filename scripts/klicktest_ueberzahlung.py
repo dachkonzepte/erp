@@ -13,7 +13,8 @@ mit dem Aufmaß 8 m² lautet über −119 € (Überzahlung). Dazu ein Zahlungsb
     Einstellungen      Auswahlliste "Rechnungs-Schlusstexte bei Erstattung" (seit 1.8.92)
     Kundenakte         Guthaben des Kunden 69 € (Rest 50 € + 19 €) aufgeschlüsselt, Zahlungsausgang (Erstattung) −100 € ohne "nicht
                        zugeordnet", zurücknehmen -> 169 €; seit 1.8.93 eine Erstattung für Rest und Überzahlung zusammen -> kein
-                       Guthaben, Quelle an Zahlungsausgang und Zahlung, Zahlung zurücknehmen mit Grund abgelehnt
+                       Guthaben, Quelle an Zahlungsausgang und Zahlung; an der Zahlung mit erstattetem Rest seit 1.8.94 der Grund
+                       statt "Zahlung zurücknehmen" (API 409)
     Finanzen           seit 1.8.93 "Guthaben der Kunden" 169 € davon nicht zugeordnet 50 €, Zeile des Kunden
     API                zu viel erstattet 409; Monteurin 403
     412 px dunkel      Rechnungsseite
@@ -187,10 +188,14 @@ async def pruefen(tab, seed, p):
         "return [a.amount,q?q.textContent:'',z?z.textContent:'']})()"),
         lambda v: v[0] == "-169.00" and "Erstattung aus dem Rest der Zahlung" in v[1] and "aus dem Rest erstattet" in v[2])
     rest = seed["rest"]
-    await tab.js(f"showPaymentReverse({rest});document.getElementById('payRevReason-{rest}').value='falsch erfasst';"
-                 f"reversePayment({rest})")
-    p.pruefe("Zahlung mit erstattetem Rest zurücknehmen: abgelehnt mit Grund", await tab.warten(
-        "document.getElementById('customerPaymentsStatus').textContent.includes('erst den Zahlungsausgang zurücknehmen')"), True)
+    # Seit 1.8.94: statt des Knopfs steht an der Zahlung der Grund (bis 1.8.93 kam die Ablehnung erst nach "Zurücknahme
+    # bestätigen" -- Erwartung geändert seit 1.8.94); die API lehnt weiter ab.
+    karte = f"document.querySelector('[data-zahlung=\"{rest}\"]')"
+    p.pruefe("Zahlung mit erstattetem Rest: Grund statt „Zahlung zurücknehmen“", await tab.js(
+        f"(async()=>[({karte}.querySelector('[data-zuruecknehmen-gesperrt]')?.textContent||'').includes('erst den Zahlungsausgang "
+        f"zurücknehmen'),[...{karte}.querySelectorAll('button')].some(b=>b.textContent==='Zahlung zurücknehmen'),"
+        f"await fetch('/api/payments/{rest}/reverse',{{method:'POST',headers:{{'Content-Type':'application/json'}},"
+        "body:JSON.stringify({reason:'falsch erfasst'})}).then(r=>r.status)])()"), [True, False, 409])
     zuviel = await tab.js(f"fetch('/api/customers/{seed['kunde']}/refunds',{{method:'POST',headers:{{'Content-Type':"
                           f"'application/json'}},body:JSON.stringify({{paid_on:berlinToday(),lines:[{{payment_id:{rest},"
                           "amount:'1.00'}]})}).then(r=>r.status)")

@@ -24,6 +24,7 @@
 {% include "_auswahl.html" %}
 {% include "_fehlertext.html" %}
 {% include "_berlin_date.html" %}
+{% include "_zahlung_gruppen.html" %}
 <main>
   <div class="section-title" style="margin-bottom:14px"><div><h1 id="pageTitle" style="margin:0 0 3px">Kundenakte</h1><div id="pageSub" class="muted"></div></div><span id="customerIdBadge" class="badge"></span></div>
   <div class="summary"><div class="metric"><div class="k">Objekte</div><div id="metricProperties" class="v">–</div></div><div class="metric"><div class="k">Anfragen</div><div id="metricInquiries" class="v">–</div></div><div class="metric"><div class="k">Projekte</div><div id="metricProjects" class="v">–</div></div><div class="metric"><div class="k">Angebote</div><div id="metricQuotes" class="v">–</div></div><div class="metric"><div class="k">Angebotssumme netto</div><div id="metricNet" class="v">–</div></div></div>
@@ -327,8 +328,10 @@ function paymentCardHtml(p){
   let actions='';
   if(!p.reversed){
     // Seit 1.8.81 kommen auch Rechnungen mit nur offenen Nebenforderungen -- deren Zuordnung läuft über die Rechnungsseite (§ 367 BGB).
-    const opts=customerOpenInvoices.filter(o=>Number(o.payment.open)>0).map(o=>`<option value="${o.invoice_id}">${esc(o.invoice_number)} · offen ${money(o.payment.open)}</option>`).join('');
-    actions='<div class="pay-actions">'+(Number(p.rest)>0&&opts?`<span><select id="restInvoice-${p.id}" onchange="restInvoiceChanged(${p.id})"><option value="">Rest zuordnen auf …</option>${opts}</select><input id="restAmount-${p.id}" inputmode="decimal" placeholder="Betrag" value="${fmt(p.rest)}"><button class="secondary" onclick="allocateRest(${p.id})">Zuordnen</button></span>`:'')+`<span><button class="secondary" onclick="showPaymentReverse(${p.id})">Zahlung zurücknehmen</button><span id="payRev-${p.id}" style="display:none"><input id="payRevReason-${p.id}" placeholder="Begründung (Pflicht)"><button class="danger" onclick="reversePayment(${p.id})">Zurücknahme bestätigen</button></span></span></div>`;
+    // Seit 1.8.94: "Zahlung zurücknehmen" nur, wenn es geht -- sonst der Grund vom Server (app/payments.py::reverse_block_reason()).
+    // Seit 1.8.94: enthaltene Rechnungen gruppiert unter ihrer Schlussrechnung (_zahlung_gruppen.html).
+    const opts=zahlungsOptionen(customerOpenInvoices.filter(o=>Number(o.payment.open)>0),o=>`${o.invoice_number||''} · offen ${money(o.payment.open)}`);
+    actions='<div class="pay-actions">'+(Number(p.rest)>0&&opts?`<span><select id="restInvoice-${p.id}" onchange="restInvoiceChanged(${p.id})"><option value="">Rest zuordnen auf …</option>${opts}</select><input id="restAmount-${p.id}" inputmode="decimal" placeholder="Betrag" value="${fmt(p.rest)}"><button class="secondary" onclick="allocateRest(${p.id})">Zuordnen</button></span>`:'')+(p.reverse_block_reason?`<span class="small muted" data-zuruecknehmen-gesperrt>${esc(p.reverse_block_reason)}</span>`:`<span><button class="secondary" onclick="showPaymentReverse(${p.id})">Zahlung zurücknehmen</button><span id="payRev-${p.id}" style="display:none"><input id="payRevReason-${p.id}" placeholder="Begründung (Pflicht)"><button class="danger" onclick="reversePayment(${p.id})">Zurücknahme bestätigen</button></span></span>`)+'</div>';
   }
   return `<div class="project-card" data-zahlung="${p.id}">${head}${sub}<div style="margin-top:6px">${allocs}${sources}</div>${actions}</div>`;
 }

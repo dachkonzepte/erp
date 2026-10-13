@@ -2377,7 +2377,7 @@ Wird der Umfang zu groß: nach Punkt 5 committen und den Rest auflisten. Commit 
   zweiten (Nebenbefund 5 aus 1.8.85) -- wirft sie nach der Sperre der Auftragszeile, hielt ihre offene Transaktion die Sperre; eine
   spätere Aktion auf derselben Zeile wartete ewig.
 
-#### Festlegungen 1.8.87 (Bitte bestätigen; je in einer Zeile vorgelegt unter "Nacharbeiten R4c")
+#### Festlegungen 1.8.87 (alle bestätigt am 13.10.2026, Vorgabe "Vor dem Abnahmetest")
 
 1. **"Heute" = Berliner Tag auf jeder Seite**, auch wo bisher die Zeitzone des Geräts galt (Kalender, Aufgaben, Checkliste, Angebot …)
    -- wie der Server (Regel 20); ein Gerät in einer anderen Zeitzone sieht den Berliner Tag.
@@ -2432,7 +2432,7 @@ Wird der Umfang zu groß: nach Punkt 5 committen und den Rest auflisten. Commit 
   zuletzt abgerechneten Menge (4)"), darüber "Eine Position weicht ab – bitte das Ist prüfen (markiert)". Nach dem Finalisieren und an
   jeder anderen Rechnung die bisherige Tabelle (Soll, Ist (gesamt), abgerechnet).
 
-#### Festlegungen 1.8.88 (Bitte bestätigen; je in einer Zeile vorgelegt unter "Nacharbeiten R4c")
+#### Festlegungen 1.8.88 (alle bestätigt am 13.10.2026, Vorgabe "Vor dem Abnahmetest")
 
 1. **Markiert wird** ein Ist ungleich der Menge des Auftrags (mehr oder weniger) und ein Ist unter der zuletzt abgerechneten Menge (die
    Schlussrechnung nähme damit Abgerechnetes zurück); ein Ist zwischen beiden ist nicht "abweichend". Nur Hinweis, kein Sperrgrund --
@@ -2490,7 +2490,7 @@ Umfang: nach Punkt 5 committet (Vorgabe); Punkte 6 und 7 als eigene Version 1.8.
 - Zahlungen bleiben je Rechnung (unverändert; der Vorschlag geht schon zuerst auf die älteren offenen Rechnungen des Auftrags).
 - Klicktest `scripts/klicktest_mahnen_endrechnung.py`.
 
-#### Festlegungen 1.8.89 (Nr. 2 und 3 bestätigt am 13.10.2026, solange die Mahngebühren aus sind -- `zahlungen.md`, "Vor dem Einschalten der Mahngebühren"; Nr. 1, 4–7 bitte bestätigen, je in einer Zeile vorgelegt unter "Nacharbeiten R4c")
+#### Festlegungen 1.8.89 (Nr. 2 und 3 bestätigt am 13.10.2026, solange die Mahngebühren aus sind -- `zahlungen.md`, "Vor dem Einschalten der Mahngebühren"; Nr. 1, 4–7 bestätigt am 13.10.2026, Vorgabe "Vor dem Abnahmetest")
 
 1. **Abgezogen** heißt: Abzug (`InvoiceDeduction`) einer gültigen Schlussrechnung. Eine Schlussrechnung von vor 1.8.85 ohne Abzüge
    (Altbestand, Rest über die Menge) ändert nichts -- ihre Abschläge bleiben einzeln mahnbar. Nach dem Storno der Schlussrechnung gilt
@@ -2578,7 +2578,7 @@ Umfang: nach Punkt 5 committet (Vorgabe); Punkte 6 und 7 als eigene Version 1.8.
   als eigener Absatz vor dem letzten (`_with_payment_note()`). `{gesamtbetrag}` bleibt der Rechnungsbetrag.
 - Klicktest `scripts/klicktest_ueberzahlung.py`.
 
-#### Festlegungen 1.8.90 (Nr. 4 bestätigt am 13.10.2026 zusammen mit Nacharbeit 1, gebaut als 1.8.91; Nr. 1–3, 5–7 bitte bestätigen, je in einer Zeile vorgelegt unter "Nacharbeiten R4c")
+#### Festlegungen 1.8.90 (Nr. 4 bestätigt am 13.10.2026 zusammen mit Nacharbeit 1, gebaut als 1.8.91; Nr. 1–3, 5–7 bestätigt am 13.10.2026, Vorgabe "Vor dem Abnahmetest"; Nr. 5 erweitert durch 1.8.93 Nr. 8)
 
 1. **Unter 0 € nur die Schlussrechnung**; ein Abschlag bleibt über 0 € Pflicht (Festlegung 1.8.83 Nr. 6 geändert).
 2. **Erstattungsbetrag** = −Zahlbetrag laut Zahlungshinweis (beim Festschreiben eingefroren, wie der Zahlbetrag); "Erstattung" mit
@@ -2704,7 +2704,7 @@ Regel 13, Bericht kurz.
   "Zahlbetrag offen 495,00 €", "Guthaben 24,00 €"); die Karte "Zahlungen" der Rechnung zeigt weiter ihren eigenen Zahlstand -- gebucht
   wird je Rechnung.
 
-#### Festlegungen 1.8.91 (Bitte bestätigen)
+#### Festlegungen 1.8.91 (alle bestätigt am 13.10.2026, Vorgabe "Vor dem Abnahmetest"; Nr. 5 geändert durch 1.8.93 Nr. 7)
 
 1. **Zahlbetrag einschließlich Einbehalt**: offen an der Endrechnung = eigener offener Betrag samt Einbehalt + offene abgezogene
    Rechnungen samt Einbehalt (wie "Offener Betrag" bisher je Rechnung); der eigene Einbehalt der Schlussrechnung zählt dort als offen,
@@ -2761,7 +2761,7 @@ Regel 13, Bericht kurz.
 - **Rechnungsseite**: im Entwurf mit Erstattungsbetrag ein Hinweis am Schlusstext mit dem Text aus den Einstellungen bzw. "dort ist kein
   Eintrag aktiv"; das Feld Schlusstext bleibt bearbeitbar und gilt, sobald der Zahlbetrag nicht mehr negativ ist.
 
-#### Festlegungen 1.8.92 (Bitte bestätigen)
+#### Festlegungen 1.8.92 (alle bestätigt am 13.10.2026, Vorgabe "Vor dem Abnahmetest")
 
 1. **Ganzer Schlusstext statt eines Teils**: bei negativem Zahlbetrag ersetzt der Text der Erstattung den Schlusstext ganz, auch einen von
    Hand geänderten -- im Schlusstext steht in der Vorgabe nur die Zahlungsaufforderung; Schlusstext 2 bleibt.
@@ -2825,7 +2825,7 @@ Regel 13, Bericht kurz.
   "Guthaben (Überzahlung)" (1.8.91); Karte "Guthaben der Kunden" je Kunde mit Rest und Überzahlung. **Dashboard**: "Guthaben der Kunden"
   aus derselben Quelle.
 
-#### Festlegungen 1.8.93 (Bitte bestätigen)
+#### Festlegungen 1.8.93 (alle bestätigt am 13.10.2026, Vorgabe "Vor dem Abnahmetest")
 
 1. **Guthaben des Kunden** = nicht zugeordnete Reste seiner Zahlungen + Guthaben aus Endrechnungen; je Zahlung bzw. Schlussrechnung eine
    Zeile, die Zahlungen zuerst (älteste vorn).
@@ -2883,6 +2883,143 @@ Regel 13, Bericht kurz.
 4. **`klicktest_checkliste_abschnitte`** war im Gesamtlauf 27/28 ("Hinweis weg nach der Antwort" las noch "Vor der Unterschrift
    fehlen noch: Nachkontrolle ohne Befund."), einzeln 28/28 -- vermutlich liest die Prüfung vor dem Neuladen (wie `klicktest_mahnwesen`
    bis 1.8.87); der Klicktest ist nicht von dieser Runde berührt.
+
+## Vor dem Abnahmetest (1.8.94)
+
+### Vorgabe vom 13.10.2026 (übernommen wie gegeben)
+
+Nacharbeiten R4c geprüft. Alle Festlegungen aus R4c (1.8.87–1.8.90) und 1.8.91–1.8.93 bestätigt.
+
+1.8.94, Kleinkram vor dem Abnahmetest:
+1. „Bezahlt (gesamt)“ in Finanzen zieht Zahlungsausgänge ab.
+2. Zahlbetrag genau 0 €: keine Zahlungsaufforderung und kein „zahlbar bis“, stattdessen ein fester Satz, dass nichts mehr zu zahlen ist.
+3. „Zahlung zurücknehmen“ nur anzeigen, wenn es möglich ist; sonst steht dort der Grund.
+4. Zahlungsdialog und „Rest zuordnen“: Enthaltene Rechnungen stehen gruppiert unter ihrer Schlussrechnung, mit dem Hinweis „enthalten in …“.
+5. Klicktests: ein gemeinsamer Helfer „warte auf neu geladene Liste“ im Klicktest-Werkzeug; klicktest_checkliste_abschnitte und alle Stellen
+   mit demselben Muster nutzen ihn.
+
+Angriffstests mit Gegenprobe. Eigene Festlegungen je in einer Zeile. Nebenbefunde nur melden. Commit nach Regel 13, Bericht kurz.
+
+### Vorweg
+
+- Festlegungen 1.8.87–1.8.93 an den Überschriften als bestätigt markiert (1.8.89 Nr. 2 und 3 weiter "solange die Mahngebühren aus
+  sind"; 1.8.91 Nr. 5 geändert und 1.8.90 Nr. 5 erweitert durch 1.8.93, wie dort vermerkt).
+- Mit dieser Runde erledigt: Nebenbefunde 1.8.91 Nr. 1 ("Bezahlt (gesamt)") und Nr. 2 (enthaltene Rechnungen im Zahlungsdialog), 1.8.92
+  Nr. 1 (Zahlbetrag 0 €), 1.8.93 Nr. 3 ("Zahlung zurücknehmen") und Nr. 4 (`klicktest_checkliste_abschnitte`, siehe aber Nebenbefund 1
+  unten: die Ursache war nicht der Klicktest allein).
+
+### Umsetzung 1.8.94
+
+#### Was gebaut ist
+
+- **Punkt 1, "Bezahlt (gesamt)"** (Finanzen): Zahlungen auf Rechnungen abzüglich der Zahlungsausgänge an Schlussrechnungen. Dafür trägt
+  `overview` jeder Rechnungszeile `refunded` (`app/final_dunning.py::DunningState.refunded`, an der gültigen Endrechnung die nicht
+  zurückgenommenen Erstattungen, sonst 0); unter der Kennzahl "abzüglich Erstattungen …". Eine Erstattung aus dem Rest einer Zahlung
+  (seit 1.8.93) zieht nichts ab -- der Rest zählte dort nie.
+- **Punkt 2, Zahlbetrag genau 0 €** (`app/invoices.py::nothing_due()`: Zahlungshinweis einer Endrechnung mit Zahlbetrag 0, also
+  Rechnungsbetrag und noch Offenes aus den abgezogenen Rechnungen gleichen sich aus): statt der Zahlungsbedingungen ("Zahlbar rein netto
+  bis …", auch statt einer Textvorlage) der feste Satz `NOTHING_DUE_SENTENCE` "Mit den geleisteten Zahlungen ist der Zahlbetrag
+  ausgeglichen – es ist nichts mehr zu zahlen." (`format_payment_terms_sentence()`), im PDF unter "Zahlung" ohne die Bezeichnung der
+  Zahlungsbedingung; kein Schlusstext (er trägt die Zahlungsaufforderung) -- im Entwurf live (`printed_outro_text` leer,
+  `nothing_due_outro` für den Hinweis am Schlusstext der Rechnungsseite), beim Festschreiben unter der Sperre geleert (`outro_text`);
+  Schlusstext 2 bleibt. Die E-Mail nennt "Laut Zahlungshinweis (Stand …) ist nichts mehr zu zahlen (Zahlbetrag 0,00 €)."
+  (`payment_note_sentence()`).
+- **Punkt 3, "Zahlung zurücknehmen"**: `app/payments.py::reverse_block_reason()` (Erstattung aus dem Rest dieser Zahlung, schon
+  zurückgenommen, Gegenbuchung) -- dieselbe Prüfung, die `reverse_payment()` unter der Sperre macht; `payment_to_dict()` liefert sie je
+  Zahlung (`reverse_block_reason`), die Kundenakte zeigt den Grund statt des Knopfs.
+- **Punkt 4, gruppiert**: offene Rechnungen des Kunden (`/api/customers/{id}/open-invoices`) und Vorschlagszeilen
+  (`/api/invoices/{id}/payment-proposal`) tragen `settled_in` = die gültige Endrechnung, in der die Rechnung abgezogen ist
+  (`settled_in_map()` über `app/final_dunning.py::settling_finals()`). Neuer Helfer `app/templates/_zahlung_gruppen.html`
+  (`zahlungsGruppen()`, `zahlungsOptionen()`, `enthaltenText()`): im Zahlungsdialog ein Block "Schlussrechnung R-… und die darin
+  enthaltenen Rechnungen" mit der Schlussrechnung zuerst und darunter jeder enthaltenen mit "enthalten in Schlussrechnung R-…"; in den
+  Auswahlen "Weitere Rechnung des Kunden von Hand" und "Rest zuordnen auf …" je Schlussrechnung ein `<optgroup>`. Nur die Anzeige ist
+  gruppiert: Vorschlag (ältere zuerst) und Buchung bleiben je Rechnung, jede Zeile behält ihren Index.
+- **Punkt 5, Klicktest-Helfer** (`scripts/cdp_klicktest.py`): `ANFRAGEN_ZAEHLER` zählt in jedem Dokument die Anfragen der Seite (fetch und
+  XMLHttpRequest, eingesetzt in `_lauf()`); `Tab.warte_auf_neu_geladene_liste(aktion, liste)` löst die Aktion aus und wartet, bis seither
+  eine Anfrage gestartet, keine mehr unterwegs und 0,3 s Ruhe ist (`neu_geladen_bedingung()`), mit `liste` zusätzlich, bis die vorher darin
+  stehenden Elemente aus dem Dokument sind; ohne Aktion (nach `oeffnen()`) nur bis zur Ruhe. Zeitüberschreitung: Meldung, der Test zählt
+  als nicht wie erwartet.
+  **Durchsicht** aller 37 festen Pausen und der Statustexte, die eine Seite vor dem Neuladen setzt: umgestellt sind
+  `klicktest_checkliste_abschnitte` (zwei Speichern gleichzeitig, dann der Hinweis), `klicktest_checkliste_verwerfen` (Speichern, dann
+  lesen; 0,5 s Pause), `klicktest_mahnwesen` (von Hand seit 1.8.87), `klicktest_abnahme` ("Vorschlag übernommen." vor dem Neuladen der
+  Karte), `klicktest_bedenkenanzeige` (zweimal: ein Hinweis darf NICHT erscheinen -- nach fester Pause war das auch vor dem Nachladen
+  grün), `klicktest_nebenforderungen` (Text vor `loadAndRenderReminders()`). Kein Treffer, obwohl ein Text vor dem Neuladen steht:
+  `klicktest_vertragsgrundlage` und `klicktest_maengel` rufen die async-Funktion der Seite direkt auf, `Tab.js()` wartet ihr Ende ab.
+  Die übrigen Pausen stehen vor Screenshots, beim Zeichnen oder zwischen Mausereignissen.
+
+#### Festlegungen 1.8.94 (Bitte bestätigen)
+
+1. **"Bezahlt (gesamt)" abzüglich nur der Erstattungen an Schlussrechnungen** (Zuordnung "erstattung"); eine Erstattung aus dem Rest einer
+   Zahlung zieht nichts ab, weil der Rest dort nie mitzählte. Unter der Kennzahl "abzüglich Erstattungen …".
+2. **Zahlbetrag genau 0 € = Zahlungshinweis einer Endrechnung**; eine andere Rechnung über 0,00 € (Rechnung aus Aufwand, Schlussrechnung
+   ohne Abzüge) behält ihre Zahlungsbedingungen (Nebenbefund 2).
+3. **Fester Satz** "Mit den geleisteten Zahlungen ist der Zahlbetrag ausgeglichen – es ist nichts mehr zu zahlen." statt der
+   Zahlungsbedingungen, im PDF unter "Zahlung" ohne Bezeichnung der Zahlungsbedingung; nicht in den Einstellungen pflegbar.
+4. **Schlusstext entfällt ganz** (auch ein von Hand geänderter), Schlusstext 2 bleibt -- wie bei der Erstattung (1.8.92 Nr. 1).
+5. **Live im Entwurf, eingefroren beim Festschreiben** (Schlusstext geleert, unter der Sperre der Auftragszeile); eine festgeschriebene
+   Rechnung folgt ihrem eingefrorenen Zahlungshinweis. Altbestand (vor 1.8.94 festgeschrieben, Zahlbetrag 0 €): die feste Fassung bleibt,
+   Rechnungsseite und E-Mail nennen den neuen Satz.
+6. **E-Mail**: bei 0 € lautet der Satz zum Zahlungshinweis "Laut Zahlungshinweis (Stand …) ist nichts mehr zu zahlen (Zahlbetrag
+   0,00 €)."
+7. **Grund statt Knopf aus derselben Prüfung** wie das Zurücknehmen (`reverse_block_reason()`); die API lehnt weiter mit 409 ab.
+8. **Gruppiert nur in der Anzeige**: Vorschlag, Reihenfolge der Verteilung und Buchung bleiben je Rechnung; in der Gruppe die
+   Schlussrechnung zuerst, die Gruppe an der Stelle ihrer ersten Zeile; ist die Schlussrechnung selbst nicht offen, steht die Gruppe mit
+   "auf die Schlussrechnung selbst ist nichts offen".
+9. **"Enthalten" wie in Finanzen**: in einer gültigen Endrechnung abgezogen (`settling_finals()`); nach ihrem Storno wieder einzeln.
+10. **"Neu geladen" im Klicktest** = seit der Aktion eine Anfrage gestartet, keine mehr unterwegs, 0,3 s Ruhe, mit Liste deren alte
+    Elemente weg; eine erst nach der Ruhezeit startende Anfrage (Entprellung) ist nicht erfasst; Zeitüberschreitung zählt als Abweichung.
+11. **Umgestellt nur Stellen mit dem Muster** (Aktion lädt nach, der Test liest ohne Beleg); Pausen vor Screenshots, beim Zeichnen und
+    zwischen Mausereignissen bleiben, ebenso überflüssige Pausen ohne Nachladen.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v397_kleinkram_zahlungen.py` (30, davon 1 gegen PostgreSQL): `overview.refunded` an der Endrechnung, nach Rücknahme 0,
+  Erstattung aus dem Rest ohne Wirkung; Finanzen in node mit den Daten der API: 5.950 € -> nach Erstattung 1.190 € "4.760,00 €" mit
+  "abzüglich Erstattungen", Erstattung aus dem Rest ändert nichts; Zahlbetrag 0 € (Rechnungsbetrag −1.190 € mit 1.190 € offen und
+  Rechnungsbetrag 0 € bei bezahltem Abschlag): Satz, kein Schlusstext, PDF ohne "Zahlbar rein netto", Zahlungsaufforderung und
+  "Zahlungsbedingungen:"; Schlusstext 2 bleibt; Zahlbetrag 1 € bzw. Erstattung unverändert; Abschlag nie; Festschreiben leert den
+  Schlusstext, feste Fassung mit dem Satz; Zahlbetrag wird vor dem Festschreiben 0 bzw. nicht mehr 0 -- maßgeblich der Stand beim
+  Festschreiben; spätere Zahlung ändert nichts; E-Mail-Satz; Storno; Router. Zurücknehmen: Grund gleich der Ablehnung (nichts
+  geschrieben), Zahlungsausgang frei, danach die Zahlung frei; schon zurückgenommen, Gegenbuchung; Route mit Grund, API trotzdem 409;
+  Kundenakte in node (Grund statt Knopf). Gruppiert: `settled_in` an offenen Rechnungen, nach Storno weg; Vorschlag und Routen; Helfer in
+  node (Reihenfolge, ohne Schlussrechnung, `<optgroup>` mit Hinweis); **Angriffstests:** Rechnungsnummer mit HTML erscheint als Text;
+  Zahlungsdialog in node (Gruppe, Hinweis, Index der Zeile); Vorlagen rufen den Helfer auf; Monteurin 403 für offene Rechnungen, Vorschlag,
+  Zahlungen und Zurücknehmen. **Gleichzeitig (PostgreSQL):** das Festschreiben wartet auf die Zahlung, die den Zahlbetrag auf 0 € bringt,
+  und leert den Schlusstext.
+- Neu `tests/test_v397_klicktest_helfer.py` (12): Zählerskript und Wartebedingung in node mit gestellter Uhr -- wartet auf laufende
+  Anfragen und die Ruhezeit, Kette Speichern -> Neuladen, XMLHttpRequest, ohne Aktion, Liste; jeder Tab bekommt den Zähler; die sechs
+  Klicktests mit dem Muster rufen den Helfer auf, ohne feste Pause an den Stellen.
+- Klicktest `scripts/klicktest_zahlungen_kleinkram.py` (neu) 23/23: Finanzen 1.271 € abzüglich Erstattungen 100 €; Kundenakte Grund statt
+  Knopf, Zahlungsausgang mit Knopf, "Rest zuordnen" gruppiert, 30 € auf den enthaltenen Abschlag; Zahlungsdialog gruppiert, Beträge
+  umverteilt und auf der richtigen Rechnung gebucht; Entwurf mit Zahlbetrag 0 €: Satz und Hinweis, finalisiert ohne Schlusstext, PDF aus der
+  Ablage; 412 px dunkel; Monteurin 403. Umgestellte Klicktests einzeln: `checkliste_abschnitte` 29/29, `checkliste_verwerfen` 23/23,
+  `mahnwesen` 29/29, `nebenforderungen` 31/31, `abnahme` 57/57, `bedenkenanzeige` 22/22.
+- Gegenproben (Regel 24): 25 von 25 rot -- `refunded` fehlt, Finanzen zieht nicht ab, `nothing_due()` nie, Satz fehlt, Festschreiben leert
+  nicht, Entwurf druckt den Schlusstext, PDF-Überschrift "Zahlungsbedingungen", E-Mail-Satz alt, Grund fehlt, Kundenakte zeigt immer den
+  Knopf, Zurücknehmen ohne Prüfung (API an der Oberfläche vorbei), `settled_in` leer bzw. an offenen Rechnungen oder im Vorschlag fehlend,
+  Helfer ordnet nicht um, Helfer maskiert nicht, Dialog ohne Gruppen bzw. ohne Hinweis, Kundenakte ohne Helfer, Zahlung ohne Sperre
+  (PostgreSQL), Monteurin darf Zahlungen, Klicktest-Helfer ohne Warten auf laufende Anfragen bzw. ohne Ruhezeit, Zähler nicht
+  eingesetzt, Klicktest wieder mit Pause. Jede Datei byte-genau zurück (SHA-256), kein Marker.
+- Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie, drei Teile parallel): 3952 grün, 0 rot.
+- Alle Klicktests (Regel 26, Arbeitskopie): 57 von 58 wie erwartet in 12:08 min, `klicktest_checkliste_abschnitte` 29/29 und `klicktest_zahlungen_kleinkram` 23/23 darunter; rot `klicktest_ueberzahlung` 25/26 ("Zahlung mit erstattetem Rest zurücknehmen: abgelehnt mit Grund") -- **Erwartung veraltet seit 1.8.94**: die Prüfung klickte "Zahlung zurücknehmen" und erwartete die Ablehnung, jetzt steht dort der Grund statt des Knopfs; angepasst (Grund da, kein Knopf, API 409), danach 26/26.
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **Checklistenseite übernimmt eine spät eintreffende, veraltete Speicher-Antwort** (die eigentliche Ursache des roten
+   `klicktest_checkliste_abschnitte` aus 1.8.93): `sendAnswer()` übernimmt aus jeder Antwort `answers`, `missing_required` und
+   `missing_before_signature`, ohne Stand -- es gilt die zuletzt ankommende, nicht die neueste. Laufen zwei Speichern gleichzeitig (Feld
+   per blur, sofort danach eine Kachel) und kommt die früher berechnete Antwort später an, steht "Vor der Unterschrift fehlen noch: …"
+   wieder da, `cl.answers` verliert die Kachel, und eine Unterschrift darunter lehnt die Seite bis zum Neuladen ab; gespeichert ist
+   alles richtig. Nachgestellt mit einer zurückgehaltenen Antwort (Skript nur im Scratchpad): 7 von 7 wie beschrieben. Der Klicktest
+   wartet jetzt beide Antworten ab und wird rot, wenn das im Lauf passiert. Abhilfe wäre ein Stand vom Server, nach dem nur neuere
+   Antworten übernommen werden, oder ein Neulesen, sobald nichts mehr unterwegs ist.
+2. **Andere Rechnungen über 0,00 €** (Rechnung aus Aufwand, Schlussrechnung ohne Abzüge) tragen weiter "Zahlbar rein netto bis …" und
+   den Schlusstext mit der Zahlungsaufforderung (Festlegung 2).
+3. **Statustext vor dem Neuladen** steht auf vielen Seiten (u. a. `_abnahme.html`, Mahnungen auf `invoice_detail.html`, `checklist.html`
+   Versand und Unterschrift, `settings.html`, `time_tracking.html`, `inquiries.html`): kurz steht "Gespeichert." neben der alten Anzeige.
+   Für Klicktests fängt das der Helfer ab; an den Seiten nichts geändert.
+4. **Überflüssige feste Pausen** ohne Nachladen dazwischen (`klicktest_beleg_und_hinweis`, `klicktest_checkliste_unterschrift`,
+   `klicktest_checkliste_zweck`, `klicktest_maengel_monteur`, `klicktest_zeitbuchungen_liste`) -- gelassen, schaden nicht.
 
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 

@@ -205,8 +205,12 @@ async def pruefen(tab, seed, p):
         "document.querySelector('#warrantyProposal .proposal').innerText"),
         "Vorschlag bei VOB/B: 48 Monate (4 Jahre)\nFundstelle: § 13 Abs. 4 Nr. 1 VOB/B – Bauwerke: 4 Jahre – eine im Vertrag "
         "vereinbarte Dauer geht vor.")
-    await tab.js("[...document.querySelectorAll('#warrantyProposal button')].find(b=>b.textContent==='Vorschlag übernehmen').click()")
-    await tab.warten("document.getElementById('warrantyStatus').textContent==='Vorschlag übernommen.'")
+    # Seit 1.8.94: der Text steht vor dem Neuladen der Karte (putWarranty(): Text, dann loadAcceptanceSection()) -- auf die neu
+    # geladene Seite warten.
+    await tab.warte_auf_neu_geladene_liste(
+        "[...document.querySelectorAll('#warrantyProposal button')].find(b=>b.textContent==='Vorschlag übernehmen').click()",
+        "#warrantyHistory")
+    p.pruefe("Gewährleistung: Meldung", await tab.js("document.getElementById('warrantyStatus').textContent"), "Vorschlag übernommen.")
     p.pruefe("Gewährleistung: übernommen", await tab.js(
         "document.getElementById('warrantyCurrent').innerText.split('\\n')[1].split(' (')[0]"),
         "Gewährleistungsdauer: 48 Monate")

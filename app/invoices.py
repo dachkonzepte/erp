@@ -772,6 +772,21 @@ def refund_due(invoice: Invoice) -> Decimal | None:
     return note["refund_amount"] if note is not None else None
 
 
+# Seit 1.8.94: Satz statt der Zahlungsbedingungen, wenn laut Zahlungshinweis nichts mehr zu zahlen ist (Zahlbetrag genau 0 €).
+NOTHING_DUE_SENTENCE = "Mit den geleisteten Zahlungen ist der Zahlbetrag ausgeglichen – es ist nichts mehr zu zahlen."
+
+
+def nothing_due(invoice: Invoice) -> bool:
+    """Seit 1.8.94: der Zahlbetrag laut Zahlungshinweis einer Endrechnung ist genau 0 € (Rechnungsbetrag und noch Offenes aus den
+    abgezogenen Rechnungen gleichen sich aus). Dann stehen statt der Zahlungsbedingungen ("zahlbar bis …") der feste Satz
+    NOTHING_DUE_SENTENCE und kein Schlusstext mit der Zahlungsaufforderung -- im Entwurf live, festgeschrieben nach dem eingefrorenen
+    Zahlungshinweis (der Schlusstext wird beim Festschreiben geleert, finalize_and_send_invoice()). False für jede andere Rechnung."""
+    if invoice.invoice_type != "schluss":
+        return False
+    note = payment_note(invoice)
+    return note is not None and note["pay_amount"] == 0
+
+
 def refund_sentence(amount: Decimal) -> str:
     """Satz statt der Zahlungsbedingungen bei einem Erstattungsbetrag (seit 1.8.90): ohne Skonto und ohne "zahlbar"."""
     return f"Den Erstattungsbetrag von {_eur(amount)} überweisen wir Ihnen."
@@ -1253,6 +1268,10 @@ def finalize_and_send_invoice(db: Session, invoice: Invoice) -> Invoice:
     # Zahlungsaufforderung im Schlusstext -- der Text für die Erstattung aus den Einstellungen wird der Schlusstext dieser Rechnung.
     if invoice.invoice_type == "schluss" and refund_due(invoice) is not None:
         invoice.outro_text = default_option_value(db, REFUND_OUTRO_GROUP) or None
+    # Seit 1.8.94: ist laut Zahlungshinweis nichts mehr zu zahlen (Zahlbetrag genau 0 €), entfällt der Schlusstext mit der
+    # Zahlungsaufforderung ganz; statt der Zahlungsbedingungen steht NOTHING_DUE_SENTENCE (format_payment_terms_sentence()).
+    if nothing_due(invoice):
+        invoice.outro_text = None
     if invoice.invoice_type == "storno" and invoice.storno_of_invoice_id is not None:
         original = db.get(Invoice, invoice.storno_of_invoice_id)
         if original is not None:
@@ -1601,10 +1620,13 @@ def format_payment_terms_sentence(invoice: Invoice) -> str:
     die ganze Rechnung blockiert.
 
     Seit 1.8.90 (R4c Punkt 6): weist der Zahlungshinweis einer Endrechnung einen Erstattungsbetrag aus, steht statt der
-    Zahlungsbedingungen (auch statt einer Textvorlage) der Satz zur Erstattung -- ohne Skonto und ohne "zahlbar"."""
+    Zahlungsbedingungen (auch statt einer Textvorlage) der Satz zur Erstattung -- ohne Skonto und ohne "zahlbar". Seit 1.8.94 bei
+    einem Zahlbetrag von genau 0 € der feste Satz, dass nichts mehr zu zahlen ist (nothing_due())."""
     refund = refund_due(invoice) if invoice.invoice_type == "schluss" else None
     if refund is not None:
         return refund_sentence(refund)
+    if nothing_due(invoice):
+        return NOTHING_DUE_SENTENCE
     if invoice.due_date is None:
         return ""
     due_str = invoice.due_date.strftime("%d.%m.%Y")
@@ -1739,6 +1761,7 @@ def invoice_to_dict(invoice: Invoice) -> dict:
     items = sorted(invoice.items, key=lambda x: (x.sort_order, x.id))
     quantity_checks = final_quantity_checks(invoice)  # seit 1.8.88: Entwurf der Schlussrechnung
     refund_outro = refund_outro_text(invoice)  # seit 1.8.92: Schlusstext bei Erstattung (im Entwurf live)
+    nothing = nothing_due(invoice)  # seit 1.8.94: Zahlbetrag genau 0 €
     return {
         "id": invoice.id,
         "invoice_number": invoice.invoice_number,
@@ -1768,7 +1791,12 @@ def invoice_to_dict(invoice: Invoice) -> dict:
         # Seit 1.8.92 (Nacharbeit R4c Punkt 2): im Entwurf einer Schlussrechnung mit Erstattungsbetrag der Text für die Erstattung
         # statt des Schlusstexts (sonst None); printed_outro_text ist, was das PDF druckt.
         "refund_outro_text": refund_outro,
-        "printed_outro_text": invoice.outro_text if refund_outro is None else (refund_outro or None),
+        # Seit 1.8.94: Zahlbetrag genau 0 € -- statt der Zahlungsbedingungen der feste Satz, kein Schlusstext (im Entwurf live, beim
+        # Finalisieren geleert); nothing_due_outro nur im Entwurf (Hinweis am Schlusstext).
+        "nothing_due": nothing,
+        "nothing_due_outro": nothing and invoice.status == EDITABLE_STATUS,
+        "printed_outro_text": (None if nothing and invoice.status == EDITABLE_STATUS
+                               else invoice.outro_text if refund_outro is None else (refund_outro or None)),
         "payment_terms": invoice.payment_terms,
         "tax_key_id": invoice.tax_key_id,
         "tax_notice_text": invoice.tax_notice_text,
@@ -1924,6 +1952,8 @@ def payment_note_sentence(invoice: Invoice) -> str:
     if note["refund_amount"] is not None:
         return (f"Laut Zahlungshinweis (Stand {as_of}) ergibt sich ein Erstattungsbetrag von {_eur(note['refund_amount'])} – "
                 "den überweisen wir Ihnen.")
+    if note["pay_amount"] == 0:  # seit 1.8.94
+        return f"Laut Zahlungshinweis (Stand {as_of}) ist nichts mehr zu zahlen (Zahlbetrag {_eur(note['pay_amount'])})."
     return f"Laut Zahlungshinweis (Stand {as_of}) beträgt der Zahlbetrag {_eur(note['pay_amount'])}."
 
 

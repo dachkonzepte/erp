@@ -371,8 +371,21 @@ def proposal(db: Session, invoice: Invoice, *, amount: Decimal, received_on: dat
             "charges": [{"charge_id": c.id, "kind": c.kind, "label": labels[c.id]["label"], "open": rest,
                          "amount": charge_alloc.get(c.id, ZERO)} for c, rest in r["charges"]],
         })
+    settled = settled_in_map(db, [line["invoice_id"] for line in lines])  # seit 1.8.94
+    for line in lines:
+        line["settled_in"] = settled.get(line["invoice_id"])
     allocated = sum((line["zahlung"] + sum((c["amount"] for c in line["charges"]), ZERO) for line in lines), ZERO)
     return {"amount": amount, "received_on": received_on, "lines": lines, "rest": amount - allocated}
+
+
+def settled_in_map(db: Session, invoice_ids: Iterable[int]) -> dict[int, dict]:
+    """Je Rechnung, die in einer gültigen Endrechnung abgezogen ist, diese Schlussrechnung {invoice_id, invoice_number} (seit
+    1.8.94): Zahlungsdialog und "Rest zuordnen" stellen sie gruppiert darunter, mit "enthalten in …" -- gebucht wird weiter je
+    Rechnung."""
+    from .final_dunning import settling_finals  # lokal: app/final_dunning.py importiert dieses Modul
+
+    return {invoice_id: {"invoice_id": final.id, "invoice_number": final.invoice_number}
+            for invoice_id, final in settling_finals(db, invoice_ids).items()}
 
 
 # ---------------------------------------------------------------------------
@@ -832,14 +845,9 @@ def reverse_payment(db: Session, payment: Payment, *, reason: str | None, user_i
     else:
         raise PaymentRejected("Die Zahlung wird gerade neu zugeordnet -- bitte erneut versuchen.")
     try:
-        if payment.id in _reversed_payment_ids(db, [payment.id]):
-            raise PaymentRejected("Diese Zahlung ist schon zurückgenommen.")
-        # Seit 1.8.93: aus ihrem Rest erstattet -- erst den Zahlungsausgang zurücknehmen (sonst wäre Geld erstattet, das es nicht gab).
-        refunds = _live_refunds_from(db, payment.id)
-        if refunds:
-            numbers = ", ".join(f"Nr. {r.refund_payment_id}" for r in refunds)
-            raise PaymentRejected(f"Aus dem Rest dieser Zahlung ist erstattet ({money(sum((r.amount for r in refunds), ZERO))}, "
-                                  f"Zahlungsausgang {numbers}) -- erst den Zahlungsausgang zurücknehmen.")
+        reason_blocked = reverse_block_reason(db, payment)
+        if reason_blocked:
+            raise PaymentRejected(reason_blocked)
         done = _reversed_allocation_ids(db, [a.id for a in rows])
         for allocation in rows:
             if allocation.reverses_allocation_id is None and allocation.id not in done:
@@ -855,6 +863,23 @@ def reverse_payment(db: Session, payment: Payment, *, reason: str | None, user_i
     db.commit()
     db.refresh(payment)
     return payment
+
+
+def reverse_block_reason(db: Session, payment: Payment, *, refunds: list[PaymentRefundSource] | None = None) -> str | None:
+    """Warum sich die Zahlung nicht zurücknehmen lässt, sonst None -- reverse_payment() prüft es unter der Sperre, die Kundenakte
+    zeigt seit 1.8.94 den Grund statt des Knopfs "Zahlung zurücknehmen" (payment_to_dict()). refunds: schon geladene
+    _live_refunds_from()."""
+    if payment.reverses_payment_id is not None:
+        return "Eine Gegenbuchung lässt sich nicht zurücknehmen."
+    if payment.id in _reversed_payment_ids(db, [payment.id]):
+        return "Diese Zahlung ist schon zurückgenommen."
+    # Seit 1.8.93: aus ihrem Rest erstattet -- erst den Zahlungsausgang zurücknehmen (sonst wäre Geld erstattet, das es nicht gab).
+    refunds = _live_refunds_from(db, payment.id) if refunds is None else refunds
+    if refunds:
+        numbers = ", ".join(f"Nr. {r.refund_payment_id}" for r in refunds)
+        return (f"Aus dem Rest dieser Zahlung ist erstattet ({money(sum((r.amount for r in refunds), ZERO))}, "
+                f"Zahlungsausgang {numbers}) -- erst den Zahlungsausgang zurücknehmen.")
+    return None
 
 
 def _live_refunds_from(db: Session, payment_id: int) -> list[PaymentRefundSource]:
@@ -915,6 +940,7 @@ def payment_to_dict(db: Session, payment: Payment) -> dict:
     rows = list(db.scalars(select(PaymentAllocation).where(PaymentAllocation.payment_id == payment.id)
                            .order_by(PaymentAllocation.id)))
     counter = db.scalar(select(Payment).where(Payment.reverses_payment_id == payment.id))
+    live_refunds = _live_refunds_from(db, payment.id)
     return {
         "id": payment.id, "customer_id": payment.customer_id, "received_on": payment.received_on, "amount": payment.amount,
         "note": payment.note, "origin": payment.origin, "created_at": payment.created_at,
@@ -927,8 +953,10 @@ def payment_to_dict(db: Session, payment: Payment) -> dict:
                                                .order_by(PaymentRefundSource.id))],
         "refunded_from_rest": [{"refund_payment_id": s.refund_payment_id, "amount": s.amount,
                                 "paid_on": db.get(Payment, s.refund_payment_id).received_on}
-                               for s in _live_refunds_from(db, payment.id)],
+                               for s in live_refunds],
         "reversed": counter is not None,
+        # Seit 1.8.94: warum sich die Zahlung nicht zurücknehmen lässt (None: sie lässt sich) -- die Kundenakte zeigt ihn statt des Knopfs.
+        "reverse_block_reason": reverse_block_reason(db, payment, refunds=live_refunds),
         "reversal": ({"reason": counter.reason, "created_at": counter.created_at, "created_by_name": counter.created_by_name}
                      if counter else None),
         "allocations": _allocation_rows(db, rows),
@@ -987,6 +1015,9 @@ def open_invoices_of_customer(db: Session, customer_id: int) -> list[dict]:
                        "skonto_offer": {"until": offer[0], "amount": offer[1]} if offer else None,
                        "charges": [{"charge_id": c.id, "kind": c.kind, "label": labels[c.id], "open": rest}
                                    for c, rest in charges]})
+    settled = settled_in_map(db, [row["invoice_id"] for row in result])  # seit 1.8.94
+    for row in result:
+        row["settled_in"] = settled.get(row["invoice_id"])
     return result
 
 
