@@ -1096,7 +1096,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Schlusstext bei Erstattung aus den Einstellungen; seit 1.8.93 Guthaben des Kunden aus Rest und Überzahlung, eine Erstattung für
   beides -- Nacharbeiten vollständig; vor dem Abnahmetest 1.8.94: Bezahlt abzüglich Erstattungen, Zahlbetrag 0 €, Zurücknehmen mit
   Grund, enthaltene Rechnungen gruppiert, Klicktest-Helfer „neu geladen“; seit 1.8.95 Baustein gegen veraltete Antworten
-  (`_speichern.html`, Regel 29) in allen Vorlagen, Rechnungen über 0 € oder weniger nur als Storno oder Endrechnung mit Abzügen)
+  (`_speichern.html`, Regel 29) in allen Vorlagen, Rechnungen über 0 € oder weniger nur als Storno oder Endrechnung mit Abzügen;
+  festgehalten 13.10.2026, nicht gebaut: Gewährleistungs- und Kulanzstunden für Stufe 2d und die Rüge, „Abschließen ohne Rechnung“ im
+  neuen Abschnitt „Parkplatz vor dem Echtbetrieb“)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Zahlungen** (Zahlungsstufe Z1 seit 1.8.78: Zahlungseingang mit Zuordnungen, Skonto und Einbehalt, Rest am Kunden,
   Zahlstand abgeleitet, Gegenbuchung statt Ändern, Sperrreihenfolge, Storno erst nach gelösten Zuordnungen, Finanzen/Dashboard mit

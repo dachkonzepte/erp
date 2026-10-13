@@ -3262,3 +3262,29 @@ Ergänzt am 13.10.2026 (Vorgabe 1.8.95, Punkt 2), übernommen wie gegeben -- Wor
 
 - **Rechnungen über 0 € oder weniger** gibt es nur als Storno oder als Endrechnung mit Abzügen; jede andere Rechnung muss über 0 € liegen,
   sonst 409 beim Festschreiben. (Seit 1.8.95 gebaut.)
+
+Ergänzt am 13.10.2026 (nach Nachfrage 10 zu 1.8.95: Zeitbuchung nach der Schlussrechnung), übernommen wie gegeben -- festgehalten,
+nicht gebaut:
+
+- **Gewährleistungs- und Kulanzstunden** (für Stufe 2d und die Rüge): werden auf den ursprünglichen Auftrag gebucht. Eine Zeitbuchung
+  lässt sich einem Mangel zuordnen oder als Kulanz kennzeichnen; sie ist dann nie abrechenbar und erscheint in der Nachkalkulation
+  getrennt als „davon Mängelbeseitigung / Kulanz“.
+- **Auftrag ohne Rechnung** (Parkplatz vor dem Echtbetrieb, siehe unten): „Abschließen ohne Rechnung“ nur Büro, nur solange keine
+  Rechnung existiert, mit Pflichtbegründung und Hinweis auf nicht abgerechnete Stunden.
+
+Anlass, der Befund zu Nachfrage 10 (13.10.2026, Stand 1.8.95): Nach der Schlussrechnung bzw. der abschließenden Rechnung aus Aufwand
+buchen Monteur (/mobil, solange ein Einsatz in ±14 Tagen eingeplant ist) und Büro weiter auf den Auftrag; der Server prüft beim Buchen
+weder Rechnung noch Auftragsstatus, nur die Zuordnung des Monteurs und das Sperrdatum. Die Stunde steht am Auftrag und zählt in den
+Summen, eine Rechnung aus Aufwand danach lehnt der Server ab (409) -- sie wird nie abgerechnet, und beim Buchen sagt das niemand. Den
+Status „abgeschlossen“ setzt keine Rechnung, nur das Büro von Hand; dann fehlt der Auftrag in den Auswahllisten (/mobil,
+Büro-Zeiterfassung, Plantafel), die API nimmt Buchungen trotzdem an, ein vorher gestarteter Timer lässt sich danach stoppen. Eine
+Buchung ohne Auftrag gibt es nicht (`TimeEntry.order_id` ist Pflicht) -- eine Gewährleistungsstunde landet heute auf irgendeinem
+angebotenen Auftrag oder wird gar nicht gebucht.
+
+## Parkplatz vor dem Echtbetrieb
+
+Festgehalten, nicht gebaut; vor dem Echtbetrieb zu entscheiden bzw. zu bauen.
+
+- **„Abschließen ohne Rechnung“** (13.10.2026, siehe "Entscheidungen Rechnungen", Ergänzung nach Nachfrage 10 zu 1.8.95): für einen
+  Auftrag ohne Rechnung -- nur Büro, nur solange keine Rechnung existiert, mit Pflichtbegründung und Hinweis auf nicht abgerechnete
+  Stunden.

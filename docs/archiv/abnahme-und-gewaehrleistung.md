@@ -2159,7 +2159,10 @@ Unterschriften und Abschlüsse von vor 1.8.66 bekommen keine Fassung.
 
 ### Offen nach 2c-2e
 
-- Ein nach der Abnahme erkannter Mangel (Rüge) ist weiterhin nicht gebaut (Festlegung 1.8.63 Nr. 5).
+- Ein nach der Abnahme erkannter Mangel (Rüge) ist weiterhin nicht gebaut (Festlegung 1.8.63 Nr. 5). Festgehalten am 13.10.2026
+  (nicht gebaut), für die Rüge und Stufe 2d: Gewährleistungs- und Kulanzstunden auf den ursprünglichen Auftrag, Zeitbuchung einem Mangel
+  zugeordnet oder als Kulanz gekennzeichnet, nie abrechenbar, in der Nachkalkulation getrennt -- Wortlaut in
+  `docs/archiv/befund-vor-echtbetrieb.md`, "Entscheidungen Rechnungen", Ergänzung nach Nachfrage 10 zu 1.8.95.
 - ~~Bilder der Mängel im Protokoll-PDF (Festlegung 1.8.64 Nr. 2)~~ -- seit 1.8.68 die Fotos beim Erfassen, verkleinert (siehe
   "Umsetzung 1.8.68").
 

@@ -435,3 +435,14 @@ schickt sie beim Ändern nur, was der Dialog zeigt (Auftrag, Datum, Zeitart, Tä
 beim Anlegen weiter die Standardpause. Die Backoffice-Korrektur schickt weder Pause noch Mitarbeiter.
 Wechselt der Auftrag ohne neue LV-Position, entfällt die alte. Fehlt `employee_id`, bleibt der
 Mitarbeiter der Buchung. Details und Tests: `docs/archiv/teil-updates.md`.
+
+## Buchen nach der Schlussrechnung; Gewährleistungs- und Kulanzstunden (festgehalten 13.10.2026, nicht gebaut)
+
+Befund (Stand 1.8.95): nach der Schlussrechnung bzw. der abschließenden Rechnung aus Aufwand buchen
+Monteur und Büro weiter auf den Auftrag, die Stunde wird nie abgerechnet (Rechnung aus Aufwand danach
+409), ohne Hinweis beim Buchen; beim Status "abgeschlossen" fehlt der Auftrag nur in den Auswahllisten.
+Festgehalten für Stufe 2d und die Rüge: Gewährleistungs- und Kulanzstunden auf den ursprünglichen
+Auftrag, Zeitbuchung einem Mangel zugeordnet oder als Kulanz gekennzeichnet, nie abrechenbar, in der
+Nachkalkulation getrennt als "davon Mängelbeseitigung / Kulanz"; dazu "Abschließen ohne Rechnung" als
+Parkplatz vor dem Echtbetrieb. Wortlaut und Befund: `docs/archiv/befund-vor-echtbetrieb.md`,
+"Entscheidungen Rechnungen" (Ergänzung nach Nachfrage 10 zu 1.8.95) und "Parkplatz vor dem Echtbetrieb".
