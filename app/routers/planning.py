@@ -206,7 +206,7 @@ def create_planning_slot(payload: PlanningSlotCreate, db: Session = Depends(get_
 @router.put("/api/planning/slots/{slot_id}")
 def put_planning_slot(slot_id: int, payload: PlanningSlotUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     try:
-        slot = update_slot(db, slot_id, **payload.model_dump())
+        slot = update_slot(db, slot_id, **payload.model_dump(exclude_unset=True))  # seit 1.8.96 Teil-Update (Regel 22)
     except ValueError as exc:
         code = 404 if "nicht gefunden" in str(exc) else 422
         raise HTTPException(status_code=code, detail=str(exc)) from exc

@@ -137,7 +137,7 @@ async function loadProtocolPending(){
 async function runProtocolAcceptance(checklistId,btn){
   const st=document.getElementById('protocolPendingStatus'+checklistId);btn.disabled=true;st.textContent='Legt an …';
   try{
-    await speichern('abnahmen',()=>api(`/api/checklists/${checklistId}/acceptance-from-protocol`,{method:'POST'}),{neuLaden:accNeuLaden});
+    await abschliessen('abnahmen',()=>api(`/api/checklists/${checklistId}/acceptance-from-protocol`,{method:'POST'}),{neuLaden:accNeuLaden});
     // Die Zeile des Protokolls verschwindet beim Neuladen -- der Text steht dann am Abschnitt.
     const s=document.getElementById('protocolPendingStatus'+checklistId)||document.getElementById('acceptanceStatus');if(s)s.textContent='Abnahme angelegt.';
   }
@@ -239,7 +239,7 @@ async function discardAcceptance(id,btn){
   const st=document.getElementById('acceptanceStatus'),reason=document.getElementById('accDiscardReason'+id).value.trim();
   if(!reason){st.textContent='Bitte begründen, warum die Abnahme verworfen wird.';return}
   btn.disabled=true;
-  try{await speichern('abnahmen',()=>api(`/api/order-acceptances/${id}/discard`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})}),{neuLaden:accNeuLaden});st.textContent='Abnahme verworfen.'}catch(e){st.textContent='Fehler: '+e.message;btn.disabled=false}
+  try{await abschliessen('abnahmen',()=>api(`/api/order-acceptances/${id}/discard`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})}),{neuLaden:accNeuLaden});st.textContent='Abnahme verworfen.'}catch(e){st.textContent='Fehler: '+e.message;btn.disabled=false}
 }
 async function openAcceptanceDialog(){
   const st=document.getElementById('acceptanceStatus');
@@ -284,7 +284,7 @@ async function saveAcceptance(btn){
   const form=new FormData();form.append('data',JSON.stringify(data));[...document.getElementById('accFiles').files].forEach(f=>form.append('files',f));
   btn.disabled=true;st.textContent='Wird gespeichert …';
   try{
-    const r=await speichern('abnahmen',()=>fetch(`/api/orders/${orderId}/acceptances`,{method:'POST',body:form}),{neuLaden:accNeuLaden});
+    const r=await abschliessen('abnahmen',()=>fetch(`/api/orders/${orderId}/acceptances`,{method:'POST',body:form}),{neuLaden:accNeuLaden});
     if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status,FELDNAMEN));
     closeAcceptanceDialog();document.getElementById('acceptanceStatus').textContent='Abnahme gespeichert.';
   }catch(e){st.textContent='Fehler: '+e.message}finally{btn.disabled=false}

@@ -329,29 +329,51 @@ def create_invoice(db: Session, payload: dict) -> dict:
     return invoice_to_dict(_load(db, invoice.id), lead_days)
 
 
+_UPDATE_FIELDS = (
+    "supplier_id", "supplier_invoice_number", "invoice_date", "net_amount", "tax_rate_pct", "due_date", "skonto_percent",
+    "skonto_deadline", "payment_status", "payment_date", "project_id", "asset_id", "recurring_cost_id", "account_id", "notes",
+)
+
+
 def update_invoice(db: Session, invoice_id: int, payload: dict) -> dict | None:
-    invoice = db.get(IncomingInvoice, invoice_id)
+    """Seit 1.8.96 Teil-Update (Regel 22): payload trägt nur, was sich ändern soll (der Router reicht
+    model_dump(exclude_unset=True) durch, andere Schlüssel zählen nicht); fehlt "items", bleiben die Positionen. Jede Prüfung
+    (Lieferant, höchstens eine Zuordnung, Summe der Positionen, Zahlungsdatum nur bei "bezahlt") läuft auf dem Ergebnis aus
+    gespeichertem Stand und gesendeten Werten -- unter der Sperre der Zeile, sonst prüften zwei gleichzeitige Änderungen je gegen
+    den Stand vor der anderen (Projekt hier, Betriebsmittel dort: beide gültig, zusammen zwei Zuordnungen)."""
+    invoice = db.scalar(select(IncomingInvoice).where(IncomingInvoice.id == invoice_id).with_for_update()
+                        .execution_options(populate_existing=True))
     if invoice is None:
         return None
-    if db.get(Supplier, payload["supplier_id"]) is None:
-        raise ValueError(f"Lieferant #{payload['supplier_id']} wurde nicht gefunden.")
-    fields = _payload_fields(payload)
+    merged = {field: getattr(invoice, field) for field in _UPDATE_FIELDS}
+    merged.update({key: value for key, value in payload.items() if key in merged})
+    if db.get(Supplier, merged["supplier_id"]) is None:
+        raise ValueError(f"Lieferant #{merged['supplier_id']} wurde nicht gefunden.")
+    fields = _payload_fields(merged)
     _validate_referenced_entities(db, fields)
-    items = _validate_items_payload(db, payload.get("items"))
+    if "items" in payload:
+        items = _validate_items_payload(db, payload["items"])
+    else:
+        items = [{"net_amount": item.net_amount} for item in invoice.items]
     _validate_item_sum(fields["net_amount"], items)
     for field, value in fields.items():
         setattr(invoice, field, value)
-    # Vollständiger Ersatz der Positionen (Muster IncomingInvoiceItem-Klassendocstring) --
-    # cascade="all, delete-orphan" löscht die alten Zeilen, sobald sie aus der Collection
-    # entfernt werden.
-    invoice.items = [IncomingInvoiceItem(**item) for item in items]
+    if "items" in payload:
+        # Vollständiger Ersatz der Positionen (Muster IncomingInvoiceItem-Klassendocstring) --
+        # cascade="all, delete-orphan" löscht die alten Zeilen, sobald sie aus der Collection
+        # entfernt werden.
+        invoice.items = [IncomingInvoiceItem(**item) for item in items]
     db.commit()
     lead_days = load_incoming_invoice_settings(db).skonto_reminder_lead_days
     return invoice_to_dict(_load(db, invoice.id), lead_days)
 
 
 def delete_invoice(db: Session, invoice_id: int) -> bool:
-    invoice = db.get(IncomingInvoice, invoice_id)
+    # Seit 1.8.96 zuerst die Sperre der Zeile wie update_invoice() (dieselbe Reihenfolge: Rechnung, dann Positionen) -- sonst
+    # konnten Löschen (Positionen, dann Rechnung) und gleichzeitiges Speichern mit Positionen sich gegenseitig blockieren
+    # (Deadlock unter PostgreSQL).
+    invoice = db.scalar(select(IncomingInvoice).where(IncomingInvoice.id == invoice_id).with_for_update()
+                        .execution_options(populate_existing=True))
     if invoice is None:
         return False
     delete_document_file(invoice.document_filename)

@@ -3084,7 +3084,7 @@ Angriffstests mit Gegenprobe. Eigene Festlegungen je in einer Zeile. Nebenbefund
   "Finalisieren" (`finalize_block`). Geprüft nach der Neuberechnung unter der Sperre der Auftragszeile (wie jede Regel in
   `finalize_block_reason()`): fällt der Abzug weg, weil der Abschlag inzwischen storniert ist, gilt die Regel ohne Abzüge.
 
-#### Festlegungen 1.8.95 (Bitte bestätigen)
+#### Festlegungen 1.8.95 (bestätigt am 13.10.2026, Vorgabe 1.8.96: 1, 2, 5, 6, 7, 10, 11, 12; 4 je Bereich; 3 für Speichern, bei Lesen gegen Lesen wird nach einem gescheiterten neueren das ältere verworfen; 8 und 9 ersetzt durch Punkt 4 der Vorgabe 1.8.96)
 
 1. **"Speichern" = jede Anfrage mit Methode ungleich GET** in einer Vorlage, ohne Ausnahmeliste (auch Löschen, Versand, Hochladen,
    Anmelden, Abmelden).
@@ -3172,6 +3172,209 @@ Angriffstests mit Gegenprobe. Eigene Festlegungen je in einer Zeile. Nebenbefund
 9. **Kundenakte**: `allProjects` ist eine nicht deklarierte, implizit globale Variable (schon vorher).
 10. **Windows-Pfadlänge in Klicktests**: `klicktest_maengel_monteur` scheitert beim Befüllen, wenn der Ausgabeordner tief liegt (Pfad über
     260 Zeichen unter `acceptance_documents/maengel/…`); mit kurzem `--ausgabe` grün.
+
+## Zeitlimit, abschließende Aktionen, Teil-Updates, Lesen über den Baustein (1.8.96, 1.8.97)
+
+### Vorgabe vom 13.10.2026 (übernommen wie gegeben)
+
+Vorweg zu 1.8.95: Festlegungen 1, 2, 5, 6, 7, 10, 11, 12 bestätigt. 4 bestätigt je Bereich; Regel 29 sagt das ausdrücklich. 3 bestätigt
+für Speichern; bei Lesen gegen Lesen wird nach einem gescheiterten neueren das ältere verworfen. 8 und 9 ersetzt diese Runde.
+
+1. Zeitlimit im Baustein: Ohne Antwort nach 60 s wird die Anfrage abgebrochen. Der Bereich meldet, dass unklar ist, ob gespeichert wurde,
+   und bittet um Neuladen und Prüfen. Wartende Speichervorgänge des Bereichs werden nicht gesendet, die Knöpfe werden frei. Solange etwas
+   läuft oder wartet, warnt die Seite beim Verlassen.
+2. Abschließende Aktionen (Unterschrift, Festschreiben, Versand u. ä.) warten auf alles laufende Speichern der ganzen Seite und laufen
+   nicht, wenn eines davon scheitert. Strukturtest über die Liste dieser Aufrufe. Klicktest: Speichern eines Prüfpunkts zurückhalten,
+   dann unterschreiben.
+3. Teil-Update nach Regel 22 statt gemerkter Werte, zuerst Geld: Angebots-Editor saveInlineField und saveCalc, order.html quickItem,
+   incoming_invoices.html markPaidNow; dann settings.html saveEmailTemplate, toggleDocumentLayoutBlock, saveContinuationHeaderPosition,
+   planning.html dropSlot, Layout-Drag-and-drop im Angebots-Editor, recurring_costs.html toggleActive. Gleichzeitigkeit gegen PostgreSQL.
+4. Strukturtest: kein fetch() außerhalb von _speichern.html, Ausnahmeliste darf nur kürzer werden. Sofort über lesen(): jedes Lesen,
+   das ein Formular füllt, aus dem gespeichert werden kann, mindestens E-Mail-Vorlagen, Dokumente der Kundenakte, Checklisten-Vorlage,
+   Dachtyp-Wechsel, Monatswechsel im Stundenzettel. Veraltete Fehler verwirft der Baustein wie veraltete Erfolge.
+5. Klicktests für Anmelden (Formular und Seitenleiste) und Abmelden (beide Kopfzeilen). Das Klicktest-Werkzeug zeichnet die
+   Netzwerkereignisse des Browsers auf und nennt beim Scheitern offene Anfragen mit Adresse, Startzeit und ob sie gesendet wurden.
+6. Regel 29 nachziehen.
+
+Ins Archiv (2d und Rüge, nur festhalten, nicht bauen): Gewährleistungs- und Kulanzstunden werden auf den ursprünglichen Auftrag
+gebucht. Eine Zeitbuchung lässt sich einem Mangel zuordnen oder als Kulanz kennzeichnen; sie ist dann nie abrechenbar und erscheint in
+der Nachkalkulation getrennt als „davon Mängelbeseitigung / Kulanz“. Ein Auftrag mit offenem, freigegebenem Mangel bleibt für
+Plantafel, /mobil und Zeiterfassung wählbar, auch wenn er abgeschlossen ist. Stunden nach der Schlussrechnung ohne diese Zuordnung zeigt
+das Backoffice als „nach Schlussrechnung, nicht abrechenbar“ zum Einordnen. Auftrag ohne Rechnung: „Abschließen ohne Rechnung“ nur
+Büro, nur solange keine Rechnung existiert, mit Pflichtbegründung und Hinweis auf nicht abgerechnete Stunden (Parkplatz vor dem
+Echtbetrieb).
+
+Angriffstests mit Gegenprobe. Eigene Festlegungen mit „Bitte bestätigen“, je in einer Zeile. Nebenbefunde nur melden. Wird der Umfang
+zu groß: nach Punkt 3 committen und den Rest auflisten. Commit nach Regel 13, Bericht kurz.
+
+(Festgehalten: die Sätze zu 2d und Rüge unter "Entscheidungen Rechnungen", Ergänzung nach Nachfrage 10; „Abschließen ohne Rechnung“
+stand schon im "Parkplatz vor dem Echtbetrieb".)
+
+### Umsetzung 1.8.96: Zeitlimit, abschließende Aktionen (Punkte 1 und 2), Teil-Updates (Punkt 3)
+
+#### Was gebaut ist
+
+- **Zeitlimit im Baustein** (`app/templates/_speichern.html`, Punkt 1): jedes Speichern bekommt beim Bauen ein Abbruchsignal
+  (`AbortController`, über die fetch-Fassung, die schon das Senden zurückstellt). Kommt 60 s nach dem Senden keine Antwort, bricht der
+  Baustein die Anfrage ab -- auch wenn die Anfrage das Signal nicht weiterreicht (Rennen gegen den Zeitgeber, eine späte Antwort wird
+  nie angewandt). Der Bereich ist danach "unklar": `speichern()` endet mit dem Fehler "Keine Antwort vom Server nach 60 Sekunden – unklar,
+  ob gespeichert wurde. Bitte die Seite neu laden und prüfen." (`e.dkBaustein === 'unklar'`), die Seite zeigt ihn wie jeden Fehler und gibt
+  ihre Knöpfe frei; zusätzlich steht oben auf der Seite ein Hinweis mit diesem Text und "Seite neu laden" (`#dkSpeichernUnklar`).
+  Wartende und neue Speichervorgänge des unklaren Bereichs gehen nicht hinaus ("Nicht gesendet: ein Speichern davor blieb ohne Antwort –
+  …", `'nicht-gesendet'`); Lesen und andere Bereiche laufen weiter. Solange ein Speichern läuft oder wartet, warnt der Browser beim
+  Verlassen (`beforeunload`, einmal je Seite). Für Klicktests lässt sich das Zeitlimit vor dem Laden über `window.__dkZeitlimit` kürzen.
+- **`abschliessen(bereich, anfrage, optionen)`** (Punkt 2): wie `speichern()`, die Anfrage wird beim Klick gebaut, gesendet aber erst,
+  wenn jedes Speichern der ganzen Seite, das beim Klick lief oder wartete, zurück ist (`window.__dkSpeichern`, je Speichern ein Ergebnis).
+  Ist eines davon gescheitert (Fehler oder Fehlerstatus) oder ist ein Bereich der Seite unklar, läuft die Aktion nicht: Fehler "Nicht
+  ausgeführt: ein Speichern auf der Seite ist gescheitert (<Grund>). Bitte prüfen und erneut versuchen." bzw. "… unklar …"
+  (`'abschluss'`), nichts gesendet. Eingaben, die `_debounce.html` noch zurückhält, werden vorher gespeichert (`window.__dkEntprellt`).
+- **38 abschließende Aufrufe umgestellt**, Liste `ABSCHLIESSEND` in `tests/test_v399_abschliessen.py`: Unterschrift (Checkliste über die
+  neue `uploadSignature()`, Einsatzbericht, Vertrag auf dem Gerät und als Papier-Scan), Festschreiben (Rechnung festschreiben und
+  versenden, Mahnung auf Rechnungsseite und im Mahnwesen, Vertrag, Brief zur Anzeige), Abschluss und "gegenstandslos" der Checkliste,
+  Unterschrift verwerfen, Versand (alle Dokumente über `postEmailDispatch`), Zustellung nachtragen, Versandergebnis, hängenden Versand
+  klären, Abnahme (von Hand, aus dem Protokoll an Auftrag und Protokoll, verwerfen), Mangel (erfassen, Haltung/Status/Freigabe/Verwerfen,
+  im Protokoll erfassen und verwerfen, in /mobil "beseitigt" melden), Buchungen (Zahlung, Rest zuordnen, Erstattung an Rechnung und
+  Kundenakte, Zuordnung gegenbuchen, Zahlung zurücknehmen, Nebenforderung gegenbuchen, Verzugsbeginn bestätigen und verwerfen), Storno,
+  Beauftragen und Abgleich (Angebot -> Auftrag in beiden Richtungen). Der Versand reicht die Meldungen des Bausteins wörtlich durch und sagt
+  nach dem Zeitlimit "neu laden und im Versandverlauf prüfen" statt "erneut klicken".
+- **Strukturtest** (`tests/test_v399_abschliessen.py`): je Vorlage gehen genau die Aufrufe der Liste über `abschliessen()`, alle anderen
+  über `speichern()`; jede schreibende Anfrage, deren Adresse nach einer abschließenden Aktion klingt (`/sign`, `/send`, `/complete`,
+  `/freeze`, `/storno`, `/void`, `/discard…`, `/reverse`, `/refunds`, `/allocations`, `/payments`, `/acceptances`, `/defects`, `/remedied`,
+  `/outcome`, `/manual`, `/resolve`, `/convert-to-order`, `/sync-source-quote`, `/default-start`, `/notice-letters`), steht in der Liste oder
+  mit Grund in `NICHT_ABSCHLIESSEND` (zwei: Verwerfen der Import-Vorschau und einer Zeile der Import-Arbeitsliste); jeder Eintrag beider
+  Listen trifft eine schreibende Anfrage. Eine Adresse in einer Variablen wird über ihre letzte Zuweisung davor aufgelöst.
+- **Scanner** (`tests/vorlagen_js.py`): `abschliessen()` zählt wie `speichern()`; den Funktionen des Bausteins selbst folgt er nicht mehr
+  (sonst hielt er einen Namen im Baustein für eine gleichnamige Funktion der Seite).
+- **Klicktest** `scripts/klicktest_abschliessen.py` (neu): Einsatzbericht mit Pflicht-Prüfpunkt -- Speichern zurückhalten, unterschreiben:
+  Unterschrift nicht gesendet, Warnung beim Verlassen, nach der Freigabe erst Prüfpunkt, dann Unterschrift, unterschrieben mit dem Wert;
+  Prüfpunkt anderswo gelöscht -> Speichern scheitert, Unterschrift "Nicht ausgeführt", Bericht bleibt Entwurf; Zeitlimit 2 s mit
+  zurückgehaltener Antwort -> Meldung, Hinweis mit "Seite neu laden", Unterschrift abgelehnt, nach dem Neuladen der gespeicherte Wert.
+
+- **Teil-Updates statt gemerkter Werte** (Punkt 3, `docs/archiv/teil-updates.md`, Nebenbefund 3 der Durchsicht 1.8.25): jede der
+  genannten Stellen schickt nur, was sie bearbeitet; der Endpunkt ist ein Teil-Update nach Regel 22 (Schema von `PartialUpdate` mit
+  `NOT_NULL`, Handler `model_dump(exclude_unset=True)`, Geschäftsfunktion ändert nur Übergebenes), Prüfungen über mehrere Felder laufen auf
+  gespeichertem Stand + gesendeten Werten, und wo gelesen-geändert-geschrieben wird, unter einer Zeilensperre. Zuerst Geld:
+  - Angebots-Editor inline (`saveInlineField`): `PUT /api/quotes/{id}/items/{item_id}`, `QuoteItemUpdate(PartialUpdate)`; schickt
+    `{quantity}` bzw. `{unit}` -- zwei schnelle Änderungen derselben Position schreiben nicht mehr den alten Wert der ersten zurück
+    (Nebenbefund 4 aus 1.8.95).
+  - Kalkulation (`saveCalc`): `PUT …/calculation`, `QuoteItemCalculationUpdate`/`QuoteItemMaterialCalculationUpdate(PartialUpdate)` (fehlt
+    `materials`, bleiben die Zeilen; je Zeile nur die gesendeten Werte); unter der Sperre der Angebotsposition (der EP folgt aus der ganzen
+    Kalkulation); `ensure_quote_item_calculation()` ohne eigenen Commit. Das Formular schickt seine Felder ohne die Preiseinheit.
+  - Drag-and-drop auf einen Titel (`wireDragDrop`): `PUT …/layout`, `QuoteItemLayoutUpdate(PartialUpdate)`, `set_item_layout(**changes)`;
+    schickt nur `{section_id}`.
+  - Auftragsseite inline (`quickItem`): `PUT /api/orders/{id}/items/{item_id}`, `OrderItemUpdate(PartialUpdate)`; die Sperren am Auftrag
+    (`item_change_reason()`, Sperre der Auftragszeile) prüfen die gesendeten Felder; schickt `{[feld]: wert}`.
+  - Eingangsrechnung "als bezahlt markieren" (`markPaidNow`): `PUT /api/incoming-invoices/{id}`, eigenes `IncomingInvoiceUpdate(PartialUpdate)`;
+    `update_invoice()` unter der Sperre der Zeile, ohne `items` bleiben die Positionen (Summe gegen die gespeicherten); schickt
+    `{payment_status, payment_date}` statt der ganzen Rechnung samt Positionen.
+  Dann: Bausteine in den Einstellungen (`toggleDocumentLayoutBlock` `{visible}`, `saveContinuationHeaderPosition` `{y_mm}`;
+  `DocumentLayoutBlockUpdate(PartialUpdate)`, `update_layout_block(**changes)`), Plantafel verschieben (`dropSlot` `{team_id, start_date,
+  end_date}`; `PlanningSlotUpdate(PartialUpdate)`, `update_slot(**changes)` unter der Sperre der Arbeitsvorbereitung, Ende vor Beginn auf
+  dem zusammengeführten Stand), Kostenposten aktivieren/deaktivieren (`toggleActive` `{active}`; eigenes `RecurringCostUpdate(PartialUpdate)`,
+  `update_cost()` unter der Sperre der Zeile, Jahresbetrag aus dem Ergebnis). Die E-Mail-Vorlage einer Mahnstufe (`saveEmailTemplate`) ist
+  seit 1.8.80 Teil-Update -- nichts gebaut, mit einem Test abgesichert. Die Löschwege derselben Zeilen sperren zuerst dieselbe Zeile
+  (`delete_quote_item()`, `delete_invoice()`, `delete_slot()`): mit den neuen Sperren gab es unter PostgreSQL sonst Deadlocks. Strukturtest
+  `tests/test_v329_update_handler_struktur.py`: acht Routen aus `BEKANNT` gestrichen (70 -> 62) und in `REPARIERT_SPAETER` eingetragen.
+  Gebaut von einem Helfer in eigener Arbeitskopie, geprüft und zusammengeführt.
+
+#### Festlegungen 1.8.96 (Bitte bestätigen)
+
+1. **Zeitlimit 60 s ab dem Senden**, für jedes Speichern und jede abschließende Aktion (auch Hochladen und Versand), nicht für Lesen.
+2. **Unklar bis zum Neuladen**: nach dem Zeitlimit gehen wartende und neue Speichervorgänge dieses Bereichs nicht hinaus; Lesen und andere
+   Bereiche laufen weiter.
+3. **Meldung doppelt**: als Fehler des Bereichs (die Seite zeigt ihn an ihrer Stelle) und als Hinweis oben auf der Seite mit "Seite neu
+   laden" -- auch für Speichern im Hintergrund, das Fehler still schluckt.
+4. **"Knöpfe frei" = speichern() endet mit einem Fehler**; die Seite gibt ihre Knöpfe frei wie bei jedem anderen Fehler, der Baustein
+   sperrt und entsperrt selbst keine Knöpfe.
+5. **Warnung beim Verlassen**, solange ein Speichern (auch eine abschließende Aktion) läuft oder wartet; Lesen zählt nicht.
+6. **Abschließend = macht etwas unveränderlich oder gibt es hinaus** (Liste oben, 38 Aufrufe); Löschen, Entwürfe anlegen, Einstellungen und
+   Stammdaten nicht.
+7. **Gewartet wird auf jedes Speichern der Seite, das beim Klick läuft oder wartet**; was danach beginnt, nicht. Ein schon vor dem Klick
+   gescheitertes Speichern hindert nicht (es war schon gemeldet).
+8. **Gescheitert = Fehler oder Fehlerstatus**, auch ein selbst abgelehntes abschließendes; die Meldung nennt den ersten Grund.
+9. **Keine abschließende Aktion, solange ein Bereich der Seite unklar ist** -- auch wenn das Zeitlimit vor dem Klick lag.
+10. **Zurückgehaltene Eingaben (`_debounce.html`) laufen vor einer abschließenden Aktion sofort**, auch eine zurückgehaltene Suche.
+11. **Strukturtest über Liste und Adressmuster**: Liste je Vorlage und Funktion; eine schreibende Anfrage, deren Adresse nach einer
+    abschließenden Aktion klingt, muss eingeordnet sein; eine Adresse als Parameter (Versand, Mängel) sieht das Muster nicht -- dort hilft
+    nur die Liste.
+12. **Versand nach dem Zeitlimit: neu laden und im Versandverlauf prüfen** statt "erneut klicken" (der Platz nimmt bis zum Neuladen nichts
+    mehr an; ein neuer Versand danach hat einen neuen Versandschlüssel).
+13. **Zeitlimit im Klicktest über `window.__dkZeitlimit`**, vor dem Laden gesetzt; keine Seite setzt es.
+14. **Formulare schicken weiter alle ihre Felder** (Positions-Formular, Auftrags-Dialog, Bearbeiten-Formulare, Plantafel-Dialog,
+    Kalkulationsformular); nur Werte, die das Formular nicht zeigt (Preiseinheit), entfallen.
+15. **Verschieben auf der Plantafel schickt Team, Beginn und Ende** (Ende aus Beginn + der beim Laden angezeigten Dauer); Status, Notiz,
+    Planstunden, Anfahrt bleiben.
+16. **Ausdrückliches null für Team, Planstunden und Anfahrt am Planeinsatz ist 422** (bis 1.8.95 hieß null "unverändert"; weglassen heißt
+    jetzt unverändert, kein Aufrufer schickt null).
+17. **"Als bezahlt markieren" setzt Status und Zahlungsdatum heute ohne Vergleich mit dem Stand beim Laden** -- der letzte Klick gewinnt,
+    wie bisher.
+18. **"Aktivieren"/"Deaktivieren" schickt den Zielzustand, den der Knopf zeigt**; der Server schaltet nicht um.
+19. **Zeilensperre nur, wo gelesen-geändert-geschrieben wird**: Kalkulation (Angebotsposition), Eingangsrechnung, Kostenposten, Planeinsatz
+    (Arbeitsvorbereitung); Angebotsposition, Layout und Baustein ohne Sperre (nichts abgeleitet); Auftragsposition wie bisher unter der Sperre
+    der Auftragszeile.
+20. **Löschen sperrt zuerst dieselbe Zeile wie das Speichern** (Angebotsposition, Eingangsrechnung, Arbeitsvorbereitung des Einsatzes).
+21. **Eine Projektkalkulation aus der Vorschau bleibt bei einer Ablehnung nicht mehr stehen** (kein eigener Commit beim Anlegen).
+22. **`update_invoice()`/`update_cost()` übernehmen nur bekannte Schlüssel**; ein fehlender Schlüssel heißt für direkte Aufrufer
+    "unverändert" statt Vorgabewert.
+23. **Zahlungsdatum ohne gesendeten Status zählt nur, wenn der zusammengeführte Status "bezahlt" ist**, sonst wird es geleert.
+24. **`content` am Layout-Baustein weiter angenommen und nicht geschrieben** (Nebenbefund 4 aus 1.8.25 bleibt nur gemeldet).
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v399_abschliessen.py` (162): der Baustein in node mit kurzem Zeitlimit -- Abbruch nach dem Zeitlimit mit Meldung
+  "unklar", späte Antwort nie angewandt (auch wenn die Anfrage das Signal nicht weiterreicht), Antwort in der Zeit ohne Abbruch, wartende
+  und neue Speichervorgänge des Bereichs nicht gesendet, anderer Bereich und Lesen weiter, Hinweis oben mit "Seite neu laden", Warnung
+  beim Verlassen solange etwas läuft oder wartet (nicht beim Lesen), einmal je Seite trotz doppeltem Einbinden; `abschliessen()` wartet
+  auf laufendes und wartendes Speichern anderer Bereiche, läuft nicht nach einem gescheiterten (auch Fehlerstatus 409) und nennt den
+  Grund, ein vor dem Klick gescheitertes hindert nicht, ein nach dem Klick begonnenes wird nicht abgewartet, unklarer Bereich lehnt ab,
+  zurückgehaltene Eingabe aus `_debounce.html` geht vorher hinaus (und nicht noch einmal), im selben Bereich wie Speichern, zwei
+  abschließende nach einem gescheiterten beide abgelehnt; Versand nennt "nicht ausgeführt", Zeitlimit und Netzfehler je mit eigenem Text;
+  der Strukturtest je Vorlage (2 × 70: nur die Liste über `abschliessen()`, jede Adresse, die abschließend klingt, eingeordnet), jeder
+  Listeneintrag trifft, Unterschrift der Checkliste über die eigene Funktion.
+- Neu `tests/test_v399_teil_updates_geld.py` (25, davon 7 gegen PostgreSQL) und `tests/test_v399_teil_updates_rest.py` (13, davon 3 gegen
+  PostgreSQL): die echte Funktion der Vorlage in node (mit `_speichern.html`) auf dem Stand beim Laden, danach ein anderswo geänderter
+  Wert, der genaue Body und der echte Server, der den geänderten Wert stehen lässt (10 Stellen, auch zwei schnelle Änderungen derselben
+  Position); Teil-Updates lassen die übrige Zeile stehen, abgeleitete Werte passen; **Angriffstests:** null in jedem Pflichtfeld 422 ohne
+  Speichern, zusammen mit dem gespeicherten Stand ungültig 422 ohne Speichern (zweite Zuordnung, Summe der Positionen, Ende vor Beginn,
+  Anfahrt), gesperrte Felder am Auftrag per Teil-Update weiter 409, fremde IDs abgelehnt; **gleichzeitig gegen PostgreSQL** je zwei
+  Teil-Updates derselben Zeile (Angebotsposition, Kalkulation mit passendem EP, Auftragsposition, Eingangsrechnung, Kostenposten,
+  Planeinsatz) und drei Deadlock-Tests (Speichern gegen Löschen).
+- Geändert: `tests/test_v398_speichern_baustein.py` (Ablauf in node beendet sich sofort -- ein offener Zeitgeber hielt node sonst bis zu
+  60 s; Zeitlimit und Vorspann einstellbar), `tests/vorlagen_js.py` (`abschliessen()` wie `speichern()`, Funktionen des Bausteins
+  undurchsichtig), `tests/test_v329_update_handler_struktur.py` (acht Routen von `BEKANNT` nach `REPARIERT_SPAETER`).
+- Klicktest `scripts/klicktest_abschliessen.py` (neu) 19/19.
+- Gegenproben (Regel 24): 34 von 34 rot. Punkte 1 und 2 (14): kein Zeitlimit, wartende trotz unklar gesendet, keine Warnung beim
+  Verlassen, kein Hinweis, `abschliessen()` wartet nicht (dazu der Klicktest: Unterschrift vor dem Prüfpunkt, Bericht ohne den
+  Pflicht-Prüfpunkt), Scheitern ignoriert, Unklar ignoriert, Fehlerstatus als Erfolg, zurückgehaltene Eingabe nicht ausgeführt, Entprellen
+  ohne Eintrag, Einsatzbericht über `speichern()` (Strukturtest und Klicktest: unterschrieben trotz Zeitlimit), Unterschrift der
+  Checkliste über `speichern()`, Versand übersetzt die Meldung, Rechnungsversand aus der Liste gestrichen. Punkt 3 (20): alter Server mit
+  neuer Oberfläche 31 von 38 rot, alte Oberfläche 11 von 38 (genau die Oberflächen-Tests), alte Oberfläche auf Datenebene 10 von 11,
+  `NOT_NULL` leer 5 von 5, dazu 16 gezielte je 1/1 (sechs ohne Sperre, drei Löschen ohne Sperre, drei Teilmengen aus veraltetem Stand,
+  Summe, Zuordnung, Datum, Commit, Auftragssperre, Mahnstufe). Jede Datei byte-genau zurück (SHA-256), kein Marker.
+- Volle Suite (mit den Tests gegen PostgreSQL, Arbeitskopie, drei Teile parallel): **4489 grün, 0 rot**.
+- Alle Klicktests (Regel 26, Arbeitskopie des Stands 1.8.96): 60 von 60 wie erwartet in 13:26 min, `klicktest_abschliessen` 19/19 darunter.
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **60 s auch beim Hochladen** (Festlegung 1): ein großes Foto über eine langsame Verbindung (z. B. 10 MB bei 1 Mbit/s, rund 80 s) endet
+   als "unklar", obwohl es noch läuft -- danach nimmt der Bereich bis zum Neuladen nichts mehr an.
+2. **Speichern im Hintergrund schluckt Fehler** (Outlook-Abgleich im Kalender, Layout des Dashboards): dort zeigt nur der Hinweis oben das
+   Zeitlimit.
+3. **Checkliste warnt doppelt beim Verlassen** (eigene Warnung für ihre Zeitgeber und laufenden Anfragen neben der des Bausteins) --
+   harmlos.
+4. **Einsatzbericht**: ein Prüfpunkt meldet seinen Fehler über `alert()` (wie bisher); eine Eingabe in einem entprellten Feld geht vor der
+   Unterschrift zweimal hinaus (beim Verlassen des Felds und aus `_debounce.html`) -- gleicher Wert, harmlos.
+5. **Angebots-Editor, Umsortieren per Drag-and-drop auf eine Position** (`moveItemBefore`, `POST /api/quotes/{id}/reorder`): schickt
+   `section_id` aller Positionen des Zieltitels aus dem Stand beim Laden (gemerkter Wert, POST, nicht Teil des Auftrags).
+6. **Neuer Planeinsatz gleicht Beginn/Ende der Arbeitsvorbereitung ohne Sperre ab** (`create_slot()`): gleichzeitig mit dem Verschieben
+   eines anderen Einsatzes derselben Vorbereitung kann Beginn/Ende der Vorbereitung veralten.
+7. **Unbekanntes oder inaktives Team am Planeinsatz ist 404** (der Router macht aus jedem Text mit "nicht gefunden" 404), eher 422.
+8. **`QuoteItemUpdate` ohne Längengrenzen** (`unit` 50, `position_type` 30, `gaeb_oz` 100): unter PostgreSQL ein zu langer Wert 500 statt 422
+   (wie vorher; `OrderItemUpdate` hat sie).
+9. **`content` am Layout-Baustein** wird angenommen und nie geschrieben (Nebenbefund 4 aus 1.8.25, unverändert).
+10. **Zweimal gleichzeitig denselben Planeinsatz entfernen**: die zweite endet mit `StaleDataError` (500) statt 404 (wie vorher).
+11. **Zahl der Altfälle in der Doku war falsch**: Regel 22 nannte 72, `BEKANNT` hatte vor dieser Runde 70 (jetzt 62) -- in CLAUDE.md
+    nachgezogen.
 
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
@@ -3268,7 +3471,9 @@ nicht gebaut:
 
 - **Gewährleistungs- und Kulanzstunden** (für Stufe 2d und die Rüge): werden auf den ursprünglichen Auftrag gebucht. Eine Zeitbuchung
   lässt sich einem Mangel zuordnen oder als Kulanz kennzeichnen; sie ist dann nie abrechenbar und erscheint in der Nachkalkulation
-  getrennt als „davon Mängelbeseitigung / Kulanz“.
+  getrennt als „davon Mängelbeseitigung / Kulanz“. Ergänzt mit der Vorgabe 1.8.96 (13.10.2026): Ein Auftrag mit offenem, freigegebenem
+  Mangel bleibt für Plantafel, /mobil und Zeiterfassung wählbar, auch wenn er abgeschlossen ist. Stunden nach der Schlussrechnung ohne
+  diese Zuordnung zeigt das Backoffice als „nach Schlussrechnung, nicht abrechenbar“ zum Einordnen.
 - **Auftrag ohne Rechnung** (Parkplatz vor dem Echtbetrieb, siehe unten): „Abschließen ohne Rechnung“ nur Büro, nur solange keine
   Rechnung existiert, mit Pflichtbegründung und Hinweis auf nicht abgerechnete Stunden.
 

@@ -202,12 +202,10 @@ BEKANNT = {
     "PUT /api/dashboard/widgets": _LEEREN_GEWOLLT,
     "PUT /api/document-categories/{category_id}": _VOLLES_FORMULAR,
     "PUT /api/document-email-templates/{document_type}": _VOLLES_FORMULAR,
-    "PUT /api/document-layout/blocks/{block_id}": _VOLLES_FORMULAR,
     "PUT /api/email-settings": _VOLLES_FORMULAR,
     "PUT /api/email-settings/graph": _NONE_UNVERAENDERT,
     "PUT /api/employees/{employee_id}": _VOLLES_FORMULAR,
     "PUT /api/findings/{finding_id}/followup": _NONE_UNVERAENDERT,
-    "PUT /api/incoming-invoices/{invoice_id}": _VOLLES_FORMULAR,
     "PUT /api/inquiries/{inquiry_id}": _VOLLES_FORMULAR,
     "PUT /api/inspection-template-items/{item_id}": _VOLLES_FORMULAR,
     "PUT /api/inspection-templates/{template_id}": _VOLLES_FORMULAR,
@@ -220,23 +218,17 @@ BEKANNT = {
     "PUT /api/operational-asset-inspections/{inspection_id}": _VOLLES_FORMULAR,
     "PUT /api/operational-assets/{asset_id}": _VOLLES_FORMULAR,
     "PUT /api/operational-assets/{asset_id}/recurring-cost": _LEEREN_GEWOLLT,
-    "PUT /api/orders/{order_id}/items/{item_id}": _VOLLES_FORMULAR,
     "PUT /api/orders/{order_id}/sections/{section_id}": _VOLLES_FORMULAR,
     "PUT /api/orders/{order_id}/work-preparation": _VOLLES_FORMULAR,
     "PUT /api/payment-terms/{term_id}": _VOLLES_FORMULAR,
     "PUT /api/planning/holidays/{holiday_id}": _VOLLES_FORMULAR,
     "PUT /api/planning/settings": _VOLLES_FORMULAR,
-    "PUT /api/planning/slots/{slot_id}": _VOLLES_FORMULAR,
     "PUT /api/project-documents/{document_id}": _VOLLES_FORMULAR,
     "PUT /api/project-pipeline-columns/{column_id}": _NONE_UNVERAENDERT,
     "PUT /api/projects/{project_id}": _VOLLES_FORMULAR,
     "PUT /api/quotes/{quote_id}": _VOLLES_FORMULAR,
     "PUT /api/quotes/{quote_id}/document-meta": _VOLLES_FORMULAR,
-    "PUT /api/quotes/{quote_id}/items/{item_id}": _VOLLES_FORMULAR,
-    "PUT /api/quotes/{quote_id}/items/{item_id}/calculation": _VOLLES_FORMULAR,
-    "PUT /api/quotes/{quote_id}/items/{item_id}/layout": _VOLLES_FORMULAR,
     "PUT /api/quotes/{quote_id}/sections/{section_id}": _VOLLES_FORMULAR,
-    "PUT /api/recurring-costs/{cost_id}": _VOLLES_FORMULAR,
     "PUT /api/resources/{resource_id}": _VOLLES_FORMULAR,
     "PUT /api/roof-component-types/{component_type_id}": _VOLLES_FORMULAR,
     "PUT /api/roof-components/{component_id}": _VOLLES_FORMULAR,
@@ -274,6 +266,16 @@ REPARIERT_SPAETER = {
     "PUT /api/roof-areas/{roof_area_id}",  # 1.8.46: Garantie Dritter umbenannt, Speicherweg auf Teil-Update
     "PUT /api/reminders/{reminder_id}",  # 1.8.79: Frist in Tagen statt Datum, alle Felder Pflicht (Z2a Nr. 3)
     "PUT /api/reminder-levels/{level_id}",  # 1.8.80: Gebühr nur bei eingeschalteten Mahngebühren, E-Mail-Vorlagen nur Betreff/Text
+    # 1.8.96: Oberflächen schickten den beim Laden gemerkten Stand nicht bearbeiteter Felder mit (Nebenbefund 3 aus 1.8.25,
+    # docs/archiv/teil-updates.md); seither schicken sie nur, was sie bearbeiten, und der Server übernimmt nur Gesendetes
+    "PUT /api/quotes/{quote_id}/items/{item_id}",  # Angebots-Editor: Menge/Einheit inline
+    "PUT /api/quotes/{quote_id}/items/{item_id}/calculation",  # Kalkulation ohne Preiseinheit, Sperre der Position
+    "PUT /api/quotes/{quote_id}/items/{item_id}/layout",  # Drag-and-drop nur der Titel
+    "PUT /api/orders/{order_id}/items/{item_id}",  # Auftragsseite: Menge/Einheit/EP inline
+    "PUT /api/incoming-invoices/{invoice_id}",  # "als bezahlt markieren", Sperre der Zeile
+    "PUT /api/document-layout/blocks/{block_id}",  # Einstellungen: anzeigen, Position des Folgeseiten-Kopfs
+    "PUT /api/planning/slots/{slot_id}",  # Plantafel: Verschieben, Sperre der Arbeitsvorbereitung
+    "PUT /api/recurring-costs/{cost_id}",  # aktivieren/deaktivieren, Sperre der Zeile
 }
 
 

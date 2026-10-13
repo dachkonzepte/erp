@@ -347,18 +347,18 @@ function showPaymentReverse(pid){document.getElementById('payRev-'+pid).style.di
 async function allocateRest(pid){
   const st=document.getElementById('customerPaymentsStatus'),invoiceId=Number(document.getElementById('restInvoice-'+pid).value),amount=num(document.getElementById('restAmount-'+pid).value);
   if(!invoiceId){st.textContent='Bitte eine Rechnung wählen.';return}if(!(amount>0)){st.textContent='Bitte einen Betrag angeben.';return}
-  try{const body=JSON.stringify({lines:[{invoice_id:invoiceId,zahlung:amount.toFixed(2)}]});await speichern('zahlungen',()=>api(`/api/payments/${pid}/allocations`,{method:'POST',headers:{'Content-Type':'application/json'},body:body}),{neuLaden:loadPayments});document.getElementById('customerPaymentsStatus').textContent='Zugeordnet.'}catch(e){st.textContent='Fehler: '+e.message}
+  try{const body=JSON.stringify({lines:[{invoice_id:invoiceId,zahlung:amount.toFixed(2)}]});await abschliessen('zahlungen',()=>api(`/api/payments/${pid}/allocations`,{method:'POST',headers:{'Content-Type':'application/json'},body:body}),{neuLaden:loadPayments});document.getElementById('customerPaymentsStatus').textContent='Zugeordnet.'}catch(e){st.textContent='Fehler: '+e.message}
 }
 async function bookCustomerRefund(){
   const st=document.getElementById('customerPaymentsStatus'),b=customerPaymentsData.balance,lines=[];
   for(const [i,l] of b.lines.entries()){const amount=num(document.getElementById('refundLine-'+i).value);if(amount>0)lines.push(l.kind==='rest'?{payment_id:l.payment_id,amount:amount.toFixed(2)}:{invoice_id:l.invoice_id,amount:amount.toFixed(2)})}
   if(!lines.length){st.textContent='Bitte mindestens einen Betrag zum Erstatten eintragen.';return}
-  try{const body=JSON.stringify({paid_on:document.getElementById('custRefundDate').value,note:document.getElementById('custRefundNote').value.trim()||null,lines});await speichern('zahlungen',()=>api(`/api/customers/${customerId}/refunds`,{method:'POST',headers:{'Content-Type':'application/json'},body:body}),{neuLaden:loadPayments});document.getElementById('customerPaymentsStatus').textContent='Erstattung gebucht.'}catch(e){st.textContent='Fehler: '+e.message}
+  try{const body=JSON.stringify({paid_on:document.getElementById('custRefundDate').value,note:document.getElementById('custRefundNote').value.trim()||null,lines});await abschliessen('zahlungen',()=>api(`/api/customers/${customerId}/refunds`,{method:'POST',headers:{'Content-Type':'application/json'},body:body}),{neuLaden:loadPayments});document.getElementById('customerPaymentsStatus').textContent='Erstattung gebucht.'}catch(e){st.textContent='Fehler: '+e.message}
 }
 async function reversePayment(pid){
   const st=document.getElementById('customerPaymentsStatus'),reason=document.getElementById('payRevReason-'+pid).value.trim();
   if(!reason){st.textContent='Bitte eine Begründung angeben.';return}
-  try{await speichern('zahlungen',()=>api(`/api/payments/${pid}/reverse`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})}),{neuLaden:loadPayments});document.getElementById('customerPaymentsStatus').textContent='Zahlung zurückgenommen.'}catch(e){st.textContent='Fehler: '+e.message}
+  try{await abschliessen('zahlungen',()=>api(`/api/payments/${pid}/reverse`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})}),{neuLaden:loadPayments});document.getElementById('customerPaymentsStatus').textContent='Zahlung zurückgenommen.'}catch(e){st.textContent='Fehler: '+e.message}
 }
 load().catch(e=>{document.getElementById('pageTitle').textContent='Kundenakte konnte nicht geladen werden';document.getElementById('pageSub').textContent=e.message});
 </script>

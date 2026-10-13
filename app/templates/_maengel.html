@@ -149,7 +149,7 @@ function defStatusUpdate(id){
 async function defSend(id,url,body,okText,btn){
   const st=document.getElementById('defPanelStatus'+id);btn.disabled=true;st.textContent='Wird gespeichert …';
   const json=!(body instanceof FormData);
-  try{await speichern('maengel',()=>defApi(url,{method:'POST',headers:json?{'Content-Type':'application/json'}:{},body:json?JSON.stringify(body):body}),{anwenden:v=>{defects=defects.map(x=>x.id===id?v:x);renderDefects()}});document.getElementById('defectStatus').textContent=okText;loadAcceptanceList();return true}
+  try{await abschliessen('maengel',()=>defApi(url,{method:'POST',headers:json?{'Content-Type':'application/json'}:{},body:json?JSON.stringify(body):body}),{anwenden:v=>{defects=defects.map(x=>x.id===id?v:x);renderDefects()}});document.getElementById('defectStatus').textContent=okText;loadAcceptanceList();return true}
   catch(e){st.textContent='Fehler: '+e.message;btn.disabled=false;return false}
 }
 async function defStance(id,btn){
@@ -211,7 +211,7 @@ async function saveDefect(btn){
   [...document.getElementById('defPhotos').files].forEach(f=>form.append('photos',f));[...document.getElementById('defReceipts').files].forEach(f=>form.append('receipts',f));
   btn.disabled=true;st.textContent='Wird gespeichert …';
   try{
-    const d=await speichern('maengel',()=>defApi(`/api/order-acceptances/${defectAcceptanceId}/defects`,{method:'POST',body:form}),{neuLaden:()=>Promise.all([loadDefects(),loadAcceptanceList()])});
+    const d=await abschliessen('maengel',()=>defApi(`/api/order-acceptances/${defectAcceptanceId}/defects`,{method:'POST',body:form}),{neuLaden:()=>Promise.all([loadDefects(),loadAcceptanceList()])});
     closeDefectDialog();document.getElementById('defectStatus').textContent='Mangel gespeichert.';
     defFlash(d.id);
   }catch(e){st.textContent='Fehler: '+e.message}finally{btn.disabled=false}

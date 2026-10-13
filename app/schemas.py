@@ -592,9 +592,12 @@ class QuoteFreeItemCreate(BaseModel):
     include_in_total: bool = True
 
 
-class QuoteItemLayoutUpdate(BaseModel):
+class QuoteItemLayoutUpdate(PartialUpdate):
+    """Seit 1.8.96 Teil-Update (Regel 22): das Verschieben per Drag-and-drop schickt nur den Titel -- vorher ging "in Summe"
+    mit dem beim Laden gemerkten Stand mit. section_id null = ohne Titel."""
+    NOT_NULL = frozenset({"include_in_total"})
     section_id: int | None = None
-    include_in_total: bool = True
+    include_in_total: bool | None = None
 
 
 class QuoteReorderSection(BaseModel):
@@ -620,13 +623,16 @@ class QuoteItemCreate(BaseModel):
     section_id: int | None = None
 
 
-class QuoteItemUpdate(BaseModel):
-    quantity: Decimal = Field(gt=0)
-    short_text: str = Field(min_length=1)
-    long_text: str = ""
-    unit: str = Field(min_length=1)
-    unit_price: Decimal = Field(ge=0)
-    position_type: str = "normal"
+class QuoteItemUpdate(PartialUpdate):
+    """Seit 1.8.96 Teil-Update (Regel 22): die Inline-Felder der LV-Liste schicken nur Menge bzw. Einheit -- vorher ging der
+    beim Laden gemerkte Stand aller Felder mit, zwei schnelle Änderungen derselben Position schrieben den alten Wert zurück."""
+    NOT_NULL = frozenset({"quantity", "short_text", "long_text", "unit", "unit_price", "position_type"})
+    quantity: Decimal | None = Field(default=None, gt=0)
+    short_text: str | None = Field(default=None, min_length=1)
+    long_text: str | None = None
+    unit: str | None = Field(default=None, min_length=1)
+    unit_price: Decimal | None = Field(default=None, ge=0)
+    position_type: str | None = None
     gaeb_oz: str | None = None
 
 
@@ -650,27 +656,35 @@ class QuoteItemOut(BaseModel):
     include_in_total: bool = True
 
 
-class QuoteItemMaterialCalculationUpdate(BaseModel):
+class QuoteItemMaterialCalculationUpdate(PartialUpdate):
+    """Seit 1.8.96 Teil-Update je Materialzeile (Regel 22): die Kalkulation zeigt die Preiseinheit nicht und schickt sie nicht
+    mehr -- vorher ging sie aus dem beim Laden gemerkten Stand mit, eine fehlende wurde 1."""
+    NOT_NULL = frozenset({"quantity", "waste_pct", "purchase_price", "price_basis"})
     id: int | None  # seit 1.8.84: ohne ID aus der Vorschau einer noch nicht gespeicherten Kalkulation
-    quantity: Decimal = Field(ge=0)
-    waste_pct: Decimal = Field(default=Decimal("0"), ge=-100)
-    purchase_price: Decimal = Field(ge=0)
-    price_basis: Decimal = Field(default=Decimal("1"), gt=0)
+    quantity: Decimal | None = Field(default=None, ge=0)
+    waste_pct: Decimal | None = Field(default=None, ge=-100)
+    purchase_price: Decimal | None = Field(default=None, ge=0)
+    price_basis: Decimal | None = Field(default=None, gt=0)
 
 
-class QuoteItemCalculationUpdate(BaseModel):
-    site_time_minutes: Decimal = Field(ge=0)
-    workshop_time_minutes: Decimal = Field(ge=0)
-    labor_rate: Decimal = Field(ge=0)
-    material_markup_pct: Decimal = Field(ge=-100)
-    equipment_cost: Decimal = Field(default=Decimal("0"), ge=0)
-    subcontractor_cost: Decimal = Field(default=Decimal("0"), ge=0)
-    other_cost: Decimal = Field(default=Decimal("0"), ge=0)
-    overhead_pct: Decimal = Field(ge=-100)
-    risk_profit_pct: Decimal = Field(ge=-100)
+class QuoteItemCalculationUpdate(PartialUpdate):
+    """Seit 1.8.96 Teil-Update (Regel 22): nur gesendete Felder; der Einheitspreis der Position folgt dem Ergebnis aus
+    gespeichertem Stand und gesendeten Werten (unter der Sperre der Position, app/routers/quotes.py). manual_sale_price null =
+    berechneter VK gilt. Fehlt materials, bleiben die Materialzeilen."""
+    NOT_NULL = frozenset({"site_time_minutes", "workshop_time_minutes", "labor_rate", "material_markup_pct", "equipment_cost",
+                          "subcontractor_cost", "other_cost", "overhead_pct", "risk_profit_pct", "materials"})
+    site_time_minutes: Decimal | None = Field(default=None, ge=0)
+    workshop_time_minutes: Decimal | None = Field(default=None, ge=0)
+    labor_rate: Decimal | None = Field(default=None, ge=0)
+    material_markup_pct: Decimal | None = Field(default=None, ge=-100)
+    equipment_cost: Decimal | None = Field(default=None, ge=0)
+    subcontractor_cost: Decimal | None = Field(default=None, ge=0)
+    other_cost: Decimal | None = Field(default=None, ge=0)
+    overhead_pct: Decimal | None = Field(default=None, ge=-100)
+    risk_profit_pct: Decimal | None = Field(default=None, ge=-100)
     manual_sale_price: Decimal | None = Field(default=None, ge=0)
     notes: str | None = None
-    materials: list[QuoteItemMaterialCalculationUpdate] = Field(default_factory=list)
+    materials: list[QuoteItemMaterialCalculationUpdate] | None = None
 
 
 class QuoteItemMaterialCalculationOut(BaseModel):
@@ -1278,15 +1292,18 @@ class OrderAddendumCreate(BaseModel):
     include_in_total: bool = True
 
 
-class OrderItemUpdate(BaseModel):
-    quantity: Decimal = Field(ge=0)
-    unit: str = Field(min_length=1, max_length=50)
-    unit_price: Decimal = Field(ge=0)
-    short_text: str = Field(min_length=1)
-    long_text: str = ""
-    position_type: str = Field(default="normal", max_length=30)
+class OrderItemUpdate(PartialUpdate):
+    """Seit 1.8.96 Teil-Update (Regel 22): die Felder der LV-Liste schicken nur Menge, Einheit bzw. Einheitspreis -- vorher ging
+    der beim Laden gemerkte Stand aller Felder mit. Die Sperren (app/order_locks.py) prüfen die gesendeten Felder."""
+    NOT_NULL = frozenset({"quantity", "unit", "unit_price", "short_text", "long_text", "position_type", "include_in_total"})
+    quantity: Decimal | None = Field(default=None, ge=0)
+    unit: str | None = Field(default=None, min_length=1, max_length=50)
+    unit_price: Decimal | None = Field(default=None, ge=0)
+    short_text: str | None = Field(default=None, min_length=1)
+    long_text: str | None = None
+    position_type: str | None = Field(default=None, max_length=30)
     gaeb_oz: str | None = Field(default=None, max_length=100)
-    include_in_total: bool = True
+    include_in_total: bool | None = None
 
 
 class OrderSectionUpdate(BaseModel):
@@ -2908,18 +2925,23 @@ class PlanningSlotCreate(BaseModel):
         return self
 
 
-class PlanningSlotUpdate(BaseModel):
+class PlanningSlotUpdate(PartialUpdate):
+    """Seit 1.8.96 Teil-Update (Regel 22): Verschieben auf der Plantafel schickt nur Team, Beginn und Ende -- vorher gingen
+    Status, Notiz, Planstunden und Anfahrt mit dem beim Laden gemerkten Stand mit. Ende vor Beginn prüft app/planning.py::
+    update_slot() auf gespeichertem Stand + gesendeten Werten; hier nur, wenn beide gesendet sind. team_id, Planstunden und
+    Anfahrt: null hieß bis 1.8.95 "unverändert", seither 422 (weglassen heißt unverändert)."""
+    NOT_NULL = frozenset({"team_id", "start_date", "end_date", "status", "planned_hours", "travel_hours_per_employee_day"})
     team_id: int | None = None
-    start_date: date
-    end_date: date
-    status: str = Field(default="geplant", max_length=40)
+    start_date: date | None = None
+    end_date: date | None = None
+    status: str | None = Field(default=None, max_length=40)
     notes: str | None = None
     planned_hours: Decimal | None = Field(default=None, ge=0)
     travel_hours_per_employee_day: Decimal | None = Field(default=None, ge=0, lt=24)
 
     @model_validator(mode="after")
     def validate_dates(self):
-        if self.end_date < self.start_date:
+        if self.start_date is not None and self.end_date is not None and self.end_date < self.start_date:
             raise ValueError("Enddatum darf nicht vor dem Startdatum liegen.")
         return self
 
@@ -3714,16 +3736,20 @@ class DocumentLayoutBlockOut(BaseModel):
     sort_order: int
 
 
-class DocumentLayoutBlockUpdate(BaseModel):
-    x_mm: Decimal = Field(ge=0, le=210)
-    y_mm: Decimal = Field(ge=0, le=297)
-    width_mm: Decimal = Field(gt=0, le=210)
-    height_mm: Decimal = Field(gt=0, le=297)
+class DocumentLayoutBlockUpdate(PartialUpdate):
+    """Seit 1.8.96 Teil-Update (Regel 22): "anzeigen" schickt nur visible, die Position des Folgeseiten-Kopfs nur y_mm -- vorher
+    gingen alle Felder des Bausteins mit dem beim Laden gemerkten Stand mit. content nimmt der Server an, schreibt ihn aber nicht
+    (app/document_layout.py::update_layout_block())."""
+    NOT_NULL = frozenset({"x_mm", "y_mm", "width_mm", "height_mm", "font_size", "font_weight", "text_align", "visible"})
+    x_mm: Decimal | None = Field(default=None, ge=0, le=210)
+    y_mm: Decimal | None = Field(default=None, ge=0, le=297)
+    width_mm: Decimal | None = Field(default=None, gt=0, le=210)
+    height_mm: Decimal | None = Field(default=None, gt=0, le=297)
     content: str | None = None
-    font_size: Decimal = Field(ge=5, le=36)
-    font_weight: str = Field(pattern="^(normal|bold)$")
-    text_align: str = Field(pattern="^(left|center|right)$")
-    visible: bool = True
+    font_size: Decimal | None = Field(default=None, ge=5, le=36)
+    font_weight: str | None = Field(default=None, pattern="^(normal|bold)$")
+    text_align: str | None = Field(default=None, pattern="^(left|center|right)$")
+    visible: bool | None = None
 
 
 class DocumentPageMarginsOut(BaseModel):
@@ -4737,8 +4763,30 @@ class RecurringCostCreate(BaseModel):
     notes: str | None = None
 
 
-class RecurringCostUpdate(RecurringCostCreate):
-    pass
+class RecurringCostUpdate(PartialUpdate):
+    """Seit 1.8.96 Teil-Update (Regel 22): "aktivieren/deaktivieren" in der Liste schickt nur active -- vorher ging der ganze
+    Kostenposten mit dem beim Laden gemerkten Stand mit. Jahresbetrag aus gespeichertem Stand + gesendeten Werten
+    (app/recurring_costs.py::update_cost(), unter der Sperre der Zeile)."""
+    NOT_NULL = frozenset({"label", "overhead_classification", "net_amount", "tax_rate_pct", "billing_interval", "active"})
+    label: str | None = Field(default=None, min_length=1, max_length=255)
+    category: str | None = None
+    overhead_classification: str | None = Field(default=None, pattern="^(keine|fix|auslastungsabhaengig)$")
+    net_amount: Decimal | None = Field(default=None, ge=0)
+    tax_rate_pct: Decimal | None = None
+    billing_interval: str | None = Field(default=None, pattern="^(monatlich|vierteljaehrlich|halbjaehrlich|jaehrlich|einmalig)$")
+    vendor: str | None = Field(default=None, max_length=255)
+    contract_end_date: date | None = None
+    notice_period_months: int | None = Field(default=None, ge=1)
+    asset_id: int | None = None
+    active: bool | None = None
+    notes: str | None = None
+
+    @field_validator("tax_rate_pct")
+    @classmethod
+    def validate_tax_rate(cls, v):
+        if v is not None and v not in (Decimal("19.00"), Decimal("7.00"), Decimal("0.00")):
+            raise ValueError("Steuersatz muss 19, 7 oder 0 Prozent sein.")
+        return v
 
 
 class RecurringCostSettingsOut(BaseModel):
@@ -4850,8 +4898,35 @@ class IncomingInvoiceCreate(BaseModel):
         return v
 
 
-class IncomingInvoiceUpdate(IncomingInvoiceCreate):
-    pass
+class IncomingInvoiceUpdate(PartialUpdate):
+    """Seit 1.8.96 Teil-Update (Regel 22): "als bezahlt markieren" schickt nur Status und Zahlungsdatum -- vorher ging die ganze
+    Eingangsrechnung samt Positionen mit dem beim Laden gemerkten Stand mit. Fehlt items, bleiben die Positionen. Die Prüfungen
+    (eine Zuordnung, Summe der Positionen, …) laufen auf gespeichertem Stand + gesendeten Werten
+    (app/incoming_invoices.py::update_invoice(), unter der Sperre der Zeile)."""
+    NOT_NULL = frozenset({"supplier_id", "invoice_date", "net_amount", "tax_rate_pct", "payment_status", "items"})
+    supplier_id: int | None = None
+    supplier_invoice_number: str | None = Field(default=None, max_length=80)
+    invoice_date: date | None = None
+    net_amount: Decimal | None = Field(default=None, ge=0)
+    tax_rate_pct: Decimal | None = None
+    due_date: date | None = None
+    skonto_percent: Decimal | None = Field(default=None, ge=0, le=100)
+    skonto_deadline: date | None = None
+    payment_status: str | None = Field(default=None, pattern="^(offen|bezahlt)$")
+    payment_date: date | None = None
+    project_id: int | None = None
+    asset_id: int | None = None
+    recurring_cost_id: int | None = None
+    account_id: int | None = None
+    notes: str | None = None
+    items: list[IncomingInvoiceItemIn] | None = None
+
+    @field_validator("tax_rate_pct")
+    @classmethod
+    def validate_tax_rate(cls, v):
+        if v is not None and v not in (Decimal("19.00"), Decimal("7.00"), Decimal("0.00")):
+            raise ValueError("Steuersatz muss 19, 7 oder 0 Prozent sein.")
+        return v
 
 
 class IncomingInvoiceOut(BaseModel):

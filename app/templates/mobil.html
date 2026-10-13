@@ -242,7 +242,7 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
     btn.disabled=true;st.textContent='Wird gesendet…';
     // Seit 1.8.95 über speichern()/lesen() (_speichern.html), Bereich 'maengel': die Liste lädt nach der Meldung neu, erst
     // danach steht die Bestätigung da; eine ältere Liste überschreibt nie eine neuere.
-    speichern('maengel',()=>fetch('/api/field-view/defects/'+card.dataset.defect+'/remedied',{method:'POST',body:form}),{neuLaden:loadDefects}).then(function(r){
+    abschliessen('maengel',()=>fetch('/api/field-view/defects/'+card.dataset.defect+'/remedied',{method:'POST',body:form}),{neuLaden:loadDefects}).then(function(r){
       return r.json().catch(function(){return null}).then(function(body){
         if(!r.ok)throw new Error(fehlerText(body,r.status,DEFECT_FIELDS));
         return body;

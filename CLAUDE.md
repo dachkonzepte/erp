@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.95** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.96** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -619,7 +619,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     und gekennzeichnet; der Server prüft "aktiv" nur bei einem neu gewählten Wert. Ein leerer gespeicherter
     Wert bleibt leer -- eine Vorgabe aus den Einstellungen gilt nur beim Anlegen (seit 1.8.31).
     `tests/test_v329_update_handler_struktur.py` prüft jeden
-    PUT/PATCH-Handler per AST; die 72 Altfälle (seit 1.8.46) stehen dort als Liste, die nur kürzer werden darf.
+    PUT/PATCH-Handler per AST; die 62 Altfälle (seit 1.8.96, vorher 70) stehen dort als Liste, die nur kürzer werden darf.
     Details: `docs/archiv/teil-updates.md`.
 
 23. **Grunddaten legt der Start an, nie ein Lesepfad -- kein GET schreibt, seit 1.8.42.** Einstellungen
@@ -677,13 +677,20 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
 29. **Jedes Speichern per fetch läuft über den Baustein `app/templates/_speichern.html`, seit 1.8.95.** Schreibende Anfrage (Methode
     ungleich GET, auch Löschen, Versand, Anmelden): `await speichern('<bereich>', ()=>api(url,{method:…}), {anwenden | neuLaden})` -- der
     Pfeil enthält genau die eine Anfrage; `speichern()` baut sie sofort (Werte vom Klick), sendet je Bereich nacheinander und kehrt erst
-    zurück, wenn die Antwort angewandt bzw. über `lesen(bereich, anfrage, anwenden)` neu geladen ist. Bereich = was eine Antwort ersetzt,
-    je Bereich eine laufende Nummer: eine Antwort, die älter ist als eine schon angewandte, wird verworfen; Lesen wartet auf laufendes
-    Speichern. Erfolgstexte ("Gespeichert.") stehen hinter `await speichern(…)`. `tests/test_v398_speichern_baustein.py` prüft jede
-    Vorlage über einen Scanner (`tests/vorlagen_js.py`): Schreiben nur über `speichern()`, danach nur `lesen()`/`speichern()` (transitiv über
-    die Funktionen der Seite), "Gespeichert" nur danach, einbinden wer nutzt; dazu jedes Seitenskript in node auf Syntax. Klicktest mit
-    zurückgehaltener Antwort: `scripts/klicktest_veraltete_antworten.py` (`Tab.zurueckhalten()`). Details:
-    `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.95".
+    zurück, wenn die Antwort angewandt bzw. über `lesen(bereich, anfrage, anwenden)` neu geladen ist. Bereich = was eine Antwort ersetzt;
+    alles gilt je Bereich: laufende Nummer, eine Antwort, die älter ist als eine schon angewandte, wird verworfen, Lesen wartet auf
+    laufendes Speichern desselben Bereichs, Speichern geht nacheinander. Erfolgstexte ("Gespeichert.") stehen hinter `await speichern(…)`.
+    Seit 1.8.96: ohne Antwort 60 s nach dem Senden bricht der Baustein ab, der Bereich ist "unklar" (Fehler und Hinweis oben "Seite neu
+    laden", bis dahin geht in diesem Bereich nichts mehr hinaus); solange ein Speichern läuft oder wartet, warnt die Seite beim Verlassen.
+    **Abschließende Aktionen** (Unterschrift, Festschreiben, Versand, Buchung, Storno, Abnahme, Mangel u. ä.) über
+    `abschliessen()` statt `speichern()`: gesendet erst, wenn jedes beim Klick laufende oder wartende Speichern der Seite zurück ist, gar
+    nicht, wenn eines davon scheiterte oder ein Bereich unklar ist; eine neue gehört in `ABSCHLIESSEND` (`tests/test_v399_abschliessen.py`,
+    prüft auch Adressen, die nach einer abschließenden Aktion klingen). `tests/test_v398_speichern_baustein.py` prüft jede
+    Vorlage über einen Scanner (`tests/vorlagen_js.py`): Schreiben nur über `speichern()`/`abschliessen()`, danach nur `lesen()`/`speichern()`
+    (transitiv über die Funktionen der Seite), "Gespeichert" nur danach, einbinden wer nutzt; dazu jedes Seitenskript in node auf Syntax.
+    Klicktests mit zurückgehaltener Antwort: `scripts/klicktest_veraltete_antworten.py` (`Tab.zurueckhalten()`),
+    `scripts/klicktest_abschliessen.py` (Prüfpunkt zurückhalten, dann unterschreiben; Zeitlimit über `window.__dkZeitlimit`). Details:
+    `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.95" und "Umsetzung 1.8.96".
 
 ## Fachbegriffe & Domänenmodell
 
@@ -1097,6 +1104,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   beides -- Nacharbeiten vollständig; vor dem Abnahmetest 1.8.94: Bezahlt abzüglich Erstattungen, Zahlbetrag 0 €, Zurücknehmen mit
   Grund, enthaltene Rechnungen gruppiert, Klicktest-Helfer „neu geladen“; seit 1.8.95 Baustein gegen veraltete Antworten
   (`_speichern.html`, Regel 29) in allen Vorlagen, Rechnungen über 0 € oder weniger nur als Storno oder Endrechnung mit Abzügen;
+  seit 1.8.96 Zeitlimit im Baustein (60 s, Bereich unklar, Warnung beim Verlassen), abschließende Aktionen über `abschliessen()` (warten
+  auf das Speichern der Seite), Teil-Updates statt gemerkter Werte an acht Endpunkten mit Zeilensperren;
   festgehalten 13.10.2026, nicht gebaut: Gewährleistungs- und Kulanzstunden für Stufe 2d und die Rüge, „Abschließen ohne Rechnung“ im
   neuen Abschnitt „Parkplatz vor dem Echtbetrieb“)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
@@ -1596,7 +1605,7 @@ mit Guthaben und Zahlungsausgang, zurücknehmen, 412 px dunkel, Monteurin 403) u
 `klicktest_browser_datum.py` (1.8.87, Instanz und Browser-Uhr um 00:30 Uhr, Browser in UTC und New York: Monteur-Zeiterfassung mit der
 Buchung von heute, Stundenzettel, Büro-Zeiterfassung, Aufgaben überfällig, Plantafel, Kalender) und `klicktest_zahlungen_kleinkram.py`
 (1.8.94, Finanzen „Bezahlt (gesamt)“ abzüglich Erstattungen, Kundenakte mit Grund statt „Zahlung zurücknehmen“ und gruppiertem „Rest
-zuordnen“, Zahlungsdialog gruppiert und umverteilt gebucht, Zahlbetrag 0 € mit Satz und ohne Schlusstext, 412 px dunkel, Monteurin 403).
+zuordnen“, Zahlungsdialog gruppiert und umverteilt gebucht, Zahlbetrag 0 € mit Satz und ohne Schlusstext, 412 px dunkel, Monteurin 403) und `klicktest_abschliessen.py` (1.8.96, Einsatzbericht: Prüfpunkt zurückhalten, dann unterschreiben -- Unterschrift erst nach dem Prüfpunkt; Prüfpunkt scheitert -- Unterschrift nicht ausgeführt; Zeitlimit 2 s über `window.__dkZeitlimit` -- Meldung, Hinweis oben, Unterschrift abgelehnt).
 **Nach einer Aktion, die neu lädt** (seit 1.8.94), nie eine feste Pause oder einen Statustext als Beleg nehmen -- viele Seiten setzen
 ihn vor dem Neuladen --, sondern `await tab.warte_auf_neu_geladene_liste("…click()", "#liste")` (wartet, bis keine Anfrage der Seite
 mehr unterwegs und die Liste neu gezeichnet ist; ohne Aktion nach `oeffnen()`, bevor geprüft wird, dass etwas NICHT erscheint);
@@ -1674,8 +1683,9 @@ jedem Bericht, Ergebnis im Bericht (Regel 26).
 - ~~Kolonnenführer-Rolle für Gruppenbuchungen~~ -- seit 1.7.12 gelöst über das Kennzeichen
   `TeamEmployee.is_crew_leader` (keine eigene Rolle), siehe `docs/archiv/rechtekonzept.md`,
   "Zeiterfassung für Monteure" -> "Nachtrag (seit 1.7.12)".
-- **64 Update-Handler übernehmen weiterhin nicht gesendete Felder** (seit 1.8.46 ohne die Dachfläche; die sechs mit Datenverlust seit
-  1.8.25 behoben, die drei der Arbeitsvorbereitung seit 1.8.29, der Auftragskopf seit 1.8.32, Regel 22): jede Oberfläche schickt dort heute alle Felder, kein akuter Datenverlust.
+- **62 Update-Handler stehen noch in `BEKANNT`** (seit 1.8.96; die sechs mit Datenverlust seit 1.8.25 behoben, die drei der
+  Arbeitsvorbereitung seit 1.8.29, der Auftragskopf seit 1.8.32, die Dachfläche seit 1.8.46, acht mit gemerkten Werten seit 1.8.96, Regel 22;
+  darunter die acht, die keine Verstöße sind): jede Oberfläche schickt dort heute alle Felder, kein akuter Datenverlust.
   Eingefroren in `BEKANNT` (`tests/test_v329_update_handler_struktur.py`), Abbau bei Gelegenheit; dazu
   Speichern-Aufrufe, die nicht bearbeitete oder gemerkte Werte schicken: `docs/archiv/teil-updates.md`,
   "Nebenbefunde der Durchsicht".

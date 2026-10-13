@@ -37,23 +37,31 @@ def _baustein_js() -> str:
     return re.search(r"<script>(.*?)</script>", BAUSTEIN.read_text(encoding="utf-8"), flags=re.S).group(1)
 
 
-def _ablauf(schritte: str, *, baustein_zweimal: bool = False) -> list:
-    """Führt den Baustein in node aus. Gestelltes fetch(name): protokolliert 'gesendet name', wenn die Anfrage wirklich
-    hinausgeht, und legt eine offene Antwort an; antworte(name[, antwort])/scheitere(name) beantworten sie. anfrage(name,
-    daten) -> Pfeil für lesen()/speichern() über fetch(name), Ergebnis daten (Vorgabe name). anwenden() protokolliert
-    'angewandt <daten>'; console.error landet als 'fehler: …' im Protokoll; log.push(...) für eigene Marken."""
+def _ablauf(schritte: str, *, baustein_zweimal: bool = False, zeitlimit: int | None = None, vorspann: str = "") -> list:
+    """Führt den Baustein in node aus. Gestelltes fetch(name[, init]): protokolliert 'gesendet name', wenn die Anfrage wirklich
+    hinausgeht, und legt eine offene Antwort an (ein Abbruch über init.signal protokolliert 'abgebrochen name' und lehnt sie ab);
+    antworte(name[, antwort])/scheitere(name) beantworten sie. anfrage(name, daten) -> Pfeil für lesen()/speichern() über
+    fetch(name), Ergebnis daten (Vorgabe name). anwenden() protokolliert 'angewandt <daten>'; console.error landet als 'fehler: …'
+    im Protokoll; log.push(...) für eigene Marken. zeitlimit (seit 1.8.96): window.__dkZeitlimit in ms vor dem Baustein;
+    vorspann: Skript vor dem Baustein (z. B. ein gestelltes window.addEventListener). Am Ende beendet sich node sofort -- ein
+    offener Zeitlimit-Timer hielte es sonst bis zu 60 s am Leben."""
     js = _baustein_js()
     script = "\n".join([
         "const window=globalThis;",
+        f"window.__dkZeitlimit={int(zeitlimit)};" if zeitlimit else "",
+        vorspann,
         js, js if baustein_zweimal else "",
         "const log=[];const offen={};console.error=m=>log.push('fehler: '+m);",
         "const ruhe=async()=>{for(let i=0;i<5;i++)await new Promise(r=>setTimeout(r,0))};",
-        "globalThis.fetch=name=>{log.push('gesendet '+name);return new Promise((res,rej)=>{offen[name]={res,rej}})};",
+        "const warte=ms=>new Promise(r=>setTimeout(r,ms));",
+        "globalThis.fetch=(name,init)=>{log.push('gesendet '+name);return new Promise((res,rej)=>{offen[name]={res,rej};"
+        "if(init&&init.signal)init.signal.addEventListener('abort',()=>{log.push('abgebrochen '+name);rej(new Error('abgebrochen'))})})};",
         "function anfrage(name,daten){return ()=>fetch(name).then(()=>daten===undefined?name:daten)}",
         "async function antworte(name,antwort){offen[name].res(antwort===undefined?{ok:true}:antwort);await ruhe()}",
         "async function scheitere(name){offen[name].rej(new Error('kaputt '+name));await ruhe()}",
         "const anwenden=()=>d=>{log.push('angewandt '+JSON.stringify(d))};",
-        f"(async()=>{{{schritte}\nawait ruhe();process.stdout.write(JSON.stringify(log))}})().catch(e=>{{console.error(e);process.exit(1)}})",
+        f"(async()=>{{{schritte}\nawait ruhe();process.stdout.write(JSON.stringify(log),()=>process.exit(0))}})()"
+        ".catch(e=>{console.error(e);process.exit(1)})",
     ])
     return _node(script, "Europe/Berlin")
 
@@ -310,7 +318,7 @@ def test_templates_using_the_baustein_include_it(name):
     if name == BAUSTEIN.name:
         return
     a = vj.analysieren(vj.eigene_skripte(name))
-    nutzt = any(not a.ist_methode(auf) for auf, _ in a.aufrufe() if a.t[auf - 1].wert in ("lesen", "speichern"))
+    nutzt = any(not a.ist_methode(auf) for auf, _ in a.aufrufe() if a.t[auf - 1].wert in vj.GEPRUEFT_RUFE)
     bindet_ein = '{% include "_speichern.html" %}' in (TEMPLATES / name).read_text(encoding="utf-8")
     assert nutzt == bindet_ein, (f"{name} nutzt lesen()/speichern(), bindet _speichern.html aber nicht selbst ein" if nutzt
                                  else f"{name} bindet _speichern.html ein, nutzt es aber selbst nicht")

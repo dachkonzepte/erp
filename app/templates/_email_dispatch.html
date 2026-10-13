@@ -56,8 +56,12 @@ async function postEmailDispatch(slot, url, payload, button) {
   let r;
   try {
     // Seit 1.8.95 über den Baustein (_speichern.html): je Platz nacheinander; neu lädt die Seite selbst danach.
-    r = await speichern('versand-' + slot, () => fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...payload, dispatch_key: key})}));
+    r = await abschliessen('versand-' + slot, () => fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...payload, dispatch_key: key})}));
   } catch (e) {
+    // Seit 1.8.96: nicht gesendet, weil vorher ein Speichern der Seite scheiterte oder unklar ist (abschliessen()) -- der Text sagt das.
+    if (e.dkBaustein === 'abschluss' || e.dkBaustein === 'nicht-gesendet') throw e;
+    // Zeitlimit: der Platz nimmt bis zum Neuladen nichts mehr an; der Versandverlauf zeigt danach, ob die Mail hinausging.
+    if (e.dkBaustein === 'unklar') throw Error('Keine Antwort vom Server nach ' + Math.round(window.__dkZeitlimit / 1000) + ' Sekunden – ob die Mail hinausging, ist unklar. Bitte die Seite neu laden und im Versandverlauf prüfen.');
     throw Error('Keine Antwort vom Server – ob die Mail hinausging, ist unklar. Erneut klicken fragt mit demselben Versandauftrag nach und sendet nicht doppelt.');
   } finally {
     if (button) button.disabled = false;
@@ -185,10 +189,11 @@ async function saveDispatchOutcome(id, slot) {
   let r;
   try {
     // Seit 1.8.95 über den Baustein: neu geladen wird erst nach der Antwort, über lesen() (renderDispatchHistory bzw. onChange).
-    r = await speichern('versandverlauf-' + slot, () => fetch(`/api/email-dispatches/${form.dataset.dispatchId}/outcome`, {method: 'POST', body: data}),
+    r = await abschliessen('versandverlauf-' + slot, () => fetch(`/api/email-dispatches/${form.dataset.dispatchId}/outcome`, {method: 'POST', body: data}),
                         {neuLaden: () => _dhOutcomeDone[slot] && _dhOutcomeDone[slot]()});
   } catch (e) {
-    msg.textContent = 'Keine Antwort vom Server – bitte neu laden und prüfen, ob es vermerkt ist.';
+    // Seit 1.8.96: Meldungen des Bausteins (Zeitlimit, nicht ausgeführt) wörtlich.
+    msg.textContent = e.dkBaustein ? e.message : 'Keine Antwort vom Server – bitte neu laden und prüfen, ob es vermerkt ist.';
     button.disabled = false;
     return;
   }
@@ -337,10 +342,11 @@ async function saveManualDelivery(containerId, type, id) {
   let r;
   try {
     // Seit 1.8.95 über den Baustein: der Verlauf lädt erst nach der Antwort neu, über lesen().
-    r = await speichern('versandverlauf-' + containerId, () => fetch('/api/email-dispatches/manual', {method: 'POST', body: form}),
+    r = await abschliessen('versandverlauf-' + containerId, () => fetch('/api/email-dispatches/manual', {method: 'POST', body: form}),
                         {neuLaden: () => renderDispatchHistory(containerId, type, id)});
   } catch (e) {
-    msg.textContent = 'Keine Antwort vom Server – erneut klicken trägt nicht doppelt ein.';
+    // Seit 1.8.96: Meldungen des Bausteins (Zeitlimit, nicht ausgeführt) wörtlich.
+    msg.textContent = e.dkBaustein ? e.message : 'Keine Antwort vom Server – erneut klicken trägt nicht doppelt ein.';
     button.disabled = false;
     return;
   }

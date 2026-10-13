@@ -4,6 +4,32 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.96 – Zeitlimit im Baustein, abschließende Aktionen warten auf das Speichern der Seite, Teil-Updates statt gemerkter Werte
+
+Der Baustein `_speichern.html` bricht ein Speichern ab, auf das 60 s nach dem Senden keine Antwort kommt. Der Bereich ist danach
+„unklar“: die Seite meldet „Keine Antwort vom Server nach 60 Sekunden – unklar, ob gespeichert wurde. Bitte die Seite neu laden und
+prüfen.“ an ihrer Stelle und zusätzlich oben mit „Seite neu laden“, wartende und neue Speichervorgänge des Bereichs gehen nicht mehr
+hinaus, die Knöpfe werden frei. Solange ein Speichern läuft oder wartet, warnt der Browser beim Verlassen der Seite. Abschließende
+Aktionen -- Unterschrift, Festschreiben, Versand, Zustellung, Abnahme, Mangel, Buchung, Storno, Beauftragen und Abgleich, 38 Aufrufe --
+gehen über die neue Funktion `abschliessen()`: gesendet erst, wenn jedes beim Klick laufende oder wartende Speichern der ganzen Seite zurück
+ist, und gar nicht, wenn eines davon gescheitert ist („Nicht ausgeführt: …“) oder ein Bereich unklar ist; zurückgehaltene Eingaben aus
+`_debounce.html` werden vorher gespeichert. Bis 1.8.95 konnte etwa die Unterschrift eines Einsatzberichts vor dem noch laufenden Speichern
+eines Prüfpunkts beim Server ankommen. Ein Strukturtest prüft die Liste dieser Aufrufe und jede Adresse, die nach einer abschließenden
+Aktion klingt; neuer Klicktest `klicktest_abschliessen`.
+
+Acht Stellen schickten beim Speichern Werte, die die Seite beim Laden gemerkt hatte (Angebots-Editor inline, Kalkulation, Drag-and-drop auf
+einen Titel, Auftragsposition inline, Eingangsrechnung „als bezahlt markieren“, Bausteine der Einstellungen, Plantafel verschieben,
+Kostenposten aktivieren) -- ein inzwischen anderswo geänderter Wert ging still verloren, zwei schnelle Änderungen derselben Angebotsposition
+schrieben den alten Wert der ersten zurück. Sie schicken jetzt nur das Bearbeitete, die Endpunkte sind Teil-Updates nach Regel 22, mit
+Zeilensperre, wo gelesen-geändert-geschrieben wird (Kalkulation, Eingangsrechnung, Kostenposten, Planeinsatz); die Löschwege derselben
+Zeilen sperren zuerst dieselbe Zeile (sonst Deadlocks unter PostgreSQL). Die E-Mail-Vorlage einer Mahnstufe war seit 1.8.80 schon
+Teil-Update.
+
+Keine Migration. Neu `test_v399_abschliessen` (162), `test_v399_teil_updates_geld` (25, davon 7 gegen PostgreSQL),
+`test_v399_teil_updates_rest` (13, davon 3 gegen PostgreSQL); geändert `test_v398` (Ablauf in node beendet sich sofort), `vorlagen_js`,
+`test_v329_update_handler_struktur` (BEKANNT 70 -> 62). Klicktest `klicktest_abschliessen` (neu) 19/19. Gegenproben 34 von 34 rot. Volle
+Suite 4489 grün, 0 rot. Alle Klicktests: 60 von 60 wie erwartet in 13:26 min, `klicktest_abschliessen` 19/19 darunter.
+
 ## 1.8.95 – Veraltete Antworten: Baustein für Speichern und Neuladen; Rechnungen über 0 € oder weniger nur als Storno oder Endrechnung mit Abzügen
 
 Seiten übernehmen keine Antwort mehr, die älter ist als eine schon angewandte, und melden „Gespeichert.“ erst, wenn die Antwort angewandt

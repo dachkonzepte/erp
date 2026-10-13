@@ -208,7 +208,8 @@ def add_free_item_api(quote_id: int, payload: QuoteFreeItemCreate, db: Session =
 @router.put("/api/quotes/{quote_id}/items/{item_id}/layout", response_model=QuoteOut)
 def update_item_layout_api(quote_id: int, item_id: int, payload: QuoteItemLayoutUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     try:
-        set_item_layout(db, quote_id, item_id, payload.section_id, payload.include_in_total)
+        # Seit 1.8.96 Teil-Update (Regel 22): Drag-and-drop schickt nur den Titel, "in Summe" bleibt.
+        set_item_layout(db, quote_id, item_id, **payload.model_dump(exclude_unset=True))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return QuoteOut.model_validate(quote_to_dict(load_quote(db, quote_id)))
@@ -299,10 +300,12 @@ def add_quote_item(quote_id: int, payload: QuoteItemCreate, db: Session = Depend
 
 @router.put("/api/quotes/{quote_id}/items/{item_id}", response_model=QuoteOut)
 def update_quote_item(quote_id: int, item_id: int, payload: QuoteItemUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    # Seit 1.8.96 Teil-Update (Regel 22): nur die gesendeten Felder. Ohne Sperre: nichts wird aus dem gelesenen Stand abgeleitet,
+    # das UPDATE trägt nur die geänderten Spalten (gleichzeitige Änderungen verschiedener Felder bleiben beide stehen).
     item = db.get(QuoteItem, item_id)
     if item is None or item.quote_id != quote_id:
         raise HTTPException(status_code=404, detail="Angebotsposition nicht gefunden.")
-    for key, value in payload.model_dump().items():
+    for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(item, key, value)
     db.commit()
     quote = load_quote(db, quote_id)
@@ -340,10 +343,17 @@ def update_quote_item_calculation(
     quote_id: int, item_id: int, payload: QuoteItemCalculationUpdate, db: Session = Depends(get_db),
     _role: AppUser = _role_dep,
 ):
+    # Seit 1.8.96 Teil-Update (Regel 22) unter der Sperre der Position: der Einheitspreis wird aus der ganzen Kalkulation
+    # abgeleitet (gelesen, geändert, geschrieben) -- ohne Sperre rechnete eine gleichzeitige zweite Änderung mit dem Stand vor der
+    # ersten, und der Einheitspreis passte zu keiner der beiden.
+    changes = payload.model_dump(exclude_unset=True)
+    materials = changes.pop("materials", [])
     item = db.scalar(
         select(QuoteItem)
         .options(selectinload(QuoteItem.project_calculation).selectinload(QuoteItemCalculation.materials))
         .where(QuoteItem.id == item_id, QuoteItem.quote_id == quote_id)
+        .with_for_update(of=QuoteItem)
+        .execution_options(populate_existing=True)
     )
     if item is None:
         raise HTTPException(status_code=404, detail="Angebotsposition nicht gefunden.")
@@ -352,30 +362,20 @@ def update_quote_item_calculation(
     if calc is None:
         raise HTTPException(status_code=422, detail="Für diese Position ist keine Katalogkalkulation vorhanden.")
 
-    calc.site_time_minutes = payload.site_time_minutes
-    calc.workshop_time_minutes = payload.workshop_time_minutes
-    calc.labor_rate = payload.labor_rate
-    calc.material_markup_pct = payload.material_markup_pct
-    calc.equipment_cost = payload.equipment_cost
-    calc.subcontractor_cost = payload.subcontractor_cost
-    calc.other_cost = payload.other_cost
-    calc.overhead_pct = payload.overhead_pct
-    calc.risk_profit_pct = payload.risk_profit_pct
-    calc.manual_sale_price = payload.manual_sale_price
-    calc.notes = payload.notes
+    for key, value in changes.items():
+        setattr(calc, key, value)
 
     rows = {row.id: row for row in calc.materials}
-    for index, material in enumerate(payload.materials):
+    for index, material in enumerate(materials):
         # Seit 1.8.84: die Vorschau (GET ohne gespeicherte Kalkulation) hat Materialzeilen ohne ID -- sie stehen in derselben
         # Reihenfolge wie die eben angelegten.
-        row = rows.get(material.id) if material.id is not None else (
+        material_id = material.pop("id")
+        row = rows.get(material_id) if material_id is not None else (
             calc.materials[index] if preview and index < len(calc.materials) else None)
         if row is None:
-            raise HTTPException(status_code=422, detail=f"Material {material.id} gehört nicht zu dieser Angebotsposition.")
-        row.quantity = material.quantity
-        row.waste_pct = material.waste_pct
-        row.purchase_price = material.purchase_price
-        row.price_basis = material.price_basis
+            raise HTTPException(status_code=422, detail=f"Material {material_id} gehört nicht zu dieser Angebotsposition.")
+        for key, value in material.items():  # nur die gesendeten (Menge, Verschnitt, EK, Preiseinheit)
+            setattr(row, key, value)
 
     result = build_quote_item_calculation(item)
     item.unit_price = result["effective_sale_price"]
@@ -390,6 +390,10 @@ def update_quote_item_calculation(
 
 @router.delete("/api/quotes/{quote_id}/items/{item_id}", response_model=QuoteOut)
 def delete_quote_item(quote_id: int, item_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    # Seit 1.8.96 zuerst die Sperre der Position wie beim Speichern der Kalkulation (dieselbe Reihenfolge: Position, dann
+    # Kalkulation und Material) -- sonst konnten Löschen (Material, Kalkulation, Position) und gleichzeitiges Speichern der
+    # Kalkulation sich gegenseitig blockieren (Deadlock unter PostgreSQL). Geladen wird erst danach.
+    db.execute(select(QuoteItem.id).where(QuoteItem.id == item_id, QuoteItem.quote_id == quote_id).with_for_update())
     quote = load_quote(db, quote_id)
     if quote is None:
         raise HTTPException(status_code=404, detail="Angebot nicht gefunden.")

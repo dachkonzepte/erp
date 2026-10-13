@@ -103,7 +103,7 @@ async function resolveDispatch(id,outcome,btn){
   btn.disabled=true;out.className='small muted';out.textContent='speichere …';
   const body=JSON.stringify({outcome,note});
   try{
-    await speichern('versandverlauf-vp',()=>api(`/api/email-dispatches/${id}/resolve`,{method:'POST',headers:{'Content-Type':'application/json'},body}));
+    await abschliessen('versandverlauf-vp',()=>api(`/api/email-dispatches/${id}/resolve`,{method:'POST',headers:{'Content-Type':'application/json'},body}));
     await reload();
   }catch(e){out.className='small check-bad';out.textContent='Fehler: '+e.message;btn.disabled=false}
 }

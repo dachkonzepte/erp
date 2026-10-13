@@ -267,14 +267,27 @@ def create_cost(db: Session, payload: dict) -> dict:
     return cost_to_dict(_load(db, cost.id), lead_days)
 
 
+_UPDATE_FIELDS = (
+    "label", "category", "overhead_classification", "net_amount", "tax_rate_pct", "billing_interval", "vendor",
+    "contract_end_date", "notice_period_months", "asset_id", "active", "notes",
+)
+
+
 def update_cost(db: Session, cost_id: int, payload: dict) -> dict | None:
-    cost = db.get(RecurringCost, cost_id)
+    """Seit 1.8.96 Teil-Update (Regel 22): payload trägt nur, was sich ändern soll (der Router reicht
+    model_dump(exclude_unset=True) durch, andere Schlüssel zählen nicht). Prüfungen und der Jahresbetrag laufen auf dem Ergebnis
+    aus gespeichertem Stand und gesendeten Werten -- unter der Sperre der Zeile, sonst rechnete eine gleichzeitige zweite
+    Änderung (Rhythmus hier, Betrag dort) den Jahresbetrag aus dem Stand vor der ersten."""
+    cost = db.scalar(select(RecurringCost).where(RecurringCost.id == cost_id).with_for_update()
+                     .execution_options(populate_existing=True))
     if cost is None:
         return None
     asset_id = payload.get("asset_id")
     if asset_id is not None and db.get(OperationalAsset, asset_id) is None:
         raise ValueError(f"Betriebsmittel #{asset_id} wurde nicht gefunden.")
-    for field, value in _payload_fields(payload).items():
+    merged = {field: getattr(cost, field) for field in _UPDATE_FIELDS}
+    merged.update({key: value for key, value in payload.items() if key in merged})
+    for field, value in _payload_fields(merged).items():
         setattr(cost, field, value)
     db.commit()
     lead_days = load_recurring_cost_settings(db).reminder_lead_days

@@ -264,12 +264,8 @@ async function saveCost(){
 async function toggleActive(id){
   const c=costs.find(x=>x.id===id);
   if(!c)return;
-  const payload={
-    label:c.label,category:c.category,overhead_classification:c.overhead_classification,
-    net_amount:c.net_amount,tax_rate_pct:c.tax_rate_pct,billing_interval:c.billing_interval,
-    vendor:c.vendor,contract_end_date:c.contract_end_date,notice_period_months:c.notice_period_months,
-    asset_id:c.asset_id,active:!c.active,notes:c.notes,
-  };
+  // Seit 1.8.96 nur active (Regel 22) -- vorher ging der ganze Kostenposten mit dem beim Laden gemerkten Stand mit.
+  const payload={active:!c.active};
   const body=JSON.stringify(payload);
   try{
     await speichern('kostenposten',()=>api(`/api/recurring-costs/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body}));

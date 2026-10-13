@@ -1,7 +1,7 @@
 <script>
 /* Gemeinsamer Baustein gegen veraltete Antworten (seit 1.8.95, Nebenbefunde 1 und 3 aus 1.8.94; docs/archiv/befund-vor-echtbetrieb.md,
-   "Umsetzung 1.8.95"). Eine Seite übernimmt nie eine Antwort, die älter ist als eine schon angewandte, und meldet "Gespeichert."
-   erst, wenn die Antwort angewandt ist.
+   "Umsetzung 1.8.95" und "Umsetzung 1.8.96"). Eine Seite übernimmt nie eine Antwort, die älter ist als eine schon angewandte, und
+   meldet "Gespeichert." erst, wenn die Antwort angewandt ist.
 
    Ein Bereich ist, was eine Antwort auf der Seite ersetzt: ein Formular, eine Karte, eine Liste oder ein Feld (ein Name je Seite,
    frei gewählt). Je Bereich gilt:
@@ -24,17 +24,88 @@
      speichern() kehrt erst zurück, wenn angewandt bzw. neu geladen ist: ein Statustext wie "Gespeichert." steht deshalb hinter
      await speichern(…). Bei einem Fehler wird nichts angewandt und nicht neu geladen, der Fehler geht an den Aufrufer; eine
      fetch-Antwort mit Fehlerstatus (Response.ok false) gibt speichern() unverändert zurück, ebenfalls ohne anzuwenden.
-   Der Baustein darf in einer Seite mehrfach eingebunden sein (Seite und Teilvorlage): der Stand hängt an window. */
+   abschliessen(bereich, anfrage, {anwenden, neuLaden}) -- seit 1.8.96, wie speichern() für abschließende Aktionen (Unterschrift,
+     Festschreiben, Versand, Buchung, Storno u. ä.; Liste in tests/test_v399_abschliessen.py): die Anfrage geht erst hinaus, wenn
+     jedes Speichern der ganzen Seite, das beim Aufruf lief oder wartete, zurück ist -- und gar nicht, wenn eines davon gescheitert
+     ist oder ein Bereich der Seite nach einer Zeitüberschreitung unklar ist (Fehler an den Aufrufer, nichts gesendet). Eingaben, die
+     _debounce.html noch zurückhält, werden vorher gespeichert.
+
+   Zeitlimit (seit 1.8.96): kommt auf ein Speichern 60 s nach dem Senden keine Antwort, bricht der Baustein die Anfrage ab. Ob der
+   Server sie bearbeitet hat, ist dann unklar: der Bereich ist "unklar", speichern() endet mit einem Fehler, der das sagt und um
+   Neuladen und Prüfen bittet (die Seite zeigt ihn wie jeden Fehler, dazu ein Hinweis oben auf der Seite mit "Seite neu laden");
+   wartende und neue Speichervorgänge dieses Bereichs gehen nicht mehr hinaus (sie enden mit demselben Hinweis), bis die Seite neu
+   geladen ist. Solange ein Speichern läuft oder wartet, warnt der Browser beim Verlassen der Seite.
+
+   Der Baustein darf in einer Seite mehrfach eingebunden sein (Seite und Teilvorlage): der Stand hängt an window, und es gibt hier
+   deshalb keine class/const/let auf oberster Ebene. */
 window.__dkBereiche = window.__dkBereiche || new Map();
+window.__dkSpeichern = window.__dkSpeichern || new Set();  // laufendes und wartendes Speichern der Seite: {bereich, ergebnis}
+window.__dkZeitlimit = window.__dkZeitlimit || 60000;      // ms ab dem Senden
+if (!window.__dkVerlassen && typeof window.addEventListener === 'function') {
+  window.__dkVerlassen = true;
+  window.addEventListener('beforeunload', e => {
+    if (!window.__dkSpeichern.size) return;
+    e.preventDefault();
+    e.returnValue = '';
+    return '';
+  });
+}
 function _dkBereich(name) {
   let b = window.__dkBereiche.get(name);
-  if (!b) { b = {nummer: 0, angewandt: 0, offen: 0, letztes: Promise.resolve()}; window.__dkBereiche.set(name, b); }
+  if (!b) { b = {nummer: 0, angewandt: 0, offen: 0, letztes: Promise.resolve(), unklar: false}; window.__dkBereiche.set(name, b); }
   return b;
 }
 function _dkNeuer(b, nr) {
   if (nr < b.angewandt) return false;
   b.angewandt = nr;
   return true;
+}
+function _dkFehler(text, art) {
+  const e = new Error(text);
+  e.dkBaustein = art;  // 'unklar' | 'nicht-gesendet' | 'abschluss'
+  return e;
+}
+function _dkUnklarText() {
+  return `Keine Antwort vom Server nach ${Math.round(window.__dkZeitlimit / 1000)} Sekunden – unklar, ob gespeichert wurde. `
+    + 'Bitte die Seite neu laden und prüfen.';
+}
+function _dkNichtGesendetText() {
+  return 'Nicht gesendet: ein Speichern davor blieb ohne Antwort – unklar, ob es gespeichert wurde. Bitte die Seite neu laden und prüfen.';
+}
+function _dkHinweis(text) {
+  // Oben auf der Seite, zusätzlich zur Meldung des Bereichs -- auch dort sichtbar, wo eine Seite einen Fehler nur knapp zeigt.
+  if (typeof document === 'undefined' || !document.body) return;
+  let el = document.getElementById('dkSpeichernUnklar');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'dkSpeichernUnklar';
+    el.setAttribute('role', 'alert');
+    el.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:10000;display:flex;flex-wrap:wrap;align-items:center;gap:10px;'
+      + 'padding:10px 16px;background:var(--danger-soft,#fdecea);color:var(--danger,#b42318);'
+      + 'border-bottom:2px solid var(--danger,#b42318);font-weight:600;font-size:14px';
+    const t = document.createElement('span');
+    t.className = 'dk-text';
+    const k = document.createElement('button');
+    k.type = 'button';
+    k.textContent = 'Seite neu laden';
+    k.style.cssText = 'border:1px solid currentColor;background:transparent;color:inherit;padding:5px 10px;font:inherit;cursor:pointer';
+    k.onclick = () => location.reload();
+    el.append(t, k);
+    document.body.appendChild(el);
+  }
+  el.querySelector('.dk-text').textContent = text;
+}
+function _dkMitZeitlimit(laufend, kontrollen, b) {
+  let uhr;
+  const ablauf = new Promise((_, nein) => {
+    uhr = setTimeout(() => {
+      b.unklar = true;
+      for (const k of kontrollen) k.abort();
+      _dkHinweis(_dkUnklarText());
+      nein(_dkFehler(_dkUnklarText(), 'unklar'));
+    }, window.__dkZeitlimit);
+  });
+  return Promise.race([laufend, ablauf]).finally(() => clearTimeout(uhr));
 }
 async function lesen(bereich, anfrage, anwenden) {
   const b = _dkBereich(bereich);
@@ -45,38 +116,83 @@ async function lesen(bereich, anfrage, anwenden) {
   if (anwenden) await anwenden(daten);
   return true;
 }
-async function speichern(bereich, anfrage, optionen = {}) {
+function speichern(bereich, anfrage, optionen = {}) {
+  return _dkSpeichern(bereich, anfrage, optionen, null);
+}
+function abschliessen(bereich, anfrage, optionen = {}) {
+  for (const jetzt of [...(window.__dkEntprellt || [])]) {  // zurückgehaltene Eingaben (_debounce.html) jetzt speichern
+    try { jetzt(); } catch (e) { console.error(e); }
+  }
+  const davor = [...window.__dkSpeichern];
+  return _dkSpeichern(bereich, anfrage, optionen, async () => {
+    const ergebnisse = await Promise.all(davor.map(s => s.ergebnis));
+    const gescheitert = ergebnisse.find(x => !x.ok);
+    if ([...window.__dkBereiche.values()].some(x => x.unklar)) {
+      throw _dkFehler('Nicht ausgeführt: bei einem Speichern auf der Seite ist unklar, ob es gespeichert wurde. '
+        + 'Bitte die Seite neu laden und prüfen.', 'abschluss');
+    }
+    if (gescheitert) {
+      throw _dkFehler('Nicht ausgeführt: ein Speichern auf der Seite ist gescheitert'
+        + (gescheitert.fehler ? ` (${gescheitert.fehler})` : '') + '. Bitte prüfen und erneut versuchen.', 'abschluss');
+    }
+  });
+}
+async function _dkSpeichern(bereich, anfrage, optionen, voraussetzung) {
   const b = _dkBereich(bereich), vorher = b.letztes;
-  let fertig;
+  let fertig, melden;
   b.letztes = new Promise(r => { fertig = r; });
   b.offen++;
+  const eintrag = {bereich, ergebnis: new Promise(r => { melden = r; })};
+  window.__dkSpeichern.add(eintrag);
   // Die Anfrage wird JETZT gebaut -- URL und Body samt der Werte aus dem Formular, wie sie beim Klick stehen --, hinaus geht sie
   // erst, wenn das vorige Speichern des Bereichs zurück ist: fetch() ist während des Aufrufs von anfrage() durch eine Fassung
   // ersetzt, die bis zur Freigabe wartet. Sonst läse eine wartende Anfrage ein Formular, das die Antwort des vorigen Speicherns
-  // inzwischen neu gezeichnet hat, und schickte still den alten Stand.
-  let senden, gebaut = 0;
-  const freigabe = new Promise(r => { senden = r; });
+  // inzwischen neu gezeichnet hat, und schickte still den alten Stand. Dieselbe Fassung gibt jeder Anfrage ein Abbruchsignal für
+  // das Zeitlimit mit.
+  let senden, nichtSenden, gebaut = 0;
+  const freigabe = new Promise((ja, nein) => { senden = ja; nichtSenden = nein; });
+  freigabe.catch(() => {});
+  const kontrollen = [];
   const echtesFetch = window.fetch;
   let laufend;
   try {
-    window.fetch = function (...args) { gebaut++; return freigabe.then(() => echtesFetch.apply(this, args)); };
+    window.fetch = function (input, init) {
+      gebaut++;
+      if (typeof AbortController === 'function' && !(init && init.signal)) {
+        const k = new AbortController();
+        kontrollen.push(k);
+        init = Object.assign({}, init, {signal: k.signal});
+      }
+      const self = this;
+      return freigabe.then(() => echtesFetch.call(self, input, init));
+    };
     try { laufend = Promise.resolve(anfrage()); } finally { window.fetch = echtesFetch; }
     if (!gebaut) console.error(`speichern('${bereich}'): die Anfrage ging nicht sofort über fetch() -- sie wartet nicht auf das vorige Speichern`);
   } catch (e) {
     laufend = Promise.reject(e);
   }
   laufend.catch(() => {});  // der Fehler kommt unten an; bis dahin nicht als unbehandelt melden
-  let daten, nr;
+  let daten, nr, ergebnis = {ok: false, fehler: ''};
   try {
     await vorher;
+    if (voraussetzung) await voraussetzung();
+    if (b.unklar) throw _dkFehler(_dkNichtGesendetText(), 'nicht-gesendet');
     nr = ++b.nummer;
     senden();
-    daten = await laufend;
+    daten = await _dkMitZeitlimit(laufend, kontrollen, b);
+    const fehlstatus = typeof Response !== 'undefined' && daten instanceof Response && !daten.ok;
+    ergebnis = {ok: !fehlstatus, fehler: fehlstatus ? `Status ${daten.status}` : ''};
+  } catch (e) {
+    nichtSenden(e);  // noch nicht gesendet (Voraussetzung, unklarer Bereich): die gebaute Anfrage geht nie hinaus
+    ergebnis = {ok: false, fehler: e && e.message ? e.message : String(e)};
+    throw e;
   } finally {
     b.offen--;
+    window.__dkSpeichern.delete(eintrag);
+    melden(ergebnis);
     fertig();
   }
-  if (typeof Response !== 'undefined' && daten instanceof Response && !daten.ok) return daten;
+  if (!ergebnis.ok) return daten;
   if (optionen.anwenden && _dkNeuer(b, nr)) await optionen.anwenden(daten);
   if (optionen.neuLaden) await optionen.neuLaden();
   return daten;

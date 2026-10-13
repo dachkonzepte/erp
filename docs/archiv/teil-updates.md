@@ -97,7 +97,7 @@ Keine Weglassung, aber die Oberfläche schickt einen Wert, den niemand bearbeite
    `master_data_form.html` Ressourcenart (nur aktive Arten), `quote_editor.html` `fillTextSelect`
    (wählt bei leerem Text die Vorgabe vor, das nächste Speichern schreibt sie). Nicht vollständig
    gesucht.
-3. Gemerkte Werte für nicht bearbeitete Felder (nur veraltet, wenn der Datensatz nach dem Laden
+3. **Behoben seit 1.8.96** (siehe "Gemerkte Werte" unten). Gemerkte Werte für nicht bearbeitete Felder (nur veraltet, wenn der Datensatz nach dem Laden
    anderswo geändert wurde): `order.html` `quickItem`, `quote_editor.html` `saveInlineField`,
    Drag-and-drop-Layout und `saveCalc` (price_basis), `planning.html` `dropSlot`, `settings.html`
    `toggleDocumentLayoutBlock`/`saveContinuationHeaderPosition`/`saveEmailTemplate` (Mahnstufe),
@@ -185,6 +185,20 @@ Tests: `tests/test_v334_auswahl_restfaelle.py` -- die Oberflächen in node mit e
 `saveEntryEdit()` laufen echt, der geschickte Body geht an den Server. Angebots-Texte: die vier
 `fillTextSelect()`-Aufrufe aus `renderAll()` wörtlich. Gegenprobe mit dem Stand von 1.8.30: 10 von 10 rot.
 `scripts/klicktest_auswahl_restfaelle.py` 19/19, alter Stand 6/19 (nur die Prüfungen "keine JS-Fehler" grün).
+
+## Gemerkte Werte (seit 1.8.96)
+
+Nebenbefund 3 der Durchsicht ("gemerkte Werte für nicht bearbeitete Felder") ist mit 1.8.96 behoben (Vorgabe 1.8.96 Punkt 3,
+`docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.96"): Angebots-Editor inline (`saveInlineField`), Kalkulation (`saveCalc`, ohne
+Preiseinheit), Drag-and-drop auf einen Titel, Auftragsseite inline (`quickItem`), Eingangsrechnung "als bezahlt markieren" (`markPaidNow`),
+Bausteine der Einstellungen (`toggleDocumentLayoutBlock`, `saveContinuationHeaderPosition`), Plantafel verschieben (`dropSlot`), Kostenposten
+aktivieren/deaktivieren (`toggleActive`) schicken nur das Bearbeitete; die acht Endpunkte sind Teil-Updates (`PartialUpdate`), mit
+Zeilensperre, wo gelesen-geändert-geschrieben wird (Kalkulation, Eingangsrechnung, Kostenposten, Planeinsatz), und die Löschwege derselben
+Zeilen sperren zuerst dieselbe Zeile. `saveEmailTemplate` (Mahnstufe) war seit 1.8.80 Teil-Update. `BEKANNT` im Strukturtest: 62 statt 70
+Einträge (die acht in `REPARIERT_SPAETER`). Noch offen aus der Durchsicht: `moveItemBefore` (`POST /api/quotes/{id}/reorder`) schickt
+`section_id` aller Positionen des Zieltitels aus dem Stand beim Laden (POST, nicht Teil des Auftrags). Tests:
+`tests/test_v399_teil_updates_geld.py`, `tests/test_v399_teil_updates_rest.py` (die echte Funktion der Vorlage in node gegen den echten
+Server, ein anderswo nach dem Laden geänderter Wert bleibt; Gleichzeitigkeit und Deadlocks gegen PostgreSQL).
 
 ## Auftragskopf als Teil-Update (seit 1.8.32)
 

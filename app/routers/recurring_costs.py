@@ -83,7 +83,8 @@ def post_recurring_cost(payload: RecurringCostCreate, db: Session = Depends(get_
 def put_recurring_cost(cost_id: int, payload: RecurringCostUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
-        result = update_cost(db, cost_id, payload.model_dump())
+        # Seit 1.8.96 Teil-Update (Regel 22): "aktivieren/deaktivieren" schickt nur active.
+        result = update_cost(db, cost_id, payload.model_dump(exclude_unset=True))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if result is None:

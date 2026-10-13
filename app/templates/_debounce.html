@@ -4,12 +4,26 @@
    Fokus verlässt (z. B. Reload direkt nach dem Eintippen, ohne vorher wegzuklicken). Jede Seite
    bindet diese Datei per Jinja-Include ein und baut ihre eigene, seiteneigene Speicherlogik
    (z. B. je Zeile/Feld) darauf auf -- der Helfer selbst wird nicht dupliziert, nur seine
-   Anwendung ist je Seite eigener Code. */
+   Anwendung ist je Seite eigener Code.
+   Seit 1.8.96: ein noch zurückgehaltener Aufruf steht in window.__dkEntprellt -- abschliessen()
+   (_speichern.html) führt ihn vor einer Unterschrift o. ä. sofort aus, damit die Eingabe vorher
+   gespeichert ist. */
+window.__dkEntprellt = window.__dkEntprellt || new Set();
 function debounce(fn, ms) {
-  let timer;
+  let timer, wartet = null;
   return function (...args) {
     clearTimeout(timer);
-    timer = setTimeout(() => fn.apply(this, args), ms);
+    if (wartet) window.__dkEntprellt.delete(wartet);
+    const self = this;
+    const jetzt = () => {
+      clearTimeout(timer);
+      window.__dkEntprellt.delete(jetzt);
+      if (wartet === jetzt) wartet = null;
+      return fn.apply(self, args);
+    };
+    wartet = jetzt;
+    window.__dkEntprellt.add(jetzt);
+    timer = setTimeout(jetzt, ms);
   };
 }
 </script>

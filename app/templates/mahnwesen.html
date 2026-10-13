@@ -248,7 +248,7 @@ async function sendReminder(id){
   const repl=replaceNotice(allReminders.find(x=>x.id===id));
   if(!confirm('Mahnung jetzt versenden? Die Mahnungsnummer wird vergeben, danach ist keine Bearbeitung mehr möglich. Das ist kein tatsächlicher Versand an den Kunden – das PDF muss weiterhin separat heruntergeladen und verschickt werden.'+(repl?'\n\n'+repl:'')))return;
   try{
-    await speichern('mahnwesen',()=>api(`/api/reminders/${id}/send`,{method:'POST'}),{neuLaden:reload});
+    await abschliessen('mahnwesen',()=>api(`/api/reminders/${id}/send`,{method:'POST'}),{neuLaden:reload});
   }catch(e){ alert('Fehler: '+e.message) }
 }
 async function deleteReminder(id){

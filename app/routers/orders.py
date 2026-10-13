@@ -183,7 +183,8 @@ def get_order_contract_basis_changes(order_id: int, db: Session = Depends(get_db
 @router.put("/api/orders/{order_id}/items/{item_id}", response_model=OrderOut)
 def put_order_item(order_id: int, item_id: int, payload: OrderItemUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     try:
-        order = update_order_item(db, order_id, item_id, **payload.model_dump())
+        # Seit 1.8.96 Teil-Update (Regel 22): nur die gesendeten Felder -- die Sperren prüfen genau diese.
+        order = update_order_item(db, order_id, item_id, **payload.model_dump(exclude_unset=True))
     except OrderLocked as exc:  # seit 1.8.82: abgerechnete Position bzw. nach der Schlussrechnung
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:

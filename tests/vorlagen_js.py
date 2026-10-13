@@ -17,8 +17,10 @@ from pathlib import Path
 
 TEMPLATES = Path(__file__).resolve().parent.parent / "app" / "templates"
 
-SCHREIBEND = {"speichern"}
-GEPRUEFT_RUFE = ("lesen", "speichern")
+# Seit 1.8.96 auch abschliessen() -- speichern() für abschließende Aktionen (Unterschrift, Festschreiben, Versand …).
+SCHREIBEND = {"speichern", "abschliessen"}
+BAUSTEIN = "_speichern.html"
+GEPRUEFT_RUFE = ("lesen", "speichern", "abschliessen")
 SCHLUESSELWOERTER = {
     "if", "for", "while", "switch", "catch", "function", "return", "typeof", "new", "await", "async", "else", "do", "in", "of",
     "case", "delete", "void", "throw", "instanceof", "yield", "const", "let", "var", "try", "finally", "class", "super", "this",
@@ -43,6 +45,13 @@ class Quelle:
     name: str
     text: str
     herkunft: list = field(default_factory=list)  # (start, ende, datei, versatz_in_datei)
+
+    def datei(self, pos: int) -> str | None:
+        """Die Vorlage, aus der die Position stammt (seit 1.8.96)."""
+        for start, ende, datei, _ in self.herkunft:
+            if start <= pos < ende:
+                return datei
+        return None
 
     def stelle(self, pos: int) -> str:
         for start, ende, datei, versatz in self.herkunft:
@@ -239,6 +248,7 @@ class Analyse:
     partner: dict          # Index einer Klammer -> Index der Gegenklammer
     eltern: list           # je Token: Index der innersten offenen Klammer (oder -1)
     funktionen: dict       # Name -> [(start, ende)] Rumpf (Token-Indizes, einschließlich)
+    baustein: set = field(default_factory=set)  # seit 1.8.96: Namen der Funktionen aus _speichern.html
 
     def stelle(self, i: int) -> str:
         return self.quelle.stelle(self.t[i].pos)
@@ -305,6 +315,11 @@ def analysieren(quelle: Quelle) -> Analyse:
         raise JsFehler(f"{quelle.stelle(t[stapel[-1]].pos)}: Klammer ohne Ende")
     a = Analyse(quelle, t, partner, eltern, {})
     a.funktionen = _funktionen(a)
+    # Seit 1.8.96: die Funktionen des Bausteins selbst sind der geprüfte Weg (ihre Anfragen prüfen die node-Tests in
+    # tests/test_v398_speichern_baustein.py und tests/test_v399_abschliessen.py) -- der Scanner folgt ihnen nicht, sonst hielte er
+    # einen Namen im Baustein (z. B. eine Variable) für die gleichnamige Funktion der Seite.
+    a.baustein = {n for n, rumpfe in a.funktionen.items()
+                  if any(quelle.datei(t[s].pos) == BAUSTEIN for s, _ in rumpfe)}
     return a
 
 
@@ -377,6 +392,8 @@ class Schreibstelle:
     index: int            # Token-Index des Schlüssels method
     ok: bool
     grund: str
+    ruf: str = ""         # seit 1.8.96: "speichern" oder "abschliessen" (nur wenn ok)
+    ruf_index: int = -1   # Token-Index der öffnenden Klammer dieses Aufrufs
 
 
 def schreibstellen(a: Analyse) -> list[Schreibstelle]:
@@ -419,14 +436,14 @@ def _pruefe_schreibstelle(a: Analyse, k: int, obj: int) -> Schreibstelle:
         return Schreibstelle(k, False, "nach der Anfrage folgt noch etwas -- der Pfeil darf nur die Anfrage enthalten")
     pfeil_auf = vor - 2
     sp = a.eltern[pfeil_auf]
-    if sp < 0 or a.aufruf_name(sp) != "speichern" or a.ist_methode(sp):
-        return Schreibstelle(k, False, "die Anfrage geht nicht über speichern()")
+    if sp < 0 or a.aufruf_name(sp) not in SCHREIBEND or a.ist_methode(sp):
+        return Schreibstelle(k, False, "die Anfrage geht nicht über speichern() bzw. abschliessen()")
     args = a.argumente(sp)
     if len(args) < 2 or args[1][0] != pfeil_auf:
-        return Schreibstelle(k, False, "der Pfeil ist nicht das zweite Argument von speichern()")
+        return Schreibstelle(k, False, f"der Pfeil ist nicht das zweite Argument von {a.aufruf_name(sp)}()")
     if not abgewartet(a, sp):
-        return Schreibstelle(k, False, "speichern() ohne await bzw. return davor (oder .then/.finally danach)")
-    return Schreibstelle(k, True, "")
+        return Schreibstelle(k, False, f"{a.aufruf_name(sp)}() ohne await bzw. return davor (oder .then/.finally danach)")
+    return Schreibstelle(k, True, "", a.aufruf_name(sp), sp)
 
 
 def abgewartet(a: Analyse, auf: int) -> bool:
@@ -464,6 +481,8 @@ def verweise(a: Analyse, start: int, ende: int):
 
 
 def _schreibt(a: Analyse, name: str, memo: dict, kette=()) -> bool:
+    if name in a.baustein:
+        return False
     if name in memo:
         return memo[name]
     if name in kette:
@@ -483,6 +502,8 @@ def ungepruefte_anfragen(a: Analyse, name: str, memo: dict, gepr: list, kette=()
     liest und schreibt nur über den Baustein."""
     if name == "fetch":
         return [(-1, "fetch")]
+    if name in a.baustein:
+        return []
     if name in memo:
         return memo[name]
     if name in kette:
@@ -507,6 +528,8 @@ def nach_dem_speichern(a: Analyse) -> list[tuple[int, str]]:
     gepr = a.gepruefte_bereiche()
     schreib_memo, anfrage_memo, out = {}, {}, []
     for name, rumpfe in a.funktionen.items():
+        if name in a.baustein:
+            continue
         for s, e in rumpfe:
             erster = None
             for auf, n in a.aufrufe():

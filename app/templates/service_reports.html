@@ -499,7 +499,7 @@ async function confirmSignatureStep(){
       installer_signature_png_base64:installerSigDataUrl, installer_signature_name:installerSigName,
       customer_signature_png_base64:dataUrl, customer_signature_name:name,
     });
-    await speichern('berichte',()=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:body}));
+    await abschliessen('berichte',()=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:body}));
     closeSignPanel();
     await loadReports();
   }catch(e){st.textContent='Fehler: '+e.message}

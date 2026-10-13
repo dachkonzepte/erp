@@ -547,15 +547,9 @@ async function saveInvoice(){
 async function markPaidNow(id){
   const inv=invoices.find(x=>x.id===id);
   if(!inv)return;
-  const payload={
-    supplier_id:inv.supplier_id,supplier_invoice_number:inv.supplier_invoice_number,invoice_date:inv.invoice_date,
-    net_amount:inv.net_amount,tax_rate_pct:inv.tax_rate_pct,due_date:inv.due_date,
-    skonto_percent:inv.skonto_percent,skonto_deadline:inv.skonto_deadline,
-    payment_status:'bezahlt',payment_date:berlinToday(),
-    project_id:inv.project_id,asset_id:inv.asset_id,recurring_cost_id:inv.recurring_cost_id,
-    account_id:inv.account_id,notes:inv.notes,
-    items:(inv.items||[]).map(i=>({description:i.description,net_amount:i.net_amount,tax_rate_pct:i.tax_rate_pct,account_id:i.account_id})),
-  };
+  // Seit 1.8.96 nur Status und Zahlungsdatum (Regel 22) -- vorher ging die ganze Rechnung samt Positionen mit dem beim Laden
+  // gemerkten Stand mit.
+  const payload={payment_status:'bezahlt',payment_date:berlinToday()};
   const body=JSON.stringify(payload);
   try{
     await speichern('eingangsrechnungen',()=>api(`/api/incoming-invoices/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body}));

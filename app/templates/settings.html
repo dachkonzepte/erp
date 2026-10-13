@@ -1677,9 +1677,9 @@ async function toggleDocumentLayoutBlock(blockType,checked){
   const b=documentLayoutBlocks[blockType];
   if(!b)return;
   try{
+    // Seit 1.8.96 nur visible (Regel 22) -- vorher gingen alle Felder des Bausteins mit dem beim Laden gemerkten Stand mit.
     await speichern('bausteine',()=>api(`/api/document-layout/blocks/${b.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      x_mm:b.x_mm,y_mm:b.y_mm,width_mm:b.width_mm,height_mm:b.height_mm,content:b.content,
-      font_size:b.font_size,font_weight:b.font_weight,text_align:b.text_align,visible:checked,
+      visible:checked,
     })}));
     b.visible=checked;
   }catch(e){alert('Fehler: '+e.message)}
@@ -1689,9 +1689,9 @@ async function saveContinuationHeaderPosition(newY){
   const st=document.getElementById('documentLayoutBlocksStatus');
   if(!b)return;
   try{
+    // Seit 1.8.96 nur y_mm (Regel 22) -- vorher gingen alle Felder des Bausteins mit dem beim Laden gemerkten Stand mit.
     await speichern('bausteine',()=>api(`/api/document-layout/blocks/${b.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      x_mm:b.x_mm,y_mm:newY,width_mm:b.width_mm,height_mm:b.height_mm,content:b.content,
-      font_size:b.font_size,font_weight:b.font_weight,text_align:b.text_align,visible:b.visible,
+      y_mm:newY,
     })}),{anwenden:d=>{documentLayoutBlocks.continuation_header=d}});
     st.textContent='Gespeichert.';
   }catch(e){st.textContent='Fehler: '+e.message}

@@ -92,7 +92,8 @@ def post_incoming_invoice(payload: IncomingInvoiceCreate, db: Session = Depends(
 def put_incoming_invoice(invoice_id: int, payload: IncomingInvoiceUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
-        result = update_invoice(db, invoice_id, payload.model_dump())
+        # Seit 1.8.96 Teil-Update (Regel 22): "als bezahlt markieren" schickt nur Status und Zahlungsdatum.
+        result = update_invoice(db, invoice_id, payload.model_dump(exclude_unset=True))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if result is None:

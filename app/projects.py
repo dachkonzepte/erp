@@ -294,15 +294,15 @@ def quote_item_calculation_preview(db: Session, item: QuoteItem) -> QuoteItemCal
 
 
 def ensure_quote_item_calculation(db: Session, item: QuoteItem) -> QuoteItemCalculation | None:
-    """Legt die Projektkalkulation an, wenn sie fehlt -- seit 1.8.84 nur im Schreibweg (PUT .../calculation)."""
+    """Legt die Projektkalkulation an, wenn sie fehlt -- seit 1.8.84 nur im Schreibweg (PUT .../calculation). Seit 1.8.96 ohne
+    eigenen Commit: der Aufrufer hält die Sperre der Position bis zu seinem Commit (ein Commit hier gäbe sie frei), und lehnt er
+    danach ab (Material einer anderen Position), bleibt auch die angelegte Kalkulation weg."""
     if item.project_calculation is not None:
         return item.project_calculation
     found = _catalog_calculation(db, item)
     if found is None:
         return None
-    calc = create_project_calculation_snapshot(db, item, found[0], found[1])
-    db.commit()
-    return calc
+    return create_project_calculation_snapshot(db, item, found[0], found[1])
 
 
 def _validate_section(db: Session, quote_id: int, section_id: int | None) -> QuoteSection | None:
@@ -460,17 +460,28 @@ def delete_quote_section(db: Session, quote_id: int, section_id: int) -> None:
     db.delete(section); db.commit(); auto_number_quote(db, quote_id)
 
 
-def set_item_layout(db: Session, quote_id: int, item_id: int, section_id: int | None, include_in_total: bool) -> QuoteItemLayout:
+_LAYOUT_FIELDS = frozenset({"section_id", "include_in_total"})
+
+
+def set_item_layout(db: Session, quote_id: int, item_id: int, **changes) -> QuoteItemLayout:
+    """Titel und "in Summe" einer Angebotsposition. Seit 1.8.96 Teil-Update (Regel 22): nur die übergebenen Felder ändern sich
+    (Drag-and-drop schickt nur section_id); ohne Zeile gelten die Vorgaben "ohne Titel" und "in Summe"."""
+    unbekannt = set(changes) - _LAYOUT_FIELDS
+    if unbekannt:
+        raise TypeError("Unbekannte Felder: " + ", ".join(sorted(unbekannt)))
     item = db.get(QuoteItem, item_id)
     if item is None or item.quote_id != quote_id:
         raise ValueError("Angebotsposition nicht gefunden.")
-    _validate_section(db, quote_id, section_id)
+    if "section_id" in changes:
+        _validate_section(db, quote_id, changes["section_id"])
     layout = db.scalar(select(QuoteItemLayout).where(QuoteItemLayout.quote_item_id == item_id))
     if layout is None:
-        layout = QuoteItemLayout(quote_item_id=item_id, section_id=section_id, sort_order=item.sort_order, include_in_total=include_in_total)
+        layout = QuoteItemLayout(quote_item_id=item_id, section_id=changes.get("section_id"), sort_order=item.sort_order,
+                                 include_in_total=changes.get("include_in_total", True))
         db.add(layout)
     else:
-        layout.section_id = section_id; layout.include_in_total = include_in_total
+        for key, value in changes.items():
+            setattr(layout, key, value)
     db.commit(); auto_number_quote(db, quote_id); db.refresh(layout)
     return layout
 

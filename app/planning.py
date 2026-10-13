@@ -379,7 +379,8 @@ def ensure_team_assignment(db: Session, prep: WorkPreparation, team_id: int) -> 
     return assignment
 
 
-def _load_slot(db: Session, slot_id: int) -> PlanningSlot | None:
+def _load_slot(db: Session, slot_id: int, *, frisch: bool = False) -> PlanningSlot | None:
+    """frisch (seit 1.8.96): schon geladene Objekte mit dem Stand aus der Datenbank überschreiben (nach einer Sperre)."""
     return db.scalar(
         select(PlanningSlot)
         .options(
@@ -395,6 +396,7 @@ def _load_slot(db: Session, slot_id: int) -> PlanningSlot | None:
             .selectinload(WorkPreparationTeamResource.resource),
         )
         .where(PlanningSlot.id == slot_id)
+        .execution_options(populate_existing=frisch)
     )
 
 
@@ -471,35 +473,51 @@ def create_slot(
     return _load_slot(db, slot.id)
 
 
-def update_slot(
-    db: Session, slot_id: int, *, team_id: int | None, start_date: date, end_date: date,
-    status: str, notes: str | None, planned_hours: Decimal | None = None,
-    travel_hours_per_employee_day: Decimal | None = None,
-) -> PlanningSlot:
-    if end_date < start_date:
-        raise ValueError("Enddatum darf nicht vor dem Startdatum liegen.")
-    slot = _load_slot(db, slot_id)
+_SLOT_FIELDS = frozenset({"team_id", "start_date", "end_date", "status", "notes", "planned_hours",
+                          "travel_hours_per_employee_day"})
+
+
+def update_slot(db: Session, slot_id: int, **changes) -> PlanningSlot:
+    """Seit 1.8.96 Teil-Update (Regel 22): ändert nur die übergebenen Felder (Verschieben auf der Plantafel übergibt Team, Beginn
+    und Ende). Ende vor Beginn, Anfahrtszeit und Team prüft sie vor jeder Änderung auf gespeichertem Stand + übergebenen Werten,
+    unter der Sperre der Arbeitsvorbereitung: sync_preparation_dates() liest alle Einsätze und schreibt Beginn und Ende der
+    Vorbereitung, und zwei gleichzeitige Änderungen (Beginn hier, Ende dort) prüften sonst je gegen den Stand vor der anderen.
+    team_id, planned_hours, travel_hours_per_employee_day: None heißt wie bisher unverändert (die API lehnt null ab)."""
+    unbekannt = set(changes) - _SLOT_FIELDS
+    if unbekannt:
+        raise TypeError("Unbekannte Felder: " + ", ".join(sorted(unbekannt)))
+    prep_id = db.scalar(select(PlanningSlot.preparation_id).where(PlanningSlot.id == slot_id))
+    if prep_id is None:
+        raise ValueError("Planeinsatz wurde nicht gefunden.")
+    db.execute(select(WorkPreparation.id).where(WorkPreparation.id == prep_id).with_for_update())
+    slot = _load_slot(db, slot_id, frisch=True)  # nach der Sperre: der Stand nach einer gleichzeitigen Änderung
     if slot is None:
         raise ValueError("Planeinsatz wurde nicht gefunden.")
+    start_date = changes.get("start_date", slot.start_date)
+    end_date = changes.get("end_date", slot.end_date)
+    if end_date < start_date:
+        raise ValueError("Enddatum darf nicht vor dem Startdatum liegen.")
+    settings = load_planning_settings(db)
+    travel_hours = changes.get("travel_hours_per_employee_day")
+    if travel_hours is not None and _d(travel_hours) >= _d(settings.daily_work_hours):
+        raise ValueError("Anfahrtszeit muss kleiner als die tägliche Arbeitszeit sein.")
+    team_id = changes.get("team_id")
     if team_id is not None and team_id != slot.team_assignment.team_id:
         slot.team_assignment_id = ensure_team_assignment(db, slot.preparation, team_id).id
     slot.start_date = start_date
     slot.end_date = end_date
-    slot.status = status
-    slot.notes = notes
-    settings = load_planning_settings(db)
+    for key in ("status", "notes"):
+        if key in changes:
+            setattr(slot, key, changes[key])
     capacity = slot.capacity
     if capacity is None:
         capacity = PlanningSlotCapacity(slot_id=slot.id, planned_hours=_infer_slot_hours(db, slot))
         db.add(capacity)
         slot.capacity = capacity
-    if planned_hours is not None:
-        capacity.planned_hours = _d(planned_hours)
-    if travel_hours_per_employee_day is not None:
-        travel = _d(travel_hours_per_employee_day)
-        if travel >= _d(settings.daily_work_hours):
-            raise ValueError("Anfahrtszeit muss kleiner als die tägliche Arbeitszeit sein.")
-        capacity.travel_hours_per_employee_day = travel
+    if changes.get("planned_hours") is not None:
+        capacity.planned_hours = _d(changes["planned_hours"])
+    if travel_hours is not None:
+        capacity.travel_hours_per_employee_day = _d(travel_hours)
     elif capacity.travel_hours_per_employee_day is None:
         capacity.travel_hours_per_employee_day = settings.default_travel_hours_per_employee_day
     db.flush()
@@ -513,6 +531,10 @@ def delete_slot(db: Session, slot_id: int) -> int:
     if slot is None:
         raise ValueError("Planeinsatz wurde nicht gefunden.")
     prep_id = slot.preparation_id
+    # Seit 1.8.96 zuerst die Sperre der Arbeitsvorbereitung wie update_slot() (dieselbe Reihenfolge: Vorbereitung, dann Einsatz)
+    # -- sonst konnten Entfernen (Einsatz, dann Vorbereitung) und gleichzeitiges Verschieben desselben Einsatzes sich gegenseitig
+    # blockieren (Deadlock unter PostgreSQL).
+    db.execute(select(WorkPreparation.id).where(WorkPreparation.id == prep_id).with_for_update())
     db.delete(slot)
     db.flush()
     sync_preparation_dates(db, prep_id)

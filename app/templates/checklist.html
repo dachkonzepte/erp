@@ -277,7 +277,7 @@ async function voidChecklist(){
   if(!confirm(`${cl.purpose_label} als gegenstandslos abschließen?\n\nDanach ist sie nicht mehr änderbar und wird nicht mehr versendet. Sie bleibt mit der Begründung als Beleg erhalten.`))return;
   btn.disabled=true;st.textContent='';
   await flushAll();
-  try{await speichern('checkliste',()=>api(`/api/checklists/${checklistId}/void`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})}),{anwenden:ganzeCheckliste});window.scrollTo(0,0)}
+  try{await abschliessen('checkliste',()=>api(`/api/checklists/${checklistId}/void`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})}),{anwenden:ganzeCheckliste});window.scrollTo(0,0)}
   catch(e){st.textContent=e.message;btn.disabled=false}
 }
 
@@ -641,7 +641,7 @@ async function freezeNoticeLetter(kind,btn){
   if(needsCustomerConfirmation(kind))return;
   if(!confirm(`${k.label} jetzt als Brief erstellen? Danach gilt genau dieser Brief für Versand und Zustellung.${warn}`))return;
   btn.disabled=true;
-  try{await speichern('anzeige',()=>api(`/api/checklists/${checklistId}/notice-letters/${kind}/freeze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm_customer:noticeConfirmCustomer})}),{anwenden:d=>{notice=d;renderNoticeCard()}})}
+  try{await abschliessen('anzeige',()=>api(`/api/checklists/${checklistId}/notice-letters/${kind}/freeze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm_customer:noticeConfirmCustomer})}),{anwenden:d=>{notice=d;renderNoticeCard()}})}
   catch(e){btn.disabled=false;const st=document.getElementById(`notice-${kind}-status`);if(st)st.textContent='Fehler: '+e.message;else alert(e.message)}
 }
 async function sendNoticeLetter(kind,btn){
@@ -910,6 +910,14 @@ async function uploadFile(fieldId,blob,filename,extra={},anwenden=uebernimmAnhae
   for(const [k,v] of Object.entries(extra))fd.append(k,v);
   return speichern('checkliste',()=>api(`/api/checklists/${checklistId}/attachments`,{method:'POST',body:fd}),{anwenden});
 }
+// Seit 1.8.96 eigene Funktion: die Unterschrift ist eine abschließende Aktion -- sie geht erst hinaus, wenn jedes laufende Speichern
+// der Seite zurück ist, und nicht, wenn eines davon scheitert (abschliessen(), _speichern.html).
+async function uploadSignature(fieldId,blob,extra){
+  const fd=new FormData();
+  fd.append('field_id',fieldId);fd.append('file',blob,'unterschrift.png');fd.append('client_uuid',uuid());
+  for(const [k,v] of Object.entries(extra))fd.append(k,v);
+  return abschliessen('checkliste',()=>api(`/api/checklists/${checklistId}/attachments`,{method:'POST',body:fd}),{anwenden:ganzeCheckliste});
+}
 async function uploadPhotos(fieldId,input,what='Foto'){  // what: 'Beleg' für Belegfelder (seit 1.8.45)
   const files=[...input.files];input.value='';
   const f=cl.fields.find(x=>x.id===fieldId);
@@ -964,7 +972,7 @@ function renderProtocolSummary(s){
 }
 async function runSummaryAcceptance(btn){
   const st=document.getElementById('psumStatus');btn.disabled=true;st.textContent='Legt an …';
-  try{await speichern('erklaerungen',()=>api(`/api/checklists/${checklistId}/acceptance-from-protocol`,{method:'POST'}),{neuLaden:loadProtocolSummary});loadFollowUps()}
+  try{await abschliessen('erklaerungen',()=>api(`/api/checklists/${checklistId}/acceptance-from-protocol`,{method:'POST'}),{neuLaden:loadProtocolSummary});loadFollowUps()}
   catch(e){st.textContent='Nicht angelegt: '+e.message;btn.disabled=false}
 }
 async function loadProtocolDefects(f){
@@ -1001,7 +1009,7 @@ async function saveProtocolDefect(fieldId,btn){
   for(const x of g('pdefPhotos').files)fd.append('photos',x);
   for(const x of g('pdefReceipts').files)fd.append('receipts',x);
   btn.disabled=true;setStatus(fieldId,'Speichert …');
-  try{await speichern('maengel-'+fieldId,()=>api(`/api/checklists/${checklistId}/defects`,{method:'POST',body:fd}),{neuLaden:()=>loadProtocolDefects(f)});
+  try{await abschliessen('maengel-'+fieldId,()=>api(`/api/checklists/${checklistId}/defects`,{method:'POST',body:fd}),{neuLaden:()=>loadProtocolDefects(f)});
     ['pdefDesc','pdefLoc','pdefDue','pdefPhotos','pdefReceipts'].forEach(k=>{g(k).value=''});g('pdefArea').value='';
     setStatus(fieldId,'Mangel erfasst')}
   catch(e){setStatus(fieldId,'Nicht gespeichert: '+e.message,true);if(e.status===409)await reload()}
@@ -1012,7 +1020,7 @@ async function discardProtocolDefect(fieldId,defectId,btn){
   if(!reason){setStatus(fieldId,'Bitte begründen, warum der Mangel verworfen wird.',true);return}
   if(!confirm(`Mangel Nr. ${defectId} verwerfen?`))return;
   btn.disabled=true;
-  try{await speichern('maengel-'+fieldId,()=>api(`/api/defects/${defectId}/discard`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})}),{neuLaden:()=>loadProtocolDefects(cl.fields.find(x=>x.id===fieldId))});setStatus(fieldId,'Mangel verworfen')}
+  try{await abschliessen('maengel-'+fieldId,()=>api(`/api/defects/${defectId}/discard`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})}),{neuLaden:()=>loadProtocolDefects(cl.fields.find(x=>x.id===fieldId))});setStatus(fieldId,'Mangel verworfen')}
   catch(e){setStatus(fieldId,'Nicht verworfen: '+e.message,true);btn.disabled=false}
 }
 
@@ -1069,7 +1077,7 @@ async function saveSignature(fieldId){
   }
   setStatus(fieldId,'Speichert …');
   const blob=await p.alsBlob();
-  try{await uploadFile(fieldId,blob,'unterschrift.png',extra,ganzeCheckliste);setStatus(fieldId,'Gespeichert')}
+  try{await uploadSignature(fieldId,blob,extra);setStatus(fieldId,'Gespeichert')}
   catch(e){setStatus(fieldId,'Nicht gespeichert: '+e.message,true);if(e.status===409)await reload()}
 }
 
@@ -1081,7 +1089,7 @@ async function discardSignature(){
   if(!reason){st.textContent='Bitte eine Begründung eintragen.';input.focus();return}
   if(!confirm(`Unterschrift verwerfen?\n\n${signatureName(a)}\n${discardWithText(a)}\n\nVerworfene bleiben als Nachweis sichtbar. Was keine verbleibende Unterschrift mehr sperrt, ist danach wieder bearbeitbar.`))return;
   btn.disabled=true;st.textContent='';
-  try{await speichern('checkliste',()=>api(`/api/checklists/${checklistId}/discard-signatures`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({signature_id:a.id,reason})}),{anwenden:ganzeCheckliste});window.scrollTo(0,0)}
+  try{await abschliessen('checkliste',()=>api(`/api/checklists/${checklistId}/discard-signatures`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({signature_id:a.id,reason})}),{anwenden:ganzeCheckliste});window.scrollTo(0,0)}
   catch(e){st.textContent=e.message;btn.disabled=false}
 }
 
@@ -1093,7 +1101,7 @@ async function completeChecklist(){
   await flushAll();
   if((cl.missing_required||[]).length){err.textContent='Noch nicht ausgefüllt: '+cl.missing_required.join(', ');btn.disabled=false;return}
   if(!confirm('Checkliste abschließen? Danach ist sie nicht mehr änderbar.')){btn.disabled=false;return}
-  try{await speichern('checkliste',()=>api(`/api/checklists/${checklistId}/complete`,{method:'POST'}),{anwenden:ganzeCheckliste});window.scrollTo(0,0)}
+  try{await abschliessen('checkliste',()=>api(`/api/checklists/${checklistId}/complete`,{method:'POST'}),{anwenden:ganzeCheckliste});window.scrollTo(0,0)}
   catch(e){err.textContent=e.message;btn.disabled=false}
 }
 async function deleteDraft(){
