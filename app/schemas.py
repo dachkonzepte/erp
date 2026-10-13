@@ -2534,6 +2534,21 @@ class RefundCreate(BaseModel):
     note: str | None = Field(default=None, max_length=2000)
 
 
+class CustomerRefundLineIn(BaseModel):
+    """Seit 1.8.93: ein Teil der Erstattung -- aus dem Guthaben einer Schlussrechnung (invoice_id) oder aus dem Rest einer Zahlung
+    (payment_id), genau eins von beiden (geprüft in app/payments.py)."""
+    invoice_id: int | None = None
+    payment_id: int | None = None
+    amount: Decimal = Field(gt=0, **_CENT_FIELD)
+
+
+class CustomerRefundCreate(BaseModel):
+    """Seit 1.8.93 (Nacharbeit R4c Punkt 3): Erstattung des Guthabens des Kunden als ein Zahlungsausgang."""
+    paid_on: date
+    note: str | None = Field(default=None, max_length=2000)
+    lines: list[CustomerRefundLineIn] = Field(min_length=1, max_length=50)
+
+
 class PaymentOut(BaseModel):
     id: int
     customer_id: int
@@ -2548,6 +2563,10 @@ class PaymentOut(BaseModel):
     reversal: dict | None = None  # {reason, created_at, created_by_name}
     allocations: list[PaymentAllocationOut] = Field(default_factory=list)
     is_refund: bool = False  # seit 1.8.90: Zahlungsausgang (Erstattung)
+    # Seit 1.8.93: am Zahlungsausgang die erstatteten Reste {payment_id, amount, received_on}; an einer Zahlung, was aus ihrem Rest
+    # erstattet ist {refund_payment_id, amount, paid_on}.
+    refund_sources: list[dict] = Field(default_factory=list)
+    refunded_from_rest: list[dict] = Field(default_factory=list)
 
 
 class CustomerPaymentsOut(BaseModel):
@@ -2557,6 +2576,9 @@ class CustomerPaymentsOut(BaseModel):
     # Seit 1.8.90: Guthaben aus Endrechnungen mit Überzahlung {invoice_id, invoice_number, invoice_date, credit}.
     credits: list[dict] = Field(default_factory=list)
     credit_total: Decimal = Decimal("0")
+    # Seit 1.8.93: Guthaben des Kunden {rest, credit, total, lines: [{kind rest|guthaben, payment_id, invoice_id, invoice_number,
+    # date, amount}]} (app/payments.py::customer_balance()).
+    balance: dict | None = None
 
 
 class OpenInvoiceOut(BaseModel):
@@ -2597,6 +2619,15 @@ class UnallocatedPaymentsOut(BaseModel):
     customer_id: int
     customer_name: str | None = None
     rest: Decimal
+
+
+class CustomerBalanceOut(BaseModel):
+    """Seit 1.8.93: Guthaben eines Kunden in Finanzen und Dashboard (app/payments.py::customer_balances())."""
+    customer_id: int
+    customer_name: str | None = None
+    rest: Decimal
+    credit: Decimal
+    total: Decimal
 
 
 class InvoicePaymentTermUpdate(BaseModel):

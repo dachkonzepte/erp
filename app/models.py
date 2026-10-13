@@ -2041,6 +2041,28 @@ class PaymentAllocation(Base):
     created_by_name: Mapped[str] = mapped_column(String(160), default="System")
 
 
+class PaymentRefundSource(Base):
+    """Teil eines Zahlungsausgangs (Erstattung), der den nicht zugeordneten Rest einer Zahlung desselben Kunden erstattet (seit
+    1.8.93, Nacharbeit R4c Punkt 3, app/payments.py::book_customer_refund()): der Rest der Zahlung (source_payment_id) sinkt um
+    amount, und der Zahlungsausgang (refund_payment_id, negativer Betrag) ist damit zugeordnet. Gilt, solange der Zahlungsausgang
+    nicht zurückgenommen ist -- zurückgenommen wird er nur als Ganzes (reverse_payment()), danach ist der Rest wieder offen. Die
+    Zahlung selbst lässt sich nicht zurücknehmen, solange ein geltender Zahlungsausgang aus ihrem Rest erstattet.
+
+    Unveränderlich und nie gelöscht (ORM-Sperre am Ende der Datei); höchstens eine Zeile je Zahlungsausgang und Zahlung (UNIQUE).
+    created_by_user_id ohne Fremdschlüssel wie bei der Zahlung."""
+
+    __tablename__ = "payment_refund_sources"
+    __table_args__ = (UniqueConstraint("refund_payment_id", "source_payment_id", name="uq_payment_refund_source"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    refund_payment_id: Mapped[int] = mapped_column(ForeignKey("payments.id"), index=True)
+    source_payment_id: Mapped[int] = mapped_column(ForeignKey("payments.id"), index=True)
+    amount: Mapped[Decimal] = mapped_column(Numeric(18, 2))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    created_by_name: Mapped[str] = mapped_column(String(160), default="System")
+
+
 class InvoiceCharge(Base):
     """Nebenforderung zu einer Rechnung (seit 1.8.80, Zahlungsstufe Z2b Nr. 4, app/dunning_charges.py): Mahngebühr, Pauschale
     nach § 288 Abs. 5 BGB (und ab Punkt 7 Verzugszinsen). Nie Teil des Rechnungsbetrags und ohne Umsatzsteuer -- die Rechnung,
@@ -6060,9 +6082,11 @@ def _defect_part_no_delete(mapper, connection, target):
 
 
 # Zahlungseingang und Zuordnung (seit 1.8.78): unveränderlich und nie gelöscht -- Korrektur nur als Gegenbuchung mit
-# Begründung (app/payments.py::reverse_payment()/reverse_allocation()), keine Ausnahme.
+# Begründung (app/payments.py::reverse_payment()/reverse_allocation()), keine Ausnahme. Seit 1.8.93 ebenso die Erstattung aus dem
+# Rest einer Zahlung (PaymentRefundSource) -- sie fällt nur mit der Rücknahme ihres Zahlungsausgangs.
 @event.listens_for(Payment, "before_update")
 @event.listens_for(PaymentAllocation, "before_update")
+@event.listens_for(PaymentRefundSource, "before_update")
 def _payment_no_update(mapper, connection, target):
     if any(attr.history.has_changes() for attr in inspect(target).attrs):
         raise ArchiveImmutableError("Eine gebuchte Zahlung bzw. Zuordnung ist unveränderlich – Korrektur nur als "
@@ -6071,6 +6095,7 @@ def _payment_no_update(mapper, connection, target):
 
 @event.listens_for(Payment, "before_delete")
 @event.listens_for(PaymentAllocation, "before_delete")
+@event.listens_for(PaymentRefundSource, "before_delete")
 def _payment_no_delete(mapper, connection, target):
     raise ArchiveImmutableError("Eine gebuchte Zahlung bzw. Zuordnung wird nie gelöscht.")
 

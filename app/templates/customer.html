@@ -23,6 +23,7 @@
 {% include "_topbar.html" %}
 {% include "_auswahl.html" %}
 {% include "_fehlertext.html" %}
+{% include "_berlin_date.html" %}
 <main>
   <div class="section-title" style="margin-bottom:14px"><div><h1 id="pageTitle" style="margin:0 0 3px">Kundenakte</h1><div id="pageSub" class="muted"></div></div><span id="customerIdBadge" class="badge"></span></div>
   <div class="summary"><div class="metric"><div class="k">Objekte</div><div id="metricProperties" class="v">–</div></div><div class="metric"><div class="k">Anfragen</div><div id="metricInquiries" class="v">–</div></div><div class="metric"><div class="k">Projekte</div><div id="metricProjects" class="v">–</div></div><div class="metric"><div class="k">Angebote</div><div id="metricQuotes" class="v">–</div></div><div class="metric"><div class="k">Angebotssumme netto</div><div id="metricNet" class="v">–</div></div></div>
@@ -120,7 +121,7 @@
   </section>
 
   <section class="card" id="zahlungen" style="display:none">
-    <div class="section-title"><div><h2 style="margin-bottom:4px">Zahlungen</h2><div class="muted small">Zahlungseingänge dieses Kunden. Gebucht wird an der Rechnung; ein nicht zugeordneter Rest bleibt hier stehen und lässt sich einer offenen Rechnung zuordnen.</div></div><span class="badge" id="paymentRestBadge"></span></div>
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Zahlungen</h2><div class="muted small">Zahlungseingänge dieses Kunden. Gebucht wird an der Rechnung; ein nicht zugeordneter Rest bleibt hier stehen und lässt sich einer offenen Rechnung zuordnen. Rest und Überzahlungen aus Schlussrechnungen stehen zusammen als Guthaben des Kunden – erstattet wird beides mit einem Zahlungsausgang.</div></div><span class="badge" id="paymentRestBadge"></span></div>
     <div id="customerCredits"></div>
     <div id="customerPayments"></div>
     <div id="customerPaymentsStatus" class="muted small" style="margin-top:8px"></div>
@@ -308,23 +309,28 @@ async function loadPayments(){
 }
 function renderPayments(){
   const d=customerPaymentsData,card=document.getElementById('zahlungen');card.style.display='block';
-  document.getElementById('paymentRestBadge').textContent=(Number(d.rest)?`Nicht zugeordnet: ${money(d.rest)}`:'Nichts offen zuzuordnen')+(Number(d.credit_total)?` · Guthaben: ${money(d.credit_total)}`:'');
-  // Seit 1.8.90 (R4c Punkt 6): Guthaben aus Schlussrechnungen mit Überzahlung -- erstattet wird an der Rechnung.
-  document.getElementById('customerCredits').innerHTML=(d.credits||[]).length?`<div class="notice" data-guthaben style="margin-bottom:10px">Guthaben des Kunden: ${d.credits.map(c=>`<b>${money(c.credit)}</b> aus <a href="/invoices/${c.invoice_id}">${esc(c.invoice_number||'Schlussrechnung')}</a>`).join(', ')} – die Erstattung an der Rechnung buchen.</div>`:'';
+  // Seit 1.8.93 (Nacharbeit R4c Punkt 3): nicht zugeordneter Rest und Guthaben aus Schlussrechnungen (seit 1.8.90) zusammen als
+  // "Guthaben des Kunden", je Zahlung bzw. Schlussrechnung eine Zeile; ein Zahlungsausgang erstattet beides (book_customer_refund()).
+  const b=d.balance||{total:0,rest:0,credit:0,lines:[]};
+  document.getElementById('paymentRestBadge').textContent=Number(b.total)?`Guthaben des Kunden: ${money(b.total)}`:'Kein Guthaben';
+  document.getElementById('customerCredits').innerHTML=Number(b.total)?`<div class="project-card" data-guthaben style="border-left:4px solid var(--accent);font-size:13px"><b>Guthaben des Kunden: <span data-guthaben-summe>${money(b.total)}</span></b><table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:13px" data-guthaben-zeilen>${b.lines.map((l,i)=>`<tr data-guthaben-zeile="${l.kind}"><td style="padding:4px 0">${l.kind==='rest'?`Nicht zugeordnet aus Zahlung Nr. ${l.payment_id} vom ${dt(l.date)}`:`Überzahlung aus Schlussrechnung <a href="/invoices/${l.invoice_id}">${esc(l.invoice_number||'')}</a> vom ${dt(l.date)}`}</td><td style="text-align:right;white-space:nowrap;padding:4px 8px">${money(l.amount)}</td><td style="width:120px"><input id="refundLine-${i}" inputmode="decimal" value="${fmt(l.amount)}" aria-label="davon erstatten" style="width:100%"></td></tr>`).join('')}</table><div class="pay-actions" style="margin-top:8px" data-erstattung><span><label class="small muted" for="custRefundDate">Ausgezahlt am</label> <input id="custRefundDate" type="date" value="${berlinToday()}"></span><span><input id="custRefundNote" placeholder="Notiz (optional), z. B. Überweisung an IBAN …"></span><button onclick="bookCustomerRefund()">Erstattung buchen</button></div><div class="small muted" style="margin-top:4px">Erstattet werden die eingetragenen Beträge mit einem Zahlungsausgang; einen nicht zugeordneten Rest kann man stattdessen auch einer Rechnung zuordnen (unten an der Zahlung).</div></div>`:'';
   document.getElementById('customerPayments').innerHTML=d.payments.length?d.payments.map(paymentCardHtml).join(''):'<div class="muted small">Noch keine Zahlung gebucht.</div>';
   if(location.hash==='#zahlungen')card.scrollIntoView();
 }
 function paymentCardHtml(p){
-  const allocs=p.allocations.map(a=>`<div class="small ${a.reversed?'pay-reversed':''}">${esc(a.kind_label)} ${money(a.amount)} an <a href="/invoices/${a.invoice_id}">${esc(a.invoice_number||'Rechnung')}</a>${a.reversed?` – gegengebucht: ${esc(a.reversal.reason)}`:''}</div>`).join('')||'<div class="small muted">Noch nichts zugeordnet.</div>';
+  const allocs=p.allocations.map(a=>`<div class="small ${a.reversed?'pay-reversed':''}">${esc(a.kind_label)} ${money(a.amount)} an <a href="/invoices/${a.invoice_id}">${esc(a.invoice_number||'Rechnung')}</a>${a.reversed?` – gegengebucht: ${esc(a.reversal.reason)}`:''}</div>`).join('')||((p.refund_sources||[]).length||(p.refunded_from_rest||[]).length?'':'<div class="small muted">Noch nichts zugeordnet.</div>');
   const head=`<b class="${p.reversed?'pay-reversed':''}">${dt(p.received_on)} · ${money(p.amount)}</b>${p.is_refund?' <span class="badge" data-zahlungsausgang>Zahlungsausgang (Erstattung)</span>':''}${p.note?' · '+esc(p.note):''}${p.origin==='uebernommen'?' <span class="badge">übernommen aus „bezahlt“</span>':''}`;
   const sub=`<div class="muted small">${p.is_refund?'Zahlungsausgang':'Zahlung'} Nr. ${p.id} · erfasst von ${esc(p.created_by_name)}${p.reversed?` · <b>zurückgenommen</b> von ${esc(p.reversal.created_by_name)}: ${esc(p.reversal.reason)}`:p.is_refund?'':` · nicht zugeordnet: <b data-rest>${money(p.rest)}</b>`}</div>`;
+  // Seit 1.8.93: Erstattung aus dem Rest einer Zahlung -- am Zahlungsausgang die Quelle, an der Zahlung der Zahlungsausgang.
+  const sources=(p.refund_sources||[]).map(s=>`<div class="small ${p.reversed?'pay-reversed':''}" data-erstattet-aus="${s.payment_id}">Erstattung aus dem Rest der Zahlung Nr. ${s.payment_id} vom ${dt(s.received_on)}: ${money(-s.amount)}</div>`).join('')
+    +(p.refunded_from_rest||[]).map(s=>`<div class="small" data-erstattet-mit="${s.refund_payment_id}">aus dem Rest erstattet mit Zahlungsausgang Nr. ${s.refund_payment_id} vom ${dt(s.paid_on)}: ${money(s.amount)}</div>`).join('');
   let actions='';
   if(!p.reversed){
     // Seit 1.8.81 kommen auch Rechnungen mit nur offenen Nebenforderungen -- deren Zuordnung läuft über die Rechnungsseite (§ 367 BGB).
     const opts=customerOpenInvoices.filter(o=>Number(o.payment.open)>0).map(o=>`<option value="${o.invoice_id}">${esc(o.invoice_number)} · offen ${money(o.payment.open)}</option>`).join('');
     actions='<div class="pay-actions">'+(Number(p.rest)>0&&opts?`<span><select id="restInvoice-${p.id}" onchange="restInvoiceChanged(${p.id})"><option value="">Rest zuordnen auf …</option>${opts}</select><input id="restAmount-${p.id}" inputmode="decimal" placeholder="Betrag" value="${fmt(p.rest)}"><button class="secondary" onclick="allocateRest(${p.id})">Zuordnen</button></span>`:'')+`<span><button class="secondary" onclick="showPaymentReverse(${p.id})">Zahlung zurücknehmen</button><span id="payRev-${p.id}" style="display:none"><input id="payRevReason-${p.id}" placeholder="Begründung (Pflicht)"><button class="danger" onclick="reversePayment(${p.id})">Zurücknahme bestätigen</button></span></span></div>`;
   }
-  return `<div class="project-card" data-zahlung="${p.id}">${head}${sub}<div style="margin-top:6px">${allocs}</div>${actions}</div>`;
+  return `<div class="project-card" data-zahlung="${p.id}">${head}${sub}<div style="margin-top:6px">${allocs}${sources}</div>${actions}</div>`;
 }
 function restInvoiceChanged(pid){const p=customerPaymentsData.payments.find(x=>x.id===pid),o=customerOpenInvoices.find(x=>String(x.invoice_id)===document.getElementById('restInvoice-'+pid).value);if(p&&o)document.getElementById('restAmount-'+pid).value=fmt(Math.min(Number(p.rest),Number(o.payment.open)))}
 function showPaymentReverse(pid){document.getElementById('payRev-'+pid).style.display='inline-flex';document.getElementById('payRevReason-'+pid).focus()}
@@ -332,6 +338,12 @@ async function allocateRest(pid){
   const st=document.getElementById('customerPaymentsStatus'),invoiceId=Number(document.getElementById('restInvoice-'+pid).value),amount=num(document.getElementById('restAmount-'+pid).value);
   if(!invoiceId){st.textContent='Bitte eine Rechnung wählen.';return}if(!(amount>0)){st.textContent='Bitte einen Betrag angeben.';return}
   try{await api(`/api/payments/${pid}/allocations`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lines:[{invoice_id:invoiceId,zahlung:amount.toFixed(2)}]})});await loadPayments();document.getElementById('customerPaymentsStatus').textContent='Zugeordnet.'}catch(e){st.textContent='Fehler: '+e.message}
+}
+async function bookCustomerRefund(){
+  const st=document.getElementById('customerPaymentsStatus'),b=customerPaymentsData.balance,lines=[];
+  for(const [i,l] of b.lines.entries()){const amount=num(document.getElementById('refundLine-'+i).value);if(amount>0)lines.push(l.kind==='rest'?{payment_id:l.payment_id,amount:amount.toFixed(2)}:{invoice_id:l.invoice_id,amount:amount.toFixed(2)})}
+  if(!lines.length){st.textContent='Bitte mindestens einen Betrag zum Erstatten eintragen.';return}
+  try{await api(`/api/customers/${customerId}/refunds`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({paid_on:document.getElementById('custRefundDate').value,note:document.getElementById('custRefundNote').value.trim()||null,lines})});await loadPayments();document.getElementById('customerPaymentsStatus').textContent='Erstattung gebucht.'}catch(e){st.textContent='Fehler: '+e.message}
 }
 async function reversePayment(pid){
   const st=document.getElementById('customerPaymentsStatus'),reason=document.getElementById('payRevReason-'+pid).value.trim();

@@ -8,7 +8,8 @@ Sekunde (Commit angehalten), die zweite startet währenddessen, wartet und finde
   - Buchung gegen Storno, Storno gegen Buchung, zweimal dieselbe Gegenbuchung.
 Unter SQLite (immer): jeder schreibende Endpunkt der Zahlungen schreibt Zuordnungen nur unter der Sperre des Auftrags ihrer
 Rechnung und, bei einer vorhandenen Zahlung, unter deren Sperre -- in fester Reihenfolge (Aufträge aufsteigend, dann Zahlung);
-dazu die Router-Antworten (404/409/422, "erfasst von" aus der Anmeldung)."""
+dazu die Router-Antworten (404/409/422, "erfasst von" aus der Anmeldung). Seit 1.8.93 auch die Erstattung aus dem Rest einer
+Zahlung (PaymentRefundSource): nur unter der Sperre dieser Zahlung."""
 
 from datetime import date
 from decimal import Decimal
@@ -24,7 +25,7 @@ from app.grunddaten import anlegen
 from app.invoices import (
     InvoiceBlocked, create_abschlag_pauschal, create_schlussrechnung, create_storno_draft, finalize_and_send_invoice,
 )
-from app.models import Invoice, Order, Payment, PaymentAllocation, Project, Quote, QuoteItem
+from app.models import Invoice, Order, Payment, PaymentAllocation, PaymentRefundSource, Project, Quote, QuoteItem
 from app.payments import Line, PaymentRejected, allocate_rest, book_payment, invoice_customer_id, reverse_allocation
 from app.project_pipeline_columns import default_pipeline_column_id
 from app.projects import load_quote
@@ -135,7 +136,8 @@ def test_pg_the_same_reversal_twice_at_once_happens_once(pg):
 
 class SperrBeobachter:
     """Merkt sich jede Abfrage "SELECT … FOR UPDATE" auf orders bzw. payments (Reihenfolge und IDs) und hält jede neue
-    Zuordnung dagegen: der Auftrag ihrer Rechnung muss gesperrt sein, bei einer schon vorhandenen Zahlung auch diese. Auch
+    Zuordnung dagegen: der Auftrag ihrer Rechnung muss gesperrt sein, bei einer schon vorhandenen Zahlung auch diese. Seit 1.8.93
+    ebenso jede neue Erstattung aus dem Rest einer Zahlung: die Zahlung, aus deren Rest erstattet wird, muss gesperrt sein. Auch
     unter SQLite sichtbar -- dort wird FOR UPDATE nur nicht gesendet."""
 
     def __init__(self, session):
@@ -182,6 +184,11 @@ class SperrBeobachter:
         with session.no_autoflush:
             neue_zahlungen = self.neue_zahlungen | {o.id for o in session.new if isinstance(o, Payment)}
             for o in session.new:
+                if isinstance(o, PaymentRefundSource):  # seit 1.8.93
+                    self.zuordnungen += 1
+                    if ("payments", o.source_payment_id) not in self.sperren:
+                        self.verstoesse.append(f"Erstattung aus dem Rest ohne Sperre der Zahlung {o.source_payment_id}")
+                    continue
                 if not isinstance(o, PaymentAllocation):
                     continue
                 self.zuordnungen += 1
@@ -245,8 +252,21 @@ def _szenario_erstattung(c, db, a, b):
     return c.post(f"/api/invoices/{schluss.id}/refunds", json={"paid_on": str(HEUTE), "amount": "100.00"})
 
 
+def _szenario_erstattung_kunde(c, db, a, b):
+    # Seit 1.8.93 (Nacharbeit R4c Punkt 3): Guthaben des Kunden aus der Schlussrechnung des ersten Auftrags (−595 €, wie oben) und
+    # dem Rest einer Zahlung -- ein Zahlungsausgang für beides.
+    _buchen(db, a, "1190")
+    schluss = mit_zeitraum(db, create_schlussrechnung(db, db.get(Invoice, a).order))
+    finalize_and_send_invoice(db, schluss)
+    customer_id = invoice_customer_id(db.get(Invoice, a))
+    rest = book_payment(db, customer_id=customer_id, received_on=HEUTE, amount=D("300"), note=None, lines=[])
+    return c.post(f"/api/customers/{customer_id}/refunds", json={"paid_on": str(HEUTE), "lines": [
+        {"payment_id": rest.id, "amount": "50.00"}, {"invoice_id": schluss.id, "amount": "100.00"}]})
+
+
 SZENARIEN = {
     ("POST", "/api/payments"): _szenario_buchen,
+    ("POST", "/api/customers/{customer_id}/refunds"): _szenario_erstattung_kunde,
     ("POST", "/api/invoices/{invoice_id}/refunds"): _szenario_erstattung,
     ("POST", "/api/payments/{payment_id}/allocations"): _szenario_rest,
     ("POST", "/api/payments/{payment_id}/reverse"): _szenario_zahlung_zurueck,

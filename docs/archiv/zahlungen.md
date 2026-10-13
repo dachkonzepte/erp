@@ -4,7 +4,8 @@ Seit 1.8.89 (R4c): Mahnen nach der Endrechnung -- abgezogene Rechnungen nicht me
 Zahlbetrag, Verzugszinsen auf den angemahnten Betrag (`app/final_dunning.py`); seit 1.8.90 Überzahlung: Guthaben am Kunden,
 Erstattung als Zahlungsausgang (`book_refund()`, Zuordnung Art "erstattung"). Herleitung, Festlegungen und Tests:
 `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung R4c"; Nacharbeiten ab 1.8.91 (Zahlbetrag je Auftrag in Finanzen und Dashboard)
-dort unter "Nacharbeiten R4c". Was vor dem Einschalten der Mahngebühren zu prüfen ist: Abschnitt "Vor dem Einschalten der
+dort unter "Nacharbeiten R4c", ebenso seit 1.8.93 das Guthaben des Kunden (Rest und Überzahlung zusammen, eine Erstattung für beides,
+`book_customer_refund()`, Tabelle `payment_refund_sources`, Migration `7b3e9d1f5a26`). Was vor dem Einschalten der Mahngebühren zu prüfen ist: Abschnitt "Vor dem Einschalten der
 Mahngebühren" am Ende dieser Datei.
 
 Grundlage: Befund Zahlungsstufe in `befund-vor-echtbetrieb.md` ("Umsetzung 1.8.77" -> "Befund Zahlungsstufe") und dort

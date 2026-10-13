@@ -29,7 +29,7 @@ a.link{color:var(--accent);font-weight:700;text-decoration:none}
 <main>
 <div class="card"><h1>Finanzen</h1><div class="muted">Alle Rechnungen im Überblick. Weitere buchhalterische Themen folgen hier künftig.</div></div>
 <div class="metrics" id="metrics"></div>
-<div class="card" id="unallocatedCard" style="display:none"><h2 style="margin:0 0 4px">Nicht zugeordnete Zahlungen</h2><div class="muted small" style="margin-bottom:8px">Zahlungseingänge, die noch keiner Rechnung zugeordnet sind -- zuordnen in der Kundenakte.</div><div id="unallocatedRows"></div></div>
+<div class="card" id="unallocatedCard" style="display:none"><h2 style="margin:0 0 4px">Guthaben der Kunden</h2><div class="muted small" style="margin-bottom:8px">Nicht zugeordnete Zahlungen und Überzahlungen aus Schlussrechnungen je Kunde -- zuordnen oder erstatten in der Kundenakte.</div><div id="unallocatedRows"></div></div>
 <div class="card" id="reminderCard" style="display:none"><h2 style="margin:0 0 4px">Mahnwesen</h2><div class="muted small" id="reminderSummaryText" style="margin-bottom:8px"></div><a class="link" href="/mahnwesen">Zum Mahnwesen →</a></div>
 <div class="card">
   <div class="filters" id="filters"></div>
@@ -52,7 +52,7 @@ const STATUS_LABELS={entwurf:'Entwurf',versendet:'Finalisiert',storniert:'Storni
 const ov=i=>i.overview;
 const statusText=i=>ov(i)?ov(i).state_label.charAt(0).toUpperCase()+ov(i).state_label.slice(1):(i.invoice_type==='storno'&&i.status==='versendet'?'Storno':(STATUS_LABELS[i.status]||i.status));
 const FILTERS=[['','Alle',()=>true],['entwurf','Entwurf',i=>i.status==='entwurf'],['offen','Offen',i=>ov(i)&&['offen','teilweise_bezahlt','zahlbetrag_offen'].includes(ov(i).state)],['einbehalt_offen','Einbehalt offen',i=>ov(i)&&ov(i).state==='einbehalt_offen'],['bezahlt','Bezahlt',i=>ov(i)&&['bezahlt','ausgeglichen'].includes(ov(i).state)],['guthaben','Guthaben',i=>ov(i)&&ov(i).state==='guthaben'],['enthalten','In Schlussrechnung',i=>ov(i)&&ov(i).state==='enthalten'],['storniert','Storniert / Storno',i=>i.status==='storniert'||(i.invoice_type==='storno'&&i.status!=='entwurf')]];
-let unallocated=[];
+let unallocated=[];  // seit 1.8.93: Guthaben der Kunden (/api/payments/customer-balances) {rest, credit, total}
 async function api(u){const r=await fetch(u);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
 
 function renderMetrics(){
@@ -60,7 +60,8 @@ function renderMetrics(){
   const overdue=allInvoices.filter(i=>i.is_overdue);
   const openSum=open.reduce((s,i)=>s+Number(ov(i).open),0);
   const retained=open.reduce((s,i)=>s+Number(ov(i).retained),0);
-  const creditSum=allInvoices.reduce((s,i)=>s+Number(ov(i)?ov(i).credit:0),0);
+  // Seit 1.8.93 (Nacharbeit R4c Punkt 3): Guthaben der Kunden = nicht zugeordnete Reste + Überzahlungen aus Schlussrechnungen.
+  const creditSum=unallocated.reduce((s,r)=>s+Number(r.total),0);
   const paidTotal=allInvoices.filter(i=>i.payment).reduce((s,i)=>s+Number(i.payment.paid),0);
   const unallocatedSum=unallocated.reduce((s,r)=>s+Number(r.rest),0);
   document.getElementById('metrics').innerHTML=`
@@ -69,12 +70,12 @@ function renderMetrics(){
     ${retained?`<div class="metric"><small>davon Einbehalt</small><b>${money(retained)}</b></div>`:''}
     <div class="metric"><small>Überfällig</small><b style="${overdue.length?'color:var(--danger)':''}">${overdue.length}</b></div>
     <div class="metric"><small>Bezahlt (gesamt)</small><b data-bezahlt>${money(paidTotal)}</b></div>
-    ${creditSum?`<div class="metric"><small>Guthaben (Überzahlung)</small><b data-guthaben>${money(creditSum)}</b></div>`:''}
-    ${unallocatedSum?`<div class="metric"><small>Nicht zugeordnet</small><b>${money(unallocatedSum)}</b></div>`:''}`;
+    ${creditSum?`<div class="metric"><small>Guthaben der Kunden</small><b data-guthaben>${money(creditSum)}</b>${unallocatedSum?`<div class="muted small" data-nicht-zugeordnet>davon nicht zugeordnet ${money(unallocatedSum)}</div>`:''}</div>`:''}
+`;
 }
 function renderUnallocated(){
   document.getElementById('unallocatedCard').style.display=unallocated.length?'block':'none';
-  document.getElementById('unallocatedRows').innerHTML=unallocated.map(r=>`<div style="padding:4px 0"><a class="link" href="/customers/${r.customer_id}#zahlungen">${esc(r.customer_name||'Kunde')}</a> · ${money(r.rest)}</div>`).join('');
+  document.getElementById('unallocatedRows').innerHTML=unallocated.map(r=>`<div style="padding:4px 0" data-kunde-guthaben="${r.customer_id}"><a class="link" href="/customers/${r.customer_id}#zahlungen">${esc(r.customer_name||'Kunde')}</a> · <b>${money(r.total)}</b> <span class="muted small">(${[Number(r.rest)?`nicht zugeordnet ${money(r.rest)}`:'',Number(r.credit)?`Überzahlung ${money(r.credit)}`:''].filter(Boolean).join(', ')})</span></div>`).join('');
 }
 
 function renderFilters(){
@@ -96,7 +97,7 @@ function renderRows(){
 }
 
 async function load(){
-  const [invoices,reminderRows,unallocatedRows]=await Promise.all([api('/api/invoices'),api('/api/reminders/overdue').catch(()=>[]),api('/api/payments/unallocated').catch(()=>[])]);
+  const [invoices,reminderRows,unallocatedRows]=await Promise.all([api('/api/invoices'),api('/api/reminders/overdue').catch(()=>[]),api('/api/payments/customer-balances').catch(()=>[])]);
   allInvoices=invoices;unallocated=unallocatedRows;
   renderMetrics();renderFilters();renderRows();renderReminderOverview(reminderRows);renderUnallocated();
 }

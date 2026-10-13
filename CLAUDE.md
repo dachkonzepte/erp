@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.92** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.93** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -752,7 +752,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   abgezogene Rechnung mit offenem Betrag heißt "enthalten in Schlussrechnung R-…", ihr eigener Zahlstand bleibt (Karte "Zahlungen").
   **Seit 1.8.92 (Punkt 2)**: bei negativem Zahlbetrag druckt die Schlussrechnung statt des Schlusstexts (Zahlungsaufforderung) den
   Standard-Eintrag der Auswahlliste "Rechnungs-Schlusstexte bei Erstattung" (`app/invoices.py::refund_outro_text()`, im Entwurf live,
-  beim Festschreiben in `outro_text` eingefroren).
+  beim Festschreiben in `outro_text` eingefroren). **Seit 1.8.93 (Punkt 3)**: das Guthaben des Kunden sind die nicht zugeordneten
+  Reste seiner Zahlungen und die Guthaben aus Endrechnungen zusammen (`app/payments.py::customer_balance()`, je Kunde für Finanzen und
+  Dashboard `customer_balances()`); ein Zahlungsausgang erstattet beides (`book_customer_refund()`, aus einem Rest über
+  `PaymentRefundSource`: Rest der Zahlung sinkt, nur als Ganzes zurück, die Zahlung selbst erst danach).
 - `Reminder`: hängt an überfälligen Rechnungen, hat Stufen (1./2./3. Mahnung), jede Stufe mit
   eigenen Fristen/Gebühren/Textvorlagen (`ReminderLevel`). `Reminder.text` ist beim Anlegen
   (`create_reminder()`) eine reine Kopie von `ReminderLevel.text_template` mit noch
@@ -1072,7 +1075,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   1.8.89 Punkte 3–5: Mahnen nach der Endrechnung über den Zahlbetrag, abgezogene Rechnungen nicht mehr einzeln, Einbehalt fällig; seit
   1.8.90 Punkte 6–7: Schlussrechnung unter 0 €, Erstattungsbetrag, Guthaben und Zahlungsausgang, E-Mail mit Zahlbetrag -- R4c vollständig;
   Nacharbeiten R4c ab 1.8.91: Finanzen und Dashboard zählen je Auftrag den Zahlbetrag, "enthalten in Schlussrechnung …"; seit 1.8.92
-  Schlusstext bei Erstattung aus den Einstellungen)
+  Schlusstext bei Erstattung aus den Einstellungen; seit 1.8.93 Guthaben des Kunden aus Rest und Überzahlung, eine Erstattung für
+  beides -- Nacharbeiten vollständig)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Zahlungen** (Zahlungsstufe Z1 seit 1.8.78: Zahlungseingang mit Zuordnungen, Skonto und Einbehalt, Rest am Kunden,
   Zahlstand abgeleitet, Gegenbuchung statt Ändern, Sperrreihenfolge, Storno erst nach gelösten Zuordnungen, Finanzen/Dashboard mit

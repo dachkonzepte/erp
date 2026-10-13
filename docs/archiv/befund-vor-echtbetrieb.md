@@ -2795,6 +2795,95 @@ Regel 13, Bericht kurz.
 2. **E-Mail-Vorlage**: der Text der E-Mail zur Schlussrechnung kommt weiter aus der einen Vorlage "Rechnung"; einen eigenen Text für die
    Erstattung gibt es dort nicht (nur den Satz `{zahlungshinweis}`).
 
+### Umsetzung 1.8.93: Guthaben des Kunden, eine Erstattung für Rest und Überzahlung (Punkt 3)
+
+#### Was gebaut ist
+
+- **Erstattung aus dem Rest einer Zahlung** (neue Tabelle `payment_refund_sources`, Modell `PaymentRefundSource`, Migration
+  `7b3e9d1f5a26`): je Zahlungsausgang und Zahlung eine Zeile mit dem Betrag (UNIQUE), unveränderlich (ORM-Sperre wie Zahlung und
+  Zuordnung). `app/payments.py::payment_rest()`: der Rest einer Zahlung sinkt um das, was aus ihm erstattet ist (über Zahlungsausgänge,
+  die nicht zurückgenommen sind, `refunded_from_rest()`); an einem Zahlungsausgang zählt es als zugeordnet. Eine Zuordnung braucht eine
+  Rechnung (`payment_allocations.invoice_id` NOT NULL) -- deshalb eine eigene Tabelle statt einer neuen Art.
+- **Guthaben des Kunden** (`customer_balance()`, in `GET /api/customers/{id}/payments` als `balance`): Reste der Zahlungen (älteste
+  zuerst) und Guthaben aus Endrechnungen (`customer_credits()`, seit 1.8.90), je eine Zeile, mit Summen. Je Kunde für Finanzen und
+  Dashboard `customer_balances()` (`GET /api/payments/customer-balances`): Rest wie bisher je Kunde (`unallocated_by_customer()`) und die
+  Guthaben der gültigen Endrechnungen.
+- **Erstattung** (`book_customer_refund()`, `POST /api/customers/{customer_id}/refunds` mit Zeilen {invoice_id | payment_id, amount}):
+  ein Zahlungsausgang über die Summe; je Schlussrechnung eine Zuordnung Art `erstattung` (Prüfung wie `book_refund()`, gemeinsam
+  `_check_credit()`), je Zahlung eine Zeile `PaymentRefundSource` (`_check_rest_line()`: derselbe Kunde, ein Zahlungseingang, nicht
+  zurückgenommen, höchstens der Rest). Sperren über `lock_for_booking()`: die Aufträge der Schlussrechnungen, dann die Zahlungen
+  aufsteigend -- Zuordnen eines Rests, Zurücknehmen der Zahlung und Erstatten aus ihr warten so aufeinander. Fehlerhafte Zeilen (keine,
+  beide oder keine ID, doppelt, 0 €, mehr als zwei Nachkommastellen) 400, Datum in der Zukunft 400, unbekannte ID 404, am Stand nicht
+  möglich 409.
+- **Rücknahme**: der Zahlungsausgang nur als Ganzes (`reverse_payment()`, wie seit 1.8.90) -- danach ist der Rest wieder offen; eine
+  Zahlung, aus deren Rest ein geltender Zahlungsausgang erstattet, lehnt `reverse_payment()` ab ("… erst den Zahlungsausgang
+  zurücknehmen.").
+- **Kundenakte**: Karte "Guthaben des Kunden" mit den Zeilen, je Zeile ein Betrag (vorgeschlagen: alles), Datum (Berlin) und Notiz,
+  "Erstattung buchen"; Kennzeichen "Guthaben des Kunden: …" bzw. "Kein Guthaben"; am Zahlungsausgang "Erstattung aus dem Rest der Zahlung
+  Nr. …", an der Zahlung "aus dem Rest erstattet mit Zahlungsausgang Nr. …".
+- **Finanzen**: Kennzahl "Guthaben der Kunden" (Rest + Überzahlung, darunter "davon nicht zugeordnet") statt "Nicht zugeordnet" und
+  "Guthaben (Überzahlung)" (1.8.91); Karte "Guthaben der Kunden" je Kunde mit Rest und Überzahlung. **Dashboard**: "Guthaben der Kunden"
+  aus derselben Quelle.
+
+#### Festlegungen 1.8.93 (Bitte bestätigen)
+
+1. **Guthaben des Kunden** = nicht zugeordnete Reste seiner Zahlungen + Guthaben aus Endrechnungen; je Zahlung bzw. Schlussrechnung eine
+   Zeile, die Zahlungen zuerst (älteste vorn).
+2. **Eigene Tabelle für die Erstattung aus einem Rest** (`PaymentRefundSource`, Migration) statt einer Zuordnung -- eine Zuordnung hängt
+   immer an einer Rechnung; die Zuordnungen bleiben unverändert.
+3. **Ein Zahlungsausgang für beliebig viele Zeilen** (Reste mehrerer Zahlungen, Guthaben mehrerer Schlussrechnungen), je Zeile höchstens
+   Rest bzw. Guthaben; in der Kundenakte vorgeschlagen: alles, änderbar je Zeile.
+4. **Rücknahme nur als Ganzes**; die Zahlung, aus deren Rest erstattet ist, lässt sich erst nach der Rücknahme des Zahlungsausgangs
+   zurücknehmen (sonst wäre Geld erstattet, das nie eingegangen ist).
+5. **Quelle nur ein Zahlungseingang** desselben Kunden, nicht zurückgenommen -- kein Zahlungsausgang, keine Gegenbuchung.
+6. **Sperren wie beim Buchen**: Aufträge der Schlussrechnungen aufsteigend, dann die Zahlungen aufsteigend (`lock_for_booking()`).
+7. **Finanzen und Dashboard**: "Guthaben der Kunden" (Rest + Überzahlung je Kunde) ersetzt "Nicht zugeordnet" und "Guthaben
+   (Überzahlung)" aus 1.8.91 (Festlegung 1.8.91 Nr. 5 damit geändert); in Finanzen mit "davon nicht zugeordnet" und je Kunde
+   aufgeschlüsselt.
+8. **Rechnungsseite** erstattet weiter nur das Guthaben dieser Schlussrechnung (1.8.90); Rest und mehrere Schlussrechnungen zusammen nur in
+   der Kundenakte (Festlegung 1.8.90 Nr. 5 "nur an der Schlussrechnung" damit erweitert).
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v396_guthaben_des_kunden.py` (27, davon 4 gegen PostgreSQL): Guthaben aus Rest und Überzahlung je Zeile und je Kunde;
+  ein Zahlungsausgang erstattet beides (Zuordnung "erstattung", Zeile aus dem Rest, Rest und Zahlungsausgang ohne Rest, nichts mehr in
+  Finanzen); teilweise aus dem Rest; erstatteter Rest lässt sich nicht mehr zuordnen. **Angriffstests:** Rest einer fremden Zahlung (409,
+  nichts geschrieben), Guthaben einer fremden Schlussrechnung (409), unbekannte IDs und Kunde (404), Zahlungsausgang, zurückgenommene
+  Zahlung und Gegenbuchung als Quelle (409), mehr als Rest bzw. Guthaben (409, nichts geschrieben), keine/beide IDs, 0 €, negativ, drei
+  Nachkommastellen, doppelt, Zukunft (400); Quelle zurücknehmen erst nach dem Zahlungsausgang; Zeilen unveränderlich; Erstattung an der
+  Rechnungsseite unverändert; Router (200, 409, 422, 400, 404) und Kundenakte; Monteurin 403; Finanzen und Dashboard aus
+  `customer-balances`. **Gleichzeitig (PostgreSQL):** zwei Erstattungen aus demselben Rest -- die zweite 409; Zuordnen des Rests wartet auf
+  die Erstattung aus ihm und wird abgelehnt; Zurücknehmen der Zahlung wartet und wird abgelehnt; Erstattung wartet auf das Storno der
+  Schlussrechnung und wird abgelehnt (nichts geschrieben, Rest unverändert).
+- Neu `tests/test_v396_guthaben_migration.py` (2, davon 1 gegen PostgreSQL): Bestand mit Zahlung, Rest und Zahlungsausgang -- hoch jede Zeile
+  unverändert, Tabelle leer mit UNIQUE; runter exakt wie vorher; wieder hoch mit einer Erstattung aus dem Rest -> Rückweg verweigert,
+  nichts geändert. `alembic check` nach `upgrade head`: keine Abweichung zwischen Modell und Migration.
+- `tests/test_v373_zugehoerigkeit_struktur.py`: die zwei neuen IDs aus der Anfrage in `GEPRUEFT` (`book_customer_refund()` bzw.
+  `_check_rest_line()`); **Erwartung geändert** in `tests/test_v394_finanzen_zahlbetrag.py` (das Guthaben kommt seit 1.8.93 aus
+  `customer-balances`).
+- Klicktest `klicktest_ueberzahlung.py` erweitert, 26/26: Kundenakte mit Guthaben des Kunden 69 € (Rest 50 € + 19 €) aufgeschlüsselt
+  (**Erwartung geändert**, bis 1.8.92 nur das Guthaben der Schlussrechnung), nach Rücknahme 169 €; Finanzen "Guthaben der Kunden" 169 €
+  davon nicht zugeordnet 50 € und Zeile des Kunden; eine Erstattung für beides -> "Kein Guthaben", Quelle an Zahlungsausgang und Zahlung,
+  Zahlung zurücknehmen mit Grund abgelehnt, API 409; 412 px dunkel; Monteurin 403.
+- Gegenproben (Regel 24): 16 von 16 rot -- Rest sinkt nicht, Zahlungsausgang mit Rest, fremde Zahlung, fremde Schlussrechnung, mehr als
+  der Rest, Zahlungsausgang bzw. zurückgenommene Zahlung als Quelle, Quelle zurücknehmen trotz Erstattung, zurückgenommener
+  Zahlungsausgang mindert weiter, Kundenakte ohne Überzahlung, Finanzen ohne Rest, Finanzen nach dem alten Abruf (zunächst grün: der
+  Strukturtest fand die Adresse auch im Kommentar -- nachgeschärft auf den Abruf, dann rot), Zeilen veränderlich, Strukturtest Regel 25
+  ohne Vergleich, Erstattung ohne Sperre der Zahlungen (PostgreSQL und im Rundgang unter SQLite). Jede Datei byte-genau zurück, kein Marker.
+- Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie, drei Teile parallel): 3908 grün, 1 rot -- `test_v381_zahlungen_pg::test_every_writing_payment_route_has_a_scenario` verlangt für jeden schreibenden Zahlungsweg einen Rundgang unter dem Sperr-Beobachter; für `POST /api/customers/{customer_id}/refunds` ergänzt (der Beobachter prüft seit 1.8.93 auch die Erstattung aus dem Rest: nur unter der Sperre ihrer Zahlung, Gegenprobe rot), die Datei danach 14 grün.
+- Alle Klicktests (Regel 26, Arbeitskopie): 55 von 57 wie erwartet in 11:46 min; rot `klicktest_zahlungen` 38/40 -- **Erwartung veraltet seit 1.8.93** (Kennzeichen der Kundenakte „Nicht zugeordnet: …“/„Nichts offen zuzuordnen“, jetzt „Guthaben des Kunden: …“/„Kein Guthaben“), angepasst, danach 40/40; rot `klicktest_checkliste_abschnitte` 27/28 („Hinweis weg nach der Antwort“), einzeln 28/28 -- nicht von dieser Runde (Nebenbefund).
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **Verrechnen statt erstatten**: ein Guthaben aus einer Schlussrechnung lässt sich nicht mit einer offenen Rechnung desselben Kunden
+   (anderer Auftrag) verrechnen, nur erstatten; ein nicht zugeordneter Rest dagegen schon (zuordnen).
+2. **`GET /api/payments/unallocated`** wird von keiner Seite mehr gelesen (Finanzen nimmt `customer-balances`); der Endpunkt bleibt.
+3. **Kundenakte**: "Zahlung zurücknehmen" steht auch an einer Zahlung, aus deren Rest erstattet ist -- die Ablehnung kommt erst beim
+   Bestätigen (mit Grund).
+4. **`klicktest_checkliste_abschnitte`** war im Gesamtlauf 27/28 ("Hinweis weg nach der Antwort" las noch "Vor der Unterschrift
+   fehlen noch: Nachkontrolle ohne Befund."), einzeln 28/28 -- vermutlich liest die Prüfung vor dem Neuladen (wie `klicktest_mahnwesen`
+   bis 1.8.87); der Klicktest ist nicht von dieser Runde berührt.
+
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
 Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):
@@ -2878,3 +2967,4 @@ Ergänzt am 13.10.2026 (Nacharbeiten R4c), übernommen wie gegeben -- Wortlaut u
 - **Schlusstext bei negativem Zahlbetrag**: ohne Zahlungsaufforderung, stattdessen ein eigener Text für die Erstattung, gepflegt in den
   Einstellungen. (Seit 1.8.92 gebaut.)
 - **Guthaben des Kunden**: nicht zugeordneter Rest und Guthaben zusammen, aufgeschlüsselt; eine Erstattung kann beides ausgleichen.
+  (Seit 1.8.93 gebaut.)

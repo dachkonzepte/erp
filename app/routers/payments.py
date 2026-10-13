@@ -16,13 +16,14 @@ from ..email_dispatch import actor_of
 from ..invoices import get_invoice
 from ..models import AppUser, Customer, Invoice, Payment, PaymentAllocation
 from ..payments import (
-    ChargeLine, Line, PaymentRejected, allocate_rest, book_payment, book_refund, customer_payments, open_invoices_of_customer,
-    payment_to_dict, proposal, reverse_allocation, reverse_payment, unallocated_by_customer,
+    ChargeLine, Line, PaymentRejected, RefundLine, allocate_rest, book_customer_refund, book_payment, book_refund, customer_balances,
+    customer_payments, open_invoices_of_customer, payment_to_dict, proposal, reverse_allocation, reverse_payment,
+    unallocated_by_customer,
 )
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import (
-    CustomerPaymentsOut, OpenInvoiceOut, PaymentAllocate, PaymentCreate, PaymentOut, PaymentProposalOut, PaymentReverse,
-    RefundCreate, UnallocatedPaymentsOut,
+    CustomerBalanceOut, CustomerPaymentsOut, CustomerRefundCreate, OpenInvoiceOut, PaymentAllocate, PaymentCreate, PaymentOut,
+    PaymentProposalOut, PaymentReverse, RefundCreate, UnallocatedPaymentsOut,
 )
 from ..zugehoerigkeit import IdNichtGefunden
 
@@ -75,6 +76,29 @@ def get_customer_open_invoices(customer_id: int, db: Session = Depends(get_db), 
 @router.get("/api/payments/unallocated", response_model=list[UnallocatedPaymentsOut])
 def get_unallocated_payments(db: Session = Depends(get_db), _role: AppUser = _role_dep):
     return unallocated_by_customer(db)
+
+
+@router.get("/api/payments/customer-balances", response_model=list[CustomerBalanceOut])
+def get_customer_balances(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    """Seit 1.8.93 (Nacharbeit R4c Punkt 3): Guthaben der Kunden -- nicht zugeordneter Rest und Guthaben aus Endrechnungen je Kunde."""
+    return customer_balances(db)
+
+
+@router.post("/api/customers/{customer_id}/refunds", response_model=PaymentOut)
+def post_customer_refund(customer_id: int, payload: CustomerRefundCreate, db: Session = Depends(get_db),
+                         user: AppUser = _role_dep):
+    """Seit 1.8.93: Erstattung des Guthabens des Kunden als ein Zahlungsausgang -- aus Resten seiner Zahlungen und aus Guthaben von
+    Endrechnungen (app/payments.py::book_customer_refund())."""
+    _customer_or_404(db, customer_id)
+    user_id, user_name = actor_of(user)
+    try:
+        payment = book_customer_refund(
+            db, customer_id, paid_on=payload.paid_on, note=payload.note,
+            lines=[RefundLine(amount=line.amount, invoice_id=line.invoice_id, payment_id=line.payment_id) for line in payload.lines],
+            user_id=user_id, user_name=user_name)
+    except ValueError as e:
+        raise _http(e) from e
+    return payment_to_dict(db, payment)
 
 
 @router.get("/api/invoices/{invoice_id}/payment-proposal", response_model=PaymentProposalOut)

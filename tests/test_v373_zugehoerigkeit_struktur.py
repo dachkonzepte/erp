@@ -141,6 +141,12 @@ GEPRUEFT = {
     "POST /api/payments lines.charges.charge_id": ("payments._check_charge_lines", "charge.invoice_id != line.invoice_id"),
     "POST /api/payments/{payment_id}/allocations lines.charges.charge_id":
         ("payments._check_charge_lines", "charge.invoice_id != line.invoice_id"),
+    # seit 1.8.93: Erstattung in der Kundenakte nur aus Schlussrechnungen und Zahlungen dieses Kunden (409, Angriffstests in
+    # test_v396_guthaben_des_kunden.py)
+    "POST /api/customers/{customer_id}/refunds lines.invoice_id":
+        ("payments.book_customer_refund", "invoice_customer_id(invoice) != customer_id"),
+    "POST /api/customers/{customer_id}/refunds lines.payment_id":
+        ("payments._check_rest_line", "payment.customer_id != customer_id"),
     **{f"{route} order_item_id": ("time_tracking.validate_order_item", "item is None or item.order_id != order_id") for route in (
         "POST /api/time-entries", "POST /api/time-entries/start", "PUT /api/time-entries/{entry_id}",
         "POST /api/time-entry-groups", "POST /api/time-entry-groups/start", "PUT /api/time-entry-groups/{group_id}")},

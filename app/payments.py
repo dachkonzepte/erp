@@ -35,6 +35,11 @@ Seit 1.8.90 (R4c Punkt 6): Erstattung als Zahlungsausgang (book_refund()). Laute
 customer_credits()). Die Erstattung ist eine Zahlung mit negativem Betrag (Geld geht hinaus) und einer Zuordnung Art "erstattung" an
 der Endrechnung, ebenfalls negativ -- höchstens das Guthaben, unter der Sperre der Auftragszeile; zurückgenommen nur als Ganzes
 (reverse_payment()).
+
+Seit 1.8.93 (Nacharbeit R4c Punkt 3): das Guthaben des Kunden sind die nicht zugeordneten Reste seiner Zahlungen und die Guthaben aus
+Endrechnungen zusammen (customer_balance(), aufgeschlüsselt). Ein Zahlungsausgang kann beides erstatten (book_customer_refund()): aus
+einem Rest über PaymentRefundSource (der Rest der Zahlung sinkt, der Zahlungsausgang ist damit zugeordnet), aus einem Guthaben wie
+book_refund(). Sperren wie beim Buchen: erst die Aufträge der Endrechnungen, dann die Zahlungen, aus deren Rest erstattet wird.
 """
 
 from dataclasses import dataclass
@@ -49,7 +54,7 @@ from .berlin_time import berlin_today
 from .invoices import (  # invoice_customer_id: seit 1.8.79 dort (der festgehaltene Kunde), hier weiter importierbar
     EDITABLE_STATUS, compute_invoice_totals, invoice_customer_id, invoice_rounding, lock_order_invoices, skonto_offer,
 )
-from .models import Customer, Invoice, InvoiceCharge, Payment, PaymentAllocation, Reminder
+from .models import Customer, Invoice, InvoiceCharge, Payment, PaymentAllocation, PaymentRefundSource, Reminder
 from .rounding import CENT, round_money
 from .zugehoerigkeit import IdNichtGefunden
 
@@ -454,13 +459,32 @@ def _reversed_payment_ids(db: Session, payment_ids: Iterable[int]) -> set[int]:
     return set(db.scalars(select(Payment.reverses_payment_id).where(Payment.reverses_payment_id.in_(ids))))
 
 
+def refunded_from_rest(db: Session, payment_ids: Iterable[int]) -> dict[int, Decimal]:
+    """Je Zahlung, was aus ihrem nicht zugeordneten Rest erstattet ist (seit 1.8.93) -- über Zahlungsausgänge, die nicht
+    zurückgenommen sind."""
+    ids = sorted(set(payment_ids))
+    if not ids:
+        return {}
+    reversed_ids = select(Payment.reverses_payment_id).where(Payment.reverses_payment_id.is_not(None))
+    rows = db.execute(
+        select(PaymentRefundSource.source_payment_id, func.sum(PaymentRefundSource.amount))
+        .where(PaymentRefundSource.source_payment_id.in_(ids), PaymentRefundSource.refund_payment_id.not_in(reversed_ids))
+        .group_by(PaymentRefundSource.source_payment_id)
+    ).all()
+    return {payment_id: round_money(total) for payment_id, total in rows}
+
+
 def payment_rest(db: Session, payment: Payment) -> Decimal:
-    """Noch nicht zugeordneter Betrag der Zahlung (0, wenn sie zurückgenommen ist)."""
+    """Noch nicht zugeordneter Betrag der Zahlung (0, wenn sie zurückgenommen ist). Seit 1.8.93 abzüglich dessen, was aus dem Rest
+    erstattet ist; an einem Zahlungsausgang zählt, was er aus Resten erstattet, als zugeordnet."""
     if payment.reverses_payment_id is not None or payment.id in _reversed_payment_ids(db, [payment.id]):
         return ZERO
     allocated = db.scalar(select(func.coalesce(func.sum(PaymentAllocation.amount), 0)).where(
         PaymentAllocation.payment_id == payment.id, PaymentAllocation.kind.in_(MONEY_KINDS)))
-    return round_money(Decimal(payment.amount) - Decimal(allocated or 0))
+    from_rest = refunded_from_rest(db, [payment.id]).get(payment.id, ZERO)
+    as_refund = db.scalar(select(func.coalesce(func.sum(PaymentRefundSource.amount), 0)).where(
+        PaymentRefundSource.refund_payment_id == payment.id))
+    return round_money(Decimal(payment.amount) - Decimal(allocated or 0) - from_rest + Decimal(as_refund or 0))
 
 
 def _load_invoices(db: Session, lines: list[Line]) -> dict[int, Invoice]:
@@ -590,25 +614,15 @@ def book_refund(db: Session, invoice: Invoice, *, paid_on: date, amount: Decimal
                 user_id: int | None = None, user_name: str | None = None) -> Payment:
     """Erstattung eines Guthabens als Zahlungsausgang: eine Zahlung des Kunden über −amount mit einer Zuordnung Art "erstattung"
     (ebenfalls −amount) an der Endrechnung. Unter der Sperre der Auftragszeile geprüft: gültige Endrechnung mit Guthaben
-    (app/final_dunning.py::DunningState.credit), höchstens das Guthaben, Ausgangsdatum nicht in der Zukunft."""
-    from .final_dunning import dunning_state  # lokal: app/final_dunning.py importiert app/payments.py
-
+    (app/final_dunning.py::DunningState.credit), höchstens das Guthaben, Ausgangsdatum nicht in der Zukunft. Seit 1.8.93 erstattet
+    book_customer_refund() in der Kundenakte auch Reste von Zahlungen, mit denselben Prüfungen (_check_credit())."""
     amount = _cents(amount, "Der Betrag", positive=True)
     if paid_on > berlin_today():
         raise ValueError("Das Datum des Zahlungsausgangs liegt in der Zukunft.")
     name = (user_name or "System")[:160]
     lock_order_invoices(db, invoice.order_id)
     try:
-        number = invoice.invoice_number or "(Entwurf)"
-        state = dunning_state(db, invoice) if invoice.status == "versendet" else None
-        if state is None or not state.is_final:
-            raise PaymentRejected(f"Eine Erstattung gibt es nur zu einer festgeschriebenen Schlussrechnung mit Überzahlung -- "
-                                  f"{number} ist keine.")
-        if state.credit <= 0:
-            raise PaymentRejected(f"Aus der Schlussrechnung {number} steht kein Guthaben des Kunden offen.")
-        if amount > state.credit:
-            raise PaymentRejected(f"Überbuchung: das Guthaben aus der Schlussrechnung {number} beträgt {money(state.credit)}, "
-                                  f"erstattet werden sollen {money(amount)}.")
+        _check_credit(db, invoice, amount)
         payment = Payment(customer_id=invoice_customer_id(invoice), received_on=paid_on, amount=-amount,
                           note=(note or "").strip() or None, origin="erfasst", created_by_user_id=user_id, created_by_name=name)
         db.add(payment)
@@ -622,6 +636,119 @@ def book_refund(db: Session, invoice: Invoice, *, paid_on: date, amount: Decimal
     db.commit()
     db.refresh(payment)
     return payment
+
+
+def _check_credit(db: Session, invoice: Invoice, amount: Decimal) -> None:
+    """Unter der Sperre der Auftragszeile: gültige Endrechnung mit Guthaben, höchstens das Guthaben (book_refund(), seit 1.8.93 auch
+    book_customer_refund())."""
+    from .final_dunning import dunning_state  # lokal: app/final_dunning.py importiert app/payments.py
+
+    number = invoice.invoice_number or "(Entwurf)"
+    state = dunning_state(db, invoice) if invoice.status == "versendet" else None
+    if state is None or not state.is_final:
+        raise PaymentRejected(f"Eine Erstattung gibt es nur zu einer festgeschriebenen Schlussrechnung mit Überzahlung -- "
+                              f"{number} ist keine.")
+    if state.credit <= 0:
+        raise PaymentRejected(f"Aus der Schlussrechnung {number} steht kein Guthaben des Kunden offen.")
+    if amount > state.credit:
+        raise PaymentRejected(f"Überbuchung: das Guthaben aus der Schlussrechnung {number} beträgt {money(state.credit)}, "
+                              f"erstattet werden sollen {money(amount)}.")
+
+
+@dataclass(frozen=True)
+class RefundLine:
+    """Seit 1.8.93: ein Teil einer Erstattung -- aus dem Guthaben einer Endrechnung (invoice_id) oder aus dem nicht zugeordneten Rest
+    einer Zahlung (payment_id), genau eins von beiden."""
+    amount: Decimal
+    invoice_id: int | None = None
+    payment_id: int | None = None
+
+
+def _check_refund_lines(lines: list[RefundLine]) -> list[RefundLine]:
+    if not lines:
+        raise ValueError("Bitte mindestens einen Betrag zum Erstatten angeben.")
+    seen = set()
+    checked = []
+    for line in lines:
+        if (line.invoice_id is None) == (line.payment_id is None):
+            raise ValueError("Jede Zeile erstattet entweder aus einer Schlussrechnung oder aus einer Zahlung.")
+        key = ("rechnung", line.invoice_id) if line.invoice_id is not None else ("zahlung", line.payment_id)
+        if key in seen:
+            raise ValueError("Jede Schlussrechnung und jede Zahlung höchstens einmal je Erstattung.")
+        seen.add(key)
+        checked.append(RefundLine(_cents(line.amount, "Der Betrag", positive=True), line.invoice_id, line.payment_id))
+    return checked
+
+
+def _check_rest_line(db: Session, customer_id: int, payment: Payment, amount: Decimal) -> None:
+    """Unter der Sperre der Zahlung: ein Zahlungseingang desselben Kunden, nicht zurückgenommen, höchstens sein Rest."""
+    if payment.customer_id != customer_id:
+        raise PaymentRejected(f"Die Zahlung Nr. {payment.id} gehört zu einem anderen Kunden.")
+    if payment.reverses_payment_id is not None or payment.id in _reversed_payment_ids(db, [payment.id]):
+        raise PaymentRejected(f"Die Zahlung Nr. {payment.id} ist zurückgenommen -- daraus lässt sich nichts erstatten.")
+    if Decimal(payment.amount) < 0:
+        raise PaymentRejected(f"Nr. {payment.id} ist ein Zahlungsausgang -- erstattet wird nur aus dem Rest eines Zahlungseingangs.")
+    rest = payment_rest(db, payment)
+    if amount > rest:
+        raise PaymentRejected(f"Überbuchung: an der Zahlung Nr. {payment.id} sind {money(rest)} nicht zugeordnet, erstattet werden "
+                              f"sollen {money(amount)}.")
+
+
+def book_customer_refund(db: Session, customer_id: int, *, paid_on: date, note: str | None, lines: list[RefundLine],
+                         user_id: int | None = None, user_name: str | None = None) -> Payment:
+    """Erstattung des Guthabens des Kunden als ein Zahlungsausgang (seit 1.8.93, Nacharbeit R4c Punkt 3): aus Guthaben von Endrechnungen
+    (Zuordnung Art "erstattung" an der Endrechnung, wie book_refund()) und aus nicht zugeordneten Resten seiner Zahlungen
+    (PaymentRefundSource) zugleich. Unter den Sperren in fester Reihenfolge (lock_for_booking()): die Aufträge der Endrechnungen, dann
+    die Zahlungen, aus deren Rest erstattet wird -- je Zeile höchstens das Guthaben bzw. der Rest, nur Rechnungen und Zahlungen dieses
+    Kunden, Datum nicht in der Zukunft. Zurückgenommen nur als Ganzes (reverse_payment())."""
+    if paid_on > berlin_today():
+        raise ValueError("Das Datum des Zahlungsausgangs liegt in der Zukunft.")
+    lines = _check_refund_lines(lines)
+    if db.get(Customer, customer_id) is None:
+        raise IdNichtGefunden("Kunde nicht gefunden.")
+    invoices: dict[int, Invoice] = {}
+    payments: dict[int, Payment] = {}
+    for line in lines:
+        if line.invoice_id is not None:
+            invoice = db.get(Invoice, line.invoice_id)
+            if invoice is None:
+                raise IdNichtGefunden(f"Rechnung {line.invoice_id} nicht gefunden.")
+            invoices[invoice.id] = invoice
+        else:
+            payment = db.get(Payment, line.payment_id)
+            if payment is None:
+                raise IdNichtGefunden(f"Zahlung {line.payment_id} nicht gefunden.")
+            payments[payment.id] = payment
+    name = (user_name or "System")[:160]
+    lock_for_booking(db, [i.order_id for i in invoices.values()], payments)
+    try:
+        for line in lines:
+            if line.invoice_id is not None:
+                invoice = invoices[line.invoice_id]
+                if invoice_customer_id(invoice) != customer_id:
+                    raise PaymentRejected(f"Die Rechnung {invoice.invoice_number or '(Entwurf)'} gehört zu einem anderen Kunden.")
+                _check_credit(db, invoice, line.amount)
+            else:
+                _check_rest_line(db, customer_id, payments[line.payment_id], line.amount)
+        total = sum((line.amount for line in lines), ZERO)
+        refund = Payment(customer_id=customer_id, received_on=paid_on, amount=-total, note=(note or "").strip() or None,
+                         origin="erfasst", created_by_user_id=user_id, created_by_name=name)
+        db.add(refund)
+        db.flush()
+        for line in lines:
+            if line.invoice_id is not None:
+                db.add(PaymentAllocation(payment_id=refund.id, invoice_id=line.invoice_id, kind="erstattung", amount=-line.amount,
+                                         created_by_user_id=user_id, created_by_name=name))
+            else:
+                db.add(PaymentRefundSource(refund_payment_id=refund.id, source_payment_id=line.payment_id, amount=line.amount,
+                                           created_by_user_id=user_id, created_by_name=name))
+        db.flush()
+    except Exception:
+        db.rollback()
+        raise
+    db.commit()
+    db.refresh(refund)
+    return refund
 
 
 def customer_credits(db: Session, customer_id: int) -> list[dict]:
@@ -707,6 +834,12 @@ def reverse_payment(db: Session, payment: Payment, *, reason: str | None, user_i
     try:
         if payment.id in _reversed_payment_ids(db, [payment.id]):
             raise PaymentRejected("Diese Zahlung ist schon zurückgenommen.")
+        # Seit 1.8.93: aus ihrem Rest erstattet -- erst den Zahlungsausgang zurücknehmen (sonst wäre Geld erstattet, das es nicht gab).
+        refunds = _live_refunds_from(db, payment.id)
+        if refunds:
+            numbers = ", ".join(f"Nr. {r.refund_payment_id}" for r in refunds)
+            raise PaymentRejected(f"Aus dem Rest dieser Zahlung ist erstattet ({money(sum((r.amount for r in refunds), ZERO))}, "
+                                  f"Zahlungsausgang {numbers}) -- erst den Zahlungsausgang zurücknehmen.")
         done = _reversed_allocation_ids(db, [a.id for a in rows])
         for allocation in rows:
             if allocation.reverses_allocation_id is None and allocation.id not in done:
@@ -722,6 +855,14 @@ def reverse_payment(db: Session, payment: Payment, *, reason: str | None, user_i
     db.commit()
     db.refresh(payment)
     return payment
+
+
+def _live_refunds_from(db: Session, payment_id: int) -> list[PaymentRefundSource]:
+    """Erstattungen aus dem Rest dieser Zahlung über Zahlungsausgänge, die nicht zurückgenommen sind (seit 1.8.93)."""
+    reversed_ids = select(Payment.reverses_payment_id).where(Payment.reverses_payment_id.is_not(None))
+    return list(db.scalars(select(PaymentRefundSource).where(
+        PaymentRefundSource.source_payment_id == payment_id, PaymentRefundSource.refund_payment_id.not_in(reversed_ids))
+        .order_by(PaymentRefundSource.id)))
 
 
 # ---------------------------------------------------------------------------
@@ -779,6 +920,14 @@ def payment_to_dict(db: Session, payment: Payment) -> dict:
         "note": payment.note, "origin": payment.origin, "created_at": payment.created_at,
         "created_by_name": payment.created_by_name, "rest": payment_rest(db, payment),
         "is_refund": Decimal(payment.amount) < 0,  # seit 1.8.90: Zahlungsausgang (Erstattung)
+        # Seit 1.8.93: am Zahlungsausgang, aus welchen Resten er erstattet; an einer Zahlung, was aus ihrem Rest erstattet ist.
+        "refund_sources": [{"payment_id": s.source_payment_id, "amount": s.amount,
+                            "received_on": db.get(Payment, s.source_payment_id).received_on}
+                           for s in db.scalars(select(PaymentRefundSource).where(PaymentRefundSource.refund_payment_id == payment.id)
+                                               .order_by(PaymentRefundSource.id))],
+        "refunded_from_rest": [{"refund_payment_id": s.refund_payment_id, "amount": s.amount,
+                                "paid_on": db.get(Payment, s.refund_payment_id).received_on}
+                               for s in _live_refunds_from(db, payment.id)],
         "reversed": counter is not None,
         "reversal": ({"reason": counter.reason, "created_at": counter.created_at, "created_by_name": counter.created_by_name}
                      if counter else None),
@@ -794,7 +943,21 @@ def customer_payments(db: Session, customer_id: int) -> dict:
     rows = [payment_to_dict(db, p) for p in payments]
     credits = customer_credits(db, customer_id)  # seit 1.8.90
     return {"customer_id": customer_id, "payments": rows, "rest": sum((r["rest"] for r in rows), ZERO),
-            "credits": credits, "credit_total": sum((c["credit"] for c in credits), ZERO)}
+            "credits": credits, "credit_total": sum((c["credit"] for c in credits), ZERO),
+            "balance": customer_balance(rows, credits)}
+
+
+def customer_balance(payment_rows: list[dict], credits: list[dict]) -> dict:
+    """Guthaben des Kunden (seit 1.8.93, Nacharbeit R4c Punkt 3): die nicht zugeordneten Reste seiner Zahlungen und die Guthaben aus
+    Endrechnungen zusammen, je Zahlung bzw. Schlussrechnung eine Zeile (ältere zuerst)."""
+    lines = [{"kind": "rest", "payment_id": r["id"], "invoice_id": None, "invoice_number": None, "date": r["received_on"],
+              "amount": r["rest"]}
+             for r in sorted(payment_rows, key=lambda r: (r["received_on"], r["id"])) if r["rest"] > 0]
+    lines += [{"kind": "guthaben", "payment_id": None, "invoice_id": c["invoice_id"], "invoice_number": c["invoice_number"],
+               "date": c["invoice_date"], "amount": c["credit"]} for c in credits]
+    rest = sum((line["amount"] for line in lines if line["kind"] == "rest"), ZERO)
+    credit = sum((line["amount"] for line in lines if line["kind"] == "guthaben"), ZERO)
+    return {"rest": rest, "credit": credit, "total": rest + credit, "lines": lines}
 
 
 def open_invoices_of_customer(db: Session, customer_id: int) -> list[dict]:
@@ -825,6 +988,28 @@ def open_invoices_of_customer(db: Session, customer_id: int) -> list[dict]:
                        "charges": [{"charge_id": c.id, "kind": c.kind, "label": labels[c.id], "open": rest}
                                    for c, rest in charges]})
     return result
+
+
+def customer_balances(db: Session) -> list[dict]:
+    """Guthaben der Kunden (Finanzen, Dashboard; seit 1.8.93): je Kunde nicht zugeordneter Rest und Guthaben aus Endrechnungen, nur
+    Kunden mit einem von beiden, das größte zuerst."""
+    from .final_dunning import dunning_states  # lokal: Zirkel-Import
+
+    rests = {r["customer_id"]: r["rest"] for r in unallocated_by_customer(db)}
+    finals = list(db.scalars(select(Invoice).where(Invoice.invoice_type == "schluss", Invoice.status == "versendet")))
+    states = dunning_states(db, finals)
+    credits: dict[int, Decimal] = {}
+    for invoice in finals:
+        if states[invoice.id].credit > 0:
+            customer_id = invoice_customer_id(invoice)
+            credits[customer_id] = credits.get(customer_id, ZERO) + states[invoice.id].credit
+    result = []
+    for customer_id in set(rests) | set(credits):
+        customer = db.get(Customer, customer_id)
+        rest, credit = rests.get(customer_id, ZERO), credits.get(customer_id, ZERO)
+        result.append({"customer_id": customer_id, "customer_name": customer.name if customer else None, "rest": rest,
+                       "credit": credit, "total": rest + credit})
+    return sorted(result, key=lambda r: (-r["total"], r["customer_id"]))
 
 
 def unallocated_by_customer(db: Session) -> list[dict]:

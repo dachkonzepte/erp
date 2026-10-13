@@ -1,8 +1,9 @@
 """Klicktest: Überzahlung -- Schlussrechnung unter 0 €, Erstattung als Zahlungsausgang, Guthaben am Kunden (1.8.90, R4c Punkte 6 und 7;
-seit 1.8.92 Schlusstext bei Erstattung, Nacharbeit R4c Punkt 2).
+seit 1.8.92 Schlusstext bei Erstattung, Nacharbeit R4c Punkt 2; seit 1.8.93 Guthaben des Kunden aus Rest und Überzahlung, Punkt 3).
 
 Ein Auftrag (10 m² × 50 € = 595 € brutto) mit einem Abschlag nach Leistungsstand über 10 m² (595 €), voll bezahlt; die Schlussrechnung
-mit dem Aufmaß 8 m² lautet über −119 € (Überzahlung). Dazu ein Zahlungsbedingungs-Skonto am Entwurf.
+mit dem Aufmaß 8 m² lautet über −119 € (Überzahlung). Dazu ein Zahlungsbedingungs-Skonto am Entwurf und (seit 1.8.93) eine Zahlung
+über 50 € ohne Zuordnung.
 
     Rechnungsseite     Entwurf: Rechnungsbetrag −119 €, Zahlungshinweis "Erstattungsbetrag (Überzahlung) 119,00 €", Satz "Den
                        Erstattungsbetrag … überweisen wir Ihnen." statt Fälligkeit und Skonto, Finalisieren möglich; danach Kennzeichen
@@ -10,7 +11,10 @@ mit dem Aufmaß 8 m² lautet über −119 € (Überzahlung). Dazu ein Zahlungsb
                        seit 1.8.92 im Entwurf der Hinweis "Text für die Erstattung" am Schlusstext, nach dem Finalisieren ist er
                        der Schlusstext
     Einstellungen      Auswahlliste "Rechnungs-Schlusstexte bei Erstattung" (seit 1.8.92)
-    Kundenakte         Guthaben 19 € mit Link, Zahlungsausgang (Erstattung) −100 € ohne "nicht zugeordnet", zurücknehmen -> Guthaben 119 €
+    Kundenakte         Guthaben des Kunden 69 € (Rest 50 € + 19 €) aufgeschlüsselt, Zahlungsausgang (Erstattung) −100 € ohne "nicht
+                       zugeordnet", zurücknehmen -> 169 €; seit 1.8.93 eine Erstattung für Rest und Überzahlung zusammen -> kein
+                       Guthaben, Quelle an Zahlungsausgang und Zahlung, Zahlung zurücknehmen mit Grund abgelehnt
+    Finanzen           seit 1.8.93 "Guthaben der Kunden" 169 € davon nicht zugeordnet 50 €, Zeile des Kunden
     API                zu viel erstattet 409; Monteurin 403
     412 px dunkel      Rechnungsseite
 
@@ -68,12 +72,15 @@ def befuellen(db, k):
     abschlag = finalize_and_send_invoice(db, abschlag)
     book_payment(db, customer_id=kunde.id, received_on=berlin_today(), amount=Decimal("595"), note=None,
                  lines=[Line(abschlag.id, zahlung=Decimal("595"))], user_name="Bea Büro")
+    rest = book_payment(db, customer_id=kunde.id, received_on=berlin_today(), amount=Decimal("50"), note="doppelt überwiesen",
+                        lines=[], user_name="Bea Büro")  # seit 1.8.93: nicht zugeordneter Rest
     schluss = create_schlussrechnung(db, load_order(db, order.id))
     update_invoice_item(db, schluss, schluss.items[0], ist_quantity=Decimal("8"))  # Aufmaß kleiner als abgeschlagen
     update_invoice_header(db, schluss, service_period_start=date(2026, 9, 1), service_period_end=date(2026, 10, 10))
     db.execute(update(Invoice).where(Invoice.id == schluss.id).values(skonto_percent=Decimal("2"), skonto_days=10))
     db.commit()
-    return {"schluss": schluss.id, "kunde": kunde.id, "cookies": {"buero": k.cookies(buero), "monteurin": k.cookies(monteurin)}}
+    return {"schluss": schluss.id, "kunde": kunde.id, "rest": rest.id,
+            "cookies": {"buero": k.cookies(buero), "monteurin": k.cookies(monteurin)}}
 
 
 def _passt(p, name, ist, bedingung):
@@ -140,17 +147,56 @@ async def pruefen(tab, seed, p):
 
     # --- Kundenakte ---
     await tab.oeffnen(f"/customers/{seed['kunde']}", CUSTOMER_READY)
-    _passt(p, "Kundenakte: Guthaben 19 € mit Link", await tab.js("document.querySelector('#customerCredits [data-guthaben]')?.textContent||''"),
-           lambda v: "19,00" in v)
+    # Seit 1.8.93: Rest und Überzahlung zusammen als "Guthaben des Kunden" (Erwartung geändert, bis 1.8.92 nur "19,00").
+    p.pruefe("Kundenakte: Guthaben des Kunden 69 € aus Rest und Überzahlung", await tab.js(
+        "[document.querySelector('[data-guthaben-summe]')?.textContent.replace(/\\u00a0/g,' '),"
+        "[...document.querySelectorAll('[data-guthaben-zeile]')].map(r=>r.dataset.guthabenZeile),"
+        "document.getElementById('paymentRestBadge').textContent.replace(/\\u00a0/g,' ')]"),
+        ["69,00 €", ["rest", "guthaben"], "Guthaben des Kunden: 69,00 €"])
     _passt(p, "Kundenakte: Zahlungsausgang ohne „nicht zugeordnet“", await tab.js(
         "(()=>{const c=[...document.querySelectorAll('[data-zahlung]')].find(x=>x.querySelector('[data-zahlungsausgang]'));"
         "return c?c.textContent:''})()"), lambda v: "-100,00" in v and "nicht zugeordnet" not in v and "Zahlungsausgang Nr." in v)
     pid = await tab.js("customerPaymentsData.payments.find(x=>x.is_refund).id")
     await tab.js(f"showPaymentReverse({pid});document.getElementById('payRevReason-{pid}').value='Überweisung kam zurück';"
                  f"reversePayment({pid})")
-    p.pruefe("zurückgenommen: Guthaben wieder 119 €", await tab.warten("Number(customerPaymentsData.credit_total)===119"), True)
+    p.pruefe("zurückgenommen: Guthaben wieder 119 €, des Kunden 169 €", await tab.warten(
+        "Number(customerPaymentsData.credit_total)===119&&Number(customerPaymentsData.balance.total)===169"), True)
     await tab.js("document.getElementById('zahlungen').scrollIntoView()")
     await tab.bild("kundenakte_guthaben")
+
+    # --- Finanzen: Guthaben der Kunden (seit 1.8.93) ---
+    await tab.oeffnen("/finanzen", "allInvoices.length>0&&document.getElementById('metrics').innerHTML")
+    p.pruefe("Finanzen: Guthaben der Kunden 169 €, davon nicht zugeordnet 50 €", await tab.js(
+        "[document.querySelector('#metrics [data-guthaben]')?.textContent.replace(/\\u00a0/g,' '),"
+        "document.querySelector('#metrics [data-nicht-zugeordnet]')?.textContent.replace(/\\u00a0/g,' ')]"),
+        ["169,00 €", "davon nicht zugeordnet 50,00 €"])
+    _passt(p, "Finanzen: Zeile des Kunden mit Rest und Überzahlung", await tab.js(
+        f"document.querySelector('[data-kunde-guthaben=\"{seed['kunde']}\"]')?.textContent.replace(/\\u00a0/g,' ')||''"),
+        lambda v: "169,00 €" in v and "nicht zugeordnet 50,00 €" in v and "Überzahlung 119,00 €" in v)
+
+    # --- Kundenakte: eine Erstattung für Rest und Überzahlung (seit 1.8.93) ---
+    await tab.oeffnen(f"/customers/{seed['kunde']}", CUSTOMER_READY)
+    await tab.js("document.getElementById('custRefundNote').value='Überweisung an den Kunden';bookCustomerRefund()")
+    p.pruefe("Erstattung gebucht: kein Guthaben mehr", await tab.warten(
+        "Number(customerPaymentsData.balance.total)===0&&document.getElementById('paymentRestBadge').textContent==='Kein Guthaben'"),
+        True)
+    _passt(p, "Zahlungsausgang −169 € mit Quelle, Zahlung mit „aus dem Rest erstattet“", await tab.js(
+        f"(()=>{{const a=customerPaymentsData.payments.find(x=>x.is_refund&&!x.reversed);"
+        f"const q=document.querySelector('[data-zahlung=\"'+a.id+'\"] [data-erstattet-aus=\"{seed['rest']}\"]');"
+        f"const z=document.querySelector('[data-zahlung=\"{seed['rest']}\"] [data-erstattet-mit]');"
+        "return [a.amount,q?q.textContent:'',z?z.textContent:'']})()"),
+        lambda v: v[0] == "-169.00" and "Erstattung aus dem Rest der Zahlung" in v[1] and "aus dem Rest erstattet" in v[2])
+    rest = seed["rest"]
+    await tab.js(f"showPaymentReverse({rest});document.getElementById('payRevReason-{rest}').value='falsch erfasst';"
+                 f"reversePayment({rest})")
+    p.pruefe("Zahlung mit erstattetem Rest zurücknehmen: abgelehnt mit Grund", await tab.warten(
+        "document.getElementById('customerPaymentsStatus').textContent.includes('erst den Zahlungsausgang zurücknehmen')"), True)
+    zuviel = await tab.js(f"fetch('/api/customers/{seed['kunde']}/refunds',{{method:'POST',headers:{{'Content-Type':"
+                          f"'application/json'}},body:JSON.stringify({{paid_on:berlinToday(),lines:[{{payment_id:{rest},"
+                          "amount:'1.00'}]})}).then(r=>r.status)")
+    p.pruefe("API: Rest schon erstattet 409", zuviel, 409)
+    await tab.js("document.getElementById('zahlungen').scrollIntoView()")
+    await tab.bild("kundenakte_erstattung_rest")
     # --- Einstellungen (seit 1.8.92) ---
     await tab.oeffnen("/settings", "optionGroups.length>0")
     p.pruefe("Einstellungen: Auswahlliste „Rechnungs-Schlusstexte bei Erstattung“", await tab.js(
@@ -163,6 +209,9 @@ async def pruefen(tab, seed, p):
     await tab.oeffnen(f"/invoices/{s}", READY)
     await tab.js("document.documentElement.setAttribute('data-theme','dark');document.getElementById('paymentsCard').scrollIntoView()")
     await tab.bild("ueberzahlung_412_dunkel")
+    await tab.oeffnen(f"/customers/{seed['kunde']}", CUSTOMER_READY)  # seit 1.8.93: Kundenakte mit Zahlungsausgang
+    await tab.js("document.documentElement.setAttribute('data-theme','dark');document.getElementById('zahlungen').scrollIntoView()")
+    await tab.bild("kundenakte_412_dunkel")
     await tab.fenster(1400, 1100)
 
     # --- Monteurin ---
@@ -170,6 +219,10 @@ async def pruefen(tab, seed, p):
     status = await tab.js(f"fetch('/api/invoices/{s}/refunds',{{method:'POST',headers:{{'Content-Type':'application/json'}},"
                           "body:JSON.stringify({paid_on:'2026-10-01',amount:'1.00'})}).then(r=>r.status)")
     p.pruefe("Monteurin: 403", status, 403)
+    status = await tab.js(f"fetch('/api/customers/{seed['kunde']}/refunds',{{method:'POST',headers:{{'Content-Type':"
+                          f"'application/json'}},body:JSON.stringify({{paid_on:'2026-10-01',lines:[{{payment_id:{seed['rest']},"
+                          "amount:'1.00'}]})}).then(r=>r.status)")
+    p.pruefe("Monteurin: Erstattung in der Kundenakte 403 (seit 1.8.93)", status, 403)
 
 
 if __name__ == "__main__":

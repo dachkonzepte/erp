@@ -4,6 +4,25 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.93 – Guthaben des Kunden: Rest und Überzahlung zusammen, eine Erstattung für beides (Nacharbeiten R4c, Punkt 3)
+
+In der Kundenakte stehen der nicht zugeordnete Rest seiner Zahlungen und das Guthaben aus Schlussrechnungen mit Überzahlung jetzt
+zusammen als „Guthaben des Kunden“, je Zahlung bzw. Schlussrechnung eine Zeile. Ein Zahlungsausgang kann beides ausgleichen: je Zeile
+ein Betrag (vorgeschlagen: alles), Datum und Notiz, „Erstattung buchen“. Aus einem Rest erstattet heißt: der Rest der Zahlung sinkt, der
+Zahlungsausgang nennt die Zahlung, die Zahlung den Zahlungsausgang. Zurückgenommen wird nur der ganze Zahlungsausgang (danach ist der Rest
+wieder offen); eine Zahlung, aus deren Rest erstattet ist, lässt sich erst danach zurücknehmen. Erstattet wird nur aus Zahlungseingängen
+und Schlussrechnungen desselben Kunden, je Zeile höchstens Rest bzw. Guthaben, unter den Sperren in der Reihenfolge des Buchens (Aufträge,
+dann Zahlungen). Finanzen und Dashboard zeigen „Guthaben der Kunden“ (Rest und Überzahlung je Kunde, in Finanzen aufgeschlüsselt) statt
+„Nicht zugeordnet“ und „Guthaben (Überzahlung)“. Bis 1.8.92 standen Rest und Guthaben nebeneinander, und ein Rest ließ sich nur
+zuordnen, nicht erstatten (Nebenbefund 3 aus 1.8.90).
+
+Migration `7b3e9d1f5a26` (neue Tabelle `payment_refund_sources`, ändert keine Daten; Rückweg verweigert, solange eine Erstattung aus
+einem Rest besteht), auf SQLite und PostgreSQL mit Bestand geprobt. Neu `test_v396_guthaben_des_kunden` (27, davon 4 gegen PostgreSQL)
+und `test_v396_guthaben_migration` (2, davon 1 gegen PostgreSQL); Strukturtest Regel 25 mit den zwei neuen IDs aus der Anfrage;
+`test_v394_finanzen_zahlbetrag` prüft das Guthaben nicht mehr aus den Rechnungszeilen (Erwartung geändert seit 1.8.93). Klicktest
+`klicktest_ueberzahlung` um Kundenakte und Finanzen erweitert, 26/26. Gegenproben 16 von 16 rot (eine zunächst grün, Test nachgeschärft).
+Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie, drei Teile parallel): 3908 grün, 1 rot -- `test_v381_zahlungen_pg::test_every_writing_payment_route_has_a_scenario` verlangt für jeden schreibenden Zahlungsweg einen Rundgang unter dem Sperr-Beobachter; für `POST /api/customers/{customer_id}/refunds` ergänzt (der Beobachter prüft seit 1.8.93 auch die Erstattung aus dem Rest: nur unter der Sperre ihrer Zahlung, Gegenprobe rot), die Datei danach 14 grün. Alle Klicktests (Regel 26, Arbeitskopie): 55 von 57 wie erwartet in 11:46 min; rot `klicktest_zahlungen` 38/40 -- **Erwartung veraltet seit 1.8.93** (Kennzeichen der Kundenakte „Nicht zugeordnet: …“/„Nichts offen zuzuordnen“, jetzt „Guthaben des Kunden: …“/„Kein Guthaben“), angepasst, danach 40/40; rot `klicktest_checkliste_abschnitte` 27/28 („Hinweis weg nach der Antwort“), einzeln 28/28 -- nicht von dieser Runde (Nebenbefund). Festlegungen zum Bestätigen in `docs/archiv/befund-vor-echtbetrieb.md`, "Nacharbeiten R4c".
+
 ## 1.8.92 – Schlusstext bei Erstattung (Nacharbeiten R4c, Punkt 2)
 
 Ist der Zahlbetrag einer Schlussrechnung negativ (Erstattung), entfällt die Zahlungsaufforderung im Schlusstext („Bitte überweisen Sie

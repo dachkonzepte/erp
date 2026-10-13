@@ -221,9 +221,11 @@ def test_finanzen_and_dashboard_sum_the_overview_not_the_payment_state():
     dashboard = (TEMPLATES / "dashboard.html").read_text(encoding="utf-8")
     for name, text in (("finanzen", finanzen), ("dashboard", dashboard)):
         assert "payment.open" not in text and "payment.retained_open" not in text, name
-    for teil in ("Number(ov(i).open)", "Number(ov(i).retained)", "Number(ov(i)?ov(i).credit:0)", "data-guthaben"):
+    # Seit 1.8.93 (Nacharbeit R4c Punkt 3) kommt das Guthaben aus /api/payments/customer-balances (Rest und Überzahlung je Kunde,
+    # test_v396_guthaben_des_kunden.py) -- vorher aus overview.credit der Rechnungszeilen (Erwartung geändert seit 1.8.93).
+    for teil in ("Number(ov(i).open)", "Number(ov(i).retained)", "data-guthaben"):
         assert teil in finanzen, teil
-    for teil in ("Number(i.overview.open", "Number(i.overview?i.overview.credit:0)", "data-guthaben"):
+    for teil in ("Number(i.overview.open", "data-guthaben"):
         assert teil in dashboard, teil
     for name in ("order.html", "project_folder.html"):
         text = (TEMPLATES / name).read_text(encoding="utf-8")

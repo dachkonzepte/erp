@@ -226,8 +226,10 @@ async def pruefen(tab, seed, p):
 
     # --- Kundenakte: Rest zuordnen, Zahlung zurücknehmen ---
     await tab.oeffnen(f"/customers/{seed['kunde']}#zahlungen", "customerPaymentsData")
-    p.pruefe("Kunde: Rest sichtbar", await tab.js("document.getElementById('paymentRestBadge').textContent"),
-             "Nicht zugeordnet: 200,00\xa0€")
+    # Seit 1.8.93 (Nacharbeit R4c Punkt 3) zeigt das Kennzeichen das Guthaben des Kunden (Rest und Überzahlung zusammen); bis 1.8.92
+    # "Nicht zugeordnet: …" bzw. "Nichts offen zuzuordnen".
+    p.pruefe("Kunde: Rest sichtbar (Guthaben des Kunden)", await tab.js("document.getElementById('paymentRestBadge').textContent"),
+             "Guthaben des Kunden: 200,00\xa0€")
     z = seed["zahlung"]
     await tab.js(f"(()=>{{const s=document.getElementById('restInvoice-{z}');s.value='{seed['andere']}';"
                  f"s.dispatchEvent(new Event('change'))}})()")
@@ -236,7 +238,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Rest zugeordnet", await tab.warten(
         "document.getElementById('customerPaymentsStatus').textContent==='Zugeordnet.'"), True)
     p.pruefe("Kunde: nichts mehr offen", await tab.js("document.getElementById('paymentRestBadge').textContent"),
-             "Nichts offen zuzuordnen")
+             "Kein Guthaben")
     await _bild(tab, "kunde_zahlungen", "zahlungen", dunkel=True)
     await tab.js(f"showPaymentReverse({z});document.getElementById('payRevReason-{z}').value='nie eingegangen';reversePayment({z})")
     p.pruefe("Zahlung zurückgenommen", await tab.warten(
