@@ -2454,6 +2454,99 @@ Wird der Umfang zu groß: nach Punkt 5 committen und den Rest auflisten. Commit 
 - Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie, drei Teile parallel): 3814 grün, 1 rot -- `test_v231_invoice_item_table_width_and_quantity::test_invoice_detail_screen_still_shows_all_three_quantities` suchte den Tabellenkopf ohne Attribut (jetzt `id="itemsHead"`), Erwartung angepasst, die Datei danach 9 grün.
 - Klicktest `klicktest_endrechnung` 25/25 (Arbeitskopie); alle Klicktests auf dem Stand 1.8.89, der diese Version enthält (siehe dort).
 
+### Umsetzung 1.8.89: Mahnen nach der Endrechnung (Punkte 3–5)
+
+Umfang: nach Punkt 5 committet (Vorgabe); Punkte 6 und 7 als eigene Version (unten bzw. Rest).
+
+#### Was gebaut ist
+
+- **Was gemahnt werden kann** (neu `app/final_dunning.py`, `DunningState`, nur abgeleitet): je Rechnung der Zahlstand der Rechnung
+  selbst (`own`), an einer **gültigen Endrechnung** (festgeschriebene, nicht stornierte Schlussrechnung mit eingefrorenen Abzügen) die
+  abgezogenen Rechnungen mit offenem Betrag (`deducted`: offen einschließlich Einbehalt, davon Einbehalt), an einer **abgezogenen
+  Rechnung** die Endrechnung (`settled_in`), und der **angemahnte Betrag** (`dunnable`): an der Endrechnung ihr mahnfähiger Betrag
+  plus die offenen Beträge der abgezogenen, an einer abgezogenen 0, sonst der mahnfähige wie bisher. `dunning_states()` für viele
+  Rechnungen in wenigen Abfragen; mit `on` der Stand an einem Tag (Zustellung nachtragen) -- vor dem Tag der Endrechnung war eine
+  Rechnung noch nicht abgezogen.
+- **Mahnwesen** (`app/reminders.py`, überall `DunningState` statt des Zahlstands): "zur Mahnung fällig" ohne abgezogene Rechnungen, die
+  Endrechnung mit dem Zahlbetrag (auch selbst bezahlt oder über 0 €); Anlegen zu einer abgezogenen 409 "Die Rechnung … ist in der
+  Schlussrechnung … abgezogen – gemahnt wird nur noch die Schlussrechnung (über den Zahlbetrag)."; ein offener Entwurf ist überholt
+  ("Der Entwurf (1. Mahnung) ist überholt: … Bitte den Entwurf löschen.", Festschreiben 409); eine festgeschriebene Mahnung geht nicht
+  mehr hinaus ("… Die Mahnung M-… geht nicht mehr hinaus.", E-Mail und Zustellung ab dem Tag der Endrechnung 409). An der Endrechnung:
+  "beglichen" bzw. "nur noch ihr Einbehalt offen" als Gründe, wenn nichts zu mahnen ist; Entwurf veraltet, festgeschriebene Mahnung geht
+  nicht mehr hinaus, sobald eine Zahlung auf eine abgezogene Rechnung den Zahlbetrag ändert.
+- **Aufstellung Format 4** (`amounts_snapshot()`): wie Format 3 die Zeilen der Rechnung selbst (`dunnable` = ihr mahnfähiger Betrag),
+  dazu `deducted` (je abgezogener Rechnung Nummer, Art, offen, davon Einbehalt) und `principal` (angemahnter Betrag = Zahlbetrag);
+  Gesamtbetrag = principal + Nebenforderungen. **PDF** (`app/reminder_pdf.py`): nach den eigenen Zeilen "Mahnfähig aus dieser
+  Rechnung", je abgezogener "zzgl. noch offen aus Abschlag Nr. …" (mit "davon Einbehalt …, mit der Schlussrechnung fällig"),
+  "Angemahnter Betrag (Zahlbetrag)".
+- **Verzugszinsen** (`app/default_interest.py`): verzinst wird der angemahnte Betrag am Tag (`_principal_on()`), ein Abschnitt beginnt
+  auch am Eingangstag einer Zahlung auf eine abgezogene Rechnung (`principal_invoice_ids()`).
+- **Rechnungsseite und Listen** (`app/invoices.py::_payment_info()`, `invoice_overview_rows()`): "überfällig" nach dem angemahnten
+  Betrag -- eine abgezogene Rechnung nie, die Endrechnung auch mit nur noch offenem Abschlag; `dunning` und an der abgezogenen der
+  Hinweis "In der Schlussrechnung … abgezogen – diese Rechnung wird nicht mehr einzeln gemahnt …" samt "Der Einbehalt (…) ist mit der
+  Schlussrechnung fällig." Rechnungsseite: Kennzeichen "in … abgezogen" bzw. "Zahlbetrag offen …", Hinweis in der Karte "Zahlungen",
+  "Gemahnt wird der Zahlbetrag …" in der Karte "Mahnwesen", Aufstellung der Mahnung mit den abgezogenen Rechnungen. Mahnwesen: "Zahlbetrag
+  samt R-…" unter dem Betrag.
+- Zahlungen bleiben je Rechnung (unverändert; der Vorschlag geht schon zuerst auf die älteren offenen Rechnungen des Auftrags).
+- Klicktest `scripts/klicktest_mahnen_endrechnung.py`.
+
+#### Festlegungen 1.8.89 (Bitte bestätigen)
+
+1. **Abgezogen** heißt: Abzug (`InvoiceDeduction`) einer gültigen Schlussrechnung. Eine Schlussrechnung von vor 1.8.85 ohne Abzüge
+   (Altbestand, Rest über die Menge) ändert nichts -- ihre Abschläge bleiben einzeln mahnbar. Nach dem Storno der Schlussrechnung gilt
+   wieder die Regel je Rechnung.
+2. **Festgeschriebene, nie hinausgegangene Mahnung** einer abgezogenen Rechnung: geht ab dem Tag der Endrechnung nicht mehr hinaus; eine
+   Zustellung mit früherem Tag lässt sich nachtragen (sie ging da wirklich hinaus). Ihre Nebenforderungen werden **nicht** von selbst
+   gegengebucht (anders als beim Ersetzen) -- sie stehen an der Rechnung und lassen sich von Hand gegenbuchen.
+3. **Nebenforderungen abgezogener Rechnungen** (Gebühren, Pauschale, Zinsen früherer Mahnungen) bleiben an ihrer Rechnung (bebuchbar,
+   sichtbar); die Mahnung der Schlussrechnung nennt nur ihre eigenen -- wie der Zahlungshinweis (Festlegung 1.8.86 Nr. 1).
+4. **Einbehalt**: der einer abgezogenen Rechnung gehört zum angemahnten Betrag; der eigene Einbehalt der Schlussrechnung wird weiter
+   nicht gemahnt.
+5. **Stufen und Fristen** folgen der Schlussrechnung (ihre Fälligkeit, ihre Mahnungen); eine erreichte Stufe eines Abschlags zählt
+   nicht.
+6. **Verzugszinsen** der Schlussrechnung auf den angemahnten Betrag, ab ihrem eigenen Verzugsbeginn; die Pauschale je Rechnung wie
+   bisher.
+7. **Überfällig** (Finanzen, Rechnungsseite) nach dem angemahnten Betrag; der Zahlstand je Rechnung (offen, bezahlt, Einbehalt offen)
+   bleibt unverändert -- an der abgezogenen erklärt der Hinweis, wohin ihr offener Betrag gehört.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v392_mahnen_nach_endrechnung.py` (22, davon 4 gegen PostgreSQL): abgezogene Rechnung nicht mehr fällig, Endrechnung mit
+  5.950 € (3.570 + 2.380); kein neuer Entwurf (Grund, nichts geschrieben); offener Entwurf überholt, Festschreiben 409, löschen geht;
+  festgeschriebene Mahnung: E-Mail 409 (nichts gesendet), Zustellung ab dem Tag der Endrechnung 409, davor geht; nach Storno der
+  Schlussrechnung wieder einzeln; Altbestand ohne Abzüge unverändert; Hinweis an der abgezogenen, überfällig in Rechnungsseite und
+  Finanzen; Einbehalt des Abschlags fällig (3.950 €), eigener Einbehalt der Schlussrechnung nicht gemahnt; Aufstellung Format 4 mit zwei
+  abgezogenen Rechnungen und PDF; Schlussrechnung selbst bezahlt -> Mahnung über den offenen Abschlag, geht hinaus; Schlussrechnung über
+  0 € -> Mahnung über die Abschläge; Zahlung auf den Abschlag macht Entwurf und Mahnung veraltet; beglichen -> nichts zu mahnen;
+  Gegenbuchung macht wieder mahnbar; Router 409 und reminder-status; Verzugszinsen auf den Zahlbetrag mit Abschnitt am Zahlungstag des
+  Abschlags. **Gleichzeitig (PostgreSQL, Commit der ersten Aktion eine Sekunde angehalten):** Mahnung zum Abschlag wartet auf das
+  Festschreiben der Schlussrechnung und wird abgelehnt; Festschreiben eines Entwurfs zum Abschlag wartet und ist überholt; Mahnung der
+  Schlussrechnung wartet auf eine Zahlung auf den Abschlag und nimmt deren Stand; Zustellung zur Mahnung des Abschlags wartet und wird
+  abgelehnt.
+- **Erwartung geändert** (Format 4 statt 3): `test_v382_mahnwesen` (dazu `deducted` leer, `principal` = mahnfähig),
+  `test_v383_nebenforderungen`, `test_v384_verzugszinsen`, `test_v384_verzugszinsen_pg` und der Klicktest
+  `klicktest_verzugszinsen` ("Aufstellung Format 4 mit Rechtstext").
+- Gegenproben (Regel 24): 14 von 14 rot -- nie als abgezogen erkannt, Einbehalt der abgezogenen nicht fällig, Endrechnung nur mit dem
+  eigenen Betrag bzw. ohne eigenen Zahlstand nicht mahnbar, Zustellung ab der Endrechnung nicht gesperrt bzw. davor auch gesperrt,
+  Entwurf nicht als überholt benannt, Zinsen nur auf den eigenen Betrag bzw. ohne Abschnitt bei Zahlung auf die abgezogene, überfällig
+  nach dem eigenen Zahlstand, Aufstellung bzw. PDF ohne abgezogene, Anlegen ohne Zeilensperre (PostgreSQL), Schema ohne die Angaben.
+  Jede Datei byte-genau zurück, kein Marker.
+- Klicktest `klicktest_mahnen_endrechnung.py` 18/18 (Mahnwesen: Abschläge nicht fällig, Schlussrechnung 495 € mit "Zahlbetrag samt …",
+  Entwurf überholt; Abschlag: Hinweis mit fälligem Einbehalt, nicht überfällig, Grund statt "anlegen"; Schlussrechnung: "Gemahnt wird der
+  Zahlbetrag …", Entwurf mit Aufstellung je Rechnung, festgeschrieben, PDF; Zahlung auf den Abschlag -> neuer Zahlbetrag; API 409;
+  412 px dunkel; Monteurin 403).
+- Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie, drei Teile parallel): 3836 grün, 1 rot -- `test_v384_verzugszinsen_pg::test_pg_finalizing_waits_for_a_payment_on_a_charge_and_shows_it` erwartete Format 3, angepasst, die Datei danach 10 grün.
+- Alle Klicktests (Regel 26, Arbeitskopie): 54 von 55 wie erwartet in 13:04 min; rot `klicktest_verzugszinsen` 26/27 -- **Erwartung veraltet seit 1.8.89** (prüfte Aufstellung Format 3), angepasst, danach 27/27.
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **"Offener Betrag" in Finanzen** summiert weiter je Rechnung (offen einschließlich Einbehalt) -- richtig, solange keine Rechnung
+   negativ ist; mit einer Überzahlung (Punkt 6) stünde ein Guthaben nirgends dagegen.
+2. **Nebenforderungen einer nie hinausgegangenen Mahnung** an einer abgezogenen Rechnung (Festlegung 2) bleiben offen und sperren nach
+   einem Storno der Schlussrechnung das Storno des Abschlags, bis sie gegengebucht sind -- wie jede offene Nebenforderung.
+3. **Liste "Alle Mahnungen"** lädt je Mahnung die Abzüge ihrer Rechnung (`dunning_states()` je Liste, nicht je Zeile) -- eine Abfrage
+   mehr je Liste.
+
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
 Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):
@@ -2520,10 +2613,10 @@ Ergänzt am 13.10.2026 (Vorgabe R4c), übernommen wie gegeben -- Wortlaut unter 
 - **Mengen im Entwurf der Schlussrechnung** (Ergänzung zu Festlegung 1.8.85 Nr. 1): je Position Auftragsmenge, zuletzt abgerechnete
   Menge und Ist nebeneinander, Abweichungen markiert. (Seit 1.8.88 gebaut.)
 - **Abgezogene Rechnungen** stehen nach der gültigen Schlussrechnung nicht mehr einzeln in „zur Mahnung fällig“ und lassen sich nicht
-  einzeln mahnen; offene Mahnungsentwürfe zu ihnen gelten als überholt.
-- **Einbehalte** auf abgezogene Rechnungen werden mit der gültigen Schlussrechnung fällig.
+  einzeln mahnen; offene Mahnungsentwürfe zu ihnen gelten als überholt. (Seit 1.8.89 gebaut.)
+- **Einbehalte** auf abgezogene Rechnungen werden mit der gültigen Schlussrechnung fällig. (Seit 1.8.89 gebaut.)
 - **Mahnung der Schlussrechnung** über den Zahlbetrag: mahnfähiger Betrag der Schlussrechnung plus offene Beträge der abgezogenen
-  Rechnungen, in der Aufstellung je Rechnung mit Nummer.
+  Rechnungen, in der Aufstellung je Rechnung mit Nummer. (Seit 1.8.89 gebaut.)
 - **Überzahlung**: ein negativer Rechnungsbetrag wird zulässig; ist der Zahlbetrag negativ, weist das PDF einen Erstattungsbetrag aus,
   ohne Skonto und ohne „zahlbar“; die Erstattung ist als Zahlungsausgang buchbar, ein Guthaben steht am Kunden; Skonto nur bei
   positivem Rechnungsbetrag.

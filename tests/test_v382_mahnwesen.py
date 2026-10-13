@@ -394,8 +394,10 @@ def test_reminder_holds_gross_payments_skonto_retention_and_dunnable():
         {"received_on": HEUTE - timedelta(days=5), "amount": D("1000.00")},
         {"received_on": HEUTE - timedelta(days=2), "amount": D("500.00")}],
         "skonto": D("50.00"), "retained": D("300.00"), "dunnable": D("4100.00")}
-    # Seit 1.8.80 Format 2 (mit Nebenforderungen und Gesamtbetrag; ausgeschaltet keine), seit 1.8.81 Format 3.
-    assert json.loads(reminder.amounts_json)["format"] == 3
+    # Seit 1.8.80 Format 2 (mit Nebenforderungen und Gesamtbetrag; ausgeschaltet keine), seit 1.8.81 Format 3, seit 1.8.89 Format 4
+    # (abgezogene Rechnungen der Endrechnung und angemahnter Betrag; hier keine).
+    assert json.loads(reminder.amounts_json)["format"] == 4
+    assert (a["deducted"], a["principal"]) == ([], D("4100.00"))
     assert (a["charges_enabled"], a["charges"], a["total"]) == (False, [], D("4100.00"))
     text = _pdf_text(db, reminder)
     for needle in ("Rechnungsbetrag (brutto)", "5.950,00 EUR", f"glich Zahlung vom {HEUTE - timedelta(days=5):%d.%m.%Y}",

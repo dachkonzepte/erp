@@ -1,5 +1,9 @@
 # Zahlungen (Zahlungsstufe Z1 seit 1.8.78, Mahnwesen Z2a seit 1.8.79, Mahngebühren und Verzug Z2b seit 1.8.80/1.8.81)
 
+Seit 1.8.89 (R4c): Mahnen nach der Endrechnung -- abgezogene Rechnungen nicht mehr einzeln, Mahnung der Schlussrechnung über den
+Zahlbetrag, Verzugszinsen auf den angemahnten Betrag (`app/final_dunning.py`). Herleitung, Festlegungen und Tests:
+`docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung R4c".
+
 Grundlage: Befund Zahlungsstufe in `befund-vor-echtbetrieb.md` ("Umsetzung 1.8.77" -> "Befund Zahlungsstufe") und dort
 "Entscheidungen Rechnungen" (Zahlung auf den Zahlbetrag, Einbehalt). Code: `app/payments.py` (Geschäftslogik),
 `app/routers/payments.py` (Endpunkte), Modelle `Payment`/`PaymentAllocation` (`app/models.py`), Migration `c7d41e9a2b63`.

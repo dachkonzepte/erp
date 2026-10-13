@@ -404,7 +404,7 @@ def test_interest_from_the_day_after_the_reminder_reached_and_charged_when_final
     calc = json.loads(charge.calculation_json)
     assert calc["days_per_year"] == 365 and calc["surcharge"] == "9" and calc["amount"] == str(_zinsen_8_tage())
     breakdown = amounts(second)
-    assert breakdown["format"] == 3 and breakdown["charges"][0]["sections"][0]["text"].startswith(
+    assert breakdown["format"] == 4 and breakdown["charges"][0]["sections"][0]["text"].startswith(  # seit 1.8.89 Format 4
         (HEUTE - timedelta(days=7)).strftime("%d.%m.%Y"))
     assert breakdown["total"] == breakdown["dunnable"] + _zinsen_8_tage()
     text = _pdf_text(db, second)

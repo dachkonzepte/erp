@@ -46,6 +46,12 @@ Seit 1.8.81 (Z2b Punkte 7-9, "Vorweg" 1): Verzugszinsen als Vorschlag bis zum Ma
 (Reminder.interest_accepted), beim Festschreiben frisch unter der Sperre berechnet und eine Nebenforderung; keine Gebühr neben
 einer gebuchten oder übernommenen Pauschale; die Aufstellung (Format 3) zeigt je Nebenforderung, was darauf gezahlt ist, die
 Abschnitte der Zinsen und die gedruckten Rechtstexte (app/dunning_texts.py) -- eingefroren beim Festschreiben.
+
+Seit 1.8.89 (R4c Punkte 3-5, app/final_dunning.py): mit einer gültigen Endrechnung wird eine abgezogene Rechnung nicht mehr einzeln
+gemahnt (nicht zur Mahnung fällig, kein neuer Entwurf, ein offener ist überholt, eine festgeschriebene Mahnung geht nicht mehr hinaus),
+ihr Einbehalt wird mit der Endrechnung fällig, und die Mahnung der Endrechnung lautet über den Zahlbetrag: ihr mahnfähiger Betrag plus
+die offenen Beträge der abgezogenen Rechnungen (Aufstellung Format 4, je Rechnung mit Nummer). "state" ist hier überall ein
+app/final_dunning.py::DunningState (dunnable = angemahnter Hauptbetrag, own = Zahlstand der Rechnung selbst).
 """
 
 import json
@@ -63,6 +69,7 @@ from .dunning_charges import (
     reverse_charges_of,
 )
 from .dunning_texts import texts_for
+from .final_dunning import dunning_state, dunning_states, nothing_to_dun_reason, settled_text
 from .invoices import InvoiceBlocked, invoice_customer, invoice_rounding, lock_order_invoices
 from .models import Invoice, Reminder, ReminderLevel
 from .placeholders import apply_placeholders
@@ -273,19 +280,14 @@ def _step(invoice: Invoice, levels: dict[int, ReminderLevel], reached: dict[int,
 
 
 def _amount_reason(db: Session, invoice: Invoice, state) -> str | None:
-    """Warum zur Rechnung nichts zu mahnen ist (Entwurf, storniert, Storno, bezahlt, nur Einbehalt, 0 €), sonst None."""
-    from .payments import dunning_block_reason, not_payable_reason  # lokal: app/payments.py importiert app/invoices.py
+    """Warum zur Rechnung nichts zu mahnen ist (Entwurf, storniert, Storno, bezahlt, nur Einbehalt, 0 €, seit 1.8.89 in einer
+    Endrechnung abgezogen bzw. ihr Zahlbetrag beglichen), sonst None. state: DunningState."""
     number = invoice.invoice_number or "(Entwurf)"
     if invoice.status == "entwurf":
         return "Nur zu festgeschriebenen Rechnungen entsteht eine Mahnung."
     if invoice.status == "storniert":
         return f"Die Rechnung {number} ist storniert -- dazu geht keine Mahnung mehr hinaus."
-    reason = dunning_block_reason(db, invoice, state)
-    if reason:
-        return reason
-    if state is None or state.dunnable <= 0:
-        return not_payable_reason(invoice) or f"Die Rechnung {number} hat keinen mahnfähigen Betrag."
-    return None
+    return nothing_to_dun_reason(db, invoice, state)
 
 
 def create_block_reason(db: Session, invoice: Invoice, *, state=_UNSET, levels: dict[int, ReminderLevel] | None = None,
@@ -295,13 +297,16 @@ def create_block_reason(db: Session, invoice: Invoice, *, state=_UNSET, levels: 
     verlangte Stufe, None = die nächste) und beim Festschreiben (draft: dieser Entwurf, seine Stufe muss die nächste sein).
     Reihenfolge: nichts zu mahnen (Storno, storniert, bezahlt, nur Einbehalt), nicht fällig, schon ein Entwurf, keine weitere
     Stufe, nicht die nächste Stufe, Frist der vorigen noch nicht abgelaufen. Seit 1.8.80 zählt als erreicht nur eine
-    versendete oder zugestellte Mahnung -- eine nie hinausgegangene derselben Stufe hält eine neue nicht auf (sie wird ersetzt)."""
-    from .payments import payment_state  # lokal: Zirkel-Import
+    versendete oder zugestellte Mahnung -- eine nie hinausgegangene derselben Stufe hält eine neue nicht auf (sie wird ersetzt).
+    Seit 1.8.89: in einer gültigen Endrechnung abgezogen -- kein neuer Entwurf, ein offener ist überholt (R4c Punkt 3)."""
     if state is _UNSET:
-        state = payment_state(db, invoice)
+        state = dunning_state(db, invoice)
     if levels is None:
         levels = _levels(db)
     reason = _amount_reason(db, invoice, state)
+    if reason and draft is not None and state.settled_in is not None:
+        return (f"Der Entwurf ({_label(levels, draft.level)}) ist überholt: {settled_text(invoice, state.settled_in)} Bitte den "
+                "Entwurf löschen.")
     if reason:
         return reason
     today = berlin_today()
@@ -343,10 +348,11 @@ def compute_reminder_status(db: Session, invoice: Invoice, *, state=_UNSET,
 
     draft: der bestehende Entwurf (reminder_to_dict()) oder None; create_block (seit 1.8.79): warum jetzt kein Entwurf
     entsteht -- die Oberfläche zeigt den Grund statt des Knopfs. pending (seit 1.8.80): eine festgeschriebene Mahnung, die nie
-    hinausging -- mit dispatch_block, falls sie auch nicht mehr hinausgehen kann (dann ist eine neue fällig, die sie ersetzt)."""
-    from .payments import payment_state  # lokal: Zirkel-Import
+    hinausging -- mit dispatch_block, falls sie auch nicht mehr hinausgehen kann (dann ist eine neue fällig, die sie ersetzt).
+    Seit 1.8.89 dunning (app/final_dunning.py): angemahnter Betrag samt den offenen abgezogenen Rechnungen bzw. die Endrechnung, in
+    der die Rechnung abgezogen ist."""
     if state is _UNSET:
-        state = payment_state(db, invoice)
+        state = dunning_state(db, invoice)
     if levels is None:
         levels = _levels(db)
     reached = _reached_of(db, invoice, reached)
@@ -361,15 +367,16 @@ def compute_reminder_status(db: Session, invoice: Invoice, *, state=_UNSET,
                         "dispatch_block": dispatch_block_reason(db, pending, state=state, levels=levels, reached=reached),
                         # seit 1.8.81: was beim Ersetzen gegengebucht würde
                         "charges": replaces_info(db, [pending])[0]["charges"]}
-    if invoice.status != FINALIZED or invoice.due_date is None or state is None or state.dunnable <= 0:
+    dunning = state.as_dict()
+    if invoice.status != FINALIZED or invoice.due_date is None or state.dunnable <= 0:
         return {"current_level": 0, "next_level": None, "next_due_on": None, "is_due_now": False,
-                "draft": draft_dict, "create_block": block, "pending": pending_dict}
+                "draft": draft_dict, "create_block": block, "pending": pending_dict, "dunning": dunning}
     step = _step(invoice, levels, reached)
     is_due_now = step["next_level"] is not None and berlin_today() >= step["next_due_on"]
     return {
         "current_level": step["current_level"], "next_level": step["next_level"],
         "next_due_on": step["next_due_on"] if step["next_level"] is not None else None, "is_due_now": is_due_now,
-        "draft": draft_dict, "create_block": block, "pending": pending_dict,
+        "draft": draft_dict, "create_block": block, "pending": pending_dict, "dunning": dunning,
     }
 
 
@@ -409,17 +416,30 @@ def amounts_snapshot(db: Session, invoice: Invoice, state, *, enabled: bool, on:
     mahnfähig. Seit 1.8.80 (Format 2) dazu die geltenden Nebenforderungen der Rechnung (Bezeichnung, Betrag) und der
     Gesamtbetrag = mahnfähig + Nebenforderungen; bei ausgeschalteten Mahngebühren (enabled) keine. Seit 1.8.81 (Format 3) je
     Nebenforderung das darauf Gezahlte, bei Zinsen die Abschnitte, offen = Summe − Gezahltes, und die gedruckten Rechtstexte der
-    Mahnung vom Tag on (Platzhalter eingesetzt)."""
-    from .payments import invoice_payment_lines  # lokal: Zirkel-Import
+    Mahnung vom Tag on (Platzhalter eingesetzt).
+
+    Seit 1.8.89 (Format 4, R4c Punkt 5, state: DunningState): "dunnable" ist der mahnfähige Betrag der Rechnung selbst, "deducted"
+    an der Endrechnung je abgezogener Rechnung mit offenem Betrag Nummer, Art, offen und davon Einbehalt, "principal" der angemahnte
+    Betrag = dunnable + deducted (der Zahlbetrag); Gesamtbetrag = principal + Nebenforderungen. Rechnungsbetrag und Zahlungen einer
+    Endrechnung, die nie offen ist (Rechnungsbetrag 0 €), stehen als 0."""
+    from .payments import invoice_payment_lines, payable_gross  # lokal: Zirkel-Import
     on = on or berlin_today()
+    own = state.own
     lines = charge_lines(db, charges_in_force(db, [invoice.id])[invoice.id]) if enabled else []
     charges_sum = sum((line["amount"] for line in lines), Decimal("0.00"))
     charges_paid = sum((line["paid"] for line in lines), Decimal("0.00"))
     printed = texts_for(db, legal_topics(db, invoice, lines, on))[0] if enabled else []
+    zero = Decimal("0.00")
     data = {
-        "format": 3, "gross": str(state.gross),
-        "payments": [{"received_on": d.isoformat(), "amount": str(a)} for d, a in invoice_payment_lines(db, invoice)],
-        "skonto": str(state.skonto), "retained": str(state.retained_open), "dunnable": str(state.dunnable),
+        "format": 4, "gross": str(own.gross if own is not None else payable_gross(invoice)),
+        "payments": ([{"received_on": d.isoformat(), "amount": str(a)} for d, a in invoice_payment_lines(db, invoice)]
+                     if own is not None else []),
+        "skonto": str(own.skonto if own is not None else zero),
+        "retained": str(own.retained_open if own is not None else zero), "dunnable": str(state.own_dunnable),
+        "deducted": [{"invoice_id": d.invoice.id, "invoice_number": d.invoice.invoice_number,
+                      "invoice_type": d.invoice.invoice_type, "open": str(d.open), "retained": str(d.retained)}
+                     for d in state.deducted],
+        "principal": str(state.dunnable),
         "charges_enabled": bool(enabled),
         "charges": [_line_json(line) for line in lines],
         "charges_paid": str(charges_paid), "charges_open": str(charges_sum - charges_paid),
@@ -431,7 +451,8 @@ def amounts_snapshot(db: Session, invoice: Invoice, state, *, enabled: bool, on:
 
 def amounts(reminder: Reminder) -> dict | None:
     """Die Aufstellung der Mahnung (Beträge als Decimal, Daten als date), None bei Mahnungen von vor 1.8.79. format 1 (1.8.79)
-    ohne Nebenforderungen, format 2 (seit 1.8.80) mit charges_enabled, charges, charges_open und total."""
+    ohne Nebenforderungen, format 2 (seit 1.8.80) mit charges_enabled, charges, charges_open und total; format 4 (seit 1.8.89) mit
+    deducted (je abgezogener Rechnung Nummer, offen, davon Einbehalt) und principal (angemahnter Betrag; vorher = dunnable)."""
     if not reminder.amounts_json:
         return None
     raw = json.loads(reminder.amounts_json)
@@ -441,6 +462,9 @@ def amounts(reminder: Reminder) -> dict | None:
         "payments": [{"received_on": date.fromisoformat(p["received_on"]), "amount": Decimal(p["amount"])}
                      for p in raw["payments"]],
         "skonto": Decimal(raw["skonto"]), "retained": Decimal(raw["retained"]), "dunnable": Decimal(raw["dunnable"]),
+        "deducted": [{"invoice_id": d["invoice_id"], "invoice_number": d["invoice_number"], "invoice_type": d["invoice_type"],
+                      "open": Decimal(d["open"]), "retained": Decimal(d["retained"])} for d in raw.get("deducted", [])],
+        "principal": Decimal(raw.get("principal", raw["dunnable"])),
         "charges_enabled": bool(raw.get("charges_enabled", False)),
         "charges": [{"kind": c["kind"], "label": c["label"], "amount": Decimal(c["amount"]),
                      "paid": Decimal(c.get("paid", "0")), "sections": c.get("sections", [])} for c in raw.get("charges", [])],
@@ -546,31 +570,36 @@ def format_reminder_text(reminder: Reminder) -> str:
 def send_block_reason(invoice: Invoice) -> str | None:
     """Warum zu dieser Rechnung keine Mahnung (mehr) entsteht oder hinausgeht (seit 1.8.72, Befund 1h), sonst None. Seit 1.8.78
     aus dem Zahlstand: bezahlt (am Eingangsdatum der letzten Zahlung), nur noch Einbehalt offen, Stornorechnung
-    (app/payments.py::dunning_block_reason())."""
-    from .payments import dunning_block_reason  # lokal: app/payments.py importiert app/invoices.py
+    (app/payments.py::dunning_block_reason()). Seit 1.8.89 (app/final_dunning.py): an der Endrechnung zählt der Zahlbetrag -- ist sie
+    selbst bezahlt, aber ein Abschlag offen, geht ihre Mahnung hinaus; zu einer in ihr abgezogenen Rechnung nennen
+    create_block_reason() (neu, Entwurf überholt) und dispatch_block_reason() (geht nicht mehr hinaus) den Grund."""
     number = invoice.invoice_number or "(Entwurf)"
     if invoice.status == "storniert":
         return f"Die Rechnung {number} ist storniert -- dazu geht keine Mahnung mehr hinaus."
     db = object_session(invoice)
-    return dunning_block_reason(db, invoice) if db is not None else None
+    if db is None or invoice.status == "entwurf":
+        return None
+    state = dunning_state(db, invoice)
+    if state.settled_in is not None or (state.own is None and not state.is_final and invoice.invoice_type != "storno"):
+        return None  # abgezogen bzw. nie offen (z. B. 0 €) -- create_block_reason() bzw. dispatch_block_reason() nennen den Grund
+    return nothing_to_dun_reason(db, invoice, state)
 
 
 def dunnable_amount(db: Session, invoice: Invoice) -> Decimal:
-    """Mahnfähiger Betrag der Rechnung (seit 1.8.78): offen − Einbehalt, 0 wenn sie nie offen ist."""
-    from .payments import payment_state  # lokal: Zirkel-Import
-    state = payment_state(db, invoice)
-    return state.dunnable if state is not None else Decimal("0")
+    """Mahnfähiger Betrag der Rechnung (seit 1.8.78): offen − Einbehalt, 0 wenn sie nie offen ist. Seit 1.8.89 an der Endrechnung
+    samt den offenen abgezogenen Rechnungen, an einer abgezogenen 0 (app/final_dunning.py)."""
+    return dunning_state(db, invoice).dunnable
 
 
 def stale_amount_reason(db: Session, reminder: Reminder, *, state=_UNSET) -> str | None:
     """Seit 1.8.78: ein Entwurf mahnt den Betrag von seinem Anlegen -- ist seither eine Zahlung gebucht oder gegengebucht,
-    stimmt er nicht mehr, und der Entwurf wird nicht festgeschrieben (Grund statt "Versenden")."""
-    from .payments import payment_state  # lokal: Zirkel-Import
+    stimmt er nicht mehr, und der Entwurf wird nicht festgeschrieben (Grund statt "Versenden"). Seit 1.8.89 an der Endrechnung der
+    Zahlbetrag (auch eine Zahlung auf eine abgezogene Rechnung ändert ihn)."""
     if reminder.status != "entwurf" or reminder.invoice.status != FINALIZED:
         return None
     if state is _UNSET:
-        state = payment_state(db, reminder.invoice)
-    current = state.dunnable if state is not None else Decimal("0")
+        state = dunning_state(db, reminder.invoice)
+    current = state.dunnable
     if current <= 0 or current == reminder_amount(reminder):
         return None
     return (f"Der Entwurf mahnt {_money(reminder.outstanding_amount)}, mahnfähig sind inzwischen {_money(current)} -- seit dem "
@@ -597,8 +626,10 @@ def dispatch_block_reason(db: Session, reminder: Reminder, *, on: date | None = 
     Stand heute (E-Mail-Versand). Storniert sperrt immer, auch eine Zustellung von vor dem Storno.
 
     Seit 1.8.80: eine ersetzte Mahnung geht nie mehr hinaus ("Vorweg" 2); eine mit Nebenforderungen (Format 2, eingeschaltet)
-    nur, solange deren Summe noch stimmt -- am Tag der Zustellung die bis dahin entstandenen, eine gegengebuchte gilt nie."""
-    from .payments import payment_state, payment_state_on  # lokal: Zirkel-Import
+    nur, solange deren Summe noch stimmt -- am Tag der Zustellung die bis dahin entstandenen, eine gegengebuchte gilt nie.
+
+    Seit 1.8.89 (R4c Punkt 3): zu einer in einer gültigen Endrechnung abgezogenen Rechnung geht keine Mahnung mehr hinaus -- eine
+    Zustellung vor dem Tag der Endrechnung lässt sich nachtragen; an der Endrechnung zählt der Zahlbetrag (app/final_dunning.py)."""
     if reminder.status != FINALIZED:
         return None
     invoice = reminder.invoice
@@ -613,10 +644,12 @@ def dispatch_block_reason(db: Session, reminder: Reminder, *, on: date | None = 
     if invoice.invoice_type == "storno":
         return f"{inv_number} ist eine Stornorechnung -- die Mahnung {number} geht nicht hinaus."
     if on is None:
-        current_state = payment_state(db, invoice) if state is _UNSET else state
+        current_state = dunning_state(db, invoice) if state is _UNSET else state
     else:
-        current_state = payment_state_on(db, invoice, on)
-    current = current_state.dunnable if current_state is not None else Decimal("0")
+        current_state = dunning_state(db, invoice, on=on)
+    if current_state.settled_in is not None:
+        return f"{settled_text(invoice, current_state.settled_in)} Die Mahnung {number} geht nicht mehr hinaus."
+    current = current_state.dunnable
     amount = reminder_amount(reminder)
 
     def hint() -> str:
@@ -679,11 +712,11 @@ def _refresh_or_gone(db: Session, reminder: Reminder) -> None:
 def create_reminder(db: Session, invoice: Invoice, level: int | None = None) -> Reminder:
     """Mahnungsentwurf der nächsten Stufe (seit 1.8.79 nur die nächste; level, wenn angegeben, muss sie sein). Unter der
     Sperre geprüft (create_block_reason()), sonst InvoiceBlocked (409) und nichts geschrieben. Betrag, Aufstellung, Gebühr
-    und Text aus Zahlstand und Stufe; Mahndatum und Frist rücken beim Festschreiben auf dessen Tag."""
-    from .payments import payment_state  # lokal: Zirkel-Import
+    und Text aus Zahlstand und Stufe; Mahndatum und Frist rücken beim Festschreiben auf dessen Tag. Seit 1.8.89 an der Endrechnung über
+    den Zahlbetrag (app/final_dunning.py)."""
     _lock_fresh(db, invoice)
     levels = _levels(db)
-    state = payment_state(db, invoice)
+    state = dunning_state(db, invoice)
     reached = reached_map(db, invoice.reminders)
     reason = create_block_reason(db, invoice, state=state, levels=levels, level=level, reached=reached)
     if reason:
@@ -735,8 +768,8 @@ def finalize_and_send_reminder(db: Session, reminder: Reminder) -> Reminder:
 
     Seit 1.8.80: festgeschriebene Mahnungen bis zu dieser Stufe, die nie hinausgingen, gelten danach als ersetzt (replaced_by_id),
     ihre Nebenforderungen werden gegengebucht. Eingeschaltet entstehen aus der übernommenen Gebühr und Pauschale
-    Nebenforderungen dieser Mahnung (die Pauschale noch einmal geprüft, sonst 409); ausgeschaltet trägt die Mahnung keine Gebühr."""
-    from .payments import payment_state  # lokal: Zirkel-Import
+    Nebenforderungen dieser Mahnung (die Pauschale noch einmal geprüft, sonst 409); ausgeschaltet trägt die Mahnung keine Gebühr.
+    Seit 1.8.89: ein Entwurf zu einer inzwischen in einer Endrechnung abgezogenen Rechnung ist überholt (409)."""
     invoice = reminder.invoice
     _lock_fresh(db, invoice)
     reason = send_block_reason(invoice)
@@ -747,7 +780,7 @@ def finalize_and_send_reminder(db: Session, reminder: Reminder) -> Reminder:
         db.rollback()
         raise ValueError("Nur Mahnungen im Entwurf können versendet werden.")
     levels = _levels(db)
-    state = payment_state(db, invoice)
+    state = dunning_state(db, invoice)
     reached = reached_map(db, invoice.reminders)
     reason = create_block_reason(db, invoice, state=state, levels=levels, draft=reminder, reached=reached) or \
         stale_amount_reason(db, reminder, state=state)
@@ -1003,11 +1036,10 @@ def _block_of(db: Session, reminder: Reminder, state, levels: dict[int, Reminder
 def reminder_to_dict(reminder: Reminder, *, state=_UNSET, levels: dict[int, ReminderLevel] | None = None,
                      reached: dict[int, date] | None = None) -> dict:
     """state/levels/reached: schon geladen (Listen, reminders_to_dicts()), sonst frisch."""
-    from .payments import payment_state  # lokal: Zirkel-Import
     invoice = reminder.invoice
     db = object_session(reminder)
     if db is not None and state is _UNSET:
-        state = payment_state(db, invoice)
+        state = dunning_state(db, invoice)
     if db is not None and levels is None:
         levels = _levels(db)
     if db is not None and reached is None:
@@ -1071,9 +1103,8 @@ def reminder_to_dict(reminder: Reminder, *, state=_UNSET, levels: dict[int, Remi
 
 def reminders_to_dicts(db: Session, reminders: list[Reminder]) -> list[dict]:
     """Viele Mahnungen auf einmal: Zahlstand aller Rechnungen in zwei Abfragen, Stufen einmal, erreicht für alle zusammen."""
-    from .payments import payment_states  # lokal: Zirkel-Import
     invoices = {r.invoice_id: r.invoice for r in reminders}
-    states = payment_states(db, invoices.values())
+    states = dunning_states(db, invoices.values())
     levels = _levels(db)
     reached = reached_map(db, [r for inv in invoices.values() for r in inv.reminders])
     return [reminder_to_dict(r, state=states.get(r.invoice_id), levels=levels, reached=reached) for r in reminders]
@@ -1083,20 +1114,20 @@ def list_invoices_needing_attention(db: Session) -> list[dict]:
     """Überfällige Rechnungen mit mahnfähigem Betrag, ihrer Mahnstufe und ab wann die nächste möglich ist; is_due_now und
     create_block (leer) heißt "zur Mahnung fällig" (seit 1.8.79). Liest nur -- seit 1.8.79 legt nichts mehr von selbst einen
     Entwurf an. Sortiert: zur Mahnung fällig zuerst, dann nach Fälligkeit. caseworker_employee_id ist seit 1.8.79 der
-    Sachbearbeiter des Auftrags (die Spalte an der Rechnung setzt niemand)."""
-    from .payments import payment_states  # lokal: Zirkel-Import
+    Sachbearbeiter des Auftrags (die Spalte an der Rechnung setzt niemand). Seit 1.8.89 ohne die in einer gültigen Endrechnung
+    abgezogenen Rechnungen; die Endrechnung mit ihrem Zahlbetrag, auch wenn sie selbst schon bezahlt ist (app/final_dunning.py)."""
     overdue = db.scalars(
         select(Invoice).where(Invoice.status == FINALIZED, Invoice.invoice_type != "storno", Invoice.due_date < berlin_today())
         .options(selectinload(Invoice.reminders), selectinload(Invoice.order))
     ).all()
-    # Seit 1.8.78 nur mit mahnfähigem Betrag (offen − Einbehalt), und dieser statt des Bruttos.
-    states = payment_states(db, overdue)
+    # Seit 1.8.78 nur mit mahnfähigem Betrag (offen − Einbehalt), und dieser statt des Bruttos; seit 1.8.89 der angemahnte Betrag.
+    states = dunning_states(db, overdue)
     levels = _levels(db)
     reached = reached_map(db, [r for inv in overdue for r in inv.reminders])
     rows = []
     for invoice in overdue:
-        state = states.get(invoice.id)
-        if state is None or state.dunnable <= 0:
+        state = states[invoice.id]
+        if state.dunnable <= 0:
             continue
         status = compute_reminder_status(db, invoice, state=state, levels=levels, reached=reached)
         rows.append({

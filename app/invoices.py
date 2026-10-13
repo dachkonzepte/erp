@@ -1661,18 +1661,25 @@ def _action_blocks(invoice: Invoice) -> dict:
     }
 
 
-def _payment_info(invoice: Invoice, state=None, *, with_allocations: bool) -> dict:
+def _payment_info(invoice: Invoice, state=None, *, with_allocations: bool, dunning=None) -> dict:
     """Seit 1.8.78: Zahlstand (offen, mahnfähig, Zustand) statt Status "bezahlt"; überfällig nur mit mahnfähigem Betrag (ein
-    offener Einbehalt wird nicht gemahnt, eine Stornorechnung ist nie offen)."""
+    offener Einbehalt wird nicht gemahnt, eine Stornorechnung ist nie offen). Seit 1.8.89 (R4c, app/final_dunning.py) überfällig
+    nach dem angemahnten Betrag: eine in einer gültigen Endrechnung abgezogene Rechnung nie (gemahnt wird über die Endrechnung), die
+    Endrechnung auch, wenn nur noch ein abgezogener Abschlag offen ist; dazu "dunning" und der Hinweis an der abgezogenen."""
+    from .final_dunning import deducted_hint, dunning_state  # lokal: app/final_dunning.py importiert dieses Modul
     from .payments import invoice_allocations, not_payable_reason, payment_state  # lokal: Zirkel-Import
     db = object_session(invoice)
     if state is None and db is not None:
         state = payment_state(db, invoice)
+    if dunning is None and db is not None and invoice.status in VALID_STATUSES:
+        dunning = dunning_state(db, invoice)
     info = {
         "payment": state.as_dict() if state is not None else None,
         "not_payable_reason": not_payable_reason(invoice) if invoice.status != EDITABLE_STATUS else None,
-        "is_overdue": (state is not None and state.dunnable > 0 and invoice.due_date is not None
+        "is_overdue": (dunning is not None and dunning.dunnable > 0 and invoice.due_date is not None
                        and invoice.due_date < berlin_today()),
+        "dunning": dunning.as_dict() if dunning is not None else None,
+        "dunning_hint": deducted_hint(dunning) if dunning is not None else None,
     }
     if with_allocations:
         info["payment_allocations"] = invoice_allocations(db, invoice) if db is not None else []
@@ -1815,13 +1822,16 @@ def list_invoices_for_project(db: Session, project_id: int) -> list[Invoice]:
 
 
 def invoice_overview_rows(db: Session, invoices: list[Invoice]) -> list[dict]:
-    """Zeilen für Finanzen und Projektmappe, der Zahlstand aller Rechnungen in einer Abfrage (seit 1.8.78)."""
+    """Zeilen für Finanzen und Projektmappe, der Zahlstand aller Rechnungen in einer Abfrage (seit 1.8.78); seit 1.8.89 auch, was zu
+    jeder gemahnt werden kann (app/final_dunning.py, für "überfällig")."""
+    from .final_dunning import dunning_states  # lokal: app/final_dunning.py importiert dieses Modul
     from .payments import payment_states  # lokal: Zirkel-Import
     states = payment_states(db, invoices)
-    return [invoice_overview_row(inv, states.get(inv.id)) for inv in invoices]
+    dunning = dunning_states(db, [inv for inv in invoices if inv.status in VALID_STATUSES])
+    return [invoice_overview_row(inv, states.get(inv.id), dunning.get(inv.id)) for inv in invoices]
 
 
-def invoice_overview_row(invoice: Invoice, state=None) -> dict:
+def invoice_overview_row(invoice: Invoice, state=None, dunning=None) -> dict:
     """Leichtgewichtige Zeile für die Finanzen-Übersicht (ohne Positionen,
     dafür mit Auftrags-/Projektbezug) -- bewusst getrennt von
     invoice_to_dict(), das für Detailansicht/PDF die volle Positionsliste
@@ -1835,7 +1845,7 @@ def invoice_overview_row(invoice: Invoice, state=None) -> dict:
         "status": invoice.status,
         "invoice_date": invoice.invoice_date,
         "due_date": invoice.due_date,
-        **_payment_info(invoice, state, with_allocations=False),
+        **_payment_info(invoice, state, with_allocations=False, dunning=dunning),
         "customer_name": invoice.customer_name,
         "order_id": invoice.order_id,
         "order_number": invoice.order.order_number if invoice.order else None,

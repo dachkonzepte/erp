@@ -317,8 +317,8 @@ def test_switch_is_off_by_default_and_then_no_fee_and_no_amounts():
     finalize_and_send_reminder(db, draft)
     assert (draft.fee_amount, draft.fee_accepted, _anzahl(db, InvoiceCharge)) == (0, False, 0)
     breakdown = amounts(draft)
-    # seit 1.8.81 Format 3 (Zahlungen auf Nebenforderungen, Rechtstexte)
-    assert breakdown["format"] == 3 and breakdown["charges_enabled"] is False and breakdown["charges"] == []
+    # seit 1.8.81 Format 3 (Zahlungen auf Nebenforderungen, Rechtstexte), seit 1.8.89 Format 4 (Endrechnung)
+    assert breakdown["format"] == 4 and breakdown["charges_enabled"] is False and breakdown["charges"] == []
     assert breakdown["total"] == breakdown["dunnable"]
 
 

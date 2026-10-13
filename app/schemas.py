@@ -1848,15 +1848,26 @@ class LegalTextOut(BaseModel):
     text: str
 
 
+class ReminderDeductedLineOut(BaseModel):
+    """Seit 1.8.89 (Format 4): eine abgezogene Rechnung mit offenem Betrag in der Mahnung der Endrechnung."""
+    invoice_id: int
+    invoice_number: str | None = None
+    invoice_type: str
+    open: Decimal
+    retained: Decimal
+
+
 class ReminderAmountsOut(BaseModel):
     """Seit 1.8.79 (Z2a Nr. 4): Aufstellung des gemahnten Betrags, eingefroren an der Mahnung; seit 1.8.80 (Format 2) mit den
-    Nebenforderungen und dem Gesamtbetrag."""
+    Nebenforderungen und dem Gesamtbetrag; seit 1.8.89 (Format 4) mit den abgezogenen Rechnungen und dem angemahnten Betrag."""
     format: int = 1
     gross: Decimal
     payments: list[ReminderPaymentLineOut]
     skonto: Decimal
     retained: Decimal
     dunnable: Decimal
+    deducted: list[ReminderDeductedLineOut] = []
+    principal: Decimal | None = None
     charges_enabled: bool = False
     charges: list[ReminderChargeLineOut] = []
     charges_paid: Decimal = Decimal("0")  # seit 1.8.81 (Format 3)
@@ -1978,6 +1989,7 @@ class ReminderStatusOut(BaseModel):
     draft: ReminderOut | None = None
     create_block: str | None = None  # seit 1.8.79: warum jetzt kein Entwurf entsteht
     pending: ReminderPendingOut | None = None  # seit 1.8.80: festgeschrieben, nie hinausgegangen
+    dunning: dict | None = None  # seit 1.8.89: app/final_dunning.py::DunningState.as_dict() (Zahlbetrag, abgezogen in …)
 
 
 class InvoiceNeedingAttentionOut(BaseModel):
@@ -1996,6 +2008,7 @@ class InvoiceNeedingAttentionOut(BaseModel):
     create_block: str | None = None  # seit 1.8.79: leer und is_due_now = "zur Mahnung fällig"
     pending: ReminderPendingOut | None = None  # seit 1.8.80: festgeschrieben, nie hinausgegangen
     due_for_reminder: bool = False  # seit 1.8.80: "zur Mahnung fällig" (app/reminders.py::due_for_reminder())
+    dunning: dict | None = None  # seit 1.8.89: an der Endrechnung die offenen abgezogenen Rechnungen (Zahlbetrag)
 
 
 class DunningSettingsOut(BaseModel):
@@ -2342,6 +2355,10 @@ class InvoiceOut(BaseModel):
     # Seit 1.8.78: Zahlstand statt Status "bezahlt"; None bei Entwurf, Storno(rechnung) und Rechnung über 0 € oder weniger.
     payment: PaymentStateOut | None = None
     not_payable_reason: str | None = None
+    # Seit 1.8.89 (R4c, app/final_dunning.py::DunningState.as_dict()): angemahnter Betrag, an der Endrechnung die offenen
+    # abgezogenen Rechnungen, an einer abgezogenen die Endrechnung -- und der Hinweis an der abgezogenen.
+    dunning: dict | None = None
+    dunning_hint: str | None = None
     payment_allocations: list[PaymentAllocationOut] = Field(default_factory=list)
     finalize_block: str | None = None  # seit 1.8.72: warum "Finalisieren" gesperrt ist (app/invoices.py)
     storno_block: str | None = None  # seit 1.8.72: warum "Stornieren" gesperrt ist

@@ -116,6 +116,8 @@ function renderMetrics(){
     <div class="metric"><small>Festgeschrieben (gesamt)</small><b>${sentTotal}</b></div>`;
 }
 
+// Seit 1.8.89 (R4c Punkt 5): die Mahnung der Endrechnung lautet über den Zahlbetrag samt den offenen abgezogenen Rechnungen.
+function zahlbetragText(r){const d=r.dunning;return d&&d.is_final&&d.deducted.length?`<div class="small muted" data-zahlbetrag-mit>Zahlbetrag samt ${esc(d.deducted.map(x=>x.invoice_number).join(', '))}</div>`:''}
 function stufeText(r){
   let s=r.current_level?`Aktuell: ${esc(levelLabel(r.current_level))}<br>`:'';
   s+=r.next_level?`Nächste: ${esc(levelLabel(r.next_level))}${r.is_due_now?'':' <span class="small muted">ab '+fmtDate(r.next_due_on)+'</span>'}`:'<span class="small muted">keine weitere Stufe</span>';
@@ -125,7 +127,7 @@ function stufeText(r){
 // Seit 1.8.79: die Liste legt nichts an -- je Zeile ein Knopf, dazu Auswahl für mehrere (POST /api/reminders/bulk).
 function renderDueRows(){
   const rows=attentionRows.filter(isDue);
-  document.getElementById('dueRows').innerHTML=rows.length?rows.map(r=>`<tr data-faellig="${r.invoice_id}"><td><input type="checkbox" class="due-select" value="${r.invoice_id}" onchange="updateBulkButton()" aria-label="${esc(r.invoice_number||'Rechnung')} auswählen"></td><td><b>${esc(r.invoice_number||'—')}</b> <a class="link small" href="/invoices/${r.invoice_id}">öffnen</a></td><td>${esc(r.customer_name)}</td><td>${fmtDate(r.due_date)}</td><td class="number">${money(r.outstanding_amount)}</td><td>${stufeText(r)}</td><td><button onclick="createReminder(${r.invoice_id},${r.next_level},this)">${esc(levelLabel(r.next_level))} als Entwurf anlegen${r.pending&&r.pending.level===r.next_level?` (ersetzt ${esc(r.pending.reminder_number||'')})`:''}</button>${r.pending?`<div class="small muted" data-ersetzt-grund style="max-width:320px">${esc(r.pending.reminder_number||'')} ging nie hinaus: ${esc(r.pending.dispatch_block||'')}${pendingChargesText(r.pending)}</div>`:''}</td></tr>`).join(''):'<tr><td colspan="7" class="empty">Nichts zur Mahnung fällig.</td></tr>';
+  document.getElementById('dueRows').innerHTML=rows.length?rows.map(r=>`<tr data-faellig="${r.invoice_id}"><td><input type="checkbox" class="due-select" value="${r.invoice_id}" onchange="updateBulkButton()" aria-label="${esc(r.invoice_number||'Rechnung')} auswählen"></td><td><b>${esc(r.invoice_number||'—')}</b> <a class="link small" href="/invoices/${r.invoice_id}">öffnen</a></td><td>${esc(r.customer_name)}</td><td>${fmtDate(r.due_date)}</td><td class="number">${money(r.outstanding_amount)}${zahlbetragText(r)}</td><td>${stufeText(r)}</td><td><button onclick="createReminder(${r.invoice_id},${r.next_level},this)">${esc(levelLabel(r.next_level))} als Entwurf anlegen${r.pending&&r.pending.level===r.next_level?` (ersetzt ${esc(r.pending.reminder_number||'')})`:''}</button>${r.pending?`<div class="small muted" data-ersetzt-grund style="max-width:320px">${esc(r.pending.reminder_number||'')} ging nie hinaus: ${esc(r.pending.dispatch_block||'')}${pendingChargesText(r.pending)}</div>`:''}</td></tr>`).join(''):'<tr><td colspan="7" class="empty">Nichts zur Mahnung fällig.</td></tr>';
   document.getElementById('dueSelectAll').checked=false;
   updateBulkButton();
 }
@@ -156,7 +158,7 @@ function renderAttentionRows(){
     } else {
       actions=r.create_block?`<div class="small muted" data-grund style="max-width:320px">${esc(r.create_block)}</div>`:'<span class="small muted">—</span>';
     }
-    return `<tr><td><b>${esc(r.invoice_number||'—')}</b> <a class="link small" href="/invoices/${r.invoice_id}">öffnen</a></td><td>${esc(r.customer_name)}</td><td>${fmtDate(r.due_date)}</td><td class="number">${money(r.outstanding_amount)}</td><td>${stufeText(r)}</td><td>${actions}</td></tr>`;
+    return `<tr><td><b>${esc(r.invoice_number||'—')}</b> <a class="link small" href="/invoices/${r.invoice_id}">öffnen</a></td><td>${esc(r.customer_name)}</td><td>${fmtDate(r.due_date)}</td><td class="number">${money(r.outstanding_amount)}${zahlbetragText(r)}</td><td>${stufeText(r)}</td><td>${actions}</td></tr>`;
   }).join(''):'<tr><td colspan="6" class="empty">Keine weiteren überfälligen Rechnungen.</td></tr>';
 }
 

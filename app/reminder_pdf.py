@@ -34,6 +34,10 @@ Zeile dafür -- nur der Gesamtbetrag. Mahnungen von vor 1.8.80 wie bisher mit "M
 Seit 1.8.81 (Z2b Punkte 7-9): unter jeder Zinszeile ihre Abschnitte (Zeitraum, Hauptbetrag, Zinssatz, Tage), Zahlungen auf
 Nebenforderungen als eine Zeile "abzüglich Zahlungen auf Nebenforderungen", nach der Aufstellung die geprüften Rechtstexte zu
 Verzug, Zinsen und Pauschale (ungeprüfte nie, app/dunning_texts.py).
+
+Seit 1.8.89 (R4c Punkt 5, Format 4): die Mahnung einer Endrechnung zeigt nach ihren eigenen Zeilen den mahnfähigen Betrag aus ihr und je
+abgezogener Rechnung mit offenem Betrag "zzgl. noch offen aus Abschlag Nr. …" (mit Einbehalt, der mit der Schlussrechnung fällig ist),
+darunter den angemahnten Betrag (Zahlbetrag).
 """
 
 from reportlab.lib import colors
@@ -62,6 +66,14 @@ def amount_rows(reminder) -> list[list[str]]:
         rows.append(["abzüglich Skonto", money(-breakdown["skonto"])])
     if breakdown["retained"]:
         rows.append(["abzüglich Einbehalt (wird nicht angemahnt)", money(-breakdown["retained"])])
+    if breakdown.get("deducted"):
+        rows.append(["Mahnfähig aus dieser Rechnung", money(breakdown["dunnable"])])
+        for d in breakdown["deducted"]:
+            word = "Rechnung" if d["invoice_type"] == "aufwand" else "Abschlag"
+            retained = (f" (davon Einbehalt {money(d['retained'])}, mit der Schlussrechnung fällig)" if d["retained"] else "")
+            rows.append([f"zzgl. noch offen aus {word} Nr. {d['invoice_number']}{retained}", money(d["open"])])
+        rows.append(["Angemahnter Betrag (Zahlbetrag)", money(reminder.outstanding_amount)])
+        return rows
     rows.append(["Angemahnter Betrag", money(reminder.outstanding_amount)])
     return rows
 

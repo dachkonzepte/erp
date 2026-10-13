@@ -226,7 +226,8 @@ async def pruefen(tab, seed, p):
     aufstellung = await tab.js(f"fetch('/api/invoices/{seed['x']}/reminders').then(r=>r.json()).then(l=>l.find(r=>r.id==="
                                f"{seed['m2']})).then(r=>[r.amounts.format,r.amounts.legal_texts.length,"
                                "r.amounts.legal_texts[0].text.includes('Testtext')])")
-    p.pruefe("Aufstellung Format 3 mit Rechtstext", aufstellung, [3, 1, True])
+    # Seit 1.8.89 Format 4 (R4c: abgezogene Rechnungen der Endrechnung und angemahnter Betrag) -- bis 1.8.88 Format 3.
+    p.pruefe("Aufstellung Format 4 mit Rechtstext", aufstellung, [4, 1, True])
     p.pruefe("PDF der Mahnung", await tab.js(
         f"fetch('/api/reminders/{seed['m2']}/pdf').then(r=>[r.status,r.headers.get('content-type')])"), [200, "application/pdf"])
 

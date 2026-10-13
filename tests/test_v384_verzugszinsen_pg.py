@@ -170,7 +170,8 @@ def test_pg_finalizing_waits_for_a_payment_on_a_charge_and_shows_it(pg):
     _run(Session, lambda s: _zahlung_auf(s, invoice_id, charge_id, "4.00").id,
          lambda s: finalize_and_send_reminder(s, s.get(Reminder, third_id)))
     raw = _vorbereiten(Session, lambda s: json.loads(s.get(Reminder, third_id).amounts_json))
-    assert (raw["format"], raw["charges_paid"], raw["charges_open"]) == (3, "4.00", "6.00"), raw
+    # Seit 1.8.89 Format 4 (abgezogene Rechnungen der Endrechnung und angemahnter Betrag; hier keine).
+    assert (raw["format"], raw["charges_paid"], raw["charges_open"]) == (4, "4.00", "6.00"), raw
 
 
 def test_pg_the_same_base_rate_twice_at_once_gives_one(pg):

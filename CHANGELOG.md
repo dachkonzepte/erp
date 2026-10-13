@@ -4,6 +4,22 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.89 – Mahnen nach der Endrechnung: Zahlbetrag statt einzelner Abschläge (R4c, Punkte 3–5)
+
+Nach der gültigen Schlussrechnung (Endrechnung) wird eine darin abgezogene Rechnung nicht mehr einzeln gemahnt: sie steht nicht mehr in
+„zur Mahnung fällig“, ein neuer Entwurf wird mit Grund abgelehnt, ein offener Entwurf gilt als überholt (nur noch löschen), und eine
+festgeschriebene Mahnung geht weder per E-Mail noch als nachgetragene Zustellung ab dem Tag der Endrechnung hinaus. Ihr Einbehalt wird mit
+der Schlussrechnung fällig. Die Mahnung der Schlussrechnung lautet über den Zahlbetrag – ihren mahnfähigen Betrag plus die offenen Beträge
+der abgezogenen Rechnungen –, in der Aufstellung und im PDF je Rechnung mit Nummer („zzgl. noch offen aus Abschlag Nr. …“); das gilt auch,
+wenn die Schlussrechnung selbst bezahlt ist oder über 0 € lautet. Verzugszinsen laufen auf den angemahnten Betrag. Rechnungsseite,
+Mahnwesen und Finanzen zeigen das an („in … abgezogen“, „Zahlbetrag offen“, „überfällig“ nach dem angemahnten Betrag). Nach dem Storno
+der Schlussrechnung gilt wieder die Regel je Rechnung.
+
+Neu `app/final_dunning.py` (was zu einer Rechnung gemahnt werden kann), Aufstellung der Mahnung Format 4. Neu
+`test_v392_mahnen_nach_endrechnung` (22, davon 4 gegen PostgreSQL) und Klicktest `klicktest_mahnen_endrechnung` 18/18. Gegenproben 14 von
+14 rot. Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie, drei Teile parallel): 3836 grün, 1 rot -- `test_v384_verzugszinsen_pg::test_pg_finalizing_waits_for_a_payment_on_a_charge_and_shows_it` erwartete Format 3, angepasst, die Datei danach 10 grün. Alle Klicktests (Regel 26, Arbeitskopie): 54 von 55 wie erwartet in 13:04 min; rot `klicktest_verzugszinsen` 26/27 -- **Erwartung veraltet seit 1.8.89** (prüfte Aufstellung Format 3), angepasst, danach 27/27. Festlegungen zum Bestätigen in `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung R4c"; Punkte 6 und 7
+(Überzahlung, E-Mail) folgen.
+
 ## 1.8.88 – Mengenvergleich im Entwurf der Schlussrechnung (Ergänzung zu Festlegung 1.8.85 Nr. 1)
 
 Der Entwurf der Schlussrechnung zeigt je Position die Menge des Auftrags (von heute), die zuletzt abgerechnete Menge (Ist der zuletzt

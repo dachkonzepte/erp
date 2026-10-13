@@ -12,7 +12,9 @@ Zinsen (interest_proposal()), nur als Vorschlag im Mahnungsentwurf bis zum Mahnd
   Verzugsbeginn keine Zinsen. Schon berechnete Zinsen (geltende Nebenforderungen) schließen an: ab dem Tag nach dem letzten.
 - Verzinst wird der mahnfähige Betrag der Rechnung (offen − Einbehalt), abschnittsweise: ein neuer Abschnitt beginnt am
   Eingangstag einer Zahlung (der gezahlte Teil ist ab diesem Tag zinsfrei) und am Beginn eines Halbjahres. Zahlungen auf
-  Nebenforderungen mindern den Hauptbetrag nicht (§ 367 BGB, Zinseszins gibt es nicht, § 289 BGB).
+  Nebenforderungen mindern den Hauptbetrag nicht (§ 367 BGB, Zinseszins gibt es nicht, § 289 BGB). Seit 1.8.89 (R4c Punkt 5) an
+  einer gültigen Endrechnung der angemahnte Betrag: ihr mahnfähiger Betrag plus die offenen Beträge der abgezogenen Rechnungen
+  (app/final_dunning.py) -- ein Abschnitt beginnt auch am Eingangstag einer Zahlung auf eine abgezogene Rechnung.
 - Tage: tatsächliche Tage, beide Enden eingeschlossen, durch 365. Je Abschnitt exakt (Decimal, ungerundet), einmal am Ende
   kaufmännisch auf den Cent gerundet (app/rounding.py, Regel 19).
 Keine Rechtsberatung: jeder Vorschlag nennt seine Teile, entscheiden tut das Büro.
@@ -211,12 +213,23 @@ def interest_start_day(start: InvoiceDefaultStart) -> date:
 
 def _principal_change_days(db: Session, invoice: Invoice, first: date, last: date) -> set[date]:
     """Eingangstage der Zahlungen mit Buchungen am Hauptbetrag der Rechnung (Zahlung, Skonto, Einbehalt) zwischen first
-    (ausgeschlossen) und last -- an diesen Tagen kann sich der verzinste Betrag ändern."""
+    (ausgeschlossen) und last -- an diesen Tagen kann sich der verzinste Betrag ändern. Seit 1.8.89 an der Endrechnung auch die
+    Buchungen an ihren abgezogenen Rechnungen."""
+    from .final_dunning import principal_invoice_ids  # lokal: app/final_dunning.py importiert app/invoices.py
+
     rows = db.scalars(
         select(Payment.received_on).join(PaymentAllocation, PaymentAllocation.payment_id == Payment.id)
-        .where(PaymentAllocation.invoice_id == invoice.id, PaymentAllocation.kind.in_(PRINCIPAL_KINDS),
-               Payment.received_on > first, Payment.received_on <= last).distinct())
+        .where(PaymentAllocation.invoice_id.in_(principal_invoice_ids(db, invoice)),
+               PaymentAllocation.kind.in_(PRINCIPAL_KINDS), Payment.received_on > first, Payment.received_on <= last).distinct())
     return set(rows)
+
+
+def _principal_on(db: Session, invoice: Invoice, day: date) -> Decimal:
+    """Der verzinste Betrag an diesem Tag: der angemahnte Betrag (seit 1.8.89, app/final_dunning.py -- an der Endrechnung samt den
+    offenen abgezogenen Rechnungen; vorher der mahnfähige Betrag der Rechnung)."""
+    from .final_dunning import dunning_state  # lokal: Zirkel-Import
+
+    return dunning_state(db, invoice, on=day).dunnable
 
 
 def last_interest_end(db: Session, invoice: Invoice, *, ignore_reminder_ids: Iterable[int] = ()) -> date | None:
@@ -240,7 +253,6 @@ def interest_proposal(db: Session, invoice: Invoice, *, until: date, ignore_remi
     "sections", "block"} -- block nennt den Grund, wenn es keinen gibt (dann amount None). sections: je Abschnitt "from", "to",
     "principal", "base_rate", "rate", "days", "interest" (exakt). Liest nur."""
     from .dunning_charges import active_default_start  # lokal: Zirkel-Import
-    from .payments import payment_state_on
 
     start = active_default_start(db, invoice.id)
     if start is None:
@@ -264,8 +276,7 @@ def interest_proposal(db: Session, invoice: Invoice, *, until: date, ignore_remi
     sections: list[dict] = []
     for i, s in enumerate(cuts):
         e = cuts[i + 1] - timedelta(days=1) if i + 1 < len(cuts) else until
-        state = payment_state_on(db, invoice, s)
-        principal = state.dunnable if state is not None else Decimal("0")
+        principal = _principal_on(db, invoice, s)
         base = Decimal(rates[half_year_of(s)].rate_percent)
         if sections and sections[-1]["principal"] == principal and sections[-1]["base_rate"] == base:
             sections[-1]["to"] = e
@@ -328,8 +339,6 @@ def sections_of(calculation: str | None) -> list[dict]:
 def recalculated(db: Session, invoice: Invoice, charge) -> Decimal | None:
     """Die Zinsen einer gebuchten Zins-Nebenforderung, neu berechnet für ihren Zeitraum mit dem Stand heute (z. B. nach einer
     später gebuchten Zahlung mit früherem Eingang) -- nur zum Hinweis, nichts wird geändert. None, wenn das nicht geht."""
-    from .payments import payment_state_on
-
     secs = sections_of(charge.calculation_json)
     if not secs or charge.period_start is None or charge.period_end is None:
         return None
@@ -347,8 +356,7 @@ def recalculated(db: Session, invoice: Invoice, charge) -> Decimal | None:
         base = bases.get(half_year_of(s))
         if base is None:
             return None
-        state = payment_state_on(db, invoice, s)
-        principal = state.dunnable if state is not None else Decimal("0")
+        principal = _principal_on(db, invoice, s)
         if principal > 0:
             total += principal * (base + surcharge) * ((e - s).days + 1) / (Decimal(100) * DAYS_PER_YEAR)
     return round_money(total)
