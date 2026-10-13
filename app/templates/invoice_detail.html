@@ -90,16 +90,19 @@ function render(){
   renderBreadcrumb();
   document.getElementById('invTitle').textContent=`${invoice.invoice_number||'Entwurf'} · ${TYPE_LABELS[invoice.invoice_type]||invoice.invoice_type}`;
   document.getElementById('invContext').textContent=`${invoice.customer_name}${invoice.property_name?' · '+invoice.property_name:''}`;
-  // Seit 1.8.78: der Zahlstand (abgeleitet) statt "bezahlt" als Status.
-  const badge=document.getElementById('statusBadge'),pay=invoice.payment;
-  badge.textContent=pay?pay.state_label.charAt(0).toUpperCase()+pay.state_label.slice(1):(STATUS_LABELS[invoice.status]||invoice.status);
-  badge.className='badge '+(pay?({bezahlt:'bezahlt',einbehalt_offen:'einbehalt'}[pay.state]||'versendet'):invoice.status)+(invoice.is_overdue?' overdue':'');
+  // Seit 1.8.78: der Zahlstand (abgeleitet) statt "bezahlt" als Status. Seit 1.8.91 wie in Finanzen und den Listen nach
+  // invoice.overview (app/final_dunning.py::overview()): an der Endrechnung der Zahlbetrag (offen oder Guthaben), an einer darin
+  // abgezogenen Rechnung mit offenem Betrag "Enthalten in Schlussrechnung …". Der Zahlstand der Rechnung selbst steht in der Karte
+  // "Zahlungen".
+  const badge=document.getElementById('statusBadge'),pay=invoice.payment,ovw=invoice.overview;
+  badge.textContent=ovw?ovw.state_label.charAt(0).toUpperCase()+ovw.state_label.slice(1):(STATUS_LABELS[invoice.status]||invoice.status);
+  badge.className='badge '+(ovw?({bezahlt:'bezahlt',ausgeglichen:'bezahlt',guthaben:'bezahlt',einbehalt_offen:'einbehalt'}[ovw.state]||'versendet'):invoice.status)+(invoice.is_overdue?' overdue':'');
+  if(ovw&&ovw.state==='zahlbetrag_offen')badge.textContent+=` ${money(ovw.open)}`;
+  if(ovw&&Number(ovw.credit)>0)badge.textContent+=` ${money(ovw.credit)}`;  // seit 1.8.90: Überzahlung
   if(invoice.is_overdue)badge.textContent+=' · überfällig';
-  // Seit 1.8.89 (R4c): an der Endrechnung der offene Zahlbetrag samt Abschlägen, an einer abgezogenen Rechnung die Endrechnung.
+  // Seit 1.8.89 (R4c): an einer abgezogenen Rechnung die Endrechnung (bezahlt: als Zusatz, sonst nennt das Kennzeichen sie schon).
   const dn=invoice.dunning;
-  if(dn&&dn.settled_in)badge.textContent+=` · in ${dn.settled_in.invoice_number} abgezogen`;
-  if(dn&&dn.is_final&&Number(dn.deducted_open)>0)badge.textContent+=` · Zahlbetrag offen ${money(Number(pay?pay.open:0)+Number(dn.deducted_open))}`;
-  if(dn&&Number(dn.credit)>0)badge.textContent+=` · Guthaben ${money(dn.credit)}`;  // seit 1.8.90: Überzahlung
+  if(dn&&dn.settled_in&&!(ovw&&ovw.state==='enthalten'))badge.textContent+=` · in ${dn.settled_in.invoice_number} abgezogen`;
   document.getElementById('mNet').textContent=money(invoice.net_total);document.getElementById('mVat').textContent=money(invoice.vat_total);document.getElementById('mGross').textContent=money(invoice.gross_total);
   document.getElementById('backOrder').href='/orders/'+invoice.order_id;
   document.getElementById('editLockNotice').style.display=invoice.is_editable?'none':'block';

@@ -119,8 +119,10 @@ async def pruefen(tab, seed, p):
     _passt(p, "Abschlag: Hinweis abgezogen, Einbehalt fällig", await tab.js(
         "document.querySelector('[data-abgezogen]')?.textContent||''"),
         lambda v: v.startswith(f"In der Schlussrechnung {seed['schluss_nr']} vom ") and "Der Einbehalt (38,00 €) ist mit der Schlussrechnung fällig." in v)
-    p.pruefe("Abschlag: nicht überfällig, Kennzeichen „abgezogen“", await tab.js(
-        "[invoice.is_overdue,document.getElementById('statusBadge').textContent.includes('abgezogen')]"), [False, True])
+    # Seit 1.8.91 (Nacharbeit R4c Punkt 1) heißt das Kennzeichen "Enthalten in Schlussrechnung …" statt "… · in … abgezogen".
+    p.pruefe("Abschlag: nicht überfällig, Kennzeichen „Enthalten in Schlussrechnung …“", await tab.js(
+        "[invoice.is_overdue,document.getElementById('statusBadge').textContent]"),
+        [False, f"Enthalten in Schlussrechnung {seed['schluss_nr']}"])
     _passt(p, "Abschlag: Grund statt „Mahnung anlegen“", await tab.js(
         "document.querySelector('#reminderActions [data-grund]')?.textContent||''"),
         lambda v: "abgezogen" in v and "gemahnt wird nur noch die Schlussrechnung" in v)

@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.90** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.91** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -669,6 +669,11 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Migration, die Daten ändert, wird zusätzlich auf einem Bestand gegen PostgreSQL geprobt, nicht nur auf leerem Schema. Anlass:
     `test_v297` lief bis 1.8.80 in `public` (dort fehlte eine neue Spalte, drei Tests rot).
 
+28. **Der Bericht nennt jede neue Festlegung in einer Zeile, nicht nur die wichtigsten, seit 1.8.91.** Jede Festlegung, die eine Runde
+    trifft (im Archiv unter "Festlegungen <Version> (Bitte bestätigen)"), steht im Bericht mit Version und Nummer in genau einer Zeile --
+    auch wenn es viele sind; die ausführliche Fassung bleibt im Archiv. Was noch nicht bestätigt ist, bleibt so lange in dieser Form
+    vorgelegt. Anlass: der Bericht zu R4c nannte nur eine Auswahl, die Festlegungen 1.8.87–1.8.90 mussten eigens angefordert werden.
+
 ## Fachbegriffe & Domänenmodell
 
 - **"Vorgang"** (in normalem Gespräch) = **Projekt** (`Project`) – wurde in der Sitzung explizit
@@ -741,7 +746,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   6–7)**: eine Schlussrechnung darf unter 0 € lauten; ein negativer Zahlbetrag ist ein Erstattungsbetrag (PDF "Erstattung", ohne Skonto
   und "zahlbar"; Skonto nur über 0 €); das Guthaben (`DunningState.credit`) steht am Kunden und wird als Zahlungsausgang erstattet
   (`app/payments.py::book_refund()`: Zahlung mit negativem Betrag, Zuordnung Art `erstattung`, nur als Ganzes zurück); die E-Mail nennt
-  Zahl- bzw. Erstattungsbetrag (`{zahlbetrag}`, `{erstattungsbetrag}`, `{zahlungshinweis}`, sonst eigener Absatz).
+  Zahl- bzw. Erstattungsbetrag (`{zahlbetrag}`, `{erstattungsbetrag}`, `{zahlungshinweis}`, sonst eigener Absatz). **Seit 1.8.91
+  (Nacharbeiten R4c, Punkt 1)**: Finanzen, Dashboard und die Rechnungslisten zählen nach der gültigen Endrechnung je Auftrag nur ihren
+  Zahlbetrag -- positiv offen, negativ Guthaben (`app/final_dunning.py::overview()`, als `overview` an jeder Rechnungszeile); eine darin
+  abgezogene Rechnung mit offenem Betrag heißt "enthalten in Schlussrechnung R-…", ihr eigener Zahlstand bleibt (Karte "Zahlungen").
 - `Reminder`: hängt an überfälligen Rechnungen, hat Stufen (1./2./3. Mahnung), jede Stufe mit
   eigenen Fristen/Gebühren/Textvorlagen (`ReminderLevel`). `Reminder.text` ist beim Anlegen
   (`create_reminder()`) eine reine Kopie von `ReminderLevel.text_template` mit noch
@@ -767,7 +775,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   Rechnungsbetrag, ohne USt, unveränderlich, Gegenbuchung mit Begründung; entsteht beim Festschreiben einer Mahnung aus dem, was ihr
   Entwurf bewusst übernahm (`fee_accepted`/`flat_fee_accepted`, `PUT /api/reminders/{id}/charges`); jede Mahnung zeigt die geltenden
   aufsummiert (Aufstellung Format 2). Zuschaltbar: `GeneralSettings.dunning_charges_enabled`, nur Admin, Vorgabe aus -- aus heißt keine
-  Gebühr, keine Beträge. Pauschale nur ohne Verbraucher, einmal je Rechnung, ab bestätigtem **Verzugsbeginn** (`InvoiceDefaultStart`,
+  Gebühr, keine Beträge; vor dem Einschalten `docs/archiv/zahlungen.md`, "Vor dem Einschalten der Mahngebühren" lesen. Pauschale nur ohne Verbraucher, einmal je Rechnung, ab bestätigtem **Verzugsbeginn** (`InvoiceDefaultStart`,
   Vorschlag aus dem Zugang der ersten Mahnung bzw. 30 Tagen nach Fälligkeit und Zugang der Rechnung). Details:
   `docs/archiv/zahlungen.md`, "Umsetzung 1.8.80". **Seit 1.8.81 (Punkte 7–9)**: **Verzugszinsen** (`app/default_interest.py`) als
   Vorschlag im Entwurf bis zum Mahndatum (`interest_accepted`), beim Festschreiben frisch unter der Sperre berechnet und eine
@@ -1059,7 +1067,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Auftrag nach Aufwand; R4c ab 1.8.87: Vorweg -- "heute" im Browser aus Berlin, Klicktest Mahnwesen wartet, Testhelfer `_run`;
   seit 1.8.88 Mengenvergleich im Entwurf der Schlussrechnung: Auftragsmenge, zuletzt abgerechnet, Ist, Abweichungen markiert; seit
   1.8.89 Punkte 3–5: Mahnen nach der Endrechnung über den Zahlbetrag, abgezogene Rechnungen nicht mehr einzeln, Einbehalt fällig; seit
-  1.8.90 Punkte 6–7: Schlussrechnung unter 0 €, Erstattungsbetrag, Guthaben und Zahlungsausgang, E-Mail mit Zahlbetrag -- R4c vollständig)
+  1.8.90 Punkte 6–7: Schlussrechnung unter 0 €, Erstattungsbetrag, Guthaben und Zahlungsausgang, E-Mail mit Zahlbetrag -- R4c vollständig;
+  Nacharbeiten R4c ab 1.8.91: Finanzen und Dashboard zählen je Auftrag den Zahlbetrag, "enthalten in Schlussrechnung …")
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Zahlungen** (Zahlungsstufe Z1 seit 1.8.78: Zahlungseingang mit Zuordnungen, Skonto und Einbehalt, Rest am Kunden,
   Zahlstand abgeleitet, Gegenbuchung statt Ändern, Sperrreihenfolge, Storno erst nach gelösten Zuordnungen, Finanzen/Dashboard mit

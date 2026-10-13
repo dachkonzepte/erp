@@ -137,8 +137,10 @@ async function renderKpisWidget(container){
   if(!authStatus.authenticated){container.innerHTML='<div class="status err">Bitte zuerst als ERP-Benutzer anmelden.</div>';return}
   const [invoices,overdue,projects]=await Promise.all([api('/api/invoices'),api('/api/reminders/overdue'),api('/api/projects')]);
   // Seit 1.8.78 der offene Betrag (abgeleitet, app/payments.py) statt des Bruttos; eine Stornorechnung ist nie offen.
-  const open=invoices.filter(i=>i.payment&&Number(i.payment.open)>0);
-  const openSum=open.reduce((s,i)=>s+Number(i.payment.open||0),0);
+  // Seit 1.8.91 wie Finanzen nach i.overview: nach der gültigen Schlussrechnung je Auftrag nur ihr Zahlbetrag (negativ: Guthaben).
+  const open=invoices.filter(i=>i.overview&&Number(i.overview.open)>0);
+  const openSum=open.reduce((s,i)=>s+Number(i.overview.open||0),0);
+  const creditSum=invoices.reduce((s,i)=>s+Number(i.overview?i.overview.credit:0),0);
   const active=projects.filter(p=>!p.archived&&['planung','beauftragt','ausfuehrung'].includes(p.status));
   let hoursHtml='';
   if(authStatus.user.employee_id){
@@ -152,7 +154,8 @@ async function renderKpisWidget(container){
   }
   container.innerHTML=`<div class="metrics">
     <div class="metric"><small>Offene Rechnungen</small><b>${open.length}</b></div>
-    <div class="metric"><small>Offener Betrag</small><b>${money(openSum)}</b></div>
+    <div class="metric"><small>Offener Betrag</small><b data-offen-betrag>${money(openSum)}</b></div>
+    ${creditSum?`<div class="metric"><small>Guthaben (Überzahlung)</small><b data-guthaben>${money(creditSum)}</b></div>`:''}
     <div class="metric"><small>Überfällig</small><b style="${overdue.length?'color:var(--danger)':''}">${overdue.length}</b></div>
     <div class="metric"><small>Aktive Projekte</small><b>${active.length}</b></div>
     ${hoursHtml}

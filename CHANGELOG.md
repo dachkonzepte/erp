@@ -4,6 +4,24 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.91 – Finanzen und Dashboard zählen nach der Schlussrechnung je Auftrag den Zahlbetrag (Nacharbeiten R4c, Punkt 1)
+
+Nach der gültigen Schlussrechnung zählen Finanzen und Dashboard je Auftrag nur noch ihren Zahlbetrag: positiv als offen (mit den
+Einbehalten der abgezogenen Rechnungen unter „davon Einbehalt“), negativ als Guthaben (neue Kennzahl „Guthaben (Überzahlung)“). Die
+darin abgezogenen Rechnungen mit offenem Betrag zählen nicht mehr einzeln; an ihnen steht „Enthalten in Schlussrechnung R-…“ statt
+„Teilweise bezahlt“ – in Finanzen, Dashboard, Auftrag, Projektmappe und im Kennzeichen der Rechnungsseite. Eine bezahlte abgezogene
+Rechnung bleibt „Bezahlt“; die Karte „Zahlungen“ einer Rechnung zeigt weiter ihren eigenen Zahlstand. Die Schlussrechnung steht mit
+„Zahlbetrag offen“, „Guthaben“ oder „ausgeglichen“, solange eine abgezogene Rechnung mitzählt, sonst mit ihrem eigenen Zahlstand.
+Finanzen hat die Filter „Guthaben“ und „In Schlussrechnung“. Bis 1.8.90 zählte Finanzen einen abgezogenen Abschlag mit seinem offenen
+Betrag einzeln, und eine Überzahlung stand nirgends dagegen (Nebenbefund 1 aus 1.8.89, Nebenbefund 2 aus 1.8.90).
+
+Dazu die Bestätigungen der Vorgabe (Festlegungen 1.8.82 Nr. 6–9, 1.8.83 Nr. 7–8, 1.8.89 Nr. 2/3 solange die Mahngebühren aus sind –
+im Archiv unter „Vor dem Einschalten der Mahngebühren“ –, 1.8.90 Nr. 4) und Regel 28 in CLAUDE.md: der Bericht nennt jede neue
+Festlegung in einer Zeile. Keine Migration. Neu `app/final_dunning.py::overview()` (an jeder Rechnungszeile als `overview`),
+`test_v394_finanzen_zahlbetrag` (12) und Klicktest `klicktest_finanzen_zahlbetrag` 15/15; `klicktest_mahnen_endrechnung` prüft das
+neue Kennzeichen (Erwartung geändert seit 1.8.91), 18/18. Gegenproben 9 von 9 rot. Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie, drei Teile parallel): 3866 grün, 0 rot. Alle Klicktests auf dem Stand 1.8.93, der diese Version enthält (siehe dort). Festlegungen zum Bestätigen in
+`docs/archiv/befund-vor-echtbetrieb.md`, "Nacharbeiten R4c".
+
 ## 1.8.90 – Überzahlung: Schlussrechnung unter 0 €, Erstattung als Zahlungsausgang, E-Mail mit Zahlbetrag (R4c, Punkte 6 und 7)
 
 Eine Schlussrechnung darf jetzt unter 0 € lauten – die Abschläge übersteigen die Gesamtleistung (Überzahlung). Ist der Zahlbetrag

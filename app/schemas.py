@@ -2359,6 +2359,9 @@ class InvoiceOut(BaseModel):
     # abgezogenen Rechnungen, an einer abgezogenen die Endrechnung -- und der Hinweis an der abgezogenen.
     dunning: dict | None = None
     dunning_hint: str | None = None
+    # Seit 1.8.91 (Nacharbeit R4c Punkt 1, app/final_dunning.py::overview()): wie die Rechnung in Finanzen, Dashboard und den
+    # Rechnungslisten zählt {state, state_label, open, retained, credit, settled_in}.
+    overview: dict | None = None
     payment_allocations: list[PaymentAllocationOut] = Field(default_factory=list)
     finalize_block: str | None = None  # seit 1.8.72: warum "Finalisieren" gesperrt ist (app/invoices.py)
     storno_block: str | None = None  # seit 1.8.72: warum "Stornieren" gesperrt ist
@@ -2421,6 +2424,7 @@ class InvoiceListOut(BaseModel):
     net_total: Decimal
     gross_total: Decimal
     payment: PaymentStateOut | None = None  # seit 1.8.78
+    overview: dict | None = None  # seit 1.8.91 (app/final_dunning.py::overview())
 
 
 class InvoiceOverviewOut(BaseModel):
@@ -2438,6 +2442,7 @@ class InvoiceOverviewOut(BaseModel):
     gross_total: Decimal
     payment: PaymentStateOut | None = None  # seit 1.8.78
     not_payable_reason: str | None = None
+    overview: dict | None = None  # seit 1.8.91 (app/final_dunning.py::overview())
 
 
 class InvoiceCreateAbschlagPauschal(BaseModel):

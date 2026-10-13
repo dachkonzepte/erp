@@ -3,7 +3,9 @@
 Seit 1.8.89 (R4c): Mahnen nach der Endrechnung -- abgezogene Rechnungen nicht mehr einzeln, Mahnung der Schlussrechnung über den
 Zahlbetrag, Verzugszinsen auf den angemahnten Betrag (`app/final_dunning.py`); seit 1.8.90 Überzahlung: Guthaben am Kunden,
 Erstattung als Zahlungsausgang (`book_refund()`, Zuordnung Art "erstattung"). Herleitung, Festlegungen und Tests:
-`docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung R4c".
+`docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung R4c"; Nacharbeiten ab 1.8.91 (Zahlbetrag je Auftrag in Finanzen und Dashboard)
+dort unter "Nacharbeiten R4c". Was vor dem Einschalten der Mahngebühren zu prüfen ist: Abschnitt "Vor dem Einschalten der
+Mahngebühren" am Ende dieser Datei.
 
 Grundlage: Befund Zahlungsstufe in `befund-vor-echtbetrieb.md` ("Umsetzung 1.8.77" -> "Befund Zahlungsstufe") und dort
 "Entscheidungen Rechnungen" (Zahlung auf den Zahlbetrag, Einbehalt). Code: `app/payments.py` (Geschäftslogik),
@@ -978,3 +980,21 @@ buero_auftrag; der Monteur nirgends (403). Historie: Basiszinssatz und Rechtstex
 6. Unverändert: Rechnung per E-Mail auch bezahlt oder storniert, Mahnhistorie auf der Rechnungsseite nur bei "versendet" (1.8.77 Nr. 7),
    Probebelege entfernen (1.8.77 Nr. 8), Mahnwesen lädt alle Mahnungen (1.8.79 Nr. 3), Mahnung per E-Mail ohne Sperre (1.8.79 Nr. 2,
    1.8.80 Nr. 4).
+
+## Vor dem Einschalten der Mahngebühren
+
+Der Schalter `GeneralSettings.dunning_charges_enabled` (Einstellungen, nur Admin) steht auf aus. Folgende Festlegungen gelten bestätigt
+nur, solange er aus ist -- vor dem Einschalten neu ansehen und entscheiden (Vorgabe vom 13.10.2026, `befund-vor-echtbetrieb.md`,
+"Nacharbeiten R4c"):
+
+1. **Festlegung 1.8.89 Nr. 2** -- eine festgeschriebene, nie hinausgegangene Mahnung einer in der Endrechnung abgezogenen Rechnung geht
+   ab dem Tag der Endrechnung nicht mehr hinaus; ihre Nebenforderungen (Gebühr, Pauschale, Zinsen) werden dabei **nicht** von selbst
+   gegengebucht (anders als beim Ersetzen einer Mahnung) -- sie stehen an der Rechnung und lassen sich von Hand gegenbuchen. Folge
+   (Nebenbefund 2 aus 1.8.89): nach einem Storno der Schlussrechnung sperren sie das Storno des Abschlags, bis sie gegengebucht sind.
+2. **Festlegung 1.8.89 Nr. 3** -- Nebenforderungen abgezogener Rechnungen (Gebühren, Pauschale, Zinsen früherer Mahnungen) bleiben an
+   ihrer Rechnung (bebuchbar, sichtbar); die Mahnung der Schlussrechnung nennt nur ihre eigenen, wie der Zahlungshinweis (Festlegung
+   1.8.86 Nr. 1). Finanzen und Dashboard zeigen Nebenforderungen weiter nicht (Nebenbefund 3 aus 1.8.81).
+
+Solange der Schalter aus ist, entstehen keine Nebenforderungen -- keine Gebühr, keine Pauschale und keine Verzugszinsen (der Schalter
+heißt im Protokoll "Mahngebühren und Verzugszinsen", `app/dunning_charges.py::draft_proposals()`); beide Festlegungen betreffen dann
+keine Daten.

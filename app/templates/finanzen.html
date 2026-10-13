@@ -46,17 +46,21 @@ const TYPE_LABELS={abschlag_pauschal:'Abschlag (Pauschal)',abschlag_leistungssta
 const STATUS_LABELS={entwurf:'Entwurf',versendet:'Finalisiert',storniert:'Storniert'};
 // Seit 1.8.78: "bezahlt" ist kein Status mehr, sondern der abgeleitete Zahlstand (payment.state, app/payments.py); offen und
 // überfällig rechnen mit dem offenen bzw. mahnfähigen Betrag, eine Stornorechnung ist nie offen (payment ist dort leer).
-const STATE_LABELS={offen:'Offen',teilweise_bezahlt:'Teilweise bezahlt',einbehalt_offen:'Einbehalt offen',bezahlt:'Bezahlt'};
-const statusText=i=>i.payment?STATE_LABELS[i.payment.state]:(i.invoice_type==='storno'&&i.status==='versendet'?'Storno':(STATUS_LABELS[i.status]||i.status));
-const FILTERS=[['','Alle',()=>true],['entwurf','Entwurf',i=>i.status==='entwurf'],['offen','Offen',i=>i.payment&&['offen','teilweise_bezahlt'].includes(i.payment.state)],['einbehalt_offen','Einbehalt offen',i=>i.payment&&i.payment.state==='einbehalt_offen'],['bezahlt','Bezahlt',i=>i.payment&&i.payment.state==='bezahlt'],['storniert','Storniert / Storno',i=>i.status==='storniert'||(i.invoice_type==='storno'&&i.status!=='entwurf')]];
+// Seit 1.8.91 (Nacharbeit R4c Punkt 1) zählt jede Rechnung nach i.overview (app/final_dunning.py::overview()): nach der gültigen
+// Schlussrechnung je Auftrag nur ihr Zahlbetrag -- positiv als offen, negativ als Guthaben; die darin abgezogenen Rechnungen mit
+// offenem Betrag zählen nicht mehr einzeln ("enthalten in Schlussrechnung …").
+const ov=i=>i.overview;
+const statusText=i=>ov(i)?ov(i).state_label.charAt(0).toUpperCase()+ov(i).state_label.slice(1):(i.invoice_type==='storno'&&i.status==='versendet'?'Storno':(STATUS_LABELS[i.status]||i.status));
+const FILTERS=[['','Alle',()=>true],['entwurf','Entwurf',i=>i.status==='entwurf'],['offen','Offen',i=>ov(i)&&['offen','teilweise_bezahlt','zahlbetrag_offen'].includes(ov(i).state)],['einbehalt_offen','Einbehalt offen',i=>ov(i)&&ov(i).state==='einbehalt_offen'],['bezahlt','Bezahlt',i=>ov(i)&&['bezahlt','ausgeglichen'].includes(ov(i).state)],['guthaben','Guthaben',i=>ov(i)&&ov(i).state==='guthaben'],['enthalten','In Schlussrechnung',i=>ov(i)&&ov(i).state==='enthalten'],['storniert','Storniert / Storno',i=>i.status==='storniert'||(i.invoice_type==='storno'&&i.status!=='entwurf')]];
 let unallocated=[];
 async function api(u){const r=await fetch(u);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
 
 function renderMetrics(){
-  const open=allInvoices.filter(i=>i.payment&&Number(i.payment.open)>0);
+  const open=allInvoices.filter(i=>ov(i)&&Number(ov(i).open)>0);
   const overdue=allInvoices.filter(i=>i.is_overdue);
-  const openSum=open.reduce((s,i)=>s+Number(i.payment.open),0);
-  const retained=open.reduce((s,i)=>s+Number(i.payment.retained_open),0);
+  const openSum=open.reduce((s,i)=>s+Number(ov(i).open),0);
+  const retained=open.reduce((s,i)=>s+Number(ov(i).retained),0);
+  const creditSum=allInvoices.reduce((s,i)=>s+Number(ov(i)?ov(i).credit:0),0);
   const paidTotal=allInvoices.filter(i=>i.payment).reduce((s,i)=>s+Number(i.payment.paid),0);
   const unallocatedSum=unallocated.reduce((s,r)=>s+Number(r.rest),0);
   document.getElementById('metrics').innerHTML=`
@@ -65,6 +69,7 @@ function renderMetrics(){
     ${retained?`<div class="metric"><small>davon Einbehalt</small><b>${money(retained)}</b></div>`:''}
     <div class="metric"><small>Überfällig</small><b style="${overdue.length?'color:var(--danger)':''}">${overdue.length}</b></div>
     <div class="metric"><small>Bezahlt (gesamt)</small><b data-bezahlt>${money(paidTotal)}</b></div>
+    ${creditSum?`<div class="metric"><small>Guthaben (Überzahlung)</small><b data-guthaben>${money(creditSum)}</b></div>`:''}
     ${unallocatedSum?`<div class="metric"><small>Nicht zugeordnet</small><b>${money(unallocatedSum)}</b></div>`:''}`;
 }
 function renderUnallocated(){
@@ -87,7 +92,7 @@ function renderReminderOverview(rows){
 function renderRows(){
   const test=(FILTERS.find(f=>f[0]===statusFilter)||FILTERS[0])[2];
   const rows=allInvoices.filter(test);
-  document.getElementById('rows').innerHTML=rows.length?rows.map(i=>`<tr><td><b>${esc(i.invoice_number||'Entwurf')}</b></td><td>${esc(TYPE_LABELS[i.invoice_type]||i.invoice_type)}</td><td>${esc(i.customer_name)}</td><td>${i.order_number?`<a class="link" href="/orders/${i.order_id}">${esc(i.order_number)}</a>${i.project_number?` <span class="muted small">(${esc(i.project_number)})</span>`:''}`:'—'}</td><td>${new Date(i.invoice_date+'T00:00:00').toLocaleDateString('de-DE')}</td><td>${i.due_date?new Date(i.due_date+'T00:00:00').toLocaleDateString('de-DE'):'—'}</td><td><span class="pill ${i.is_overdue?'overdue':''} ${i.payment&&i.payment.state==='bezahlt'?'bezahlt':''}">${esc(statusText(i))}${i.is_overdue?' · überfällig':''}</span></td><td class="number">${money(i.gross_total)}</td><td class="number">${i.payment?money(i.payment.open):'—'}</td><td><a class="link" href="/invoices/${i.id}">Öffnen</a></td></tr>`).join(''):'<tr><td colspan="10" class="empty">Keine Rechnungen'+(statusFilter?' mit diesem Status':'')+'.</td></tr>';
+  document.getElementById('rows').innerHTML=rows.length?rows.map(i=>`<tr><td><b>${esc(i.invoice_number||'Entwurf')}</b></td><td>${esc(TYPE_LABELS[i.invoice_type]||i.invoice_type)}</td><td>${esc(i.customer_name)}</td><td>${i.order_number?`<a class="link" href="/orders/${i.order_id}">${esc(i.order_number)}</a>${i.project_number?` <span class="muted small">(${esc(i.project_number)})</span>`:''}`:'—'}</td><td>${new Date(i.invoice_date+'T00:00:00').toLocaleDateString('de-DE')}</td><td>${i.due_date?new Date(i.due_date+'T00:00:00').toLocaleDateString('de-DE'):'—'}</td><td><span class="pill ${i.is_overdue?'overdue':''} ${ov(i)&&['bezahlt','ausgeglichen','guthaben'].includes(ov(i).state)?'bezahlt':''}" data-zahlstand="${esc(ov(i)?ov(i).state:'')}">${esc(statusText(i))}${i.is_overdue?' · überfällig':''}</span></td><td class="number">${money(i.gross_total)}</td><td class="number" data-offen-zeile>${!ov(i)||ov(i).state==='enthalten'?'—':Number(ov(i).credit)>0?`Guthaben ${money(ov(i).credit)}`:money(ov(i).open)}</td><td><a class="link" href="/invoices/${i.id}">Öffnen</a></td></tr>`).join(''):'<tr><td colspan="10" class="empty">Keine Rechnungen'+(statusFilter?' mit diesem Status':'')+'.</td></tr>';
 }
 
 async function load(){

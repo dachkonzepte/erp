@@ -1686,8 +1686,9 @@ def _payment_info(invoice: Invoice, state=None, *, with_allocations: bool, dunni
     """Seit 1.8.78: Zahlstand (offen, mahnfähig, Zustand) statt Status "bezahlt"; überfällig nur mit mahnfähigem Betrag (ein
     offener Einbehalt wird nicht gemahnt, eine Stornorechnung ist nie offen). Seit 1.8.89 (R4c, app/final_dunning.py) überfällig
     nach dem angemahnten Betrag: eine in einer gültigen Endrechnung abgezogene Rechnung nie (gemahnt wird über die Endrechnung), die
-    Endrechnung auch, wenn nur noch ein abgezogener Abschlag offen ist; dazu "dunning" und der Hinweis an der abgezogenen."""
-    from .final_dunning import deducted_hint, dunning_state  # lokal: app/final_dunning.py importiert dieses Modul
+    Endrechnung auch, wenn nur noch ein abgezogener Abschlag offen ist; dazu "dunning" und der Hinweis an der abgezogenen. Seit 1.8.91
+    "overview": wie die Rechnung in Finanzen, Dashboard und den Rechnungslisten zählt (app/final_dunning.py::overview())."""
+    from .final_dunning import deducted_hint, dunning_state, overview  # lokal: app/final_dunning.py importiert dieses Modul
     from .payments import invoice_allocations, not_payable_reason, payment_state  # lokal: Zirkel-Import
     db = object_session(invoice)
     if state is None and db is not None:
@@ -1701,6 +1702,7 @@ def _payment_info(invoice: Invoice, state=None, *, with_allocations: bool, dunni
                        and invoice.due_date < berlin_today()),
         "dunning": dunning.as_dict() if dunning is not None else None,
         "dunning_hint": deducted_hint(dunning) if dunning is not None else None,
+        "overview": overview(state, dunning),
     }
     if with_allocations:
         info["payment_allocations"] = invoice_allocations(db, invoice) if db is not None else []

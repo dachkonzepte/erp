@@ -197,6 +197,43 @@ def nothing_to_dun_reason(db: Session, invoice: Invoice, state: DunningState) ->
     return dunning_block_reason(db, invoice, state.own) or f"Die Rechnung {number} hat keinen mahnfähigen Betrag."
 
 
+OVERVIEW_LABELS = {"zahlbetrag_offen": "Zahlbetrag offen", "guthaben": "Guthaben", "ausgeglichen": "ausgeglichen"}
+
+
+def overview(state, dunning: DunningState | None) -> dict | None:
+    """Wie eine Rechnung in Finanzen, Dashboard und den Rechnungslisten zählt (seit 1.8.91, Nacharbeit R4c Punkt 1): nach der
+    gültigen Endrechnung je Auftrag nur noch ihr Zahlbetrag -- positiv als offen (davon Einbehalt), negativ als Guthaben. Eine darin
+    abgezogene Rechnung mit offenem Betrag zählt nicht mehr einzeln ("enthalten in Schlussrechnung …"); bezahlt bleibt bezahlt.
+    Sonst der Zahlstand der Rechnung (app/payments.py). state: PaymentState der Rechnung, None wenn sie nie offen ist; None auch
+    zurück, wenn sie nicht zählt (Entwurf, Storno, storniert)."""
+    from .payments import STATE_LABELS  # lokal wie in dunning_states()
+
+    def row(key, label, *, open_=ZERO, retained=ZERO, credit=ZERO, settled_in=None):
+        return {"state": key, "state_label": label, "open": open_, "retained": retained, "credit": credit,
+                "settled_in": ({"invoice_id": settled_in.id, "invoice_number": settled_in.invoice_number}
+                               if settled_in is not None else None)}
+
+    if dunning is not None and dunning.settled_in is not None and state is not None and state.open > 0:
+        final = dunning.settled_in
+        return row("enthalten", f"enthalten in Schlussrechnung {final.invoice_number}", settled_in=final)
+    if dunning is not None and dunning.is_final:
+        own = dunning.own
+        total = (own.open if own is not None else dunning.own_part) + dunning.deducted_open
+        if total < 0:
+            return row("guthaben", OVERVIEW_LABELS["guthaben"], credit=-total)
+        retained = (own.retained_open if own is not None else ZERO) + sum((d.retained for d in dunning.deducted), ZERO)
+        if total == 0:
+            key = own.state if own is not None else "ausgeglichen"
+        elif own is not None and not dunning.deducted:
+            key = own.state
+        else:
+            key = "zahlbetrag_offen"
+        return row(key, STATE_LABELS.get(key) or OVERVIEW_LABELS[key], open_=total, retained=retained)
+    if state is None:
+        return None
+    return row(state.state, STATE_LABELS[state.state], open_=state.open, retained=state.retained_open)
+
+
 def deducted_hint(state: DunningState) -> str | None:
     """Hinweis an einer abgezogenen Rechnung (Rechnungsseite): nicht mehr einzeln gemahnt, der Einbehalt mit der Endrechnung fällig."""
     if state.settled_in is None:

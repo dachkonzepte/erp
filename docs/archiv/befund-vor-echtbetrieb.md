@@ -1856,7 +1856,7 @@ auflisten. Commit nach Regel 13, Bericht kurz.
   jede Eingabe gesperrt, keine Bearbeiten-Knöpfe an Positionen und Titeln. Der Hinweis "Prozesslogik" nennt die Sperren.
 - Klicktest `scripts/klicktest_auftrag_sperren.py`.
 
-### Festlegungen 1.8.82 (Nr. 1–5 bestätigt am 12.10.2026, Vorgabe R4b; Nr. 6–9 dort nicht genannt)
+### Festlegungen 1.8.82 (Nr. 1–5 bestätigt am 12.10.2026, Vorgabe R4b; Nr. 6–9 bestätigt am 13.10.2026, Vorgabe Nacharbeiten R4c)
 
 1. **Feste Fassung jeder Art**, auch Storno; im selben Commit wie das Festschreiben. Scheitert das PDF oder die Ablage, ist nichts
    festgeschrieben (400 mit Text) -- lieber kein Festschreiben als eine Rechnung ohne Fassung.
@@ -1974,7 +1974,7 @@ Vorgabe wie bei 1.8.82 (dort wörtlich); nach Punkt 2 committet (1.8.82), die Pu
   auf den Nachtrag.
 - Klicktest `scripts/klicktest_nachtrag.py`.
 
-### Festlegungen 1.8.83 (Nr. 1–5 bestätigt am 12.10.2026, Vorgabe R4b; Nr. 6 geändert, siehe dort; Nr. 7–8 dort nicht genannt)
+### Festlegungen 1.8.83 (Nr. 1–5 bestätigt am 12.10.2026, Vorgabe R4b; Nr. 6 geändert, siehe dort; Nr. 7–8 bestätigt am 13.10.2026, Vorgabe Nacharbeiten R4c)
 
 1. **Kennzeichen und Nummer**: `is_addendum` an der Auftragsposition, Nummer "N" + laufende Zahl je Auftrag (die höchste vergebene + 1,
    ein entfernter wird nicht neu vergeben, solange ein höherer steht), hinter allen anderen Positionen, ohne LV-Titel. In Rechnungen
@@ -2377,7 +2377,7 @@ Wird der Umfang zu groß: nach Punkt 5 committen und den Rest auflisten. Commit 
   zweiten (Nebenbefund 5 aus 1.8.85) -- wirft sie nach der Sperre der Auftragszeile, hielt ihre offene Transaktion die Sperre; eine
   spätere Aktion auf derselben Zeile wartete ewig.
 
-#### Festlegungen 1.8.87 (Bitte bestätigen)
+#### Festlegungen 1.8.87 (Bitte bestätigen; je in einer Zeile vorgelegt unter "Nacharbeiten R4c")
 
 1. **"Heute" = Berliner Tag auf jeder Seite**, auch wo bisher die Zeitzone des Geräts galt (Kalender, Aufgaben, Checkliste, Angebot …)
    -- wie der Server (Regel 20); ein Gerät in einer anderen Zeitzone sieht den Berliner Tag.
@@ -2432,7 +2432,7 @@ Wird der Umfang zu groß: nach Punkt 5 committen und den Rest auflisten. Commit 
   zuletzt abgerechneten Menge (4)"), darüber "Eine Position weicht ab – bitte das Ist prüfen (markiert)". Nach dem Finalisieren und an
   jeder anderen Rechnung die bisherige Tabelle (Soll, Ist (gesamt), abgerechnet).
 
-#### Festlegungen 1.8.88 (Bitte bestätigen)
+#### Festlegungen 1.8.88 (Bitte bestätigen; je in einer Zeile vorgelegt unter "Nacharbeiten R4c")
 
 1. **Markiert wird** ein Ist ungleich der Menge des Auftrags (mehr oder weniger) und ein Ist unter der zuletzt abgerechneten Menge (die
    Schlussrechnung nähme damit Abgerechnetes zurück); ein Ist zwischen beiden ist nicht "abweichend". Nur Hinweis, kein Sperrgrund --
@@ -2490,7 +2490,7 @@ Umfang: nach Punkt 5 committet (Vorgabe); Punkte 6 und 7 als eigene Version 1.8.
 - Zahlungen bleiben je Rechnung (unverändert; der Vorschlag geht schon zuerst auf die älteren offenen Rechnungen des Auftrags).
 - Klicktest `scripts/klicktest_mahnen_endrechnung.py`.
 
-#### Festlegungen 1.8.89 (Bitte bestätigen)
+#### Festlegungen 1.8.89 (Nr. 2 und 3 bestätigt am 13.10.2026, solange die Mahngebühren aus sind -- `zahlungen.md`, "Vor dem Einschalten der Mahngebühren"; Nr. 1, 4–7 bitte bestätigen, je in einer Zeile vorgelegt unter "Nacharbeiten R4c")
 
 1. **Abgezogen** heißt: Abzug (`InvoiceDeduction`) einer gültigen Schlussrechnung. Eine Schlussrechnung von vor 1.8.85 ohne Abzüge
    (Altbestand, Rest über die Menge) ändert nichts -- ihre Abschläge bleiben einzeln mahnbar. Nach dem Storno der Schlussrechnung gilt
@@ -2578,7 +2578,7 @@ Umfang: nach Punkt 5 committet (Vorgabe); Punkte 6 und 7 als eigene Version 1.8.
   als eigener Absatz vor dem letzten (`_with_payment_note()`). `{gesamtbetrag}` bleibt der Rechnungsbetrag.
 - Klicktest `scripts/klicktest_ueberzahlung.py`.
 
-#### Festlegungen 1.8.90 (Bitte bestätigen)
+#### Festlegungen 1.8.90 (Nr. 4 bestätigt am 13.10.2026 zusammen mit Nacharbeit 1, gebaut als 1.8.91; Nr. 1–3, 5–7 bitte bestätigen, je in einer Zeile vorgelegt unter "Nacharbeiten R4c")
 
 1. **Unter 0 € nur die Schlussrechnung**; ein Abschlag bleibt über 0 € Pflicht (Festlegung 1.8.83 Nr. 6 geändert).
 2. **Erstattungsbetrag** = −Zahlbetrag laut Zahlungshinweis (beim Festschreiben eingefroren, wie der Zahlbetrag); "Erstattung" mit
@@ -2623,6 +2623,125 @@ Umfang: nach Punkt 5 committet (Vorgabe); Punkte 6 und 7 als eigene Version 1.8.
    im "Offenen Betrag" mit, das Guthaben nicht dagegen (Nebenbefund 1 aus 1.8.89).
 3. **Rest einer Zahlung und Guthaben** stehen in der Kundenakte nebeneinander -- ein nicht zugeordneter Rest wird nicht mit einem Guthaben
    verrechnet und umgekehrt.
+
+## Nacharbeiten R4c (ab 1.8.91)
+
+### Vorgabe vom 13.10.2026 (übernommen wie gegeben)
+
+R4c geprüft. Festlegungen 1.8.82 Nr. 6–9 und 1.8.83 Nr. 7–8 bestätigt. Die neuen aus R4c (1.8.87–1.8.90) bitte alle je in einer Zeile
+vorlegen. In CLAUDE.md als Regel: Der Bericht nennt jede neue Festlegung in einer Zeile, nicht nur die wichtigsten.
+
+1.8.89 Nr. 2/3 bestätigt, solange die Mahngebühren aus sind; ins Archiv unter „Vor dem Einschalten der Mahngebühren“. 1.8.90 Nr. 4
+bestätigt zusammen mit Punkt 1.
+
+Nacharbeiten R4c:
+1. Nach der gültigen Schlussrechnung zählen Finanzen und Dashboard je Auftrag nur noch ihren Zahlbetrag: positiv als offen, negativ als
+   Guthaben. Die abgezogenen Rechnungen zählen dort nicht mehr einzeln; an ihnen steht „enthalten in Schlussrechnung R-…“ statt
+   „teilweise bezahlt“.
+2. Ist der Zahlbetrag negativ, entfällt die Zahlungsaufforderung im Schlusstext; stattdessen ein eigener Text für die Erstattung,
+   gepflegt in den Einstellungen.
+3. Am Kunden stehen nicht zugeordneter Rest und Guthaben zusammen als „Guthaben des Kunden“, aufgeschlüsselt; eine Erstattung kann
+   beides ausgleichen.
+
+Angriffstests mit Gegenprobe. Eigene Festlegungen mit „Bitte bestätigen“, je in einer Zeile. Nebenbefunde nur melden. Commit nach
+Regel 13, Bericht kurz.
+
+### Vorweg
+
+- Festlegungen 1.8.82 Nr. 6–9 und 1.8.83 Nr. 7–8 an den Überschriften als bestätigt markiert; 1.8.89 Nr. 2 und 3 als bestätigt, solange
+  die Mahngebühren aus sind, und in `zahlungen.md` unter "Vor dem Einschalten der Mahngebühren" festgehalten; 1.8.90 Nr. 4 als bestätigt
+  zusammen mit Punkt 1 (gebaut als 1.8.91).
+- CLAUDE.md Regel 28: der Bericht nennt jede neue Festlegung in einer Zeile.
+- **Zur Bestätigung vorgelegt, je eine Zeile** (Wortlaut oben unter "Umsetzung R4c"):
+  - 1.8.87 Nr. 1: "Heute" ist auf jeder Seite der Berliner Tag, auch wo bisher die Zeitzone des Geräts galt.
+  - 1.8.87 Nr. 2: Umgestellt ist nur das heutige Datum (und die Uhrzeit beim Vorbelegen); gespeicherte UTC-Zeitstempel im Browser
+    bleiben offen.
+  - 1.8.87 Nr. 3: Plantafel und Kalender rechnen weiter in Ortszeit des Geräts, nur ihr Ausgangstag ist der Berliner; Tage über
+    `localDateIso()`.
+  - 1.8.87 Nr. 4: Der Strukturtest sucht per Muster im Text der Vorlagen; jede Fundstelle braucht einen Eintrag mit Grund.
+  - 1.8.88 Nr. 1: Markiert wird ein Ist ungleich der Auftragsmenge und ein Ist unter der zuletzt abgerechneten Menge; nur Hinweis, kein
+    Sperrgrund.
+  - 1.8.88 Nr. 2: Verglichen wird mit der Auftragsmenge von heute, nicht mit dem Schnappschuss des Entwurfs.
+  - 1.8.88 Nr. 3: Der Vergleich steht nur im Entwurf der Schlussrechnung; das PDF bleibt unverändert.
+  - 1.8.89 Nr. 1: Abgezogen heißt Abzug einer gültigen Schlussrechnung; ohne Abzüge (Altbestand) und nach ihrem Storno gilt wieder je
+    Rechnung.
+  - 1.8.89 Nr. 4: Der Einbehalt einer abgezogenen Rechnung gehört zum angemahnten Betrag; der eigene der Schlussrechnung wird nicht
+    gemahnt.
+  - 1.8.89 Nr. 5: Mahnstufen und Fristen folgen der Schlussrechnung; eine erreichte Stufe eines Abschlags zählt nicht.
+  - 1.8.89 Nr. 6: Verzugszinsen der Schlussrechnung laufen auf den angemahnten Betrag ab ihrem eigenen Verzugsbeginn; die Pauschale je
+    Rechnung.
+  - 1.8.89 Nr. 7: "Überfällig" richtet sich nach dem angemahnten Betrag; der Zahlstand je Rechnung bleibt (seit 1.8.91 heißt die
+    abgezogene in Listen "enthalten in …").
+  - 1.8.90 Nr. 1: Unter 0 € darf nur die Schlussrechnung lauten; ein Abschlag bleibt über 0 € Pflicht.
+  - 1.8.90 Nr. 2: Erstattungsbetrag = −Zahlbetrag laut eingefrorenem Zahlungshinweis, mit festem Satz statt der Zahlungsbedingungen;
+    ist nur der Rechnungsbetrag negativ, bleibt der Zahlungssatz ohne Skonto.
+  - 1.8.90 Nr. 3: Skonto gibt es nur bei einem Rechnungsbetrag über 0 €, für jede Rechnungsart.
+  - 1.8.90 Nr. 5: Der Zahlungsausgang ist eine Zahlung mit negativem Betrag, höchstens das Guthaben, nicht in der Zukunft, nur an der
+    Schlussrechnung, nur als Ganzes zurückzunehmen.
+  - 1.8.90 Nr. 6: Eine Schlussrechnung mit gebuchter Erstattung lässt sich erst nach deren Rücknahme stornieren.
+  - 1.8.90 Nr. 7: Die E-Mail nennt den Betrag laut Zahlungshinweis (Stand des PDFs), als eigenen Absatz vor dem Gruß, wenn die Vorlage
+    keinen der neuen Platzhalter nennt.
+
+### Umsetzung 1.8.91: Finanzen und Dashboard zählen je Auftrag den Zahlbetrag (Punkt 1)
+
+#### Was gebaut ist
+
+- **Wie eine Rechnung zählt** (neu `app/final_dunning.py::overview()`, aus Zahlstand und `DunningState`, an jeder Rechnungszeile als
+  `overview` = {state, state_label, open, retained, credit, settled_in}; `_payment_info()` in `app/invoices.py`, also in
+  `/api/invoices`, `/api/projects/{id}/invoices`, `/api/orders/{id}/invoices` und `/api/invoices/{id}`):
+  - an einer in einer gültigen Endrechnung abgezogenen Rechnung mit offenem Betrag (auch nur Einbehalt): Zustand `enthalten`, "enthalten
+    in Schlussrechnung R-…", zählt 0; bezahlt bleibt `bezahlt`;
+  - an der gültigen Endrechnung: Zahlbetrag = eigener offener Betrag (einschließlich Einbehalt; unter 0 € die Überzahlung zuzüglich der
+    Erstattungen) + offene Beträge der abgezogenen. Positiv: offen, davon Einbehalt = eigener + der abgezogenen; Zustand ihr eigener
+    Zahlstand, wenn keine abgezogene mehr offen ist, sonst `zahlbetrag_offen` ("Zahlbetrag offen"). Negativ: `guthaben`, Guthaben = das
+    Guthaben des Kunden (`DunningState.credit`). Null: `bezahlt` bzw. ohne eigenen Zahlstand (unter 0 €) `ausgeglichen`;
+  - sonst der Zahlstand der Rechnung; Entwurf, Storno und stornierte Rechnung zählen nicht (`overview` leer).
+- **Finanzen**: offene Rechnungen, offener Betrag und "davon Einbehalt" aus `overview`, neue Kennzahl "Guthaben (Überzahlung)"; Spalte
+  "Offen" mit dem Zahlbetrag, "—" an einer enthaltenen Rechnung, "Guthaben …" an der Endrechnung mit Überzahlung; Filter "Offen" mit
+  "Zahlbetrag offen", "Bezahlt" mit "ausgeglichen", neu "Guthaben" und "In Schlussrechnung".
+- **Dashboard** (Kennzahlen): offene Rechnungen und offener Betrag wie Finanzen, dazu "Guthaben (Überzahlung)".
+- **Auftrag und Projektmappe** (Rechnungslisten) und **Kennzeichen der Rechnungsseite** nach `overview` ("Enthalten in Schlussrechnung …",
+  "Zahlbetrag offen 495,00 €", "Guthaben 24,00 €"); die Karte "Zahlungen" der Rechnung zeigt weiter ihren eigenen Zahlstand -- gebucht
+  wird je Rechnung.
+
+#### Festlegungen 1.8.91 (Bitte bestätigen)
+
+1. **Zahlbetrag einschließlich Einbehalt**: offen an der Endrechnung = eigener offener Betrag samt Einbehalt + offene abgezogene
+   Rechnungen samt Einbehalt (wie "Offener Betrag" bisher je Rechnung); der eigene Einbehalt der Schlussrechnung zählt dort als offen,
+   gemahnt wird er weiter nicht.
+2. **"Enthalten in Schlussrechnung R-…"** nur an einer abgezogenen Rechnung mit offenem Betrag (auch nur Einbehalt); eine bezahlte bleibt
+   "bezahlt".
+3. **Überall, wo der Zustand einer Rechnung steht**: Finanzen, Dashboard, Auftrag, Projektmappe und Kennzeichen der Rechnungsseite; die
+   Karte "Zahlungen" der Rechnung bleibt beim eigenen Zahlstand.
+4. **Zustand der Endrechnung**: ohne offene abgezogene Rechnung ihr eigener Zahlstand, sonst "Zahlbetrag offen"; negativ "Guthaben",
+   ausgeglichen ohne eigenen Zahlstand "ausgeglichen".
+5. **Guthaben in Finanzen und Dashboard** = Summe der Guthaben aus Endrechnungen (`DunningState.credit`), als eigene Kennzahl neben dem
+   offenen Betrag, nie mit ihm verrechnet.
+6. **Filter in Finanzen**: neu "Guthaben" und "In Schlussrechnung"; "Offen" schließt "Zahlbetrag offen" ein, "Bezahlt" "ausgeglichen".
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v394_finanzen_zahlbetrag.py` (12): teilweise bezahlter Abschlag in der Schlussrechnung enthalten, nur die
+  Schlussrechnung zählt (4.950 €); Rechnungsbetrag unter 0 € mit offenem Abschlag zählt den positiven Zahlbetrag (760 €); negativer
+  Zahlbetrag als Guthaben (240 €); bezahlter Abschlag bleibt bezahlt, Guthaben 1.190 €; ausgeglichen; Einbehalte des Abschlags und der
+  Schlussrechnung; eigener Zahlstand der Schlussrechnung ohne offenen Abschlag; nach Storno der Schlussrechnung wieder je Rechnung;
+  Altbestand ohne Abzüge; Entwurf und Storno zählen nicht; vier Routen mit `overview`; Finanzen und Dashboard summieren `overview`.
+- Klicktest `scripts/klicktest_finanzen_zahlbetrag.py` (neu) 15/15: Finanzen mit offenen Rechnungen 1, 495 €, Guthaben 24 €, Abschläge
+  "Enthalten in Schlussrechnung …" mit "—", Filter; Dashboard; Auftrag und Projektmappe; Kennzeichen der Rechnungsseite, Karte
+  "Zahlungen" weiter "teilweise bezahlt"; 412 px dunkel; Monteurin 403.
+- **Erwartung geändert**: `klicktest_mahnen_endrechnung` prüfte am Abschlag das Kennzeichen "… · in … abgezogen", jetzt "Enthalten in
+  Schlussrechnung …" (seit 1.8.91), 18/18; `klicktest_ueberzahlung` 16/16 unverändert.
+- Gegenproben (Regel 24): 9 von 9 rot -- abgezogene zählt einzeln, bezahlte auch "enthalten", Endrechnung ohne die abgezogenen, negativ
+  nicht als Guthaben, Einbehalt der abgezogenen fehlt, Zeilen ohne `overview`, Schema der Finanzen ohne `overview`, Finanzen bzw.
+  Dashboard nach dem alten Stand. Jede Datei byte-genau zurück, kein Marker.
+- Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie, drei Teile parallel): 3866 grün, 0 rot. Alle Klicktests auf dem Stand 1.8.93, der diese Version enthält (siehe dort).
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **"Bezahlt (gesamt)" in Finanzen** zählt Zahlungen auf Rechnungen; ein Zahlungsausgang (Erstattung) mindert die Kennzahl nicht.
+2. **Zahlung auf eine enthaltene Rechnung**: der Zahlungsdialog und "Rest zuordnen" bieten abgezogene Rechnungen weiter einzeln an (gebucht
+   wird je Rechnung, der Vorschlag geht schon zuerst auf die älteren des Auftrags) -- richtig, aber in Finanzen steht die Rechnung ohne
+   offenen Betrag.
 
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
@@ -2698,3 +2817,12 @@ Ergänzt am 13.10.2026 (Vorgabe R4c), übernommen wie gegeben -- Wortlaut unter 
   ohne Skonto und ohne „zahlbar“; die Erstattung ist als Zahlungsausgang buchbar, ein Guthaben steht am Kunden; Skonto nur bei
   positivem Rechnungsbetrag. (Seit 1.8.90 gebaut.)
 - **E-Mail zur Schlussrechnung** nennt den Zahlbetrag bzw. den Erstattungsbetrag. (Seit 1.8.90 gebaut.)
+
+Ergänzt am 13.10.2026 (Nacharbeiten R4c), übernommen wie gegeben -- Wortlaut unter "Nacharbeiten R4c":
+
+- **Finanzen und Dashboard** zählen nach der gültigen Schlussrechnung je Auftrag nur ihren Zahlbetrag: positiv als offen, negativ als
+  Guthaben; die abgezogenen Rechnungen zählen nicht mehr einzeln, an ihnen steht „enthalten in Schlussrechnung R-…“ statt „teilweise
+  bezahlt“. (Seit 1.8.91 gebaut.)
+- **Schlusstext bei negativem Zahlbetrag**: ohne Zahlungsaufforderung, stattdessen ein eigener Text für die Erstattung, gepflegt in den
+  Einstellungen.
+- **Guthaben des Kunden**: nicht zugeordneter Rest und Guthaben zusammen, aufgeschlüsselt; eine Erstattung kann beides ausgleichen.
