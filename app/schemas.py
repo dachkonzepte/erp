@@ -2269,6 +2269,9 @@ class InvoiceItemOut(BaseModel):
     ist_quantity: Decimal
     billed_quantity: Decimal
     billed_total: Decimal
+    # Seit 1.8.88: im Entwurf der Schlussrechnung {order_quantity, last_billed_quantity, deviations}
+    # (app/invoices.py::final_quantity_checks()), sonst None.
+    quantity_check: dict | None = None
 
 
 class PaymentStateOut(BaseModel):

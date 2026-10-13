@@ -140,6 +140,23 @@ async def pruefen(tab, seed, p):
              await tab.js("[document.getElementById('itPrice').disabled,document.getElementById('itUnit').disabled,"
                           "document.getElementById('itIst').disabled]"), [True, True, False])
     await tab.js("document.getElementById('itemDialog').close()")
+    # Seit 1.8.88: Auftragsmenge, zuletzt abgerechnete Menge und Ist nebeneinander, Abweichungen markiert.
+    p.pruefe("Mengen: Auftrag 10, zuletzt 4, Ist 10, ohne Markierung",
+             await tab.js("(()=>{const r=document.querySelector('#itemsList [data-position]');return ["
+                          "document.getElementById('itemsHead').textContent,r.querySelector('[data-auftragsmenge]').textContent,"
+                          "r.querySelector('[data-zuletzt]').textContent,r.querySelector('input').value,r.dataset.abweichung||'',"
+                          "document.getElementById('quantityNotice').textContent]})()"),
+             ["OZLeistungAuftragzuletzt abgerechnetIstEPBetrag", "10", "4", "10", "", ""])
+    await tab.js(f"quickIst({pos},'3')")
+    p.pruefe("Ist 3: unter Auftrag und zuletzt abgerechnet markiert", await tab.warten(
+        "document.querySelector('#itemsList [data-position]').dataset.abweichung==='auftrag abgerechnet'"
+        "&&document.querySelector('[data-mengen-abweichung]')"), True)
+    await tab.js("document.getElementById('itemsCard').scrollIntoView()")
+    await tab.bild("mengen_abweichung_hell")
+    await tab.js(f"quickIst({pos},'10')")
+    p.pruefe("Ist 10: Markierung weg", await tab.warten(
+        "!document.querySelector('#itemsList [data-abweichung]')&&!document.querySelector('[data-mengen-abweichung]')"
+        "&&invoice.items[0].ist_quantity==10"), True)
     # Seit 1.8.86: Zahlungshinweis -- offen sind der pauschale Abschlag (119 €), der Abschlag (138 €, davon Einbehalt 38 €) und die
     # Rechnung aus Aufwand (59,50 €); Zahlbetrag 238 + 119 + 138 + 59,50 = 554,50 €.
     p.pruefe("Zahlungshinweis: drei offene, einer mit Einbehalt, Zahlbetrag",

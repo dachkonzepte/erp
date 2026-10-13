@@ -62,7 +62,8 @@ def test_invoice_detail_screen_still_shows_all_three_quantities():
 
     with open("app/templates/invoice_detail.html", encoding="utf-8") as f:
         src = f.read()
-    head_match = re.search(r'class="inv-head">(.*?)</div><div id="itemsList"', src)
+    # Seit 1.8.88 mit id="itemsHead" (im Entwurf der Schlussrechnung tauscht renderItems() die Spalten, siehe test_v391).
+    head_match = re.search(r'class="inv-head"[^>]*>(.*?)</div><div id="itemsList"', src)
     assert head_match is not None
     head = head_match.group(1)
     assert ">Soll<" in head

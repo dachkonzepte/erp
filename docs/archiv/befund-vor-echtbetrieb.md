@@ -2417,6 +2417,43 @@ Wird der Umfang zu groß: nach Punkt 5 committen und den Rest auflisten. Commit 
 2. **Wiedervorlage einer Anfrage**: `follow_up_at` ist eine DateTime-Spalte, Dashboard und Anfragen vergleichen sie als Zeitpunkt in
    Ortszeit des Geräts -- ob sie als naive UTC oder als Ortszeit gespeichert wird, ist hier nicht geprüft.
 
+### Umsetzung 1.8.88: Mengenvergleich im Entwurf der Schlussrechnung (Ergänzung zu Festlegung 1.8.85 Nr. 1)
+
+#### Was gebaut ist
+
+- **Vergleich** (`app/invoices.py::final_quantity_checks()`, je Position mit Auftragsbezug im Entwurf der Schlussrechnung, als
+  `quantity_check` an der Position in `invoice_to_dict()`): Menge des Auftrags (von heute -- die Mengen des Auftrags bleiben bis zur
+  Schlussrechnung änderbar, R4a), zuletzt abgerechnete Menge (`get_previous_cumulative_ist()`: Ist der zuletzt festgeschriebenen
+  Rechnung dieser Position, Abschlag nach Leistungsstand oder Schluss; 0, wenn nie abgerechnet; ein Storno setzt auf den Stand davor
+  zurück) und die Abweichungen des Ist -- `auftrag` (Ist ≠ Menge des Auftrags), `abgerechnet` (Ist unter der zuletzt abgerechneten
+  Menge).
+- **Rechnungsseite**: im Entwurf der Schlussrechnung die Spalten Auftrag / zuletzt abgerechnet / Ist (Eingabe) / EP / Betrag; eine
+  abweichende Zeile farbig mit dem Grund unter dem Text ("Ist weicht von der Auftragsmenge ab (Auftrag 10)", "Ist liegt unter der
+  zuletzt abgerechneten Menge (4)"), darüber "Eine Position weicht ab – bitte das Ist prüfen (markiert)". Nach dem Finalisieren und an
+  jeder anderen Rechnung die bisherige Tabelle (Soll, Ist (gesamt), abgerechnet).
+
+#### Festlegungen 1.8.88 (Bitte bestätigen)
+
+1. **Markiert wird** ein Ist ungleich der Menge des Auftrags (mehr oder weniger) und ein Ist unter der zuletzt abgerechneten Menge (die
+   Schlussrechnung nähme damit Abgerechnetes zurück); ein Ist zwischen beiden ist nicht "abweichend". Nur Hinweis, kein Sperrgrund --
+   das Ist ist Sache der Rechnung (Festlegung 1.8.85 Nr. 6).
+2. **Auftragsmenge von heute**, nicht der Schnappschuss beim Anlegen des Entwurfs (`soll_quantity`) -- eine spätere Mengenänderung am
+   Auftrag zeigt sich sofort.
+3. **Nur im Entwurf** und nur an der Schlussrechnung; das PDF bleibt unverändert.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v391_schluss_mengenvergleich.py` (7): ohne Abweichung; Ist unter der Auftragsmenge, unter dem zuletzt abgerechneten
+  Stand, über der Auftragsmenge; nie abgerechnete Position und Nachtrag bei 0; Auftragsmenge live, zuletzt abgerechnet folgt einem
+  später festgeschriebenen Abschlag; nach Storno des letzten Abschlags der Stand davor; kein Vergleich nach dem Festschreiben und an
+  einem Abschlag; Router.
+- Gegenproben (Regel 24): 5 von 5 rot -- Abweichung vom Auftrag bzw. unter dem abgerechneten Stand nicht markiert, Auftragsmenge aus
+  dem Schnappschuss, Vergleich auch nach dem Festschreiben, Schema ohne das Feld. Jede Datei byte-genau zurück, kein Marker.
+- Klicktest `klicktest_endrechnung.py` erweitert: Spalten Auftrag 10 / zuletzt 4 / Ist 10 ohne Markierung, Ist 3 markiert mit beiden
+  Gründen und Hinweis, zurück auf 10 ohne Markierung.
+- Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie, drei Teile parallel): 3814 grün, 1 rot -- `test_v231_invoice_item_table_width_and_quantity::test_invoice_detail_screen_still_shows_all_three_quantities` suchte den Tabellenkopf ohne Attribut (jetzt `id="itemsHead"`), Erwartung angepasst, die Datei danach 9 grün.
+- Klicktest `klicktest_endrechnung` 25/25 (Arbeitskopie); alle Klicktests auf dem Stand 1.8.89, der diese Version enthält (siehe dort).
+
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
 Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):
@@ -2481,7 +2518,7 @@ Ergänzt am 12.10.2026 (Vorgabe R4b), übernommen wie gegeben -- Wortlaut unter 
 Ergänzt am 13.10.2026 (Vorgabe R4c), übernommen wie gegeben -- Wortlaut unter "Umsetzung R4c":
 
 - **Mengen im Entwurf der Schlussrechnung** (Ergänzung zu Festlegung 1.8.85 Nr. 1): je Position Auftragsmenge, zuletzt abgerechnete
-  Menge und Ist nebeneinander, Abweichungen markiert.
+  Menge und Ist nebeneinander, Abweichungen markiert. (Seit 1.8.88 gebaut.)
 - **Abgezogene Rechnungen** stehen nach der gültigen Schlussrechnung nicht mehr einzeln in „zur Mahnung fällig“ und lassen sich nicht
   einzeln mahnen; offene Mahnungsentwürfe zu ihnen gelten als überholt.
 - **Einbehalte** auf abgezogene Rechnungen werden mit der gültigen Schlussrechnung fällig.

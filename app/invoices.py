@@ -783,6 +783,34 @@ def _proposed_ist(db: Session, invoice: Invoice, order: Order, order_item: Order
     return get_previous_cumulative_ist(db, order.id, order_item.id, exclude_invoice_id=invoice.id)
 
 
+def final_quantity_checks(invoice: Invoice) -> dict[int, dict]:
+    """Mengenvergleich im Entwurf der Schlussrechnung (seit 1.8.88, Ergänzung zu Festlegung 1.8.85 Nr. 1): je Position mit
+    Auftragsbezug die Menge des Auftrags (heute), die zuletzt abgerechnete Menge (Ist der zuletzt festgeschriebenen Rechnung dieser
+    Position, get_previous_cumulative_ist(); 0, wenn noch nie abgerechnet) und die Abweichungen des Ist: "auftrag" (Ist ≠ Menge des
+    Auftrags) und "abgerechnet" (Ist unter der zuletzt abgerechneten Menge). Leer für jede andere Rechnung und nach dem Festschreiben."""
+    if invoice.invoice_type != "schluss" or invoice.status != EDITABLE_STATUS:
+        return {}
+    db = object_session(invoice)
+    if db is None:
+        return {}
+    order_items = {item.id: item for item in db.scalars(select(OrderItem).where(OrderItem.order_id == invoice.order_id))}
+    checks = {}
+    for item in invoice.items:
+        if item.source_order_item_id is None:
+            continue
+        source = order_items.get(item.source_order_item_id)
+        order_quantity = source.quantity if source is not None else None
+        last = get_previous_cumulative_ist(db, invoice.order_id, item.source_order_item_id, exclude_invoice_id=invoice.id)
+        ist = Decimal(item.ist_quantity or 0)
+        deviations = []
+        if order_quantity is not None and ist != Decimal(order_quantity):
+            deviations.append("auftrag")
+        if ist < Decimal(last):
+            deviations.append("abgerechnet")
+        checks[item.id] = {"order_quantity": order_quantity, "last_billed_quantity": last, "deviations": deviations}
+    return checks
+
+
 def _add_order_item(db: Session, invoice: Invoice, order: Order, order_item: OrderItem) -> None:
     ist_quantity = _proposed_ist(db, invoice, order, order_item)
     billed_quantity, billed_total = compute_billed_quantity_and_total(
@@ -1658,6 +1686,7 @@ def invoice_to_dict(invoice: Invoice) -> dict:
     Ist=0 sehen und bearbeiten können, nur die PDF-Ausgabe blendet sie aus."""
     totals = compute_invoice_totals(invoice)
     items = sorted(invoice.items, key=lambda x: (x.sort_order, x.id))
+    quantity_checks = final_quantity_checks(invoice)  # seit 1.8.88: Entwurf der Schlussrechnung
     return {
         "id": invoice.id,
         "invoice_number": invoice.invoice_number,
@@ -1706,6 +1735,8 @@ def invoice_to_dict(invoice: Invoice) -> dict:
                 "long_text": i.long_text, "unit": i.unit, "unit_price": i.unit_price,
                 "soll_quantity": i.soll_quantity, "ist_quantity": i.ist_quantity,
                 "billed_quantity": _billed(invoice, i)[0], "billed_total": invoice_line_total(invoice, i),
+                # Seit 1.8.88: im Entwurf der Schlussrechnung Menge des Auftrags, zuletzt abgerechnet, Abweichungen des Ist.
+                "quantity_check": quantity_checks.get(i.id),
             }
             for i in items
         ],

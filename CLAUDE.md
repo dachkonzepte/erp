@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.87** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.88** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -1047,7 +1047,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Stand nach dem Festschreiben, 1d behoben; R4b ab 1.8.84: seit 1.8.85 Punkte 2, 3, 5 -- Endrechnung mit Abzugsblock, Neuberechnung
   beim Festschreiben, Abweichung vom Auftrag mit "Aus dem Auftrag aktualisieren", Abschlag über 0 €, kein Aufwand nach der
   Schlussrechnung, 1a und 1b behoben; seit 1.8.86 Punkte 4 und 6 -- Zahlungshinweis "Stand …", abschließende Rechnung aus Aufwand am
-  Auftrag nach Aufwand; R4c ab 1.8.87: Vorweg -- "heute" im Browser aus Berlin, Klicktest Mahnwesen wartet, Testhelfer `_run`)
+  Auftrag nach Aufwand; R4c ab 1.8.87: Vorweg -- "heute" im Browser aus Berlin, Klicktest Mahnwesen wartet, Testhelfer `_run`;
+  seit 1.8.88 Mengenvergleich im Entwurf der Schlussrechnung: Auftragsmenge, zuletzt abgerechnet, Ist, Abweichungen markiert)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Zahlungen** (Zahlungsstufe Z1 seit 1.8.78: Zahlungseingang mit Zuordnungen, Skonto und Einbehalt, Rest am Kunden,
   Zahlstand abgeleitet, Gegenbuchung statt Ändern, Sperrreihenfolge, Storno erst nach gelösten Zuordnungen, Finanzen/Dashboard mit
@@ -1531,7 +1532,8 @@ Rechnungsseite: Schlussrechnung ohne "+ Position" mit Hinweis und N1, Aufwand mi
 Finalisieren; hell, dunkel, 412 px) und `klicktest_endrechnung.py` (1.8.85, Rechnungsseite: Karte "Endrechnung" mit Gesamtleistung
 samt Aufwand, Abzugsblock und Rechnungsbetrag, Steuerschlüssel und Preis aus dem Auftrag gesperrt, finalisieren, PDF aus der Ablage;
 Abweichung vom Auftrag mit Grund und "Aus dem Auftrag aktualisieren"; Grund für Aufwand auf der Auftragsseite; hell, dunkel, 412 px;
-seit 1.8.86 Zahlungshinweis mit Einbehalt und Zahlbetrag, Häkchen "abschließend" am Auftrag nach Aufwand) und
+seit 1.8.86 Zahlungshinweis mit Einbehalt und Zahlbetrag, Häkchen "abschließend" am Auftrag nach Aufwand; seit 1.8.88 Mengenvergleich
+im Entwurf mit Markierung) und
 `klicktest_browser_datum.py` (1.8.87, Instanz und Browser-Uhr um 00:30 Uhr, Browser in UTC und New York: Monteur-Zeiterfassung mit der
 Buchung von heute, Stundenzettel, Büro-Zeiterfassung, Aufgaben überfällig, Plantafel, Kalender).
 Ein

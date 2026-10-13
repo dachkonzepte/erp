@@ -4,6 +4,15 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.88 – Mengenvergleich im Entwurf der Schlussrechnung (Ergänzung zu Festlegung 1.8.85 Nr. 1)
+
+Der Entwurf der Schlussrechnung zeigt je Position die Menge des Auftrags (von heute), die zuletzt abgerechnete Menge (Ist der zuletzt
+finalisierten Rechnung dieser Position) und das Ist nebeneinander; weicht das Ist von der Auftragsmenge ab oder liegt es unter der
+zuletzt abgerechneten Menge, ist die Zeile markiert und nennt den Grund, darüber ein Hinweis mit der Zahl der Abweichungen. Nach dem
+Finalisieren und an jeder anderen Rechnung bleibt die Tabelle wie bisher (Soll, Ist, abgerechnet). Neu `test_v391_schluss_mengenvergleich`
+(7), Klicktest `klicktest_endrechnung` um den Vergleich erweitert. Gegenproben 5 von 5 rot. Volle Suite (mit den opt-in-Tests gegen PostgreSQL, Arbeitskopie, drei Teile parallel): 3814 grün, 1 rot -- `test_v231_invoice_item_table_width_and_quantity::test_invoice_detail_screen_still_shows_all_three_quantities` suchte den Tabellenkopf ohne Attribut (jetzt `id="itemsHead"`), Erwartung angepasst, die Datei danach 9 grün. Klicktest `klicktest_endrechnung` 25/25 (Arbeitskopie); alle Klicktests auf dem Stand 1.8.89, der diese Version enthält (siehe dort). Festlegungen zum Bestätigen
+in `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung R4c".
+
 ## 1.8.87 – „Heute“ im Browser aus Berlin, Wartebedingung im Klicktest Mahnwesen, Testhelfer schließt die Sitzung (R4c, Vorweg)
 
 Jede Seite bildet das heutige Datum jetzt in Europe/Berlin über `_berlin_date.html` (neu `berlinToday()`, `berlinMonth()`,
