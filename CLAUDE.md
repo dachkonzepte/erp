@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.99** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.100** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -1136,7 +1136,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   neuen Abschnitt „Parkplatz vor dem Echtbetrieb“; seit 1.8.98 Weiterleitungsziele nur lokal (Server und Browser), Sitzungen auf dem
   Server, `Cache-Control: no-store` für angemeldete Sitzungen, Regel 30; seit 1.8.99 Vorweg: Zeitlimit beim Hochladen ab dem Ende der
   Übertragung, gescheitertes Speichern sperrt abschließende Aktionen, Zeilensperren an abgeleiteten Werten in fünf Teil-Updates,
-  Verschieben im Angebot als Teil-Update, Regeln 26 und 28 erweitert)
+  Verschieben im Angebot als Teil-Update, Regeln 26 und 28 erweitert; Befund 1.8.100 Sicherheit der Seiten: acht Lücken als xfail in
+  `tests/test_v405_befund_seiten.py` -- Uploads als aktiver Inhalt, Secure nur per Umgebung, Anfragen von Seiten derselben Site,
+  Einrahmen, ungeschützte Namen an vier Stellen -- nur festgehalten, nicht behoben)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Zahlungen** (Zahlungsstufe Z1 seit 1.8.78: Zahlungseingang mit Zuordnungen, Skonto und Einbehalt, Rest am Kunden,
   Zahlstand abgeleitet, Gegenbuchung statt Ändern, Sperrreihenfolge, Storno erst nach gelösten Zuordnungen, Finanzen/Dashboard mit
@@ -1695,6 +1697,11 @@ jedem Bericht, Ergebnis im Bericht (Regel 26).
 
 ## Bekannte, bewusst offene Punkte
 
+- **Befund 1.8.100 Sicherheit der Seiten -- acht Lücken offen, nur festgehalten** (`tests/test_v405_befund_seiten.py`, je ein
+  `xfail(strict=True)`; `docs/archiv/befund-vor-echtbetrieb.md`, "Befund 1.8.100"): hochgeladene SVG/HTML-Dateien laufen beim Öffnen als
+  Skript (Kundenakte, Projektmappe, Objekt), `Secure` nur mit `ERP_COOKIE_SECURE=1`, kein Schutz schreibender Anfragen gegen Seiten derselben
+  Site, kein Schutz gegen Einrahmen, ungeschützte Namen und Titel in Einsatzbericht, "Neues Projekt"/"Neues Angebot", Kalender, Plantafel.
+  Wer eine davon schließt, entfernt den xfail-Marker ihres Tests.
 - **`client_uuid` am Einsatzbericht ist nicht idempotent -- Pflicht vor Checklisten-Stufe 3
   (offline)** (gefunden beim Checklisten-Befund, 29.09.2026): `InspectionItem`/`Finding`/
   `ServiceReportPhoto`/`ServiceReportMaterial`/`ServiceReportAsset` tragen nur den

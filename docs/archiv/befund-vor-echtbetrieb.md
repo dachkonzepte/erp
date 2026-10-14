@@ -3830,6 +3830,81 @@ kurz.
 5. **Der Neuaufbau des Materialbedarfs vergibt neue IDs** (wie bisher): eine offene Arbeitsvorbereitung bekommt beim Speichern einer
    ersetzten Zeile 404 und muss neu laden.
 
+### Befund 1.8.100: Cookie-Flags, schreibende Anfragen von fremden Seiten, ungeschützte Daten in Seiten (Punkt 4, nur Befund)
+
+Nichts am Code geändert. Jede Lücke steht als Test mit `xfail(strict=True)` in `tests/test_v405_befund_seiten.py` (er beschreibt das
+gewünschte Verhalten; wird die Lücke geschlossen, schlägt xfail an und der Marker fällt weg); jeder davon mit `--runxfail` geprüft: er
+scheitert genau an seiner Prüfung, nicht an seinem Aufbau. Die Suche nach ungeschützten Stellen in den Vorlagen hat ein lesender Helfer
+vorbereitet; jeder Fund unten ist hier nachgestellt.
+
+#### Befunde (Lücken, je ein xfail)
+
+1. **Cookie `Secure` nur über `ERP_COOKIE_SECURE=1`** (Vorgabe aus), auch mit `ERP_ENV=production`. Fehlt der Eintrag in der `.env` des
+   Servers, geht das Anmelde-Cookie auch über http (z. B. bei einem Aufruf von `http://app.dachkonzepte.gmbh` vor der Umleitung). Ob er auf
+   dem Server gesetzt ist, ist von hier aus nicht prüfbar. Die übrigen Flags sind richtig (siehe unten).
+2. **Kein Schutz schreibender Anfragen gegen Seiten derselben Site**: kein Abgleich von `Origin`/`Sec-Fetch-Site`, kein Token. Gegen fremde
+   Sites schützt `SameSite=Lax` (moderne Browser schicken das Cookie bei einer seitenfremden POST-Anfrage nicht mit), und JSON-Endpunkte
+   verlangen `application/json` -- eine fremde Seite käme nur nach einer CORS-Vorabanfrage durch, die der Server nicht beantwortet. Offen
+   bleiben Seiten derselben Site (jede Unterdomain von `dachkonzepte.gmbh`, etwa die Firmenwebsite): sie können "einfache" Anfragen mit dem
+   Anmelde-Cookie schicken -- an **154 schreibende Endpunkte ohne Body** (darunter Rechnung festschreiben und versenden, Storno, Mahnung
+   versenden, Checkliste abschließen, Abmelden) und **30 mit Formular oder Datei** (Uploads, Logo, Importe). Ältere Browser ohne SameSite
+   wären auch von fremden Sites aus offen.
+3. **Kein Schutz gegen Einrahmen** (weder `X-Frame-Options` noch `Content-Security-Policy: frame-ancestors`): eine Seite derselben Site
+   kann das ERP angemeldet in einem Rahmen zeigen und Klicks unterschieben (seitenfremde Rahmen bekommen das Lax-Cookie nicht).
+4. **Hochgeladene Dateien als aktiver Inhalt** (schwerster Fund): Kundenakte, Projektmappe, Objekt (auch der Upload des Monteurs in
+   /mobil, gleiche Ablage) liefern über `…/view` inline mit dem Typ aus, den der Browser beim Hochladen nannte -- ohne Prüfung des Inhalts,
+   ohne `X-Content-Type-Options: nosniff`, ohne CSP. Eine SVG- oder HTML-Datei mit Skript (etwa eine per Mail eingegangene "Zeichnung")
+   läuft beim Öffnen auf dem ERP-Ursprung, mit der Sitzung der Person, die öffnet -- ein Admin öffnet, das Skript handelt als Admin. Am
+   Objekt werden Bilder neu kodiert (SVG scheitert dort), HTML bleibt. `can_preview_type()` zeigt für jedes `image/*` (auch SVG) den Link
+   "Öffnen".
+5. **Gruppenname eines Prüfpunkts im Einsatzbericht** (`service_reports.html::inspectionItemsPanelHtml()`): geht nur für JS geschützt
+   (`\'`) in ein onclick-Attribut -- ein `"` beendet das Attribut, `<img onerror>` läuft beim Zeichnen. Setzen kann ihn jede Rolle, die den
+   Bericht bearbeitet, auch der Monteur (`POST /api/service-reports/{id}/inspection-items`, ohne Längengrenze).
+6. **"Neues Projekt" und "Neues Angebot"** (`project_form.html`, `quote_form.html`): Kundennummer und -name, Objektname und Ort, Projekt
+   und Kunde gehen ohne Schutz in die Auswahl (innerHTML) -- ein Altkunde oder ein Name aus dem Adressimport mit `<img onerror>` läuft beim
+   Öffnen der Seite (beide Seiten ohne esc()).
+7. **Verknüpfungssuche im Kalender** (`calendar.html`): `JSON.stringify` im onclick-Attribut, nur `'` als `&#39;`; der Browser dekodiert
+   `&quot;` im Attribut zu `"` -- ein Projekt- oder Angebotstitel mit `&quot;` beendet die Zeichenkette (Skript beim Klick).
+8. **Planungsvorschlag der Plantafel** (`planning.html::calculateSuggestion()`): Namen abwesender Mitarbeiter und Feiertage ohne Schutz in
+   innerHTML.
+
+#### Geprüft und in Ordnung
+
+- Anmelde-Cookie `HttpOnly`, `SameSite=Lax`, `Path=/`, `Max-Age` 12 h (wie die Sitzung); Cookie "vertrautes Gerät" `HttpOnly`,
+  `SameSite=Lax`, 30 Tage; das alte Cookie des zweiten Faktors wird gelöscht (Test).
+- JSON-Endpunkte nehmen kein JSON ohne `application/json` (`text/plain`, ohne Content-Type, Formular -> 422; Test).
+- Jinja escapt alle `.html`-Vorlagen; nirgends `|safe`, `Markup(` oder `autoescape false` (Test); jedes `{{ … }}` in einem Skript ist eine
+  Zahl, ein fester Text oder `|tojson`.
+- **Outlook-Termine**: Titel, Ort, Notiz und Besitzer gehen überall, wo sie erscheinen (Kalender, Projektmappe, Angebots-Editor), durch
+  `esc()` bzw. `auswahlOptionen()`. **Adressimport**: Vorschau, Arbeitsliste und Läufe über `esc()`. **Altkunden**: Kundenliste, Kundenakte,
+  Objekt und Projektmappe über `esc()` -- offen nur die beiden Formulare aus Nr. 6. GAEB/Leistungen, Dateinamen in Listen,
+  Lieferanten der Eingangsrechnungen ebenso geschützt.
+- `product_url` am Betriebsmittel (als Link) nimmt nur http/https mit Host an (Validator im Schema); serverseitig gebaute Links
+  (`source_url` der Aufgaben, Suchtreffer, Checklisten-Belege) bestehen aus IDs und festen Pfaden.
+
+#### Weniger dringend (kein Weg für fremde Daten gefunden)
+
+- Weitere onclick-Handler mit `'${esc(…)}'` (Checkliste, Prüfvorlagen, Einstellungen, Dachfläche) bekommen nur interne Schlüssel oder
+  Optionswerte, die ein Admin pflegt -- dasselbe unsichere Muster wie Nr. 5 (esc() schützt das HTML, nicht die JS-Zeichenkette, denn der
+  Browser dekodiert `&#39;` vor dem Ausführen).
+
+#### Festlegungen 1.8.100 (Bitte bestätigen)
+
+1. **"Fehler" = eine Lücke mit einem nachgestellten Angriff** (Nr. 1–8); was nur nach Muster unsicher aussieht, ohne Weg für fremde Daten, steht als "weniger dringend" ohne xfail.
+2. **Gewünschtes Verhalten im xfail** (das der Test prüft): Secure in Produktion von selbst; schreibende Anfrage mit fremdem `Origin`/`Sec-Fetch-Site: same-site` 403; `X-Frame-Options` oder `frame-ancestors`; SVG/HTML aus Uploads nicht inline als aktiver Inhalt (Anhang oder CSP sandbox); jede genannte Stelle zeigt `<img onerror>` als Text.
+3. **"Seite derselben Site" = jede Unterdomain von `dachkonzepte.gmbh`** -- wie viele es gibt und wer sie betreibt, ist von hier aus nicht prüfbar.
+4. **Nr. 4 ist der dringendste Fund**, vor Nr. 5–8 (ein Upload erreicht jede Rolle, die die Datei öffnet).
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v405_befund_seiten.py` (15): 3 grün (Flags des Anmelde-Cookies, JSON nur mit `application/json`, kein `|safe`),
+  12 `xfail(strict=True)` (Nr. 1, Nr. 2 zweimal, Nr. 3, Nr. 4 dreimal, Nr. 5, Nr. 6 zweimal, Nr. 7, Nr. 8); jeder mit `--runxfail`
+  an seiner Prüfung gescheitert (drei scheiterten zuerst am eigenen Aufbau -- Herauslösen der Funktion, esc() mit Semikolon,
+  fehlendes `_berlin_date.html` -- und wurden nachgebessert).
+- Gegenproben (Regel 24): 5 von 5 rot -- Anmelde-Cookie ohne HttpOnly, `|safe` in einer Vorlage; drei Lücken probeweise geschlossen
+  (X-Frame-Options, Escaping in "Neues Angebot", Secure in Produktion): XPASS, damit rot. Jede Datei byte-genau zurück, kein Marker.
+- Volle Suite und alle Klicktests auf dem Commit dieser Version: im Bericht (Regel 26).
+
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
 Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):

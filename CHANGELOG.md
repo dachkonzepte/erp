@@ -4,6 +4,22 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.100 – Befund Sicherheit der Seiten: Cookie-Flags, Anfragen von fremden Seiten, ungeschützte Daten (nur Befund)
+
+Punkt 4 der Vorgabe vom 14.10.2026, nur Befund -- kein Code geändert. Acht Lücken, jede als Test mit `xfail(strict=True)` in
+`test_v405_befund_seiten` (wird eine geschlossen, schlägt ihr Test an). Die dringendste: hochgeladene Dateien gehen inline mit dem Typ aus,
+den der Browser beim Hochladen nannte -- eine SVG- oder HTML-Datei mit Skript in Kundenakte, Projektmappe oder am Objekt (auch vom Monteur
+aus /mobil) läuft beim Öffnen mit der Sitzung der Person, die öffnet. Dazu: das Anmelde-Cookie ist nur mit `ERP_COOKIE_SECURE=1` `Secure`,
+auch in Produktion; Seiten derselben Site (jede Unterdomain von dachkonzepte.gmbh) erreichen 154 schreibende Endpunkte ohne Body und 30 mit
+Formular oder Datei mit dem Anmelde-Cookie (kein Abgleich von Origin, kein Token -- gegen fremde Sites schützt SameSite=Lax); kein Schutz
+gegen Einrahmen; ungeschützte Namen und Titel an vier Stellen (Gruppenname im Einsatzbericht, Kunden und Objekte in „Neues Projekt“ und
+„Neues Angebot“, Verknüpfungssuche im Kalender, Planungsvorschlag der Plantafel). Geprüft und in Ordnung: Outlook-Termine, Adressimport und
+Altkunden in allen übrigen Seiten, Jinja (kein `|safe`), HttpOnly und SameSite der Cookies, JSON nur mit `application/json`.
+
+Keine Migration. Neu `test_v405_befund_seiten` (3 grün, 12 xfail, jeder mit `--runxfail` an seiner Prüfung gescheitert). Gegenproben 5 von 5
+rot (zwei Prüfungen ausgehebelt, drei Lücken probeweise geschlossen: XPASS). Volle Suite und alle Klicktests auf diesem Commit: im Bericht
+(Regel 26 -- im Commit selbst stünde ein Ergebnis, das ihn ändert).
+
 ## 1.8.99 – Hochladen ohne vorzeitiges Zeitlimit, gescheitertes Speichern sperrt Abschließendes, Zeilensperren an abgeleiteten Werten
 
 Korrekturen der Festlegungen 1.8.96/1.8.97. Beim Hochladen läuft das Zeitlimit des Bausteins erst ab dem Ende der Übertragung: die Datei
