@@ -6,7 +6,8 @@ xfail(strict=True): er beschreibt das gewünschte Verhalten und ist heute rot; w
 (dann den Marker entfernen). Was geprüft und in Ordnung ist, steht als gewöhnlicher Test daneben. Herleitung, auch der geprüften und sicheren
 Stellen: docs/archiv/befund-vor-echtbetrieb.md, "Befund 1.8.100".
 
-Nichts davon ändert den Code (Vorgabe: nur Befund)."""
+Nichts davon ändert den Code (Vorgabe: nur Befund). Seit 1.8.101 werden die Lücken geschlossen (Vorgabe vom 14.10.2026, docs/archiv/
+befund-vor-echtbetrieb.md ab "Umsetzung 1.8.101"): ein geschlossener Test verliert seinen Marker."""
 
 from __future__ import annotations
 
@@ -192,25 +193,22 @@ def ablage(threaded_db_session, router_test_client):
     return {"db": db, "client": client, "kunde": kunde.id, "projekt": projekt.id, "objekt": objekt.id}
 
 
-_AKTIV = "Befund 1.8.100 Nr. 4: hochgeladene Dateien gehen inline mit dem Typ, den der Browser beim Hochladen nannte -- eine SVG- oder " \
-         "HTML-Datei mit Skript läuft beim Öffnen auf dem ERP-Ursprung (mit der Sitzung der Person, die öffnet); kein nosniff, keine CSP."
+# Befund 1.8.100 Nr. 4 (hochgeladene Dateien gingen inline mit dem Typ, den der Browser beim Hochladen nannte) -- seit 1.8.101 behoben
+# (app/dateiauslieferung.py, ausführlich tests/test_v406_dateien_nie_aktiv.py); die drei Tests hier waren bis dahin xfail.
 
 
-@pytest.mark.xfail(strict=True, reason=_AKTIV)
 def test_svg_in_der_kundenakte_laeuft_nicht_als_skript(ablage):
     c = ablage["client"]
     doc = c.post(f"/api/customers/{ablage['kunde']}/documents", files={"file": ("bild.svg", SVG, "image/svg+xml")}).json()
     assert not _aktiv_inline(c.get(f"/api/customer-documents/{doc['id']}/view"))
 
 
-@pytest.mark.xfail(strict=True, reason=_AKTIV)
 def test_svg_in_der_projektmappe_laeuft_nicht_als_skript(ablage):
     c = ablage["client"]
     doc = c.post(f"/api/projects/{ablage['projekt']}/documents", files={"file": ("bild.svg", SVG, "image/svg+xml")}).json()
     assert not _aktiv_inline(c.get(f"/api/project-documents/{doc['id']}/view"))
 
 
-@pytest.mark.xfail(strict=True, reason=_AKTIV + " Am Objekt werden Bilder neu kodiert (SVG scheitert dort), HTML bleibt.")
 def test_html_am_objekt_laeuft_nicht_als_skript(ablage):
     db, c = ablage["db"], ablage["client"]
     kategorie = db.query(DocumentCategory).first()

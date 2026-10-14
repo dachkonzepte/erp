@@ -10,10 +10,10 @@ Lieferanten prüft dasselbe -- sonst wäre über die API wählbar, was die Suche
 """
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from ..contacts import linked_contact
+from ..dateiauslieferung import datei_antwort
 from ..database import get_db
 from ..email_dispatch import actor_of
 from ..models import AppUser, Contact, Customer, Project, ProjectParticipant, Supplier
@@ -158,8 +158,7 @@ def _poa_file(participant_id: int, db: Session, kind: str):
     path = power_of_attorney_path(stored)
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Datei der Vollmacht nicht gefunden.")
-    return FileResponse(path, media_type=poa_value(participant, kind, "content_type"),
-                        filename=poa_value(participant, kind, "original_filename"), content_disposition_type="inline")
+    return datei_antwort(path, poa_value(participant, kind, "original_filename"))
 
 
 @router.post("/api/project-participants/{participant_id}/power-of-attorney", response_model=ProjectParticipantOut)

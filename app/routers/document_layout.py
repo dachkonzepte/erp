@@ -5,9 +5,9 @@ app/document_layout.py.
 """
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from ..dateiauslieferung import datei_antwort
 from ..database import get_db
 from ..document_frame import RENDERERS_USING_SHARED_FRAME
 from ..document_layout import (
@@ -143,7 +143,7 @@ def get_document_layout_background_file(document_type: str, db: Session = Depend
     path = background_path(row.stored_filename)
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Hintergrunddatei nicht gefunden.")
-    return FileResponse(path)
+    return datei_antwort(path)
 
 
 @router.post("/api/document-layout/{document_type}/background", response_model=DocumentLayoutBackgroundOut)
@@ -201,7 +201,7 @@ def get_document_layout_background_file_for_page_type(document_type: str, page_t
     path = background_path(row.stored_filename)
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Hintergrunddatei nicht gefunden.")
-    return FileResponse(path)
+    return datei_antwort(path)
 
 
 @router.post("/api/document-layout/{document_type}/backgrounds/{page_type}", response_model=DocumentLayoutBackgroundOut)

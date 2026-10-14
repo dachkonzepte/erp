@@ -26,6 +26,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from .document_categories import field_may_see_category
+from .dateiauslieferung import gespeicherter_typ
 from .document_storage import can_preview_type, is_image_type, make_stored_filename  # noqa: F401
 from .models import DocumentCategory, Project, PropertyDocument, ProjectDocument
 from .paths import data_dir
@@ -46,30 +47,38 @@ def document_path(document: PropertyDocument) -> Path:
     return PROPERTY_ROOT / str(document.property_id) / document.stored_filename
 
 
-def _store_uploaded_file(property_id: int, original_filename: str, content_type: str | None, data: bytes) -> str:
+def _store_uploaded_file(property_id: int, original_filename: str, data: bytes) -> tuple[str, str]:
     """Bilder werden wie Berichtsfotos verkleinert und einheitlich als JPEG gespeichert,
     Dokumente (PDF u. Ä.) bleiben im Original erhalten -- exakt die vom Betreiber verlangte
-    Unterscheidung. Gibt den gespeicherten Dateinamen zurück."""
+    Unterscheidung. Gibt den gespeicherten Dateinamen und den Typ zurück. Seit 1.8.101 bestimmt
+    der Server den Typ am Inhalt (app/dateiauslieferung.py) statt der Angabe des Browsers: bis
+    dahin scheiterte ein als Bild gemeldetes SVG an Pillow, und eine HTML-Datei blieb mit dem
+    gemeldeten Typ liegen. Ein Rasterbild, das Pillow nicht lesen kann, bleibt unverändert als
+    Datei ohne Vorschau."""
     target_dir = property_directory(property_id)
+    content_type = gespeicherter_typ(data)
     if is_image_type(content_type):
-        image = Image.open(BytesIO(data))
-        image = ImageOps.exif_transpose(image)
-        if image.mode not in ("RGB", "L"):
-            image = image.convert("RGB")
-        image.thumbnail((MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION))
-        stored = f"{uuid.uuid4().hex}.jpg"
-        image.save(target_dir / stored, format="JPEG", quality=IMAGE_JPEG_QUALITY)
-        return stored
+        try:
+            image = Image.open(BytesIO(data))
+            image = ImageOps.exif_transpose(image)
+            if image.mode not in ("RGB", "L"):
+                image = image.convert("RGB")
+            image.thumbnail((MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION))
+            stored = f"{uuid.uuid4().hex}.jpg"
+            image.save(target_dir / stored, format="JPEG", quality=IMAGE_JPEG_QUALITY)
+            return stored, "image/jpeg"
+        except (OSError, SyntaxError, ValueError):
+            content_type = "application/octet-stream"
     stored = make_stored_filename(original_filename)
     (target_dir / stored).write_bytes(data)
-    return stored
+    return stored, content_type
 
 
 def create_property_document(
     db: Session, property_id: int, *, category_id: int, file_data: bytes, original_filename: str,
-    content_type: str | None, description: str | None = None, uploaded_by_employee_id: int | None = None,
+    description: str | None = None, uploaded_by_employee_id: int | None = None,
 ) -> PropertyDocument:
-    stored = _store_uploaded_file(property_id, original_filename, content_type, file_data)
+    stored, content_type = _store_uploaded_file(property_id, original_filename, file_data)
     doc = PropertyDocument(
         property_id=property_id, category_id=category_id, original_filename=Path(original_filename).name,
         stored_filename=stored, content_type=content_type, file_size=len(file_data),

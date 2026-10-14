@@ -364,7 +364,7 @@ def _monteur_welt(db: Session) -> dict:
     ensure_default_categories(db)
     document = create_property_document(
         db, prop.id, category_id=resolve_category_id(db, "Pläne"), file_data=b"%PDF-1.4\n%%EOF\n",
-        original_filename="dachplan.pdf", content_type="application/pdf", description="Dachplan",
+        original_filename="dachplan.pdf", description="Dachplan",
         uploaded_by_employee_id=monteur.id,
     )
 

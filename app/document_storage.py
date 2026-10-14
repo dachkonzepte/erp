@@ -8,6 +8,8 @@ customer_documents.py importiert direkt von hier, ohne Umweg.
 import uuid
 from pathlib import Path
 
+from .dateiauslieferung import anzeigbar, ist_rasterbild
+
 
 def make_stored_filename(original_filename: str) -> str:
     suffix = Path(original_filename).suffix.lower()[:20]
@@ -15,8 +17,10 @@ def make_stored_filename(original_filename: str) -> str:
 
 
 def is_image_type(content_type: str | None) -> bool:
-    return bool(content_type and content_type.lower().startswith("image/"))
+    """Seit 1.8.101 nur Rasterbilder (JPEG, PNG, GIF, WebP) -- vorher jedes image/*, auch SVG (app/dateiauslieferung.py)."""
+    return ist_rasterbild(content_type)
 
 
 def can_preview_type(content_type: str | None) -> bool:
-    return is_image_type(content_type) or (content_type or "").lower() == "application/pdf"
+    """Seit 1.8.101 nur, was der Browser zeigen darf: Rasterbilder und PDF (app/dateiauslieferung.py)."""
+    return anzeigbar(content_type)

@@ -17,9 +17,9 @@ ein Büro-Konto sieht damit seine eigenen Mängel, ohne Mitarbeiter 422.
 """
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
+from ..dateiauslieferung import datei_antwort
 from ..database import get_db
 from ..defects import (
     AcceptanceFileError, DefectConflict, field_photo, field_report_dict, field_report_replay, field_visible_defect,
@@ -66,10 +66,7 @@ def get_field_defect_photo(defect_id: int, file_id: int, db: Session = Depends(g
     except AcceptanceFileError as e:
         raise HTTPException(status_code=410 if e.status == "fehlt" else 409, detail=str(e)) from e
     suffix = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}[row.content_type]
-    return Response(content=content, media_type=row.content_type, headers={
-        "Content-Disposition": f'inline; filename="Mangel-{defect_id}-{row.id}.{suffix}"',
-        "X-Content-Type-Options": "nosniff",
-    })
+    return datei_antwort(content, f"Mangel-{defect_id}-{row.id}.{suffix}")
 
 
 @router.post("/api/field-view/defects/{defect_id}/remedied", response_model=FieldDefectReportOut)

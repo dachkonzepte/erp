@@ -31,9 +31,10 @@ in operational_asset.html deaktiviert, serverseitig ausschließlich über den ne
 Endpunkt erreichbar."""
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
+from ..dateiauslieferung import datei_antwort
 from ..database import get_db
 from ..models import AppUser
 from ..modules import is_module_enabled
@@ -267,7 +268,7 @@ def get_operational_asset_inspection_document(inspection_id: int, db: Session = 
     path = document_path(inspection.document_filename)
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Dokumentdatei nicht gefunden.")
-    return FileResponse(path, filename=inspection.document_original_name or path.name)
+    return datei_antwort(path, inspection.document_original_name or path.name, herunterladen=True)
 
 
 @router.delete("/api/operational-asset-inspections/{inspection_id}/document", response_model=OperationalAssetInspectionOut)
@@ -318,7 +319,7 @@ def get_operational_asset_document_file(document_id: int, db: Session = Depends(
     path = document_path(document.stored_filename)
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Dokumentdatei nicht gefunden.")
-    return FileResponse(path, filename=document.original_filename or path.name)
+    return datei_antwort(path, document.original_filename or path.name, herunterladen=True)
 
 
 @router.delete("/api/operational-asset-documents/{document_id}")

@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
+from ..dateiauslieferung import datei_antwort
 from ..database import get_db
 from ..email_dispatch import (
     DISPATCH_TYPES, MAX_RECEIPT_BYTES, STATUSES, DispatchConflict, actor_of, delivery_recipients, dispatch_authorizations,
@@ -212,7 +213,6 @@ def get_sent_document_file(sent_document_id: int, db: Session = Depends(get_db),
     except ArchiveFileError as e:
         raise _archive_http_error(e)
     filename = doc.filename.replace('"', "").replace("/", "-").replace("\\", "-")
-    # seit 1.8.20 auch Belege (Bild/PDF, beim Hochladen am Inhalt erkannt, nie SVG/HTML); nosniff,
-    # damit der Browser nichts anderes daraus macht.
-    return Response(content=content, media_type=doc.content_type or "application/pdf",
-                    headers={"Content-Disposition": f'inline; filename="{filename}"', "X-Content-Type-Options": "nosniff"})
+    # seit 1.8.20 auch Belege (Bild/PDF, beim Hochladen am Inhalt erkannt, nie SVG/HTML); seit 1.8.101 über
+    # datei_antwort() (Typ am Inhalt, nosniff).
+    return datei_antwort(content, filename)

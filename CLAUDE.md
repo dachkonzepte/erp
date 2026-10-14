@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.100** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.101** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -717,6 +717,14 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     jedes `k.cookies()` eine eigene Sitzung (nach dem Abmelden gilt sie nicht mehr). Details: `docs/archiv/befund-vor-echtbetrieb.md`,
     "Umsetzung 1.8.98".
 
+31. **Jede abgelegte Datei geht über `app/dateiauslieferung.py::datei_antwort()` an den Browser, seit 1.8.101.** Den Typ bestimmt der
+    Server an den ersten Bytes, nie am Namen oder an der Angabe des Browsers; angezeigt (inline) werden nur JPEG, PNG, GIF, WebP und PDF,
+    alles andere kommt als Download (`application/octet-stream`, `attachment`, CSP `sandbox`), immer mit nosniff; SVG nur als Logo in
+    `<img>` (`svg_als_bild=True`). Eine neue Ablage speichert `gespeicherter_typ()` statt der Angabe des Browsers; Vorschau und "Öffnen"
+    nur über `is_image_type()`/`can_preview_type()` (`app/document_storage.py`). `tests/test_v406_dateien_nie_aktiv.py` hält `FileResponse`
+    per AST im Modul und verlangt für jede andere Antwort mit Inhalt einen festen Typ (was der Server selbst erzeugt). Details:
+    `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.101".
+
 ## Fachbegriffe & Domänenmodell
 
 - **"Vorgang"** (in normalem Gespräch) = **Projekt** (`Project`) – wurde in der Sitzung explizit
@@ -1138,7 +1146,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Übertragung, gescheitertes Speichern sperrt abschließende Aktionen, Zeilensperren an abgeleiteten Werten in fünf Teil-Updates,
   Verschieben im Angebot als Teil-Update, Regeln 26 und 28 erweitert; Befund 1.8.100 Sicherheit der Seiten: acht Lücken als xfail in
   `tests/test_v405_befund_seiten.py` -- Uploads als aktiver Inhalt, Secure nur per Umgebung, Anfragen von Seiten derselben Site,
-  Einrahmen, ungeschützte Namen an vier Stellen -- nur festgehalten, nicht behoben)
+  Einrahmen, ungeschützte Namen an vier Stellen -- nur festgehalten, nicht behoben; seit 1.8.101 hochgeladene Dateien nie als aktiver
+  Inhalt, Regel 31)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Zahlungen** (Zahlungsstufe Z1 seit 1.8.78: Zahlungseingang mit Zuordnungen, Skonto und Einbehalt, Rest am Kunden,
   Zahlstand abgeleitet, Gegenbuchung statt Ändern, Sperrreihenfolge, Storno erst nach gelösten Zuordnungen, Finanzen/Dashboard mit
@@ -1641,7 +1650,7 @@ mit Guthaben und Zahlungsausgang, zurücknehmen, 412 px dunkel, Monteurin 403) u
 `klicktest_browser_datum.py` (1.8.87, Instanz und Browser-Uhr um 00:30 Uhr, Browser in UTC und New York: Monteur-Zeiterfassung mit der
 Buchung von heute, Stundenzettel, Büro-Zeiterfassung, Aufgaben überfällig, Plantafel, Kalender) und `klicktest_zahlungen_kleinkram.py`
 (1.8.94, Finanzen „Bezahlt (gesamt)“ abzüglich Erstattungen, Kundenakte mit Grund statt „Zahlung zurücknehmen“ und gruppiertem „Rest
-zuordnen“, Zahlungsdialog gruppiert und umverteilt gebucht, Zahlbetrag 0 € mit Satz und ohne Schlusstext, 412 px dunkel, Monteurin 403) und `klicktest_abschliessen.py` (1.8.96, Einsatzbericht: Prüfpunkt zurückhalten, dann unterschreiben -- Unterschrift erst nach dem Prüfpunkt; Prüfpunkt scheitert -- Unterschrift nicht ausgeführt; Zeitlimit 2 s über `window.__dkZeitlimit` -- Meldung, Hinweis oben, Unterschrift abgelehnt) und `klicktest_anmelden.py` (1.8.97, Formular mit falschem und richtigem Passwort, Doppelklick nicht parallel, Admin bis zum zweiten Faktor, Abmelden über beide Kopfzeilen -- die Seite wartet die Abmeldung ab --, Seitenleiste nachgestellt; seit 1.8.98 als Prüfungen: Angriffe auf `next`, der alte Cookie-Wert nach dem Abmelden 401, „Zurück“ ohne Daten). **Netzwerkprotokoll** (seit 1.8.97): jeder Tab zeichnet die Network-Ereignisse auf (`tab.netz`); beim Scheitern (Abweichung in `pruefe()`, Seite nicht bereit, Warte-Helfer abgebrochen, `warten()` abgelaufen, Ende eines nicht erfolgreichen Laufs) druckt das Werkzeug die offenen Anfragen mit Adresse, Startzeit und "gesendet ja/nein"; eine gewollte Pause `warten("false", 1.0, melden=False)`; `tab.im_netz_anhalten()` hält eine Anfrage an, bevor sie gesendet wird. Ein Dialog des Browsers (vor allem „Seite verlassen?“ bei einer Navigation während eines Speicherns) hielt bis 1.8.97 jeden weiteren CDP-Befehl an; seit 1.8.98 meldet das Werkzeug ihn (Lauf nicht wie erwartet, samt Netzprotokoll) und nimmt ihn an.
+zuordnen“, Zahlungsdialog gruppiert und umverteilt gebucht, Zahlbetrag 0 € mit Satz und ohne Schlusstext, 412 px dunkel, Monteurin 403) und `klicktest_abschliessen.py` (1.8.96, Einsatzbericht: Prüfpunkt zurückhalten, dann unterschreiben -- Unterschrift erst nach dem Prüfpunkt; Prüfpunkt scheitert -- Unterschrift nicht ausgeführt; Zeitlimit 2 s über `window.__dkZeitlimit` -- Meldung, Hinweis oben, Unterschrift abgelehnt) und `klicktest_anmelden.py` (1.8.97, Formular mit falschem und richtigem Passwort, Doppelklick nicht parallel, Admin bis zum zweiten Faktor, Abmelden über beide Kopfzeilen -- die Seite wartet die Abmeldung ab --, Seitenleiste nachgestellt; seit 1.8.98 als Prüfungen: Angriffe auf `next`, der alte Cookie-Wert nach dem Abmelden 401, „Zurück“ ohne Daten) und `klicktest_dateien_nie_aktiv.py` (1.8.101, SVG und HTML aus Kundenakte, Projektmappe, Objekt und /mobil laufen nicht -- jede view-Adresse direkt geöffnet ein Download, kein Eintrag im localStorage --, Foto und PDF erscheinen, SVG-Logo in der Seitenleiste sichtbar; Downloads des Tabs über `tab.downloads`, gesammelt aus `Page.downloadWillBegin`). **Netzwerkprotokoll** (seit 1.8.97): jeder Tab zeichnet die Network-Ereignisse auf (`tab.netz`); beim Scheitern (Abweichung in `pruefe()`, Seite nicht bereit, Warte-Helfer abgebrochen, `warten()` abgelaufen, Ende eines nicht erfolgreichen Laufs) druckt das Werkzeug die offenen Anfragen mit Adresse, Startzeit und "gesendet ja/nein"; eine gewollte Pause `warten("false", 1.0, melden=False)`; `tab.im_netz_anhalten()` hält eine Anfrage an, bevor sie gesendet wird. Ein Dialog des Browsers (vor allem „Seite verlassen?“ bei einer Navigation während eines Speicherns) hielt bis 1.8.97 jeden weiteren CDP-Befehl an; seit 1.8.98 meldet das Werkzeug ihn (Lauf nicht wie erwartet, samt Netzprotokoll) und nimmt ihn an.
 **Nach einer Aktion, die neu lädt** (seit 1.8.94), nie eine feste Pause oder einen Statustext als Beleg nehmen -- viele Seiten setzen
 ihn vor dem Neuladen --, sondern `await tab.warte_auf_neu_geladene_liste("…click()", "#liste")` (wartet, bis keine Anfrage der Seite
 mehr unterwegs und die Liste neu gezeichnet ist; ohne Aktion nach `oeffnen()`, bevor geprüft wird, dass etwas NICHT erscheint);
@@ -1697,11 +1706,11 @@ jedem Bericht, Ergebnis im Bericht (Regel 26).
 
 ## Bekannte, bewusst offene Punkte
 
-- **Befund 1.8.100 Sicherheit der Seiten -- acht Lücken offen, nur festgehalten** (`tests/test_v405_befund_seiten.py`, je ein
-  `xfail(strict=True)`; `docs/archiv/befund-vor-echtbetrieb.md`, "Befund 1.8.100"): hochgeladene SVG/HTML-Dateien laufen beim Öffnen als
-  Skript (Kundenakte, Projektmappe, Objekt), `Secure` nur mit `ERP_COOKIE_SECURE=1`, kein Schutz schreibender Anfragen gegen Seiten derselben
-  Site, kein Schutz gegen Einrahmen, ungeschützte Namen und Titel in Einsatzbericht, "Neues Projekt"/"Neues Angebot", Kalender, Plantafel.
-  Wer eine davon schließt, entfernt den xfail-Marker ihres Tests.
+- **Befund 1.8.100 Sicherheit der Seiten -- sieben Lücken offen** (`tests/test_v405_befund_seiten.py`, je ein
+  `xfail(strict=True)`; `docs/archiv/befund-vor-echtbetrieb.md`, "Befund 1.8.100"; hochgeladene Dateien seit 1.8.101 geschlossen, Regel 31):
+  `Secure` nur mit `ERP_COOKIE_SECURE=1`, kein Schutz schreibender Anfragen gegen Seiten derselben Site, kein Schutz gegen Einrahmen,
+  ungeschützte Namen und Titel in Einsatzbericht, "Neues Projekt"/"Neues Angebot", Kalender, Plantafel. Wer eine davon schließt, entfernt
+  den xfail-Marker ihres Tests.
 - **`client_uuid` am Einsatzbericht ist nicht idempotent -- Pflicht vor Checklisten-Stufe 3
   (offline)** (gefunden beim Checklisten-Befund, 29.09.2026): `InspectionItem`/`Finding`/
   `ServiceReportPhoto`/`ServiceReportMaterial`/`ServiceReportAsset` tragen nur den

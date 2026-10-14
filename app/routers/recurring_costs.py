@@ -10,9 +10,9 @@ gesamten Bereich an KEINER Stelle, kein _any_role_dep wie bei der Betriebsmittel
 (dort gibt es eine Monteur-Ansicht, hier nicht)."""
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from ..dateiauslieferung import datei_antwort
 from ..database import get_db
 from ..models import AppUser, RecurringCost, RecurringCostDocument
 from ..modules import is_module_enabled
@@ -134,7 +134,7 @@ def get_recurring_cost_document_file(document_id: int, db: Session = Depends(get
     path = document_path(document.stored_filename)
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Dokumentdatei nicht gefunden.")
-    return FileResponse(path, filename=document.original_filename or path.name)
+    return datei_antwort(path, document.original_filename or path.name, herunterladen=True)
 
 
 @router.delete("/api/recurring-cost-documents/{document_id}")

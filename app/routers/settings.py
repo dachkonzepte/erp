@@ -7,7 +7,6 @@ uebernommen -- reine Verschiebung, keine Verhaltensaenderung.
 
 from fastapi import APIRouter
 from fastapi import Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -24,6 +23,7 @@ from ..company_logo import (
     sidebar_logo_path,
     validate_logo_image,
 )
+from ..dateiauslieferung import datei_antwort
 from ..database import get_db
 from ..employees import load_employee_functions
 from ..models import AppUser, Employee, EmployeeFunction, EmployeeProfile, SettingOption
@@ -251,11 +251,11 @@ def view_company_logo(db: Session = Depends(get_db), _role: AppUser = _any_role_
     cache_headers = {"Cache-Control": "private, max-age=31536000, immutable"}
     display_path = display_logo_path(settings.logo_filename)
     if display_path.is_file():
-        return FileResponse(display_path, headers=cache_headers)
+        return datei_antwort(display_path, svg_als_bild=True, kopfzeilen=cache_headers)
     path = logo_path(settings.logo_filename)
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Logo-Datei nicht gefunden.")
-    return FileResponse(path, headers=cache_headers)
+    return datei_antwort(path, svg_als_bild=True, kopfzeilen=cache_headers)
 
 
 @router.delete("/api/settings/general/logo", response_model=GeneralSettingsOut)
@@ -302,11 +302,11 @@ def view_sidebar_logo(db: Session = Depends(get_db), _role: AppUser = _any_role_
     cache_headers = {"Cache-Control": "private, max-age=31536000, immutable"}
     display_path = sidebar_logo_display_path(settings.sidebar_logo_filename)
     if display_path.is_file():
-        return FileResponse(display_path, headers=cache_headers)
+        return datei_antwort(display_path, svg_als_bild=True, kopfzeilen=cache_headers)
     path = sidebar_logo_path(settings.sidebar_logo_filename)
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Logo-Datei nicht gefunden.")
-    return FileResponse(path, headers=cache_headers)
+    return datei_antwort(path, svg_als_bild=True, kopfzeilen=cache_headers)
 
 
 @router.delete("/api/settings/general/sidebar-logo", response_model=GeneralSettingsOut)

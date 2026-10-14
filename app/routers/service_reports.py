@@ -26,9 +26,9 @@ Büro-Entscheidung) bleibt Büro/Admin."""
 
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
-from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from ..dateiauslieferung import datei_antwort
 from ..database import get_db
 from ..models import AppUser, InspectionItem, ServiceReportAsset, ServiceReportMaterial, ServiceReportPhoto
 from ..modules import is_module_enabled
@@ -380,7 +380,7 @@ def get_service_report_photo_file(photo_id: int, db: Session = Depends(get_db), 
     path = photo_path(photo.file_path)
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Bilddatei nicht gefunden.")
-    return FileResponse(path)
+    return datei_antwort(path)
 
 
 @router.delete("/api/service-report-photos/{photo_id}")

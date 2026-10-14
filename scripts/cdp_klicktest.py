@@ -470,7 +470,8 @@ class Netzprotokoll:
 
 class Tab:
     """Eine Browser-Seite. fehler sammelt JS-Ausnahmen und console.error seit dem letzten oeffnen(); netz (seit 1.8.97) zeichnet
-    die Netzwerk-Ereignisse auf (Netzprotokoll)."""
+    die Netzwerk-Ereignisse auf (Netzprotokoll); downloads (seit 1.8.101) die Downloads, die der Tab beginnt (Page.downloadWillBegin --
+    wohin sie gehen, legt ein Klicktest mit Page.setDownloadBehavior fest)."""
 
     def __init__(self, ws, base_url: str, shots: Path):
         self.ws, self.base, self.shots = ws, base_url, shots
@@ -478,6 +479,7 @@ class Tab:
         self.fehler: list[str] = []
         self.nicht_geladen: list[str] = []
         self.netz = Netzprotokoll(base_url)
+        self.downloads: list[dict] = []  # seit 1.8.101: jeder Download, den der Tab beginnt ({"url", "name"})
 
     async def cmd(self, method: str, **params):
         self.n += 1
@@ -492,6 +494,8 @@ class Tab:
                 self.fehler.append((d.get("exception", {}).get("description") or d.get("text", "?"))[:300])
             if msg.get("method") == "Runtime.consoleAPICalled" and msg["params"]["type"] == "error":
                 self.fehler.append(" ".join(str(a.get("value", a.get("description", ""))) for a in msg["params"]["args"])[:300])
+            if msg.get("method") == "Page.downloadWillBegin":
+                self.downloads.append({"url": msg["params"].get("url"), "name": msg["params"].get("suggestedFilename")})
             if msg.get("method") == "Page.javascriptDialogOpening":
                 await self._dialog(msg.get("params") or {})
             if msg.get("id") == my:

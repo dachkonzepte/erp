@@ -3642,7 +3642,7 @@ kurz.
   Startseite; `javascript:`, ` JavaScript:`, `data:` -> kein Skript; angemeldet acht Werte am Server); je Abschnitt, der sich abmeldet, eine
   eigene Sitzung (`k.cookies()` legt seit 1.8.98 eine Sitzung an).
 
-#### Festlegungen 1.8.98 (Bitte bestätigen)
+#### Festlegungen 1.8.98 (bestätigt am 14.10.2026; Nr. 5: 12 h passen dem Betrieb; Nr. 11 und 12 korrigiert, siehe Vorgabe ab 1.8.101)
 
 1. **Lokal = die Regel oben**, bewusst streng: auch harmlose Pfade mit kodiertem Leerzeichen, Rückstrich oder `%25` am Ende (`/100%25`) werden abgelehnt.
 2. **Startseite = die der Rolle**: Server `/` bzw. `/mobil`, im Anmeldeformular wie bisher `/projects` bzw. `/mobil`, zweiter Faktor offen `/account` ohne `next`.
@@ -3757,7 +3757,7 @@ kurz.
 - **Klicktest `scripts/klicktest_hochladen.py`** (neu): Kundenakte, Zeitlimit 2 s, Upload auf 100 KB/s gedrosselt, 400 KB -- fertig ohne
   "unklar", als XHR, länger als das Zeitlimit unterwegs, Datei mit voller Größe am Server, danach ein zweites Dokument.
 
-#### Festlegungen 1.8.99 (Bitte bestätigen)
+#### Festlegungen 1.8.99 (bestätigt am 14.10.2026; Nr. 6 richtig, Test mit Gegenprobe; Nr. 10 und 13 korrigiert, siehe Vorgabe ab 1.8.101)
 
 1. **Hochladen = Body FormData, Blob/File, ArrayBuffer oder eine Sicht darauf**; Text (auch JSON) geht wie bisher über fetch.
 2. **Ende der Übertragung = `upload.loadend` oder der Antwortkopf**, was zuerst kommt; während der Übertragung läuft kein Zeitlimit (bricht die Verbindung ab, meldet der Browser einen Netzfehler).
@@ -3888,7 +3888,7 @@ vorbereitet; jeder Fund unten ist hier nachgestellt.
   Optionswerte, die ein Admin pflegt -- dasselbe unsichere Muster wie Nr. 5 (esc() schützt das HTML, nicht die JS-Zeichenkette, denn der
   Browser dekodiert `&#39;` vor dem Ausführen).
 
-#### Festlegungen 1.8.100 (Bitte bestätigen)
+#### Festlegungen 1.8.100 (bestätigt am 14.10.2026)
 
 1. **"Fehler" = eine Lücke mit einem nachgestellten Angriff** (Nr. 1–8); was nur nach Muster unsicher aussieht, ohne Weg für fremde Daten, steht als "weniger dringend" ohne xfail.
 2. **Gewünschtes Verhalten im xfail** (das der Test prüft): Secure in Produktion von selbst; schreibende Anfrage mit fremdem `Origin`/`Sec-Fetch-Site: same-site` 403; `X-Frame-Options` oder `frame-ancestors`; SVG/HTML aus Uploads nicht inline als aktiver Inhalt (Anhang oder CSP sandbox); jede genannte Stelle zeigt `<img onerror>` als Text.
@@ -3908,6 +3908,110 @@ vorbereitet; jeder Fund unten ist hier nachgestellt.
   `test_v384::test_every_function_handing_database_url_to_a_child_checks_it`: der neue Test zu Nr. 1 gab `DATABASE_URL` an einen
   Kindprozess, ohne sie mit `pg_url_pruefen()` zu prüfen (Regel 27; harmlos, die URL war `sqlite://`, aber der Strukturtest hat recht).
   Im Nachtrag-Commit geprüft, danach Suite und Klicktests neu (Regel 26).
+
+## Sicherheit der Seiten: Uploads, Daten im HTML, Anfragen fremder Seiten (ab 1.8.101)
+
+### Vorgabe vom 14.10.2026 (übernommen wie gegeben)
+
+Vorweg zu 1.8.98–1.8.100: Festlegungen bestätigt (98-5: 12 h passen dem Betrieb), mit diesen Korrekturen:
+- 98-11: „Alle vertrauten Geräte abmelden“ beendet auch alle anderen Sitzungen. Rolle und Rechte werden bei jeder Anfrage frisch gelesen;
+  Angriffstest: Rolle herabsetzen, die nächste Anfrage der laufenden Sitzung hat die neuen Rechte. Ein Admin kann alle Sitzungen eines
+  Benutzers beenden.
+- 98-12: Feierabend in /mobil beendet die Sitzung auf dem Server wie Abmelden.
+- 99-6: richtig. Dazu ein Test mit Gegenprobe: Eine vom Server abgelehnte abschließende Aktion sperrt keine weitere.
+- 99-10: Änderungen am Vertragsentwurf laufen unter derselben Sperre wie das Festschreiben; Gleichzeitigkeit gegen PostgreSQL.
+- 99-13: nur Befund: Wo wird content eingegeben, wo erscheint es?
+- Läuft die Sitzung beim Speichern ab, meldet der Bereich „Anmeldung abgelaufen“, die Eingaben bleiben stehen; nach Anmelden in einem neuen
+  Tab lässt sich erneut speichern.
+
+Die 12 xfail aus 1.8.100 werden grün und verlieren die Markierung:
+1. Hochgeladene Dateien nie als aktiver Inhalt, an allen Stellen, die abgelegte Dateien ausliefern, über eine gemeinsame Funktion
+   (Strukturtest). Den Typ bestimmt der Server. Im Browser angezeigt werden nur Rasterbilder und PDF, alles andere kommt als Download.
+   Klicktest: SVG und HTML laufen nicht, Foto und PDF erscheinen weiter.
+2. Daten im HTML: Nr. 5–8 beheben, dazu Strukturtests mit Ausnahmelisten, die nur kürzer werden: kein innerHTML/insertAdjacentHTML mit
+   ${…} ohne esc(); keine on…-Attribute mit eingesetzten Werten, sondern data-Attribute und addEventListener (auch die Admin-Stellen aus dem
+   Nebenbefund); jedes href/src aus Daten nur http(s), mailto, tel oder lokal.
+3. Schreibende Anfragen ohne passenden Origin bekommen 403, auch von Unterdomains.
+4. Kein Einrahmen der Seiten.
+5. Secure am Anmelde-Cookie in Produktion ohne Schalter.
+
+Reihenfolge: 1, 2, dann Vorweg, dann 3–5. Angriffstests mit Gegenprobe. Eigene Festlegungen mit „Bitte bestätigen“, je in einer Zeile.
+Nebenbefunde nur melden. Wird der Umfang zu groß: nach Punkt 2 committen und den Rest auflisten. Commit nach Regel 13, Bericht kurz.
+
+### Umsetzung 1.8.101: hochgeladene Dateien nie als aktiver Inhalt (Punkt 1, Befund 1.8.100 Nr. 4)
+
+#### Was gebaut ist
+
+- **Eine Funktion für jede abgelegte Datei**: `app/dateiauslieferung.py::datei_antwort(quelle, dateiname, herunterladen=, svg_als_bild=,
+  kopfzeilen=)` (Pfad oder Inhalt). Den Typ bestimmt der Server an den ersten Bytes (`typ_aus_inhalt()`: PDF, PNG, JPEG, GIF, WebP), nie am
+  Namen oder an der Angabe des Browsers -- auch für Einträge von vor 1.8.101. Inline nur diese fünf mit genau diesem Typ; alles andere als
+  `application/octet-stream`, `Content-Disposition: attachment`, `Content-Security-Policy: sandbox`; immer `X-Content-Type-Options:
+  nosniff`. Der Dateiname geht prozentkodiert in `filename*`, sobald er etwas anderes als einfache Zeichen enthält (kein Aufbrechen der
+  Kopfzeile). Weitere Kopfzeilen (Cache) können Typ, Disposition, nosniff und CSP nicht ersetzen.
+- **Umgestellt, 27 Aufrufe in 17 Routern**: Kundenakte, Projektmappe, Objekt (Büro und /mobil, je Anzeigen und Download), Abnahme-Belege,
+  Mängel (Büro und Monteur), Checklisten-Anhänge und eingefrorene Vollmacht, Belege im Versandprotokoll, Vollmacht am Beteiligten,
+  Eingangsrechnung, Betriebsmittel (Prüffrist und Dokument), Betriebskosten, Skizze der Dachfläche, Briefpapier (beide Routen),
+  Berichtsfotos, Firmen- und Seitenleisten-Logo. Bis 1.8.100 lieferten Skizze und altes Briefpapier mit dem Typ der Endung aus, die der
+  Browser genannt hatte ("plan.html" mit Angabe image/png lief als HTML), Kundenakte, Projektmappe und Objekt mit dem Typ des Browsers.
+- **Typ beim Hochladen vom Server**: Kundenakte, Projektmappe, Lieferschein und Objekt speichern `gespeicherter_typ()` (anzeigbar oder
+  `application/octet-stream`) statt der Angabe des Browsers; `is_image`/`can_preview` (Vorschau, "Öffnen", "Ansehen" in /mobil) gelten nur
+  noch für Rasterbilder bzw. Rasterbilder und PDF (`app/document_storage.py`). Am Objekt entscheidet der erkannte Typ, ob neu kodiert wird;
+  ein Rasterbild, das Pillow nicht lesen kann, bleibt unverändert ohne Vorschau (bis 1.8.100 ein 500, ebenso jedes als Bild gemeldete SVG).
+- **SVG-Logo nur als Bild** (`svg_als_bild=True`, nur die beiden Logo-Endpunkte): ein am Inhalt erkanntes SVG geht als `image/svg+xml`, aber
+  mit `attachment` und `Content-Security-Policy: sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:` -- in der
+  Seitenleiste (`<img>`) erscheint es, direkt geöffnet kommt es als Download und ohne Skript.
+- **Strukturtest** (`tests/test_v406_dateien_nie_aktiv.py`, AST über `app/`): `FileResponse` kommt nur in `app/dateiauslieferung.py` vor;
+  jede andere `Response`/`StreamingResponse` mit Inhalt trägt einen festen Typ (Text, `a if b else c` aus Texten, eine Variable mit nur
+  solchen Zuweisungen) -- was der Server selbst erzeugt (PDF, PNG, CSV). Dazu die Zählung der Aufrufe je Router.
+- **Klicktest-Werkzeug**: `Tab.downloads` sammelt `Page.downloadWillBegin` (jeder Download, den der Tab beginnt).
+- **Klicktest `scripts/klicktest_dateien_nie_aktiv.py`** (neu): jedes Skript in den Testdateien schreibt in den localStorage des ERP.
+  Kundenakte, Projektmappe, Objekt: SVG und HTML hochgeladen (Typ vom Server) und als Eintrag von vor 1.8.101 (Typ des Browsers) --
+  Vorschaubild nur beim Foto, "Öffnen" nur bei Foto und PDF, jede view-Adresse direkt geöffnet: Foto als Bild, PDF als PDF, SVG und HTML als
+  Download (Ereignis und Datei), kein Skript gelaufen; SVG-Logo mit Skript in der Seitenleiste sichtbar, direkt geöffnet ein Download;
+  /mobil/objekt als Monteurin auf 412 px: "Ansehen" nur bei Foto und PDF, dieselben Prüfungen.
+
+#### Festlegungen 1.8.101 (Bitte bestätigen)
+
+1. **Anzeigbar = JPEG, PNG, GIF, WebP und PDF**, erkannt an den ersten Bytes; alles andere (auch SVG, HTML, XML, Text, Office, BMP, TIFF, HEIC) als Download.
+2. **Der Typ wird beim Ausliefern immer neu am Inhalt bestimmt**, auch für alte Einträge; gespeicherte Typen alter Einträge bleiben unverändert (keine Migration), sie bestimmen nur Vorschau und "Öffnen".
+3. **Neue Einträge in Kundenakte, Projektmappe, Lieferschein und Objekt speichern den Typ des Servers** (`application/octet-stream`, wenn nicht anzeigbar); das DOC-/XLS-Symbol der Liste kommt dann aus der Endung des Namens.
+4. **SVG nur beim Firmen- und Seitenleisten-Logo als Bild**, direkt geöffnet ein Download; überall sonst ist SVG ein gewöhnlicher Download.
+5. **Was bisher als Download kam, bleibt Download** (Eingangsrechnung, Betriebsmittel, Betriebskosten, jedes `/download`), mit dem erkannten Typ.
+6. **Vom Server erzeugte Dateien mit festem Typ** (PDFs, QR-Code, Symbol der App, CSV/DATEV) gehen nicht über `datei_antwort()`; der Strukturtest verlangt dort einen festen Typ.
+7. **Objekt: ein Rasterbild, das Pillow nicht lesen kann, wird unverändert abgelegt** (ohne Vorschau, direkt geöffnet als Bild mit nosniff) statt eines 500; ein GIF wird wie bisher jedes Bild als JPEG abgelegt.
+8. **Der Dateiname geht prozentkodiert** (`filename*=utf-8''…`), sobald er etwas anderes als Buchstaben, Ziffern und `-._~` enthält.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v406_dateien_nie_aktiv.py` (86): Erkennung am Inhalt (15 Fälle), die Antwort für zwölf Inhalte als Pfad, als Inhalt und als
+  Download, SVG als Bild nur für echtes SVG, Dateinamen mit Anführungszeichen, Umlaut, Semikolon, Zeilenumbruch und Pfad, Kopfzeilen ersetzen
+  nichts; **Angriffstests** über die Ablagen (SVG, HTML, HTML als "Foto", XHTML, XML mit Skript, dazu Foto mit falscher Angabe, PDF als
+  octet-stream, GIF): Kundenakte, Projektmappe, Objekt im Büro und in /mobil (je Anzeigen und Download, auch über die Monteur-Wege),
+  Einträge von vor 1.8.101, kaputtes Rasterbild am Objekt, Skizze, Briefpapier, beide Logos, Eingangsrechnung, Betriebsmittel (zwei Wege),
+  Betriebskosten; Strukturtest mit sieben Umgehungen und vier erlaubten Fällen.
+- `tests/test_v405_befund_seiten.py`: die drei Tests zu Nr. 4 ohne xfail (grün).
+- **Angepasst** (Regel 28): `test_v326` legt das Objekt-Dokument ohne `content_type` an (Parameter entfällt, der Server bestimmt ihn) -- nur
+  der Aufbau, Soll gleich.
+- Klicktest `klicktest_dateien_nie_aktiv` 42/42 (mehrfach). Im ersten Lauf zählte er Downloads über den Ordner: Chrome überschreibt
+  gleichnamige Dateien und benennt HTML-Downloads erst nach einer Prüfung um, dazwischen legte headless Chrome nach dem PDF-Betrachter eine
+  `downloads.htm` an -- seither eindeutige Namen je Ablage und die Ereignisse des Tabs (Nebenbefund 1).
+- Gegenproben (Regel 24): 13 von 13 rot -- Typ aus der Endung statt am Inhalt (auch im Klicktest: 21/42, Skript gelaufen), Kundenakte über
+  `FileResponse` mit gespeichertem Typ, Abnahme-Beleg über `Response` mit gespeichertem Typ (Strukturtest), Kundenakte speichert den Typ des
+  Browsers, Vorschau für jedes `image/*` (auch im Klicktest: Vorschaubild des alten SVG), SVG-Logo inline ohne CSP, Kopfzeilen ersetzen die
+  Sicherheit, Dateiname roh, ohne nosniff, Strukturtest ohne Auflösung von Variablen; Objekt: Typ nicht am Inhalt, kaputtes Rasterbild ohne
+  Rückfall. Eine dritte Objekt-Probe ("SVG als PNG gemeldet") blieb zuerst grün, weil der Rückfall für unlesbare Bilder sie abfing -- durch
+  die beiden zuletzt genannten ersetzt. Jede Datei byte-genau zurück, kein Marker.
+- Volle Suite und alle Klicktests: im Bericht (Regel 26).
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **Headless Chrome legt nach dem Öffnen eines PDF gelegentlich eine `downloads.htm` im Download-Ordner an** und verwirft sie wieder -- kein
+   Download der Seite (kein `Page.downloadWillBegin`).
+2. **Eingangsrechnung, Betriebsmittel, Betriebskosten, Skizze und das alte Briefpapier prüfen beim Hochladen weiter nur die Angabe des
+   Browsers** (PDF/Bild): eine HTML-Datei mit der Angabe "PDF" wird angenommen und abgelegt -- seit 1.8.101 als Download ohne Typ
+   ausgeliefert, also harmlos, aber als "Beleg" unbrauchbar.
+3. **Die Logo-Endpunkte geben weiter `max-age=31536000, immutable` an**; seit 1.8.98 ersetzt die Anmeldeschranke das für jede angemeldete
+   Sitzung durch `no-store` -- die Angabe wirkt nie.
 
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 

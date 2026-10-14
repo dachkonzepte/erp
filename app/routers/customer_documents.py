@@ -9,10 +9,10 @@ projects.py.
 
 from fastapi import APIRouter
 from fastapi import Depends, HTTPException
-from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from ..customer_documents import can_preview_type, document_path, is_image_type
+from ..dateiauslieferung import datei_antwort
 from ..database import get_db
 from ..document_categories import resolve_category_id
 from ..models import AppUser, CustomerDocument
@@ -50,7 +50,7 @@ def view_customer_document(document_id: int, db: Session = Depends(get_db), _rol
     if doc is None: raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
     path = document_path(doc)
     if not path.is_file(): raise HTTPException(status_code=404, detail="Datei nicht im Kundenspeicher gefunden.")
-    return FileResponse(path, media_type=doc.content_type or "application/octet-stream", filename=doc.original_filename, content_disposition_type="inline")
+    return datei_antwort(path, doc.original_filename)
 
 
 @router.get("/api/customer-documents/{document_id}/download")
@@ -59,7 +59,7 @@ def download_customer_document(document_id: int, db: Session = Depends(get_db), 
     if doc is None: raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
     path = document_path(doc)
     if not path.is_file(): raise HTTPException(status_code=404, detail="Datei nicht im Kundenspeicher gefunden.")
-    return FileResponse(path, media_type=doc.content_type or "application/octet-stream", filename=doc.original_filename)
+    return datei_antwort(path, doc.original_filename, herunterladen=True)
 
 
 @router.delete("/api/customer-documents/{document_id}")

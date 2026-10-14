@@ -21,7 +21,6 @@ Alles ab buero_auftrag; Monteure sehen nichts davon (403). Kein Ändern und kein
 import json
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import Response
 from pydantic import ValidationError
 from sqlalchemy.orm import Session, selectinload
 
@@ -36,6 +35,7 @@ from ..acceptance_protocol import (
 from ..checklist_follow_ups import run_checklist_follow_ups
 from ..checklist_purposes import ACCEPTANCE_PURPOSE
 from ..checklists import get_checklist_row
+from ..dateiauslieferung import datei_antwort
 from ..database import get_db
 from ..email_dispatch import actor_of
 from ..models import AppUser, Order, OrderAcceptance, OrderAcceptanceFile, Property, RoofArea
@@ -169,10 +169,7 @@ def get_order_acceptance_file(acceptance_id: int, file_id: int, db: Session = De
         raise HTTPException(status_code=410 if e.status == "fehlt" else 409, detail=str(e)) from e
     suffix = {"application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}[row.content_type]
     name = "Vollmacht" if row.kind == "vollmacht" else "Abnahme-Beleg"
-    return Response(content=content, media_type=row.content_type, headers={
-        "Content-Disposition": f'inline; filename="{name}-{row.acceptance_id}-{row.id}.{suffix}"',
-        "X-Content-Type-Options": "nosniff",
-    })
+    return datei_antwort(content, f"{name}-{row.acceptance_id}-{row.id}.{suffix}")
 
 
 @router.get("/api/orders/{order_id}/pending-protocol-acceptances")

@@ -10,9 +10,9 @@ _any_role_dep."""
 from datetime import date
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from ..dateiauslieferung import datei_antwort
 from ..database import get_db
 from ..incoming_invoice_documents import (
     ALLOWED_CONTENT_TYPES, MAX_UPLOAD_BYTES, document_path, replace_document,
@@ -137,7 +137,7 @@ def get_incoming_invoice_document_file(invoice_id: int, db: Session = Depends(ge
     path = document_path(invoice.document_filename)
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Belegdatei nicht gefunden.")
-    return FileResponse(path, filename=invoice.document_original_name or path.name)
+    return datei_antwort(path, invoice.document_original_name or path.name, herunterladen=True)
 
 
 @router.delete("/api/incoming-invoices/{invoice_id}/document", response_model=IncomingInvoiceOut)

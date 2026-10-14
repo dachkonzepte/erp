@@ -19,10 +19,10 @@ Alles ab buero_auftrag -- auch die Freigabe zur Beseitigung setzt nur das Büro;
 import json
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import Response
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session, selectinload
 
+from ..dateiauslieferung import datei_antwort
 from ..database import get_db
 from ..checklists import ChecklistLocked, get_checklist_row
 from ..defects import (
@@ -234,7 +234,4 @@ def get_defect_file(defect_id: int, file_id: int, db: Session = Depends(get_db),
     except AcceptanceFileError as e:
         raise HTTPException(status_code=410 if e.status == "fehlt" else 409, detail=str(e)) from e
     suffix = {"application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}[row.content_type]
-    return Response(content=content, media_type=row.content_type, headers={
-        "Content-Disposition": f'inline; filename="Mangel-{row.defect_id}-{row.id}.{suffix}"',
-        "X-Content-Type-Options": "nosniff",
-    })
+    return datei_antwort(content, f"Mangel-{row.defect_id}-{row.id}.{suffix}")

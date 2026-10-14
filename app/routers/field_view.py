@@ -37,12 +37,13 @@ from datetime import datetime
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..berlin_time import berlin_now, berlin_today
 from ..auth import COOKIE_NAME
+from ..dateiauslieferung import datei_antwort
 from ..database import get_db
 from ..concern_notices import OPEN_CONCERNS_TEXT, open_concerns
 from ..deps import require_admin
@@ -294,7 +295,7 @@ def view_field_view_property_document(
     liefert denselben 404 wie eine tatsächlich nicht existierende, damit eine Anfrage nicht
     einmal bestätigt, dass die Datei existiert."""
     doc, path = _resolve_or_404(db, property_id, source, document_id)
-    return FileResponse(path, media_type=doc.content_type or "application/octet-stream", filename=doc.original_filename, content_disposition_type="inline")
+    return datei_antwort(path, doc.original_filename)
 
 
 @router.get("/api/field-view/properties/{property_id}/documents/{source}/{document_id}/download")
@@ -305,7 +306,7 @@ def download_field_view_property_document(
     """Siehe view_field_view_property_document() oben -- identische Prüfung, nur ohne
     content_disposition_type='inline'."""
     doc, path = _resolve_or_404(db, property_id, source, document_id)
-    return FileResponse(path, media_type=doc.content_type or "application/octet-stream", filename=doc.original_filename)
+    return datei_antwort(path, doc.original_filename, herunterladen=True)
 
 
 @router.post("/api/field-view/properties/{property_id}/documents", response_model=PropertyDocumentListItemOut)
@@ -335,7 +336,7 @@ async def upload_field_view_property_document(
         raise HTTPException(status_code=413, detail="Datei ist größer als 50 MB.")
     doc = create_property_document(
         db, property_id, category_id=category_id, file_data=data, original_filename=file.filename,
-        content_type=file.content_type, description=description, uploaded_by_employee_id=user.employee_id,
+        description=description, uploaded_by_employee_id=user.employee_id,
     )
     return {
         "source": "property", "id": doc.id, "property_id": doc.property_id, "project_id": None,

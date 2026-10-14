@@ -13,9 +13,9 @@ ProjectDocument-Eintrag in dieser Liste wird über den bereits bestehenden, unve
 
 from fastapi import APIRouter
 from fastapi import Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from ..dateiauslieferung import datei_antwort
 from ..database import get_db
 from ..models import AppUser, DocumentCategory, Property, PropertyDocument
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
@@ -67,8 +67,7 @@ async def upload_property_document(
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Datei ist größer als 50 MB.")
     doc = create_property_document(
-        db, property_id, category_id=category_id, file_data=data, original_filename=file.filename,
-        content_type=file.content_type, description=description,
+        db, property_id, category_id=category_id, file_data=data, original_filename=file.filename, description=description,
     )
     db.refresh(doc, attribute_names=["document_category"])
     return _property_document_out(doc)
@@ -82,7 +81,7 @@ def view_property_document(document_id: int, db: Session = Depends(get_db), _rol
     path = document_path(doc)
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Datei nicht im Objektspeicher gefunden.")
-    return FileResponse(path, media_type=doc.content_type or "application/octet-stream", filename=doc.original_filename, content_disposition_type="inline")
+    return datei_antwort(path, doc.original_filename)
 
 
 @router.get("/api/property-documents/{document_id}/download")
@@ -93,7 +92,7 @@ def download_property_document(document_id: int, db: Session = Depends(get_db), 
     path = document_path(doc)
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Datei nicht im Objektspeicher gefunden.")
-    return FileResponse(path, media_type=doc.content_type or "application/octet-stream", filename=doc.original_filename)
+    return datei_antwort(path, doc.original_filename, herunterladen=True)
 
 
 @router.delete("/api/property-documents/{document_id}")

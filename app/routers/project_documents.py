@@ -7,9 +7,9 @@ uebernommen -- reine Verschiebung, keine Verhaltensaenderung.
 
 from fastapi import APIRouter
 from fastapi import Depends, HTTPException
-from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from ..dateiauslieferung import datei_antwort
 from ..database import get_db
 from ..document_categories import resolve_category_id
 from ..models import AppUser, ProjectDocument
@@ -48,7 +48,7 @@ def view_project_document(document_id: int, db: Session = Depends(get_db), _role
     if doc is None: raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
     path = document_path(doc)
     if not path.is_file(): raise HTTPException(status_code=404, detail="Datei nicht im Projektspeicher gefunden.")
-    return FileResponse(path, media_type=doc.content_type or "application/octet-stream", filename=doc.original_filename, content_disposition_type="inline")
+    return datei_antwort(path, doc.original_filename)
 
 
 @router.get("/api/project-documents/{document_id}/download")
@@ -57,7 +57,7 @@ def download_project_document(document_id: int, db: Session = Depends(get_db), _
     if doc is None: raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
     path = document_path(doc)
     if not path.is_file(): raise HTTPException(status_code=404, detail="Datei nicht im Projektspeicher gefunden.")
-    return FileResponse(path, media_type=doc.content_type or "application/octet-stream", filename=doc.original_filename)
+    return datei_antwort(path, doc.original_filename, herunterladen=True)
 
 
 @router.delete("/api/project-documents/{document_id}")

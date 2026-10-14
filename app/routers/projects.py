@@ -11,6 +11,7 @@ from fastapi import Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from ..dateiauslieferung import gespeicherter_typ
 from ..database import get_db
 from ..document_categories import resolve_category_id
 from ..invoices import invoice_overview_rows, invoice_summary_for_order, list_invoices_for_project
@@ -283,7 +284,7 @@ async def upload_project_document(
         project_id=project_id, category=category_value, category_id=resolve_category_id(db, category_value),
         subfolder=(subfolder.strip() or None) if isinstance(subfolder, str) else None,
         original_filename=Path(file.filename).name,
-        stored_filename=stored, content_type=file.content_type, file_size=len(data), description=(description or None), document_date=parsed_date,
+        stored_filename=stored, content_type=gespeicherter_typ(data), file_size=len(data), description=(description or None), document_date=parsed_date,
     )
     db.add(doc); db.commit(); db.refresh(doc)
     return _project_document_out(doc)

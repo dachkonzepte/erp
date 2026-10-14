@@ -4,9 +4,9 @@ Bewusst KEINE is_module_enabled("wartungen")-Prüfung: Property ist Kern-Stammda
 Eintrag in OPTIONAL_MODULES, siehe app/roof_areas.py."""
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from ..dateiauslieferung import datei_antwort
 from ..database import get_db
 from ..models import AppUser, RoofArea
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
@@ -137,7 +137,7 @@ def get_roof_area_sketch(roof_area_id: int, db: Session = Depends(get_db), _role
     path = sketch_path(roof_area.sketch_path)
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Skizzendatei nicht gefunden.")
-    return FileResponse(path)
+    return datei_antwort(path)
 
 
 @router.delete("/api/roof-areas/{roof_area_id}/sketch", response_model=RoofAreaOut)

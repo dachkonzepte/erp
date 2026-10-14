@@ -39,7 +39,7 @@ nosniff aus. "Offene Bedenken" am Auftrag bekommt auch der Monteur -- für die E
 Checklisten-Seite des Auftrags, mit derselben Auftragsprüfung wie jeder Auftragszugriff."""
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import Response
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
@@ -57,6 +57,7 @@ from ..checklists import (
     get_checklist_row, is_office_only, list_checklists, list_startable_templates, mark_asset_repaired, published_version,
     read_signer_poa, save_answer, void_checklist, MAX_UPLOAD_BYTES,
 )
+from ..dateiauslieferung import datei_antwort
 from ..database import get_db
 from ..email_dispatch import DispatchConflict, dispatch_to_dict
 from ..models import AppUser, Checklist, ChecklistTemplate
@@ -365,13 +366,10 @@ def get_checklist_attachment_file(attachment_id: int, db: Session = Depends(get_
     path = attachment_path(attachment)
     if not path.exists():
         raise HTTPException(status_code=404, detail="Datei nicht gefunden.")
-    # Seit 1.8.45 auch Belege (PDF oder Bild, beim Hochladen am Inhalt erkannt, nie SVG/HTML); nosniff, damit
-    # der Browser nichts anderes daraus macht (Muster GET /api/sent-documents/{id}/file).
-    media_type = attachment_content_type(attachment)
-    headers = {"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"}
-    if attachment.kind == "beleg":
-        headers["Content-Disposition"] = f'inline; filename="Beleg-{attachment.id}{path.suffix.lower()}"'
-    return FileResponse(path, media_type=media_type, headers=headers)
+    # Seit 1.8.45 auch Belege (PDF oder Bild, beim Hochladen am Inhalt erkannt, nie SVG/HTML); seit 1.8.101 über
+    # datei_antwort() (Typ am Inhalt, nosniff).
+    name = f"Beleg-{attachment.id}{path.suffix.lower()}" if attachment.kind == "beleg" else None
+    return datei_antwort(path, name, kopfzeilen={"Cache-Control": "private, max-age=3600"})
 
 
 @router.get("/api/checklist-attachments/{attachment_id}/power-of-attorney")
@@ -389,9 +387,7 @@ def get_checklist_signer_poa(attachment_id: int, db: Session = Depends(get_db), 
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     suffix = {"application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}.get(content_type, "")
-    return Response(content=data, media_type=content_type, headers={
-        "X-Content-Type-Options": "nosniff",
-        "Content-Disposition": f'inline; filename="Vollmacht-Unterschrift-{attachment.id}{suffix}"'})
+    return datei_antwort(data, f"Vollmacht-Unterschrift-{attachment.id}{suffix}")
 
 
 @router.delete("/api/checklist-attachments/{attachment_id}", response_model=ChecklistOut)

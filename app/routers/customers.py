@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..crm import compose_customer_name, ensure_customer_profile
 from ..customer_documents import MAX_UPLOAD_BYTES, customer_directory, make_stored_filename
+from ..dateiauslieferung import gespeicherter_typ
 from ..database import get_db
 from ..document_categories import resolve_category_id
 from ..models import AppUser, Customer, CustomerDocument, CustomerExtraInfo, Property
@@ -227,7 +228,7 @@ async def upload_customer_document(
         customer_id=customer_id, category=category_value, category_id=resolve_category_id(db, category_value),
         subfolder=(subfolder.strip() or None) if isinstance(subfolder, str) else None,
         original_filename=Path(file.filename).name,
-        stored_filename=stored, content_type=file.content_type, file_size=len(data), description=(description or None), document_date=parsed_date,
+        stored_filename=stored, content_type=gespeicherter_typ(data), file_size=len(data), description=(description or None), document_date=parsed_date,
     )
     db.add(doc); db.commit(); db.refresh(doc)
     return _customer_document_out(doc)
