@@ -48,14 +48,15 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.auth import hash_password, otp_ok_for_user, user_from_request, users_exist
+from app.auth import hash_password
 from app.database import Base, get_db
 from app.main import _blocked_pending_two_factor, _page_requires_login, _request_requires_login
 from app.models import AppUser
 from app.routers import account as account_router_module
 from app.routers import auth as auth_router_module
 from app.routers import pages as pages_router_module
-from app.routers.pages import _safe_next_target
+from app.weiterleitung import sicheres_ziel
+from tests.anmeldung import client_mit_schranke, neue_datenbank
 
 PASSWORD = "RichtigesPasswort123"
 
@@ -72,58 +73,31 @@ def make_valid_code(secret: str) -> str:
 
 
 def _make_test_app():
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    make_session = sessionmaker(bind=engine)
-
-    app = FastAPI()
-    app.include_router(pages_router_module.router)
-    app.include_router(auth_router_module.router)
-    app.include_router(account_router_module.router)
-    app.dependency_overrides[get_db] = lambda: make_session()
-
-    @app.middleware("http")
-    async def _identity_gate(request: Request, call_next):
-        mw_db = make_session()
-        try:
-            has_users = users_exist(mw_db)
-            user = user_from_request(mw_db, request)
-        finally:
-            mw_db.close()
-        request.state.erp_user = user
-        otp_ok = True
-        if user is not None and user.role == "admin":
-            otp_ok = otp_ok_for_user(request, user.id)
-        request.state.otp_ok = otp_ok
-        if user is None and _request_requires_login(has_users, request.method, request.url.path):
-            return JSONResponse(status_code=401, content={"detail": "Bitte zuerst als ERP-Benutzer anmelden."})
-        if user is None and _page_requires_login(has_users, request.method, request.url.path):
-            return RedirectResponse(url=f"/login?next={quote(request.url.path, safe='')}", status_code=302)
-        if user is not None and not otp_ok and _blocked_pending_two_factor(request.url.path):
-            return JSONResponse(status_code=401, content={"detail": "Zwei-Faktor-Bestätigung ausstehend.", "two_factor_pending": True})
-        return await call_next(request)
-
-    return TestClient(app), make_session
+    """Seit 1.8.98 mit der echten Anmeldeschranke (tests/anmeldung.py) statt einer Nachbildung."""
+    _engine, make_session = neue_datenbank()
+    return client_mit_schranke(make_session, pages_router_module.router, auth_router_module.router,
+                               account_router_module.router), make_session
 
 
 # ---------------------------------------------------------------------------
-# _safe_next_target() isoliert -- kein offener Redirect über einen von aussen
-# mitgegebenen next-Wert.
+# Seit 1.8.98 app/weiterleitung.py::sicheres_ziel() statt _safe_next_target() (vorher None für ein ungültiges Ziel, jetzt die
+# Startseite) -- kein offener Redirect über einen von aussen mitgegebenen next-Wert. Die vollständige Angriffstabelle steht in
+# tests/test_v401_weiterleitung.py.
 # ---------------------------------------------------------------------------
 
 def test_safe_next_target_accepts_a_plain_internal_path():
-    assert _safe_next_target("/tasks") == "/tasks"
+    assert sicheres_ziel("/tasks") == "/tasks"
 
 
 def test_safe_next_target_rejects_missing_or_empty():
-    assert _safe_next_target(None) is None
-    assert _safe_next_target("") is None
+    assert sicheres_ziel(None) == "/"
+    assert sicheres_ziel("") == "/"
 
 
 def test_safe_next_target_rejects_absolute_and_protocol_relative_urls():
-    assert _safe_next_target("https://evil.example/phish") is None
-    assert _safe_next_target("//evil.example/phish") is None
-    assert _safe_next_target("evil.example/phish") is None
+    assert sicheres_ziel("https://evil.example/phish") == "/"
+    assert sicheres_ziel("//evil.example/phish") == "/"
+    assert sicheres_ziel("evil.example/phish") == "/"
 
 
 # ---------------------------------------------------------------------------
@@ -213,8 +187,9 @@ def test_login_page_redirects_admin_pending_verify_to_account_with_next():
     setup = client.post("/api/account/2fa/setup/start")
     secret = setup.json()["secret"]
     client.post("/api/account/2fa/setup/confirm", json={"code": make_valid_code(secret)})
-    # Neue "Sitzung" ohne OTP-Cookie simulieren, aber weiterhin angemeldet (Login-Cookie bleibt):
-    client.cookies.delete("dk_erp_otp_ok")
+    # Seit 1.8.98 steht der zweite Faktor an der Sitzung (vorher: OTP-Cookie löschen) -- eine neue Anmeldung ist eine neue Sitzung
+    # ohne bestätigten zweiten Faktor, wie am nächsten Tag:
+    client.post("/api/auth/login", json={"username": "admin.test", "password": PASSWORD})
 
     resp = client.get("/login?next=%2Ftasks", follow_redirects=False)
     assert resp.status_code == 302
@@ -228,7 +203,9 @@ def test_login_page_redirects_admin_pending_verify_to_account_without_next():
     setup = client.post("/api/account/2fa/setup/start")
     secret = setup.json()["secret"]
     client.post("/api/account/2fa/setup/confirm", json={"code": make_valid_code(secret)})
-    client.cookies.delete("dk_erp_otp_ok")
+    # Seit 1.8.98 steht der zweite Faktor an der Sitzung (vorher: OTP-Cookie löschen) -- eine neue Anmeldung ist eine neue Sitzung
+    # ohne bestätigten zweiten Faktor, wie am nächsten Tag:
+    client.post("/api/auth/login", json={"username": "admin.test", "password": PASSWORD})
 
     resp = client.get("/login", follow_redirects=False)
     assert resp.status_code == 302
@@ -289,8 +266,7 @@ def test_round_trip_through_routine_verify_leads_to_next_afterwards():
     secret = setup.json()["secret"]
     client.post("/api/account/2fa/setup/confirm", json={"code": make_valid_code(secret)})
 
-    # Neue "Sitzung" ohne OTP-Cookie, aber weiterhin angemeldet -- wie beim naechsten Login-Tag:
-    client.cookies.delete("dk_erp_otp_ok")
+    # Neue Sitzung ohne bestätigten zweiten Faktor -- wie beim naechsten Login-Tag (seit 1.8.98 an der Sitzung, kein OTP-Cookie mehr):
     login = client.post("/api/auth/login", json={"username": "admin.test", "password": PASSWORD})
     assert login.json()["two_factor_configured"] is True
 
@@ -307,9 +283,10 @@ def test_round_trip_through_routine_verify_leads_to_next_afterwards():
 # ---------------------------------------------------------------------------
 
 def test_login_html_forwards_the_query_string_to_account():
+    """Seit 1.8.98 nur ein lokales next (vorher location.search unverändert, auch next=javascript:…)."""
     from pathlib import Path
     html = (Path(__file__).parents[1] / "app" / "templates" / "login.html").read_text(encoding="utf-8")
-    assert "'/account'+location.search" in html
+    assert "location.href='/account'+(istLokalesZiel(ziel)?'?next='+encodeURIComponent(ziel):'')" in html
 
 
 def test_account_html_verify_code_redirects_via_next_instead_of_reloading():

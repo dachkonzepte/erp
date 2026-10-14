@@ -103,6 +103,7 @@ a{color:var(--accent)}
 </div>
 </div>
 {% include "_speichern.html" %}
+{% include "_weiterleitung.html" %}
 <script>
 let currentStatus=null;
 async function api(u,o={}){const r=await fetch(u,o);let d={};try{d=await r.json()}catch(_){}if(!r.ok)throw Object.assign(Error(d.detail||r.statusText),{detail:d.detail});return d}
@@ -174,7 +175,7 @@ async function verifyCode(){
   try{
     const body=JSON.stringify({code:document.getElementById('verifyCode').value.trim(),trust_device:document.getElementById('trustDevice').checked});
     await speichern('bestaetigen',()=>api('/api/account/2fa/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:body}));
-    location.href=new URLSearchParams(location.search).get('next')||'/';
+    location.href=sicheresZiel(new URLSearchParams(location.search).get('next'),'/');  // seit 1.8.98 nur ein lokaler Pfad
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 

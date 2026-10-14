@@ -8,7 +8,9 @@ from app.main import create_customer, create_project, update_project, update_pro
 from app.schemas import CustomerCreate, ProjectCreate, ProjectUpdate, ProjectDocumentUpdate
 from app.models import AuditLog, ProjectDocument
 from app.audit import set_audit_context, reset_audit_context
-from app.auth import hash_password, verify_password, make_cookie, parse_cookie
+from app import sitzungen
+from app.auth import hash_password, verify_password
+from app.models import AppUser
 
 
 def new_db():
@@ -66,8 +68,14 @@ def test_password_hash_and_signed_cookie():
     stored = hash_password("SicheresPasswort123")
     assert verify_password("SicheresPasswort123", stored)
     assert not verify_password("falsch", stored)
-    cookie = make_cookie(42)
-    assert parse_cookie(cookie) == 42
+    # Seit 1.8.98 eine Sitzung auf dem Server statt eines signierten Cookies (vorher: parse_cookie(make_cookie(42)) == 42).
+    db = new_db()
+    user = AppUser(username="anna", display_name="Anna", role="admin", active=True, password_hash=stored)
+    db.add(user); db.commit()
+    wert = sitzungen.neue_sitzung(db, user)
+    db.commit()
+    assert sitzungen.sitzung_zum_wert(db, wert).user_id == user.id
+    assert sitzungen.sitzung_zum_wert(db, wert + "x") is None
 
 
 def test_history_ui_and_project_tab_exist():

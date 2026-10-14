@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.97** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.98** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -696,6 +696,19 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     (Zeitlimit über `window.__dkZeitlimit`), `klicktest_anmelden`; das Klicktest-Werkzeug nennt beim Scheitern die offenen Anfragen
     (Netzwerkprotokoll). Details: `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.95" bis "Umsetzung 1.8.97".
 
+30. **Weiterleitungen nur auf lokale Pfade, Sitzungen auf dem Server, kein Cache für angemeldete Sitzungen, seit 1.8.98.** Ein Ziel aus
+    Anfrage oder Adresse (`next` u. ä.) geht über `app/weiterleitung.py::sicheres_ziel()` (Server) bzw. `sicheresZiel()` aus
+    `_weiterleitung.html` (Browser): nur ein lokaler Pfad, sonst die Startseite. Sonst hat jede `RedirectResponse` ein festes Ziel und jede
+    Navigation einer Vorlage zu einem Wert aus der Adresse einen festen lokalen Anfang (`tests/test_v401_weiterleitung.py`: AST bzw.
+    `tests/vorlagen_navigation.py`, dazu eine Angriffstabelle für beide Fassungen). Anmelden legt eine Sitzung an (`app/sitzungen.py`,
+    Tabelle `user_sessions`: nur der Hash des Cookie-Werts, fest 12 h, zweiter Faktor je Sitzung); Abmelden beendet sie, wer Passwort,
+    zweiten Faktor oder Aktiv-Status eines Kontos ändert, beendet im selben Commit alle seine Sitzungen (`alle_beenden()`) -- eine neue
+    solche Stelle ebenso (`tests/test_v402_sitzungen.py`). Die Anmeldeschranke (`app/anmeldeschranke.py`, aus `app/main.py`) setzt
+    `Cache-Control: no-store` an jede Antwort an eine angemeldete Sitzung, auch an Dateien; `tests/test_v403_kein_cache.py` läuft alle
+    GET-Routen ab. Tests mit echter Anmeldung binden die Schranke über `tests/anmeldung.py` ein, statt sie nachzubauen; im Klicktest ist
+    jedes `k.cookies()` eine eigene Sitzung (nach dem Abmelden gilt sie nicht mehr). Details: `docs/archiv/befund-vor-echtbetrieb.md`,
+    "Umsetzung 1.8.98".
+
 ## Fachbegriffe & Domänenmodell
 
 - **"Vorgang"** (in normalem Gespräch) = **Projekt** (`Project`) – wurde in der Sitzung explizit
@@ -992,8 +1005,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
 - **Adressimport & Objekte** (Altsystem-Import, Hauptadressen-Kennzeichnung) --
   `docs/archiv/adressimport-und-objekte.md`
 - **Serverbetrieb & Anmeldesicherheit** (Geheimnisse/`ERP_DATA_DIR`, Zwei-Faktor-Pflicht,
-  Geräte-Vertrauen, serverseitige Anmeldeschranke für Seiten, PostgreSQL-Migrationsreparatur) --
-  `docs/archiv/serverbetrieb-und-anmeldesicherheit.md`
+  Geräte-Vertrauen, serverseitige Anmeldeschranke für Seiten, PostgreSQL-Migrationsreparatur; seit 1.8.98 Sitzungen auf dem Server,
+  siehe Regel 30) -- `docs/archiv/serverbetrieb-und-anmeldesicherheit.md`
 - **Rechtekonzept** (vier Rollen `admin`/`buero_finanzen`/`buero_auftrag`/`field`,
   Standardverweigerung, Objekt-Filterung, Dateiablage je Objekt, Büro-Suche) --
   `docs/archiv/rechtekonzept.md` (siehe auch "Rechtekonzept (kurz)" unten)
@@ -1112,7 +1125,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   auf das Speichern der Seite), Teil-Updates statt gemerkter Werte an acht Endpunkten mit Zeilensperren; seit 1.8.97 jedes Lesen über
   den Baustein (Ausnahmen nur ohne Formular), Klicktests Anmelden/Abmelden mit Netzwerkprotokoll im Werkzeug, Regel 29 nachgezogen;
   festgehalten 13.10.2026, nicht gebaut: Gewährleistungs- und Kulanzstunden für Stufe 2d und die Rüge, „Abschließen ohne Rechnung“ im
-  neuen Abschnitt „Parkplatz vor dem Echtbetrieb“)
+  neuen Abschnitt „Parkplatz vor dem Echtbetrieb“; seit 1.8.98 Weiterleitungsziele nur lokal (Server und Browser), Sitzungen auf dem
+  Server, `Cache-Control: no-store` für angemeldete Sitzungen, Regel 30)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Zahlungen** (Zahlungsstufe Z1 seit 1.8.78: Zahlungseingang mit Zuordnungen, Skonto und Einbehalt, Rest am Kunden,
   Zahlstand abgeleitet, Gegenbuchung statt Ändern, Sperrreihenfolge, Storno erst nach gelösten Zuordnungen, Finanzen/Dashboard mit
@@ -1402,6 +1416,11 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
   etablierte Content-Stream-Textextraktion (`_extract_pdf_text()`, seit 1.2.16 in
   `tests/test_v213_inspection_items.py`, hier wiederverwendet statt dupliziert).
 
+- **Echte Anmeldung in Tests** (seit 1.8.98, Regel 30): `tests/anmeldung.py::client_mit_schranke(make_session, *router)` bzw.
+  `app_mit_schranke()` baut eine Test-App mit der echten Anmeldeschranke (`app/anmeldeschranke.py`) und eigener Sitzungsfabrik
+  (`neue_datenbank()`); angemeldet wird über `POST /api/auth/login` oder direkt mit `app.sitzungen.neue_sitzung(db, user,
+  zweiter_faktor=True)` als Cookie `dk_erp_auth` (Domäne `testserver.local`, sonst hält httpx zwei Cookies gleichen Namens).
+
 - **Grunddaten in jeder Testdatenbank** (seit 1.8.42): `tests/conftest.py` ruft nach jedem
   `Base.metadata.create_all()` `app.grunddaten.anlegen()` auf -- wie der Start einer echten Installation. Ein Test,
   der den Vorzustand genau braucht (Migrationstests, `anlegen()` selbst), legt die Tabellen in
@@ -1610,7 +1629,7 @@ mit Guthaben und Zahlungsausgang, zurücknehmen, 412 px dunkel, Monteurin 403) u
 `klicktest_browser_datum.py` (1.8.87, Instanz und Browser-Uhr um 00:30 Uhr, Browser in UTC und New York: Monteur-Zeiterfassung mit der
 Buchung von heute, Stundenzettel, Büro-Zeiterfassung, Aufgaben überfällig, Plantafel, Kalender) und `klicktest_zahlungen_kleinkram.py`
 (1.8.94, Finanzen „Bezahlt (gesamt)“ abzüglich Erstattungen, Kundenakte mit Grund statt „Zahlung zurücknehmen“ und gruppiertem „Rest
-zuordnen“, Zahlungsdialog gruppiert und umverteilt gebucht, Zahlbetrag 0 € mit Satz und ohne Schlusstext, 412 px dunkel, Monteurin 403) und `klicktest_abschliessen.py` (1.8.96, Einsatzbericht: Prüfpunkt zurückhalten, dann unterschreiben -- Unterschrift erst nach dem Prüfpunkt; Prüfpunkt scheitert -- Unterschrift nicht ausgeführt; Zeitlimit 2 s über `window.__dkZeitlimit` -- Meldung, Hinweis oben, Unterschrift abgelehnt) und `klicktest_anmelden.py` (1.8.97, Formular mit falschem und richtigem Passwort, Doppelklick nicht parallel, Admin bis zum zweiten Faktor, Abmelden über beide Kopfzeilen -- die Seite wartet die Abmeldung ab --, Seitenleiste nachgestellt, Angriffe auf `next` als `BEFUND`-Zeilen). **Netzwerkprotokoll** (seit 1.8.97): jeder Tab zeichnet die Network-Ereignisse auf (`tab.netz`); beim Scheitern (Abweichung in `pruefe()`, Seite nicht bereit, Warte-Helfer abgebrochen, `warten()` abgelaufen, Ende eines nicht erfolgreichen Laufs) druckt das Werkzeug die offenen Anfragen mit Adresse, Startzeit und "gesendet ja/nein"; eine gewollte Pause `warten("false", 1.0, melden=False)`; `tab.im_netz_anhalten()` hält eine Anfrage an, bevor sie gesendet wird.
+zuordnen“, Zahlungsdialog gruppiert und umverteilt gebucht, Zahlbetrag 0 € mit Satz und ohne Schlusstext, 412 px dunkel, Monteurin 403) und `klicktest_abschliessen.py` (1.8.96, Einsatzbericht: Prüfpunkt zurückhalten, dann unterschreiben -- Unterschrift erst nach dem Prüfpunkt; Prüfpunkt scheitert -- Unterschrift nicht ausgeführt; Zeitlimit 2 s über `window.__dkZeitlimit` -- Meldung, Hinweis oben, Unterschrift abgelehnt) und `klicktest_anmelden.py` (1.8.97, Formular mit falschem und richtigem Passwort, Doppelklick nicht parallel, Admin bis zum zweiten Faktor, Abmelden über beide Kopfzeilen -- die Seite wartet die Abmeldung ab --, Seitenleiste nachgestellt; seit 1.8.98 als Prüfungen: Angriffe auf `next`, der alte Cookie-Wert nach dem Abmelden 401, „Zurück“ ohne Daten). **Netzwerkprotokoll** (seit 1.8.97): jeder Tab zeichnet die Network-Ereignisse auf (`tab.netz`); beim Scheitern (Abweichung in `pruefe()`, Seite nicht bereit, Warte-Helfer abgebrochen, `warten()` abgelaufen, Ende eines nicht erfolgreichen Laufs) druckt das Werkzeug die offenen Anfragen mit Adresse, Startzeit und "gesendet ja/nein"; eine gewollte Pause `warten("false", 1.0, melden=False)`; `tab.im_netz_anhalten()` hält eine Anfrage an, bevor sie gesendet wird. Ein Dialog des Browsers (vor allem „Seite verlassen?“ bei einer Navigation während eines Speicherns) hielt bis 1.8.97 jeden weiteren CDP-Befehl an; seit 1.8.98 meldet das Werkzeug ihn (Lauf nicht wie erwartet, samt Netzprotokoll) und nimmt ihn an.
 **Nach einer Aktion, die neu lädt** (seit 1.8.94), nie eine feste Pause oder einen Statustext als Beleg nehmen -- viele Seiten setzen
 ihn vor dem Neuladen --, sondern `await tab.warte_auf_neu_geladene_liste("…click()", "#liste")` (wartet, bis keine Anfrage der Seite
 mehr unterwegs und die Liste neu gezeichnet ist; ohne Aktion nach `oeffnen()`, bevor geprüft wird, dass etwas NICHT erscheint);

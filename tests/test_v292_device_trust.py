@@ -26,7 +26,6 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app import device_trust, two_factor
-from app.auth import otp_ok_for_user, user_from_request
 from app.database import Base, get_db
 from app.main import _blocked_pending_two_factor
 from app.models import AppUser, TrustedDevice
@@ -35,6 +34,7 @@ from app.routers import auth as auth_router_module
 from app.routers import users as users_router_module
 from app.routers.users import reset_user_two_factor, update_app_user
 from app.schemas import AppUserUpdate
+from tests.anmeldung import app_mit_schranke, neue_datenbank
 from tests.test_v153_mahnwesen import db_session
 from tests.test_v250_two_factor_auth import make_admin, make_valid_code
 
@@ -113,33 +113,10 @@ def test_revoke_all_removes_multiple_devices_of_the_same_account():
 # --- Ende-zu-Ende über echte Cookies (TestClient), Muster test_v250_two_factor_auth ------------
 
 def _make_test_app():
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    make_session = sessionmaker(bind=engine)
-
-    app = FastAPI()
-    app.include_router(auth_router_module.router)
-    app.include_router(account_router_module.router)
-    app.include_router(users_router_module.router)
-    app.dependency_overrides[get_db] = lambda: make_session()
-
-    @app.middleware("http")
-    async def _identity_and_two_factor_gate(request: Request, call_next):
-        mw_db = make_session()
-        try:
-            user = user_from_request(mw_db, request)
-        finally:
-            mw_db.close()
-        request.state.erp_user = user
-        otp_ok = True
-        if user is not None and user.role == "admin":
-            otp_ok = otp_ok_for_user(request, user.id)
-        request.state.otp_ok = otp_ok
-        if user is not None and not otp_ok and _blocked_pending_two_factor(request.url.path):
-            return JSONResponse(status_code=401, content={"detail": "Zwei-Faktor-Bestätigung ausstehend.", "two_factor_pending": True})
-        return await call_next(request)
-
-    return app, make_session
+    """Seit 1.8.98 mit der echten Anmeldeschranke (tests/anmeldung.py) statt einer Nachbildung."""
+    _engine, make_session = neue_datenbank()
+    return app_mit_schranke(make_session, auth_router_module.router, account_router_module.router,
+                            users_router_module.router), make_session
 
 
 def _configured_admin(db, username):

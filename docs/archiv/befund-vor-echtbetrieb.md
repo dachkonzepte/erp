@@ -3565,6 +3565,152 @@ stand schon im "Parkplatz vor dem Echtbetrieb".)
 17. **Zum roten `klicktest_vertragsgrundlage` aus 1.8.95** (nur Hinweis): die Kundenakte startet beim Laden 13 Anfragen gleichzeitig, Chrome
     öffnet höchstens sechs Verbindungen je Server; eine wartende stünde jetzt im Protokoll als offen mit "gesendet: nein".
 
+## Weiterleitung, Sitzungen, Cache-Verbot, Befund Seiten (ab 1.8.98)
+
+### Vorgabe vom 14.10.2026 (übernommen wie gegeben)
+
+Vorweg zu 1.8.96/1.8.97: Festlegungen bestätigt, mit diesen Korrekturen:
+- 96-1: Beim Hochladen läuft das Zeitlimit erst ab dem Ende der Übertragung.
+- 96-6: Zahlung, Gegenbuchung, Erstattung, Storno, Abnahme, Mangel und Nebenforderung sind abschließend; was in der Liste fehlt, aufnehmen.
+- 96-7: Ein gescheitertes Speichern ohne nachfolgendes erfolgreiches im selben Bereich sperrt abschließende Aktionen wie „unklar“. Das gilt
+  nur für Speichern: Eine vom Server abgelehnte abschließende Aktion sperrt keine weitere, eine unklare schon (96-9). Dazu ein Test mit
+  Gegenprobe; den Docstring des umbenannten Tests in test_v399 berichtigen.
+- 96-13: Dauertest: __dkZeitlimit steht nur im Baustein und unter scripts/.
+- 96-19: Zeilensperre überall, wo ein gespeicherter Wert aus mehreren Feldern abgeleitet wird (etwa Gesamtpreis einer Position);
+  Angriffstest mit zwei gleichzeitigen Teil-Updates verschiedener Felder gegen PostgreSQL.
+- 96-24: content am Layout-Baustein wird gespeichert, nie still verworfen.
+- 97-1: Auch ein direkter Aufruf von api() außerhalb von lesen()/speichern()/abschliessen() wird gemeldet.
+- 97-7: Ändert das Speichern der Kalkulation Werte im LV, lädt das LV in seinem Bereich neu.
+- moveItemBefore auf Teil-Update.
+- Regel 26 erweitern: volle Suite und alle Klicktests auf dem committeten Endstand bei sauberer Arbeitskopie, Hash im Bericht; ändert sich
+  danach etwas, laufen beide neu. Regel 28 erweitern: jede angepasste Erwartung mit altem und neuem Soll.
+
+1. Weiterleitungsziele (next und alle anderen): eine gemeinsame Prüffunktion auf dem Server und eine im Browser, nur lokale Pfade, sonst
+   die Startseite. Strukturtest: jede Navigation zu einem Wert aus Anfrage oder Adresse läuft darüber. Angriffstests mit javascript:,
+   data:, //, /\, fremden Hosts und kodierten Varianten. Die BEFUND-Zeilen der Klicktests werden zu Prüfungen.
+2. Abmelden beendet die Sitzung auf dem Server. Passwort- und 2FA-Änderung sowie das Deaktivieren eines Benutzers beenden alle seine
+   Sitzungen. Angriffstest: altes Cookie nach dem Abmelden.
+3. Cache-Control: no-store für jede Antwort an eine angemeldete Sitzung, auch PDFs und Dateien; Dauertest über alle GET-Endpunkte.
+4. Nur Befund, Fehler als xfail(strict=True): Cookie-Flags, Schutz schreibender Anfragen gegen fremde Seiten, und wo Daten ungeschützt in
+   die Seite gelangen (innerHTML, |safe), besonders Daten von außen (Outlook-Termine, Adressimport, Altkunden).
+
+Reihenfolge: Punkte 1–3, dann Vorweg, dann Punkt 4. Angriffstests mit Gegenprobe. Eigene Festlegungen mit „Bitte bestätigen“, je in einer
+Zeile. Nebenbefunde nur melden. Wird der Umfang zu groß: nach Punkt 3 committen und den Rest auflisten. Commit nach Regel 13, Bericht
+kurz.
+
+### Umsetzung 1.8.98: Weiterleitungsziele (Punkt 1), Sitzungen auf dem Server (Punkt 2), Cache-Verbot (Punkt 3)
+
+#### Was gebaut ist
+
+- **Eine Prüffunktion je Seite** (Punkt 1): `app/weiterleitung.py::sicheres_ziel(wert, startseite)` / `ist_lokal(wert)` auf dem Server,
+  `app/templates/_weiterleitung.html::sicheresZiel(wert, startseite)` / `istLokalesZiel(wert)` im Browser, dieselbe Regel: genau ein "/" am
+  Anfang (nicht "//", nicht "/\"), nur druckbare ASCII-Zeichen ohne Leerzeichen und Rückstrich (Browser entfernen Tab und Zeilenumbruch
+  und lesen "\" wie "/"), jedes "%" mit zwei Hex-Ziffern, auch dekodiert (höchstens fünfmal) kein Steuerzeichen, kein Leerzeichen, kein
+  Rückstrich und kein "//" am Anfang, kein Schema und kein Host (im Browser zusätzlich derselbe Ursprung über `new URL()`); sonst die
+  Startseite. `_safe_next_target()` (seit 1.3.48, nur "/" und "//" geprüft) entfällt.
+- **Angewandt**: `login_page()` (angemeldet: `next` über `sicheres_ziel()`, sonst die Startseite der Rolle; zweiter Faktor offen:
+  `/account` und `next` nur, wenn lokal), `login.html::login()` (`sicheresZiel(next, '/projects' bzw. '/mobil')`, an `/account` nur ein
+  lokales `next` -- bis 1.8.97 `location.search` unverändert) und `account.html::verifyCode()` (bis 1.8.97 `next` ungeprüft).
+  Nebenbefunde 1 und 2 aus 1.8.97 behoben.
+- **Strukturtest Server** (`tests/test_v401_weiterleitung.py`, AST): jede `RedirectResponse` und jede Kopfzeile `Location` in `app/` nimmt
+  ein festes Ziel (Text mit lokalem Anfang, `default_home_page_for_role()`) oder `sicheres_ziel()`, auch über eine Variable, `a if b else
+  c` und `a or b`; vier Weiterleitungen gefunden (Anmeldeschranke, `login_page()` zweimal, Dashboard für Monteure).
+- **Strukturtest Browser** (`tests/vorlagen_navigation.py`): jede Navigation (Zuweisung an `location`, `location.href`, `X.href`;
+  `location.assign/replace()`, `window.open()`) in allen Vorlagen und ihren Handlern im HTML zu einem Wert aus der Adresse
+  (`location.search/hash/href`, `document.referrer/URL/documentURI/baseURI`, `window.name`, auch über Variablen und Funktionen) geht über
+  `sicheresZiel()` oder beginnt mit einem festen lokalen Pfad (`'/projects/'+x`), bei `a?b:c` und `a||b` jeder mögliche Wert. 100
+  Navigationen, 10 zu Werten aus der Adresse, alle geprüft (vorher wären `login.html` und `account.html` rot gewesen).
+- **Sitzungen auf dem Server** (Punkt 2, `app/sitzungen.py`, Tabelle `user_sessions`, Migration `8c86e12540cf`): das Cookie `dk_erp_auth`
+  trägt einen Zufallswert (`secrets.token_urlsafe(32)`), gespeichert ist nur sein SHA-256; Ablauf fest 12 h ab der Anmeldung. Abmelden
+  beendet die eigene Sitzung (`beenden()`); ein neues Passwort (eigenes und durch einen Administrator), die Ersteinrichtung des zweiten
+  Faktors, sein Zurücksetzen (Administrator oder Notfallskript, `two_factor.reset()`) und das Deaktivieren eines Benutzers beenden alle
+  seine Sitzungen (`alle_beenden()`) -- wer selbst ändert, bleibt auf diesem Gerät mit einer neuen Sitzung angemeldet. Die Anmeldung
+  vergibt immer einen neuen Wert und beendet einen mitgeschickten (Sitzungsfixierung). Der zweite Faktor steht an der Sitzung
+  (`second_factor_at`) statt im Cookie `dk_erp_otp_ok`, das an den Benutzer gebunden war und sich in eine neue Anmeldung mitnehmen ließ
+  (12 h gültig); die Bestätigung gibt der Sitzung einen neuen Wert. Benutzer löschen nimmt seine Sitzungen mit (ORM-Beziehung und
+  `ON DELETE CASCADE` -- unter SQLite ohne erzwungene Fremdschlüssel bekäme sonst der nächste neue Benutzer mit derselben ID die alte
+  Sitzung). Nebenbefund 3 aus 1.8.97 behoben.
+- **Anmeldeschranke als eigenes Modul** (`app/anmeldeschranke.py::middleware(session_factory)`): Identität aus der Sitzung, Anmeldepflicht,
+  zweiter Faktor, Cache-Verbot; `app/main.py` bindet sie mit `SessionLocal` ein, die Tests mit ihrer Sitzungsfabrik
+  (`tests/anmeldung.py`) -- `test_v250`, `test_v256`, `test_v257` und `test_v292` bauten die Middleware bis 1.8.97 je nach.
+- **Cache-Verbot** (Punkt 3): jede Antwort an eine angemeldete Sitzung und jede Antwort, die das Anmelde-Cookie setzt oder löscht,
+  trägt `Cache-Control: no-store` -- auch PDFs und Dateien, eine eigene Angabe des Endpunkts (Logo ein Jahr `immutable`, Fotos einer
+  Checkliste eine Stunde) wird ersetzt. "Zurück" nach dem Abmelden fragt den Server und landet auf der Anmeldung (Nebenbefund 4 aus 1.8.97
+  behoben).
+- **Klicktest `klicktest_anmelden`**: die acht BEFUND-Zeilen sind Prüfungen (alter Cookie-Wert 401 nach dem Abmelden in Büro und /mobil,
+  "Zurück" ohne Daten in drei Fällen, `next` über das Formular: fremde Adresse, `//`, Rückstrich, Tab, `/%2F`, `/%5C`, `https:` ->
+  Startseite; `javascript:`, ` JavaScript:`, `data:` -> kein Skript; angemeldet acht Werte am Server); je Abschnitt, der sich abmeldet, eine
+  eigene Sitzung (`k.cookies()` legt seit 1.8.98 eine Sitzung an).
+
+#### Festlegungen 1.8.98 (Bitte bestätigen)
+
+1. **Lokal = die Regel oben**, bewusst streng: auch harmlose Pfade mit kodiertem Leerzeichen, Rückstrich oder `%25` am Ende (`/100%25`) werden abgelehnt.
+2. **Startseite = die der Rolle**: Server `/` bzw. `/mobil`, im Anmeldeformular wie bisher `/projects` bzw. `/mobil`, zweiter Faktor offen `/account` ohne `next`.
+3. **"Wert aus Anfrage oder Adresse"**: am Server jede Weiterleitung, im Browser Werte aus der Adresse; Werte aus API-Antworten (z. B. `product_url` als Link) gehören zu Punkt 4.
+4. **Ein fester lokaler Anfang gilt als geprüft** (`'/projects/'+x`, `` `/a/${x}` ``): der Wert bestimmt nur den Rest des Pfads.
+5. **Sitzung fest 12 h ab der Anmeldung**, keine gleitende Verlängerung (ein GET schreibt nicht); abgelaufene Zeilen räumt die nächste Anmeldung auf.
+6. **Wer selbst ändert, bleibt auf diesem Gerät angemeldet** (eigenes Passwort, Ersteinrichtung, eigenes Passwort in der Benutzerverwaltung), mit neuer Sitzung; alle anderen enden, auch die alte dieses Geräts.
+7. **Die Bestätigung des zweiten Faktors gibt der Sitzung einen neuen Wert**; die übrigen Sitzungen des Kontos bleiben.
+8. **Zweiter Faktor je Sitzung statt eigenem Cookie**; `dk_erp_otp_ok` wird beim Anmelden und Abmelden nur noch gelöscht.
+9. **Die Anmeldung beendet eine mitgeschickte Sitzung** und vergibt immer einen neuen Wert, auch wenn schon jemand angemeldet war.
+10. **Nach dem Einspielen gilt kein altes Cookie mehr**: jede Person meldet sich einmal neu an.
+11. **Rolle, Name, Mitarbeiter und Postfach ändern beendet keine Sitzung** (die Rolle wird je Anfrage frisch gelesen), ebenso "Alle vertrauten Geräte abmelden".
+12. **Feierabend in /mobil löscht weiter nur das Cookie** (GET, Regel 23); die Sitzung endet mit ihrem Ablauf.
+13. **no-store auch für Anmelden und Abmelden** (Antworten, die das Cookie setzen oder löschen); Antworten ohne Sitzung (Anmeldeseite, `/health`, 401) bleiben ohne.
+14. **Eigene Cache-Angaben werden für angemeldete Sitzungen ersetzt**: das Logo lädt jede Seite neu (vorher ein Jahr aus dem Cache).
+15. **"Zurück" im Klicktest**: keine Daten, nicht aus dem Back-Forward-Cache, keine Seite und keine API-Antwort aus dem HTTP-Cache -- die Anmeldeseite selbst (ohne Sitzung, ohne Daten) darf daraus kommen.
+16. **Die Tests binden die echte Anmeldeschranke ein** (`tests/anmeldung.py`) statt sie nachzubauen.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v401_weiterleitung.py` (255): Angriffstabelle (66 Werte: `javascript:` in vier Schreibweisen, `data:`, `vbscript:`,
+  `//`, `///`, `/\`, `\\`, fremde Hosts mit und ohne Schema, Tab/Zeilenumbruch/Leerzeichen/NUL, `/．`, `/∕`, kodiert `/%2F`, `%2F%2F`,
+  `/%5C`, `/%09/`, `/%0a/`, doppelt und dreifach kodiert, kaputte Kodierung, zu lang, kein Text) und 14 erlaubte Pfade gegen beide Fassungen
+  (die Browser-Fassung in node, dieselbe Entscheidung, jeder erlaubte Pfad mit demselben Ursprung), die Weiterleitung des Servers als
+  Büro, Monteurin und Admin mit offenem zweitem Faktor, `login.html::login()` und `account.html::verifyCode()` in node; Strukturtest Server
+  (AST, vier Weiterleitungen) mit zwölf Beispielen, Strukturtest Browser (alle Vorlagen samt Handlern) mit zwanzig Beispielen und einem
+  Handler im HTML.
+- Neu `tests/test_v402_sitzungen.py` (31, davon 2 gegen PostgreSQL): **Angriffstests** mit dem Cookie-Wert von vorher -- nach dem
+  Abmelden (API 401, Seite auf die Anmeldung), nach eigenem Passwort (auch der alte Wert dieses Geräts), nach einem Passwort durch einen
+  Administrator, nach Deaktivieren (auch nach dem Reaktivieren), nach Zurücksetzen und Notfallskript, nach der Ersteinrichtung, nach der
+  Bestätigung des zweiten Faktors; untergeschobener Wert vor der Anmeldung (Sitzungsfixierung), erfundene und kaputte Werte, das
+  zustandslose Cookie von 1.8.97, das alte Cookie des zweiten Faktors; gespeichert nur der Hash; Ablauf; Lesen schreibt nicht; Benutzer
+  löschen mit Wiedervergabe der ID unter SQLite; Gegenstück (Name/Rolle ändern beendet nichts).
+- Neu `tests/test_v403_kein_cache.py` (4): alle 310 GET-Routen (API und Seiten) über die echte Anmeldeschranke als Admin (mit Logo und PDFs)
+  und als Monteurin -- jede Antwort `no-store`; Anmelden und Abmelden ebenso.
+- Neu `tests/anmeldung.py` (Testanwendung mit der echten Anmeldeschranke); `test_v400_klicktest_netzwerk.py` +1 (Dialog des Browsers).
+- **Angepasste Erwartungen** (altes -> neues Soll): `test_v257::test_safe_next_target_*` `_safe_next_target(None/""/absolut) is None` ->
+  `sicheres_ziel(...) == "/"`; `test_v257::test_login_html_forwards_the_query_string_to_account` `'/account'+location.search` -> nur ein
+  lokales `next`; `test_v066::test_password_hash_and_signed_cookie` `parse_cookie(make_cookie(42)) == 42` -> Sitzung hin und zurück. Nur der
+  Aufbau geändert (Soll gleich): `test_v257` (zweiter Faktor offen über eine neue Anmeldung statt OTP-Cookie löschen), `test_v250`,
+  `test_v256`, `test_v292` (echte Anmeldeschranke), `test_v067` (unbenutzter Helfer mit altem Cookie entfernt).
+- Klicktest `klicktest_anmelden` 69/69 (vorher 50 Prüfungen und 8 BEFUND-Zeilen), mehrfach; je Abschnitt eine eigene Sitzung, zwischen den
+  Angriffen Ruhe abwarten.
+- Migrationsprobe gegen PostgreSQL (Wegwerf-Schema): Vorgänger, Bestand, hin, UNIQUE und ON DELETE CASCADE, `alembic check` ohne Unterschied,
+  zurück (Tabelle weg), wieder hin. Unter SQLite `alembic check` ohne Unterschied.
+- Gegenproben (Regel 24): 24 von 24 rot -- Server ohne Rückstrich- bzw. ohne Dekodierprüfung, `login_page()` ohne Prüfung, Browser ohne
+  Dekodieren, `login.html`/`account.html` ungeprüft, Scanner ohne Variablen; Abmelden, eigenes Passwort, Deaktivieren, Zurücksetzen,
+  Ersteinrichtung je ohne Beenden, Bestätigung ohne neuen Wert, Anmeldung ohne Beenden des mitgeschickten, Benutzer ohne Beziehung zu den
+  Sitzungen, zweiter Faktor nicht je Sitzung, Ablauf nicht geprüft; kein Cache-Verbot, ohne PDFs/Bilder, eigene Angabe bleibt; Werkzeug ohne
+  Dialog; Klicktest mit `login.html` ungeprüft (10 rot), Abmelden ohne Beenden (2 rot), ohne Cache-Verbot (3 rot). Jede Datei byte-genau
+  zurück, kein Marker. Im ersten Lauf der Klicktest-Gegenproben hing `klicktest_anmelden` an "Seite verlassen?" (eine Anmeldung war bei
+  der nächsten Navigation noch unterwegs) -- über die eigenen PIDs beendet, der Klicktest wartet seither zwischen den Angriffen, das
+  Werkzeug meldet und schließt solche Dialoge; die drei Klicktest-Gegenproben danach neu.
+- Volle Suite (mit den Tests gegen PostgreSQL, Arbeitskopie, drei Teile parallel): 4839 grün, 3 rot -- `test_v251` ×3 (ruft
+  `change_password()` direkt mit Positionsargumenten; der neue Parameter `response` stand vor `db`, und ohne Antwort las `alle_beenden()`
+  das Cookie eines gestellten Anfrageobjekts): `response` ans Ende, ohne Antwort kein Cookie lesen; danach `test_v251`, `test_v402`,
+  `test_v250`, `test_v292` 78 grün.
+- Alle Klicktests (Regel 26, Arbeitskopie des Stands 1.8.98): 61 von 61 wie erwartet in 16:26 min.
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **Die Anmeldeseite selbst kommt beim "Zurück" aus dem HTTP-Cache** (sie trägt ohne Sitzung kein `no-store`) -- ohne Daten, harmlos.
+2. **Sechs Handler im HTML liest der Navigations-Scanner nicht** (Jinja oder unvollständiges JS im Attribut); keiner enthält eine Navigation,
+   der Test prüft das.
+3. **Feierabend in /mobil beendet die Sitzung nicht** (Festlegung Nr. 12): bis zu ihrem Ablauf gilt sie an allen übrigen Endpunkten weiter.
+4. **Zwischen dem Ablesen der Sitzung in der Anmeldeschranke und dem Endpunkt** kann eine gleichzeitige Abmeldung liegen -- die eine Anfrage
+   läuft noch mit der eben beendeten Sitzung zu Ende (jede weitere nicht mehr).
+
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
 Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):

@@ -3,16 +3,21 @@
 Automatisch aus app/main.py in Version 1.0.7 extrahiert (main.py-Aufteilung,
 siehe README). Enthaelt 4 Endpunkt(e), unveraendert
 uebernommen -- reine Verschiebung, keine Verhaltensaenderung.
+
+Seit 1.8.98 (app/sitzungen.py): ein neues Passwort und das Deaktivieren beenden alle Sitzungen des Benutzers, das Zurücksetzen des
+zweiten Faktors ebenso (app/two_factor.py::reset()). Ändert ein Administrator hier sein eigenes Passwort, bleibt sein Gerät mit einer
+neuen Sitzung angemeldet.
 """
 
 from fastapi import APIRouter
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, HTTPException, Request, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import device_trust
+from .. import sitzungen
 from .. import two_factor
-from ..auth import hash_password, user_from_request, users_exist
+from ..auth import hash_password, users_exist
 from ..database import get_db
 from ..deps import require_admin
 from ..models import AppUser, Employee
@@ -28,7 +33,7 @@ def list_app_users(db: Session = Depends(get_db), current: AppUser = Depends(req
 @router.post("/api/users", response_model=AppUserOut)
 def create_app_user(payload: AppUserCreate, request: Request, db: Session = Depends(get_db)):
     configured = users_exist(db)
-    current = user_from_request(db, request)
+    current = sitzungen.benutzer_aus_anfrage(db, request)
     if configured and (current is None or current.role != "admin"):
         raise HTTPException(status_code=403, detail="Nur Administratoren dürfen ERP-Benutzer anlegen.")
     if db.scalar(select(AppUser).where(AppUser.username == payload.username.strip())):
@@ -41,7 +46,8 @@ def create_app_user(payload: AppUserCreate, request: Request, db: Session = Depe
 
 
 @router.put("/api/users/{user_id}", response_model=AppUserOut)
-def update_app_user(user_id: int, payload: AppUserUpdate, db: Session = Depends(get_db), current: AppUser = Depends(require_admin("Nur Administratoren dürfen ERP-Benutzer ändern."))):
+def update_app_user(user_id: int, payload: AppUserUpdate, db: Session = Depends(get_db), current: AppUser = Depends(require_admin("Nur Administratoren dürfen ERP-Benutzer ändern.")),
+                    request: Request = None, response: Response = None):
     user = db.get(AppUser, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="ERP-Benutzer nicht gefunden.")
@@ -59,6 +65,7 @@ def update_app_user(user_id: int, payload: AppUserUpdate, db: Session = Depends(
     if user.id == current.id and (payload.role != "admin" or not payload.active):
         raise HTTPException(status_code=409, detail="Das aktuell angemeldete Administratorkonto kann sich nicht selbst deaktivieren oder herabstufen.")
 
+    deaktiviert = user.active and not payload.active
     user.username = username
     user.display_name = payload.display_name.strip()
     user.employee_id = payload.employee_id
@@ -67,6 +74,9 @@ def update_app_user(user_id: int, payload: AppUserUpdate, db: Session = Depends(
     user.outlook_mailbox = payload.outlook_mailbox or None
     if payload.new_password:
         user.password_hash = hash_password(payload.new_password)
+    if payload.new_password or deaktiviert:
+        # Seit 1.8.98: im selben Commit enden alle Sitzungen des Benutzers -- auch nach einem späteren Reaktivieren gilt keine alte.
+        sitzungen.alle_beenden(db, user, request=request, response=response)
     db.commit()
     if payload.new_password:
         # Erst das Passwort committen, dann alle vertrauten Geräte des BEARBEITETEN Kontos

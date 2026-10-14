@@ -1,0 +1,24 @@
+<script>
+/* Weiterleitungsziel aus der Adresse prüfen (seit 1.8.98) -- dieselbe Regel wie app/weiterleitung.py::sicheres_ziel() auf dem Server.
+   sicheresZiel(wert, startseite) gibt wert zurück, wenn es ein lokaler Pfad dieses Servers ist, sonst startseite (Vorgabe "/"):
+   genau ein "/" am Anfang (nicht "//", nicht "/\"), nur druckbare ASCII-Zeichen ohne Leerzeichen und Rückstrich, jedes "%" mit zwei
+   Hex-Ziffern, auch dekodiert (höchstens fünfmal) kein Steuerzeichen, kein Rückstrich, kein "//" am Anfang, und kein fremder Ursprung.
+   Ohne sie führte /login?next=javascript:… nach der Anmeldung ein Skript im ERP aus und next=//fremd auf eine fremde Seite.
+   Jede Navigation zu einem Wert aus der Adresse (location.search, location.hash, document.referrer …) geht über diese Funktion --
+   tests/test_v401_weiterleitung.py prüft das in allen Vorlagen und beide Fassungen an derselben Tabelle von Angriffen. */
+function istLokalesZiel(wert){
+  if(typeof wert!=='string'||!wert||wert.length>2000)return false;
+  if(!/^\/(?![\/\\])[\x21-\x7e]*$/.test(wert)||wert.indexOf('\\')>=0)return false;
+  try{if(new URL(wert,'http://erp.invalid').origin!=='http://erp.invalid')return false}catch(e){return false}
+  let s=wert;
+  for(let i=0;i<5;i++){
+    if(/%(?![0-9A-Fa-f]{2})/.test(s))return false;
+    let d;try{d=decodeURIComponent(s)}catch(e){return false}
+    if(d===s)return true;
+    if(/[\x00-\x20\x7f\\]/.test(d)||d.startsWith('//'))return false;
+    s=d;
+  }
+  return false;
+}
+function sicheresZiel(wert,startseite){return istLokalesZiel(wert)?wert:(startseite||'/')}
+</script>

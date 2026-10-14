@@ -12,16 +12,21 @@ für den vollständigen Ablauf inkl. der beiden Sicherheitsfragen.
 Die drei 2fa/*-Endpunkte sind bewusst NICHT über require_admin() geschützt (das würde bereits
 otp_ok voraussetzen, das hier gerade erst hergestellt wird) -- sie prüfen role=="admin" selbst
 und sind in app/main.py's Middleware explizit von der otp_ok-Sperre ausgenommen, damit ein
-Administrator ohne bestätigten zweiten Faktor GENAU diese drei Endpunkte noch erreichen kann."""
+Administrator ohne bestätigten zweiten Faktor GENAU diese drei Endpunkte noch erreichen kann.
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+Seit 1.8.98 (app/sitzungen.py): der bestätigte zweite Faktor steht an der Sitzung (vorher ein eigenes Cookie); die Bestätigung gibt
+der Sitzung einen neuen Wert. Ein neues Passwort und die Ersteinrichtung des zweiten Faktors beenden alle Sitzungen des Kontos -- dieses
+Gerät bleibt mit einer neuen angemeldet."""
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from .. import device_trust
 from .. import login_security
+from .. import sitzungen
 from .. import two_factor
-from ..auth import COOKIE_MAX_AGE, COOKIE_SECURE, OTP_COOKIE_NAME, hash_password, make_otp_ok_cookie, verify_password
+from ..auth import COOKIE_SECURE, hash_password, verify_password
 from ..database import get_db
 from ..models import AppUser
 from ..schemas import ChangePasswordRequest, TwoFactorCodeRequest, TwoFactorVerifyRequest
@@ -45,11 +50,13 @@ def _current_user(request: Request, db: Session) -> AppUser:
 
 
 @router.post("/api/account/change-password")
-def change_password(payload: ChangePasswordRequest, request: Request, db: Session = Depends(get_db)):
+def change_password(payload: ChangePasswordRequest, request: Request, db: Session = Depends(get_db), response: Response = None):
     user = _current_user(request, db)
     if not verify_password(payload.current_password, user.password_hash):
         raise HTTPException(status_code=401, detail="Aktuelles Passwort ist falsch.")
     user.password_hash = hash_password(payload.new_password)
+    # Seit 1.8.98: alle Sitzungen des Kontos enden im selben Commit wie das neue Passwort; dieses Gerät bekommt eine neue.
+    sitzungen.alle_beenden(db, user, request=request, response=response)
     db.commit()
     # Erst das Passwort ändern, dann alle vertrauten Geräte widerrufen -- ein zuvor vertrautes
     # Gerät ist ab jetzt wertlos, siehe CLAUDE.md und TrustedDevice-Klassendocstring.
@@ -78,7 +85,10 @@ def confirm_two_factor_setup(payload: TwoFactorCodeRequest, request: Request, db
     if recovery_codes is None:
         raise HTTPException(status_code=401, detail="Code ist ungültig. Bitte erneut versuchen.")
     response = JSONResponse({"ok": True, "recovery_codes": recovery_codes})
-    response.set_cookie(OTP_COOKIE_NAME, make_otp_ok_cookie(user.id), max_age=COOKIE_MAX_AGE, httponly=True, samesite="lax", secure=COOKIE_SECURE)
+    # Seit 1.8.98: eine Änderung am zweiten Faktor beendet alle Sitzungen des Kontos; dieses Gerät bekommt eine neue, mit dem zweiten
+    # Faktor bestätigt.
+    sitzungen.alle_beenden(db, user, request=request, response=response, zweiter_faktor=True)
+    db.commit()
     return response
 
 
@@ -97,7 +107,9 @@ def verify_two_factor(payload: TwoFactorVerifyRequest, request: Request, db: Ses
         raise HTTPException(status_code=401, detail="Code ist ungültig.")
     login_security.clear_failed_two_factor_attempts(db, user.username)
     response = JSONResponse({"ok": True})
-    response.set_cookie(OTP_COOKIE_NAME, make_otp_ok_cookie(user.id), max_age=COOKIE_MAX_AGE, httponly=True, samesite="lax", secure=COOKIE_SECURE)
+    # Seit 1.8.98: der zweite Faktor gilt für diese Sitzung, und sie bekommt dafür einen neuen Wert.
+    sitzungen.erneuern(db, request, response, user, zweiter_faktor=True)
+    db.commit()
     # Nur bei der ROUTINE-Bestätigung wählbar (dieser Endpunkt) -- niemals bei der
     # Ersteinrichtung (setup/confirm nutzt weiterhin TwoFactorCodeRequest ohne dieses Feld),
     # siehe CLAUDE.md.

@@ -3226,6 +3226,7 @@ class AppUser(Base):
 
     recovery_codes: Mapped[list["TwoFactorRecoveryCode"]] = relationship(cascade="all, delete-orphan")
     trusted_devices: Mapped[list["TrustedDevice"]] = relationship(cascade="all, delete-orphan")
+    sessions: Mapped[list["UserSession"]] = relationship(cascade="all, delete-orphan")
     outlook_sync_state: Mapped["OutlookCalendarSyncState | None"] = relationship(cascade="all, delete-orphan", uselist=False, back_populates="owner")
 
     @property
@@ -3282,6 +3283,29 @@ class TrustedDevice(Base):
     token_hash: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+
+
+class UserSession(Base):
+    """Anmeldesitzung (seit 1.8.98, app/sitzungen.py). Bis 1.8.97 war das Anmelde-Cookie zustandslos (Benutzer-ID, Ablauf, HMAC):
+    Abmelden löschte nur das Cookie im Browser, der alte Wert galt bis zum Ablauf (12 h) weiter, und weder ein neues Passwort noch
+    ein Deaktivieren beendete eine Sitzung. Jetzt trägt das Cookie dk_erp_auth einen Zufallswert (secrets.token_urlsafe(32)); hier
+    steht nur sein SHA-256 (token_hash) -- wer die Tabelle liest, kann sich damit nicht anmelden.
+
+    Eine Sitzung endet, wenn ihre Zeile fehlt: Abmelden löscht die eigene, eine Passwort- oder 2FA-Änderung und das Deaktivieren
+    eines Benutzers löschen alle seine (app/sitzungen.py::alle_beenden()). expires_at ist fest (12 h ab der Anmeldung), keine
+    gleitende Verlängerung -- ein Lesepfad schreibt nie (Regel 23). second_factor_at: der zweite Faktor ist für DIESE Sitzung
+    bestätigt (Code, Ersteinrichtung oder vertrautes Gerät) -- bis 1.8.97 ein eigenes Cookie dk_erp_otp_ok, das an den Benutzer
+    statt an die Sitzung gebunden war und sich deshalb in eine neue Anmeldung mitnehmen ließ."""
+
+    __tablename__ = "user_sessions"
+    __table_args__ = (UniqueConstraint("token_hash", name="uq_user_session_token_hash"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("app_users.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    second_factor_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class FailedLoginAttempt(Base):

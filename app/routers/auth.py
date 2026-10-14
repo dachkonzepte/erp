@@ -15,6 +15,10 @@ Seit 1.5.11 prüft auth_login() zusätzlich ein evtl. mitgeschicktes dk_erp_trus
 (app/device_trust.py, "Diesem Gerät vertrauen") -- ist es für GENAU dieses Konto gültig, wird das
 OTP-Cookie direkt hier gesetzt statt gelöscht, der zweite Faktor gilt für diese Anmeldung bereits
 als erbracht. Das Passwort selbst bleibt davon unberührt, es wird immer geprüft.
+
+Seit 1.8.98 Sitzungen auf dem Server (app/sitzungen.py): die Anmeldung legt eine neue an (eine mitgeschickte alte endet), der
+bestätigte zweite Faktor steht an der Sitzung statt in einem eigenen Cookie, und das Abmelden beendet die Sitzung auf dem Server --
+bis 1.8.97 löschte es nur das Cookie im Browser, der alte Wert galt bis zum Ablauf weiter.
 """
 
 from fastapi import APIRouter
@@ -24,10 +28,8 @@ from sqlalchemy.orm import Session
 
 from .. import device_trust
 from .. import login_security
-from ..auth import (
-    COOKIE_MAX_AGE, COOKIE_NAME, COOKIE_SECURE, OTP_COOKIE_NAME, authenticate, make_cookie, make_otp_ok_cookie,
-    two_factor_required, user_from_request, users_exist,
-)
+from .. import sitzungen
+from ..auth import COOKIE_NAME, OTP_COOKIE_NAME, authenticate, two_factor_required, users_exist
 from ..database import get_db
 from ..schemas import LoginRequest
 from ..two_factor import is_configured, remaining_recovery_codes
@@ -42,7 +44,7 @@ def _client_ip(request: Request) -> str | None:
 @router.get("/api/auth/status")
 def auth_status(request: Request, db: Session = Depends(get_db)):
     configured = users_exist(db)
-    user = user_from_request(db, request)
+    user = sitzungen.benutzer_aus_anfrage(db, request)
     if user is None:
         return {"configured": configured, "authenticated": False, "user": None}
     otp_ok = getattr(request.state, "otp_ok", True)
@@ -74,24 +76,29 @@ def auth_login(payload: LoginRequest, request: Request, db: Session = Depends(ge
     trusted_device = False
     if two_factor_required(user) and is_configured(user):
         trusted_device = device_trust.check_trust(db, user, request.cookies.get(device_trust.TRUST_COOKIE_NAME))
+    # Seit 1.8.98: eine neue Sitzung auf dem Server (neuer Zufallswert, auch wenn schon eine bestand -- eine mitgeschickte alte endet),
+    # der zweite Faktor gilt nur für sie, und nur mit einem vertrauten Gerät schon jetzt.
+    sitzungen.beenden(db, request.cookies.get(COOKIE_NAME))
+    sitzungen.abgelaufene_entfernen(db)
+    wert = sitzungen.neue_sitzung(db, user, zweiter_faktor=trusted_device)
+    db.commit()
     response = JSONResponse({
         "id": user.id, "username": user.username, "display_name": user.display_name, "role": user.role,
         "two_factor_required": two_factor_required(user),
         "two_factor_configured": is_configured(user),
         "otp_ok": trusted_device,
     })
-    response.set_cookie(COOKIE_NAME, make_cookie(user.id), max_age=COOKIE_MAX_AGE, httponly=True, samesite="lax", secure=COOKIE_SECURE)
-    if trusted_device:
-        response.set_cookie(OTP_COOKIE_NAME, make_otp_ok_cookie(user.id), max_age=COOKIE_MAX_AGE, httponly=True, samesite="lax", secure=COOKIE_SECURE)
-    else:
-        # Ein evtl. noch gültiges OTP-Cookie einer vorherigen Sitzung wird deshalb IMMER entfernt,
-        # nicht nur bei fehlendem zweiten Faktor.
-        response.delete_cookie(OTP_COOKIE_NAME)
+    sitzungen.cookie_setzen(response, wert)
+    # Bis 1.8.97 stand der zweite Faktor in einem eigenen Cookie -- ein altes wird entfernt (es zählt ohnehin nicht mehr).
+    response.delete_cookie(OTP_COOKIE_NAME)
     return response
 
 
 @router.post("/api/auth/logout")
-def auth_logout():
+def auth_logout(request: Request, db: Session = Depends(get_db)):
+    """Beendet die Sitzung auf dem Server (seit 1.8.98) und löscht das Cookie -- der alte Wert gilt danach nicht mehr."""
+    sitzungen.beenden(db, request.cookies.get(COOKIE_NAME))
+    db.commit()
     response = JSONResponse({"ok": True})
     response.delete_cookie(COOKIE_NAME)
     response.delete_cookie(OTP_COOKIE_NAME)

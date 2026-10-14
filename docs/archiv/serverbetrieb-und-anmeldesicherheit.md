@@ -538,6 +538,18 @@ Template-Quellen (next-Weitergabe in `login.html`, `verifyCode()` leitet weiter 
 die eigentliche JS-Navigation selbst lässt sich ohne echten Browser nicht ausführen
 (dieselbe, wiederholt dokumentierte Werkzeug-Einschränkung dieser Umgebung).
 
+## Sitzungen auf dem Server, Weiterleitungsziele, Cache-Verbot (seit 1.8.98)
+
+Was oben über das Anmelde-Cookie steht (Benutzer-ID, Ablauf, HMAC über `secret_key()`; ein zweites Cookie `dk_erp_otp_ok` für den
+bestätigten zweiten Faktor) gilt seit 1.8.98 nicht mehr: `dk_erp_auth` trägt den Zufallswert einer Sitzung auf dem Server
+(`app/sitzungen.py`, Tabelle `user_sessions`, nur der SHA-256 gespeichert, fest 12 h), der zweite Faktor gilt je Sitzung
+(`second_factor_at`). Abmelden beendet die Sitzung; die fünf Stellen, die Passwort oder zweiten Faktor ändern (siehe "Befund: fünf Stellen
+ändern den zweiten Faktor oder das Passwort" oben), und das Deaktivieren eines Benutzers beenden zusätzlich zu den vertrauten Geräten alle
+Sitzungen des Kontos (der ausdrückliche Widerruf "Alle vertrauten Geräte abmelden" nicht). `_safe_next_target()` ist durch
+`app/weiterleitung.py::sicheres_ziel()` ersetzt, im Browser prüft `_weiterleitung.html::sicheresZiel()` dasselbe; die Middleware steht in
+`app/anmeldeschranke.py` und setzt `Cache-Control: no-store` an jede Antwort an eine angemeldete Sitzung. Herleitung, Festlegungen und
+Tests: `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.98"; Regel 30.
+
 ## PostgreSQL-Umstieg: Migrationskette repariert (seit 1.3.35)
 
 Erste Reparaturrunde vor dem eigentlichen Datenumzug -- Nutzervorgabe: "Wir reparieren zuerst,

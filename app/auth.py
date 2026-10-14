@@ -4,7 +4,6 @@ import hmac
 import logging
 import os
 import secrets
-import time
 from datetime import datetime
 from pathlib import Path
 
@@ -14,16 +13,14 @@ from . import login_security
 from .models import AppUser, Employee
 from .paths import data_dir
 
+# Seit 1.8.98 trägt dk_erp_auth den Zufallswert einer Sitzung auf dem Server (app/sitzungen.py, app/models.py::UserSession) --
+# bis 1.8.97 Benutzer-ID, Ablauf und HMAC (zustandslos: Abmelden beendete nichts auf dem Server). Gültigkeit fest 12 h.
 COOKIE_NAME = "dk_erp_auth"
 COOKIE_MAX_AGE = 60 * 60 * 12
 
-# Zweites, unabhängiges Cookie: belegt, dass für DIESE Sitzung bereits ein zweiter Faktor
-# bestätigt wurde (seit 1.3.34, siehe CLAUDE.md "Zwei-Faktor-Authentifizierung für
-# Administratoren"). Bewusst ein eigenes Cookie statt eines zusätzlichen Felds im bestehenden
-# dk_erp_auth-Cookie -- ändert an make_cookie()/parse_cookie()/user_from_request() nichts,
-# betrifft ausschließlich Administratoren, für die role-abhängig geprüft wird. Trägt ein eigenes
-# HMAC-Namespace-Präfix ("otp:"), damit eine signierte otp-Nutzlast nicht als normales
-# Anmelde-Cookie durchgehen könnte, obwohl beide denselben secret_key() nutzen.
+# Bis 1.8.97 ein zweites Cookie für den bestätigten zweiten Faktor (an den Benutzer gebunden, nicht an die Sitzung -- es ließ sich
+# in eine neue Anmeldung mitnehmen). Seit 1.8.98 steht das an der Sitzung (UserSession.second_factor_at); der Name bleibt nur, damit
+# Anmelden und Abmelden ein noch vorhandenes altes Cookie löschen.
 OTP_COOKIE_NAME = "dk_erp_otp_ok"
 
 
@@ -108,36 +105,6 @@ def verify_password(password: str, stored: str) -> bool:
         return False
 
 
-def make_cookie(user_id: int) -> str:
-    expiry = int(time.time()) + COOKIE_MAX_AGE
-    payload = f"{user_id}:{expiry}"
-    sig = hmac.new(secret_key(), payload.encode(), hashlib.sha256).hexdigest()
-    return base64.urlsafe_b64encode(f"{payload}:{sig}".encode()).decode()
-
-
-def parse_cookie(value: str | None) -> int | None:
-    if not value:
-        return None
-    try:
-        raw = base64.urlsafe_b64decode(value.encode()).decode()
-        user_id_s, expiry_s, sig = raw.split(":", 2)
-        payload = f"{user_id_s}:{expiry_s}"
-        expected = hmac.new(secret_key(), payload.encode(), hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(sig, expected) or int(expiry_s) < int(time.time()):
-            return None
-        return int(user_id_s)
-    except Exception:
-        return None
-
-
-def user_from_request(db, request):
-    user_id = parse_cookie(request.cookies.get(COOKIE_NAME))
-    if not user_id:
-        return None
-    user = db.get(AppUser, user_id)
-    return user if user and user.active else None
-
-
 def resolve_account_display(db, user: AppUser) -> dict:
     """Liefert vollen Namen und Initialen für den Kontoknopf der Topbar (seit 1.3.45, siehe
     CLAUDE.md "Umgestaltung der Sidebar") -- bevorzugt aus dem über AppUser.employee_id (seit
@@ -161,32 +128,6 @@ def resolve_account_display(db, user: AppUser) -> dict:
     else:
         initials = "?"
     return {"full_name": full_name, "initials": initials}
-
-
-def make_otp_ok_cookie(user_id: int) -> str:
-    expiry = int(time.time()) + COOKIE_MAX_AGE
-    payload = f"{user_id}:{expiry}"
-    sig = hmac.new(secret_key(), ("otp:" + payload).encode(), hashlib.sha256).hexdigest()
-    return base64.urlsafe_b64encode(f"{payload}:{sig}".encode()).decode()
-
-
-def otp_ok_for_user(request, user_id: int) -> bool:
-    """Ob FÜR DIESE SITZUNG bereits ein zweiter Faktor bestätigt wurde -- geprüft gegen das
-    separate OTP_COOKIE_NAME-Cookie, nicht gegen einen Zustand auf dem Benutzerdatensatz selbst
-    (sonst würde eine einzige bestätigte Sitzung alle Geräte/Sitzungen mit freischalten)."""
-    value = request.cookies.get(OTP_COOKIE_NAME)
-    if not value:
-        return False
-    try:
-        raw = base64.urlsafe_b64decode(value.encode()).decode()
-        user_id_s, expiry_s, sig = raw.split(":", 2)
-        payload = f"{user_id_s}:{expiry_s}"
-        expected = hmac.new(secret_key(), ("otp:" + payload).encode(), hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(sig, expected) or int(expiry_s) < int(time.time()):
-            return False
-        return int(user_id_s) == user_id
-    except Exception:
-        return False
 
 
 def users_exist(db) -> bool:

@@ -27,6 +27,7 @@ from ..models import AppUser
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, default_home_page_for_role, has_min_role, has_role, require_min_role
 from ..settings import get_accent_color
 from ..version import APP_VERSION
+from ..weiterleitung import ist_lokal, sicheres_ziel
 
 logger = logging.getLogger(__name__)
 
@@ -198,17 +199,6 @@ def _require_users_page_access(request: Request, db: Session = Depends(get_db)) 
     return user
 
 
-def _safe_next_target(value: str | None) -> str | None:
-    """Nur echte, app-interne Pfade -- kein offener Redirect über einen von außen
-    mitgegebenen next-Wert (im Unterschied zu app/main.py's Middleware, die next selbst aus
-    dem aufgerufenen Pfad baut und deshalb nichts validieren muss, kommt dieser Wert hier
-    direkt aus der Query-String eines Clients). Muss mit genau einem "/" beginnen -- "//..."
-    wäre protokoll-relativ auf eine fremde Domain, ein absoluter "https://..."-Wert erst recht."""
-    if not value or not value.startswith("/") or value.startswith("//"):
-        return None
-    return value
-
-
 @router.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
     """Seit 1.3.47: zeigt die Anmeldemaske nicht noch einmal, wenn schon jemand angemeldet ist
@@ -219,15 +209,18 @@ def login_page(request: Request):
     Administrator mit noch unbestätigtem zweitem Faktor geht weiterhin direkt nach "Mein
     Konto" (dort ist ohnehin nichts anderes nutzbar) -- next wird dabei als Query-Parameter
     mitgegeben, damit account.html nach der Bestätigung selbst noch weiß, wohin es
-    anschließend gehen soll (siehe dort)."""
+    anschließend gehen soll (siehe dort).
+
+    Seit 1.8.98 prüft next app/weiterleitung.py::sicheres_ziel() (vorher _safe_next_target() hier, ohne Rückstrich, Tab und
+    kodierte Varianten): nur ein lokaler Pfad, sonst die Startseite der Rolle."""
     current_user = getattr(request.state, "erp_user", None)
     if current_user is not None:
         otp_ok = getattr(request.state, "otp_ok", True)
-        next_target = _safe_next_target(request.query_params.get("next"))
+        wert = request.query_params.get("next")
         if current_user.role == "admin" and not otp_ok:
-            url = f"/account?next={quote(next_target, safe='')}" if next_target else "/account"
+            url = f"/account?next={quote(wert, safe='')}" if ist_lokal(wert) else "/account"
             return RedirectResponse(url=url, status_code=302)
-        return RedirectResponse(url=next_target or default_home_page_for_role(current_user.role), status_code=302)
+        return RedirectResponse(url=sicheres_ziel(wert, default_home_page_for_role(current_user.role)), status_code=302)
     return templates.TemplateResponse(request=request, name="login.html", context={})
 
 

@@ -4,6 +4,32 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.98 – Weiterleitungen nur lokal, Sitzungen auf dem Server, kein Cache für angemeldete Sitzungen
+
+Ein Weiterleitungsziel aus der Anfrage (`next` der Anmeldung) führt nur noch auf einen lokalen Pfad dieses Servers, sonst auf die
+Startseite -- dieselbe Prüfung auf dem Server (`app/weiterleitung.py::sicheres_ziel()`) und im Browser (`_weiterleitung.html`,
+`sicheresZiel()`), auch gegen Rückstrich, Tab und kodierte Varianten. Bis 1.8.97 setzte das Anmeldeformular nach der Anmeldung
+`location.href` ungeprüft auf `next`: `/login?next=javascript:…` führte ein Skript im ERP aus, `next=//fremd` leitete auf eine fremde
+Seite; „Mein Konto“ tat dasselbe nach dem zweiten Faktor. Zwei Strukturtests halten das fest: jede Weiterleitung des Servers hat ein
+festes Ziel oder geht über die Prüfung (AST), jede Navigation einer Vorlage zu einem Wert aus der Adresse ebenso.
+
+Die Anmeldung ist jetzt eine Sitzung auf dem Server (`app/sitzungen.py`, Tabelle `user_sessions`): das Cookie trägt einen Zufallswert,
+gespeichert ist nur sein Hash. Abmelden beendet die Sitzung -- bis 1.8.97 galt der alte Cookie-Wert danach weiter bis zum Ablauf (12 h).
+Ein neues Passwort (eigenes oder durch einen Administrator), eine Änderung am zweiten Faktor (Ersteinrichtung, Zurücksetzen, auch über
+das Notfallskript) und das Deaktivieren eines Benutzers beenden alle seine Sitzungen; wer selbst ändert, bleibt auf diesem Gerät mit
+einer neuen Sitzung angemeldet. Der bestätigte zweite Faktor gilt je Sitzung (vorher ein eigenes, an den Benutzer gebundenes Cookie, das
+sich in eine neue Anmeldung mitnehmen ließ). Jede Antwort an eine angemeldete Sitzung trägt `Cache-Control: no-store`, auch PDFs und
+Dateien: „Zurück“ nach dem Abmelden zeigte bis 1.8.97 die Seite samt Daten aus dem Cache. Die Anmeldeschranke ist dafür aus
+`app/main.py` in `app/anmeldeschranke.py` gezogen; die Tests binden sie selbst ein, statt sie nachzubauen.
+
+**Nach dem Einspielen meldet sich jede Person einmal neu an** (die alten Cookies gelten nicht mehr). Migration `8c86e12540cf` (neue
+Tabelle, keine Daten geändert; gegen PostgreSQL hin, zurück und wieder hin geprobt). Neu `test_v401_weiterleitung` (255),
+`test_v402_sitzungen` (31, davon 2 gegen PostgreSQL), `test_v403_kein_cache` (4, alle GET-Routen als Admin und Monteurin); Aufbau
+geändert in `test_v250`, `test_v256`, `test_v257`, `test_v292` (echte Anmeldeschranke), Erwartungen geändert in `test_v257` und
+`test_v066` (siehe Archiv). Klicktest `klicktest_anmelden`: die acht BEFUND-Zeilen sind Prüfungen, 69/69; das Klicktest-Werkzeug meldet
+einen Dialog des Browsers („Seite verlassen?“) und nimmt ihn an, statt bis zum Zeitlimit zu hängen. Gegenproben 24 von 24 rot.
+Volle Suite (mit den Tests gegen PostgreSQL): 4839 grün, 3 rot -- `test_v251` ×3 (Direktaufruf von `change_password()`, neuer Parameter an falscher Stelle), behoben, danach die vier betroffenen Dateien 78 grün. Alle Klicktests: 61 von 61 wie erwartet in 16:26 min.
+
 ## 1.8.97 – Jedes Lesen über den Baustein, Klicktests Anmelden/Abmelden mit Netzwerkprotokoll, Regel 29
 
 Jede Anfrage einer Seite geht jetzt über `lesen()`/`speichern()`/`abschliessen()` -- auch das erste Laden, das Öffnen eines Dialogs und

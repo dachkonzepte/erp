@@ -1,4 +1,5 @@
-"""Klicktest: Anmelden (Formular und Seitenleiste) und Abmelden (beide Kopfzeilen) (1.8.97, Vorgabe Punkt 5).
+"""Klicktest: Anmelden (Formular und Seitenleiste) und Abmelden (beide Kopfzeilen) (1.8.97, Vorgabe Punkt 5; seit 1.8.98 die
+Angriffe als Prüfungen).
 
 Seit 1.8.95 laufen Anmelden und Abmelden über den Baustein app/templates/_speichern.html. Geprüft wird im echten Browser, mit Maus
 und Tastatur wie ein Nutzer (Input.dispatchMouseEvent/insertText/dispatchKeyEvent), und über das Netzwerkprotokoll des Werkzeugs
@@ -13,17 +14,20 @@ und Tastatur wie ein Nutzer (Input.dispatchMouseEvent/insertText/dispatchKeyEven
                     two_factor_pending, eine andere Seite schickt zurück nach /account
     Abmelden Büro   Kopfzeile (Kontomenü -> Abmelden) auf der Kundenakte, POST /api/auth/logout im Netz angehalten: die Seite
                     bleibt, keine Navigation; fortgesetzt: /login?next=…, die Abmeldung gesendet und beantwortet (200, nicht
-                    abgebrochen), die Navigation erst nach der Antwort, Cookies weg, API 401; ein zweites Mal ohne Anhalten
+                    abgebrochen), die Navigation erst nach der Antwort, Cookies weg, API 401; ein zweites Mal ohne Anhalten;
+                    seit 1.8.98: der alte Cookie-Wert von außerhalb des Browsers 401 (Sitzung auf dem Server beendet),
+                    "Zurück" zeigt keine Daten (Cache-Control: no-store, weder Back-Forward- noch HTTP-Cache)
     Seitenleiste    "Nicht angemeldet" erscheint nur, wenn /api/auth/status beim Laden "nicht angemeldet" meldet, die Seite
                     selbst aber ausgeliefert wurde -- nachgestellt: die Statusabfrage im Netz angehalten, das Cookie gelöscht
                     (Sitzung endet beim Laden), fortgesetzt; falsches Passwort: Meldung; richtiges: neu geladen mit Daten
     Abmelden Mobil  Kopfzeile von /mobil (Monteurin, 412 px) wie im Büro, danach /api/field-view/today 401; Anmelden über
                     das Formular mit next=/mobil
-    Angriffe        angemeldet: /login?next=//fremd, /%5C…, /%09/… bleiben im ERP (app/routers/pages.py::_safe_next_target())
+    Angriffe        über das Formular (seit 1.8.98 Prüfungen, bis 1.8.97 BEFUND-Zeilen): next = absolute Adresse, //, Rückstrich, Tab,
+                    kodierte Varianten -> keine fremde Adresse, Startseite; next=javascript:… und data:… -> kein Skript;
+                    angemeldet: /login?next=//fremd, /%5C…, /%09/…, javascript:…, kodiert … bleiben im ERP
+                    (app/weiterleitung.py::sicheres_ziel(), im Browser _weiterleitung.html::sicheresZiel())
 
-Lücken, die die Angriffe zeigen, sind keine Prüfungen, sondern "BEFUND"-Zeilen (gemeldet, nicht gezählt -- Festlegung 1.8.97):
-next=fremde Adresse und next=javascript:… über das Formular, der alte Cookie-Wert nach dem Abmelden, "Zurück" nach dem Abmelden
-(Back-Forward-Cache und HTTP-Cache). Feste Uhr 10:00 (Monteurin auf /mobil). alert()/confirm() werden mitgeschrieben.
+Feste Uhr 10:00 (Monteurin auf /mobil). alert()/confirm() werden mitgeschrieben.
 
 AUFRUF (aus dem Projektordner):
 
@@ -52,7 +56,6 @@ PASSWORT = {"bea": "Bea-Passwort-1", "anna": "Anna-Passwort-1", "mia": "Mia-Pass
 FALSCH = "falsch-falsch-1"
 MELDUNG_FALSCH = "Benutzername oder Passwort ist falsch."
 COOKIES = ("dk_erp_auth", "dk_erp_otp_ok")
-BEFUNDE: list[tuple[str, bool, str]] = []
 
 
 def befuellen(db, k):
@@ -72,7 +75,9 @@ def befuellen(db, k):
                   password_hash=k.passwort(PASSWORT["mia"]))
     kunde = Customer(name="Gerda Geheim", last_name="Geheim", city="Geheimstadt")
     db.add_all([bea, anna, mia, kunde]); db.flush()
-    return {"kunde": kunde.id, "cookies": {"bea": k.cookies(bea), "mia": k.cookies(mia)}}
+    # Seit 1.8.98 endet eine Sitzung beim Abmelden auf dem Server -- je Abschnitt, der sich abmeldet, eine eigene.
+    return {"kunde": kunde.id, "cookies": {name: k.cookies(bea) for name in ("bea_abmelden", "bea_zweimal", "bea_seitenleiste",
+                                                                             "bea_angriffe")} | {"mia": k.cookies(mia)}}
 
 
 # -- Maus und Tastatur ---------------------------------------------------------
@@ -131,13 +136,6 @@ def _freier_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
-
-
-def befund(name: str, luecke: bool, beobachtet: str) -> None:
-    """Eine Lücke aus einem Angriff: gemeldet, nicht als Prüfung gezählt (Festlegung 1.8.97)."""
-    BEFUNDE.append((name, luecke, beobachtet))
-    print(f"BEFUND  {name}: {'ja' if luecke else 'nein'} ({beobachtet})"
-          + ("  -- Lücke, gemeldet, keine Prüfung" if luecke else "  -- nicht (mehr) da: als Prüfung aufnehmen"), flush=True)
 
 
 def _dokumente(tab, marke: int) -> list[dict]:
@@ -262,19 +260,23 @@ async def _abmelden(tab, p, wo: str, *, seite: str, bereit: str, knoepfe: list[s
     return vorher
 
 
-async def _zurueck(tab, wo: str, daten: str, bereit_seite: str):
-    """"Zurück" nach dem Abmelden: zeigt der Browser die Seite mit Daten? Befund, keine Prüfung."""
+async def _zurueck(tab, p, wo: str, daten: str, bereit_seite: str):
+    """"Zurück" nach dem Abmelden zeigt keine Daten (seit 1.8.98 eine Prüfung, bis 1.8.97 ein BEFUND: Back-Forward-Cache, ohne ihn
+    der HTTP-Cache) -- mit Cache-Control: no-store fragt der Browser den Server, der ohne Sitzung auf die Anmeldung leitet."""
     marke = len(tab.netz.verlauf)
     await tab.js("history.back()")
-    await tab.warten(f"location.pathname!=='/login'&&document.readyState==='complete'&&({bereit_seite})", 10, melden=False)
-    await tab.warten("false", 1.0, melden=False)
+    # Fertig, sobald die Anmeldeseite steht (vom Server) oder die alte Seite wieder da ist (aus einem Cache).
+    await tab.warten(f"document.readyState==='complete'&&(location.pathname==='/login'?!!document.getElementById('u'):({bereit_seite}))",
+                     10)
+    await tab.warten("false", 1.0, melden=False)  # Zeit für Nachladen aus der alten Seite
     await tab.nachlesen()
     sichtbar = bool(await tab.js(f"(()=>{{try{{return !!({daten})}}catch(e){{return false}}}})()"))
     aus_bfcache = await tab.js("window.__vorAbmelden===1")
-    aus_cache = [e for e in tab.netz.verlauf[marke:] if e["cache"] and e["url"] and "/api/" in e["url"]]
-    herkunft = ("Back-Forward-Cache: dieselbe Seite samt Zustand" if aus_bfcache else
-                f"HTTP-Cache: Seite und {len(aus_cache)} API-Antworten aus dem Cache, ohne Anfrage")
-    befund(f"{wo}: 'Zurück' nach dem Abmelden zeigt die Daten", sichtbar, herkunft)
+    # Die Anmeldeseite selbst (ohne Sitzung, ohne Daten) darf aus dem HTTP-Cache kommen.
+    aus_cache = [e["url"] for e in tab.netz.verlauf[marke:] if e["cache"] and e["url"]
+                 and (e["art"] == "Document" or "/api/" in e["url"]) and not e["url"].startswith(tab.base + "/login")]
+    p.pruefe(f"{wo}: 'Zurück' nach dem Abmelden zeigt keine Daten (Daten sichtbar, Back-Forward-Cache, aus dem HTTP-Cache, Seite)",
+             [sichtbar, aus_bfcache, aus_cache, await tab.js("location.pathname")], [False, False, [], "/login"])
     await tab.bild("zurueck_" + "".join(z if z.isascii() and z.isalnum() else "_" for z in wo.lower().replace("ü", "ue")))
 
 
@@ -284,22 +286,22 @@ async def _abmelden_buero(tab, seed, p):
     kunde_da = "document.getElementById('lastName')?.value==='Geheim'"
     daten = "document.body.innerText.includes('Geheimstadt')||document.getElementById('lastName')?.value==='Geheim'"
     knoepfe = ["#appTopbarAccountBtn", "#appTopbarLogout"]
-    await tab.anmelden(seed["cookies"]["bea"])
+    await tab.anmelden(seed["cookies"]["bea_abmelden"])
     await tab.fenster(1400, 1000)
     vorher = await _abmelden(tab, p, "Abmelden Büro", seite=seite, bereit=kunde_da, knoepfe=knoepfe, anhalten=True,
                              api=f"/api/customers/{kid}")
     status = await asyncio.to_thread(_status_mit_cookie, tab.base + f"/api/customers/{kid}", vorher)
-    befund("Abmelden Büro: der alte Cookie-Wert gilt nach dem Abmelden weiter (Sitzung serverseitig nicht ungültig)",
-           status == 200, f"GET /api/customers/{kid} mit dem Cookie von vorher: {status}")
-    await _zurueck(tab, "Abmelden Büro", daten, kunde_da)
+    p.pruefe("Abmelden Büro: der alte Cookie-Wert gilt nach dem Abmelden nicht mehr (Sitzung auf dem Server beendet)",
+             status, 401)
+    await _zurueck(tab, p, "Abmelden Büro", daten, kunde_da)
 
     # Ein zweites Mal ohne Anhalten (echte Geschwindigkeit), die Seite ohne Back-Forward-Cache (ein unload-Handler schließt ihn
     # aus) -- "Zurück" kommt dann aus dem HTTP-Cache.
     kennung = (await tab.cmd("Page.addScriptToEvaluateOnNewDocument", source="addEventListener('unload',()=>{})"))["identifier"]
-    await tab.anmelden(seed["cookies"]["bea"])
+    await tab.anmelden(seed["cookies"]["bea_zweimal"])
     await _abmelden(tab, p, "Abmelden Büro (ohne Anhalten)", seite=seite, bereit=kunde_da, knoepfe=knoepfe, anhalten=False,
                     api=f"/api/customers/{kid}")
-    await _zurueck(tab, "Abmelden Büro (ohne Back-Forward-Cache)", daten, kunde_da)
+    await _zurueck(tab, p, "Abmelden Büro (ohne Back-Forward-Cache)", daten, kunde_da)
     await tab.cmd("Page.removeScriptToEvaluateOnNewDocument", identifier=kennung)
 
 
@@ -307,7 +309,7 @@ async def _abmelden_buero(tab, seed, p):
 
 async def _seitenleiste(tab, seed, p):
     kid = seed["kunde"]
-    await tab.anmelden(seed["cookies"]["bea"])
+    await tab.anmelden(seed["cookies"]["bea_seitenleiste"])
     await tab.fenster(1400, 1000)
     await tab.im_netz_anhalten("*/api/auth/status")
     await tab.oeffnen(f"/customers/{kid}", "document.getElementById('appSidebarFoot')")
@@ -351,9 +353,11 @@ async def _abmelden_mobil(tab, seed, p):
     daten = "document.querySelector('.mobile-header-user')?.textContent.includes('Mia Monteurin')"
     await tab.anmelden(seed["cookies"]["mia"])
     await tab.fenster(412, 900, mobil=True)
-    await _abmelden(tab, p, "Abmelden Mobil", seite="/mobil", bereit=bereit, knoepfe=["#mobileHeaderLogout"], anhalten=True,
-                    api="/api/field-view/today")
-    await _zurueck(tab, "Abmelden Mobil", daten, bereit)
+    vorher = await _abmelden(tab, p, "Abmelden Mobil", seite="/mobil", bereit=bereit, knoepfe=["#mobileHeaderLogout"],
+                             anhalten=True, api="/api/field-view/today")
+    p.pruefe("Abmelden Mobil: der alte Cookie-Wert gilt nicht mehr",
+             await asyncio.to_thread(_status_mit_cookie, tab.base + "/api/field-view/today", vorher), 401)
+    await _zurueck(tab, p, "Abmelden Mobil", daten, bereit)
 
     await tab.anmelden({})  # unabhängig davon, wie das Abmelden ausging
     await tab.oeffnen("/login?next=%2Fmobil", "document.getElementById('u')")
@@ -363,40 +367,52 @@ async def _abmelden_mobil(tab, seed, p):
     await tab.fenster(1400, 1000)
 
 
-# -- Angriffe über next --------------------------------------------------------------
+# -- Angriffe über next (seit 1.8.98 Prüfungen) ------------------------------------------
 
 async def _angriffe_next(tab, seed, p):
+    """Zwischen zwei Angriffen wartet der Test, bis die Seite nichts mehr lädt oder speichert (warte_auf_ruhe): eine Navigation,
+    während die Anmeldung noch unterwegs ist (sie geht über speichern()), öffnet "Seite verlassen?" -- im ersten Lauf der Gegenproben
+    blieb eine Anmeldung so stehen und der Test hing (seit 1.8.98 meldet das Werkzeug einen solchen Dialog und nimmt ihn an)."""
     port = _freier_port()  # niemand hört dort: eine fremde Adresse, die den Rechner nicht verlässt
     fremd = f"127.0.0.1:{port}/fremd"
     for name, wert in (("absolute Adresse", f"http://{fremd}"), ("protokoll-relativ //", f"//{fremd}"),
-                       ("Rückstrich /\\", f"/\\{fremd}")):
+                       ("Rückstrich /\\", f"/\\{fremd}"), ("Tab /<Tab>/", f"/\t/{fremd}"), ("kodiert /%2F", f"/%2F{fremd}"),
+                       ("kodiert /%5C", f"/%5C{fremd}"), ("ohne Schrägstriche https:", f"https:{fremd}")):
         await tab.anmelden({})
         await tab.oeffnen("/login?next=" + quote(wert, safe=""), "document.getElementById('u')")
         marke = len(tab.netz.verlauf)
         await _anmelden_formular(tab, "bea", PASSWORT["bea"])
-        await tab.warten(f"location.href.includes({json.dumps(fremd)})||location.protocol==='chrome-error:'", 8, melden=False)
+        await tab.warten("location.pathname==='/projects'||location.href.includes('fremd')||location.protocol==='chrome-error:'", 10)
         await tab.nachlesen()
         fremde = [d["url"] for d in _dokumente(tab, marke) if not d["url"].startswith(tab.base + "/")]
-        befund(f"Anmelden über das Formular mit next={name}: Weiterleitung auf eine fremde Adresse", bool(fremde),
-               f"Dokument-Anfragen: {sorted(set(fremde)) or 'keine fremden'}")
+        p.pruefe(f"Angriff über das Formular, next={name}: keine fremde Adresse, Startseite",
+                 [sorted(set(fremde)), await tab.js("location.pathname")], [[], "/projects"])
+        await tab.warte_auf_ruhe(ruhe=0.5)
 
-    await tab.anmelden({})
-    await tab.oeffnen("/login?next=" + quote("javascript:void(window.__dkXss=document.domain)", safe=""), "document.getElementById('u')")
-    await _anmelden_formular(tab, "bea", PASSWORT["bea"])
-    await tab.warten("window.__dkXss!==undefined", 5, melden=False)
-    xss = await tab.js("window.__dkXss===undefined?null:String(window.__dkXss)")
-    befund("Anmelden über das Formular mit next=javascript:…: das Skript läuft im ERP (mit frischer Sitzung)", xss is not None,
-           f"window.__dkXss={xss!r}")
+    for name, wert in (("javascript:", "javascript:void(window.__dkXss=document.domain)"),
+                       ("JavaScript: mit Leerzeichen", " JavaScript:void(window.__dkXss=document.domain)"),
+                       ("data:", "data:text/html,<script>opener&&(opener.__dkXss=1)</script>")):
+        await tab.anmelden({})
+        await tab.oeffnen("/login?next=" + quote(wert, safe=""), "document.getElementById('u')")
+        await _anmelden_formular(tab, "bea", PASSWORT["bea"])
+        await tab.warten("location.pathname==='/projects'&&document.readyState==='complete'", 10)
+        p.pruefe(f"Angriff über das Formular, next={name}: kein Skript, Startseite",
+                 [await tab.js("window.__dkXss===undefined?null:String(window.__dkXss)"), await tab.js("location.protocol+location.pathname")],
+                 [None, "http:/projects"])
+        await tab.warte_auf_ruhe(ruhe=0.5)
 
-    # Angemeldet leitet /login selbst weiter (Server, _safe_next_target()) -- das ist geprüft, also Prüfungen.
-    await tab.anmelden(seed["cookies"]["bea"])
-    for wert in (f"//{fremd}", f"/%5C{fremd}", f"/%09/{fremd}", f"https:{fremd}"):
+    # Angemeldet leitet /login selbst weiter (Server, app/weiterleitung.py::sicheres_ziel()).
+    await tab.anmelden(seed["cookies"]["bea_angriffe"])
+    for wert in (f"//{fremd}", f"/%5C{fremd}", f"/%09/{fremd}", f"https:{fremd}", f"%2F%2F{fremd}", f"/%252F%252F{fremd}",
+                 quote("javascript:alert(1)", safe=""), quote("data:text/html,x", safe="")):
         marke = len(tab.netz.verlauf)
         await tab.cmd("Page.navigate", url=f"{tab.base}/login?next={wert}")
         for _ in range(50):  # bis die Navigation (samt Weiterleitungen) zu Ende ist
             await tab.nachlesen()
             if any(d["fertig"] or d["fehler"] for d in _dokumente(tab, marke)):
                 break
+        await tab.warten("document.readyState==='complete'", 10)
+        await tab.warte_auf_ruhe(ruhe=0.5)
         dokumente = _dokumente(tab, marke)
         p.pruefe(f"Angriff (angemeldet): /login?next={wert} bleibt im ERP",
                  [bool(dokumente), [d["url"] for d in dokumente if not d["url"].startswith(tab.base + "/")]], [True, []])
@@ -411,8 +427,6 @@ async def pruefen(tab, seed, p):
     await _seitenleiste(tab, seed, p)
     await _abmelden_mobil(tab, seed, p)
     await _angriffe_next(tab, seed, p)
-    luecken = [b for b in BEFUNDE if b[1]]
-    print(f"BEFUNDE: {len(luecken)} Lücken bei {len(BEFUNDE)} Befund-Angriffen (gemeldet, nicht als Prüfung gezählt)", flush=True)
 
 
 if __name__ == "__main__":

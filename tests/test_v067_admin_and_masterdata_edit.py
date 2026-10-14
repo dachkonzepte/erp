@@ -1,11 +1,10 @@
 from pathlib import Path
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
-from starlette.requests import Request
 
 from app.database import Base
 from app.models import AppUser, AuditLog, Customer, Property, Employee
-from app.auth import COOKIE_NAME, hash_password, make_cookie
+from app.auth import hash_password
 from app.main import update_app_user, delete_app_user, update_property, get_employee, update_employee
 from app.schemas import AppUserUpdate, PropertyUpdate, EmployeeUpdate
 from app.employees import load_employee_functions
@@ -16,11 +15,6 @@ def new_db():
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
-
-
-def request_for(user_id: int, method="PUT", path="/api/test"):
-    cookie = f"{COOKIE_NAME}={make_cookie(user_id)}".encode()
-    return Request({"type":"http","method":method,"path":path,"headers":[(b"cookie",cookie)],"query_string":b"","server":("test",80),"client":("test",1234),"scheme":"http"})
 
 
 def test_admin_can_edit_and_delete_other_user():

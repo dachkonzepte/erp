@@ -142,11 +142,17 @@ if hasattr(sys.stdout, "reconfigure"):
 class Werkzeug:
     """Wird an befuellen(db, k) übergeben."""
 
+    def __init__(self, db=None):
+        self.db = db
+
     def cookies(self, user) -> dict:
-        """Anmelde-Cookies für einen gespeicherten AppUser, ohne Login über die Oberfläche.
-        Das 2FA-Cookie ist dabei, damit auch ein Admin ohne zweiten Faktor durchkommt."""
-        from app.auth import COOKIE_NAME, OTP_COOKIE_NAME, make_cookie, make_otp_ok_cookie
-        return {COOKIE_NAME: make_cookie(user.id), OTP_COOKIE_NAME: make_otp_ok_cookie(user.id)}
+        """Anmelde-Cookie für einen gespeicherten AppUser, ohne Login über die Oberfläche: seit 1.8.98 eine Sitzung auf dem Server
+        (app/sitzungen.py), mit bestätigtem zweitem Faktor, damit auch ein Admin ohne zweiten Faktor durchkommt. Jeder Aufruf ist
+        eine eigene Sitzung (wie zwei Geräte)."""
+        from app import sitzungen
+        from app.auth import COOKIE_NAME
+        self.db.flush()
+        return {COOKIE_NAME: sitzungen.neue_sitzung(self.db, user, zweiter_faktor=True)}
 
     def passwort(self, text: str = "x-Passwort-123") -> str:
         from app.auth import hash_password
@@ -165,7 +171,7 @@ def _befuellen_im_kindprozess(befuellen, ziel: Path) -> None:
 
     db = SessionLocal()
     try:
-        seed = befuellen(db, Werkzeug())
+        seed = befuellen(db, Werkzeug(db))
         db.commit()
     finally:
         db.close()
@@ -486,10 +492,25 @@ class Tab:
                 self.fehler.append((d.get("exception", {}).get("description") or d.get("text", "?"))[:300])
             if msg.get("method") == "Runtime.consoleAPICalled" and msg["params"]["type"] == "error":
                 self.fehler.append(" ".join(str(a.get("value", a.get("description", ""))) for a in msg["params"]["args"])[:300])
+            if msg.get("method") == "Page.javascriptDialogOpening":
+                await self._dialog(msg.get("params") or {})
             if msg.get("id") == my:
                 if "error" in msg:
                     raise RuntimeError(f"{method}: {msg['error']}")
                 return msg["result"]
+
+    async def _dialog(self, params: dict) -> None:
+        """Seit 1.8.98: ein Dialog des Browsers (vor allem "Seite verlassen?" der Warnung beim Verlassen) hielt jeden weiteren
+        CDP-Befehl an -- der Klicktest hing bis zum Zeitlimit von klicktest_alle.py (15 min). Jetzt: melden (die Prüfung zählt als
+        nicht wie erwartet, samt Netzprotokoll: welches Speichern noch lief), den Dialog annehmen und weitermachen. alert()/confirm()
+        leiten die Klicktests in der Seite um; ein echter Dialog ist deshalb immer ein Befund."""
+        art = params.get("type", "?")
+        self.nicht_geladen.append(f"Dialog {art} ({(params.get('message') or '')[:60]!r}) auf {params.get('url', '?')}")
+        print(f"XX  Dialog des Browsers ({art}) auf {params.get('url', '?')} -- angenommen, der Test läuft weiter", flush=True)
+        for zeile in self.netz.melden(immer=True):
+            print(zeile, flush=True)
+        self.n += 1
+        await self.ws.send(json.dumps({"id": self.n, "method": "Page.handleJavaScriptDialog", "params": {"accept": True}}))
 
     async def js(self, expr: str):
         """Wertet expr in der Seite aus (Promises werden abgewartet). Ein Fehler landet in

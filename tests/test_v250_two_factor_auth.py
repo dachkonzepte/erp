@@ -14,13 +14,14 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app import login_security, two_factor
-from app.auth import hash_password, otp_ok_for_user, user_from_request
+from app.auth import hash_password
 from app.database import Base, get_db
 from app.main import _blocked_pending_two_factor
 from app.models import AppUser
 from app.routers import account as account_router_module
 from app.routers import auth as auth_router_module
 from app.routers.users import reset_user_two_factor
+from tests.anmeldung import neue_datenbank, client_mit_schranke
 from tests.test_v153_mahnwesen import db_session
 
 
@@ -171,42 +172,15 @@ def test_admin_cannot_reset_own_two_factor():
 # künftiger Rückfall in dasselbe Muster wieder auffällt.
 
 def _make_test_app():
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    make_session = sessionmaker(bind=engine)
-
-    app = FastAPI()
-    app.include_router(auth_router_module.router)
-    app.include_router(account_router_module.router)
-
+    """Seit 1.8.98 mit der echten Anmeldeschranke (tests/anmeldung.py) statt einer Nachbildung."""
+    _engine, make_session = neue_datenbank()
     dummy = APIRouter()
 
     @dummy.get("/api/dummy/business-data")
     def _dummy_business_endpoint():
         return {"ok": True}
 
-    app.include_router(dummy)
-    # lambda statt make_session direkt -- FastAPI würde sonst versuchen, die Signatur des
-    # sessionmaker-Objekts selbst als Dependency-Parameter zu interpretieren.
-    app.dependency_overrides[get_db] = lambda: make_session()
-
-    @app.middleware("http")
-    async def _identity_and_two_factor_gate(request: Request, call_next):
-        mw_db = make_session()  # ebenfalls eine EIGENE Session, wie in app/main.py
-        try:
-            user = user_from_request(mw_db, request)
-        finally:
-            mw_db.close()
-        request.state.erp_user = user
-        otp_ok = True
-        if user is not None and user.role == "admin":
-            otp_ok = otp_ok_for_user(request, user.id)
-        request.state.otp_ok = otp_ok
-        if user is not None and not otp_ok and _blocked_pending_two_factor(request.url.path):
-            return JSONResponse(status_code=401, content={"detail": "Zwei-Faktor-Bestätigung ausstehend.", "two_factor_pending": True})
-        return await call_next(request)
-
-    return TestClient(app), make_session
+    return client_mit_schranke(make_session, auth_router_module.router, account_router_module.router, dummy), make_session
 
 
 def test_admin_without_two_factor_is_routed_through_mandatory_setup():

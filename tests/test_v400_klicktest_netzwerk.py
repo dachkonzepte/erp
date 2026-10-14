@@ -374,3 +374,19 @@ def test_the_login_click_test_covers_both_forms_and_both_headers():
     for teil in ('"#u"', '"#appSidebarLoginForm button"', '"#appTopbarLogout"', '"#mobileHeaderLogout"',
                  'await tab.im_netz_anhalten("*/api/auth/logout")', 'await tab.im_netz_anhalten("*/api/auth/login")'):
         assert teil in quelle, teil
+
+
+def test_a_browser_dialog_is_reported_and_accepted_instead_of_hanging(tmp_path, capsys):
+    """Seit 1.8.98: "Seite verlassen?" (oder ein anderer Dialog des Browsers) hielt jeden weiteren CDP-Befehl an -- der Klicktest hing
+    bis zum Zeitlimit. Jetzt meldet das Werkzeug ihn (der Lauf ist nicht wie erwartet), nimmt ihn an und macht weiter."""
+    def dialog(m, p):
+        if m == "Page.navigate":
+            return [("Page.javascriptDialogOpening", {"type": "beforeunload", "message": "", "url": BASIS + "/customers/3"})]
+        return []
+    ws = GestellterWs(dialog)
+    tab = _tab(ws, tmp_path)
+    asyncio.run(tab.cmd("Page.navigate", url=BASIS + "/login"))
+    assert [b["method"] for b in ws.befehle] == ["Page.navigate", "Page.handleJavaScriptDialog"]
+    assert ws.befehle[1]["params"] == {"accept": True}
+    assert tab.nicht_geladen == [f"Dialog beforeunload ('') auf {BASIS}/customers/3"]
+    assert "XX  Dialog des Browsers (beforeunload)" in capsys.readouterr().out
