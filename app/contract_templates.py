@@ -314,7 +314,12 @@ def create_contract_draft_if_template(db: Session, order: Order, *, actor_name: 
 
 def update_contract_draft(db: Session, contract: OrderContract, values: dict, *, actor_name: str = "System") -> OrderContract:
     """Ändert die Fallfelder -- nur die übergebenen (Regel 22), nur solange der Vertrag ein Entwurf ist
-    (seit 1.8.33: festgeschrieben ist er gesperrt, Änderungen nur als neue Fassung)."""
+    (seit 1.8.33: festgeschrieben ist er gesperrt, Änderungen nur als neue Fassung). Seit 1.8.103 (Korrektur 99-10) unter derselben
+    Zeilensperre des Vertrags wie das Festschreiben (app/contract_versions.py::freeze_contract()), Status frisch gelesen: bis 1.8.102
+    konnte ein Text noch in den Entwurf gehen, nachdem die Fassung entstanden war."""
+    from .contract_versions import _locked_contract  # lokal: contract_versions importiert dieses Modul
+
+    contract = _locked_contract(db, contract.order_id) or contract
     if contract.status != "entwurf":
         raise ValueError("Nur ein Vertragsentwurf kann geändert werden – ein festgeschriebener Vertrag nur als neue Fassung.")
     for field, value in values.items():

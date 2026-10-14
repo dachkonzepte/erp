@@ -1180,6 +1180,7 @@ class AppUserOut(BaseModel):
     last_login_at: datetime | None = None
     two_factor_configured: bool = False
     outlook_mailbox: str | None = None
+    active_sessions: int = 0  # seit 1.8.103: geltende Sitzungen (Benutzerverwaltung, "Alle Sitzungen beenden")
 
 
 class LoginRequest(BaseModel):

@@ -27,7 +27,9 @@ router = APIRouter()
 
 @router.get("/api/users", response_model=list[AppUserOut])
 def list_app_users(db: Session = Depends(get_db), current: AppUser = Depends(require_admin("Nur Administratoren dürfen die Benutzerliste einsehen."))):
-    return db.scalars(select(AppUser).order_by(AppUser.display_name)).all()
+    """Seit 1.8.103 mit der Zahl der geltenden Sitzungen je Benutzer (nur gelesen)."""
+    users = db.scalars(select(AppUser).order_by(AppUser.display_name)).all()
+    return [AppUserOut.model_validate(u, from_attributes=True).model_copy(update={"active_sessions": sitzungen.anzahl(db, u)}) for u in users]
 
 
 @router.post("/api/users", response_model=AppUserOut)
@@ -103,6 +105,22 @@ def reset_user_two_factor(user_id: int, db: Session = Depends(get_db), current: 
         raise HTTPException(status_code=409, detail="Der eigene zweite Faktor kann hier nicht zurückgesetzt werden -- dafür sind die eigenen Wiederherstellungscodes oder das Notfallskript auf dem Server nötig.")
     two_factor.reset(db, user)
     return {"ok": True}
+
+
+@router.post("/api/users/{user_id}/end-sessions")
+def end_user_sessions(user_id: int, db: Session = Depends(get_db),
+                      current: AppUser = Depends(require_admin("Nur Administratoren dürfen Sitzungen beenden.")),
+                      request: Request = None, response: Response = None):
+    """Seit 1.8.103 (Korrektur 98-11): ein Administrator beendet alle Sitzungen eines Benutzers -- jede Anmeldung auf jedem Gerät endet,
+    die nächste Anfrage dort braucht eine neue Anmeldung. Beendet er seine eigenen, bleibt dieses Gerät mit einer neuen Sitzung
+    angemeldet (wie beim eigenen Passwort, Festlegung 1.8.98 Nr. 6). Vertraute Geräte bleiben (sie ersparen nur den zweiten Faktor)."""
+    user = db.get(AppUser, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="ERP-Benutzer nicht gefunden.")
+    vorher = sitzungen.anzahl(db, user)
+    sitzungen.alle_beenden(db, user, request=request, response=response)
+    db.commit()
+    return {"ok": True, "sitzungen_beendet": vorher}
 
 
 @router.delete("/api/users/{user_id}")

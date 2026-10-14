@@ -108,6 +108,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import base64
+import contextlib
 import json
 import os
 import re
@@ -473,8 +474,9 @@ class Tab:
     die Netzwerk-Ereignisse auf (Netzprotokoll); downloads (seit 1.8.101) die Downloads, die der Tab beginnt (Page.downloadWillBegin --
     wohin sie gehen, legt ein Klicktest mit Page.setDownloadBehavior fest)."""
 
-    def __init__(self, ws, base_url: str, shots: Path):
+    def __init__(self, ws, base_url: str, shots: Path, cdp_port: int | None = None):
         self.ws, self.base, self.shots = ws, base_url, shots
+        self.cdp_port = cdp_port  # seit 1.8.103, für zweiter_tab()
         self.n = 0
         self.fehler: list[str] = []
         self.nicht_geladen: list[str] = []
@@ -526,6 +528,24 @@ class Tab:
             self.fehler.append((d.get("exception", {}).get("description") or d.get("text", "?"))[:300])
             return None
         return res["result"].get("value")
+
+    @contextlib.asynccontextmanager
+    async def zweiter_tab(self):
+        """Seit 1.8.103: ein weiterer Tab desselben Browsers (dieselben Cookies) -- z. B. "in einem neuen Tab anmelden", während die
+        Seite dieses Tabs offen bleibt. Wird am Ende geschlossen; Ereignisse dieses Tabs liest erst sein nächster Befehl."""
+        import websockets
+
+        anfrage = urllib.request.Request(f"http://127.0.0.1:{self.cdp_port}/json/new?about:blank", method="PUT")
+        ziel = json.load(urllib.request.urlopen(anfrage))
+        try:
+            async with websockets.connect(ziel["webSocketDebuggerUrl"], max_size=64_000_000) as ws:
+                tab = Tab(ws, self.base, self.shots, self.cdp_port)
+                for domain in ("Page", "Runtime", "Network"):
+                    await tab.cmd(f"{domain}.enable")
+                await tab.fenster(1400, 1000)
+                yield tab
+        finally:
+            urllib.request.urlopen(f"http://127.0.0.1:{self.cdp_port}/json/close/{ziel['id']}").read()
 
     async def anmelden(self, cookies: dict) -> None:
         await self.cmd("Network.clearBrowserCookies")
@@ -902,7 +922,7 @@ async def _lauf(pruefen, seed, cdp_port: int, base_url: str, shots: Path) -> boo
     seite = next(t for t in ziele if t["type"] == "page")
     p = Pruefungen()
     async with websockets.connect(seite["webSocketDebuggerUrl"], max_size=64_000_000) as ws:
-        tab = Tab(ws, base_url, shots)
+        tab = Tab(ws, base_url, shots, cdp_port)
         p.netz = tab.netz  # seit 1.8.97
         for domain in ("Page", "Runtime", "Network"):
             await tab.cmd(f"{domain}.enable")

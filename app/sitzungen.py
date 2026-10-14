@@ -4,7 +4,10 @@ Das Cookie dk_erp_auth trägt einen Zufallswert; gespeichert ist nur sein SHA-25
 nicht abgelaufen ist (fest 12 h ab der Anmeldung) und der Benutzer aktiv ist. Beendet wird sie
 - beim Abmelden (beenden(), nur diese),
 - bei einer Passwortänderung (eigene und durch einen Administrator), einer Änderung am zweiten Faktor (Ersteinrichtung, Zurücksetzen
-  durch einen Administrator oder das Notfallskript) und beim Deaktivieren eines Benutzers (alle_beenden(), alle seine).
+  durch einen Administrator oder das Notfallskript) und beim Deaktivieren eines Benutzers (alle_beenden(), alle seine),
+- seit 1.8.103 (Korrekturen 98-11/98-12): "Alle vertrauten Geräte abmelden" beendet alle anderen Sitzungen des Kontos
+  (andere_beenden()), ein Administrator beendet alle Sitzungen eines Benutzers (alle_beenden()), und der Feierabend in /mobil beendet
+  die Sitzung wie das Abmelden (beenden()).
 Wer selbst ändert (eigenes Passwort, Ersteinrichtung des zweiten Faktors), bleibt auf diesem Gerät angemeldet -- mit einer neuen
 Sitzung, die alte endet wie alle anderen.
 
@@ -91,6 +94,23 @@ def alle_beenden(db: Session, user: AppUser, *, request=None, response=None, zwe
     db.execute(delete(UserSession).where(UserSession.user_id == user.id))
     if weiter:
         cookie_setzen(response, neue_sitzung(db, user, zweiter_faktor=mit_faktor))
+
+
+def andere_beenden(db: Session, user: AppUser, request) -> int:
+    """Beendet alle Sitzungen von user außer der der Anfrage (kein Commit) -- "Alle vertrauten Geräte abmelden" (seit 1.8.103). Gibt
+    zurück, wie viele endeten."""
+    aktuelle = sitzung_zum_wert(db, request.cookies.get(COOKIE_NAME)) if request is not None else None
+    bedingung = UserSession.user_id == user.id
+    if aktuelle is not None and aktuelle.user_id == user.id:
+        bedingung = bedingung & (UserSession.id != aktuelle.id)
+    return db.execute(delete(UserSession).where(bedingung)).rowcount or 0
+
+
+def anzahl(db: Session, user: AppUser) -> int:
+    """Wie viele Sitzungen von user gelten (nicht abgelaufen) -- nur lesen."""
+    from sqlalchemy import func
+    return db.scalar(select(func.count(UserSession.id)).where(UserSession.user_id == user.id,
+                                                              UserSession.expires_at > _jetzt())) or 0
 
 
 def erneuern(db: Session, request, response, user: AppUser, *, zweiter_faktor: bool) -> None:

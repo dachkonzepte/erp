@@ -4104,6 +4104,90 @@ Nebenbefunde nur melden. Wird der Umfang zu groß: nach Punkt 2 committen und de
 3. **Zahlen aus Antworten des Servers lassen sich im Browser nicht als Zahl beweisen** (Fassung, Menge, Zähler): sie gehen jetzt durch esc();
    ein Feld, das später Text trägt, wäre damit schon geschützt.
 
+### Umsetzung 1.8.103: Vorweg -- Sitzungen, Feierabend, „Anmeldung abgelaufen“, Vertragsentwurf (Korrekturen zu 1.8.98–1.8.100)
+
+Die Festlegungen 1.8.98–1.8.100 sind bestätigt (98-5: 12 h passen dem Betrieb), mit den Korrekturen aus der Vorgabe oben.
+
+#### Was gebaut ist
+
+- **98-11 „Alle vertrauten Geräte abmelden“** (`POST /api/account/trusted-devices/revoke-all`) beendet im selben Commit alle anderen
+  Sitzungen des Kontos (`app/sitzungen.py::andere_beenden()`), dieses Gerät bleibt mit seiner Sitzung angemeldet; die Antwort nennt
+  `sitzungen_beendet`.
+- **98-11 Administrator beendet alle Sitzungen eines Benutzers**: `POST /api/users/{id}/end-sessions` (nur Admin, `alle_beenden()`); fremde:
+  jede Anmeldung endet; die eigenen: dieses Gerät bleibt mit einer neuen Sitzung angemeldet (wie beim eigenen Passwort, Festlegung 1.8.98
+  Nr. 6). Benutzerverwaltung: Spalte „Sitzungen“ (Zahl der geltenden, `AppUserOut.active_sessions`, nur gelesen) und Knopf „Alle Sitzungen
+  beenden“ mit Rückfrage, sichtbar, solange es Sitzungen gibt.
+- **98-11 Rolle je Anfrage**: war seit 1.8.98 so (die Anmeldeschranke liest Benutzer und Rolle bei jeder Anfrage aus der Datenbank,
+  `require_min_role()`/`require_admin()` prüfen `request.state.erp_user`); neu ist der Angriffstest dazu.
+- **98-12 Feierabend**: `GET /api/field-view/today` nach `shift_end_time` beendet die Sitzung auf dem Server (`sitzungen.beenden()`, Commit),
+  dann 401 und Cookie löschen wie bisher. Nur diese Sitzung -- ein zweites Gerät desselben Monteurs bleibt angemeldet, wie beim Abmelden.
+- **99-10 Vertragsentwurf**: `app/contract_templates.py::update_contract_draft()` liest den Vertrag unter der Zeilensperre des
+  Festschreibens (`_locked_contract()`, FOR UPDATE) und prüft den Status danach frisch. Ein gleichzeitiges Festschreiben wartet auf die
+  Änderung (der Text steht in der Fassung) oder die Änderung wartet und wird danach abgelehnt („Nur ein Vertragsentwurf kann geändert
+  werden …“). `freeze_contract()` und `start_new_version()` sperrten schon.
+- **„Anmeldung abgelaufen“**: schickt eine Anfrage ein Anmelde-Cookie ohne gültige Sitzung (abgelaufen, abgemeldet, beendet), antwortet die
+  Anmeldeschranke (`app/anmeldeschranke.py`) auf API-Anfragen mit 401, Kopfzeile `X-DK-Anmeldung: abgelaufen` und dem Text
+  `ANMELDUNG_ABGELAUFEN`; ohne Cookie wie bisher „Bitte zuerst als ERP-Benutzer anmelden.“, Seiten weiter auf `/login`. Der Baustein
+  `_speichern.html` prüft jede Antwort eines Speicherns (in der fetch-Hülle, also auch wo `api()` bei einem Fehler wirft) und zeigt oben den
+  Hinweis (`#dkAnmeldungAbgelaufen`, Farben aus `--warning`); der Bereich meldet den Text des Servers, das Speichern gilt als gescheitert
+  (abschließende Aktionen warten, Regel 29), keine Weiterleitung, die Eingaben bleiben. Ein späteres gelungenes Speichern -- nach dem Anmelden
+  in einem neuen Tab, dessen Cookie auch hier gilt -- nimmt den Hinweis weg.
+- **99-6** (eine vom Server abgelehnte abschließende Aktion sperrt keine weitere): der Test steht seit 1.8.99
+  (`tests/test_v399_abschliessen.py::test_a_final_action_refused_by_the_server_does_not_block_another`); die Gegenprobe ist jetzt gelaufen
+  (unten), am Code nichts geändert.
+
+#### Befund 99-13: `content` der Layout-Bausteine (nur Befund)
+
+- **Eingegeben**: nirgends in der Oberfläche. Einstellungen → Dokumentlayout schickt nur `visible` („anzeigen“) bzw. `y_mm` (Position des
+  Folgeseiten-Kopfs). Schreiben lässt sich `content` nur über `PUT /api/document-layout/blocks/{id}` (ab `buero_auftrag`, seit 1.8.99
+  gespeichert, `app/document_layout.py::update_layout_block()`), Spalte `Text` ohne Längengrenze; die Grunddaten legen die vier Bausteine
+  mit leerem `content` an.
+- **Erscheint**: nur in den JSON-Antworten von `GET /api/document-layout/{typ}`, des PUT und von `POST …/reset` (`DocumentLayoutBlockOut`).
+  Keine Vorlage zeigt ihn (`settings.html` liest ihn nicht), kein PDF zeichnet ihn -- `app/document_frame.py` setzt Logo, Absenderzeile,
+  Firmenkopf und Fußzeile aus den Einstellungen bzw. Dokumentdaten. Damit ist er heute weder ein Weg für Skript in eine Seite noch für Text
+  in ein Dokument; erst eine Oberfläche oder ein Renderer, der ihn liest, müsste ihn wie jeden Text behandeln (esc(), Paragraph-Escaping).
+
+#### Festlegungen 1.8.103 (Bitte bestätigen)
+
+1. „Alle vertrauten Geräte abmelden“ beendet alle anderen Sitzungen des Kontos; dieses Gerät behält seine Sitzung (kein neuer Cookie-Wert).
+2. „Alle Sitzungen beenden“ (Admin) lässt vertraute Geräte bestehen (sie ersparen nur den zweiten Faktor) und geht auch für einen
+   inaktiven Benutzer (dort ohnehin keine); für sich selbst bleibt dieses Gerät mit neuer Sitzung angemeldet.
+3. Der Feierabend-Aufruf `GET /api/field-view/today` ist die einzige Stelle, an der ein GET schreibt (er löscht die eigene Sitzung) --
+   bewusste Ausnahme von Regel 23, `test_kein_get_schreibt` sieht sie nicht (feste Uhr 10:00).
+4. Feierabend beendet nur die Sitzung dieses Geräts, nicht alle des Monteurs (wie Abmelden).
+5. „Anmeldung abgelaufen“ heißt: Cookie mitgeschickt, aber keine gültige Sitzung -- abgelaufen, abgemeldet, beendet, deaktiviert; ohne
+   Cookie bleibt es „Bitte zuerst … anmelden“. Seitenaufrufe führen weiter auf `/login`.
+6. Den Hinweis oben zeigt nur Speichern und Abschließen (der Baustein); ein Lesen mit abgelaufener Anmeldung zeigt den Text des Servers am
+   Bereich, ohne Hinweis oben. Der Text nennt „erneut speichern“ auch dort.
+7. `GET /api/users` liefert je Benutzer `active_sessions` (Zahl der nicht abgelaufenen Sitzungen) -- nur Lesen, nur Admin.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v408_vorweg.py` (23, davon 2 gegen PostgreSQL): **Angriffstests** Rolle herabgesetzt (Büro Finanzen -> Monteur und zurück,
+  Admin -> Büro Finanzen an `/api/users`, Anlegen, Sitzungen beenden: ab der nächsten Anfrage derselben Sitzung 403/200), „alle vertrauten
+  Geräte“ (die mitgelesenen Werte der anderen Geräte 401, dieses Gerät 200, anderer Benutzer unberührt), Admin beendet alle eines Benutzers
+  (Werte 401, Anzahl in der Liste, neu anmelden geht), seine eigenen (alter Wert auch hier 401, neuer gilt), nur Admin (drei Rollen 403),
+  unbekannt 404, Feierabend (der Wert des Tablets von außen 401, zweites Gerät 200), vor dem Feierabend bleibt sie; „Anmeldung abgelaufen“
+  (abgelaufen, abgemeldet, beendet: 401 mit Kopfzeile; ohne Cookie ohne), Baustein in node (Hinweis da, Fehler am Bereich, abschließende
+  Aktion gesperrt, gelungenes Speichern nimmt den Hinweis weg; fetch direkt; 401 ohne Kopfzeile ohne Hinweis); **PostgreSQL**: Festschreiben
+  hält die Sperre, die Änderung wartet und wird abgelehnt (Fassung ohne den Text); umgekehrt steht der Text in der Fassung.
+- Klicktest `scripts/klicktest_anmeldung_abgelaufen.py` 13/13: Kundenakte geändert, Admin beendet Beas Sitzungen von außen, Speichern -> PUT
+  401, „Fehler: Anmeldung abgelaufen –“ am Bereich, Hinweis oben, keine Navigation, Eingaben stehen, kein Dialog, Server unverändert; im
+  zweiten Tab über das Formular angemeldet; derselbe Klick „Gespeichert.“, Hinweis weg, Server gespeichert; ohne Cookie 401 ohne Kopfzeile.
+  Dafür `scripts/cdp_klicktest.py`: `Tab.zweiter_tab()` (weiterer Tab desselben Browsers über `/json/new`, am Ende geschlossen).
+- Gegenproben (Regel 24): 8 von 8 rot -- Rolle aus dem Sitzungsbeginn zwischengespeichert, „alle vertrauten Geräte“ ohne Sitzungen,
+  Admin beendet nichts, Feierabend nur Cookie, Anmeldeschranke ohne Kopfzeile, Baustein prüft nur die Rückgabe (auch im Klicktest: Hinweis
+  fehlt), 99-6: abgelehnte abschließende Aktion setzt „gescheitert“, Vertragsentwurf ohne Sperre (PostgreSQL). Jede Datei byte-genau zurück,
+  kein Marker.
+- Angepasste Erwartungen: keine.
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **`GET /mobil` prüft den Feierabend nicht**, obwohl `is_past_shift_end()` und der Docstring von `MobileSettings` „GET /mobil und GET
+   /api/field-view/today“ nennen -- nur der API-Aufruf prüft; die Seite lädt, ihr erster Aufruf von `/api/field-view/today` meldet dann ab.
+2. **`field_timesheet.html` und `time_tracking_field.html` leiten bei jedem Fehler mit „401“ im Text beim ersten Laden auf `/login`** -- dort
+   ohne Eingaben unschädlich, aber eine Erkennung über den Text der Meldung.
+
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
 Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):

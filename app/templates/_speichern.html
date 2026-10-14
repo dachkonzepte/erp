@@ -111,6 +111,34 @@ function _dkHinweis(text) {
   }
   el.querySelector('.dk-text').textContent = text;
 }
+/* Seit 1.8.103: läuft die Anmeldung ab, während die Seite offen ist (12 h, abgemeldet, Sitzungen beendet), antwortet die
+   Anmeldeschranke auf das Speichern mit 401 und der Kopfzeile X-DK-Anmeldung: abgelaufen. Der Baustein erkennt sie an jeder Antwort
+   eines Speicherns -- auch wo api() bei einem Fehler wirft -- und zeigt den Hinweis oben; der Bereich meldet den Text des Servers
+   ("Anmeldung abgelaufen – …"), keine Weiterleitung, die Eingaben bleiben stehen. Nach dem Anmelden in einem neuen Tab gilt das neue
+   Cookie auch hier: derselbe Klick speichert, und das gelungene Speichern nimmt den Hinweis weg. */
+function _dkIstAbgelaufen(antwort) {
+  return !!(antwort && antwort.status === 401 && antwort.headers && antwort.headers.get('X-DK-Anmeldung') === 'abgelaufen');
+}
+function _dkAbgelaufenPruefen(antwort) {
+  if (_dkIstAbgelaufen(antwort)) _dkAnmeldungAbgelaufen(true);
+  return antwort;
+}
+function _dkAnmeldungAbgelaufen(zeigen) {
+  // Hinweis oben auf der Seite, solange das letzte Speichern an einer abgelaufenen Anmeldung scheiterte.
+  if (typeof document === 'undefined' || !document.body) return;
+  let el = document.getElementById('dkAnmeldungAbgelaufen');
+  if (!zeigen) { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'dkAnmeldungAbgelaufen';
+    el.setAttribute('role', 'alert');
+    el.style.cssText = 'position:sticky;top:0;z-index:9999;padding:10px 16px;font-weight:600;font-size:14px;'
+      + 'background:var(--warning-soft,#fef3c7);color:var(--warning,#92400e);border-bottom:2px solid var(--warning,#d97706)';
+    el.textContent = 'Anmeldung abgelaufen – bitte in einem neuen Tab anmelden und danach hier erneut speichern. '
+      + 'Die Eingaben auf dieser Seite bleiben stehen.';
+    document.body.prepend(el);
+  }
+}
 function _dkMitZeitlimit(laufend, kontrollen, b, uebertragen) {
   // Die Uhr läuft ab dem Ende der Übertragung (uebertragen): ohne Datei sofort beim Senden, beim Hochladen, wenn die Daten beim Server
   // sind (seit 1.8.99).
@@ -246,7 +274,7 @@ function _dkSpeichern(bereich, anfrage, optionen, voraussetzung) {
         if (_dkHochladen(init) && typeof XMLHttpRequest === 'function') return _dkPerXhr(input, init, uebertragen);
         uebertragen();  // ohne Datei: das Zeitlimit läuft ab dem Senden
         return echtesFetch.call(self, input, init);
-      });
+      }).then(_dkAbgelaufenPruefen);
     };
     try { laufend = Promise.resolve(anfrage()); } finally { window.fetch = echtesFetch; }
     if (!gebaut) console.error(`speichern('${bereich}'): die Anfrage ging nicht sofort über fetch() -- sie wartet nicht auf das vorige Speichern`);
@@ -287,7 +315,8 @@ async function _dkSenden(b, eintrag, laufend, kontrollen, senden, nichtSenden, o
     const istAntwort = typeof Response !== 'undefined' && daten instanceof Response;
     if (istAntwort) eintrag.kopie = daten.clone();  // für eine gleiche zweite Anfrage, bevor der Aufrufer den Body liest
     const fehlstatus = istAntwort && !daten.ok;
-    ergebnis = {ok: !fehlstatus, fehler: fehlstatus ? `Status ${daten.status}` : ''};
+    ergebnis = {ok: !fehlstatus, fehler: fehlstatus ? (_dkIstAbgelaufen(daten) ? 'Anmeldung abgelaufen' : `Status ${daten.status}`) : ''};
+    if (ergebnis.ok) _dkAnmeldungAbgelaufen(false);  // nach dem Anmelden in einem neuen Tab gelungen: Hinweis weg
   } catch (e) {
     nichtSenden(e);  // noch nicht gesendet (Voraussetzung, unklarer Bereich): die gebaute Anfrage geht nie hinaus
     ergebnis = {ok: false, fehler: e && e.message ? e.message : String(e)};

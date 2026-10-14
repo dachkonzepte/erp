@@ -93,6 +93,11 @@ def _setzt_sitzung(response) -> bool:
     return any(name == b"set-cookie" and value.startswith(COOKIE_NAME.encode() + b"=") for name, value in response.raw_headers)
 
 
+ANMELDUNG_ABGELAUFEN = ("Anmeldung abgelaufen – bitte in einem neuen Tab anmelden und danach hier erneut speichern. "
+                        "Die Eingaben auf dieser Seite bleiben stehen.")
+ABGELAUFEN_KOPF = "X-DK-Anmeldung"
+
+
 def middleware(session_factory):
     """Die Middleware-Funktion (request, call_next) mit session_factory für die eigene, kurzlebige Datenbanksitzung."""
 
@@ -130,6 +135,11 @@ async def _weiter(request: Request, call_next, user, has_users: bool, otp_ok: bo
     # Sobald ERP-Benutzer eingerichtet sind, sind schreibende Vorgänge und lesende
     # API-Zugriffe nur angemeldet erlaubt (siehe _request_requires_login).
     if user is None and _request_requires_login(has_users, request.method, request.url.path):
+        if request.cookies.get(COOKIE_NAME):
+            # Seit 1.8.103: ein Anmelde-Cookie ohne gültige Sitzung (abgelaufen, abgemeldet, beendet) -- die Seite sagt das so und
+            # lässt die Eingaben stehen (_speichern.html); nach dem Anmelden in einem neuen Tab geht derselbe Klick wieder.
+            return JSONResponse(status_code=401, headers={ABGELAUFEN_KOPF: "abgelaufen"},
+                                content={"detail": ANMELDUNG_ABGELAUFEN, "anmeldung_abgelaufen": True})
         return JSONResponse(status_code=401, content={"detail": "Bitte zuerst als ERP-Benutzer anmelden."})
     if user is None and _page_requires_login(has_users, request.method, request.url.path):
         # Dieselbe ?next=<Pfad>-Konvention wie bei den bestehenden Abmelden-Links

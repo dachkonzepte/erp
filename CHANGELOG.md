@@ -4,6 +4,23 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.103 – Sitzungen beenden, Feierabend auf dem Server, „Anmeldung abgelaufen“, Vertragsentwurf unter Sperre
+
+Vorweg der Vorgabe vom 14.10.2026 (Korrekturen zu den Festlegungen 1.8.98–1.8.100). „Alle vertrauten Geräte abmelden“ beendet jetzt
+auch alle anderen Sitzungen des Kontos (dieses Gerät bleibt angemeldet); in der Benutzerverwaltung steht je Benutzer die Zahl der
+geltenden Sitzungen, ein Administrator beendet sie mit „Alle Sitzungen beenden“ (`POST /api/users/{id}/end-sessions`). Der Feierabend in
+`/mobil` beendet die Sitzung auf dem Server wie das Abmelden -- bis 1.8.102 löschte er nur das Cookie des Tablets, der Wert galt bis zum
+Ablauf weiter. Dass Rolle und Rechte bei jeder Anfrage frisch gelesen werden, war seit 1.8.98 so; ein Angriffstest hält es jetzt fest
+(Rolle herabsetzen, schon die nächste Anfrage derselben Sitzung bekommt 403).
+
+Läuft die Anmeldung ab, während eine Seite offen ist, antwortet die Anmeldeschranke auf das Speichern mit 401 und der Kopfzeile
+`X-DK-Anmeldung: abgelaufen`; der Baustein `_speichern.html` zeigt oben „Anmeldung abgelaufen – bitte in einem neuen Tab anmelden …“, der
+Bereich meldet denselben Text, die Seite bleibt mit allen Eingaben stehen. Nach dem Anmelden in einem neuen Tab speichert derselbe Klick,
+der Hinweis verschwindet. Änderungen am Vertragsentwurf laufen unter derselben Zeilensperre wie das Festschreiben (bis 1.8.102 konnte ein
+Text noch in den Entwurf gehen, nachdem die Fassung entstanden war), geprüft gegen PostgreSQL. Befund 99-13: `content` der Layout-Bausteine
+wird nirgends in der Oberfläche eingegeben und nirgends angezeigt oder gedruckt. Neue Tests `tests/test_v408_vorweg.py`, Klicktest
+`klicktest_anmeldung_abgelaufen.py`, das Klicktest-Werkzeug kann einen zweiten Tab öffnen (`tab.zweiter_tab()`).
+
 ## 1.8.102 – Daten im HTML: esc() überall, Handler über data-Attribute, Links geprüft
 
 Punkt 2 der Vorgabe vom 14.10.2026 (Befund 1.8.100 Nr. 5–8). Die vier Lücken sind geschlossen: Gruppenname im Einsatzbericht und Treffer

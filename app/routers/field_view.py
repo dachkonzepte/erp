@@ -42,6 +42,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..berlin_time import berlin_now, berlin_today
+from .. import sitzungen
 from ..auth import COOKIE_NAME
 from ..dateiauslieferung import datei_antwort
 from ..database import get_db
@@ -107,6 +108,10 @@ def get_field_view_today(request: Request, db: Session = Depends(get_db)):
     if user is None:
         raise HTTPException(status_code=401, detail="Bitte zuerst anmelden.")
     if is_past_shift_end(load_mobile_settings(db), _now()):
+        # Seit 1.8.103 (Korrektur 98-12): die Sitzung endet auf dem Server wie beim Abmelden -- bis 1.8.102 nur das Cookie dieses
+        # Geräts, die Sitzung galt bis zu ihrem Ablauf weiter. Die einzige Stelle, an der ein GET schreibt (Festlegung 1.8.103 Nr. 3).
+        sitzungen.beenden(db, request.cookies.get(COOKIE_NAME))
+        db.commit()
         response = JSONResponse(status_code=401, content={"detail": "Feierabend -- bitte erneut anmelden."})
         response.delete_cookie(COOKIE_NAME)
         return response

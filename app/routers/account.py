@@ -126,9 +126,11 @@ def verify_two_factor(payload: TwoFactorVerifyRequest, request: Request, db: Ses
 def revoke_all_trusted_devices(request: Request, db: Session = Depends(get_db)):
     """"Alle vertrauten Geräte abmelden" -- Selbstbedienung wie change_password(), für jede Rolle
     erreichbar (nur Administratoren haben heute je ein vertrautes Gerät, aber die Funktion ist
-    für den eigenen Account gedacht, keine gesonderte Rollenprüfung nötig, siehe CLAUDE.md)."""
+    für den eigenen Account gedacht, keine gesonderte Rollenprüfung nötig, siehe CLAUDE.md). Seit 1.8.103 (Korrektur 98-11) enden im
+    selben Commit alle anderen Sitzungen des Kontos -- dieses Gerät bleibt angemeldet."""
     user = _current_user(request, db)
-    device_trust.revoke_all(db, user)
-    response = JSONResponse({"ok": True})
+    beendet = sitzungen.andere_beenden(db, user, request)
+    device_trust.revoke_all(db, user)  # committet -- die beendeten Sitzungen gehen mit
+    response = JSONResponse({"ok": True, "sitzungen_beendet": beendet})
     response.delete_cookie(device_trust.TRUST_COOKIE_NAME)
     return response
