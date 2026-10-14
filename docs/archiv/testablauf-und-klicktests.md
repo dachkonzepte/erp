@@ -168,3 +168,27 @@ mehr (in allen drei Proben mit dieser Mischung, immer die erste Kopie von `klick
 `cdp_klicktest.beenden()` -- `subprocess.run(["taskkill", "/PID", …, "/T", "/F"], capture_output=True)` wartet ohne Zeitlimit auf die
 Ausgabe von `taskkill` (Chrome). In keinem der Läufe zu viert (rund 200 Klicktests) aufgetreten; `klicktest_alle.py` bricht nach 900 s
 ab. Ein Zeitlimit an `taskkill` wäre die Abhilfe -- nicht gebaut.
+
+#### Nachtrag 1.8.108 (2): Verklemmung im Testhelfer `_run` (Befund der Endläufe auf `bc2dcad`)
+
+Der erste Suite-Lauf der Endläufe auf `bc2dcad` blieb bei 99 % stehen. In der Spielwiese wartete ein `INSERT INTO order_revisions` auf
+eine Sitzung, die seit 23 min "idle in transaction" war, beide im Schema eines Arbeitsprozesses (Kennung am Schema, PID über den
+Client-Port bestätigt). Der Stapel des Arbeitsprozesses (py-spy, nur im Scratchpad) zeigte
+`test_v383_nebenforderungen_pg::test_pg_client_change_waits_for_ordering_and_asks_for_a_reason` in `_run` aus
+`tests/test_v375_rechnungen_sperren.py`: die erste Aktion (`create_order_from_quote`) committet nach der Freigabe ein zweites Mal
+(Revision) und wartete dabei mit der Prüfung des Fremdschlüssels auf die Sperre der Auftragszeile, die die zweite Aktion (Kundenwechsel,
+abgelehnt mit "Begründung") noch hielt; `_run` rief zuerst `holder.close()` -- das wartete auf die Verbindung der ersten Aktion --
+und hätte die zweite Sitzung erst danach geschlossen. Derselbe Test hing schon am 12.10.2026 (damals zwei Läufe nebeneinander); seit 1.8.87
+schließt `_run` die zweite Sitzung, aber in der falschen Reihenfolge. Unter Last trifft die zweite Aktion die Sperre öfter vor dem zweiten
+Commit der ersten.
+
+Korrektur in `_run` (von zehn Testdateien benutzt): zuerst die Sitzung der zweiten Aktion schließen, dann auf die erste warten; hängt die
+erste trotzdem, wird der Test rot ("die erste Aktion hängt …") statt den Lauf anzuhalten. Prüfungen unverändert. Nachbau (Scratchpad,
+kurz unter `tests/` ausgeführt und wieder entfernt): erste Aktion committet zweimal, die zweite sperrt die Auftragszeile und lehnt ab --
+mit dem alten `_run` nach 90 s noch hängend, mit dem neuen fertig. Der Endlauf wurde über die eigenen PIDs beendet; das liegen gebliebene
+Schema seines Arbeitsprozesses hat der nächste Testlauf beim Start gelöscht (Punkt 4 im Ernstfall).
+
+**Nebenbefund 5 (nur gemeldet)**: `_run` in `tests/test_v363_zweck_abnahme.py` und `tests/test_v365_abnahme_aus_protokoll.py` (eigene
+Kopien) schließen die Sitzung der zweiten Aktion gar nicht -- dieselbe Verklemmung wäre dort möglich, wenn die erste Aktion nach der
+Freigabe noch eine Sperre der zweiten braucht; nicht beobachtet. Eine Zeitgrenze je Test (pytest-timeout oder `faulthandler_timeout`) gibt
+es nicht -- ein hängender Test hält den ganzen Lauf an.

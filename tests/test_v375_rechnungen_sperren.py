@@ -536,7 +536,12 @@ def _run(Session, first, second):
     Seit 1.8.87 (Nebenbefund 5 aus 1.8.85) schließt _run auch die Sitzung der zweiten Aktion: wirft sie nach der Sperre (wie
     erwartet), blieb ihre Transaktion offen und hielt die Sperre der Auftragszeile -- traf eine spätere Aktion darauf, wartete
     sie ewig. Schließen rollt zurück und gibt die Verbindung frei; schon geladene Werte des Ergebnisses bleiben lesbar, ein
-    nicht geladenes Attribut lädt danach nicht mehr nach (DetachedInstanceError)."""
+    nicht geladenes Attribut lädt danach nicht mehr nach (DetachedInstanceError).
+
+    Seit 1.8.108 (Nachtrag) zuerst die Sitzung der zweiten Aktion: committet die erste nach der Freigabe ein zweites Mal
+    (create_order_from_quote: Auftrag, dann Revision) und wartet dabei auf eine Sperre der zweiten, wartete holder.close() auf
+    die Verbindung der ersten und die zweite Sitzung blieb offen -- der Lauf hing (test_v383, Kundenwechsel gegen Beauftragen,
+    im parallelen Lauf). Hängt die erste Aktion trotzdem, wird der Test rot statt zu hängen."""
     ready = threading.Event()
     holder, release, thread, first_result = _held(Session, first, ready)
     assert ready.wait(timeout=10)
@@ -547,10 +552,11 @@ def _run(Session, first, second):
     time.sleep(1.0)
     release.set()
     other.join(timeout=30)
-    thread.join(timeout=30)
-    holder.close()
     if not other.is_alive():  # hängt sie noch, nicht aus diesem Thread an ihre Verbindung gehen
         second_session.close()
+    thread.join(timeout=30)
+    assert not thread.is_alive(), "die erste Aktion hängt -- wartet sie auf eine Sperre der zweiten?"
+    holder.close()
     first = first_result.get("result")
     assert not isinstance(first, Exception), first
     assert result["seconds"] >= 0.9, result  # hat auf die Sperre gewartet
