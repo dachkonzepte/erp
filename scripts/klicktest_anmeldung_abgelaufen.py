@@ -12,7 +12,8 @@ mit allen Eingaben stehen. Nach dem Anmelden in einem neuen Tab speichert dersel
                     Feldern, auf dem Server nichts geändert
     Neuer Tab       zweiter Tab desselben Browsers: /login, Benutzername und Passwort getippt, Anmelden -> weitergeleitet; Tab zu
     Noch einmal     im ersten Tab derselbe Klick: „Gespeichert.“, Hinweis weg, Nachname und Notiz auf dem Server
-    Ohne Cookie     ein Gerät, das nie angemeldet war (kein Cookie): 401 ohne die Kopfzeile (kein „abgelaufen“)
+    Ohne Cookie     ein Gerät, das nie angemeldet war (kein Cookie): 401 ohne die Kopfzeile (kein „abgelaufen“); der alte,
+                    beendete Cookie-Wert von außen: 401 mit der Kopfzeile
 
 Feste Uhr 10:00. alert()/confirm() werden mitgeschrieben.
 
@@ -53,16 +54,16 @@ def befuellen(db, k):
 
 
 def _anfrage(base: str, pfad: str, cookies: dict | None, methode: str = "GET") -> tuple[int, dict, dict]:
-    """Eine Anfrage außerhalb des Browsers: Status, Kopfzeilen, JSON."""
+    """Eine Anfrage außerhalb des Browsers: Status, Kopfzeilen (Namen klein), JSON."""
     kopf = {"Cookie": "; ".join(f"{n}={w}" for n, w in cookies.items())} if cookies else {}
     if methode != "GET":
         kopf["Origin"] = base  # wie der Browser bei einer schreibenden Anfrage der eigenen Seite
     anfrage = urllib.request.Request(base + pfad, method=methode, headers=kopf, data=b"" if methode != "GET" else None)
     try:
         with urllib.request.urlopen(anfrage, timeout=10) as antwort:
-            return antwort.status, dict(antwort.headers), json.loads(antwort.read() or b"null")
+            return antwort.status, {k.lower(): v for k, v in antwort.headers.items()}, json.loads(antwort.read() or b"null")
     except urllib.error.HTTPError as fehler:
-        return fehler.code, dict(fehler.headers), json.loads(fehler.read() or b"null")
+        return fehler.code, {k.lower(): v for k, v in fehler.headers.items()}, json.loads(fehler.read() or b"null")
 
 
 async def pruefen(tab, seed, p):
@@ -110,8 +111,11 @@ async def pruefen(tab, seed, p):
              ["Muster-Neu", "Notiz nach dem Ablauf"])
 
     status, kopf, daten = _anfrage(tab.base, "/api/customers", None)
-    p.pruefe("ohne Cookie: 401 ohne „abgelaufen“", (status, kopf.get("X-DK-Anmeldung"), daten.get("detail")),
+    p.pruefe("ohne Cookie: 401 ohne „abgelaufen“", (status, kopf.get("x-dk-anmeldung"), daten.get("detail")),
              (401, None, "Bitte zuerst als ERP-Benutzer anmelden."))
+    status, kopf, daten = _anfrage(tab.base, "/api/customers", seed["cookies_bea"])  # der alte, beendete Wert
+    p.pruefe("alter Wert: 401 mit „abgelaufen“", (status, kopf.get("x-dk-anmeldung"), daten.get("detail", "")[:20]),
+             (401, "abgelaufen", "Anmeldung abgelaufen"))
 
 
 if __name__ == "__main__":

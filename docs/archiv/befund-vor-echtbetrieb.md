@@ -4175,11 +4175,17 @@ Die Festlegungen 1.8.98–1.8.100 sind bestätigt (98-5: 12 h passen dem Betrieb
   401, „Fehler: Anmeldung abgelaufen –“ am Bereich, Hinweis oben, keine Navigation, Eingaben stehen, kein Dialog, Server unverändert; im
   zweiten Tab über das Formular angemeldet; derselbe Klick „Gespeichert.“, Hinweis weg, Server gespeichert; ohne Cookie 401 ohne Kopfzeile.
   Dafür `scripts/cdp_klicktest.py`: `Tab.zweiter_tab()` (weiterer Tab desselben Browsers über `/json/new`, am Ende geschlossen).
+  **Nachtrag** (beim Bau von 1.8.104 gefunden, eigener Commit nach Festlegung 1.8.100 Nr. 5): die Prüfung „ohne Cookie: 401 ohne
+  ‚abgelaufen‘“ las die Kopfzeile als `X-DK-Anmeldung` aus einem `dict` der Antwort -- der Server schickt die Namen klein, sie war also immer
+  `None` und die Prüfung bestand auch ohne die Unterscheidung. Jetzt mit kleinen Namen, dazu eine Prüfung „alter Wert: 401 mit ‚abgelaufen‘“
+  (der beendete Cookie-Wert von außen); 14/14.
 - Gegenproben (Regel 24): 8 von 8 rot -- Rolle aus dem Sitzungsbeginn zwischengespeichert, „alle vertrauten Geräte“ ohne Sitzungen,
   Admin beendet nichts, Feierabend nur Cookie, Anmeldeschranke ohne Kopfzeile, Baustein prüft nur die Rückgabe (auch im Klicktest: Hinweis
   fehlt), 99-6: abgelehnte abschließende Aktion setzt „gescheitert“, Vertragsentwurf ohne Sperre (PostgreSQL). Jede Datei byte-genau zurück,
   kein Marker.
-- Angepasste Erwartungen: keine.
+- Angepasste Erwartungen: Klicktest `klicktest_anmeldung_abgelaufen` „ohne Cookie: 401 ohne ‚abgelaufen‘“ liest die Kopfzeile
+  `x-dk-anmeldung` statt `X-DK-Anmeldung` (Soll gleich: keine Kopfzeile; vorher immer bestanden), neue Prüfung „alter Wert: 401 mit
+  ‚abgelaufen‘“ (Nachtrag).
 
 #### Nebenbefunde (nur gemeldet)
 
