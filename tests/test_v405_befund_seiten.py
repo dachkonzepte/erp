@@ -33,6 +33,7 @@ from app.routers import project_documents as project_documents_router
 from app.routers import projects as projects_router
 from app.routers import property_documents as property_documents_router
 from tests.anmeldung import client_mit_schranke, neue_datenbank
+from tests.pg_schutz import pg_url_pruefen
 from tests.test_v314_dashboard_month_berlin import NODE, _node
 from tests.test_v334_auswahl_restfaelle import FAKE_DOM, im_browser, seite
 
@@ -83,7 +84,7 @@ def test_das_anmelde_cookie_ist_httponly_und_samesite_lax(anmeldung):
                                        "ERP_ENV=production -- fehlt der Eintrag in .env, geht das Anmelde-Cookie auch über http.")
 def test_in_produktion_ist_das_anmelde_cookie_auch_ohne_eintrag_secure():
     env = {k: v for k, v in os.environ.items() if k != "ERP_COOKIE_SECURE"}
-    env.update({"ERP_ENV": "production", "DATABASE_URL": "sqlite://", "PYTHONIOENCODING": "utf-8"})
+    env.update({"ERP_ENV": "production", "DATABASE_URL": pg_url_pruefen("sqlite://"), "PYTHONIOENCODING": "utf-8"})
     r = subprocess.run([sys.executable, "-c", "import app.auth as a; print(a.COOKIE_SECURE)"], cwd=ROOT, env=env, capture_output=True,
                        text=True, timeout=120)
     assert r.returncode == 0, r.stderr

@@ -18,7 +18,8 @@ Altkunden in allen übrigen Seiten, Jinja (kein `|safe`), HttpOnly und SameSite 
 
 Keine Migration. Neu `test_v405_befund_seiten` (3 grün, 12 xfail, jeder mit `--runxfail` an seiner Prüfung gescheitert). Gegenproben 5 von 5
 rot (zwei Prüfungen ausgehebelt, drei Lücken probeweise geschlossen: XPASS). Volle Suite und alle Klicktests auf diesem Commit: im Bericht
-(Regel 26 -- im Commit selbst stünde ein Ergebnis, das ihn ändert).
+(Regel 26 -- im Commit selbst stünde ein Ergebnis, das ihn ändert). Nachtrag: der erste Lauf fand im neuen Test eine `DATABASE_URL` an
+einen Kindprozess ohne `pg_url_pruefen()` (`test_v384` rot), behoben im zweiten Commit dieser Version.
 
 ## 1.8.99 – Hochladen ohne vorzeitiges Zeitlimit, gescheitertes Speichern sperrt Abschließendes, Zeilensperren an abgeleiteten Werten
 

@@ -3894,6 +3894,7 @@ vorbereitet; jeder Fund unten ist hier nachgestellt.
 2. **Gewünschtes Verhalten im xfail** (das der Test prüft): Secure in Produktion von selbst; schreibende Anfrage mit fremdem `Origin`/`Sec-Fetch-Site: same-site` 403; `X-Frame-Options` oder `frame-ancestors`; SVG/HTML aus Uploads nicht inline als aktiver Inhalt (Anhang oder CSP sandbox); jede genannte Stelle zeigt `<img onerror>` als Text.
 3. **"Seite derselben Site" = jede Unterdomain von `dachkonzepte.gmbh`** -- wie viele es gibt und wer sie betreibt, ist von hier aus nicht prüfbar.
 4. **Nr. 4 ist der dringendste Fund**, vor Nr. 5–8 (ein Upload erreicht jede Rolle, die die Datei öffnet).
+5. **Was der Lauf nach Regel 26 im eigenen Test einer Version findet, behebt ein Nachtrag-Commit derselben Version** (keine neue Versionsnummer, Eintrag im Archiv), danach laufen Suite und Klicktests neu.
 
 #### Tests und Prüfung
 
@@ -3903,7 +3904,10 @@ vorbereitet; jeder Fund unten ist hier nachgestellt.
   fehlendes `_berlin_date.html` -- und wurden nachgebessert).
 - Gegenproben (Regel 24): 5 von 5 rot -- Anmelde-Cookie ohne HttpOnly, `|safe` in einer Vorlage; drei Lücken probeweise geschlossen
   (X-Frame-Options, Escaping in "Neues Angebot", Secure in Produktion): XPASS, damit rot. Jede Datei byte-genau zurück, kein Marker.
-- Volle Suite und alle Klicktests auf dem Commit dieser Version: im Bericht (Regel 26).
+- Volle Suite und alle Klicktests auf dem Commit dieser Version: im Bericht (Regel 26). Der erste Lauf auf `ae6c3a1` war rot an
+  `test_v384::test_every_function_handing_database_url_to_a_child_checks_it`: der neue Test zu Nr. 1 gab `DATABASE_URL` an einen
+  Kindprozess, ohne sie mit `pg_url_pruefen()` zu prüfen (Regel 27; harmlos, die URL war `sqlite://`, aber der Strukturtest hat recht).
+  Im Nachtrag-Commit geprüft, danach Suite und Klicktests neu (Regel 26).
 
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
