@@ -4,6 +4,19 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.105 – Die Scanner lesen Pfeilfunktionen vollständig
+
+Punkt 1 der zweiten Vorgabe vom 14.10.2026 (Nebenbefund 1.8.102 Nr. 1). Der JavaScript-Scanner der Strukturtests
+(`tests/vorlagen_js.py`) beendete den Rumpf eines Pfeils ohne geschweifte Klammern an der ersten schließenden Klammer derselben Ebene --
+`s => String(s ?? '').replace(…)` endete nach `String(s ?? ''`. Ein Speichern, eine Anfrage oder ein Wert im HTML danach gehörte für die
+Strukturtests nicht mehr zur Funktion: ein Pfeil `k => Number(k.nr ?? 0).toFixed(0) + ' ' + k.name` galt als sicher. Jetzt gehört jede
+im Rumpf geöffnete Klammer dazu, und ein Zeilenumbruch beendet den Ausdruck dort, wo JavaScript selbst ein Semikolon einfügt; dieselbe
+Funktion bestimmt das Ende eines Ausdrucks für alle Scanner (Speichern, Lesen, Navigation, Daten im HTML).
+
+Neu gefunden hat das genau eine Stelle: der Knopf "×" am Lieferschein einer Materialposition in der Arbeitsvorbereitung setzte zwei IDs
+ins onclick; er trägt sie jetzt als data-Attribute (`_aktionen.html`), die Ausnahmeliste der Handler ist um zwei Einträge kürzer. Neue
+Tests `tests/test_v410_pfeile_vollstaendig.py`, Klicktest `klicktest_arbeitsvorbereitung` mit dem Knopf.
+
 ## 1.8.104 – Anfragen fremder Seiten abgelehnt, kein Einrahmen, Secure in Produktion
 
 Punkte 3–5 der Vorgabe vom 14.10.2026 (Befund 1.8.100 Nr. 1–3); damit sind alle zwölf Befund-Tests aus 1.8.100 grün und ohne

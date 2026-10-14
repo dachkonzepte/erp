@@ -8,6 +8,8 @@ sort_order:100), und der Server übernahm sie. Geprüft wird über die echte Sei
                   "— kein Lieferant —" wählen und speichern leert ihn
     Mitarbeiter   Rolle ändern und speichern: Planstunden bleiben
     Aufgabe       Titel ändern und speichern: Reihenfolge bleibt
+    Lieferschein  (seit 1.8.105) "×" am Lieferschein einer Materialposition entfernt genau diese Zuordnung -- der Knopf trägt
+                  Material und Lieferschein als data-Attribute (data-klick, _aktionen.html) statt im onclick
 
 AUFRUF (aus dem Projektordner):
 
@@ -30,9 +32,11 @@ FREITEXT = "Dachbaustoffe Müller (telefonisch)"
 def befuellen(db, k):
     from decimal import Decimal
 
+    from sqlalchemy import select
+
     from app.models import (
-        AppUser, Customer, Employee, Order, Project, Supplier, WorkPreparationEmployee, WorkPreparationMaterial,
-        WorkPreparationTask,
+        AppUser, Customer, DocumentCategory, Employee, Order, Project, ProjectDocument, Supplier, WorkPreparationDeliveryNote,
+        WorkPreparationEmployee, WorkPreparationMaterial, WorkPreparationMaterialDeliveryNote, WorkPreparationTask,
     )
     from app.project_pipeline_columns import default_pipeline_column_id
     from app.work_preparation import ensure_preparation
@@ -55,13 +59,26 @@ def befuellen(db, k):
                                        planned_quantity=Decimal("10"), status="bedarf", supplier=FREITEXT)
     aufgabe = WorkPreparationTask(preparation_id=prep.id, title="Gerüst bestellen", status="offen",
                                   priority="normal", sort_order=30)
-    db.add_all([zuordnung, material, aufgabe]); db.commit()
+    db.add_all([zuordnung, material, aufgabe]); db.flush()
+    # Seit 1.8.105: zwei Lieferscheine an der Materialposition -- "×" am zweiten entfernt nur diesen.
+    kategorie = db.scalar(select(DocumentCategory.id).order_by(DocumentCategory.id).limit(1))
+    scheine = []
+    for nr in ("LS-4711", "LS-4712"):
+        dok = ProjectDocument(project_id=projekt.id, category_id=kategorie, original_filename=f"{nr}.pdf",
+                              stored_filename=f"kt-{nr}.pdf", content_type="application/pdf", file_size=10)
+        db.add(dok); db.flush()
+        schein = WorkPreparationDeliveryNote(preparation_id=prep.id, project_document_id=dok.id, delivery_note_number=nr)
+        db.add(schein); db.flush()
+        db.add(WorkPreparationMaterialDeliveryNote(material_id=material.id, delivery_note_id=schein.id))
+        scheine.append(schein.id)
+    db.commit()
     return {"auftrag": auftrag.id, "zuordnung": zuordnung.id, "material": material.id, "aufgabe": aufgabe.id,
-            "cookies": {"anna": k.cookies(admin)}}
+            "lieferscheine": scheine, "cookies": {"anna": k.cookies(admin)}}
 
 
 async def pruefen(tab, seed, p):
-    await tab.cmd("Page.addScriptToEvaluateOnNewDocument", source="window.alert=m=>console.error('alert(): '+m)")
+    await tab.cmd("Page.addScriptToEvaluateOnNewDocument",
+                  source="window.alert=m=>console.error('alert(): '+m);window.confirm=()=>true")
     await tab.anmelden(seed["cookies"]["anna"])
     await tab.fenster(1400, 900)
     m, z, a = seed["material"], seed["zuordnung"], seed["aufgabe"]
@@ -94,6 +111,18 @@ async def pruefen(tab, seed, p):
     p.pruefe("Aufgabe: Titel speichern lässt die Reihenfolge stehen",
              await tab.js(f"{av}.then(d=>d.tasks.find(x=>x.id==={a})).then(x=>[x.title,x.sort_order])"),
              ["Gerüst bestellen bei Firma Hoch", 30])
+
+    # Seit 1.8.105: "×" am Lieferschein über data-klick (bis 1.8.104 onclick mit den beiden IDs)
+    erster, zweiter = seed["lieferscheine"]
+    knopf = f"document.querySelector('[data-klick=\"lieferschein-loesen\"][data-material=\"{m}\"][data-lieferschein=\"{zweiter}\"]')"
+    p.pruefe("Lieferschein: Knopf trägt die Werte als data-Attribute, kein onclick",
+             await tab.js(f"[!!{knopf}, {knopf}?.getAttribute('onclick') ?? null, "
+                          f"document.querySelectorAll('#materialRows [onclick*=\"unlinkMaterialDelivery\"]').length]"),
+             [True, None, 0])
+    await tab.warte_auf_neu_geladene_liste(f"{knopf}.click()", "#materialRows")
+    await tab.warten(f"prep.materials.find(x=>x.id==={m}).delivery_notes.length===1")
+    p.pruefe("Lieferschein: '×' entfernt genau diese Zuordnung",
+             await tab.js(f"{material}.then(x=>x.delivery_notes.map(d=>d.delivery_note_number))"), ["LS-4711"])
     p.pruefe("Arbeitsvorbereitung: JS-Fehler", tab.fehler, [])
     await tab.bild("arbeitsvorbereitung")
 

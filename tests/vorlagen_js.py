@@ -328,21 +328,45 @@ def analysieren(quelle: Quelle) -> Analyse:
 _ANWEISUNG = {"const", "let", "var", "function", "async", "if", "for", "while", "return", "try", "switch", "class", "do"}
 
 
+_ENDET_AUSDRUCK = {"this", "super", "true", "false", "null", "undefined"}
+_SETZT_FORT = {"in", "instanceof", "of"}
+
+
+def _neue_anweisung(vor: Token, nach: Token) -> bool:
+    """Nach einem Zeilenumbruch zwischen vor und nach beginnt eine neue Anweisung, weil nach den Ausdruck nicht fortsetzen kann (wie
+    die automatische Semikolon-Einfügung von JavaScript): vor schließt einen Ausdruck ab (Name, Literal, schließende Klammer, ++/--),
+    nach beginnt einen neuen (Name außer in/instanceof/of, Zahl, String, ++/--, !, ~). Ein Operator, ein Punkt, eine öffnende Klammer
+    oder ein Template-Literal setzt fort."""
+    endet = (vor.art in ("num", "str", "tpl", "regex")
+             or (vor.art == "name" and (vor.wert not in SCHLUESSELWOERTER or vor.wert in _ENDET_AUSDRUCK))
+             or (vor.art == "punct" and vor.wert in (")", "]", "}", "++", "--")))
+    beginnt = ((nach.art == "name" and nach.wert not in _SETZT_FORT) or nach.art in ("num", "str")
+               or (nach.art == "punct" and nach.wert in ("++", "--", "!", "~")))
+    return endet and beginnt
+
+
 def _ausdruck_ende(a: Analyse, start: int) -> int:
-    """Ende (einschließlich) eines Pfeilrumpfs ohne Klammern: bis ; , oder die schließende Klammer der Umgebung, oder eine neue
-    Anweisung in einer neuen Zeile."""
-    t, ebene = a.t, a.eltern[start]
-    k = start
+    """Ende (einschließlich) des Ausdrucks ab start -- Rumpf eines Pfeils ohne geschweifte Klammern, Wert einer Zuweisung oder eines
+    return: vor ; oder , derselben Ebene, vor einer Klammer, die eine Klammer vor start schließt, oder vor einer neuen Anweisung in einer
+    neuen Zeile (Schlüsselwort wie const/function/return, oder _neue_anweisung()). Eine Klammer, die ab start geöffnet wurde, gehört
+    zum Ausdruck.
+
+    Bis 1.8.104 (Nebenbefund 1.8.102 Nr. 1) endete hier jeder Pfeil an der ersten schließenden Klammer derselben Ebene, auch wenn ihre
+    öffnende im Rumpf stand: `s => String(s ?? '').replace(…)` endete nach `String(s ?? ''` -- was danach kam (eine Anfrage, ein
+    Speichern, ein Wert im HTML), gehörte für die Scanner nicht mehr zur Funktion. tests/vorlagen_navigation.py hatte die Klammer
+    schon richtig, aber nicht das Zeilenende; beide nutzen seit 1.8.105 diese Funktion."""
+    t, ebene, k = a.t, a.eltern[start], start
     while k + 1 < len(t):
         nxt = t[k + 1]
-        if a.eltern[k + 1] == ebene:
-            if nxt.art == "punct" and nxt.wert in (";", ",", ")", "]", "}"):
-                return k
-            if (nxt.art == "name" and nxt.wert in _ANWEISUNG
-                    and "\n" in a.quelle.text[t[k].pos:nxt.pos]):
-                return k
-        elif a.eltern[k + 1] != ebene and nxt.art == "punct" and nxt.wert in (")", "]", "}") and a.partner.get(k + 1, 10**9) < start:
+        if nxt.art == "punct" and nxt.wert in (")", "]", "}") and a.partner[k + 1] < start:
             return k
+        if a.eltern[k + 1] == ebene:
+            if nxt.art == "punct" and nxt.wert in (";", ","):
+                return k
+            ende_vor = t[k].pos + len(t[k].wert)
+            if "\n" in a.quelle.text[ende_vor:nxt.pos] and ((nxt.art == "name" and nxt.wert in _ANWEISUNG)
+                                                            or _neue_anweisung(t[k], nxt)):
+                return k
         k += 1
     return k
 

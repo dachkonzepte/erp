@@ -20,7 +20,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from tests.vorlagen_js import _ANWEISUNG, TEMPLATES, Analyse, Quelle, analysieren, eigene_skripte
+from tests.vorlagen_js import TEMPLATES, Analyse, Quelle, _ausdruck_ende, analysieren, eigene_skripte
 
 _QUELLEN = {("location", "search"), ("location", "hash"), ("location", "href"), ("document", "referrer"), ("document", "URL"),
             ("document", "documentURI"), ("document", "baseURI"), ("window", "name")}
@@ -38,20 +38,9 @@ class Navigation:
 
 
 def _ende(a: Analyse, start: int) -> int:
-    """Ende (einschließlich) des Ausdrucks ab start: vor ; oder , derselben Ebene, vor einer Klammer, die eine Klammer vor start
-    schließt, oder vor einer neuen Anweisung in einer neuen Zeile."""
-    t, ebene, k = a.t, a.eltern[start], start
-    while k + 1 < len(t):
-        nxt = t[k + 1]
-        if nxt.art == "punct" and nxt.wert in (")", "]", "}") and a.partner[k + 1] < start:
-            return k
-        if a.eltern[k + 1] == ebene:
-            if nxt.art == "punct" and nxt.wert in (";", ","):
-                return k
-            if nxt.art == "name" and nxt.wert in _ANWEISUNG and "\n" in a.quelle.text[t[k].pos:nxt.pos]:
-                return k
-        k += 1
-    return k
+    """Ende (einschließlich) des Ausdrucks ab start -- seit 1.8.105 dieselbe Funktion wie der Rumpf eines Pfeils in
+    tests/vorlagen_js.py (_ausdruck_ende(), dort beschrieben)."""
+    return _ausdruck_ende(a, start)
 
 
 def _text(a: Analyse, start: int, ende: int) -> str:

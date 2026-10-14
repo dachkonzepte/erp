@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.104** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.105** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -734,7 +734,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     keinen Wert ein: das Element trägt `data-klick`/`data-aenderung`/`data-eingabe` und seine Werte als data-Attribute (mit esc()), die
     Seite meldet `aktion('name', el => …)` an (`_aktionen.html`, liest `el.dataset` -- immer Text). Ein href/src/Navigation aus Daten geht
     über `sichererLink()`/`sichereBildquelle()` (`_links.html`) oder beginnt mit einem festen lokalen Pfad, mailto:, tel: oder http(s)://.
-    `tests/test_v407_daten_im_html.py` prüft alle drei über alle Vorlagen; die Ausnahmelisten (Changelog; 375 Handler mit Zahlen/IDs) dürfen
+    `tests/test_v407_daten_im_html.py` prüft alle drei über alle Vorlagen; die Ausnahmelisten (Changelog; 373 Handler mit Zahlen/IDs) dürfen
     nur kürzer werden. Details: `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.102".
 
 33. **Schreibende Anfragen nur von einer Seite des ERP, kein Einrahmen, Secure in Produktion, seit 1.8.104.** Die Anmeldeschranke lehnt
@@ -1170,7 +1170,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Inhalt, Regel 31; seit 1.8.102 Daten im HTML: esc(), Handler über data-Attribute, Links geprüft, Regel 32; seit 1.8.103 Vorweg:
   Sitzungen beenden (vertraute Geräte, Admin, Feierabend), „Anmeldung abgelaufen“, Vertragsentwurf unter der Sperre des Festschreibens,
   Befund `content` der Layout-Bausteine; seit 1.8.104 schreibende Anfragen nur von der eigenen Seite, kein Einrahmen, Secure in Produktion,
-  Regel 33 -- alle zwölf Befund-Tests grün)
+  Regel 33 -- alle zwölf Befund-Tests grün; seit 1.8.105 lesen die Scanner der Strukturtests Pfeilfunktionen vollständig
+  (`tests/vorlagen_js.py::_ausdruck_ende()`, eine Funktion für alle, Zeilenende wie die Semikolon-Einfügung), Lieferschein-Knopf ohne Werte
+  im onclick)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Zahlungen** (Zahlungsstufe Z1 seit 1.8.78: Zahlungseingang mit Zuordnungen, Skonto und Einbehalt, Rest am Kunden,
   Zahlstand abgeleitet, Gegenbuchung statt Ändern, Sperrreihenfolge, Storno erst nach gelösten Zuordnungen, Finanzen/Dashboard mit
@@ -1734,7 +1736,7 @@ jedem Bericht, Ergebnis im Bericht (Regel 26).
 - ~~Befund 1.8.100 Sicherheit der Seiten~~ -- seit 1.8.104 alle zwölf Lücken geschlossen (Regeln 31–33), `tests/test_v405_befund_seiten.py`
   ohne xfail. Offen bleibt nur, ob Nginx HSTS setzt und den Host weitergibt (für Tablets ohne `Sec-Fetch-Site`) -- Betreiberprüfung,
   `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.104".
-- **375 on…-Attribute mit Zahlen und IDs** stehen in `AUSNAHMEN_HANDLER` (`tests/test_v407_daten_im_html.py`, Regel 32): kein Text mehr,
+- **373 on…-Attribute mit Zahlen und IDs** stehen in `AUSNAHMEN_HANDLER` (`tests/test_v407_daten_im_html.py`, Regel 32): kein Text mehr,
   aber dasselbe Muster -- Abbau auf data-Attribute bei Gelegenheit, die Liste darf nur kürzer werden.
 - **`client_uuid` am Einsatzbericht ist nicht idempotent -- Pflicht vor Checklisten-Stufe 3
   (offline)** (gefunden beim Checklisten-Befund, 29.09.2026): `InspectionItem`/`Finding`/

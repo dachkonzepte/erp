@@ -3970,7 +3970,7 @@ Nebenbefunde nur melden. Wird der Umfang zu groß: nach Punkt 2 committen und de
   Download (Ereignis und Datei), kein Skript gelaufen; SVG-Logo mit Skript in der Seitenleiste sichtbar, direkt geöffnet ein Download;
   /mobil/objekt als Monteurin auf 412 px: "Ansehen" nur bei Foto und PDF, dieselben Prüfungen.
 
-#### Festlegungen 1.8.101 (Bitte bestätigen)
+#### Festlegungen 1.8.101 (bestätigt am 14.10.2026; Nr. 4 korrigiert, siehe Vorgabe ab 1.8.105)
 
 1. **Anzeigbar = JPEG, PNG, GIF, WebP und PDF**, erkannt an den ersten Bytes; alles andere (auch SVG, HTML, XML, Text, Office, BMP, TIFF, HEIC) als Download.
 2. **Der Typ wird beim Ausliefern immer neu am Inhalt bestimmt**, auch für alte Einträge; gespeicherte Typen alter Einträge bleiben unverändert (keine Migration), sie bestimmen nur Vorschau und "Öffnen".
@@ -4052,7 +4052,7 @@ Nebenbefunde nur melden. Wird der Umfang zu groß: nach Punkt 2 committen und de
   sie einbindet. Gemeldet wird der kleinste ungeschützte Ausdruck, bei einer Variable mit HTML die Teile ihrer Zuweisungen (dort wird
   behoben).
 
-#### Festlegungen 1.8.102 (Bitte bestätigen)
+#### Festlegungen 1.8.102 (bestätigt am 14.10.2026; zu Nr. 2: einmal alle Text-IDs prüfen, siehe Vorgabe ab 1.8.105)
 
 1. **Text-Werte in on…-Attributen sind umgebaut, Zahlen und IDs (375) stehen in der Ausnahmeliste**, die nur kürzer wird.
 2. **"Sicher" nach den Regeln im Kopf von `tests/vorlagen_html.py`**; ein Feld "id"/"…_id" gilt als Zahl, außer TEXT_IDS -- ein Test prüft an Modellen und Antwortschemas, dass jedes Text-Feld unter diesem Namen dort steht (gefunden: `series_master_id`).
@@ -4150,7 +4150,7 @@ Die Festlegungen 1.8.98–1.8.100 sind bestätigt (98-5: 12 h passen dem Betrieb
   Firmenkopf und Fußzeile aus den Einstellungen bzw. Dokumentdaten. Damit ist er heute weder ein Weg für Skript in eine Seite noch für Text
   in ein Dokument; erst eine Oberfläche oder ein Renderer, der ihn liest, müsste ihn wie jeden Text behandeln (esc(), Paragraph-Escaping).
 
-#### Festlegungen 1.8.103 (Bitte bestätigen)
+#### Festlegungen 1.8.103 (bestätigt am 14.10.2026; Nr. 2 und 3 korrigiert, siehe Vorgabe ab 1.8.105)
 
 1. „Alle vertrauten Geräte abmelden“ beendet alle anderen Sitzungen des Kontos; dieses Gerät behält seine Sitzung (kein neuer Cookie-Wert).
 2. „Alle Sitzungen beenden“ (Admin) lässt vertraute Geräte bestehen (sie ersparen nur den zweiten Faktor) und geht auch für einen
@@ -4213,7 +4213,7 @@ Die Festlegungen 1.8.98–1.8.100 sind bestätigt (98-5: 12 h passen dem Betrieb
 - **Tests über die echte Schranke**: `tests/anmeldung.py::browser_client()` schickt `Origin: http://testserver` und `Sec-Fetch-Site:
   same-origin` wie ein Browser auf einer Seite des ERP; `client_mit_schranke()`, `test_v402` und `test_v292` nehmen ihn.
 
-#### Festlegungen 1.8.104 (Bitte bestätigen)
+#### Festlegungen 1.8.104 (bestätigt am 14.10.2026; Nr. 8 korrigiert, siehe Vorgabe ab 1.8.105)
 
 1. Geprüft werden POST, PUT, PATCH und DELETE auf allen Pfaden (API, Seiten, Anmelden, Abmelden), mit und ohne Anmeldung; GET, HEAD und
    OPTIONS nie.
@@ -4269,6 +4269,79 @@ sonst 403. Nach dem Einspielen einmal auf einem Fahrzeug-Tablet speichern; ein 4
 
 Alle zwölf Tests aus Befund 1.8.100 sind grün und ohne xfail: Uploads nie als aktiver Inhalt (1.8.101, Regel 31), Daten im HTML (1.8.102,
 Regel 32), Ursprung schreibender Anfragen, Einrahmen und Secure (1.8.104, Regel 33).
+
+## Sicherheit der Seiten, Nacharbeiten: Scanner, Sitzungen, Schutzkopfzeilen (ab 1.8.105)
+
+### Vorgabe vom 14.10.2026, zweite (übernommen wie gegeben)
+
+Vorweg zu 1.8.101–1.8.104: Festlegungen bestätigt, mit diesen Korrekturen:
+- 101-4: Auch das SVG-Logo kommt mit Sandbox, wenn man seine Adresse direkt öffnet.
+- 102-2: Einmal prüfen, ob alle Text-IDs (Outlook, UUID u. ä.) in TEXT_IDS stehen; Fundliste im Bericht.
+- 103-2: Beendet ein Admin die Sitzungen eines Benutzers, meldet das auch alle seine vertrauten Geräte ab.
+- 103-3: Feierabend als POST; die Ausnahme von Regel 23 entfällt.
+- 104-8: Secure ist die Vorgabe; ohne Secure nur bei ausdrücklich lokalem Betrieb oder in Tests. Fehlt ERP_ENV, bleibt Secure.
+
+1. Der JS-Scanner in tests/vorlagen_js.py liest Pfeilfunktionen vollständig; Gegenprobe mit einem Pfeil, der einen Wert ungeschützt
+   einsetzt. Was die Strukturtests danach neu finden, wird behoben; die Ausnahmelisten werden nicht länger.
+2. HSTS in Produktion, ohne includeSubDomains. Die Schutzkopfzeilen tragen alle Antworten, auch die 500 aus dem Fehler-Handler.
+
+Ins Archiv (nur festhalten, nicht bauen): content an den Layout-Bausteinen wird nirgends eingegeben und nirgends gezeigt; mit den übrigen
+ungenutzten Spalten entfernen.
+
+Angriffstests mit Gegenprobe. Eigene Festlegungen mit „Bitte bestätigen“, je in einer Zeile. Nebenbefunde nur melden. Wird der Umfang zu
+groß: nach Punkt 1 committen und den Rest auflisten. Commit nach Regel 13, Bericht kurz.
+
+Reihenfolge der Umsetzung: Punkt 1 (1.8.105), Vorweg 101-4, 102-2, 103-2, 103-3 (1.8.106), Vorweg 104-8 mit Punkt 2 (1.8.107) -- Secure
+und HSTS hängen an derselben Frage "ausdrücklich lokal oder nicht".
+
+### Umsetzung 1.8.105: die Scanner lesen Pfeilfunktionen vollständig (Punkt 1, Nebenbefund 1.8.102 Nr. 1)
+
+#### Was gebaut ist
+
+- **Ende eines Ausdrucks** (`tests/vorlagen_js.py::_ausdruck_ende()`): bis 1.8.104 endete der Rumpf eines Pfeils ohne geschweifte Klammern
+  an der ersten schließenden Klammer derselben Ebene, auch wenn ihre öffnende im Rumpf stand -- `s => String(s ?? '').replace(…)` endete
+  nach `String(s ?? ''`. Jetzt gehört jede Klammer, die ab dem Anfang geöffnet wurde, dazu; der Ausdruck endet vor `;` oder `,` derselben
+  Ebene, vor einer Klammer, die eine Klammer vor ihm schließt, oder an einem Zeilenumbruch vor einer neuen Anweisung: Schlüsselwort wie
+  bisher, dazu nach der Regel der automatischen Semikolon-Einfügung (`_neue_anweisung()`: die Zeile davor endet mit einem Namen, Literal,
+  einer schließenden Klammer oder ++/--, die neue beginnt mit einem Namen außer in/instanceof/of, einer Zahl, einem String, ++/--, ! oder ~;
+  ein Operator, ein Punkt, eine öffnende Klammer oder ein Template-Literal setzt fort).
+- **Eine Funktion für alle Scanner**: `tests/vorlagen_navigation.py::_ende()` (Navigation, und darüber die Rümpfe und Werte in
+  `tests/vorlagen_html.py`) hatte die Klammer schon richtig, aber nicht das Zeilenende; es ruft jetzt `_ausdruck_ende()`. Damit gelten
+  dieselben Grenzen für `a.funktionen` (test_v398 schreibende Funktionen und "Gespeichert", test_v399 Adressen, test_v400 Anfragen außerhalb,
+  die Funktion jeder Fundstelle in test_v407) und für die Rümpfe des HTML-Scanners.
+- **Neu gefunden und behoben**: in `work_preparation.html` setzte der Knopf "×" am Lieferschein einer Materialposition Material- und
+  Lieferschein-ID ins onclick (`deliveryTags`, ein Pfeil, dessen Rumpf mit `(x.delivery_notes||[])` beginnt -- die beiden Werte zählten bis
+  1.8.104 zu `renderMaterials`). Der Knopf trägt sie jetzt als `data-material`/`data-lieferschein` mit `data-klick="lieferschein-loesen"`
+  (`_aktionen.html`, auf der Seite neu eingebunden). Sonst fand keiner der Strukturtests etwas Neues (test_v398, test_v399, test_v400,
+  test_v401, test_v405, test_v407 ohne esc und Links); keine Ausnahmeliste ist länger, `AUSNAHMEN_HANDLER` kürzer (375 -> 373).
+
+#### Festlegungen 1.8.105 (Bitte bestätigen)
+
+1. **Ein Ausdruck endet auch an einem Zeilenumbruch, den JavaScript als Ende der Anweisung liest** (vereinfachte Regel der automatischen Semikolon-Einfügung, oben), nicht nur vor einem Schlüsselwort; alle Scanner nutzen dieselbe Funktion.
+2. **Ändert sich durch die neuen Grenzen nur die Funktion im Schlüssel einer Ausnahme, wird die Stelle behoben, nicht der Schlüssel umbenannt** (so beim Lieferschein-Knopf) -- die Listen werden nur kürzer.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v410_pfeile_vollstaendig.py` (25): Rumpf eines Pfeils bis zum Ende seines Ausdrucks (17 Fälle: Aufruf, Klammer, Array und
+  Objekt am Anfang, Klammer der Umgebung, Zeilenende mit neuer Anweisung oder Fortsetzung), Wert einer Zuweisung ebenso; was die
+  Strukturtests dadurch sehen: ein Speichern in einem Pfeil macht ihn zur schreibenden Funktion (fetch danach gefunden), eine Anfrage in der
+  Zeile nach einem Pfeil ohne Semikolon gehört nicht zum Pfeil (sonst blieb sie in einer nur im Baustein gerufenen Funktion unbemerkt), ein
+  Anfrage-Helfer als Pfeil wird erkannt, **ein Pfeil, der einen Wert ungeschützt einsetzt** (`k => Number(k.nr ?? 0).toFixed(0) + ' ' +
+  k.name`, bis 1.8.104 nach `Number(k.nr ?? 0` zu Ende und damit sicher), mit esc() still; die Funktion einer Fundstelle ist der Pfeil.
+- **Angepasste Erwartungen** (Regel 28): `test_v407::AUSNAHMEN_HANDLER` `'work_preparation.html | renderMaterials | onclick: d.id': 1`
+  gestrichen und `'… | renderMaterials | onclick: x.id'` 2 -> 1 (die Stelle ist behoben, nicht umbenannt). Klicktest
+  `klicktest_arbeitsvorbereitung`: zwei neue Prüfungen (Knopf mit data-Attributen ohne onclick, "×" entfernt genau diese Zuordnung), dafür
+  zwei Lieferscheine in `befuellen()` und `confirm()` per Skript angenommen (nur Aufbau); 8/8.
+- Gegenproben (Regel 24): 5 von 5 rot -- Pfeilende wie bis 1.8.104 (23 von 25 Tests rot), Zeilenende nur mit Schlüsselwörtern (11 rot, auch
+  "Anfrage nach einem Pfeil ohne Semikolon"), Navigation mit eigenem Ende ohne Zeilenende, Lieferschein-Knopf wieder mit onclick (test_v407
+  Handler rot; im Klicktest: 5/8, Knopf ohne data-Attribute, Zuordnung nicht entfernt). Jede Datei byte-genau zurück, kein Marker.
+- Volle Suite und alle Klicktests: im Bericht (Regel 26).
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **Der Scanner in `tests/vorlagen_js.py` kennt als Funktionen nur `function name(…)` und `name = …`** -- eine Methode in einem Objekt
+   (`{ laden(){…} }`, `laden: () => …`) oder einer Klasse zählt zur umgebenden Funktion bzw. zu `<oben>`. Für test_v398 hieße das: ein
+   Speichern in einer solchen Methode macht sie nicht zur schreibenden Funktion. Ob eine Vorlage das so verwendet, ist nicht untersucht.
 
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
@@ -4384,6 +4457,9 @@ angebotenen Auftrag oder wird gar nicht gebucht.
 
 Festgehalten, nicht gebaut; vor dem Echtbetrieb zu entscheiden bzw. zu bauen.
 
+- **`content` der Layout-Bausteine entfernen** (14.10.2026, Vorgabe ab 1.8.105, zum Befund 99-13 unter "Umsetzung 1.8.103"): die Spalte
+  `document_layout_blocks.content` wird nirgends eingegeben (nur über `PUT /api/document-layout/blocks/{id}`) und nirgends gezeigt (kein
+  PDF, keine Vorlage) -- mit den übrigen ungenutzten Spalten entfernen (Migration, Antwortschema `DocumentLayoutBlockOut`, PUT-Schema `DocumentLayoutBlockUpdate`).
 - **„Abschließen ohne Rechnung“** (13.10.2026, siehe "Entscheidungen Rechnungen", Ergänzung nach Nachfrage 10 zu 1.8.95): für einen
   Auftrag ohne Rechnung -- nur Büro, nur solange keine Rechnung existiert, mit Pflichtbegründung und Hinweis auf nicht abgerechnete
   Stunden.
