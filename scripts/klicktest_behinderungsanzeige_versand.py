@@ -327,6 +327,9 @@ async def _pruefen(tab, seed, p):
     await tab.warten(f"{WIE} && {WIE}.querySelector('[data-notice-letter]')")
     p.pruefe("Wiederaufnahme: Brief erstellt (Fassung 1)", await tab.js(
         f"{WIE}.querySelector('[data-notice-letter]').textContent.includes('(Fassung 1)')"), True)
+    # Seit 1.8.108 (Nachtrag): nach "Brief erstellen" lädt die Karte den Versandverlauf neu und zeichnet ihn samt Formular neu -- kam
+    # das unter Last erst nach dem Öffnen des Formulars, war die Notiz weg und "Zustellung speichern" sendete nichts
+    await tab.warte_auf_ruhe()
     await tab.js("toggleManualDelivery('notice-wiederaufnahme-history')")
     await tab.js("document.getElementById('notice-wiederaufnahme-history-note').value='Einschreiben RR 123 456 789 DE'")
     await tab.js("document.getElementById('notice-wiederaufnahme-history-save').click()")

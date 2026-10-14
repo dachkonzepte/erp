@@ -215,6 +215,9 @@ async def _zwei_faktor(tab, seed, p):
         "fetch('/api/auth/status').then(r=>r.json()).then(d=>[d.authenticated,d.two_factor_required,d.otp_ok])"), [True, True, False])
     p.pruefe("Zwei Faktoren: API gesperrt (401 two_factor_pending)", await tab.js(
         "fetch('/api/customers').then(async r=>[r.status,(await r.json()).two_factor_pending])"), [401, True])
+    # Seit 1.8.108 (Nachtrag): /account startet beim Laden die Einrichtung (POST über speichern()) -- eine Navigation, solange sie
+    # unterwegs ist, öffnet "Seite verlassen?" (unter Last in zwei von drei parallelen Läufen und auf 1.8.107 nacheinander)
+    await tab.warte_auf_ruhe()
     p.pruefe("Zwei Faktoren: eine andere Seite schickt zurück nach /account",
              await tab.oeffnen("/projects", "location.pathname==='/account'"), True)
     p.pruefe("Zwei Faktoren: JS-Fehler", tab.fehler, [])
@@ -385,7 +388,10 @@ async def _angriffe_next(tab, seed, p):
         await tab.oeffnen("/login?next=" + quote(wert, safe=""), "document.getElementById('u')")
         marke = len(tab.netz.verlauf)
         await _anmelden_formular(tab, "bea", PASSWORT["bea"])
-        await tab.warten("location.pathname==='/projects'||location.href.includes('fremd')||location.protocol==='chrome-error:'", 10)
+        # Seit 1.8.108 (Nachtrag): "fremd" steht schon in /login?next=… -- die Bedingung war sofort erfüllt, die Prüfung las die
+        # Seite, während die Anmeldung noch unterwegs war (unter Last /login statt /projects). Jetzt: Startseite oder eine andere Adresse.
+        await tab.warten(f"location.pathname==='/projects'||!location.href.startsWith({json.dumps(tab.base + '/')})"
+                         "||location.protocol==='chrome-error:'", 10)
         await tab.nachlesen()
         fremde = [d["url"] for d in _dokumente(tab, marke) if not d["url"].startswith(tab.base + "/")]
         p.pruefe(f"Angriff über das Formular, next={name}: keine fremde Adresse, Startseite",

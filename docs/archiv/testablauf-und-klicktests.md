@@ -136,3 +136,35 @@ Alle betreffen nur Werkzeug und Testablauf (Regel 28 seit 1.8.108: der Bericht n
    nicht gebaut.
 3. **Der Benutzer `erp` darf die Konfiguration der Spielwiese nicht lesen** (`config_file` nur mit `pg_read_all_settings`) und kein
    `ALTER SYSTEM` -- die Einstellung ist deshalb direkt in `postgresql.conf` geändert.
+
+#### Nachtrag 1.8.108: drei Wettläufe in Klicktests (Befund der Endläufe auf `a412761`)
+
+Endläufe nach Regel 26 auf `a412761` (saubere Arbeitskopie): Suite parallel dreimal 5276 grün (7:27, 7:25, 7:10); Klicktests zu viert
+Lauf 1 68 von 68 (6:24), Lauf 2 66 von 68 (6:14), Lauf 3 66 von 68 (6:45) -- rot je `klicktest_anmelden` und
+`klicktest_behinderungsanzeige_versand`. Der Lauf nacheinander danach wurde abgebrochen (nach der Korrektur ohnehin zu wiederholen).
+Die Ursache steckt in den Klicktests selbst, nicht im parallelen Lauf: jedes Mal wartete der Test nicht auf das, was die Seite noch tat,
+und las sie zu früh -- unter Last öfter. Befunde (die Ausreißer):
+
+1. **`klicktest_anmelden`, "Zwei Faktoren"** (auch auf 1.8.107 nacheinander, Nebenbefund 1 oben): `/account` startet beim Laden die
+   Einrichtung des zweiten Faktors (`POST /api/account/2fa/setup/start` über `speichern()`); der Test öffnete `/projects`, während sie
+   unterwegs war -- "Seite verlassen?", das Werkzeug zählt den Dialog als nicht wie erwartet. Jetzt `warte_auf_ruhe()` davor.
+2. **`klicktest_anmelden`, "Angriff über das Formular"** (Lauf 3, drei Prüfungen `/login` statt `/projects`): die Wartebedingung nach dem
+   Anmelden enthielt `location.href.includes('fremd')` -- "fremd" steht schon in `/login?next=…fremd`, die Bedingung war sofort erfüllt,
+   die Prüfung las die Seite, während die Anmeldung noch unterwegs war. Seit 1.8.98 so; nacheinander meist noch rechtzeitig. Jetzt wartet
+   sie auf `/projects` oder eine Adresse außerhalb des ERP (`!location.href.startsWith(<ERP>/)`) -- was die Prüfung schon immer meinte.
+3. **`klicktest_behinderungsanzeige_versand`, "Wiederaufnahme: Einschreiben nachgetragen"**: nach "Brief erstellen" lädt die Karte den
+   Versandverlauf neu, `_dhZeichnen()` zeichnet den Container samt Formular "Zustellung nachtragen" neu; kam das unter Last erst nach dem
+   Öffnen des Formulars und dem Eintragen der Notiz, war die Notiz weg, "Zustellung speichern" sendete nichts (keine offene Anfrage), die
+   Zeile erschien nie. Jetzt `warte_auf_ruhe()` vor dem Öffnen; dieselbe Stelle in `klicktest_behinderungsanzeige_abschluss` (bisher grün)
+   ebenso.
+
+Nachweis unter Überlast (22 CPU-Brenner auf 28 Threads, je Klicktest drei Kopien gleichzeitig): vorher `klicktest_anmelden` 3 von 3 rot
+(Dialog und `/login`, wie in den Endläufen); mit der Korrektur `klicktest_anmelden` 3× 69/69, `klicktest_behinderungsanzeige_versand` 3×
+42/42, `klicktest_behinderungsanzeige_abschluss` 3× 43/43, in einer zweiten Überlast-Probe ebenso. Prüfungen und Soll unverändert (nur
+Warten; Nr. 2 prüft jetzt, was sie vorgab). Angepasste Erwartungen (Regel 28): keine. Endläufe auf dem Nachtrag: im Bericht (Regel 26).
+
+**Nebenbefund 4 (nur gemeldet)**: in der Überlast-Probe mit neun gleichzeitig endenden Klicktests endete einer nach "42 von 42" nicht
+mehr (in allen drei Proben mit dieser Mischung, immer die erste Kopie von `klicktest_behinderungsanzeige_versand`; nicht in einer Probe nur mit ihm): der Stapel (faulthandler) zeigt ihn in
+`cdp_klicktest.beenden()` -- `subprocess.run(["taskkill", "/PID", …, "/T", "/F"], capture_output=True)` wartet ohne Zeitlimit auf die
+Ausgabe von `taskkill` (Chrome). In keinem der Läufe zu viert (rund 200 Klicktests) aufgetreten; `klicktest_alle.py` bricht nach 900 s
+ab. Ein Zeitlimit an `taskkill` wäre die Abhilfe -- nicht gebaut.

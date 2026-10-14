@@ -189,6 +189,7 @@ async def _pruefen(tab, seed, p):
     await tab.bild("2_buero_unzustellbar")
 
     # --- Zustellung nachtragen mit Empfängerauswahl -------------------------------------------------
+    await tab.warte_auf_ruhe()  # seit 1.8.108 (Nachtrag): ein spät neu gezeichneter Versandverlauf leert sonst das Formular
     await tab.js(f"toggleManualDelivery('{H}')")
     await tab.warten(f"document.getElementById('{H}-recipients').dataset.loaded==='1'")
     p.pruefe("Nachtragen: Auftraggeber vorgewählt", await tab.js(
