@@ -73,9 +73,9 @@ async function createTemplate(){
 }
 
 function row(t){
-  const contexts=t.contexts.map(c=>CONTEXT_LABELS[c]||c).join(', ')||'<span class="muted">—</span>';
-  const published=t.published_version_no?`<span class="badge ok">Fassung ${t.published_version_no}</span>`:'<span class="muted small">noch nicht veröffentlicht</span>';
-  const draft=t.draft_version_no?`<span class="badge draft">Entwurf ${t.draft_version_no}</span>`:'';
+  const contexts=t.contexts.map(c=>esc(CONTEXT_LABELS[c]||c)).join(', ')||'<span class="muted">—</span>';
+  const published=t.published_version_no?`<span class="badge ok">Fassung ${esc(t.published_version_no)}</span>`:'<span class="muted small">noch nicht veröffentlicht</span>';
+  const draft=t.draft_version_no?`<span class="badge draft">Entwurf ${esc(t.draft_version_no)}</span>`:'';
   return `<tr${t.archived?' class="row-archived"':''}>
     <td><a href="/checklisten/vorlagen/${t.id}" style="color:var(--accent);font-weight:650;text-decoration:none">${esc(t.label)}</a> ${t.purpose!=='allgemein'?`<span class="badge">${esc(t.purpose_label)}</span>`:''} ${t.archived?'<span class="badge">Archiviert</span>':''}</td>
     <td>${contexts}</td>

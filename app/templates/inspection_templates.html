@@ -82,6 +82,7 @@ tr:last-child td{border-bottom:none}
 </div>
 </div>
 {% include "_speichern.html" %}
+{% include "_aktionen.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
@@ -99,7 +100,7 @@ function defaultTemplateOptionsHtml(selected){
 function defaultRow(d){
   return `<tr>
     <td>${esc(d.roof_type_label)}</td>
-    <td><select onchange="saveDefault('${esc(d.roof_type)}',this.value)">${defaultTemplateOptionsHtml(d.inspection_template_id)}</select></td>
+    <td><select data-aenderung="standardvorlage" data-dachart="${esc(d.roof_type)}">${defaultTemplateOptionsHtml(d.inspection_template_id)}</select></td>
   </tr>`;
 }
 
@@ -107,6 +108,8 @@ function renderDefaultRows(){
   document.getElementById('defaultRows').innerHTML=roofTypeDefaults.map(defaultRow).join('')||'<tr><td colspan="2" class="empty">Keine Dachtypen in der Optionsgruppe hinterlegt.</td></tr>';
 }
 
+/* Seit 1.8.102 über data-Attribute (_aktionen.html) statt Werten im on…-Attribut (Vorgabe vom 14.10.2026 Punkt 2). */
+aktion('standardvorlage',el=>saveDefault(el.dataset.dachart,el.value),'change');
 async function saveDefault(roofType,templateId){
   const st=document.getElementById('listStatus');
   try{
@@ -152,8 +155,8 @@ function row(t){
   return `<tr${t.archived?' class="row-archived"':''}>
     <td><b>${esc(t.label)}</b> ${badges.join(' ')}</td>
     <td>${esc(t.roof_type||'jeder Dachtyp')}</td>
-    <td>${t.version}</td>
-    <td>${t.item_count}</td>
+    <td>${esc(t.version)}</td>
+    <td>${esc(t.item_count)}</td>
     <td><a href="/inspection-templates/${t.id}" style="color:var(--accent)">Öffnen</a></td>
     <td class="row-actions"><button class="secondary" onclick="toggleArchived(${t.id},${!t.archived})">${t.archived?'Entarchivieren':'Archivieren'}</button></td>
   </tr>`;

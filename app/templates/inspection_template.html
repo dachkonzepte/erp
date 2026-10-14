@@ -147,12 +147,12 @@ function itemRow(item){
     <td><select onblur="saveItem(${item.id})" data-field="component_type">${componentTypeOptionsHtml(item.component_type)}</select></td>
     <td><select onchange="saveItem(${item.id})" data-field="item_type">${itemTypeOptionsHtml(item.item_type)}</select></td>
     <td style="text-align:center"><input type="checkbox" class="chk" ${item.required?'checked':''} onchange="saveItem(${item.id})" data-field="required"></td>
-    <td><input type="number" step="0.01" value="${item.target_min??''}" onblur="saveItem(${item.id})" data-field="target_min" style="width:70px"></td>
-    <td><input type="number" step="0.01" value="${item.target_max??''}" onblur="saveItem(${item.id})" data-field="target_max" style="width:70px"></td>
+    <td><input type="number" step="0.01" value="${esc(item.target_min??'')}" onblur="saveItem(${item.id})" data-field="target_min" style="width:70px"></td>
+    <td><input type="number" step="0.01" value="${esc(item.target_max??'')}" onblur="saveItem(${item.id})" data-field="target_max" style="width:70px"></td>
     <td><input value="${esc(item.unit)}" onblur="saveItem(${item.id})" data-field="unit" style="width:60px"></td>
     <td style="text-align:center"><input type="checkbox" class="chk" ${item.photo_required?'checked':''} onchange="saveItem(${item.id})" data-field="photo_required"></td>
     <td style="text-align:center"><input type="checkbox" class="chk" ${item.photo_before_after?'checked':''} onchange="saveItem(${item.id})" data-field="photo_before_after"></td>
-    <td><input type="number" value="${item.sort_order}" onblur="saveItem(${item.id})" data-field="sort_order" style="width:60px"></td>
+    <td><input type="number" value="${esc(item.sort_order)}" onblur="saveItem(${item.id})" data-field="sort_order" style="width:60px"></td>
     <td><button class="danger" onclick="deleteItem(${item.id})">×</button></td>
   </tr>`;
 }

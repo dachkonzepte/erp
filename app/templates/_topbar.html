@@ -125,6 +125,7 @@
   </div>
 </div>
 {% include "_speichern.html" %}
+{% include "_links.html" %}
 <script>
 (function(){
   var btn=document.getElementById('appTopbarAccountBtn');
@@ -176,7 +177,7 @@
       var rows=[];
       groups.forEach(function(g){
         g.hits.slice(0,4).forEach(function(h){
-          rows.push('<a class="app-topbar-search-hit" href="'+h.url+'"><div class="grp">'+escHtml(g.label)+'</div><div class="ttl">'+escHtml(h.title)+'</div>'+(h.subtitle?'<div class="sub">'+escHtml(h.subtitle)+'</div>':'')+'</a>');
+          rows.push('<a class="app-topbar-search-hit" href="'+escHtml(sichererLink(h.url))+'"><div class="grp">'+escHtml(g.label)+'</div><div class="ttl">'+escHtml(h.title)+'</div>'+(h.subtitle?'<div class="sub">'+escHtml(h.subtitle)+'</div>':'')+'</a>');
         });
       });
       if(!rows.length){

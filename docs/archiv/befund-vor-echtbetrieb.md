@@ -4013,6 +4013,94 @@ Nebenbefunde nur melden. Wird der Umfang zu groß: nach Punkt 2 committen und de
 3. **Die Logo-Endpunkte geben weiter `max-age=31536000, immutable` an**; seit 1.8.98 ersetzt die Anmeldeschranke das für jede angemeldete
    Sitzung durch `no-store` -- die Angabe wirkt nie.
 
+### Umsetzung 1.8.102: Daten im HTML (Punkt 2, Befund 1.8.100 Nr. 5–8)
+
+#### Was gebaut ist
+
+- **Nr. 5–8 behoben**: Gruppenname im Einsatzbericht und die Fläche gehen als data-Attribute statt als JS-Zeichenkette ins onclick
+  (`service_reports.html`); "Neues Projekt" und "Neues Angebot" setzen Kundennummer, Kunde, Objekt, Ort, Kategorie und Projekt über esc()
+  (beide Seiten hatten kein esc()); die Verknüpfungssuche im Kalender trägt Art, ID und Titel als data-Attribute statt JSON im onclick;
+  der Planungsvorschlag der Plantafel setzt Feiertage und abwesende Mitarbeiter über esc().
+- **Baustein `_aktionen.html`** (neu): ein Element trägt `data-klick="name"` (bzw. `data-aenderung`, `data-eingabe`) und seine Werte als
+  data-Attribute (mit esc()); die Seite meldet `aktion('name', (el, ev) => …)` an, ein Listener am Dokument ruft sie mit dem innersten
+  Element. Gesperrte Elemente lösen nichts aus; mehrfach einbindbar (eine Teilvorlage, die ihn nutzt, bindet ihn selbst ein).
+- **Werte in on…-Attributen**: jede Stelle mit Text umgebaut (66, alle aus dem Nebenbefund 1.8.100 eingeschlossen) -- Einsatzbericht,
+  Kalender, Versandverlauf (`_email_dispatch.html`), Mängel, Checkliste (Wahl, Optionen, Brief erstellen und senden), Kundenakte und
+  Projektmappe (Kategorien und Unterordner -- dort schützte `esc(c).replace(/'/g,"\\'")` nichts, esc() macht aus ' schon &#39;),
+  Dashboard (Widgets), Einstellungen (Rechtstexte, Klauseln, Vorbehalte, Vertragsvorlagen und ihre Abschnitte, Module, Nummernkreise,
+  Reihenfolge der Schichttypen), Dachfläche (Ausführung), Suche, Prüfvorlagen, Finanzen, Verzugsbeginn. Übrig sind 375 Stellen mit Zahlen
+  und IDs (Ausnahmeliste).
+- **Jeder übrige Wert in HTML über esc()**: 246 Stellen, die der Scanner nicht als sicher beweisen kann (fast alle Zahlen: Fassungen,
+  Mengen, Zähler, Beträge aus Feldern), automatisch in die esc-Funktion der Datei gefasst (`esc`, in `_email_dispatch.html` `_dhEsc`, in
+  `_topbar.html` `escHtml`; `account.html` bekam ein esc()); der linke Teil von `a || b` bzw. `a ?? b` als Ganzes (`esc(a||b)`), damit
+  sich 0 und false nicht ändern; eine Rechnung (`p.left+4` in der Plantafel) als Ganzes. Von Hand: die Art eines Betriebsmittels (neben
+  HTML-Badges), die Kontexte einer Checklisten-Vorlage, die Pausenregeln eines Arbeitszeitmodells. Übrig: das Changelog (HTML aus
+  CHANGELOG.md, vom Server maskiert).
+- **Links aus Daten**: Baustein `_links.html` (neu) mit `sichererLink(wert, ersatz='#')` -- nur http(s)://, mailto:, tel:, ein lokaler
+  Pfad nach `istLokalesZiel()` (dieselbe Regel wie Weiterleitungen) oder "#…"/"?…" -- und `sichereBildquelle()` (zusätzlich
+  data:image/png|jpeg|gif|webp;base64, ohne mailto/tel). 19 Stellen umgestellt (Belege, Fotos, Unterschriften und Folgen der Checkliste,
+  Abnahme und Protokoll, Mängel-Aufgabe, Suche oben und Suchseite, Dashboard-Aufgaben, Aufgaben, Beteiligte, Adressbuch, Produktlink des
+  Betriebsmittels, QR-Code der Zwei-Faktor-Einrichtung).
+- **Scanner `tests/vorlagen_html.py`** (neu, Tokenizer aus `tests/vorlagen_js.py`): HTML ist ein Template-Literal oder eine Verkettung
+  mit Markup und jeder Wert eines HTML-Ziels (innerHTML, outerHTML, insertAdjacentHTML, document.write); ein HTML-Zustandsautomat
+  liefert je Wert den Zusammenhang (Text, Tag, Attribut samt festem Anfang des Werts). Sicher ist, was kein Markup enthalten kann
+  (Regeln im Kopf des Moduls); Parameter über ihre Aufrufstellen, Rückrufe von map/forEach … (Index, Elemente), Variablen über ihre
+  Zuweisungen samt push/Index-Zuweisungen, feste Tabellen, Funktionen im Gültigkeitsbereich, Teilvorlagen im Zusammenhang jeder Seite, die
+  sie einbindet. Gemeldet wird der kleinste ungeschützte Ausdruck, bei einer Variable mit HTML die Teile ihrer Zuweisungen (dort wird
+  behoben).
+
+#### Festlegungen 1.8.102 (Bitte bestätigen)
+
+1. **Text-Werte in on…-Attributen sind umgebaut, Zahlen und IDs (375) stehen in der Ausnahmeliste**, die nur kürzer wird.
+2. **"Sicher" nach den Regeln im Kopf von `tests/vorlagen_html.py`**; ein Feld "id"/"…_id" gilt als Zahl, außer TEXT_IDS -- ein Test prüft an Modellen und Antwortschemas, dass jedes Text-Feld unter diesem Namen dort steht (gefunden: `series_master_id`).
+3. **Was der Scanner nicht beweisen kann, geht durch esc()**, auch Zahlen -- statt in eine Ausnahmeliste; null/undefined erscheinen dadurch leer statt als "null"/"undefined".
+4. **`a || b` und `a ?? b` werden als Ganzes gefasst**, nie nur `a` (0 und false bleiben falsch); eine Rechnung ebenso.
+5. **Ein Wert in einem on…-Attribut zählt nur unter "Handler"**, nicht unter "ohne esc()" -- esc() hilft dort nicht.
+6. **Verkettungen ('<td>'+x+'</td>') zählen wie ${…}**.
+7. **Eine Teilvorlage wird im Zusammenhang jeder Seite gelesen, die sie einbindet**; eine Funktion ohne Aufrufstelle in einem Zusammenhang läuft dort nicht (ihre Parameter gelten als sicher), eine aus einem on…-Attribut gerufene hat unbekannte Parameter.
+8. **Ausnahme Changelog**: HTML aus CHANGELOG.md, der Server maskiert den Text vorher.
+9. **Erlaubte Links**: http(s), mailto, tel, lokal wie bei Weiterleitungen, "#…", "?…"; sonst '#'. Bildquellen zusätzlich data:image (PNG, JPEG, GIF, WebP) als base64, kein mailto/tel.
+10. **Ein fester Anfang eines href/src gilt als geprüft**, wenn er mit "/" (nicht "//", "/\"), "#", "?", mailto:, tel: oder http(s):// beginnt -- wie bei Weiterleitungen (Festlegung 1.8.98 Nr. 4).
+11. **`.action =` zählt nicht als Link** (meist ein Feld eines Objekts, z. B. `payload.action`); `setAttribute('action', …)` schon.
+12. **Aktionen: data-klick, data-aenderung, data-eingabe**; ein gesperrtes Element und ein Name ohne Funktion lösen nichts aus; der Listener hängt einmal je Seite.
+13. **Die Ausnahmelisten zählen je Schlüssel "Datei | Funktion | Ausdruck"**: eine weitere gleiche Stelle in derselben Funktion fällt auf.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v407_daten_im_html.py` (68): die drei Strukturtests (ohne esc: 1 Ausnahme; Handler: 375 Ausnahmen in 191 Schlüsseln; Links:
+  keine), Jinja-Werte in on…-Attributen (keine), die Handler-Liste enthält nur Zahlen/IDs; der Scanner an 22 Funden, 18 sicheren Fällen,
+  Handlern, zehn Link-Funden und fünf geprüften Links; jede esc-Variante der Vorlagen in node (alle fünf Zeichen), die Datumsfunktionen, die
+  als Ziffern gelten, **Angriffstabelle** für `sichererLink()`/`sichereBildquelle()` (27 Werte: javascript: in vier Schreibweisen, mit
+  Tab und Steuerzeichen, vbscript:, data:text/html, data:image/svg+xml, //, /\, /Tab/, /%2F/, Rückstrich im Host, Leerzeichen, fremder Host
+  ohne Schema, leer, keine Zeichenkette), der Baustein `_aktionen.html` in node (Wert mit ' und ", gesperrt, unbekannt, change, zweimal
+  eingebunden), TEXT_IDS gegen Modelle und Schemas.
+- `tests/test_v405_befund_seiten.py`: Nr. 5, Nr. 6 (zweimal) und Nr. 8 ohne xfail.
+- **Angepasste Erwartungen** (Regel 28): `test_v405::test_vorschlag_der_verknuepfungssuche_bleibt_daten` "das onclick-Attribut dekodiert zu
+  pickLink(<JSON>)" -> "kein on…-Attribut, data-art/-id/-label dekodieren zum Treffer, pickLink bekommt die Werte aus dem Element"; Nr. 5, 6,
+  8 nur xfail entfernt (Soll gleich). Nur Aufbau: `test_v334::seite()` bindet `_aktionen.html`, `_weiterleitung.html`, `_links.html` ein (die
+  Seitenskripte melden Aktionen an); Klicktest `klicktest_maengel` sucht die Knöpfe Freigabe/Status über `data-art` statt `onclick*=` (Soll
+  gleich -- die alte Suche hätte nach dem Umbau immer "keiner" ergeben und die Prüfung still bestanden).
+- Neuer Klicktest `scripts/klicktest_daten_im_html.py` 21/21: Kunde, Unterordner, Gruppe eines Prüfpunkts, Projekt und Art eines
+  Betriebsmittels mit `"><img onerror>`, `');…//` und `&quot;…` -- kein Skript auf sieben Seiten, Namen als Text, die umgebauten Knöpfe
+  tun es weiter mit genau dem gespeicherten Wert (Unterordner filtern in Kundenakte und Projektmappe, Gruppe zu und auf, Vorschlag im
+  Kalender verknüpft, Modul-Schalter aus und an).
+- Gegenproben (Regel 24): 15 von 15 rot -- Nr. 5 wieder im onclick (auch im Klicktest), Nr. 6 und Nr. 8 ohne esc(), Nr. 7 wieder JSON im
+  onclick, Unterordner der Kundenakte wieder im onclick (auch im Klicktest), eine Fassungsnummer ohne esc(), Art des Betriebsmittels ohne
+  esc() (auch im Klicktest: Skript gelaufen), ein Link ohne `sichererLink()`, `sichererLink()` lässt javascript: durch, Aktion auf
+  gesperrtem Element, Listener ohne Wächter (doppelt), Scanner ohne push, jede "…_id" als Zahl, TEXT_IDS ohne `series_master_id`, Handler
+  mit esc() nicht gemeldet. Jede Datei byte-genau zurück, kein Marker.
+- Volle Suite und alle Klicktests: im Bericht (Regel 26).
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **`tests/vorlagen_js.py::_ausdruck_ende()` beendet den Rumpf eines Pfeils ohne Klammern an der ersten schließenden Klammer eines
+   Aufrufs auf oberster Ebene** (`s => String(s ?? '').replace(…)` endet nach `String(s ?? ''`): die Funktionsbereiche von `a.funktionen`
+   sind für solche Pfeile zu kurz. Der neue Scanner nutzt eigene Bereiche; ob die Scanner von test_v398/test_v400 dadurch etwas übersehen,
+   ist nicht untersucht.
+2. **375 on…-Attribute mit Zahlen und IDs** (Ausnahmeliste) -- harmlos, solange die Werte Zahlen sind, aber dasselbe Muster.
+3. **Zahlen aus Antworten des Servers lassen sich im Browser nicht als Zahl beweisen** (Fassung, Menge, Zähler): sie gehen jetzt durch esc();
+   ein Feld, das später Text trägt, wäre damit schon geschützt.
+
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
 Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):

@@ -142,6 +142,7 @@
 </div>
 
 {% include "_speichern.html" %}
+{% include "_aktionen.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 async function api(u,o){const r=await fetch(u,o);if(!r.ok){let d={};try{d=await r.json()}catch{}throw Error(d.detail||r.statusText)}return r.headers.get('content-type')?.includes('json')?r.json():r}
@@ -349,12 +350,15 @@ const debouncedLinkSearch=debounce(async()=>{
     const hits=[];
     groups.forEach(g=>g.hits.forEach(h=>hits.push({type:g.key==='quotes'?'quote':'project',id:h.id,label:h.title})));
     if(!hits.length){box.style.display='none';return}
-    box.innerHTML=hits.map(h=>`<div class="suggest-item" onclick='pickLink(${JSON.stringify(h).replace(/'/g,"&#39;")})'>${h.type==='quote'?'Angebot':'Projekt'}: ${esc(h.label)}</div>`).join('');
+    box.innerHTML=hits.map(h=>`<div class="suggest-item" data-klick="verknuepfung" data-art="${h.type==='quote'?'quote':'project'}" data-id="${h.id}" data-label="${esc(h.label)}">${h.type==='quote'?'Angebot':'Projekt'}: ${esc(h.label)}</div>`).join('');
     box.style.display='block';
     });
   }catch(e){box.style.display='none'}
 },300);
 
+/* Seit 1.8.102 über data-Attribute (_aktionen.html): bis 1.8.101 ging der Treffer als JSON ins onclick -- &quot; im Titel beendete
+   die Zeichenkette (Befund 1.8.100 Nr. 7). */
+aktion('verknuepfung',el=>pickLink({type:el.dataset.art,id:Number(el.dataset.id),label:el.dataset.label}));
 function pickLink(h){
   selectedLink=h;
   document.getElementById('eLinkSuggestBox').style.display='none';

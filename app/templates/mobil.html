@@ -99,7 +99,7 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
     if(!list.length)return'';
     return '<div class="concern-alert" role="alert" data-concerns="'+a.order_id+'">'+esc(OPEN_CONCERNS_TEXT)
       +list.map(function(c){return '<a href="/checklisten/'+c.checklist_id+'">'+esc(c.template_label||'Bedenkenanzeige')
-        +' Nr. '+c.checklist_id+(c.decision_due?' – Entscheidung erbeten bis '+fmtDate(c.decision_due):'')+' →</a>'}).join('')
+        +' Nr. '+c.checklist_id+(c.decision_due?' – Entscheidung erbeten bis '+esc(fmtDate(c.decision_due)):'')+' →</a>'}).join('')
       +'</div>';
   }
   function renderAssignments(list){
@@ -112,8 +112,8 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
       return '<a class="assign-card" href="/orders/'+a.order_id+'/service-reports">'
         +'<div class="obj">'+esc(a.property_name||a.customer_name)+'</div>'
         +(a.property_address?'<div class="addr">'+esc(a.property_address)+'</div>':'')
-        +'<div class="meta"><span>Auftrag '+esc(a.order_number)+' · '+period+'</span>'
-        +'<span class="status-pill'+(hasReport?' has-report':'')+'">'+(hasReport?a.report_count+' Bericht(e)':'Kein Bericht')+'</span></div>'
+        +'<div class="meta"><span>Auftrag '+esc(a.order_number)+' · '+esc(period)+'</span>'
+        +'<span class="status-pill'+(hasReport?' has-report':'')+'">'+(hasReport?esc(a.report_count)+' Bericht(e)':'Kein Bericht')+'</span></div>'
         +'</a>'
         +concernAlert(a)
         +(CHECKLISTS_ENABLED?'<a class="checklist-link" href="/checklisten/auftrag/'+a.order_id+'">Checklisten zu diesem Auftrag →</a>':'');
@@ -207,7 +207,7 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
         +'<div class="defect-desc">'+esc(d.description)+'</div>'
         +(place?'<div class="defect-place">'+place+'</div>':'')
         +'<div class="meta"><span>Auftrag '+esc(d.order_number)+'</span>'
-        +(d.remedy_due_on?'<span class="status-pill'+(d.remedy_overdue?' due':'')+'">Frist '+fmtDate(d.remedy_due_on)+(d.remedy_overdue?' – überschritten':'')+'</span>':'')+'</div>'
+        +(d.remedy_due_on?'<span class="status-pill'+(d.remedy_overdue?' due':'')+'">Frist '+esc(fmtDate(d.remedy_due_on))+(d.remedy_overdue?' – überschritten':'')+'</span>':'')+'</div>'
         +(photos?'<div class="defect-photos">'+photos+'</div>':'')
         +'<button type="button" class="perform-btn defect-report-btn">Beseitigt melden</button>'
         +'<div class="defect-report" hidden>'

@@ -232,13 +232,13 @@ async function saveContract(){
 }
 
 function row(c){
-  const badges=[`<span class="badge ${c.status}">${esc(c.status)}</span>`];
+  const badges=[`<span class="badge ${esc(c.status)}">${esc(c.status)}</span>`];
   if(c.archived)badges.push('<span class="badge archived">Archiviert</span>');
   if(c.is_due)badges.push('<span class="badge due">⚠ fällig</span>');
   return `<tr${c.archived?' class="row-archived"':''}>
     <td><a class="contract-link" href="/maintenance-contracts/${c.id}">${esc(c.title)}</a>${c.notes?`<div class="muted small">${esc(c.notes)}</div>`:''}</td>
     <td>${esc(c.customer_name||'')}<div class="muted small">${esc(c.property_name||'')}${c.property_address?' · '+esc(c.property_address):''}</div></td>
-    <td>${c.interval_months} Monate</td>
+    <td>${esc(c.interval_months)} Monate</td>
     <td>${fmtDate(c.next_due_date)}</td>
     <td>${esc(c.responsible_employee_name||'—')}</td>
     <td>${badges.join(' ')}</td>

@@ -11,8 +11,8 @@ befund-vor-echtbetrieb.md ab "Umsetzung 1.8.101"): ein geschlossener Test verlie
 
 from __future__ import annotations
 
-import html
 import json
+from html.parser import HTMLParser
 import os
 import re
 import subprocess
@@ -237,10 +237,8 @@ def _funktion(vorlage: str, name: str) -> str:
 
 
 @nur_mit_node
-@pytest.mark.xfail(strict=True, reason="Befund 1.8.100 Nr. 5: Gruppenname eines Prüfpunkts geht nur für JS geschützt (\\') in das "
-                                       "onclick-Attribut -- ein \" beendet das Attribut, ein <img onerror> läuft beim Zeichnen des "
-                                       "Einsatzberichts. Setzen kann ihn jede Rolle, die den Bericht bearbeitet (auch der Monteur).")
 def test_gruppenname_im_einsatzbericht_bleibt_text():
+    """Befund 1.8.100 Nr. 5: Gruppenname eines Prüfpunkts geht nur für JS geschützt (\\') in das onclick-Attribut -- ein \" beendet das Attribut, ein <img onerror> läuft beim Zeichnen des Einsatzberichts. Setzen kann ihn jede Rolle, die den Bericht bearbeitet (auch der Monteur). -- seit 1.8.102 behoben (bis dahin xfail)."""
     funktion = _funktion("service_reports.html", "inspectionItemsPanelHtml")
     js = (_esc_js("service_reports.html") + "\n" + funktion + f"""
 const inspectionItemsCache={{1:[{{id:5,text:'Rinne',group_name:{json.dumps('x"' + '>' + SKRIPT)},required:false}}]}};
@@ -252,10 +250,8 @@ process.stdout.write(JSON.stringify(inspectionItemsPanelHtml({{id:1,roof_areas:[
 
 
 @nur_mit_node
-@pytest.mark.xfail(strict=True, reason="Befund 1.8.100 Nr. 6: \"Neues Projekt\" setzt Kundennamen und Objekte ohne Schutz in die "
-                                       "Auswahl (innerHTML) -- ein importierter Altkunde oder ein Name aus dem Adressimport mit <img onerror> "
-                                       "läuft beim Öffnen der Seite.")
 def test_kundenname_im_formular_neues_projekt_bleibt_text():
+    """Befund 1.8.100 Nr. 6: \"Neues Projekt\" setzt Kundennamen und Objekte ohne Schutz in die Auswahl (innerHTML) -- ein importierter Altkunde oder ein Name aus dem Adressimport mit <img onerror> läuft beim Öffnen der Seite. -- seit 1.8.102 behoben (bis dahin xfail)."""
     antworten = {"/api/settings/option-groups": [], "/api/customers": [{"id": 1, "customer_number": "K-1", "name": SKRIPT}],
                  "/api/settings/option-groups/project_categories": {"options": []},
                  "/api/properties?customer_id=1": [{"id": 2, "name": SKRIPT, "postal_code": "1", "city": "Stadt"}]}
@@ -265,34 +261,50 @@ def test_kundenname_im_formular_neues_projekt_bleibt_text():
 
 
 @nur_mit_node
-@pytest.mark.xfail(strict=True, reason="Befund 1.8.100 Nr. 6: \"Neues Angebot\" setzt Projektnummer, Kunde und Projektname ohne Schutz "
-                                       "in die Auswahl (innerHTML).")
 def test_kundenname_im_formular_neues_angebot_bleibt_text():
+    """Befund 1.8.100 Nr. 6: \"Neues Angebot\" setzt Projektnummer, Kunde und Projektname ohne Schutz in die Auswahl (innerHTML). -- seit 1.8.102 behoben (bis dahin xfail)."""
     antworten = {"/api/projects": [{"id": 1, "project_number": "P-1", "customer_name": SKRIPT, "name": "Dach"}],
                  "/api/settings/general": {"default_vat_rate": 19}}
     lauf = im_browser(seite("quote_form.html", "load()"), "await load(); return _element('project').innerHTML;", antworten)
     assert "<img" not in lauf["ergebnis"]
 
 
+class _Attribute(HTMLParser):
+    """Die Attribute jedes Elements, so wie der Browser sie liest (Entitäten dekodiert)."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.elemente = []
+
+    def handle_starttag(self, tag, attrs):
+        self.elemente.append(dict(attrs))
+
+
 @nur_mit_node
-@pytest.mark.xfail(strict=True, reason="Befund 1.8.100 Nr. 7: Verknüpfungssuche im Kalender -- JSON.stringify im onclick-Attribut, "
-                                       "nur ' als &#39; geschützt; der Browser dekodiert &quot; im Attribut zu \", ein Projekt- oder "
-                                       "Angebotstitel mit &quot; beendet die Zeichenkette (Skript beim Klick auf den Vorschlag).")
 def test_vorschlag_der_verknuepfungssuche_bleibt_daten():
+    """Befund 1.8.100 Nr. 7 (Verknüpfungssuche im Kalender: JSON.stringify im onclick-Attribut, nur ' als &#39; geschützt -- ein Titel mit
+    &quot; beendete die Zeichenkette). Seit 1.8.102 trägt der Vorschlag seine Werte als data-Attribute (_aktionen.html), kein Code im
+    Attribut; der Titel kommt beim Klick unverändert an. Bis 1.8.101 prüfte der Test das onclick-Attribut selbst (xfail)."""
     vorlage = (TEMPLATES / "calendar.html").read_text(encoding="utf-8")
     ausdruck = re.search(r"box\.innerHTML=(hits\.map\(h=>`<div class=\"suggest-item\".*?`\)\.join\(''\));", vorlage).group(1)
     titel = '&quot;});window.__dkXss=1;//'
     js = (_esc_js("calendar.html") + f"\nconst hits=[{{type:'project',id:1,label:{json.dumps(titel)}}}];"
           f"\nprocess.stdout.write(JSON.stringify({ausdruck}));")
     gezeichnet = _node(js, "Europe/Berlin")
-    attribut = html.unescape(re.search(r"onclick='([^']*)'", gezeichnet).group(1))  # so sieht der Browser den Code
-    assert attribut == "pickLink(" + json.dumps({"type": "project", "id": 1, "label": titel}, separators=(",", ":")) + ")"
+    leser = _Attribute()
+    leser.feed(gezeichnet)
+    [vorschlag] = leser.elemente
+    assert not any(name.startswith("on") for name in vorschlag)
+    assert (vorschlag["data-klick"], vorschlag["data-art"], vorschlag["data-id"], vorschlag["data-label"]) == \
+        ("verknuepfung", "project", "1", titel)
+    aktion = re.search(r"aktion\('verknuepfung',el=>pickLink\(\{type:el\.dataset\.art,id:Number\(el\.dataset\.id\),"
+                       r"label:el\.dataset\.label\}\)\);", vorlage)
+    assert aktion, "pickLink bekommt die Werte aus dem Element"
 
 
 @nur_mit_node
-@pytest.mark.xfail(strict=True, reason="Befund 1.8.100 Nr. 8: Planungsvorschlag der Plantafel setzt Namen abwesender Mitarbeiter und "
-                                       "Feiertage ohne Schutz in den Hinweis (innerHTML).")
 def test_namen_im_planungsvorschlag_bleiben_text():
+    """Befund 1.8.100 Nr. 8: Planungsvorschlag der Plantafel setzt Namen abwesender Mitarbeiter und Feiertage ohne Schutz in den Hinweis (innerHTML). -- seit 1.8.102 behoben (bis dahin xfail)."""
     vorspann = FAKE_DOM.replace("const antwort = methode === 'GET' ? ANTWORTEN[url] : {};", "const antwort = ANTWORTEN[url];")
     berlin = re.findall(r"<script>(.*?)</script>", (TEMPLATES / "_berlin_date.html").read_text(encoding="utf-8"), flags=re.S)[0]
     skript = vorspann + berlin + seite("planning.html", "\nloadBoard();")[len(FAKE_DOM):]

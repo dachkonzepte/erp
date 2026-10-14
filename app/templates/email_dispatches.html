@@ -140,7 +140,7 @@ async function reload(){
       const stuck=document.getElementById('stuckCard');
       if(data.stuck_count){
         stuck.style.display='';
-        stuck.innerHTML=`<b>${data.stuck_count===1?'Ein Versand hängt':data.stuck_count+' Versände hängen'}</b> seit mehr als ${data.stuck_after_minutes} Minuten in Arbeit. Ob die Mail hinausging, ist unklar – bitte im Postausgang (Gesendete Elemente) nach der Kennung suchen und den Eintrag hier als gesendet oder fehlgeschlagen klären. Es wird nichts automatisch erneut gesendet; ein neuer Versand ist ein neuer Klick auf der Dokumentseite.`;
+        stuck.innerHTML=`<b>${data.stuck_count===1?'Ein Versand hängt':esc(data.stuck_count)+' Versände hängen'}</b> seit mehr als ${esc(data.stuck_after_minutes)} Minuten in Arbeit. Ob die Mail hinausging, ist unklar – bitte im Postausgang (Gesendete Elemente) nach der Kennung suchen und den Eintrag hier als gesendet oder fehlgeschlagen klären. Es wird nichts automatisch erneut gesendet; ein neuer Versand ist ein neuer Klick auf der Dokumentseite.`;
       }else stuck.style.display='none';
       rows.innerHTML=data.items.length?data.items.map(d=>`<tr>
         <td>${whenCell(d)}</td>

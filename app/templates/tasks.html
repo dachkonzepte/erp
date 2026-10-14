@@ -125,6 +125,7 @@ button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:
 </div>
 </div>
 {% include "_speichern.html" %}
+{% include "_links.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
@@ -182,7 +183,7 @@ async function loadTasks(){
 
 function card(t,withClaim){
   const overdue=isOverdue(t);
-  const badges=[`<span class="badge ${t.priority}">${esc(PRIORITY_LABELS[t.priority]||t.priority)}</span>`];
+  const badges=[`<span class="badge ${esc(t.priority)}">${esc(PRIORITY_LABELS[t.priority]||t.priority)}</span>`];
   if(t.archived)badges.push('<span class="badge archived">Archiviert</span>');
   if(t.due_date)badges.push(`<span class="badge ${overdue?'due':''}">${overdue?'⚠ ':''}${fmtDate(t.due_date)}</span>`);
   if(t.checklist_items&&t.checklist_items.length){
@@ -191,7 +192,7 @@ function card(t,withClaim){
   }
   if(t.source_label){
     const inner=esc(t.source_label);
-    badges.push(t.source_url?`<a class="badge source" href="${t.source_url}" onclick="event.stopPropagation()">${inner}</a>`:`<span class="badge source">${inner}</span>`);
+    badges.push(t.source_url?`<a class="badge source" href="${esc(sichererLink(t.source_url))}" onclick="event.stopPropagation()">${inner}</a>`:`<span class="badge source">${inner}</span>`);
   }
   const sub=[t.assigned_employee_name,t.project_number?`${t.project_number} · ${t.project_name||''}`:null].filter(Boolean).join(' · ');
   const claim=withClaim?`<div class="task-actions"><button class="secondary" onclick="event.stopPropagation();claimTaskNow(${t.id})">Übernehmen</button></div>`:'';

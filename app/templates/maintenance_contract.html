@@ -161,7 +161,7 @@ function roofAreaOptionsHtml(){
   return roofAreas.length?roofAreas.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join(''):'<option value="">— keine Dachflächen angelegt —</option>';
 }
 function windowOptionsHtml(){
-  return maintenanceWindows.map(w=>`<option value="${w.id}">${esc(w.label)} (${w.month_from}.-${w.month_to}. Monat)</option>`).join('');
+  return maintenanceWindows.map(w=>`<option value="${w.id}">${esc(w.label)} (${esc(w.month_from)}.-${esc(w.month_to)}. Monat)</option>`).join('');
 }
 function inspectionTemplateOptionsHtml(){
   return '<option value="">— automatisch nach Dachtyp —</option>'+inspectionTemplates.filter(t=>!t.archived).map(t=>`<option value="${t.id}">${esc(t.label)}</option>`).join('');
@@ -338,7 +338,7 @@ function itemRow(item){
     <td>${esc(item.maintenance_window_label||'')}</td>
     <td>${fmtDate(item.next_due_date)} ${badges.join(' ')}</td>
     <td>${esc(item.description||'')}</td>
-    <td>${item.duration_minutes?item.duration_minutes+' min':'—'}</td>
+    <td>${item.duration_minutes?esc(item.duration_minutes)+' min':'—'}</td>
     <td class="row-actions">${actions.join('')}</td>
   </tr>`;
 }

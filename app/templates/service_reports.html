@@ -222,6 +222,7 @@ a{color:var(--accent)}
 </div>
 </div>
 {% include "_speichern.html" %}
+{% include "_aktionen.html" %}
 <script>
 const orderId={{ order_id }};
 // Seit 1.4.5 (Betriebsmittelverwaltung Stufe 3) -- "wartungen" (diese ganze Seite) und
@@ -275,6 +276,10 @@ function toggleGroup(reportId,areaKey,groupName){
   if(closedGroupKeys.has(key))closedGroupKeys.delete(key);else closedGroupKeys.add(key);
   renderReportList();
 }
+/* Seit 1.8.102 über data-Attribute (_aktionen.html): Gruppenname und Fläche gingen bis 1.8.101 als JS-Zeichenkette ins onclick --
+   ein " im Gruppennamen beendete das Attribut (Befund 1.8.100 Nr. 5). */
+aktion('pruefgruppe',el=>toggleGroup(Number(el.dataset.bericht),el.dataset.flaeche,el.dataset.gruppe));
+aktion('pruefflaeche',el=>toggleReportArea(Number(el.dataset.bericht),el.dataset.flaeche));
 function toggleItemNotes(itemId){
   if(openNotesItemIds.has(itemId))openNotesItemIds.delete(itemId);else openNotesItemIds.add(itemId);
   renderReportList();
@@ -512,7 +517,7 @@ function hasInspectionSection(r){
 }
 
 function reportCard(r){
-  const badges=[`<span class="badge">${esc(r.report_type_label)}</span>`,`<span class="badge ${r.status}">${esc(r.status)}</span>`];
+  const badges=[`<span class="badge">${esc(r.report_type_label)}</span>`,`<span class="badge ${esc(r.status)}">${esc(r.status)}</span>`];
   const actions=[];
   if(r.status==='entwurf'){
     actions.push(`<button class="secondary" onclick="openEditEditor(${r.id})">Bearbeiten</button>`);
@@ -751,7 +756,7 @@ function findingCard(f,r){
     <div class="finding-followup" data-finding="${f.id}">
       <select class="ffu-status" onchange="submitFindingFollowup(${f.id},${r.id})">${FINDING_STATUSES.map(([k,l])=>`<option value="${k}" ${f.status===k?'selected':''}>${esc(l)}</option>`).join('')}</select>
       <select class="ffu-action" onchange="onFfuActionChange(${f.id},${r.id})">${ACTIONS.map(([k,l])=>`<option value="${k}" ${f.action===k?'selected':''} ${lockedAction(k)?'disabled':''}>${esc(l)}</option>`).join('')}</select>
-      <input type="date" class="ffu-resubmission ${f.action==='zurueckgestellt'?'':'hidden'}" value="${f.resubmission_date||''}">
+      <input type="date" class="ffu-resubmission ${f.action==='zurueckgestellt'?'':'hidden'}" value="${esc(f.resubmission_date||'')}">
       ${retryButton}
       <span id="ffuStatus-${f.id}" class="status"></span>
     </div>
@@ -890,7 +895,7 @@ function materialsPanelHtml(r){
   const rowsHtml=rows.length?`<div class="table-scroll"><table><thead><tr><th>Bezeichnung</th><th>Menge</th><th>Einheit</th><th>Fläche</th><th></th></tr></thead><tbody>${rows.map(m=>`
     <tr>
       <td data-label="Bezeichnung">${isDraft?`<input value="${esc(m.description)}" onchange="saveMaterialField(${m.id},${r.id},'description',this.value)" style="min-width:160px">`:esc(m.description)}</td>
-      <td data-label="Menge">${isDraft?`<input type="number" step="0.001" min="0.001" value="${m.quantity}" style="width:90px" onchange="saveMaterialField(${m.id},${r.id},'quantity',this.value)">`:esc(String(m.quantity))}</td>
+      <td data-label="Menge">${isDraft?`<input type="number" step="0.001" min="0.001" value="${esc(m.quantity)}" style="width:90px" onchange="saveMaterialField(${m.id},${r.id},'quantity',this.value)">`:esc(String(m.quantity))}</td>
       <td data-label="Einheit">${isDraft?`<input value="${esc(m.unit||'')}" onchange="saveMaterialField(${m.id},${r.id},'unit',this.value)" style="width:70px">`:esc(m.unit||'')}</td>
       <td data-label="Fläche" class="muted small">${esc(areaName(m.roof_area_id)||'—')}</td>
       <td data-label="">${isDraft?`<button type="button" class="danger" onclick="deleteMaterialUI(${m.id},${r.id})">×</button>`:''}</td>
@@ -900,7 +905,7 @@ function materialsPanelHtml(r){
 
   const draft=_materialDraft(r.id);
   const pendingFindingId=pendingMaterialFindingId[r.id];
-  const pendingBadge=pendingFindingId?`<div class="finding-hint">Wird zugeordnet zu Mangel #${pendingFindingId}<button type="button" class="secondary" onclick="clearPendingMaterialFinding(${r.id})">✕</button></div>`:'';
+  const pendingBadge=pendingFindingId?`<div class="finding-hint">Wird zugeordnet zu Mangel #${esc(pendingFindingId)}<button type="button" class="secondary" onclick="clearPendingMaterialFinding(${r.id})">✕</button></div>`:'';
   const selectedId=selectedMaterialCatalogId[r.id];
   const results=materialSearchResults[r.id]||[];
   const catalogHint=selectedId?`<button type="button" class="secondary" onclick="clearMaterialCatalogSelection(${r.id})">Katalogbezug entfernen</button>`:'';
@@ -1027,7 +1032,7 @@ function itemControlInnerHtml(item){
   // per querySelector nur den ERSTEN Container mit diesem data-item -- zwei getrennte Container
   // mit demselben data-item hätten das Bemerkungsfeld beim Speichern stillschweigend ignoriert.
   if(item.item_type==='ja_nein'||item.item_type==='leak_test'){
-    const durationField=item.item_type==='leak_test'?`<input type="number" min="0" placeholder="Minuten" value="${item.duration_minutes??''}" style="width:90px" onchange="saveInspectionResult(${item.id})" data-field="duration_minutes">`:'';
+    const durationField=item.item_type==='leak_test'?`<input type="number" min="0" placeholder="Minuten" value="${esc(item.duration_minutes??'')}" style="width:90px" onchange="saveInspectionResult(${item.id})" data-field="duration_minutes">`:'';
     return `<div class="result-picker">
       <button type="button" class="${item.result==='ok'?'':'secondary'}" onclick="setResultAndSave(${item.id},'ok')">OK</button>
       <button type="button" class="${item.result==='nok'?'':'secondary'}" onclick="setResultAndSave(${item.id},'nok')">Nicht OK</button>
@@ -1040,13 +1045,13 @@ function itemControlInnerHtml(item){
   }
   if(item.item_type==='measurement'){
     const outOfRange=item.measured_value!=null&&((item.target_min!=null&&Number(item.measured_value)<Number(item.target_min))||(item.target_max!=null&&Number(item.measured_value)>Number(item.target_max)));
-    const range=(item.target_min!=null||item.target_max!=null)?`<span class="muted small">Soll: ${item.target_min??''}–${item.target_max??''} ${esc(item.unit||'')}</span>`:'';
-    return `<input type="number" step="0.01" value="${item.measured_value??''}" style="width:90px" onchange="saveInspectionResult(${item.id})" data-field="measured_value">
+    const range=(item.target_min!=null||item.target_max!=null)?`<span class="muted small">Soll: ${esc(item.target_min??'')}–${esc(item.target_max??'')} ${esc(item.unit||'')}</span>`:'';
+    return `<input type="number" step="0.01" value="${esc(item.measured_value??'')}" style="width:90px" onchange="saveInspectionResult(${item.id})" data-field="measured_value">
       <span class="muted small">${esc(item.unit||'')}</span> ${range}
       ${outOfRange?'<span class="badge out-of-range">Außerhalb Soll</span>':''}`;
   }
   if(item.item_type==='quantity'){
-    return `<input type="number" step="0.01" value="${item.quantity??''}" style="width:90px" onchange="saveInspectionResult(${item.id})" data-field="quantity">
+    return `<input type="number" step="0.01" value="${esc(item.quantity??'')}" style="width:90px" onchange="saveInspectionResult(${item.id})" data-field="quantity">
       <span class="muted small">${esc(item.unit||'')}</span>`;
   }
   if(item.item_type==='free_text'){
@@ -1168,7 +1173,7 @@ function inspectionItemRowHtml(item,r){
 function inspectionItemsPanelHtml(r){
   const items=inspectionItemsCache[r.id]||[];
   const added=inspectionSyncHints[r.id]||0;
-  const syncHint=added>0?`<div class="inspection-hint">${added} Prüfpunkt${added===1?'':'e'} für neu erfasste Bauteile ergänzt.</div>`:'';
+  const syncHint=added>0?`<div class="inspection-hint">${esc(added)} Prüfpunkt${added===1?'':'e'} für neu erfasste Bauteile ergänzt.</div>`:'';
 
   const answeredCount=items.filter(isItemAnswered).length;
   const openRequired=items.filter(i=>i.required&&!isItemAnswered(i));
@@ -1211,12 +1216,11 @@ function inspectionItemsPanelHtml(r){
     const groupsHtml=groupOrder.map(groupName=>{
       const groupKey=`${r.id}:${areaKey}:${groupName}`;
       const isClosed=closedGroupKeys.has(groupKey);
-      const safeGroupName=groupName.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      const heading=`<div class="inspection-group" style="cursor:pointer" onclick="toggleGroup(${r.id},'${areaKey}','${safeGroupName}')">${isClosed?'▶':'▼'} ${esc(groupName)}</div>`;
+      const heading=`<div class="inspection-group" style="cursor:pointer" data-klick="pruefgruppe" data-bericht="${r.id}" data-flaeche="${esc(areaKey)}" data-gruppe="${esc(groupName)}">${isClosed?'▶':'▼'} ${esc(groupName)}</div>`;
       return heading+(isClosed?'':groups[groupName].map(item=>inspectionItemRowHtml(item,r)).join(''));
     }).join('');
     return `<div class="inspection-area">
-      <div class="inspection-area-head" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:8px 2px;border-bottom:1px solid var(--line)" onclick="toggleReportArea(${r.id},'${areaKey}')">
+      <div class="inspection-area-head" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:8px 2px;border-bottom:1px solid var(--line)" data-klick="pruefflaeche" data-bericht="${r.id}" data-flaeche="${esc(areaKey)}">
         <b>${isOpen?'▼':'▶'} ${esc(block.label)}</b><span class="muted small">${areaAnswered} von ${block.items.length}</span>
       </div>
       ${isOpen?`<div style="padding:2px 0 6px">${groupsHtml||'<div class="muted small">Keine Prüfpunkte.</div>'}</div>`:''}

@@ -92,9 +92,10 @@ globalThis.fetch = async (url, opt = {}) => {
 
 
 def seite(vorlage: str, start: str) -> str:
-    """Attrappe + _auswahl.html + _speichern.html (seit 1.8.95: die Seiten speichern über den Baustein) + das Seitenskript bis
+    """Attrappe + _auswahl.html + _speichern.html (seit 1.8.95: die Seiten speichern über den Baustein; seit 1.8.102 auch
+    _aktionen.html und _links.html: die Seiten melden Aktionen an und prüfen Links) + das Seitenskript bis
     vor den Start-Aufruf (load()/init(), der fetch und DOM braucht). Jinja-Ausdrücke im Skript werden zu 1."""
-    hilfe = [s for name in ("_auswahl.html", "_speichern.html")
+    hilfe = [s for name in ("_auswahl.html", "_speichern.html", "_aktionen.html", "_weiterleitung.html", "_links.html")
              for s in re.findall(r"<script>(.*?)</script>", (TEMPLATES / name).read_text(encoding="utf-8"), flags=re.S)]
     haupt = re.findall(r"<script>(.*?)</script>", (TEMPLATES / vorlage).read_text(encoding="utf-8"), flags=re.S)[-1]
     assert start in haupt, f"{vorlage}: {start!r} nicht gefunden -- Test anpassen"

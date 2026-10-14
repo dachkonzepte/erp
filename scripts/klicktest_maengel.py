@@ -277,7 +277,7 @@ async def pruefen(tab, seed, p):
     await tab.warten(f"{MANGEL}.innerText.split('\\n')[1].startsWith('Beseitigung abgenommen')")
     p.pruefe("Erledigt: Nachbesserung regulär bis (VOB/B), Aufgabe erledigt, keine Freigabe/kein Status mehr", await tab.js(
         f"(t=>[t.includes('Nachbesserung regulär bis'), t.includes('Prüfung: Prüfsumme stimmt'), /Aufgabe \\(Beseitigung abnehmen lassen\\): .* – (Erledigt|erledigt)/.test(t), "
-        f"!!{MANGEL}.querySelector('button[onclick*=freigabe]'), !!{MANGEL}.querySelector('button[onclick*=status]')])"
+        f"!!{MANGEL}.querySelector('button[data-art=freigabe]'), !!{MANGEL}.querySelector('button[data-art=status]')])"
         f"({MANGEL}.innerText)"), [True, True, True, False, False])
     p.pruefe("Nachbesserung: das spätere ist das reguläre Ende", await tab.js(
         f"{MANGEL}.innerText.includes('Nachbesserung regulär bis {seed['datum']['regulaer_ende']}')"), True)

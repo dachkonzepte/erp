@@ -138,7 +138,7 @@ function renderPreview(preview) {
   document.getElementById('countSuppliers').textContent = preview.counts.supplier || 0;
   document.getElementById('countUnassigned').textContent = preview.counts.unassigned || 0;
   document.getElementById('countDuplicates').textContent = preview.counts.duplicate || 0;
-  document.getElementById('previewRows').innerHTML = preview.rows.map(r => `<tr><td>${r.row_number}</td><td>${esc(r.legacy_address_number || '—')}</td><td>${esc([r.first_name, r.last_name].filter(Boolean).join(' ') || '—')}</td><td>${esc(r.city || '—')}</td><td><span class="pill ${r.classification}">${CLASS_LABELS[r.classification] || r.classification}</span></td><td class="note">${esc(r.validation_notes || '')}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Keine Zeilen.</td></tr>';
+  document.getElementById('previewRows').innerHTML = preview.rows.map(r => `<tr><td>${esc(r.row_number)}</td><td>${esc(r.legacy_address_number || '—')}</td><td>${esc([r.first_name, r.last_name].filter(Boolean).join(' ') || '—')}</td><td>${esc(r.city || '—')}</td><td><span class="pill ${esc(r.classification)}">${CLASS_LABELS[r.classification] || esc(r.classification)}</span></td><td class="note">${esc(r.validation_notes || '')}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Keine Zeilen.</td></tr>';
 }
 
 // Seit 1.8.95 über lesen() (_speichern.html), ebenso loadWorklist() und loadRuns(): eine ältere Antwort zeichnet nicht über eine neuere.
@@ -213,7 +213,7 @@ async function discardWorklistRow(id) {
 
 async function loadRuns() {
   await lesen('importlaeufe', () => api('/api/address-import/runs'), runs => {
-    document.getElementById('runRows').innerHTML = runs.map(r => `<tr><td>${new Date(r.created_at + 'Z').toLocaleString('de-DE')}</td><td>${esc(r.source_filename)}</td><td>${r.row_count_customers}</td><td>${r.row_count_suppliers}</td><td>${r.row_count_unassigned}</td><td>${r.row_count_skipped_duplicates}</td><td>${r.status === 'reverted' ? '<span class="pill">Rückgängig gemacht</span>' : '<span class="pill customer">Abgeschlossen</span>'}</td><td>${r.can_revert ? `<button class="danger" onclick="revertRun(${r.id})">Rückgängig machen</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Noch keine Importläufe.</td></tr>';
+    document.getElementById('runRows').innerHTML = runs.map(r => `<tr><td>${new Date(r.created_at + 'Z').toLocaleString('de-DE')}</td><td>${esc(r.source_filename)}</td><td>${esc(r.row_count_customers)}</td><td>${esc(r.row_count_suppliers)}</td><td>${esc(r.row_count_unassigned)}</td><td>${esc(r.row_count_skipped_duplicates)}</td><td>${r.status === 'reverted' ? '<span class="pill">Rückgängig gemacht</span>' : '<span class="pill customer">Abgeschlossen</span>'}</td><td>${r.can_revert ? `<button class="danger" onclick="revertRun(${r.id})">Rückgängig machen</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Noch keine Importläufe.</td></tr>';
   });
 }
 

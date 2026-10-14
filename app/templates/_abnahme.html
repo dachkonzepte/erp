@@ -108,6 +108,7 @@
   <div id="accDialogStatus" class="status"></div>
 </div></dialog>
 {% include "_speichern.html" %}
+{% include "_links.html" %}
 <script>
 let acceptances=[],warrantyChanges=[],acceptanceOptions=null,warrantyPending=null;
 function accDate(s){if(!s)return'';const m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${m[3]}.${m[2]}.${m[1]}`:esc(s)}
@@ -132,7 +133,7 @@ async function loadProtocolPending(){
   const box=document.getElementById('protocolPending');
   try{await lesen('protokoll-abnahmen',()=>api(`/api/orders/${orderId}/pending-protocol-acceptances`),rows=>{box.innerHTML=rowsHtml(rows)})}
   catch(e){box.innerHTML=`<div class="notice warning">Ausstehende Abnahmen aus Protokollen konnten nicht geladen werden: ${esc(e.message)}</div>`}
-  function rowsHtml(rows){return rows.map(r=>`<div class="notice warning" data-protocol-pending="${r.checklist_id}" style="margin:0 0 8px">⚠ <a href="${esc(r.url)}">${esc(r.label)} (Nr. ${r.checklist_id})</a>: unterschrieben vom Auftraggeber am ${accDateTime(r.signed_at_local)} – die Abnahme am Auftrag ist noch nicht angelegt.${r.problem?`<div class="small acc-bad" style="margin-top:4px">${esc(r.problem)}</div>`:''}<div style="margin-top:6px"><button class="secondary" onclick="runProtocolAcceptance(${r.checklist_id},this)">Abnahme jetzt anlegen</button> <span class="small" id="protocolPendingStatus${r.checklist_id}"></span></div></div>`).join('')}
+  function rowsHtml(rows){return rows.map(r=>`<div class="notice warning" data-protocol-pending="${r.checklist_id}" style="margin:0 0 8px">⚠ <a href="${esc(sichererLink(r.url))}">${esc(r.label)} (Nr. ${r.checklist_id})</a>: unterschrieben vom Auftraggeber am ${accDateTime(r.signed_at_local)} – die Abnahme am Auftrag ist noch nicht angelegt.${r.problem?`<div class="small acc-bad" style="margin-top:4px">${esc(r.problem)}</div>`:''}<div style="margin-top:6px"><button class="secondary" onclick="runProtocolAcceptance(${r.checklist_id},this)">Abnahme jetzt anlegen</button> <span class="small" id="protocolPendingStatus${r.checklist_id}"></span></div></div>`).join('')}
 }
 async function runProtocolAcceptance(checklistId,btn){
   const st=document.getElementById('protocolPendingStatus'+checklistId);btn.disabled=true;st.textContent='Legt an …';
@@ -216,14 +217,14 @@ function acceptanceHtml(a){
   lines.push(`<div class="acc-row">Erklärt durch: ${a.declared_by==='beteiligter'?`${esc(a.declared_by_name)} (${esc(a.declared_by_role||'Beteiligter')})`:`Auftraggeber ${esc(a.declared_by_name)}`}${a.declared_by_person?`, unterschrieben von ${esc(a.declared_by_person)}${a.declared_by_function?` (${esc(a.declared_by_function)})`:''}`:''}${a.without_power_of_attorney?' <span class="acc-warn">⚠ ohne Vollmacht zur Abnahme</span>':''}</div>`);
   // Seit 1.8.63: Nachweis "Abnahmeprotokoll" statt eines Belegs
   // seit 1.8.67: dazu die feste Fassung der Unterschrift (PDF aus der Ablage)
-  if(a.protocol)lines.push(`<div class="acc-row" data-protocol-proof>Nachweis: <a href="${esc(a.protocol.url||'#')}">Abnahmeprotokoll Nr. ${a.protocol.checklist_id}</a>, Unterschrift des Auftraggebers <span class="acc-sha" title="${esc(a.protocol.seal_sha256||'')}">SHA-256 ${esc((a.protocol.seal_sha256||'').slice(0,16))}…</span>${a.protocol.pdf_document_id?` · <a data-protocol-version href="/api/sent-documents/${a.protocol.pdf_document_id}/file" target="_blank" rel="noopener">Fassung ${a.protocol.version_no} (PDF)</a> <span class="acc-sha" title="${esc(a.protocol.pdf_sha256||'')}">SHA-256 ${esc((a.protocol.pdf_sha256||'').slice(0,16))}…</span>`:''}${a.protocol.check!=='unveraendert'?` <span class="acc-bad">⚠ ${esc(a.protocol.check_text||'')}</span>`:''}</div>`);
+  if(a.protocol)lines.push(`<div class="acc-row" data-protocol-proof>Nachweis: <a href="${esc(sichererLink(a.protocol.url))}">Abnahmeprotokoll Nr. ${a.protocol.checklist_id}</a>, Unterschrift des Auftraggebers <span class="acc-sha" title="${esc(a.protocol.seal_sha256||'')}">SHA-256 ${esc((a.protocol.seal_sha256||'').slice(0,16))}…</span>${a.protocol.pdf_document_id?` · <a data-protocol-version href="/api/sent-documents/${a.protocol.pdf_document_id}/file" target="_blank" rel="noopener">Fassung ${esc(a.protocol.version_no)} (PDF)</a> <span class="acc-sha" title="${esc(a.protocol.pdf_sha256||'')}">SHA-256 ${esc((a.protocol.pdf_sha256||'').slice(0,16))}…</span>`:''}${a.protocol.check!=='unveraendert'?` <span class="acc-bad">⚠ ${esc(a.protocol.check_text||'')}</span>`:''}</div>`);
   if(a.contractor_objections)lines.push(`<div class="acc-row" style="white-space:pre-wrap">Einwendungen des Auftragnehmers: ${esc(a.contractor_objections)}</div>`);
   if(a.conduct_reason)lines.push(`<div class="acc-row" style="white-space:pre-wrap">Begründung (Nachweis): ${esc(a.conduct_reason)}</div>`);
   a.files.forEach(f=>lines.push(`<div class="acc-row"><a href="/api/order-acceptances/${a.id}/files/${f.id}" target="_blank" rel="noopener">${esc(f.kind_label)} (${f.content_type==='application/pdf'?'PDF':'Foto'}, ${accSize(f.size_bytes)})</a> <span class="acc-sha" title="${esc(f.sha256)}">SHA-256 ${esc(f.sha256.slice(0,16))}…</span>${f.status!=='unveraendert'?` <span class="acc-bad">${esc(f.status_text)}</span>`:''}</div>`));
   if(!a.content_ok)lines.push('<div class="acc-row acc-bad">Der gespeicherte Inhalt weicht von seiner Prüfsumme ab – nachträglich verändert.</div>');
   const dq=a.defects;
   if(dq&&dq.missing)lines.push(`<div class="acc-row acc-warn">⚠ ${esc(dq.text)}</div>`);
-  if(dq&&dq.total)lines.push(`<div class="acc-row">Mängel: <a href="#defectCard">${dq.active} erfasst${dq.total>dq.active?`, ${dq.total-dq.active} verworfen`:''}</a></div>`);
+  if(dq&&dq.total)lines.push(`<div class="acc-row">Mängel: <a href="#defectCard">${esc(dq.active)} erfasst${dq.total>dq.active?`, ${dq.total-dq.active} verworfen`:''}</a></div>`);
   if(dq&&dq.can_add)lines.push(`<div class="acc-row"><button class="secondary" onclick="openDefectDialog(${a.id})">+ Mangel erfassen</button></div>`);
   else if(dq&&dq.protocol_text)lines.push(`<div class="acc-row acc-hint">${esc(dq.protocol_text)}</div>`);
   if(a.warranty)lines.push(a.warranty.end?`<div class="acc-row ${a.warranty.check.ok?'acc-good':'acc-warn'}" title="${esc(a.warranty.rule||'')}">${esc(a.warranty.text)} <span class="acc-hint">· ${esc(a.warranty.hint)}</span> ${accCheck(a.warranty.check)}</div>`:`<div class="acc-row acc-warn">${esc(a.warranty.text)} ${accCheck(a.warranty.check)}</div>`);

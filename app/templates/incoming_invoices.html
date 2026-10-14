@@ -311,7 +311,7 @@ function itemRowHtml(item){
   item=item||{description:'',net_amount:'',tax_rate_pct:'19.00',account_id:null};
   return `<div class="item-row">
     <input class="item-description" placeholder="Beschreibung" value="${esc(item.description)}">
-    <input class="item-net" type="number" step="0.01" min="0" value="${item.net_amount??''}" oninput="updateItemsSumHint()">
+    <input class="item-net" type="number" step="0.01" min="0" value="${esc(item.net_amount??'')}" oninput="updateItemsSumHint()">
     <select class="item-tax">
       <option value="19.00" ${Number(item.tax_rate_pct)===19?'selected':''}>19 %</option>
       <option value="7.00" ${Number(item.tax_rate_pct)===7?'selected':''}>7 %</option>
@@ -601,7 +601,7 @@ function skontoRow(inv){
   return `<tr${inv.is_skonto_overdue?' class="row-overdue"':''}>
     <td><a href="#" onclick="openEditEditor(${inv.id});return false" style="color:var(--accent)">${esc(inv.supplier_name||'')}</a></td>
     <td>${fmtDate(inv.skonto_deadline)}</td>
-    <td>${inv.skonto_percent!=null?inv.skonto_percent+' %':'—'}</td>
+    <td>${inv.skonto_percent!=null?esc(inv.skonto_percent)+' %':'—'}</td>
     <td>${inv.is_skonto_overdue?'<span class="badge overdue">⚠ verpasst</span>':'<span class="badge due">läuft ab</span>'}</td>
   </tr>`;
 }

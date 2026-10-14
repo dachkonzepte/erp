@@ -1,0 +1,20 @@
+{# Links aus Daten (seit 1.8.102, Vorgabe vom 14.10.2026 Punkt 2). Mehrfach einbindbar (nur Funktionsdeklarationen). #}
+{% include "_weiterleitung.html" %}
+<script>
+/* href, src und Navigation zu einem Wert, der nicht fest im Code steht, gehen über sichererLink(): nur http(s)://, mailto:, tel:, ein
+   lokaler Pfad (istLokalesZiel() aus _weiterleitung.html, dieselbe Regel wie für Weiterleitungen) oder "#…"/"?…" -- sonst ersatz ('#').
+   Ein javascript:-, data:- oder vbscript:-Ziel aus einer Antwort des Servers liefe sonst beim Klick im ERP. sichereBildquelle() lässt
+   für src zusätzlich ein Bild als data:image/(png|jpeg|gif|webp);base64 zu (QR-Code der Zwei-Faktor-Einrichtung), aber kein mailto:/tel:.
+   tests/test_v407_daten_im_html.py prüft beide in node an einer Tabelle von Angriffen und jede Stelle per Strukturtest. */
+function sichererLink(wert, ersatz = '#') {
+  if (typeof wert !== 'string' || !wert || wert.length > 4000) return ersatz;
+  if (/^(?:https?:\/\/|mailto:|tel:)[^\s\x00-\x1f\x7f\\]+$/i.test(wert)) return wert;
+  if (/^[#?][^\s\x00-\x1f\x7f\\]*$/.test(wert)) return wert;
+  return istLokalesZiel(wert) ? wert : ersatz;
+}
+function sichereBildquelle(wert, ersatz = '') {
+  if (typeof wert === 'string' && /^data:image\/(?:png|jpeg|gif|webp);base64,[A-Za-z0-9+\/=]+$/.test(wert)) return wert;
+  const ziel = sichererLink(wert, ersatz);
+  return /^(?:mailto|tel):/i.test(ziel) ? ersatz : ziel;
+}
+</script>

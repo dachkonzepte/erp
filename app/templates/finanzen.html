@@ -26,6 +26,7 @@ a.link{color:var(--accent);font-weight:700;text-decoration:none}
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
+{% include "_aktionen.html" %}
 <main>
 <div class="card"><h1>Finanzen</h1><div class="muted">Alle Rechnungen im Überblick. Weitere buchhalterische Themen folgen hier künftig.</div></div>
 <div class="metrics" id="metrics"></div>
@@ -82,8 +83,10 @@ function renderUnallocated(){
 }
 
 function renderFilters(){
-  document.getElementById('filters').innerHTML=FILTERS.map(([val,label])=>`<button class="${statusFilter===val?'active':''}" onclick="setFilter('${val}')">${label}</button>`).join('');
+  document.getElementById('filters').innerHTML=FILTERS.map(([val,label])=>`<button class="${statusFilter===val?'active':''}" data-klick="rechnungsfilter" data-wert="${esc(val)}">${esc(label)}</button>`).join('');
 }
+/* Seit 1.8.102 über data-Attribute (_aktionen.html) statt Werten im on…-Attribut (Vorgabe vom 14.10.2026 Punkt 2). */
+aktion('rechnungsfilter',el=>setFilter(el.dataset.wert));
 function setFilter(val){statusFilter=val;renderFilters();renderRows()}
 
 function renderReminderOverview(rows){

@@ -4,6 +4,23 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.102 – Daten im HTML: esc() überall, Handler über data-Attribute, Links geprüft
+
+Punkt 2 der Vorgabe vom 14.10.2026 (Befund 1.8.100 Nr. 5–8). Die vier Lücken sind geschlossen: Gruppenname im Einsatzbericht und Treffer
+der Verknüpfungssuche im Kalender gehen als data-Attribute statt als Code ins onclick, "Neues Projekt", "Neues Angebot" und der
+Planungsvorschlag setzen Namen über esc(). Neuer Baustein `_aktionen.html`: ein Element trägt den Namen einer Aktion und seine Werte als
+data-Attribute, ein Listener am Dokument ruft die Funktion -- so umgebaut ist jedes on…-Attribut mit Text (66 Stellen, darunter Kategorien
+und Unterordner in Kundenakte und Projektmappe, wo `esc(…).replace(/'/g,…)` nichts schützte, und alle Admin-Stellen der Einstellungen).
+Jeder übrige Wert, der in HTML geht und sich nicht als sicher beweisen lässt, steht jetzt in esc() (246 Stellen, fast alle Zahlen); die
+Art eines Betriebsmittels lief bis dahin ungeschützt neben HTML-Badges. Neuer Baustein `_links.html`: Links aus Daten nur noch auf
+http(s), mailto, tel oder lokal (`sichererLink()`, für Bilder `sichereBildquelle()`), 19 Stellen.
+
+Drei Strukturtests mit einem eigenen Scanner (`tests/vorlagen_html.py`) halten das fest: kein Wert ohne esc() in HTML (eine Ausnahme: das
+Changelog), keine Werte in on…-Attributen (375 Zahlen/IDs in einer Ausnahmeliste, die nur kürzer wird), jeder Link aus Daten geprüft.
+Keine Migration. Neu `test_v407_daten_im_html` (68, mit Angriffstabelle für die Links und dem Baustein in node), vier Befund-Tests ohne
+xfail (der zu Nr. 7 prüft jetzt die data-Attribute), neuer Klicktest `klicktest_daten_im_html` (21 Prüfungen auf sieben Seiten).
+Gegenproben 15 von 15 rot.
+
 ## 1.8.101 – Hochgeladene Dateien nie als aktiver Inhalt
 
 Punkt 1 der Vorgabe vom 14.10.2026 (Befund 1.8.100 Nr. 4). Jede abgelegte Datei geht über eine Funktion an den Browser

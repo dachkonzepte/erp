@@ -1,0 +1,24 @@
+{# Handler ohne eingesetzte Werte (seit 1.8.102, Vorgabe vom 14.10.2026 Punkt 2).
+   Ein Wert in einem on…-Attribut ist Code: esc() schützt das HTML, nicht die JS-Zeichenkette -- der Browser dekodiert &#39; und &quot;
+   vor dem Ausführen, ein Name mit ' oder " beendet sie (Befund 1.8.100 Nr. 5 und 7). Stattdessen trägt das Element den Namen einer
+   Aktion und seine Werte als data-Attribute (mit esc()); ein Listener am Dokument ruft die angemeldete Funktion mit dem Element. Die
+   Werte liest sie aus el.dataset -- immer Text (Zahlen mit Number()). tests/test_v407_daten_im_html.py prüft, dass kein on…-Attribut
+   einen Wert einsetzt (Ausnahmeliste, die nur kürzer wird). Mehrfach einbindbar: eine Teilvorlage, die aktion() nutzt, bindet den
+   Baustein selbst ein; die Listener hängen nur einmal. #}
+<script>
+/* data-klick="name" (click), data-aenderung="name" (change), data-eingabe="name" (input); aktion('name', (el, ev) => …, art).
+   Das innerste Element mit dem Attribut zählt; ein gesperrtes (disabled) und ein Name ohne angemeldete Funktion bleiben ohne Wirkung. */
+if (!window._dkAktionen) {
+  window._dkAktionen = {click: {}, change: {}, input: {}};
+  const attribut = {click: 'data-klick', change: 'data-aenderung', input: 'data-eingabe'};
+  for (const art of Object.keys(window._dkAktionen)) {
+    if (typeof document === 'undefined' || !document.addEventListener) break;
+    document.addEventListener(art, ev => {
+      const el = ev.target instanceof Element ? ev.target.closest('[' + attribut[art] + ']') : null;
+      const fn = el && !el.matches(':disabled') ? window._dkAktionen[art][el.getAttribute(attribut[art])] : null;
+      if (fn) fn(el, ev);
+    });
+  }
+}
+function aktion(name, fn, art = 'click') { window._dkAktionen[art][name] = fn; }
+</script>

@@ -207,6 +207,8 @@ textarea{min-height:90px;resize:vertical}
 {% include "_fehlertext.html" %}
 {% include "_berlin_date.html" %}
 {% include "_speichern.html" %}
+{% include "_links.html" %}
+{% include "_aktionen.html" %}
 <script>
 const checklistId={{ checklist_id }};
 const IS_FIELD={{ 'true' if is_field else 'false' }};
@@ -248,7 +250,7 @@ function renderHeader(){
   const who=[cl.created_by_name?`angelegt von ${esc(cl.created_by_name)}`:null,`am ${esc(fmtDateTime(cl.created_at))}`,cl.completed_at&&cl.status!=='gegenstandslos'?`abgeschlossen ${esc(fmtDateTime(cl.completed_at))}`:null].filter(Boolean).join(' · ');
   return `<a class="back" href="${backLink()}">← zurück</a>
     <div class="card"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap">
-      <div><h1>${esc(cl.template_label)}</h1><div class="muted">${meta}</div><div class="muted small" style="margin-top:4px">${who} · Fassung ${cl.version_no}</div></div>
+      <div><h1>${esc(cl.template_label)}</h1><div class="muted">${meta}</div><div class="muted small" style="margin-top:4px">${who} · Fassung ${esc(cl.version_no)}</div></div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${cl.status!=='entwurf'?`<a class="btn secondary" id="pdfLink" href="/api/checklists/${cl.id}/pdf" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center">PDF</a>`:''}${badge}</div></div>
       ${!cl.can_sign&&cl.status==='entwurf'?'<div class="muted small" style="margin-top:8px">Nur lesen – diese Checkliste hat eine andere Person angelegt.</div>':''}
       ${renderCompletionSeal()}
@@ -418,13 +420,13 @@ function fieldBody(f){
   }
   if(t==='ja_nein'){
     const opts=[['ja','Ja'],['nein','Nein']].concat(f.allow_na?[['entfaellt','Entfällt']]:[]);
-    return `<div class="tiles">${opts.map(([k,l])=>`<button type="button" class="tile${v===k?' on':''}" ${ro?'disabled':''} onclick="setChoice(${f.id},'${k}')">${l}</button>`).join('')}</div>`;
+    return `<div class="tiles">${opts.map(([k,l])=>`<button type="button" class="tile${v===k?' on':''}" ${ro?'disabled':''} data-klick="wahl" data-feld="${f.id}" data-wert="${esc(k)}">${esc(l)}</button>`).join('')}</div>`;
   }
   if(t==='auswahl'){
     const chosen=Array.isArray(v)?v:(v?[v]:[]);
     // Hinweis zur gewählten Option (seit 1.8.38, z. B. Witterung bei der Behinderungsanzeige)
     const hints=chosen.map(k=>(f.option_hints||{})[k]).filter(Boolean);
-    return `<div class="tiles">${f.options.map(o=>`<button type="button" class="tile${chosen.includes(o.option_key)?' on':''}" ${ro?'disabled':''} onclick="toggleOption(${f.id},'${esc(o.option_key)}')">${esc(o.label)}</button>`).join('')}</div>`
+    return `<div class="tiles">${f.options.map(o=>`<button type="button" class="tile${chosen.includes(o.option_key)?' on':''}" ${ro?'disabled':''} data-klick="option" data-feld="${f.id}" data-wert="${esc(o.option_key)}">${esc(o.label)}</button>`).join('')}</div>`
       +hints.map(h=>`<div class="option-hint" data-option-hint>${esc(h)}</div>`).join('');
   }
   if(ro&&['text','zahl','datum','uhrzeit','datum_uhrzeit'].includes(t))return `<div class="value-ro">${valueText(f,v)}</div>`;
@@ -442,20 +444,20 @@ function fieldBody(f){
     const list=attachmentsOf(f);
     const max=f.max_count||20;
     // Ein Foto, das zu einer (auch verworfenen) Unterschrift gehört, bleibt als Nachweis -- kein ×.
-    return `<div class="thumbs">${list.map(a=>`<div class="thumb"${a.bound_by_signature&&!ro?' title="Gehört zu einer Unterschrift und bleibt als Nachweis erhalten."':''}><a href="${a.url}" target="_blank" rel="noopener"><img src="${a.url}" alt="Foto"></a>${ro||a.bound_by_signature?'':`<button type="button" title="Foto entfernen" onclick="removeAttachment(${a.id})">×</button>`}</div>`).join('')||(ro?'<span class="muted">Keine Fotos.</span>':'')}</div>
+    return `<div class="thumbs">${list.map(a=>`<div class="thumb"${a.bound_by_signature&&!ro?' title="Gehört zu einer Unterschrift und bleibt als Nachweis erhalten."':''}><a href="${esc(sichererLink(a.url))}" target="_blank" rel="noopener"><img src="${esc(sichererLink(a.url))}" alt="Foto"></a>${ro||a.bound_by_signature?'':`<button type="button" title="Foto entfernen" onclick="removeAttachment(${a.id})">×</button>`}</div>`).join('')||(ro?'<span class="muted">Keine Fotos.</span>':'')}</div>
       ${ro||list.length>=max?'':`<label class="btn secondary" style="display:inline-flex;align-items:center">Foto aufnehmen / wählen<input type="file" accept="image/*" capture="environment" multiple style="display:none" onchange="uploadPhotos(${f.id},this)"></label>`}
-      <div class="muted small" style="margin-top:4px">${list.length} von höchstens ${max}${f.min_count?`, mindestens ${f.min_count}`:''}</div>`;
+      <div class="muted small" style="margin-top:4px">${list.length} von höchstens ${esc(max)}${f.min_count?`, mindestens ${esc(f.min_count)}`:''}</div>`;
   }
   if(t==='beleg'){
     // Seit 1.8.45: PDF oder Foto, am Inhalt erkannt -- der Server lehnt alles andere ab (auch SVG, HTML).
     const list=attachmentsOf(f);
     const max=f.max_count||20;
     const tile=a=>a.content_type==='application/pdf'
-      ?`<a class="pdf-tile" href="${a.url}" target="_blank" rel="noopener" title="PDF öffnen">PDF<small>${esc(a.created_at_local||'')}</small></a>`
-      :`<a href="${a.url}" target="_blank" rel="noopener"><img src="${a.url}" alt="Beleg"></a>`;
+      ?`<a class="pdf-tile" href="${esc(sichererLink(a.url))}" target="_blank" rel="noopener" title="PDF öffnen">PDF<small>${esc(a.created_at_local||'')}</small></a>`
+      :`<a href="${esc(sichererLink(a.url))}" target="_blank" rel="noopener"><img src="${esc(sichererLink(a.url))}" alt="Beleg"></a>`;
     return `<div class="thumbs">${list.map(a=>`<div class="thumb beleg" data-beleg="${esc(a.content_type)}"${a.bound_by_signature&&!ro?' title="Gehört zu einer Unterschrift und bleibt als Nachweis erhalten."':''}>${tile(a)}${ro||a.bound_by_signature?'':`<button type="button" title="Beleg entfernen" onclick="removeAttachment(${a.id})">×</button>`}</div>`).join('')||(ro?'<span class="muted">Kein Beleg.</span>':'')}</div>
       ${ro||list.length>=max?'':`<label class="btn secondary" style="display:inline-flex;align-items:center">PDF oder Foto wählen<input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" multiple style="display:none" onchange="uploadPhotos(${f.id},this,'Beleg')"></label>`}
-      <div class="muted small" style="margin-top:4px">${list.length} von höchstens ${max}${f.min_count?`, mindestens ${f.min_count}`:''} · PDF oder Foto (JPEG, PNG, WebP), bis 15 MB</div>`;
+      <div class="muted small" style="margin-top:4px">${list.length} von höchstens ${esc(max)}${f.min_count?`, mindestens ${esc(f.min_count)}`:''} · PDF oder Foto (JPEG, PNG, WebP), bis 15 MB</div>`;
   }
   if(t==='unterschrift'){
     // Seit 1.8.13: keine Unterschrift wird ersetzt oder entfernt -- eine Einzelunterschrift
@@ -469,7 +471,7 @@ function fieldBody(f){
     const poaText=a=>a.signer_kind!=='beteiligter'?'':(a.signer_poa?` · Vollmacht zur Abnahme: ja${IS_FIELD?'':` (<a href="/api/checklist-attachments/${a.id}/power-of-attorney" target="_blank" rel="noopener">ansehen</a>)`}`:(a.signer_poa_warning?' · <span class="no-poa">⚠ Vollmacht zur Abnahme: nein</span>':' · Vollmacht zur Abnahme: nein'));
     const signerLine=a=>a.signer_kind?`<span class="signer-line">Unterzeichner: ${esc(a.signer_kind_label)}${a.signer_person?` – unterschrieben von ${esc(a.signer_person)}${a.signer_function?` (${esc(a.signer_function)})`:''}`:''}${a.signer_role?` (${esc(a.signer_role)})`:''}${poaText(a)}</span>`:'';
     const meta=a=>[a.created_at_local?a.created_at_local+' Uhr':null,a.content_sha256?'Prüfsumme '+a.content_sha256.slice(0,12)+'…':null].filter(Boolean).join(' · ');
-    return `<div class="sig-list">${list.map(a=>`<div class="sig"><img src="${a.url}" alt="Unterschrift"><span class="name">${esc(a.signer_name)}${signerLine(a)}<span class="sig-meta"${a.content_sha256?` title="SHA-256 des unterschriebenen Inhalts: ${esc(a.content_sha256)}"`:''}>${esc(meta(a))}</span>${sealLine(a)}</span></div>`).join('')||(canAdd?'':'<span class="muted">Keine Unterschrift.</span>')}</div>
+    return `<div class="sig-list">${list.map(a=>`<div class="sig"><img src="${esc(sichererLink(a.url))}" alt="Unterschrift"><span class="name">${esc(a.signer_name)}${signerLine(a)}<span class="sig-meta"${a.content_sha256?` title="SHA-256 des unterschriebenen Inhalts: ${esc(a.content_sha256)}"`:''}>${esc(meta(a))}</span>${sealLine(a)}</span></div>`).join('')||(canAdd?'':'<span class="muted">Keine Unterschrift.</span>')}</div>
       ${canAdd?`${missingBeforeHtml(f)}<canvas id="pad_${f.id}" class="dk-unterschrift"></canvas>
       <div class="pad-actions">${signerInput(f,prefill)}
         <button type="button" class="btn secondary" onclick="clearPad(${f.id})">Leeren</button>
@@ -524,13 +526,13 @@ function noticeKindHtml(k){
   const older=k.letters.filter(l=>!l.current);
   // Stand vom Server (seit 1.8.41): versendet = beim Auftraggeber angekommen, unzustellbar = alles zurück bzw. nur Kopien
   const badge={versendet:'<span class="badge done">versendet</span>',unzustellbar:'<span class="badge bad">unzustellbar</span>',bereit:'<span class="badge open">bereit</span>'}[k.status]||'<span class="badge">wartet</span>';
-  let html=`<div class="notice-kind" id="${id}" data-kind="${esc(k.kind)}" data-status="${esc(k.status)}"><div class="notice-head"><b>${esc(k.label)}</b>${badge}</div>`;
+  let html=`<div class="notice-kind" id="${esc(id)}" data-kind="${esc(k.kind)}" data-status="${esc(k.status)}"><div class="notice-head"><b>${esc(k.label)}</b>${badge}</div>`;
   if(k.signoff_text)html+=`<div class="muted small" style="margin-top:4px" data-signoff>${esc(k.signoff_text)}</div>`;
   if(!k.ready)return html+`<div class="muted small" style="margin-top:4px">${esc(k.waiting_text)}</div>${older.length?olderLettersHtml(older):''}</div>`;
   if(notice.voided){
     // Gegenstandslos: keine Aktionen mehr, nur Stand, Fassung und Verlauf (Nachtragen nur zu einer schon erstellten Fassung).
-    if(current)html+=`<div class="notice-row" data-notice-letter>Brief vom ${fmtIsoDate(current.letter_date)} (Fassung ${current.version_no}) · <a href="/api/sent-documents/${current.sent_document.id}/file" target="_blank" rel="noopener">PDF öffnen</a></div>`;
-    return html+`<div id="${id}-history"></div>`+(older.length?olderLettersHtml(older):'')+'</div>';
+    if(current)html+=`<div class="notice-row" data-notice-letter>Brief vom ${fmtIsoDate(current.letter_date)} (Fassung ${esc(current.version_no)}) · <a href="/api/sent-documents/${current.sent_document.id}/file" target="_blank" rel="noopener">PDF öffnen</a></div>`;
+    return html+`<div id="${esc(id)}-history"></div>`+(older.length?olderLettersHtml(older):'')+'</div>';
   }
   if(k.blocked)html+=`<div class="notice-warn" data-notice-blocked><b>Der Brief wird nicht erstellt:</b> ${esc(k.seal.text)} Das Büro kann die Unterschrift mit Begründung verwerfen und neu unterschreiben lassen.</div>`;
   const r=k.reservation;
@@ -538,13 +540,13 @@ function noticeKindHtml(k){
   if(withoutReservation)html+=`<div class="notice-warn" data-reservation-warning><b>Ohne Vorbehalt:</b> ${current?'Dieser Brief wurde ohne Vorbehalt erstellt':`Für ${esc(k.label)} bei ${esc(r.basis_label)} gibt es keinen rechtlich geprüften Vorbehalt`} – ${current?'er':'der Brief'} enthält keinen. Versenden ist trotzdem möglich, die Anzeige muss unverzüglich hinaus. Den Vorbehalt pflegt ein Administrator unter Einstellungen → Vorbehalte in Anzeigen.</div>`;
   if(current){
     const doc=current.sent_document;
-    html+=`<div class="notice-row" data-notice-letter>Brief vom ${fmtIsoDate(current.letter_date)} (Fassung ${current.version_no}), erstellt von ${esc(current.created_by_name)} · <span class="mono" title="SHA-256 ${esc(doc.sha256)}">Prüfsumme ${esc(doc.sha256.slice(0,12))}…</span> · <a href="/api/sent-documents/${doc.id}/file" target="_blank" rel="noopener">PDF öffnen</a></div>`
+    html+=`<div class="notice-row" data-notice-letter>Brief vom ${fmtIsoDate(current.letter_date)} (Fassung ${esc(current.version_no)}), erstellt von ${esc(current.created_by_name)} · <span class="mono" title="SHA-256 ${esc(doc.sha256)}">Prüfsumme ${esc(doc.sha256.slice(0,12))}…</span> · <a href="/api/sent-documents/${doc.id}/file" target="_blank" rel="noopener">PDF öffnen</a></div>`
       +(current.copy_to.length?`<div class="notice-row muted">Kopie an (im Brief): ${esc(current.copy_to.map(c=>`${c.name} (${c.role_label})`).join('; '))}</div>`:'')
-      +(current.photo_count?`<div class="notice-row muted">Anlage: ${current.photo_count} ${current.photo_count===1?'Foto':'Fotos'} (verkleinert)</div>`:'');
+      +(current.photo_count?`<div class="notice-row muted">Anlage: ${esc(current.photo_count)} ${current.photo_count===1?'Foto':'Fotos'} (verkleinert)</div>`:'');
   }else if(!k.blocked){
     html+=`<div class="notice-row muted">Noch kein Brief – er entsteht beim ersten Versand aus dem unterschriebenen Inhalt und gilt danach unverändert für jeden weiteren Versand.</div>
       <div class="notice-actions"><a class="btn secondary" href="/api/checklists/${checklistId}/notice-letters/${esc(k.kind)}/preview" target="_blank" rel="noopener">Vorschau</a>
-      <button type="button" class="btn secondary" onclick="freezeNoticeLetter('${esc(k.kind)}',this)">Brief erstellen (für Post oder Fax)</button></div>`;
+      <button type="button" class="btn secondary" data-klick="brief-erstellen" data-art="${esc(k.kind)}">Brief erstellen (für Post oder Fax)</button></div>`;
   }
   if(!k.blocked){
     const rec=notice.recipient;
@@ -554,16 +556,16 @@ function noticeKindHtml(k){
     html+=`<label class="small">An (immer der Auftraggeber)</label>
       <div class="notice-to" data-notice-to>${esc(rec.name)}${rec.email?` &lt;${esc(rec.email)}&gt;`:''}<span class="fixed">fest</span></div>`
       +(rec.email?'':`<div class="notice-warn">Der Auftraggeber hat keine E-Mail-Adresse. Bitte im Kundenstamm ergänzen oder den Brief erstellen, auf anderem Weg zustellen und unten unter „Zustellung nachtragen“ festhalten.</div>`)
-      +`<div id="${id}-copies">${copyListHtml(k.copies,k.copy_changes,head,'Beteiligte seit dem Brief geändert')}</div>`
+      +`<div id="${esc(id)}-copies">${copyListHtml(k.copies,k.copy_changes,head,'Beteiligte seit dem Brief geändert')}</div>`
       +authorizedHintsHtml(notice.authorized,k.cc)
       +(k.status==='unzustellbar'?`<div class="notice-warn" data-undeliverable><b>Unzustellbar:</b> ${esc(k.label)} kam beim Auftraggeber nicht an – bitte erneut senden oder auf anderem Weg zustellen und unten nachtragen.</div>`:'')
-      +`<div class="notice-actions"><button type="button" class="btn" id="${id}-send" ${rec.email?'':'disabled'} onclick="sendNoticeLetter('${esc(k.kind)}',this)">${esc(k.label)} ${k.status==='versendet'||k.status==='unzustellbar'?'erneut senden':'senden'}</button><span class="muted small" id="${id}-status"></span></div>`;
+      +`<div class="notice-actions"><button type="button" class="btn" id="${esc(id)}-send" ${rec.email?'':'disabled'} data-klick="brief-senden" data-art="${esc(k.kind)}">${esc(k.label)} ${k.status==='versendet'||k.status==='unzustellbar'?'erneut senden':'senden'}</button><span class="muted small" id="${esc(id)}-status"></span></div>`;
   }
-  html+=`<div id="${id}-history"></div>`+(older.length?olderLettersHtml(older):'');
+  html+=`<div id="${esc(id)}-history"></div>`+(older.length?olderLettersHtml(older):'');
   return html+'</div>';
 }
 function olderLettersHtml(list){
-  return `<div class="notice-row muted">Frühere Fassungen (Unterschrift inzwischen verworfen): ${list.map(l=>`Fassung ${l.version_no} vom ${fmtIsoDate(l.letter_date)} <a href="/api/sent-documents/${l.sent_document.id}/file" target="_blank" rel="noopener">PDF</a>`).join(' · ')}</div>`;
+  return `<div class="notice-row muted">Frühere Fassungen (Unterschrift inzwischen verworfen): ${list.map(l=>`Fassung ${esc(l.version_no)} vom ${fmtIsoDate(l.letter_date)} <a href="/api/sent-documents/${l.sent_document.id}/file" target="_blank" rel="noopener">PDF</a>`).join(' · ')}</div>`;
 }
 // Kopien an den Personen unter „Kopie an:“ (seit 1.8.69 für Briefe und Protokoll gemeinsam): an ihre Adresse von heute; wer keine
 // (gültige) hat oder nicht mehr im Adressbuch steht, bekommt keine Mail -- das Versandprotokoll hält es fest.
@@ -573,7 +575,7 @@ function copyListHtml(copies,changes,head,changedLabel){
     if(!c.email)return `<div data-copy-nomail>${who} – keine Mail: ${esc(c.no_mail)}. Kopie auf anderem Weg zustellen und unten unter „Zustellung nachtragen“ festhalten</div>`;
     return `<div data-copy-mail>${who} &lt;${esc(c.email)}&gt;${c.archived?' <span class="muted">(im Adressbuch archiviert)</span>':''}</div>`;
   });
-  let html=`<label class="small">${head}</label>
+  let html=`<label class="small">${esc(head)}</label>
     <div class="notice-to" data-copy-list>${lines.length?lines.join(''):'<span class="muted">keine – unter „Kopie an:“ steht niemand</span>'}<span class="fixed">fest</span></div>`;
   if(changes.length)html+=`<div class="notice-warn" data-copy-changes><b>${esc(changedLabel)}:</b><br>${changes.map(esc).join('<br>')}</div>`;
   return html;
@@ -635,6 +637,11 @@ async function loadNotice(){
   try{await lesen('anzeige',()=>api(`/api/checklists/${checklistId}/notice-letters`),d=>{notice=d;renderNoticeCard()})}
   catch(e){card.innerHTML=`<h2>Anzeige an den Auftraggeber</h2><div class="error-box small">${esc(e.message)}</div>`}
 }
+/* Seit 1.8.102 über data-Attribute (_aktionen.html) statt Werten im onclick (Vorgabe vom 14.10.2026 Punkt 2). */
+aktion('brief-erstellen',el=>freezeNoticeLetter(el.dataset.art,el));
+aktion('brief-senden',el=>sendNoticeLetter(el.dataset.art,el));
+aktion('wahl',el=>setChoice(Number(el.dataset.feld),el.dataset.wert));
+aktion('option',el=>toggleOption(Number(el.dataset.feld),el.dataset.wert));
 async function freezeNoticeLetter(kind,btn){
   const k=notice.kinds.find(x=>x.kind===kind);
   const warn=!k.reservation.reviewed?'\n\nEin geprüfter Vorbehalt fehlt – der Brief enthält keinen.':'';
@@ -680,7 +687,7 @@ function protocolDispatchHtml(s){
     <div class="muted small">Auftrag ${esc(s.order_number)}. Versendet wird immer die jüngste gültige feste Fassung aus der Ablage – nie neu erzeugt.</div>`;
   if(!s.ready)return html+`<div class="notice-row muted" data-protocol-waiting>${esc(s.waiting_text||'')}</div><div id="protocolDispatchHistory"></div>`;
   const v=s.version,doc=v.sent_document;
-  html+=`<div class="notice-row" data-protocol-version>Fassung ${v.version_no} vom ${esc(fmtDateTime(v.created_at))} · <span class="mono" title="SHA-256 ${esc(doc.sha256)}">Prüfsumme ${esc(doc.sha256.slice(0,12))}…</span> · <a href="/api/sent-documents/${doc.id}/file" target="_blank" rel="noopener">PDF öffnen</a></div>`;
+  html+=`<div class="notice-row" data-protocol-version>Fassung ${esc(v.version_no)} vom ${esc(fmtDateTime(v.created_at))} · <span class="mono" title="SHA-256 ${esc(doc.sha256)}">Prüfsumme ${esc(doc.sha256.slice(0,12))}…</span> · <a href="/api/sent-documents/${doc.id}/file" target="_blank" rel="noopener">PDF öffnen</a></div>`;
   const m=s.customer_mismatch;
   if(m)html+=`<div class="notice-warn" data-customer-mismatch><b>Abweichender Kunde:</b> ${esc(m.text)}
     <label class="notice-confirm"><input type="checkbox" id="protocolConfirmCustomer" ${protocolConfirmCustomer?'checked':''} onchange="protocolConfirmCustomer=this.checked"><span>Abweichung geprüft – E-Mail an ${esc(m.project_customer)}</span></label></div>`;
@@ -776,7 +783,7 @@ function renderVersions(rows){
     +rows.slice().reverse().map(v=>{const d=v.sent_document;
       const state=v.valid?'<span class="badge done">gilt</span>':'<span class="badge bad">überholt</span>';
       const why=v.superseded?`<div class="muted small" data-superseded>Überholt: Unterschrift „${esc(v.superseded.field_label)}“ (${esc(v.superseded.signer_name||'ohne Namen')}) verworfen am ${esc(fmtDateTime(v.superseded.discarded_at))}${v.superseded.discarded_by_name?' von '+esc(v.superseded.discarded_by_name):''} – nicht mehr versendbar.</div>`:'';
-      return `<div class="ver-row${v.valid?'':' superseded'}" data-version="${v.version_no}"><div class="ver-main"><b>Fassung ${v.version_no}</b> · ${anlass(v)} · ${esc(fmtDateTime(v.created_at))} · erstellt von ${esc(v.created_by_name)}
+      return `<div class="ver-row${v.valid?'':' superseded'}" data-version="${esc(v.version_no)}"><div class="ver-main"><b>Fassung ${esc(v.version_no)}</b> · ${anlass(v)} · ${esc(fmtDateTime(v.created_at))} · erstellt von ${esc(v.created_by_name)}
         <div class="muted small"><span class="mono" title="SHA-256 ${esc(d.sha256)}">Prüfsumme ${esc(d.sha256.slice(0,12))}…</span> · ${Math.max(1,Math.round(d.size_bytes/1024))} KB <span id="verCheck_${v.id}"></span></div>${why}</div>
         <div class="ver-links">${state}<a href="/api/sent-documents/${d.id}/file" target="_blank" rel="noopener">PDF</a><button type="button" class="btn secondary" onclick="checkVersion(${v.id},${d.id},this)">Prüfen</button></div></div>`}).join('');
 }
@@ -801,7 +808,7 @@ function renderFollowUps(rows){
   // seit 1.8.41: nach "gegenstandslos" keine Folgen mehr; seit 1.8.63 ist "entfallen" (Unterschrift verworfen) nicht offen
   const open=rows.some(r=>r.status==='ausstehend'||r.status==='modul_aus')&&cl.status!=='gegenstandslos';
   card.style.display='';
-  card.innerHTML=`<h2>Folgen</h2>${rows.map(r=>`<div class="rule-row"><div>${r.target_url?`<a href="${esc(r.target_url)}">${esc(r.target_title||r.label)}</a>`:esc(r.label)}<div class="muted small">${esc(r.trigger_label)} · ${esc(fmtDateTime(r.executed_at))}</div></div>
+  card.innerHTML=`<h2>Folgen</h2>${rows.map(r=>`<div class="rule-row"><div>${r.target_url?`<a href="${esc(sichererLink(r.target_url))}">${esc(r.target_title||r.label)}</a>`:esc(r.label)}<div class="muted small">${esc(r.trigger_label)} · ${esc(fmtDateTime(r.executed_at))}</div></div>
       <span class="badge ${r.status==='erledigt'?'done':'open'}">${esc(r.status_label)}</span></div>`).join('')}
     ${open?`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px"><button type="button" class="btn" id="followUpsRetryBtn" onclick="retryFollowUps()">Folgen nachholen</button><span class="muted small" id="followUpsStatus"></span></div>`:''}`;
 }
@@ -962,7 +969,7 @@ function renderProtocolSummary(s){
   // seit 1.8.65: eine fehlerhafte Kopie sichtbar -- keine Erklärungen und keine Zahl daraus
   const errs=(s.errors||[]).map(x=>`<div class="pdef-bad" data-psum-error>⚠ ${esc(x)}</div>`).join('');
   let acc='';
-  if(s.acceptance)acc=`Abnahme am Auftrag: <a href="${esc(s.acceptance.url)}">vom ${esc(String(s.acceptance.accepted_on).split('-').reverse().join('.'))}</a>${s.acceptance.discarded?' <span class="pdef-bad">(verworfen – eine neue entsteht nur mit einer neuen Unterschrift des Auftraggebers)</span>':''}`;
+  if(s.acceptance)acc=`Abnahme am Auftrag: <a href="${esc(sichererLink(s.acceptance.url))}">vom ${esc(String(s.acceptance.accepted_on).split('-').reverse().join('.'))}</a>${s.acceptance.discarded?' <span class="pdef-bad">(verworfen – eine neue entsteht nur mit einer neuen Unterschrift des Auftraggebers)</span>':''}`;
   else if(s.pending)acc=`<span class="pdef-bad">Die Abnahme am Auftrag ist noch nicht angelegt.</span>${s.problem?` <span class="pdef-bad">${esc(s.problem)}</span>`:''} <button type="button" class="btn secondary" id="psumRun" onclick="runSummaryAcceptance(this)">Abnahme jetzt anlegen</button> <span class="small" id="psumStatus"></span>`;
   else acc='<span class="muted">Die Abnahme am Auftrag entsteht mit der Unterschrift des Auftraggebers.</span>';
   card.innerHTML=`<h2>Erklärungen und Mängel</h2><div class="muted small">${s.signed?`Stand der Unterschrift des Auftraggebers vom ${esc(fmtDateTime(s.signature.signed_at))} – ${esc(s.signature.text||s.signature.name||'')}`:'Noch nicht unterschrieben – aktuelle Angaben.'}</div>

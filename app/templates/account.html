@@ -103,8 +103,11 @@ a{color:var(--accent)}
 </div>
 </div>
 {% include "_speichern.html" %}
+{% include "_links.html" %}
 {% include "_weiterleitung.html" %}
 <script>
+// Seit 1.8.102: Werte in HTML über esc() (Vorgabe vom 14.10.2026 Punkt 2).
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let currentStatus=null;
 async function api(u,o={}){const r=await fetch(u,o);let d={};try{d=await r.json()}catch(_){}if(!r.ok)throw Object.assign(Error(d.detail||r.statusText),{detail:d.detail});return d}
 function show(id){document.getElementById(id).classList.remove('hidden')}
@@ -144,7 +147,7 @@ async function startSetup(){
   const st=document.getElementById('setupStatus');st.className='status';st.textContent='';
   try{
     await speichern('einrichtung',()=>api('/api/account/2fa/setup/start',{method:'POST'}),{anwenden:data=>{
-      document.getElementById('qrImage').src=data.qr_code_data_uri;
+      document.getElementById('qrImage').src=sichereBildquelle(data.qr_code_data_uri);
       document.getElementById('secretKey').textContent=data.secret;
       document.getElementById('setupCode').value='';
     }});
@@ -157,7 +160,7 @@ async function confirmSetup(){
     const code=document.getElementById('setupCode').value.trim();
     const data=await speichern('einrichtung',()=>api('/api/account/2fa/setup/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:code})}));
     hide('twoFactorSetupCard');
-    document.getElementById('recoveryCodesList').innerHTML=data.recovery_codes.map(c=>`<div>${c}</div>`).join('');
+    document.getElementById('recoveryCodesList').innerHTML=data.recovery_codes.map(c=>`<div>${esc(c)}</div>`).join('');
     show('recoveryCodesCard');
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }

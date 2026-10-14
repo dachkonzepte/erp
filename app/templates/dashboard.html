@@ -65,6 +65,8 @@ a.link{color:var(--accent);font-weight:650;text-decoration:none}
 </div>
 {% include "_berlin_date.html" %}
 {% include "_speichern.html" %}
+{% include "_links.html" %}
+{% include "_aktionen.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const money=x=>Number(x||0).toLocaleString('de-DE',{style:'currency',currency:'EUR'});
@@ -135,7 +137,7 @@ async function loadAndRenderTasks(empId,isAdmin){
   absences.forEach(a=>rows.push({type:'Freigabe',cls:'absence',title:`Abwesenheitsantrag ${a.employee_name}`,sub:`${a.absence_type} · ${fmtDate(a.start_date)}–${fmtDate(a.end_date)}`,due:null,urgent:false,href:`/time-backoffice?absence=${a.id}#absences`}));
   rows.sort((a,b)=>(a.due||'9999')<(b.due||'9999')?-1:1);
   area.className='';
-  area.innerHTML=rows.length?`<div class="task-list">${rows.map(r=>`<a class="task-row ${r.urgent?'urgent':''}" href="${r.href}"><span class="task-type ${r.cls}">${esc(r.type)}</span><span class="task-main"><span class="task-title">${esc(r.title)}</span><span class="muted small">${esc(r.sub||'')}</span></span>${r.due?`<span class="task-due">${fmtDate(r.due)}</span>`:''}</a>`).join('')}</div>`:'<div class="status ok">Keine offenen Aufgaben.</div>';
+  area.innerHTML=rows.length?`<div class="task-list">${rows.map(r=>`<a class="task-row ${r.urgent?'urgent':''}" href="${esc(sichererLink(r.href))}"><span class="task-type ${esc(r.cls)}">${esc(r.type)}</span><span class="task-main"><span class="task-title">${esc(r.title)}</span><span class="muted small">${esc(r.sub||'')}</span></span>${r.due?`<span class="task-due">${fmtDate(r.due)}</span>`:''}</a>`).join('')}</div>`:'<div class="status ok">Keine offenen Aufgaben.</div>';
   });
 }
 
@@ -173,7 +175,7 @@ async function renderActiveProjectsWidget(container){
   if(!authStatus.authenticated){container.innerHTML='<div class="status err">Bitte zuerst als ERP-Benutzer anmelden.</div>';return}
   const projects=await api('/api/projects');
   const active=projects.filter(p=>!p.archived&&p.status!=='abgeschlossen');
-  container.innerHTML=active.length?`<div style="overflow:auto"><table><thead><tr><th>Projekt</th><th>Kunde</th><th>Status</th><th class="number">Angebote</th><th class="number">Aufträge</th><th></th></tr></thead><tbody>${active.map(p=>`<tr><td><b>${esc(p.project_number)}</b><div class="muted small">${esc(p.name)}</div></td><td>${esc(p.customer_name)}</td><td>${esc(PROJECT_STATUS_LABELS[p.status]||p.status)}</td><td class="number">${p.quote_count}</td><td class="number">${p.order_count}</td><td><a class="link" href="/projects/${p.id}">Öffnen</a></td></tr>`).join('')}</tbody></table></div>`:'<div class="status ok">Keine laufenden Projekte.</div>';
+  container.innerHTML=active.length?`<div style="overflow:auto"><table><thead><tr><th>Projekt</th><th>Kunde</th><th>Status</th><th class="number">Angebote</th><th class="number">Aufträge</th><th></th></tr></thead><tbody>${active.map(p=>`<tr><td><b>${esc(p.project_number)}</b><div class="muted small">${esc(p.name)}</div></td><td>${esc(p.customer_name)}</td><td>${esc(PROJECT_STATUS_LABELS[p.status]||p.status)}</td><td class="number">${esc(p.quote_count)}</td><td class="number">${esc(p.order_count)}</td><td><a class="link" href="/projects/${p.id}">Öffnen</a></td></tr>`).join('')}</tbody></table></div>`:'<div class="status ok">Keine laufenden Projekte.</div>';
 }
 
 async function renderDueMaintenanceWidget(container){
@@ -260,6 +262,10 @@ function visibleWidgets(){return layout.filter(w=>w.visible).sort((a,b)=>a.sort_
 
 async function persistLayout(){if(!authStatus.authenticated)return;await speichern('layout',()=>api('/api/dashboard/widgets',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({widgets:layout})})).catch(()=>{})}
 
+/* Seit 1.8.102 über data-Attribute (_aktionen.html) statt Werten im onclick (Vorgabe vom 14.10.2026 Punkt 2). */
+aktion('widget-dazu',el=>addWidget(el.dataset.widget));
+aktion('widget-schieben',el=>moveWidget(el.dataset.widget,Number(el.dataset.richtung)));
+aktion('widget-weg',el=>removeWidget(el.dataset.widget));
 async function moveWidget(key,dir){
   const vis=visibleWidgets();
   const idx=vis.findIndex(w=>w.widget_key===key);
@@ -296,7 +302,7 @@ function renderAddWidgetList(){
   const visKeys=new Set(visibleWidgets().map(w=>w.widget_key));
   const hiddenKeys=Object.keys(WIDGETS).filter(k=>!visKeys.has(k));
   const list=document.getElementById('addWidgetPanel');
-  list.innerHTML=hiddenKeys.length?hiddenKeys.map(k=>`<button class="secondary" onclick="addWidget('${k}')">+ ${esc(WIDGETS[k].label)}</button>`).join(''):'<div class="muted small">Alle verfügbaren Widgets sind bereits sichtbar.</div>';
+  list.innerHTML=hiddenKeys.length?hiddenKeys.map(k=>`<button class="secondary" data-klick="widget-dazu" data-widget="${esc(k)}">+ ${esc(WIDGETS[k].label)}</button>`).join(''):'<div class="muted small">Alle verfügbaren Widgets sind bereits sichtbar.</div>';
 }
 
 function renderShell(){
@@ -307,12 +313,12 @@ function renderShell(){
       <div class="widget-head">
         <h2>${esc(WIDGETS[w.widget_key]?.label||w.widget_key)}</h2>
         <div class="widget-actions">
-          <button class="iconbtn" title="Nach oben" ${i===0?'disabled':''} onclick="moveWidget('${w.widget_key}',-1)">↑</button>
-          <button class="iconbtn" title="Nach unten" ${i===vis.length-1?'disabled':''} onclick="moveWidget('${w.widget_key}',1)">↓</button>
-          <button class="iconbtn danger" title="Entfernen" onclick="removeWidget('${w.widget_key}')">✕</button>
+          <button class="iconbtn" title="Nach oben" ${i===0?'disabled':''} data-klick="widget-schieben" data-widget="${esc(w.widget_key)}" data-richtung="-1">↑</button>
+          <button class="iconbtn" title="Nach unten" ${i===vis.length-1?'disabled':''} data-klick="widget-schieben" data-widget="${esc(w.widget_key)}" data-richtung="1">↓</button>
+          <button class="iconbtn danger" title="Entfernen" data-klick="widget-weg" data-widget="${esc(w.widget_key)}">✕</button>
         </div>
       </div>
-      <div class="widget-body" id="widget-body-${w.widget_key}"><div class="muted small">Lädt …</div></div>
+      <div class="widget-body" id="widget-body-${esc(w.widget_key)}"><div class="muted small">Lädt …</div></div>
     </div>`).join('')||'<div class="widget-card"><div class="muted small">Keine Widgets sichtbar. Über „+ Widget hinzufügen" unten wieder einblenden.</div></div>';
   vis.forEach(w=>{
     const body=document.getElementById('widget-body-'+w.widget_key);

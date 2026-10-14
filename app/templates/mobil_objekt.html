@@ -152,10 +152,10 @@
       }
       var base='/api/field-view/properties/'+propertyId+'/documents/'+d.source+'/'+d.id;
       html+='<div class="card doc-row"><div><div class="doc-name">'+esc(d.original_filename)+'</div>'
-        +'<div class="doc-meta">'+fmtDate((d.uploaded_at||'').slice(0,10))+(d.description?' · '+esc(d.description):'')+'</div></div>'
+        +'<div class="doc-meta">'+esc(fmtDate((d.uploaded_at||'').slice(0,10)))+(d.description?' · '+esc(d.description):'')+'</div></div>'
         +'<div class="doc-actions">'
-        +(d.can_preview?'<a href="'+base+'/view" target="_blank" rel="noopener">Ansehen</a>':'')
-        +'<a href="'+base+'/download">Laden</a>'
+        +(d.can_preview?'<a href="'+esc(base)+'/view" target="_blank" rel="noopener">Ansehen</a>':'')
+        +'<a href="'+esc(base)+'/download">Laden</a>'
         +'</div></div>';
     });
     el.innerHTML=html;
@@ -190,7 +190,7 @@
       // Ersteller-Zuordnung), auch von einem inzwischen ausgeschiedenen Kollegen.
       var pdfUrl='/api/field-view/properties/'+propertyId+'/maintenance-history/'+r.id+'/pdf';
       return '<div class="card history-item">'
-        +'<div class="history-title">'+esc(r.report_type_label)+' · '+fmtDate(r.performed_at)+'</div>'
+        +'<div class="history-title">'+esc(r.report_type_label)+' · '+esc(fmtDate(r.performed_at))+'</div>'
         +'<div class="history-meta">'+esc(r.created_by_employee_name||'')+(r.order_number?' · Auftrag '+esc(r.order_number):'')+'</div>'
         +findings
         +'<div class="doc-actions" style="margin-top:6px"><a href="'+pdfUrl+'" target="_blank" rel="noopener">Als PDF ansehen</a></div>'

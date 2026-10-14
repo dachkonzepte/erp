@@ -1,4 +1,5 @@
 {% include "_speichern.html" %}
+{% include "_aktionen.html" %}
 <script>
 /* Geteilter Helfer (seit 1.8.17) für den E-Mail-Versand von Angebot, Auftrag, Rechnung, Mahnung.
    Jeder Versandauftrag trägt einen Schlüssel (dispatch_key); der Server sendet denselben Schlüssel
@@ -152,16 +153,21 @@ function dispatchOutcomeHtml(d, slot, canRecord) {
   }
   if (!canRecord || !d.can_record_outcome) return '';
   const id = `${slot}-oc-${d.id}`, today = berlinTodayIso(), min = _dhDay(d);
-  return `<div class="dh-oc-actions" id="${id}-actions"><button type="button" class="dh-btn" onclick="toggleDispatchOutcome('${id}','empfangen')">Empfang bestätigt</button>`
-    + `<button type="button" class="dh-btn" onclick="toggleDispatchOutcome('${id}','unzustellbar')">Unzustellbar</button></div>`
-    + `<div class="dh-form" id="${id}" data-dispatch-id="${d.id}" style="display:none">
-        <input type="hidden" id="${id}-kind" value="">
-        <label><span id="${id}-datelabel">Datum</span><input type="date" id="${id}-date" value="${today}" min="${_dhEsc(min)}" max="${today}"></label>
-        <label>Beleg (optional)<input type="file" id="${id}-file" accept="image/jpeg,image/png,image/webp,application/pdf"></label>
-        <label class="dh-wide"><span id="${id}-notelabel">Notiz</span><textarea id="${id}-note" rows="2" maxlength="1000"></textarea></label>
-        <div class="dh-wide" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button type="button" class="dh-btn" id="${id}-save" onclick="saveDispatchOutcome('${id}','${_dhEsc(slot)}')">Speichern</button><span class="dh-muted" id="${id}-msg"></span></div>
+  return `<div class="dh-oc-actions" id="${_dhEsc(id)}-actions"><button type="button" class="dh-btn" data-klick="versandergebnis" data-ziel="${_dhEsc(id)}" data-art="empfangen">Empfang bestätigt</button>`
+    + `<button type="button" class="dh-btn" data-klick="versandergebnis" data-ziel="${_dhEsc(id)}" data-art="unzustellbar">Unzustellbar</button></div>`
+    + `<div class="dh-form" id="${_dhEsc(id)}" data-dispatch-id="${d.id}" style="display:none">
+        <input type="hidden" id="${_dhEsc(id)}-kind" value="">
+        <label><span id="${_dhEsc(id)}-datelabel">Datum</span><input type="date" id="${_dhEsc(id)}-date" value="${_dhEsc(today)}" min="${_dhEsc(min)}" max="${_dhEsc(today)}"></label>
+        <label>Beleg (optional)<input type="file" id="${_dhEsc(id)}-file" accept="image/jpeg,image/png,image/webp,application/pdf"></label>
+        <label class="dh-wide"><span id="${_dhEsc(id)}-notelabel">Notiz</span><textarea id="${_dhEsc(id)}-note" rows="2" maxlength="1000"></textarea></label>
+        <div class="dh-wide" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button type="button" class="dh-btn" id="${_dhEsc(id)}-save" data-klick="versandergebnis-speichern" data-ziel="${_dhEsc(id)}" data-slot="${_dhEsc(slot)}">Speichern</button><span class="dh-muted" id="${_dhEsc(id)}-msg"></span></div>
       </div>`;
 }
+/* Seit 1.8.102 über data-Attribute (_aktionen.html) statt Werten im onclick (Vorgabe vom 14.10.2026 Punkt 2). */
+aktion('versandergebnis', el => toggleDispatchOutcome(el.dataset.ziel, el.dataset.art));
+aktion('versandergebnis-speichern', el => saveDispatchOutcome(el.dataset.ziel, el.dataset.slot));
+aktion('zustellung-oeffnen', el => toggleManualDelivery(el.dataset.container));
+aktion('zustellung-speichern', el => saveManualDelivery(el.dataset.container, el.dataset.typ, Number(el.dataset.id)));
 function toggleDispatchOutcome(id, kind) {
   const form = document.getElementById(id), $ = s => document.getElementById(`${id}-${s}`);
   const same = form.style.display !== 'none' && $('kind').value === kind;
@@ -272,19 +278,19 @@ function _dhZeichnen(containerId, type, id, data) {
   const options = Object.entries(DISPATCH_MANUAL_CHANNELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
   const today = berlinTodayIso();
   el.innerHTML = `<div class="dh-head"><b>Versandverlauf</b><span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">`
-    + `<a href="/versandprotokoll?typ=${encodeURIComponent(type)}&id=${id}">Versandprotokoll</a>`
-    + (canRecord ? `<button type="button" class="dh-btn" id="${containerId}-toggle" onclick="toggleManualDelivery('${containerId}')">Zustellung nachtragen</button>` : '')
+    + `<a href="/versandprotokoll?typ=${encodeURIComponent(type)}&id=${_dhEsc(id)}">Versandprotokoll</a>`
+    + (canRecord ? `<button type="button" class="dh-btn" id="${_dhEsc(containerId)}-toggle" data-klick="zustellung-oeffnen" data-container="${_dhEsc(containerId)}">Zustellung nachtragen</button>` : '')
     + `</span></div>`
     + (items.length ? items.map(d => _dhRow(d, containerId, o.outcomes !== false)).join('') : '<div class="dh-muted" style="padding:6px 0">Noch nicht versendet oder zugestellt.</div>')
     + hint
-    + (canRecord ? `<div class="dh-form" id="${containerId}-form" style="display:none">
-        <label>Weg<select id="${containerId}-channel">${options}</select></label>
-        <label>Zugestellt am<input type="date" id="${containerId}-date" value="${today}" max="${today}"></label>
-        <div class="dh-wide dh-recipients" id="${containerId}-recipients" data-loaded=""><span class="dh-muted">Empfänger werden geladen …</span></div>
-        <label>Weitere Empfängerangabe (optional)<input id="${containerId}-recipient" maxlength="300" placeholder="Name, Anschrift oder Faxnummer"></label>
-        <label>Beleg (optional)<input type="file" id="${containerId}-file" accept="image/jpeg,image/png,image/webp,application/pdf"></label>
-        <label class="dh-wide">Notiz (Pflicht)<textarea id="${containerId}-note" rows="2" maxlength="1000" placeholder="z. B. Sendungsnummer, an wen übergeben, Faxbericht OK"></textarea></label>
-        <div class="dh-wide" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button type="button" class="dh-btn" id="${containerId}-save" onclick="saveManualDelivery('${containerId}','${_dhEsc(type)}',${Number(id)})">Zustellung speichern</button><span class="dh-muted" id="${containerId}-msg"></span></div>
+    + (canRecord ? `<div class="dh-form" id="${_dhEsc(containerId)}-form" style="display:none">
+        <label>Weg<select id="${_dhEsc(containerId)}-channel">${options}</select></label>
+        <label>Zugestellt am<input type="date" id="${_dhEsc(containerId)}-date" value="${_dhEsc(today)}" max="${_dhEsc(today)}"></label>
+        <div class="dh-wide dh-recipients" id="${_dhEsc(containerId)}-recipients" data-loaded=""><span class="dh-muted">Empfänger werden geladen …</span></div>
+        <label>Weitere Empfängerangabe (optional)<input id="${_dhEsc(containerId)}-recipient" maxlength="300" placeholder="Name, Anschrift oder Faxnummer"></label>
+        <label>Beleg (optional)<input type="file" id="${_dhEsc(containerId)}-file" accept="image/jpeg,image/png,image/webp,application/pdf"></label>
+        <label class="dh-wide">Notiz (Pflicht)<textarea id="${_dhEsc(containerId)}-note" rows="2" maxlength="1000" placeholder="z. B. Sendungsnummer, an wen übergeben, Faxbericht OK"></textarea></label>
+        <div class="dh-wide" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button type="button" class="dh-btn" id="${_dhEsc(containerId)}-save" data-klick="zustellung-speichern" data-container="${_dhEsc(containerId)}" data-typ="${_dhEsc(type)}" data-id="${Number(id)}">Zustellung speichern</button><span class="dh-muted" id="${_dhEsc(containerId)}-msg"></span></div>
       </div>` : '');
   const form = document.getElementById(`${containerId}-form`);
   if (form) { form.dataset.type = type; form.dataset.id = String(id); }
@@ -308,10 +314,10 @@ async function loadDeliveryRecipients(containerId, type, id) {
       box.dataset.loaded = '1';
       if (!data.client && !data.participants.length) { box.innerHTML = '<span class="dh-muted">Kein Projekt – Empfänger bitte unten als Text angeben.</span>'; return; }
       let html = '<span class="dh-muted" style="font-weight:600">Empfänger</span>';
-      if (data.client) html += `<label class="dh-check"><input type="checkbox" id="${containerId}-client" checked><span><b>${_dhEsc(data.client.name)}</b> – Auftraggeber${data.client.address ? `<span class="dh-muted">${_dhEsc(data.client.address)}</span>` : ''}</span></label>`;
+      if (data.client) html += `<label class="dh-check"><input type="checkbox" id="${_dhEsc(containerId)}-client" checked><span><b>${_dhEsc(data.client.name)}</b> – Auftraggeber${data.client.address ? `<span class="dh-muted">${_dhEsc(data.client.address)}</span>` : ''}</span></label>`;
       for (const p of data.participants) {
         const poa = p.authorized ? (p.has_poa ? 'empfangsbevollmächtigt – die Vollmacht wird festgehalten' : 'empfangsbevollmächtigt – keine Vollmacht hinterlegt') : 'Kopie';
-        html += `<label class="dh-check"><input type="checkbox" class="${containerId}-participant" value="${Number(p.participant_id)}" data-authorized="${p.authorized ? '1' : ''}"><span><b>${_dhEsc(p.name)}</b> (${_dhEsc(p.role_label)})${p.archived ? ' · archiviert' : ''}<span class="dh-muted">${_dhEsc(poa)}${p.email ? '' : ' · ohne E-Mail'}</span></span></label>`;
+        html += `<label class="dh-check"><input type="checkbox" class="${_dhEsc(containerId)}-participant" value="${Number(p.participant_id)}" data-authorized="${p.authorized ? '1' : ''}"><span><b>${_dhEsc(p.name)}</b> (${_dhEsc(p.role_label)})${p.archived ? ' · archiviert' : ''}<span class="dh-muted">${_dhEsc(poa)}${p.email ? '' : ' · ohne E-Mail'}</span></span></label>`;
       }
       box.innerHTML = html;
     });

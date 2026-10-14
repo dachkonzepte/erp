@@ -44,6 +44,8 @@
   <div id="defDialogStatus" class="status"></div>
 </div></dialog>
 {% include "_speichern.html" %}
+{% include "_links.html" %}
+{% include "_aktionen.html" %}
 <script>
 let defects=[],defectAcceptanceId=null,defectOptionsCache={},defectHashDone=false;
 // FELDNAMEN definiert order.html erst NACH diesem Include -- deshalb erst beim Aufruf zusammensetzen, nie beim Laden.
@@ -89,7 +91,7 @@ function defectHtml(d){
   const w=d.remedy_warranty;
   if(w)lines.push(`<div class="def-row ${w.end&&w.check.ok?'acc-good':'acc-warn'}" title="${esc(w.rule||'')}">${esc(w.text)}${w.hint?` <span class="acc-hint">· ${esc(w.hint)}</span>`:''} ${accCheck(w.check)}</div>`);
   const t=d.task;
-  lines.push(`<div class="def-row">Aufgabe${t.exists?` (${esc(t.kind_label)})`:''}: ${t.exists?`<a href="${esc(t.url)}">${esc(t.title)}</a> – ${esc(t.status_label)}${t.archived?' (archiviert)':''}`:`<span class="muted">${esc(t.text)}</span>`}</div>`);
+  lines.push(`<div class="def-row">Aufgabe${t.exists?` (${esc(t.kind_label)})`:''}: ${t.exists?`<a href="${esc(sichererLink(t.url))}">${esc(t.title)}</a> – ${esc(t.status_label)}${t.archived?' (archiviert)':''}`:`<span class="muted">${esc(t.text)}</span>`}</div>`);
   if(d.task_hint)lines.push(`<div class="def-row acc-warn">${esc(d.task_hint)}</div>`);
   if(!d.intact)lines.push(`<div class="def-row acc-bad">⚠ Prüfung: ${esc(d.check.text)}</div>`);
   lines.push(`<div class="def-row muted">Erfasst ${accDateTime(d.created_at_local)} von ${esc(d.created_by_name)}</div>`);
@@ -98,13 +100,15 @@ function defectHtml(d){
   }else{
     // Seit 1.8.60: Mangel aus einem Abnahmeprotokoll ohne Abnahme -- nur Verwerfen, der Rest erst mit der Abnahme.
     const acts=d.protocol_pending?[['verwerfen','Verwerfen …']]:[['haltung','Haltung …'],!d.done&&['freigabe',d.released?'Freigabe zurücknehmen …':'Zur Beseitigung freigeben …'],d.next_statuses.length&&['status','Status …'],['fotos','Fotos ergänzen …'],['belege','Belege ergänzen …'],['verwerfen','Verwerfen …']].filter(Boolean);
-    lines.push(`<div class="def-actions">${acts.map(([k,l])=>`<button class="secondary" onclick="defOpen(${d.id},'${k}')">${l}</button>`).join('')}</div><div id="defPanel${d.id}" class="def-panel" hidden></div>`);
+    lines.push(`<div class="def-actions">${acts.map(([k,l])=>`<button class="secondary" data-klick="mangel-oeffnen" data-id="${d.id}" data-art="${esc(k)}">${esc(l)}</button>`).join('')}</div><div id="defPanel${d.id}" class="def-panel" hidden></div>`);
   }
   if(d.events.length)lines.push(`<details><summary>Verlauf (${d.events.length})</summary>${d.events.map(e=>defEventHtml(d,e)).join('')}</details>`);
   return `<div class="def-item${d.discarded?' discarded':''}" id="mangel-${d.id}" data-defect="${d.id}">${lines.join('')}</div>`;
 }
 function defRadio(scope,name){const x=scope.querySelector(`input[name="${name}"]:checked`);return x?x.value:null}
 async function defOptions(acceptanceId){if(!defectOptionsCache[acceptanceId])defectOptionsCache[acceptanceId]=await defApi(`/api/order-acceptances/${acceptanceId}/defect-options`);return defectOptionsCache[acceptanceId]}
+/* Seit 1.8.102 über data-Attribute (_aktionen.html) statt Werten im onclick (Vorgabe vom 14.10.2026 Punkt 2). */
+aktion('mangel-oeffnen',el=>defOpen(Number(el.dataset.id),el.dataset.art));
 async function defOpen(id,kind){
   const d=defects.find(x=>x.id===id),box=document.getElementById('defPanel'+id);
   if(!box.hidden&&box.dataset.kind===kind){box.hidden=true;return}
@@ -115,7 +119,7 @@ async function defOpen(id,kind){
     html=d.released?`<div>Die Freigabe zur Beseitigung zurücknehmen.</div><label class="lbl" for="defReason${id}">Begründung (Pflicht)</label><textarea id="defReason${id}" maxlength="2000"></textarea><div><button class="danger" onclick="defRelease(${id},false,this)">Freigabe zurücknehmen</button></div>`
       :`<div>Den Mangel bewusst zur Beseitigung freigeben – unabhängig von der Haltung.${d.stance==='bestritten'?' <b>Der Mangel ist bestritten</b> – eine Freigabe trotzdem (z. B. aus Kulanz) bitte begründen.':''}</div><label class="lbl" for="defReason${id}">Begründung${d.stance==='bestritten'?' (Pflicht)':' (optional)'}</label><textarea id="defReason${id}" maxlength="2000"></textarea><div><button onclick="defRelease(${id},true,this)">Zur Beseitigung freigeben</button></div>`;
   }else if(kind==='status'){
-    html=`<div><label class="lbl">Neuer Status (bisher: ${esc(d.status_label)})</label>${d.next_statuses.map(s=>`<label class="choice"><input type="radio" name="defNext${id}" value="${s.value}" onchange="defStatusUpdate(${id})"> ${esc(s.label)}</label>`).join('')}</div>
+    html=`<div><label class="lbl">Neuer Status (bisher: ${esc(d.status_label)})</label>${d.next_statuses.map(s=>`<label class="choice"><input type="radio" name="defNext${id}" value="${esc(s.value)}" onchange="defStatusUpdate(${id})"> ${esc(s.label)}</label>`).join('')}</div>
       <div id="defDateBox${id}" hidden><label class="lbl" for="defDate${id}">Datum</label><input id="defDate${id}" type="date"></div>
       <div id="defDueBox${id}" hidden><label class="lbl" for="defDue${id}">Neue Beseitigungsfrist (optional – leer: es bleibt ${d.remedy_due_on?'die Frist '+accDate(d.remedy_due_on):'ohne Frist'})</label><input id="defDue${id}" type="date"></div>
       <div id="defDeclBox${id}" hidden><label class="lbl">Erklärt durch</label><label class="choice"><input type="radio" name="defDecl${id}" value="auftraggeber" onchange="defStatusUpdate(${id})"> Auftraggeber</label><label class="choice"><input type="radio" name="defDecl${id}" value="beteiligter" onchange="defStatusUpdate(${id})"> Beteiligter des Projekts</label>

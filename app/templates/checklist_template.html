@@ -158,8 +158,8 @@ function renderHead(){
   document.getElementById('pageTitle').textContent=template.label;
   document.getElementById('breadcrumbLabel').textContent=template.label;
   const b=[];
-  b.push(template.published_version_no?`<span class="badge ok">Gültig: Fassung ${template.published_version_no}</span>`:'<span class="badge">noch nicht veröffentlicht</span>');
-  if(template.draft_version_no)b.push(`<span class="badge draft">Entwurf: Fassung ${template.draft_version_no}</span>`);
+  b.push(template.published_version_no?`<span class="badge ok">Gültig: Fassung ${esc(template.published_version_no)}</span>`:'<span class="badge">noch nicht veröffentlicht</span>');
+  if(template.draft_version_no)b.push(`<span class="badge draft">Entwurf: Fassung ${esc(template.draft_version_no)}</span>`);
   if(template.purpose!=='allgemein')b.push(`<span class="badge">Zweck: ${esc(template.purpose_label)}</span>`);
   if(template.archived)b.push('<span class="badge">Archiviert</span>');
   document.getElementById('versionBadges').innerHTML=b.join(' ');
@@ -212,14 +212,14 @@ function renderVersionNotice(){
   const el=document.getElementById('versionNotice');
   if(!version){el.innerHTML='';return}
   el.innerHTML=editable()
-    ?`<div class="notice">Sie bearbeiten den <b>Entwurf (Fassung ${version.version_no})</b>. Monteure sehen ihn erst nach dem Veröffentlichen; bereits ausgefüllte Checklisten behalten ihre Fassung.</div>`
-    :`<div class="notice info">Sie sehen die <b>gültige Fassung ${version.version_no}</b> (nur lesen). Zum Ändern „Neuen Entwurf anlegen“.</div>`;
+    ?`<div class="notice">Sie bearbeiten den <b>Entwurf (Fassung ${esc(version.version_no)})</b>. Monteure sehen ihn erst nach dem Veröffentlichen; bereits ausgefüllte Checklisten behalten ihre Fassung.</div>`
+    :`<div class="notice info">Sie sehen die <b>gültige Fassung ${esc(version.version_no)}</b> (nur lesen). Zum Ändern „Neuen Entwurf anlegen“.</div>`;
   const probs=editable()?(template.system_field_problems||[]):[];
   if(probs.length)el.innerHTML+=`<div class="notice"><b>Systemfelder des Zwecks „${esc(template.purpose_label)}“:</b><ul style="margin:6px 0 8px 18px;padding:0">${probs.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>
     <button class="small-btn" onclick="syncSystemFields()">Systemfelder angleichen</button> <span id="syncStatus" class="status"></span></div>`;
   // Seit 1.8.45: die gültige Fassung entspricht nicht mehr dem Zweck (z. B. "Antwort als Beleg" jetzt PDF oder Foto).
   const pubProbs=!editable()?(template.published_system_field_problems||[]):[];
-  if(pubProbs.length)el.innerHTML+=`<div class="notice" id="publishedSystemHint"><b>Die gültige Fassung ${version.version_no} entspricht nicht mehr den Systemfeldern des Zwecks „${esc(template.purpose_label)}“:</b><ul style="margin:6px 0 8px 18px;padding:0">${pubProbs.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>
+  if(pubProbs.length)el.innerHTML+=`<div class="notice" id="publishedSystemHint"><b>Die gültige Fassung ${esc(version.version_no)} entspricht nicht mehr den Systemfeldern des Zwecks „${esc(template.purpose_label)}“:</b><ul style="margin:6px 0 8px 18px;padding:0">${pubProbs.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>
     Neue Checklisten nutzen bis zur nächsten Veröffentlichung weiter diese Fassung. „Neuen Entwurf anlegen“ gleicht die Systemfelder an, danach veröffentlichen.</div>`;
   // Seit 1.8.59: Unterschrift, die auch der Monteur leistet, unter Pflichtfeldern nur fürs Büro.
   const fill=template.signer_fill_findings||[];
@@ -232,7 +232,7 @@ function renderVersions(){
   document.getElementById('versionRows').innerHTML=template.versions.slice().reverse().map(v=>{
     const st={entwurf:'<span class="badge draft">Entwurf</span>',veroeffentlicht:'<span class="badge ok">gültig</span>',abgeloest:'<span class="badge">abgelöst</span>'}[v.status]||esc(v.status);
     const pub=v.published_at?new Date(v.published_at+'Z').toLocaleString('de-DE'):'—';
-    return `<tr><td>${v.version_no}</td><td>${st}</td><td>${pub}</td><td>${v.field_count}</td><td><button class="secondary small-btn" onclick="viewVersion(${v.id})">Ansehen</button></td></tr>`;
+    return `<tr><td>${esc(v.version_no)}</td><td>${st}</td><td>${pub}</td><td>${esc(v.field_count)}</td><td><button class="secondary small-btn" onclick="viewVersion(${v.id})">Ansehen</button></td></tr>`;
   }).join('')||'<tr><td colspan="5" class="empty">Keine Fassungen.</td></tr>';
 }
 
@@ -242,12 +242,12 @@ async function viewVersion(versionId){
 }
 function zeigeFassung(v){
   const rows=v.fields.map(f=>`<tr><td>${esc(f.group_name||'')}</td><td>${esc(f.label)}</td><td>${esc(TYPE_LABEL[f.field_type]||f.field_type)}</td><td>${f.required?'Pflicht':''}</td><td class="key">${esc(f.field_key)}</td></tr>`).join('');
-  document.getElementById('versionView').innerHTML=`<div class="group-title">Fassung ${v.version_no} – Felder</div><table><thead><tr><th>Abschnitt</th><th>Beschriftung</th><th>Typ</th><th></th><th>Schlüssel</th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="empty">Keine Felder.</td></tr>'}</tbody></table><div class="actions"><button class="secondary small-btn" onclick="document.getElementById('versionView').innerHTML=''">Schließen</button></div>`;
+  document.getElementById('versionView').innerHTML=`<div class="group-title">Fassung ${esc(v.version_no)} – Felder</div><table><thead><tr><th>Abschnitt</th><th>Beschriftung</th><th>Typ</th><th></th><th>Schlüssel</th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="empty">Keine Felder.</td></tr>'}</tbody></table><div class="actions"><button class="secondary small-btn" onclick="document.getElementById('versionView').innerHTML=''">Schließen</button></div>`;
 }
 
 // --- Felder ------------------------------------------------------------------------------
 
-function typeOptions(selected){return FIELD_TYPES.concat(SYSTEM_ONLY_TYPES.filter(([k])=>k===selected)).map(([v,l])=>`<option value="${v}" ${v===selected?'selected':''}>${l}</option>`).join('')}
+function typeOptions(selected){return FIELD_TYPES.concat(SYSTEM_ONLY_TYPES.filter(([k])=>k===selected)).map(([v,l])=>`<option value="${esc(v)}" ${v===selected?'selected':''}>${esc(l)}</option>`).join('')}
 
 function fieldSummary(f){
   const bits=[];
@@ -279,17 +279,17 @@ function fieldBody(f){
   if(t==='text')html+=`<div class="field full"><div class="chk-row"><label><input type="checkbox" data-k="multiline" ${f.multiline?'checked':''} ${d}> mehrzeilig</label></div></div>`;
   if(t==='zahl')html+=`<div class="field full"><div class="fields-4col">
       <div class="field"><label>Einheit</label><input data-k="unit" value="${esc(f.unit)}" ${d}></div>
-      <div class="field"><label>Mindestwert</label><input type="number" step="any" data-k="min_value" value="${f.min_value??''}" ${d}></div>
-      <div class="field"><label>Höchstwert</label><input type="number" step="any" data-k="max_value" value="${f.max_value??''}" ${d}></div>
-      <div class="field"><label>Nachkommastellen</label><input type="number" min="0" max="4" data-k="decimals" value="${f.decimals??''}" ${d}></div></div></div>`;
+      <div class="field"><label>Mindestwert</label><input type="number" step="any" data-k="min_value" value="${esc(f.min_value??'')}" ${d}></div>
+      <div class="field"><label>Höchstwert</label><input type="number" step="any" data-k="max_value" value="${esc(f.max_value??'')}" ${d}></div>
+      <div class="field"><label>Nachkommastellen</label><input type="number" min="0" max="4" data-k="decimals" value="${esc(f.decimals??'')}" ${d}></div></div></div>`;
   if(t==='datum'||t==='uhrzeit'||t==='datum_uhrzeit')html+=`<div class="field full"><div class="chk-row"><label><input type="checkbox" data-k="prefill_now" ${f.prefill_now?'checked':''} ${d}> mit „jetzt“ vorbelegen</label></div></div>`;
   if(t==='unterschrift')html+=`<div class="field"><label>Wer unterschreibt?</label><input data-k="signer_label" value="${esc(f.signer_label)}" placeholder="z. B. Monteur, Kunde, Brandwache" ${d}></div>
       <div class="field"><label>Unterzeichner${f.signer_mode_locked?' <span class="muted small">(vom Zweck vorgegeben)</span>':''}</label><select data-k="signer_mode" ${f.signer_mode_locked?'disabled':d}>${SIGNER_MODES.map(([k,l])=>`<option value="${k}"${(f.signer_mode||'frei')===k?' selected':''}>${esc(l)}</option>`).join('')}</select></div>
       <div class="field"><label>&nbsp;</label><div class="chk-row"><label><input type="checkbox" data-k="multiple" ${f.multiple?'checked':''} ${ds}> mehrere Unterschriften (z. B. Teilnehmer)</label></div></div>`;
   if(t==='auswahl')html+=`<div class="field full"><div class="chk-row"><label><input type="checkbox" data-k="multiple" ${f.multiple?'checked':''} ${ds}> Mehrfachauswahl</label></div></div>`;
   if(t==='beleg')html+='<div class="field full muted small">PDF oder Foto (JPEG, PNG, WebP), bis 15 MB – am Inhalt erkannt, unverändert gespeichert.</div>';
-  if(t==='foto'||t==='beleg'||(t==='unterschrift'&&f.multiple))html+=`<div class="field"><label>Mindestanzahl</label><input type="number" min="0" data-k="min_count" value="${f.min_count??''}" ${ds}></div>
-      <div class="field"><label>Höchstanzahl</label><input type="number" min="1" max="20" data-k="max_count" value="${f.max_count??''}" ${d}></div>`;
+  if(t==='foto'||t==='beleg'||(t==='unterschrift'&&f.multiple))html+=`<div class="field"><label>Mindestanzahl</label><input type="number" min="0" data-k="min_count" value="${esc(f.min_count??'')}" ${ds}></div>
+      <div class="field"><label>Höchstanzahl</label><input type="number" min="1" max="20" data-k="max_count" value="${esc(f.max_count??'')}" ${d}></div>`;
   html+='</div>';
   if(f.is_system)html+='<div class="muted small" style="margin-top:8px">Systemfeld des Zwecks: Beschriftung, Hilfetext, Abschnitt und Reihenfolge sind frei (gibt der Zweck Abschnitte vor, innerhalb ihrer Reihenfolge); Schlüssel, Typ, Pflicht, „entfällt“, Mehrfach, Mindestanzahl und Optionen sind fest, löschen geht nicht.'
     +(f.office_only?' Dieses Feld füllt nur das Büro aus (auch die Unterschrift), Monteure sehen es nur.':'')
@@ -421,7 +421,7 @@ function describeRule(r){
   if(['kleiner','groesser','gleich'].includes(r.operator))cond+=` ${esc(r.operand)}${f&&f.unit?' '+esc(f.unit):''}`;
   const to=r.assignee_mode==='sachbearbeiter'?'Sachbearbeiter des Auftrags':(ROLES.find(x=>x[0]===r.min_visible_role)||[,r.min_visible_role])[1];
   const link=r.link_purpose?`, Link: ${esc(linkPurposeLabel(r.link_purpose))} anlegen`:'';
-  return `<b>${cond}</b> → Aufgabe „${esc(r.task_title)}“ <span class="muted small">(${esc(r.task_priority)}, an ${esc(to)}${r.due_in_days!=null?`, fällig in ${r.due_in_days} Tagen`:''}${link})</span>`;
+  return `<b>${cond}</b> → Aufgabe „${esc(r.task_title)}“ <span class="muted small">(${esc(r.task_priority)}, an ${esc(to)}${r.due_in_days!=null?`, fällig in ${esc(r.due_in_days)} Tagen`:''}${link})</span>`;
 }
 
 // Seit 1.8.38: die Aufgabe kann statt auf die Checkliste aufs Anlegen einer Checkliste mit Zweck
@@ -448,7 +448,7 @@ function ruleForm(r){
     <div class="field full"><label>Aufgabentitel * <span class="muted small">(Platzhalter: {vorlage}, {kontext}, {ersteller})</span></label><input data-r="task_title" value="${esc(r.task_title)}" ${d}></div>
     <div class="field full"><label>Beschreibung der Aufgabe</label><textarea data-r="task_description" ${d}>${esc(r.task_description)}</textarea></div>
     <div class="field"><label>Priorität</label><select data-r="task_priority" ${d}>${PRIORITIES.map(([v,l])=>`<option value="${v}" ${v===r.task_priority?'selected':''}>${l}</option>`).join('')}</select></div>
-    <div class="field"><label>Fällig in (Tagen)</label><input type="number" min="0" max="365" data-r="due_in_days" value="${r.due_in_days??''}" ${d} placeholder="ohne Fälligkeit"></div>
+    <div class="field"><label>Fällig in (Tagen)</label><input type="number" min="0" max="365" data-r="due_in_days" value="${esc(r.due_in_days??'')}" ${d} placeholder="ohne Fälligkeit"></div>
     <div class="field"><label>Empfänger</label><select data-r="assignee_mode" ${d}><option value="rolle" ${r.assignee_mode==='rolle'?'selected':''}>Büro nach Rolle (übernehmen)</option><option value="sachbearbeiter" ${r.assignee_mode==='sachbearbeiter'?'selected':''}>Sachbearbeiter des Auftrags</option></select></div>
     <div class="field"><label>Sichtbar für <span class="muted small">(ohne Sachbearbeiter)</span></label><select data-r="min_visible_role" ${d}>${ROLES.map(([v,l])=>`<option value="${v}" ${v===r.min_visible_role?'selected':''}>${l}</option>`).join('')}</select></div>
     <div class="field full"><label>Aufgabe verlinkt auf <span class="muted small">(nur im Kontext Auftrag; solange eine Aufgabe mit diesem Link offen ist, entsteht keine zweite)</span></label><select data-r="link_purpose" ${d}><option value="" ${r.link_purpose?'':'selected'}>diese Checkliste</option>${linkPurposes().map(p=>`<option value="${esc(p.key)}" ${p.key===r.link_purpose?'selected':''}>${esc(p.label)} am Auftrag anlegen</option>`).join('')}${r.link_purpose&&!linkPurposes().some(p=>p.key===r.link_purpose)?`<option value="${esc(r.link_purpose)}" selected>${esc(r.link_purpose)} (unbekannt)</option>`:''}</select></div>

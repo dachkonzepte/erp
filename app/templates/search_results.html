@@ -42,6 +42,8 @@ h1{margin:0 0 4px;color:var(--ink)}h2{color:var(--ink)}.muted{color:var(--muted)
 </div>
 </div>
 {% include "_speichern.html" %}
+{% include "_links.html" %}
+{% include "_aktionen.html" %}
 <script>
 /* TYPE_LABELS muss mit OFFICE_SEARCH_SOURCES (app/search.py) synchron bleiben -- Reihenfolge,
    Schlüssel UND Beschriftung. Kein Endpunkt liefert diese Liste, da sie sich nur ändert, wenn
@@ -70,11 +72,14 @@ function updateUrl(){
 function renderFilterPills(){
   var html=TYPE_LABELS.map(function(pair){
     var key=pair[0],label=pair[1];
-    return '<button type="button" class="'+(selectedTypes.has(key)?'active':'')+'" onclick="toggleType(\''+key+'\')">'+esc(label)+'</button>';
+    return '<button type="button" class="'+(selectedTypes.has(key)?'active':'')+'" data-klick="suchart" data-art="'+esc(key)+'">'+esc(label)+'</button>';
   }).join('');
   html+='<button type="button" class="'+(selectedTypes.size?'':'active')+'" onclick="clearTypes()">Alle</button>';
   document.getElementById('typeFilters').innerHTML=html;
 }
+/* Seit 1.8.102 über data-Attribute (_aktionen.html) statt Werten im on…-Attribut (Vorgabe vom 14.10.2026 Punkt 2). */
+aktion('suchart',function(el){toggleType(el.dataset.art)});
+aktion('mehr-treffer',function(el){loadMore(el.dataset.art)});
 function toggleType(key){
   if(selectedTypes.has(key))selectedTypes.delete(key);else selectedTypes.add(key);
   renderFilterPills();updateUrl();runSearch();
@@ -93,10 +98,10 @@ function renderGroups(){
   }
   wrap.innerHTML=groups.map(function(g){
     var hits=g.hits.map(function(h){
-      return '<a class="result-hit" href="'+h.url+'"><div class="ttl">'+esc(h.title)+'</div>'+(h.subtitle?'<div class="sub">'+esc(h.subtitle)+'</div>':'')+'</a>';
+      return '<a class="result-hit" href="'+esc(sichererLink(h.url))+'"><div class="ttl">'+esc(h.title)+'</div>'+(h.subtitle?'<div class="sub">'+esc(h.subtitle)+'</div>':'')+'</a>';
     }).join('');
-    var more=g.hits.length<g.total?'<button type="button" class="more-btn" onclick="loadMore(\''+g.key+'\')">weitere anzeigen</button>':'';
-    return '<div class="card"><h2 style="margin:0 0 10px">'+esc(g.label)+' <span class="muted small">('+g.total+')</span></h2><div class="result-list">'+hits+'</div>'+more+'</div>';
+    var more=g.hits.length<g.total?'<button type="button" class="more-btn" data-klick="mehr-treffer" data-art="'+esc(g.key)+'">weitere anzeigen</button>':'';
+    return '<div class="card"><h2 style="margin:0 0 10px">'+esc(g.label)+' <span class="muted small">('+esc(g.total)+')</span></h2><div class="result-list">'+hits+'</div>'+more+'</div>';
   }).join('');
 }
 

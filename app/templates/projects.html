@@ -140,8 +140,8 @@ function renderList(rows){
     +`<td>${esc(p.property_name||'—')}</td>`
     +`<td>${esc(p.category||'—')}</td>`
     +`<td><span class="pill">${esc(p.status)}</span></td>`
-    +`<td class="number">${p.quote_count}</td>`
-    +`<td class="number">${p.document_count||0}</td>`
+    +`<td class="number">${esc(p.quote_count)}</td>`
+    +`<td class="number">${esc(p.document_count||0)}</td>`
     +`<td class="menu-cell" onclick="event.stopPropagation()"><button class="menu-btn" onclick="toggleMenu(event,${p.id})" aria-label="Aktionen">⋮</button><div class="menu" id="menu-${p.id}" hidden>${menuItemsFor(p)}</div></td>`
     +`</tr>`).join('');
   return `<div class="wrap"><table><thead><tr><th>Projekt</th><th>Bezeichnung</th><th>Kunde</th><th>Objekt</th><th>Kategorie</th><th>Status</th><th class="number">Angebote</th><th class="number">Dateien</th><th></th></tr></thead><tbody>${trs||'<tr><td colspan="9" class="empty">Keine Einträge gefunden.</td></tr>'}</tbody></table></div>`;

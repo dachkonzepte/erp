@@ -171,6 +171,7 @@ tr:last-child td{border-bottom:none}
   <div id="printLabelName"></div>
 </div>
 {% include "_speichern.html" %}
+{% include "_links.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
@@ -215,7 +216,7 @@ function renderHero(){
   if(asset.selectable_in_reports)badges.push('<span class="badge">Im Bericht auswählbar</span>');
   if(asset.is_overdue)badges.push('<span class="badge overdue">⚠ Prüfung überfällig</span>');
   else if(asset.is_due)badges.push('<span class="badge due">Prüfung fällig</span>');
-  document.getElementById('assetMeta').innerHTML=[asset.asset_type,badges.join(' ')].filter(Boolean).join(' · ');
+  document.getElementById('assetMeta').innerHTML=[esc(asset.asset_type),badges.join(' ')].filter(Boolean).join(' · ');
 }
 
 function printLabel(){
@@ -250,7 +251,7 @@ function fillEditor(){
   costLinkWrap.classList.toggle('hidden',!(canManageRecurringCost&&asset.recurring_cost_id));
   const productPreview=document.getElementById('productUrlPreviewWrap');
   if(asset.product_url){
-    document.getElementById('productUrlPreview').href=asset.product_url;
+    document.getElementById('productUrlPreview').href=sichererLink(asset.product_url);
     productPreview.classList.remove('hidden');
   }else{
     productPreview.classList.add('hidden');
@@ -347,7 +348,7 @@ function inspectionRow(insp){
     :`<input type="file" id="inspFile${insp.id}" class="hidden" onchange="uploadInspectionDocument(${insp.id})"><button class="secondary" style="padding:3px 8px" onclick="document.getElementById('inspFile${insp.id}').click()">Hochladen</button>`;
   return `<tr>
     <td>${esc(insp.inspection_type)}</td>
-    <td>${insp.interval_months?insp.interval_months+' Mon.':'—'}</td>
+    <td>${insp.interval_months?esc(insp.interval_months)+' Mon.':'—'}</td>
     <td>${fmtDate(insp.last_inspection_date)}</td>
     <td>${fmtDate(insp.next_due_date)} ${badges.join(' ')}</td>
     <td>${esc(insp.inspector||'')}</td>
