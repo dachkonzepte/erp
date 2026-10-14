@@ -4,6 +4,22 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.104 – Anfragen fremder Seiten abgelehnt, kein Einrahmen, Secure in Produktion
+
+Punkte 3–5 der Vorgabe vom 14.10.2026 (Befund 1.8.100 Nr. 1–3); damit sind alle zwölf Befund-Tests aus 1.8.100 grün und ohne
+xfail. Die Anmeldeschranke lehnt jede schreibende Anfrage (POST, PUT, PATCH, DELETE) mit 403 ab, die nicht von einer Seite des ERP
+selbst kommt: `Sec-Fetch-Site` muss `same-origin` sein -- eine Unterdomain derselben Site (`same-site`, dorthin schickt der Browser das
+Lax-Cookie mit) ist ebenso abgelehnt wie eine fremde Site --, ohne diese Kopfzeile (ältere Browser) muss `Origin` zu `Host` passen, fehlt
+beides, 403. Das gilt auch fürs Anmelden. Jede Antwort verbietet das Einrahmen (`X-Frame-Options: DENY`, `frame-ancestors 'none'`, an
+Dateien an deren Sandbox angehängt). Mit `ERP_ENV=production` ist das Anmelde-Cookie immer `Secure`, ohne Eintrag in der `.env`.
+
+Neue Tests `tests/test_v409_ursprung_und_rahmen.py` (Angriffstabelle mit 15 Ursprüngen je Methode, Rundgang über alle GET-Routen auf
+die Rahmen-Kopfzeilen, sechs Umgebungen für Secure), Klicktest `klicktest_fremde_seite.py` mit einer echten zweiten Seite derselben
+Site: der Rahmen bleibt leer, Upload, Abmelden und Anmelden von dort 403, die eigene Seite speichert weiter. Tests über die echte
+Anmeldeschranke schicken wie ein Browser der eigenen Seite `Origin` und `Sec-Fetch-Site` (`tests/anmeldung.py::browser_client()`).
+Vor dem Einspielen: ältere Tablets ohne `Sec-Fetch-Site` (Safari vor 16.4) brauchen, dass Nginx den Host weitergibt
+(`proxy_set_header Host $host;`).
+
 ## 1.8.103 – Sitzungen beenden, Feierabend auf dem Server, „Anmeldung abgelaufen“, Vertragsentwurf unter Sperre
 
 Vorweg der Vorgabe vom 14.10.2026 (Korrekturen zu den Festlegungen 1.8.98–1.8.100). „Alle vertrauten Geräte abmelden“ beendet jetzt

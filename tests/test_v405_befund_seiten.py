@@ -7,7 +7,8 @@ xfail(strict=True): er beschreibt das gewünschte Verhalten und ist heute rot; w
 Stellen: docs/archiv/befund-vor-echtbetrieb.md, "Befund 1.8.100".
 
 Nichts davon ändert den Code (Vorgabe: nur Befund). Seit 1.8.101 werden die Lücken geschlossen (Vorgabe vom 14.10.2026, docs/archiv/
-befund-vor-echtbetrieb.md ab "Umsetzung 1.8.101"): ein geschlossener Test verliert seinen Marker."""
+befund-vor-echtbetrieb.md ab "Umsetzung 1.8.101"): ein geschlossener Test verliert seinen Marker. Seit 1.8.104 sind alle zwölf geschlossen,
+kein Test hier trägt mehr xfail."""
 
 from __future__ import annotations
 
@@ -81,9 +82,9 @@ def test_das_anmelde_cookie_ist_httponly_und_samesite_lax(anmeldung):
     assert "max-age=43200" in flags  # 12 h, wie die Sitzung auf dem Server
 
 
-@pytest.mark.xfail(strict=True, reason="Befund 1.8.100 Nr. 1: Secure kommt nur über ERP_COOKIE_SECURE=1 (Vorgabe aus), auch mit "
-                                       "ERP_ENV=production -- fehlt der Eintrag in .env, geht das Anmelde-Cookie auch über http.")
 def test_in_produktion_ist_das_anmelde_cookie_auch_ohne_eintrag_secure():
+    """Befund 1.8.100 Nr. 1: Secure kam nur über ERP_COOKIE_SECURE=1, auch mit ERP_ENV=production -- seit 1.8.104 behoben (bis dahin
+    xfail)."""
     env = {k: v for k, v in os.environ.items() if k != "ERP_COOKIE_SECURE"}
     env.update({"ERP_ENV": "production", "DATABASE_URL": pg_url_pruefen("sqlite://"), "PYTHONIOENCODING": "utf-8"})
     r = subprocess.run([sys.executable, "-c", "import app.auth as a; print(a.COOKIE_SECURE)"], cwd=ROOT, env=env, capture_output=True,
@@ -119,11 +120,10 @@ def test_json_endpunkte_nehmen_kein_json_ohne_passenden_content_type(anmeldung):
 FREMD = {"origin": "https://www.dachkonzepte.gmbh", "sec-fetch-site": "same-site", "referer": "https://www.dachkonzepte.gmbh/"}
 
 
-@pytest.mark.xfail(strict=True, reason="Befund 1.8.100 Nr. 2: kein Abgleich von Origin/Sec-Fetch-Site und kein Token -- eine Seite "
-                                       "derselben Site (z. B. www.dachkonzepte.gmbh) schickt schreibende Anfragen ohne Body oder als "
-                                       "Formular/Upload mit dem Anmelde-Cookie (SameSite=Lax schützt nur gegen fremde Sites).")
 @pytest.mark.parametrize("art", ["ohne Body", "Formular-Upload"])
 def test_schreibende_anfrage_von_einem_anderen_ursprung_wird_abgelehnt(anmeldung, art):
+    """Befund 1.8.100 Nr. 2: eine Seite derselben Site (z. B. www.dachkonzepte.gmbh) schickte schreibende Anfragen ohne Body oder als
+    Formular/Upload mit dem Anmelde-Cookie (SameSite=Lax schützt nur gegen fremde Sites) -- seit 1.8.104 behoben (bis dahin xfail)."""
     client, make_session = anmeldung
     _angemeldet(client, make_session)
     with make_session() as db:
@@ -137,9 +137,9 @@ def test_schreibende_anfrage_von_einem_anderen_ursprung_wird_abgelehnt(anmeldung
     assert antwort.status_code == 403, antwort.status_code
 
 
-@pytest.mark.xfail(strict=True, reason="Befund 1.8.100 Nr. 3: weder X-Frame-Options noch Content-Security-Policy frame-ancestors -- "
-                                       "eine Seite derselben Site kann das ERP angemeldet einrahmen und Klicks unterschieben.")
 def test_seiten_lassen_sich_nicht_fremd_einrahmen(anmeldung):
+    """Befund 1.8.100 Nr. 3: weder X-Frame-Options noch frame-ancestors -- eine Seite derselben Site konnte das ERP angemeldet einrahmen
+    und Klicks unterschieben. Seit 1.8.104 behoben (bis dahin xfail)."""
     client, make_session = anmeldung
     _angemeldet(client, make_session)
     antwort = client.get("/account")

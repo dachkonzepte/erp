@@ -61,7 +61,9 @@ def _rundgang(client, welt: dict, routers) -> list[dict]:
             pfad = re.sub(r"\{(\w+):\w+\}", r"{\1}", route.path)  # {id:int} der Seiten
             antwort = client.get(pfad.format(**werte), params=query, follow_redirects=False)
             antworten.append({"route": route.path, "status": antwort.status_code, "cache": antwort.headers.get("cache-control"),
-                              "art": antwort.headers.get("content-type", "")})
+                              "art": antwort.headers.get("content-type", ""),
+                              # seit 1.8.104 auch der Schutz gegen Einrahmen (geprüft in test_v409)
+                              "xfo": antwort.headers.get("x-frame-options"), "csp": antwort.headers.get("content-security-policy")})
     return antworten
 
 

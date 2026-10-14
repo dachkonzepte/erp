@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.103** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.104** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -737,6 +737,14 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     `tests/test_v407_daten_im_html.py` prüft alle drei über alle Vorlagen; die Ausnahmelisten (Changelog; 375 Handler mit Zahlen/IDs) dürfen
     nur kürzer werden. Details: `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.102".
 
+33. **Schreibende Anfragen nur von einer Seite des ERP, kein Einrahmen, Secure in Produktion, seit 1.8.104.** Die Anmeldeschranke lehnt
+    jedes POST/PUT/PATCH/DELETE mit 403 ab, dessen `Sec-Fetch-Site` nicht `same-origin` ist (auch von einer Unterdomain derselben Site), ohne
+    `Sec-Fetch-Site` dessen `Origin` nicht zu `Host` passt, oder ohne beides -- auch beim Anmelden (`app/anmeldeschranke.py::ursprung_passt()`).
+    Jede Antwort trägt `X-Frame-Options: DENY` und `frame-ancestors 'none'` (an eine CSP des Endpunkts angehängt). Mit `ERP_ENV=production` ist
+    das Anmelde-Cookie immer `Secure`. Wer außerhalb des Browsers schreibt (Skript, Klicktest per urllib), schickt `Origin`; Tests über die
+    echte Schranke nehmen `tests/anmeldung.py::browser_client()`. `tests/test_v409_ursprung_und_rahmen.py` (Angriffstabelle, Rundgang über
+    alle GET-Routen), Klicktest `klicktest_fremde_seite.py`. Details: `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.104".
+
 ## Fachbegriffe & Domänenmodell
 
 - **"Vorgang"** (in normalem Gespräch) = **Projekt** (`Project`) – wurde in der Sitzung explizit
@@ -1161,7 +1169,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Einrahmen, ungeschützte Namen an vier Stellen -- nur festgehalten, nicht behoben; seit 1.8.101 hochgeladene Dateien nie als aktiver
   Inhalt, Regel 31; seit 1.8.102 Daten im HTML: esc(), Handler über data-Attribute, Links geprüft, Regel 32; seit 1.8.103 Vorweg:
   Sitzungen beenden (vertraute Geräte, Admin, Feierabend), „Anmeldung abgelaufen“, Vertragsentwurf unter der Sperre des Festschreibens,
-  Befund `content` der Layout-Bausteine)
+  Befund `content` der Layout-Bausteine; seit 1.8.104 schreibende Anfragen nur von der eigenen Seite, kein Einrahmen, Secure in Produktion,
+  Regel 33 -- alle zwölf Befund-Tests grün)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Zahlungen** (Zahlungsstufe Z1 seit 1.8.78: Zahlungseingang mit Zuordnungen, Skonto und Einbehalt, Rest am Kunden,
   Zahlstand abgeleitet, Gegenbuchung statt Ändern, Sperrreihenfolge, Storno erst nach gelösten Zuordnungen, Finanzen/Dashboard mit
@@ -1454,7 +1463,9 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
 - **Echte Anmeldung in Tests** (seit 1.8.98, Regel 30): `tests/anmeldung.py::client_mit_schranke(make_session, *router)` bzw.
   `app_mit_schranke()` baut eine Test-App mit der echten Anmeldeschranke (`app/anmeldeschranke.py`) und eigener Sitzungsfabrik
   (`neue_datenbank()`); angemeldet wird über `POST /api/auth/login` oder direkt mit `app.sitzungen.neue_sitzung(db, user,
-  zweiter_faktor=True)` als Cookie `dk_erp_auth` (Domäne `testserver.local`, sonst hält httpx zwei Cookies gleichen Namens).
+  zweiter_faktor=True)` als Cookie `dk_erp_auth` (Domäne `testserver.local`, sonst hält httpx zwei Cookies gleichen Namens). Seit 1.8.104
+  (Regel 33) einen eigenen Client über die Schranke mit `browser_client(app)` bauen (Origin und Sec-Fetch-Site der eigenen Seite), sonst
+  bekommt jede schreibende Anfrage 403.
 
 - **Grunddaten in jeder Testdatenbank** (seit 1.8.42): `tests/conftest.py` ruft nach jedem
   `Base.metadata.create_all()` `app.grunddaten.anlegen()` auf -- wie der Start einer echten Installation. Ein Test,
@@ -1664,7 +1675,7 @@ mit Guthaben und Zahlungsausgang, zurücknehmen, 412 px dunkel, Monteurin 403) u
 `klicktest_browser_datum.py` (1.8.87, Instanz und Browser-Uhr um 00:30 Uhr, Browser in UTC und New York: Monteur-Zeiterfassung mit der
 Buchung von heute, Stundenzettel, Büro-Zeiterfassung, Aufgaben überfällig, Plantafel, Kalender) und `klicktest_zahlungen_kleinkram.py`
 (1.8.94, Finanzen „Bezahlt (gesamt)“ abzüglich Erstattungen, Kundenakte mit Grund statt „Zahlung zurücknehmen“ und gruppiertem „Rest
-zuordnen“, Zahlungsdialog gruppiert und umverteilt gebucht, Zahlbetrag 0 € mit Satz und ohne Schlusstext, 412 px dunkel, Monteurin 403) und `klicktest_abschliessen.py` (1.8.96, Einsatzbericht: Prüfpunkt zurückhalten, dann unterschreiben -- Unterschrift erst nach dem Prüfpunkt; Prüfpunkt scheitert -- Unterschrift nicht ausgeführt; Zeitlimit 2 s über `window.__dkZeitlimit` -- Meldung, Hinweis oben, Unterschrift abgelehnt) und `klicktest_anmelden.py` (1.8.97, Formular mit falschem und richtigem Passwort, Doppelklick nicht parallel, Admin bis zum zweiten Faktor, Abmelden über beide Kopfzeilen -- die Seite wartet die Abmeldung ab --, Seitenleiste nachgestellt; seit 1.8.98 als Prüfungen: Angriffe auf `next`, der alte Cookie-Wert nach dem Abmelden 401, „Zurück“ ohne Daten) und `klicktest_dateien_nie_aktiv.py` (1.8.101, SVG und HTML aus Kundenakte, Projektmappe, Objekt und /mobil laufen nicht -- jede view-Adresse direkt geöffnet ein Download, kein Eintrag im localStorage --, Foto und PDF erscheinen, SVG-Logo in der Seitenleiste sichtbar; Downloads des Tabs über `tab.downloads`, gesammelt aus `Page.downloadWillBegin`) und `klicktest_daten_im_html.py` (1.8.102, Namen mit `"><img onerror>`, `');…//` und `&quot;` in Kundenakte, Projektmappe, Einsatzbericht, "Neues Projekt"/"Neues Angebot", Kalender, Betriebsmittel: kein Skript, Namen als Text, umgebaute Knöpfe tun es weiter mit genau dem Wert, Modul-Schalter über `data-aenderung`) und `klicktest_anmeldung_abgelaufen.py` (1.8.103, Kundenakte: Admin beendet die Sitzungen von außen, Speichern -> „Anmeldung abgelaufen“ am Bereich und oben, Eingaben stehen; im zweiten Tab angemeldet -- `tab.zweiter_tab()` --, derselbe Klick speichert, Hinweis weg). **Netzwerkprotokoll** (seit 1.8.97): jeder Tab zeichnet die Network-Ereignisse auf (`tab.netz`); beim Scheitern (Abweichung in `pruefe()`, Seite nicht bereit, Warte-Helfer abgebrochen, `warten()` abgelaufen, Ende eines nicht erfolgreichen Laufs) druckt das Werkzeug die offenen Anfragen mit Adresse, Startzeit und "gesendet ja/nein"; eine gewollte Pause `warten("false", 1.0, melden=False)`; `tab.im_netz_anhalten()` hält eine Anfrage an, bevor sie gesendet wird. Ein Dialog des Browsers (vor allem „Seite verlassen?“ bei einer Navigation während eines Speicherns) hielt bis 1.8.97 jeden weiteren CDP-Befehl an; seit 1.8.98 meldet das Werkzeug ihn (Lauf nicht wie erwartet, samt Netzprotokoll) und nimmt ihn an.
+zuordnen“, Zahlungsdialog gruppiert und umverteilt gebucht, Zahlbetrag 0 € mit Satz und ohne Schlusstext, 412 px dunkel, Monteurin 403) und `klicktest_abschliessen.py` (1.8.96, Einsatzbericht: Prüfpunkt zurückhalten, dann unterschreiben -- Unterschrift erst nach dem Prüfpunkt; Prüfpunkt scheitert -- Unterschrift nicht ausgeführt; Zeitlimit 2 s über `window.__dkZeitlimit` -- Meldung, Hinweis oben, Unterschrift abgelehnt) und `klicktest_anmelden.py` (1.8.97, Formular mit falschem und richtigem Passwort, Doppelklick nicht parallel, Admin bis zum zweiten Faktor, Abmelden über beide Kopfzeilen -- die Seite wartet die Abmeldung ab --, Seitenleiste nachgestellt; seit 1.8.98 als Prüfungen: Angriffe auf `next`, der alte Cookie-Wert nach dem Abmelden 401, „Zurück“ ohne Daten) und `klicktest_dateien_nie_aktiv.py` (1.8.101, SVG und HTML aus Kundenakte, Projektmappe, Objekt und /mobil laufen nicht -- jede view-Adresse direkt geöffnet ein Download, kein Eintrag im localStorage --, Foto und PDF erscheinen, SVG-Logo in der Seitenleiste sichtbar; Downloads des Tabs über `tab.downloads`, gesammelt aus `Page.downloadWillBegin`) und `klicktest_daten_im_html.py` (1.8.102, Namen mit `"><img onerror>`, `');…//` und `&quot;` in Kundenakte, Projektmappe, Einsatzbericht, "Neues Projekt"/"Neues Angebot", Kalender, Betriebsmittel: kein Skript, Namen als Text, umgebaute Knöpfe tun es weiter mit genau dem Wert, Modul-Schalter über `data-aenderung`) und `klicktest_anmeldung_abgelaufen.py` (1.8.103, Kundenakte: Admin beendet die Sitzungen von außen, Speichern -> „Anmeldung abgelaufen“ am Bereich und oben, Eingaben stehen; im zweiten Tab angemeldet -- `tab.zweiter_tab()` --, derselbe Klick speichert, Hinweis weg) und `klicktest_fremde_seite.py` (1.8.104, zweiter Server auf 127.0.0.1 als Seite derselben Site: Rahmen nicht angezeigt, Upload/Abmelden/Anmelden von dort 403, die eigene Seite speichert weiter). Kopfzeilen einer Antwort aus urllib klein geschrieben vergleichen (der Server schickt sie klein). **Netzwerkprotokoll** (seit 1.8.97): jeder Tab zeichnet die Network-Ereignisse auf (`tab.netz`); beim Scheitern (Abweichung in `pruefe()`, Seite nicht bereit, Warte-Helfer abgebrochen, `warten()` abgelaufen, Ende eines nicht erfolgreichen Laufs) druckt das Werkzeug die offenen Anfragen mit Adresse, Startzeit und "gesendet ja/nein"; eine gewollte Pause `warten("false", 1.0, melden=False)`; `tab.im_netz_anhalten()` hält eine Anfrage an, bevor sie gesendet wird. Ein Dialog des Browsers (vor allem „Seite verlassen?“ bei einer Navigation während eines Speicherns) hielt bis 1.8.97 jeden weiteren CDP-Befehl an; seit 1.8.98 meldet das Werkzeug ihn (Lauf nicht wie erwartet, samt Netzprotokoll) und nimmt ihn an.
 **Nach einer Aktion, die neu lädt** (seit 1.8.94), nie eine feste Pause oder einen Statustext als Beleg nehmen -- viele Seiten setzen
 ihn vor dem Neuladen --, sondern `await tab.warte_auf_neu_geladene_liste("…click()", "#liste")` (wartet, bis keine Anfrage der Seite
 mehr unterwegs und die Liste neu gezeichnet ist; ohne Aktion nach `oeffnen()`, bevor geprüft wird, dass etwas NICHT erscheint);
@@ -1720,10 +1731,9 @@ jedem Bericht, Ergebnis im Bericht (Regel 26).
 
 ## Bekannte, bewusst offene Punkte
 
-- **Befund 1.8.100 Sicherheit der Seiten -- drei Lücken offen** (`tests/test_v405_befund_seiten.py`, je ein
-  `xfail(strict=True)`; `docs/archiv/befund-vor-echtbetrieb.md`, "Befund 1.8.100"; hochgeladene Dateien seit 1.8.101 geschlossen, Regel 31,
-  Namen und Titel in Seiten seit 1.8.102, Regel 32): `Secure` nur mit `ERP_COOKIE_SECURE=1`, kein Schutz schreibender Anfragen gegen Seiten
-  derselben Site, kein Schutz gegen Einrahmen. Wer eine davon schließt, entfernt den xfail-Marker ihres Tests.
+- ~~Befund 1.8.100 Sicherheit der Seiten~~ -- seit 1.8.104 alle zwölf Lücken geschlossen (Regeln 31–33), `tests/test_v405_befund_seiten.py`
+  ohne xfail. Offen bleibt nur, ob Nginx HSTS setzt und den Host weitergibt (für Tablets ohne `Sec-Fetch-Site`) -- Betreiberprüfung,
+  `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.104".
 - **375 on…-Attribute mit Zahlen und IDs** stehen in `AUSNAHMEN_HANDLER` (`tests/test_v407_daten_im_html.py`, Regel 32): kein Text mehr,
   aber dasselbe Muster -- Abbau auf data-Attribute bei Gelegenheit, die Liste darf nur kürzer werden.
 - **`client_uuid` am Einsatzbericht ist nicht idempotent -- Pflicht vor Checklisten-Stufe 3

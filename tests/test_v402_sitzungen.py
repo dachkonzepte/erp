@@ -34,7 +34,7 @@ from app.models import AppUser, UserSession
 from app.routers import account as account_router
 from app.routers import auth as auth_router
 from app.routers import users as users_router
-from tests.anmeldung import app_mit_schranke, neue_datenbank
+from tests.anmeldung import app_mit_schranke, browser_client, neue_datenbank
 
 PASSWORT = "RichtigesPasswort123"
 NEU = "NeuesPasswort456"
@@ -76,7 +76,7 @@ class Welt:
             return user
 
     def client(self, cookie: str | None = None) -> TestClient:
-        c = TestClient(self.app)
+        c = browser_client(self.app)
         if cookie is not None:
             c.cookies.set(COOKIE_NAME, cookie, domain="testserver.local")  # wie ein vom Server gesetztes
         return c

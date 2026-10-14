@@ -4194,6 +4194,79 @@ Die Festlegungen 1.8.98–1.8.100 sind bestätigt (98-5: 12 h passen dem Betrieb
 2. **`field_timesheet.html` und `time_tracking_field.html` leiten bei jedem Fehler mit „401“ im Text beim ersten Laden auf `/login`** -- dort
    ohne Eingaben unschädlich, aber eine Erkennung über den Text der Meldung.
 
+### Umsetzung 1.8.104: Anfragen fremder Seiten, Einrahmen, Secure (Punkte 3–5, Befund 1.8.100 Nr. 1–3)
+
+#### Was gebaut ist
+
+- **Punkt 3, Ursprung** (`app/anmeldeschranke.py::ursprung_passt()`, als Erstes in der Middleware, ohne Datenbank): eine schreibende
+  Anfrage (POST, PUT, PATCH, DELETE) geht nur durch, wenn `Sec-Fetch-Site` `same-origin` ist; ohne diese Kopfzeile, wenn `Origin` http(s)
+  ohne Pfad ist und Host samt Port der Kopfzeile `Host` entspricht; sonst 403 „Anfrage von einer fremden Seite abgelehnt.“ und
+  `logger.warning` mit Methode, Pfad und den beiden Kopfzeilen. Gilt für jeden Pfad, angemeldet oder nicht (auch `/api/auth/login`).
+- **Punkt 4, Einrahmen** (`_schutzkoepfe()`): jede Antwort der Schranke -- Seiten, API, Weiterleitungen, 401/403, Dateien -- trägt
+  `X-Frame-Options: DENY` und `Content-Security-Policy: frame-ancestors 'none'`; hat ein Endpunkt schon eine CSP (Dateien: `sandbox`), wird
+  `frame-ancestors` angehängt. Keine Vorlage rahmt eine Seite des ERP ein (kein iframe/embed/object), `DENY` statt `SAMEORIGIN`.
+- **Punkt 5, Secure** (`app/auth.py`): `COOKIE_SECURE = IS_PRODUCTION or ERP_COOKIE_SECURE` -- mit `ERP_ENV=production` immer, auch mit
+  `ERP_COOKIE_SECURE=0`; gilt für das Anmelde-Cookie und das Cookie „vertrautes Gerät“. `.env.example` sagt das.
+- **Tests über die echte Schranke**: `tests/anmeldung.py::browser_client()` schickt `Origin: http://testserver` und `Sec-Fetch-Site:
+  same-origin` wie ein Browser auf einer Seite des ERP; `client_mit_schranke()`, `test_v402` und `test_v292` nehmen ihn.
+
+#### Festlegungen 1.8.104 (Bitte bestätigen)
+
+1. Geprüft werden POST, PUT, PATCH und DELETE auf allen Pfaden (API, Seiten, Anmelden, Abmelden), mit und ohne Anmeldung; GET, HEAD und
+   OPTIONS nie.
+2. Zuerst zählt `Sec-Fetch-Site`: nur `same-origin`; `same-site` (Unterdomain), `cross-site`, `none` und jeder andere Wert -> 403, auch wenn
+   `Origin` passt.
+3. Ohne `Sec-Fetch-Site` (ältere Browser) muss `Origin` passen (http/https, ohne Pfad, Host samt Port = Kopfzeile `Host`); fehlt sie, ist sie
+   leer oder `null` -> 403. `Referer` wird nicht ausgewertet.
+4. Mit `Sec-Fetch-Site: same-origin` wird `Origin` nicht zusätzlich mit `Host` verglichen -- so hängt die Prüfung nicht davon ab, welchen
+   `Host` Nginx weitergibt (die Konfiguration liegt nicht im Repo und ist von hier nicht prüfbar).
+5. Kein Token (Synchronizer oder Double-Submit): die Kopfzeilen setzt der Browser selbst, eine Seite kann sie nicht fälschen; ein Token
+   hätte jede schreibende Anfrage aller Vorlagen geändert.
+6. Ablehnung als 403 „Anfrage von einer fremden Seite abgelehnt.“ mit `logger.warning` (nur Metadaten, Regel 18).
+7. Einrahmen: `DENY` und `frame-ancestors 'none'` an jeder Antwort der Schranke, an Dateien an die Sandbox angehängt; eine 500 aus dem
+   Fehler-Handler außerhalb der Schranke trägt sie nicht (Nebenbefund 2).
+8. Secure: mit `ERP_ENV=production` immer, ein `ERP_COOKIE_SECURE=0` ändert dort nichts; außerhalb der Produktion weiter über
+   `ERP_COOKIE_SECURE`.
+9. Tests über die echte Schranke schicken `Origin` und `Sec-Fetch-Site` der eigenen Seite (`browser_client()`); ein Test des Ursprungs baut
+   seinen Client ohne.
+
+**Vor dem Einspielen (Betreiber)**: moderne Browser schicken `Sec-Fetch-Site` (Chrome, Edge, Firefox, Safari ab 16.4) -- dort hängt nichts
+an Nginx. Ein älteres Tablet ohne sie (Safari vor 16.4) speichert nur, wenn Nginx den Host weitergibt (`proxy_set_header Host $host;`),
+sonst 403. Nach dem Einspielen einmal auf einem Fahrzeug-Tablet speichern; ein 403 steht als Warnung im Log des Dienstes.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v409_ursprung_und_rahmen.py` (113): **Angriffstabelle** 15 Ursprünge × POST/PUT/PATCH/DELETE -> 403 (Unterdomain, Unterdomain
+  mit gefälscht passendem Origin, fremde Site, Adresszeile, unbekannter Wert; ohne Sec-Fetch-Site: Unterdomain, Host als Präfix, anderer
+  Port, Benutzerteil, mit Pfad, anderes Schema, null, leer; nur Referer; gar nichts), 5 erlaubte × 4 Methoden (eigene Seite, Origin vom Proxy
+  umgeschrieben, Großbuchstaben, Origin passt), Lesen von überall, Upload und Abmelden von der Unterdomain ändern nichts (kein Dokument,
+  Sitzung lebt), Anmelden von fremder Seite 403 ohne Cookie, die Funktion direkt, `app.main` bindet die Schranke ein; **Rahmen** ohne
+  Anmeldung (Anmeldeseite, API, Weiterleitung), angemeldet, Dateien mit Sandbox (auch SVG als Bild), Rundgang über alle GET-Routen als
+  Administratorin und Monteurin; **Secure** in sechs Umgebungen (Unterprozess), Set-Cookie mit Secure.
+- `tests/test_v405_befund_seiten.py`: Nr. 1, Nr. 2 (zweimal) und Nr. 3 ohne xfail -- die Datei hat keinen xfail mehr.
+- Klicktest `scripts/klicktest_fremde_seite.py` 9/9: zweiter Server auf 127.0.0.1 (anderer Port = dieselbe Site): Rahmen auf `/account`
+  nicht angezeigt (`chrome-error://`), Upload, Abmelden, Anmelden per `no-cors` -> 403, weiter angemeldet, kein Dokument; die eigene Seite
+  speichert und lädt hoch; Anmeldeseite mit `X-Frame-Options: DENY`.
+- Gegenproben (Regel 24): 8 von 8 rot -- keine Ursprungsprüfung (auch im Klicktest: die fremde Seite lud ein Dokument hoch und meldete Bea
+  ab, 200), Unterdomain erlaubt (ebenso), ohne Origin erlaubt, nur Hostname ohne Port (auch Benutzerteil durch), kein X-Frame-Options,
+  Schranke ohne Schutzkopfzeilen (auch im Klicktest: Rahmen angezeigt), Sandbox der Dateien ersetzt statt ergänzt, Secure nur mit Schalter.
+  Jede Datei byte-genau zurück, kein Marker.
+- **Angepasste Erwartungen** (Regel 28): `test_v405` Nr. 1, 2 und 3 nur xfail entfernt (Soll gleich). Nur Aufbau: `tests/anmeldung.py`
+  `client_mit_schranke()` über `browser_client()`; `test_v402::Welt.client()` und die vier Clients in `test_v292` über `browser_client()`
+  (Soll gleich -- ohne Origin bekämen ihre schreibenden Anfragen jetzt 403); `test_v403::_rundgang()` hält zusätzlich `X-Frame-Options`
+  und CSP fest (Soll der eigenen Tests gleich, test_v409 prüft sie).
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **Kein HSTS** (`Strict-Transport-Security`) in der Anwendung -- gehört zu Nginx; ob es dort gesetzt ist, ist von hier nicht prüfbar.
+2. **Eine 500 aus dem Fehler-Handler von Starlette** (außerhalb der Middleware) trägt weder `Cache-Control: no-store` noch die
+   Rahmen-Kopfzeilen -- sie enthält nur „Internal Server Error“, keine Daten.
+
+### Stand nach 1.8.104: Sicherheit der Seiten
+
+Alle zwölf Tests aus Befund 1.8.100 sind grün und ohne xfail: Uploads nie als aktiver Inhalt (1.8.101, Regel 31), Daten im HTML (1.8.102,
+Regel 32), Ursprung schreibender Anfragen, Einrahmen und Secure (1.8.104, Regel 33).
+
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
 Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):

@@ -111,7 +111,8 @@ Der Server wird demnächst frei aus dem Internet erreichbar sein -- die Anmeldes
 eins automatisiert durchprobiert. Bestandsaufnahme vor dem Bauen ergab: Passwort-Hashing
 (PBKDF2-HMAC-SHA256, 260.000 Iterationen) war bereits solide, das Anmelde-Cookie bereits
 `httponly`+`samesite=lax`+`secure` (über `ERP_COOKIE_SECURE`, bereits der richtige
-Mechanismus, keine Änderung nötig) -- die drei tatsächlichen Lücken: eine nur im Arbeitsspeicher
+Mechanismus, keine Änderung nötig; seit 1.8.104 mit `ERP_ENV=production` immer `secure`, ohne Schalter -- siehe
+befund-vor-echtbetrieb.md, "Umsetzung 1.8.104") -- die drei tatsächlichen Lücken: eine nur im Arbeitsspeicher
 lebende, rein benutzernamen-basierte Anmeldesperre, kein zweiter Faktor, und keine
 Selbstbedienung fürs eigene Passwort.
 

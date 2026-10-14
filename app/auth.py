@@ -31,11 +31,12 @@ def _parse_bool_env(name: str, default: bool = False) -> bool:
     return val.strip().lower() in ("1", "true", "yes")
 
 
-# Standardmäßig aus, da die App bislang über reines HTTP läuft -- Browser
-# senden ein secure-Cookie sonst gar nicht erst mit. Sobald HTTPS eingerichtet
-# ist (z. B. hinter einem Reverse-Proxy), per Umgebungsvariable aktivieren:
-# ERP_COOKIE_SECURE=1
-COOKIE_SECURE = _parse_bool_env("ERP_COOKIE_SECURE")
+# Seit 1.8.104 (Vorgabe vom 14.10.2026, Punkt 5): in Produktion (ERP_ENV=production) immer Secure -- ohne Schalter, auch mit
+# ERP_COOKIE_SECURE=0; der Server läuft nur über HTTPS, ein Aufruf über http (vor der Umleitung) bekommt kein Cookie mehr. Außerhalb
+# der Produktion (lokal über reines HTTP, Klicktests) aus, per ERP_COOKIE_SECURE=1 einschaltbar. Gilt für das Anmelde-Cookie und das
+# Cookie "vertrautes Gerät".
+IS_PRODUCTION = os.getenv("ERP_ENV", "development") == "production"
+COOKIE_SECURE = IS_PRODUCTION or _parse_bool_env("ERP_COOKIE_SECURE")
 
 logger = logging.getLogger(__name__)
 

@@ -9,13 +9,20 @@ Seit 1.8.98:
   wird ersetzt), ebenso eine Antwort, die eine Sitzung setzt (Anmeldung). Ohne das zeigte "Zurück" nach dem Abmelden die Seite samt
   Daten aus dem Back-Forward- oder dem HTTP-Cache -- auf dem Fahrzeug-Tablet mit mehreren Monteuren.
 
+Seit 1.8.104 (Vorgabe vom 14.10.2026, Punkte 3 und 4):
+- Eine schreibende Anfrage (POST, PUT, PATCH, DELETE) geht nur durch, wenn sie von einer Seite des ERP selbst kommt (ursprung_passt()):
+  sonst 403, bevor irgendetwas anderes geschieht -- auch von einer Unterdomain derselben Site (dort schickt der Browser das
+  SameSite=Lax-Cookie mit), auch beim Anmelden.
+- Jede Antwort verbietet das Einrahmen (X-Frame-Options: DENY, Content-Security-Policy frame-ancestors 'none'), auch die Anmeldeseite
+  und ausgelieferte Dateien.
+
 Die Entscheidungsregeln (_request_requires_login(), _page_requires_login(), _blocked_pending_two_factor()) sind unverändert und werden
 von app/main.py weiter angeboten (ältere Tests importieren sie dort)."""
 
 from __future__ import annotations
 
 import logging
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 from fastapi import Request
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -93,6 +100,47 @@ def _setzt_sitzung(response) -> bool:
     return any(name == b"set-cookie" and value.startswith(COOKIE_NAME.encode() + b"=") for name, value in response.raw_headers)
 
 
+SCHREIBEND = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+FREMDER_URSPRUNG = "Anfrage von einer fremden Seite abgelehnt."
+
+
+def ursprung_passt(request: Request) -> bool:
+    """Seit 1.8.104: ob eine schreibende Anfrage von einer Seite des ERP selbst kommt (lesende immer ja).
+
+    Zuerst Sec-Fetch-Site: der Browser setzt sie selbst, eine Seite kann sie nicht fälschen -- nur "same-origin" gilt ("same-site" ist
+    eine Unterdomain derselben Site, "cross-site" eine fremde, "none" eine Eingabe in der Adresszeile). Sie hängt nicht davon ab, welchen
+    Host der Reverse-Proxy weitergibt. Ohne sie (ältere Browser): Origin muss http(s) sein und Host samt Port der Kopfzeile Host der
+    Anfrage entsprechen. Fehlt beides oder ist Origin "null" (Sandbox, Datei, Umleitung), ist die Anfrage abgelehnt -- ein Programm ohne
+    Browser schickt sie mit, wenn es schreiben soll."""
+    if request.method.upper() not in SCHREIBEND:
+        return True
+    site = request.headers.get("sec-fetch-site")
+    if site is not None:
+        return site.strip().lower() == "same-origin"
+    origin = (request.headers.get("origin") or "").strip()
+    if not origin or origin.lower() == "null":
+        return False
+    try:
+        teile = urlsplit(origin)
+    except ValueError:
+        return False
+    host = (request.headers.get("host") or "").strip().lower()
+    return (teile.scheme in ("http", "https") and bool(teile.netloc) and not teile.path and not teile.query
+            and teile.netloc.lower() == host)
+
+
+def _schutzkoepfe(response):
+    """Seit 1.8.104: kein Einrahmen -- X-Frame-Options für ältere Browser, frame-ancestors für neuere; eine Content-Security-Policy
+    des Endpunkts (Dateien: sandbox) bekommt frame-ancestors angehängt, statt ersetzt zu werden."""
+    response.headers["X-Frame-Options"] = "DENY"
+    csp = response.headers.get("content-security-policy")
+    if not csp:
+        response.headers["Content-Security-Policy"] = "frame-ancestors 'none'"
+    elif "frame-ancestors" not in csp:
+        response.headers["Content-Security-Policy"] = csp.rstrip("; ") + "; frame-ancestors 'none'"
+    return response
+
+
 ANMELDUNG_ABGELAUFEN = ("Anmeldung abgelaufen – bitte in einem neuen Tab anmelden und danach hier erneut speichern. "
                         "Die Eingaben auf dieser Seite bleiben stehen.")
 ABGELAUFEN_KOPF = "X-DK-Anmeldung"
@@ -102,6 +150,11 @@ def middleware(session_factory):
     """Die Middleware-Funktion (request, call_next) mit session_factory für die eigene, kurzlebige Datenbanksitzung."""
 
     async def identitaet_und_audit(request: Request, call_next):
+        if not ursprung_passt(request):
+            # Nur Metadaten (Regel 18): Methode, Pfad und die beiden Kopfzeilen, kein Inhalt.
+            logger.warning("Schreibende Anfrage von fremdem Ursprung abgelehnt: %s %s (Sec-Fetch-Site=%r, Origin=%r)", request.method,
+                           request.url.path, request.headers.get("sec-fetch-site"), request.headers.get("origin"))
+            return _schutzkoepfe(JSONResponse(status_code=403, content={"detail": FREMDER_URSPRUNG}))
         db = session_factory()
         user = None
         sitzung_id = None
@@ -124,7 +177,7 @@ def middleware(session_factory):
             response = await _weiter(request, call_next, user, has_users, otp_ok)
             if user is not None or _setzt_sitzung(response):
                 response.headers["Cache-Control"] = CACHE_VERBOT
-            return response
+            return _schutzkoepfe(response)
         finally:
             reset_audit_context(tokens)
 

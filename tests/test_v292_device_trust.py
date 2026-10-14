@@ -20,7 +20,6 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -34,7 +33,7 @@ from app.routers import auth as auth_router_module
 from app.routers import users as users_router_module
 from app.routers.users import reset_user_two_factor, update_app_user
 from app.schemas import AppUserUpdate
-from tests.anmeldung import app_mit_schranke, neue_datenbank
+from tests.anmeldung import app_mit_schranke, browser_client, neue_datenbank
 from tests.test_v153_mahnwesen import db_session
 from tests.test_v250_two_factor_auth import make_admin, make_valid_code
 
@@ -129,7 +128,7 @@ def _configured_admin(db, username):
 def _login_and_trust(app, username, password, secret):
     """Loggt ein, bestätigt den Code mit gesetztem "Diesem Gerät vertrauen"-Häkchen -- liefert
     (client, trust_cookie_wert)."""
-    client = TestClient(app)
+    client = browser_client(app)
     login = client.post("/api/auth/login", json={"username": username, "password": password})
     assert login.status_code == 200
     verify = client.post("/api/account/2fa/verify", json={"code": make_valid_code(secret), "trust_device": True})
@@ -142,7 +141,7 @@ def _login_and_trust(app, username, password, secret):
 def _login_with_trust_cookie(app, username, password, trust_value):
     """Simuliert eine neue Browsersitzung auf demselben Gerät -- neuer Client (leerer
     Cookie-Speicher), aber mit dem zuvor gesetzten dk_erp_trust-Cookie."""
-    client = TestClient(app)
+    client = browser_client(app)
     client.cookies.set(device_trust.TRUST_COOKIE_NAME, trust_value)
     login = client.post("/api/auth/login", json={"username": username, "password": password})
     assert login.status_code == 200
@@ -172,7 +171,7 @@ def test_unchecked_checkbox_creates_no_trust():
     app, make_session = _make_test_app()
     db = make_session()
     admin, secret = _configured_admin(db, "ohne.haekchen")
-    client = TestClient(app)
+    client = browser_client(app)
     client.post("/api/auth/login", json={"username": "ohne.haekchen", "password": PASSWORD})
     verify = client.post("/api/account/2fa/verify", json={"code": make_valid_code(secret)})  # trust_device Standard False
     assert verify.status_code == 200
@@ -187,7 +186,7 @@ def test_setup_confirm_never_creates_trust_even_if_the_field_is_smuggled_in():
     app, make_session = _make_test_app()
     db = make_session()
     admin = make_admin(db, "erst.einrichtung")
-    client = TestClient(app)
+    client = browser_client(app)
     client.post("/api/auth/login", json={"username": "erst.einrichtung", "password": PASSWORD})
     setup = client.post("/api/account/2fa/setup/start")
     secret = setup.json()["secret"]
