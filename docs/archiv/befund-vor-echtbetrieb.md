@@ -4424,6 +4424,71 @@ und HSTS hängen an derselben Frage "ausdrücklich lokal oder nicht".
    nur bei 401 nach `/login` (Sitzung ungültig, kein Kreis) -- `field_timesheet.html` und `time_tracking_field.html` erkennen den 401 aber am
    Text der Meldung (Nebenbefund 1.8.103 Nr. 2).
 
+### Umsetzung 1.8.107: Secure als Vorgabe, HSTS, Schutzkopfzeilen an der 500 (Korrektur 104-8, Punkt 2)
+
+#### Was gebaut ist
+
+- **104-8 Secure als Vorgabe** (`app/auth.py`): `NUR_HTTPS` ist wahr, außer `ERP_ENV` ist ausdrücklich `development` (lokal über reines
+  HTTP) oder `test` (Testlauf); `COOKIE_SECURE = NUR_HTTPS or ERP_COOKIE_SECURE`. Fehlt `ERP_ENV`, ist sie leer oder hat einen anderen Wert,
+  bleibt das Anmelde-Cookie (und das Cookie "vertrautes Gerät") Secure -- bis 1.8.106 galt eine fehlende `ERP_ENV` als lokal. Ausdrücklich
+  lokal setzen jetzt: `start_windows.bat` (`set ERP_ENV=development` vor uvicorn), die Klicktests (seit jeher), `tests/conftest.py`
+  (`ERP_ENV=test` statt sie zu entfernen; sonst schickte der TestClient über http://testserver kein Cookie zurück). `.env.example` sagt es.
+- **Punkt 2, HSTS** (`app/anmeldeschranke.py::HSTS`): `Strict-Transport-Security: max-age=31536000` an jeder Antwort der Schranke, wo das
+  Cookie Secure ist (`NUR_HTTPS`: Produktion, auch mit fehlender `ERP_ENV`), ohne `includeSubDomains` und ohne `preload`; lokal und in Tests
+  keine. Ein Browser beachtet die Kopfzeile nur über HTTPS.
+- **Punkt 2, die 500** (`app/anmeldeschranke.py::serverfehler()`): ein unbehandelter Fehler kommt aus dem äußersten Fehler-Handler von
+  Starlette, an der Schranke vorbei -- bis 1.8.106 ohne Rahmen-Kopfzeilen und ohne Cache-Verbot (Nebenbefund 1.8.104 Nr. 2). Jetzt ist
+  `serverfehler()` dieser Handler: "Internal Server Error" (text/plain, nichts aus dem Fehler), `Cache-Control: no-store`, `X-Frame-Options`,
+  `frame-ancestors`, HSTS. Das gilt auch für einen Fehler in der Schranke selbst (Datenbank weg, bevor sie weiß, wer anfragt). Starlette gibt
+  den Fehler danach weiter an den Server (Protokoll wie bisher). Schranke und Handler bindet `einbinden(app, session_factory)` ein -- in
+  `app/main.py` und in `tests/anmeldung.py::app_mit_schranke()`, damit die Tests dieselbe Anwendung prüfen.
+
+#### Festlegungen 1.8.107 (Bitte bestätigen)
+
+1. **Ausdrücklich lokal ist `ERP_ENV=development`, Tests sind `ERP_ENV=test`** (Groß-/Kleinschreibung und Leerzeichen egal); fehlend, leer oder jeder andere Wert (auch `production`, `staging`) heißt Secure.
+2. **`ERP_COOKIE_SECURE` schaltet nur ein** (lokal oder im Test hinter HTTPS), nie aus -- auch `0` ändert außerhalb von lokal/Test nichts.
+3. **`start_windows.bat` setzt `ERP_ENV=development`** (127.0.0.1 über http ist ausdrücklich lokal); wer anders startet (uvicorn direkt, Zugriff vom Tablet über die LAN-Adresse), setzt sie selbst, sonst meldet ein Aufruf über http nicht an.
+4. **HSTS dort, wo das Cookie Secure ist** -- in Produktion und bei fehlender `ERP_ENV`, nicht nur mit `ERP_ENV=production`; lokal (`development`) auch dann nicht, wenn `ERP_COOKIE_SECURE=1` gesetzt ist.
+5. **HSTS: `max-age=31536000`** (ein Jahr), ohne `includeSubDomains` (Vorgabe) und ohne `preload`.
+6. **Die 500 nennt nichts aus dem Fehler** ("Internal Server Error", text/plain) und trägt `Cache-Control: no-store` wie eine Antwort an eine angemeldete Sitzung, dazu die Rahmen-Kopfzeilen und HSTS.
+7. **Schranke und Fehler-Handler über eine Funktion** (`einbinden()`), in der Anwendung wie in den Tests.
+
+**Vor dem Einspielen (Betreiber)**: auf dem Server ändert sich nichts, solange die `.env` `ERP_ENV=production` setzt (Secure wie bisher, neu
+HSTS). Setzt Nginx schon `Strict-Transport-Security`, stehen danach zwei Kopfzeilen in der Antwort (der Browser nimmt die erste) -- einmal mit
+`curl -sI https://app.dachkonzepte.gmbh/login` ansehen und die von Nginx entfernen oder gleich lassen. Lokal startet `start_windows.bat` wie
+bisher; ein anderer Start über http braucht `ERP_ENV=development`.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v412_hsts_und_fehlerseite.py` (30): Secure und HSTS in zehn Umgebungen (Unterprozess: fehlend, leer, production auch mit
+  Leerzeichen und `ERP_COOKIE_SECURE=0`, staging, nur `ERP_COOKIE_SECURE=0`, development, test, development mit `ERP_COOKIE_SECURE=1`); der
+  Testlauf selbst als `test`; `start_windows.bat` setzt `development` vor uvicorn; **Angriffstests** die 500 (API, Seite, POST, je mit und
+  ohne HSTS: Schutzkopfzeilen, no-store, kein Text des Fehlers, kein Traceback; ohne Anmeldung 401 statt 500), ein Fehler in der Schranke
+  selbst (Sitzungsfabrik wirft), HSTS an jeder Antwort (Anmeldeseite, API, 404, Weiterleitung, 403 fremder Ursprung, HEAD, OPTIONS -- mit und
+  ohne Anmeldung, ohne `includeSubDomains`/`preload`), `app.main` bindet den Handler ein; Rundgang über alle GET-Routen als Administratorin und
+  Monteurin mit HSTS.
+- **Angepasste Erwartungen** (Regel 28): `test_v409::test_secure_in_produktion_ohne_schalter` `({}, "False")` -> `({}, "True")` (fehlt
+  `ERP_ENV`, bleibt Secure). Nur Aufbau: `tests/conftest.py` setzt `ERP_ENV=test` (und entfernt `ERP_COOKIE_SECURE`) statt `ERP_ENV` zu
+  entfernen; `tests/anmeldung.py::app_mit_schranke()` bindet über `einbinden()` ein (mit Fehler-Handler); `test_v403::_rundgang()` hält HSTS
+  fest; `test_v111::test_cookie_secure_defaults_to_off` nur der Kommentar (Soll gleich: im Testlauf aus).
+- Gegenproben (Regel 24): 10 von 10 rot -- fehlende `ERP_ENV` wieder lokal (4 rot, auch test_v409), `ERP_COOKIE_SECURE=0` schaltet aus,
+  `start_windows.bat` ohne `ERP_ENV`, HSTS mit `includeSubDomains`, HSTS nur mit `production` (4 rot), Schranke ohne HSTS (13 rot, auch der
+  Rundgang), kein Fehler-Handler (8 rot), Handler ohne Schutzkopfzeilen (7 rot), Handler nennt den Fehler (7 rot), `app/main.py` nur mit der
+  Middleware. Jede Datei byte-genau zurück, kein Marker.
+- Volle Suite und alle Klicktests: im Bericht (Regel 26).
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **`create_all()` beim Start läuft weiter bei fehlender `ERP_ENV`** (`app/main.py`: nur `production` schaltet es ab) -- Secure und HSTS
+   sind jetzt bei fehlender Umgebung auf der sicheren Seite, das Sicherheitsnetz für das Schema nicht: auf dem Server mit nicht geladener
+   `.env` verdeckte es eine fehlende Migration (Vorfall 1 in CLAUDE.md).
+2. **Ob Nginx HSTS schon setzt, ist von hier nicht prüfbar** -- siehe "Vor dem Einspielen".
+
+### Stand nach 1.8.107: Nacharbeiten Sicherheit der Seiten
+
+Die zweite Vorgabe vom 14.10.2026 ist umgesetzt: Scanner liest Pfeile vollständig (1.8.105), Vorweg 101-4, 102-2, 103-2, 103-3 (1.8.106),
+104-8 und Punkt 2 (1.8.107); `content` der Layout-Bausteine steht im Parkplatz.
+
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
 Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):

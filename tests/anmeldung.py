@@ -17,7 +17,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.anmeldeschranke import middleware
+from app.anmeldeschranke import einbinden
 from app.database import Base, get_db
 
 
@@ -42,7 +42,8 @@ def client_mit_schranke(make_session, *routers, raise_server_exceptions: bool = 
 
 
 def app_mit_schranke(make_session, *routers) -> FastAPI:
-    """FastAPI mit den Routern, get_db auf make_session und der echten Anmeldeschranke."""
+    """FastAPI mit den Routern, get_db auf make_session und der echten Anmeldeschranke (seit 1.8.107 samt Fehler-Handler, wie
+    app/main.py über app/anmeldeschranke.py::einbinden())."""
     app = FastAPI()
     for router in routers:
         app.include_router(router)
@@ -55,5 +56,5 @@ def app_mit_schranke(make_session, *routers) -> FastAPI:
             db.close()
 
     app.dependency_overrides[get_db] = _db
-    app.middleware("http")(middleware(make_session))
+    einbinden(app, make_session)
     return app

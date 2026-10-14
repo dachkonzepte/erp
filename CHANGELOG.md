@@ -4,6 +4,16 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.107 – Secure als Vorgabe, HSTS, Schutzkopfzeilen auch an der 500
+
+Korrektur 104-8 und Punkt 2 der zweiten Vorgabe vom 14.10.2026. Das Anmelde-Cookie ist jetzt überall `Secure`, außer bei ausdrücklich
+lokalem Betrieb (`ERP_ENV=development`, `start_windows.bat` setzt das) oder im Testlauf (`ERP_ENV=test`) -- fehlt `ERP_ENV`, etwa weil
+auf dem Server die `.env` nicht geladen wurde, bleibt es Secure. An derselben Stelle trägt jede Antwort HSTS (`max-age=31536000`, ohne
+`includeSubDomains`). Ein unbehandelter Fehler antwortete bisher aus dem äußersten Fehler-Handler ohne Schutz gegen Einrahmen und ohne
+Cache-Verbot; jetzt trägt auch diese 500 alle Schutzkopfzeilen und nennt nichts aus dem Fehler.
+
+Neue Tests `tests/test_v412_hsts_und_fehlerseite.py`. Vor dem Einspielen: prüfen, ob Nginx schon HSTS setzt (sonst zwei Kopfzeilen).
+
 ## 1.8.106 – Vertraute Geräte mit abgemeldet, Feierabend als POST, Text-IDs geprüft
 
 Vorweg der zweiten Vorgabe vom 14.10.2026 (Korrekturen zu den Festlegungen 1.8.101–1.8.103). Beendet ein Administrator die Sitzungen eines

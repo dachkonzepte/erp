@@ -31,12 +31,17 @@ def _parse_bool_env(name: str, default: bool = False) -> bool:
     return val.strip().lower() in ("1", "true", "yes")
 
 
-# Seit 1.8.104 (Vorgabe vom 14.10.2026, Punkt 5): in Produktion (ERP_ENV=production) immer Secure -- ohne Schalter, auch mit
-# ERP_COOKIE_SECURE=0; der Server läuft nur über HTTPS, ein Aufruf über http (vor der Umleitung) bekommt kein Cookie mehr. Außerhalb
-# der Produktion (lokal über reines HTTP, Klicktests) aus, per ERP_COOKIE_SECURE=1 einschaltbar. Gilt für das Anmelde-Cookie und das
-# Cookie "vertrautes Gerät".
-IS_PRODUCTION = os.getenv("ERP_ENV", "development") == "production"
-COOKIE_SECURE = IS_PRODUCTION or _parse_bool_env("ERP_COOKIE_SECURE")
+# Seit 1.8.107 (Korrektur 104-8 der zweiten Vorgabe vom 14.10.2026): Secure ist die Vorgabe. Ohne Secure nur bei ausdrücklich lokalem
+# Betrieb (ERP_ENV=development: start_windows.bat, die Klicktests) oder in Tests (ERP_ENV=test: tests/conftest.py) -- dort per
+# ERP_COOKIE_SECURE=1 einschaltbar (z. B. eine Testinstanz hinter HTTPS). Fehlt ERP_ENV -- auf dem Server etwa, weil die .env nicht
+# geladen wurde (Vorfall 1 in CLAUDE.md) -- oder hat sie einen anderen Wert, bleibt Secure; ERP_COOKIE_SECURE=0 ändert daran nichts.
+# 1.8.104: Secure nur mit ERP_ENV=production oder ERP_COOKIE_SECURE=1, eine fehlende ERP_ENV galt als lokal. Gilt für das Anmelde-Cookie
+# und das Cookie "vertrautes Gerät"; NUR_HTTPS entscheidet ebenso über HSTS (app/anmeldeschranke.py).
+LOKALE_UMGEBUNGEN = frozenset({"development", "test"})
+ERP_ENV = (os.getenv("ERP_ENV") or "").strip().lower()
+NUR_HTTPS = ERP_ENV not in LOKALE_UMGEBUNGEN
+IS_PRODUCTION = ERP_ENV == "production"
+COOKIE_SECURE = NUR_HTTPS or _parse_bool_env("ERP_COOKIE_SECURE")
 
 logger = logging.getLogger(__name__)
 

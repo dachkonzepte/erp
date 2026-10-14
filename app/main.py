@@ -7,7 +7,7 @@ from fastapi.exception_handlers import http_exception_handler
 # Die Entscheidungsregeln der Anmeldeschranke bleiben über app.main erreichbar (ältere Tests importieren sie hier).
 from .anmeldeschranke import (  # noqa: F401
     _PUBLIC_PAGE_PATHS, _TWO_FACTOR_SETUP_PATHS, _blocked_pending_two_factor, _page_requires_login, _request_requires_login,
-    middleware as _anmeldeschranke,
+    einbinden as _schranke_einbinden,
 )
 from .auth import warn_if_secret_key_mismatches_file
 from .permissions import default_home_page_for_role
@@ -196,9 +196,9 @@ async def _role_check_403_shows_access_denied_page(request: Request, exc: HTTPEx
     return await http_exception_handler(request, exc)
 
 
-# Seit 1.8.98 in app/anmeldeschranke.py (Sitzungen auf dem Server, Cache-Verbot für angemeldete Sitzungen) -- hier nur eingebunden.
-identity_and_audit_middleware = _anmeldeschranke(SessionLocal)
-app.middleware("http")(identity_and_audit_middleware)
+# Seit 1.8.98 in app/anmeldeschranke.py (Sitzungen auf dem Server, Cache-Verbot für angemeldete Sitzungen) -- hier nur eingebunden;
+# seit 1.8.107 samt Fehler-Handler (die 500 mit den Schutzkopfzeilen), über dieselbe Funktion wie in den Tests.
+identity_and_audit_middleware = _schranke_einbinden(app, SessionLocal)
 
 
 # Re-Exports für Rückwärtskompatibilität (u. a. von der bestehenden Testsuite

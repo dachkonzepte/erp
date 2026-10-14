@@ -31,7 +31,10 @@ from pathlib import Path
 _TEST_SCRATCH = Path(tempfile.mkdtemp(prefix="erp_pytest_"))
 os.environ["DATABASE_URL"] = f"sqlite:///{(_TEST_SCRATCH / 'wegwerf.db').as_posix()}"
 os.environ["ERP_DATA_DIR"] = str(_TEST_SCRATCH / "data")
-os.environ.pop("ERP_ENV", None)
+# Seit 1.8.107 ausdrücklich "test" (Korrektur 104-8): ohne ERP_ENV wäre das Anmelde-Cookie Secure, und der TestClient (http://testserver)
+# schickte es nie zurück. create_all() beim Import von app.main läuft wie bisher (nur production schaltet es ab).
+os.environ["ERP_ENV"] = "test"
+os.environ.pop("ERP_COOKIE_SECURE", None)
 
 import pytest  # noqa: E402 -- erst nach dem Umlenken der Datenbank
 from fastapi import FastAPI

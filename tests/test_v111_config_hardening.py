@@ -24,8 +24,9 @@ def test_parse_bool_env_recognizes_common_false_values_and_default():
 
 def test_cookie_secure_defaults_to_off():
     import app.auth as auth_module
-    # In einer normalen Testumgebung ist ERP_COOKIE_SECURE nicht gesetzt,
-    # der beim Modulimport berechnete Wert sollte daher False sein. Die
+    # In der Testumgebung (tests/conftest.py: ERP_ENV=test, ERP_COOKIE_SECURE nicht gesetzt) ist
+    # der beim Modulimport berechnete Wert False -- seit 1.8.107 ist Secure sonst die Vorgabe
+    # (fehlt ERP_ENV, bleibt Secure; tests/test_v412_hsts_und_fehlerseite.py). Die
     # Parsing-Logik selbst ist bereits oben separat und ausführlicher
     # abgedeckt (_parse_bool_env) -- hier geht es nur um die Verdrahtung.
     assert auth_module.COOKIE_SECURE is False

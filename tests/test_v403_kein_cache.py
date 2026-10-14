@@ -62,8 +62,9 @@ def _rundgang(client, welt: dict, routers) -> list[dict]:
             antwort = client.get(pfad.format(**werte), params=query, follow_redirects=False)
             antworten.append({"route": route.path, "status": antwort.status_code, "cache": antwort.headers.get("cache-control"),
                               "art": antwort.headers.get("content-type", ""),
-                              # seit 1.8.104 auch der Schutz gegen Einrahmen (geprüft in test_v409)
-                              "xfo": antwort.headers.get("x-frame-options"), "csp": antwort.headers.get("content-security-policy")})
+                              # seit 1.8.104 auch der Schutz gegen Einrahmen (geprüft in test_v409), seit 1.8.107 HSTS (test_v412)
+                              "xfo": antwort.headers.get("x-frame-options"), "csp": antwort.headers.get("content-security-policy"),
+                              "hsts": antwort.headers.get("strict-transport-security")})
     return antworten
 
 

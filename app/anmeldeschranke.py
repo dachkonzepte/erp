@@ -16,6 +16,9 @@ Seit 1.8.104 (Vorgabe vom 14.10.2026, Punkte 3 und 4):
 - Jede Antwort verbietet das Einrahmen (X-Frame-Options: DENY, Content-Security-Policy frame-ancestors 'none'), auch die Anmeldeseite
   und ausgelieferte Dateien.
 
+Seit 1.8.107 (zweite Vorgabe vom 14.10.2026, Punkt 2): HSTS an jeder Antwort, wo das Cookie Secure ist (Produktion), und die
+Schutzkopfzeilen auch an der 500 aus dem Fehler-Handler (serverfehler()); app/main.py und die Tests binden beides über einbinden() ein.
+
 Die Entscheidungsregeln (_request_requires_login(), _page_requires_login(), _blocked_pending_two_factor()) sind unverändert und werden
 von app/main.py weiter angeboten (ältere Tests importieren sie dort)."""
 
@@ -25,11 +28,11 @@ import logging
 from urllib.parse import quote, urlsplit
 
 from fastapi import Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 
 from . import sitzungen
 from .audit import reset_audit_context, set_audit_context
-from .auth import COOKIE_NAME, users_exist
+from .auth import COOKIE_NAME, NUR_HTTPS, users_exist
 
 logger = logging.getLogger(__name__)
 
@@ -129,16 +132,43 @@ def ursprung_passt(request: Request) -> bool:
             and teile.netloc.lower() == host)
 
 
+# Seit 1.8.107 (Vorgabe Punkt 2): HSTS überall, wo das Cookie Secure ist (app/auth.py::NUR_HTTPS -- Produktion, auch mit fehlender
+# ERP_ENV; nicht lokal und nicht in Tests). Ein Jahr, ohne includeSubDomains (andere Dienste unter derselben Domain bleiben, wie sie
+# sind) und ohne preload. Ein Browser beachtet die Kopfzeile nur über HTTPS; danach nimmt er für app.dachkonzepte.gmbh nie mehr http.
+HSTS = "max-age=31536000" if NUR_HTTPS else None
+
+
 def _schutzkoepfe(response):
     """Seit 1.8.104: kein Einrahmen -- X-Frame-Options für ältere Browser, frame-ancestors für neuere; eine Content-Security-Policy
-    des Endpunkts (Dateien: sandbox) bekommt frame-ancestors angehängt, statt ersetzt zu werden."""
+    des Endpunkts (Dateien: sandbox) bekommt frame-ancestors angehängt, statt ersetzt zu werden. Seit 1.8.107 dazu HSTS (oben)."""
     response.headers["X-Frame-Options"] = "DENY"
     csp = response.headers.get("content-security-policy")
     if not csp:
         response.headers["Content-Security-Policy"] = "frame-ancestors 'none'"
     elif "frame-ancestors" not in csp:
         response.headers["Content-Security-Policy"] = csp.rstrip("; ") + "; frame-ancestors 'none'"
+    if HSTS:
+        response.headers["Strict-Transport-Security"] = HSTS
     return response
+
+
+async def serverfehler(request: Request, exc: Exception):
+    """Seit 1.8.107 (Vorgabe Punkt 2): die Antwort auf einen unbehandelten Fehler. Starlette schickt sie aus seinem äußersten Fehler-Handler
+    (ServerErrorMiddleware) -- an der Schranke vorbei, bis 1.8.106 deshalb ohne Schutzkopfzeilen und ohne Cache-Verbot (Nebenbefund 1.8.104
+    Nr. 2). Inhalt wie bisher nur "Internal Server Error", nichts aus dem Fehler (Regel 18); protokolliert hat ihn die Schranke schon
+    (_weiter()), danach gibt Starlette ihn an den Server weiter."""
+    antwort = PlainTextResponse("Internal Server Error", status_code=500)
+    antwort.headers["Cache-Control"] = CACHE_VERBOT
+    return _schutzkoepfe(antwort)
+
+
+def einbinden(app, session_factory):
+    """Seit 1.8.107: Schranke (Middleware) und Fehler-Handler an app -- app/main.py und tests/anmeldung.py binden über diese eine Funktion
+    ein. Gibt die Middleware-Funktion zurück."""
+    funktion = middleware(session_factory)
+    app.middleware("http")(funktion)
+    app.add_exception_handler(Exception, serverfehler)
+    return funktion
 
 
 ANMELDUNG_ABGELAUFEN = ("Anmeldung abgelaufen – bitte in einem neuen Tab anmelden und danach hier erneut speichern. "

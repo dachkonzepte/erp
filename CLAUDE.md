@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.106** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.107** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -738,13 +738,17 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     `tests/test_v407_daten_im_html.py` prüft alle drei über alle Vorlagen; die Ausnahmelisten (Changelog; 373 Handler mit Zahlen/IDs) dürfen
     nur kürzer werden. Details: `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.102".
 
-33. **Schreibende Anfragen nur von einer Seite des ERP, kein Einrahmen, Secure in Produktion, seit 1.8.104.** Die Anmeldeschranke lehnt
+33. **Schreibende Anfragen nur von einer Seite des ERP, kein Einrahmen, Secure und HSTS, seit 1.8.104.** Die Anmeldeschranke lehnt
     jedes POST/PUT/PATCH/DELETE mit 403 ab, dessen `Sec-Fetch-Site` nicht `same-origin` ist (auch von einer Unterdomain derselben Site), ohne
     `Sec-Fetch-Site` dessen `Origin` nicht zu `Host` passt, oder ohne beides -- auch beim Anmelden (`app/anmeldeschranke.py::ursprung_passt()`).
-    Jede Antwort trägt `X-Frame-Options: DENY` und `frame-ancestors 'none'` (an eine CSP des Endpunkts angehängt). Mit `ERP_ENV=production` ist
-    das Anmelde-Cookie immer `Secure`. Wer außerhalb des Browsers schreibt (Skript, Klicktest per urllib), schickt `Origin`; Tests über die
+    Jede Antwort trägt `X-Frame-Options: DENY` und `frame-ancestors 'none'` (an eine CSP des Endpunkts angehängt). **Seit 1.8.107** ist das
+    Anmelde-Cookie `Secure`, außer mit `ERP_ENV=development` (lokal, `start_windows.bat`) oder `ERP_ENV=test` (Tests) -- fehlt `ERP_ENV`, bleibt es
+    Secure (`app/auth.py::NUR_HTTPS`); dort trägt jede Antwort HSTS (`max-age=31536000`, ohne `includeSubDomains`). Auch die 500 aus dem
+    Fehler-Handler trägt die Schutzkopfzeilen und nennt nichts aus dem Fehler (`serverfehler()`); Schranke und Handler bindet
+    `app/anmeldeschranke.py::einbinden()` ein, in `app/main.py` wie in `tests/anmeldung.py`. Wer außerhalb des Browsers schreibt (Skript, Klicktest per urllib), schickt `Origin`; Tests über die
     echte Schranke nehmen `tests/anmeldung.py::browser_client()`. `tests/test_v409_ursprung_und_rahmen.py` (Angriffstabelle, Rundgang über
-    alle GET-Routen), Klicktest `klicktest_fremde_seite.py`. Details: `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.104".
+    alle GET-Routen), `tests/test_v412_hsts_und_fehlerseite.py`, Klicktest `klicktest_fremde_seite.py`. Details:
+    `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.104" und "Umsetzung 1.8.107".
 
 ## Fachbegriffe & Domänenmodell
 
@@ -1174,7 +1178,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Regel 33 -- alle zwölf Befund-Tests grün; seit 1.8.105 lesen die Scanner der Strukturtests Pfeilfunktionen vollständig
   (`tests/vorlagen_js.py::_ausdruck_ende()`, eine Funktion für alle, Zeilenende wie die Semikolon-Einfügung), Lieferschein-Knopf ohne Werte
   im onclick; seit 1.8.106 Vorweg: SVG-Logo mit Sandbox geprüft, TEXT_IDS vollständig und dauerhaft über alle Modelle und Antworten
-  geprüft, Admin meldet beim Beenden der Sitzungen auch die vertrauten Geräte ab, Feierabend als POST ohne Kreis über `/login`)
+  geprüft, Admin meldet beim Beenden der Sitzungen auch die vertrauten Geräte ab, Feierabend als POST ohne Kreis über `/login`; seit
+  1.8.107 Secure als Vorgabe (ohne nur `ERP_ENV=development`/`test`), HSTS, Schutzkopfzeilen auch an der 500)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Zahlungen** (Zahlungsstufe Z1 seit 1.8.78: Zahlungseingang mit Zuordnungen, Skonto und Einbehalt, Rest am Kunden,
   Zahlstand abgeleitet, Gegenbuchung statt Ändern, Sperrreihenfolge, Storno erst nach gelösten Zuordnungen, Finanzen/Dashboard mit
@@ -1469,7 +1474,8 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
   (`neue_datenbank()`); angemeldet wird über `POST /api/auth/login` oder direkt mit `app.sitzungen.neue_sitzung(db, user,
   zweiter_faktor=True)` als Cookie `dk_erp_auth` (Domäne `testserver.local`, sonst hält httpx zwei Cookies gleichen Namens). Seit 1.8.104
   (Regel 33) einen eigenen Client über die Schranke mit `browser_client(app)` bauen (Origin und Sec-Fetch-Site der eigenen Seite), sonst
-  bekommt jede schreibende Anfrage 403.
+  bekommt jede schreibende Anfrage 403. Seit 1.8.107 läuft jeder Test mit `ERP_ENV=test` (`tests/conftest.py`, sonst wäre das Cookie
+  Secure), und `app_mit_schranke()` bindet auch den Fehler-Handler ein.
 
 - **Grunddaten in jeder Testdatenbank** (seit 1.8.42): `tests/conftest.py` ruft nach jedem
   `Base.metadata.create_all()` `app.grunddaten.anlegen()` auf -- wie der Start einer echten Installation. Ein Test,
@@ -1736,8 +1742,8 @@ jedem Bericht, Ergebnis im Bericht (Regel 26).
 ## Bekannte, bewusst offene Punkte
 
 - ~~Befund 1.8.100 Sicherheit der Seiten~~ -- seit 1.8.104 alle zwölf Lücken geschlossen (Regeln 31–33), `tests/test_v405_befund_seiten.py`
-  ohne xfail. Offen bleibt nur, ob Nginx HSTS setzt und den Host weitergibt (für Tablets ohne `Sec-Fetch-Site`) -- Betreiberprüfung,
-  `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.104".
+  ohne xfail. HSTS setzt seit 1.8.107 die Anwendung; offen bleibt, ob Nginx den Host weitergibt (für Tablets ohne `Sec-Fetch-Site`) und
+  ob es HSTS zusätzlich setzt -- Betreiberprüfung, `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.104" und "Umsetzung 1.8.107".
 - **373 on…-Attribute mit Zahlen und IDs** stehen in `AUSNAHMEN_HANDLER` (`tests/test_v407_daten_im_html.py`, Regel 32): kein Text mehr,
   aber dasselbe Muster -- Abbau auf data-Attribute bei Gelegenheit, die Liste darf nur kürzer werden.
 - **`client_uuid` am Einsatzbericht ist nicht idempotent -- Pflicht vor Checklisten-Stufe 3

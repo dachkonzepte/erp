@@ -247,7 +247,7 @@ def _cookie_secure(**env_neu) -> str:
     ({"ERP_ENV": "production"}, "True"),
     ({"ERP_ENV": "production", "ERP_COOKIE_SECURE": "0"}, "True"),  # ohne Schalter: auch ein ausdrückliches 0 ändert nichts
     ({"ERP_ENV": "production", "ERP_COOKIE_SECURE": "1"}, "True"),
-    ({}, "False"),
+    ({}, "True"),  # seit 1.8.107 (Korrektur 104-8): fehlt ERP_ENV, bleibt Secure -- bis 1.8.106 "False"; weitere Fälle in test_v412
     ({"ERP_ENV": "development"}, "False"),
     ({"ERP_COOKIE_SECURE": "1"}, "True"),
 ])
