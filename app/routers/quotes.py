@@ -17,9 +17,9 @@ from ..email_dispatch import DispatchConflict
 from ..models import AppUser, Employee, EmployeeRoleSettings, Order, Project, Quote, QuoteEmployeeAssignment, QuoteItem, QuoteItemCalculation, QuoteItemLayout
 from ..orders import create_order_from_quote, load_order, order_to_dict
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
-from ..projects import add_service_to_quote, auto_number_quote, build_quote_item_calculation, create_free_quote_item, create_quote_section, delete_quote_section, duplicate_quote_item, ensure_quote_item_calculation, load_quote, quote_item_calculation_preview, quote_to_dict, reorder_quote, send_quote_email, set_item_layout, update_quote_section, update_quote_tax_key
+from ..projects import add_service_to_quote, auto_number_quote, build_quote_item_calculation, create_free_quote_item, create_quote_section, delete_quote_section, duplicate_quote_item, ensure_quote_item_calculation, load_quote, move_quote_item_before, quote_item_calculation_preview, quote_to_dict, reorder_quote, send_quote_email, set_item_layout, update_quote_section, update_quote_tax_key
 from ..quote_framed_pdf import build_quote_framed_pdf
-from ..schemas import OrderCreateFromQuote, OrderOut, QuoteDocumentMetaUpdate, QuoteEmailSend, QuoteFreeItemCreate, QuoteItemCalculationOut, QuoteItemCalculationUpdate, QuoteItemCreate, QuoteItemLayoutUpdate, QuoteItemUpdate, QuoteOut, QuoteReorderRequest, QuoteSectionCreate, QuoteSectionUpdate, QuoteUpdate, TaxKeySelection
+from ..schemas import OrderCreateFromQuote, OrderOut, QuoteDocumentMetaUpdate, QuoteEmailSend, QuoteFreeItemCreate, QuoteItemCalculationOut, QuoteItemCalculationUpdate, QuoteItemCreate, QuoteItemMove, QuoteItemLayoutUpdate, QuoteItemUpdate, QuoteOut, QuoteReorderRequest, QuoteSectionCreate, QuoteSectionUpdate, QuoteUpdate, TaxKeySelection
 
 router = APIRouter()
 
@@ -210,6 +210,18 @@ def update_item_layout_api(quote_id: int, item_id: int, payload: QuoteItemLayout
     try:
         # Seit 1.8.96 Teil-Update (Regel 22): Drag-and-drop schickt nur den Titel, "in Summe" bleibt.
         set_item_layout(db, quote_id, item_id, **payload.model_dump(exclude_unset=True))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return QuoteOut.model_validate(quote_to_dict(load_quote(db, quote_id)))
+
+
+@router.post("/api/quotes/{quote_id}/items/{item_id}/move", response_model=QuoteOut)
+def move_quote_item_api(quote_id: int, item_id: int, payload: QuoteItemMove, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+    """Seit 1.8.99: Position vor eine andere stellen (Drag-and-drop auf eine Position) -- nur die beiden IDs, der Rest vom Server."""
+    try:
+        move_quote_item_before(db, quote_id, item_id, payload.before_item_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return QuoteOut.model_validate(quote_to_dict(load_quote(db, quote_id)))

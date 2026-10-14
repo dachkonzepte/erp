@@ -474,6 +474,7 @@ def set_item_layout(db: Session, quote_id: int, item_id: int, **changes) -> Quot
         raise ValueError("Angebotsposition nicht gefunden.")
     if "section_id" in changes:
         _validate_section(db, quote_id, changes["section_id"])
+    lock_quote(db, quote_id)  # seit 1.8.99: bis zur neuen Nummerierung (ein Commit)
     layout = db.scalar(select(QuoteItemLayout).where(QuoteItemLayout.quote_item_id == item_id))
     if layout is None:
         layout = QuoteItemLayout(quote_item_id=item_id, section_id=changes.get("section_id"), sort_order=item.sort_order,
@@ -482,11 +483,52 @@ def set_item_layout(db: Session, quote_id: int, item_id: int, **changes) -> Quot
     else:
         for key, value in changes.items():
             setattr(layout, key, value)
-    db.commit(); auto_number_quote(db, quote_id); db.refresh(layout)
+    db.flush(); auto_number_quote(db, quote_id); db.refresh(layout)
     return layout
 
 
+def lock_quote(db: Session, quote_id: int) -> None:
+    """Sperrt die Zeile des Angebots bis zum Commit (seit 1.8.99, Festlegung 1.8.96 Nr. 19 korrigiert): Nummerierung (OZ, Titelnummern)
+    und Reihenfolge leiten sich aus ALLEN Positionen und Titeln ab -- zwei gleichzeitige Änderungen (zwei Positionen verschoben)
+    rechneten sonst je mit einem Stand ohne die andere. Ausstehende Änderungen gehen vorher in die Datenbank (flush), danach wird alles
+    neu gelesen (expire_all), was vor der Sperre geladen war. Unter SQLite ohne Wirkung (eine Schreibsperre gilt dort ohnehin)."""
+    db.flush()
+    db.execute(select(Quote.id).where(Quote.id == quote_id).with_for_update())
+    db.expire_all()
+
+
+def move_quote_item_before(db: Session, quote_id: int, item_id: int, before_item_id: int) -> None:
+    """Position item_id vor before_item_id stellen, in dessen Titel (seit 1.8.99 Teil-Update für moveItemBefore im Angebots-Editor):
+    der Editor schickt nur, was der Nutzer verschoben hat -- bis 1.8.98 Titel und Reihenfolge aller Positionen des Zieltitels aus dem
+    Stand beim Laden (POST …/reorder), eine inzwischen anderswo verschobene oder neue Position fiel dabei still zurück oder heraus.
+    Die Reihenfolge rechnet der Server aus dem gespeicherten Stand, unter der Sperre des Angebots. Beide Positionen müssen zum Angebot
+    gehören (Regel 25: fremd wie unbekannt LookupError, der Router macht 404 daraus)."""
+    lock_quote(db, quote_id)
+    item = db.get(QuoteItem, item_id)
+    vor = db.get(QuoteItem, before_item_id)
+    if item is None or item.quote_id != quote_id:
+        raise LookupError("Angebotsposition nicht gefunden.")
+    if vor is None or vor.quote_id != quote_id:
+        raise LookupError("Angebotsposition nicht gefunden.")
+    if item.id == vor.id:
+        raise ValueError("Eine Position kann nicht vor sich selbst stehen.")
+    quote = load_quote(db, quote_id)
+    _, _sections, layouts = ensure_quote_structure(db, quote)
+    titel = layouts[vor.id].section_id
+    reihe = sorted((i for i in quote.items if layouts[i.id].section_id == titel and i.id != item.id),
+                   key=lambda i: (layouts[i.id].sort_order, i.id))
+    reihe.insert(next(n for n, i in enumerate(reihe) if i.id == vor.id), next(i for i in quote.items if i.id == item.id))
+    layouts[item.id].section_id = titel
+    for n, i in enumerate(reihe, 1):
+        layouts[i.id].sort_order = n * 10
+        i.sort_order = n * 10
+    db.flush()
+    auto_number_quote(db, quote_id)
+
+
 def reorder_quote(db: Session, quote_id: int, sections: list[dict], items: list[dict]) -> None:
+    # Seit 1.8.99 unter der Sperre des Angebots bis zur neuen Nummerierung (ein Commit).
+    lock_quote(db, quote_id)
     valid_sections = {s.id: s for s in db.scalars(select(QuoteSection).where(QuoteSection.quote_id == quote_id)).all()}
     for row in sections:
         section = valid_sections.get(row["id"])
@@ -506,10 +548,12 @@ def reorder_quote(db: Session, quote_id: int, sections: list[dict], items: list[
             layout = QuoteItemLayout(quote_item_id=item.id); db.add(layout); layouts[item.id] = layout
         layout.section_id = section_id; layout.sort_order = row["sort_order"]
         item.sort_order = row["sort_order"]
-    db.commit(); auto_number_quote(db, quote_id)
+    db.flush(); auto_number_quote(db, quote_id)
 
 
 def auto_number_quote(db: Session, quote_id: int) -> None:
+    # Seit 1.8.99 unter der Sperre des Angebots (lock_quote()): OZ und Titelnummern aus dem Stand NACH jeder gleichzeitigen Änderung.
+    lock_quote(db, quote_id)
     quote = load_quote(db, quote_id)
     if quote is None: return
     _, sections, layouts = ensure_quote_structure(db, quote)

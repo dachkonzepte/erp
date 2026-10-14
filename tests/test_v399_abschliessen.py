@@ -25,6 +25,7 @@ nur_mit_node = pytest.mark.skipif(NODE is None, reason="node nicht installiert")
 
 UNKLAR = "unklar, ob gespeichert wurde. Bitte die Seite neu laden und prüfen."
 NICHT_GESENDET = "Nicht gesendet: ein Speichern davor blieb ohne Antwort"
+GESCHEITERT = "Nicht ausgeführt: ein Speichern auf der Seite ist gescheitert (kaputt S1). Bitte prüfen und erneut versuchen."
 
 
 def _debounce_js() -> str:
@@ -161,16 +162,17 @@ def test_a_final_action_waits_for_a_waiting_save_too():
 
 @nur_mit_node
 def test_a_final_action_does_not_run_if_a_running_save_fails():
+    """Seit 1.8.99 (Festlegung 1.8.96 Nr. 7, korrigiert) sperrt das gescheiterte Speichern auch die nächste abschließende Aktion, bis ein
+    Speichern im selben Bereich gelingt -- bis 1.8.98 ging U2 (nach dem Scheitern geklickt) hinaus."""
     log = _ablauf("""
         speichern('feld',anfrage('S1')).catch(()=>{});
         const a=abschliessen('unterschrift',anfrage('U1'),{anwenden:anwenden()}).then(()=>'kein',e=>e.message+' | '+e.dkBaustein);
         await ruhe(); await scheitere('S1'); log.push('ergebnis '+(await a));
-        const b=abschliessen('unterschrift',anfrage('U2')); await ruhe(); await antworte('U2'); await b;
+        const b=await abschliessen('unterschrift',anfrage('U2')).then(()=>'kein',e=>e.dkBaustein); log.push('U2 '+b);
+        const s=speichern('feld',anfrage('S2')); await ruhe(); await antworte('S2'); await s;
+        const c=abschliessen('unterschrift',anfrage('U3')); await ruhe(); await antworte('U3'); await c;
     """)
-    assert log == ["gesendet S1",
-                   "ergebnis Nicht ausgeführt: ein Speichern auf der Seite ist gescheitert (kaputt S1). Bitte prüfen und erneut "
-                   "versuchen. | abschluss",
-                   "gesendet U2"]
+    assert log == ["gesendet S1", "ergebnis " + GESCHEITERT + " | abschluss", "U2 abschluss", "gesendet S2", "gesendet U3"]
 
 
 @nur_mit_node
@@ -185,12 +187,61 @@ def test_an_error_status_counts_as_failed():
 
 
 @nur_mit_node
-def test_a_save_failed_before_the_click_does_not_block():
+def test_a_save_failed_before_the_click_blocks_until_a_later_save_of_the_same_area_succeeds():
+    """Seit 1.8.99 (Festlegung 1.8.96 Nr. 7, korrigiert; vorher test_a_save_failed_before_the_click_does_not_block, Soll bis 1.8.98:
+    U1 gesendet): ein gescheitertes Speichern ohne nachfolgendes erfolgreiches im selben Bereich sperrt abschließende Aktionen wie
+    "unklar" -- auch wenn es vor dem Klick gescheitert ist. Ein erfolgreiches Speichern in einem anderen Bereich hebt das nicht auf, eins
+    im selben Bereich schon."""
     log = _ablauf("""
         const s=speichern('feld',anfrage('S1')).catch(()=>{}); await ruhe(); await scheitere('S1'); await s;
+        log.push('U1 '+await abschliessen('unterschrift',anfrage('U1')).then(()=>'kein',e=>e.message+' | '+e.dkBaustein));
+        const t=speichern('anders',anfrage('T1')); await ruhe(); await antworte('T1'); await t;
+        log.push('U2 '+await abschliessen('unterschrift',anfrage('U2')).then(()=>'kein',e=>e.dkBaustein));
+        const s2=speichern('feld',anfrage('S2')); await ruhe(); await antworte('S2'); await s2;
+        const a=abschliessen('unterschrift',anfrage('U3')); await ruhe(); await antworte('U3'); await a;
+    """)
+    assert log == ["gesendet S1", "U1 " + GESCHEITERT + " | abschluss", "gesendet T1", "U2 abschluss", "gesendet S2", "gesendet U3"]
+
+
+@nur_mit_node
+def test_an_error_status_before_the_click_blocks_too():
+    log = _ablauf("""
+        const s=speichern('feld',()=>fetch('S1')); await ruhe(); await antworte('S1',new Response('{}',{status:422})); await s;
+        log.push('U1 '+await abschliessen('unterschrift',anfrage('U1')).then(()=>'kein',e=>e.message));
+    """)
+    assert log == ["gesendet S1", "U1 Nicht ausgeführt: ein Speichern auf der Seite ist gescheitert (Status 422). Bitte prüfen und "
+                                  "erneut versuchen."]
+
+
+@nur_mit_node
+def test_a_final_action_refused_by_the_server_does_not_block_another():
+    """Nur Speichern sperrt: eine abschließende Aktion, die der Server ablehnt (Fehlerstatus oder Fehler), hält die nächste nicht auf."""
+    log = _ablauf("""
+        const a=abschliessen('versand',()=>fetch('V1')); await ruhe(); await antworte('V1',new Response('{}',{status:409})); await a;
+        const b=abschliessen('versand',anfrage('V2')).catch(e=>e.message); await ruhe(); await scheitere('V2'); await b;
+        const c=abschliessen('unterschrift',anfrage('U1')); await ruhe(); await antworte('U1'); await c;
+    """)
+    assert log == ["gesendet V1", "gesendet V2", "gesendet U1"]
+
+
+@nur_mit_node
+def test_an_unclear_final_action_blocks_further_final_actions():
+    """Eine abschließende Aktion ohne Antwort (Zeitlimit) macht ihren Bereich unklar -- danach geht keine weitere hinaus (Festlegung
+    1.8.96 Nr. 9)."""
+    log = _ablauf("""
+        await abschliessen('versand',anfrage('V1')).catch(()=>{});
+        log.push('U1 '+await abschliessen('unterschrift',anfrage('U1')).then(()=>'kein',e=>e.dkBaustein));
+    """, zeitlimit=100)
+    assert log == ["gesendet V1", "abgebrochen V1", "U1 abschluss"]
+
+
+@nur_mit_node
+def test_a_failed_read_does_not_block():
+    log = _ablauf("""
+        const l=lesen('feld',anfrage('L1'),anwenden()).catch(()=>{}); await ruhe(); await scheitere('L1'); await l;
         const a=abschliessen('unterschrift',anfrage('U1')); await ruhe(); await antworte('U1'); await a;
     """)
-    assert log == ["gesendet S1", "gesendet U1"]
+    assert log == ["gesendet L1", "gesendet U1"]
 
 
 @nur_mit_node
@@ -241,7 +292,8 @@ def test_a_final_action_in_the_same_area_queues_like_a_save():
 @nur_mit_node
 def test_two_final_actions_after_a_failed_save_are_both_refused_naming_it():
     """Zwei abschließende Aktionen, beide nach dem Speichern geklickt: beide laufen nicht, die Meldung nennt das gescheiterte
-    Speichern (die erste Aktion zählt für die zweite ebenfalls als gescheitert)."""
+    Speichern -- die zweite wegen dieses Speicherns, nicht wegen der ersten Aktion (eine abgelehnte abschließende Aktion sperrt keine
+    weitere; bis 1.8.98 stand hier "die erste Aktion zählt für die zweite ebenfalls als gescheitert")."""
     log = _ablauf("""
         speichern('feld',anfrage('S1')).catch(()=>{});
         const a=abschliessen('versand',anfrage('V1')).catch(e=>e.dkBaustein);
@@ -328,6 +380,9 @@ ABSCHLIESSEND = {
     ("quote_editor.html", "createOrder"): "Beauftragen",
     ("quote_editor.html", "syncExistingOrder"): "Abgleich mit dem Auftrag",
     ("service_reports.html", "confirmSignatureStep"): "Einsatzbericht unterschreiben",
+    # Seit 1.8.99 (Festlegung 1.8.96 Nr. 6, korrigiert: Zahlung, Gegenbuchung, Erstattung, Storno, Abnahme, Mangel und
+    # Nebenforderung sind abschließend) -- alle übrigen dieser Arten standen schon hier.
+    ("incoming_invoices.html", "markPaidNow"): "Eingangsrechnung als bezahlt markieren (Zahlung)",
 }
 
 # Adressen, die nach einer abschließenden Aktion klingen -- jede schreibende Anfrage, deren Adresse darauf passt, steht in
@@ -335,10 +390,14 @@ ABSCHLIESSEND = {
 KLINGT_ABSCHLIESSEND = re.compile(
     r"/(sign|sign-paper|send|complete|freeze|storno|void|discard[\w-]*|reverse|refunds|allocations|payments|acceptances|"
     r"acceptance-from-protocol|defects|remedied|outcome|manual|resolve|convert-to-order|sync-source-quote|default-start|"
-    r"notice-letters)\b")
+    r"notice-letters|charges)\b")  # charges seit 1.8.99 (Nebenforderung)
 NICHT_ABSCHLIESSEND = {
     ("address_import.html", "discardPreview"): "Vorschau eines Imports verwerfen -- nichts ist festgeschrieben",
     ("address_import.html", "discardWorklistRow"): "Zeile der Arbeitsliste verwerfen -- Arbeitsschritt, kein Beleg",
+    # Seit 1.8.99: Gebühr, Pauschale und Zinsen in den ENTWURF einer Mahnung übernehmen -- gebucht wird die Nebenforderung erst beim
+    # Festschreiben der Mahnung (sendReminder/sendReminderNow, abschließend); der Server nimmt das nur an einem Entwurf an.
+    ("invoice_detail.html", "saveReminderCharges"): "Nebenforderung in den Entwurf übernehmen -- gebucht beim Festschreiben",
+    ("mahnwesen.html", "saveReminderCharges"): "Nebenforderung in den Entwurf übernehmen -- gebucht beim Festschreiben",
 }
 
 

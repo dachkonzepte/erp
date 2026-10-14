@@ -4,6 +4,29 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.99 – Hochladen ohne vorzeitiges Zeitlimit, gescheitertes Speichern sperrt Abschließendes, Zeilensperren an abgeleiteten Werten
+
+Korrekturen der Festlegungen 1.8.96/1.8.97. Beim Hochladen läuft das Zeitlimit des Bausteins erst ab dem Ende der Übertragung: die Datei
+geht über XMLHttpRequest, dessen upload-Ereignis das Ende meldet -- bis 1.8.98 endete ein großes Foto über eine langsame Verbindung nach
+60 s als „unklar“, obwohl es noch lief. Ein gescheitertes Speichern sperrt abschließende Aktionen der Seite, bis ein späteres Speichern im
+selben Bereich gelingt (bis 1.8.98 nur, wenn es beim Klick noch lief); eine vom Server abgelehnte abschließende Aktion sperrt keine weitere.
+„Eingangsrechnung als bezahlt markieren“ ist abschließend.
+
+Zeilensperren überall, wo ein Teil-Update einen gespeicherten Wert aus mehreren Feldern ableitet: Verkaufspreis einer Leistung aus ihrer
+Kalkulation, Nummerierung und Reihenfolge im Angebot, Auftrag und LV-Position einer Zeit- und einer Gruppenbuchung, Materialbedarf der
+Arbeitsvorbereitung (jetzt im selben Commit wie die Auftragsposition), Art und Name eines Kontakts. Das Verschieben einer Position im
+Angebots-Editor schickt nur noch, vor welche Position sie kommt (neuer Endpunkt), statt Titel und Reihenfolge aller Positionen aus dem
+Stand beim Laden; das Speichern der Kalkulation lädt das LV in seinem Bereich neu und füllt das Formular nur, wenn noch dieselbe Position
+gewählt ist. Der Scanner für Anfragen außerhalb des Bausteins sieht auch Aufrufe direkt aus dem HTML -- die Suchseite liest deshalb jetzt
+über den Baustein. `content` am Layout-Baustein wird gespeichert. Regeln 26 und 28 erweitert.
+
+Keine Migration. Neu `test_v404_hochladen_zeitlimit` (7), `test_v404_vorweg` (14, davon 8 gegen PostgreSQL); Erwartungen geändert in
+`test_v399` (zwei, gescheitertes Speichern vor dem Klick sperrt jetzt), `test_v399_teil_updates_rest` und `test_v158` (content
+gespeichert), Liste der Ausnahmen in `test_v400` 37 -> 33. Klicktest `klicktest_hochladen` (neu) 6/6, `klicktest_leistungszeitraum`
+angepasst (Finalisieren nach „Ende vor Beginn“ abgelehnt, 22/22). Gegenproben 22 von 22 rot. Volle Suite (mit den Tests gegen
+PostgreSQL) vor dem Commit: 4870 grün, 1 rot -- `test_v158` (Erwartung veraltet seit dieser Version), angepasst, 23 grün. Alle
+Klicktests: 61 von 62 wie erwartet in 16:47 min, rot `klicktest_leistungszeitraum` 17/20 (ebenso), angepasst 22/22.
+
 ## 1.8.98 – Weiterleitungen nur lokal, Sitzungen auf dem Server, kein Cache für angemeldete Sitzungen
 
 Ein Weiterleitungsziel aus der Anfrage (`next` der Anmeldung) führt nur noch auf einen lokalen Pfad dieses Servers, sonst auf die

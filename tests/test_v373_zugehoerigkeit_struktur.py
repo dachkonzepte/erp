@@ -162,6 +162,9 @@ GEPRUEFT = {
         ("projects.reorder_quote", "section_id is not None and section_id not in valid_sections"),
     "POST /api/quotes/{quote_id}/reorder sections.parent_id":
         ("projects.reorder_quote", "parent_id is not None and parent_id not in valid_sections"),
+    # seit 1.8.99: Position verschieben als Teil-Update (moveItemBefore), Angriffstest in test_v404_vorweg.py
+    "POST /api/quotes/{quote_id}/items/{item_id}/move before_item_id":
+        ("projects.move_quote_item_before", "vor is None or vor.quote_id != quote_id"),
     # --- Vertrag am Auftrag ---
     "POST /api/orders/{order_id}/contract/freeze attachment_document_id":
         ("contract_versions._choose_attachment", "attachment_document_id != last.id"),
@@ -226,6 +229,8 @@ GEPRUEFT = {
         ("projects._validate_section", "section is None or section.quote_id != quote_id"),
     "PUT /api/quotes/{quote_id}/items/{item_id}/layout item_id":
         ("projects.set_item_layout", "item is None or item.quote_id != quote_id"),
+    "POST /api/quotes/{quote_id}/items/{item_id}/move item_id":
+        ("projects.move_quote_item_before", "item is None or item.quote_id != quote_id"),
     "POST /api/quotes/{quote_id}/items/{item_id}/duplicate item_id":
         ("routers.quotes.duplicate_item_api", "QuoteItem.quote_id == quote_id"),
     "PUT /api/quotes/{quote_id}/items/{item_id} item_id":

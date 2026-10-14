@@ -5,6 +5,7 @@ docs/archiv/befund-vor-echtbetrieb.md, "Umsetzung 1.8.74":
     Rechnungsseite     Schlussrechnung im Entwurf: Felder leer, Vorschlag mit Quelle (erste bis letzte Zeitbuchung), statt
                        "Rechnung finalisieren" der Grund "Leistungszeitraum fehlt"; nichts still eingetragen; "Übernehmen" ->
                        Felder gefüllt und gespeichert, Finalisieren erscheint; Ende vor Beginn -> Fehler, Werte bleiben;
+                       seit 1.8.99 danach Finalisieren abgelehnt (gescheitertes Speichern), Ende wieder eingetragen;
                        Finalisieren -> festgeschrieben mit Zeitraum (hell und dunkel)
     ohne Zeitbuchungen Vorschlag "Geplanter Zeitraum des Auftrags"
     Einstellungen      Nummernkreis Rechnung: nächste Nummer 1 trotz vergebener -> Meldung mit der höchsten, nichts gespeichert;
@@ -135,6 +136,18 @@ async def pruefen(tab, seed, p):
              await tab.warten("document.getElementById('headerStatus').textContent.includes('liegt vor dem Beginn')"), True)
     p.pruefe("Ende vor Beginn: Wert bleibt", await tab.js("document.getElementById('iPeriodEnd').value"), "2026-09-18")
     await _bild(tab, "rechnung_ende_vor_beginn", "headerStatus")
+
+    # --- seit 1.8.99 (Festlegung 1.8.96 Nr. 7, korrigiert): das gescheiterte Speichern sperrt das Finalisieren, bis im selben Bereich
+    # wieder gespeichert ist -- bis 1.8.98 ging das Finalisieren direkt danach hinaus ---
+    await tab.js("void sendInvoice()")
+    p.pruefe("Nach dem gescheiterten Speichern: Finalisieren abgelehnt, Entwurf bleibt", [
+        await tab.warten("document.getElementById('statusActionMsg').textContent.includes('ein Speichern auf der Seite ist gescheitert')"),
+        await tab.js(f"fetch('/api/invoices/{sid}').then(r=>r.json()).then(j=>j.status)")], [True, "entwurf"])
+    # Ende wieder eingetragen (eigene Funktion: ein zweites "const e" im selben Dokument scheiterte still)
+    await tab.js("(()=>{const e=document.getElementById('iPeriodEnd');e.value='2026-09-18';e.dispatchEvent(new Event('change'))})()")
+    p.pruefe("Ende wieder eingetragen: gespeichert", await tab.warten(
+        "document.getElementById('headerStatus').textContent==='Leistungszeitraum gespeichert.'"), True)
+    await tab.warte_auf_ruhe()
 
     # --- Finalisieren ---
     await tab.js("sendInvoice()")

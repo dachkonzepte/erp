@@ -101,11 +101,13 @@ def test_update_layout_block_changes_position_and_style():
     assert updated.text_align == "right"
 
 
-def test_update_layout_block_ignores_content_for_predefined_blocks():
+def test_update_layout_block_stores_content_for_predefined_blocks():
     """content ist nur bei custom_text gedacht (bis 1.3.20, seither entfernt, siehe CLAUDE.md
     "Gemeinsamer Dokumenttyp"/Aufräumen nach dem PDF-Umbau) -- bei vordefinierten Bausteinen
-    (deren Inhalt aus den echten Dokumentdaten kommt) darf ein versehentlich mitgeschickter
-    content-Wert nichts bewirken."""
+    kommt der Inhalt aus den echten Dokumentdaten. Seit 1.8.99 (Festlegung 1.8.96 Nr. 24 korrigiert:
+    "content wird gespeichert, nie still verworfen"; vorher
+    test_update_layout_block_ignores_content_for_predefined_blocks, Soll bis 1.8.98: content bleibt
+    None) wird ein mitgeschickter Wert gespeichert -- gezeichnet wird er weiterhin nicht."""
     db = db_session()
     blocks = load_layout(db, "default")
     header = [b for b in blocks if b.block_type == "company_header"][0]
@@ -114,7 +116,7 @@ def test_update_layout_block_ignores_content_for_predefined_blocks():
         content="Das sollte ignoriert werden", font_size=header.font_size, font_weight=header.font_weight,
         text_align=header.text_align, visible=True,
     )
-    assert updated.content is None
+    assert updated.content == "Das sollte ignoriert werden"
 
 
 # ---------------------------------------------------------------------------

@@ -229,7 +229,11 @@ def create_contact(db: Session, values: dict) -> Contact:
 def update_contact(db: Session, contact: Contact, values: dict) -> Contact:
     """values: nur die gesendeten Felder (Regel 22). Das Pflichtfeld der Art wird nach dem Zusammenführen
     geprüft -- wer die Art wechselt, muss das Pflichtfeld der neuen Art mitschicken oder schon haben.
-    Mit Verweis auf einen Stammsatz ist nur die Funktion änderbar; der Rest wird dort gepflegt."""
+    Mit Verweis auf einen Stammsatz ist nur die Funktion änderbar; der Rest wird dort gepflegt.
+    Seit 1.8.99 unter der Sperre der Zeile, frisch geladen: die Prüfung über mehrere Felder (Art und Name/Firma) sieht eine gleichzeitige
+    Änderung."""
+    db.execute(select(Contact.id).where(Contact.id == contact.id).with_for_update())
+    db.refresh(contact)
     cleaned = _clean(values)
     source = contact_source(contact)
     if source is not None:

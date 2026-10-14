@@ -612,6 +612,12 @@ class QuoteReorderItem(BaseModel):
     sort_order: int
 
 
+class QuoteItemMove(BaseModel):
+    """Seit 1.8.99: moveItemBefore im Angebots-Editor schickt nur, vor welche Position die verschobene kommt (Teil-Update) -- Titel
+    und Reihenfolge rechnet der Server (app/projects.py::move_quote_item_before())."""
+    before_item_id: int
+
+
 class QuoteReorderRequest(BaseModel):
     sections: list[QuoteReorderSection] = Field(default_factory=list)
     items: list[QuoteReorderItem] = Field(default_factory=list)
@@ -3738,8 +3744,8 @@ class DocumentLayoutBlockOut(BaseModel):
 
 class DocumentLayoutBlockUpdate(PartialUpdate):
     """Seit 1.8.96 Teil-Update (Regel 22): "anzeigen" schickt nur visible, die Position des Folgeseiten-Kopfs nur y_mm -- vorher
-    gingen alle Felder des Bausteins mit dem beim Laden gemerkten Stand mit. content nimmt der Server an, schreibt ihn aber nicht
-    (app/document_layout.py::update_layout_block())."""
+    gingen alle Felder des Bausteins mit dem beim Laden gemerkten Stand mit. content wird seit 1.8.99 gespeichert (bis 1.8.98 still
+    verworfen, app/document_layout.py::update_layout_block())."""
     NOT_NULL = frozenset({"x_mm", "y_mm", "width_mm", "height_mm", "font_size", "font_weight", "text_align", "visible"})
     x_mm: Decimal | None = Field(default=None, ge=0, le=210)
     y_mm: Decimal | None = Field(default=None, ge=0, le=297)

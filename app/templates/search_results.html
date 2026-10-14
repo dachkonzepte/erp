@@ -41,6 +41,7 @@ h1{margin:0 0 4px;color:var(--ink)}h2{color:var(--ink)}.muted{color:var(--muted)
 </main>
 </div>
 </div>
+{% include "_speichern.html" %}
 <script>
 /* TYPE_LABELS muss mit OFFICE_SEARCH_SOURCES (app/search.py) synchron bleiben -- Reihenfolge,
    Schlüssel UND Beschriftung. Kein Endpunkt liefert diese Liste, da sie sich nur ändert, wenn
@@ -99,27 +100,29 @@ function renderGroups(){
   }).join('');
 }
 
+/* Seit 1.8.99 über lesen() (_speichern.html), ein Bereich 'suche' für die Suche und "weitere anzeigen" (beide setzen groups): eine
+   späte Antwort einer älteren Suche ersetzt keine neuere mehr. Bis 1.8.98 als Ausnahme "Suche" außerhalb des Bausteins; "weitere
+   anzeigen" rief den Anfrage-Helfer direkt aus dem HTML auf (Festlegung 1.8.97 Nr. 1, korrigiert). */
 async function runSearch(){
   groupLimits={};
-  if(!query||query.trim().length<2){groups=[];renderGroups();return}
+  if(!query||query.trim().length<2){await lesen('suche',async function(){return []},function(){groups=[];renderGroups()});return}
   var p=new URLSearchParams({q:query,limit:'20'});
   if(selectedTypes.size)p.set('types',Array.from(selectedTypes).join(','));
-  var r=await fetch('/api/search?'+p.toString());
-  groups=r.ok?await r.json():[];
-  groups.forEach(function(g){groupLimits[g.key]=20});
-  renderGroups();
+  await lesen('suche',async function(){var r=await fetch('/api/search?'+p.toString());return r.ok?await r.json():[]},function(d){
+    groups=d;groups.forEach(function(g){groupLimits[g.key]=20});renderGroups()});
 }
 
 async function loadMore(key){
-  groupLimits[key]=(groupLimits[key]||20)+20;
-  var p=new URLSearchParams({q:query,limit:String(groupLimits[key]),types:key});
-  var r=await fetch('/api/search?'+p.toString());
-  if(!r.ok)return;
-  var res=await r.json();
-  var updated=res.find(function(g){return g.key===key});
-  var idx=groups.findIndex(function(g){return g.key===key});
-  if(updated&&idx>=0)groups[idx]=updated;
-  renderGroups();
+  var limit=(groupLimits[key]||20)+20;
+  var p=new URLSearchParams({q:query,limit:String(limit),types:key});
+  await lesen('suche',async function(){var r=await fetch('/api/search?'+p.toString());return r.ok?await r.json():null},function(res){
+    if(!res)return;
+    groupLimits[key]=limit;
+    var updated=res.find(function(g){return g.key===key});
+    var idx=groups.findIndex(function(g){return g.key===key});
+    if(updated&&idx>=0)groups[idx]=updated;
+    renderGroups();
+  });
 }
 
 document.getElementById('searchForm').addEventListener('submit',function(e){

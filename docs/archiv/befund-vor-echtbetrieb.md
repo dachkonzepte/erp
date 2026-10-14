@@ -3711,6 +3711,125 @@ kurz.
 4. **Zwischen dem Ablesen der Sitzung in der Anmeldeschranke und dem Endpunkt** kann eine gleichzeitige Abmeldung liegen -- die eine Anfrage
    läuft noch mit der eben beendeten Sitzung zu Ende (jede weitere nicht mehr).
 
+### Umsetzung 1.8.99: Vorweg (Korrekturen der Festlegungen 1.8.96/1.8.97)
+
+#### Was gebaut ist
+
+- **96-1 Zeitlimit beim Hochladen** (`app/templates/_speichern.html`): ein Speichern, dessen Body eine Datei ist (FormData, Blob/File,
+  ArrayBuffer oder eine Sicht darauf), geht über XMLHttpRequest statt fetch; die Uhr läuft erst ab dem Ende der Übertragung (Ereignis
+  `upload.loadend`, spätestens mit dem Antwortkopf), ohne Datei wie bisher ab dem Senden. Die Seite bekommt eine gewöhnliche Response
+  (Status, Kopfzeilen, Body), ein Netzfehler ist ein TypeError, ein Abbruch über das Signal ein AbortError -- wie bei fetch. Ohne
+  XMLHttpRequest (node) bleibt es bei fetch. Nebenbefund 1 aus 1.8.96 behoben.
+- **96-7 gescheitertes Speichern sperrt** (`_speichern.html`): jeder Bereich merkt sich, ob sein letztes Speichern gescheitert ist (Fehler
+  oder Fehlerstatus); `abschliessen()` geht nicht hinaus, solange das in irgendeinem Bereich der Seite gilt -- auch wenn es vor dem Klick
+  gescheitert ist --, bis ein späteres Speichern im selben Bereich gelingt (Meldung wie bisher "Nicht ausgeführt: ein Speichern auf der
+  Seite ist gescheitert (<Grund>) …"). Nur `speichern()` setzt das: eine vom Server abgelehnte abschließende Aktion sperrt keine weitere,
+  eine unklare (Zeitlimit) schon. Docstring von `test_two_final_actions_after_a_failed_save_are_both_refused_naming_it` berichtigt.
+- **96-6 abschließend** (`tests/test_v399_abschliessen.py`): alle Aufrufe zu Zahlung, Gegenbuchung, Erstattung, Storno, Abnahme, Mangel
+  und Nebenforderung standen schon in `ABSCHLIESSEND` (geprüft über alle Vorlagen und Endpunkte); neu "Eingangsrechnung als bezahlt
+  markieren" (`incoming_invoices.html::markPaidNow`, Zahlung). `charges` gehört jetzt zu den Adressmustern; die Übernahme von Gebühr,
+  Pauschale und Zinsen in den Entwurf einer Mahnung (`saveReminderCharges` in Rechnung und Mahnwesen) steht mit Grund in
+  `NICHT_ABSCHLIESSEND` -- gebucht wird die Nebenforderung erst beim Festschreiben (abschließend).
+- **96-13 Dauertest** (`tests/test_v404_vorweg.py`): `window.__dkZeitlimit` steht im Code nur im Baustein und unter `scripts/` (Tests und
+  Doku zählen nicht); `_email_dispatch.html` las es bis 1.8.98 selbst für die Sekundenangabe -- jetzt `zeitlimitSekunden()` aus dem Baustein.
+- **96-19 Zeilensperren** an jedem Teil-Update, das einen gespeicherten Wert aus mehreren Feldern ableitet (Bestandsaufnahme aller 25
+  `PartialUpdate`-Schemas; fünf ohne Sperre gefunden):
+  - Kalkulation einer Leistung (`PUT /api/services/{id}/calculation`): Sperre der Leistung, ein Commit -- der Verkaufspreis wurde bis 1.8.98
+    nach einem ersten Commit ungesperrt neu gerechnet.
+  - Angebot: Nummerierung (OZ, Titelnummern) und Reihenfolge (`app/projects.py::lock_quote()` in `auto_number_quote()`, `set_item_layout()`,
+    `reorder_quote()` und dem neuen Verschieben) -- sie leiten sich aus allen Positionen und Titeln ab.
+  - Zeit- und Gruppenbuchung (`PUT /api/time-entries/{id}`, `PUT /api/time-entry-groups/{id}`): Zeile vor dem Zusammenführen (Auftrag und
+  LV-Position gehören zusammen), bei der Gruppe zusätzlich die Mitgliedsbuchungen und ihre Verknüpfungen frisch (eine gleichzeitige
+  Einzelkorrektur wird übersprungen oder wartet).
+  - Auftragsposition -> Materialbedarf der Arbeitsvorbereitung: der Neuaufbau (`refresh_preparation_materials()`) unter der Sperre der
+  Auftragszeile, im selben Commit wie die Position; das Ändern einer Materialzeile sperrt dieselbe Zeile.
+  - Kontakt (`update_contact()`): Art und Name/Firma werden auf dem zusammengeführten Stand geprüft -- jetzt unter der Sperre der Zeile.
+- **96-24** `content` am Layout-Baustein wird gespeichert (`update_layout_block()`), gezeichnet wird er weiterhin nicht.
+- **97-1 Scanner** (`tests/vorlagen_js.py::anfragen_ausserhalb()`): ein Aufruf von `fetch()` oder einem Anfrage-Helfer direkt aus einem
+  on…-Attribut (Markup oder Template-Literal) ist ein Fund ("<html>"). Gefunden: "weitere anzeigen" der Suchseite -- die Suchseite liest
+  jetzt ganz über `lesen()` (Bereich 'suche'), ihre vier Ausnahmen entfallen (37 -> 33).
+- **97-7 Kalkulation** (`quote_editor.html::saveCalc()`): nach dem Speichern lädt das LV in seinem Bereich 'angebot' neu (der EP kommt
+  aus der Kalkulation); Formular und Kalkulation nur, wenn noch dieselbe Position gewählt ist (Nebenbefund 10 aus 1.8.97 behoben).
+- **moveItemBefore als Teil-Update**: `POST /api/quotes/{id}/items/{item_id}/move` mit `{before_item_id}` (`move_quote_item_before()`):
+  Titel und Reihenfolge rechnet der Server aus dem gespeicherten Stand unter der Sperre des Angebots, beide Positionen müssen zum Angebot
+  gehören (Regel 25, 404). Nebenbefund 5 aus 1.8.96 behoben.
+- **Regel 26 und 28 erweitert** (CLAUDE.md), Regel 29 nachgezogen.
+- **Klicktest `scripts/klicktest_hochladen.py`** (neu): Kundenakte, Zeitlimit 2 s, Upload auf 100 KB/s gedrosselt, 400 KB -- fertig ohne
+  "unklar", als XHR, länger als das Zeitlimit unterwegs, Datei mit voller Größe am Server, danach ein zweites Dokument.
+
+#### Festlegungen 1.8.99 (Bitte bestätigen)
+
+1. **Hochladen = Body FormData, Blob/File, ArrayBuffer oder eine Sicht darauf**; Text (auch JSON) geht wie bisher über fetch.
+2. **Ende der Übertragung = `upload.loadend` oder der Antwortkopf**, was zuerst kommt; während der Übertragung läuft kein Zeitlimit (bricht die Verbindung ab, meldet der Browser einen Netzfehler).
+3. **Hochladen über XMLHttpRequest liefert eine Response wie fetch**; `response.url` und `redirected` gibt es dabei nicht (keine Seite nutzt sie).
+4. **"Gescheitert" gilt je Bereich bis zum nächsten erfolgreichen Speichern dort**, auch wenn es vor dem Klick lag; erst Neuladen oder ein gelungenes Speichern hebt es auf.
+5. **Abschließende Aktionen warten weiter auf jede laufende**, gezählt wird aber nur gescheitertes Speichern.
+6. **Als "umbenannten Test" in test_v399 habe ich `test_two_final_actions_after_a_failed_save_are_both_refused_naming_it` berichtigt** (sein Docstring sagte, die erste Aktion zähle für die zweite als gescheitert) -- war ein anderer gemeint?
+7. **"Eingangsrechnung als bezahlt markieren" ist abschließend** (Zahlung).
+8. **Nebenforderung in den Entwurf einer Mahnung übernehmen ist nicht abschließend** (gebucht beim Festschreiben); `charges` steht dafür im Adressmuster.
+9. **`__dkZeitlimit` im Code nur in `_speichern.html` und unter `scripts/`**; Tests und Doku zählen nicht, Vorlagen fragen `zeitlimitSekunden()`.
+10. **Zeilensperre an den fünf gefundenen Stellen und am Kontakt**; nicht an Aufgabe (`completed_at` folgt nur aus dem Status), Lieferant am Material (nur aus `supplier_id`), Vertragsentwurf (Nebenbefund 2).
+11. **Die Sperre des Angebots sitzt in `auto_number_quote()`** und damit in jedem Weg, der neu nummeriert (auch Anlegen, Löschen, Kopieren von Positionen und Titeln).
+12. **Ein Materialbedarf, den ein gleichzeitiger Neuaufbau ersetzt hat, ist weg** (404, die Seite lädt neu).
+13. **`content` wird gespeichert, nicht gezeichnet.**
+14. **Direkter Aufruf aus dem HTML = jedes on…-Attribut mit `fetch()` oder einem Anfrage-Helfer**, auch in Template-Literalen; statt einer neuen Ausnahme ging die Suchseite ganz über `lesen()`.
+15. **Verschieben: Positionen des Zieltitels danach 10, 20, …**, die verschobene übernimmt den Titel der Zielposition; `/reorder` bleibt für Titel (`moveSectionBefore`).
+16. **Die Kalkulation lädt das LV nach jedem Speichern neu**, auch wenn sich der EP nicht ändert.
+17. **Regel 26 "sauber" = `git status` ohne Änderungen** auf dem Commit des Berichts (eine frische Arbeitskopie); nach jeder Änderung laufen Suite und Klicktests neu.
+18. **Regel 28: auch ein nur im Aufbau geänderter Test wird genannt** ("Soll gleich").
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v404_hochladen_zeitlimit.py` (7): der Baustein in node mit gestelltem XMLHttpRequest -- Übertragung länger als das
+  Zeitlimit ohne Abbruch, danach das gewöhnliche Zeitlimit, Antwortkopf als Ende der Übertragung, Reihenfolge im Bereich und Netzfehler
+  (gescheitert, sperrt Abschließendes), Fehlerstatus als Response, Kopfzeilen und Methode, Text weiter über fetch, ohne XMLHttpRequest fetch.
+- Neu `tests/test_v404_vorweg.py` (14, davon 8 gegen PostgreSQL): Dauertest `__dkZeitlimit`; Verschieben (node: nur `before_item_id`;
+  Server: Reihenfolge und OZ aus dem gespeicherten Stand, auch mit einer inzwischen angelegten Position; **Angriffstest Regel 25**: fremde
+  und unbekannte Positionen in Pfad und Body 404, sich selbst und leer 422, nichts geändert); Kalkulation (LV lädt im Bereich 'angebot' neu;
+  eine inzwischen gewählte Position bleibt); **Angriffstests 96-19 gegen PostgreSQL** mit zwei gleichzeitigen Teil-Updates verschiedener
+  Felder: Leistung (Stundensatz und Materialabweichung -- der gespeicherte Preis ist der aus der ganzen Kalkulation), Angebot (zwei
+  Verschiebungen -- OZ passt zum gespeicherten Stand), Zeit- und Gruppenbuchung (Auftragswechsel und LV-Position des alten Auftrags: die zweite
+  422, am Ende kein fremdes Paar, auch in der Mitgliedsbuchung), Materialbedarf (im selben Commit wie die Menge: während des Neuaufbaus sieht
+  eine andere Sitzung die neue Menge nicht), Kontakt (Art und Firmenname: das Leeren wird abgelehnt); dazu der Nachweis der Sperre selbst
+  (`SELECT … FOR UPDATE NOWAIT` scheitert, solange die erste Aktion hält) für Leistung, Verschieben und Titel ändern.
+- **Angepasste Erwartungen** (altes -> neues Soll): `test_v399::test_a_final_action_does_not_run_if_a_running_save_fails` "U2 (nach dem
+  Scheitern geklickt) gesendet" -> "U2 abgelehnt, nach einem gelungenen Speichern im selben Bereich geht U3 hinaus";
+  `test_v399::test_a_save_failed_before_the_click_does_not_block` (umbenannt in
+  `…_blocks_until_a_later_save_of_the_same_area_succeeds`) "U1 gesendet" -> "U1 abgelehnt, ein gelungenes Speichern in einem anderen
+  Bereich hebt das nicht auf, eins im selben Bereich schon"; `test_v399_teil_updates_rest::test_baustein_null_ist_422_content_bleibt_
+  ungeschrieben` (umbenannt in `…_content_wird_gespeichert`) "Zeile unverändert" -> "content gespeichert, alles andere unverändert";
+  `test_v158::test_update_layout_block_ignores_content_for_predefined_blocks` (umbenannt in `…_stores_content_for_predefined_blocks`, im
+  Gesamtlauf rot, Erwartung veraltet seit 1.8.99) "content bleibt None" -> "content gespeichert". Nur der Docstring: `test_two_final_actions_after_a_failed_save_are_both_refused_naming_it` (Soll gleich). Klicktest
+  `klicktest_leistungszeitraum` (im Gesamtlauf 17/20, Erwartung veraltet seit 1.8.99): "nach 'Ende vor Beginn' finalisiert" -> "Finalisieren
+  abgelehnt (gescheitertes Speichern), Ende wieder eingetragen und gespeichert, dann finalisiert" (+2 Prüfungen, 22/22). Listen: `ABSCHLIESSEND` +1, `NICHT_
+  ABSCHLIESSEND` +2, Adressmuster +`charges` (`test_v399`); `AUSNAHMEN` −4 (`test_v400`, 37 -> 33); `GEPRUEFT` +2 (`test_v373`).
+- Neu in `test_v399` (4): Fehlerstatus vor dem Klick sperrt, abgelehnte abschließende Aktion sperrt nicht, unklare abschließende Aktion
+  sperrt, gescheitertes Lesen sperrt nicht; in `test_v400` (4): Aufruf aus dem HTML.
+- Klicktest `scripts/klicktest_hochladen.py` (neu) 6/6.
+- Gegenproben (Regel 24): 22 von 22 rot -- gescheitertes Speichern nicht gemerkt, nicht geprüft, abgelehnte abschließende Aktion sperrt; Uhr
+  ab dem Senden, ohne XMLHttpRequest (je auch im Klicktest: "unklar" nach 2 s); Versand liest `__dkZeitlimit`; `content` verworfen; Scanner
+  ohne HTML; Kalkulation füllt die andere Position, LV nicht neu geladen; `moveItemBefore` wie bis 1.8.98; Verschieben ohne ausdrückliche
+  Zugehörigkeit (Strukturtest Regel 25 -- der Angriffstest blieb grün, weil eine fremde Position dann an einem KeyError scheitert, auch 404);
+  Eingangsrechnung über `speichern()`; je ohne Sperre: Leistung (zuerst grün, weil beide Anfragen dieselbe Kalkulationszeile schrieben und
+  dadurch ohnehin warteten -- der Test ändert seither eine andere Zeile), Angebot (zuerst grün, Zeilensperren beim Umnummerieren hielten die
+  zweite Aktion ebenfalls auf -- seither der Nachweis mit NOWAIT), Zeitbuchung, Gruppenbuchung, Materialbedarf nach dem Commit, Kontakt;
+  Suchseite außerhalb des Bausteins. Jede Datei byte-genau zurück, kein Marker.
+- Volle Suite (mit den Tests gegen PostgreSQL) auf dem Arbeitsstand vor dem Commit: 4870 grün, 1 rot -- `test_v158` (siehe oben),
+  angepasst, die Datei danach 23 grün. Alle Klicktests: 61 von 62 wie erwartet in 16:47 min, rot `klicktest_leistungszeitraum` 17/20
+  (siehe oben), angepasst 22/22. Der Lauf nach Regel 26 auf dem Commit steht im Bericht zu 1.8.100.
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **"Storniert" im Auftragskopf** ist ein freies Statusfeld ohne Folgen (keine Sperre, kein Beleg) -- deshalb nicht abschließend; ein
+   echtes Storno eines Auftrags gibt es nicht.
+2. **Vertragsentwurf ändern** (`PUT /api/orders/{id}/contract`) prüft den Status "Entwurf" ohne Sperre -- gleichzeitig mit dem
+   Festschreiben könnte ein Text noch in den Entwurf gehen, nachdem die Fassung entstand (die Fassung selbst bleibt unverändert).
+3. **Speichern im Hintergrund, das Fehler schluckt** (Outlook-Abgleich im Kalender, Layout des Dashboards), sperrt jetzt abschließende
+   Aktionen seiner Seite bis zum nächsten gelungenen Speichern -- beide Seiten haben keine.
+4. **Hochladen über XMLHttpRequest**: die Response hat kein `url`/`redirected` wie bei fetch (keine Seite nutzt sie).
+5. **Der Neuaufbau des Materialbedarfs vergibt neue IDs** (wie bisher): eine offene Arbeitsvorbereitung bekommt beim Speichern einer
+   ersetzten Zeile 404 und muss neu laden.
+
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
 Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):

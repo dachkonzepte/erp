@@ -74,8 +74,9 @@ def test_folgeseiten_kopf_position_schickt_nur_y(bausteine):
     assert _zeile(db, DocumentLayoutBlock, cid) == vorher | {"y_mm": D("40")}
 
 
-def test_baustein_null_ist_422_content_bleibt_ungeschrieben(bausteine):
-    """content nimmt der Server an und schreibt ihn wie bisher nicht (Nebenbefund 4 aus 1.8.25, nur gemeldet)."""
+def test_baustein_null_ist_422_content_wird_gespeichert(bausteine):
+    """Seit 1.8.99 wird content gespeichert (Festlegung 1.8.96 Nr. 24 korrigiert; vorher test_baustein_null_ist_422_content_bleibt_
+    ungeschrieben, Soll bis 1.8.98: Zeile unverändert) -- und nur er, die übrigen Felder bleiben."""
     db, client, fid = bausteine["db"], bausteine["client"], bausteine["ids"]["footer_text"]
     vorher = _zeile(db, DocumentLayoutBlock, fid)
     for feld in ("x_mm", "y_mm", "width_mm", "height_mm", "font_size", "font_weight", "text_align", "visible"):
@@ -83,7 +84,9 @@ def test_baustein_null_ist_422_content_bleibt_ungeschrieben(bausteine):
                           if feld != "y_mm" else {feld: None}).status_code == 422, feld
     assert _zeile(db, DocumentLayoutBlock, fid) == vorher
     assert client.put(f"/api/document-layout/blocks/{fid}", json={"content": "Text"}).status_code == 200
-    assert _zeile(db, DocumentLayoutBlock, fid) == vorher
+    nachher = _zeile(db, DocumentLayoutBlock, fid)
+    assert nachher.pop("content") == "Text"
+    assert nachher == {k: v for k, v in vorher.items() if k != "content"}
     with pytest.raises(TypeError):
         update_layout_block(db, db.get(DocumentLayoutBlock, fid), farbe="rot")
 

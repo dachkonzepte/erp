@@ -106,10 +106,6 @@ AUSNAHMEN = {
     ("roof_area.html", "isModuleEnabled", "api"): "Prüfung ohne Formular",
     ("roof_area.html", "loadAcceptanceWarranties", "api"): "nur Anzeige",
     ("roof_area.html", "toggleComponentFindings", "api"): "nur Anzeige",
-    ("search_results.html", "<oben>", "runSearch"): "Suche",
-    ("search_results.html", "clearTypes", "runSearch"): "Suche",
-    ("search_results.html", "init", "runSearch"): "Suche",
-    ("search_results.html", "toggleType", "runSearch"): "Suche",
     ("service_form.html", "searchMaterials", "api"): "Suche",
     ("service_reports.html", "searchMaterialsForReport", "api"): "Suche",
     ("tasks.html", "updateCreateProjectFromTaskButton", "api"): "Prüfung ohne Formular",
@@ -168,6 +164,21 @@ def test_a_function_called_from_the_html_counts_as_outside():
     js = "async function api(u){const r=await fetch(u);return r.json()}async function ladeMonat(){x=await api('/m')}"
     a = vj.analysieren(vj.Quelle("beispiel", js, [(0, len(js), "beispiel", 0)]))
     assert vj.anfragen_ausserhalb(a, None, html='<button onclick="ladeMonat()">') == {("beispiel", "ladeMonat", "api")}
+
+
+@pytest.mark.parametrize("html, funde", [
+    ('<button onclick="api(\'/x\',{method:\'DELETE\'})">x</button>', {(None, "<html>", "api")}),
+    ('<button onclick="fetch(\'/x\')">x</button>', {(None, "<html>", "fetch")}),
+    ("el.innerHTML=`<a onclick=\"api('/x/${id}')\">x</a>`", {(None, "<html>", "api")}),
+    ('<button onclick="zeige(1)">x</button>', set()),
+])
+def test_a_direct_call_from_the_html_is_reported(html, funde):
+    """Seit 1.8.99 (Festlegung 1.8.97 Nr. 1, korrigiert): auch ein direkter Aufruf von api() oder fetch() aus einem on…-Attribut --
+    im Markup oder in einem Template-Literal -- ist eine Anfrage außerhalb von lesen()/speichern()/abschliessen(). Bis 1.8.98 sah der
+    Scanner nur die Skripte."""
+    js = "const api=async(u,o)=>{const r=await fetch(u,o);return r.json()};function zeige(n){x=n}lesen('b',()=>api('/y'),zeige);"
+    a = vj.analysieren(vj.Quelle("beispiel", js, [(0, len(js), "beispiel", 0)]))
+    assert vj.anfragen_ausserhalb(a, None, html=html) == funde
 
 
 # --- Die ausdrücklich verlangten Stellen ------------------------------------------------------------------------------------

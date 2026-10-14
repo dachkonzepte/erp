@@ -567,15 +567,20 @@ def _umgebend(a: Analyse, k: int) -> str:
     return beste
 
 
+def _handler(vorlage: str | None, html: str | None):
+    """(Datei, Code) je on…-Attribut -- im Markup und in Strings/Template-Literalen der Skripte."""
+    if vorlage:
+        text, herkunft = vorlage_mit_includes(vorlage)
+    else:
+        text, herkunft = html or "", []
+    for m in _HANDLER.finditer(text):
+        datei = next((d for s, e, d, _ in herkunft if s <= m.start() < e), vorlage)
+        yield datei, m.group(1) or m.group(2) or m.group(3) or ""
+
+
 def aus_dem_html(a: Analyse, vorlage: str | None, html: str | None = None) -> set:
     """Funktionen der Seite, die ein on…-Attribut aufruft -- im Markup und in Strings/Template-Literalen der Skripte."""
-    text = vorlage_mit_includes(vorlage)[0] if vorlage else (html or "")
-    namen = set()
-    for m in _HANDLER.finditer(text):
-        for n in _NAME_AUFRUF.findall(m.group(1) or m.group(2) or m.group(3) or ""):
-            if n in a.funktionen:
-                namen.add(n)
-    return namen
+    return {n for _, code in _handler(vorlage, html) for n in _NAME_AUFRUF.findall(code) if n in a.funktionen}
 
 
 def anfragen_ausserhalb(a: Analyse, vorlage: str | None, html: str | None = None) -> set[tuple[str, str, str]]:
@@ -587,7 +592,9 @@ def anfragen_ausserhalb(a: Analyse, vorlage: str | None, html: str | None = None
       aus dem HTML (on…="name(…)") zählt als Verweis außerhalb.
     - Fund: ein Verweis auf fetch oder einen Anfrage-Helfer außerhalb geprüfter Bereiche, in einer Funktion (oder oben im Skript), die
       weder in G noch selbst ein Anfrage-Helfer ist. Ziel ist fetch bzw. der Name des Helfers; die Datei ist die, in der der Verweis
-      steht (eine Teilvorlage zählt einmal, egal wie viele Seiten sie einbinden)."""
+      steht (eine Teilvorlage zählt einmal, egal wie viele Seiten sie einbinden).
+    - Seit 1.8.99 (Festlegung 1.8.97 Nr. 1, korrigiert) auch ein direkter Aufruf von fetch oder eines Anfrage-Helfers aus einem
+      on…-Attribut (onclick="api(…)", auch in Template-Literalen): Funktion "<html>" -- bis 1.8.98 sah der Scanner nur Skripte."""
     gepr = a.gepruefte_bereiche()
     alle = list(verweise(a, 0, len(a.t) - 1))
     helfer = {n for n, liste in a.funktionen.items() if n not in a.baustein
@@ -607,4 +614,8 @@ def anfragen_ausserhalb(a: Analyse, vorlage: str | None, html: str | None = None
         if f in G or f in helfer or f in a.baustein:
             continue
         funde.add((a.quelle.datei(a.t[k].pos), f, m))
+    for datei, code in _handler(vorlage, html):
+        for n in _NAME_AUFRUF.findall(code):
+            if n == "fetch" or n in helfer:
+                funde.add((datei, "<html>", n))
     return funde

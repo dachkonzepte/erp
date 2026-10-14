@@ -364,7 +364,15 @@ def refresh_preparation_materials(db: Session, order_id: int, preserved: dict | 
 
     Manuelle Dispositionsdaten (Lieferant, Status, Notiz sowie bewusst geänderte
     Planmenge) werden für fachlich wiedererkennbare Materialpositionen erhalten.
+
+    Seit 1.8.99 unter der Sperre der Auftragszeile (Festlegung 1.8.96 Nr. 19 korrigiert): die Mengen folgen aus allen Positionen des
+    Auftrags; das Ändern einer Materialzeile sperrt dieselbe Zeile (routers/work_preparation.py).
     """
+    from .acceptances import lock_order
+
+    db.flush()
+    lock_order(db, order_id)
+    db.expire_all()
     prep = load_preparation(db, order_id)
     if prep is None:
         return None

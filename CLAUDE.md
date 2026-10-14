@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.98** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.99** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -659,7 +659,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     dem Stand, über den berichtet wird (Arbeitskopie wie bei der vollen Suite): wie viele wie erwartet, welche rot mit der roten
     Prüfung, Laufzeit. Eine rote Prüfung wird benannt, nicht still angepasst -- ist ihre Erwartung veraltet, sagt der Bericht das
     und seit wann. Anlass: `klicktest_vertragsvorlagen.py` erwartete seit 1.8.50 22 statt 23 Platzhalter; aufgefallen erst beim
-    ersten Gesamtlauf (1.8.76).
+    ersten Gesamtlauf (1.8.76). **Seit 1.8.99 (Betreibervorgabe 14.10.2026): volle Suite und alle Klicktests laufen auf dem committeten
+    Endstand bei sauberer Arbeitskopie** (`git status` ohne Änderungen, z. B. eine frische Arbeitskopie auf dem Commit), der Bericht nennt
+    den Hash dieses Commits; ändert sich danach noch etwas (auch nur ein Kommentar oder eine Doku-Zeile), laufen beide neu.
 
 27. **Kein Test gegen PostgreSQL läuft im Schema `public` der Spielwiese, seit 1.8.81.** Jeder PostgreSQL-Test nimmt ein
     Wegwerf-Schema (`connect_args={"options": "-csearch_path=<schema>"}` bzw. `tests/befund_vor_echtbetrieb.py::pg_sitzung()`); eine
@@ -673,6 +675,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     trifft (im Archiv unter "Festlegungen <Version> (Bitte bestätigen)"), steht im Bericht mit Version und Nummer in genau einer Zeile --
     auch wenn es viele sind; die ausführliche Fassung bleibt im Archiv. Was noch nicht bestätigt ist, bleibt so lange in dieser Form
     vorgelegt. Anlass: der Bericht zu R4c nannte nur eine Auswahl, die Festlegungen 1.8.87–1.8.90 mussten eigens angefordert werden.
+    **Seit 1.8.99 ebenso jede angepasste Erwartung eines Tests oder Klicktests**: Test, altes Soll, neues Soll (im Archiv unter "Tests
+    und Prüfung", im Bericht je eine Zeile) -- auch wenn nur der Aufbau geändert ist, wird das gesagt.
 
 29. **Jede Anfrage per fetch läuft über den Baustein `app/templates/_speichern.html`, seit 1.8.95 (Lesen ohne Ausnahme seit 1.8.97).**
     Schreibende Anfrage (Methode ungleich GET, auch Löschen, Versand, Anmelden): `await speichern('<bereich>', ()=>api(url,{method:…}),
@@ -683,18 +687,22 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     setzen nie denselben Stand. Bereich = was eine Antwort ersetzt; alles gilt **je Bereich**: laufende Nummer, eine Antwort oder ein Fehler,
     älter als eine schon angewandte, wird verworfen (nach einem Fehler des neuesten Lesens auch ein älteres), Lesen wartet auf laufendes
     Speichern desselben Bereichs, Speichern geht nacheinander, dieselbe Anfrage (Doppelklick) geht nicht ein zweites Mal hinaus, solange
-    die erste wartet oder unterwegs ist (seit 1.8.97). Ohne Antwort 60 s nach dem Senden bricht der Baustein ab, der Bereich ist
+    die erste wartet oder unterwegs ist (seit 1.8.97). Ohne Antwort 60 s nach dem Senden (beim Hochladen -- Body FormData, Blob, Binärdaten --
+    seit 1.8.99 nach dem Ende der Übertragung, über XMLHttpRequest) bricht der Baustein ab, der Bereich ist
     "unklar" (Fehler, Hinweis oben "Seite neu laden", bis zum Neuladen geht dort nichts mehr hinaus); solange ein Speichern läuft oder wartet,
     warnt die Seite beim Verlassen (seit 1.8.96). **Abschließende Aktionen** (Unterschrift, Festschreiben, Versand, Buchung, Storno, Abnahme,
     Mangel u. ä.) über `abschliessen()`: gesendet erst, wenn jedes beim Klick laufende oder wartende Speichern der Seite zurück ist, gar
-    nicht nach einem gescheiterten oder in einem unklaren Bereich; eine neue gehört in `ABSCHLIESSEND` (`tests/test_v399_abschliessen.py`,
+    nicht in einem unklaren Bereich und nicht, solange in einem Bereich das letzte Speichern gescheitert ist (seit 1.8.99 auch vor dem
+    Klick, bis ein späteres Speichern im selben Bereich gelingt; eine abgelehnte abschließende Aktion sperrt keine weitere); eine neue gehört in `ABSCHLIESSEND` (`tests/test_v399_abschliessen.py`,
     prüft auch abschließend klingende Adressen). Eine Anfrage außerhalb des Bausteins gibt es nur ohne Formular (nur Anzeige, Suche,
     Anmeldestatus, Prüfung), eingetragen in `AUSNAHMEN` (`tests/test_v400_lesen_ueber_baustein.py`, Scanner
-    `tests/vorlagen_js.py::anfragen_ausserhalb()`; darf nur kürzer werden). `tests/test_v398_speichern_baustein.py` prüft jede Vorlage:
+    `tests/vorlagen_js.py::anfragen_ausserhalb()`, seit 1.8.99 auch Aufrufe von `api()`/`fetch()` direkt aus einem on…-Attribut; darf nur
+    kürzer werden). `window.__dkZeitlimit` steht nur im Baustein und unter `scripts/` (eine Vorlage fragt `zeitlimitSekunden()`). `tests/test_v398_speichern_baustein.py` prüft jede Vorlage:
     Schreiben nur über `speichern()`/`abschliessen()`, danach nur `lesen()`/`speichern()` (transitiv), "Gespeichert" nur danach, einbinden wer
     nutzt, jedes Seitenskript in node auf Syntax. Klicktests: `klicktest_veraltete_antworten` (`Tab.zurueckhalten()`), `klicktest_abschliessen`
     (Zeitlimit über `window.__dkZeitlimit`), `klicktest_anmelden`; das Klicktest-Werkzeug nennt beim Scheitern die offenen Anfragen
-    (Netzwerkprotokoll). Details: `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.95" bis "Umsetzung 1.8.97".
+    (Netzwerkprotokoll), `klicktest_hochladen` (seit 1.8.99, gedrosseltes Netz). Details: `docs/archiv/befund-vor-echtbetrieb.md`,
+    "Umsetzung 1.8.95" bis "Umsetzung 1.8.97" und "Umsetzung 1.8.99".
 
 30. **Weiterleitungen nur auf lokale Pfade, Sitzungen auf dem Server, kein Cache für angemeldete Sitzungen, seit 1.8.98.** Ein Ziel aus
     Anfrage oder Adresse (`next` u. ä.) geht über `app/weiterleitung.py::sicheres_ziel()` (Server) bzw. `sicheresZiel()` aus
@@ -1126,7 +1134,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   den Baustein (Ausnahmen nur ohne Formular), Klicktests Anmelden/Abmelden mit Netzwerkprotokoll im Werkzeug, Regel 29 nachgezogen;
   festgehalten 13.10.2026, nicht gebaut: Gewährleistungs- und Kulanzstunden für Stufe 2d und die Rüge, „Abschließen ohne Rechnung“ im
   neuen Abschnitt „Parkplatz vor dem Echtbetrieb“; seit 1.8.98 Weiterleitungsziele nur lokal (Server und Browser), Sitzungen auf dem
-  Server, `Cache-Control: no-store` für angemeldete Sitzungen, Regel 30)
+  Server, `Cache-Control: no-store` für angemeldete Sitzungen, Regel 30; seit 1.8.99 Vorweg: Zeitlimit beim Hochladen ab dem Ende der
+  Übertragung, gescheitertes Speichern sperrt abschließende Aktionen, Zeilensperren an abgeleiteten Werten in fünf Teil-Updates,
+  Verschieben im Angebot als Teil-Update, Regeln 26 und 28 erweitert)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Zahlungen** (Zahlungsstufe Z1 seit 1.8.78: Zahlungseingang mit Zuordnungen, Skonto und Einbehalt, Rest am Kunden,
   Zahlstand abgeleitet, Gegenbuchung statt Ändern, Sperrreihenfolge, Storno erst nach gelösten Zuordnungen, Finanzen/Dashboard mit

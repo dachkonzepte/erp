@@ -244,7 +244,9 @@ def get_my_crews(request:Request,db:Session=Depends(get_db), _role: AppUser = _a
 
 @router.put("/api/time-entry-groups/{group_id}", response_model=TimeGroupOut)
 def put_time_group(group_id:int,payload:TimeGroupUpdate,request:Request,db:Session=Depends(get_db), _role: AppUser = _any_role_dep):
-    group=db.get(TimeEntryGroup,group_id)
+    # Seit 1.8.99 gesperrt vor dem Zusammenführen (Festlegung 1.8.96 Nr. 19 korrigiert): eine LV-Position gehört zum Auftrag -- ein
+    # gleichzeitiger Auftragswechsel ließ sonst eine Position des alten Auftrags stehen.
+    group=db.get(TimeEntryGroup,group_id,with_for_update=True,populate_existing=True)
     if group is None: raise HTTPException(status_code=404,detail="Gruppenbuchung wurde nicht gefunden.")
     _require_group_owner(request,db,group)
     values=_merge_time_changes(group,payload.model_dump(exclude_unset=True))
@@ -384,7 +386,9 @@ def stop_time_entry(entry_id: int, payload: TimeTimerStop, request: Request, db:
 
 @router.put("/api/time-entries/{entry_id}", response_model=TimeEntryOut)
 def put_time_entry(entry_id: int, payload: TimeEntryUpdate, request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
-    current = db.get(TimeEntry, entry_id)
+    # Seit 1.8.99 gesperrt vor dem Zusammenführen (Festlegung 1.8.96 Nr. 19 korrigiert): Auftrag und LV-Position gehören zusammen, und
+    # eine gleichzeitige Korrektur der Gruppenbuchung wartet auf diese (oder umgekehrt) -- siehe app/time_tracking.py::update_group().
+    current = db.get(TimeEntry, entry_id, with_for_update=True, populate_existing=True)
     if current is None:
         raise HTTPException(status_code=404, detail="Zeitbuchung nicht gefunden.")
     if not _time_entry_can_edit(request, current):

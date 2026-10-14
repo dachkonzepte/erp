@@ -548,11 +548,12 @@ async function markPaidNow(id){
   const inv=invoices.find(x=>x.id===id);
   if(!inv)return;
   // Seit 1.8.96 nur Status und Zahlungsdatum (Regel 22) -- vorher ging die ganze Rechnung samt Positionen mit dem beim Laden
-  // gemerkten Stand mit.
+  // gemerkten Stand mit. Seit 1.8.99 abschließend (eine Zahlung, Festlegung 1.8.96 Nr. 6 korrigiert): erst wenn jedes Speichern der
+  // Seite zurück ist, nicht nach einem gescheiterten.
   const payload={payment_status:'bezahlt',payment_date:berlinToday()};
   const body=JSON.stringify(payload);
   try{
-    await speichern('eingangsrechnungen',()=>api(`/api/incoming-invoices/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body}));
+    await abschliessen('eingangsrechnungen',()=>api(`/api/incoming-invoices/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body}));
     await loadAll();
   }catch(e){document.getElementById('listStatus').className='status err';document.getElementById('listStatus').textContent='Fehler: '+e.message}
 }

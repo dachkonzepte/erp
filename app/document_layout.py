@@ -140,14 +140,15 @@ def list_layout_blocks(db: Session, document_type: str) -> list[DocumentLayoutBl
     ).all()
 
 
-_BLOCK_FIELDS = ("x_mm", "y_mm", "width_mm", "height_mm", "font_size", "font_weight", "text_align", "visible")
+_BLOCK_FIELDS = ("x_mm", "y_mm", "width_mm", "height_mm", "content", "font_size", "font_weight", "text_align", "visible")
 
 
 def update_layout_block(db: Session, block: DocumentLayoutBlock, **changes) -> DocumentLayoutBlock:
     """Seit 1.8.96 Teil-Update (Regel 22): ändert nur die übergebenen Felder ("anzeigen" schickt nur visible, die Position des
-    Folgeseiten-Kopfs nur y_mm). content wird angenommen und wie bisher nicht geschrieben (der Inhalt vordefinierter Bausteine
-    kommt aus den Dokumentdaten); ein unbekannter Schlüssel ist ein TypeError."""
-    unbekannt = set(changes) - set(_BLOCK_FIELDS) - {"content"}
+    Folgeseiten-Kopfs nur y_mm). Seit 1.8.99 wird auch content gespeichert (bis 1.8.98 angenommen und still verworfen, Festlegung
+    1.8.96 Nr. 24 korrigiert) -- gezeichnet wird er weiterhin nicht, der Inhalt der vier Bausteine kommt aus den Dokumentdaten. Ein
+    unbekannter Schlüssel ist ein TypeError."""
+    unbekannt = set(changes) - set(_BLOCK_FIELDS)
     if unbekannt:
         raise TypeError("Unbekannte Felder: " + ", ".join(sorted(unbekannt)))
     for key in _BLOCK_FIELDS:

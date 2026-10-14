@@ -566,7 +566,14 @@ def update_group(db: Session, group_id: int, *, order_id: int, work_date: date, 
     amount = _d(hours)
     if amount <= 0: raise ValueError("Die Stunden müssen größer als 0 sein.")
     skipped: list[str] = []
-    for link in _group_links(db, group.id):
+    # Seit 1.8.99: die Mitgliedsbuchungen gesperrt (aufsteigend), danach ihre Verknüpfungen frisch -- eine gleichzeitige Einzelkorrektur
+    # eines Mitglieds (PUT /api/time-entries/{id}, gesperrt) ist so entweder schon gespeichert und wird übersprungen, oder sie wartet.
+    links = _group_links(db, group.id)
+    db.scalars(select(TimeEntry).where(TimeEntry.id.in_([link.time_entry_id for link in links])).order_by(TimeEntry.id)
+               .with_for_update().execution_options(populate_existing=True)).all()
+    for link in links:
+        db.refresh(link)
+    for link in links:
         entry = db.get(TimeEntry, link.time_entry_id)
         if entry is None:
             continue

@@ -212,9 +212,14 @@ def update_service_calculation(
     db: Session = Depends(get_db),
     _role: AppUser = _role_dep,
 ):
+    # Seit 1.8.99 (Festlegung 1.8.96 Nr. 19 korrigiert) unter der Sperre der Leistung bis zum einen Commit: der Verkaufspreis folgt
+    # aus der ganzen Kalkulation -- zwei gleichzeitige Teil-Updates verschiedener Felder schrieben sonst einen Preis aus einem Stand
+    # ohne die andere Änderung (der Preis wurde nach einem ersten Commit ungesperrt neu gerechnet).
+    db.execute(select(Service.id).where(Service.id == service_id).with_for_update())
     service = get_service_for_calculation(db, service_id)
     if service is None:
         raise HTTPException(status_code=404, detail="Leistung nicht gefunden.")
+    db.refresh(service)
 
     calc = service.calculation
     if calc is None:
@@ -274,7 +279,8 @@ def update_service_calculation(
         override.purchase_price_override = item.purchase_price_override
         override.price_basis_override = item.price_basis_override
 
-    db.commit()
+    db.flush()
+    db.expire_all()  # Kalkulation und Abweichungen frisch aus der eigenen Transaktion, die Sperre bleibt
 
     service = get_service_for_calculation(db, service_id)
     if is_service_editable(service):
@@ -285,8 +291,8 @@ def update_service_calculation(
         sync_settings = get_settings_for_catalog(db, service.catalog_id)
         preview = build_calculation(service, sync_settings)
         service.sale_price = preview["effective_sale_price"]
-        db.commit()
-        service = get_service_for_calculation(db, service_id)
+    db.commit()
+    service = get_service_for_calculation(db, service_id)
 
     settings = get_settings_for_catalog(db, service.catalog_id)
     return ServiceCalculationOut.model_validate(build_calculation(service, settings))

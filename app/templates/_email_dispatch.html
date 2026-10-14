@@ -61,7 +61,7 @@ async function postEmailDispatch(slot, url, payload, button) {
     // Seit 1.8.96: nicht gesendet, weil vorher ein Speichern der Seite scheiterte oder unklar ist (abschliessen()) -- der Text sagt das.
     if (e.dkBaustein === 'abschluss' || e.dkBaustein === 'nicht-gesendet') throw e;
     // Zeitlimit: der Platz nimmt bis zum Neuladen nichts mehr an; der Versandverlauf zeigt danach, ob die Mail hinausging.
-    if (e.dkBaustein === 'unklar') throw Error('Keine Antwort vom Server nach ' + Math.round(window.__dkZeitlimit / 1000) + ' Sekunden – ob die Mail hinausging, ist unklar. Bitte die Seite neu laden und im Versandverlauf prüfen.');
+    if (e.dkBaustein === 'unklar') throw Error('Keine Antwort vom Server nach ' + zeitlimitSekunden() + ' Sekunden – ob die Mail hinausging, ist unklar. Bitte die Seite neu laden und im Versandverlauf prüfen.');
     throw Error('Keine Antwort vom Server – ob die Mail hinausging, ist unklar. Erneut klicken fragt mit demselben Versandauftrag nach und sendet nicht doppelt.');
   } finally {
     if (button) button.disabled = false;

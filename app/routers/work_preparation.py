@@ -197,6 +197,12 @@ def update_work_preparation_material(material_id: int, payload: WorkPreparationM
     row=db.get(WorkPreparationMaterial,material_id)
     if row is None: raise HTTPException(status_code=404,detail="Materialbedarf nicht gefunden.")
     order_id=row.preparation.order_id
+    # Seit 1.8.99 unter der Sperre der Auftragszeile wie der Neuaufbau des Materialbedarfs (app/work_preparation.py::
+    # refresh_preparation_materials()) -- hat der die Zeile inzwischen ersetzt, ist sie weg (404, die Seite lädt neu).
+    from ..acceptances import lock_order
+    lock_order(db,order_id); db.expire_all()
+    row=db.get(WorkPreparationMaterial,material_id)
+    if row is None: raise HTTPException(status_code=404,detail="Materialbedarf nicht gefunden.")
     # Seit 1.8.29 Teil-Update: ohne supplier_id und supplier bleibt der Lieferant, auch ein Freitext.
     changes=payload.model_dump(exclude_unset=True)
     lieferant_geschickt="supplier_id" in changes or "supplier" in changes

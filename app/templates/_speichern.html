@@ -31,9 +31,14 @@
      Festschreiben, Versand, Buchung, Storno u. ä.; Liste in tests/test_v399_abschliessen.py): die Anfrage geht erst hinaus, wenn
      jedes Speichern der ganzen Seite, das beim Aufruf lief oder wartete, zurück ist -- und gar nicht, wenn eines davon gescheitert
      ist oder ein Bereich der Seite nach einer Zeitüberschreitung unklar ist (Fehler an den Aufrufer, nichts gesendet). Eingaben, die
-     _debounce.html noch zurückhält, werden vorher gespeichert.
+     _debounce.html noch zurückhält, werden vorher gespeichert. Seit 1.8.99 (Festlegung 1.8.96 Nr. 7, korrigiert): auch ein früher
+     gescheitertes Speichern sperrt, bis ein späteres Speichern im selben Bereich gelingt -- das gilt nur für speichern(); eine vom
+     Server abgelehnte abschließende Aktion sperrt keine weitere (eine unklare schon, siehe Zeitlimit).
 
-   Zeitlimit (seit 1.8.96): kommt auf ein Speichern 60 s nach dem Senden keine Antwort, bricht der Baustein die Anfrage ab. Ob der
+   Zeitlimit (seit 1.8.96): kommt auf ein Speichern 60 s nach dem Senden keine Antwort, bricht der Baustein die Anfrage ab. Beim
+   Hochladen (Body FormData, Blob/File oder Binärdaten) seit 1.8.99 erst 60 s nach dem Ende der Übertragung: die Anfrage geht dann über
+   XMLHttpRequest (dessen upload-Ereignisse das Ende melden) und kommt als gewöhnliche Response zurück -- ein großes Foto über eine
+   langsame Verbindung ist sonst "unklar", obwohl es noch läuft (Nebenbefund 1 aus 1.8.96). Ob der
    Server sie bearbeitet hat, ist dann unklar: der Bereich ist "unklar", speichern() endet mit einem Fehler, der das sagt und um
    Neuladen und Prüfen bittet (die Seite zeigt ihn wie jeden Fehler, dazu ein Hinweis oben auf der Seite mit "Seite neu laden");
    wartende und neue Speichervorgänge dieses Bereichs gehen nicht mehr hinaus (sie enden mit demselben Hinweis), bis die Seite neu
@@ -58,7 +63,7 @@ if (!window.__dkVerlassen && typeof window.addEventListener === 'function') {
 }
 function _dkBereich(name) {
   let b = window.__dkBereiche.get(name);
-  if (!b) { b = {nummer: 0, angewandt: 0, offen: 0, letztes: Promise.resolve(), unklar: false, unterwegs: new Map()}; window.__dkBereiche.set(name, b); }
+  if (!b) { b = {nummer: 0, angewandt: 0, offen: 0, letztes: Promise.resolve(), unklar: false, gescheitert: null, unterwegs: new Map()}; window.__dkBereiche.set(name, b); }
   return b;
 }
 function _dkNeuer(b, nr) {
@@ -71,8 +76,13 @@ function _dkFehler(text, art) {
   e.dkBaustein = art;  // 'unklar' | 'nicht-gesendet' | 'abschluss'
   return e;
 }
+function zeitlimitSekunden() {
+  // Seit 1.8.99 der einzige Weg zum Zeitlimit außerhalb des Bausteins (window.__dkZeitlimit setzen nur Klicktests, Festlegung 1.8.96
+  // Nr. 13; tests/test_v404_vorweg.py).
+  return Math.round(window.__dkZeitlimit / 1000);
+}
 function _dkUnklarText() {
-  return `Keine Antwort vom Server nach ${Math.round(window.__dkZeitlimit / 1000)} Sekunden – unklar, ob gespeichert wurde. `
+  return `Keine Antwort vom Server nach ${zeitlimitSekunden()} Sekunden – unklar, ob gespeichert wurde. `
     + 'Bitte die Seite neu laden und prüfen.';
 }
 function _dkNichtGesendetText() {
@@ -101,17 +111,64 @@ function _dkHinweis(text) {
   }
   el.querySelector('.dk-text').textContent = text;
 }
-function _dkMitZeitlimit(laufend, kontrollen, b) {
-  let uhr;
+function _dkMitZeitlimit(laufend, kontrollen, b, uebertragen) {
+  // Die Uhr läuft ab dem Ende der Übertragung (uebertragen): ohne Datei sofort beim Senden, beim Hochladen, wenn die Daten beim Server
+  // sind (seit 1.8.99).
+  let uhr, vorbei = false;
   const ablauf = new Promise((_, nein) => {
-    uhr = setTimeout(() => {
-      b.unklar = true;
-      for (const k of kontrollen) k.abort();
-      _dkHinweis(_dkUnklarText());
-      nein(_dkFehler(_dkUnklarText(), 'unklar'));
-    }, window.__dkZeitlimit);
+    Promise.resolve(uebertragen).then(() => {
+      if (vorbei) return;
+      uhr = setTimeout(() => {
+        b.unklar = true;
+        for (const k of kontrollen) k.abort();
+        _dkHinweis(_dkUnklarText());
+        nein(_dkFehler(_dkUnklarText(), 'unklar'));
+      }, window.__dkZeitlimit);
+    });
   });
-  return Promise.race([laufend, ablauf]).finally(() => clearTimeout(uhr));
+  return Promise.race([laufend, ablauf]).finally(() => { vorbei = true; clearTimeout(uhr); });
+}
+function _dkHochladen(init) {
+  // Hochladen = ein Body, der kein Text ist: FormData, Blob/File, ArrayBuffer oder eine Sicht darauf.
+  const body = init && init.body;
+  if (body == null || typeof body === 'string') return false;
+  return (typeof FormData !== 'undefined' && body instanceof FormData) || (typeof Blob !== 'undefined' && body instanceof Blob)
+    || (typeof ArrayBuffer !== 'undefined' && (body instanceof ArrayBuffer || ArrayBuffer.isView(body)));
+}
+function _dkPerXhr(input, init, uebertragen) {
+  // Wie fetch(), aber über XMLHttpRequest: dessen upload-Ereignis loadend meldet das Ende der Übertragung (fetch kennt keins).
+  // Ergebnis eine gewöhnliche Response; Netzfehler TypeError, Abbruch über das Signal AbortError -- wie bei fetch.
+  return new Promise((ja, nein) => {
+    const xhr = new XMLHttpRequest();
+    let gemeldet = false;
+    const ende = () => { if (!gemeldet) { gemeldet = true; uebertragen(); } };
+    xhr.open(String((init && init.method) || 'GET').toUpperCase(), typeof input === 'string' ? input : (input && input.url) || String(input), true);
+    if (init && init.headers) {
+      const kopf = typeof Headers === 'function' ? new Headers(init.headers) : null;
+      if (kopf) kopf.forEach((wert, name) => xhr.setRequestHeader(name, wert));
+      else for (const [name, wert] of Object.entries(init.headers)) xhr.setRequestHeader(name, wert);
+    }
+    xhr.responseType = 'blob';
+    if (xhr.upload && typeof xhr.upload.addEventListener === 'function') xhr.upload.addEventListener('loadend', ende);
+    xhr.addEventListener('readystatechange', () => { if (xhr.readyState >= 2) ende(); });  // Antwortkopf da: übertragen
+    xhr.addEventListener('load', () => {
+      const kopf = new Headers();
+      for (const zeile of String(xhr.getAllResponseHeaders() || '').trim().split(/[\r\n]+/)) {
+        const i = zeile.indexOf(':');
+        if (i > 0) kopf.append(zeile.slice(0, i).trim(), zeile.slice(i + 1).trim());
+      }
+      const ohneBody = [101, 204, 205, 304].includes(xhr.status);
+      ja(new Response(ohneBody ? null : xhr.response, {status: xhr.status, statusText: xhr.statusText, headers: kopf}));
+    });
+    xhr.addEventListener('error', () => { ende(); nein(new TypeError('Failed to fetch')); });
+    xhr.addEventListener('abort', () => { ende(); nein(new DOMException('The operation was aborted.', 'AbortError')); });
+    const signal = init && init.signal;
+    if (signal) {
+      if (signal.aborted) { ende(); nein(new DOMException('The operation was aborted.', 'AbortError')); return; }
+      signal.addEventListener('abort', () => xhr.abort());
+    }
+    xhr.send(init.body);
+  });
 }
 async function lesen(bereich, anfrage, anwenden) {
   const b = _dkBereich(bereich);
@@ -139,15 +196,17 @@ function abschliessen(bereich, anfrage, optionen = {}) {
   }
   const davor = [...window.__dkSpeichern];
   return _dkSpeichern(bereich, anfrage, optionen, async () => {
-    const ergebnisse = await Promise.all(davor.map(s => s.ergebnis));
-    const gescheitert = ergebnisse.find(x => !x.ok);
+    await Promise.all(davor.map(s => s.ergebnis));
     if ([...window.__dkBereiche.values()].some(x => x.unklar)) {
       throw _dkFehler('Nicht ausgeführt: bei einem Speichern auf der Seite ist unklar, ob es gespeichert wurde. '
         + 'Bitte die Seite neu laden und prüfen.', 'abschluss');
     }
+    // Seit 1.8.99: jeder Bereich, dessen letztes Speichern gescheitert ist (auch vor dem Klick) -- nicht eine abgelehnte
+    // abschließende Aktion (die setzt gescheitert nicht).
+    const gescheitert = [...window.__dkBereiche.values()].find(x => x.gescheitert !== null);
     if (gescheitert) {
       throw _dkFehler('Nicht ausgeführt: ein Speichern auf der Seite ist gescheitert'
-        + (gescheitert.fehler ? ` (${gescheitert.fehler})` : '') + '. Bitte prüfen und erneut versuchen.', 'abschluss');
+        + (gescheitert.gescheitert ? ` (${gescheitert.gescheitert})` : '') + '. Bitte prüfen und erneut versuchen.', 'abschluss');
     }
   });
 }
@@ -168,7 +227,7 @@ function _dkSpeichern(bereich, anfrage, optionen, voraussetzung) {
   let senden, nichtSenden, gebaut = 0, schluessel = null;
   const freigabe = new Promise((ja, nein) => { senden = ja; nichtSenden = nein; });
   freigabe.catch(() => {});
-  const kontrollen = [];
+  const kontrollen = [], uebertragungen = [];
   const echtesFetch = window.fetch;
   let laufend;
   try {
@@ -180,8 +239,14 @@ function _dkSpeichern(bereich, anfrage, optionen, voraussetzung) {
         kontrollen.push(k);
         init = Object.assign({}, init, {signal: k.signal});
       }
+      let uebertragen;
+      uebertragungen.push(new Promise(r => { uebertragen = r; }));
       const self = this;
-      return freigabe.then(() => echtesFetch.call(self, input, init));
+      return freigabe.then(() => {
+        if (_dkHochladen(init) && typeof XMLHttpRequest === 'function') return _dkPerXhr(input, init, uebertragen);
+        uebertragen();  // ohne Datei: das Zeitlimit läuft ab dem Senden
+        return echtesFetch.call(self, input, init);
+      });
     };
     try { laufend = Promise.resolve(anfrage()); } finally { window.fetch = echtesFetch; }
     if (!gebaut) console.error(`speichern('${bereich}'): die Anfrage ging nicht sofort über fetch() -- sie wartet nicht auf das vorige Speichern`);
@@ -199,10 +264,11 @@ function _dkSpeichern(bereich, anfrage, optionen, voraussetzung) {
     return erste.versprechen.then(d => (erste.kopie && typeof Response !== 'undefined' && d instanceof Response) ? erste.kopie.clone() : d);
   }
   const eintrag = {bereich, schluessel};
-  eintrag.versprechen = _dkSenden(b, eintrag, laufend, kontrollen, senden, nichtSenden, optionen, voraussetzung);
+  eintrag.versprechen = _dkSenden(b, eintrag, laufend, kontrollen, senden, nichtSenden, optionen, voraussetzung,
+                                  Promise.all(uebertragungen));
   return eintrag.versprechen;
 }
-async function _dkSenden(b, eintrag, laufend, kontrollen, senden, nichtSenden, optionen, voraussetzung) {
+async function _dkSenden(b, eintrag, laufend, kontrollen, senden, nichtSenden, optionen, voraussetzung, uebertragen) {
   const vorher = b.letztes;
   let fertig, melden;
   b.letztes = new Promise(r => { fertig = r; });
@@ -217,7 +283,7 @@ async function _dkSenden(b, eintrag, laufend, kontrollen, senden, nichtSenden, o
     if (b.unklar) throw _dkFehler(_dkNichtGesendetText(), 'nicht-gesendet');
     nr = ++b.nummer;
     senden();
-    daten = await _dkMitZeitlimit(laufend, kontrollen, b);
+    daten = await _dkMitZeitlimit(laufend, kontrollen, b, uebertragen);
     const istAntwort = typeof Response !== 'undefined' && daten instanceof Response;
     if (istAntwort) eintrag.kopie = daten.clone();  // für eine gleiche zweite Anfrage, bevor der Aufrufer den Body liest
     const fehlstatus = istAntwort && !daten.ok;
@@ -227,6 +293,9 @@ async function _dkSenden(b, eintrag, laufend, kontrollen, senden, nichtSenden, o
     ergebnis = {ok: false, fehler: e && e.message ? e.message : String(e)};
     throw e;
   } finally {
+    // Seit 1.8.99: ein gescheitertes Speichern merkt sich der Bereich, bis ein späteres gelingt -- abschließende Aktionen der Seite
+    // gehen bis dahin nicht hinaus. Nur für speichern() (ohne Voraussetzung), nicht für abschliessen().
+    if (!voraussetzung) b.gescheitert = ergebnis.ok ? null : (ergebnis.fehler || 'Fehler');
     b.offen--;
     window.__dkSpeichern.delete(eintrag);
     if (eintrag.schluessel !== null && b.unterwegs.get(eintrag.schluessel) === eintrag) b.unterwegs.delete(eintrag.schluessel);

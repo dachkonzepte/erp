@@ -999,9 +999,12 @@ def update_order_item(db: Session, order_id: int, item_id: int, **values) -> Ord
     # Keep the effective snapshot sales price aligned with direct EP edits.
     if item.calculation_snapshot is not None and "unit_price" in values:
         item.calculation_snapshot.effective_sale_price = values["unit_price"]
-    db.commit()
+    # Seit 1.8.99 kein Commit davor: der Materialbedarf (Menge je Einheit x Menge der Position) entsteht noch unter der Sperre der
+    # Auftragszeile -- bis 1.8.98 nach dem Commit, eine gleichzeitige Änderung einer anderen Position konnte ihn veralten lassen.
+    db.flush()
     from .work_preparation import refresh_preparation_materials
     refresh_preparation_materials(db, order_id)
+    db.commit()  # ohne Arbeitsvorbereitung committet refresh_preparation_materials() nicht
     return load_order(db, order_id)
 
 
