@@ -29,6 +29,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from cdp_klicktest import klicktest_main  # noqa: E402
 from klicktest_anmeldung_abgelaufen import _anfrage  # noqa: E402
 
+# Seit 1.8.108 (klicktest_alle.py --gleichzeitig): unter Last wäre das Fenster zu kurz, um einen Kreis über /login zu erwischen
+ALLEIN = "Fenster von 1,5 s, in dem /mobil nicht über /login im Kreis laufen darf"
+
 
 def befuellen(db, k):
     from decimal import Decimal

@@ -32,6 +32,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from cdp_klicktest import klicktest_main  # noqa: E402
 
+# Seit 1.8.108 (klicktest_alle.py --gleichzeitig): unter Last wäre das Fenster zu kurz, um ein vorzeitiges Speichern zu erwischen
+ALLEIN = "Fenster von 0,8 s, in dem die Kachel nicht gespeichert werden darf"
+
 DIALOGE = ("window.__confirms=[];window.confirm=m=>{window.__confirms.push(String(m));return true};"
            "window.__alerts=[];window.alert=m=>{window.__alerts.push(String(m))};")
 PDF = b"%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n"

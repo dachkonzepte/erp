@@ -50,6 +50,9 @@ from urllib.parse import quote
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from cdp_klicktest import antwort_kopf, gesendet, klicktest_main  # noqa: E402
 
+# Seit 1.8.108 (klicktest_alle.py --gleichzeitig): unter Last wären die Fenster zu kurz, um eine nicht wartende Seite zu erwischen
+ALLEIN = "Fenster von 1 s, in denen keine zweite Anmeldung und keine Navigation geschehen darf"
+
 DIALOGE = ("window.__confirms=[];window.confirm=m=>{window.__confirms.push(String(m));return true};"
            "window.__alerts=[];window.alert=m=>{window.__alerts.push(String(m))};")
 PASSWORT = {"bea": "Bea-Passwort-1", "anna": "Anna-Passwort-1", "mia": "Mia-Passwort-1"}

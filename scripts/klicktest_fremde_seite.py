@@ -35,6 +35,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from cdp_klicktest import klicktest_main  # noqa: E402
 from klicktest_anmelden import DIALOGE, _freier_port, _klick, _tippen  # noqa: E402
 
+# Seit 1.8.108 (klicktest_alle.py --gleichzeitig): unter Last hätte ein erlaubter Rahmen in 1,5 s vielleicht noch nicht geladen
+ALLEIN = "Fenster von 1,5 s, in dem der Rahmen der fremden Seite laden oder abgewiesen werden muss"
+
 PASSWORT_BEA = "Bea-Passwort-1"
 
 ANGRIFF = """<!doctype html><html><head><meta charset="utf-8"><title>Fremde Seite</title></head><body>

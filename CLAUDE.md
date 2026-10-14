@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.107** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.108** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -507,7 +507,12 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     tatsächlichen Fehlschlag gezielt den einzelnen Testnamen erneut mit voller Ausgabe laufen
     lassen (`pytest -k <name> -v`), nicht die ganze Suite. Die `datetime.utcnow()`-
     `DeprecationWarning` ist in `pytest.ini` bereits gezielt ausgeblendet (siehe "Bekannte,
-    bewusst offene Punkte" unten für die geplante, noch nicht umgesetzte Umstellung).
+    bewusst offene Punkte" unten für die geplante, noch nicht umgesetzte Umstellung). **Seit 1.8.108 läuft die volle Suite
+    parallel** (pytest-xdist): `.venv\Scripts\python.exe -m pytest -q -n 16 --dist loadfile` -- je Testdatei ein Arbeitsprozess,
+    dynamisch verteilt, gemessen rund 7 min statt 41 min nacheinander (16 Arbeitsprozesse sind auf diesem Rechner das Optimum, mehr
+    werden langsamer). **Vor jedem Commit läuft die volle Suite so, parallel -- nicht gezielte Teilläufe** (die bleiben für die
+    Arbeit dazwischen und die Suche nach einem Fehler); Regel 26 bleibt unverändert. Klicktests zugleich:
+    `scripts\klicktest_alle.py --gleichzeitig 4`. Messungen und Festlegungen: `docs/archiv/testablauf-und-klicktests.md`.
 
 16. **Jede Verifikation -- CDP-Browsertest, Sicherheits-/Angriffstest, Datenumzugs-/
     Reparaturskript -- läuft gegen eine isolierte, temporäre Test- oder Probe-Instanz
@@ -642,7 +647,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Zeile, in Vorlagen `/* GEGENPROBE */`); `tests/test_v357_gegenprobe_marker.py` schlägt an, sobald er irgendwo unter
     `app/` steht, mit Datei und Zeile. Danach die Datei byte-genau zurück (Prüfsumme vergleichen). Solange eine Gegenprobe
     läuft, läuft nichts anderes gegen diesen Code -- Anlass: in 1.8.54 fiel eine Migrationsprobe in eine laufende
-    Gegenprobe (`docs/archiv/abnahme-und-gewaehrleistung.md`, "Verifikation 1.8.54" und "Umsetzung 1.8.55").
+    Gegenprobe (`docs/archiv/abnahme-und-gewaehrleistung.md`, "Verifikation 1.8.54" und "Umsetzung 1.8.55"). **Seit 1.8.108** bricht
+    jeder Klicktest nach höchstens 2 min ab, solange der Marker unter `app/` steht (eigene Prozesse über ihre PID beendet,
+    Rückgabecode 3, `scripts/cdp_klicktest.py::Wachhund`) -- ein ausgehebelter Schutz lässt eine Seite sonst im Kreis laufen.
 
 25. **Eine ID aus der Anfrage gehört zum selben Objekt, Auftrag oder Kunden, seit 1.8.70.** Wer eine fremde ID speichert, ohne
     das zu prüfen, öffnet einen Weg über fortlaufende IDs (Befund: Dachfläche eines fremden Objekts im Einsatzbericht, Position
@@ -669,14 +676,21 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     (eingerichtet in `tests/conftest.py`) bricht jede andere Anweisung in `public` ab; wer `DATABASE_URL` an einen Kindprozess gibt
     (alembic, `app.main`), prüft sie mit `pg_url_pruefen()`. `tests/test_v384_pg_nicht_public.py` erzwingt beides per AST. Eine
     Migration, die Daten ändert, wird zusätzlich auf einem Bestand gegen PostgreSQL geprobt, nicht nur auf leerem Schema. Anlass:
-    `test_v297` lief bis 1.8.80 in `public` (dort fehlte eine neue Spalte, drei Tests rot).
+    `test_v297` lief bis 1.8.80 in `public` (dort fehlte eine neue Spalte, drei Tests rot). **Seit 1.8.108** trägt jedes Schema
+    `pgtest_*` als Kommentar die Kennung des Testprozesses, der es anlegt (Rechner, PID, Startzeit; der Wächter hängt sie an jedes
+    `CREATE SCHEMA`); zu Beginn eines Testlaufs löscht `tests/conftest.py` jedes, dessen Prozess nicht mehr läuft -- nie eines eines
+    laufenden Prozesses, nie eines ohne Kennung (nur genannt), nie `public` (`tests/pg_schutz.py::liegen_gebliebene_schemas_loeschen()`).
+    Die Spielwiese läuft mit `max_locks_per_transaction = 1024`: ein `DROP SCHEMA` braucht über 1100 Sperren, mit der Vorgabe 64 brachen
+    gleichzeitige Läufe mit "Shared Memory aufgebraucht" ab.
 
 28. **Der Bericht nennt jede neue Festlegung in einer Zeile, nicht nur die wichtigsten, seit 1.8.91.** Jede Festlegung, die eine Runde
     trifft (im Archiv unter "Festlegungen <Version> (Bitte bestätigen)"), steht im Bericht mit Version und Nummer in genau einer Zeile --
     auch wenn es viele sind; die ausführliche Fassung bleibt im Archiv. Was noch nicht bestätigt ist, bleibt so lange in dieser Form
     vorgelegt. Anlass: der Bericht zu R4c nannte nur eine Auswahl, die Festlegungen 1.8.87–1.8.90 mussten eigens angefordert werden.
     **Seit 1.8.99 ebenso jede angepasste Erwartung eines Tests oder Klicktests**: Test, altes Soll, neues Soll (im Archiv unter "Tests
-    und Prüfung", im Bericht je eine Zeile) -- auch wenn nur der Aufbau geändert ist, wird das gesagt.
+    und Prüfung", im Bericht je eine Zeile) -- auch wenn nur der Aufbau geändert ist, wird das gesagt. **Seit 1.8.108: Festlegungen, die
+    nur Klicktest-Werkzeug und Testablauf betreffen, stehen im Archiv** (`docs/archiv/testablauf-und-klicktests.md`, je eine Zeile mit
+    "Bitte bestätigen"), **der Bericht nennt ihre Zahl** statt jeder einzelnen.
 
 29. **Jede Anfrage per fetch läuft über den Baustein `app/templates/_speichern.html`, seit 1.8.95 (Lesen ohne Ausnahme seit 1.8.97).**
     Schreibende Anfrage (Methode ungleich GET, auch Löschen, Versand, Anmelden): `await speichern('<bereich>', ()=>api(url,{method:…}),
@@ -1196,6 +1210,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   `docs/archiv/grunddaten-beim-start.md`
 - **Speichern nur gesendeter Felder** (`PartialUpdate`, Strukturtest über alle PUT-Handler, Liste der
   Altfälle, Nebenbefunde der Durchsicht aller Speichern-Aufrufer) -- `docs/archiv/teil-updates.md`
+- **Testablauf und Klicktest-Werkzeug** (seit 1.8.108: volle Suite parallel, Kennung und Aufräumen der Testschemas, Sperren der
+  Spielwiese, `klicktest_alle.py --gleichzeitig`, `ALLEIN` für zeitkritische Klicktests, Abbruch in Gegenproben, Messungen; die
+  Festlegungen zu Werkzeug und Testablauf, Regel 28) -- `docs/archiv/testablauf-und-klicktests.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`
 - **Migrationsketten- und Testlauf-Historie** (Version-für-Version-Nachweis, wer wann was mit
@@ -1493,7 +1510,9 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
   (Core-Insert mit den Spalten des jeweiligen Stands, ohne `anlegen()`) -- das ORM von heute schreibt Spalten, die es dort nicht gibt.
 
 - **PostgreSQL-Tests nie in `public`** (seit 1.8.81, Regel 27): Wächter `tests/pg_schutz.py` für den ganzen Testprozess, `pg_url_pruefen()`
-  für jede `DATABASE_URL` an einen Kindprozess. Verzugszinsen in Tests: Basiszinssätze (Testwerte) direkt als `BaseInterestRate` mit
+  für jede `DATABASE_URL` an einen Kindprozess. Seit 1.8.108 bekommt jedes `CREATE SCHEMA pgtest_…` die Kennung des Prozesses als Kommentar
+  (nichts dafür zu tun, der Wächter hängt sie an); ein Schema mit erfundenem Kommentar für einen Test über eine Engine mit
+  `-csearch_path=pg_catalog` anlegen (Vorlage `tests/test_v413_testlauf_parallel.py`). Verzugszinsen in Tests: Basiszinssätze (Testwerte) direkt als `BaseInterestRate` mit
   Prüfangabe anlegen, Verzugsbeginn direkt als `InvoiceDefaultStart` (Vorlage `tests/test_v384_verzugszinsen.py::_saetze()`,
   `_im_verzug_seit()`).
 
@@ -1705,7 +1724,13 @@ im Klicktest `window.alert` per `Page.addScriptToEvaluateOnNewDocument` umleiten
 Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite. **Alle nacheinander** (seit 1.8.76):
 `.venv\Scripts\python.exe scripts\klicktest_alle.py` (je Test eigener Arbeitsordner unter einem Ausgabeordner, Übersicht mit
 Ergebnis, Prüfungen und Laufzeit, `--nur`/`--ab`, Zeitlimit je Test, beendet nur den eigenen Prozessbaum). Seit 1.8.77 vor
-jedem Bericht, Ergebnis im Bericht (Regel 26).
+jedem Bericht, Ergebnis im Bericht (Regel 26). **Mehrere zugleich** (seit 1.8.108): `--gleichzeitig 4` -- zuerst die Klicktests mit
+`ALLEIN = "<Grund>"` auf Modulebene einzeln, während kein anderer läuft, dann die übrigen zu viert, die längsten zuerst
+(`KLICKTEST_DAUERN` in `klicktest_alle.py`). `ALLEIN` braucht jeder Klicktest, dessen Prüfung an einer Zeitspanne hängt: ein Fenster, in
+dem etwas NICHT geschehen darf (`warten("false", …, melden=False)` -- unter Last zu kurz, die Prüfung würde still schwächer), ein
+Zeitlimit über `window.__dkZeitlimit`, gedrosseltes Netz (`tests/test_v413_testlauf_parallel.py`). Ohne `--gleichzeitig` wie bisher
+nacheinander. **Zeitlimit** (seit 1.8.108): `--zeitlimit SEK` an jedem Klicktest; steht der Marker `GEGENPROBE` unter `app/`, bricht
+jeder Klicktest nach höchstens 2 min ab (Rückgabecode 3, `klicktest_alle.py` führt ihn als "Zeitlimit").
 
 ## Arbeitsweise, die sich bewährt hat
 

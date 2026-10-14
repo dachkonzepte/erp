@@ -4,6 +4,26 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.108 – Suite und Klicktests parallel, Aufräumen der Testschemas, Abbruch in Gegenproben
+
+Werkzeug-Runde, an der Anwendung unter `app/` ändert sich nichts. Die volle Suite läuft parallel über pytest-xdist
+(`pytest -q -n 16 --dist loadfile`, je Testdatei ein Arbeitsprozess, dynamisch verteilt): rund 7 min statt 41 min nacheinander, mit
+denselben 5258 Tests und denselben Ergebnissen. „Shared Memory aufgebraucht“ in der lokalen PostgreSQL-Spielwiese war die Sperrtabelle:
+ein `DROP SCHEMA` eines Testschemas braucht über 1100 Sperren, die Vorgabe reichte für alle Transaktionen zusammen nur für rund 6600;
+im parallelen Lauf mit 16 Arbeitsprozessen stehen bis zu 28 000 gleichzeitig. Die Spielwiese läuft jetzt mit `max_locks_per_transaction = 1024`. Jedes Schema
+`pgtest_*` trägt die Kennung des Testprozesses, der es anlegt; zu Beginn eines Laufs werden liegen gebliebene Schemas gelöscht, deren
+Prozess nicht mehr läuft -- nie eines eines laufenden Laufs, nie eines ohne Kennung, nie `public`.
+
+`scripts/klicktest_alle.py --gleichzeitig 4` lässt vier Klicktests zugleich laufen, rund 6 min statt 16 min; die sechs zeitkritischen
+(ein Fenster, in dem nichts geschehen darf, ein Zeitlimit, gedrosseltes Netz) tragen `ALLEIN` und laufen allein, ein Test verlangt das
+für jeden solchen Klicktest. Steht der Marker einer Gegenprobe unter `app/`, bricht jeder Klicktest nach 2 min ab und beendet seine
+eigenen Prozesse; dazu `--zeitlimit` für jeden Klicktest. In CLAUDE.md: vor jedem Commit die volle Suite parallel statt gezielter
+Teilläufe (Regel 15), Festlegungen nur zu Werkzeug und Testablauf stehen im neuen Archiv `docs/archiv/testablauf-und-klicktests.md`,
+der Bericht nennt ihre Zahl (Regel 28).
+
+Neu `tests/test_v413_testlauf_parallel.py` (18, davon 3 gegen PostgreSQL). `requirements.txt` bekommt `pytest-xdist` (nur für Tests, wie
+`pytest`; `update.sh` installiert es auf dem Server mit).
+
 ## 1.8.107 – Secure als Vorgabe, HSTS, Schutzkopfzeilen auch an der 500
 
 Korrektur 104-8 und Punkt 2 der zweiten Vorgabe vom 14.10.2026. Das Anmelde-Cookie ist jetzt überall `Secure`, außer bei ausdrücklich

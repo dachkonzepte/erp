@@ -23,6 +23,19 @@ AUFRUF (aus dem Projektordner, in der Projekt-venv):
     --wanduhr HH:MM     Instanz so starten, als wäre es heute HH:MM (Europe/Berlin) -- Gegenprobe für
                         Prüfungen, die von der Tageszeit abhängen. Ein Skript mit fester Uhr
                         (klicktest_main(..., uhr="10:00")) bleibt bei seiner Uhr.
+    --zeitlimit SEK     nach SEK Sekunden abbrechen: eigene Prozesse (Befüllen, Instanz, Chrome) über ihre PID
+                        beenden, Rückgabecode 3. Ohne Angabe kein Limit -- außer in einer Gegenprobe.
+
+GEGENPROBE (seit 1.8.108): steht der Marker GEGENPROBE irgendwo unter app/ (Regel 24, eine Gegenprobe läuft), bricht
+jeder Klicktest nach höchstens 2 min ab (ZEITLIMIT_GEGENPROBE, --zeitlimit kann es nur verkürzen) -- ein ausgehebelter
+Schutz lässt eine Seite sonst oft im Kreis laufen oder auf eine Antwort warten, die nie kommt (am 14.10.2026 hing so
+eine Gegenprobe über /login?next=…). Rückgabecode 3, die letzte Zeile nennt Grund und Fundstelle des Markers.
+
+GLEICHZEITIG (seit 1.8.108): `scripts/klicktest_alle.py --gleichzeitig 4` lässt mehrere Klicktests zugleich laufen.
+Ein Klicktest, dessen Prüfung an einer Zeitspanne hängt (ein Fenster, in dem etwas NICHT geschehen darf, wie
+`warten("false", 1.0, melden=False)`; ein Zeitlimit über `window.__dkZeitlimit`; gedrosseltes Netz), setzt auf
+Modulebene `ALLEIN = "<Grund>"` -- er läuft dann allein, unter Last würde er schwächer oder rot.
+`tests/test_v413_testlauf_parallel.py` verlangt das für jedes solche Skript.
 
 FESTE UHR (seit 1.8.36): `klicktest_main(befuellen, pruefen, uhr="10:00")` lässt die Uhr der Instanz
 (app.berlin_time._utc_now, beim Befüllen und im Server) heute ab 10:00 Europe/Berlin laufen, egal
@@ -32,7 +45,7 @@ danach sähe abends 401. Gespeicherte Zeitstempel (datetime.utcnow()) und die Uh
 laufen weiter mit der echten Zeit.
 
 Rückgabecode: 0 = alle Prüfungen wie erwartet, 1 = mindestens eine Abweichung,
-2 = Instanz oder Chrome ließ sich nicht starten.
+2 = Instanz oder Chrome ließ sich nicht starten, 3 = Zeitlimit (--zeitlimit oder Gegenprobe).
 
 WAS PASSIERT:
 
@@ -118,6 +131,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -125,6 +139,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 MARKER = ".klicktest"
+GEGENPROBE_MARKER = "GEGENPROBE"  # Regel 24, wie tests/test_v357_gegenprobe_marker.py
+ZEITLIMIT_GEGENPROBE = 120  # Sekunden, seit 1.8.108
+CODE_ZEITLIMIT = 3
 CHROME_CANDIDATES = (
     r"C:\Program Files\Google\Chrome\Application\chrome.exe",
     r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
@@ -788,6 +805,51 @@ def beenden(pid: int) -> None:
             pass
 
 
+def gegenprobe_im_code(root: Path = ROOT) -> str | None:
+    """Erste Fundstelle "<datei>:<zeile>" des Markers GEGENPROBE unter root/app (alle Textdateien, wie test_v357), sonst None."""
+    for path in sorted((root / "app").rglob("*")):
+        if not path.is_file() or "__pycache__" in path.parts:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        if GEGENPROBE_MARKER in text:
+            nummer = next(n for n, zeile in enumerate(text.splitlines(), start=1) if GEGENPROBE_MARKER in zeile)
+            return f"{path.relative_to(root).as_posix()}:{nummer}"
+    return None
+
+
+class Wachhund:
+    """Seit 1.8.108: bricht den Klicktest nach `sekunden` ab -- auch wenn der Lauf in einem CDP-Befehl, im Befüllen oder beim
+    Warten auf die Instanz hängt. Beendet die eigenen Kindprozesse (über ihre PID, Regel 12) und den Prozess mit CODE_ZEITLIMIT.
+    Ein Thread, kein asyncio: hängt die Ereignisschleife, läuft er trotzdem."""
+
+    def __init__(self, sekunden: float, grund: str):
+        self.sekunden, self.grund = sekunden, grund
+        self.kinder: list[subprocess.Popen] = []
+        self._timer = threading.Timer(sekunden, self._abbrechen)
+        self._timer.daemon = True
+
+    def starten(self) -> None:
+        self._timer.start()
+
+    def anhalten(self) -> None:
+        """Hält ihn an; ist er schon abgelaufen, wartet es auf ihn -- er beendet den Prozess."""
+        self._timer.cancel()
+        if self._timer.is_alive():
+            self._timer.join()
+
+    def _abbrechen(self) -> None:
+        print(f"\nABBRUCH: Zeitlimit {int(self.sekunden)} s erreicht ({self.grund}). Eigene Prozesse werden beendet.", flush=True)
+        for proc in reversed(self.kinder):
+            if proc.poll() is None:
+                beenden(proc.pid)
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(CODE_ZEITLIMIT)
+
+
 UHR_ENV = "KLICKTEST_UHR"
 
 
@@ -855,6 +917,7 @@ def klicktest_main(befuellen, pruefen, *, beschreibung: str = "", uhr: str | Non
     parser.add_argument("--chrome")
     parser.add_argument("--offen-lassen", action="store_true")
     parser.add_argument("--wanduhr", metavar="HH:MM")
+    parser.add_argument("--zeitlimit", type=float, metavar="SEK")
     parser.add_argument("--nur-befuellen", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args()
 
@@ -862,6 +925,23 @@ def klicktest_main(befuellen, pruefen, *, beschreibung: str = "", uhr: str | Non
         _befuellen_im_kindprozess(befuellen, args.nur_befuellen)
         return 0
 
+    # Seit 1.8.108: Zeitlimit -- in einer Gegenprobe immer höchstens 2 min
+    gegenprobe = gegenprobe_im_code()
+    grenzen = [(args.zeitlimit, "--zeitlimit")] if args.zeitlimit else []
+    if gegenprobe:
+        grenzen.append((ZEITLIMIT_GEGENPROBE, f"Gegenprobe läuft, Marker {GEGENPROBE_MARKER} in {gegenprobe}"))
+    wachhund = Wachhund(*min(grenzen)) if grenzen else None
+    if wachhund:
+        print(f"Zeitlimit {int(wachhund.sekunden)} s ({wachhund.grund})", flush=True)
+        wachhund.starten()
+    try:
+        return _ablauf(befuellen, pruefen, args, uhr, wachhund)
+    finally:
+        if wachhund:  # ist er abgelaufen, endet der Prozess hier mit CODE_ZEITLIMIT -- auch wenn der Ablauf schon zurückkam,
+            wachhund.anhalten()  # weil das Beenden seiner Kindprozesse ihn weiterlaufen ließ ("Befüllen fehlgeschlagen.")
+
+
+def _ablauf(befuellen, pruefen, args, uhr: str | None, wachhund: "Wachhund | None") -> int:
     ordner = (args.arbeitsordner or Path(tempfile.mkdtemp(prefix="erp-klicktest-"))).resolve()
     if ordner.exists() and any(ordner.iterdir()):
         raise SystemExit(f"Arbeitsordner ist nicht leer: {ordner}")
@@ -879,8 +959,10 @@ def klicktest_main(befuellen, pruefen, *, beschreibung: str = "", uhr: str | Non
 
     skript = Path(sys.argv[0]).resolve()
     seed_datei = ordner / "seed.json"
-    befuellt = subprocess.run([sys.executable, str(skript), "--nur-befuellen", str(seed_datei)], env=env, cwd=ROOT)
-    if befuellt.returncode != 0 or not seed_datei.exists():
+    befuellen_proc = subprocess.Popen([sys.executable, str(skript), "--nur-befuellen", str(seed_datei)], env=env, cwd=ROOT)
+    if wachhund:
+        wachhund.kinder.append(befuellen_proc)
+    if befuellen_proc.wait() != 0 or not seed_datei.exists():
         print("Befüllen fehlgeschlagen.")
         return 2
     seed = json.loads(seed_datei.read_text(encoding="utf-8"))
@@ -892,6 +974,8 @@ def klicktest_main(befuellen, pruefen, *, beschreibung: str = "", uhr: str | Non
                       if uhrzeit else
                       [sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", str(app_port)])
             server = subprocess.Popen(befehl, env=env, cwd=ROOT, stdout=out, stderr=err)
+        if wachhund:
+            wachhund.kinder.append(server)
         if not _warte_auf(f"http://127.0.0.1:{app_port}/login", 60):
             print(f"ERP-Instanz antwortet nicht, siehe {ordner / 'server.err.log'}")
             return 2
@@ -899,6 +983,8 @@ def klicktest_main(befuellen, pruefen, *, beschreibung: str = "", uhr: str | Non
                                    f"--user-data-dir={ordner / 'chrome-profile'}", "--no-first-run",
                                    "--no-default-browser-check", "--disable-extensions", "about:blank"],
                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if wachhund:
+            wachhund.kinder.append(chrome)
         (ordner / "pids.txt").write_text(f"server={server.pid} chrome={chrome.pid}\n", encoding="utf-8")
         if not _warte_auf(f"http://127.0.0.1:{cdp_port}/json/version", 30):
             print("Chrome antwortet nicht auf dem CDP-Port.")
@@ -906,6 +992,8 @@ def klicktest_main(befuellen, pruefen, *, beschreibung: str = "", uhr: str | Non
         ok = asyncio.run(_lauf(pruefen, seed, cdp_port, f"http://127.0.0.1:{app_port}", ordner / "shots"))
         return 0 if ok else 1
     finally:
+        if wachhund:
+            wachhund.anhalten()
         if args.offen_lassen:
             print(f"Läuft weiter: {(ordner / 'pids.txt').read_text(encoding='utf-8').strip()}  "
                   "(beenden mit taskkill /PID <pid> /T /F)")

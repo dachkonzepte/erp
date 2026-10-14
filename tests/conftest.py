@@ -47,11 +47,37 @@ from app.auth import hash_password
 from app.database import Base, get_db
 from app.models import AppUser
 from tests.grunddaten_schalter import grunddaten_aus, ohne_grunddaten
-from tests.pg_schutz import schema_waechter_einrichten
+from tests.pg_schutz import liegen_gebliebene_schemas_loeschen, schema_waechter_einrichten
 from tests.uhr import uhr_festhalten
 
 # Seit 1.8.81 (Regel 27): kein Test gegen PostgreSQL im Schema public der Spielwiese -- für jede Engine dieses Testprozesses.
+# Seit 1.8.108 trägt dabei jedes angelegte Schema pgtest_* die Kennung dieses Prozesses (tests/pg_schutz.py).
 schema_waechter_einrichten()
+
+
+def pytest_sessionstart(session):
+    """Seit 1.8.108: zu Beginn eines Testlaufs liegen gebliebene Schemas pgtest_* in der Spielwiese löschen -- nur solche, deren
+    Testprozess nicht mehr läuft (tests/pg_schutz.py::liegen_gebliebene_schemas_loeschen). Nur im Hauptprozess, nicht in den
+    Arbeitsprozessen eines parallelen Laufs (pytest-xdist); ohne ERP_TEST_POSTGRES_URL nichts."""
+    url = os.getenv("ERP_TEST_POSTGRES_URL")
+    if not url or hasattr(session.config, "workerinput"):
+        return
+    melden = session.config.pluginmanager.get_plugin("terminalreporter")
+    try:
+        ergebnis = liegen_gebliebene_schemas_loeschen(url)
+    except Exception as exc:  # Instanz nicht erreichbar: die Tests gegen PostgreSQL melden es selbst
+        zeilen = [f"PostgreSQL-Testschemas nicht aufgeräumt: {type(exc).__name__}"]
+    else:
+        zeilen = [f"PostgreSQL-Testschemas: {text} {len(namen)} ({', '.join(namen[:5])}{' …' if len(namen) > 5 else ''})"
+                  for text, namen in (
+            ("liegen geblieben, gelöscht:", ergebnis["geloescht"]),
+            ("nicht gelöscht, Löschen gescheitert:", ergebnis["fehler"]),
+            ("nicht gelöscht, ohne Kennung (Stand vor 1.8.108?):", ergebnis["ohne_kennung"]),
+            ("nicht gelöscht, Kennung eines anderen Rechners:", ergebnis["fremder_rechner"]),
+            ("eines laufenden Testprozesses, stehen gelassen:", ergebnis["laufend"])) if namen]
+    for zeile in zeilen:
+        if melden is not None:
+            melden.write_line(zeile)
 
 
 @event.listens_for(Base.metadata, "after_create")

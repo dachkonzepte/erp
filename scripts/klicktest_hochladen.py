@@ -27,6 +27,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from cdp_klicktest import klicktest_main  # noqa: E402
 
+# Seit 1.8.108 (klicktest_alle.py --gleichzeitig): gedrosseltes Netz und Zeitlimit -- die Prüfung hängt an Zeiten
+ALLEIN = "gedrosseltes Netz (100 kB/s) und Zeitlimit 2 s über window.__dkZeitlimit"
+
 ZEITLIMIT = "window.__dkZeitlimit=2000;"
 GROESSE = 400_000
 DROSSEL = 100_000  # Bytes je Sekunde beim Hochladen
