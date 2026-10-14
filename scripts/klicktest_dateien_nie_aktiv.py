@@ -110,7 +110,15 @@ async def _direkt(tab, pfad: str, download: Path, datei: str | None = None) -> d
     Downloads, die der Tab dabei begann (Page.downloadWillBegin), datei_da = ob datei danach im Download-Ordner geschrieben ist. Mit
     datei wird darauf gewartet (Chrome prüft HTML-Downloads und benennt erst danach um), ohne eine Sekunde."""
     def stand():
-        return {d.name: d.stat().st_mtime_ns for d in download.iterdir()}
+        # Chrome legt Zwischendateien an (.crdownload, downloads.htm) und entfernt sie gleich wieder -- eine, die zwischen dem
+        # Auflisten und dem Lesen verschwindet, zählt nicht (Nachtrag 1.8.101: daran brach der Lauf nach Regel 26 zu 1.8.104 ab).
+        out = {}
+        for d in download.iterdir():
+            try:
+                out[d.name] = d.stat().st_mtime_ns
+            except FileNotFoundError:
+                pass
+        return out
 
     vorher, marke = stand(), len(tab.downloads)
     antwort = await tab.cmd("Page.navigate", url=tab.base + pfad)

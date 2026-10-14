@@ -3995,6 +3995,9 @@ Nebenbefunde nur melden. Wird der Umfang zu groß: nach Punkt 2 committen und de
 - Klicktest `klicktest_dateien_nie_aktiv` 42/42 (mehrfach). Im ersten Lauf zählte er Downloads über den Ordner: Chrome überschreibt
   gleichnamige Dateien und benennt HTML-Downloads erst nach einer Prüfung um, dazwischen legte headless Chrome nach dem PDF-Betrachter eine
   `downloads.htm` an -- seither eindeutige Namen je Ablage und die Ereignisse des Tabs (Nebenbefund 1).
+  **Nachtrag** (Lauf nach Regel 26 zu 1.8.104, eigener Commit nach Festlegung 1.8.100 Nr. 5): der Lauf brach mit `FileNotFoundError` ab --
+  der Helfer `_direkt()` listete den Download-Ordner und las danach die Zeitstempel, dazwischen hatte Chrome eine Zwischendatei
+  (`downloads.htm (1).crdownload`) schon wieder entfernt. Eine verschwundene Datei zählt jetzt nicht mehr (Soll gleich, nur Aufbau).
 - Gegenproben (Regel 24): 13 von 13 rot -- Typ aus der Endung statt am Inhalt (auch im Klicktest: 21/42, Skript gelaufen), Kundenakte über
   `FileResponse` mit gespeichertem Typ, Abnahme-Beleg über `Response` mit gespeichertem Typ (Strukturtest), Kundenakte speichert den Typ des
   Browsers, Vorschau für jedes `image/*` (auch im Klicktest: Vorschaubild des alten SVG), SVG-Logo inline ohne CSP, Kopfzeilen ersetzen die
