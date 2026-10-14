@@ -4079,7 +4079,10 @@ Nebenbefunde nur melden. Wird der Umfang zu groß: nach Punkt 2 committen und de
   pickLink(<JSON>)" -> "kein on…-Attribut, data-art/-id/-label dekodieren zum Treffer, pickLink bekommt die Werte aus dem Element"; Nr. 5, 6,
   8 nur xfail entfernt (Soll gleich). Nur Aufbau: `test_v334::seite()` bindet `_aktionen.html`, `_weiterleitung.html`, `_links.html` ein (die
   Seitenskripte melden Aktionen an); Klicktest `klicktest_maengel` sucht die Knöpfe Freigabe/Status über `data-art` statt `onclick*=` (Soll
-  gleich -- die alte Suche hätte nach dem Umbau immer "keiner" ergeben und die Prüfung still bestanden).
+  gleich -- die alte Suche hätte nach dem Umbau immer "keiner" ergeben und die Prüfung still bestanden);
+  `test_v105::test_backoffice_ui_exposes_project_order_and_calendar_week_fields` sucht den Quelltext `KW ${esc(m.valid_from_week` statt
+  `KW ${m.valid_from_week` (Soll gleich: die Kalenderwochen stehen in der Liste; der Test liest den Text wörtlich und war in der vollen
+  Suite rot, nachdem esc() dazukam).
 - Neuer Klicktest `scripts/klicktest_daten_im_html.py` 21/21: Kunde, Unterordner, Gruppe eines Prüfpunkts, Projekt und Art eines
   Betriebsmittels mit `"><img onerror>`, `');…//` und `&quot;…` -- kein Skript auf sieben Seiten, Namen als Text, die umgebauten Knöpfe
   tun es weiter mit genau dem gespeicherten Wert (Unterordner filtern in Kundenakte und Projektmappe, Gruppe zu und auf, Vorschlag im

@@ -54,5 +54,5 @@ def test_backoffice_ui_exposes_project_order_and_calendar_week_fields():
     html = (root / "app/templates/time_backoffice.html").read_text(encoding="utf-8")
     assert 'id="editProject"' in html and 'id="editOrder"' in html and 'id="editOrderItem"' in html
     assert 'id="modelValidFrom"' in html and 'id="modelValidTo"' in html
-    assert 'KW ${m.valid_from_week' in html
+    assert 'KW ${esc(m.valid_from_week' in html  # seit 1.8.102 mit esc() (Regel 31)
     assert re.match(r"^\d+\.\d+\.\d+$", (root / "VERSION").read_text(encoding="utf-8").strip())
