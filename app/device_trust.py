@@ -76,6 +76,14 @@ def check_trust(db: Session, user: AppUser, cookie_value: str | None) -> bool:
     return verify_password(raw_secret, row.token_hash)
 
 
+def anzahl(db: Session, user: AppUser) -> int:
+    """Wie viele vertraute Geräte von user gelten (nicht abgelaufen) -- nur lesen (seit 1.8.106, Antwort von "Alle Sitzungen
+    beenden")."""
+    from sqlalchemy import func
+    return db.scalar(select(func.count(TrustedDevice.id)).where(TrustedDevice.user_id == user.id,
+                                                                TrustedDevice.expires_at >= datetime.utcnow())) or 0
+
+
 def revoke_all(db: Session, user: AppUser) -> None:
     """Löscht ALLE vertrauten Geräte von user -- aufgerufen bei jeder Änderung, die ein zuvor
     vertrautes Gerät entwerten muss (2FA-Reset, Passwortänderung, expliziter Widerruf), siehe

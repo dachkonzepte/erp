@@ -31,6 +31,7 @@ def update_mobile_settings(db: Session, shift_end_time: dt_time) -> dict:
 def is_past_shift_end(settings: MobileSettings, now: datetime | None = None) -> bool:
     """Geprüft nur an den beiden mobilen Einstiegspunkten (GET /mobil, GET
     /api/field-view/today -- /mobil hieß bis 1.3.60 /vor-ort), NICHT in der globalen Middleware --
-    siehe MobileSettings-Docstring in app/models.py."""
+    siehe MobileSettings-Docstring in app/models.py. Seit 1.8.106 meldet GET /api/field-view/today
+    den Feierabend nur, POST /api/field-view/feierabend beendet dann die Sitzung (beide prüfen hier)."""
     now = now or berlin_now()
     return now.time() >= settings.shift_end_time

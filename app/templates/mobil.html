@@ -272,10 +272,25 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
       el.textContent=message;
     });
   }
+  // Seit 1.8.106 (Korrektur 103-3): nach Feierabend meldet GET /api/field-view/today nur "feierabend" (ein Lesepfad schreibt nicht,
+  // Regel 23) -- die Seite beendet die Sitzung dann per POST, wie beim Abmelden über speichern(), und geht zur Anmeldung. Nur wenn die
+  // Sitzung damit endete (200) oder schon weg war (401): mit einer noch gültigen schickte /login zurück nach /mobil, die Seite liefe im
+  // Kreis. Scheitert der POST, bleibt die Seite mit der Meldung stehen.
+  function feierabendFehler(text){
+    showError('Feierabend -- Abmelden fehlgeschlagen: '+text+' Bitte die Seite neu laden.');
+  }
+  function feierabend(){
+    return speichern('feierabend',()=>fetch('/api/field-view/feierabend',{method:'POST'})).then(function(r){
+      if(r.ok||r.status===401){location.href='/login?next='+encodeURIComponent(location.pathname);return}
+      return r.json().catch(function(){return {}}).then(function(d){feierabendFehler((d&&d.detail)||('HTTP '+r.status+'.'))});
+    },function(e){feierabendFehler((e&&e.message)||'keine Verbindung.')});
+  }
   fetch('/api/field-view/today').then(function(r){
     if(r.status===401){
-      location.href='/login?next='+encodeURIComponent(location.pathname);
-      throw new Error('nicht angemeldet');
+      return r.json().catch(function(){return {}}).then(function(d){
+        if(d&&d.feierabend)return feierabend();
+        location.href='/login?next='+encodeURIComponent(location.pathname);
+      }).then(function(){throw new Error('nicht angemeldet')});
     }
     if(!r.ok){
       return r.json().catch(function(){return {}}).then(function(d){throw new Error(d.detail||'Fehler beim Laden.')});

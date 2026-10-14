@@ -27,9 +27,10 @@ router = APIRouter()
 
 @router.get("/api/users", response_model=list[AppUserOut])
 def list_app_users(db: Session = Depends(get_db), current: AppUser = Depends(require_admin("Nur Administratoren dürfen die Benutzerliste einsehen."))):
-    """Seit 1.8.103 mit der Zahl der geltenden Sitzungen je Benutzer (nur gelesen)."""
+    """Seit 1.8.103 mit der Zahl der geltenden Sitzungen je Benutzer, seit 1.8.106 auch der vertrauten Geräte (nur gelesen)."""
     users = db.scalars(select(AppUser).order_by(AppUser.display_name)).all()
-    return [AppUserOut.model_validate(u, from_attributes=True).model_copy(update={"active_sessions": sitzungen.anzahl(db, u)}) for u in users]
+    return [AppUserOut.model_validate(u, from_attributes=True).model_copy(
+        update={"active_sessions": sitzungen.anzahl(db, u), "trusted_device_count": device_trust.anzahl(db, u)}) for u in users]
 
 
 @router.post("/api/users", response_model=AppUserOut)
@@ -113,14 +114,18 @@ def end_user_sessions(user_id: int, db: Session = Depends(get_db),
                       request: Request = None, response: Response = None):
     """Seit 1.8.103 (Korrektur 98-11): ein Administrator beendet alle Sitzungen eines Benutzers -- jede Anmeldung auf jedem Gerät endet,
     die nächste Anfrage dort braucht eine neue Anmeldung. Beendet er seine eigenen, bleibt dieses Gerät mit einer neuen Sitzung
-    angemeldet (wie beim eigenen Passwort, Festlegung 1.8.98 Nr. 6). Vertraute Geräte bleiben (sie ersparen nur den zweiten Faktor)."""
+    angemeldet (wie beim eigenen Passwort, Festlegung 1.8.98 Nr. 6). Seit 1.8.106 (Korrektur 103-2) sind im selben Commit auch alle
+    vertrauten Geräte des Benutzers abgemeldet -- die nächste Anmeldung braucht wieder den zweiten Faktor, auch auf diesem Gerät."""
     user = db.get(AppUser, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="ERP-Benutzer nicht gefunden.")
     vorher = sitzungen.anzahl(db, user)
+    geraete = device_trust.anzahl(db, user)
     sitzungen.alle_beenden(db, user, request=request, response=response)
-    db.commit()
-    return {"ok": True, "sitzungen_beendet": vorher}
+    device_trust.revoke_all(db, user)  # committet -- die beendeten Sitzungen gehen mit
+    if user.id == current.id:
+        response.delete_cookie(device_trust.TRUST_COOKIE_NAME)
+    return {"ok": True, "sitzungen_beendet": vorher, "geraete_abgemeldet": geraete}
 
 
 @router.delete("/api/users/{user_id}")

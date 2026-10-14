@@ -4343,6 +4343,87 @@ und HSTS hängen an derselben Frage "ausdrücklich lokal oder nicht".
    (`{ laden(){…} }`, `laden: () => …`) oder einer Klasse zählt zur umgebenden Funktion bzw. zu `<oben>`. Für test_v398 hieße das: ein
    Speichern in einer solchen Methode macht sie nicht zur schreibenden Funktion. Ob eine Vorlage das so verwendet, ist nicht untersucht.
 
+### Umsetzung 1.8.106: Vorweg -- SVG-Logo, Text-IDs, vertraute Geräte, Feierabend als POST (Korrekturen 101-4, 102-2, 103-2, 103-3)
+
+#### Was gebaut ist
+
+- **101-4 SVG-Logo mit Sandbox**: war seit 1.8.101 so -- ein am Inhalt erkanntes SVG-Logo geht direkt geöffnet als Download mit
+  `Content-Security-Policy: sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:` (seit 1.8.104 mit `frame-ancestors
+  'none'` angehängt), `sandbox` ohne `allow-…`: kein Skript, kein Formular, ein undurchsichtiger Ursprung statt dem des ERP. Am Code nichts
+  geändert; neu ist der Test über die echte Route und die echte Anmeldeschranke (je Direktive geprüft, nicht nur der Anfang) und die
+  Gegenprobe. Die Festlegung 1.8.101 Nr. 4 lautet damit: "SVG nur beim Firmen- und Seitenleisten-Logo als Bild, direkt geöffnet ein Download
+  mit Sandbox".
+- **102-2 Text-IDs, einmal geprüft** (Fundliste): keine Text-ID fehlt in `TEXT_IDS`. Geprüft wurden (1) jede Spalte "id"/"…_id", die keine
+  Ganzzahl ist: zehn, alle String (`services.external_id`, `quote_items`/`order_items.source_external_id`, `general_settings.vat_id`,
+  `audit_logs.entity_id`, `smtp_settings.graph_tenant_id`/`graph_client_id`, `calendar_events`/`outlook_series_occurrences.outlook_event_id`,
+  `outlook_series_occurrences.series_master_id`), keine UUID-Spalte; (2) jedes Pydantic-Modell in jedem Modul unter `app/` (503 Modelle,
+  bis 1.8.105 prüfte der Test nur `app/schemas.py`): 14 Felder mit Text, alle aus `app/schemas.py` und in TEXT_IDS (dazu `tenant_id`,
+  `client_id` aus `GraphSettingsUpdate`); (3) jeder Schlüssel "id"/"…_id" eines dict-Literals unter `app/`, der keiner Ganzzahl-Spalte
+  gleichen Namens entspricht (17 Namen, von Hand gelesen: alle mit Zahlen oder None belegt, außer den Text-IDs oben); (4) die JSON-Antworten
+  aller GET-Routen in den drei Rundgängen aus test_v326 (198 Routen mit Inhalt): Text unter einem solchen Schlüssel nur `entity_id` (Audit)
+  und `external_id` (Leistung), beide in TEXT_IDS; (5) die Vorlagen: jeder Wert eines `data-id`/`data-…-id` ist eine Zahl, kein Element-ID
+  (`el.id`) geht in HTML. "UUID u. ä." heißen im ERP `client_uuid`, `dispatch_key`, `token…` -- nicht "…_id", für den Scanner also nie eine
+  Zahl. Dauerhaft: `test_v407::test_jedes_id_feld_mit_text_steht_in_text_ids` liest jetzt jeden Spaltentyp außer Ganzzahl und alle
+  Pydantic-Modelle unter `app/`; `test_v411` prüft die Antworten der Rundgänge.
+- **103-2 vertraute Geräte**: `POST /api/users/{id}/end-sessions` meldet im selben Commit alle vertrauten Geräte des Benutzers ab
+  (`device_trust.revoke_all()`); beendet der Administrator seine eigenen, bleibt dieses Gerät angemeldet, sein Cookie "vertrautes Gerät" wird
+  gelöscht. Die Antwort nennt `geraete_abgemeldet`. Die Benutzerverwaltung zeigt unter der Zahl der Sitzungen "N vertraute(s) Gerät(e)"
+  (`AppUserOut.trusted_device_count`, nur gelesen, `device_trust.anzahl()`), der Knopf steht da, solange es Sitzungen oder vertraute Geräte
+  gibt, die Rückfrage nennt die Geräte.
+- **103-3 Feierabend als POST**: `GET /api/field-view/today` schreibt nichts mehr -- nach der Feierabend-Uhrzeit 401 mit `"feierabend":
+  true`, Sitzung und Cookie bleiben. Neu `POST /api/field-view/feierabend` (jede Rolle ab Monteur): nach der Uhrzeit beendet er die Sitzung
+  dieses Geräts auf dem Server und löscht das Cookie, davor 409 ohne Wirkung. `/mobil` schickt ihn über `speichern('feierabend', …)`, sobald
+  der GET "feierabend" meldet, und geht danach zur Anmeldung -- nur wenn die Sitzung damit endete (200) oder schon weg war (401). Scheitert
+  der POST (Netz, 403 von einem Tablet ohne `Sec-Fetch-Site`, Server), bleibt die Seite mit "Feierabend -- Abmelden fehlgeschlagen: …"
+  stehen: mit einer noch gültigen Sitzung schickt `/login` sofort zurück nach `/mobil`, die Seite liefe im Kreis (in der Gegenprobe ohne POST
+  so beobachtet, siehe unten). Die Ausnahme von Regel 23 (Festlegung 1.8.103 Nr. 3) ist weg.
+
+#### Festlegungen 1.8.106 (Bitte bestätigen)
+
+1. **101-4 ohne Codeänderung**: die Sandbox stand seit 1.8.101 in der CSP des SVG-Logos; neu sind nur der Test über die echte Route und die Gegenprobe.
+2. **102-2 dauerhaft statt einmal**: der Test prüft künftig alle Spaltentypen außer Ganzzahl und alle Pydantic-Modelle unter `app/`, dazu die Antworten der Rundgänge -- eine neue Text-ID fällt beim nächsten Testlauf auf.
+3. **103-2 auch die eigenen**: beendet ein Administrator seine eigenen Sitzungen, sind auch seine vertrauten Geräte abgemeldet, dieses eingeschlossen (dieses Gerät bleibt angemeldet, die nächste Anmeldung braucht den zweiten Faktor).
+4. **103-2 Knopf und Anzeige**: "Alle Sitzungen beenden" steht da, solange Sitzungen oder vertraute Geräte bestehen; die Liste zeigt die Zahl der vertrauten Geräte unter der der Sitzungen.
+5. **103-3 der GET meldet, der POST beendet**: nach Feierabend antwortet der GET 401 mit `feierabend: true` und lässt Sitzung und Cookie stehen; der POST beendet nur die Sitzung dieses Geräts und löscht das Cookie, vor der Uhrzeit 409 ohne Wirkung.
+6. **103-3 ohne Seite kein Ende**: öffnet niemand `/mobil` nach Feierabend, gilt die Sitzung bis zu ihrem Ablauf (12 h) -- wie bis 1.8.102; `/mobil` selbst bekommt nach Feierabend keine Einsätze mehr (401).
+7. **103-3 über speichern(), nicht abschliessen()**: der Feierabend ist ein Abmelden (Bereich `feierabend`), keine abschließende Aktion.
+8. **103-3 zur Anmeldung nur mit beendeter Sitzung**: nach 200 oder 401 des POST; sonst bleibt `/mobil` mit der Meldung stehen (kein Kreis über `/login`, das eine gültige Sitzung zurückschickt).
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v411_vorweg.py` (17): SVG-Logo beider Routen über die echte Anmeldeschranke (Download, nosniff, `sandbox` ohne `allow-…`,
+  `default-src 'none'`, kein `script-src`, `frame-ancestors 'none'`); Text-IDs in den Antworten der drei Rundgänge (über 150 Routen, `entity_id`
+  und `external_id` gefüllt, keine fehlt); **Angriffstests** vertraute Geräte (Admin beendet die eines anderen Admins: Sitzungen 401, das alte
+  Cookie "vertrautes Gerät" erspart den zweiten Faktor nicht mehr; die eigenen: dieses Gerät angemeldet, sein Cookie gelöscht, das andere 401;
+  nur Geräte, keine Sitzungen); Feierabend (der GET schreibt nichts -- Datenbank-Listener -- und lässt das Cookie, die Sitzung gilt; der POST
+  beendet nur diese Sitzung, der Wert von außen 401, das zweite Gerät 200; vor der Uhrzeit 409; von einer fremden Seite 403); `/mobil` ruft
+  den POST über `speichern()`; in node: zur Anmeldung nur nach 200 oder 401, bei 403, 409, 502 und Netzfehler die Meldung und keine
+  Navigation.
+- Neue Klicktests `klicktest_feierabend` 12/12 (feste Uhr 20:00: der GET von außen schreibt nichts; POST im Browser blockiert --
+  `/mobil` bleibt mit der Meldung stehen, ein GET, ein POST, kein `/login`, die Sitzung gilt; sonst schickt `/mobil` genau einen POST mit 200
+  und landet auf `/login?next=%2Fmobil`, Cookie im Browser weg, Wert des Tablets von außen 401, das Handy bleibt angemeldet) und
+  `klicktest_vertraute_geraete` 6/6 (Liste mit "1 vertrautes Gerät" und Knopf ohne Sitzung, Rückfrage nennt die Geräte, danach weg, Server 0).
+- **Angepasste Erwartungen** (Regel 28): `test_v224::test_field_view_today_logs_out_past_shift_end` "GET 401 und Cookie gelöscht" -> "GET 401
+  mit `feierabend`, kein Cookie gelöscht; `end_shift()` 200 und Cookie gelöscht"; `test_v408::test_feierabend_beendet_die_sitzung_auf_dem_server`
+  "GET beendet die Sitzung" -> "GET meldet, POST /api/field-view/feierabend beendet sie" (die Angriffsprüfungen danach gleich);
+  `test_v407::test_jedes_id_feld_mit_text_steht_in_text_ids` liest mehr (alle Spaltentypen außer Ganzzahl, alle Pydantic-Modelle unter
+  `app/`), Soll gleich (keine fehlt).
+- Gegenproben (Regel 24): 11 von 11 rot -- SVG-Logo ohne `sandbox` (2 rot); `outlook_event_id` nicht in TEXT_IDS; ein Pydantic-Modell
+  mit Text-ID in einem Router und eine UUID-Spalte unter dem Namen einer ID (beide rot, der Test bis 1.8.105 sah keins von beiden);
+  `external_id` nicht in TEXT_IDS (Laufzeit rot); Admin beendet ohne die vertrauten Geräte (3 rot); Knopf nur mit Sitzungen (Klicktest 1/6);
+  der GET beendet die Sitzung wieder selbst (der Listener sieht das DELETE); der POST ohne Prüfung der Uhrzeit; `/mobil` ohne POST zur
+  Anmeldung (Klicktest: kein POST, Sitzung gilt -- danach lief die Seite `/mobil` ↔ `/login` im Kreis, der Klicktest kam nicht zu Ende und
+  wurde über seine PIDs beendet; Anlass für Festlegung 8); `/mobil` auch nach gescheitertem POST zur Anmeldung (node, 3 rot). Jede Datei
+  byte-genau zurück, kein Marker.
+- Volle Suite und alle Klicktests: im Bericht (Regel 26).
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **Jeder Weg, der mit einer noch gültigen Sitzung nach `/login?next=…` geht, läuft im Kreis**, wenn das Ziel wieder dorthin schickt: die
+   Anmeldeseite leitet eine gültige Sitzung serverseitig auf `next` weiter. Für den Feierabend abgefangen (Festlegung 8); andere Seiten gehen
+   nur bei 401 nach `/login` (Sitzung ungültig, kein Kreis) -- `field_timesheet.html` und `time_tracking_field.html` erkennen den 401 aber am
+   Text der Meldung (Nebenbefund 1.8.103 Nr. 2).
+
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
 Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):

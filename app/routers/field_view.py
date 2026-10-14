@@ -79,6 +79,8 @@ router = APIRouter()
 # Konfigurationszeile (Feierabend-Uhrzeit) -- für jede Rolle offen, Muster wie GET /api/modules.
 _any_role_dep = Depends(require_min_role(ROLE_FIELD))
 
+FEIERABEND = "Feierabend -- bitte erneut anmelden."
+
 
 def _now() -> datetime:
     """Eigene, ersetzbare Bruchstelle für den aktuellen Zeitpunkt (seit 1.3.71) -- ausschließlich
@@ -103,18 +105,16 @@ def get_field_view_today(request: Request, db: Session = Depends(get_db)):
     über einen Client-Parameter -- jeder sieht ausschließlich seine eigenen Einsätze. Prüft
     zusätzlich die Feierabend-Grenze (MobileSettings.shift_end_time) und meldet bei
     Überschreitung ab (Cookie löschen, 401) -- bewusst nur an diesem und dem GET /mobil-
-    Einstiegspunkt, nicht in der globalen Middleware (siehe CLAUDE.md)."""
+    Einstiegspunkt, nicht in der globalen Middleware (siehe CLAUDE.md).
+
+    Seit 1.8.106 (Korrektur 103-3) schreibt dieser GET nichts mehr (Regel 23 ohne Ausnahme): nach der Feierabend-Uhrzeit antwortet er
+    401 mit "feierabend": true und lässt Sitzung und Cookie stehen; /mobil schickt dann POST /api/field-view/feierabend (unten), der die
+    Sitzung beendet. 1.8.103–1.8.105 beendete dieser GET sie selbst."""
     user = getattr(request.state, "erp_user", None)
     if user is None:
         raise HTTPException(status_code=401, detail="Bitte zuerst anmelden.")
     if is_past_shift_end(load_mobile_settings(db), _now()):
-        # Seit 1.8.103 (Korrektur 98-12): die Sitzung endet auf dem Server wie beim Abmelden -- bis 1.8.102 nur das Cookie dieses
-        # Geräts, die Sitzung galt bis zu ihrem Ablauf weiter. Die einzige Stelle, an der ein GET schreibt (Festlegung 1.8.103 Nr. 3).
-        sitzungen.beenden(db, request.cookies.get(COOKIE_NAME))
-        db.commit()
-        response = JSONResponse(status_code=401, content={"detail": "Feierabend -- bitte erneut anmelden."})
-        response.delete_cookie(COOKIE_NAME)
-        return response
+        return JSONResponse(status_code=401, content={"detail": FEIERABEND, "feierabend": True})
     if user.employee_id is None:
         raise HTTPException(
             status_code=422,
@@ -134,6 +134,21 @@ def _with_open_concerns(db: Session, assignments: list[dict]) -> list[dict]:
     "checklisten" leer."""
     concerns = open_concerns(db, sorted({a["order_id"] for a in assignments})) if is_module_enabled(db, "checklisten") else {}
     return [{**a, "open_concerns": concerns.get(a["order_id"], [])} for a in assignments]
+
+
+@router.post("/api/field-view/feierabend")
+def end_shift(request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+    """Seit 1.8.106 (Korrektur 103-3): der Feierabend als POST. Nach der Feierabend-Uhrzeit (MobileSettings.shift_end_time) beendet er
+    die Sitzung dieses Geräts auf dem Server wie das Abmelden -- nur diese, ein zweites Gerät desselben Monteurs bleibt angemeldet
+    (Festlegung 1.8.103 Nr. 4) -- und löscht das Cookie. Davor 409, nichts ändert sich. /mobil ruft ihn, sobald GET
+    /api/field-view/today "feierabend" meldet (der GET selbst schreibt nicht, Regel 23)."""
+    if not is_past_shift_end(load_mobile_settings(db), _now()):
+        raise HTTPException(status_code=409, detail="Noch kein Feierabend -- die Anmeldung bleibt bestehen.")
+    sitzungen.beenden(db, request.cookies.get(COOKIE_NAME))
+    db.commit()
+    response = JSONResponse({"ok": True, "detail": FEIERABEND})
+    response.delete_cookie(COOKIE_NAME)
+    return response
 
 
 @router.get("/api/field-view/maintenance-contracts", response_model=list[FieldMaintenancePropertyGroupOut])

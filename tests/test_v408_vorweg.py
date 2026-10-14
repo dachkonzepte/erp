@@ -204,6 +204,8 @@ def test_feierabend_beendet_die_sitzung_auf_dem_server(welt, monkeypatch):
 
     antwort = geraet.get("/api/field-view/today")
     assert (antwort.status_code, antwort.json()["detail"]) == (401, "Feierabend -- bitte erneut anmelden.")
+    # Seit 1.8.106 (Korrektur 103-3): der GET meldet nur, /mobil beendet die Sitzung per POST (tests/test_v411_vorweg.py)
+    assert geraet.post("/api/field-view/feierabend").status_code == 200
     # Angriffstest: der Wert des Tablets von außen -- die Sitzung ist auf dem Server beendet, nicht nur das Cookie gelöscht
     assert _status(welt, wert) == 401
     assert _status(welt, wert_anderes) == 200  # wie Abmelden: nur diese Sitzung

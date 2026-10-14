@@ -4,6 +4,19 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.106 – Vertraute Geräte mit abgemeldet, Feierabend als POST, Text-IDs geprüft
+
+Vorweg der zweiten Vorgabe vom 14.10.2026 (Korrekturen zu den Festlegungen 1.8.101–1.8.103). Beendet ein Administrator die Sitzungen eines
+Benutzers, sind im selben Schritt auch dessen vertraute Geräte abgemeldet -- die nächste Anmeldung braucht wieder den zweiten Faktor; die
+Benutzerverwaltung zeigt die Zahl der vertrauten Geräte, der Knopf steht auch da, wenn es nur noch solche gibt. Der Feierabend in `/mobil`
+ist ein POST (`/api/field-view/feierabend`): der GET der Einsätze meldet nach der Feierabend-Uhrzeit nur noch "feierabend" und schreibt
+nichts -- die einzige Ausnahme von Regel 23 ist weg. Scheitert der POST, bleibt `/mobil` mit einer Meldung stehen, statt über die
+Anmeldeseite im Kreis zu laufen.
+
+Geprüft und festgehalten ohne Codeänderung: das SVG-Logo kommt direkt geöffnet mit Sandbox (seit 1.8.101), und jedes Feld "…_id" mit
+Text steht in `TEXT_IDS` -- jetzt dauerhaft über alle Spaltentypen, alle Pydantic-Modelle unter `app/` und die Antworten aller GET-Routen.
+Neue Tests `tests/test_v411_vorweg.py`, Klicktests `klicktest_feierabend` und `klicktest_vertraute_geraete`.
+
 ## 1.8.105 – Die Scanner lesen Pfeilfunktionen vollständig
 
 Punkt 1 der zweiten Vorgabe vom 14.10.2026 (Nebenbefund 1.8.102 Nr. 1). Der JavaScript-Scanner der Strukturtests

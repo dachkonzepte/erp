@@ -225,12 +225,20 @@ def test_field_view_today_rejects_unlinked_employee(monkeypatch):
 
 
 def test_field_view_today_logs_out_past_shift_end():
+    """Seit 1.8.106 (Korrektur 103-3): der GET meldet den Feierabend nur (401, "feierabend", kein Cookie gelöscht -- ein Lesepfad
+    schreibt nicht), der POST /api/field-view/feierabend meldet ab und löscht das Cookie."""
+    from app.routers.field_view import end_shift
+
     db = db_session()
     emp = make_employee(db, "M-1", "Erika", "Eins")
     user = make_non_admin(db, emp.id, "mont3")
     update_mobile_settings(db, dt_time(0, 0))  # jede Uhrzeit gilt danach als "Feierabend"
     response = get_field_view_today(request_with_user(user), db=db)
     assert response.status_code == 401
+    assert '"feierabend":true' in response.body.decode()
+    assert COOKIE_NAME not in response.headers.get("set-cookie", "")
+    response = end_shift(request_with_user(user, "/api/field-view/feierabend"), db=db)
+    assert response.status_code == 200
     assert COOKIE_NAME in response.headers.get("set-cookie", "")
 
 

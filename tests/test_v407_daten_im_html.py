@@ -523,30 +523,44 @@ process.stdout.write(JSON.stringify({aufrufe, listener: Object.fromEntries(Objec
 # ---------------------------------------------------------------------------
 
 def test_jedes_id_feld_mit_text_steht_in_text_ids():
-    """Der Scanner nimmt ein Feld "id"/"…_id" als Zahl. Jede Spalte (app/models.py) und jedes Feld eines Antwortschemas
-    (app/schemas.py) unter diesem Namen, das Text hält, steht deshalb in TEXT_IDS -- dort gilt es als ungeschützt."""
+    """Der Scanner nimmt ein Feld "id"/"…_id" als Zahl. Jede Spalte (app/models.py) und jedes Feld eines Pydantic-Modells unter diesem
+    Namen, das keine Ganzzahl hält, steht deshalb in TEXT_IDS -- dort gilt es als ungeschützt.
+
+    Seit 1.8.106 (Korrektur 102-2, "einmal prüfen, ob alle Text-IDs in TEXT_IDS stehen"): jeder Spaltentyp außer Ganzzahl (bis 1.8.105
+    nur String/Text -- eine UUID-Spalte wäre durchgerutscht) und jedes Pydantic-Modell in jedem Modul unter app/ (bis 1.8.105 nur
+    app/schemas.py), Typen auch verschachtelt (Optional, Liste, Union). Zur Laufzeit über die JSON-Antworten aller GET-Routen:
+    tests/test_v411_vorweg.py."""
+    import importlib
+    import inspect
+    import pkgutil
     import typing
 
-    from sqlalchemy import String, Text
+    from pydantic import BaseModel
+    from sqlalchemy import BigInteger, Integer, SmallInteger
 
-    from app import models, schemas
+    import app
+    from app import models
     from app.database import Base
 
-    funde = set()
+    def ist_id(name: str) -> bool:
+        return name == "id" or name.endswith("_id")
+
+    def typen(annotation) -> set:
+        args = typing.get_args(annotation)
+        return {annotation} if not args else set().union(*(typen(a) for a in args))
+
+    funde, modelle = set(), set()
     for tabelle in Base.metadata.tables.values():
         for spalte in tabelle.columns:
-            if (spalte.name == "id" or spalte.name.endswith("_id")) and isinstance(spalte.type, (String, Text)):
+            if ist_id(spalte.name) and not isinstance(spalte.type, (Integer, BigInteger, SmallInteger)):
                 funde.add(spalte.name)
-    for name in dir(schemas):
-        schema = getattr(schemas, name)
-        felder = getattr(schema, "model_fields", None)
-        if not isinstance(felder, dict):
+    for info in pkgutil.walk_packages(app.__path__, "app."):
+        if info.name == "app.main":  # legt beim Import Tabellen an; seine Modelle stehen in den Routern
             continue
-        for feld, info in felder.items():
-            if not (feld == "id" or feld.endswith("_id")):
-                continue
-            typen = typing.get_args(info.annotation) or (info.annotation,)
-            if str in typen:
-                funde.add(feld)
-    assert models  # Modelle geladen (Metadaten vollständig)
+        for obj in vars(importlib.import_module(info.name)).values():
+            if inspect.isclass(obj) and issubclass(obj, BaseModel) and obj is not BaseModel and obj not in modelle:
+                modelle.add(obj)
+                funde |= {feld for feld, fi in obj.model_fields.items()
+                          if ist_id(feld) and typen(fi.annotation) - {int, bool, type(None)}}
+    assert models and len(modelle) > 400  # Modelle geladen (Metadaten vollständig), alle Module gelesen
     assert funde - TEXT_IDS == set()

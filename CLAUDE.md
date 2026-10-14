@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.105** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.106** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -715,8 +715,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     `Cache-Control: no-store` an jede Antwort an eine angemeldete Sitzung, auch an Dateien; `tests/test_v403_kein_cache.py` läuft alle
     GET-Routen ab. Tests mit echter Anmeldung binden die Schranke über `tests/anmeldung.py` ein, statt sie nachzubauen; im Klicktest ist
     jedes `k.cookies()` eine eigene Sitzung (nach dem Abmelden gilt sie nicht mehr). **Seit 1.8.103:** „Alle vertrauten Geräte abmelden“
-    beendet alle anderen Sitzungen (`andere_beenden()`), ein Admin alle eines Benutzers (`POST /api/users/{id}/end-sessions`), der Feierabend in
-    `/mobil` die Sitzung des Geräts; Rolle und Rechte gelten ab der nächsten Anfrage (Angriffstest `tests/test_v408_vorweg.py`). Ein Cookie ohne
+    beendet alle anderen Sitzungen (`andere_beenden()`), ein Admin alle eines Benutzers (`POST /api/users/{id}/end-sessions`, seit 1.8.106 samt
+    seiner vertrauten Geräte), der Feierabend in `/mobil` die Sitzung des Geräts (seit 1.8.106 `POST /api/field-view/feierabend`; der GET der
+    Einsätze meldet nur "feierabend", kein GET schreibt); Rolle und Rechte gelten ab der nächsten Anfrage (Angriffstest `tests/test_v408_vorweg.py`). Ein Cookie ohne
     gültige Sitzung bekommt auf API-Anfragen 401 mit `X-DK-Anmeldung: abgelaufen`, der Baustein `_speichern.html` zeigt „Anmeldung abgelaufen“
     und lässt die Eingaben stehen. Details: `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.98" und "Umsetzung 1.8.103".
 
@@ -1172,7 +1173,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Befund `content` der Layout-Bausteine; seit 1.8.104 schreibende Anfragen nur von der eigenen Seite, kein Einrahmen, Secure in Produktion,
   Regel 33 -- alle zwölf Befund-Tests grün; seit 1.8.105 lesen die Scanner der Strukturtests Pfeilfunktionen vollständig
   (`tests/vorlagen_js.py::_ausdruck_ende()`, eine Funktion für alle, Zeilenende wie die Semikolon-Einfügung), Lieferschein-Knopf ohne Werte
-  im onclick)
+  im onclick; seit 1.8.106 Vorweg: SVG-Logo mit Sandbox geprüft, TEXT_IDS vollständig und dauerhaft über alle Modelle und Antworten
+  geprüft, Admin meldet beim Beenden der Sitzungen auch die vertrauten Geräte ab, Feierabend als POST ohne Kreis über `/login`)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Zahlungen** (Zahlungsstufe Z1 seit 1.8.78: Zahlungseingang mit Zuordnungen, Skonto und Einbehalt, Rest am Kunden,
   Zahlstand abgeleitet, Gegenbuchung statt Ändern, Sperrreihenfolge, Storno erst nach gelösten Zuordnungen, Finanzen/Dashboard mit
@@ -1885,7 +1887,8 @@ jedem Bericht, Ergebnis im Bericht (Regel 26).
   angefragte Funktionserweiterung, kein kleiner Fix.
 - **Feierabend-Abmeldung deckt keinen bereits offenen Berichtstab ab** (seit 1.3.0, siehe
   Abschnitt "Monteursansicht"): `MobileSettings.shift_end_time` wird nur an den beiden mobilen
-  Einstiegspunkten geprüft (`GET /mobil`-Seitenaufruf, `GET /api/field-view/today`), bewusst
+  Einstiegspunkten geprüft (`GET /mobil`-Seitenaufruf, `GET /api/field-view/today` -- seit 1.8.106 meldet er
+  nur, `POST /api/field-view/feierabend` beendet die Sitzung), bewusst
   NICHT in den gemeinsamen Formular-Endpunkten (`PUT /api/inspection-items/{id}`,
   `POST /api/service-reports/{id}/sign` usw.) – das würde auch Schreibtisch-Nutzer treffen, die
   spät noch etwas nachtragen. Ein Monteur, der einen Bericht vor der Feierabend-Grenze geöffnet

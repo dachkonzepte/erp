@@ -1181,6 +1181,7 @@ class AppUserOut(BaseModel):
     two_factor_configured: bool = False
     outlook_mailbox: str | None = None
     active_sessions: int = 0  # seit 1.8.103: geltende Sitzungen (Benutzerverwaltung, "Alle Sitzungen beenden")
+    trusted_device_count: int = 0  # seit 1.8.106: geltende vertraute Geräte -- "Alle Sitzungen beenden" meldet sie mit ab
 
 
 class LoginRequest(BaseModel):
