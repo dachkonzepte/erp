@@ -9,7 +9,7 @@ Befund „Vor dem Echtbetrieb“ Punkt 1 (docs/archiv/befund-vor-echtbetrieb.md,
     Rechnungsseite     Abschlagsentwurf von vor der Schlussrechnung: Grund statt "Rechnung finalisieren", "Entwurf löschen"
                        bleibt; verrechneter Abschlag: Grund statt "Stornieren"; Stornorechnung: "lässt sich nicht stornieren"
                        (hell und dunkel)
-    Mahnwesen          Mahnungsentwurf zu einer inzwischen bezahlten Rechnung: Grund statt "Versenden", API 409 (seit 1.8.78
+    Mahnwesen          Mahnungsentwurf zu einer inzwischen bezahlten Rechnung: Grund statt "Festschreiben", API 409 (seit 1.8.78
                        bezahlt über eine gebuchte Zahlung; der Knopf "Als bezahlt markieren" ist entfallen)
     Ausweg (1.8.73)    bis 1.8.84: Schlussrechnung neben festgeschriebenem pauschalem Abschlag "… kommen mit R4.", neben einem
                        Entwurf "Ausweg: den Entwurf löschen."; seit 1.8.85 entfallen -- neben einem Entwurf frei
@@ -207,8 +207,8 @@ async def pruefen(tab, seed, p):
     await tab.oeffnen("/mahnwesen", "allReminders.length>0&&document.getElementById('allRows').innerHTML.length>0")
     zeile = await tab.js("(()=>{const tr=[...document.querySelectorAll('#allRows tr')].find(t=>t.textContent.includes("
                          f"'{seed['rechnung']}'));return {{versenden:[...tr.querySelectorAll('button')].some(b=>b.textContent"
-                         ".trim()==='Versenden'),sperre:tr.querySelector('[data-sperre]')?.textContent||null}})()")
-    p.pruefe("Mahnung: kein Versenden", zeile["versenden"], False)
+                         ".trim()==='Festschreiben'),sperre:tr.querySelector('[data-sperre]')?.textContent||null}})()")
+    p.pruefe("Mahnung: kein Festschreiben", zeile["versenden"], False)  # seit 1.8.109 heißt der Knopf "Festschreiben"
     p.pruefe("Mahnung: Grund", (zeile["sperre"] or "").startswith(f"Die Rechnung {seed['rechnung']} ist bezahlt (am "), True)
     api = await tab.js(f"fetch('/api/reminders/{seed['mahnung']}/send',{{method:'POST'}}).then(r=>r.status)")
     p.pruefe("Mahnung: API 409", api, 409)

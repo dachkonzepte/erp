@@ -80,7 +80,7 @@ async function api(url, opt = {}) { const r = await fetch(url, opt); return r.js
 const _el = {};
 var document = {
   getElementById: id => _el[id] || (_el[id] = {id, value: '', textContent: '', className: '', style: {}, dataset: {},
-    classList: {add() {}, remove() {}, toggle() {}}}),
+    classList: {add() {}, remove() {}, toggle() {}}, getAttribute: () => null, setAttribute() {}, removeAttribute() {}}),
   querySelectorAll: () => [], querySelector: () => null,
 };
 var alert = m => AUFRUFE.push({alert: String(m)});
@@ -98,12 +98,13 @@ def js_funktion(vorlage: str, name: str) -> str:
 
 
 def _speichern_js() -> str:
-    html = (TEMPLATES / "_speichern.html").read_text(encoding="utf-8")
-    return "\n".join(re.findall(r"<script>(.*?)</script>", html, flags=re.S))
+    """_speichern.html und (seit 1.8.109) _zahl.html -- die Seiten lesen Zahlenfelder über zahlFeld()."""
+    return "\n".join(s for name in ("_speichern.html", "_zahl.html")
+                     for s in re.findall(r"<script>(.*?)</script>", (TEMPLATES / name).read_text(encoding="utf-8"), flags=re.S))
 
 
 def im_browser(vorlage: str, funktionen: list[str], vorbereitung: str, ablauf: str) -> list[dict]:
-    """Führt `ablauf` (Rumpf einer async-Funktion) nach Attrappe, _speichern.html, `vorbereitung` (Zustand der Seite) und den
+    """Führt `ablauf` (Rumpf einer async-Funktion) nach Attrappe, _speichern.html und _zahl.html, `vorbereitung` (Zustand der Seite) und den
     genannten Funktionen der Vorlage aus; gibt jeden fetch-Aufruf zurück ({url, methode, body}) und jedes alert()."""
     from tests.test_v314_dashboard_month_berlin import _node
     js = (HARNESS + _speichern_js() + "\n" + vorbereitung + "\n"
@@ -247,12 +248,16 @@ def test_kalkulation_schickt_keine_preiseinheit(angebot):
     quote = client.get(f"/api/quotes/{qid}").json()
     aufrufe = im_browser(
         "quote_editor.html", ["saveCalc", "cn"],
+        # Seit 1.8.109 liest die Seite die Zahlenfelder über zahlFeld() aus dem Feld, im deutschen Format (gefüllt wie die Seite über
+        # zahlText()); Texte weiter über v().
         f"var FORM = {js(formular)}; function v(id) {{ return FORM[id] ?? ''; }} "
+        "for (const [id, w] of Object.entries(FORM)) if (id !== 'cNotes') document.getElementById(id).value = zahlText(w); "
         f"var currentCalc = {js(beim_laden)}; var currentItem = {{id: {iid}}}; var quote = {js(quote)}; var quoteId = {qid}; "
         "function fillItemEditor() {} function fillCalc() {} function renderAll() {} "
         f"var ZEILEN = {js(zeilen)}; "
         "document.querySelectorAll = sel => sel === '#calcMaterials tr' ? ZEILEN.map(z => ({dataset: {mid: String(z.mid)}, "
-        "querySelector: c => ({value: String(z[c.slice(1)])})})) : []; "
+        "querySelector: c => ({value: zahlText(z[c.slice(1)]), dataset: {}, getAttribute: () => null, setAttribute() {}, "
+        "removeAttribute() {}})})) : []; "
         "ANTWORT = (u, m) => m === 'GET' ? quote : currentCalc;",
         "await saveCalc();")
     [(methode, adresse, body)] = schreibende(aufrufe)

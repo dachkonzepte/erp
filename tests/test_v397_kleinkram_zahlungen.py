@@ -332,7 +332,7 @@ def test_route_carries_the_reason_and_still_refuses(threaded_db_session, router_
 def _zahlungskarte(payment: dict, offene: list) -> str:
     html = (TEMPLATES / "customer.html").read_text(encoding="utf-8")
     script = "\n".join([
-        _skripte_von("_zahlung_gruppen.html"), _zeile(html, "esc"), _zeile(html, "money"), _zeile(html, "fmt"), _zeile(html, "dt"),
+        _skripte_von("_zahlung_gruppen.html"), _zeile(html, "esc"), _zeile(html, "money"), _skripte_von("_zahl.html"), _zeile(html, "dt"),
         f"let customerOpenInvoices={json.dumps(offene)};",
         js_funktion("customer.html", "paymentCardHtml"),
         f"process.stdout.write(JSON.stringify(paymentCardHtml({json.dumps(payment)})));",

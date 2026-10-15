@@ -74,8 +74,8 @@ tr:last-child td{border-bottom:none}
     <div class="field full"><label>Bezeichnung *</label><input id="editName" placeholder="z. B. Hauptdach Süd"></div>
     <div class="field"><label>Dachtyp</label><select id="editRoofType" onchange="loadLayers()"></select></div>
     <div class="field"><label>Eindeckung</label><select id="editCovering"></select></div>
-    <div class="field"><label>Dachneigung (Grad)</label><input id="editPitch" type="number" step="0.1" min="0"></div>
-    <div class="field"><label>Fläche (m²)</label><input id="editArea" type="number" step="0.01" min="0"></div>
+    <div class="field"><label>Dachneigung (Grad)</label><input id="editPitch" type="text" inputmode="decimal" data-zahl data-min="0"></div>
+    <div class="field"><label>Fläche (m²)</label><input id="editArea" type="text" inputmode="decimal" data-zahl data-min="0"></div>
     <div class="field"><label>Letzte Sanierung</label><input id="editLastRenovation" type="date"></div>
     <div class="field"><label>Ausführender Betrieb</label><input id="editContractor"></div>
     <div class="field"><label>Garantie Dritter (Hersteller oder Fremdfirma) bis</label><input id="editThirdPartyGuarantee" type="date"></div>
@@ -131,10 +131,10 @@ tr:last-child td{border-bottom:none}
   <div class="fields-2col">
     <div class="field full"><label>Bezeichnung *</label><input id="editComponentName" placeholder="z. B. Gully Nordost"></div>
     <div class="field"><label>Bauteiltyp</label><select id="editComponentType"></select></div>
-    <div class="field"><label>Menge</label><input id="editComponentQuantity" type="number" step="0.01" min="0"></div>
+    <div class="field"><label>Menge</label><input id="editComponentQuantity" type="text" inputmode="decimal" data-zahl data-min="0"></div>
     <div class="field"><label>Einheit</label><select id="editComponentUnit"></select></div>
-    <div class="field"><label>Baujahr</label><input id="editComponentYear" type="number" min="1900" max="2100" step="1"></div>
-    <div class="field"><label>Reihenfolge</label><input id="editComponentSort" type="number" step="1" value="100"></div>
+    <div class="field"><label>Baujahr</label><input id="editComponentYear" type="text" inputmode="numeric" data-zahl="ganz" data-min="1900" data-max="2100"></div>
+    <div class="field"><label>Reihenfolge</label><input id="editComponentSort" type="text" inputmode="numeric" data-zahl="ganz" value="100"></div>
     <div class="field full"><label>Notizen</label><textarea id="editComponentNotes"></textarea></div>
   </div>
   <div class="editor-actions">
@@ -164,6 +164,7 @@ tr:last-child td{border-bottom:none}
 </div>
 </div>
 {% include "_speichern.html" %}
+{% include "_zahl.html" %}
 {% include "_aktionen.html" %}
 <script>
 const roofAreaId={{ roof_area_id }};
@@ -224,8 +225,8 @@ function fillAreaForm(){
   document.getElementById('editName').value=area.name;
   document.getElementById('editRoofType').innerHTML=optionsHtml(roofTypes,area.roof_type);
   document.getElementById('editCovering').innerHTML=optionsHtml(coverings,area.covering);
-  document.getElementById('editPitch').value=area.pitch_degrees??'';
-  document.getElementById('editArea').value=area.area_sqm??'';
+  document.getElementById('editPitch').value=zahlText(area.pitch_degrees);
+  document.getElementById('editArea').value=zahlText(area.area_sqm);
   document.getElementById('editLastRenovation').value=area.last_renovation||'';
   document.getElementById('editContractor').value=area.contractor||'';
   document.getElementById('editThirdPartyGuarantee').value=area.third_party_guarantee_until||'';
@@ -344,6 +345,18 @@ function debouncedOnLayerFieldChange(typeId,field,value){
   if(!_layerFieldDebouncers[key])_layerFieldDebouncers[key]=debounce((t,f,v)=>onLayerFieldChange(t,f,v),600);
   _layerFieldDebouncers[key](typeId,field,value);
 }
+// Seit 1.8.109: die Dicke über _zahl.html (ganze mm, deutsches Format) -- beim Tippen erst nach der Pause gelesen, nicht bei jedem
+// Zeichen; eine abgelehnte Eingabe wird nicht gespeichert, sondern unter dem Dachaufbau gemeldet (wie ein Fehler beim Speichern).
+function onLayerThicknessChange(typeId,el){
+  let wert;
+  try{wert=zahlFeld(el)}catch(e){const st=document.getElementById('layerStatus');st.className='status err';st.textContent='Fehler: '+e.message;return}
+  onLayerFieldChange(typeId,'thickness_mm',wert);
+}
+function debouncedOnLayerThicknessChange(typeId,el){
+  const key=typeId+':thickness_mm';
+  if(!_layerFieldDebouncers[key])_layerFieldDebouncers[key]=debounce((t,e)=>onLayerThicknessChange(t,e),600);
+  _layerFieldDebouncers[key](typeId,el);
+}
 
 /* Seit 1.8.102 über data-Attribute (_aktionen.html) statt Werten im on…-Attribut (Vorgabe vom 14.10.2026 Punkt 2). */
 aktion('ausfuehrung',el=>onLayerExecChange(Number(el.dataset.typ),el.dataset.gruppe,el.value),'change');
@@ -389,7 +402,7 @@ function layerRowHtml(type){
       <button type="button" class="secondary" data-klick="ausfuehrung-neu" data-typ="${type.id}" data-gruppe="${esc(type.option_group)}">Übernehmen</button>
     </span>`:'';
   const thicknessHtml=type.has_thickness
-    ?`<input type="number" min="0" step="1" placeholder="mm" value="${esc(thickness??'')}" ${present?'':'disabled'} style="width:80px" onchange="onLayerFieldChange(${type.id},'thickness_mm',this.value?Number(this.value):null)" oninput="debouncedOnLayerFieldChange(${type.id},'thickness_mm',this.value?Number(this.value):null)">`:'';
+    ?`<input type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-feld="${esc(type.label)} – Dicke (mm)" placeholder="mm" value="${zahlText(thickness)}" ${present?'':'disabled'} style="width:80px" onchange="onLayerThicknessChange(${type.id},this)" oninput="debouncedOnLayerThicknessChange(${type.id},this)">`:'';
   const notesHtml=type.has_notes!==false
     ?`<input placeholder="Bemerkung" value="${esc(notes||'')}" ${present?'':'disabled'} style="width:150px" onchange="onLayerFieldChange(${type.id},'notes',this.value.trim()||null)" oninput="debouncedOnLayerFieldChange(${type.id},'notes',this.value.trim()||null)">`:'';
   return `<div class="layer-row" style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">
@@ -419,19 +432,20 @@ async function saveRoofArea(){
   const st=document.getElementById('areaStatus');
   const name=document.getElementById('editName').value.trim();
   if(!name){st.className='status err';st.textContent='Bitte eine Bezeichnung angeben.';return}
+  try{
+  // Seit 1.8.109 im try: Neigung und Fläche über _zahl.html, eine abgelehnte Zahl erscheint als Fehler und nichts wird gespeichert.
   const payload={
     name,
     roof_type:document.getElementById('editRoofType').value||null,
     covering:document.getElementById('editCovering').value||null,
-    pitch_degrees:document.getElementById('editPitch').value?Number(document.getElementById('editPitch').value):null,
-    area_sqm:document.getElementById('editArea').value?Number(document.getElementById('editArea').value):null,
+    pitch_degrees:zahlFeld('editPitch'),
+    area_sqm:zahlFeld('editArea'),
     last_renovation:document.getElementById('editLastRenovation').value||null,
     contractor:document.getElementById('editContractor').value.trim()||null,
     third_party_guarantee_until:document.getElementById('editThirdPartyGuarantee').value||null,
     notes:document.getElementById('editNotes').value.trim()||null,
   };
   st.className='status';st.textContent='Speichert …';
-  try{
     await speichern('dachflaeche',()=>api(`/api/roof-areas/${roofAreaId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{anwenden:d=>{
       area=d;
       renderBreadcrumb();renderHeader();
@@ -585,7 +599,7 @@ function openNewComponentEditor(){
   document.getElementById('editComponentQuantity').value='';
   document.getElementById('editComponentUnit').innerHTML=optionsHtml(units,null);
   document.getElementById('editComponentYear').value='';
-  document.getElementById('editComponentSort').value='100';
+  document.getElementById('editComponentSort').value=zahlText(100);
   document.getElementById('editComponentNotes').value='';
   document.getElementById('componentEditorStatus').textContent='';
   document.getElementById('componentEditor').classList.remove('hidden');
@@ -599,10 +613,10 @@ function openEditComponentEditor(id){
   document.getElementById('componentEditorHeading').textContent=`Bauteil · ${c.name}`;
   document.getElementById('editComponentName').value=c.name;
   document.getElementById('editComponentType').innerHTML=optionsHtml(componentTypes,c.component_type);
-  document.getElementById('editComponentQuantity').value=c.quantity??'';
+  document.getElementById('editComponentQuantity').value=zahlText(c.quantity);
   document.getElementById('editComponentUnit').innerHTML=optionsHtml(units,c.unit);
-  document.getElementById('editComponentYear').value=c.year_built??'';
-  document.getElementById('editComponentSort').value=c.sort_order;
+  document.getElementById('editComponentYear').value=zahlText(c.year_built);
+  document.getElementById('editComponentSort').value=zahlText(c.sort_order);
   document.getElementById('editComponentNotes').value=c.notes||'';
   document.getElementById('componentEditorStatus').textContent='';
   document.getElementById('componentEditor').classList.remove('hidden');
@@ -618,16 +632,17 @@ async function saveComponent(){
   const st=document.getElementById('componentEditorStatus');
   const name=document.getElementById('editComponentName').value.trim();
   if(!name){st.textContent='Bitte eine Bezeichnung angeben.';return}
+  try{
+  // Seit 1.8.109 im try: Menge, Baujahr und Reihenfolge über _zahl.html, eine abgelehnte Zahl erscheint als Fehler.
   const payload={
     name,
     component_type:document.getElementById('editComponentType').value||null,
-    quantity:document.getElementById('editComponentQuantity').value?Number(document.getElementById('editComponentQuantity').value):null,
+    quantity:zahlFeld('editComponentQuantity'),
     unit:document.getElementById('editComponentUnit').value||null,
-    year_built:document.getElementById('editComponentYear').value?Number(document.getElementById('editComponentYear').value):null,
-    sort_order:Number(document.getElementById('editComponentSort').value)||100,
+    year_built:zahlFeld('editComponentYear'),
+    sort_order:zahlFeld('editComponentSort',{leer:100}),
     notes:document.getElementById('editComponentNotes').value.trim()||null,
   };
-  try{
     if(editingComponentId){
       const url=`/api/roof-components/${editingComponentId}`;
       await speichern('bauteile',()=>api(url,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{neuLaden:loadComponents});

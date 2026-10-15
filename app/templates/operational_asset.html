@@ -108,8 +108,8 @@ tr:last-child td{border-bottom:none}
     <div class="field"><label>Produktlink <span class="muted small">(optional, http/https)</span></label><input id="editProductUrl" type="url" placeholder="https://..."></div>
     <div class="field full hidden" id="productUrlPreviewWrap"><a id="productUrlPreview" href="#" target="_blank" rel="noopener" style="color:var(--accent)">Produktlink öffnen →</a></div>
     <div class="field"><label>Anschaffungsdatum</label><input id="editAcqDate" type="date"></div>
-    <div class="field"><label>Anschaffungskosten (EUR)</label><input id="editAcqCost" type="number" step="0.01" min="0"></div>
-    <div class="field"><label>Laufende Kosten je Monat (Netto, EUR) <span class="muted small">(erzeugt/ändert einen echten Kostenposten in der Betriebskosten-Übersicht -- 19&nbsp;% Steuersatz, ohne Gemeinkosten-Einordnung als Vorgabe, dort anpassbar)</span></label><input id="editRecurringCost" type="number" step="0.01" min="0"></div>
+    <div class="field"><label>Anschaffungskosten (EUR)</label><input id="editAcqCost" type="text" inputmode="decimal" data-zahl data-min="0" data-stellen="2"></div>
+    <div class="field"><label>Laufende Kosten je Monat (Netto, EUR) <span class="muted small">(erzeugt/ändert einen echten Kostenposten in der Betriebskosten-Übersicht -- 19&nbsp;% Steuersatz, ohne Gemeinkosten-Einordnung als Vorgabe, dort anpassbar)</span></label><input id="editRecurringCost" type="text" inputmode="decimal" data-zahl data-min="0" data-stellen="2" data-feld="Laufende Kosten je Monat"></div>
     <div class="field full hidden" id="recurringCostFinanceOnlyHint"><div class="status">Nur Finanzen/Admin können diesen Wert ändern.</div></div>
     <div class="field full hidden" id="recurringCostLinkWrap"><a id="recurringCostLink" href="/betriebskosten" style="color:var(--accent)">→ Kostenposten in der Betriebskosten-Übersicht ansehen/bearbeiten</a></div>
     <div class="field full"><label>Kosten-Notizen</label><textarea id="editCostNotes"></textarea></div>
@@ -128,7 +128,7 @@ tr:last-child td{border-bottom:none}
   </table></div>
   <div class="fields-2col" style="margin-top:14px">
     <div class="field"><label>Art *</label><select id="inspType"></select></div>
-    <div class="field"><label>Intervall (Monate)</label><input id="inspInterval" type="number" min="1" oninput="syncInspNextDueState()"></div>
+    <div class="field"><label>Intervall (Monate)</label><input id="inspInterval" type="text" inputmode="numeric" data-zahl="ganz" data-min="1" oninput="syncInspNextDueState()"></div>
     <div class="field"><label>Letzte Prüfung</label><input id="inspLast" type="date"></div>
     <div class="field"><label>Nächste Fälligkeit</label><input id="inspNext" type="date">
       <div class="muted small hidden" id="inspNextHint">Wird automatisch aus Intervall + letzter Prüfung (oder, ohne diese, dem Anschaffungsdatum) berechnet.</div>
@@ -171,6 +171,7 @@ tr:last-child td{border-bottom:none}
   <div id="printLabelName"></div>
 </div>
 {% include "_speichern.html" %}
+{% include "_zahl.html" %}
 {% include "_links.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -242,8 +243,8 @@ function fillEditor(){
   document.getElementById('editArticleNumber').value=asset.article_number||'';
   document.getElementById('editProductUrl').value=asset.product_url||'';
   document.getElementById('editAcqDate').value=asset.acquisition_date||'';
-  document.getElementById('editAcqCost').value=asset.acquisition_cost??'';
-  document.getElementById('editRecurringCost').value=asset.recurring_cost_per_month??'';
+  document.getElementById('editAcqCost').value=zahlText(asset.acquisition_cost,2);
+  document.getElementById('editRecurringCost').value=zahlText(asset.recurring_cost_per_month,2);
   document.getElementById('editRecurringCost').disabled=!canManageRecurringCost;
   document.getElementById('editCostNotes').value=asset.cost_notes||'';
   document.getElementById('recurringCostFinanceOnlyHint').classList.toggle('hidden',canManageRecurringCost);
@@ -280,6 +281,13 @@ async function saveAsset(){
     document.getElementById('editorStatus').textContent='Bitte eine Bezeichnung angeben, wenn kein Ressourcenbezug gewählt ist.';
     return;
   }
+  // Seit 1.8.109 über _zahl.html (leer -> null wie bisher; vorher ging der Feldtext roh an den Server): eine abgelehnte Zahl
+  // erscheint in beiden Statuszeilen wie jeder Fehler beim Speichern, gespeichert wird nichts.
+  let acquisitionCost,recurringCost;
+  try{acquisitionCost=zahlFeld('editAcqCost');recurringCost=zahlFeld('editRecurringCost')}catch(e){
+    for(const id of ['editorStatus','costStatus']){const s=document.getElementById(id);s.className='status err';s.textContent=e.message}
+    return;
+  }
   const payload={
     resource_id:hasResource?Number(resourceId):null,
     asset_number:document.getElementById('editAssetNumber').value.trim()||null,
@@ -293,7 +301,7 @@ async function saveAsset(){
     article_number:document.getElementById('editArticleNumber').value.trim()||null,
     product_url:document.getElementById('editProductUrl').value.trim()||null,
     acquisition_date:document.getElementById('editAcqDate').value||null,
-    acquisition_cost:document.getElementById('editAcqCost').value||null,
+    acquisition_cost:acquisitionCost,
     cost_notes:document.getElementById('editCostNotes').value.trim()||null,
     active:document.getElementById('editActive').value==='1',
     selectable_in_reports:document.getElementById('editSelectableInReports').value==='1',
@@ -301,7 +309,7 @@ async function saveAsset(){
   const st1=document.getElementById('editorStatus'),st2=document.getElementById('costStatus');
   // Seit 1.8.95 über den Baustein (_speichern.html, Bereich 'betriebsmittel'): jede Antwort trägt das ganze Betriebsmittel und wird
   // nur übernommen, wenn sie nicht veraltet ist -- mit laufenden Kosten zeichnet erst deren Antwort (saveRecurringCost).
-  const body=JSON.stringify(payload),recurringCost=document.getElementById('editRecurringCost').value||null;
+  const body=JSON.stringify(payload);
   try{
     await speichern('betriebsmittel',()=>api(`/api/operational-assets/${assetId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body}),
                     {anwenden:d=>{asset=d;if(!canManageRecurringCost)render()}});
@@ -367,14 +375,15 @@ function renderInspections(){
 }
 
 function syncInspNextDueState(){
-  const hasInterval=!!document.getElementById('inspInterval').value;
+  // Seit 1.8.109 über _zahl.html: ein ungültiges Intervall zählt hier wie leer (wie vorher im Zahlenfeld des Browsers).
+  const hasInterval=zahlVorschau('inspInterval')!==null;
   document.getElementById('inspNext').disabled=hasInterval;
   document.getElementById('inspNextHint').classList.toggle('hidden',!hasInterval);
 }
 
 function fillInspectionForm(insp){
   document.getElementById('inspType').value=insp.inspection_type;
-  document.getElementById('inspInterval').value=insp.interval_months||'';
+  document.getElementById('inspInterval').value=zahlText(insp.interval_months||'');
   document.getElementById('inspLast').value=insp.last_inspection_date||'';
   document.getElementById('inspNext').value=insp.next_due_date||'';
   document.getElementById('inspInspector').value=insp.inspector||'';
@@ -413,9 +422,12 @@ async function submitInspection(){
   const st=document.getElementById('inspStatus');
   const inspectionType=document.getElementById('inspType').value;
   if(!inspectionType){st.className='status err';st.textContent='Bitte eine Art wählen.';return}
+  // Seit 1.8.109 über _zahl.html (leer -> null wie bisher); eine abgelehnte Zahl erscheint in der Statuszeile.
+  let intervalMonths;
+  try{intervalMonths=zahlFeld('inspInterval')}catch(e){st.className='status err';st.textContent=e.message;return}
   const payload={
     inspection_type:inspectionType,
-    interval_months:document.getElementById('inspInterval').value?Number(document.getElementById('inspInterval').value):null,
+    interval_months:intervalMonths,
     last_inspection_date:document.getElementById('inspLast').value||null,
     next_due_date:document.getElementById('inspNext').value||null,
     inspector:document.getElementById('inspInspector').value.trim()||null,

@@ -8,7 +8,7 @@
                   Versand holt sie nach, danach "Abschrift öffnen", Anhang = die nachgeholte Abschrift.
     Paul Papier   Foto des unterschriebenen Papiers: Karte mit "Scan öffnen" und Abschrift (PDF); dunkel, 412 px
                   ohne seitliches Scrollen.
-    Fehler        Auftragsdatum geleert und gespeichert (422), Abschlag mit "1.234,56" (422): lesbare Meldung mit
+    Fehler        Auftragsdatum geleert und gespeichert (422; seit 1.8.109 Abschlag "1.25": Meldung von _zahl.html): lesbar mit
                   Feldname statt "[object Object]". Otto: Seite offen, Vertrag inzwischen anderswo unterschrieben,
                   dann "Neue Fassung anlegen" (409): die Meldung des Servers.
     Monteur       Abschrift aus der Ablage: 403.
@@ -235,11 +235,14 @@ async def _pruefen(tab, seed, p):
     p.pruefe("422 Auftragsdatum: lesbar", await tab.js("document.getElementById('saveStatus').textContent"),
              "Fehler: Bitte die Eingabe prüfen – Auftragsdatum ist kein gültiges Datum.")
     await tab.js("document.getElementById('newInvoiceType').value='abschlag_pauschal';toggleNewInvoiceFields();"
-                 "document.getElementById('newLumpSum').value='1.234,56';"
+                 "document.getElementById('newLumpSum').value='1.25';"
                  "document.querySelector('[onclick=\"createNewInvoice()\"]').click(); true")
     await tab.warten("document.getElementById('newInvoiceStatus').textContent.startsWith('Fehler')")
-    p.pruefe("422 Abschlag: lesbar", await tab.js("document.getElementById('newInvoiceStatus').textContent"),
-             "Fehler: Bitte die Eingabe prüfen – Betrag netto muss eine Zahl sein (ohne Tausenderpunkt).")
+    # Seit 1.8.109 ist "1.234,56" ein gültiger Betrag (1234,56, _zahl.html) -- die Eingabe erreicht den Server nicht mehr als 422;
+    # geprüft wird die Meldung des Bausteins für einen mehrdeutigen Betrag. Den lesbaren 422 prüft das Auftragsdatum oben.
+    p.pruefe("Abschlag 1.25: lesbar", await tab.js("document.getElementById('newInvoiceStatus').textContent"),
+             "Fehler: Betrag netto (€): „1.25“ ist nicht eindeutig – Dezimalstellen bitte mit Komma (z. B. 1,25), Tausender mit "
+             "Punkt vor je drei Ziffern (z. B. 1.250).")
     await tab.js("document.getElementById('saveStatus').scrollIntoView({block:'center'}); true")
     await tab.bild("fehler_422")
     p.pruefe("422: JS-Fehler", tab.fehler, [])

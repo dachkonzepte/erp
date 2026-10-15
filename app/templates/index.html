@@ -170,20 +170,20 @@
           <h3>DACHKONZEPTE Kalkulation · je Leistungseinheit</h3>
           <div class="hint">Leere Override-Felder verwenden automatisch die globalen Vorgaben bzw. die importierten Zeitwerte.</div>
           <div class="fields">
-            <div class="field"><label>Baustellenzeit min/EH</label><input id="cSiteTime" type="number" step="0.01" placeholder="Quellzeit"></div>
-            <div class="field"><label>Werkstattzeit min/EH</label><input id="cWorkshopTime" type="number" step="0.01" placeholder="Quellzeit"></div>
-            <div class="field"><label>Lohnansatz Override €/h</label><input id="cLaborRate" type="number" step="0.01" placeholder="global"></div>
-            <div class="field"><label>Materialaufschlag Override %</label><input id="cMaterialMarkup" type="number" step="0.01" placeholder="global"></div>
+            <div class="field"><label>Baustellenzeit min/EH</label><input id="cSiteTime" type="text" inputmode="decimal" data-zahl placeholder="Quellzeit"></div>
+            <div class="field"><label>Werkstattzeit min/EH</label><input id="cWorkshopTime" type="text" inputmode="decimal" data-zahl placeholder="Quellzeit"></div>
+            <div class="field"><label>Lohnansatz Override €/h</label><input id="cLaborRate" type="text" inputmode="decimal" data-zahl placeholder="global"></div>
+            <div class="field"><label>Materialaufschlag Override %</label><input id="cMaterialMarkup" type="text" inputmode="decimal" data-zahl placeholder="global"></div>
           </div>
           <div class="fields">
-            <div class="field"><label>Geräte € / EH</label><input id="cEquipment" type="number" step="0.01"></div>
-            <div class="field"><label>Fremdleistung € / EH</label><input id="cSubcontract" type="number" step="0.01"></div>
-            <div class="field"><label>Sonstige Kosten € / EH</label><input id="cOther" type="number" step="0.01"></div>
-            <div class="field"><label>Manueller VK € / EH</label><input id="cManualSale" type="number" step="0.01" placeholder="optional"></div>
+            <div class="field"><label>Geräte € / EH</label><input id="cEquipment" type="text" inputmode="decimal" data-zahl></div>
+            <div class="field"><label>Fremdleistung € / EH</label><input id="cSubcontract" type="text" inputmode="decimal" data-zahl></div>
+            <div class="field"><label>Sonstige Kosten € / EH</label><input id="cOther" type="text" inputmode="decimal" data-zahl></div>
+            <div class="field"><label>Manueller VK € / EH</label><input id="cManualSale" type="text" inputmode="decimal" data-zahl placeholder="optional"></div>
           </div>
           <div class="fields two">
-            <div class="field"><label>Gemeinkosten Override %</label><input id="cOverhead" type="number" step="0.01" placeholder="global"></div>
-            <div class="field"><label>Wagnis & Gewinn Override %</label><input id="cRiskProfit" type="number" step="0.01" placeholder="global"></div>
+            <div class="field"><label>Gemeinkosten Override %</label><input id="cOverhead" type="text" inputmode="decimal" data-zahl placeholder="global"></div>
+            <div class="field"><label>Wagnis & Gewinn Override %</label><input id="cRiskProfit" type="text" inputmode="decimal" data-zahl placeholder="global"></div>
           </div>
           <div class="field"><label>Interne Notiz</label><textarea id="cNotes" rows="2"></textarea></div>
         </div>
@@ -208,6 +208,7 @@
 </div>
 </div>
 {% include "_speichern.html" %}
+{% include "_zahl.html" %}
 <script>
 let servicesData = [];
 let availableCatalogs = [];
@@ -251,13 +252,13 @@ function renderServices() {
     const delta = Number(s.calculation_delta || 0);
     const editable = s.source_type !== 'leistungen_dach';
     const tr=document.createElement('tr'); tr.style.cursor='pointer'; tr.onclick=()=>loadDetail(s.id);
-    tr.innerHTML=`<td><b>${esc(s.external_id)}</b></td><td>${esc(firstLine(s.short_text))}</td><td>${esc(s.unit)}</td><td class="number">${fmt(s.site_time_raw)}</td><td class="number">${money(s.sale_price)}</td><td class="number"><b>${money(s.calculated_sale_price)}</b></td><td class="number ${delta>=0?'positive':'negative'}">${signedMoney(delta)}</td><td class="number">${esc(s.material_count)}</td><td>${esc(s.catalog_name||'—')}</td><td onclick="event.stopPropagation()">${editable?`<a href="/services/${s.id}/edit" style="display:inline-block;margin-bottom:5px;font-size:12px;color:var(--accent);font-weight:650;text-decoration:none">Bearbeiten</a><br>`:''}<select data-service-id="${s.id}" style="width:auto;font-size:12px;padding:3px 5px;margin-bottom:3px">${catalogOptions}</select><br><button onclick="moveOrCopyService(${s.id},'move')" style="font-size:11px;padding:4px 7px;margin-right:4px">Verschieben</button><button class="secondary" onclick="moveOrCopyService(${s.id},'copy')" style="font-size:11px;padding:4px 7px">Kopieren</button></td>`;
+    tr.innerHTML=`<td><b>${esc(s.external_id)}</b></td><td>${esc(firstLine(s.short_text))}</td><td>${esc(s.unit)}</td><td class="number">${fmt(s.site_time_raw)}</td><td class="number">${money(s.sale_price)}</td><td class="number"><b>${money(s.calculated_sale_price)}</b></td><td class="number ${delta>=0?'positive':'negative'}">${signedMoney(delta)}</td><td class="number">${esc(s.material_count)}</td><td>${esc(s.catalog_name||'—')}</td><td onclick="event.stopPropagation()">${editable?`<a href="/services/${s.id}/edit" style="display:inline-block;margin-bottom:5px;font-size:12px;color:var(--accent);font-weight:650;text-decoration:none">Bearbeiten</a><br>`:''}<select id="catalogTarget${s.id}" data-service-id="${s.id}" style="width:auto;font-size:12px;padding:3px 5px;margin-bottom:3px">${catalogOptions}</select><br><button onclick="moveOrCopyService(${s.id},'move')" style="font-size:11px;padding:4px 7px;margin-right:4px">Verschieben</button><button class="secondary" onclick="moveOrCopyService(${s.id},'copy')" style="font-size:11px;padding:4px 7px">Kopieren</button></td>`;
     body.appendChild(tr);
   }
 }
 
 async function moveOrCopyService(serviceId, action) {
-  const select = document.querySelector(`select[data-service-id="${serviceId}"]`);
+  const select = document.getElementById(`catalogTarget${serviceId}`);
   const targetCatalogId = select && select.value ? Number(select.value) : null;
   if (!targetCatalogId) { alert('Bitte einen Zielkatalog auswählen.'); return; }
   try {
@@ -289,11 +290,11 @@ async function loadDetail(id) {
     <p><b>Quell-VK:</b> ${money(s.sale_price)} / ${esc(s.unit)}</p><p><b>Materialpositionen:</b> ${s.materials.length}</p>`;
   document.getElementById('longText').innerHTML=esc(s.long_text).replaceAll('\n','<br>');
 
-  blankOrVal('cSiteTime', c.uses_source_site_time ? null : c.site_time_minutes);
-  blankOrVal('cWorkshopTime', c.uses_source_workshop_time ? null : c.workshop_time_minutes);
-  blankOrVal('cLaborRate', c.labor_rate_override); blankOrVal('cMaterialMarkup', c.material_markup_pct_override);
-  val('cEquipment', c.equipment_cost); val('cSubcontract', c.subcontractor_cost); val('cOther', c.other_cost);
-  blankOrVal('cManualSale', c.manual_sale_price); blankOrVal('cOverhead', c.overhead_pct_override); blankOrVal('cRiskProfit', c.risk_profit_pct_override);
+  val('cSiteTime', zahlText(c.uses_source_site_time ? null : c.site_time_minutes));
+  val('cWorkshopTime', zahlText(c.uses_source_workshop_time ? null : c.workshop_time_minutes));
+  val('cLaborRate', zahlText(c.labor_rate_override)); val('cMaterialMarkup', zahlText(c.material_markup_pct_override));
+  val('cEquipment', zahlText(c.equipment_cost ?? 0)); val('cSubcontract', zahlText(c.subcontractor_cost ?? 0)); val('cOther', zahlText(c.other_cost ?? 0));
+  val('cManualSale', zahlText(c.manual_sale_price)); val('cOverhead', zahlText(c.overhead_pct_override)); val('cRiskProfit', zahlText(c.risk_profit_pct_override));
   document.getElementById('cNotes').value=c.notes || '';
   renderSummary(c); renderMaterials(c);
   document.getElementById('calcStatus').textContent='';
@@ -315,10 +316,10 @@ function renderMaterials(c) {
   for (const m of c.materials) {
     const tr=document.createElement('tr'); tr.dataset.materialId=m.material_id;
     tr.innerHTML=`<td>${esc(firstLine(m.name))}<div class="muted small">${esc(m.article_number||'')}</div></td><td>${esc(m.unit)}</td><td class="number">${fmt(m.source_quantity)}</td>
-      <td><input class="material-input mQty" type="number" step="0.0001" value="${m.quantity_override==null?'':attr(m.quantity_override)}" placeholder="${attr(m.source_quantity)}"></td>
-      <td><input class="material-input mWaste" type="number" step="0.01" value="${attr(m.waste_pct)}"></td>
+      <td><input class="material-input mQty" type="text" inputmode="decimal" data-zahl data-feld="Eigene Menge (${esc(firstLine(m.name))})" value="${zahlText(m.quantity_override)}" placeholder="${zahlText(m.source_quantity)}"></td>
+      <td><input class="material-input mWaste" type="text" inputmode="decimal" data-zahl data-feld="Verschnitt % (${esc(firstLine(m.name))})" value="${zahlText(m.waste_pct)}"></td>
       <td class="number">${money(m.source_purchase_price)}</td>
-      <td><input class="material-input mPrice" type="number" step="0.0001" value="${m.purchase_price_override==null?'':attr(m.purchase_price_override)}" placeholder="${attr(m.source_purchase_price)}"></td>
+      <td><input class="material-input mPrice" type="text" inputmode="decimal" data-zahl data-feld="Eigener EK (${esc(firstLine(m.name))})" value="${zahlText(m.purchase_price_override)}" placeholder="${zahlText(m.source_purchase_price)}"></td>
       <td class="number"><b>${money(m.base_cost)}</b></td>`;
     body.appendChild(tr);
   }
@@ -327,18 +328,20 @@ function renderMaterials(c) {
 async function saveCalculation() {
   if (!currentService) return;
   const out=document.getElementById('calcStatus'); out.textContent='Speichern …';
-  const overrides=[...document.querySelectorAll('#calcMaterials tr[data-material-id]')].map(tr=>({
-    material_id:Number(tr.dataset.materialId), quantity_override:nullableNumEl(tr.querySelector('.mQty')), waste_pct:numEl(tr.querySelector('.mWaste'),0),
-    purchase_price_override:nullableNumEl(tr.querySelector('.mPrice')), price_basis_override:null
-  }));
-  const payload={
-    site_time_minutes:nullableNum('cSiteTime'), workshop_time_minutes:nullableNum('cWorkshopTime'), labor_rate_override:nullableNum('cLaborRate'),
-    material_markup_pct_override:nullableNum('cMaterialMarkup'), equipment_cost:num('cEquipment',0), subcontractor_cost:num('cSubcontract',0), other_cost:num('cOther',0),
-    overhead_pct_override:nullableNum('cOverhead'), risk_profit_pct_override:nullableNum('cRiskProfit'), manual_sale_price:nullableNum('cManualSale'),
-    notes:document.getElementById('cNotes').value || null, material_overrides:overrides
-  };
   const url=`/api/services/${currentService.id}/calculation`;
   try {
+    // Seit 1.8.109: jede Zahl über zahlFeld() (_zahl.html, deutsches Format), gelesen vor dem Speichern -- eine abgelehnte
+    // Eingabe steht in der Statuszeile. Leer bleibt wie bisher null bzw. 0.
+    const overrides=[...document.querySelectorAll('#calcMaterials tr[data-material-id]')].map(tr=>({
+      material_id:Number(tr.dataset.materialId), quantity_override:zahlFeld(tr.querySelector('.mQty')), waste_pct:zahlFeld(tr.querySelector('.mWaste'),{leer:0}),
+      purchase_price_override:zahlFeld(tr.querySelector('.mPrice')), price_basis_override:null
+    }));
+    const payload={
+      site_time_minutes:zahlFeld('cSiteTime'), workshop_time_minutes:zahlFeld('cWorkshopTime'), labor_rate_override:zahlFeld('cLaborRate'),
+      material_markup_pct_override:zahlFeld('cMaterialMarkup'), equipment_cost:zahlFeld('cEquipment',{leer:0}), subcontractor_cost:zahlFeld('cSubcontract',{leer:0}), other_cost:zahlFeld('cOther',{leer:0}),
+      overhead_pct_override:zahlFeld('cOverhead'), risk_profit_pct_override:zahlFeld('cRiskProfit'), manual_sale_price:zahlFeld('cManualSale'),
+      notes:document.getElementById('cNotes').value || null, material_overrides:overrides
+    };
     await speichern('kalkulation',()=>api(url,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),
                     {anwenden:c=>{currentCalculation=c; renderSummary(c); renderMaterials(c);}, neuLaden:loadServices});
     out.textContent='Kalkulation gespeichert.';
@@ -353,12 +356,9 @@ function money(v){return new Intl.NumberFormat('de-DE',{style:'currency',currenc
 function fmt(v){return new Intl.NumberFormat('de-DE',{maximumFractionDigits:4}).format(Number(v||0));}
 function signedMoney(v){const n=Number(v||0);return `${n>=0?'+':''}${money(n)}`;}
 function signed(v){const n=Number(v||0);return `${n>=0?'+':''}${fmt(n)}`;}
-function val(id,v){document.getElementById(id).value=Number(v??0);}
-function blankOrVal(id,v){document.getElementById(id).value=v==null?'':Number(v);}
-function num(id,d=0){const v=document.getElementById(id).value;return v===''?d:Number(v);}
-function nullableNum(id){const v=document.getElementById(id).value;return v===''?null:Number(v);}
-function numEl(el,d=0){return el.value===''?d:Number(el.value);}
-function nullableNumEl(el){return el.value===''?null:Number(el.value);}
+// Seit 1.8.109: Zahlenfelder füllt die Seite mit zahlText() und liest sie mit zahlFeld() (_zahl.html) -- die eigenen
+// Umwandlungen (blankOrVal, num, nullableNum, numEl, nullableNumEl) sind entfallen.
+function val(id,text){document.getElementById(id).value=text;}
 
 loadServices().catch(e=>{document.getElementById('status').textContent='Startfehler: '+e.message;});
 </script>

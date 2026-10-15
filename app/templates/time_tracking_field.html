@@ -93,7 +93,7 @@
     <div id="activeContext" class="timer-context"></div>
     <div class="field" style="margin-top:12px">
       <label>Zusätzliche Pause beim Stoppen (Min.)</label>
-      <input id="stopBreak" type="number" min="0" step="5" value="0">
+      <input id="stopBreak" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-feld="Zusätzliche Pause" value="0">
     </div>
     <button class="danger" style="width:100%" id="stopBtn">■ Zeit stoppen</button>
   </div>
@@ -161,7 +161,7 @@
     </div>
     <div id="durationField" class="field" hidden>
       <label>Dauer (Stunden)</label>
-      <input id="manualDuration" type="number" min="0.25" max="24" step="0.25" value="1">
+      <input id="manualDuration" type="text" inputmode="decimal" data-zahl data-min="0.25" data-max="24" value="1">
     </div>
     <div class="field"><label>Zeitart</label><div id="manualTiles" class="tiles"></div></div>
     <div class="field"><label>Tätigkeit</label><select id="manualActivity"></select></div>
@@ -180,7 +180,7 @@
     <div class="small muted" id="crewDialogMembers" style="margin-bottom:10px"></div>
     <div class="field"><label>Auftrag</label><select id="crewDialogOrder"></select></div>
     <div class="field"><label>Datum</label><input id="crewDialogDate" type="date"></div>
-    <div class="field"><label>Stunden je Person</label><input id="crewDialogHours" type="number" min="0.25" max="24" step="0.25" value="8"></div>
+    <div class="field"><label>Stunden je Person</label><input id="crewDialogHours" type="text" inputmode="decimal" data-zahl data-min="0.25" data-max="24" value="8"></div>
     <div class="field"><label>Zeitart</label><select id="crewDialogType"></select></div>
     <div class="field"><label>Tätigkeit</label><select id="crewDialogActivity"></select></div>
     <div class="field"><label>Notiz</label><input id="crewDialogNotes" placeholder="optional"></div>
@@ -220,6 +220,7 @@
 
 {% include "_time_entries_list.html" %}
 {% include "_speichern.html" %}
+{% include "_zahl.html" %}
 <script>
 const $=id=>document.getElementById(id);
 const params=new URLSearchParams(location.search),initialOrderId=Number(params.get('order_id')||0);
@@ -292,9 +293,9 @@ async function startQuick(type){
 async function stopCurrent(){
   if(!active)return;
   try{
-    const url=`/api/time-entries/${active.id}/stop`,body=JSON.stringify({break_minutes:Number($('stopBreak').value||0)});
+    const url=`/api/time-entries/${active.id}/stop`,body=JSON.stringify({break_minutes:zahlFeld('stopBreak',{leer:0})});
     await speichern('timer',()=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:body}));
-    $('stopBreak').value=0;await loadActive();await loadEntries();await loadCrewState();
+    $('stopBreak').value=zahlText(0);await loadActive();await loadEntries();await loadCrewState();
   }catch(e){alert(e.message)}
 }
 
@@ -364,7 +365,7 @@ function openCrewDialog(groupId=null){
   $('crewDialogMembers').textContent=(g?g.members.map(m=>m.name):crewSelectedNames()).join(', ');
   $('crewDialogOrder').innerHTML=orderOptions(g?g.order_id:($('crewOrder').value||null));
   $('crewDialogDate').value=g?g.work_date:today();
-  $('crewDialogHours').value=g?Number(g.hours):8;
+  $('crewDialogHours').value=zahlText(g?g.hours:8);
   $('crewDialogType').innerHTML=typeOptions(g?g.entry_type:$('crewType').value);
   $('crewDialogActivity').innerHTML=activityOptions(g?g.activity:$('crewActivity').value);
   $('crewDialogNotes').value=g?.notes||'';
@@ -372,8 +373,10 @@ function openCrewDialog(groupId=null){
   crewDialog.showModal();
 }
 async function saveCrewDialog(){
-  const orderId=Number($('crewDialogOrder').value||0),hours=Number($('crewDialogHours').value||0);
+  const orderId=Number($('crewDialogOrder').value||0);
   if(!orderId){$('crewDialogStatus').textContent='Bitte Auftrag auswählen.';return}
+  // Seit 1.8.109 über _zahl.html (deutsches Format); eine abgelehnte Eingabe steht in der Statuszeile des Dialogs.
+  let hours;try{hours=zahlFeld('crewDialogHours',{leer:0})}catch(e){$('crewDialogStatus').textContent=e.message;return}
   if(!(hours>0)){$('crewDialogStatus').textContent='Bitte Stunden größer als 0 angeben.';return}
   // Ändern schickt nur, was der Dialog zeigt -- Pause und LV-Position bleiben (seit 1.8.25).
   const body={order_id:orderId,work_date:$('crewDialogDate').value,entry_type:$('crewDialogType').value,activity:$('crewDialogActivity').value||null,hours,notes:$('crewDialogNotes').value.trim()||null};
@@ -431,7 +434,7 @@ function openManual(row=null){
   manualType=row?.entry_type||types.find(t=>t.is_default)?.value||'site';
   renderManualTiles();
   setMode('duration');
-  $('manualDuration').value=row?.hours||1;
+  $('manualDuration').value=zahlText(row?.hours||1);
   $('manualFrom').value='';$('manualTo').value='';
   $('manualActivity').innerHTML=activityOptions(row?.activity);
   $('manualNotes').value=row?.notes||'';
@@ -454,7 +457,8 @@ async function saveManual(){
     hours=hoursFromRange($('manualFrom').value,$('manualTo').value);
     if(hours===null){$('manualStatus').textContent='Bitte Von und Bis angeben -- Bis muss nach Von liegen.';return}
   }else{
-    hours=Number($('manualDuration').value||0);
+    // Seit 1.8.109 über _zahl.html (deutsches Format); eine abgelehnte Eingabe steht in der Statuszeile des Dialogs.
+    try{hours=zahlFeld('manualDuration',{leer:0})}catch(e){$('manualStatus').textContent=e.message;return}
     if(!(hours>0)){$('manualStatus').textContent='Bitte eine Dauer größer als 0 angeben.';return}
   }
   // Ändern schickt nur, was der Dialog zeigt -- Pause und LV-Position bleiben (seit 1.8.25).

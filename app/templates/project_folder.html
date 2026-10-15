@@ -85,7 +85,7 @@
 <div class="modal-grid" style="margin-top:12px"><div class="field"><label for="pmRole">Rolle *</label><select id="pmRole"></select></div><div></div><div class="wide p-flags"><label><input type="checkbox" id="pmCopy"> Kopie bei Anzeigen</label><label><input type="checkbox" id="pmAuthorized"> empfangsbevollmächtigt für den Auftraggeber</label><label><input type="checkbox" id="pmAcceptance"> Vollmacht zur Abnahme</label></div></div><div class="hint">Die Vollmachten lassen sich nach dem Hinzufügen als Beleg hochladen.</div>
 <div id="pmStatus" class="status"></div><div class="modal-actions"><button class="btn secondary" onclick="closeModal('participantModal')">Abbrechen</button><button class="btn primary" onclick="saveParticipant()">Hinzufügen</button></div></div></div>
 
-<div id="maintenanceContractModal" class="modal-backdrop"><div class="modal" style="width:min(520px,100%)"><h2>Wartungsvertrag aus diesem Projekt erstellen</h2><div class="muted small" style="margin-bottom:10px">Legt einen neuen Mustervorgang aus diesem Projekt an und verknüpft ihn mit einem neuen Wartungsvertrag. Der bestehende Auftrag bleibt unverändert.</div><div class="modal-grid"><div class="field"><label>Intervall (Monate)</label><input id="mcIntervalMonths" type="number" min="1" max="24" list="mcIntervalMonthsOptions" value="12"><datalist id="mcIntervalMonthsOptions">{% for m in range(1, 25) %}<option value="{{ m }}">{{ m }} Monat{{ 'e' if m != 1 else '' }}</option>{% endfor %}</datalist></div><div class="field"><label>Nächste Fälligkeit</label><input id="mcNextDueDate" type="date"></div></div><div id="maintenanceContractStatus" class="status"></div><div class="modal-actions"><button class="btn secondary" onclick="closeModal('maintenanceContractModal')">Abbrechen</button><button class="btn primary" onclick="saveMaintenanceContractFromProject()">Wartungsvertrag erstellen</button></div></div></div>
+<div id="maintenanceContractModal" class="modal-backdrop"><div class="modal" style="width:min(520px,100%)"><h2>Wartungsvertrag aus diesem Projekt erstellen</h2><div class="muted small" style="margin-bottom:10px">Legt einen neuen Mustervorgang aus diesem Projekt an und verknüpft ihn mit einem neuen Wartungsvertrag. Der bestehende Auftrag bleibt unverändert.</div><div class="modal-grid"><div class="field"><label>Intervall (Monate)</label><input id="mcIntervalMonths" type="text" inputmode="numeric" data-zahl="ganz" data-min="1" data-max="24" list="mcIntervalMonthsOptions" value="12"><datalist id="mcIntervalMonthsOptions">{% for m in range(1, 25) %}<option value="{{ m }}">{{ m }} Monat{{ 'e' if m != 1 else '' }}</option>{% endfor %}</datalist></div><div class="field"><label>Nächste Fälligkeit</label><input id="mcNextDueDate" type="date"></div></div><div id="maintenanceContractStatus" class="status"></div><div class="modal-actions"><button class="btn secondary" onclick="closeModal('maintenanceContractModal')">Abbrechen</button><button class="btn primary" onclick="saveMaintenanceContractFromProject()">Wartungsvertrag erstellen</button></div></div></div>
 </div>
 </div>
 
@@ -93,6 +93,7 @@
 {% include "_fehlertext.html" %}
 {% include "_berlin_date.html" %}
 {% include "_speichern.html" %}
+{% include "_zahl.html" %}
 {% include "_links.html" %}
 {% include "_aktionen.html" %}
 <script>
@@ -166,7 +167,7 @@ async function toggleArchivedHere(){
 }
 
 function openMaintenanceContractModal(){
-  document.getElementById('mcIntervalMonths').value='12';
+  document.getElementById('mcIntervalMonths').value=zahlText(12);
   document.getElementById('mcNextDueDate').value=berlinToday();
   document.getElementById('maintenanceContractStatus').textContent='';
   openModal('maintenanceContractModal');
@@ -174,10 +175,10 @@ function openMaintenanceContractModal(){
 
 async function saveMaintenanceContractFromProject(){
   const st=document.getElementById('maintenanceContractStatus');
-  const intervalMonths=Number(document.getElementById('mcIntervalMonths').value)||12;
   const nextDueDate=document.getElementById('mcNextDueDate').value;
   if(!nextDueDate){st.textContent='Bitte eine nächste Fälligkeit angeben.';return}
   try{
+    const intervalMonths=zahlFeld('mcIntervalMonths',{leer:12});  // seit 1.8.109 über _zahl.html, leer wie bisher 12
     const created=await speichern('wartungsvertrag',()=>api(`/api/maintenance-contracts/from-project/${projectId}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({interval_months:intervalMonths,next_due_date:nextDueDate})}));
     // Direkt zum neu angelegten Vertrag wechseln (Projektmuster "nach Anlegen direkt zum Datensatz",
     // seit 1.2.19 gibt es dafür eine eigene Vertragsseite statt nur der Liste).

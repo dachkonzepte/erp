@@ -85,7 +85,7 @@ tr:last-child td{border-bottom:none}
       <label class="objekt-andere"><input type="checkbox" id="editOtherOwners" onchange="onCustomerChange(true)"> Objekte anderer Kunden anzeigen (z. B. Hausverwaltung, Generalunternehmer)</label>
       <div id="editMismatch"></div></div>
     <div class="field full"><label>Bezeichnung *</label><input id="editTitle" placeholder="z. B. Jährliche Dachwartung"></div>
-    <div class="field"><label>Intervall (Monate)</label><input id="editInterval" type="number" min="1" max="24" list="intervalMonthsOptions" value="12">
+    <div class="field"><label>Intervall (Monate)</label><input id="editInterval" type="text" inputmode="numeric" data-zahl="ganz" data-min="1" data-max="24" list="intervalMonthsOptions" value="12">
       <datalist id="intervalMonthsOptions">{% for m in range(1, 25) %}<option value="{{ m }}">{{ m }} Monat{{ 'e' if m != 1 else '' }}</option>{% endfor %}</datalist>
     </div>
     <div class="field"><label>Nächste Fälligkeit *</label><input id="editDueDate" type="date"></div>
@@ -114,6 +114,7 @@ tr:last-child td{border-bottom:none}
 </div>
 </div>
 {% include "_speichern.html" %}
+{% include "_zahl.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
@@ -191,7 +192,7 @@ function openCreateEditor(){
   document.getElementById('editProperty').innerHTML=propertyOptionsHtml(null,null,false);
   document.getElementById('editMismatch').innerHTML='';
   document.getElementById('editTitle').value='';
-  document.getElementById('editInterval').value='12';
+  document.getElementById('editInterval').value=zahlText(12);
   document.getElementById('editDueDate').value='';
   document.getElementById('editTemplate').innerHTML=templateOptionsHtml(null);
   document.getElementById('editResponsible').innerHTML=employeeOptionsHtml(null);
@@ -213,11 +214,14 @@ async function saveContract(){
   const dueDate=document.getElementById('editDueDate').value;
   if(!customerId||!title||!dueDate){st.textContent='Bitte Kunde, Bezeichnung und Fälligkeit angeben.';return}
   if(propertyConfirmMissing('editCustomer','editProperty','editConfirmProperty',st))return;
+  // Seit 1.8.109 über _zahl.html: eine abgelehnte Zahl erscheint in der Statuszeile, gespeichert wird nichts; leer wie bisher 12.
+  let intervalMonths;
+  try{intervalMonths=zahlFeld('editInterval',{leer:12})}catch(e){st.textContent=e.message;return}
   const payload={
     customer_id:Number(customerId),
     property_id:propertyId?Number(propertyId):null,
     title,
-    interval_months:Number(document.getElementById('editInterval').value)||12,
+    interval_months:intervalMonths,
     next_due_date:dueDate,
     template_project_id:document.getElementById('editTemplate').value?Number(document.getElementById('editTemplate').value):null,
     responsible_employee_id:document.getElementById('editResponsible').value?Number(document.getElementById('editResponsible').value):null,

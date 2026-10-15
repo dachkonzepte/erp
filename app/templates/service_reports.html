@@ -206,7 +206,7 @@ a{color:var(--accent)}
     <div class="field"><label>Zeitart</label><select id="teType"></select></div>
     <div class="field"><label>Tätigkeit</label><select id="teActivity"></select></div>
     <div class="field"><label>LV-Position <span class="muted small">(optional)</span></label><select id="teOrderItem"></select></div>
-    <div class="field"><label>Stunden</label><input id="teHours" type="number" step="0.01" min="0"></div>
+    <div class="field"><label>Stunden</label><input id="teHours" type="text" inputmode="decimal" data-zahl data-min="0"></div>
     <div class="field full"><label>Notizen <span class="muted small">(optional)</span></label><input id="teNotes"></div>
   </div>
   <div class="editor-actions" style="margin-bottom:10px">
@@ -222,6 +222,7 @@ a{color:var(--accent)}
 </div>
 </div>
 {% include "_speichern.html" %}
+{% include "_zahl.html" %}
 {% include "_aktionen.html" %}
 <script>
 const orderId={{ order_id }};
@@ -325,7 +326,7 @@ function editRoofAreaChecksHtml(selectedIds){
   </label>`).join('')||'<span class="muted small">Keine Dachflächen für dieses Objekt.</span>';
 }
 function getEditRoofAreaIds(){
-  return [...document.querySelectorAll('#editRoofAreaChecks input:checked')].map(el=>Number(el.value));
+  return [...document.querySelectorAll('#editRoofAreaChecks input[type=checkbox]:checked')].map(el=>Number(el.value));
 }
 function onEditRoofAreaChange(){
   // Eine explizite Vorlagenwahl gilt nur bei genau einer angehakten Fläche -- bei mehreren
@@ -499,6 +500,10 @@ async function confirmSignatureStep(){
     return;
   }
   try{
+    // Seit 1.8.109: eine abgelehnte Zahl auf der Seite (rot markiert, _zahl.html) verhindert die Unterschrift wie ein gescheitertes
+    // Speichern -- sonst ginge der Bericht still mit dem alten Wert hinaus. zahlFeld() wirft dann die Meldung des Feldes.
+    const abgelehnt=document.querySelector('input[data-zahl][aria-invalid="true"]');
+    if(abgelehnt)zahlFeld(abgelehnt);
     const url=`/api/service-reports/${signingReportId}/sign`;
     const body=JSON.stringify({
       installer_signature_png_base64:installerSigDataUrl, installer_signature_name:installerSigName,
@@ -783,7 +788,7 @@ function findingsPanelHtml(r){
 
 // --- Verbrauchtes Material (seit 1.2.23) ---
 
-const materialFormDraft={}; // {reportId: {search, description, unit, quantity, roofAreaId}}
+const materialFormDraft={}; // {reportId: {search, description, unit, quantity, roofAreaId}}; quantity seit 1.8.109 die Zahl (zahlVorschau), nicht der Text
 function _materialDraft(reportId){
   if(!materialFormDraft[reportId])materialFormDraft[reportId]={search:'',description:'',unit:'',quantity:'',roofAreaId:''};
   return materialFormDraft[reportId];
@@ -837,14 +842,16 @@ async function saveMaterialRow(reportId){
   const st=document.getElementById('matStatus-'+reportId);
   const description=(document.getElementById('matDescription-'+reportId).value||'').trim();
   const unit=(document.getElementById('matUnit-'+reportId).value||'').trim();
-  const quantity=document.getElementById('matQuantity-'+reportId).value;
   const materialId=selectedMaterialCatalogId[reportId]||null;
   if(!materialId&&!description){st.className='status err';st.textContent='Bitte eine Bezeichnung angeben oder ein Material aus dem Katalog wählen.';return}
-  if(!quantity||Number(quantity)<=0){st.className='status err';st.textContent='Bitte eine Menge größer als 0 angeben.';return}
+  // Seit 1.8.109 über _zahl.html (deutsches Format); eine abgelehnte Menge erscheint wie ein Fehler beim Speichern.
+  let quantity;
+  try{quantity=zahlFeld('matQuantity-'+reportId)}catch(e){st.className='status err';st.textContent='Fehler: '+e.message;return}
+  if(quantity===null||quantity<=0){st.className='status err';st.textContent='Bitte eine Menge größer als 0 angeben.';return}
   const areaSelect=document.getElementById('matAreaSel-'+reportId);
   const roofAreaId=areaSelect&&areaSelect.value?Number(areaSelect.value):null;
   const payload={
-    material_id:materialId, description:materialId?null:description, quantity:Number(quantity),
+    material_id:materialId, description:materialId?null:description, quantity:quantity,
     unit:unit||null, roof_area_id:roofAreaId, finding_id:pendingMaterialFindingId[reportId]||null,
   };
   try{
@@ -861,8 +868,10 @@ async function saveMaterialRow(reportId){
 async function saveMaterialField(materialId,reportId,field,value){
   const payload={};
   if(field==='quantity'){
-    const num=Number(value);
-    if(!value||num<=0){alert('Bitte eine Menge größer als 0 angeben.');renderReportList();return}
+    // Seit 1.8.109 ist value hier das Mengenfeld selbst, gelesen über _zahl.html; eine abgelehnte Eingabe bleibt markiert stehen.
+    let num;
+    try{num=zahlFeld(value)}catch(e){alert('Fehler: '+e.message);return}
+    if(num===null||num<=0){alert('Bitte eine Menge größer als 0 angeben.');renderReportList();return}
     payload.quantity=num;
   }else if(field==='description'){
     if(!value.trim()){alert('Bitte eine Bezeichnung angeben.');renderReportList();return}
@@ -895,7 +904,7 @@ function materialsPanelHtml(r){
   const rowsHtml=rows.length?`<div class="table-scroll"><table><thead><tr><th>Bezeichnung</th><th>Menge</th><th>Einheit</th><th>Fläche</th><th></th></tr></thead><tbody>${rows.map(m=>`
     <tr>
       <td data-label="Bezeichnung">${isDraft?`<input value="${esc(m.description)}" onchange="saveMaterialField(${m.id},${r.id},'description',this.value)" style="min-width:160px">`:esc(m.description)}</td>
-      <td data-label="Menge">${isDraft?`<input type="number" step="0.001" min="0.001" value="${esc(m.quantity)}" style="width:90px" onchange="saveMaterialField(${m.id},${r.id},'quantity',this.value)">`:esc(String(m.quantity))}</td>
+      <td data-label="Menge">${isDraft?`<input type="text" inputmode="decimal" data-zahl data-min="0.001" data-feld="Menge" value="${zahlText(m.quantity)}" style="width:90px" onchange="saveMaterialField(${m.id},${r.id},'quantity',this)">`:esc(String(m.quantity))}</td>
       <td data-label="Einheit">${isDraft?`<input value="${esc(m.unit||'')}" onchange="saveMaterialField(${m.id},${r.id},'unit',this.value)" style="width:70px">`:esc(m.unit||'')}</td>
       <td data-label="Fläche" class="muted small">${esc(areaName(m.roof_area_id)||'—')}</td>
       <td data-label="">${isDraft?`<button type="button" class="danger" onclick="deleteMaterialUI(${m.id},${r.id})">×</button>`:''}</td>
@@ -927,7 +936,7 @@ function materialsPanelHtml(r){
   <div class="inspection-row" style="flex-wrap:wrap">
     <input id="matDescription-${r.id}" value="${esc(draft.description)}" oninput="_materialDraft(${r.id}).description=this.value" placeholder="Bezeichnung" style="flex:1;min-width:200px">
     <input id="matUnit-${r.id}" value="${esc(draft.unit)}" oninput="_materialDraft(${r.id}).unit=this.value" placeholder="Einheit" style="width:90px">
-    <input id="matQuantity-${r.id}" type="number" step="0.001" min="0.001" value="${esc(draft.quantity)}" oninput="_materialDraft(${r.id}).quantity=this.value" placeholder="Menge" style="width:100px">
+    <input id="matQuantity-${r.id}" type="text" inputmode="decimal" data-zahl data-min="0.001" data-feld="Menge" value="${zahlText(draft.quantity)}" oninput="_materialDraft(${r.id}).quantity=zahlVorschau(this)" placeholder="Menge" style="width:100px">
     ${areaSelect}
     <button type="button" onclick="saveMaterialRow(${r.id})">+ Material</button>
   </div>
@@ -1032,7 +1041,7 @@ function itemControlInnerHtml(item){
   // per querySelector nur den ERSTEN Container mit diesem data-item -- zwei getrennte Container
   // mit demselben data-item hätten das Bemerkungsfeld beim Speichern stillschweigend ignoriert.
   if(item.item_type==='ja_nein'||item.item_type==='leak_test'){
-    const durationField=item.item_type==='leak_test'?`<input type="number" min="0" placeholder="Minuten" value="${esc(item.duration_minutes??'')}" style="width:90px" onchange="saveInspectionResult(${item.id})" data-field="duration_minutes">`:'';
+    const durationField=item.item_type==='leak_test'?`<input type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-feld="Dauer (Minuten)" placeholder="Minuten" value="${zahlText(item.duration_minutes)}" style="width:90px" onchange="saveInspectionResult(${item.id})" data-field="duration_minutes">`:'';
     return `<div class="result-picker">
       <button type="button" class="${item.result==='ok'?'':'secondary'}" onclick="setResultAndSave(${item.id},'ok')">OK</button>
       <button type="button" class="${item.result==='nok'?'':'secondary'}" onclick="setResultAndSave(${item.id},'nok')">Nicht OK</button>
@@ -1046,12 +1055,12 @@ function itemControlInnerHtml(item){
   if(item.item_type==='measurement'){
     const outOfRange=item.measured_value!=null&&((item.target_min!=null&&Number(item.measured_value)<Number(item.target_min))||(item.target_max!=null&&Number(item.measured_value)>Number(item.target_max)));
     const range=(item.target_min!=null||item.target_max!=null)?`<span class="muted small">Soll: ${esc(item.target_min??'')}–${esc(item.target_max??'')} ${esc(item.unit||'')}</span>`:'';
-    return `<input type="number" step="0.01" value="${esc(item.measured_value??'')}" style="width:90px" onchange="saveInspectionResult(${item.id})" data-field="measured_value">
+    return `<input type="text" inputmode="decimal" data-zahl data-feld="Messwert" value="${zahlText(item.measured_value)}" style="width:90px" onchange="saveInspectionResult(${item.id})" data-field="measured_value">
       <span class="muted small">${esc(item.unit||'')}</span> ${range}
       ${outOfRange?'<span class="badge out-of-range">Außerhalb Soll</span>':''}`;
   }
   if(item.item_type==='quantity'){
-    return `<input type="number" step="0.01" value="${esc(item.quantity??'')}" style="width:90px" onchange="saveInspectionResult(${item.id})" data-field="quantity">
+    return `<input type="text" inputmode="decimal" data-zahl data-feld="Menge" value="${zahlText(item.quantity)}" style="width:90px" onchange="saveInspectionResult(${item.id})" data-field="quantity">
       <span class="muted small">${esc(item.unit||'')}</span>`;
   }
   if(item.item_type==='free_text'){
@@ -1091,11 +1100,14 @@ async function saveInspectionResult(itemId,overrides){
   // gelöscht wurde. overrides gewinnt jetzt nur noch für seine eigenen Schlüssel, per
   // Object.assign darüber gelegt statt den Read komplett zu ersetzen.
   const payload={};
+  // Seit 1.8.109 im try: Zahlenfelder (data-zahl) über _zahl.html -- eine abgelehnte Zahl erscheint als Fehler, und der Punkt wird
+  // gar nicht gespeichert (auch nicht das Ergebnis oder die Bemerkung daneben).
+  try{
   if(container){
     container.querySelectorAll('[data-field]').forEach(el=>{
       const field=el.dataset.field;
       const value=el.value;
-      payload[field]=value===''?null:(el.type==='number'?Number(value):value);
+      payload[field]=el.dataset.zahl!==undefined?zahlFeld(el):(value===''?null:value);
     });
   }
   Object.assign(payload,overrides||{});
@@ -1103,7 +1115,6 @@ async function saveInspectionResult(itemId,overrides){
   // (verzögertes Speichern nach dem Zuklappen); neu geladen wird wie bisher nur aufgeklappt.
   const bereichId=reportId??Object.keys(inspectionItemsCache).find(id=>(inspectionItemsCache[id]||[]).some(i=>i.id===itemId));
   // Seit 1.8.70 setzt der Server "erfasst von" aus der Anmeldung -- mitgeschickt lehnt er ab (422).
-  try{
     await speichern('pruefpunkte-'+bereichId,()=>api(`/api/inspection-items/${itemId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));
     if(reportId){
       await loadInspectionItems(reportId);
@@ -1348,16 +1359,17 @@ async function saveReportTimeEntry(){
   const st=document.getElementById('teStatus');
   const employeeId=document.getElementById('teEmployee').value;
   const workDate=document.getElementById('teDate').value;
-  const hours=document.getElementById('teHours').value;
-  if(!employeeId||!workDate||!hours){st.className='status err';st.textContent='Bitte Mitarbeiter, Datum und Stunden angeben.';return}
+  try{
+  // Seit 1.8.109 im try: die Stunden über _zahl.html, eine abgelehnte Zahl erscheint als Fehler.
+  const hours=zahlFeld('teHours');
+  if(!employeeId||!workDate||hours===null){st.className='status err';st.textContent='Bitte Mitarbeiter, Datum und Stunden angeben.';return}
   const payload={
     employee_id:Number(employeeId), order_id:orderId, work_date:workDate,
     order_item_id:document.getElementById('teOrderItem').value?Number(document.getElementById('teOrderItem').value):null,
     entry_type:document.getElementById('teType').value||'site',
     activity:document.getElementById('teActivity').value||null,
-    hours:Number(hours), notes:document.getElementById('teNotes').value.trim()||null,
+    hours:hours, notes:document.getElementById('teNotes').value.trim()||null,
   };
-  try{
     await speichern('zeiten',()=>api('/api/time-entries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));
     document.getElementById('teHours').value='';
     document.getElementById('teNotes').value='';

@@ -1,0 +1,152 @@
+<style>
+/* Seit 1.8.109: ein Zahlenfeld, das zahlFeld() abgelehnt hat, bleibt markiert, bis es geändert wird. */
+input[data-zahl][aria-invalid="true"]{border-color:var(--danger,#b42318)!important;outline:1px solid var(--danger,#b42318)}
+</style>
+<script>
+/* Zahleneingaben im deutschen Format (seit 1.8.109, Vorgabe "Vor dem Abnahmetest" Punkt 1; docs/archiv/befund-vor-echtbetrieb.md,
+   "Umsetzung 1.8.109"). Die einzige Stelle, an der die Seiten aus einer Eingabe eine Zahl machen -- tests/test_v414_zahleneingaben.py
+   findet jede andere Umwandlung (Number()/parseFloat()/parseInt()/+ auf einen Feldwert, Komma ersetzen, type="number").
+
+   Warum Textfelder statt type="number": Chrome liest in einem Zahlenfeld bei deutscher Sprache den Punkt als Dezimaltrenner --
+   aus "1.250" wird still 1,25, aus "1.250,5" sogar 1,2505 (gemessen 15.10.2026). Ein Zahlenfeld ist deshalb
+   <input type="text" inputmode="decimal" data-zahl> (ganze Zahlen: inputmode="numeric" data-zahl="ganz"); die Seite liest es über
+   zahlFeld() und füllt es über zahlText().
+
+   Regeln (zahlLesen):
+   - Komma ist der Dezimaltrenner, Punkt der Tausendertrenner: "1.250" = 1250, "1.250,5" = 1250,5, "1250,5" = 1250,5, ",5" = 0,5.
+   - Tausenderpunkte nur vor je drei Ziffern und nicht hinter einer führenden 0 ("1.250.000" ja, "12.50" nein, "0.250" nein).
+   - Mehrdeutiges wird mit Meldung abgelehnt, nie still umgedeutet: "1.25", "0.5", "12.5" (Punkt ohne drei Ziffern danach) --
+     gemeint sein kann ein Dezimalpunkt oder ein vertippter Tausenderpunkt.
+   - Ein Vorzeichen + oder - (auch das typografische −) vorn; sonst nur Ziffern 0-9, Punkte und höchstens ein Komma -- kein
+     Leerzeichen, keine Einheit, kein Exponent ("1e3"), kein "Infinity".
+   - Leer gibt die Vorgabe zurück (optionen.leer, sonst null), mit optionen.pflicht eine Meldung "<Feld> fehlt.".
+   - optionen.ganz: nur ganze Zahlen ("1,0" ist 1); optionen.stellen: höchstens so viele Nachkommastellen (Nullen am Ende zählen
+     nicht: "12,500" hat zwei); optionen.min/optionen.max: Grenzen einschließlich.
+   Die Meldung nennt das Feld (optionen.feld) und die Eingabe; der Fehler trägt zahlFehler = true.
+
+   zahlLesen(text, optionen)    -> Zahl, oder die Vorgabe bei leerer Eingabe; wirft bei ungültiger Eingabe
+   zahlFeld(feld, optionen)     -> wie zahlLesen() für ein Eingabefeld (Element oder id). Ohne Angabe nimmt es aus dem Feld:
+                                   data-zahl="ganz" (ganz), data-stellen, data-min/data-max, required (pflicht), die Beschriftung (data-feld,
+                                   sonst das <label>). Ein abgelehntes Feld wird markiert (aria-invalid), bis es geändert wird.
+   zahlVorschau(feld, optionen) -> wie zahlFeld(), wirft aber nie: null bei leerer oder ungültiger Eingabe -- nur für Anzeigen
+                                   während der Eingabe (Zwischensummen), nie für das, was gespeichert wird.
+   zahlText(wert, stellen)      -> Text für ein Zahlenfeld: 1250.5 -> "1250,5", "1.250" (Decimal aus der API) -> "1,25";
+                                   ohne Tausenderpunkte; null, '' und ungültige Werte -> ''. stellen: genau so viele Nachkommastellen.
+
+   Der Baustein darf mehrfach eingebunden sein (Seite und Teilvorlage): keine class/const/let auf oberster Ebene. */
+function _zahlFehler(text, feld) {
+  const e = new Error(text);
+  e.zahlFehler = true;
+  e.feld = feld;
+  return e;
+}
+function zahlLesen(text, optionen) {
+  const o = optionen || {};
+  const feld = o.feld || 'Die Zahl';
+  const roh = String(text ?? '').trim();
+  if (roh === '') {
+    if (o.pflicht) throw _zahlFehler(`${feld} fehlt.`, feld);
+    return o.leer === undefined ? null : o.leer;
+  }
+  const zitat = `„${roh.length > 30 ? roh.slice(0, 30) + '…' : roh}“`;
+  const m = /^([+\-−]?)([0-9.]*)(?:,([0-9]*))?$/.exec(roh);
+  if (!m || !/[0-9]/.test(roh)) throw _zahlFehler(`${feld}: ${zitat} ist keine Zahl.`, feld);
+  const vorzeichen = m[1] ? (m[1] === '+' ? '' : '-') : '';
+  const ganz = m[2];
+  const komma = m[3];
+  if (komma !== undefined && komma === '') {
+    throw _zahlFehler(`${feld}: ${zitat} ist keine Zahl – nach dem Komma fehlt eine Ziffer.`, feld);
+  }
+  if (ganz.includes('.')) {
+    if (!/^[1-9][0-9]{0,2}(\.[0-9]{3})+$/.test(ganz)) {
+      if (komma === undefined) {
+        throw _zahlFehler(`${feld}: ${zitat} ist nicht eindeutig – Dezimalstellen bitte mit Komma (z. B. 1,25), `
+          + 'Tausender mit Punkt vor je drei Ziffern (z. B. 1.250).', feld);
+      }
+      throw _zahlFehler(`${feld}: ${zitat} ist keine Zahl – Tausenderpunkte nur vor je drei Ziffern (z. B. 1.250,50).`, feld);
+    }
+  } else if (ganz === '' && komma === undefined) {
+    throw _zahlFehler(`${feld}: ${zitat} ist keine Zahl.`, feld);
+  }
+  const wert = Number(vorzeichen + (ganz.replace(/\./g, '') || '0') + (komma ? '.' + komma : ''));
+  if (!Number.isFinite(wert)) throw _zahlFehler(`${feld}: ${zitat} ist keine Zahl.`, feld);
+  if (o.ganz && !Number.isInteger(wert)) {
+    throw _zahlFehler(`${feld}: ${zitat} – bitte eine ganze Zahl angeben.`, feld);
+  }
+  if (o.stellen !== undefined && o.stellen !== null && komma && komma.replace(/0+$/, '').length > o.stellen) {
+    throw _zahlFehler(`${feld}: ${zitat} – höchstens ${o.stellen} Nachkommastelle${o.stellen === 1 ? '' : 'n'}.`, feld);
+  }
+  if (o.min !== undefined && o.min !== null && wert < o.min) {
+    throw _zahlFehler(`${feld} darf nicht kleiner als ${zahlText(o.min)} sein (eingegeben ${zitat}).`, feld);
+  }
+  if (o.max !== undefined && o.max !== null && wert > o.max) {
+    throw _zahlFehler(`${feld} darf nicht größer als ${zahlText(o.max)} sein (eingegeben ${zitat}).`, feld);
+  }
+  return wert === 0 ? 0 : wert;  // nie -0
+}
+function _zahlElement(feld) {
+  const el = typeof feld === 'string' ? document.getElementById(feld) : feld;
+  if (!el) throw new Error(`Zahlenfeld ${typeof feld === 'string' ? feld : ''} nicht gefunden.`);
+  return el;
+}
+function _zahlBeschriftung(el) {
+  const kurz = t => String(t || '').replace(/\s+/g, ' ').replace(/[\s:*]+$/, '').trim();
+  if (el.dataset && el.dataset.feld) return kurz(el.dataset.feld);
+  const label = (el.labels && el.labels[0])
+    || (el.closest && el.closest('label'))
+    || (el.previousElementSibling && el.previousElementSibling.tagName === 'LABEL' ? el.previousElementSibling : null)
+    || (el.closest && el.closest('.field') ? el.closest('.field').querySelector('label') : null);
+  if (label) {
+    // Nur der eigene Text des Labels, nicht der Wert eines darin liegenden Feldes.
+    const teile = [...label.childNodes].filter(n => n.nodeType === 3 || (n.nodeType === 1 && !/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(n.tagName)));
+    const text = kurz(teile.map(n => n.textContent).join(' '));
+    if (text) return text.length > 60 ? text.slice(0, 60) + '…' : text;
+  }
+  return kurz(el.getAttribute('aria-label') || el.getAttribute('title') || '') || 'Die Zahl';
+}
+function _zahlOptionen(el, optionen) {
+  const o = Object.assign({}, optionen || {});
+  const d = el.dataset || {};
+  if (o.ganz === undefined && d.zahl === 'ganz') o.ganz = true;
+  if (o.stellen === undefined && d.stellen !== undefined && d.stellen !== '') o.stellen = Number(d.stellen);
+  if (o.min === undefined && d.min !== undefined && d.min !== '') o.min = Number(d.min);
+  if (o.max === undefined && d.max !== undefined && d.max !== '') o.max = Number(d.max);
+  if (o.pflicht === undefined && el.required) o.pflicht = true;
+  if (!o.feld) o.feld = _zahlBeschriftung(el);
+  return o;
+}
+function zahlFeld(feld, optionen) {
+  const el = _zahlElement(feld);
+  try {
+    const wert = zahlLesen(el.value, _zahlOptionen(el, optionen));
+    el.removeAttribute('aria-invalid');
+    return wert;
+  } catch (e) {
+    if (e && e.zahlFehler) el.setAttribute('aria-invalid', 'true');
+    throw e;
+  }
+}
+function zahlVorschau(feld, optionen) {
+  try {
+    const el = _zahlElement(feld);
+    return zahlLesen(el.value, Object.assign(_zahlOptionen(el, optionen), {pflicht: false, leer: null}));
+  } catch (e) {
+    return null;
+  }
+}
+function zahlText(wert, stellen) {
+  if (wert === null || wert === undefined || wert === '') return '';
+  const n = Number(wert);  // Wert aus der API oder der Seite (Maschinenformat), nie eine Eingabe
+  if (!Number.isFinite(n)) return '';
+  const st = stellen === undefined || stellen === null ? {maximumFractionDigits: 10} : {minimumFractionDigits: stellen, maximumFractionDigits: stellen};
+  const text = n.toLocaleString('de-DE', Object.assign({useGrouping: false}, st));
+  return /^-0(,0*)?$/.test(text) ? text.slice(1) : text;
+}
+if (typeof window !== 'undefined' && !window.__dkZahlEingabe && typeof document !== 'undefined' && document.addEventListener) {
+  window.__dkZahlEingabe = true;
+  document.addEventListener('input', e => {
+    const el = e.target;
+    if (el && el.matches && el.matches('input[data-zahl][aria-invalid]')) el.removeAttribute('aria-invalid');
+  });
+}
+</script>

@@ -86,6 +86,7 @@ td input,td select{padding:6px 7px;font-size:12.5px}
 </div>
 </div>
 {% include "_speichern.html" %}
+{% include "_zahl.html" %}
 <script>
 const templateId={{ template_id }};
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -147,12 +148,12 @@ function itemRow(item){
     <td><select onblur="saveItem(${item.id})" data-field="component_type">${componentTypeOptionsHtml(item.component_type)}</select></td>
     <td><select onchange="saveItem(${item.id})" data-field="item_type">${itemTypeOptionsHtml(item.item_type)}</select></td>
     <td style="text-align:center"><input type="checkbox" class="chk" ${item.required?'checked':''} onchange="saveItem(${item.id})" data-field="required"></td>
-    <td><input type="number" step="0.01" value="${esc(item.target_min??'')}" onblur="saveItem(${item.id})" data-field="target_min" style="width:70px"></td>
-    <td><input type="number" step="0.01" value="${esc(item.target_max??'')}" onblur="saveItem(${item.id})" data-field="target_max" style="width:70px"></td>
+    <td><input type="text" inputmode="decimal" data-zahl data-feld="Ziel min" value="${zahlText(item.target_min)}" onblur="saveItem(${item.id})" data-field="target_min" style="width:70px"></td>
+    <td><input type="text" inputmode="decimal" data-zahl data-feld="Ziel max" value="${zahlText(item.target_max)}" onblur="saveItem(${item.id})" data-field="target_max" style="width:70px"></td>
     <td><input value="${esc(item.unit)}" onblur="saveItem(${item.id})" data-field="unit" style="width:60px"></td>
     <td style="text-align:center"><input type="checkbox" class="chk" ${item.photo_required?'checked':''} onchange="saveItem(${item.id})" data-field="photo_required"></td>
     <td style="text-align:center"><input type="checkbox" class="chk" ${item.photo_before_after?'checked':''} onchange="saveItem(${item.id})" data-field="photo_before_after"></td>
-    <td><input type="number" value="${esc(item.sort_order)}" onblur="saveItem(${item.id})" data-field="sort_order" style="width:60px"></td>
+    <td><input type="text" inputmode="numeric" data-zahl="ganz" data-feld="Reihenfolge" value="${zahlText(item.sort_order)}" onblur="saveItem(${item.id})" data-field="sort_order" style="width:60px"></td>
     <td><button class="danger" onclick="deleteItem(${item.id})">×</button></td>
   </tr>`;
 }
@@ -175,7 +176,7 @@ function renderItems(){
 
 function readItemForm(row){
   const val=field=>row.querySelector(`[data-field="${field}"]`);
-  const numOrNull=field=>{const v=val(field).value;return v===''?null:Number(v)};
+  const numOrNull=field=>zahlFeld(val(field));  // seit 1.8.109 über _zahl.html, leer -> null; wirft bei ungültiger Eingabe
   return {
     group_name:val('group_name').value.trim()||null,
     text:val('text').value.trim(),
@@ -187,7 +188,7 @@ function readItemForm(row){
     unit:val('unit').value.trim()||null,
     photo_required:val('photo_required').checked,
     photo_before_after:val('photo_before_after').checked,
-    sort_order:Number(val('sort_order').value)||100,
+    sort_order:zahlFeld(val('sort_order'),{leer:100}),
   };
 }
 
@@ -203,9 +204,10 @@ function loadTemplate(){
 async function saveItem(itemId){
   const st=document.getElementById('itemStatus');
   const row=document.querySelector(`tr[data-item-id="${itemId}"]`);
+  try{
+  // Seit 1.8.109 im try: readItemForm() liest die Zahlen über _zahl.html, eine abgelehnte erscheint als Fehler.
   const payload=readItemForm(row);
   if(!payload.text){st.className='status err';st.textContent='Bitte einen Prüftext angeben.';return}
-  try{
     await speichern('vorlage',()=>api(`/api/inspection-template-items/${itemId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{neuLaden:loadTemplate});
     st.textContent='';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}

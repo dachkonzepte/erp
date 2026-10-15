@@ -4,6 +4,20 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.109 – Zahleneingaben im deutschen Format, lesbare Fehler, „Festschreiben“
+
+Punkte 1–4 der Vorgabe "Vor dem Abnahmetest" vom 15.10.2026. Zahlenfelder waren `type="number"` -- Chrome liest dort bei deutscher Sprache
+den Punkt als Dezimaltrenner: aus "1.250" wurde still 1,25, aus "1.250,5" sogar 1,2505. Alle Zahlenfelder (rund 160 in 29 Vorlagen) sind
+jetzt Textfelder mit Zifferntastatur, gelesen und gefüllt nur über den neuen Baustein `_zahl.html`: "1.250" ist 1250, "1.250,5" ist
+1250,5, Mehrdeutiges wie "1.25" wird mit Meldung abgelehnt und das Feld markiert; eine abschließende Aktion geht nicht hinaus, solange ein
+Feld abgelehnt ist. Eigene Umwandlungen der Seiten (Komma ersetzen, eigene `num()`) und rohe Feldtexte an den Server sind weg; ein
+Strukturtest findet jede neue.
+
+Ein leeres "Tage bis Fälligkeit" wird abgelehnt statt als 0 gespeichert, wo leer sonst still zu 0 wurde, ebenso; Fehler der Einstellungen,
+der Plantafel und der Arbeitsvorbereitung erscheinen lesbar statt "[object Object]"; "Team entfernen" zeigt die Ablehnung des Servers. Der
+Knopf am Mahnungsentwurf heißt "Festschreiben" -- er schreibt fest und verschickt nichts. Neue Tests `tests/test_v414_zahleneingaben.py`,
+Klicktest `klicktest_zahleneingaben`.
+
 ## 1.8.108 – Suite und Klicktests parallel, Aufräumen der Testschemas, Abbruch in Gegenproben
 
 Werkzeug-Runde, an der Anwendung unter `app/` ändert sich nichts. Die volle Suite läuft parallel über pytest-xdist

@@ -60,7 +60,7 @@ button.danger:hover{background:color-mix(in srgb,var(--danger) 20%,transparent)}
     <div id="editorCharges"></div>
     <div style="display:flex;gap:14px;flex-wrap:wrap">
       <label class="small muted">Zahlungsfrist (Tage ab Festschreiben)
-        <input id="editorPaymentDays" type="number" min="1" max="365" step="1" style="display:block;padding:6px 8px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);margin-top:4px;width:140px">
+        <input id="editorPaymentDays" type="text" inputmode="numeric" data-zahl="ganz" data-min="1" data-max="365" data-feld="Zahlungsfrist" style="display:block;padding:6px 8px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);margin-top:4px;width:140px">
       </label>
     </div>
     <div class="small muted" id="editorDatesHint" data-fristhinweis></div>
@@ -92,6 +92,7 @@ button.danger:hover{background:color-mix(in srgb,var(--danger) 20%,transparent)}
 </div>
 </div>
 {% include "_speichern.html" %}
+{% include "_zahl.html" %}
 <script>
 let levelLabels={},attentionRows=[],allReminders=[];
 // Seit 1.8.79 (Z2a Nr. 1): "zur Mahnung fällig" = nächste Stufe jetzt möglich und kein Grund dagegen; seit 1.8.80 vom Server
@@ -146,10 +147,11 @@ function renderAttentionRows(){
   document.getElementById('attentionRows').innerHTML=rows.length?rows.map(r=>{
     let actions;
     if(r.draft){
-      // Seit 1.8.79: Grund vom Server statt "Versenden", wenn der Entwurf so nicht festgeschrieben würde.
+      // Seit 1.8.79: Grund vom Server statt "Festschreiben" (bis 1.8.108 hieß der Knopf "Versenden", obwohl er nur festschreibt),
+      // wenn der Entwurf so nicht festgeschrieben würde.
       const blocked=r.draft.send_block?`<div class="small" data-sperre style="color:var(--danger);max-width:320px">${esc(r.draft.send_block)}</div>`:'';
       actions=`<div class="row-actions"><span class="pill entwurf">${esc(levelLabel(r.draft.level))} · Entwurf</span>
-        ${blocked||`<button class="primary" onclick="sendReminder(${r.draft.id})">Versenden</button>`}
+        ${blocked||`<button class="primary" onclick="sendReminder(${r.draft.id})">Festschreiben</button>`}
         <button onclick="editReminder(${r.draft.id})">Bearbeiten</button>
         <button onclick="window.open('/api/reminders/${r.draft.id}/pdf','_blank')">PDF</button>
         <button class="danger" onclick="deleteReminder(${r.draft.id})">Löschen</button></div>`;
@@ -173,16 +175,16 @@ function emailStatusLabel(r){
 }
 function renderAllRows(){
   document.getElementById('allRows').innerHTML=allReminders.length?allReminders.map(r=>{
-    // Seit 1.8.72: Rechnung storniert oder bezahlt -- der Grund vom Server statt Versenden bzw. E-Mail.
+    // Seit 1.8.72: Rechnung storniert oder bezahlt -- der Grund vom Server statt Festschreiben bzw. E-Mail.
     const blocked = r.send_block ? `<div class="small" data-sperre style="color:var(--danger);max-width:260px">${esc(r.send_block)}</div>` : '';
-    const emailAction = r.status==='versendet' && blocked ? blocked : r.status==='versendet' ? `<div style="display:flex;gap:5px;align-items:center"><div style="display:flex;flex-direction:column;gap:4px"><input id="reminderEmailInput${r.id}" type="text" inputmode="email" autocomplete="off" value="${esc(r.recipient_email||'')}" placeholder="An – mehrere mit Komma oder Semikolon" title="Empfänger, mehrere mit Komma oder Semikolon trennen" style="padding:5px 7px;border:1px solid var(--field-border);font-family:inherit;font-size:12px;width:170px;background:var(--card);color:var(--ink)"><input id="reminderCcInput${r.id}" type="text" inputmode="email" autocomplete="off" placeholder="CC (optional)" title="CC, mehrere mit Komma oder Semikolon trennen" style="padding:5px 7px;border:1px solid var(--field-border);font-family:inherit;font-size:12px;width:170px;background:var(--card);color:var(--ink)"></div><button onclick="sendReminderEmail(${r.id},this)" title="Per E-Mail senden">✉️</button></div><div style="margin-top:3px">${emailStatusLabel(r)}</div>` : '<span class="small muted">erst nach Finalisieren</span>';
+    const emailAction = r.status==='versendet' && blocked ? blocked : r.status==='versendet' ? `<div style="display:flex;gap:5px;align-items:center"><div style="display:flex;flex-direction:column;gap:4px"><input id="reminderEmailInput${r.id}" type="text" inputmode="email" autocomplete="off" value="${esc(r.recipient_email||'')}" placeholder="An – mehrere mit Komma oder Semikolon" title="Empfänger, mehrere mit Komma oder Semikolon trennen" style="padding:5px 7px;border:1px solid var(--field-border);font-family:inherit;font-size:12px;width:170px;background:var(--card);color:var(--ink)"><input id="reminderCcInput${r.id}" type="text" inputmode="email" autocomplete="off" placeholder="CC (optional)" title="CC, mehrere mit Komma oder Semikolon trennen" style="padding:5px 7px;border:1px solid var(--field-border);font-family:inherit;font-size:12px;width:170px;background:var(--card);color:var(--ink)"></div><button onclick="sendReminderEmail(${r.id},this)" title="Per E-Mail senden">✉️</button></div><div style="margin-top:3px">${emailStatusLabel(r)}</div>` : '<span class="small muted">erst nach dem Festschreiben</span>';
     // Entwürfe sind hier -- anders als in "Benötigt Aufmerksamkeit" -- oft die einzige Stelle, an
-    // der ein Betreiber die Mahnungshistorie insgesamt durchsieht; Versenden/Löschen fehlten hier
+    // der ein Betreiber die Mahnungshistorie insgesamt durchsieht; Festschreiben/Löschen fehlten hier
     // bisher komplett, obwohl ein Entwurf gerade in dieser Tabelle als solcher erkennbar ist.
     const repl = r.status==='entwurf'&&replaceNotice(r) ? `<div class="small" data-ersatz-hinweis style="color:var(--warning);max-width:300px;margin-bottom:4px">${esc(replaceNotice(r))}</div>` : '';
     const warnings = (r.legal_text_warnings||[]).map(w=>`<div class="small" data-rechtstext-warnung style="color:var(--warning);max-width:300px;margin-bottom:4px">${esc(w)}</div>`).join('');
     const actions = r.status==='entwurf'
-      ? `${repl}${warnings}<div class="row-actions">${blocked||`<button class="primary" onclick="sendReminder(${r.id})">Versenden</button>`}
+      ? `${repl}${warnings}<div class="row-actions">${blocked||`<button class="primary" onclick="sendReminder(${r.id})">Festschreiben</button>`}
         <button onclick="editReminder(${r.id})">Bearbeiten</button>
         <button onclick="window.open('/api/reminders/${r.id}/pdf','_blank')">PDF</button>
         <button class="danger" onclick="deleteReminder(${r.id})">Löschen</button></div>`
@@ -246,7 +248,9 @@ async function createSelectedReminders(btn){
 }
 async function sendReminder(id){
   const repl=replaceNotice(allReminders.find(x=>x.id===id));
-  if(!confirm('Mahnung jetzt versenden? Die Mahnungsnummer wird vergeben, danach ist keine Bearbeitung mehr möglich. Das ist kein tatsächlicher Versand an den Kunden – das PDF muss weiterhin separat heruntergeladen und verschickt werden.'+(repl?'\n\n'+repl:'')))return;
+  // Seit 1.8.109 (Vorgabe "Vor dem Abnahmetest" Punkt 3): der Knopf heißt "Festschreiben" -- er vergibt die Nummer und schreibt
+  // fest, verschickt aber nichts (E-Mail danach unter "Alle Mahnungen", sonst Zustellung nachtragen).
+  if(!confirm('Mahnung jetzt festschreiben? Die Mahnungsnummer wird vergeben, danach ist keine Bearbeitung mehr möglich. Festschreiben verschickt nichts – die Mahnung geht danach per E-Mail hinaus (unter „Alle Mahnungen“) oder wird anders zugestellt (Zustellung nachtragen).'+(repl?'\n\n'+repl:'')))return;
   try{
     await abschliessen('mahnwesen',()=>api(`/api/reminders/${id}/send`,{method:'POST'}),{neuLaden:reload});
   }catch(e){ alert('Fehler: '+e.message) }
@@ -266,7 +270,7 @@ function editReminder(id){
   document.getElementById('editorSubtitle').textContent=`${levelLabel(r.level)} zu Rechnung ${r.invoice_number||'—'} (${r.customer_name})`;
   document.getElementById('editorText').value=r.text||'';
   document.getElementById('editorCharges').innerHTML=chargesEditorHtml(r,'editor');
-  document.getElementById('editorPaymentDays').value=r.payment_days||'';
+  document.getElementById('editorPaymentDays').value=zahlText(r.payment_days);
   document.getElementById('editorDatesHint').textContent=`Mahndatum ist der Tag des Festschreibens, die Frist rechnet ab dann – heute festgeschrieben: Mahndatum ${fmtDate(r.effective_reminder_date)}, Frist bis ${fmtDate(r.effective_new_due_date)}.`;
   document.getElementById('editorStatus').textContent='';
   const card=document.getElementById('editorCard');
@@ -302,7 +306,7 @@ function chargesEditorHtml(r,prefix){
     ${repl?`<div class="small" data-ersatz-hinweis style="color:var(--warning);margin-bottom:6px">${esc(repl)}</div>`:''}
     ${existing.length?`<div class="small muted" style="margin-bottom:6px">Schon an der Rechnung: ${existing.map(c=>`${esc(c.label)} ${money(c.amount)}${Number(c.paid)?` (gezahlt ${money(c.paid)})`:''}`).join(' · ')}</div>`:''}
     ${f.block?`<div class="small muted" data-gebuehr-grund>${esc(f.block)}</div>`:`<div class="small muted" data-gebuehr-vorschlag>Vorschlag ${esc(f.level_label)}: Mahngebühr ${money(f.amount)} – gilt erst mit Häkchen.</div>`}
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:4px 0"><label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="${prefix}FeeAccepted" data-blocked="${f.block?'1':''}" ${r.fee_accepted&&!f.block?'checked':''} ${f.block||feeAbsorbed?'disabled':''}> Mahngebühr übernehmen</label><input id="${prefix}FeeAmount" type="number" step="0.01" min="0" value="${esc(f.block?'0.00':r.fee_amount)}" ${f.block?'disabled':''} style="width:120px;padding:5px 7px;border:1px solid var(--field-border);background:var(--card);color:var(--ink)"> €</div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:4px 0"><label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="${prefix}FeeAccepted" data-blocked="${f.block?'1':''}" ${r.fee_accepted&&!f.block?'checked':''} ${f.block||feeAbsorbed?'disabled':''}> Mahngebühr übernehmen</label><input id="${prefix}FeeAmount" type="text" inputmode="decimal" data-zahl data-min="0" data-stellen="2" data-feld="Mahngebühr" value="${f.block?'0,00':zahlText(r.fee_amount,2)}" ${f.block?'disabled':''} style="width:120px;padding:5px 7px;border:1px solid var(--field-border);background:var(--card);color:var(--ink)"> €</div>
     <div class="small muted" id="${prefix}FeeAbsorbed" data-gebuehr-abgegolten style="display:${feeAbsorbed?'block':'none'}">Keine Mahngebühr neben der Pauschale – durch die Pauschale abgegolten (§ 288 Abs. 5 S. 3 BGB).</div>
     <label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="${prefix}FlatAccepted" onchange="feeFlatToggle('${prefix}')" ${r.flat_fee_accepted?'checked':''} ${fl.block&&!r.flat_fee_accepted?'disabled':''}> Pauschale ${money(fl.amount)} nach § 288 Abs. 5 BGB übernehmen</label>
     ${fl.block?`<div class="small muted" data-pauschale-grund>${esc(fl.block)}</div>`:''}
@@ -311,22 +315,28 @@ function chargesEditorHtml(r,prefix){
   </div>`;
 }
 function feeFlatToggle(prefix){const fl=document.getElementById(prefix+'FlatAccepted'),fe=document.getElementById(prefix+'FeeAccepted'),h=document.getElementById(prefix+'FeeAbsorbed');if(!fl||!fe)return;if(fl.checked)fe.checked=false;fe.disabled=fl.checked||fe.dataset.blocked==='1';if(h)h.style.display=fl.checked&&fe.dataset.blocked!=='1'?'block':'none'}
-async function saveReminderCharges(id,prefix){
-  const acc=document.getElementById(prefix+'FeeAccepted');if(!acc)return;const zi=document.getElementById(prefix+'InterestAccepted');
-  const body=JSON.stringify({fee_amount:acc.disabled&&acc.dataset.blocked==='1'?'0.00':(Number(document.getElementById(prefix+'FeeAmount').value)||0).toFixed(2),fee_accepted:acc.checked&&!acc.disabled,flat_fee_accepted:document.getElementById(prefix+'FlatAccepted').checked,interest_accepted:!!(zi&&zi.checked)});
+// Seit 1.8.109: die Gebühr über _zahl.html (deutsches Format, höchstens zwei Nachkommastellen) -- gelesen, bevor irgendetwas
+// gespeichert wird (chargesBody() vor dem ersten speichern()), damit eine abgelehnte Eingabe nichts halb speichert.
+function chargesBody(prefix){
+  const acc=document.getElementById(prefix+'FeeAccepted');if(!acc)return null;const zi=document.getElementById(prefix+'InterestAccepted');
+  return JSON.stringify({fee_amount:acc.disabled&&acc.dataset.blocked==='1'?'0.00':zahlFeld(prefix+'FeeAmount',{leer:0}),fee_accepted:acc.checked&&!acc.disabled,flat_fee_accepted:document.getElementById(prefix+'FlatAccepted').checked,interest_accepted:!!(zi&&zi.checked)});
+}
+async function saveReminderCharges(id,body){
+  if(body===null)return;
   await speichern('mahnwesen',()=>api(`/api/reminders/${id}/charges`,{method:'PUT',headers:{'Content-Type':'application/json'},body}));
 }
 async function saveReminderEdit(){
   if(editingReminderId===null)return;
   const text=document.getElementById('editorText').value;
-  const paymentDays=document.getElementById('editorPaymentDays').value;
-  const warning=reminderMissingPlaceholderWarning(text,paymentDays,allReminders.find(x=>x.id===editingReminderId));
   try{
+    const paymentDays=zahlFeld('editorPaymentDays',{pflicht:true});
+    const charges=chargesBody('editor');
+    const warning=reminderMissingPlaceholderWarning(text,paymentDays,allReminders.find(x=>x.id===editingReminderId));
     const id=editingReminderId;
     await speichern('mahnwesen',()=>api(`/api/reminders/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      text: text||null, payment_days: Number(paymentDays),
+      text: text||null, payment_days: paymentDays,
     })}));
-    await saveReminderCharges(id,'editor');
+    await saveReminderCharges(id,charges);
     await reload();  // seit 1.8.95 erst neu geladen, dann "Gespeichert."
     if(warning) alert('Gespeichert.'+warning);
     cancelEditReminder();

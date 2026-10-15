@@ -86,7 +86,7 @@ meisten Arbeitsprozesse rund 50 s leer, während die Migrationsproben laufen (we
 Tests). Spitze in der Spielwiese bei 16: 34 Verbindungen, 27 814 Sperren, 10 Schemas zugleich (bei 24: 38, 35 795, 10) -- mit der
 alten Grenze (rund 6600 Sperren) wäre der Lauf abgebrochen. Die Läufe auf dem Commit nach Regel 26: im Bericht.
 
-#### Festlegungen 1.8.108 (Bitte bestätigen)
+#### Festlegungen 1.8.108 (alle bestätigt am 15.10.2026)
 
 Alle betreffen nur Werkzeug und Testablauf (Regel 28 seit 1.8.108: der Bericht nennt ihre Zahl), außer Nr. 1.
 
@@ -192,3 +192,19 @@ Schema seines Arbeitsprozesses hat der nächste Testlauf beim Start gelöscht (P
 Kopien) schließen die Sitzung der zweiten Aktion gar nicht -- dieselbe Verklemmung wäre dort möglich, wenn die erste Aktion nach der
 Freigabe noch eine Sperre der zweiten braucht; nicht beobachtet. Eine Zeitgrenze je Test (pytest-timeout oder `faulthandler_timeout`) gibt
 es nicht -- ein hängender Test hält den ganzen Lauf an.
+
+#### Nachtrag 1.8.108 (3): Befunde der Endläufe auf `b8ddb1c` (nachgetragen am 15.10.2026)
+
+Aus den Endläufen auf `b8ddb1c`, im Bericht gemeldet, hier erst mit der nächsten Runde nachgetragen (ein Doku-Commit hätte damals Regel 26
+neu ausgelöst -- seit 15.10.2026 nicht mehr, siehe Regel 26):
+
+1. **Wettlauf in der Anwendung**: `app/orders.py::create_order_revision()` vergab `max(revision_number) + 1` ohne Sperre und nach dem
+   Commit der Änderung -- zwei gleichzeitige Nachträge, der zweite 500 (`uq_order_revision_number`), sein Nachtrag schon gespeichert.
+   Gefunden von `test_v386::test_postgresql_two_addenda_at_once_get_two_numbers` (einer von vier Läufen). Vorgabe vom 15.10.2026 Punkt 5
+   (`docs/archiv/befund-vor-echtbetrieb.md`, "Vor dem Abnahmetest").
+2. **`klicktest_zeitbuchungen_liste` zwischen 0 und 2 Uhr rot** ("Liste gekürzt" der Monteurin fehlte): das Befüllen legte das
+   14-Tage-Fenster relativ zum UTC-Tag an, die Seite rechnet seit 1.8.87 in Berlin. Vorgabe vom 15.10.2026 Punkt 6.
+3. Nebenbefunde 4 und 5 oben (taskkill ohne Zeitlimit, `_run`-Kopien, keine Zeitgrenze je Test): Vorgabe vom 15.10.2026 Punkt 7.
+
+Die Festlegungen 1.8.108 Nr. 1–16 sind am 15.10.2026 bestätigt. Regel 26 ist am selben Tag ergänzt: ein Commit, der nur `docs/` ändert,
+löst keinen neuen Endlauf aus.

@@ -53,7 +53,7 @@ h1{color:var(--ink)}
       <div class="grid">
         <div class="field full"><label>Kurztext *</label><input id="shortText" placeholder="z. B. Dachrinne reinigen"></div>
         <div class="field full"><label>Langtext</label><textarea id="longText" rows="3" placeholder="Ausführliche Beschreibung, z. B. Umfang, Materialien, Ausführungshinweise …"></textarea></div>
-        <div class="field"><label>Menge</label><input id="quantity" type="number" step="0.01" value="1"></div>
+        <div class="field"><label>Menge</label><input id="quantity" type="text" inputmode="decimal" data-zahl value="1"></div>
         <div class="field"><label>Einheit *</label><input id="unit" placeholder="z. B. Stk, m², Std"></div>
         <div class="field full"><label>Leistungstyp <span class="muted">(für spätere Auswertungen)</span></label>
           <select id="serviceType">
@@ -66,9 +66,9 @@ h1{color:var(--ink)}
     <div class="section">
       <h3>Arbeitszeit</h3>
       <div class="grid">
-        <div class="field"><label>Zeit vor Ort (Min.)</label><input id="siteTime" type="number" step="0.01" value="0" oninput="recalc()"></div>
-        <div class="field"><label>Werkstattzeit (Min.)</label><input id="workshopTime" type="number" step="0.01" value="0" oninput="recalc()"></div>
-        <div class="field full"><label>Stundensatz (€, optional) <span class="muted" id="laborRateDefault"></span></label><input id="laborRate" placeholder="Standard verwenden" oninput="recalc()"></div>
+        <div class="field"><label>Zeit vor Ort (Min.)</label><input id="siteTime" type="text" inputmode="decimal" data-zahl value="0" oninput="recalc()"></div>
+        <div class="field"><label>Werkstattzeit (Min.)</label><input id="workshopTime" type="text" inputmode="decimal" data-zahl value="0" oninput="recalc()"></div>
+        <div class="field full"><label>Stundensatz (€, optional) <span class="muted" id="laborRateDefault"></span></label><input id="laborRate" inputmode="decimal" data-zahl data-feld="Stundensatz" placeholder="Standard verwenden" oninput="recalc()"></div>
       </div>
     </div>
 
@@ -81,8 +81,8 @@ h1{color:var(--ink)}
       <div class="addRow">
         <div class="field" style="flex:2 1 220px"><label>Material suchen</label><input id="materialSearch" oninput="searchMaterials()" placeholder="Name oder Artikelnummer …"></div>
         <div class="field" style="flex:2 1 220px"><label>Auswahl</label><select id="materialPick"><option value="">— suchen, dann wählen —</option></select></div>
-        <div class="field" style="width:110px"><label>Menge</label><input id="materialQty" type="number" step="0.01" value="1"></div>
-        <div class="field" style="width:110px"><label>Verschnitt %</label><input id="materialWaste" type="number" step="0.1" value="0"></div>
+        <div class="field" style="width:110px"><label>Menge</label><input id="materialQty" type="text" inputmode="decimal" data-zahl data-feld="Materialmenge" value="1"></div>
+        <div class="field" style="width:110px"><label>Verschnitt %</label><input id="materialWaste" type="text" inputmode="decimal" data-zahl value="0"></div>
         <button type="button" onclick="addMaterialRow()">+ Hinzufügen</button>
       </div>
     </div>
@@ -90,18 +90,18 @@ h1{color:var(--ink)}
     <div class="section">
       <h3>Fremdleistung &amp; Sonstiges</h3>
       <div class="grid">
-        <div class="field"><label>Fremdleistungskosten (€)</label><input id="subcontractorCost" type="number" step="0.01" value="0" oninput="recalc()"></div>
-        <div class="field"><label>Gerätekosten (€)</label><input id="equipmentCost" type="number" step="0.01" value="0" oninput="recalc()"></div>
-        <div class="field"><label>Sonstige Kosten (€)</label><input id="otherCost" type="number" step="0.01" value="0" oninput="recalc()"></div>
+        <div class="field"><label>Fremdleistungskosten (€)</label><input id="subcontractorCost" type="text" inputmode="decimal" data-zahl value="0" oninput="recalc()"></div>
+        <div class="field"><label>Gerätekosten (€)</label><input id="equipmentCost" type="text" inputmode="decimal" data-zahl value="0" oninput="recalc()"></div>
+        <div class="field"><label>Sonstige Kosten (€)</label><input id="otherCost" type="text" inputmode="decimal" data-zahl value="0" oninput="recalc()"></div>
       </div>
     </div>
 
     <div class="section">
       <h3>Zuschläge <span class="muted">(leer = globale Vorgabe verwenden)</span></h3>
       <div class="grid">
-        <div class="field"><label>Materialgewinn % <span class="muted" id="markupDefault"></span></label><input id="markupOverride" placeholder="Standard verwenden" oninput="recalc()"></div>
-        <div class="field"><label>Gemeinkosten % <span class="muted" id="overheadDefault"></span></label><input id="overheadOverride" placeholder="Standard verwenden" oninput="recalc()"></div>
-        <div class="field"><label>Wagnis &amp; Gewinn % <span class="muted" id="riskDefault"></span></label><input id="riskOverride" placeholder="Standard verwenden" oninput="recalc()"></div>
+        <div class="field"><label>Materialgewinn % <span class="muted" id="markupDefault"></span></label><input id="markupOverride" inputmode="decimal" data-zahl data-feld="Materialgewinn %" placeholder="Standard verwenden" oninput="recalc()"></div>
+        <div class="field"><label>Gemeinkosten % <span class="muted" id="overheadDefault"></span></label><input id="overheadOverride" inputmode="decimal" data-zahl data-feld="Gemeinkosten %" placeholder="Standard verwenden" oninput="recalc()"></div>
+        <div class="field"><label>Wagnis &amp; Gewinn % <span class="muted" id="riskDefault"></span></label><input id="riskOverride" inputmode="decimal" data-zahl data-feld="Wagnis &amp; Gewinn %" placeholder="Standard verwenden" oninput="recalc()"></div>
       </div>
     </div>
 
@@ -112,7 +112,7 @@ h1{color:var(--ink)}
         <input id="manualOverrideCheck" type="checkbox" onchange="toggleManualPrice()">
         <label for="manualOverrideCheck" style="margin:0">Verkaufspreis stattdessen manuell festlegen</label>
       </div>
-      <div class="field hidden" id="manualPriceField" style="max-width:220px"><label>Verkaufspreis (€)</label><input id="manualPrice" type="number" step="0.01" oninput="recalc()"></div>
+      <div class="field hidden" id="manualPriceField" style="max-width:220px"><label>Verkaufspreis (€)</label><input id="manualPrice" type="text" inputmode="decimal" data-zahl oninput="recalc()"></div>
     </div>
 
     <button id="saveBtn" onclick="save()">Speichern</button> <span id="msg" class="muted"></span>
@@ -121,6 +121,7 @@ h1{color:var(--ink)}
 
 {% include "_auswahl.html" %}
 {% include "_speichern.html" %}
+{% include "_zahl.html" %}
 <script>
 const serviceId = {{ service_id|default('null') }};
 const editing = serviceId !== null;
@@ -183,20 +184,20 @@ async function init() {
     el('help').textContent = `${service.external_id}`;
     el('shortText').value = service.short_text || '';
     el('longText').value = service.long_text || '';
-    el('quantity').value = service.quantity ?? 1;
+    el('quantity').value = zahlText(service.quantity ?? 1);
     el('unit').value = service.unit || '';
-    el('siteTime').value = calc.site_time_minutes ?? 0;
-    el('workshopTime').value = calc.workshop_time_minutes ?? 0;
-    if (calc.labor_rate_override != null) el('laborRate').value = calc.labor_rate_override;
-    if (calc.material_markup_pct_override != null) el('markupOverride').value = calc.material_markup_pct_override;
-    if (calc.overhead_pct_override != null) el('overheadOverride').value = calc.overhead_pct_override;
-    if (calc.risk_profit_pct_override != null) el('riskOverride').value = calc.risk_profit_pct_override;
-    el('subcontractorCost').value = calc.subcontractor_cost ?? 0;
-    el('equipmentCost').value = calc.equipment_cost ?? 0;
-    el('otherCost').value = calc.other_cost ?? 0;
+    el('siteTime').value = zahlText(calc.site_time_minutes ?? 0);
+    el('workshopTime').value = zahlText(calc.workshop_time_minutes ?? 0);
+    if (calc.labor_rate_override != null) el('laborRate').value = zahlText(calc.labor_rate_override);
+    if (calc.material_markup_pct_override != null) el('markupOverride').value = zahlText(calc.material_markup_pct_override);
+    if (calc.overhead_pct_override != null) el('overheadOverride').value = zahlText(calc.overhead_pct_override);
+    if (calc.risk_profit_pct_override != null) el('riskOverride').value = zahlText(calc.risk_profit_pct_override);
+    el('subcontractorCost').value = zahlText(calc.subcontractor_cost ?? 0);
+    el('equipmentCost').value = zahlText(calc.equipment_cost ?? 0);
+    el('otherCost').value = zahlText(calc.other_cost ?? 0);
     if (calc.manual_sale_price != null) {
       el('manualOverrideCheck').checked = true;
-      el('manualPrice').value = calc.manual_sale_price;
+      el('manualPrice').value = zahlText(calc.manual_sale_price);
       toggleManualPrice();
     }
     materialRows = (service.materials || []).map(m => ({
@@ -246,12 +247,16 @@ function renderMaterialPick() {
 }
 
 async function addMaterialRow() {
-  const materialId = Number(v('materialPick'));
+  const materialId = Number(el('materialPick').value);
   if (!materialId) { el('msg').textContent = 'Bitte zuerst ein Material auswählen.'; return; }
   const material = materialSearchResults.find(m => m.id === materialId);
   if (!material) return;
-  const quantity = Number(v('materialQty') || 1);
-  const wastePct = Number(v('materialWaste') || 0);
+  // Seit 1.8.109 über zahlFeld() (_zahl.html, deutsches Format); eine abgelehnte Eingabe steht in der Statuszeile.
+  let quantity, wastePct;
+  try {
+    quantity = zahlFeld('materialQty', {leer: 1});
+    wastePct = zahlFeld('materialWaste', {leer: 0});
+  } catch (e) { el('msg').textContent = 'Fehler: ' + e.message; return; }
 
   if (editing) {
     try {
@@ -273,7 +278,7 @@ async function addMaterialRow() {
       wastePct, purchasePrice: Number(material.purchase_price), priceBasis: Number(material.price_basis || 1),
     });
   }
-  el('materialSearch').value = ''; el('materialQty').value = '1'; el('materialWaste').value = '0';
+  el('materialSearch').value = ''; el('materialQty').value = zahlText(1); el('materialWaste').value = zahlText(0);
   materialSearchResults = []; renderMaterialPick();
   renderMaterialRows();
   recalc();
@@ -313,31 +318,32 @@ function renderMaterialRows() {
   </tr>`).join('');
 }
 
+// Seit 1.8.109: Vorschau über zahlVorschau() (_zahl.html) -- leer oder ungültig zählt wie leer.
 function recalc() {
-  const siteTime = Number(v('siteTime') || 0);
-  const workshopTime = Number(v('workshopTime') || 0);
-  const laborRate = v('laborRate') !== '' ? Number(v('laborRate')) : Number(globalSettings.labor_rate);
+  const siteTime = zahlVorschau('siteTime') ?? 0;
+  const workshopTime = zahlVorschau('workshopTime') ?? 0;
+  const laborRate = zahlVorschau('laborRate') ?? Number(globalSettings.labor_rate);
   const laborAmount = (siteTime + workshopTime) / 60 * laborRate;
 
   const materialBaseCost = materialRows.reduce((sum, r) => sum + materialRowCost(r), 0);
-  const markupPct = v('markupOverride') !== '' ? Number(v('markupOverride')) : Number(globalSettings.material_markup_pct);
+  const markupPct = zahlVorschau('markupOverride') ?? Number(globalSettings.material_markup_pct);
   const materialMarkupAmount = materialBaseCost * markupPct / 100;
   const materialAmount = materialBaseCost + materialMarkupAmount;
 
-  const equipment = Number(v('equipmentCost') || 0);
-  const subcontract = Number(v('subcontractorCost') || 0);
-  const other = Number(v('otherCost') || 0);
+  const equipment = zahlVorschau('equipmentCost') ?? 0;
+  const subcontract = zahlVorschau('subcontractorCost') ?? 0;
+  const other = zahlVorschau('otherCost') ?? 0;
 
   const subtotal = laborAmount + materialAmount + equipment + subcontract + other;
-  const overheadPct = v('overheadOverride') !== '' ? Number(v('overheadOverride')) : Number(globalSettings.overhead_pct);
+  const overheadPct = zahlVorschau('overheadOverride') ?? Number(globalSettings.overhead_pct);
   const overheadAmount = subtotal * overheadPct / 100;
   const afterOverhead = subtotal + overheadAmount;
-  const riskPct = v('riskOverride') !== '' ? Number(v('riskOverride')) : Number(globalSettings.risk_profit_pct);
+  const riskPct = zahlVorschau('riskOverride') ?? Number(globalSettings.risk_profit_pct);
   const riskAmount = afterOverhead * riskPct / 100;
   const calculatedPrice = afterOverhead + riskAmount;
 
   const manualOn = el('manualOverrideCheck').checked;
-  const manualPrice = manualOn && v('manualPrice') !== '' ? Number(v('manualPrice')) : null;
+  const manualPrice = manualOn ? zahlVorschau('manualPrice') : null;
   const effectivePrice = manualPrice !== null ? manualPrice : calculatedPrice;
 
   const items = [
@@ -356,31 +362,38 @@ async function save() {
   el('msg').textContent = 'Speichert …';
 
   const manualOn = el('manualOverrideCheck').checked;
-  const manualPrice = manualOn && v('manualPrice') !== '' ? v('manualPrice').replace(',', '.') : null;
-
-  const basePayload = {
-    service_type: v('serviceType') || null,
-    short_text: shortText,
-    long_text: v('longText').trim() || null,
-    quantity: v('quantity').replace(',', '.') || '1',
-    unit,
-  };
 
   try {
+    // Seit 1.8.109: jede Zahl über zahlFeld() (_zahl.html, deutsches Format; vorher nur das Komma ersetzt) -- alle gelesen,
+    // bevor irgendetwas gespeichert wird, damit eine abgelehnte Eingabe nichts halb speichert.
+    const manualPrice = manualOn ? zahlFeld('manualPrice') : null;
+    const basePayload = {
+      service_type: v('serviceType') || null,
+      short_text: shortText,
+      long_text: v('longText').trim() || null,
+      quantity: zahlFeld('quantity', {leer: 1}),
+      unit,
+    };
+    const z = {
+      siteTime: zahlFeld('siteTime', {leer: 0}), workshopTime: zahlFeld('workshopTime', {leer: 0}),
+      laborRate: zahlFeld('laborRate'), markup: zahlFeld('markupOverride'),
+      equipment: zahlFeld('equipmentCost', {leer: 0}), subcontractor: zahlFeld('subcontractorCost', {leer: 0}),
+      other: zahlFeld('otherCost', {leer: 0}), overhead: zahlFeld('overheadOverride'), risk: zahlFeld('riskOverride'),
+    };
     if (editing) {
       await speichern('leistung', () => api(`/api/services/${serviceId}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(basePayload)}));
       await speichern('leistung', () => api(`/api/services/${serviceId}/calculation`, {
         method: 'PUT', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({
-          site_time_minutes: v('siteTime').replace(',', '.') || '0',
-          workshop_time_minutes: v('workshopTime').replace(',', '.') || '0',
-          labor_rate_override: v('laborRate') !== '' ? v('laborRate').replace(',', '.') : null,
-          material_markup_pct_override: v('markupOverride') !== '' ? v('markupOverride').replace(',', '.') : null,
-          equipment_cost: v('equipmentCost').replace(',', '.') || '0',
-          subcontractor_cost: v('subcontractorCost').replace(',', '.') || '0',
-          other_cost: v('otherCost').replace(',', '.') || '0',
-          overhead_pct_override: v('overheadOverride') !== '' ? v('overheadOverride').replace(',', '.') : null,
-          risk_profit_pct_override: v('riskOverride') !== '' ? v('riskOverride').replace(',', '.') : null,
+          site_time_minutes: z.siteTime,
+          workshop_time_minutes: z.workshopTime,
+          labor_rate_override: z.laborRate,
+          material_markup_pct_override: z.markup,
+          equipment_cost: z.equipment,
+          subcontractor_cost: z.subcontractor,
+          other_cost: z.other,
+          overhead_pct_override: z.overhead,
+          risk_profit_pct_override: z.risk,
           manual_sale_price: manualPrice,
         }),
       }));
@@ -389,15 +402,15 @@ async function save() {
       const payload = {
         ...basePayload,
         catalog_id: initialCatalogId,
-        site_time_raw: v('siteTime').replace(',', '.') || '0',
-        workshop_time_raw: v('workshopTime').replace(',', '.') || '0',
-        labor_rate_override: v('laborRate') !== '' ? v('laborRate').replace(',', '.') : null,
-        material_markup_pct_override: v('markupOverride') !== '' ? v('markupOverride').replace(',', '.') : null,
-        equipment_cost: v('equipmentCost').replace(',', '.') || '0',
-        subcontractor_cost: v('subcontractorCost').replace(',', '.') || '0',
-        other_cost: v('otherCost').replace(',', '.') || '0',
-        overhead_pct_override: v('overheadOverride') !== '' ? v('overheadOverride').replace(',', '.') : null,
-        risk_profit_pct_override: v('riskOverride') !== '' ? v('riskOverride').replace(',', '.') : null,
+        site_time_raw: z.siteTime,
+        workshop_time_raw: z.workshopTime,
+        labor_rate_override: z.laborRate,
+        material_markup_pct_override: z.markup,
+        equipment_cost: z.equipment,
+        subcontractor_cost: z.subcontractor,
+        other_cost: z.other,
+        overhead_pct_override: z.overhead,
+        risk_profit_pct_override: z.risk,
         sale_price: manualPrice,
         materials: materialRows.map(r => ({ material_id: r.materialId, quantity: String(r.quantity), waste_pct: String(r.wastePct) })),
       };

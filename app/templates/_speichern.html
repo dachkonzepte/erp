@@ -33,7 +33,8 @@
      ist oder ein Bereich der Seite nach einer Zeitüberschreitung unklar ist (Fehler an den Aufrufer, nichts gesendet). Eingaben, die
      _debounce.html noch zurückhält, werden vorher gespeichert. Seit 1.8.99 (Festlegung 1.8.96 Nr. 7, korrigiert): auch ein früher
      gescheitertes Speichern sperrt, bis ein späteres Speichern im selben Bereich gelingt -- das gilt nur für speichern(); eine vom
-     Server abgelehnte abschließende Aktion sperrt keine weitere (eine unklare schon, siehe Zeitlimit).
+     Server abgelehnte abschließende Aktion sperrt keine weitere (eine unklare schon, siehe Zeitlimit). Seit 1.8.109 sperrt auch ein
+     Zahlenfeld, das _zahl.html abgelehnt hat (aria-invalid), bis es korrigiert ist.
 
    Zeitlimit (seit 1.8.96): kommt auf ein Speichern 60 s nach dem Senden keine Antwort, bricht der Baustein die Anfrage ab. Beim
    Hochladen (Body FormData, Blob/File oder Binärdaten) seit 1.8.99 erst 60 s nach dem Ende der Übertragung: die Anfrage geht dann über
@@ -235,6 +236,15 @@ function abschliessen(bereich, anfrage, optionen = {}) {
     if (gescheitert) {
       throw _dkFehler('Nicht ausgeführt: ein Speichern auf der Seite ist gescheitert'
         + (gescheitert.gescheitert ? ` (${gescheitert.gescheitert})` : '') + '. Bitte prüfen und erneut versuchen.', 'abschluss');
+    }
+    // Seit 1.8.109: ebenso, solange ein Zahlenfeld der Seite abgelehnt ist (_zahl.html markiert es mit aria-invalid) -- die
+    // Eingabe ging nicht hinaus, gespeichert ist noch der alte Wert; eine Unterschrift o. ä. versiegelte ihn still.
+    const abgelehnt = typeof document !== 'undefined' && document.querySelector
+      ? document.querySelector('input[data-zahl][aria-invalid="true"]') : null;
+    if (abgelehnt) {
+      const feld = (abgelehnt.dataset && abgelehnt.dataset.feld) || '';
+      throw _dkFehler('Nicht ausgeführt: eine Zahl auf der Seite ist ungültig' + (feld ? ` (${feld})` : '')
+        + ' und nicht gespeichert. Bitte korrigieren und erneut versuchen.', 'abschluss');
     }
   });
 }

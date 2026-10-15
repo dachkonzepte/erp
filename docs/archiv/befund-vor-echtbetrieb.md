@@ -4489,6 +4489,178 @@ bisher; ein anderer Start über http braucht `ERP_ENV=development`.
 Die zweite Vorgabe vom 14.10.2026 ist umgesetzt: Scanner liest Pfeile vollständig (1.8.105), Vorweg 101-4, 102-2, 103-2, 103-3 (1.8.106),
 104-8 und Punkt 2 (1.8.107); `content` der Layout-Bausteine steht im Parkplatz.
 
+## Vor dem Abnahmetest: Zahleneingaben, lesbare Fehler, Revisionsnummer, Testablauf (ab 1.8.109)
+
+### Vorgabe vom 15.10.2026 (übernommen wie gegeben)
+
+> Vorweg zu 1.8.108: Alle 16 Festlegungen bestätigt. Regel 26 ergänzen: Ein Commit, der nur docs/ ändert, löst keinen neuen Endlauf aus.
+>
+> Vor dem Abnahmetest, je mit Angriffstest und Gegenprobe:
+> 1. Zahleneingaben im Browser lesen das deutsche Format über eine gemeinsame Funktion: „1.250“ ist 1250, „1.250,5“ ist 1250,5;
+>    Mehrdeutiges wie „1.25“ wird mit Meldung abgelehnt, nie still umgedeutet. Strukturtest: keine eigene Umwandlung von Zahleneingaben
+>    außerhalb dieser Funktion; Ausnahmeliste darf nur kürzer werden.
+> 2. Zahlungsbedingungen: Ein leeres „Tage bis Fälligkeit“ wird abgelehnt statt still als 0 gespeichert; Fehler erscheinen dort lesbar
+>    statt „[object Object]“.
+> 3. Mahnwesen: Der Knopf, der nur festschreibt, heißt „Festschreiben“, nicht „Versenden“.
+> 4. Die Plantafel zeigt Eingabefehler lesbar; „Team entfernen“ in der Arbeitsvorbereitung zeigt eine Ablehnung an.
+> 5. create_order_revision() vergibt die Revisionsnummer unter Sperre und vor dem Commit; zwei gleichzeitige Nachträge ergeben keinen
+>    500. Gleichzeitigkeit gegen PostgreSQL.
+> 6. klicktest_zeitbuchungen_liste zwischen 0 und 2 Uhr: mit fester Uhr klären, ob der Test oder die Anwendung falsch rechnet; liegt es
+>    an der Anwendung, beheben.
+> 7. Testablauf: Zeitgrenze je Test; die _run-Kopien in test_v363 und test_v365 schließen ihre Sitzungen; taskkill in beenden() mit
+>    Zeitlimit.
+>
+> Eigene Festlegungen mit „Bitte bestätigen“, je in einer Zeile. Nebenbefunde nur melden. Wird der Umfang zu groß: nach Punkt 5
+> committen und den Rest auflisten. Commit nach Regel 13, Bericht kurz.
+
+Aufteilung: 1.8.109 Punkte 1–4 (Browser: Zahlen, Meldungen, Beschriftung), 1.8.110 Punkt 5 (Anwendung, Sperre), 1.8.111 Punkte 6–7
+(Klicktest und Testablauf, Archiv `docs/archiv/testablauf-und-klicktests.md`). Der Vorweg-Teil steht dort und in Regel 26.
+
+### Umsetzung 1.8.109: Zahleneingaben im deutschen Format, lesbare Fehler, Festschreiben (Punkte 1–4)
+
+#### Befund vorweg: was Chrome aus einem Zahlenfeld macht
+
+Gemessen am 15.10.2026 (headless Chrome, mit und ohne `--lang=de-DE`, Sprache des Browsers de-DE, Eingabe getippt über
+`Input.insertText`): in `<input type="number">` liest Chrome den Punkt als Dezimaltrenner, das Komma ebenso -- "1.250" ergab `value`
+"1.250" und `valueAsNumber` **1,25**, "1.250,5" ergab "1.2505" (**1,2505**), "1,5" ergab "1.5"; `validity.badInput` blieb in allen Fällen
+falsch. Die Seite bekam den Rohtext nie zu sehen: mit `type="number"` lässt sich "1.250" nicht als 1250 lesen und "1.25" nicht ablehnen.
+Bis 1.8.108 gab es 159 solche Felder in 25 Vorlagen (Markup und Template-Literale), dazu eigene Umwandlungen: rund 30 Stellen ersetzten
+das Komma selbst (`service_form.html` 20), `customer.html` und `invoice_detail.html` hatten je ein `num()` (Punkt nur als Tausender,
+wenn ein Komma folgte -- "1.250" ohne Komma war 1,25), `settings.html` `rateValue()`; Felder gingen auch roh an den Server
+(Betriebsmittel-Kosten, Rand der Wiederholungszeile, Antworten vom Typ Zahl in Checklisten -- dort ersetzte der Server das Komma), wo
+Pydantic "1.250" als 1,25 las.
+
+#### Was gebaut ist
+
+- **Baustein `app/templates/_zahl.html`** (Punkt 1), die einzige Stelle, an der eine Seite aus einer Eingabe eine Zahl macht:
+  `zahlLesen(text, optionen)` (Regeln unten; Fehler mit `zahlFehler`, Meldung mit Feld und Eingabe), `zahlFeld(el|id, optionen)` (liest
+  das Feld; Optionen auch aus dem Feld: `data-zahl="ganz"`, `data-stellen`, `data-min`/`data-max`, `required`, Beschriftung aus
+  `data-feld` oder dem `<label>`; markiert ein abgelehntes Feld mit `aria-invalid`, rot, bis zur nächsten Eingabe), `zahlVorschau()` (wirft
+  nie, `null` bei leer oder ungültig -- nur für Anzeigen während der Eingabe), `zahlText(wert, stellen)` (füllt ein Feld deutsch ohne
+  Tausenderpunkte; liest einen Wert der API im Maschinenformat, "1.250" aus der API ist 1,25).
+- **Regeln**: Komma = Dezimaltrenner, Punkt = Tausendertrenner nur vor je drei Ziffern und nicht hinter einer führenden 0 ("1.250" =
+  1250, "1.250,5" = 1250,5, "1.250.000" = 1250000); ein Punkt ohne drei Ziffern danach ("1.25", "0.5", "12.50", "1.") ist mehrdeutig
+  und wird mit "… ist nicht eindeutig – Dezimalstellen bitte mit Komma (z. B. 1,25), Tausender mit Punkt vor je drei Ziffern (z. B.
+  1.250)." abgelehnt; sonst nur Ziffern 0–9, höchstens ein Komma, ein Vorzeichen (+, -, −) -- kein Leerzeichen, keine Einheit, kein
+  Exponent ("1e3"), keine anderen Ziffern (arabisch, vollbreit); ",5" = 0,5, "5," abgelehnt; leer = Vorgabe (`leer`, sonst null), mit
+  `pflicht` "<Feld> fehlt."; `ganz`, `stellen` (Nullen am Ende zählen nicht), `min`/`max`.
+- **Alle Zahlenfelder umgestellt**: `<input type="text" inputmode="decimal" data-zahl>` (ganze Zahlen `inputmode="numeric"
+  data-zahl="ganz"`), `step` entfällt, `min`/`max` werden `data-min`/`data-max`; Platzhalter deutsch. Gelesen nur über `zahlFeld()`,
+  Live-Rechnungen über `zahlVorschau()`, gefüllt über `zahlText()`. Gelesen wird vor dem ersten `speichern()` -- eine abgelehnte Zahl
+  speichert nichts halb (Mahnungs-Editor: Zahlungsfrist und Gebühr vor dem ersten von zwei Speichern, `chargesBody()`; Ränder alle acht vor
+  Seite 1; Kalkulation samt Materialzeilen; Leistung: Grunddaten und Kalkulation). Eigene Umwandlungen entfallen (`num()`, `cents()`,
+  `rateValue()`, alle Komma-Ersetzungen). In 29 Vorlagen, davon fünf Gruppen durch Helfer bearbeitet (je Gruppe Dateiliste, Auftrag und
+  Bericht im Scratchpad), jede Gruppe gegengelesen.
+- **`abschliessen()` sperrt bei einem abgelehnten Zahlenfeld** (`_speichern.html`): eine abschließende Aktion (Unterschrift,
+  Festschreiben …) geht nicht hinaus, solange auf der Seite ein Feld `input[data-zahl][aria-invalid="true"]` steht ("Nicht ausgeführt:
+  eine Zahl auf der Seite ist ungültig (<Feld>) und nicht gespeichert …") -- die Eingabe ging nicht hinaus, gespeichert ist der alte
+  Wert, eine Unterschrift versiegelte ihn still. Checkliste und Einsatzbericht prüfen das zusätzlich schon vor ihrer Rückfrage.
+- **Strukturtest** `tests/test_v414_zahleneingaben.py` mit Scanner `tests/vorlagen_zahlen.py` (Tokenizer aus `tests/vorlagen_js.py`), je
+  Fund Vorlage, Zeile, Art, Ausschnitt: `type-number`; `parse` (parseFloat/parseInt/valueAsNumber -- jede Verwendung); `komma`; `wert`
+  (ein Feldwert wird zur Zahl: Argument von Number()/Math.*()/isNaN()/isFinite(), unäres +, Rechnen mit * / % - **, auch über eine
+  Variable, einen Lese-Helfer der Seite `v('id')` oder ein on…-Attribut); `roh` (der Text eines `data-zahl`-Felds außerhalb von
+  `zahlLesen()` -- roh an den Server, auf leer geprüft); `schreiben` (ein Zahlenfeld ohne `zahlText()` gefüllt: `value="${…}"`,
+  `el.value = …`, Setter-Helfer); `inputmode`; `einbinden`. Felder ohne freien Text (Auswahlliste, Häkchen, Datum, versteckt …) erkennt er
+  über die ID -- auch zusammengesetzte (`'rl'+id+'Days'` gegen `rl${x.id}Days`: Anfang und Ende), Selektoren (`#id`, `.klasse`,
+  `[type=…]`, Pseudoklassen ignoriert), Callback-Parameter über `querySelectorAll(…)`, `this` im Attribut; was er nicht auflösen kann,
+  gilt als Textfeld. Ausnahmeliste `AUSNAHMEN`: zwei Stellen ohne Zahleneingabe (darf nur kürzer werden).
+- **Punkt 2, Zahlungsbedingungen** (`settings.html`): "Tage bis Fälligkeit" ist Pflicht (`zahlFeld('ptDays', {pflicht: true})`, ganze
+  Zahl ≥ 0): leer -> "Fehler: Tage bis Fälligkeit fehlt.", nichts gesendet; bis 1.8.108 machte `Number('')` daraus still 0. 0 bleibt
+  eingebbar (sofort fällig). Der Server war schon streng (`days: int`, Pflicht) -- er bekam nur nie ein leeres Feld. `api()` der
+  Einstellungen geht über `fehlerText()` mit `FELDNAMEN` (ein 422 erschien als "[object Object]").
+- **Punkt 3, Mahnwesen**: der Knopf am Entwurf heißt "Festschreiben" (Mahnwesen: "Zur Mahnung fällig"/Aufmerksamkeit und "Alle
+  Mahnungen"; Rechnungsseite: Karte Mahnungen), die Rückfrage "Mahnung jetzt festschreiben? … Festschreiben verschickt nichts – die Mahnung
+  geht danach per E-Mail hinaus … oder wird anders zugestellt (Zustellung nachtragen).", die Statuszeile "Festgeschrieben.", "erst nach dem
+  Festschreiben" statt "erst nach Finalisieren". Funktionsnamen (`sendReminder()`, `sendReminderNow()`) und der Endpunkt bleiben.
+- **Punkt 4, Plantafel und Arbeitsvorbereitung**: `api()` der Plantafel über `fehlerText()` mit `FELDNAMEN` (ein 422, z. B. Anfahrt ≥ 24 h,
+  heißt jetzt "Bitte die Eingabe prüfen – Anfahrt je MA / Tag ist zu groß."), Zahlen im Dialog über den Baustein mit Meldung im Dialog.
+  "Entfernen" an einer Kolonne: bis 1.8.108 ohne `catch` -- die Ablehnung des Servers (409 "Diese Kolonne besitzt noch einen Einsatz in der
+  Plantafel …") lief ins Leere; jetzt in einer neuen Statuszeile unter "Zugewiesene Kolonnen / Teams". `api()` der Arbeitsvorbereitung
+  ebenso über `fehlerText()`.
+
+#### Festlegungen 1.8.109 (Bitte bestätigen)
+
+1. **Zahlenfelder sind Textfelder** (`type="text"`, `inputmode="decimal"`, ganze Zahlen `"numeric"` mit `data-zahl="ganz"`), nicht `type="number"` -- nur so kommt der Rohtext an; die Pfeiltasten am Feld entfallen.
+2. **"1,250" ist 1,25** (deutsches Format) -- abgelehnt wird nur, was mit Punkt mehrdeutig ist; ein Punkt ohne drei Ziffern danach ist nie ein Dezimaltrenner.
+3. **Leer behält je Feld seine bisherige Bedeutung** (0, Vorgabe wie 12 oder 100, null); Pflicht nur, wo leer bisher still zu 0 wurde und fachlich nichts bedeutet (Liste unter "Leer jetzt Pflicht").
+4. **Grenzen aus dem Markup gelten jetzt im Browser** (`data-min`/`data-max`, bisher wirkungslos) -- z. B. Wartungsintervall 1–24 statt "0" still zu 12, Dauer in `/mobil` ab 0,25 h (der Server nimmt mehr als 0).
+5. **`data-stellen` dort, wo der Server Nachkommastellen begrenzt** (Mahngebühr 2, Basiszinssatz 3) **und bei Geldfeldern auf einer Spalte mit zwei Stellen** (Zahlungen, Erstattung, Rest zuordnen, Eingangsrechnung, Betriebskosten, Anschaffungs- und laufende Kosten) -- sonst keine Grenze, auch wo die Spalte weniger Stellen hat (Nebenbefund 3).
+6. **Ein abgelehntes Feld bleibt rot markiert bis zur nächsten Eingabe, und keine abschließende Aktion der Seite geht hinaus, solange es markiert ist** (`abschliessen()`).
+7. **Ein Wert wird gelesen, bevor irgendetwas gespeichert wird** -- auch wo eine Funktion zwei Speichern hintereinander auslöst.
+8. **Die Zeilen des Zahlungsdialogs der Rechnungsseite tragen kein `data-zahl`**: sie halten den getippten Text beim Neuzeichnen und werden über `zahlLesen()` mit eigenem Feldnamen ("Zahlung R-…") gelesen; ein abgelehnter Betrag sperrt "Buchung bestätigen".
+9. **Funktionen, die Klicktests und Tests mit einem Text aufrufen, nehmen weiter einen Text** (`quickItem()`, `quickIst()`, `saveInlineField()`, `saveContinuationHeaderPosition()`): ein Text geht über `zahlLesen()`, ein Feld über `zahlFeld()`.
+10. **Ausnahmeliste mit zwei Einträgen**: `Number(p.value)` in `_berlin_date.html` (Teil von `Intl.formatToParts()`, kein Feld) und die Kunden-Auswahl in `inquiries.html` (ID aus einer Schleife).
+11. **Der Scanner sieht Texte, die nicht auflösbar sind, als Zahlenfeld-Kandidaten** (lieber ein Fund zu viel), und der rohe Text eines `data-zahl`-Felds ist immer ein Fund, auch nur auf leer geprüft.
+12. **Zahlungsbedingung "Tage" 0 bleibt erlaubt**; nur leer ist abgelehnt. Der Server bleibt unverändert (Pflichtfeld, ganze Zahl ≥ 0).
+13. **Feldnamen für lesbare 422** stehen je Seite in `FELDNAMEN` (Einstellungen, Plantafel, Arbeitsvorbereitung); fehlt ein Name, erscheint der der API.
+14. **Punkt 3 ändert nur Beschriftung, Rückfrage und Statuszeile**; Funktionsnamen und Endpunkt (`/api/reminders/{id}/send`) bleiben.
+15. **"Team entfernen" meldet unter den zugewiesenen Teams** (neue Statuszeile); Einzelmitarbeiter entfernen und Material speichern bleiben, wie sie sind (Nebenbefund 5).
+
+#### Leer jetzt Pflicht (bis 1.8.108 still 0 oder erst vom Server abgelehnt)
+
+Einstellungen: Tage bis Fälligkeit, MwSt.-Satz eines Steuerschlüssels, acht Ränder, Nummernkreis Start und nächste Nummer, Zahlungsfrist
+der Mahnstufe, SMTP-Port, Position der Wiederholungszeile, Basiszinssatz, Wartungsfenster (Monate). Mahnwesen und Rechnungsseite:
+Zahlungsfrist im Mahnungs-Editor. Angebot: Menge und Einheitspreis der Position. Auftrag: Menge und Preis in der Liste und im Dialog, Menge
+des Nachtrags. Rechnung: Pauschalbetrag, Ist-Menge (Dialog und Liste). Zeiterfassung Büro: Stunden (Einzel- und Gruppenbuchung),
+Backoffice: Stunden der Korrektur, Tagesstunden eines Zeitmodells, Pausenregel (ab Stunden, Minuten). Stammdaten: Wochenstunden,
+Einkaufspreis. Alle übrigen Felder behalten ihre Vorgabe bei leer.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v414_zahleneingaben.py`: Angriffstabelle in node -- 21 gültige Eingaben, 10 mehrdeutige ("1.25", "0.5", "12.50",
+  "1.250.5" …, jeweils mit Meldung und dem richtigen Weg darin), 25 Nicht-Zahlen ("1,2,3", "1e3", "Infinity", "1 250", "12 %", "1.25,5",
+  "1,250.5", arabische und vollbreite Ziffern, geschütztes Leerzeichen …), Grenzen, ganze Zahl, Nachkommastellen, leer und Pflicht, gekürzte
+  Meldung; `zahlText()` (auch "1.250" aus der API = "1,25") und der Weg hin und zurück für zwölf Werte; `zahlFeld()` mit Optionen aus dem
+  Feld, Beschriftung aus dem Label, Markierung und ihr Ende, `zahlVorschau()` wirft nie; `abschliessen()` geht mit einem markierten Feld
+  nicht hinaus; Strukturtest über alle Vorlagen, Ausnahmeliste ohne veraltete Einträge, jede Seite mit Zahlenfeld bindet den Baustein ein,
+  es gibt Zahlenfelder und sie lesen über `zahlFeld()`; Selbsttest des Scanners an 30 erfundenen Vorlagen (18 Funde, 11 erlaubt, Einbindung).
+- Klicktest neu `klicktest_zahleneingaben.py` (Angriffstest im echten Browser, getippt über `Input.insertText`, 26 Prüfungen): Nachtrag
+  "1.250"/"1.250,5" gespeichert als 1250/1250,5, "1.25" mit Meldung abgelehnt, nichts gespeichert, Feld markiert und nach dem
+  Korrigieren nicht mehr; Zahlungsbedingung ohne Tage und mit "1.5" abgelehnt, nichts gespeichert, 422 (Bezeichnung zu lang) lesbar, "30"
+  gespeichert; "Festschreiben" statt "Versenden", geklickt festgeschrieben ohne E-Mail; Plantafel "1.25" und 422 lesbar; Team entfernen
+  mit dem Grund des Servers. Dabei auch der Befund vorweg (Chrome macht aus "1.250" in `type="number"` 1,25) mit einem Probe-Skript
+  gemessen.
+- **Angepasste Erwartungen** (Regel 28):
+  - `klicktest_rechnungen_sperren`, Prüfung "Mahnung: kein Versenden": sucht jetzt den Knopf "Festschreiben" (Name "Mahnung: kein
+    Festschreiben"); altes Soll "kein Knopf 'Versenden'" -- nach der Umbenennung wäre das immer erfüllt.
+  - `klicktest_vertrag_abschrift`, Prüfung "422 Abschlag: lesbar" -> "Abschlag 1.25: lesbar": altes Soll "1.234,56" ergibt den 422
+    "Betrag netto muss eine Zahl sein (ohne Tausenderpunkt)." -- seit 1.8.109 ist "1.234,56" gültig (1234,56) und erreicht den Server
+    als Zahl; neues Soll: "1.25" ergibt die Meldung des Bausteins. Den lesbaren 422 der Seite prüft weiter das Auftragsdatum.
+  - `klicktest_nebenforderungen`, Prüfung "Vorschläge 0 / 10 / 15 €": liest die Gebührenfelder über `zahlLesen()` statt `Number()`
+    (das Feld zeigt jetzt "10,00"); Soll unverändert.
+  - `test_v377_leistungszeitraum::test_invoice_page_takes_the_proposal_only_by_click`: altes Soll "das Wort 'festschreiben' kommt in
+    der Rechnungsseite nicht vor" (gemeint: kein Helfer, der den Zeitraum still einträgt) -- die Rückfrage der Mahnung sagt jetzt
+    "festschreiben"; neues Soll: kein Aufruf `festschreiben(`.
+  - Aufbau ohne geänderte Prüfung: `test_v334_auswahl_restfaelle.py::seite()` bindet `_zahl.html` ein (Attrappe mit `getAttribute`),
+    `test_v397_kleinkram_zahlungen.py::_zahlungskarte()` liest den Baustein statt der entfallenen Zeile `fmt`,
+    `test_v399_teil_updates_geld.py` (Attrappe und Baustein; die Kalkulation füllt ihre Felder deutsch über `zahlText()` statt über `v()`).
+- Gegenproben (Regel 24): 19 von 19 rot, jede aus dem erwarteten Grund -- Punkt ohne drei Ziffern angenommen (Mehrdeutiges, auch im
+  Klicktest: "1.25" ohne Meldung), Punkt als Dezimaltrenner ("1.250" = 1,25), `type="number"`, eigene Umwandlung `Number(…value)`
+  (auch im Klicktest: Plantafel "1.25" ohne Meldung), roher Feldtext an den Server, Füllen ohne `zahlText()`, Komma ersetzen,
+  `parseFloat`, Baustein nicht eingebunden, `abschliessen()` ohne Sperre, Scanner ohne Prüfung der Feldwerte, "Tage" leer als 0 (auch im
+  Klicktest), `detail` roh in Einstellungen und Plantafel, Knopf wieder "Versenden", "Team entfernen" ohne `catch`. Jede Datei byte-genau
+  zurück (SHA-256), kein Marker.
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **Der Server ersetzt bei Antworten vom Typ Zahl (Checklisten) selbst das Komma** (`app/checklists.py:1094`,
+   `app/checklist_rules.py:78`: `Decimal(str(value).replace(",", "."))`) -- käme dort Text an, wäre "1.250" 1,25. Die Seite schickt seit
+   1.8.109 eine Zahl; andere Wege (ein älteres Gerät, ein Skript) gingen weiter durch diese Umwandlung.
+2. **`inputmode="decimal"` zeigt auf iOS kein Minus** -- Felder, die negativ sein dürfen (Zuschläge in Leistung und Kalkulation, Verschnitt,
+   Messwerte und Grenzwerte), lassen sich auf dem iPad nur mit externer Tastatur negativ eingeben.
+3. **Spalten mit weniger Nachkommastellen als die Eingabe erlaubt, ohne `decimal_places` im Schema** -- PostgreSQL rundet still: Ränder
+   `Numeric(5,1)`, Position der Wiederholungszeile `Numeric(6,2)`, Skonto `Numeric(5,2)`, geplante Stunden `Numeric(18,2)`, Neigung
+   `Numeric(5,2)` (über 999,99 Überlauf), Fläche, Mengen, Messwerte `(18,2)`, Material `(18,3)`.
+4. **Anzeigen im Maschinenformat** (keine Eingaben): Menge und Verschnitt in der Materialtabelle der Leistung ("1.5"), "Soll: 12.50–…" im
+   Einsatzbericht, der Vergleichswert in der Regelbeschreibung der Checklisten-Vorlage.
+5. **Fehler des Servers ohne Anzeige**: Arbeitsvorbereitung Einzelmitarbeiter ändern/entfernen und Material speichern (kein `catch`);
+   Zeiterfassung Büro und Backoffice zeigen ein 422 weiter als "[object Object]" (`api()` ohne `fehlerText()`); in der Backoffice-Einstellung
+   erscheint eine abgelehnte Standardpause beim DATEV-Häkchen auf dem anderen Reiter.
+6. **`_fehlertext.html` sagt bei `decimal_parsing` "(ohne Tausenderpunkt)"** -- seit die Seiten Zahlen schicken, kann das nur noch ein
+   anderer Weg auslösen; der Hinweis passt nicht mehr zur Eingabe.
+7. **`tests/test_v362_maengel_im_protokoll.py`** startet die zweite Aktion zweier PG-Tests mit `Session()` direkt im Thread, ohne die
+   Sitzung zu schließen -- dasselbe Muster wie die `_run`-Kopien (Punkt 7), dort nicht als `_run`.
+
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
 Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):

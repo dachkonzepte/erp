@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.108** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.109** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -668,7 +668,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     und seit wann. Anlass: `klicktest_vertragsvorlagen.py` erwartete seit 1.8.50 22 statt 23 Platzhalter; aufgefallen erst beim
     ersten Gesamtlauf (1.8.76). **Seit 1.8.99 (Betreibervorgabe 14.10.2026): volle Suite und alle Klicktests laufen auf dem committeten
     Endstand bei sauberer Arbeitskopie** (`git status` ohne Änderungen, z. B. eine frische Arbeitskopie auf dem Commit), der Bericht nennt
-    den Hash dieses Commits; ändert sich danach noch etwas (auch nur ein Kommentar oder eine Doku-Zeile), laufen beide neu.
+    den Hash dieses Commits; ändert sich danach noch etwas (auch nur ein Kommentar oder eine Doku-Zeile), laufen beide neu. **Seit
+    15.10.2026 (Betreibervorgabe): ein Commit, der nur `docs/` ändert, löst keinen neuen Endlauf aus.**
 
 27. **Kein Test gegen PostgreSQL läuft im Schema `public` der Spielwiese, seit 1.8.81.** Jeder PostgreSQL-Test nimmt ein
     Wegwerf-Schema (`connect_args={"options": "-csearch_path=<schema>"}` bzw. `tests/befund_vor_echtbetrieb.py::pg_sitzung()`); eine
@@ -707,7 +708,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     warnt die Seite beim Verlassen (seit 1.8.96). **Abschließende Aktionen** (Unterschrift, Festschreiben, Versand, Buchung, Storno, Abnahme,
     Mangel u. ä.) über `abschliessen()`: gesendet erst, wenn jedes beim Klick laufende oder wartende Speichern der Seite zurück ist, gar
     nicht in einem unklaren Bereich und nicht, solange in einem Bereich das letzte Speichern gescheitert ist (seit 1.8.99 auch vor dem
-    Klick, bis ein späteres Speichern im selben Bereich gelingt; eine abgelehnte abschließende Aktion sperrt keine weitere); eine neue gehört in `ABSCHLIESSEND` (`tests/test_v399_abschliessen.py`,
+    Klick, bis ein späteres Speichern im selben Bereich gelingt; eine abgelehnte abschließende Aktion sperrt keine weitere; seit 1.8.109 auch
+    nicht, solange ein Zahlenfeld der Seite abgelehnt ist, Regel 34); eine neue gehört in `ABSCHLIESSEND` (`tests/test_v399_abschliessen.py`,
     prüft auch abschließend klingende Adressen). Eine Anfrage außerhalb des Bausteins gibt es nur ohne Formular (nur Anzeige, Suche,
     Anmeldestatus, Prüfung), eingetragen in `AUSNAHMEN` (`tests/test_v400_lesen_ueber_baustein.py`, Scanner
     `tests/vorlagen_js.py::anfragen_ausserhalb()`, seit 1.8.99 auch Aufrufe von `api()`/`fetch()` direkt aus einem on…-Attribut; darf nur
@@ -763,6 +765,17 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     echte Schranke nehmen `tests/anmeldung.py::browser_client()`. `tests/test_v409_ursprung_und_rahmen.py` (Angriffstabelle, Rundgang über
     alle GET-Routen), `tests/test_v412_hsts_und_fehlerseite.py`, Klicktest `klicktest_fremde_seite.py`. Details:
     `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.104" und "Umsetzung 1.8.107".
+
+34. **Jede Zahleneingabe über `app/templates/_zahl.html`, seit 1.8.109.** Ein Zahlenfeld ist `<input type="text" inputmode="decimal"
+    data-zahl>` (ganze Zahlen `inputmode="numeric" data-zahl="ganz"`), nie `type="number"` -- Chrome liest dort bei deutscher Sprache
+    "1.250" still als 1,25 und gibt den Rohtext nicht heraus. Gelesen nur über `zahlFeld()` (Optionen auch aus dem Feld: `data-min`/
+    `data-max`, `data-stellen`, `required`, Beschriftung aus `data-feld` oder dem Label) bzw. `zahlLesen()`, Anzeigen während der Eingabe
+    über `zahlVorschau()`, gefüllt über `zahlText()`; gelesen wird vor dem ersten Speichern. Deutsches Format: Komma dezimal, Punkt nur als
+    Tausender vor je drei Ziffern; Mehrdeutiges ("1.25") mit Meldung abgelehnt, das Feld bleibt markiert, `abschliessen()` sperrt solange
+    (Regel 29). `tests/test_v414_zahleneingaben.py` (Scanner `tests/vorlagen_zahlen.py`) findet `type="number"`, parseFloat/parseInt,
+    Komma ersetzen, jede Umwandlung eines Feldwerts (Number(), +, Rechnen) außerhalb des Bausteins -- Auswahllisten, Häkchen und Datum
+    erkennt er über die ID --, den rohen Text eines Zahlenfelds und Füllen ohne `zahlText()`; `AUSNAHMEN` darf nur kürzer werden.
+    Klicktest `klicktest_zahleneingaben.py`. Details: `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.109".
 
 ## Fachbegriffe & Domänenmodell
 
@@ -1193,7 +1206,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   (`tests/vorlagen_js.py::_ausdruck_ende()`, eine Funktion für alle, Zeilenende wie die Semikolon-Einfügung), Lieferschein-Knopf ohne Werte
   im onclick; seit 1.8.106 Vorweg: SVG-Logo mit Sandbox geprüft, TEXT_IDS vollständig und dauerhaft über alle Modelle und Antworten
   geprüft, Admin meldet beim Beenden der Sitzungen auch die vertrauten Geräte ab, Feierabend als POST ohne Kreis über `/login`; seit
-  1.8.107 Secure als Vorgabe (ohne nur `ERP_ENV=development`/`test`), HSTS, Schutzkopfzeilen auch an der 500)
+  1.8.107 Secure als Vorgabe (ohne nur `ERP_ENV=development`/`test`), HSTS, Schutzkopfzeilen auch an der 500; vor dem Abnahmetest
+  ab 1.8.109: Zahleneingaben im deutschen Format über `_zahl.html` (Regel 34), lesbare Fehler in Einstellungen, Plantafel und
+  Arbeitsvorbereitung, "Festschreiben" am Mahnungsentwurf)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Zahlungen** (Zahlungsstufe Z1 seit 1.8.78: Zahlungseingang mit Zuordnungen, Skonto und Einbehalt, Rest am Kunden,
   Zahlstand abgeleitet, Gegenbuchung statt Ändern, Sperrreihenfolge, Storno erst nach gelösten Zuordnungen, Finanzen/Dashboard mit
@@ -1257,8 +1272,8 @@ Herleitung in der jeweils verlinkten Archivdatei, nicht hier dupliziert.
 - **Abgelehnte API-Antworten lesbar über `app/templates/_fehlertext.html`** (seit 1.8.35, `fehlerText(body, status,
   felder)`): `detail` als Text unverändert, als 422-Liste "Bitte die Eingabe prüfen – <Feld> <Art>." mit den
   Feldnamen der Seite, sonst ein Text je Status. Auftragsseite, seit 1.8.37 Projektmappe und Stammdaten (Liste,
-  Formular); 33 weitere Vorlagen reichen `detail` noch roh an `Error()` weiter ("[object Object]" bei 422) -- eine
-  Seite, die man anfasst, stellt um.
+  Formular), seit 1.8.109 Einstellungen, Plantafel und Arbeitsvorbereitung; 28 weitere Vorlagen reichen `detail` noch roh an
+  `Error()` weiter ("[object Object]" bei 422) -- eine Seite, die man anfasst, stellt um.
 - **Feste Werte passen in ihre Spalte** (seit 1.8.61, seit 1.8.62 für jede Textspalte): unter PostgreSQL lehnt eine zu kurze
   `String(n)`-Spalte einen längeren Wert ab, SQLite nimmt ihn still an. `tests/test_v364_feste_werte_spaltenlaenge.py` prüft
   jede Spalte mit festen Werten gegen ihre Länge -- aus den Konstanten im Code (`FESTE_WERTE`), aus Literalen ohne Konstante
@@ -1525,7 +1540,9 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
 - **Seitenskript in node ausführen** (seit 1.8.95): die Seiten speichern über `speichern()` -- eine Testseite aus Attrappe und
   Seitenskript braucht `_speichern.html` dazu (Vorbild `tests/test_v334_auswahl_restfaelle.py::seite()`), sonst endet jedes Speichern mit
   "speichern is not defined". Ein Test, der den Rumpf einer Speicherfunktion wörtlich liest (`tests/test_v329_teil_updates.py::ui_keys`),
-  findet `body:JSON.stringify(` im Pfeil innerhalb von `speichern()`.
+  findet `body:JSON.stringify(` im Pfeil innerhalb von `speichern()`. Seit 1.8.109 dazu `_zahl.html` (Zahlenfelder lesen über
+  `zahlFeld()`; die Attrappe eines Felds braucht `dataset`, `getAttribute`, `setAttribute`, `removeAttribute`, der Wert steht deutsch
+  im Feld).
 
 - **Feste Uhr statt Tageszeit** (seit 1.8.36): ein Test, dessen Ergebnis von der Uhrzeit abhängt (z. B. Monteur
   an `/api/field-view/today`, ab 19:00 "Feierabend" 401), nimmt die Fixture `feste_uhr` bzw. in einer Modul-Fixture
@@ -1704,7 +1721,7 @@ mit Guthaben und Zahlungsausgang, zurücknehmen, 412 px dunkel, Monteurin 403) u
 `klicktest_browser_datum.py` (1.8.87, Instanz und Browser-Uhr um 00:30 Uhr, Browser in UTC und New York: Monteur-Zeiterfassung mit der
 Buchung von heute, Stundenzettel, Büro-Zeiterfassung, Aufgaben überfällig, Plantafel, Kalender) und `klicktest_zahlungen_kleinkram.py`
 (1.8.94, Finanzen „Bezahlt (gesamt)“ abzüglich Erstattungen, Kundenakte mit Grund statt „Zahlung zurücknehmen“ und gruppiertem „Rest
-zuordnen“, Zahlungsdialog gruppiert und umverteilt gebucht, Zahlbetrag 0 € mit Satz und ohne Schlusstext, 412 px dunkel, Monteurin 403) und `klicktest_abschliessen.py` (1.8.96, Einsatzbericht: Prüfpunkt zurückhalten, dann unterschreiben -- Unterschrift erst nach dem Prüfpunkt; Prüfpunkt scheitert -- Unterschrift nicht ausgeführt; Zeitlimit 2 s über `window.__dkZeitlimit` -- Meldung, Hinweis oben, Unterschrift abgelehnt) und `klicktest_anmelden.py` (1.8.97, Formular mit falschem und richtigem Passwort, Doppelklick nicht parallel, Admin bis zum zweiten Faktor, Abmelden über beide Kopfzeilen -- die Seite wartet die Abmeldung ab --, Seitenleiste nachgestellt; seit 1.8.98 als Prüfungen: Angriffe auf `next`, der alte Cookie-Wert nach dem Abmelden 401, „Zurück“ ohne Daten) und `klicktest_dateien_nie_aktiv.py` (1.8.101, SVG und HTML aus Kundenakte, Projektmappe, Objekt und /mobil laufen nicht -- jede view-Adresse direkt geöffnet ein Download, kein Eintrag im localStorage --, Foto und PDF erscheinen, SVG-Logo in der Seitenleiste sichtbar; Downloads des Tabs über `tab.downloads`, gesammelt aus `Page.downloadWillBegin`) und `klicktest_daten_im_html.py` (1.8.102, Namen mit `"><img onerror>`, `');…//` und `&quot;` in Kundenakte, Projektmappe, Einsatzbericht, "Neues Projekt"/"Neues Angebot", Kalender, Betriebsmittel: kein Skript, Namen als Text, umgebaute Knöpfe tun es weiter mit genau dem Wert, Modul-Schalter über `data-aenderung`) und `klicktest_anmeldung_abgelaufen.py` (1.8.103, Kundenakte: Admin beendet die Sitzungen von außen, Speichern -> „Anmeldung abgelaufen“ am Bereich und oben, Eingaben stehen; im zweiten Tab angemeldet -- `tab.zweiter_tab()` --, derselbe Klick speichert, Hinweis weg) und `klicktest_fremde_seite.py` (1.8.104, zweiter Server auf 127.0.0.1 als Seite derselben Site: Rahmen nicht angezeigt, Upload/Abmelden/Anmelden von dort 403, die eigene Seite speichert weiter). Kopfzeilen einer Antwort aus urllib klein geschrieben vergleichen (der Server schickt sie klein). **Netzwerkprotokoll** (seit 1.8.97): jeder Tab zeichnet die Network-Ereignisse auf (`tab.netz`); beim Scheitern (Abweichung in `pruefe()`, Seite nicht bereit, Warte-Helfer abgebrochen, `warten()` abgelaufen, Ende eines nicht erfolgreichen Laufs) druckt das Werkzeug die offenen Anfragen mit Adresse, Startzeit und "gesendet ja/nein"; eine gewollte Pause `warten("false", 1.0, melden=False)`; `tab.im_netz_anhalten()` hält eine Anfrage an, bevor sie gesendet wird. Ein Dialog des Browsers (vor allem „Seite verlassen?“ bei einer Navigation während eines Speicherns) hielt bis 1.8.97 jeden weiteren CDP-Befehl an; seit 1.8.98 meldet das Werkzeug ihn (Lauf nicht wie erwartet, samt Netzprotokoll) und nimmt ihn an.
+zuordnen“, Zahlungsdialog gruppiert und umverteilt gebucht, Zahlbetrag 0 € mit Satz und ohne Schlusstext, 412 px dunkel, Monteurin 403) und `klicktest_abschliessen.py` (1.8.96, Einsatzbericht: Prüfpunkt zurückhalten, dann unterschreiben -- Unterschrift erst nach dem Prüfpunkt; Prüfpunkt scheitert -- Unterschrift nicht ausgeführt; Zeitlimit 2 s über `window.__dkZeitlimit` -- Meldung, Hinweis oben, Unterschrift abgelehnt) und `klicktest_anmelden.py` (1.8.97, Formular mit falschem und richtigem Passwort, Doppelklick nicht parallel, Admin bis zum zweiten Faktor, Abmelden über beide Kopfzeilen -- die Seite wartet die Abmeldung ab --, Seitenleiste nachgestellt; seit 1.8.98 als Prüfungen: Angriffe auf `next`, der alte Cookie-Wert nach dem Abmelden 401, „Zurück“ ohne Daten) und `klicktest_dateien_nie_aktiv.py` (1.8.101, SVG und HTML aus Kundenakte, Projektmappe, Objekt und /mobil laufen nicht -- jede view-Adresse direkt geöffnet ein Download, kein Eintrag im localStorage --, Foto und PDF erscheinen, SVG-Logo in der Seitenleiste sichtbar; Downloads des Tabs über `tab.downloads`, gesammelt aus `Page.downloadWillBegin`) und `klicktest_daten_im_html.py` (1.8.102, Namen mit `"><img onerror>`, `');…//` und `&quot;` in Kundenakte, Projektmappe, Einsatzbericht, "Neues Projekt"/"Neues Angebot", Kalender, Betriebsmittel: kein Skript, Namen als Text, umgebaute Knöpfe tun es weiter mit genau dem Wert, Modul-Schalter über `data-aenderung`) und `klicktest_anmeldung_abgelaufen.py` (1.8.103, Kundenakte: Admin beendet die Sitzungen von außen, Speichern -> „Anmeldung abgelaufen“ am Bereich und oben, Eingaben stehen; im zweiten Tab angemeldet -- `tab.zweiter_tab()` --, derselbe Klick speichert, Hinweis weg) und `klicktest_fremde_seite.py` (1.8.104, zweiter Server auf 127.0.0.1 als Seite derselben Site: Rahmen nicht angezeigt, Upload/Abmelden/Anmelden von dort 403, die eigene Seite speichert weiter) und `klicktest_zahleneingaben.py` (1.8.109, getippt über `Input.insertText`: Nachtrag mit „1.250“ und „1.250,5“ gespeichert als 1250 und 1250,5, „1.25“ mit Meldung abgelehnt und markiert; Zahlungsbedingung ohne Tage abgelehnt, 422 lesbar; „Festschreiben“ im Mahnwesen; Plantafel und „Team entfernen“ mit lesbarer Meldung). Kopfzeilen einer Antwort aus urllib klein geschrieben vergleichen (der Server schickt sie klein). **Netzwerkprotokoll** (seit 1.8.97): jeder Tab zeichnet die Network-Ereignisse auf (`tab.netz`); beim Scheitern (Abweichung in `pruefe()`, Seite nicht bereit, Warte-Helfer abgebrochen, `warten()` abgelaufen, Ende eines nicht erfolgreichen Laufs) druckt das Werkzeug die offenen Anfragen mit Adresse, Startzeit und "gesendet ja/nein"; eine gewollte Pause `warten("false", 1.0, melden=False)`; `tab.im_netz_anhalten()` hält eine Anfrage an, bevor sie gesendet wird. Ein Dialog des Browsers (vor allem „Seite verlassen?“ bei einer Navigation während eines Speicherns) hielt bis 1.8.97 jeden weiteren CDP-Befehl an; seit 1.8.98 meldet das Werkzeug ihn (Lauf nicht wie erwartet, samt Netzprotokoll) und nimmt ihn an.
 **Nach einer Aktion, die neu lädt** (seit 1.8.94), nie eine feste Pause oder einen Statustext als Beleg nehmen -- viele Seiten setzen
 ihn vor dem Neuladen --, sondern `await tab.warte_auf_neu_geladene_liste("…click()", "#liste")` (wartet, bis keine Anfrage der Seite
 mehr unterwegs und die Liste neu gezeichnet ist; ohne Aktion nach `oeffnen()`, bevor geprüft wird, dass etwas NICHT erscheint);

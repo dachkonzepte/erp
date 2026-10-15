@@ -7,6 +7,7 @@
   Festschreiben (409 mit Grund). Vorschlag im Entwurf mit Quelle, übernommen nur per Klick (PUT); Storno übernimmt den Zeitraum
   der stornierten Rechnung; festgeschriebener Altbestand ohne Zeitraum bleibt, wie er ist."""
 
+import re
 from datetime import date
 from decimal import Decimal
 
@@ -381,7 +382,9 @@ def test_invoice_page_takes_the_proposal_only_by_click():
     html = (Path(__file__).resolve().parent.parent / "app" / "templates" / "invoice_detail.html").read_text(encoding="utf-8")
     assert "onclick=\"applyPeriodProposal()\"" in html and "async function applyPeriodProposal()" in html
     assert "JSON.stringify({[field]:value||null})" in html  # je Feld nur dieses Feld (Regel 22)
-    assert "festschreiben" not in html
+    # Seit 1.8.109 kein Wortvergleich mehr: die Rückfrage der Mahnung sagt "festschreiben" (Vorgabe "Vor dem Abnahmetest" Punkt 3) --
+    # gemeint ist ein Aufruf eines Helfers, der den Zeitraum still einträgt.
+    assert not re.search(r"\bfestschreiben\s*\(", html)
 
 
 def test_helper_sets_a_period_like_the_click():

@@ -118,6 +118,7 @@ tr:last-child td{border-bottom:none}
 </div>
 {% include "_fehlertext.html" %}
 {% include "_speichern.html" %}
+{% include "_zahl.html" %}
 <script>
 const templateId={{ template_id }};
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -279,17 +280,17 @@ function fieldBody(f){
   if(t==='text')html+=`<div class="field full"><div class="chk-row"><label><input type="checkbox" data-k="multiline" ${f.multiline?'checked':''} ${d}> mehrzeilig</label></div></div>`;
   if(t==='zahl')html+=`<div class="field full"><div class="fields-4col">
       <div class="field"><label>Einheit</label><input data-k="unit" value="${esc(f.unit)}" ${d}></div>
-      <div class="field"><label>Mindestwert</label><input type="number" step="any" data-k="min_value" value="${esc(f.min_value??'')}" ${d}></div>
-      <div class="field"><label>Höchstwert</label><input type="number" step="any" data-k="max_value" value="${esc(f.max_value??'')}" ${d}></div>
-      <div class="field"><label>Nachkommastellen</label><input type="number" min="0" max="4" data-k="decimals" value="${esc(f.decimals??'')}" ${d}></div></div></div>`;
+      <div class="field"><label>Mindestwert</label><input type="text" inputmode="decimal" data-zahl data-k="min_value" value="${zahlText(f.min_value)}" ${d}></div>
+      <div class="field"><label>Höchstwert</label><input type="text" inputmode="decimal" data-zahl data-k="max_value" value="${zahlText(f.max_value)}" ${d}></div>
+      <div class="field"><label>Nachkommastellen</label><input type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-max="4" data-k="decimals" value="${zahlText(f.decimals)}" ${d}></div></div></div>`;
   if(t==='datum'||t==='uhrzeit'||t==='datum_uhrzeit')html+=`<div class="field full"><div class="chk-row"><label><input type="checkbox" data-k="prefill_now" ${f.prefill_now?'checked':''} ${d}> mit „jetzt“ vorbelegen</label></div></div>`;
   if(t==='unterschrift')html+=`<div class="field"><label>Wer unterschreibt?</label><input data-k="signer_label" value="${esc(f.signer_label)}" placeholder="z. B. Monteur, Kunde, Brandwache" ${d}></div>
       <div class="field"><label>Unterzeichner${f.signer_mode_locked?' <span class="muted small">(vom Zweck vorgegeben)</span>':''}</label><select data-k="signer_mode" ${f.signer_mode_locked?'disabled':d}>${SIGNER_MODES.map(([k,l])=>`<option value="${k}"${(f.signer_mode||'frei')===k?' selected':''}>${esc(l)}</option>`).join('')}</select></div>
       <div class="field"><label>&nbsp;</label><div class="chk-row"><label><input type="checkbox" data-k="multiple" ${f.multiple?'checked':''} ${ds}> mehrere Unterschriften (z. B. Teilnehmer)</label></div></div>`;
   if(t==='auswahl')html+=`<div class="field full"><div class="chk-row"><label><input type="checkbox" data-k="multiple" ${f.multiple?'checked':''} ${ds}> Mehrfachauswahl</label></div></div>`;
   if(t==='beleg')html+='<div class="field full muted small">PDF oder Foto (JPEG, PNG, WebP), bis 15 MB – am Inhalt erkannt, unverändert gespeichert.</div>';
-  if(t==='foto'||t==='beleg'||(t==='unterschrift'&&f.multiple))html+=`<div class="field"><label>Mindestanzahl</label><input type="number" min="0" data-k="min_count" value="${esc(f.min_count??'')}" ${ds}></div>
-      <div class="field"><label>Höchstanzahl</label><input type="number" min="1" max="20" data-k="max_count" value="${esc(f.max_count??'')}" ${d}></div>`;
+  if(t==='foto'||t==='beleg'||(t==='unterschrift'&&f.multiple))html+=`<div class="field"><label>Mindestanzahl</label><input type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-k="min_count" value="${zahlText(f.min_count)}" ${ds}></div>
+      <div class="field"><label>Höchstanzahl</label><input type="text" inputmode="numeric" data-zahl="ganz" data-min="1" data-max="20" data-k="max_count" value="${zahlText(f.max_count)}" ${d}></div>`;
   html+='</div>';
   if(f.is_system)html+='<div class="muted small" style="margin-top:8px">Systemfeld des Zwecks: Beschriftung, Hilfetext, Abschnitt und Reihenfolge sind frei (gibt der Zweck Abschnitte vor, innerhalb ihrer Reihenfolge); Schlüssel, Typ, Pflicht, „entfällt“, Mehrfach, Mindestanzahl und Optionen sind fest, löschen geht nicht.'
     +(f.office_only?' Dieses Feld füllt nur das Büro aus (auch die Unterschrift), Monteure sehen es nur.':'')
@@ -334,7 +335,7 @@ function readFieldForm(id){
     const k=el.dataset.k;
     if(el.disabled)return;
     if(el.type==='checkbox')out[k]=el.checked;
-    else if(el.type==='number')out[k]=el.value===''?null:Number(el.value);
+    else if(el.dataset.zahl!==undefined)out[k]=zahlFeld(el);  // seit 1.8.109 über _zahl.html, leer -> null; wirft bei ungültiger Eingabe
     else out[k]=el.value;
   });
   return out;
@@ -440,7 +441,7 @@ function ruleForm(r){
   const ops=OPERATORS.map(([v,l])=>`<option value="${v}" ${v===r.operator?'selected':''}>${esc(l)}</option>`).join('');
   let operand='';
   if(r.operator==='enthaelt'&&field)operand=`<div class="field"><label>Option</label><select data-r="operand" ${d}>${field.options.map(o=>`<option value="${esc(o.option_key)}" ${o.option_key===r.operand?'selected':''}>${esc(o.label)}</option>`).join('')}</select></div>`;
-  if(['kleiner','groesser','gleich'].includes(r.operator))operand=`<div class="field"><label>Vergleichswert</label><input type="number" step="any" data-r="operand" value="${esc(r.operand)}" ${d}></div>`;
+  if(['kleiner','groesser','gleich'].includes(r.operator))operand=`<div class="field"><label>Vergleichswert</label><input type="text" inputmode="decimal" data-zahl data-r="operand" value="${zahlText(r.operand)}" ${d}></div>`;
   return `<div class="fields-2col">
     <div class="field"><label>Bedingung</label><select data-r="operator" ${d} onchange="ruleDraftChange(${r.id??'null'})">${ops}</select></div>
     ${r.operator==='immer'?'<div></div>':`<div class="field"><label>Feld</label><select data-r="field_key" ${d} onchange="ruleDraftChange(${r.id??'null'})">${fieldOpts}</select>${fitting.length?'':'<div class="muted small">Kein Feld dieser Fassung passt zu dieser Bedingung.</div>'}</div>`}
@@ -448,7 +449,7 @@ function ruleForm(r){
     <div class="field full"><label>Aufgabentitel * <span class="muted small">(Platzhalter: {vorlage}, {kontext}, {ersteller})</span></label><input data-r="task_title" value="${esc(r.task_title)}" ${d}></div>
     <div class="field full"><label>Beschreibung der Aufgabe</label><textarea data-r="task_description" ${d}>${esc(r.task_description)}</textarea></div>
     <div class="field"><label>Priorität</label><select data-r="task_priority" ${d}>${PRIORITIES.map(([v,l])=>`<option value="${v}" ${v===r.task_priority?'selected':''}>${l}</option>`).join('')}</select></div>
-    <div class="field"><label>Fällig in (Tagen)</label><input type="number" min="0" max="365" data-r="due_in_days" value="${esc(r.due_in_days??'')}" ${d} placeholder="ohne Fälligkeit"></div>
+    <div class="field"><label>Fällig in (Tagen)</label><input type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-max="365" data-r="due_in_days" value="${zahlText(r.due_in_days)}" ${d} placeholder="ohne Fälligkeit"></div>
     <div class="field"><label>Empfänger</label><select data-r="assignee_mode" ${d}><option value="rolle" ${r.assignee_mode==='rolle'?'selected':''}>Büro nach Rolle (übernehmen)</option><option value="sachbearbeiter" ${r.assignee_mode==='sachbearbeiter'?'selected':''}>Sachbearbeiter des Auftrags</option></select></div>
     <div class="field"><label>Sichtbar für <span class="muted small">(ohne Sachbearbeiter)</span></label><select data-r="min_visible_role" ${d}>${ROLES.map(([v,l])=>`<option value="${v}" ${v===r.min_visible_role?'selected':''}>${l}</option>`).join('')}</select></div>
     <div class="field full"><label>Aufgabe verlinkt auf <span class="muted small">(nur im Kontext Auftrag; solange eine Aufgabe mit diesem Link offen ist, entsteht keine zweite)</span></label><select data-r="link_purpose" ${d}><option value="" ${r.link_purpose?'':'selected'}>diese Checkliste</option>${linkPurposes().map(p=>`<option value="${esc(p.key)}" ${p.key===r.link_purpose?'selected':''}>${esc(p.label)} am Auftrag anlegen</option>`).join('')}${r.link_purpose&&!linkPurposes().some(p=>p.key===r.link_purpose)?`<option value="${esc(r.link_purpose)}" selected>${esc(r.link_purpose)} (unbekannt)</option>`:''}</select></div>
@@ -457,18 +458,22 @@ function ruleForm(r){
 
 let ruleDraft=null;  // ungespeicherter Zwischenstand der gerade offenen Regel
 
-function readRuleForm(){
+// Seit 1.8.109: Fälligkeit und Vergleichswert über _zahl.html (zahl = zahlFeld, wirft bei ungültiger Eingabe). Der Vergleichswert geht
+// als Text im Maschinenformat an den Server ("1250.5"; das Schema erwartet Text, die Prüfung liest ihn ohne Komma). ruleDraftChange()
+// zeichnet nur neu und liest mit zahlVorschau (wirft nie, ungültig -> leer, wie bisher beim Zahlenfeld des Browsers).
+function readRuleForm(zahl=zahlFeld){
   const box=document.getElementById('ruleForm');
   const out={};
   box.querySelectorAll('[data-r]').forEach(el=>{
     const k=el.dataset.r;
-    if(k==='due_in_days')out[k]=el.value===''?null:Number(el.value);
+    if(k==='due_in_days')out[k]=zahl(el);
+    else if(el.dataset.zahl!==undefined){const n=zahl(el);out[k]=n===null?null:String(n)}
     else out[k]=el.value===''&&(k==='field_key'||k==='operand'||k==='task_description'||k==='link_purpose')?null:el.value;
   });
   return out;
 }
 
-function ruleDraftChange(){ruleDraft={...ruleDraft,...readRuleForm()};renderRules()}
+function ruleDraftChange(){ruleDraft={...ruleDraft,...readRuleForm(zahlVorschau)};renderRules()}
 
 function renderRules(){
   const el=document.getElementById('ruleList');
@@ -499,10 +504,10 @@ function addRule(){
 }
 
 async function saveRule(id){
-  const payload={...ruleDraft,...readRuleForm()};
+  try{
+  const payload={...ruleDraft,...readRuleForm()};  // seit 1.8.109 im try: eine abgelehnte Zahl erscheint als Fehler
   delete payload.id;delete payload.version_id;delete payload.sort_order;
   if(payload.operator==='immer'){payload.field_key=null;payload.operand=null}
-  try{
     const url=id?`/api/checklist-template-rules/${id}`:`/api/checklist-template-versions/${version.id}/rules`,daten=json(payload);
     await speichern('vorlage',()=>api(url,{method:id?'PUT':'POST',...daten}),{anwenden:d=>{version=d}});
     openRuleId=null;ruleDraft=null;renderRules();

@@ -150,7 +150,8 @@ async def pruefen(tab, seed, p):
     p.pruefe("Admin: eingeschaltet, Gebühr je Stufe als Vorschlag", await tab.warten(
         "dunningSettings.charges_enabled&&document.querySelectorAll('[id^=rl][id$=Fee]').length===3"), True)
     p.pruefe("Vorschläge 0 / 10 / 15 €", await tab.js(
-        "[1,2,3].map(l=>Number(document.querySelector(`[data-mahnstufe=\"${l}\"] input[id$=Fee]`).value))"), [0, 10, 15])
+        # seit 1.8.109 steht der Wert deutsch im Feld ("10,00") -- gelesen wie die Seite über zahlLesen() (_zahl.html)
+        "[1,2,3].map(l=>zahlLesen(document.querySelector(`[data-mahnstufe=\"${l}\"] input[id$=Fee]`).value))"), [0, 10, 15])
     p.pruefe("Feld heißt Vorschlag", await tab.js(
         "document.getElementById('reminderLevelRows').textContent.includes('Mahngebühr € (Vorschlag)')"), True)
     await _bild(tab, "einstellungen_ein", "settings-reminder-levels", dunkel=True)

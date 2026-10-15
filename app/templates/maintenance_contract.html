@@ -78,7 +78,7 @@ tr:last-child td{border-bottom:none}
       <label class="objekt-andere"><input type="checkbox" id="editOtherOwners" onchange="renderPropertyOptions()"> Objekte anderer Kunden anzeigen (z. B. Hausverwaltung, Generalunternehmer)</label>
       <div id="editMismatch"></div></div>
     <div class="field full"><label>Bezeichnung *</label><input id="editTitle" placeholder="z. B. Jährliche Dachwartung"></div>
-    <div class="field"><label>Intervall (Monate)</label><input id="editInterval" type="number" min="1" max="24" list="intervalMonthsOptions">
+    <div class="field"><label>Intervall (Monate)</label><input id="editInterval" type="text" inputmode="numeric" data-zahl="ganz" data-min="1" data-max="24" list="intervalMonthsOptions">
       <datalist id="intervalMonthsOptions">{% for m in range(1, 25) %}<option value="{{ m }}">{{ m }} Monat{{ 'e' if m != 1 else '' }}</option>{% endfor %}</datalist>
     </div>
     <div class="field"><label>Nächste Fälligkeit *</label><input id="editDueDate" type="date"></div>
@@ -103,7 +103,7 @@ tr:last-child td{border-bottom:none}
     <div class="field"><label>Fenster *</label><select id="itemWindow"></select></div>
     <div class="field"><label>Mustervorgang <span class="muted small">(optional, sonst der des Vertrags – ohne einen von beiden kein Vorgang für diese Dachfläche möglich)</span></label><select id="itemTemplate"></select></div>
     <div class="field"><label>Prüfvorlage <span class="muted small">(optional)</span></label><select id="itemInspectionTemplate"></select></div>
-    <div class="field"><label>Dauer (Minuten) <span class="muted small">(optional)</span></label><input id="itemDuration" type="number" min="0"></div>
+    <div class="field"><label>Dauer (Minuten) <span class="muted small">(optional)</span></label><input id="itemDuration" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-feld="Dauer"></div>
     <div class="field full"><label>Beschreibung <span class="muted small">(optional)</span></label><input id="itemDescription"></div>
   </div>
   <div class="editor-actions"><button onclick="addContractItem()">+ Zu wartende Dachfläche</button><span id="itemStatus" class="status"></span></div>
@@ -118,6 +118,7 @@ tr:last-child td{border-bottom:none}
 </div>
 </div>
 {% include "_speichern.html" %}
+{% include "_zahl.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
@@ -238,7 +239,7 @@ function fillEditor(){
   document.getElementById('editProperty').innerHTML=propertyOptionsHtml(contract.customer_id,contract.property_id,false);
   renderEditMismatch();
   document.getElementById('editTitle').value=contract.title;
-  document.getElementById('editInterval').value=contract.interval_months;
+  document.getElementById('editInterval').value=zahlText(contract.interval_months);
   document.getElementById('editDueDate').value=contract.next_due_date||'';
   document.getElementById('editTemplate').innerHTML=templateOptionsHtml(contract.template_project_id);
   document.getElementById('editResponsible').innerHTML=employeeOptionsHtml(contract.responsible_employee_id);
@@ -254,11 +255,14 @@ async function saveContractDetail(){
     st.className='status err';st.textContent='Bitte zuerst die Abweichung beim Objekt prüfen und bestätigen.';
     document.getElementById('editConfirmProperty')?.focus();return;
   }
+  // Seit 1.8.109 über _zahl.html: eine abgelehnte Zahl erscheint in der Statuszeile, gespeichert wird nichts; leer wie bisher 12.
+  let intervalMonths;
+  try{intervalMonths=zahlFeld('editInterval',{leer:12})}catch(e){st.className='status err';st.textContent=e.message;return}
   const propertyId=document.getElementById('editProperty').value;
   const payload={
     property_id:propertyId?Number(propertyId):null,
     title,
-    interval_months:Number(document.getElementById('editInterval').value)||12,
+    interval_months:intervalMonths,
     next_due_date:dueDate,
     template_project_id:document.getElementById('editTemplate').value?Number(document.getElementById('editTemplate').value):null,
     responsible_employee_id:document.getElementById('editResponsible').value?Number(document.getElementById('editResponsible').value):null,
@@ -367,13 +371,15 @@ async function addContractItem(){
   if(!roofAreaId||!windowId){st.className='status err';st.textContent='Bitte Dachfläche und Fenster wählen.';return}
   const templateId=document.getElementById('itemTemplate').value;
   const inspectionTemplateId=document.getElementById('itemInspectionTemplate').value;
-  const duration=document.getElementById('itemDuration').value;
+  // Seit 1.8.109 über _zahl.html (leer -> null wie bisher); eine abgelehnte Zahl erscheint in der Statuszeile.
+  let duration;
+  try{duration=zahlFeld('itemDuration')}catch(e){st.className='status err';st.textContent=e.message;return}
   const description=document.getElementById('itemDescription').value.trim();
   const payload={
     roof_area_id:Number(roofAreaId), maintenance_window_id:Number(windowId),
     template_project_id:templateId?Number(templateId):null,
     inspection_template_id:inspectionTemplateId?Number(inspectionTemplateId):null,
-    duration_minutes:duration?Number(duration):null,
+    duration_minutes:duration,
     description:description||null,
   };
   try{

@@ -120,7 +120,7 @@ tr:last-child td{border-bottom:none}
   <div class="fields-2col" style="margin-top:14px">
     <div class="field"><label>Rechnungsnr. des Lieferanten</label><input id="editSupplierInvoiceNumber"></div>
     <div class="field"><label>Rechnungsdatum *</label><input id="editInvoiceDate" type="date"></div>
-    <div class="field"><label>Netto-Betrag (EUR) *</label><input id="editNetAmount" type="number" step="0.01" min="0" oninput="updateGrossPreview();updateItemsSumHint()"></div>
+    <div class="field"><label>Netto-Betrag (EUR) *</label><input id="editNetAmount" type="text" inputmode="decimal" data-zahl data-min="0" data-stellen="2" data-feld="Netto-Betrag" oninput="updateGrossPreview();updateItemsSumHint()"></div>
     <div class="field"><label>Steuersatz</label><select id="editTaxRate" onchange="updateGrossPreview()">
       <option value="19.00">19 %</option>
       <option value="7.00">7 %</option>
@@ -128,7 +128,7 @@ tr:last-child td{border-bottom:none}
     </select></div>
     <div class="field"><label>Brutto-Betrag <span class="muted small">(berechnet)</span></label><input id="editGrossAmount" type="text" readonly disabled></div>
     <div class="field"><label>Zahlungsziel</label><input id="editDueDate" type="date"></div>
-    <div class="field"><label>Skonto % <span class="muted small">(optional)</span></label><input id="editSkontoPercent" type="number" step="0.01" min="0" max="100"></div>
+    <div class="field"><label>Skonto % <span class="muted small">(optional)</span></label><input id="editSkontoPercent" type="text" inputmode="decimal" data-zahl data-min="0" data-max="100" data-stellen="2" data-feld="Skonto %"></div>
     <div class="field"><label>Skontofrist <span class="muted small">(optional)</span></label><input id="editSkontoDeadline" type="date"></div>
     <div class="field"><label>Zahlungsstatus</label><select id="editPaymentStatus" onchange="syncPaymentDateField()">
       <option value="offen">Offen</option>
@@ -186,6 +186,7 @@ tr:last-child td{border-bottom:none}
 </div>
 </div>
 {% include "_speichern.html" %}
+{% include "_zahl.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
@@ -249,7 +250,7 @@ function applyAccountDefaultTaxRate(accountSelectEl,taxSelectId){
   // (dafür wird diese Funktion beim Laden nie aufgerufen, nur bei einem echten onchange).
   // Leeres taxSelectId (Positionszeile): das Steuersatz-Feld ist das Geschwisterelement
   // .item-tax innerhalb derselben .item-row, keine feste ID (mehrere Zeilen möglich).
-  const account=accounts.find(a=>a.id===Number(accountSelectEl.value));
+  const account=accounts.find(a=>String(a.id)===accountSelectEl.value);
   if(!account||account.default_tax_rate_pct==null)return;
   const taxEl=taxSelectId?document.getElementById(taxSelectId):accountSelectEl.closest('.item-row')?.querySelector('.item-tax');
   if(!taxEl)return;
@@ -296,7 +297,8 @@ async function createSupplierInline(){
 }
 
 function updateGrossPreview(){
-  const net=Number(document.getElementById('editNetAmount').value||0);
+  // Seit 1.8.109 Vorschau über _zahl.html: leer oder ungültig zählt wie bisher leer (0).
+  const net=zahlVorschau('editNetAmount')??0;
   const rate=Number(document.getElementById('editTaxRate').value||0);
   document.getElementById('editGrossAmount').value=fmtMoney(net*(1+rate/100));
 }
@@ -311,7 +313,7 @@ function itemRowHtml(item){
   item=item||{description:'',net_amount:'',tax_rate_pct:'19.00',account_id:null};
   return `<div class="item-row">
     <input class="item-description" placeholder="Beschreibung" value="${esc(item.description)}">
-    <input class="item-net" type="number" step="0.01" min="0" value="${esc(item.net_amount??'')}" oninput="updateItemsSumHint()">
+    <input class="item-net" type="text" inputmode="decimal" data-zahl data-min="0" data-stellen="2" data-feld="Netto der Position" value="${zahlText(item.net_amount,2)}" oninput="updateItemsSumHint()">
     <select class="item-tax">
       <option value="19.00" ${Number(item.tax_rate_pct)===19?'selected':''}>19 %</option>
       <option value="7.00" ${Number(item.tax_rate_pct)===7?'selected':''}>7 %</option>
@@ -329,10 +331,12 @@ function addItemRow(item){
   updateAccountFieldVisibility();
 }
 
-function readItemRows(){
+// Seit 1.8.109: Netto über _zahl.html -- zum Speichern zahlFeld() (wirft bei ungültiger Eingabe), für den Summenhinweis während
+// der Eingabe (vorschau) zahlVorschau(), ungültig zählt dort wie leer.
+function readItemRows(vorschau){
   return [...document.querySelectorAll('#itemRows .item-row')].map(row=>({
     description:row.querySelector('.item-description').value.trim(),
-    net_amount:Number(row.querySelector('.item-net').value||0),
+    net_amount:vorschau?(zahlVorschau(row.querySelector('.item-net'))??0):zahlFeld(row.querySelector('.item-net'),{leer:0}),
     tax_rate_pct:Number(row.querySelector('.item-tax').value),
     account_id:row.querySelector('.item-account').value?Number(row.querySelector('.item-account').value):null,
   })).filter(i=>i.description||i.net_amount);
@@ -352,8 +356,8 @@ function updateItemsSumHint(){
   document.getElementById('itemRowsHead').classList.toggle('hidden',rows.length===0);
   const hint=document.getElementById('itemsSumHint');
   if(!rows.length){hint.classList.add('hidden');return}
-  const itemSum=readItemRows().reduce((s,i)=>s+i.net_amount,0);
-  const headerNet=Number(document.getElementById('editNetAmount').value||0);
+  const itemSum=readItemRows(true).reduce((s,i)=>s+i.net_amount,0);
+  const headerNet=zahlVorschau('editNetAmount')??0;
   const diff=Math.abs(itemSum-headerNet);
   hint.classList.remove('hidden');
   if(diff>0.01){
@@ -451,11 +455,11 @@ function openEditEditor(id){
   document.getElementById('newSupplierPanel').classList.add('hidden');
   document.getElementById('editSupplierInvoiceNumber').value=inv.supplier_invoice_number||'';
   document.getElementById('editInvoiceDate').value=inv.invoice_date||'';
-  document.getElementById('editNetAmount').value=inv.net_amount;
+  document.getElementById('editNetAmount').value=zahlText(inv.net_amount,2);
   document.getElementById('editTaxRate').value=Number(inv.tax_rate_pct).toFixed(2);
   updateGrossPreview();
   document.getElementById('editDueDate').value=inv.due_date||'';
-  document.getElementById('editSkontoPercent').value=inv.skonto_percent??'';
+  document.getElementById('editSkontoPercent').value=zahlText(inv.skonto_percent,2);
   document.getElementById('editSkontoDeadline').value=inv.skonto_deadline||'';
   document.getElementById('editPaymentStatus').value=inv.payment_status;
   document.getElementById('editPaymentDate').value=inv.payment_date||'';
@@ -485,10 +489,10 @@ function buildPayload(){
     supplier_id:Number(document.getElementById('editSupplier').value),
     supplier_invoice_number:document.getElementById('editSupplierInvoiceNumber').value.trim()||null,
     invoice_date:document.getElementById('editInvoiceDate').value,
-    net_amount:Number(document.getElementById('editNetAmount').value||0),
+    net_amount:zahlFeld('editNetAmount',{leer:0}),
     tax_rate_pct:Number(document.getElementById('editTaxRate').value),
     due_date:document.getElementById('editDueDate').value||null,
-    skonto_percent:document.getElementById('editSkontoPercent').value?Number(document.getElementById('editSkontoPercent').value):null,
+    skonto_percent:zahlFeld('editSkontoPercent'),
     skonto_deadline:document.getElementById('editSkontoDeadline').value||null,
     payment_status:document.getElementById('editPaymentStatus').value,
     payment_date:document.getElementById('editPaymentDate').value||null,
@@ -503,7 +507,9 @@ function buildPayload(){
 
 async function saveInvoice(){
   const st=document.getElementById('editorStatus');
-  const payload=buildPayload();
+  let payload;
+  // Seit 1.8.109: eine abgelehnte Zahl (_zahl.html) erscheint in der Statuszeile, gespeichert wird nichts.
+  try{payload=buildPayload()}catch(e){st.className='status err';st.textContent=e.message;return}
   if(!payload.supplier_id||!payload.invoice_date||!payload.net_amount){
     st.className='status err';st.textContent='Bitte Lieferant, Rechnungsdatum und Netto-Betrag angeben.';return;
   }

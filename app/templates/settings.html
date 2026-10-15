@@ -169,7 +169,7 @@
       <div class="field"><label>Handelsregisternummer</label><input id="registerNumber"></div>
       <div class="field"><label>IBAN</label><input id="iban"></div>
       <div class="field"><label>BIC</label><input id="bic"></div>
-      <div class="field"><label>Standard-MwSt. %</label><input id="defaultVat" type="number" step="0.01"></div>
+      <div class="field"><label>Standard-MwSt. %</label><input id="defaultVat" type="text" inputmode="decimal" data-zahl></div>
     </div>
     <input type="hidden" id="quoteIntro"><input type="hidden" id="quoteOutro">
     <div class="hint">Angebots-Vortexte, Schlusstexte und Zahlungsbedingungen werden jetzt zentral unter <b>Auswahllisten</b> gepflegt. Dort kannst du mehrere Varianten anlegen und einen Standard festlegen.</div>
@@ -204,7 +204,7 @@
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">
       <label for="sidebarLogoHeight" style="font-size:13px">Anzeigehöhe in der Seitenleiste</label>
-      <input type="number" id="sidebarLogoHeight" min="24" max="120" step="1" style="width:70px">
+      <input type="text" inputmode="numeric" data-zahl="ganz" id="sidebarLogoHeight" data-min="24" data-max="120" style="width:70px">
       <span class="muted small">px (24–120)</span>
       <button type="button" onclick="saveLogoHeight()">Übernehmen</button>
     </div>
@@ -240,9 +240,9 @@
       <h3 style="margin-top:0" id="paymentTermEditorHeading">Zahlungsbedingung hinzufügen</h3>
       <div class="fields">
         <div class="field"><label>Bezeichnung</label><input id="ptLabel" placeholder="z. B. 21 Tage netto"></div>
-        <div class="field"><label>Tage bis Fälligkeit</label><input id="ptDays" type="number" min="0" placeholder="14"></div>
-        <div class="field"><label>Skonto %  <span class="muted small">(optional)</span></label><input id="ptSkontoPercent" type="number" min="0" max="100" step="0.01" placeholder="z. B. 2"></div>
-        <div class="field"><label>Skonto-Frist in Tagen <span class="muted small">(optional)</span></label><input id="ptSkontoDays" type="number" min="0" step="1" placeholder="z. B. 7"></div>
+        <div class="field"><label>Tage bis Fälligkeit</label><input id="ptDays" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" placeholder="14"></div>
+        <div class="field"><label>Skonto %  <span class="muted small">(optional)</span></label><input id="ptSkontoPercent" type="text" inputmode="decimal" data-zahl data-min="0" data-max="100" data-feld="Skonto %" placeholder="z. B. 2"></div>
+        <div class="field"><label>Skonto-Frist in Tagen <span class="muted small">(optional)</span></label><input id="ptSkontoDays" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-feld="Skonto-Frist" placeholder="z. B. 7"></div>
         <div class="field full"><label>Eigener Text für Rechnungen <span class="muted small">(optional, sonst automatischer Standardsatz)</span></label><textarea id="ptTextTemplate" placeholder="z. B. Bitte begleichen Sie den Betrag bis zum {faelligkeitsdatum}. Bei Zahlung bis {skontodatum} gewähren wir {skontoprozent}% Skonto, das entspricht {skontobetrag} €."></textarea></div>
       </div>
       <div class="hint">Skonto-Prozentsatz und -Frist müssen entweder beide ausgefüllt sein oder beide leer bleiben. Die Skonto-Frist darf nicht länger sein als die reguläre Zahlungsfrist.<br><b>Platzhalter im eigenen Text:</b> <code>{faelligkeitsdatum}</code>, <code>{skontodatum}</code>, <code>{skontoprozent}</code>, <code>{skontobetrag}</code> werden beim Erstellen der Rechnung automatisch durch die tatsächlichen Werte ersetzt. Bitte Skonto-Platzhalter nur in Zahlungsbedingungen verwenden, die auch tatsächlich Skonto haben (sonst bleiben sie leer stehen) – bei Bedarf lieber zwei getrennte Zahlungsbedingungen anlegen.</div>
@@ -259,7 +259,7 @@
       <h3 style="margin-top:0" id="taxKeyEditorHeading">Steuerschlüssel hinzufügen</h3>
       <div class="fields">
         <div class="field"><label>Bezeichnung</label><input id="tkLabel" placeholder="z. B. §13b Bauleistungen"></div>
-        <div class="field"><label>MwSt.-Satz %</label><input id="tkVatRate" type="number" min="0" max="100" step="0.01" placeholder="19"></div>
+        <div class="field"><label>MwSt.-Satz %</label><input id="tkVatRate" type="text" inputmode="decimal" data-zahl data-min="0" data-max="100" placeholder="19"></div>
         <div class="field full"><label>Hinweistext auf dem Dokument <span class="muted small">(optional)</span></label><textarea id="tkNoticeText" placeholder="z. B. Steuerschuldnerschaft des Leistungsempfängers gemäß § 13b UStG."></textarea></div>
       </div>
       <button id="taxKeySave" onclick="saveTaxKey()">Hinzufügen</button> <button class="secondary" onclick="hideTaxKeyEditor()">Abbrechen</button>
@@ -311,19 +311,19 @@
       <div>
         <div class="margins-title">Seite 1</div>
         <div class="fields-2col">
-          <div class="field"><label>Oben (mm)</label><input id="documentLayoutMarginFirstTop" type="number" step="0.5"></div>
-          <div class="field"><label>Unten (mm)</label><input id="documentLayoutMarginFirstBottom" type="number" step="0.5"></div>
-          <div class="field"><label>Links (mm)</label><input id="documentLayoutMarginFirstLeft" type="number" step="0.5"></div>
-          <div class="field"><label>Rechts (mm)</label><input id="documentLayoutMarginFirstRight" type="number" step="0.5"></div>
+          <div class="field"><label>Oben (mm)</label><input id="documentLayoutMarginFirstTop" type="text" inputmode="decimal" data-zahl data-feld="Rand Seite 1 oben"></div>
+          <div class="field"><label>Unten (mm)</label><input id="documentLayoutMarginFirstBottom" type="text" inputmode="decimal" data-zahl data-feld="Rand Seite 1 unten"></div>
+          <div class="field"><label>Links (mm)</label><input id="documentLayoutMarginFirstLeft" type="text" inputmode="decimal" data-zahl data-feld="Rand Seite 1 links"></div>
+          <div class="field"><label>Rechts (mm)</label><input id="documentLayoutMarginFirstRight" type="text" inputmode="decimal" data-zahl data-feld="Rand Seite 1 rechts"></div>
         </div>
       </div>
       <div>
         <div class="margins-title">Folgeseiten</div>
         <div class="fields-2col">
-          <div class="field"><label>Oben (mm)</label><input id="documentLayoutMarginContinuationTop" type="number" step="0.5"></div>
-          <div class="field"><label>Unten (mm)</label><input id="documentLayoutMarginContinuationBottom" type="number" step="0.5"></div>
-          <div class="field"><label>Links (mm)</label><input id="documentLayoutMarginContinuationLeft" type="number" step="0.5"></div>
-          <div class="field"><label>Rechts (mm)</label><input id="documentLayoutMarginContinuationRight" type="number" step="0.5"></div>
+          <div class="field"><label>Oben (mm)</label><input id="documentLayoutMarginContinuationTop" type="text" inputmode="decimal" data-zahl data-feld="Rand Folgeseiten oben"></div>
+          <div class="field"><label>Unten (mm)</label><input id="documentLayoutMarginContinuationBottom" type="text" inputmode="decimal" data-zahl data-feld="Rand Folgeseiten unten"></div>
+          <div class="field"><label>Links (mm)</label><input id="documentLayoutMarginContinuationLeft" type="text" inputmode="decimal" data-zahl data-feld="Rand Folgeseiten links"></div>
+          <div class="field"><label>Rechts (mm)</label><input id="documentLayoutMarginContinuationRight" type="text" inputmode="decimal" data-zahl data-feld="Rand Folgeseiten rechts"></div>
         </div>
       </div>
     </div>
@@ -341,7 +341,7 @@
     <label style="display:flex;align-items:center;gap:8px;margin:8px 0;font-weight:650"><input type="checkbox" id="documentLayoutBlockFooter" style="width:auto" onchange="toggleDocumentLayoutBlock('footer_text',this.checked)"> Seitenzahl anzeigen</label>
     <label style="display:flex;align-items:center;gap:8px;margin:8px 0;font-weight:650"><input type="checkbox" id="documentLayoutBlockContinuation" style="width:auto" onchange="toggleDocumentLayoutBlock('continuation_header',this.checked)"> Wiederholungszeile auf Folgeseiten anzeigen</label>
     <div class="muted small" style="margin:-4px 0 8px">Kompakte Kennzeichnung (z. B. Rechnungsnr., Kunden-Nr., Datum, Seite) oben auf jeder Folgeseite -- ersetzt dort den vollen Kopfbereich, der nur auf Seite 1 steht.</div>
-    <div class="field" style="max-width:220px;margin:0 0 8px 26px"><label>Position von oben (mm)</label><input id="documentLayoutContinuationY" type="number" step="0.5" min="0" onchange="saveContinuationHeaderPosition(this.value)"></div>
+    <div class="field" style="max-width:220px;margin:0 0 8px 26px"><label>Position von oben (mm)</label><input id="documentLayoutContinuationY" type="text" inputmode="decimal" data-zahl data-min="0" data-feld="Position der Wiederholungszeile" onchange="saveContinuationHeaderPosition(this)"></div>
     <span id="documentLayoutBlocksStatus" class="status"></span>
   </section>
 
@@ -360,7 +360,7 @@
       <div class="hint"><b>Hinweis:</b> das Passwort wird verschlüsselt gespeichert und niemals im Klartext angezeigt. Zum Ändern einfach ein neues eingeben – leer lassen, um das gespeicherte Passwort beizubehalten.</div>
       <div class="fields-2col" style="margin-top:12px">
         <div class="field"><label>SMTP-Server</label><input id="smtpHost" placeholder="smtp.beispiel.de"></div>
-        <div class="field"><label>Port</label><input id="smtpPort" type="number" value="587"></div>
+        <div class="field"><label>Port</label><input id="smtpPort" type="text" inputmode="numeric" data-zahl="ganz" data-feld="SMTP-Port" value="587"></div>
         <div class="field"><label>Benutzername</label><input id="smtpUsername"></div>
         <div class="field"><label>Passwort <span id="smtpPasswordHint" class="muted small"></span></label><input id="smtpPassword" type="password"></div>
         <div class="field"><label>Verschlüsselung</label><select id="smtpEncryption"><option value="starttls">STARTTLS</option><option value="ssl">SSL/TLS</option><option value="none">Keine</option></select></div>
@@ -505,7 +505,7 @@
         <div class="fields">
           <div class="field full"><label>Bezeichnung *</label><input id="optionLabel"></div>
           <div class="field full"><label>Wert / Text *</label><textarea id="optionValue" rows="3"></textarea></div>
-          <div class="field"><label>Sortierung</label><input id="optionSort" type="number" value="100"></div>
+          <div class="field"><label>Sortierung</label><input id="optionSort" type="text" inputmode="numeric" data-zahl="ganz" value="100"></div>
           <div class="field"><label>Status</label><select id="optionActive"><option value="true">Aktiv</option><option value="false">Inaktiv</option></select></div>
           <div class="field"><label>Standard</label><select id="optionDefault"><option value="false">Nein</option><option value="true">Ja</option></select></div>
         </div>
@@ -579,7 +579,7 @@
       <div class="function-grid">
         <div class="field"><label>Funktion / Tätigkeit</label><input id="functionName" placeholder="z. B. Dachdecker Geselle"></div>
         <div class="field"><label>Gruppe</label><select id="functionGroup"><option value="gewerblich">Gewerblich</option><option value="kaufmaennisch">Kaufmännisch</option></select></div>
-        <div class="field"><label>Sortierung</label><input id="functionSort" type="number" value="100" min="0"></div>
+        <div class="field"><label>Sortierung</label><input id="functionSort" type="text" inputmode="numeric" data-zahl="ganz" value="100" data-min="0"></div>
         <div class="field"><label>Status</label><select id="functionActive"><option value="true">Aktiv</option><option value="false">Inaktiv</option></select></div>
       </div>
       <div class="fields" style="margin-top:4px"><div class="field"><label>Beschreibung / Hinweis</label><input id="functionDescription" placeholder="optional"></div></div>
@@ -594,20 +594,20 @@
 
     <div class="zone-label">Eingaben</div>
     <div class="rate-grid" style="margin-top:6px">
-      <div class="field"><label>AG-Lohnnebenkosten %</label><input id="employerCostPct" type="number" step="0.5"><div class="muted small">z. B. Sozialabgaben, BG und weitere lohnbezogene Arbeitgeberkosten.</div></div>
-      <div class="field"><label>Produktive Zeit %</label><input id="productiveTimePct" type="number" step="0.5"><div class="muted small">Anteil der bezahlten Arbeitszeit, der verrechenbar auf Baustellen anfällt.</div></div>
+      <div class="field"><label>AG-Lohnnebenkosten %</label><input id="employerCostPct" type="text" inputmode="decimal" data-zahl><div class="muted small">z. B. Sozialabgaben, BG und weitere lohnbezogene Arbeitgeberkosten.</div></div>
+      <div class="field"><label>Produktive Zeit %</label><input id="productiveTimePct" type="text" inputmode="decimal" data-zahl><div class="muted small">Anteil der bezahlten Arbeitszeit, der verrechenbar auf Baustellen anfällt.</div></div>
 
       <details id="phDetailsPanel" class="calc-subsection" style="grid-column:1/-1">
         <summary>Produktive Zeit % herleiten (Produktivstunden-Rechner)</summary>
         <div class="hint">Leitet die <b>„Produktive Zeit %“ oben nachvollziehbar aus einzelnen Annahmen ab</b>, statt sie zu schätzen -- Bruttojahresstunden abzüglich Urlaub, Feiertagen, durchschnittlichen Krankheitstagen, Schlechtwetter und geschätzter unproduktiver Zeit (Rüstzeit, Fahrten, Werkstatt). Schreibt das Ergebnis <b>erst nach Klick auf „Übernehmen“</b> in das Feld oben -- keine automatische Änderung.</div>
         <div class="rate-grid" style="margin-top:14px">
-          <div class="field"><label>Wochenstunden</label><input id="phWeeklyHours" type="number" step="1"></div>
-          <div class="field"><label>Tagesstunden</label><input id="phDailyHours" type="number" step="0.5"></div>
-          <div class="field"><label>Urlaubstage / Jahr</label><input id="phVacationDays" type="number" step="0.5"></div>
-          <div class="field"><label>Feiertage / Jahr</label><input id="phPublicHolidays" type="number" step="0.5"><div class="muted small" id="phHolidaySuggestionHint"></div></div>
-          <div class="field"><label>Ø Krankheitstage / Jahr</label><input id="phSickDays" type="number" step="0.5"><div class="muted small" id="phSickActualHint"></div></div>
-          <div class="field"><label>Schlechtwettertage / Jahr</label><input id="phWeatherDays" type="number" step="0.5"><div class="muted small" id="phWeatherActualHint"></div></div>
-          <div class="field"><label>Unproduktive Zeit %</label><input id="phUnproductivePct" type="number" step="0.5"><div class="muted small">Rüstzeit, Fahrten, Werkstatt u. Ä. -- Anteil der nach Abwesenheiten verbleibenden Zeit.</div></div>
+          <div class="field"><label>Wochenstunden</label><input id="phWeeklyHours" type="text" inputmode="decimal" data-zahl></div>
+          <div class="field"><label>Tagesstunden</label><input id="phDailyHours" type="text" inputmode="decimal" data-zahl></div>
+          <div class="field"><label>Urlaubstage / Jahr</label><input id="phVacationDays" type="text" inputmode="decimal" data-zahl></div>
+          <div class="field"><label>Feiertage / Jahr</label><input id="phPublicHolidays" type="text" inputmode="decimal" data-zahl><div class="muted small" id="phHolidaySuggestionHint"></div></div>
+          <div class="field"><label>Ø Krankheitstage / Jahr</label><input id="phSickDays" type="text" inputmode="decimal" data-zahl><div class="muted small" id="phSickActualHint"></div></div>
+          <div class="field"><label>Schlechtwettertage / Jahr</label><input id="phWeatherDays" type="text" inputmode="decimal" data-zahl><div class="muted small" id="phWeatherActualHint"></div></div>
+          <div class="field"><label>Unproduktive Zeit %</label><input id="phUnproductivePct" type="text" inputmode="decimal" data-zahl><div class="muted small">Rüstzeit, Fahrten, Werkstatt u. Ä. -- Anteil der nach Abwesenheiten verbleibenden Zeit.</div></div>
         </div>
         <button onclick="saveProductiveHoursSettings()">Speichern & neu berechnen</button><span id="phStatus" class="status"></span>
         <div class="formula"><b>Rechenweg:</b> Wochenstunden × Wochen/Jahr (aus der Kalkulationsgrundlage unten) = Bruttojahresstunden. Davon Urlaub, Feiertage, Ø Krankheitstage und Schlechtwetter (je in Tagen × Tagesstunden) abziehen, danach die unproduktive Zeit als Prozentsatz der verbleibenden Stunden. Das Ergebnis geteilt durch die Bruttojahresstunden ergibt den Vorschlag für „Produktive Zeit %“.</div>
@@ -616,9 +616,9 @@
       </details>
 
       <div class="field"><label>Fixe Gemeinkosten · Eingabeart</label><select id="fixedOverheadMode" onchange="syncOverheadLabels()"><option value="eur">Euro / Jahr</option><option value="pct">Prozent der direkten Lohnkosten</option></select><div class="muted small">Fixe Kosten wie Miete, Software, Versicherungen, Abschreibungen etc.</div></div>
-      <div class="field"><label id="fixedOverheadValueLabel">Fixe Gemeinkosten € / Jahr</label><input id="fixedOverheadValue" type="number" step="100" min="0"><div class="muted small" id="fixedOverheadHelp">Jährlicher Euro-Betrag.</div></div>
+      <div class="field"><label id="fixedOverheadValueLabel">Fixe Gemeinkosten € / Jahr</label><input id="fixedOverheadValue" type="text" inputmode="decimal" data-zahl data-min="0"><div class="muted small" id="fixedOverheadHelp">Jährlicher Euro-Betrag.</div></div>
       <div class="field"><label>Variable Gemeinkosten · Eingabeart</label><select id="variableOverheadMode" onchange="syncOverheadLabels()"><option value="eur">Euro / Jahr</option><option value="pct">Prozent der direkten Lohnkosten</option></select><div class="muted small">Zusätzliche variable Gemeinkosten; Mitarbeiter mit Zuordnung „Variable Gemeinkosten“ werden automatisch addiert.</div></div>
-      <div class="field"><label id="variableOverheadValueLabel">Variable Gemeinkosten € / Jahr</label><input id="variableOverheadValue" type="number" step="100" min="0"><div class="muted small" id="variableOverheadHelp">Zusätzlicher jährlicher Euro-Betrag ohne die zugeordneten Mitarbeiterkosten.</div></div>
+      <div class="field"><label id="variableOverheadValueLabel">Variable Gemeinkosten € / Jahr</label><input id="variableOverheadValue" type="text" inputmode="decimal" data-zahl data-min="0"><div class="muted small" id="variableOverheadHelp">Zusätzlicher jährlicher Euro-Betrag ohne die zugeordneten Mitarbeiterkosten.</div></div>
 
       <details id="ocpDetailsPanel" class="calc-subsection" style="grid-column:1/-1">
         <summary>Betriebskosten-Vorschlag für die Gemeinkosten anzeigen</summary>
@@ -627,8 +627,8 @@
         <div id="ocpApply" class="big-rate"></div>
       </details>
 
-      <div class="field"><label>Ziel Wagnis & Gewinn %</label><input id="targetProfitPct" type="number" step="0.5"><div class="muted small">Aufschlag auf die Selbstkosten des Stundenverrechnungssatzes.</div></div>
-      <div class="field"><label>Wochen pro Jahr <span class="info-ico" title="Dieselbe Wochenzahl, die auch der Produktivstunden-Rechner oben als Basis für die Bruttojahresstunden verwendet -- eine Quelle, kein zweites Feld.">?</span></label><input id="weeksPerYear" type="number" step="1"></div>
+      <div class="field"><label>Ziel Wagnis & Gewinn %</label><input id="targetProfitPct" type="text" inputmode="decimal" data-zahl><div class="muted small">Aufschlag auf die Selbstkosten des Stundenverrechnungssatzes.</div></div>
+      <div class="field"><label>Wochen pro Jahr <span class="info-ico" title="Dieselbe Wochenzahl, die auch der Produktivstunden-Rechner oben als Basis für die Bruttojahresstunden verwendet -- eine Quelle, kein zweites Feld.">?</span></label><input id="weeksPerYear" type="text" inputmode="decimal" data-zahl data-feld="Wochen pro Jahr"></div>
     </div>
     <button onclick="saveLaborRateSettings()">Rechengrundlagen speichern & neu berechnen</button><span id="laborRateStatus" class="status"></span>
 
@@ -647,10 +647,10 @@
   <section class="card settings-section" id="settings-calculation">
     <div class="section-title"><div><h2 style="margin-bottom:4px">Weitere Kalkulationsgrundlagen</h2><div class="muted small">Diese Vorgaben werden als Basis für Katalogleistungen und neue Projektkalkulationen verwendet.</div></div></div>
     <div class="calc-grid" style="margin-top:14px">
-      <div class="field"><label>Aktueller Stundenkostenverrechnungssatz €/h</label><input id="laborRate" type="number" step="0.01"><div class="muted small">Kann manuell gepflegt oder aus dem Rechner oben übernommen werden.</div></div>
-      <div class="field"><label>Materialaufschlag %</label><input id="materialMarkup" type="number" step="0.01"></div>
-      <div class="field"><label>Positions-Gemeinkosten %</label><input id="overhead" type="number" step="0.01"><div class="muted small">Zusätzlicher Zuschlag in der Leistungskalkulation. Bei bereits voll eingerechneten Gemeinkosten im Stundensatz Doppelansatz vermeiden.</div></div>
-      <div class="field"><label>Positions-Wagnis & Gewinn %</label><input id="riskProfit" type="number" step="0.01"><div class="muted small">Zusätzlicher Zuschlag auf die jeweilige Leistungsposition.</div></div>
+      <div class="field"><label>Aktueller Stundenkostenverrechnungssatz €/h</label><input id="laborRate" type="text" inputmode="decimal" data-zahl data-feld="Stundenkostenverrechnungssatz"><div class="muted small">Kann manuell gepflegt oder aus dem Rechner oben übernommen werden.</div></div>
+      <div class="field"><label>Materialaufschlag %</label><input id="materialMarkup" type="text" inputmode="decimal" data-zahl></div>
+      <div class="field"><label>Positions-Gemeinkosten %</label><input id="overhead" type="text" inputmode="decimal" data-zahl><div class="muted small">Zusätzlicher Zuschlag in der Leistungskalkulation. Bei bereits voll eingerechneten Gemeinkosten im Stundensatz Doppelansatz vermeiden.</div></div>
+      <div class="field"><label>Positions-Wagnis & Gewinn %</label><input id="riskProfit" type="text" inputmode="decimal" data-zahl><div class="muted small">Zusätzlicher Zuschlag auf die jeweilige Leistungsposition.</div></div>
     </div>
     <label style="display:flex;gap:8px;align-items:center;font-weight:600;margin:5px 0 14px"><input id="sourceMinutes" type="checkbox" style="width:auto"> Importierte „Baustellenzeit“ als Minuten je Einheit interpretieren</label>
     <button onclick="saveCalculation()">Kalkulationsgrundlagen speichern</button><span id="calcStatus" class="status"></span>
@@ -661,7 +661,7 @@
     <div id="recurringCostModuleDisabledNotice" class="hint" style="display:none">Das Modul Betriebskosten-Übersicht ist aktuell deaktiviert (siehe „Module" oben) -- die folgende Einstellung wirkt erst, wenn es wieder aktiv ist.</div>
     <div id="recurringCostModuleContent">
       <div class="fields">
-        <div class="field"><label>Vorlaufzeit für Kündigungsfristen (Tage)</label><input id="recurringCostLeadDays" type="number" min="0"><div class="muted small">Ab wie vielen Tagen vor der berechneten Kündigungsfrist eine Aufgabe für Büro-Finanzen erzeugt wird.</div></div>
+        <div class="field"><label>Vorlaufzeit für Kündigungsfristen (Tage)</label><input id="recurringCostLeadDays" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-feld="Vorlaufzeit"><div class="muted small">Ab wie vielen Tagen vor der berechneten Kündigungsfrist eine Aufgabe für Büro-Finanzen erzeugt wird.</div></div>
       </div>
       <button onclick="saveRecurringCostSettings()">Speichern</button><span id="recurringCostSettingsStatus" class="status"></span>
     </div>
@@ -672,7 +672,7 @@
     <div id="incomingInvoiceModuleDisabledNotice" class="hint" style="display:none">Das Modul Buchhaltung ist aktuell deaktiviert (siehe „Module" oben) -- die folgende Einstellung wirkt erst, wenn es wieder aktiv ist.</div>
     <div id="incomingInvoiceModuleContent">
       <div class="fields">
-        <div class="field"><label>Vorlaufzeit für die Skonto-Warnung (Tage)</label><input id="incomingInvoiceLeadDays" type="number" min="0"><div class="muted small">Ab wie vielen Tagen vor der Skontofrist eine Hervorhebung/Aufgabe für Büro-Finanzen erzeugt wird.</div></div>
+        <div class="field"><label>Vorlaufzeit für die Skonto-Warnung (Tage)</label><input id="incomingInvoiceLeadDays" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-feld="Vorlaufzeit"><div class="muted small">Ab wie vielen Tagen vor der Skontofrist eine Hervorhebung/Aufgabe für Büro-Finanzen erzeugt wird.</div></div>
       </div>
       <button onclick="saveIncomingInvoiceSettings()">Speichern</button><span id="incomingInvoiceSettingsStatus" class="status"></span>
     </div>
@@ -708,8 +708,8 @@
     <div class="section-title"><div><h2 style="margin-bottom:4px">Plantafel & Kapazitätsplanung</h2><div class="muted small">Zentrale Parameter für Planungsvorschläge, Tageskapazität und Auslastungsberechnung.</div></div></div>
     <div class="hint"><b>Planungsvorschlag:</b> Soll-Stunden werden durch die verfügbare Teamkapazität geteilt. Abwesenheiten, automatische gesetzliche Feiertage des gewählten Bundeslands sowie zusätzliche betriebsfreie Tage reduzieren die Kapazität automatisch. Schulferien werden nur visuell dargestellt. Die Anfahrtszeit kann je Planeinsatz überschrieben werden.</div>
     <div class="fields">
-      <div class="field"><label>Tägliche geplante Arbeitszeit je Vollzeit-MA (h)</label><input id="planningDailyHours" type="number" min="0.25" max="24" step="0.25"></div>
-      <div class="field"><label>Standard-Anfahrtszeit je MA / Tag (h)</label><input id="planningTravelHours" type="number" min="0" max="23.75" step="0.25"><div class="muted small">Gesamte täglich abzuziehende Fahrzeit. Im Planungsvorschlag projektbezogen überschreibbar.</div></div>
+      <div class="field"><label>Tägliche geplante Arbeitszeit je Vollzeit-MA (h)</label><input id="planningDailyHours" type="text" inputmode="decimal" data-zahl data-min="0.25" data-max="24" data-feld="Tägliche Arbeitszeit"></div>
+      <div class="field"><label>Standard-Anfahrtszeit je MA / Tag (h)</label><input id="planningTravelHours" type="text" inputmode="decimal" data-zahl data-min="0" data-max="23.75" data-feld="Standard-Anfahrtszeit"><div class="muted small">Gesamte täglich abzuziehende Fahrzeit. Im Planungsvorschlag projektbezogen überschreibbar.</div></div>
       <div class="field"><label>Bundesland für Kalender / Plantafel</label><select id="planningState"><option value="BW">Baden-Württemberg</option><option value="BY">Bayern</option><option value="BE">Berlin</option><option value="BB">Brandenburg</option><option value="HB">Bremen</option><option value="HH">Hamburg</option><option value="HE">Hessen</option><option value="MV">Mecklenburg-Vorpommern</option><option value="NI">Niedersachsen</option><option value="NW">Nordrhein-Westfalen</option><option value="RP">Rheinland-Pfalz</option><option value="SL">Saarland</option><option value="SN">Sachsen</option><option value="ST">Sachsen-Anhalt</option><option value="SH">Schleswig-Holstein</option><option value="TH">Thüringen</option></select><div class="muted small">Steuert automatische gesetzliche Feiertage und die Ferienanzeige.</div></div>
       <div class="field"><label>Kalenderautomatik</label><label style="display:flex;gap:7px;align-items:center;margin-bottom:7px"><input id="planningAutoHolidays" type="checkbox" style="width:auto"> Gesetzliche Feiertage automatisch berücksichtigen</label><label style="display:flex;gap:7px;align-items:center"><input id="planningSchoolHolidays" type="checkbox" style="width:auto"> Schulferien in Plantafel anzeigen</label></div>
     </div>
@@ -785,7 +785,7 @@
     <div id="maintenanceModuleContent">
       <div class="field" style="max-width:320px">
         <label>Vorlaufzeit (Tage)</label>
-        <input id="maintenanceLeadDays" type="number" min="0" step="1">
+        <input id="maintenanceLeadDays" type="text" inputmode="numeric" data-zahl="ganz" data-min="0">
         <div class="muted small" style="margin-top:4px">Ab wie vielen Tagen vor der Fälligkeit ein Wartungsvertrag als "fällig" gilt -- im Dashboard-Widget, auf der Wartungen-Seite und für die automatische Erinnerungs-Aufgabe.</div>
       </div>
       <div class="field" style="max-width:320px">
@@ -804,8 +804,8 @@
       <div class="field" style="max-width:520px;margin-top:10px">
         <div style="display:flex;gap:8px;align-items:center">
           <input id="newMaintenanceWindowLabel" placeholder="Bezeichnung …" style="flex:1">
-          <input id="newMaintenanceWindowFrom" type="number" min="1" max="12" placeholder="von" style="width:70px">
-          <input id="newMaintenanceWindowTo" type="number" min="1" max="12" placeholder="bis" style="width:70px">
+          <input id="newMaintenanceWindowFrom" type="text" inputmode="numeric" data-zahl="ganz" data-min="1" data-max="12" data-feld="Startmonat" placeholder="von" style="width:70px">
+          <input id="newMaintenanceWindowTo" type="text" inputmode="numeric" data-zahl="ganz" data-min="1" data-max="12" data-feld="Endmonat" placeholder="bis" style="width:70px">
           <button type="button" onclick="addMaintenanceWindow()">+ Hinzufügen</button>
         </div>
         <span id="maintenanceWindowStatus" class="status"></span>
@@ -819,7 +819,7 @@
     <div id="operationalAssetModuleContent">
       <div class="field" style="max-width:320px">
         <label>Vorlaufzeit (Tage)</label>
-        <input id="operationalAssetLeadDays" type="number" min="0" step="1">
+        <input id="operationalAssetLeadDays" type="text" inputmode="numeric" data-zahl="ganz" data-min="0">
         <div class="muted small" style="margin-top:4px">Ab wie vielen Tagen vor der Fälligkeit eine Prüf-/Wartungsfrist als "fällig" gilt -- im Dashboard-Widget und auf der Stammdaten-Übersicht.</div>
       </div>
       <button onclick="saveOperationalAssetSettings()">Speichern</button>
@@ -843,6 +843,8 @@
 </div>
 </div>
 {% include "_speichern.html" %}
+{% include "_zahl.html" %}
+{% include "_fehlertext.html" %}
 {% include "_aktionen.html" %}
 <script>
 let sequences=[],employeeFunctions=[],editingFunctionId=null,optionGroups=[],currentOptionGroup=null,editingOptionId=null,planningSettings=null,planningHolidays=[],editingHolidayId=null,paymentTerms=[],editingPaymentTermId=null,taxKeys=[],editingTaxKeyId=null,reminderLevels=[],generalSettings=null,settingsAccounts=[],editingAccountId=null;
@@ -868,17 +870,17 @@ async function saveDunningSwitch(enabled){const st=document.getElementById('dunn
 // Basiszinssatz und Rechtstexte (seit 1.8.81, Z2b Punkte 7 und 9): lesen Büro und Admin, pflegen nur Administratoren
 // (POST/PUT/DELETE serverseitig admin-only) -- wie die Klauseln mit "geprüft am/durch"; nur Geprüftes zählt bzw. wird gedruckt.
 let baseRates=null,legalTexts=null;
-const pctDe=x=>Number(x).toLocaleString('de-DE',{maximumFractionDigits:3,useGrouping:false});
 const dDe=s=>s?new Date(s+'T00:00:00').toLocaleDateString('de-DE'):'';
 // Wie load(): je Aufruf einzeln (allSettled) -- schlägt einer fehl, bleibt der andere Bereich nutzbar.
 async function loadDunningLegal(){const [r,t]=await Promise.allSettled([lesen('basiszins',()=>api('/api/base-interest-rates'),d=>{baseRates=d}),lesen('rechtstexte',()=>api('/api/dunning-legal-texts'),d=>{legalTexts=d})]);if(r.status!=='fulfilled')baseRates=[];if(t.status!=='fulfilled')legalTexts=[];renderBaseRates();renderLegalTexts();[[r,'baseRatesBox','Basiszinssätze'],[t,'legalTextsBox','Rechtstexte']].forEach(([x,id,was])=>{if(x.status!=='fulfilled'){const box=document.getElementById(id);if(box)box.insertAdjacentHTML('afterbegin',`<div class="status err">${esc(was)} konnten nicht geladen werden: ${esc(x.reason.message)}</div>`)}})}
 function ladeBasiszins(){return lesen('basiszins',()=>api('/api/base-interest-rates'),d=>{baseRates=d;renderBaseRates()})}
-function rateValue(s){return String(s||'').trim().replace(/\s|%/g,'').replace(',','.')}
+// Seit 1.8.109 liest _zahl.html den Satz (deutsches Format, höchstens drei Nachkommastellen, auch negativ) -- statt rateValue(), das
+// Leerzeichen und "%" entfernte und das Komma durch einen Punkt ersetzte ("1.27" ging als 1,27 durch, jetzt abgelehnt).
 function renderBaseRates(){const box=document.getElementById('baseRatesBox');if(!box||baseRates===null)return;const ro=canSwitchDunningCharges?'':'disabled';
-  const rows=baseRates.map(r=>`<tr data-basiszins="${r.id}"><td>${dDe(r.half_year_start)}–${dDe(r.half_year_end)}<div class="small ${r.reviewed?'':'muted'}" data-basiszins-stand>${r.reviewed?'geprüft':'nicht geprüft – zählt nicht'}</div></td><td style="white-space:nowrap"><input class="brRate" inputmode="decimal" value="${esc(pctDe(r.rate_percent))}" style="width:70px" ${ro}> %</td><td><input class="brOn" type="date" value="${esc(r.reviewed_on||'')}" style="width:140px" ${ro}><input class="brBy" value="${esc(r.reviewed_by||'')}" placeholder="durch (Name)" style="width:140px;margin-top:4px" ${ro}></td><td style="white-space:nowrap">${canSwitchDunningCharges?`<button class="secondary" onclick="saveBaseRate(${r.id})">Speichern</button>${r.reviewed?'':` <button class="secondary" onclick="deleteBaseRate(${r.id})">Löschen</button>`}`:''} <span class="status brStatus"></span></td></tr>`).join('')||'<tr><td colspan="4" class="muted small">Noch kein Basiszinssatz hinterlegt – ohne ihn gibt es keine Zinsvorschläge.</td></tr>';
-  box.innerHTML=`<h3 style="margin:0 0 6px">Basiszinssatz (§ 247 BGB)</h3><div class="small muted" style="margin-bottom:8px">Je Halbjahr ein Satz (gültig ab 1. Januar bzw. 1. Juli bis zum Ende des Halbjahres). Verzugszinsen: Verbraucher 5, sonst 9 Prozentpunkte darüber. Gerechnet wird nur mit geprüften Sätzen – fehlt im Zinszeitraum ein Halbjahr oder ist es nicht geprüft, gibt es keinen Zinsvorschlag. Ändert sich ein Satz ohne neue Prüfangabe, fällt die Prüfung weg; schon gebuchte Zinsen behalten ihren Satz.</div>${canSwitchDunningCharges?'':'<div class="hint">Nur Administratoren pflegen den Basiszinssatz.</div>'}<div style="overflow:auto"><table><thead><tr><th>Halbjahr</th><th>Satz</th><th>Geprüft am / durch</th><th></th></tr></thead><tbody id="baseRateRows">${rows}${canSwitchDunningCharges?`<tr data-basiszins-neu><td><div class="small muted" style="margin-bottom:3px">Neu, gültig ab</div><div style="display:flex;gap:6px"><select id="brNewHalf" style="width:auto"><option value="01-01">1. Januar</option><option value="07-01">1. Juli</option></select><input id="brNewYear" type="number" min="2000" max="2100" step="1" style="width:76px" value="${esc(berlinDateParts().year)}"></div></td><td style="white-space:nowrap;vertical-align:bottom"><input id="brNewRate" inputmode="decimal" placeholder="1,27" style="width:70px"> %</td><td style="vertical-align:bottom"><input id="brNewOn" type="date" style="width:140px"><input id="brNewBy" placeholder="durch (Name)" style="width:140px;margin-top:4px"></td><td style="vertical-align:bottom"><button onclick="createBaseRate()">Hinzufügen</button><div class="status" id="brNewStatus"></div></td></tr>`:''}</tbody></table></div>`}
-async function createBaseRate(){const st=document.getElementById('brNewStatus');st.className='status';try{const year=Number(document.getElementById('brNewYear').value);if(!year)throw Error('Bitte ein Jahr angeben.');await speichern('basiszins',()=>api('/api/base-interest-rates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({half_year_start:`${year}-${document.getElementById('brNewHalf').value}`,rate_percent:rateValue(document.getElementById('brNewRate').value),reviewed_on:document.getElementById('brNewOn').value||null,reviewed_by:document.getElementById('brNewBy').value.trim()||null})}),{neuLaden:ladeBasiszins});const s2=document.getElementById('brNewStatus');s2.className='status ok';s2.textContent='Hinzugefügt.'}catch(e){st.className='status err';st.textContent='Fehler: '+e.message}}
-async function saveBaseRate(id){const row=document.querySelector(`[data-basiszins="${id}"]`),st=row.querySelector('.brStatus');st.className='status brStatus';try{const d=await speichern('basiszins',()=>api(`/api/base-interest-rates/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({rate_percent:rateValue(row.querySelector('.brRate').value),reviewed_on:row.querySelector('.brOn').value||null,reviewed_by:row.querySelector('.brBy').value.trim()||null})}),{neuLaden:ladeBasiszins});const s2=document.querySelector(`[data-basiszins="${id}"] .brStatus`);s2.classList.add('ok');s2.textContent=d.review_reset?'Gespeichert. Der Satz wurde geändert – die bisherige Prüfangabe gilt nicht mehr.':'Gespeichert.'}catch(e){st.classList.add('err');st.textContent='Fehler: '+e.message}}
+  const rows=baseRates.map(r=>`<tr data-basiszins="${r.id}"><td>${dDe(r.half_year_start)}–${dDe(r.half_year_end)}<div class="small ${r.reviewed?'':'muted'}" data-basiszins-stand>${r.reviewed?'geprüft':'nicht geprüft – zählt nicht'}</div></td><td style="white-space:nowrap"><input class="brRate" inputmode="decimal" data-zahl data-stellen="3" data-feld="Basiszinssatz" value="${zahlText(r.rate_percent)}" style="width:70px" ${ro}> %</td><td><input class="brOn" type="date" value="${esc(r.reviewed_on||'')}" style="width:140px" ${ro}><input class="brBy" value="${esc(r.reviewed_by||'')}" placeholder="durch (Name)" style="width:140px;margin-top:4px" ${ro}></td><td style="white-space:nowrap">${canSwitchDunningCharges?`<button class="secondary" onclick="saveBaseRate(${r.id})">Speichern</button>${r.reviewed?'':` <button class="secondary" onclick="deleteBaseRate(${r.id})">Löschen</button>`}`:''} <span class="status brStatus"></span></td></tr>`).join('')||'<tr><td colspan="4" class="muted small">Noch kein Basiszinssatz hinterlegt – ohne ihn gibt es keine Zinsvorschläge.</td></tr>';
+  box.innerHTML=`<h3 style="margin:0 0 6px">Basiszinssatz (§ 247 BGB)</h3><div class="small muted" style="margin-bottom:8px">Je Halbjahr ein Satz (gültig ab 1. Januar bzw. 1. Juli bis zum Ende des Halbjahres). Verzugszinsen: Verbraucher 5, sonst 9 Prozentpunkte darüber. Gerechnet wird nur mit geprüften Sätzen – fehlt im Zinszeitraum ein Halbjahr oder ist es nicht geprüft, gibt es keinen Zinsvorschlag. Ändert sich ein Satz ohne neue Prüfangabe, fällt die Prüfung weg; schon gebuchte Zinsen behalten ihren Satz.</div>${canSwitchDunningCharges?'':'<div class="hint">Nur Administratoren pflegen den Basiszinssatz.</div>'}<div style="overflow:auto"><table><thead><tr><th>Halbjahr</th><th>Satz</th><th>Geprüft am / durch</th><th></th></tr></thead><tbody id="baseRateRows">${rows}${canSwitchDunningCharges?`<tr data-basiszins-neu><td><div class="small muted" style="margin-bottom:3px">Neu, gültig ab</div><div style="display:flex;gap:6px"><select id="brNewHalf" style="width:auto"><option value="01-01">1. Januar</option><option value="07-01">1. Juli</option></select><input id="brNewYear" type="text" inputmode="numeric" data-zahl="ganz" data-min="2000" data-max="2100" data-feld="Jahr" style="width:76px" value="${zahlText(berlinDateParts().year)}"></div></td><td style="white-space:nowrap;vertical-align:bottom"><input id="brNewRate" inputmode="decimal" data-zahl data-stellen="3" data-feld="Basiszinssatz" placeholder="1,27" style="width:70px"> %</td><td style="vertical-align:bottom"><input id="brNewOn" type="date" style="width:140px"><input id="brNewBy" placeholder="durch (Name)" style="width:140px;margin-top:4px"></td><td style="vertical-align:bottom"><button onclick="createBaseRate()">Hinzufügen</button><div class="status" id="brNewStatus"></div></td></tr>`:''}</tbody></table></div>`}
+async function createBaseRate(){const st=document.getElementById('brNewStatus');st.className='status';try{const year=zahlFeld('brNewYear',{leer:0});if(!year)throw Error('Bitte ein Jahr angeben.');const rate=zahlFeld('brNewRate',{pflicht:true});await speichern('basiszins',()=>api('/api/base-interest-rates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({half_year_start:`${year}-${document.getElementById('brNewHalf').value}`,rate_percent:rate,reviewed_on:document.getElementById('brNewOn').value||null,reviewed_by:document.getElementById('brNewBy').value.trim()||null})}),{neuLaden:ladeBasiszins});const s2=document.getElementById('brNewStatus');s2.className='status ok';s2.textContent='Hinzugefügt.'}catch(e){st.className='status err';st.textContent='Fehler: '+e.message}}
+async function saveBaseRate(id){const row=document.querySelector(`[data-basiszins="${id}"]`),st=row.querySelector('.brStatus');st.className='status brStatus';try{const rate=zahlFeld(row.querySelector('.brRate'),{pflicht:true});const d=await speichern('basiszins',()=>api(`/api/base-interest-rates/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({rate_percent:rate,reviewed_on:row.querySelector('.brOn').value||null,reviewed_by:row.querySelector('.brBy').value.trim()||null})}),{neuLaden:ladeBasiszins});const s2=document.querySelector(`[data-basiszins="${id}"] .brStatus`);s2.classList.add('ok');s2.textContent=d.review_reset?'Gespeichert. Der Satz wurde geändert – die bisherige Prüfangabe gilt nicht mehr.':'Gespeichert.'}catch(e){st.classList.add('err');st.textContent='Fehler: '+e.message}}
 async function deleteBaseRate(id){if(!confirm('Diesen ungeprüften Basiszinssatz löschen?'))return;const row=document.querySelector(`[data-basiszins="${id}"]`),st=row.querySelector('.brStatus');try{await speichern('basiszins',()=>api(`/api/base-interest-rates/${id}`,{method:'DELETE'}),{neuLaden:ladeBasiszins})}catch(e){st.className='status brStatus err';st.textContent='Fehler: '+e.message}}
 function renderLegalTexts(){const box=document.getElementById('legalTextsBox');if(!box||legalTexts===null)return;const ro=canSwitchDunningCharges?'':'disabled';box.innerHTML=`<h3 style="margin:0 0 6px">Rechtstexte zu Verzug, Zinsen und Pauschale</h3><div class="small muted" style="margin-bottom:8px">Die Mahnung druckt einen Text nur, wenn er geprüft ist und sie das Thema nennt (Verzug bestätigt, Verzugszinsen, Pauschale). Ungeprüft wird nichts gedruckt – der Mahnungsentwurf warnt. Beim Festschreiben bleibt der gedruckte Text an der Mahnung.</div>${canSwitchDunningCharges?'':'<div class="hint">Nur Administratoren können Rechtstexte und Prüfangaben ändern.</div>'}`+legalTexts.map(t=>`<div data-rechtstext="${esc(t.text_key)}" style="border-top:1px solid var(--line);padding-top:12px;margin-top:12px"><b>${esc(t.label)}</b><div class="small ${t.reviewed?'':'muted'}" data-rechtstext-stand style="margin:2px 0 6px">${t.reviewed?'Geprüft – wird gedruckt, wenn die Mahnung das Thema nennt.':'Nicht geprüft – wird nicht gedruckt.'}${t.updated_by_name?` · zuletzt gespeichert von ${esc(t.updated_by_name)}`:''}</div><div class="field"><label>Text <span class="muted small">(Platzhalter: ${t.placeholders.map(p=>`<code title="${esc(p.label)}">${esc(p.key)}</code>`).join(' ')})</span></label><textarea class="ltBody" rows="3" ${ro}>${esc(t.body||'')}</textarea></div>${t.unknown_placeholders.length?`<div class="hint" data-unbekannt style="border-left-color:var(--warning)">Unbekannte Platzhalter: ${t.unknown_placeholders.map(p=>`<code>${esc(p)}</code>`).join(' ')} – sie blieben im Brief stehen.</div>`:''}<div class="fields-2col"><div class="field"><label>Rechtlich geprüft am</label><input class="ltOn" type="date" value="${esc(t.reviewed_on||'')}" ${ro}></div><div class="field"><label>durch</label><input class="ltBy" value="${esc(t.reviewed_by||'')}" placeholder="z. B. Kanzlei Muster" ${ro}></div></div>${canSwitchDunningCharges?`<button data-klick="rechtstext-speichern" data-schluessel="${esc(t.text_key)}">Speichern</button>`:''} <span class="status ltStatus"></span></div>`).join('')}
 /* Seit 1.8.102 über data-Attribute (_aktionen.html) statt Werten im onclick (Vorgabe vom 14.10.2026 Punkt 2, Nebenbefund 1.8.100):
@@ -919,7 +921,13 @@ function ctRemove(key,i){ctRebuild(key,list=>list.splice(i,1))}
 function ctMove(key,i,dir){ctRebuild(key,list=>{const j=i+dir;if(j<0||j>=list.length)return;[list[i],list[j]]=[list[j],list[i]]})}
 // Inhalt beim Klick gelesen (seit 1.8.95): wartet das Speichern auf das einer anderen Vorlage, hat deren Antwort die Liste schon neu gezeichnet.
 async function saveContractTemplate(key){const st=document.querySelector(`[data-ct="${key}"] .ctStatus`);st.className='status ctStatus';try{const daten=ctRead(key);const d=await speichern('vertragsvorlagen',()=>api(`/api/settings/contract-templates/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(daten)}),{anwenden:neu=>{contractTemplates=contractTemplates.map(t=>t.basis_key===key?neu:t);renderContractTemplates()}});const st2=document.querySelector(`[data-ct="${key}"] .ctStatus`);st2.classList.add('ok');st2.textContent=d.review_reset?'Gespeichert. Der Inhalt wurde geändert – die bisherige Prüfangabe gilt nicht mehr, bitte nach erneuter Prüfung neu eintragen.':'Gespeichert.'}catch(e){st.classList.add('err');st.textContent='Fehler: '+e.message}}
-async function api(url,options={}){const r=await fetch(url,options);let d=null;try{d=await r.json()}catch(_){ }if(!r.ok)throw new Error(d?.detail||r.statusText||'Fehler');return d}
+// Seit 1.8.109 (Vorgabe "Vor dem Abnahmetest" Punkt 2): abgelehnte Antworten lesbar über _fehlertext.html -- ein 422 erschien bis
+// dahin als "[object Object]" (z. B. an den Zahlungsbedingungen).
+const FELDNAMEN={label:'Bezeichnung',days:'Tage bis Fälligkeit',skonto_percent:'Skonto %',skonto_days:'Skonto-Frist (Tage)',
+  text_template:'Textvorlage',vat_rate:'MwSt.-Satz',name:'Name',sort_order:'Reihenfolge',fee_amount:'Mahngebühr',
+  days_after_previous_step:'Zahlungsfrist',format_pattern:'Format',start_value:'Startnummer',next_value:'Nächste Nummer',
+  port:'Port',rate_percent:'Basiszinssatz',half_year_start:'Halbjahr'};
+async function api(url,options={}){const r=await fetch(url,options);let d=null;try{d=await r.json()}catch(_){ }if(!r.ok)throw new Error(fehlerText(d,r.status,FELDNAMEN));return d}
 const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 (function(){
   function refreshStatusColors(){
@@ -953,7 +961,7 @@ async function load(){
   const lade=(label,bereich,url,leer,anwenden)=>lesen(bereich,()=>api(url).catch(e=>{failed.push(`${label}: ${e.message}`);return leer}),anwenden);
   const teile=[
     lade('Unternehmensstammdaten','allgemein','/api/settings/general',{},g=>{
-      setv('companyName',g.company_name);setv('managingDirector',g.managing_director);setv('companyStreet',g.street);setv('companyZip',g.postal_code);setv('companyCity',g.city);setv('companyCountry',g.country);setv('companyPhone',g.phone);setv('companyEmail',g.email);setv('companyWebsite',g.website);setv('publicBaseUrl',g.public_base_url);setv('taxNumber',g.tax_number);setv('vatId',g.vat_id);setv('registerCourt',g.register_court);setv('registerNumber',g.register_number);setv('iban',g.iban);setv('bic',g.bic);setv('defaultVat',g.default_vat_rate);setv('quoteIntro',g.default_quote_intro);setv('quoteOutro',g.default_quote_outro);
+      setv('companyName',g.company_name);setv('managingDirector',g.managing_director);setv('companyStreet',g.street);setv('companyZip',g.postal_code);setv('companyCity',g.city);setv('companyCountry',g.country);setv('companyPhone',g.phone);setv('companyEmail',g.email);setv('companyWebsite',g.website);setv('publicBaseUrl',g.public_base_url);setv('taxNumber',g.tax_number);setv('vatId',g.vat_id);setv('registerCourt',g.register_court);setv('registerNumber',g.register_number);setv('iban',g.iban);setv('bic',g.bic);setv('defaultVat',zahlText(g.default_vat_rate));setv('quoteIntro',g.default_quote_intro);setv('quoteOutro',g.default_quote_outro);
       generalSettings=g;renderCompanyLogo();renderSidebarLogo();
     }),
     lade('Nummernkreise','nummernkreise','/api/settings/number-sequences',[],n=>{sequences=n;renderSequences()}),
@@ -971,10 +979,10 @@ async function load(){
   // "Migration nicht ausgefuehrt"-Alarm statt der eigentlichen Ursache (fehlende Rolle).
   if(canSeeCalculationSettings)teile.push(
     lade('Kalkulationsgrundlagen','kalkulation','/api/calculation-settings',{},c=>{
-      setv('laborRate',c.labor_rate);setv('materialMarkup',c.material_markup_pct);setv('overhead',c.overhead_pct);setv('riskProfit',c.risk_profit_pct);document.getElementById('sourceMinutes').checked=!!c.use_source_time_as_minutes;
+      setv('laborRate',zahlText(c.labor_rate));setv('materialMarkup',zahlText(c.material_markup_pct));setv('overhead',zahlText(c.overhead_pct));setv('riskProfit',zahlText(c.risk_profit_pct));document.getElementById('sourceMinutes').checked=!!c.use_source_time_as_minutes;
     }),
     lade('Stundenverrechnungssatz','rechengrundlagen','/api/labor-rate-settings',{},lr=>{
-      setv('employerCostPct',lr.employer_cost_pct);setv('productiveTimePct',lr.productive_time_pct);setv('fixedOverheadMode',lr.fixed_overhead_mode||'eur');setv('fixedOverheadValue',lr.fixed_overhead_value||0);setv('variableOverheadMode',lr.variable_overhead_mode||'eur');setv('variableOverheadValue',lr.variable_overhead_value||0);setv('targetProfitPct',lr.target_profit_pct);setv('weeksPerYear',lr.weeks_per_year);syncOverheadLabels();
+      setv('employerCostPct',zahlText(lr.employer_cost_pct));setv('productiveTimePct',zahlText(lr.productive_time_pct));setv('fixedOverheadMode',lr.fixed_overhead_mode||'eur');setv('fixedOverheadValue',zahlText(lr.fixed_overhead_value||0));setv('variableOverheadMode',lr.variable_overhead_mode||'eur');setv('variableOverheadValue',zahlText(lr.variable_overhead_value||0));setv('targetProfitPct',zahlText(lr.target_profit_pct));setv('weeksPerYear',zahlText(lr.weeks_per_year));syncOverheadLabels();
     }),
     lade('Stundenverrechnungssatz-Berechnung','verrechnungssatz','/api/labor-rate-calculation',{},renderLaborRate),
   );
@@ -1005,14 +1013,14 @@ async function loadOperationalAssetSection(){
   if(!isEnabled)return;
   try{
     await lesen('betriebsmittel',()=>api('/api/operational-asset-settings'),settings=>{
-      document.getElementById('operationalAssetLeadDays').value=settings.reminder_lead_days;
+      document.getElementById('operationalAssetLeadDays').value=zahlText(settings.reminder_lead_days);
     });
   }catch(e){document.getElementById('operationalAssetSettingsStatus').textContent='Fehler: '+e.message}
 }
 async function saveOperationalAssetSettings(){
   const st=document.getElementById('operationalAssetSettingsStatus');
-  const leadDays=Number(document.getElementById('operationalAssetLeadDays').value||0);
   try{
+    const leadDays=zahlFeld('operationalAssetLeadDays',{leer:0});  // seit 1.8.109 über _zahl.html, im try: ein Fehler erscheint unten
     await speichern('betriebsmittel',()=>api('/api/operational-asset-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({reminder_lead_days:leadDays})}));
     st.className='status';st.textContent='Gespeichert.';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
@@ -1029,14 +1037,14 @@ async function loadRecurringCostsSettingsSection(){
   if(!isEnabled)return;
   try{
     await lesen('betriebskosten',()=>api('/api/recurring-cost-settings'),settings=>{
-      document.getElementById('recurringCostLeadDays').value=settings.reminder_lead_days;
+      document.getElementById('recurringCostLeadDays').value=zahlText(settings.reminder_lead_days);
     });
   }catch(e){document.getElementById('recurringCostSettingsStatus').textContent='Fehler: '+e.message}
 }
 async function saveRecurringCostSettings(){
   const st=document.getElementById('recurringCostSettingsStatus');
-  const leadDays=Number(document.getElementById('recurringCostLeadDays').value||0);
   try{
+    const leadDays=zahlFeld('recurringCostLeadDays',{leer:0});  // seit 1.8.109 über _zahl.html, im try: ein Fehler erscheint unten
     await speichern('betriebskosten',()=>api('/api/recurring-cost-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({reminder_lead_days:leadDays})}));
     st.className='status';st.textContent='Gespeichert.';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
@@ -1052,14 +1060,14 @@ async function loadIncomingInvoiceSettingsSection(){
   if(!isEnabled)return;
   try{
     await lesen('eingangsrechnungen',()=>api('/api/incoming-invoice-settings'),settings=>{
-      document.getElementById('incomingInvoiceLeadDays').value=settings.skonto_reminder_lead_days;
+      document.getElementById('incomingInvoiceLeadDays').value=zahlText(settings.skonto_reminder_lead_days);
     });
   }catch(e){document.getElementById('incomingInvoiceSettingsStatus').textContent='Fehler: '+e.message}
 }
 async function saveIncomingInvoiceSettings(){
   const st=document.getElementById('incomingInvoiceSettingsStatus');
-  const leadDays=Number(document.getElementById('incomingInvoiceLeadDays').value||0);
   try{
+    const leadDays=zahlFeld('incomingInvoiceLeadDays',{leer:0});  // seit 1.8.109 über _zahl.html, im try: ein Fehler erscheint unten
     await speichern('eingangsrechnungen',()=>api('/api/incoming-invoice-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({skonto_reminder_lead_days:leadDays})}));
     st.className='status';st.textContent='Gespeichert.';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
@@ -1109,7 +1117,7 @@ async function loadMaintenanceSection(){
   if(!isEnabled)return;
   try{
     await lesen('wartung',async()=>[await api('/api/maintenance-settings'),await api('/api/employees').catch(()=>[])],([ms2,emps])=>{
-      document.getElementById('maintenanceLeadDays').value=ms2.reminder_lead_days;
+      document.getElementById('maintenanceLeadDays').value=zahlText(ms2.reminder_lead_days);
       document.getElementById('maintenanceUseRoofAreaItems').checked=!!ms2.use_roof_area_items;
       document.getElementById('maintenanceDefaultEmployee').innerHTML=auswahlOptionen(emps,ms2.default_responsible_employee_id,e=>e.first_name+' '+e.last_name,{leer:'— keiner —'});
     });
@@ -1122,23 +1130,26 @@ function ladeWartungsfenster(){return lesen('wartungsfenster',()=>api('/api/main
 function renderMaintenanceWindows(){
   document.getElementById('maintenanceWindowRows').innerHTML=maintenanceWindows.length?maintenanceWindows.map((w,i)=>`<div class="field" style="display:flex;align-items:center;gap:8px">
     <input value="${esc(w.label)}" style="flex:1" onblur="saveMaintenanceWindow(${w.id},this.value,null,null)">
-    <input type="number" min="1" max="12" value="${esc(w.month_from)}" style="width:70px" onblur="saveMaintenanceWindow(${w.id},null,this.value,null)">
-    <input type="number" min="1" max="12" value="${esc(w.month_to)}" style="width:70px" onblur="saveMaintenanceWindow(${w.id},null,null,this.value)">
+    <input type="text" inputmode="numeric" data-zahl="ganz" data-min="1" data-max="12" data-feld="Startmonat" value="${zahlText(w.month_from)}" style="width:70px" onblur="saveMaintenanceWindow(${w.id},null,this,null)">
+    <input type="text" inputmode="numeric" data-zahl="ganz" data-min="1" data-max="12" data-feld="Endmonat" value="${zahlText(w.month_to)}" style="width:70px" onblur="saveMaintenanceWindow(${w.id},null,null,this)">
     <button type="button" class="secondary" ${i===0?'disabled':''} onclick="moveMaintenanceWindow(${i},-1)">↑</button>
     <button type="button" class="secondary" ${i===maintenanceWindows.length-1?'disabled':''} onclick="moveMaintenanceWindow(${i},1)">↓</button>
     <button type="button" class="danger" onclick="deleteMaintenanceWindow(${w.id})">×</button>
   </div>`).join(''):'<div class="muted small">Keine Wartungsfenster vorhanden.</div>';
 }
+// Seit 1.8.109 übergeben die Monatsfelder sich selbst (monthFrom/monthTo = Feld oder null) und werden über _zahl.html gelesen;
+// leer wird abgelehnt (bis 1.8.108 als 0 geschickt, der Server lehnte ab).
 async function saveMaintenanceWindow(id,label,monthFrom,monthTo){
   const w=maintenanceWindows.find(x=>x.id===id);
   if(!w)return;
-  const payload={
-    label:(label===null?w.label:label.trim())||w.label,
-    month_from:monthFrom===null?w.month_from:Number(monthFrom),
-    month_to:monthTo===null?w.month_to:Number(monthTo),
-  };
   const st=document.getElementById('maintenanceWindowStatus');
-  try{await speichern('wartungsfenster',()=>api(`/api/maintenance-windows/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{neuLaden:ladeWartungsfenster});st.textContent=''}catch(e){st.textContent='Fehler: '+e.message;renderMaintenanceWindows()}
+  try{
+    const payload={
+      label:(label===null?w.label:label.trim())||w.label,
+      month_from:monthFrom===null?w.month_from:zahlFeld(monthFrom,{pflicht:true}),
+      month_to:monthTo===null?w.month_to:zahlFeld(monthTo,{pflicht:true}),
+    };
+    await speichern('wartungsfenster',()=>api(`/api/maintenance-windows/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{neuLaden:ladeWartungsfenster});st.textContent=''}catch(e){st.textContent='Fehler: '+e.message;renderMaintenanceWindows()}
 }
 async function moveMaintenanceWindow(index,dir){
   const target=index+dir;
@@ -1156,11 +1167,12 @@ async function deleteMaintenanceWindow(id){
 async function addMaintenanceWindow(){
   const labelInput=document.getElementById('newMaintenanceWindowLabel');
   const label=labelInput.value.trim();
-  const monthFrom=Number(document.getElementById('newMaintenanceWindowFrom').value);
-  const monthTo=Number(document.getElementById('newMaintenanceWindowTo').value);
   const st=document.getElementById('maintenanceWindowStatus');
-  if(!label||!monthFrom||!monthTo){st.textContent='Bitte Bezeichnung sowie Start- und Endmonat angeben.';return}
   try{
+    // Seit 1.8.109 über _zahl.html, im try: eine abgelehnte Eingabe erscheint unten; leer wie bisher mit dem Hinweis darunter.
+    const monthFrom=zahlFeld('newMaintenanceWindowFrom',{leer:0});
+    const monthTo=zahlFeld('newMaintenanceWindowTo',{leer:0});
+    if(!label||!monthFrom||!monthTo){st.textContent='Bitte Bezeichnung sowie Start- und Endmonat angeben.';return}
     await speichern('wartungsfenster',()=>api('/api/maintenance-windows',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,month_from:monthFrom,month_to:monthTo})}),{neuLaden:ladeWartungsfenster});
     labelInput.value='';document.getElementById('newMaintenanceWindowFrom').value='';document.getElementById('newMaintenanceWindowTo').value='';
     st.textContent='';
@@ -1542,7 +1554,7 @@ async function loadDocumentLayoutSection(){
       document.getElementById('documentLayoutBlockHeader').checked=!!documentLayoutBlocks.company_header?.visible;
       document.getElementById('documentLayoutBlockFooter').checked=!!documentLayoutBlocks.footer_text?.visible;
       document.getElementById('documentLayoutBlockContinuation').checked=!!documentLayoutBlocks.continuation_header?.visible;
-      if(documentLayoutBlocks.continuation_header)document.getElementById('documentLayoutContinuationY').value=documentLayoutBlocks.continuation_header.y_mm;
+      if(documentLayoutBlocks.continuation_header)document.getElementById('documentLayoutContinuationY').value=zahlText(documentLayoutBlocks.continuation_header.y_mm);
     });
   }catch(e){document.getElementById('documentLayoutBlocksStatus').textContent='Fehler: '+e.message}
   for(const pageType of ['first','continuation']){
@@ -1555,10 +1567,10 @@ async function loadDocumentLayoutSection(){
   }
   try{
     await lesen('raender',()=>Promise.all([api('/api/document-layout/default/margins/first'),api('/api/document-layout/default/margins/continuation')]),([first,cont])=>{
-      setv('documentLayoutMarginFirstTop',first.top_mm);setv('documentLayoutMarginFirstBottom',first.bottom_mm);
-      setv('documentLayoutMarginFirstLeft',first.left_mm);setv('documentLayoutMarginFirstRight',first.right_mm);
-      setv('documentLayoutMarginContinuationTop',cont.top_mm);setv('documentLayoutMarginContinuationBottom',cont.bottom_mm);
-      setv('documentLayoutMarginContinuationLeft',cont.left_mm);setv('documentLayoutMarginContinuationRight',cont.right_mm);
+      setv('documentLayoutMarginFirstTop',zahlText(first.top_mm));setv('documentLayoutMarginFirstBottom',zahlText(first.bottom_mm));
+      setv('documentLayoutMarginFirstLeft',zahlText(first.left_mm));setv('documentLayoutMarginFirstRight',zahlText(first.right_mm));
+      setv('documentLayoutMarginContinuationTop',zahlText(cont.top_mm));setv('documentLayoutMarginContinuationBottom',zahlText(cont.bottom_mm));
+      setv('documentLayoutMarginContinuationLeft',zahlText(cont.left_mm));setv('documentLayoutMarginContinuationRight',zahlText(cont.right_mm));
     });
   }catch(e){document.getElementById('documentLayoutMarginsStatus').textContent='Fehler: '+e.message}
 }
@@ -1621,7 +1633,7 @@ function renderSidebarLogoFallbackHint(){
 function renderSidebarLogo(){
   const wrap=document.getElementById('sidebarLogoPreviewWrap'),emptyHint=document.getElementById('sidebarLogoEmptyHint'),removeBtn=document.getElementById('sidebarLogoRemove'),img=document.getElementById('sidebarLogoPreview'),heightInput=document.getElementById('sidebarLogoHeight');
   const height=(generalSettings&&generalSettings.sidebar_logo_height_px)||48;
-  heightInput.value=height;
+  heightInput.value=zahlText(height);
   if(generalSettings&&generalSettings.sidebar_logo_filename){
     img.src='/api/settings/general/sidebar-logo?v='+encodeURIComponent(generalSettings.sidebar_logo_filename);
     img.style.height=height+'px';
@@ -1633,9 +1645,9 @@ function renderSidebarLogo(){
 }
 async function saveLogoHeight(){
   const input=document.getElementById('sidebarLogoHeight'),st=document.getElementById('sidebarLogoStatus');
-  const height=Number(input.value);
-  if(!Number.isInteger(height)||height<24||height>120){st.textContent='Bitte einen Wert zwischen 24 und 120 eingeben.';return}
   try{
+    // Seit 1.8.109 über _zahl.html: ganze Zahl von 24 bis 120 (data-min/data-max), leer abgelehnt -- wie bisher die eigene Prüfung.
+    const height=zahlFeld(input,{pflicht:true});
     // Nur die Höhe (seit 1.8.25) -- vorher der beim Laden gemerkte Stand aller Stammdaten.
     await speichern('allgemein',()=>api('/api/settings/general',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({sidebar_logo_height_px:height})}),{anwenden:d=>{generalSettings=d;renderSidebarLogo()}});
     st.textContent='Gespeichert.';
@@ -1661,14 +1673,18 @@ async function removeSidebarLogo(){
 async function saveDocumentLayoutMargins(){
   const st=document.getElementById('documentLayoutMarginsStatus');
   try{
-    await speichern('raender',()=>api('/api/document-layout/default/margins/first',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      top_mm:Number(v('documentLayoutMarginFirstTop')),bottom_mm:Number(v('documentLayoutMarginFirstBottom')),
-      left_mm:Number(v('documentLayoutMarginFirstLeft')),right_mm:Number(v('documentLayoutMarginFirstRight')),
-    })}));
-    await speichern('raender',()=>api('/api/document-layout/default/margins/continuation',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      top_mm:Number(v('documentLayoutMarginContinuationTop')),bottom_mm:Number(v('documentLayoutMarginContinuationBottom')),
-      left_mm:Number(v('documentLayoutMarginContinuationLeft')),right_mm:Number(v('documentLayoutMarginContinuationRight')),
-    })}));
+    // Seit 1.8.109 alle acht Ränder über _zahl.html gelesen, bevor gespeichert wird -- ein abgelehnter Rand der Folgeseiten
+    // speichert so auch Seite 1 nicht. Leer wird abgelehnt (bis 1.8.108 still als 0 mm gespeichert).
+    const first={
+      top_mm:zahlFeld('documentLayoutMarginFirstTop',{pflicht:true}),bottom_mm:zahlFeld('documentLayoutMarginFirstBottom',{pflicht:true}),
+      left_mm:zahlFeld('documentLayoutMarginFirstLeft',{pflicht:true}),right_mm:zahlFeld('documentLayoutMarginFirstRight',{pflicht:true}),
+    };
+    const cont={
+      top_mm:zahlFeld('documentLayoutMarginContinuationTop',{pflicht:true}),bottom_mm:zahlFeld('documentLayoutMarginContinuationBottom',{pflicht:true}),
+      left_mm:zahlFeld('documentLayoutMarginContinuationLeft',{pflicht:true}),right_mm:zahlFeld('documentLayoutMarginContinuationRight',{pflicht:true}),
+    };
+    await speichern('raender',()=>api('/api/document-layout/default/margins/first',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(first)}));
+    await speichern('raender',()=>api('/api/document-layout/default/margins/continuation',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(cont)}));
     st.textContent='Gespeichert.';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
@@ -1676,12 +1692,12 @@ async function resetDocumentLayoutMargins(){
   if(!confirm('Randabstände für Seite 1 und Folgeseiten wirklich auf die Standardwerte zurücksetzen?'))return;
   try{
     await speichern('raender',()=>api('/api/document-layout/default/margins/first/reset',{method:'POST'}),{anwenden:first=>{
-      setv('documentLayoutMarginFirstTop',first.top_mm);setv('documentLayoutMarginFirstBottom',first.bottom_mm);
-      setv('documentLayoutMarginFirstLeft',first.left_mm);setv('documentLayoutMarginFirstRight',first.right_mm);
+      setv('documentLayoutMarginFirstTop',zahlText(first.top_mm));setv('documentLayoutMarginFirstBottom',zahlText(first.bottom_mm));
+      setv('documentLayoutMarginFirstLeft',zahlText(first.left_mm));setv('documentLayoutMarginFirstRight',zahlText(first.right_mm));
     }});
     await speichern('raender',()=>api('/api/document-layout/default/margins/continuation/reset',{method:'POST'}),{anwenden:cont=>{
-      setv('documentLayoutMarginContinuationTop',cont.top_mm);setv('documentLayoutMarginContinuationBottom',cont.bottom_mm);
-      setv('documentLayoutMarginContinuationLeft',cont.left_mm);setv('documentLayoutMarginContinuationRight',cont.right_mm);
+      setv('documentLayoutMarginContinuationTop',zahlText(cont.top_mm));setv('documentLayoutMarginContinuationBottom',zahlText(cont.bottom_mm));
+      setv('documentLayoutMarginContinuationLeft',zahlText(cont.left_mm));setv('documentLayoutMarginContinuationRight',zahlText(cont.right_mm));
     }});
     document.getElementById('documentLayoutMarginsStatus').textContent='Zurückgesetzt.';
   }catch(e){document.getElementById('documentLayoutMarginsStatus').textContent='Fehler: '+e.message}
@@ -1697,11 +1713,14 @@ async function toggleDocumentLayoutBlock(blockType,checked){
     b.visible=checked;
   }catch(e){alert('Fehler: '+e.message)}
 }
-async function saveContinuationHeaderPosition(newY){
+async function saveContinuationHeaderPosition(feld){
   const b=documentLayoutBlocks.continuation_header;
   const st=document.getElementById('documentLayoutBlocksStatus');
   if(!b)return;
   try{
+    // Seit 1.8.109 übergibt das Feld sich selbst (onchange) und wird über _zahl.html gelesen -- bis 1.8.108 ging sein Text roh an den
+    // Server ("1.250" als 1,25). Eine schon gelesene Zahl (tests/test_v399_teil_updates_rest.py) geht unverändert durch.
+    const newY=typeof feld==='number'?feld:zahlFeld(feld,{pflicht:true});
     // Seit 1.8.96 nur y_mm (Regel 22) -- vorher gingen alle Felder des Bausteins mit dem beim Laden gemerkten Stand mit.
     await speichern('bausteine',()=>api(`/api/document-layout/blocks/${b.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
       y_mm:newY,
@@ -1712,10 +1731,10 @@ async function saveContinuationHeaderPosition(newY){
 
 async function saveMaintenanceSettings(){
   const st=document.getElementById('maintenanceSettingsStatus');
-  const leadDays=Number(document.getElementById('maintenanceLeadDays').value||0);
   const empId=document.getElementById('maintenanceDefaultEmployee').value;
   const useRoofAreaItems=document.getElementById('maintenanceUseRoofAreaItems').checked;
   try{
+    const leadDays=zahlFeld('maintenanceLeadDays',{leer:0});  // seit 1.8.109 über _zahl.html, im try: ein Fehler erscheint unten
     await speichern('wartung',()=>api('/api/maintenance-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({reminder_lead_days:leadDays,use_roof_area_items:useRoofAreaItems,default_responsible_employee_id:empId?Number(empId):null})}));
     st.textContent='Gespeichert.';
   }catch(e){st.textContent='Fehler: '+e.message}
@@ -1824,9 +1843,10 @@ function ladeZahlungsbedingungen(){return lesen('zahlungsbedingungen',()=>api('/
 function renderPaymentTerms(){document.getElementById('paymentTermRows').innerHTML=paymentTerms.length?paymentTerms.map(x=>`<tr><td><b>${esc(x.label)}</b>${x.text_template?'<div class="muted small">eigener Text hinterlegt</div>':''}</td><td>${esc(x.days)}</td><td>${x.skonto_percent?`${esc(String(x.skonto_percent).replace('.',','))} % bei ${esc(x.skonto_days)} Tagen`:'<span class="muted">—</span>'}</td><td>${x.is_default?'<span class="badge">Standard</span>':(x.archived?'Archiviert':'Aktiv')}</td><td><button class="secondary" onclick="editPaymentTerm(${x.id})">Bearbeiten</button> ${x.is_default?'':x.archived?`<button class="secondary" onclick="unarchivePaymentTerm(${x.id})">Wiederherstellen</button>`:`<button class="secondary" onclick="setDefaultPaymentTerm(${x.id})">Als Standard</button> <button class="danger" onclick="archivePaymentTerm(${x.id})">Archivieren</button>`}</td></tr>`).join(''):'<tr><td colspan="5" class="muted">Noch keine Zahlungsbedingung hinterlegt.</td></tr>'}
 function showPaymentTermEditor(){document.getElementById('paymentTermEditorPanel').style.display='block';document.getElementById('ptLabel').focus()}
 function hidePaymentTermEditor(){resetPaymentTermForm();document.getElementById('paymentTermEditorPanel').style.display='none'}
-function editPaymentTerm(id){const t=paymentTerms.find(x=>x.id===id);if(!t)return;editingPaymentTermId=id;setv('ptLabel',t.label);setv('ptDays',String(t.days));setv('ptSkontoPercent',t.skonto_percent??'');setv('ptSkontoDays',t.skonto_days??'');setv('ptTextTemplate',t.text_template||'');document.getElementById('paymentTermEditorHeading').textContent='Zahlungsbedingung bearbeiten';document.getElementById('paymentTermSave').textContent='Änderungen speichern';document.getElementById('paymentTermStatus').textContent='';showPaymentTermEditor()}
+function editPaymentTerm(id){const t=paymentTerms.find(x=>x.id===id);if(!t)return;editingPaymentTermId=id;setv('ptLabel',t.label);setv('ptDays',zahlText(t.days));setv('ptSkontoPercent',zahlText(t.skonto_percent));setv('ptSkontoDays',zahlText(t.skonto_days));setv('ptTextTemplate',t.text_template||'');document.getElementById('paymentTermEditorHeading').textContent='Zahlungsbedingung bearbeiten';document.getElementById('paymentTermSave').textContent='Änderungen speichern';document.getElementById('paymentTermStatus').textContent='';showPaymentTermEditor()}
 function resetPaymentTermForm(){editingPaymentTermId=null;setv('ptLabel','');setv('ptDays','');setv('ptSkontoPercent','');setv('ptSkontoDays','');setv('ptTextTemplate','');document.getElementById('paymentTermEditorHeading').textContent='Zahlungsbedingung hinzufügen';document.getElementById('paymentTermSave').textContent='Hinzufügen';document.getElementById('paymentTermStatus').textContent=''}
-async function savePaymentTerm(){const st=document.getElementById('paymentTermStatus');try{const label=v('ptLabel');const days=Number(v('ptDays'));if(!label||isNaN(days))throw Error('Bitte Bezeichnung und Tage angeben.');const skontoPercent=v('ptSkontoPercent')?Number(v('ptSkontoPercent')):null;const skontoDays=v('ptSkontoDays')?Number(v('ptSkontoDays')):null;const textTemplate=v('ptTextTemplate')||null;const url=editingPaymentTermId?`/api/payment-terms/${editingPaymentTermId}`:'/api/payment-terms';await speichern('zahlungsbedingungen',()=>api(url,{method:editingPaymentTermId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,days,skonto_percent:skontoPercent,skonto_days:skontoDays,text_template:textTemplate})}));hidePaymentTermEditor();await ladeZahlungsbedingungen()}catch(e){st.textContent='Fehler: '+e.message}}
+// Seit 1.8.109 Zahlen über _zahl.html (deutsches Format); leere Tage bis Fälligkeit werden abgelehnt -- bis 1.8.108 still als 0 gespeichert.
+async function savePaymentTerm(){const st=document.getElementById('paymentTermStatus');try{const label=v('ptLabel');if(!label)throw Error('Bitte Bezeichnung und Tage angeben.');const days=zahlFeld('ptDays',{pflicht:true});const skontoPercent=zahlFeld('ptSkontoPercent');const skontoDays=zahlFeld('ptSkontoDays');const textTemplate=v('ptTextTemplate')||null;const url=editingPaymentTermId?`/api/payment-terms/${editingPaymentTermId}`:'/api/payment-terms';await speichern('zahlungsbedingungen',()=>api(url,{method:editingPaymentTermId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,days,skonto_percent:skontoPercent,skonto_days:skontoDays,text_template:textTemplate})}));hidePaymentTermEditor();await ladeZahlungsbedingungen()}catch(e){st.textContent='Fehler: '+e.message}}
 async function setDefaultPaymentTerm(id){try{await speichern('zahlungsbedingungen',()=>api(`/api/payment-terms/${id}/set-default`,{method:'POST'}),{neuLaden:ladeZahlungsbedingungen})}catch(e){document.getElementById('paymentTermStatus').textContent='Fehler: '+e.message}}
 async function archivePaymentTerm(id){try{await speichern('zahlungsbedingungen',()=>api(`/api/payment-terms/${id}/archive`,{method:'POST'}),{neuLaden:ladeZahlungsbedingungen})}catch(e){document.getElementById('paymentTermStatus').textContent='Fehler: '+e.message}}
 async function unarchivePaymentTerm(id){try{await speichern('zahlungsbedingungen',()=>api(`/api/payment-terms/${id}/unarchive`,{method:'POST'}),{neuLaden:ladeZahlungsbedingungen})}catch(e){document.getElementById('paymentTermStatus').textContent='Fehler: '+e.message}}
@@ -1835,16 +1855,18 @@ function ladeSteuerschluessel(){return lesen('steuerschluessel',()=>api('/api/ta
 function renderTaxKeys(){document.getElementById('taxKeyRows').innerHTML=taxKeys.length?taxKeys.map(x=>`<tr><td><b>${esc(x.label)}</b>${x.notice_text?'<div class="muted small">Hinweistext hinterlegt</div>':''}</td><td>${esc(String(x.vat_rate).replace('.',','))} %</td><td>${x.is_default?'<span class="badge">Standard</span>':(x.archived?'Archiviert':'Aktiv')}</td><td><button class="secondary" onclick="editTaxKey(${x.id})">Bearbeiten</button> ${x.is_default?'':x.archived?`<button class="secondary" onclick="unarchiveTaxKey(${x.id})">Wiederherstellen</button>`:`<button class="secondary" onclick="setDefaultTaxKey(${x.id})">Als Standard</button> <button class="danger" onclick="archiveTaxKey(${x.id})">Archivieren</button>`}</td></tr>`).join(''):'<tr><td colspan="4" class="muted">Noch kein Steuerschlüssel hinterlegt.</td></tr>'}
 function showTaxKeyEditor(){document.getElementById('taxKeyEditorPanel').style.display='block';document.getElementById('tkLabel').focus()}
 function hideTaxKeyEditor(){resetTaxKeyForm();document.getElementById('taxKeyEditorPanel').style.display='none'}
-function editTaxKey(id){const t=taxKeys.find(x=>x.id===id);if(!t)return;editingTaxKeyId=id;setv('tkLabel',t.label);setv('tkVatRate',String(t.vat_rate));setv('tkNoticeText',t.notice_text||'');document.getElementById('taxKeyEditorHeading').textContent='Steuerschlüssel bearbeiten';document.getElementById('taxKeySave').textContent='Änderungen speichern';document.getElementById('taxKeyStatus').textContent='';showTaxKeyEditor()}
+function editTaxKey(id){const t=taxKeys.find(x=>x.id===id);if(!t)return;editingTaxKeyId=id;setv('tkLabel',t.label);setv('tkVatRate',zahlText(t.vat_rate));setv('tkNoticeText',t.notice_text||'');document.getElementById('taxKeyEditorHeading').textContent='Steuerschlüssel bearbeiten';document.getElementById('taxKeySave').textContent='Änderungen speichern';document.getElementById('taxKeyStatus').textContent='';showTaxKeyEditor()}
 function resetTaxKeyForm(){editingTaxKeyId=null;setv('tkLabel','');setv('tkVatRate','');setv('tkNoticeText','');document.getElementById('taxKeyEditorHeading').textContent='Steuerschlüssel hinzufügen';document.getElementById('taxKeySave').textContent='Hinzufügen';document.getElementById('taxKeyStatus').textContent=''}
-async function saveTaxKey(){const st=document.getElementById('taxKeyStatus');try{const label=v('tkLabel');const vatRate=Number(v('tkVatRate'));if(!label||isNaN(vatRate))throw Error('Bitte Bezeichnung und MwSt.-Satz angeben.');const noticeText=v('tkNoticeText')||null;const url=editingTaxKeyId?`/api/tax-keys/${editingTaxKeyId}`:'/api/tax-keys';await speichern('steuerschluessel',()=>api(url,{method:editingTaxKeyId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,vat_rate:vatRate,notice_text:noticeText})}));hideTaxKeyEditor();await ladeSteuerschluessel()}catch(e){st.textContent='Fehler: '+e.message}}
+// Seit 1.8.109 über _zahl.html; ein leerer MwSt.-Satz wird abgelehnt -- bis 1.8.108 still als 0 % gespeichert (0 % von Hand eintragen).
+async function saveTaxKey(){const st=document.getElementById('taxKeyStatus');try{const label=v('tkLabel');if(!label)throw Error('Bitte Bezeichnung und MwSt.-Satz angeben.');const vatRate=zahlFeld('tkVatRate',{pflicht:true});const noticeText=v('tkNoticeText')||null;const url=editingTaxKeyId?`/api/tax-keys/${editingTaxKeyId}`:'/api/tax-keys';await speichern('steuerschluessel',()=>api(url,{method:editingTaxKeyId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label,vat_rate:vatRate,notice_text:noticeText})}));hideTaxKeyEditor();await ladeSteuerschluessel()}catch(e){st.textContent='Fehler: '+e.message}}
 async function setDefaultTaxKey(id){try{await speichern('steuerschluessel',()=>api(`/api/tax-keys/${id}/set-default`,{method:'POST'}),{neuLaden:ladeSteuerschluessel})}catch(e){document.getElementById('taxKeyStatus').textContent='Fehler: '+e.message}}
 async function archiveTaxKey(id){try{await speichern('steuerschluessel',()=>api(`/api/tax-keys/${id}/archive`,{method:'POST'}),{neuLaden:ladeSteuerschluessel})}catch(e){document.getElementById('taxKeyStatus').textContent='Fehler: '+e.message}}
 async function unarchiveTaxKey(id){try{await speichern('steuerschluessel',()=>api(`/api/tax-keys/${id}/unarchive`,{method:'POST'}),{neuLaden:ladeSteuerschluessel})}catch(e){document.getElementById('taxKeyStatus').textContent='Fehler: '+e.message}}
-function renderReminderLevels(){renderDunningSwitch();if(dunningSettings===null){loadDunningSettings();}if(baseRates===null){loadDunningLegal()}else{renderBaseRates();renderLegalTexts()}const feeOn=!!(dunningSettings&&dunningSettings.charges_enabled);document.getElementById('reminderLevelRows').innerHTML=reminderLevels.map(x=>`<div class="option-row" data-mahnstufe="${esc(x.level)}"><div class="fields"><div class="field"><label>Bezeichnung</label><input id="rl${x.id}Label" value="${esc(x.label)}"></div><div class="field"><label>Zahlungsfrist (Tage ab Mahndatum)</label><input id="rl${x.id}Days" type="number" min="1" max="365" value="${esc(x.days_after_previous_step)}"></div>${feeOn?`<div class="field"><label>Mahngebühr € (Vorschlag)</label><input id="rl${x.id}Fee" type="number" min="0" step="0.01" value="${Number(x.fee_amount).toFixed(2)}"></div>`:''}<div class="field" style="display:flex;align-items:flex-end;gap:6px"><label style="display:flex;align-items:center;gap:6px;font-weight:650;margin-bottom:9px"><input id="rl${x.id}Active" type="checkbox" style="width:auto" ${x.active?'checked':''}> Stufe aktiv</label></div></div>${feePlaceholderWarning(x)}<div class="field"><label>Mahntext (PDF) <span class="muted small">(Platzhalter: {rechnungsnummer} {rechnungsdatum} {faelligkeitsdatum} {offener_betrag} {gesamtbetrag} {neue_frist} {vorheriges_mahndatum}${feeOn?' {mahngebuehr} {nebenforderungen}':''})</span></label><textarea id="rl${x.id}Text" rows="4">${esc(x.text_template||'')}</textarea></div><div class="field"><label>E-Mail-Betreff <span class="muted small">(zusätzlich: {mahnstufe}, leer = Standardtext) – auch über "E-Mail-Vorlagen" oben bearbeitbar</span></label><input id="rl${x.id}EmailSubject" value="${esc(x.email_subject_template||'')}" placeholder="${esc(x.level)}. Mahnung zu Rechnung {rechnungsnummer}"></div><div class="field"><label>E-Mail-Text <span class="muted small">(kurze Nachricht, Details stehen im PDF-Anhang)</span></label><textarea id="rl${x.id}EmailBody" rows="4" placeholder="Sehr geehrte Damen und Herren, anbei erhalten Sie unsere ${esc(x.level)}. Mahnung …">${esc(x.email_body_template||'')}</textarea></div><button onclick="saveReminderLevel(${x.id})">Speichern</button> <span id="rlStatus${x.id}" class="status"></span></div>`).join('');populateReminderLevelEmailOptions()}
+function renderReminderLevels(){renderDunningSwitch();if(dunningSettings===null){loadDunningSettings();}if(baseRates===null){loadDunningLegal()}else{renderBaseRates();renderLegalTexts()}const feeOn=!!(dunningSettings&&dunningSettings.charges_enabled);document.getElementById('reminderLevelRows').innerHTML=reminderLevels.map(x=>`<div class="option-row" data-mahnstufe="${esc(x.level)}"><div class="fields"><div class="field"><label>Bezeichnung</label><input id="rl${x.id}Label" value="${esc(x.label)}"></div><div class="field"><label>Zahlungsfrist (Tage ab Mahndatum)</label><input id="rl${x.id}Days" type="text" inputmode="numeric" data-zahl="ganz" data-min="1" data-max="365" data-feld="Zahlungsfrist" value="${zahlText(x.days_after_previous_step)}"></div>${feeOn?`<div class="field"><label>Mahngebühr € (Vorschlag)</label><input id="rl${x.id}Fee" type="text" inputmode="decimal" data-zahl data-min="0" data-stellen="2" data-feld="Mahngebühr" value="${zahlText(x.fee_amount,2)}"></div>`:''}<div class="field" style="display:flex;align-items:flex-end;gap:6px"><label style="display:flex;align-items:center;gap:6px;font-weight:650;margin-bottom:9px"><input id="rl${x.id}Active" type="checkbox" style="width:auto" ${x.active?'checked':''}> Stufe aktiv</label></div></div>${feePlaceholderWarning(x)}<div class="field"><label>Mahntext (PDF) <span class="muted small">(Platzhalter: {rechnungsnummer} {rechnungsdatum} {faelligkeitsdatum} {offener_betrag} {gesamtbetrag} {neue_frist} {vorheriges_mahndatum}${feeOn?' {mahngebuehr} {nebenforderungen}':''})</span></label><textarea id="rl${x.id}Text" rows="4">${esc(x.text_template||'')}</textarea></div><div class="field"><label>E-Mail-Betreff <span class="muted small">(zusätzlich: {mahnstufe}, leer = Standardtext) – auch über "E-Mail-Vorlagen" oben bearbeitbar</span></label><input id="rl${x.id}EmailSubject" value="${esc(x.email_subject_template||'')}" placeholder="${esc(x.level)}. Mahnung zu Rechnung {rechnungsnummer}"></div><div class="field"><label>E-Mail-Text <span class="muted small">(kurze Nachricht, Details stehen im PDF-Anhang)</span></label><textarea id="rl${x.id}EmailBody" rows="4" placeholder="Sehr geehrte Damen und Herren, anbei erhalten Sie unsere ${esc(x.level)}. Mahnung …">${esc(x.email_body_template||'')}</textarea></div><button onclick="saveReminderLevel(${x.id})">Speichern</button> <span id="rlStatus${x.id}" class="status"></span></div>`).join('');populateReminderLevelEmailOptions()}
 function ladeMahnstufen(){return lesen('mahnstufen',()=>api('/api/reminder-levels'),d=>{reminderLevels=d;renderReminderLevels()})}
 // Seit 1.8.80 Teil-Update: die Gebühr nur, wenn das Feld da ist (Mahngebühren eingeschaltet).
-async function saveReminderLevel(id){const st=document.getElementById('rlStatus'+id);try{const label=v('rl'+id+'Label');const days=Number(v('rl'+id+'Days'));const feeInput=document.getElementById('rl'+id+'Fee');const fee=feeInput?Number(feeInput.value):null;if(!label||isNaN(days)||(feeInput&&isNaN(fee)))throw Error('Bitte Bezeichnung, Zahlungsfrist und Gebühr angeben.');const active=document.getElementById('rl'+id+'Active').checked;const textTemplate=v('rl'+id+'Text')||null;const emailSubject=v('rl'+id+'EmailSubject')||null;const emailBody=v('rl'+id+'EmailBody')||null;const body={label,days_after_previous_step:days,text_template:textTemplate,email_subject_template:emailSubject,email_body_template:emailBody,active};if(feeInput)body.fee_amount=fee.toFixed(2);await speichern('mahnstufen',()=>api(`/api/reminder-levels/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{neuLaden:ladeMahnstufen});document.getElementById('rlStatus'+id).textContent='Gespeichert.'}catch(e){st.textContent='Fehler: '+e.message}}
+// Seit 1.8.109 über _zahl.html: leere Zahlungsfrist abgelehnt (bis 1.8.108 als 0 geschickt, der Server lehnte ab), leere Gebühr wie bisher 0.
+async function saveReminderLevel(id){const st=document.getElementById('rlStatus'+id);try{const label=v('rl'+id+'Label');if(!label)throw Error('Bitte Bezeichnung, Zahlungsfrist und Gebühr angeben.');const days=zahlFeld('rl'+id+'Days',{pflicht:true});const feeInput=document.getElementById('rl'+id+'Fee');const fee=feeInput?zahlFeld(feeInput,{leer:0}):null;const active=document.getElementById('rl'+id+'Active').checked;const textTemplate=v('rl'+id+'Text')||null;const emailSubject=v('rl'+id+'EmailSubject')||null;const emailBody=v('rl'+id+'EmailBody')||null;const body={label,days_after_previous_step:days,text_template:textTemplate,email_subject_template:emailSubject,email_body_template:emailBody,active};if(feeInput)body.fee_amount=fee.toFixed(2);await speichern('mahnstufen',()=>api(`/api/reminder-levels/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{neuLaden:ladeMahnstufen});document.getElementById('rlStatus'+id).textContent='Gespeichert.'}catch(e){st.textContent='Fehler: '+e.message}}
 
 function onEmailSendMethodChange(){
   const method = document.getElementById('emailSendMethod').value;
@@ -1857,7 +1879,7 @@ async function loadEmailSettings(){
     await lesen('email', () => api('/api/email-settings'), s => {
       document.getElementById('emailSendMethod').value = s.send_method || 'smtp';
       onEmailSendMethodChange();
-      setv('smtpHost', s.host); setv('smtpPort', s.port); setv('smtpUsername', s.username);
+      setv('smtpHost', s.host); setv('smtpPort', zahlText(s.port)); setv('smtpUsername', s.username);
       document.getElementById('smtpEncryption').value = s.encryption;
       setv('smtpSenderEmail', s.sender_email); setv('smtpSenderName', s.sender_name);
       document.getElementById('smtpPasswordHint').textContent = s.has_password ? '(gespeichert – leer lassen für unverändert)' : '(noch keins hinterlegt – bitte ausfüllen)';
@@ -1873,10 +1895,13 @@ async function loadEmailSettings(){
 async function saveSmtpSettings(){
   const st = document.getElementById('emailSettingsStatus');
   try{
+    // Seit 1.8.109 vor dem ersten Speichern über _zahl.html gelesen: ein leerer oder ungültiger Port schaltet den Versandweg nicht
+    // mehr vorher auf SMTP um (bis 1.8.108 ging leer als 0 hinaus, nachdem der Versandweg schon gespeichert war).
+    const port = zahlFeld('smtpPort', {pflicht: true});
     st.textContent = 'Speichert …';
     await speichern('email', () => api('/api/email-settings/method', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({send_method: 'smtp'})}));
     const payload = {
-      host: v('smtpHost'), port: Number(v('smtpPort')), username: v('smtpUsername'),
+      host: v('smtpHost'), port, username: v('smtpUsername'),
       encryption: document.getElementById('smtpEncryption').value,
       sender_email: v('smtpSenderEmail'), sender_name: v('smtpSenderName') || null,
       password: v('smtpPassword') || null,
@@ -2045,8 +2070,8 @@ async function saveEmailTemplate(){
   }catch(e){ st.textContent = 'Fehler: ' + e.message }
 }
 
-function renderPlanningSettings(){if(!planningSettings)return;setv('planningDailyHours',planningSettings.daily_work_hours);setv('planningTravelHours',planningSettings.default_travel_hours_per_employee_day);setv('planningState',planningSettings.federal_state_code||'NW');document.getElementById('planningAutoHolidays').checked=planningSettings.auto_public_holidays!==false;document.getElementById('planningSchoolHolidays').checked=planningSettings.show_school_holidays!==false;document.getElementById('planMon').checked=!!planningSettings.monday;document.getElementById('planTue').checked=!!planningSettings.tuesday;document.getElementById('planWed').checked=!!planningSettings.wednesday;document.getElementById('planThu').checked=!!planningSettings.thursday;document.getElementById('planFri').checked=!!planningSettings.friday;document.getElementById('planSat').checked=!!planningSettings.saturday;document.getElementById('planSun').checked=!!planningSettings.sunday}
-async function savePlanningSettings(){const st=document.getElementById('planningStatus');try{await speichern('planung',()=>api('/api/planning/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({daily_work_hours:Number(v('planningDailyHours')||0),default_travel_hours_per_employee_day:Number(v('planningTravelHours')||0),monday:document.getElementById('planMon').checked,tuesday:document.getElementById('planTue').checked,wednesday:document.getElementById('planWed').checked,thursday:document.getElementById('planThu').checked,friday:document.getElementById('planFri').checked,saturday:document.getElementById('planSat').checked,sunday:document.getElementById('planSun').checked,federal_state_code:v('planningState')||'NW',auto_public_holidays:document.getElementById('planningAutoHolidays').checked,show_school_holidays:document.getElementById('planningSchoolHolidays').checked})}),{anwenden:d=>{planningSettings=d}});st.textContent='Planungsgrundlagen gespeichert.';if(planningSettings.show_school_holidays)await syncSchoolHolidays(false)}catch(e){st.textContent='Fehler: '+e.message}}
+function renderPlanningSettings(){if(!planningSettings)return;setv('planningDailyHours',zahlText(planningSettings.daily_work_hours));setv('planningTravelHours',zahlText(planningSettings.default_travel_hours_per_employee_day));setv('planningState',planningSettings.federal_state_code||'NW');document.getElementById('planningAutoHolidays').checked=planningSettings.auto_public_holidays!==false;document.getElementById('planningSchoolHolidays').checked=planningSettings.show_school_holidays!==false;document.getElementById('planMon').checked=!!planningSettings.monday;document.getElementById('planTue').checked=!!planningSettings.tuesday;document.getElementById('planWed').checked=!!planningSettings.wednesday;document.getElementById('planThu').checked=!!planningSettings.thursday;document.getElementById('planFri').checked=!!planningSettings.friday;document.getElementById('planSat').checked=!!planningSettings.saturday;document.getElementById('planSun').checked=!!planningSettings.sunday}
+async function savePlanningSettings(){const st=document.getElementById('planningStatus');try{const dailyHours=zahlFeld('planningDailyHours',{leer:0}),travelHours=zahlFeld('planningTravelHours',{leer:0});await speichern('planung',()=>api('/api/planning/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({daily_work_hours:dailyHours,default_travel_hours_per_employee_day:travelHours,monday:document.getElementById('planMon').checked,tuesday:document.getElementById('planTue').checked,wednesday:document.getElementById('planWed').checked,thursday:document.getElementById('planThu').checked,friday:document.getElementById('planFri').checked,saturday:document.getElementById('planSat').checked,sunday:document.getElementById('planSun').checked,federal_state_code:v('planningState')||'NW',auto_public_holidays:document.getElementById('planningAutoHolidays').checked,show_school_holidays:document.getElementById('planningSchoolHolidays').checked})}),{anwenden:d=>{planningSettings=d}});st.textContent='Planungsgrundlagen gespeichert.';if(planningSettings.show_school_holidays)await syncSchoolHolidays(false)}catch(e){st.textContent='Fehler: '+e.message}}
 async function syncSchoolHolidays(force){const st=document.getElementById('planningStatus');try{st.textContent='Ferientermine werden aktualisiert …';const y=berlinDateParts().year;const r=await speichern('planung',()=>api(`/api/planning/school-holidays/sync?start_year=${y}&years=3&force=${force?'true':'false'}`,{method:'POST'}));const bad=(r.results||[]).filter(x=>!x.success);st.textContent=bad.length?`Einstellungen gespeichert. Ferien teilweise nicht aktualisiert (${bad.length} Fehler).`:`Ferientermine ${r.state_name||r.state_code} für ${y}–${y+2} aktualisiert.`}catch(e){st.textContent='Einstellungen gespeichert; Ferien-Synchronisierung nicht möglich: '+e.message}}
 function ladeFeiertage(){return lesen('feiertage',()=>api('/api/planning/holidays'),d=>{planningHolidays=d;renderHolidays()})}
 function renderHolidays(){document.getElementById('holidayRows').innerHTML=planningHolidays.map(x=>`<tr><td>${esc(x.holiday_date)}</td><td><b>${esc(x.name)}</b></td><td>${x.active?'Aktiv':'Inaktiv'}</td><td><button class="secondary" onclick="editHoliday(${x.id})">Bearbeiten</button> <button class="danger" onclick="deleteHoliday(${x.id})">Löschen</button></td></tr>`).join('')||'<tr><td colspan="4" class="muted">Noch keine Feiertage / betriebsfreien Tage hinterlegt.</td></tr>'}
@@ -2063,22 +2088,23 @@ function selectOptionGroup(){currentOptionGroup=optionGroups.find(g=>g.group_key
 function renderOptions(){const g=currentOptionGroup;document.getElementById('optionGroupDescription').textContent=g?.description||'';document.getElementById('optionRows').innerHTML=!g?'<tr><td colspan="3" class="muted">Keine Auswahllisten vorhanden.</td></tr>':g.options.map(o=>`<tr><td><b>${esc(o.label)}</b>${o.is_default?' <span class="badge">Standard</span>':''}<div class="muted small" style="white-space:pre-wrap;margin-top:2px">${esc(o.value)}</div></td><td>${o.active?'Aktiv':'Inaktiv'}</td><td><button class="secondary" onclick="editOption(${o.id})">Bearbeiten</button> <button class="danger" onclick="deleteOption(${o.id})">Löschen</button></td></tr>`).join('')||'<tr><td colspan="3" class="muted">Noch keine Einträge. Mit "+ Eintrag" den ersten Wert anlegen.</td></tr>'}
 function showOptionEditor(){document.getElementById('optionEditorPanel').style.display='block';document.getElementById('optionLabel').focus()}
 function hideOptionEditor(){resetOptionEditor();document.getElementById('optionEditorPanel').style.display='none'}
-function resetOptionEditor(){editingOptionId=null;setv('optionLabel','');setv('optionValue','');setv('optionSort','100');setv('optionActive','true');setv('optionDefault','false');document.getElementById('optionEditorHeading').textContent='Eintrag hinzufügen';document.getElementById('optionSaveButton').textContent='Hinzufügen';document.getElementById('optionStatus').textContent=''}
-function editOption(id){const o=currentOptionGroup?.options.find(x=>x.id===id);if(!o)return;editingOptionId=id;setv('optionLabel',o.label);setv('optionValue',o.value);setv('optionSort',o.sort_order);setv('optionActive',String(o.active));setv('optionDefault',String(o.is_default));document.getElementById('optionEditorHeading').textContent='Eintrag bearbeiten';document.getElementById('optionSaveButton').textContent='Änderungen speichern';showOptionEditor()}
-async function saveOption(){const s=document.getElementById('optionStatus');try{if(!currentOptionGroup)throw Error('Keine Auswahlliste ausgewählt.');const payload={label:v('optionLabel'),value:v('optionValue'),sort_order:Number(v('optionSort')||100),active:v('optionActive')==='true',is_default:v('optionDefault')==='true'};if(!payload.label||!payload.value)throw Error('Bezeichnung und Wert sind erforderlich.');const url=`/api/settings/option-groups/${currentOptionGroup.group_key}/options${editingOptionId?'/'+editingOptionId:''}`;await speichern('auswahllisten',()=>api(url,{method:editingOptionId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));editingOptionId=null;await ladeAuswahllisten();currentOptionGroup=optionGroups.find(g=>g.group_key===v('optionGroupSelect'))||currentOptionGroup;renderOptions();hideOptionEditor()}catch(e){s.textContent='Fehler: '+e.message}}
+function resetOptionEditor(){editingOptionId=null;setv('optionLabel','');setv('optionValue','');setv('optionSort',zahlText(100));setv('optionActive','true');setv('optionDefault','false');document.getElementById('optionEditorHeading').textContent='Eintrag hinzufügen';document.getElementById('optionSaveButton').textContent='Hinzufügen';document.getElementById('optionStatus').textContent=''}
+function editOption(id){const o=currentOptionGroup?.options.find(x=>x.id===id);if(!o)return;editingOptionId=id;setv('optionLabel',o.label);setv('optionValue',o.value);setv('optionSort',zahlText(o.sort_order));setv('optionActive',String(o.active));setv('optionDefault',String(o.is_default));document.getElementById('optionEditorHeading').textContent='Eintrag bearbeiten';document.getElementById('optionSaveButton').textContent='Änderungen speichern';showOptionEditor()}
+async function saveOption(){const s=document.getElementById('optionStatus');try{if(!currentOptionGroup)throw Error('Keine Auswahlliste ausgewählt.');const payload={label:v('optionLabel'),value:v('optionValue'),sort_order:zahlFeld('optionSort',{leer:100}),active:v('optionActive')==='true',is_default:v('optionDefault')==='true'};if(!payload.label||!payload.value)throw Error('Bezeichnung und Wert sind erforderlich.');const url=`/api/settings/option-groups/${currentOptionGroup.group_key}/options${editingOptionId?'/'+editingOptionId:''}`;await speichern('auswahllisten',()=>api(url,{method:editingOptionId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));editingOptionId=null;await ladeAuswahllisten();currentOptionGroup=optionGroups.find(g=>g.group_key===v('optionGroupSelect'))||currentOptionGroup;renderOptions();hideOptionEditor()}catch(e){s.textContent='Fehler: '+e.message}}
 async function deleteOption(id){if(!confirm('Eintrag wirklich löschen? Bestehende Dokumente behalten ihren bereits gespeicherten Wert.'))return;const s=document.getElementById('optionStatus');try{await speichern('auswahllisten',()=>api(`/api/settings/option-groups/${currentOptionGroup.group_key}/options/${id}`,{method:'DELETE'}),{neuLaden:ladeAuswahllisten});s.textContent='Gelöscht.'}catch(e){s.textContent='Fehler: '+e.message}}
 function ladeFunktionen(){return lesen('funktionen',()=>api('/api/settings/employee-functions'),d=>{employeeFunctions=d;renderEmployeeFunctions()})}
 function renderEmployeeFunctions(){document.getElementById('functionRows').innerHTML=employeeFunctions.map(f=>`<tr><td><b>${esc(f.name)}</b>${f.description?`<div class="muted small">${esc(f.description)}</div>`:''}</td><td>${f.employee_group==='gewerblich'?'Gewerblich':'Kaufmännisch'}</td><td>${esc(f.sort_order)}</td><td>${f.active?'Aktiv':'Inaktiv'}</td><td><button class="secondary" onclick="editEmployeeFunction(${f.id})">Bearbeiten</button> <button class="danger" onclick="deleteEmployeeFunction(${f.id})">Löschen</button></td></tr>`).join('')||'<tr><td colspan="5" class="muted">Noch keine Funktionen hinterlegt.</td></tr>'}
 function showFunctionEditor(){document.getElementById('functionEditorPanel').style.display='block';document.getElementById('functionName').focus()}
 function hideFunctionEditor(){resetEmployeeFunction();document.getElementById('functionEditorPanel').style.display='none'}
-function resetEmployeeFunction(){editingFunctionId=null;setv('functionName','');setv('functionGroup','gewerblich');setv('functionSort','100');setv('functionActive','true');setv('functionDescription','');document.getElementById('functionEditorHeading').textContent='Funktion hinzufügen';document.getElementById('functionSaveButton').textContent='Hinzufügen';document.getElementById('functionStatus').textContent=''}
-function editEmployeeFunction(id){const f=employeeFunctions.find(x=>x.id===id);if(!f)return;editingFunctionId=id;setv('functionName',f.name);setv('functionGroup',f.employee_group);setv('functionSort',f.sort_order);setv('functionActive',String(f.active));setv('functionDescription',f.description);document.getElementById('functionEditorHeading').textContent='Funktion bearbeiten';document.getElementById('functionSaveButton').textContent='Änderungen speichern';document.getElementById('functionStatus').textContent='';showFunctionEditor()}
-async function saveEmployeeFunction(){const s=document.getElementById('functionStatus');try{const payload={name:v('functionName'),employee_group:v('functionGroup'),description:nv('functionDescription'),sort_order:Number(v('functionSort')||100),active:v('functionActive')==='true'};if(!payload.name)throw new Error('Bitte eine Funktion/Tätigkeit eingeben.');await speichern('funktionen',()=>api(editingFunctionId?`/api/settings/employee-functions/${editingFunctionId}`:'/api/settings/employee-functions',{method:editingFunctionId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));hideFunctionEditor();await ladeFunktionen()}catch(e){s.textContent='Fehler: '+e.message}}
+function resetEmployeeFunction(){editingFunctionId=null;setv('functionName','');setv('functionGroup','gewerblich');setv('functionSort',zahlText(100));setv('functionActive','true');setv('functionDescription','');document.getElementById('functionEditorHeading').textContent='Funktion hinzufügen';document.getElementById('functionSaveButton').textContent='Hinzufügen';document.getElementById('functionStatus').textContent=''}
+function editEmployeeFunction(id){const f=employeeFunctions.find(x=>x.id===id);if(!f)return;editingFunctionId=id;setv('functionName',f.name);setv('functionGroup',f.employee_group);setv('functionSort',zahlText(f.sort_order));setv('functionActive',String(f.active));setv('functionDescription',f.description);document.getElementById('functionEditorHeading').textContent='Funktion bearbeiten';document.getElementById('functionSaveButton').textContent='Änderungen speichern';document.getElementById('functionStatus').textContent='';showFunctionEditor()}
+async function saveEmployeeFunction(){const s=document.getElementById('functionStatus');try{const payload={name:v('functionName'),employee_group:v('functionGroup'),description:nv('functionDescription'),sort_order:zahlFeld('functionSort',{leer:100}),active:v('functionActive')==='true'};if(!payload.name)throw new Error('Bitte eine Funktion/Tätigkeit eingeben.');await speichern('funktionen',()=>api(editingFunctionId?`/api/settings/employee-functions/${editingFunctionId}`:'/api/settings/employee-functions',{method:editingFunctionId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));hideFunctionEditor();await ladeFunktionen()}catch(e){s.textContent='Fehler: '+e.message}}
 async function deleteEmployeeFunction(id){if(!confirm('Funktion/Tätigkeit wirklich löschen? Zugeordnete Funktionen können nicht gelöscht werden.'))return;const s=document.getElementById('functionStatus');try{await speichern('funktionen',()=>api(`/api/settings/employee-functions/${id}`,{method:'DELETE'}),{neuLaden:ladeFunktionen});s.textContent='Gelöscht.'}catch(e){s.textContent='Fehler: '+e.message}}
 function ladeNummernkreise(){return lesen('nummernkreise',()=>api('/api/settings/number-sequences'),d=>{sequences=d;renderSequences()})}
-function renderSequences(){document.getElementById('sequences').innerHTML=sequences.map(s=>`<div class="sequence" data-key="${esc(s.sequence_key)}"><div class="seq-grid"><div class="field"><label>${esc(s.label)} · Format</label><input class="format" value="${esc(s.format_pattern)}"></div><div class="field"><label>Startnummer</label><input class="start" type="number" min="0" value="${esc(s.start_value)}"></div><div class="field"><label>Nächste Nr.</label><input class="next" type="number" min="0" value="${esc(s.next_value)}"></div><div class="field"><label>Jahreswechsel</label><select class="reset"><option value="false" ${!s.reset_yearly?'selected':''}>fortlaufend</option><option value="true" ${s.reset_yearly?'selected':''}>auf Startnummer zurück</option></select></div><div class="field"><label>Vorschau</label><div class="preview">${esc(s.preview||'—')}</div></div><button data-klick="nummernkreis-speichern" data-schluessel="${esc(s.sequence_key)}">Speichern</button></div><div class="seqStatus status"></div></div>`).join('')}
-async function saveSequence(key){const row=document.querySelector(`.sequence[data-key="${key}"]`),status=row.querySelector('.seqStatus');try{const d=await speichern('nummernkreise',()=>api(`/api/settings/number-sequences/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({format_pattern:row.querySelector('.format').value.trim(),start_value:Number(row.querySelector('.start').value),next_value:Number(row.querySelector('.next').value),reset_yearly:row.querySelector('.reset').value==='true'})}),{neuLaden:ladeNummernkreise});document.querySelector(`.sequence[data-key="${key}"] .seqStatus`).textContent=`Gespeichert. Nächste Vorschau: ${d.preview}`}catch(e){status.textContent='Fehler: '+e.message}}
-async function saveGeneral(){const s=document.getElementById('generalStatus');try{await speichern('allgemein',()=>api('/api/settings/general',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({company_name:v('companyName'),managing_director:nv('managingDirector'),street:nv('companyStreet'),postal_code:nv('companyZip'),city:nv('companyCity'),country:v('companyCountry')||'Deutschland',phone:nv('companyPhone'),email:nv('companyEmail'),website:nv('companyWebsite'),public_base_url:nv('publicBaseUrl'),tax_number:nv('taxNumber'),vat_id:nv('vatId'),register_court:nv('registerCourt'),register_number:nv('registerNumber'),iban:nv('iban'),bic:nv('bic'),default_vat_rate:Number(v('defaultVat')||19),default_quote_intro:nv('quoteIntro'),default_quote_outro:nv('quoteOutro')})}),{anwenden:d=>{generalSettings=d}});s.textContent='Unternehmensstammdaten gespeichert.'}catch(e){s.textContent='Fehler: '+e.message}}
+function renderSequences(){document.getElementById('sequences').innerHTML=sequences.map(s=>`<div class="sequence" data-key="${esc(s.sequence_key)}"><div class="seq-grid"><div class="field"><label>${esc(s.label)} · Format</label><input class="format" value="${esc(s.format_pattern)}"></div><div class="field"><label>Startnummer</label><input class="start" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" value="${zahlText(s.start_value)}"></div><div class="field"><label>Nächste Nr.</label><input class="next" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-feld="Nächste Nummer" value="${zahlText(s.next_value)}"></div><div class="field"><label>Jahreswechsel</label><select class="reset"><option value="false" ${!s.reset_yearly?'selected':''}>fortlaufend</option><option value="true" ${s.reset_yearly?'selected':''}>auf Startnummer zurück</option></select></div><div class="field"><label>Vorschau</label><div class="preview">${esc(s.preview||'—')}</div></div><button data-klick="nummernkreis-speichern" data-schluessel="${esc(s.sequence_key)}">Speichern</button></div><div class="seqStatus status"></div></div>`).join('')}
+// Seit 1.8.109 Start- und nächste Nummer über _zahl.html, gelesen vor dem Speichern; leer wird abgelehnt (bis 1.8.108 still als 0).
+async function saveSequence(key){const row=document.querySelector(`.sequence[data-key="${key}"]`),status=row.querySelector('.seqStatus');try{const start=zahlFeld(row.querySelector('.start'),{pflicht:true}),next=zahlFeld(row.querySelector('.next'),{pflicht:true});const d=await speichern('nummernkreise',()=>api(`/api/settings/number-sequences/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({format_pattern:row.querySelector('.format').value.trim(),start_value:start,next_value:next,reset_yearly:row.querySelector('.reset').value==='true'})}),{neuLaden:ladeNummernkreise});document.querySelector(`.sequence[data-key="${key}"] .seqStatus`).textContent=`Gespeichert. Nächste Vorschau: ${d.preview}`}catch(e){status.textContent='Fehler: '+e.message}}
+async function saveGeneral(){const s=document.getElementById('generalStatus');try{const defaultVat=zahlFeld('defaultVat',{leer:19});await speichern('allgemein',()=>api('/api/settings/general',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({company_name:v('companyName'),managing_director:nv('managingDirector'),street:nv('companyStreet'),postal_code:nv('companyZip'),city:nv('companyCity'),country:v('companyCountry')||'Deutschland',phone:nv('companyPhone'),email:nv('companyEmail'),website:nv('companyWebsite'),public_base_url:nv('publicBaseUrl'),tax_number:nv('taxNumber'),vat_id:nv('vatId'),register_court:nv('registerCourt'),register_number:nv('registerNumber'),iban:nv('iban'),bic:nv('bic'),default_vat_rate:defaultVat,default_quote_intro:nv('quoteIntro'),default_quote_outro:nv('quoteOutro')})}),{anwenden:d=>{generalSettings=d}});s.textContent='Unternehmensstammdaten gespeichert.'}catch(e){s.textContent='Fehler: '+e.message}}
 function money(x){return x==null?'—':Number(x).toLocaleString('de-DE',{style:'currency',currency:'EUR'})}
 function num(x){return x==null?'—':Number(x).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})}
 function syncOverheadLabels(){const fm=v('fixedOverheadMode')||'eur',vm=v('variableOverheadMode')||'eur';document.getElementById('fixedOverheadValueLabel').textContent=fm==='pct'?'Fixe Gemeinkosten %':'Fixe Gemeinkosten € / Jahr';document.getElementById('fixedOverheadHelp').textContent=fm==='pct'?'Prozent der direkten Jahreslohnkosten inkl. AG-Lohnnebenkosten.':'Jährlicher Euro-Betrag.';document.getElementById('fixedOverheadValue').step=fm==='pct'?'0.5':'100';document.getElementById('variableOverheadValueLabel').textContent=vm==='pct'?'Zusätzliche variable Gemeinkosten %':'Zusätzliche variable Gemeinkosten € / Jahr';document.getElementById('variableOverheadHelp').textContent=vm==='pct'?'Prozent der direkten Jahreslohnkosten inkl. AG-Lohnnebenkosten; Personalkosten der zugeordneten Mitarbeiter kommen zusätzlich hinzu.':'Zusätzlicher jährlicher Euro-Betrag; Personalkosten der zugeordneten Mitarbeiter kommen zusätzlich hinzu.';document.getElementById('variableOverheadValue').step=vm==='pct'?'0.5':'100'}
@@ -2104,15 +2130,16 @@ function renderLaborRate(r){
   document.getElementById('laborRateApply').innerHTML=`<div class="muted small">Ermittelter Stundenkostenverrechnungssatz</div><div style="font-size:32px;font-weight:900;margin:3px 0 8px">${money(r.suggested_labor_rate)} / h</div><div class="muted small" style="margin-bottom:12px">Aktuell hinterlegt: ${money(r.current_labor_rate)}/h · <span title="Differenz zum aktuell hinterlegten Stundenverrechnungssatz (Kalkulationsgrundlagen).">Abweichung: ${money(r.difference_to_current)}</span></div><button onclick="applyLaborRate()">Als aktuellen Verrechnungssatz übernehmen</button>`;
 }
 async function refreshLaborRate(){await lesen('verrechnungssatz',()=>api('/api/labor-rate-calculation'),renderLaborRate)}
-async function saveLaborRateSettings(){const s=document.getElementById('laborRateStatus');try{await speichern('rechengrundlagen',()=>api('/api/labor-rate-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({employer_cost_pct:Number(v('employerCostPct')||0),productive_time_pct:Number(v('productiveTimePct')||0),fixed_overhead_mode:v('fixedOverheadMode')||'eur',fixed_overhead_value:Number(v('fixedOverheadValue')||0),variable_overhead_mode:v('variableOverheadMode')||'eur',variable_overhead_value:Number(v('variableOverheadValue')||0),target_profit_pct:Number(v('targetProfitPct')||0),weeks_per_year:Number(v('weeksPerYear')||52)})}),{neuLaden:refreshLaborRate});s.textContent='Rechengrundlagen gespeichert.'}catch(e){s.textContent='Fehler: '+e.message}}
-async function applyLaborRate(){const s=document.getElementById('laborRateStatus');try{const c=await speichern('kalkulation',()=>api('/api/labor-rate-calculation/apply',{method:'POST'}),{anwenden:d=>{setv('laborRate',d.labor_rate)},neuLaden:refreshLaborRate});s.textContent=`${money(c.labor_rate)}/h als aktueller Stundenkostenverrechnungssatz übernommen.`}catch(e){s.textContent='Fehler: '+e.message}}
+// Seit 1.8.109 Zahlen über _zahl.html, gelesen vor dem Speichern; leer wie bisher 0 bzw. 52 Wochen.
+async function saveLaborRateSettings(){const s=document.getElementById('laborRateStatus');try{const daten={employer_cost_pct:zahlFeld('employerCostPct',{leer:0}),productive_time_pct:zahlFeld('productiveTimePct',{leer:0}),fixed_overhead_mode:v('fixedOverheadMode')||'eur',fixed_overhead_value:zahlFeld('fixedOverheadValue',{leer:0}),variable_overhead_mode:v('variableOverheadMode')||'eur',variable_overhead_value:zahlFeld('variableOverheadValue',{leer:0}),target_profit_pct:zahlFeld('targetProfitPct',{leer:0}),weeks_per_year:zahlFeld('weeksPerYear',{leer:52})};await speichern('rechengrundlagen',()=>api('/api/labor-rate-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(daten)}),{neuLaden:refreshLaborRate});s.textContent='Rechengrundlagen gespeichert.'}catch(e){s.textContent='Fehler: '+e.message}}
+async function applyLaborRate(){const s=document.getElementById('laborRateStatus');try{const c=await speichern('kalkulation',()=>api('/api/labor-rate-calculation/apply',{method:'POST'}),{anwenden:d=>{setv('laborRate',zahlText(d.labor_rate))},neuLaden:refreshLaborRate});s.textContent=`${money(c.labor_rate)}/h als aktueller Stundenkostenverrechnungssatz übernommen.`}catch(e){s.textContent='Fehler: '+e.message}}
 
 // Produktivstunden-Rechner (Schicht 3, seit 1.5.1) -- co-located mit dem Stundensatz-Rechner
 // oben, da sein Ergebnis nur productive_time_pct dort speist (kein eigener Abschnitt).
-function applyHolidaySuggestion(value){setv('phPublicHolidays',value)}
+function applyHolidaySuggestion(value){setv('phPublicHolidays',zahlText(value))}
 function dataBasisNote(monthsWithData,windowMonths){return `Beruht auf ${monthsWithData} von ${windowMonths} Monaten`+(monthsWithData<windowMonths?' -- noch nicht vollständig aussagekräftig':'')+'.'}
 function renderProductiveHours(r){
-  setv('phWeeklyHours',r.weekly_hours);setv('phDailyHours',r.daily_hours);setv('phVacationDays',r.vacation_days);setv('phPublicHolidays',r.public_holidays);setv('phSickDays',r.average_sick_days);setv('phWeatherDays',r.weather_loss_days);setv('phUnproductivePct',r.unproductive_time_pct);
+  setv('phWeeklyHours',zahlText(r.weekly_hours));setv('phDailyHours',zahlText(r.daily_hours));setv('phVacationDays',zahlText(r.vacation_days));setv('phPublicHolidays',zahlText(r.public_holidays));setv('phSickDays',zahlText(r.average_sick_days));setv('phWeatherDays',zahlText(r.weather_loss_days));setv('phUnproductivePct',zahlText(r.unproductive_time_pct));
   const vals=[['Wochen/Jahr (aus Kalkulationsgrundlage)',num(r.weeks_per_year)],['Bruttojahresstunden',num(r.annual_gross_hours)+' h'],['− Urlaub',num(r.vacation_hours)+' h'],['− Feiertage',num(r.holiday_hours)+' h'],['− Ø Krankheit',num(r.sick_hours)+' h'],['− Schlechtwetter',num(r.weather_hours)+' h'],['= Nach Abwesenheiten',num(r.hours_after_absences)+' h'],['− Unproduktive Zeit',num(r.unproductive_hours)+' h'],['= Produktive Jahresstunden',num(r.productive_hours)+' h']];
   document.getElementById('phResult').innerHTML=vals.map(([k,x])=>`<div class="metric"><div class="k">${k}</div><div class="val">${x}</div></div>`).join('');
   document.getElementById('phApply').innerHTML=`<div class="muted small">Vorschlag „Produktive Zeit %“ (aktuell im Stundensatz: ${num(r.current_productive_time_pct)}%)</div><div style="font-size:28px;font-weight:900;margin:3px 0 10px">${num(r.productive_time_pct_result)} %</div><button onclick="applyProductiveHours()">Übernehmen</button>`;
@@ -2147,7 +2174,7 @@ async function loadProductiveHoursSection(){try{await lesen('produktivstunden',(
 async function saveProductiveHoursSettings(){
   const s=document.getElementById('phStatus');
   try{
-    const payload={weekly_hours:Number(v('phWeeklyHours')||0),daily_hours:Number(v('phDailyHours')||0),vacation_days:Number(v('phVacationDays')||0),public_holidays:Number(v('phPublicHolidays')||0),average_sick_days:Number(v('phSickDays')||0),weather_loss_days:Number(v('phWeatherDays')||0),unproductive_time_pct:Number(v('phUnproductivePct')||0)};
+    const payload={weekly_hours:zahlFeld('phWeeklyHours',{leer:0}),daily_hours:zahlFeld('phDailyHours',{leer:0}),vacation_days:zahlFeld('phVacationDays',{leer:0}),public_holidays:zahlFeld('phPublicHolidays',{leer:0}),average_sick_days:zahlFeld('phSickDays',{leer:0}),weather_loss_days:zahlFeld('phWeatherDays',{leer:0}),unproductive_time_pct:zahlFeld('phUnproductivePct',{leer:0})};
     await speichern('produktivstunden',()=>api('/api/productive-hours-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{anwenden:renderProductiveHours});
     s.textContent='Gespeichert.';
   }catch(e){s.textContent='Fehler: '+e.message}
@@ -2156,9 +2183,9 @@ async function applyProductiveHours(){
   const s=document.getElementById('phStatus');
   try{
     await speichern('produktivstunden',()=>api('/api/productive-hours-settings/apply',{method:'POST'}),{anwenden:renderProductiveHours});
-    await lesen('rechengrundlagen',()=>api('/api/labor-rate-settings'),lrs=>{setv('productiveTimePct',lrs.productive_time_pct)});
+    await lesen('rechengrundlagen',()=>api('/api/labor-rate-settings'),lrs=>{setv('productiveTimePct',zahlText(lrs.productive_time_pct))});
     await refreshLaborRate();
-    s.textContent=`${num(v('productiveTimePct'))}% als „Produktive Zeit %“ oben übernommen.`;
+    s.textContent=`${num(zahlVorschau('productiveTimePct'))}% als „Produktive Zeit %“ oben übernommen.`;  // seit 1.8.109 steht dort deutsches Format
   }catch(e){s.textContent='Fehler: '+e.message}
 }
 
@@ -2222,17 +2249,19 @@ async function applyOverheadProposal(){
     await speichern('gemeinkosten',()=>api('/api/recurring-cost-overhead-proposal/apply',{method:'POST'}),{anwenden:d=>{
       lastOverheadProposal=d;
       renderOverheadProposal(lastOverheadProposal);
-      setv('fixedOverheadMode','eur');setv('fixedOverheadValue',lastOverheadProposal.current.fixed_value);
-      setv('variableOverheadMode','eur');setv('variableOverheadValue',lastOverheadProposal.current.variable_value);
+      setv('fixedOverheadMode','eur');setv('fixedOverheadValue',zahlText(lastOverheadProposal.current.fixed_value));
+      setv('variableOverheadMode','eur');setv('variableOverheadValue',zahlText(lastOverheadProposal.current.variable_value));
       syncOverheadLabels();
     },neuLaden:refreshLaborRate});
     document.getElementById('laborRateStatus').textContent='Betriebskosten-Vorschlag übernommen -- Schritt 2 („Als aktuellen Verrechnungssatz übernehmen“ unten) steht weiterhin separat bereit.';
   }catch(e){document.getElementById('laborRateStatus').textContent='Fehler: '+e.message}
 }
 
-async function saveCalculation(){const s=document.getElementById('calcStatus');try{await speichern('kalkulation',()=>api('/api/calculation-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({labor_rate:Number(v('laborRate')||0),material_markup_pct:Number(v('materialMarkup')||0),overhead_pct:Number(v('overhead')||0),risk_profit_pct:Number(v('riskProfit')||0),use_source_time_as_minutes:document.getElementById('sourceMinutes').checked})}));s.textContent='Kalkulationsgrundlagen gespeichert.'}catch(e){s.textContent='Fehler: '+e.message}}
+// Seit 1.8.109 Zahlen über _zahl.html, gelesen vor dem Speichern; leer wie bisher 0.
+async function saveCalculation(){const s=document.getElementById('calcStatus');try{const daten={labor_rate:zahlFeld('laborRate',{leer:0}),material_markup_pct:zahlFeld('materialMarkup',{leer:0}),overhead_pct:zahlFeld('overhead',{leer:0}),risk_profit_pct:zahlFeld('riskProfit',{leer:0}),use_source_time_as_minutes:document.getElementById('sourceMinutes').checked};await speichern('kalkulation',()=>api('/api/calculation-settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(daten)}));s.textContent='Kalkulationsgrundlagen gespeichert.'}catch(e){s.textContent='Fehler: '+e.message}}
 function isHexColor(x){return /^#[0-9a-fA-F]{6}$/.test(x)}
-function whiteContrastRatio(hex){const r=parseInt(hex.slice(1,3),16)/255,g=parseInt(hex.slice(3,5),16)/255,b=parseInt(hex.slice(5,7),16)/255;const lin=c=>c<=0.03928?c/12.92:Math.pow((c+0.055)/1.055,2.4);const L=0.2126*lin(r)+0.7152*lin(g)+0.0722*lin(b);return 1.05/(L+0.05)}
+// Seit 1.8.109 Number('0x…') statt parseInt(…,16) (tests/test_v414_zahleneingaben.py); hex ist vorher geprüft (isHexColor).
+function whiteContrastRatio(hex){const r=Number('0x'+hex.slice(1,3))/255,g=Number('0x'+hex.slice(3,5))/255,b=Number('0x'+hex.slice(5,7))/255;const lin=c=>c<=0.03928?c/12.92:Math.pow((c+0.055)/1.055,2.4);const L=0.2126*lin(r)+0.7152*lin(g)+0.0722*lin(b);return 1.05/(L+0.05)}
 function checkAccentContrast(hex){const warn=document.getElementById('accentContrastWarning');if(!warn)return;warn.textContent=isHexColor(hex)&&whiteContrastRatio(hex)<3?'Hinweis: Diese Farbe ist sehr hell – weißer Button-Text könnte schwer lesbar sein.':''}
 function previewAccentColor(hex){if(isHexColor(hex)){document.documentElement.style.setProperty('--accent',hex);checkAccentContrast(hex)}}
 async function loadAppearance(){try{await lesen('design',()=>api('/api/settings/appearance'),a=>{setv('accentColorText',a.accent_color);document.getElementById('accentColorPicker').value=a.accent_color;checkAccentContrast(a.accent_color)})}catch(e){}}  // seit 1.8.97 über lesen()

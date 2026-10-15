@@ -80,7 +80,7 @@ tr:last-child td{border-bottom:none}
       <option value="auslastungsabhaengig">Auslastungsabhängige Kosten (z. B. Kraftstoff, Verschleiß, Entsorgung -- fließt zusammen mit den Verwaltungslöhnen in den variablen Gemeinkosten-Bucket)</option>
     </select></div>
     <div class="field"><label>Vertragspartner</label><input id="editVendor"></div>
-    <div class="field"><label>Netto-Betrag (EUR) *</label><input id="editNetAmount" type="number" step="0.01" min="0" oninput="updateGrossPreview()"></div>
+    <div class="field"><label>Netto-Betrag (EUR) *</label><input id="editNetAmount" type="text" inputmode="decimal" data-zahl data-min="0" data-stellen="2" data-feld="Netto-Betrag" oninput="updateGrossPreview()"></div>
     <div class="field"><label>Steuersatz</label><select id="editTaxRate" onchange="updateGrossPreview()">
       <option value="19.00">19 %</option>
       <option value="7.00">7 %</option>
@@ -95,7 +95,7 @@ tr:last-child td{border-bottom:none}
       <option value="einmalig">Einmalig</option>
     </select></div>
     <div class="field"><label>Vertragsende <span class="muted small">(optional)</span></label><input id="editContractEnd" type="date"></div>
-    <div class="field"><label>Kündigungsfrist (Monate) <span class="muted small">(optional)</span></label><input id="editNoticePeriod" type="number" min="1" max="24"></div>
+    <div class="field"><label>Kündigungsfrist (Monate) <span class="muted small">(optional)</span></label><input id="editNoticePeriod" type="text" inputmode="numeric" data-zahl="ganz" data-min="1" data-max="24" data-feld="Kündigungsfrist"></div>
     <div class="field"><label>Betriebsmittel <span class="muted small">(optional -- ein Betriebsmittel kann mehrere Kostenposten tragen)</span></label><select id="editAsset"></select></div>
     <div class="field" id="editActiveWrap"><label>Status</label><select id="editActive"><option value="1">Aktiv</option><option value="0">Inaktiv</option></select></div>
     <div class="field full"><label>Notizen</label><textarea id="editNotes"></textarea></div>
@@ -135,6 +135,7 @@ tr:last-child td{border-bottom:none}
 </div>
 </div>
 {% include "_speichern.html" %}
+{% include "_zahl.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
@@ -167,8 +168,8 @@ function assetName(id){
 function updateGrossPreview(){
   // Reine Anzeige-Ableitung im Formular selbst (Muster app/recurring_costs.py::gross_amount())
   // -- nie gesendet, der Server berechnet sie beim Speichern selbst erneut aus net_amount/
-  // tax_rate_pct und liefert sie in der Antwort mit.
-  const net=Number(document.getElementById('editNetAmount').value||0);
+  // tax_rate_pct und liefert sie in der Antwort mit. Seit 1.8.109 über _zahl.html: leer oder ungültig zählt wie bisher leer (0).
+  const net=zahlVorschau('editNetAmount')??0;
   const rate=Number(document.getElementById('editTaxRate').value||0);
   document.getElementById('editGrossAmount').value=fmtMoney(net*(1+rate/100));
 }
@@ -205,12 +206,12 @@ function openEditEditor(id){
   document.getElementById('editCategory').innerHTML=categoryOptionsHtml(c.category);
   document.getElementById('editClassification').value=c.overhead_classification||'keine';
   document.getElementById('editVendor').value=c.vendor||'';
-  document.getElementById('editNetAmount').value=c.net_amount;
+  document.getElementById('editNetAmount').value=zahlText(c.net_amount,2);
   document.getElementById('editTaxRate').value=Number(c.tax_rate_pct).toFixed(2);
   updateGrossPreview();
   document.getElementById('editInterval').value=c.billing_interval;
   document.getElementById('editContractEnd').value=c.contract_end_date||'';
-  document.getElementById('editNoticePeriod').value=c.notice_period_months??'';
+  document.getElementById('editNoticePeriod').value=zahlText(c.notice_period_months);
   document.getElementById('editAsset').innerHTML=assetOptionsHtml(c.asset_id);
   document.getElementById('editActive').value=c.active?'1':'0';
   document.getElementById('editActiveWrap').classList.remove('hidden');
@@ -232,18 +233,21 @@ function closeEditor(){
 async function saveCost(){
   const st=document.getElementById('editorStatus');
   const label=document.getElementById('editLabel').value.trim();
-  const netAmount=document.getElementById('editNetAmount').value;
-  if(!label||!netAmount){st.className='status err';st.textContent='Bitte Bezeichnung und Netto-Betrag angeben.';return}
+  // Seit 1.8.109 über _zahl.html: eine abgelehnte Zahl erscheint in der Statuszeile, gespeichert wird nichts; leer bleibt
+  // "Bitte … angeben" (0 ist ein Betrag).
+  let netAmount,noticePeriod;
+  try{netAmount=zahlFeld('editNetAmount');noticePeriod=zahlFeld('editNoticePeriod')}catch(e){st.className='status err';st.textContent=e.message;return}
+  if(!label||netAmount===null){st.className='status err';st.textContent='Bitte Bezeichnung und Netto-Betrag angeben.';return}
   const payload={
     label,
     category:document.getElementById('editCategory').value||null,
     overhead_classification:document.getElementById('editClassification').value,
-    net_amount:Number(netAmount),
+    net_amount:netAmount,
     tax_rate_pct:Number(document.getElementById('editTaxRate').value),
     billing_interval:document.getElementById('editInterval').value,
     vendor:document.getElementById('editVendor').value.trim()||null,
     contract_end_date:document.getElementById('editContractEnd').value||null,
-    notice_period_months:document.getElementById('editNoticePeriod').value?Number(document.getElementById('editNoticePeriod').value):null,
+    notice_period_months:noticePeriod,
     asset_id:document.getElementById('editAsset').value?Number(document.getElementById('editAsset').value):null,
     active:document.getElementById('editActive').value==='1',
     notes:document.getElementById('editNotes').value.trim()||null,

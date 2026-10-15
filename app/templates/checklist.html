@@ -207,6 +207,7 @@ textarea{min-height:90px;resize:vertical}
 {% include "_fehlertext.html" %}
 {% include "_berlin_date.html" %}
 {% include "_speichern.html" %}
+{% include "_zahl.html" %}
 {% include "_links.html" %}
 {% include "_aktionen.html" %}
 <script>
@@ -435,7 +436,7 @@ function fieldBody(f){
     :`<input value="${esc(v)}" oninput="queueSave(${f.id},this.value)" onblur="flushSave(${f.id})">`;
   if(t==='zahl'){
     const range=[f.min_value!=null?`min ${Number(f.min_value).toLocaleString('de-DE')}`:null,f.max_value!=null?`max ${Number(f.max_value).toLocaleString('de-DE')}`:null].filter(Boolean).join(', ');
-    return `<div class="num-row"><input type="text" inputmode="decimal" value="${v!=null?esc(String(v).replace('.',',')):''}" oninput="queueSave(${f.id},this.value)" onblur="flushSave(${f.id})">${f.unit?`<span>${esc(f.unit)}</span>`:''}</div>${range?`<div class="muted small" style="margin-top:4px">${esc(range)}</div>`:''}`;
+    return `<div class="num-row"><input type="text" inputmode="decimal" data-zahl data-feld="${esc(f.label)}"${f.decimals!=null?` data-stellen="${Number(f.decimals)}"`:''} value="${zahlText(v)}" oninput="queueZahl(${f.id},this)" onblur="flushSave(${f.id})">${f.unit?`<span>${esc(f.unit)}</span>`:''}</div>${range?`<div class="muted small" style="margin-top:4px">${esc(range)}</div>`:''}`;
   }
   if(t==='datum')return `<input type="date" value="${esc(v)}" onchange="queueSave(${f.id},this.value,0)">`;
   if(t==='uhrzeit')return `<input type="time" value="${esc(v)}" onchange="queueSave(${f.id},this.value,0)">`;
@@ -869,8 +870,11 @@ function uebernimmAnhaenge(data){cl.attachments=data.attachments;cl.missing_requ
 function ganzeCheckliste(data){cl=data;render()}
 async function speichereAntwort(fieldId,value){
   setStatus(fieldId,'Speichert …');
-  const body=JSON.stringify({value,client_uuid:uuid(),client_recorded_at:new Date().toISOString()});
   try{
+    // Seit 1.8.109: ein Zahlenfeld schickt eine Lesefunktion (queueZahl()) -- gelesen erst jetzt über _zahl.html; eine abgelehnte Zahl
+    // wird nicht gespeichert und erscheint wie ein Fehler beim Speichern ("Nicht gespeichert: …"), das Feld bleibt markiert.
+    if(typeof value==='function')value=value();
+    const body=JSON.stringify({value,client_uuid:uuid(),client_recorded_at:new Date().toISOString()});
     await speichern('checkliste',()=>api(`/api/checklists/${checklistId}/answers/${fieldId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body}),{anwenden:uebernimmAntworten});
     setStatus(fieldId,'Gespeichert');updateMissing();
     if(!IS_FIELD&&cl.purpose==='abnahme')loadProtocolSummary();  // seit 1.8.64: Erklärungen aktuell halten
@@ -887,6 +891,16 @@ function queueSave(fieldId,value,delay=700){
   clearTimeout((timers[fieldId]||{}).t);
   timers[fieldId]={value,t:setTimeout(()=>{delete timers[fieldId];sendAnswer(fieldId,value)},delay)};
   setStatus(fieldId,'…');
+}
+// Seit 1.8.109: ein Zahlenfeld (data-zahl) über _zahl.html -- verzögert wie Text, gelesen wird erst beim Senden (speichereAntwort()).
+function queueZahl(fieldId,el){queueSave(fieldId,()=>zahlFeld(el))}
+// Seit 1.8.109: eine abgelehnte Zahl (rot markiert) verhindert Unterschrift und Abschluss wie ein gescheitertes Speichern -- sonst
+// versiegelte die Unterschrift still den alten Wert. '' wenn keine, sonst die Meldung des Feldes.
+function abgelehnteZahl(){
+  for(const el of document.querySelectorAll('input[data-zahl][aria-invalid="true"]')){
+    try{zahlFeld(el)}catch(e){return 'Nicht ausgeführt: '+e.message}
+  }
+  return '';
 }
 function flushSave(fieldId){const p=timers[fieldId];if(!p)return;clearTimeout(p.t);delete timers[fieldId];return sendAnswer(fieldId,p.value)}
 async function flushAll(){await Promise.all(Object.keys(timers).map(id=>flushSave(Number(id))));await Promise.all([...inflight])}
@@ -1011,7 +1025,8 @@ async function saveProtocolDefect(fieldId,btn){
   const f=cl.fields.find(x=>x.id===fieldId),g=id=>document.getElementById(id+'_'+fieldId);
   const description=g('pdefDesc').value.trim();
   if(!description){setStatus(fieldId,'Bitte den Mangel beschreiben.',true);g('pdefDesc').focus();return}
-  const data={description,roof_area_id:g('pdefArea').value?Number(g('pdefArea').value):null,location:g('pdefLoc').value.trim()||null,remedy_due_on:g('pdefDue').value||null};
+  const area=document.getElementById('pdefArea_'+fieldId);  // Auswahlliste (seit 1.8.109 über die ID, für tests/vorlagen_zahlen.py)
+  const data={description,roof_area_id:area.value?Number(area.value):null,location:g('pdefLoc').value.trim()||null,remedy_due_on:g('pdefDue').value||null};
   const fd=new FormData();fd.append('data',JSON.stringify(data));
   for(const x of g('pdefPhotos').files)fd.append('photos',x);
   for(const x of g('pdefReceipts').files)fd.append('receipts',x);
@@ -1072,6 +1087,8 @@ async function saveSignature(fieldId){
   // Server die Unterschrift ab, solange oberhalb eine Pflichtangabe fehlt -- die Seite sagt es vorher.
   setStatus(fieldId,'Speichert Eingaben …');
   await flushAll();
+  const zahlFehler=abgelehnteZahl();
+  if(zahlFehler){setStatus(fieldId,zahlFehler,true);return}
   const fehlt=missingBeforeText(fieldId);
   if(fehlt){setStatus(fieldId,fehlt,true);updateMissing();return}
   if(newly.length){
@@ -1106,6 +1123,8 @@ async function completeChecklist(){
   const btn=document.getElementById('completeBtn');btn.disabled=true;
   const err=document.getElementById('pageError');err.textContent='';
   await flushAll();
+  const zahlFehler=abgelehnteZahl();
+  if(zahlFehler){err.textContent=zahlFehler;btn.disabled=false;return}
   if((cl.missing_required||[]).length){err.textContent='Noch nicht ausgefüllt: '+cl.missing_required.join(', ');btn.disabled=false;return}
   if(!confirm('Checkliste abschließen? Danach ist sie nicht mehr änderbar.')){btn.disabled=false;return}
   try{await abschliessen('checkliste',()=>api(`/api/checklists/${checklistId}/complete`,{method:'POST'}),{anwenden:ganzeCheckliste});window.scrollTo(0,0)}
