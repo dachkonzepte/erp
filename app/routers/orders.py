@@ -269,6 +269,8 @@ def save_order_revision_route(order_id: int, payload: OrderRevisionCreate, reque
     actor = getattr(request.state, "erp_user", None)
     actor_name = getattr(actor, "display_name", None) or getattr(actor, "username", None) or "System"
     rev = create_order_revision(db, order, reason=payload.reason, source="manual", actor_name=actor_name)
+    db.commit()  # seit 1.8.110 committet create_order_revision() nicht mehr selbst (Nummer unter der Sperre der Auftragszeile)
+    db.refresh(rev)
     return OrderRevisionOut.model_validate({
         "id": rev.id, "order_id": rev.order_id, "revision_number": rev.revision_number,
         "reason": rev.reason, "source": rev.source, "created_by_name": rev.created_by_name,

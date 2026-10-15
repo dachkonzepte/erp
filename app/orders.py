@@ -13,7 +13,7 @@ from .models import (
     WorkPreparation, WorkPreparationEmployee, WorkPreparationMaterial, WorkPreparationTeamAssignment,
     WorkPreparationTeamEmployee,
 )
-from .acceptances import ensure_no_active_acceptance, has_active_acceptance
+from .acceptances import ensure_no_active_acceptance, has_active_acceptance, lock_order
 from .contract_basis import clause_is_reviewed, contract_basis_label, ensure_contract_not_signed
 from .invoices import (
     closing_invoices, compute_order_billing_progress, create_block_reason, list_invoices_for_order, lock_order_invoices,
@@ -57,8 +57,10 @@ def execution_period_text(order: Order) -> str | None:
     return " – ".join(parts) or None
 
 
-def load_order(db: Session, order_id: int) -> Order | None:
-    return db.scalar(
+def load_order(db: Session, order_id: int, *, frisch: bool = False) -> Order | None:
+    """frisch (seit 1.8.110): Werte und Listen aus der Datenbank neu, auch wenn der Auftrag schon in der Sitzung geladen ist --
+    für den Stand nach einer noch nicht committeten Änderung (create_order_revision())."""
+    stmt = (
         select(Order)
         .options(
             selectinload(Order.project).selectinload(Project.customer),
@@ -71,6 +73,9 @@ def load_order(db: Session, order_id: int) -> Order | None:
         )
         .where(Order.id == order_id)
     )
+    if frisch:
+        stmt = stmt.execution_options(populate_existing=True)
+    return db.scalar(stmt)
 
 
 # Seit 1.8.21 vergleicht der Abgleich auch tax_key_id, outro_text_2 und die Vertragsgrundlage --
@@ -228,6 +233,17 @@ def _order_snapshot_payload(order: Order) -> dict:
 
 
 def create_order_revision(db: Session, order: Order, *, reason: str, source: str = "manual", actor_name: str = "System") -> OrderRevision:
+    """Sichert den Stand des Auftrags als nächste Revision -- in der Transaktion des Aufrufers, ohne Commit: der Aufrufer
+    committet die Änderung und ihre Revision zusammen.
+
+    Seit 1.8.110 (Vorgabe "Vor dem Abnahmetest" Punkt 5) unter der Sperre der Auftragszeile (lock_order(), dieselbe wie Abnahme,
+    Abgleich und Rechnungen) und vor dem Commit der Änderung. Bis 1.8.109 las sie max(revision_number) ohne Sperre und erst nach dem
+    Commit der Änderung: zwei gleichzeitige Nachträge -- der zweite scheiterte an uq_order_revision_number (API 500), sein Nachtrag
+    war aber schon gespeichert. Unter SQLite (nur Entwicklung) wirkt FOR UPDATE nicht; dort wartet ein zweiter Schreiber an der
+    Schreibsperre der Datenbank, sobald die Transaktion geschrieben hat."""
+    lock_order(db, order.id)
+    db.flush()
+    order = load_order(db, order.id, frisch=True)  # der Stand samt der noch nicht committeten Änderung
     current = db.scalar(select(func.max(OrderRevision.revision_number)).where(OrderRevision.order_id == order.id)) or 0
     rev = OrderRevision(
         order_id=order.id,
@@ -238,8 +254,7 @@ def create_order_revision(db: Session, order: Order, *, reason: str, source: str
         created_by_name=actor_name or "System",
     )
     db.add(rev)
-    db.commit()
-    db.refresh(rev)
+    db.flush()
     return rev
 
 
@@ -844,9 +859,8 @@ def create_order_from_quote(
 
     quote.status = "beauftragt"
     project.status = "beauftragt"
-    db.commit()
-    order = load_order(db, order.id)
     create_order_revision(db, order, reason="Erstbeauftragung aus Angebot", source="quote", actor_name=actor_name)
+    db.commit()  # seit 1.8.110 Auftrag und Revision 1 in einem Commit
     return load_order(db, order.id)
 
 
@@ -960,8 +974,6 @@ def sync_order_from_source_quote(db: Session, order: Order, *, actor_name: str =
     _copy_quote_scope_to_order(db, order, quote)
     quote.status = "beauftragt"
     # Seit 1.8.71 bleibt der Projektstatus, wie er ist (vorher ohne Bedingung "beauftragt", Befund 3d).
-    db.commit()
-    order = load_order(db, order.id)
     create_order_revision(
         db,
         order,
@@ -969,6 +981,7 @@ def sync_order_from_source_quote(db: Session, order: Order, *, actor_name: str =
         source="quote_sync",
         actor_name=actor_name,
     )
+    db.commit()  # seit 1.8.110 Abgleich und Revision in einem Commit
     refresh_preparation_materials(db, order.id)
     return load_order(db, order.id)
 
@@ -1055,8 +1068,8 @@ def add_order_addendum(db: Session, order_id: int, *, short_text: str, long_text
         position_type="normal", short_text=short_text.strip(), long_text=long_text or "", quantity=quantity, unit=unit,
         unit_price=unit_price, include_in_total=include_in_total, is_addendum=True,
     ))
-    db.commit()
-    create_order_revision(db, load_order(db, order_id), reason=f"Nachtrag {number} angelegt", actor_name=actor_name)
+    create_order_revision(db, order, reason=f"Nachtrag {number} angelegt", actor_name=actor_name)
+    db.commit()  # seit 1.8.110 Nachtrag und Revision in einem Commit, unter der Sperre der Auftragszeile
     return load_order(db, order_id)
 
 
@@ -1078,8 +1091,8 @@ def remove_order_addendum(db: Session, order_id: int, item_id: int, *, actor_nam
         raise OrderLocked(reason)
     number = item.position_number
     db.delete(item)
-    db.commit()
-    create_order_revision(db, load_order(db, order_id), reason=f"Nachtrag {number} entfernt", actor_name=actor_name)
+    create_order_revision(db, db.get(Order, order_id), reason=f"Nachtrag {number} entfernt", actor_name=actor_name)
+    db.commit()  # seit 1.8.110 in einem Commit
     return load_order(db, order_id)
 
 
@@ -1122,5 +1135,6 @@ def ensure_existing_order_revisions(db: Session) -> int:
             source="migration",
             actor_name="System",
         )
+        db.commit()  # seit 1.8.110 committet create_order_revision() nicht mehr selbst
         created += 1
     return created

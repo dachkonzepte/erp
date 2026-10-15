@@ -4661,6 +4661,47 @@ Einkaufspreis. Alle übrigen Felder behalten ihre Vorgabe bei leer.
 7. **`tests/test_v362_maengel_im_protokoll.py`** startet die zweite Aktion zweier PG-Tests mit `Session()` direkt im Thread, ohne die
    Sitzung zu schließen -- dasselbe Muster wie die `_run`-Kopien (Punkt 7), dort nicht als `_run`.
 
+### Umsetzung 1.8.110: Revisionsnummer unter der Sperre der Auftragszeile (Punkt 5)
+
+#### Befund
+
+Gefunden in den Endläufen zu 1.8.108 (`b8ddb1c`, einer von vier Läufen, `test_v386::test_postgresql_two_addenda_at_once_get_two_numbers`):
+`app/orders.py::create_order_revision()` las `max(revision_number) + 1` ohne Sperre und lief erst NACH dem Commit der Änderung, die sie
+sichert (Beauftragen, Abgleich mit dem Angebot, Nachtrag anlegen und entfernen; die Revision von Hand committete sie selbst). Zwei
+gleichzeitige Nachträge: beide lasen dieselbe Höchstnummer, der zweite scheiterte am Unique-Index `uq_order_revision_number` (API 500) --
+sein Nachtrag war da schon committet. Der Test traf den Wettlauf nur, wenn die beiden Revisionen nach dem Freigeben der Sperre zufällig
+gleichzeitig liefen; derselbe Doppel-Commit von `create_order_from_quote()` war die Ursache der Verklemmung im Nachtrag 2 zu 1.8.108.
+
+#### Was gebaut ist
+
+- `create_order_revision()` sperrt die Auftragszeile (`app/acceptances.py::lock_order()`, dieselbe Sperre wie Abnahme, Abgleich und
+  Rechnungen), schreibt die Änderung des Aufrufers (`flush()`), liest den Auftrag frisch (`load_order(…, frisch=True)`, populate_existing --
+  der Stand MIT der noch nicht committeten Änderung), vergibt die Nummer und legt die Revision an, ohne zu committen.
+- Jeder Aufrufer committet Änderung und Revision zusammen: Beauftragen (Auftrag und Revision 1 in einem Commit), Abgleich mit dem Angebot
+  (Abgleich und Revision; danach wie bisher `refresh_preparation_materials()`), Nachtrag anlegen und entfernen (unter der Sperre, die sie
+  ohnehin halten), Revision von Hand (der Router committet), Start (`ensure_existing_order_revisions()`, je Auftrag ein Commit).
+- Unter SQLite wirkt `FOR UPDATE` nicht (nur Entwicklung, wie überall); dort wartet ein zweiter Schreiber an der Schreibsperre der
+  Datenbank, sobald die Transaktion geschrieben hat.
+
+#### Festlegungen 1.8.110 (Bitte bestätigen)
+
+1. **`create_order_revision()` committet nie selbst**; jeder Aufrufer committet Änderung und Revision in einem Commit -- scheitert die Revision, ist auch die Änderung nicht gespeichert.
+2. **Gesperrt wird die Zeile des Auftrags** (`lock_order()`), nicht eine eigene Zeile oder Tabelle -- dieselbe Sperrreihenfolge wie alle Wege am Auftrag.
+3. **Der Stand der Revision ist der vor dem Commit** (nach `flush()` frisch gelesen); er enthält genau die Änderung, die die Revision sichert.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v415_revision_unter_sperre.py` (7, davon 3 gegen PostgreSQL): die Revision committet nicht und fällt mit der Transaktion
+  des Aufrufers; scheitert die Revision eines Nachtrags, ist auch der Nachtrag nicht gespeichert; die Revision eines Nachtrags enthält ihn,
+  die des Entfernens nicht mehr; die Revision von Hand über die API ist committet. **Angriffstest gegen PostgreSQL** (Helfer `_run`: die
+  erste Aktion hält ihren Commit eine Sekunde): zwei Revisionen von Hand zugleich -> 2 und 3 (nach altem Stand deterministisch
+  `UniqueViolation uq_order_revision_number`); zwei Nachträge zugleich -> Revisionen "Nachtrag N1 angelegt" (2) und "Nachtrag N2 angelegt"
+  (3); ein Nachtrag wartet auf eine Revision von Hand.
+- Gegenproben (Regel 24): 4 von 4 rot -- ohne Sperre (PG: `UniqueViolation … (order_id, revision_number)=(1, 2)`), Revision committet wie
+  bis 1.8.109 (die Revision bleibt nach dem Zurückrollen des Aufrufers), Nachtrag vor der Revision committet (der Nachtrag bleibt, obwohl
+  die Revision scheitert), Router ohne Commit (die Revision fehlt danach). Jede Datei byte-genau zurück (SHA-256).
+- Angepasste Erwartungen (Regel 28): keine.
+
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
 Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):

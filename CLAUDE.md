@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.109** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.110** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -786,7 +786,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
 - `Quote`: frei bearbeitbar, Status u. a. `entwurf`/`versendet`/`beauftragt`. Kann `is_template=True`
   sein (Mustervorgang) und/oder `archived=True`.
 - `Order`: entsteht ausschließlich durch Beauftragung eines Angebots, ist ein **unveränderlicher
-  LV-Snapshot**. Kein Entwurfsstatus – startet direkt bei `beauftragt`.
+  LV-Snapshot**. Kein Entwurfsstatus – startet direkt bei `beauftragt`. Seine Revisionen (`OrderRevision`) entstehen seit 1.8.110
+  unter der Sperre der Auftragszeile in der Transaktion der Änderung, die sie sichern: `create_order_revision()` committet nie
+  selbst, der Aufrufer committet beides zusammen.
 - `Invoice`: `entwurf` bis zur Finalisierung (vergibt Nummer aus Nummernkreis), danach
   unveränderlich außer über eine Stornorechnung. Seit 1.8.72 je Auftrag höchstens eine nicht stornierte Schlussrechnung (auch
   Entwurf), danach keine Abschläge; je Rechnung höchstens ein Storno, keins eines Stornos oder eines verrechneten Abschlags; bis R4
@@ -1208,7 +1210,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   geprüft, Admin meldet beim Beenden der Sitzungen auch die vertrauten Geräte ab, Feierabend als POST ohne Kreis über `/login`; seit
   1.8.107 Secure als Vorgabe (ohne nur `ERP_ENV=development`/`test`), HSTS, Schutzkopfzeilen auch an der 500; vor dem Abnahmetest
   ab 1.8.109: Zahleneingaben im deutschen Format über `_zahl.html` (Regel 34), lesbare Fehler in Einstellungen, Plantafel und
-  Arbeitsvorbereitung, "Festschreiben" am Mahnungsentwurf)
+  Arbeitsvorbereitung, "Festschreiben" am Mahnungsentwurf; seit 1.8.110 Revisionsnummer des Auftrags unter der Sperre der
+  Auftragszeile, vor dem Commit)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Zahlungen** (Zahlungsstufe Z1 seit 1.8.78: Zahlungseingang mit Zuordnungen, Skonto und Einbehalt, Rest am Kunden,
   Zahlstand abgeleitet, Gegenbuchung statt Ändern, Sperrreihenfolge, Storno erst nach gelösten Zuordnungen, Finanzen/Dashboard mit
