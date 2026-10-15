@@ -554,16 +554,24 @@ def _discard(session, w):
 
 
 def _run(Session, first, second):
+    """Seit 1.8.111 (Vorgabe "Vor dem Abnahmetest" Punkt 7, Nebenbefund 5 aus 1.8.108) wie
+    tests/test_v375_rechnungen_sperren.py::_run(): die Sitzung der zweiten Aktion wird geschlossen, bevor auf die erste gewartet wird
+    -- wirft sie nach der Sperre (wie erwartet), hielte ihre offene Transaktion sonst Sperren, auf die die erste nach der Freigabe
+    noch warten kann, und der Lauf hinge. Hängt eine der beiden trotzdem, wird der Test rot statt den Lauf anzuhalten."""
     ready = threading.Event()
     holder, release, thread = _held(Session, first, ready)
     assert ready.wait(timeout=10)
     result = {}
-    other = threading.Thread(target=lambda: result.update(_timed(lambda: second(Session()))))
+    second_session = Session()
+    other = threading.Thread(target=lambda: result.update(_timed(lambda: second(second_session))))
     other.start()
     time.sleep(1.0)
     release.set()
     other.join(timeout=30)
+    assert not other.is_alive(), "die zweite Aktion hängt"
+    second_session.close()
     thread.join(timeout=30)
+    assert not thread.is_alive(), "die erste Aktion hängt -- wartet sie auf eine Sperre der zweiten?"
     holder.close()
     return result
 

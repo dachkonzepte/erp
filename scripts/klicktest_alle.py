@@ -72,10 +72,22 @@ def _dauer(sekunden: float) -> str:
     return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
 
 
+TASKKILL_SEKUNDEN = 30  # wie cdp_klicktest.TASKKILL_SEKUNDEN (seit 1.8.111)
+
+
+def _taskkill(pid: int) -> list[str]:
+    return ["taskkill", "/PID", str(pid), "/T", "/F"]
+
+
 def _baum_beenden(pid: int) -> None:
-    """Nur der eigene Kindprozess und dessen Kinder (Regel 12) -- nie über einen Prozessnamen."""
+    """Nur der eigene Kindprozess und dessen Kinder (Regel 12) -- nie über einen Prozessnamen. Seit 1.8.111 mit Zeitlimit wie
+    cdp_klicktest.beenden() (Nebenbefund 4 aus 1.8.108)."""
     if os.name == "nt":
-        subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
+        try:
+            subprocess.run(_taskkill(pid), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=TASKKILL_SEKUNDEN)
+        except subprocess.TimeoutExpired:
+            print(f"Hinweis: taskkill für PID {pid} nach {TASKKILL_SEKUNDEN} s abgebrochen -- prüfen über die PID (Regel 12).",
+                  flush=True)
     else:
         try:
             os.kill(pid, 9)

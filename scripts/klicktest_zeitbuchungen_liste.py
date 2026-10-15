@@ -18,6 +18,13 @@ erwarteten Zahlen rechnet befuellen() aus dem angelegten Datensatz aus -- das Sk
 jedem Monat. Die älteste Buchung (2,5 Std. Fahrzeit der Monteurin auf Auftrag A) fällt an jeder
 Grenze als erste aus der Liste.
 
+Seit 1.8.111 (Vorgabe "Vor dem Abnahmetest" Punkt 6) mit fester Uhr: Instanz und Browser stehen auf heute
+00:30 Uhr Berliner Zeit (`uhr="00:30"`, `tab.browser_uhr()`), alle Daten kommen aus dem Berliner Tag der
+Instanz. Bis 1.8.110 legte befuellen() das 14-Tage-Fenster der Monteurin relativ zum UTC-Tag an ("die
+Monteur-Seite bildet ihr Fenster in UTC") -- seit 1.8.87 rechnet die Seite aber in Berlin; zwischen 0 und
+2 Uhr lag das Fenster des Tests einen Tag neben dem der Seite, "Liste gekürzt" fehlte. Der Test rechnete
+falsch, nicht die Anwendung. Jetzt läuft er immer in diesem Fenster der Nacht.
+
 AUFRUF (aus dem Projektordner):
 
     .venv\\Scripts\\python.exe scripts\\klicktest_zeitbuchungen_liste.py [--app-port N] [--cdp-port N]
@@ -39,19 +46,19 @@ def _anzahl(n: int) -> str:
 
 
 def befuellen(db, k):
-    from datetime import date, datetime, timedelta, timezone
+    from datetime import timedelta
     from decimal import Decimal
 
+    from app.berlin_time import berlin_today
     from app.models import AppUser, Customer, Employee, Order, OrderItem, Project, TimeEntry
     from app.project_pipeline_columns import default_pipeline_column_id
 
-    heute = date.today()
-    heute_utc = datetime.now(timezone.utc).date()  # die Monteur-Seite bildet ihr Fenster in UTC
+    heute = berlin_today()  # Uhr der Instanz: heute 00:30 Uhr Berliner Zeit -- in UTC noch gestern
     monat = heute.replace(day=1)
     vormonat = (monat - timedelta(days=1)).replace(day=1)
     im_monat = lambda i: monat + timedelta(days=i % 28)        # noqa: E731 -- 1.-28., in jedem Monat vorhanden
     im_vormonat = lambda i: vormonat + timedelta(days=i % 28)  # noqa: E731
-    anna_tag = next(monat + timedelta(days=i) for i in range(28) if monat + timedelta(days=i) not in (heute, heute_utc))
+    anna_tag = next(monat + timedelta(days=i) for i in range(28) if monat + timedelta(days=i) != heute)
 
     col = default_pipeline_column_id(db)
     kunde = Customer(name="Klicktest Kunde", last_name="Klicktest Kunde")
@@ -89,7 +96,7 @@ def befuellen(db, k):
     rows += [te("karl", a, im_monat(i)) for i in range(499)] + [te("karl", a, monat + timedelta(days=27), "0", status="running")]
     rows += [te("karl", b, im_monat(i)) for i in range(500)]                                     # P: 1001
     rows += [te("karl", c, im_monat(i)) for i in range(499)]                                     # Karl im Monat: 1498 Std.
-    rows += [te("mia", d, heute_utc - timedelta(days=i % 15)) for i in range(501)]               # letzte 14 Tage
+    rows += [te("mia", d, heute - timedelta(days=i % 15)) for i in range(501)]                   # letzte 14 Tage
     rows += [te("mia", d, im_vormonat(i)) for i in range(2001)]                                  # Vormonat
     rows += [te("anna", d, anna_tag) for _ in range(501)]                                        # ein Tag
     db.add_all(rows); db.commit()
@@ -97,12 +104,12 @@ def befuellen(db, k):
     monatsende = (monat + timedelta(days=32)).replace(day=1) - timedelta(days=1)
     zaehle = lambda bed: sum(1 for x in rows if bed(x))  # noqa: E731
     return {
-        "orders": {"A": a.id}, "projects": {"P": p.id}, "employees": {"anna": ma["anna"].id},
+        "orders": {"A": a.id}, "projects": {"P": p.id}, "employees": {"anna": ma["anna"].id}, "uhr_versatz_ms": k.uhr_versatz_ms(),
         "cookies": {name: k.cookies(u) for name, u in benutzer.items()},
         "anna_tag": anna_tag.isoformat(), "vormonat": vormonat.strftime("%Y-%m"),
         "karl_monat_stunden": sum(x.hours for x in rows if x.employee_id == ma["karl"].id and monat <= x.work_date <= monatsende),
         "backoffice_monat": zaehle(lambda x: monat <= x.work_date <= monatsende),
-        "monteurin_14_tage": zaehle(lambda x: x.employee_id == ma["mia"].id and heute_utc - timedelta(days=14) <= x.work_date <= heute_utc),
+        "monteurin_14_tage": zaehle(lambda x: x.employee_id == ma["mia"].id and heute - timedelta(days=14) <= x.work_date <= heute),
         "monteurin_vormonat": zaehle(lambda x: x.employee_id == ma["mia"].id and vormonat <= x.work_date < monat),
     }
 
@@ -119,6 +126,7 @@ async def pruefen(tab, seed, p):
 
     a, pr = seed["orders"]["A"], seed["projects"]["P"]
     assert seed["backoffice_monat"] > 2000 and seed["monteurin_14_tage"] > 500 and seed["monteurin_vormonat"] > 2000, seed
+    await tab.browser_uhr(seed["uhr_versatz_ms"])  # seit 1.8.111: der Browser sieht dieselbe Uhr wie die Instanz (00:30 Uhr)
 
     await tab.anmelden(seed["cookies"]["buero"])
     await tab.oeffnen(f"/orders/{a}/service-reports", "document.querySelector('#timeEntriesTable table, #timeEntriesTable .status, #timeEntriesTable .empty')")
@@ -188,4 +196,4 @@ async def pruefen(tab, seed, p):
 
 
 if __name__ == "__main__":
-    sys.exit(klicktest_main(befuellen, pruefen, beschreibung=__doc__))
+    sys.exit(klicktest_main(befuellen, pruefen, beschreibung=__doc__, uhr="00:30"))

@@ -4702,6 +4702,17 @@ gleichzeitig liefen; derselbe Doppel-Commit von `create_order_from_quote()` war 
   die Revision scheitert), Router ohne Commit (die Revision fehlt danach). Jede Datei byte-genau zurück (SHA-256).
 - Angepasste Erwartungen (Regel 28): keine.
 
+### Umsetzung 1.8.111: Klicktest nachts, Testablauf (Punkte 6 und 7)
+
+Werkzeug-Runde, steht im Archiv des Testablaufs (`docs/archiv/testablauf-und-klicktests.md`, "Vor dem Abnahmetest: Klicktest nachts,
+Zeitgrenze je Test, `_run`, taskkill"). Punkt 6 geklärt: der Klicktest rechnete falsch (UTC-Tag), nicht die Anwendung -- die
+Monteur-Zeiterfassung bildet ihr Fenster seit 1.8.87 richtig aus dem Berliner Tag.
+
+### Stand nach 1.8.111: Vor dem Abnahmetest
+
+Die Vorgabe vom 15.10.2026 ist umgesetzt: Punkte 1–4 in 1.8.109, Punkt 5 in 1.8.110, Punkte 6–7 in 1.8.111; Vorweg (Festlegungen
+1.8.108 bestätigt, Regel 26 ergänzt) mit 1.8.109.
+
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
 Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):

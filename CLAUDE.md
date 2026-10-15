@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.110** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.111** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -512,7 +512,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     dynamisch verteilt, gemessen rund 7 min statt 41 min nacheinander (16 Arbeitsprozesse sind auf diesem Rechner das Optimum, mehr
     werden langsamer). **Vor jedem Commit läuft die volle Suite so, parallel -- nicht gezielte Teilläufe** (die bleiben für die
     Arbeit dazwischen und die Suche nach einem Fehler); Regel 26 bleibt unverändert. Klicktests zugleich:
-    `scripts\klicktest_alle.py --gleichzeitig 4`. Messungen und Festlegungen: `docs/archiv/testablauf-und-klicktests.md`.
+    `scripts\klicktest_alle.py --gleichzeitig 4`. Messungen und Festlegungen: `docs/archiv/testablauf-und-klicktests.md`. **Seit 1.8.111**
+    hat jeder Test eine Zeitgrenze (300 s, `tests/zeitgrenze.py`; `@pytest.mark.zeitgrenze(n)`, `--zeitgrenze SEK`, 0 = aus): ein
+    hängender Test beendet seinen Testprozess mit dem Stapel aller Threads, im parallelen Lauf geht der Lauf ohne ihn weiter.
 
 16. **Jede Verifikation -- CDP-Browsertest, Sicherheits-/Angriffstest, Datenumzugs-/
     Reparaturskript -- läuft gegen eine isolierte, temporäre Test- oder Probe-Instanz
@@ -1211,7 +1213,7 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   1.8.107 Secure als Vorgabe (ohne nur `ERP_ENV=development`/`test`), HSTS, Schutzkopfzeilen auch an der 500; vor dem Abnahmetest
   ab 1.8.109: Zahleneingaben im deutschen Format über `_zahl.html` (Regel 34), lesbare Fehler in Einstellungen, Plantafel und
   Arbeitsvorbereitung, "Festschreiben" am Mahnungsentwurf; seit 1.8.110 Revisionsnummer des Auftrags unter der Sperre der
-  Auftragszeile, vor dem Commit)
+  Auftragszeile, vor dem Commit; seit 1.8.111 Klicktest nachts geklärt -- der Test rechnete falsch)
   -- `docs/archiv/befund-vor-echtbetrieb.md`
 - **Zahlungen** (Zahlungsstufe Z1 seit 1.8.78: Zahlungseingang mit Zuordnungen, Skonto und Einbehalt, Rest am Kunden,
   Zahlstand abgeleitet, Gegenbuchung statt Ändern, Sperrreihenfolge, Storno erst nach gelösten Zuordnungen, Finanzen/Dashboard mit
@@ -1230,7 +1232,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Altfälle, Nebenbefunde der Durchsicht aller Speichern-Aufrufer) -- `docs/archiv/teil-updates.md`
 - **Testablauf und Klicktest-Werkzeug** (seit 1.8.108: volle Suite parallel, Kennung und Aufräumen der Testschemas, Sperren der
   Spielwiese, `klicktest_alle.py --gleichzeitig`, `ALLEIN` für zeitkritische Klicktests, Abbruch in Gegenproben, Messungen; die
-  Festlegungen zu Werkzeug und Testablauf, Regel 28) -- `docs/archiv/testablauf-und-klicktests.md`
+  Festlegungen zu Werkzeug und Testablauf, Regel 28; seit 1.8.111 Zeitgrenze je Test, Browser-Uhr im Klicktest, taskkill mit
+  Zeitlimit) -- `docs/archiv/testablauf-und-klicktests.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`
 - **Migrationsketten- und Testlauf-Historie** (Version-für-Version-Nachweis, wer wann was mit
@@ -1520,7 +1523,9 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
 
 - **Gleichzeitigkeit in Tests** (`tests/test_v375_rechnungen_sperren.py::_run()`): die erste Aktion hält ihre Sperren eine Sekunde,
   die zweite wartet; seit 1.8.87 schließt `_run` auch die Sitzung der zweiten Aktion (sie hielt nach einem Fehler die Sperre der
-  Auftragszeile) -- die zweite Aktion gibt Werte zurück, keine Objekte, die erst danach nachladen.
+  Auftragszeile) -- die zweite Aktion gibt Werte zurück, keine Objekte, die erst danach nachladen. Seit 1.8.111 schließen auch die
+  Kopien in `tests/test_v363_zweck_abnahme.py` und `tests/test_v365_abnahme_aus_protokoll.py` die zweite Sitzung, bevor sie auf die
+  erste warten; eine hängende Aktion macht den Test rot.
 
 - **Mahnung zustellen in Tests** (seit 1.8.80): eine Stufe ist erst mit Versand oder Zustellung erreicht --
   `tests/mahnung.py::zustellen(db, reminder)` trägt eine Zustellung ins Versandprotokoll ein (ohne PDF), `festschreiben_und_ablaufen()`
@@ -1739,7 +1744,9 @@ Klicktest, der als
 Monteur `/mobil` öffnet,
 hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `MobileSettings.shift_end_time` (Vorgabe 19:00)
 meldet `/mobil` ab, eine 403-Prüfung sähe abends 401; `--wanduhr HH:MM` täuscht eine andere Uhrzeit vor (Gegenprobe),
-`tests/test_v339_feste_uhr.py` prüft, dass jeder solche Klicktest `uhr=` setzt. Eine Seite mit `alert()` beim Laden hält den headless Chrome an --
+`tests/test_v339_feste_uhr.py` prüft, dass jeder solche Klicktest `uhr=` setzt. Den Browser nimmt die feste Uhr nur mit, wenn der Klicktest es
+will (seit 1.8.111): `k.uhr_versatz_ms()` in den Seed, `await tab.browser_uhr(seed[…])` vor dem ersten Laden -- so läuft
+`klicktest_zeitbuchungen_liste.py` immer bei 00:30 Uhr (in UTC noch gestern). Eine Seite mit `alert()` beim Laden hält den headless Chrome an --
 im Klicktest `window.alert` per `Page.addScriptToEvaluateOnNewDocument` umleiten (Vorlage dort). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
 Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite. **Alle nacheinander** (seit 1.8.76):
 `.venv\Scripts\python.exe scripts\klicktest_alle.py` (je Test eigener Arbeitsordner unter einem Ausgabeordner, Übersicht mit

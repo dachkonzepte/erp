@@ -49,6 +49,7 @@ from app.models import AppUser
 from tests.grunddaten_schalter import grunddaten_aus, ohne_grunddaten
 from tests.pg_schutz import liegen_gebliebene_schemas_loeschen, schema_waechter_einrichten
 from tests.uhr import uhr_festhalten
+from tests.zeitgrenze import Uhr, grenze_fuer, marker_anmelden, option_anmelden, schon_abgelaufen
 
 # Seit 1.8.81 (Regel 27): kein Test gegen PostgreSQL im Schema public der Spielwiese -- für jede Engine dieses Testprozesses.
 # Seit 1.8.108 trägt dabei jedes angelegte Schema pgtest_* die Kennung dieses Prozesses (tests/pg_schutz.py).
@@ -130,6 +131,32 @@ def pytest_addoption(parser):
         help="Suite so laufen lassen, als wäre es heute HH:MM (Europe/Berlin) -- Gegenprobe für Tests, "
              "die von der Tageszeit abhängen (seit 1.8.36, z. B. --wanduhr 19:30 nach der Feierabend-Grenze).",
     )
+    option_anmelden(parser)  # --zeitgrenze, seit 1.8.111
+
+
+def pytest_configure(config):
+    marker_anmelden(config)
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_protocol(item, nextitem):
+    """Seit 1.8.111: Zeitgrenze je Test (tests/zeitgrenze.py) -- ein hängender Test beendet seinen Testprozess mit Stapel, statt
+    den ganzen Lauf anzuhalten."""
+    sekunden = grenze_fuer(item)
+    if sekunden is None:
+        yield
+        return
+    with Uhr(item, sekunden):
+        yield
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_runtest_setup(item):
+    """Seit 1.8.111: ein Test, dessen Zeitgrenze in diesem parallelen Lauf schon einmal abgelaufen ist, läuft nicht noch einmal
+    (xdist gibt nach dem Absturz die ganze Datei zurück, tests/zeitgrenze.py)."""
+    if schon_abgelaufen(item):
+        pytest.fail(f"ZEITGRENZE: {item.nodeid} hat seine Zeitgrenze in diesem Lauf schon überschritten (Arbeitsprozess beendet) -- "
+                    "nicht noch einmal ausgeführt.", pytrace=False)
 
 
 @pytest.fixture(scope="session", autouse=True)

@@ -42,7 +42,9 @@ FESTE UHR (seit 1.8.36): `klicktest_main(befuellen, pruefen, uhr="10:00")` läss
 wann der Test startet. Pflicht für jeden Klicktest, der als Monteur /mobil öffnet: ab
 MobileSettings.shift_end_time (Vorgabe 19:00) meldet /api/field-view/today ab, eine 403-Prüfung
 danach sähe abends 401. Gespeicherte Zeitstempel (datetime.utcnow()) und die Uhr des Browsers
-laufen weiter mit der echten Zeit.
+laufen weiter mit der echten Zeit -- seit 1.8.111 lässt sich der Browser mitnehmen: befuellen() gibt
+`k.uhr_versatz_ms()` in den Seed, pruefen() ruft vor dem ersten Laden `tab.browser_uhr(versatz)`;
+die Uhr des Browsers läuft dann um denselben Versatz weiter (Date und Date.now()).
 
 Rückgabecode: 0 = alle Prüfungen wie erwartet, 1 = mindestens eine Abweichung,
 2 = Instanz oder Chrome ließ sich nicht starten, 3 = Zeitlimit (--zeitlimit oder Gegenprobe).
@@ -176,6 +178,12 @@ class Werkzeug:
         from app.auth import hash_password
         return hash_password(text)
 
+    def uhr_versatz_ms(self) -> int:
+        """Seit 1.8.111: um wie viele Millisekunden die Uhr der Instanz (FESTE UHR) der echten vorausgeht -- für
+        Tab.browser_uhr(), damit der Browser dieselbe Zeit sieht. Ohne feste Uhr 0."""
+        from app import berlin_time
+        return int(round((berlin_time._utc_now().timestamp() - time.time()) * 1000))
+
 
 def _befuellen_im_kindprozess(befuellen, ziel: Path) -> None:
     url = os.environ.get("DATABASE_URL", "")
@@ -217,6 +225,10 @@ XMLHttpRequest.prototype.send=function(...a){z.gestartet++;z.offen++;this.addEve
 # damit der Zähler eine zurückgehaltene Antwort als unterwegs zählt. Regel: {muster (RegExp-Quelltext auf die URL), methode,
 # anzahl, art}; art "antwort": die Anfrage geht sofort hinaus, der Server bearbeitet sie, die Seite bekommt die Antwort erst bei
 # freigeben(); art "anfrage": die Anfrage geht erst bei freigeben() hinaus. gehalten: je Fall {url, methode, art, beantwortet}.
+# Seit 1.8.111: versetzte, weiterlaufende Uhr des Browsers (Tab.browser_uhr()) -- new Date() ohne Argument und Date.now() um %d ms.
+BROWSER_UHR = """(()=>{if(window.__dkUhrVersatz!==undefined)return;const V=%d;window.__dkUhrVersatz=V;const Echt=Date;
+globalThis.Date=class extends Echt{constructor(...a){super(...(a.length?a:[Echt.now()+V]))}static now(){return Echt.now()+V}};})();"""
+
 ANTWORT_RUECKHALT = """(()=>{if(window.__dkRueckhalt)return;
 const R=window.__dkRueckhalt={regeln:[],gehalten:[],freigegeben:0};
 const f=window.fetch;
@@ -569,6 +581,11 @@ class Tab:
         for name, value in cookies.items():
             await self.cmd("Network.setCookie", name=name, value=value, url=self.base)
 
+    async def browser_uhr(self, versatz_ms: int) -> None:
+        """Seit 1.8.111: die Uhr des Browsers um versatz_ms versetzen (sie läuft weiter) -- für jedes danach geladene Dokument. Mit
+        Werkzeug.uhr_versatz_ms() aus befuellen() sieht der Browser die Zeit der Instanz (FESTE UHR oben)."""
+        await self.cmd("Page.addScriptToEvaluateOnNewDocument", source=BROWSER_UHR % int(versatz_ms))
+
     async def fenster(self, breite: int, hoehe: int, mobil: bool = False) -> None:
         await self.cmd("Emulation.setDeviceMetricsOverride", width=breite, height=hoehe,
                        deviceScaleFactor=2 if mobil else 1, mobile=mobil)
@@ -794,10 +811,25 @@ def _warte_auf(url: str, timeout: float) -> bool:
     return False
 
 
+TASKKILL_SEKUNDEN = 30  # seit 1.8.111
+
+
+def _taskkill(pid: int) -> list[str]:
+    return ["taskkill", "/PID", str(pid), "/T", "/F"]
+
+
 def beenden(pid: int) -> None:
-    """Beendet genau diesen Prozess samt eigener Kindprozesse, über die PID (Regel 12)."""
+    """Beendet genau diesen Prozess samt eigener Kindprozesse, über die PID (Regel 12).
+
+    Seit 1.8.111 (Vorgabe "Vor dem Abnahmetest" Punkt 7, Nebenbefund 4 aus 1.8.108) mit Zeitlimit: taskkill lief mit
+    capture_output ohne Grenze -- in einer Überlast-Probe hing ein Klicktest nach "42 von 42" darin. Jetzt ohne Ausgabe (DEVNULL) und
+    nach TASKKILL_SEKUNDEN abgebrochen; dann eine Hinweiszeile mit der PID, der Klicktest endet trotzdem."""
     if os.name == "nt":
-        subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
+        try:
+            subprocess.run(_taskkill(pid), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=TASKKILL_SEKUNDEN)
+        except subprocess.TimeoutExpired:
+            print(f"Hinweis: taskkill für PID {pid} nach {TASKKILL_SEKUNDEN} s abgebrochen -- der Prozess läuft womöglich noch "
+                  f"(prüfen über die PID, Regel 12).", flush=True)
     else:
         try:
             os.kill(pid, 15)

@@ -208,3 +208,89 @@ neu ausgelöst -- seit 15.10.2026 nicht mehr, siehe Regel 26):
 
 Die Festlegungen 1.8.108 Nr. 1–16 sind am 15.10.2026 bestätigt. Regel 26 ist am selben Tag ergänzt: ein Commit, der nur `docs/` ändert,
 löst keinen neuen Endlauf aus.
+
+## Vor dem Abnahmetest: Klicktest nachts, Zeitgrenze je Test, `_run`, taskkill (1.8.111)
+
+Vorgabe vom 15.10.2026, Punkte 6 und 7 (Wortlaut der ganzen Vorgabe: `docs/archiv/befund-vor-echtbetrieb.md`, "Vor dem Abnahmetest:
+Zahleneingaben, lesbare Fehler, Revisionsnummer, Testablauf"):
+
+> 6. klicktest_zeitbuchungen_liste zwischen 0 und 2 Uhr: mit fester Uhr klären, ob der Test oder die Anwendung falsch rechnet; liegt es
+>    an der Anwendung, beheben.
+> 7. Testablauf: Zeitgrenze je Test; die _run-Kopien in test_v363 und test_v365 schließen ihre Sitzungen; taskkill in beenden() mit
+>    Zeitlimit.
+
+Vorweg (gleiche Vorgabe): alle 16 Festlegungen 1.8.108 bestätigt; Regel 26 ergänzt -- ein Commit, der nur `docs/` ändert, löst keinen
+neuen Endlauf aus.
+
+### Umsetzung 1.8.111
+
+#### Punkt 6: der Test rechnete falsch, nicht die Anwendung
+
+- **Geklärt mit fester Uhr**: Instanz und Browser auf heute 00:30 Uhr Berliner Zeit (in UTC noch gestern). Die Monteur-Zeiterfassung
+  bildet ihr Fenster `berlinAddDays(berlinToday(), -14)` bis `berlinToday()` (`time_tracking_field.html`, seit 1.8.87, Regel 20), der
+  Server liefert genau dieses Fenster. Das Befüllen legte die 501 Buchungen der Monteurin über die letzten 15 Tage relativ zum UTC-Tag an
+  und zählte das Soll im UTC-Fenster ("die Monteur-Seite bildet ihr Fenster in UTC" -- seit 1.8.87 veraltet): nachts lag das Fenster des
+  Tests einen Tag neben dem der Seite, 467 statt 501 Buchungen, kein "Liste gekürzt". Die übrigen Seiten des Klicktests rechnen ebenfalls
+  in Berlin, der Test dort mit `date.today()` (Ortszeit des Rechners, zufällig richtig).
+- **Behoben im Test**: alle Daten aus dem Berliner Tag der Instanz (`berlin_today()`), und der Klicktest läuft jetzt immer im Nachtfenster:
+  `klicktest_main(…, uhr="00:30")` und der Browser auf derselben Uhr.
+- **Browser-Uhr im Werkzeug** (`scripts/cdp_klicktest.py`, Opt-in): `Werkzeug.uhr_versatz_ms()` im Befüllen (Vorsprung der festen Uhr der
+  Instanz vor der echten), `Tab.browser_uhr(versatz)` vor dem ersten Laden -- `new Date()` ohne Argument und `Date.now()` laufen um den
+  Versatz verschoben weiter (`BROWSER_UHR`, per `Page.addScriptToEvaluateOnNewDocument`). Ohne den Browser sähe der Klicktest einen
+  Rückfall einer Seite auf UTC nicht: die echte Uhr am Tag ist in Berlin wie in UTC derselbe Tag.
+
+#### Punkt 7: Testablauf
+
+- **Zeitgrenze je Test** (`tests/zeitgrenze.py`, eingebunden in `tests/conftest.py`): je Test eine Uhr in einem eigenen Thread über Aufbau,
+  Test und Abbau (`pytest_runtest_protocol`); läuft sie ab, schreibt sie an der Ausgabe-Umleitung von pytest vorbei "ZEITGRENZE: <Test>
+  läuft länger als N s …" und den Stapel aller Threads (faulthandler) und beendet den Testprozess (`os._exit(3)` -- ein Thread, der in C an
+  einer Sperre oder einem Socket wartet, lässt sich nicht anders unterbrechen). Vorgabe 300 s, je Test `@pytest.mark.zeitgrenze(n)`, für
+  den Lauf `--zeitgrenze SEK`, 0 schaltet ab. Ohne `-n` endet der Lauf dort (Rückgabecode 3); im parallelen Lauf meldet xdist den Test als
+  abgestürzt ("worker … crashed while running …") und ersetzt den Arbeitsprozess.
+- **Befund dabei**: mit `--dist loadfile` gibt xdist nach dem Absturz die ganze Datei zurück -- einschließlich des abgestürzten Tests. Er
+  lief wieder bis zur Grenze, bis xdist keine Arbeitsprozesse mehr ersetzte (gemessen: achtmal in Folge, der übrige Test der Datei lief nie;
+  mit 16 Arbeitsprozessen wären es bis zu 64 × 5 min). Deshalb schreibt die Uhr den Test vor dem Beenden in eine Datei des Laufs
+  (`%TEMP%/erp_pytest_zeitgrenze_<PYTEST_XDIST_TESTRUNUID>.txt`); `pytest_runtest_setup` meldet ihn beim nächsten Versuch sofort als Fehler
+  ("… hat seine Zeitgrenze in diesem Lauf schon überschritten … nicht noch einmal ausgeführt"), der Rest der Datei läuft.
+- **`_run` in `tests/test_v363_zweck_abnahme.py` und `tests/test_v365_abnahme_aus_protokoll.py`** (Nebenbefund 5): wie
+  `tests/test_v375_rechnungen_sperren.py::_run` seit dem Nachtrag 2 -- die Sitzung der zweiten Aktion wird eigens angelegt und geschlossen,
+  sobald die zweite Aktion fertig ist, bevor auf die erste gewartet wird; hängt eine der beiden, wird der Test rot ("die zweite Aktion
+  hängt" bzw. "die erste Aktion hängt …") statt den Lauf anzuhalten.
+- **taskkill mit Zeitlimit** (Nebenbefund 4): `scripts/cdp_klicktest.py::beenden()` ruft taskkill ohne Ausgabe (`DEVNULL` statt
+  `capture_output`) und mit `TASKKILL_SEKUNDEN` = 30; läuft es länger, wird taskkill selbst beendet und eine Hinweiszeile mit der PID
+  gedruckt, der Klicktest endet trotzdem. Dasselbe für `scripts/klicktest_alle.py::_baum_beenden()`.
+
+#### Messung
+
+Laufzeiten im parallelen Lauf (`-n 16 --dist loadfile`, Stand `b8ddb1c`, 5276 Tests, 8:00): längster Test 32,3 s
+(`test_v380::test_pg_migration_refuses_with_a_list_of_duplicates_and_changes_nothing`), längster Aufbau 24,4 s (Modul-Fixture in
+`test_v324`); die zehn längsten Tests alle Migrationsproben gegen PostgreSQL. 300 s je Test ist rund das Neunfache des längsten.
+
+#### Festlegungen 1.8.111 (Bitte bestätigen)
+
+Alle betreffen nur Werkzeug und Testablauf (Regel 28: der Bericht nennt ihre Zahl).
+
+1. **Zeitgrenze 300 s je Test** (Aufbau, Test und Abbau zusammen), für einen Test `@pytest.mark.zeitgrenze(n)`, für den Lauf `--zeitgrenze SEK`, 0 = aus.
+2. **Eigene Umsetzung (Thread, faulthandler, `os._exit(3)`) statt pytest-timeout** -- keine neue Abhängigkeit; dieselbe Wirkung wie dessen Methode "thread" unter Windows.
+3. **Ein Test, dessen Zeitgrenze im parallelen Lauf abgelaufen ist, läuft im selben Lauf nicht noch einmal** (Datei je Lauf im Temp-Ordner, bleibt dort liegen -- einige Bytes je Lauf mit Abbruch).
+4. **taskkill mit 30 s Zeitlimit und ohne Ausgabe**, Hinweiszeile statt Abbruch -- in `beenden()` und ebenso in `klicktest_alle.py::_baum_beenden()`.
+5. **`klicktest_zeitbuchungen_liste` läuft immer bei 00:30 Uhr** (Instanz und Browser) -- im Fenster, in dem Berlin und UTC verschiedene Tage haben.
+6. **Die Browser-Uhr ist ein Opt-in** (`uhr_versatz_ms()`/`browser_uhr()`); die übrigen Klicktests mit fester Uhr behalten die echte Uhr im Browser.
+7. **Die `_run`-Kopien bleiben in ihren Dateien** (sie geben anderes zurück als `test_v375::_run`), mit denselben zwei Regeln: zweite Sitzung zuerst schließen, Hängen als rote Prüfung.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v416_testablauf.py` (11 und 3 Proben, die nur im Unterprozess laufen; davon 3 gegen PostgreSQL): ein hängender Test beendet
+  den Lauf mit Stapel ("ZEITGRENZE: …", der Stapel nennt die Probe) nach 3 s statt zu hängen; im parallelen Lauf ein Absturz, der Test kein
+  zweites Mal, der andere läuft ("1 passed"); eigene Grenze je Test; `--zeitgrenze 0` schaltet ab; taskkill, das hängt, bricht nach 1 s ab
+  (beide Skripte); **gegen PostgreSQL die Verklemmung vom 15.10.2026 mit allen drei `_run`**: die erste Aktion sperrt Zeile 1, committet
+  (angehalten), braucht danach Zeile 2; die zweite sperrt Zeile 2, wartet auf Zeile 1 und wird abgelehnt, ohne zurückzurollen -- jedes `_run`
+  endet (bis 1.8.110 hingen die Kopien in v363 und v365).
+- Klicktest `klicktest_zeitbuchungen_liste` bei 00:30 Uhr: 24 von 24.
+- Gegenproben (Regel 24): 8 von 8 rot -- Klicktest mit dem Fenster der Monteurin in UTC wie bis 1.8.110 ("Liste gekürzt: 500 von 502"
+  erwartet, fehlt), Monteur-Zeiterfassung mit "heute" in UTC wie bis 1.8.86 (fehlt -- nur sichtbar, weil der Browser mit auf 00:30
+  steht), keine Uhr (der hängende Test läuft durch), Test im parallelen Lauf noch einmal ausgeführt (achtmal abgestürzt, der andere Test
+  lief nie), `_run` in v363 und v365 wie bis 1.8.110 (hängt, die Prüfung bricht nach 60 s ab), taskkill ohne Zeitlimit in beiden
+  Skripten (60 s statt 1 s). Jede Datei byte-genau zurück (SHA-256).
+- **Angepasste Erwartungen** (Regel 28): `klicktest_zeitbuchungen_liste` -- Soll "Monteurin Zeiterfassung: Hinweis" aus dem Berliner Tag statt
+  dem UTC-Tag (altes Soll nachts veraltet seit 1.8.87); Aufbau: feste Uhr 00:30 und Browser-Uhr, `heute_utc` entfällt, `anna_tag` nur ≠ heute.
