@@ -215,7 +215,6 @@ AUSNAHMEN_HANDLER = {
     'tasks.html | renderChecklist | onchange: i.id': 1,
     'tasks.html | renderChecklist | onclick: i.id': 1,
     'time_backoffice.html | absCard | onclick: r.id': 2,
-    'time_backoffice.html | loadEntries | onclick: e.id': 2,
     'time_tracking.html | loadAbsenceRequests | onclick: r.id': 3,
     'time_tracking.html | renderEntry | onclick: e.id': 2,
     'time_tracking_field.html | loadAbsenceRows | onclick: r.id': 1,

@@ -1122,3 +1122,57 @@ Navigation je Rolle, jeder Einstellungsbereich erreichbar. Stufe 2 „Bereinigen
 - **Module wirken auch auf Prüfvorlagen, Outlook-Sync und Betriebskosten-Vorschlag.**
 - **Vorgabe 8 h aus der täglichen Arbeitszeit.**
 - **Die Zahlungsbedingung des Kunden ist auch Vorgabe für neue Angebote.**
+
+
+### Backoffice für die Büro-Rollen (1.8.117)
+
+Vorgabe vom 16.10.2026, Punkt 3 (Nebenbefund 1.8.112 Nr. 1): das Backoffice ist für Büro-Rollen nutzbar, wie Seite und Endpunkte es
+erlauben; Klicktest als Büro – Auftrag.
+
+- **Keine Rollenprüfung mehr im Browser**: `init()` brach für jede Rolle außer Admin ab. Rolle und verknüpfter Mitarbeiter kommen jetzt beim
+  Rendern vom Server (`const ICH={admin:…,mitarbeiter:…}`); die Abfrage `/api/auth/status` entfällt.
+- **Nur anbieten, was der Server erlaubt** (Regeln aus `app/routers/time_tracking.py`, `absence_requests.py`, `time_backoffice.py`):
+  Bearbeiten und Löschen einer Buchung nur für den Admin oder die eigene Buchung außerhalb des abgeschlossenen Zeitraums
+  (`darfBuchungAendern()`), sonst „nur Admin“ und ein Hinweis über der Liste; Anträge sieht das Büro nur die eigenen, ohne
+  Genehmigen/Ablehnen, mit Hinweis; ohne verknüpften Mitarbeiter fragt die Seite weder Anträge noch Buchungskontext (beides wäre 403 --
+  daran scheiterte bis dahin die ganze Seite) und sagt das; den Abschluss darf das Büro vorrücken, ein früheres Datum lehnt die Seite mit
+  Meldung ab, ohne zu senden, „Abschluss aufheben“ steht nur beim Admin (sonst ein Hinweis).
+- **Die Liste der Buchungen zeichnet nach einer Änderung des Abschlusses neu** (`renderEntries()` aus `renderLock()`): bis dahin standen
+  die Knöpfe einer gerade abgeschlossenen Buchung bis zum Neuladen da, ein Klick bekam 403. Die Knöpfe Bearbeiten/Löschen tragen ihre
+  Buchung seither als data-Attribut (`data-klick`, `_aktionen.html`, Regel 32) statt im onclick.
+
+#### Festlegungen 1.8.117 (Bitte bestätigen)
+
+1. **Das Büro sieht im Backoffice alle Buchungen, Kennzahlen, Stundenzettel und Exporte**; Bearbeiten/Löschen nur bei eigenen Buchungen außerhalb des abgeschlossenen Zeitraums, sonst „nur Admin“ mit Hinweis über der Liste.
+2. **Anträge: das Büro sieht nur die eigenen** (wie der Server), ohne Genehmigen/Ablehnen, mit Hinweis „Hier stehen nur Ihre eigenen Anträge – die Anträge anderer sieht und entscheidet ein Administrator.“
+3. **Ohne verknüpften Mitarbeiter lädt die Seite weder Anträge noch Buchungskontext** und sagt das („keinem Mitarbeiter zugeordnet“), statt mit 403 zu scheitern.
+4. **Abschluss: Vorrücken darf das Büro**; ein früheres Datum lehnt die Seite ab, ohne zu senden; „Abschluss aufheben“ nur beim Admin, sonst ein Hinweis statt des Knopfs.
+5. **Rolle und Mitarbeiter kommen beim Rendern vom Server** (`ICH`), nicht aus `/api/auth/status`.
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **`GET /api/employees` antwortet Büro – Finanzen und Admin mit 500, sobald ein gespeicherter Mitarbeiter, der in die Kalkulation
+   einfließt, keinen positiven Stundenlohn hat** -- `EmployeeOut` prüft die Regel auch beim Lesen (`app/routers/employees.py:54`). Im
+   Klicktest mit Testdaten ohne Stundenlohn gefunden; über die Oberfläche lässt sich so ein Mitarbeiter nicht anlegen, über Import oder
+   Datenbank schon.
+2. **Für das Büro ist der Reiter „Abwesenheiten“ eine Liste der eigenen Anträge** -- die Anträge anderer sieht und entscheidet nur der
+   Admin (so seit dem Rechtekonzept). Ob das Büro sie sehen soll, ist fachlich zu entscheiden.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v422_backoffice_buero.py` (8 Tests): jede Abfrage der Seite für Büro – Auftrag und Büro – Finanzen mit und ohne
+  Mitarbeiter 200 (Kontext und Anträge ohne Mitarbeiter 403); was der Server nur dem Admin erlaubt (Antrag entscheiden, fremde und
+  abgeschlossene Buchung ändern, Abschluss zurücknehmen und aufheben; vorrücken und die eigene offene Buchung ändern dürfen); die
+  gerenderte Rolle je Rolle samt „Abschluss aufheben“ nur beim Admin; keine Rollenprüfung im Browser; jede Anfrage der Vorlage im Test
+  erfasst.
+- Neu Klicktest `scripts/klicktest_backoffice_buero.py` (23 Prüfungen): Büro – Auftrag mit Mitarbeiterin -- Dashboard, eigener Antrag ohne
+  Entscheiden, Buchungen „nur Admin“ bzw. Knöpfe, eigene Buchung geändert, Exporte 200, Abschluss vorgerückt und die eigene Buchung sofort
+  „nur Admin“, Zurücknehmen abgelehnt ohne Senden, kein „Abschluss aufheben“, 412 px; Büro – Finanzen ohne Mitarbeiter -- Seite lädt, keine
+  Anfrage an Kontext und Anträge, Hinweis, alle Buchungen „nur Admin“. Die ersten Läufe fanden mit dem neuen Verbindungsprotokoll
+  (1.8.115) das Scheitern ohne Mitarbeiter (403 auf die Anträge) und das fehlende Neuzeichnen; 23 von 23.
+- Gegenproben (Regel 24): 5 Fälle, alle erwarteten Prüfungen rot, jede Datei byte-genau zurück (SHA-256) -- Rollenprüfung wie bis 1.8.116
+  (Klicktest: Seite nicht geladen), jede Buchung änderbar (Klicktest: Knöpfe bei fremden und abgeschlossenen), Anträge auch ohne Mitarbeiter
+  (Klicktest: Büro – Finanzen nicht geladen), Zurücknehmen gesendet (Klicktest: 403-Meldung statt Hinweis, ein PUT), Rolle immer Admin
+  (pytest).
+- **Angepasste Erwartungen** (Regel 28): `test_v407` `AUSNAHMEN_HANDLER` -- Eintrag `time_backoffice.html | loadEntries | onclick: e.id` (2)
+  gestrichen, die Knöpfe nutzen `data-klick` (nur Aufbau, die Liste wurde kürzer).
