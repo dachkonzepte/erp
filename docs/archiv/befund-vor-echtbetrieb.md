@@ -4748,7 +4748,7 @@ Test).
 1. **Wo der Browser strenger war, bekommt der Server die Grenze, wenn sie fachlich zwingend ist**, sonst verliert sie der Browser -- Ergebnis: dieselbe Grenze auf beiden Seiten, kein Feld mit einer Ausnahme.
 2. **Nicht negativ auf dem Server**: Dachneigung, Fläche, Bauteilmenge, Schichtdicke, Dauer von Wartungsposition und Prüfpunkt, Anschaffungskosten.
 3. **Geldbeträge mit höchstens zwei Nachkommastellen auch auf dem Server** (Eingangsrechnung netto und Positionen, Betriebskosten netto, laufende Kosten und Anschaffungskosten eines Betriebsmittels), ebenso der Skonto-Prozentsatz der Eingangsrechnung.
-4. **Menge ab 0,001 und Stunden ab 0,01 auch auf dem Server** (statt „über 0“) -- die Spalten sind genauer (6 bzw. 4 Stellen), die Grenzen sind fachliche Festlegungen.
+4. **Menge ab 0,001 und Stunden ab 0,01 auch auf dem Server** (statt „über 0“) -- die Spalten sind genauer (6 bzw. 4 Stellen), die Grenzen sind fachliche Festlegungen. Präzisiert am 16.10.2026: betrifft nur die Menge einer Angebotsposition und die Materialmenge im Einsatzbericht; Ist-Mengen bleiben ab 0, abgesichert in 1.8.121.
 5. **`/mobil` bucht ab 0,01 h statt 0,25 h, die tägliche Arbeitszeit der Plantafel ebenso** -- statt den Server für alle auf die Viertelstunde zu setzen.
 6. **Obergrenzen auf dem Server wie im Browser**: Wartungsintervall 1–24 Monate, Kündigungsfrist bis 24 Monate, Baujahr eines Bauteils 1900–2100, Jahr des Basiszinssatzes 2000–2100, Standard-Anfahrt der Plantafel bis 23,75 h.
 7. **Pauschalbetrag einer pauschalen Abschlagsrechnung: null lehnt der Server ab** (`NOT_NULL`), wie der Browser („Pflicht“) -- bis dahin leerte null den Betrag.
@@ -4774,6 +4774,37 @@ Test).
   gelesen), Dachneigung auf dem Server wieder ohne Untergrenze, Netto wieder „leer = 0“, Jahr des Basiszinssatzes ohne Prüfung, `/mobil`
   wieder ab 0,25 h.
 - **Angepasste Erwartungen** (Regel 28): keine (nur neue Tests).
+
+### Umsetzung 1.8.121: Ist-Menge 0 (Korrektur 119-4 vom 16.10.2026)
+
+Vorgabe: „Ist-Mengen dürfen 0 sein (Abschlag nach Leistungsstand, Schlussrechnung: nicht ausgeführte Position). Prüfen, welche Felder
+„Menge ab 0,001“ betrifft, und Ist 0 mit Test absichern.“
+
+- **Betroffen von „Menge ab 0,001“** (Festlegung 1.8.119-4) sind genau drei Schemafelder, keins davon eine Ist-Menge: die Menge einer
+  Angebotsposition beim Bearbeiten (`QuoteItemUpdate.quantity`, inline und Dialog im Angebots-Editor) und die Materialmenge im
+  Einsatzbericht (`ServiceReportMaterialCreate/Update.quantity`). Vorher lehnten beide 0 ebenfalls ab (`gt=0`); neu ist nur, dass auch
+  Werte zwischen 0 und 0,001 abgelehnt werden. Stunden ab 0,01 betreffen Zeitbuchungen und Arbeitszeiten, keine Mengen.
+- **Ist-Mengen** (`InvoiceItemCreate/InvoiceItemUpdate.ist_quantity`) standen vor und nach 1.8.119 auf „ab 0“ (`ge=0`), die drei
+  Felder „Ist-Menge“ der Rechnungsseite (Dialog „Position“, Ist-Spalte der Rechnung und der Schlussrechnung) ohne Untergrenze. Ist 0 ging
+  also -- jetzt ist es abgesichert. Ebenfalls ab 0 und unverändert: Menge einer Auftragsposition und eines Nachtrags, geplante Menge der
+  Arbeitsvorbereitung, Menge eines Bauteils.
+
+#### Festlegungen 1.8.121 (Bitte bestätigen)
+
+1. **Jede Ist-Menge nimmt 0 an, auf dem Server (`ge=0`) und im Browser (keine Untergrenze über 0)** -- ein Wächter prüft jedes Eingabeschema mit einem Feld `ist_…quantity` und jedes Feld „Ist-Menge“ der Vorlagen; ein neues gehört ebenso dazu.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v426_ist_menge_null.py` (5 Tests): Abschlag nach Leistungsstand über die echten Routen mit einer Position ohne Leistung
+  (Vorschlag 0, bewusst von 5 zurück auf 0), festgeschrieben, Betrag nur der anderen Position; Schlussrechnung nach einem Abschlag mit einer
+  nicht ausgeführten Position (Ist 0, im Mengenvergleich markiert, nicht gesperrt), festgeschrieben, Gesamtleistung und Rechnungsbetrag
+  ohne sie; unter 0 bleibt 422; Wächter Server und Browser (aus dem Abgleich von 1.8.119 und dem Markup); die Rechnungsseite in node
+  schickt „0“ als 0 -- Ist-Spalte als Text und als beide Felder, Dialog beim Ändern und Neuanlegen, je mit den data-Attributen der Vorlage.
+- Gegenproben (Regel 24): 4 Fälle, alle rot, jede Datei byte-genau zurück (SHA-256) -- Ändern ab 0,001 auf dem Server (Routen, Wächter),
+  Anlegen über 0 (Schema, Wächter), Ist-Spalte im Browser ab 0,001 (node, Wächter), Dialog im Markup ab 0,001 (node, Wächter). Der node-Teil
+  sah den Dialog in der ersten Fassung nicht (die Attrappe kannte die data-Attribute des Felds nicht); seither bekommt jedes Feld die
+  data-Attribute aus der Vorlage.
+- **Angepasste Erwartungen** (Regel 28): keine.
 
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 

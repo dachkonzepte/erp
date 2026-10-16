@@ -4,6 +4,14 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.121 – Ist-Menge 0 abgesichert
+
+Korrektur vom 16.10.2026 zu Festlegung 1.8.119-4. „Menge ab 0,001“ betrifft nur die Menge einer Angebotsposition und die Materialmenge im
+Einsatzbericht; Ist-Mengen einer Rechnung nahmen 0 schon an (Server ab 0, Browser ohne Untergrenze). Jetzt steht es im Test: ein Abschlag
+nach Leistungsstand mit einer Position ohne Leistung und eine Schlussrechnung mit einer nicht ausgeführten Position werden über die echten
+Routen festgeschrieben, die Rechnungsseite schickt „0“ als 0, und ein Wächter lässt an keiner Ist-Menge eine Untergrenze über 0 zu. Details:
+`docs/archiv/befund-vor-echtbetrieb.md`, „Umsetzung 1.8.121“.
+
 ## 1.8.120 – Seitendaten nur für Seiten, die gezeichnet werden
 
 Korrektur vom 16.10.2026 zu Festlegung 1.8.114-5. Die Anmeldeschranke lud Akzentfarbe, Module, Logo und Kontoknopf für jede GET-Anfrage
