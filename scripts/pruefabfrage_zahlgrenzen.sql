@@ -15,8 +15,8 @@ UNION ALL SELECT 'Dachfläche: Fläche (m², ab 0)', id, CAST(area_sqm AS TEXT)
   FROM roof_areas WHERE area_sqm < 0
 UNION ALL SELECT 'Bauteil: Menge (ab 0)', id, CAST(quantity AS TEXT)
   FROM roof_components WHERE quantity < 0
-UNION ALL SELECT 'Bauteil: Baujahr (1900-2100)', id, CAST(year_built AS TEXT)
-  FROM roof_components WHERE year_built NOT BETWEEN 1900 AND 2100
+UNION ALL SELECT 'Bauteil: Baujahr (1000-2100)', id, CAST(year_built AS TEXT)
+  FROM roof_components WHERE year_built NOT BETWEEN 1000 AND 2100
 UNION ALL SELECT 'Schicht: Dicke (mm, ab 0)', id, CAST(thickness_mm AS TEXT)
   FROM roof_layers WHERE thickness_mm < 0
 UNION ALL SELECT 'Betriebsmittel: Anschaffungskosten (ab 0)', id, CAST(acquisition_cost AS TEXT)

@@ -4750,7 +4750,7 @@ Test).
 3. **Geldbeträge mit höchstens zwei Nachkommastellen auch auf dem Server** (Eingangsrechnung netto und Positionen, Betriebskosten netto, laufende Kosten und Anschaffungskosten eines Betriebsmittels), ebenso der Skonto-Prozentsatz der Eingangsrechnung.
 4. **Menge ab 0,001 und Stunden ab 0,01 auch auf dem Server** (statt „über 0“) -- die Spalten sind genauer (6 bzw. 4 Stellen), die Grenzen sind fachliche Festlegungen. Präzisiert am 16.10.2026: betrifft nur die Menge einer Angebotsposition und die Materialmenge im Einsatzbericht; Ist-Mengen bleiben ab 0, abgesichert in 1.8.121.
 5. **`/mobil` bucht ab 0,01 h statt 0,25 h, die tägliche Arbeitszeit der Plantafel ebenso** -- statt den Server für alle auf die Viertelstunde zu setzen.
-6. **Obergrenzen auf dem Server wie im Browser**: Wartungsintervall 1–24 Monate, Kündigungsfrist bis 24 Monate, Baujahr eines Bauteils 1900–2100, Jahr des Basiszinssatzes 2000–2100, Standard-Anfahrt der Plantafel bis 23,75 h.
+6. **Obergrenzen auf dem Server wie im Browser**: Wartungsintervall 1–24 Monate, Kündigungsfrist bis 24 Monate, Baujahr eines Bauteils ~~1900–2100~~, Jahr des Basiszinssatzes 2000–2100, Standard-Anfahrt der Plantafel bis 23,75 h. Korrigiert am 16.10.2026: Baujahr ab 1000 (Kirchen, Altbauten), Obergrenze 2100 bleibt -- umgesetzt in 1.8.122.
 7. **Pauschalbetrag einer pauschalen Abschlagsrechnung: null lehnt der Server ab** (`NOT_NULL`), wie der Browser („Pflicht“) -- bis dahin leerte null den Betrag.
 8. **Eine Eingangsrechnung über 0 € netto lässt der Browser zu** (Pflichtfeld statt „leer = 0“), wie der Server.
 9. **Grenzen, die nur im Code stehen (Router, Geschäftslogik), bleiben dort** und stehen im Abgleich mit Beleg; Checklisten-Antworten haben Browser- und Servergrenzen aus derselben Vorlage und werden nicht verglichen.
@@ -4804,6 +4804,25 @@ Vorgabe: „Ist-Mengen dürfen 0 sein (Abschlag nach Leistungsstand, Schlussrech
   Anlegen über 0 (Schema, Wächter), Ist-Spalte im Browser ab 0,001 (node, Wächter), Dialog im Markup ab 0,001 (node, Wächter). Der node-Teil
   sah den Dialog in der ersten Fassung nicht (die Attrappe kannte die data-Attribute des Felds nicht); seither bekommt jedes Feld die
   data-Attribute aus der Vorlage.
+- **Angepasste Erwartungen** (Regel 28): keine.
+
+### Umsetzung 1.8.122: Baujahr eines Bauteils ab 1000 (Korrektur 119-6 vom 16.10.2026)
+
+Vorgabe: „Baujahr ab 1000 (Kirchen und Altbauten), die Obergrenze bleibt.“
+
+- **Server** (`RoofComponentCreate/Update.year_built`): 1000–2100 statt 1900–2100. **Browser** (`editComponentYear` auf der
+  Dachflächen-Seite, das einzige Feld für ein Baujahr): `data-min="1000"`. Der Abgleich von 1.8.119 vergleicht weiter live.
+- **Prüfabfrage** `scripts/pruefabfrage_zahlgrenzen.sql`: meldet nur noch Baujahre außerhalb 1000–2100.
+
+Eigene Festlegungen: keine.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v427_baujahr.py` (5 Tests): beide Schemas nehmen 1000, 1250, 1899, 2026, 2100 und leer an, lehnen 999, 1, 0, −1250, 2101
+  ab; über die Routen ein Bauteil mit 1250 angelegt, auf 1000 geändert, 999 und 2101 beim Anlegen und Ändern 422; Browser und Server mit
+  denselben Grenzen; die Dachflächen-Seite in node liest mit den data-Attributen der Vorlage genau dieselben Jahre.
+- Gegenproben (Regel 24): 3 Fälle, alle rot, jede Datei byte-genau zurück (SHA-256) -- Anlegen wieder ab 1900, Ändern ohne Obergrenze,
+  Browser wieder ab 1900.
 - **Angepasste Erwartungen** (Regel 28): keine.
 
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)

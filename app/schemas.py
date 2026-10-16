@@ -3448,7 +3448,7 @@ class RoofComponentCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     quantity: Decimal | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     unit: str | None = None
-    year_built: int | None = Field(default=None, ge=1900, le=2100)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    year_built: int | None = Field(default=None, ge=1000, le=2100)  # seit 1.8.122 ab 1000 (Kirchen, Altbauten), tests/test_v427_baujahr.py
     sort_order: int = 100
     notes: str | None = None
 
@@ -3458,7 +3458,7 @@ class RoofComponentUpdate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     quantity: Decimal | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     unit: str | None = None
-    year_built: int | None = Field(default=None, ge=1900, le=2100)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    year_built: int | None = Field(default=None, ge=1000, le=2100)  # seit 1.8.122 ab 1000 (Kirchen, Altbauten), tests/test_v427_baujahr.py
     sort_order: int = 100
     notes: str | None = None
 
