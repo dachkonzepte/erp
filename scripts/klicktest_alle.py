@@ -58,6 +58,7 @@ KLICKTEST_DAUERN: dict[str, float] = {
     "klicktest_protokoll_maengel": 12, "klicktest_protokoll_versand": 11, "klicktest_rechnung_rundung": 9,
     "klicktest_rechnungen_sperren": 13, "klicktest_rechnungsdatum": 9, "klicktest_teil_updates": 9,
     "klicktest_ueberzahlung": 12, "klicktest_unterzeichner": 13, "klicktest_veraltete_antworten": 19,
+    "klicktest_versand_im_kontext": 11,
     "klicktest_versandprotokoll": 30, "klicktest_versandverlauf": 30, "klicktest_vertrag_abschrift": 14,
     "klicktest_vertrag_festschreiben": 15, "klicktest_vertrag_gewaehrleistung": 11, "klicktest_vertrag_unterschrift": 32,
     "klicktest_vertragsgrundlage": 12, "klicktest_vertragsvorlagen": 13, "klicktest_vertraute_geraete": 9,

@@ -64,13 +64,9 @@ function fmtLocal(v){if(!v)return '';const m=String(v).match(/^(\d{4})-(\d{2})-(
 function fmtSize(n){return n>=1048576?(n/1048576).toFixed(1).replace('.',',')+' MB':Math.max(1,Math.round(n/1024))+' KB'}
 const params=new URLSearchParams(location.search);
 const docType=params.get('typ')||'', docId=params.get('id')||'';
-function docLink(d){
-  const label=`${esc(d.document_type_label)} ${esc(d.document_number||(d.document_id?'#'+d.document_id:''))}`;
-  const id=d.document_id;
-  const href={angebot:`/quotes/${id}/edit`,auftrag:`/orders/${id}`,rechnung:`/invoices/${id}`,mahnung:'/mahnwesen',checkliste:`/checklisten/${id}`,aufgabe:`/tasks?task=${id}`,vertrag:d.order_id?`/orders/${d.order_id}`:null,
-    behinderungsanzeige:`/checklisten/${id}`,wiederaufnahme:`/checklisten/${id}`,bedenkenanzeige:`/checklisten/${id}`}[d.document_type];
-  return id&&href?`<a class="link" href="${href}">${label}</a>`:label;
-}
+// Seit 1.8.113 auch je Projekt oder Kunde (Links aus Projektmappe und Kundenakte); der Link des Dokuments kommt aus
+// _email_dispatch.html (dispatchDocLink(), eine Mahnung führt seither zur Mahnung in ihrer Rechnung).
+const projektId=Number(params.get('projekt'))||null, kundeId=Number(params.get('kunde'))||null;
 function statusCell(d){
   // Hängengeblieben (seit 1.8.19): klären statt nur anzeigen -- sichtbares Notizfeld, kein prompt() (Regel 4).
   if(d.stuck) return `<span class="pill haengt">Hängt</span><div class="small muted">seit ${fmtLocal(d.created_at_local)} in Arbeit – Ausgang unklar</div>
@@ -132,6 +128,7 @@ async function reload(){
   if(status==='haengt') q.set('stuck','true'); else if(status) q.set('status',status);
   if(type) q.set('document_type',type);
   if(docId) q.set('document_id',docId);
+  if(projektId) q.set('project_id',projektId); else if(kundeId) q.set('customer_id',kundeId);
   const rows=document.getElementById('rows');
   try{
     // Seit 1.8.95 über lesen() (_speichern.html) -- im selben Bereich wie "Klären" und "Empfang bestätigt / unzustellbar"
@@ -144,7 +141,7 @@ async function reload(){
       }else stuck.style.display='none';
       rows.innerHTML=data.items.length?data.items.map(d=>`<tr>
         <td>${whenCell(d)}</td>
-        <td>${docLink(d)}</td>
+        <td>${dispatchDocLink(d)}</td>
         <td>${d.to_recipients?esc(d.to_recipients):'<span class="small muted">—</span>'}${d.cc_recipients?`<div class="small muted">CC: ${esc(d.cc_recipients)}</div>`:''}${copyMissedHtml(d)}</td>
         <td>${esc(d.subject)}</td>
         <td>${esc(d.channel_label)}<div class="small muted">${esc(d.created_by_name)}</div></td>
@@ -156,6 +153,8 @@ async function reload(){
 _dhOutcomeDone.vp=reload;
 if(docType){document.getElementById('filterType').value=docType}
 if(docId){document.getElementById('docFilter').innerHTML=`Nur ein Dokument · <a class="link" href="/versandprotokoll">alle anzeigen</a>`}
+else if(projektId){document.getElementById('docFilter').innerHTML=`Nur die Dokumente eines Projekts · <a class="link" href="/projects/${projektId}">zur Projektmappe</a> · <a class="link" href="/versandprotokoll">alle anzeigen</a>`}
+else if(kundeId){document.getElementById('docFilter').innerHTML=`Nur die Dokumente eines Kunden · <a class="link" href="/customers/${kundeId}">zur Kundenakte</a> · <a class="link" href="/versandprotokoll">alle anzeigen</a>`}
 reload();
 </script>
 </body></html>

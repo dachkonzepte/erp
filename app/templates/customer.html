@@ -127,12 +127,20 @@
     <div id="customerPayments"></div>
     <div id="customerPaymentsStatus" class="muted small" style="margin-top:8px"></div>
   </section>
+
+  {# Seit 1.8.113: das Versandprotokoll dieses Kunden (Vorgabe vom 16.10.2026 Punkt 4; aus der Seitenleiste gefallen) -- die
+     Dokumente seiner Projekte und die Checklisten an seinen Objekten, renderDispatchList() aus _email_dispatch.html. #}
+  <section class="card" id="versand">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Versand</h2><div class="muted small">Jeder Versand und jede nachgetragene Zustellung der Dokumente dieses Kunden – aus seinen Projekten und an seinen Objekten.</div></div></div>
+    <div id="customerDispatches"><div class="muted small">Lädt …</div></div>
+  </section>
 </main>
 </div>
 </div>
 {% include "_speichern.html" %}
 {% include "_zahl.html" %}
 {% include "_aktionen.html" %}
+{% include "_email_dispatch.html" %}
 <script>
 const customerId={{ customer_id }};
 let customer=null, properties=[], inquiries=[], projects=[], projectQuotes=new Map(), customerCategoryGroup={options:[]}, customerSalutationGroup={options:[]}, paymentTerms=[], roofAreas=new Map();
@@ -170,6 +178,7 @@ async function load(){
     render();
   }),loadDocuments()]);
   loadPayments();
+  renderDispatchList('customerDispatches',{customer_id:customerId});  // seit 1.8.113
 }
 function render(){
   document.getElementById('pageTitle').textContent=customer.name;document.getElementById('pageSub').textContent=[customer.customer_number,customer.category,customer.contact_person,customer.city].filter(Boolean).join(' · ');document.getElementById('customerIdBadge').textContent=customer.customer_number;

@@ -881,12 +881,19 @@ def dispatch_to_dict(dispatch: EmailDispatch, now: datetime | None = None, autho
 def list_dispatches(
     db: Session, *, status: str | None = None, document_type: str | None = None,
     document_id: int | None = None, stuck_only: bool = False, include_task_mails: bool = False,
-    limit: int = 200,
+    limit: int = 200, project_id: int | None = None, customer_id: int | None = None,
 ) -> dict:
     """Neueste zuerst, höchstens `limit`. Hängengebliebene werden zusätzlich immer vollständig
-    gezählt (stuck_count), damit die Seite sie auch jenseits des Ausschnitts meldet."""
+    gezählt (stuck_count), damit die Seite sie auch jenseits des Ausschnitts meldet.
+
+    Seit 1.8.113 auch je Projekt oder Kunde (Projektmappe, Kundenakte): nur Einträge zu deren Dokumenten
+    (app/dispatch_documents.py::document_filter()); stuck_count zählt weiter alle."""
     now = datetime.utcnow()
     query = select(EmailDispatch)
+    if project_id is not None or customer_id is not None:
+        from .dispatch_documents import document_filter
+
+        query = query.where(document_filter(project_id=project_id, customer_id=customer_id))
     stuck_query = select(func.count(EmailDispatch.id)).where(
         EmailDispatch.status == "in_arbeit", EmailDispatch.created_at < now - STUCK_AFTER,
     )
@@ -917,4 +924,12 @@ def list_dispatches(
         for item in items:
             if item["document_type"] == "vertrag":
                 item["order_id"] = orders_of.get(item["document_id"])
+    # Seit 1.8.113: eine Mahnung hat keine eigene Seite, die Liste verlinkt auf sie in ihrer Rechnung.
+    reminder_ids = {r.document_id for r in rows if r.document_type == "mahnung" and r.document_id is not None}
+    if reminder_ids:
+        from .models import Reminder
+        invoices_of = dict(db.execute(select(Reminder.id, Reminder.invoice_id).where(Reminder.id.in_(reminder_ids))).all())
+        for item in items:
+            if item["document_type"] == "mahnung":
+                item["invoice_id"] = invoices_of.get(item["document_id"])
     return {"items": items, "stuck_count": stuck_count, "stuck_after_minutes": int(STUCK_AFTER.total_seconds() // 60)}

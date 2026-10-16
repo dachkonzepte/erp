@@ -86,6 +86,7 @@ async function postEmailDispatch(slot, url, payload, button) {
 .dh-row:last-child{border-bottom:none}
 @media (max-width:640px){.dh-row{grid-template-columns:1fr}.dh-row .dh-end{text-align:left}}
 .dh-end{text-align:right}
+.dh-doc{font-weight:700;margin-bottom:2px}.dh-doc a{color:var(--accent);text-decoration:none}
 .dh-muted{color:var(--muted);font-size:12px}
 .dh-muted a{color:var(--accent);font-weight:700;text-decoration:none}
 .dh-pill{display:inline-block;padding:2px 7px;font-size:11px;font-weight:800;white-space:nowrap;background:var(--soft);color:var(--ink)}
@@ -209,7 +210,18 @@ async function saveDispatchOutcome(id, slot) {
     button.disabled = false;
   }
 }
-function _dhRow(d, containerId, canRecord) {
+/* Seit 1.8.113 geteilt (Versandprotokoll, Projektmappe, Kundenakte): das Dokument eines Eintrags mit Link -- eine Mahnung hat keine
+   eigene Seite und führt in ihre Rechnung zur Mahnung (?mahnung=, bis 1.8.112 nur ins Mahnwesen), ein Vertrag auf seinen Auftrag. */
+function dispatchDocLink(d) {
+  const label = `${_dhEsc(d.document_type_label)} ${_dhEsc(d.document_number || (d.document_id ? '#' + d.document_id : ''))}`;
+  const id = Number(d.document_id);
+  const href = {angebot: `/quotes/${id}/edit`, auftrag: `/orders/${id}`, rechnung: `/invoices/${id}`,
+    mahnung: d.invoice_id ? `/invoices/${Number(d.invoice_id)}?mahnung=${id}` : '/mahnwesen', checkliste: `/checklisten/${id}`,
+    aufgabe: `/tasks?task=${id}`, vertrag: d.order_id ? `/orders/${Number(d.order_id)}` : null,
+    behinderungsanzeige: `/checklisten/${id}`, wiederaufnahme: `/checklisten/${id}`, bedenkenanzeige: `/checklisten/${id}`}[d.document_type];
+  return d.document_id && href ? `<a class="link" href="${href}">${label}</a>` : label;
+}
+function _dhRow(d, containerId, canRecord, mitDokument = false) {
   const when = d.manual
     ? `Zugestellt am ${_dhLocal(d.delivered_on)}<div class="dh-muted">nachgetragen ${_dhLocal(d.created_at_local)}</div>`
     : _dhLocal(d.created_at_local);
@@ -239,7 +251,8 @@ function _dhRow(d, containerId, canRecord) {
   const versioned = ['vertrag', 'behinderungsanzeige', 'wiederaufnahme', 'bedenkenanzeige'].includes(d.document_type);
   const version = versioned && d.document_number ? ` · ${_dhEsc(d.document_number.split(' · ').slice(1).join(' · '))}` : '';
   extra += dispatchOutcomeHtml(d, containerId, canRecord);
-  return `<div class="dh-row" data-dispatch-row="${d.id}"><div>${when}</div><div><b>${_dhEsc(d.channel_label)}</b>${version}${to}<div class="dh-muted">${_dhEsc(d.created_by_name)}</div>${extra}</div>`
+  const dokument = mitDokument ? `<div class="dh-doc">${dispatchDocLink(d)}</div>` : '';
+  return `<div class="dh-row" data-dispatch-row="${d.id}"><div>${when}</div><div>${dokument}<b>${_dhEsc(d.channel_label)}</b>${version}${to}<div class="dh-muted">${_dhEsc(d.created_by_name)}</div>${extra}</div>`
     + `<div class="dh-end">${pill}<div class="dh-links">${links}</div></div></div>`;
 }
 async function _dhJson(url) {
@@ -260,6 +273,26 @@ async function renderDispatchHistory(containerId, type, id, opts) {
                 data => _dhZeichnen(containerId, type, id, data));
   } catch (e) {
     el.innerHTML = `<div class="dh-muted">Versandverlauf nicht geladen: ${_dhEsc(e.message)}</div>`;
+  }
+}
+/* Seit 1.8.113 (Versandprotokoll in Projektmappe und Kundenakte): die Einträge zu allen Dokumenten eines Projekts
+   (filter {project_id}) bzw. eines Kunden ({customer_id}), die 100 neuesten -- dieselben Zeilen wie der Versandverlauf eines
+   Dokuments, je mit dem Dokument davor; "Empfang bestätigt / unzustellbar" wie dort, Zustellung nachtragen nur am Dokument.
+   Klären und die ganze Liste im Versandprotokoll, gefiltert (Link). */
+async function renderDispatchList(containerId, filter) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.classList.add('dh');
+  const anfrage = filter.project_id ? `project_id=${Number(filter.project_id)}` : `customer_id=${Number(filter.customer_id)}`;
+  try {
+    await lesen('versandverlauf-' + containerId, () => _dhJson(`/api/email-dispatches?${anfrage}&limit=100`), data => {
+      _dhOutcomeDone[containerId] = () => renderDispatchList(containerId, filter);
+      el.innerHTML = `<div class="dh-head"><b>Versandprotokoll</b><a href="/versandprotokoll?${filter.project_id ? 'projekt=' + Number(filter.project_id) : 'kunde=' + Number(filter.customer_id)}">Im Versandprotokoll öffnen</a></div>`
+        + (data.items.length ? data.items.map(d => _dhRow(d, containerId, true, true)).join('') : '<div class="dh-muted" style="padding:6px 0">Noch nichts versendet oder zugestellt.</div>')
+        + (data.items.length >= 100 ? '<div class="dh-muted" style="padding:6px 0">Die 100 neuesten – alle im Versandprotokoll.</div>' : '');
+    });
+  } catch (e) {
+    el.innerHTML = `<div class="dh-muted">Versandprotokoll nicht geladen: ${_dhEsc(e.message)}</div>`;
   }
 }
 function _dhZeichnen(containerId, type, id, data) {

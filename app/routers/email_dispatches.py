@@ -80,15 +80,20 @@ def document_pdf_response(db: Session, document_type: str, document_id: int, *, 
 def get_email_dispatches(
     status: str | None = None, document_type: str | None = None, document_id: int | None = None,
     stuck: bool = False, limit: int = Query(200, ge=1, le=1000),
+    project_id: int | None = None, customer_id: int | None = None,
     db: Session = Depends(get_db), user: AppUser = _role_dep,
 ):
+    """Seit 1.8.113 auch je Projekt (project_id, Projektmappe) oder Kunde (customer_id, Kundenakte) -- nur Einträge zu deren
+    Dokumenten; beides zugleich ist nicht vorgesehen (400)."""
     if status and status not in STATUSES:
         raise HTTPException(status_code=400, detail="Unbekannter Status.")
     if document_type and document_type not in DISPATCH_TYPES:
         raise HTTPException(status_code=400, detail="Unbekannte Versandart.")
+    if project_id is not None and customer_id is not None:
+        raise HTTPException(status_code=400, detail="Bitte nur Projekt oder Kunde angeben.")
     return list_dispatches(
         db, status=status, document_type=document_type, document_id=document_id, stuck_only=stuck,
-        include_task_mails=has_role(user, ROLE_ADMIN), limit=limit,
+        include_task_mails=has_role(user, ROLE_ADMIN), limit=limit, project_id=project_id, customer_id=customer_id,
     )
 
 

@@ -4,6 +4,21 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.113 – Versandprotokoll in Projektmappe und Kundenakte, „Mein Konto“ mobil, Leistungsformular für Büro – Auftrag
+
+Vorgabe vom 16.10.2026, Punkte 4–6. Das Versandprotokoll steht seit 1.8.112 nicht mehr in der Seitenleiste -- dafür hat die
+Projektmappe den Reiter „Versand“ und die Kundenakte die Karte „Versand“: die Einträge zu den Dokumenten des Projekts bzw. des Kunden
+(seiner Projekte und der Checklisten an seinen Objekten), mit „Empfang bestätigt / unzustellbar“ wie am Dokument und dem Link ins
+gefilterte Versandprotokoll (`?projekt=`, `?kunde=`; API `project_id`/`customer_id`, `app/dispatch_documents.py::document_filter()`).
+Der Link einer Mahnung führt jetzt in ihre Rechnung, die die Mahnung hervorhebt (bis 1.8.112 ins Mahnwesen). Die mobile Kopfzeile hat
+„Mein Konto“.
+
+Das Leistungsformular lud für Büro – Auftrag nicht: es fragte die Kalkulationsvorgaben ab, die seit 1.4.8 nur Büro – Finanzen und
+Admin lesen, und das ganze Laden scheiterte. Ohne dieses Recht nimmt die Vorschau jetzt die Standardwerte aus der Kalkulation der
+Leistung und zeigt sonst „—“ mit Hinweis statt mit angenommenen Werten zu rechnen. Dabei gefunden und mit behoben: „Leistung anlegen“
+(`/services/new`) brach seit dem ersten Commit für jede Rolle mit „None is not defined“ ab. Neu `tests/test_v418_versand_im_kontext.py`
+und Klicktest `klicktest_versand_im_kontext.py`; Festlegungen in `docs/archiv/stammdaten-und-sidebar.md`, „Umsetzung 1.8.113“.
+
 ## 1.8.112 – Neue Ordnung von Seitenleiste und Einstellungen (Stufe 1 „Ordnen“)
 
 Vorgabe vom 16.10.2026, Punkte 1–3; nur verschoben, umbenannt und ausgeblendet, keine Fachlogik, alle Adressen bleiben. Die

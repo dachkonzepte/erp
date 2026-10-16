@@ -188,6 +188,38 @@ def after_outcome(db: Session, dispatch: EmailDispatch, outcome) -> None:
         after_dispatch_outcome(db, dispatch, outcome)
 
 
+def document_filter(*, project_id: int | None = None, customer_id: int | None = None):
+    """Bedingung auf EmailDispatch (seit 1.8.113, Versandprotokoll in Projektmappe und Kundenakte): die Einträge zu Dokumenten
+    des Projekts bzw. des Kunden -- je Art über dieselbe Kette wie project_id_of() (Mahnung -> Rechnung -> Auftrag -> Projekt,
+    Checkliste und Anzeigen -> Auftrag), der Kunde über seine Projekte; beim Kunden zusätzlich Checklisten an seinen Objekten.
+    Nur Teilabfragen, keine Zeile wird einzeln nachgeladen. Aufgaben-Mails gehören zu keinem Dokument und fallen heraus."""
+    from sqlalchemy import and_, false, or_, select
+
+    from .models import Project, Property
+
+    if project_id is not None:
+        projekte = select(Project.id).where(Project.id == project_id)
+    elif customer_id is not None:
+        projekte = select(Project.id).where(Project.customer_id == customer_id)
+    else:
+        raise ValueError("Projekt oder Kunde angeben.")
+    auftraege = select(Order.id).where(Order.project_id.in_(projekte))
+    rechnungen = select(Invoice.id).where(Invoice.order_id.in_(auftraege))
+    an_checkliste = Checklist.order_id.in_(auftraege)
+    if project_id is None:
+        an_checkliste = or_(an_checkliste, Checklist.property_id.in_(select(Property.id).where(Property.customer_id == customer_id)))
+    checklisten = select(Checklist.id).where(an_checkliste)
+    je_art = {
+        "angebot": select(Quote.id).where(Quote.project_id.in_(projekte)), "auftrag": auftraege, "rechnung": rechnungen,
+        "mahnung": select(Reminder.id).where(Reminder.invoice_id.in_(rechnungen)),
+        "vertrag": select(OrderContract.id).where(OrderContract.order_id.in_(auftraege)),
+        "checkliste": checklisten, "behinderungsanzeige": checklisten, "wiederaufnahme": checklisten,
+        "bedenkenanzeige": checklisten,
+    }
+    assert set(je_art) == set(_REGISTRY), "jede Dokumentart braucht ihren Weg zum Projekt"
+    return or_(false(), *(and_(EmailDispatch.document_type == art, EmailDispatch.document_id.in_(ids)) for art, ids in je_art.items()))
+
+
 def project_id_of(db: Session, document_type: str, document_id: int | None) -> int | None:
     """Projekt des Dokuments (für die Änderungshistorie), unabhängig davon, ob es heute noch
     zustellbar wäre; None, wenn es keins gibt."""

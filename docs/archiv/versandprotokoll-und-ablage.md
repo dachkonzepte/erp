@@ -362,3 +362,12 @@ IST es ab dann das Dokument. `frozen_version()` liefert für eine Rechnung zuers
 Zustellung verweisen auf sie und legen nichts erneut ab, auch vor dem ersten und nach einem fehlgeschlagenen Versand. Die Regel "ab
 dem ersten nicht fehlgeschlagenen Versand maßgeblich" (1.8.19) gilt nur noch für Mahnungen und für Rechnungen, die vor 1.8.82
 festgeschrieben wurden.
+
+## Nachtrag 1.8.112/1.8.113 -- nicht mehr in der Seitenleiste, dafür je Projekt und Kunde
+
+Seit 1.8.112 (neue Ordnung, docs/archiv/stammdaten-und-sidebar.md) steht das Versandprotokoll nicht mehr in der Seitenleiste, sondern
+unter Einstellungen -> System -> Protokolle. Seit 1.8.113 nimmt `GET /api/email-dispatches` `project_id` oder `customer_id`
+(`app/dispatch_documents.py::document_filter()`, je Dokumentart dieselbe Kette wie `project_id_of()`, beim Kunden dazu die Checklisten
+an seinen Objekten, Aufgaben-Mails nie); die Projektmappe zeigt die Einträge im Reiter "Versand", die Kundenakte in der Karte "Versand"
+(`_email_dispatch.html::renderDispatchList()`), die Seite `/versandprotokoll` nimmt `?projekt=`/`?kunde=`. Der Link einer Mahnung führt
+in ihre Rechnung (`invoice_id` am Eintrag, `/invoices/<id>?mahnung=<id>`); den Link je Dokument baut `dispatchDocLink()` für alle Listen.

@@ -123,7 +123,9 @@ h1{color:var(--ink)}
 {% include "_speichern.html" %}
 {% include "_zahl.html" %}
 <script>
-const serviceId = {{ service_id|default('null') }};
+// Seit 1.8.113 auch für None "null": default() greift nur bei fehlender Variable -- /services/new übergibt None, die Seite brach bis
+// dahin mit "None is not defined" ab ("Leistung anlegen" ging für keine Rolle).
+const serviceId = {{ service_id if service_id is not none else 'null' }};
 const editing = serviceId !== null;
 const urlParams = new URLSearchParams(location.search);
 const initialCatalogId = urlParams.get('catalog_id') ? Number(urlParams.get('catalog_id')) : null;
@@ -131,6 +133,11 @@ const initialCatalogId = urlParams.get('catalog_id') ? Number(urlParams.get('cat
 let materialRows = [];   // {serviceMaterialId?, materialId, name, quantity, unit, wastePct, purchasePrice, priceBasis}
 let materialSearchResults = [];
 let globalSettings = { labor_rate: 82, material_markup_pct: 0, overhead_pct: 0, risk_profit_pct: 0 };
+// Seit 1.8.113 (Vorgabe vom 16.10.2026 Punkt 6): die Kalkulationsvorgaben (GET /api/calculation-settings) liest seit 1.4.8 nur
+// Büro – Finanzen und Admin -- für Büro – Auftrag scheiterte deshalb das ganze Laden, das Formular blieb leer. Ohne dieses Recht
+// nimmt die Vorschau die Standardwerte aus der Kalkulation der Leistung selbst (dort angewandt, wo ein Feld keinen eigenen Wert hat);
+// was dort nicht steht (neue Leistung, oder ein eigener Wert wurde geleert), rechnet erst der Server beim Speichern.
+const kannVorgabenLesen = {{ 'true' if can(request.state.erp_user, 'admin', 'buero_finanzen') else 'false' }};
 let currentService = null;
 let searchDebounce = null;
 let serviceTypes = [];
@@ -156,15 +163,12 @@ function renderServiceType(selected) {
 // samt Kalkulation im Bereich 'leistung' wie ihr Speichern -- das erste Laden wartet auf ein laufendes Speichern.
 async function init() {
   await lesen('einstellungen', () => Promise.all([
-    api('/api/calculation-settings'),
+    kannVorgabenLesen ? api('/api/calculation-settings') : null,
     api('/api/settings/option-groups/service_types'),
   ]), ([settings, serviceTypeGroup]) => {
-  globalSettings = settings;
+  globalSettings = settings || { labor_rate: null, material_markup_pct: null, overhead_pct: null, risk_profit_pct: null };
   serviceTypes = serviceTypeGroup.options;
-  el('laborRateDefault').textContent = `(Standard: ${money(globalSettings.labor_rate)}/h)`;
-  el('markupDefault').textContent = `(Standard: ${globalSettings.material_markup_pct}%)`;
-  el('overheadDefault').textContent = `(Standard: ${globalSettings.overhead_pct}%)`;
-  el('riskDefault').textContent = `(Standard: ${globalSettings.risk_profit_pct}%)`;
+  renderDefaults();
   renderServiceType(null);
   });
 
@@ -182,6 +186,15 @@ async function init() {
     }
     el('heading').textContent = 'Leistung bearbeiten';
     el('help').textContent = `${service.external_id}`;
+    if (!kannVorgabenLesen) {  // seit 1.8.113: Standardwerte aus der Kalkulation der Leistung, wo kein eigener Wert steht
+      globalSettings = {
+        labor_rate: calc.labor_rate_override == null ? calc.labor_rate : null,
+        material_markup_pct: calc.material_markup_pct_override == null ? calc.material_markup_pct : null,
+        overhead_pct: calc.overhead_pct_override == null ? calc.overhead_pct : null,
+        risk_profit_pct: calc.risk_profit_pct_override == null ? calc.risk_profit_pct : null,
+      };
+      renderDefaults();
+    }
     el('shortText').value = service.short_text || '';
     el('longText').value = service.long_text || '';
     el('quantity').value = zahlText(service.quantity ?? 1);
@@ -214,6 +227,14 @@ async function init() {
     el('help').textContent = 'Wird direkt im gewählten Katalog gespeichert.';
     recalc();
   }
+}
+
+function renderDefaults() {
+  const std = (wert, text) => wert == null ? '(Standard laut Kalkulationsvorgaben)' : `(Standard: ${text(wert)})`;
+  el('laborRateDefault').textContent = std(globalSettings.labor_rate, x => `${money(x)}/h`);
+  el('markupDefault').textContent = std(globalSettings.material_markup_pct, x => `${x}%`);
+  el('overheadDefault').textContent = std(globalSettings.overhead_pct, x => `${x}%`);
+  el('riskDefault').textContent = std(globalSettings.risk_profit_pct, x => `${x}%`);
 }
 
 function isEditable(service) {
@@ -319,40 +340,47 @@ function renderMaterialRows() {
 }
 
 // Seit 1.8.109: Vorschau über zahlVorschau() (_zahl.html) -- leer oder ungültig zählt wie leer.
+// Seit 1.8.113: ist ein benötigter Standardwert unbekannt (Büro – Auftrag, siehe kannVorgabenLesen), zeigt die Vorschau "—" statt
+// mit einem angenommenen Wert zu rechnen; der Server rechnet beim Speichern mit den Kalkulationsvorgaben.
 function recalc() {
+  const satz = (feld, standard) => zahlVorschau(feld) ?? (standard == null ? null : Number(standard));
+  const mal = (a, b) => (a == null || b == null) ? null : a * b;
+  const plus = (...werte) => werte.some(x => x == null) ? null : werte.reduce((s, x) => s + x, 0);
   const siteTime = zahlVorschau('siteTime') ?? 0;
   const workshopTime = zahlVorschau('workshopTime') ?? 0;
-  const laborRate = zahlVorschau('laborRate') ?? Number(globalSettings.labor_rate);
-  const laborAmount = (siteTime + workshopTime) / 60 * laborRate;
+  const laborRate = satz('laborRate', globalSettings.labor_rate);
+  const laborAmount = mal((siteTime + workshopTime) / 60, laborRate);
 
   const materialBaseCost = materialRows.reduce((sum, r) => sum + materialRowCost(r), 0);
-  const markupPct = zahlVorschau('markupOverride') ?? Number(globalSettings.material_markup_pct);
-  const materialMarkupAmount = materialBaseCost * markupPct / 100;
-  const materialAmount = materialBaseCost + materialMarkupAmount;
+  const markupPct = satz('markupOverride', globalSettings.material_markup_pct);
+  const materialMarkupAmount = mal(materialBaseCost, markupPct == null ? null : markupPct / 100);
+  const materialAmount = plus(materialBaseCost, materialMarkupAmount);
 
   const equipment = zahlVorschau('equipmentCost') ?? 0;
   const subcontract = zahlVorschau('subcontractorCost') ?? 0;
   const other = zahlVorschau('otherCost') ?? 0;
 
-  const subtotal = laborAmount + materialAmount + equipment + subcontract + other;
-  const overheadPct = zahlVorschau('overheadOverride') ?? Number(globalSettings.overhead_pct);
-  const overheadAmount = subtotal * overheadPct / 100;
-  const afterOverhead = subtotal + overheadAmount;
-  const riskPct = zahlVorschau('riskOverride') ?? Number(globalSettings.risk_profit_pct);
-  const riskAmount = afterOverhead * riskPct / 100;
-  const calculatedPrice = afterOverhead + riskAmount;
+  const subtotal = plus(laborAmount, materialAmount, equipment, subcontract, other);
+  const overheadPct = satz('overheadOverride', globalSettings.overhead_pct);
+  const overheadAmount = mal(subtotal, overheadPct == null ? null : overheadPct / 100);
+  const afterOverhead = plus(subtotal, overheadAmount);
+  const riskPct = satz('riskOverride', globalSettings.risk_profit_pct);
+  const riskAmount = mal(afterOverhead, riskPct == null ? null : riskPct / 100);
+  const calculatedPrice = plus(afterOverhead, riskAmount);
 
   const manualOn = el('manualOverrideCheck').checked;
   const manualPrice = manualOn ? zahlVorschau('manualPrice') : null;
   const effectivePrice = manualPrice !== null ? manualPrice : calculatedPrice;
+  const betrag = x => x == null ? '—' : money(x);
 
   const items = [
-    ['Lohn', money(laborAmount)], ['Material EK', money(materialBaseCost)], ['Material inkl. Aufschlag', money(materialAmount)],
-    ['Fremdleistung', money(subcontract)], ['GK', money(overheadAmount)], ['Wagnis & Gewinn', money(riskAmount)],
-    ['Berechneter VK', money(calculatedPrice)],
+    ['Lohn', betrag(laborAmount)], ['Material EK', betrag(materialBaseCost)], ['Material inkl. Aufschlag', betrag(materialAmount)],
+    ['Fremdleistung', betrag(subcontract)], ['GK', betrag(overheadAmount)], ['Wagnis & Gewinn', betrag(riskAmount)],
+    ['Berechneter VK', betrag(calculatedPrice)],
   ];
   el('calcPreview').innerHTML = items.map(([l, val]) => `<div class="metric"><div class="label">${esc(l)}</div><div class="value">${val}</div></div>`).join('')
-    + `<div class="metric highlight"><div class="label">${manualOn ? 'Manueller VK' : 'Effektiver VK'}</div><div class="value">${money(effectivePrice)}</div></div>`;
+    + `<div class="metric highlight"><div class="label">${manualOn ? 'Manueller VK' : 'Effektiver VK'}</div><div class="value">${betrag(effectivePrice)}</div></div>`
+    + (effectivePrice == null ? '<div class="muted" data-vorschau-hinweis style="grid-column:1/-1">Ohne die Kalkulationsvorgaben (Büro – Finanzen) rechnet die Vorschau nur mit eigenen Werten – den Preis mit den Standardwerten rechnet der Server beim Speichern.</div>' : '');
 }
 
 async function save() {

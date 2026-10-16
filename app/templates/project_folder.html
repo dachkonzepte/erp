@@ -56,6 +56,7 @@
 <button type="button" class="tab-btn" data-tab="sec-calendar" onclick="showTab('sec-calendar')">Termine <span class="tab-count" id="tabCountCalendar">0</span></button>
 {% endif %}
 <button type="button" class="tab-btn" data-tab="sec-participants" onclick="showTab('sec-participants')">Beteiligte <span class="tab-count" id="tabCountParticipants">0</span></button>
+<button type="button" class="tab-btn" data-tab="sec-dispatch" onclick="showTab('sec-dispatch')">Versand</button>
 <button type="button" class="tab-btn" data-tab="sec-history" onclick="showTab('sec-history')">Historie</button>
 </div>
 
@@ -71,6 +72,9 @@
 <section id="sec-calendar" class="card tab-pane"><div class="toolbar"><div><h2>Termine zu diesem Projekt</h2><div class="muted small">Besichtigung, Aufmaß, Besprechung -- getrennt von der Plantafel (Einsatzplanung).</div></div><a id="newCalendarEvent" class="btn primary" href="/kalender">+ Neuer Termin</a></div><div id="calendarEventsList"></div></section>
 {% endif %}
 <section id="sec-participants" class="card tab-pane"><div class="toolbar"><div><h2>Beteiligte am Projekt</h2><div class="muted small">Architekt, Bauleitung, Hausverwaltung, Sachverständige … aus Adressbuch, Kunden und Lieferanten. Der Kunde ist Auftraggeber und wird nicht zusätzlich geführt.</div></div><button class="btn primary" onclick="openParticipantModal()">+ Beteiligten hinzufügen</button></div><div id="participantsList" style="margin-top:12px"></div></section>
+{# Seit 1.8.113: das Versandprotokoll dieses Projekts (Vorgabe vom 16.10.2026 Punkt 4; aus der Seitenleiste gefallen) --
+   renderDispatchList() aus _email_dispatch.html, geladen beim ersten Öffnen des Reiters. #}
+<section id="sec-dispatch" class="card tab-pane"><div class="toolbar"><div><h2>Versand</h2><div class="muted small">Jeder Versand und jede nachgetragene Zustellung der Dokumente dieses Projekts – Angebote, Aufträge, Verträge, Rechnungen, Mahnungen, Checklisten, Briefe an den Auftraggeber.</div></div></div><div id="projectDispatches"><div class="muted small">Lädt …</div></div></section>
 <section id="sec-history" class="card tab-pane"><div class="toolbar"><div><h2>Änderungshistorie</h2><div class="muted small">Projekt, Dateien und projektbezogene Angebote/Kalkulationen.</div></div><div class="toolbar-actions"><button class="btn secondary" onclick="refreshHistory()">Aktualisieren</button><a class="btn secondary" href="/history">Gesamte Historie</a></div></div><div style="overflow:auto"><table><thead><tr><th>Zeitpunkt</th><th>Bearbeiter</th><th>Bereich</th><th>Feld</th><th>Änderung</th></tr></thead><tbody id="historyRows"></tbody></table></div></section>
 </div>
 </main>
@@ -96,11 +100,12 @@
 {% include "_zahl.html" %}
 {% include "_links.html" %}
 {% include "_aktionen.html" %}
+{% include "_email_dispatch.html" %}
 <script>
 const projectId={{ project_id }};let project=null,documents=[],quotes=[],orders=[],projectInvoices=[],timeEntries=[],timeList={rows:[],total:0},timeTotals=null,categories=[],projectCategories=[],customers=[],historyRows=[],calendarEvents=[],participants=[],participantRoles=[],activeCategory='',activeSubfolder='',editingDocumentId=null,openMenuId=null;
 const maintenanceModuleEnabled={{ 'true' if is_module_enabled('wartungen') else 'false' }};
 const calendarModuleEnabled={{ 'true' if is_module_enabled('kalender') else 'false' }};
-const TAB_KEYS=['sec-info','sec-files','sec-quotes','sec-orders','sec-invoices','sec-workprep','sec-times',...(calendarModuleEnabled?['sec-calendar']:[]),'sec-participants','sec-history'];
+const TAB_KEYS=['sec-info','sec-files','sec-quotes','sec-orders','sec-invoices','sec-workprep','sec-times',...(calendarModuleEnabled?['sec-calendar']:[]),'sec-participants','sec-dispatch','sec-history'];
 const INVOICE_TYPE_LABELS={abschlag_pauschal:'Abschlag (Pauschal)',abschlag_leistungsstand:'Abschlag (Leistungsstand)',schluss:'Schlussrechnung',aufwand:'Aufwand',storno:'Storno'};
 const INVOICE_STATUS_LABELS={entwurf:'Entwurf',versendet:'Finalisiert',storniert:'Storniert'};
 // Seit 1.8.78: Zahlstand (abgeleitet, app/payments.py) statt eines Status "bezahlt"; offen mit Betrag.
@@ -115,6 +120,7 @@ function showTab(key,updateHash=true){
   document.querySelectorAll('.tab-pane').forEach(x=>x.classList.toggle('active',x.id===key));
   document.querySelectorAll('.tab-btn').forEach(x=>x.classList.toggle('active',x.dataset.tab===key));
   if(updateHash&&location.hash!==`#${key}`)history.replaceState(null,'',`#${key}`);
+  if(key==='sec-dispatch')renderDispatchList('projectDispatches',{project_id:projectId});  // seit 1.8.113, je Öffnen frisch
 }
 function tabFromHash(){const key=location.hash.replace('#','');return TAB_KEYS.includes(key)?key:'sec-info'}
 window.addEventListener('hashchange',()=>showTab(tabFromHash(),false));

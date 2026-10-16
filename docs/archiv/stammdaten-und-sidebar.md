@@ -1062,6 +1062,53 @@ Navigation je Rolle, jeder Einstellungsbereich erreichbar. Stufe 2 „Bereinigen
   - `test_v091::test_v091_ui_settings_and_absence_types_are_present`: altes Soll „Plantafel & Kapazität“ in den Einstellungen, neues Soll „Arbeitszeit und Kalender“ (umbenannter Bereich).
   - Klicktest `klicktest_monteur_navigation`: altes Soll „Wartungen, Mängel, Anfragen, Projekte, Planung“ in dieser Reihenfolge, neues Soll „Anfragen, Projekte, Plantafel, Wartungen, Befunde“ (neue Gruppe Aufträge, neue Namen).
 
+### Umsetzung 1.8.113 (Punkte 4–6)
+
+- **Versandprotokoll in Projektmappe und Kundenakte** (Punkt 4): `GET /api/email-dispatches` nimmt `project_id` oder `customer_id`
+  (beides zugleich 400); `app/dispatch_documents.py::document_filter()` wählt je Dokumentart über dieselbe Kette wie `project_id_of()`
+  -- Angebot über sein Projekt, Rechnung über ihren Auftrag, Mahnung über ihre Rechnung, Vertrag und Checkliste (auch die Briefe der
+  Anzeigen) über ihren Auftrag -- als Teilabfragen, ohne Zeilen einzeln nachzuladen; beim Kunden über seine Projekte und dazu die
+  Checklisten an seinen Objekten. Aufgaben-Mails gehören zu keinem Dokument und fallen heraus; eine neue Dokumentart braucht dort ihren
+  Weg (Assert gegen `_REGISTRY`). Die Projektmappe hat den Reiter „Versand“, die Kundenakte die Karte „Versand“: die 100 neuesten
+  Einträge mit den Zeilen des Versandverlaufs (`app/templates/_email_dispatch.html::renderDispatchList()`, je mit dem Dokument davor,
+  „Empfang bestätigt / unzustellbar“ wie am Dokument) und dem Link „Im Versandprotokoll öffnen“ (`/versandprotokoll?projekt=` bzw.
+  `?kunde=`, dort mit Hinweis und Link zurück).
+- **Link der Mahnung** (Punkt 4): eine Mahnung hat keine eigene Seite -- der Eintrag trägt ihre Rechnung (`invoice_id`, wie `order_id`
+  beim Vertrag), der Link führt nach `/invoices/<Rechnung>?mahnung=<id>`; die Rechnungsseite hebt die Mahnung hervor und scrollt einmal
+  zu ihr. Den Link baut seither eine Funktion für alle Listen (`dispatchDocLink()`); bis 1.8.112 führte er ins Mahnwesen.
+- **„Mein Konto“ in der mobilen Kopfzeile** (Punkt 5): ein Knopf neben Name und Hell/Dunkel, öffnet `/account`.
+- **Leistungsformular für Büro – Auftrag** (Punkt 6): seit 1.4.8 lesen nur Büro – Finanzen und Admin die Kalkulationsvorgaben
+  (`GET /api/calculation-settings`); das Formular lud sie für jede Rolle zusammen mit den Leistungsarten -- für Büro – Auftrag scheiterte
+  damit das ganze Laden, Bearbeiten und Anlegen blieben leer. Jetzt lädt es sie nur mit dem Recht; ohne nimmt die Vorschau die
+  Standardwerte aus der Kalkulation der Leistung selbst (dort, wo ein Feld keinen eigenen Wert hat) und zeigt sonst „—“ mit Hinweis statt
+  mit angenommenen 82 €/h zu rechnen. Gespeichert wird wie bisher, den Preis rechnet der Server.
+
+#### Festlegungen 1.8.113 (Bitte bestätigen)
+
+1. **Projektmappe: eigener Reiter „Versand“ vor „Historie“; Kundenakte: Karte „Versand“ am Ende** -- je die 100 neuesten Einträge, die volle Liste und das Klären hängengebliebener Einträge im gefilterten Versandprotokoll (Link); „Zustellung nachtragen“ bleibt am Dokument.
+2. **Zum Kunden gehören die Dokumente seiner Projekte und die Checklisten an seinen Objekten**; die Rechnung zählt über ihr Projekt (wie `project_id_of()`), nicht über den an ihr festgehaltenen Kunden -- beide weichen seit 1.8.79 nicht mehr voneinander ab.
+3. **Aufgaben-Benachrichtigungen stehen nie in den gefilterten Listen**, auch nicht für Admin -- sie gehören zu keinem Dokument.
+4. **`project_id` und `customer_id` zugleich lehnt die API ab (400)**; das Versandprotokoll nimmt `?projekt=` oder `?kunde=` und nennt den Filter mit Link zurück.
+5. **Mahnung: Link auf die Rechnung mit `?mahnung=`**, dort hervorgehoben und einmal hingescrollt; fehlt die Rechnung, wie bisher ins Mahnwesen.
+6. **„Mein Konto“ als kleiner Knopf in der Kopfzeile** (30 px wie der Hell/Dunkel-Umschalter), nicht als fünfter Reiter -- vier Reiter passen auf 412 px gerade noch; die Kontoseite zeigt dem Monteur die Seitenleiste, „Start“ führt ihn nach `/mobil` zurück.
+7. **Leistungsformular ohne neuen Endpunkt**: ohne das Recht auf die Kalkulationsvorgaben die Standardwerte aus der Kalkulation der Leistung, sonst „—“ mit Hinweis; Büro – Finanzen und Admin wie bisher.
+8. **„Leistung anlegen“ mit behoben, als Teil von Punkt 6**: `/services/new` brach seit dem ersten Commit für jede Rolle mit „None is not defined“ ab (`default('null')` greift in Jinja nicht bei `None`) -- gefunden im Klicktest; ohne die Korrektur wäre „Das Leistungsformular lädt wieder“ für neue Leistungen nicht erfüllt.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v418_versand_im_kontext.py` (11 Tests): Filter je Projekt (nur seine neun Einträge über alle Dokumentarten) und je Kunde
+  (beide Projekte und die Checkliste am Objekt, keine Aufgaben-Mail, nichts vom anderen Kunden), Rechnung an der Mahnung, API mit Rolle
+  Büro – Auftrag und 400 bei beidem; Vorlagen (Reiter, Karte, Link der Mahnung, Hervorhebung, „Mein Konto“); Leistungsformular in node:
+  Büro – Auftrag ohne Anfrage an die Kalkulationsvorgaben mit den Werten der Leistung, neue Leistung mit „—“ und Hinweis, Büro – Finanzen
+  wie bisher; `/services/new` rendert `serviceId = null`.
+- Gegenproben (Regel 24): 7 von 7 rot -- Kunde ohne Checklisten an seinen Objekten, Projekt über den Kunden statt das Projekt, Mahnung ohne
+  Rechnung, Leistungsformular liest die Vorgaben immer (wie bis 1.8.112), Vorschau mit angenommenem Standardsatz, Kopfzeile ohne „Mein
+  Konto“, die Vorlage des Leistungsformulars wie bis 1.8.112 (`serviceId = None`). Jede Datei byte-genau zurück (SHA-256) bzw. aus git zurückgeholt.
+- Neu Klicktest `scripts/klicktest_versand_im_kontext.py` (siehe dort): Reiter „Versand“ und Karte „Versand“ mit genau ihren Einträgen,
+  Link ins gefilterte Versandprotokoll, Link der Mahnung mit Hervorhebung, Leistungsformular für Büro – Auftrag (Bearbeiten, Speichern,
+  neue Leistung) und Admin, „Mein Konto“ auf 412 px: 24 von 24 (der erste Lauf fand den Abbruch von `/services/new`, Festlegung 8).
+- **Angepasste Erwartungen** (Regel 28): keine.
+
 ### Stufe 2 „Bereinigen“ (festgehalten 16.10.2026, nicht gebaut -- nach dem Abnahmetest)
 
 - **Steuer aus einer Quelle**: der Standard-Steuerschlüssel ist auch Vorgabe für Anfrage und Schnellauftrag, „Standard-MwSt.“ unter
