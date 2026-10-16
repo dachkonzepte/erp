@@ -4,6 +4,17 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.119 – Zahleneingaben: Browser nicht strenger als der Server, „1.2500“ und „1.250.5“ im Test
+
+Vorgabe vom 16.10.2026, Punkt 6. „1.2500“ und „1.250.5“ lehnte die Zahleneingabe schon ab -- jetzt steht es im Test. Neu ist der Abgleich:
+jedes Zahlenfeld mit Grenzen und jeder Leseaufruf mit Grenzen steht in einer Tabelle (`tests/test_v424_zahlgrenzen.py`) mit dem
+Schemafeld, in das sein Wert geht; die Grenzen des Servers liest der Test live aus Pydantic. An 30 Feldern war der Browser strenger. Der
+Server bekommt jetzt dieselben Grenzen, wo sie fachlich zwingend sind: keine negativen Flächen, Mengen, Dauern und Anschaffungskosten,
+Geldbeträge mit höchstens zwei Nachkommastellen, Menge ab 0,001 und Stunden ab 0,01, Wartungsintervall und Kündigungsfrist bis 24 Monate,
+Baujahr 1900–2100, Jahr des Basiszinssatzes 2000–2100, Anfahrt bis 23,75 h, Pauschalbetrag nicht leer. Im Browser bucht `/mobil` ab
+0,01 h statt 0,25 h, und eine Eingangsrechnung über 0 € netto geht. Gespeicherte Werte außerhalb der neuen Grenzen nennt
+`scripts/pruefabfrage_zahlgrenzen.sql`. Details: `docs/archiv/befund-vor-echtbetrieb.md`, „Umsetzung 1.8.119“.
+
 ## 1.8.118 – Outlook-Hinweis nur ohne Zugangsdaten
 
 Vorgabe vom 16.10.2026, Punkt 4. Der Hinweis „noch keine vollständigen Microsoft-365-Zugangsdaten“ unter Einstellungen → Outlook-Kalender

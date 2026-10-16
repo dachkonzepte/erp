@@ -75,6 +75,26 @@ def test_mehrdeutiges_wird_mit_meldung_abgelehnt_nie_umgedeutet():
 
 
 @nur_mit_node
+def test_vier_ziffern_nach_einem_punkt_und_ein_zweiter_punkt_vor_einer_ziffer_werden_abgelehnt():
+    """Vorgabe vom 16.10.2026, Punkt 6 (1.8.119): "1.2500" (vier Ziffern nach dem Punkt) und "1.250.5" (ein zweiter Punkt vor nur einer
+    Ziffer) sind weder Tausenderformat noch Dezimalzahl -- abgelehnt mit Meldung, nie als 12500, 1,25 oder 1250,5 gelesen; ebenso mit
+    Komma dahinter und an zahlFeld() (das Feld bleibt markiert)."""
+    faelle = {
+        "1.2500": "nicht eindeutig", "1.250.5": "nicht eindeutig", "12.2500": "nicht eindeutig", "1.250.50": "nicht eindeutig",
+        "1.2500,5": "keine Zahl – Tausenderpunkte nur vor je drei Ziffern", "1.250.5,5": "keine Zahl – Tausenderpunkte nur vor je drei Ziffern",
+    }
+    ergebnis = _lesen([[t, {"feld": "Menge"}] for t in faelle])
+    for (text, art), e in zip(faelle.items(), ergebnis):
+        assert "wert" not in e, (text, e)
+        assert e["zahlFehler"] and e["fehler"].startswith(f"Menge: „{text}“ ist {art}"), (text, e)
+    feld = _js("""const attr={};const f={value:'1.2500',dataset:{zahl:''},getAttribute:k=>attr[k]??null,
+      setAttribute:(k,v)=>{attr[k]=v},removeAttribute:k=>{delete attr[k]},id:'menge'};
+      let fehler=null;try{zahlFeld(f,{feld:'Menge'})}catch(e){fehler=e.message}
+      process.stdout.write(JSON.stringify({fehler,markiert:attr['aria-invalid']||null}));""")
+    assert feld["fehler"].startswith("Menge: „1.2500“ ist nicht eindeutig") and feld["markiert"] == "true", feld
+
+
+@nur_mit_node
 def test_was_keine_zahl_ist_wird_abgelehnt():
     ergebnis = _lesen([[t, {"feld": "Betrag"}] for t in KEINE_ZAHL])
     for text, e in zip(KEINE_ZAHL, ergebnis):

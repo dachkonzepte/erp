@@ -4713,6 +4713,68 @@ Monteur-Zeiterfassung bildet ihr Fenster seit 1.8.87 richtig aus dem Berliner Ta
 Die Vorgabe vom 15.10.2026 ist umgesetzt: Punkte 1–4 in 1.8.109, Punkt 5 in 1.8.110, Punkte 6–7 in 1.8.111; Vorweg (Festlegungen
 1.8.108 bestätigt, Regel 26 ergänzt) mit 1.8.109.
 
+### Umsetzung 1.8.119: Zahleneingaben -- „1.2500“ und „1.250.5“, Browser nicht strenger als der Server (Vorgabe vom 16.10.2026, Punkt 6)
+
+Vorgabe: „1.2500“ und „1.250.5“ werden abgelehnt (Test); die Grenzen im Browser sind nicht strenger als die des Servers (Abgleich als
+Test).
+
+- **„1.2500“ und „1.250.5“** lehnte `zahlLesen()` schon ab (vier Ziffern nach dem Punkt bzw. ein zweiter Punkt vor nur einer Ziffer sind
+  weder Tausenderformat noch Dezimalzahl: „nicht eindeutig“; mit Komma dahinter „keine Zahl“) -- jetzt ausdrücklich im Test, dazu an
+  `zahlFeld()` mit markiertem Feld.
+- **Abgleich** (`tests/test_v424_zahlgrenzen.py`, Lesen in `tests/zahlgrenzen.py`): jedes Zahlenfeld mit Grenzen (88 im Markup) und jeder
+  Leseaufruf mit Grenzen in den Optionen (42) steht genau einmal in der Tabelle `ABGLEICH` -- mit den Schemafeldern, in die der Wert geht
+  (Grenzen live aus Pydantic: ge/gt/le/lt, decimal_places, int, null erlaubt oder `NOT_NULL`), und mit Grenzen, die nur im Code stehen
+  (Beleg: die Textstelle muss in der Datei stehen). Strenger ist der Browser, wenn er etwas ablehnt, das der Server annimmt: Mindest- oder
+  Höchstwert nur im Browser oder enger, weniger Nachkommastellen, „ganze Zahl“ gegen Dezimalzahl, Pflicht gegen ein angenommenes null.
+  Erhoben am 16.10.2026: an 30 Feldern war der Browser strenger.
+- **Server bekommt die Grenze des Browsers** (`app/schemas.py`), wo sie fachlich zwingend ist:
+  nicht negativ -- Dachneigung und Fläche, Menge eines Bauteils, Dicke einer Schicht, Dauer einer Wartungsposition und eines Prüfpunkts,
+  Anschaffungskosten eines Betriebsmittels; höchstens zwei Nachkommastellen -- Netto und Positionen einer Eingangsrechnung, ihr
+  Skonto-Prozentsatz, Netto eines Betriebskostenpostens, laufende Kosten und Anschaffungskosten eines Betriebsmittels; Untergrenzen statt
+  „über 0“ -- Menge ab 0,001 (Angebot, Material im Einsatzbericht), Stunden ab 0,01 (Zeitbuchung und Gruppenbuchung samt Ändern,
+  Arbeitszeitmodell, Pausenregel, tägliche Arbeitszeit der Plantafel); Obergrenzen -- Wartungsintervall 1–24 Monate (neu, bearbeiten, aus
+  dem Projekt), Kündigungsfrist bis 24 Monate, Baujahr eines Bauteils 1900–2100, Jahr des Basiszinssatzes 2000–2100
+  (`BASISZINS_JAHRE`), Standard-Anfahrt der Plantafel bis 23,75 h; der Pauschalbetrag einer pauschalen Abschlagsrechnung lehnt null ab
+  (`InvoiceHeaderUpdate.NOT_NULL`).
+- **Browser bekommt die Grenze des Servers**: `/mobil` bucht Dauer und Kolonnenstunden ab 0,01 statt 0,25 h (wie das Büro), die tägliche
+  Arbeitszeit der Plantafel ab 0,01; eine Eingangsrechnung über 0 € netto geht (bis dahin las die Seite das Netto mit „leer = 0“ und lehnte
+  danach jede 0 ab -- jetzt ist das Feld Pflicht, 0 erlaubt).
+- **Prüfabfrage** `scripts/pruefabfrage_zahlgrenzen.sql` (nur lesend, PostgreSQL und SQLite): gespeicherte Werte außerhalb der neuen
+  Grenzen. Sie bleiben stehen und werden angezeigt, aber ein Speichern, das sie wieder mitschickt (z. B. „Wartungsvertrag bearbeiten“
+  schickt immer das Intervall), scheitert mit 422, bis der Wert berichtigt ist.
+
+#### Festlegungen 1.8.119 (Bitte bestätigen)
+
+1. **Wo der Browser strenger war, bekommt der Server die Grenze, wenn sie fachlich zwingend ist**, sonst verliert sie der Browser -- Ergebnis: dieselbe Grenze auf beiden Seiten, kein Feld mit einer Ausnahme.
+2. **Nicht negativ auf dem Server**: Dachneigung, Fläche, Bauteilmenge, Schichtdicke, Dauer von Wartungsposition und Prüfpunkt, Anschaffungskosten.
+3. **Geldbeträge mit höchstens zwei Nachkommastellen auch auf dem Server** (Eingangsrechnung netto und Positionen, Betriebskosten netto, laufende Kosten und Anschaffungskosten eines Betriebsmittels), ebenso der Skonto-Prozentsatz der Eingangsrechnung.
+4. **Menge ab 0,001 und Stunden ab 0,01 auch auf dem Server** (statt „über 0“) -- die Spalten sind genauer (6 bzw. 4 Stellen), die Grenzen sind fachliche Festlegungen.
+5. **`/mobil` bucht ab 0,01 h statt 0,25 h, die tägliche Arbeitszeit der Plantafel ebenso** -- statt den Server für alle auf die Viertelstunde zu setzen.
+6. **Obergrenzen auf dem Server wie im Browser**: Wartungsintervall 1–24 Monate, Kündigungsfrist bis 24 Monate, Baujahr eines Bauteils 1900–2100, Jahr des Basiszinssatzes 2000–2100, Standard-Anfahrt der Plantafel bis 23,75 h.
+7. **Pauschalbetrag einer pauschalen Abschlagsrechnung: null lehnt der Server ab** (`NOT_NULL`), wie der Browser („Pflicht“) -- bis dahin leerte null den Betrag.
+8. **Eine Eingangsrechnung über 0 € netto lässt der Browser zu** (Pflichtfeld statt „leer = 0“), wie der Server.
+9. **Grenzen, die nur im Code stehen (Router, Geschäftslogik), bleiben dort** und stehen im Abgleich mit Beleg; Checklisten-Antworten haben Browser- und Servergrenzen aus derselben Vorlage und werden nicht verglichen.
+10. **„null heißt unverändert“ (Ist-Menge der Rechnung, Material im Einsatzbericht) zählt im Abgleich als Pflicht** -- leer abschicken ändert dort nichts, der Browser sagt es gleich.
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **Gespeicherte Werte außerhalb der neuen Server-Grenzen** blockieren das Speichern des Datensatzes, solange ein Formular sie wieder
+   mitschickt -- Betreiberprüfung mit `scripts/pruefabfrage_zahlgrenzen.sql` vor dem Einspielen (lokal und auf der Spielwiese leer).
+2. **Viele Grenzen stehen nur im Code** (Wartungsfenster 1–12, Vorlaufzeit der Wartungen, Standardpause, Checklisten-Vorlagen): sie gelten,
+   zeigen sich aber nicht im Schema und damit nicht in der API-Beschreibung.
+
+#### Tests und Prüfung
+
+- `tests/test_v414_zahleneingaben.py`: neu `test_vier_ziffern_nach_einem_punkt_und_ein_zweiter_punkt_vor_einer_ziffer_werden_abgelehnt`
+  („1.2500“, „1.250.5“, „12.2500“, „1.250.50“ nicht eindeutig; „1.2500,5“, „1.250.5,5“ keine Zahl; an `zahlFeld()` markiert).
+- Neu `tests/test_v424_zahlgrenzen.py` (121 Tests): je Feld der Vergleich Browser/Server (108 Einträge), jedes Feld und jeder Leseaufruf mit
+  Grenzen genau einmal in der Tabelle, jeder Beleg vorhanden, der Vergleich selbst an neun Beispielen; Jahr des Basiszinssatzes 1999 und
+  2101 abgelehnt; Eingangsrechnung mit 0 € netto im Browser (node), leer „… fehlt.“. Vor den Änderungen: 30 Felder rot.
+- Gegenproben (Regel 24): 5 Fälle, alle rot, jede Datei byte-genau zurück (SHA-256) -- vier Ziffern als Tausendergruppe erlaubt (12500
+  gelesen), Dachneigung auf dem Server wieder ohne Untergrenze, Netto wieder „leer = 0“, Jahr des Basiszinssatzes ohne Prüfung, `/mobil`
+  wieder ab 0,25 h.
+- **Angepasste Erwartungen** (Regel 28): keine (nur neue Tests).
+
 ## Entscheidungen Rechnungen (10.10.2026, festgehalten, nicht gebaut)
 
 Vorgabe vom 10.10.2026, übernommen wie gegeben (Bezug Punkt 1 und 4):

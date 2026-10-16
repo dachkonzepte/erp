@@ -633,7 +633,7 @@ class QuoteItemUpdate(PartialUpdate):
     """Seit 1.8.96 Teil-Update (Regel 22): die Inline-Felder der LV-Liste schicken nur Menge bzw. Einheit -- vorher ging der
     beim Laden gemerkte Stand aller Felder mit, zwei schnelle Änderungen derselben Position schrieben den alten Wert zurück."""
     NOT_NULL = frozenset({"quantity", "short_text", "long_text", "unit", "unit_price", "position_type"})
-    quantity: Decimal | None = Field(default=None, gt=0)
+    quantity: Decimal | None = Field(default=None, ge=Decimal("0.001"))  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     short_text: str | None = Field(default=None, min_length=1)
     long_text: str | None = None
     unit: str | None = Field(default=None, min_length=1)
@@ -2127,11 +2127,22 @@ class BaseInterestRateOut(BaseModel):
     review_reset: bool = False  # nur in der Antwort auf PUT: Satz geändert, Prüfangaben gelöscht
 
 
+BASISZINS_JAHRE = (2000, 2100)  # seit 1.8.119, wie das Feld "Jahr" in den Einstellungen
+
+
 class BaseInterestRateCreate(BaseModel):
     half_year_start: date
     rate_percent: Decimal = Field(max_digits=6, decimal_places=3)
     reviewed_on: date | None
     reviewed_by: str | None = Field(max_length=160)
+
+    @field_validator("half_year_start")
+    @classmethod
+    def _jahr(cls, wert: date) -> date:
+        """Seit 1.8.119 dasselbe Jahr wie im Browser (2000 bis 2100, tests/test_v424_zahlgrenzen.py) -- bis dahin jedes vierstellige."""
+        if not BASISZINS_JAHRE[0] <= wert.year <= BASISZINS_JAHRE[1]:
+            raise ValueError(f"Jahr {BASISZINS_JAHRE[0]} bis {BASISZINS_JAHRE[1]}.")
+        return wert
 
 
 class BaseInterestRateUpdate(BaseModel):
@@ -2487,7 +2498,7 @@ class InvoiceCreateFromOrder(BaseModel):
 class InvoiceHeaderUpdate(PartialUpdate):
     """Teil-Update: "Pauschale speichern" schickt nur Bezeichnung und Betrag, "Texte speichern" nur
     die drei Texte (bis 1.8.24 leerte die Pauschale den Schlusstext 2)."""
-    NOT_NULL = frozenset({"closes_order"})  # seit 1.8.86: NOT-NULL-Spalte
+    NOT_NULL = frozenset({"closes_order", "lump_sum_net"})  # seit 1.8.86: NOT-NULL-Spalte; seit 1.8.119 der Pauschalbetrag (Pflicht im Browser)
     due_date: date | None = None
     progress_description: str | None = None
     lump_sum_net: Decimal | None = Field(default=None, gt=0)
@@ -2973,8 +2984,8 @@ class PlanningSettingsOut(BaseModel):
 
 
 class PlanningSettingsUpdate(BaseModel):
-    daily_work_hours: Decimal = Field(gt=0, le=24)
-    default_travel_hours_per_employee_day: Decimal = Field(ge=0, lt=24)
+    daily_work_hours: Decimal = Field(ge=Decimal("0.01"), le=24)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    default_travel_hours_per_employee_day: Decimal = Field(ge=0, le=Decimal("23.75"))  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     monday: bool = True
     tuesday: bool = True
     wednesday: bool = True
@@ -3120,7 +3131,7 @@ class TimeEntryManualCreate(BaseModel):
     work_date: date
     entry_type: str = Field(default="site", max_length=40)
     activity: str | None = Field(default=None, max_length=180)
-    hours: Decimal = Field(gt=0, le=24)
+    hours: Decimal = Field(ge=Decimal("0.01"), le=24)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     break_minutes: int = Field(default=0, ge=0, le=720)
     notes: str | None = None
 
@@ -3135,7 +3146,7 @@ class TimeEntryUpdate(PartialUpdate):
     work_date: date | None = None
     entry_type: str | None = Field(default=None, max_length=40)
     activity: str | None = Field(default=None, max_length=180)
-    hours: Decimal | None = Field(default=None, gt=0, le=24)
+    hours: Decimal | None = Field(default=None, ge=Decimal("0.01"), le=24)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     break_minutes: int | None = Field(default=None, ge=0, le=720)
     notes: str | None = None
 
@@ -3160,7 +3171,7 @@ class TimeGroupManualCreate(BaseModel):
     work_date: date
     entry_type: str = Field(default="site", max_length=40)
     activity: str | None = Field(default=None, max_length=180)
-    hours: Decimal = Field(gt=0, le=24)
+    hours: Decimal = Field(ge=Decimal("0.01"), le=24)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     break_minutes: int = Field(default=0, ge=0, le=720)
     notes: str | None = None
 
@@ -3257,7 +3268,7 @@ class TimeGroupUpdate(PartialUpdate):
     work_date: date | None = None
     entry_type: str | None = Field(default=None, max_length=40)
     activity: str | None = Field(default=None, max_length=180)
-    hours: Decimal | None = Field(default=None, gt=0, le=24)
+    hours: Decimal | None = Field(default=None, ge=Decimal("0.01"), le=24)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     break_minutes: int | None = Field(default=None, ge=0, le=720)
     notes: str | None = None
 
@@ -3386,8 +3397,8 @@ class RoofAreaCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     roof_type: str | None = None
     covering: str | None = None
-    pitch_degrees: Decimal | None = None
-    area_sqm: Decimal | None = None
+    pitch_degrees: Decimal | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    area_sqm: Decimal | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     last_renovation: date | None = None
     contractor: str | None = None
     third_party_guarantee_until: date | None = None
@@ -3401,8 +3412,8 @@ class RoofAreaUpdate(PartialUpdate):
     name: str | None = Field(default=None, min_length=1, max_length=255)
     roof_type: str | None = None
     covering: str | None = None
-    pitch_degrees: Decimal | None = None
-    area_sqm: Decimal | None = None
+    pitch_degrees: Decimal | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    area_sqm: Decimal | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     last_renovation: date | None = None
     contractor: str | None = None
     third_party_guarantee_until: date | None = None
@@ -3435,9 +3446,9 @@ class RoofComponentOut(BaseModel):
 class RoofComponentCreate(BaseModel):
     component_type: str | None = None
     name: str = Field(min_length=1, max_length=255)
-    quantity: Decimal | None = None
+    quantity: Decimal | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     unit: str | None = None
-    year_built: int | None = None
+    year_built: int | None = Field(default=None, ge=1900, le=2100)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     sort_order: int = 100
     notes: str | None = None
 
@@ -3445,9 +3456,9 @@ class RoofComponentCreate(BaseModel):
 class RoofComponentUpdate(BaseModel):
     component_type: str | None = None
     name: str = Field(min_length=1, max_length=255)
-    quantity: Decimal | None = None
+    quantity: Decimal | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     unit: str | None = None
-    year_built: int | None = None
+    year_built: int | None = Field(default=None, ge=1900, le=2100)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     sort_order: int = 100
     notes: str | None = None
 
@@ -3517,7 +3528,7 @@ class RoofLayerOut(BaseModel):
 class RoofLayerUpsert(BaseModel):
     present: bool | None = None
     execution: str | None = None
-    thickness_mm: int | None = None
+    thickness_mm: int | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     notes: str | None = None
 
 
@@ -3579,7 +3590,7 @@ class EmployeePayrollSettingsOut(EmployeePayrollSettingsUpdate):
 
 class WorkTimeBreakRuleInput(BaseModel):
     id: int | None = None
-    threshold_hours: Decimal = Field(gt=0, le=24)
+    threshold_hours: Decimal = Field(ge=Decimal("0.01"), le=24)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     break_minutes: int = Field(ge=0, le=720)
     sort_order: int = 100
 
@@ -3587,7 +3598,7 @@ class WorkTimeBreakRuleInput(BaseModel):
 class WorkTimeModelUpsert(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     code: str | None = Field(default=None, max_length=50)
-    daily_target_hours: Decimal = Field(default=Decimal("8.00"), gt=0, le=24)
+    daily_target_hours: Decimal = Field(default=Decimal("8.00"), ge=Decimal("0.01"), le=24)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     valid_from_week: int = Field(default=1, ge=1, le=53)
     valid_to_week: int = Field(default=53, ge=1, le=53)
     description: str | None = None
@@ -3968,7 +3979,7 @@ class MaintenanceContractItemCreate(BaseModel):
     description: str | None = None
     template_project_id: int | None = None
     inspection_template_id: int | None = None
-    duration_minutes: int | None = None
+    duration_minutes: int | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
 
 
 class MaintenanceContractItemUpdate(BaseModel):
@@ -3977,7 +3988,7 @@ class MaintenanceContractItemUpdate(BaseModel):
     description: str | None = None
     template_project_id: int | None = None
     inspection_template_id: int | None = None
-    duration_minutes: int | None = None
+    duration_minutes: int | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
 
 
 class MaintenanceContractCreateProjectRequest(BaseModel):
@@ -4060,7 +4071,7 @@ class MaintenanceContractCreate(BaseModel):
     customer_id: int
     property_id: int | None = None
     title: str = Field(min_length=1, max_length=255)
-    interval_months: int = 12
+    interval_months: int = Field(default=12, ge=1, le=24)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     next_due_date: date
     template_project_id: int | None = None
     responsible_employee_id: int | None = None
@@ -4072,7 +4083,7 @@ class MaintenanceContractUpdate(BaseModel):
     """confirm_property_customer (seit 1.8.70): nur nötig, wenn ein neu gewähltes Objekt einem anderen Kunden gehört."""
     property_id: int | None = None
     title: str = Field(min_length=1, max_length=255)
-    interval_months: int
+    interval_months: int = Field(ge=1, le=24)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     next_due_date: date
     template_project_id: int | None = None
     responsible_employee_id: int | None = None
@@ -4086,7 +4097,7 @@ class MaintenanceContractStatusUpdate(BaseModel):
 
 # --- Version 1.2.12: Wartungsvertrag aus einem bestehenden Projekt erzeugen ---
 class MaintenanceContractFromProjectCreate(BaseModel):
-    interval_months: int = 12
+    interval_months: int = Field(default=12, ge=1, le=24)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     next_due_date: date
     responsible_employee_id: int | None = None
 
@@ -4265,7 +4276,7 @@ class InspectionItemResultUpdate(BaseModel):
     condition_grade: int | None = None
     measured_value: Decimal | None = None
     quantity: Decimal | None = None
-    duration_minutes: int | None = None
+    duration_minutes: int | None = Field(default=None, ge=0)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     notes: str | None = None
     client_uuid: str | None = None
 
@@ -4487,7 +4498,7 @@ class ServiceReportMaterialOut(BaseModel):
 class ServiceReportMaterialCreate(BaseModel):
     material_id: int | None = None
     description: str | None = None
-    quantity: Decimal
+    quantity: Decimal = Field(ge=Decimal("0.001"))  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     unit: str | None = None
     roof_area_id: int | None = None
     inspection_item_id: int | None = None
@@ -4500,7 +4511,7 @@ class ServiceReportMaterialCreate(BaseModel):
 class ServiceReportMaterialUpdate(BaseModel):
     material_id: int | None = None
     description: str | None = None
-    quantity: Decimal | None = None
+    quantity: Decimal | None = Field(default=None, ge=Decimal("0.001"))  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     unit: str | None = None
     roof_area_id: int | None = None
     inspection_item_id: int | None = None
@@ -4656,7 +4667,7 @@ class OperationalAssetCreate(BaseModel):
     product_url: str | None = Field(default=None, max_length=500)
     usage_notes: str | None = None
     acquisition_date: date | None = None
-    acquisition_cost: Decimal | None = None
+    acquisition_cost: Decimal | None = Field(default=None, ge=0, decimal_places=2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     cost_notes: str | None = None
     active: bool = True
     selectable_in_reports: bool = False
@@ -4692,7 +4703,7 @@ class OperationalAssetRecurringCostUpdate(BaseModel):
     app/operational_assets.py::sync_asset_recurring_cost()); force_remove bestätigt das
     Entfernen ausdrücklich, wenn der Posten bereits Dokumente/einen Vertragspartner trägt (409
     ohne diese Bestätigung)."""
-    net_amount: Decimal | None = Field(default=None, ge=0)
+    net_amount: Decimal | None = Field(default=None, ge=0, decimal_places=2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     force_remove: bool = False
 
 
@@ -4750,7 +4761,7 @@ class RecurringCostCreate(BaseModel):
     label: str = Field(min_length=1, max_length=255)
     category: str | None = None
     overhead_classification: str = Field(default="keine", pattern="^(keine|fix|auslastungsabhaengig)$")
-    net_amount: Decimal = Field(ge=0)
+    net_amount: Decimal = Field(ge=0, decimal_places=2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     tax_rate_pct: Decimal = Decimal("19.00")
     billing_interval: str = Field(pattern="^(monatlich|vierteljaehrlich|halbjaehrlich|jaehrlich|einmalig)$")
 
@@ -4765,7 +4776,7 @@ class RecurringCostCreate(BaseModel):
         return v
     vendor: str | None = Field(default=None, max_length=255)
     contract_end_date: date | None = None
-    notice_period_months: int | None = Field(default=None, ge=1)
+    notice_period_months: int | None = Field(default=None, ge=1, le=24)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     asset_id: int | None = None
     active: bool = True
     notes: str | None = None
@@ -4779,12 +4790,12 @@ class RecurringCostUpdate(PartialUpdate):
     label: str | None = Field(default=None, min_length=1, max_length=255)
     category: str | None = None
     overhead_classification: str | None = Field(default=None, pattern="^(keine|fix|auslastungsabhaengig)$")
-    net_amount: Decimal | None = Field(default=None, ge=0)
+    net_amount: Decimal | None = Field(default=None, ge=0, decimal_places=2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     tax_rate_pct: Decimal | None = None
     billing_interval: str | None = Field(default=None, pattern="^(monatlich|vierteljaehrlich|halbjaehrlich|jaehrlich|einmalig)$")
     vendor: str | None = Field(default=None, max_length=255)
     contract_end_date: date | None = None
-    notice_period_months: int | None = Field(default=None, ge=1)
+    notice_period_months: int | None = Field(default=None, ge=1, le=24)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     asset_id: int | None = None
     active: bool | None = None
     notes: str | None = None
@@ -4848,7 +4859,7 @@ class AccountOut(AccountCreate):
 
 class IncomingInvoiceItemIn(BaseModel):
     description: str = Field(min_length=1, max_length=255)
-    net_amount: Decimal = Field(ge=0)
+    net_amount: Decimal = Field(ge=0, decimal_places=2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     tax_rate_pct: Decimal = Decimal("19.00")
     # Vorkontierung (Buchhaltung Stufe 2) -- Verweis auf den Kontenstamm, siehe
     # IncomingInvoice.account_id-Dokumentation (app/models.py).
@@ -4878,10 +4889,10 @@ class IncomingInvoiceCreate(BaseModel):
     supplier_id: int
     supplier_invoice_number: str | None = Field(default=None, max_length=80)
     invoice_date: date
-    net_amount: Decimal = Field(ge=0)
+    net_amount: Decimal = Field(ge=0, decimal_places=2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     tax_rate_pct: Decimal = Decimal("19.00")
     due_date: date | None = None
-    skonto_percent: Decimal | None = Field(default=None, ge=0, le=100)
+    skonto_percent: Decimal | None = Field(default=None, ge=0, le=100, decimal_places=2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     skonto_deadline: date | None = None
     payment_status: str = Field(default="offen", pattern="^(offen|bezahlt)$")
     payment_date: date | None = None
@@ -4915,10 +4926,10 @@ class IncomingInvoiceUpdate(PartialUpdate):
     supplier_id: int | None = None
     supplier_invoice_number: str | None = Field(default=None, max_length=80)
     invoice_date: date | None = None
-    net_amount: Decimal | None = Field(default=None, ge=0)
+    net_amount: Decimal | None = Field(default=None, ge=0, decimal_places=2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     tax_rate_pct: Decimal | None = None
     due_date: date | None = None
-    skonto_percent: Decimal | None = Field(default=None, ge=0, le=100)
+    skonto_percent: Decimal | None = Field(default=None, ge=0, le=100, decimal_places=2)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     skonto_deadline: date | None = None
     payment_status: str | None = Field(default=None, pattern="^(offen|bezahlt)$")
     payment_date: date | None = None

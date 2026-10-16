@@ -489,7 +489,7 @@ function buildPayload(){
     supplier_id:Number(document.getElementById('editSupplier').value),
     supplier_invoice_number:document.getElementById('editSupplierInvoiceNumber').value.trim()||null,
     invoice_date:document.getElementById('editInvoiceDate').value,
-    net_amount:zahlFeld('editNetAmount',{leer:0}),
+    net_amount:zahlFeld('editNetAmount',{pflicht:true}),  // seit 1.8.119 Pflicht statt leer = 0: 0 € ist ein gültiger Betrag (Server ge=0)
     tax_rate_pct:Number(document.getElementById('editTaxRate').value),
     due_date:document.getElementById('editDueDate').value||null,
     skonto_percent:zahlFeld('editSkontoPercent'),
@@ -510,8 +510,8 @@ async function saveInvoice(){
   let payload;
   // Seit 1.8.109: eine abgelehnte Zahl (_zahl.html) erscheint in der Statuszeile, gespeichert wird nichts.
   try{payload=buildPayload()}catch(e){st.className='status err';st.textContent=e.message;return}
-  if(!payload.supplier_id||!payload.invoice_date||!payload.net_amount){
-    st.className='status err';st.textContent='Bitte Lieferant, Rechnungsdatum und Netto-Betrag angeben.';return;
+  if(!payload.supplier_id||!payload.invoice_date){
+    st.className='status err';st.textContent='Bitte Lieferant und Rechnungsdatum angeben.';return;
   }
   // Vor dem try-Block erfasst: schlägt das Anlegen selbst fehl (Pflichtfeld oben, oder
   // serverseitig der Positions-Summenabgleich), wird der Upload weiter unten nie erreicht --
