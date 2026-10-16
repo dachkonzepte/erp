@@ -30,7 +30,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from cdp_klicktest import klicktest_main  # noqa: E402
 
 ROLLEN = ("field", "buero_auftrag", "buero_finanzen", "admin")
-FUENF = ["Wartungen", "Mängel", "Anfragen", "Projekte", "Planung"]
+# Seit 1.8.112 (neue Ordnung) in der Gruppe "Aufträge", "Planung" heißt "Plantafel", "Mängel" heißt "Befunde".
+FUENF = ["Anfragen", "Projekte", "Plantafel", "Wartungen", "Befunde"]
 
 # Sichtbare Links (offsetParent/getClientRects), als Pfad; Navigation = Seitenleiste + Kopfzeile.
 _SICHTBAR = "(a=>a.getClientRects().length>0&&getComputedStyle(a).visibility!=='hidden')"

@@ -143,6 +143,7 @@
 .app-sidebar-sub{margin-left:29px;font-size:13px;opacity:.92}
 .app-sidebar.collapsed .app-sidebar-sub{margin-left:0}
 .app-sidebar-group{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:var(--_text-dim);margin:16px 10px 6px;white-space:nowrap;overflow:hidden}
+.app-sidebar-nav>.app-sidebar-group:first-child{margin-top:6px}
 .app-sidebar.collapsed .app-sidebar-group{opacity:0;height:1px;margin:8px 0;overflow:hidden}
 .app-content{flex:1;min-width:0}
 @media(max-width:1000px){
@@ -171,64 +172,61 @@
     {% endif %}
   </div>
   <nav class="app-sidebar-nav">
+    {# Seit 1.8.112 (neue Ordnung, Stufe 1 "Ordnen"): je Gruppe eine Überschrift -- Übersicht, Aufträge, Kaufmännisch, Personal,
+       Stammdaten, System. Nur verschoben und umbenannt ("Planung" heißt "Plantafel", "Mängel" heißt "Befunde"), alle Adressen und
+       Rollenbedingungen wie bisher; das Versandprotokoll steht nicht mehr hier, sondern in Kundenakte, Projektmappe und
+       Einstellungen -> System -> Protokolle. Eine Überschrift erscheint nur, wenn die Rolle in der Gruppe etwas sieht.
+       Die Modul- und Rollenprüfungen stehen deshalb einmal oben (is_module_enabled() öffnet je Aufruf eine Verbindung).
+
+       Seit "Rechtekonzept": Aufgaben bleiben für Monteure gesperrt (heute wird keine Aufgabe an einen Monteur zugewiesen).
+       Seit 1.8.24: Wartungen/Befunde und Anfragen/Projekte/Plantafel nur für Büro/Admin -- vorher landete ein Monteur über diese
+       Links auf access_denied.html; tests/test_v328_navigation_ohne_sperrseiten.py prüft je Rolle jeden Link. Finanzen, Mahnwesen,
+       Stammdaten und Einstellungen sind für einen Monteur nicht vorgesehen -- ausgeblendet, nicht ausgegraut. Betriebskosten und
+       Eingangsrechnungen sind STRENGER gegated (nur buero_finanzen/admin), siehe CLAUDE.md "Rechtekonzept" -> "Vier Rollen".
+       Kalender (Büro-Termine, seit 1.7.0) bleibt getrennt von der Plantafel (Einsatz-/Feldplanung). Checklisten erreichen Monteure
+       ausschließlich über /mobil. #}
+    {% set sb_buero = can(current_user, 'admin', 'buero_finanzen', 'buero_auftrag') %}
+    {% set sb_finanzen = can(current_user, 'admin', 'buero_finanzen') %}
+    {% set sb_aufgaben = sb_buero and is_module_enabled('aufgabenmanagement') %}
+    {% set sb_kalender = sb_buero and is_module_enabled('kalender') %}
+    {% set sb_checklisten = sb_buero and is_module_enabled('checklisten') %}
+    {% set sb_wartungen = sb_buero and is_module_enabled('wartungen') %}
+    {% set sb_eingang = sb_finanzen and is_module_enabled('buchhaltung') %}
+    {% set sb_betriebskosten = sb_finanzen and is_module_enabled('betriebskosten') %}
+    <div class="app-sidebar-group">Übersicht</div>
     <a class="app-sidebar-link{{ ' active' if path == '/' }}" href="/"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9"/><path d="M10 20v-6h4v6"/></svg></span><span class="app-sidebar-label">Start</span></a>
-    {# Seit "Rechtekonzept": Aufgaben bleiben für Monteure gesperrt (siehe CLAUDE.md
-       "Rechtekonzept" → "Aufgaben" -- heute wird in der echten Datenbank keine einzige
-       Aufgabe an einen Monteur zugewiesen, kein Anwendungsfall dafür). #}
-    {% if is_module_enabled('aufgabenmanagement') and can(current_user, 'admin', 'buero_finanzen', 'buero_auftrag') %}
+    {% if sb_aufgaben %}
     <a class="app-sidebar-link{{ ' active' if path == '/tasks' }}" href="/tasks"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="4.5" y="3.5" width="15" height="17" rx="0"/><polyline points="8,9 9.3,10.3 12,7.6"/><line x1="14" y1="9" x2="16.5" y2="9"/><polyline points="8,15 9.3,16.3 12,13.6"/><line x1="14" y1="15" x2="16.5" y2="15"/></svg></span><span class="app-sidebar-label">Aufgaben</span></a>
     {% endif %}
-    {# Seit 1.8.24: Wartungen/Mängel und Anfragen/Projekte/Planung nur noch für Büro/Admin -- vorher
-       ohne Rollenbedingung, ein Monteur landete auf der Berichtsseite über diese Links auf
-       access_denied.html. tests/test_v328_navigation_ohne_sperrseiten.py prüft je Rolle jeden Link. #}
-    {% if is_module_enabled('wartungen') and can(current_user, 'admin', 'buero_finanzen', 'buero_auftrag') %}
-    <a class="app-sidebar-link{{ ' active' if path == '/maintenance-contracts' }}" href="/maintenance-contracts"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><circle cx="7" cy="7" r="3"/><line x1="9.5" y1="9.5" x2="17" y2="17"/><polyline points="15,15 17,13 19,15 17,17"/></svg></span><span class="app-sidebar-label">Wartungen</span></a>
-    <a class="app-sidebar-link app-sidebar-sub{{ ' active' if path == '/findings' }}" href="/findings"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M12 3.5 4.5 18h15z"/><line x1="12" y1="9" x2="12" y2="13.5"/><circle class="fdot" cx="12" cy="16" r="0.9"/></svg></span><span class="app-sidebar-label">Mängel</span></a>
-    {% endif %}
-    {# Checklisten (seit 1.8.0, Modul "checklisten") -- Übersicht /checklisten, von dort zu den
-       Vorlagen; Monteure erreichen Checklisten ausschließlich über /mobil, nie über die Sidebar. #}
-    {% if is_module_enabled('checklisten') and can(current_user, 'admin', 'buero_finanzen', 'buero_auftrag') %}
-    <a class="app-sidebar-link{{ ' active' if path.startswith('/checklisten') }}" href="/checklisten"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="5" y="3.5" width="14" height="17"/><line x1="9" y1="3.5" x2="15" y2="3.5"/><polyline points="8,9.5 9.3,10.8 11.5,8.6"/><line x1="13" y1="9.7" x2="16" y2="9.7"/><polyline points="8,15 9.3,16.3 11.5,14.1"/><line x1="13" y1="15.2" x2="16" y2="15.2"/></svg></span><span class="app-sidebar-label">Checklisten</span></a>
-    {% endif %}
-    {% if can(current_user, 'admin', 'buero_finanzen', 'buero_auftrag') %}
-    <a class="app-sidebar-link{{ ' active' if path == '/inquiries' }}" href="/inquiries"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M4 13h4.5l1.5 2.5h4L15.5 13H20"/><path d="M4 13V6a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v7"/><path d="M4 13v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></svg></span><span class="app-sidebar-label">Anfragen</span></a>
-    <a class="app-sidebar-link{{ ' active' if path == '/projects' }}" href="/projects"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M3.5 7.5a1 1 0 0 1 1-1h4.5l2 2h8.5a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z"/></svg></span><span class="app-sidebar-label">Projekte</span></a>
-    <a class="app-sidebar-link{{ ' active' if path == '/planning' }}" href="/planning"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg></span><span class="app-sidebar-label">Planung</span></a>
-    {% endif %}
-    {# Kalender (Büro-Termine, seit 1.7.0) -- bewusst GETRENNT von der Plantafel oben (die
-       bleibt für Einsatz-/Feldplanung), gleiche Rollenschwelle wie Projekte/Angebote (nicht die
-       strenger gegatete Finanzen-Achse von Betriebskosten/Eingangsrechnungen). #}
-    {% if is_module_enabled('kalender') and can(current_user, 'admin', 'buero_finanzen', 'buero_auftrag') %}
+    {% if sb_kalender %}
     <a class="app-sidebar-link{{ ' active' if path == '/kalender' }}" href="/kalender"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="1"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/><circle class="fdot" cx="8" cy="13.5" r="1"/><circle class="fdot" cx="12" cy="13.5" r="1"/><circle class="fdot" cx="16" cy="13.5" r="1"/><circle class="fdot" cx="8" cy="17.5" r="1"/><circle class="fdot" cx="12" cy="17.5" r="1"/></svg></span><span class="app-sidebar-label">Kalender</span></a>
     {% endif %}
-    <a class="app-sidebar-link{{ ' active' if path == '/time-tracking' }}" href="/time-tracking"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.3"/><polyline points="12,7.3 12,12 15.3,14"/></svg></span><span class="app-sidebar-label">Zeiterfassung</span></a>
-    {% if can(current_user, 'admin', 'buero_finanzen', 'buero_auftrag') %}
-    <a class="app-sidebar-link app-sidebar-sub{{ ' active' if path == '/time-backoffice' }}" href="/time-backoffice"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="5.5" y="3" width="13" height="18"/><line x1="8" y1="7.5" x2="16" y2="7.5"/><line x1="8" y1="11.5" x2="16" y2="11.5"/><line x1="8" y1="15.5" x2="13" y2="15.5"/></svg></span><span class="app-sidebar-label">Backoffice</span></a>
+    {% if sb_buero %}
+    <div class="app-sidebar-group">Aufträge</div>
+    <a class="app-sidebar-link{{ ' active' if path == '/inquiries' }}" href="/inquiries"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M4 13h4.5l1.5 2.5h4L15.5 13H20"/><path d="M4 13V6a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v7"/><path d="M4 13v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></svg></span><span class="app-sidebar-label">Anfragen</span></a>
+    <a class="app-sidebar-link{{ ' active' if path == '/projects' }}" href="/projects"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M3.5 7.5a1 1 0 0 1 1-1h4.5l2 2h8.5a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z"/></svg></span><span class="app-sidebar-label">Projekte</span></a>
+    <a class="app-sidebar-link{{ ' active' if path == '/planning' }}" href="/planning"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg></span><span class="app-sidebar-label">Plantafel</span></a>
+    {% if sb_checklisten %}
+    <a class="app-sidebar-link{{ ' active' if path.startswith('/checklisten') }}" href="/checklisten"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="5" y="3.5" width="14" height="17"/><line x1="9" y1="3.5" x2="15" y2="3.5"/><polyline points="8,9.5 9.3,10.8 11.5,8.6"/><line x1="13" y1="9.7" x2="16" y2="9.7"/><polyline points="8,15 9.3,16.3 11.5,14.1"/><line x1="13" y1="15.2" x2="16" y2="15.2"/></svg></span><span class="app-sidebar-label">Checklisten</span></a>
     {% endif %}
-    {# Seit "Rechtekonzept" (siehe CLAUDE.md): Finanzen/Mahnwesen/Stammdaten/Einstellungen sind
-       für einen Monteur nicht vorgesehen -- ausgeblendet, nicht nur ausgegraut. Das Ausblenden
-       läuft der Backend-Absicherung teils voraus (siehe CLAUDE.md "Rechtekonzept" → Etappenplan,
-       "erst die riskanten Router, dann die übrigen") -- ein verstecktes, aber noch nicht
-       serverseitig gesperrtes Ziel ist kein neues Risiko (die direkte URL war vorher genauso
-       erreichbar), nur noch keine vollständige Absicherung. #}
-    {% if can(current_user, 'admin', 'buero_finanzen', 'buero_auftrag') %}
+    {% if sb_wartungen %}
+    <a class="app-sidebar-link{{ ' active' if path == '/maintenance-contracts' }}" href="/maintenance-contracts"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><circle cx="7" cy="7" r="3"/><line x1="9.5" y1="9.5" x2="17" y2="17"/><polyline points="15,15 17,13 19,15 17,17"/></svg></span><span class="app-sidebar-label">Wartungen</span></a>
+    <a class="app-sidebar-link app-sidebar-sub{{ ' active' if path == '/findings' }}" href="/findings"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M12 3.5 4.5 18h15z"/><line x1="12" y1="9" x2="12" y2="13.5"/><circle class="fdot" cx="12" cy="16" r="0.9"/></svg></span><span class="app-sidebar-label">Befunde</span></a>
+    {% endif %}
+    <div class="app-sidebar-group">Kaufmännisch</div>
     <a class="app-sidebar-link{{ ' active' if path == '/finanzen' }}" href="/finanzen"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M16.5 7.2a5.8 5.8 0 1 0 0 9.6"/><line x1="6" y1="10.5" x2="14" y2="10.5"/><line x1="6" y1="13.5" x2="13" y2="13.5"/></svg></span><span class="app-sidebar-label">Finanzen</span></a>
-    <a class="app-sidebar-link app-sidebar-sub{{ ' active' if path == '/mahnwesen' }}" href="/mahnwesen"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="13"/><polyline points="3.7,6 12,13 20.3,6"/></svg></span><span class="app-sidebar-label">Mahnwesen</span></a>
-    <a class="app-sidebar-link app-sidebar-sub{{ ' active' if path == '/versandprotokoll' }}" href="/versandprotokoll"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><polygon points="3.5,11 20.5,4 16,20 11.5,14"/><line x1="11.5" y1="14" x2="20.5" y2="4"/></svg></span><span class="app-sidebar-label">Versandprotokoll</span></a>
+    <a class="app-sidebar-link{{ ' active' if path == '/mahnwesen' }}" href="/mahnwesen"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="13"/><polyline points="3.7,6 12,13 20.3,6"/></svg></span><span class="app-sidebar-label">Mahnwesen</span></a>
+    {% if sb_eingang %}
+    <a class="app-sidebar-link{{ ' active' if path == '/eingangsrechnungen' }}" href="/eingangsrechnungen"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="4" y="3.5" width="16" height="17" rx="0.5"/><line x1="7.5" y1="8" x2="16.5" y2="8"/><line x1="7.5" y1="11.5" x2="16.5" y2="11.5"/><line x1="7.5" y1="15" x2="13" y2="15"/></svg></span><span class="app-sidebar-label">Eingangsrechnungen</span></a>
     {% endif %}
-    {# Betriebskosten-Übersicht (seit 1.5.0) ist Teil der Finanzen-Achse -- STRENGER gegated als
-       "Finanzen" selbst (nur buero_finanzen/admin, kein buero_auftrag), siehe CLAUDE.md
-       "Rechtekonzept" -> "Vier Rollen". Eigener {% if %}-Block statt in den obigen verschachtelt,
-       damit buero_auftrag "Finanzen"/"Mahnwesen" weiterhin sieht, nur diesen einen Eintrag nicht. #}
-    {% if is_module_enabled('betriebskosten') and can(current_user, 'admin', 'buero_finanzen') %}
-    <a class="app-sidebar-link app-sidebar-sub{{ ' active' if path == '/betriebskosten' }}" href="/betriebskosten"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M17 5.5c0-1.8-2.2-2.8-5-2.8s-5 1.2-5 3c0 4 10 2 10 6.3 0 1.8-2.2 3-5 3s-5-1-5-2.8"/></svg></span><span class="app-sidebar-label">Betriebskosten</span></a>
+    {% if sb_betriebskosten %}
+    <a class="app-sidebar-link{{ ' active' if path == '/betriebskosten' }}" href="/betriebskosten"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M17 5.5c0-1.8-2.2-2.8-5-2.8s-5 1.2-5 3c0 4 10 2 10 6.3 0 1.8-2.2 3-5 3s-5-1-5-2.8"/></svg></span><span class="app-sidebar-label">Betriebskosten</span></a>
     {% endif %}
-    {# Buchhaltung/Eingangsrechnungen (Stufe 1) -- dieselbe, strenger gegatete Finanzen-Achse
-       wie Betriebskosten oben (nur buero_finanzen/admin, kein buero_auftrag). #}
-    {% if is_module_enabled('buchhaltung') and can(current_user, 'admin', 'buero_finanzen') %}
-    <a class="app-sidebar-link app-sidebar-sub{{ ' active' if path == '/eingangsrechnungen' }}" href="/eingangsrechnungen"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="4" y="3.5" width="16" height="17" rx="0.5"/><line x1="7.5" y1="8" x2="16.5" y2="8"/><line x1="7.5" y1="11.5" x2="16.5" y2="11.5"/><line x1="7.5" y1="15" x2="13" y2="15"/></svg></span><span class="app-sidebar-label">Eingangsrechnungen</span></a>
     {% endif %}
-    {% if can(current_user, 'admin', 'buero_finanzen', 'buero_auftrag') %}
+    <div class="app-sidebar-group">Personal</div>
+    <a class="app-sidebar-link{{ ' active' if path == '/time-tracking' }}" href="/time-tracking"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.3"/><polyline points="12,7.3 12,12 15.3,14"/></svg></span><span class="app-sidebar-label">Zeiterfassung</span></a>
+    {% if sb_buero %}
+    <a class="app-sidebar-link{{ ' active' if path == '/time-backoffice' }}" href="/time-backoffice"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="5.5" y="3" width="13" height="18"/><line x1="8" y1="7.5" x2="16" y2="7.5"/><line x1="8" y1="11.5" x2="16" y2="11.5"/><line x1="8" y1="15.5" x2="13" y2="15.5"/></svg></span><span class="app-sidebar-label">Backoffice</span></a>
     <div class="app-sidebar-group">Stammdaten</div>
     <a class="app-sidebar-link{{ ' active' if path == '/master-data' }}" href="/master-data"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6.3" rx="8" ry="2.8"/><path d="M4 6.3v5.7c0 1.55 3.58 2.8 8 2.8s8-1.25 8-2.8V6.3"/><path d="M4 12v5.7c0 1.55 3.58 2.8 8 2.8s8-1.25 8-2.8V12"/></svg></span><span class="app-sidebar-label">Stammdaten</span></a>
     <div class="app-sidebar-group">System</div>

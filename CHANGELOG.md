@@ -4,6 +4,25 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.112 – Neue Ordnung von Seitenleiste und Einstellungen (Stufe 1 „Ordnen“)
+
+Vorgabe vom 16.10.2026, Punkte 1–3; nur verschoben, umbenannt und ausgeblendet, keine Fachlogik, alle Adressen bleiben. Die
+Seitenleiste hat sechs Gruppen mit Überschrift -- Übersicht, Aufträge, Kaufmännisch, Personal, Stammdaten, System --, „Planung“ heißt
+„Plantafel“, „Mängel“ heißt „Befunde“, das Versandprotokoll steht nicht mehr darin (Einstellungen → System → Protokolle). Das Menü der
+Einstellungen ist in zehn Gruppen geordnet: Firma, Finanzen, Kalkulation, Vorlagen und Texte, Rechtstexte, Listen, Betrieb, Personal,
+Anbindungen, System. Neu zusammengestellt: Erscheinungsbild (Firmenlogo, Logo im PDF, Logo der Leiste, Akzentfarbe), Textbausteine
+(die Vor- und Schlusstexte aus den Auswahllisten), Mahn-Rechtstexte, Fristen und Erinnerungen (die vier Vorlaufzeiten), Zeitregeln
+und DATEV und die drei Zeit-Listen -- diese beiden aus dem Zeiterfassungs-Backoffice, das Prüfen, „Abgeschlossen bis“ und die Exporte
+behält und auf die neuen Stellen verlinkt. Frühere Adressen (`#recurring-costs`, `#incoming-invoices`, `#operational-assets`,
+`/time-backoffice#workmodels` …) führen an die neue Stelle.
+
+Was nur ein Administrator speichern darf, steht für die Büro-Rollen nicht mehr im Markup: Anbindungen (E-Mail und Microsoft 365,
+Outlook-Kalender, KI, Adressimport), Module, Benutzer und Zugriff, Wartungen, Projekt-Pipeline, Aufgaben und Vor Ort -- bis 1.8.111
+sahen sie davon fünf Bereiche und bekamen beim Speichern 403. Die Rechtstexte bleiben für das Büro lesbar. Überholte Hinweistexte in
+den Einstellungen berichtigt (u. a. „Zeitarten werden im Backoffice verwaltet“, „E-Mail-Versand aktuell für Mahnungen“, „/vor-ort“).
+Neu `tests/test_v417_neue_ordnung.py` und Klicktest `klicktest_neue_ordnung.py`; Details, Festlegungen und die festgehaltene Stufe 2
+„Bereinigen“ in `docs/archiv/stammdaten-und-sidebar.md`, „Neue Ordnung von Seitenleiste und Einstellungen“.
+
 ## 1.8.111 – Klicktest nachts mit fester Uhr, Zeitgrenze je Test, Sitzungen in _run, taskkill mit Zeitlimit
 
 Punkte 6 und 7 der Vorgabe "Vor dem Abnahmetest" vom 15.10.2026, Werkzeug-Runde. `klicktest_zeitbuchungen_liste` war zwischen 0 und 2 Uhr

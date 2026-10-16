@@ -28,6 +28,20 @@
     details.calc-subsection>summary::before{content:'▸ ';color:var(--accent)}
     details.calc-subsection[open]>summary::before{content:'▾ '}
     details.calc-subsection[open]>summary{margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+    /* Seit 1.8.112: Untergruppe im Menü (System -> Protokolle), Blöcke der zusammengelegten Bereiche (Fristen und Erinnerungen,
+       Zeitregeln und DATEV) und der Dialog der Arbeitszeitmodelle (aus dem Zeiterfassungs-Backoffice übernommen). */
+    .settings-subgroup{grid-column:1/-1;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:10px 10px 2px}
+    .block{border-top:1px solid var(--line);padding-top:16px;margin-top:18px}.block>h3{margin:0 0 6px;font-size:15px}.section-title+.block{border-top:0;margin-top:4px}
+    .inline-check{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:650;margin:6px 0}.inline-check input{width:auto}
+    .time-grid{display:grid;grid-template-columns:repeat(2,minmax(220px,1fr));gap:10px 20px;align-items:end}
+    .model-card{border:1px solid var(--line);padding:12px;margin-bottom:8px}.model-title{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
+    .rule-row{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px}.rule-row .field{display:block;border-bottom:0;padding:0}
+    .pill{display:inline-block;padding:2px 8px;border:1px solid var(--line);color:var(--muted);font-size:10.5px;font-weight:700}
+    .modal{border:1px solid var(--line);padding:0;max-width:700px;width:94%;box-shadow:0 25px 80px rgba(0,0,0,.35);background:var(--card);color:var(--ink)}
+    .modal::backdrop{background:rgba(10,15,13,.5)}.modal-body{padding:18px}.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+    .modal .field{display:block;border-bottom:0;padding:4px 0}.modal .field>label:first-child{padding-top:0;margin-bottom:5px}
+    .time-grid .field{display:block;border-bottom:0;padding:0}.time-grid .field>label:first-child{display:block;padding-top:0;margin-bottom:6px;font-size:12px;font-weight:650;color:var(--muted)}
+    @media(max-width:1000px){.time-grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
@@ -36,6 +50,8 @@
    dieser Vorlage nach (Jinja-Scoping), can(current_user, ...) unten würde sonst 'current_user
    is undefined' werfen. #}
 {% set current_user = request.state.erp_user %}
+{% set ist_admin = can(current_user, 'admin') %}
+{% set ist_finanzen = can(current_user, 'admin', 'buero_finanzen') %}
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
@@ -46,113 +62,104 @@
   <div class="settings-shell">
     <aside class="settings-sidebar" aria-label="Einstellungsbereiche">
       <h2>Einstellungen</h2>
-      <div class="settings-group">Unternehmen</div>
+      {# Seit 1.8.112 (neue Ordnung, Stufe 1 "Ordnen"): zehn Gruppen -- Firma, Finanzen, Kalkulation, Vorlagen und Texte, Rechtstexte,
+         Listen, Betrieb, Personal, Anbindungen, System. Nur verschoben, umbenannt und ausgeblendet; jede frühere Adresse #<bereich> gilt
+         weiter (FRUEHERE_ADRESSEN im Skript). Ausgeblendet für die Büro-Rollen ist jeder Bereich, den nur ein Administrator speichern
+         darf (der Server lehnt sein Speichern für sie ohnehin ab) -- Ausnahme die Rechtstexte: das Büro liest sie, ein Administrator
+         pflegt sie. Kalkulation (Herleitung des Stundenverrechnungssatzes und seine Bestandteile, Rechtekonzept "Vier Rollen"
+         Etappe 2) und die Vorlaufzeiten für Betriebskosten und Eingangsrechnungen bleiben buero_finanzen/admin. Zeitregeln, DATEV und die
+         Zeit-Listen kommen aus dem Zeiterfassungs-Backoffice, das Prüfen, "Abgeschlossen bis" und die Exporte behält. #}
+      <div class="settings-group">Firma</div>
       <div class="settings-menu">
-        <button type="button" data-settings-section="general" onclick="showSettingsSection('general')">Unternehmensstammdaten<span class="menu-sub">Firma, Bank, Steuer, Standardtexte</span></button>
-        <button type="button" data-settings-section="option-lists" onclick="showSettingsSection('option-lists')">Auswahllisten<span class="menu-sub">Einheiten, Texte, Kategorien …</span></button>
-        <button type="button" data-settings-section="roof-layers" onclick="showSettingsSection('roof-layers')">Dachaufbau<span class="menu-sub">Schichttypen je Dachtyp für Dachflächen</span></button>
-        <button type="button" data-settings-section="component-types" onclick="showSettingsSection('component-types')">Bauteilarten<span class="menu-sub">Gully, Rinne, Photovoltaik, ...</span></button>
-      </div>
-      <div class="settings-group">Projekte</div>
-      <div class="settings-menu">
-        <button type="button" data-settings-section="project-pipeline" onclick="showSettingsSection('project-pipeline')">Projekt-Pipeline<span class="menu-sub">Kanban-Spalten der Projektliste</span></button>
+        <button type="button" data-settings-section="general" onclick="showSettingsSection('general')">Unternehmensdaten<span class="menu-sub">Anschrift, Kontakt, Steuer, Register, Bank</span></button>
+        <button type="button" data-settings-section="appearance" onclick="showSettingsSection('appearance')">Erscheinungsbild<span class="menu-sub">Firmenlogo, Logo im PDF, Logo der Leiste, Akzentfarbe</span></button>
       </div>
       <div class="settings-group">Finanzen</div>
       <div class="settings-menu">
         <button type="button" data-settings-section="numbers" onclick="showSettingsSection('numbers')">Nummernkreise<span class="menu-sub">Kunden, Angebote, Rechnungen …</span></button>
-        <button type="button" data-settings-section="payment-terms" onclick="showSettingsSection('payment-terms')">Zahlungsbedingungen<span class="menu-sub">Fälligkeit für Rechnungen, Kundenvorgabe</span></button>
-        <button type="button" data-settings-section="tax-keys" onclick="showSettingsSection('tax-keys')">Steuerschlüssel<span class="menu-sub">§13b, Privat, Gewerbe, Solar …</span></button>
-        <button type="button" data-settings-section="reminder-levels" onclick="showSettingsSection('reminder-levels')">Mahnstufen<span class="menu-sub">1./2./3. Mahnung, Fristen, Gebühren</span></button>
+        <button type="button" data-settings-section="tax-keys" onclick="showSettingsSection('tax-keys')">Steuer<span class="menu-sub">Steuerschlüssel: §13b, Privat, Gewerbe, Solar …</span></button>
+        <button type="button" data-settings-section="payment-terms" onclick="showSettingsSection('payment-terms')">Zahlungsbedingungen<span class="menu-sub">Fälligkeit, Skonto, Kundenvorgabe</span></button>
+        <button type="button" data-settings-section="reminder-levels" onclick="showSettingsSection('reminder-levels')">Mahnwesen<span class="menu-sub">Mahnstufen, Gebühren und Zinsen, Basiszinssatz</span></button>
       </div>
-      <div class="settings-group">Dokumente</div>
-      <div class="settings-menu">
-        <button type="button" data-settings-section="document-layout" onclick="showSettingsSection('document-layout')">Dokumente &amp; Layout<span class="menu-sub">Briefpapier, Ränder, Logo/Firmenkopf/Fußzeile -- für alle Dokumente</span></button>
-        <button type="button" data-settings-section="document-categories" onclick="showSettingsSection('document-categories')">Dokumentkategorien<span class="menu-sub">Fundament der Dateiablage je Objekt -- Sichtbarkeit für Monteure</span></button>
-        <button type="button" data-settings-section="email-templates" onclick="showSettingsSection('email-templates')">E-Mail-Vorlagen<span class="menu-sub">Betreff/Text je Dokumenttyp</span></button>
-        <button type="button" data-settings-section="contract-bases" onclick="showSettingsSection('contract-bases')">Vertragsgrundlagen<span class="menu-sub">Klauseltext je Grundlage, rechtliche Prüfung</span></button>
-        <button type="button" data-settings-section="contract-templates" onclick="showSettingsSection('contract-templates')">Vertragsvorlagen<span class="menu-sub">Vertragstext je Grundlage, Platzhalter, Prüfung</span></button>
-        <button type="button" data-settings-section="notice-reservations" onclick="showSettingsSection('notice-reservations')">Vorbehalte in Anzeigen<span class="menu-sub">Behinderungs-, Wiederaufnahme-, Bedenkenanzeige – je VOB/B und BGB, Prüfung</span></button>
-      </div>
-      <div class="settings-group">Personal</div>
-      <div class="settings-menu">
-        <button type="button" data-settings-section="employee-functions" onclick="showSettingsSection('employee-functions')">Funktionen / Tätigkeiten<span class="menu-sub">Rollen und Mitarbeitergruppen</span></button>
-      </div>
-      {% if can(current_user, 'admin', 'buero_finanzen') %}
-      {# Rechtekonzept "Vier Rollen" Etappe 2 (seit 1.4.8, siehe CLAUDE.md): die Herleitung des
-         Stundenverrechnungssatzes (Lohnansatz/Gemeinkosten) UND seine Bestandteile
-         (Materialaufschlag/Gemeinkosten/Wagnis & Gewinn) sind buero_finanzen/admin --
-         buero_auftrag sieht den fertigen Satz weiterhin dort, wo er angewendet wird
-         (Angebots-Kalkulation/Leistungskatalog), nicht hier, wo man ihn herleitet/pflegt. #}
+      {% if ist_finanzen %}
       <div class="settings-group">Kalkulation</div>
       <div class="settings-menu">
         <button type="button" data-settings-section="labor-rate" onclick="showSettingsSection('labor-rate')">Stundenverrechnungssatz<span class="menu-sub">Mittellohn und Verrechnungssatz</span></button>
         <button type="button" data-settings-section="calculation" onclick="showSettingsSection('calculation')">Kalkulationsgrundlagen<span class="menu-sub">Material, Zuschläge, Zeitwerte</span></button>
-      </div>
-      {# Betriebskosten-Übersicht (seit 1.5.0) gehört zur selben Finanzen-Achse wie oben --
-         buero_auftrag sieht diesen Menüpunkt deshalb ebenfalls nicht. #}
-      <div class="settings-group">Betriebskosten</div>
-      <div class="settings-menu">
-        <button type="button" data-settings-section="recurring-costs" onclick="showSettingsSection('recurring-costs')">Betriebskosten<span class="menu-sub">Vorlaufzeit für Kündigungsfristen</span></button>
-      </div>
-      {# Buchhaltung/Eingangsrechnungen (Stufe 1) gehört zur selben Finanzen-Achse wie oben --
-         buero_auftrag sieht diesen Menüpunkt deshalb ebenfalls nicht. #}
-      <div class="settings-group">Buchhaltung</div>
-      <div class="settings-menu">
-        <button type="button" data-settings-section="incoming-invoices" onclick="showSettingsSection('incoming-invoices')">Eingangsrechnungen<span class="menu-sub">Vorlaufzeit für die Skonto-Warnung</span></button>
         <button type="button" data-settings-section="accounts" onclick="showSettingsSection('accounts')">Kontenstamm<span class="menu-sub">Sachkonten für die Vorkontierung, SKR 04</span></button>
       </div>
       {% endif %}
-      <div class="settings-group">Planung</div>
+      <div class="settings-group">Vorlagen und Texte</div>
       <div class="settings-menu">
-        <button type="button" data-settings-section="planning" onclick="showSettingsSection('planning')">Plantafel & Kapazität<span class="menu-sub">Arbeitszeit, Anfahrt, Arbeitstage, Feiertage</span></button>
+        <button type="button" data-settings-section="document-layout" onclick="showSettingsSection('document-layout')">Dokumentlayout<span class="menu-sub">Briefpapier, Ränder, Firmenkopf, Seitenzahl</span></button>
+        <button type="button" data-settings-section="email-templates" onclick="showSettingsSection('email-templates')">E-Mail-Vorlagen<span class="menu-sub">Betreff und Text je Dokumenttyp</span></button>
+        <button type="button" data-settings-section="text-blocks" onclick="showSettingsSection('text-blocks')">Textbausteine<span class="menu-sub">Vor- und Schlusstexte für Angebote und Rechnungen</span></button>
+        {% if is_module_enabled('checklisten') %}
+        <a href="/checklisten/vorlagen" style="text-decoration:none"><button type="button">Checklisten-Vorlagen<span class="menu-sub">Formulare für Auftrag, Objekt, Betriebsmittel, Betrieb</span></button></a>
+        {% endif %}
+        <a href="/inspection-templates" style="text-decoration:none"><button type="button">Prüfvorlagen<span class="menu-sub">Prüfpunkte je Dachtyp für Wartungsberichte</span></button></a>
       </div>
-      <div class="settings-group">Darstellung</div>
+      <div class="settings-group">Rechtstexte</div>
       <div class="settings-menu">
-        <button type="button" data-settings-section="appearance" onclick="showSettingsSection('appearance')">Design<span class="menu-sub">Akzentfarbe, Hell/Dunkel</span></button>
+        <button type="button" data-settings-section="contract-bases" onclick="showSettingsSection('contract-bases')">Vertragsgrundlagen<span class="menu-sub">Klauseltext je Grundlage, rechtliche Prüfung</span></button>
+        <button type="button" data-settings-section="contract-templates" onclick="showSettingsSection('contract-templates')">Vertragsvorlagen<span class="menu-sub">Vertragstext je Grundlage, Platzhalter, Prüfung</span></button>
+        <button type="button" data-settings-section="notice-reservations" onclick="showSettingsSection('notice-reservations')">Vorbehalte<span class="menu-sub">Behinderungs-, Wiederaufnahme-, Bedenkenanzeige – je VOB/B und BGB</span></button>
+        <button type="button" data-settings-section="dunning-legal-texts" onclick="showSettingsSection('dunning-legal-texts')">Mahn-Rechtstexte<span class="menu-sub">Verzug, Verzugszinsen, Pauschale</span></button>
       </div>
+      <div class="settings-group">Listen</div>
+      <div class="settings-menu">
+        <button type="button" data-settings-section="option-lists" onclick="showSettingsSection('option-lists')">Auswahllisten<span class="menu-sub">Einheiten, Kategorien, Anreden …</span></button>
+        <button type="button" data-settings-section="roof-layers" onclick="showSettingsSection('roof-layers')">Dachaufbau<span class="menu-sub">Schichttypen je Dachtyp für Dachflächen</span></button>
+        <button type="button" data-settings-section="component-types" onclick="showSettingsSection('component-types')">Bauteilarten<span class="menu-sub">Gully, Rinne, Photovoltaik, ...</span></button>
+        <button type="button" data-settings-section="document-categories" onclick="showSettingsSection('document-categories')">Dokumentkategorien<span class="menu-sub">Dateiablage je Objekt, Sichtbarkeit für Monteure</span></button>
+        <button type="button" data-settings-section="time-entry-types" onclick="showSettingsSection('time-entry-types')">Zeitarten<span class="menu-sub">Zeiterfassung: Baustelle, Fahrt, Werkstatt …</span></button>
+        <button type="button" data-settings-section="time-entry-activities" onclick="showSettingsSection('time-entry-activities')">Tätigkeiten<span class="menu-sub">Zeiterfassung: Tätigkeit einer Buchung</span></button>
+        <button type="button" data-settings-section="absence-types" onclick="showSettingsSection('absence-types')">Abwesenheitsarten<span class="menu-sub">Urlaub, Krankheit, Schule …</span></button>
+      </div>
+      <div class="settings-group">Betrieb</div>
+      <div class="settings-menu">
+        <button type="button" data-settings-section="planning" onclick="showSettingsSection('planning')">Arbeitszeit und Kalender<span class="menu-sub">Arbeitszeit, Anfahrt, Arbeitstage, Feiertage</span></button>
+        <button type="button" data-settings-section="deadlines" onclick="showSettingsSection('deadlines')">Fristen und Erinnerungen<span class="menu-sub">Vorlaufzeiten für Erinnerungen</span></button>
+        {% if ist_admin %}
+        <button type="button" data-settings-section="maintenance" onclick="showSettingsSection('maintenance')">Wartungen<span class="menu-sub">Sachbearbeiter, Dachflächen, Wartungsfenster</span></button>
+        <button type="button" data-settings-section="project-pipeline" onclick="showSettingsSection('project-pipeline')">Projekt-Pipeline<span class="menu-sub">Kanban-Spalten der Projektliste</span></button>
+        <button type="button" data-settings-section="tasks" onclick="showSettingsSection('tasks')">Aufgaben<span class="menu-sub">Spalten, Zuweisungs-Benachrichtigung</span></button>
+        <button type="button" data-settings-section="mobile" onclick="showSettingsSection('mobile')">Vor Ort<span class="menu-sub">Automatische Abmeldung nach Feierabend</span></button>
+        {% endif %}
+      </div>
+      <div class="settings-group">Personal</div>
+      <div class="settings-menu">
+        <button type="button" data-settings-section="employee-functions" onclick="showSettingsSection('employee-functions')">Funktionen<span class="menu-sub">Mitarbeiterfunktionen, gewerblich/kaufmännisch</span></button>
+        <button type="button" data-settings-section="time-rules" onclick="showSettingsSection('time-rules')">Zeitregeln und DATEV<span class="menu-sub">Rundung, Pausen, Arbeitszeitmodelle, Lohnarten, Personalnummern</span></button>
+      </div>
+      {% if ist_admin %}
+      {# Anbindungen: reine Systemkonfiguration, ausschließlich Administratoren -- E-Mail (PUT admin-only), Outlook-Kalender
+         (Kalender-Modul Stufe 2, seit 1.7.1, Gesamtschalter; die Graph-Zugangsdaten stehen unter "E-Mail und Microsoft 365"),
+         KI (KI-Fundament seit 1.6.2, nicht einmal buero_finanzen, Betreibervorgabe) und der Adressimport (/address-import admin-only,
+         seit 1.8.27 nur noch für Admin sichtbar -- vorher führte der Knopf beide Bürorollen auf "Zugriff verweigert"). #}
+      <div class="settings-group">Anbindungen</div>
+      <div class="settings-menu">
+        <button type="button" data-settings-section="email-settings" onclick="showSettingsSection('email-settings')">E-Mail und Microsoft 365<span class="menu-sub">Versandweg, SMTP oder Microsoft 365</span></button>
+        <button type="button" data-settings-section="outlook-sync" onclick="showSettingsSection('outlook-sync')">Outlook-Kalender<span class="menu-sub">Synchronisation der Termine, Gesamtschalter</span></button>
+        <button type="button" data-settings-section="ai-settings" onclick="showSettingsSection('ai-settings')">KI<span class="menu-sub">Anbieter, Zugangsdaten, Gesamtschalter</span></button>
+        <a href="/address-import" style="text-decoration:none"><button type="button">Adressimport<span class="menu-sub">Kunden, Lieferanten und offene Adressen aus dem Altsystem</span></button></a>
+      </div>
+      {% endif %}
       <div class="settings-group">System</div>
       <div class="settings-menu">
+        {% if ist_admin %}
         <button type="button" data-settings-section="modules" onclick="showSettingsSection('modules')">Module<span class="menu-sub">Optionale ERP-Bausteine ein-/ausschalten</span></button>
-        <button type="button" data-settings-section="tasks" onclick="showSettingsSection('tasks')">Aufgaben<span class="menu-sub">Spalten, Zuweisungs-Benachrichtigung</span></button>
-        <button type="button" data-settings-section="maintenance" onclick="showSettingsSection('maintenance')">Wartungen<span class="menu-sub">Vorlaufzeit, Standard-Sachbearbeiter</span></button>
-        <button type="button" data-settings-section="operational-assets" onclick="showSettingsSection('operational-assets')">Betriebsmittel<span class="menu-sub">Vorlaufzeit für Prüffristen</span></button>
-        <button type="button" data-settings-section="mobile" onclick="showSettingsSection('mobile')">Vor Ort<span class="menu-sub">Automatische Abmeldung nach Feierabend</span></button>
-        <a href="/inspection-templates" style="text-decoration:none"><button type="button">Prüfvorlagen<span class="menu-sub">Prüfpunkte je Dachtyp für Wartungsberichte</span></button></a>
-        <a href="/users" style="text-decoration:none"><button type="button">Benutzer & Zugriff<span class="menu-sub">Anmeldung und Bearbeiterzuordnung</span></button></a>
+        <a href="/users" style="text-decoration:none"><button type="button">Benutzer und Zugriff<span class="menu-sub">Anmeldung und Bearbeiterzuordnung</span></button></a>
+        {% endif %}
+        <div class="settings-subgroup">Protokolle</div>
+        <a href="/versandprotokoll" style="text-decoration:none"><button type="button">Versandprotokoll<span class="menu-sub">Jeder Versand mit dem abgelegten Dokument</span></button></a>
         <a href="/history" style="text-decoration:none"><button type="button">Änderungshistorie<span class="menu-sub">Wer hat wann was geändert?</span></button></a>
         <a href="/changelog" style="text-decoration:none"><button type="button">Changelog<span class="menu-sub">Was hat sich mit welcher Version geändert?</span></button></a>
-        <a href="/time-backoffice" style="text-decoration:none"><button type="button">Zeiterfassungs-Backoffice<span class="menu-sub">Zeitregeln, Stundenzettel & DATEV</span></button></a>
-        <button type="button" data-settings-section="email-settings" onclick="showSettingsSection('email-settings')">E-Mail-Versand<span class="menu-sub">SMTP-Zugangsdaten (nur Administratoren)</span></button>
       </div>
-      {% if can(current_user, 'admin') %}
-      {# Seit 1.8.27 nur für Admin: /address-import ist admin-only (Rechtekonzept, Vier Rollen,
-         Etappe 2 Punkt 4) -- vorher führte der Knopf beide Bürorollen auf "Zugriff verweigert". #}
-      <div class="settings-group">Importe</div>
-      <div class="settings-menu">
-        <a href="/address-import" style="text-decoration:none"><button type="button">Adressimport (Altsystem)<span class="menu-sub">Kunden, Lieferanten und offene Adressen aus einer CSV-/Excel-Datei</span></button></a>
-      </div>
-      {% endif %}
-      {% if can(current_user, 'admin') %}
-      {# KI-Fundament (seit 1.6.2, siehe CLAUDE.md "KI-Fundament"): reine Systemkonfiguration,
-         ausschließlich Administratoren -- nicht einmal buero_finanzen, anders als z. B. die
-         Kalkulationsgrundlagen weiter oben (Betreibervorgabe). Solange nichts konfiguriert
-         ist, existiert keine KI-Funktion, das ERP läuft vollständig ohne. #}
-      <div class="settings-group">KI</div>
-      <div class="settings-menu">
-        <button type="button" data-settings-section="ai-settings" onclick="showSettingsSection('ai-settings')">KI-Anbieter<span class="menu-sub">Anbieter, Zugangsdaten, Gesamtschalter (nur Administratoren)</span></button>
-      </div>
-      {# Kalender-Modul, Stufe 2 (seit 1.7.1, siehe CLAUDE.md "Kalender" -> "Stufe 2"): reine
-         Systemkonfiguration, ausschließlich Administratoren -- Muster KI-Anbieter oben. Die
-         Graph-Zugangsdaten selbst bleiben unter E-Mail-Versand, hier nur der Gesamtschalter. #}
-      <div class="settings-group">Kalender</div>
-      <div class="settings-menu">
-        <button type="button" data-settings-section="outlook-sync" onclick="showSettingsSection('outlook-sync')">Outlook-Synchronisation<span class="menu-sub">Gesamtschalter (nur Administratoren)</span></button>
-      </div>
-      {% endif %}
     </aside>
     <div class="settings-content">
   <section class="card settings-section" id="settings-general">
-    <div class="section-title"><div><h2 style="margin-bottom:4px">Unternehmensstammdaten</h2><div class="muted small">Zentrale Daten für spätere Angebote, Rechnungen, PDF-Dokumente und Schnittstellen.</div></div></div>
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Unternehmensdaten</h2><div class="muted small">Zentrale Daten für Angebote, Rechnungen, PDF-Dokumente und Schnittstellen.</div></div></div>
     <div class="fields" style="margin-top:14px">
       <div class="field"><label>Unternehmensname *</label><input id="companyName"></div>
       <div class="field"><label>Geschäftsführer / Inhaber</label><input id="managingDirector"></div>
@@ -172,10 +179,14 @@
       <div class="field"><label>Standard-MwSt. %</label><input id="defaultVat" type="text" inputmode="decimal" data-zahl></div>
     </div>
     <input type="hidden" id="quoteIntro"><input type="hidden" id="quoteOutro">
-    <div class="hint">Angebots-Vortexte, Schlusstexte und Zahlungsbedingungen werden jetzt zentral unter <b>Auswahllisten</b> gepflegt. Dort kannst du mehrere Varianten anlegen und einen Standard festlegen.</div>
-    <button onclick="saveGeneral()">Unternehmensstammdaten speichern</button><span id="generalStatus" class="status"></span>
+    <div class="hint">Vor- und Schlusstexte für Angebote und Rechnungen stehen unter <b>Vorlagen und Texte → Textbausteine</b>, die Zahlungsbedingungen unter <b>Finanzen → Zahlungsbedingungen</b> – dort lassen sich mehrere Varianten anlegen und ein Standard festlegen. Logos und Akzentfarbe stehen unter <b>Firma → Erscheinungsbild</b>.</div>
+    <button onclick="saveGeneral()">Unternehmensdaten speichern</button><span id="generalStatus" class="status"></span>
+  </section>
 
-    <h3 style="margin:22px 0 8px;font-size:14px">Firmenlogo</h3>
+  <section class="card settings-section" id="settings-appearance">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Erscheinungsbild</h2><div class="muted small">Firmenlogo, Logo auf den PDF-Dokumenten, Logo der Seitenleiste und Akzentfarbe der Oberfläche.</div></div></div>
+
+    <h3 style="margin:18px 0 8px;font-size:14px">Firmenlogo</h3>
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
       <div id="companyLogoPreviewWrap" style="display:none;align-items:center;overflow:hidden;max-width:220px;height:60px">
         <img id="companyLogoPreview" style="width:auto;height:60px;display:block;flex:0 0 auto" alt="Firmenlogo">
@@ -188,14 +199,20 @@
       <button type="button" class="danger" id="companyLogoRemove" style="display:none" onclick="removeCompanyLogo()">Entfernen</button>
     </div>
     <span id="companyLogoStatus" class="status"></span>
-    <div class="hint">Wird (einzeln abschaltbar, siehe Dokumente &amp; Layout weiter unten) auf PDF-Dokumenten sowie als Symbol der Monteursansicht auf dem Startbildschirm verwendet. Erscheint außerdem ersatzweise oben links in der Seitenleiste, solange dort kein eigenes Sidebar-Logo hinterlegt ist (siehe unten). PNG, JPEG, WebP oder SVG, max. 5 MB.</div>
+    <div class="hint">Wird auf PDF-Dokumenten (abschaltbar unter „Logo im PDF“ gleich darunter) sowie als Symbol der Monteursansicht auf dem Startbildschirm verwendet. Erscheint außerdem ersatzweise oben links in der Seitenleiste, solange dort kein eigenes Logo der Leiste hinterlegt ist (siehe unten). PNG, JPEG, WebP oder SVG, max. 5 MB.</div>
 
-    <h3 style="margin:22px 0 8px;font-size:14px">Sidebar-Logo</h3>
+    {# Seit 1.8.112 hier statt unter Dokumentlayout -> Gezeichnete Bausteine: derselbe Baustein "logo" des gemeinsamen
+       PDF-Rahmens (toggleDocumentLayoutBlock(), geladen in loadDocumentLayoutSection()). #}
+    <h3 style="margin:22px 0 8px;font-size:14px">Logo im PDF</h3>
+    <label style="display:flex;align-items:center;gap:8px;margin:8px 0;font-weight:650"><input type="checkbox" id="documentLayoutBlockLogo" style="width:auto" onchange="toggleDocumentLayoutBlock('logo',this.checked)"> Logo auf den PDF-Dokumenten anzeigen</label>
+    <div class="muted small" style="margin:-4px 0 8px">Das Firmenlogo wird oben auf Seite 1 jedes Dokuments gezeichnet – bei einem eigenen Briefpapier mit aufgedrucktem Logo ausschalten (siehe Vorlagen und Texte → Dokumentlayout).</div>
+
+    <h3 style="margin:22px 0 8px;font-size:14px">Logo der Leiste</h3>
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
       <div id="sidebarLogoPreviewWrap" style="display:none;align-items:center;overflow:hidden;max-width:220px">
-        <img id="sidebarLogoPreview" style="width:auto;display:block;flex:0 0 auto" alt="Sidebar-Logo">
+        <img id="sidebarLogoPreview" style="width:auto;display:block;flex:0 0 auto" alt="Logo der Leiste">
       </div>
-      <span id="sidebarLogoEmptyHint" class="muted small">Kein eigenes Sidebar-Logo hinterlegt.</span>
+      <span id="sidebarLogoEmptyHint" class="muted small">Kein eigenes Logo der Leiste hinterlegt.</span>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <input type="file" id="sidebarLogoFile" accept="image/png,image/jpeg,image/webp,image/svg+xml">
@@ -210,8 +227,26 @@
     </div>
     <span id="sidebarLogoStatus" class="status"></span>
     <div class="hint">Erscheint ausschließlich oben links in der Seitenleiste, statt des Firmenlogos bzw. des Schriftzugs "DACHKONZEPTE" -- sinnvoll, wenn das Firmenlogo (wie hier) selbst einen Schriftzug enthält, der bei keiner erlaubten Höhe mehr lesbar wäre. Hier lässt sich stattdessen eine reduzierte Variante hinterlegen (z. B. nur ein Bildzeichen). <span id="sidebarLogoFallbackHint"></span> Die Höhe oben gilt für das jeweils tatsächlich in der Seitenleiste gezeigte Logo. PNG, JPEG, WebP oder SVG, max. 5 MB. Ist das gezeigte Logo breiter als der verfügbare Platz, wird es rechts abgeschnitten statt in der Höhe verkleinert.</div>
+
+    <h3 style="margin:22px 0 8px;font-size:14px">Akzentfarbe</h3>
+    <div class="hint">Der Hell/Dunkel-Modus wird unten in der Seitenleiste umgeschaltet und pro Gerät im Browser gespeichert. Die Akzentfarbe gilt dagegen zentral für alle Benutzer.</div>
+    <div class="list-narrow">
+      <div class="field"><label>Akzentfarbe</label>
+        <div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <input type="color" id="accentColorPicker" value="#0d9488" style="width:52px;flex:0 0 52px">
+            <input type="text" id="accentColorText" value="#0d9488" maxlength="7" style="max-width:120px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">
+          </div>
+          <div class="muted small" style="margin-top:6px">Wird für Buttons, aktive Navigation und Hervorhebungen verwendet. Änderung wirkt sofort als Vorschau, "Speichern" übernimmt sie dauerhaft für alle.</div>
+          <div id="accentContrastWarning" class="small" style="margin-top:6px;color:var(--danger);font-weight:600"></div>
+        </div>
+      </div>
+      <button onclick="saveAccentColor()">Akzentfarbe speichern</button><span id="accentColorStatus" class="status"></span>
+    </div>
   </section>
 
+  {# Seit 1.8.112 nur für Administratoren im Markup -- die Spalten speichert nur ein Administrator (PUT/POST/DELETE admin-only). #}
+  {% if ist_admin %}
   <section class="card settings-section" id="settings-project-pipeline">
     <div class="section-title"><div><h2 style="margin-bottom:4px">Projekt-Pipeline</h2><div class="muted small">Frei sortierbare Kanban-Spalten der Projektliste -- unabhängig vom bestehenden Projektstatus.</div></div></div>
     <div class="hint">Diese Spalten sind eine reine, frei per Ziehen gesetzte Arbeitsansicht -- sie haben keine Auswirkung auf den Projektstatus (dieser bleibt automatisch/über Kennzahlen gesteuert, z. B. bei einer Beauftragung) und keine Automatik wie bei den Aufgaben-Spalten ("zählt als erledigt"). Ein neu angelegtes Projekt landet immer in der ersten Spalte.</div>
@@ -225,6 +260,7 @@
       <span id="projectPipelineColumnStatus" class="status"></span>
     </div>
   </section>
+  {% endif %}
 
   <section class="card settings-section" id="settings-numbers">
     <div class="section-title"><div><h2 style="margin-bottom:4px">Nummernkreise</h2><div class="muted small">Format, Startwert und nächste fortlaufende Nummer zentral festlegen.</div></div></div>
@@ -233,8 +269,8 @@
   </section>
 
   <section class="card settings-section" id="settings-payment-terms">
-    <div class="section-title"><div><h2 style="margin-bottom:4px">Zahlungsbedingungen</h2><div class="muted small">Grundlage für die automatische Fälligkeitsberechnung von Rechnungen (Rechnungsdatum + Tage) und später das Mahnwesen.</div></div></div>
-    <div class="hint">Rechnungs-Einleitungs- und Schlusstexte werden weiterhin zentral unter <b>Auswahllisten</b> gepflegt (Gruppen "Rechnungs-Vortexte"/"Rechnungs-Schlusstexte"), da sie technisch zum selben, allgemeinen Textvorlagen-System gehören wie z. B. die Angebotstexte.</div>
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Zahlungsbedingungen</h2><div class="muted small">Grundlage für die Fälligkeit von Rechnungen (Rechnungsdatum + Tage), das Skonto und das Mahnwesen.</div></div></div>
+    <div class="hint">Vor- und Schlusstexte für Rechnungen stehen unter <b>Vorlagen und Texte → Textbausteine</b> (Rechnungs-Vortexte, Rechnungs-Schlusstexte, Schlusstexte bei Erstattung).</div>
     <div class="list-narrow" style="margin-top:12px;display:flex;align-items:center;gap:10px"><button type="button" class="secondary" onclick="resetPaymentTermForm();showPaymentTermEditor()">+ Zahlungsbedingung</button><span id="paymentTermStatus" class="status"></span></div>
     <div id="paymentTermEditorPanel" class="option-editor-panel list-narrow" style="display:none">
       <h3 style="margin-top:0" id="paymentTermEditorHeading">Zahlungsbedingung hinzufügen</h3>
@@ -252,7 +288,7 @@
   </section>
 
   <section class="card settings-section" id="settings-tax-keys">
-    <div class="section-title"><div><h2 style="margin-bottom:4px">Steuerschlüssel</h2><div class="muted small">Steuert sowohl den Hinweistext auf Angebot/Auftrag/Rechnung als auch den tatsächlich verwendeten Mehrwertsteuersatz.</div></div></div>
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Steuer</h2><div class="muted small">Steuerschlüssel steuern sowohl den Hinweistext auf Angebot/Auftrag/Rechnung als auch den tatsächlich verwendeten Mehrwertsteuersatz.</div></div></div>
     <div class="hint"><b>Wichtig:</b> die Texte für §13b und Solar sind ein Startpunkt, keine Rechtsberatung – bitte vor Verwendung mit einem Steuerberater abgleichen und bei Bedarf anpassen.</div>
     <div class="list-narrow" style="margin-top:12px;display:flex;align-items:center;gap:10px"><button type="button" class="secondary" onclick="resetTaxKeyForm();showTaxKeyEditor()">+ Steuerschlüssel</button><span id="taxKeyStatus" class="status"></span></div>
     <div id="taxKeyEditorPanel" class="option-editor-panel list-narrow" style="display:none">
@@ -268,17 +304,19 @@
   </section>
 
   <section class="card settings-section" id="settings-reminder-levels">
-    <div class="section-title"><div><h2 style="margin-bottom:4px">Mahnstufen</h2><div class="muted small">Bis zu drei Mahnstufen, jede einzeln aktivierbar – nur aktive Stufen werden beim Anlegen einer Mahnung angeboten. Je Stufe eine Zahl: die Zahlungsfrist in Tagen ab dem Mahndatum (Tag des Festschreibens). Die erste Stufe ist ab dem Tag nach der Fälligkeit der Rechnung möglich, jede weitere ab dem Tag nach dem Ende der Frist der vorigen. Entwürfe entstehen nur per Klick im Mahnwesen.</div></div></div>
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Mahnwesen</h2><div class="muted small">Mahngebühren und Verzugszinsen, Basiszinssatz und bis zu drei Mahnstufen, jede einzeln aktivierbar – nur aktive Stufen werden beim Anlegen einer Mahnung angeboten. Je Stufe eine Zahl: die Zahlungsfrist in Tagen ab dem Mahndatum (Tag des Festschreibens). Die erste Stufe ist ab dem Tag nach der Fälligkeit der Rechnung möglich, jede weitere ab dem Tag nach dem Ende der Frist der vorigen. Entwürfe entstehen nur per Klick im Mahnwesen.</div></div></div>
     <div class="hint"><b>Wichtig:</b> die vorgeschlagenen Fristen, Gebühren und Texte sind ein Startpunkt, keine Rechtsberatung – bitte insbesondere Mahngebühren und Formulierungen vor Verwendung mit einem Steuerberater/Rechtsanwalt abgleichen.</div>
     <div id="dunningSwitch" class="list-narrow" style="border:1px solid var(--line);padding:14px 16px;margin-top:12px"></div>
-    <div id="dunningLegal" class="list-narrow" style="border:1px solid var(--line);padding:14px 16px;margin-top:12px"><div id="baseRatesBox"><span class="muted small">Lädt …</span></div><div id="legalTextsBox" style="margin-top:16px"></div></div>
+    {# Seit 1.8.112 stehen die Rechtstexte zu Verzug, Zinsen und Pauschale unter Rechtstexte -> Mahn-Rechtstexte (#legalTextsBox
+       dort); geladen werden beide Kästen wie bisher zusammen (loadDunningLegal()). #}
+    <div id="dunningLegal" class="list-narrow" style="border:1px solid var(--line);padding:14px 16px;margin-top:12px"><div id="baseRatesBox"><span class="muted small">Lädt …</span></div></div>
     <div id="reminderLevelRows" style="margin-top:12px"></div>
   </section>
 
   <section class="card settings-section" id="settings-document-layout">
-    <div class="section-title"><div><h2 style="margin-bottom:4px">Dokumente &amp; Layout</h2><div class="muted small">Gemeinsamer PDF-Rahmen (seit 1.3.1, ab 1.3.6 für jeden Dokumenttyp außer dem Angebot zusammengeführt): ein Briefpapier, ein Satz Ränder, dieselben optionalen gezeichneten Bausteine -- statt je einer eigenen Einstellung pro Dokumenttyp.</div></div></div>
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Dokumentlayout</h2><div class="muted small">Gemeinsamer PDF-Rahmen: ein Briefpapier, ein Satz Ränder, dieselben optionalen gezeichneten Bausteine -- statt je einer eigenen Einstellung pro Dokumenttyp.</div></div></div>
 
-    <div class="hint" style="margin-bottom:14px;font-weight:600">Gilt für alle Dokumenttypen -- Angebot, Mahnung, Rechnung, Auftrag und Einsatzbericht.</div>
+    <div class="hint" style="margin-bottom:14px;font-weight:600">Gilt für alle Dokumenttypen, die den gemeinsamen Rahmen nutzen – welche das sind, steht gleich darunter. Das Logo auf den Dokumenten schaltet Firma → Erscheinungsbild → „Logo im PDF“.</div>
 
     <div id="documentLayoutRollout" class="hint" style="margin-bottom:14px"></div>
 
@@ -335,8 +373,7 @@
 
     <h3 style="margin:22px 0 8px;font-size:14px">Gezeichnete Bausteine</h3>
     <div class="muted small" style="margin-bottom:10px">Rückfall für Installationen ohne eigenes Briefpapier – bei hinterlegtem Briefpapier üblicherweise ausschalten, damit sich nichts überlagert.</div>
-    <div class="hint" style="margin-bottom:10px">Jeder der vier Bausteine wird an einer festen Stelle GEZEICHNET – trifft dort ein eigener, hinterlegter Briefbogen bereits etwas AUFGEDRUCKTES (Kopfgrafik, Fußzeile, eine Dekorfläche o. Ä.), überlagern sich beide sichtbar. Alle vier sind deshalb ausschließlich für Installationen <b>ohne eigenen Briefbogen</b> gedacht bzw. müssen bei einem eigenen Briefbogen auf dessen tatsächliche Gestaltung abgestimmt werden (ausschalten, wo der Briefbogen das Gleiche schon zeigt; sonst die Position prüfen und ggf. anpassen). Logo und Firmenkopf werden am oberen Rand gezeichnet, der fließende Inhalt (Anschrift, Betreff, Mahntext) beginnt direkt darunter, am oberen Randabstand für Seite 1/Folgeseiten (siehe „Randabstände" oben) – wird einer der beiden eingeschaltet, muss der obere Rand mindestens bis zur Unterkante des Bausteins reichen, sonst überlagern sich Baustein und Inhalt sichtbar; die Standardwerte sind dafür bereits ausreichend bemessen, nach einer eigenen Anpassung der Ränder aber selbst zu prüfen. Die Fußzeile (Seitenzahl) sitzt an einer <b>festen</b> Position unten links, unabhängig vom Randabstand – bei einem eigenen Briefbogen liegt dort erfahrungsgemäß bereits dessen aufgedruckter Fußbereich, deshalb steht sie standardmäßig aus (die Seitenangabe steht ohnehin bereits im Meta-Block auf Seite 1 und in der Wiederholungszeile auf Folgeseiten). Die Wiederholungszeile sitzt am oberen Rand jeder Folgeseite – ihre <b>vertikale Position ist seit 1.3.12 einstellbar</b> (Feld unten), weil ein eigener Briefbogen seine Kopfdekoration an praktisch jeder Stelle haben kann; der Standardwert passt für einen Briefbogen ohne eigene Kopfgrafik, bei einer tieferen Kopfgrafik den Wert entsprechend erhöhen, bis die Zeile darunter liegt (und dabei weiterhin oberhalb des oberen Randabstands für Folgeseiten bleibt, sonst überlagert sie den Inhalt).</div>
-    <label style="display:flex;align-items:center;gap:8px;margin:8px 0;font-weight:650"><input type="checkbox" id="documentLayoutBlockLogo" style="width:auto" onchange="toggleDocumentLayoutBlock('logo',this.checked)"> Logo anzeigen</label>
+    <div class="hint" style="margin-bottom:10px">Jeder dieser Bausteine (wie auch das Logo, Firma → Erscheinungsbild → „Logo im PDF“) wird an einer festen Stelle GEZEICHNET – trifft dort ein eigener, hinterlegter Briefbogen bereits etwas AUFGEDRUCKTES (Kopfgrafik, Fußzeile, eine Dekorfläche o. Ä.), überlagern sich beide sichtbar. Alle sind deshalb ausschließlich für Installationen <b>ohne eigenen Briefbogen</b> gedacht bzw. müssen bei einem eigenen Briefbogen auf dessen tatsächliche Gestaltung abgestimmt werden (ausschalten, wo der Briefbogen das Gleiche schon zeigt; sonst die Position prüfen und ggf. anpassen). Logo und Firmenkopf werden am oberen Rand gezeichnet, der fließende Inhalt (Anschrift, Betreff, Mahntext) beginnt direkt darunter, am oberen Randabstand für Seite 1/Folgeseiten (siehe „Randabstände" oben) – wird einer der beiden eingeschaltet, muss der obere Rand mindestens bis zur Unterkante des Bausteins reichen, sonst überlagern sich Baustein und Inhalt sichtbar; die Standardwerte sind dafür bereits ausreichend bemessen, nach einer eigenen Anpassung der Ränder aber selbst zu prüfen. Die Fußzeile (Seitenzahl) sitzt an einer <b>festen</b> Position unten links, unabhängig vom Randabstand – bei einem eigenen Briefbogen liegt dort erfahrungsgemäß bereits dessen aufgedruckter Fußbereich, deshalb steht sie standardmäßig aus (die Seitenangabe steht ohnehin bereits im Meta-Block auf Seite 1 und in der Wiederholungszeile auf Folgeseiten). Die Wiederholungszeile sitzt am oberen Rand jeder Folgeseite – ihre <b>vertikale Position ist einstellbar</b> (Feld unten), weil ein eigener Briefbogen seine Kopfdekoration an praktisch jeder Stelle haben kann; der Standardwert passt für einen Briefbogen ohne eigene Kopfgrafik, bei einer tieferen Kopfgrafik den Wert entsprechend erhöhen, bis die Zeile darunter liegt (und dabei weiterhin oberhalb des oberen Randabstands für Folgeseiten bleibt, sonst überlagert sie den Inhalt).</div>
     <label style="display:flex;align-items:center;gap:8px;margin:8px 0;font-weight:650"><input type="checkbox" id="documentLayoutBlockHeader" style="width:auto" onchange="toggleDocumentLayoutBlock('company_header',this.checked)"> Firmenkopf anzeigen</label>
     <label style="display:flex;align-items:center;gap:8px;margin:8px 0;font-weight:650"><input type="checkbox" id="documentLayoutBlockFooter" style="width:auto" onchange="toggleDocumentLayoutBlock('footer_text',this.checked)"> Seitenzahl anzeigen</label>
     <label style="display:flex;align-items:center;gap:8px;margin:8px 0;font-weight:650"><input type="checkbox" id="documentLayoutBlockContinuation" style="width:auto" onchange="toggleDocumentLayoutBlock('continuation_header',this.checked)"> Wiederholungszeile auf Folgeseiten anzeigen</label>
@@ -345,8 +382,11 @@
     <span id="documentLayoutBlocksStatus" class="status"></span>
   </section>
 
+  {# Anbindungen (seit 1.8.112 eigene Gruppe): nur für Administratoren im Markup -- speichern und lesen darf hier nur ein
+     Administrator (die Büro-Rollen sahen bis 1.8.111 nur "nur für Administratoren verfügbar"). #}
+  {% if ist_admin %}
   <section class="card settings-section" id="settings-email-settings">
-    <div class="section-title"><div><h2 style="margin-bottom:4px">E-Mail-Versand</h2><div class="muted small">Versand von Dokumenten per E-Mail direkt aus dem ERP – aktuell für Mahnungen, künftig für weitere Vorgänge.</div></div></div>
+    <div class="section-title"><div><h2 style="margin-bottom:4px">E-Mail und Microsoft 365</h2><div class="muted small">Versandweg für jede E-Mail aus dem ERP – Angebote, Aufträge, Verträge, Rechnungen, Mahnungen, Checklisten, Briefe an den Auftraggeber und Aufgaben-Benachrichtigungen.</div></div></div>
 
     <div class="field" style="max-width:420px;margin-top:12px">
       <label>Versandweg</label>
@@ -431,20 +471,21 @@
   </section>
 
   <section class="card settings-section" id="settings-outlook-sync">
-    <div class="section-title"><div><h2 style="margin-bottom:4px">Outlook-Synchronisation</h2><div class="muted small">Kalender-Modul, Stufe 2 -- gleicht die eigenen Termine jeder Person mit ihrem in "Benutzer &amp; Zugriff" hinterlegten Outlook-Postfach ab.</div></div></div>
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Outlook-Kalender</h2><div class="muted small">Gleicht die eigenen Termine jeder Person mit ihrem unter „Benutzer und Zugriff“ hinterlegten Outlook-Postfach ab.</div></div></div>
 
-    <div class="hint">Nutzt dieselbe Microsoft-365-App-Registrierung wie unter "E-Mail-Versand" (Mandanten-ID/Client-ID/Client-Secret) -- die Rolle <code>Calendars.ReadWrite</code> wird wie <code>Mail.Send</code> ausschließlich über Exchange "RBAC for Applications" (Scope "ERP-Zugriff") vergeben, nie in Entra ID -- jedes zu synchronisierende Postfach muss Mitglied der Gruppe <code>ERP-Zugriff@dachkonzepte.gmbh</code> sein (vollständige Anleitung: docs/archiv/modul-kalender-und-outlook-sync.md). Solange der Schalter unten aus ist, ruft niemand Microsoft Graph für Kalenderdaten auf.</div>
+    <div class="hint">Nutzt dieselbe Microsoft-365-App-Registrierung wie unter „E-Mail und Microsoft 365“ (Mandanten-ID/Client-ID/Client-Secret) -- die Rolle <code>Calendars.ReadWrite</code> wird wie <code>Mail.Send</code> ausschließlich über Exchange "RBAC for Applications" (Scope "ERP-Zugriff") vergeben, nie in Entra ID -- jedes zu synchronisierende Postfach muss Mitglied der Gruppe <code>ERP-Zugriff@dachkonzepte.gmbh</code> sein (vollständige Anleitung: docs/archiv/modul-kalender-und-outlook-sync.md). Solange der Schalter unten aus ist, ruft niemand Microsoft Graph für Kalenderdaten auf.</div>
 
     <div class="field" style="max-width:420px;margin-top:12px">
       <label style="display:flex;align-items:center;gap:8px;font-weight:650"><input id="outlookSyncEnabled" type="checkbox" style="width:auto"> Outlook-Kalendersynchronisation aktivieren</label>
     </div>
-    <div id="outlookGraphMissingHint" class="hint hidden" style="margin-top:8px">Unter "E-Mail-Versand" sind noch keine vollständigen Microsoft-365-Zugangsdaten hinterlegt -- der Schalter kann aktiviert werden, ein tatsächlicher Sync-Lauf schlägt aber fehl, bis Mandanten-ID/Client-ID/Client-Secret dort eingetragen sind.</div>
+    <div id="outlookGraphMissingHint" class="hint hidden" style="margin-top:8px">Unter „E-Mail und Microsoft 365“ sind noch keine vollständigen Microsoft-365-Zugangsdaten hinterlegt -- der Schalter kann aktiviert werden, ein tatsächlicher Sync-Lauf schlägt aber fehl, bis Mandanten-ID/Client-ID/Client-Secret dort eingetragen sind.</div>
 
     <div style="display:flex;gap:8px;margin-top:14px">
       <button onclick="saveOutlookSyncSettings()">Speichern</button>
       <span id="outlookSyncStatus" class="status"></span>
     </div>
   </section>
+  {% endif %}
 
   <section class="card settings-section" id="settings-email-templates">
     <div class="section-title"><div><h2 style="margin-bottom:4px">E-Mail-Vorlagen</h2><div class="muted small">Betreff und Text der E-Mail beim Versand eines Dokuments – die Details (Beträge, Positionen) stehen ohnehin im PDF-Anhang, hier reicht eine kurze Nachricht.</div></div></div>
@@ -488,16 +529,25 @@
   </section>
 
   <section class="card settings-section" id="settings-notice-reservations">
-    <div class="section-title"><div><h2 style="margin-bottom:4px">Vorbehalte in Anzeigen</h2><div class="muted small">Textbaustein für den Vorbehalt in Briefen an den Auftraggeber – je Briefart (Behinderungsanzeige, Anzeige der Wiederaufnahme, Bedenkenanzeige) und Vertragsgrundlage des Auftrags (VOB/B oder BGB, auch mit VOB/C Abschnitt 4 und 5). Gedruckt wird er nur, wenn „rechtlich geprüft am“ und „durch“ ausgefüllt sind. Ungeprüft fehlt er im Brief; versendet werden kann trotzdem – Behinderung und Bedenken sind unverzüglich anzuzeigen –, die Anzeige warnt dann deutlich.</div></div></div>
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Vorbehalte</h2><div class="muted small">Textbaustein für den Vorbehalt in Briefen an den Auftraggeber – je Briefart (Behinderungsanzeige, Anzeige der Wiederaufnahme, Bedenkenanzeige) und Vertragsgrundlage des Auftrags (VOB/B oder BGB, auch mit VOB/C Abschnitt 4 und 5). Gedruckt wird er nur, wenn „rechtlich geprüft am“ und „durch“ ausgefüllt sind. Ungeprüft fehlt er im Brief; versendet werden kann trotzdem – Behinderung und Bedenken sind unverzüglich anzuzeigen –, die Anzeige warnt dann deutlich.</div></div></div>
     <div class="hint"><b>Wichtig:</b> Hier stehen bewusst keine vorgegebenen Texte. Die Vorbehalte bitte von einer Rechtsberatung formulieren oder prüfen lassen. Wird der Text später geändert, ohne die Prüfangaben neu einzutragen, gilt er wieder als ungeprüft. Ein schon erstellter Brief bleibt, wie er ist.</div>
     <div id="noticeReservationRows"></div>
   </section>
 
+  {# Seit 1.8.112 eigener Bereich unter Rechtstexte (vorher im Abschnitt Mahnstufen): lesen Büro und Admin, pflegen nur
+     Administratoren (PUT admin-only); gezeichnet von renderLegalTexts(), geladen mit dem Basiszinssatz (loadDunningLegal()). #}
+  <section class="card settings-section" id="settings-dunning-legal-texts">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Mahn-Rechtstexte</h2><div class="muted small">Textbausteine zu Verzug, Verzugszinsen und Pauschale nach § 288 Abs. 5 BGB für die Mahnung. Gedruckt wird ein Text nur geprüft und nur, wenn die Mahnung das Thema nennt.</div></div></div>
+    <div id="legalTextsBox" class="list-narrow" style="margin-top:12px"><span class="muted small">Lädt …</span></div>
+  </section>
+
+  {# Auswahllisten und Textbausteine (seit 1.8.112 zwei Menüpunkte, ein Bereich): optionListMode wählt, welche Listen das
+     Auswahlfeld zeigt -- die Vor- und Schlusstexte (TEXT_GRUPPEN) unter "Textbausteine", alle übrigen unter "Auswahllisten". #}
   <section class="card settings-section" id="settings-option-lists">
-    <div class="section-title"><div><h2 style="margin-bottom:4px">Zentrale Auswahllisten</h2><div class="muted small">Wiederverwendbare ERP-Dropdownwerte an einer Stelle pflegen. Zeitarten, Tätigkeiten und Abwesenheitsarten werden im Zeiterfassungs-Backoffice verwaltet.</div></div></div>
+    <div class="section-title"><div><h2 style="margin-bottom:4px" id="optionListsHeading">Auswahllisten</h2><div class="muted small" id="optionListsSubtitle">Wiederverwendbare ERP-Dropdownwerte an einer Stelle pflegen. Die Vor- und Schlusstexte stehen unter Vorlagen und Texte → Textbausteine, Zeitarten, Tätigkeiten und Abwesenheitsarten je eigens unter Listen.</div></div></div>
     <div class="hint"><b>Prinzip:</b> Ein Eintrag kann aktiv/inaktiv sein, eine Sortierung besitzen und als Standard markiert werden. Bei Textbausteinen ist die Bezeichnung kurz, der Wert enthält den vollständigen Text.</div>
     <div class="list-narrow">
-      <div class="field" style="max-width:420px"><label>Auswahlliste</label><select id="optionGroupSelect" onchange="selectOptionGroup()"></select></div>
+      <div class="field" style="max-width:420px"><label id="optionGroupSelectLabel">Auswahlliste</label><select id="optionGroupSelect" onchange="selectOptionGroup()"></select></div>
       <div id="optionGroupDescription" class="muted small" style="margin:6px 0 12px"></div>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><button type="button" class="secondary" id="optionAddToggle" onclick="resetOptionEditor();showOptionEditor()">+ Eintrag</button><span id="optionStatus" class="status"></span></div>
       <div id="optionEditorPanel" class="option-editor-panel" style="display:none;margin-bottom:14px">
@@ -570,8 +620,28 @@
     <div class="list-narrow" style="overflow:auto;margin-top:14px"><table><thead><tr><th>Kategorie</th><th>Sensibel</th><th>Für Monteure sichtbar</th><th>Status</th><th></th></tr></thead><tbody id="documentCategoryRows"></tbody></table></div>
   </section>
 
+  {# Zeitarten, Tätigkeiten und Abwesenheitsarten (seit 1.8.112 hier statt im Zeiterfassungs-Backoffice, Reiter "Auswahllisten"):
+     drei Menüpunkte, ein Bereich -- ZEIT_LISTEN wählt die Liste. Wie im Backoffice nur hinzufügen und löschen; ändern und
+     deaktivieren gehört zu Stufe 2 "Bereinigen" (docs/archiv/stammdaten-und-sidebar.md). #}
+  <section class="card settings-section" id="settings-time-lists">
+    <div class="section-title"><div><h2 style="margin-bottom:4px" id="timeListHeading">Zeitarten</h2><div class="muted small" id="timeListDescription"></div></div></div>
+    <div class="list-narrow">
+      <div style="overflow:auto;margin-top:12px"><table><thead><tr><th>Bezeichnung</th><th>Wert</th><th></th><th></th></tr></thead><tbody id="timeListRows"></tbody></table></div>
+      <div class="option-editor-panel">
+        <h3 style="margin-top:0">Eintrag hinzufügen</h3>
+        <div class="fields">
+          <div class="field"><label>Bezeichnung</label><input id="timeListLabel"></div>
+          <div class="field"><label>Wert</label><input id="timeListValue"></div>
+          <div class="field"><label>Sortierung</label><input id="timeListSort" type="text" inputmode="numeric" data-zahl="ganz" data-feld="Sortierung" value="100"></div>
+          <div class="field"><label>Standard</label><label class="inline-check"><input id="timeListDefault" type="checkbox"> als Standard</label></div>
+        </div>
+        <button onclick="saveTimeListOption()">+ Eintrag hinzufügen</button><span id="timeListStatus" class="status"></span>
+      </div>
+    </div>
+  </section>
+
   <section class="card settings-section" id="settings-employee-functions">
-    <div class="section-title"><div><h2 style="margin-bottom:4px">Mitarbeiterfunktionen / Tätigkeiten</h2><div class="muted small">Zentrale Auswahl für die Mitarbeiter-Stammdaten. Die Zuordnung gewerblich/kaufmännisch steuert automatisch, ob ein Stundenlohn für den Mittellohn erforderlich ist.</div></div></div>
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Mitarbeiterfunktionen</h2><div class="muted small">Zentrale Auswahl für die Mitarbeiter-Stammdaten. Die Zuordnung gewerblich/kaufmännisch steuert automatisch, ob ein Stundenlohn für den Mittellohn erforderlich ist.</div></div></div>
     <div class="hint">Beispiele: Dachdecker Vorarbeiter, Dachdecker Geselle, Zimmerer Geselle, Lagerist, Büro / Verwaltung. Funktionen, die bereits Mitarbeitern zugeordnet sind, werden nicht gelöscht, sondern bei Bedarf auf <b>inaktiv</b> gesetzt.</div>
     <div class="list-narrow" style="margin-top:12px;display:flex;align-items:center;gap:10px"><button type="button" class="secondary" onclick="resetEmployeeFunction();showFunctionEditor()">+ Funktion</button><span id="functionStatus" class="status"></span></div>
     <div id="functionEditorPanel" class="option-editor-panel list-narrow" style="display:none">
@@ -586,6 +656,55 @@
       <button onclick="saveEmployeeFunction()" id="functionSaveButton">Hinzufügen</button> <button class="secondary" onclick="hideFunctionEditor()">Abbrechen</button>
     </div>
     <div class="list-narrow" style="overflow:auto;margin-top:14px"><table><thead><tr><th>Funktion</th><th>Gruppe</th><th>Sort.</th><th>Status</th><th></th></tr></thead><tbody id="functionRows"></tbody></table></div>
+  </section>
+
+  {# Zeitregeln und DATEV (seit 1.8.112 hier statt im Zeiterfassungs-Backoffice: Reiter "Einstellungen" und "Arbeitszeitmodelle",
+     dazu die DATEV-Personalnummern aus "DATEV / Lohn"): dieselben Endpunkte (/api/time-backoffice/…, buero_auftrag aufwärts),
+     Zeitregeln und Lohnarten wie bisher in einem Formular (der PUT ist kein Teil-Update). Das Backoffice behält Prüfen,
+     "Abgeschlossen bis" und die Exporte. #}
+  <section class="card settings-section" id="settings-time-rules">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Zeitregeln und DATEV</h2><div class="muted small">Regeln der Zeiterfassung, Arbeitszeitmodelle mit automatischen Pausen und die Zuordnung für den DATEV-Lohnexport.</div></div></div>
+    <div class="hint">Buchungen und Abwesenheiten prüfen, „Abgeschlossen bis“ setzen sowie Stundenzettel und DATEV-Lohndaten exportieren: im <a href="/time-backoffice">Zeiterfassungs-Backoffice</a>.</div>
+    <div class="list-narrow">
+      <h3 style="margin:14px 0 8px;font-size:15px">Allgemeine Zeitregeln</h3>
+      <div class="time-grid">
+        <div class="field"><label>Rundung</label><select id="rounding"><option value="0">keine Rundung</option><option value="5">5 Minuten</option><option value="10">10 Minuten</option><option value="15">15 Minuten</option><option value="30">30 Minuten</option></select></div>
+        <div class="field"><label>Manuelle Standardpause / Fallback</label><input id="defaultBreak" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-max="240" data-feld="Standardpause"></div>
+        <label class="inline-check"><input id="allowManual" type="checkbox"> Manuelle Buchungen erlauben</label>
+        <label class="inline-check"><input id="allowGroup" type="checkbox"> Gruppenbuchungen erlauben</label>
+        <label class="inline-check"><input id="requireItem" type="checkbox"> LV-Position verpflichtend</label>
+        <label class="inline-check"><input id="requireActivity" type="checkbox"> Tätigkeit verpflichtend</label>
+        <div class="field"><label>Standard-Arbeitszeitmodell</label><select id="defaultWorkModel"></select></div>
+      </div>
+      <h3 style="margin:18px 0 8px;font-size:15px">DATEV / Lohnarten</h3>
+      <div class="time-grid">
+        <div class="field"><label>Zielsystem</label><select id="datevTarget"><option value="lohn_gehalt">DATEV Lohn und Gehalt</option><option value="lodas">DATEV LODAS</option></select></div><div></div>
+        <div class="field"><label>Lohnart Baustellenzeit</label><input id="wageSite"></div>
+        <div class="field"><label>Lohnart Fahrzeit</label><input id="wageTravel"></div>
+        <div class="field"><label>Lohnart Werkstattzeit</label><input id="wageWorkshop"></div>
+        <div class="field"><label>Lohnart Sonstige Zeit</label><input id="wageOther"></div>
+        <div class="field"><label>Lohnart Schlechtwetter Winter</label><input id="wageWeatherWinter"></div>
+        <div class="field"><label>Lohnart Schlechtwetter Sommer</label><input id="wageWeatherSummer"></div>
+      </div>
+      <div style="margin-top:14px"><button onclick="saveTimeRules()">Zeitregeln und Lohnarten speichern</button><span id="timeRulesStatus" class="status"></span></div>
+    </div>
+    <div class="block">
+      <div class="model-title"><div><h3 style="margin:0 0 4px;font-size:15px">Arbeitszeitmodelle</h3><div class="muted small">Sommer-, Winter- oder weitere Modelle mit automatischen Pausenregeln.</div></div><button onclick="newModel()">+ Modell</button></div>
+      <div id="workModelCards" style="margin-top:10px"></div>
+      <span id="workModelStatus" class="status"></span>
+      <h3 style="margin:18px 0 8px;font-size:15px">Mitarbeiter-Zuordnung</h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><button class="secondary" onclick="selectCommercial()">Gewerbliche markieren</button><button class="secondary" onclick="toggleAllAssignments(true)">Alle markieren</button><button class="secondary" onclick="toggleAllAssignments(false)">Keine</button><select id="bulkModel" style="width:auto"></select><button onclick="assignBulkModel()">Markierte umstellen</button></div>
+      <div class="muted small" style="margin-bottom:8px">Damit kannst du z. B. alle Dachdecker gesammelt vom Sommer- auf das Wintermodell umstellen.</div>
+      <div style="overflow:auto;max-height:65vh"><table><thead><tr><th></th><th>Mitarbeiter</th><th>Funktion</th><th>Aktuelles Modell</th></tr></thead><tbody id="workAssignmentRows"></tbody></table></div>
+      <span id="workAssignmentStatus" class="status"></span>
+    </div>
+    <div class="block">
+      <h3>DATEV-Personalnummern</h3>
+      <label class="inline-check"><input id="datevSameErp" type="checkbox" onchange="datevSameChanged()"> DATEV-Personalnummer entspricht der ERP-Mitarbeiternummer</label>
+      <div class="muted small" style="margin:7px 0 12px">Bei Aktivierung wird die ERP-Mitarbeiternummer automatisch für den DATEV-Export verwendet. Separate DATEV-Nummern sind dann gesperrt.</div>
+      <div style="overflow:auto;max-height:60vh"><table><thead><tr><th>Mitarbeiter</th><th>ERP-Nr.</th><th>DATEV Personalnr.</th><th>Export</th><th></th></tr></thead><tbody id="payrollRows"></tbody></table></div>
+      <span id="payrollStatus" class="status"></span>
+    </div>
   </section>
 
   {% if can(current_user, 'admin', 'buero_finanzen') %}
@@ -656,31 +775,9 @@
     <button onclick="saveCalculation()">Kalkulationsgrundlagen speichern</button><span id="calcStatus" class="status"></span>
   </section>
 
-  <section class="card settings-section" id="settings-recurring-costs">
-    <div class="section-title"><div><h2 style="margin-bottom:4px">Betriebskosten</h2><div class="muted small">Einstellungen für das Modul Betriebskosten-Übersicht.</div></div></div>
-    <div id="recurringCostModuleDisabledNotice" class="hint" style="display:none">Das Modul Betriebskosten-Übersicht ist aktuell deaktiviert (siehe „Module" oben) -- die folgende Einstellung wirkt erst, wenn es wieder aktiv ist.</div>
-    <div id="recurringCostModuleContent">
-      <div class="fields">
-        <div class="field"><label>Vorlaufzeit für Kündigungsfristen (Tage)</label><input id="recurringCostLeadDays" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-feld="Vorlaufzeit"><div class="muted small">Ab wie vielen Tagen vor der berechneten Kündigungsfrist eine Aufgabe für Büro-Finanzen erzeugt wird.</div></div>
-      </div>
-      <button onclick="saveRecurringCostSettings()">Speichern</button><span id="recurringCostSettingsStatus" class="status"></span>
-    </div>
-  </section>
-
-  <section class="card settings-section" id="settings-incoming-invoices">
-    <div class="section-title"><div><h2 style="margin-bottom:4px">Buchhaltung</h2><div class="muted small">Einstellungen für das Modul Buchhaltung (Eingangsrechnungen).</div></div></div>
-    <div id="incomingInvoiceModuleDisabledNotice" class="hint" style="display:none">Das Modul Buchhaltung ist aktuell deaktiviert (siehe „Module" oben) -- die folgende Einstellung wirkt erst, wenn es wieder aktiv ist.</div>
-    <div id="incomingInvoiceModuleContent">
-      <div class="fields">
-        <div class="field"><label>Vorlaufzeit für die Skonto-Warnung (Tage)</label><input id="incomingInvoiceLeadDays" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-feld="Vorlaufzeit"><div class="muted small">Ab wie vielen Tagen vor der Skontofrist eine Hervorhebung/Aufgabe für Büro-Finanzen erzeugt wird.</div></div>
-      </div>
-      <button onclick="saveIncomingInvoiceSettings()">Speichern</button><span id="incomingInvoiceSettingsStatus" class="status"></span>
-    </div>
-  </section>
-
   <section class="card settings-section" id="settings-accounts">
     <div class="section-title"><div><h2 style="margin-bottom:4px">Kontenstamm</h2><div class="muted small">Sachkonten (SKR 04) für die Vorkontierung von Eingangsrechnungen -- reine Vorbereitung, der Steuerberater prüft und bucht.</div></div></div>
-    <div id="accountsModuleDisabledNotice" class="hint" style="display:none">Das Modul Buchhaltung ist aktuell deaktiviert (siehe „Module" oben) -- der Kontenstamm wirkt erst, wenn es wieder aktiv ist.</div>
+    <div id="accountsModuleDisabledNotice" class="hint" style="display:none">Das Modul Buchhaltung ist aktuell deaktiviert (ein Administrator schaltet es unter System → Module ein) -- der Kontenstamm wirkt erst, wenn es wieder aktiv ist.</div>
     <div id="accountsModuleContent">
       <div class="hint"><b>Kein Startbestand:</b> die Liste ist bewusst leer, bis Konten manuell angelegt oder aus der Steuerberater-Kontendatei importiert werden (Import folgt in einer späteren Version) -- damit keine ungeprüften Kontonummern in Umlauf kommen.</div>
       <div class="list-narrow" style="margin-top:12px;display:flex;align-items:center;gap:10px"><button type="button" class="secondary" onclick="resetAccountForm();showAccountEditor()">+ Konto</button><span id="accountStatus" class="status"></span></div>
@@ -705,7 +802,7 @@
   {% endif %}
 
   <section class="card settings-section" id="settings-planning">
-    <div class="section-title"><div><h2 style="margin-bottom:4px">Plantafel & Kapazitätsplanung</h2><div class="muted small">Zentrale Parameter für Planungsvorschläge, Tageskapazität und Auslastungsberechnung.</div></div></div>
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Arbeitszeit und Kalender</h2><div class="muted small">Zentrale Parameter für Plantafel, Planungsvorschläge, Tageskapazität und Auslastungsberechnung.</div></div></div>
     <div class="hint"><b>Planungsvorschlag:</b> Soll-Stunden werden durch die verfügbare Teamkapazität geteilt. Abwesenheiten, automatische gesetzliche Feiertage des gewählten Bundeslands sowie zusätzliche betriebsfreie Tage reduzieren die Kapazität automatisch. Schulferien werden nur visuell dargestellt. Die Anfahrtszeit kann je Planeinsatz überschrieben werden.</div>
     <div class="fields">
       <div class="field"><label>Tägliche geplante Arbeitszeit je Vollzeit-MA (h)</label><input id="planningDailyHours" type="text" inputmode="decimal" data-zahl data-min="0.25" data-max="24" data-feld="Tägliche Arbeitszeit"></div>
@@ -732,33 +829,77 @@
     <div class="list-narrow" style="overflow:auto;margin-top:14px"><table><thead><tr><th>Datum</th><th>Bezeichnung</th><th>Status</th><th></th></tr></thead><tbody id="holidayRows"></tbody></table></div>
   </section>
 
-  <section class="card settings-section" id="settings-appearance">
-    <div class="section-title"><div><h2 style="margin-bottom:4px">Design</h2><div class="muted small">Akzentfarbe und Farbmodus der Oberfläche.</div></div></div>
-    <div class="hint">Der Hell/Dunkel-Modus wird oben in der Seitenleiste umgeschaltet und pro Gerät im Browser gespeichert. Die Akzentfarbe gilt dagegen zentral für alle Benutzer.</div>
-    <div class="list-narrow">
-      <div class="field"><label>Akzentfarbe</label>
-        <div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <input type="color" id="accentColorPicker" value="#0d9488" style="width:52px;flex:0 0 52px">
-            <input type="text" id="accentColorText" value="#0d9488" maxlength="7" style="max-width:120px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">
-          </div>
-          <div class="muted small" style="margin-top:6px">Wird für Buttons, aktive Navigation und Hervorhebungen verwendet. Änderung wirkt sofort als Vorschau, "Speichern" übernimmt sie dauerhaft für alle.</div>
-          <div id="accentContrastWarning" class="small" style="margin-top:6px;color:var(--danger);font-weight:600"></div>
+  {# Fristen und Erinnerungen (seit 1.8.112): die vier Vorlaufzeiten an einer Stelle -- bis 1.8.111 je ein Bereich Wartungen,
+     Betriebsmittel, Betriebskosten und Buchhaltung (#operational-assets, #recurring-costs und #incoming-invoices führen hierher).
+     Gleiche Felder, gleiche Speicherwege; die Vorlaufzeit der Wartungen speichert wie bisher zusammen mit Sachbearbeiter und
+     Dachflächen-Schalter (ein PUT ohne Teil-Update). Sichtbar wie das Speichern: Wartungen nur Admin, Betriebskosten und
+     Eingangsrechnungen buero_finanzen/admin, Betriebsmittel jedes Büro. #}
+  <section class="card settings-section" id="settings-deadlines">
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Fristen und Erinnerungen</h2><div class="muted small">Ab wie vielen Tagen vor einer Frist das ERP erinnert – im Dashboard, auf der jeweiligen Seite und mit einer Aufgabe.</div></div></div>
+    {% if ist_admin %}
+    <div class="block">
+      <h3>Wartungen</h3>
+      <div id="maintenanceLeadDisabledNotice" class="hint" style="display:none">Das Modul Wartungen & Reparaturen ist aktuell deaktiviert (System → Module) -- die Vorlaufzeit wirkt erst, wenn es wieder aktiv ist.</div>
+      <div id="maintenanceLeadContent">
+        <div class="field" style="max-width:320px">
+          <label>Vorlaufzeit (Tage)</label>
+          <input id="maintenanceLeadDays" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-feld="Vorlaufzeit der Wartungen">
+          <div class="muted small" style="margin-top:4px">Ab wie vielen Tagen vor der Fälligkeit ein Wartungsvertrag als "fällig" gilt -- im Dashboard-Widget, auf der Wartungen-Seite und für die automatische Erinnerungs-Aufgabe. Speichert zusammen mit Standard-Sachbearbeiter und Dachflächen-Schalter (Betrieb → Wartungen).</div>
         </div>
+        <button onclick="saveMaintenanceSettings('maintenanceLeadStatus')">Speichern</button>
+        <span id="maintenanceLeadStatus" class="status"></span>
       </div>
-      <button onclick="saveAccentColor()">Akzentfarbe speichern</button><span id="accentColorStatus" class="status"></span>
     </div>
+    {% endif %}
+    <div class="block">
+      <h3>Betriebsmittel – Prüf- und Wartungsfristen</h3>
+      <div id="operationalAssetModuleDisabledNotice" class="hint" style="display:none">Das Modul Betriebsmittelverwaltung ist aktuell deaktiviert (ein Administrator schaltet es unter System → Module ein) -- die folgende Einstellung wirkt erst, wenn es wieder aktiv ist.</div>
+      <div id="operationalAssetModuleContent">
+        <div class="field" style="max-width:320px">
+          <label>Vorlaufzeit (Tage)</label>
+          <input id="operationalAssetLeadDays" type="text" inputmode="numeric" data-zahl="ganz" data-min="0">
+          <div class="muted small" style="margin-top:4px">Ab wie vielen Tagen vor der Fälligkeit eine Prüf-/Wartungsfrist als "fällig" gilt -- im Dashboard-Widget und auf der Stammdaten-Übersicht.</div>
+        </div>
+        <button onclick="saveOperationalAssetSettings()">Speichern</button>
+        <span id="operationalAssetSettingsStatus" class="status"></span>
+      </div>
+    </div>
+    {% if ist_finanzen %}
+    <div class="block">
+      <h3>Betriebskosten – Kündigungsfristen</h3>
+      <div id="recurringCostModuleDisabledNotice" class="hint" style="display:none">Das Modul Betriebskosten-Übersicht ist aktuell deaktiviert (ein Administrator schaltet es unter System → Module ein) -- die folgende Einstellung wirkt erst, wenn es wieder aktiv ist.</div>
+      <div id="recurringCostModuleContent">
+        <div class="fields">
+          <div class="field"><label>Vorlaufzeit für Kündigungsfristen (Tage)</label><input id="recurringCostLeadDays" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-feld="Vorlaufzeit"><div class="muted small">Ab wie vielen Tagen vor der berechneten Kündigungsfrist eine Aufgabe für Büro-Finanzen erzeugt wird.</div></div>
+        </div>
+        <button onclick="saveRecurringCostSettings()">Speichern</button><span id="recurringCostSettingsStatus" class="status"></span>
+      </div>
+    </div>
+    <div class="block">
+      <h3>Eingangsrechnungen – Skonto</h3>
+      <div id="incomingInvoiceModuleDisabledNotice" class="hint" style="display:none">Das Modul Buchhaltung ist aktuell deaktiviert (ein Administrator schaltet es unter System → Module ein) -- die folgende Einstellung wirkt erst, wenn es wieder aktiv ist.</div>
+      <div id="incomingInvoiceModuleContent">
+        <div class="fields">
+          <div class="field"><label>Vorlaufzeit für die Skonto-Warnung (Tage)</label><input id="incomingInvoiceLeadDays" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-feld="Vorlaufzeit"><div class="muted small">Ab wie vielen Tagen vor der Skontofrist eine Hervorhebung/Aufgabe für Büro-Finanzen erzeugt wird.</div></div>
+        </div>
+        <button onclick="saveIncomingInvoiceSettings()">Speichern</button><span id="incomingInvoiceSettingsStatus" class="status"></span>
+      </div>
+    </div>
+    {% endif %}
   </section>
 
+  {# Seit 1.8.112 nur für Administratoren im Markup: Module, Aufgaben, Wartungen und Vor Ort speichert nur ein Administrator
+     (PUT/POST/DELETE admin-only) -- bis 1.8.111 sahen die Büro-Rollen die Bereiche und bekamen beim Speichern 403. #}
+  {% if ist_admin %}
   <section class="card settings-section" id="settings-modules">
     <div class="section-title"><div><h2 style="margin-bottom:4px">Module</h2><div class="muted small">Optionale ERP-Bausteine für diese Installation ein- oder ausschalten.</div></div></div>
-    <div class="hint">Die Kernfunktionen (Kunden, Projekte, Angebote, Aufträge, Rechnungen, Mahnwesen, Zeiterfassung, Planung) sind immer aktiv und tauchen hier nicht auf. Änderungen wirken sofort für alle Benutzer, ohne Neustart.</div>
+    <div class="hint">Die Kernfunktionen (Kunden, Projekte, Angebote, Aufträge, Rechnungen, Mahnwesen, Zeiterfassung, Plantafel) sind immer aktiv und tauchen hier nicht auf. Änderungen wirken sofort für alle Benutzer, ohne Neustart.</div>
     <div class="list-narrow" id="moduleRows"></div>
   </section>
 
   <section class="card settings-section" id="settings-tasks">
     <div class="section-title"><div><h2 style="margin-bottom:4px">Aufgaben</h2><div class="muted small">Einstellungen für das Aufgabenmanagement-Modul.</div></div></div>
-    <div id="taskModuleDisabledNotice" class="hint" style="display:none">Das Modul Aufgabenmanagement ist aktuell deaktiviert (siehe „Module" oben) -- die folgenden Einstellungen wirken erst, wenn es wieder aktiv ist.</div>
+    <div id="taskModuleDisabledNotice" class="hint" style="display:none">Das Modul Aufgabenmanagement ist aktuell deaktiviert (System → Module) -- die folgenden Einstellungen wirken erst, wenn es wieder aktiv ist.</div>
     <div id="taskModuleContent">
       <div class="field">
         <label style="display:flex;align-items:center;gap:10px;font-weight:650">
@@ -780,14 +921,9 @@
   </section>
 
   <section class="card settings-section" id="settings-maintenance">
-    <div class="section-title"><div><h2 style="margin-bottom:4px">Wartungen</h2><div class="muted small">Einstellungen für das Modul Wartungen & Reparaturen.</div></div></div>
-    <div id="maintenanceModuleDisabledNotice" class="hint" style="display:none">Das Modul Wartungen & Reparaturen ist aktuell deaktiviert (siehe „Module" oben) -- die folgenden Einstellungen wirken erst, wenn es wieder aktiv ist.</div>
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Wartungen</h2><div class="muted small">Einstellungen für das Modul Wartungen & Reparaturen. Die Vorlaufzeit steht unter Betrieb → Fristen und Erinnerungen und speichert hier mit.</div></div></div>
+    <div id="maintenanceModuleDisabledNotice" class="hint" style="display:none">Das Modul Wartungen & Reparaturen ist aktuell deaktiviert (System → Module) -- die folgenden Einstellungen wirken erst, wenn es wieder aktiv ist.</div>
     <div id="maintenanceModuleContent">
-      <div class="field" style="max-width:320px">
-        <label>Vorlaufzeit (Tage)</label>
-        <input id="maintenanceLeadDays" type="text" inputmode="numeric" data-zahl="ganz" data-min="0">
-        <div class="muted small" style="margin-top:4px">Ab wie vielen Tagen vor der Fälligkeit ein Wartungsvertrag als "fällig" gilt -- im Dashboard-Widget, auf der Wartungen-Seite und für die automatische Erinnerungs-Aufgabe.</div>
-      </div>
       <div class="field" style="max-width:320px">
         <label>Standard-Sachbearbeiter</label>
         <select id="maintenanceDefaultEmployee"></select>
@@ -813,35 +949,25 @@
     </div>
   </section>
 
-  <section class="card settings-section" id="settings-operational-assets">
-    <div class="section-title"><div><h2 style="margin-bottom:4px">Betriebsmittel</h2><div class="muted small">Einstellungen für das Modul Betriebsmittelverwaltung.</div></div></div>
-    <div id="operationalAssetModuleDisabledNotice" class="hint" style="display:none">Das Modul Betriebsmittelverwaltung ist aktuell deaktiviert (siehe „Module" oben) -- die folgende Einstellung wirkt erst, wenn es wieder aktiv ist.</div>
-    <div id="operationalAssetModuleContent">
-      <div class="field" style="max-width:320px">
-        <label>Vorlaufzeit (Tage)</label>
-        <input id="operationalAssetLeadDays" type="text" inputmode="numeric" data-zahl="ganz" data-min="0">
-        <div class="muted small" style="margin-top:4px">Ab wie vielen Tagen vor der Fälligkeit eine Prüf-/Wartungsfrist als "fällig" gilt -- im Dashboard-Widget und auf der Stammdaten-Übersicht.</div>
-      </div>
-      <button onclick="saveOperationalAssetSettings()">Speichern</button>
-      <span id="operationalAssetSettingsStatus" class="status"></span>
-    </div>
-  </section>
-
   <section class="card settings-section" id="settings-mobile">
     <div class="section-title"><div><h2 style="margin-bottom:4px">Vor Ort</h2><div class="muted small">Einstellungen für die Monteursansicht auf dem Fahrzeug-Tablet.</div></div></div>
     <div class="field" style="max-width:220px">
       <label>Feierabend-Uhrzeit</label>
       <input id="mobileShiftEndTime" type="time">
-      <div class="muted small" style="margin-top:4px">Ab dieser Uhrzeit wird eine Anmeldung auf /vor-ort automatisch beendet -- verhindert, dass nachts jemand unter fremdem Namen bucht, wenn ein Tablet im Fahrzeug eingeloggt bleibt. Ein bereits geöffneter Berichtstab wird davon nicht unterbrochen.</div>
+      <div class="muted small" style="margin-top:4px">Ab dieser Uhrzeit beendet die Monteursansicht (/mobil) beim nächsten Aufruf die Anmeldung des Geräts -- verhindert, dass nachts jemand unter fremdem Namen bucht, wenn ein Tablet im Fahrzeug eingeloggt bleibt. Ein bereits geöffneter Berichtstab wird davon nicht unterbrochen.</div>
     </div>
     <button onclick="saveMobileSettings()">Speichern</button>
     <span id="mobileSettingsStatus" class="status"></span>
   </section>
+  {% endif %}
     </div>
   </div>
 </main>
 </div>
 </div>
+{# Dialog der Arbeitszeitmodelle (seit 1.8.112 aus dem Zeiterfassungs-Backoffice, Bereich "Zeitregeln und DATEV") -- außerhalb der
+   Bereiche, die verborgen sein können. #}
+<dialog id="modelDialog" class="modal"><div class="modal-body"><h2 id="modelDialogTitle">Arbeitszeitmodell</h2><input id="modelId" type="hidden"><div class="time-grid"><div class="field"><label>Bezeichnung</label><input id="modelName"></div><div class="field"><label>Kürzel</label><input id="modelCode"></div><div class="field"><label>Soll-Arbeitszeit pro Tag</label><input id="modelDailyHours" type="text" inputmode="decimal" data-zahl data-min="0.01" data-max="24" data-feld="Soll-Arbeitszeit pro Tag"></div><div class="field"><label>Sortierung</label><input id="modelSort" type="text" inputmode="numeric" data-zahl="ganz" value="100" data-feld="Sortierung"></div><div class="field"><label>Gültig von Kalenderwoche</label><input id="modelValidFrom" type="text" inputmode="numeric" data-zahl="ganz" data-min="1" data-max="53" value="1" data-feld="Gültig von Kalenderwoche"></div><div class="field"><label>Gültig bis Kalenderwoche</label><input id="modelValidTo" type="text" inputmode="numeric" data-zahl="ganz" data-min="1" data-max="53" value="53" data-feld="Gültig bis Kalenderwoche"></div><label class="inline-check"><input id="modelActive" type="checkbox" checked> Aktiv</label><div class="field" style="grid-column:1/-1"><label>Beschreibung</label><textarea id="modelDescription"></textarea></div></div><div class="muted small">Ein Bereich über den Jahreswechsel ist möglich, z. B. KW 44 bis KW 12.</div><h3>Automatische Pausen</h3><div class="muted small">Bei einer Timerbuchung wird abhängig von der Brutto-Arbeitsdauer mindestens die höchste zutreffende Pause automatisch abgezogen.</div><div id="breakRuleRows" style="margin-top:8px"></div><button class="secondary" onclick="addBreakRule()">+ Pausenregel</button><div id="modelStatus" class="status"></div><div class="modal-actions"><button class="secondary" onclick="document.getElementById('modelDialog').close()">Abbrechen</button><button onclick="saveModel()">Speichern</button></div></div></dialog>
 {% include "_speichern.html" %}
 {% include "_zahl.html" %}
 {% include "_fehlertext.html" %}
@@ -857,6 +983,9 @@ let sequences=[],employeeFunctions=[],editingFunctionId=null,optionGroups=[],cur
 // bereits per Jinja aus dem Markup entfernt, load() darf ihre Endpunkte fuer diese Rolle deshalb
 // weder abrufen (403) noch ihre DOM-Elemente beschreiben (waeren nicht vorhanden).
 const canSeeCalculationSettings={{ 'true' if can(current_user, 'admin', 'buero_finanzen') else 'false' }};
+// Seit 1.8.112: die Bereiche, die nur ein Administrator speichern darf (Anbindungen, Module, Projekt-Pipeline, Aufgaben, Wartungen,
+// Vor Ort), stehen nur für ihn im Markup -- für die Büro-Rollen lädt die Seite sie deshalb gar nicht erst.
+const istAdmin={{ 'true' if ist_admin else 'false' }};
 // Vertragsgrundlagen (seit 1.8.21): lesen dürfen Büro und Admin, speichern nur Administratoren --
 // die Prüfangabe entscheidet, ob ein Vertragstext gedruckt wird (PUT ist serverseitig admin-only).
 const canEditContractClauses={{ 'true' if can(current_user, 'admin') else 'false' }};
@@ -942,11 +1071,22 @@ const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&
   refreshStatusColors();
 })();
 const v=id=>document.getElementById(id).value.trim();const nv=id=>v(id)||null;const setv=(id,x)=>document.getElementById(id).value=x??'';
-const SETTINGS_SECTIONS=['general','project-pipeline','numbers','payment-terms','tax-keys','reminder-levels','document-layout','document-categories','contract-bases','contract-templates','notice-reservations','option-lists','roof-layers','component-types','employee-functions','labor-rate','calculation','recurring-costs','incoming-invoices','accounts','planning','email-settings','email-templates','appearance','modules','tasks','maintenance','operational-assets','mobile','ai-settings','outlook-sync'];
+const SETTINGS_SECTIONS=['general','appearance','numbers','tax-keys','payment-terms','reminder-levels','labor-rate','calculation','accounts','document-layout','email-templates','text-blocks','contract-bases','contract-templates','notice-reservations','dunning-legal-texts','option-lists','roof-layers','component-types','document-categories','time-entry-types','time-entry-activities','absence-types','planning','deadlines','maintenance','project-pipeline','tasks','mobile','employee-functions','time-rules','email-settings','outlook-sync','ai-settings','modules','recurring-costs','incoming-invoices','operational-assets'];
+// Seit 1.8.112 (neue Ordnung): drei frühere Bereiche sind in "Fristen und Erinnerungen" aufgegangen -- ihre Adresse gilt weiter.
+const FRUEHERE_ADRESSEN={'recurring-costs':'deadlines','incoming-invoices':'deadlines','operational-assets':'deadlines'};
+// Menüpunkte, die einen gemeinsamen Bereich zeigen: Textbausteine die Auswahllisten (nur die Vor- und Schlusstexte), die drei
+// Zeit-Listen einen Bereich mit der jeweiligen Liste.
+const GEMEINSAMER_BEREICH={'text-blocks':'option-lists','time-entry-types':'time-lists','time-entry-activities':'time-lists','absence-types':'time-lists'};
+const ZEIT_LISTEN={'time-entry-types':'time_entry_types','time-entry-activities':'time_entry_activities','absence-types':'absence_types'};
 function showSettingsSection(key,updateHash=true){
-  if(!SETTINGS_SECTIONS.includes(key))key='general';
-  document.querySelectorAll('.settings-section').forEach(x=>x.classList.toggle('active',x.id===`settings-${key}`));
+  key=FRUEHERE_ADRESSEN[key]||key;
+  // Ein Bereich, der für die Rolle nicht im Markup steht (nur Administratoren, Kalkulation), öffnet die Unternehmensdaten.
+  if(!SETTINGS_SECTIONS.includes(key)||!document.getElementById(`settings-${GEMEINSAMER_BEREICH[key]||key}`))key='general';
+  const bereich=GEMEINSAMER_BEREICH[key]||key;
+  document.querySelectorAll('.settings-section').forEach(x=>x.classList.toggle('active',x.id===`settings-${bereich}`));
   document.querySelectorAll('[data-settings-section]').forEach(x=>x.classList.toggle('active',x.dataset.settingsSection===key));
+  if(bereich==='option-lists')setOptionListMode(key==='text-blocks'?'texte':'listen');
+  if(bereich==='time-lists')setTimeList(ZEIT_LISTEN[key]);
   if(updateHash&&location.hash!==`#${key}`)history.replaceState(null,'',`#${key}`);
   document.querySelector('.settings-content')?.scrollIntoView({behavior:'smooth',block:'start'});
 }
@@ -973,6 +1113,10 @@ async function load(){
     lade('Steuerschlüssel','steuerschluessel','/api/tax-keys?include_archived=true',[],tk=>{taxKeys=tk;renderTaxKeys()}),
     lade('Mahnstufen','mahnstufen','/api/reminder-levels',[],rl=>{reminderLevels=rl;renderReminderLevels()}),
     lade('Module','module','/api/modules',[],ms=>{moduleStates=ms;renderModuleStates()}),
+    // Seit 1.8.112 hier statt im Zeiterfassungs-Backoffice: Zeitregeln und Lohnarten, Arbeitszeitmodelle, Zeit-Listen.
+    lade('Zeitregeln und DATEV','zeitregeln','/api/time-backoffice/settings',null,s=>{timeRules=s;renderTimeRules()}),
+    lade('Arbeitszeitmodelle','modelle','/api/time-backoffice/work-time-models',[],d=>{workModels=d;renderWorkModels()}),
+    lade('Zeit-Listen','zeitlisten','/api/settings/option-groups',[],og=>{timeListGroups=og.filter(g=>Object.values(ZEIT_LISTEN).includes(g.group_key));renderTimeList()}),
   ];
   // Kalkulationsgrundlagen/Stundenverrechnungssatz sind fuer buero_auftrag verengt (403) --
   // fuer diese Rolle gar nicht erst abrufen, sonst zeigt load() faelschlich einen
@@ -998,10 +1142,14 @@ async function load(){
     loadIncomingInvoiceSettingsSection();
     loadAccountsSection();
   }
-  loadTaskSection();loadMaintenanceSection();loadOperationalAssetSection();loadRoofLayerTypesSection();loadComponentTypesSection();loadDocumentCategoriesSection();loadMobileSection();loadDocumentLayoutSection();loadProjectPipelineSection();
+  if(istAdmin){loadTaskSection();loadMaintenanceSection();loadMobileSection();loadProjectPipelineSection()}
+  loadOperationalAssetSection();loadRoofLayerTypesSection();loadComponentTypesSection();loadDocumentCategoriesSection();loadDocumentLayoutSection();
+  // Zuordnung und Personalnummern brauchen die Modelle bzw. die Zeitregeln (DATEV-Nr. = ERP-Nr.) -- erst nach dem Laden oben.
+  loadWorkAssignments().catch(e=>{document.getElementById('workAssignmentStatus').textContent='Fehler: '+e.message});
+  loadPayroll().catch(e=>{document.getElementById('payrollStatus').textContent='Fehler: '+e.message});
 }
 
-function renderModuleStates(){document.getElementById('moduleRows').innerHTML=moduleStates.length?moduleStates.map(m=>`<div class="field"><label style="display:flex;align-items:center;gap:10px;font-weight:650"><input type="checkbox" style="width:auto" ${m.enabled?'checked':''} data-aenderung="modul" data-schluessel="${esc(m.module_key)}"> ${esc(m.label)}</label><span id="moduleStatus-${esc(m.module_key)}" class="status"></span></div>`).join(''):'<div class="muted small">Keine optionalen Module registriert.</div>'}
+function renderModuleStates(){const box=document.getElementById('moduleRows');if(!box)return;box.innerHTML=moduleStates.length?moduleStates.map(m=>`<div class="field"><label style="display:flex;align-items:center;gap:10px;font-weight:650"><input type="checkbox" style="width:auto" ${m.enabled?'checked':''} data-aenderung="modul" data-schluessel="${esc(m.module_key)}"> ${esc(m.label)}</label><span id="moduleStatus-${esc(m.module_key)}" class="status"></span></div>`).join(''):'<div class="muted small">Keine optionalen Module registriert.</div>'}
 function ladeModule(){return lesen('module',()=>api('/api/modules'),d=>{moduleStates=d})}
 async function toggleModule(key,checked){const st=document.getElementById('moduleStatus-'+key);try{await speichern('module',()=>api(`/api/modules/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:checked})}),{neuLaden:ladeModule});st.textContent=checked?'Aktiviert.':'Deaktiviert.';loadTaskSection();loadMaintenanceSection();loadOperationalAssetSection();if(canSeeCalculationSettings){loadRecurringCostsSettingsSection();loadIncomingInvoiceSettingsSection();loadAccountsSection()}}catch(e){st.textContent='Fehler: '+e.message}}
 
@@ -1114,6 +1262,9 @@ async function loadMaintenanceSection(){
   const isEnabled=entry?entry.enabled:true;
   document.getElementById('maintenanceModuleDisabledNotice').style.display=isEnabled?'none':'block';
   document.getElementById('maintenanceModuleContent').style.display=isEnabled?'block':'none';
+  // Seit 1.8.112 steht die Vorlaufzeit unter Fristen und Erinnerungen -- mit eigenem Hinweis, wenn das Modul aus ist.
+  document.getElementById('maintenanceLeadDisabledNotice').style.display=isEnabled?'none':'block';
+  document.getElementById('maintenanceLeadContent').style.display=isEnabled?'block':'none';
   if(!isEnabled)return;
   try{
     await lesen('wartung',async()=>[await api('/api/maintenance-settings'),await api('/api/employees').catch(()=>[])],([ms2,emps])=>{
@@ -1627,8 +1778,8 @@ function renderSidebarLogoFallbackHint(){
   const hasSidebarLogo=generalSettings&&generalSettings.sidebar_logo_filename;
   if(hasSidebarLogo){hint.textContent='';return}
   hint.textContent=(generalSettings&&generalSettings.logo_filename)
-    ? 'Ohne eigenes Sidebar-Logo zeigt die Seitenleiste aktuell ersatzweise das Firmenlogo.'
-    : 'Ohne eigenes Sidebar-Logo UND ohne Firmenlogo zeigt die Seitenleiste aktuell den Schriftzug "DACHKONZEPTE".';
+    ? 'Ohne eigenes Logo der Leiste zeigt die Seitenleiste aktuell ersatzweise das Firmenlogo.'
+    : 'Ohne eigenes Logo der Leiste UND ohne Firmenlogo zeigt die Seitenleiste aktuell den Schriftzug "DACHKONZEPTE".';
 }
 function renderSidebarLogo(){
   const wrap=document.getElementById('sidebarLogoPreviewWrap'),emptyHint=document.getElementById('sidebarLogoEmptyHint'),removeBtn=document.getElementById('sidebarLogoRemove'),img=document.getElementById('sidebarLogoPreview'),heightInput=document.getElementById('sidebarLogoHeight');
@@ -1663,7 +1814,7 @@ async function uploadSidebarLogo(){
   }catch(e){st.textContent='Fehler: '+e.message}
 }
 async function removeSidebarLogo(){
-  if(!confirm('Sidebar-Logo wirklich entfernen?'))return;
+  if(!confirm('Logo der Leiste wirklich entfernen?'))return;
   const st=document.getElementById('sidebarLogoStatus');
   try{
     await speichern('allgemein',()=>api('/api/settings/general/sidebar-logo',{method:'DELETE'}),{anwenden:d=>{generalSettings=d;renderSidebarLogo()}});
@@ -1729,8 +1880,10 @@ async function saveContinuationHeaderPosition(feld){
   }catch(e){st.textContent='Fehler: '+e.message}
 }
 
-async function saveMaintenanceSettings(){
-  const st=document.getElementById('maintenanceSettingsStatus');
+// Seit 1.8.112 aus zwei Bereichen gerufen (Wartungen; Fristen und Erinnerungen mit der Vorlaufzeit) -- die Meldung steht beim
+// geklickten Knopf. Gesendet werden wie bisher alle drei Felder: der PUT ist kein Teil-Update.
+async function saveMaintenanceSettings(statusId='maintenanceSettingsStatus'){
+  const st=document.getElementById(statusId);
   const empId=document.getElementById('maintenanceDefaultEmployee').value;
   const useRoofAreaItems=document.getElementById('maintenanceUseRoofAreaItems').checked;
   try{
@@ -1862,7 +2015,7 @@ async function saveTaxKey(){const st=document.getElementById('taxKeyStatus');try
 async function setDefaultTaxKey(id){try{await speichern('steuerschluessel',()=>api(`/api/tax-keys/${id}/set-default`,{method:'POST'}),{neuLaden:ladeSteuerschluessel})}catch(e){document.getElementById('taxKeyStatus').textContent='Fehler: '+e.message}}
 async function archiveTaxKey(id){try{await speichern('steuerschluessel',()=>api(`/api/tax-keys/${id}/archive`,{method:'POST'}),{neuLaden:ladeSteuerschluessel})}catch(e){document.getElementById('taxKeyStatus').textContent='Fehler: '+e.message}}
 async function unarchiveTaxKey(id){try{await speichern('steuerschluessel',()=>api(`/api/tax-keys/${id}/unarchive`,{method:'POST'}),{neuLaden:ladeSteuerschluessel})}catch(e){document.getElementById('taxKeyStatus').textContent='Fehler: '+e.message}}
-function renderReminderLevels(){renderDunningSwitch();if(dunningSettings===null){loadDunningSettings();}if(baseRates===null){loadDunningLegal()}else{renderBaseRates();renderLegalTexts()}const feeOn=!!(dunningSettings&&dunningSettings.charges_enabled);document.getElementById('reminderLevelRows').innerHTML=reminderLevels.map(x=>`<div class="option-row" data-mahnstufe="${esc(x.level)}"><div class="fields"><div class="field"><label>Bezeichnung</label><input id="rl${x.id}Label" value="${esc(x.label)}"></div><div class="field"><label>Zahlungsfrist (Tage ab Mahndatum)</label><input id="rl${x.id}Days" type="text" inputmode="numeric" data-zahl="ganz" data-min="1" data-max="365" data-feld="Zahlungsfrist" value="${zahlText(x.days_after_previous_step)}"></div>${feeOn?`<div class="field"><label>Mahngebühr € (Vorschlag)</label><input id="rl${x.id}Fee" type="text" inputmode="decimal" data-zahl data-min="0" data-stellen="2" data-feld="Mahngebühr" value="${zahlText(x.fee_amount,2)}"></div>`:''}<div class="field" style="display:flex;align-items:flex-end;gap:6px"><label style="display:flex;align-items:center;gap:6px;font-weight:650;margin-bottom:9px"><input id="rl${x.id}Active" type="checkbox" style="width:auto" ${x.active?'checked':''}> Stufe aktiv</label></div></div>${feePlaceholderWarning(x)}<div class="field"><label>Mahntext (PDF) <span class="muted small">(Platzhalter: {rechnungsnummer} {rechnungsdatum} {faelligkeitsdatum} {offener_betrag} {gesamtbetrag} {neue_frist} {vorheriges_mahndatum}${feeOn?' {mahngebuehr} {nebenforderungen}':''})</span></label><textarea id="rl${x.id}Text" rows="4">${esc(x.text_template||'')}</textarea></div><div class="field"><label>E-Mail-Betreff <span class="muted small">(zusätzlich: {mahnstufe}, leer = Standardtext) – auch über "E-Mail-Vorlagen" oben bearbeitbar</span></label><input id="rl${x.id}EmailSubject" value="${esc(x.email_subject_template||'')}" placeholder="${esc(x.level)}. Mahnung zu Rechnung {rechnungsnummer}"></div><div class="field"><label>E-Mail-Text <span class="muted small">(kurze Nachricht, Details stehen im PDF-Anhang)</span></label><textarea id="rl${x.id}EmailBody" rows="4" placeholder="Sehr geehrte Damen und Herren, anbei erhalten Sie unsere ${esc(x.level)}. Mahnung …">${esc(x.email_body_template||'')}</textarea></div><button onclick="saveReminderLevel(${x.id})">Speichern</button> <span id="rlStatus${x.id}" class="status"></span></div>`).join('');populateReminderLevelEmailOptions()}
+function renderReminderLevels(){renderDunningSwitch();if(dunningSettings===null){loadDunningSettings();}if(baseRates===null){loadDunningLegal()}else{renderBaseRates();renderLegalTexts()}const feeOn=!!(dunningSettings&&dunningSettings.charges_enabled);document.getElementById('reminderLevelRows').innerHTML=reminderLevels.map(x=>`<div class="option-row" data-mahnstufe="${esc(x.level)}"><div class="fields"><div class="field"><label>Bezeichnung</label><input id="rl${x.id}Label" value="${esc(x.label)}"></div><div class="field"><label>Zahlungsfrist (Tage ab Mahndatum)</label><input id="rl${x.id}Days" type="text" inputmode="numeric" data-zahl="ganz" data-min="1" data-max="365" data-feld="Zahlungsfrist" value="${zahlText(x.days_after_previous_step)}"></div>${feeOn?`<div class="field"><label>Mahngebühr € (Vorschlag)</label><input id="rl${x.id}Fee" type="text" inputmode="decimal" data-zahl data-min="0" data-stellen="2" data-feld="Mahngebühr" value="${zahlText(x.fee_amount,2)}"></div>`:''}<div class="field" style="display:flex;align-items:flex-end;gap:6px"><label style="display:flex;align-items:center;gap:6px;font-weight:650;margin-bottom:9px"><input id="rl${x.id}Active" type="checkbox" style="width:auto" ${x.active?'checked':''}> Stufe aktiv</label></div></div>${feePlaceholderWarning(x)}<div class="field"><label>Mahntext (PDF) <span class="muted small">(Platzhalter: {rechnungsnummer} {rechnungsdatum} {faelligkeitsdatum} {offener_betrag} {gesamtbetrag} {neue_frist} {vorheriges_mahndatum}${feeOn?' {mahngebuehr} {nebenforderungen}':''})</span></label><textarea id="rl${x.id}Text" rows="4">${esc(x.text_template||'')}</textarea></div><div class="field"><label>E-Mail-Betreff <span class="muted small">(zusätzlich: {mahnstufe}, leer = Standardtext) – auch unter Vorlagen und Texte → E-Mail-Vorlagen bearbeitbar</span></label><input id="rl${x.id}EmailSubject" value="${esc(x.email_subject_template||'')}" placeholder="${esc(x.level)}. Mahnung zu Rechnung {rechnungsnummer}"></div><div class="field"><label>E-Mail-Text <span class="muted small">(kurze Nachricht, Details stehen im PDF-Anhang)</span></label><textarea id="rl${x.id}EmailBody" rows="4" placeholder="Sehr geehrte Damen und Herren, anbei erhalten Sie unsere ${esc(x.level)}. Mahnung …">${esc(x.email_body_template||'')}</textarea></div><button onclick="saveReminderLevel(${x.id})">Speichern</button> <span id="rlStatus${x.id}" class="status"></span></div>`).join('');populateReminderLevelEmailOptions()}
 function ladeMahnstufen(){return lesen('mahnstufen',()=>api('/api/reminder-levels'),d=>{reminderLevels=d;renderReminderLevels()})}
 // Seit 1.8.80 Teil-Update: die Gebühr nur, wenn das Feld da ist (Mahngebühren eingeschaltet).
 // Seit 1.8.109 über _zahl.html: leere Zahlungsfrist abgelehnt (bis 1.8.108 als 0 geschickt, der Server lehnte ab), leere Gebühr wie bisher 0.
@@ -1889,7 +2042,9 @@ async function loadEmailSettings(){
       document.getElementById('graphClientSecret').placeholder = s.has_graph_client_secret ? 'unverändert lassen' : 'Client-Secret eingeben';
     });
   }catch(e){
-    section.innerHTML = '<div class="section-title"><h2>E-Mail-Versand</h2></div><div class="hint">Diese Einstellung ist nur für Administratoren verfügbar.</div>';
+    // Seit 1.8.112 lädt nur ein Administrator diesen Bereich (die Büro-Rollen haben ihn nicht im Markup) -- ein Fehler hier ist ein
+    // Ladefehler, kein fehlendes Recht.
+    section.innerHTML = `<div class="section-title"><h2>E-Mail und Microsoft 365</h2></div><div class="hint">Konnte nicht geladen werden: ${esc(e.message)}</div>`;
   }
 }
 async function saveSmtpSettings(){
@@ -1946,7 +2101,7 @@ async function loadAiSettings(){
       document.getElementById('aiApiKey').placeholder = s.has_api_key ? 'unverändert lassen' : 'Schlüssel eingeben';
     });
   }catch(e){
-    section.innerHTML = '<div class="section-title"><h2>KI-Anbieter</h2></div><div class="hint">Diese Einstellung ist nur für Administratoren verfügbar.</div>';
+    section.innerHTML = `<div class="section-title"><h2>KI-Anbieter</h2></div><div class="hint">Konnte nicht geladen werden: ${esc(e.message)}</div>`;
   }
 }
 async function saveAiSettings(){
@@ -1982,7 +2137,7 @@ async function loadOutlookSyncSettings(){
       document.getElementById('outlookGraphMissingHint').classList.toggle('hidden', !!s.graph_configured);
     });
   }catch(e){
-    section.innerHTML = '<div class="section-title"><h2>Outlook-Synchronisation</h2></div><div class="hint">Diese Einstellung ist nur für Administratoren verfügbar.</div>';
+    section.innerHTML = `<div class="section-title"><h2>Outlook-Kalender</h2></div><div class="hint">Konnte nicht geladen werden: ${esc(e.message)}</div>`;
   }
 }
 async function saveOutlookSyncSettings(){
@@ -2083,8 +2238,22 @@ async function saveHoliday(){const st=document.getElementById('holidayStatus');t
 async function deleteHoliday(id){if(!confirm('Feiertag / betriebsfreien Tag wirklich löschen?'))return;try{await speichern('feiertage',()=>api(`/api/planning/holidays/${id}`,{method:'DELETE'}),{neuLaden:ladeFeiertage})}catch(e){document.getElementById('holidayStatus').textContent='Fehler: '+e.message}}
 // Dieselbe Auswahl der Gruppen wie in load().
 function ladeAuswahllisten(){return lesen('auswahllisten',()=>api('/api/settings/option-groups'),og=>{optionGroups=og.filter(g=>!['time_entry_types','time_entry_activities','absence_types','quote_payment_terms','roof_component_types'].includes(g.group_key));renderOptionGroups()})}
-function renderOptionGroups(){const sel=document.getElementById('optionGroupSelect');const old=currentOptionGroup?.group_key||sel.value;sel.innerHTML=optionGroups.map(g=>`<option value="${esc(g.group_key)}">${esc(g.label)}</option>`).join('');if(old&&optionGroups.some(g=>g.group_key===old))sel.value=old;currentOptionGroup=optionGroups.find(g=>g.group_key===sel.value)||optionGroups[0]||null;renderOptions()}
-function selectOptionGroup(){currentOptionGroup=optionGroups.find(g=>g.group_key===v('optionGroupSelect'))||null;hideOptionEditor();renderOptions()}
+// Seit 1.8.112 zeigt derselbe Bereich unter "Textbausteine" nur die Vor- und Schlusstexte, unter "Auswahllisten" alle übrigen Listen.
+const TEXT_GRUPPEN=['quote_intro_texts','quote_outro_texts','invoice_intro_texts','invoice_outro_texts','invoice_refund_texts'];
+let optionListMode='listen';
+function shownOptionGroups(){return optionGroups.filter(g=>TEXT_GRUPPEN.includes(g.group_key)===(optionListMode==='texte'))}
+function setOptionListMode(mode){
+  if(mode===optionListMode)return;
+  optionListMode=mode;
+  document.getElementById('optionListsHeading').textContent=mode==='texte'?'Textbausteine':'Auswahllisten';
+  document.getElementById('optionListsSubtitle').textContent=mode==='texte'
+    ?'Vor- und Schlusstexte für Angebote und Rechnungen, je mit einem Standard. Die Bezeichnung ist kurz, der Wert enthält den vollständigen Text.'
+    :'Wiederverwendbare ERP-Dropdownwerte an einer Stelle pflegen. Die Vor- und Schlusstexte stehen unter Vorlagen und Texte → Textbausteine, Zeitarten, Tätigkeiten und Abwesenheitsarten je eigens unter Listen.';
+  document.getElementById('optionGroupSelectLabel').textContent=mode==='texte'?'Textbaustein':'Auswahlliste';
+  currentOptionGroup=null;hideOptionEditor();renderOptionGroups();
+}
+function renderOptionGroups(){const sel=document.getElementById('optionGroupSelect');const groups=shownOptionGroups();const old=currentOptionGroup?.group_key||sel.value;sel.innerHTML=groups.map(g=>`<option value="${esc(g.group_key)}">${esc(g.label)}</option>`).join('');if(old&&groups.some(g=>g.group_key===old))sel.value=old;currentOptionGroup=groups.find(g=>g.group_key===sel.value)||groups[0]||null;renderOptions()}
+function selectOptionGroup(){currentOptionGroup=shownOptionGroups().find(g=>g.group_key===v('optionGroupSelect'))||null;hideOptionEditor();renderOptions()}
 function renderOptions(){const g=currentOptionGroup;document.getElementById('optionGroupDescription').textContent=g?.description||'';document.getElementById('optionRows').innerHTML=!g?'<tr><td colspan="3" class="muted">Keine Auswahllisten vorhanden.</td></tr>':g.options.map(o=>`<tr><td><b>${esc(o.label)}</b>${o.is_default?' <span class="badge">Standard</span>':''}<div class="muted small" style="white-space:pre-wrap;margin-top:2px">${esc(o.value)}</div></td><td>${o.active?'Aktiv':'Inaktiv'}</td><td><button class="secondary" onclick="editOption(${o.id})">Bearbeiten</button> <button class="danger" onclick="deleteOption(${o.id})">Löschen</button></td></tr>`).join('')||'<tr><td colspan="3" class="muted">Noch keine Einträge. Mit "+ Eintrag" den ersten Wert anlegen.</td></tr>'}
 function showOptionEditor(){document.getElementById('optionEditorPanel').style.display='block';document.getElementById('optionLabel').focus()}
 function hideOptionEditor(){resetOptionEditor();document.getElementById('optionEditorPanel').style.display='none'}
@@ -2100,6 +2269,82 @@ function resetEmployeeFunction(){editingFunctionId=null;setv('functionName','');
 function editEmployeeFunction(id){const f=employeeFunctions.find(x=>x.id===id);if(!f)return;editingFunctionId=id;setv('functionName',f.name);setv('functionGroup',f.employee_group);setv('functionSort',zahlText(f.sort_order));setv('functionActive',String(f.active));setv('functionDescription',f.description);document.getElementById('functionEditorHeading').textContent='Funktion bearbeiten';document.getElementById('functionSaveButton').textContent='Änderungen speichern';document.getElementById('functionStatus').textContent='';showFunctionEditor()}
 async function saveEmployeeFunction(){const s=document.getElementById('functionStatus');try{const payload={name:v('functionName'),employee_group:v('functionGroup'),description:nv('functionDescription'),sort_order:zahlFeld('functionSort',{leer:100}),active:v('functionActive')==='true'};if(!payload.name)throw new Error('Bitte eine Funktion/Tätigkeit eingeben.');await speichern('funktionen',()=>api(editingFunctionId?`/api/settings/employee-functions/${editingFunctionId}`:'/api/settings/employee-functions',{method:editingFunctionId?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));hideFunctionEditor();await ladeFunktionen()}catch(e){s.textContent='Fehler: '+e.message}}
 async function deleteEmployeeFunction(id){if(!confirm('Funktion/Tätigkeit wirklich löschen? Zugeordnete Funktionen können nicht gelöscht werden.'))return;const s=document.getElementById('functionStatus');try{await speichern('funktionen',()=>api(`/api/settings/employee-functions/${id}`,{method:'DELETE'}),{neuLaden:ladeFunktionen});s.textContent='Gelöscht.'}catch(e){s.textContent='Fehler: '+e.message}}
+// --- Zeitregeln und DATEV, Arbeitszeitmodelle, Zeit-Listen (seit 1.8.112 hier statt im Zeiterfassungs-Backoffice) ---
+// Dieselben Endpunkte wie dort, Bereiche 'zeitregeln' (dort 'einstellungen'), 'modelle', 'zuordnungen', 'lohn' und 'zeitlisten' (dort
+// 'optionen'); Zahlen über _zahl.html; Knöpfe mit Werten über data-Attribute (_aktionen.html, Regel 32) statt Werten im onclick.
+let timeRules=null,workModels=[],workAssignments=[],payroll=[],timeListGroups=[],currentTimeList='time_entry_types';
+const ZEIT_LISTEN_TITEL={time_entry_types:'Zeitarten',time_entry_activities:'Tätigkeiten',absence_types:'Abwesenheitsarten'};
+aktion('modell-bearbeiten',el=>editModel(Number(el.dataset.id)));
+aktion('modell-loeschen',el=>removeModel(Number(el.dataset.id)));
+aktion('modell-zuordnen',el=>assignOne(Number(el.dataset.mitarbeiter),el.value),'change');
+aktion('lohn-speichern',el=>savePayroll(Number(el.dataset.mitarbeiter)));
+aktion('zeitliste-loeschen',el=>deleteTimeListOption(Number(el.dataset.id)));
+function renderTimeRules(){
+  const s=timeRules;if(!s)return;
+  setv('rounding',String(s.rounding_minutes));setv('defaultBreak',zahlText(s.default_break_minutes));
+  document.getElementById('allowManual').checked=!!s.allow_manual_entries;document.getElementById('allowGroup').checked=!!s.allow_group_bookings;
+  document.getElementById('requireItem').checked=!!s.require_order_item;document.getElementById('requireActivity').checked=!!s.require_activity;
+  setv('datevTarget',s.datev_target);setv('wageSite',s.datev_wage_type_site);setv('wageTravel',s.datev_wage_type_travel);
+  setv('wageWorkshop',s.datev_wage_type_workshop);setv('wageOther',s.datev_wage_type_other);
+  setv('wageWeatherWinter',s.datev_wage_type_weather_winter);setv('wageWeatherSummer',s.datev_wage_type_weather_summer);
+  document.getElementById('datevSameErp').checked=!!s.datev_personnel_equals_erp_number;
+  renderDefaultModelSelect();
+}
+function renderDefaultModelSelect(){if(!timeRules||!workModels.length)return;document.getElementById('defaultWorkModel').innerHTML=auswahlOptionen(workModels,timeRules.default_work_time_model_id,m=>m.name)}
+// Wie im Backoffice ein Formular für Zeitregeln und Lohnarten (der PUT ist kein Teil-Update) -- auch "DATEV-Nr. = ERP-Nr." geht mit.
+// Gibt zurück, ob gespeichert wurde.
+async function saveTimeRules(silent=false){
+  const st=document.getElementById('timeRulesStatus');
+  try{
+    const defaultBreak=zahlFeld('defaultBreak',{leer:0});
+    const body=JSON.stringify({rounding_minutes:Number(document.getElementById('rounding').value),default_break_minutes:defaultBreak,allow_manual_entries:document.getElementById('allowManual').checked,allow_group_bookings:document.getElementById('allowGroup').checked,require_order_item:document.getElementById('requireItem').checked,require_activity:document.getElementById('requireActivity').checked,datev_target:v('datevTarget'),datev_wage_type_site:nv('wageSite'),datev_wage_type_travel:nv('wageTravel'),datev_wage_type_workshop:nv('wageWorkshop'),datev_wage_type_other:nv('wageOther'),datev_wage_type_weather_winter:nv('wageWeatherWinter'),datev_wage_type_weather_summer:nv('wageWeatherSummer'),datev_personnel_equals_erp_number:document.getElementById('datevSameErp').checked,default_work_time_model_id:v('defaultWorkModel')?Number(v('defaultWorkModel')):null});
+    await speichern('zeitregeln',()=>api('/api/time-backoffice/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body}),{anwenden:d=>{timeRules=d}});
+    if(!silent)document.getElementById('timeRulesStatus').textContent='Zeitregeln und Lohnarten gespeichert.';
+    return true;
+  }catch(e){st.textContent='Fehler: '+e.message;return false}
+}
+async function datevSameChanged(){if(await saveTimeRules(true)){try{await loadPayroll()}catch(e){document.getElementById('payrollStatus').textContent='Fehler: '+e.message}}}
+function ladeModelle(){return lesen('modelle',()=>api('/api/time-backoffice/work-time-models'),d=>{workModels=d;renderWorkModels()})}
+function renderWorkModels(){
+  document.getElementById('workModelCards').innerHTML=workModels.map(m=>`<div class="model-card"><div class="model-title"><div><b>${esc(m.name)}</b> ${m.active?'':'<span class="pill">inaktiv</span>'}<div class="muted small">${num(m.daily_target_hours)} h/Tag · KW ${esc(m.valid_from_week||1)}–${esc(m.valid_to_week||53)} · ${(m.break_rules||[]).map(r=>`ab ${esc(num(r.threshold_hours))} h → ${esc(r.break_minutes)} Min.`).join(' · ')||'keine automatischen Pausen'}</div></div><div><button class="secondary" data-klick="modell-bearbeiten" data-id="${m.id}">Bearbeiten</button> <button class="danger" data-klick="modell-loeschen" data-id="${m.id}">Löschen</button></div></div></div>`).join('')||'<div class="muted small">Noch kein Arbeitszeitmodell angelegt.</div>';
+  document.getElementById('bulkModel').innerHTML=workModels.filter(x=>x.active).map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join('');
+  renderDefaultModelSelect();
+}
+function newModel(){openModel({name:'',code:'',daily_target_hours:8,valid_from_week:1,valid_to_week:53,description:'',active:true,sort_order:100,break_rules:[]})}
+function editModel(id){const m=workModels.find(x=>x.id===id);if(m)openModel(m)}
+function openModel(m){setv('modelId',m.id||'');document.getElementById('modelDialogTitle').textContent=m.id?'Arbeitszeitmodell bearbeiten':'Arbeitszeitmodell anlegen';setv('modelName',m.name);setv('modelCode',m.code);setv('modelDailyHours',zahlText(m.daily_target_hours||8));setv('modelValidFrom',zahlText(m.valid_from_week||1));setv('modelValidTo',zahlText(m.valid_to_week||53));setv('modelSort',zahlText(m.sort_order||100));document.getElementById('modelActive').checked=m.active!==false;setv('modelDescription',m.description);document.getElementById('modelStatus').textContent='';document.getElementById('breakRuleRows').innerHTML='';(m.break_rules||[]).forEach(r=>addBreakRule(r));document.getElementById('modelDialog').showModal()}
+function addBreakRule(r={}){const div=document.createElement('div');div.className='rule-row';div.dataset.id=r.id||'';div.innerHTML=`<div class="field"><label>ab Brutto-Stunden</label><input class="rule-threshold" type="text" inputmode="decimal" data-zahl data-min="0.01" data-max="24" data-feld="Pausenregel – ab Brutto-Stunden" value="${zahlText(r.threshold_hours)}"></div><div class="field"><label>Pause Minuten</label><input class="rule-minutes" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-max="720" data-feld="Pausenregel – Pause Minuten" value="${zahlText(r.break_minutes)}"></div><button class="danger" type="button">×</button>`;div.querySelector('button').onclick=()=>div.remove();document.getElementById('breakRuleRows').appendChild(div)}
+// Soll-Arbeitszeit und beide Werte einer Pausenregel sind Pflicht (seit 1.8.109, aus dem Backoffice übernommen).
+async function saveModel(){const st=document.getElementById('modelStatus');try{const rules=[...document.getElementById('breakRuleRows').querySelectorAll('.rule-row')].map((r,i)=>({id:r.dataset.id?Number(r.dataset.id):null,threshold_hours:zahlFeld(r.querySelector('.rule-threshold'),{pflicht:true}),break_minutes:zahlFeld(r.querySelector('.rule-minutes'),{pflicht:true}),sort_order:(i+1)*10}));const body={name:v('modelName'),code:nv('modelCode'),daily_target_hours:zahlFeld('modelDailyHours',{pflicht:true}),valid_from_week:zahlFeld('modelValidFrom',{leer:1}),valid_to_week:zahlFeld('modelValidTo',{leer:53}),description:nv('modelDescription'),active:document.getElementById('modelActive').checked,sort_order:zahlFeld('modelSort',{leer:100}),break_rules:rules};const id=v('modelId');const url=id?`/api/time-backoffice/work-time-models/${id}`:'/api/time-backoffice/work-time-models';await speichern('modelle',()=>api(url,{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{neuLaden:ladeModelle});document.getElementById('modelDialog').close();await loadWorkAssignments()}catch(e){st.textContent='Fehler: '+e.message}}
+async function removeModel(id){if(!confirm('Arbeitszeitmodell wirklich löschen?'))return;const st=document.getElementById('workModelStatus');try{await speichern('modelle',()=>api(`/api/time-backoffice/work-time-models/${id}`,{method:'DELETE'}),{neuLaden:ladeModelle});await loadWorkAssignments();st.textContent='Gelöscht.'}catch(e){st.textContent='Fehler: '+e.message}}
+function loadWorkAssignments(){return lesen('zuordnungen',()=>api('/api/time-backoffice/work-time-assignments'),d=>{workAssignments=d;document.getElementById('workAssignmentRows').innerHTML=workAssignments.map(a=>`<tr><td><input class="assignment-check" data-id="${a.employee_id}" data-group="${esc(a.employee_group||'')}" type="checkbox" style="width:auto"></td><td><b>${esc(a.employee_name)}</b><div class="muted small">${esc(a.employee_number||'')}</div></td><td>${esc(a.function_name||a.employee_group||'')}</td><td><select data-aenderung="modell-zuordnen" data-mitarbeiter="${a.employee_id}">${auswahlOptionen(workModels,a.model_id,m=>m.name)}</select>${a.effective_model_id&&a.effective_model_id!==a.model_id?`<div class="muted small">Aktuell wirksam: ${esc(a.effective_model_name)}</div>`:''}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">Keine Mitarbeiter.</td></tr>'})}
+async function assignOne(employeeId,modelId){const st=document.getElementById('workAssignmentStatus');try{const body=JSON.stringify({model_id:Number(modelId)});await speichern('zuordnungen',()=>api(`/api/time-backoffice/work-time-assignments/${employeeId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body}),{neuLaden:loadWorkAssignments});st.textContent='Gespeichert.'}catch(e){st.textContent='Fehler: '+e.message}}
+function toggleAllAssignments(an){document.querySelectorAll('.assignment-check').forEach(x=>x.checked=an)}
+function selectCommercial(){document.querySelectorAll('.assignment-check').forEach(x=>x.checked=x.dataset.group==='gewerblich')}
+async function assignBulkModel(){const st=document.getElementById('workAssignmentStatus');const ids=[...document.querySelectorAll('.assignment-check:checked')].map(x=>Number(x.dataset.id));if(!ids.length){st.textContent='Bitte Mitarbeiter markieren.';return}try{const body=JSON.stringify({employee_ids:ids,model_id:Number(v('bulkModel'))});await speichern('zuordnungen',()=>api('/api/time-backoffice/work-time-assignments/bulk',{method:'POST',headers:{'Content-Type':'application/json'},body}),{neuLaden:loadWorkAssignments});st.textContent='Gespeichert.'}catch(e){st.textContent='Fehler: '+e.message}}
+function loadPayroll(){return lesen('lohn',()=>api('/api/time-backoffice/payroll-employees'),d=>{payroll=d;const same=!!(timeRules&&timeRules.datev_personnel_equals_erp_number);document.getElementById('datevSameErp').checked=same;document.getElementById('payrollRows').innerHTML=payroll.map(p=>`<tr><td>${esc(p.employee_name)}</td><td>${esc(p.employee_number||'—')}</td><td><input id="pnr-${p.employee_id}" value="${esc(p.datev_personnel_number||'')}" style="width:120px" ${same?'disabled':''}></td><td><input id="pex-${p.employee_id}" type="checkbox" style="width:auto" ${p.payroll_export_enabled?'checked':''}></td><td><button class="secondary" data-klick="lohn-speichern" data-mitarbeiter="${p.employee_id}">Speichern</button></td></tr>`).join('')||'<tr><td colspan="5" class="muted">Keine Mitarbeiter.</td></tr>'})}
+async function savePayroll(id){const st=document.getElementById('payrollStatus');try{const body=JSON.stringify({datev_personnel_number:document.getElementById('pnr-'+id).value.trim()||null,payroll_export_enabled:document.getElementById('pex-'+id).checked});await speichern('lohn',()=>api(`/api/time-backoffice/payroll-employees/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body}),{neuLaden:loadPayroll});st.textContent='Gespeichert.'}catch(e){st.textContent='Fehler: '+e.message}}
+function setTimeList(groupKey){currentTimeList=groupKey;renderTimeList()}
+function currentTimeListGroup(){return timeListGroups.find(g=>g.group_key===currentTimeList)}
+function ladeZeitlisten(){return lesen('zeitlisten',()=>api('/api/settings/option-groups'),og=>{timeListGroups=og.filter(g=>Object.values(ZEIT_LISTEN).includes(g.group_key));renderTimeList()})}
+function renderTimeList(){
+  const g=currentTimeListGroup();
+  document.getElementById('timeListHeading').textContent=ZEIT_LISTEN_TITEL[currentTimeList]||'';
+  document.getElementById('timeListDescription').textContent=[g?.description,'Wie bisher im Backoffice lassen sich Einträge hinzufügen und löschen.'].filter(Boolean).join(' ');
+  document.getElementById('timeListRows').innerHTML=(g?.options||[]).map(o=>`<tr><td><b>${esc(o.label)}</b></td><td class="muted small">${esc(o.value)}</td><td>${o.is_default?'<span class="pill">Standard</span>':''}</td><td><button class="danger" data-klick="zeitliste-loeschen" data-id="${o.id}">Löschen</button></td></tr>`).join('')||'<tr><td colspan="4" class="muted small">Noch keine Einträge.</td></tr>';
+}
+async function saveTimeListOption(){
+  const st=document.getElementById('timeListStatus');const g=currentTimeListGroup();
+  try{
+    if(!g)throw Error('Die Liste ist noch nicht geladen.');
+    const sort=zahlFeld('timeListSort',{leer:100});
+    const body=JSON.stringify({label:v('timeListLabel'),value:v('timeListValue'),sort_order:sort,active:true,is_default:document.getElementById('timeListDefault').checked});
+    await speichern('zeitlisten',()=>api(`/api/settings/option-groups/${g.group_key}/options`,{method:'POST',headers:{'Content-Type':'application/json'},body}),{neuLaden:ladeZeitlisten});
+    setv('timeListLabel','');setv('timeListValue','');document.getElementById('timeListDefault').checked=false;
+    st.textContent='Hinzugefügt.';
+  }catch(e){st.textContent='Fehler: '+e.message}
+}
+async function deleteTimeListOption(id){if(!confirm('Eintrag wirklich löschen?'))return;const g=currentTimeListGroup();const st=document.getElementById('timeListStatus');try{await speichern('zeitlisten',()=>api(`/api/settings/option-groups/${g.group_key}/options/${id}`,{method:'DELETE'}),{neuLaden:ladeZeitlisten});st.textContent='Gelöscht.'}catch(e){st.textContent='Fehler: '+e.message}}
 function ladeNummernkreise(){return lesen('nummernkreise',()=>api('/api/settings/number-sequences'),d=>{sequences=d;renderSequences()})}
 function renderSequences(){document.getElementById('sequences').innerHTML=sequences.map(s=>`<div class="sequence" data-key="${esc(s.sequence_key)}"><div class="seq-grid"><div class="field"><label>${esc(s.label)} · Format</label><input class="format" value="${esc(s.format_pattern)}"></div><div class="field"><label>Startnummer</label><input class="start" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" value="${zahlText(s.start_value)}"></div><div class="field"><label>Nächste Nr.</label><input class="next" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-feld="Nächste Nummer" value="${zahlText(s.next_value)}"></div><div class="field"><label>Jahreswechsel</label><select class="reset"><option value="false" ${!s.reset_yearly?'selected':''}>fortlaufend</option><option value="true" ${s.reset_yearly?'selected':''}>auf Startnummer zurück</option></select></div><div class="field"><label>Vorschau</label><div class="preview">${esc(s.preview||'—')}</div></div><button data-klick="nummernkreis-speichern" data-schluessel="${esc(s.sequence_key)}">Speichern</button></div><div class="seqStatus status"></div></div>`).join('')}
 // Seit 1.8.109 Start- und nächste Nummer über _zahl.html, gelesen vor dem Speichern; leer wird abgelehnt (bis 1.8.108 still als 0).
@@ -2270,9 +2515,7 @@ document.getElementById('accentColorPicker').addEventListener('input',function()
 document.getElementById('accentColorText').addEventListener('input',function(){if(isHexColor(this.value)){document.getElementById('accentColorPicker').value=this.value;previewAccentColor(this.value)}});
 showSettingsSection(settingsSectionFromHash(),false);
 load().catch(e=>alert('Einstellungen konnten nicht geladen werden: '+e.message));
-loadEmailSettings();
-loadAiSettings();
-loadOutlookSyncSettings();
+if(istAdmin){loadEmailSettings();loadAiSettings();loadOutlookSyncSettings()}
 loadEmailTemplate();
 loadAppearance();
 loadContractBasisClauses();

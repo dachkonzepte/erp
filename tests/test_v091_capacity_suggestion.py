@@ -84,5 +84,6 @@ def test_v091_ui_settings_and_absence_types_are_present():
     settings=(root/"app/templates/settings.html").read_text(encoding="utf-8")
     options=(root/"app/option_settings.py").read_text(encoding="utf-8")
     assert "Planungsvorschlag" in planning and "Abwesenheiten" in planning and "utilization_pct" in planning
-    assert "Plantafel & Kapazität" in settings and "planningDailyHours" in settings
+    # Seit 1.8.112 (neue Ordnung) heißt der Bereich "Arbeitszeit und Kalender" (Betrieb), vorher "Plantafel & Kapazität".
+    assert "Arbeitszeit und Kalender" in settings and "planningDailyHours" in settings
     assert '"absence_types"' in options

@@ -961,3 +961,117 @@ Farbkorrektur. Vor dem Schreiben jeweils per Grep bestätigt: der jeweils einzig
 `.report-actions a`, `.top-actions a`, `.delivery-tag a`) bleiben durch die höhere
 CSS-Spezifität ihrer eigenen Klassen unberührt, unabhängig von der Regel-Reihenfolge im
 Stylesheet. Tests: `tests/test_v259_unstyled_link_audit.py`.
+
+---
+
+## Neue Ordnung von Seitenleiste und Einstellungen (seit 1.8.112)
+
+**Vorgabe des Betreibers (16.10.2026), Stufe 1 „Ordnen“**: nur verschieben, umbenennen, ausblenden; keine Fachlogik ändern; alle
+Adressen bleiben. (1) Seitenleiste mit Überschrift je Gruppe: Übersicht (Start, Aufgaben, Kalender) · Aufträge (Anfragen, Projekte,
+Plantafel, Checklisten, Wartungen ↳ Befunde) · Kaufmännisch (Finanzen, Mahnwesen, Eingangsrechnungen, Betriebskosten) · Personal
+(Zeiterfassung, Backoffice) · Stammdaten · System (Einstellungen); „Planung“ heißt „Plantafel“, „Mängel“ heißt „Befunde“, das
+Versandprotokoll fällt aus der Leiste. (2) Einstellungsmenü in zehn Gruppen: Firma · Finanzen · Kalkulation · Vorlagen und Texte ·
+Rechtstexte · Listen · Betrieb · Personal · Anbindungen · System; Zeitregeln, DATEV und Zeit-Listen ziehen aus dem Backoffice dorthin,
+das Backoffice behält Prüfen, „Abgeschlossen bis“ und Export. (3) Bereiche, die nur der Admin speichern darf, sind für Büro-Rollen
+ausgeblendet; die Rechtstexte bleiben für das Büro lesbar; „Benutzer und Zugriff“ nur für Admin. (4) Versandprotokoll zusätzlich in
+Kundenakte und Projektmappe, gefiltert; der Link einer Mahnung führt zur einzelnen Mahnung. (5) Mobile Kopfzeile: „Mein Konto“.
+(6) Das Leistungsformular lädt für „Büro – Auftrag“ wieder; überholte Hinweistexte in den Einstellungen berichtigen. Klicktests:
+Navigation je Rolle, jeder Einstellungsbereich erreichbar. Stufe 2 „Bereinigen“ nach dem Abnahmetest: nur festhalten (unten).
+
+### Umsetzung 1.8.112 (Punkte 1–3)
+
+- **Seitenleiste** (`app/templates/_sidebar.html`): sechs Gruppen mit Überschrift, die Rollen- und Modulbedingungen je Link
+  unverändert, einmal oben als Jinja-Variablen (`sb_buero`, `sb_finanzen`, `sb_aufgaben` …) -- `is_module_enabled()` öffnet je Aufruf
+  eine Verbindung. Eine Überschrift steht nur da, wo die Rolle etwas sieht (Monteur: Übersicht mit Start, Personal mit Zeiterfassung).
+  Eingerückt bleibt nur Befunde unter Wartungen; Mahnwesen und Backoffice stehen gleichrangig in ihrer Gruppe. Adressen unverändert
+  (`/planning`, `/findings`).
+- **Einstellungen** (`app/templates/settings.html`): Menü in zehn Gruppen. Jeder frühere Bereich behält Schlüssel und Adresse
+  (`#general`, `#reminder-levels` …); neue Bereiche `#dunning-legal-texts` (Mahn-Rechtstexte, der Kasten `#legalTextsBox` aus den
+  Mahnstufen), `#deadlines` (Fristen und Erinnerungen: die Vorlaufzeiten aus den bisherigen Bereichen Wartungen, Betriebsmittel,
+  Betriebskosten, Buchhaltung), `#time-rules` (Zeitregeln und DATEV), `#time-lists` (Zeit-Listen). Zwei Menüpunkte teilen sich je
+  einen Bereich (`GEMEINSAMER_BEREICH`): „Textbausteine“ (`#text-blocks`) zeigt die Auswahllisten-Pflege nur mit den Vor- und
+  Schlusstexten (`TEXT_GRUPPEN`), „Auswahllisten“ alle übrigen; „Zeitarten“, „Tätigkeiten“, „Abwesenheitsarten“
+  (`#time-entry-types` …) zeigen je ihre Liste. Frühere Adressen `#recurring-costs`, `#incoming-invoices`, `#operational-assets` öffnen
+  „Fristen und Erinnerungen“ (`FRUEHERE_ADRESSEN`). Firmenlogo, Logo der Leiste und Akzentfarbe stehen unter Erscheinungsbild
+  (`#appearance`, bisher „Design“), dazu „Logo im PDF“ -- der Baustein „Logo“ des gemeinsamen PDF-Rahmens, bisher unter Dokumente &
+  Layout.
+- **Aus dem Backoffice übernommen** (`app/templates/time_backoffice.html` → Einstellungen): Allgemeine Zeitregeln und DATEV-Lohnarten
+  (ein Formular wie bisher), Arbeitszeitmodelle mit Dialog und Mitarbeiter-Zuordnung, DATEV-Personalnummern samt „DATEV-Nr. = ERP-Nr.“
+  (Personal → Zeitregeln und DATEV) und die Zeit-Listen (Listen). Dieselben Endpunkte, Knöpfe mit Werten jetzt über data-Attribute
+  (Regel 32; fünf Einträge in `AUSNAHMEN_HANDLER` gestrichen). Das Backoffice behält Dashboard, Buchungen, Abwesenheiten, Stundenzettel,
+  „Abgeschlossen bis“ und den DATEV-Export (dessen Stand liest es weiter); zwei Links „Einrichtung“ führen in die Einstellungen, die
+  früheren Reiter `#workmodels`, `#settings`, `#options` leiten dorthin weiter.
+- **Ausgeblendet für die Büro-Rollen** (Jinja `ist_admin`, nicht im Markup, die Seite lädt sie nicht): E-Mail und Microsoft 365,
+  Outlook-Kalender, KI, Adressimport, Module, Benutzer und Zugriff, Wartungen, Projekt-Pipeline, Aufgaben, Vor Ort -- jeder Schreibweg
+  dort ist admin-only (bis 1.8.111 sahen die Büro-Rollen Module, Aufgaben, Wartungen, Projekt-Pipeline und Vor Ort und bekamen beim
+  Speichern 403). Lesbar für das Büro bleiben die Rechtstexte (Vertragsgrundlagen, Vertragsvorlagen, Vorbehalte, Mahn-Rechtstexte) und
+  im Mahnwesen Mahngebühren-Schalter und Basiszinssatz. Kalkulation bleibt buero_finanzen/admin (seit 1.4.8), dazu der Kontenstamm.
+- **Überholte Hinweistexte berichtigt**: Verweise auf „Auswahllisten“ für Vor-/Schlusstexte (jetzt Textbausteine), „Zeitarten …
+  werden im Zeiterfassungs-Backoffice verwaltet“, „siehe Module oben“, „E-Mail-Versand – aktuell für Mahnungen“, „Hell/Dunkel oben in
+  der Seitenleiste“ (unten), „/vor-ort“ (heute /mobil, Abmeldung beim nächsten Aufruf), „seit 1.3.12 einstellbar“ und Versionsangaben
+  im Dokumentlayout, „Jeder der vier Bausteine“, „Benutzer & Zugriff“/„E-Mail-Versand“ in Outlook-Kalender, „Planung“ in der
+  Modulliste, „und später das Mahnwesen“ bei den Zahlungsbedingungen. Die Fehlerzweige von E-Mail, KI und Outlook zeigten „nur für
+  Administratoren verfügbar“ auch bei einem Ladefehler eines Admins -- jetzt den Fehler.
+
+#### Festlegungen 1.8.112 (Bitte bestätigen)
+
+1. **Mahnwesen und Backoffice stehen gleichrangig in ihrer Gruppe**, nicht mehr eingerückt; eingerückt bleibt nur Befunde unter Wartungen (so in der Vorgabe markiert).
+2. **Eine Gruppenüberschrift erscheint nur, wenn die Rolle in der Gruppe etwas sieht** -- der Monteur sieht „Übersicht“ (Start) und „Personal“ (Zeiterfassung).
+3. **„Zeitregeln und DATEV“ ist ein Menüpunkt** (wie „E-Mail und Microsoft 365“) und umfasst auch die Arbeitszeitmodelle samt Mitarbeiter-Zuordnung und die DATEV-Personalnummern -- Einrichtung, nicht Prüfen, Abschluss oder Export.
+4. **Zeitregeln und Lohnarten bleiben ein Formular mit einem Speichern** -- der Endpunkt ist kein Teil-Update; zwei Formulare schickten je den Stand des anderen mit.
+5. **Zeit-Listen: drei Menüpunkte, ein Bereich, wie bisher nur hinzufügen und löschen** -- ändern und deaktivieren gehört zu Stufe 2.
+6. **Textbausteine sind die fünf Listen der Vor- und Schlusstexte** (Angebots-Vortexte, Angebots-Schlusstexte, Rechnungs-Vortexte, Rechnungs-Schlusstexte, Schlusstexte bei Erstattung); „Auswahllisten“ zeigt alle übrigen, derselbe Bereich mit derselben Pflege.
+7. **„Logo im PDF“ ist der Baustein „Logo“ des gemeinsamen PDF-Rahmens**, gezogen nach Erscheinungsbild; Firmenkopf, Seitenzahl und Wiederholungszeile bleiben unter Dokumentlayout.
+8. **„Standard-MwSt. %“ bleibt bis Stufe 2 unter Unternehmensdaten** (dort entfällt es); „Steuer“ zeigt die Steuerschlüssel.
+9. **Mahngebühren-Schalter und Basiszinssatz bleiben im Mahnwesen und für das Büro lesbar**, obwohl nur der Admin sie ändert -- das Büro braucht den Stand für die Mahnungen; nur die Rechtstexte ziehen nach Rechtstexte → Mahn-Rechtstexte.
+10. **Fristen und Erinnerungen zeigt je Rolle, was sie speichern darf**: Wartungen nur Admin, Betriebskosten und Eingangsrechnungen Finanzen und Admin, Betriebsmittel jedes Büro; je Block eigenes Speichern und eigener Modulhinweis.
+11. **Die Vorlaufzeit der Wartungen speichert wie bisher zusammen mit Sachbearbeiter und Dachflächen-Schalter** (Endpunkt ohne Teil-Update) -- der Knopf unter Fristen und der unter Wartungen schicken dieselben drei Felder.
+12. **Frühere Adressen**: `#recurring-costs`, `#incoming-invoices`, `#operational-assets` öffnen Fristen und Erinnerungen; ein für die Rolle ausgeblendeter Bereich öffnet die Unternehmensdaten; `/time-backoffice#workmodels` und `#settings` führen nach `/settings#time-rules`, `#options` nach `/settings#time-entry-types`.
+13. **Checklisten-Vorlagen und Prüfvorlagen als Links unter Vorlagen und Texte**; Checklisten-Vorlagen nur bei eingeschaltetem Modul (wie die Seitenleiste), Prüfvorlagen ohne Modulprüfung bis Stufe 2.
+14. **Protokolle als Untergruppe von System** (Versandprotokoll, Änderungshistorie, Changelog) -- für alle Büro-Rollen; Module und „Benutzer und Zugriff“ nur Admin.
+15. **Überschriften der Bereiche folgen den Menüpunkten** (Unternehmensdaten, Erscheinungsbild, Steuer, Mahnwesen, Dokumentlayout, Vorbehalte, Arbeitszeit und Kalender, Mitarbeiterfunktionen, E-Mail und Microsoft 365, Outlook-Kalender); „Stundenkostenverrechnungssatz“, „Weitere Kalkulationsgrundlagen“ und „KI-Anbieter“ bleiben.
+16. **„Sidebar-Logo“ heißt in der Oberfläche „Logo der Leiste“** (Endpunkte und Felder unverändert).
+
+#### Nebenbefunde (nur gemeldet, nicht behoben)
+
+1. **Das Backoffice lässt nur Administratoren hinein**, obwohl Seite und alle Endpunkte seit 1.4.8 auch Büro – Auftrag und Büro – Finanzen
+   offenstehen und die Seitenleiste den Link dem Büro zeigt: `init()` in `time_backoffice.html` bricht für jede andere Rolle mit „Dieses
+   Backoffice ist nur für Administratoren verfügbar“ ab. Seit 1.8.112 pflegt das Büro Zeitregeln, Modelle und Zeit-Listen in den
+   Einstellungen (der Server erlaubt es) -- Prüfen, Abschluss und Export im Backoffice bleiben ihm verschlossen.
+2. **Outlook-Kalender: der Hinweis „noch keine vollständigen Microsoft-365-Zugangsdaten“ steht immer da**, auch wenn sie hinterlegt sind --
+   `settings.html` hat keine CSS-Regel für die Klasse `hidden`, mit der `loadOutlookSyncSettings()` ihn ausblendet.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v417_neue_ordnung.py` (10 Tests): Seitenleiste je Rolle in Gruppen, ohne Versandprotokoll; Menü der Einstellungen je
+  Rolle; ausgeblendet genau dort, wo jeder Schreibweg admin-only ist (über die Rollen der Routen, `tests/test_v260_role_audit.py`), außer
+  den Rechtstexten; jeder Menüpunkt mit Bereich, frühere Adressen in der Liste; Backoffice nur mit Prüfen, Abschluss, Export und
+  Weiterleitung.
+- Gegenproben (Regel 24): 4 von 4 rot -- Module für das Büro im Markup, „Benutzer und Zugriff“ für das Büro, Versandprotokoll wieder in
+  der Seitenleiste, Reiter „Arbeitszeitmodelle“ wieder im Backoffice. Jede Datei byte-genau zurück (SHA-256).
+- Neu Klicktest `scripts/klicktest_neue_ordnung.py` (81 Prüfungen, vier Rollen): Seitenleiste in Gruppen und ihre Links ohne 403/404,
+  Menü je Rolle, jeder Menüpunkt öffnet seinen Bereich mit Überschrift und Adresse, Links im Menü ohne 403/404, Textbausteine/
+  Auswahllisten, Zeit-Listen, Mahn-Rechtstexte lesbar, Fristen je Rolle, Logo im PDF unter Erscheinungsbild, Zeitregeln geladen;
+  Speichern (Zeitregeln, Zeitart hinzufügen und löschen, Logo im PDF, Vorlaufzeiten Betriebsmittel und Wartungen) nach dem Neuladen;
+  frühere Adressen in Einstellungen und Backoffice; 412 px ohne waagrechte Scrollleiste.
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v242::test_backoffice_stays_directly_after_time_tracking_as_a_sub_item` → `…_steht_direkt_nach_der_zeiterfassung_in_der_gruppe_personal`: altes Soll „Backoffice eingerückt (`app-sidebar-sub`) nach der Zeiterfassung“, neues Soll „Gruppe Personal, Backoffice direkt nach der Zeiterfassung, nicht eingerückt“.
+  - `test_v104::test_backoffice_ui_has_separate_options_work_models_and_current_month_entries`: altes Soll „Reiter workmodels und options und die Personalnummern im Backoffice“, neues Soll „in den Einstellungen (time-rules, Zeit-Listen, Personalnummern), nicht mehr im Backoffice“; Buchungen des Monats unverändert.
+  - `test_v105::test_backoffice_ui_exposes_project_order_and_calendar_week_fields`: altes Soll „Kalenderwochen-Felder der Modelle im Backoffice“, neues Soll „in den Einstellungen“; Bearbeiten-Dialog der Buchung unverändert im Backoffice.
+  - `test_v407` `AUSNAHMEN_HANDLER`: fünf Einträge für `time_backoffice.html` gestrichen (die Knöpfe sind umgezogen und tragen ihre Werte jetzt als data-Attribute) -- nur Aufbau, die Liste wurde kürzer.
+  - `test_v091::test_v091_ui_settings_and_absence_types_are_present`: altes Soll „Plantafel & Kapazität“ in den Einstellungen, neues Soll „Arbeitszeit und Kalender“ (umbenannter Bereich).
+  - Klicktest `klicktest_monteur_navigation`: altes Soll „Wartungen, Mängel, Anfragen, Projekte, Planung“ in dieser Reihenfolge, neues Soll „Anfragen, Projekte, Plantafel, Wartungen, Befunde“ (neue Gruppe Aufträge, neue Namen).
+
+### Stufe 2 „Bereinigen“ (festgehalten 16.10.2026, nicht gebaut -- nach dem Abnahmetest)
+
+- **Steuer aus einer Quelle**: der Standard-Steuerschlüssel ist auch Vorgabe für Anfrage und Schnellauftrag, „Standard-MwSt.“ unter
+  Unternehmensdaten entfällt -- zusammen mit § 13b.
+- **Mahnungs-E-Mail nur unter E-Mail-Vorlagen** (heute zusätzlich je Mahnstufe im Mahnwesen).
+- **Dokumentkategorien aus einer Liste**, ohne stille Ablage unter „Sonstiges“ (heute zwei: Dateiablage je Objekt und die Auswahlliste
+  „Dokumentkategorien (Kundenmappe & Projektmappe)“).
+- **Tote Felder und versteckte Texte entfernen** (z. B. die versteckten Angebots-Vor-/Schlusstexte unter Unternehmensdaten); die
+  Pflichtangaben der Firma bleiben -- sie stehen auf dem Briefpapier und werden später für die E-Rechnung gebraucht.
+- **Zeit-Listen ändern und deaktivieren** (heute nur hinzufügen und löschen).
+- **Module wirken auch auf Prüfvorlagen, Outlook-Sync und Betriebskosten-Vorschlag.**
+- **Vorgabe 8 h aus der täglichen Arbeitszeit.**
+- **Die Zahlungsbedingung des Kunden ist auch Vorgabe für neue Angebote.**

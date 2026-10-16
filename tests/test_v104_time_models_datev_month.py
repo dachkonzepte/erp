@@ -64,14 +64,18 @@ def test_work_time_models_and_automatic_break_on_timer():
 
 
 def test_backoffice_ui_has_separate_options_work_models_and_current_month_entries():
+    """Seit 1.8.112 (neue Ordnung): Arbeitszeitmodelle, Zeit-Listen und DATEV-Personalnummern stehen in den Einstellungen
+    (Personal -> Zeitregeln und DATEV, Listen -> Zeitarten/Tätigkeiten/Abwesenheitsarten), das Backoffice behält die Buchungen."""
     root = Path(__file__).parents[1]
     html = (root / "app/templates/time_backoffice.html").read_text(encoding="utf-8")
-    assert 'data-tab="workmodels"' in html
-    assert 'data-tab="options"' in html
-    assert "DATEV-Personalnummer entspricht der ERP-Mitarbeiternummer" in html
+    settings = (root / "app/templates/settings.html").read_text(encoding="utf-8")
+    assert 'data-settings-section="time-rules"' in settings and 'id="workModelCards"' in settings
+    assert 'data-settings-section="time-entry-types"' in settings and 'data-settings-section="absence-types"' in settings
+    assert "DATEV-Personalnummer entspricht der ERP-Mitarbeiternummer" in settings
+    assert 'data-tab="workmodels"' not in html and 'data-tab="options"' not in html
     assert "currentMonthQs()" in html
     assert "loadEntries(){const [f,t]=currentMonthRange()" in html
-    assert "Sommermodell" not in html  # Modelle kommen aus der DB, nicht hart aus dem Frontend.
+    assert "Sommermodell" not in html and "Sommermodell" not in settings  # Modelle kommen aus der DB, nicht hart aus dem Frontend.
 
 
 def test_advanced_settings_default_model_is_created():

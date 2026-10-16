@@ -60,12 +60,15 @@ def test_sidebar_has_labeled_stammdaten_and_system_groups_in_order():
 # Punkt 4: Backoffice bleibt bei Zeiterfassung
 # ---------------------------------------------------------------------------
 
-def test_backoffice_stays_directly_after_time_tracking_as_a_sub_item():
+def test_backoffice_steht_direkt_nach_der_zeiterfassung_in_der_gruppe_personal():
+    """Bis 1.8.111 ein eingerückter Unterpunkt der Zeiterfassung. Seit 1.8.112 (neue Ordnung, Gruppen mit Überschrift): Zeiterfassung und Backoffice bilden die Gruppe "Personal" --
+    Backoffice steht direkt nach der Zeiterfassung, als gleichrangiger Eintrag der Gruppe statt eingerückt."""
     html = (TEMPLATES / "_sidebar.html").read_text(encoding="utf-8")
+    personal_group = html.index('class="app-sidebar-group">Personal<')
     time_tracking = html.index('href="/time-tracking"')
     backoffice = html.index('href="/time-backoffice"')
     stammdaten_group = html.index('class="app-sidebar-group">Stammdaten<')
-    assert time_tracking < backoffice < stammdaten_group
-    # Bleibt ein sichtbar eingerueckter Unterpunkt, kein gleichrangiger Haupteintrag.
+    assert personal_group < time_tracking < backoffice < stammdaten_group
+    assert 'href="/' not in html[time_tracking + 1:backoffice]  # nichts dazwischen
     body = html[max(0, backoffice - 200):backoffice]
-    assert "app-sidebar-sub" in body
+    assert "app-sidebar-sub" not in body

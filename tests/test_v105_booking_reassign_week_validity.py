@@ -52,7 +52,9 @@ def test_summer_winter_model_week_validity_and_automatic_effective_model():
 def test_backoffice_ui_exposes_project_order_and_calendar_week_fields():
     root = Path(__file__).parents[1]
     html = (root / "app/templates/time_backoffice.html").read_text(encoding="utf-8")
+    # Seit 1.8.112 stehen die Arbeitszeitmodelle in den Einstellungen (Personal -> Zeitregeln und DATEV).
+    settings = (root / "app/templates/settings.html").read_text(encoding="utf-8")
     assert 'id="editProject"' in html and 'id="editOrder"' in html and 'id="editOrderItem"' in html
-    assert 'id="modelValidFrom"' in html and 'id="modelValidTo"' in html
-    assert 'KW ${esc(m.valid_from_week' in html  # seit 1.8.102 mit esc() (Regel 31)
+    assert 'id="modelValidFrom"' in settings and 'id="modelValidTo"' in settings
+    assert 'KW ${esc(m.valid_from_week' in settings  # seit 1.8.102 mit esc() (Regel 31)
     assert re.match(r"^\d+\.\d+\.\d+$", (root / "VERSION").read_text(encoding="utf-8").strip())
