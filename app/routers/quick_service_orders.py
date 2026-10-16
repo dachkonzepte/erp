@@ -29,7 +29,7 @@ def _require_module_enabled(db: Session):
 
 
 @router.post("/api/quick-service-orders", response_model=QuickServiceOrderOut)
-def post_quick_service_order(payload: QuickServiceOrderCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_quick_service_order(payload: QuickServiceOrderCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         return create_quick_service_order(

@@ -98,18 +98,18 @@ def _run(db: Session, defect_id: int, action):
 
 
 @router.get("/api/orders/{order_id}/defects")
-def get_order_defects(order_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_order_defects(order_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return list_defects(db, _order_or_404(db, order_id))
 
 
 @router.get("/api/order-acceptances/{acceptance_id}/defect-options")
-def get_defect_options(acceptance_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_defect_options(acceptance_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return defect_options(db, _acceptance_or_404(db, acceptance_id))
 
 
 @router.post("/api/order-acceptances/{acceptance_id}/defects")
 def post_defect(acceptance_id: int, data: str = Form(...), photos: list[UploadFile] = File(default=[]),
-                receipts: list[UploadFile] = File(default=[]), db: Session = Depends(get_db),
+                receipts: list[UploadFile] = File(default=[]), db: Session = Depends(get_db, scope="function"),
                 user: AppUser = _role_dep):
     """`data`: DefectCreate als JSON; `photos`: Fotos (JPEG, PNG, WebP), `receipts`: Belege (PDF oder Foto)."""
     acceptance = _acceptance_or_404(db, acceptance_id)
@@ -136,18 +136,18 @@ def _protocol_or_404(db: Session, checklist_id: int):
 
 
 @router.get("/api/checklists/{checklist_id}/defects")
-def get_protocol_defects(checklist_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_protocol_defects(checklist_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return list_protocol_defects(db, _protocol_or_404(db, checklist_id))
 
 
 @router.get("/api/checklists/{checklist_id}/protocol-options")
-def get_protocol_options(checklist_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_protocol_options(checklist_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return protocol_options(db, _protocol_or_404(db, checklist_id))
 
 
 @router.post("/api/checklists/{checklist_id}/defects")
 def post_protocol_defect(checklist_id: int, data: str = Form(...), photos: list[UploadFile] = File(default=[]),
-                         receipts: list[UploadFile] = File(default=[]), db: Session = Depends(get_db),
+                         receipts: list[UploadFile] = File(default=[]), db: Session = Depends(get_db, scope="function"),
                          user: AppUser = _role_dep):
     """Mangel im Feld "Mängel" eines Abnahmeprotokolls erfassen (seit 1.8.60) -- `data` wie DefectCreate."""
     _protocol_or_404(db, checklist_id)
@@ -167,7 +167,7 @@ def post_protocol_defect(checklist_id: int, data: str = Form(...), photos: list[
 
 
 @router.post("/api/defects/{defect_id}/stance")
-def post_defect_stance(defect_id: int, payload: DefectStance, db: Session = Depends(get_db),
+def post_defect_stance(defect_id: int, payload: DefectStance, db: Session = Depends(get_db, scope="function"),
                        user: AppUser = _role_dep):
     defect = _defect_or_404(db, defect_id)
     user_id, user_name = actor_of(user)
@@ -176,7 +176,7 @@ def post_defect_stance(defect_id: int, payload: DefectStance, db: Session = Depe
 
 
 @router.post("/api/defects/{defect_id}/release")
-def post_defect_release(defect_id: int, payload: DefectRelease, db: Session = Depends(get_db),
+def post_defect_release(defect_id: int, payload: DefectRelease, db: Session = Depends(get_db, scope="function"),
                         user: AppUser = _role_dep):
     defect = _defect_or_404(db, defect_id)
     user_id, user_name = actor_of(user)
@@ -186,7 +186,7 @@ def post_defect_release(defect_id: int, payload: DefectRelease, db: Session = De
 
 @router.post("/api/defects/{defect_id}/status")
 def post_defect_status(defect_id: int, data: str = Form(...), receipts: list[UploadFile] = File(default=[]),
-                       db: Session = Depends(get_db), user: AppUser = _role_dep):
+                       db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep):
     defect = _defect_or_404(db, defect_id)
     payload = _parse(DefectStatusChange, data)
     uploads = _read_uploads([("beleg", receipts)])
@@ -196,7 +196,7 @@ def post_defect_status(defect_id: int, data: str = Form(...), receipts: list[Upl
 
 
 @router.post("/api/defects/{defect_id}/photos")
-def post_defect_photos(defect_id: int, photos: list[UploadFile] = File(default=[]), db: Session = Depends(get_db),
+def post_defect_photos(defect_id: int, photos: list[UploadFile] = File(default=[]), db: Session = Depends(get_db, scope="function"),
                        user: AppUser = _role_dep):
     defect = _defect_or_404(db, defect_id)
     uploads = _read_uploads([("foto", photos)])
@@ -205,7 +205,7 @@ def post_defect_photos(defect_id: int, photos: list[UploadFile] = File(default=[
 
 
 @router.post("/api/defects/{defect_id}/receipts")
-def post_defect_receipts(defect_id: int, receipts: list[UploadFile] = File(default=[]), db: Session = Depends(get_db),
+def post_defect_receipts(defect_id: int, receipts: list[UploadFile] = File(default=[]), db: Session = Depends(get_db, scope="function"),
                          user: AppUser = _role_dep):
     """Belege nachreichen (seit 1.8.51) -- wie Fotos nur ergänzen."""
     defect = _defect_or_404(db, defect_id)
@@ -215,7 +215,7 @@ def post_defect_receipts(defect_id: int, receipts: list[UploadFile] = File(defau
 
 
 @router.post("/api/defects/{defect_id}/discard")
-def post_defect_discard(defect_id: int, payload: DefectDiscard, db: Session = Depends(get_db),
+def post_defect_discard(defect_id: int, payload: DefectDiscard, db: Session = Depends(get_db, scope="function"),
                         user: AppUser = _role_dep):
     defect = _defect_or_404(db, defect_id)
     user_id, user_name = actor_of(user)
@@ -224,7 +224,7 @@ def post_defect_discard(defect_id: int, payload: DefectDiscard, db: Session = De
 
 
 @router.get("/api/defects/{defect_id}/files/{file_id}")
-def get_defect_file(defect_id: int, file_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_defect_file(defect_id: int, file_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Die Datei genau so wie hochgeladen -- nur mit stimmender Prüfsumme (sonst 409, fehlt 410); nosniff."""
     row = db.get(DefectFile, file_id)
     if row is None or row.defect_id != defect_id:

@@ -28,11 +28,11 @@ def _to_out(db: Session) -> OutlookSyncSettingsOut:
 
 
 @router.get("/api/outlook-sync-settings", response_model=OutlookSyncSettingsOut)
-def get_outlook_sync_settings_endpoint(db: Session = Depends(get_db), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+def get_outlook_sync_settings_endpoint(db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     return _to_out(db)
 
 
 @router.put("/api/outlook-sync-settings", response_model=OutlookSyncSettingsOut)
-def put_outlook_sync_settings(payload: OutlookSyncSettingsUpdate, db: Session = Depends(get_db), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+def put_outlook_sync_settings(payload: OutlookSyncSettingsUpdate, db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     update_outlook_sync_settings(db, enabled=payload.enabled)
     return _to_out(db)

@@ -1,4 +1,3 @@
-import asyncio
 import io
 from pathlib import Path
 
@@ -34,7 +33,7 @@ def test_project_file_upload_list_and_delete(tmp_path):
     customer = create_customer(CustomerCreate(last_name="Projektmappen Kunde"), db)
     project = create_project(ProjectCreate(customer_id=customer.id, name="Dachsanierung"), db)
     upload = UploadFile(filename="Dachplan.pdf", file=io.BytesIO(b"%PDF-1.4 test"), headers=Headers({"content-type":"application/pdf"}))
-    out = asyncio.run(upload_project_document(project.id, upload, "Pläne", "Plan Stand Ausführung", "2026-08-31", db))
+    out = upload_project_document(project.id, upload, "Pläne", "Plan Stand Ausführung", "2026-08-31", db)
     assert out.category == "Pläne"
     assert out.original_filename == "Dachplan.pdf"
     assert out.can_preview is True

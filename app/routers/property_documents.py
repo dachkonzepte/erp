@@ -45,16 +45,17 @@ def _property_document_out(doc: PropertyDocument) -> PropertyDocumentOut:
 
 
 @router.get("/api/properties/{property_id}/documents", response_model=list[PropertyDocumentListItemOut])
-def list_property_documents(property_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def list_property_documents(property_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     if db.get(Property, property_id) is None:
         raise HTTPException(status_code=404, detail="Objekt nicht gefunden.")
     return list_merged_documents_for_property(db, property_id)
 
 
 @router.post("/api/properties/{property_id}/documents", response_model=PropertyDocumentOut)
-async def upload_property_document(
+# Seit 1.8.114 def statt async def: im Threadpool, die Datenbank nie auf der Event-Loop (Punkt 1a, tests/test_v419_verbindungen.py).
+def upload_property_document(
     property_id: int, file: UploadFile = File(...), category_id: int = Form(...),
-    description: str | None = Form(None), db: Session = Depends(get_db), _role: AppUser = _role_dep,
+    description: str | None = Form(None), db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep,
 ):
     if db.get(Property, property_id) is None:
         raise HTTPException(status_code=404, detail="Objekt nicht gefunden.")
@@ -63,7 +64,7 @@ async def upload_property_document(
         raise HTTPException(status_code=422, detail="Kategorie nicht gefunden.")
     if not file.filename:
         raise HTTPException(status_code=400, detail="Bitte eine Datei auswählen.")
-    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    data = file.file.read(MAX_UPLOAD_BYTES + 1)
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Datei ist größer als 50 MB.")
     doc = create_property_document(
@@ -74,7 +75,7 @@ async def upload_property_document(
 
 
 @router.get("/api/property-documents/{document_id}/view")
-def view_property_document(document_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def view_property_document(document_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     doc = db.get(PropertyDocument, document_id)
     if doc is None:
         raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
@@ -85,7 +86,7 @@ def view_property_document(document_id: int, db: Session = Depends(get_db), _rol
 
 
 @router.get("/api/property-documents/{document_id}/download")
-def download_property_document(document_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def download_property_document(document_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     doc = db.get(PropertyDocument, document_id)
     if doc is None:
         raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
@@ -96,7 +97,7 @@ def download_property_document(document_id: int, db: Session = Depends(get_db), 
 
 
 @router.delete("/api/property-documents/{document_id}")
-def delete_property_document_endpoint(document_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def delete_property_document_endpoint(document_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     doc = db.get(PropertyDocument, document_id)
     if doc is None:
         raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")

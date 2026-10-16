@@ -42,7 +42,7 @@ def _require_module_enabled(db: Session):
 
 
 @router.get("/api/incoming-invoices/open-liabilities", response_model=IncomingInvoiceOpenLiabilitiesOut)
-def get_incoming_invoices_open_liabilities(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_incoming_invoices_open_liabilities(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Summe offener Verbindlichkeiten + Skonto-Warnungen -- bewusst als literaler Pfad VOR
     /{invoice_id} deklariert (Muster GET /api/recurring-costs/overview)."""
     _require_module_enabled(db)
@@ -50,7 +50,7 @@ def get_incoming_invoices_open_liabilities(db: Session = Depends(get_db), _role:
 
 
 @router.post("/api/incoming-invoices/check-due")
-def post_incoming_invoices_check_due(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_incoming_invoices_check_due(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """On-Demand-Erinnerung -- vom Frontend beim Aufruf der Eingangsrechnungen-Liste ausgelöst,
     kein Hintergrund-Job (Muster POST /api/recurring-costs/check-due)."""
     _require_module_enabled(db)
@@ -62,7 +62,7 @@ def post_incoming_invoices_check_due(db: Session = Depends(get_db), _role: AppUs
 def get_incoming_invoices(
     payment_status: str | None = None, supplier_id: int | None = None,
     date_from: date | None = None, date_to: date | None = None,
-    db: Session = Depends(get_db), _role: AppUser = _role_dep,
+    db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep,
 ):
     _require_module_enabled(db)
     return list_invoices(
@@ -71,7 +71,7 @@ def get_incoming_invoices(
 
 
 @router.get("/api/incoming-invoices/{invoice_id}", response_model=IncomingInvoiceOut)
-def get_incoming_invoice(invoice_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_incoming_invoice(invoice_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     result = get_invoice(db, invoice_id)
     if result is None:
@@ -80,7 +80,7 @@ def get_incoming_invoice(invoice_id: int, db: Session = Depends(get_db), _role: 
 
 
 @router.post("/api/incoming-invoices", response_model=IncomingInvoiceOut)
-def post_incoming_invoice(payload: IncomingInvoiceCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_incoming_invoice(payload: IncomingInvoiceCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         return create_invoice(db, payload.model_dump())
@@ -89,7 +89,7 @@ def post_incoming_invoice(payload: IncomingInvoiceCreate, db: Session = Depends(
 
 
 @router.put("/api/incoming-invoices/{invoice_id}", response_model=IncomingInvoiceOut)
-def put_incoming_invoice(invoice_id: int, payload: IncomingInvoiceUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_incoming_invoice(invoice_id: int, payload: IncomingInvoiceUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         # Seit 1.8.96 Teil-Update (Regel 22): "als bezahlt markieren" schickt nur Status und Zahlungsdatum.
@@ -102,7 +102,7 @@ def put_incoming_invoice(invoice_id: int, payload: IncomingInvoiceUpdate, db: Se
 
 
 @router.delete("/api/incoming-invoices/{invoice_id}")
-def delete_incoming_invoice(invoice_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def delete_incoming_invoice(invoice_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     if not delete_invoice(db, invoice_id):
         raise HTTPException(status_code=404, detail="Eingangsrechnung nicht gefunden.")
@@ -110,8 +110,9 @@ def delete_incoming_invoice(invoice_id: int, db: Session = Depends(get_db), _rol
 
 
 @router.post("/api/incoming-invoices/{invoice_id}/document", response_model=IncomingInvoiceOut)
-async def upload_incoming_invoice_document(
-    invoice_id: int, file: UploadFile = File(...), db: Session = Depends(get_db), _role: AppUser = _role_dep,
+# Seit 1.8.114 def statt async def: im Threadpool, die Datenbank nie auf der Event-Loop (Punkt 1a, tests/test_v419_verbindungen.py).
+def upload_incoming_invoice_document(
+    invoice_id: int, file: UploadFile = File(...), db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep,
 ):
     _require_module_enabled(db)
     invoice = db.get(IncomingInvoice, invoice_id)
@@ -121,7 +122,7 @@ async def upload_incoming_invoice_document(
         raise HTTPException(status_code=400, detail="Bitte eine Datei auswählen.")
     if (file.content_type or "").lower() not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(status_code=422, detail="Bitte PDF, PNG, JPEG oder WebP verwenden.")
-    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    data = file.file.read(MAX_UPLOAD_BYTES + 1)
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Datei ist größer als 10 MB.")
     stored = replace_document(invoice.document_filename, file.filename, data)
@@ -129,7 +130,7 @@ async def upload_incoming_invoice_document(
 
 
 @router.get("/api/incoming-invoices/{invoice_id}/document/file")
-def get_incoming_invoice_document_file(invoice_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_incoming_invoice_document_file(invoice_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     invoice = db.get(IncomingInvoice, invoice_id)
     if invoice is None or not invoice.document_filename:
@@ -141,7 +142,7 @@ def get_incoming_invoice_document_file(invoice_id: int, db: Session = Depends(ge
 
 
 @router.delete("/api/incoming-invoices/{invoice_id}/document", response_model=IncomingInvoiceOut)
-def delete_incoming_invoice_document(invoice_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def delete_incoming_invoice_document(invoice_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     result = remove_invoice_document(db, invoice_id)
     if result is None:
@@ -150,14 +151,14 @@ def delete_incoming_invoice_document(invoice_id: int, db: Session = Depends(get_
 
 
 @router.get("/api/incoming-invoice-settings", response_model=IncomingInvoiceSettingsOut)
-def get_incoming_invoice_settings_endpoint(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_incoming_invoice_settings_endpoint(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     return incoming_invoice_settings_to_dict(load_incoming_invoice_settings(db))
 
 
 @router.put("/api/incoming-invoice-settings", response_model=IncomingInvoiceSettingsOut)
 def put_incoming_invoice_settings_endpoint(
-    payload: IncomingInvoiceSettingsUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep,
+    payload: IncomingInvoiceSettingsUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep,
 ):
     _require_module_enabled(db)
     return update_incoming_invoice_settings(db, payload.skonto_reminder_lead_days)

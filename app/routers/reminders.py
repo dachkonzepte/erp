@@ -51,12 +51,12 @@ def _get_reminder_or_404(db: Session, reminder_id: int) -> Reminder:
 
 
 @router.get("/api/reminder-levels", response_model=list[ReminderLevelOut])
-def get_reminder_levels(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_reminder_levels(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return list_reminder_levels(db)
 
 
 @router.put("/api/reminder-levels/{level_id}", response_model=ReminderLevelOut)
-def put_reminder_level(level_id: int, payload: ReminderLevelUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_reminder_level(level_id: int, payload: ReminderLevelUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     level_row = db.get(ReminderLevel, level_id)
     if level_row is None:
         raise HTTPException(status_code=404, detail="Mahnstufe nicht gefunden.")
@@ -65,17 +65,17 @@ def put_reminder_level(level_id: int, payload: ReminderLevelUpdate, db: Session 
 
 
 @router.get("/api/reminders/overdue", response_model=list[InvoiceNeedingAttentionOut])
-def get_overdue_invoices(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_overdue_invoices(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return list_invoices_needing_attention(db)
 
 
 @router.get("/api/reminders", response_model=list[ReminderOut])
-def get_all_reminders(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_all_reminders(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return reminders_to_dicts(db, list_all_reminders(db))
 
 
 @router.post("/api/reminders/bulk", response_model=ReminderBulkOut)
-def post_reminders_bulk(payload: ReminderBulkCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_reminders_bulk(payload: ReminderBulkCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Seit 1.8.79 (Z2a Nr. 1): je Rechnung ein Entwurf der nächsten Stufe, jede einzeln unter ihrer Sperre geprüft -- eine
     abgelehnte hält die anderen nicht auf, die Antwort nennt sie mit Grund (immer 200)."""
     result = create_reminders(db, payload.invoice_ids)
@@ -83,19 +83,19 @@ def post_reminders_bulk(payload: ReminderBulkCreate, db: Session = Depends(get_d
 
 
 @router.get("/api/invoices/{invoice_id}/reminder-status", response_model=ReminderStatusOut)
-def get_invoice_reminder_status(invoice_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_invoice_reminder_status(invoice_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     invoice = _get_invoice_or_404(db, invoice_id)
     return compute_reminder_status(db, invoice)
 
 
 @router.get("/api/invoices/{invoice_id}/reminders", response_model=list[ReminderOut])
-def get_invoice_reminders(invoice_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_invoice_reminders(invoice_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _get_invoice_or_404(db, invoice_id)
     return reminders_to_dicts(db, list_reminders_for_invoice(db, invoice_id))
 
 
 @router.post("/api/invoices/{invoice_id}/reminders", response_model=ReminderOut)
-def post_invoice_reminder(invoice_id: int, payload: ReminderCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_invoice_reminder(invoice_id: int, payload: ReminderCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
         reminder = create_reminder(db, invoice, payload.level)
@@ -107,7 +107,7 @@ def post_invoice_reminder(invoice_id: int, payload: ReminderCreate, db: Session 
 
 
 @router.post("/api/reminders/{reminder_id}/send", response_model=ReminderOut)
-def post_send_reminder(reminder_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_send_reminder(reminder_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     reminder = _get_reminder_or_404(db, reminder_id)
     try:
         finalize_and_send_reminder(db, reminder)
@@ -119,7 +119,7 @@ def post_send_reminder(reminder_id: int, db: Session = Depends(get_db), _role: A
 
 
 @router.post("/api/reminders/{reminder_id}/send-email", response_model=ReminderOut)
-def post_send_reminder_email(reminder_id: int, payload: ReminderEmailSend, db: Session = Depends(get_db), user: AppUser = _role_dep):
+def post_send_reminder_email(reminder_id: int, payload: ReminderEmailSend, db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep):
     """Tatsächlicher E-Mail-Versand (seit 1.0.74) -- getrennt vom
     Finalisieren oben (/send), das nur Nummer/Status setzt. Kann auf einer
     bereits finalisierten Mahnung auch mehrfach aufgerufen werden (z.B.
@@ -138,7 +138,7 @@ def post_send_reminder_email(reminder_id: int, payload: ReminderEmailSend, db: S
 
 
 @router.put("/api/reminders/{reminder_id}", response_model=ReminderOut)
-def put_reminder(reminder_id: int, payload: ReminderUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_reminder(reminder_id: int, payload: ReminderUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     reminder = _get_reminder_or_404(db, reminder_id)
     try:
         update_reminder_draft(db, reminder, text=payload.text, payment_days=payload.payment_days)
@@ -150,7 +150,7 @@ def put_reminder(reminder_id: int, payload: ReminderUpdate, db: Session = Depend
 
 
 @router.put("/api/reminders/{reminder_id}/charges", response_model=ReminderOut)
-def put_reminder_charges(reminder_id: int, payload: ReminderChargesUpdate, db: Session = Depends(get_db),
+def put_reminder_charges(reminder_id: int, payload: ReminderChargesUpdate, db: Session = Depends(get_db, scope="function"),
                          _role: AppUser = _role_dep):
     """Seit 1.8.80 (Z2b Nr. 5 und 6): Gebühr und Pauschale im Entwurf bewusst übernehmen. 409, wenn Mahngebühren ausgeschaltet
     sind, die Mahnung kein Entwurf mehr ist oder die Pauschale nicht möglich ist (mit Grund). Seit 1.8.81 dazu die
@@ -167,7 +167,7 @@ def put_reminder_charges(reminder_id: int, payload: ReminderChargesUpdate, db: S
 
 
 @router.delete("/api/reminders/{reminder_id}")
-def delete_reminder(reminder_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def delete_reminder(reminder_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     reminder = _get_reminder_or_404(db, reminder_id)
     try:
         delete_reminder_draft(db, reminder)
@@ -179,7 +179,7 @@ def delete_reminder(reminder_id: int, db: Session = Depends(get_db), _role: AppU
 
 
 @router.get("/api/reminders/{reminder_id}/pdf")
-def get_reminder_pdf(reminder_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_reminder_pdf(reminder_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Seit 1.8.19 ab dem ersten Versand die abgelegte Fassung, sonst neu erzeugt (siehe
     document_pdf_response())."""
     reminder = _get_reminder_or_404(db, reminder_id)

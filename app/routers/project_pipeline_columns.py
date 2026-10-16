@@ -30,12 +30,12 @@ _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 
 @router.get("/api/project-pipeline-columns", response_model=list[ProjectPipelineColumnOut])
-def get_project_pipeline_columns(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_project_pipeline_columns(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return list_columns(db)
 
 
 @router.post("/api/project-pipeline-columns", response_model=ProjectPipelineColumnOut)
-def post_project_pipeline_column(payload: ProjectPipelineColumnCreate, db: Session = Depends(get_db),
+def post_project_pipeline_column(payload: ProjectPipelineColumnCreate, db: Session = Depends(get_db, scope="function"),
                                   _admin=Depends(require_admin("Nur Administratoren dürfen Pipeline-Spalten anlegen."))):
     try:
         return create_column(db, payload.label)
@@ -44,7 +44,7 @@ def post_project_pipeline_column(payload: ProjectPipelineColumnCreate, db: Sessi
 
 
 @router.put("/api/project-pipeline-columns/reorder", response_model=list[ProjectPipelineColumnOut])
-def put_project_pipeline_columns_reorder(payload: ProjectPipelineColumnReorder, db: Session = Depends(get_db),
+def put_project_pipeline_columns_reorder(payload: ProjectPipelineColumnReorder, db: Session = Depends(get_db, scope="function"),
                                           _admin=Depends(require_admin("Nur Administratoren dürfen Pipeline-Spalten umsortieren."))):
     try:
         return reorder_columns(db, payload.ordered_ids)
@@ -53,7 +53,7 @@ def put_project_pipeline_columns_reorder(payload: ProjectPipelineColumnReorder, 
 
 
 @router.put("/api/project-pipeline-columns/{column_id}", response_model=ProjectPipelineColumnOut)
-def put_project_pipeline_column(column_id: int, payload: ProjectPipelineColumnUpdate, db: Session = Depends(get_db),
+def put_project_pipeline_column(column_id: int, payload: ProjectPipelineColumnUpdate, db: Session = Depends(get_db, scope="function"),
                                  _admin=Depends(require_admin("Nur Administratoren dürfen Pipeline-Spalten bearbeiten."))):
     try:
         return update_column(db, column_id, payload.label)
@@ -62,7 +62,7 @@ def put_project_pipeline_column(column_id: int, payload: ProjectPipelineColumnUp
 
 
 @router.delete("/api/project-pipeline-columns/{column_id}")
-def delete_project_pipeline_column(column_id: int, db: Session = Depends(get_db),
+def delete_project_pipeline_column(column_id: int, db: Session = Depends(get_db, scope="function"),
                                     _admin=Depends(require_admin("Nur Administratoren dürfen Pipeline-Spalten löschen."))):
     try:
         delete_column(db, column_id)

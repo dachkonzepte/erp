@@ -58,26 +58,26 @@ def _get_invoice_or_404(db: Session, invoice_id: int):
 
 
 @router.get("/api/orders/{order_id}/invoices", response_model=list[InvoiceListOut])
-def get_invoices_for_order(order_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_invoices_for_order(order_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _get_order_or_404(db, order_id)
     invoices = list_invoices_for_order(db, order_id)
     return [invoice_to_dict(inv) for inv in invoices]
 
 
 @router.get("/api/invoices", response_model=list[InvoiceOverviewOut])
-def get_all_invoices(status: str | None = None, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_all_invoices(status: str | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     invoices = list_all_invoices(db, status=status)
     return invoice_overview_rows(db, list(invoices))
 
 
 @router.get("/api/invoices/{invoice_id}", response_model=InvoiceOut)
-def get_invoice_detail(invoice_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_invoice_detail(invoice_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     invoice = _get_invoice_or_404(db, invoice_id)
     return invoice_to_dict(invoice)
 
 
 @router.post("/api/orders/{order_id}/invoices/abschlag-pauschal", response_model=InvoiceOut)
-def post_abschlag_pauschal(order_id: int, payload: InvoiceCreateAbschlagPauschal, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_abschlag_pauschal(order_id: int, payload: InvoiceCreateAbschlagPauschal, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     order = _get_order_or_404(db, order_id)
     try:
         invoice = create_abschlag_pauschal(
@@ -90,7 +90,7 @@ def post_abschlag_pauschal(order_id: int, payload: InvoiceCreateAbschlagPauschal
 
 
 @router.post("/api/orders/{order_id}/invoices/abschlag-leistungsstand", response_model=InvoiceOut)
-def post_abschlag_leistungsstand(order_id: int, payload: InvoiceCreateFromOrder, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_abschlag_leistungsstand(order_id: int, payload: InvoiceCreateFromOrder, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     order = _get_order_or_404(db, order_id)
     try:
         invoice = create_abschlag_leistungsstand(db, order, due_date=payload.due_date)
@@ -100,7 +100,7 @@ def post_abschlag_leistungsstand(order_id: int, payload: InvoiceCreateFromOrder,
 
 
 @router.post("/api/orders/{order_id}/invoices/schlussrechnung", response_model=InvoiceOut)
-def post_schlussrechnung(order_id: int, payload: InvoiceCreateFromOrder, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_schlussrechnung(order_id: int, payload: InvoiceCreateFromOrder, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     order = _get_order_or_404(db, order_id)
     try:
         invoice = create_schlussrechnung(db, order, due_date=payload.due_date)
@@ -110,7 +110,7 @@ def post_schlussrechnung(order_id: int, payload: InvoiceCreateFromOrder, db: Ses
 
 
 @router.post("/api/orders/{order_id}/invoices/aus-zeitbuchungen", response_model=InvoiceOut)
-def post_invoice_from_time_entries(order_id: int, payload: InvoiceCreateFromOrder, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_invoice_from_time_entries(order_id: int, payload: InvoiceCreateFromOrder, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     order = _get_order_or_404(db, order_id)
     # Alle Buchungen des Auftrags -- ohne limit=None schnitt der Vorgabewert 500 die ältesten
     # still ab (bis 1.8.5).
@@ -136,7 +136,7 @@ def post_invoice_from_time_entries(order_id: int, payload: InvoiceCreateFromOrde
 
 
 @router.put("/api/invoices/{invoice_id}", response_model=InvoiceOut)
-def put_invoice_header(invoice_id: int, payload: InvoiceHeaderUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_invoice_header(invoice_id: int, payload: InvoiceHeaderUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
         update_invoice_header(db, invoice, **payload.model_dump(exclude_unset=True))
@@ -148,7 +148,7 @@ def put_invoice_header(invoice_id: int, payload: InvoiceHeaderUpdate, db: Sessio
 
 
 @router.put("/api/invoices/{invoice_id}/payment-term", response_model=InvoiceOut)
-def put_invoice_payment_term(invoice_id: int, payload: InvoicePaymentTermUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_invoice_payment_term(invoice_id: int, payload: InvoicePaymentTermUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
         update_invoice_payment_term(db, invoice, payload.payment_term_id)
@@ -160,7 +160,7 @@ def put_invoice_payment_term(invoice_id: int, payload: InvoicePaymentTermUpdate,
 
 
 @router.put("/api/invoices/{invoice_id}/tax-key", response_model=InvoiceOut)
-def put_invoice_tax_key(invoice_id: int, payload: TaxKeySelection, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_invoice_tax_key(invoice_id: int, payload: TaxKeySelection, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
         update_invoice_tax_key(db, invoice, payload.tax_key_id)
@@ -172,7 +172,7 @@ def put_invoice_tax_key(invoice_id: int, payload: TaxKeySelection, db: Session =
 
 
 @router.post("/api/invoices/{invoice_id}/items", response_model=InvoiceOut)
-def post_invoice_item(invoice_id: int, payload: InvoiceItemCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_invoice_item(invoice_id: int, payload: InvoiceItemCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
         add_invoice_item(
@@ -189,7 +189,7 @@ def post_invoice_item(invoice_id: int, payload: InvoiceItemCreate, db: Session =
 
 
 @router.put("/api/invoices/{invoice_id}/items/{item_id}", response_model=InvoiceOut)
-def put_invoice_item(invoice_id: int, item_id: int, payload: InvoiceItemUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_invoice_item(invoice_id: int, item_id: int, payload: InvoiceItemUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     invoice = _get_invoice_or_404(db, invoice_id)
     item = next((i for i in invoice.items if i.id == item_id), None)
     if item is None:
@@ -207,7 +207,7 @@ def put_invoice_item(invoice_id: int, item_id: int, payload: InvoiceItemUpdate, 
 
 
 @router.delete("/api/invoices/{invoice_id}/items/{item_id}", response_model=InvoiceOut)
-def delete_invoice_item(invoice_id: int, item_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def delete_invoice_item(invoice_id: int, item_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
         found = remove_invoice_item(db, invoice, item_id)
@@ -221,7 +221,7 @@ def delete_invoice_item(invoice_id: int, item_id: int, db: Session = Depends(get
 
 
 @router.post("/api/invoices/{invoice_id}/refresh-from-order", response_model=InvoiceOut)
-def post_refresh_from_order(invoice_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_refresh_from_order(invoice_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """„Aus dem Auftrag aktualisieren“ (seit 1.8.85, R4b Punkt 3): Steuerschlüssel, Preise, Einheiten und Positionen des Auftrags
     in den Entwurf übernehmen -- app/invoices.py::refresh_draft_from_order()."""
     invoice = _get_invoice_or_404(db, invoice_id)
@@ -235,7 +235,7 @@ def post_refresh_from_order(invoice_id: int, db: Session = Depends(get_db), _rol
 
 
 @router.post("/api/invoices/{invoice_id}/send", response_model=InvoiceOut)
-def post_send_invoice(invoice_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_send_invoice(invoice_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
         finalize_and_send_invoice(db, invoice)
@@ -247,7 +247,7 @@ def post_send_invoice(invoice_id: int, db: Session = Depends(get_db), _role: App
 
 
 @router.post("/api/invoices/{invoice_id}/send-email", response_model=InvoiceOut)
-def post_send_invoice_email(invoice_id: int, payload: InvoiceEmailSend, db: Session = Depends(get_db), user: AppUser = _role_dep):
+def post_send_invoice_email(invoice_id: int, payload: InvoiceEmailSend, db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep):
     """Tatsächlicher E-Mail-Versand -- getrennt vom Finalisieren oben
     (/send), das nur Nummer/Status setzt. Kann auf einer bereits
     finalisierten Rechnung auch mehrfach aufgerufen werden -- je Versand mit neuem
@@ -266,7 +266,7 @@ def post_send_invoice_email(invoice_id: int, payload: InvoiceEmailSend, db: Sess
 
 
 @router.post("/api/invoices/{invoice_id}/storno", response_model=InvoiceOut)
-def post_storno_invoice(invoice_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_storno_invoice(invoice_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
         storno = create_storno_draft(db, invoice)
@@ -278,7 +278,7 @@ def post_storno_invoice(invoice_id: int, db: Session = Depends(get_db), _role: A
 
 
 @router.delete("/api/invoices/{invoice_id}")
-def delete_invoice(invoice_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def delete_invoice(invoice_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     invoice = _get_invoice_or_404(db, invoice_id)
     try:
         delete_invoice_draft(db, invoice)
@@ -290,7 +290,7 @@ def delete_invoice(invoice_id: int, db: Session = Depends(get_db), _role: AppUse
 
 
 @router.get("/api/invoices/{invoice_id}/pdf")
-def get_invoice_pdf(invoice_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_invoice_pdf(invoice_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Seit 1.8.19 ab dem ersten Versand die abgelegte Fassung (Nachdruck = genau das, was der Kunde
     bekam, auch nach geändertem Briefkopf), sonst neu erzeugt -- siehe document_pdf_response(). Seit 1.8.82
     ab dem Festschreiben (feste Fassung, Invoice.pdf_document_id); neu erzeugt nur noch ein Entwurf und eine

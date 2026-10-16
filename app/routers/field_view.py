@@ -100,7 +100,7 @@ def _now() -> datetime:
 
 
 @router.get("/api/field-view/today")
-def get_field_view_today(request: Request, db: Session = Depends(get_db)):
+def get_field_view_today(request: Request, db: Session = Depends(get_db, scope="function")):
     """Löst den Mitarbeiter ausschließlich über request.state.erp_user.employee_id auf, nie
     über einen Client-Parameter -- jeder sieht ausschließlich seine eigenen Einsätze. Prüft
     zusätzlich die Feierabend-Grenze (MobileSettings.shift_end_time) und meldet bei
@@ -137,7 +137,7 @@ def _with_open_concerns(db: Session, assignments: list[dict]) -> list[dict]:
 
 
 @router.post("/api/field-view/feierabend")
-def end_shift(request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def end_shift(request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Seit 1.8.106 (Korrektur 103-3): der Feierabend als POST. Nach der Feierabend-Uhrzeit (MobileSettings.shift_end_time) beendet er
     die Sitzung dieses Geräts auf dem Server wie das Abmelden -- nur diese, ein zweites Gerät desselben Monteurs bleibt angemeldet
     (Festlegung 1.8.103 Nr. 4) -- und löscht das Cookie. Davor 409, nichts ändert sich. /mobil ruft ihn, sobald GET
@@ -152,7 +152,7 @@ def end_shift(request: Request, db: Session = Depends(get_db), _role: AppUser = 
 
 
 @router.get("/api/field-view/maintenance-contracts", response_model=list[FieldMaintenancePropertyGroupOut])
-def get_field_view_maintenance_contracts(request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def get_field_view_maintenance_contracts(request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """"Wartungen an meinen Objekten" (siehe CLAUDE.md) -- Objekte, an denen der angemeldete
     Mitarbeiter aktuell oder in Kürze zu tun hat, samt ihren Wartungsverträgen, damit ein Monteur
     ohne die volle Vertragsliste zu durchsuchen eine ungeplante Wartung starten kann. Löst den
@@ -169,7 +169,7 @@ def get_field_view_maintenance_contracts(request: Request, db: Session = Depends
 
 
 @router.get("/api/field-view/time-tracking/orders")
-def get_field_view_time_tracking_orders(request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def get_field_view_time_tracking_orders(request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Auftragsauswahl für die reduzierte Zeiterfassung auf /mobil (seit 1.3.60, siehe
     CLAUDE.md „Zeiterfassung für Monteure"). Löst den Mitarbeiter wie GET /api/field-view/today
     ausschließlich über request.state.erp_user auf -- kein employee_id-Parameter, ein Monteur
@@ -186,7 +186,7 @@ def get_field_view_time_tracking_orders(request: Request, db: Session = Depends(
 
 
 @router.get("/api/field-view/upcoming")
-def get_field_view_upcoming(request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def get_field_view_upcoming(request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """"Eigene Plantafel-Einträge" auf /mobil (seit 1.3.61, siehe CLAUDE.md "Zeiterfassung für
     Monteure" -> "Eigene Plantafel-Einträge") -- eine reine Leseansicht der eigenen KOMMENDEN
     Termine, kein Zugriff auf die Plantafel selbst: kein Verschieben, keine fremden
@@ -205,7 +205,7 @@ def get_field_view_upcoming(request: Request, db: Session = Depends(get_db), _ro
 @router.get("/api/field-view/timesheet.pdf")
 def get_field_view_timesheet_pdf(
     request: Request, year: int | None = None, month: int | None = None,
-    db: Session = Depends(get_db), _role: AppUser = _any_role_dep,
+    db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep,
 ):
     """Eigener Stundenzettel als PDF (seit 1.3.61, siehe CLAUDE.md "Zeiterfassung für Monteure"
     -> "Stundenzettel") -- ausschließlich die eigenen Buchungen, wie der Bildschirm-Stundenzettel
@@ -232,7 +232,7 @@ def get_field_view_timesheet_pdf(
 
 
 @router.get("/api/field-view/properties/search", response_model=list[PropertySearchHitOut])
-def get_field_view_property_search(q: str = "", db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def get_field_view_property_search(q: str = "", db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Die Monteurs-Objektsuche (Kernfunktion in app/search.py, siehe dort für die Begründung,
     warum eine künftige Büro-Suche sie erweitert statt ersetzt). MUSS vor
     GET /api/field-view/properties/{property_id} registriert sein: Starlette matcht Routen in
@@ -253,7 +253,7 @@ def get_field_view_property_search(q: str = "", db: Session = Depends(get_db), _
 
 
 @router.get("/api/field-view/properties/{property_id}", response_model=PropertyAccessOut)
-def get_field_view_property(property_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def get_field_view_property(property_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Mobile Objektansicht (siehe Moduldocstring oben, "Dateiablage je Objekt") -- BEWUSST ohne
     jede Zugriffsbeschränkung auf property_id: ein Monteur erreicht jedes Objekt über seine ID,
     nicht nur die eigenen. Die Sperre sitzt ausschließlich im Inhalt: PropertyAccessOut ist
@@ -266,7 +266,7 @@ def get_field_view_property(property_id: int, db: Session = Depends(get_db), _ro
 
 
 @router.get("/api/field-view/document-categories", response_model=list[FieldDocumentCategoryOut])
-def get_field_view_document_categories(db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def get_field_view_document_categories(db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Kategorie-Auswahl für den Monteur-Upload -- nur für Monteure freigegebene Kategorien
     (field_may_see_category(), beide Schlösser aus 1.3.62), damit die Oberfläche gar nicht erst
     eine gesperrte Kategorie zur Wahl anbietet. Der eigentliche Schutz sitzt trotzdem serverseitig
@@ -283,7 +283,7 @@ def get_field_view_document_categories(db: Session = Depends(get_db), _role: App
 
 
 @router.get("/api/field-view/properties/{property_id}/documents", response_model=list[PropertyDocumentListItemOut])
-def get_field_view_property_documents(property_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def get_field_view_property_documents(property_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Zusammengeführte, nur für Monteure freigegebene Dokumentliste des Objekts (eigene
     Objekt-Uploads PLUS die Dokumente aller nicht archivierten Projekte des Objekts, siehe
     list_merged_documents_for_property() in app/property_documents.py) -- field_visible_only=True
@@ -306,7 +306,7 @@ def _resolve_or_404(db: Session, property_id: int, source: str, document_id: int
 @router.get("/api/field-view/properties/{property_id}/documents/{source}/{document_id}/view")
 def view_field_view_property_document(
     property_id: int, source: Literal["property", "project"], document_id: int,
-    db: Session = Depends(get_db), _role: AppUser = _any_role_dep,
+    db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep,
 ):
     """Der kritischste Endpunkt dieser Ansicht (zusammen mit .../download unten):
     resolve_property_document_for_field() prüft field_may_see_category() ERNEUT am
@@ -321,7 +321,7 @@ def view_field_view_property_document(
 @router.get("/api/field-view/properties/{property_id}/documents/{source}/{document_id}/download")
 def download_field_view_property_document(
     property_id: int, source: Literal["property", "project"], document_id: int,
-    db: Session = Depends(get_db), _role: AppUser = _any_role_dep,
+    db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep,
 ):
     """Siehe view_field_view_property_document() oben -- identische Prüfung, nur ohne
     content_disposition_type='inline'."""
@@ -330,9 +330,10 @@ def download_field_view_property_document(
 
 
 @router.post("/api/field-view/properties/{property_id}/documents", response_model=PropertyDocumentListItemOut)
-async def upload_field_view_property_document(
+# Seit 1.8.114 def statt async def: im Threadpool, die Datenbank nie auf der Event-Loop (Punkt 1a, tests/test_v419_verbindungen.py).
+def upload_field_view_property_document(
     property_id: int, request: Request, file: UploadFile = File(...), category_id: int = Form(...),
-    description: str | None = Form(None), db: Session = Depends(get_db), _role: AppUser = _any_role_dep,
+    description: str | None = Form(None), db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep,
 ):
     """Eigener, objektgebundener Upload eines Monteurs (siehe CLAUDE.md "Dateiablage je Objekt"
     für die Objekt-statt-Sammelprojekt-Entscheidung -- ein spontaner Einsatz hat oft gar kein
@@ -351,7 +352,7 @@ async def upload_field_view_property_document(
         raise HTTPException(status_code=422, detail="Diese Kategorie ist für Monteure nicht freigegeben.")
     if not file.filename:
         raise HTTPException(status_code=400, detail="Bitte eine Datei auswählen.")
-    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    data = file.file.read(MAX_UPLOAD_BYTES + 1)
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Datei ist größer als 50 MB.")
     doc = create_property_document(
@@ -389,7 +390,7 @@ def _require_field_history_access(db: Session, role: AppUser, property_id: int) 
     "/api/field-view/properties/{property_id}/maintenance-history",
     response_model=list[ServiceReportHistoryOut],
 )
-def get_field_view_property_maintenance_history(property_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def get_field_view_property_maintenance_history(property_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Alte Wartungsberichte des Objekts im bereits etablierten, reduzierten Schema
     (ServiceReportHistoryOut/_history_report_to_field_dict(), Rechtekonzept -> "Berichts-
     Eigentümerschaft") -- anders als list_property_history_for_field() (Auftrag-scoped, schließt
@@ -404,7 +405,7 @@ def get_field_view_property_maintenance_history(property_id: int, db: Session = 
 
 @router.get("/api/field-view/properties/{property_id}/maintenance-history/{report_id}/pdf")
 def get_field_view_property_maintenance_history_report_pdf(
-    property_id: int, report_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep,
+    property_id: int, report_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep,
 ):
     """Detailansicht EINES früheren Berichts, ausschließlich über das Objekt erreichbar (Anlass:
     ein Monteur will vor einer erneuten Wartung nachvollziehen, was beim letzten Einsatz gemacht
@@ -435,13 +436,13 @@ def get_field_view_property_maintenance_history_report_pdf(
 
 
 @router.get("/api/mobile-settings", response_model=MobileSettingsOut)
-def get_mobile_settings(db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def get_mobile_settings(db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     return mobile_settings_to_dict(load_mobile_settings(db))
 
 
 @router.put("/api/mobile-settings", response_model=MobileSettingsOut)
 def put_mobile_settings(
-    payload: MobileSettingsUpdate, db: Session = Depends(get_db),
+    payload: MobileSettingsUpdate, db: Session = Depends(get_db, scope="function"),
     _admin=Depends(require_admin("Nur Administratoren dürfen die Monteursansicht-Einstellungen ändern.")),
 ):
     shift_end_time = datetime.strptime(payload.shift_end_time, "%H:%M").time()
@@ -449,12 +450,12 @@ def put_mobile_settings(
 
 
 @router.get("/manifest.json")
-def get_manifest(db: Session = Depends(get_db)):
+def get_manifest(db: Session = Depends(get_db, scope="function")):
     return JSONResponse(build_manifest(db), media_type="application/manifest+json")
 
 
 @router.get("/api/mobile-icon/{size}.png")
-def get_mobile_icon(size: int, db: Session = Depends(get_db)):
+def get_mobile_icon(size: int, db: Session = Depends(get_db, scope="function")):
     if size < 16 or size > 1024:
         raise HTTPException(status_code=404, detail="Ungültige Icon-Größe.")
     return Response(content=build_icon_png(db, size), media_type="image/png")

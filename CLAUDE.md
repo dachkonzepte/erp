@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.113** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.114** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -778,6 +778,16 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Komma ersetzen, jede Umwandlung eines Feldwerts (Number(), +, Rechnen) außerhalb des Bausteins -- Auswahllisten, Häkchen und Datum
     erkennt er über die ID --, den rohen Text eines Zahlenfelds und Füllen ohne `zahlText()`; `AUSNAHMEN` darf nur kürzer werden.
     Klicktest `klicktest_zahleneingaben.py`. Details: `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.109".
+35. **Keine Datenbank auf der Event-Loop, Sitzung vor dem Senden zu, eine Verbindung je Seite, seit 1.8.114.** Jeder Endpunkt bindet seine
+    Sitzung mit `Depends(get_db, scope="function")` ein (FastAPI schließt sie, bevor die Antwort gesendet wird -- bis 1.8.113 hielt eine
+    Datei ihre Verbindung samt offener Transaktion bis zum letzten Byte); ein Endpunkt oder eine Abhängigkeit mit Datenbank ist nie
+    `async def` (ein Upload liest die Datei mit `file.file.read()`), die Anmeldeschranke liest im Threadpool (`_lesen()`). Jinja-Globals
+    lesen nur die Seitendaten der Anfrage (`app/seitendaten.py`, von der Schranke in ihrer Sitzung mitgeladen) -- ein neuer Global mit
+    Daten kommt dort in `laden()`, mit Rückfallwert. Ein leerer Pool ergibt 503 („ausgelastet“). Pool unter PostgreSQL in
+    `app/database.py` (5 + 35 = Threadpool 40 je Prozess, 10 s, `pool_pre_ping`; `ERP_DB_*`, `.env.example`).
+    `tests/test_v419_verbindungen.py` prüft jede Route und die Verbindungen je Seite, `tests/test_v419_verbindungen_unter_last.py` greift
+    einen echten Server gegen PostgreSQL an (kleiner Pool, langsame Downloads, viele Seiten, gesperrte Tabelle). Details:
+    `docs/archiv/serverbetrieb-und-anmeldesicherheit.md`, "Datenbankverbindungen unter Last".
 
 ## Fachbegriffe & Domänenmodell
 
@@ -1082,7 +1092,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   `docs/archiv/adressimport-und-objekte.md`
 - **Serverbetrieb & Anmeldesicherheit** (Geheimnisse/`ERP_DATA_DIR`, Zwei-Faktor-Pflicht,
   Geräte-Vertrauen, serverseitige Anmeldeschranke für Seiten, PostgreSQL-Migrationsreparatur; seit 1.8.98 Sitzungen auf dem Server,
-  siehe Regel 30) -- `docs/archiv/serverbetrieb-und-anmeldesicherheit.md`
+  siehe Regel 30; seit 1.8.114 Datenbankverbindungen unter Last: Schranke im Threadpool, Sitzung vor dem Senden zu, Seitendaten statt
+  Sitzungen der Jinja-Globals, Pool passend zum Threadpool, Angriffstest gegen PostgreSQL, Regel 35)
+  -- `docs/archiv/serverbetrieb-und-anmeldesicherheit.md`
 - **Rechtekonzept** (vier Rollen `admin`/`buero_finanzen`/`buero_auftrag`/`field`,
   Standardverweigerung, Objekt-Filterung, Dateiablage je Objekt, Büro-Suche) --
   `docs/archiv/rechtekonzept.md` (siehe auch "Rechtekonzept (kurz)" unten)
@@ -1905,7 +1917,10 @@ jeder Klicktest nach höchstens 2 min ab (Rückgabecode 3, `klicktest_alle.py` f
   `DEFAULT_OPTION_GROUPS` entfernt. Bereits vorhandene `SettingOptionGroup`/`SettingOption`-
   Zeilen einer laufenden Installation bleiben dabei unangetastet in der DB stehen (nichts liest
   sie mehr) statt gelöscht zu werden. Reine Aufräum-Idee für später, kein Fehler.
-- **Jinja-Globals `get_theme()`/`is_module_enabled()`/`sidebar_logo_url()`/
+- **Seit 1.8.114 weitgehend erledigt**: die Globals öffnen keine Sitzung mehr, sie lesen die Seitendaten, die die Anmeldeschranke in
+  ihrer Sitzung mitlädt (`app/seitendaten.py`, Regel 35); nur ohne Schranke (Tests mit `router_test_client`) lädt der erste Global einer
+  Anfrage einmal über `SessionLocal()` nach -- dort gilt der Rest dieses Eintrags weiter. Bis 1.8.113:
+  **Jinja-Globals `get_theme()`/`is_module_enabled()`/`sidebar_logo_url()`/
   `sidebar_logo_height_px()` (letztere beide seit 1.3.38/1.3.39) umgehen `get_db()`**
   (`app/routers/pages.py`): alle vier öffnen bei jedem Template-Rendern selbst eine
   `SessionLocal()`-Verbindung zur echten Datenbankdatei, statt die per `get_db()` injizierte (und

@@ -23,7 +23,7 @@ router = APIRouter()
 _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 @router.get("/api/properties", response_model=list[PropertyOut])
-def list_properties(customer_id: int | None = None, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def list_properties(customer_id: int | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     stmt = select(Property).order_by(Property.name)
     if customer_id is not None:
         stmt = stmt.where(Property.customer_id == customer_id)
@@ -31,7 +31,7 @@ def list_properties(customer_id: int | None = None, db: Session = Depends(get_db
 
 
 @router.get("/api/properties/{property_id}", response_model=PropertyOut)
-def get_property(property_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_property(property_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     property_obj = db.get(Property, property_id)
     if property_obj is None:
         raise HTTPException(status_code=404, detail="Objekt nicht gefunden.")
@@ -39,7 +39,7 @@ def get_property(property_id: int, db: Session = Depends(get_db), _role: AppUser
 
 
 @router.put("/api/properties/{property_id}", response_model=PropertyOut)
-def update_property(property_id: int, payload: PropertyUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def update_property(property_id: int, payload: PropertyUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     property_obj = db.get(Property, property_id)
     if property_obj is None:
         raise HTTPException(status_code=404, detail="Objekt nicht gefunden.")
@@ -59,7 +59,7 @@ def update_property(property_id: int, payload: PropertyUpdate, db: Session = Dep
 
 
 @router.post("/api/properties", response_model=PropertyOut)
-def create_property(payload: PropertyCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def create_property(payload: PropertyCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     customer = db.get(Customer, payload.customer_id)
     if customer is None:
         raise HTTPException(status_code=404, detail="Kunde nicht gefunden.")

@@ -23,15 +23,16 @@ _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 
 @router.post("/api/imports/leistungen-dach", response_model=ImportSummary)
-async def import_leistungen_dach(
+# Seit 1.8.114 def statt async def: im Threadpool, die Datenbank nie auf der Event-Loop (Punkt 1a, tests/test_v419_verbindungen.py).
+def import_leistungen_dach(
     file: UploadFile = File(...),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
     _role: AppUser = _role_dep,
 ):
     if not file.filename or not file.filename.lower().endswith(".xml"):
         raise HTTPException(status_code=400, detail="Bitte eine XML-Datei auswählen.")
 
-    xml_bytes = await file.read()
+    xml_bytes = file.file.read()
     try:
         project = parse_leistungen_dach_xml(xml_bytes)
     except LeistungenDachImportError as exc:

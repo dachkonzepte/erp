@@ -33,13 +33,13 @@ def _require_module_enabled(db: Session):
 
 
 @router.get("/api/task-columns", response_model=list[TaskColumnOut])
-def get_task_columns(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_task_columns(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     return list_columns(db)
 
 
 @router.post("/api/task-columns", response_model=TaskColumnOut)
-def post_task_column(payload: TaskColumnCreate, db: Session = Depends(get_db),
+def post_task_column(payload: TaskColumnCreate, db: Session = Depends(get_db, scope="function"),
                       _admin=Depends(require_admin("Nur Administratoren dürfen Aufgaben-Spalten anlegen."))):
     _require_module_enabled(db)
     try:
@@ -49,7 +49,7 @@ def post_task_column(payload: TaskColumnCreate, db: Session = Depends(get_db),
 
 
 @router.put("/api/task-columns/reorder", response_model=list[TaskColumnOut])
-def put_task_columns_reorder(payload: TaskColumnReorder, db: Session = Depends(get_db),
+def put_task_columns_reorder(payload: TaskColumnReorder, db: Session = Depends(get_db, scope="function"),
                               _admin=Depends(require_admin("Nur Administratoren dürfen Aufgaben-Spalten umsortieren."))):
     _require_module_enabled(db)
     try:
@@ -59,7 +59,7 @@ def put_task_columns_reorder(payload: TaskColumnReorder, db: Session = Depends(g
 
 
 @router.put("/api/task-columns/{column_id}", response_model=TaskColumnOut)
-def put_task_column(column_id: int, payload: TaskColumnUpdate, db: Session = Depends(get_db),
+def put_task_column(column_id: int, payload: TaskColumnUpdate, db: Session = Depends(get_db, scope="function"),
                      _admin=Depends(require_admin("Nur Administratoren dürfen Aufgaben-Spalten bearbeiten."))):
     _require_module_enabled(db)
     try:
@@ -69,7 +69,7 @@ def put_task_column(column_id: int, payload: TaskColumnUpdate, db: Session = Dep
 
 
 @router.delete("/api/task-columns/{column_id}")
-def delete_task_column(column_id: int, db: Session = Depends(get_db),
+def delete_task_column(column_id: int, db: Session = Depends(get_db, scope="function"),
                         _admin=Depends(require_admin("Nur Administratoren dürfen Aufgaben-Spalten löschen."))):
     _require_module_enabled(db)
     try:

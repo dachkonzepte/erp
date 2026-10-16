@@ -26,7 +26,7 @@ from ..schemas import AppUserCreate, AppUserOut, AppUserUpdate
 router = APIRouter()
 
 @router.get("/api/users", response_model=list[AppUserOut])
-def list_app_users(db: Session = Depends(get_db), current: AppUser = Depends(require_admin("Nur Administratoren dürfen die Benutzerliste einsehen."))):
+def list_app_users(db: Session = Depends(get_db, scope="function"), current: AppUser = Depends(require_admin("Nur Administratoren dürfen die Benutzerliste einsehen."))):
     """Seit 1.8.103 mit der Zahl der geltenden Sitzungen je Benutzer, seit 1.8.106 auch der vertrauten Geräte (nur gelesen)."""
     users = db.scalars(select(AppUser).order_by(AppUser.display_name)).all()
     return [AppUserOut.model_validate(u, from_attributes=True).model_copy(
@@ -34,7 +34,7 @@ def list_app_users(db: Session = Depends(get_db), current: AppUser = Depends(req
 
 
 @router.post("/api/users", response_model=AppUserOut)
-def create_app_user(payload: AppUserCreate, request: Request, db: Session = Depends(get_db)):
+def create_app_user(payload: AppUserCreate, request: Request, db: Session = Depends(get_db, scope="function")):
     configured = users_exist(db)
     current = sitzungen.benutzer_aus_anfrage(db, request)
     if configured and (current is None or current.role != "admin"):
@@ -49,7 +49,7 @@ def create_app_user(payload: AppUserCreate, request: Request, db: Session = Depe
 
 
 @router.put("/api/users/{user_id}", response_model=AppUserOut)
-def update_app_user(user_id: int, payload: AppUserUpdate, db: Session = Depends(get_db), current: AppUser = Depends(require_admin("Nur Administratoren dürfen ERP-Benutzer ändern.")),
+def update_app_user(user_id: int, payload: AppUserUpdate, db: Session = Depends(get_db, scope="function"), current: AppUser = Depends(require_admin("Nur Administratoren dürfen ERP-Benutzer ändern.")),
                     request: Request = None, response: Response = None):
     user = db.get(AppUser, user_id)
     if user is None:
@@ -92,7 +92,7 @@ def update_app_user(user_id: int, payload: AppUserUpdate, db: Session = Depends(
 
 
 @router.post("/api/users/{user_id}/reset-two-factor")
-def reset_user_two_factor(user_id: int, db: Session = Depends(get_db), current: AppUser = Depends(require_admin("Nur Administratoren dürfen den zweiten Faktor zurücksetzen."))):
+def reset_user_two_factor(user_id: int, db: Session = Depends(get_db, scope="function"), current: AppUser = Depends(require_admin("Nur Administratoren dürfen den zweiten Faktor zurücksetzen."))):
     """Setzt den zweiten Faktor eines ANDEREN Administrators zurück (verlorenes/neues Telefon) --
     bewusst nicht für das eigene Konto (siehe CLAUDE.md "Zwei-Faktor-Authentifizierung für
     Administratoren"): sonst ließe sich die Pflicht zum zweiten Faktor über die eigene
@@ -109,7 +109,7 @@ def reset_user_two_factor(user_id: int, db: Session = Depends(get_db), current: 
 
 
 @router.post("/api/users/{user_id}/end-sessions")
-def end_user_sessions(user_id: int, db: Session = Depends(get_db),
+def end_user_sessions(user_id: int, db: Session = Depends(get_db, scope="function"),
                       current: AppUser = Depends(require_admin("Nur Administratoren dürfen Sitzungen beenden.")),
                       request: Request = None, response: Response = None):
     """Seit 1.8.103 (Korrektur 98-11): ein Administrator beendet alle Sitzungen eines Benutzers -- jede Anmeldung auf jedem Gerät endet,
@@ -129,7 +129,7 @@ def end_user_sessions(user_id: int, db: Session = Depends(get_db),
 
 
 @router.delete("/api/users/{user_id}")
-def delete_app_user(user_id: int, db: Session = Depends(get_db), current: AppUser = Depends(require_admin("Nur Administratoren dürfen ERP-Benutzer löschen."))):
+def delete_app_user(user_id: int, db: Session = Depends(get_db, scope="function"), current: AppUser = Depends(require_admin("Nur Administratoren dürfen ERP-Benutzer löschen."))):
     user = db.get(AppUser, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="ERP-Benutzer nicht gefunden.")

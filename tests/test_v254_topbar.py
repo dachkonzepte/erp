@@ -26,6 +26,7 @@ import pytest
 
 from app.auth import resolve_account_display
 from app.models import AppUser, Employee
+from app import seitendaten
 from app.routers import pages as pages_router_module
 
 
@@ -76,11 +77,12 @@ def test_resolve_account_display_single_character_username_does_not_crash():
 
 
 # ---------------------------------------------------------------------------
-# app/routers/pages.py::account_display() -- Jinja-Global, muss wie die anderen vier nie werfen
+# app/routers/pages.py::account_display() -- Jinja-Global, muss wie die anderen vier nie werfen.
+# Seit 1.8.114 mit dem Kontext der Vorlage als erstem Argument (pass_context; None: lädt selbst), gelesen über app/seitendaten.py.
 # ---------------------------------------------------------------------------
 
 def test_account_display_global_returns_empty_for_anonymous_user():
-    assert pages_router_module._account_display(None) == {"full_name": "", "initials": ""}
+    assert pages_router_module._account_display(None, None) == {"full_name": "", "initials": ""}
 
 
 def test_account_display_global_falls_back_to_username_on_error(monkeypatch):
@@ -90,8 +92,8 @@ def test_account_display_global_falls_back_to_username_on_error(monkeypatch):
     def _boom(db, user):
         raise RuntimeError("simulierter DB-Fehler")
 
-    monkeypatch.setattr(pages_router_module, "resolve_account_display", _boom)
-    result = pages_router_module._account_display(_FakeUser())
+    monkeypatch.setattr(seitendaten, "resolve_account_display", _boom)
+    result = pages_router_module._account_display(None, _FakeUser())
     assert result == {"full_name": "admin", "initials": "AD"}
 
 

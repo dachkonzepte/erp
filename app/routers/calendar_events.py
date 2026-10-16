@@ -56,13 +56,13 @@ def _out(data: dict, viewer_user_id: int | None) -> dict:
 
 
 @router.get("/api/calendar-events/owners", response_model=list[CalendarOwnerOut])
-def get_calendar_owners(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_calendar_owners(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     return list_owners(db, role_keys=_OWNER_ROLES)
 
 
 @router.post("/api/calendar-events/sync-outlook", response_model=OutlookSyncResultOut)
-def post_sync_outlook(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_sync_outlook(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Selbstbedienung, "beim Öffnen" (Punkt 5, siehe app/outlook_calendar_sync.py) --
     synchronisiert AUSSCHLIESSLICH das eigene Postfach der angemeldeten Person, nie das eines
     Kollegen. Der ALLE-Postfächer-Lauf ist scripts/sync_outlook_calendars.py (Cron).
@@ -80,7 +80,7 @@ def post_sync_outlook(db: Session = Depends(get_db), _role: AppUser = _role_dep)
 def get_calendar_events(
     start: datetime | None = None, end: datetime | None = None,
     project_id: int | None = None, quote_id: int | None = None,
-    db: Session = Depends(get_db), _role: AppUser = _role_dep,
+    db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep,
 ):
     """Bewusst ohne response_model -- pro Zeile wird explizit zwischen dem vollen und dem
     reduzierten Schema gewählt (Muster app/routers/service_reports.py::get_service_reports()),
@@ -94,7 +94,7 @@ def get_calendar_events(
 @router.get("/api/calendar-series-occurrences")
 def get_calendar_series_occurrences(
     start: datetime | None = None, end: datetime | None = None,
-    db: Session = Depends(get_db), _role: AppUser = _role_dep,
+    db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep,
 ):
     """Serienvorkommen aus Outlook (seit 1.7.8), ausschließlich lesend -- es gibt bewusst KEINEN
     PUT/DELETE-Endpunkt dafür, und /api/calendar-events/{id} adressiert nur CalendarEvent. Dieselbe
@@ -105,7 +105,7 @@ def get_calendar_series_occurrences(
 
 
 @router.get("/api/calendar-events/{event_id}")
-def get_calendar_event(event_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_calendar_event(event_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     data = get_event(db, event_id)
     if data is None:
@@ -114,7 +114,7 @@ def get_calendar_event(event_id: int, db: Session = Depends(get_db), _role: AppU
 
 
 @router.post("/api/calendar-events")
-def post_calendar_event(payload: CalendarEventCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_calendar_event(payload: CalendarEventCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         data = create_event(
@@ -130,7 +130,7 @@ def post_calendar_event(payload: CalendarEventCreate, db: Session = Depends(get_
 
 
 @router.put("/api/calendar-events/{event_id}")
-def put_calendar_event(event_id: int, payload: CalendarEventUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_calendar_event(event_id: int, payload: CalendarEventUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         data = update_event(db, event_id, payload.model_dump(exclude_unset=True))
@@ -143,7 +143,7 @@ def put_calendar_event(event_id: int, payload: CalendarEventUpdate, db: Session 
 
 
 @router.delete("/api/calendar-events/{event_id}")
-def delete_calendar_event(event_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def delete_calendar_event(event_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     event = db.get(CalendarEvent, event_id)
     if event is not None:

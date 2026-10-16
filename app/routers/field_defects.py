@@ -52,12 +52,12 @@ def _visible_or_404(db: Session, user: AppUser, defect_id: int):
 
 
 @router.get("/api/field-view/defects", response_model=list[FieldDefectOut])
-def get_field_defects(db: Session = Depends(get_db), user: AppUser = _role_dep):
+def get_field_defects(db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep):
     return list_field_defects(db, _employee_id(user))
 
 
 @router.get("/api/field-view/defects/{defect_id}/photos/{file_id}")
-def get_field_defect_photo(defect_id: int, file_id: int, db: Session = Depends(get_db), user: AppUser = _role_dep):
+def get_field_defect_photo(defect_id: int, file_id: int, db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep):
     row = field_photo(_visible_or_404(db, user, defect_id), file_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Foto nicht gefunden.")
@@ -71,7 +71,7 @@ def get_field_defect_photo(defect_id: int, file_id: int, db: Session = Depends(g
 
 @router.post("/api/field-view/defects/{defect_id}/remedied", response_model=FieldDefectReportOut)
 def post_field_defect_remedied(defect_id: int, data: str = Form(...), photos: list[UploadFile] = File(default=[]),
-                               db: Session = Depends(get_db), user: AppUser = _role_dep):
+                               db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep):
     """Zuerst die Wiederholung (dieselbe Kennung -> dieselbe Antwort, auch wenn der Mangel durch die Meldung schon
     unsichtbar ist), dann die Sichtbarkeit (404), dann die Meldung selbst (400/409)."""
     _employee_id(user)

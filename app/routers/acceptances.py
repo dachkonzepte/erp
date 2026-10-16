@@ -67,7 +67,7 @@ def _acceptance_or_404(db: Session, acceptance_id: int) -> OrderAcceptance:
 
 
 @router.put("/api/orders/{order_id}/warranty", response_model=OrderOut)
-def put_order_warranty(order_id: int, payload: OrderWarrantyUpdate, db: Session = Depends(get_db),
+def put_order_warranty(order_id: int, payload: OrderWarrantyUpdate, db: Session = Depends(get_db, scope="function"),
                        user: AppUser = _role_dep):
     order = _order_or_404(db, order_id)
     _user_id, user_name = actor_of(user)
@@ -83,7 +83,7 @@ def put_order_warranty(order_id: int, payload: OrderWarrantyUpdate, db: Session 
 
 @router.get("/api/orders/{order_id}/warranty-preview")
 def get_order_warranty_preview(order_id: int, work_kind: str, warranty_months: int, warranty_days: int,
-                               db: Session = Depends(get_db), _role: AppUser = _role_dep):
+                               db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Seit 1.8.47: was eine Festlegung bewirken würde -- Begründung nötig?, welche Gewährleistungsenden sich
     verschieben. Liest nur; die Auftragsseite zeigt es vor dem Speichern."""
     order = _order_or_404(db, order_id)
@@ -97,25 +97,25 @@ def get_order_warranty_preview(order_id: int, work_kind: str, warranty_months: i
 
 
 @router.get("/api/orders/{order_id}/warranty-changes")
-def get_order_warranty_changes(order_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_order_warranty_changes(order_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _order_or_404(db, order_id)
     return list_warranty_changes(db, order_id)
 
 
 @router.get("/api/orders/{order_id}/acceptances")
-def get_order_acceptances(order_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_order_acceptances(order_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return list_acceptances(db, _order_or_404(db, order_id))
 
 
 @router.get("/api/orders/{order_id}/acceptance-options")
-def get_order_acceptance_options(order_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_order_acceptance_options(order_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return acceptance_options(db, _order_or_404(db, order_id))
 
 
 @router.post("/api/orders/{order_id}/acceptances")
 def post_order_acceptance(
     order_id: int, data: str = Form(...), files: list[UploadFile] = File(default=[]),
-    db: Session = Depends(get_db), user: AppUser = _role_dep,
+    db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep,
 ):
     """`data`: OrderAcceptanceCreate als JSON; `files`: die Nachweise (PDF oder Foto). Größen werden beim Lesen
     begrenzt (je Datei und zusammen), damit kein übergroßer Upload ganz in den Speicher kommt."""
@@ -144,7 +144,7 @@ def post_order_acceptance(
 
 @router.post("/api/order-acceptances/{acceptance_id}/discard")
 def post_discard_order_acceptance(acceptance_id: int, payload: OrderAcceptanceDiscard,
-                                  db: Session = Depends(get_db), user: AppUser = _role_dep):
+                                  db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep):
     acceptance = _acceptance_or_404(db, acceptance_id)
     user_id, user_name = actor_of(user)
     try:
@@ -157,7 +157,7 @@ def post_discard_order_acceptance(acceptance_id: int, payload: OrderAcceptanceDi
 
 
 @router.get("/api/order-acceptances/{acceptance_id}/files/{file_id}")
-def get_order_acceptance_file(acceptance_id: int, file_id: int, db: Session = Depends(get_db),
+def get_order_acceptance_file(acceptance_id: int, file_id: int, db: Session = Depends(get_db, scope="function"),
                               _role: AppUser = _role_dep):
     """Der Beleg genau so wie hochgeladen -- nur mit stimmender Prüfsumme (sonst 409, fehlt 410); nosniff."""
     row = db.get(OrderAcceptanceFile, file_id)
@@ -173,7 +173,7 @@ def get_order_acceptance_file(acceptance_id: int, file_id: int, db: Session = De
 
 
 @router.get("/api/orders/{order_id}/pending-protocol-acceptances")
-def get_pending_protocol_acceptances(order_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_pending_protocol_acceptances(order_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Seit 1.8.63: ausstehende Abnahmen aus Abnahmeprotokollen dieses Auftrags (Hinweis mit "Nachholen") -- liest nur.
     Ohne Modul "checklisten" gibt es keine Protokolle."""
     order = _order_or_404(db, order_id)
@@ -183,7 +183,7 @@ def get_pending_protocol_acceptances(order_id: int, db: Session = Depends(get_db
 
 
 @router.post("/api/checklists/{checklist_id}/acceptance-from-protocol")
-def post_acceptance_from_protocol(checklist_id: int, db: Session = Depends(get_db), user: AppUser = _role_dep):
+def post_acceptance_from_protocol(checklist_id: int, db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep):
     """Seit 1.8.63: die Folge "Abnahme am Auftrag anlegen" nachholen -- über die Folgen der Checkliste (idempotent, je
     Unterschrift höchstens eine Abnahme). Steht sie danach weiter aus, 409 mit dem Grund."""
     if not is_module_enabled(db, "checklisten"):
@@ -207,14 +207,14 @@ def post_acceptance_from_protocol(checklist_id: int, db: Session = Depends(get_d
 
 
 @router.get("/api/properties/{property_id}/acceptance-warranties")
-def get_property_acceptance_warranties(property_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_property_acceptance_warranties(property_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     if db.get(Property, property_id) is None:
         raise HTTPException(status_code=404, detail="Objekt nicht gefunden.")
     return property_acceptance_warranties(db, property_id)
 
 
 @router.get("/api/roof-areas/{roof_area_id}/acceptance-warranties")
-def get_roof_area_acceptance_warranties(roof_area_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_roof_area_acceptance_warranties(roof_area_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     roof_area = db.get(RoofArea, roof_area_id)
     if roof_area is None:
         raise HTTPException(status_code=404, detail="Dachfläche nicht gefunden.")

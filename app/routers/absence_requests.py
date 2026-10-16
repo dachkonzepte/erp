@@ -30,7 +30,7 @@ _any_role_dep = Depends(require_min_role(ROLE_FIELD))
 
 
 @router.get("/api/absence-requests", response_model=list[EmployeeAbsenceRequestOut])
-def get_absence_requests(request: Request, employee_id: int | None = None, status: str | None = None, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def get_absence_requests(request: Request, employee_id: int | None = None, status: str | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     user=getattr(request.state,"erp_user",None)
     if user is not None and user.role != "admin":
         if user.employee_id is None:
@@ -41,7 +41,7 @@ def get_absence_requests(request: Request, employee_id: int | None = None, statu
 
 
 @router.post("/api/absence-requests", response_model=EmployeeAbsenceRequestOut)
-def post_absence_request(payload: EmployeeAbsenceRequestCreate, request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def post_absence_request(payload: EmployeeAbsenceRequestCreate, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     employee_id=_time_entry_employee_for_request(request,payload.employee_id,db)
     user=getattr(request.state,"erp_user",None)
     try:
@@ -52,7 +52,7 @@ def post_absence_request(payload: EmployeeAbsenceRequestCreate, request: Request
 
 
 @router.post("/api/absence-requests/{request_id}/review", response_model=EmployeeAbsenceRequestOut)
-def review_absence_request(request_id:int,payload:EmployeeAbsenceRequestReview,db:Session=Depends(get_db),user=Depends(require_admin("Nur Administratoren dürfen Abwesenheitsanträge freigeben oder ablehnen."))):
+def review_absence_request(request_id:int,payload:EmployeeAbsenceRequestReview,db:Session=Depends(get_db, scope="function"),user=Depends(require_admin("Nur Administratoren dürfen Abwesenheitsanträge freigeben oder ablehnen."))):
     try:
         row=review_absence_request_row(db,request_id,decision=payload.decision,reviewed_by_user_id=getattr(user,"id",None),review_notes=payload.review_notes)
     except ValueError as exc:
@@ -61,7 +61,7 @@ def review_absence_request(request_id:int,payload:EmployeeAbsenceRequestReview,d
 
 
 @router.delete("/api/absence-requests/{request_id}")
-def delete_absence_request(request_id:int,request:Request,db:Session=Depends(get_db),_role:AppUser=_any_role_dep):
+def delete_absence_request(request_id:int,request:Request,db:Session=Depends(get_db, scope="function"),_role:AppUser=_any_role_dep):
     row=db.get(EmployeeAbsenceRequest,request_id)
     if row is None: raise HTTPException(status_code=404,detail="Abwesenheitsantrag wurde nicht gefunden.")
     user=getattr(request.state,"erp_user",None)

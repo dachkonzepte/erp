@@ -42,7 +42,7 @@ def _client_ip(request: Request) -> str | None:
 
 
 @router.get("/api/auth/status")
-def auth_status(request: Request, db: Session = Depends(get_db)):
+def auth_status(request: Request, db: Session = Depends(get_db, scope="function")):
     configured = users_exist(db)
     user = sitzungen.benutzer_aus_anfrage(db, request)
     if user is None:
@@ -61,7 +61,7 @@ def auth_status(request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/api/auth/login")
-def auth_login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
+def auth_login(payload: LoginRequest, request: Request, db: Session = Depends(get_db, scope="function")):
     locked_for = login_security.login_lockout_seconds(db, payload.username, _client_ip(request))
     if locked_for is not None:
         raise HTTPException(status_code=429, detail=f"Zu viele Fehlversuche. Bitte in {locked_for} Sekunden erneut versuchen.")
@@ -95,7 +95,7 @@ def auth_login(payload: LoginRequest, request: Request, db: Session = Depends(ge
 
 
 @router.post("/api/auth/logout")
-def auth_logout(request: Request, db: Session = Depends(get_db)):
+def auth_logout(request: Request, db: Session = Depends(get_db, scope="function")):
     """Beendet die Sitzung auf dem Server (seit 1.8.98) und löscht das Cookie -- der alte Wert gilt danach nicht mehr."""
     sitzungen.beenden(db, request.cookies.get(COOKIE_NAME))
     db.commit()

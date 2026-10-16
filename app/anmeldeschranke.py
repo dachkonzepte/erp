@@ -19,6 +19,16 @@ Seit 1.8.104 (Vorgabe vom 14.10.2026, Punkte 3 und 4):
 Seit 1.8.107 (zweite Vorgabe vom 14.10.2026, Punkt 2): HSTS an jeder Antwort, wo das Cookie Secure ist (Produktion), und die
 Schutzkopfzeilen auch an der 500 aus dem Fehler-Handler (serverfehler()); app/main.py und die Tests binden beides über einbinden() ein.
 
+Seit 1.8.114 (Vorgabe vom 16.10.2026, Punkt 1):
+- Die Schranke liest nicht mehr auf der Event-Loop (_lesen() im Threadpool). Bis 1.8.113 holte sie ihre Verbindung direkt in der
+  async-Middleware: war der Pool leer, wartete die Event-Loop des ganzen Arbeitsprozesses bis zu 30 s darauf -- keine Antwort, kein
+  laufender Download, nichts ging weiter.
+- Für eine Seitenanfrage lädt sie in derselben Sitzung die Seitendaten mit (app/seitendaten.py): Akzentfarbe, Module, Logo, Konto --
+  die Jinja-Globals lesen sie aus request.state. Eine Seite braucht so eine Verbindung statt bis zu 41 (gemessen: 37 je Seite mit
+  Seitenleiste).
+- Wartet sie länger als das Zeitlimit des Pools (app/database.py) auf eine Verbindung, antwortet sie 503 (ueberlastet()), ebenso jeder
+  Endpunkt (Fehler-Handler, einbinden()) -- statt einer 500 ohne Hinweis.
+
 Die Entscheidungsregeln (_request_requires_login(), _page_requires_login(), _blocked_pending_two_factor()) sind unverändert und werden
 von app/main.py weiter angeboten (ältere Tests importieren sie dort)."""
 
@@ -29,8 +39,10 @@ from urllib.parse import quote, urlsplit
 
 from fastapi import Request
 from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
+from sqlalchemy.exc import TimeoutError as PoolLeer
+from starlette.concurrency import run_in_threadpool
 
-from . import sitzungen
+from . import seitendaten, sitzungen
 from .audit import reset_audit_context, set_audit_context
 from .auth import COOKIE_NAME, NUR_HTTPS, users_exist
 
@@ -162,11 +174,28 @@ async def serverfehler(request: Request, exc: Exception):
     return _schutzkoepfe(antwort)
 
 
+UEBERLASTET = "Der Server ist gerade ausgelastet – bitte in einigen Sekunden noch einmal versuchen."
+
+
+def _ueberlastet_antwort():
+    antwort = JSONResponse(status_code=503, headers={"Retry-After": "5"}, content={"detail": UEBERLASTET})
+    antwort.headers["Cache-Control"] = CACHE_VERBOT
+    return _schutzkoepfe(antwort)
+
+
+async def ueberlastet(request: Request, exc: Exception):
+    """Seit 1.8.114: ein Endpunkt hat im Zeitlimit des Pools (app/database.py) keine Verbindung bekommen -- 503 mit Retry-After statt
+    einer 500. Nur Metadaten im Protokoll (Regel 18)."""
+    logger.warning("Keine Datenbankverbindung im Zeitlimit des Pools: %s %s", request.method, request.url.path)
+    return _ueberlastet_antwort()
+
+
 def einbinden(app, session_factory):
     """Seit 1.8.107: Schranke (Middleware) und Fehler-Handler an app -- app/main.py und tests/anmeldung.py binden über diese eine Funktion
-    ein. Gibt die Middleware-Funktion zurück."""
+    ein. Gibt die Middleware-Funktion zurück. Seit 1.8.114 dazu der Handler für einen leeren Pool (503)."""
     funktion = middleware(session_factory)
     app.middleware("http")(funktion)
+    app.add_exception_handler(PoolLeer, ueberlastet)
     app.add_exception_handler(Exception, serverfehler)
     return funktion
 
@@ -174,6 +203,37 @@ def einbinden(app, session_factory):
 ANMELDUNG_ABGELAUFEN = ("Anmeldung abgelaufen – bitte in einem neuen Tab anmelden und danach hier erneut speichern. "
                         "Die Eingaben auf dieser Seite bleiben stehen.")
 ABGELAUFEN_KOPF = "X-DK-Anmeldung"
+
+
+# Seitenanfragen ohne Vorlage: keine Seitendaten.
+_OHNE_SEITE = frozenset({"/health", "/manifest.json"})
+
+
+def _seite_erwartet(has_users: bool, user, method: str, path: str) -> bool:
+    """Ob die Anfrage eine Seite (Vorlage mit Seitenleiste, Kopfzeile oder Akzentfarbe) zeichnen kann: GET außerhalb von /api/, nicht
+    /health und /manifest.json, und nicht die Umleitung eines Abgemeldeten auf /login."""
+    if method != "GET" or path.startswith("/api/") or path in _OHNE_SEITE:
+        return False
+    return user is not None or not _page_requires_login(has_users, method, path)
+
+
+def _lesen(session_factory, request: Request) -> dict:
+    """Seit 1.8.114 im Threadpool, nie auf der Event-Loop: Benutzer, Sitzung und für eine Seite die Seitendaten -- in einer Sitzung,
+    also mit einer Verbindung."""
+    stand = {"user": None, "sitzung_id": None, "otp_ok": True, "has_users": False, "seite": None}
+    db = session_factory()
+    try:
+        stand["has_users"] = users_exist(db)
+        user, sitzung = sitzungen.anmeldung(db, request)
+        if user is not None:
+            stand["user"], stand["sitzung_id"] = user, sitzung.id
+            if user.role == "admin":
+                stand["otp_ok"] = sitzung.second_factor_at is not None
+        if _seite_erwartet(stand["has_users"], user, request.method, request.url.path):
+            stand["seite"] = seitendaten.laden(db, user)
+    finally:
+        db.close()
+    return stand
 
 
 def middleware(session_factory):
@@ -185,24 +245,18 @@ def middleware(session_factory):
             logger.warning("Schreibende Anfrage von fremdem Ursprung abgelehnt: %s %s (Sec-Fetch-Site=%r, Origin=%r)", request.method,
                            request.url.path, request.headers.get("sec-fetch-site"), request.headers.get("origin"))
             return _schutzkoepfe(JSONResponse(status_code=403, content={"detail": FREMDER_URSPRUNG}))
-        db = session_factory()
-        user = None
-        sitzung_id = None
-        otp_ok = True
-        has_users = False
         try:
-            has_users = users_exist(db)
-            user, sitzung = sitzungen.anmeldung(db, request)
-            if user is not None:
-                sitzung_id = sitzung.id
-                if user.role == "admin":
-                    otp_ok = sitzung.second_factor_at is not None
-        finally:
-            db.close()
+            stand = await run_in_threadpool(_lesen, session_factory, request)
+        except PoolLeer:
+            logger.warning("Anmeldeschranke: keine Datenbankverbindung im Zeitlimit des Pools: %s %s", request.method, request.url.path)
+            return _ueberlastet_antwort()
+        user, sitzung_id, otp_ok, has_users = stand["user"], stand["sitzung_id"], stand["otp_ok"], stand["has_users"]
         tokens = set_audit_context(user=user, request=request)
         request.state.erp_user = user
         request.state.erp_sitzung_id = sitzung_id
         request.state.otp_ok = otp_ok
+        if stand["seite"] is not None:
+            setattr(request.state, seitendaten.ZUSTAND, stand["seite"])
         try:
             response = await _weiter(request, call_next, user, has_users, otp_ok)
             if user is not None or _setzt_sitzung(response):

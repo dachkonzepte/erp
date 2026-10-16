@@ -37,7 +37,7 @@ router = APIRouter()
 def _current_user(request: Request, db: Session) -> AppUser:
     """request.state.erp_user wurde von der Middleware über eine EIGENE, bereits wieder
     geschlossene Session geladen -- ein Objekt daraus zu mutieren und über die Session dieses
-    Endpunkts (Depends(get_db), eine andere Session) zu committen würde die Änderung
+    Endpunkts (Depends(get_db, scope="function"), eine andere Session) zu committen würde die Änderung
     stillschweigend NICHT persistieren (real aufgetreten, per Smoke-Test gegen eine echte
     Serverinstanz gefunden, siehe CLAUDE.md). Deshalb hier immer über db.get() neu laden."""
     raw = getattr(request.state, "erp_user", None)
@@ -50,7 +50,7 @@ def _current_user(request: Request, db: Session) -> AppUser:
 
 
 @router.post("/api/account/change-password")
-def change_password(payload: ChangePasswordRequest, request: Request, db: Session = Depends(get_db), response: Response = None):
+def change_password(payload: ChangePasswordRequest, request: Request, db: Session = Depends(get_db, scope="function"), response: Response = None):
     user = _current_user(request, db)
     if not verify_password(payload.current_password, user.password_hash):
         raise HTTPException(status_code=401, detail="Aktuelles Passwort ist falsch.")
@@ -65,7 +65,7 @@ def change_password(payload: ChangePasswordRequest, request: Request, db: Sessio
 
 
 @router.post("/api/account/2fa/setup/start")
-def start_two_factor_setup(request: Request, db: Session = Depends(get_db)):
+def start_two_factor_setup(request: Request, db: Session = Depends(get_db, scope="function")):
     user = _current_user(request, db)
     if user.role != "admin":
         raise HTTPException(status_code=403, detail="Der zweite Faktor ist nur für Administratoren vorgesehen.")
@@ -75,7 +75,7 @@ def start_two_factor_setup(request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/api/account/2fa/setup/confirm")
-def confirm_two_factor_setup(payload: TwoFactorCodeRequest, request: Request, db: Session = Depends(get_db)):
+def confirm_two_factor_setup(payload: TwoFactorCodeRequest, request: Request, db: Session = Depends(get_db, scope="function")):
     user = _current_user(request, db)
     if user.role != "admin":
         raise HTTPException(status_code=403, detail="Der zweite Faktor ist nur für Administratoren vorgesehen.")
@@ -93,7 +93,7 @@ def confirm_two_factor_setup(payload: TwoFactorCodeRequest, request: Request, db
 
 
 @router.post("/api/account/2fa/verify")
-def verify_two_factor(payload: TwoFactorVerifyRequest, request: Request, db: Session = Depends(get_db)):
+def verify_two_factor(payload: TwoFactorVerifyRequest, request: Request, db: Session = Depends(get_db, scope="function")):
     user = _current_user(request, db)
     if user.role != "admin":
         raise HTTPException(status_code=403, detail="Der zweite Faktor ist nur für Administratoren vorgesehen.")
@@ -123,7 +123,7 @@ def verify_two_factor(payload: TwoFactorVerifyRequest, request: Request, db: Ses
 
 
 @router.post("/api/account/trusted-devices/revoke-all")
-def revoke_all_trusted_devices(request: Request, db: Session = Depends(get_db)):
+def revoke_all_trusted_devices(request: Request, db: Session = Depends(get_db, scope="function")):
     """"Alle vertrauten Geräte abmelden" -- Selbstbedienung wie change_password(), für jede Rolle
     erreichbar (nur Administratoren haben heute je ein vertrautes Gerät, aber die Funktion ist
     für den eigenen Account gedacht, keine gesonderte Rollenprüfung nötig, siehe CLAUDE.md). Seit 1.8.103 (Korrektur 98-11) enden im

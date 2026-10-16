@@ -56,7 +56,7 @@ def _dispatch_out(db: Session, dispatch) -> dict:
 
 
 @router.get("/api/checklists/{checklist_id}/protocol-dispatch")
-def get_protocol_dispatch(checklist_id: int, db: Session = Depends(get_db), _role: AppUser = _office_dep):
+def get_protocol_dispatch(checklist_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _office_dep):
     """Abnahmeprotokoll an den Auftraggeber (seit 1.8.67): Empfänger wie bei den Anzeigen, die Fassung, die hinausgeht, und der
     Stand."""
     _require_module(db)
@@ -64,7 +64,7 @@ def get_protocol_dispatch(checklist_id: int, db: Session = Depends(get_db), _rol
 
 
 @router.post("/api/checklists/{checklist_id}/protocol-dispatch/send-email")
-def post_protocol_send(checklist_id: int, payload: ProtocolSend, db: Session = Depends(get_db),
+def post_protocol_send(checklist_id: int, payload: ProtocolSend, db: Session = Depends(get_db, scope="function"),
                        _role: AppUser = _office_dep):
     """Versendet die jüngste gültige feste Fassung an den Auftraggeber (seit 1.8.67) -- An ist immer der Auftraggeber, CC seit
     1.8.68 genau die in der Fassung eingefrorenen Empfänger; eine mitgeschickte An- oder CC-Adresse wird nicht beachtet
@@ -76,7 +76,7 @@ def post_protocol_send(checklist_id: int, payload: ProtocolSend, db: Session = D
 
 
 @router.get("/api/checklists/{checklist_id}/notice-letters")
-def get_notice_letters(checklist_id: int, db: Session = Depends(get_db), _role: AppUser = _office_dep):
+def get_notice_letters(checklist_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _office_dep):
     """Stand der Briefe der Anzeige (Behinderungsanzeige und Anzeige der Wiederaufnahme bzw. Bedenkenanzeige) samt
     Empfänger, Kopien (seit 1.8.69 die Personen unter "Kopie an:" mit ihrer Adresse von heute), Vorbehalt, Fassungen und --
     seit 1.8.44 -- einer Abweichung Projekt-/Auftragskunde."""
@@ -85,7 +85,7 @@ def get_notice_letters(checklist_id: int, db: Session = Depends(get_db), _role: 
 
 
 @router.get("/api/checklists/{checklist_id}/notice-letters/{kind}/preview")
-def get_notice_letter_preview(checklist_id: int, kind: str, db: Session = Depends(get_db), _role: AppUser = _office_dep):
+def get_notice_letter_preview(checklist_id: int, kind: str, db: Session = Depends(get_db, scope="function"), _role: AppUser = _office_dep):
     """Vorschau mit dem Stand von jetzt (quer "Vorschau – nicht versendet"), nichts wird abgelegt."""
     _require_module(db)
     pdf = _call(preview_pdf, db, checklist_id, kind, user_name=_actor(_role)[1])
@@ -96,7 +96,7 @@ def get_notice_letter_preview(checklist_id: int, kind: str, db: Session = Depend
 
 @router.post("/api/checklists/{checklist_id}/notice-letters/{kind}/freeze")
 def post_notice_letter_freeze(checklist_id: int, kind: str, payload: NoticeLetterFreeze | None = None,
-                              db: Session = Depends(get_db), _role: AppUser = _office_dep):
+                              db: Session = Depends(get_db, scope="function"), _role: AppUser = _office_dep):
     """Brief erstellen (für Post oder Fax): die Fassung zur aktuellen Unterschrift einfrieren und ablegen --
     vorhanden bleibt vorhanden. Bei abweichendem Kunden nur mit confirm_customer (seit 1.8.44, sonst 409)."""
     _require_module(db)
@@ -107,7 +107,7 @@ def post_notice_letter_freeze(checklist_id: int, kind: str, payload: NoticeLette
 
 
 @router.post("/api/checklists/{checklist_id}/notice-letters/{kind}/send-email")
-def post_notice_letter_send(checklist_id: int, kind: str, payload: NoticeLetterSend, db: Session = Depends(get_db),
+def post_notice_letter_send(checklist_id: int, kind: str, payload: NoticeLetterSend, db: Session = Depends(get_db, scope="function"),
                             _role: AppUser = _office_dep):
     """Per E-Mail an den Auftraggeber (An fest, nicht wählbar), CC seit 1.8.69 genau die Personen unter "Kopie an:" im Brief
     (nicht wählbar) -- immer die abgelegte Fassung. Bei abweichendem Kunden nur mit confirm_customer (seit 1.8.44, sonst 409)."""
@@ -118,13 +118,13 @@ def post_notice_letter_send(checklist_id: int, kind: str, payload: NoticeLetterS
 
 
 @router.get("/api/settings/notice-reservations", response_model=list[NoticeReservationOut])
-def get_notice_reservations(db: Session = Depends(get_db), _role: AppUser = _office_dep):
+def get_notice_reservations(db: Session = Depends(get_db, scope="function"), _role: AppUser = _office_dep):
     return list_reservations(db)
 
 
 @router.put("/api/settings/notice-reservations/{letter_kind}/{basis_group}", response_model=NoticeReservationOut)
 def put_notice_reservation(letter_kind: str, basis_group: str, payload: NoticeReservationUpdate, request: Request,
-                           db: Session = Depends(get_db), _role: AppUser = _admin_dep):
+                           db: Session = Depends(get_db, scope="function"), _role: AppUser = _admin_dep):
     actor = getattr(request.state, "erp_user", None)
     actor_name = getattr(actor, "display_name", None) or getattr(actor, "username", None) or "System"
     try:

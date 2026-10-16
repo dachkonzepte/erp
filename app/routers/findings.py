@@ -63,7 +63,7 @@ def _report_id_for_finding(db: Session, finding_id: int) -> int:
 def get_findings(
     status: str | None = None, severity: str | None = None, property_id: int | None = None,
     overdue_only: bool = False, date_from: date | None = None, date_to: date | None = None,
-    db: Session = Depends(get_db), _role: AppUser = _office_role_dep,
+    db: Session = Depends(get_db, scope="function"), _role: AppUser = _office_role_dep,
 ):
     _require_module_enabled(db)
     return list_findings(
@@ -73,7 +73,7 @@ def get_findings(
 
 
 @router.get("/api/service-reports/{report_id}/findings", response_model=list[FindingOut])
-def get_report_findings(report_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def get_report_findings(report_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Seit dem Fund "fremde Berichte lesen und schreiben auf einem gemeinsamen Auftrag" (siehe
     CLAUDE.md "Rechtekonzept" -> "Berichts-Eigentümerschaft"): require_field_report_ownership()
     statt require_field_order_access() -- ein Monteur sieht die vollen Mängeldaten eines Berichts
@@ -86,7 +86,7 @@ def get_report_findings(report_id: int, db: Session = Depends(get_db), _role: Ap
 
 
 @router.post("/api/service-reports/{report_id}/findings", response_model=FindingOut)
-def post_finding(report_id: int, payload: FindingCreate, request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def post_finding(report_id: int, payload: FindingCreate, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
     require_field_report_ownership(db, _role, report_id)
     employee_id = _employee_for_request(request, payload.created_by_employee_id)
@@ -104,7 +104,7 @@ def post_finding(report_id: int, payload: FindingCreate, request: Request, db: S
 
 
 @router.put("/api/findings/{finding_id}/followup", response_model=FindingOut)
-def put_finding_followup(finding_id: int, payload: FindingFollowupUpdate, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def put_finding_followup(finding_id: int, payload: FindingFollowupUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
     require_field_report_ownership(db, _role, _report_id_for_finding(db, finding_id))
     try:
@@ -121,13 +121,13 @@ def put_finding_followup(finding_id: int, payload: FindingFollowupUpdate, db: Se
 
 
 @router.get("/api/roof-components/{component_id}/findings", response_model=list[FindingOut])
-def get_component_findings(component_id: int, db: Session = Depends(get_db), _role: AppUser = _office_role_dep):
+def get_component_findings(component_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _office_role_dep):
     _require_module_enabled(db)
     return list_findings_for_component(db, component_id)
 
 
 @router.get("/api/tasks/{task_id}/finding", response_model=FindingOut | None)
-def get_task_finding(task_id: int, db: Session = Depends(get_db), _role: AppUser = _office_role_dep):
+def get_task_finding(task_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _office_role_dep):
     """Rückrichtung von einer Aufgabe zum Mangel, der sie erzeugt hat (seit 1.2.21) -- für die
     "Vorgang erstellen"-Schaltfläche im Aufgaben-Editor. URL-Präfix richtet sich nach dem
     Task-Kontext, aus dem der Endpunkt aufgerufen wird; die Business-Logik bleibt in
@@ -141,7 +141,7 @@ def get_task_finding(task_id: int, db: Session = Depends(get_db), _role: AppUser
 
 
 @router.post("/api/tasks/{task_id}/create-follow-up-project")
-def post_task_create_follow_up_project(task_id: int, db: Session = Depends(get_db), _role: AppUser = _office_role_dep):
+def post_task_create_follow_up_project(task_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _office_role_dep):
     _require_module_enabled(db)
     _require_visible_task(db, _role, task_id)
     try:

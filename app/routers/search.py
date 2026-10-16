@@ -32,7 +32,7 @@ def get_office_search(
     q: str = "",
     types: str | None = None,
     limit: int = OFFICE_SEARCH_RESULT_LIMIT,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, scope="function"),
     _role: AppUser = _role_dep,
 ):
     """`types` ist eine optionale, kommagetrennte Liste von SearchSource-Schlüsseln (z. B.

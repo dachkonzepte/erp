@@ -1,4 +1,3 @@
-import asyncio
 import io
 from pathlib import Path
 
@@ -67,7 +66,7 @@ def test_customer_document_upload_list_view_download_delete(tmp_path):
     customer = create_customer(CustomerCreate(last_name="Dokumentenmanagement Kunde"), db)
 
     upload = UploadFile(filename="Rahmenvertrag.pdf", file=io.BytesIO(b"%PDF-1.4 test"), headers=Headers({"content-type": "application/pdf"}))
-    out = asyncio.run(upload_customer_document(customer.id, upload, "Verträge / Freigaben", None, None, "2026-08-31", db))
+    out = upload_customer_document(customer.id, upload, "Verträge / Freigaben", None, None, "2026-08-31", db)
     assert out.category == "Verträge / Freigaben"
     assert out.original_filename == "Rahmenvertrag.pdf"
     assert out.can_preview is True
@@ -96,7 +95,7 @@ def test_customer_document_upload_with_subfolder(tmp_path):
     customer_documents.CUSTOMER_ROOT = tmp_path / "customer_files"
     customer = create_customer(CustomerCreate(last_name="Unterordner Kunde"), db)
     upload = UploadFile(filename="Freigabe.pdf", file=io.BytesIO(b"x"), headers=Headers({"content-type": "application/pdf"}))
-    out = asyncio.run(upload_customer_document(customer.id, upload, "Verträge / Freigaben", "Bauantrag 2026", None, None, db))
+    out = upload_customer_document(customer.id, upload, "Verträge / Freigaben", "Bauantrag 2026", None, None, db)
     assert out.subfolder == "Bauantrag 2026"
 
 
@@ -105,7 +104,7 @@ def test_customer_document_update_changes_category_subfolder_and_description(tmp
     customer_documents.CUSTOMER_ROOT = tmp_path / "customer_files"
     customer = create_customer(CustomerCreate(last_name="Bearbeiten Kunde"), db)
     upload = UploadFile(filename="Notiz.pdf", file=io.BytesIO(b"x"), headers=Headers({"content-type": "application/pdf"}))
-    out = asyncio.run(upload_customer_document(customer.id, upload, "Sonstiges", None, None, None, db))
+    out = upload_customer_document(customer.id, upload, "Sonstiges", None, None, None, db)
 
     changed = update_customer_document(out.id, CustomerDocumentUpdate(
         category="Schriftverkehr", subfolder="2026 Q3", description="Telefonnotiz",
@@ -125,7 +124,7 @@ def test_customer_document_cascade_deletes_with_customer(tmp_path):
     customer_documents.CUSTOMER_ROOT = tmp_path / "customer_files"
     customer = create_customer(CustomerCreate(last_name="Kaskaden Kunde"), db)
     upload = UploadFile(filename="X.pdf", file=io.BytesIO(b"x"), headers=Headers({"content-type": "application/pdf"}))
-    out = asyncio.run(upload_customer_document(customer.id, upload, "Sonstiges", None, None, None, db))
+    out = upload_customer_document(customer.id, upload, "Sonstiges", None, None, None, db)
     assert db.get(CustomerDocument, out.id) is not None
 
     db.delete(db.get(Customer, customer.id))
@@ -156,7 +155,7 @@ def test_project_document_upload_still_works_with_old_positional_call_pattern(tm
     customer = create_customer(CustomerCreate(last_name="Regressionstest Kunde"), db)
     project = create_project(ProjectCreate(customer_id=customer.id, name="Regressionsdach"), db)
     upload = UploadFile(filename="Plan.pdf", file=io.BytesIO(b"%PDF-1.4 test"), headers=Headers({"content-type": "application/pdf"}))
-    out = asyncio.run(upload_project_document(project.id, upload, "Pläne", "Ein Text", "2026-08-31", db))
+    out = upload_project_document(project.id, upload, "Pläne", "Ein Text", "2026-08-31", db)
     assert out.category == "Pläne"
     assert out.description == "Ein Text"  # nicht subfolder -- genau das wäre bei falscher Parameterreihenfolge kaputt gewesen
     assert out.document_date is not None
@@ -169,9 +168,9 @@ def test_project_document_upload_with_explicit_subfolder(tmp_path):
     customer = create_customer(CustomerCreate(last_name="Unterordner Projekt Kunde"), db)
     project = create_project(ProjectCreate(customer_id=customer.id, name="Dach mit Unterordner"), db)
     upload = UploadFile(filename="Statik.pdf", file=io.BytesIO(b"x"), headers=Headers({"content-type": "application/pdf"}))
-    out = asyncio.run(upload_project_document(
+    out = upload_project_document(
         project.id, upload, "Pläne", None, None, db, subfolder="Statik-Nachweise",
-    ))
+    )
     assert out.subfolder == "Statik-Nachweise"
 
 

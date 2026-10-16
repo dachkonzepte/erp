@@ -32,6 +32,17 @@ def is_module_enabled(db: Session, module_key: str) -> bool:
     return row.enabled if row is not None else True
 
 
+def stored_module_states(db: Session) -> dict[str, bool]:
+    """Seit 1.8.114: alle gespeicherten Zustände in einer Abfrage (Seitenleiste, app/seitendaten.py) -- ein Schlüssel ohne Zeile fehlt
+    und gilt wie in is_module_enabled() als aktiv (module_enabled_in())."""
+    return {row.module_key: row.enabled for row in db.scalars(select(EnabledModule))}
+
+
+def module_enabled_in(states: dict[str, bool], module_key: str) -> bool:
+    """is_module_enabled() auf den Zuständen aus stored_module_states()."""
+    return states.get(module_key, True)
+
+
 def list_module_states(db: Session) -> list[dict]:
     return [
         {"module_key": key, "label": label, "enabled": is_module_enabled(db, key)}

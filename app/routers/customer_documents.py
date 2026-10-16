@@ -35,7 +35,7 @@ def _customer_document_out(doc: CustomerDocument) -> CustomerDocumentOut:
 
 
 @router.put("/api/customer-documents/{document_id}", response_model=CustomerDocumentOut)
-def update_customer_document(document_id: int, payload: CustomerDocumentUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def update_customer_document(document_id: int, payload: CustomerDocumentUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     doc = db.get(CustomerDocument, document_id)
     if doc is None:
         raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
@@ -45,7 +45,7 @@ def update_customer_document(document_id: int, payload: CustomerDocumentUpdate, 
 
 
 @router.get("/api/customer-documents/{document_id}/view")
-def view_customer_document(document_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def view_customer_document(document_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     doc = db.get(CustomerDocument, document_id)
     if doc is None: raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
     path = document_path(doc)
@@ -54,7 +54,7 @@ def view_customer_document(document_id: int, db: Session = Depends(get_db), _rol
 
 
 @router.get("/api/customer-documents/{document_id}/download")
-def download_customer_document(document_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def download_customer_document(document_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     doc = db.get(CustomerDocument, document_id)
     if doc is None: raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
     path = document_path(doc)
@@ -63,7 +63,7 @@ def download_customer_document(document_id: int, db: Session = Depends(get_db), 
 
 
 @router.delete("/api/customer-documents/{document_id}")
-def delete_customer_document(document_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def delete_customer_document(document_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     doc = db.get(CustomerDocument, document_id)
     if doc is None: raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
     path = document_path(doc); db.delete(doc); db.commit(); path.unlink(missing_ok=True)

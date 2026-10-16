@@ -26,7 +26,7 @@ def _validate_document_type(document_type: str) -> None:
 
 
 @router.get("/api/document-email-templates/{document_type}", response_model=DocumentEmailTemplateOut)
-def get_document_email_template(document_type: str, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_document_email_template(document_type: str, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _validate_document_type(document_type)
     row = get_email_template(db, document_type)
     return DocumentEmailTemplateOut(
@@ -37,7 +37,7 @@ def get_document_email_template(document_type: str, db: Session = Depends(get_db
 
 
 @router.put("/api/document-email-templates/{document_type}", response_model=DocumentEmailTemplateOut)
-def put_document_email_template(document_type: str, payload: DocumentEmailTemplateUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_document_email_template(document_type: str, payload: DocumentEmailTemplateUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _validate_document_type(document_type)
     row = update_email_template(db, document_type, subject_template=payload.subject_template, body_template=payload.body_template)
     return DocumentEmailTemplateOut(document_type=document_type, subject_template=row.subject_template, body_template=row.body_template)

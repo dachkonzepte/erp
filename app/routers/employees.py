@@ -56,13 +56,13 @@ def _employee_out_for_role(role: AppUser, data: dict):
 
 
 @router.get("/api/employees", response_model=list[EmployeeOut] | list[EmployeeRosterOut] | list[EmployeeNameOut])
-def list_employees(db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def list_employees(db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     employees = [employee_to_dict(e, db) for e in load_employees(db)]  # seit 1.8.84 nur lesen (Regel 23)
     return [_employee_out_for_role(_role, e) for e in employees]
 
 
 @router.get("/api/employees/caseworkers", response_model=list[EmployeeOut] | list[EmployeeRosterOut])
-def list_caseworkers(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def list_caseworkers(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     employees = load_employees(db)  # seit 1.8.84 nur lesen (Regel 23)
     result = []
     for employee in employees:
@@ -73,7 +73,7 @@ def list_caseworkers(db: Session = Depends(get_db), _role: AppUser = _role_dep):
 
 
 @router.get("/api/employees/{employee_id}", response_model=EmployeeOut | EmployeeRosterOut)
-def get_employee(employee_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_employee(employee_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     employee = db.scalar(
         select(Employee).options(selectinload(Employee.profile).selectinload(EmployeeProfile.function))
         .where(Employee.id == employee_id)
@@ -84,7 +84,7 @@ def get_employee(employee_id: int, db: Session = Depends(get_db), _role: AppUser
 
 
 @router.post("/api/employees", response_model=EmployeeOut)
-def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db), _role: AppUser = _finanzen_dep):
+def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _finanzen_dep):
     if payload.employee_number:
         exists = db.scalar(select(Employee).where(Employee.employee_number == payload.employee_number))
         if exists:
@@ -116,7 +116,7 @@ def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db), _rol
 
 
 @router.put("/api/employees/{employee_id}", response_model=EmployeeOut)
-def update_employee(employee_id: int, payload: EmployeeUpdate, db: Session = Depends(get_db), _role: AppUser = _finanzen_dep):
+def update_employee(employee_id: int, payload: EmployeeUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _finanzen_dep):
     employee = db.scalar(select(Employee).options(selectinload(Employee.profile).selectinload(EmployeeProfile.function)).where(Employee.id == employee_id))
     if employee is None:
         raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden.")

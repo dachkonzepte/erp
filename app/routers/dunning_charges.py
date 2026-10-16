@@ -49,22 +49,22 @@ def _invoice_or_404(db: Session, invoice_id: int):
 
 
 @router.get("/api/dunning-settings", response_model=DunningSettingsOut)
-def get_dunning_settings(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_dunning_settings(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return {"charges_enabled": charges_enabled(db)}
 
 
 @router.put("/api/dunning-settings", response_model=DunningSettingsOut)
-def put_dunning_settings(payload: DunningSettingsUpdate, db: Session = Depends(get_db), _admin: AppUser = _admin_dep):
+def put_dunning_settings(payload: DunningSettingsUpdate, db: Session = Depends(get_db, scope="function"), _admin: AppUser = _admin_dep):
     return {"charges_enabled": set_charges_enabled(db, payload.charges_enabled)}
 
 
 @router.get("/api/invoices/{invoice_id}/charges", response_model=InvoiceChargesOut)
-def get_invoice_charges(invoice_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_invoice_charges(invoice_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return invoice_charges_view(db, _invoice_or_404(db, invoice_id))
 
 
 @router.post("/api/invoices/{invoice_id}/default-start", response_model=InvoiceDefaultStartOut)
-def post_default_start(invoice_id: int, payload: InvoiceDefaultStartCreate, db: Session = Depends(get_db),
+def post_default_start(invoice_id: int, payload: InvoiceDefaultStartCreate, db: Session = Depends(get_db, scope="function"),
                        user: AppUser = _role_dep):
     """Verzugsbeginn bestätigen: der Vorschlag oder ein anderer Tag mit Begründung."""
     invoice = _invoice_or_404(db, invoice_id)
@@ -78,7 +78,7 @@ def post_default_start(invoice_id: int, payload: InvoiceDefaultStartCreate, db: 
 
 
 @router.post("/api/invoice-default-starts/{start_id}/discard", response_model=InvoiceDefaultStartOut)
-def post_discard_default_start(start_id: int, payload: ReasonIn, db: Session = Depends(get_db), user: AppUser = _role_dep):
+def post_discard_default_start(start_id: int, payload: ReasonIn, db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep):
     row = db.get(InvoiceDefaultStart, start_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Verzugsbeginn nicht gefunden.")
@@ -91,7 +91,7 @@ def post_discard_default_start(start_id: int, payload: ReasonIn, db: Session = D
 
 
 @router.post("/api/invoice-charges/{charge_id}/reverse", response_model=InvoiceChargesOut)
-def post_reverse_charge(charge_id: int, payload: ReasonIn, db: Session = Depends(get_db), user: AppUser = _role_dep):
+def post_reverse_charge(charge_id: int, payload: ReasonIn, db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep):
     """Gegenbuchung einer Nebenforderung (Korrektur oder Erlass) mit Begründung -- Antwort: die Karte der Rechnung."""
     charge = db.get(InvoiceCharge, charge_id)
     if charge is None:
@@ -126,12 +126,12 @@ def _rate_http(error: Exception) -> HTTPException:
 
 
 @router.get("/api/base-interest-rates", response_model=list[BaseInterestRateOut])
-def get_base_interest_rates(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_base_interest_rates(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return list_rates(db)
 
 
 @router.post("/api/base-interest-rates", response_model=BaseInterestRateOut)
-def post_base_interest_rate(payload: BaseInterestRateCreate, db: Session = Depends(get_db), user: AppUser = _rates_admin_dep):
+def post_base_interest_rate(payload: BaseInterestRateCreate, db: Session = Depends(get_db, scope="function"), user: AppUser = _rates_admin_dep):
     try:
         row = create_rate(db, half_year_start=payload.half_year_start, rate_percent=payload.rate_percent,
                           reviewed_on=payload.reviewed_on, reviewed_by=payload.reviewed_by, actor_name=_actor_name(user))
@@ -141,7 +141,7 @@ def post_base_interest_rate(payload: BaseInterestRateCreate, db: Session = Depen
 
 
 @router.put("/api/base-interest-rates/{rate_id}", response_model=BaseInterestRateOut)
-def put_base_interest_rate(rate_id: int, payload: BaseInterestRateUpdate, db: Session = Depends(get_db),
+def put_base_interest_rate(rate_id: int, payload: BaseInterestRateUpdate, db: Session = Depends(get_db, scope="function"),
                            user: AppUser = _rates_admin_dep):
     row = _rate_or_404(db, rate_id)
     try:
@@ -153,7 +153,7 @@ def put_base_interest_rate(rate_id: int, payload: BaseInterestRateUpdate, db: Se
 
 
 @router.delete("/api/base-interest-rates/{rate_id}")
-def delete_base_interest_rate(rate_id: int, db: Session = Depends(get_db), _admin: AppUser = _rates_admin_dep):
+def delete_base_interest_rate(rate_id: int, db: Session = Depends(get_db, scope="function"), _admin: AppUser = _rates_admin_dep):
     row = _rate_or_404(db, rate_id)
     try:
         delete_rate(db, row)
@@ -167,12 +167,12 @@ def delete_base_interest_rate(rate_id: int, db: Session = Depends(get_db), _admi
 # ---------------------------------------------------------------------------
 
 @router.get("/api/dunning-legal-texts", response_model=list[DunningLegalTextOut])
-def get_dunning_legal_texts(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_dunning_legal_texts(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return list_texts(db)
 
 
 @router.put("/api/dunning-legal-texts/{text_key}", response_model=DunningLegalTextOut)
-def put_dunning_legal_text(text_key: str, payload: DunningLegalTextUpdate, db: Session = Depends(get_db),
+def put_dunning_legal_text(text_key: str, payload: DunningLegalTextUpdate, db: Session = Depends(get_db, scope="function"),
                            user: AppUser = _rates_admin_dep):
     if text_key not in LEGAL_TEXT_KEYS:
         raise HTTPException(status_code=404, detail="Unbekannter Rechtstext.")

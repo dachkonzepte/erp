@@ -81,7 +81,7 @@ def get_email_dispatches(
     status: str | None = None, document_type: str | None = None, document_id: int | None = None,
     stuck: bool = False, limit: int = Query(200, ge=1, le=1000),
     project_id: int | None = None, customer_id: int | None = None,
-    db: Session = Depends(get_db), user: AppUser = _role_dep,
+    db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep,
 ):
     """Seit 1.8.113 auch je Projekt (project_id, Projektmappe) oder Kunde (customer_id, Kundenakte) -- nur Einträge zu deren
     Dokumenten; beides zugleich ist nicht vorgesehen (400)."""
@@ -98,7 +98,7 @@ def get_email_dispatches(
 
 
 @router.post("/api/email-dispatches/{dispatch_id}/resolve")
-def post_resolve_email_dispatch(dispatch_id: int, payload: EmailDispatchResolve, db: Session = Depends(get_db),
+def post_resolve_email_dispatch(dispatch_id: int, payload: EmailDispatchResolve, db: Session = Depends(get_db, scope="function"),
                                 user: AppUser = _role_dep):
     """Hängengebliebenen Versand klären (seit 1.8.19): nach Blick in den Postausgang als gesendet
     oder fehlgeschlagen, mit Pflicht-Notiz; steht am Eintrag und in der Änderungshistorie."""
@@ -119,7 +119,7 @@ def post_resolve_email_dispatch(dispatch_id: int, payload: EmailDispatchResolve,
 
 
 @router.get("/api/email-dispatches/delivery-recipients")
-def get_delivery_recipients(document_type: str, document_id: int, db: Session = Depends(get_db),
+def get_delivery_recipients(document_type: str, document_id: int, db: Session = Depends(get_db, scope="function"),
                             _user: AppUser = _role_dep):
     """Empfängerauswahl für "Zustellung nachtragen" (seit 1.8.41): Auftraggeber und Beteiligte des Projekts."""
     _require_module_for(db, document_type)
@@ -135,7 +135,7 @@ def post_manual_delivery(
     delivered_on: date = Form(...), note: str = Form(""), recipient: str = Form(""),
     dispatch_key: str = Form(...), receipt: UploadFile | None = File(None),
     to_client: bool = Form(False), participant_ids: list[int] = Form([]),
-    db: Session = Depends(get_db), user: AppUser = _role_dep,
+    db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep,
 ):
     """Zustellung auf anderem Weg nachtragen (seit 1.8.20): Eintrag im Protokoll, PDF des Dokuments
     und optional der Beleg in der Ablage. Gewöhnliche def-Route (PDF-Erzeugung, Bildprüfung). Seit 1.8.41
@@ -165,7 +165,7 @@ def post_manual_delivery(
 @router.post("/api/email-dispatches/{dispatch_id}/outcome")
 def post_dispatch_outcome(
     dispatch_id: int, outcome: str = Form(...), outcome_on: date = Form(...), note: str = Form(""),
-    receipt: UploadFile | None = File(None), db: Session = Depends(get_db), user: AppUser = _role_dep,
+    receipt: UploadFile | None = File(None), db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep,
 ):
     """"Empfang bestätigt am" bzw. "als unzustellbar markieren" (seit 1.8.41): einmal je gesendetem Eintrag eines
     Dokuments, mit Datum, Notiz (bei unzustellbar Pflicht) und optional Beleg. Aufgaben-Benachrichtigungen haben kein
@@ -201,14 +201,14 @@ def _sent_document_or_404(db: Session, sent_document_id: int) -> SentDocument:
 
 
 @router.get("/api/sent-documents/{sent_document_id}/check")
-def check_sent_document(sent_document_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def check_sent_document(sent_document_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Rechnet die Prüfsumme der Datei neu (liest die ganze Datei, deshalb nur auf Anfrage)."""
     doc = _sent_document_or_404(db, sent_document_id)
     return {**sent_document_to_dict(doc), "check": verify_sent_document(doc)}
 
 
 @router.get("/api/sent-documents/{sent_document_id}/file")
-def get_sent_document_file(sent_document_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_sent_document_file(sent_document_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Die abgelegte Datei, genau so wie versendet -- nur, wenn ihre Prüfsumme stimmt. Eine
     veränderte Datei wird nicht als "das versendete Dokument" ausgeliefert (409), eine fehlende
     meldet 410."""

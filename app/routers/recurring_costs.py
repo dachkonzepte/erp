@@ -39,7 +39,7 @@ def _require_module_enabled(db: Session):
 
 
 @router.get("/api/recurring-costs/overview", response_model=RecurringCostOverviewOut)
-def get_recurring_costs_overview(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_recurring_costs_overview(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Monats-/Jahressumme über beide Kostenquellen, Kündigungsfristen hervorgehoben -- bewusst
     als literaler Pfad VOR /{cost_id} deklariert (Muster GET /api/operational-assets/due)."""
     _require_module_enabled(db)
@@ -47,7 +47,7 @@ def get_recurring_costs_overview(db: Session = Depends(get_db), _role: AppUser =
 
 
 @router.post("/api/recurring-costs/check-due")
-def post_recurring_costs_check_due(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_recurring_costs_check_due(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """On-Demand-Erinnerung -- vom Frontend beim Aufruf der Betriebskosten-Übersicht ausgelöst,
     kein Hintergrund-Job (Muster POST /api/operational-assets/check-due)."""
     _require_module_enabled(db)
@@ -56,13 +56,13 @@ def post_recurring_costs_check_due(db: Session = Depends(get_db), _role: AppUser
 
 
 @router.get("/api/recurring-costs", response_model=list[RecurringCostOut])
-def get_recurring_costs(include_inactive: bool = True, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_recurring_costs(include_inactive: bool = True, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     return list_costs(db, include_inactive=include_inactive)
 
 
 @router.get("/api/recurring-costs/{cost_id}", response_model=RecurringCostOut)
-def get_recurring_cost(cost_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_recurring_cost(cost_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     result = get_cost(db, cost_id)
     if result is None:
@@ -71,7 +71,7 @@ def get_recurring_cost(cost_id: int, db: Session = Depends(get_db), _role: AppUs
 
 
 @router.post("/api/recurring-costs", response_model=RecurringCostOut)
-def post_recurring_cost(payload: RecurringCostCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_recurring_cost(payload: RecurringCostCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         return create_cost(db, payload.model_dump())
@@ -80,7 +80,7 @@ def post_recurring_cost(payload: RecurringCostCreate, db: Session = Depends(get_
 
 
 @router.put("/api/recurring-costs/{cost_id}", response_model=RecurringCostOut)
-def put_recurring_cost(cost_id: int, payload: RecurringCostUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_recurring_cost(cost_id: int, payload: RecurringCostUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         # Seit 1.8.96 Teil-Update (Regel 22): "aktivieren/deaktivieren" schickt nur active.
@@ -93,7 +93,7 @@ def put_recurring_cost(cost_id: int, payload: RecurringCostUpdate, db: Session =
 
 
 @router.delete("/api/recurring-costs/{cost_id}")
-def delete_recurring_cost(cost_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def delete_recurring_cost(cost_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     if not delete_cost(db, cost_id):
         raise HTTPException(status_code=404, detail="Kostenposten nicht gefunden.")
@@ -101,9 +101,10 @@ def delete_recurring_cost(cost_id: int, db: Session = Depends(get_db), _role: Ap
 
 
 @router.post("/api/recurring-costs/{cost_id}/documents", response_model=RecurringCostDocumentOut)
-async def upload_recurring_cost_document(
+# Seit 1.8.114 def statt async def: im Threadpool, die Datenbank nie auf der Event-Loop (Punkt 1a, tests/test_v419_verbindungen.py).
+def upload_recurring_cost_document(
     cost_id: int, document_type: str = Form(...), notes: str | None = Form(None),
-    file: UploadFile = File(...), db: Session = Depends(get_db), _role: AppUser = _role_dep,
+    file: UploadFile = File(...), db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep,
 ):
     _require_module_enabled(db)
     if not document_type.strip():
@@ -112,7 +113,7 @@ async def upload_recurring_cost_document(
         raise HTTPException(status_code=400, detail="Bitte eine Datei auswählen.")
     if (file.content_type or "").lower() not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(status_code=422, detail="Bitte PDF, PNG, JPEG oder WebP verwenden.")
-    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    data = file.file.read(MAX_UPLOAD_BYTES + 1)
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Datei ist größer als 10 MB.")
     # Existenz VOR dem Speichern prüfen (Muster create_asset_document()) -- eine Datei für
@@ -126,7 +127,7 @@ async def upload_recurring_cost_document(
 
 
 @router.get("/api/recurring-cost-documents/{document_id}/file")
-def get_recurring_cost_document_file(document_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_recurring_cost_document_file(document_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     document = db.get(RecurringCostDocument, document_id)
     if document is None:
@@ -138,7 +139,7 @@ def get_recurring_cost_document_file(document_id: int, db: Session = Depends(get
 
 
 @router.delete("/api/recurring-cost-documents/{document_id}")
-def delete_recurring_cost_document_endpoint(document_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def delete_recurring_cost_document_endpoint(document_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     if not delete_cost_document(db, document_id):
         raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
@@ -146,12 +147,12 @@ def delete_recurring_cost_document_endpoint(document_id: int, db: Session = Depe
 
 
 @router.get("/api/recurring-cost-settings", response_model=RecurringCostSettingsOut)
-def get_recurring_cost_settings_endpoint(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_recurring_cost_settings_endpoint(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     return recurring_cost_settings_to_dict(load_recurring_cost_settings(db))
 
 
 @router.put("/api/recurring-cost-settings", response_model=RecurringCostSettingsOut)
-def put_recurring_cost_settings_endpoint(payload: RecurringCostSettingsUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_recurring_cost_settings_endpoint(payload: RecurringCostSettingsUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     return update_recurring_cost_settings(db, payload.reminder_lead_days)

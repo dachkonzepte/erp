@@ -1,4 +1,3 @@
-import asyncio
 import io
 from pathlib import Path
 
@@ -63,7 +62,7 @@ def test_document_description_can_be_edited_after_upload(tmp_path):
     customer = create_customer(CustomerCreate(last_name="Dokumentkunde"), db)
     project = create_project(ProjectCreate(customer_id=customer.id, name="Dokumentprojekt"), db)
     upload = UploadFile(filename="Lieferschein.pdf", file=io.BytesIO(b"%PDF-1.4 test"), headers=Headers({"content-type":"application/pdf"}))
-    doc = asyncio.run(upload_project_document(project.id, upload, "Lieferscheine", None, "2026-08-31", db))
+    doc = upload_project_document(project.id, upload, "Lieferscheine", None, "2026-08-31", db)
     changed = update_project_document(doc.id, ProjectDocumentUpdate(
         category="Lieferscheine",
         document_date=__import__("datetime").date(2026, 8, 30),

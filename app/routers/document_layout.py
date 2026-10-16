@@ -109,33 +109,33 @@ def get_shared_frame_rollout_status(_role: AppUser = _role_dep):
 
 
 @router.get("/api/document-layout/{document_type}", response_model=list[DocumentLayoutBlockOut])
-def get_document_layout(document_type: str, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_document_layout(document_type: str, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _validate_readable_document_type(document_type)
     return load_layout(db, document_type)
 
 
 @router.put("/api/document-layout/blocks/{block_id}", response_model=DocumentLayoutBlockOut)
-def put_layout_block(block_id: int, payload: DocumentLayoutBlockUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_layout_block(block_id: int, payload: DocumentLayoutBlockUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     block = _get_block_or_404(db, block_id)
     # Seit 1.8.96 Teil-Update (Regel 22): nur die gesendeten Felder.
     return update_layout_block(db, block, **payload.model_dump(exclude_unset=True))
 
 
 @router.post("/api/document-layout/{document_type}/reset", response_model=list[DocumentLayoutBlockOut])
-def post_reset_document_layout(document_type: str, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_reset_document_layout(document_type: str, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _validate_writable_document_type(document_type)
     return reset_layout_to_default(db, document_type)
 
 
 @router.get("/api/document-layout/{document_type}/background", response_model=DocumentLayoutBackgroundOut)
-def get_document_layout_background_status(document_type: str, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_document_layout_background_status(document_type: str, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _validate_readable_document_type(document_type)
     row = get_effective_background(db, document_type)
     return DocumentLayoutBackgroundOut(document_type=document_type, has_background=row is not None, repeat_on_every_page=row.repeat_on_every_page if row else True)
 
 
 @router.get("/api/document-layout/{document_type}/background/file")
-def get_document_layout_background_file(document_type: str, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_document_layout_background_file(document_type: str, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _validate_readable_document_type(document_type)
     row = get_effective_background(db, document_type)
     if row is None:
@@ -147,13 +147,14 @@ def get_document_layout_background_file(document_type: str, db: Session = Depend
 
 
 @router.post("/api/document-layout/{document_type}/background", response_model=DocumentLayoutBackgroundOut)
-async def upload_document_layout_background(document_type: str, file: UploadFile = File(...), db: Session = Depends(get_db), _role: AppUser = _role_dep):
+# Seit 1.8.114 def statt async def: im Threadpool, die Datenbank nie auf der Event-Loop (Punkt 1a, tests/test_v419_verbindungen.py).
+def upload_document_layout_background(document_type: str, file: UploadFile = File(...), db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _validate_writable_document_type(document_type)
     if not file.filename:
         raise HTTPException(status_code=400, detail="Bitte eine Datei auswählen.")
     if (file.content_type or "").lower() not in ("image/png", "image/jpeg", "image/webp"):
         raise HTTPException(status_code=422, detail="Bitte PNG, JPEG oder WebP verwenden.")
-    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    data = file.file.read(MAX_UPLOAD_BYTES + 1)
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Datei ist größer als 10 MB.")
     existing = get_background(db, document_type)
@@ -163,7 +164,7 @@ async def upload_document_layout_background(document_type: str, file: UploadFile
 
 
 @router.delete("/api/document-layout/{document_type}/background", response_model=DocumentLayoutBackgroundOut)
-def delete_document_layout_background(document_type: str, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def delete_document_layout_background(document_type: str, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _validate_writable_document_type(document_type)
     existing = get_background(db, document_type)
     if existing is not None:
@@ -184,7 +185,7 @@ def delete_document_layout_background(document_type: str, db: Session = Depends(
 # relevant, siehe DocumentLayoutBackground-Docstring.
 
 @router.get("/api/document-layout/{document_type}/backgrounds/{page_type}", response_model=DocumentLayoutBackgroundOut)
-def get_document_layout_background_status_for_page_type(document_type: str, page_type: str, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_document_layout_background_status_for_page_type(document_type: str, page_type: str, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _validate_readable_document_type(document_type)
     _validate_page_type(page_type)
     row = get_effective_background(db, document_type, page_type)
@@ -192,7 +193,7 @@ def get_document_layout_background_status_for_page_type(document_type: str, page
 
 
 @router.get("/api/document-layout/{document_type}/backgrounds/{page_type}/file")
-def get_document_layout_background_file_for_page_type(document_type: str, page_type: str, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_document_layout_background_file_for_page_type(document_type: str, page_type: str, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _validate_readable_document_type(document_type)
     _validate_page_type(page_type)
     row = get_effective_background(db, document_type, page_type)
@@ -205,7 +206,8 @@ def get_document_layout_background_file_for_page_type(document_type: str, page_t
 
 
 @router.post("/api/document-layout/{document_type}/backgrounds/{page_type}", response_model=DocumentLayoutBackgroundOut)
-async def upload_document_layout_background_for_page_type(document_type: str, page_type: str, file: UploadFile = File(...), db: Session = Depends(get_db), _role: AppUser = _role_dep):
+# Seit 1.8.114 def statt async def: im Threadpool, die Datenbank nie auf der Event-Loop (Punkt 1a, tests/test_v419_verbindungen.py).
+def upload_document_layout_background_for_page_type(document_type: str, page_type: str, file: UploadFile = File(...), db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _validate_writable_document_type(document_type)
     _validate_page_type(page_type)
     if not file.filename:
@@ -213,7 +215,7 @@ async def upload_document_layout_background_for_page_type(document_type: str, pa
     content_type = (file.content_type or "").lower()
     if content_type not in ("image/png", "image/jpeg", "image/webp", "application/pdf"):
         raise HTTPException(status_code=422, detail="Bitte PNG, JPEG, WebP oder PDF verwenden.")
-    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    data = file.file.read(MAX_UPLOAD_BYTES + 1)
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Datei ist größer als 10 MB.")
     try:
@@ -227,7 +229,7 @@ async def upload_document_layout_background_for_page_type(document_type: str, pa
 
 
 @router.delete("/api/document-layout/{document_type}/backgrounds/{page_type}", response_model=DocumentLayoutBackgroundOut)
-def delete_document_layout_background_for_page_type(document_type: str, page_type: str, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def delete_document_layout_background_for_page_type(document_type: str, page_type: str, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _validate_writable_document_type(document_type)
     _validate_page_type(page_type)
     existing = get_background(db, document_type, page_type)
@@ -243,21 +245,21 @@ def _validate_page_type(page_type: str) -> None:
 
 
 @router.get("/api/document-layout/{document_type}/margins/{page_type}", response_model=DocumentPageMarginsOut)
-def get_document_page_margins(document_type: str, page_type: str, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_document_page_margins(document_type: str, page_type: str, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _validate_readable_document_type(document_type)
     _validate_page_type(page_type)
     return get_margins(db, document_type, page_type)
 
 
 @router.put("/api/document-layout/{document_type}/margins/{page_type}", response_model=DocumentPageMarginsOut)
-def put_document_page_margins(document_type: str, page_type: str, payload: DocumentPageMarginsUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_document_page_margins(document_type: str, page_type: str, payload: DocumentPageMarginsUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _validate_writable_document_type(document_type)
     _validate_page_type(page_type)
     return update_margins(db, document_type, page_type, top_mm=payload.top_mm, bottom_mm=payload.bottom_mm, left_mm=payload.left_mm, right_mm=payload.right_mm)
 
 
 @router.post("/api/document-layout/{document_type}/margins/{page_type}/reset", response_model=DocumentPageMarginsOut)
-def post_reset_document_page_margins(document_type: str, page_type: str, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_reset_document_page_margins(document_type: str, page_type: str, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _validate_writable_document_type(document_type)
     _validate_page_type(page_type)
     return reset_margins_to_default(db, document_type, page_type)

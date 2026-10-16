@@ -32,12 +32,12 @@ def _to_out(db: Session) -> AISettingsOut:
 
 
 @router.get("/api/ai-settings", response_model=AISettingsOut)
-def get_ai_settings_endpoint(db: Session = Depends(get_db), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+def get_ai_settings_endpoint(db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     return _to_out(db)
 
 
 @router.put("/api/ai-settings", response_model=AISettingsOut)
-def put_ai_settings(payload: AISettingsUpdate, db: Session = Depends(get_db), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+def put_ai_settings(payload: AISettingsUpdate, db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     try:
         update_ai_settings(
             db, enabled=payload.enabled, provider=payload.provider,
@@ -49,7 +49,7 @@ def put_ai_settings(payload: AISettingsUpdate, db: Session = Depends(get_db), _a
 
 
 @router.post("/api/ai-settings/test")
-def post_test_ai_settings(db: Session = Depends(get_db), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+def post_test_ai_settings(db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     try:
         call_ai(db, AIRequest(caller="einstellungen_test", prompt="Antworte mit einem einzigen Wort: Test."))
     except AIProviderError as e:

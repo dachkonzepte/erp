@@ -711,3 +711,105 @@ Microsoft-365-Client-Secret weiterhin entschlüsselbar. Wichtigster Test: ein ne
 Maximum 162, bestätigt die zurückgesetzten Sequenzen unter echter Last, nicht nur rechnerisch.
 Testkonto/-kunde danach wieder entfernt. **Bewusst NICHT in dieser Runde**: der Umzug auf den
 Server selbst -- erst muss der Weg lokal tragen.
+
+
+## Datenbankverbindungen unter Last (seit 1.8.114)
+
+Vorgabe vom 16.10.2026, Punkt 1: Datenbankverbindungen, Angriffstests unter Last gegen PostgreSQL mit Gegenprobe -- (a) die
+Anmeldeschranke liest nicht mehr auf der Event-Loop, ein leerer Pool hält nie den ganzen Prozess an; (b) Dateiantworten geben ihre
+Verbindung vor der Übertragung frei, kein „idle in transaction“ während eines Downloads; (c) eine Seitenanfrage braucht nur eine
+Verbindung (Jinja-Globals); (d) `pool_pre_ping`, Poolgröße und Zeitlimit passend zu Threadpool und Workern, Werte begründet.
+
+### Befund vor dem Bauen
+
+- **Die Schranke las auf der Event-Loop.** `identitaet_und_audit()` (async) öffnete ihre Sitzung und fragte `app_users` und
+  `user_sessions` direkt ab. War der Pool leer, wartete `pool.connect()` bis zum Zeitlimit (Vorgabe von SQLAlchemy: 30 s) -- auf der
+  Event-Loop, also für den ganzen Arbeitsprozess: keine Antwort, kein laufender Download, kein `/health`.
+- **16 Upload-Endpunkte waren `async def`** (Kundenakte, Projektmappe, Objekt, `/mobil`, Fotos, Logos, Hintergründe, Lieferschein,
+  Belege, Adress- und XML-Import): `await file.read()`, danach synchron in die Datenbank -- dieselbe Lage wie die Schranke.
+- **`get_db` hielt die Verbindung bis zum letzten Byte.** Eine Abhängigkeit mit `yield` hat in FastAPI den Scope „request“: abgebaut
+  wird nach dem Senden der Antwort. Bei einer Datei (Kundenakte, Projektmappe, PDF eines Einsatzberichts mit vielen Fotos) hielt die
+  Sitzung ihre Verbindung samt offener Transaktion (das SELECT des Dokuments) für die ganze Übertragung -- in PostgreSQL „idle in
+  transaction“. Mit dem Pool von SQLAlchemy (5 + 10) leerten 15 langsame Downloads den Pool eines Prozesses.
+- **Jeder Aufruf eines Jinja-Globals öffnete eine Sitzung.** `get_theme()`, `is_module_enabled()` (in der Seitenleiste einmal je
+  Modul), `sidebar_logo_url()`, `sidebar_logo_height_px()`, `account_display()` -- eine Seite mit Seitenleiste holte so 37
+  Verbindungen nacheinander (`/tasks` 41, `/mobil` 17; gemessen in der Gegenprobe des Zähltests). `/users` hielt dabei schon die eigene (`_require_users_page_access()` mit `get_db`): bei leerem Pool
+  wartete die Seite auf sich selbst.
+- **Pool ohne Einstellung**: `create_engine()` mit den Vorgaben (5 + 10, 30 s, ohne `pool_pre_ping`) -- nach einem Neustart von
+  PostgreSQL scheiterte die erste Anfrage je Verbindung im Pool mit 500.
+
+### Umsetzung 1.8.114
+
+- **Schranke im Threadpool** (`app/anmeldeschranke.py::_lesen()`, über `run_in_threadpool`): Benutzer, Sitzung und für eine Seite die
+  Seitendaten in einer Sitzung, danach geschlossen. Wartet sie länger als das Zeitlimit des Pools, antwortet sie 503 mit `Retry-After: 5`
+  und „Der Server ist gerade ausgelastet …“ (`ueberlastet()`); dasselbe für jeden Endpunkt über einen Fehler-Handler für
+  `sqlalchemy.exc.TimeoutError`, eingebunden in `einbinden()`.
+- **Kein Endpunkt mit Datenbank ist async**: die 16 Uploads sind `def` (lesen die Datei mit `file.file.read()` im Threadpool). Die
+  403-Seite (`app/main.py`) zeichnet im Threadpool.
+- **`Depends(get_db, scope="function")` an allen 701 Stellen** (FastAPI ≥ 0.121, `requirements.txt`): FastAPI schließt die Sitzung,
+  sobald der Endpunkt zurück und die Antwort serialisiert ist, vor dem Senden. Für alle Endpunkte, nicht nur Dateien: gemischte Scopes
+  ergäben zwei Sitzungen je Anfrage (der Abhängigkeits-Cache von FastAPI unterscheidet nach Scope).
+- **Seitendaten** (`app/seitendaten.py`): `laden(db, user)` liest Akzentfarbe, alle Modul-Zustände in einer Abfrage
+  (`app/modules.py::stored_module_states()`), Logo der Leiste, seine Höhe und den Kontoknopf -- jeder Teil mit eigenem Rückfallwert und
+  `rollback()` nach einem Fehler (sonst lehnte PostgreSQL jede weitere Abfrage derselben Transaktion ab; Vorfall 2 aus
+  „Produktivbetrieb“ bleibt abgedeckt). Die Schranke lädt sie für jede GET-Anfrage außerhalb von `/api/` mit (außer `/health`,
+  `/manifest.json` und der Umleitung eines Abgemeldeten auf `/login`) und legt sie an `request.state` ab; die Globals
+  (`app/routers/pages.py`, jetzt mit `pass_context`) lesen nur dort. Ohne Schranke (Tests mit `router_test_client`) lädt der erste
+  Global einer Anfrage einmal mit eigener Sitzung.
+- **Pool unter PostgreSQL** (`app/database.py::engine_optionen()`, Begründung im Kopf der Datei): `pool_pre_ping=True`, `pool_size=5`,
+  `max_overflow=35` (zusammen 40 = Plätze im Threadpool von anyio, je Prozess), `pool_timeout=10` s. Zwei Arbeitsprozesse brauchen
+  höchstens 80 Verbindungen; bei `max_connections = 100` (davon 3 für den Superuser) bleiben 17 für Sicherung, `update.sh` samt Probe,
+  den Outlook-Abgleich per Cron und psql. Dauerhaft offen bleiben 5 je Prozess. Zeitlimit 10 s: länger wartet nur ein überlasteter
+  Prozess, die Anfrage endet dann mit 503, bevor der Baustein der Seite (60 s) oder Nginx (60 s) aufgibt; zugleich löst es den Stau, in
+  dem alle Threads auf Verbindungen warten und alle Verbindungen auf einen Thread zum Serialisieren. Abweichende Werte über
+  `ERP_DB_POOL_SIZE`, `ERP_DB_MAX_OVERFLOW`, `ERP_DB_POOL_TIMEOUT` (`.env.example`), ungültige brechen den Start mit Meldung ab. SQLite
+  bleibt unverändert.
+
+#### Festlegungen 1.8.114 (Bitte bestätigen)
+
+1. **Pool je Arbeitsprozess 5 + 35 = 40 Verbindungen (= Threadpool), Zeitlimit 10 s, `pool_pre_ping`**; über `ERP_DB_POOL_SIZE`, `ERP_DB_MAX_OVERFLOW`, `ERP_DB_POOL_TIMEOUT` änderbar; SQLite unverändert.
+2. **Leerer Pool: 503 mit `Retry-After: 5` und „Der Server ist gerade ausgelastet – bitte in einigen Sekunden noch einmal versuchen.“** -- in der Schranke und an jedem Endpunkt, statt 500.
+3. **Alle Endpunkte schließen ihre Sitzung vor dem Senden** (`scope="function"` an allen 701 Stellen), nicht nur die Dateiantworten -- auch eine große JSON-Liste an ein langsames Tablet hält sonst ihre Verbindung, und gemischte Scopes ergäben zwei Sitzungen je Anfrage.
+4. **Die 16 Uploads sind `def` statt `async def`** (Datei im Threadpool gelesen) -- statt die Datenbankarbeit einzeln in `run_in_threadpool` zu packen; Vorbild die Uploads der Checklisten (seit 1.3.62 `def`).
+5. **Die Schranke lädt die Seitendaten für jede GET-Anfrage außerhalb von `/api/`** (außer `/health`, `/manifest.json`, Umleitung auf `/login`), auch wenn die Seite danach umleitet -- einfacher als vorher zu wissen, ob eine Vorlage gezeichnet wird; fünf kleine Abfragen.
+6. **`/users` behält seine eigene Sitzung** (zwei Verbindungen nacheinander, nie zwei zugleich); umgestellt wird es mit Stufe 2.
+7. **`fastapi>=0.121`** in `requirements.txt` (`scope=` gibt es erst ab 0.121; lokal 0.141.1) -- `update.sh` hebt den Server mit `pip install -r requirements.txt` an.
+8. **Der Angriffstest ist Teil der Suite** (opt-in mit `ERP_TEST_POSTGRES_URL` wie alle PostgreSQL-Tests): echter uvicorn auf einem Wegwerf-Schema mit Pool 2, ohne Überlauf, Zeitlimit 3 s; rund 25 s.
+
+#### Nebenbefunde (nur gemeldet, nicht behoben)
+
+1. **`max_connections` auf dem Server ist nicht geprüft** -- die Rechnung oben nimmt die Vorgabe von PostgreSQL (100) an. Steht dort weniger
+   oder läuft gunicorn mit mehr als zwei Prozessen, `ERP_DB_MAX_OVERFLOW` senken (Betreiberprüfung: `SHOW max_connections;`).
+2. **Der Outlook-Abgleich per Cron (`scripts/sync_outlook_calendars.py`) nimmt denselben Pool** (`app.database`) -- ein Prozess je Lauf,
+   unkritisch, aber er zählt bei `max_connections` mit.
+3. **Der Threadpool liest auch die Dateien eines Downloads** (`FileResponse` über anyio): sind alle 40 Plätze mit Warten auf Verbindungen
+   belegt, stocken laufende Downloads bis zum Zeitlimit des Pools. Im Angriffstest nicht aufgetreten (dort warten höchstens vier).
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v419_verbindungen.py` (12 Tests, ohne PostgreSQL): jede Route der App (über `_IncludedRouter` von FastAPI 0.141
+  aufgezählt, über 500) hat `get_db` nur mit `scope="function"`; kein async-Endpunkt und keine async-Abhängigkeit mit Datenbank; die
+  Schranke öffnet ihre Sitzung nicht im Thread der Event-Loop; leerer Pool 503 in Schranke und Endpunkt; ein Download der Kundenakte
+  beginnt erst, wenn Schranken- und Endpunkt-Sitzung geschlossen sind (ASGI-Beobachter auf `http.response.start`); jede Seite als Admin:
+  eine Verbindung, `/users` zwei nacheinander, nie zwei zugleich (Pool-Ereignisse); die Globals zeigen Akzentfarbe, Modul-Schalter und
+  Initialen aus den Seitendaten; Pool-Werte, Bezug zum Threadpool von anyio und zu `max_connections`, Umgebungsvariablen, SQLite,
+  `.env.example`.
+- Neu `tests/test_v419_verbindungen_unter_last.py` (4 Tests, PostgreSQL): echter uvicorn auf einem Wegwerf-Schema, Pool 2/0/3 s, eine
+  Datei von 24 MB, langsame Downloads über einen eigenen Socket (Empfangspuffer 8 KB, 256 KB/s). (1) Vier Downloads zugleich: keine
+  Verbindung des Servers länger als 1 s „idle in transaction“, Kunde, Seite und `/health` daneben in unter 2 s mit 200, die Downloads
+  laufen die ganze Zeit. (2) 40 Seiten (darunter `/users`) und 30 Abfragen zugleich: alle 200. (3) `LOCK TABLE customers`, zwei Abfragen
+  halten beide Verbindungen, `/health` und `/projects` warten in der Schranke und bekommen nach 3 s 503 -- ein laufender Download steht
+  dabei nie länger als 1,5 s still; danach alles 200. (4) `pg_terminate_backend` auf alle Verbindungen des Servers: die nächsten drei
+  Anfragen 200.
+- Gegenproben (Regel 24): 7 Fälle, 13 erwartete rote Prüfungen, alle rot aus dem genannten Grund, jede Datei byte-genau zurück (SHA-256):
+  Schranke wieder auf der Event-Loop (Thread-Test; Download stand 2,4 s still), ein Upload wieder async (Strukturtest), ohne 503-Handler
+  (503-Test), Download der Kundenakte mit `Depends(get_db)` (Strukturtest; Sitzung beim Senden offen; zwei Verbindungen „idle in
+  transaction“), Schranke ohne Seitendaten (eine Verbindung mehr je Seite), Globals je Aufruf mit eigener Sitzung (37 Verbindungen je
+  Seite, `/users` zwei zugleich; unter Last 503), ohne `pool_pre_ping` (Werte; erste Anfrage nach beendeten Verbindungen 500). Der
+  Lasttest „viele Seiten“ war in der ersten Fassung bei den Globals nur in einem von zwei Läufen rot -- die Rückfallwerte der Globals
+  verdeckten die Verbindungsnot (Seite 200, aber ohne Akzentfarbe); seither prüft er zusätzlich, dass im Protokoll des Servers keine
+  Seitendaten auf ihren Rückfallwert fallen, und die Dauer (unter 10 s statt 20 s): danach in zwei von zwei Läufen rot.
+- **Angepasste Erwartungen** (Regel 28), nur Aufbau:
+  - `test_v252` (8 Rückfall-Tests der Globals): altes Soll „Patch auf `pages.get_accent_color`/`is_module_enabled`/`sidebar_logo_filename`/`_sidebar_logo_height_px_lookup`/`SessionLocal`“, neues Soll „Patch auf dieselben Teile in `app/seitendaten.py`“; `_is_module_enabled(None, "wartungen")` mit Kontext; Erwartungen (Rückfallwerte) unverändert.
+  - `test_v254` (2 Tests): altes Soll `_account_display(user)`, neues Soll `_account_display(None, user)`, Patch auf `seitendaten.resolve_account_display`; Erwartungen unverändert.
+  - `test_v064`, `test_v065`, `test_v154` (6 Aufrufe), `test_v224` (1): altes Soll `asyncio.run(upload_…(…))`, neues Soll direkter Aufruf (die Endpunkte sind `def`); Erwartungen unverändert.

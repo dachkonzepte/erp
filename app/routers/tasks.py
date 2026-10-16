@@ -63,7 +63,7 @@ def _require_visible_task(db: Session, user: AppUser, task_id: int) -> Task:
 @router.get("/api/tasks", response_model=list[TaskOut])
 def get_tasks(employee_id: int | None = None, status: str | None = None,
               project_id: int | None = None, include_archived: bool = False,
-              unassigned_only: bool = False, db: Session = Depends(get_db),
+              unassigned_only: bool = False, db: Session = Depends(get_db, scope="function"),
               _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
@@ -76,7 +76,7 @@ def get_tasks(employee_id: int | None = None, status: str | None = None,
 
 
 @router.post("/api/tasks", response_model=TaskOut)
-def post_task(payload: TaskCreate, request: Request, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_task(payload: TaskCreate, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     user = getattr(request.state, "erp_user", None)
     try:
@@ -93,7 +93,7 @@ def post_task(payload: TaskCreate, request: Request, db: Session = Depends(get_d
 
 
 @router.put("/api/tasks/{task_id}", response_model=TaskOut)
-def put_task(task_id: int, payload: TaskUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_task(task_id: int, payload: TaskUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     _require_visible_task(db, _role, task_id)
     try:
@@ -108,7 +108,7 @@ def put_task(task_id: int, payload: TaskUpdate, db: Session = Depends(get_db), _
 
 
 @router.delete("/api/tasks/{task_id}")
-def delete_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def delete_task_endpoint(task_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     _require_visible_task(db, _role, task_id)
     if not delete_task(db, task_id):
@@ -117,7 +117,7 @@ def delete_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: App
 
 
 @router.post("/api/tasks/{task_id}/archive", response_model=TaskOut)
-def archive_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def archive_task_endpoint(task_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     _require_visible_task(db, _role, task_id)
     result = set_task_archived(db, task_id, True)
@@ -127,7 +127,7 @@ def archive_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: Ap
 
 
 @router.post("/api/tasks/{task_id}/unarchive", response_model=TaskOut)
-def unarchive_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def unarchive_task_endpoint(task_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     _require_visible_task(db, _role, task_id)
     result = set_task_archived(db, task_id, False)
@@ -137,7 +137,7 @@ def unarchive_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: 
 
 
 @router.post("/api/tasks/{task_id}/claim", response_model=TaskOut)
-def claim_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def claim_task_endpoint(task_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """"Übernehmen" -- weist eine empfängerlose Aufgabe fest der aufrufenden Person zu. Die
     primäre Absicherung gegen einen Monteur mit geratener Aufgaben-ID ist bereits _role_dep
     (Büro/Admin, 403 vor jeder Geschäftslogik) -- siehe CLAUDE.md "Änderung am Aufgabenmodul".
@@ -158,7 +158,7 @@ def claim_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: AppU
 
 
 @router.post("/api/tasks/{task_id}/release", response_model=TaskOut)
-def release_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def release_task_endpoint(task_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """"Zurück in den Büro-Eingang" -- macht eine Aufgabe wieder empfängerlos. Seit 1.8.26 nur an
     einer Aufgabe, die die Person lesen darf (eigene, empfängerlose; Admin alle) -- die
     Geschäftsfunktion app/tasks.py::release_task() bleibt rollenblind."""
@@ -171,7 +171,7 @@ def release_task_endpoint(task_id: int, db: Session = Depends(get_db), _role: Ap
 
 
 @router.post("/api/tasks/{task_id}/checklist-items", response_model=TaskChecklistItemOut)
-def post_checklist_item(task_id: int, payload: TaskChecklistItemCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_checklist_item(task_id: int, payload: TaskChecklistItemCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     _require_visible_task(db, _role, task_id)
     try:
@@ -184,7 +184,7 @@ def post_checklist_item(task_id: int, payload: TaskChecklistItemCreate, db: Sess
 
 
 @router.put("/api/tasks/{task_id}/checklist-items/{item_id}", response_model=TaskChecklistItemOut)
-def put_checklist_item(task_id: int, item_id: int, payload: TaskChecklistItemUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_checklist_item(task_id: int, item_id: int, payload: TaskChecklistItemUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     _require_visible_task(db, _role, task_id)
     try:
@@ -197,7 +197,7 @@ def put_checklist_item(task_id: int, item_id: int, payload: TaskChecklistItemUpd
 
 
 @router.delete("/api/tasks/{task_id}/checklist-items/{item_id}")
-def delete_checklist_item_endpoint(task_id: int, item_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def delete_checklist_item_endpoint(task_id: int, item_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     _require_visible_task(db, _role, task_id)
     if not delete_checklist_item(db, task_id, item_id):
@@ -206,13 +206,13 @@ def delete_checklist_item_endpoint(task_id: int, item_id: int, db: Session = Dep
 
 
 @router.get("/api/task-settings", response_model=TaskSettingsOut)
-def get_task_settings(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_task_settings(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     return load_task_settings(db)
 
 
 @router.put("/api/task-settings", response_model=TaskSettingsOut)
-def put_task_settings(payload: TaskSettingsUpdate, db: Session = Depends(get_db),
+def put_task_settings(payload: TaskSettingsUpdate, db: Session = Depends(get_db, scope="function"),
                        _admin=Depends(require_admin("Nur Administratoren dürfen die Aufgaben-Einstellungen ändern."))):
     _require_module_enabled(db)
     return update_task_settings(db, payload.notify_on_assignment)

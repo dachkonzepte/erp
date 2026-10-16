@@ -23,7 +23,7 @@ _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 
 @router.get("/api/audit-logs", response_model=list[AuditLogOut])
-def list_audit_logs(project_id: int | None = None, entity_type: str | None = None, entity_id: str | None = None, actor: str | None = None, limit: int = 250, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def list_audit_logs(project_id: int | None = None, entity_type: str | None = None, entity_id: str | None = None, actor: str | None = None, limit: int = 250, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     rows = audit_rows(db, project_id=project_id, entity_type=entity_type, entity_id=entity_id, actor=actor, limit=limit)
     if has_role(_role, ROLE_ADMIN):
         return rows

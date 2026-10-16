@@ -80,19 +80,19 @@ def _apply_team_payload(db:Session,team:Team,payload:TeamCreate|TeamUpdate):
 
 
 @router.get("/api/suppliers", response_model=list[SupplierOut])
-def list_suppliers(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def list_suppliers(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return [SupplierOut.model_validate(_supplier_dict(x)) for x in db.scalars(select(Supplier).order_by(Supplier.name)).all()]
 
 
 @router.get("/api/suppliers/{supplier_id}", response_model=SupplierOut)
-def get_supplier(supplier_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_supplier(supplier_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     x=db.get(Supplier,supplier_id)
     if x is None: raise HTTPException(status_code=404, detail="Lieferant nicht gefunden.")
     return SupplierOut.model_validate(_supplier_dict(x))
 
 
 @router.post("/api/suppliers", response_model=SupplierOut)
-def create_supplier(payload: SupplierCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def create_supplier(payload: SupplierCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     if payload.supplier_number and db.scalar(select(Supplier).where(Supplier.supplier_number==payload.supplier_number)):
         raise HTTPException(status_code=409, detail="Lieferantennummer ist bereits vergeben.")
     x=Supplier(**payload.model_dump()); db.add(x); db.commit(); db.refresh(x)
@@ -100,7 +100,7 @@ def create_supplier(payload: SupplierCreate, db: Session = Depends(get_db), _rol
 
 
 @router.put("/api/suppliers/{supplier_id}", response_model=SupplierOut)
-def update_supplier(supplier_id:int,payload:SupplierUpdate,db:Session=Depends(get_db),_role:AppUser=_role_dep):
+def update_supplier(supplier_id:int,payload:SupplierUpdate,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     x=db.get(Supplier,supplier_id)
     if x is None: raise HTTPException(status_code=404,detail="Lieferant nicht gefunden.")
     if payload.supplier_number:
@@ -111,7 +111,7 @@ def update_supplier(supplier_id:int,payload:SupplierUpdate,db:Session=Depends(ge
 
 
 @router.delete("/api/suppliers/{supplier_id}")
-def delete_supplier(supplier_id:int,db:Session=Depends(get_db),_role:AppUser=_role_dep):
+def delete_supplier(supplier_id:int,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     x=db.get(Supplier,supplier_id)
     if x is None: raise HTTPException(status_code=404,detail="Lieferant nicht gefunden.")
     # Seit 1.8.39 zählt auch ein Adressbuch-Eintrag mit Verweis auf den Lieferanten (Beteiligter) als Verwendung.
@@ -122,19 +122,19 @@ def delete_supplier(supplier_id:int,db:Session=Depends(get_db),_role:AppUser=_ro
 
 
 @router.get("/api/resources", response_model=list[OperationalResourceOut])
-def list_resources(db:Session=Depends(get_db),_role:AppUser=_role_dep):
+def list_resources(db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     return [OperationalResourceOut.model_validate(_resource_dict(x)) for x in db.scalars(select(OperationalResource).order_by(OperationalResource.resource_type,OperationalResource.name)).all()]
 
 
 @router.get("/api/resources/{resource_id}", response_model=OperationalResourceOut)
-def get_resource(resource_id:int,db:Session=Depends(get_db),_role:AppUser=_role_dep):
+def get_resource(resource_id:int,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     x=db.get(OperationalResource,resource_id)
     if x is None: raise HTTPException(status_code=404,detail="Ressource nicht gefunden.")
     return OperationalResourceOut.model_validate(_resource_dict(x))
 
 
 @router.post("/api/resources", response_model=OperationalResourceOut)
-def create_resource(payload:OperationalResourceCreate,db:Session=Depends(get_db),_role:AppUser=_role_dep):
+def create_resource(payload:OperationalResourceCreate,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     if payload.resource_number and db.scalar(select(OperationalResource).where(OperationalResource.resource_number==payload.resource_number)):
         raise HTTPException(status_code=409,detail="Ressourcennummer ist bereits vergeben.")
     x=OperationalResource(**payload.model_dump()); db.add(x); db.commit(); db.refresh(x)
@@ -142,7 +142,7 @@ def create_resource(payload:OperationalResourceCreate,db:Session=Depends(get_db)
 
 
 @router.put("/api/resources/{resource_id}", response_model=OperationalResourceOut)
-def update_resource(resource_id:int,payload:OperationalResourceUpdate,db:Session=Depends(get_db),_role:AppUser=_role_dep):
+def update_resource(resource_id:int,payload:OperationalResourceUpdate,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     x=db.get(OperationalResource,resource_id)
     if x is None: raise HTTPException(status_code=404,detail="Ressource nicht gefunden.")
     if payload.resource_number:
@@ -153,7 +153,7 @@ def update_resource(resource_id:int,payload:OperationalResourceUpdate,db:Session
 
 
 @router.delete("/api/resources/{resource_id}")
-def delete_resource(resource_id:int,db:Session=Depends(get_db),_role:AppUser=_role_dep):
+def delete_resource(resource_id:int,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     x=db.get(OperationalResource,resource_id)
     if x is None: raise HTTPException(status_code=404,detail="Ressource nicht gefunden.")
     used=db.scalar(select(TeamResource).where(TeamResource.resource_id==resource_id)) or db.scalar(select(WorkPreparationTeamResource).where(WorkPreparationTeamResource.resource_id==resource_id))
@@ -163,20 +163,20 @@ def delete_resource(resource_id:int,db:Session=Depends(get_db),_role:AppUser=_ro
 
 
 @router.get("/api/teams", response_model=list[TeamOut])
-def list_teams(db:Session=Depends(get_db),_role:AppUser=_role_dep):
+def list_teams(db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     rows=db.scalars(select(Team).order_by(Team.name)).all()
     return [TeamOut.model_validate(_team_dict(db,x)) for x in rows]
 
 
 @router.get("/api/teams/{team_id}", response_model=TeamOut)
-def get_team(team_id:int,db:Session=Depends(get_db),_role:AppUser=_role_dep):
+def get_team(team_id:int,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     x=db.get(Team,team_id)
     if x is None: raise HTTPException(status_code=404,detail="Kolonne / Team nicht gefunden.")
     return TeamOut.model_validate(_team_dict(db,x))
 
 
 @router.post("/api/teams", response_model=TeamOut)
-def create_team(payload:TeamCreate,db:Session=Depends(get_db),_role:AppUser=_role_dep):
+def create_team(payload:TeamCreate,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     if payload.team_number and db.scalar(select(Team).where(Team.team_number==payload.team_number)):
         raise HTTPException(status_code=409,detail="Teamnummer ist bereits vergeben.")
     team=Team(team_number=payload.team_number,name=payload.name,description=payload.description,active=payload.active); db.add(team); db.flush()
@@ -184,7 +184,7 @@ def create_team(payload:TeamCreate,db:Session=Depends(get_db),_role:AppUser=_rol
 
 
 @router.put("/api/teams/{team_id}", response_model=TeamOut)
-def update_team(team_id:int,payload:TeamUpdate,db:Session=Depends(get_db),_role:AppUser=_role_dep):
+def update_team(team_id:int,payload:TeamUpdate,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     team=db.get(Team,team_id)
     if team is None: raise HTTPException(status_code=404,detail="Kolonne / Team nicht gefunden.")
     if payload.team_number:
@@ -194,7 +194,7 @@ def update_team(team_id:int,payload:TeamUpdate,db:Session=Depends(get_db),_role:
 
 
 @router.delete("/api/teams/{team_id}")
-def delete_team(team_id:int,db:Session=Depends(get_db),_role:AppUser=_role_dep):
+def delete_team(team_id:int,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     team=db.get(Team,team_id)
     if team is None: raise HTTPException(status_code=404,detail="Kolonne / Team nicht gefunden.")
     if db.scalar(select(WorkPreparationTeamAssignment).where(WorkPreparationTeamAssignment.team_id==team_id)):

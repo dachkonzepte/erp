@@ -13,19 +13,17 @@ from pathlib import Path
 from fastapi import Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from jinja2 import pass_context
 from sqlalchemy.orm import Session
 
-from ..auth import resolve_account_display, users_exist
+from ..auth import users_exist
 from ..checklist_purposes import DEFAULT_PURPOSE, PURPOSES
 from ..concern_notices import OPEN_CONCERNS_TEXT
-from ..company_logo import DEFAULT_SIDEBAR_LOGO_HEIGHT_PX, sidebar_logo_filename
-from ..company_logo import sidebar_logo_height_px as _sidebar_logo_height_px_lookup
-from ..database import SessionLocal, get_db
+from ..database import get_db
 from ..deps import require_admin
-from ..modules import is_module_enabled
 from ..models import AppUser
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, default_home_page_for_role, has_min_role, has_role, require_min_role
-from ..settings import get_accent_color
+from .. import seitendaten
 from ..version import APP_VERSION
 from ..weiterleitung import ist_lokal, sicheres_ziel
 
@@ -38,108 +36,81 @@ templates.env.globals["app_version"] = APP_VERSION
 
 # Die fuenf Jinja-Globals unten laufen bei JEDER Seitenanfrage (jede Seite bindet _sidebar.html
 # UND seit 1.3.45 _topbar.html ein, die get_theme()/is_module_enabled()/sidebar_logo_url()/
-# sidebar_logo_height_px()/account_display() aufrufen) -- jeweils mit einer eigenen,
-# kurzlebigen SessionLocal(), siehe Docstrings unten. Ein DB-Zustand, der eine dieser Funktionen
-# zum Werfen bringt (z. B. eine durch eine uebersprungene Migration fehlende Spalte, oder ein
-# general_settings.logo_filename, das auf eine kaputte Datei zeigt), darf deshalb NIE als
-# Ausnahme durchschlagen -- sonst antwortet JEDE Seite mit 500, einschliesslich der
-# Anmeldeseite, und niemand kommt mehr ins System, um es zu reparieren (realer Vorfall, siehe
-# CLAUDE.md). Jede der fuenf Funktionen faengt deshalb jede Ausnahme ab, loggt sie und faellt
-# auf einen sicheren, immer darstellbaren Wert zurueck.
+# sidebar_logo_height_px()/account_display() aufrufen). Seit 1.8.114 (Vorgabe vom 16.10.2026,
+# Punkt 1c) oeffnen sie keine eigene Sitzung mehr: sie lesen die Seitendaten der Anfrage, die
+# die Anmeldeschranke in ihrer einen Sitzung mitgeladen hat (app/seitendaten.py) -- bis 1.8.113
+# holte jeder Aufruf eine eigene Verbindung, eine Seite mit Seitenleiste so 37 (/tasks 41). Ein
+# DB-Zustand, der beim Laden einen Teil scheitern laesst (z. B. eine durch eine uebersprungene
+# Migration fehlende Spalte, oder ein general_settings.logo_filename, das auf eine kaputte
+# Datei zeigt), darf NIE als Ausnahme durchschlagen -- sonst antwortet JEDE Seite mit 500,
+# einschliesslich der Anmeldeseite, und niemand kommt mehr ins System, um es zu reparieren
+# (realer Vorfall, siehe CLAUDE.md). app/seitendaten.py::laden() faellt deshalb je Teil auf
+# einen sicheren, immer darstellbaren Wert zurueck. pass_context: Jinja reicht den Kontext der
+# Vorlage (mit request) als erstes Argument herein; ohne Kontext (direkter Aufruf) laden sie
+# selbst, mit einer Sitzung.
 
 
-def _current_theme() -> dict:
-    """Jinja-Global (Aufruf als Funktion, kein statischer Wert): liest die
-    Akzentfarbe live aus general_settings, damit Änderungen ohne Neustart
-    des Servers auf der nächsten Seitenanfrage sichtbar werden."""
-    try:
-        with SessionLocal() as db:
-            return {"accent_color": get_accent_color(db)}
-    except Exception:
-        logger.exception("get_theme() fehlgeschlagen, falle auf Standard-Akzentfarbe zurück")
-        return {"accent_color": "#0d9488"}
+def _seitendaten(context) -> seitendaten.Seitendaten:
+    return seitendaten.fuer_anfrage(context.get("request") if context is not None else None)
+
+
+@pass_context
+def _current_theme(context=None) -> dict:
+    """Jinja-Global (Aufruf als Funktion, kein statischer Wert): die Akzentfarbe aus
+    general_settings, je Anfrage frisch -- Aenderungen sind ohne Neustart auf der naechsten
+    Seitenanfrage sichtbar."""
+    return {"accent_color": _seitendaten(context).akzentfarbe}
 
 
 templates.env.globals["get_theme"] = _current_theme
 
 
-def _is_module_enabled(module_key: str) -> bool:
-    """Jinja-Global (seit 1.0.103): liest den Modul-Zustand live aus der DB, damit ein
-    Admin ein Modul in den Einstellungen umschalten kann, ohne den Server neu zu
-    starten. Verwendung z. B. in _sidebar.html: {% if is_module_enabled('aufgabenmanagement') %}."""
-    try:
-        with SessionLocal() as db:
-            return is_module_enabled(db, module_key)
-    except Exception:
-        logger.exception("is_module_enabled(%r) fehlgeschlagen, falle auf aktiv zurück (Opt-out-Default)", module_key)
-        return True
+@pass_context
+def _is_module_enabled(context, module_key: str) -> bool:
+    """Jinja-Global (seit 1.0.103): der Modul-Zustand, je Anfrage frisch -- ein Admin schaltet
+    ein Modul in den Einstellungen um, ohne den Server neu zu starten. Verwendung z. B. in
+    _sidebar.html: {% if is_module_enabled('aufgabenmanagement') %}. Ohne Zeile oder bei einem
+    Lesefehler aktiv (Opt-out-Default, app/modules.py)."""
+    return _seitendaten(context).modul_aktiv(module_key)
 
 
 templates.env.globals["is_module_enabled"] = _is_module_enabled
 
 
-_SIDEBAR_LOGO_ENDPOINTS = {
-    "sidebar": "/api/settings/general/sidebar-logo",
-    "company": "/api/settings/general/logo",
-}
+@pass_context
+def _sidebar_logo_url(context=None) -> str | None:
+    """Jinja-Global: die URL des Logos, das _sidebar.html oben links statt des Schriftzugs
+    "DACHKONZEPTE" zeigen soll, oder None, wenn keins hinterlegt ist (dann der Schriftzug --
+    eine leere Stelle waere schlechter als Text). Welches Logo, entscheidet
+    company_logo.py::sidebar_logo_filename(); die URL baut app/seitendaten.py::_logo_url()."""
+    return _seitendaten(context).logo_url
 
 
-def _sidebar_logo_url() -> str | None:
-    """Jinja-Global: liefert die URL des Logos, das _sidebar.html oben links statt des
-    Schriftzugs "DACHKONZEPTE" zeigen soll, oder None, wenn keins hinterlegt ist (Fallback
-    dann der Schriftzug -- eine leere Stelle wäre schlechter als Text). Die eigentliche
-    "welches Logo"-Entscheidung liegt bewusst in company_logo.py::sidebar_logo_filename(),
-    nicht hier -- dieser Global baut nur noch die passende URL aus deren Ergebnis (seit 1.3.43
-    ein SidebarLogoReference mit source "sidebar"/"company", da beide Logos in getrennten
-    Ordnern hinter getrennten Endpunkten liegen, siehe _SIDEBAR_LOGO_ENDPOINTS). Muster
-    get_theme()/is_module_enabled() oben: live aus der DB, eigene, kurzlebige Session je Aufruf,
-    damit ein Logo-Wechsel ohne Serverneustart auf der nächsten Seitenanfrage sichtbar wird. Der
-    Query-Parameter ?v=<stored_filename> bricht das Browser-Bild-Caching gezielt auf, sobald
-    ein Logo ersetzt wird -- stored_filename ist ein neuer, zufälliger Name je Upload."""
-    try:
-        with SessionLocal() as db:
-            ref = sidebar_logo_filename(db)
-        if ref is None:
-            return None
-        return f"{_SIDEBAR_LOGO_ENDPOINTS[ref.source]}?v={ref.stored_filename}"
-    except Exception:
-        logger.exception("sidebar_logo_url() fehlgeschlagen, falle auf den Schriftzug zurück")
-        return None
-
-
-def _sidebar_logo_height_px() -> int:
-    """Jinja-Global (seit 1.3.39): liefert die eingestellte Anzeigehöhe des Sidebar-Logos in
-    Pixeln (Einstellungen -> Unternehmensstammdaten). Wird nur ausgewertet, wenn
-    sidebar_logo_url() bereits eine URL liefert -- ohne Logo bleibt es beim Schriftzug, dessen
-    Größe unverändert über CSS läuft."""
-    try:
-        with SessionLocal() as db:
-            return _sidebar_logo_height_px_lookup(db)
-    except Exception:
-        logger.exception("sidebar_logo_height_px() fehlgeschlagen, falle auf den Standardwert zurück")
-        return DEFAULT_SIDEBAR_LOGO_HEIGHT_PX
+@pass_context
+def _sidebar_logo_height_px(context=None) -> int:
+    """Jinja-Global (seit 1.3.39): die eingestellte Anzeigehoehe des Sidebar-Logos in Pixeln
+    (Einstellungen -> Erscheinungsbild). Wird nur ausgewertet, wenn sidebar_logo_url() bereits
+    eine URL liefert -- ohne Logo bleibt es beim Schriftzug, dessen Groesse ueber CSS laeuft."""
+    return _seitendaten(context).logo_hoehe
 
 
 templates.env.globals["sidebar_logo_url"] = _sidebar_logo_url
 templates.env.globals["sidebar_logo_height_px"] = _sidebar_logo_height_px
 
 
-def _account_display(current_user) -> dict:
-    """Jinja-Global (seit 1.3.45): liefert vollen Namen + Initialen für den Kontoknopf der
-    Topbar (_topbar.html) -- current_user ist request.state.erp_user (None, falls nicht
-    angemeldet), von der aufrufenden Vorlage bereits als current_user gesetzt (Muster
-    _sidebar.html). Die eigentliche "woher kommt der Name"-Entscheidung liegt bewusst in
-    auth.py::resolve_account_display(), nicht hier -- dieser Global bleibt ein reiner
-    DB-Zugriffs-Baukasten wie get_theme()/sidebar_logo_url() oben."""
+@pass_context
+def _account_display(context, current_user) -> dict:
+    """Jinja-Global (seit 1.3.45): voller Name + Initialen fuer den Kontoknopf der Topbar
+    (_topbar.html) -- current_user ist request.state.erp_user (None, falls nicht angemeldet),
+    von der aufrufenden Vorlage bereits als current_user gesetzt (Muster _sidebar.html). Woher
+    der Name kommt, entscheidet auth.py::resolve_account_display(). Gilt ein anderer Benutzer als
+    der der Seitendaten (nur in Tests denkbar), laedt es fuer ihn mit eigener Sitzung."""
     if current_user is None:
-        return {"full_name": "", "initials": ""}
-    try:
-        with SessionLocal() as db:
-            return resolve_account_display(db, current_user)
-    except Exception:
-        logger.exception("account_display() fehlgeschlagen, falle auf den Benutzernamen zurück")
-        username = getattr(current_user, "username", "") or ""
-        return {"full_name": username, "initials": (username[:2].upper() if username else "?")}
+        return seitendaten.konto_rueckfall(None)
+    daten = _seitendaten(context)
+    if daten.konto is not None and daten.konto_von == getattr(current_user, "id", None):
+        return daten.konto
+    return seitendaten.laden_mit_eigener_sitzung(current_user).konto or seitendaten.konto_rueckfall(current_user)
 
 
 templates.env.globals["account_display"] = _account_display
@@ -186,7 +157,7 @@ _any_role_dep = Depends(require_min_role(ROLE_FIELD))
 _finanzen_role_dep = Depends(require_min_role(ROLE_OFFICE_FINANZEN))
 
 
-def _require_users_page_access(request: Request, db: Session = Depends(get_db)) -> AppUser | None:
+def _require_users_page_access(request: Request, db: Session = Depends(get_db, scope="function")) -> AppUser | None:
     """Bootstrap-Ausnahme (siehe PAGE_AUDIT_EXEMPT in app/permissions.py) -- exakt derselbe Fall
     wie POST /api/users (routers/users.py): vor dem allerersten ERP-Benutzer gibt es niemanden,
     der require_role(...) erfüllen könnte. Danach Büro/Admin, wie die Benutzerliste selbst

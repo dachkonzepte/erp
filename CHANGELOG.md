@@ -4,6 +4,23 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.114 – Datenbankverbindungen unter Last: nichts auf der Event-Loop, Sitzung vor dem Senden zu, eine Verbindung je Seite
+
+Vorgabe vom 16.10.2026, Punkt 1. Die Anmeldeschranke las ihre Sitzung bisher direkt auf der Event-Loop -- war der Pool leer, stand der
+ganze Arbeitsprozess bis zu 30 s, samt laufender Downloads; ebenso die 16 Upload-Endpunkte, die `async def` waren. Jetzt liest die
+Schranke im Threadpool, die Uploads sind `def`, und ein leerer Pool ergibt nach dem Zeitlimit 503 „Der Server ist gerade ausgelastet“
+statt einer 500. Jeder Endpunkt bindet seine Sitzung mit `Depends(get_db, scope="function")` ein (701 Stellen, FastAPI ≥ 0.121): sie
+schließt, bevor die Antwort gesendet wird -- bis 1.8.113 hielt eine Datei ihre Verbindung mit offener Transaktion („idle in
+transaction“) bis zum letzten Byte. Die fünf Jinja-Globals öffnen keine eigene Sitzung mehr: die Schranke lädt Akzentfarbe, Module,
+Logo und Kontoknopf in ihrer einen Sitzung mit (`app/seitendaten.py`), eine Seite braucht eine Verbindung statt 37 (/tasks 41).
+
+Der Pool unter PostgreSQL hat jetzt `pool_pre_ping` und je Prozess 5 + 35 = 40 Verbindungen (so viele Plätze hat der Threadpool;
+zwei Prozesse brauchen höchstens 80 von 100), Zeitlimit 10 s; abweichend über `ERP_DB_POOL_SIZE`, `ERP_DB_MAX_OVERFLOW`,
+`ERP_DB_POOL_TIMEOUT`. Neu `tests/test_v419_verbindungen.py` (Struktur jeder Route, Verbindungen je Seite, Download erst nach dem
+Schließen) und der Angriffstest `tests/test_v419_verbindungen_unter_last.py` gegen PostgreSQL (echter Server, Pool 2: langsame
+Downloads, 70 gleichzeitige Anfragen, gesperrte Tabelle, beendete Verbindungen), je mit Gegenprobe. Herleitung und Festlegungen:
+`docs/archiv/serverbetrieb-und-anmeldesicherheit.md`, „Datenbankverbindungen unter Last“.
+
 ## 1.8.113 – Versandprotokoll in Projektmappe und Kundenakte, „Mein Konto“ mobil, Leistungsformular für Büro – Auftrag
 
 Vorgabe vom 16.10.2026, Punkte 4–6. Das Versandprotokoll steht seit 1.8.112 nicht mehr in der Seitenleiste -- dafür hat die

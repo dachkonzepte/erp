@@ -30,14 +30,14 @@ router = APIRouter()
 _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 @router.get("/api/quotes/{quote_id}/order", response_model=OrderOut)
-def get_order_for_quote(quote_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_order_for_quote(quote_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     row = db.scalar(select(Order).where(Order.source_quote_id == quote_id))
     if row is None: raise HTTPException(status_code=404, detail="Für dieses Angebot existiert noch kein Auftrag.")
     return OrderOut.model_validate(order_to_dict(load_order(db, row.id), db))
 
 
 @router.post("/api/quotes/{quote_id}/convert-to-order", response_model=OrderOut)
-def convert_quote_to_order(quote_id: int, payload: OrderCreateFromQuote, request: Request, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def convert_quote_to_order(quote_id: int, payload: OrderCreateFromQuote, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     actor = getattr(request.state, "erp_user", None)
     actor_name = getattr(actor, "display_name", None) or getattr(actor, "username", None) or "System"
     try:
@@ -49,7 +49,7 @@ def convert_quote_to_order(quote_id: int, payload: OrderCreateFromQuote, request
 
 
 @router.get("/api/quotes")
-def list_all_quotes(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def list_all_quotes(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     quotes = db.scalars(
         select(Quote)
         .options(
@@ -87,7 +87,7 @@ def list_all_quotes(db: Session = Depends(get_db), _role: AppUser = _role_dep):
 
 
 @router.put("/api/quotes/{quote_id}", response_model=QuoteOut)
-def update_quote_header(quote_id: int, payload: QuoteUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def update_quote_header(quote_id: int, payload: QuoteUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     quote = load_quote(db, quote_id)
     if quote is None:
         raise HTTPException(status_code=404, detail="Angebot nicht gefunden.")
@@ -103,7 +103,7 @@ def update_quote_header(quote_id: int, payload: QuoteUpdate, db: Session = Depen
 
 
 @router.put("/api/quotes/{quote_id}/tax-key", response_model=QuoteOut)
-def put_quote_tax_key(quote_id: int, payload: TaxKeySelection, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_quote_tax_key(quote_id: int, payload: TaxKeySelection, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     quote = load_quote(db, quote_id)
     if quote is None:
         raise HTTPException(status_code=404, detail="Angebot nicht gefunden.")
@@ -116,7 +116,7 @@ def put_quote_tax_key(quote_id: int, payload: TaxKeySelection, db: Session = Dep
 
 
 @router.put("/api/quotes/{quote_id}/document-meta", response_model=QuoteOut)
-def update_quote_document_meta(quote_id: int, payload: QuoteDocumentMetaUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def update_quote_document_meta(quote_id: int, payload: QuoteDocumentMetaUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     quote = load_quote(db, quote_id)
     if quote is None:
         raise HTTPException(status_code=404, detail="Angebot nicht gefunden.")
@@ -163,7 +163,7 @@ def update_quote_document_meta(quote_id: int, payload: QuoteDocumentMetaUpdate, 
 
 
 @router.post("/api/quotes/{quote_id}/sections", response_model=QuoteOut)
-def add_quote_section_api(quote_id: int, payload: QuoteSectionCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def add_quote_section_api(quote_id: int, payload: QuoteSectionCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     quote = load_quote(db, quote_id)
     if quote is None:
         raise HTTPException(status_code=404, detail="Angebot nicht gefunden.")
@@ -175,7 +175,7 @@ def add_quote_section_api(quote_id: int, payload: QuoteSectionCreate, db: Sessio
 
 
 @router.put("/api/quotes/{quote_id}/sections/{section_id}", response_model=QuoteOut)
-def edit_quote_section_api(quote_id: int, section_id: int, payload: QuoteSectionUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def edit_quote_section_api(quote_id: int, section_id: int, payload: QuoteSectionUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         update_quote_section(db, quote_id, section_id, payload.title, payload.description, payload.parent_id)
     except ValueError as exc:
@@ -184,7 +184,7 @@ def edit_quote_section_api(quote_id: int, section_id: int, payload: QuoteSection
 
 
 @router.delete("/api/quotes/{quote_id}/sections/{section_id}", response_model=QuoteOut)
-def remove_quote_section_api(quote_id: int, section_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def remove_quote_section_api(quote_id: int, section_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         delete_quote_section(db, quote_id, section_id)
     except ValueError as exc:
@@ -193,7 +193,7 @@ def remove_quote_section_api(quote_id: int, section_id: int, db: Session = Depen
 
 
 @router.post("/api/quotes/{quote_id}/free-items", response_model=QuoteOut)
-def add_free_item_api(quote_id: int, payload: QuoteFreeItemCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def add_free_item_api(quote_id: int, payload: QuoteFreeItemCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     quote = load_quote(db, quote_id)
     if quote is None:
         raise HTTPException(status_code=404, detail="Angebot nicht gefunden.")
@@ -206,7 +206,7 @@ def add_free_item_api(quote_id: int, payload: QuoteFreeItemCreate, db: Session =
 
 
 @router.put("/api/quotes/{quote_id}/items/{item_id}/layout", response_model=QuoteOut)
-def update_item_layout_api(quote_id: int, item_id: int, payload: QuoteItemLayoutUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def update_item_layout_api(quote_id: int, item_id: int, payload: QuoteItemLayoutUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         # Seit 1.8.96 Teil-Update (Regel 22): Drag-and-drop schickt nur den Titel, "in Summe" bleibt.
         set_item_layout(db, quote_id, item_id, **payload.model_dump(exclude_unset=True))
@@ -216,7 +216,7 @@ def update_item_layout_api(quote_id: int, item_id: int, payload: QuoteItemLayout
 
 
 @router.post("/api/quotes/{quote_id}/items/{item_id}/move", response_model=QuoteOut)
-def move_quote_item_api(quote_id: int, item_id: int, payload: QuoteItemMove, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def move_quote_item_api(quote_id: int, item_id: int, payload: QuoteItemMove, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Seit 1.8.99: Position vor eine andere stellen (Drag-and-drop auf eine Position) -- nur die beiden IDs, der Rest vom Server."""
     try:
         move_quote_item_before(db, quote_id, item_id, payload.before_item_id)
@@ -228,7 +228,7 @@ def move_quote_item_api(quote_id: int, item_id: int, payload: QuoteItemMove, db:
 
 
 @router.post("/api/quotes/{quote_id}/items/{item_id}/duplicate", response_model=QuoteOut)
-def duplicate_item_api(quote_id: int, item_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def duplicate_item_api(quote_id: int, item_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     item = db.scalar(select(QuoteItem).options(selectinload(QuoteItem.project_calculation).selectinload(QuoteItemCalculation.materials)).where(QuoteItem.id == item_id, QuoteItem.quote_id == quote_id))
     if item is None:
         raise HTTPException(status_code=404, detail="Angebotsposition nicht gefunden.")
@@ -237,7 +237,7 @@ def duplicate_item_api(quote_id: int, item_id: int, db: Session = Depends(get_db
 
 
 @router.post("/api/quotes/{quote_id}/reorder", response_model=QuoteOut)
-def reorder_quote_api(quote_id: int, payload: QuoteReorderRequest, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def reorder_quote_api(quote_id: int, payload: QuoteReorderRequest, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     if load_quote(db, quote_id) is None:
         raise HTTPException(status_code=404, detail="Angebot nicht gefunden.")
     try:
@@ -248,7 +248,7 @@ def reorder_quote_api(quote_id: int, payload: QuoteReorderRequest, db: Session =
 
 
 @router.post("/api/quotes/{quote_id}/auto-number", response_model=QuoteOut)
-def auto_number_quote_api(quote_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def auto_number_quote_api(quote_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     if load_quote(db, quote_id) is None:
         raise HTTPException(status_code=404, detail="Angebot nicht gefunden.")
     auto_number_quote(db, quote_id)
@@ -256,7 +256,7 @@ def auto_number_quote_api(quote_id: int, db: Session = Depends(get_db), _role: A
 
 
 @router.get("/api/quotes/{quote_id}/pdf")
-def quote_pdf_api(quote_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def quote_pdf_api(quote_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Regulärer PDF-Abruf -- über den gemeinsamen PDF-Rahmen (build_quote_framed_pdf, CLAUDE.md
     "Gemeinsamer Dokumenttyp"/Angebot). Damit auf demselben Renderer wie der E-Mail-Versand
     (send_quote_email()) -- beide Wege, die tatsächlich beim Kunden ankommen, zeigen dasselbe
@@ -270,7 +270,7 @@ def quote_pdf_api(quote_id: int, db: Session = Depends(get_db), _role: AppUser =
 
 
 @router.post("/api/quotes/{quote_id}/send-email", response_model=QuoteOut)
-def post_send_quote_email(quote_id: int, payload: QuoteEmailSend, db: Session = Depends(get_db), user: AppUser = _role_dep):
+def post_send_quote_email(quote_id: int, payload: QuoteEmailSend, db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep):
     """Tatsächlicher E-Mail-Versand -- verwendet den gemeinsamen PDF-Rahmen (build_quote_framed_pdf,
     intern in send_quote_email()), damit der tatsächlich an Kunden versendete Anhang dem
     produktiv genutzten Renderer entspricht."""
@@ -290,7 +290,7 @@ def post_send_quote_email(quote_id: int, payload: QuoteEmailSend, db: Session = 
 
 
 @router.get("/api/quotes/{quote_id}", response_model=QuoteOut)
-def get_quote(quote_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_quote(quote_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     quote = load_quote(db, quote_id)
     if quote is None:
         raise HTTPException(status_code=404, detail="Angebot nicht gefunden.")
@@ -298,7 +298,7 @@ def get_quote(quote_id: int, db: Session = Depends(get_db), _role: AppUser = _ro
 
 
 @router.post("/api/quotes/{quote_id}/items", response_model=QuoteOut)
-def add_quote_item(quote_id: int, payload: QuoteItemCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def add_quote_item(quote_id: int, payload: QuoteItemCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     quote = load_quote(db, quote_id)
     if quote is None:
         raise HTTPException(status_code=404, detail="Angebot nicht gefunden.")
@@ -311,7 +311,7 @@ def add_quote_item(quote_id: int, payload: QuoteItemCreate, db: Session = Depend
 
 
 @router.put("/api/quotes/{quote_id}/items/{item_id}", response_model=QuoteOut)
-def update_quote_item(quote_id: int, item_id: int, payload: QuoteItemUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def update_quote_item(quote_id: int, item_id: int, payload: QuoteItemUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     # Seit 1.8.96 Teil-Update (Regel 22): nur die gesendeten Felder. Ohne Sperre: nichts wird aus dem gelesenen Stand abgeleitet,
     # das UPDATE trägt nur die geänderten Spalten (gleichzeitige Änderungen verschiedener Felder bleiben beide stehen).
     item = db.get(QuoteItem, item_id)
@@ -328,7 +328,7 @@ def update_quote_item(quote_id: int, item_id: int, payload: QuoteItemUpdate, db:
     "/api/quotes/{quote_id}/items/{item_id}/calculation",
     response_model=QuoteItemCalculationOut,
 )
-def get_quote_item_calculation(quote_id: int, item_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_quote_item_calculation(quote_id: int, item_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     item = db.scalar(
         select(QuoteItem)
         .options(
@@ -352,7 +352,7 @@ def get_quote_item_calculation(quote_id: int, item_id: int, db: Session = Depend
     response_model=QuoteItemCalculationOut,
 )
 def update_quote_item_calculation(
-    quote_id: int, item_id: int, payload: QuoteItemCalculationUpdate, db: Session = Depends(get_db),
+    quote_id: int, item_id: int, payload: QuoteItemCalculationUpdate, db: Session = Depends(get_db, scope="function"),
     _role: AppUser = _role_dep,
 ):
     # Seit 1.8.96 Teil-Update (Regel 22) unter der Sperre der Position: der Einheitspreis wird aus der ganzen Kalkulation
@@ -401,7 +401,7 @@ def update_quote_item_calculation(
 
 
 @router.delete("/api/quotes/{quote_id}/items/{item_id}", response_model=QuoteOut)
-def delete_quote_item(quote_id: int, item_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def delete_quote_item(quote_id: int, item_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     # Seit 1.8.96 zuerst die Sperre der Position wie beim Speichern der Kalkulation (dieselbe Reihenfolge: Position, dann
     # Kalkulation und Material) -- sonst konnten Löschen (Material, Kalkulation, Position) und gleichzeitiges Speichern der
     # Kalkulation sich gegenseitig blockieren (Deadlock unter PostgreSQL). Geladen wird erst danach.

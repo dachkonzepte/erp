@@ -3,7 +3,6 @@ Zuordnungswege), offene Entwurfsberichte, die einheitliche created_by_employee_i
 allen vier Einsatzbericht-Endpunkten (ServiceReport/ServiceReportPhoto/ServiceReportMaterial/
 Finding), zwei Pflicht-Unterschriften, die Feierabend-Abmeldung und das Web-App-Manifest."""
 
-import asyncio
 import io
 import json
 from datetime import date, datetime, time as dt_time
@@ -350,10 +349,10 @@ def test_non_admin_cannot_set_foreign_employee_id_on_add_photo():
     user = make_non_admin(db, emp1.id, "sb2")
     upload = UploadFile(filename="foto.png", file=io.BytesIO(TINY_PNG), headers=Headers({"content-type": "image/png"}))
     try:
-        asyncio.run(post_service_report_photo(
+        post_service_report_photo(
             report["id"], request_with_user(user), file=upload, inspection_item_id=None, finding_id=None,
             kind="allgemein", caption=None, created_by_employee_id=emp2.id, db=db, _role=user,
-        ))
+        )
         assert False, "sollte HTTPException auslösen"
     except Exception as exc:
         assert getattr(exc, "status_code", None) == 403

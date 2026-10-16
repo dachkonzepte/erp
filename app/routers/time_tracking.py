@@ -163,12 +163,12 @@ def _group_actor(request: Request) -> tuple[int | None, bool, int | None]:
 
 
 @router.get("/api/time-tracking/settings", response_model=TimeTrackingSettingsOut)
-def get_mobile_time_settings(db:Session=Depends(get_db), _role: AppUser = _any_role_dep):
+def get_mobile_time_settings(db:Session=Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     return TimeTrackingSettingsOut.model_validate(time_settings_dict(load_time_settings(db), db))
 
 
 @router.get("/api/time-tracking/context")
-def get_time_tracking_context(request: Request, employee_id: int | None = None, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def get_time_tracking_context(request: Request, employee_id: int | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Seit 1.8.24 bekommt ein Monteur nur sich selbst, als Kolonnenführer seine Kolonne, und seine
     buchbaren Aufträge -- ohne Personalnummern (field_time_tracking_context()). Büro unverändert."""
     user = getattr(request.state, "erp_user", None)
@@ -188,7 +188,7 @@ def get_time_tracking_context(request: Request, employee_id: int | None = None, 
 
 
 @router.post("/api/time-entry-groups", response_model=TimeGroupOut)
-def create_time_group_manual(payload:TimeGroupManualCreate,request:Request,db:Session=Depends(get_db), _role: AppUser = _any_role_dep):
+def create_time_group_manual(payload:TimeGroupManualCreate,request:Request,db:Session=Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     _validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity,manual=True,group=True)
     actor,is_admin,user_id=_group_actor(request)
     _require_crew_leader(request,db,payload.team_id)
@@ -202,7 +202,7 @@ def create_time_group_manual(payload:TimeGroupManualCreate,request:Request,db:Se
 
 
 @router.post("/api/time-entry-groups/start", response_model=TimeGroupOut)
-def start_time_group(payload:TimeGroupTimerStart,request:Request,db:Session=Depends(get_db), _role: AppUser = _any_role_dep):
+def start_time_group(payload:TimeGroupTimerStart,request:Request,db:Session=Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     _validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity,group=True)
     actor,is_admin,user_id=_group_actor(request)
     _require_crew_leader(request,db,payload.team_id)
@@ -216,7 +216,7 @@ def start_time_group(payload:TimeGroupTimerStart,request:Request,db:Session=Depe
 
 
 @router.get("/api/time-entry-groups/active", response_model=TimeGroupOut | None)
-def get_active_time_group(request:Request,employee_id:int|None=None,db:Session=Depends(get_db), _role: AppUser = _any_role_dep):
+def get_active_time_group(request:Request,employee_id:int|None=None,db:Session=Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     resolved=_time_entry_employee_for_request(request,employee_id,db)
     user=getattr(request.state,"erp_user",None)
     row=active_group_for_employee(db,resolved,initiated_only=bool(user is not None and user.role!="admin"))
@@ -224,7 +224,7 @@ def get_active_time_group(request:Request,employee_id:int|None=None,db:Session=D
 
 
 @router.get("/api/time-entry-groups/mine", response_model=list[CrewGroupSummaryOut])
-def get_my_time_groups(request:Request,days:int=14,db:Session=Depends(get_db), _role: AppUser = _any_role_dep):
+def get_my_time_groups(request:Request,days:int=14,db:Session=Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Seit 1.7.12: die selbst angelegten Gruppenbuchungen (zum Korrigieren) -- nur Namen und
     Stunden je Mitglied, keine vollständigen Buchungen der Kollegen."""
     user=getattr(request.state,"erp_user",None)
@@ -235,7 +235,7 @@ def get_my_time_groups(request:Request,days:int=14,db:Session=Depends(get_db), _
 
 
 @router.get("/api/time-tracking/crews", response_model=list[CrewOut])
-def get_my_crews(request:Request,db:Session=Depends(get_db), _role: AppUser = _any_role_dep):
+def get_my_crews(request:Request,db:Session=Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Seit 1.7.12: die Kolonnen, für die der angemeldete Mitarbeiter als Kolonnenführer buchen
     darf -- leer für jeden anderen (die mobile Ansicht blendet den Abschnitt dann aus)."""
     user=getattr(request.state,"erp_user",None)
@@ -243,7 +243,7 @@ def get_my_crews(request:Request,db:Session=Depends(get_db), _role: AppUser = _a
 
 
 @router.put("/api/time-entry-groups/{group_id}", response_model=TimeGroupOut)
-def put_time_group(group_id:int,payload:TimeGroupUpdate,request:Request,db:Session=Depends(get_db), _role: AppUser = _any_role_dep):
+def put_time_group(group_id:int,payload:TimeGroupUpdate,request:Request,db:Session=Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     # Seit 1.8.99 gesperrt vor dem Zusammenführen (Festlegung 1.8.96 Nr. 19 korrigiert): eine LV-Position gehört zum Auftrag -- ein
     # gleichzeitiger Auftragswechsel ließ sonst eine Position des alten Auftrags stehen.
     group=db.get(TimeEntryGroup,group_id,with_for_update=True,populate_existing=True)
@@ -262,7 +262,7 @@ def put_time_group(group_id:int,payload:TimeGroupUpdate,request:Request,db:Sessi
 
 
 @router.delete("/api/time-entry-groups/{group_id}")
-def remove_time_group(group_id:int,request:Request,db:Session=Depends(get_db), _role: AppUser = _any_role_dep):
+def remove_time_group(group_id:int,request:Request,db:Session=Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     group=db.get(TimeEntryGroup,group_id)
     if group is None: raise HTTPException(status_code=404,detail="Gruppenbuchung wurde nicht gefunden.")
     _require_group_owner(request,db,group)
@@ -274,7 +274,7 @@ def remove_time_group(group_id:int,request:Request,db:Session=Depends(get_db), _
 
 
 @router.post("/api/time-entry-groups/{group_id}/stop", response_model=TimeGroupOut)
-def stop_time_group(group_id:int,payload:TimeGroupTimerStop,request:Request,db:Session=Depends(get_db), _role: AppUser = _any_role_dep):
+def stop_time_group(group_id:int,payload:TimeGroupTimerStop,request:Request,db:Session=Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     group=db.get(TimeEntryGroup,group_id)
     if group is None: raise HTTPException(status_code=404,detail="Gruppenbuchung wurde nicht gefunden.")
     user=getattr(request.state,"erp_user",None)
@@ -304,7 +304,7 @@ def _visible_employee_id(request: Request, employee_id: int | None) -> int | Non
 
 
 @router.get("/api/time-entries", response_model=list[TimeEntryOut])
-def get_time_entries(request: Request, response: Response, employee_id: int | None = None, project_id: int | None = None, order_id: int | None = None, start_date: date | None = None, end_date: date | None = None, limit: int = Query(500, ge=1, le=MAX_LIST_LIMIT), db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def get_time_entries(request: Request, response: Response, employee_id: int | None = None, project_id: int | None = None, order_id: int | None = None, start_date: date | None = None, end_date: date | None = None, limit: int = Query(500, ge=1, le=MAX_LIST_LIMIT), db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     # Seit 1.8.9: X-Total-Count meldet die Gesamtzahl der Treffer. Liefert die Liste weniger
     # (höchstens limit, neueste zuerst), zeigt die Oberfläche "Liste gekürzt". Ein limit über
     # 2000 wird mit 422 abgelehnt, statt still gekappt zu werden.
@@ -314,21 +314,21 @@ def get_time_entries(request: Request, response: Response, employee_id: int | No
 
 
 @router.get("/api/time-entries/summary", response_model=TimeEntrySummaryOut)
-def get_time_entries_summary(request: Request, employee_id: int | None = None, project_id: int | None = None, order_id: int | None = None, start_date: date | None = None, end_date: date | None = None, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def get_time_entries_summary(request: Request, employee_id: int | None = None, project_id: int | None = None, order_id: int | None = None, start_date: date | None = None, end_date: date | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Seit 1.8.9: Summen zu GET /api/time-entries per SUM in der Datenbank, statt sie in der
     Oberfläche aus der gekürzten Liste zu bilden -- dieselben Filter, dieselbe Sichtbarkeit."""
     return TimeEntrySummaryOut.model_validate(summarize_entries(db, employee_id=_visible_employee_id(request, employee_id), project_id=project_id, order_id=order_id, start_date=start_date, end_date=end_date))
 
 
 @router.get("/api/time-entries/active", response_model=TimeEntryOut | None)
-def get_active_time_entry(request: Request, employee_id: int | None = None, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def get_active_time_entry(request: Request, employee_id: int | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     resolved = _time_entry_employee_for_request(request, employee_id, db)
     row = active_time_entry(db, resolved)
     return TimeEntryOut.model_validate(entry_to_dict(row)) if row else None
 
 
 @router.post("/api/time-entries", response_model=TimeEntryOut)
-def create_time_entry(payload: TimeEntryManualCreate, request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def create_time_entry(payload: TimeEntryManualCreate, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     settings=_validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity,manual=True)
     employee_id = _time_entry_employee_for_request(request, payload.employee_id, db)
     _require_bookable_order(request, db, payload.order_id)
@@ -342,7 +342,7 @@ def create_time_entry(payload: TimeEntryManualCreate, request: Request, db: Sess
 
 
 @router.post("/api/time-entries/start", response_model=TimeEntryOut)
-def start_time_entry(payload: TimeTimerStart, request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def start_time_entry(payload: TimeTimerStart, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     _validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity)
     employee_id = _time_entry_employee_for_request(request, payload.employee_id, db)
     _require_bookable_order(request, db, payload.order_id)
@@ -356,7 +356,7 @@ def start_time_entry(payload: TimeTimerStart, request: Request, db: Session = De
 
 
 @router.post("/api/time-entries/{entry_id}/stop", response_model=TimeEntryOut)
-def stop_time_entry(entry_id: int, payload: TimeTimerStop, request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def stop_time_entry(entry_id: int, payload: TimeTimerStop, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     current = db.get(TimeEntry, entry_id)
     if current is None:
         raise HTTPException(status_code=404, detail="Zeiterfassung nicht gefunden.")
@@ -385,7 +385,7 @@ def stop_time_entry(entry_id: int, payload: TimeTimerStop, request: Request, db:
 
 
 @router.put("/api/time-entries/{entry_id}", response_model=TimeEntryOut)
-def put_time_entry(entry_id: int, payload: TimeEntryUpdate, request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def put_time_entry(entry_id: int, payload: TimeEntryUpdate, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     # Seit 1.8.99 gesperrt vor dem Zusammenführen (Festlegung 1.8.96 Nr. 19 korrigiert): Auftrag und LV-Position gehören zusammen, und
     # eine gleichzeitige Korrektur der Gruppenbuchung wartet auf diese (oder umgekehrt) -- siehe app/time_tracking.py::update_group().
     current = db.get(TimeEntry, entry_id, with_for_update=True, populate_existing=True)
@@ -408,7 +408,7 @@ def put_time_entry(entry_id: int, payload: TimeEntryUpdate, request: Request, db
 
 
 @router.delete("/api/time-entries/{entry_id}")
-def remove_time_entry(entry_id: int, request: Request, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def remove_time_entry(entry_id: int, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     current = db.get(TimeEntry, entry_id)
     if current is None:
         raise HTTPException(status_code=404, detail="Zeitbuchung nicht gefunden.")

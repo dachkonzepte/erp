@@ -23,12 +23,12 @@ _any_role_dep = Depends(require_min_role(ROLE_FIELD))
 
 
 @router.get("/api/modules", response_model=list[ModuleStateOut])
-def get_modules(db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def get_modules(db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     return list_module_states(db)
 
 
 @router.put("/api/modules/{module_key}", response_model=ModuleStateOut)
-def update_module(module_key: str, payload: ModuleStateUpdate, db: Session = Depends(get_db),
+def update_module(module_key: str, payload: ModuleStateUpdate, db: Session = Depends(get_db, scope="function"),
                    _admin=Depends(require_admin("Nur Administratoren dürfen Module ein- oder ausschalten."))):
     try:
         return set_module_enabled(db, module_key, payload.enabled)

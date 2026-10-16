@@ -36,18 +36,18 @@ def _out(db: Session, contact: Contact) -> dict:
 @router.get("/api/contacts", response_model=list[ContactOut])
 def get_contacts(
     search: str | None = None, include_archived: bool = False, limit: int | None = Query(default=None, ge=1, le=500),
-    db: Session = Depends(get_db), _role: AppUser = _role_dep,
+    db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep,
 ):
     return list_contacts(db, search=search, include_archived=include_archived, limit=limit)
 
 
 @router.get("/api/contacts/{contact_id}", response_model=ContactDetailOut)
-def get_contact(contact_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_contact(contact_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return contact_detail(db, _contact_or_404(db, contact_id))
 
 
 @router.post("/api/contacts", response_model=ContactOut)
-def post_contact(payload: ContactCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_contact(payload: ContactCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         contact = create_contact(db, payload.model_dump())
     except ValueError as exc:
@@ -56,7 +56,7 @@ def post_contact(payload: ContactCreate, db: Session = Depends(get_db), _role: A
 
 
 @router.put("/api/contacts/{contact_id}", response_model=ContactOut)
-def put_contact(contact_id: int, payload: ContactUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_contact(contact_id: int, payload: ContactUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     contact = _contact_or_404(db, contact_id)
     try:
         update_contact(db, contact, payload.model_dump(exclude_unset=True))
@@ -66,17 +66,17 @@ def put_contact(contact_id: int, payload: ContactUpdate, db: Session = Depends(g
 
 
 @router.post("/api/contacts/{contact_id}/archive", response_model=ContactOut)
-def archive_contact(contact_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def archive_contact(contact_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return _out(db, set_contact_archived(db, _contact_or_404(db, contact_id), True))
 
 
 @router.post("/api/contacts/{contact_id}/unarchive", response_model=ContactOut)
-def unarchive_contact(contact_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def unarchive_contact(contact_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return _out(db, set_contact_archived(db, _contact_or_404(db, contact_id), False))
 
 
 @router.delete("/api/contacts/{contact_id}")
-def remove_contact(contact_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def remove_contact(contact_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         delete_contact(db, _contact_or_404(db, contact_id))
     except ContactInUseError as exc:

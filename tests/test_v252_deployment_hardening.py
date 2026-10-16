@@ -25,7 +25,7 @@ from PIL import Image
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app import company_logo
+from app import company_logo, seitendaten
 from tests.pg_schutz import pg_url_pruefen
 from app.routers import pages as pages_router_module
 
@@ -147,32 +147,34 @@ def test_upload_company_logo_still_succeeds_for_a_real_png(threaded_db_session, 
 
 
 # ---------------------------------------------------------------------------
-# Vorfall 2, Teil 3: die vier Jinja-Globals werfen nie -- Rückfall statt Ausnahme
+# Vorfall 2, Teil 3: die vier Jinja-Globals werfen nie -- Rückfall statt Ausnahme.
+# Seit 1.8.114 lesen sie die Seitendaten der Anfrage (app/seitendaten.py) -- gepatcht wird dort, wo gelesen wird; ohne Kontext (None)
+# laden die Globals selbst, wie bei einer Anfrage ohne Daten der Anmeldeschranke.
 # ---------------------------------------------------------------------------
 
 def test_get_theme_falls_back_to_default_accent_color_on_error(monkeypatch):
     def _boom(db):
         raise RuntimeError("simulierter DB-Fehler")
 
-    monkeypatch.setattr(pages_router_module, "get_accent_color", _boom)
+    monkeypatch.setattr(seitendaten, "get_accent_color", _boom)
     assert pages_router_module._current_theme() == {"accent_color": "#0d9488"}
 
 
 def test_is_module_enabled_falls_back_to_true_on_error(monkeypatch):
     """True, nicht False -- dieselbe Opt-out-Philosophie wie der Normalfall (app/modules.py):
     ein DB-Fehler soll ein Modul nicht fälschlich abschalten."""
-    def _boom(db, module_key):
+    def _boom(db):
         raise RuntimeError("simulierter DB-Fehler")
 
-    monkeypatch.setattr(pages_router_module, "is_module_enabled", _boom)
-    assert pages_router_module._is_module_enabled("wartungen") is True
+    monkeypatch.setattr(seitendaten, "stored_module_states", _boom)
+    assert pages_router_module._is_module_enabled(None, "wartungen") is True
 
 
 def test_sidebar_logo_url_falls_back_to_none_on_error(monkeypatch):
     def _boom(db):
         raise RuntimeError("simulierter DB-Fehler")
 
-    monkeypatch.setattr(pages_router_module, "sidebar_logo_filename", _boom)
+    monkeypatch.setattr(seitendaten, "sidebar_logo_filename", _boom)
     assert pages_router_module._sidebar_logo_url() is None
 
 
@@ -180,7 +182,7 @@ def test_sidebar_logo_height_px_falls_back_to_default_on_error(monkeypatch):
     def _boom(db):
         raise RuntimeError("simulierter DB-Fehler")
 
-    monkeypatch.setattr(pages_router_module, "_sidebar_logo_height_px_lookup", _boom)
+    monkeypatch.setattr(seitendaten, "sidebar_logo_height_px", _boom)
     assert pages_router_module._sidebar_logo_height_px() == company_logo.DEFAULT_SIDEBAR_LOGO_HEIGHT_PX
 
 
@@ -199,25 +201,25 @@ def _broken_session_local_factory():
 
 def test_get_theme_survives_a_missing_general_settings_table(monkeypatch):
     with _broken_session_local_factory() as broken_session_local:
-        monkeypatch.setattr(pages_router_module, "SessionLocal", broken_session_local)
+        monkeypatch.setattr(seitendaten, "SessionLocal", broken_session_local)
         assert pages_router_module._current_theme() == {"accent_color": "#0d9488"}
 
 
 def test_is_module_enabled_survives_a_missing_enabled_modules_table(monkeypatch):
     with _broken_session_local_factory() as broken_session_local:
-        monkeypatch.setattr(pages_router_module, "SessionLocal", broken_session_local)
-        assert pages_router_module._is_module_enabled("wartungen") is True
+        monkeypatch.setattr(seitendaten, "SessionLocal", broken_session_local)
+        assert pages_router_module._is_module_enabled(None, "wartungen") is True
 
 
 def test_sidebar_logo_url_survives_a_missing_general_settings_table(monkeypatch):
     with _broken_session_local_factory() as broken_session_local:
-        monkeypatch.setattr(pages_router_module, "SessionLocal", broken_session_local)
+        monkeypatch.setattr(seitendaten, "SessionLocal", broken_session_local)
         assert pages_router_module._sidebar_logo_url() is None
 
 
 def test_sidebar_logo_height_px_survives_a_missing_general_settings_table(monkeypatch):
     with _broken_session_local_factory() as broken_session_local:
-        monkeypatch.setattr(pages_router_module, "SessionLocal", broken_session_local)
+        monkeypatch.setattr(seitendaten, "SessionLocal", broken_session_local)
         assert pages_router_module._sidebar_logo_height_px() == company_logo.DEFAULT_SIDEBAR_LOGO_HEIGHT_PX
 
 

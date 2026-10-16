@@ -27,13 +27,13 @@ def _require_module_enabled(db: Session):
 
 
 @router.get("/api/accounts", response_model=list[AccountOut])
-def get_accounts(include_inactive: bool = True, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_accounts(include_inactive: bool = True, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     return list_accounts(db, include_inactive=include_inactive)
 
 
 @router.get("/api/accounts/{account_id}", response_model=AccountOut)
-def get_account_endpoint(account_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_account_endpoint(account_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     result = get_account(db, account_id)
     if result is None:
@@ -42,7 +42,7 @@ def get_account_endpoint(account_id: int, db: Session = Depends(get_db), _role: 
 
 
 @router.post("/api/accounts", response_model=AccountOut)
-def post_account(payload: AccountCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_account(payload: AccountCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         return create_account(
@@ -54,7 +54,7 @@ def post_account(payload: AccountCreate, db: Session = Depends(get_db), _role: A
 
 
 @router.put("/api/accounts/{account_id}", response_model=AccountOut)
-def put_account(account_id: int, payload: AccountUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_account(account_id: int, payload: AccountUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         result = update_account(

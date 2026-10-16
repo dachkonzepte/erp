@@ -82,18 +82,18 @@ def _redact_suggestion_absences(suggestion: dict, role: AppUser) -> dict:
     return suggestion
 
 @router.get("/api/planning/settings", response_model=PlanningSettingsOut)
-def get_planning_capacity_settings(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_planning_capacity_settings(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return planning_settings_dict(load_planning_settings(db), db)
 
 
 @router.put("/api/planning/settings", response_model=PlanningSettingsOut)
-def put_planning_capacity_settings(payload: PlanningSettingsUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_planning_capacity_settings(payload: PlanningSettingsUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     row = update_planning_settings(db, **payload.model_dump())
     return planning_settings_dict(row, db)
 
 
 @router.post("/api/planning/school-holidays/sync")
-def sync_planning_school_holidays(start_year: int | None = None, years: int = 3, force: bool = False, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def sync_planning_school_holidays(start_year: int | None = None, years: int = 3, force: bool = False, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     region = load_region_settings(db)
     start_year = start_year or berlin_today().year
     years = max(1, min(int(years), 6))
@@ -102,19 +102,19 @@ def sync_planning_school_holidays(start_year: int | None = None, years: int = 3,
 
 
 @router.get("/api/planning/holidays", response_model=list[PlanningHolidayOut])
-def list_planning_holidays(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def list_planning_holidays(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return db.scalars(select(PlanningHoliday).order_by(PlanningHoliday.holiday_date)).all()
 
 
 @router.post("/api/planning/holidays", response_model=PlanningHolidayOut)
-def create_planning_holiday(payload: PlanningHolidayCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def create_planning_holiday(payload: PlanningHolidayCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     if db.scalar(select(PlanningHoliday).where(PlanningHoliday.holiday_date == payload.holiday_date)):
         raise HTTPException(status_code=409, detail="Für dieses Datum ist bereits ein Feiertag / betriebsfreier Tag hinterlegt.")
     row=PlanningHoliday(**payload.model_dump()); db.add(row); db.commit(); db.refresh(row); return row
 
 
 @router.put("/api/planning/holidays/{holiday_id}", response_model=PlanningHolidayOut)
-def update_planning_holiday(holiday_id:int, payload:PlanningHolidayCreate, db:Session=Depends(get_db),_role:AppUser=_role_dep):
+def update_planning_holiday(holiday_id:int, payload:PlanningHolidayCreate, db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     row=db.get(PlanningHoliday,holiday_id)
     if row is None: raise HTTPException(status_code=404,detail="Feiertag / betriebsfreier Tag nicht gefunden.")
     duplicate=db.scalar(select(PlanningHoliday).where(PlanningHoliday.holiday_date==payload.holiday_date, PlanningHoliday.id!=holiday_id))
@@ -124,14 +124,14 @@ def update_planning_holiday(holiday_id:int, payload:PlanningHolidayCreate, db:Se
 
 
 @router.delete("/api/planning/holidays/{holiday_id}")
-def delete_planning_holiday(holiday_id:int, db:Session=Depends(get_db),_role:AppUser=_role_dep):
+def delete_planning_holiday(holiday_id:int, db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     row=db.get(PlanningHoliday,holiday_id)
     if row is None: raise HTTPException(status_code=404,detail="Feiertag / betriebsfreier Tag nicht gefunden.")
     db.delete(row); db.commit(); return {"deleted":True}
 
 
 @router.get("/api/planning/absences", response_model=list[EmployeeAbsenceOut] | list[EmployeeAbsencePlanningOut])
-def list_employee_absences(start:date|None=None,end:date|None=None,employee_id:int|None=None,absence_category:str|None=None,db:Session=Depends(get_db),_role:AppUser=_role_dep):
+def list_employee_absences(start:date|None=None,end:date|None=None,employee_id:int|None=None,absence_category:str|None=None,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     stmt=select(EmployeeAbsence).options(selectinload(EmployeeAbsence.employee)).order_by(EmployeeAbsence.start_date.desc(),EmployeeAbsence.id.desc())
     if start is not None: stmt=stmt.where(EmployeeAbsence.end_date>=start)
     if end is not None: stmt=stmt.where(EmployeeAbsence.start_date<=end)
@@ -142,7 +142,7 @@ def list_employee_absences(start:date|None=None,end:date|None=None,employee_id:i
 
 
 @router.post("/api/planning/absences", response_model=EmployeeAbsenceOut | EmployeeAbsencePlanningOut)
-def create_employee_absence(payload:EmployeeAbsenceCreate,db:Session=Depends(get_db),_role:AppUser=_role_dep):
+def create_employee_absence(payload:EmployeeAbsenceCreate,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     emp=db.get(Employee,payload.employee_id)
     if emp is None: raise HTTPException(status_code=404,detail="Mitarbeiter nicht gefunden.")
     row=EmployeeAbsence(**payload.model_dump()); db.add(row); db.commit(); db.refresh(row)
@@ -154,7 +154,7 @@ def create_employee_absence(payload:EmployeeAbsenceCreate,db:Session=Depends(get
 
 
 @router.put("/api/planning/absences/{absence_id}", response_model=EmployeeAbsenceOut | EmployeeAbsencePlanningOut)
-def update_employee_absence(absence_id:int,payload:EmployeeAbsenceUpdate,db:Session=Depends(get_db),_role:AppUser=_role_dep):
+def update_employee_absence(absence_id:int,payload:EmployeeAbsenceUpdate,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     row=db.get(EmployeeAbsence,absence_id)
     if row is None: raise HTTPException(status_code=404,detail="Abwesenheit nicht gefunden.")
     fields=payload.model_dump(exclude_unset=True)
@@ -174,20 +174,20 @@ def update_employee_absence(absence_id:int,payload:EmployeeAbsenceUpdate,db:Sess
 
 
 @router.delete("/api/planning/absences/{absence_id}")
-def delete_employee_absence(absence_id:int,db:Session=Depends(get_db),_role:AppUser=_role_dep):
+def delete_employee_absence(absence_id:int,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     row=db.get(EmployeeAbsence,absence_id)
     if row is None: raise HTTPException(status_code=404,detail="Abwesenheit nicht gefunden.")
     db.delete(row); db.commit(); return {"deleted":True}
 
 
 @router.post("/api/planning/suggestion")
-def get_planning_suggestion(payload:PlanningSuggestionRequest,db:Session=Depends(get_db),_role:AppUser=_role_dep):
+def get_planning_suggestion(payload:PlanningSuggestionRequest,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     try: return _redact_suggestion_absences(planning_suggestion(db,**payload.model_dump()), _role)
     except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
 
 
 @router.get("/api/planning")
-def get_planning_board(start: date, end: date, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_planning_board(start: date, end: date, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         return _redact_board_absences(planning_board(db, start, end), _role)
     except ValueError as exc:
@@ -195,7 +195,7 @@ def get_planning_board(start: date, end: date, db: Session = Depends(get_db), _r
 
 
 @router.post("/api/planning/slots")
-def create_planning_slot(payload: PlanningSlotCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def create_planning_slot(payload: PlanningSlotCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         slot = create_slot(db, **payload.model_dump())
     except ValueError as exc:
@@ -204,7 +204,7 @@ def create_planning_slot(payload: PlanningSlotCreate, db: Session = Depends(get_
 
 
 @router.put("/api/planning/slots/{slot_id}")
-def put_planning_slot(slot_id: int, payload: PlanningSlotUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_planning_slot(slot_id: int, payload: PlanningSlotUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         slot = update_slot(db, slot_id, **payload.model_dump(exclude_unset=True))  # seit 1.8.96 Teil-Update (Regel 22)
     except ValueError as exc:
@@ -214,7 +214,7 @@ def put_planning_slot(slot_id: int, payload: PlanningSlotUpdate, db: Session = D
 
 
 @router.delete("/api/planning/slots/{slot_id}")
-def remove_planning_slot(slot_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def remove_planning_slot(slot_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         prep_id = delete_slot(db, slot_id)
     except ValueError as exc:

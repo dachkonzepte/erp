@@ -72,14 +72,14 @@ def _order_or_404(db: Session, order_id: int):
 
 
 @router.get("/api/settings/contract-templates", response_model=ContractTemplatesOverviewOut)
-def get_contract_templates(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_contract_templates(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return {"placeholders": placeholder_list(), "templates": list_templates(db)}
 
 
 @router.put("/api/settings/contract-templates/{basis_key}", response_model=ContractTemplateOut)
 def put_contract_template(
     basis_key: str, payload: ContractTemplateUpdate, request: Request,
-    db: Session = Depends(get_db), _role: AppUser = _admin_dep,
+    db: Session = Depends(get_db, scope="function"), _role: AppUser = _admin_dep,
 ):
     if basis_key not in CONTRACT_BASES:
         raise HTTPException(status_code=404, detail="Unbekannte Vertragsgrundlage.")
@@ -94,12 +94,12 @@ def put_contract_template(
 
 
 @router.get("/api/orders/{order_id}/contract", response_model=OrderContractStateOut)
-def get_order_contract_state(order_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_order_contract_state(order_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return contract_state(db, _order_or_404(db, order_id))
 
 
 @router.post("/api/orders/{order_id}/contract", response_model=OrderContractStateOut)
-def post_order_contract(order_id: int, request: Request, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_order_contract(order_id: int, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     order = _order_or_404(db, order_id)
     try:
         create_contract_draft(db, order, actor_name=_actor_name(request))
@@ -111,7 +111,7 @@ def post_order_contract(order_id: int, request: Request, db: Session = Depends(g
 @router.put("/api/orders/{order_id}/contract", response_model=OrderContractStateOut)
 def put_order_contract(
     order_id: int, payload: OrderContractUpdate, request: Request,
-    db: Session = Depends(get_db), _role: AppUser = _role_dep,
+    db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep,
 ):
     order = _order_or_404(db, order_id)
     contract = get_order_contract(db, order.id)
@@ -125,7 +125,7 @@ def put_order_contract(
 
 
 @router.get("/api/orders/{order_id}/contract/pdf")
-def get_order_contract_pdf(order_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_order_contract_pdf(order_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     order = _order_or_404(db, order_id)
     contract = get_order_contract(db, order.id)
     if contract is None:
@@ -151,7 +151,7 @@ def get_order_contract_pdf(order_id: int, db: Session = Depends(get_db), _role: 
 
 
 @router.get("/api/orders/{order_id}/contract/attachment-options", response_model=ContractAttachmentOptionsOut)
-def get_contract_attachment_options(order_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_contract_attachment_options(order_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Gewöhnliche def-Route: rendert das Angebot zum Vergleich (Threadpool, nicht die Event-Loop)."""
     order = _order_or_404(db, order_id)
     if get_order_contract(db, order.id) is None:
@@ -161,7 +161,7 @@ def get_contract_attachment_options(order_id: int, db: Session = Depends(get_db)
 
 @router.post("/api/orders/{order_id}/contract/freeze", response_model=OrderContractStateOut)
 def post_freeze_contract(
-    order_id: int, payload: OrderContractFreeze, db: Session = Depends(get_db), user: AppUser = _role_dep,
+    order_id: int, payload: OrderContractFreeze, db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep,
 ):
     order = _order_or_404(db, order_id)
     user_id, user_name = actor_of(user)
@@ -176,7 +176,7 @@ def post_freeze_contract(
 
 
 @router.post("/api/orders/{order_id}/contract/new-version", response_model=OrderContractStateOut)
-def post_contract_new_version(order_id: int, db: Session = Depends(get_db), user: AppUser = _role_dep):
+def post_contract_new_version(order_id: int, db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep):
     order = _order_or_404(db, order_id)
     user_id, user_name = actor_of(user)
     try:
@@ -190,7 +190,7 @@ def post_contract_new_version(order_id: int, db: Session = Depends(get_db), user
 
 @router.post("/api/orders/{order_id}/contract/send-email", response_model=OrderContractStateOut)
 def post_send_contract_email(
-    order_id: int, payload: OrderEmailSend, db: Session = Depends(get_db), user: AppUser = _role_dep,
+    order_id: int, payload: OrderEmailSend, db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep,
 ):
     order = _order_or_404(db, order_id)
     try:
@@ -216,7 +216,7 @@ def _signature_errors(call):
 
 @router.post("/api/orders/{order_id}/contract/sign", response_model=OrderContractStateOut)
 def post_sign_contract(
-    order_id: int, payload: OrderContractSignOnDevice, db: Session = Depends(get_db), user: AppUser = _role_dep,
+    order_id: int, payload: OrderContractSignOnDevice, db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep,
 ):
     """Gewöhnliche def-Route: prüft die Bilder und rendert das Unterschriftsblatt (Threadpool)."""
     order = _order_or_404(db, order_id)
@@ -237,7 +237,7 @@ def post_sign_contract(
 @router.post("/api/orders/{order_id}/contract/sign-paper", response_model=OrderContractStateOut)
 def post_sign_contract_paper(
     order_id: int, version_id: int = Form(...), pdf_sha256: str = Form(...), signed_on: date = Form(...),
-    checkboxes: str = Form("{}"), scan: UploadFile = File(...), db: Session = Depends(get_db), user: AppUser = _role_dep,
+    checkboxes: str = Form("{}"), scan: UploadFile = File(...), db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep,
 ):
     """Scan des unterschriebenen Papiers; checkboxes als JSON-Objekt {Schlüssel: true/false}."""
     order = _order_or_404(db, order_id)

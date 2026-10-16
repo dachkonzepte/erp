@@ -90,7 +90,7 @@ def _require_module_enabled(db: Session):
 
 
 @router.get("/api/operational-assets/due", response_model=list[OperationalAssetListOut])
-def get_due_operational_assets(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_due_operational_assets(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Für die Übersicht (master_data.html) und das Dashboard-Widget -- bewusst als literaler
     Pfad VOR /{asset_id} deklariert (Muster GET /api/maintenance-contracts/due-items)."""
     _require_module_enabled(db)
@@ -98,7 +98,7 @@ def get_due_operational_assets(db: Session = Depends(get_db), _role: AppUser = _
 
 
 @router.post("/api/operational-assets/check-due")
-def post_operational_assets_check_due(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_operational_assets_check_due(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """On-Demand-Erinnerung (Punkt 2) -- vom Frontend beim Aufruf von master_data.html#assets
     ausgelöst, kein Hintergrund-Job (Muster POST /api/maintenance-contracts/check-due). Bewusst
     als literaler Pfad VOR /{asset_id} deklariert, wie /due oben."""
@@ -108,13 +108,13 @@ def post_operational_assets_check_due(db: Session = Depends(get_db), _role: AppU
 
 
 @router.get("/api/operational-assets", response_model=list[OperationalAssetListOut])
-def get_operational_assets(include_inactive: bool = True, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_operational_assets(include_inactive: bool = True, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     return list_assets(db, include_inactive=include_inactive)
 
 
 @router.get("/api/operational-assets/selectable-for-report", response_model=list[OperationalAssetFieldOut])
-def get_selectable_operational_assets(db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def get_selectable_operational_assets(db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Für die Betriebsmittel-Auswahl am Einsatzbericht (service_reports.py) -- bewusst als
     literaler Pfad VOR /{asset_id} deklariert (Muster /due, /check-due oben). Für JEDE Rolle
     erreichbar (auch `field`, der QR-Code-Ausnahmefall dieser Datei) -- liefert aber
@@ -125,7 +125,7 @@ def get_selectable_operational_assets(db: Session = Depends(get_db), _role: AppU
 
 
 @router.get("/api/operational-assets/{asset_id}", response_model=OperationalAssetOut | OperationalAssetFieldOut)
-def get_operational_asset(asset_id: int, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def get_operational_asset(asset_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Für `field` (seit Stufe 2, siehe Moduldocstring): liefert ausschließlich
     OperationalAssetFieldOut, egal ob über den QR-Code-Etikett-Weg oder eine von Hand
     eingetippte Büro-URL aufgerufen -- die Antwort ist bereits als Pydantic-Modell validiert
@@ -144,7 +144,7 @@ def get_operational_asset(asset_id: int, db: Session = Depends(get_db), _role: A
 
 
 @router.get("/api/operational-assets/{asset_id}/qr-code.png")
-def get_operational_asset_qr_code(asset_id: int, request: Request, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_operational_asset_qr_code(asset_id: int, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Büro-/Admin-only -- das Drucken eines Etiketts ist ein Büro-Vorgang, das SCANNEN des
     fertigen Etiketts (GET .../{asset_id} oben) ist dagegen für jeden erreichbar."""
     _require_module_enabled(db)
@@ -156,7 +156,7 @@ def get_operational_asset_qr_code(asset_id: int, request: Request, db: Session =
 
 
 @router.post("/api/operational-assets", response_model=OperationalAssetOut)
-def post_operational_asset(payload: OperationalAssetCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_operational_asset(payload: OperationalAssetCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         return create_asset(db, payload.model_dump())
@@ -165,7 +165,7 @@ def post_operational_asset(payload: OperationalAssetCreate, db: Session = Depend
 
 
 @router.put("/api/operational-assets/{asset_id}", response_model=OperationalAssetOut)
-def put_operational_asset(asset_id: int, payload: OperationalAssetUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_operational_asset(asset_id: int, payload: OperationalAssetUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         result = update_asset(db, asset_id, payload.model_dump())
@@ -179,7 +179,7 @@ def put_operational_asset(asset_id: int, payload: OperationalAssetUpdate, db: Se
 @router.put("/api/operational-assets/{asset_id}/recurring-cost", response_model=OperationalAssetOut)
 def put_operational_asset_recurring_cost(
     asset_id: int, payload: OperationalAssetRecurringCostUpdate,
-    db: Session = Depends(get_db), _role: AppUser = _finanzen_dep,
+    db: Session = Depends(get_db, scope="function"), _role: AppUser = _finanzen_dep,
 ):
     """Eigener, engerer Endpunkt für die laufende Rate (siehe Moduldocstring) -- buero_auftrag
     bleibt am allgemeinen PUT auf das Betriebsmittel unverändert zugelassen, erreicht diesen
@@ -205,7 +205,7 @@ def put_operational_asset_recurring_cost(
 
 
 @router.delete("/api/operational-assets/{asset_id}")
-def delete_operational_asset(asset_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def delete_operational_asset(asset_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         deleted = delete_asset(db, asset_id)
@@ -217,7 +217,7 @@ def delete_operational_asset(asset_id: int, db: Session = Depends(get_db), _role
 
 
 @router.post("/api/operational-assets/{asset_id}/inspections", response_model=OperationalAssetInspectionOut)
-def post_operational_asset_inspection(asset_id: int, payload: OperationalAssetInspectionCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_operational_asset_inspection(asset_id: int, payload: OperationalAssetInspectionCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     result = create_inspection(db, asset_id, payload.model_dump())
     if result is None:
@@ -226,7 +226,7 @@ def post_operational_asset_inspection(asset_id: int, payload: OperationalAssetIn
 
 
 @router.put("/api/operational-asset-inspections/{inspection_id}", response_model=OperationalAssetInspectionOut)
-def put_operational_asset_inspection(inspection_id: int, payload: OperationalAssetInspectionUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_operational_asset_inspection(inspection_id: int, payload: OperationalAssetInspectionUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     result = update_inspection(db, inspection_id, payload.model_dump())
     if result is None:
@@ -235,7 +235,7 @@ def put_operational_asset_inspection(inspection_id: int, payload: OperationalAss
 
 
 @router.delete("/api/operational-asset-inspections/{inspection_id}")
-def delete_operational_asset_inspection(inspection_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def delete_operational_asset_inspection(inspection_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     if not delete_inspection(db, inspection_id):
         raise HTTPException(status_code=404, detail="Prüffrist nicht gefunden.")
@@ -243,13 +243,14 @@ def delete_operational_asset_inspection(inspection_id: int, db: Session = Depend
 
 
 @router.post("/api/operational-asset-inspections/{inspection_id}/document", response_model=OperationalAssetInspectionOut)
-async def upload_operational_asset_inspection_document(inspection_id: int, file: UploadFile = File(...), db: Session = Depends(get_db), _role: AppUser = _role_dep):
+# Seit 1.8.114 def statt async def: im Threadpool, die Datenbank nie auf der Event-Loop (Punkt 1a, tests/test_v419_verbindungen.py).
+def upload_operational_asset_inspection_document(inspection_id: int, file: UploadFile = File(...), db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     if not file.filename:
         raise HTTPException(status_code=400, detail="Bitte eine Datei auswählen.")
     if (file.content_type or "").lower() not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(status_code=422, detail="Bitte PDF, PNG, JPEG oder WebP verwenden.")
-    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    data = file.file.read(MAX_UPLOAD_BYTES + 1)
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Datei ist größer als 10 MB.")
     inspection = db.get(OperationalAssetInspection, inspection_id)
@@ -260,7 +261,7 @@ async def upload_operational_asset_inspection_document(inspection_id: int, file:
 
 
 @router.get("/api/operational-asset-inspections/{inspection_id}/document")
-def get_operational_asset_inspection_document(inspection_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_operational_asset_inspection_document(inspection_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     inspection = db.get(OperationalAssetInspection, inspection_id)
     if inspection is None or not inspection.document_filename:
@@ -272,7 +273,7 @@ def get_operational_asset_inspection_document(inspection_id: int, db: Session = 
 
 
 @router.delete("/api/operational-asset-inspections/{inspection_id}/document", response_model=OperationalAssetInspectionOut)
-def delete_operational_asset_inspection_document(inspection_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def delete_operational_asset_inspection_document(inspection_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     result = remove_inspection_document(db, inspection_id)
     if result is None:
@@ -285,9 +286,10 @@ def delete_operational_asset_inspection_document(inspection_id: int, db: Session
 # unabhängig von jeder geratenen document_id ein 403, bevor der Handler überhaupt läuft --
 # require_role() schließt ROLE_FIELD aus diesen drei Endpunkten strukturell aus.
 @router.post("/api/operational-assets/{asset_id}/documents", response_model=OperationalAssetDocumentOut)
-async def upload_operational_asset_document(
+# Seit 1.8.114 def statt async def: im Threadpool, die Datenbank nie auf der Event-Loop (Punkt 1a, tests/test_v419_verbindungen.py).
+def upload_operational_asset_document(
     asset_id: int, document_type: str = Form(...), notes: str | None = Form(None),
-    file: UploadFile = File(...), db: Session = Depends(get_db), _role: AppUser = _role_dep,
+    file: UploadFile = File(...), db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep,
 ):
     _require_module_enabled(db)
     if not document_type.strip():
@@ -296,7 +298,7 @@ async def upload_operational_asset_document(
         raise HTTPException(status_code=400, detail="Bitte eine Datei auswählen.")
     if (file.content_type or "").lower() not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(status_code=422, detail="Bitte PDF, PNG, JPEG oder WebP verwenden.")
-    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    data = file.file.read(MAX_UPLOAD_BYTES + 1)
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Datei ist größer als 10 MB.")
     # Existenz VOR dem Speichern prüfen (siehe create_asset_document()-Docstring) -- eine Datei
@@ -311,7 +313,7 @@ async def upload_operational_asset_document(
 
 
 @router.get("/api/operational-asset-documents/{document_id}/file")
-def get_operational_asset_document_file(document_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_operational_asset_document_file(document_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     document = db.get(OperationalAssetDocument, document_id)
     if document is None:
@@ -323,7 +325,7 @@ def get_operational_asset_document_file(document_id: int, db: Session = Depends(
 
 
 @router.delete("/api/operational-asset-documents/{document_id}")
-def delete_operational_asset_document_endpoint(document_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def delete_operational_asset_document_endpoint(document_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     if not delete_asset_document(db, document_id):
         raise HTTPException(status_code=404, detail="Dokument nicht gefunden.")
@@ -331,12 +333,12 @@ def delete_operational_asset_document_endpoint(document_id: int, db: Session = D
 
 
 @router.get("/api/operational-asset-settings", response_model=OperationalAssetSettingsOut)
-def get_operational_asset_settings_endpoint(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_operational_asset_settings_endpoint(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     return operational_asset_settings_to_dict(load_operational_asset_settings(db))
 
 
 @router.put("/api/operational-asset-settings", response_model=OperationalAssetSettingsOut)
-def put_operational_asset_settings_endpoint(payload: OperationalAssetSettingsUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_operational_asset_settings_endpoint(payload: OperationalAssetSettingsUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     return update_operational_asset_settings(db, payload.reminder_lead_days)

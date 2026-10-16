@@ -38,7 +38,7 @@ _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG, message="Kundendaten s
 
 
 @router.get("/api/customers", response_model=list[CustomerOut])
-def list_customers(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def list_customers(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     customers = db.scalars(
         select(Customer)
         .options(selectinload(Customer.extra_infos), selectinload(Customer.profile))
@@ -51,7 +51,7 @@ def list_customers(db: Session = Depends(get_db), _role: AppUser = _role_dep):
 
 
 @router.get("/api/customers/{customer_id}", response_model=CustomerOut)
-def get_customer(customer_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_customer(customer_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     customer = db.scalar(
         select(Customer)
         .options(selectinload(Customer.extra_infos), selectinload(Customer.profile))
@@ -63,7 +63,7 @@ def get_customer(customer_id: int, db: Session = Depends(get_db), _role: AppUser
 
 
 @router.put("/api/customers/{customer_id}", response_model=CustomerOut)
-def update_customer(customer_id: int, payload: CustomerUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def update_customer(customer_id: int, payload: CustomerUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     customer = db.scalar(
         select(Customer)
         .options(selectinload(Customer.extra_infos), selectinload(Customer.properties), selectinload(Customer.profile))
@@ -114,7 +114,7 @@ def update_customer(customer_id: int, payload: CustomerUpdate, db: Session = Dep
 
 @router.post("/api/customers/{customer_id}/extra-infos", response_model=CustomerExtraInfoOut)
 def create_customer_extra_info(
-    customer_id: int, payload: CustomerExtraInfoCreate, db: Session = Depends(get_db),
+    customer_id: int, payload: CustomerExtraInfoCreate, db: Session = Depends(get_db, scope="function"),
     _role: AppUser = _role_dep,
 ):
     if db.get(Customer, customer_id) is None:
@@ -128,7 +128,7 @@ def create_customer_extra_info(
 
 @router.put("/api/customers/{customer_id}/extra-infos/{info_id}", response_model=CustomerExtraInfoOut)
 def update_customer_extra_info(
-    customer_id: int, info_id: int, payload: CustomerExtraInfoUpdate, db: Session = Depends(get_db),
+    customer_id: int, info_id: int, payload: CustomerExtraInfoUpdate, db: Session = Depends(get_db, scope="function"),
     _role: AppUser = _role_dep,
 ):
     info = db.get(CustomerExtraInfo, info_id)
@@ -142,7 +142,7 @@ def update_customer_extra_info(
 
 
 @router.delete("/api/customers/{customer_id}/extra-infos/{info_id}")
-def delete_customer_extra_info(customer_id: int, info_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def delete_customer_extra_info(customer_id: int, info_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     info = db.get(CustomerExtraInfo, info_id)
     if info is None or info.customer_id != customer_id:
         raise HTTPException(status_code=404, detail="Kundeninformation nicht gefunden.")
@@ -152,7 +152,7 @@ def delete_customer_extra_info(customer_id: int, info_id: int, db: Session = Dep
 
 
 @router.post("/api/customers", response_model=CustomerOut)
-def create_customer(payload: CustomerCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def create_customer(payload: CustomerCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     data = payload.model_dump(exclude={"extra_infos", "category", "customer_number", "default_payment_term_id"})
     data["name"] = compose_customer_name(data.get("salutation"), data.get("title"), data.get("first_name"), data["last_name"])
     customer = Customer(**data)
@@ -192,7 +192,7 @@ def create_customer(payload: CustomerCreate, db: Session = Depends(get_db), _rol
 
 
 @router.get("/api/customers/{customer_id}/documents", response_model=list[CustomerDocumentOut])
-def list_customer_documents(customer_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def list_customer_documents(customer_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     if db.get(Customer, customer_id) is None:
         raise HTTPException(status_code=404, detail="Kunde nicht gefunden.")
     docs = db.scalars(select(CustomerDocument).where(CustomerDocument.customer_id == customer_id).order_by(CustomerDocument.uploaded_at.desc())).all()
@@ -200,16 +200,17 @@ def list_customer_documents(customer_id: int, db: Session = Depends(get_db), _ro
 
 
 @router.post("/api/customers/{customer_id}/documents", response_model=CustomerDocumentOut)
-async def upload_customer_document(
+# Seit 1.8.114 def statt async def: im Threadpool, die Datenbank nie auf der Event-Loop (Punkt 1a, tests/test_v419_verbindungen.py).
+def upload_customer_document(
     customer_id: int, file: UploadFile = File(...), category: str = Form("Sonstiges"), subfolder: str | None = Form(None),
-    description: str | None = Form(None), document_date: str | None = Form(None), db: Session = Depends(get_db),
+    description: str | None = Form(None), document_date: str | None = Form(None), db: Session = Depends(get_db, scope="function"),
     _role: AppUser = _role_dep,
 ):
     if db.get(Customer, customer_id) is None:
         raise HTTPException(status_code=404, detail="Kunde nicht gefunden.")
     if not file.filename:
         raise HTTPException(status_code=400, detail="Bitte eine Datei auswählen.")
-    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    data = file.file.read(MAX_UPLOAD_BYTES + 1)
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Datei ist größer als 50 MB.")
     stored = make_stored_filename(file.filename)

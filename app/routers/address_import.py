@@ -21,13 +21,14 @@ def _employee_id_for_request(request: Request) -> int | None:
 
 
 @router.post("/api/address-import/upload")
-async def upload_address_file(
-    request: Request, file: UploadFile, db: Session = Depends(get_db),
+# Seit 1.8.114 def statt async def: im Threadpool, die Datenbank nie auf der Event-Loop (Punkt 1a, tests/test_v419_verbindungen.py).
+def upload_address_file(
+    request: Request, file: UploadFile, db: Session = Depends(get_db, scope="function"),
     _admin=Depends(require_admin(_ADMIN_MESSAGE)),
 ):
     if not file.filename:
         raise HTTPException(status_code=400, detail="Bitte eine Datei auswählen.")
-    data = await file.read()
+    data = file.file.read()
     try:
         return svc.create_preview(db, data, file.filename)
     except svc.AddressImportError as exc:
@@ -35,18 +36,18 @@ async def upload_address_file(
 
 
 @router.get("/api/address-import/preview")
-def get_pending_preview(db: Session = Depends(get_db), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+def get_pending_preview(db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     return svc.get_pending_preview(db) or {"total": 0, "counts": {}, "rows": []}
 
 
 @router.post("/api/address-import/discard-preview")
-def discard_preview(db: Session = Depends(get_db), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+def discard_preview(db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     svc.discard_pending_preview(db)
     return {"ok": True}
 
 
 @router.post("/api/address-import/confirm")
-def confirm_preview(request: Request, filename: str, db: Session = Depends(get_db), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+def confirm_preview(request: Request, filename: str, db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     try:
         run = svc.confirm_import(db, filename, _employee_id_for_request(request))
     except ValueError as exc:
@@ -59,12 +60,12 @@ def confirm_preview(request: Request, filename: str, db: Session = Depends(get_d
 
 
 @router.get("/api/address-import/runs")
-def get_import_runs(db: Session = Depends(get_db), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+def get_import_runs(db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     return svc.list_import_runs(db)
 
 
 @router.post("/api/address-import/runs/{run_id}/revert")
-def revert_run(run_id: int, db: Session = Depends(get_db), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+def revert_run(run_id: int, db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     try:
         svc.revert_import_run(db, run_id)
     except ValueError as exc:
@@ -73,12 +74,12 @@ def revert_run(run_id: int, db: Session = Depends(get_db), _admin=Depends(requir
 
 
 @router.get("/api/address-import/unassigned")
-def get_unassigned(search: str | None = None, db: Session = Depends(get_db), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+def get_unassigned(search: str | None = None, db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     return svc.list_unassigned(db, search)
 
 
 @router.post("/api/address-import/unassigned/{entry_id}/create-customer")
-def unassigned_create_customer(entry_id: int, db: Session = Depends(get_db), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+def unassigned_create_customer(entry_id: int, db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     try:
         customer = svc.resolve_as_new_customer(db, entry_id)
     except ValueError as exc:
@@ -87,7 +88,7 @@ def unassigned_create_customer(entry_id: int, db: Session = Depends(get_db), _ad
 
 
 @router.post("/api/address-import/unassigned/{entry_id}/assign-property")
-def unassigned_assign_property(entry_id: int, customer_id: int, db: Session = Depends(get_db), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+def unassigned_assign_property(entry_id: int, customer_id: int, db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     try:
         prop = svc.resolve_as_property(db, entry_id, customer_id)
     except ValueError as exc:
@@ -96,7 +97,7 @@ def unassigned_assign_property(entry_id: int, customer_id: int, db: Session = De
 
 
 @router.post("/api/address-import/unassigned/{entry_id}/discard")
-def unassigned_discard(entry_id: int, db: Session = Depends(get_db), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+def unassigned_discard(entry_id: int, db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     try:
         svc.discard_unassigned(db, entry_id)
     except ValueError as exc:

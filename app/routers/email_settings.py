@@ -41,18 +41,18 @@ def _to_out(db: Session) -> SmtpSettingsOut:
 
 
 @router.get("/api/email-settings", response_model=SmtpSettingsOut)
-def get_email_settings(db: Session = Depends(get_db), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+def get_email_settings(db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     return _to_out(db)
 
 
 @router.put("/api/email-settings/method", response_model=SmtpSettingsOut)
-def put_email_send_method(payload: SendMethodUpdate, db: Session = Depends(get_db), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+def put_email_send_method(payload: SendMethodUpdate, db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     set_send_method(db, payload.send_method)
     return _to_out(db)
 
 
 @router.put("/api/email-settings", response_model=SmtpSettingsOut)
-def put_email_settings(payload: SmtpSettingsUpdate, db: Session = Depends(get_db), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+def put_email_settings(payload: SmtpSettingsUpdate, db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     update_smtp_settings(
         db, host=payload.host, port=payload.port, username=payload.username, encryption=payload.encryption,
         sender_email=payload.sender_email, sender_name=payload.sender_name, password=payload.password,
@@ -61,7 +61,7 @@ def put_email_settings(payload: SmtpSettingsUpdate, db: Session = Depends(get_db
 
 
 @router.put("/api/email-settings/graph", response_model=SmtpSettingsOut)
-def put_email_graph_settings(payload: GraphSettingsUpdate, db: Session = Depends(get_db), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+def put_email_graph_settings(payload: GraphSettingsUpdate, db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     update_graph_settings(
         db, tenant_id=payload.tenant_id, client_id=payload.client_id,
         sender_mailbox=payload.sender_mailbox, client_secret=payload.client_secret,
@@ -70,7 +70,7 @@ def put_email_graph_settings(payload: GraphSettingsUpdate, db: Session = Depends
 
 
 @router.post("/api/email-settings/test")
-def post_test_email_settings(db: Session = Depends(get_db), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+def post_test_email_settings(db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     try:
         check_smtp_connection(db)
     except ValueError as e:

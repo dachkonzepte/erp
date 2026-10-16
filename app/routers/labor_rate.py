@@ -37,12 +37,12 @@ router = APIRouter()
 _role_dep = Depends(require_min_role(ROLE_OFFICE_FINANZEN, message="Der Stundenverrechnungssatz ist nur für Büro – Finanzen und Administratoren einsehbar."))
 
 @router.get("/api/labor-rate-settings", response_model=LaborRateSettingsOut)
-def get_labor_rate_settings(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_labor_rate_settings(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return LaborRateSettingsOut.model_validate(labor_rate_settings_dict(db))
 
 
 @router.put("/api/labor-rate-settings", response_model=LaborRateSettingsOut)
-def update_labor_rate_settings(payload: LaborRateSettingsUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def update_labor_rate_settings(payload: LaborRateSettingsUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     settings = load_labor_rate_settings(db)
     overhead = load_overhead_settings(db)
     settings.employer_cost_pct = payload.employer_cost_pct
@@ -74,12 +74,12 @@ def update_labor_rate_settings(payload: LaborRateSettingsUpdate, db: Session = D
 
 
 @router.get("/api/labor-rate-calculation", response_model=LaborRateCalculationOut)
-def get_labor_rate_calculation(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_labor_rate_calculation(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return LaborRateCalculationOut.model_validate(calculate_labor_rate(db, load_calculation_settings(db)))
 
 
 @router.post("/api/labor-rate-calculation/apply", response_model=CalculationSettingsOut)
-def apply_labor_rate_calculation(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def apply_labor_rate_calculation(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     calc_settings = load_calculation_settings(db)
     result = calculate_labor_rate(db, calc_settings)
     if not result["can_calculate"] or result["suggested_labor_rate"] is None:
@@ -95,17 +95,17 @@ def apply_labor_rate_calculation(db: Session = Depends(get_db), _role: AppUser =
 # einem bewussten "Übernehmen"-Klick in LaborRateSettings.productive_time_pct
 # (apply_productive_hours_to_labor_rate()), calculate_labor_rate() bleibt unverändert.
 @router.get("/api/productive-hours-settings", response_model=ProductiveHoursCalculationOut)
-def get_productive_hours_settings(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_productive_hours_settings(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return ProductiveHoursCalculationOut.model_validate(productive_hours_settings_dict(db))
 
 
 @router.put("/api/productive-hours-settings", response_model=ProductiveHoursCalculationOut)
-def put_productive_hours_settings(payload: ProductiveHoursSettingsUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_productive_hours_settings(payload: ProductiveHoursSettingsUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return ProductiveHoursCalculationOut.model_validate(update_productive_hours_settings(db, payload.model_dump()))
 
 
 @router.post("/api/productive-hours-settings/apply", response_model=ProductiveHoursCalculationOut)
-def post_apply_productive_hours_settings(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_apply_productive_hours_settings(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return ProductiveHoursCalculationOut.model_validate(apply_productive_hours_to_labor_rate(db))
 
 
@@ -115,14 +115,14 @@ def post_apply_productive_hours_settings(db: Session = Depends(get_db), _role: A
 # Gemeinkosten-Felder (Schritt 1) -- der bestehende "Verrechnungssatz übernehmen"-Knopf oben
 # bleibt der davon getrennte Schritt 2.
 @router.get("/api/recurring-cost-overhead-proposal", response_model=RecurringCostOverheadProposalOut)
-def get_recurring_cost_overhead_proposal(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_recurring_cost_overhead_proposal(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return RecurringCostOverheadProposalOut.model_validate(
         recurring_cost_overhead_proposal(db, load_calculation_settings(db))
     )
 
 
 @router.post("/api/recurring-cost-overhead-proposal/apply", response_model=RecurringCostOverheadProposalOut)
-def post_apply_recurring_cost_overhead_proposal(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_apply_recurring_cost_overhead_proposal(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     apply_recurring_cost_overhead_proposal(db)
     return RecurringCostOverheadProposalOut.model_validate(
         recurring_cost_overhead_proposal(db, load_calculation_settings(db))

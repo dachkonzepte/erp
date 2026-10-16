@@ -40,13 +40,13 @@ def _require_module_enabled(db: Session):
 
 
 @router.get("/api/inspection-templates", response_model=list[InspectionTemplateOut])
-def get_inspection_templates(include_archived: bool = False, db: Session = Depends(get_db), _role: AppUser = _any_role_dep):
+def get_inspection_templates(include_archived: bool = False, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
     return list_templates(db, include_archived=include_archived)
 
 
 @router.post("/api/inspection-templates", response_model=InspectionTemplateOut)
-def post_inspection_template(payload: InspectionTemplateCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_inspection_template(payload: InspectionTemplateCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         return create_template(db, payload.label, roof_type=payload.roof_type, description=payload.description)
@@ -55,7 +55,7 @@ def post_inspection_template(payload: InspectionTemplateCreate, db: Session = De
 
 
 @router.get("/api/inspection-templates/{template_id}", response_model=InspectionTemplateOut)
-def get_inspection_template(template_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_inspection_template(template_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     result = get_template(db, template_id)
     if result is None:
@@ -64,7 +64,7 @@ def get_inspection_template(template_id: int, db: Session = Depends(get_db), _ro
 
 
 @router.put("/api/inspection-templates/{template_id}", response_model=InspectionTemplateOut)
-def put_inspection_template(template_id: int, payload: InspectionTemplateUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_inspection_template(template_id: int, payload: InspectionTemplateUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         result = update_template(db, template_id, payload.label, payload.roof_type, payload.description)
@@ -76,7 +76,7 @@ def put_inspection_template(template_id: int, payload: InspectionTemplateUpdate,
 
 
 @router.post("/api/inspection-templates/{template_id}/archive", response_model=InspectionTemplateOut)
-def archive_inspection_template(template_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def archive_inspection_template(template_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     result = set_template_archived(db, template_id, True)
     if result is None:
@@ -85,7 +85,7 @@ def archive_inspection_template(template_id: int, db: Session = Depends(get_db),
 
 
 @router.post("/api/inspection-templates/{template_id}/unarchive", response_model=InspectionTemplateOut)
-def unarchive_inspection_template(template_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def unarchive_inspection_template(template_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     result = set_template_archived(db, template_id, False)
     if result is None:
@@ -94,7 +94,7 @@ def unarchive_inspection_template(template_id: int, db: Session = Depends(get_db
 
 
 @router.post("/api/inspection-templates/{template_id}/copy", response_model=InspectionTemplateOut)
-def post_copy_inspection_template(template_id: int, payload: InspectionTemplateCopy, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_copy_inspection_template(template_id: int, payload: InspectionTemplateCopy, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         return copy_template(db, template_id, payload.label)
@@ -103,7 +103,7 @@ def post_copy_inspection_template(template_id: int, payload: InspectionTemplateC
 
 
 @router.post("/api/inspection-templates/{template_id}/items", response_model=InspectionTemplateItemOut)
-def post_inspection_template_item(template_id: int, payload: InspectionTemplateItemCreate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def post_inspection_template_item(template_id: int, payload: InspectionTemplateItemCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         return create_template_item(
@@ -117,7 +117,7 @@ def post_inspection_template_item(template_id: int, payload: InspectionTemplateI
 
 
 @router.put("/api/inspection-template-items/{item_id}", response_model=InspectionTemplateItemOut)
-def put_inspection_template_item(item_id: int, payload: InspectionTemplateItemUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_inspection_template_item(item_id: int, payload: InspectionTemplateItemUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         result = update_template_item(
@@ -133,7 +133,7 @@ def put_inspection_template_item(item_id: int, payload: InspectionTemplateItemUp
 
 
 @router.delete("/api/inspection-template-items/{item_id}")
-def delete_inspection_template_item(item_id: int, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def delete_inspection_template_item(item_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     if not delete_template_item(db, item_id):
         raise HTTPException(status_code=404, detail="Prüfpunkt nicht gefunden.")
@@ -143,13 +143,13 @@ def delete_inspection_template_item(item_id: int, db: Session = Depends(get_db),
 # --- Version 1.2.22: explizite Dachtyp -> Standardvorlage-Zuordnung ---
 
 @router.get("/api/roof-type-template-defaults", response_model=list[RoofTypeTemplateDefaultOut])
-def get_roof_type_template_defaults(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_roof_type_template_defaults(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     return list_roof_type_template_defaults(db)
 
 
 @router.put("/api/roof-type-template-defaults/{roof_type}", response_model=list[RoofTypeTemplateDefaultOut])
-def put_roof_type_template_default(roof_type: str, payload: RoofTypeTemplateDefaultUpdate, db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def put_roof_type_template_default(roof_type: str, payload: RoofTypeTemplateDefaultUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     try:
         set_roof_type_template_default(db, roof_type, payload.inspection_template_id)

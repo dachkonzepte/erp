@@ -176,7 +176,8 @@
        Stammdaten, System. Nur verschoben und umbenannt ("Planung" heißt "Plantafel", "Mängel" heißt "Befunde"), alle Adressen und
        Rollenbedingungen wie bisher; das Versandprotokoll steht nicht mehr hier, sondern in Kundenakte, Projektmappe und
        Einstellungen -> System -> Protokolle. Eine Überschrift erscheint nur, wenn die Rolle in der Gruppe etwas sieht.
-       Die Modul- und Rollenprüfungen stehen deshalb einmal oben (is_module_enabled() öffnet je Aufruf eine Verbindung).
+       Die Modul- und Rollenprüfungen stehen deshalb einmal oben (bis 1.8.113 öffnete is_module_enabled() je Aufruf eine Verbindung,
+       seit 1.8.114 liest es die Seitendaten der Anfrage, app/seitendaten.py).
 
        Seit "Rechtekonzept": Aufgaben bleiben für Monteure gesperrt (heute wird keine Aufgabe an einen Monteur zugewiesen).
        Seit 1.8.24: Wartungen/Befunde und Anfragen/Projekte/Plantafel nur für Büro/Admin -- vorher landete ein Monteur über diese

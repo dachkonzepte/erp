@@ -24,19 +24,19 @@ _admin_dep = Depends(require_min_role(ROLE_ADMIN, message="Klauseltexte und ihre
 
 
 @router.get("/api/contract-bases", response_model=list[ContractBasisOptionOut])
-def get_contract_bases(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_contract_bases(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return contract_basis_options(db)
 
 
 @router.get("/api/settings/contract-basis-clauses", response_model=list[ContractBasisClauseOut])
-def get_contract_basis_clauses(db: Session = Depends(get_db), _role: AppUser = _role_dep):
+def get_contract_basis_clauses(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     return list_clauses(db)
 
 
 @router.put("/api/settings/contract-basis-clauses/{basis_key}", response_model=ContractBasisClauseOut)
 def put_contract_basis_clause(
     basis_key: str, payload: ContractBasisClauseUpdate, request: Request,
-    db: Session = Depends(get_db), _role: AppUser = _admin_dep,
+    db: Session = Depends(get_db, scope="function"), _role: AppUser = _admin_dep,
 ):
     if basis_key not in CONTRACT_BASES:
         raise HTTPException(status_code=404, detail="Unbekannte Vertragsgrundlage.")
