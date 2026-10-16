@@ -1176,3 +1176,31 @@ erlauben; Klicktest als Büro – Auftrag.
   (pytest).
 - **Angepasste Erwartungen** (Regel 28): `test_v407` `AUSNAHMEN_HANDLER` -- Eintrag `time_backoffice.html | loadEntries | onclick: e.id` (2)
   gestrichen, die Knöpfe nutzen `data-klick` (nur Aufbau, die Liste wurde kürzer).
+
+### Outlook-Hinweis nur ohne Zugangsdaten (1.8.118)
+
+Vorgabe vom 16.10.2026, Punkt 4 (Nebenbefund 1.8.112 Nr. 2): der Outlook-Hinweis erscheint nur, wenn Zugangsdaten fehlen.
+
+- `settings.html` hat die Regel `.hidden{display:none!important}` -- bis dahin blendete `classList.toggle('hidden', …)` nichts aus, der
+  Hinweis stand immer da. Ein Strukturtest prüft jede Vorlage: wer die Klasse `hidden` setzt (Markup, `classList`, `className`), definiert
+  sie im eigenen `<style>` (jede Seite hat ihr eigenes); nur `settings.html` fehlte.
+- Nach dem Speichern der Microsoft-365-Zugangsdaten liest die Seite den Hinweis unter Outlook-Kalender neu (er hängt an denselben Daten) --
+  sonst stand er bis zum Neuladen.
+
+#### Festlegungen 1.8.118 (Bitte bestätigen)
+
+1. **„Zugangsdaten vollständig“ heißt wie bisher Mandanten-ID, Client-ID und Client-Secret** (`graph_configured`, wie `is_outlook_sync_available()`) -- das Absenderpostfach zählt nicht dazu.
+2. **Das Speichern der Microsoft-365-Zugangsdaten liest den Outlook-Hinweis neu**, ohne Neuladen der Seite.
+3. **Jede Vorlage, die die Klasse `hidden` setzt, definiert sie selbst** (Strukturtest), statt einer gemeinsamen Regel in einem Baustein.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v423_outlook_hinweis.py` (8 Tests): jede Vorlage mit der Klasse `hidden` hat die Regel (der Scanner sieht über 15
+  Vorlagen), Proben des Scanners, Hinweis an `graph_configured` und Neu-Lesen nach dem Speichern.
+- Neu Klicktest `scripts/klicktest_outlook_hinweis.py` (11 Prüfungen): Admin ohne Zugangsdaten -- Hinweis sichtbar; Zugangsdaten unter
+  E-Mail und Microsoft 365 gespeichert -- Hinweis ohne Neuladen weg, nach echtem Neuladen hell und dunkel weg. 11 von 11.
+- Gegenproben (Regel 24): ohne Regel (Strukturtest rot; Klicktest drei Prüfungen rot), ohne Neu-Lesen (Klicktest genau „ohne Neuladen
+  weg“ rot) -- jede Datei byte-genau zurück. Die Gegenprobe deckte auf, dass die erste Fassung des Klicktests „nach dem Neuladen“ gar
+  nicht neu lud (dieselbe Adresse mit `#outlook-sync` ist nur ein Sprung im Dokument); jetzt mit anderer Adresse und Prüfung, dass die
+  Seite neu geladen ist.
+- **Angepasste Erwartungen** (Regel 28): keine.
