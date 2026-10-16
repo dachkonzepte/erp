@@ -153,6 +153,10 @@ def test_a_document_change_keeps_the_open_requests_of_the_old_document_until_the
                           f"      GET /api/projects [Fetch]  {W._uhrzeit(T0)}  net::ERR_ABORTED (abgebrochen)  gesendet: nein"
                           "  Antwort-Kopf: nein"]
     n.ereignis(*fertig("a"))          # kommt spät (z. B. erst, wenn die Seite aus dem Back-Forward-Cache zurückkommt)
+    # seit 1.8.115 mit dem Ausgang der zuvor als offen gemeldeten Anfrage (einmal)
+    assert n.bericht() == ["    Netzwerk: keine offenen Anfragen", zeilen[3], zeilen[4],
+                           "    Netzwerk: Ausgang zuvor als offen gemeldeter Anfragen: 1",
+                           f"      POST /api/auth/logout [Fetch]  seit {W._uhrzeit(T0)}  -> fertig, Status 200 nach 0,6 s"]
     assert n.bericht() == ["    Netzwerk: keine offenen Anfragen", zeilen[3], zeilen[4]]
     n.ereignis(*navigiert("L3", "/customers/1"))
     assert n.bericht() == ["    Netzwerk: keine offenen Anfragen"]

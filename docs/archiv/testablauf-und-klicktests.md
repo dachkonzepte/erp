@@ -294,3 +294,73 @@ Alle betreffen nur Werkzeug und Testablauf (Regel 28: der Bericht nennt ihre Zah
   Skripten (60 s statt 1 s). Jede Datei byte-genau zurück (SHA-256).
 - **Angepasste Erwartungen** (Regel 28): `klicktest_zeitbuchungen_liste` -- Soll "Monteurin Zeiterfassung: Hinweis" aus dem Berliner Tag statt
   dem UTC-Tag (altes Soll nachts veraltet seit 1.8.87); Aufbau: feste Uhr 00:30 und Browser-Uhr, `heute_utc` entfällt, `anna_tag` nur ≠ heute.
+
+
+## Verbindungsprotokoll je Instanz, Ausgang hängender Anfragen (1.8.115)
+
+Vorgabe vom 16.10.2026, Punkt 2: Klicktest-Werkzeug -- Verbindungsprotokoll von uvicorn (trace) je Instanz; Ausgang hängender Anfragen
+(`loadingFailed`) im Netzprotokoll.
+
+### Umsetzung 1.8.115
+
+- **Verbindungsprotokoll** (`scripts/cdp_klicktest.py::log_konfiguration()`): jede Klicktest-Instanz startet uvicorn mit
+  `--log-level trace` und einer eigenen Log-Konfiguration (`uvicorn-log.json` im Arbeitsordner). Die Spur -- „HTTP connection
+  made/lost“ aus `uvicorn.error`, jede ASGI-Nachricht aus `uvicorn.asgi` (Start mit Methode und Pfad, Antwort-Kopf mit Status, Körper
+  nur als `<n bytes>`, `http.disconnect`, Ende oder Ausnahme) und das Zugriffsprotokoll -- steht mit Zeitstempel in Sekunden seit 1970
+  in `verbindungen.log`; Meldungen ab INFO bleiben in `server.err.log`, das Zugriffsprotokoll zusätzlich in `server.out.log`. Kopfzeilen
+  (Cookies) und Inhalte ersetzt uvicorn selbst durch Platzhalter. Beide Startwege (mit fester Uhr im eigenen Prozess, sonst
+  `python -m uvicorn`) nehmen sie.
+- **Abgleich** (`Netzprotokoll.server_stand()`, `verbindungsprotokoll_lesen()`): unter jeder Anfrage eines Berichts (offen, beim
+  Wechsel offen geblieben, fehlgeschlagen, Ausgang) steht, wo sie auf dem Server steht -- „Server: [41] angekommen +0,0 s, Antwort-Kopf
+  200 +0,2 s, Körper gesendet +0,2 s, fertig +0,2 s“, „noch ohne Antwort-Kopf“, „Browser hat abgebrochen“, „Verbindung beendet“
+  (vor dem Ende der Antwort) oder „nicht angekommen“. Zugeordnet wird die erste ASGI-Aufgabe mit derselben Methode und demselben Pfad,
+  die frühestens 0,25 s vor dem Start im Browser begann (dieselbe Uhr) und vor dem Start der nächsten gleichen Anfrage im Browser -- im
+  ersten Lauf des neuen Klicktests bekam eine nie gesendete, im Netz angehaltene Statusabfrage die Serverzeile der gleichen Abfrage der
+  danach geöffneten Seite. Die Datei wird nur neu gelesen, wenn sie gewachsen ist. Am Ende eines nicht erfolgreichen Laufs nennt das
+  Werkzeug ihren Pfad.
+- **Ausgang** (`Netzprotokoll.ausgang_bericht()`): jede Anfrage, die ein Bericht als offen (oder beim Wechsel offen geblieben) gemeldet
+  hat, bekommt ihren Ausgang nachgetragen, sobald der Browser ihn meldet -- „fertig, Status 200 nach 61,2 s“ oder „fehlgeschlagen:
+  net::ERR_ABORTED (abgebrochen) nach 3,1 s“ (`Network.loadingFailed`, Dauer aus den Zeitstempeln des Browsers) -- in der nächsten
+  Meldung (ein neuer Ausgang gilt als Änderung, die Meldung kommt nicht als „unverändert“) und am Ende jedes Laufs, auch eines
+  erfolgreichen, dort mit den bis dahin offenen („noch offen nach …“). Jeder Ausgang einmal.
+
+#### Festlegungen 1.8.115 (Bitte bestätigen)
+
+Alle betreffen nur Werkzeug und Testablauf (Regel 28: der Bericht nennt ihre Zahl).
+
+1. **Die Spur läuft in jedem Klicktest mit** (nicht nur auf Wunsch): `verbindungen.log` je Instanz im Arbeitsordner, mit Zeitstempel in Sekunden seit 1970.
+2. **Meldungen ab INFO bleiben in `server.err.log`**, die Spur steht nur in `verbindungen.log`; das Zugriffsprotokoll in beiden.
+3. **Zuordnung über Methode und Pfad: die erste ASGI-Aufgabe ab 0,25 s vor dem Start im Browser und vor dem Start der nächsten gleichen Anfrage im Browser** -- bei zwei gleichen Anfragen im selben Augenblick kann sie die andere treffen.
+4. **„Verbindung beendet“ nur, wenn die Verbindung vor dem Ende der Antwort endete.**
+5. **Ausgang nur für Anfragen, die ein Bericht als offen gemeldet hat** -- nicht für jede fehlgeschlagene; am Ende jedes Laufs (auch eines erfolgreichen) samt der noch offenen.
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **Chrome meldet für eine im Netz angehaltene Anfrage (Fetch, Stufe Request) beim Wechsel des Dokuments kein Ende** -- weder
+   `loadingFailed` noch `loadingFinished`; sie bleibt im Netzprotokoll „beim Wechsel offen geblieben“ und heißt am Ende „noch offen“. Das
+   Werkzeug sagt das so, statt einen Ausgang zu erfinden.
+2. **`klicktest_versandprotokoll` scheiterte im Endlauf von 1.8.114 am Binden seines SMTP-Testservers** („Socketadresse wird schon
+   verwendet“): der Port wird beim Befüllen gewählt und erst in `pruefen()` belegt -- dazwischen kann ihn ein anderer Prozess nehmen (dort
+   liefen drei Klicktests und ein Testlauf daneben). Einzeln nachgelaufen 45 von 45. Dasselbe Muster haben vermutlich die übrigen Klicktests
+   mit SMTP-Empfänger im Skript.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v420_klicktest_verbindungen.py` (11 Tests): ein echter uvicorn (Kindprozess, kleine ASGI-App) mit der Log-Konfiguration des
+  Werkzeugs -- die Spur steht mit Zeitstempel in der Datei, ohne Körper und Kopfzeilen, INFO weiter auf stderr; eine fertige und eine
+  nach 0,5 s verlassene Anfrage gelesen; `server_stand()` für fertig, verlassen („Verbindung beendet“) und nicht angekommen; ein Bericht
+  mit Serverzeile unter der offenen Anfrage; Ausgang nach `loadingFailed` (einmal), spät fertig mit Status und Dauer, nie gemeldet ohne
+  Ausgang, Ende des Laufs mit noch offenen, neuer Ausgang ändert die Meldung; Start der Instanz mit trace auf beiden Wegen.
+- Gegenproben (Regel 24): Start ohne trace, ASGI-Spur nicht in der Datei, offene Anfragen nie vorgemerkt -- alle erwarteten Prüfungen
+  rot, jede Datei byte-genau zurück (SHA-256).
+- Neu Klicktest `scripts/klicktest_verbindungsprotokoll.py` (15 Prüfungen, echter Chrome und uvicorn): `verbindungen.log` im
+  Arbeitsordner; Statusabfrage der Kundenakte im Netz angehalten -- im Bericht offen, nicht gesendet, „Server: nicht angekommen“;
+  fortgesetzt -- Ausgang „fertig, Status 200“ mit Serverzeile (angekommen, Antwort-Kopf 200, fertig), einmal; am Netz gescheitert
+  (`Fetch.failRequest`) -- Ausgang „fehlgeschlagen: net::ERR_CONNECTION_RESET“ (`loadingFailed`), nie angekommen, auch nicht über die
+  gleiche Anfrage der nächsten Seite; Seitenwechsel während angehalten -- am Ende „noch offen“. Der erste Lauf fand die falsche Zuordnung
+  (oben) und dass Chrome für eine im Netz angehaltene Anfrage beim Seitenwechsel kein Ende meldet (Nebenbefund 1). 15 von 15; dazu
+  `klicktest_anmelden` mit dem neuen Werkzeug 69 von 69, `verbindungen.log` mit 2431 Zeilen.
+- Ein vierter Gegenprobenfall (Zuordnung ohne Obergrenze) ist rot wie erwartet; zusammen 4 Fälle, 12 erwartete rote Prüfungen.
+- **Angepasste Erwartungen** (Regel 28): `test_v400::test_a_document_change_keeps_the_open_requests_of_the_old_document_until_the_next_one`
+  -- altes Soll: nach dem späten Ende der beim Wechsel offen gebliebenen Abmeldung nur „keine offenen Anfragen“ und der Fehlschlag; neues
+  Soll: dazu einmal „Ausgang zuvor als offen gemeldeter Anfragen: 1 … -> fertig, Status 200 nach 0,6 s“, beim nächsten Bericht wie bisher.

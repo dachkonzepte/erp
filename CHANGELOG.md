@@ -4,6 +4,17 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.115 – Klicktest-Werkzeug: Verbindungsprotokoll je Instanz, Ausgang hängender Anfragen
+
+Vorgabe vom 16.10.2026, Punkt 2. Jede Klicktest-Instanz startet uvicorn mit `--log-level trace` und schreibt die Spur -- Verbindungen,
+ASGI-Nachrichten ohne Inhalt, Zeitstempel -- in `verbindungen.log` ihres Arbeitsordners. Das Netzprotokoll gleicht jede gemeldete Anfrage
+damit ab und schreibt darunter, wo sie auf dem Server steht („Server: [41] angekommen +0,0 s, Antwort-Kopf 200 +0,2 s, …“ oder „nicht
+angekommen“). Eine einmal als offen gemeldete Anfrage bekommt ihren Ausgang nachgetragen, sobald der Browser ihn meldet („fertig, Status
+200 nach 61,2 s“, „fehlgeschlagen: net::ERR_CONNECTION_RESET nach 1,0 s“ aus `loadingFailed`), in der nächsten Meldung und am Ende jedes
+Laufs. Neu `tests/test_v420_klicktest_verbindungen.py` (mit einem echten uvicorn) und `scripts/klicktest_verbindungsprotokoll.py`; dessen
+erster Lauf fand, dass eine nie gesendete Anfrage die Serverzeile ihrer Nachfolgerin bekam -- zugeordnet wird seither nur bis zur nächsten
+gleichen Anfrage. Details: `docs/archiv/testablauf-und-klicktests.md`, „Verbindungsprotokoll je Instanz“.
+
 ## 1.8.114 – Datenbankverbindungen unter Last: nichts auf der Event-Loop, Sitzung vor dem Senden zu, eine Verbindung je Seite
 
 Vorgabe vom 16.10.2026, Punkt 1. Die Anmeldeschranke las ihre Sitzung bisher direkt auf der Event-Loop -- war der Pool leer, stand der

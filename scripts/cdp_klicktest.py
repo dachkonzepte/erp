@@ -116,6 +116,19 @@ IM NETZ ANHALTEN (seit 1.8.97): `await tab.im_netz_anhalten("*/api/auth/logout")
 werden (CDP Fetch, Stufe Request) -- der Server hat sie noch nicht, anders als bei zurueckhalten(); das Netzwerkprotokoll zeigt sie
 offen, nicht gesendet, "im Netz angehalten". `warte_bis_im_netz_angehalten()`, `im_netz_fortsetzen()`. Vorlage
 `scripts/klicktest_anmelden.py`.
+
+VERBINDUNGSPROTOKOLL (seit 1.8.115): uvicorn läuft mit --log-level trace und schreibt je Instanz `verbindungen.log` in den
+Arbeitsordner -- jede Verbindung (made/lost) und jede ASGI-Nachricht (Start, Antwort-Kopf, Körper ohne Inhalt, Abbruch, Ende), mit
+Zeitstempel. Das Netzprotokoll gleicht jede gemeldete Anfrage damit ab und schreibt eine Zeile dazu:
+
+          Server: [41] angekommen +0,0 s, Antwort-Kopf 200 +0,2 s, fertig +0,2 s
+
+oder "Server: nicht angekommen", "noch ohne Antwort-Kopf", "Browser hat abgebrochen", "Verbindung beendet". So sagt ein Bericht, ob
+eine hängende Anfrage den Server je erreicht hat, und wo sie steht. Am Ende eines nicht erfolgreichen Laufs nennt das Werkzeug den Pfad.
+
+AUSGANG (seit 1.8.115): eine Anfrage, die einmal als offen gemeldet wurde, bekommt ihren Ausgang nachgetragen, sobald der Browser ihn
+meldet -- "fertig, Status 200 nach 61,2 s" oder "fehlgeschlagen: net::ERR_ABORTED (abgebrochen) nach 3,1 s" (Network.loadingFailed) --
+in der nächsten Meldung und am Ende jedes Laufs (auch eines erfolgreichen); eine bis zum Ende offene heißt dort "noch offen".
 """
 
 from __future__ import annotations
@@ -136,6 +149,7 @@ import tempfile
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -320,8 +334,10 @@ class Netzprotokoll:
     Anfragen des alten Dokuments bis zum nächsten Wechsel zu "beim Wechsel offen" bzw. "fehlgeschlagen" -- ein Browser meldet für
     eine Anfrage, die mit ihrem Dokument verschwindet, nicht immer ein Ende. Danach erscheinen sie nicht mehr; verlauf behält alles."""
 
-    def __init__(self, basis: str = ""):
+    def __init__(self, basis: str = "", verbindungen: Path | None = None):
         self.basis = basis.rstrip("/")
+        self.verbindungen = verbindungen  # seit 1.8.115: Verbindungsprotokoll des Servers (uvicorn trace), siehe server_stand()
+        self._spur: tuple | None = None  # (Dateigröße, Aufgaben, verlorene Verbindungen) des letzten Lesens
         self.verlauf: list[dict] = []           # jede Anfrage, in der Reihenfolge ihres ersten Ereignisses
         self._nach_id: dict[str, dict] = {}
         self._aktuell: dict[str, dict] = {}     # Anfragen des aktuellen Hauptdokuments
@@ -337,7 +353,7 @@ class Netzprotokoll:
             e = {"id": rid, "url": None, "methode": None, "art": None, "loader": None, "start": None, "ts_start": None,
                  "erstes": jetzt, "schritte": 0, "gesendet_n": 0, "gesendet_um": None, "kopf_n": 0, "antwort": False,
                  "status": None, "ts_antwort": None, "cache": False, "fertig": False, "fehler": None, "abgebrochen": False,
-                 "ts_ende": None, "angehalten": False}
+                 "ts_ende": None, "angehalten": False, "gemeldet_offen": False, "ausgang_gemeldet": False}
             self._nach_id[rid] = e
             self._aktuell[rid] = e
             self.verlauf.append(e)
@@ -433,6 +449,15 @@ class Netzprotokoll:
     def fehlgeschlagen(self) -> list[dict]:
         return [e for e in (*self._aktuell.values(), *self._alt) if e["fehler"] is not None]
 
+    def ausgaenge(self) -> list[dict]:
+        """Seit 1.8.115: zuvor als offen gemeldete Anfragen, deren Ausgang der Browser inzwischen gemeldet hat (fertig oder
+        loadingFailed) und der noch nicht berichtet ist."""
+        return [e for e in self.verlauf if e["gemeldet_offen"] and _beendet(e) and not e["ausgang_gemeldet"]]
+
+    def noch_offen_gemeldet(self) -> list[dict]:
+        """Seit 1.8.115: als offen gemeldet und bis jetzt ohne Ausgang."""
+        return [e for e in self.verlauf if e["gemeldet_offen"] and not _beendet(e)]
+
     # -- Bericht --------------------------------------------------------------
 
     def _adresse(self, url: str | None) -> str:
@@ -442,21 +467,88 @@ class Netzprotokoll:
             url = url[len(self.basis):]
         return url if len(url) <= 90 else url[:89] + "…"
 
+    def _was(self, e: dict) -> str:
+        return f"{e['methode'] or '?'} {self._adresse(e['url'])}" + (f" [{e['art']}]" if e["art"] else "")
+
     def _zeile(self, e: dict, jetzt: float, fehlgeschlagen: bool) -> str:
-        was = f"{e['methode'] or '?'} {self._adresse(e['url'])}" + (f" [{e['art']}]" if e["art"] else "")
         if fehlgeschlagen:
             wann = f"{_uhrzeit(e['start'])}  {e['fehler']}" + (" (abgebrochen)" if e["abgebrochen"] else "")
         else:
             wann = f"seit {_uhrzeit(e['start'])} ({_sekunden(jetzt - (e['start'] or jetzt))})"
-        zeile = (f"      {was}  {wann}  gesendet: {'ja' if gesendet(e) else ('nein (Cache)' if e['cache'] else 'nein')}"
+        zeile = (f"      {self._was(e)}  {wann}  gesendet: {'ja' if gesendet(e) else ('nein (Cache)' if e['cache'] else 'nein')}"
                  f"  Antwort-Kopf: {'ja' if antwort_kopf(e) else 'nein'}")
         return zeile + ("  im Netz angehalten" if e["angehalten"] else "")
 
-    def _liste(self, eintraege: list[dict], jetzt: float, fehlgeschlagen: bool = False) -> list[str]:
-        zeilen = [self._zeile(e, jetzt, fehlgeschlagen) for e in eintraege[:NETZ_ZEILEN]]
+    def _dauer(self, e: dict, jetzt: float) -> float:
+        if e["ts_start"] is not None and e["ts_ende"] is not None:
+            return e["ts_ende"] - e["ts_start"]
+        return jetzt - (e["start"] or jetzt)
+
+    def _ausgang_zeile(self, e: dict, jetzt: float) -> str:
+        """Seit 1.8.115: der Ausgang einer zuvor als offen gemeldeten Anfrage."""
+        if not _beendet(e):
+            wie = "noch offen"
+        elif e["fehler"] is not None:
+            wie = f"fehlgeschlagen: {e['fehler']}" + (" (abgebrochen)" if e["abgebrochen"] else "")
+        else:
+            wie = "fertig" + (f", Status {e['status']}" if e["status"] else "")
+        return f"      {self._was(e)}  seit {_uhrzeit(e['start'])}  -> {wie} nach {_sekunden(self._dauer(e, jetzt))}"
+
+    def _liste(self, eintraege: list[dict], jetzt: float, fehlgeschlagen: bool = False, *, ausgang: bool = False) -> list[str]:
+        zeilen = []
+        for e in eintraege[:NETZ_ZEILEN]:
+            zeilen.append(self._ausgang_zeile(e, jetzt) if ausgang else self._zeile(e, jetzt, fehlgeschlagen))
+            stand = self.server_stand(e)
+            if stand:
+                zeilen.append(f"          {stand}")
         if len(eintraege) > NETZ_ZEILEN:
             zeilen.append(f"      … und {len(eintraege) - NETZ_ZEILEN} weitere")
         return zeilen
+
+    # -- Verbindungsprotokoll des Servers (seit 1.8.115) ----------------------------------------------------------------
+
+    def server_stand(self, e: dict) -> str | None:
+        """Wo die Anfrage auf dem Server steht, laut Verbindungsprotokoll (uvicorn trace, verbindungen.log): die erste ASGI-Aufgabe mit
+        derselben Methode und demselben Pfad, die frühestens 0,25 s vor dem Start im Browser begann (dieselbe Uhr; der Server sieht
+        eine Anfrage nach dem Browser) und vor dem Start der nächsten gleichen Anfrage im Browser -- sonst nähme eine nie gesendete
+        Anfrage die ihrer Nachfolgerin (im Klicktest so gefunden). None ohne Protokoll."""
+        if self.verbindungen is None or not e.get("url") or not e.get("methode"):
+            return None
+        try:
+            groesse = self.verbindungen.stat().st_size
+            if self._spur is None or self._spur[0] != groesse:  # nur neu lesen, wenn die Datei gewachsen ist
+                self._spur = (groesse, *verbindungsprotokoll_lesen(self.verbindungen))
+        except OSError:
+            return None
+        aufgaben, verloren = self._spur[1], self._spur[2]
+        pfad = urllib.parse.urlsplit(e["url"]).path
+        start = e["start"] or 0
+        spaeter = [n["start"] for n in self.verlauf if n is not e and n["methode"] == e["methode"] and n["url"]
+                   and urllib.parse.urlsplit(n["url"]).path == pfad and (n["start"] or 0) > start]
+        bis = min(spaeter) - 0.25 if spaeter else float("inf")
+        passend = [a for a in aufgaben if a["methode"] == e["methode"] and a["pfad"] == pfad and start - 0.25 <= a["start"] < bis]
+        if not passend:
+            return "Server: nicht angekommen (keine passende Anfrage im Verbindungsprotokoll)"
+        a = min(passend, key=lambda x: x["start"])
+
+        def rel(t: float) -> str:
+            return _sekunden(t - start)
+
+        teile = [f"Server: [{a['nr']}] angekommen +{rel(a['start'])}"]
+        if a["kopf"] is not None:
+            teile.append(f"Antwort-Kopf {a['status']} +{rel(a['kopf'])}")
+        else:
+            teile.append("noch ohne Antwort-Kopf")
+        if a["koerper_fertig"] is not None:
+            teile.append(f"Körper gesendet +{rel(a['koerper_fertig'])}")
+        if a["abbruch"] is not None:
+            teile.append(f"Browser hat abgebrochen +{rel(a['abbruch'])}")
+        if a["ende"] is not None:
+            teile.append(("Ausnahme" if a["ausnahme"] else "fertig") + f" +{rel(a['ende'])}")
+        weg = verloren.get(a["client"])
+        if weg is not None and weg >= a["start"] and (a["ende"] is None or weg < a["ende"]):  # vor dem Ende der Antwort
+            teile.append(f"Verbindung beendet +{rel(weg)}")
+        return ", ".join(teile)
 
     def _seite_weicht_ab(self, seite: dict | None) -> str | None:
         if not seite:
@@ -481,15 +573,35 @@ class Netzprotokoll:
         if fehl:
             zeilen.append(f"    Netzwerk: fehlgeschlagen: {len(fehl)}")
             zeilen += self._liste(fehl, jetzt, fehlgeschlagen=True)
+        zeilen += self.ausgang_bericht(jetzt, noch_offen=False)
+        for e in (*offen, *alt):
+            e["gemeldet_offen"] = True
         abweichung = self._seite_weicht_ab(seite)
         return zeilen + ([abweichung] if abweichung else [])
+
+    def ausgang_bericht(self, jetzt: float | None = None, *, noch_offen: bool = True) -> list[str]:
+        """Seit 1.8.115: der Ausgang der zuvor als offen gemeldeten Anfragen, die seither fertig wurden oder scheiterten (jede einmal);
+        mit noch_offen=True (Ende des Laufs) dazu die bis jetzt offenen."""
+        jetzt = time.time() if jetzt is None else jetzt
+        fertig = self.ausgaenge()
+        offen = self.noch_offen_gemeldet() if noch_offen else []
+        zeilen = []
+        if fertig:
+            zeilen.append(f"    Netzwerk: Ausgang zuvor als offen gemeldeter Anfragen: {len(fertig)}")
+            zeilen += self._liste(fertig, jetzt, ausgang=True)
+        if offen:
+            zeilen.append(f"    Netzwerk: zuvor als offen gemeldet, noch ohne Ausgang: {len(offen)}")
+            zeilen += self._liste(offen, jetzt, ausgang=True)
+        for e in fertig:
+            e["ausgang_gemeldet"] = True
+        return zeilen
 
     def melden(self, jetzt: float | None = None, seite: dict | None = None, *, immer: bool = False) -> list[str]:
         """Wie bericht(); hat sich seit der letzten Meldung nichts geändert (dieselben Anfragen im selben Zustand), nur eine Zeile
         -- ein Klicktest, dessen Seite nicht lädt, scheitert oft an vielen Prüfungen nacheinander."""
         offen, alt, fehl = self.offen(), self.beim_wechsel_offen(), self.fehlgeschlagen()
         schluessel = (tuple((e["id"], gesendet(e), antwort_kopf(e), e["fehler"], e["angehalten"]) for e in (*offen, *alt, *fehl)),
-                      self._seite_weicht_ab(seite))
+                      self._seite_weicht_ab(seite), tuple(e["id"] for e in self.ausgaenge()))
         if not immer and schluessel == self._gemeldet:
             return [f"    Netzwerk: unverändert seit der letzten Meldung ({len(offen)} offen"
                     + (f", {len(alt)} beim Wechsel offen geblieben" if alt else "")
@@ -498,18 +610,93 @@ class Netzprotokoll:
         return self.bericht(jetzt, seite)
 
 
+# ---------------------------------------------------------------------------
+# Verbindungsprotokoll des Servers (seit 1.8.115)
+# ---------------------------------------------------------------------------
+
+VERBINDUNGEN_DATEI = "verbindungen.log"
+_ZEILE = re.compile(r"^(\d+\.\d+) \S+ \S+ (.*)$")
+_ASGI = re.compile(r"^(?:(\S+:\d+) - )?ASGI \[(\d+)\] (Started scope=|Send |Receive |Completed|Raised exception)(.*)$")
+_VERLOREN = re.compile(r"^(\S+:\d+) - HTTP connection lost$")
+
+
+def log_konfiguration(datei: Path) -> dict:
+    """Seit 1.8.115: Logging der Klicktest-Instanz -- die Spur von uvicorn (Verbindungen, ASGI-Nachrichten, trace) in datei, mit
+    Zeitstempel in Sekunden seit 1970 (der Abgleich mit dem Browser rechnet damit); Meldungen ab INFO wie bisher auf stderr
+    (server.err.log), das Zugriffsprotokoll auf stdout (server.out.log). Die App selbst protokolliert weiter in data/erp.log."""
+    return {
+        "version": 1, "disable_existing_loggers": False,
+        "formatters": {"spur": {"format": "%(created).3f %(levelname)s %(name)s %(message)s"},
+                       "kurz": {"format": "%(levelname)s:     %(message)s"}},
+        "handlers": {
+            "verbindungen": {"class": "logging.FileHandler", "filename": str(datei), "encoding": "utf-8", "formatter": "spur",
+                             "level": 5},
+            "stderr": {"class": "logging.StreamHandler", "stream": "ext://sys.stderr", "formatter": "kurz", "level": "INFO"},
+            "stdout": {"class": "logging.StreamHandler", "stream": "ext://sys.stdout", "formatter": "kurz", "level": "INFO"},
+        },
+        "loggers": {
+            "uvicorn": {"handlers": ["stderr"], "level": "INFO", "propagate": False},
+            "uvicorn.error": {"handlers": ["verbindungen", "stderr"], "level": 5, "propagate": False},
+            "uvicorn.asgi": {"handlers": ["verbindungen"], "level": 5, "propagate": False},
+            "uvicorn.access": {"handlers": ["verbindungen", "stdout"], "level": "INFO", "propagate": False},
+        },
+    }
+
+
+def verbindungsprotokoll_lesen(datei: Path) -> tuple[list[dict], dict[str, float]]:
+    """Die ASGI-Aufgaben aus dem Verbindungsprotokoll (je: nr, client, methode, pfad, start, kopf, status, koerper_fertig, abbruch,
+    ende, ausnahme -- Zeiten in Sekunden seit 1970) und je Client-Adresse die Zeit, zu der die Verbindung endete."""
+    aufgaben: dict[int, dict] = {}
+    verloren: dict[str, float] = {}
+    with open(datei, encoding="utf-8", errors="replace") as f:
+        for zeile in f:
+            m = _ZEILE.match(zeile.rstrip("\n"))
+            if not m:
+                continue
+            zeit, text = float(m.group(1)), m.group(2)
+            v = _VERLOREN.match(text)
+            if v:
+                verloren[v.group(1)] = zeit
+                continue
+            a = _ASGI.match(text)
+            if not a:
+                continue
+            client, nr, art, rest = a.group(1), int(a.group(2)), a.group(3), a.group(4)
+            if art == "Started scope=":
+                methode = re.search(r"'method': '([A-Z]+)'", rest)
+                pfad = re.search(r"'path': '([^']*)'", rest)
+                aufgaben[nr] = {"nr": nr, "client": client, "methode": methode.group(1) if methode else None,
+                                "pfad": pfad.group(1) if pfad else None, "start": zeit, "kopf": None, "status": None,
+                                "koerper_fertig": None, "abbruch": None, "ende": None, "ausnahme": False}
+                continue
+            eintrag = aufgaben.get(nr)
+            if eintrag is None:
+                continue
+            if art == "Send " and "'http.response.start'" in rest:
+                status = re.search(r"'status': (\d+)", rest)
+                eintrag["kopf"], eintrag["status"] = zeit, int(status.group(1)) if status else None
+            elif art == "Send " and "'http.response.body'" in rest and "'more_body': True" not in rest:
+                eintrag["koerper_fertig"] = zeit
+            elif art == "Receive " and "'http.disconnect'" in rest:
+                eintrag["abbruch"] = eintrag["abbruch"] or zeit
+            elif art in ("Completed", "Raised exception"):
+                eintrag["ende"], eintrag["ausnahme"] = zeit, art == "Raised exception"
+    return list(aufgaben.values()), verloren
+
+
 class Tab:
     """Eine Browser-Seite. fehler sammelt JS-Ausnahmen und console.error seit dem letzten oeffnen(); netz (seit 1.8.97) zeichnet
     die Netzwerk-Ereignisse auf (Netzprotokoll); downloads (seit 1.8.101) die Downloads, die der Tab beginnt (Page.downloadWillBegin --
     wohin sie gehen, legt ein Klicktest mit Page.setDownloadBehavior fest)."""
 
-    def __init__(self, ws, base_url: str, shots: Path, cdp_port: int | None = None):
+    def __init__(self, ws, base_url: str, shots: Path, cdp_port: int | None = None, verbindungen: Path | None = None):
         self.ws, self.base, self.shots = ws, base_url, shots
         self.cdp_port = cdp_port  # seit 1.8.103, für zweiter_tab()
+        self.verbindungen = verbindungen  # seit 1.8.115, Verbindungsprotokoll des Servers
         self.n = 0
         self.fehler: list[str] = []
         self.nicht_geladen: list[str] = []
-        self.netz = Netzprotokoll(base_url)
+        self.netz = Netzprotokoll(base_url, verbindungen)
         self.downloads: list[dict] = []  # seit 1.8.101: jeder Download, den der Tab beginnt ({"url", "name"})
 
     async def cmd(self, method: str, **params):
@@ -568,7 +755,7 @@ class Tab:
         ziel = json.load(urllib.request.urlopen(anfrage))
         try:
             async with websockets.connect(ziel["webSocketDebuggerUrl"], max_size=64_000_000) as ws:
-                tab = Tab(ws, self.base, self.shots, self.cdp_port)
+                tab = Tab(ws, self.base, self.shots, self.cdp_port, self.verbindungen)
                 for domain in ("Page", "Runtime", "Network"):
                     await tab.cmd(f"{domain}.enable")
                 await tab.fenster(1400, 1000)
@@ -916,12 +1103,12 @@ def _uhr_einsetzen() -> None:
     berlin_time._utc_now = lambda: start + timedelta(seconds=time.time() - echt)
 
 
-def _server_mit_uhr(host: str, port: int) -> None:
-    """uvicorn im selben Prozess wie die gesetzte Uhr -- `python -m uvicorn` hätte sie nicht."""
+def _server_mit_uhr(host: str, port: int, log_config: str) -> None:
+    """uvicorn im selben Prozess wie die gesetzte Uhr -- `python -m uvicorn` hätte sie nicht. Seit 1.8.115 mit der Spur (trace)."""
     _uhr_einsetzen()
     import uvicorn
 
-    uvicorn.run("app.main:app", host=host, port=port)
+    uvicorn.run("app.main:app", host=host, port=port, log_config=log_config, log_level="trace")
 
 
 def _isolierte_umgebung(ordner: Path) -> dict:
@@ -1000,11 +1187,16 @@ def _ablauf(befuellen, pruefen, args, uhr: str | None, wachhund: "Wachhund | Non
     seed = json.loads(seed_datei.read_text(encoding="utf-8"))
 
     server = chrome = None
+    verbindungen = ordner / VERBINDUNGEN_DATEI
+    log_config = ordner / "uvicorn-log.json"
+    log_config.write_text(json.dumps(log_konfiguration(verbindungen), indent=1), encoding="utf-8")
     try:
         with open(ordner / "server.out.log", "wb") as out, open(ordner / "server.err.log", "wb") as err:
-            befehl = ([sys.executable, str(Path(__file__).resolve()), "--server-mit-uhr", "127.0.0.1", str(app_port)]
+            # Seit 1.8.115 mit --log-level trace: Verbindungsprotokoll je Instanz in verbindungen.log (siehe oben).
+            befehl = ([sys.executable, str(Path(__file__).resolve()), "--server-mit-uhr", "127.0.0.1", str(app_port), str(log_config)]
                       if uhrzeit else
-                      [sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", str(app_port)])
+                      [sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", str(app_port),
+                       "--log-config", str(log_config), "--log-level", "trace"])
             server = subprocess.Popen(befehl, env=env, cwd=ROOT, stdout=out, stderr=err)
         if wachhund:
             wachhund.kinder.append(server)
@@ -1021,7 +1213,9 @@ def _ablauf(befuellen, pruefen, args, uhr: str | None, wachhund: "Wachhund | Non
         if not _warte_auf(f"http://127.0.0.1:{cdp_port}/json/version", 30):
             print("Chrome antwortet nicht auf dem CDP-Port.")
             return 2
-        ok = asyncio.run(_lauf(pruefen, seed, cdp_port, f"http://127.0.0.1:{app_port}", ordner / "shots"))
+        ok = asyncio.run(_lauf(pruefen, seed, cdp_port, f"http://127.0.0.1:{app_port}", ordner / "shots", verbindungen))
+        if not ok:
+            print(f"Verbindungsprotokoll des Servers (uvicorn trace): {verbindungen}", flush=True)
         return 0 if ok else 1
     finally:
         if wachhund:
@@ -1035,14 +1229,14 @@ def _ablauf(befuellen, pruefen, args, uhr: str | None, wachhund: "Wachhund | Non
                     beenden(proc.pid)
 
 
-async def _lauf(pruefen, seed, cdp_port: int, base_url: str, shots: Path) -> bool:
+async def _lauf(pruefen, seed, cdp_port: int, base_url: str, shots: Path, verbindungen: Path | None = None) -> bool:
     import websockets
 
     ziele = json.load(urllib.request.urlopen(f"http://127.0.0.1:{cdp_port}/json/list"))
     seite = next(t for t in ziele if t["type"] == "page")
     p = Pruefungen()
     async with websockets.connect(seite["webSocketDebuggerUrl"], max_size=64_000_000) as ws:
-        tab = Tab(ws, base_url, shots, cdp_port)
+        tab = Tab(ws, base_url, shots, cdp_port, verbindungen)
         p.netz = tab.netz  # seit 1.8.97
         for domain in ("Page", "Runtime", "Network"):
             await tab.cmd(f"{domain}.enable")
@@ -1069,10 +1263,18 @@ async def _pruefen_und_melden(pruefen, tab: Tab, seed, p: Pruefungen) -> bool:
             await asyncio.wait_for(tab.netz_melden("--  Netzwerk am Ende des Laufs (nicht wie erwartet):", immer=True), 15)
         except Exception as exc:
             print(f"--  Netzprotokoll am Ende nicht lesbar ({type(exc).__name__})", flush=True)
+    # Seit 1.8.115: der Ausgang jeder zuvor als offen gemeldeten Anfrage, auch nach einem erfolgreichen Lauf.
+    try:
+        await asyncio.wait_for(tab.nachlesen(), 15)
+    except Exception:
+        pass
+    ausgang = tab.netz.ausgang_bericht()
+    if ausgang:
+        print("\n".join(["--  Netzwerk: Ausgang der als offen gemeldeten Anfragen am Ende des Laufs:", *ausgang]), flush=True)
     if fehler is not None:
         raise fehler
     return ok
 
 
-if __name__ == "__main__" and len(sys.argv) == 4 and sys.argv[1] == "--server-mit-uhr":
-    _server_mit_uhr(sys.argv[2], int(sys.argv[3]))
+if __name__ == "__main__" and len(sys.argv) == 5 and sys.argv[1] == "--server-mit-uhr":
+    _server_mit_uhr(sys.argv[2], int(sys.argv[3]), sys.argv[4])
