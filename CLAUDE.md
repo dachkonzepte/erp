@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.115** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.116** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -789,6 +789,14 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     einen echten Server gegen PostgreSQL an (kleiner Pool, langsame Downloads, viele Seiten, gesperrte Tabelle). Details:
     `docs/archiv/serverbetrieb-und-anmeldesicherheit.md`, "Datenbankverbindungen unter Last".
 
+36. **Eine JS-Ausnahme in einem node-Test lässt den Test scheitern, seit 1.8.116.** Jedes Seitenskript, das ein Test in node ausführt,
+    läuft über `tests/node_lauf.py` (`node_ausfuehren()`/`node_lauf()`, auch `_node()` und `im_browser()`): ein Programmfehler (TypeError,
+    ReferenceError, SyntaxError, RangeError, URIError, EvalError) lässt den Test scheitern, auch wenn die Seite ihn fängt -- eine Seite
+    fängt fast jede Ausnahme und zeigt sie an, ein Test sah dann nur, dass "nichts Falsches" erscheint. Erlaubt nur mit Grund (`ERLAUBT`,
+    `ERLAUBT_TEXT`, je Test `erlaubt=`). Was dadurch rot wird, ist ein Befund (Attrappe oder Seite) und wird behoben. Die Attrappe einer
+    Seite (`seite()`) bindet genau die Bausteine ein, die die Seite einbindet. `tests/test_v421_node_ausnahmen.py` (AST: kein node-Lauf
+    daran vorbei). Details: `docs/archiv/testablauf-und-klicktests.md`, "JS-Ausnahmen in node-Tests".
+
 ## Fachbegriffe & Domänenmodell
 
 - **"Vorgang"** (in normalem Gespräch) = **Projekt** (`Project`) – wurde in der Sitzung explizit
@@ -1249,7 +1257,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
 - **Testablauf und Klicktest-Werkzeug** (seit 1.8.108: volle Suite parallel, Kennung und Aufräumen der Testschemas, Sperren der
   Spielwiese, `klicktest_alle.py --gleichzeitig`, `ALLEIN` für zeitkritische Klicktests, Abbruch in Gegenproben, Messungen; die
   Festlegungen zu Werkzeug und Testablauf, Regel 28; seit 1.8.111 Zeitgrenze je Test, Browser-Uhr im Klicktest, taskkill mit
-  Zeitlimit; seit 1.8.115 Verbindungsprotokoll von uvicorn je Instanz und Ausgang hängender Anfragen im Netzprotokoll)
+  Zeitlimit; seit 1.8.115 Verbindungsprotokoll von uvicorn je Instanz und Ausgang hängender Anfragen im Netzprotokoll; seit 1.8.116
+  JS-Ausnahmen in node-Tests, Regel 36)
   -- `docs/archiv/testablauf-und-klicktests.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`
@@ -1567,7 +1576,9 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
   "speichern is not defined". Ein Test, der den Rumpf einer Speicherfunktion wörtlich liest (`tests/test_v329_teil_updates.py::ui_keys`),
   findet `body:JSON.stringify(` im Pfeil innerhalb von `speichern()`. Seit 1.8.109 dazu `_zahl.html` (Zahlenfelder lesen über
   `zahlFeld()`; die Attrappe eines Felds braucht `dataset`, `getAttribute`, `setAttribute`, `removeAttribute`, der Wert steht deutsch
-  im Feld).
+  im Feld). Seit 1.8.116 bindet `seite()` die Bausteine ein, die die Seite selbst einbindet (auch `_fehlertext.html`), und jeder node-Lauf
+  geht über `tests/node_lauf.py` (Regel 36): eine gefangene JS-Ausnahme lässt den Test scheitern -- eine Attrappe, die absichtlich wirft,
+  braucht `erlaubt=` mit Grund. Eine Antwort, die die Seite zeichnet, kommt besser vom echten Dienst (`router_test_client`) als erfunden.
 
 - **Feste Uhr statt Tageszeit** (seit 1.8.36): ein Test, dessen Ergebnis von der Uhrzeit abhängt (z. B. Monteur
   an `/api/field-view/today`, ab 19:00 "Feierabend" 401), nimmt die Fixture `feste_uhr` bzw. in einer Modul-Fixture

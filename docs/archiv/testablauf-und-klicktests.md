@@ -364,3 +364,72 @@ Alle betreffen nur Werkzeug und Testablauf (Regel 28: der Bericht nennt ihre Zah
 - **Angepasste Erwartungen** (Regel 28): `test_v400::test_a_document_change_keeps_the_open_requests_of_the_old_document_until_the_next_one`
   -- altes Soll: nach dem späten Ende der beim Wechsel offen gebliebenen Abmeldung nur „keine offenen Anfragen“ und der Fehlschlag; neues
   Soll: dazu einmal „Ausgang zuvor als offen gemeldeter Anfragen: 1 … -> fertig, Status 200 nach 0,6 s“, beim nächsten Bericht wie bisher.
+
+
+## JS-Ausnahmen in node-Tests, Planungsvorschlag mit echtem Dienst (1.8.116)
+
+Vorgabe vom 16.10.2026, Punkt 5: `test_v405` (Planungsvorschlag) prüft nichts -- Testattrappe wie der echte Dienst, mit Gegenprobe.
+Muster: eine JS-Ausnahme in einem node-Test lässt den Test scheitern; was dadurch rot wird, ist ein Befund und wird behoben.
+
+### Befund
+
+`test_namen_im_planungsvorschlag_bleiben_text` war grün, ohne etwas zu prüfen: die Attrappe (`FAKE_DOM` in `tests/test_v334_auswahl_restfaelle.py`)
+kannte `element.remove()` nicht; `speichern()` nimmt nach jedem gelungenen Speichern den Hinweis „Anmeldung abgelaufen“ weg
+(`_dkAnmeldungAbgelaufen(false)`) und scheiterte mit „TypeError: el.remove is not a function“; `calculateSuggestion()` fing die Ausnahme und
+schrieb ihren Text in den Hinweis -- darin stand kein `<img`, der Test war grün. Die Antwort des Dienstes war zudem erfunden.
+
+### Umsetzung 1.8.116
+
+- **Fänger** (`tests/node_lauf.py`): jeder node-Lauf eines Tests bekommt einen Vorspann -- ein Worker-Thread verbindet sich mit dem
+  Inspector des Hauptthreads (`inspector.Session.connectToMainThread()`), hält bei jeder Ausnahme an, auch einer gefangenen
+  (`Debugger.setPauseOnExceptions` „all“), merkt sie sich in einem gemeinsamen Speicher und lässt weiterlaufen. Am Ende meldet der Vorspann
+  jeden Programmfehler (TypeError, ReferenceError, SyntaxError, RangeError, URIError, EvalError) auf stderr, der Test scheitert mit
+  `JsAusnahme` (Klasse, Funktion, Zeile, Text). Eine gewollte Ausnahme der Seite ist ein `Error` und bleibt erlaubt; Ausnahmen in node
+  selbst zählen nicht. `_node()` (test_v314) und test_v338 laufen darüber; `test_jeder_node_lauf_geht_ueber_node_lauf` hält das per AST fest
+  (Ausnahme: die reine Syntaxprüfung in test_v398).
+- **Was dadurch rot wurde** (Befunde, behoben): fünf Tests in drei Dateien. (1) Die Attrappe kannte `remove()` nicht (Planungsvorschlag);
+  jetzt entfernt `remove()` das Element wie im Browser. (2) `seite()` band immer dieselben sechs Bausteine ein und nie `_fehlertext.html`:
+  jede Seite, die `fehlerText()` nutzt, scheiterte im Test bei jeder abgelehnten Antwort an „fehlerText is not defined“ (Kundenakte,
+  `test_kunden_kategorie_ohne_still_vorgewaehlte_vorgabe`) -- jetzt genau die Bausteine, die die Seite selbst einbindet (`eingebunden()`,
+  auch über Teilvorlagen), wie im Browser. (3) `istLokalesZiel()` fängt bei kaputter Prozentkodierung absichtlich den `URIError` von
+  `decodeURIComponent` (Angriffstabelle in test_v401) -- erlaubt mit Grund. (4) Der Netzfehler „TypeError: Failed to fetch“ (so meldet ihn
+  `fetch()`, und der Baustein beim Hochladen ebenso) -- erlaubt mit Grund (test_v404). (5) Die Attrappe in test_v338 wirft absichtlich
+  einen SyntaxError (Antwort ohne JSON) -- dort erlaubt.
+- **Planungsvorschlag** (`test_v405::test_namen_im_planungsvorschlag_bleiben_text`): die Antwort kommt vom echten Dienst
+  (`POST /api/planning/suggestion` mit einer abwesenden Mitarbeiterin und einem Feiertag, beide mit `<img onerror>` im Namen); der Test
+  setzt die Felder der Seite, prüft, dass die Seite genau diese Werte schickt, dass der Hinweis gezeichnet ist (Name und Feiertag als
+  Text), kein `<img`, und dass das vorgeschlagene Ende übernommen ist.
+
+#### Festlegungen 1.8.116 (Bitte bestätigen)
+
+Alle betreffen nur den Testablauf (Regel 28: der Bericht nennt ihre Zahl).
+
+1. **Programmfehler sind TypeError, ReferenceError, SyntaxError, RangeError, URIError, EvalError -- auch gefangen**; ein `Error` (api() bei 4xx/5xx, zahlLesen(), Zeitlimit) bleibt erlaubt.
+2. **Erlaubt sind nur Fälle mit Grund**: `istLokalesZiel`/URIError, „TypeError: Failed to fetch“ überall, je Test eine Attrappe, die absichtlich wirft (`erlaubt=`).
+3. **`seite()` bindet genau die Bausteine ein, die die Seite einbindet** (auch über Teilvorlagen), aus `BAUSTEINE` samt `_fehlertext.html`.
+4. **Die Attrappe entfernt ein Element mit `remove()`**; ein späteres `getElementById` legt es wie bisher neu an.
+5. **Der Fänger läuft über den Inspector in einem Worker-Thread**, als Vorspann vor jedem Skript, Rückgabecode 97 -- kein npm-Paket.
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **Planungsvorschlag für Büro – Auftrag zeigt „Name (undefined)“**: der Server entfernt für diese Rolle `type` aus den Abwesenheiten
+   (`app/routers/planning.py::_redact_suggestion_absences()`), `planning.html::calculateSuggestion()` hängt ihn trotzdem an.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v421_node_ausnahmen.py` (9 Tests): gefangener TypeError, ReferenceError im async-Ablauf, ungefangener Fehler scheitern
+  mit Klasse, Funktion und Zeile; ein Error bleibt erlaubt, ein URIError außerhalb von `istLokalesZiel` nicht; die erlaubten Fälle mit
+  Grund; `require` eines fehlenden Moduls (node intern) zählt nicht; die Ausgabe bleibt unverändert; jeder node-Lauf über
+  `tests/node_lauf.py` (AST) samt Probe des Scanners.
+- Alle 1158 node-basierten Tests (23 Dateien) mit dem Fänger grün, nachdem die fünf Befunde behoben bzw. mit Grund erlaubt sind.
+- Gegenproben (Regel 24): 4 Fälle, alle erwarteten Prüfungen rot, jede Datei byte-genau zurück (SHA-256) -- Attrappe ohne `remove()`
+  (Planungsvorschlag rot mit „JS-Ausnahme … TypeError in _dkAnmeldungAbgelaufen“), Planungsvorschlag ohne `esc()` (rot: `<img` im
+  Hinweis), Fänger aus (fünf Tests in test_v421 rot), die sechs Bausteine von bisher ohne `_fehlertext.html` (Kundenkategorie rot mit
+  „ReferenceError … fehlerText is not defined“).
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v405::test_namen_im_planungsvorschlag_bleiben_text` -- altes Soll „kein `<img` im Hinweis“ (mit erfundener Antwort, ohne Felder);
+    neues Soll „Antwort vom echten Dienst, die Seite schickt die Werte der Felder, Hinweis gezeichnet mit Name und Feiertag als Text, kein
+    `<img`, Ende übernommen“.
+  - `test_v334::seite()` -- Aufbau: die eingebundenen Bausteine statt fester sechs; `FAKE_DOM` mit `remove()`.
+  - `test_v314::_node()`, `test_v338::_messages()` (node-Lauf) -- Aufbau: über `tests/node_lauf.py`; test_v338 erlaubt den SyntaxError
+    seiner Attrappe.

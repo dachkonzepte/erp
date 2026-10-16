@@ -17,13 +17,14 @@ import os
 import re
 import shutil
 import stat
-import subprocess
 import threading
 from io import BytesIO
 from pathlib import Path
 
 import pypdfium2 as pdfium
 import pytest
+
+from tests.node_lauf import node_ausfuehren
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from PIL import Image, ImageDraw
@@ -387,9 +388,8 @@ const faelle = {json.dumps([{"status": s, "body": b} for s, b in cases])};
   process.stdout.write(JSON.stringify(out));
 }})();
 """
-    result = subprocess.run([NODE], input=script, capture_output=True, text=True, encoding="utf-8", timeout=60)
-    assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout)
+    # Seit 1.8.116 über tests/node_lauf.py (eine JS-Ausnahme lässt den Test scheitern); der SyntaxError der Attrappe ist gewollt.
+    return node_ausfuehren(script, erlaubt={("json", "SyntaxError"): "Attrappe: Antwort ohne JSON-Körper"})
 
 
 @pytest.mark.skipif(NODE is None, reason="node nicht installiert -- der Test führt JavaScript aus order.html aus.")

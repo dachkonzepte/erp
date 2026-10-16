@@ -4,6 +4,17 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.116 – JS-Ausnahmen lassen node-Tests scheitern, Planungsvorschlag mit echtem Dienst
+
+Vorgabe vom 16.10.2026, Punkt 5. Der Test zum Planungsvorschlag (`test_v405`) war grün, ohne etwas zu prüfen: seine Attrappe kannte
+`element.remove()` nicht, das Speichern scheiterte mit einem TypeError, die Seite schrieb dessen Text in den Hinweis -- und darin stand kein
+`<img`. Jetzt läuft jedes Seitenskript eines Tests in node mit einem Fänger (`tests/node_lauf.py`, Inspector in einem Worker-Thread): jeder
+Programmfehler (TypeError, ReferenceError, …) lässt den Test scheitern, auch ein von der Seite gefangener. Rot wurden fünf Tests -- die
+Attrappe ohne `remove()`, `seite()` ohne `_fehlertext.html` (jede abgelehnte Antwort endete im Test mit „fehlerText is not defined“),
+dazu drei gewollte Ausnahmen, die jetzt mit Grund erlaubt sind. Der Planungsvorschlag-Test nimmt die Antwort vom echten Dienst und prüft,
+dass der Hinweis wirklich gezeichnet ist. Neu `tests/test_v421_node_ausnahmen.py`, Regel 36; Details:
+`docs/archiv/testablauf-und-klicktests.md`, „JS-Ausnahmen in node-Tests“.
+
 ## 1.8.115 – Klicktest-Werkzeug: Verbindungsprotokoll je Instanz, Ausgang hängender Anfragen
 
 Vorgabe vom 16.10.2026, Punkt 2. Jede Klicktest-Instanz startet uvicorn mit `--log-level trace` und schreibt die Spur -- Verbindungen,

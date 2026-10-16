@@ -43,7 +43,8 @@ function _element(id) {
   const z = {html: '', optionen: null, index: -1, wert: ''};
   const ziel = {id, style: {}, dataset: {}, classList: {add() {}, remove() {}, toggle() {}, contains() { return false; }},
     showModal() {}, close() {}, focus() {}, addEventListener() {}, setAttribute() {}, removeAttribute() {}, getAttribute: () => null,
-    querySelectorAll: () => [], querySelector: () => null};
+    querySelectorAll: () => [], querySelector: () => null,
+    remove() { delete _elemente[id]; }};  // seit 1.8.116: wie ein echtes Element (speichern() nimmt so den Hinweis "abgelaufen" weg)
   return _elemente[id] = new Proxy(ziel, {
     get(t, k) {
       if (k === 'innerHTML') return z.html;
@@ -91,13 +92,30 @@ globalThis.fetch = async (url, opt = {}) => {
 """
 
 
+BAUSTEINE = ("_auswahl.html", "_speichern.html", "_aktionen.html", "_weiterleitung.html", "_links.html", "_zahl.html", "_fehlertext.html")
+
+
+def eingebunden(vorlage: str) -> list[str]:
+    """Die Teilvorlagen, die vorlage einbindet -- auch über weitere Teilvorlagen --, in der Reihenfolge des ersten Auftretens."""
+    namen: list[str] = []
+
+    def suchen(name: str) -> None:
+        for teil in re.findall(r'\{%-?\s*include\s+"([^"]+)"', (TEMPLATES / name).read_text(encoding="utf-8")):
+            if teil not in namen:
+                namen.append(teil)
+                suchen(teil)
+
+    suchen(vorlage)
+    return namen
+
+
 def seite(vorlage: str, start: str) -> str:
-    """Attrappe + _auswahl.html + _speichern.html (seit 1.8.95: die Seiten speichern über den Baustein; seit 1.8.102 auch
-    _aktionen.html und _links.html: die Seiten melden Aktionen an und prüfen Links; seit 1.8.109 _zahl.html: Zahlenfelder lesen
-    und füllen die Seiten über den Baustein) + das Seitenskript bis vor den Start-Aufruf (load()/init(), der fetch und DOM
-    braucht). Jinja-Ausdrücke im Skript werden zu 1."""
-    hilfe = [s for name in ("_auswahl.html", "_speichern.html", "_aktionen.html", "_weiterleitung.html", "_links.html",
-                            "_zahl.html")
+    """Attrappe + die Bausteine, die die Seite einbindet (seit 1.8.116 genau diese, wie im Browser; bis dahin immer dieselben sechs
+    und nie _fehlertext.html -- jede Seite, die ihn nutzt, scheiterte im Test an "fehlerText is not defined", die Ausnahme blieb
+    ungesehen) + das Seitenskript bis vor den Start-Aufruf (load()/init(), der fetch und DOM braucht). Jinja-Ausdrücke im Skript
+    werden zu 1."""
+    vorhanden = eingebunden(vorlage)
+    hilfe = [s for name in BAUSTEINE if name in vorhanden
              for s in re.findall(r"<script>(.*?)</script>", (TEMPLATES / name).read_text(encoding="utf-8"), flags=re.S)]
     haupt = re.findall(r"<script>(.*?)</script>", (TEMPLATES / vorlage).read_text(encoding="utf-8"), flags=re.S)[-1]
     assert start in haupt, f"{vorlage}: {start!r} nicht gefunden -- Test anpassen"

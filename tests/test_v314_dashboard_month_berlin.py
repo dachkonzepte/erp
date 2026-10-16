@@ -11,13 +11,13 @@ einer anderen Zeitzone des Prozesses, wie ein Browser mit anderer Systemzeitzone
 Python-Abhängigkeit; fehlt es, werden die Tests übersprungen."""
 
 import json
-import os
 import re
 import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
+
+from tests.node_lauf import node_ausfuehren
 
 NODE = shutil.which("node")
 pytestmark = pytest.mark.skipif(NODE is None, reason="node nicht installiert -- die Tests führen JavaScript aus den Vorlagen aus.")
@@ -42,10 +42,8 @@ def _scripts(name: str) -> str:
 
 
 def _node(script: str, tz: str):
-    result = subprocess.run([NODE], input=script, capture_output=True, text=True, encoding="utf-8",
-                            env={**os.environ, "TZ": tz}, timeout=60)
-    assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout)
+    """Seit 1.8.116 über tests/node_lauf.py: eine JS-Ausnahme (auch eine gefangene) lässt den Test scheitern."""
+    return node_ausfuehren(script, tz)
 
 
 @pytest.mark.parametrize("tz", PROCESS_TIMEZONES)
