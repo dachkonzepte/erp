@@ -18,6 +18,12 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
+from fastapi.datastructures import DefaultPlaceholder
+from fastapi.dependencies.utils import request_params_to_args
+from fastapi.responses import HTMLResponse
+from fastapi.routing import APIRoute
+from starlette.routing import Match
+
 from .auth import resolve_account_display
 from .company_logo import DEFAULT_SIDEBAR_LOGO_HEIGHT_PX, sidebar_logo_filename, sidebar_logo_height_px
 from .database import SessionLocal
@@ -98,6 +104,65 @@ def laden_mit_eigener_sitzung(user) -> Seitendaten:
     except Exception:
         logger.exception("Seitendaten: keine Sitzung, alle Rückfallwerte")
         return Seitendaten(konto=None if user is None else konto_rueckfall(user), konto_von=getattr(user, "id", None))
+
+
+def _routen(eintraege):
+    for eintrag in eintraege:
+        # FastAPI 0.141 hängt eingebundene Router als _IncludedRouter(original_router=...) an, ältere Fassungen die Routen selbst.
+        router = getattr(eintrag, "original_router", None)
+        if router is not None:
+            yield from _routen(router.routes)
+        else:
+            yield eintrag
+
+
+def _zeichnet(route: APIRoute) -> bool:
+    klasse = route.response_class
+    klasse = klasse.value if isinstance(klasse, DefaultPlaceholder) else klasse
+    return isinstance(klasse, type) and issubclass(klasse, HTMLResponse)
+
+
+def _abhaengigkeiten(dependant):
+    yield dependant
+    for unter in dependant.dependencies:
+        yield from _abhaengigkeiten(unter)
+
+
+def _werte_passen(route: APIRoute, pfadwerte: dict, request) -> bool:
+    """Ob FastAPI Pfad- und Abfragewerte der Route annimmt -- /orders/abc endet mit 422 (JSON), ohne Vorlage."""
+    for dependant in _abhaengigkeiten(route.dependant):
+        if (request_params_to_args(dependant.path_params, pfadwerte)[1]
+                or request_params_to_args(dependant.query_params, request.query_params)[1]):
+            return False
+    return True
+
+
+def seitenroute(request) -> APIRoute | None:
+    """Seit 1.8.120: die Seitenroute (GET, response_class HTMLResponse), die die Anfrage trifft und deren Werte passen, sonst None --
+    /health, /manifest.json, /docs, Dateien unter /api/, unbekannte Adressen (z. B. /static/…) und /orders/abc sind keine. Die Liste je
+    App einmal ermittelt."""
+    if request.method != "GET":
+        return None
+    app = request.app
+    routen = getattr(app.state, "dk_seitenrouten", None)
+    if routen is None:
+        routen = [r for r in _routen(app.routes) if isinstance(r, APIRoute) and "GET" in r.methods and _zeichnet(r)]
+        app.state.dk_seitenrouten = routen
+    for route in routen:
+        treffer, unter_scope = route.matches(request.scope)
+        if treffer == Match.FULL:
+            return route if _werte_passen(route, unter_scope.get("path_params", {}), request) else None
+    return None
+
+
+def wird_gezeichnet(request, user) -> bool:
+    """Seit 1.8.120 (Korrektur 114-5): ob die Anfrage eine Vorlage zeichnet -- eine Seitenroute, die für diesen Benutzer nicht umleitet.
+    Wann eine Seitenroute umleitet, steht an ihr selbst (Attribut dk_ohne_seite am Endpunkt, app/routers/pages.py)."""
+    route = seitenroute(request)
+    if route is None:
+        return False
+    ohne_seite = getattr(route.endpoint, "dk_ohne_seite", None)
+    return not (ohne_seite and ohne_seite(user))
 
 
 def fuer_anfrage(request) -> Seitendaten:

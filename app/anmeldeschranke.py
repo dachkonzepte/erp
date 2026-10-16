@@ -205,16 +205,13 @@ ANMELDUNG_ABGELAUFEN = ("Anmeldung abgelaufen – bitte in einem neuen Tab anmel
 ABGELAUFEN_KOPF = "X-DK-Anmeldung"
 
 
-# Seitenanfragen ohne Vorlage: keine Seitendaten.
-_OHNE_SEITE = frozenset({"/health", "/manifest.json"})
-
-
-def _seite_erwartet(has_users: bool, user, method: str, path: str) -> bool:
-    """Ob die Anfrage eine Seite (Vorlage mit Seitenleiste, Kopfzeile oder Akzentfarbe) zeichnen kann: GET außerhalb von /api/, nicht
-    /health und /manifest.json, und nicht die Umleitung eines Abgemeldeten auf /login."""
-    if method != "GET" or path.startswith("/api/") or path in _OHNE_SEITE:
+def _seite_erwartet(request: Request, has_users: bool, user) -> bool:
+    """Ob die Anfrage eine Seite zeichnet (Vorlage mit Seitenleiste, Kopfzeile oder Akzentfarbe): seit 1.8.120 (Korrektur 114-5) nur eine
+    Seitenroute, die für diesen Benutzer nicht umleitet (app/seitendaten.py::wird_gezeichnet()) -- nicht /health, /manifest.json, /docs,
+    Dateien, unbekannte Adressen; nicht die Umleitung eines Abgemeldeten auf /login. Bis 1.8.119 jede GET-Anfrage außerhalb von /api/."""
+    if user is None and _page_requires_login(has_users, request.method, request.url.path):
         return False
-    return user is not None or not _page_requires_login(has_users, method, path)
+    return seitendaten.wird_gezeichnet(request, user)
 
 
 def _lesen(session_factory, request: Request) -> dict:
@@ -229,7 +226,7 @@ def _lesen(session_factory, request: Request) -> dict:
             stand["user"], stand["sitzung_id"] = user, sitzung.id
             if user.role == "admin":
                 stand["otp_ok"] = sitzung.second_factor_at is not None
-        if _seite_erwartet(stand["has_users"], user, request.method, request.url.path):
+        if _seite_erwartet(request, stand["has_users"], user):
             stand["seite"] = seitendaten.laden(db, user)
     finally:
         db.close()

@@ -195,6 +195,11 @@ def login_page(request: Request):
     return templates.TemplateResponse(request=request, name="login.html", context={})
 
 
+# Seit 1.8.120: wann eine Seitenroute umleitet, statt eine Vorlage zu zeichnen -- dann lädt die Anmeldeschranke keine Seitendaten
+# (app/seitendaten.py::wird_gezeichnet(); tests/test_v425_seitendaten_nur_fuer_seiten.py prüft jede Route je Rolle).
+login_page.dk_ohne_seite = lambda user: user is not None
+
+
 @router.get("/account", response_class=HTMLResponse)
 def account_page(request: Request, _role: AppUser = _any_role_dep):
     return templates.TemplateResponse(request=request, name="account.html", context={})
@@ -220,6 +225,9 @@ def dashboard_page(request: Request, _role: AppUser = _any_role_dep):
     if _role.role == ROLE_FIELD:
         return RedirectResponse(url=default_home_page_for_role(_role.role), status_code=302)
     return templates.TemplateResponse(request=request, name="dashboard.html", context={})
+
+
+dashboard_page.dk_ohne_seite = lambda user: user is not None and user.role == ROLE_FIELD  # seit 1.8.120, siehe login_page
 
 
 @router.get("/leistungskatalog", response_class=HTMLResponse)

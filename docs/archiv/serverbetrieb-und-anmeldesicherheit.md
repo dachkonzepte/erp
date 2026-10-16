@@ -753,7 +753,8 @@ Verbindung (Jinja-Globals); (d) `pool_pre_ping`, Poolgröße und Zeitlimit passe
   (`app/modules.py::stored_module_states()`), Logo der Leiste, seine Höhe und den Kontoknopf -- jeder Teil mit eigenem Rückfallwert und
   `rollback()` nach einem Fehler (sonst lehnte PostgreSQL jede weitere Abfrage derselben Transaktion ab; Vorfall 2 aus
   „Produktivbetrieb“ bleibt abgedeckt). Die Schranke lädt sie für jede GET-Anfrage außerhalb von `/api/` mit (außer `/health`,
-  `/manifest.json` und der Umleitung eines Abgemeldeten auf `/login`) und legt sie an `request.state` ab; die Globals
+  `/manifest.json` und der Umleitung eines Abgemeldeten auf `/login`; seit 1.8.120 nur für Seiten, die gezeichnet werden, siehe
+  „Umsetzung 1.8.120“) und legt sie an `request.state` ab; die Globals
   (`app/routers/pages.py`, jetzt mit `pass_context`) lesen nur dort. Ohne Schranke (Tests mit `router_test_client`) lädt der erste
   Global einer Anfrage einmal mit eigener Sitzung.
 - **Pool unter PostgreSQL** (`app/database.py::engine_optionen()`, Begründung im Kopf der Datei): `pool_pre_ping=True`, `pool_size=5`,
@@ -771,7 +772,7 @@ Verbindung (Jinja-Globals); (d) `pool_pre_ping`, Poolgröße und Zeitlimit passe
 2. **Leerer Pool: 503 mit `Retry-After: 5` und „Der Server ist gerade ausgelastet – bitte in einigen Sekunden noch einmal versuchen.“** -- in der Schranke und an jedem Endpunkt, statt 500.
 3. **Alle Endpunkte schließen ihre Sitzung vor dem Senden** (`scope="function"` an allen 701 Stellen), nicht nur die Dateiantworten -- auch eine große JSON-Liste an ein langsames Tablet hält sonst ihre Verbindung, und gemischte Scopes ergäben zwei Sitzungen je Anfrage.
 4. **Die 16 Uploads sind `def` statt `async def`** (Datei im Threadpool gelesen) -- statt die Datenbankarbeit einzeln in `run_in_threadpool` zu packen; Vorbild die Uploads der Checklisten (seit 1.3.62 `def`).
-5. **Die Schranke lädt die Seitendaten für jede GET-Anfrage außerhalb von `/api/`** (außer `/health`, `/manifest.json`, Umleitung auf `/login`), auch wenn die Seite danach umleitet -- einfacher als vorher zu wissen, ob eine Vorlage gezeichnet wird; fünf kleine Abfragen.
+5. ~~**Die Schranke lädt die Seitendaten für jede GET-Anfrage außerhalb von `/api/`** (außer `/health`, `/manifest.json`, Umleitung auf `/login`), auch wenn die Seite danach umleitet -- einfacher als vorher zu wissen, ob eine Vorlage gezeichnet wird; fünf kleine Abfragen.~~ Korrigiert am 16.10.2026: nur für Seiten, die gezeichnet werden -- umgesetzt in 1.8.120.
 6. **`/users` behält seine eigene Sitzung** (zwei Verbindungen nacheinander, nie zwei zugleich); umgestellt wird es mit Stufe 2.
 7. **`fastapi>=0.121`** in `requirements.txt` (`scope=` gibt es erst ab 0.121; lokal 0.141.1) -- `update.sh` hebt den Server mit `pip install -r requirements.txt` an.
 8. **Der Angriffstest ist Teil der Suite** (opt-in mit `ERP_TEST_POSTGRES_URL` wie alle PostgreSQL-Tests): echter uvicorn auf einem Wegwerf-Schema mit Pool 2, ohne Überlauf, Zeitlimit 3 s; rund 25 s.
@@ -813,3 +814,40 @@ Verbindung (Jinja-Globals); (d) `pool_pre_ping`, Poolgröße und Zeitlimit passe
   - `test_v252` (8 Rückfall-Tests der Globals): altes Soll „Patch auf `pages.get_accent_color`/`is_module_enabled`/`sidebar_logo_filename`/`_sidebar_logo_height_px_lookup`/`SessionLocal`“, neues Soll „Patch auf dieselben Teile in `app/seitendaten.py`“; `_is_module_enabled(None, "wartungen")` mit Kontext; Erwartungen (Rückfallwerte) unverändert.
   - `test_v254` (2 Tests): altes Soll `_account_display(user)`, neues Soll `_account_display(None, user)`, Patch auf `seitendaten.resolve_account_display`; Erwartungen unverändert.
   - `test_v064`, `test_v065`, `test_v154` (6 Aufrufe), `test_v224` (1): altes Soll `asyncio.run(upload_…(…))`, neues Soll direkter Aufruf (die Endpunkte sind `def`); Erwartungen unverändert.
+
+### Umsetzung 1.8.120: Seitendaten nur für Seiten, die gezeichnet werden (Korrektur 114-5 vom 16.10.2026)
+
+Vorgabe: „Die Seitendaten lädt die Schranke nur für Seiten, die gerendert werden, nicht für /static, /health und Dateien.“ Bis 1.8.119
+lud sie sie für jede GET-Anfrage außerhalb von `/api/` (außer `/health`, `/manifest.json` und der Umleitung eines Abgemeldeten auf
+`/login`) -- also auch für `/docs`, `/openapi.json`, unbekannte Adressen wie `/static/app.css`, `/login` eines Angemeldeten und `/` eines
+Monteurs (beide leiten nur um) und für eine Seitenadresse mit ungültiger ID (`/orders/abc`, 422 als JSON). Dateien unter `/api/` waren
+schon ausgenommen.
+
+- **Seitenroute** (`app/seitendaten.py::seitenroute()`): eine GET-Route der App mit `response_class` HTMLResponse (die Seiten in
+  `app/routers/pages.py` und `/mobil`), die die Adresse trifft und deren Pfad- und Abfragewerte FastAPI annimmt
+  (`request_params_to_args()` über den Endpunkt und seine Abhängigkeiten). Die Liste je App einmal ermittelt, über `_IncludedRouter`.
+- **Umleitung an der Route** (`dk_ohne_seite` am Endpunkt, `app/routers/pages.py`): `/login` für einen Angemeldeten, `/` für einen
+  Monteur. `wird_gezeichnet(request, user)` fragt es ab; die Schranke (`_seite_erwartet()`) lädt nur, wenn es eine Seitenroute ist, die
+  für diesen Benutzer nicht umleitet, und nicht die Umleitung eines Abgemeldeten auf `/login`.
+- **Ungültige Werte**: die Schranke lädt nicht. Als Admin oder Büro endet `/orders/abc` mit 422 (JSON). Als Monteur greift die
+  Rollenprüfung des Endpunkts vorher (FastAPI löst die Abhängigkeiten vor den Pfadwerten) -- die 403-Seite wird gezeichnet und lädt ihre
+  Daten einmal selbst (`laden_mit_eigener_sitzung()`, eine zweite Verbindung nacheinander, nie zugleich).
+
+#### Festlegungen 1.8.120 (Bitte bestätigen)
+
+1. **Seite = GET-Route mit HTMLResponse, deren Pfad- und Abfragewerte passen und die für diesen Benutzer nicht umleitet** -- nur dann lädt die Schranke die Seitendaten; HEAD wie bisher nicht.
+2. **Ob eine Seitenroute umleitet, steht an der Route** (`dk_ohne_seite`, heute `/login` und `/`); eine neue umleitende Seitenroute braucht das Merkmal, der Strukturtest nennt sie.
+3. **Ungültige Werte (`/orders/abc`): die Schranke lädt nicht**; zeichnet der Endpunkt trotzdem die 403-Seite (Rollenprüfung vor den Werten), lädt diese ihre Daten einmal selbst.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v425_seitendaten_nur_fuer_seiten.py` (7 Tests): jede GET-Route der Seiten, dazu `/health`, `/manifest.json`, `/docs`,
+  `/redoc`, `/openapi.json`, `/static/app.css`, `/favicon.ico`, Download und Ansicht einer Datei der Kundenakte, unbekannte Adressen und
+  Seitenadressen mit ungültiger ID, je Rolle (abgemeldet, Admin, Büro – Auftrag, Monteur): die Schranke lädt genau dann, wenn eine Vorlage
+  gezeichnet wird (gezählt an `jinja2.Template.render`, mit der 403-Seite aus `app/main.py`), die Globals laden nie selbst nach (außer
+  der 403-Seite bei ungültigen Werten); die Datei kommt vollständig (200, Inhalt) ohne Seitendaten; `/login` und `/` leiten je Rolle um
+  oder zeichnen; jede Seitenroute mit `RedirectResponse` trägt `dk_ohne_seite`.
+- Gegenproben (Regel 24): 4 Fälle, alle rot, jede Datei byte-genau zurück (SHA-256) -- alte Regel in der Schranke (`/docs`,
+  `/openapi.json`, `/login`, `/` laden), Merkmal am Dashboard entfernt (`/` des Monteurs lädt, Strukturtest), jede GET-Route als Seite
+  (`/health`, Dateien laden), Werte nicht geprüft (`/orders/abc` lädt).
+- **Angepasste Erwartungen** (Regel 28): keine.

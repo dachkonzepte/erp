@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.119** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.120** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -785,7 +785,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Sitzung mit `Depends(get_db, scope="function")` ein (FastAPI schließt sie, bevor die Antwort gesendet wird -- bis 1.8.113 hielt eine
     Datei ihre Verbindung samt offener Transaktion bis zum letzten Byte); ein Endpunkt oder eine Abhängigkeit mit Datenbank ist nie
     `async def` (ein Upload liest die Datei mit `file.file.read()`), die Anmeldeschranke liest im Threadpool (`_lesen()`). Jinja-Globals
-    lesen nur die Seitendaten der Anfrage (`app/seitendaten.py`, von der Schranke in ihrer Sitzung mitgeladen) -- ein neuer Global mit
+    lesen nur die Seitendaten der Anfrage (`app/seitendaten.py`, von der Schranke in ihrer Sitzung mitgeladen, seit 1.8.120 nur für Seiten,
+    die gezeichnet werden: `wird_gezeichnet()`, eine umleitende Seitenroute trägt `dk_ohne_seite`) -- ein neuer Global mit
     Daten kommt dort in `laden()`, mit Rückfallwert. Ein leerer Pool ergibt 503 („ausgelastet“). Pool unter PostgreSQL in
     `app/database.py` (5 + 35 = Threadpool 40 je Prozess, 10 s, `pool_pre_ping`; `ERP_DB_*`, `.env.example`).
     `tests/test_v419_verbindungen.py` prüft jede Route und die Verbindungen je Seite, `tests/test_v419_verbindungen_unter_last.py` greift
