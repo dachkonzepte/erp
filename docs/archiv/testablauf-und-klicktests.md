@@ -433,3 +433,126 @@ Alle betreffen nur den Testablauf (Regel 28: der Bericht nennt ihre Zahl).
   - `test_v334::seite()` -- Aufbau: die eingebundenen Bausteine statt fester sechs; `FAKE_DOM` mit `remove()`.
   - `test_v314::_node()`, `test_v338::_messages()` (node-Lauf) -- Aufbau: über `tests/node_lauf.py`; test_v338 erlaubt den SyntaxError
     seiner Attrappe.
+
+## Strukturtests für Basis-Templates und Makros (1.8.123)
+
+Vorgabe vom 17.10.2026, Stufe 0a des Redesigns (übernommen wie gegeben): „Strukturtests fit machen für Basis-Templates und Makros.
+Vorlagen und App-Code bleiben unverändert, nur Tests ändern sich. Die Scanner (vorlagen_js, vorlagen_html, vorlagen_zahlen,
+vorlagen_navigation) und die node-Attrappe sollen künftig auch erfassen: 1. Vorlagen in Unterordnern von app/templates/. 2. Seiten mit
+{% extends %}: geprüft wird die zusammengesetzte Seite (Basis-Template plus Blöcke der Seite). 3. Makros ({% macro %}, {% import %},
+{% from … import %}, {% call %}): das HTML im Makro wird geprüft. 4. Der _speichern-Test akzeptiert das Include auch im Basis-Template
+der Seite. 5. Die node-Attrappe bindet auch die Bausteine des Basis-Templates ein, in derselben Reihenfolge wie im Browser. Gegenprobe:
+Für jeden Scanner einen Test mit eigenen Fixture-Vorlagen außerhalb von app/templates, der beweist, dass ein Verstoß erkannt wird, wenn
+er (a) in einem Makro, (b) in einem Unterordner, (c) in einem Basis-Template steckt. Jede Gegenprobe muss vor der Scanner-Änderung rot
+sein. Bestehende Tests bleiben grün ohne geänderte Erwartungen.“ Anlass: der Befund zum Frontend vom selben Tag (kein Basis-Template,
+alles CSS und JS inline, 53 Seiten; die Scanner sahen nur die oberste Ebene und nur `{% include %}`).
+
+### Befund
+
+- Die Scanner lasen nur `app/templates/*.html` und setzten nur `{% include "…" %}` ein; `{% extends %}`, `{% import %}` und
+  `{{ makro() }}` wurden zu Leerzeichen. Die Listen der Vorlagen in test_v398, test_v399 und test_v400 kamen aus `glob("*.html")`.
+- Ein Verstoß, der erst in der zusammengesetzten Seite einer ist, blieb ungesehen: ein Handler im Makro oder im Basis-Template, der eine
+  Funktion der Seite ruft; ein Zahlenfeld im Basis-Template, das der Block der Seite roh liest (und umgekehrt); ein Baustein, den nur
+  das Basis-Template einbindet (die Attrappe ließ ihn weg -- „fehlerText is not defined“).
+- Das Einsetzen las auch Jinja-Kommentare: der Kommentar in `_topbar.html` nennt `{% include "_sidebar.html" %}` wörtlich, die Scanner
+  setzten die Seitenleiste dort ein -- in den 42 Seiten mit Topbar stand sie doppelt im Zusammenhang. Jinja setzt in einem Kommentar
+  nichts ein. An keinem Fund änderte das etwas (dieselben Stellen, je Stelle einmal gemeldet).
+- Die Attrappe ordnete die Bausteine nach der Liste `BAUSTEINE`, nicht nach der Seite.
+
+### Umsetzung 1.8.123
+
+- **Zusammensetzen** (`tests/vorlagen_js.py::zusammensetzen(name, mit_includes=True, wurzel=None)`): die Seite so, wie Jinja sie
+  zeichnet -- das Basis-Template (auch über mehrere Stufen) mit den Blöcken der abgeleiteten Vorlagen (nach Namen, verschachtelt,
+  `{{ super() }}` über alle Stufen), `{% include %}` (auch ein Include, das selbst erbt), und für `{% import %}`/`{% from … import %}` die
+  `{% macro %}`-Blöcke der Datei an der Stelle des Imports (je Datei einmal, ihre eigenen Importe mit). Die Herkunft nennt je Abschnitt
+  Datei und Stelle, jede beteiligte Datei mit einer Marke der Länge 0. `vorlage_mit_includes()` und `skript_der_vorlage()` laufen
+  darüber. `seitentext()`/`seitenskripte()`: dasselbe ohne eingesetzte Includes -- was die Vorlage selbst samt Basis und Makros
+  beiträgt; ohne extends und Import der Dateitext.
+- **Was sich nicht auflösen lässt, ist rot** (`VorlagenFehler`): Name aus einer Variablen oder Liste, zweites oder bedingtes extends,
+  ein Block zweimal, ein Tag ohne Ende, Schleifen über extends (über include wie bisher `JsFehler` „Include-Schleife“).
+- **Listen**: `alle_vorlagen(wurzel)` (auch Unterordner, Namen wie Jinja: „teile/x.html“), `seiten(wurzel)` (keine andere Vorlage
+  bindet sie ein, erweitert oder importiert sie, Name nicht mit „_“), `vorlagen_verweise()`, `basis_kette()`, `ort()` (Datei und
+  Zeile einer Stelle).
+- **vorlagen_html**: `alle_vorlagen()` aus `vorlagen_js`; `zusammenhaenge()` zählt extends und import wie include -- ein
+  Basis-Template und eine Makro-Datei werden im Zusammenhang der Seite gelesen, die sie nutzt.
+- **vorlagen_zahlen**: der Scanner liest je Vorlage ihren Seitentext (Markup und Skripte samt Basis und Makros), ein Fund nennt die
+  Datei und Zeile, in der er steht; `alle_funde()` je Stelle einmal; `ohne_einbindung()` über `seiten()` (neu, auch in test_v414).
+- **vorlagen_navigation**: je Vorlage ihr Seitentext; die Stelle eines Handlers in seiner Datei.
+- **_speichern-Test** (test_v398): wer `lesen()`/`speichern()` nutzt, bindet den Baustein selbst oder in einem seiner Basis-Templates
+  ein; ein Basis-Template darf ihn für eine Vorlage einbinden, die von ihm erbt und ihn nutzt.
+- **node-Attrappe** (test_v334): `eingebunden()` aus der zusammengesetzten Seite (ein Include im Kommentar zählt nicht),
+  `bausteine_der_seite()` in der Reihenfolge ihrer Skripte in der Seite -- `_links.html` bindet `_weiterleitung.html` vor dem eigenen
+  Skript ein, `_weiterleitung.html` läuft zuerst.
+- **Wächter** `test_kein_scanner_liest_nur_die_oberste_ebene`: kein `glob("*.html")` in den Scannern und ihren Tests.
+
+#### Festlegungen 1.8.123 (Bitte bestätigen)
+
+Alle betreffen nur den Testablauf (Regel 28: der Bericht nennt ihre Zahl).
+
+1. **Makros an der Stelle des Imports, nicht je Aufruf**: je importierte Datei einmal ihre `{% macro %}`-Blöcke. Was ein Aufruf
+   hineinreicht (`{{ feld(typ="number") }}`), sieht der Scanner nicht (wie jedes `{{ … }}`); geprüft wird das HTML im Makro.
+2. **Importe einer abgeleiteten Vorlage außerhalb ihrer Blöcke** stehen vor dem Text des Basis-Templates; was sie sonst außerhalb ihrer
+   Blöcke hat, fehlt -- wie bei Jinja.
+3. **Jinja-Kommentare zählen nicht**, auch nicht ein Include darin -- wie bei Jinja.
+4. **Nicht auflösbar ist rot** (`VorlagenFehler`), nicht still übergangen.
+5. **vorlagen_zahlen und vorlagen_navigation lesen den Seitentext** (mit Basis und Makros, ohne Includes -- eine Teilvorlage bleibt wie
+   bisher eigene Datei); ein Basis-Template wird zusätzlich für sich gelesen, ein Fund je Stelle einmal gemeldet.
+6. **Seite** = keine andere Vorlage bindet sie ein, erweitert oder importiert sie, Name nicht mit „_“; vorlagen_html liest Basis und
+   Makro-Datei im Zusammenhang der Seite, die sie nutzt.
+7. **_speichern-Test**: Include selbst oder in einem Basis-Template; ein Basis-Template nur, wenn es selbst oder eine Vorlage, die von ihm
+   erbt, den Baustein nutzt.
+8. **node-Attrappe**: Bausteine in der Reihenfolge ihrer Skripte in der zusammengesetzten Seite, je Baustein einmal.
+9. **Die Liste der Vorlagen kommt aus `vorlagen_js.alle_vorlagen()`**, der Wächter in test_v428 verbietet `glob("*.html")` in den
+   Scannern und ihren Tests.
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **Weitere Strukturtests lesen nur die oberste Ebene** (`glob("*.html")`): test_v254 (Topbar), test_v313, test_v328 (Links im
+   JavaScript), test_v333, test_v390, test_v405, test_v423, test_v424, test_v426 -- eine Vorlage in einem Unterordner prüfen sie nicht.
+   **Und Tests, die ein Include wörtlich in der Seite verlangen**: test_v254 (Topbar neben der Seitenleiste), test_v269 und test_v272
+   (Monteurs-Kopfzeile), test_v313, test_v333 (`_auswahl.html`), test_v337 (`_unterschrift.html`), test_v390 (`_berlin_date.html`),
+   test_v397, test_v401 (`_weiterleitung.html`) -- steht das Include künftig im Basis-Template, melden sie die Seite fälschlich.
+   Vorschlag: Stufe 0b vor dem ersten Basis-Template, mit `alle_vorlagen()`, `seiten()` und der Herkunft aus `zusammensetzen()`, je
+   mit Gegenprobe.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v428_strukturtests_basis_und_makros.py` (39 Tests): die Gegenproben unten; das Zusammensetzen gegen echtes Jinja
+  (zwei Basis-Templates, verschachtelte Blöcke, `super()` über zwei Stufen, Include im Block, das selbst erbt, Include im Kommentar,
+  Text außerhalb der Blöcke -- ohne Kommentare zeichengleich, jede Herkunft zeigt auf ihre Datei); `seitentext()`; Makros an der Stelle
+  des Imports (je Datei einmal, Makro ruft Makro einer zweiten Datei, Text außerhalb der Makros fehlt); `seiten()`, Unterordner,
+  `basis_kette()`; sieben nicht auflösbare Formen und zwei Schleifen rot.
+- **Gegenproben** (je Scanner vier Fälle: „direkt“ in einer Datei -- fand der Scanner schon, die Probe enthält etwas Erkennbares --,
+  Makro, Unterordner, Basis-Template; nur Schnittstellen von vor 1.8.123), Lauf vor und nach der Änderung der Scanner:
+
+  | Scanner | direkt | (a) Makro | (b) Unterordner | (c) Basis-Template |
+  |---|---|---|---|---|
+  | vorlagen_js (Anfrage außerhalb, test_v400) | grün / grün | rot / grün | rot / grün | rot / grün |
+  | vorlagen_html (ohne esc(), Jinja im on…) | grün / grün | rot / grün | rot / grün | rot / grün |
+  | vorlagen_zahlen (roh, type="number") | grün / grün | rot / grün | rot / grün | rot / grün (beide Richtungen) |
+  | vorlagen_navigation | grün / grün | rot / grün | rot / grün | rot / grün (mit `super()`) |
+
+  Dazu, vorher rot und nachher grün: Attrappe mit Baustein nur im Basis-Template („fehlerText is not defined“) und mit Reihenfolge
+  („Cannot access 'FEHLER_PRAEFIX' before initialization“); `_speichern.html` im Basis-Template genügt (Seite und Basis); zwei
+  Fehlalarme für ein Basis-Template in vorlagen_zahlen (`ohne_einbindung()`, test_v414); der Wächter (sechs Funde: vorlagen_html,
+  vorlagen_zahlen, vorlagen_navigation, test_v398, test_v399, test_v400). Vorher und nachher grün (bleiben rot erkannt): Seite ohne
+  Include und ohne Basis mit Include, Basis mit Include ohne nutzende Vorlage, Seite im Unterordner ohne Include. Vorher 20 rot und 7 grün,
+  nachher 27 grün.
+- **Abzug aller Scanner-Ausgaben** über die 74 echten Vorlagen vor und nach dem Umbau (899 Einträge, Skript im Scratchpad): alle Funde
+  aller vier Scanner gleich (ungeschützt, Handler, Links, Jinja, Zahlen, ohne Einbindung, Navigationen, Schreibstellen je Stelle,
+  Anfragen außerhalb in den Seiten). Unterschiede nur: 43 Vorlagen ohne die zweite Kopie der Seitenleiste aus dem Kommentar (Text,
+  Schreibstellen, Elemente -- je Stelle dieselben, nur nicht mehr doppelt); `_topbar.html` für sich ohne `_sidebar.html`; 30 Seiten
+  mit anderer Reihenfolge der Bausteine in der Attrappe (dieselbe Menge). Das neue Zusammensetzen gegen das alte: 31 Vorlagen
+  zeichengleich, 43 nur ohne den Kommentar-Include anders; `seitentext()` gleich dem Dateitext bei allen 74; `seiten()` = die 53 Seiten.
+- **Gegenprobe der Aufbau-Tests** (Plugin im Scratchpad, nichts unter `app/` geändert): `super()` nicht eingesetzt → 2 rot; Kommentare
+  nicht ausgeblendet → 1 rot (zuerst grün: der Kommentar stand in der Probe außerhalb der Blöcke, wo Jinja ohnehin nichts zeichnet --
+  Test nachgeschärft, Kommentar ins Basis-Template); Makros nicht eingesetzt → 5 rot.
+- **Angepasste Tests** (Regel 28) -- nur Aufbau, keine Erwartung:
+  - test_v398 `VORLAGEN`, test_v399 `VORLAGEN`, test_v400 `_alle_funde()` -- Aufbau: Liste aus `vorlagen_js.alle_vorlagen()` statt
+    `glob("*.html")`.
+  - test_v398 `test_templates_using_the_baustein_include_it` -- Aufbau: Include auch im Basis-Template; das Soll für Vorlagen ohne
+    extends unverändert (nutzt ⇔ bindet selbst ein), Meldung „… weder selbst noch über ein Basis-Template ein“.
+  - test_v334 `eingebunden()`, `seite()` -- Aufbau: aus der zusammengesetzten Seite, Bausteine in Skript-Reihenfolge (neu
+    `bausteine_der_seite()`).
+  - test_v414 `test_jede_seite_mit_zahlenfeld_bindet_den_baustein_ein` -- Aufbau: über `vorlagen_zahlen.seiten()` statt aller Vorlagen
+    ohne „_“.

@@ -241,9 +241,7 @@ def test_die_ausnahmeliste_hat_keine_veralteten_eintraege():
 def test_jede_seite_mit_zahlenfeld_bindet_den_baustein_ein():
     assert vorlagen_zahlen.ohne_einbindung() == []
     fehlt = []
-    for name in vorlagen_zahlen.alle_vorlagen():
-        if name.startswith("_"):
-            continue
+    for name in vorlagen_zahlen.seiten():  # seit 1.8.123: die zusammengesetzte Seite, nicht ihr Basis-Template für sich
         _, herkunft = vorlagen_js.vorlage_mit_includes(name)
         if any(e.zahl for e in vorlagen_zahlen.elemente(name)) and "_zahl.html" not in {d for _, _, d, _ in herkunft}:
             fehlt.append(name)

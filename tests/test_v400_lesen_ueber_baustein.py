@@ -116,10 +116,10 @@ GRUENDE = {"nur Anzeige", "Suche", "Anmeldestatus", "Prüfung ohne Formular"}
 
 def _alle_funde():
     funde = set()
-    for p in sorted(TEMPLATES.glob("*.html")):
-        if p.name == "_speichern.html":
+    for name in vj.alle_vorlagen(TEMPLATES):  # seit 1.8.123 auch in Unterordnern
+        if name == "_speichern.html":
             continue
-        funde |= vj.anfragen_ausserhalb(vj.analysieren(vj.skript_der_vorlage(p.name)), p.name)
+        funde |= vj.anfragen_ausserhalb(vj.analysieren(vj.skript_der_vorlage(name)), name)
     return funde
 
 

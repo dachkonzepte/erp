@@ -22,6 +22,7 @@ from app.models import (
     Employee, EnabledModule, Order, OrderItem, Property, Quote, QuoteItem, RoofArea, RoofLayer, RoofLayerType, TaxKey,
     TimeEntry,
 )
+from tests import vorlagen_js
 from tests.test_v133_invoices import make_order_with_item
 from tests.test_v314_dashboard_month_berlin import NODE, TEMPLATES, _node
 from tests.test_v329_teil_updates import payload, ui_keys
@@ -96,26 +97,32 @@ BAUSTEINE = ("_auswahl.html", "_speichern.html", "_aktionen.html", "_weiterleitu
 
 
 def eingebunden(vorlage: str) -> list[str]:
-    """Die Teilvorlagen, die vorlage einbindet -- auch über weitere Teilvorlagen --, in der Reihenfolge des ersten Auftretens."""
-    namen: list[str] = []
+    """Die Teilvorlagen, die vorlage einbindet -- auch über weitere Teilvorlagen, seit 1.8.123 auch über ihr Basis-Template und
+    importierte Makros --, in der Reihenfolge des ersten Auftretens in der zusammengesetzten Seite (tests/vorlagen_js.py::
+    zusammensetzen(); ein Include in einem Jinja-Kommentar zählt nicht)."""
+    _, herkunft = vorlagen_js.zusammensetzen(vorlage, wurzel=TEMPLATES)
+    return [d for d in dict.fromkeys(d for _, _, d, _ in herkunft) if d != vorlage]
 
-    def suchen(name: str) -> None:
-        for teil in re.findall(r'\{%-?\s*include\s+"([^"]+)"', (TEMPLATES / name).read_text(encoding="utf-8")):
-            if teil not in namen:
-                namen.append(teil)
-                suchen(teil)
 
-    suchen(vorlage)
-    return namen
+def bausteine_der_seite(vorlage: str) -> list[str]:
+    """Die Bausteine, die die Seite einbindet, in der Reihenfolge ihrer Skripte in der zusammengesetzten Seite -- so laufen sie im
+    Browser (seit 1.8.123; bis dahin in der Reihenfolge von BAUSTEINE -- ein Baustein, der beim Laden einen anderen braucht, lief im
+    Test vor ihm). _links.html bindet _weiterleitung.html vor dem eigenen Skript ein: _weiterleitung.html läuft zuerst."""
+    text, herkunft = vorlagen_js.zusammensetzen(vorlage, wurzel=TEMPLATES)
+    reihe: list[str] = []
+    for m in re.finditer(r"<script>(.*?)</script>", text, flags=re.S):
+        datei = next((d for s, e, d, _ in herkunft if s <= m.start(1) < e), None)
+        if datei in BAUSTEINE and datei not in reihe and datei != vorlage:
+            reihe.append(datei)
+    return reihe
 
 
 def seite(vorlage: str, start: str) -> str:
     """Attrappe + die Bausteine, die die Seite einbindet (seit 1.8.116 genau diese, wie im Browser; bis dahin immer dieselben sechs
     und nie _fehlertext.html -- jede Seite, die ihn nutzt, scheiterte im Test an "fehlerText is not defined", die Ausnahme blieb
-    ungesehen) + das Seitenskript bis vor den Start-Aufruf (load()/init(), der fetch und DOM braucht). Jinja-Ausdrücke im Skript
-    werden zu 1."""
-    vorhanden = eingebunden(vorlage)
-    hilfe = [s for name in BAUSTEINE if name in vorhanden
+    ungesehen; seit 1.8.123 auch die ihres Basis-Templates, in der Reihenfolge der Seite) + das Seitenskript bis vor den Start-Aufruf
+    (load()/init(), der fetch und DOM braucht). Jinja-Ausdrücke im Skript werden zu 1."""
+    hilfe = [s for name in bausteine_der_seite(vorlage)
              for s in re.findall(r"<script>(.*?)</script>", (TEMPLATES / name).read_text(encoding="utf-8"), flags=re.S)]
     haupt = re.findall(r"<script>(.*?)</script>", (TEMPLATES / vorlage).read_text(encoding="utf-8"), flags=re.S)[-1]
     assert start in haupt, f"{vorlage}: {start!r} nicht gefunden -- Test anpassen"

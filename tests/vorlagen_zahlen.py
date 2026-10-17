@@ -22,7 +22,11 @@ Art und Ausschnitt:
 
 Kein vollständiger JS-Parser (Tokenizer aus tests/vorlagen_js.py): Ziele, die sich nicht auflösen lassen (z. B. e.target.value,
 row.querySelector('.x').value ohne Element mit dieser Klasse), gelten als Textfeld -- lieber ein Fund zu viel als eine Umwandlung
-übersehen. Der Baustein selbst wird nicht geprüft (seine Regeln prüft die Angriffstabelle in node)."""
+übersehen. Der Baustein selbst wird nicht geprüft (seine Regeln prüft die Angriffstabelle in node).
+
+Seit 1.8.123 liest der Scanner je Vorlage ihren Seitentext (tests/vorlagen_js.py::seitentext(): die Datei samt Basis-Templates und
+importierten Makros) und löst Felder in der zusammengesetzten Seite auf; ein Fund nennt die Datei und Zeile, in der er steht.
+Vorlagen auch in Unterordnern."""
 
 from __future__ import annotations
 
@@ -30,8 +34,9 @@ import re
 from dataclasses import dataclass
 from functools import lru_cache
 
+from tests import vorlagen_js
 from tests.vorlagen_js import (_HANDLER, SCHLUESSELWOERTER, TEMPLATES, Analyse, JsFehler, Quelle, _ausdruck_ende, analysieren,
-                               eigene_skripte, tokens, vorlage_mit_includes)
+                               seitenskripte, seitentext, tokens, vorlage_mit_includes)
 
 BAUSTEIN = "_zahl.html"
 FUNKTIONEN = {"zahlLesen", "zahlFeld", "zahlVorschau", "zahlText"}
@@ -128,14 +133,16 @@ def _passend(vorlage: str, *, id_wort: str | None = None, id_teile: tuple[str, s
 
 
 class Scanner:
-    """Die Funde einer Vorlage (eigene Skripte; Teilvorlagen werden als eigene Datei geprüft)."""
+    """Die Funde einer Vorlage (ihr Seitentext: eigene Skripte und Markup, seit 1.8.123 samt Basis-Templates und importierten Makros;
+    Teilvorlagen werden als eigene Datei geprüft). Alle Positionen sind Stellen im Seitentext."""
 
     def __init__(self, vorlage: str):
         self.vorlage = vorlage
-        self.roh = (TEMPLATES / vorlage).read_text(encoding="utf-8")
+        self.roh, self.herkunft = seitentext(vorlage)
+        self._dateien: dict[str, str] = {}
         self.funde: set[Fund] = set()
         try:
-            self.a: Analyse | None = analysieren(eigene_skripte(vorlage))
+            self.a: Analyse | None = analysieren(seitenskripte(vorlage))
         except JsFehler:
             self.a = None
         self.getter: dict[str, int] = {}   # Name -> Index des Parameters, der die ID trägt
@@ -143,9 +150,16 @@ class Scanner:
         self.wert_getter: set[str] = set()  # Helfer, die einen Feldwert liefern (Ziel nicht auflösbar)
 
     # --- Hilfen --------------------------------------------------------------------------------------------------------
-    def _fund(self, pos: int, art: str, ausschnitt: str, text: str | None = None) -> None:
-        text = self.roh if text is None else text
-        self.funde.add(Fund(self.vorlage, _zeile(text, pos), art, " ".join(ausschnitt.split())[:140]))
+    def _fund(self, pos: int, art: str, ausschnitt: str) -> None:
+        """Ein Fund an der Stelle pos des Seitentexts -- gemeldet mit der Datei und Zeile, in der er steht."""
+        datei, zeile = self.vorlage, _zeile(self.roh, pos)
+        for start, ende, d, versatz in self.herkunft:
+            if start <= pos < ende:
+                if d not in self._dateien:
+                    self._dateien[d] = (vorlagen_js.TEMPLATES / d).read_text(encoding="utf-8")
+                datei, zeile = d, _zeile(self._dateien[d], versatz + pos - start)
+                break
+        self.funde.add(Fund(datei, zeile, art, " ".join(ausschnitt.split())[:140]))
 
     def _code(self, a: Analyse, s: int, e: int) -> str:
         return a.quelle.text[a.t[s].pos:a.t[e].pos + len(a.t[e].wert) + (2 if a.t[e].art == "str" else 0)]
@@ -351,12 +365,12 @@ class Scanner:
         return ziel is None or not ziel or any(e.freier_text for e in ziel)
 
     # --- Regeln im Skript ----------------------------------------------------------------------------------------------
-    def _skript(self, a: Analyse, text_fuer_zeilen: str, versatz: int, umfeld=None, datei_pos=None) -> None:
+    def _skript(self, a: Analyse, versatz: int, umfeld=None, datei_pos=None) -> None:
         t = a.t
 
         def fund(k, art, s, e):
             pos = datei_pos if datei_pos is not None else t[k].pos + versatz
-            self._fund(pos, art, self._code(a, s, e), text_fuer_zeilen)
+            self._fund(pos, art, self._code(a, s, e))
 
         for k, tok in enumerate(t):
             if tok.art != "name":
@@ -491,7 +505,7 @@ class Scanner:
             if any(s < k < e for s, e in in_zahl_lesen):
                 continue
             pos = datei_pos if datei_pos is not None else t[k].pos
-            self._fund(pos, "roh", self._code(a, start, ende), self.roh if datei_pos is not None else a.quelle.text)
+            self._fund(pos, "roh", self._code(a, start, ende))
 
     def _zuweisungen(self, a: Analyse) -> None:
         t = a.t
@@ -518,7 +532,7 @@ class Scanner:
                 continue
             if len(werte) == 1 and werte[0].art == "str" and werte[0].wert == "":
                 continue
-            self._fund(t[k].pos, "schreiben", self._code(a, start, e), a.quelle.text)
+            self._fund(t[k].pos, "schreiben", self._code(a, start, e))
 
     def _handler_code(self) -> None:
         """on…-Attribute (Markup und Strings der Skripte): dieselben Regeln, this = das Element des Attributs."""
@@ -545,7 +559,7 @@ class Scanner:
             except (JsFehler, KeyError, IndexError):
                 continue
             a.funktionen = {}
-            self._skript(a, self.roh, 0, umfeld=umfeld, datei_pos=m.start())
+            self._skript(a, 0, umfeld=umfeld, datei_pos=m.start())
             self._rohe_lesungen(a, umfeld=umfeld, datei_pos=m.start())
 
     # --- Ablauf --------------------------------------------------------------------------------------------------------
@@ -554,7 +568,7 @@ class Scanner:
         self.wert_getter_ids = set()
         if self.a is not None:
             self._helfer_erkennen(self.a)
-            self._skript(self.a, self.a.quelle.text, 0)
+            self._skript(self.a, 0)
             self._zuweisungen(self.a)
             self._rohe_lesungen(self.a)
         self._handler_code()
@@ -562,7 +576,14 @@ class Scanner:
 
 
 def alle_vorlagen() -> list[str]:
-    return sorted(p.name for p in TEMPLATES.glob("*.html") if p.name != BAUSTEIN)
+    """Seit 1.8.123 auch in Unterordnern (tests/vorlagen_js.py::alle_vorlagen())."""
+    return [v for v in vorlagen_js.alle_vorlagen(TEMPLATES) if v != BAUSTEIN]
+
+
+def seiten() -> list[str]:
+    """Die Seiten (seit 1.8.123: auch in Unterordnern; ohne Teilvorlagen, Basis-Templates und Makro-Dateien -- die prüft die Seite,
+    die sie einbindet, erweitert oder importiert)."""
+    return [v for v in vorlagen_js.seiten(TEMPLATES) if v != BAUSTEIN]
 
 
 @lru_cache(maxsize=None)
@@ -571,23 +592,19 @@ def funde_der_vorlage(vorlage: str) -> frozenset[Fund]:
 
 
 def alle_funde() -> list[Fund]:
-    out = []
+    """Je Stelle einmal: ein Fund im Basis-Template meldet auch jede Seite, die von ihr erbt (seit 1.8.123)."""
+    out: set[Fund] = set()
     for v in alle_vorlagen():
-        out.extend(funde_der_vorlage(v))
+        out |= funde_der_vorlage(v)
     return sorted(out, key=lambda f: (f.vorlage, f.zeile, f.art, f.ausschnitt))
-
-
-_INCLUDE = re.compile(r"""\{%-?\s*include\s+["']([^"']+)["']\s*-?%\}""")
 
 
 def ohne_einbindung() -> list[str]:
     """Seiten (keine Teilvorlage), die zahlFeld()/zahlLesen()/zahlVorschau()/zahlText() aufrufen -- auch über eine eingebundene
-    Teilvorlage --, ohne _zahl.html einzubinden."""
+    Teilvorlage, ihr Basis-Template oder ein Makro --, ohne _zahl.html einzubinden."""
     out = []
     aufruf = re.compile(r"\b(" + "|".join(sorted(FUNKTIONEN)) + r")\s*\(")
-    for v in alle_vorlagen():
-        if v.startswith("_"):
-            continue
+    for v in seiten():
         text, herkunft = vorlage_mit_includes(v)
         dateien = {d for _, _, d, _ in herkunft}
         if aufruf.search(text) and BAUSTEIN not in dateien:

@@ -9,7 +9,13 @@ zählt abschliessen() wie speichern() (tests/test_v399_abschliessen.py), seit 1.
 von lesen()/speichern()/abschliessen() (tests/test_v400_lesen_ueber_baustein.py).
 
 Jinja in der Vorlage: {% include "x.html" %} wird eingesetzt (rekursiv), sonstige {% … %} und {{ … }} werden zu Leerzeichen bzw.
-einer 0 gleicher Länge -- die Stellen behalten ihre Position, Meldungen nennen Datei und Zeile der Vorlage."""
+einer 0 gleicher Länge -- die Stellen behalten ihre Position, Meldungen nennen Datei und Zeile der Vorlage.
+
+Seit 1.8.123 (Stufe 0a des Redesigns) setzt zusammensetzen() eine Seite so zusammen, wie Jinja sie zeichnet: {% extends %} mit den
+Blöcken der Seite (auch über mehrere Basis-Templates, mit {{ super() }}), {% include %}, und für {% import %}/{% from … import %} die
+Makros der Datei an der Stelle des Imports -- so prüfen die Scanner das HTML im Makro im Zusammenhang der Seite. alle_vorlagen() liest
+auch Unterordner (Namen wie "teile/x.html", wie Jinja sie nennt). Jinja-Kommentare {# … #} zählen nicht. Was sich nicht auflösen
+lässt (Name aus einer Variablen, mehrere oder bedingte extends), ist ein VorlagenFehler -- lieber rot als still ungeprüft."""
 
 from __future__ import annotations
 
@@ -73,42 +79,286 @@ def _jinja_leeren(text: str) -> str:
     return re.sub(r"\{\{.*?\}\}", lambda m: "0" + re.sub(r"[^\n]", " ", m.group(0))[1:], text, flags=re.S)
 
 
-_INCLUDE = re.compile(r"""\{%-?\s*include\s+["']([^"']+)["']\s*-?%\}""")
+# --- Vorlagen zusammensetzen (seit 1.8.123) -----------------------------------------------------------------------------
+
+class VorlagenFehler(ValueError):
+    """Eine Vorlage, die sich nicht zusammensetzen lässt -- die Strukturtests sähen sonst einen Teil der Seite nicht."""
+
+
+_KOMMENTAR = re.compile(r"\{#.*?#\}", re.S)
+_TAG = re.compile(r"\{%-?\s*(\w+)(.*?)-?%\}", re.S)
+_SUPER = re.compile(r"\{\{-?\s*super\(\s*\)\s*-?\}\}")
+_NAME = r"""(["'])([^"']+)\1"""
+_ZIEL = {
+    "include": re.compile(_NAME + r"(?:\s+ignore\s+missing)?(?:\s+with(?:out)?\s+context)?"),
+    "extends": re.compile(_NAME),
+    "import": re.compile(_NAME + r"\s+as\s+\w+(?:\s+with(?:out)?\s+context)?"),
+    "from": re.compile(_NAME + r"\s+import\s+.+", re.S),
+}
+# Tags mit eigenem Ende ({% set x %}…{% endset %} nur ohne "=").
+_OEFFNER = {"if", "for", "block", "macro", "call", "filter", "with", "autoescape", "trans"}
+
+
+@dataclass
+class _Tag:
+    start: int
+    ende: int
+    art: str
+    rest: str
+    ziel: str | None = None   # include/extends/import/from: der Vorlagenname
+    in_block: bool = False
+    in_makro: bool = False
+
+
+@dataclass
+class _Struktur:
+    roh: str
+    tags: list
+    basis: str | None                              # {% extends %}
+    bloecke: dict                                  # Name -> (Inhalt von, Inhalt bis)
+    block_ende: dict                               # Anfang des block-Tags -> Ende des endblock-Tags
+    makros: list                                   # (von, bis) je Makro auf oberster Ebene, samt seinen Tags
+    supers: list                                   # (von, bis) je {{ super() }}
+
+
+def _zeile_in(text: str, pos: int) -> int:
+    return text.count("\n", 0, pos) + 1
+
+
+def _struktur(wurzel: Path, name: str) -> _Struktur:
+    roh = (wurzel / name).read_text(encoding="utf-8")
+    ohne = _KOMMENTAR.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), roh)  # ein Tag im Kommentar zeichnet Jinja nicht
+    tags, in_raw = [], False
+    for m in _TAG.finditer(ohne):
+        art, rest = m.group(1), m.group(2).strip()
+        if in_raw:
+            in_raw = art != "endraw"
+            continue
+        if art == "raw":
+            in_raw = True
+            continue
+        tags.append(_Tag(m.start(), m.end(), art, rest))
+
+    def fehler(t: _Tag, text: str) -> VorlagenFehler:
+        return VorlagenFehler(f"{name}:{_zeile_in(roh, t.start)}: {text}")
+
+    stapel, basis, bloecke, block_ende, makros = [], None, {}, {}, []
+    for t in tags:
+        t.in_block = any(a == "block" for a, _ in stapel)
+        t.in_makro = any(a == "macro" for a, _ in stapel)
+        if t.art in _ZIEL:
+            m = _ZIEL[t.art].fullmatch(t.rest)
+            if not m:
+                raise fehler(t, f"{{% {t.art} {t.rest} %}} -- prüfbar ist nur ein fester Vorlagenname")
+            t.ziel = m.group(2)
+        if t.art in _OEFFNER or (t.art == "set" and "=" not in t.rest):
+            if t.art == "block" and not re.fullmatch(r"\w+(?:\s+(?:scoped|required))*", t.rest):
+                raise fehler(t, f"{{% block {t.rest} %}} -- unbekannte Form")
+            stapel.append((t.art, t))
+        elif t.art.startswith("end") and t.art[3:] in _OEFFNER | {"set"}:
+            if not stapel or stapel[-1][0] != t.art[3:]:
+                raise fehler(t, f"{{% {t.art} %}} ohne passendes {{% {t.art[3:]} %}}")
+            _, auf = stapel.pop()
+            if auf.art == "block":
+                block = auf.rest.split()[0]
+                if block in bloecke:
+                    raise fehler(auf, f"Block {block!r} zweimal")
+                bloecke[block] = (auf.ende, t.start)
+                block_ende[auf.start] = t.ende
+            elif auf.art == "macro" and not any(a == "macro" for a, _ in stapel):
+                makros.append((auf.start, t.ende))
+        elif t.art == "extends":
+            if stapel:
+                raise fehler(t, "{% extends %} nur auf oberster Ebene -- ein bedingtes extends ist nicht prüfbar")
+            if basis is not None:
+                raise fehler(t, "zweites {% extends %}")
+            basis = t.ziel
+    if stapel:
+        raise fehler(stapel[-1][1], f"{{% {stapel[-1][0]} %}} ohne Ende")
+    supers = [(m.start(), m.end()) for m in _SUPER.finditer(ohne)]
+    return _Struktur(roh, tags, basis, bloecke, block_ende, makros, supers)
+
+
+class _Lauf:
+    """Ein Zusammensetzen: die Teile (Datei, von, bis) in der Reihenfolge der Seite."""
+
+    def __init__(self, wurzel: Path, mit_includes: bool):
+        self.wurzel, self.mit_includes = wurzel, mit_includes
+        self.teile: list[tuple[str, int, int]] = []
+        self.makros_gelesen: set[str] = set()
+        self._strukturen: dict[str, _Struktur] = {}
+
+    def struktur(self, name: str) -> _Struktur:
+        if name not in self._strukturen:
+            self._strukturen[name] = _struktur(self.wurzel, name)
+        return self._strukturen[name]
+
+
+def _kette_der_basis(lauf: _Lauf, name: str, kette: tuple) -> list[str]:
+    reihe = [name]
+    while lauf.struktur(reihe[-1]).basis is not None:
+        basis = lauf.struktur(reihe[-1]).basis
+        if basis in reihe or basis in kette:
+            raise VorlagenFehler(f"Schleife über extends: {' -> '.join(reihe + [basis])}")
+        reihe.append(basis)
+    return reihe
+
+
+def _vorlage(lauf: _Lauf, name: str, kette: tuple) -> None:
+    """Die ganze Vorlage, wie Jinja sie zeichnet: hat sie ein Basis-Template, dessen Text mit den Blöcken der abgeleiteten Vorlagen
+    (die abgeleitete zuerst). Jede beteiligte Datei bekommt eine Marke der Länge 0 (die Herkunft nennt sie so, auch wenn sie leer ist)."""
+    if name in kette:
+        raise JsFehler(f"Include-Schleife: {' -> '.join(kette + (name,))}")
+    reihe = _kette_der_basis(lauf, name, kette)
+    kette = kette + tuple(reihe)
+    bloecke: dict[str, list] = {}
+    for datei in reihe:
+        lauf.teile.append((datei, 0, 0))
+        for block, (von, bis) in lauf.struktur(datei).bloecke.items():
+            bloecke.setdefault(block, []).append((datei, von, bis))
+    # Was eine abgeleitete Vorlage außerhalb ihrer Blöcke zeichnet, verwirft Jinja -- ihre Importe gelten aber für ihre Blöcke.
+    for datei in reihe[:-1]:
+        for t in lauf.struktur(datei).tags:
+            if t.art in ("import", "from") and not t.in_block:
+                _makros(lauf, t.ziel, kette)
+    wurzel = reihe[-1]
+    _abschnitt(lauf, wurzel, 0, len(lauf.struktur(wurzel).roh), bloecke, None, kette)
+
+
+def _makros(lauf: _Lauf, name: str, kette: tuple) -> None:
+    """Die Makros einer importierten Datei (je Seite einmal): nur ihre {% macro %}…{% endmacro %} -- was die Datei sonst zeichnet,
+    verwirft Jinja beim Import. Importe der Datei selbst kommen mit."""
+    if name in lauf.makros_gelesen:
+        return
+    if name in kette:
+        raise JsFehler(f"Import-Schleife: {' -> '.join(kette + (name,))}")
+    lauf.makros_gelesen.add(name)
+    s = lauf.struktur(name)
+    for t in s.tags:
+        if t.art in ("import", "from") and not t.in_makro:
+            _makros(lauf, t.ziel, kette + (name,))
+    for von, bis in s.makros:
+        _abschnitt(lauf, name, von, bis, {}, None, kette + (name,))
+
+
+def _abschnitt(lauf: _Lauf, datei: str, von: int, bis: int, bloecke: dict, super_reihe, kette: tuple) -> None:
+    """Der Text datei[von:bis] mit eingesetzten Blöcken, Includes und Makros. super_reihe: (Block, die weiteren Fassungen) für
+    {{ super() }} im Inhalt eines Blocks."""
+    s = lauf.struktur(datei)
+    pos = von
+    for t in s.tags:
+        if t.start < pos or t.start < von or t.ende > bis:
+            continue
+        if t.art == "block":
+            _text(lauf, datei, pos, t.start, bloecke, super_reihe, kette)
+            block = t.rest.split()[0]
+            fassungen = bloecke.get(block) or [(datei, *s.bloecke[block])]
+            erste, weitere = fassungen[0], fassungen[1:]
+            _abschnitt(lauf, erste[0], erste[1], erste[2], bloecke, (block, weitere), kette)
+            pos = s.block_ende[t.start]
+        elif t.art == "include" and lauf.mit_includes:
+            _text(lauf, datei, pos, t.start, bloecke, super_reihe, kette)
+            _vorlage(lauf, t.ziel, kette)
+            pos = t.ende
+        elif t.art in ("import", "from"):
+            _text(lauf, datei, pos, t.start, bloecke, super_reihe, kette)
+            _makros(lauf, t.ziel, kette)
+            pos = t.ende
+    _text(lauf, datei, pos, bis, bloecke, super_reihe, kette)
+
+
+def _text(lauf: _Lauf, datei: str, von: int, bis: int, bloecke: dict, super_reihe, kette: tuple) -> None:
+    if super_reihe is not None:
+        block, weitere = super_reihe
+        for s_von, s_bis in lauf.struktur(datei).supers:
+            if von <= s_von and s_bis <= bis:
+                lauf.teile.append((datei, von, s_von))
+                if weitere:
+                    d, a, b = weitere[0]
+                    _abschnitt(lauf, d, a, b, bloecke, (block, weitere[1:]), kette)
+                von = s_bis
+    lauf.teile.append((datei, von, bis))
+
+
+def zusammensetzen(name: str, *, mit_includes: bool = True, wurzel: Path | None = None) -> tuple[str, list]:
+    """Text der Seite und die Herkunft je Abschnitt (start, ende, datei, versatz): Basis-Templates mit den Blöcken der Seite,
+    Includes (mit_includes=False: die include-Tags bleiben stehen) und die Makros importierter Dateien."""
+    lauf = _Lauf(TEMPLATES if wurzel is None else wurzel, mit_includes)
+    _vorlage(lauf, name, ())
+    teile, herkunft, pos = [], [], 0
+    for datei, von, bis in lauf.teile:
+        stueck = lauf.struktur(datei).roh[von:bis]
+        teile.append(stueck)
+        herkunft.append((pos, pos + len(stueck), datei, von))
+        pos += len(stueck)
+    return "".join(teile), herkunft
 
 
 def vorlage_mit_includes(name: str, _kette: tuple = ()) -> tuple[str, list]:
-    """Text der Vorlage mit eingesetzten Includes und die Herkunft je Abschnitt (start, ende, datei, versatz)."""
-    if name in _kette:
-        raise JsFehler(f"Include-Schleife: {' -> '.join(_kette + (name,))}")
-    roh = (TEMPLATES / name).read_text(encoding="utf-8")
-    teile, herkunft, pos, aus = [], [], 0, 0
-    for m in _INCLUDE.finditer(roh):
-        stueck = roh[aus:m.start()]
-        teile.append(stueck)
-        herkunft.append((pos, pos + len(stueck), name, aus))
-        pos += len(stueck)
-        innen, innen_herkunft = vorlage_mit_includes(m.group(1), _kette + (name,))
-        teile.append(innen)
-        herkunft += [(pos + s, pos + e, d, v) for s, e, d, v in innen_herkunft]
-        pos += len(innen)
-        aus = m.end()
-    stueck = roh[aus:]
-    teile.append(stueck)
-    herkunft.append((pos, pos + len(stueck), name, aus))
-    return "".join(teile), herkunft
+    """Text der Vorlage mit eingesetzten Includes und die Herkunft je Abschnitt (start, ende, datei, versatz) -- seit 1.8.123 die
+    zusammengesetzte Seite (zusammensetzen())."""
+    return zusammensetzen(name)
+
+
+def seitentext(name: str) -> tuple[str, list]:
+    """Was die Vorlage selbst zur Seite beiträgt (seit 1.8.123): ihre Basis-Templates mit ihren Blöcken und die Makros, die sie
+    importiert -- ohne eingesetzte Includes (eine Teilvorlage prüfen die Scanner als eigene Datei). Ohne extends und Import ist das
+    der Text der Datei."""
+    return zusammensetzen(name, mit_includes=False)
+
+
+def alle_vorlagen(wurzel: Path | None = None) -> list[str]:
+    """Jede Vorlage unter wurzel, auch in Unterordnern, mit ihrem Namen für Jinja ("teile/x.html")."""
+    wurzel = TEMPLATES if wurzel is None else wurzel
+    return sorted(p.relative_to(wurzel).as_posix() for p in wurzel.rglob("*.html"))
+
+
+def vorlagen_verweise(name: str, wurzel: Path | None = None) -> set[str]:
+    """Die Vorlagen, die name einbindet, erweitert oder importiert (nur die eigenen Tags)."""
+    return {t.ziel for t in _struktur(TEMPLATES if wurzel is None else wurzel, name).tags if t.ziel}
+
+
+def basis_kette(name: str, wurzel: Path | None = None) -> list[str]:
+    """Die Basis-Templates von name, das nächste zuerst."""
+    lauf = _Lauf(TEMPLATES if wurzel is None else wurzel, True)
+    return _kette_der_basis(lauf, name, ())[1:]
+
+
+def seiten(wurzel: Path | None = None) -> list[str]:
+    """Die Seiten: Vorlagen, die keine andere einbindet, erweitert oder importiert, und deren Name nicht mit "_" beginnt."""
+    alle = alle_vorlagen(wurzel)
+    verwiesen = {z for v in alle for z in vorlagen_verweise(v, wurzel)}
+    return [v for v in alle if v not in verwiesen and not Path(v).name.startswith("_")]
+
+
+def ort(herkunft: list, pos: int, wurzel: Path | None = None) -> tuple[str | None, int]:
+    """Datei und Zeile einer Stelle im zusammengesetzten Text."""
+    for start, ende, datei, versatz in herkunft:
+        if start <= pos < ende:
+            roh = ((TEMPLATES if wurzel is None else wurzel) / datei).read_text(encoding="utf-8")
+            return datei, _zeile_in(roh, versatz + pos - start)
+    return None, 0
 
 
 _SKRIPT = re.compile(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", flags=re.S | re.I)
 
 
-def skript_der_vorlage(name: str) -> Quelle:
-    """Alle Inline-Skripte der Vorlage samt Includes, als ein Text (Lücken dazwischen mit Leerzeichen gefüllt -- die Positionen
-    bleiben die der Vorlage)."""
-    text, herkunft = vorlage_mit_includes(name)
+def _skripte(name: str, text: str, herkunft: list) -> Quelle:
     js = ["\n" if c == "\n" else " " for c in text]
     for m in _SKRIPT.finditer(text):
         js[m.start(1):m.end(1)] = _jinja_leeren(m.group(1))
     return Quelle(name, "".join(js), herkunft)
+
+
+def skript_der_vorlage(name: str) -> Quelle:
+    """Alle Inline-Skripte der Vorlage samt Includes, als ein Text (Lücken dazwischen mit Leerzeichen gefüllt -- die Positionen
+    bleiben die der Vorlage). Seit 1.8.123 der zusammengesetzten Seite (Basis-Templates, Makros)."""
+    return _skripte(name, *vorlage_mit_includes(name))
+
+
+def seitenskripte(name: str) -> Quelle:
+    """Die Inline-Skripte des Seitentexts (seitentext(), seit 1.8.123): eigene, der Basis-Templates und der importierten Makros."""
+    return _skripte(name, *seitentext(name))
 
 
 def eigene_skripte(name: str) -> Quelle:

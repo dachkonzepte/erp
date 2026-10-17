@@ -13,14 +13,18 @@ Eine solche Navigation ist geprüft, wenn ihr Ziel
 
 Gelesen wird mit dem Tokenizer aus tests/vorlagen_js.py (kein vollständiger JS-Parser); Handler im HTML (on…="…") werden als eigenes
 Skript gelesen, mit den belasteten Namen des Skripts der Vorlage. Über-Annäherung ist gewollt: eine Variable gleichen Namens in
-einer anderen Funktion zählt mit."""
+einer anderen Funktion zählt mit.
+
+Seit 1.8.123 ist "die Vorlage" ihr Seitentext (tests/vorlagen_js.py::seitentext()): die Datei samt Basis-Templates und importierten
+Makros -- ein Handler in der Basis oder im Makro mit einem Wert aus dem Skript der Seite zählt mit. Vorlagen auch in Unterordnern."""
 
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
 
-from tests.vorlagen_js import TEMPLATES, Analyse, Quelle, _ausdruck_ende, analysieren, eigene_skripte
+from tests import vorlagen_js
+from tests.vorlagen_js import TEMPLATES, Analyse, Quelle, _ausdruck_ende, analysieren, seitenskripte, seitentext
 
 _QUELLEN = {("location", "search"), ("location", "hash"), ("location", "href"), ("document", "referrer"), ("document", "URL"),
             ("document", "documentURI"), ("document", "baseURI"), ("window", "name")}
@@ -166,17 +170,19 @@ def navigationen(quelle: Quelle, namen: set | None = None, funktionen: set | Non
 
 
 def navigationen_der_vorlage(name: str, unlesbar: list | None = None) -> list[Navigation]:
-    """Die Navigationen der eigenen Skripte einer Vorlage und ihrer Handler im HTML (on…="…", auch in Template-Literalen). Ein
-    Handler, den der Tokenizer nicht lesen kann, landet in unlesbar (Vorlage, Code)."""
-    quelle = eigene_skripte(name)
+    """Die Navigationen der eigenen Skripte einer Vorlage und ihrer Handler im HTML (on…="…", auch in Template-Literalen) -- seit
+    1.8.123 ihres Seitentexts (mit Basis-Templates und Makros), jede Stelle mit der Datei, in der sie steht. Ein Handler, den der
+    Tokenizer nicht lesen kann, landet in unlesbar (Vorlage, Code)."""
+    quelle = seitenskripte(name)
     out = navigationen(quelle)
     namen, funktionen = belastete_namen(analysieren(quelle))
-    roh = (TEMPLATES / name).read_text(encoding="utf-8")
+    roh, herkunft = seitentext(name)
     for m in _HANDLER.finditer(roh):
         code = m.group(1).replace("&quot;", '"').replace("&#39;", "'").replace("&amp;", "&")
         code = re.sub(r"\$\{([^}]*)\}", r"(\1)", code)  # ${…} eines Template-Literals als Ausdruck
+        datei, versatz = next(((d, v + m.start(1) - s) for s, e, d, v in herkunft if s <= m.start(1) < e), (name, m.start(1)))
         try:
-            out += navigationen(Quelle(name, code, [(0, len(code), name, m.start(1))]), namen, funktionen)
+            out += navigationen(Quelle(name, code, [(0, len(code), datei, versatz)]), namen, funktionen)
         except Exception:
             if unlesbar is not None:
                 unlesbar.append((name, code))
@@ -184,4 +190,5 @@ def navigationen_der_vorlage(name: str, unlesbar: list | None = None) -> list[Na
 
 
 def alle_vorlagen() -> list[str]:
-    return sorted(p.name for p in TEMPLATES.glob("*.html"))
+    """Seit 1.8.123 auch in Unterordnern (tests/vorlagen_js.py::alle_vorlagen())."""
+    return vorlagen_js.alle_vorlagen(TEMPLATES)

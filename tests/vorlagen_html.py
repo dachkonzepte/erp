@@ -41,7 +41,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from tests.vorlagen_js import SCHLUESSELWOERTER, TEMPLATES, Analyse, Quelle, _handler, _umgebend, analysieren, skript_der_vorlage
+from tests import vorlagen_js
+from tests.vorlagen_js import (SCHLUESSELWOERTER, TEMPLATES, Analyse, Quelle, _handler, _umgebend, analysieren, skript_der_vorlage,
+                               vorlagen_verweise)
 from tests.vorlagen_navigation import _ende
 
 ESCAPE = {"esc", "auswahlOptionen", "encodeURIComponent", "encodeURI"}
@@ -137,7 +139,8 @@ class Bereich:
 
 class Pruefer:
     """Alle Prüfungen für eine Vorlage. vorlage: die Datei, deren eigene Stellen gemeldet werden; gelesen wird sie samt Includes
-    (Funktionen aus Teilvorlagen sind so auflösbar, ihre Stellen meldet die Teilvorlage selbst)."""
+    (Funktionen aus Teilvorlagen sind so auflösbar, ihre Stellen meldet die Teilvorlage selbst) -- seit 1.8.123 als zusammengesetzte
+    Seite, mit Basis-Templates und den Makros importierter Dateien (tests/vorlagen_js.py::zusammensetzen())."""
 
     def __init__(self, vorlage: str, *, text: str | None = None):
         """text: statt der Vorlage ein Skript (für Tests des Scanners) -- vorlage ist dann nur der Name."""
@@ -1200,19 +1203,19 @@ def jinja_handler(vorlage: str) -> list[Fund]:
 
 
 def alle_vorlagen() -> list[str]:
-    return sorted(p.name for p in TEMPLATES.glob("*.html"))
-
-
-_INCLUDE = re.compile(r"""\{%-?\s*include\s+["']([^"']+)["']\s*-?%\}""")
+    """Seit 1.8.123 auch in Unterordnern (tests/vorlagen_js.py::alle_vorlagen())."""
+    return vorlagen_js.alle_vorlagen(TEMPLATES)
 
 
 def zusammenhaenge() -> list[str]:
     """Die Vorlagen, in deren Zusammenhang gelesen wird: jede, die keine andere einbindet (Seiten), und jede Teilvorlage, die
     keine Seite einbindet. Eine Teilvorlage wird so in jeder Seite gelesen, die sie einbindet -- ihre Funktionen sehen dort deren
-    Aufrufstellen."""
-    eingebunden = {m for v in alle_vorlagen() for m in _INCLUDE.findall((TEMPLATES / v).read_text(encoding="utf-8"))}
-    return [v for v in alle_vorlagen() if v not in eingebunden or not any(
-        v in _INCLUDE.findall((TEMPLATES / w).read_text(encoding="utf-8")) for w in alle_vorlagen() if w not in eingebunden)]
+    Aufrufstellen. Seit 1.8.123 zählen extends und import wie include: ein Basis-Template und eine Makro-Datei werden in der Seite
+    gelesen, die von ihr erbt bzw. sie importiert."""
+    alle = alle_vorlagen()
+    verweise = {v: vorlagen_verweise(v, TEMPLATES) for v in alle}
+    eingebunden = {m for v in alle for m in verweise[v]}
+    return [v for v in alle if v not in eingebunden or not any(v in verweise[w] for w in alle if w not in eingebunden)]
 
 
 _CACHE: dict = {}

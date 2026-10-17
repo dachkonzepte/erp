@@ -4,6 +4,22 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.123 – Strukturtests lesen Basis-Templates, Makros und Unterordner
+
+Stufe 0a des Redesigns (Vorgabe vom 17.10.2026): bevor die Oberfläche auf ein gemeinsames Basis-Layout und Jinja-Makros umgestellt
+wird, sehen die Strukturtests, was dabei in eine Seite kommt. Bis 1.8.122 lasen die Scanner der Vorlagen (`tests/vorlagen_js.py`,
+`vorlagen_html.py`, `vorlagen_zahlen.py`, `vorlagen_navigation.py`) nur die oberste Ebene von `app/templates` und setzten nur
+`{% include %}` ein -- ein Verstoß in einem Makro, einem Unterordner oder einem Basis-Template wäre still durchgerutscht. Jetzt setzt
+`zusammensetzen()` eine Seite zusammen wie Jinja (extends mit Blöcken und `super()`, Includes, Makros importierter Dateien), die Liste
+der Vorlagen reicht in Unterordner, der Test des Bausteins `_speichern.html` nimmt das Include auch im Basis-Template, und die
+node-Attrappe bindet die Bausteine des Basis-Templates ein, in der Reihenfolge ihrer Skripte in der Seite. Je Scanner beweisen
+Gegenproben mit eigenen Vorlagen, dass ein Verstoß in Makro, Unterordner und Basis-Template erkannt wird -- vor der Änderung waren alle
+rot. Vorlagen und App-Code sind unverändert.
+
+Nebenbei gefunden: ein Include in einem Jinja-Kommentar (`_topbar.html`) setzten die Scanner ein, Jinja nicht -- die Seitenleiste stand
+in 42 Seiten doppelt im Zusammenhang; an keinem Fund änderte das etwas. Details: `docs/archiv/testablauf-und-klicktests.md`,
+„Strukturtests für Basis-Templates und Makros“.
+
 ## 1.8.122 – Baujahr eines Bauteils ab 1000
 
 Korrektur vom 16.10.2026 zu Festlegung 1.8.119-6: Kirchen und Altbauten sind älter als 1900. Das Baujahr eines Bauteils geht jetzt von 1000

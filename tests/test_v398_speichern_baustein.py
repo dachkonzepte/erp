@@ -261,7 +261,7 @@ def test_the_baustein_may_be_included_twice_and_shares_its_state():
 
 # --- Strukturtest je Vorlage ---------------------------------------------------------------------------------------------
 
-VORLAGEN = sorted(p.name for p in TEMPLATES.glob("*.html"))
+VORLAGEN = vj.alle_vorlagen(TEMPLATES)  # seit 1.8.123 auch in Unterordnern
 
 
 def _analyse(name):
@@ -311,17 +311,31 @@ def test_gespeichert_only_after_an_awaited_save(name):
     assert not offen, '"Gespeichert" vor dem Anwenden -- es gehört hinter `await speichern(…)`:\n' + "\n".join(offen)
 
 
+def _nutzt_den_baustein(name) -> bool:
+    a = vj.analysieren(vj.eigene_skripte(name))
+    return any(not a.ist_methode(auf) for auf, _ in a.aufrufe() if a.t[auf - 1].wert in vj.GEPRUEFT_RUFE)
+
+
+def _bindet_den_baustein_ein(name) -> bool:
+    return '{% include "_speichern.html" %}' in (TEMPLATES / name).read_text(encoding="utf-8")
+
+
 @pytest.mark.parametrize("name", VORLAGEN)
 def test_templates_using_the_baustein_include_it(name):
     """Wer in den eigenen Skripten lesen()/speichern() aufruft, bindet den Baustein selbst ein (er darf mehrfach eingebunden
-    sein); wer ihn nicht selbst nutzt, bindet ihn nicht ein -- dafür sorgen die Teilvorlagen, die ihn brauchen."""
+    sein); wer ihn nicht selbst nutzt, bindet ihn nicht ein -- dafür sorgen die Teilvorlagen, die ihn brauchen. Seit 1.8.123
+    genügt das Include im Basis-Template der Seite; ein Basis-Template darf ihn für eine Seite einbinden, die von ihm erbt und ihn
+    nutzt."""
     if name == BAUSTEIN.name:
         return
-    a = vj.analysieren(vj.eigene_skripte(name))
-    nutzt = any(not a.ist_methode(auf) for auf, _ in a.aufrufe() if a.t[auf - 1].wert in vj.GEPRUEFT_RUFE)
-    bindet_ein = '{% include "_speichern.html" %}' in (TEMPLATES / name).read_text(encoding="utf-8")
-    assert nutzt == bindet_ein, (f"{name} nutzt lesen()/speichern(), bindet _speichern.html aber nicht selbst ein" if nutzt
-                                 else f"{name} bindet _speichern.html ein, nutzt es aber selbst nicht")
+    nutzt = _nutzt_den_baustein(name)
+    if nutzt:
+        assert _bindet_den_baustein_ein(name) or any(_bindet_den_baustein_ein(b) for b in vj.basis_kette(name, TEMPLATES)), (
+            f"{name} nutzt lesen()/speichern(), bindet _speichern.html aber weder selbst noch über ein Basis-Template ein")
+    elif _bindet_den_baustein_ein(name):
+        erben = [v for v in vj.alle_vorlagen(TEMPLATES) if name in vj.basis_kette(v, TEMPLATES)]
+        assert any(_nutzt_den_baustein(v) for v in erben), (
+            f"{name} bindet _speichern.html ein, nutzt es aber selbst nicht" + (" (und keine Vorlage, die von ihm erbt)" if erben else ""))
 
 
 def test_every_template_is_scanned():

@@ -425,7 +425,7 @@ def _schreibstellen_je_funktion(name: str):
         yield fn, st, a, _url_text(a, st)
 
 
-VORLAGEN = sorted(p.name for p in TEMPLATES.glob("*.html"))
+VORLAGEN = vj.alle_vorlagen(TEMPLATES)  # seit 1.8.123 auch in Unterordnern
 
 
 @pytest.mark.parametrize("name", VORLAGEN)
