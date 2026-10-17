@@ -152,16 +152,23 @@ def test_seiten_lassen_sich_nicht_fremd_einrahmen(anmeldung):
 # 3. Daten ungeschützt in der Seite
 # ---------------------------------------------------------------------------
 
-def test_keine_vorlage_und_kein_modul_schaltet_das_escaping_aus():
-    """Geprüft, in Ordnung: Jinja escapt alle .html-Vorlagen (select_autoescape), nirgends |safe, Markup( oder autoescape false."""
-    assert pages_router.templates.env.autoescape("x.html") is True
+def _escaping_funde() -> list[str]:
+    """|safe, Markup( oder autoescape false in einer Vorlage (seit 1.8.124, Stufe 0b: auch in Unterordnern) oder einem Modul unter app/."""
+    from tests import vorlagen_js
+
     funde = []
-    for pfad in [*TEMPLATES.glob("*.html"), *(ROOT / "app").rglob("*.py")]:
+    for pfad in [*(TEMPLATES / name for name in vorlagen_js.alle_vorlagen(TEMPLATES)), *(ROOT / "app").rglob("*.py")]:
         text = pfad.read_text(encoding="utf-8")
         for muster in (r"\|\s*safe\b", r"\bMarkup\(", r"autoescape\s+false"):
             if re.search(muster, text):
                 funde.append(f"{pfad.relative_to(ROOT)}: {muster}")
-    assert funde == []
+    return funde
+
+
+def test_keine_vorlage_und_kein_modul_schaltet_das_escaping_aus():
+    """Geprüft, in Ordnung: Jinja escapt alle .html-Vorlagen (select_autoescape), nirgends |safe, Markup( oder autoescape false."""
+    assert pages_router.templates.env.autoescape("x.html") is True
+    assert _escaping_funde() == []
 
 
 # --- 3a. hochgeladene Dateien als aktiver Inhalt ------------------------------------------------------------------------

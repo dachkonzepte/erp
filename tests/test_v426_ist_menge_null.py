@@ -23,6 +23,7 @@ from tests.leistungszeitraum import ZEITRAUM_JSON, festschreiben
 from tests.test_v133_invoices import make_order_with_item
 from tests.test_v314_dashboard_month_berlin import NODE
 from tests.test_v334_auswahl_restfaelle import im_browser, seite
+from tests import vorlagen_js
 from tests.test_v385_auftrag_sperren import _leistungsstand, _zweite_position
 from tests.test_v424_zahlgrenzen import ABGLEICH, _browser
 from tests.zahlgrenzen import TEMPLATES, attribut, grenzen_im_markup, grenzen_im_schema, zahl_tags
@@ -96,6 +97,12 @@ def _ist_felder_im_schema() -> list[str]:
                   for feld in klasse.model_fields if feld.startswith("ist_") and "quantity" in feld and not name.endswith("Out"))
 
 
+def _ist_markup() -> list[str]:
+    """Jedes Zahlenfeld „Ist“ im Markup -- seit 1.8.124 (Stufe 0b) aus jeder Vorlage, auch in Unterordnern."""
+    return [tag for name in vorlagen_js.alle_vorlagen(TEMPLATES) for _, tag in zahl_tags((TEMPLATES / name).read_text(encoding="utf-8"))
+            if re.search(r"\bIst\b", attribut(tag, "data-feld") or attribut(tag, "aria-label") or "")]
+
+
 def test_keine_ist_menge_hat_eine_untergrenze_ueber_0():
     """Server: jede Ist-Menge eines Eingabeschemas nimmt 0 an (ge=0, inklusive). Browser: jedes Feld „Ist-Menge“ und jeder Leseaufruf
     für eine Ist-Menge (aus dem Abgleich von 1.8.119) hat keine Untergrenze oder eine bis 0."""
@@ -108,8 +115,7 @@ def test_keine_ist_menge_hat_eine_untergrenze_ueber_0():
     for z in eintraege:
         untergrenze = _browser(z).min
         assert untergrenze is None or untergrenze[0] < 0 or untergrenze == (Decimal("0"), True), (z, untergrenze)
-    markup = [tag for vorlage in sorted(TEMPLATES.glob("*.html")) for _, tag in zahl_tags(vorlage.read_text(encoding="utf-8"))
-              if re.search(r"\bIst\b", attribut(tag, "data-feld") or attribut(tag, "aria-label") or "")]
+    markup = _ist_markup()
     assert len(markup) == 3, markup                            # Dialog „Position“, Ist-Spalte der Rechnung und der Schlussrechnung
     for tag in markup:
         untergrenze = grenzen_im_markup(tag).min

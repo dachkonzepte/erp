@@ -28,6 +28,7 @@ from app.auth import resolve_account_display
 from app.models import AppUser, Employee
 from app import seitendaten
 from app.routers import pages as pages_router_module
+from tests import vorlagen_js
 
 
 # ---------------------------------------------------------------------------
@@ -248,19 +249,25 @@ def test_mobile_header_does_not_include_topbar():
 # Projektweiter Konsistenz-Test: jede Seite mit _sidebar.html bekommt auch _topbar.html
 # ---------------------------------------------------------------------------
 
+def _seitenleiste_ohne_topbar() -> tuple[list[str], list[str]]:
+    """(Seiten mit _sidebar.html, davon ohne _topbar.html) -- in der zusammengesetzten Seite: seit 1.8.124 (Stufe 0b) auch über ihr
+    Basis-Template, auch in Unterordnern (tests/vorlagen_js.py::seiten(), zusammensetzen())."""
+    vorlagen = Path(__file__).parents[1] / "app" / "templates"
+    mit, ohne = [], []
+    for seite in vorlagen_js.seiten(vorlagen):
+        dateien = {d for _, _, d, _ in vorlagen_js.zusammensetzen(seite, wurzel=vorlagen)[1]}
+        if "_sidebar.html" in dateien:
+            mit.append(seite)
+            if "_topbar.html" not in dateien:
+                ohne.append(seite)
+    return mit, ohne
+
+
 def test_every_template_with_sidebar_also_includes_topbar():
     """Nur echte SEITEN geprüft, keine Partials (Dateien mit führendem "_") -- _topbar.html
     selbst erwähnt _sidebar.html im erklärenden Jinja-Kommentar (wo es eingebunden werden muss),
     was als reiner Text-Treffer sonst fälschlich mitgezählt würde, obwohl Jinja-Kommentare beim
     Rendern vollständig entfernt werden (kein Rekursionsrisiko wie beim 1.2.19-Fund in
     _debounce.html, dort ein JS-Kommentar statt eines Jinja-Kommentars -- hier bewusst geprüft,
-    nicht nur angenommen)."""
-    root = Path(__file__).parents[1] / "app" / "templates"
-    missing = []
-    for html_file in sorted(root.glob("*.html")):
-        if html_file.name.startswith("_"):
-            continue
-        text = html_file.read_text(encoding="utf-8")
-        if '{% include "_sidebar.html" %}' in text and '{% include "_topbar.html" %}' not in text:
-            missing.append(html_file.name)
-    assert missing == []
+    nicht nur angenommen). Seit 1.8.124 die zusammengesetzte Seite (zusammensetzen() liest keine Kommentare)."""
+    assert _seitenleiste_ohne_topbar()[1] == []

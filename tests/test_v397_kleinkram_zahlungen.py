@@ -505,10 +505,12 @@ def test_payment_dialog_groups_and_marks_contained_invoices(threaded_db_session,
 def test_templates_build_the_lists_with_the_helper():
     """Der Zahlungsdialog, seine Auswahl "weitere Rechnung" und "Rest zuordnen" in der Kundenakte nutzen den Helfer -- der Aufruf,
     nicht nur der Name (Kommentare zählen nicht)."""
+    from tests import vorlagen_js
+
     detail = (TEMPLATES / "invoice_detail.html").read_text(encoding="utf-8")
     kunde = (TEMPLATES / "customer.html").read_text(encoding="utf-8")
-    for text in (detail, kunde):
-        assert '{% include "_zahlung_gruppen.html" %}' in text
+    for name in ("invoice_detail.html", "customer.html"):  # eingebunden, seit 1.8.124 auch im Basis-Template
+        assert vorlagen_js.bindet_ein(name, "_zahlung_gruppen.html", TEMPLATES), name
     assert "innerHTML=payLines.length?head+zahlungsGruppen(payLines).map(" in detail
     assert "'<option value=\"\">— Rechnung wählen … —</option>'+zahlungsOptionen(more," in detail
     assert "settled_in:o.settled_in||null" in detail

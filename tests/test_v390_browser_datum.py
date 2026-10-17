@@ -17,11 +17,11 @@ from pathlib import Path
 
 import pytest
 
+from tests import vorlagen_js
 from tests.test_v314_dashboard_month_berlin import NODE, PROCESS_TIMEZONES, _node, _scripts
 
 TEMPLATES = Path(__file__).resolve().parent.parent / "app" / "templates"
-HELPER = "_berlin_date.html"
-INCLUDE = '{% include "_berlin_date.html" %}'
+HELPER = "_berlin_date.html"  # eingebunden mit {% include "_berlin_date.html" %}, selbst oder im Basis-Template
 
 JETZT = re.compile(r"\bnew Date\(\s*\)|\bDate\.now\(\s*\)|\.toISOString\(")
 VERBOTEN = re.compile(r"getTimezoneOffset|toDateString\(")
@@ -48,16 +48,31 @@ ERLAUBT = [
 ]
 
 
-def _vorlagen():
-    return sorted(p for p in TEMPLATES.glob("*.html") if p.name != HELPER)
+def _vorlagen() -> list[str]:
+    """Jede Vorlage außer dem Helfer -- seit 1.8.124 (Stufe 0b) auch in Unterordnern (tests/vorlagen_js.py::alle_vorlagen())."""
+    return [name for name in vorlagen_js.alle_vorlagen(TEMPLATES) if name != HELPER]
+
+
+def _zeilen(name: str) -> list[str]:
+    return (TEMPLATES / name).read_text(encoding="utf-8").splitlines()
 
 
 def _fundstellen():
     """(Vorlage, Zeilennummer, Zeile) je Vorkommen eines Musters aus JETZT."""
-    for path in _vorlagen():
-        for nr, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+    for name in _vorlagen():
+        for nr, line in enumerate(_zeilen(name), start=1):
             for _ in JETZT.finditer(line):
-                yield path.name, nr, line
+                yield name, nr, line
+
+
+def _verbotene() -> list[str]:
+    return [f"{name}:{nr}" for name in _vorlagen() for nr, line in enumerate(_zeilen(name), start=1) if VERBOTEN.search(line)]
+
+
+def _helfer_nutzer() -> list[tuple[str, bool]]:
+    """(Vorlage, bindet _berlin_date.html ein) je Vorlage, die einen Helfer nutzt -- seit 1.8.124 das Include auch im Basis-Template."""
+    return [(name, vorlagen_js.bindet_ein(name, HELPER, TEMPLATES)) for name in _vorlagen()
+            if HELFER.search((TEMPLATES / name).read_text(encoding="utf-8"))]
 
 
 def test_every_now_in_templates_is_an_allowed_instant():
@@ -79,14 +94,12 @@ def test_allowed_list_has_no_stale_entries():
 
 
 def test_no_timezone_offset_or_date_string_in_templates():
-    treffer = [f"{p.name}:{nr}" for p in _vorlagen()
-               for nr, line in enumerate(p.read_text(encoding="utf-8").splitlines(), start=1) if VERBOTEN.search(line)]
+    treffer = _verbotene()
     assert not treffer, "getTimezoneOffset()/toDateString() ergeben den Tag in der Zeitzone des Geräts: " + ", ".join(treffer)
 
 
 def test_templates_using_the_helpers_include_them():
-    fehlt = [p.name for p in _vorlagen() if HELFER.search(p.read_text(encoding="utf-8"))
-             and INCLUDE not in p.read_text(encoding="utf-8")]
+    fehlt = [name for name, eingebunden in _helfer_nutzer() if not eingebunden]
     assert not fehlt, "Vorlage nutzt einen Helfer aus _berlin_date.html, ohne ihn einzubinden: " + ", ".join(fehlt)
 
 

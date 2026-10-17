@@ -4,6 +4,19 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.124 – Strukturtests Stufe 0b: alle Tests, Seiten-Abgleich, Makro-Regel
+
+Stufe 0b des Redesigns (Vorgabe vom 17.10.2026, Festlegungen 1.8.123 bestätigt): die neun übrigen Strukturtests, die Vorlagen per
+`glob("*.html")` lasen (v254, v313, v328, v333, v390, v405, v423, v424, v426), nehmen jetzt `alle_vorlagen()`, `seiten()` und
+`zusammensetzen()`; die neun Prüfungen, die ein Include wörtlich in der Seite verlangten, nehmen es auch im Basis-Template
+(`vorlagen_js.bindet_ein()`). Ein Abzug aller Funde dieser Tests an den echten Vorlagen ist vorher und nachher gleich. Der Wächter prüft
+jede Datei unter `tests/` und erkennt jedes Auflisten des Vorlagenordners an `alle_vorlagen()` vorbei (glob, rglob, iterdir, walk,
+scandir, `os.listdir`, `glob.glob`, `list_templates()`). Neu: `seiten()` enthält genau die Vorlagen, die `app/` per `TemplateResponse`
+ausliefert (Test in `tests/test_v429_strukturtests_stufe_0b.py`), und die Makro-Regel -- in einem Makro kein Jinja in `type=`, `on…=`
+oder `href=` und kein `{{ … }}` an der Stelle eines Attributs, geprüft in `vorlagen_html.jinja_handler()`. Für Wächter, Seiten-Abgleich
+und Makro-Regel je eine Gegenprobe mit Fixture-Vorlagen. Vorlagen und App-Code sind unverändert. Details:
+`docs/archiv/testablauf-und-klicktests.md`, „Strukturtests, Stufe 0b“.
+
 ## 1.8.123 – Strukturtests lesen Basis-Templates, Makros und Unterordner
 
 Stufe 0a des Redesigns (Vorgabe vom 17.10.2026): bevor die Oberfläche auf ein gemeinsames Basis-Layout und Jinja-Makros umgestellt

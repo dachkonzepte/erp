@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.123** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.124** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -1264,7 +1264,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Spielwiese, `klicktest_alle.py --gleichzeitig`, `ALLEIN` für zeitkritische Klicktests, Abbruch in Gegenproben, Messungen; die
   Festlegungen zu Werkzeug und Testablauf, Regel 28; seit 1.8.111 Zeitgrenze je Test, Browser-Uhr im Klicktest, taskkill mit
   Zeitlimit; seit 1.8.115 Verbindungsprotokoll von uvicorn je Instanz und Ausgang hängender Anfragen im Netzprotokoll; seit 1.8.116
-  JS-Ausnahmen in node-Tests, Regel 36; seit 1.8.123 Strukturtests mit Unterordnern, Basis-Templates und Makros, Stufe 0a des Redesigns)
+  JS-Ausnahmen in node-Tests, Regel 36; seit 1.8.123 Strukturtests mit Unterordnern, Basis-Templates und Makros, Stufe 0a des Redesigns;
+  seit 1.8.124 Stufe 0b: alle Strukturtests, Wächter über tests/, Seiten-Abgleich, Makro-Regel)
   -- `docs/archiv/testablauf-und-klicktests.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`
@@ -1589,9 +1590,13 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
 - **Vorlagen über `tests/vorlagen_js.py` lesen** (seit 1.8.123, Stufe 0a des Redesigns): eine Prüfung über alle Vorlagen nimmt
   `alle_vorlagen()` (auch Unterordner, Namen wie "teile/x.html"), `seiten()` und die zusammengesetzte Seite aus `zusammensetzen()`
   (extends mit Blöcken und `super()`, Includes, die Makros importierter Dateien; `seitentext()` ohne Includes) -- nie `glob("*.html")`
-  (Wächter in `tests/test_v428_strukturtests_basis_und_makros.py`). Neun ältere Strukturtests lesen noch nur die oberste Ebene, neun
-  verlangen ein Include wörtlich in der Seite: `docs/archiv/testablauf-und-klicktests.md`, 1.8.123, Nebenbefund 1 (vor dem ersten
-  Basis-Template umstellen).
+  (Wächter in `tests/test_v428_strukturtests_basis_und_makros.py`, seit 1.8.124 über jede Datei unter `tests/` und jedes Auflisten des
+  Vorlagenordners). Seit 1.8.124 (Stufe 0b): ein Include verlangt ein Test über `bindet_ein()` (selbst oder im Basis-Template);
+  `seiten()` = was `app/` per `TemplateResponse` ausliefert, eine neue Seitenroute nimmt einen festen Namen oder `a if b else c`
+  (`tests/test_v429_strukturtests_stufe_0b.py`); **Makro-Regel**: in einem Makro kein Jinja in `type=`, `on…=`, `href=` und kein
+  `{{ … }}` an der Stelle eines Attributs -- was die Scanner prüfen, steht fest im Makro oder wörtlich in der Seite (über `{% call %}`),
+  geprüft in `vorlagen_html.jinja_handler()`. Noch wörtlich: vier Include-Prüfungen einzelner Seiten (v314, v338, v340, v418) und die
+  Token-Prüfung der Monteursseiten in v272 -- `docs/archiv/testablauf-und-klicktests.md`, 1.8.124, Nebenbefunde.
 
 - **Feste Uhr statt Tageszeit** (seit 1.8.36): ein Test, dessen Ergebnis von der Uhrzeit abhängt (z. B. Monteur
   an `/api/field-view/today`, ab 19:00 "Feierabend" 401), nimmt die Fixture `feste_uhr` bzw. in einer Modul-Fixture

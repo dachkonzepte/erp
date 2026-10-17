@@ -8,6 +8,8 @@ Template-Quellen, da JS-Interaktion/CSS-Layout ohne echten Browser nicht ausfüh
 
 from pathlib import Path
 
+from tests import vorlagen_js
+
 TEMPLATES = Path(__file__).parents[1] / "app" / "templates"
 
 
@@ -33,10 +35,10 @@ def test_debounce_helper_included_exactly_once_via_mobile_header():
     # Keines der vier Templates, die _mobile_header.html einbinden, darf den Helfer zusätzlich
     # selbst einbinden -- sonst wäre `debounce` doppelt definiert (harmlos in JS, aber ein Zeichen
     # für auseinanderlaufende Konventionen).
+    # Seit 1.8.124 (Stufe 0b): eingebunden selbst oder im Basis-Template der Seite (tests/vorlagen_js.py::bindet_ein()).
     for name in ("mobil.html", "mobil_objekt.html", "field_timesheet.html", "time_tracking_field.html"):
-        content = _read(name)
-        assert '{% include "_mobile_header.html" %}' in content, f"{name} bindet die Kopfzeile nicht ein"
-        assert '{% include "_debounce.html" %}' not in content, f"{name} bindet den Debounce-Helfer doppelt ein"
+        assert vorlagen_js.bindet_ein(name, "_mobile_header.html", TEMPLATES), f"{name} bindet die Kopfzeile nicht ein"
+        assert not vorlagen_js.bindet_ein(name, "_debounce.html", TEMPLATES), f"{name} bindet den Debounce-Helfer doppelt ein"
 
 
 def test_every_mobile_page_gets_the_search_bar_for_free():
@@ -44,7 +46,7 @@ def test_every_mobile_page_gets_the_search_bar_for_free():
     sein, nicht nur von /mobil -- da alle vier Seiten _mobile_header.html einbinden, erreicht sie
     das automatisch, ohne dass jede Seite das Suchfeld einzeln nachbauen müsste."""
     for name in ("mobil.html", "mobil_objekt.html", "field_timesheet.html", "time_tracking_field.html"):
-        assert '{% include "_mobile_header.html" %}' in _read(name)
+        assert vorlagen_js.bindet_ein(name, "_mobile_header.html", TEMPLATES), name
 
 
 def test_search_results_dropdown_is_anchored_below_the_whole_header_not_below_the_input():

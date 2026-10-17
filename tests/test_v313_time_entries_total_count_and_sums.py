@@ -25,6 +25,7 @@ from app.database import Base
 from app.models import Customer, Employee, Order, Project, TimeEntry
 from app.routers.time_tracking import router as time_router
 from app.time_tracking import list_entries
+from tests import vorlagen_js
 from tests.test_v133_invoices import make_order_with_item
 from tests.test_v282_role_narrowing_etappe2 import ALL_ROLES, WAGE_KEYS, _recursive_keys
 
@@ -200,20 +201,28 @@ def _code(path):
     return re.sub(r"/\*.*?\*/", "", re.sub(r"\{#.*?#\}", "", text, flags=re.S), flags=re.S)
 
 
-def test_every_page_listing_time_entries_reads_total_and_shows_truncation_notice():
-    pages = {}
-    for path in sorted(TEMPLATES.glob("*.html")):
-        code = _code(path)
+def _seiten_mit_zeitliste() -> dict:
+    """Vorlage -> (Listen-Aufrufe nicht über fetchTimeEntries(), bindet _time_entries_list.html ein, Hinweis für jede Liste) je Vorlage,
+    die eine Liste über GET /api/time-entries lädt -- seit 1.8.124 (Stufe 0b) auch in Unterordnern, das Include auch im Basis-Template."""
+    seiten = {}
+    for name in vorlagen_js.alle_vorlagen(TEMPLATES):
+        code = _code(TEMPLATES / name)
         calls = [m.start() for m in LIST_CALL.finditer(code)]
-        if calls and path.name != "_time_entries_list.html":
-            pages[path.name] = (code, calls)
+        if calls and name != "_time_entries_list.html":
+            seiten[name] = ([code[p - 60:p + 40] for p in calls if not WRAPPED.search(code[max(0, p - 40):p])],
+                            vorlagen_js.bindet_ein(name, "_time_entries_list.html", TEMPLATES),
+                            code.count("timeEntriesTruncatedNotice(") >= len(calls))
+    return seiten
+
+
+def test_every_page_listing_time_entries_reads_total_and_shows_truncation_notice():
+    pages = _seiten_mit_zeitliste()
     assert {"service_reports.html", "project_folder.html", "time_backoffice.html", "time_tracking.html",
             "time_tracking_field.html", "field_timesheet.html"} <= set(pages)
-    for name, (code, calls) in pages.items():
-        unwrapped = [code[p - 60:p + 40] for p in calls if not WRAPPED.search(code[max(0, p - 40):p])]
+    for name, (unwrapped, eingebunden, hinweis) in pages.items():
         assert not unwrapped, (name, unwrapped)  # jede Liste über fetchTimeEntries() -> X-Total-Count
-        assert '{% include "_time_entries_list.html" %}' in code, name
-        assert code.count("timeEntriesTruncatedNotice(") >= len(calls), name
+        assert eingebunden, name                 # {% include "_time_entries_list.html" %}, selbst oder im Basis-Template
+        assert hinweis, name                     # timeEntriesTruncatedNotice() für jede Liste
 
 
 def test_pages_with_sums_take_them_from_summary_endpoint():

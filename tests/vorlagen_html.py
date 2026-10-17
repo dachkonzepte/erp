@@ -1190,15 +1190,79 @@ class Pruefer:
 
 
 _JINJA_HANDLER = re.compile(r"""\son[a-z]+\s*=\s*(?:"[^"]*\{\{[^"]*"|'[^']*\{\{[^']*')""", re.I)
+_TAG_ANFANG = re.compile(r"<[A-Za-z][\w:-]*")
 
 
 def jinja_handler(vorlage: str) -> list[Fund]:
-    """on…-Attribute im Markup der Vorlage mit {{ … }} -- Jinja escapt das HTML, nicht den Code im Attribut."""
+    """on…-Attribute im Markup der Vorlage mit {{ … }} -- Jinja escapt das HTML, nicht den Code im Attribut. Seit 1.8.124 (Makro-Regel,
+    Stufe 0b) dazu in jedem Makro: Jinja in type=, on…= oder href= oder an der Stelle eines Attributnamens -- was die Scanner prüfen,
+    steht fest im Makro oder wörtlich in der Seite (über {% call %}); einen Wert, den ein Aufruf hineinreicht, sieht kein Scanner."""
     text = (TEMPLATES / vorlage).read_text(encoding="utf-8")
     out = []
     for m in _JINJA_HANDLER.finditer(text):
         zeile = text.count("\n", 0, m.start()) + 1
         out.append(Fund(vorlage, "<markup>", re.sub(r"\s+", " ", m.group(0).strip())[:160], f"{vorlage}:{zeile}"))
+    ohne, makros = vorlagen_js.makro_bereiche(vorlage, TEMPLATES)
+    for makro, von, bis in makros:
+        for pos, was in _jinja_in_attributen(ohne, von, bis):
+            out.append(Fund(vorlage, f"<makro {makro}>", re.sub(r"\s+", " ", was)[:160], f"{vorlage}:{text.count(chr(10), 0, pos) + 1}"))
+    return out
+
+
+def _jinja_ende(text: str, i: int, bis: int) -> int:
+    """Ende eines {{ … }} oder {% … %} ab i (ausschließlich)."""
+    ende = text.find("}}" if text.startswith("{{", i) else "%}", i + 2, bis)
+    return bis if ende < 0 else ende + 2
+
+
+def _ist_jinja(text: str, i: int) -> bool:
+    return text.startswith("{{", i) or text.startswith("{%", i)
+
+
+def _jinja_in_attributen(text: str, von: int, bis: int) -> list[tuple[int, str]]:
+    """(Stelle, Ausschnitt) je Jinja in den Tags von text[von:bis]: {{ … }} an der Stelle eines Attributs ({{ attrs }}), Jinja im Namen
+    eines Attributs (on{{ x }}=) und im Wert von type=, on…= und href=. Ein {% if %} um feste Attribute ist erlaubt (sie stehen wörtlich
+    da). Ein on…="…{{ … }}…" meldet schon _JINJA_HANDLER."""
+    out, i = [], von
+    while (m := _TAG_ANFANG.search(text, i, bis)) is not None:
+        j = m.end()
+        while j < bis and text[j] != ">":
+            if text[j].isspace() or text[j] == "/":
+                j += 1
+                continue
+            if _ist_jinja(text, j):  # {{ … }} an der Stelle eines Attributs fügt beliebige ein; {% if %}…{% endif %} lässt sie wörtlich
+                ende = _jinja_ende(text, j, bis)
+                if text.startswith("{{", j):
+                    out.append((j, text[j:ende]))
+                j = ende
+                continue
+            k = j  # Name bis Leerraum, =, > oder {% (on{{ x }} ist ein Name, {% endif %} beendet ihn)
+            while k < bis and not text[k].isspace() and text[k] not in "=>" and not text.startswith("/>", k) \
+                    and not text.startswith("{%", k):
+                k = _jinja_ende(text, k, bis) if text.startswith("{{", k) else k + 1
+            name = text[j:k]
+            if "{{" in name or "{%" in name:
+                out.append((j, name))
+            p = k
+            while p < bis and text[p].isspace():
+                p += 1
+            if p >= bis or text[p] != "=":
+                j = k
+                continue
+            p += 1
+            while p < bis and text[p].isspace():
+                p += 1
+            zeichen = text[p] if p < bis and text[p] in "\"'" else ""
+            e = p + 1 if zeichen else p
+            while e < bis and (text[e] != zeichen if zeichen else not text[e].isspace() and text[e] != ">"):
+                e = _jinja_ende(text, e, bis) if _ist_jinja(text, e) else e + 1
+            wert = text[p + 1 if zeichen else p:e]
+            gross = name.lower()
+            if (gross == "type" or gross == "href" or gross.startswith("on")) and ("{{" in wert or "{%" in wert) \
+                    and not (gross.startswith("on") and zeichen and "{{" in wert):
+                out.append((j, text[j:e + (1 if zeichen else 0)]))
+            j = e + (1 if zeichen else 0)
+        i = j + 1
     return out
 
 

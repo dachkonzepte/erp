@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from tests import vorlagen_js
+
 TEMPLATES = Path(__file__).resolve().parent.parent / "app" / "templates"
 
 NUTZT = (re.compile(r"""classList\.(?:toggle|add|remove)\(\s*['"]hidden['"]"""), re.compile(r"""class=["'][^"']*\bhidden\b"""),
@@ -23,9 +25,25 @@ def nutzt_hidden(text: str) -> bool:
     return any(m.search(text) for m in NUTZT)
 
 
+def _hidden_vorlagen() -> tuple[list[str], list[str]]:
+    """(Vorlagen, die die Klasse "hidden" setzen, davon ohne Regel .hidden{display:none}). Seit 1.8.124 (Stufe 0b): jede Vorlage, auch
+    in Unterordnern; die Regel zählt, wo die Vorlage gezeichnet wird -- in ihrer zusammengesetzten Seite (auch im Basis-Template oder
+    einer eingebundenen Teilvorlage) oder, für eine Teilvorlage, ein Basis-Template oder eine Makro-Datei, in jeder Seite, die sie nutzt."""
+    alle = vorlagen_js.alle_vorlagen(TEMPLATES)
+    gesehen = [name for name in alle if nutzt_hidden((TEMPLATES / name).read_text(encoding="utf-8"))]
+    seiten = {seite: vorlagen_js.zusammensetzen(seite, wurzel=TEMPLATES) for seite in vorlagen_js.seiten(TEMPLATES)}
+
+    def mit_regel(name: str) -> bool:
+        if REGEL.search(vorlagen_js.zusammensetzen(name, wurzel=TEMPLATES)[0]):
+            return True
+        nutzer = [s for s, (_, herkunft) in seiten.items() if s != name and name in {d for _, _, d, _ in herkunft}]
+        return bool(nutzer) and all(REGEL.search(seiten[s][0]) for s in nutzer)
+
+    return gesehen, [name for name in gesehen if not mit_regel(name)]
+
+
 def test_jede_vorlage_mit_der_klasse_hidden_blendet_sie_aus():
-    ohne = [p.name for p in sorted(TEMPLATES.glob("*.html")) if nutzt_hidden(t := p.read_text(encoding="utf-8")) and not REGEL.search(t)]
-    gesehen = [p.name for p in TEMPLATES.glob("*.html") if nutzt_hidden(p.read_text(encoding="utf-8"))]
+    gesehen, ohne = _hidden_vorlagen()
     assert "settings.html" in gesehen and len(gesehen) >= 15  # der Scanner sieht die Vorlagen
     assert ohne == [], f"Klasse 'hidden' ohne Regel .hidden{{display:none}}: {ohne}"
 

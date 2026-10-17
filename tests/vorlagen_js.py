@@ -119,6 +119,8 @@ class _Struktur:
     block_ende: dict                               # Anfang des block-Tags -> Ende des endblock-Tags
     makros: list                                   # (von, bis) je Makro auf oberster Ebene, samt seinen Tags
     supers: list                                   # (von, bis) je {{ super() }}
+    ohne_kommentare: str = ""                      # roh mit Jinja-Kommentaren als Leerzeichen (seit 1.8.124)
+    alle_makros: list = field(default_factory=list)  # (Name, Inhalt von, Inhalt bis) je Makro, auch verschachtelt
 
 
 def _zeile_in(text: str, pos: int) -> int:
@@ -142,7 +144,7 @@ def _struktur(wurzel: Path, name: str) -> _Struktur:
     def fehler(t: _Tag, text: str) -> VorlagenFehler:
         return VorlagenFehler(f"{name}:{_zeile_in(roh, t.start)}: {text}")
 
-    stapel, basis, bloecke, block_ende, makros = [], None, {}, {}, []
+    stapel, basis, bloecke, block_ende, makros, alle_makros = [], None, {}, {}, [], []
     for t in tags:
         t.in_block = any(a == "block" for a, _ in stapel)
         t.in_makro = any(a == "macro" for a, _ in stapel)
@@ -165,8 +167,10 @@ def _struktur(wurzel: Path, name: str) -> _Struktur:
                     raise fehler(auf, f"Block {block!r} zweimal")
                 bloecke[block] = (auf.ende, t.start)
                 block_ende[auf.start] = t.ende
-            elif auf.art == "macro" and not any(a == "macro" for a, _ in stapel):
-                makros.append((auf.start, t.ende))
+            elif auf.art == "macro":
+                alle_makros.append((re.match(r"\w*", auf.rest).group(0), auf.ende, t.start))
+                if not any(a == "macro" for a, _ in stapel):
+                    makros.append((auf.start, t.ende))
         elif t.art == "extends":
             if stapel:
                 raise fehler(t, "{% extends %} nur auf oberster Ebene -- ein bedingtes extends ist nicht prüfbar")
@@ -176,7 +180,7 @@ def _struktur(wurzel: Path, name: str) -> _Struktur:
     if stapel:
         raise fehler(stapel[-1][1], f"{{% {stapel[-1][0]} %}} ohne Ende")
     supers = [(m.start(), m.end()) for m in _SUPER.finditer(ohne)]
-    return _Struktur(roh, tags, basis, bloecke, block_ende, makros, supers)
+    return _Struktur(roh, tags, basis, bloecke, block_ende, makros, supers, ohne, sorted(alle_makros, key=lambda x: x[1]))
 
 
 class _Lauf:
@@ -322,6 +326,20 @@ def basis_kette(name: str, wurzel: Path | None = None) -> list[str]:
     """Die Basis-Templates von name, das nächste zuerst."""
     lauf = _Lauf(TEMPLATES if wurzel is None else wurzel, True)
     return _kette_der_basis(lauf, name, ())[1:]
+
+
+def bindet_ein(name: str, baustein: str, wurzel: Path | None = None) -> bool:
+    """Ob name den Baustein selbst per {% include %} einbindet oder eines seiner Basis-Templates (seit 1.8.124, Stufe 0b: so
+    verlangen die Strukturtests ein Include -- in einem Kommentar zählt es nicht)."""
+    wurzel = TEMPLATES if wurzel is None else wurzel
+    return any(t.art == "include" and t.ziel == baustein
+               for datei in [name, *basis_kette(name, wurzel)] for t in _struktur(wurzel, datei).tags)
+
+
+def makro_bereiche(name: str, wurzel: Path | None = None) -> tuple[str, list]:
+    """(Text ohne Jinja-Kommentare, [(Makro, Inhalt von, Inhalt bis)]) je {% macro %} der Datei, auch verschachtelt (seit 1.8.124)."""
+    s = _struktur(TEMPLATES if wurzel is None else wurzel, name)
+    return s.ohne_kommentare, s.alle_makros
 
 
 def seiten(wurzel: Path | None = None) -> list[str]:

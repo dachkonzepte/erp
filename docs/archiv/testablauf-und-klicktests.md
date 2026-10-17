@@ -485,7 +485,7 @@ alles CSS und JS inline, 53 Seiten; die Scanner sahen nur die oberste Ebene und 
   Skript ein, `_weiterleitung.html` läuft zuerst.
 - **Wächter** `test_kein_scanner_liest_nur_die_oberste_ebene`: kein `glob("*.html")` in den Scannern und ihren Tests.
 
-#### Festlegungen 1.8.123 (Bitte bestätigen)
+#### Festlegungen 1.8.123 (alle bestätigt am 17.10.2026; 1, 6 und 9 mit Ergänzungen, umgesetzt in 1.8.124)
 
 Alle betreffen nur den Testablauf (Regel 28: der Bericht nennt ihre Zahl).
 
@@ -556,3 +556,106 @@ Alle betreffen nur den Testablauf (Regel 28: der Bericht nennt ihre Zahl).
     `bausteine_der_seite()`).
   - test_v414 `test_jede_seite_mit_zahlenfeld_bindet_den_baustein_ein` -- Aufbau: über `vorlagen_zahlen.seiten()` statt aller Vorlagen
     ohne „_“.
+
+## Strukturtests, Stufe 0b (1.8.124)
+
+Vorgabe vom 17.10.2026 (übernommen wie gegeben): „Stufe 0b des Redesigns. Nur Tests ändern sich, Vorlagen und App-Code bleiben
+unverändert. Festlegungen 1.8.123 sind bestätigt, 1, 6 und 9 mit den Ergänzungen 2 bis 4: 1. Die neun Strukturtests v254, v313, v328,
+v333, v390, v405, v423, v424 und v426 auf alle_vorlagen(), seiten() und zusammensetzen() umstellen. Die neun Tests, die ein Include
+wörtlich in der Seite verlangen, akzeptieren es auch im Basis-Template (wie bei _speichern). 2. Wächter (zu 9): prüft alle Dateien unter
+tests/ statt nur LESER und erkennt jedes Auflisten des Vorlagenordners an alle_vorlagen() vorbei (glob, rglob, iterdir, os.listdir).
+3. Seiten-Abgleich (zu 6): Ein Test stellt sicher, dass seiten() genau die Vorlagen enthält, die irgendwo in app/ per TemplateResponse
+ausgeliefert werden. 4. Makro-Regel (zu 1): Kein Makro-Parameter darf in type=, on…= oder href= landen. Was die Scanner prüfen, steht
+fest im Makro oder wörtlich in der Seite (über {% call %}). Wächter-Test dafür, als neue Festlegung ins Archiv. Gegenprobe: Für 2, 3 und
+4 je ein Fixture-Verstoß, der vorher unerkannt blieb und jetzt rot wird. Für 1 ein Vorher/Nachher-Abzug aller Funde der neun Tests an den
+echten Vorlagen, der unverändert sein muss. Bestehende Erwartungen bleiben unverändert.“
+
+### Umsetzung 1.8.124
+
+- **Die neun Strukturtests** lesen die Vorlagen über `vorlagen_js.alle_vorlagen()`; je Test liefert eine Hilfsfunktion die Funde, der
+  Test prüft dieselbe Erwartung wie bisher: v254 `_seitenleiste_ohne_topbar()` (Seiten aus `seiten()`, Seitenleiste und Topbar in der
+  zusammengesetzten Seite), v313 `_seiten_mit_zeitliste()`, v328 `_vorlagen_links()`, v333 `_auswahl_nutzer()`, v390 `_fundstellen()`/
+  `_verbotene()`/`_helfer_nutzer()`, v405 `_escaping_funde()`, v423 `_hidden_vorlagen()`, v424 `_vorhanden()`, v426 `_ist_markup()`.
+- **Include auch im Basis-Template**: `vorlagen_js.bindet_ein(name, baustein)` -- das Include selbst oder in einem Basis-Template der
+  Kette, nach den Tags (ein Include im Kommentar zählt nicht), nicht über eine Teilvorlage (wie bisher). Genutzt in v254 (über die
+  zusammengesetzte Seite), v269, v272, v313, v333, v337, v390, v397 und v401 (`_seiten_mit_sicheresziel()`, Vorlagen ohne „_“ im
+  Dateinamen).
+- **v423**: die Regel `.hidden{display:none}` zählt, wo die Vorlage gezeichnet wird -- in ihrer zusammengesetzten Seite (auch im
+  Basis-Template oder einer eingebundenen Teilvorlage), für eine Teilvorlage, ein Basis-Template oder eine Makro-Datei in jeder Seite, die
+  sie nutzt. Das CSS wandert mit dem Redesign ins Basis-Template; je Datei hätte der Test dann jede Seite gemeldet.
+- **Wächter** (`test_v428::test_kein_scanner_liest_nur_die_oberste_ebene`, `vorlagen_auflistungen()`): jede Datei unter `tests/`, per AST;
+  der Vorlagenordner ist ein Text „templates“ bzw. „…/app/templates“, ein Name oder Attribut `TEMPLATES`/`TEMPLATES_DIR`/`templates`
+  oder ein Name, dem so etwas zugewiesen wird (in der Datei); gemeldet wird glob, rglob, iterdir, walk, scandir auf ihm oder mit einem
+  Muster `*.html`, `os.listdir`/`os.scandir`/`os.walk`, `glob.glob`/`iglob`, `list_templates()` auf ihm -- außer in
+  `vorlagen_js.alle_vorlagen()`. Die Liste `LESER` ist weg.
+- **Seiten-Abgleich** (`test_v429::test_seiten_sind_genau_die_ausgelieferten_vorlagen`, `ausgelieferte_vorlagen()`): jeder Aufruf von
+  `TemplateResponse` unter `app/` per AST, auch als Argument (`run_in_threadpool(templates.TemplateResponse, …)`); der Name aus `name=`,
+  sonst das Argument nach `request`; ein Text, `a if b else c`, ein Name über seine Zuweisungen in derselben Funktion -- sonst „nicht
+  auflösbar“ (rot). `seiten()` und die ausgelieferten Namen müssen in beide Richtungen gleich sein. Heute 53 = 53.
+- **Makro-Regel** (`vorlagen_html.jinja_handler()`, damit in `alle_funde("jinja")` und `test_v407::test_keine_jinja_werte_in_on_attributen`,
+  dazu `test_v429::test_kein_makro_parameter_in_type_on_href`): ein kleiner Tag-Leser geht durch den Inhalt jedes Makros (auch
+  verschachtelt, `vorlagen_js.makro_bereiche()`).
+
+#### Festlegungen 1.8.124 (Bitte bestätigen)
+
+Alle betreffen nur den Testablauf (Regel 28: der Bericht nennt ihre Zahl).
+
+1. **Makro-Regel** (die neue Festlegung zu 1.8.123 Nr. 1): in einem Makro steht in `type=`, `on…=` und `href=` kein Jinja -- weder
+   `{{ … }}` (auch nicht `caller()`) noch `{% … %}` --, an der Stelle eines Attributs kein `{{ … }}` (`<div {{ attrs }}>`), in keinem
+   Attributnamen Jinja (`on{{ x }}=`). Ein `{% if %}` um feste Attribute ist erlaubt (sie stehen wörtlich da). Andere Attribute (`id`,
+   `class`, `value`, `data-…`) dürfen Parameter tragen. Ein `on…="…{{ … }}…"` meldet wie bisher die Prüfung der on…-Attribute, einmal.
+2. **Wächter**: jede Datei unter `tests/`, per AST; Vorlagenordner und gemeldete Aufrufe wie oben; einzige Ausnahme
+   `vorlagen_js.alle_vorlagen()`. Ein Name gilt dateiweit als Vorlagenordner, sobald ihm irgendwo einer zugewiesen wird (Über-Annäherung).
+3. **Seiten-Abgleich**: die Namen aus `TemplateResponse` wie oben; nicht auflösbar ist rot; Gleichheit in beide Richtungen.
+4. **Include auch im Basis-Template** (`bindet_ein()`): selbst oder in der Kette der Basis-Templates, nach den Tags, nicht über eine
+   Teilvorlage.
+5. **v423**: die Regel `.hidden` zählt, wo die Vorlage gezeichnet wird (zusammengesetzte Seite; für Teilvorlage, Basis und Makro-Datei
+   jede Seite, die sie nutzt).
+6. **v254**: Seiten aus `seiten()`; Seitenleiste und Topbar in der zusammengesetzten Seite (auch über eine Teilvorlage).
+7. **v401**: Vorlagen ohne „_“ im Dateinamen (in Unterordnern der Name der Datei, nicht der Pfad).
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **Vier weitere wörtliche Include-Prüfungen für einzelne Seiten** (die Liste von 1.8.123 war unvollständig): test_v314 (Dashboard →
+   `_berlin_date.html`), test_v338 (Auftragsseite → `_fehlertext.html`), test_v340 (Projektmappe → `_fehlertext.html`), test_v418
+   (Projektmappe und Kundenakte → `_email_dispatch.html`). Wandert eines dieser Includes ins Basis-Template, werden sie rot -- dann auf
+   `bindet_ein()` umstellen.
+2. **test_v272** verlangt in den vier Monteursseiten `get_theme().accent_color` im eigenen `:root{`-Block -- wandert der Token-Block ins
+   Basis-Template (Stufe 1), ist das eine echte Erwartung, keine Include-Frage.
+3. **Zählfehler im Bericht zu 1.8.123, Frage 4**: der Musterabgleich traf in den neun Dateien 11 Stellen, nicht 12 (je eine, in v423 und
+   v424 je zwei).
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v429_strukturtests_stufe_0b.py` (27 Tests): Gegenproben Wächter (10 Formen) und Makro-Regel (7 Formen), je ein
+  Negativtest; Makro-Regel an den echten Vorlagen; Seiten-Abgleich echt und mit vier Gegenproben samt Negativtest; `bindet_ein()`.
+- **Gegenproben** (Fixture-Vorlagen und -Projekte unter tmp_path):
+  - Wächter: alle 10 Formen vorher unerkannt (der Wächter von 1.8.123 lief durch: „DID NOT RAISE“), nachher rot mit Datei und Zeile --
+    iterdir, os.listdir, rglob, glob außerhalb von LESER, glob über eine Variable, glob.glob, os.scandir, os.walk, list_templates(),
+    iterdir in einer LESER-Datei.
+  - Makro-Regel: alle 7 Formen vorher unerkannt (`alle_funde("jinja")` leer), nachher gefunden -- type=, href=, on…= mit `{% if %}`,
+    `{{ attrs }}`, `on{{ ereignis }}=`, `href="{{ caller() }}"`, type= ohne Anführungszeichen.
+  - Seiten-Abgleich: vier Formen (ausgeliefertes Basis-Template, Seite ohne Auslieferung, Name nicht auflösbar, ausgelieferte
+    Teilvorlage) nachher rot, je nur dieser eine Befund. Vorher gab es keine solche Prüfung; die volle Suite von 1.8.123 lief in einer
+    Wegwerf-Arbeitskopie mit einer verwaisten Seite `app/templates/waise.html` (Marker GEGENPROBE) -- Ergebnis im Bericht --, der neue
+    Abgleich an einer Kopie von `app/` mit derselben Seite meldet sie („Seite, die app/ nirgends ausliefert: waise.html“).
+- **Abzug aller Funde der neun Tests und der neun Include-Prüfungen** an den echten Vorlagen (Skript im Scratchpad: vorher die
+  Berechnungen der Tests von 1.8.123 wörtlich, nachher die neuen Hilfsfunktionen): 16 Einträge, alle gleich. Bei v424 wich zuerst die
+  Liste der Leseaufrufe ab -- ein Fehler im Abzugsskript (vorher als Liste mit einer Dublette, der Test nimmt eine Menge); die Menge ist
+  gleich (42), die 88 Zahlenfelder ebenso.
+- **Wächter am Stand von 1.8.123**: über die neun alten Testdateien findet er die 11 Stellen; über alle Dateien unter `tests/` heute
+  keine.
+- **Angepasste Tests** (Regel 28) -- nur Aufbau, keine Erwartung:
+  - test_v254 `test_every_template_with_sidebar_also_includes_topbar` -- Aufbau: Seiten aus `seiten()`, Seitenleiste und Topbar in der
+    zusammengesetzten Seite.
+  - test_v313 `test_every_page_listing_time_entries_reads_total_and_shows_truncation_notice` -- Aufbau: `alle_vorlagen()`, Include über
+    `bindet_ein()`.
+  - test_v328 `_vorlagen_links()`, test_v405 `test_keine_vorlage_und_kein_modul_schaltet_das_escaping_aus`, test_v424
+    `test_jedes_feld_und_jeder_leseaufruf_mit_grenzen_steht_genau_einmal_im_abgleich`, test_v426
+    `test_keine_ist_menge_hat_eine_untergrenze_ueber_0` -- Aufbau: `alle_vorlagen()` statt `glob("*.html")`.
+  - test_v333 `test_jede_seite_mit_auswahloptionen_bindet_den_helfer_ein`, test_v390 (drei Tests über `_vorlagen()`) -- Aufbau:
+    `alle_vorlagen()`, Include über `bindet_ein()`.
+  - test_v423 `test_jede_vorlage_mit_der_klasse_hidden_blendet_sie_aus` -- Aufbau: `alle_vorlagen()`, Regel in der zusammengesetzten
+    Seite bzw. in den nutzenden Seiten.
+  - test_v269 (zwei Tests), test_v272, test_v337, test_v397, test_v401 -- Aufbau: Include über `bindet_ein()`.
+  - test_v428 `test_kein_scanner_liest_nur_die_oberste_ebene` -- Aufbau: jede Datei unter `tests/`, AST statt Muster über `LESER`.

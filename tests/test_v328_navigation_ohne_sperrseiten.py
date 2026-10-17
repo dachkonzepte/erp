@@ -209,16 +209,19 @@ def _luecken(text: str) -> tuple[str, bool]:
 def _vorlagen_links() -> list[tuple[str, str, bool]]:
     """(Datei, Ziel, vollständig?) für jedes Link-Ziel in den Vorlagen, das mit /<Buchstabe> beginnt. Vollständig ist es,
     wenn nach ihm das öffnende Anführungszeichen folgt; sonst geht es mit einem Ausdruck weiter ('/orders/'+id) und ist
-    nur ein Anfang."""
+    nur ein Anfang. Seit 1.8.124 (Stufe 0b) jede Vorlage, auch in Unterordnern (tests/vorlagen_js.py::alle_vorlagen())."""
     from pathlib import Path
 
+    from tests import vorlagen_js
+
+    vorlagen = Path(__file__).resolve().parents[1] / "app" / "templates"
     gefunden = []
-    for datei in sorted((Path(__file__).resolve().parents[1] / "app" / "templates").glob("*.html")):
-        text = datei.read_text(encoding="utf-8")
+    for name in vorlagen_js.alle_vorlagen(vorlagen):
+        text = (vorlagen / name).read_text(encoding="utf-8")
         for m in _LINK_START.finditer(text):
             ziel, vollstaendig = _luecken(m.group(2))
             danach = text[m.end():m.end() + 1]
-            gefunden.append((datei.name, ziel, vollstaendig and danach == m.group(1)))
+            gefunden.append((name, ziel, vollstaendig and danach == m.group(1)))
     return gefunden
 
 

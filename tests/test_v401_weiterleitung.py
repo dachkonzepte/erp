@@ -331,13 +331,19 @@ def test_jede_navigation_zu_einem_wert_aus_der_adresse_ist_geprueft():
     assert {"login.html", "account.html"} <= gefunden
 
 
+def _seiten_mit_sicheresziel() -> list[tuple[str, bool]]:
+    """(Vorlage, bindet _weiterleitung.html ein) je Vorlage ohne "_", die sicheresZiel()/istLokalesZiel() aufruft -- seit 1.8.124
+    (Stufe 0b) auch in Unterordnern, das Include auch im Basis-Template (tests/vorlagen_js.py::bindet_ein())."""
+    from tests import vorlagen_js
+
+    return [(vorlage, vorlagen_js.bindet_ein(vorlage, "_weiterleitung.html", TEMPLATES)) for vorlage in alle_vorlagen()
+            if not Path(vorlage).name.startswith("_")
+            and re.search(r"\b(sicheresZiel|istLokalesZiel)\(", (TEMPLATES / vorlage).read_text(encoding="utf-8"))]
+
+
 def test_seiten_mit_sicheresziel_binden_den_baustein_ein():
-    for vorlage in alle_vorlagen():
-        if vorlage.startswith("_"):
-            continue
-        text = (TEMPLATES / vorlage).read_text(encoding="utf-8")
-        if re.search(r"\b(sicheresZiel|istLokalesZiel)\(", text):
-            assert '{% include "_weiterleitung.html" %}' in text, vorlage
+    for vorlage, eingebunden in _seiten_mit_sicheresziel():
+        assert eingebunden, vorlage
 
 
 _SKRIPT_MIT_PARAMS = "const params=new URLSearchParams(location.search);function nextZiel(){return params.get('next')}\n"

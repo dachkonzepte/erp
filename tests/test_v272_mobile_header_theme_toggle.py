@@ -147,9 +147,11 @@ def test_toggle_click_handler_writes_to_localstorage_and_updates_the_dom():
 # ---------------------------------------------------------------------------
 
 def test_get_theme_is_used_in_root_block_of_every_page_including_mobile_header():
+    from tests import vorlagen_js
+
     for page in ("mobil.html", "mobil_objekt.html", "field_timesheet.html", "time_tracking_field.html"):
         text = (TEMPLATES_DIR / page).read_text(encoding="utf-8")
-        assert "{% include \"_mobile_header.html\" %}" in text, page
+        assert vorlagen_js.bindet_ein(page, "_mobile_header.html", TEMPLATES_DIR), page  # seit 1.8.124 auch im Basis-Template
         assert "get_theme().accent_color" in text, page
         # Steht tatsaechlich im :root-Block, nicht nur irgendwo auf der Seite.
         root_start = text.index(":root{")

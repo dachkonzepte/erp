@@ -400,9 +400,11 @@ def test_checklist_service_report_and_order_pages_use_the_shared_pad(world, rout
     root = Path(__file__).resolve().parents[1] / "app" / "templates"
     shared = (root / "_unterschrift.html").read_text(encoding="utf-8")
     assert "background:#fff" in shared and "strokeStyle='#111'" in shared and "devicePixelRatio" in shared
+    from tests import vorlagen_js
+
     for name in ("checklist.html", "service_reports.html", "order.html"):
         source = (root / name).read_text(encoding="utf-8")
-        assert '{% include "_unterschrift.html" %}' in source, name
+        assert vorlagen_js.bindet_ein(name, "_unterschrift.html", root), name  # seit 1.8.124 auch im Basis-Template
         assert "getContext('2d')" not in source and "setPointerCapture" not in source, f"{name}: eigene Zeichenlogik"
     client = router_test_client(world, pages.router, role="buero_auftrag")
     for path in ("/orders/1/service-reports", "/checklisten/1", "/orders/1"):

@@ -13,6 +13,7 @@ einer ist (ein Handler im Makro ruft eine Funktion der Seite auf, ein Feld im Ba
 ganz im Makro oder in der Basis, fände ihn schon das Lesen der Datei für sich. Jede Gegenprobe läuft nur über Schnittstellen, die es
 schon vor 1.8.123 gab -- so ist "rot vorher" ein übersehener Verstoß, kein Importfehler."""
 
+import ast
 import re
 from pathlib import Path
 
@@ -393,16 +394,72 @@ def test_schleifen_sind_rot(vorlagen):
 
 
 # ---------------------------------------------------------------------------
-# Kein Strukturtest liest nur die oberste Ebene
+# Kein Test listet den Vorlagenordner an alle_vorlagen() vorbei
 # ---------------------------------------------------------------------------
 
-LESER = ["tests/vorlagen_js.py", "tests/vorlagen_html.py", "tests/vorlagen_zahlen.py", "tests/vorlagen_navigation.py",
-         "tests/test_v398_speichern_baustein.py", "tests/test_v399_abschliessen.py", "tests/test_v400_lesen_ueber_baustein.py",
-         "tests/test_v334_auswahl_restfaelle.py", "tests/test_v414_zahleneingaben.py"]
+_LISTEN_METHODEN = {"glob", "rglob", "iterdir", "walk", "scandir"}
+_LISTEN_FUNKTIONEN = {("os", "listdir"), ("os", "scandir"), ("os", "walk"), ("glob", "glob"), ("glob", "iglob")}
+_ERLAUBT = ("tests/vorlagen_js.py", "alle_vorlagen")  # die eine Stelle, an der die Liste entsteht
+
+
+_VORLAGEN_NAME = re.compile(r"templates(?:_dir)?", re.I)  # TEMPLATES, TEMPLATES_DIR, vj.TEMPLATES, pages.templates -- nicht checklist_templates
+
+
+def _zeigt_auf_vorlagen(knoten, namen: set) -> bool:
+    """Ein Ausdruck, der den Vorlagenordner bezeichnet: ein Text "templates" bzw. ".../app/templates", ein Name oder Attribut
+    TEMPLATES/TEMPLATES_DIR/templates oder ein Name, dem so etwas zugewiesen wird."""
+    for k in ast.walk(knoten):
+        if isinstance(k, ast.Constant) and isinstance(k.value, str):
+            wert = k.value.replace("\\", "/").strip("/").lower()
+            if wert == "templates" or wert.endswith("/templates") or "app/templates" in wert:
+                return True
+        elif isinstance(k, ast.Name) and (k.id in namen or _VORLAGEN_NAME.fullmatch(k.id)):
+            return True
+        elif isinstance(k, ast.Attribute) and _VORLAGEN_NAME.fullmatch(k.attr):
+            return True
+    return False
+
+
+def _muster(aufruf) -> str:
+    return " ".join(a.value for a in aufruf.args if isinstance(a, ast.Constant) and isinstance(a.value, str))
+
+
+def vorlagen_auflistungen(quelle: str, datei: str) -> list[int]:
+    """Zeilen, in denen eine Datei den Vorlagenordner auflistet (seit 1.8.124: glob, rglob, iterdir, walk, scandir, os.listdir,
+    glob.glob, list_templates() -- auf dem Vorlagenordner oder mit einem Muster *.html), außer in vorlagen_js.alle_vorlagen()."""
+    baum = ast.parse(quelle)
+    zuweisungen = [(z, k.value) for k in ast.walk(baum) if isinstance(k, (ast.Assign, ast.AnnAssign, ast.NamedExpr)) and k.value is not None
+                   for z in (k.targets if isinstance(k, ast.Assign) else [k.target]) if isinstance(z, ast.Name)]
+    namen: set = set()
+    while True:
+        neu = {z.id for z, wert in zuweisungen if z.id not in namen and _zeigt_auf_vorlagen(wert, namen)}
+        if not neu:
+            break
+        namen |= neu
+    erlaubt = {id(k) for f in ast.walk(baum) if isinstance(f, ast.FunctionDef) and (datei, f.name) == _ERLAUBT for k in ast.walk(f)}
+    zeilen = []
+    for k in ast.walk(baum):
+        if not isinstance(k, ast.Call) or id(k) in erlaubt:
+            continue
+        f = k.func
+        if isinstance(f, ast.Attribute) and f.attr == "list_templates":  # Jinja: templates.env.list_templates()
+            if _zeigt_auf_vorlagen(f.value, namen):
+                zeilen.append(k.lineno)
+        elif isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name) and (f.value.id, f.attr) in _LISTEN_FUNKTIONEN \
+                or isinstance(f, ast.Name) and f.id in {n for _, n in _LISTEN_FUNKTIONEN}:
+            if any(_zeigt_auf_vorlagen(a, namen) for a in k.args) or ".html" in _muster(k):
+                zeilen.append(k.lineno)
+        elif isinstance(f, ast.Attribute) and f.attr in _LISTEN_METHODEN:
+            if _zeigt_auf_vorlagen(f.value, namen) or ".html" in _muster(k):
+                zeilen.append(k.lineno)
+    return sorted(zeilen)
 
 
 def test_kein_scanner_liest_nur_die_oberste_ebene():
-    """Die Liste der Vorlagen kommt aus tests/vorlagen_js.py::alle_vorlagen() (auch Unterordner) -- ein glob("*.html") sähe sie nicht."""
-    funde = [f"{datei}:{(ROOT / datei).read_text(encoding='utf-8').count(chr(10), 0, m.start()) + 1}"
-             for datei in LESER for m in re.finditer(r"\.glob\(\s*[\"']\*\.html[\"']\s*\)", (ROOT / datei).read_text(encoding="utf-8"))]
-    assert not funde, "Vorlagen nur aus der obersten Ebene gelesen -- vorlagen_js.alle_vorlagen() nehmen:\n" + "\n".join(funde)
+    """Die Liste der Vorlagen kommt aus tests/vorlagen_js.py::alle_vorlagen() (auch Unterordner) -- ein glob("*.html") sähe sie nicht.
+    Seit 1.8.124 (Festlegung 1.8.123 Nr. 9, Ergänzung): jede Datei unter tests/, jedes Auflisten des Vorlagenordners."""
+    funde = []
+    for pfad in sorted((ROOT / "tests").rglob("*.py")):
+        datei = pfad.relative_to(ROOT).as_posix()
+        funde += [f"{datei}:{zeile}" for zeile in vorlagen_auflistungen(pfad.read_text(encoding="utf-8"), datei)]
+    assert not funde, "Vorlagen an vorlagen_js.alle_vorlagen() vorbei aufgelistet (Unterordner fehlen dann):\n" + "\n".join(funde)

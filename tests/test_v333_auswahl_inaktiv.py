@@ -20,6 +20,7 @@ import pytest
 
 from app.models import Employee, EmployeeRoleSettings, Order
 from app.routers.orders import router as orders_router
+from tests import vorlagen_js
 from tests.test_v133_invoices import make_order_with_item
 from tests.test_v153_mahnwesen import db_session
 from tests.test_v314_dashboard_month_berlin import NODE, TEMPLATES, _node
@@ -302,15 +303,27 @@ def test_mitarbeiter_mit_inzwischen_inaktiver_funktion_laesst_sich_speichern():
         apply_employee_payload(db, mitarbeiter, daten(andere.id))
 
 
+def _auswahl_funktionen() -> list[str]:
+    return re.findall(r"^function (\w+)\(", (TEMPLATES / "_auswahl.html").read_text(encoding="utf-8"), flags=re.M)
+
+
+def _auswahl_nutzer() -> list[tuple[str, bool]]:
+    """(Vorlage, bindet _auswahl.html ein) je Vorlage, die eine Funktion des Helfers aufruft -- seit 1.8.124 (Stufe 0b) auch in
+    Unterordnern, das Include auch im Basis-Template."""
+    namen = _auswahl_funktionen()
+    out = []
+    for vorlage in vorlagen_js.alle_vorlagen(TEMPLATES):
+        text = (TEMPLATES / vorlage).read_text(encoding="utf-8")
+        if vorlage != "_auswahl.html" and any(f"{name}(" in text for name in namen):
+            out.append((vorlage, vorlagen_js.bindet_ein(vorlage, "_auswahl.html", TEMPLATES)))
+    return out
+
+
 def test_jede_seite_mit_auswahloptionen_bindet_den_helfer_ein():
     """Ohne {% include "_auswahl.html" %} bricht die Seite erst im Browser mit ReferenceError ab. Seit 1.8.31 für
     jede Funktion des Helfers (auswahlEintraege, steuerschluesselOptionen kamen dazu)."""
-    namen = re.findall(r"^function (\w+)\(", (TEMPLATES / "_auswahl.html").read_text(encoding="utf-8"), flags=re.M)
-    assert {"auswahlOptionen", "auswahlEintraege", "steuerschluesselOptionen"} <= set(namen)
-    nutzer = []
-    for vorlage in sorted(TEMPLATES.glob("*.html")):
-        text = vorlage.read_text(encoding="utf-8")
-        if vorlage.name != "_auswahl.html" and any(f"{name}(" in text for name in namen):
-            nutzer.append(vorlage.name)
-            assert '{% include "_auswahl.html" %}' in text, vorlage.name
+    assert {"auswahlOptionen", "auswahlEintraege", "steuerschluesselOptionen"} <= set(_auswahl_funktionen())
+    nutzer = _auswahl_nutzer()
+    for vorlage, eingebunden in nutzer:
+        assert eingebunden, vorlage
     assert len(nutzer) >= 20

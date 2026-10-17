@@ -21,6 +21,7 @@ from pathlib import Path
 
 import pytest
 
+from tests import vorlagen_js
 from tests.zahlgrenzen import (Grenzen, TEMPLATES, felder_mit_grenzen, grenzen_im_markup, grenzen_im_schema, leseaufrufe_mit_grenzen,
                                optionen_anwenden, strenger)
 
@@ -224,11 +225,19 @@ def test_der_browser_ist_nicht_strenger_als_der_server(z):
     assert all(not g for g in gruende.values()), f"{_name(z)}: {gruende}"
 
 
+def _vorhanden() -> tuple[list, set]:
+    """(Vorlage, Feld) je Zahlenfeld mit Grenzen und (Vorlage, Aufruf) je Leseaufruf mit Grenzen -- seit 1.8.124 (Stufe 0b) auch in
+    Unterordnern (tests/vorlagen_js.py::alle_vorlagen())."""
+    namen = vorlagen_js.alle_vorlagen(TEMPLATES)
+    markup = [(name, s) for name in namen for s, _ in felder_mit_grenzen(name)]
+    lesen = {(name, a) for name in namen if name != "_zahl.html" for a, _ in leseaufrufe_mit_grenzen(name)}
+    return markup, lesen
+
+
 def test_jedes_feld_und_jeder_leseaufruf_mit_grenzen_steht_genau_einmal_im_abgleich():
     markup = [(z.vorlage, z.markup) for z in ABGLEICH if z.markup]
     gelesen = [(z.vorlage, a) for z in ABGLEICH for a in z.lesen]
-    vorhanden_markup = [(p.name, s) for p in TEMPLATES.glob("*.html") for s, _ in felder_mit_grenzen(p.name)]
-    vorhanden_lesen = {(p.name, a) for p in TEMPLATES.glob("*.html") if p.name != "_zahl.html" for a, _ in leseaufrufe_mit_grenzen(p.name)}
+    vorhanden_markup, vorhanden_lesen = _vorhanden()
     assert len(vorhanden_markup) >= 88 and len(vorhanden_lesen) >= 35
     assert sorted(set(vorhanden_markup) - set(markup)) == [], "Zahlenfeld mit Grenzen fehlt im Abgleich"
     assert sorted(set(markup) - set(vorhanden_markup)) == [], "Abgleich nennt ein Feld, das es nicht (mehr) gibt"
