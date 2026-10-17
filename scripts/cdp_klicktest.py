@@ -137,6 +137,7 @@ import argparse
 import asyncio
 import base64
 import contextlib
+import http.client
 import json
 import os
 import re
@@ -969,7 +970,41 @@ class Pruefungen:
 # Prozesse
 # ---------------------------------------------------------------------------
 
+UNTERSTE_PORTNUMMER = 20000  # darunter liegen übliche Dienste
+
+
+def _kurzlebige_ports() -> tuple[int, int]:
+    """Der Bereich, aus dem das Betriebssystem die Quellports ausgehender Verbindungen nimmt (seit 1.8.125) -- Windows: netsh int ipv4
+    show dynamicport tcp, Linux: /proc/sys/net/ipv4/ip_local_port_range; sonst die Vorgabe von Windows, 49152–65535."""
+    try:
+        if os.name == "nt":
+            aus = subprocess.run(["netsh", "int", "ipv4", "show", "dynamicport", "tcp"], capture_output=True, text=True,
+                                 timeout=10).stdout
+            start, anzahl = (int(z) for z in re.findall(r":\s*(\d+)", aus)[:2])
+            return start, start + anzahl - 1
+        start, ende = (int(z) for z in Path("/proc/sys/net/ipv4/ip_local_port_range").read_text().split()[:2])
+        return start, ende
+    except Exception:
+        return 49152, 65535
+
+
 def _freier_port() -> int:
+    """Ein freier Port außerhalb der kurzlebigen Ports (seit 1.8.125). Bis 1.8.124 wählte das Betriebssystem (Port 0) einen aus genau
+    dem Bereich, aus dem es auch die Quellports ausgehender Verbindungen nimmt: fragte _warte_auf() den Port ab, bevor die ERP-Instanz
+    bzw. Chrome dort lauschte, konnte die Verbindung zufällig denselben Port als Quellport bekommen und sich mit sich selbst verbinden --
+    die eigene Anfrage kam als Antwort zurück (http.client.BadStatusLine: GET /json/version HTTP/1.1, klicktest_mahnen_endrechnung am
+    17.10.2026). Außerhalb des Bereichs ist das ausgeschlossen."""
+    start, ende = _kurzlebige_ports()
+    kandidaten = [p for p in range(UNTERSTE_PORTNUMMER, 65536) if not start <= p <= ende]
+    for _ in range(200 if kandidaten else 0):
+        port = kandidaten[secrets.randbelow(len(kandidaten))]
+        with socket.socket() as s:
+            try:
+                s.bind(("127.0.0.1", port))
+            except OSError:
+                continue  # belegt oder vom System ausgenommen (netsh int ipv4 show excludedportrange)
+            return port
+    print(f"Kein freier Port außerhalb der kurzlebigen Ports ({start}–{ende}) -- das Betriebssystem wählt.", flush=True)
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
@@ -986,6 +1021,9 @@ def _chrome_pfad(angegeben: str | None) -> str:
 
 
 def _warte_auf(url: str, timeout: float) -> bool:
+    """True, sobald unter url ein HTTP-Server antwortet (der Status ist egal). Seit 1.8.125 heißt auch eine Antwort, die kein HTTP ist
+    (http.client.HTTPException, etwa BadStatusLine bei einem Selbstanschluss, siehe _freier_port()), "noch nicht bereit" -- bis 1.8.124
+    brach der Klicktest daran ab."""
     ende = time.monotonic() + timeout
     while time.monotonic() < ende:
         try:
@@ -993,7 +1031,7 @@ def _warte_auf(url: str, timeout: float) -> bool:
                 return True
         except urllib.error.HTTPError:
             return True  # der Server antwortet, der Status ist hier egal
-        except (urllib.error.URLError, ConnectionError, OSError):
+        except (urllib.error.URLError, ConnectionError, OSError, http.client.HTTPException):
             time.sleep(0.3)
     return False
 

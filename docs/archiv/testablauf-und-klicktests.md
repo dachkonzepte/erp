@@ -659,3 +659,83 @@ Alle betreffen nur den Testablauf (Regel 28: der Bericht nennt ihre Zahl).
     Seite bzw. in den nutzenden Seiten.
   - test_v269 (zwei Tests), test_v272, test_v337, test_v397, test_v401 -- Aufbau: Include über `bindet_ein()`.
   - test_v428 `test_kein_scanner_liest_nur_die_oberste_ebene` -- Aufbau: jede Datei unter `tests/`, AST statt Muster über `LESER`.
+
+## Strukturtests, Stufe 0c (1.8.125)
+
+Vorgabe vom 17.10.2026 (übernommen wie gegeben): „Stufe 0c des Redesigns: Restarbeiten am Sicherheitsnetz. Vorlagen und App-Code bleiben
+unverändert. 1. Die vier Include-Prüfungen v314, v338, v340 und v418 auf bindet_ein() umstellen. 2. Wächter: Kein Test prüft ein
+Include per Textvergleich, nur über bindet_ein(). Gegenprobe mit Fixture; außerdem muss der Wächter die alten Fassungen der vier Tests
+finden. 3. Klicktest-Wackler in cdp_klicktest._warte_auf() beheben (TCP-Selbstanschluss, solange Chrome noch nicht lauscht). Nachweis:
+Der Fehler lässt sich vorher gezielt erzeugen und tritt danach nicht mehr auf. 4. Am Ende die Festlegungen 1.8.124 wörtlich ausgeben.
+Noch nicht als bestätigt markieren.“
+
+### Befund
+
+- Textvergleiche auf ein Include unter `tests/` (der neue Wächter am Stand von 1.8.124): neben den vier genannten drei weitere --
+  `test_v398::_bindet_den_baustein_ein()` (`'{% include "_speichern.html" %}' in …`, aus 1.8.123), `test_v269` Zeile 34
+  (`_debounce.html` in der Monteurs-Kopfzeile) und `test_v254::test_mobile_header_does_not_include_topbar` (`"_topbar.html" not in …`
+  gegen den Text von `_mobile_header.html` und `mobil.html`). Ein Textvergleich sieht ein Include im Basis-Template nicht und hält eines
+  in einem Kommentar für echt.
+- Klicktest-Wackler: `_freier_port()` band Port 0, das Betriebssystem wählte also aus dem Bereich der kurzlebigen Ports (hier
+  49152–65535, `netsh int ipv4 show dynamicport tcp`) -- demselben, aus dem es die Quellports ausgehender Verbindungen nimmt. Fragt
+  `_warte_auf()` einen solchen Port ab, solange dort niemand lauscht, und bekommt die Verbindung zufällig ihn als Quellport, verbindet
+  sie sich mit sich selbst: die eigene Anfrage kommt als Antwort zurück. Gezielt erzeugt (Quellport = Zielport): roh kommt das Gesendete
+  zurück, urllib wirft `http.client.BadStatusLine: GET /json/version HTTP/1.1` -- genau der Fehler aus dem Klicktest; `_warte_auf()` fing
+  ihn nicht ab (keine `OSError`).
+
+### Umsetzung 1.8.125
+
+- **Include nur über `bindet_ein()`**: v314 (Dashboard → `_berlin_date.html`), v338 (Auftragsseite → `_fehlertext.html`), v340
+  (Projektmappe → `_fehlertext.html`), v418 (Projektmappe und Kundenakte → `_email_dispatch.html`), v269 (`_debounce.html` in der
+  Kopfzeile), v254 (keine Topbar: `not bindet_ein(…)` für Kopfzeile und `mobil.html`), v398 (`_bindet_den_baustein_ein()` über
+  `bindet_ein(…, nur_selbst=True)`, der Zweig „nutzt“ über `bindet_ein()`). Neu `bindet_ein(…, nur_selbst=True)`: nur die Datei selbst.
+- **Wächter** (`test_v430::test_kein_test_prueft_ein_include_per_textvergleich`, `include_textvergleiche()`): jede Datei unter `tests/`,
+  per AST -- ein Include-Tag als Text (auch über eine Konstante der Datei) mit `in`/`not in`, als Argument von `count()`, `find()`,
+  `index()`, `startswith()` u. a. oder als Muster eines `re`-Aufrufs; ein Vorlagenname („….html“) mit `in`/`not in` gegen eingelesenen
+  Text (`read_text()` direkt, über eine Variable der Funktion oder eine Funktion der Datei, die Text aus `read_text()` zurückgibt).
+- **Klicktest-Ports** (`scripts/cdp_klicktest.py`): `_kurzlebige_ports()` liest den Bereich (Windows `netsh`, Linux
+  `/proc/sys/net/ipv4/ip_local_port_range`, sonst 49152–65535); `_freier_port()` wählt zufällig ab 20000 außerhalb davon und prüft mit
+  `bind` (200 Versuche, sonst wählt das Betriebssystem, mit Hinweis). Dort kann eine Verbindung den abgefragten Port nie als Quellport
+  bekommen. `_warte_auf()` behandelt `http.client.HTTPException` (BadStatusLine, RemoteDisconnected) als „noch nicht bereit“.
+
+#### Festlegungen 1.8.125 (Bitte bestätigen)
+
+Alle betreffen nur den Testablauf (Regel 28: der Bericht nennt ihre Zahl).
+
+1. **Kein Include per Textvergleich**: was der Wächter als Textvergleich erkennt, wie oben; jede Datei unter `tests/`. Ein Vergleich
+   ganzer Ausgaben (`text == '…{% include … %}…'`), Fixture-Vorlagen und Mengen aus der Herkunft sind keiner.
+2. **`bindet_ein(…, nur_selbst=True)`** für „die Vorlage selbst bindet ein“ (v398: ein Basis-Template darf den Baustein nur für eine
+   nutzende Vorlage einbinden).
+3. **v254 „keine Topbar in der Monteursansicht“** heißt jetzt „nicht eingebunden, auch nicht über ein Basis-Template“ statt „nicht
+   erwähnt“ (ein Kommentar mit dem Namen zählt nicht mehr).
+4. **Klicktest-Ports**: zufällig ab 20000, außerhalb der kurzlebigen Ports, mit `bind` geprüft.
+5. **`_warte_auf()`**: eine Antwort, die kein HTTP ist, heißt „noch nicht bereit“.
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **Weitere Ports per Port 0** in Klicktests: `klicktest_anmelden._freier_port()` (auch von `klicktest_fremde_seite` genutzt; dort eine
+   „fremde Adresse, an der niemand lauscht“, die Chrome aufruft) und die SMTP-Empfänger in sieben Klicktests (Port gebunden, wieder frei
+   gegeben, später neu gebunden). Ein Selbstanschluss ist dort ebenso denkbar (Chrome bzw. die ERP-Instanz als Client), bisher nicht
+   beobachtet; nicht geändert (Auftrag: `_warte_auf()`).
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v430_strukturtests_stufe_0c.py` (18 Tests): Wächter echt, 12 Gegenproben (die vier alten Fassungen wörtlich, `not in`,
+  `count()`, Regex, Konstante, Leerraum-Steuerung, Vorlagenname gegen Text direkt, über eine Variable, über eine Hilfsfunktion) und ein
+  Negativtest; Selbstanschluss gezielt erzeugt, `_warte_auf()` übersteht ihn, erkennt einen lauschenden Server, `_freier_port()` liegt
+  außerhalb der kurzlebigen Ports.
+- **Vorher** (vor jeder Änderung): Wächter rot mit acht Stellen -- die sieben oben und sein eigenes Suchmuster (seither zusammengesetzt);
+  `test_der_selbstanschluss_laesst_sich_gezielt_erzeugen` grün (der Fehler lässt sich erzeugen), `test_warte_auf_uebersteht_einen_selbstanschluss`
+  rot (`http.client.BadStatusLine: GET /json/version HTTP/1.1`), `test_freier_port_liegt_nicht_bei_den_kurzlebigen_ports` rot (Ports
+  52550, 52551 … im Bereich 49152–65535). **Nachher**: alle 18 grün.
+- **Alte Fassungen** (`a5be287`): der Wächter findet v314:94, v338:430, v340:407, v418:120, dazu v398:320, v269:34, v254:243 und 245; in
+  den neuen Fassungen nichts.
+- **Vorher/Nachher an den echten Vorlagen**: jeder umgestellte Textvergleich und `bindet_ein()` liefern dasselbe (v398 über alle 74
+  Vorlagen, 54 mit Include).
+- **Angepasste Tests** (Regel 28) -- nur Aufbau, keine Erwartung:
+  - test_v314 `test_dashboard_requests_my_hours_for_the_berlin_month`, test_v338 `test_order_page_includes_the_shared_error_helper`,
+    test_v340 `test_reiter_beteiligte_erst_suchen_dann_neu_anlegen`, test_v418 `test_projektmappe_und_kundenakte_zeigen_ihren_versand`,
+    test_v269 `test_debounce_helper_included_exactly_once_via_mobile_header` -- Aufbau: Include über `bindet_ein()`.
+  - test_v398 `test_templates_using_the_baustein_include_it` -- Aufbau: `bindet_ein()` (selbst: `nur_selbst=True`).
+  - test_v254 `test_mobile_header_does_not_include_topbar` -- Aufbau: `not bindet_ein()`; Soll „nicht erwähnt“ wird „nicht eingebunden“
+    (Festlegung 3; an den echten Vorlagen dasselbe Ergebnis).

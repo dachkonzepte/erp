@@ -426,8 +426,10 @@ def test_order_page_shows_422_and_409_readably(world, router_test_client):
 def test_order_page_includes_the_shared_error_helper(world, router_test_client):
     from app.routers import pages
 
+    from tests import vorlagen_js
+
     source = (TEMPLATES / "order.html").read_text(encoding="utf-8")
-    assert '{% include "_fehlertext.html" %}' in source
+    assert vorlagen_js.bindet_ein("order.html", "_fehlertext.html", TEMPLATES)  # seit 1.8.125 auch im Basis-Template
     assert re.search(r"^async function api\(.*fehlerText\(", source, flags=re.M)
     html = router_test_client(world, pages.router, role="buero_auftrag").get("/orders/1").text
     assert "function fehlerText(" in html and "const FELDNAMEN=" in html

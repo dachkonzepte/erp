@@ -4,6 +4,18 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.125 – Strukturtests Stufe 0c: kein Include per Textvergleich, Klicktest-Ports
+
+Stufe 0c des Redesigns (Vorgabe vom 17.10.2026): die vier Include-Prüfungen einzelner Seiten (v314, v338, v340, v418) nehmen
+`vorlagen_js.bindet_ein()`, ebenso drei Textvergleiche, die der neue Wächter fand (`_speichern.html` in v398, `_debounce.html` in v269,
+„keine Topbar in der Monteursansicht“ in v254). Der Wächter in `tests/test_v430_strukturtests_stufe_0c.py` lässt keinen Test mehr ein
+Include per Textvergleich prüfen -- ein Include-Tag als Text oder ein Vorlagenname gegen eingelesenen Vorlagentext; er findet die alten
+Fassungen aller sieben Stellen. Klicktest-Werkzeug: `_freier_port()` nahm einen Port aus dem Bereich der kurzlebigen Ports, aus dem das
+Betriebssystem auch Quellports nimmt -- fragte `_warte_auf()` ihn ab, bevor Chrome lauschte, konnte sich die Verbindung mit sich selbst
+verbinden (`http.client.BadStatusLine: GET /json/version HTTP/1.1`, klicktest_mahnen_endrechnung am 17.10.). Jetzt ein Port außerhalb
+dieses Bereichs, und `_warte_auf()` wartet bei einer Antwort, die kein HTTP ist, weiter; ein Test erzeugt den Selbstanschluss gezielt.
+Vorlagen und App-Code sind unverändert. Details: `docs/archiv/testablauf-und-klicktests.md`, „Strukturtests, Stufe 0c“.
+
 ## 1.8.124 – Strukturtests Stufe 0b: alle Tests, Seiten-Abgleich, Makro-Regel
 
 Stufe 0b des Redesigns (Vorgabe vom 17.10.2026, Festlegungen 1.8.123 bestätigt): die neun übrigen Strukturtests, die Vorlagen per

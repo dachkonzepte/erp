@@ -117,7 +117,9 @@ def test_projektmappe_und_kundenakte_zeigen_ihren_versand():
     protokoll = (TEMPLATES / "email_dispatches.html").read_text(encoding="utf-8")
     assert 'data-tab="sec-dispatch"' in mappe and "renderDispatchList('projectDispatches',{project_id:projectId})" in mappe
     assert "renderDispatchList('customerDispatches',{customer_id:customerId})" in akte
-    assert all('{% include "_email_dispatch.html" %}' in t for t in (mappe, akte))
+    from tests import vorlagen_js
+
+    assert all(vorlagen_js.bindet_ein(n, "_email_dispatch.html", TEMPLATES) for n in ("project_folder.html", "customer.html"))
     assert "`/api/email-dispatches?${anfrage}&limit=100`" in baustein
     # Die Mahnung führt in ihre Rechnung zur Mahnung -- im Versandprotokoll und in den neuen Listen derselbe Link.
     assert "mahnung: d.invoice_id ? `/invoices/${Number(d.invoice_id)}?mahnung=${id}` : '/mahnwesen'" in baustein

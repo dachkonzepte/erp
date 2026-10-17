@@ -404,7 +404,9 @@ def test_reiter_beteiligte_erst_suchen_dann_neu_anlegen():
     assert modal.index('id="pmSearch"') < modal.index('id="pmNewContact"')
     assert "/master-data/contacts/new?projekt=" in mappe
     assert "Auftraggeber" in mappe
-    assert '{% include "_fehlertext.html" %}' in mappe
+    from tests import vorlagen_js
+
+    assert vorlagen_js.bindet_ein("project_folder.html", "_fehlertext.html", TEMPLATES)  # seit 1.8.125 auch im Basis-Template
     formular = (TEMPLATES / "master_data_form.html").read_text(encoding="utf-8")
     assert "?kontakt=${saved.id}#sec-participants" in formular
 

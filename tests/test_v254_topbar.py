@@ -238,11 +238,10 @@ def test_topbar_z_index_is_lower_than_mobile_sidebar_and_scrim():
 # ---------------------------------------------------------------------------
 
 def test_mobile_header_does_not_include_topbar():
-    root = Path(__file__).parents[1]
-    mobile_header = (root / "app" / "templates" / "_mobile_header.html").read_text(encoding="utf-8")
-    assert "_topbar.html" not in mobile_header
-    mobil = (root / "app" / "templates" / "mobil.html").read_text(encoding="utf-8")
-    assert "_topbar.html" not in mobil
+    """Seit 1.8.125 über bindet_ein() (auch nicht über ein Basis-Template), nicht per Textvergleich."""
+    vorlagen = Path(__file__).parents[1] / "app" / "templates"
+    assert not vorlagen_js.bindet_ein("_mobile_header.html", "_topbar.html", vorlagen)
+    assert not vorlagen_js.bindet_ein("mobil.html", "_topbar.html", vorlagen)
 
 
 # ---------------------------------------------------------------------------

@@ -328,12 +328,13 @@ def basis_kette(name: str, wurzel: Path | None = None) -> list[str]:
     return _kette_der_basis(lauf, name, ())[1:]
 
 
-def bindet_ein(name: str, baustein: str, wurzel: Path | None = None) -> bool:
+def bindet_ein(name: str, baustein: str, wurzel: Path | None = None, *, nur_selbst: bool = False) -> bool:
     """Ob name den Baustein selbst per {% include %} einbindet oder eines seiner Basis-Templates (seit 1.8.124, Stufe 0b: so
-    verlangen die Strukturtests ein Include -- in einem Kommentar zählt es nicht)."""
+    verlangen die Strukturtests ein Include -- in einem Kommentar zählt es nicht; seit 1.8.125 nur so, nie per Textvergleich).
+    nur_selbst: nur die Datei selbst, ohne ihre Basis-Templates."""
     wurzel = TEMPLATES if wurzel is None else wurzel
-    return any(t.art == "include" and t.ziel == baustein
-               for datei in [name, *basis_kette(name, wurzel)] for t in _struktur(wurzel, datei).tags)
+    dateien = [name] if nur_selbst else [name, *basis_kette(name, wurzel)]
+    return any(t.art == "include" and t.ziel == baustein for datei in dateien for t in _struktur(wurzel, datei).tags)
 
 
 def makro_bereiche(name: str, wurzel: Path | None = None) -> tuple[str, list]:

@@ -30,8 +30,7 @@ def test_search_lives_in_mobile_header_not_in_mobil_page():
 
 
 def test_debounce_helper_included_exactly_once_via_mobile_header():
-    header = _read("_mobile_header.html")
-    assert '{% include "_debounce.html" %}' in header
+    assert vorlagen_js.bindet_ein("_mobile_header.html", "_debounce.html", TEMPLATES)  # seit 1.8.125 nicht per Textvergleich
     # Keines der vier Templates, die _mobile_header.html einbinden, darf den Helfer zusätzlich
     # selbst einbinden -- sonst wäre `debounce` doppelt definiert (harmlos in JS, aber ein Zeichen
     # für auseinanderlaufende Konventionen).

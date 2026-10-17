@@ -317,7 +317,8 @@ def _nutzt_den_baustein(name) -> bool:
 
 
 def _bindet_den_baustein_ein(name) -> bool:
-    return '{% include "_speichern.html" %}' in (TEMPLATES / name).read_text(encoding="utf-8")
+    """Die Vorlage selbst bindet _speichern.html ein (seit 1.8.125 über vj.bindet_ein(), nicht per Textvergleich)."""
+    return vj.bindet_ein(name, BAUSTEIN.name, TEMPLATES, nur_selbst=True)
 
 
 @pytest.mark.parametrize("name", VORLAGEN)
@@ -330,7 +331,7 @@ def test_templates_using_the_baustein_include_it(name):
         return
     nutzt = _nutzt_den_baustein(name)
     if nutzt:
-        assert _bindet_den_baustein_ein(name) or any(_bindet_den_baustein_ein(b) for b in vj.basis_kette(name, TEMPLATES)), (
+        assert vj.bindet_ein(name, BAUSTEIN.name, TEMPLATES), (
             f"{name} nutzt lesen()/speichern(), bindet _speichern.html aber weder selbst noch über ein Basis-Template ein")
     elif _bindet_den_baustein_ein(name):
         erben = [v for v in vj.alle_vorlagen(TEMPLATES) if name in vj.basis_kette(v, TEMPLATES)]

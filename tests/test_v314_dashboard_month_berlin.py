@@ -91,7 +91,9 @@ async function api(url) { requested.push(url); return url.startsWith('/api/time-
 
 @pytest.mark.parametrize("tz", PROCESS_TIMEZONES)
 def test_dashboard_requests_my_hours_for_the_berlin_month(tz):
-    assert '{% include "_berlin_date.html" %}' in (TEMPLATES / "dashboard.html").read_text(encoding="utf-8")
+    from tests import vorlagen_js
+
+    assert vorlagen_js.bindet_ein("dashboard.html", "_berlin_date.html", TEMPLATES)  # seit 1.8.125 auch im Basis-Template
     dashboard = _scripts("dashboard.html")
     widget = re.search(r"async function renderKpisWidget\(container\)\{.*?\n\}\n", dashboard, flags=re.S)
     assert widget, "renderKpisWidget() in dashboard.html nicht gefunden"

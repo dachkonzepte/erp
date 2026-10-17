@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.124** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.125** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -1265,7 +1265,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Festlegungen zu Werkzeug und Testablauf, Regel 28; seit 1.8.111 Zeitgrenze je Test, Browser-Uhr im Klicktest, taskkill mit
   Zeitlimit; seit 1.8.115 Verbindungsprotokoll von uvicorn je Instanz und Ausgang hängender Anfragen im Netzprotokoll; seit 1.8.116
   JS-Ausnahmen in node-Tests, Regel 36; seit 1.8.123 Strukturtests mit Unterordnern, Basis-Templates und Makros, Stufe 0a des Redesigns;
-  seit 1.8.124 Stufe 0b: alle Strukturtests, Wächter über tests/, Seiten-Abgleich, Makro-Regel)
+  seit 1.8.124 Stufe 0b: alle Strukturtests, Wächter über tests/, Seiten-Abgleich, Makro-Regel; seit 1.8.125 Stufe 0c: kein Include per
+  Textvergleich, Klicktest-Ports außerhalb der kurzlebigen Ports)
   -- `docs/archiv/testablauf-und-klicktests.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`
@@ -1595,8 +1596,10 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
   `seiten()` = was `app/` per `TemplateResponse` ausliefert, eine neue Seitenroute nimmt einen festen Namen oder `a if b else c`
   (`tests/test_v429_strukturtests_stufe_0b.py`); **Makro-Regel**: in einem Makro kein Jinja in `type=`, `on…=`, `href=` und kein
   `{{ … }}` an der Stelle eines Attributs -- was die Scanner prüfen, steht fest im Makro oder wörtlich in der Seite (über `{% call %}`),
-  geprüft in `vorlagen_html.jinja_handler()`. Noch wörtlich: vier Include-Prüfungen einzelner Seiten (v314, v338, v340, v418) und die
-  Token-Prüfung der Monteursseiten in v272 -- `docs/archiv/testablauf-und-klicktests.md`, 1.8.124, Nebenbefunde.
+  geprüft in `vorlagen_html.jinja_handler()`. Seit 1.8.125 prüft kein Test ein Include per Textvergleich (`'{% include … %}' in text`,
+  ein Vorlagenname gegen eingelesenen Text) -- nur `bindet_ein()` (`nur_selbst=True` für die Datei allein); Wächter in
+  `tests/test_v430_strukturtests_stufe_0c.py`. Noch offen für Stufe 1: die Token-Prüfung der Monteursseiten in v272 (`get_theme()` im
+  eigenen `:root{`) -- `docs/archiv/testablauf-und-klicktests.md`, 1.8.124, Nebenbefunde.
 
 - **Feste Uhr statt Tageszeit** (seit 1.8.36): ein Test, dessen Ergebnis von der Uhrzeit abhängt (z. B. Monteur
   an `/api/field-view/today`, ab 19:00 "Feierabend" 401), nimmt die Fixture `feste_uhr` bzw. in einer Modul-Fixture
@@ -1803,7 +1806,10 @@ jedem Bericht, Ergebnis im Bericht (Regel 26). **Mehrere zugleich** (seit 1.8.10
 dem etwas NICHT geschehen darf (`warten("false", …, melden=False)` -- unter Last zu kurz, die Prüfung würde still schwächer), ein
 Zeitlimit über `window.__dkZeitlimit`, gedrosseltes Netz (`tests/test_v413_testlauf_parallel.py`). Ohne `--gleichzeitig` wie bisher
 nacheinander. **Zeitlimit** (seit 1.8.108): `--zeitlimit SEK` an jedem Klicktest; steht der Marker `GEGENPROBE` unter `app/`, bricht
-jeder Klicktest nach höchstens 2 min ab (Rückgabecode 3, `klicktest_alle.py` führt ihn als "Zeitlimit").
+jeder Klicktest nach höchstens 2 min ab (Rückgabecode 3, `klicktest_alle.py` führt ihn als "Zeitlimit"). **Ports** (seit 1.8.125):
+`_freier_port()` wählt außerhalb der kurzlebigen Ports des Betriebssystems -- im Bereich ab 49152 konnte sich `_warte_auf()` mit sich
+selbst verbinden, solange Chrome noch nicht lauschte (`BadStatusLine: GET /json/version`); ein neuer Port-Helfer nimmt `_freier_port()`.
+`--ausgabe` von `klicktest_alle.py` nie tief im Scratchpad: die Ablage der Instanz überschreitet sonst die 260 Zeichen von Windows.
 
 ## Arbeitsweise, die sich bewährt hat
 
