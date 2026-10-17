@@ -46,6 +46,11 @@ laufen weiter mit der echten Zeit -- seit 1.8.111 lässt sich der Browser mitneh
 `k.uhr_versatz_ms()` in den Seed, pruefen() ruft vor dem ersten Laden `tab.browser_uhr(versatz)`;
 die Uhr des Browsers läuft dann um denselben Versatz weiter (Date und Date.now()).
 
+STEHENDE UHR (seit 1.8.126): `klicktest_main(..., uhr="2026-10-14 10:00")` -- die Uhr der Instanz steht an diesem Tag auf dieser
+Uhrzeit (Befüllen und Server), `tab.browser_uhr_fest(seed["uhr_ms"])` mit `k.uhr_ms()` aus befuellen() hält auch den Browser an.
+Für Bilder, die an jedem Tag gleich sein sollen (scripts/bildgrundlage.py); gespeicherte Zeitstempel (datetime.utcnow()) setzt das
+Befüllen dort selbst fest.
+
 Rückgabecode: 0 = alle Prüfungen wie erwartet, 1 = mindestens eine Abweichung,
 2 = Instanz oder Chrome ließ sich nicht starten, 3 = Zeitlimit (--zeitlimit oder Gegenprobe).
 
@@ -199,6 +204,12 @@ class Werkzeug:
         from app import berlin_time
         return int(round((berlin_time._utc_now().timestamp() - time.time()) * 1000))
 
+    def uhr_ms(self) -> int:
+        """Seit 1.8.126: der Zeitpunkt der Uhr der Instanz in Millisekunden seit 1970 (UTC) -- mit einer stehenden Uhr
+        (klicktest_main(..., uhr="JJJJ-MM-TT HH:MM")) für Tab.browser_uhr_fest()."""
+        from app import berlin_time
+        return int(round(berlin_time._utc_now().timestamp() * 1000))
+
 
 def _befuellen_im_kindprozess(befuellen, ziel: Path) -> None:
     url = os.environ.get("DATABASE_URL", "")
@@ -243,6 +254,9 @@ XMLHttpRequest.prototype.send=function(...a){z.gestartet++;z.offen++;this.addEve
 # Seit 1.8.111: versetzte, weiterlaufende Uhr des Browsers (Tab.browser_uhr()) -- new Date() ohne Argument und Date.now() um %d ms.
 BROWSER_UHR = """(()=>{if(window.__dkUhrVersatz!==undefined)return;const V=%d;window.__dkUhrVersatz=V;const Echt=Date;
 globalThis.Date=class extends Echt{constructor(...a){super(...(a.length?a:[Echt.now()+V]))}static now(){return Echt.now()+V}};})();"""
+# Seit 1.8.126: stehende Uhr des Browsers (Tab.browser_uhr_fest()) -- new Date() ohne Argument und Date.now() immer derselbe Zeitpunkt.
+BROWSER_UHR_FEST = """(()=>{if(window.__dkUhrFest!==undefined)return;const T=%d;window.__dkUhrFest=T;const Echt=Date;
+globalThis.Date=class extends Echt{constructor(...a){super(...(a.length?a:[T]))}static now(){return T}};})();"""
 
 ANTWORT_RUECKHALT = """(()=>{if(window.__dkRueckhalt)return;
 const R=window.__dkRueckhalt={regeln:[],gehalten:[],freigegeben:0};
@@ -699,6 +713,7 @@ class Tab:
         self.nicht_geladen: list[str] = []
         self.netz = Netzprotokoll(base_url, verbindungen)
         self.downloads: list[dict] = []  # seit 1.8.101: jeder Download, den der Tab beginnt ({"url", "name"})
+        self.wachhund: "Wachhund | None" = None  # seit 1.8.126 (klicktest_main(..., zeitlimit_je_schritt=True))
 
     async def cmd(self, method: str, **params):
         self.n += 1
@@ -773,6 +788,11 @@ class Tab:
         """Seit 1.8.111: die Uhr des Browsers um versatz_ms versetzen (sie läuft weiter) -- für jedes danach geladene Dokument. Mit
         Werkzeug.uhr_versatz_ms() aus befuellen() sieht der Browser die Zeit der Instanz (FESTE UHR oben)."""
         await self.cmd("Page.addScriptToEvaluateOnNewDocument", source=BROWSER_UHR % int(versatz_ms))
+
+    async def browser_uhr_fest(self, zeitpunkt_ms: int) -> None:
+        """Seit 1.8.126: die Uhr des Browsers steht auf zeitpunkt_ms (Millisekunden seit 1970, UTC) -- für jedes danach geladene
+        Dokument; mit Werkzeug.uhr_ms() aus befuellen() derselbe Zeitpunkt wie die stehende Uhr der Instanz (STEHENDE UHR oben)."""
+        await self.cmd("Page.addScriptToEvaluateOnNewDocument", source=BROWSER_UHR_FEST % int(zeitpunkt_ms))
 
     async def fenster(self, breite: int, hoehe: int, mobil: bool = False) -> None:
         await self.cmd("Emulation.setDeviceMetricsOverride", width=breite, height=hoehe,
@@ -988,21 +1008,32 @@ def _kurzlebige_ports() -> tuple[int, int]:
         return 49152, 65535
 
 
+def _bindbar(adresse: str, port: int) -> bool:
+    """Seit 1.8.126: lässt sich der Port an diese Adresse binden? Nein bei belegt (10048) und reserviert (10013) -- jedes OSError."""
+    with socket.socket() as s:
+        try:
+            s.bind((adresse, port))
+        except OSError:
+            return False
+        return True
+
+
 def _freier_port() -> int:
     """Ein freier Port außerhalb der kurzlebigen Ports (seit 1.8.125). Bis 1.8.124 wählte das Betriebssystem (Port 0) einen aus genau
     dem Bereich, aus dem es auch die Quellports ausgehender Verbindungen nimmt: fragte _warte_auf() den Port ab, bevor die ERP-Instanz
     bzw. Chrome dort lauschte, konnte die Verbindung zufällig denselben Port als Quellport bekommen und sich mit sich selbst verbinden --
     die eigene Anfrage kam als Antwort zurück (http.client.BadStatusLine: GET /json/version HTTP/1.1, klicktest_mahnen_endrechnung am
-    17.10.2026). Außerhalb des Bereichs ist das ausgeschlossen."""
+    17.10.2026). Außerhalb des Bereichs ist das ausgeschlossen.
+
+    Vor der Rückgabe probeweise gebunden, auf 127.0.0.1 und (seit 1.8.126) auf 0.0.0.0: scheitert eins, ist der Port belegt (WinError
+    10048) oder von Windows reserviert (10013, netsh int ipv4 show excludedportrange tcp). Nur 127.0.0.1 reichte nicht -- lauscht ein
+    anderer Prozess an 0.0.0.0, gelingt das Binden an 127.0.0.1 unter Windows trotzdem (nachgestellt am 17.10.2026). Zwischen Prüfung
+    und Start der Instanz kann ein anderer Prozess den Port noch nehmen; das fängt die Prüfung nicht ab."""
     start, ende = _kurzlebige_ports()
     kandidaten = [p for p in range(UNTERSTE_PORTNUMMER, 65536) if not start <= p <= ende]
     for _ in range(200 if kandidaten else 0):
         port = kandidaten[secrets.randbelow(len(kandidaten))]
-        with socket.socket() as s:
-            try:
-                s.bind(("127.0.0.1", port))
-            except OSError:
-                continue  # belegt oder vom System ausgenommen (netsh int ipv4 show excludedportrange)
+        if all(_bindbar(adresse, port) for adresse in ("127.0.0.1", "0.0.0.0")):
             return port
     print(f"Kein freier Port außerhalb der kurzlebigen Ports ({start}–{ende}) -- das Betriebssystem wählt.", flush=True)
     with socket.socket() as s:
@@ -1082,13 +1113,24 @@ class Wachhund:
     Warten auf die Instanz hängt. Beendet die eigenen Kindprozesse (über ihre PID, Regel 12) und den Prozess mit CODE_ZEITLIMIT.
     Ein Thread, kein asyncio: hängt die Ereignisschleife, läuft er trotzdem."""
 
-    def __init__(self, sekunden: float, grund: str):
+    def __init__(self, sekunden: float, grund: str, je_schritt: bool = False):
         self.sekunden, self.grund = sekunden, grund
+        self.je_schritt = je_schritt  # seit 1.8.126: das Limit gilt je Schritt, neu_starten() setzt es zurück
         self.kinder: list[subprocess.Popen] = []
         self._timer = threading.Timer(sekunden, self._abbrechen)
         self._timer.daemon = True
 
     def starten(self) -> None:
+        self._timer.start()
+
+    def neu_starten(self) -> None:
+        """Seit 1.8.126: nur mit je_schritt -- das Limit beginnt neu (ein Werkzeug mit vielen kurzen Schritten wie
+        scripts/bildgrundlage.py: höchstens `sekunden` je Schritt statt für den ganzen Lauf)."""
+        if not self.je_schritt:
+            return
+        self._timer.cancel()
+        self._timer = threading.Timer(self.sekunden, self._abbrechen)
+        self._timer.daemon = True
         self._timer.start()
 
     def anhalten(self) -> None:
@@ -1113,12 +1155,17 @@ UHR_ENV = "KLICKTEST_UHR"
 def _uhr_marke(uhrzeit: str) -> str:
     """Startpunkt der Uhr für die Kindprozesse: heute (Europe/Berlin) um uhrzeit, in UTC, dazu die
     echte Zeit dieses Augenblicks. Befüllen und Server rechnen von derselben Marke weiter -- die Uhr
-    läuft in beiden gleich und springt zwischen ihnen nicht zurück."""
-    from datetime import datetime, time as uhr, timezone
+    läuft in beiden gleich und springt zwischen ihnen nicht zurück. Seit 1.8.126 auch "JJJJ-MM-TT HH:MM": eine STEHENDE Uhr an
+    diesem Tag (Marke "…|fest") -- für Bilder, die an jedem Tag gleich sein sollen (scripts/bildgrundlage.py)."""
+    from datetime import date, datetime, time as uhr, timezone
     from zoneinfo import ZoneInfo
 
     berlin = ZoneInfo("Europe/Berlin")
     echt = time.time()
+    if " " in uhrzeit.strip():
+        tag_text, uhr_text = uhrzeit.split()
+        start = datetime.combine(date.fromisoformat(tag_text), uhr.fromisoformat(uhr_text), tzinfo=berlin).astimezone(timezone.utc)
+        return f"{start.isoformat()}|fest"
     heute = datetime.fromtimestamp(echt, berlin).date()
     start = datetime.combine(heute, uhr.fromisoformat(uhrzeit), tzinfo=berlin).astimezone(timezone.utc)
     return f"{start.isoformat()}|{echt}"
@@ -1126,24 +1173,50 @@ def _uhr_marke(uhrzeit: str) -> str:
 
 def _uhr_einsetzen() -> None:
     """Im Kindprozess, vor dem Import von app.main: die eine Uhr der App (app.berlin_time._utc_now)
-    auf die Marke aus KLICKTEST_UHR setzen. Ohne die Variable bleibt die echte Uhr."""
+    auf die Marke aus KLICKTEST_UHR setzen. Ohne die Variable bleibt die echte Uhr. Seit 1.8.126 mit "…|fest" eine stehende Uhr."""
     marke = os.environ.get(UHR_ENV)
     if not marke:
         return
     from datetime import datetime, timedelta
 
     start_text, echt_text = marke.split("|")
-    start, echt = datetime.fromisoformat(start_text), float(echt_text)
+    start = datetime.fromisoformat(start_text)
     if str(ROOT) not in sys.path:
         sys.path.insert(0, str(ROOT))
     from app import berlin_time
 
+    if echt_text == "fest":
+        berlin_time._utc_now = lambda: start
+        return
+    echt = float(echt_text)
     berlin_time._utc_now = lambda: start + timedelta(seconds=time.time() - echt)
+
+
+ANZEIGE_ENV = "KLICKTEST_ANZEIGE"
+
+
+def _anzeige_einsetzen() -> None:
+    """Seit 1.8.126: im Server, nach der Uhr -- mit KLICKTEST_ANZEIGE (JSON {"version": …, "changelog": Pfad}) zeigt die Instanz
+    eine feste Versionsnummer (Seitenleiste) und einen festen Changelog. Beide ändern sich mit jedem Commit (Regel 8); ohne das
+    wiche in einem Bildvergleich über zwei Commits jedes Bild ab (scripts/bildgrundlage.py)."""
+    roh = os.environ.get(ANZEIGE_ENV)
+    if not roh:
+        return
+    anzeige = json.loads(roh)
+    import app.main  # noqa: F401 -- dieselben Module, die uvicorn danach lädt
+    from app import changelog
+    from app.routers import pages
+
+    if anzeige.get("version"):
+        pages.templates.env.globals["app_version"] = anzeige["version"]
+    if anzeige.get("changelog"):
+        changelog.CHANGELOG_PATH = Path(anzeige["changelog"])
 
 
 def _server_mit_uhr(host: str, port: int, log_config: str) -> None:
     """uvicorn im selben Prozess wie die gesetzte Uhr -- `python -m uvicorn` hätte sie nicht. Seit 1.8.115 mit der Spur (trace)."""
     _uhr_einsetzen()
+    _anzeige_einsetzen()
     import uvicorn
 
     uvicorn.run("app.main:app", host=host, port=port, log_config=log_config, log_level="trace")
@@ -1165,8 +1238,12 @@ def _isolierte_umgebung(ordner: Path) -> dict:
 # Einstieg
 # ---------------------------------------------------------------------------
 
-def klicktest_main(befuellen, pruefen, *, beschreibung: str = "", uhr: str | None = None) -> int:
-    """uhr: "HH:MM" -- die Instanz läuft heute ab dieser Uhrzeit (Europe/Berlin), siehe FESTE UHR oben."""
+def klicktest_main(befuellen, pruefen, *, beschreibung: str = "", uhr: str | None = None, zeitlimit_je_schritt: bool = False,
+                   umgebung: dict | None = None, chrome_argumente: list[str] | None = None) -> int:
+    """uhr: "HH:MM" -- die Instanz läuft heute ab dieser Uhrzeit (Europe/Berlin), siehe FESTE UHR oben; seit 1.8.126 auch
+    "JJJJ-MM-TT HH:MM" -- eine stehende Uhr an diesem Tag. zeitlimit_je_schritt (seit 1.8.126): das Zeitlimit (--zeitlimit, Gegenprobe)
+    gilt je Schritt, pruefen() setzt es mit tab.wachhund.neu_starten() zurück. umgebung (seit 1.8.126): weitere Variablen für Befüllen
+    und Instanz. chrome_argumente (seit 1.8.126): weitere Schalter für Chrome (scripts/bildgrundlage.py: --disable-lcd-text)."""
     parser = argparse.ArgumentParser(description=(beschreibung or "").strip().splitlines()[0] if beschreibung else None)
     parser.add_argument("--app-port", type=int, default=0)
     parser.add_argument("--cdp-port", type=int, default=0)
@@ -1189,16 +1266,18 @@ def klicktest_main(befuellen, pruefen, *, beschreibung: str = "", uhr: str | Non
         grenzen.append((ZEITLIMIT_GEGENPROBE, f"Gegenprobe läuft, Marker {GEGENPROBE_MARKER} in {gegenprobe}"))
     wachhund = Wachhund(*min(grenzen)) if grenzen else None
     if wachhund:
-        print(f"Zeitlimit {int(wachhund.sekunden)} s ({wachhund.grund})", flush=True)
+        wachhund.je_schritt = zeitlimit_je_schritt
+        print(f"Zeitlimit {int(wachhund.sekunden)} s{' je Schritt' if zeitlimit_je_schritt else ''} ({wachhund.grund})", flush=True)
         wachhund.starten()
     try:
-        return _ablauf(befuellen, pruefen, args, uhr, wachhund)
+        return _ablauf(befuellen, pruefen, args, uhr, wachhund, umgebung, chrome_argumente)
     finally:
         if wachhund:  # ist er abgelaufen, endet der Prozess hier mit CODE_ZEITLIMIT -- auch wenn der Ablauf schon zurückkam,
             wachhund.anhalten()  # weil das Beenden seiner Kindprozesse ihn weiterlaufen ließ ("Befüllen fehlgeschlagen.")
 
 
-def _ablauf(befuellen, pruefen, args, uhr: str | None, wachhund: "Wachhund | None") -> int:
+def _ablauf(befuellen, pruefen, args, uhr: str | None, wachhund: "Wachhund | None", umgebung: dict | None = None,
+            chrome_argumente: list[str] | None = None) -> int:
     ordner = (args.arbeitsordner or Path(tempfile.mkdtemp(prefix="erp-klicktest-"))).resolve()
     if ordner.exists() and any(ordner.iterdir()):
         raise SystemExit(f"Arbeitsordner ist nicht leer: {ordner}")
@@ -1208,11 +1287,14 @@ def _ablauf(befuellen, pruefen, args, uhr: str | None, wachhund: "Wachhund | Non
     app_port = args.app_port or _freier_port()
     cdp_port = args.cdp_port or _freier_port()
     env = _isolierte_umgebung(ordner)
+    env.update(umgebung or {})
     uhrzeit = uhr or args.wanduhr
     if uhrzeit:
         env[UHR_ENV] = _uhr_marke(uhrzeit)
+    stehend = bool(uhrzeit) and " " in uhrzeit.strip()
     print(f"Arbeitsordner {ordner}\nERP http://127.0.0.1:{app_port}  CDP {cdp_port}"
-          + (f"\nUhr der Instanz: heute ab {uhrzeit} (Europe/Berlin)" if uhrzeit else ""), flush=True)
+          + (f"\nUhr der Instanz: {'steht auf' if stehend else 'heute ab'} {uhrzeit} (Europe/Berlin)" if uhrzeit else ""),
+          flush=True)
 
     skript = Path(sys.argv[0]).resolve()
     seed_datei = ordner / "seed.json"
@@ -1243,7 +1325,8 @@ def _ablauf(befuellen, pruefen, args, uhr: str | None, wachhund: "Wachhund | Non
             return 2
         chrome = subprocess.Popen([_chrome_pfad(args.chrome), "--headless=new", f"--remote-debugging-port={cdp_port}",
                                    f"--user-data-dir={ordner / 'chrome-profile'}", "--no-first-run",
-                                   "--no-default-browser-check", "--disable-extensions", "about:blank"],
+                                   "--no-default-browser-check", "--disable-extensions", *(chrome_argumente or []),
+                                   "about:blank"],
                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if wachhund:
             wachhund.kinder.append(chrome)
@@ -1251,7 +1334,7 @@ def _ablauf(befuellen, pruefen, args, uhr: str | None, wachhund: "Wachhund | Non
         if not _warte_auf(f"http://127.0.0.1:{cdp_port}/json/version", 30):
             print("Chrome antwortet nicht auf dem CDP-Port.")
             return 2
-        ok = asyncio.run(_lauf(pruefen, seed, cdp_port, f"http://127.0.0.1:{app_port}", ordner / "shots", verbindungen))
+        ok = asyncio.run(_lauf(pruefen, seed, cdp_port, f"http://127.0.0.1:{app_port}", ordner / "shots", verbindungen, wachhund))
         if not ok:
             print(f"Verbindungsprotokoll des Servers (uvicorn trace): {verbindungen}", flush=True)
         return 0 if ok else 1
@@ -1267,7 +1350,8 @@ def _ablauf(befuellen, pruefen, args, uhr: str | None, wachhund: "Wachhund | Non
                     beenden(proc.pid)
 
 
-async def _lauf(pruefen, seed, cdp_port: int, base_url: str, shots: Path, verbindungen: Path | None = None) -> bool:
+async def _lauf(pruefen, seed, cdp_port: int, base_url: str, shots: Path, verbindungen: Path | None = None,
+                wachhund: "Wachhund | None" = None) -> bool:
     import websockets
 
     ziele = json.load(urllib.request.urlopen(f"http://127.0.0.1:{cdp_port}/json/list"))
@@ -1275,6 +1359,7 @@ async def _lauf(pruefen, seed, cdp_port: int, base_url: str, shots: Path, verbin
     p = Pruefungen()
     async with websockets.connect(seite["webSocketDebuggerUrl"], max_size=64_000_000) as ws:
         tab = Tab(ws, base_url, shots, cdp_port, verbindungen)
+        tab.wachhund = wachhund  # seit 1.8.126, für zeitlimit_je_schritt
         p.netz = tab.netz  # seit 1.8.97
         for domain in ("Page", "Runtime", "Network"):
             await tab.cmd(f"{domain}.enable")

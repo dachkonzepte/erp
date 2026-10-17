@@ -43,3 +43,7 @@ docs/referenz-pdf/
 # früheren Sitzungen -- kein Teil der Anwendung, nirgends referenziert
 diag.py
 fix_catalog_columns.py
+
+# Bildgrundlage fürs Redesign (scripts/bildgrundlage.py, seit 1.8.126): ganzseitige Screenshots je Commit,
+# Ordner bildgrundlage/<commit>/ -- nur lokal als Vergleich, nicht in der Git-Historie
+/bildgrundlage/

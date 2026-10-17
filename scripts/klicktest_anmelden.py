@@ -40,7 +40,6 @@ scripts/cdp_klicktest.py. Dauer unter einer Minute.
 
 import asyncio
 import json
-import socket
 import sys
 import urllib.error
 import urllib.request
@@ -48,7 +47,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from cdp_klicktest import antwort_kopf, gesendet, klicktest_main  # noqa: E402
+from cdp_klicktest import _freier_port, antwort_kopf, gesendet, klicktest_main  # noqa: E402
 
 # Seit 1.8.108 (klicktest_alle.py --gleichzeitig): unter Last wären die Fenster zu kurz, um eine nicht wartende Seite zu erwischen
 ALLEIN = "Fenster von 1 s, in denen keine zweite Anmeldung und keine Navigation geschehen darf"
@@ -135,10 +134,8 @@ def _status_mit_cookie(url: str, cookies: dict) -> int:
         return fehler.code
 
 
-def _freier_port() -> int:
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+# Seit 1.8.126 der Port-Helfer aus cdp_klicktest (außerhalb der kurzlebigen Ports, belegt und reserviert geprüft) -- vorher
+# wählte hier das Betriebssystem (Port 0); klicktest_fremde_seite nimmt ihn ebenso.
 
 
 def _dokumente(tab, marke: int) -> list[dict]:

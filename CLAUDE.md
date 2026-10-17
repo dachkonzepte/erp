@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.125** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.126** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -1266,7 +1266,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Zeitlimit; seit 1.8.115 Verbindungsprotokoll von uvicorn je Instanz und Ausgang hängender Anfragen im Netzprotokoll; seit 1.8.116
   JS-Ausnahmen in node-Tests, Regel 36; seit 1.8.123 Strukturtests mit Unterordnern, Basis-Templates und Makros, Stufe 0a des Redesigns;
   seit 1.8.124 Stufe 0b: alle Strukturtests, Wächter über tests/, Seiten-Abgleich, Makro-Regel; seit 1.8.125 Stufe 0c: kein Include per
-  Textvergleich, Klicktest-Ports außerhalb der kurzlebigen Ports)
+  Textvergleich, Klicktest-Ports außerhalb der kurzlebigen Ports; seit 1.8.126 Stufe 0d: Bildgrundlage `scripts/bildgrundlage.py` mit
+  Vergleich, stehende Uhr im Klicktest, ein Port-Helfer für alle Klicktests)
   -- `docs/archiv/testablauf-und-klicktests.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`
@@ -1809,7 +1810,26 @@ nacheinander. **Zeitlimit** (seit 1.8.108): `--zeitlimit SEK` an jedem Klicktest
 jeder Klicktest nach höchstens 2 min ab (Rückgabecode 3, `klicktest_alle.py` führt ihn als "Zeitlimit"). **Ports** (seit 1.8.125):
 `_freier_port()` wählt außerhalb der kurzlebigen Ports des Betriebssystems -- im Bereich ab 49152 konnte sich `_warte_auf()` mit sich
 selbst verbinden, solange Chrome noch nicht lauschte (`BadStatusLine: GET /json/version`); ein neuer Port-Helfer nimmt `_freier_port()`.
+Seit 1.8.126 nimmt jeder Klicktest diesen einen Helfer (auch die SMTP-Empfänger), geprüft vor der Rückgabe auf 127.0.0.1 und 0.0.0.0.
 `--ausgabe` von `klicktest_alle.py` nie tief im Scratchpad: die Ablage der Instanz überschreitet sonst die 260 Zeichen von Windows.
+
+### Bildgrundlage für das Redesign (seit 1.8.126)
+
+`scripts/bildgrundlage.py` nimmt jede Seite aus `tests/vorlagen_js.py::seiten()` als ganzseitiges PNG auf (Instanz von `cdp_klicktest`
+mit festen Testdaten, stehender Uhr 14.10.2026 10:00 in Server und Browser, alle gespeicherten Zeitstempel darauf gesetzt, feste
+Versionsnummer „Bildgrundlage“ und fester Changelog): Büro – Finanzen überall, die Monteurin zusätzlich auf jeder Seite, die sie öffnet,
+Admin nur für den Adressimport, anonym die Anmeldeseite, die Sperrseite als Monteurin auf `/projects`; je hell und dunkel, je 412 px
+und 1440 px. Ordner `bildgrundlage/<commit>/` im Projekt (in `.gitignore`, Endung `-geaendert` bei geänderter Arbeitskopie) mit
+`bilder.json`. Vor einem Umbau eine Grundlage vom Stand davor, danach eine neue und vergleichen:
+
+    .venv\Scripts\python.exe scripts\bildgrundlage.py                       (aufnehmen; --ziel ORDNER, --nur TEIL)
+    .venv\Scripts\python.exe scripts\bildgrundlage.py vergleichen ALT NEU   (Rückgabecode 1 bei jeder Abweichung)
+
+Der Vergleich nennt je Bild die abweichenden Pixel und legt ein Differenzbild ab (Abweichungen rot). Verglichen werden volle Läufe
+(Text ohne LCD-Kantenglättung, `--nur` nur zum Ausprobieren); ein Flush mit zwei geänderten Objekten in den Testdaten ordnet den Verlauf
+zufällig (`app/audit.py`, `session.dirty`), deshalb setzt `befuellen()` den Projektstatus vorab. Eine neue Seite kommt in
+`AUFNAHMEN` (`tests/test_v431_bildgrundlage.py` prüft Abdeckung, Vorlage je Rolle und Monteur-Seiten); neue Testdaten ändern alle Bilder
+-- dann zuerst eine neue Grundlage vom Stand vor dem Umbau. Grenzen: `docs/archiv/testablauf-und-klicktests.md`, „Bildgrundlage“.
 
 ## Arbeitsweise, die sich bewährt hat
 

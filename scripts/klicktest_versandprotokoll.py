@@ -29,14 +29,13 @@ eigene PID beenden): siehe scripts/cdp_klicktest.py.
 
 import email
 import hashlib
-import socket
 import socketserver
 import sys
 import threading
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from cdp_klicktest import klicktest_main  # noqa: E402
+from cdp_klicktest import _freier_port, klicktest_main  # noqa: E402
 
 POSTFACH: list[dict] = []
 
@@ -57,9 +56,7 @@ def befuellen(db, k):
             update_invoice_header(db, inv, service_period_start=date(2026, 9, 1), service_period_end=date(2026, 9, 30))
         return finalize_and_send_invoice(db, inv)
 
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        smtp_port = s.getsockname()[1]
+    smtp_port = _freier_port()  # seit 1.8.126 der Port-Helfer von cdp_klicktest
     update_smtp_settings(db, host="127.0.0.1", port=smtp_port, username="buero", encryption="none",
                          sender_email="buero@klicktest.example", sender_name="Klicktest GmbH", password="pw")
 

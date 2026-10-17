@@ -35,12 +35,11 @@ beenden): siehe scripts/cdp_klicktest.py. Dauer etwa eine Minute.
 """
 
 import hashlib
-import socket
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from cdp_klicktest import klicktest_main  # noqa: E402
+from cdp_klicktest import _freier_port, klicktest_main  # noqa: E402
 from klicktest_behinderungsanzeige import _eingeben, _feld_ids, _migration  # noqa: E402
 from klicktest_checkliste_unterschrift import CONFIRM, _unterschreiben  # noqa: E402
 from klicktest_versandprotokoll import POSTFACH, _smtp_starten  # noqa: E402
@@ -77,9 +76,7 @@ def befuellen(db, k):
     from app.settings import load_general_settings
     from app.work_preparation import ensure_preparation
 
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        smtp_port = s.getsockname()[1]
+    smtp_port = _freier_port()  # seit 1.8.126 der Port-Helfer von cdp_klicktest
     update_smtp_settings(db, host="127.0.0.1", port=smtp_port, username="buero", encryption="none",
                          sender_email="buero@klicktest.example", sender_name="Klicktest GmbH", password="pw")
     load_general_settings(db).company_name = "Klicktest Dach GmbH"

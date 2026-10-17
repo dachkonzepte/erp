@@ -32,8 +32,8 @@ import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from cdp_klicktest import klicktest_main  # noqa: E402
-from klicktest_anmelden import DIALOGE, _freier_port, _klick, _tippen  # noqa: E402
+from cdp_klicktest import _freier_port, klicktest_main  # noqa: E402 -- seit 1.8.126 der Port-Helfer von cdp_klicktest
+from klicktest_anmelden import DIALOGE, _klick, _tippen  # noqa: E402
 
 # Seit 1.8.108 (klicktest_alle.py --gleichzeitig): unter Last hätte ein erlaubter Rahmen in 1,5 s vielleicht noch nicht geladen
 ALLEIN = "Fenster von 1,5 s, in dem der Rahmen der fremden Seite laden oder abgewiesen werden muss"

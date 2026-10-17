@@ -596,7 +596,7 @@ echten Vorlagen, der unverändert sein muss. Bestehende Erwartungen bleiben unve
   dazu `test_v429::test_kein_makro_parameter_in_type_on_href`): ein kleiner Tag-Leser geht durch den Inhalt jedes Makros (auch
   verschachtelt, `vorlagen_js.makro_bereiche()`).
 
-#### Festlegungen 1.8.124 (Bitte bestätigen)
+#### Festlegungen 1.8.124 (alle bestätigt am 17.10.2026)
 
 Alle betreffen nur den Testablauf (Regel 28: der Bericht nennt ihre Zahl).
 
@@ -716,7 +716,8 @@ Alle betreffen nur den Testablauf (Regel 28: der Bericht nennt ihre Zahl).
 1. **Weitere Ports per Port 0** in Klicktests: `klicktest_anmelden._freier_port()` (auch von `klicktest_fremde_seite` genutzt; dort eine
    „fremde Adresse, an der niemand lauscht“, die Chrome aufruft) und die SMTP-Empfänger in sieben Klicktests (Port gebunden, wieder frei
    gegeben, später neu gebunden). Ein Selbstanschluss ist dort ebenso denkbar (Chrome bzw. die ERP-Instanz als Client), bisher nicht
-   beobachtet; nicht geändert (Auftrag: `_warte_auf()`).
+   beobachtet; nicht geändert (Auftrag: `_warte_auf()`). **Seit 1.8.126 behoben**: alle nehmen `_freier_port()` (Abschnitt
+   „Bildgrundlage für das Redesign, Stufe 0d“).
 
 #### Tests und Prüfung
 
@@ -739,3 +740,167 @@ Alle betreffen nur den Testablauf (Regel 28: der Bericht nennt ihre Zahl).
   - test_v398 `test_templates_using_the_baustein_include_it` -- Aufbau: `bindet_ein()` (selbst: `nur_selbst=True`).
   - test_v254 `test_mobile_header_does_not_include_topbar` -- Aufbau: `not bindet_ein()`; Soll „nicht erwähnt“ wird „nicht eingebunden“
     (Festlegung 3; an den echten Vorlagen dasselbe Ergebnis).
+
+## Bildgrundlage für das Redesign, Stufe 0d (1.8.126)
+
+Vorgabe vom 17.10.2026 (übernommen wie gegeben): „Stufe 0d des Redesigns: Screenshot-Grundlage. Vorlagen und App-Code bleiben
+unverändert. Vorab: Festlegungen 1.8.124 sind bestätigt. 1. Werkzeug auf Basis von cdp_klicktest: Testinstanz mit festen Testdaten und
+fester Uhr, ganzseitige Screenshots von - jeder Seite aus seiten() (Detailseiten mit Datensätzen aus den Testdaten), dazu Login und
+Sperrseite; - Büro-Rolle überall, Monteur-Rolle zusätzlich für die Monteursseiten, die Seiten mit Rollenweiche und den Einsatzbericht;
+- je hell und dunkel, je 412 px und 1440 px Breite. Vor jedem Bild: Daten fertig geladen, Schriften bereit, Animationen und Textcursor
+aus. 2. Abdeckungstest: Jede Seite aus seiten() steht in der Liste des Werkzeugs. 3. Vergleich zweier Läufe: je Bild die Zahl
+abweichender Pixel und ein Differenzbild; Exit-Code ungleich 0 bei Abweichung. 4. Gegenproben: (a) Zwei Läufe auf demselben Commit
+ergeben 0 abweichende Pixel. Was wackelt, mit Ursache melden, nicht wegmaskieren. (b) In einer Wegwerfkopie eine winzige CSS-Änderung an
+einer einzigen Seite: Der Vergleich meldet genau deren Bilder. 5. Grundlage vom aktuellen Commit erzeugen, außerhalb von Git (Ordner in
+.gitignore, Commit im Ordnernamen). Aufruf in CLAUDE.md dokumentieren. 6. klicktest_anmelden._freier_port() auf den Port-Helfer aus
+cdp_klicktest umstellen. Bestätigen, dass der Helfer den Port vor der Rückgabe auf Belegung und Windows-Reservierungen prüft; falls
+nicht, nachrüsten. Bericht: Anzahl Bilder, Laufzeit, Ordnergröße, Gegenproben, Grenzen (was nicht abgedeckt ist). Am Ende die
+Festlegungen 1.8.125 wörtlich ausgeben, nicht als bestätigt markieren. Dann committen.“
+
+### Befund
+
+- **Was zwei Läufe unterscheiden würde**: die Uhr der Klicktests läuft „heute ab HH:MM“ -- jedes Datum auf einer Seite wäre an jedem Tag
+  ein anderes; gespeicherte Zeitstempel (`datetime.utcnow()` beim Befüllen) tragen die echte Zeit (Verlauf, „angelegt am“); die
+  Versionsnummer in der Seitenleiste und die Changelog-Seite ändern sich mit jedem Commit; `localStorage` (Thema, Seitenleiste);
+  Animationen, Übergänge, der blinkende Textcursor, Fokus.
+- **Rollenweichen**: `/time-tracking` und `/betriebsmittel/{id}` zeichnen für die Monteurin eine andere Vorlage
+  (`time_tracking_field.html`, `operational_asset_field.html`), Checkliste und Checklisten des Auftrags dieselbe Vorlage mit `is_field`,
+  `/` leitet sie auf `/mobil` um. Jede Seitenroute mit `_any_role_dep` (Konto, Mobil, Objekt mobil, Stundenzettel, Einsatzbericht,
+  Checkliste, Checklisten des Auftrags, Zeiterfassung, Betriebsmittel) öffnet auch die Monteurin. **Nur Admin**: `/address-import`
+  (`require_admin`) -- mit der Büro-Rolle wäre das Bild die Sperrseite (so im ersten Lauf, gefunden vom neuen Test).
+- **Port-Helfer** (Punkt 6): `_freier_port()` prüfte mit `bind` auf 127.0.0.1. Das erkennt einen an 127.0.0.1 belegten Port (WinError
+  10048) und einen von Windows reservierten (10013; hier 2121, 2869, 5357, 8094 und 8884, alle unter 20000 und damit nie Kandidat), aber
+  **nicht** einen Port, an dem ein anderer Prozess auf 0.0.0.0 lauscht: daneben gelingt das Binden an 127.0.0.1 unter Windows
+  (nachgestellt). `klicktest_anmelden._freier_port()` und die SMTP-Empfänger in sieben Klicktests banden Port 0 wie vor 1.8.125
+  (Nebenbefund 1 von 1.8.125).
+
+### Wackelquellen (Gegenprobe a), mit Ursache
+
+Zwei volle Läufe am selben Stand ergaben zuerst 0 abweichende Pixel -- Zufall, wie sich zeigte. Gefunden wurden beide Quellen erst
+bei Läufen mit `--nur` und bei Vergleichen über Zwischenstände.
+
+1. **Reihenfolge im Verlauf** (vier Bilder): „Angebot geändert“ und „Projekt geändert“ aus `create_order_from_quote()` tauschten die
+   Plätze. Ursache im App-Code: beide Änderungen liegen im selben Flush; `app/audit.py::before_flush` schreibt die Einträge in der
+   Reihenfolge von `session.dirty`, das in SQLAlchemy 2.0.52 aus einem `set()` von `InstanceState` kommt (`IdentityMap._modified`) und
+   nach Speicheradresse ordnet; der Verlauf ordnet gleich alte Einträge nach ID (`occurred_at desc, id desc`). Nachgestellt nur mit dem
+   Befüllen, je Lauf ein neuer Prozess: zufälliger Hash-Seed 6 Läufe, 2:4 verteilt; `PYTHONHASHSEED=0` 6 Läufe, 3:3 -- die
+   Adressen (ASLR), nicht der Hash-Seed. **In den Testdaten umgangen, nicht maskiert**: `befuellen()` setzt den Projektstatus vorher in
+   einem eigenen Commit, der Flush ändert nur das Angebot (beide Einträge stehen weiter im Verlauf, in fester Reihenfolge); danach
+   8 von 8 Läufen dieselbe Folge aller 237 Einträge (Prüfsumme über Art, ID, Aktion und Feld). Die App bleibt, wie sie ist (Vorschlag
+   unten); ein künftiger Flush mit zwei geänderten Objekten in den Testdaten brächte die Quelle zurück.
+2. **Kantenglättung des Texts** (alle Bilder einer Seite, im ganzen Text): mit `--nur verlauf` wich der Verlauf vom Verlauf eines vollen
+   Laufs ab, bei gleichem Layout -- die farbigen Subpixel-Säume (ClearType/LCD-Text) waren anders stark (etwa `(61,154,226)` statt
+   `(98,168,226)` an derselben Glyphe). Die Stärke hing davon ab, welche Seiten der Browser vorher gezeichnet hatte: mit dem Kalender
+   davor gleich wie im vollen Lauf, als erste Seite anders. Volle Läufe besuchen die Seiten immer in derselben Folge und waren
+   untereinander gleich; ein Vergleich mit einem Teillauf (`--nur`) wäre im ganzen Text rot gewesen. **Behoben an der Quelle**: Chrome
+   zeichnet für die Bildgrundlage ohne LCD-Text (`--disable-lcd-text`, Graustufen); danach Verlauf allein und Kalender plus Verlauf
+   gleich (bis auf Quelle 1, damals noch offen).
+
+### Umsetzung 1.8.126
+
+- **`scripts/bildgrundlage.py`**: `aufnehmen` (Vorgabe) und `vergleichen ALT NEU`. `AUFNAHMEN`: 53 Einträge mit Name, Vorlage, Adresse
+  und Rollen -- 48 mit Büro, 10 mit Monteurin, Adressimport mit Admin, Anmeldeseite anonym, Sperrseite als Monteurin auf `/projects`;
+  zusammen 60 Bilder je Thema und Breite, 240 je Lauf. Testdaten in `befuellen()`: Kunde mit Objekt und zwei Dachflächen, Projekt mit
+  Angebot und Auftrag (Arbeitsvorbereitung, Team, Plantafel heute, Abschlag als Entwurf, Einsatzbericht mit Prüfpunkten und Befund,
+  Checkliste, zwei Zeitbuchungen), zweites Projekt mit Angebot, Wartungsvertrag, Prüfvorlage, Betriebsmittel, Leistung, Termin,
+  Eingangsrechnung, Betriebskosten, Anfrage, Aufgabe; Projektstatus vor dem Beauftragen (Wackelquelle 1). Danach jeder Zeitstempel
+  (Spalte `DateTime`) auf die Uhr, außer `expires_at` (Ablauf der Sitzungen, gegen die echte Zeit geprüft) und Beginn und Ende des
+  Termins (`BEWUSST_GESETZT`, aus der stehenden Uhr gesetzt). Chrome mit `--disable-lcd-text` (Wackelquelle 2). Je Bild: Thema über
+  `prefers-color-scheme` (Emulation), Fenster 412 px als Mobilgerät bzw. 1440 px, Seite laden, bis keine Anfrage der Seite mehr
+  unterwegs ist und seit 0,8 s keine fertig wurde, Schriften geladen; Fokus weg, oben, zwei Frames; Fensterhöhe auf die Seitenhöhe
+  (mindestens 900, höchstens 16.000 px), bis sie bleibt; PNG. Bei jedem Laden `localStorage` leer und ein Stil gegen Animationen,
+  Übergänge und Textcursor (`Page.addScriptToEvaluateOnNewDocument`). Geprüft je Bild: geladen und Status 200 (Sperrseite 403). Ordner
+  `bildgrundlage/<kurzer Hash>` bzw. `…-geaendert`, `bilder.json` mit Seite, Vorlage, Adresse, Rolle, Thema, Breite, Höhe, Status,
+  JS-Fehlern, Chrome-Version, Laufzeit.
+- **Vergleich**: ein Pixel weicht ab, wenn einer der Kanäle R, G, B, A anders ist (keine Toleranz); bei anderer Größe zählt die Fläche,
+  die nur in einem Bild liegt. Differenzbild: das neue Bild blass, Abweichungen rot, in `vergleich_<ALT>_<NEU>` neben NEU (bei gleichen
+  Ordnernamen die der übergeordneten Ordner). Fehlende und neue Bilder werden genannt; Rückgabecode 1 bei jeder Abweichung, 0 nur bei
+  Gleichheit.
+- **Klicktest-Werkzeug** (`scripts/cdp_klicktest.py`): `uhr="JJJJ-MM-TT HH:MM"` ist eine stehende Uhr (Marke `…|fest`,
+  `_uhr_einsetzen()` setzt `berlin_time._utc_now` auf den festen Zeitpunkt); `tab.browser_uhr_fest(ms)` lässt `Date` im Browser stehen,
+  `k.uhr_ms()` liefert den Zeitpunkt; `KLICKTEST_ANZEIGE` (JSON) gibt der Instanz Versionsnummer und Changelog; `klicktest_main(…,
+  zeitlimit_je_schritt=True, umgebung={…}, chrome_argumente=[…])`, `Wachhund.neu_starten()` über `tab.wachhund` -- unter einer
+  Gegenprobe gelten die 2 min je Bild statt für den ganzen Lauf. **Port-Helfer**: `_bindbar()` auf 127.0.0.1 und 0.0.0.0,
+  `_freier_port()` gibt nur einen Port zurück, der an beiden frei ist; `klicktest_anmelden`, `klicktest_fremde_seite` und die
+  SMTP-Empfänger von `klicktest_bedenkenanzeige_versand`, `klicktest_behinderungsanzeige_versand`, `klicktest_protokoll_versand`,
+  `klicktest_versandprotokoll`, `klicktest_versandverlauf`, `klicktest_vertrag_abschrift`, `klicktest_vertrag_festschreiben` nehmen ihn.
+- `scripts/bildgrundlage_changelog.md` (fester Changelog der Instanz), `.gitignore` `/bildgrundlage/`, CLAUDE.md (Aufruf unter „Testen“).
+
+#### Festlegungen 1.8.126 (Bitte bestätigen)
+
+Alle betreffen nur Werkzeug und Testablauf (Regel 28: der Bericht nennt ihre Zahl).
+
+1. **Rollen der Bilder**: Büro – Finanzen für jede Seite mit Büro-Fassung (Büro – Auftrag öffnet die Finanzseiten und den
+   Mitarbeiter-Editor nicht); die Monteurin auf jeder Seite, die sie öffnet (vom Test erzwungen, nicht nur Monteursseiten, Rollenweichen
+   und Einsatzbericht -- dazu Konto, Checkliste, Checklisten des Auftrags); Admin nur für den Adressimport; anonym die Anmeldeseite; die
+   Sperrseite als Monteurin auf `/projects`.
+2. **Je Seite eine Fassung**: Detailseiten mit je einem Datensatz der Testdaten, das Stammdaten-Formular als „Mitarbeiterin bearbeiten“,
+   die Suche mit `?q=Halle`; Seiten im Zustand nach dem Laden (erster Reiter, nichts aufgeklappt, Entwürfe statt festgeschriebener
+   Dokumente).
+3. **Feste Zeit**: stehende Uhr 14.10.2026 10:00 (Mittwoch) in Befüllen, Server und Browser; nach dem Befüllen jeder Zeitstempel auf
+   diesen einen Zeitpunkt (nicht gestaffelt), außer `expires_at` und den Zeitstempeln, die `befuellen()` bewusst setzt
+   (`BEWUSST_GESETZT`: Beginn und Ende des Termins).
+4. **Feste Anzeige**: Versionsnummer „Bildgrundlage“ und `scripts/bildgrundlage_changelog.md` statt `VERSION` und `CHANGELOG.md`.
+5. **„Fertig“ vor einem Bild**: Dokument geladen, Schriften geladen, keine Anfrage der Seite unterwegs und seit 0,8 s keine fertig, Fokus
+   weg, zwei Frames; `localStorage` leer; Animationen, Übergänge und Textcursor per Stil aus. Thema über `prefers-color-scheme`.
+6. **Ganzseitig**: Fensterhöhe = Seitenhöhe, mindestens 900, höchstens 16.000 px; 412 px als Mobilgerät, 1440 px als Desktop,
+   Pixelfaktor 1.
+7. **Abweichung** ohne Toleranz (ein Kanal anders); andere Größe: Fläche außerhalb zählt; fehlende und neue Bilder sind Abweichungen.
+8. **Ordner** `bildgrundlage/<kurzer Hash>`, mit geänderter Arbeitskopie `…-geaendert`; ein Zielordner muss leer sein.
+9. **Status je Bild**: 200, die Sperrseite 403 -- sonst Rückgabecode 1.
+10. **Zeitlimit je Bild** unter einer Gegenprobe (2 min) statt für den ganzen Lauf.
+11. **Port-Helfer**: `bind` auf 127.0.0.1 und 0.0.0.0 vor der Rückgabe; jeder Klicktest nimmt ihn, auch für Empfänger im Skript (SMTP),
+    kein Klicktest bindet Port 0 selbst (Test).
+12. **Text ohne LCD-Kantenglättung** (`--disable-lcd-text`) in der Bildgrundlage -- Graustufen statt farbiger Säume; die Bilder zeigen
+    den Text damit etwas anders als ein Browser mit ClearType.
+13. **Testdaten ohne Flush mit zwei geänderten Objekten**: der Projektstatus wird vor dem Beauftragen gesetzt (Wackelquelle 1); die
+    Ursache im App-Code bleibt (siehe Nebenbefunde).
+
+#### Grenzen (was die Grundlage nicht abdeckt)
+
+- **Nur der Zustand nach dem Laden**: keine Dialoge, aufgeklappten Menüs, Hover und Fokus, Fehlermeldungen, weiteren Reiter (Projektmappe,
+  Einstellungen: nur die erste Ansicht), Zustände per Adresse (`?zweck=`, `?next=`).
+- **Eine Datenlage**: Rechnung, Checkliste und Einsatzbericht als Entwurf, kein Vertrag, keine Abnahme, keine Mahnung, keine Zahlung --
+  Karten, die erst damit erscheinen, sind nicht im Bild; leere Listen nur dort, wo die Testdaten nichts anlegen.
+- **Teilläufe** (`--nur`): eine Seite kann davon abhängen, welche Seiten vorher besucht wurden (Wackelquelle 2 war so eine Abhängigkeit,
+  über den Browser); verglichen werden sollten volle Läufe.
+- **Bereiche mit eigenem Scroll** (Seitenleiste, Zeitachse der Plantafel, breite Tabellen) zeigen nur ihren sichtbaren Teil.
+- **Büro – Auftrag** und Büro mit Admin-Rechten (Einstellungen ganz) nicht aufgenommen.
+- **Zwei Breiten**: kein Tablet (768/1024 px), kein Querformat.
+- **Ein Rechner, ein Browser**: Pixel hängen an Chrome-Version und installierten Schriften (die Seiten nehmen Inter, sonst die
+  Systemschrift) -- verglichen wird nur zwischen Läufen auf demselben Rechner mit demselben Chrome (`bilder.json` hält die Version fest).
+- **Nicht im Bild**: PDFs, E-Mails, Druckansicht, Seiten über 16.000 px (heute höchstens der Verlauf mit rund 13.000 px).
+
+#### Nebenbefunde (nur gemeldet)
+
+1. **Reihenfolge der Verlaufseinträge eines Flush ist zufällig** (`app/audit.py`, `for obj in list(session.dirty)`): zwei Änderungen im
+   selben Commit erscheinen im Verlauf von Lauf zu Lauf in anderer Reihenfolge, auch im Betrieb (für Menschen ohne Folgen, beide haben
+   denselben Zeitpunkt). Vorschlag für eine Runde mit App-Code: `session.dirty` vor dem Schreiben fest ordnen (z. B. nach Tabelle und
+   Primärschlüssel); dann entfällt die Umgehung in den Testdaten (Festlegung 13).
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v431_bildgrundlage.py` (25 Tests): Abdeckung (genau die Seiten aus `seiten()`), Namen und Rollen, jede Adresse zeichnet
+  für jede ihrer Rollen die genannte Vorlage (Sperrseite: 403; mit einem Konto in der Datenbank, sonst öffnet `/users` jeder), jede
+  Seitenroute, die die Monteurin öffnet, steht mit ihrer Rolle in der Liste; Vergleich (gleich 0, ein Pixel samt Differenzbild, nur Alpha,
+  andere Größe, fehlend und neu, leerer Ordner, Kommandozeile, Name des Differenzordners); Zeitstempel außer `expires_at` und den
+  Terminzeiten; stehende Uhr in Server und Browser (node, Regel 36), laufende Uhr unverändert; Wachhund je Schritt; Port-Helfer
+  überspringt an 127.0.0.1 und an 0.0.0.0 belegte und reservierte Ports; kein Klicktest mit eigenem Port-Helfer; `/bildgrundlage/` in
+  `.gitignore`.
+- **Gegenproben der Tests** (Plugin im Speicher, je Variante): Seite aus der Liste genommen → Abdeckung rot; Konto ohne Monteurin →
+  Monteur-Test rot; Zeiterfassung der Monteurin mit Büro-Rolle → drei Tests rot; Adressimport mit Büro statt Admin → Namen/Rollen und
+  Adressen rot; Zeitstempel samt `expires_at` → Zeitstempel-Test rot; erste Fassung (samt Terminzeiten) → Zeitstempel-Test rot.
+  Port-Helfer am Stand 1.8.125: gibt den an 0.0.0.0 belegten Port zurück (danach nicht mehr); der Wächter fände dort
+  `klicktest_anmelden` und die sieben SMTP-Klicktests. Statusprüfung im Werkzeug: Adressimport mit Büro-Rolle → vier Bilder „Status 403,
+  erwartet 200“, Rückgabecode 1.
+- **Gegenprobe (a)**: vor den beiden Korrekturen zwei volle Läufe 0 abweichende Pixel (je 240 Bilder, je 5 min 16 s, 18 MB) -- im
+  Nachhinein Zufall (Wackelquelle 1 trifft etwa jeden zweiten Lauf). Nachgestellt und behoben wie oben. Am Commit wiederholt (Bericht).
+- **Gegenprobe (b)** vor den Korrekturen -- Wegwerfkopie des Projekts (ohne `.git`, `.venv`, Daten), in `finanzen.html` `.metric` mit
+  `padding:12px 17px` statt `16px` (Marker `GEGENPROBE`, das Zeitlimit galt dort je Bild): „236 gleich, 4 abweichend, 0 fehlen, 0 neu“,
+  Rückgabecode 1 -- abweichend genau `buero__{hell,dunkel}__{412,1440}__finanzen.png` (4.106 bzw. 5.244 Pixel, die vier Kennzahl-Kästen
+  im Differenzbild rot). Am Commit wiederholt über ein Git-Worktree (Bericht).
+- **Eigener Fehler, behoben**: die erste Fassung setzte jeden Zeitstempel auf die Uhr, auch Beginn und Ende des Termins (14:00–15:00
+  wurde 10:00–10:00 UTC); seither `BEWUSST_GESETZT`, Test und Gegenprobe. Eine Staffelung je Zeile half gegen Wackelquelle 1 nicht (die
+  IDs entstehen schon in der Reihenfolge von `session.dirty`) und wurde verworfen.
+- **Angepasste Tests** (Regel 28): keine. `test_v413::test_ohne_gegenprobe_und_ohne_angabe_kein_zeitlimit` liest die Zeile
+  `wachhund = Wachhund(*min(grenzen)) if grenzen else None` wörtlich -- sie blieb, `je_schritt` wird danach gesetzt.

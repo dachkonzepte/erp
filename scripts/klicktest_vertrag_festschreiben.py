@@ -25,12 +25,11 @@ eigene PID beenden): siehe scripts/cdp_klicktest.py.
 """
 
 import hashlib
-import socket
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from cdp_klicktest import klicktest_main  # noqa: E402
+from cdp_klicktest import _freier_port, klicktest_main  # noqa: E402
 from klicktest_versandprotokoll import POSTFACH, _smtp_starten  # noqa: E402
 
 
@@ -48,9 +47,7 @@ def befuellen(db, k):
     from app.quote_framed_pdf import build_quote_framed_pdf
     from app.sent_documents import store_sent_document
 
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        smtp_port = s.getsockname()[1]
+    smtp_port = _freier_port()  # seit 1.8.126 der Port-Helfer von cdp_klicktest
     update_smtp_settings(db, host="127.0.0.1", port=smtp_port, username="buero", encryption="none",
                          sender_email="buero@klicktest.example", sender_name="Klicktest GmbH", password="pw")
     bert = AppUser(username="bert", display_name="Bert Büro", role="buero_auftrag", password_hash=k.passwort())

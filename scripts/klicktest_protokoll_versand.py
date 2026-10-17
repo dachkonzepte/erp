@@ -25,12 +25,11 @@ Optionen, Ablauf, Rückgabecode und Regeln: siehe scripts/cdp_klicktest.py. Fest
 """
 
 import hashlib
-import socket
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from cdp_klicktest import klicktest_main  # noqa: E402
+from cdp_klicktest import _freier_port, klicktest_main  # noqa: E402
 from klicktest_abnahme_aus_protokoll import _unterschrift_png  # noqa: E402
 from klicktest_abnahmeprotokoll import befuellen as befuellen_basis  # noqa: E402
 from klicktest_checkliste_unterschrift import CONFIRM  # noqa: E402
@@ -50,9 +49,7 @@ def befuellen(db, k):
     from app.email_sending import update_smtp_settings
     from app.models import AppUser, Customer, ProjectParticipant
 
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        smtp_port = s.getsockname()[1]
+    smtp_port = _freier_port()  # seit 1.8.126 der Port-Helfer von cdp_klicktest
     update_smtp_settings(db, host="127.0.0.1", port=smtp_port, username="buero", encryption="none",
                          sender_email="buero@klicktest.example", sender_name="Klicktest GmbH", password="pw")
     seed = befuellen_basis(db, k)

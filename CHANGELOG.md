@@ -4,6 +4,25 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.126 – Bildgrundlage fürs Redesign, ein Port-Helfer für alle Klicktests
+
+Stufe 0d des Redesigns (Vorgabe vom 17.10.2026, Festlegungen 1.8.124 bestätigt): `scripts/bildgrundlage.py` nimmt jede Seite aus
+`seiten()` als ganzseitiges PNG auf -- eine Instanz des Klicktest-Werkzeugs mit festen Testdaten, stehender Uhr (14.10.2026 10:00 in
+Server und Browser, die gespeicherten Zeitstempel darauf gesetzt) und fester Versionsnummer samt Changelog; Büro – Finanzen überall, die
+Monteurin auf jeder Seite, die sie öffnet, Admin für den Adressimport, je hell und dunkel, je 412 und 1440 px, zusammen 240 Bilder in gut
+fünf Minuten. Vor jedem Bild: keine Anfrage mehr unterwegs, Schriften bereit, Animationen und Textcursor aus; geprüft wird, dass die Seite
+mit 200 kam (die Sperrseite mit 403) -- mit der Büro-Rolle wäre der Adressimport nur die Sperrseite gewesen. `bildgrundlage.py vergleichen
+ALT NEU` nennt je Bild die abweichenden Pixel und legt ein Differenzbild ab, Rückgabecode 1 bei jeder Abweichung; eine Änderung um 1 px im
+CSS der Finanzseite meldete er genau an deren vier Bildern. Zwei Wackelquellen gefunden und an der Quelle behoben: die Stärke der farbigen
+Textkanten (ClearType) hing davon ab, welche Seiten Chrome vorher gezeichnet hatte (jetzt ohne LCD-Text), und zwei Verlaufseinträge aus
+demselben Commit tauschten von Lauf zu Lauf die Plätze -- `app/audit.py` schreibt sie in der Reihenfolge von `session.dirty`, die an
+Speicheradressen hängt (die Testdaten umgehen das, der App-Code ist unverändert und als Nebenbefund gemeldet). Die Grundlage liegt unter
+`bildgrundlage/<commit>/` (in `.gitignore`). `tests/test_v431_bildgrundlage.py` prüft Abdeckung, die Vorlage jeder Adresse je Rolle, die
+Monteur-Seiten und den Vergleich. Klicktest-Werkzeug: der Port-Helfer prüfte nur 127.0.0.1 -- lauscht ein anderer Prozess an 0.0.0.0,
+gelingt das unter Windows trotzdem; jetzt beide Adressen, und `klicktest_anmelden`, `klicktest_fremde_seite` und die SMTP-Empfänger in
+sieben Klicktests nehmen ihn statt Port 0. Vorlagen und App-Code sind unverändert. Details: `docs/archiv/testablauf-und-klicktests.md`,
+„Bildgrundlage für das Redesign, Stufe 0d“.
+
 ## 1.8.125 – Strukturtests Stufe 0c: kein Include per Textvergleich, Klicktest-Ports
 
 Stufe 0c des Redesigns (Vorgabe vom 17.10.2026): die vier Include-Prüfungen einzelner Seiten (v314, v338, v340, v418) nehmen
