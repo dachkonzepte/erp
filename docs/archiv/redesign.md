@@ -435,3 +435,25 @@ Festlegung 1.8.134 Nr. 1 (`/users` nur für Administratoren) damit bestätigt. D
 ### Endlauf der Nachrunde (Regel 26)
 
 - Auf `0dad8c4` (1.8.150 samt Nachtrag in CLAUDE.md) bei sauberer Arbeitskopie: volle Suite (`-n 16 --dist loadfile`) 6171 bestanden, 3 übersprungen, kein xfail mehr (das aus `test_v437` ist seit 1.8.143 grün), 7:02 min; Klicktests (`klicktest_alle.py --gleichzeitig 4`) 79 von 79 wie erwartet, darunter neu `klicktest_kennzeichen_entziehen` 8/8 und erweitert `klicktest_lv_ueberlauf` 15/15 und `klicktest_monteur_dachflaechen` 10/10, 6:53 min.
+
+## Nachrunde 2 zur Fehlerrunde (1.8.151 ff.)
+
+Vorgabe vom 19.10.2026 (übernommen wie gegeben): „Nachrunde 2. Festlegungen 1.8.144 Nr. 1 sowie 1.8.148 Nr. 1 und 2 sind bestätigt. Erst prüfen: 1. zahlLesen() seit 1.8.148: Tabelle Eingabe → Ergebnis für „1.234,50“, „1.234“, „1,5“, „1.5“, „1234.5“, „12.345.678,9“. Dazu ein Roundtrip-Test für Menge und EP im Auftrag: Wert mit Tausenderpunkt angezeigt, unverändert gespeichert → derselbe Betrag in der Datenbank. Speichert der Roundtrip einen anderen Betrag: anhalten und melden, nichts weiter ändern. Dann umsetzen, je Punkt ein Test, der vorher scheitert: 2. Einsatzbericht: Auswahl „Mitarbeiter“ nur für Rollen, die laut Server für andere buchen dürfen (heute Admin). Alle anderen buchen für sich, wie die Monteure. 3. DELETE /api/teams/{id}: dieselbe Rückfrage (409) wie beim Entziehen des Kennzeichens, wenn für das Team eine Gruppenzeit läuft. 4. history.back() in address_import.html, history.html und index.html durch echte Ziele ersetzen. Am Ende: volle Suite und Klicktests auf sauberer Arbeitskopie, Bericht je Punkt. Ein Commit je Punkt, nicht pushen.“
+
+Festlegungen 1.8.144 Nr. 1 und 1.8.148 Nr. 1 und 2 damit bestätigt. Tests in `tests/test_v439_nachrunde_2.py`.
+
+### Punkt 1 (1.8.151): Prüfung zahlLesen() und Rundweg im Auftrag
+
+- **Tabelle** (`zahlLesen()`, `_zahl.html`, unverändert seit 1.8.109; 1.8.148 änderte nur `zahlText()`):
+
+| Eingabe | Ergebnis |
+|---|---|
+| „1.234,50“ | 1234,5 |
+| „1.234“ | 1234 (Punkt vor drei Ziffern = Tausender) |
+| „1,5“ | 1,5 |
+| „1.5“ | abgelehnt: „nicht eindeutig – Dezimalstellen bitte mit Komma (z. B. 1,25), Tausender mit Punkt vor je drei Ziffern (z. B. 1.250).“ |
+| „1234.5“ | abgelehnt, dieselbe Meldung |
+| „12.345.678,9“ | 12345678,9 |
+
+- **Rundweg**: angezeigt mit Tausenderpunkt, unverändert gespeichert → derselbe Betrag in der Datenbank, für Menge/EP 12.345,678/1.234,56, 1.234,5/1.000, 1.000.000/0,5 und 0,125/12.345.678,9 -- aus der LV-Zeile (`quickItem()` je Feld) und aus dem Dialog (`openItem()`, `saveItemDialog()`). Kein abweichender Betrag, die Runde ging weiter.
+- **Test**: `test_zahllesen_tabelle_seit_1_8_148` (die Tabelle); `test_auftrag_rundweg_menge_und_ep_mit_tausenderpunkt` (Auftrag vom echten Dienst als Büro – Finanzen, das Seitenskript in node zeichnet die Zeile, verlässt die Felder unverändert und speichert den Dialog; jede gebaute Anfrage geht an den echten Dienst, danach Menge und EP aus der Datenbank = Ausgangswert); `klicktest_lv_ueberlauf.py` um „Rundweg speichert denselben Betrag“ erweitert (im echten Chrome die angezeigten Felder unverändert verlassen, zwei PUT laut Verbindungsprotokoll, danach 12345,678 und 1234,56): 16/16. Als Prüfung keine vorher rote Erwartung.

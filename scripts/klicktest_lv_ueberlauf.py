@@ -92,6 +92,13 @@ async def pruefen(tab, seed, p):
                                       ".filter(f=>f.value.includes('.')).map(f=>[f.dataset.feld,f.value,f.scrollWidth<=f.clientWidth])")
                 p.pruefe(f"auftrag {breite}: Tausenderpunkt, passt ins Feld", felder,
                          [["Menge", "12.345,678", True], ["Einheitspreis", "1.234,56", True]])
+    # seit 1.8.151: Rundweg -- die angezeigten Werte unverändert verlassen (change), gespeichert ist derselbe Betrag
+    await tab.js("[...document.querySelectorAll('.lv-row input[data-feld]')].filter(f=>f.value.includes('.'))"
+                 ".forEach(f=>f.dispatchEvent(new Event('change')))")
+    await tab.warte_auf_ruhe()
+    p.pruefe("auftrag: Rundweg speichert denselben Betrag", await tab.js(
+        f"fetch('/api/orders/{seed['auftrag']}').then(r=>r.json()).then(o=>o.items.filter(i=>Number(i.quantity)>1000)"
+        ".map(i=>[Number(i.quantity),Number(i.unit_price)]))"), [[12345.678, 1234.56]])
     p.pruefe("keine JS-Fehler", tab.fehler, [])
 
 
