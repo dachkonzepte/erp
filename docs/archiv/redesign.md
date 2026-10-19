@@ -350,3 +350,8 @@ Nur Befund, kein Code der Anwendung geändert. Ausführlich mit Tabelle aller En
 - **Nebenbefund**: Stopp einer laufenden Gruppe prüft nur „hat angelegt“, nicht „noch Kolonnenführerin“.
 - **Test**: `tests/test_v437_befund_zeit_fuer_andere.py` -- vier Angriffstests (grün: der Server lehnt ab), Ist-Stand der Auswahl, ein `xfail(strict=True)` für das Ziel der nächsten Runde. Gegenprobe a und b (Prüfungen ausgehebelt) machten die Angriffstests rot.
 - **Für die nächste Runde zu bestätigen**: Kolonne nur über die Kolonnenführerin (heute) oder auch Mitglieder; Stopp nach entzogenem Kennzeichen.
+
+### Endlauf der Runde (Regel 26)
+
+- Erster Endlauf auf `d1c2ab9` (1.8.142): volle Suite 6144 bestanden, 1 rot -- `test_v419_verbindungen_unter_last.py::test_viele_gleichzeitige_seiten_und_abfragen` erwartete `/users` als Büro mit 200 (Folge von Punkt 3, nur gegen PostgreSQL, in den Teilläufen nicht dabei). Behoben im Commit „1.8.134 (Nachtrag)“ `8f22d36` (siehe Punkt 3, angepasste Tests), Regel 30 in CLAUDE.md berichtigt.
+- Endlauf auf `8f22d36` bei sauberer Arbeitskopie: volle Suite (`-n 16 --dist loadfile`) 6145 bestanden, 3 übersprungen, 1 xfail (`test_v437…::test_einsatzbericht_bietet_der_monteurin_nur_an_was_der_server_annimmt`, Befund Punkt 11), 7:19 min; Klicktests (`klicktest_alle.py --gleichzeitig 4`) 78 von 78 wie erwartet, darunter der neue `klicktest_lv_ueberlauf.py` mit 13/13, 6:48 min.
