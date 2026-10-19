@@ -2057,6 +2057,9 @@ ohne Kennzeichen wird gesperrt wie Ändern. Ausführlich je Punkt: `docs/archiv/
 - 1.8.144: `POST /api/time-entry-groups/{id}/stop` ohne Kennzeichen 403 wie Ändern; „Zeit stoppen“ an der eigenen Zeit stoppt dann nur
   die eigene Zeit (Festlegung 1.8.144 Nr. 1); ein Admin stoppt die Gruppe. Der Nebenbefund-Test unten heißt jetzt
   `test_ehemalige_kolonnenfuehrerin_stoppt_die_gruppe_nicht`.
+- 1.8.145: nimmt das Speichern eines Teams jemandem das Kennzeichen, während für das Team eine Gruppenzeit läuft, fragt das
+  Formular nach („Gruppenzeit läuft noch – trotzdem entziehen?“, Server 409 ohne `?trotz_laufender_gruppenzeit=true`); gestoppt
+  wird nichts.
 
 ### Tests und Gegenprobe
 

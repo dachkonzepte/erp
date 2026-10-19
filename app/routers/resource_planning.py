@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db
-from ..models import AppUser, Contact, Employee, OperationalResource, Supplier, Team, TeamEmployee, TeamResource, WorkPreparationDeliveryNote, WorkPreparationMaterialSupplier, WorkPreparationTeamAssignment, WorkPreparationTeamResource
+from ..models import AppUser, Contact, Employee, OperationalResource, Supplier, Team, TeamEmployee, TeamResource, TimeEntryGroup, WorkPreparationDeliveryNote, WorkPreparationMaterialSupplier, WorkPreparationTeamAssignment, WorkPreparationTeamResource
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import OperationalResourceCreate, OperationalResourceOut, OperationalResourceUpdate, SupplierCreate, SupplierOut, SupplierUpdate, TeamCreate, TeamOut, TeamUpdate
 
@@ -58,6 +58,20 @@ def _team_dict(db: Session, team: Team):
             "role": r.role,
         } for r in team.resources],
     }
+
+
+LAUFENDE_GRUPPENZEIT = {"code": "laufende_gruppenzeit", "message": "Gruppenzeit läuft noch – trotzdem entziehen?"}
+
+
+def _entzieht_bei_laufender_gruppenzeit(db: Session, team: Team, payload: TeamUpdate) -> bool:
+    """Seit 1.8.145: verliert jemand das Kolonnenführer-Kennzeichen (abgewählt, aus dem Team genommen oder Team inaktiv), während
+    für das Team eine Gruppenzeit läuft? Dann fragt die Oberfläche nach -- ohne Kennzeichen stoppt die Initiatorin die Gruppe nicht
+    mehr für alle (1.8.144). Gestoppt wird nichts."""
+    vorher = {m.employee_id for m in team.employees if m.is_crew_leader} if team.active else set()
+    nachher = {x.employee_id for x in payload.employees if x.is_crew_leader} if payload.active else set()
+    if not vorher - nachher:
+        return False
+    return db.scalar(select(TimeEntryGroup.id).where(TimeEntryGroup.team_id == team.id, TimeEntryGroup.status == "running").limit(1)) is not None
 
 
 def _apply_team_payload(db:Session,team:Team,payload:TeamCreate|TeamUpdate):
@@ -184,12 +198,14 @@ def create_team(payload:TeamCreate,db:Session=Depends(get_db, scope="function"),
 
 
 @router.put("/api/teams/{team_id}", response_model=TeamOut)
-def update_team(team_id:int,payload:TeamUpdate,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
+def update_team(team_id:int,payload:TeamUpdate,trotz_laufender_gruppenzeit:bool=False,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     team=db.get(Team,team_id)
     if team is None: raise HTTPException(status_code=404,detail="Kolonne / Team nicht gefunden.")
     if payload.team_number:
         other=db.scalar(select(Team).where(Team.team_number==payload.team_number,Team.id!=team_id))
         if other: raise HTTPException(status_code=409,detail="Teamnummer ist bereits vergeben.")
+    if not trotz_laufender_gruppenzeit and _entzieht_bei_laufender_gruppenzeit(db,team,payload):
+        raise HTTPException(status_code=409,detail=LAUFENDE_GRUPPENZEIT)
     _apply_team_payload(db,team,payload); db.commit(); return TeamOut.model_validate(_team_dict(db,team))
 
 

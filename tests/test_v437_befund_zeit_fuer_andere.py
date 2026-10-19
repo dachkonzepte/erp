@@ -15,9 +15,10 @@ Ergebnis (Ist-Stand 1.8.142, über die echte Anmeldeschranke):
 - Die Oberfläche bot mehr an, als der Server annimmt: `service_reports.html` füllte `#teEmployee` mit allen aktiven Mitarbeitern
   aus `/api/employees` (`employeeOptionsHtml(null)`), vorgewählt „— nicht zugeordnet —“; wer einen Kollegen wählte, bekam 403.
   Seit 1.8.143 behoben (Nachrunde, Punkt 1): eine Monteurin sieht keine Auswahl, sie bucht für sich; das xfail ist ein grüner Test.
-- Nebenbefund: eine laufende Gruppenzeit stoppt die Initiatorin auch dann für alle, wenn sie nicht mehr Kolonnenführerin ist
-  (`POST /api/time-entry-groups/{id}/stop` und `POST /api/time-entries/{id}/stop` prüfen nur „hat sie angelegt“; Ändern derselben
-  Gruppe 403). Festgehalten als Ist-Stand, Frage an den Betreiber.
+- Nebenbefund: eine laufende Gruppenzeit stoppte die Initiatorin auch dann für alle, wenn sie nicht mehr Kolonnenführerin war
+  (`POST /api/time-entry-groups/{id}/stop` und `POST /api/time-entries/{id}/stop` prüften nur „hat sie angelegt“; Ändern derselben
+  Gruppe 403). Seit 1.8.144 gesperrt wie Ändern (Nachrunde, Punkt 2); seit 1.8.145 fragt das Speichern des Teams nach, bevor es
+  jemandem das Kennzeichen nimmt, während für das Team eine Gruppenzeit läuft (Punkt 3).
 
 Gegenprobe (Regel 24): `_time_entry_employee_for_request()` ohne die Prüfung „nur eigene“ und `_require_crew_leader()` ohne Wirkung
 -- die Angriffstests wurden rot; Datei danach byte-genau zurück (Prüfsumme), siehe docs/archiv/rechtekonzept.md, "Befund 1.8.142".
@@ -39,6 +40,7 @@ def _welt():
     """Kolonne Nord: Lea (Kolonnenführerin), Mia, Max. Kolonne Süd: Otto (Kolonnenführer). Ein Auftrag, Lea, Mia und Max
     zugeordnet. Eine Buchung von Max. Konten für Mia und Lea (Monteurinnen) über die echte Anmeldeschranke."""
     from app.models import AppUser, Team, TeamEmployee
+    from app.routers.resource_planning import router as teams_router
     from app.routers.time_tracking import router as time_router
     from app.sitzungen import neue_sitzung
     from app.time_tracking import create_manual_entry
@@ -71,7 +73,7 @@ def _welt():
         db.commit()
         welt = {"ids": {n: e.id for n, e in emp.items()}, "nord": nord.id, "sued": sued.id, "auftrag": order.id,
                 "fremde_buchung": fremd.id, "cookies": cookies}
-    welt["client"] = browser_client(app_mit_schranke(make_session, time_router))
+    welt["client"] = browser_client(app_mit_schranke(make_session, time_router, teams_router))
     welt["engine"], welt["sitzung"] = engine, make_session
     return welt
 
@@ -209,6 +211,84 @@ def test_ehemalige_kolonnenfuehrerin_stoppt_die_gruppe_nicht(welt):
     admin = _als(welt, "Ada").post(f"/api/time-entry-groups/{gid}/stop", json={})
     assert admin.status_code == 200 and admin.json()["status"] == "booked", admin.text
     assert _laufend(welt) == ([], [])
+
+
+# --- Kennzeichen entziehen, während eine Gruppenzeit läuft (seit 1.8.145) ------------------------------------------------------
+
+def _nord(welt, lea_leitet=True, beschreibung=None):
+    ids = welt["ids"]
+    return {"team_number": None, "name": "Kolonne Nord", "description": beschreibung, "active": True, "resources": [],
+            "employees": [{"employee_id": ids["Lea"], "role": None, "is_crew_leader": lea_leitet},
+                          {"employee_id": ids["Mia"], "role": None, "is_crew_leader": False},
+                          {"employee_id": ids["Max"], "role": None, "is_crew_leader": False}]}
+
+
+def _leitet(welt):
+    from app.models import TeamEmployee
+
+    with welt["sitzung"]() as db:
+        return sorted(m.employee_id for m in db.query(TeamEmployee).filter_by(team_id=welt["nord"], is_crew_leader=True))
+
+
+def test_kennzeichen_entziehen_bei_laufender_gruppenzeit_fragt_nach(welt):
+    """Bis 1.8.144 nahm das Speichern des Teams Lea das Kennzeichen ohne Rückfrage -- ihre laufende Gruppenzeit stoppte danach nur
+    noch ein Admin (1.8.144). Seit 1.8.145: 409 mit der Rückfrage, mit Bestätigung gespeichert, gestoppt wird nichts."""
+    ids, nord = welt["ids"], welt["nord"]
+    gid = _gruppe_starten(welt, 2)
+    ada = _als(welt, "Ada")
+    # ohne Wegnahme keine Rückfrage, auch während die Gruppe läuft
+    assert ada.put(f"/api/teams/{nord}", json=_nord(welt, beschreibung="Dach")).status_code == 200
+
+    antwort = ada.put(f"/api/teams/{nord}", json=_nord(welt, lea_leitet=False))
+    assert antwort.status_code == 409, antwort.text
+    assert antwort.json()["detail"] == {"code": "laufende_gruppenzeit", "message": "Gruppenzeit läuft noch – trotzdem entziehen?"}
+    assert _leitet(welt) == [ids["Lea"]]
+
+    bestaetigt = ada.put(f"/api/teams/{nord}?trotz_laufender_gruppenzeit=true", json=_nord(welt, lea_leitet=False))
+    assert bestaetigt.status_code == 200, bestaetigt.text
+    assert _leitet(welt) == []
+    assert _laufend(welt) == (sorted([ids["Lea"], ids["Max"]]), [gid])  # nichts gestoppt
+
+    # ohne laufende Gruppenzeit keine Rückfrage
+    assert ada.post(f"/api/time-entry-groups/{gid}/stop", json={}).status_code == 200
+    assert ada.put(f"/api/teams/{nord}", json=_nord(welt, lea_leitet=True)).status_code == 200
+    assert ada.put(f"/api/teams/{nord}", json=_nord(welt, lea_leitet=False)).status_code == 200
+
+
+TEAM_FETCH = r"""
+  const fragen = [], puts = [];
+  confirm = m => { fragen.push(m); return ANTWORT; };
+  globalThis.fetch = async (url, opt = {}) => {
+    puts.push((opt.method || 'GET') + ' ' + url);
+    const frage = !url.includes('trotz_laufender_gruppenzeit=true');
+    const status = frage ? 409 : 200;
+    const body = frage ? {detail: {code: 'laufende_gruppenzeit', message: 'Gruppenzeit läuft noch – trotzdem entziehen?'}} : {id: 5};
+    return {ok: !frage, status, statusText: '', headers: {get: () => 'application/json'}, json: async () => body};
+  };
+  _element('name').value = 'Kolonne Nord';  // Pflichtfeld (das Formular selbst zeichnet teamForm(), hier nicht gelaufen)
+  await save();
+  return {fragen, puts, ziel: location.href, meldung: _element('msg').textContent};
+"""
+
+
+@pytest.mark.parametrize("antwort", [True, False])
+@nur_mit_node
+def test_teamformular_fragt_vor_dem_entziehen_nach(threaded_db_session, router_test_client, antwort):
+    """Das Stammdaten-Formular (vom Server gezeichnet, echtes Skript in node) fragt bei der 409 nach und speichert nur mit „OK“ erneut,
+    dann mit Bestätigung; bei „Abbrechen“ bleibt es bei einer Anfrage."""
+    from app.routers.pages import router as pages_router
+    from tests.gerenderte_seite import gerenderte_seite
+
+    html = router_test_client(threaded_db_session, pages_router, role="buero_auftrag").get("/master-data/teams/5/edit").text
+    lauf = im_browser(gerenderte_seite(html, "init()"), f"const ANTWORT = {str(antwort).lower()};" + TEAM_FETCH)
+    ergebnis = lauf["ergebnis"]
+    assert ergebnis["fragen"] == ["Gruppenzeit läuft noch – trotzdem entziehen?"]
+    if antwort:
+        assert ergebnis["puts"] == ["PUT /api/teams/5", "PUT /api/teams/5?trotz_laufender_gruppenzeit=true"]
+        assert ergebnis["ziel"] == "/master-data#teams"
+    else:
+        assert ergebnis["puts"] == ["PUT /api/teams/5"]
+        assert (ergebnis["ziel"], ergebnis["meldung"]) == ("", "Nicht gespeichert – das Kennzeichen bleibt.")
 
 
 # --- Oberfläche: Einsatzbericht als Monteurin (seit 1.8.143 umgesetzt) --------------------------------------------------------
