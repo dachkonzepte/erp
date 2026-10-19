@@ -1,6 +1,7 @@
 """Fehlerrunde vor Stufe 2 des Redesigns (1.8.132 ff., Vorgabe vom 19.10.2026): je Punkt ein Test, der vor der Behebung scheiterte.
 
     1  Anfragen: „Projekt öffnen“ führt direkt in die Projektmappe, „Projekt + Angebot erzeugen“ direkt ins neue Angebot (1.8.132)
+    2  LV-Editor und Auftrag ohne Überlauf: Klicktest scripts/klicktest_lv_ueberlauf.py (nur im Browser messbar, 1.8.133)
 """
 
 import json
