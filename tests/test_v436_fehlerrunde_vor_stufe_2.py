@@ -9,6 +9,7 @@
     7  Änderungshistorie: lesbare Namen, Blättern (1.8.138)
     8  Seitentitel einheitlich „DACHKONZEPTE ERP – <Seite>“ ohne Versionsnummer (1.8.139)
     9  Leistung bearbeiten: Standardwerte der Prozente als „0 %“ statt „0.0000%“ (1.8.140)
+   10  Finanzen ohne den Platzhalter „Weitere buchhalterische Themen folgen hier künftig.“ (1.8.141)
 """
 
 import html
@@ -432,3 +433,16 @@ def test_leistung_standardwerte_der_prozente_lesbar():
       renderDefaults();
       return ['markupDefault', 'overheadDefault', 'riskDefault'].map(id => _element(id).textContent);""")
     assert lauf["ergebnis"] == ["(Standard: 0 %)", "(Standard: 12,5 %)", "(Standard: 5 %)"]
+
+
+# ---------------------------------------------------------------------------
+# 10. Finanzen: ohne Platzhaltersatz
+# ---------------------------------------------------------------------------
+
+def test_finanzen_ohne_platzhalter(threaded_db_session, router_test_client):
+    from app.routers.pages import router as pages_router
+
+    antwort = router_test_client(threaded_db_session, pages_router, role="buero_finanzen").get("/finanzen")
+    assert antwort.status_code == 200
+    assert "Alle Rechnungen im Überblick." in antwort.text
+    assert "folgen hier künftig" not in antwort.text and "buchhalterische Themen" not in antwort.text
