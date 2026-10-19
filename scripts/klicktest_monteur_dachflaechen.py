@@ -86,8 +86,22 @@ async def pruefen(tab, seed, p):
     p.pruefe("Prüfpunkte aus der Vorlage",
              await tab.js(f"fetch('/api/service-reports/'+reports[0].id+'/inspection-items').then(r=>r.json()).then(j=>j.map(i=>i.text).join(','))"),
              "Abdichtung Sichtprüfung")
-    p.pruefe("JS-Fehler", tab.fehler, [])
     await tab.bild("bericht_angelegt")
+
+    # Seit 1.8.143: Zeit buchen ohne Auswahl "Mitarbeiter" -- der Monteur bucht für sich
+    p.pruefe("Zeit buchen: Feld Mitarbeiter verborgen",
+             await tab.js("getComputedStyle(document.getElementById('teEmployeeField')).display"), "none")
+    p.pruefe("Zeit buchen: nur die eigene Person",
+             await tab.js("[...document.getElementById('teEmployee').options].map(o=>o.textContent).join('|')"), "Max Monteur")
+    await tab.js("document.getElementById('teHours').value='2,5'")
+    await tab.warte_auf_neu_geladene_liste("document.querySelector('button[onclick=\"saveReportTimeEntry()\"]').click()",
+                                           "#timeEntriesTable")
+    p.pruefe("Zeit buchen: gebucht", await tab.js("document.getElementById('teStatus').textContent"), "Gebucht.")
+    p.pruefe("Zeit buchen: für sich", await tab.js(
+        f"fetch('/api/time-entries?order_id={auftrag}').then(r=>r.json()).then(j=>j.map(e=>e.employee_name+' '+Number(e.hours)).join('|'))"),
+        "Max Monteur 2.5")
+    p.pruefe("JS-Fehler", tab.fehler, [])
+    await tab.bild("zeit_gebucht")
 
 
 if __name__ == "__main__":

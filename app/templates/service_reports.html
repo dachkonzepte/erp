@@ -202,7 +202,8 @@ a{color:var(--accent)}
 <div class="card">
   <h2>Erfasste Zeiten zu diesem Auftrag</h2>
   <div class="fields-2col" style="margin-bottom:10px">
-    <div class="field"><label>Mitarbeiter</label><select id="teEmployee"></select></div>
+    {# Seit 1.8.143: Monteure buchen nur für sich -- keine Auswahl (schon im Markup verborgen, das Skript setzt dasselbe) #}
+    <div class="field" id="teEmployeeField"{% if not darf_buero_seiten %} hidden{% endif %}><label>Mitarbeiter</label><select id="teEmployee"></select></div>
     <div class="field"><label>Datum</label><input id="teDate" type="date"></div>
     <div class="field"><label>Zeitart</label><select id="teType"></select></div>
     <div class="field"><label>Tätigkeit</label><select id="teActivity"></select></div>
@@ -318,6 +319,14 @@ function loadInspectionItems(reportId){
   return lesen('pruefpunkte-'+reportId,()=>api(`/api/service-reports/${reportId}/inspection-items`),d=>{inspectionItemsCache[reportId]=d});
 }
 
+// Monteure buchen nur für sich (seit 1.8.143, Entscheidung vom 19.10.2026): keine Auswahl "Mitarbeiter", fest die eigene Person --
+// der Server nimmt ohnehin nur sie an (app/routers/time_tracking.py::_time_entry_employee_for_request(), Befund 1.8.142).
+function nurFuerSichBuchen(){return !!(authStatus&&authStatus.user&&authStatus.user.role==='field')}
+function zeitMitarbeiterOptionen(){
+  if(!nurFuerSichBuchen())return employeeOptionsHtml(null);
+  const eigen=employees.find(e=>e.id===authStatus.user.employee_id);
+  return eigen?`<option value="${eigen.id}" selected>${esc(eigen.first_name+' '+eigen.last_name)}</option>`:'';
+}
 function employeeOptionsHtml(selected){
   return '<option value="">— nicht zugeordnet —</option>'+employees.filter(e=>e.active).map(e=>`<option value="${e.id}" ${Number(selected)===e.id?'selected':''}>${esc(e.first_name+' '+e.last_name)}</option>`).join('');
 }
@@ -1363,6 +1372,7 @@ async function saveReportTimeEntry(){
   try{
   // Seit 1.8.109 im try: die Stunden über _zahl.html, eine abgelehnte Zahl erscheint als Fehler.
   const hours=zahlFeld('teHours');
+  if(!employeeId&&nurFuerSichBuchen()){st.className='status err';st.textContent='Ihr Benutzer ist keinem Mitarbeiter zugeordnet – Zeit buchen ist nicht möglich.';return}
   if(!employeeId||!workDate||hours===null){st.className='status err';st.textContent='Bitte Mitarbeiter, Datum und Stunden angeben.';return}
   const payload={
     employee_id:Number(employeeId), order_id:orderId, work_date:workDate,
@@ -1410,7 +1420,8 @@ async function init(){
   ]),([typesGroup,activitiesGroup])=>{
   timeEntryTypes=typesGroup.options||[];
   timeEntryActivities=activitiesGroup.options||[];
-  document.getElementById('teEmployee').innerHTML=employeeOptionsHtml(null);
+  document.getElementById('teEmployee').innerHTML=zeitMitarbeiterOptionen();
+  document.getElementById('teEmployeeField').hidden=nurFuerSichBuchen();
   document.getElementById('teType').innerHTML=optionsHtml(timeEntryTypes,'site');
   document.getElementById('teType').value='site';
   document.getElementById('teActivity').innerHTML=optionsHtml(timeEntryActivities,null);
