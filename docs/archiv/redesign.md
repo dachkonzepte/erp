@@ -542,3 +542,19 @@ zugeordnet“ in neun Fassungen -- bei der Umstellung eine gemeinsame Meldung.
   69/69, zweimal hintereinander. Eigener Commit „1.8.156 (Nachtrag)“; Suite und Klicktests danach neu (Regel 26).
 - **Offen**: warum die erste Design-Datei im Server jetzt eine halbe Sekunde braucht. Im Betrieb träfe das je Arbeitsprozess einmal nach
   dem Start eine Anfrage.
+
+### Endlauf der Stufe „Grundlage“ (Regel 26)
+
+- Neue Bildgrundlage `bildgrundlage/31b85e8` (Commit von Teil B, saubere Arbeitskopie, Chrome 155.0.8059.40): 304 Bilder, 330 von 330
+  Prüfungen, 406 s, 20 MB; „benutzer“ als Admin, TerraPad-Zustände 800 × 1100 und 1280 × 620.
+- Erster Endlauf auf `04b2db2`: Suite 6187 bestanden, 3 übersprungen; Klicktests 78 von 79 -- `klicktest_anmelden` rot, siehe Nachtrag
+  oben, behoben in `26a93ce`.
+- Endlauf auf `26a93ce` bei sauberer Arbeitskopie: Klicktests 79 von 79 wie erwartet (7:23 min, `klicktest_anmelden` 69/69). Suite im
+  ersten Lauf 6186 bestanden, 1 rot: `tests/test_v376_nummernkreise.py::test_postgresql_finalizing_waits_for_the_delete_and_uses_no_number`
+  (`AttributeError: 'NoneType' object has no attribute 'status'` statt `InvoiceBlocked`) -- ein Gleichzeitigkeitstest gegen PostgreSQL:
+  die erste Aktion löscht den Entwurf und hält die Sperre 1 s, die zweite soll in dieser Zeit festschreiben wollen und danach „Der Entwurf
+  wurde inzwischen gelöscht.“ bekommen. Die zweite holt den Entwurf aber erst beim Start (`s.get()` im Test); unter 16 parallelen
+  Prozessen startete sie nach dem Ende der ersten und bekam `None` -- der Fehler entsteht im Test, nicht in der Anwendung (über die API
+  lädt `_get_invoice_or_404()` vorher und meldet einen schon gelöschten Entwurf mit 404). Allein fünfmal grün, die Datei 19/19; mit dieser
+  Runde ohne Zusammenhang. Zweiter voller Lauf auf `26a93ce`: 6187 bestanden, 3 übersprungen (8:22 min). Nicht geändert, als
+  Nebenbefund gemeldet: der Test wackelt unter Last (die zweite Aktion sollte den Entwurf vor dem Warten laden).
