@@ -352,9 +352,36 @@ def time_backoffice_page(request: Request, _role: AppUser = _role_dep):
     return templates.TemplateResponse(request=request, name="time_backoffice.html", context={})
 
 
+# Seit 1.8.135: Zurück-Links der Formularseiten mit echtem Ziel und Namen (bis dahin history.back(), nach direktem Aufruf ins Leere, und
+# Namen wie „← Projekte & Belege“). Werte aus der Adresse nur als Zahl -- sonst das allgemeine Ziel.
+def _zahl(wert: str | None) -> int | None:
+    return int(wert) if wert and wert.isdigit() else None
+
+
+# Bereich der Stammdaten-Liste (Hash von /master-data) und sein Name je Datentyp des Formulars
+STAMMDATEN_BEREICHE = {
+    "customers": ("customers", "Kunden"), "properties": ("properties", "Objekte"), "employees": ("employees", "Mitarbeiter"),
+    "teams": ("teams", "Kolonnen / Teams"), "assets": ("assets", "Betriebsmittel"),
+    "resources": ("assets", "Fuhrpark & Maschinen"),  # nur bei abgeschaltetem Modul Betriebsmittel, Bereich heißt dann so
+    "suppliers": ("suppliers", "Lieferanten"), "contacts": ("contacts", "Adressbuch"), "catalogs": ("catalogs", "Leistungskataloge"),
+    "materials": ("materials", "Materialkataloge"), "materialGroups": ("materialGroups", "Materialkataloge"),
+}
+
+
+def zurueck_stammdaten(data_type: str, record_id: int | None = None, projekt: int | None = None) -> dict:
+    if data_type == "contacts" and projekt:
+        return {"href": f"/projects/{projekt}#sec-participants", "text": "Projektmappe"}
+    if data_type == "properties" and record_id:
+        return {"href": f"/properties/{record_id}", "text": "Objekt"}
+    bereich, name = STAMMDATEN_BEREICHE[data_type]
+    return {"href": f"/master-data#{bereich}", "text": f"Stammdaten: {name}"}
+
+
 @router.get("/projects/new", response_class=HTMLResponse)
-def project_create_page(request: Request, _role: AppUser = _role_dep):
-    return templates.TemplateResponse(request=request, name="project_form.html", context={})
+def project_create_page(request: Request, customer_id: str | None = None, _role: AppUser = _role_dep):
+    kunde = _zahl(customer_id)
+    zurueck = {"href": f"/customers/{kunde}", "text": "Kundenakte"} if kunde else {"href": "/projects", "text": "Projekte"}
+    return templates.TemplateResponse(request=request, name="project_form.html", context={"zurueck": zurueck})
 
 
 @router.get("/projects/{project_id}", response_class=HTMLResponse)
@@ -363,18 +390,22 @@ def project_folder_page(request: Request, project_id: int, _role: AppUser = _rol
 
 
 @router.get("/quotes/new", response_class=HTMLResponse)
-def quote_create_page(request: Request, _role: AppUser = _role_dep):
-    return templates.TemplateResponse(request=request, name="quote_form.html", context={})
+def quote_create_page(request: Request, project_id: str | None = None, _role: AppUser = _role_dep):
+    projekt = _zahl(project_id)
+    zurueck = {"href": f"/projects/{projekt}", "text": "Projektmappe"} if projekt else {"href": "/projects", "text": "Projekte"}
+    return templates.TemplateResponse(request=request, name="quote_form.html", context={"zurueck": zurueck})
 
 
 @router.get("/services/new", response_class=HTMLResponse)
 def service_create_page(request: Request, _role: AppUser = _role_dep):
-    return templates.TemplateResponse(request=request, name="service_form.html", context={"service_id": None})
+    return templates.TemplateResponse(request=request, name="service_form.html",
+                                      context={"service_id": None, "zurueck": {"href": "/leistungskatalog", "text": "Leistungskatalog"}})
 
 
 @router.get("/services/{service_id}/edit", response_class=HTMLResponse)
 def service_edit_page(request: Request, service_id: int, _role: AppUser = _role_dep):
-    return templates.TemplateResponse(request=request, name="service_form.html", context={"service_id": service_id})
+    return templates.TemplateResponse(request=request, name="service_form.html",
+                                      context={"service_id": service_id, "zurueck": {"href": "/leistungskatalog", "text": "Leistungskatalog"}})
 
 
 @router.get("/master-data", response_class=HTMLResponse)
@@ -394,11 +425,12 @@ def _require_finanzen_for_employees(data_type: str, role: AppUser) -> None:
 
 
 @router.get("/master-data/{data_type}/new", response_class=HTMLResponse)
-def master_data_create_page(request: Request, data_type: str, _role: AppUser = _role_dep):
+def master_data_create_page(request: Request, data_type: str, projekt: str | None = None, _role: AppUser = _role_dep):
     if data_type not in {"customers", "properties", "employees", "suppliers", "contacts", "resources", "teams", "catalogs", "materials", "materialGroups", "assets"}:
         raise HTTPException(status_code=404, detail="Stammdatenbereich nicht gefunden.")
     _require_finanzen_for_employees(data_type, _role)
-    return templates.TemplateResponse(request=request, name="master_data_form.html", context={"data_type": data_type})
+    return templates.TemplateResponse(request=request, name="master_data_form.html",
+                                      context={"data_type": data_type, "zurueck": zurueck_stammdaten(data_type, projekt=_zahl(projekt))})
 
 
 @router.get("/master-data/{data_type}/{record_id}/edit", response_class=HTMLResponse)
@@ -408,7 +440,7 @@ def master_data_edit_page(request: Request, data_type: str, record_id: int, _rol
     _require_finanzen_for_employees(data_type, _role)
     return templates.TemplateResponse(
         request=request, name="master_data_form.html",
-        context={"data_type": data_type, "record_id": record_id},
+        context={"data_type": data_type, "record_id": record_id, "zurueck": zurueck_stammdaten(data_type, record_id=record_id)},
     )
 
 

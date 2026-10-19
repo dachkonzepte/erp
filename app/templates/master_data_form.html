@@ -29,7 +29,7 @@ button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:
 .hint{background:var(--soft);border-left:3px solid var(--accent);padding:10px 12px;font-size:13px;margin:6px 0;color:var(--ink)}
 @media(max-width:700px){.grid,.extra{grid-template-columns:1fr}.full{grid-column:auto}}
 @media(max-width:480px){.field{display:block}label{padding-top:0}}
-</style></head><body><header><a id="back" class="back" href="#" onclick="history.back();return false">← Stammdaten</a></header><div class="wrap"><h1 id="heading">Stammdaten</h1><p id="help" class="muted"></p><div id="form"></div><button id="saveBtn" onclick="save()">Speichern</button> <span id="msg" class="muted"></span></div>
+</style></head><body><header><a id="back" class="back" href="{{ zurueck.href }}">← {{ zurueck.text }}</a></header><div class="wrap"><h1 id="heading">Stammdaten</h1><p id="help" class="muted"></p><div id="form"></div><button id="saveBtn" onclick="save()">Speichern</button> <span id="msg" class="muted"></span></div>
 {% include "_auswahl.html" %}
 {% include "_fehlertext.html" %}
 {% include "_speichern.html" %}

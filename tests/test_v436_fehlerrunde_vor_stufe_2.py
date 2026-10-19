@@ -3,9 +3,14 @@
     1  Anfragen: „Projekt öffnen“ führt direkt in die Projektmappe, „Projekt + Angebot erzeugen“ direkt ins neue Angebot (1.8.132)
     2  LV-Editor und Auftrag ohne Überlauf: Klicktest scripts/klicktest_lv_ueberlauf.py (nur im Browser messbar, 1.8.133)
     3  /users nur für Administratoren, ohne den Satz zur Ersteinrichtung (1.8.134)
+    4  Zurück-Links der Formularseiten mit echtem Ziel und Namen statt history.back() (1.8.135)
 """
 
+import html
 import json
+import re
+
+import pytest
 
 from tests.test_v334_auswahl_restfaelle import im_browser, nur_mit_node, seite
 
@@ -87,3 +92,58 @@ def test_satz_zur_ersteinrichtung_entfernt():
     text = _benutzerseite("admin").text
     assert "Der erste angelegte Benutzer wird automatisch Administrator" not in text
     assert "automatisch Administrator" not in text
+
+
+# ---------------------------------------------------------------------------
+# 4. Zurück-Links mit echtem Ziel und echtem Namen
+# ---------------------------------------------------------------------------
+
+FORMULARSEITEN = ("project_form.html", "quote_form.html", "master_data_form.html", "service_form.html")
+
+
+@pytest.mark.parametrize("adresse,ziel,name", [
+    ("/projects/new", "/projects", "Projekte"),
+    ("/projects/new?customer_id=5", "/customers/5", "Kundenakte"),
+    ("/quotes/new", "/projects", "Projekte"),
+    ("/quotes/new?project_id=7", "/projects/7", "Projektmappe"),
+    ("/master-data/employees/1/edit", "/master-data#employees", "Stammdaten: Mitarbeiter"),
+    ("/master-data/customers/new", "/master-data#customers", "Stammdaten: Kunden"),
+    ("/master-data/resources/new", "/master-data#assets", "Stammdaten: Fuhrpark & Maschinen"),
+    ("/master-data/assets/new", "/master-data#assets", "Stammdaten: Betriebsmittel"),
+    ("/master-data/materials/new", "/master-data#materials", "Stammdaten: Materialkataloge"),
+    ("/master-data/properties/3/edit", "/properties/3", "Objekt"),
+    ("/master-data/contacts/new?projekt=7", "/projects/7#sec-participants", "Projektmappe"),
+    ("/services/1/edit", "/leistungskatalog", "Leistungskatalog"),
+    ("/services/new", "/leistungskatalog", "Leistungskatalog"),
+])
+def test_zurueck_link_mit_echtem_ziel(threaded_db_session, router_test_client, adresse, ziel, name):
+    """Bis 1.8.134 gingen alle vier per history.back() zurück (nach direktem Aufruf ins Leere) und nannten teils Seiten, die es nicht
+    gibt („← Projekte & Belege“, „← Angebote“)."""
+    from app.routers.pages import router as pages_router
+
+    antwort = router_test_client(threaded_db_session, pages_router, role="buero_finanzen").get(adresse, follow_redirects=False)
+    assert antwort.status_code == 200
+    markup = re.sub(r"<script.*?</script>", "", antwort.text, flags=re.S | re.I)  # Anker in Skript-Zeichenketten zählen nicht
+    links = re.findall(r'<a[^>]*class="back"[^>]*>(.*?)</a>', markup, flags=re.S)
+    assert len(links) == 1, links
+    anker = re.search(r'<a[^>]*class="back"[^>]*>', markup).group(0)
+    assert re.search(r'href="([^"]*)"', anker).group(1) == ziel and "onclick" not in anker
+    assert html.unescape(links[0]).strip() == f"← {name}"
+
+
+def test_kein_history_back_in_den_formularseiten():
+    from tests.vorlagen_js import zusammensetzen
+
+    for vorlage in FORMULARSEITEN:
+        text, _ = zusammensetzen(vorlage)
+        assert "history.back" not in text, vorlage
+        assert "Projekte & Belege" not in text, vorlage
+
+
+def test_zurueck_ziele_fuehren_auf_seiten(threaded_db_session, router_test_client):
+    """Jedes Ziel ist eine Seite, die dieselbe Rolle öffnet (Hash und Parameter abgeschnitten)."""
+    from app.routers.pages import router as pages_router
+
+    client = router_test_client(threaded_db_session, pages_router, role="buero_finanzen")
+    for ziel in ("/projects", "/customers/5", "/projects/7", "/master-data", "/properties/3", "/leistungskatalog"):
+        assert client.get(ziel, follow_redirects=False).status_code == 200, ziel
