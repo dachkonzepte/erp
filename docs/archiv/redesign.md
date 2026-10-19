@@ -416,3 +416,10 @@ Festlegung 1.8.134 Nr. 1 (`/users` nur für Administratoren) damit bestätigt. D
 
 1. **Tausenderpunkt nur auf Wunsch** -- `zahlText()` bleibt ohne Punkt, die Option `{tausender: true}` nutzt nur die Auftragsseite für Menge und Einheitspreis; jedes andere Zahlenfeld der Anwendung schreibt unverändert.
 2. **Spalten im LV des Auftrags neu verteilt** -- Menge mindestens 82 px (vorher 60), dafür Leistung 104 statt 110 px und Einheit 58 statt 60 px; sonst wäre die Menge bei 1280 px abgeschnitten.
+
+### Punkt 7 (1.8.149): Links nach /users nur für Administratoren
+
+- **Befund**: kein Fehler. Verweise auf die Seite `/users` gibt es in den Vorlagen nur zwei: `settings.html` (Menü „System → Benutzer und Zugriff“, seit 1.8.112 im Block `{% if ist_admin %}`) und `users.html` selbst (`/login?next=/users` nach dem Abmelden). Kein Skript baut einen Link dorthin, kein „…url“ im Python-Code. Auf der Benutzerseite selbst landet nur, wer sie öffnen darf (seit 1.8.134 nur Admin).
+- **Änderung**: keine an der Anwendung; zwei Wächter, damit es so bleibt. Der Punkt verlangte einen Test, der vorher scheitert -- das ist hier nicht möglich, weil der Stand schon richtig war; stattdessen zeigen zwei Gegenproben, dass die Wächter anschlagen.
+- **Test**: `test_links_nach_users_nur_fuer_admins` (jede Seitenroute gezeichnet als Büro – Finanzen, Büro – Auftrag und Monteurin, 105 Seiten mit 200: kein `href`, keine Navigation und keine Zeichenkette auf `/users`; als Admin zeigen die Einstellungen den Link) und `test_verweise_nach_users_nur_in_den_einstellungen_fuer_admins` (in allen Vorlagen nur `settings.html` und `users.html`, in `settings.html` innerhalb von `{% if ist_admin %}`).
+- **Gegenprobe** (Marker `GEGENPROBE`, Dateien danach byte-genau zurück): (a) in `settings.html` `{% if ist_admin %}` vor dem Menü „Module/Benutzer“ durch `{% if true %}` ersetzt -- beide rot (Büro sieht den Link auf `/settings`; Link nicht mehr im Admin-Block); (b) in `dashboard.html` ein Skript mit `location.href='/users'` eingesetzt -- beide rot (Startseite für Büro; Vorlage außerhalb der erlaubten).

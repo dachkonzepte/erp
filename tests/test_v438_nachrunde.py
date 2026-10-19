@@ -5,6 +5,7 @@ Die Punkte 1–3 (Zeit buchen, Gruppenzeit stoppen, Kennzeichen entziehen) stehe
     4  users.html: Zurück-Link mit echtem Ziel statt history.back() (1.8.146)
     5  Stammdaten-Formular: nach dem Speichern in den Bereich der Liste, auch für Ressourcen (1.8.147)
     6  Auftrag: Menge und Einheitspreis mit Tausenderpunkt über zahlText() (1.8.148)
+    7  Links nach /users nur für Administratoren -- Wächter, der Stand war schon richtig (1.8.149)
 """
 
 import html
@@ -105,3 +106,51 @@ def test_auftrag_zeigt_menge_und_ep_mit_tausenderpunkt():
       return {{menge: /data-feld="Menge" value="([^"]*)"/.exec(zeile)[1], ep: /data-feld="Einheitspreis" value="([^"]*)"/.exec(zeile)[1],
                dialogMenge: _element('iQty').value, dialogEp: _element('iPrice').value}};""")
     assert lauf["ergebnis"] == {"menge": "12.345,678", "ep": "1.234,56", "dialogMenge": "12.345,678", "dialogEp": "1.234,56"}
+
+
+# ---------------------------------------------------------------------------
+# 7. Links nach /users nur für Administratoren (Wächter)
+# ---------------------------------------------------------------------------
+
+def _links_nach_users(text):
+    """Jeder Verweis auf die Seite /users (nicht /api/users): href, Navigation und Zeichenketten in Skripten."""
+    return re.findall(r"""(?:href=|location\.href\s*=\s*|location\.assign\(|window\.open\()["'`]/users(?:[?#"'`])""", text) + \
+        re.findall(r"""["'`]/users["'`]""", text)
+
+
+def test_links_nach_users_nur_fuer_admins(threaded_db_session, router_test_client):
+    """Seit 1.8.134 ist /users nur für Administratoren (Festlegung 1.8.134 Nr. 1, bestätigt 19.10.2026). Jede Seite, gezeichnet in jeder
+    anderen Rolle, verweist nicht dorthin; als Admin führen die Einstellungen hin. Der Stand war schon so (der einzige Link steht seit
+    1.8.112 in den Einstellungen unter „nur Admin“) -- der Test hält ihn fest."""
+    from app.routers.pages import router as pages_router
+    from tests.test_v218_template_rendering import _dummy_path
+
+    pfade = [_dummy_path(r.path) for r in pages_router.routes
+             if "GET" in getattr(r, "methods", set()) and r.path not in ("/health", "/users")]
+    gefunden, gezeichnet = {}, 0
+    for rolle in ("buero_finanzen", "buero_auftrag", "field"):
+        client = router_test_client(threaded_db_session, pages_router, role=rolle)
+        for pfad in pfade:
+            antwort = client.get(pfad, follow_redirects=False)
+            if antwort.status_code != 200:
+                continue
+            gezeichnet += 1
+            if _links_nach_users(antwort.text):
+                gefunden.setdefault(rolle, []).append(pfad)
+    assert gezeichnet > 100 and gefunden == {}
+    einstellungen = router_test_client(threaded_db_session, pages_router, role="admin").get("/settings").text
+    assert 'href="/users"' in einstellungen  # Kontrolle: als Admin da
+
+
+def test_verweise_nach_users_nur_in_den_einstellungen_fuer_admins():
+    """Auch Verweise, die erst ein Skript baut: in den Vorlagen steht /users nur in settings.html (hinter „nur Admin“) und in
+    users.html selbst (Rücksprung nach dem Abmelden)."""
+    from tests.vorlagen_js import alle_vorlagen
+
+    stellen = {name for name in alle_vorlagen() if _links_nach_users((TEMPLATES / name).read_text(encoding="utf-8"))
+               or "next=/users" in (TEMPLATES / name).read_text(encoding="utf-8")}
+    assert stellen == {"settings.html", "users.html"}
+    quelle = (TEMPLATES / "settings.html").read_text(encoding="utf-8")
+    link = quelle.index('href="/users"')
+    davor = quelle[:link]
+    assert davor.rfind("{% if ist_admin %}") > davor.rfind("{% endif %}")  # innerhalb des Blocks „nur Admin“
