@@ -985,4 +985,7 @@ Alle betreffen nur Werkzeug und Testablauf (Regel 28).
   Monteurin mit; richtig 24 (304).
 - Probe vor den vollen Läufen (`--nur start --nur einsatzbericht`): 40 Bilder, 66 Prüfungen wie erwartet; angesehen: Menü auf 800 px,
   ganz unten dunkel, Kontomenü der Monteurin, eingeklappt bei 1280 dunkel.
+- **Neue Grundlage `bildgrundlage/2d4c37b`** (Commit von Teil B, saubere Arbeitskopie, Chrome 155.0.8059.40): zwei volle Läufe, je 304
+  Bilder und 330 Prüfungen wie erwartet (406 bzw. 405 s), Vergleich **304 gleich, 0 abweichend**. Gegen den Lauf von Teil A
+  (`teil-a-2`, Stand `d10cdb2`): **240 gleich, 0 abweichend, 64 neu** -- die bisherigen Bilder bleiben gleich. Größe 22 MB.
 - **Angepasste Tests** (Regel 28): keine Erwartung geändert (die Teil-A-Anpassung von `_mit_konto()` steht unter 1.8.130).
