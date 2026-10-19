@@ -87,6 +87,11 @@ async def pruefen(tab, seed, p):
             p.pruefe(f"{name} {breite}: LV-Zeilen gemessen", stand["zeilen"] >= 3, True)
             p.pruefe(f"{name} {breite}: kein Überlauf", stand["fehler"], [])
             await tab.bild(f"lv_{name}_{breite}")
+            if name == "auftrag":  # seit 1.8.148: Menge und EP mit Tausenderpunkt, der Text passt ins Feld
+                felder = await tab.js("[...document.querySelectorAll('.lv-row input[data-feld=\"Menge\"], .lv-row input[data-feld=\"Einheitspreis\"]')]"
+                                      ".filter(f=>f.value.includes('.')).map(f=>[f.dataset.feld,f.value,f.scrollWidth<=f.clientWidth])")
+                p.pruefe(f"auftrag {breite}: Tausenderpunkt, passt ins Feld", felder,
+                         [["Menge", "12.345,678", True], ["Einheitspreis", "1.234,56", True]])
     p.pruefe("keine JS-Fehler", tab.fehler, [])
 
 

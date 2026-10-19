@@ -134,12 +134,14 @@ function zahlVorschau(feld, optionen) {
     return null;
   }
 }
-function zahlText(wert, stellen) {
+// Seit 1.8.148: optionen.tausender setzt den Tausenderpunkt ("12.345,678") -- zahlLesen() liest ihn zurück (Punkt nur vor je drei
+// Ziffern). Ohne die Option wie bisher ohne Punkt; die Auftragsseite zeigt Menge und Einheitspreis mit.
+function zahlText(wert, stellen, optionen) {
   if (wert === null || wert === undefined || wert === '') return '';
   const n = Number(wert);  // Wert aus der API oder der Seite (Maschinenformat), nie eine Eingabe
   if (!Number.isFinite(n)) return '';
   const st = stellen === undefined || stellen === null ? {maximumFractionDigits: 10} : {minimumFractionDigits: stellen, maximumFractionDigits: stellen};
-  const text = n.toLocaleString('de-DE', Object.assign({useGrouping: false}, st));
+  const text = n.toLocaleString('de-DE', Object.assign({useGrouping: !!(optionen && optionen.tausender)}, st));
   return /^-0(,0*)?$/.test(text) ? text.slice(1) : text;
 }
 if (typeof window !== 'undefined' && !window.__dkZahlEingabe && typeof document !== 'undefined' && document.addEventListener) {

@@ -4,14 +4,17 @@ Die Punkte 1–3 (Zeit buchen, Gruppenzeit stoppen, Kennzeichen entziehen) stehe
 
     4  users.html: Zurück-Link mit echtem Ziel statt history.back() (1.8.146)
     5  Stammdaten-Formular: nach dem Speichern in den Bereich der Liste, auch für Ressourcen (1.8.147)
+    6  Auftrag: Menge und Einheitspreis mit Tausenderpunkt über zahlText() (1.8.148)
 """
 
 import html
+import json
 import re
 
 import pytest
 
-from tests.test_v334_auswahl_restfaelle import TEMPLATES, im_browser, nur_mit_node
+from tests.test_v334_auswahl_restfaelle import TEMPLATES, im_browser, nur_mit_node, seite
+from tests.test_v414_zahleneingaben import _js
 
 
 # ---------------------------------------------------------------------------
@@ -71,3 +74,34 @@ def test_jeder_stammdatenbereich_hat_einen_bereich_der_liste():
     bekannt = set(re.findall(r"'(\w+)'", re.search(r"function viewFromHash\(\)\{.*?\[(.*?)\]", quelle, flags=re.S).group(1)))
     assert {bereich for bereich, _ in STAMMDATEN_BEREICHE.values()} <= bekannt
     assert "resources" not in bekannt  # der Bereich, auf den das Formular bis 1.8.146 sprang
+
+
+# ---------------------------------------------------------------------------
+# 6. Auftrag: Menge und Einheitspreis mit Tausenderpunkt
+# ---------------------------------------------------------------------------
+
+@nur_mit_node
+def test_zahltext_mit_tausenderpunkt_und_zurueck():
+    """Seit 1.8.148 setzt zahlText(wert, stellen, {tausender: true}) den Tausenderpunkt; zahlLesen() liest ihn unverändert zurück.
+    Ohne die Option wie bisher ohne Punkt (tests/test_v414_zahleneingaben.py)."""
+    faelle = [[12345.678, None], [1234.56, None], [-1234.5, 2], [999, None], [1250, None], [1234567.891, None], [0.5, None],
+              ["12345.678", None], [None, None]]
+    ergebnis = _js(f"process.stdout.write(JSON.stringify({json.dumps(faelle)}.map(([w,s])=>zahlText(w,s===null?undefined:s,{{tausender:true}}))));")
+    assert ergebnis == ["12.345,678", "1.234,56", "-1.234,50", "999", "1.250", "1.234.567,891", "0,5", "12.345,678", ""]
+    werte = [0, 7.5, 1250, 1250.5, 999999.99, -3.75, 1234567.891, 12345.678, 100000]
+    assert _js(f"process.stdout.write(JSON.stringify({json.dumps(werte)}.map(w=>zahlLesen(zahlText(w,undefined,{{tausender:true}})))));") == werte
+    assert _js("process.stdout.write(JSON.stringify(zahlText(12345.678)));") == "12345,678"
+
+
+@nur_mit_node
+def test_auftrag_zeigt_menge_und_ep_mit_tausenderpunkt():
+    """Bis 1.8.147 standen Menge und Einheitspreis im LV des Auftrags ohne Tausenderpunkt („12345,678“, „1234,56“)."""
+    position = {"id": 4, "position_number": "1", "short_text": "Dach", "quantity": "12345.678", "unit": "m²", "unit_price": "1234.56",
+                "line_total": "15241480.23", "include_in_total": True}
+    lauf = im_browser(seite("order.html", "load().catch(e=>document.querySelector('main')"), f"""
+      order = {{order_lock: null, items: [{json.dumps(position)}]}}; units = [];
+      const zeile = rowHtml({json.dumps(position)});
+      openItem(4);
+      return {{menge: /data-feld="Menge" value="([^"]*)"/.exec(zeile)[1], ep: /data-feld="Einheitspreis" value="([^"]*)"/.exec(zeile)[1],
+               dialogMenge: _element('iQty').value, dialogEp: _element('iPrice').value}};""")
+    assert lauf["ergebnis"] == {"menge": "12.345,678", "ep": "1.234,56", "dialogMenge": "12.345,678", "dialogEp": "1.234,56"}

@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.148 – Auftrag: Menge und Einheitspreis mit Tausenderpunkt
+
+Nachrunde zur Fehlerrunde, Punkt 6. Im LV des Auftrags standen Menge und Einheitspreis ohne Tausenderpunkt („12345,678“, „1234,56“): `zahlText()` schreibt grundsätzlich ohne. Jetzt kennt `zahlText()` die Option `{tausender: true}` (gelesen wird der Punkt wie bisher, `zahlLesen()` nimmt ihn vor je drei Ziffern an), und die Auftragsseite füllt Menge und Einheitspreis in der LV-Zeile und im Dialog der Position damit („12.345,678“, „1.234,56“). Alle anderen Zahlenfelder bleiben ohne Punkt. Dabei aufgefallen: bei 1280 px war das Mengenfeld so schmal (47 px Text), dass schon „1.234,50“ abgeschnitten war, seit den Spaltenbreiten von 1.8.133. Die Menge hat jetzt mindestens 82 px, dafür Leistung 104 statt 110 px und Einheit 58 statt 60 px; „12.345,678“ passt bei 1440 und 1280 px ins Feld, nichts läuft aus der Tabelle.
+
 ## 1.8.147 – Stammdaten-Formular: nach dem Speichern in den richtigen Bereich
 
 Nachrunde zur Fehlerrunde, Punkt 5. Das Stammdaten-Formular sprang nach dem Speichern auf `/master-data#<Art>` -- für eine Ressource `#resources`; den Bereich kennt die Liste nicht, sie zeigte dann die Kunden. Ressourcen stehen im Bereich „Fuhrpark & Maschinen“ (`#assets`). Jetzt gibt der Server dem Formular den Bereich der Liste mit, aus derselben Zuordnung wie den Zurück-Link (`STAMMDATEN_BEREICHE`), und das Formular springt nach dem Speichern dorthin. Dazu im Archiv eine Korrektur zu 1.8.146: in `account.html` steht `history.back()` nur in einem Kommentar.
