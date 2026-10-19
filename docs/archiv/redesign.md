@@ -518,3 +518,11 @@ Vorgabe vom 19.10.2026 (übernommen wie gegeben): „Stufe „Grundlage“. Drei
 - **Test**: `tests/test_v431_bildgrundlage.py::test_monteurin_auch_auf_dem_terrapad` verlangt die neuen Fenster -- vorher rot. Probe `--nur einsatzbericht` (22 Bilder, 34 von 34 Prüfungen): Zustände 800 × 1100 und 1280 × 620, ganzseitig 800 × 1461 und 1280 × 1162.
 - **Angepasste Erwartung** (Regel 28): `test_monteurin_auch_auf_dem_terrapad` -- alt `STARTHOEHEN == {800: 1280, 1280: 800}`, neu `{800: 1100, 1280: 620}`.
 - Festlegung 1.8.131 Nr. 3 nannte die Fenster 800 × 1280 und 1280 × 800 -- seit 1.8.156 durch die Vorgabe ersetzt (800 × 1100, 1280 × 620).
+
+### Teil C: Befund Du statt Sie (nur Befund, nichts geändert)
+
+Ausführlich mit der Liste aller Stellen und dem Vorschlag für einen Wächter-Test: `docs/archiv/befund-du-statt-sie.md`. Gesucht in
+Vorlagen (ohne Kommentare), allen Zeichenketten unter `app/` (ohne Docstrings und Protokollaufrufe), den Migrationen und den
+Betreiber-Skripten; 108 Treffer an 89 Stellen, davon 9 dritte Person (nicht gezählt). **Oberfläche (wird Du): 50 Stellen, 53 Anreden;
+an Kunden (bleibt Sie): 30 Stellen, 46 Anreden; unklar: 0.** 20 der Oberflächen-Stellen sind dieselbe Meldung „… keinem Mitarbeiter
+zugeordnet“ in neun Fassungen -- bei der Umstellung eine gemeinsame Meldung.
