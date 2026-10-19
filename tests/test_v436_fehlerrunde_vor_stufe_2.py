@@ -204,3 +204,171 @@ def test_zeiterfassung_buero_ein_knopf_zum_manuellen_buchen(threaded_db_session,
     knoepfe = re.findall(r'<button[^>]*onclick="openManual\(\)"[^>]*>(.*?)</button>', markup, flags=re.S)
     assert knoepfe == ["+ Manuell buchen"]
     assert "Zeitbuchung anlegen" not in markup and "<h3>Manuelle Buchung</h3>" not in markup
+
+
+# ---------------------------------------------------------------------------
+# 7. Änderungshistorie: lesbare Namen, Blättern
+# ---------------------------------------------------------------------------
+
+def _protokollierte_spalten():
+    from sqlalchemy import inspect as sa_inspect
+
+    from app.audit import AUDITED_TYPES, EXCLUDED_FIELDS
+
+    return {(cls, a.key) for cls in AUDITED_TYPES for a in sa_inspect(cls).column_attrs
+            if a.key not in EXCLUDED_FIELDS and a.key != "id"}
+
+
+def test_jede_protokollierte_art_hat_einen_namen():
+    """Bis 1.8.137 fehlten 16 Arten (u. a. WorkPreparationTeamEmployee) -- in der Historie stand der Klassenname."""
+    from app.audit import AUDITED_TYPES, TYPE_LABELS
+
+    assert sorted(c.__name__ for c in AUDITED_TYPES if c not in TYPE_LABELS) == []
+
+
+def test_jedes_protokollierte_feld_hat_einen_namen():
+    """Bis 1.8.137 fehlten 199 von 419 Feldnamen (u. a. property_address) -- in der Historie stand der Spaltenname."""
+    from app.audit import FIELD_LABELS
+
+    assert sorted({feld for _, feld in _protokollierte_spalten()} - set(FIELD_LABELS)) == []
+
+
+def _feste_werte_protokollierter_spalten():
+    """Spalte -> feste Werte, aus dem Katalog von tests/test_v364_feste_werte_spaltenlaenge.py (Konstanten im Code und Literale)."""
+    import importlib
+
+    from tests import test_v364_feste_werte_spaltenlaenge as t364
+
+    tabellen = {cls.__tablename__ for cls, _ in _protokollierte_spalten()}
+    aus = {}
+    for schluessel, quellen in {**t364.FESTE_WERTE, **t364.FESTE_LITERALE}.items():
+        tabelle, spalte = schluessel.split(".")
+        if tabelle not in tabellen:
+            continue
+        werte = set()
+        for q in quellen:
+            if isinstance(q, tuple) and len(q) == 2 and isinstance(q[0], str) and q[0].startswith("app."):
+                werte |= set(eval(q[1], {"mod": importlib.import_module(q[0])}))
+            elif isinstance(q, (list, tuple, set, frozenset)):
+                werte |= set(q)
+            else:
+                werte.add(q)
+        aus[schluessel] = werte
+    return aus
+
+
+def test_feste_werte_der_historie_sind_lesbar():
+    """Bis 1.8.137 stand jeder Code roh in der Historie („entwurf → beauftragt“, „pending“, „site“, „vob_b“)."""
+    from app.verlauf_namen import wert_lesbar
+
+    katalog = _feste_werte_protokollierter_spalten()
+    assert len(katalog) > 50  # der Katalog wird wirklich gelesen
+    roh = []
+    for schluessel, werte in katalog.items():
+        spalte = schluessel.split(".")[1]
+        for wert in werte:
+            wert = str(wert)
+            if wert == wert.lower() and " " not in wert and wert_lesbar(spalte, wert) == wert:
+                roh.append(f"{schluessel}={wert}")
+    assert sorted(roh) == []
+    assert wert_lesbar("status", "entwurf") == "Entwurf" and wert_lesbar("status", "beauftragt") == "Beauftragt"
+
+
+def _historie(rollen=("admin",), zeilen=()):
+    from app.models import AppUser, AuditLog
+    from app.routers import audit
+    from app.sitzungen import neue_sitzung
+    from tests.anmeldung import app_mit_schranke, browser_client, neue_datenbank
+
+    engine, make_session = neue_datenbank()
+    cookies = {}
+    with make_session() as db:
+        db.info["audit_disabled"] = True
+        for rolle in rollen:
+            nutzer = AppUser(username=rolle, display_name=rolle, role=rolle, password_hash="x")
+            db.add(nutzer)
+            db.flush()
+            cookies[rolle] = neue_sitzung(db, nutzer, zweiter_faktor=True)
+        for z in zeilen:
+            db.add(AuditLog(**z))
+        db.commit()
+    client = browser_client(app_mit_schranke(make_session, audit.router))
+    return engine, client, cookies
+
+
+def test_historie_zeigt_lesbare_namen_auch_fuer_alte_eintraege():
+    """Gespeichert sind die Namen von damals -- übersetzt wird beim Lesen, auch Einträge von vor 1.8.138."""
+    from datetime import datetime
+
+    from app.auth import COOKIE_NAME
+
+    alt = {"occurred_at": datetime(2026, 10, 1, 8), "actor_name": "Bernd", "action": "geändert"}
+    engine, client, cookies = _historie(("admin", "buero_auftrag"), [
+        {**alt, "entity_type": "WorkPreparationTeamEmployee", "entity_id": "4", "entity_label": "WorkPreparationTeamEmployee",
+         "field_name": "employee_name_snapshot", "field_label": "employee_name_snapshot", "old_value": "Mia", "new_value": "Max"},
+        {**alt, "entity_type": "Auftrag", "entity_id": "1", "entity_label": "AUF-1 · Dach", "field_name": "property_address",
+         "field_label": "property_address", "old_value": None, "new_value": "Werkstr. 5"},
+        {**alt, "entity_type": "Angebot", "entity_id": "2", "entity_label": "A-1 · Dach", "field_name": "status",
+         "field_label": "Status", "old_value": "entwurf", "new_value": "beauftragt"},
+        {**alt, "entity_type": "Mitarbeiter", "entity_id": "3", "entity_label": "Mia", "field_name": "hourly_wage",
+         "field_label": "Kalkulatorischer Stundenlohn", "old_value": "20", "new_value": "22"},
+    ])
+    try:
+        client.cookies.set(COOKIE_NAME, cookies["admin"], domain="testserver.local")
+        # nur die eigenen Einträge (die Grunddaten der Testdatenbank schreiben eigene)
+        zeilen = {z["entity_id"]: z for z in client.get("/api/audit-logs?actor=Bernd").json()}
+        assert (zeilen["4"]["entity_type"], zeilen["4"]["entity_type_label"], zeilen["4"]["entity_label"]) == (
+            "WorkPreparationTeamEmployee", "AV-Teammitglied", "AV-Teammitglied")
+        assert zeilen["4"]["field_label"] == "Mitarbeiter (Name)"
+        assert zeilen["1"]["field_label"] == "Objektanschrift"
+        assert (zeilen["2"]["old_value"], zeilen["2"]["new_value"]) == ("Entwurf", "Beauftragt")
+        # die Schwärzung für Büro – Auftrag greift weiter am rohen Feldnamen
+        client.cookies.set(COOKIE_NAME, cookies["buero_auftrag"], domain="testserver.local")
+        ids = {z["entity_id"] for z in client.get("/api/audit-logs?actor=Bernd").json()}
+        assert "3" not in ids and {"1", "2", "4"} <= ids
+    finally:
+        engine.dispose()
+
+
+def test_historie_blaettert():
+    """Bis 1.8.137 lud die Seite bis zu 500 Einträge auf einmal; die API kannte keinen Versatz."""
+    from datetime import datetime, timedelta
+
+    from app.auth import COOKIE_NAME
+
+    start = datetime(2026, 10, 1, 8)
+    engine, client, cookies = _historie(zeilen=[
+        {"occurred_at": start + timedelta(minutes=i), "actor_name": "Bernd", "action": "angelegt", "entity_type": "Testeintrag",
+         "entity_id": str(i), "entity_label": f"Kunde {i}"} for i in range(150)])
+    try:
+        client.cookies.set(COOKIE_NAME, cookies["admin"], domain="testserver.local")
+        erste = client.get("/api/audit-logs?limit=100&offset=0&entity_type=Testeintrag")
+        zweite = client.get("/api/audit-logs?limit=100&offset=100&entity_type=Testeintrag")
+        assert len(erste.json()) == 100 and erste.headers["x-dk-weitere"] == "1"
+        assert len(zweite.json()) == 50 and zweite.headers["x-dk-weitere"] == "0"
+        ids = [z["entity_id"] for z in erste.json() + zweite.json()]
+        assert ids == [str(i) for i in range(149, -1, -1)]  # neueste zuerst, lückenlos, keine doppelt
+    finally:
+        engine.dispose()
+
+
+VERLAUF_FETCH = r"""
+  globalThis.fetch = async (url) => {
+    AUFRUFE.push({url, methode: 'GET'});
+    const erste = url.includes('offset=0');
+    const zeilen = erste ? Array.from({length: 100}, (_, i) => ({id: i, occurred_at: '2026-10-01T08:00:00', actor_name: 'B',
+      action: 'angelegt', entity_type: 'Kunde', entity_type_label: 'Kunde', entity_label: 'K' + i})) : [];
+    return {ok: true, status: 200, statusText: 'OK',
+            headers: {get: k => String(k).toLowerCase() === 'x-dk-weitere' ? (erste ? '1' : '0') : 'application/json'},
+            json: async () => zeilen};
+  };
+"""
+
+
+@nur_mit_node
+def test_verlaufsseite_laedt_seitenweise():
+    lauf = im_browser(seite("history.html", "load();"), VERLAUF_FETCH + """
+      await load();
+      await aeltere();
+      return AUFRUFE.map(a => a.url);""")
+    assert lauf["ergebnis"] == ["/api/audit-logs?limit=100&offset=0", "/api/audit-logs?limit=100&offset=100"]

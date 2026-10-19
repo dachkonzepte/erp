@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.138 – Änderungshistorie: lesbare Namen, Blättern
+
+Fehlerrunde vor Stufe 2, Punkt 7. Die Änderungshistorie zeigte technische Namen: fehlte eine Art in `TYPE_LABELS` (16 von 104, u. a. `WorkPreparationTeamEmployee`) oder ein Feld in `FIELD_LABELS` (199 von 419, u. a. `property_address`), stand der Klassen- bzw. Spaltenname da, und jeder Wert kam roh („entwurf → beauftragt“, „pending“, „site“, „vob_b“). Beide Tabellen in `app/audit.py` sind jetzt vollständig; übersetzt wird beim Lesen (neues Modul `app/verlauf_namen.py`, aus `/api/audit-logs`), deshalb werden auch Einträge von vor 1.8.138 lesbar -- Art (`entity_type_label`), Feldname und Codes fester Werte (aus den Konstanten der Fachmodule, dieselben Wörter wie in der Oberfläche). Gespeichert bleibt alles roh: Filter und Schwärzung für Büro – Auftrag hängen an `entity_type` und `field_name`.
+
+Die Seite lud bis zu 500 Einträge auf einmal und bot keine älteren. Jetzt blättert sie zu je 100 („← Neuere“, „Ältere →“); `/api/audit-logs` nimmt `offset` und meldet in der Kopfzeile `X-DK-Weitere`, ob ältere folgen. Die Auswahl „Bereich“ zeigt die lesbare Art und filtert weiter nach der gespeicherten; die Projektmappe zeigt im Reiter „Verlauf“ ebenfalls die lesbare Art.
+
 ## 1.8.137 – Zeiterfassung (Büro): ein Knopf zum manuellen Buchen
 
 Fehlerrunde vor Stufe 2, Punkt 6. Die Büro-Zeiterfassung hatte zwei Knöpfe für denselben Dialog: „+ Manuell buchen“ im Kopf von „Heutige Buchungen“ und „+ Zeitbuchung anlegen“ in einer eigenen Karte „Manuelle Buchung“, die nur aus diesem Knopf und einem Satz bestand. Jetzt bleibt „+ Manuell buchen“; die Karte ist weg, ihr Hinweis („Für Nachträge, Korrekturen oder nachträgliche Erfassung.“) steht als Tooltip am Knopf.
