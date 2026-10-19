@@ -6,6 +6,10 @@ Hier geprüft, ohne Browser:
     Abdeckung       jede Seite aus tests/vorlagen_js.py::seiten() steht in AUFNAHMEN, keine Vorlage dort ist keine Seite
     Adressen        jede Adresse zeichnet für jede ihrer Rollen genau die genannte Vorlage (Sperrseite: 403 für die Monteurin)
     Monteur         jede Seitenroute, die die Monteurin öffnen darf, steht mit Rolle "monteur" in AUFNAHMEN
+    TerraPad        jede Seite der Monteurin auch in 800 und 1280 px, hell und dunkel, als Gerät; das Büro bleibt bei 412 und 1440 (1.8.131)
+    Zustände        Menü aufgeklappt, Seitenleiste eingeklappt, Kontomenü offen, Seitenleiste ganz unten, Leiste von Büro – Auftrag -- mit
+                    den vorgegebenen Breiten und Rollen; die Seite jeder Rolle zeichnet für sie den Rahmen samt der Elemente, die die
+                    Aktionen anfassen; die Monteurin hat den Rahmen genau auf Einsatzbericht und Konto; Dateinamen eindeutig (1.8.131)
     Vergleich       gleiche Bilder 0, ein Pixel 1 samt Differenzbild, andere Größe, fehlende und neue Bilder; Rückgabecode
     Zeitstempel     nach dem Befüllen stehen alle auf der Uhr, außer dem Ablauf der Sitzungen
     Uhr             stehende Uhr des Servers ("JJJJ-MM-TT HH:MM") und des Browsers (in node, Regel 36)
@@ -86,7 +90,7 @@ def _anonymer_client(db) -> TestClient:
     return TestClient(app)
 
 
-ROLLE_IM_TEST = {bg.BUERO: "buero_finanzen", bg.MONTEUR: "field", bg.ADMIN: "admin"}
+ROLLE_IM_TEST = {bg.BUERO: "buero_finanzen", bg.MONTEUR: "field", bg.ADMIN: "admin", bg.BUERO_AUFTRAG: "buero_auftrag"}
 
 
 def test_jede_adresse_zeichnet_ihre_vorlage(threaded_db_session, router_test_client):
@@ -128,6 +132,96 @@ def test_monteur_hat_jede_seite_die_er_oeffnen_darf(threaded_db_session, router_
         if antwort.status_code == 200 and vorlage and vorlage not in monteur:
             fehlen.append((route.path, vorlage))
     assert fehlen == [], "Seiten, die die Monteurin öffnet, ohne Bild mit Rolle monteur"
+
+
+# ---------------------------------------------------------------------------
+# Stufe 2a (1.8.131): die Monteurin auf dem TerraPad, Zustände des Rahmens
+# ---------------------------------------------------------------------------
+
+def test_monteurin_auch_auf_dem_terrapad():
+    geplant = bg.geplante_bilder()
+    for a in (a for a in bg.AUFNAHMEN if bg.MONTEUR in a.rollen):
+        gesehen = {(b.thema, b.breite) for b in geplant if b.rolle == bg.MONTEUR and b.aufnahme is a and b.zustand is None}
+        assert gesehen == {(t, w) for t in bg.THEMEN for w in (412, 800, 1280, 1440)}, a.name
+    assert {b.breite for b in geplant if b.rolle != bg.MONTEUR and b.zustand is None} == {412, 1440}
+    assert bg.TABLET == (800, 1280) and bg.GERAETE == (412, 800, 1280)
+    assert bg.STARTHOEHEN == {800: 1280, 1280: 800} and bg.STARTHOEHE == 900  # hoch und quer; 412 und 1440 wie bisher
+
+
+# Vorgabe vom 19.10.2026, Punkt 5: Zustand -> (Breiten, Rollen)
+ERWARTETE_ZUSTAENDE = {
+    "menue_offen": ((412, 800), {bg.BUERO, bg.MONTEUR}),
+    "leiste_eingeklappt": ((1280, 1440), {bg.BUERO, bg.MONTEUR}),
+    "kontomenue_offen": ((1440,), {bg.BUERO, bg.MONTEUR}),
+    "leiste_unten": ((1440,), {bg.BUERO}),  # die Leiste der Monteurin passt ins Fenster (beim Aufnehmen geprüft)
+    "leiste": ((1440,), {bg.BUERO_AUFTRAG}),
+}
+
+
+def test_zustaende_wie_vorgegeben():
+    assert {z.name: (tuple(sorted(z.breiten)), set(z.rollen)) for z in bg.ZUSTAENDE} == ERWARTETE_ZUSTAENDE
+    geplant = [b for b in bg.geplante_bilder() if b.zustand is not None]
+    for z in bg.ZUSTAENDE:
+        for rolle in z.rollen:
+            assert {(b.thema, b.breite, b.aufnahme.name) for b in geplant if b.zustand is z and b.rolle == rolle} == \
+                {(t, w, bg.ZUSTANDSSEITEN[rolle]) for t in bg.THEMEN for w in z.breiten}, (z.name, rolle)
+    assert len(geplant) == 24  # 8 Menü + 8 eingeklappt + 4 Kontomenü + 2 ganz unten + 2 Büro – Auftrag
+
+
+def test_dateinamen_eindeutig_und_die_bisherigen_zuerst():
+    geplant = bg.geplante_bilder()
+    namen = [b.datei for b in geplant]
+    assert len(namen) == len(set(namen)) == 304  # 240 wie bisher + 40 TerraPad + 24 Zustände
+    assert all("__" not in b.aufnahme.name and (b.zustand is None or "__" not in b.zustand.name) for b in geplant)
+    bisher = [b for b in geplant if b.breite in bg.BREITEN and b.zustand is None]
+    assert geplant[:len(bisher)] == bisher and len(bisher) == 240, "die bisherigen Bilder entstehen zuerst, in der bisherigen Reihenfolge"
+    assert [b.datei for b in bisher[:2]] == ["buero__hell__412__start.png", "buero__hell__412__aufgaben.png"]
+
+
+def test_teilauswahl_nimmt_nur_passende_seiten():
+    assert {b.aufnahme.name for b in bg.geplante_bilder(["start"])} == {"start"}
+    assert {(b.rolle, b.zustand.name if b.zustand else None) for b in bg.geplante_bilder(["einsatzbericht"])} >= {
+        (bg.MONTEUR, None), (bg.MONTEUR, "menue_offen"), (bg.BUERO, None)}
+
+
+def _rahmen_kennungen() -> set:
+    import re
+
+    return {k for z in bg.ZUSTAENDE for k in re.findall(r"getElementById\('([^']+)'\)", z.aktion)} | {"appSidebar"}
+
+
+def test_zustandsseiten_zeichnen_den_rahmen_fuer_ihre_rolle(threaded_db_session, router_test_client):
+    kennungen = _rahmen_kennungen()
+    assert kennungen == {"appSidebar", "appTopbarMenuBtn", "appSidebarToggle", "appTopbarAccountBtn", "appTopbarAccountMenu"}
+    for rolle, name in bg.ZUSTANDSSEITEN.items():
+        a = bg.AUFNAHME[name]
+        client = router_test_client(threaded_db_session, pages_router, role=ROLLE_IM_TEST[rolle], employee_id=1)
+        antwort = client.get(_pfad(a), follow_redirects=False)
+        assert antwort.status_code == 200 and antwort.template.name == a.vorlage, (rolle, name)
+        fehlen = sorted(k for k in kennungen if f'id="{k}"' not in antwort.text)
+        assert fehlen == [], (rolle, name, fehlen)
+        assert "app-sidebar-nav" in antwort.text  # die Leiste, die "leiste_unten" scrollt
+
+
+def test_monteurin_hat_den_rahmen_auf_einsatzbericht_und_konto(threaded_db_session, router_test_client):
+    """"wo es ihn gibt": die übrigen Seiten der Monteurin haben den Kopf der Monteursansicht ohne Menü und Kontomenü."""
+    client = router_test_client(threaded_db_session, pages_router, role="field", employee_id=1)
+    mit_rahmen = set()
+    for a in (a for a in bg.AUFNAHMEN if bg.MONTEUR in a.rollen and a.vorlage != "access_denied.html"):
+        text = client.get(_pfad(a), follow_redirects=False).text
+        if 'id="appSidebar"' in text and 'id="appTopbarAccountBtn"' in text:
+            mit_rahmen.add(a.name)
+    assert mit_rahmen == {"einsatzbericht", "konto"}
+    assert bg.ZUSTANDSSEITEN[bg.MONTEUR] in mit_rahmen
+
+
+def test_testdaten_haben_ein_konto_je_rolle():
+    quelle = (SCRIPTS / "bildgrundlage.py").read_text(encoding="utf-8")
+    rollen = {r for z in bg.ZUSTAENDE for r in z.rollen} | {r for a in bg.AUFNAHMEN for r in a.rollen}
+    for rolle in rollen - {bg.ANONYM}:
+        konstante = {bg.BUERO: "BUERO", bg.MONTEUR: "MONTEUR", bg.ADMIN: "ADMIN", bg.BUERO_AUFTRAG: "BUERO_AUFTRAG"}[rolle]
+        assert f"{konstante}: k.cookies(" in quelle, rolle
+    assert 'role="buero_auftrag"' in quelle
 
 
 # ---------------------------------------------------------------------------

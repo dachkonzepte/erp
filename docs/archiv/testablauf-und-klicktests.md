@@ -870,14 +870,18 @@ Alle betreffen nur Werkzeug und Testablauf (Regel 28: der Bericht nennt ihre Zah
 #### Grenzen (was die Grundlage nicht abdeckt)
 
 - **Nur der Zustand nach dem Laden**: keine Dialoge, aufgeklappten Menüs, Hover und Fokus, Fehlermeldungen, weiteren Reiter (Projektmappe,
-  Einstellungen: nur die erste Ansicht), Zustände per Adresse (`?zweck=`, `?next=`).
+  Einstellungen: nur die erste Ansicht), Zustände per Adresse (`?zweck=`, `?next=`). *Seit 1.8.131 fünf Zustände des Rahmens (Menü,
+  eingeklappt, Kontomenü, Leiste ganz unten, Leiste Büro – Auftrag) auf je einer Seite, siehe „Stufe 2a“.*
 - **Eine Datenlage**: Rechnung, Checkliste und Einsatzbericht als Entwurf, kein Vertrag, keine Abnahme, keine Mahnung, keine Zahlung --
   Karten, die erst damit erscheinen, sind nicht im Bild; leere Listen nur dort, wo die Testdaten nichts anlegen.
 - **Teilläufe** (`--nur`): eine Seite kann davon abhängen, welche Seiten vorher besucht wurden (Wackelquelle 2 war so eine Abhängigkeit,
   über den Browser); verglichen werden sollten volle Läufe.
-- **Bereiche mit eigenem Scroll** (Seitenleiste, Zeitachse der Plantafel, breite Tabellen) zeigen nur ihren sichtbaren Teil.
-- **Büro – Auftrag** und Büro mit Admin-Rechten (Einstellungen ganz) nicht aufgenommen.
-- **Zwei Breiten**: kein Tablet (768/1024 px), kein Querformat.
+- **Bereiche mit eigenem Scroll** (Seitenleiste, Zeitachse der Plantafel, breite Tabellen) zeigen nur ihren sichtbaren Teil. *Seit 1.8.131
+  die Seitenleiste des Büros auch ganz unten (Startseite, 1440).*
+- **Büro – Auftrag** und Büro mit Admin-Rechten (Einstellungen ganz) nicht aufgenommen. *Seit 1.8.131 die Seitenleiste von Büro – Auftrag
+  (Startseite, 1440).*
+- **Zwei Breiten**: kein Tablet (768/1024 px), kein Querformat. *Seit 1.8.131 die Seiten der Monteurin auch auf dem TerraPad (800 und
+  1280 px, hoch und quer); das Büro weiter nur 412 und 1440.*
 - **Ein Rechner, ein Browser**: Pixel hängen an Chrome-Version und installierten Schriften (die Seiten nehmen Inter, sonst die
   Systemschrift) -- verglichen wird nur zwischen Läufen auf demselben Rechner mit demselben Chrome (`bilder.json` hält die Version fest).
 - **Nicht im Bild**: PDFs, E-Mails, Druckansicht, Seiten über 16.000 px (heute höchstens der Verlauf mit rund 13.000 px).
@@ -915,3 +919,70 @@ Alle betreffen nur Werkzeug und Testablauf (Regel 28: der Bericht nennt ihre Zah
   IDs entstehen schon in der Reihenfolge von `session.dirty`) und wurde verworfen.
 - **Angepasste Tests** (Regel 28): keine. `test_v413::test_ohne_gegenprobe_und_ohne_angabe_kein_zeitlimit` liest die Zeile
   `wachhund = Wachhund(*min(grenzen)) if grenzen else None` wörtlich -- sie blieb, `je_schritt` wird danach gesetzt.
+
+## Bildgrundlage erweitert, Stufe 2a (1.8.131)
+
+Vorgabe vom 19.10.2026 (Teil B, übernommen wie gegeben): „Teil B – Stufe 2a (Bildgrundlage erweitern) 4. Die Seiten der Monteurin
+zusätzlich in 800 und 1280 px Breite (TerraPad hoch und quer), hell und dunkel. 5. Zustände des Rahmens, je hell und dunkel, auf einer
+Büro-Seite und, wo es ihn gibt, auf einer Seite der Monteurin: Menü aufgeklappt (412 und 800), Seitenleiste eingeklappt (1440 und 1280),
+Kontomenü offen (1440), Seitenleiste ganz nach unten gescrollt (1440), Seitenleiste der Rolle Büro – Auftrag (1440). 6. Abdeckungstest
+erweitern. Neue Grundlage auf dem Commit von Teil B, zwei Läufe ohne Abweichung.“
+
+### Befund vor dem Bauen
+
+- **Rahmen**: Seitenleiste `_sidebar.html` und Kopfzeile `_topbar.html`. Unter 1001 px ist die Leiste ausgeblendet und wird über den Knopf
+  `#appTopbarMenuBtn` der Kopfzeile geöffnet (`mobile-open`, Hintergrund abgedunkelt); ab 1001 px klappt der Knopf `#appSidebarToggle` unten
+  in der Leiste sie ein (`collapsed`, gemerkt in `localStorage`, das die Bildgrundlage vor jedem Laden leert). Das Kontomenü öffnet der
+  Knopf mit den Initialen (`#appTopbarAccountBtn`, Menü `#appTopbarAccountMenu`). Die Leiste scrollt selbst, wenn sie nicht ins Fenster passt.
+- **Die Monteurin** hat den Rahmen nur auf zwei ihrer Seiten -- Einsatzbericht und Konto; Checkliste und Checklisten des Auftrags wählen für
+  sie den Kopf der Monteursansicht (`_mobile_header.html`, ohne Menü und Kontomenü), `/mobil`, Objekt, Stundenzettel, Zeiterfassung und
+  Betriebsmittel haben nur ihn, die Sperrseite keinen. Ihre Leiste (Start, Zeiterfassung) passt bei 1440 × 900 ins Fenster -- „ganz nach
+  unten gescrollt“ gibt es dort nicht.
+- **Ganzseitige Bilder** legen das Fenster auf die Seitenhöhe: die Leiste wird so hoch wie die Seite und scrollt nicht mehr, Menüs am
+  Fenster stünden irgendwo -- für die Zustände braucht es das Bild des Fensters.
+- **Ein Konto mehr verändert die Verlaufsseite** (AppUser wird protokolliert) -- die bisherigen Bilder blieben nicht gleich.
+
+### Umsetzung 1.8.131
+
+- **`scripts/bildgrundlage.py`**: `TABLET = (800, 1280)`, `GERAETE = (412, 800, 1280)` (als Gerät, `mobile`), `STARTHOEHEN = {800: 1280,
+  1280: 800}`. `ZUSTAENDE` (Name, Aktion, Breiten, Rollen): die Aktion klickt den Knopf der Seite und gibt zurück, ob der Zustand
+  eingetreten ist; `ZUSTANDSSEITEN`: Büro und Büro – Auftrag die Startseite, die Monteurin der Einsatzbericht. `geplante_bilder()` liefert
+  alle Bilder in der Reihenfolge der Aufnahme (zuerst die bisherigen 240 wie bisher, dann 40 TerraPad, dann 24 Zustände = 304);
+  `pruefen()` geht sie durch und meldet sich nur beim Wechsel der Rolle neu an. `_bild(…, zustand)`: nach dem Laden die Aktion, Ruhe, Bild
+  des Fensters; je Zustand die Prüfung „eingetreten“, beim Kontomenü der Monteurin zusätzlich „Leiste ohne Bildlauf“
+  (`LEISTE_OHNE_BILDLAUF`). Dateiname `<rolle>__<thema>__<breite>__<seite>--<zustand>.png`, in `bilder.json` dazu `zustand`. Testdaten: Konto
+  „Berta Auftrag“ (Büro – Auftrag) per Core-Insert, ohne Verlaufseintrag.
+
+#### Festlegungen 1.8.131 (Bitte bestätigen)
+
+Alle betreffen nur Werkzeug und Testablauf (Regel 28).
+
+1. **TerraPad**: jede Aufnahme mit der Monteurin (alle zehn, auch die Sperrseite) zusätzlich in 800 px (hoch, Fenster 800 × 1280) und
+   1280 px (quer, 1280 × 800), je hell und dunkel; Büro, Admin und anonym bleiben bei 412 und 1440.
+2. **Als Gerät**: 412, 800 und 1280 mit `mobile` (Viewport wie auf dem Gerät, Bildlaufleisten über dem Inhalt), Pixelfaktor 1, ohne
+   Touch-Emulation; 1440 als Desktop. Ganzseitig wie bisher, Mindesthöhe die Fensterhöhe.
+3. **Zustände als Bild des Fensters**, nicht der ganzen Seite (die Leiste und die Menüs hängen am Fenster; ganzseitig gäbe es „ganz unten“
+   nicht). Fenster 412 × 900, 800 × 1280, 1280 × 800, 1440 × 900.
+4. **Seiten der Zustände**: Büro – Finanzen und Büro – Auftrag auf der Startseite `/`; die Monteurin auf dem Einsatzbericht (eine ihrer
+   zwei Seiten mit Seitenleiste und Kopfzeile; Konto wäre die andere).
+5. **Zustände**: Menü aufgeklappt 412 und 800 (Knopf ☰ der Kopfzeile), Seitenleiste eingeklappt 1280 und 1440 (Knopf unten in der Leiste),
+   Kontomenü offen 1440 (Knopf mit den Initialen), Seitenleiste ganz unten 1440 nur für das Büro (bei der Monteurin passt die Leiste ins
+   Fenster -- beim Aufnehmen geprüft), Seitenleiste von Büro – Auftrag 1440 (Startseite nach dem Laden); je hell und dunkel. Herbeigeführt
+   per Klick auf den Knopf der Seite, vor dem Bild geprüft, danach Fokus weg.
+6. **Konto Büro – Auftrag** in den Testdaten ohne Verlaufseintrag (Core-Insert), damit die bisherigen Bilder gleich bleiben.
+7. **Reihenfolge und Namen**: zuerst die bisherigen 240 Bilder in der bisherigen Reihenfolge, dann die TerraPad-Bilder, dann die Zustände;
+   `<rolle>__<thema>__<breite>__<seite>--<zustand>.png`; 304 Bilder je Lauf.
+8. **Abdeckungstest**: TerraPad-Breiten für jede Seite der Monteurin; Zustände mit genau den vorgegebenen Breiten und Rollen; die Seite
+   jeder Rolle zeichnet für sie Seitenleiste, Kopfzeile und die Knöpfe der Aktionen; die Monteurin hat den Rahmen genau auf Einsatzbericht
+   und Konto; Dateinamen eindeutig, die bisherigen zuerst; ein Konto je Rolle in den Testdaten.
+
+#### Tests und Prüfung
+
+- `tests/test_v431_bildgrundlage.py`: neu 7 Tests (34 statt 27) -- TerraPad, Zustände wie vorgegeben (24), Dateinamen und Reihenfolge (304,
+  die bisherigen 240 zuerst), Teilauswahl, Rahmen je Rolle auf der Seite der Zustände (gerendert, mit den Kennungen aus den Aktionen),
+  Monteurin mit Rahmen genau auf Einsatzbericht und Konto, ein Konto je Rolle in den Testdaten. `ROLLE_IM_TEST` um Büro – Auftrag ergänzt.
+- **Eigener Fehler, behoben**: die erste Fassung des Tests erwartete 26 Zustandsbilder (306 je Lauf) -- „ganz unten“ zählte für die
+  Monteurin mit; richtig 24 (304).
+- Probe vor den vollen Läufen (`--nur start --nur einsatzbericht`): 40 Bilder, 66 Prüfungen wie erwartet; angesehen: Menü auf 800 px,
+  ganz unten dunkel, Kontomenü der Monteurin, eingeklappt bei 1280 dunkel.
+- **Angepasste Tests** (Regel 28): keine Erwartung geändert (die Teil-A-Anpassung von `_mit_konto()` steht unter 1.8.130).

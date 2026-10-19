@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.130** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.131** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -1302,14 +1302,14 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   seit 1.8.124 Stufe 0b: alle Strukturtests, Wächter über tests/, Seiten-Abgleich, Makro-Regel; seit 1.8.125 Stufe 0c: kein Include per
   Textvergleich, Klicktest-Ports außerhalb der kurzlebigen Ports; seit 1.8.126 Stufe 0d: Bildgrundlage `scripts/bildgrundlage.py` mit
   Vergleich, stehende Uhr im Klicktest, ein Port-Helfer für alle Klicktests; seit 1.8.127 bricht der Vergleich bei verschiedenen
-  Chrome-Versionen ab)
+  Chrome-Versionen ab; seit 1.8.131 Stufe 2a: Monteurin auch auf dem TerraPad, fünf Zustände des Rahmens, 304 Bilder je Lauf)
   -- `docs/archiv/testablauf-und-klicktests.md`
 - **Redesign: Design-System „Schiefer & Signal“** (Stufen 0a–0d siehe Testablauf; seit 1.8.127 Stufe 1 „Fundament“: `/static/` ohne
   Anmeldung mit langem Cache, `app/static/ds/ds.css` mit Tokens und selbst gehosteten Schriften, `_ds_kopf.html` in jeder Seite, Wächter,
   Kontrasttest, Angriffstests, Regel 37; seit 1.8.128 Runde 1b Anmeldepflicht für jede Methode; seit 1.8.129 Runde 1c Härtung:
   Schnittstellen-Doku nur lokal per `ERP_API_DOKU=1`, `/health` mit HEAD, Wächter ds.css nach dem Ziel des Selektors, Befunde
   Ersteinrichtung und Akzentfarbe; seit 1.8.130 Runde 1d: ohne Konto geschlossen, Akzentfarbe nur Admin, PWA-Symbole öffentlich -- Herleitung
-  im Serverbetrieb-Archiv) -- `docs/archiv/redesign.md`
+  im Serverbetrieb-Archiv; seit 1.8.131 Stufe 2a: Bildgrundlage um TerraPad und Zustände des Rahmens erweitert) -- `docs/archiv/redesign.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`
 - **Migrationsketten- und Testlauf-Historie** (Version-für-Version-Nachweis, wer wann was mit
@@ -1860,7 +1860,9 @@ Seit 1.8.126 nimmt jeder Klicktest diesen einen Helfer (auch die SMTP-Empfänger
 mit festen Testdaten, stehender Uhr 14.10.2026 10:00 in Server und Browser, alle gespeicherten Zeitstempel darauf gesetzt, feste
 Versionsnummer „Bildgrundlage“ und fester Changelog): Büro – Finanzen überall, die Monteurin zusätzlich auf jeder Seite, die sie öffnet,
 Admin nur für den Adressimport, anonym die Anmeldeseite, die Sperrseite als Monteurin auf `/projects`; je hell und dunkel, je 412 px
-und 1440 px. Ordner `bildgrundlage/<commit>/` im Projekt (in `.gitignore`, Endung `-geaendert` bei geänderter Arbeitskopie) mit
+und 1440 px, die Seiten der Monteurin seit 1.8.131 auch 800 und 1280 px (TerraPad); dazu seit 1.8.131 fünf Zustände des Rahmens als Bild
+des Fensters (`ZUSTAENDE`: Menü aufgeklappt, Seitenleiste eingeklappt, Kontomenü offen, Leiste ganz unten, Leiste von Büro – Auftrag) --
+304 Bilder je Lauf, die bisherigen zuerst. Ordner `bildgrundlage/<commit>/` im Projekt (in `.gitignore`, Endung `-geaendert` bei geänderter Arbeitskopie) mit
 `bilder.json`. Vor einem Umbau eine Grundlage vom Stand davor, danach eine neue und vergleichen:
 
     .venv\Scripts\python.exe scripts\bildgrundlage.py                       (aufnehmen; --ziel ORDNER, --nur TEIL)

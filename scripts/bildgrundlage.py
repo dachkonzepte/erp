@@ -7,9 +7,14 @@ AUFRUF (aus dem Projektordner, in der Projekt-venv):
 
 aufnehmen   Eine Testinstanz (scripts/cdp_klicktest.py, Wegwerf-SQLite, Regel 16) mit festen Testdaten (befuellen() unten) und
             stehender Uhr (UHR, Server, Befüllen und Browser), dann je Eintrag in AUFNAHMEN, je Rolle des Eintrags, je Thema (hell,
-            dunkel) und je Breite (412 px als Gerät, 1440 px) ein ganzseitiges PNG. Vor jedem Bild: Seite geladen und keine Anfrage
-            mehr unterwegs (seit 0,8 s), Schriften bereit, Animationen, Übergänge und Textcursor aus, kein Fokus. Geprüft je Bild:
-            geladen und Status 200 (die Sperrseite 403) -- sonst zeigte das Bild die Sperrseite statt der Seite; Rückgabecode 1.
+            dunkel) und je Breite (412 px als Gerät, 1440 px) ein ganzseitiges PNG; die Seiten der Monteurin zusätzlich auf dem
+            TerraPad, hoch (800 px) und quer (1280 px), als Gerät (seit 1.8.131). Danach die Zustände des Rahmens (ZUSTAENDE, seit
+            1.8.131): Menü aufgeklappt, Seitenleiste eingeklappt, Kontomenü offen, Seitenleiste ganz unten, Seitenleiste von Büro –
+            Auftrag -- je auf der Seite aus ZUSTANDSSEITEN, je Thema, als Bild des Fensters (nicht der ganzen Seite: die Leiste und
+            die Menüs hängen am Fenster). Vor jedem Bild: Seite geladen und keine Anfrage mehr unterwegs (seit 0,8 s), Schriften
+            bereit, Animationen, Übergänge und Textcursor aus, kein Fokus. Geprüft je Bild: geladen und Status 200 (die Sperrseite
+            403) -- sonst zeigte das Bild die Sperrseite statt der Seite --, bei einem Zustand dazu, dass er eingetreten ist;
+            Rückgabecode 1.
             --ziel      Vorgabe bildgrundlage/<commit>[-geaendert] im Projektordner (in .gitignore; "-geaendert", wenn die
                         Arbeitskopie Änderungen hat). Muss leer sein oder fehlen.
             --nur TEIL  nur Einträge, deren Name TEIL enthält (mehrfach möglich).
@@ -21,8 +26,8 @@ vergleichen Je Bild die Zahl abweichender Pixel (ein Pixel weicht ab, wenn ein K
             sind verschieden -- ein anderer Chrome zeichnet anders, dann zuerst die Grundlage neu erzeugen.
 
 Rollen: "buero" ist Büro – Finanzen (die Büro-Rolle, die jede Büroseite öffnet), "monteur" die Monteurin mit Planungsbezug zum Auftrag,
-"admin" nur für den Adressimport (die eine Seite nur für Administratoren), "anonym" ohne Anmeldung (Anmeldeseite). Die Sperrseite zeigt
-die Monteurin auf /projects. tests/test_v431_bildgrundlage.py prüft, dass jede Seite aus tests/vorlagen_js.py::seiten() hier steht, jede
+"admin" nur für den Adressimport (die eine Seite nur für Administratoren), "anonym" ohne Anmeldung (Anmeldeseite), "buero_auftrag" (seit
+1.8.131) nur für die Seitenleiste dieser Rolle. Die Sperrseite zeigt die Monteurin auf /projects. tests/test_v431_bildgrundlage.py prüft, dass jede Seite aus tests/vorlagen_js.py::seiten() hier steht, jede
 Adresse für ihre Rolle die genannte Vorlage zeichnet und jede Seite, die die Monteurin öffnet, mit ihrer Rolle aufgenommen wird.
 
 Fest gehalten, damit zwei Läufe gleich sind: Uhr (UHR, stehend), alle gespeicherten Zeitstempel (nach dem Befüllen auf UHR gesetzt,
@@ -48,9 +53,14 @@ from cdp_klicktest import ANZEIGE_ENV, ROOT, klicktest_main  # noqa: E402
 
 UHR = "2026-10-14 10:00"  # Mittwoch; steht in Befüllen, Server und Browser
 BUERO, MONTEUR, ADMIN, ANONYM = "buero", "monteur", "admin", "anonym"
+BUERO_AUFTRAG = "buero_auftrag"  # seit 1.8.131, nur für die Seitenleiste dieser Rolle (ZUSTAENDE)
 THEMEN = ("hell", "dunkel")
 BREITEN = (412, 1440)
+# Seit 1.8.131 (Stufe 2a): die Seiten der Monteurin zusätzlich auf dem TerraPad -- hoch 800 x 1280, quer 1280 x 800
+TABLET = (800, 1280)
+GERAETE = (412, *TABLET)  # als Gerät aufgenommen (mobile: Viewport wie auf dem Gerät, Bildlaufleisten über dem Inhalt)
 STARTHOEHE = 900
+STARTHOEHEN = {800: 1280, 1280: 800}  # Höhe des Fensters, wo sie von STARTHOEHE abweicht
 HOECHSTE_HOEHE = 16000  # Chrome zeichnet höhere Bilder nicht zuverlässig
 CHANGELOG = Path(__file__).resolve().parent / "bildgrundlage_changelog.md"
 # Text ohne farbige Subpixel-Kanten (ClearType): deren Stärke hing davon ab, welche Seiten der Browser vorher gezeichnet hatte -- der
@@ -122,6 +132,69 @@ AUFNAHMEN = (
     A("anmeldung", "login.html", "/login", (ANONYM,)),
     A("sperrseite", "access_denied.html", "/projects", (MONTEUR,)),
 )
+AUFNAHME = {a.name: a for a in AUFNAHMEN}
+
+
+@dataclass(frozen=True)
+class Zustand:
+    """Ein Zustand des Rahmens (Seitenleiste _sidebar.html, Kopfzeile _topbar.html), seit 1.8.131. aktion führt ihn nach dem Laden
+    herbei und gibt zurück, ob er eingetreten ist (wahr) -- sonst zeigte das Bild die Seite ohne ihn."""
+    name: str
+    aktion: str
+    breiten: tuple
+    rollen: tuple
+
+
+# Die Seite je Rolle: für das Büro die Startseite, für die Monteurin der Einsatzbericht (eine ihrer zwei Seiten mit Seitenleiste und
+# Kopfzeile -- die übrigen haben den Kopf der Monteursansicht, _mobile_header.html, ohne Menü und Kontomenü)
+ZUSTANDSSEITEN = {BUERO: "start", BUERO_AUFTRAG: "start", MONTEUR: "einsatzbericht"}
+_LEISTE_SCROLLT = "[...document.querySelectorAll('#appSidebar,#appSidebar .app-sidebar-nav')].find(e=>e.scrollHeight>e.clientHeight+1)"
+Z = Zustand
+ZUSTAENDE = (
+    Z("menue_offen", "(()=>{document.getElementById('appTopbarMenuBtn').click();"
+                     "return document.getElementById('appSidebar').classList.contains('mobile-open')})()", (412, 800), (BUERO, MONTEUR)),
+    Z("leiste_eingeklappt", "(()=>{document.getElementById('appSidebarToggle').click();"
+                            "return document.getElementById('appSidebar').classList.contains('collapsed')})()", (1280, 1440),
+      (BUERO, MONTEUR)),
+    Z("kontomenue_offen", "(()=>{document.getElementById('appTopbarAccountBtn').click();"
+                          "return !document.getElementById('appTopbarAccountMenu').hidden})()", (1440,), (BUERO, MONTEUR)),
+    # nur das Büro: bei der Monteurin passt die Leiste ins Fenster (geprüft beim Aufnehmen, LEISTE_OHNE_BILDLAUF)
+    Z("leiste_unten", f"(()=>{{const n={_LEISTE_SCROLLT};if(!n)return false;n.scrollTop=n.scrollHeight;"
+                      "return n.scrollTop>0&&Math.abs(n.scrollTop+n.clientHeight-n.scrollHeight)<=1})()", (1440,), (BUERO,)),
+    Z("leiste", "!!document.getElementById('appSidebar')", (1440,), (BUERO_AUFTRAG,)),
+)
+LEISTE_OHNE_BILDLAUF = f"!{_LEISTE_SCROLLT}"
+
+
+@dataclass(frozen=True)
+class Bild:
+    rolle: str
+    thema: str
+    breite: int
+    aufnahme: Aufnahme
+    zustand: Zustand | None = None
+
+    @property
+    def datei(self) -> str:
+        seite = self.aufnahme.name + (f"--{self.zustand.name}" if self.zustand else "")
+        return f"{self.rolle}__{self.thema}__{self.breite}__{seite}.png"
+
+
+def geplante_bilder(nur: list | None = None) -> list[Bild]:
+    """Alle Bilder in der Reihenfolge der Aufnahme: zuerst wie bis 1.8.130 (Rolle, Thema, Breite, Seite), dann die Monteurin auf dem
+    TerraPad, dann die Zustände -- die bisherigen Bilder entstehen in derselben Reihenfolge wie vorher. nur: Teile der Seitennamen."""
+    def gewollt(a: Aufnahme) -> bool:
+        return not nur or any(t in a.name for t in nur)
+
+    bilder = [Bild(rolle, thema, breite, a) for rolle in (BUERO, MONTEUR, ADMIN, ANONYM) for thema in THEMEN for breite in BREITEN
+              for a in AUFNAHMEN if rolle in a.rollen and gewollt(a)]
+    bilder += [Bild(MONTEUR, thema, breite, a) for thema in THEMEN for breite in TABLET for a in AUFNAHMEN
+               if MONTEUR in a.rollen and gewollt(a)]
+    for rolle in (BUERO, BUERO_AUFTRAG, MONTEUR):
+        a = AUFNAHME[ZUSTANDSSEITEN[rolle]]
+        if gewollt(a):
+            bilder += [Bild(rolle, thema, breite, a, z) for z in ZUSTAENDE if rolle in z.rollen for thema in THEMEN for breite in z.breiten]
+    return bilder
 
 # Vor jedem Laden: localStorage leer (Thema kommt aus prefers-color-scheme, eingeklappte Seitenleiste u. ä. nie übernommen),
 # Animationen, Übergänge und Textcursor aus.
@@ -278,7 +351,14 @@ def befuellen(db, k):
     db.commit()
     create_task(db, title="Rückruf Hallenbau wegen Gerüst", created_by_user_id=buero.id)
 
-    cookies = {BUERO: k.cookies(buero), MONTEUR: k.cookies(monteur), ADMIN: k.cookies(admin)}
+    # Seit 1.8.131: Büro – Auftrag für die Seitenleiste dieser Rolle -- ohne ORM eingefügt, damit kein Verlaufseintrag entsteht (AppUser
+    # wird protokolliert; die Verlaufsseite der bisherigen Bilder bliebe sonst nicht gleich)
+    from sqlalchemy import insert, select
+
+    db.execute(insert(AppUser.__table__).values(username="berta", display_name="Berta Auftrag", role="buero_auftrag",
+                                                password_hash=k.passwort(), active=True))
+    berta = db.scalar(select(AppUser).where(AppUser.username == "berta"))
+    cookies = {BUERO: k.cookies(buero), MONTEUR: k.cookies(monteur), ADMIN: k.cookies(admin), BUERO_AUFTRAG: k.cookies(berta)}
     _zeitstempel_festsetzen(db, _utc_now().replace(tzinfo=None))
     return {"cookies": cookies, "uhr_ms": k.uhr_ms(), "kunde": kunde.id, "objekt": objekt.id, "dachflaeche": nord.id,
             "projekt": projekt.id, "angebot": angebot.id, "auftrag": auftrag.id, "rechnung": rechnung.id, "checkliste": checkliste["id"],
@@ -317,18 +397,27 @@ def _commit() -> tuple[str, bool]:
     return kurz, geaendert
 
 
-async def _bild(tab, pfad: str, breite: int, thema: str, datei: Path) -> dict:
-    mobil = breite <= 412
+async def _bild(tab, pfad: str, breite: int, thema: str, datei: Path, zustand: Zustand | None = None) -> dict:
+    """Ein Bild: ohne Zustand die ganze Seite, mit Zustand (seit 1.8.131) das Fenster nach zustand.aktion."""
+    mobil = breite in GERAETE
     schema = "dark" if thema == "dunkel" else "light"
+    hoehe = STARTHOEHEN.get(breite, STARTHOEHE)
     await tab.cmd("Emulation.setEmulatedMedia", features=[{"name": "prefers-color-scheme", "value": schema}])
-    await tab.cmd("Emulation.setDeviceMetricsOverride", width=breite, height=STARTHOEHE, deviceScaleFactor=1, mobile=mobil)
+    await tab.cmd("Emulation.setDeviceMetricsOverride", width=breite, height=hoehe, deviceScaleFactor=1, mobile=mobil)
     marke = len(tab.netz.verlauf)
     bereit = await tab.oeffnen(pfad, BEREIT, timeout=45)
     dokument = next((e for e in tab.netz.verlauf[marke:] if e.get("art") == "Document"), {})
     await tab.js(RUHE)
-    hoehe = STARTHOEHE
+    if zustand is not None:
+        eingetreten = await tab.js(zustand.aktion)
+        await tab.warten(BEREIT, 15, melden=False)
+        await tab.js(RUHE)
+        daten = (await tab.cmd("Page.captureScreenshot", format="png", fromSurface=True))["data"]
+        datei.write_bytes(base64.b64decode(daten))
+        return {"bereit": bereit, "hoehe": hoehe, "status": dokument.get("status"), "eingetreten": eingetreten}
+    start = hoehe
     for _ in range(4):  # bis die Höhe sich nicht mehr ändert (ein höheres Fenster kann die Seite umbrechen lassen)
-        gemessen = min(max(int(await tab.js(HOEHE) or STARTHOEHE), STARTHOEHE), HOECHSTE_HOEHE)
+        gemessen = min(max(int(await tab.js(HOEHE) or start), start), HOECHSTE_HOEHE)
         if gemessen == hoehe:
             break
         hoehe = gemessen
@@ -350,25 +439,27 @@ async def pruefen(tab, seed, p):
     await tab.cmd("Page.addScriptToEvaluateOnNewDocument", source=STILL)
     await tab.browser_uhr_fest(seed["uhr_ms"])
     chrome = (await tab.cmd("Browser.getVersion")).get("product", "?")
-    bilder, beginn = [], time.monotonic()
-    for rolle in (BUERO, MONTEUR, ADMIN, ANONYM):
-        await tab.anmelden(seed["cookies"].get(rolle, {}))
-        for thema in THEMEN:
-            for breite in BREITEN:
-                for a in AUFNAHMEN:
-                    if rolle not in a.rollen or (nur and not any(t in a.name for t in nur)):
-                        continue
-                    if tab.wachhund:
-                        tab.wachhund.neu_starten()
-                    datei = ziel / f"{rolle}__{thema}__{breite}__{a.name}.png"
-                    pfad = a.pfad.format(**seed)
-                    stand = await _bild(tab, pfad, breite, thema, datei)
-                    # geladen, und die Rolle darf die Seite öffnen -- sonst wäre das Bild die Sperrseite (Status 403)
-                    p.pruefe(f"{datei.name}: geladen, Status", (stand["bereit"], stand["status"]),
-                             (True, 403 if a.vorlage == "access_denied.html" else 200))
-                    bilder.append({"datei": datei.name, "seite": a.name, "vorlage": a.vorlage, "pfad": pfad, "rolle": rolle,
-                                   "thema": thema, "breite": breite, "hoehe": stand["hoehe"], "status": stand["status"],
-                                   "js_fehler": list(tab.fehler)})
+    bilder, beginn, angemeldet = [], time.monotonic(), None
+    for b in geplante_bilder(nur):
+        if b.rolle != angemeldet:
+            await tab.anmelden({} if b.rolle == ANONYM else seed["cookies"][b.rolle])
+            angemeldet = b.rolle
+        if tab.wachhund:
+            tab.wachhund.neu_starten()
+        a, datei = b.aufnahme, ziel / b.datei
+        pfad = a.pfad.format(**seed)
+        stand = await _bild(tab, pfad, b.breite, b.thema, datei, b.zustand)
+        # geladen, und die Rolle darf die Seite öffnen -- sonst wäre das Bild die Sperrseite (Status 403)
+        p.pruefe(f"{datei.name}: geladen, Status", (stand["bereit"], stand["status"]),
+                 (True, 403 if a.vorlage == "access_denied.html" else 200))
+        if b.zustand is not None:
+            p.pruefe(f"{datei.name}: Zustand eingetreten", stand["eingetreten"], True)
+        if b.rolle == MONTEUR and b.zustand is not None and b.zustand.name == "kontomenue_offen":
+            # neben dem Kontomenü (1440, Fenster) passt die Leiste der Monteurin ins Fenster -- darum kein Zustand "leiste_unten" für sie
+            p.pruefe(f"{datei.name}: Leiste der Monteurin ohne Bildlauf", await tab.js(LEISTE_OHNE_BILDLAUF), True)
+        bilder.append({"datei": datei.name, "seite": a.name, "vorlage": a.vorlage, "pfad": pfad, "rolle": b.rolle, "thema": b.thema,
+                       "breite": b.breite, "zustand": b.zustand.name if b.zustand else None, "hoehe": stand["hoehe"],
+                       "status": stand["status"], "js_fehler": list(tab.fehler)})
     dauer = time.monotonic() - beginn
     (ziel / "bilder.json").write_text(json.dumps({"commit": kurz, "geaendert": geaendert, "uhr": UHR, "chrome": chrome,
                                                   "anzahl": len(bilder), "sekunden": round(dauer, 1), "bilder": bilder},

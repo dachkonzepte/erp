@@ -4,6 +4,17 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.131 – Bildgrundlage: Monteurin auf dem TerraPad, Zustände des Rahmens
+
+Stufe 2a des Redesigns (Vorgabe vom 19.10.2026, Teil B). Die Bildgrundlage (`scripts/bildgrundlage.py`) nimmt die zehn Seiten der
+Monteurin zusätzlich in 800 und 1280 px auf (TerraPad hoch und quer, als Gerät, je hell und dunkel) und fünf Zustände des Rahmens als Bild
+des Fensters: Menü aufgeklappt (412, 800), Seitenleiste eingeklappt (1280, 1440), Kontomenü offen (1440), Seitenleiste ganz unten (1440, nur
+Büro -- die Leiste der Monteurin passt ins Fenster) und die Seitenleiste von Büro – Auftrag (1440); für das Büro auf der Startseite, für die
+Monteurin auf dem Einsatzbericht, eine ihrer zwei Seiten mit Seitenleiste und Kopfzeile. Jeder Zustand wird per Klick herbeigeführt und
+vor dem Bild geprüft. Die bisherigen 240 Bilder entstehen zuerst und in derselben Reihenfolge, das neue Konto Büro – Auftrag schreibt
+keinen Verlaufseintrag -- so bleiben sie gleich; 304 Bilder je Lauf. Der Abdeckungstest prüft Breiten, Zustände, den Rahmen je Rolle und
+die Reihenfolge. Details: `docs/archiv/testablauf-und-klicktests.md`, „Bildgrundlage erweitert, Stufe 2a“.
+
 ## 1.8.130 – Ohne Konto geschlossen, Akzentfarbe nur für Administratoren, PWA-Symbole öffentlich
 
 Runde 1d vor Stufe 2 des Redesigns (Vorgabe vom 19.10.2026; Festlegungen 1.8.129 Nr. 1–5 bestätigt). Bis 1.8.129 ließ die
