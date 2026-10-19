@@ -363,6 +363,7 @@ STAMMDATEN_BEREICHE = {
     "customers": ("customers", "Kunden"), "properties": ("properties", "Objekte"), "employees": ("employees", "Mitarbeiter"),
     "teams": ("teams", "Kolonnen / Teams"), "assets": ("assets", "Betriebsmittel"),
     "resources": ("assets", "Fuhrpark & Maschinen"),  # nur bei abgeschaltetem Modul Betriebsmittel, Bereich heißt dann so
+    # (seit 1.8.147 auch das Ziel des Formulars nach dem Speichern: "listenbereich" -- bis dahin "#resources", den Bereich gibt es nicht)
     "suppliers": ("suppliers", "Lieferanten"), "contacts": ("contacts", "Adressbuch"), "catalogs": ("catalogs", "Leistungskataloge"),
     "materials": ("materials", "Materialkataloge"), "materialGroups": ("materialGroups", "Materialkataloge"),
 }
@@ -430,7 +431,8 @@ def master_data_create_page(request: Request, data_type: str, projekt: str | Non
         raise HTTPException(status_code=404, detail="Stammdatenbereich nicht gefunden.")
     _require_finanzen_for_employees(data_type, _role)
     return templates.TemplateResponse(request=request, name="master_data_form.html",
-                                      context={"data_type": data_type, "zurueck": zurueck_stammdaten(data_type, projekt=_zahl(projekt))})
+                                      context={"data_type": data_type, "zurueck": zurueck_stammdaten(data_type, projekt=_zahl(projekt)),
+                                               "listenbereich": STAMMDATEN_BEREICHE[data_type][0]})
 
 
 @router.get("/master-data/{data_type}/{record_id}/edit", response_class=HTMLResponse)
@@ -440,7 +442,8 @@ def master_data_edit_page(request: Request, data_type: str, record_id: int, _rol
     _require_finanzen_for_employees(data_type, _role)
     return templates.TemplateResponse(
         request=request, name="master_data_form.html",
-        context={"data_type": data_type, "record_id": record_id, "zurueck": zurueck_stammdaten(data_type, record_id=record_id)},
+        context={"data_type": data_type, "record_id": record_id, "zurueck": zurueck_stammdaten(data_type, record_id=record_id),
+                 "listenbereich": STAMMDATEN_BEREICHE[data_type][0]},
     )
 
 
