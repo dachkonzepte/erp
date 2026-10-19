@@ -202,8 +202,9 @@ a{color:var(--accent)}
 <div class="card">
   <h2>Erfasste Zeiten zu diesem Auftrag</h2>
   <div class="fields-2col" style="margin-bottom:10px">
-    {# Seit 1.8.143: Monteure buchen nur für sich -- keine Auswahl (schon im Markup verborgen, das Skript setzt dasselbe) #}
-    <div class="field" id="teEmployeeField"{% if not darf_buero_seiten %} hidden{% endif %}><label>Mitarbeiter</label><select id="teEmployee"></select></div>
+    {# Seit 1.8.143 Monteure, seit 1.8.152 jeder, der nicht für andere buchen darf (app/permissions.py::darf_zeit_fuer_andere_buchen,
+       heute nur Admin): keine Auswahl, gebucht wird für sich -- schon im Markup verborgen, das Skript setzt dasselbe #}
+    <div class="field" id="teEmployeeField"{% if not zeit_fuer_andere_buchen %} hidden{% endif %}><label>Mitarbeiter</label><select id="teEmployee"></select></div>
     <div class="field"><label>Datum</label><input id="teDate" type="date"></div>
     <div class="field"><label>Zeitart</label><select id="teType"></select></div>
     <div class="field"><label>Tätigkeit</label><select id="teActivity"></select></div>
@@ -319,9 +320,10 @@ function loadInspectionItems(reportId){
   return lesen('pruefpunkte-'+reportId,()=>api(`/api/service-reports/${reportId}/inspection-items`),d=>{inspectionItemsCache[reportId]=d});
 }
 
-// Monteure buchen nur für sich (seit 1.8.143, Entscheidung vom 19.10.2026): keine Auswahl "Mitarbeiter", fest die eigene Person --
-// der Server nimmt ohnehin nur sie an (app/routers/time_tracking.py::_time_entry_employee_for_request(), Befund 1.8.142).
-function nurFuerSichBuchen(){return !!(authStatus&&authStatus.user&&authStatus.user.role==='field')}
+// Für sich buchen (seit 1.8.143 Monteure, seit 1.8.152 jeder, der laut Server nicht für andere buchen darf -- heute alle außer Admin):
+// keine Auswahl "Mitarbeiter", fest die eigene Person. Die Regel kommt vom Server (/api/auth/status, zeit_fuer_andere_buchen aus
+// app/permissions.py::darf_zeit_fuer_andere_buchen()), dieselbe, nach der er eine Buchung für andere ablehnt.
+function nurFuerSichBuchen(){return !(authStatus&&authStatus.user&&authStatus.user.zeit_fuer_andere_buchen)}
 function zeitMitarbeiterOptionen(){
   if(!nurFuerSichBuchen())return employeeOptionsHtml(null);
   const eigen=employees.find(e=>e.id===authStatus.user.employee_id);

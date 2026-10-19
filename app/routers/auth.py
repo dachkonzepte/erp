@@ -31,6 +31,7 @@ from .. import login_security
 from .. import sitzungen
 from ..auth import COOKIE_NAME, OTP_COOKIE_NAME, authenticate, two_factor_required, users_exist
 from ..database import get_db
+from ..permissions import darf_zeit_fuer_andere_buchen
 from ..schemas import LoginRequest
 from ..two_factor import is_configured, remaining_recovery_codes
 
@@ -52,7 +53,8 @@ def auth_status(request: Request, db: Session = Depends(get_db, scope="function"
     return {
         "configured": configured,
         "authenticated": True,
-        "user": {"id": user.id, "username": user.username, "display_name": user.display_name, "role": user.role, "employee_id": user.employee_id},
+        "user": {"id": user.id, "username": user.username, "display_name": user.display_name, "role": user.role, "employee_id": user.employee_id,
+                 "zeit_fuer_andere_buchen": darf_zeit_fuer_andere_buchen(user)},  # seit 1.8.152: Auswahl "Mitarbeiter" im Einsatzbericht
         "two_factor_required": two_factor_required(user),
         "two_factor_configured": configured_2fa,
         "two_factor_recovery_codes_remaining": remaining_recovery_codes(db, user) if configured_2fa else None,

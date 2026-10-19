@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session
 from ..berlin_time import berlin_now, berlin_today
 from ..database import get_db
 from ..models import AppUser, TimeEntry, TimeEntryGroup
-from ..permissions import ROLE_FIELD, require_min_role
+from ..permissions import ROLE_FIELD, darf_zeit_fuer_andere_buchen, require_min_role
 from .orders import require_field_order_access
 from ..schemas import CrewGroupSummaryOut, CrewOut, TimeEntryManualCreate, TimeEntryOut, TimeEntrySummaryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeGroupUpdate, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
 from ..time_backoffice import load_time_settings, locked_until, rounded_hours, time_settings_dict
@@ -41,7 +41,7 @@ _any_role_dep = Depends(require_min_role(ROLE_FIELD))
 
 def _time_entry_employee_for_request(request: Request, requested_employee_id: int | None, db: Session) -> int:
     user = getattr(request.state, "erp_user", None)
-    if user is not None and user.role != "admin":
+    if not darf_zeit_fuer_andere_buchen(user):  # seit 1.8.152 aus app/permissions.py, dieselbe Regel wie die Oberfläche
         if user.employee_id is None:
             raise HTTPException(status_code=403, detail="Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet.")
         if requested_employee_id is not None and requested_employee_id != user.employee_id:
@@ -56,7 +56,7 @@ def _time_entry_employee_for_request(request: Request, requested_employee_id: in
 
 def _time_entry_can_edit(request: Request, row: TimeEntry) -> bool:
     user = getattr(request.state, "erp_user", None)
-    return user is None or user.role == "admin" or (user.employee_id is not None and user.employee_id == row.employee_id)
+    return darf_zeit_fuer_andere_buchen(user) or (user.employee_id is not None and user.employee_id == row.employee_id)
 
 
 def _validate_time_rules(db: Session, *, order_item_id: int | None, activity: str | None, manual: bool = False, group: bool = False):

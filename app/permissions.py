@@ -99,6 +99,13 @@ def has_role(user: AppUser | None, *roles: str) -> bool:
     return user is not None and user.role in roles
 
 
+def darf_zeit_fuer_andere_buchen(user: AppUser | None) -> bool:
+    """Seit 1.8.152: wer Zeit für andere bucht oder deren Buchungen ändert -- die eine Stelle für den Server
+    (app/routers/time_tracking.py) und die Oberfläche (Auswahl "Mitarbeiter" im Einsatzbericht, über /api/auth/status und die
+    Seitenroute). Heute nur Admin; ohne Konto (Tests ohne Anmeldung) wie bisher ohne Einschränkung."""
+    return user is None or has_role(user, ROLE_ADMIN)
+
+
 def has_min_role(user: AppUser | None, min_role: str) -> bool:
     """Hierarchie-Prüfung: hat diese Person MINDESTENS den Rang von min_role (ROLE_RANK)? Anders
     als has_role() keine Mengenzugehörigkeit, sondern eine Rang-Schwelle -- admin erfüllt jede

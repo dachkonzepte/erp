@@ -15,6 +15,8 @@ Ergebnis (Ist-Stand 1.8.142, über die echte Anmeldeschranke):
 - Die Oberfläche bot mehr an, als der Server annimmt: `service_reports.html` füllte `#teEmployee` mit allen aktiven Mitarbeitern
   aus `/api/employees` (`employeeOptionsHtml(null)`), vorgewählt „— nicht zugeordnet —“; wer einen Kollegen wählte, bekam 403.
   Seit 1.8.143 behoben (Nachrunde, Punkt 1): eine Monteurin sieht keine Auswahl, sie bucht für sich; das xfail ist ein grüner Test.
+  Seit 1.8.152 (Nachrunde 2, Punkt 2) gilt das für jede Rolle, die laut Server nicht für andere bucht (heute alle außer Admin,
+  `app/permissions.py::darf_zeit_fuer_andere_buchen()`) -- bis dahin sah das Büro die Auswahl, der Server lehnte Kollegen ab.
 - Nebenbefund: eine laufende Gruppenzeit stoppte die Initiatorin auch dann für alle, wenn sie nicht mehr Kolonnenführerin war
   (`POST /api/time-entry-groups/{id}/stop` und `POST /api/time-entries/{id}/stop` prüften nur „hat sie angelegt“; Ändern derselben
   Gruppe 403). Seit 1.8.144 gesperrt wie Ändern (Nachrunde, Punkt 2); seit 1.8.145 fragt das Speichern des Teams nach, bevor es
@@ -291,60 +293,93 @@ def test_teamformular_fragt_vor_dem_entziehen_nach(threaded_db_session, router_t
         assert (ergebnis["ziel"], ergebnis["meldung"]) == ("", "Nicht gespeichert – das Kennzeichen bleibt.")
 
 
-# --- Oberfläche: Einsatzbericht als Monteurin (seit 1.8.143 umgesetzt) --------------------------------------------------------
+# --- Oberfläche: Einsatzbericht -- die Auswahl nur, wer laut Server für andere bucht -----------------------------------------
+# (seit 1.8.143 für Monteure, seit 1.8.152 für jede Rolle nach app/permissions.py::darf_zeit_fuer_andere_buchen(), heute nur Admin)
 
-def _einsatzbericht(threaded_db_session, router_test_client, rolle, ablauf):
-    """Das echte Seitenskript in node (init()), /api/employees vom echten Dienst in der Rolle."""
+ROLLEN = ("admin", "buero_finanzen", "buero_auftrag", "field")
+
+
+def _server_stand(rolle):
+    """Echte Anmeldung in der Rolle (Konto mit Mitarbeiterin Mia, Auftrag ihr und Max zugeordnet): /api/auth/status und
+    /api/employees vom echten Dienst, dazu, ob derselbe Dienst ihr eine Buchung für Max annimmt."""
+    from app.auth import COOKIE_NAME
+    from app.models import AppUser
+    from app.routers.auth import router as auth_router
     from app.routers.employees import router as employees_router
+    from app.routers.time_tracking import router as time_router
+    from app.sitzungen import neue_sitzung
+    from tests.anmeldung import app_mit_schranke, browser_client, neue_datenbank
 
-    db = threaded_db_session
-    emp = {name: _employee(db, f"E-{i}", name, "Test") for i, name in enumerate(("Mia", "Max", "Otto"), 1)}
-    mitarbeiter = router_test_client(db, employees_router, role=rolle).get("/api/employees").json()
-    antworten = {"/api/auth/status": {"authenticated": True, "user": {"employee_id": emp["Mia"].id, "role": rolle}},
-                 "/api/employees": mitarbeiter}
+    engine, make_session = neue_datenbank()
+    try:
+        with make_session() as db:
+            emp = {name: _employee(db, f"E-{i}", name, "Test") for i, name in enumerate(("Mia", "Max", "Otto"), 1)}
+            order, _ = _order(db, "AUF-437-0003", "P-437-0003")
+            for name in ("Mia", "Max"):
+                _assign_via_team(db, order, emp[name])
+            konto = AppUser(username="mia", display_name="Mia", role=rolle, employee_id=emp["Mia"].id, password_hash="x")
+            db.add(konto)
+            db.flush()
+            cookie = neue_sitzung(db, konto, zweiter_faktor=True)
+            db.commit()
+            ids, auftrag = {n: e.id for n, e in emp.items()}, order.id
+        client = browser_client(app_mit_schranke(make_session, auth_router, employees_router, time_router))
+        client.cookies.set(COOKIE_NAME, cookie, domain="testserver.local")
+        status = client.get("/api/auth/status").json()
+        mitarbeiter = client.get("/api/employees").json()
+        fuer_max = client.post("/api/time-entries", json={"employee_id": ids["Max"], "order_id": auftrag,
+                                                          "work_date": HEUTE.isoformat(), "hours": "1"}).status_code
+        return status, mitarbeiter, fuer_max, ids
+    finally:
+        engine.dispose()
+
+
+def _einsatzbericht(status, mitarbeiter, ablauf):
+    """Das echte Seitenskript in node (init()) mit den Antworten des echten Dienstes."""
+    antworten = {"/api/auth/status": status, "/api/employees": mitarbeiter}
     bausteine = ["_debounce.html", "_time_entries_list.html", "_berlin_date.html", "_offene_bedenken.html"]  # dazu die aus seite()
     extra = "\n".join(s for d in bausteine for s in re.findall(r"<script>(.*?)</script>", (TEMPLATES / d).read_text(encoding="utf-8"), flags=re.S))
     skript = seite("service_reports.html", "\ninit();")
     skript = FAKE_DOM + re.sub(r"\{\{.*?\}\}", "1", extra) + skript[len(FAKE_DOM):]
-    return im_browser(skript, ablauf, antworten)["ergebnis"], emp
+    return im_browser(skript, ablauf, antworten)["ergebnis"]
 
 
 AUSWAHL = "{optionen: _element('teEmployee').options.map(o => o.text), verborgen: !!_element('teEmployeeField').hidden}"
 
 
 @nur_mit_node
-def test_einsatzbericht_buero_behaelt_die_auswahl(threaded_db_session, router_test_client):
-    """Das Büro wählt weiter aus allen aktiven Mitarbeitern (bis 1.8.142 sah die Monteurin dieselbe Auswahl)."""
-    ergebnis, _ = _einsatzbericht(threaded_db_session, router_test_client, "buero_finanzen", f"await init(); return {AUSWAHL};")
-    assert ergebnis == {"optionen": ["— nicht zugeordnet —", "Max Test", "Mia Test", "Otto Test"], "verborgen": False}
-
-
-@nur_mit_node
-def test_einsatzbericht_bietet_der_monteurin_nur_an_was_der_server_annimmt(threaded_db_session, router_test_client):
-    """Bis 1.8.142 (dort xfail): alle aktiven Mitarbeiter zur Auswahl, Kollegen lehnte erst der Server ab. Seit 1.8.143 keine
-    Auswahl -- fest die eigene Person, das Feld verborgen, gebucht wird für sie."""
-    ergebnis, emp = _einsatzbericht(threaded_db_session, router_test_client, "field", f"""
+@pytest.mark.parametrize("rolle", ROLLEN)
+def test_einsatzbericht_bietet_nur_an_was_der_server_annimmt(rolle):
+    """Bis 1.8.142 (dort xfail) sah die Monteurin alle aktiven Mitarbeiter, seit 1.8.143 nur sich. Bis 1.8.151 sahen Büro – Finanzen
+    und Büro – Auftrag weiter alle -- der Server nahm ihnen eine Buchung für einen Kollegen aber ebenso nicht an (403). Seit 1.8.152
+    die Auswahl genau für die Rollen, denen der Server sie annimmt; alle anderen buchen ohne Auswahl für sich."""
+    status, mitarbeiter, fuer_max, ids = _server_stand(rolle)
+    ergebnis = _einsatzbericht(status, mitarbeiter, f"""
       await init();
       const auswahl = {AUSWAHL};
       _element('teHours').value = '2';
       await saveReportTimeEntry();
       return {{...auswahl, gebucht: AUFRUFE.filter(a => a.methode === 'POST').map(a => a.body.employee_id)}};""")
-    assert ergebnis == {"optionen": ["Mia Test"], "verborgen": True, "gebucht": [emp["Mia"].id]}
+    if rolle == "admin":
+        assert fuer_max == 200
+        # Auswahl aller aktiven, nichts vorgewählt -- ohne Wahl geht nichts hinaus („Bitte Mitarbeiter … angeben“)
+        assert ergebnis == {"optionen": ["— nicht zugeordnet —", "Max Test", "Mia Test", "Otto Test"], "verborgen": False, "gebucht": []}
+    else:
+        assert fuer_max == 403
+        assert ergebnis == {"optionen": ["Mia Test"], "verborgen": True, "gebucht": [ids["Mia"]]}
 
 
-def test_einsatzbericht_mitarbeiterfeld_im_markup_nur_fuers_buero(threaded_db_session, router_test_client):
-    """Schon das gezeichnete Markup verbirgt das Feld für die Monteurin (kein Aufblitzen, bevor das Skript läuft)."""
+@pytest.mark.parametrize("rolle", ROLLEN)
+def test_einsatzbericht_mitarbeiterfeld_im_markup_nur_wer_fuer_andere_bucht(threaded_db_session, router_test_client, rolle):
+    """Schon das gezeichnete Markup verbirgt das Feld (kein Aufblitzen, bevor das Skript läuft) -- bis 1.8.151 nur für Monteure."""
     from app.routers.pages import router as pages_router
-    from tests.test_v264_field_time_tracking import _assign_via_team, _employee as mitarbeiter, _order
+    from tests.test_v264_field_time_tracking import _employee as mitarbeiter
 
     db = threaded_db_session
     order, _ = _order(db, "AUF-437-0002", "P-437-0002")
     mia = mitarbeiter(db, "E-9", "Mia", "Test")
     _assign_via_team(db, order, mia)
-    felder = {}
-    for rolle in ("buero_finanzen", "field"):
-        client = router_test_client(db, pages_router, role=rolle, employee_id=mia.id) if rolle == "field" else router_test_client(db, pages_router, role=rolle)
-        antwort = client.get(f"/orders/{order.id}/service-reports")
-        assert antwort.status_code == 200, (rolle, antwort.status_code)
-        felder[rolle] = re.search(r'<div class="field" id="teEmployeeField"[^>]*>', antwort.text).group(0)
-    assert "hidden" not in felder["buero_finanzen"] and felder["field"].endswith(" hidden>")
+    antwort = router_test_client(db, pages_router, role=rolle, employee_id=mia.id).get(f"/orders/{order.id}/service-reports")
+    assert antwort.status_code == 200, antwort.status_code
+    feld = re.search(r'<div class="field" id="teEmployeeField"[^>]*>', antwort.text).group(0)
+    assert feld.endswith(" hidden>") is (rolle != "admin"), feld

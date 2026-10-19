@@ -61,7 +61,13 @@ def befuellen(db, k):
     create_template_item(db, vorlage["id"], "Abdichtung Sichtprüfung", "ja_nein")
     set_roof_type_template_default(db, "flachdach", vorlage["id"])
     db.commit()
-    return {"auftrag": auftrag.id, "cookies": {"monteur": k.cookies(monteur)}}
+    # seit 1.8.152: Büro und Admin für die Auswahl "Mitarbeiter" beim Zeit buchen
+    bea_m = Employee(employee_number="B-1", first_name="Bea", last_name="Büro", employee_group="angestellt", active=True)
+    db.add(bea_m); db.flush()
+    bea = AppUser(username="bea", display_name="Bea Büro", role="buero_finanzen", employee_id=bea_m.id, password_hash=k.passwort())
+    ada = AppUser(username="ada", display_name="Ada Admin", role="admin", password_hash=k.passwort())
+    db.add_all([bea, ada]); db.commit()
+    return {"auftrag": auftrag.id, "cookies": {"monteur": k.cookies(monteur), "buero": k.cookies(bea), "admin": k.cookies(ada)}}
 
 
 async def pruefen(tab, seed, p):
@@ -102,6 +108,26 @@ async def pruefen(tab, seed, p):
         "Max Monteur 2.5")
     p.pruefe("JS-Fehler", tab.fehler, [])
     await tab.bild("zeit_gebucht")
+
+    # Seit 1.8.152: die Auswahl nur, wer laut Server für andere bucht (heute Admin); das Büro bucht für sich wie der Monteur
+    await tab.anmelden(seed["cookies"]["buero"])
+    await tab.oeffnen(f"/orders/{auftrag}/service-reports", "document.getElementById('teEmployee').options.length>0")
+    p.pruefe("Büro: Feld Mitarbeiter verborgen", await tab.js("getComputedStyle(document.getElementById('teEmployeeField')).display"), "none")
+    p.pruefe("Büro: nur die eigene Person",
+             await tab.js("[...document.getElementById('teEmployee').options].map(o=>o.textContent).join('|')"), "Bea Büro")
+    await tab.js("document.getElementById('teHours').value='1'")
+    await tab.warte_auf_neu_geladene_liste("document.querySelector('button[onclick=\"saveReportTimeEntry()\"]').click()",
+                                           "#timeEntriesTable")
+    p.pruefe("Büro: gebucht für sich", await tab.js(
+        f"fetch('/api/time-entries?order_id={auftrag}').then(r=>r.json()).then(j=>j.map(e=>e.employee_name).sort().join('|'))"),
+        "Bea Büro|Max Monteur")
+    await tab.anmelden(seed["cookies"]["admin"])
+    await tab.oeffnen(f"/orders/{auftrag}/service-reports", "document.getElementById('teEmployee').options.length>1")
+    p.pruefe("Admin: Auswahl sichtbar", await tab.js("getComputedStyle(document.getElementById('teEmployeeField')).display")!="none", True)
+    p.pruefe("Admin: alle aktiven zur Wahl",
+             await tab.js("[...document.getElementById('teEmployee').options].map(o=>o.textContent).join('|')"),
+             "— nicht zugeordnet —|Bea Büro|Max Monteur")
+    p.pruefe("JS-Fehler (Büro, Admin)", tab.fehler, [])
 
 
 if __name__ == "__main__":
