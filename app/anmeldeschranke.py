@@ -33,8 +33,12 @@ Seit 1.8.127 (Stufe 1 des Redesigns): Design-Dateien unter /static/ gehen ohne A
 app/design_dateien.py::ist_design_pfad() die Anfrage annimmt (eng gefasst, kein Präfixvergleich); eine Antwort 200 trägt dann
 "Cache-Control: public, max-age=31536000, immutable" statt des Cache-Verbots, die Schutzkopfzeilen wie jede Antwort.
 
-Die Entscheidungsregeln (_request_requires_login(), _page_requires_login(), _blocked_pending_two_factor()) sind unverändert und werden
-von app/main.py weiter angeboten (ältere Tests importieren sie dort)."""
+Seit 1.8.128 (Runde 1b): die Anmeldepflicht gilt für jede Methode -- bis 1.8.127 nur für GET und POST/PUT/PATCH/DELETE, HEAD, OPTIONS,
+TRACE und erfundene Methoden kamen ohne Anmeldung bis zum Routing. Ohne Anmeldung durch gehen nur OEFFENTLICH (Pfad mit Methoden) und
+die Design-Dateien (GET, HEAD).
+
+Die Entscheidungsregeln (_request_requires_login(), _page_requires_login(), _blocked_pending_two_factor()) werden von app/main.py weiter
+angeboten (ältere Tests importieren sie dort)."""
 
 from __future__ import annotations
 
@@ -55,29 +59,51 @@ logger = logging.getLogger(__name__)
 CACHE_VERBOT = "no-store"
 
 
-def _request_requires_login(has_users: bool, method: str, path: str) -> bool:
-    """Ermittelt, ob für diese Anfrage ein angemeldeter ERP-Benutzer nötig ist.
-
-    Greift erst, sobald mindestens ein ERP-Benutzer existiert (der Bootstrap-Fall
-    zum Anlegen des allerersten Admin-Kontos bleibt ausgenommen). Die Login-
-    Endpunkte selbst (/api/auth/...) bleiben immer erreichbar. Schreibende
-    Zugriffe waren bereits zuvor geschützt; seit 1.0.6 zusätzlich lesende API-
-    Zugriffe (GET /api/...), da darüber z. B. Mitarbeiterlöhne
-    (EmployeeOut.effective_hourly_wage / .annual_gross_wage) und
-    Kalkulationsgrundlagen ohne Anmeldung auslesbar waren.
-    """
-    if not has_users or path.startswith("/api/auth/"):
-        return False
-    if method in {"POST", "PUT", "PATCH", "DELETE"}:
-        return True
-    return method == "GET" and path.startswith("/api/")
-
+LESEND = frozenset({"GET", "HEAD"})
 
 # Bleiben ohne Anmeldung erreichbar, obwohl sie keine /api/-Endpunkte sind: /login naturgemäß
 # (sonst könnte sich niemand anmelden), /health für externe Überwachung (bereits zuvor
 # ungated), /manifest.json als reine PWA-Ressource der Monteursansicht (wird ohnehin nur von
 # der bereits angemeldeten Seite /mobil aus verlinkt, siehe app/routers/field_view.py).
+# Seit 1.8.128 nur mit GET und HEAD.
 _PUBLIC_PAGE_PATHS = {"/login", "/health", "/manifest.json"}
+
+# Seit 1.8.128: die öffentlichen Pfade mit ihren Methoden -- ohne Anmeldung geht sonst nichts durch. Die Anmelde-Endpunkte einzeln statt
+# "alles unter /api/auth/" (bis 1.8.127, auch jede Methode); Anmelden und Abmelden sind POST (Ursprung geprüft wie jedes Schreiben).
+# Die Design-Dateien (GET, HEAD) prüft app/design_dateien.py::ist_design_pfad() vorweg in der Middleware.
+OEFFENTLICH: dict[str, frozenset] = {
+    **{pfad: LESEND for pfad in _PUBLIC_PAGE_PATHS},
+    "/api/auth/status": LESEND,
+    "/api/auth/login": frozenset({"POST"}),
+    "/api/auth/logout": frozenset({"POST"}),
+}
+
+
+def _oeffentlich(method: str, path: str) -> bool:
+    return method in OEFFENTLICH.get(path, ())
+
+
+def _request_requires_login(has_users: bool, method: str, path: str) -> bool:
+    """Ermittelt, ob diese Anfrage ohne angemeldeten ERP-Benutzer mit 401 abgewiesen wird (Seiten mit GET/HEAD leitet
+    _page_requires_login() stattdessen auf /login um).
+
+    Greift erst, sobald mindestens ein ERP-Benutzer existiert (der Bootstrap-Fall
+    zum Anlegen des allerersten Admin-Kontos bleibt ausgenommen). Schreibende
+    Zugriffe waren bereits zuvor geschützt; seit 1.0.6 zusätzlich lesende API-
+    Zugriffe (GET /api/...), da darüber z. B. Mitarbeiterlöhne
+    (EmployeeOut.effective_hourly_wage / .annual_gross_wage) und
+    Kalkulationsgrundlagen ohne Anmeldung auslesbar waren.
+
+    Seit 1.8.128 für jede Methode: bis 1.8.127 kamen HEAD, OPTIONS, TRACE und jede erfundene Methode ohne Anmeldung bis zum Routing --
+    die Doku-Routen von FastAPI (/openapi.json, /docs, /redoc, /docs/oauth2-redirect) beantworteten HEAD mit 200 und berechneten dafür
+    die ganze Schnittstellenbeschreibung. Jetzt: eine API-Anfrage ist mit jeder Methode 401, eine Seite mit GET/HEAD wird umgeleitet, mit
+    jeder anderen Methode 401 (wie POST); ausgenommen nur OEFFENTLICH mit den dort genannten Methoden.
+    """
+    if not has_users or _oeffentlich(method, path):
+        return False
+    if path.startswith("/api/"):
+        return True
+    return method not in LESEND
 
 
 def _page_requires_login(has_users: bool, method: str, path: str) -> bool:
@@ -90,8 +116,9 @@ def _page_requires_login(has_users: bool, method: str, path: str) -> bool:
     /api/-Anfrage soll bei fehlender Anmeldung weiterhin die dortige 401-JSON-Antwort bekommen,
     nie einen Redirect auf eine HTML-Seite -- ein API-Client würde eine Login-Seite als Antwort
     nicht sinnvoll verarbeiten können. Bewusst nur GET: Seiten kennen ohnehin kein POST/PUT/....
+    Seit 1.8.128 GET und HEAD (HEAD kam bis dahin ohne Anmeldung durch); jede andere Methode weist _request_requires_login() mit 401 ab.
     """
-    if not has_users or method != "GET" or path.startswith("/api/"):
+    if not has_users or method not in LESEND or path.startswith("/api/"):
         return False
     return path not in _PUBLIC_PAGE_PATHS
 

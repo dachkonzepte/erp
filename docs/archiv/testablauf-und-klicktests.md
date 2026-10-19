@@ -826,7 +826,7 @@ bei Läufen mit `--nur` und bei Vergleichen über Zwischenstände.
   `klicktest_versandprotokoll`, `klicktest_versandverlauf`, `klicktest_vertrag_abschrift`, `klicktest_vertrag_festschreiben` nehmen ihn.
 - `scripts/bildgrundlage_changelog.md` (fester Changelog der Instanz), `.gitignore` `/bildgrundlage/`, CLAUDE.md (Aufruf unter „Testen“).
 
-#### Festlegungen 1.8.126 (Bitte bestätigen; Nr. 12 und 13 bestätigt am 19.10.2026)
+#### Festlegungen 1.8.126 (alle bestätigt; Nr. 12 und 13 am 19.10.2026, die übrigen am 19.10.2026 mit Runde 1b)
 
 Alle betreffen nur Werkzeug und Testablauf (Regel 28: der Bericht nennt ihre Zahl).
 

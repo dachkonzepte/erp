@@ -857,3 +857,82 @@ schon ausgenommen.
   `/openapi.json`, `/login`, `/` laden), Merkmal am Dashboard entfernt (`/` des Monteurs lädt, Strukturtest), jede GET-Route als Seite
   (`/health`, Dateien laden), Werte nicht geprüft (`/orders/abc` lädt).
 - **Angepasste Erwartungen** (Regel 28): keine.
+
+## Anmeldepflicht für jede Methode (seit 1.8.128)
+
+Vorgabe vom 19.10.2026 (übernommen wie gegeben): „Runde 1b (Sicherheit, vor Stufe 2): Die Anmeldeschranke lässt HEAD und OPTIONS ohne
+Anmeldung durch (Nebenbefund 1.8.127). Vorab bestätigt: Festlegungen 1.8.126 (alle) und 1.8.127 Nr. 1–10. 1. Befund zuerst, im Bericht:
+Welche Methoden kommen heute ohne Anmeldung durch? Gibt es Routen, Mounts oder Middleware, die HEAD oder OPTIONS selbst beantworten?
+2. Die Schranke gilt für jede Methode: Ohne gültige Sitzung wird alles abgewiesen wie ein GET bzw. POST auf diesem Pfad (Seite: Anmeldung,
+API: 401). Ausnahmen nur für die bestehenden öffentlichen Pfade, dort nur GET und HEAD. 3. Angriffstests ohne Anmeldung gegen echten
+uvicorn: HEAD, OPTIONS, PUT, PATCH, DELETE, TRACE und eine erfundene Methode, je auf eine Seite, eine API-Route und einen nicht vorhandenen
+Pfad. Keine Anfrage erreicht einen Endpunkt. Gegenprobe: Mit der alten Schranke werden die Tests rot, und eine Testroute, die HEAD
+beantwortet, war vorher ohne Anmeldung erreichbar. 4. Wächter: Jeder Dateiname in app/static/ passt zum Muster der Design-Ausnahme. Am Ende
+die drei Testfestlegungen von 1.8.127 und die neuen Festlegungen wörtlich ausgeben, nicht bestätigen. Bericht wie bisher, committen, nicht
+pushen.“
+
+### Befund (am Stand 1.8.127)
+
+- **Regeln bis 1.8.127**: `_request_requires_login()` verlangte die Anmeldung für POST, PUT, PATCH, DELETE (jeder Pfad außer
+  `/api/auth/*`) und für GET auf `/api/` (401); `_page_requires_login()` leitete GET auf eine Seite (außer `/login`, `/health`,
+  `/manifest.json`) auf `/login` um. **Ohne Anmeldung durch kamen**: HEAD, OPTIONS, TRACE und jede erfundene Methode (gemessen: FOO) auf jedem
+  Pfad; jede Methode unter `/api/auth/` (auch unbekannte Pfade dort); GET auf die öffentlichen Seiten; GET/HEAD auf Design-Dateien. Die
+  schreibenden Methoden fing zusätzlich die Ursprungsprüfung ab (403 ohne eigene Seite).
+- **Wer HEAD oder OPTIONS selbst beantwortet**: 755 `APIRoute` mit GET (310), POST (246), PUT (126), DELETE (73), keine mit PATCH, HEAD
+  oder OPTIONS (FastAPI ergänzt bei einer `APIRoute` kein HEAD). Vier Starlette-`Route` mit GET und HEAD: die Doku von FastAPI
+  (`/openapi.json`, `/docs`, `/docs/oauth2-redirect`, `/redoc`, `docs_url`/`redoc_url`/`openapi_url` sind nicht abgeschaltet). Der Mount
+  `/static` (`StaticFiles`: GET und HEAD). Middleware: nur die Schranke selbst -- kein CORS, nichts beantwortet OPTIONS.
+- **Gemessen an der echten App** (ohne Anmeldung, über ASGI): HEAD auf `/openapi.json` 200 (`Content-Length` 910.161 -- die App berechnete
+  dafür die ganze Schnittstellenbeschreibung), `/docs` 200, `/redoc` 200, `/docs/oauth2-redirect` 200; GET auf dieselben Pfade 302 auf
+  `/login`. OPTIONS und TRACE dort 405. HEAD auf `/login`, `/health`, `/api/auth/status` 405.
+- **Gemessen gegen einen echten uvicorn** (h11, Test-App mit der echten Schranke und Routen, die jede Methode annehmen): HEAD, OPTIONS,
+  TRACE und `FOO` erreichten diese Routen ohne Anmeldung (200, achtmal); an Seiten- und API-Routen mit nur GET 405, an fehlenden Pfaden
+  404 -- alles hinter der Schranke. PUT, PATCH, DELETE: 403 ohne eigene Seite, 401 mit.
+
+### Umsetzung 1.8.128
+
+- `app/anmeldeschranke.py`: `OEFFENTLICH` nennt die öffentlichen Pfade mit ihren Methoden -- `/login`, `/health`, `/manifest.json`,
+  `/api/auth/status` mit GET und HEAD, `/api/auth/login` und `/api/auth/logout` mit POST; die Design-Dateien (GET, HEAD) bleiben die
+  eigene Prüfung vorweg (`ist_design_pfad()`). `_request_requires_login()`: ohne Konten nie; öffentlich mit passender Methode nie; unter
+  `/api/` jede Methode 401; sonst (Seite) jede Methode außer GET und HEAD 401. `_page_requires_login()`: GET und HEAD (bis 1.8.127 nur
+  GET) auf eine nicht öffentliche Seite → Umleitung auf `/login`. Die Reihenfolge in der Middleware bleibt: Ursprung (schreibende
+  Methoden) → 403, dann 401 bzw. Umleitung.
+- Mit Sitzung ändert sich nichts: OPTIONS, TRACE und erfundene Methoden gehen durch die Schranke zum Routing (405/404).
+
+#### Festlegungen 1.8.128 (Bitte bestätigen)
+
+1. **Öffentliche Pfade je Methode** (`OEFFENTLICH`): `/login`, `/health`, `/manifest.json`, `/api/auth/status` und die Design-Dateien mit GET
+   und HEAD; `/api/auth/login` und `/api/auth/logout` mit POST -- Anmelden und Abmelden sind POST, „dort nur GET und HEAD“ gilt für sie
+   nicht (sonst könnte sich niemand anmelden; die Ursprungsprüfung bleibt).
+2. **`/api/auth/` kein Präfix mehr**: nur die drei Endpunkte sind öffentlich; jeder andere Pfad darunter und jede andere Methode an den
+   dreien ohne Anmeldung 401.
+3. **Abweisen**: eine Seite (nicht `/api/`) mit GET oder HEAD → Umleitung auf `/login?next=…`; eine Seite mit jeder anderen Methode → 401
+   wie POST (auch ein fehlender Pfad); unter `/api/` jede Methode → 401 (mit Cookie ohne gültige Sitzung „Anmeldung abgelaufen“).
+4. **Ersteinrichtung** (noch kein Konto): bleibt offen wie bisher, für jede Methode.
+5. **Mit Sitzung unverändert**: OPTIONS, TRACE und erfundene Methoden gehen zum Routing (405/404); keine Sperre für Angemeldete.
+6. **HEAD an öffentlichen GET-Routen**: die Schranke lässt es durch, das Routing antwortet 405 (FastAPI ergänzt kein HEAD) -- so belassen.
+7. **Ursprungsprüfung** unverändert nur für POST, PUT, PATCH, DELETE; OPTIONS, TRACE und erfundene Methoden ohne Sitzung 401, nicht 403.
+8. **Angriffstabelle** (nur Test): 7 Methoden × 7 Pfade (Seite und API je als Zählroute für jede Methode und als echte Route, die
+   Doku-Route `/openapi.json`, fehlende Seite, fehlender API-Pfad) × ohne/mit Kopfzeilen der eigenen Seite, gegen uvicorn mit h11 und
+   httptools; „von der Schranke“ heißt 302 auf `/login`, 401 oder 403, „vom Server“ 400 -- nur für httptools mit der erfundenen Methode
+   erlaubt.
+9. **Wächter Namen in `app/static/`** (nur Test): jeder Ordner- und Dateiname, als `/static/<Pfad>` durch `ist_design_pfad()`; in der
+   Gegenprobe wird ein Name, den Windows nicht anlegt (Punkt am Ende), übersprungen.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v433_schranke_alle_methoden.py` (76 Tests): Entscheidung je Methode für Seiten (4 Pfade × 9 Methoden), API (3 Pfade × 9),
+  öffentliche Pfade mit genau ihren Methoden, Ersteinrichtung; Angriffe gegen echten uvicorn (h11, httptools): kein Endpunkt erreicht,
+  jede Antwort von der Schranke (h11: HEAD auf Seiten 302, sonst 401, schreibend ohne eigene Seite 403; httptools: dasselbe, die erfundene
+  Methode weist schon der Parser mit 400 ab); Gegenstück mit Sitzung: jede der 7 Methoden erreicht die Zählroute; Gegenprobe mit den
+  Regeln von 1.8.127 per monkeypatch (HEAD auf beide Zählrouten erreicht, `/openapi.json` HEAD 200); Wächter der Namen in `app/static/`
+  mit Fixture-Gegenprobe.
+- **Gegenprobe nach Regel 24** im Code (beide Regeln wie bis 1.8.127, Marker): 41 Tests rot (beide Angriffstests, 39 Entscheidungstests);
+  Datei danach byte-genau zurück (sha256 `5ad47739…`), kein Marker unter `app/`.
+- **Nachher an der echten App**: HEAD auf `/openapi.json`, `/docs`, `/redoc`, `/docs/oauth2-redirect` 302 auf `/login`, OPTIONS und TRACE
+  401; Design-Datei GET/HEAD 200, OPTIONS/TRACE 401.
+- Bestehende Tests der Schranke (`test_v106`, `test_v256`, `test_v257`, `test_v409`, `test_v432`) unverändert grün.
+- **Wackler in der vollen Suite** (nicht durch die Änderung): `test_v419_verbindungen_unter_last::test_langsame_downloads_halten_keine_verbindung`
+  einmal rot bei 99 % des parallelen Laufs -- eine Anfrage brauchte 2,20 s gegen die Grenze von 2 s, während 16 Prozesse liefen; allein
+  dreimal grün (12–14 s), im zweiten vollen Lauf grün. Die Schranke tut für eine angemeldete GET-Anfrage dasselbe wie vorher.
+- **Angepasste Tests** (Regel 28): keine.

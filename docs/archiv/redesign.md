@@ -63,7 +63,7 @@ bricht ab, wenn die Chrome-Versionen in bilder.json verschieden sind; dann die G
 - **Bildgrundlage**: `vergleichen` bricht bei verschiedenen Chrome-Versionen ab (Rückgabecode 2), siehe Nachtrag im Archiv der Tests.
 - **Klicktest** `scripts/klicktest_ds_schriften.py`.
 
-#### Festlegungen 1.8.127 (Bitte bestätigen)
+#### Festlegungen 1.8.127 (Nr. 1–10 bestätigt am 19.10.2026 mit Runde 1b; Nr. 11–13 bitte bestätigen)
 
 1. **Schriftquelle**: Fontsource 5.3.0 (npm, Prüfsumme der Registry), statische Schnitte je Teilbereich latin und latin-ext, Dateinamen wie
    bei Fontsource, `font-display: swap`.
@@ -90,7 +90,9 @@ bricht ab, wenn die Chrome-Versionen in bilder.json verschieden sind; dann die G
 
 1. **HEAD und OPTIONS** auf geschützte Pfade gehen ohne Anmeldung durch die Schranke (`_request_requires_login()`/`_page_requires_login()`
    gelten nur für GET und schreibende Methoden) und bekommen vom Routing 405 bzw. 404 -- ohne Daten (gemessen an `/api/customers`,
-   `/projects`, `/customers/1`). So schon vor 1.8.127, nicht geändert.
+   `/projects`, `/customers/1`). So schon vor 1.8.127, nicht geändert. **Seit 1.8.128 behoben** (Runde 1b): die Schranke gilt
+   für jede Methode; der Befund dort fand mehr -- die Doku-Routen von FastAPI beantworteten HEAD mit 200
+   (`docs/archiv/serverbetrieb-und-anmeldesicherheit.md`, „Anmeldepflicht für jede Methode“).
 2. **Mit einem reinen Präfixvergleich** kämen 23 der 29 Angriffsanfragen an der Anmeldung vorbei (`/staticx…`, `/static`, `..`, kodierte
    Pfade, Großbuchstaben); Daten flössen trotzdem keine, weil `StaticFiles` im Ordner bleibt -- die enge Regel ist die erste Mauer, nicht
    die einzige.
@@ -137,3 +139,9 @@ bricht ab, wenn die Chrome-Versionen in bilder.json verschieden sind; dann die G
 - **Angepasste Tests** (Regel 28): `test_v328::test_jeder_link_im_code_fuehrt_auf_eine_vorhandene_route` -- Soll „jedes Link-Ziel führt
   auf eine vorhandene GET-Route“ wird „… oder auf eine vorhandene Design-Datei unter `/static/`“ (der Mount ist keine GET-Route; das
   `href` von `_ds_kopf.html` war das einzige neue Ziel); Aufbau: `_fuehrt_auf_design_datei()`.
+
+## Runde 1b: Anmeldepflicht für jede Methode (1.8.128)
+
+Sicherheitsrunde vor Stufe 2 -- die Herleitung steht beim Thema Schranke: `docs/archiv/serverbetrieb-und-anmeldesicherheit.md`,
+„Anmeldepflicht für jede Methode (seit 1.8.128)“. Dazu hier: ein Wächter hält jeden Namen in `app/static/` beim Muster der
+Design-Ausnahme (`tests/test_v433_schranke_alle_methoden.py`).

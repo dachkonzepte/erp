@@ -4,6 +4,20 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.128 – Anmeldepflicht für jede Methode
+
+Runde 1b vor Stufe 2 des Redesigns (Vorgabe vom 19.10.2026; Festlegungen 1.8.126 und 1.8.127 Nr. 1–10 bestätigt), zum Nebenbefund 1.8.127
+Nr. 1. Die Anmeldeschranke verlangte die Anmeldung bisher nur für GET und für POST/PUT/PATCH/DELETE: HEAD, OPTIONS, TRACE und jede erfundene
+Methode kamen ohne Anmeldung bis zum Routing -- dort beantworteten die Doku-Routen von FastAPI (`/openapi.json`, `/docs`, `/redoc`,
+`/docs/oauth2-redirect`) ein HEAD mit 200, `/openapi.json` berechnete dafür die ganze Schnittstellenbeschreibung (910 KB); gegen einen
+echten uvicorn erreichten HEAD, OPTIONS, TRACE und `FOO` Routen, die diese Methoden annehmen. Jetzt gilt die Schranke für jede Methode:
+ohne gültige Sitzung wird eine Seite mit GET oder HEAD auf `/login` umgeleitet, jede andere Anfrage bekommt 401; ohne Anmeldung durch gehen
+nur die öffentlichen Pfade mit ihren Methoden (`OEFFENTLICH`: `/login`, `/health`, `/manifest.json`, `/api/auth/status` mit GET/HEAD,
+Anmelden und Abmelden mit POST -- nicht mehr alles unter `/api/auth/`) und die Design-Dateien. Angriffstests mit sieben Methoden auf
+Seite, API und fehlenden Pfad gegen uvicorn (h11, httptools): kein Endpunkt erreicht; mit den Regeln von 1.8.127 werden 41 Tests rot. Ein
+Wächter hält jeden Namen in `app/static/` beim Muster der Design-Ausnahme. Details: `docs/archiv/serverbetrieb-und-anmeldesicherheit.md`,
+„Anmeldepflicht für jede Methode“.
+
 ## 1.8.127 – Redesign Stufe 1: Design-System als Fundament, /static/ ohne Anmeldung
 
 Stufe 1 des Redesigns (Vorgabe vom 19.10.2026; Festlegungen 1.8.125 und 1.8.126 Nr. 12 und 13 bestätigt) -- sichtbar ändert sich

@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.127** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.128** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -744,6 +744,12 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     **Einzige Ausnahme seit 1.8.127:** Design-Dateien unter `/static/` (Regel 37) gehen ohne Anmeldung und ohne Datenbank durch, wenn
     `app/design_dateien.py::ist_design_pfad()` sie annimmt (GET/HEAD, eng gefasster Pfad, nichts kodiert -- nie ein Präfixvergleich);
     eine Antwort 200 trägt dann `Cache-Control: public, max-age=31536000, immutable`, jede andere dort `no-store`.
+    **Seit 1.8.128 gilt die Anmeldepflicht für jede Methode** (bis 1.8.127 nur GET und POST/PUT/PATCH/DELETE -- HEAD, OPTIONS, TRACE und
+    erfundene Methoden kamen ohne Anmeldung bis zum Routing, HEAD auf `/openapi.json` und `/docs` lieferte 200): ohne gültige Sitzung eine
+    Seite mit GET/HEAD → Umleitung auf `/login`, sonst 401; öffentlich nur `OEFFENTLICH` in `app/anmeldeschranke.py` (Pfad mit Methoden:
+    `/login`, `/health`, `/manifest.json`, `/api/auth/status` mit GET/HEAD, `/api/auth/login` und `/logout` mit POST) und die
+    Design-Dateien. Ein neuer öffentlicher Pfad kommt dort hinein, mit genau seinen Methoden (`tests/test_v433_schranke_alle_methoden.py`:
+    Angriffe mit 7 Methoden gegen echten uvicorn, kein Endpunkt erreicht).
 
 31. **Jede abgelegte Datei geht über `app/dateiauslieferung.py::datei_antwort()` an den Browser, seit 1.8.101.** Den Typ bestimmt der
     Server an den ersten Bytes, nie am Namen oder an der Angabe des Browsers; angezeigt (inline) werden nur JPEG, PNG, GIF, WebP und PDF,
@@ -1124,7 +1130,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
 - **Serverbetrieb & Anmeldesicherheit** (Geheimnisse/`ERP_DATA_DIR`, Zwei-Faktor-Pflicht,
   Geräte-Vertrauen, serverseitige Anmeldeschranke für Seiten, PostgreSQL-Migrationsreparatur; seit 1.8.98 Sitzungen auf dem Server,
   siehe Regel 30; seit 1.8.114 Datenbankverbindungen unter Last: Schranke im Threadpool, Sitzung vor dem Senden zu, Seitendaten statt
-  Sitzungen der Jinja-Globals, Pool passend zum Threadpool, Angriffstest gegen PostgreSQL, Regel 35)
+  Sitzungen der Jinja-Globals, Pool passend zum Threadpool, Angriffstest gegen PostgreSQL, Regel 35; seit 1.8.128 Anmeldepflicht für
+  jede Methode, öffentliche Pfade mit ihren Methoden)
   -- `docs/archiv/serverbetrieb-und-anmeldesicherheit.md`
 - **Rechtekonzept** (vier Rollen `admin`/`buero_finanzen`/`buero_auftrag`/`field`,
   Standardverweigerung, Objekt-Filterung, Dateiablage je Objekt, Büro-Suche) --
