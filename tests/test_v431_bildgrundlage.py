@@ -73,7 +73,7 @@ def test_namen_und_rollen():
         assert "__" not in a.name and a.pfad.startswith("/"), a
     ohne_buero = {a.vorlage for a in bg.AUFNAHMEN if bg.BUERO not in a.rollen}
     assert ohne_buero == {"time_tracking_field.html", "operational_asset_field.html", "login.html", "access_denied.html",
-                          "address_import.html"}, "Büro-Rolle überall, wo die Seite eine Büro-Fassung hat und das Büro sie öffnet"
+                          "address_import.html", "users.html"}, "Büro-Rolle überall, wo die Seite eine Büro-Fassung hat und das Büro sie öffnet"
 
 
 def _pfad(a) -> str:

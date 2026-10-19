@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.133** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.134** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -1859,7 +1859,7 @@ Seit 1.8.126 nimmt jeder Klicktest diesen einen Helfer (auch die SMTP-Empfänger
 `scripts/bildgrundlage.py` nimmt jede Seite aus `tests/vorlagen_js.py::seiten()` als ganzseitiges PNG auf (Instanz von `cdp_klicktest`
 mit festen Testdaten, stehender Uhr 14.10.2026 10:00 in Server und Browser, alle gespeicherten Zeitstempel darauf gesetzt, feste
 Versionsnummer „Bildgrundlage“ und fester Changelog): Büro – Finanzen überall, die Monteurin zusätzlich auf jeder Seite, die sie öffnet,
-Admin nur für den Adressimport, anonym die Anmeldeseite, die Sperrseite als Monteurin auf `/projects`; je hell und dunkel, je 412 px
+Admin für Adressimport und (seit 1.8.134) Benutzer, anonym die Anmeldeseite, die Sperrseite als Monteurin auf `/projects`; je hell und dunkel, je 412 px
 und 1440 px, die Seiten der Monteurin seit 1.8.131 auch 800 und 1280 px (TerraPad); dazu seit 1.8.131 fünf Zustände des Rahmens als Bild
 des Fensters (`ZUSTAENDE`: Menü aufgeklappt, Seitenleiste eingeklappt, Kontomenü offen, Leiste ganz unten, Leiste von Büro – Auftrag) --
 304 Bilder je Lauf, die bisherigen zuerst. Ordner `bildgrundlage/<commit>/` im Projekt (in `.gitignore`, Endung `-geaendert` bei geänderter Arbeitskopie) mit

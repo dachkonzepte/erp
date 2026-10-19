@@ -320,7 +320,8 @@ def test_benutzerseite_und_konto_anlegen_mit_rollen():
         db.commit()
     client = browser_client(app_mit_schranke(make_session, pages.router, users.router), follow_redirects=False)
     try:
-        for name, erwartet in (("ada", 200), ("bernd", 200), ("berta", 200), ("mia", 403)):
+        # seit 1.8.134 /users nur für Administratoren (bis dahin ab Büro – Auftrag)
+        for name, erwartet in (("ada", 200), ("bernd", 403), ("berta", 403), ("mia", 403)):
             client.cookies.set(COOKIE_NAME, cookies[name], domain="testserver.local")
             assert client.get("/users").status_code == erwartet, name
         for name in ("bernd", "berta", "mia"):

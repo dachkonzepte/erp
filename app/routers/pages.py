@@ -156,10 +156,10 @@ _any_role_dep = Depends(require_min_role(ROLE_FIELD))
 _finanzen_role_dep = Depends(require_min_role(ROLE_OFFICE_FINANZEN))
 
 
-# Seit 1.8.130 ohne Ersteinrichtungs-Ausnahme (bis dahin öffnete sich /users ohne Konto für jeden, Gegenstück zu POST /api/users):
-# Büro und Administratoren, wie bisher nach der Ersteinrichtung (die Liste selbst, GET /api/users, nur Administratoren).
-_users_page_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG,
-                                           message="Die Benutzerverwaltung ist nur für Büro und Administratoren verfügbar."))
+# Seit 1.8.130 ohne Ersteinrichtungs-Ausnahme (bis dahin öffnete sich /users ohne Konto für jeden, Gegenstück zu POST /api/users).
+# Seit 1.8.134 nur Administratoren, wie Liste (GET /api/users) und Anlegen (POST /api/users): das Büro sah bis dahin die Fehlermeldung der
+# Liste und trotzdem das Formular „Benutzer hinzufügen“ -- jetzt die Sperrseite.
+_users_page_dep = Depends(require_admin("Die Benutzerverwaltung ist nur für Administratoren verfügbar."))
 
 
 @router.get("/login", response_class=HTMLResponse)

@@ -26,7 +26,7 @@ vergleichen Je Bild die Zahl abweichender Pixel (ein Pixel weicht ab, wenn ein K
             sind verschieden -- ein anderer Chrome zeichnet anders, dann zuerst die Grundlage neu erzeugen.
 
 Rollen: "buero" ist Büro – Finanzen (die Büro-Rolle, die jede Büroseite öffnet), "monteur" die Monteurin mit Planungsbezug zum Auftrag,
-"admin" nur für den Adressimport (die eine Seite nur für Administratoren), "anonym" ohne Anmeldung (Anmeldeseite), "buero_auftrag" (seit
+"admin" für Adressimport und (seit 1.8.134) Benutzer (die Seiten nur für Administratoren), "anonym" ohne Anmeldung (Anmeldeseite), "buero_auftrag" (seit
 1.8.131) nur für die Seitenleiste dieser Rolle. Die Sperrseite zeigt die Monteurin auf /projects. tests/test_v431_bildgrundlage.py prüft, dass jede Seite aus tests/vorlagen_js.py::seiten() hier steht, jede
 Adresse für ihre Rolle die genannte Vorlage zeichnet und jede Seite, die die Monteurin öffnet, mit ihrer Rolle aufgenommen wird.
 
@@ -119,7 +119,7 @@ AUFNAHMEN = (
     A("leistungskatalog", "index.html", "/leistungskatalog", (BUERO,)),
     A("leistung", "service_form.html", "/services/{leistung}/edit", (BUERO,)),
     A("einstellungen", "settings.html", "/settings", (BUERO,)),
-    A("benutzer", "users.html", "/users", (BUERO,)),
+    A("benutzer", "users.html", "/users", (ADMIN,)),  # seit 1.8.134 nur Admin (require_admin)
     A("verlauf", "history.html", "/history", (BUERO,)),
     A("adressimport", "address_import.html", "/address-import", (ADMIN,)),  # nur Admin (require_admin)
     A("versandprotokoll", "email_dispatches.html", "/versandprotokoll", (BUERO,)),
