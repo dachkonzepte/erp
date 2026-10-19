@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.155 – Design-System: Firmengrün als Hauptaktion
+
+Stufe „Grundlage“, Teil A. `app/static/ds/ds.css` bekommt das Firmengrün als Hauptaktion: `--ds-aktion`, `--ds-auf-aktion`, `--ds-aktion-hell`, `--ds-aktion-rand`, `--ds-aktion-text` und `--ds-marke-hell` (nur Schmuck), je hell und dunkel; `--ds-ok`, `--ds-ok-hell` und `--ds-ok-text` tragen jetzt dieselben Werte wie aktion. Signal bleibt Orange, nur noch für „wartet auf dich“ und Vorschläge -- als Hauptaktion nutzte es keine Seite (die Tokens zeichnen noch nichts), umgestellt ist nur seine Beschriftung in `ds.css`. Der Kontrasttest prüft fünf neue Paare; alle halten hell und dunkel, am knappsten Aktion auf Fläche dunkel mit 3,28. PWA-Symbol und theme-color unverändert; sichtbar ändert sich nichts.
+
 ## 1.8.154 – Zurück-Links mit echtem Ziel: Adressimport, Änderungshistorie, Leistungskatalog
 
 Nachrunde 2, Punkt 4. Die letzten drei Seiten, die per `history.back()` zurückgingen, haben jetzt echte Ziele: Adressimport und Änderungshistorie „← Einstellungen“ auf `/settings` (dort hängen beide), der Leistungskatalog „← Stammdaten: Leistungskataloge“ auf `/master-data#catalogs` (von dort öffnet er sich, Ziel aus derselben Zuordnung wie die Formularseiten). Keine Vorlage ruft `history.back()` mehr auf; ein Test hält das fest. Dabei gefunden: `test_v244` verlangte für `users.html` noch `history.back()` und blieb nach 1.8.146 nur grün, weil das Wort in einem Kommentar stand -- berichtigt.

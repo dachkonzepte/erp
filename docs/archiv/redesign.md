@@ -484,3 +484,29 @@ Festlegungen 1.8.144 Nr. 1 und 1.8.148 Nr. 1 und 2 damit bestätigt. Tests in `t
 ### Endlauf der Nachrunde 2 (Regel 26)
 
 - Auf `2b7e3ab` (1.8.154 samt Nachtrag in CLAUDE.md) bei sauberer Arbeitskopie: volle Suite (`-n 16 --dist loadfile`) 6187 bestanden, 3 übersprungen, 7:17 min; Klicktests (`klicktest_alle.py --gleichzeitig 4`) 79 von 79 wie erwartet, darunter erweitert `klicktest_lv_ueberlauf` 16/16 (Rundweg) und `klicktest_monteur_dachflaechen` 16/16 (Büro und Admin), 7:16 min.
+
+## Stufe „Grundlage“ (1.8.155 ff.)
+
+Vorgabe vom 19.10.2026 (übernommen wie gegeben): „Stufe „Grundlage“. Drei Teile. Nichts an Seitenaufbau oder Navigation ändern. A. Farben in app/static/ds/ds.css – Firmengrün wird Hauptaktion. Neu (hell / dunkel): --ds-aktion #367337 / #3B7D3C, --ds-auf-aktion #FFFFFF / #FFFFFF, --ds-aktion-hell #EEF5E8 / #17281A, --ds-aktion-rand #C4DDB0 / #2F5A30, --ds-aktion-text #2A5C2B / #B9DA86, --ds-marke-hell #A7CD5D / #A7CD5D (nur Schmuck, nie Text auf hellem Grund). Geändert: --ds-ok, --ds-ok-hell, --ds-ok-text bekommen die Werte von aktion, aktion-hell, aktion-text. --ds-signal bleibt Orange, aber nur noch für „wartet auf dich“ und Vorschläge. Wo signal heute als Hauptaktion genutzt wird: auf aktion umstellen und im Bericht auflisten. Kontrasttest um die neuen Paare erweitern: auf-aktion/aktion, aktion/flaeche, aktion/grund, aktion-text/aktion-hell, aktion-text/flaeche (Text ≥ 4,5, Bedienelement ≥ 3). PWA-Symbol und theme-color nicht anfassen. B. Bildgrundlage: Tablet-Aufnahmen auf das TerraPad 1201 – quer 1280 × 620, hoch 800 × 1100 (statt 1280 × 800 / 800 × 1280). Danach neue Grundlage aufnehmen, die Aufnahme „benutzer“ als Admin. C. Du statt Sie – nur Befund, nichts ändern: Liste aller Sie-Anreden (Sie, Ihnen, Ihr/Ihre als Anrede, „Bitte … Sie“), die ein Nutzer sieht: Vorlagen, Skripte, Server-Meldungen, PDFs, E-Mails. Je Stelle Datei, Text und Gruppe: „Oberfläche“ (wird Du), „an Kunden“ (Angebote, Rechnungen, Mahnungen, E-Mails, PDFs – bleibt Sie) oder „unklar“. Zahlen je Gruppe. „sie“ als dritte Person nicht mitzählen. Dazu ein Vorschlag für einen Wächter-Test, der Kundentexte beim Sie hält. Am Ende: volle Suite und Klicktests auf sauberer Arbeitskopie, Bericht je Teil. Commits, nicht pushen.“
+
+### Teil A (1.8.155): Firmengrün als Hauptaktion
+
+- **Befund**: `--ds-signal` und `--ds-ok` stehen nur in `ds.css` -- keine Vorlage, kein Skript, kein Test außer dem Kontrasttest nutzt sie (Stufe 1: die Tokens zeichnen noch nichts, die Seiten nehmen weiter `--accent`). „Signal als Hauptaktion“ war allein die Beschriftung des Blocks in `ds.css` („Signal: Hauptaktion und Vorschläge“).
+- **Änderung** (`app/static/ds/ds.css`): neuer Block „Aktion: Firmengrün, Hauptaktion“ vor Signal mit den sechs Werten aus der Vorgabe, hell und dunkel; Signal beschriftet „„wartet auf dich“ und Vorschläge (bis 1.8.154 auch Hauptaktion)“; `--ds-ok`/`-hell`/`-text` hell `#367337`/`#EEF5E8`/`#2A5C2B` (vorher `#0F766E`/`#DDF1EE`/`#0B5B55`), dunkel `#3B7D3C`/`#17281A`/`#B9DA86` (vorher `#2BA196`/`#0F2E2B`/`#86DCCF`); Kopfkommentar: Herkunft der Werte und die fünf neuen Prüfpaare. PWA-Symbol (`/api/mobile-icon/…`) und `theme-color` nicht angefasst.
+- **Kontrast** (WCAG 2, wie der Test):
+
+| Paar | Grenze | hell | dunkel |
+|---|---|---|---|
+| auf-aktion/aktion | 4,5 | 5,73 | 5,02 |
+| aktion-text/aktion-hell | 4,5 | 7,08 | 9,92 |
+| aktion-text/flaeche | 4,5 | 7,88 | 10,53 |
+| aktion/flaeche | 3 | 5,73 | 3,28 |
+| aktion/grund | 3 | 5,01 | 3,62 |
+
+  Die beiden Paare von ok (ok-text/ok-hell, ok/flaeche) tragen jetzt dieselben Werte und halten ebenso. Nicht verlangt, zur Einordnung: aktion auf `flaeche-2` (Hover, Infokasten) dunkel 2,91 -- ein grüner Knopf auf einem leicht abgesetzten dunklen Feld läge knapp unter 3; aktion-rand auf Fläche 1,47/2,06 und marke-hell auf Fläche hell 1,82 sind Schmuck, kein Bedienelement.
+- **Test**: `test_kontrast_der_pruefpaare_hell_und_dunkel` verlangt die fünf neuen Paare ausdrücklich und 39 statt 34 Paare; `test_kontrast_gegenprobe` um drei Fälle erweitert (dunkles Grün `#2F5A30` → „dunkel aktion/flaeche“ rot; Grün `#A7CD5D` als Knopf → „hell auf-aktion/aktion“ rot; `aktion-text` fehlt → „Token fehlt“). Ohne die neuen Werte beide Tests rot. Klicktest `klicktest_ds_schriften` 27/27.
+- **Angepasste Erwartungen** (Regel 28): `tests/test_v432_design_fundament.py::test_kontrast_der_pruefpaare_hell_und_dunkel` -- alt 34 Prüfpaare, neu 39 und die fünf neuen ausdrücklich; `::test_kontrast_gegenprobe` -- alt entfernt `--ds-ok-hell: #DDF1EE;`, neu `--ds-ok-hell: #EEF5E8;` (der neue Wert), dazu drei Fälle.
+
+#### Festlegungen 1.8.155 (Bitte bestätigen)
+
+1. **ok mit eigenen Werten, nicht als Verweis** -- `--ds-ok`, `-hell`, `-text` tragen dieselben Hex-Werte wie aktion statt `var(--ds-aktion…)`: der Kontrasttest liest Hex-Werte, ein Verweis bliebe dort ungeprüft. Eine spätere Änderung an aktion muss ok mitziehen (Kommentar „= aktion“ an den drei Zeilen).

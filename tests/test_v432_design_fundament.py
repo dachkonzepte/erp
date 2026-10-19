@@ -625,7 +625,11 @@ def kontrast_verstoesse(text: str) -> list[str]:
 def test_kontrast_der_pruefpaare_hell_und_dunkel():
     text = DS_CSS.read_text(encoding="utf-8")
     paare = pruefpaare(text)
-    assert len(paare) == 34 and {g for g, _, _ in paare} == {4.5, 3.0}
+    # seit 1.8.155 39 statt 34: Firmengrün als Hauptaktion -- Schrift auf dem Knopf und grüne Schrift mindestens 4,5, der Knopf
+    # selbst auf Fläche und Grund mindestens 3
+    assert len(paare) == 39 and {g for g, _, _ in paare} == {4.5, 3.0}
+    assert {(4.5, "auf-aktion", "aktion"), (4.5, "aktion-text", "aktion-hell"), (4.5, "aktion-text", "flaeche"),
+            (3.0, "aktion", "flaeche"), (3.0, "aktion", "grund")} <= set(paare)
     assert kontrast_verstoesse(text) == []
 
 
@@ -636,5 +640,12 @@ def test_kontrast_gegenprobe():
     assert any(f.startswith("hell text-3/") for f in kontrast_verstoesse(zu_hell))
     dunkel_zu_dunkel = text.replace("--ds-fehler: #C53A35;", "--ds-fehler: #8F2A27;", 1)
     assert "dunkel fehler/flaeche" in " ".join(kontrast_verstoesse(dunkel_zu_dunkel))
-    ohne_token = text.replace("--ds-ok-hell: #DDF1EE;", "", 1)
+    ohne_token = text.replace("--ds-ok-hell: #EEF5E8;", "", 1)  # bis 1.8.154 #DDF1EE
     assert any("ok-text/ok-hell: Token fehlt" in f for f in kontrast_verstoesse(ohne_token))
+    # seit 1.8.155: das dunkle Grün zu dunkel für den Knopf auf der Fläche, Schrift auf dem Knopf zu hell, Token fehlt
+    gruen_zu_dunkel = text.replace("--ds-aktion: #3B7D3C;", "--ds-aktion: #2F5A30;", 1)
+    assert "dunkel aktion/flaeche" in " ".join(kontrast_verstoesse(gruen_zu_dunkel))
+    schrift_zu_hell = text.replace("--ds-aktion: #367337;", "--ds-aktion: #A7CD5D;", 1)
+    assert "hell auf-aktion/aktion" in " ".join(kontrast_verstoesse(schrift_zu_hell))
+    ohne_gruen = text.replace("--ds-aktion-text: #2A5C2B;", "", 1)
+    assert any("aktion-text/flaeche: Token fehlt" in f for f in kontrast_verstoesse(ohne_gruen))

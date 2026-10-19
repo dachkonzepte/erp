@@ -1,7 +1,8 @@
 /* =====================================================================
    DACHKONZEPTE ERP – Gestaltungsgrundlagen „Schiefer & Signal“
    app/static/ds/ds.css (Stufe 1 des Redesigns, seit 1.8.127; Werte
-   unverändert aus der Vorgabe ds-tokens.css)
+   aus der Vorgabe ds-tokens.css, seit 1.8.155 Firmengrün als
+   Hauptaktion: --ds-aktion*, --ds-marke-hell, --ds-ok* = aktion*)
 
    Diese Datei setzt nur --ds-*-Eigenschaften und @font-face. Sie
    zeichnet selbst nichts und verändert keine bestehende Seite. Kein
@@ -15,6 +16,7 @@
      text-3/grund text-3/flaeche text-3/flaeche-2
      navi-text/navi-grund navi-text/navi-aktiv navi-leise/navi-grund
      auf-stark/stark auf-signal/signal auf-fehler/fehler
+     auf-aktion/aktion aktion-text/aktion-hell aktion-text/flaeche
      signal-text/signal-hell signal-text/flaeche signal-text/grund
      info-text/info-hell ok-text/ok-hell warn-text/warn-hell
      fehler-text/fehler-hell fehler-text/flaeche
@@ -22,6 +24,7 @@
    Bedienelemente und Rahmen mindestens 3 : 1
      feld-rand/flaeche fokus/flaeche fokus/grund
      signal/flaeche stark/flaeche info/flaeche ok/flaeche fehler/flaeche
+     aktion/flaeche aktion/grund
    ===================================================================== */
 
 :root {
@@ -48,7 +51,15 @@
   --ds-stark: #2B3238;
   --ds-auf-stark: #FFFFFF;
 
-  /* Signal: Hauptaktion und Vorschläge */
+  /* Aktion: Firmengrün, Hauptaktion (seit 1.8.155) */
+  --ds-aktion: #367337;
+  --ds-auf-aktion: #FFFFFF;
+  --ds-aktion-hell: #EEF5E8;
+  --ds-aktion-rand: #C4DDB0;
+  --ds-aktion-text: #2A5C2B;
+  --ds-marke-hell: #A7CD5D;     /* nur Schmuck, nie Text auf hellem Grund */
+
+  /* Signal: „wartet auf dich“ und Vorschläge (bis 1.8.154 auch Hauptaktion) */
   --ds-signal: #C2410C;
   --ds-auf-signal: #FFFFFF;
   --ds-signal-hell: #FDF0E7;
@@ -59,9 +70,9 @@
   --ds-info: #1D5FA8;           /* läuft, Fortschritt */
   --ds-info-hell: #E3EEF9;
   --ds-info-text: #174E8C;
-  --ds-ok: #0F766E;             /* erledigt, bezahlt */
-  --ds-ok-hell: #DDF1EE;
-  --ds-ok-text: #0B5B55;
+  --ds-ok: #367337;             /* erledigt, bezahlt -- seit 1.8.155 = aktion */
+  --ds-ok-hell: #EEF5E8;        /* = aktion-hell */
+  --ds-ok-text: #2A5C2B;        /* = aktion-text */
   --ds-warn-hell: #FCEBDD;      /* unvollständig */
   --ds-warn-text: #8A2E0A;
   --ds-fehler: #A61B1B;         /* überfällig, Fehler, Löschen */
@@ -130,6 +141,13 @@
   --ds-stark: #D5DBDF;
   --ds-auf-stark: #121619;
 
+  --ds-aktion: #3B7D3C;
+  --ds-auf-aktion: #FFFFFF;
+  --ds-aktion-hell: #17281A;
+  --ds-aktion-rand: #2F5A30;
+  --ds-aktion-text: #B9DA86;
+  --ds-marke-hell: #A7CD5D;
+
   --ds-signal: #C2410C;
   --ds-auf-signal: #FFFFFF;
   --ds-signal-hell: #36200F;
@@ -139,9 +157,9 @@
   --ds-info: #3B82D0;
   --ds-info-hell: #15283C;
   --ds-info-text: #A9CCF5;
-  --ds-ok: #2BA196;
-  --ds-ok-hell: #0F2E2B;
-  --ds-ok-text: #86DCCF;
+  --ds-ok: #3B7D3C;
+  --ds-ok-hell: #17281A;
+  --ds-ok-text: #B9DA86;
   --ds-warn-hell: #36200F;
   --ds-warn-text: #FDBA8C;
   --ds-fehler: #C53A35;
