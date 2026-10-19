@@ -1,0 +1,310 @@
+/* =====================================================================
+   DACHKONZEPTE ERP – Gestaltungsgrundlagen „Schiefer & Signal“
+   app/static/ds/ds.css (Stufe 1 des Redesigns, seit 1.8.127; Werte
+   unverändert aus der Vorgabe ds-tokens.css)
+
+   Diese Datei setzt nur --ds-*-Eigenschaften und @font-face. Sie
+   zeichnet selbst nichts und verändert keine bestehende Seite. Kein
+   color-scheme, keine Element-Selektoren, keine Klassen ohne .ds-
+   (Wächter: tests/test_v432_design_fundament.py).
+
+   Prüfpaare für den Kontrasttest (je hell und dunkel):
+   Text mindestens 4,5 : 1
+     text/grund text/flaeche text/flaeche-2
+     text-2/grund text-2/flaeche text-2/flaeche-2
+     text-3/grund text-3/flaeche text-3/flaeche-2
+     navi-text/navi-grund navi-text/navi-aktiv navi-leise/navi-grund
+     auf-stark/stark auf-signal/signal auf-fehler/fehler
+     signal-text/signal-hell signal-text/flaeche signal-text/grund
+     info-text/info-hell ok-text/ok-hell warn-text/warn-hell
+     fehler-text/fehler-hell fehler-text/flaeche
+     link/flaeche link/grund link-hover/flaeche
+   Bedienelemente und Rahmen mindestens 3 : 1
+     feld-rand/flaeche fokus/flaeche fokus/grund
+     signal/flaeche stark/flaeche info/flaeche ok/flaeche fehler/flaeche
+   ===================================================================== */
+
+:root {
+  /* Flächen und Linien */
+  --ds-grund: #EEF0F1;          /* Arbeitsfläche hinter den Karten */
+  --ds-flaeche: #FFFFFF;        /* Karten, Tabellen, Dialoge */
+  --ds-flaeche-2: #F3F5F6;      /* leicht abgesetzt: Hover, Infokästen */
+  --ds-linie: #DADEE1;          /* Rahmen und Trenner */
+  --ds-linie-stark: #C9CFD4;    /* Rahmen von Zweitknöpfen */
+  --ds-feld-rand: #88929A;      /* Rahmen von Eingabefeldern */
+
+  /* Schrift */
+  --ds-text: #171C1F;           /* Fließtext, Titel, Beträge */
+  --ds-text-2: #4B555D;         /* Beschreibungen */
+  --ds-text-3: #5A646C;         /* Nebentext, Beschriftungen */
+
+  /* Navigation (in beiden Modi dunkel) */
+  --ds-navi-grund: #1F2529;
+  --ds-navi-aktiv: #333C43;
+  --ds-navi-text: #D5DBDF;
+  --ds-navi-leise: #9AA5AD;
+
+  /* Starke Aktion (z. B. „Feierabend buchen“) */
+  --ds-stark: #2B3238;
+  --ds-auf-stark: #FFFFFF;
+
+  /* Signal: Hauptaktion und Vorschläge */
+  --ds-signal: #C2410C;
+  --ds-auf-signal: #FFFFFF;
+  --ds-signal-hell: #FDF0E7;
+  --ds-signal-rand: #F6C9AC;
+  --ds-signal-text: #8A2E0A;
+
+  /* Status */
+  --ds-info: #1D5FA8;           /* läuft, Fortschritt */
+  --ds-info-hell: #E3EEF9;
+  --ds-info-text: #174E8C;
+  --ds-ok: #0F766E;             /* erledigt, bezahlt */
+  --ds-ok-hell: #DDF1EE;
+  --ds-ok-text: #0B5B55;
+  --ds-warn-hell: #FCEBDD;      /* unvollständig */
+  --ds-warn-text: #8A2E0A;
+  --ds-fehler: #A61B1B;         /* überfällig, Fehler, Löschen */
+  --ds-auf-fehler: #FFFFFF;
+  --ds-fehler-hell: #FBE4E4;
+  --ds-fehler-text: #8F1A1A;
+
+  /* Links und Fokus */
+  --ds-link: #1D5FA8;
+  --ds-link-hover: #123E6E;
+  --ds-fokus: #1D5FA8;
+
+  /* Schriftfamilien */
+  --ds-schrift-titel: "Archivo", system-ui, sans-serif;
+  --ds-schrift-text: "IBM Plex Sans", system-ui, sans-serif;
+  --ds-schrift-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* Schriftgrößen */
+  --ds-groesse-1: 12px;         /* Mono-Beschriftungen, Kennzeichen */
+  --ds-groesse-2: 13px;         /* Nebentext */
+  --ds-groesse-3: 14px;         /* Bedienelemente, Tabellen */
+  --ds-groesse-4: 15px;         /* Fließtext Büro */
+  --ds-groesse-5: 17px;         /* Fließtext Tablet */
+  --ds-groesse-6: 19px;         /* Kartentitel */
+  --ds-groesse-7: 24px;         /* Abschnittstitel Tablet */
+  --ds-groesse-8: 30px;         /* Kennzahlen */
+  --ds-groesse-9: 38px;         /* Seitentitel */
+
+  /* Abstände (Raster 4 px) */
+  --ds-abstand-1: 4px;
+  --ds-abstand-2: 8px;
+  --ds-abstand-3: 12px;
+  --ds-abstand-4: 16px;
+  --ds-abstand-5: 24px;
+  --ds-abstand-6: 32px;
+  --ds-abstand-7: 48px;
+
+  /* Ecken */
+  --ds-ecke-feld: 10px;         /* Knöpfe, Eingabefelder */
+  --ds-ecke-karte: 12px;
+  --ds-ecke-tablet: 20px;
+  --ds-ecke-rund: 999px;        /* Status-Kennzeichen */
+
+  /* Mindestgröße von Klickflächen */
+  --ds-klick: 44px;
+  --ds-klick-tablet: 64px;
+}
+
+:root[data-theme="dark"] {
+  --ds-grund: #121619;
+  --ds-flaeche: #1A2024;
+  --ds-flaeche-2: #222A2F;
+  --ds-linie: #2E373D;
+  --ds-linie-stark: #3E4951;
+  --ds-feld-rand: #6E7A83;
+
+  --ds-text: #E9EDEF;
+  --ds-text-2: #BAC3C9;
+  --ds-text-3: #9DA8B0;
+
+  --ds-navi-grund: #0B0F11;
+  --ds-navi-aktiv: #232B30;
+  --ds-navi-text: #D5DBDF;
+  --ds-navi-leise: #9AA5AD;
+
+  --ds-stark: #D5DBDF;
+  --ds-auf-stark: #121619;
+
+  --ds-signal: #C2410C;
+  --ds-auf-signal: #FFFFFF;
+  --ds-signal-hell: #36200F;
+  --ds-signal-rand: #6E3414;
+  --ds-signal-text: #FDBA8C;
+
+  --ds-info: #3B82D0;
+  --ds-info-hell: #15283C;
+  --ds-info-text: #A9CCF5;
+  --ds-ok: #2BA196;
+  --ds-ok-hell: #0F2E2B;
+  --ds-ok-text: #86DCCF;
+  --ds-warn-hell: #36200F;
+  --ds-warn-text: #FDBA8C;
+  --ds-fehler: #C53A35;
+  --ds-auf-fehler: #FFFFFF;
+  --ds-fehler-hell: #3A1818;
+  --ds-fehler-text: #F6AAA8;
+
+  --ds-link: #86B9F2;
+  --ds-link-hover: #B5D3F7;
+  --ds-fokus: #86B9F2;
+}
+
+/* =====================================================================
+   Schriften (seit 1.8.127): selbst gehostet unter schriften/ als woff2,
+   je Schnitt latin und latin-ext -- Archivo 500/600/700, IBM Plex Sans
+   400/500/600, IBM Plex Mono 400/500. Quelle: Fontsource 5.3.0 aus der
+   npm-Registry (@fontsource/archivo, @fontsource/ibm-plex-sans,
+   @fontsource/ibm-plex-mono), Prüfsumme der Registry geprüft. Lizenz:
+   SIL Open Font License 1.1, die Texte liegen daneben
+   (schriften/ofl-*.txt). /static/ wird ein Jahr zwischengespeichert --
+   eine geänderte Schrift bekommt einen neuen Dateinamen.
+   ===================================================================== */
+
+@font-face {
+  font-family: "Archivo";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("schriften/archivo-latin-ext-500-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Archivo";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("schriften/archivo-latin-500-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Archivo";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("schriften/archivo-latin-ext-600-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Archivo";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("schriften/archivo-latin-600-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Archivo";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("schriften/archivo-latin-ext-700-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Archivo";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("schriften/archivo-latin-700-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("schriften/ibm-plex-sans-latin-ext-400-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("schriften/ibm-plex-sans-latin-400-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("schriften/ibm-plex-sans-latin-ext-500-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("schriften/ibm-plex-sans-latin-500-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("schriften/ibm-plex-sans-latin-ext-600-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("schriften/ibm-plex-sans-latin-600-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("schriften/ibm-plex-mono-latin-ext-400-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("schriften/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("schriften/ibm-plex-mono-latin-ext-500-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("schriften/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}

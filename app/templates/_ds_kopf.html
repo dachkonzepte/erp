@@ -1,0 +1,4 @@
+{#- Design-System (seit 1.8.127, Stufe 1 des Redesigns): Tokens (--ds-*) und Schriften aus app/static/ds/ds.css. Jede Seite bindet
+    diesen Baustein im Kopf ein, vor ihrem eigenen Stilblock (tests/test_v432_design_fundament.py). /static/ wird ein Jahr
+    zwischengespeichert, ?v= holt ds.css mit jeder Version neu. Die Akzentfarbe aus den Einstellungen (--accent) bleibt, wie sie ist. -#}
+<link rel="stylesheet" href="/static/ds/ds.css?v={{ app_version }}">

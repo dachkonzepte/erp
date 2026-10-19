@@ -551,6 +551,12 @@ Sitzungen des Kontos (der ausdrückliche Widerruf "Alle vertrauten Geräte abmel
 `app/anmeldeschranke.py` und setzt `Cache-Control: no-store` an jede Antwort an eine angemeldete Sitzung. Herleitung, Festlegungen und
 Tests: `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.98"; Regel 30.
 
+**Seit 1.8.127 (Redesign Stufe 1)** die einzige Ausnahme vom Cache-Verbot und von der Anmeldepflicht: Design-Dateien unter `/static/`
+(`app/design_dateien.py`). Die Schranke lässt eine Anfrage ohne Anmeldung und ohne Datenbank durch, wenn `ist_design_pfad()` sie
+annimmt (GET/HEAD, `/static` plus Abschnitte aus `[a-z0-9._-]`, kein `..`, nichts prozentkodiert -- kein Präfixvergleich); eine
+Antwort 200 trägt `Cache-Control: public, max-age=31536000, immutable`, jede andere dort `no-store`. Angriffstests über ASGI und gegen
+einen echten uvicorn: `docs/archiv/redesign.md`, „Stufe 1: Fundament“; Regel 37.
+
 ## PostgreSQL-Umstieg: Migrationskette repariert (seit 1.3.35)
 
 Erste Reparaturrunde vor dem eigentlichen Datenumzug -- Nutzervorgabe: "Wir reparieren zuerst,

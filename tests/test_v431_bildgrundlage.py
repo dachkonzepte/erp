@@ -16,6 +16,7 @@ Hier geprüft, ohne Browser:
 
 import errno
 import importlib.util
+import json
 import socket
 import sys
 import threading
@@ -198,6 +199,27 @@ def test_vergleichen_ueber_die_kommandozeile(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "argv", ["bildgrundlage.py", "vergleichen", str(tmp_path / "alt"), str(tmp_path / "neu")])
     assert bg.main() == 1
     assert (tmp_path / "vergleich_alt_neu" / "a.png").exists()
+
+
+def _chrome(ordner: Path, version: str) -> None:
+    (ordner / "bilder.json").write_text(json.dumps({"chrome": version, "bilder": []}), encoding="utf-8")
+
+
+def test_verschiedene_chrome_versionen_brechen_ab(tmp_path, capsys):
+    """Seit 1.8.127: ein anderer Chrome zeichnet anders -- kein Vergleich, Rückgabecode 2, keine Differenzbilder."""
+    _png(tmp_path / "alt" / "a.png"); _png(tmp_path / "neu" / "a.png", farbe=(0, 0, 0, 255))
+    _chrome(tmp_path / "alt", "Chrome/155.0.8059.40"); _chrome(tmp_path / "neu", "Chrome/156.0.1.2")
+    assert bg.vergleichen(tmp_path / "alt", tmp_path / "neu", tmp_path / "diff") == bg.ABBRUCH == 2
+    assert "ABBRUCH: verschiedene Chrome-Versionen" in capsys.readouterr().out
+    assert not (tmp_path / "diff").exists()
+
+
+def test_gleiche_chrome_version_vergleicht(tmp_path, capsys):
+    _png(tmp_path / "alt" / "a.png"); _png(tmp_path / "neu" / "a.png")
+    _chrome(tmp_path / "alt", "Chrome/155.0.8059.40"); _chrome(tmp_path / "neu", "Chrome/155.0.8059.40")
+    assert bg.vergleichen(tmp_path / "alt", tmp_path / "neu") == 0
+    aus = capsys.readouterr().out
+    assert "1 gleich, 0 abweichend" in aus and "Hinweis" not in aus
 
 
 def test_gleich_benannte_ordner_nehmen_die_oberen_namen(tmp_path):

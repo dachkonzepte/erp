@@ -297,14 +297,24 @@ def _fuehrt_auf_route(ziel: str, vollstaendig: bool, routen: list[list[str]]) ->
     return False
 
 
+def _fuehrt_auf_design_datei(ziel: str) -> bool:
+    """Seit 1.8.127: ein Ziel unter /static/ führt auf den Mount der Design-Dateien (app/design_dateien.py, keine GET-Route) -- es gilt,
+    wenn die Datei in app/static/ liegt; Anfrage und Anker zählen nicht."""
+    from app.design_dateien import STATIC_DIR
+
+    pfad = re.split(r"[?#]", ziel, maxsplit=1)[0]
+    return pfad.startswith("/static/") and _LUECKE not in pfad and (STATIC_DIR / pfad.removeprefix("/static/")).is_file()
+
+
 def test_jeder_link_im_code_fuehrt_auf_eine_vorhandene_route():
     """Seit 1.8.65 (Punkt 0 der Runde 2c-2e): jedes Link-Ziel im JavaScript der Vorlagen und jeder "…url"-Wert im Python-Code
-    zeigt auf eine GET-Route, die es gibt -- 1.8.63 hatte /checklists/{id} statt /checklisten/{id} gebaut."""
+    zeigt auf eine GET-Route, die es gibt -- 1.8.63 hatte /checklists/{id} statt /checklisten/{id} gebaut. Seit 1.8.127 auch auf eine
+    vorhandene Design-Datei unter /static/ (_fuehrt_auf_design_datei())."""
     routen = _get_routen()
     links = _vorlagen_links() + _python_links()
     assert len(links) > 300, "Link-Ziele nicht gefunden -- hat sich die Schreibweise geändert?"
     ohne_route = sorted({(datei, ziel.replace(_LUECKE, "…")) for datei, ziel, vollstaendig in links
-                         if not _fuehrt_auf_route(ziel, vollstaendig, routen)})
+                         if not _fuehrt_auf_route(ziel, vollstaendig, routen) and not _fuehrt_auf_design_datei(ziel)})
     assert ohne_route == [], "\n".join(["Link-Ziele ohne Route (Datei, Ziel):", *map(str, ohne_route)])
 
 
@@ -317,3 +327,12 @@ def test_jeder_link_im_code_fuehrt_auf_eine_vorhandene_route():
 def test_gegenprobe_falsche_link_ziele_fallen_auf(ziel, vollstaendig, erwartet):
     """Die Prüfung oben erkennt den Fehler aus 1.8.63 -- als vollständiges Ziel und als Anfang ("/checklists/" + id)."""
     assert _fuehrt_auf_route(ziel, vollstaendig, _get_routen()) is erwartet
+
+
+@pytest.mark.parametrize("ziel, erwartet", [
+    ("/static/ds/ds.css?v={{", True), ("/static/ds/schriften/archivo-latin-500-normal.woff2", True), ("/static/ds/fehlt.css", False),
+    ("/static/ds", False), ("/static/", False), ("/staticx/ds/ds.css", False), ("/static/ds/\x00.css", False),
+])
+def test_design_dateien_nur_wenn_vorhanden(ziel, erwartet):
+    """Seit 1.8.127: ein Ziel unter /static/ zählt nur, wenn die Datei in app/static/ liegt -- kein Verzeichnis, nichts Erfundenes."""
+    assert _fuehrt_auf_design_datei(ziel) is erwartet

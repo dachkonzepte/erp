@@ -17,7 +17,8 @@ aufnehmen   Eine Testinstanz (scripts/cdp_klicktest.py, Wegwerf-SQLite, Regel 16
 vergleichen Je Bild die Zahl abweichender Pixel (ein Pixel weicht ab, wenn ein Kanal anders ist) und ein Differenzbild (das neue Bild
             blass, Abweichungen rot) in --differenzen (Vorgabe neben NEU: vergleich_<ALT>_<NEU>, bei gleichen Ordnernamen die
             Namen der übergeordneten Ordner). Rückgabecode 0 = alles gleich,
-            1 = mindestens ein Bild weicht ab, fehlt oder ist neu.
+            1 = mindestens ein Bild weicht ab, fehlt oder ist neu, 2 = Abbruch (seit 1.8.127): die Chrome-Versionen in bilder.json
+            sind verschieden -- ein anderer Chrome zeichnet anders, dann zuerst die Grundlage neu erzeugen.
 
 Rollen: "buero" ist Büro – Finanzen (die Büro-Rolle, die jede Büroseite öffnet), "monteur" die Monteurin mit Planungsbezug zum Auftrag,
 "admin" nur für den Adressimport (die eine Seite nur für Administratoren), "anonym" ohne Anmeldung (Anmeldeseite). Die Sperrseite zeigt
@@ -409,12 +410,31 @@ def bilder_vergleichen(alt: Path, neu: Path) -> tuple[int, int, int, object]:
     return anzahl, breite, hoehe, bild
 
 
+def chrome_version(ordner: Path) -> str | None:
+    """Die Chrome-Version aus bilder.json des Ordners, None ohne Datei oder Angabe."""
+    try:
+        return json.loads((ordner / "bilder.json").read_text(encoding="utf-8")).get("chrome")
+    except (OSError, ValueError):
+        return None
+
+
+ABBRUCH = 2  # seit 1.8.127: verschiedene Chrome-Versionen -- kein Vergleich
+
+
 def vergleichen(alt: Path, neu: Path, differenzen: Path | None = None) -> int:
     namen_alt = {p.name for p in alt.glob("*.png")}
     namen_neu = {p.name for p in neu.glob("*.png")}
     if not namen_alt or not namen_neu:
         print(f"Keine Bilder in {alt if not namen_alt else neu}")
         return 1
+    # Seit 1.8.127: ein anderer Chrome zeichnet Text und Kanten anders -- jedes Bild wiche ab, ohne dass sich eine Seite geändert hat
+    chrome_alt, chrome_neu = chrome_version(alt), chrome_version(neu)
+    if chrome_alt and chrome_neu and chrome_alt != chrome_neu:
+        print(f"ABBRUCH: verschiedene Chrome-Versionen ({alt.name}: {chrome_alt}, {neu.name}: {chrome_neu}) -- zuerst die Grundlage mit "
+              "dem Chrome von heute neu erzeugen (auf ihrem Commit, z. B. in einem Git-Worktree), dann vergleichen.")
+        return ABBRUCH
+    if not (chrome_alt and chrome_neu):
+        print(f"Hinweis: Chrome-Version unbekannt ({alt.name if not chrome_alt else neu.name} ohne bilder.json) -- nicht geprüft.")
     if differenzen is None:
         namen = (alt.name, neu.name) if alt.name != neu.name else (alt.resolve().parent.name, neu.resolve().parent.name)
         differenzen = neu.parent / f"vergleich_{namen[0]}_{namen[1]}"

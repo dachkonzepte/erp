@@ -698,7 +698,7 @@ Noch nicht als bestätigt markieren.“
   `bind` (200 Versuche, sonst wählt das Betriebssystem, mit Hinweis). Dort kann eine Verbindung den abgefragten Port nie als Quellport
   bekommen. `_warte_auf()` behandelt `http.client.HTTPException` (BadStatusLine, RemoteDisconnected) als „noch nicht bereit“.
 
-#### Festlegungen 1.8.125 (Bitte bestätigen)
+#### Festlegungen 1.8.125 (alle bestätigt am 19.10.2026)
 
 Alle betreffen nur den Testablauf (Regel 28: der Bericht nennt ihre Zahl).
 
@@ -826,7 +826,7 @@ bei Läufen mit `--nur` und bei Vergleichen über Zwischenstände.
   `klicktest_versandprotokoll`, `klicktest_versandverlauf`, `klicktest_vertrag_abschrift`, `klicktest_vertrag_festschreiben` nehmen ihn.
 - `scripts/bildgrundlage_changelog.md` (fester Changelog der Instanz), `.gitignore` `/bildgrundlage/`, CLAUDE.md (Aufruf unter „Testen“).
 
-#### Festlegungen 1.8.126 (Bitte bestätigen)
+#### Festlegungen 1.8.126 (Bitte bestätigen; Nr. 12 und 13 bestätigt am 19.10.2026)
 
 Alle betreffen nur Werkzeug und Testablauf (Regel 28: der Bericht nennt ihre Zahl).
 
@@ -852,9 +852,20 @@ Alle betreffen nur Werkzeug und Testablauf (Regel 28: der Bericht nennt ihre Zah
 11. **Port-Helfer**: `bind` auf 127.0.0.1 und 0.0.0.0 vor der Rückgabe; jeder Klicktest nimmt ihn, auch für Empfänger im Skript (SMTP),
     kein Klicktest bindet Port 0 selbst (Test).
 12. **Text ohne LCD-Kantenglättung** (`--disable-lcd-text`) in der Bildgrundlage -- Graustufen statt farbiger Säume; die Bilder zeigen
-    den Text damit etwas anders als ein Browser mit ClearType.
+    den Text damit etwas anders als ein Browser mit ClearType. **Bestätigt am 19.10.2026.**
 13. **Testdaten ohne Flush mit zwei geänderten Objekten**: der Projektstatus wird vor dem Beauftragen gesetzt (Wackelquelle 1); die
-    Ursache im App-Code bleibt (siehe Nebenbefunde).
+    Ursache im App-Code bleibt (siehe Nebenbefunde). **Bestätigt am 19.10.2026.**
+
+#### Nachtrag 1.8.127 (Stufe 1 des Redesigns)
+
+- **Zählung der Aufnahmen**: je Thema und Breite 60 = 48 Büro – Finanzen + 10 Monteurin + 1 Admin (Adressimport) + 1 anonym
+  (Anmeldeseite). Die Sperrseite ist eine der 10 Aufnahmen der Monteurin (`/projects`); der Bericht zu 1.8.126 nannte sie zusätzlich als
+  eigenen Punkt, daher dort scheinbar 61.
+- **Vergleich bricht ab bei verschiedenen Chrome-Versionen** (`bildgrundlage.py vergleichen`, Vorgabe vom 19.10.2026, Punkt 8): stehen
+  in beiden `bilder.json` verschiedene Versionen, vergleicht er nicht, sondern endet mit Rückgabecode 2 (`ABBRUCH`) und dem Hinweis, die
+  Grundlage auf ihrem Commit mit dem Chrome von heute neu zu erzeugen; fehlt eine `bilder.json`, nur ein Hinweis. Tests in
+  `tests/test_v431_bildgrundlage.py` (neu, keine Erwartung geändert). Am 19.10.2026 war Chrome unverändert 155.0.8059.40 -- die Grundlage
+  `08b538c` blieb gültig.
 
 #### Grenzen (was die Grundlage nicht abdeckt)
 

@@ -4,6 +4,22 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.127 – Redesign Stufe 1: Design-System als Fundament, /static/ ohne Anmeldung
+
+Stufe 1 des Redesigns (Vorgabe vom 19.10.2026; Festlegungen 1.8.125 und 1.8.126 Nr. 12 und 13 bestätigt) -- sichtbar ändert sich
+nichts, der Bildvergleich gegen die Grundlage `08b538c` ergibt 0 abweichende Pixel in allen 240 Bildern. `app/static/` wird unter
+`/static/` ausgeliefert: ohne Anmeldung und ohne Datenbank, nur GET und HEAD, kein Verzeichnislisting, keine Symlinks, Typ fest nach
+Endung; eine Antwort 200 darf der Browser ein Jahr behalten (`public, max-age=31536000, immutable`) -- die einzige Ausnahme vom
+Cache-Verbot der Regel 30. Die Anmeldeschranke nimmt dafür nur einen eng gefassten Pfad an (`app/design_dateien.py::ist_design_pfad()`);
+`/staticx`, `/static`, `..`, `%2e`, `%2f`, doppelt Kodiertes, Rückstrich und Großbuchstaben gehen durch die Anmeldung wie jede Adresse --
+geprüft direkt über ASGI und gegen einen echten uvicorn (h11 und httptools), mit einem reinen Präfixvergleich wären 23 von 29
+Angriffsanfragen an der Anmeldung vorbeigekommen. `app/static/ds/ds.css` übernimmt die Tokens der Vorgabe „Schiefer & Signal“
+unverändert (`--ds-*`, hell und dunkel) und bindet Archivo, IBM Plex Sans und IBM Plex Mono selbst gehostet ein (Fontsource 5.3.0, je
+Schnitt latin und latin-ext, OFL-Lizenztexte daneben); `_ds_kopf.html` bindet `ds.css?v=<Version>` in allen 53 Seiten vor ihrem eigenen
+Stil ein, die Akzentfarbe aus den Einstellungen bleibt. Wächter halten ds.css bei Tokens, Schriften und `.ds-`-Klassen, `app/static/` bei
+CSS, Schriften und Lizenzen und jede Seite beim Baustein; der Kontrasttest prüft die 34 Prüfpaare des Kopfkommentars hell und dunkel.
+Neu Regel 37. Der Bildvergleich bricht bei verschiedenen Chrome-Versionen ab. Details: `docs/archiv/redesign.md`.
+
 ## 1.8.126 – Bildgrundlage fürs Redesign, ein Port-Helfer für alle Klicktests
 
 Stufe 0d des Redesigns (Vorgabe vom 17.10.2026, Festlegungen 1.8.124 bestätigt): `scripts/bildgrundlage.py` nimmt jede Seite aus

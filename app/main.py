@@ -11,6 +11,7 @@ from .anmeldeschranke import (  # noqa: F401
     einbinden as _schranke_einbinden,
 )
 from .auth import warn_if_secret_key_mismatches_file
+from .design_dateien import einbinden as _design_dateien_einbinden
 from .permissions import default_home_page_for_role
 from .catalogs import backfill_existing_services, ensure_import_catalog
 from .database import DATABASE_URL, Base, SessionLocal, engine
@@ -170,6 +171,8 @@ app.include_router(notice_letters.router)
 app.include_router(acceptances.router)  # seit 1.8.46: Abnahme und Gewährleistung
 app.include_router(defects.router)  # seit 1.8.49: Mängel aus der Abnahme
 app.include_router(field_defects.router)  # seit 1.8.52: Mängel zur Beseitigung in /mobil
+# Seit 1.8.127 (Stufe 1 des Redesigns): app/static/ unter /static/ -- Design-System und Schriften, ohne Anmeldung (app/design_dateien.py)
+_design_dateien_einbinden(app)
 
 
 @app.exception_handler(HTTPException)

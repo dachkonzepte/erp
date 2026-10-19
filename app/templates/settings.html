@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>DACHKONZEPTE ERP – Allgemeine Einstellungen</title>
   <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
-  <style>
+  
+{% include "_ds_kopf.html" %}
+<style>
     /* Seit 1.8.118: ohne diese Regel blendete classList.toggle('hidden') nichts aus -- der Hinweis "noch keine vollständigen
        Microsoft-365-Zugangsdaten" unter Outlook-Kalender stand immer da (tests/test_v423_outlook_hinweis.py prüft jede Vorlage). */
     .hidden{display:none!important}

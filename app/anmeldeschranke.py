@@ -29,6 +29,10 @@ Seit 1.8.114 (Vorgabe vom 16.10.2026, Punkt 1):
 - Wartet sie länger als das Zeitlimit des Pools (app/database.py) auf eine Verbindung, antwortet sie 503 (ueberlastet()), ebenso jeder
   Endpunkt (Fehler-Handler, einbinden()) -- statt einer 500 ohne Hinweis.
 
+Seit 1.8.127 (Stufe 1 des Redesigns): Design-Dateien unter /static/ gehen ohne Anmeldung und ohne Datenbank durch, wenn
+app/design_dateien.py::ist_design_pfad() die Anfrage annimmt (eng gefasst, kein Präfixvergleich); eine Antwort 200 trägt dann
+"Cache-Control: public, max-age=31536000, immutable" statt des Cache-Verbots, die Schutzkopfzeilen wie jede Antwort.
+
 Die Entscheidungsregeln (_request_requires_login(), _page_requires_login(), _blocked_pending_two_factor()) sind unverändert und werden
 von app/main.py weiter angeboten (ältere Tests importieren sie dort)."""
 
@@ -42,7 +46,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
 from sqlalchemy.exc import TimeoutError as PoolLeer
 from starlette.concurrency import run_in_threadpool
 
-from . import seitendaten, sitzungen
+from . import design_dateien, seitendaten, sitzungen
 from .audit import reset_audit_context, set_audit_context
 from .auth import COOKIE_NAME, NUR_HTTPS, users_exist
 
@@ -237,6 +241,13 @@ def middleware(session_factory):
     """Die Middleware-Funktion (request, call_next) mit session_factory für die eigene, kurzlebige Datenbanksitzung."""
 
     async def identitaet_und_audit(request: Request, call_next):
+        if design_dateien.ist_design_pfad(request.scope):
+            # Seit 1.8.127: Design-Dateien (app/design_dateien.py) ohne Anmeldung und ohne Datenbank -- nur GET/HEAD auf einen eng
+            # gefassten Pfad unter /static/. Eine Antwort 200 darf der Browser ein Jahr behalten (die einzige Ausnahme vom
+            # Cache-Verbot), jede andere nicht.
+            response = await call_next(request)
+            response.headers["Cache-Control"] = design_dateien.DAUERHAFT if response.status_code == 200 else CACHE_VERBOT
+            return _schutzkoepfe(response)
         if not ursprung_passt(request):
             # Nur Metadaten (Regel 18): Methode, Pfad und die beiden Kopfzeilen, kein Inhalt.
             logger.warning("Schreibende Anfrage von fremdem Ursprung abgelehnt: %s %s (Sec-Fetch-Site=%r, Origin=%r)", request.method,
