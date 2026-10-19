@@ -339,3 +339,13 @@ Anlass ist der Befund Seiten-Inventar vom 19.10.2026 (`bildgrundlage/pruefung/`,
 - **Änderung**: der Satz „Weitere buchhalterische Themen folgen hier künftig.“ entfernt, „Alle Rechnungen im Überblick.“ bleibt.
 - **Test**: `test_finanzen_ohne_platzhalter` (gerenderte Seite als Büro – Finanzen: erster Satz da, Platzhalter nicht) -- vorher rot.
 - **Korrektur zu Punkt 9**: dort stand zuerst „mit geschütztem Abstand vor dem Prozentzeichen“; im Code steht ein gewöhnliches Leerzeichen (`${zahlText(x)} %`) -- im Abschnitt oben berichtigt.
+
+### Punkt 11 (1.8.142): Befund Zeit buchen für andere
+
+Nur Befund, kein Code der Anwendung geändert. Ausführlich mit Tabelle aller Endpunkte und ihrer Prüfung: `docs/archiv/rechtekonzept.md`, „Befund 1.8.142: Zeit buchen für andere (Monteurin)“.
+
+- **API**: Einzelbuchungen nur für die eigene Person (`_time_entry_employee_for_request()`, `_time_entry_can_edit()`, 403), auch nicht für die Kolonne; Gruppenbuchung nur als Kolonnenführerin für Mitglieder des eigenen Teams (`_require_crew_leader()`, `validate_group_members()`).
+- **Oberfläche**: `service_reports.html` bietet der Monteurin alle aktiven Mitarbeiter an (vorgewählt „— nicht zugeordnet —“), ein Kollege scheitert erst am Server (403).
+- **Nebenbefund**: Stopp einer laufenden Gruppe prüft nur „hat angelegt“, nicht „noch Kolonnenführerin“.
+- **Test**: `tests/test_v437_befund_zeit_fuer_andere.py` -- vier Angriffstests (grün: der Server lehnt ab), Ist-Stand der Auswahl, ein `xfail(strict=True)` für das Ziel der nächsten Runde. Gegenprobe a und b (Prüfungen ausgehebelt) machten die Angriffstests rot.
+- **Für die nächste Runde zu bestätigen**: Kolonne nur über die Kolonnenführerin (heute) oder auch Mitglieder; Stopp nach entzogenem Kennzeichen.

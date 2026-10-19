@@ -1994,3 +1994,76 @@ in JavaScript-Strings) und jeder "…url"-Wert im Python-Code, der mit "/" begin
 passen auf jedes Stück, ein Ziel, das mit einem Ausdruck weitergeht, muss Anfang einer Route sein. Anlass: 1.8.63 baute im
 JavaScript der Auftragsseite und in einer API-Antwort `/checklists/{id}` statt `/checklisten/{id}`
 (`docs/archiv/abnahme-und-gewaehrleistung.md`, "Umsetzung 1.8.65").
+
+
+## Befund 1.8.142: Zeit buchen für andere (Monteurin)
+
+Vorgabe (Fehlerrunde vor Stufe 2, Punkt 11, 19.10.2026, nur Befund): „Einsatzbericht als Monteurin zeigt bei Zeit buchen die
+Auswahl „Mitarbeiter“. Kann eine Monteurin über Oberfläche oder API für andere buchen, auch außerhalb ihrer Kolonne? Welche
+Endpunkte, welche Rollenprüfung? Mit Angriffstest und Gegenprobe. Entscheidung steht: Monteure buchen nur für sich und ihre
+Kolonne, Umsetzung in der nächsten Runde.“
+
+### Ergebnis
+
+**Über die API: nein, außer als Kolonnenführerin für die eigene Kolonne.** Alle schreibenden Zeit-Endpunkte liegen in
+`app/routers/time_tracking.py`, alle mit `require_min_role(ROLE_FIELD)` (`_any_role_dep`); die eigentliche Grenze ziehen
+Prüfungen im Endpunkt (andere Routen, die `TimeEntry` schreiben, gibt es nicht -- `field_view.py` und `service_reports.py` lesen
+nur; Abwesenheiten der Plantafel ab `buero_auftrag`, Abwesenheitsanträge self-service):
+
+| Endpunkt | Prüfung | Monteurin für andere |
+|---|---|---|
+| `POST /api/time-entries` (manuell) | `_time_entry_employee_for_request()`: jede Rolle außer Admin nur die eigene `employee_id`, sonst 403 „Sie dürfen nur eigene Zeiten erfassen.“; Auftrag über `require_field_order_access()` (seit 1.7.9), offener Zeitraum (1.7.10) | nein -- auch nicht für Kollegen der Kolonne |
+| `POST /api/time-entries/start` | wie oben | nein |
+| `GET /api/time-entries/active?employee_id=` | wie oben | nein (403) |
+| `PUT /api/time-entries/{id}` | `_time_entry_can_edit()` (nur eigene Buchung), ein mitgeschicktes `employee_id` wieder über `_time_entry_employee_for_request()` | nein -- weder fremde ändern noch die eigene zuschieben |
+| `POST /api/time-entries/{id}/stop`, `DELETE /api/time-entries/{id}` | `_time_entry_can_edit()` | nein (Ausnahme Stopp der eigenen Gruppe, siehe Nebenbefund) |
+| `GET /api/time-entries`, `/summary` | `_visible_employee_id()`: Monteur sieht nur eigene | -- |
+| `POST /api/time-entry-groups`, `/start` | `_require_crew_leader()`: nur Kolonnenführerin (`TeamEmployee.is_crew_leader`) eines aktiven Teams; `validate_group_members()`: sie selbst dabei, nur Mitglieder dieses Teams; Auftrag ihr zugeordnet | nur als Kolonnenführerin, nur für ihre Kolonne |
+| `PUT`/`DELETE /api/time-entry-groups/{id}` | `_require_group_owner()`: angelegt und noch Kolonnenführerin; Besetzung nicht änderbar | nur eigene Gruppe, nur solange Kolonnenführerin |
+| `POST /api/time-entry-groups/{id}/stop` | nur „hat angelegt“ | siehe Nebenbefund |
+
+Das entspricht der Entscheidung „für sich und ihre Kolonne“ mit einer Lesart, die die nächste Runde bestätigen muss: **für die
+Kolonne bucht heute nur die Kolonnenführerin**, ein Kolonnenmitglied ohne Kennzeichen bucht nur für sich (403 für jede Gruppen-
+und jede fremde Einzelbuchung). Für Büro-Rollen gilt `_time_entry_employee_for_request()` übrigens genauso (nur Admin bucht für
+andere) -- nicht Teil des Befunds, nur festgehalten.
+
+**In der Oberfläche: sie bietet mehr an, als der Server annimmt.** `service_reports.html` (Karte „Erfasste Zeiten zu diesem
+Auftrag“, Zeile 205 `#teEmployee`) füllt die Auswahl „Mitarbeiter“ mit `employeeOptionsHtml(null)` -- alle aktiven Mitarbeiter aus
+`/api/employees` (für `field` das reduzierte Schema, aber alle Personen), vorgewählt „— nicht zugeordnet —“. Die Monteurin muss
+sich selbst heraussuchen; wählt sie einen Kollegen (auch aus ihrer Kolonne), lehnt `POST /api/time-entries` mit 403 ab. Dieselbe
+Seite schickt für Büro-Rollen ebenfalls jede gewählte Person -- dort lehnt der Server ebenso ab (nur Admin bucht für andere). Die
+mobile Zeiterfassung (`time_tracking_field.html`) hat kein Mitarbeiterfeld (seit 1.3.60) und einen eigenen Abschnitt „Kolonne“ nur
+für Kolonnenführer (seit 1.7.12).
+
+**Nebenbefund**: eine laufende Gruppenzeit stoppt die Initiatorin auch dann für alle Mitglieder, wenn ihr das Kennzeichen inzwischen
+genommen wurde -- `POST /api/time-entry-groups/{id}/stop` und der Gruppenweg in `POST /api/time-entries/{id}/stop` prüfen nur
+`initiated_by_employee_id`, `PUT` derselben Gruppe dagegen zusätzlich „noch Kolonnenführerin“ (403). Ob Stoppen wie Ändern zu
+behandeln ist, entscheidet die nächste Runde.
+
+### Für die nächste Runde (Umsetzung, nicht gebaut)
+
+- Einsatzbericht als Monteurin: Auswahl nur mit dem, was der Server annimmt (sie selbst; für die Kolonne nur über die
+  Gruppenbuchung der Kolonnenführerin) -- `tests/test_v437_befund_zeit_fuer_andere.py::test_einsatzbericht_bietet_der_monteurin_nur_an_was_der_server_annimmt`
+  steht als `xfail(strict=True)` bereit.
+- Bestätigen: Kolonne = nur über die Kolonnenführerin (heute so) oder auch Mitglieder?
+- Bestätigen: Stopp einer Gruppe nach entzogenem Kennzeichen.
+
+### Tests und Gegenprobe
+
+`tests/test_v437_befund_zeit_fuer_andere.py`, über die echte Anmeldeschranke (`tests/anmeldung.py`), Konten mit
+Mitarbeiterbezug: Kolonne Nord (Lea Kolonnenführerin, Mia, Max), Kolonne Süd (Otto), ein Auftrag für Lea, Mia und Max.
+
+- `test_monteurin_bucht_einzeln_nur_fuer_sich` -- Mia für Max, Lea, Otto: `POST /api/time-entries`, `/start`, `GET …/active` je 403,
+  keine Buchung; für sich 200; eigene Max zuschieben, fremde ändern/stoppen/löschen je 403; die Liste mit `employee_id=Max` zeigt nur
+  ihre.
+- `test_kolonnenmitglied_ohne_kennzeichen_bucht_nicht_fuer_die_kolonne` -- Gruppe (manuell, Timer, ohne Team) je 403.
+- `test_kolonnenfuehrerin_bucht_nur_fuer_ihre_kolonne` -- fremdes Team 403, Nicht-Mitglied 422, ohne sich selbst 422; eigene Kolonne 200.
+- `test_nebenbefund_ehemalige_kolonnenfuehrerin_stoppt_die_gruppe_weiter` -- Ist-Stand (Ändern 403, Stoppen 200).
+- `test_einsatzbericht_ist_stand_mitarbeiterauswahl` -- echtes Seitenskript (`init()`) in node, `/api/employees` vom echten Dienst als
+  Monteurin: „— nicht zugeordnet —“, Max, Mia, Otto.
+- `test_einsatzbericht_bietet_der_monteurin_nur_an_was_der_server_annimmt` -- `xfail(strict=True)`, Ziel der nächsten Runde.
+
+Gegenprobe (Regel 24, Marker `GEGENPROBE`, Datei danach byte-genau zurück, SHA-256 `6979cd01afc0dfd7…` vorher = nachher):
+(a) `_time_entry_employee_for_request()` gibt für Nicht-Admins die angefragte `employee_id` zurück -- `test_monteurin_bucht_einzeln_nur_fuer_sich`
+rot (Mia bucht für Max, 200); (b) `_require_crew_leader()` ohne Wirkung -- `test_kolonnenmitglied_ohne_kennzeichen_bucht_nicht_fuer_die_kolonne`
+(Mia bucht für die Kolonne, 200) und `test_kolonnenfuehrerin_bucht_nur_fuer_ihre_kolonne` (fremdes Team 422 statt 403) rot.

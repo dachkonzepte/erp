@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.142 – Befund: Zeit buchen für andere (Monteurin)
+
+Fehlerrunde vor Stufe 2, Punkt 11 -- nur Befund, keine Änderung am Code der Anwendung. Frage: kann eine Monteurin über Oberfläche oder API für andere Zeit buchen, auch außerhalb ihrer Kolonne? Über die API nein: jede Einzelbuchung (manuell, Zeitmessung, ändern, stoppen, löschen) nimmt für jede Rolle außer Admin nur die eigene Person an (403), auch für Kollegen der Kolonne; eine Gruppenbuchung nur die Kolonnenführerin, nur für Mitglieder ihres Teams und mit sich selbst. Die Oberfläche bietet mehr an: der Einsatzbericht zeigt der Monteurin alle aktiven Mitarbeiter zur Auswahl, ein Kollege wird erst vom Server abgelehnt. Nebenbefund: eine laufende Gruppenzeit stoppt die Initiatorin auch nach entzogenem Kennzeichen für alle. Angriffstest mit Gegenprobe in `tests/test_v437_befund_zeit_fuer_andere.py`, die Oberfläche als `xfail` für die nächste Runde; ausführlich in `docs/archiv/rechtekonzept.md`, „Befund 1.8.142“.
+
 ## 1.8.141 – Finanzen ohne Platzhaltersatz
 
 Fehlerrunde vor Stufe 2, Punkt 10. Unter der Überschrift „Finanzen“ stand „Alle Rechnungen im Überblick. Weitere buchhalterische Themen folgen hier künftig.“ -- der zweite Satz ist weg. Dazu eine Korrektur im Archiv zu 1.8.140: vor dem Prozentzeichen steht ein gewöhnliches Leerzeichen, kein geschützter Abstand, wie dort zuerst stand.
