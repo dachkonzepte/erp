@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.136 – LV-Editor: ein Weg zum Auftrag
+
+Fehlerrunde vor Stufe 2, Punkt 5. Gab es zum Angebot einen Auftrag, zeigte der LV-Editor den Link „Auftrag öffnen“ und daneben den Hauptknopf „Auftrag AUF-… öffnen“ -- zwei Wege zum selben Ziel. Jetzt ist es einer: der Hauptknopf öffnet den Auftrag; nur wenn er stattdessen „Änderungen in AUF-… übernehmen“ heißt (Angebot nach der Beauftragung geändert, Abgleich erlaubt), steht der Link daneben, jetzt mit der Auftragsnummer („Auftrag AUF-… öffnen“).
+
 ## 1.8.135 – Zurück-Links der Formularseiten mit echtem Ziel
 
 Fehlerrunde vor Stufe 2, Punkt 4. Neues Projekt, Neues Angebot, das Stammdaten-Formular und „Leistung bearbeiten“ (Seiten ohne Seitenleiste) führten mit `history.back()` zurück -- nach direktem Aufruf oder in einem neuen Tab ins Leere -- und nannten teils Seiten, die es nicht gibt („← Projekte & Belege“, „← Angebote“). Jetzt berechnet der Server Ziel und Namen aus der Herkunft: Neues Projekt „← Projekte“, aus der Kundenakte „← Kundenakte“; Neues Angebot „← Projekte“, aus einem Projekt „← Projektmappe“; Stammdaten-Formular „← Stammdaten: <Bereich>“ auf die Liste des Bereichs, beim Objekt bearbeiten „← Objekt“, beim Kontakt aus der Projektmappe „← Projektmappe“; Leistung „← Leistungskatalog“. Werte aus der Adresse gehen nur als Zahl ein.
