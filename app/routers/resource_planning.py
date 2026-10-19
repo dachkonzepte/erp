@@ -71,7 +71,11 @@ def _entzieht_bei_laufender_gruppenzeit(db: Session, team: Team, payload: TeamUp
     nachher = {x.employee_id for x in payload.employees if x.is_crew_leader} if payload.active else set()
     if not vorher - nachher:
         return False
-    return db.scalar(select(TimeEntryGroup.id).where(TimeEntryGroup.team_id == team.id, TimeEntryGroup.status == "running").limit(1)) is not None
+    return _laufende_gruppenzeit(db, team.id)
+
+
+def _laufende_gruppenzeit(db: Session, team_id: int) -> bool:
+    return db.scalar(select(TimeEntryGroup.id).where(TimeEntryGroup.team_id == team_id, TimeEntryGroup.status == "running").limit(1)) is not None
 
 
 def _apply_team_payload(db:Session,team:Team,payload:TeamCreate|TeamUpdate):
@@ -210,9 +214,16 @@ def update_team(team_id:int,payload:TeamUpdate,trotz_laufender_gruppenzeit:bool=
 
 
 @router.delete("/api/teams/{team_id}")
-def delete_team(team_id:int,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
+def delete_team(team_id:int,trotz_laufender_gruppenzeit:bool=False,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     team=db.get(Team,team_id)
     if team is None: raise HTTPException(status_code=404,detail="Kolonne / Team nicht gefunden.")
-    if db.scalar(select(WorkPreparationTeamAssignment).where(WorkPreparationTeamAssignment.team_id==team_id)):
+    # Seit 1.8.153: dieselbe Rückfrage wie beim Entziehen des Kennzeichens (1.8.145) -- gelöscht oder deaktiviert gilt kein
+    # Kennzeichen des Teams mehr. Gestoppt wird nichts.
+    if not trotz_laufender_gruppenzeit and _laufende_gruppenzeit(db,team_id):
+        raise HTTPException(status_code=409,detail=LAUFENDE_GRUPPENZEIT)
+    # Seit 1.8.153 auch mit Gruppenbuchungen nur deaktiviert: sie verweisen auf das Team (time_entry_groups.team_id) -- bis dahin
+    # wurde ein Team ohne Arbeitsvorbereitung gelöscht, unter PostgreSQL scheiterte das am Fremdschlüssel (500).
+    if db.scalar(select(WorkPreparationTeamAssignment).where(WorkPreparationTeamAssignment.team_id==team_id)) or \
+            db.scalar(select(TimeEntryGroup.id).where(TimeEntryGroup.team_id==team_id).limit(1)) is not None:
         team.active=False; db.commit(); return {"deleted":False,"deactivated":True}
     db.delete(team); db.commit(); return {"deleted":True}

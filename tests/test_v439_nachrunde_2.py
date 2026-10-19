@@ -2,6 +2,9 @@
 
     1  Prüfung: zahlLesen() seit 1.8.148 (Tabelle) und Rundweg Menge/EP im Auftrag -- angezeigt mit Tausenderpunkt, unverändert
        gespeichert, derselbe Betrag in der Datenbank (1.8.151)
+    2  Einsatzbericht: Auswahl „Mitarbeiter“ nur, wer laut Server für andere bucht -- in tests/test_v437_befund_zeit_fuer_andere.py
+       (1.8.152)
+    3  DELETE /api/teams/{id}: Rückfrage (409) bei laufender Gruppenzeit; mit Gruppenbuchungen deaktiviert statt gelöscht (1.8.153)
 """
 
 import json
@@ -11,6 +14,7 @@ import pytest
 
 from tests.test_v334_auswahl_restfaelle import im_browser, nur_mit_node, seite
 from tests.test_v414_zahleneingaben import _lesen
+from tests.test_v437_befund_zeit_fuer_andere import _als, _gruppe_starten, _laufend, welt  # noqa: F401 (welt: Fixture)
 
 
 # ---------------------------------------------------------------------------
@@ -77,3 +81,66 @@ def test_auftrag_rundweg_menge_und_ep_mit_tausenderpunkt(threaded_db_session, ro
     assert lauf["dialog"] == lauf["angezeigt"]
     if Decimal(menge) >= 1000:
         assert "." in lauf["angezeigt"]["menge"]  # wirklich mit Tausenderpunkt angezeigt
+
+
+# ---------------------------------------------------------------------------
+# 3. DELETE /api/teams/{id}: Rückfrage bei laufender Gruppenzeit
+# ---------------------------------------------------------------------------
+
+def _team(welt, team_id):
+    from app.models import Team
+
+    with welt["sitzung"]() as db:
+        team = db.get(Team, team_id)
+        return None if team is None else team.active
+
+
+def test_team_loeschen_bei_laufender_gruppenzeit_fragt_nach(welt):
+    """Bis 1.8.152 löschte DELETE /api/teams/{id} ein Team ohne Rückfrage, auch während seine Gruppenzeit lief -- und ein Team ohne
+    Arbeitsvorbereitung hart, obwohl die Gruppe darauf verweist. Seit 1.8.153 dieselbe Rückfrage wie beim Entziehen des Kennzeichens
+    (409), mit Bestätigung deaktiviert (nicht gelöscht), gestoppt wird nichts."""
+    ids, nord, sued = welt["ids"], welt["nord"], welt["sued"]
+    gid = _gruppe_starten(welt, 2)
+    ada = _als(welt, "Ada")
+
+    antwort = ada.delete(f"/api/teams/{nord}")
+    assert antwort.status_code == 409, antwort.text
+    assert antwort.json()["detail"] == {"code": "laufende_gruppenzeit", "message": "Gruppenzeit läuft noch – trotzdem entziehen?"}
+    assert _team(welt, nord) is True
+
+    bestaetigt = ada.delete(f"/api/teams/{nord}?trotz_laufender_gruppenzeit=true")
+    assert (bestaetigt.status_code, bestaetigt.json()) == (200, {"deleted": False, "deactivated": True}), bestaetigt.text
+    assert _team(welt, nord) is False  # deaktiviert, die Gruppe verweist weiter darauf
+    assert _laufend(welt) == (sorted([ids["Lea"], ids["Max"]]), [gid])  # nichts gestoppt
+
+    # Kontrolle: ein Team ohne Gruppenzeit und ohne Gruppenbuchungen löscht ohne Rückfrage
+    assert ada.delete(f"/api/teams/{sued}").json() == {"deleted": True}
+    assert _team(welt, sued) is None
+
+
+def test_team_mit_gruppenbuchungen_wird_unter_postgresql_deaktiviert():
+    """Gegen PostgreSQL: ein Team ohne Arbeitsvorbereitung, aber mit einer (abgeschlossenen) Gruppenbuchung -- bis 1.8.152 ein hartes
+    Löschen, das am Fremdschlüssel time_entry_groups.team_id scheiterte (IntegrityError, 500). Seit 1.8.153 deaktiviert."""
+    from datetime import date
+
+    from app.models import Team, TeamEmployee
+    from app.routers.resource_planning import delete_team
+    from app.time_tracking import create_group_manual_entry
+    from tests.befund_vor_echtbetrieb import pg_sitzung
+    from tests.test_v264_field_time_tracking import _employee
+    from tests.test_v325_contract_basis import beauftragen, make_quote
+
+    with pg_sitzung("teamloeschen") as db:
+        lea, max_ = _employee(db, "P-1", "Lea", "Test"), _employee(db, "P-2", "Max", "Test")
+        team = Team(name="Kolonne Ost")
+        db.add(team)
+        db.flush()
+        db.add_all([TeamEmployee(team_id=team.id, employee_id=lea.id, is_crew_leader=True),
+                    TeamEmployee(team_id=team.id, employee_id=max_.id)])
+        db.commit()
+        order = beauftragen(db, make_quote(db, is_consumer=False, number="439"))  # echtes Angebot (Fremdschlüssel unter PostgreSQL)
+        create_group_manual_entry(db, employee_ids=[lea.id, max_.id], team_id=team.id, actor_employee_id=None, is_admin=True,
+                                  order_id=order.id, work_date=date(2026, 10, 1), hours=Decimal("4"))
+        assert delete_team(team.id, db=db, _role=None) == {"deleted": False, "deactivated": True}  # keine laufende Gruppe: keine Rückfrage
+        db.expire_all()
+        assert db.get(Team, team.id).active is False
