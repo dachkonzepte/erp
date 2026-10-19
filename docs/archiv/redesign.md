@@ -510,3 +510,11 @@ Vorgabe vom 19.10.2026 (übernommen wie gegeben): „Stufe „Grundlage“. Drei
 #### Festlegungen 1.8.155 (Bitte bestätigen)
 
 1. **ok mit eigenen Werten, nicht als Verweis** -- `--ds-ok`, `-hell`, `-text` tragen dieselben Hex-Werte wie aktion statt `var(--ds-aktion…)`: der Kontrasttest liest Hex-Werte, ein Verweis bliebe dort ungeprüft. Eine spätere Änderung an aktion muss ok mitziehen (Kommentar „= aktion“ an den drei Zeilen).
+
+### Teil B (1.8.156): Bildgrundlage mit den Fenstern des TerraPad 1201
+
+- **Vorher**: `scripts/bildgrundlage.py` -- `STARTHOEHEN = {800: 1280, 1280: 800}`, die Fenster der TerraPad-Aufnahmen so groß wie die ganze Anzeige (1.8.131, Festlegung 1.8.131 Nr. 1 und 3).
+- **Änderung**: `STARTHOEHEN = {800: 1100, 1280: 620}` -- hoch 800 × 1100, quer 1280 × 620, wie vorgegeben (die Höhe der Anzeige ohne die Leisten von System und Browser); Breiten (`TABLET = (800, 1280)`), Gerätemodus, 412 und 1440 unverändert. Ganzseitige Bilder: Mindesthöhe ist die Fensterhöhe, sonst die Höhe der Seite -- sie ändern sich nur, wo die Seite kürzer als das alte Fenster war. Zustandsbilder (Bild des Fensters): „Menü aufgeklappt“ bei 800 jetzt 800 × 1100, „Seitenleiste eingeklappt“ bei 1280 jetzt 1280 × 620. Die Aufnahme „benutzer“ ist seit 1.8.134 Admin (`AUFNAHMEN`, unverändert).
+- **Test**: `tests/test_v431_bildgrundlage.py::test_monteurin_auch_auf_dem_terrapad` verlangt die neuen Fenster -- vorher rot. Probe `--nur einsatzbericht` (22 Bilder, 34 von 34 Prüfungen): Zustände 800 × 1100 und 1280 × 620, ganzseitig 800 × 1461 und 1280 × 1162.
+- **Angepasste Erwartung** (Regel 28): `test_monteurin_auch_auf_dem_terrapad` -- alt `STARTHOEHEN == {800: 1280, 1280: 800}`, neu `{800: 1100, 1280: 620}`.
+- Festlegung 1.8.131 Nr. 3 nannte die Fenster 800 × 1280 und 1280 × 800 -- seit 1.8.156 durch die Vorgabe ersetzt (800 × 1100, 1280 × 620).

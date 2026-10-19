@@ -8,7 +8,8 @@ AUFRUF (aus dem Projektordner, in der Projekt-venv):
 aufnehmen   Eine Testinstanz (scripts/cdp_klicktest.py, Wegwerf-SQLite, Regel 16) mit festen Testdaten (befuellen() unten) und
             stehender Uhr (UHR, Server, Befüllen und Browser), dann je Eintrag in AUFNAHMEN, je Rolle des Eintrags, je Thema (hell,
             dunkel) und je Breite (412 px als Gerät, 1440 px) ein ganzseitiges PNG; die Seiten der Monteurin zusätzlich auf dem
-            TerraPad, hoch (800 px) und quer (1280 px), als Gerät (seit 1.8.131). Danach die Zustände des Rahmens (ZUSTAENDE, seit
+            TerraPad 1201, hoch (800 × 1100) und quer (1280 × 620), als Gerät (seit 1.8.131, Fenster seit 1.8.156). Danach die
+            Zustände des Rahmens (ZUSTAENDE, seit
             1.8.131): Menü aufgeklappt, Seitenleiste eingeklappt, Kontomenü offen, Seitenleiste ganz unten, Seitenleiste von Büro –
             Auftrag -- je auf der Seite aus ZUSTANDSSEITEN, je Thema, als Bild des Fensters (nicht der ganzen Seite: die Leiste und
             die Menüs hängen am Fenster). Vor jedem Bild: Seite geladen und keine Anfrage mehr unterwegs (seit 0,8 s), Schriften
@@ -56,11 +57,12 @@ BUERO, MONTEUR, ADMIN, ANONYM = "buero", "monteur", "admin", "anonym"
 BUERO_AUFTRAG = "buero_auftrag"  # seit 1.8.131, nur für die Seitenleiste dieser Rolle (ZUSTAENDE)
 THEMEN = ("hell", "dunkel")
 BREITEN = (412, 1440)
-# Seit 1.8.131 (Stufe 2a): die Seiten der Monteurin zusätzlich auf dem TerraPad -- hoch 800 x 1280, quer 1280 x 800
+# Seit 1.8.131 (Stufe 2a): die Seiten der Monteurin zusätzlich auf dem TerraPad -- seit 1.8.156 die Fenster des TerraPad 1201 im
+# Browser: hoch 800 x 1100, quer 1280 x 620 (bis 1.8.155 die ganze Anzeige, 800 x 1280 und 1280 x 800)
 TABLET = (800, 1280)
 GERAETE = (412, *TABLET)  # als Gerät aufgenommen (mobile: Viewport wie auf dem Gerät, Bildlaufleisten über dem Inhalt)
 STARTHOEHE = 900
-STARTHOEHEN = {800: 1280, 1280: 800}  # Höhe des Fensters, wo sie von STARTHOEHE abweicht
+STARTHOEHEN = {800: 1100, 1280: 620}  # Höhe des Fensters, wo sie von STARTHOEHE abweicht
 HOECHSTE_HOEHE = 16000  # Chrome zeichnet höhere Bilder nicht zuverlässig
 CHANGELOG = Path(__file__).resolve().parent / "bildgrundlage_changelog.md"
 # Text ohne farbige Subpixel-Kanten (ClearType): deren Stärke hing davon ab, welche Seiten der Browser vorher gezeichnet hatte -- der

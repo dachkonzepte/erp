@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.155** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.156** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -330,7 +330,7 @@ Behoben, drei Teile:
   `border-radius`), keine farbige Kopfleiste – Seitentitel/Aktionen stattdessen in einer normalen
   Karte. `settings.html` als Referenzvorlage für Feldlayout, Buttons, Status-Meldungen.
 - **Neues Design-System „Schiefer & Signal“ (seit 1.8.127, Redesign Stufe 1, noch ohne sichtbare Wirkung):** `app/static/ds/ds.css`
-  mit Tokens `--ds-*` (hell und dunkel) und selbst gehosteten Schriften (Archivo, IBM Plex Sans, IBM Plex Mono), über
+  mit Tokens `--ds-*` (hell und dunkel; seit 1.8.155 Firmengrün `--ds-aktion*` als Hauptaktion, Signal nur „wartet auf dich“) und selbst gehosteten Schriften (Archivo, IBM Plex Sans, IBM Plex Mono), über
   `_ds_kopf.html` in jeder Seite eingebunden -- Regel 37, `docs/archiv/redesign.md`.
 
 ## Kritische, nicht verhandelbare Regeln
@@ -1866,7 +1866,7 @@ Seit 1.8.126 nimmt jeder Klicktest diesen einen Helfer (auch die SMTP-Empfänger
 mit festen Testdaten, stehender Uhr 14.10.2026 10:00 in Server und Browser, alle gespeicherten Zeitstempel darauf gesetzt, feste
 Versionsnummer „Bildgrundlage“ und fester Changelog): Büro – Finanzen überall, die Monteurin zusätzlich auf jeder Seite, die sie öffnet,
 Admin für Adressimport und (seit 1.8.134) Benutzer, anonym die Anmeldeseite, die Sperrseite als Monteurin auf `/projects`; je hell und dunkel, je 412 px
-und 1440 px, die Seiten der Monteurin seit 1.8.131 auch 800 und 1280 px (TerraPad); dazu seit 1.8.131 fünf Zustände des Rahmens als Bild
+und 1440 px, die Seiten der Monteurin seit 1.8.131 auch 800 und 1280 px (TerraPad; seit 1.8.156 Fenster des TerraPad 1201: hoch 800 × 1100, quer 1280 × 620); dazu seit 1.8.131 fünf Zustände des Rahmens als Bild
 des Fensters (`ZUSTAENDE`: Menü aufgeklappt, Seitenleiste eingeklappt, Kontomenü offen, Leiste ganz unten, Leiste von Büro – Auftrag) --
 304 Bilder je Lauf, die bisherigen zuerst. Ordner `bildgrundlage/<commit>/` im Projekt (in `.gitignore`, Endung `-geaendert` bei geänderter Arbeitskopie) mit
 `bilder.json`. Vor einem Umbau eine Grundlage vom Stand davor, danach eine neue und vergleichen:

@@ -6,7 +6,8 @@ Hier geprüft, ohne Browser:
     Abdeckung       jede Seite aus tests/vorlagen_js.py::seiten() steht in AUFNAHMEN, keine Vorlage dort ist keine Seite
     Adressen        jede Adresse zeichnet für jede ihrer Rollen genau die genannte Vorlage (Sperrseite: 403 für die Monteurin)
     Monteur         jede Seitenroute, die die Monteurin öffnen darf, steht mit Rolle "monteur" in AUFNAHMEN
-    TerraPad        jede Seite der Monteurin auch in 800 und 1280 px, hell und dunkel, als Gerät; das Büro bleibt bei 412 und 1440 (1.8.131)
+    TerraPad        jede Seite der Monteurin auch in 800 und 1280 px, hell und dunkel, als Gerät; das Büro bleibt bei 412 und 1440 (1.8.131);
+                    Fenster des TerraPad 1201: hoch 800 × 1100, quer 1280 × 620 (seit 1.8.156)
     Zustände        Menü aufgeklappt, Seitenleiste eingeklappt, Kontomenü offen, Seitenleiste ganz unten, Leiste von Büro – Auftrag -- mit
                     den vorgegebenen Breiten und Rollen; die Seite jeder Rolle zeichnet für sie den Rahmen samt der Elemente, die die
                     Aktionen anfassen; die Monteurin hat den Rahmen genau auf Einsatzbericht und Konto; Dateinamen eindeutig (1.8.131)
@@ -145,7 +146,8 @@ def test_monteurin_auch_auf_dem_terrapad():
         assert gesehen == {(t, w) for t in bg.THEMEN for w in (412, 800, 1280, 1440)}, a.name
     assert {b.breite for b in geplant if b.rolle != bg.MONTEUR and b.zustand is None} == {412, 1440}
     assert bg.TABLET == (800, 1280) and bg.GERAETE == (412, 800, 1280)
-    assert bg.STARTHOEHEN == {800: 1280, 1280: 800} and bg.STARTHOEHE == 900  # hoch und quer; 412 und 1440 wie bisher
+    # seit 1.8.156 die Fenster des TerraPad 1201 (bis 1.8.155 800 x 1280 und 1280 x 800); 412 und 1440 wie bisher
+    assert bg.STARTHOEHEN == {800: 1100, 1280: 620} and bg.STARTHOEHE == 900
 
 
 # Vorgabe vom 19.10.2026, Punkt 5: Zustand -> (Breiten, Rollen)
