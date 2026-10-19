@@ -454,7 +454,10 @@ def get_manifest(db: Session = Depends(get_db, scope="function")):
     return JSONResponse(build_manifest(db), media_type="application/manifest+json")
 
 
+# Seit 1.8.130 öffentlich wie /manifest.json (app/anmeldeschranke.py::OEFFENTLICH, nur die Größen aus ICON_SIZES), mit GET und HEAD
+# (HEAD als eigene Route ohne Eintrag in der Schnittstellenbeschreibung, wie /health)
 @router.get("/api/mobile-icon/{size}.png")
+@router.head("/api/mobile-icon/{size}.png", include_in_schema=False)
 def get_mobile_icon(size: int, db: Session = Depends(get_db, scope="function")):
     if size < 16 or size > 1024:
         raise HTTPException(status_code=404, detail="Ungültige Icon-Größe.")

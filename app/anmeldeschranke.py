@@ -42,17 +42,20 @@ angeboten (ältere Tests importieren sie dort)."""
 
 from __future__ import annotations
 
+import html
 import logging
 from urllib.parse import quote, urlsplit
 
 from fastapi import Request
-from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from sqlalchemy.exc import TimeoutError as PoolLeer
 from starlette.concurrency import run_in_threadpool
 
 from . import design_dateien, seitendaten, sitzungen
 from .audit import reset_audit_context, set_audit_context
 from .auth import COOKIE_NAME, NUR_HTTPS, users_exist
+from .mobile_manifest import ICON_SIZES
+from .version import APP_VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +79,8 @@ OEFFENTLICH: dict[str, frozenset] = {
     "/api/auth/status": LESEND,
     "/api/auth/login": frozenset({"POST"}),
     "/api/auth/logout": frozenset({"POST"}),
+    # Seit 1.8.130: die PWA-Symbole des Manifests öffentlich wie /manifest.json (nur die Größen, die es gibt)
+    **{f"/api/mobile-icon/{groesse}.png": LESEND for groesse in ICON_SIZES},
 }
 
 
@@ -98,8 +103,11 @@ def _request_requires_login(has_users: bool, method: str, path: str) -> bool:
     die Doku-Routen von FastAPI (/openapi.json, /docs, /redoc, /docs/oauth2-redirect) beantworteten HEAD mit 200 und berechneten dafür
     die ganze Schnittstellenbeschreibung. Jetzt: eine API-Anfrage ist mit jeder Methode 401, eine Seite mit GET/HEAD wird umgeleitet, mit
     jeder anderen Methode 401 (wie POST); ausgenommen nur OEFFENTLICH mit den dort genannten Methoden.
+
+    Seit 1.8.130 ohne Ausnahme für die Ersteinrichtung: ohne Konto antwortet die Middleware vorher selbst (ersteinrichtung_antwort(),
+    503); has_users bleibt nur für ältere Aufrufer in der Unterschrift und ändert nichts mehr.
     """
-    if not has_users or _oeffentlich(method, path):
+    if _oeffentlich(method, path):
         return False
     if path.startswith("/api/"):
         return True
@@ -117,10 +125,50 @@ def _page_requires_login(has_users: bool, method: str, path: str) -> bool:
     nie einen Redirect auf eine HTML-Seite -- ein API-Client würde eine Login-Seite als Antwort
     nicht sinnvoll verarbeiten können. Bewusst nur GET: Seiten kennen ohnehin kein POST/PUT/....
     Seit 1.8.128 GET und HEAD (HEAD kam bis dahin ohne Anmeldung durch); jede andere Methode weist _request_requires_login() mit 401 ab.
+    Seit 1.8.130 ohne Ausnahme für die Ersteinrichtung (siehe _request_requires_login()).
     """
-    if not has_users or method not in LESEND or path.startswith("/api/"):
+    if method not in LESEND or path.startswith("/api/"):
         return False
     return path not in _PUBLIC_PAGE_PATHS
+
+
+# Seit 1.8.130 (Runde 1d): ohne Konto bleibt die App geschlossen. Bis dahin ließ die Schranke ohne Konto alles durch, und jeder, der den
+# Server erreichte, legte über POST /api/users das erste Konto als Admin an. Jetzt entsteht es nur per Befehl auf dem Server
+# (scripts/erstes_konto.py, Passwort verdeckt abgefragt); bis dahin gehen nur /health (GET, HEAD) und die Design-Dateien durch, eine
+# Seite (GET oder HEAD außerhalb von /api/) zeigt den Hinweis mit dem Befehl, alles andere bekommt 503.
+ERSTEINRICHTUNG_BEFEHL = "python scripts/erstes_konto.py <benutzername>"
+ERSTEINRICHTUNG_TEXT = ("Ersteinrichtung: es gibt noch kein Benutzerkonto. Das erste Administrator-Konto legt der Betreiber auf dem Server "
+                        f"an (im Projektordner, mit geladener .env und der virtuellen Umgebung des ERP): {ERSTEINRICHTUNG_BEFEHL}")
+
+
+def _ersteinrichtung_seite() -> HTMLResponse:
+    seite = f"""<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DACHKONZEPTE ERP – Ersteinrichtung</title>
+<script>(function(){{try{{if(window.matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.setAttribute('data-theme','dark')}}catch(e){{}}}})();</script>
+<link rel="stylesheet" href="/static/ds/ds.css?v={APP_VERSION}">
+<style>body{{box-sizing:border-box;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--ds-grund);color:var(--ds-text);font-family:var(--ds-schrift-text);padding:var(--ds-abstand-4)}}
+main{{max-width:620px;background:var(--ds-flaeche);border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-karte);padding:var(--ds-abstand-6)}}
+h1{{font-family:var(--ds-schrift-titel);font-size:var(--ds-groesse-7);margin:0 0 var(--ds-abstand-3)}}p{{color:var(--ds-text-2);line-height:1.5}}
+pre{{font-family:var(--ds-schrift-mono);background:var(--ds-flaeche-2);border:1px solid var(--ds-linie);padding:var(--ds-abstand-3);white-space:pre-wrap}}</style>
+</head><body><main><h1>Ersteinrichtung</h1>
+<p>Es gibt noch kein Benutzerkonto. Bis zum ersten Administrator-Konto bleibt das ERP geschlossen.</p>
+<p>Das erste Konto legt der Betreiber auf dem Server an – im Projektordner, mit geladener <code>.env</code> und der virtuellen Umgebung
+des ERP. Das Passwort fragt der Befehl verdeckt ab:</p>
+<pre>{html.escape(ERSTEINRICHTUNG_BEFEHL)}</pre>
+<p>Danach diese Seite neu laden und anmelden; beim ersten Anmelden richtet das Konto den zweiten Faktor ein.</p></main></body></html>"""
+    return HTMLResponse(seite, status_code=503)
+
+
+def ersteinrichtung_antwort(method: str, path: str):
+    """Die Antwort, solange es kein Konto gibt -- None nur für /health mit GET oder HEAD (die Design-Dateien gehen vorher durch)."""
+    if path == "/health" and method in LESEND:
+        return None
+    if method in LESEND and not path.startswith("/api/"):
+        antwort = _ersteinrichtung_seite()
+    else:
+        antwort = JSONResponse(status_code=503, content={"detail": ERSTEINRICHTUNG_TEXT, "ersteinrichtung": True})
+    antwort.headers["Cache-Control"] = CACHE_VERBOT
+    return antwort
 
 
 # Diese Endpunkte bleiben für einen Administrator erreichbar, dessen Sitzung das Passwort
@@ -286,6 +334,11 @@ def middleware(session_factory):
             logger.warning("Anmeldeschranke: keine Datenbankverbindung im Zeitlimit des Pools: %s %s", request.method, request.url.path)
             return _ueberlastet_antwort()
         user, sitzung_id, otp_ok, has_users = stand["user"], stand["sitzung_id"], stand["otp_ok"], stand["has_users"]
+        if not has_users:
+            # Seit 1.8.130: ohne Konto geschlossen (ersteinrichtung_antwort()) -- nur /health geht weiter
+            antwort = ersteinrichtung_antwort(request.method, request.url.path)
+            if antwort is not None:
+                return _schutzkoepfe(antwort)
         tokens = set_audit_context(user=user, request=request)
         request.state.erp_user = user
         request.state.erp_sitzung_id = sitzung_id

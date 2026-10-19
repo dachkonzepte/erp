@@ -249,14 +249,15 @@ def _seitenpfad(pfad: str) -> str:
 
 def test_jede_seite_braucht_eine_verbindung(welt):
     """Jede Seite als Admin: die Schranke holt eine Verbindung (Benutzer, Sitzung, Seitendaten), die Seite selbst keine weitere -- außer
-    einer Route mit eigener Sitzung (/users), und auch dann nie zwei zugleich. Bis 1.8.113 öffnete jeder Aufruf eines Jinja-Globals eine
-    eigene Sitzung (eine Seite: 37, /tasks 41, /mobil 17; /users hielt dabei schon eine -- zwei zugleich)."""
+    einer Route mit eigener Sitzung, und auch dann nie zwei zugleich. Bis 1.8.113 öffnete jeder Aufruf eines Jinja-Globals eine
+    eigene Sitzung (eine Seite: 37, /tasks 41, /mobil 17; /users hielt dabei schon eine -- zwei zugleich). Seit 1.8.130 hat keine Seite
+    mehr eine eigene Sitzung (/users brauchte sie bis dahin für die Ausnahme der Ersteinrichtung)."""
     engine, make_session, wert = welt
     stand = _zaehler([engine, database.engine])
     client = _client(app_mit_schranke(make_session, pages_router.router), wert)
     mit_eigener_sitzung = {r.path for r in pages_router.router.routes if isinstance(r, APIRoute)
                            and any(sub.call is get_db for sub in _abhaengigkeiten(r.dependant))}
-    assert mit_eigener_sitzung == {"/users"}
+    assert mit_eigener_sitzung == set()
     gezeigt, falsch = 0, []
     for r in pages_router.router.routes:
         if not isinstance(r, APIRoute) or "GET" not in r.methods or r.path == "/health":

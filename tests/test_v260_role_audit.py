@@ -802,18 +802,18 @@ class TestPageRouteClassification:
         office = router_test_client(db, pages_router, role="buero_auftrag")
         assert office.get("/address-import", follow_redirects=False).status_code == 403
 
-    def test_users_page_is_bootstrap_exempt_then_buero_only(self, router_test_client, threaded_db_session):
+    def test_users_page_buero_only_also_without_any_account(self, router_test_client, threaded_db_session):
         """router_test_client() injiziert den angemeldeten Benutzer direkt in request.state,
         ohne eine echte AppUser-Zeile anzulegen -- users_exist(db) bleibt deshalb False, bis wir
-        selbst eine anlegen. Das bildet den Bootstrap-Fall exakt nach: kein Benutzer in der
-        Datenbank, aber (anders als ein echter Bootstrap-Aufruf) hier zusätzlich ein bereits
-        gesetzter role="field"-Kontext -- und selbst DER kommt durch, weil
-        _require_users_page_access() den users_exist()-Zweig vor jeder Rollenprüfung auswertet."""
+        selbst eine anlegen. Bis 1.8.129 kam hier selbst ein role="field"-Kontext durch (Ausnahme
+        für die Ersteinrichtung vor jeder Rollenprüfung); seit 1.8.130 gilt ohne Konto dieselbe
+        Rollenprüfung wie mit (ohne Konto hält ohnehin die Schranke die App geschlossen)."""
         from app.models import AppUser
         from app.routers.pages import router as pages_router
         db = threaded_db_session
-        bootstrap = router_test_client(db, pages_router, role="field")
-        assert bootstrap.get("/users", follow_redirects=False).status_code == 200
+        ohne_konto = router_test_client(db, pages_router, role="field")
+        assert ohne_konto.get("/users", follow_redirects=False).status_code == 403
+        assert router_test_client(db, pages_router, role="buero_auftrag").get("/users", follow_redirects=False).status_code == 200
 
         db.add(AppUser(username="erste.admina", display_name="Erste Admina", role="admin", active=True,
                        password_hash="x"))
@@ -861,7 +861,7 @@ def test_403_on_a_page_route_renders_access_denied_html_not_json():
 
     resp_anon = client.get("/buero-only")  # kein x-test-role-Header -> erp_user bleibt None
     assert resp_anon.status_code == 403
-    assert 'href="/users"' in resp_anon.text  # Bootstrap-Wegweiser statt des gesperrten Dashboards
+    assert 'href="/"' in resp_anon.text  # bis 1.8.129 der Wegweiser der offenen Ersteinrichtung auf /users
 
     # ein /api/-Pfad bleibt unverändert JSON (kein zweiter Ort mit eigener Fehlerbehandlung)
     resp_api = client.get("/api/buero-only", headers={"x-test-role": "field"})

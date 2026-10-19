@@ -195,16 +195,14 @@ async def _role_check_403_shows_access_denied_page(request: Request, exc: HTTPEx
     verhält sich unverändert wie FastAPIs eigener Standard-Handler, an den hier bewusst
     delegiert wird (keine Kopie, kein zweiter Ort mit eigener Fehlerbehandlung).
 
-    user is None kann diesen Zweig nur während des Bootstrap-Falls erreichen (kein ERP-Benutzer
-    existiert -- _page_requires_login() redirectet sonst schon vorher auf /login, siehe dort):
-    "Zur Startseite" zeigt dann auf /users, die einzige in diesem Zustand erreichbare Seite,
-    statt auf das (für einen anonymen Aufruf ebenfalls gesperrte) Dashboard.
+    user is None erreicht diesen Zweig nicht mehr: ohne Anmeldung leitet die Schranke vorher auf /login, ohne Konto
+    antwortet sie 503 (seit 1.8.130; bis dahin zeigte "Zur Startseite" in der offenen Ersteinrichtung auf /users).
 
     Seit 1.8.114 im Threadpool gezeichnet: fehlen die Seitendaten der Schranke, lesen die Jinja-Globals sie selbst
     (app/seitendaten.py) -- das darf nie auf der Event-Loop geschehen (Punkt 1a)."""
     if exc.status_code == 403 and not request.url.path.startswith("/api/"):
         user = getattr(request.state, "erp_user", None)
-        home_url = "/users" if user is None else default_home_page_for_role(user.role)
+        home_url = "/" if user is None else default_home_page_for_role(user.role)
         return await run_in_threadpool(
             pages.templates.TemplateResponse, request=request, name="access_denied.html",
             context={"message": exc.detail if isinstance(exc.detail, str) else None, "home_url": home_url},

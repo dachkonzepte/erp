@@ -33,7 +33,8 @@ a{color:var(--accent)}
   <label>Passwort</label><input id="p" type="password" onkeydown="if(event.key==='Enter')login()">
   <button onclick="login()">Anmelden</button>
   <div id="msg" class="err"></div>
-  <p class="muted">Noch kein ERP-Benutzer angelegt? <a href="/users">Benutzerverwaltung öffnen</a>.</p>
+  {# Seit 1.8.130 ohne den Hinweis "Noch kein ERP-Benutzer angelegt? Benutzerverwaltung öffnen." -- ohne Konto zeigt die Schranke statt
+     dieser Seite den Hinweis mit dem Befehl (app/anmeldeschranke.py::ersteinrichtung_antwort()), mit Konto führte der Link zurück hierher. #}
 </div>
 {% include "_speichern.html" %}
 {% include "_weiterleitung.html" %}

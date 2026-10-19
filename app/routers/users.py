@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from .. import device_trust
 from .. import sitzungen
 from .. import two_factor
-from ..auth import hash_password, users_exist
+from ..auth import hash_password
 from ..database import get_db
 from ..deps import require_admin
 from ..models import AppUser, Employee
@@ -34,16 +34,15 @@ def list_app_users(db: Session = Depends(get_db, scope="function"), current: App
 
 
 @router.post("/api/users", response_model=AppUserOut)
-def create_app_user(payload: AppUserCreate, request: Request, db: Session = Depends(get_db, scope="function")):
-    configured = users_exist(db)
-    current = sitzungen.benutzer_aus_anfrage(db, request)
-    if configured and (current is None or current.role != "admin"):
-        raise HTTPException(status_code=403, detail="Nur Administratoren dürfen ERP-Benutzer anlegen.")
+def create_app_user(payload: AppUserCreate, db: Session = Depends(get_db, scope="function"),
+                    _admin: AppUser = Depends(require_admin("Nur Administratoren dürfen ERP-Benutzer anlegen."))):
+    """Seit 1.8.130 ohne Ersteinrichtungs-Ausnahme: bis dahin legte ohne Konto jeder hier das erste Konto als Admin an; das erste Konto
+    entsteht jetzt nur per Befehl auf dem Server (scripts/erstes_konto.py), die Schranke hält die App bis dahin geschlossen."""
     if db.scalar(select(AppUser).where(AppUser.username == payload.username.strip())):
         raise HTTPException(status_code=409, detail="Benutzername ist bereits vergeben.")
     if payload.employee_id is not None and db.get(Employee, payload.employee_id) is None:
         raise HTTPException(status_code=422, detail="Mitarbeiter wurde nicht gefunden.")
-    user = AppUser(username=payload.username.strip(), password_hash=hash_password(payload.password), display_name=payload.display_name.strip(), employee_id=payload.employee_id, role=("admin" if not configured else payload.role), active=payload.active, outlook_mailbox=(payload.outlook_mailbox or None))
+    user = AppUser(username=payload.username.strip(), password_hash=hash_password(payload.password), display_name=payload.display_name.strip(), employee_id=payload.employee_id, role=payload.role, active=payload.active, outlook_mailbox=(payload.outlook_mailbox or None))
     db.add(user); db.commit(); db.refresh(user)
     return user
 

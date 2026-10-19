@@ -902,7 +902,7 @@ pushen.“
   Methoden) → 403, dann 401 bzw. Umleitung.
 - Mit Sitzung ändert sich nichts: OPTIONS, TRACE und erfundene Methoden gehen durch die Schranke zum Routing (405/404).
 
-#### Festlegungen 1.8.128 (Nr. 1–3, 5, 7–9 bestätigt am 19.10.2026; Nr. 6 ersetzt durch 1.8.129 Nr. 3; Nr. 4 offen)
+#### Festlegungen 1.8.128 (Nr. 1–3, 5, 7–9 bestätigt am 19.10.2026; Nr. 6 ersetzt durch 1.8.129 Nr. 3; Nr. 4 ersetzt durch 1.8.130 Nr. 1)
 
 1. **Öffentliche Pfade je Methode** (`OEFFENTLICH`): `/login`, `/health`, `/manifest.json`, `/api/auth/status` und die Design-Dateien mit GET
    und HEAD; `/api/auth/login` und `/api/auth/logout` mit POST -- Anmelden und Abmelden sind POST, „dort nur GET und HEAD“ gilt für sie
@@ -911,8 +911,8 @@ pushen.“
    dreien ohne Anmeldung 401.
 3. **Abweisen**: eine Seite (nicht `/api/`) mit GET oder HEAD → Umleitung auf `/login?next=…`; eine Seite mit jeder anderen Methode → 401
    wie POST (auch ein fehlender Pfad); unter `/api/` jede Methode → 401 (mit Cookie ohne gültige Sitzung „Anmeldung abgelaufen“).
-4. **Ersteinrichtung** (noch kein Konto): bleibt offen wie bisher, für jede Methode. *Offen -- Befund in 1.8.129 (Runde 1c):*
-   `docs/archiv/redesign.md`, „Runde 1c“.
+4. ~~**Ersteinrichtung** (noch kein Konto): bleibt offen wie bisher, für jede Methode.~~ Ersetzt durch 1.8.130 Nr. 1 (ohne Konto
+   geschlossen, „Ersteinrichtung geschlossen (seit 1.8.130)“ unten); Befund in `docs/archiv/redesign.md`, „Runde 1c“.
 5. **Mit Sitzung unverändert**: OPTIONS, TRACE und erfundene Methoden gehen zum Routing (405/404); keine Sperre für Angemeldete.
 6. ~~**HEAD an öffentlichen GET-Routen**~~ (für `/health` ersetzt durch 1.8.129 Nr. 3): die Schranke lässt es durch, das Routing antwortet 405 (FastAPI ergänzt kein HEAD) -- so belassen.
 7. **Ursprungsprüfung** unverändert nur für POST, PUT, PATCH, DELETE; OPTIONS, TRACE und erfundene Methoden ohne Sitzung 401, nicht 403.
@@ -940,3 +940,138 @@ pushen.“
   einmal rot bei 99 % des parallelen Laufs -- eine Anfrage brauchte 2,20 s gegen die Grenze von 2 s, während 16 Prozesse liefen; allein
   dreimal grün (12–14 s), im zweiten vollen Lauf grün. Die Schranke tut für eine angemeldete GET-Anfrage dasselbe wie vorher.
 - **Angepasste Tests** (Regel 28): keine.
+
+## Ersteinrichtung geschlossen (seit 1.8.130)
+
+Runde 1d vor Stufe 2 des Redesigns. Vorgabe vom 19.10.2026 (Teil A, übernommen wie gegeben): „Vorab bestätigt: Festlegungen 1.8.129
+Nr. 1–5. Teil A – Runde 1d (Sicherheit) 1. Ohne Konto bleibt die App geschlossen: Die Schranke lässt dann nur /health und die
+Design-Dateien durch; Seiten zeigen einen Hinweis mit dem Befehl für die Ersteinrichtung, alles andere 503. Das erste Admin-Konto entsteht
+nur per Befehl auf dem Server (Passwort verdeckt abfragen, nie als Argument). Ersetzt 1.8.128 Nr. 4. Tests, die die offene Ersteinrichtung
+nutzen, umstellen und einzeln nennen. 2. Akzentfarbe nur für Admin änderbar, in Oberfläche und API. 3. /api/mobile-icon öffentlich wie
+/manifest.json, nur GET und HEAD. Angriffstests mit Gegenprobe wie bisher. Bildvergleich gegen die letzte Grundlage: Abweichen darf nur die
+Einstellungsseite der Büro-Rolle, jede weitere Abweichung begründen.“
+
+Ausgangslage: Befund Ersteinrichtung und Akzentfarbe in `docs/archiv/redesign.md`, „Runde 1c“.
+
+### Umsetzung 1.8.130
+
+- **Schranke ohne Konto** (`app/anmeldeschranke.py`): nach `_lesen()` (wie bisher je Anfrage `users_exist()`) antwortet
+  `ersteinrichtung_antwort(method, path)` selbst, wenn es kein Konto gibt -- `None` nur für `/health` mit GET oder HEAD; GET oder HEAD
+  außerhalb von `/api/` (jede Seite, auch `/login`, `/users`, ein fehlender Pfad) → 503 mit einer eigenen kleinen HTML-Seite
+  (`_ersteinrichtung_seite()`: Überschrift „Ersteinrichtung“, der Befehl `python scripts/erstes_konto.py <benutzername>` als Text, kein
+  Formular; `ds.css` mit den Tokens, hell/dunkel nach dem Farbschema des Systems); jede andere Anfrage → 503
+  `{"detail": …, "ersteinrichtung": true}`; beides `Cache-Control: no-store` und mit den Schutzkopfzeilen. Die Design-Dateien gehen wie
+  bisher vor jeder Datenbankabfrage durch, die Ursprungsprüfung bleibt davor (fremde Seite schreibend → 403). `has_users` öffnet in
+  `_request_requires_login()`/`_page_requires_login()` nichts mehr (bleibt in der Unterschrift).
+- **Erstes Konto** (`scripts/erstes_konto.py`): `python scripts/erstes_konto.py <benutzername> [--anzeigename …]` im Projektordner mit
+  geladener Umgebung. Ohne `DATABASE_URL` Abbruch (Rückgabe 2; `app.*` wird erst danach importiert -- eine leere Variable brach sonst schon
+  den Import ab), ohne Terminal Abbruch (2), Datenbank nicht lesbar Abbruch (2, nur der Name der Ausnahme). Gibt es schon ein Konto, legt
+  es nichts an (1) und fragt nicht nach dem Passwort. Sonst Passwort zweimal über `getpass`, geprüft mit den Grenzen von `AppUserCreate`
+  (Meldung nennt Feld und Regel, nie den Wert), unter PostgreSQL `LOCK TABLE app_users IN SHARE ROW EXCLUSIVE MODE` und noch einmal
+  geprüft, Konto mit Rolle `admin`, aktiv; Protokoll nur Benutzername und ID.
+- **Endpunkte ohne Ausnahme**: `POST /api/users` mit `require_admin()` (die Rolle wie verlangt; bis 1.8.129 ohne Konto offen und immer
+  Admin); `/users` mit `require_min_role(ROLE_OFFICE_AUFTRAG)` statt `_require_users_page_access()`; beide Einträge aus `ROLE_AUDIT_EXEMPT`
+  bzw. `PAGE_AUDIT_EXEMPT` entfernt. Die Benutzerseite zeigt den Bereich zum Anlegen nur noch einem Admin (`isAdmin()` ohne
+  `!status.configured`). Auf der Anmeldeseite fehlt der Hinweis „Noch kein ERP-Benutzer angelegt? Benutzerverwaltung öffnen.“ -- der
+  Link führte ohne Anmeldung über `/users` zurück auf die Anmeldung, und ohne Konto ist die Anmeldeseite gar nicht mehr erreichbar.
+  `access_denied.html` verweist ohne Benutzer auf `/` statt `/users` (ein Fall, den es nicht mehr gibt).
+- **Akzentfarbe**: `PUT /api/settings/appearance` mit `require_min_role(ROLE_ADMIN)` (403 „Die Akzentfarbe ändert nur ein
+  Administrator.“), `GET` unverändert ab Büro – Auftrag. `settings.html`: Feld, Knopf, Hinweis und die Erwähnungen im Menü, im Untertitel
+  des Erscheinungsbilds und im Hinweis der Unternehmensdaten nur mit `ist_admin`; die Listener der beiden Felder und `loadAppearance()`
+  nur mit `istAdmin` (ohne die Felder bräche das Seitenskript sonst an `addEventListener` ab -- Gegenprobe h). Logos und Logohöhe bleiben
+  ab Büro – Auftrag.
+- **PWA-Symbole**: `OEFFENTLICH` nennt `/api/mobile-icon/{groesse}.png` für jede Größe aus `ICON_SIZES` (192, 512 -- genau die des
+  Manifests) mit GET und HEAD; die Route hat eine eigene HEAD-Route ohne Eintrag in der Schnittstellenbeschreibung, ebenso `/health`
+  (eine Route mit GET und HEAD ergab dort zweimal dieselbe Operation-ID, Warnung beim Erzeugen von `/openapi.json`).
+
+#### Festlegungen 1.8.130 (Bitte bestätigen)
+
+1. **Ohne Konto geschlossen** (ersetzt 1.8.128 Nr. 4): „kein Konto“ heißt wie bisher keine Zeile in `app_users` (auch ein deaktiviertes
+   Konto zählt). Dann gehen nur die Design-Dateien (GET, HEAD) und `/health` (GET, HEAD) durch; GET oder HEAD außerhalb von `/api/` → 503
+   mit der Hinweisseite und dem Befehl, jede andere Anfrage → 503 als JSON mit `"ersteinrichtung": true`; beides `no-store`.
+2. **Reihenfolge**: die Ursprungsprüfung bleibt vor der Ersteinrichtung -- POST, PUT, PATCH, DELETE von fremder Seite oder ohne Herkunft
+   auch ohne Konto 403 (nicht 503); ein Fehler der Abfrage weiter 500, ein leerer Pool 503 „ausgelastet“.
+3. **Der Befehl** heißt `python scripts/erstes_konto.py <benutzername>` (optional `--anzeigename`, Vorgabe der Benutzername), im
+   Projektordner, mit geladener `.env` und der virtuellen Umgebung (auf dem Server `.venv/bin/python`). Seite und JSON nennen ihn so.
+4. **Das Skript** verlangt `DATABASE_URL` (sonst Abbruch, kein Rückfall auf SQLite) und ein Terminal (sonst Abbruch, das Passwort ließe
+   sich nicht verdeckt lesen); Passwort zweimal verdeckt, nie als Argument, mindestens 8 Zeichen (Benutzername 3–80, Anzeigename 1–160,
+   die Grenzen von `AppUserCreate`); legt nur an, wenn es noch kein Konto gibt -- sonst Rückgabe 1 ohne Passwortfrage; Rolle immer
+   `admin`. Rückgabe 0 angelegt, 1 nichts angelegt, 2 Umgebung fehlt. Der zweite Faktor wird beim ersten Anmelden eingerichtet (wie bisher).
+5. **`POST /api/users` nur Admin, `/users` ab Büro – Auftrag** -- ohne Ausnahme für die Ersteinrichtung; der Hinweis auf der Anmeldeseite
+   entfällt.
+6. **Akzentfarbe nur Admin**: Ändern (`PUT /api/settings/appearance`) nur Admin, Lesen (`GET`) weiter ab Büro – Auftrag; in den
+   Einstellungen sieht das Büro unter Erscheinungsbild nur die Logos, die Akzentfarbe wird ihm nirgends genannt.
+7. **PWA-Symbole öffentlich**: genau `/api/mobile-icon/192.png` und `/api/mobile-icon/512.png` (die Größen aus `ICON_SIZES`) mit GET und
+   HEAD ohne Anmeldung; jede andere Größe und jede andere Methode wie jede API-Anfrage 401; ohne Konto auch sie 503. HEAD an `/health`
+   und den Symbolen als eigene Route ohne Eintrag in der Schnittstellenbeschreibung.
+8. **Angriffstabelle** (nur Test): 9 Methoden (GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS, TRACE, FOO) × 18 Pfade (`/health`, eine
+   Design-Datei, Anmelde-, Benutzer- und eine Fachseite, `/`, Manifest, Symbol, Status, Anmelden, Abmelden, Konto anlegen mit vollständigem
+   Konto, API, Zählseite, Zähl-API, `/openapi.json`, fehlende Seite, fehlender API-Pfad) × ohne/mit Kopfzeilen der eigenen Seite, gegen
+   uvicorn mit h11 und httptools, ohne Konto: nur `/health` und die Design-Datei mit GET/HEAD 200 von dahinter; schreibend ohne Herkunft
+   403; httptools mit `FOO` 400; alles andere 503 der Ersteinrichtung (Seite als HTML, sonst JSON); kein Endpunkt erreicht, kein Konto
+   angelegt.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v435_ersteinrichtung_geschlossen.py` (226 Tests): Entscheidung (`/health` frei, Seiten mit dem Befehl -- escaped, sonst
+  503 als JSON, `has_users` öffnet nichts, Seite mit `ds.css` ohne Inhalt aus der Anfrage); Angriffe (Festlegung 8) für h11 und httptools;
+  die Design-Datei ist wirklich die Datei; Gegenprobe mit der Schranke von 1.8.129 per monkeypatch (Zählrouten mit GET, HEAD, OPTIONS,
+  POST erreicht, Status, Doku, Manifest, Zählseite, fehlende Pfade von dahinter; das Konto anlegen scheitert trotzdem am Endpunkt);
+  Endpunkte ohne Schranke und ohne Konto (`POST /api/users` 403, `/users` 403) und mit Rollen; Symbole GET/HEAD ohne Anmeldung, andere
+  Methoden und Größen 401, jedes Symbol des Manifests öffentlich, Gegenprobe ohne Eintrag; Akzentfarbe je Rolle (API und Seite); Skript
+  (legt an, nichts neben einem Konto, ungültige Eingaben ohne den Wert in der Meldung, ohne `DATABASE_URL`, ohne Terminal, kein Passwort
+  als Argument, AST: nur `benutzername`/`--anzeigename`, `getpass`, kein `input(`; als Prozess mit Pipe und ohne `DATABASE_URL`).
+- Neue Klicktests: `klicktest_ersteinrichtung.py` (89 Prüfungen: Instanz ohne Konto, vier Seiten hell/dunkel auf 412 und 1440 px mit
+  Status 503, Befehl als Text, kein Formular, Hintergrund aus `ds.css`, kein Bildlauf, Titel in Archivo; API aus der Seite 503 mit
+  `ersteinrichtung`; `/health` und `ds.css` 200), `klicktest_akzentfarbe.py` (26 Prüfungen: Büro – Finanzen und Büro – Auftrag hell und
+  dunkel ohne Akzentfarbe und ohne JS-Fehler, PUT 403; Admin: Vorschau, Speichern, nach dem Neuladen auch beim Büro).
+- **Gegenproben nach Regel 24** (je eine Änderung mit Marker, Datei danach byte-genau zurück, sha256 verglichen, kein Marker unter `app/`):
+  a Ersteinrichtungs-Antwort aus (`if False`) → beide Angriffstests und der Hinweis-Test in `test_v256` rot; b `POST /api/users` ohne
+  `require_admin` → 2 rot; c `/users` ohne Rolle → 3 rot (auch `test_v260`); d Symbole nicht in `OEFFENTLICH` → 3 rot; e PUT Akzentfarbe
+  ab Büro → 2 rot; f Akzentfarbe in der Seite für alle → 2 rot; g Befehl roh im HTML → 12 rot; h Listener ohne `istAdmin` →
+  `klicktest_akzentfarbe` rot (TypeError an `addEventListener`, Seite nicht bereit). Bei b und c wurde der erste Versuch verworfen:
+  `_admin: AppUser = None` lehnt FastAPI als Parametertyp ab -- rot aus dem falschen Grund; wiederholt mit `_admin=None`.
+- **Angepasste Tests** (Regel 28), die die offene Ersteinrichtung oder deren Folgen voraussetzten:
+  - `test_v106_access_control::test_no_login_required_before_bootstrap` → `test_login_required_also_before_the_first_account`: Soll
+    `_request_requires_login(False, …)` False (GET `/api/employees`, POST `/api/projects`) → True.
+  - `test_v256_login_wall_for_pages::test_page_requires_login_false_during_bootstrap_before_any_user_exists` →
+    `test_page_requires_login_also_before_any_user_exists`: Soll False → True.
+  - `test_v256_login_wall_for_pages::test_protected_page_is_reachable_without_login_before_any_user_exists` →
+    `test_without_any_user_every_page_shows_the_setup_notice`: Soll „`/users` ohne Konto 200“ → „`/users`, `/login`, `/tasks` 503 mit dem
+    Befehl“.
+  - `test_v433_schranke_alle_methoden::test_ersteinrichtung_ohne_konten_bleibt_offen` → `test_ohne_konten_dieselbe_entscheidung`: Soll
+    „ohne Konto für jede Methode False“ → „ohne Konto dieselbe Entscheidung wie mit“.
+  - `test_v260_role_audit::TestPageRouteClassification::test_users_page_is_bootstrap_exempt_then_buero_only` →
+    `test_users_page_buero_only_also_without_any_account`: Soll „Monteur ohne Konto in der Datenbank 200“ → 403 (Büro 200 wie bisher).
+  - `test_v260_role_audit::test_403_on_a_page_route_renders_access_denied_html_not_json`: Soll `href="/users"` für einen 403 ohne Benutzer
+    → `href="/"`.
+  - `test_v398_speichern_baustein::test_every_rendered_page_script_is_valid_javascript`: Soll „mehr als 60 Seiten gezeichnet“ → „mindestens
+    60“ (`/users` als Monteur war nur offen, weil die Testdatenbank kein Konto hatte).
+  - `test_v419_verbindungen::test_jede_seite_braucht_eine_verbindung`: Soll „Seiten mit eigener Sitzung = {`/users`}“ → leer (die eigene
+    Sitzung brauchte `/users` nur für die Ausnahme).
+  - `test_v431_bildgrundlage::test_jede_adresse_zeichnet_ihre_vorlage` und `::test_monteur_hat_jede_seite_die_er_oeffnen_darf` -- nur
+    Aufbau: der Helfer `_mit_konto()` (ein Konto anlegen, weil sonst `/users` für jeden offen war) ist weg; das Soll bleibt.
+
+#### Bildvergleich
+
+Gegen die Grundlage `bildgrundlage/08b538c` (Chrome 155.0.8059.40 in beiden), Arbeitsstand von Teil A, volle Läufe: **232 von 240 Bildern
+gleich, 8 abweichend**:
+
+- `buero__{hell,dunkel}__{412,1440}__einstellungen` (2585 bzw. 2642 Pixel) -- erlaubt (Vorgabe): im Menü fehlt „, Akzentfarbe“ unter
+  „Erscheinungsbild“, im Hinweis der Unternehmensdaten „und Akzentfarbe“ (der Text bricht danach anders um). Der Bereich Erscheinungsbild
+  selbst ist in der ersten Ansicht nicht sichtbar.
+- `anonym__{hell,dunkel}__{412,1440}__anmeldung` (41.341 bis 46.176 Pixel, 3,2 % bzw. 12,4 %) -- **begründet**: der Hinweis „Noch kein
+  ERP-Benutzer angelegt? Benutzerverwaltung öffnen.“ ist weg (Festlegung 5: ohne Konto erscheint die Anmeldeseite nicht mehr, mit Konto
+  führte der Link über `/users` zurück auf die Anmeldung). Die Karte ist senkrecht zentriert und rückt um die halbe Höhe der Zeile nach
+  unten -- daher die vielen Pixel; sonst ist sie unverändert.
+
+Ein erster Lauf vor dem Entfernen des Hinweises ergab genau die vier Bilder der Büro-Einstellungsseite (236 gleich).
+
+#### Nebenbefunde
+
+1. **1.8.129 Nebenbefunde 1–3 erledigt**: Akzentfarbe nur Admin (Nr. 1), die Symbole sind öffentlich und der Kommentar in
+   `ROLE_AUDIT_EXEMPT` stimmt (Nr. 2), `GET /api/auth/status` ist ohne Konto nicht mehr erreichbar (Nr. 3; die Hinweisseite sagt
+   absichtlich selbst, dass das erste Konto fehlt).
+2. **`/users` ab Büro – Auftrag, `GET /api/users` nur Admin** (unverändert, schon vor 1.8.130): das Büro öffnet die Seite (auch über
+   Einstellungen → „Benutzer und Zugriff“), sieht statt der Liste „Fehler: Nur Administratoren dürfen die Benutzerliste einsehen.“ --
+   so auch im Bild `buero__…__benutzer` der Grundlage. Nur gemeldet.

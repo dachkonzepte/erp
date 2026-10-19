@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.129** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.130** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -98,7 +98,7 @@ Stand, den `git log` nicht erklären kann), nicht nur ein theoretisches.
 | Dienst | `erp.service`, `gunicorn -w 2 --timeout 120` |
 | Sicherung | `/home/tobias/backup.sh`, täglich 2 Uhr UTC, 14 Tage Aufbewahrung; sichert `erp-data` vollständig (Betreiberangabe 05.10.2026) |
 | Einspielen | ausschließlich `/home/tobias/update.sh` (auf dem Server, nicht im Repo; probt eine Migration selbst gegen `spielwiese`), nie einzelne `alembic`-Befehle -- auch nicht für die Probe |
-| Notfallskripte | `scripts/reset_admin_2fa.py`, `scripts/migrate_sqlite_to_postgres.py` |
+| Notfallskripte | `scripts/reset_admin_2fa.py`, `scripts/migrate_sqlite_to_postgres.py`; erstes Konto (seit 1.8.130): `scripts/erstes_konto.py` |
 | Zeitzone | `Etc/UTC` (`timedatectl`) -- Datum und Uhrzeit deshalb nur über `app/berlin_time.py`, Regel 20 |
 
 **Korrigiert (KI-Fundament-Runde, seit 1.6.2)**: diese Datei behauptete hier bisher fälschlich
@@ -751,9 +751,13 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Design-Dateien. Ein neuer öffentlicher Pfad kommt dort hinein, mit genau seinen Methoden (`tests/test_v433_schranke_alle_methoden.py`:
     Angriffe mit 7 Methoden gegen echten uvicorn, kein Endpunkt erreicht). **Seit 1.8.129:** `/health` beantwortet auch HEAD; die
     Schnittstellen-Doku (`/docs`, `/redoc`, `/openapi.json`) gibt es nur mit `ERP_API_DOKU=1` und `ERP_ENV=development`/`test`
-    (`app/main.py::api_doku_aktiv()`), im Betrieb sind die Routen nicht angelegt (404, auch mit Anmeldung). Die Ersteinrichtung (noch
-    kein Konto) bleibt offen: dann legt jeder über `POST /api/users` das erste Konto als Admin an -- Befund in `docs/archiv/redesign.md`,
-    „Runde 1c“.
+    (`app/main.py::api_doku_aktiv()`), im Betrieb sind die Routen nicht angelegt (404, auch mit Anmeldung). **Seit 1.8.130 ohne Konto
+    geschlossen** (bis dahin legte dann jeder über `POST /api/users` das erste Konto als Admin an): durch gehen nur `/health` und die
+    Design-Dateien, eine Seite zeigt den Hinweis mit dem Befehl, alles andere 503 (`ersteinrichtung_antwort()`, nach der
+    Ursprungsprüfung); das erste Konto legt nur `scripts/erstes_konto.py <benutzername>` auf dem Server an (`DATABASE_URL` Pflicht,
+    Passwort verdeckt, nie als Argument). `POST /api/users` nur Admin, `/users` ab Büro – Auftrag, ohne Ausnahme; die PWA-Symbole
+    `/api/mobile-icon/192.png` und `/512.png` öffentlich wie `/manifest.json` (GET, HEAD); die Akzentfarbe ändert nur ein Admin
+    (`tests/test_v435_ersteinrichtung_geschlossen.py`).
 
 31. **Jede abgelegte Datei geht über `app/dateiauslieferung.py::datei_antwort()` an den Browser, seit 1.8.101.** Den Typ bestimmt der
     Server an den ersten Bytes, nie am Namen oder an der Angabe des Browsers; angezeigt (inline) werden nur JPEG, PNG, GIF, WebP und PDF,
@@ -1136,7 +1140,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Geräte-Vertrauen, serverseitige Anmeldeschranke für Seiten, PostgreSQL-Migrationsreparatur; seit 1.8.98 Sitzungen auf dem Server,
   siehe Regel 30; seit 1.8.114 Datenbankverbindungen unter Last: Schranke im Threadpool, Sitzung vor dem Senden zu, Seitendaten statt
   Sitzungen der Jinja-Globals, Pool passend zum Threadpool, Angriffstest gegen PostgreSQL, Regel 35; seit 1.8.128 Anmeldepflicht für
-  jede Methode, öffentliche Pfade mit ihren Methoden)
+  jede Methode, öffentliche Pfade mit ihren Methoden; seit 1.8.130 ohne Konto geschlossen, erstes Konto per `scripts/erstes_konto.py`,
+  PWA-Symbole öffentlich, Akzentfarbe nur Admin)
   -- `docs/archiv/serverbetrieb-und-anmeldesicherheit.md`
 - **Rechtekonzept** (vier Rollen `admin`/`buero_finanzen`/`buero_auftrag`/`field`,
   Standardverweigerung, Objekt-Filterung, Dateiablage je Objekt, Büro-Suche) --
@@ -1303,7 +1308,8 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Anmeldung mit langem Cache, `app/static/ds/ds.css` mit Tokens und selbst gehosteten Schriften, `_ds_kopf.html` in jeder Seite, Wächter,
   Kontrasttest, Angriffstests, Regel 37; seit 1.8.128 Runde 1b Anmeldepflicht für jede Methode; seit 1.8.129 Runde 1c Härtung:
   Schnittstellen-Doku nur lokal per `ERP_API_DOKU=1`, `/health` mit HEAD, Wächter ds.css nach dem Ziel des Selektors, Befunde
-  Ersteinrichtung und Akzentfarbe) -- `docs/archiv/redesign.md`
+  Ersteinrichtung und Akzentfarbe; seit 1.8.130 Runde 1d: ohne Konto geschlossen, Akzentfarbe nur Admin, PWA-Symbole öffentlich -- Herleitung
+  im Serverbetrieb-Archiv) -- `docs/archiv/redesign.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`
 - **Migrationsketten- und Testlauf-Historie** (Version-für-Version-Nachweis, wer wann was mit

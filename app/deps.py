@@ -12,9 +12,6 @@ konsolidiert wird nur die Prüf-LOGIK, nicht der Wortlaut.
 Gilt bewusst NUR für reine "nur Administratoren"-Fälle ohne Ausnahmen.
 Nicht dafür geeignet (bleiben unverändert als spezifische Logik in den
 jeweiligen Routern):
-- Der Bootstrap-Fall beim Anlegen des allerersten ERP-Benutzers
-  (routers/users.py, create_app_user) -- dort darf es noch KEINEN
-  Administrator geben.
 - Selbstbedienungs-/Eigentümer-Logik wie "eigene Zeitbuchungen und
   Abwesenheitsanträge sehen/bearbeiten, fremde nur als Admin"
   (routers/time_tracking.py, routers/absence_requests.py) -- das ist

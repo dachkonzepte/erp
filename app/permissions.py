@@ -202,16 +202,9 @@ ROLE_AUDIT_EXEMPT = frozenset({
     # Prüfung als eine reine Rollenzugehörigkeit. Objekt-Filterung, nicht Rollen-Gate.
     ("GET", "/api/field-view/today"),
     # PWA-Icon der Monteursansicht -- liefert nur ein aus dem Firmenlogo abgeleitetes
-    # Platzhalterbild, keine Kunden-/Geschäftsdaten; muss vor dem ersten Login (Installation
-    # "Zum Startbildschirm hinzufügen") erreichbar sein.
+    # Platzhalterbild, keine Kunden-/Geschäftsdaten. Seit 1.8.130 auch ohne Anmeldung erreichbar
+    # (app/anmeldeschranke.py::OEFFENTLICH, GET und HEAD), wie /manifest.json, das darauf verweist.
     ("GET", "/api/mobile-icon/{size}.png"),
-    # Bootstrap-Fall beim Anlegen des allerersten ERP-Benutzers (app/routers/users.py) -- dort
-    # existiert per Definition noch KEIN angemeldeter Benutzer, jede Rollenprüfung würde also
-    # immer scheitern. create_app_user() prüft die Admin-Pflicht bereits selbst, aber nur
-    # NACHDEM festgestellt wurde, dass das System schon konfiguriert ist (users_exist(db)) --
-    # exakt dieselbe, bereits an anderer Stelle etablierte Bootstrap-Ausnahme (siehe
-    # app/main.py::_request_requires_login()).
-    ("POST", "/api/users"),
 })
 
 # Dasselbe Prinzip wie ROLE_AUDIT_EXEMPT, aber für SEITENROUTEN (app/routers/pages.py,
@@ -231,12 +224,4 @@ PAGE_AUDIT_EXEMPT = frozenset({
     # ("Zum Startbildschirm hinzufügen") erreichbar bleiben, dieselbe Begründung wie beim
     # gleichnamigen API-Icon-Endpunkt oben.
     ("GET", "/manifest.json"),
-    # Bootstrap-Fall beim Anlegen des allerersten ERP-Benutzers (app/routers/pages.py::
-    # users_page(), Gegenstück zu POST /api/users oben) -- dort existiert per Definition noch
-    # kein angemeldeter Benutzer, jede Depends(require_role(...))-Prüfung würde also immer
-    # scheitern. Die Seite prüft die Büro-/Admin-Pflicht deshalb selbst
-    # (_require_users_page_access()), aber erst NACHDEM festgestellt wurde, dass das System
-    # schon konfiguriert ist -- ohne require_role(...)-Depends trägt sie keine _dk_roles-Markierung
-    # und muss deshalb hier einzeln stehen, wie POST /api/users.
-    ("GET", "/users"),
 })

@@ -77,7 +77,7 @@
       <div class="settings-group">Firma</div>
       <div class="settings-menu">
         <button type="button" data-settings-section="general" onclick="showSettingsSection('general')">Unternehmensdaten<span class="menu-sub">Anschrift, Kontakt, Steuer, Register, Bank</span></button>
-        <button type="button" data-settings-section="appearance" onclick="showSettingsSection('appearance')">Erscheinungsbild<span class="menu-sub">Firmenlogo, Logo im PDF, Logo der Leiste, Akzentfarbe</span></button>
+        <button type="button" data-settings-section="appearance" onclick="showSettingsSection('appearance')">Erscheinungsbild<span class="menu-sub">Firmenlogo, Logo im PDF, Logo der Leiste{% if ist_admin %}, Akzentfarbe{% endif %}</span></button>
       </div>
       <div class="settings-group">Finanzen</div>
       <div class="settings-menu">
@@ -184,12 +184,12 @@
       <div class="field"><label>Standard-MwSt. %</label><input id="defaultVat" type="text" inputmode="decimal" data-zahl></div>
     </div>
     <input type="hidden" id="quoteIntro"><input type="hidden" id="quoteOutro">
-    <div class="hint">Vor- und Schlusstexte für Angebote und Rechnungen stehen unter <b>Vorlagen und Texte → Textbausteine</b>, die Zahlungsbedingungen unter <b>Finanzen → Zahlungsbedingungen</b> – dort lassen sich mehrere Varianten anlegen und ein Standard festlegen. Logos und Akzentfarbe stehen unter <b>Firma → Erscheinungsbild</b>.</div>
+    <div class="hint">Vor- und Schlusstexte für Angebote und Rechnungen stehen unter <b>Vorlagen und Texte → Textbausteine</b>, die Zahlungsbedingungen unter <b>Finanzen → Zahlungsbedingungen</b> – dort lassen sich mehrere Varianten anlegen und ein Standard festlegen. Logos{% if ist_admin %} und Akzentfarbe{% endif %} stehen unter <b>Firma → Erscheinungsbild</b>.</div>
     <button onclick="saveGeneral()">Unternehmensdaten speichern</button><span id="generalStatus" class="status"></span>
   </section>
 
   <section class="card settings-section" id="settings-appearance">
-    <div class="section-title"><div><h2 style="margin-bottom:4px">Erscheinungsbild</h2><div class="muted small">Firmenlogo, Logo auf den PDF-Dokumenten, Logo der Seitenleiste und Akzentfarbe der Oberfläche.</div></div></div>
+    <div class="section-title"><div><h2 style="margin-bottom:4px">Erscheinungsbild</h2><div class="muted small">Firmenlogo, Logo auf den PDF-Dokumenten{% if ist_admin %}, Logo der Seitenleiste und Akzentfarbe der Oberfläche{% else %} und Logo der Seitenleiste{% endif %}.</div></div></div>
 
     <h3 style="margin:18px 0 8px;font-size:14px">Firmenlogo</h3>
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
@@ -233,6 +233,8 @@
     <span id="sidebarLogoStatus" class="status"></span>
     <div class="hint">Erscheint ausschließlich oben links in der Seitenleiste, statt des Firmenlogos bzw. des Schriftzugs "DACHKONZEPTE" -- sinnvoll, wenn das Firmenlogo (wie hier) selbst einen Schriftzug enthält, der bei keiner erlaubten Höhe mehr lesbar wäre. Hier lässt sich stattdessen eine reduzierte Variante hinterlegen (z. B. nur ein Bildzeichen). <span id="sidebarLogoFallbackHint"></span> Die Höhe oben gilt für das jeweils tatsächlich in der Seitenleiste gezeigte Logo. PNG, JPEG, WebP oder SVG, max. 5 MB. Ist das gezeigte Logo breiter als der verfügbare Platz, wird es rechts abgeschnitten statt in der Höhe verkleinert.</div>
 
+    {# Seit 1.8.130 nur für Administratoren im Markup -- die Akzentfarbe speichert nur ein Administrator (PUT admin-only). #}
+    {% if ist_admin %}
     <h3 style="margin:22px 0 8px;font-size:14px">Akzentfarbe</h3>
     <div class="hint">Der Hell/Dunkel-Modus wird unten in der Seitenleiste umgeschaltet und pro Gerät im Browser gespeichert. Die Akzentfarbe gilt dagegen zentral für alle Benutzer.</div>
     <div class="list-narrow">
@@ -248,6 +250,7 @@
       </div>
       <button onclick="saveAccentColor()">Akzentfarbe speichern</button><span id="accentColorStatus" class="status"></span>
     </div>
+    {% endif %}
   </section>
 
   {# Seit 1.8.112 nur für Administratoren im Markup -- die Spalten speichert nur ein Administrator (PUT/POST/DELETE admin-only). #}
@@ -2517,13 +2520,15 @@ function checkAccentContrast(hex){const warn=document.getElementById('accentCont
 function previewAccentColor(hex){if(isHexColor(hex)){document.documentElement.style.setProperty('--accent',hex);checkAccentContrast(hex)}}
 async function loadAppearance(){try{await lesen('design',()=>api('/api/settings/appearance'),a=>{setv('accentColorText',a.accent_color);document.getElementById('accentColorPicker').value=a.accent_color;checkAccentContrast(a.accent_color)})}catch(e){}}  // seit 1.8.97 über lesen()
 async function saveAccentColor(){const s=document.getElementById('accentColorStatus');const hex=v('accentColorText');if(!isHexColor(hex)){s.textContent='Fehler: bitte einen gültigen Hex-Farbwert eingeben (z. B. #0d9488).';return}try{await speichern('design',()=>api('/api/settings/appearance',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({accent_color:hex})}));s.textContent='Gespeichert.'}catch(e){s.textContent='Fehler: '+e.message}}
+if(istAdmin){  // seit 1.8.130: die Felder der Akzentfarbe gibt es nur für Administratoren
 document.getElementById('accentColorPicker').addEventListener('input',function(){setv('accentColorText',this.value);previewAccentColor(this.value)});
 document.getElementById('accentColorText').addEventListener('input',function(){if(isHexColor(this.value)){document.getElementById('accentColorPicker').value=this.value;previewAccentColor(this.value)}});
+}
 showSettingsSection(settingsSectionFromHash(),false);
 load().catch(e=>alert('Einstellungen konnten nicht geladen werden: '+e.message));
 if(istAdmin){loadEmailSettings();loadAiSettings();loadOutlookSyncSettings()}
 loadEmailTemplate();
-loadAppearance();
+if(istAdmin)loadAppearance();
 loadContractBasisClauses();
 loadContractTemplates();
 loadNoticeReservations();

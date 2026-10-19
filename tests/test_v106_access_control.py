@@ -1,11 +1,11 @@
 from app.main import _request_requires_login
 
 
-def test_no_login_required_before_bootstrap():
-    # Vor dem Anlegen des ersten ERP-Benutzers muss alles erreichbar bleiben,
-    # sonst kann das allererste Admin-Konto gar nicht eingerichtet werden.
-    assert _request_requires_login(False, "GET", "/api/employees") is False
-    assert _request_requires_login(False, "POST", "/api/projects") is False
+def test_login_required_also_before_the_first_account():
+    # Bis 1.8.129 blieb vor dem ersten ERP-Benutzer alles erreichbar (dort legte man das erste Konto an). Seit 1.8.130 entsteht es per
+    # Befehl auf dem Server (scripts/erstes_konto.py), ohne Konto hält die Schranke die App geschlossen (503) -- has_users öffnet nichts.
+    assert _request_requires_login(False, "GET", "/api/employees") is True
+    assert _request_requires_login(False, "POST", "/api/projects") is True
 
 
 def test_login_endpoints_always_reachable():

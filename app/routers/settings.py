@@ -28,7 +28,7 @@ from ..database import get_db
 from ..employees import load_employee_functions
 from ..models import AppUser, Employee, EmployeeFunction, EmployeeProfile, SettingOption
 from ..option_settings import get_option_group, load_option_groups, option_group_to_dict
-from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, require_min_role
+from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, require_min_role
 from ..schemas import AppearanceSettingsOut, AppearanceSettingsUpdate, CalculationSettingsOut, CalculationSettingsUpdate, EmployeeFunctionCreate, EmployeeFunctionOut, EmployeeFunctionUpdate, GeneralSettingsOut, GeneralSettingsUpdate, NumberPreviewOut, NumberSequenceOut, NumberSequenceUpdate, SettingOptionCreate, SettingOptionGroupOut, SettingOptionOut, SettingOptionUpdate
 from ..settings import (
     SequenceConflict, effective_next_value, get_accent_color, load_general_settings, load_sequences, preview_number,
@@ -210,8 +210,10 @@ def get_appearance_settings(db: Session = Depends(get_db, scope="function"), _ro
     return AppearanceSettingsOut(accent_color=get_accent_color(db))
 
 
+# Seit 1.8.130 nur Administratoren (vorher ab Büro – Auftrag): die Akzentfarbe gilt sofort für alle Benutzer
 @router.put("/api/settings/appearance", response_model=AppearanceSettingsOut)
-def put_appearance_settings(payload: AppearanceSettingsUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def put_appearance_settings(payload: AppearanceSettingsUpdate, db: Session = Depends(get_db, scope="function"),
+                            _role: AppUser = Depends(require_min_role(ROLE_ADMIN, message="Die Akzentfarbe ändert nur ein Administrator."))):
     return AppearanceSettingsOut(accent_color=set_accent_color(db, payload.accent_color))
 
 

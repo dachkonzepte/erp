@@ -443,7 +443,7 @@ def test_every_rendered_page_script_is_valid_javascript(threaded_db_session, rou
             seiten += 1
             for nr, m in enumerate(_INLINE.finditer(resp.text), start=1):
                 skripte.append((f"{rolle} {route.path} Skript {nr}", m.group(1)))
-    assert seiten > 60 and len(skripte) > 150
+    assert seiten >= 60 and len(skripte) > 150  # seit 1.8.130 ohne /users als Monteur (bis dahin offen, solange es kein Konto gab)
     with tempfile.TemporaryDirectory() as ordner:
         datei = Path(ordner) / "skripte.json"
         datei.write_text(json.dumps(skripte), encoding="utf-8")

@@ -4,6 +4,24 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.130 – Ohne Konto geschlossen, Akzentfarbe nur für Administratoren, PWA-Symbole öffentlich
+
+Runde 1d vor Stufe 2 des Redesigns (Vorgabe vom 19.10.2026; Festlegungen 1.8.129 Nr. 1–5 bestätigt). Bis 1.8.129 ließ die
+Anmeldeschranke ohne ein einziges Konto jede Anfrage durch, und wer den Server erreichte, legte über `POST /api/users` das erste Konto an --
+immer als Admin (Befund 1.8.129). Jetzt bleibt die App bis zum ersten Konto geschlossen: durch gehen nur `/health` und die Design-Dateien,
+jede Seite zeigt einen Hinweis mit dem Befehl für die Ersteinrichtung (503, eigene kleine Seite im Design-System), alles andere bekommt 503
+als JSON; eine schreibende Anfrage von fremder Seite wie bisher vorher 403. Das erste Admin-Konto legt nur noch
+`scripts/erstes_konto.py <benutzername>` auf dem Server an: `DATABASE_URL` muss gesetzt sein (kein stiller Rückfall auf SQLite), das
+Passwort fragt es zweimal verdeckt ab -- nie als Argument, ohne Terminal gar nicht --, neben einem vorhandenen Konto legt es nichts an.
+`POST /api/users` verlangt immer einen Admin, `/users` ab Büro – Auftrag, beide ohne Ausnahme für die Ersteinrichtung. Der Hinweis
+„Noch kein ERP-Benutzer angelegt? Benutzerverwaltung öffnen.“ auf der Anmeldeseite ist weg (der Link führte zurück auf die Anmeldung).
+Die Akzentfarbe, die sofort für alle gilt, ändert nur noch ein Administrator -- in der API (`PUT /api/settings/appearance`, Büro 403) und
+auf der Einstellungsseite (Feld, Knopf und Erwähnungen nur für Admins; die Logos bleiben beim Büro). Die PWA-Symbole der Monteursansicht
+(`/api/mobile-icon/192.png`, `/512.png`) sind öffentlich wie `/manifest.json`, das auf sie verweist (GET und HEAD; vorher 401 ohne
+Anmeldung). `/health` und die Symbole haben ihre HEAD-Route jetzt ohne Eintrag in der Schnittstellenbeschreibung (doppelte Operation-ID).
+Angriffstests gegen echten uvicorn mit neun Methoden auf 18 Pfaden, Gegenproben im Code. Details:
+`docs/archiv/serverbetrieb-und-anmeldesicherheit.md`, „Ersteinrichtung geschlossen (seit 1.8.130)“.
+
 ## 1.8.129 – Härtung vor Stufe 2: Schnittstellen-Doku nur lokal, /health mit HEAD, Wächter ds.css schärfer
 
 Runde 1c vor Stufe 2 des Redesigns (Vorgabe vom 19.10.2026). Die Schnittstellen-Doku von FastAPI (`/docs`, `/redoc`,

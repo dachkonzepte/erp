@@ -89,16 +89,8 @@ def _anonymer_client(db) -> TestClient:
 ROLLE_IM_TEST = {bg.BUERO: "buero_finanzen", bg.MONTEUR: "field", bg.ADMIN: "admin"}
 
 
-def _mit_konto(db):
-    """Ein Konto in der Datenbank: ohne Konten öffnet /users jeder (Ersteinrichtung, _require_users_page_access())."""
-    from app.models import AppUser
-
-    db.add(AppUser(username="konto", display_name="Konto", role="admin", password_hash="x"))
-    db.commit()
-
-
 def test_jede_adresse_zeichnet_ihre_vorlage(threaded_db_session, router_test_client):
-    _mit_konto(threaded_db_session)
+    # bis 1.8.129 legte der Test zuerst ein Konto an (_mit_konto): ohne Konto öffnete /users jeder (Ersteinrichtung)
     clients = {rolle: router_test_client(threaded_db_session, pages_router, role=wert, employee_id=1)
                for rolle, wert in ROLLE_IM_TEST.items()}
     clients[bg.ANONYM] = _anonymer_client(threaded_db_session)
@@ -122,7 +114,6 @@ def test_sperrseite_kommt_aus_dem_403_handler():
 
 
 def test_monteur_hat_jede_seite_die_er_oeffnen_darf(threaded_db_session, router_test_client):
-    _mit_konto(threaded_db_session)
     client = router_test_client(threaded_db_session, pages_router, role="field", employee_id=1)
     monteur = {a.vorlage for a in bg.AUFNAHMEN if bg.MONTEUR in a.rollen}
     import re

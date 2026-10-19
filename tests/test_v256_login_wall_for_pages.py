@@ -89,8 +89,9 @@ def test_page_requires_login_false_for_api_paths():
     assert _page_requires_login(True, "GET", "/api/tasks") is False
 
 
-def test_page_requires_login_false_during_bootstrap_before_any_user_exists():
-    assert _page_requires_login(False, "GET", "/tasks") is False
+def test_page_requires_login_also_before_any_user_exists():
+    # bis 1.8.129 False (offene Ersteinrichtung); seit 1.8.130 antwortet ohne Konto vorher die Schranke selbst (503)
+    assert _page_requires_login(False, "GET", "/tasks") is True
 
 
 def test_page_requires_login_false_for_non_get_methods():
@@ -136,13 +137,17 @@ def test_health_stays_reachable_without_login():
     assert resp.status_code == 200
 
 
-def test_protected_page_is_reachable_without_login_before_any_user_exists():
-    """Bootstrap-Ausnahme, wie bei _request_requires_login() -- ohne einen einzigen
-    ERP-Benutzer muss z. B. /users erreichbar bleiben, um den ersten Administrator
-    anzulegen."""
+def test_without_any_user_every_page_shows_the_setup_notice():
+    """Bis 1.8.129 die Ausnahme für die Ersteinrichtung: ohne einen einzigen ERP-Benutzer war /users ohne Anmeldung erreichbar, um dort
+    den ersten Administrator anzulegen. Seit 1.8.130 bleibt die App ohne Konto geschlossen -- jede Seite (auch /users und /login) zeigt
+    den Hinweis mit dem Befehl für die Ersteinrichtung (503), das Konto entsteht nur auf dem Server (scripts/erstes_konto.py)."""
+    import html
+
+    from app.anmeldeschranke import ERSTEINRICHTUNG_BEFEHL
     client, _make_session = _make_test_app()
-    resp = client.get("/users", follow_redirects=False)
-    assert resp.status_code == 200
+    for pfad in ("/users", "/login", "/tasks"):
+        resp = client.get(pfad, follow_redirects=False)
+        assert resp.status_code == 503 and html.escape(ERSTEINRICHTUNG_BEFEHL) in resp.text, pfad
 
 
 def test_authenticated_user_reaches_the_dashboard_directly():

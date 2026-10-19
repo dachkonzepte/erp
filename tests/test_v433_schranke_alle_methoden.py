@@ -68,10 +68,12 @@ def test_oeffentliche_pfade_nur_mit_ihren_methoden(pfad, erlaubt):
         assert abgewiesen is (methode not in erlaubt), (pfad, methode)
 
 
-def test_ersteinrichtung_ohne_konten_bleibt_offen():
+def test_ohne_konten_dieselbe_entscheidung():
+    """Bis 1.8.129 blieb ohne Konto alles offen (1.8.128 Nr. 4); seit 1.8.130 öffnet has_users nichts mehr -- ohne Konto antwortet die
+    Schranke vorher selbst (tests/test_v435_ersteinrichtung_geschlossen.py)."""
     for methode in ALLE:
-        assert _request_requires_login(False, methode, "/api/users") is False
-        assert _page_requires_login(False, methode, "/users") is False
+        assert _request_requires_login(False, methode, "/api/users") is _request_requires_login(True, methode, "/api/users")
+        assert _page_requires_login(False, methode, "/users") is _page_requires_login(True, methode, "/users")
 
 
 # ---------------------------------------------------------------------------

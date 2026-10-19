@@ -16,7 +16,6 @@ from fastapi.templating import Jinja2Templates
 from jinja2 import pass_context
 from sqlalchemy.orm import Session
 
-from ..auth import users_exist
 from ..checklist_purposes import DEFAULT_PURPOSE, PURPOSES
 from ..concern_notices import OPEN_CONCERNS_TEXT
 from ..database import get_db
@@ -157,17 +156,10 @@ _any_role_dep = Depends(require_min_role(ROLE_FIELD))
 _finanzen_role_dep = Depends(require_min_role(ROLE_OFFICE_FINANZEN))
 
 
-def _require_users_page_access(request: Request, db: Session = Depends(get_db, scope="function")) -> AppUser | None:
-    """Bootstrap-Ausnahme (siehe PAGE_AUDIT_EXEMPT in app/permissions.py) -- exakt derselbe Fall
-    wie POST /api/users (routers/users.py): vor dem allerersten ERP-Benutzer gibt es niemanden,
-    der require_role(...) erfüllen könnte. Danach Büro/Admin, wie die Benutzerliste selbst
-    (GET /api/users)."""
-    if not users_exist(db):
-        return None
-    user = getattr(request.state, "erp_user", None)
-    if not has_min_role(user, ROLE_OFFICE_AUFTRAG):
-        raise HTTPException(status_code=403, detail="Die Benutzerverwaltung ist nur für Büro und Administratoren verfügbar.")
-    return user
+# Seit 1.8.130 ohne Ersteinrichtungs-Ausnahme (bis dahin öffnete sich /users ohne Konto für jeden, Gegenstück zu POST /api/users):
+# Büro und Administratoren, wie bisher nach der Ersteinrichtung (die Liste selbst, GET /api/users, nur Administratoren).
+_users_page_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG,
+                                           message="Die Benutzerverwaltung ist nur für Büro und Administratoren verfügbar."))
 
 
 @router.get("/login", response_class=HTMLResponse)
@@ -206,7 +198,7 @@ def account_page(request: Request, _role: AppUser = _any_role_dep):
 
 
 @router.get("/users", response_class=HTMLResponse)
-def users_page(request: Request, _role: AppUser | None = Depends(_require_users_page_access)):
+def users_page(request: Request, _role: AppUser = _users_page_dep):
     return templates.TemplateResponse(request=request, name="users.html", context={})
 
 
@@ -574,8 +566,10 @@ def address_import_page(
     return templates.TemplateResponse(request=request, name="address_import.html", context={})
 
 
-@router.api_route("/health", methods=["GET", "HEAD"])
+@router.get("/health")
+@router.head("/health", include_in_schema=False)
 def health():
     """Ohne Anmeldung (app/anmeldeschranke.py::OEFFENTLICH). Seit 1.8.129 auch HEAD -- eine Überwachung, die nur die Kopfzeilen holt,
-    bekam bis dahin 405 (FastAPI ergänzt bei einer GET-Route kein HEAD)."""
+    bekam bis dahin 405 (FastAPI ergänzt bei einer GET-Route kein HEAD). Seit 1.8.130 als eigene HEAD-Route ohne Eintrag in der
+    Schnittstellenbeschreibung (eine Route mit GET und HEAD ergab dort zweimal dieselbe Operation-ID)."""
     return {"status": "ok", "version": APP_VERSION}
