@@ -4,7 +4,7 @@ from pathlib import Path
 def test_v061_compact_table_editor_features_exist():
     root = Path(__file__).parents[1]
     html = (root / "app" / "templates" / "quote_editor.html").read_text(encoding="utf-8")
-    assert "Version {{ app_version }}" in html
+    assert "<title>DACHKONZEPTE ERP – LV-Editor</title>" in html  # seit 1.8.139 ohne Versionsnummer
     assert "lv-columns" in html
     assert ">Menge<" in html
     assert ">Einheit<" in html

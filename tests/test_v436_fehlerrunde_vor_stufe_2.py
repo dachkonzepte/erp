@@ -6,6 +6,8 @@
     4  Zurück-Links der Formularseiten mit echtem Ziel und Namen statt history.back() (1.8.135)
     5  LV-Editor: ein Weg zum Auftrag (1.8.136)
     6  Zeiterfassung (Büro): ein Knopf zum manuellen Buchen (1.8.137)
+    7  Änderungshistorie: lesbare Namen, Blättern (1.8.138)
+    8  Seitentitel einheitlich „DACHKONZEPTE ERP – <Seite>“ ohne Versionsnummer (1.8.139)
 """
 
 import html
@@ -372,3 +374,46 @@ def test_verlaufsseite_laedt_seitenweise():
       await aeltere();
       return AUFRUFE.map(a => a.url);""")
     assert lauf["ergebnis"] == ["/api/audit-logs?limit=100&offset=0", "/api/audit-logs?limit=100&offset=100"]
+
+
+# ---------------------------------------------------------------------------
+# 8. Seitentitel einheitlich „DACHKONZEPTE ERP – <Seite>“, ohne Versionsnummer
+# ---------------------------------------------------------------------------
+
+TITEL = re.compile(r"DACHKONZEPTE ERP – [^{}<>–·]+")
+
+
+def _titel_in_ordnung(titel):
+    return bool(TITEL.fullmatch(titel)) and not re.search(r"Version|\d+\.\d+", titel)
+
+
+def test_jede_seite_hat_den_einheitlichen_titel():
+    """Bis 1.8.138 u. a. „Anfragen & Pipeline 0.6“, „Version {{ app_version }}“ (Leistungskatalog, LV-Editor), „DACHKONZEPTE ERP · …“,
+    „DACHKONZEPTE GmbH - Mobil“ und Formularseiten ohne Präfix („Angebot anlegen“)."""
+    from tests.vorlagen_js import seiten, zusammensetzen
+
+    abweichend = {}
+    for name in seiten():
+        titel = re.findall(r"<title>(.*?)</title>", zusammensetzen(name)[0], flags=re.S)
+        if len(titel) != 1 or not _titel_in_ordnung(titel[0].strip()):
+            abweichend[name] = titel
+    assert abweichend == {}
+
+
+def test_gerenderte_titel_ohne_versionsnummer(threaded_db_session, router_test_client):
+    from app.routers.pages import router as pages_router
+    from tests.test_v218_template_rendering import _dummy_path
+
+    gesehen, abweichend = 0, []
+    for rolle in ("admin", "buero_finanzen", "field"):
+        client = router_test_client(threaded_db_session, pages_router, role=rolle)
+        for route in pages_router.routes:
+            if "GET" not in getattr(route, "methods", set()) or route.path == "/health":
+                continue
+            antwort = client.get(_dummy_path(route.path), follow_redirects=False)
+            titel = re.search(r"<title>(.*?)</title>", antwort.text, flags=re.S) if antwort.status_code == 200 else None
+            if titel:
+                gesehen += 1
+                if not _titel_in_ordnung(html.unescape(titel.group(1)).strip()):
+                    abweichend.append((rolle, route.path, titel.group(1)))
+    assert gesehen > 60 and abweichend == []
