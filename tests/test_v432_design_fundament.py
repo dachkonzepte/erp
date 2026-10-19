@@ -360,6 +360,44 @@ def _deklarationen(rumpf: str) -> list[tuple[str, str]]:
     return [(d.split(":", 1)[0].strip(), d.split(":", 1)[1].strip() if ":" in d else "") for d in rumpf.split(";") if d.strip()]
 
 
+def _oberste_ebene(text: str, trenner) -> list[str]:
+    """Teilt text an Zeichen, für die trenner(c) wahr ist -- nur außerhalb von (), [] und Anführungszeichen."""
+    teile, aktuell, tiefe, zeichen = [], "", 0, None
+    for c in text:
+        if zeichen:
+            aktuell += c
+            zeichen = None if c == zeichen else zeichen
+        elif c in "\"'":
+            zeichen = c
+            aktuell += c
+        elif c in "([" or c in ")]":
+            tiefe += 1 if c in "([" else -1
+            aktuell += c
+        elif tiefe == 0 and trenner(c):
+            teile.append(aktuell)
+            aktuell = ""
+        else:
+            aktuell += c
+    return [t.strip() for t in teile + [aktuell] if t.strip()]
+
+
+def selektor_ziel(selektor: str) -> str:
+    """Das Ziel eines Selektors: sein letzter zusammengesetzter Teil nach den Kombinatoren (Leerraum, >, +, ~)."""
+    teile = _oberste_ebene(selektor, lambda c: c.isspace() or c in ">+~")
+    return teile[-1] if teile else ""
+
+
+def traegt_ds_klasse(teil: str) -> bool:
+    """Ob ein zusammengesetzter Teil selbst eine Klasse .ds-… trägt -- was in (…) oder […] steht (:not(), :is(), :has(), Attribute),
+    zählt nicht: div:not(.ds-x) ist ein div."""
+    aussen, tiefe = "", 0
+    for c in teil:
+        tiefe += 1 if c in "([" else -1 if c in ")]" else 0
+        if tiefe == 0 and c not in ")]":
+            aussen += c
+    return re.search(r"\.ds-[A-Za-z0-9_-]", aussen) is not None
+
+
 def css_verstoesse(text: str) -> list[str]:
     regeln, rest = css_regeln(text)
     funde = [f"außerhalb einer Regel: {rest[:60]!r}"] if rest else []
@@ -372,8 +410,14 @@ def css_verstoesse(text: str) -> list[str]:
             funde += [f"@font-face: {name}" for name, _ in _deklarationen(rumpf) if name not in FONT_FACE_EIGENSCHAFTEN]
         elif kopf in TOKEN_BLOECKE:
             funde += [f"{kopf}: {name}" for name, wert in _deklarationen(rumpf) if not re.fullmatch(r"--ds-[a-z0-9-]+", name) or not wert]
-        elif not all(".ds-" in sel for sel in kopf.split(",")):
-            funde.append(f"Selektor ohne .ds-: {kopf}")
+        else:
+            # seit 1.8.129: das Ziel jedes Selektors trägt eine .ds-Klasse (bis dahin genügte .ds- irgendwo im Selektor --
+            # ".ds-x div" hätte jedes div in einem .ds-x getroffen)
+            for sel in _oberste_ebene(kopf, lambda c: c == ","):
+                if ".ds-" not in sel:
+                    funde.append(f"Selektor ohne .ds-: {sel}")
+                elif not traegt_ds_klasse(selektor_ziel(sel)):
+                    funde.append(f"Ziel ohne .ds-Klasse: {sel}")
     return funde
 
 
@@ -402,6 +446,31 @@ def test_waechter_laesst_tokens_schriften_und_ds_klassen_durch():
     css = (':root{--ds-a:#fff}:root[data-theme="dark"]{--ds-a:#000}@font-face{font-family:"X";src:url("schriften/x.woff2")}'
            ".ds-knopf:hover, .ds-karte > .ds-titel{color:var(--ds-a)}")
     assert css_verstoesse(css) == []
+
+
+# Seit 1.8.129 (Runde 1c, Punkt 4): das Ziel jedes Selektors -- sein letzter Teil -- trägt eine .ds-Klasse
+@pytest.mark.parametrize("selektor", [
+    ".ds-x div", ".ds-x + p", ".ds-x > span", ".ds-x ~ a", ".ds-x *", ".ds-a .ds-b div", ".ds-x div.andere", "div:not(.ds-x)",
+    "div:has(.ds-x)", ":is(.ds-a, .ds-b) p", ".ds-a [class~=ds-b]", ".ds-a>p", ".ds-a+p", ".ds-x\tp", ".ds-ok, .ds-x li",
+])
+def test_waechter_ziel_ohne_ds_klasse(selektor):
+    funde = css_verstoesse(f"{selektor}{{color:red}}")
+    assert any(f.startswith("Ziel ohne .ds-Klasse") for f in funde), (selektor, funde)
+
+
+@pytest.mark.parametrize("selektor", [
+    ".ds-x .ds-y", ".ds-x > .ds-y:hover", "a.ds-link", "div.ds-x", ".ds-feld::placeholder", ".ds-a:not(.ds-b)", ".ds-a[data-x='a b']",
+    ':is(.ds-a, .ds-b) .ds-c', ".ds-a + .ds-b", ".ds-a ~ .ds-b:focus-visible", '.ds-a[title="x > y"]',
+])
+def test_waechter_ziel_mit_ds_klasse(selektor):
+    assert css_verstoesse(f"{selektor}{{color:red}}") == []
+
+
+def test_selektor_ziel_und_klammern():
+    assert selektor_ziel(".ds-a > .ds-b  span.c:hover") == "span.c:hover"
+    assert selektor_ziel('.ds-a[data-x="a b"]') == '.ds-a[data-x="a b"]'
+    assert selektor_ziel(":is(.ds-a .ds-b)") == ":is(.ds-a .ds-b)"
+    assert traegt_ds_klasse(".ds-a:not(.x)") and not traegt_ds_klasse("div:not(.ds-a)") and not traegt_ds_klasse("[class~=ds-a]")
 
 
 LIZENZ = re.compile(r"ofl-[a-z0-9-]+\.txt")

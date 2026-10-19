@@ -225,11 +225,12 @@ def _vorlagen_links() -> list[tuple[str, str, bool]]:
     return gefunden
 
 
-def _python_links() -> list[tuple[str, str, bool]]:
-    """(Datei, Ziel, True) für jeden Text oder f-String unter app/, der mit "/" beginnt und als Wert unter einem Schlüssel,
-    Argument oder Attribut steht, dessen Name auf "url" endet (url, target_url, source_url …)."""
+def _links_aus_code(code: str, datei: str) -> list[tuple[str, str, bool]]:
+    """(Datei, Ziel, True) für jeden Text oder f-String im Code, der mit "/" beginnt und als Wert unter einem Schlüssel,
+    Argument oder Attribut steht, dessen Name auf "url" endet (url, target_url, source_url …). Seit 1.8.129 nicht die Argumente des
+    Konstruktors FastAPI(…) (docs_url, redoc_url, openapi_url): sie legen Routen an, sie sind keine Link-Ziele -- und es gibt sie nur
+    mit dem Schalter ERP_API_DOKU (app/main.py::api_doku_aktiv())."""
     import ast
-    from pathlib import Path
 
     def texte(node):
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
@@ -240,23 +241,42 @@ def _python_links() -> list[tuple[str, str, bool]]:
             yield from texte(node.body)
             yield from texte(node.orelse)
 
+    baum = ast.parse(code)
+    konstruktor = {id(kw) for aufruf in ast.walk(baum) if isinstance(aufruf, ast.Call)
+                   and getattr(aufruf.func, "id", getattr(aufruf.func, "attr", None)) == "FastAPI" for kw in aufruf.keywords}
+    gefunden = []
+    for node in ast.walk(baum):
+        werte = []
+        if isinstance(node, ast.Dict):
+            werte = [v for k, v in zip(node.keys, node.values)
+                     if isinstance(k, ast.Constant) and isinstance(k.value, str) and k.value.endswith("url")]
+        elif isinstance(node, ast.keyword) and node.arg and node.arg.endswith("url") and id(node) not in konstruktor:
+            werte = [node.value]
+        elif isinstance(node, ast.Assign):
+            werte = [node.value for z in node.targets if isinstance(z, ast.Attribute) and z.attr.endswith("url")]
+        for wert in werte:
+            for text in texte(wert):
+                if re.match(r"^/[A-Za-z]", text):
+                    gefunden.append((datei, text, True))
+    return gefunden
+
+
+def _python_links() -> list[tuple[str, str, bool]]:
+    """_links_aus_code() für jede Datei unter app/."""
+    from pathlib import Path
+
     gefunden = []
     wurzel = Path(__file__).resolve().parents[1] / "app"
     for datei in sorted(wurzel.rglob("*.py")):
-        for node in ast.walk(ast.parse(datei.read_text(encoding="utf-8"))):
-            werte = []
-            if isinstance(node, ast.Dict):
-                werte = [v for k, v in zip(node.keys, node.values)
-                         if isinstance(k, ast.Constant) and isinstance(k.value, str) and k.value.endswith("url")]
-            elif isinstance(node, ast.keyword) and node.arg and node.arg.endswith("url"):
-                werte = [node.value]
-            elif isinstance(node, ast.Assign):
-                werte = [node.value for z in node.targets if isinstance(z, ast.Attribute) and z.attr.endswith("url")]
-            for wert in werte:
-                for text in texte(wert):
-                    if re.match(r"^/[A-Za-z]", text):
-                        gefunden.append((str(datei.relative_to(wurzel.parent)), text, True))
+        gefunden += _links_aus_code(datei.read_text(encoding="utf-8"), str(datei.relative_to(wurzel.parent)))
     return gefunden
+
+
+def test_links_aus_code_ohne_konstruktor_von_fastapi():
+    """Seit 1.8.129: docs_url & Co. im Konstruktor von FastAPI sind keine Link-Ziele -- dasselbe Argument anderswo bleibt eins."""
+    code = ('app = FastAPI(docs_url="/docs" if X else None, openapi_url="/openapi.json")\n'
+            'fastapi.FastAPI(redoc_url="/redoc")\nweiter(target_url="/docs")\nx = {"url": "/kunden"}\n')
+    assert sorted(ziel for _, ziel, _ in _links_aus_code(code, "x.py")) == ["/docs", "/kunden"]
 
 
 def _get_routen() -> list[list[str]]:

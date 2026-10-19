@@ -860,6 +860,9 @@ schon ausgenommen.
 
 ## Anmeldepflicht für jede Methode (seit 1.8.128)
 
+*Seit 1.8.129 (Runde 1c): Schnittstellen-Doku nur mit `ERP_API_DOKU=1` und `ERP_ENV=development`/`test` (im Betrieb nicht angelegt),
+`/health` auch mit HEAD, Befund Ersteinrichtung -- `docs/archiv/redesign.md`, „Runde 1c: Härtung vor Stufe 2“.*
+
 Vorgabe vom 19.10.2026 (übernommen wie gegeben): „Runde 1b (Sicherheit, vor Stufe 2): Die Anmeldeschranke lässt HEAD und OPTIONS ohne
 Anmeldung durch (Nebenbefund 1.8.127). Vorab bestätigt: Festlegungen 1.8.126 (alle) und 1.8.127 Nr. 1–10. 1. Befund zuerst, im Bericht:
 Welche Methoden kommen heute ohne Anmeldung durch? Gibt es Routen, Mounts oder Middleware, die HEAD oder OPTIONS selbst beantworten?
@@ -899,7 +902,7 @@ pushen.“
   Methoden) → 403, dann 401 bzw. Umleitung.
 - Mit Sitzung ändert sich nichts: OPTIONS, TRACE und erfundene Methoden gehen durch die Schranke zum Routing (405/404).
 
-#### Festlegungen 1.8.128 (Bitte bestätigen)
+#### Festlegungen 1.8.128 (Nr. 1–3, 5, 7–9 bestätigt am 19.10.2026; Nr. 6 ersetzt durch 1.8.129 Nr. 3; Nr. 4 offen)
 
 1. **Öffentliche Pfade je Methode** (`OEFFENTLICH`): `/login`, `/health`, `/manifest.json`, `/api/auth/status` und die Design-Dateien mit GET
    und HEAD; `/api/auth/login` und `/api/auth/logout` mit POST -- Anmelden und Abmelden sind POST, „dort nur GET und HEAD“ gilt für sie
@@ -908,9 +911,10 @@ pushen.“
    dreien ohne Anmeldung 401.
 3. **Abweisen**: eine Seite (nicht `/api/`) mit GET oder HEAD → Umleitung auf `/login?next=…`; eine Seite mit jeder anderen Methode → 401
    wie POST (auch ein fehlender Pfad); unter `/api/` jede Methode → 401 (mit Cookie ohne gültige Sitzung „Anmeldung abgelaufen“).
-4. **Ersteinrichtung** (noch kein Konto): bleibt offen wie bisher, für jede Methode.
+4. **Ersteinrichtung** (noch kein Konto): bleibt offen wie bisher, für jede Methode. *Offen -- Befund in 1.8.129 (Runde 1c):*
+   `docs/archiv/redesign.md`, „Runde 1c“.
 5. **Mit Sitzung unverändert**: OPTIONS, TRACE und erfundene Methoden gehen zum Routing (405/404); keine Sperre für Angemeldete.
-6. **HEAD an öffentlichen GET-Routen**: die Schranke lässt es durch, das Routing antwortet 405 (FastAPI ergänzt kein HEAD) -- so belassen.
+6. ~~**HEAD an öffentlichen GET-Routen**~~ (für `/health` ersetzt durch 1.8.129 Nr. 3): die Schranke lässt es durch, das Routing antwortet 405 (FastAPI ergänzt kein HEAD) -- so belassen.
 7. **Ursprungsprüfung** unverändert nur für POST, PUT, PATCH, DELETE; OPTIONS, TRACE und erfundene Methoden ohne Sitzung 401, nicht 403.
 8. **Angriffstabelle** (nur Test): 7 Methoden × 7 Pfade (Seite und API je als Zählroute für jede Methode und als echte Route, die
    Doku-Route `/openapi.json`, fehlende Seite, fehlender API-Pfad) × ohne/mit Kopfzeilen der eigenen Seite, gegen uvicorn mit h11 und

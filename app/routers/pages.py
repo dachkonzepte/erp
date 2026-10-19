@@ -574,6 +574,8 @@ def address_import_page(
     return templates.TemplateResponse(request=request, name="address_import.html", context={})
 
 
-@router.get("/health")
+@router.api_route("/health", methods=["GET", "HEAD"])
 def health():
+    """Ohne Anmeldung (app/anmeldeschranke.py::OEFFENTLICH). Seit 1.8.129 auch HEAD -- eine Überwachung, die nur die Kopfzeilen holt,
+    bekam bis dahin 405 (FastAPI ergänzt bei einer GET-Route kein HEAD)."""
     return {"status": "ok", "version": APP_VERSION}

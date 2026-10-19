@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.128** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.129** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -749,7 +749,11 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Seite mit GET/HEAD → Umleitung auf `/login`, sonst 401; öffentlich nur `OEFFENTLICH` in `app/anmeldeschranke.py` (Pfad mit Methoden:
     `/login`, `/health`, `/manifest.json`, `/api/auth/status` mit GET/HEAD, `/api/auth/login` und `/logout` mit POST) und die
     Design-Dateien. Ein neuer öffentlicher Pfad kommt dort hinein, mit genau seinen Methoden (`tests/test_v433_schranke_alle_methoden.py`:
-    Angriffe mit 7 Methoden gegen echten uvicorn, kein Endpunkt erreicht).
+    Angriffe mit 7 Methoden gegen echten uvicorn, kein Endpunkt erreicht). **Seit 1.8.129:** `/health` beantwortet auch HEAD; die
+    Schnittstellen-Doku (`/docs`, `/redoc`, `/openapi.json`) gibt es nur mit `ERP_API_DOKU=1` und `ERP_ENV=development`/`test`
+    (`app/main.py::api_doku_aktiv()`), im Betrieb sind die Routen nicht angelegt (404, auch mit Anmeldung). Die Ersteinrichtung (noch
+    kein Konto) bleibt offen: dann legt jeder über `POST /api/users` das erste Konto als Admin an -- Befund in `docs/archiv/redesign.md`,
+    „Runde 1c“.
 
 31. **Jede abgelegte Datei geht über `app/dateiauslieferung.py::datei_antwort()` an den Browser, seit 1.8.101.** Den Typ bestimmt der
     Server an den ersten Bytes, nie am Namen oder an der Angabe des Browsers; angezeigt (inline) werden nur JPEG, PNG, GIF, WebP und PDF,
@@ -817,8 +821,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
 
 37. **Das Design-System liegt in `app/static/ds/ds.css`, jede Seite bindet `_ds_kopf.html` ein, seit 1.8.127 (Redesign Stufe 1).**
     `ds.css` enthält nur `--ds-*`-Eigenschaften in `:root` und `:root[data-theme="dark"]`, `@font-face` und Regeln, deren Selektoren alle
-    `.ds-` tragen -- nie `--accent` (die Akzentfarbe aus den Einstellungen bleibt), kein `color-scheme`, keine Element-Selektoren, keine
-    andere At-Regel. In `app/static/` liegen nur `.css`, `.woff2` und Lizenztexte (`ofl-*.txt`), alle Namen kleingeschrieben (sonst ohne
+    als Ziel (letzter Teil nach Leerraum, `>`, `+`, `~`) selbst eine Klasse `.ds-…` tragen (seit 1.8.129; `.ds-x div`, `.ds-x + p`,
+    `div:not(.ds-x)` verboten) -- nie `--accent` (die Akzentfarbe aus den Einstellungen bleibt), kein `color-scheme`, keine
+    Element-Selektoren, keine andere At-Regel. In `app/static/` liegen nur `.css`, `.woff2` und Lizenztexte (`ofl-*.txt`), alle Namen kleingeschrieben (sonst ohne
     Anmeldung nicht erreichbar), keine Symlinks. Jede Seite aus `seiten()` bindet `_ds_kopf.html` im Kopf vor ihrem eigenen `<style>` ein
     (`ds.css?v={{ app_version }}`); eine neue Seite ebenso. Die Prüfpaare im Kopfkommentar von `ds.css` halten hell und dunkel (Text 4,5 : 1,
     Bedienelemente 3 : 1). `/static/` wird ein Jahr zwischengespeichert: eine geänderte Schrift bekommt einen neuen Dateinamen.
@@ -1296,7 +1301,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   -- `docs/archiv/testablauf-und-klicktests.md`
 - **Redesign: Design-System „Schiefer & Signal“** (Stufen 0a–0d siehe Testablauf; seit 1.8.127 Stufe 1 „Fundament“: `/static/` ohne
   Anmeldung mit langem Cache, `app/static/ds/ds.css` mit Tokens und selbst gehosteten Schriften, `_ds_kopf.html` in jeder Seite, Wächter,
-  Kontrasttest, Angriffstests, Regel 37) -- `docs/archiv/redesign.md`
+  Kontrasttest, Angriffstests, Regel 37; seit 1.8.128 Runde 1b Anmeldepflicht für jede Methode; seit 1.8.129 Runde 1c Härtung:
+  Schnittstellen-Doku nur lokal per `ERP_API_DOKU=1`, `/health` mit HEAD, Wächter ds.css nach dem Ziel des Selektors, Befunde
+  Ersteinrichtung und Akzentfarbe) -- `docs/archiv/redesign.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`
 - **Migrationsketten- und Testlauf-Historie** (Version-für-Version-Nachweis, wer wann was mit

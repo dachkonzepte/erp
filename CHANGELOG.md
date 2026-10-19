@@ -4,6 +4,19 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.129 – Härtung vor Stufe 2: Schnittstellen-Doku nur lokal, /health mit HEAD, Wächter ds.css schärfer
+
+Runde 1c vor Stufe 2 des Redesigns (Vorgabe vom 19.10.2026). Die Schnittstellen-Doku von FastAPI (`/docs`, `/redoc`,
+`/docs/oauth2-redirect`, `/openapi.json`) gibt es nur noch mit dem Schalter `ERP_API_DOKU=1` und zugleich `ERP_ENV=development` oder `test`;
+im Betrieb sind die Routen nicht angelegt -- 404, auch mit Anmeldung (geprüft in einem Kindprozess mit `ERP_ENV=production`). Bis dahin
+lieferten sie jeder angemeldeten Rolle die ganze Schnittstellenbeschreibung. `/health` beantwortet auch HEAD (eine Überwachung bekam 405).
+Der Wächter für `ds.css` verlangt jetzt, dass das Ziel jedes Selektors -- sein letzter Teil -- selbst eine `.ds-`-Klasse trägt; `.ds-x div`,
+`.ds-x + p` oder `div:not(.ds-x)` hätten bisher jedes Element darunter bzw. daneben getroffen und kamen durch. Dazu zwei Befunde ohne
+Änderung: Die Ersteinrichtung (noch kein Konto) erkennt die Schranke an einer Abfrage auf `app_users`; scheitert sie, schließt die Schranke
+(500 bzw. 503), gelingt sie leer, legt jeder über `POST /api/users` das erste Konto als Admin an. Die Akzentfarbe wirkt in allen Seiten und
+im Manifest samt PWA-Symbolen der Monteursansicht, nicht in PDFs oder E-Mails, und lässt sich ab Büro – Auftrag ändern. Details:
+`docs/archiv/redesign.md`, „Runde 1c“.
+
 ## 1.8.128 – Anmeldepflicht für jede Methode
 
 Runde 1b vor Stufe 2 des Redesigns (Vorgabe vom 19.10.2026; Festlegungen 1.8.126 und 1.8.127 Nr. 1–10 bestätigt), zum Nebenbefund 1.8.127

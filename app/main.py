@@ -91,7 +91,17 @@ with SessionLocal() as _upgrade_db:
             _material_groups_backfilled,
         )
 
-app = FastAPI(title="DACHKONZEPTE ERP Prototype", version=APP_VERSION)
+def api_doku_aktiv(umgebung=os.environ) -> bool:
+    """Seit 1.8.129 (Runde 1c): die Schnittstellen-Doku von FastAPI (/docs, /redoc, /docs/oauth2-redirect, /openapi.json) gibt es nur
+    lokal und nur auf ausdrücklichen Wunsch -- ERP_API_DOKU=1 zusammen mit ERP_ENV=development oder test. Im Betrieb (ERP_ENV=production,
+    fehlend oder anders) sind die Routen gar nicht angelegt: 404, auch mit Anmeldung. Bis 1.8.128 gab es sie überall; ohne Anmeldung
+    beantworteten sie bis 1.8.127 ein HEAD mit 200, angemeldet lieferten sie jeder Rolle die ganze Schnittstellenbeschreibung."""
+    return umgebung.get("ERP_API_DOKU", "").strip() == "1" and umgebung.get("ERP_ENV", "").strip().lower() in ("development", "test")
+
+
+API_DOKU = api_doku_aktiv()
+app = FastAPI(title="DACHKONZEPTE ERP Prototype", version=APP_VERSION, docs_url="/docs" if API_DOKU else None,
+              redoc_url="/redoc" if API_DOKU else None, openapi_url="/openapi.json" if API_DOKU else None)
 
 # Datenbank-Art fürs Log, bewusst OHNE die vollständige DATABASE_URL, da
 # diese bei Postgres Zugangsdaten im Klartext enthalten kann.
