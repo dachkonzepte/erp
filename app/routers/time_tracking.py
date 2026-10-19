@@ -142,6 +142,14 @@ def _require_group_owner(request: Request, db: Session, group: TimeEntryGroup) -
         raise HTTPException(status_code=403, detail=CREW_LEADER_ONLY)
 
 
+def _noch_kolonnenfuehrer(request: Request, db: Session, group: TimeEntryGroup) -> bool:
+    """Seit 1.8.144 (Entscheidung vom 19.10.2026): eine Gruppenzeit für alle stoppen darf ein Monteur nur, solange er im Team der
+    Buchung Kolonnenführer ist -- wie Ändern und Löschen (_require_group_owner()). Bis dahin genügte "hat sie angelegt" (Befund
+    1.8.142). Büro und Admin unverändert."""
+    user = getattr(request.state, "erp_user", None)
+    return user is None or user.role != ROLE_FIELD or group.team_id in crew_leader_team_ids(db, user.employee_id)
+
+
 def _group_out(request: Request, db: Session, group: TimeEntryGroup) -> TimeGroupOut:
     """Für Monteure ohne die vollständigen Buchungen der Kollegen (keine Sicht auf fremde Zeiten)
     -- nur Name, Stunden und Status je Mitglied."""
@@ -280,6 +288,8 @@ def stop_time_group(group_id:int,payload:TimeGroupTimerStop,request:Request,db:S
     user=getattr(request.state,"erp_user",None)
     if user is not None and user.role!="admin" and user.employee_id!=group.initiated_by_employee_id:
         raise HTTPException(status_code=403,detail="Nur der Initiator der Gruppenbuchung oder ein Administrator darf die gesamte Gruppe stoppen.")
+    if not _noch_kolonnenfuehrer(request,db,group):
+        raise HTTPException(status_code=403,detail=CREW_LEADER_ONLY)
     _require_open_period(request,db,group.work_date)
     try:
         end=payload.ended_at or berlin_now()
@@ -366,7 +376,8 @@ def stop_time_entry(entry_id: int, payload: TimeTimerStop, request: Request, db:
     try:
         group = group_for_entry(db, entry_id)
         user = getattr(request.state, "erp_user", None)
-        if group is not None and group.status == "running" and (user is None or user.role == "admin" or user.employee_id == group.initiated_by_employee_id):
+        # Seit 1.8.144: ohne Kennzeichen stoppt die Initiatorin nur noch ihre eigene Zeit, wie ein Mitglied (die Gruppe läuft weiter).
+        if group is not None and group.status == "running" and (user is None or user.role == "admin" or user.employee_id == group.initiated_by_employee_id) and _noch_kolonnenfuehrer(request, db, group):
             end=payload.ended_at or berlin_now()
             member_breaks={eid:automatic_break_minutes_for_timer(db,eid,group.started_at,end) for eid in group_member_ids(db,group.id)} if group.started_at else {}
             stop_group_timer(db, group.id, ended_at=end, break_minutes=payload.break_minutes, break_minutes_by_employee=member_breaks)

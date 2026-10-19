@@ -64,6 +64,10 @@ def _welt():
             db.add(konto)
             db.flush()
             cookies[name] = neue_sitzung(db, konto, zweiter_faktor=True)
+        ada = AppUser(username="ada", display_name="Ada", role="admin", password_hash="x")  # seit 1.8.144: stoppt die Gruppe
+        db.add(ada)
+        db.flush()
+        cookies["Ada"] = neue_sitzung(db, ada, zweiter_faktor=True)
         db.commit()
         welt = {"ids": {n: e.id for n, e in emp.items()}, "nord": nord.id, "sued": sued.id, "auftrag": order.id,
                 "fremde_buchung": fremd.id, "cookies": cookies}
@@ -156,23 +160,55 @@ def test_kolonnenfuehrerin_bucht_nur_fuer_ihre_kolonne(welt):
     assert _buchungen(welt) == sorted(vorher + [(ids["Lea"], 4.0), (ids["Mia"], 4.0), (ids["Max"], 4.0)])
 
 
-def test_nebenbefund_ehemalige_kolonnenfuehrerin_stoppt_die_gruppe_weiter(welt):
-    """Ist-Stand 1.8.142, Frage an den Betreiber: Stoppen prüft nur „hat angelegt“, Ändern zusätzlich „noch Kolonnenführerin“."""
+def _laufend(welt):
+    from app.models import TimeEntry, TimeEntryGroup
+
+    with welt["sitzung"]() as db:
+        return (sorted(e.employee_id for e in db.query(TimeEntry).filter_by(status="running")),
+                sorted(g.id for g in db.query(TimeEntryGroup).filter_by(status="running")))
+
+
+def _gruppe_starten(welt, stunden_her):
+    ids = welt["ids"]
+    start = {"employee_ids": [ids["Lea"], ids["Max"]], "team_id": welt["nord"], "order_id": welt["auftrag"],
+             "started_at": (berlin_now() - timedelta(hours=stunden_her)).replace(microsecond=0).isoformat()}
+    antwort = _als(welt, "Lea").post("/api/time-entry-groups/start", json=start)
+    assert antwort.status_code == 200, antwort.text
+    return antwort.json()["id"]
+
+
+def test_ehemalige_kolonnenfuehrerin_stoppt_die_gruppe_nicht(welt):
+    """Bis 1.8.143 (Nebenbefund 1.8.142): Stoppen prüfte nur „hat angelegt“, Ändern zusätzlich „noch Kolonnenführerin“. Seit 1.8.144
+    gesperrt wie Ändern (Entscheidung vom 19.10.2026); ihre eigene Zeit stoppt sie weiter, wie ein Mitglied; ein Admin stoppt die Gruppe."""
     from app.models import TeamEmployee
 
     ids = welt["ids"]
-    lea = _als(welt, "Lea")
-    start = {"employee_ids": [ids["Lea"], ids["Max"]], "team_id": welt["nord"], "order_id": welt["auftrag"],
-             "started_at": (berlin_now() - timedelta(hours=2)).replace(microsecond=0).isoformat()}
-    gruppe = lea.post("/api/time-entry-groups/start", json=start)
-    assert gruppe.status_code == 200
+    # Kontrolle: mit Kennzeichen stoppt sie ihre Gruppe für alle
+    erste = _gruppe_starten(welt, 5)
+    ende = (berlin_now() - timedelta(hours=4)).replace(microsecond=0).isoformat()
+    assert _als(welt, "Lea").post(f"/api/time-entry-groups/{erste}/stop", json={"ended_at": ende}).status_code == 200
+    assert _laufend(welt) == ([], [])
+
+    gid = _gruppe_starten(welt, 2)
     with welt["sitzung"]() as db:  # das Büro nimmt Lea das Kennzeichen
         db.query(TeamEmployee).filter_by(team_id=welt["nord"], employee_id=ids["Lea"]).update({"is_crew_leader": False})
         db.commit()
-    gid = gruppe.json()["id"]
+    lea = _als(welt, "Lea")
     assert lea.put(f"/api/time-entry-groups/{gid}", json={"notes": "x"}).status_code == 403
     gestoppt = lea.post(f"/api/time-entry-groups/{gid}/stop", json={})
-    assert gestoppt.status_code == 200 and gestoppt.json()["status"] == "booked"  # stoppt auch die Zeit von Max
+    assert gestoppt.status_code == 403, gestoppt.text
+    assert gestoppt.json()["detail"] == "Gruppenbuchungen sind für Monteure dem Kolonnenführer des Teams vorbehalten."
+    assert _laufend(welt) == (sorted([ids["Lea"], ids["Max"]]), [gid])
+
+    # ihre eigene Zeit: nur sie, die Gruppe und die Zeit von Max laufen weiter
+    eigene = lea.get("/api/time-entries/active").json()["id"]
+    assert lea.post(f"/api/time-entries/{eigene}/stop", json={}).status_code == 200
+    assert _laufend(welt) == ([ids["Max"]], [gid])
+
+    # ein Admin stoppt die Gruppe
+    admin = _als(welt, "Ada").post(f"/api/time-entry-groups/{gid}/stop", json={})
+    assert admin.status_code == 200 and admin.json()["status"] == "booked", admin.text
+    assert _laufend(welt) == ([], [])
 
 
 # --- Oberfläche: Einsatzbericht als Monteurin (seit 1.8.143 umgesetzt) --------------------------------------------------------

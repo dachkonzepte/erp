@@ -2048,6 +2048,16 @@ behandeln ist, entscheidet die nächste Runde.
 - Bestätigen: Kolonne = nur über die Kolonnenführerin (heute so) oder auch Mitglieder?
 - Bestätigen: Stopp einer Gruppe nach entzogenem Kennzeichen.
 
+### Umsetzung (Nachrunde zur Fehlerrunde, 1.8.143 ff.)
+
+Entscheidungen vom 19.10.2026: für die Kolonne bucht nur, wer das Kolonnenführer-Kennzeichen hat (wie heute); Gruppenzeit stoppen
+ohne Kennzeichen wird gesperrt wie Ändern. Ausführlich je Punkt: `docs/archiv/redesign.md`, „Nachrunde zur Fehlerrunde“.
+
+- 1.8.143: der Einsatzbericht zeigt Monteuren keine Auswahl „Mitarbeiter“, sie buchen für sich (das `xfail` unten ist grün).
+- 1.8.144: `POST /api/time-entry-groups/{id}/stop` ohne Kennzeichen 403 wie Ändern; „Zeit stoppen“ an der eigenen Zeit stoppt dann nur
+  die eigene Zeit (Festlegung 1.8.144 Nr. 1); ein Admin stoppt die Gruppe. Der Nebenbefund-Test unten heißt jetzt
+  `test_ehemalige_kolonnenfuehrerin_stoppt_die_gruppe_nicht`.
+
 ### Tests und Gegenprobe
 
 `tests/test_v437_befund_zeit_fuer_andere.py`, über die echte Anmeldeschranke (`tests/anmeldung.py`), Konten mit

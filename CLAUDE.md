@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.143** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.144** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -1914,9 +1914,6 @@ zufällig (`app/audit.py`, `session.dirty`), deshalb setzt `befuellen()` den Pro
 - ~~Befund 1.8.100 Sicherheit der Seiten~~ -- seit 1.8.104 alle zwölf Lücken geschlossen (Regeln 31–33), `tests/test_v405_befund_seiten.py`
   ohne xfail. HSTS setzt seit 1.8.107 die Anwendung; offen bleibt, ob Nginx den Host weitergibt (für Tablets ohne `Sec-Fetch-Site`) und
   ob es HSTS zusätzlich setzt -- Betreiberprüfung, `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.104" und "Umsetzung 1.8.107".
-- **Stopp einer Gruppenzeit nach entzogenem Kolonnenführer-Kennzeichen** (Befund 1.8.142; entschieden 19.10.2026: gesperrt wie
-  Ändern, Umsetzung Nachrunde Punkt 2). Seit 1.8.143 sieht die Monteurin im Einsatzbericht keine Auswahl „Mitarbeiter“ mehr, für die
-  Kolonne bucht nur die Kolonnenführerin -- `docs/archiv/rechtekonzept.md`, „Befund 1.8.142“.
 - **373 on…-Attribute mit Zahlen und IDs** stehen in `AUSNAHMEN_HANDLER` (`tests/test_v407_daten_im_html.py`, Regel 32): kein Text mehr,
   aber dasselbe Muster -- Abbau auf data-Attribute bei Gelegenheit, die Liste darf nur kürzer werden.
 - **`client_uuid` am Einsatzbericht ist nicht idempotent -- Pflicht vor Checklisten-Stufe 3
