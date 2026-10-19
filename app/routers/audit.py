@@ -6,7 +6,7 @@ uebernommen -- reine Verschiebung, keine Verhaltensaenderung.
 """
 
 from fastapi import APIRouter
-from fastapi import Depends, Response
+from fastapi import Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from ..audit import ABSENCE_ENTITY_TYPES, ABSENCE_FIELD_NAMES, TASK_ENTITY_TYPE, WAGE_FIELD_NAMES, audit_rows, redact_absence_snapshot, redact_wage_snapshot
@@ -22,12 +22,22 @@ router = APIRouter()
 # über alle Entitäten hinweg (auch Mitarbeiter/Preise) -- Büro/Admin, nicht für einen Monteur.
 _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
+# Seit 1.8.150: ein Versatz darüber findet sicher nichts (so viele Einträge gibt es nicht) und ginge an die Datenbank nicht durch --
+# SQLite und PostgreSQL rechnen OFFSET in 64 Bit, eine größere Zahl war bis dahin ein Serverfehler (OverflowError, 500).
+GROESSTER_VERSATZ = 2**62
+_INT64 = range(-2**63, 2**63)
+
 
 @router.get("/api/audit-logs", response_model=list[AuditLogOut])
-def list_audit_logs(response: Response, project_id: int | None = None, entity_type: str | None = None, entity_id: str | None = None, actor: str | None = None, limit: int = 250, offset: int = 0, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def list_audit_logs(response: Response, project_id: int | None = None, entity_type: str | None = None, entity_id: str | None = None, actor: str | None = None, limit: int = 250, offset: int = Query(0, ge=0), db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     """Seit 1.8.138: mit Versatz (offset) zum Blättern -- `X-DK-Weitere: 1`, wenn nach dieser Seite noch Einträge kommen (gezählt vor
     der Schwärzung, sonst verschwände der Weg zu älteren Einträgen); jede Zeile mit lesbaren Namen (app/verlauf_namen.py, nach der
     Schwärzung, die an den rohen Namen hängt)."""
+    # Seit 1.8.150: offset negativ oder keine Zahl 422 (bis dahin galt ein negativer still als 0); sehr groß -- auch eine Projekt-ID
+    # jenseits von 64 Bit -- eine leere Seite statt 500.
+    if offset > GROESSTER_VERSATZ or (project_id is not None and project_id not in _INT64):
+        response.headers["X-DK-Weitere"] = "0"
+        return []
     limit = min(max(limit, 1), 1000)
     rows = audit_rows(db, project_id=project_id, entity_type=entity_type, entity_id=entity_id, actor=actor, limit=limit + 1, offset=offset)
     response.headers["X-DK-Weitere"] = "1" if len(rows) > limit else "0"

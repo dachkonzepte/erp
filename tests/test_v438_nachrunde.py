@@ -6,6 +6,7 @@ Die Punkte 1–3 (Zeit buchen, Gruppenzeit stoppen, Kennzeichen entziehen) stehe
     5  Stammdaten-Formular: nach dem Speichern in den Bereich der Liste, auch für Ressourcen (1.8.147)
     6  Auftrag: Menge und Einheitspreis mit Tausenderpunkt über zahlText() (1.8.148)
     7  Links nach /users nur für Administratoren -- Wächter, der Stand war schon richtig (1.8.149)
+    8  /api/audit-logs: offset negativ oder keine Zahl 422, sehr groß leere Seite, nie 500; Namen der Historie lesbar (1.8.150)
 """
 
 import html
@@ -154,3 +155,48 @@ def test_verweise_nach_users_nur_in_den_einstellungen_fuer_admins():
     link = quelle.index('href="/users"')
     davor = quelle[:link]
     assert davor.rfind("{% if ist_admin %}") > davor.rfind("{% endif %}")  # innerhalb des Blocks „nur Admin“
+
+
+# ---------------------------------------------------------------------------
+# 8. /api/audit-logs: Versatz geprüft, nie 500; Namen der Historie lesbar
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("abfrage,status,leer", [
+    ("offset=-1", 422, None),               # bis 1.8.149: 200, still als 0 gelesen
+    ("offset=x", 422, None),
+    ("offset=1.5", 422, None),
+    ("offset=1000000", 200, True),          # über dem Ende: leere Seite (aus der Datenbank)
+    (f"offset={2**62}", 200, True),
+    (f"offset={2**63}", 200, True),         # bis 1.8.149: OverflowError, 500
+    (f"offset={10**30}", 200, True),        # ebenso
+    (f"project_id={10**30}", 200, True),    # ebenso
+    (f"limit={10**30}", 200, False),
+    ("limit=-5", 200, False),
+    ("offset=0", 200, False),
+])
+def test_audit_logs_versatz_nie_500(threaded_db_session, router_test_client, abfrage, status, leer):
+    from app.routers import audit
+
+    client = router_test_client(threaded_db_session, audit.router)  # Grunddaten schreiben Einträge, die Liste ist nicht leer
+    antwort = client.get("/api/audit-logs?" + abfrage)
+    assert antwort.status_code == status, antwort.text
+    if status == 200:
+        assert (antwort.json() == []) is leer
+        if leer:
+            assert antwort.headers["x-dk-weitere"] == "0"
+
+
+def test_namen_der_historie_sind_lesbar():
+    """Seit 1.8.138 (tests/test_v436_fehlerrunde_vor_stufe_2.py) hat jede protokollierte Art und jedes protokollierte Feld einen Namen.
+    Seit 1.8.150 dazu: der Name ist lesbar -- nicht leer, nicht der technische Name selbst, kein Unterstrich, keine Klassenschreibweise."""
+    from sqlalchemy import inspect as sa_inspect
+
+    from app.audit import AUDITED_TYPES, EXCLUDED_FIELDS, FIELD_LABELS, TYPE_LABELS
+
+    technisch = re.compile(r"[A-Z][a-z0-9]+(?:[A-Z][a-z0-9]+)+")
+    arten = {cls.__name__: TYPE_LABELS.get(cls, "") for cls in AUDITED_TYPES}
+    felder = {a.key: FIELD_LABELS.get(a.key, "") for cls in AUDITED_TYPES for a in sa_inspect(cls).column_attrs
+              if a.key not in EXCLUDED_FIELDS and a.key != "id"}
+    assert len(arten) > 50 and len(felder) > 300
+    assert {k: v for k, v in arten.items() if not v.strip() or v == k or technisch.fullmatch(v) or "_" in v} == {}
+    assert {k: v for k, v in felder.items() if not v.strip() or v == k or "_" in v or technisch.fullmatch(v)} == {}
