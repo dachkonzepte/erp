@@ -1309,7 +1309,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Kontrasttest, Angriffstests, Regel 37; seit 1.8.128 Runde 1b Anmeldepflicht für jede Methode; seit 1.8.129 Runde 1c Härtung:
   Schnittstellen-Doku nur lokal per `ERP_API_DOKU=1`, `/health` mit HEAD, Wächter ds.css nach dem Ziel des Selektors, Befunde
   Ersteinrichtung und Akzentfarbe; seit 1.8.130 Runde 1d: ohne Konto geschlossen, Akzentfarbe nur Admin, PWA-Symbole öffentlich -- Herleitung
-  im Serverbetrieb-Archiv; seit 1.8.131 Stufe 2a: Bildgrundlage um TerraPad und Zustände des Rahmens erweitert) -- `docs/archiv/redesign.md`
+  im Serverbetrieb-Archiv; seit 1.8.131 Stufe 2a: Bildgrundlage um TerraPad und Zustände des Rahmens erweitert; Fehlerrunde vor Stufe 2
+  1.8.132–1.8.142 und Nachrunde 1.8.143–1.8.150: Abläufe, Zurück-Links, Seitentitel, `/users` nur Admin, Änderungshistorie lesbar und
+  seitenweise, Zeit buchen der Monteure nur für sich, Gruppenzeit stoppen nur mit Kolonnenführer-Kennzeichen) -- `docs/archiv/redesign.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`
 - **Migrationsketten- und Testlauf-Historie** (Version-für-Version-Nachweis, wer wann was mit
@@ -1628,7 +1630,7 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
   `zahlFeld()`; die Attrappe eines Felds braucht `dataset`, `getAttribute`, `setAttribute`, `removeAttribute`, der Wert steht deutsch
   im Feld). Seit 1.8.116 bindet `seite()` die Bausteine ein, die die Seite selbst einbindet (auch `_fehlertext.html`), und jeder node-Lauf
   geht über `tests/node_lauf.py` (Regel 36): eine gefangene JS-Ausnahme lässt den Test scheitern -- eine Attrappe, die absichtlich wirft,
-  braucht `erlaubt=` mit Grund. Eine Antwort, die die Seite zeichnet, kommt besser vom echten Dienst (`router_test_client`) als erfunden.
+  braucht `erlaubt=` mit Grund. Eine Antwort, die die Seite zeichnet, kommt besser vom echten Dienst (`router_test_client`) als erfunden. Hängt das Skript an Werten des Servers (Art des Bereichs, ID, Ziel nach dem Speichern), nimmt der Test die vom Server gezeichnete Seite statt der Vorlage: `tests/gerenderte_seite.py::gerenderte_seite(html, start)` (seit 1.8.145).
 
 - **Vorlagen über `tests/vorlagen_js.py` lesen** (seit 1.8.123, Stufe 0a des Redesigns): eine Prüfung über alle Vorlagen nimmt
   `alle_vorlagen()` (auch Unterordner, Namen wie "teile/x.html"), `seiten()` und die zusammengesetzte Seite aus `zusammensetzen()`
