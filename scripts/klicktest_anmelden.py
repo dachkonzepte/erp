@@ -143,6 +143,10 @@ def _dokumente(tab, marke: int) -> list[dict]:
 
 
 async def _anmelden_formular(tab, benutzer: str, passwort: str, *, per_enter: bool = True) -> None:
+    # Seit 1.8.157: erst tippen, wenn das Skript der Seite gelaufen ist. Das Feld #u steht schon im DOM, solange das Skript noch auf
+    # ds.css wartet (Stylesheet im Kopf, die erste Design-Datei nach dem Serverstart brauchte am 19.10.2026 rund 500 ms) -- dann lief
+    # Enter ins Leere ("login is not defined"). Ein Nutzer sieht das Feld erst danach: der Browser zeichnet die Seite erst mit ds.css.
+    await tab.warten("typeof login==='function'", 10)
     await _tippen(tab, "#u", benutzer)
     await _tippen(tab, "#p", passwort)
     if per_enter:

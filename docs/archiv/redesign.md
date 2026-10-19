@@ -526,3 +526,19 @@ Vorlagen (ohne Kommentare), allen Zeichenketten unter `app/` (ohne Docstrings un
 Betreiber-Skripten; 108 Treffer an 89 Stellen, davon 9 dritte Person (nicht gezählt). **Oberfläche (wird Du): 50 Stellen, 53 Anreden;
 an Kunden (bleibt Sie): 30 Stellen, 46 Anreden; unklar: 0.** 20 der Oberflächen-Stellen sind dieselbe Meldung „… keinem Mitarbeiter
 zugeordnet“ in neun Fassungen -- bei der Umstellung eine gemeinsame Meldung.
+
+### Nachtrag (Endlauf der Stufe „Grundlage“): `klicktest_anmelden` rot -- Wartebedingung zu schwach
+
+- **Befund**: im Endlauf auf `04b2db2` war `klicktest_anmelden` rot (66 von 69): „Formular: falsches Passwort -> Meldung“ leer, keine
+  Anfrage, JS-Fehler `ReferenceError: login is not defined` beim Enter im Passwortfeld. Wiederholt zweimal gleich rot -- und ebenso auf
+  `2b7e3ab` (Stand vor dieser Runde, dort am Nachmittag noch 69/69, in einer Git-Arbeitskopie). Nicht durch Teil A, B oder C verursacht.
+- **Ursache**: der Klicktest tippt, sobald das Feld `#u` im DOM steht. Das Skript der Anmeldeseite läuft aber erst, wenn das Stylesheet
+  im Kopf (`ds.css`) geladen ist -- und die erste Design-Datei nach dem Start des Servers brauchte jetzt rund 500 ms (gemessen: erste
+  Datei unter `/static/` 509 ms, jede weitere 5–6 ms, egal welche; im Browser `readyState` „loading“ und `typeof login` „undefined“, als
+  getippt wurde, nach 3 s beides da). Woher die 500 ms im Server kommen, ist nicht geklärt: `app/design_dateien.py` allein (ohne Server)
+  braucht beim ersten Abruf 47 ms (28 ms davon `mimetypes` aus der Registry); am Nachmittag fiel die Zeit nicht auf. Ein Nutzer ist nicht
+  betroffen: der Browser zeichnet die Seite erst mit `ds.css` (erstes Bild nach 572 ms) -- vorher ist kein Feld zu sehen.
+- **Änderung**: `scripts/klicktest_anmelden.py::_anmelden_formular()` wartet vor dem Tippen, bis `login` definiert ist (bis 10 s). Danach
+  69/69, zweimal hintereinander. Eigener Commit „1.8.156 (Nachtrag)“; Suite und Klicktests danach neu (Regel 26).
+- **Offen**: warum die erste Design-Datei im Server jetzt eine halbe Sekunde braucht. Im Betrieb träfe das je Arbeitsprozess einmal nach
+  dem Start eine Anfrage.

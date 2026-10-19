@@ -989,3 +989,14 @@ Alle betreffen nur Werkzeug und Testablauf (Regel 28).
   Bilder und 330 Prüfungen wie erwartet (406 bzw. 405 s), Vergleich **304 gleich, 0 abweichend**. Gegen den Lauf von Teil A
   (`teil-a-2`, Stand `d10cdb2`): **240 gleich, 0 abweichend, 64 neu** -- die bisherigen Bilder bleiben gleich. Größe 22 MB.
 - **Angepasste Tests** (Regel 28): keine Erwartung geändert (die Teil-A-Anpassung von `_mit_konto()` steht unter 1.8.130).
+
+## Klicktest Anmelden wartet auf das Skript der Seite (19.10.2026, 1.8.156 Nachtrag)
+
+`klicktest_anmelden` tippte, sobald `#u` im DOM stand; das Skript der Seite wartet aber auf das Stylesheet im Kopf. Seit die erste
+Design-Datei nach dem Serverstart rund 500 ms brauchte (Ursache offen, Herleitung in `docs/archiv/redesign.md`, „Nachtrag (Endlauf der
+Stufe „Grundlage“)“), lief Enter ins Leere. `_anmelden_formular()` wartet jetzt auf `typeof login==='function'`.
+
+#### Festlegungen (Bitte bestätigen)
+
+1. **Formular-Klicktests warten auf das Skript der Seite, nicht nur auf das Feld** -- ein Feld im DOM ist noch kein bedienbares Feld,
+   solange ein Stylesheet im Kopf das Skript aufhält (ein Nutzer sieht die Seite dann noch nicht).
