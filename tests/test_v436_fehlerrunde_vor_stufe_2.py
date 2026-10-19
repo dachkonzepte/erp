@@ -5,6 +5,7 @@
     3  /users nur für Administratoren, ohne den Satz zur Ersteinrichtung (1.8.134)
     4  Zurück-Links der Formularseiten mit echtem Ziel und Namen statt history.back() (1.8.135)
     5  LV-Editor: ein Weg zum Auftrag (1.8.136)
+    6  Zeiterfassung (Büro): ein Knopf zum manuellen Buchen (1.8.137)
 """
 
 import html
@@ -186,3 +187,20 @@ def test_lv_editor_ein_weg_zum_auftrag(stand):
         assert wege == ["Auftrag AUF-2026-0001 öffnen"], e
     if stand == "abgleichbar":
         assert e["knopf"] == "Änderungen in AUF-2026-0001 übernehmen"
+
+
+# ---------------------------------------------------------------------------
+# 6. Zeiterfassung (Büro): ein Knopf zum manuellen Buchen
+# ---------------------------------------------------------------------------
+
+def test_zeiterfassung_buero_ein_knopf_zum_manuellen_buchen(threaded_db_session, router_test_client):
+    """Bis 1.8.136 öffneten „+ Manuell buchen“ (Kopf von „Heutige Buchungen“) und „+ Zeitbuchung anlegen“ (eigene Karte „Manuelle
+    Buchung“) denselben Dialog."""
+    from app.routers.pages import router as pages_router
+
+    antwort = router_test_client(threaded_db_session, pages_router, role="buero_finanzen").get("/time-tracking")
+    assert antwort.template.name == "time_tracking.html"
+    markup = re.sub(r"<script.*?</script>", "", antwort.text, flags=re.S | re.I)
+    knoepfe = re.findall(r'<button[^>]*onclick="openManual\(\)"[^>]*>(.*?)</button>', markup, flags=re.S)
+    assert knoepfe == ["+ Manuell buchen"]
+    assert "Zeitbuchung anlegen" not in markup and "<h3>Manuelle Buchung</h3>" not in markup

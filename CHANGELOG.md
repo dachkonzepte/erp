@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.137 – Zeiterfassung (Büro): ein Knopf zum manuellen Buchen
+
+Fehlerrunde vor Stufe 2, Punkt 6. Die Büro-Zeiterfassung hatte zwei Knöpfe für denselben Dialog: „+ Manuell buchen“ im Kopf von „Heutige Buchungen“ und „+ Zeitbuchung anlegen“ in einer eigenen Karte „Manuelle Buchung“, die nur aus diesem Knopf und einem Satz bestand. Jetzt bleibt „+ Manuell buchen“; die Karte ist weg, ihr Hinweis („Für Nachträge, Korrekturen oder nachträgliche Erfassung.“) steht als Tooltip am Knopf.
+
 ## 1.8.136 – LV-Editor: ein Weg zum Auftrag
 
 Fehlerrunde vor Stufe 2, Punkt 5. Gab es zum Angebot einen Auftrag, zeigte der LV-Editor den Link „Auftrag öffnen“ und daneben den Hauptknopf „Auftrag AUF-… öffnen“ -- zwei Wege zum selben Ziel. Jetzt ist es einer: der Hauptknopf öffnet den Auftrag; nur wenn er stattdessen „Änderungen in AUF-… übernehmen“ heißt (Angebot nach der Beauftragung geändert, Abgleich erlaubt), steht der Link daneben, jetzt mit der Auftragsnummer („Auftrag AUF-… öffnen“).
