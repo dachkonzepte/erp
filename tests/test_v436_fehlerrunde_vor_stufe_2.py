@@ -8,6 +8,7 @@
     6  Zeiterfassung (Büro): ein Knopf zum manuellen Buchen (1.8.137)
     7  Änderungshistorie: lesbare Namen, Blättern (1.8.138)
     8  Seitentitel einheitlich „DACHKONZEPTE ERP – <Seite>“ ohne Versionsnummer (1.8.139)
+    9  Leistung bearbeiten: Standardwerte der Prozente als „0 %“ statt „0.0000%“ (1.8.140)
 """
 
 import html
@@ -417,3 +418,17 @@ def test_gerenderte_titel_ohne_versionsnummer(threaded_db_session, router_test_c
                 if not _titel_in_ordnung(html.unescape(titel.group(1)).strip()):
                     abweichend.append((rolle, route.path, titel.group(1)))
     assert gesehen > 60 and abweichend == []
+
+
+# ---------------------------------------------------------------------------
+# 9. Leistung bearbeiten: „Standard: 0 %“ statt „Standard: 0.0000%“
+# ---------------------------------------------------------------------------
+
+@nur_mit_node
+def test_leistung_standardwerte_der_prozente_lesbar():
+    """Die API liefert Prozente als Dezimaltext mit vier Stellen ("0.0000") -- bis 1.8.139 stand das roh neben dem Feld."""
+    lauf = im_browser(seite("service_form.html", "init().catch("), """
+      globalSettings = {labor_rate: "82.00", material_markup_pct: "0.0000", overhead_pct: "12.5000", risk_profit_pct: "5.0000"};
+      renderDefaults();
+      return ['markupDefault', 'overheadDefault', 'riskDefault'].map(id => _element(id).textContent);""")
+    assert lauf["ergebnis"] == ["(Standard: 0 %)", "(Standard: 12,5 %)", "(Standard: 5 %)"]

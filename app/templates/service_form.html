@@ -233,9 +233,11 @@ async function init() {
 function renderDefaults() {
   const std = (wert, text) => wert == null ? '(Standard laut Kalkulationsvorgaben)' : `(Standard: ${text(wert)})`;
   el('laborRateDefault').textContent = std(globalSettings.labor_rate, x => `${money(x)}/h`);
-  el('markupDefault').textContent = std(globalSettings.material_markup_pct, x => `${x}%`);
-  el('overheadDefault').textContent = std(globalSettings.overhead_pct, x => `${x}%`);
-  el('riskDefault').textContent = std(globalSettings.risk_profit_pct, x => `${x}%`);
+  // Prozente wie im Formular (seit 1.8.140; vorher roh aus der API, „Standard: 0.0000%“)
+  const prozent = x => `${zahlText(x)} %`;
+  el('markupDefault').textContent = std(globalSettings.material_markup_pct, prozent);
+  el('overheadDefault').textContent = std(globalSettings.overhead_pct, prozent);
+  el('riskDefault').textContent = std(globalSettings.risk_profit_pct, prozent);
 }
 
 function isEditable(service) {
