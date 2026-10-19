@@ -114,7 +114,8 @@
 <div class="app-content">
 {% include "_topbar.html" %}
 <main>
-  <a class="back" href="#" onclick="history.back();return false">← Stammdaten</a>
+  {# seit 1.8.154 echtes Ziel statt history.back(): der Leistungskatalog öffnet sich aus Stammdaten → Leistungskataloge #}
+  <a class="back" href="{{ zurueck.href }}">← {{ zurueck.text }}</a>
   <div class="grid">
     <section class="card">
       <h2>Leistungskatalog importieren</h2>

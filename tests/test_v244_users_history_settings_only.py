@@ -39,10 +39,12 @@ def test_settings_still_links_to_both_dedicated_pages():
 
 
 def test_users_and_history_pages_have_back_link_to_settings():
-    users = (TEMPLATES / "users.html").read_text(encoding="utf-8")
-    history = (TEMPLATES / "history.html").read_text(encoding="utf-8")
-    assert "← Einstellungen" in users and "history.back()" in users
-    assert "← Einstellungen" in history and "history.back()" in history
+    """Seit 1.8.146 (users.html) bzw. 1.8.154 (history.html) mit festem Ziel statt history.back(). Bis 1.8.153 verlangte dieser Test
+    noch history.back() -- für users.html blieb er nach 1.8.146 nur grün, weil das Wort in einem Kommentar stand."""
+    for name in ("users.html", "history.html"):
+        html = (TEMPLATES / name).read_text(encoding="utf-8")
+        assert '<a class="back" href="/settings">← Einstellungen</a>' in html, name
+        assert 'onclick="history.back()' not in html, name
 
 
 def test_master_data_employees_hash_link_restored_since_1_3_30():

@@ -224,7 +224,7 @@ dashboard_page.dk_ohne_seite = lambda user: user is not None and user.role == RO
 
 @router.get("/leistungskatalog", response_class=HTMLResponse)
 def service_catalog_page(request: Request, _role: AppUser = _role_dep):
-    return templates.TemplateResponse(request=request, name="index.html", context={})
+    return templates.TemplateResponse(request=request, name="index.html", context={"zurueck": zurueck_stammdaten("catalogs")})
 
 
 @router.get("/tasks", response_class=HTMLResponse)

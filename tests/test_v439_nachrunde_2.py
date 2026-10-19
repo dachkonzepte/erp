@@ -5,9 +5,12 @@
     2  Einsatzbericht: Auswahl „Mitarbeiter“ nur, wer laut Server für andere bucht -- in tests/test_v437_befund_zeit_fuer_andere.py
        (1.8.152)
     3  DELETE /api/teams/{id}: Rückfrage (409) bei laufender Gruppenzeit; mit Gruppenbuchungen deaktiviert statt gelöscht (1.8.153)
+    4  Zurück-Links mit echtem Ziel statt history.back() in address_import.html, history.html, index.html (1.8.154)
 """
 
+import html
 import json
+import re
 from decimal import Decimal
 
 import pytest
@@ -144,3 +147,42 @@ def test_team_mit_gruppenbuchungen_wird_unter_postgresql_deaktiviert():
         assert delete_team(team.id, db=db, _role=None) == {"deleted": False, "deactivated": True}  # keine laufende Gruppe: keine Rückfrage
         db.expire_all()
         assert db.get(Team, team.id).active is False
+
+
+# ---------------------------------------------------------------------------
+# 4. Zurück-Links mit echtem Ziel statt history.back()
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("adresse,rolle,ziel,name", [
+    ("/address-import", "admin", "/settings", "Einstellungen"),
+    ("/history", "buero_finanzen", "/settings", "Einstellungen"),
+    ("/leistungskatalog", "buero_finanzen", "/master-data#catalogs", "Stammdaten: Leistungskataloge"),
+])
+def test_zurueck_link_mit_echtem_ziel(threaded_db_session, router_test_client, adresse, rolle, ziel, name):
+    """Bis 1.8.153 gingen die drei Seiten per history.back() zurück -- nach direktem Aufruf ins Leere."""
+    from app.routers.pages import router as pages_router
+
+    client = router_test_client(threaded_db_session, pages_router, role=rolle)
+    antwort = client.get(adresse)
+    assert antwort.status_code == 200
+    markup = re.sub(r"<script.*?</script>", "", antwort.text, flags=re.S | re.I)
+    links = re.findall(r'<a[^>]*class="back"[^>]*>.*?</a>', markup, flags=re.S)
+    assert len(links) == 1, links
+    assert re.search(r'href="([^"]*)"', links[0]).group(1) == ziel and "onclick" not in links[0]
+    assert html.unescape(re.sub(r"<[^>]+>", "", links[0])).strip() == f"← {name}"
+    assert client.get(ziel.split("#")[0]).status_code == 200
+
+
+def test_kein_history_back_mehr_in_den_vorlagen():
+    """Nach 1.8.135 (vier Formularseiten), 1.8.146 (users.html) und 1.8.154 ruft keine Vorlage mehr history.back() auf -- ein
+    Kommentar, der es erwähnt, zählt nicht."""
+    from tests.test_v334_auswahl_restfaelle import TEMPLATES
+    from tests.vorlagen_js import alle_vorlagen
+
+    def ohne_kommentare(text):
+        text = re.sub(r"\{#.*?#\}", "", text, flags=re.S)
+        text = re.sub(r"<!--.*?-->", "", text, flags=re.S)
+        return re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+
+    treffer = [name for name in alle_vorlagen() if "history.back" in ohne_kommentare((TEMPLATES / name).read_text(encoding="utf-8"))]
+    assert treffer == []

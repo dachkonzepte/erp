@@ -53,7 +53,7 @@
 <div class="app-content">
 {% include "_topbar.html" %}
 <main>
-  <a class="back" href="#" onclick="history.back();return false">← Einstellungen</a>
+  {# seit 1.8.154 festes Ziel statt history.back() -- der Adressimport hängt an Einstellungen → Anbindungen #}<a class="back" href="/settings">← Einstellungen</a>
 
   <section class="card">
     <h2>Adressimport aus dem Altsystem</h2>

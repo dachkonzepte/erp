@@ -42,9 +42,13 @@ def test_master_data_catalog_list_links_to_the_parameterless_entry_point():
 
 
 def test_leistungskatalog_page_has_back_link_to_master_data():
+    """Seit 1.8.154 mit echtem Ziel statt history.back() (bis dahin „← Stammdaten“ per Browser-Verlauf): zurück in den Bereich
+    Leistungskataloge der Stammdaten -- gerendert geprüft in tests/test_v439_nachrunde_2.py::test_zurueck_link_mit_echtem_ziel."""
+    from app.routers.pages import zurueck_stammdaten
+
     html = (TEMPLATES / "index.html").read_text(encoding="utf-8")
-    assert "← Stammdaten" in html
-    assert "history.back()" in html
+    assert '<a class="back" href="{{ zurueck.href }}">← {{ zurueck.text }}</a>' in html
+    assert zurueck_stammdaten("catalogs") == {"href": "/master-data#catalogs", "text": "Stammdaten: Leistungskataloge"}
 
 
 def test_service_list_shows_real_catalog_name_and_relabels_the_action_column():
