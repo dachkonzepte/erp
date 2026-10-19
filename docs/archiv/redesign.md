@@ -284,6 +284,7 @@ Anlass ist der Befund Seiten-Inventar vom 19.10.2026 (`bildgrundlage/pruefung/`,
   - `test_v260::TestPageRouteClassification::test_users_page_buero_only_also_without_any_account` → `test_users_page_admin_only_also_without_any_account`: Soll „Büro – Auftrag 200“ (ohne und mit Konto in der Datenbank) → 403, dazu Büro – Finanzen 403 und Admin 200.
   - `test_v435::test_benutzerseite_und_konto_anlegen_mit_rollen`: Soll „Bernd (Büro – Finanzen) und Berta (Büro – Auftrag) 200 auf /users“ → 403.
   - `test_v431::test_namen_und_rollen`: Soll der Seiten ohne Büro-Rolle um `users.html` ergänzt (die Aufnahme „benutzer“ ist jetzt Admin); `test_jede_adresse_zeichnet_ihre_vorlage` dadurch unverändert grün.
+  - **Nachtrag** (gefunden im Endlauf der Runde auf `d1c2ab9`, Regel 26): `test_v419_verbindungen_unter_last.py::test_viele_gleichzeitige_seiten_und_abfragen` (nur gegen PostgreSQL, in den Teilläufen zu Punkt 3 nicht dabei) rief `/users` als Büro – Finanzen auf und erwartete 200 -- Soll jetzt 403 für `/users` (`ERWARTET`), alle anderen Seiten und Abfragen weiter 200; die Sperrseite wird unter Last ebenso gezeichnet. Dazu Regel 30 in CLAUDE.md berichtigt (dort stand noch „`/users` ab Büro – Auftrag“). Eigener Commit „1.8.134 (Nachtrag)“, danach Suite und Klicktests neu.
 
 #### Festlegungen 1.8.134 (Bitte bestätigen)
 

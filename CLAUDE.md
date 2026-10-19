@@ -755,7 +755,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     geschlossen** (bis dahin legte dann jeder über `POST /api/users` das erste Konto als Admin an): durch gehen nur `/health` und die
     Design-Dateien, eine Seite zeigt den Hinweis mit dem Befehl, alles andere 503 (`ersteinrichtung_antwort()`, nach der
     Ursprungsprüfung); das erste Konto legt nur `scripts/erstes_konto.py <benutzername>` auf dem Server an (`DATABASE_URL` Pflicht,
-    Passwort verdeckt, nie als Argument). `POST /api/users` nur Admin, `/users` ab Büro – Auftrag, ohne Ausnahme; die PWA-Symbole
+    Passwort verdeckt, nie als Argument). `POST /api/users` nur Admin, `/users` seit 1.8.134 auch nur Admin (bis dahin ab Büro – Auftrag); die PWA-Symbole
     `/api/mobile-icon/192.png` und `/512.png` öffentlich wie `/manifest.json` (GET, HEAD); die Akzentfarbe ändert nur ein Admin
     (`tests/test_v435_ersteinrichtung_geschlossen.py`).
 

@@ -7,7 +7,8 @@ der Server muss also über die ganze Prüfzeit weiter senden.
 
 1. Langsame Downloads halten keine Verbindung: vier Downloads zugleich (doppelt so viele wie der Pool), keine Verbindung des Servers
    länger als 1 s "idle in transaction", Abfragen und Seiten daneben in unter 2 s mit 200 (Punkt 1b).
-2. Viele gleichzeitige Seiten (40, darunter /users mit eigener Sitzung) und Abfragen: alle 200, keine 503 (Punkt 1c).
+2. Viele gleichzeitige Seiten (40, darunter /users mit eigener Sitzung) und Abfragen: alle 200 (/users 403 -- seit 1.8.134 nur für
+   Administratoren, die Sperrseite wird ebenso gezeichnet), keine 503 (Punkt 1c).
 3. Leerer Pool hält nicht den Prozess an: zwei Abfragen warten auf eine gesperrte Tabelle und halten beide Verbindungen; zwei weitere
    Anfragen warten in der Schranke auf den Pool (nach 3 s 503) -- ein laufender Download bekommt dabei weiter Daten, nie über 1,5 s
    Pause (Punkt 1a). Danach läuft alles wieder.
@@ -46,6 +47,7 @@ RATE = 256 * 1024  # Bytes je Sekunde, die ein langsamer Download liest
 POOL = {"ERP_DB_POOL_SIZE": "2", "ERP_DB_MAX_OVERFLOW": "0", "ERP_DB_POOL_TIMEOUT": "3"}
 SEITEN = ("/", "/projects", "/settings", "/users", "/master-data", "/planning", "/time-backoffice", "/finanzen", "/kalender",
           "/tasks")
+ERWARTET = {"/users": 403}  # seit 1.8.134 nur für Administratoren; das Konto der Tests ist Büro – Finanzen
 
 
 def _freier_port() -> int:
@@ -243,7 +245,7 @@ def test_viele_gleichzeitige_seiten_und_abfragen(server):
     pfade = [SEITEN[i % len(SEITEN)] for i in range(40)] + [f"/api/customers/{s['kunde']}"] * 20 + ["/api/settings/general"] * 10
     with ThreadPoolExecutor(max_workers=len(pfade)) as pool:
         ergebnisse = list(pool.map(lambda p: _anfrage(s, p), pfade))
-    falsch = [e for e in ergebnisse if e[1] != 200]
+    falsch = [e for e in ergebnisse if e[1] != ERWARTET.get(e[0], 200)]
     assert not falsch, f"(Pfad, Status, Dauer): {falsch}"
     assert _rueckfaelle(s)[vorher:] == [], "Seitendaten fielen unter Last auf Rückfallwerte"
     assert max(d for _, _, d in ergebnisse) < 10, max(ergebnisse, key=lambda e: e[2])
