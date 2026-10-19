@@ -1310,8 +1310,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Schnittstellen-Doku nur lokal per `ERP_API_DOKU=1`, `/health` mit HEAD, Wächter ds.css nach dem Ziel des Selektors, Befunde
   Ersteinrichtung und Akzentfarbe; seit 1.8.130 Runde 1d: ohne Konto geschlossen, Akzentfarbe nur Admin, PWA-Symbole öffentlich -- Herleitung
   im Serverbetrieb-Archiv; seit 1.8.131 Stufe 2a: Bildgrundlage um TerraPad und Zustände des Rahmens erweitert; Fehlerrunde vor Stufe 2
-  1.8.132–1.8.142 und Nachrunde 1.8.143–1.8.150: Abläufe, Zurück-Links, Seitentitel, `/users` nur Admin, Änderungshistorie lesbar und
-  seitenweise, Zeit buchen der Monteure nur für sich, Gruppenzeit stoppen nur mit Kolonnenführer-Kennzeichen) -- `docs/archiv/redesign.md`
+  1.8.132–1.8.142, Nachrunde 1.8.143–1.8.150 und Nachrunde 2 1.8.151–1.8.154: Abläufe, Zurück-Links ohne `history.back()`, Seitentitel,
+  `/users` nur Admin, Änderungshistorie lesbar und seitenweise, Zeit buchen nur für sich außer Admin, Gruppenzeit stoppen nur mit
+  Kolonnenführer-Kennzeichen, Rückfrage beim Entziehen und Löschen) -- `docs/archiv/redesign.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`
 - **Migrationsketten- und Testlauf-Historie** (Version-für-Version-Nachweis, wer wann was mit
@@ -1413,6 +1414,9 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   Definition dafür, `require_field_report_ownership()` verschärft das für Schreibzugriffe auf
   den eigenen Bericht. Die Wartungshistorie in /mobil gilt seit 1.8.70 nur für Objekte dieser Aufträge
   (`field_accessible_property_ids()`); Objektansicht und Dokumente bleiben für jedes Objekt offen.
+- **Zeit für andere buchen nur nach `app/permissions.py::darf_zeit_fuer_andere_buchen()`** (seit 1.8.152, heute nur Admin): der Server
+  prüft damit Buchen und Ändern fremder Zeiten, `/api/auth/status` meldet sie (`zeit_fuer_andere_buchen`), der Einsatzbericht zeigt
+  die Auswahl „Mitarbeiter“ nur danach -- eine neue Stelle mit derselben Frage nimmt diese Funktion, keine eigene Rollenabfrage.
 - **Ausblenden statt ausgrauen**: eine für eine Rolle nicht gedachte Seite fehlt im Markup
   (`can()`-Jinja-Global, `_dk_roles`-Markierung), nicht nur deaktiviert -- ein 403 auf einer
   Seiten-Route zeigt `access_denied.html`, nie rohes JSON.
