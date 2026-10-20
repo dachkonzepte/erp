@@ -1171,3 +1171,20 @@ Grundlage: der Befund `docs/archiv/befund-rahmen.md`. Die Entscheidungen oben ge
    `sidebar_logo_url()`/`sidebar_logo_height_px()` und das Lesen in den Seitendaten), mit Hinweis, dass es nicht mehr angezeigt wird;
    Vorschlag: bei der Bereinigung samt allem entfernen.
 4. **Schriftzug bleibt** neben der Kachel in der Leiste; im Monteurskopf nur die Kachel (`aria-label` „DACHKONZEPTE“).
+
+### Punkt 2 (1.8.166): Schriftstärke der Leiste
+
+- Geprüft: `.app-sidebar-link` hatte `font-weight:500`, der aktive Eintrag setzte keine eigene Stärke und erbte die 500. Jetzt
+  `.app-sidebar-link.active{…;font-weight:600}`; keine andere Regel der Leiste setzt eine Stärke an Eintrag oder Beschriftung.
+- Gemessen im Browser auf jeder Seite, die Büro – Finanzen mit Leiste öffnet (Teil `schrift` von `klicktest_rahmen`): normale
+  Einträge 500, der aktive 600, auf keiner Seite eine abweichende Stärke durch Seitenregeln.
+
+#### Tests und Prüfung
+
+- `test_v253::test_schriftstaerke_normal_500_aktiv_600` (neu); `klicktest_rahmen` Teil `schrift` (neu). Mit dem Teil „aktiv“ zusammen 63 von 63; im Teil „schrift“ 40 Seiten mit Leiste.
+- **Gegenproben**: aktiver Eintrag ohne eigene Stärke (Klicktest 3 von 41, rot auf jeder Seite mit aktivem Eintrag); Beschriftung mit eigener Stärke 700 (Klicktest 1 von 41) -- 2 von 2 rot, je mit pytest, Datei byte-genau zurück.
+- Angepasste Erwartungen: keine.
+
+#### Festlegungen 1.8.166 (Bitte bestätigen)
+
+1. **Nur die Stärke ändert sich** (Schrift, Größe und Farben wie gehabt); die Gruppenüberschriften bleiben 600 in Großbuchstaben.

@@ -6,6 +6,8 @@ Geprüft wird im echten Browser auf den Testdaten der Bildgrundlage (scripts/bil
                    52 px mit Kachel 36 px, Zeilen 36 px, vier Gruppen; Grund in --ds-navi-grund (dunkel in beiden Modi); aktiv genau der
                    Eintrag des Bereichs der Seite (Projektmappe -> Projekte, Rechnung -> Projekte, Kunde -> Stammdaten, Befunde, Suche
                    und Konto keiner), mit aria-current, 3 px Strich in --ds-marke-hell auf --ds-navi-aktiv
+    Schrift        auf jeder Seite mit Leiste (Büro – Finanzen, seit 1.8.166): normale Einträge 500, der aktive 600 -- keine Seitenregel
+                   greift hinein
     Menüknopf      klappt die Leiste ein (60 px) und wieder aus, aria-expanded folgt
     Kopfzeile      64 px, Suche 480 px breit, rechts der Kontoknopf mit Initialen im Kreis in --ds-aktion und dem vollen Namen
                    (ganz zu sehen); bei 412 px nur die Initialen, kein waagrechter Bildlauf
@@ -27,7 +29,7 @@ AUFRUF (aus dem Projektordner):
     .venv\\Scripts\\python.exe scripts\\klicktest_rahmen.py [--nur TEIL[,TEIL]] [--app-port N] [--cdp-port N]
         [--arbeitsordner PFAD] [--chrome PFAD] [--offen-lassen]
 
---nur: nur diese Teile (seitenleiste, aktiv, menueknopf, kopfzeile, kontomenue, seitenregeln, monteurskopf) -- für Gegenproben, die nach 2 min
+--nur: nur diese Teile (seitenleiste, aktiv, schrift, menueknopf, kopfzeile, kontomenue, seitenregeln, monteurskopf) -- für Gegenproben, die nach 2 min
 abbrechen (Regel 24).
 
 Optionen, Ablauf, Rückgabecode und Regeln (isolierte Wegwerf-Datenbank, Prozesse nur über die
@@ -155,6 +157,30 @@ async def _aktiv(tab, seed, p):
         p.pruefe(f"{wo}: aktiver Eintrag und aria-current", [m["aktiv"], m["aria"]], [soll, soll])
         if bereich:
             p.pruefe(f"{wo}: Strich 3 px in marke-hell auf navi-aktiv", m["strich"], ["3px", True, True])
+
+
+SCHRIFT = """(()=>{const s=document.getElementById('appSidebar');if(!s)return null;const w=e=>getComputedStyle(e).fontWeight;
+const l=[...s.querySelectorAll('.app-sidebar-link')];
+return {normal:[...new Set(l.filter(a=>!a.classList.contains('active')).map(a=>w(a.querySelector('.app-sidebar-label'))))],
+aktiv:l.filter(a=>a.classList.contains('active')).map(a=>w(a.querySelector('.app-sidebar-label')))}})()"""
+
+
+async def _schrift(tab, seed, p):
+    """Seit 1.8.166: Schriftstärke der Einträge auf jeder Seite, die das Büro mit Leiste öffnet."""
+    await tab.anmelden(seed["cookies"][bg.BUERO])
+    mit_leiste = 0
+    for a in bg.AUFNAHMEN:
+        if bg.BUERO not in a.rollen or a.vorlage == "access_denied.html":
+            continue
+        if not await _laden(tab, seed, a.name, "hell", 1440, 900):
+            p.pruefe(f"Schrift {a.name}: geladen", False, True)
+            continue
+        m = await tab.js(SCHRIFT)
+        if m is None:
+            continue  # Seite ohne Leiste (Monteursansicht)
+        mit_leiste += 1
+        p.pruefe(f"Schrift {a.name}: normal 500, aktiv 600", [m["normal"], sorted(set(m["aktiv"]))], [["500"], ["600"] if m["aktiv"] else []])
+    p.pruefe("Schrift: Seiten mit Leiste geprüft", mit_leiste >= 40, True)
 
 
 async def _menueknopf(tab, seed, p):
@@ -307,7 +333,7 @@ async def _monteurskopf(tab, seed, p):
     p.pruefe("Monteurskopf: keine JS-Fehler", tab.fehler, [])
 
 
-TEILE = {"seitenleiste": _seitenleiste, "aktiv": _aktiv, "menueknopf": _menueknopf, "kopfzeile": _kopfzeile,
+TEILE = {"seitenleiste": _seitenleiste, "aktiv": _aktiv, "schrift": _schrift, "menueknopf": _menueknopf, "kopfzeile": _kopfzeile,
          "kontomenue": _kontomenue, "seitenregeln": _seitenregeln, "monteurskopf": _monteurskopf}
 NUR: list = []
 

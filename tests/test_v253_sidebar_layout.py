@@ -214,3 +214,18 @@ def test_bildmarke_wie_vorgegeben_in_leiste_und_monteurskopf():
         css = text.split(regel, 1)[1].split("}", 1)[0]
         assert f"width:{groesse};height:{groesse}" in css and "background:#FFFFFF" in css, datei
 
+
+def test_schriftstaerke_normal_500_aktiv_600():
+    """Seit 1.8.166 (Nachrunde Punkt 2): normale Einträge 500, nur der aktive 600 (bis dahin erbte der aktive die 500). Die Beschriftung
+    setzt keine eigene Stärke; dass keine Seitenregel hineingreift, misst klicktest_rahmen auf jeder Seite mit Leiste."""
+    import re
+
+    css = (Path(__file__).parents[1] / "app" / "templates" / "_sidebar.html").read_text(encoding="utf-8").split("</style>")[0]
+    regel = lambda sel: css.split(sel + "{", 1)[1].split("}", 1)[0]  # noqa: E731
+    assert "font-weight:500" in regel(".app-sidebar-link")
+    assert "font-weight:600" in regel(".app-sidebar-link.active")
+    andere = [m for m in re.findall(r"([^{}]+)\{([^}]*)\}", css) if "app-sidebar-link" in m[0] or "app-sidebar-label" in m[0]]
+    for sel, inhalt in andere:
+        if sel.strip() not in (".app-sidebar-link", ".app-sidebar-link.active"):
+            assert "font-weight" not in inhalt, sel.strip()
+

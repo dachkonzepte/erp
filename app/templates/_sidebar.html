@@ -12,7 +12,7 @@
    - Vier Gruppen: Übersicht · Aufträge · Kaufmännisch (mit Zeiterfassung und Backoffice) · Verwaltung (Stammdaten, Einstellungen);
      eine Überschrift nur, wo die Rolle etwas sieht. Zeilen 36 px, Schrift 14 px, Symbole 18 px; Befunde eingerückt unter Wartungen.
    - Aktiv ist der Eintrag des Bereichs der Seite (data-bereich == bereich), nicht mehr die genaue Adresse: navi-aktiv mit 3 px Strich
-     links in marke-hell, aria-current="page". Vorher markierten 21 der 42 Seiten keinen Eintrag (alle Detailseiten).
+     links in marke-hell, aria-current="page"; Schrift normal 500, aktiv 600 (seit 1.8.166, bis dahin auch aktiv 500). Vorher markierten 21 der 42 Seiten keinen Eintrag (alle Detailseiten).
    - Fuß nur „Version …“. Hell/Dunkel steht im Kontomenü der Kopfzeile, das Ein-/Ausklappen am Menüknopf der Kopfzeile
      (#appTopbarMenuBtn: am Desktop einklappen, schmal die Leiste öffnen) -- vorher zwei Knöpfe hier unten.
    - #appSidebarFoot bleibt (leer): eine während des Browsens abgelaufene Sitzung bekommt dort ohne Neuladen ein kompaktes
@@ -36,7 +36,7 @@
 .app-sidebar-nav>.app-sidebar-group:first-child{margin-top:4px}
 .app-sidebar-link{display:flex;align-items:center;gap:10px;box-sizing:border-box;height:36px;margin:0;padding:0 10px 0 9px;border-left:3px solid transparent;color:var(--ds-navi-text);text-decoration:none;font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden}
 .app-sidebar-link:hover{background:var(--ds-navi-aktiv)}
-.app-sidebar-link.active{background:var(--ds-navi-aktiv);border-left-color:var(--ds-marke-hell);color:var(--ds-navi-text)}
+.app-sidebar-link.active{background:var(--ds-navi-aktiv);border-left-color:var(--ds-marke-hell);color:var(--ds-navi-text);font-weight:600}
 .app-sidebar-link:focus-visible{outline:2px solid var(--ds-marke-hell);outline-offset:-2px}
 .app-sidebar-icon{flex:0 0 18px;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center}
 .app-sidebar-icon svg,.app-sidebar-login-link svg{stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
