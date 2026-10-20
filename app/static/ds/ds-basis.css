@@ -10,16 +10,17 @@
    ds.css), keine At-Regeln, kein !important (Wächter:
    tests/test_v441_rahmen_baustein.py). Regel 37 für ds.css bleibt.
 
-   Seit 1.9.3 (Pilot Prüfvorlagen, die erste Seite mit .ds-seite): die
-   Regeln für a und button gelten nur für Elemente ohne eigene Klasse
-   (:not([class])). Ein Element unter .ds-seite (Spezifität 0,1,1) wiegt
-   mehr als eine Klasse (0,1,0) -- sonst färbte .ds-seite a die Einträge
-   der Leiste und „Mein Konto“ im Kontomenü in Linkfarbe, und
-   color:inherit nähme dem grünen Knopf (.ds-knopf-aktion) die weiße
-   Schrift.
+   Seit 1.9.4: jeder Selektor steht ganz in :where(…) und hat damit das
+   Gewicht null (0,0,0). Die Grundregeln gelten für alle Elemente, jede
+   Klasse (auch ein Elementselektor einer Seite) überstimmt sie. Ersetzt
+   „nur Elemente ohne Klasse“ (:not([class]), 1.9.3): ein Element unter
+   .ds-seite (0,1,1) wog mehr als eine Klasse (0,1,0) und färbte Leiste,
+   Kontomenü und den grünen Knopf um. Untereinander entscheidet bei
+   gleichem Gewicht die Reihenfolge -- die Tablet-Regeln stehen deshalb
+   hinter den allgemeinen.
    ===================================================================== */
 
-.ds-seite {
+:where(.ds-seite) {
   margin: 0;
   background: var(--ds-grund);
   color: var(--ds-text);
@@ -28,55 +29,45 @@
   line-height: 1.45;
 }
 
-.ds-seite.ds-tablet {
+:where(.ds-seite.ds-tablet) {
   font-size: var(--ds-groesse-5);
 }
 
-.ds-seite h1,
-.ds-seite h2,
-.ds-seite h3 {
+:where(.ds-seite h1, .ds-seite h2, .ds-seite h3) {
   font-family: var(--ds-schrift-titel);
   font-weight: 600;
   color: var(--ds-text);
 }
 
-.ds-seite button:not([class]),
-.ds-seite input,
-.ds-seite select,
-.ds-seite textarea {
+:where(.ds-seite button, .ds-seite input, .ds-seite select, .ds-seite textarea) {
   font: inherit;
   color: inherit;
 }
 
-.ds-seite input,
-.ds-seite select,
-.ds-seite textarea {
+:where(.ds-seite input, .ds-seite select, .ds-seite textarea) {
   border: 1px solid var(--ds-feld-rand);
   border-radius: var(--ds-ecke-feld);
   background: var(--ds-flaeche);
   color: var(--ds-text);
 }
 
-.ds-seite button:not([class]) {
+:where(.ds-seite button) {
   border-radius: var(--ds-ecke-feld);
 }
 
-.ds-seite.ds-tablet input,
-.ds-seite.ds-tablet select,
-.ds-seite.ds-tablet textarea,
-.ds-seite.ds-tablet button:not([class]) {
+:where(.ds-seite.ds-tablet input, .ds-seite.ds-tablet select, .ds-seite.ds-tablet textarea, .ds-seite.ds-tablet button) {
   border-radius: var(--ds-ecke-tablet-feld);
 }
 
-.ds-seite a:not([class]) {
+:where(.ds-seite a) {
   color: var(--ds-link);
 }
 
-.ds-seite a:not([class]):hover {
+:where(.ds-seite a:hover) {
   color: var(--ds-link-hover);
 }
 
-.ds-seite :focus-visible {
+:where(.ds-seite :focus-visible) {
   outline: 2px solid var(--ds-fokus);
   outline-offset: 2px;
 }

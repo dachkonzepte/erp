@@ -1544,3 +1544,41 @@ Flachdach), Zeilenzahlen vorher und nachher gleich, Schema danach gelöscht.
 **Mögliche Behebung (nicht gebaut, zur Entscheidung nach dem Ergebnis der Abfrage):** Editor der Prüfvorlage über `auswahlOptionen()`
 wie die Dachfläche (Altwert bleibt vorgewählt und gekennzeichnet); Werte, die nur in der Schreibweise abweichen, per Migration auf den
 Wert der Auswahlliste bringen -- erst, wenn die Abfrage auf dem Server zeigt, dass es solche gibt.
+
+### Punkt 1 (1.9.4): Grundregeln mit Gewicht null über `:where()`
+
+- **`ds-basis.css`**: jeder Selektor steht ganz in `:where(…)` -- Spezifität 0,0,0. Die Grundregeln gelten wieder für alle Elemente
+  (auch für Knöpfe und Links mit Klasse), jede Klasse überstimmt sie. Ersetzt Festlegung 1.9.3 Nr. 5 („nur ohne Klasse“, `:not([class])`).
+  Gilt für alle Regeln der Datei, auch für `.ds-seite` selbst, Felder, Überschriften und den Fokusrahmen: bis 1.9.3 überstimmte
+  `.ds-seite input` (0,1,1) die Klasse eines Felds (0,1,0), jetzt nicht mehr. Bei gleichem Gewicht entscheidet die Reihenfolge -- die
+  Tablet-Regeln stehen hinter den allgemeinen. Die Regeln selbst (Werte, Reihenfolge) sind unverändert.
+- **Beleg im Browser** (`klicktest_rahmen`, Teil `pruefvorlagen`, hell und dunkel): grüner Knopf mit Schrift auf-aktion und 10 px Ecken,
+  Leiste in navi-text, „Mein Konto“ im Kontomenü in Textfarbe -- wie in 1.9.3. Neu eingeschoben und gemessen: ein alter Knopf mit eigener
+  Klasse (ohne Regel für Schrift und Ecken) bekommt Schrift, Größe und 10 px Ecken wie ein Knopf ohne Klasse; ein Link mit und einer ohne
+  Klasse stehen in Linkfarbe; die Klasse einer Seite überstimmt die Ecken eines Felds (0 px) und die Farbe eines Links.
+- **Pixelgleich**: Bildgrundlage `--nur pruefvorlagen` (412 und 1440 px, hell und dunkel) und Fenster 1440 × 900 mit offenem Menü „⋮“
+  und offenem Editor (hell und dunkel) vor und nach der Umstellung -- 8 von 8 Bildern ohne ein abweichendes Pixel.
+- Folge, gewollt: ein Link mit Klasse, dessen Klasse keine Farbe setzt, steht auf einer umgezogenen Seite jetzt in Linkfarbe (bis 1.9.3
+  in der geerbten Farbe). Auf den Prüfvorlagen gibt es keinen solchen (pixelgleich); ein Baustein, der eine andere Farbe will, setzt sie
+  in seiner Klasse.
+
+#### Tests und Prüfung
+
+- **Gegenproben** (pytest und Klicktest): Knopf wieder nur ohne Klasse (`test_grundregeln_mit_gewicht_null` rot, Klicktest 20 von 22:
+  alter Knopf ohne Schrift und Ecken); Feld wieder mit Gewicht (Wächter und Test rot, Klicktest 20 von 22: Klasse der Seite überstimmt
+  die Ecken nicht); Link wieder mit Gewicht (Wächter und Test rot, Klicktest 18 von 22: Leiste in Linkfarbe) -- 3 von 3 rot, Datei
+  byte-genau zurück.
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v441::basis_verstoesse` (Wächter): alt „jeder Selektor beginnt mit `.ds-seite`“, neu „jeder Selektor ganz in `:where(…)`,
+    darin jeder Teil unter `.ds-seite`“; Beispiele in `test_waechter_ds_basis_findet` von 7 auf 11 (die alte Form `.ds-seite a` ist jetzt
+    ein Fund), `test_waechter_ds_basis_laesst_durch` in der `:where`-Form.
+  - `test_v441::test_grundregeln_fuer_a_und_button_nur_ohne_klasse` ersetzt durch `test_grundregeln_mit_gewicht_null`: alt „Regeln für
+    `a` und `button` tragen `:not([class])`“, neu „kein `:not([class])`, je eine Regel für a, a:hover, button, input, select, textarea,
+    h1–h3, :focus-visible“.
+  - `klicktest_rahmen` Teil `pruefvorlagen`: neue Prüfung „Grundregeln mit Gewicht null“ je Thema (Teil 20 → 22 Prüfungen).
+
+#### Festlegungen 1.9.4 (Bitte bestätigen)
+
+1. **Gewicht null für jede Regel von `ds-basis.css`**, nicht nur für `a` und `button` -- auch `.ds-seite` selbst, Felder, Überschriften,
+   Fokusrahmen; der Wächter verlangt `:where(…)` um jeden Selektor.
+2. **Reihenfolge statt Gewicht** innerhalb der Datei: die Tablet-Regeln stehen hinter den allgemeinen und gelten deshalb.

@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.3** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.4** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -340,7 +340,8 @@ Behoben, drei Teile:
   beginnt mit `{% set bereich = "…" -%}` -- die Leiste markiert danach ihren Eintrag (seit 1.8.162); Wächter `tests/test_v441_rahmen_baustein.py`.
   **Umgezogen** (`UMGEZOGEN` dort): seit 1.9.3 die Prüfvorlagen als Pilot -- `.ds-seite` am `<body>`, Seitenkopf über das Makro, eigene
   Farben nur über `--ds-*` (keine Akzentfarbe mehr), die alten Namen `--danger`/`--warning` im `:root` nur noch für `_speichern.html`;
-  in `ds-basis.css` gelten Regeln für `a` und `button` nur ohne Klasse (`:not([class])`), sonst überstimmen sie Bausteine und Rahmen.
+  in `ds-basis.css` steht seit 1.9.4 jeder Selektor ganz in `:where(…)` (Gewicht null): die Grundregeln gelten für alle Elemente, jede
+  Klasse überstimmt sie (ersetzt „nur ohne Klasse“, 1.9.3).
 
 ## Kritische, nicht verhandelbare Regeln
 

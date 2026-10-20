@@ -348,6 +348,17 @@ menue:!!document.getElementById('seitenkopfMenueKnopf'),karte:karte?cs(karte).bo
 dachtyp:[...document.querySelectorAll('#templateRows tr td:nth-child(2)')].map(t=>t.textContent.trim()),
 leiste:leiste?cs(leiste).color===F('--ds-navi-text'):null}})()""" % FARBE
 
+# Seit 1.9.4: ds-basis.css hat das Gewicht null (:where). Ein alter Knopf mit eigener Klasse (ohne Regel für Schrift und Ecken) bekommt
+# Schrift und Ecken der Grundregeln, eine Klasse der Seite überstimmt sie. Eingeschoben, gemessen, wieder entfernt.
+GEWICHT_NULL = """(()=>{const F=%s;const cs=e=>getComputedStyle(e);const s=document.createElement('style');
+s.textContent='.alt-feld{border-radius:0}.alt-rot{color:rgb(170,0,0)}';document.head.appendChild(s);
+const d=document.createElement('div');d.innerHTML='<button type="button" class="btn-alt">Alt</button><button type="button">Ohne</button>'
++'<a class="alt-link" href="#">Mit</a><a href="#">Ohne</a><input class="alt-feld"><a class="alt-rot" href="#">Rot</a>';
+document.querySelector('main').appendChild(d);const [k1,k2,l1,l2,f,r]=d.children;const b=document.body;
+const knopf=k=>[cs(k).fontFamily===cs(b).fontFamily,cs(k).fontSize===cs(b).fontSize,cs(k).borderTopLeftRadius];
+const e={knopf_klasse:knopf(k1),knopf_ohne:knopf(k2),links:[cs(l1).color===F('--ds-link'),cs(l2).color===F('--ds-link')],
+feld_klasse:cs(f).borderTopLeftRadius,link_rot:cs(r).color};d.remove();s.remove();return e})()""" % FARBE
+
 
 async def _pruefvorlagen(tab, seed, p):
     """Seit 1.9.3: die Pilotseite Prüfvorlagen."""
@@ -361,6 +372,11 @@ async def _pruefvorlagen(tab, seed, p):
                  [True, ["Prüfvorlagen", "30px"], [["+ Neue Vorlage", True, True, "10px"]], True])
         p.pruefe(f"{wo}: Karten 12 px, Knöpfe 10 px, Dachtyp ausgeschrieben, Leiste unverändert",
                  [m["karte"], m["knopf"], m["dachtyp"], m["leiste"]], ["12px", "10px", ["Flachdach"], True])
+        g = await tab.js(GEWICHT_NULL)
+        p.pruefe(f"{wo}: Grundregeln mit Gewicht null -- alter Knopf mit Klasse bekommt Schrift und Ecken wie einer ohne, Link mit und "
+                 "ohne Klasse in Linkfarbe, die Klasse einer Seite überstimmt Ecken des Felds und Farbe des Links",
+                 [g["knopf_klasse"], g["knopf_ohne"], g["links"], g["feld_klasse"], g["link_rot"]],
+                 [[True, True, "10px"], [True, True, "10px"], [True, True], "0px", "rgb(170, 0, 0)"])
         k = await tab.js(KONTRAST)
         p.pruefe(f"{wo}: Kontrast jedes Texts ({k['anzahl']} Elemente, kleinster {k['min']} : 1)", k["schwach"], [])
         # Menü „⋮“ per Tastatur, „Archivierte anzeigen“ schaltet um

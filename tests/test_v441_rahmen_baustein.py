@@ -1,8 +1,8 @@
 """Stufe 2 „Rahmen“, Runde 1, Teil 1 (1.8.161): der Baustein ohne sichtbare Änderung.
 
-    ds-basis.css   Grundregeln für Schrift und Steuerelemente, jede Regel nur unter .ds-seite, keine --ds-*-Werte, keine At-Regeln, kein
-                   !important; über _ds_kopf.html auf jeder Seite geladen; .ds-seite tragen die Seiten in UMGEZOGEN (seit 1.9.3
-                   die Prüfvorlagen als Pilot)
+    ds-basis.css   Grundregeln für Schrift und Steuerelemente, jede Regel nur unter .ds-seite und seit 1.9.4 ganz in :where(…)
+                   (Gewicht null), keine --ds-*-Werte, keine At-Regeln, kein !important; über _ds_kopf.html auf jeder Seite geladen;
+                   .ds-seite tragen die Seiten in UMGEZOGEN (seit 1.9.3 die Prüfvorlagen als Pilot)
     Makro          teile/seitenkopf.html: Pfad, Kennung, genau ein h1, Status, Untertitel, Hauptaktion, Menü „⋮“ mit aria; Makro-Regel
     Skript         seitenkopf() (_seitenkopf.html) und dsMenue() (_menue.html) in node: Text nur als Text, Links über sichererLink(),
                    Status-Art aus fester Liste; Menü nach dem Muster „Menu Button“ (Tastatur, aria, schließen)
@@ -37,6 +37,19 @@ UMGEZOGEN: set[str] = {"inspection_templates.html"}  # seit 1.9.3 (Pilot)
 # ds-basis.css
 # ---------------------------------------------------------------------------
 
+def _where_inhalt(sel: str) -> str | None:
+    """Seit 1.9.4: der Inhalt von :where(…), wenn der Selektor ganz darin steht (die schließende Klammer ist sein letztes Zeichen) --
+    sonst None. Ganz in :where() hat ein Selektor das Gewicht null, jede Klasse überstimmt ihn."""
+    if not sel.startswith(":where("):
+        return None
+    tiefe = 0
+    for i, c in enumerate(sel):
+        tiefe += {"(": 1, ")": -1}.get(c, 0)
+        if tiefe == 0 and c == ")":
+            return sel[len(":where("):i] if i == len(sel) - 1 else None
+    return None
+
+
 def basis_verstoesse(text: str) -> list[str]:
     regeln, rest = css_regeln(text)
     funde = [f"außerhalb einer Regel: {rest[:60]!r}"] if rest else []
@@ -47,8 +60,13 @@ def basis_verstoesse(text: str) -> list[str]:
         if "{" in rumpf or "}" in rumpf:
             funde.append(f"{kopf}: verschachtelt")
         for sel in _oberste_ebene(kopf, lambda c: c == ","):
-            if not re.match(r"\.ds-seite(?![A-Za-z0-9_-])", sel):
-                funde.append(f"Selektor nicht unter .ds-seite: {sel}")
+            innen = _where_inhalt(sel)
+            if innen is None:
+                funde.append(f"Selektor nicht ganz in :where(…): {sel}")
+                continue
+            for teil in _oberste_ebene(innen, lambda c: c == ","):
+                if not re.match(r"\.ds-seite(?![A-Za-z0-9_-])", teil):
+                    funde.append(f"Selektor nicht unter .ds-seite: {teil}")
         for name, wert in _deklarationen(rumpf):
             if name.startswith("--"):
                 funde.append(f"{kopf}: Wert {name} (nur in ds.css)")
@@ -62,20 +80,25 @@ def test_ds_basis_nur_unter_ds_seite():
 
 
 @pytest.mark.parametrize("css,fund", [
-    ("body{margin:0}", "nicht unter .ds-seite"),
-    (".x .ds-seite a{color:red}", "nicht unter .ds-seite"),
-    (".ds-seiten a{color:red}", "nicht unter .ds-seite"),
-    (".ds-seite a, button{color:red}", "nicht unter .ds-seite"),
-    (".ds-seite{--ds-grund:#fff}", "Wert --ds-grund"),
-    (".ds-seite a{color:red !important}", "!important"),
-    ("@media (max-width:600px){.ds-seite{margin:0}}", "At-Regel"),
+    ("body{margin:0}", "nicht ganz in :where"),
+    (".ds-seite a{color:red}", "nicht ganz in :where"),
+    (":where(.ds-seite a):hover{color:red}", "nicht ganz in :where"),
+    (":where(.ds-seite a) b{color:red}", "nicht ganz in :where"),
+    (":where(.ds-seite a), .ds-seite b{color:red}", "nicht ganz in :where"),
+    (":where(.x .ds-seite a){color:red}", "nicht unter .ds-seite"),
+    (":where(.ds-seiten a){color:red}", "nicht unter .ds-seite"),
+    (":where(.ds-seite a, button){color:red}", "nicht unter .ds-seite"),
+    (":where(.ds-seite){--ds-grund:#fff}", "Wert --ds-grund"),
+    (":where(.ds-seite a){color:red !important}", "!important"),
+    ("@media (max-width:600px){:where(.ds-seite){margin:0}}", "At-Regel"),
 ])
 def test_waechter_ds_basis_findet(css, fund):
     assert any(fund in f for f in basis_verstoesse(css)), basis_verstoesse(css)
 
 
 def test_waechter_ds_basis_laesst_durch():
-    assert basis_verstoesse(".ds-seite{margin:0}.ds-seite a, .ds-seite.ds-tablet button:hover{color:var(--ds-link)}") == []
+    assert basis_verstoesse(":where(.ds-seite){margin:0}:where(.ds-seite a, .ds-seite.ds-tablet button:hover)"
+                            "{color:var(--ds-link)}:where(.ds-seite :is(a, b)){color:var(--ds-link)}") == []
 
 
 def test_ds_basis_ist_eine_design_datei_und_auf_jeder_seite_geladen():
@@ -330,14 +353,17 @@ def test_jede_seite_markiert_ihren_bereich(threaded_db_session, router_test_clie
     assert len(geprueft) == 42
 
 
-def test_grundregeln_fuer_a_und_button_nur_ohne_klasse():
-    """Seit 1.9.3 (Pilot): in ds-basis.css gelten Regeln für a und button nur für Elemente ohne Klasse -- sonst überstimmte ein Element
-    unter .ds-seite (0,1,1) die Klassen der Bausteine (0,1,0): Linkfarbe in Leiste und Kontomenü, keine weiße Schrift auf dem grünen
-    Knopf. Im Browser misst klicktest_rahmen (Teil pruefvorlagen) Leiste, Kontomenü und Knopf auf der Pilotseite."""
-    text = re.sub(r"/\*.*?\*/", "", (ROOT / "app" / "static" / "ds" / "ds-basis.css").read_text(encoding="utf-8"), flags=re.S)
-    for selektoren in re.findall(r"([^{}]+)\{", text):
-        for sel in (s.strip() for s in selektoren.split(",")):
-            letzter = re.split(r"[\s>+~]+", sel)[-1]
-            if re.match(r"(a|button)(?![\w-])", letzter):
-                assert ":not([class])" in letzter, sel
+def test_grundregeln_mit_gewicht_null():
+    """Seit 1.9.4 (ersetzt „nur ohne Klasse“, 1.9.3): jede Grundregel gilt für alle Elemente, mit dem Gewicht null -- jeder Selektor
+    steht ganz in :where(…) (Wächter oben), keiner trägt noch :not([class]), und a, button, input, select, textarea, h1–h3 haben je eine
+    Regel. Ein Element unter .ds-seite (0,1,1) überstimmte vorher die Klassen der Bausteine (0,1,0). Im Browser misst klicktest_rahmen
+    (Teil pruefvorlagen) Leiste, Kontomenü, grünen Knopf und einen eingeschobenen alten Knopf mit Klasse."""
+    regeln, _ = css_regeln(DS_BASIS.read_text(encoding="utf-8"))
+    ziele = set()
+    for kopf, _rumpf in regeln:
+        assert ":not([class])" not in kopf, kopf
+        for sel in _oberste_ebene(kopf, lambda c: c == ","):
+            for teil in _oberste_ebene(_where_inhalt(sel), lambda c: c == ","):
+                ziele.add(re.split(r"[\s>+~]+", teil)[-1])
+    assert {"a", "a:hover", "button", "input", "select", "textarea", "h1", "h2", "h3", ":focus-visible"} <= ziele, ziele
 
