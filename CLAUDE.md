@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.159** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.160** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -1312,7 +1312,10 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   im Serverbetrieb-Archiv; seit 1.8.131 Stufe 2a: Bildgrundlage um TerraPad und Zustände des Rahmens erweitert; Fehlerrunde vor Stufe 2
   1.8.132–1.8.142, Nachrunde 1.8.143–1.8.150 und Nachrunde 2 1.8.151–1.8.154: Abläufe, Zurück-Links ohne `history.back()`, Seitentitel,
   `/users` nur Admin, Änderungshistorie lesbar und seitenweise, Zeit buchen nur für sich außer Admin, Gruppenzeit stoppen nur mit
-  Kolonnenführer-Kennzeichen, Rückfrage beim Entziehen und Löschen) -- `docs/archiv/redesign.md`
+  Kolonnenführer-Kennzeichen, Rückfrage beim Entziehen und Löschen; Runde „Du“ ab 1.8.157: Oberfläche per Du (1.8.158), Kundentexte --
+  Angebot, Auftrag, Rechnung, Mahnung, Vertrag, Briefe, ihre E-Mails und PDFs -- beim Sie: ein neuer Kundentext gehört in `KUNDENTEXTE`
+  (`tests/test_v440_runde_du.py`, seit 1.8.160, prüft auch echte PDFs), außerhalb keine Sie-Anrede; die Meldung „Konto ohne Mitarbeiter“
+  nur aus `app/meldungen.py` (1.8.159)) -- `docs/archiv/redesign.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`
 - **Migrationsketten- und Testlauf-Historie** (Version-für-Version-Nachweis, wer wann was mit

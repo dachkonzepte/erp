@@ -672,3 +672,58 @@ Festlegung 1.8.155 Nr. 1 (ok mit eigenen Werten) und die Festlegung zum Klicktes
 | `app/tasks.py:167` | Ihr Büro-Konto ist keinem Mitarbeiter zugeordnet. |
 | `app/tasks.py:197` | Ihr Büro-Konto ist keinem Mitarbeiter zugeordnet. |
 | `app/time_tracking.py:412` | Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet. |
+
+### Punkt 4 (1.8.160): Wächter „Kundentexte beim Sie, Oberfläche beim Du“
+
+Umgesetzt wie im Befund vorgeschlagen (`docs/archiv/befund-du-statt-sie.md`, „Vorschlag: Wächter-Test“), in
+`tests/test_v440_runde_du.py`. Kein Text geändert.
+
+- **Verzeichnis `KUNDENTEXTE`**: je Datei die Namen auf oberster Ebene, deren Zeichenketten an Kunden gehen -- die Vorgaben der
+  E-Mails (`DEFAULT_*_EMAIL_BODY` in `projects.py`, `orders.py`, `invoices.py`, `reminders.py`, `contract_versions.py`,
+  `checklist_email.py`, `notice_letters.py::DEFAULT_EMAIL_BODY`), die Briefe (`notice_letters.py`: `INTRO`, `salutation_line`,
+  `build_letter_content`), die Sätze der Rechnung (`refund_sentence`, `payment_note_sentence`), die Standardsätze
+  (`option_settings.py::DEFAULT_OPTION_GROUPS`), die Mahntexte (`reminders.py::DEFAULT_REMINDER_LEVELS`, Migration `8e2f4b6d1c97`:
+  `OLD_TEXTS`, `NEW_TEXTS`); die neun PDF-Renderer an Kunden als ganze Datei (`checklist_pdf`, `contract_pdf`, `document_pdf`,
+  `invoice_pdf`, `notice_letter_pdf`, `order_pdf`, `quote_framed_pdf`, `reminder_pdf`, `service_report_pdf`); dazu
+  `KUNDENTEXTE_PLATZHALTER` -- die zwei Platzhalter in `settings.html` über ihre id (`ptTextTemplate`, `rl${x.id}EmailBody`).
+  Zusammen 2201 Zeichenketten, 31 davon mit Sie-Anrede.
+- **`test_verzeichnis_der_kundentexte_ist_aktuell`**: jede Datei und jeder Name existiert und trägt Text -- ein umbenannter Kundentext
+  fiele sonst still aus der Prüfung.
+- **`test_kundentexte_ohne_du`**: keine Zeichenkette des Verzeichnisses enthält eine Du-Form (du, dich, dir, dein…, euch, euer…,
+  eure… als ganzes Wort, groß oder klein).
+- **Echte PDFs aus Testdaten** (`test_pdfs_an_kunden_ohne_du`, `test_behinderungsanzeige_als_brief_ohne_du`,
+  `test_bedenkenanzeige_als_brief_ohne_du`): Angebot mit dem Standard-Vortext, Auftrag, Vertrag, Rechnung mit Erstattung, Mahnung,
+  Behinderungs- und Bedenkenanzeige als Brief (die Fassung aus der Ablage) -- Text über pypdfium2 (`test_v325::pdf_text`), keine
+  Du-Form, und der Kundentext per Sie steht darin („Vielen Dank für Ihre Anfrage“, „Ihr Angebot“, „überweisen wir Ihnen“, „Bitte
+  begleichen Sie“, „hiermit zeigen wir Ihnen an“, „hiermit melden wir Ihnen Bedenken“) -- sonst prüfte der Test nichts.
+- **`test_kundentext_merkmal_nur_im_verzeichnis`**: jede Zeichenkette mit „Sehr geehrte“, „anbei erhalten“, „Mit freundlichen
+  Grüßen“ oder „überweisen wir Ihnen“ unter `app/`, in den Migrationen und den Betreiber-Skripten steht im Verzeichnis; in den
+  Vorlagen nur in den eingetragenen Platzhaltern. Sonst Datei und Zeile.
+- **`test_ausserhalb_der_kundentexte_keine_sie_anrede`**: außerhalb des Verzeichnisses keine Sie-Anrede (Sie, Ihnen, Ihr…) --
+  Oberfläche, Meldungen des Servers, Ausgaben der Skripte. „Sie“ als dritte Person steht in `DRITTE_PERSON` (Datei, Text ab dem
+  Treffer, Bezug): 7 Einträge für 8 Stellen (Adressimport „Sie erscheint …“, Checkliste ×2, Stornorechnung, Planstunden, verworfene
+  Unterschriften, `amount_block_reason` ×2). Ein Eintrag, den nichts mehr braucht, lässt den Test scheitern; die Liste darf nur kürzer
+  werden (höchstens 7). Gescannt wie im Befund: Zeichenketten ohne Docstrings, freistehende Zeichenketten und Protokollaufrufe,
+  Vorlagen ohne Kommentare.
+- **Gegenproben** (Marker `GEGENPROBE`, je Probe byte-genau zurück, Prüfsummen verglichen; `test_v357` jeweils mit rot):
+  G1 im Mahntext „Bitte begleichen Sie“ → „Bitte begleiche du“ -- rot `test_kundentexte_ohne_du` (`app/reminders.py:113: 'du'`) und
+  `test_pdfs_an_kunden_ohne_du` (Mahnung: `['du']`); G2 in der Einleitung der Behinderungsanzeige „Ihnen“ → „dir“ -- rot
+  `test_kundentexte_ohne_du` und `test_behinderungsanzeige_als_brief_ohne_du`; G3 eine neue Zeichenkette „Sehr geehrte Damen und
+  Herren“ in `app/tasks.py` -- rot `test_kundentext_merkmal_nur_im_verzeichnis`; G4 „für dich“ → „für Sie“ in `app/routers/tasks.py`
+  und „bei deinen Aufgaben“ → „bei Ihren Aufgaben“ in `tasks.html` -- rot `test_ausserhalb_der_kundentexte_keine_sie_anrede` mit
+  beiden Stellen; G5 „Sie erscheint dann nicht mehr“ → „Die Adresse erscheint …“ in `address_import.html` -- rot derselbe Test,
+  „nicht mehr gebraucht -- aus DRITTE_PERSON streichen“; G6 im Platzhalter `ptTextTemplate` „Bitte begleichen Sie“ → „Bitte
+  begleiche du“ -- rot `test_kundentexte_ohne_du`.
+- **Angepasste Erwartungen** (Regel 28): keine.
+
+#### Festlegungen 1.8.160 (Bitte bestätigen)
+
+1. Das Verzeichnis nennt Namen auf oberster Ebene; `DEFAULT_OPTION_GROUPS` steht als Ganzes darin (auch Einheiten und andere
+   Auswahllisten, die keine Kundentexte sind), die neun PDF-Renderer an Kunden als ganze Datei. `field_timesheet_pdf.py` (Stundenzettel
+   des Mitarbeiters) gilt als Oberfläche, nicht als Kundentext.
+2. „Sie“ als dritte Person bleibt mit Bezug in `DRITTE_PERSON` (7 Einträge, 8 Stellen), statt umformuliert zu werden.
+3. Geprüft wird, was ein Nutzer sehen kann: Zeichenketten unter `app/`, in `alembic/versions/` und in `scripts/erstes_konto.py`,
+   `scripts/reset_admin_2fa.py`, dazu alle Vorlagen ohne Kommentare; Docstrings, freistehende Zeichenketten und Protokollaufrufe
+   zählen nicht.
+4. Texte, die ein Admin in den Einstellungen selbst einträgt (E-Mail-Vorlagen, Mahntexte, Standardsätze), prüft der Wächter nicht --
+   nur die Vorgaben im Code und die PDFs aus Testdaten.

@@ -8,6 +8,9 @@ Wächter-Test, der Kundentexte beim Sie hält.“
 
 Stand: Commit `31b85e8` (1.8.156).
 
+Umgesetzt in der Runde „Du“ (`docs/archiv/redesign.md`): 1.8.158 die Oberfläche per Du, 1.8.159 eine Meldung „Dein Konto ist keinem
+Mitarbeiter zugeordnet …“, 1.8.160 der Wächter nach dem Vorschlag unten (`tests/test_v440_runde_du.py`).
+
 ## Vorgehen
 
 - **Gesucht** (Groß-/Kleinschreibung beachtet): `Sie`, `Ihnen`, `Ihr`, `Ihre`, `Ihren`, `Ihrem`, `Ihrer`, `Ihres` als ganzes Wort -- „sie“
