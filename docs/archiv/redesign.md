@@ -1240,3 +1240,10 @@ Grundlage: der Befund `docs/archiv/befund-rahmen.md`. Die Entscheidungen oben ge
 
 1. **Leerer Anzeigename** (auch nur Leerzeichen) zählt als fehlend -- dann der Benutzername.
 2. **Kalender und Outlook-Serien zeigen denselben Namen** wie der Kontoknopf (eine Funktion für alle Anzeigen).
+
+### Nachrunde abgeschlossen: Endläufe (Stand `331745e`)
+
+- **Volle Suite** auf sauberer Arbeitskopie, Commit `331745e`: 6269 passed, 3 skipped.
+- **Alle Klicktests** (`klicktest_alle.py --gleichzeitig 4`): 80 von 80 wie erwartet, Laufzeit 7:31.
+- **Bilder** der Runde 1 neu: `bildgrundlage/rahmen_runde1_331745e.zip` (Projektmappe 1440 × 900 hell und dunkel, Einsatzbericht als
+  Monteurin 1280 × 620 und 800 × 1100), Ordner in `.gitignore`.
