@@ -1445,3 +1445,17 @@ Grundlage: der Befund `docs/archiv/befund-rahmen.md`. Die Entscheidungen oben ge
 5. **Grundregeln für `a` und `button` nur ohne Klasse** -- gilt für jede weitere umgezogene Seite.
 6. **Alte Namen nur noch für `_speichern.html`** (`--danger`/`--warning` im `:root` der umgezogenen Seite, auf `--ds-*` gelegt), bis der
    Baustein selbst umzieht; `color-scheme` bleibt auf der Seite.
+
+### Runde 2 abgeschlossen: Endläufe und Bildvergleich (Stand `f1fcac7`)
+
+- **Volle Suite** auf sauberer Arbeitskopie, Commit `f1fcac7`: 6273 passed, 3 skipped.
+- **Alle Klicktests** (`klicktest_alle.py --gleichzeitig 4`): 80 von 80 wie erwartet, Laufzeit 7:36.
+- **Bildvergleich** (volle Bildgrundlage, 298 Bilder, `f231b1e` vor der Runde gegen `f1fcac7`): 211 gleich, 86 abweichend wie
+  erwartet -- die Prüfvorlagen (nur der Inhalt: das Rechteck beginnt bei x = 232 bzw. y = 64, Leiste und Kopfzeile der Pilotseite
+  pixelgleich) und der aktive Reiter im Monteurskopf (alle Abweichungen in den obersten 64 px, bei 412 px 112 px; bei der Monteurin auf
+  jeder Seite, beim Büro auf den Seiten der Monteursansicht). Hover kommt in den Bildern nicht vor.
+- **Ein Bild abweichend ohne Änderung**: `buero__hell__1440__start--kontomenue_offen.png`, 10 Pixel im Kalender-Symbol der Leiste um 2
+  von 255 Stufen -- Kantenglättung: eine zweite Aufnahme desselben Stands weicht an derselben Stelle ab und gleicht dem Stand vorher
+  pixelgenau. Kein Befund am Code; der Vergleich der Bildgrundlage kennt keine Toleranz, solches Rauschen erscheint dort als Abweichung.
+- **Bilder**: `bildgrundlage/rahmen_runde2_f1fcac7.zip` (Prüfvorlagen 1440 × 900 vorher und nachher je hell und dunkel, Monteurskopf
+  1280 × 620), Ordner in `.gitignore`.
