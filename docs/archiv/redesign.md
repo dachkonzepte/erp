@@ -1752,3 +1752,13 @@ Bildlaufs: **alle 160 vorher und nachher gleich** (jedes Element, auf die Hunder
   - `klicktest_beleg_und_hinweis` „deutlich/lesbar“ (Hinweis „Offene Bedenken“): alt „Rahmenfarbe = Textfarbe“ (beide `--danger`), neu
     „Rahmen `--ds-fehler`, Text `--ds-fehler-text`“ (Fläche und Text getrennt, Festlegung 1.9.5 Nr. 3).
 - Die vier einzeln: 4 von 4 wie erwartet (124 Prüfungen). Übrige Klicktests mit festen alten Werten: keine (Suche über `scripts/`).
+
+### Ergebnis der Endläufe (Nachtrag zu Runde 2 und Runde 3)
+
+- Auf `d56c7d7` (1.9.5 Nachtrag) bei sauberer Arbeitskopie (vorher und nachher keine Änderung): **volle Suite 6290 bestanden, 3
+  übersprungen, 0 rot** (7:56); **alle Klicktests 80 von 80 wie erwartet** (2377 Prüfungen, zu viert, 7:54).
+- Commits der Runde: `085dd5d` (Punkt 0, Versionsnummern 1.9.0–1.9.3), `56e13e3` (Punkt 2, Befund Dachtyp mit
+  `scripts/pruefabfrage_dachtypen.sql`), `3e54421` (1.9.4, Punkt 1), `4cb9b79` (1.9.5, Punkt 3), `d56c7d7` (1.9.5 Nachtrag).
+- **Bilder**: `bildgrundlage/rahmen_runde3_4cb9b79.zip` -- Start, Projektmappe, Rechnung, LV-Editor, Zeiterfassung Büro je 1440 × 900
+  hell und dunkel, `/mobil` als Monteurin 1280 × 620 hell und dunkel; je vorher (`3e54421`) und nachher (der Nachtrag ändert nur
+  Klicktests). Ordner in `.gitignore`.
