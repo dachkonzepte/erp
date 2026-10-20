@@ -802,3 +802,32 @@ stark Last die Zeit streckt, zeigen vier Server zugleich: 380–458 ms.
   `klicktest_alle.py --gleichzeitig 4` 79 von 79 wie erwartet, 1775 von 1775 Prüfungen, 7:01 min (sechs allein: `klicktest_abschliessen`,
   `klicktest_anmelden`, `klicktest_feierabend`, `klicktest_fremde_seite`, `klicktest_hochladen`, `klicktest_veraltete_antworten`).
 - Danach nur `docs/` geändert (Korrektur im Befund zu Punkt 5, dieses Ergebnis) -- kein neuer Endlauf (Regel 26).
+
+## Stufe 2 „Rahmen“: Befund (nur docs/, nichts geändert)
+
+Vorgabe vom 20.10.2026 und der ganze Befund mit Zahlen, Mustern und Vorschlag: `docs/archiv/befund-rahmen.md`. Gemessen in einer Instanz wie
+die Bildgrundlage (Stand `7c5172c`, Chrome 155.0.8059.40), Bilder aus `bildgrundlage/31b85e8`. Kurz:
+
+- **Seitenleiste**:
+  - 17 Einträge in 6 Gruppen (Finanzen, Admin), 15 (Auftrag), 2 (Monteurin, nur auf Einsatzbericht und Konto).
+  - Ohne Bildlauf braucht sie 1014 px Fensterhöhe (Auftrag 938) -- bei 900 px sind 114 px verdeckt, bei 800 px 214.
+  - Das Logo kostet seine Höhe + 41 px (Vorgabe 64 → Kopf 105 statt 62 px).
+  - Vier Gruppen mit Logo 48: 971 px (Auftrag 900) -- bei 800 px scrollt sie weiter.
+  - Der aktive Eintrag hängt am genauen Pfad: 21 der 42 Seiten mit Leiste markieren keinen.
+- **Seitenköpfe**: 11 Muster, jede Seite baut ihren Kopf selbst (kein Baustein).
+  - Pfad auf 10 Seiten (10 Umsetzungen), Kennung und Status je auf 8 Seiten an drei bis vier verschiedenen Orten.
+  - Zurück-Link auf 12 Seiten mit acht Wortlauten, „⋮“ nur in der Projektmappe.
+  - Titel von 15 bis 32 px, 14 Seiten ohne h1.
+- **Monteurskopf**: 173 px (auf drei Seiten 188, weil deren `button`-Regel in den Kopf greift).
+  - Bei 1280 × 620 sind das 28–30 % des Fensters.
+  - Auf Einsatzbericht und Konto fehlt der Monteurin der Name, den der Kopf eigens immer zeigt -- ausgerechnet dort, wo sie unterschreibt.
+- **Probe mit den --ds-*-Werten** (nur im Browser):
+  - Kein waagrechter Bildlauf, nichts abgeschnitten, Seiten 0,9 % kürzer.
+  - Die Seitenleiste wird dunkel; hell 612 → 584 Kontrast-Fehlstellen, dunkel 578 → 598.
+  - Die meisten Fehlstellen bestehen schon heute: Weiß auf der Akzentfarbe `#0d9488` hat 3,74 : 1.
+  - Die Statusfarben sind heute Textfarben (`--danger` 127 × Text, 5 × Fläche), im ds Flächenfarben.
+  - Auf 28 Seiten stehen Steuerelemente in Arial; Regel 37 lässt in `ds.css` keine Grundregeln für Schrift und Steuerelemente zu.
+- **Vorschlag**:
+  - Makro `teile/seitenkopf.html` mit wörtlichen Teilen über `{% call %}` (Makro-Regel), Skript `seitenkopf()` für nachgeladene Köpfe,
+    `.ds-kopf`-Regeln, `bereich` für den aktiven Eintrag.
+  - Reihenfolge in 11 Schritten vom Pilot (Prüfvorlagen) bis zur Monteursansicht; sieben Entscheidungen vorab.
