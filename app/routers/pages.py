@@ -38,6 +38,8 @@ templates.env.globals["app_version"] = APP_VERSION
 # Funktion, damit Tests mit einer schlanken Jinja-Umgebung die Seiten weiter rendern (ein fehlender Wert ergibt dort leeren Text)
 templates.env.globals["ds_css_pruefsumme"] = ds_pruefsumme("ds.css")
 templates.env.globals["ds_basis_pruefsumme"] = ds_pruefsumme("ds-basis.css")
+# seit 1.9.5: die alten Farbnamen der Seiten (--bg, --card, --accent …) zeigen zentral auf --ds-*
+templates.env.globals["ds_alte_namen_pruefsumme"] = ds_pruefsumme("ds-alte-namen.css")
 templates.env.globals["kein_mitarbeiter"] = KEIN_MITARBEITER  # seit 1.8.159: eine Meldung für Server und Vorlagen
 
 # Die fuenf Jinja-Globals unten laufen bei JEDER Seitenanfrage (jede Seite bindet _sidebar.html

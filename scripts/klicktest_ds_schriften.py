@@ -3,8 +3,8 @@ Redesigns, Vorgabe vom 19.10.2026, Punkt 7).
 
     ds.css          die Anmeldeseite bindet /static/ds/ds.css?v=<Prüfsumme> ein (bis 1.9.1 ?v=<Version>; seit 1.8.161 danach
                     ds-basis.css, wirksam erst mit
-                    .ds-seite): --ds-grund hell #EEF0F1, dunkel #121619; die Akzentfarbe aus den Einstellungen (--accent) und die
-                    Schrift der Seite bleiben, wie sie sind
+                    .ds-seite; seit 1.9.5 ds-alte-namen.css): --ds-grund hell #EEF0F1, dunkel #121619; die Schrift der Seite bleibt,
+                    wie sie ist; --accent zeigt seit 1.9.5 auf --ds-aktion-text (bis 1.9.4 die Akzentfarbe aus den Einstellungen)
     Schriften       document.fonts.load() lädt Archivo 500/600/700, IBM Plex Sans 400/500/600 und IBM Plex Mono 400/500 -- je mit
                     deutschem Text (latin) und mit "ŐŁ" (latin-ext); danach meldet document.fonts.check() alle als geladen, 16 woff2
                     kamen mit 200
@@ -52,15 +52,17 @@ async def pruefen(tab, seed, p):
     await tab.anmelden({})
     p.pruefe("Anmeldeseite ohne Anmeldung", await tab.oeffnen("/login", "document.readyState==='complete'&&!!document.getElementById('u')"),
              True)
-    # seit 1.8.161 bindet _ds_kopf.html nach ds.css auch ds-basis.css ein (bis dahin nur ds.css)
-    p.pruefe("ds.css und ds-basis.css eingebunden", await tab.js(
+    # seit 1.8.161 bindet _ds_kopf.html nach ds.css auch ds-basis.css ein (bis dahin nur ds.css), seit 1.9.5 ds-alte-namen.css
+    p.pruefe("ds.css, ds-basis.css und ds-alte-namen.css eingebunden", await tab.js(
         "[...document.querySelectorAll('link[rel=stylesheet]')].map(l=>new URL(l.href).pathname)"),
-        ["/static/ds/ds.css", "/static/ds/ds-basis.css"])
+        ["/static/ds/ds.css", "/static/ds/ds-basis.css", "/static/ds/ds-alte-namen.css"])
     token = "getComputedStyle(document.documentElement).getPropertyValue('{}').trim()"
     # das Thema ausdrücklich -- ohne gespeicherte Wahl folgt die Seite dem Farbschema des Systems (headless auch dunkel)
     await tab.js("document.documentElement.setAttribute('data-theme','light')")
     p.pruefe("--ds-grund hell", await tab.js(token.format("--ds-grund")), "#EEF0F1")
-    p.pruefe("Akzentfarbe unverändert", (await tab.js(token.format("--accent"))).lower(), seed["akzent"].lower())
+    # seit 1.9.5 färbt die Akzentfarbe der Einstellungen die Oberfläche nicht mehr: --accent kommt zentral aus ds-alte-namen.css
+    p.pruefe("--accent zeigt auf --ds-aktion-text, nicht auf die Akzentfarbe der Einstellungen",
+             [(await tab.js(token.format("--accent"))).lower(), seed["akzent"].lower() != "#2a5c2b"], ["#2a5c2b", True])
     schrift = await tab.js("getComputedStyle(document.body).fontFamily")
     p.pruefe("Schrift der Seite unverändert (keine neue Familie)", any(f in schrift for f in ("Archivo", "Plex")), False)
     p.pruefe("vorher nichts geladen", await tab.js("[...document.fonts].filter(f=>f.status==='loaded').length"), 0)
@@ -84,9 +86,12 @@ async def pruefen(tab, seed, p):
              [200, "text/css; charset=utf-8", DAUERHAFT, "nosniff"])
     p.pruefe("ds-basis.css: Kopfzeilen", await tab.js(kopf.format("/static/ds/ds-basis.css?v=x")),
              [200, "text/css; charset=utf-8", DAUERHAFT, "nosniff"])
+    p.pruefe("ds-alte-namen.css: Kopfzeilen", await tab.js(kopf.format("/static/ds/ds-alte-namen.css?v=x")),
+             [200, "text/css; charset=utf-8", DAUERHAFT, "nosniff"])
 
     await tab.js("document.documentElement.setAttribute('data-theme','dark')")
     p.pruefe("--ds-grund dunkel", await tab.js(token.format("--ds-grund")), "#121619")
+    p.pruefe("--accent dunkel auf --ds-aktion-text", (await tab.js(token.format("--accent"))).lower(), "#b9da86")
     await tab.bild("anmeldung_dunkel")
 
 

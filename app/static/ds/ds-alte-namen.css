@@ -1,0 +1,40 @@
+/* =====================================================================
+   DACHKONZEPTE ERP – alte Farbnamen der Seiten
+   app/static/ds/ds-alte-namen.css (seit 1.9.5, Stufe 2 „Rahmen“, Runde 3)
+
+   Bis 1.9.4 trug jede Seite die alte Palette als Kopie in ihrem :root
+   (--bg, --card, --ink … hell und dunkel, --accent aus der Akzentfarbe
+   der Einstellungen). Seit 1.9.5 stehen die alten Namen nur noch hier
+   und zeigen auf die Werte des Design-Systems (ds.css) -- hell und
+   dunkel über dieselben --ds-*-Werte, ein Block genügt. Die Akzentfarbe
+   färbt die Oberfläche nicht mehr.
+
+   Doppelnamen (--accent, --danger, --warning, --success, --info) zeigen
+   hier auf den Textwert (-text). Wo eine Seite sie als Fläche braucht
+   (Hintergrund, Rahmen, Umriss, Schatten), steht in der Seite direkt
+   der Flächenwert (--ds-aktion, --ds-fehler, --ds-ok, --ds-info; für
+   „warning“ gibt es keinen eigenen, dort --ds-warn-text).
+
+   Nur :root, nur die Namen der Liste, nur var(--ds-…) (Wächter:
+   tests/test_v442_alte_farbnamen.py).
+   ===================================================================== */
+
+:root {
+  --bg: var(--ds-grund);
+  --card: var(--ds-flaeche);
+  --soft: var(--ds-flaeche-2);
+  --ink: var(--ds-text);
+  --muted: var(--ds-text-2);
+  --line: var(--ds-linie);
+  --field-border: var(--ds-feld-rand);
+  --field-border-hover: var(--ds-text-3);
+  --accent: var(--ds-aktion-text);
+  --danger: var(--ds-fehler-text);
+  --danger-soft: var(--ds-fehler-hell);
+  --warning: var(--ds-warn-text);
+  --warning-soft: var(--ds-warn-hell);
+  --success: var(--ds-ok-text);
+  --success-soft: var(--ds-ok-hell);
+  --info: var(--ds-info-text);
+  --info-soft: var(--ds-info-hell);
+}

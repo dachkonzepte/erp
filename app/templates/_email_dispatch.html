@@ -90,13 +90,13 @@ async function postEmailDispatch(slot, url, payload, button) {
 .dh-muted{color:var(--muted);font-size:12px}
 .dh-muted a{color:var(--accent);font-weight:700;text-decoration:none}
 .dh-pill{display:inline-block;padding:2px 7px;font-size:11px;font-weight:800;white-space:nowrap;background:var(--soft);color:var(--ink)}
-.dh-pill.gesendet{background:var(--success-soft,#eaf5ef);color:var(--success,#1f8a5f)}
+.dh-pill.gesendet{background:var(--success-soft);color:var(--success)}
 .dh-pill.fehlgeschlagen,.dh-pill.haengt{background:var(--danger-soft);color:var(--danger)}
-.dh-pill.in_arbeit{background:var(--warning-soft,#fdf3dc);color:var(--warning,#9b6a12)}
+.dh-pill.in_arbeit{background:var(--warning-soft);color:var(--warning)}
 .dh-note{margin-top:4px;padding:5px 7px;background:var(--soft);font-size:12px;white-space:pre-wrap}
 .dh-links a{color:var(--accent);font-weight:700;text-decoration:none;margin-left:8px;font-size:12px}
 .dh-hint{margin-top:6px;font-size:12px;color:var(--muted)}
-.dh-warn{margin-top:4px;padding:5px 7px;background:var(--warning-soft,#fdf3dc);color:var(--warning,#9b6a12);font-size:12px}
+.dh-warn{margin-top:4px;padding:5px 7px;background:var(--warning-soft);color:var(--warning);font-size:12px}
 .dh-form{margin-top:8px;padding:10px;border:1px solid var(--line);display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;align-items:end}
 .dh-form label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted);font-weight:600}
 .dh-form input,.dh-form select,.dh-form textarea{font-family:inherit;font-size:13px;padding:6px 8px;min-height:34px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);width:100%}
@@ -106,10 +106,10 @@ async function postEmailDispatch(slot, url, payload, button) {
 .dh-btn:hover{background:var(--soft)}.dh-btn:disabled{opacity:.55;cursor:default}
 /* Seit 1.8.41: Versandergebnis je Zeile und Empfängerauswahl beim Nachtragen */
 .dh-outcome{margin-top:4px;padding:5px 7px;font-size:12px;white-space:pre-wrap}
-.dh-outcome.empfangen{background:var(--success-soft,#eaf5ef);color:var(--ink)}
+.dh-outcome.empfangen{background:var(--success-soft);color:var(--ink)}
 .dh-outcome.unzustellbar{background:var(--danger-soft);color:var(--ink)}
 .dh-outcome b{font-weight:800}
-.dh-outcome.empfangen b{color:var(--success,#1f8a5f)}.dh-outcome.unzustellbar b{color:var(--danger)}
+.dh-outcome.empfangen b{color:var(--success)}.dh-outcome.unzustellbar b{color:var(--danger)}
 .dh-outcome a{color:var(--accent);font-weight:700;text-decoration:none}
 .dh-oc-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 .dh-recipients{display:flex;flex-direction:column;gap:6px}

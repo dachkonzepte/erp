@@ -20,6 +20,6 @@ async function fetchTimeEntries(url) {
 function timeEntriesTruncatedNotice(list, extra) {
   if (!list || list.total <= list.rows.length) return '';
   const n = x => x.toLocaleString('de-DE');
-  return `<div class="time-entries-truncated" role="status" style="margin:8px 0;padding:8px 10px;background:var(--warning-soft);border:1px solid color-mix(in srgb,var(--warning) 35%,transparent);color:var(--ink);font-size:13px"><b>Liste gekürzt:</b> ${n(list.rows.length)} von ${n(list.total)} Buchungen angezeigt, die ältesten fehlen.${extra ? ' ' + extra : ''}</div>`;
+  return `<div class="time-entries-truncated" role="status" style="margin:8px 0;padding:8px 10px;background:var(--warning-soft);border:1px solid color-mix(in srgb,var(--ds-warn-text) 35%,transparent);color:var(--ink);font-size:13px"><b>Liste gekürzt:</b> ${n(list.rows.length)} von ${n(list.total)} Buchungen angezeigt, die ältesten fehlen.${extra ? ' ' + extra : ''}</div>`;
 }
 </script>

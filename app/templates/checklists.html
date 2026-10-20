@@ -3,8 +3,8 @@
 <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
 {% include "_ds_kopf.html" %}
 <style>
-:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--danger:#c0362c;--danger-soft:#fbeae8;--success:#1f8a5f;--success-soft:#eaf5ef;--warning:#9a6b00;--warning-soft:#fdf3dc;--sidebar-bg:#fbfdfc;--sidebar-text:#223028;--sidebar-text-dim:rgba(34,48,40,.7);--sidebar-border:#e2e8e5;--sidebar-hover:color-mix(in srgb,var(--accent) 8%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 12%,var(--sidebar-bg));--sidebar-active-text:var(--accent);--sidebar-active-border:var(--accent);color:var(--ink);background:var(--bg)}
-:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--danger:#f2837a;--danger-soft:#3a1f1c;--success:#4ade95;--success-soft:#173226;--warning:#f0c05a;--warning-soft:#3a2f14;--sidebar-bg:#0e1513;--sidebar-text:#e7ece8;--sidebar-text-dim:rgba(231,236,232,.68);--sidebar-border:rgba(255,255,255,.09);--sidebar-hover:color-mix(in srgb,var(--accent) 16%,var(--sidebar-bg));--sidebar-active-bg:color-mix(in srgb,var(--accent) 22%,var(--sidebar-bg))}
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;color:var(--ink);background:var(--bg)}
+:root[data-theme="dark"]{color-scheme:dark}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
 main{max-width:1100px;margin:0;padding:20px}
 .hero{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
@@ -16,7 +16,7 @@ main{max-width:1100px;margin:0;padding:20px}
 select{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit}
 .btnlink{border:1px solid var(--line);background:transparent;color:var(--ink);padding:9px 13px;font:inherit;font-weight:650;font-size:13.5px;text-decoration:none;cursor:pointer}
 .btnlink:hover{background:var(--soft)}
-.btnlink.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btnlink.primary{background:var(--ds-aktion);border-color:var(--ds-aktion);color:#fff}
 .btnlink:disabled{opacity:.6;cursor:default}
 .table-scroll{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:13.5px}
@@ -41,7 +41,7 @@ td a{color:var(--accent);text-decoration:none;font-weight:650}
   <div><h1>Checklisten</h1><div class="muted small">Alle ausgefüllten und begonnenen Checklisten. Neue Checklisten startet man am Auftrag, am Objekt oder am Betriebsmittel -- oder hier im Bereich Betrieb.</div></div>
   <a class="btnlink" href="/checklisten/vorlagen">Vorlagen verwalten</a>
 </div>
-<div class="card" id="openRulesCard" style="display:none;border-left:4px solid var(--warning)">
+<div class="card" id="openRulesCard" style="display:none;border-left:4px solid var(--ds-warn-text)">
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:240px"><b id="openRulesText"></b>
     <div class="muted small">Ausgelöste Regeln und Folgen (z. B. „Behinderungsanzeige versenden“), deren Aufgabe nicht angelegt wurde (z. B. weil das Aufgabenmodul ausgeschaltet war).</div></div>
     <a class="btnlink" href="#" onclick="showOpenRules();return false">Anzeigen</a>

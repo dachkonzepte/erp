@@ -2,8 +2,8 @@
 <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
 {% include "_ds_kopf.html" %}
 <style>
-:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;--accent:{{ get_theme().accent_color }};--bg:#f4f6f5;--card:#fff;--ink:#182420;--muted:#5c6f68;--line:#dde5e1;--field-border:#b9c4bd;--field-border-hover:#8fa098;--soft:#eef5f3;--warning:#9b6a12;--warning-soft:#fdf3dc;color:var(--ink);background:var(--bg)}
-:root[data-theme="dark"]{color-scheme:dark;--bg:#121816;--card:#1a2220;--ink:#e7ece8;--muted:#94a49c;--line:#2b3532;--field-border:#3a4642;--field-border-hover:#4d5b56;--soft:#1e2b26;--warning:#e0a94a;--warning-soft:#3a2f14}
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;color:var(--ink);background:var(--bg)}
+:root[data-theme="dark"]{color-scheme:dark}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
 .topnav{max-width:1100px;margin:24px auto 0;padding:0 22px}.back{color:var(--accent);text-decoration:none;font-weight:700}
 .wrap{max-width:1100px;margin:12px auto 24px;background:var(--card);border:1px solid var(--line);padding:22px}
@@ -15,10 +15,10 @@
 label{display:block;font-size:12px;font-weight:650;color:var(--muted);margin-bottom:5px}
 input,select,textarea{width:100%;padding:10px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit}
 input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
-input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-aktion);outline-offset:-1px;border-color:var(--ds-aktion)}
 textarea{resize:vertical}
-button{background:var(--accent);color:#fff;border:1px solid var(--accent);padding:11px 16px;font-weight:650;cursor:pointer}
-button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:color-mix(in srgb,var(--accent) 85%,black)}
+button{background:var(--ds-aktion);color:#fff;border:1px solid var(--ds-aktion);padding:11px 16px;font-weight:650;cursor:pointer}
+button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-color:color-mix(in srgb,var(--ds-aktion) 85%,black)}
 .secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}
 .secondary:hover{background:var(--soft)}
 .muted{color:var(--muted);font-size:12px}
@@ -34,7 +34,7 @@ th{font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700}
 .metric{background:var(--soft);border:1px solid var(--line);padding:10px}
 .metric .label{color:var(--muted);font-size:11px}
 .metric .value{font-size:18px;font-weight:750;margin-top:3px;color:var(--ink)}
-.metric.highlight{background:color-mix(in srgb,var(--accent) 12%,var(--soft));border-color:color-mix(in srgb,var(--accent) 35%,var(--line))}
+.metric.highlight{background:color-mix(in srgb,var(--ds-aktion) 12%,var(--soft));border-color:color-mix(in srgb,var(--ds-aktion) 35%,var(--line))}
 .addRow{display:flex;gap:8px;margin-top:10px;align-items:end;flex-wrap:wrap}
 .addRow .field{margin:0}
 h1{color:var(--ink)}
@@ -44,7 +44,7 @@ h1{color:var(--ink)}
 <div class="wrap">
   <h1 id="heading">Leistung anlegen</h1>
   <p id="help" class="muted"></p>
-  <div id="lockedNotice" class="hidden" style="background:var(--warning-soft);border:1px solid color-mix(in srgb,var(--warning) 35%,transparent);padding:12px;margin-bottom:18px;font-size:14px;color:var(--ink)">
+  <div id="lockedNotice" class="hidden" style="background:var(--warning-soft);border:1px solid color-mix(in srgb,var(--ds-warn-text) 35%,transparent);padding:12px;margin-bottom:18px;font-size:14px;color:var(--ink)">
     Diese Leistung wurde importiert und wird bei einem erneuten Import überschrieben, deshalb nicht direkt bearbeitbar. Über „Kopieren“ in der Katalogansicht lässt sich eine unabhängige, bearbeitbare Kopie anlegen.
   </div>
 

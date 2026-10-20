@@ -1582,3 +1582,156 @@ Wert der Auswahlliste bringen -- erst, wenn die Abfrage auf dem Server zeigt, da
 1. **Gewicht null für jede Regel von `ds-basis.css`**, nicht nur für `a` und `button` -- auch `.ds-seite` selbst, Felder, Überschriften,
    Fokusrahmen; der Wächter verlangt `:where(…)` um jeden Selektor.
 2. **Reihenfolge statt Gewicht** innerhalb der Datei: die Tablet-Regeln stehen hinter den allgemeinen und gelten deshalb.
+
+### Punkt 3 (1.9.5): Runde 3 -- Farben aller Seiten
+
+- **Keine Kopie der alten Palette mehr in den Seiten**: 53 Vorlagen trugen im `:root` (hell) und 52 im
+  `:root[data-theme="dark"]` dieselben alten Werte (`--bg`, `--card`, `--ink`, `--muted`, `--line`, `--field-border(-hover)`,
+  `--soft`, `--danger(-soft)`, `--warning(-soft)`, `--success(-soft)`, `--info(-soft)`), dazu `--accent` aus der Akzentfarbe der
+  Einstellungen und die seit 1.8.162 ungelesenen `--sidebar-*` -- 1834 Deklarationen in 60 Vorlagen, entfernt mit einem Werkzeug
+  (Scratchpad der Runde, `umbau_p3.py`). Es bleiben Schrift, `color-scheme`, `color:var(--ink)` und eigene Werte einer Seite
+  (`--dayw`, `--travel-btn`, `--workshop-btn`, `--other-btn`).
+- **Zentral**: `app/static/ds/ds-alte-namen.css`, über `_ds_kopf.html` mit Prüfsumme eingebunden (Global
+  `ds_alte_namen_pruefsumme`). Ein `:root`-Block genügt für hell und dunkel -- die Werte zeigen auf `--ds-*`, die `ds.css` je Thema
+  setzt. Zuordnung: `--bg`→`--ds-grund`, `--card`→`--ds-flaeche`, `--soft`→`--ds-flaeche-2`, `--ink`→`--ds-text`, `--muted`→
+  `--ds-text-2`, `--line`→`--ds-linie`, `--field-border`→`--ds-feld-rand`, `--field-border-hover`→`--ds-text-3`, `--accent`→
+  `--ds-aktion-text`, `--danger`→`--ds-fehler-text`, `--warning`→`--ds-warn-text`, `--success`→`--ds-ok-text`, `--info`→
+  `--ds-info-text`, die `-soft`-Namen → die `-hell`-Werte.
+- **Text oder Fläche**: die Doppelnamen (`--accent`, `--danger`, `--warning`, `--success`, `--info`) zeigen zentral auf den Textwert.
+  Jede Verwendung in einer Vorlage wurde nach ihrer Eigenschaft eingeordnet (rückwärts bis zum Doppelpunkt, auch in `style="…"` und in
+  Zeichenketten des Skripts): als Textfarbe (`color`, `caret-color`, `text-decoration-color` …) bleibt der alte Name; als Fläche
+  (Hintergrund, Rahmen, Umriss, Schatten, auch in `color-mix()`) steht direkt der Flächenwert -- `--accent`→`--ds-aktion` (342 Stellen),
+  `--danger`→`--ds-fehler` (52), `--warning`→`--ds-warn-text` (31, es gibt keinen eigenen Flächenwert), `--success`→`--ds-ok` (7),
+  `--info`→`--ds-info` (1). Als Text blieben 113 × `--accent`, 127 × `--danger`, 55 × `--warning`, 29 × `--success`. Keine Stelle
+  ließ sich nicht einordnen.
+- **Feste alte Werte**: der Verlauf (`.old` `#a53636`, `.new` `#1f8a5f` = altes `--success`), die Kundenakte (`.status.ok`), die
+  Stammdaten (`#fbeae8`) nehmen jetzt die alten Namen; Rückfallwerte `var(--x,#…)` entfallen (Versandverlauf, Checklisten-Abschnitt,
+  `_speichern.html`). Bewusst fest bleiben die Unterschriftsfläche (`_unterschrift.html`, weiß in beiden Themen) und die Signaturkarte
+  der Checkliste (`checklist.html` `.sig`, auf weißem Grund).
+- **Akzentfarbe**: färbt die Oberfläche nicht mehr (Stufe 2, Entscheidung 1.8.161). Sie bleibt für das App-Symbol und das Manifest
+  (`theme_color`) und die `theme-color` der Monteursansicht (`mobil.html`). In den Einstellungen keine Vorschau mehr auf der Seite
+  (`previewAccentColor()` prüft nur noch den Kontrast), Untertitel „Akzentfarbe des App-Symbols“, Hinweis „Färbt seit 1.9.5 nur noch …“.
+
+#### Kontrast je Seite, vorher und nachher
+
+Gemessen mit einer Instanz der Bildgrundlage (feste Testdaten, stehende Uhr; Werkzeug `messen_p3.py` im Scratchpad der Runde): jede
+Aufnahme der Bildgrundlage je Rolle, hell und dunkel, bei 1440 × 900, die Seiten der Monteurin zusätzlich bei 412 × 900 und 1280 × 620
+-- 160 Messungen. Geprüft wird jedes sichtbare Element mit eigenem Text und jedes gefüllte Feld gegen seinen tatsächlichen Hintergrund
+(4,5 : 1, großer Text 3 : 1), 21 540 je Lauf; Rahmen von Bedienelementen (3 : 1) sind nicht Teil der Messung. Vorher = Commit `3e54421`
+(1.9.4, Worktree), nachher = Arbeitskopie mit dem Umbau.
+
+- **Fehlstellen gesamt: vorher 1183 (hell 617, dunkel 566), nachher 0.** Davon vorher 796 die Versionsmarken im Changelog
+  (`.entry-version`, Text in der Akzentfarbe). 142 Messungen besser, 18 gleich (0 → 0), **keine schlechter**; keine neuen JS-Fehler.
+- Ein erster Nachher-Lauf ließ 18 Fehlstellen, alle im Verlauf (`.old`/`.new` mit festen alten Werten, s. o.) -- umgestellt, zweiter
+  Lauf 0.
+
+| Seite | hell vorher → nachher (kleinster Kontrast) | dunkel vorher → nachher (kleinster Kontrast) |
+|---|---|---|
+| start | 3 → 0 (3,74 → 5,73) | 2 → 0 (4,34 → 4,71) |
+| aufgaben | 1 → 0 (3,74 → 5,73) | 1 → 0 (3,74 → 4,71) |
+| kalender | 3 → 0 (3,39 → 5,73) | 3 → 0 (3,74 → 4,71) |
+| anfragen | 1 → 0 (3,74 → 5,73) | 1 → 0 (3,74 → 4,71) |
+| projekte | 2 → 0 (3,74 → 5,73) | 2 → 0 (3,74 → 4,71) |
+| projekt_neu | 2 → 0 (3,45 → 5,73) | 1 → 0 (3,74 → 4,71) |
+| projektmappe | 6 → 0 (3,45 → 5,73) | 3 → 0 (3,74 → 4,71) |
+| angebot_neu | 2 → 0 (3,45 → 5,73) | 1 → 0 (3,74 → 4,71) |
+| angebot | 7 → 0 (3,45 → 5,73) | 5 → 0 (3,74 → 4,71) |
+| auftrag | 7 → 0 (3,45 → 5,73) | 5 → 0 (3,74 → 4,71) |
+| arbeitsvorbereitung | 2 → 0 (3,74 → 5,73) | 2 → 0 (3,74 → 4,71) |
+| einsatzbericht | 18 → 0 (3,45 → 5,73) | 12 → 0 (3,74 → 4,71) |
+| rechnung | 5 → 0 (3,45 → 5,73) | 2 → 0 (3,74 → 4,71) |
+| plantafel | 2 → 0 (3,74 → 5,73) | 2 → 0 (3,74 → 4,71) |
+| checklisten | 2 → 0 (3,74 → 5,73) | 1 → 0 (4,34 → 4,71) |
+| checklistenvorlagen | 4 → 0 (3,74 → 5,73) | 3 → 0 (3,74 → 4,71) |
+| checklistenvorlage | 5 → 0 (3,45 → 5,73) | 2 → 0 (3,74 → 4,71) |
+| checkliste | 16 → 0 (3,45 → 5,73) | 8 → 0 (3,74 → 4,71) |
+| checklisten_auftrag | 12 → 0 (3,45 → 5,73) | 8 → 0 (4,34 → 4,71) |
+| wartungen | 3 → 0 (3,74 → 5,73) | 3 → 0 (3,74 → 4,71) |
+| wartungsvertrag | 4 → 0 (3,45 → 5,73) | 2 → 0 (3,74 → 4,71) |
+| befunde | 2 → 0 (3,74 → 5,73) | 1 → 0 (4,34 → 4,71) |
+| pruefvorlagen | 0 → 0 (5,73 → 5,73) | 0 → 0 (4,71 → 4,71) |
+| pruefvorlage | 3 → 0 (3,45 → 5,73) | 2 → 0 (3,74 → 4,71) |
+| finanzen | 3 → 0 (3,74 → 5,73) | 3 → 0 (3,74 → 4,71) |
+| mahnwesen | 2 → 0 (3,74 → 5,73) | 2 → 0 (3,74 → 4,71) |
+| eingangsrechnungen | 2 → 0 (3,74 → 5,73) | 1 → 0 (3,74 → 4,71) |
+| betriebskosten | 1 → 0 (3,74 → 5,73) | 1 → 0 (3,74 → 4,71) |
+| zeiterfassung | 2 → 0 (3,74 → 5,73) | 2 → 0 (3,74 → 4,71) |
+| zeiterfassung_monteur | 0 → 0 (4,74 → 5,73) | 0 → 0 (4,71 → 4,71) |
+| backoffice | 2 → 0 (3,74 → 5,73) | 2 → 0 (3,74 → 4,71) |
+| stammdaten | 6 → 0 (3,74 → 5,73) | 6 → 0 (3,74 → 4,71) |
+| stammdaten_mitarbeiter | 2 → 0 (3,74 → 5,73) | 2 → 0 (3,74 → 4,71) |
+| kunde | 9 → 0 (3,74 → 5,73) | 9 → 0 (3,74 → 4,71) |
+| objekt | 9 → 0 (3,45 → 5,73) | 8 → 0 (3,74 → 4,71) |
+| dachflaeche | 4 → 0 (3,45 → 5,73) | 2 → 0 (3,74 → 4,71) |
+| betriebsmittel | 5 → 0 (3,45 → 5,73) | 4 → 0 (3,74 → 4,71) |
+| betriebsmittel_monteur | 0 → 0 (4,92 → 5,73) | 0 → 0 (4,71 → 4,71) |
+| leistungskatalog | 5 → 0 (3,45 → 5,73) | 4 → 0 (3,74 → 4,71) |
+| leistung | 3 → 0 (3,45 → 5,73) | 2 → 0 (3,74 → 4,71) |
+| einstellungen | 3 → 0 (3,74 → 5,73) | 3 → 0 (3,74 → 4,71) |
+| benutzer | 2 → 0 (3,45 → 5,73) | 1 → 0 (3,74 → 4,71) |
+| verlauf | 10 → 0 (3,45 → 5,73) | 15 → 0 (2,46 → 4,71) |
+| adressimport | 2 → 0 (3,45 → 5,73) | 1 → 0 (3,74 → 4,71) |
+| versandprotokoll | 0 → 0 (5,35 → 5,73) | 0 → 0 (4,71 → 4,71) |
+| changelog | 398 → 0 (3,39 → 5,73) | 398 → 0 (3,93 → 4,71) |
+| suche | 2 → 0 (3,74 → 5,73) | 2 → 0 (3,74 → 4,71) |
+| konto | 8 → 0 (3,45 → 5,73) | 4 → 0 (3,74 → 4,71) |
+| mobil | 9 → 0 (3,74 → 5,73) | 6 → 0 (3,74 → 4,71) |
+| mobil_objekt | 8 → 0 (3,74 → 5,73) | 8 → 0 (3,74 → 4,71) |
+| stundenzettel | 4 → 0 (3,74 → 5,73) | 4 → 0 (3,74 → 4,71) |
+| anmeldung | 1 → 0 (3,74 → 5,73) | 1 → 0 (3,74 → 4,71) |
+| sperrseite | 3 → 0 (3,74 → 5,73) | 3 → 0 (3,74 → 4,71) |
+
+(Zusammengefasst über Rollen und Breiten; „kleinster Kontrast“ = kleinster gemessener Wert der Seite.)
+
+#### Maße: nur Farben geändert
+
+Dieselben 160 Messungen nehmen `getBoundingClientRect()` jedes Elements unter `body` in Dokumentreihenfolge und Breite/Höhe des
+Bildlaufs: **alle 160 vorher und nachher gleich** (jedes Element, auf die Hundertstel Pixel). Gegenprobe am Werkzeug: 1 px Polster an
+`.new` und hellgraues `.old` im Verlauf (Marker, byte-genau zurück) → 1018 Elemente mit anderen Maßen, 6 neue Fehlstellen.
+
+#### Tests und Prüfung
+
+- `tests/test_v442_alte_farbnamen.py` (neu, 13 Tests): `ds-alte-namen.css` nur `:root` mit genau der Zuordnung, jeder Wert in `ds.css`
+  hell und dunkel; `_ds_kopf.html` bindet die Datei mit Prüfsumme ein; keine Vorlage definiert einen alten Namen oder `--sidebar-*`;
+  keine Rückfallwerte an alten Namen; Akzentfarbe nur im `theme-color` von `/mobil`; Doppelnamen nur als Textfarbe (Wächter mit
+  Beispielen).
+- **Gegenproben** (pytest, drei auch Klicktest `klicktest_ds_schriften`): Kopie `--card:#fff` in der Projektliste; `--accent` als
+  Hintergrund im Auftrag; zentral `--accent` auf `--ds-aktion`; Akzentfarbe wieder im `:root` der Anmeldeseite; Kopf ohne
+  `ds-alte-namen.css` -- 5 von 5 rot, Dateien byte-genau zurück.
+- Klicktests `klicktest_akzentfarbe`, `klicktest_ds_schriften`, `klicktest_behinderungsanzeige_versand`, `klicktest_feste_fassung`,
+  `klicktest_rahmen`: 5 von 5 wie erwartet (513 Prüfungen).
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v432::test_ds_kopf_bindet_ds_css_und_ds_basis_mit_pruefsumme_ein`: alt zwei Zeilen (ds.css, ds-basis.css), neu drei (dazu
+    ds-alte-namen.css).
+  - `test_v252::…globals…`: alt 10 Globals (2 Prüfsummen), neu 11 (`ds_alte_namen_pruefsumme`).
+  - `test_v272::test_get_theme_is_used_in_root_block_of_every_page_including_mobile_header` ersetzt durch
+    `test_monteursseiten_nehmen_die_alten_farbnamen_zentral`: alt „`get_theme().accent_color` im `:root` der vier Monteursseiten“, neu
+    „kein `get_theme()`, `--accent:`, `--card:` im `:root`, `_ds_kopf.html` eingebunden“.
+  - `klicktest_ds_schriften`: alt „Akzentfarbe unverändert“ (`--accent` = Akzentfarbe der Einstellungen) und zwei Stylesheets; neu
+    `--accent` = `--ds-aktion-text` (hell `#2a5c2b`, dunkel `#b9da86`), drei Stylesheets, Kopfzeilen auch für `ds-alte-namen.css`.
+  - `klicktest_akzentfarbe`: alt „Vorschau beim Tippen“, „nach dem Neuladen gilt die neue Farbe“ und „Büro sieht die neue Farbe“ an
+    `--accent`, „Farbe unverändert“ an `--accent`; neu keine Vorschau (`--accent` bleibt `--ds-aktion-text`), neue Farbe im Manifest
+    (`theme_color`) bei unveränderter Seite für Admin und Büro, „Farbe unverändert“ am Manifest.
+  - `test_v419_verbindungen::test_die_globals_lesen_die_seitendaten_der_schranke`: alt „Akzentfarbe `#123456` auf `/projects`“, neu
+    „nicht auf `/projects`, aber in der `theme-color` von `/mobil`“ (Modul-Schalter und Konto unverändert).
+  - `test_v425_seitendaten_nur_fuer_seiten` (Monteurin, ungültiger Pfad → Sperrseite 403): alt „gezeichnet → einmal nachgeladen“, neu
+    „die Sperrseite lädt nichts nach“ -- sie liest seit 1.9.5 keine Seitendaten mehr (bis dahin nur die Akzentfarbe über `get_theme()`),
+    eine Datenbankverbindung weniger.
+- Erster voller Lauf mit 1.9.5: 4 rot -- die zwei oben und zwei Zeittests gegen PostgreSQL (`test_v376_nummernkreise::…waits_for_the_delete…`,
+  `test_v419_verbindungen_unter_last::test_langsame_downloads_halten_keine_verbindung`), die parallel zu Bildaufnahmen liefen; einzeln grün,
+  im nächsten vollen Lauf ohne Nebenlast geprüft.
+
+#### Festlegungen 1.9.5 (Bitte bestätigen)
+
+1. **Eigene Datei `ds-alte-namen.css`** statt `ds.css` (Regel 37 lässt dort nur `--ds-*` zu), ein `:root`-Block für beide Themen.
+2. **`--field-border-hover` → `--ds-text-3`**: es gibt keinen Hover-Wert für Feldrahmen; `--ds-text-3` ist kräftiger als
+   `--ds-feld-rand`, wie früher der Hover kräftiger als der Rahmen war (`--ds-linie-stark` wäre heller).
+3. **Fläche = jede Eigenschaft außer Textfarbe** (Hintergrund, Rahmen, Umriss, Schatten, Tönungen in `color-mix()`).
+4. **`--warning` als Fläche → `--ds-warn-text`** (kein eigener Flächenwert für Warnung).
+5. **Fokusrahmen der Seiten** (`outline` aus `--accent`, 47 Stellen) → `--ds-aktion`, nicht `--ds-fokus`; auf `--ds-fokus` beim Umzug der
+   jeweiligen Seite.
+6. **`--sidebar-*` ersatzlos gestrichen** (seit 1.8.162 ungelesen).
+7. **Feste alte Farben und Rückfallwerte in Seiten entfallen**; fest bleiben Unterschriftsfläche und Signaturkarte (weiß in beiden
+   Themen).
+8. **Akzentfarbe nur noch für App-Symbol, Manifest und `theme-color` von `/mobil`**; die Einstellungen zeigen keine Vorschau mehr und
+   sagen, wofür die Farbe noch gilt.

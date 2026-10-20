@@ -98,8 +98,8 @@ function _dkHinweis(text) {
     el.id = 'dkSpeichernUnklar';
     el.setAttribute('role', 'alert');
     el.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:10000;display:flex;flex-wrap:wrap;align-items:center;gap:10px;'
-      + 'padding:10px 16px;background:var(--danger-soft,#fdecea);color:var(--danger,#b42318);'
-      + 'border-bottom:2px solid var(--danger,#b42318);font-weight:600;font-size:14px';
+      + 'padding:10px 16px;background:var(--danger-soft);color:var(--danger);'
+      + 'border-bottom:2px solid var(--ds-fehler,#b42318);font-weight:600;font-size:14px';
     const t = document.createElement('span');
     t.className = 'dk-text';
     const k = document.createElement('button');
@@ -134,7 +134,7 @@ function _dkAnmeldungAbgelaufen(zeigen) {
     el.id = 'dkAnmeldungAbgelaufen';
     el.setAttribute('role', 'alert');
     el.style.cssText = 'position:sticky;top:0;z-index:9999;padding:10px 16px;font-weight:600;font-size:14px;'
-      + 'background:var(--warning-soft,#fef3c7);color:var(--warning,#92400e);border-bottom:2px solid var(--warning,#d97706)';
+      + 'background:var(--warning-soft);color:var(--warning);border-bottom:2px solid var(--ds-warn-text)';
     el.textContent = 'Anmeldung abgelaufen – bitte in einem neuen Tab anmelden und danach hier erneut speichern. '
       + 'Die Eingaben auf dieser Seite bleiben stehen.';
     document.body.prepend(el);

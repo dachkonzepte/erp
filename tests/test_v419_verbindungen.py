@@ -274,7 +274,8 @@ def test_jede_seite_braucht_eine_verbindung(welt):
 
 
 def test_die_globals_lesen_die_seitendaten_der_schranke(welt):
-    """Akzentfarbe, Modul-Schalter, Logo und Konto kommen auf der Seite an -- aus den Seitendaten der Schranke."""
+    """Akzentfarbe, Modul-Schalter, Logo und Konto kommen auf der Seite an -- aus den Seitendaten der Schranke. Seit 1.9.5 färbt die
+    Akzentfarbe die Oberfläche nicht mehr: sie steht nur noch in der theme-color der Monteursansicht, nicht mehr auf /projects."""
     from app.models import EnabledModule, GeneralSettings, Employee
     engine, make_session, wert = welt
     with make_session() as db:
@@ -287,7 +288,8 @@ def test_die_globals_lesen_die_seitendaten_der_schranke(welt):
         db.commit()
     client = _client(app_mit_schranke(make_session, pages_router.router), wert)
     seite = client.get("/projects").text
-    assert "#123456" in seite
+    assert "#123456" not in seite
+    assert '<meta name="theme-color" content="#123456">' in client.get("/mobil").text
     assert 'href="/kalender"' not in seite and 'href="/tasks"' in seite
     assert ">AL<" in seite.replace(" ", "")
 

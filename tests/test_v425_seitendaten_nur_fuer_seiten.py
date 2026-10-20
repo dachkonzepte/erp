@@ -112,7 +112,9 @@ def test_seitendaten_genau_fuer_gezeichnete_seiten(welt, zaehler, rolle):
         antwort = client.get(pfad, follow_redirects=False)
         soll = zaehler["gezeichnet"] > 0
         gezeichnet += soll
-        erwartet = (0, int(soll)) if pfad in UNGUELTIG else (int(soll), 0)
+        # ungültiger Pfad: die Schranke lädt nichts, der erste Global der gezeichneten Seite lädt nach -- die Sperrseite (403) liest seit
+        # 1.9.5 keine Seitendaten mehr (bis dahin die Akzentfarbe über get_theme()), dort lädt nichts nach
+        erwartet = (0, int(soll and antwort.status_code != 403)) if pfad in UNGUELTIG else (int(soll), 0)
         if (zaehler["schranke"], zaehler["nachgeladen"]) != erwartet or (soll and not antwort.text.lstrip().lower().startswith("<!doctype html")):
             falsch.append((pfad, antwort.status_code, dict(zaehler)))
         if pfad in UNGUELTIG and rolle in ("admin", "buero_auftrag"):

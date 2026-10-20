@@ -12,9 +12,9 @@ Drei Teile:
    Test-Session umstellbar sind, siehe CLAUDE.md "Bekannte, bewusst offene Punkte").
 2. Derselbe Mechanismus wie _sidebar.html (data-theme/'erp_theme'), nicht nur ein Knopf ohne
    Funktion -- per Quelltextvergleich der beiden IIFEs geprüft.
-3. Regressionsschutz für die Vorgabe "get_theme() greift auch auf den Monteursseiten": alle vier
-   Templates, die _mobile_header.html einbinden, rufen get_theme().accent_color im eigenen
-   :root-Block auf -- war bereits vor dieser Version so, wird hier nur als Test festgehalten.
+3. Bis 1.9.4 Regressionsschutz für die Vorgabe "get_theme() greift auch auf den Monteursseiten" (get_theme().accent_color im
+   eigenen :root-Block der vier Seiten mit _mobile_header.html). Seit 1.9.5 färbt die Akzentfarbe die Oberfläche nicht mehr: die
+   vier Seiten tragen keine Kopie der alten Palette, die alten Namen kommen zentral aus ds-alte-namen.css (_ds_kopf.html).
 """
 
 from pathlib import Path
@@ -164,17 +164,16 @@ def test_toggle_click_handler_writes_to_localstorage_and_updates_the_dom():
 
 
 # ---------------------------------------------------------------------------
-# get_theme() greift auch auf den Monteursseiten (Regressionsschutz, war bereits so)
+# Seit 1.9.5: die Monteursseiten nehmen die alten Farbnamen zentral, keine Akzentfarbe im :root
 # ---------------------------------------------------------------------------
 
-def test_get_theme_is_used_in_root_block_of_every_page_including_mobile_header():
+def test_monteursseiten_nehmen_die_alten_farbnamen_zentral():
     from tests import vorlagen_js
 
     for page in ("mobil.html", "mobil_objekt.html", "field_timesheet.html", "time_tracking_field.html"):
         text = (TEMPLATES_DIR / page).read_text(encoding="utf-8")
         assert vorlagen_js.bindet_ein(page, "_mobile_header.html", TEMPLATES_DIR), page  # seit 1.8.124 auch im Basis-Template
-        assert "get_theme().accent_color" in text, page
-        # Steht tatsaechlich im :root-Block, nicht nur irgendwo auf der Seite.
+        assert vorlagen_js.bindet_ein(page, "_ds_kopf.html", TEMPLATES_DIR), page  # bindet ds-alte-namen.css ein
         root_start = text.index(":root{")
-        root_end = text.index("}", root_start)
-        assert "get_theme().accent_color" in text[root_start:root_end], page
+        root = text[root_start:text.index("}", root_start)]
+        assert "get_theme()" not in root and "--accent:" not in root and "--card:" not in root, page

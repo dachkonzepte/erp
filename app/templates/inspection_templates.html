@@ -4,10 +4,10 @@
 {% include "_ds_kopf.html" %}
 {#- Seit 1.9.3 Pilot der Stufe 2 „Rahmen“: die Seite schaltet .ds-seite ein (Grundregeln aus ds-basis.css), ihr Kopf ist der gemeinsame
     Seitenkopf (teile/seitenkopf.html, Variante Liste: Titel, eine grüne Hauptaktion, Weiteres im Menü „⋮“), ihre Farben laufen über die
-    --ds-*-Werte (Knöpfe in aktion, Ecken 10/12 px) -- die Akzentfarbe aus den Einstellungen färbt sie nicht mehr. Die vier alten Namen im
-    :root lesen Bausteine, die noch nicht umgezogen sind (_speichern.html: Hinweis „Seite neu laden“, „Anmeldung abgelaufen“). -#}
+    --ds-*-Werte (Knöpfe in aktion, Ecken 10/12 px) -- die Akzentfarbe aus den Einstellungen färbt sie nicht mehr. Die alten Namen, die
+    Bausteine wie _speichern.html noch lesen, stehen seit 1.9.5 zentral in ds-alte-namen.css (bis dahin vier davon im :root). -#}
 <style>
-:root{color-scheme:light;--danger:var(--ds-fehler-text);--danger-soft:var(--ds-fehler-hell);--warning:var(--ds-warn-text);--warning-soft:var(--ds-warn-hell)}
+:root{color-scheme:light}
 :root[data-theme="dark"]{color-scheme:dark}
 *{box-sizing:border-box}
 main{max-width:1100px;margin:0;padding:24px}

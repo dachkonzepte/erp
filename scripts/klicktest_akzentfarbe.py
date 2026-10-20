@@ -5,8 +5,10 @@ Büro – Auftrag), die sofort für alle Benutzer gilt. Seit 1.8.130 nur der Adm
 
     Büro            Büro – Finanzen und Büro – Auftrag: Erscheinungsbild ohne Akzentfarbe (Feld, Knopf, Menü- und Untertitel), Logos
                     bleiben; kein JS-Fehler (die Listener hängen am Admin); PUT aus der Seite 403; hell und dunkel
-    Admin           Feld und Knopf da; Vorschau beim Tippen, Speichern -> "Gespeichert.", nach dem Neuladen gilt die neue Farbe -- auch
-                    für das Büro
+    Admin           Feld und Knopf da; Speichern -> "Gespeichert.", nach dem Neuladen gilt die neue Farbe -- auch für das Büro
+Seit 1.9.5 färbt die Akzentfarbe die Oberfläche nicht mehr, nur App-Symbol und Leiste des Browsers der Monteursansicht: geprüft wird sie
+am Manifest (theme_color); --accent der Seite bleibt beim Tippen und nach dem Speichern --ds-aktion-text (bis 1.9.4 Vorschau beim Tippen
+und neue Farbe auf der Seite).
 
 AUFRUF (aus dem Projektordner):
 
@@ -27,6 +29,8 @@ BEREIT = ("document.getElementById('companyLogoFile')&&document.getElementById('
           "&&document.getElementById('sidebarLogoHeight')")
 AKZENT = "getComputedStyle(document.documentElement).getPropertyValue('--accent').trim().toLowerCase()"
 NEU = "#7c3aed"
+MANIFEST = "fetch('/manifest.json').then(r=>r.json()).then(d=>d.theme_color.toLowerCase())"
+AKTION_TEXT = "getComputedStyle(document.documentElement).getPropertyValue('--ds-aktion-text').trim().toLowerCase()"
 PUT = ("fetch('/api/settings/appearance',{method:'PUT',headers:{'Content-Type':'application/json'},"
        f"body:JSON.stringify({{accent_color:'{NEU}'}})}}).then(r=>r.status)")
 SICHTBAR = ("(()=>{const m=document.querySelector('[data-settings-section=appearance] .menu-sub');"
@@ -61,7 +65,7 @@ async def pruefen(tab, seed, p):
             p.pruefe(f"{name} {thema}: keine JS-Fehler", tab.fehler, [])
             await tab.bild(f"akzentfarbe_{name}_{thema}")
         p.pruefe(f"{name}: PUT aus der Seite 403", await tab.js(PUT), 403)
-        p.pruefe(f"{name}: Farbe unverändert", await tab.js(AKZENT), vorher)
+        p.pruefe(f"{name}: Farbe unverändert (Manifest)", await tab.js(MANIFEST), vorher)
 
     await tab.anmelden(seed["cookies"]["anna"])
     await tab.js("localStorage.setItem('erp_theme','light')")
@@ -69,15 +73,20 @@ async def pruefen(tab, seed, p):
     p.pruefe("Admin: Akzentfarbe da", await tab.warten("document.getElementById('accentColorText').value.length===7", 15), True)
     p.pruefe("Admin: Feld, Knopf, Menü und Untertitel", await tab.js(SICHTBAR), [True, True, True, True, True])
     await tab.js(f"const t=document.getElementById('accentColorText');t.value='{NEU}';t.dispatchEvent(new Event('input'))")
-    p.pruefe("Admin: Vorschau beim Tippen", await tab.js(AKZENT), NEU)
+    p.pruefe("Admin: keine Vorschau auf der Seite (--accent bleibt --ds-aktion-text)",
+             [await tab.js(AKZENT), await tab.js(AKZENT) == await tab.js(AKTION_TEXT)], [await tab.js(AKTION_TEXT), True])
     await tab.js("document.querySelector('[onclick=\"saveAccentColor()\"]').click()")
     p.pruefe("Admin: gespeichert", await tab.warten("document.getElementById('accentColorStatus').textContent==='Gespeichert.'", 15), True)
     await tab.bild("akzentfarbe_admin")
     p.pruefe("Admin: keine JS-Fehler", tab.fehler, [])
-    p.pruefe("Admin nach dem Neuladen", await tab.oeffnen("/settings?neu=1#appearance", BEREIT) and await tab.js(AKZENT), NEU)
+    p.pruefe("Admin nach dem Neuladen: Manifest mit der neuen Farbe, Seite unverändert",
+             await tab.oeffnen("/settings?neu=1#appearance", BEREIT) and [await tab.js(MANIFEST), await tab.js(AKZENT) == await tab.js(AKTION_TEXT)],
+             [NEU, True])
 
     await tab.anmelden(seed["cookies"]["bernd"])
-    p.pruefe("Büro sieht die neue Farbe", await tab.oeffnen("/settings?neu=2#appearance", BEREIT) and await tab.js(AKZENT), NEU)
+    p.pruefe("Büro: Manifest mit der neuen Farbe, Seite unverändert",
+             await tab.oeffnen("/settings?neu=2#appearance", BEREIT) and [await tab.js(MANIFEST), await tab.js(AKZENT) == await tab.js(AKTION_TEXT)],
+             [NEU, True])
 
 
 if __name__ == "__main__":

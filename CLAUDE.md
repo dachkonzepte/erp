@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.4** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.5** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -321,12 +321,14 @@ Behoben, drei Teile:
   `orders.py`, `reminders.py`, `email_sending.py`), `app/routers/*.py` die dazugehörigen
   FastAPI-Endpunkte (aus `main.py` in Version 1.0.7 herausgezogen), `app/templates/*.html` die
   Oberfläche
-- **Design-System (seit 1.0.97, auf alle Seiten ausgerollt):** jede Seite mit `{% include
-  "_sidebar.html" %}` definiert im eigenen `:root`/`:root[data-theme="dark"]`-Block dieselben
-  CSS-Variablen (`--accent` aus `{{ get_theme().accent_color }}`, `--bg`, `--card`, `--ink`,
-  `--muted`, `--line`, `--field-border(-hover)`, `--soft`, `--danger(-soft)`, ggf.
-  `--warning(-soft)`/`--success(-soft)`, plus die `--sidebar-*`-Token -- seit 1.8.162 ungelesen, die Leiste nimmt `--ds-navi-*`), dazu ein
-  FOUC-Vermeidungs-Script vor dem `<style>`-Block. Eckige Ecken durchgängig (kein
+- **Design-System (seit 1.0.97, auf alle Seiten ausgerollt):** die Seiten nutzen dieselben CSS-Variablen (`--accent`, `--bg`,
+  `--card`, `--ink`, `--muted`, `--line`, `--field-border(-hover)`, `--soft`, `--danger(-soft)`, `--warning(-soft)`,
+  `--success(-soft)`, `--info(-soft)`) -- **seit 1.9.5 nur noch zentral** in `app/static/ds/ds-alte-namen.css` (über `_ds_kopf.html`),
+  dort auf die `--ds-*`-Werte gelegt; bis 1.9.4 trug jede Seite eine Kopie der Palette im eigenen `:root`, `--accent` aus der
+  Akzentfarbe der Einstellungen. Doppelnamen (`--accent`, `--danger`, `--warning`, `--success`, `--info`) stehen zentral für die
+  Textfarbe; als Fläche (Hintergrund, Rahmen, Umriss, Schatten) nimmt eine Seite direkt den Flächenwert (`--ds-aktion`, `--ds-fehler`,
+  `--ds-warn-text`, `--ds-ok`, `--ds-info`). Eine Seite definiert keinen alten Namen und keinen festen alten Farbwert
+  (`tests/test_v442_alte_farbnamen.py`). Dazu ein FOUC-Vermeidungs-Script vor dem `<style>`-Block. Eckige Ecken durchgängig (kein
   `border-radius`), keine farbige Kopfleiste – Seitentitel/Aktionen stattdessen in einer normalen
   Karte. `settings.html` als Referenzvorlage für Feldlayout, Buttons, Status-Meldungen.
 - **Neues Design-System „Schiefer & Signal“ (seit 1.8.127, Redesign Stufe 1):** `app/static/ds/ds.css`
@@ -339,7 +341,7 @@ Behoben, drei Teile:
   Makro `teile/seitenkopf.html` mit `_seitenkopf.html` (`seitenkopf()`), Menüs über `_menue.html` (`dsMenue()`). Jede Seite mit Leiste
   beginnt mit `{% set bereich = "…" -%}` -- die Leiste markiert danach ihren Eintrag (seit 1.8.162); Wächter `tests/test_v441_rahmen_baustein.py`.
   **Umgezogen** (`UMGEZOGEN` dort): seit 1.9.3 die Prüfvorlagen als Pilot -- `.ds-seite` am `<body>`, Seitenkopf über das Makro, eigene
-  Farben nur über `--ds-*` (keine Akzentfarbe mehr), die alten Namen `--danger`/`--warning` im `:root` nur noch für `_speichern.html`;
+  Farben nur über `--ds-*` (keine Akzentfarbe mehr);
   in `ds-basis.css` steht seit 1.9.4 jeder Selektor ganz in `:where(…)` (Gewicht null): die Grundregeln gelten für alle Elemente, jede
   Klasse überstimmt sie (ersetzt „nur ohne Klasse“, 1.9.3).
 
@@ -836,10 +838,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
 37. **Das Design-System liegt in `app/static/ds/ds.css`, jede Seite bindet `_ds_kopf.html` ein, seit 1.8.127 (Redesign Stufe 1).**
     `ds.css` enthält nur `--ds-*`-Eigenschaften in `:root` und `:root[data-theme="dark"]`, `@font-face` und Regeln, deren Selektoren alle
     als Ziel (letzter Teil nach Leerraum, `>`, `+`, `~`) selbst eine Klasse `.ds-…` tragen (seit 1.8.129; `.ds-x div`, `.ds-x + p`,
-    `div:not(.ds-x)` verboten) -- nie `--accent` (die Akzentfarbe aus den Einstellungen bleibt), kein `color-scheme`, keine
+    `div:not(.ds-x)` verboten) -- nie `--accent` (die alten Namen stehen seit 1.9.5 in `ds-alte-namen.css`), kein `color-scheme`, keine
     Element-Selektoren, keine andere At-Regel. In `app/static/` liegen nur `.css`, `.woff2` und Lizenztexte (`ofl-*.txt`), alle Namen kleingeschrieben (sonst ohne
     Anmeldung nicht erreichbar), keine Symlinks. Jede Seite aus `seiten()` bindet `_ds_kopf.html` im Kopf vor ihrem eigenen `<style>` ein
-    (`ds.css?v=<Prüfsumme des Inhalts>`, seit 1.9.2 aus `app/design_dateien.py::pruefsumme()`, bis dahin die Version); eine neue Seite ebenso. Die Prüfpaare im Kopfkommentar von `ds.css` halten hell und dunkel (Text 4,5 : 1,
+    (`ds.css?v=<Prüfsumme des Inhalts>`, seit 1.9.2 aus `app/design_dateien.py::pruefsumme()`, bis dahin die Version); eine neue Seite ebenso. Seit 1.9.5 bindet `_ds_kopf.html` dazu `ds-alte-namen.css` ein: nur `:root`, nur die alten Farbnamen der Seiten, jeder auf einen `--ds-*`-Wert (`tests/test_v442_alte_farbnamen.py`). Die Prüfpaare im Kopfkommentar von `ds.css` halten hell und dunkel (Text 4,5 : 1,
     Bedienelemente 3 : 1). `/static/` wird ein Jahr zwischengespeichert: eine geänderte Schrift bekommt einen neuen Dateinamen.
     `tests/test_v432_design_fundament.py` (Wächter, Kontrast, Auslieferung, Angriffe über ASGI und echten uvicorn samt Gegenprobe
     „Präfixvergleich“), Klicktest `klicktest_ds_schriften.py`. Details: `docs/archiv/redesign.md`.
@@ -1325,7 +1327,7 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
   Kolonnenführer-Kennzeichen, Rückfrage beim Entziehen und Löschen; Runde „Du“ ab 1.8.157: Oberfläche per Du (1.8.158), Kundentexte --
   Angebot, Auftrag, Rechnung, Mahnung, Vertrag, Briefe, ihre E-Mails und PDFs -- beim Sie: ein neuer Kundentext gehört in `KUNDENTEXTE`
   (`tests/test_v440_runde_du.py`, seit 1.8.160, prüft auch echte PDFs), außerhalb keine Sie-Anrede; die Meldung „Konto ohne Mitarbeiter“
-  nur aus `app/meldungen.py` (1.8.159)) -- `docs/archiv/redesign.md`
+  nur aus `app/meldungen.py` (1.8.159); Stufe 2 „Rahmen“ ab 1.8.161, Pilot Prüfvorlagen 1.9.3, Grundregeln mit Gewicht null 1.9.4, Runde 3 „Farben aller Seiten“ 1.9.5: alte Farbnamen zentral in `ds-alte-namen.css`, Kontrast je Seite gemessen; das Redesign zählt seit 1.9.0 unter 1.9.x) -- `docs/archiv/redesign.md`
 - **Ältere Versionshistorie 1.1.0–1.6.0** ("Neu seit"-Kette, vollständig, unverändert) --
   `docs/archiv/chronik-1.1-1.6.md`
 - **Migrationsketten- und Testlauf-Historie** (Version-für-Version-Nachweis, wer wann was mit
@@ -1659,8 +1661,8 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
   `{{ … }}` an der Stelle eines Attributs -- was die Scanner prüfen, steht fest im Makro oder wörtlich in der Seite (über `{% call %}`),
   geprüft in `vorlagen_html.jinja_handler()`. Seit 1.8.125 prüft kein Test ein Include per Textvergleich (`'{% include … %}' in text`,
   ein Vorlagenname gegen eingelesenen Text) -- nur `bindet_ein()` (`nur_selbst=True` für die Datei allein); Wächter in
-  `tests/test_v430_strukturtests_stufe_0c.py`. Noch offen für Stufe 1: die Token-Prüfung der Monteursseiten in v272 (`get_theme()` im
-  eigenen `:root{`) -- `docs/archiv/testablauf-und-klicktests.md`, 1.8.124, Nebenbefunde.
+  `tests/test_v430_strukturtests_stufe_0c.py`. Die Token-Prüfung der Monteursseiten in v272 (bis 1.9.4 `get_theme()` im eigenen
+  `:root{`) prüft seit 1.9.5 das Gegenteil: keine Kopie der Palette, `_ds_kopf.html` eingebunden.
 
 - **Feste Uhr statt Tageszeit** (seit 1.8.36): ein Test, dessen Ergebnis von der Uhrzeit abhängt (z. B. Monteur
   an `/api/field-view/today`, ab 19:00 "Feierabend" 401), nimmt die Fixture `feste_uhr` bzw. in einer Modul-Fixture
