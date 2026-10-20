@@ -1,12 +1,14 @@
 """Klicktest: Design-System auf der Anmeldeseite -- ds.css und alle drei Schriftfamilien laden ohne Anmeldung (1.8.127, Stufe 1 des
 Redesigns, Vorgabe vom 19.10.2026, Punkt 7).
 
-    ds.css          die Anmeldeseite bindet /static/ds/ds.css?v=<Version> ein: --ds-grund hell #EEF0F1, dunkel #121619; die Akzentfarbe
-                    aus den Einstellungen (--accent) und die Schrift der Seite bleiben, wie sie sind
+    ds.css          die Anmeldeseite bindet /static/ds/ds.css?v=<Version> ein (seit 1.8.161 danach ds-basis.css, wirksam erst mit
+                    .ds-seite): --ds-grund hell #EEF0F1, dunkel #121619; die Akzentfarbe aus den Einstellungen (--accent) und die
+                    Schrift der Seite bleiben, wie sie sind
     Schriften       document.fonts.load() lädt Archivo 500/600/700, IBM Plex Sans 400/500/600 und IBM Plex Mono 400/500 -- je mit
                     deutschem Text (latin) und mit "ŐŁ" (latin-ext); danach meldet document.fonts.check() alle als geladen, 16 woff2
                     kamen mit 200
-    Kopfzeilen      eine Schrift und ds.css ohne Anmeldung: Typ fest, "Cache-Control: public, max-age=31536000, immutable", nosniff
+    Kopfzeilen      eine Schrift, ds.css und ds-basis.css ohne Anmeldung: Typ fest, "Cache-Control: public, max-age=31536000, immutable",
+                    nosniff
 
 AUFRUF (aus dem Projektordner):
 
@@ -49,8 +51,10 @@ async def pruefen(tab, seed, p):
     await tab.anmelden({})
     p.pruefe("Anmeldeseite ohne Anmeldung", await tab.oeffnen("/login", "document.readyState==='complete'&&!!document.getElementById('u')"),
              True)
-    p.pruefe("ds.css eingebunden", await tab.js(
-        "[...document.querySelectorAll('link[rel=stylesheet]')].map(l=>new URL(l.href).pathname)"), ["/static/ds/ds.css"])
+    # seit 1.8.161 bindet _ds_kopf.html nach ds.css auch ds-basis.css ein (bis dahin nur ds.css)
+    p.pruefe("ds.css und ds-basis.css eingebunden", await tab.js(
+        "[...document.querySelectorAll('link[rel=stylesheet]')].map(l=>new URL(l.href).pathname)"),
+        ["/static/ds/ds.css", "/static/ds/ds-basis.css"])
     token = "getComputedStyle(document.documentElement).getPropertyValue('{}').trim()"
     # das Thema ausdrücklich -- ohne gespeicherte Wahl folgt die Seite dem Farbschema des Systems (headless auch dunkel)
     await tab.js("document.documentElement.setAttribute('data-theme','light')")
@@ -76,6 +80,8 @@ async def pruefen(tab, seed, p):
     p.pruefe("woff2: Kopfzeilen", await tab.js(kopf.format("/static/ds/schriften/archivo-latin-700-normal.woff2")),
              [200, "font/woff2", DAUERHAFT, "nosniff"])
     p.pruefe("ds.css: Kopfzeilen", await tab.js(kopf.format("/static/ds/ds.css?v=x")),
+             [200, "text/css; charset=utf-8", DAUERHAFT, "nosniff"])
+    p.pruefe("ds-basis.css: Kopfzeilen", await tab.js(kopf.format("/static/ds/ds-basis.css?v=x")),
              [200, "text/css; charset=utf-8", DAUERHAFT, "nosniff"])
 
     await tab.js("document.documentElement.setAttribute('data-theme','dark')")

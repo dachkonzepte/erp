@@ -1091,6 +1091,14 @@ Grundlage: der Befund `docs/archiv/befund-rahmen.md`. Die Entscheidungen oben ge
   - Klicktest `klicktest_rahmen`: Monteurin -- alt im Teil `seitenleiste` mit Übersicht und Kaufmännisch auf dem Einsatzbericht; neu im
     Teil `monteurskopf`.
 
+#### Nachtrag 1.8.164: Erwartung von `klicktest_ds_schriften`
+
+- Im Endlauf auf `cbd99f4` war `klicktest_ds_schriften` rot (26 von 27): „ds.css eingebunden“ erwartete nur `/static/ds/ds.css`, die
+  Anmeldeseite bindet seit 1.8.161 (Teil 1) danach auch `ds-basis.css` ein. Veraltet seit 1.8.161 -- der Klicktest lief in Teil 1 nicht mit
+  (Versäumnis). **Angepasste Erwartung** (Regel 28): `klicktest_ds_schriften` „ds.css eingebunden“ → „ds.css und ds-basis.css
+  eingebunden“: alt `["/static/ds/ds.css"]`, neu `["/static/ds/ds.css", "/static/ds/ds-basis.css"]`; dazu die Kopfzeilen von `ds-basis.css`
+  ohne Anmeldung (neue Prüfung). 28 von 28.
+
 #### Festlegungen 1.8.164 (Bitte bestätigen)
 
 1. **Abmelden und Hell/Dunkel im Kontomenü** auch im Monteurskopf -- Abmelden braucht zwei Tipps statt einem (bis 1.8.163 eigener
