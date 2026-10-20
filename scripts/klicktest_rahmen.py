@@ -17,6 +17,10 @@ Geprüft wird im echten Browser auf den Testdaten der Bildgrundlage (scripts/bil
                    schaltet data-theme um und zeigt den Zustand; Klick daneben schließt
     Vollname       seit 1.8.167: ist der Name im Kontoknopf gekürzt oder ausgeblendet (Büro bei 412 px, Monteurin mit schmalem Knopf),
                    steht er vollständig oben im Kontomenü; ganz zu sehen bleibt er dort verborgen; die Tastatur springt darüber
+    Prüfvorlagen   seit 1.8.174 (Pilot): .ds-seite, Seitenkopf mit Titel 30 px und genau einer grünen Hauptaktion (Schrift
+                   auf-aktion), Menü „⋮“ per Tastatur mit „Archivierte anzeigen“, Dachtyp ausgeschrieben, Karten 12 px und Knöpfe 10 px
+                   Ecken, Leiste und Kontomenü unverändert (Farben, keine Linkfarbe); Kontrast jedes sichtbaren Texts gegen seinen
+                   Hintergrund (4,5 : 1, großer Text 3 : 1) hell und dunkel, auch mit offenem Menü und offenem Editor
     Seitenregeln   auf den Einstellungen (button:hover und button:active in der Akzentfarbe): Kontoknopf unter der Maus und per
                    Leertaste gedrückt (:active ohne :hover), Menüeintrag unter der Maus -- nie in der Akzentfarbe
     Monteurskopf   auf jeder Seite der Monteurin (Mobil, Objekt, Stundenzettel, Zeiterfassung, Betriebsmittel, Checkliste,
@@ -31,7 +35,8 @@ AUFRUF (aus dem Projektordner):
     .venv\\Scripts\\python.exe scripts\\klicktest_rahmen.py [--nur TEIL[,TEIL]] [--app-port N] [--cdp-port N]
         [--arbeitsordner PFAD] [--chrome PFAD] [--offen-lassen]
 
---nur: nur diese Teile (seitenleiste, aktiv, schrift, menueknopf, kopfzeile, kontomenue, vollname, seitenregeln, monteurskopf) -- für
+--nur: nur diese Teile (seitenleiste, aktiv, schrift, menueknopf, kopfzeile, kontomenue, vollname, pruefvorlagen, seitenregeln,
+monteurskopf) -- für
 Gegenproben, die nach 2 min
 abbrechen (Regel 24).
 
@@ -318,6 +323,75 @@ async def _vollname(tab, seed, p):
     p.pruefe("Vollname: keine JS-Fehler", tab.fehler, [])
 
 
+KONTRAST = """(()=>{const teil=c=>{const m=c.match(/rgba?\\(([^)]+)\\)/);if(!m)return null;const p=m[1].split(',').map(parseFloat);
+return {r:p[0],g:p[1],b:p[2],a:p.length>3?p[3]:1}};
+const lin=v=>{v/=255;return v<=0.04045?v/12.92:Math.pow((v+0.055)/1.055,2.4)};const L=c=>0.2126*lin(c.r)+0.7152*lin(c.g)+0.0722*lin(c.b);
+const misch=(o,u)=>({r:o.r*o.a+u.r*(1-o.a),g:o.g*o.a+u.g*(1-o.a),b:o.b*o.a+u.b*(1-o.a),a:1});
+const grund=el=>{const s=[];for(let e=el;e;e=e.parentElement){const c=teil(getComputedStyle(e).backgroundColor);if(c&&c.a>0){s.push(c);if(c.a>=1)break}}
+let u={r:255,g:255,b:255,a:1};for(let i=s.length-1;i>=0;i--)u=misch(s[i],u);return u};
+const sichtbar=e=>e.getClientRects().length>0&&getComputedStyle(e).visibility!=='hidden'&&getComputedStyle(e).opacity!=='0';
+const elemente=[...document.querySelectorAll('main *, #seitenkopfMenue *')].filter(e=>sichtbar(e)&&[...e.childNodes].some(n=>n.nodeType===3&&n.textContent.trim()));
+let min=99,schwach=[];
+for(const e of elemente){const cs=getComputedStyle(e);const g=grund(e);const f=misch(teil(cs.color),g);const a=L(f),b=L(g);
+const k=(Math.max(a,b)+0.05)/(Math.min(a,b)+0.05);const px=parseFloat(cs.fontSize),w=parseInt(cs.fontWeight);
+const gross=px>=24||(px>=18.66&&w>=700);const soll=gross?3:4.5;if(k<min)min=k;
+if(k<soll)schwach.push(e.tagName+'.'+e.className+' „'+e.textContent.trim().slice(0,30)+'“ '+k.toFixed(2))}
+return {anzahl:elemente.length,min:Math.round(min*100)/100,schwach}})()"""
+
+PILOT = """(()=>{const cs=e=>getComputedStyle(e);const F=%s;const k=document.getElementById('seitenkopf');
+const titel=document.getElementById('seitenkopfTitel');const aktion=[...k.querySelectorAll('.ds-knopf-aktion')];
+const karte=document.querySelector('main .pv-karte');const knopf=document.querySelector('#templateRows .ds-knopf');
+const leiste=document.querySelector('#appSidebar .app-sidebar-link:not(.active) .app-sidebar-label');
+return {ds_seite:document.body.classList.contains('ds-seite'),titel:[titel.textContent,cs(titel).fontSize],
+aktion:aktion.map(a=>[a.textContent.trim(),cs(a).backgroundColor===F('--ds-aktion'),cs(a).color===F('--ds-auf-aktion'),cs(a).borderTopLeftRadius]),
+menue:!!document.getElementById('seitenkopfMenueKnopf'),karte:karte?cs(karte).borderTopLeftRadius:null,knopf:knopf?cs(knopf).borderTopLeftRadius:null,
+dachtyp:[...document.querySelectorAll('#templateRows tr td:nth-child(2)')].map(t=>t.textContent.trim()),
+leiste:leiste?cs(leiste).color===F('--ds-navi-text'):null}})()""" % FARBE
+
+
+async def _pruefvorlagen(tab, seed, p):
+    """Seit 1.8.174: die Pilotseite Prüfvorlagen."""
+    await tab.anmelden(seed["cookies"][bg.BUERO])
+    for thema in ("hell", "dunkel"):
+        wo = f"Prüfvorlagen {thema}"
+        p.pruefe(f"{wo}: geladen", await _laden(tab, seed, "pruefvorlagen", thema, 1440, 900), True)
+        m = await tab.js(PILOT)
+        p.pruefe(f"{wo}: .ds-seite, Titel 30 px, genau eine grüne Hauptaktion (Schrift auf-aktion, Ecken 10 px), Menü „⋮“",
+                 [m["ds_seite"], m["titel"], m["aktion"], m["menue"]],
+                 [True, ["Prüfvorlagen", "30px"], [["+ Neue Vorlage", True, True, "10px"]], True])
+        p.pruefe(f"{wo}: Karten 12 px, Knöpfe 10 px, Dachtyp ausgeschrieben, Leiste unverändert",
+                 [m["karte"], m["knopf"], m["dachtyp"], m["leiste"]], ["12px", "10px", ["Flachdach"], True])
+        k = await tab.js(KONTRAST)
+        p.pruefe(f"{wo}: Kontrast jedes Texts ({k['anzahl']} Elemente, kleinster {k['min']} : 1)", k["schwach"], [])
+        # Menü „⋮“ per Tastatur, „Archivierte anzeigen“ schaltet um
+        await tab.js("document.getElementById('seitenkopfMenueKnopf').focus()")
+        await _taste(tab, "Enter")
+        offen = await tab.js("[!document.getElementById('seitenkopfMenue').hidden,document.activeElement.id,"
+                             "document.getElementById('seitenkopfMenueKnopf').getAttribute('aria-expanded')]")
+        k_menue = await tab.js(KONTRAST)
+        await _taste(tab, "Enter")
+        nachher = await tab.js("[document.getElementById('seitenkopfMenue').hidden,"
+                               "document.getElementById('archivierteUmschalten').textContent]")
+        p.pruefe(f"{wo}: Menü per Enter offen (Fokus auf „Archivierte anzeigen“), Enter schaltet um und schließt",
+                 [offen, nachher], [[True, "archivierteUmschalten", "true"], [True, "Archivierte ausblenden"]])
+        p.pruefe(f"{wo}: Kontrast mit offenem Menü (kleinster {k_menue['min']} : 1)", k_menue["schwach"], [])
+        # Kontomenü: „Mein Konto“ nicht in Linkfarbe
+        await tab.js("document.getElementById('appTopbarAccountBtn').click()")
+        p.pruefe(f"{wo}: „Mein Konto“ im Kontomenü in Textfarbe, nicht Linkfarbe", await tab.js(
+            f"getComputedStyle(document.querySelector('#appTopbarAccountMenu a')).color==={FARBE}('--ds-text')"), True)
+        await _taste(tab, "Escape")
+        # Editor offen
+        await tab.js("document.querySelector('[data-klick=\"neue-vorlage\"]').click()")
+        k_editor = await tab.js(KONTRAST)
+        p.pruefe(f"{wo}: Editor offen, Fokus im Feld, Kontrast (kleinster {k_editor['min']} : 1)",
+                 [await tab.js("document.activeElement.id"), k_editor["schwach"]], ["editLabel", []])
+        p.pruefe(f"{wo}: keine JS-Fehler", tab.fehler, [])
+    p.pruefe("Prüfvorlagen 412 px: geladen", await _laden(tab, seed, "pruefvorlagen", "hell", 412, 900), True)
+    k = await tab.js(KONTRAST)
+    p.pruefe(f"Prüfvorlagen 412 px: Kontrast (kleinster {k['min']} : 1), kein waagrechter Bildlauf",
+             [k["schwach"], await tab.js("document.documentElement.scrollWidth<=innerWidth+1")], [[], True])
+
+
 async def _seitenregeln(tab, seed, p):
     """Die Einstellungen färben button:hover und button:active in der Akzentfarbe (Spezifität 0,1,1) -- im Kopf darf das nicht ankommen.
     :active ohne :hover gibt es beim Drücken per Leertaste: dann zählt allein die Spezifität der Regel des Kopfs."""
@@ -396,7 +470,7 @@ async def _monteurskopf(tab, seed, p):
 
 
 TEILE = {"seitenleiste": _seitenleiste, "aktiv": _aktiv, "schrift": _schrift, "menueknopf": _menueknopf, "kopfzeile": _kopfzeile,
-         "kontomenue": _kontomenue, "vollname": _vollname, "seitenregeln": _seitenregeln, "monteurskopf": _monteurskopf}
+         "kontomenue": _kontomenue, "vollname": _vollname, "pruefvorlagen": _pruefvorlagen, "seitenregeln": _seitenregeln, "monteurskopf": _monteurskopf}
 NUR: list = []
 
 

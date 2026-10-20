@@ -1389,3 +1389,59 @@ Grundlage: der Befund `docs/archiv/befund-rahmen.md`. Die Entscheidungen oben ge
 #### Festlegungen 1.8.173 (Bitte bestätigen)
 
 1. **Prüfsumme beim Start**, nicht je Anfrage -- die Dateien ändern sich nur mit einem Deploy, und `update.sh` startet neu.
+
+### Punkt 4 (1.8.174): Pilot Prüfvorlagen
+
+- `inspection_templates.html` ist die erste umgezogene Seite (`UMGEZOGEN` in `test_v441`):
+  - `<body class="ds-seite">` -- Schrift, Farben und Felder aus `ds-basis.css`.
+  - **Seitenkopf** über `teile/seitenkopf.html` (Variante Liste): Titel „Prüfvorlagen“ 30 px, Untertitel, genau eine grüne Hauptaktion
+    „+ Neue Vorlage“ (`.ds-knopf-aktion`), im Menü „⋮“ „Archivierte anzeigen/ausblenden“ (bis dahin ein Häkchen im Kopf); Skript
+    `_seitenkopf.html`.
+  - **Eigene Farben nur über `--ds-*`**: Karten `--ds-flaeche`/`--ds-linie` mit 12 px Ecken, Knöpfe `.ds-knopf`/`.ds-knopf-aktion` mit
+    10 px Ecken, Felder 40 px hoch, Tabellenköpfe `--ds-text-2`, Hinweise `--ds-text-2`, Fehler `--ds-fehler-text`. Die Akzentfarbe aus
+    den Einstellungen färbt die Seite nicht mehr (kein `--accent` mehr); im `:root` bleiben nur `--danger`, `--danger-soft`,
+    `--warning`, `--warning-soft` -- auf `--ds-*` gelegt, für `_speichern.html` (Hinweise „Seite neu laden“, „Anmeldung abgelaufen“).
+  - Abschnitte „Standardvorlage je Dachtyp“ und „Vorlagen“ als Karten mit Überschrift; archivierte Zeilen in `--ds-text-2` statt halber
+    Deckkraft; „Archivieren“ je Zeile über `data-klick` statt Werten im `onclick` (zwei Einträge weniger in `AUSNAHMEN_HANDLER`).
+  - **Dachtyp ausgeschrieben**: die Liste der Vorlagen zeigt den Namen aus der Auswahlliste (bis dahin den gespeicherten Wert), auch bei
+    anderer Schreibweise -- die Testdaten der Bildgrundlage speichern „flachdach“, das Programm selbst die Werte der Auswahlliste
+    („Flachdach“, Migration `09b654357a58`).
+- **`ds-basis.css` korrigiert** (erst jetzt wirksam, die Prüfvorlagen sind die erste Seite mit `.ds-seite`): die Regeln für `a` und
+  `button` gelten nur für Elemente ohne Klasse (`:not([class])`). Ein Element unter `.ds-seite` (Spezifität 0,1,1) wog mehr als eine
+  Klasse (0,1,0): `.ds-seite a` hätte Einträge der Leiste und „Mein Konto“ im Kontomenü in Linkfarbe gesetzt, `color:inherit` dem grünen
+  Knopf die weiße Schrift genommen (gemessen in der Gegenprobe: 3,00 : 1).
+- **Kontrast der Seite** (Klicktest, jeder sichtbare Text gegen seinen tatsächlichen Hintergrund, 4,5 : 1, großer Text 3 : 1): kleinster
+  Wert hell 5,73 : 1, dunkel 4,71 : 1 -- auch mit offenem Menü „⋮“ und offenem Editor, bei 412 px ohne waagrechten Bildlauf.
+
+#### Tests und Prüfung
+
+- `test_v441::test_grundregeln_fuer_a_und_button_nur_ohne_klasse` (neu), `UMGEZOGEN` mit der Seite.
+- `klicktest_rahmen` Teil `pruefvorlagen` (neu): `.ds-seite`, Titel 30 px, genau eine grüne Hauptaktion mit Schrift auf-aktion und 10 px
+  Ecken, Menü per Tastatur mit Umschalten, Karten 12 px, Knöpfe 10 px, „Flachdach“, Leiste in navi-text, „Mein Konto“ in Textfarbe,
+  Editor mit Fokus im Feld, Kontrast in drei Zuständen hell und dunkel, 412 px. 20 von 20; mit den Teilen `kontomenue` und
+  `seitenleiste` 112 von 112.
+- **Gegenproben** (pytest und Klicktest): `a` wieder ohne `:not([class])` (Leiste in Linkfarbe, 18 von 20); `button` wieder ohne
+  `:not([class])` (dunkle Schrift auf dem grünen Knopf, Kontrast 3,00 bzw. 4,00, 11 von 20); Seite ohne `.ds-seite` (Titel im
+  Dunkelmodus 1,18 : 1, 15 von 20); Dachtyp wieder als gespeicherter Wert (18 von 20); Hinweistext mit zu wenig Kontrast (1,57 : 1,
+  13 von 20) -- 5 von 5 rot, Dateien byte-genau zurück.
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v441::UMGEZOGEN`: alt leer (keine Seite mit `.ds-seite`), neu `{"inspection_templates.html"}`.
+  - `test_v407::AUSNAHMEN_HANDLER`: die zwei Einträge `inspection_templates.html | row | onclick: !t.archived` und `… onclick: t.id`
+    gestrichen (Liste darf nur kürzer werden; jetzt 364 -- CLAUDE.md nannte noch 373).
+
+#### Nebenbefund
+
+- Die Testdaten der Bildgrundlage legen die Prüfvorlage mit `roof_type="flachdach"` an, das Programm speichert die Werte der Auswahlliste
+  („Flachdach“). Ob die Detailseite einer Prüfvorlage einen so geschriebenen Wert in ihrer Auswahl vorwählt, ist nicht untersucht -- bei
+  ihrem Umzug prüfen. Die Testdaten bleiben, wie sie sind (sie steuern auch die Vorlage im Einsatzbericht).
+
+#### Festlegungen 1.8.174 (Bitte bestätigen)
+
+1. **„Archivierte anzeigen“ ins Menü „⋮“** als einziger Eintrag (Text wechselt auf „Archivierte ausblenden“), statt eines Häkchens.
+2. **Abschnitte als Karten mit Überschrift** („Standardvorlage je Dachtyp“ mit Hinweis, „Vorlagen“).
+3. **„Anlegen“ im Editor grün** (Hauptaktion des Formulars, nur sichtbar, solange der Editor offen ist), „Abbrechen“ und „Archivieren“
+   neutral.
+4. **Archivierte Zeilen in `--ds-text-2`** statt halber Deckkraft (Kontrast).
+5. **Grundregeln für `a` und `button` nur ohne Klasse** -- gilt für jede weitere umgezogene Seite.
+6. **Alte Namen nur noch für `_speichern.html`** (`--danger`/`--warning` im `:root` der umgezogenen Seite, auf `--ds-*` gelegt), bis der
+   Baustein selbst umzieht; `color-scheme` bleibt auf der Seite.

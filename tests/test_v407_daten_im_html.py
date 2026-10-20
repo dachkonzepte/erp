@@ -87,8 +87,6 @@ AUSNAHMEN_HANDLER = {
     'inspection_template.html | itemRow | onblur: item.id': 7,
     'inspection_template.html | itemRow | onchange: item.id': 4,
     'inspection_template.html | itemRow | onclick: item.id': 1,
-    'inspection_templates.html | row | onclick: !t.archived': 1,
-    'inspection_templates.html | row | onclick: t.id': 1,
     'invoice_detail.html | allocationHtml | onclick: a.id': 2,
     'invoice_detail.html | chargeHtml | onclick: c.id': 2,
     'invoice_detail.html | chargesEditorHtml | onchange: prefix': 1,

@@ -1,7 +1,8 @@
 """Stufe 2 „Rahmen“, Runde 1, Teil 1 (1.8.161): der Baustein ohne sichtbare Änderung.
 
     ds-basis.css   Grundregeln für Schrift und Steuerelemente, jede Regel nur unter .ds-seite, keine --ds-*-Werte, keine At-Regeln, kein
-                   !important; über _ds_kopf.html auf jeder Seite geladen; noch keine Seite trägt .ds-seite (UMGEZOGEN)
+                   !important; über _ds_kopf.html auf jeder Seite geladen; .ds-seite tragen die Seiten in UMGEZOGEN (seit 1.8.174
+                   die Prüfvorlagen als Pilot)
     Makro          teile/seitenkopf.html: Pfad, Kennung, genau ein h1, Status, Untertitel, Hauptaktion, Menü „⋮“ mit aria; Makro-Regel
     Skript         seitenkopf() (_seitenkopf.html) und dsMenue() (_menue.html) in node: Text nur als Text, Links über sichererLink(),
                    Status-Art aus fester Liste; Menü nach dem Muster „Menu Button“ (Tastatur, aria, schließen)
@@ -29,7 +30,7 @@ DS_BASIS = STATIC_DIR / "ds" / "ds-basis.css"
 BEREICHE = {"start", "aufgaben", "kalender", "anfragen", "projekte", "plantafel", "checklisten", "wartungen", "befunde", "finanzen",
             "mahnwesen", "eingangsrechnungen", "betriebskosten", "zeiterfassung", "backoffice", "stammdaten", "einstellungen", "keiner"}
 # Seiten, die auf das Design-System umgezogen sind (<body class="… ds-seite …">) -- wird mit jedem Umzug länger
-UMGEZOGEN: set[str] = set()
+UMGEZOGEN: set[str] = {"inspection_templates.html"}  # seit 1.8.174 (Pilot)
 
 
 # ---------------------------------------------------------------------------
@@ -90,7 +91,7 @@ def test_ds_basis_ist_eine_design_datei_und_auf_jeder_seite_geladen():
 
 
 def test_umgezogen_heisst_ds_seite_am_body():
-    """Eine Seite schaltet beim Umzug um: <body class="… ds-seite …">. Noch keine (Teil 1 ändert nichts sichtbar)."""
+    """Eine Seite schaltet beim Umzug um: <body class="… ds-seite …">. Seit 1.8.174 die Prüfvorlagen (bis dahin keine)."""
     mit = {name for name in vj.seiten() if re.search(r"<body[^>]*class=\"[^\"]*\bds-seite\b", vj.zusammensetzen(name)[0])}
     assert mit == UMGEZOGEN
 
@@ -327,3 +328,16 @@ def test_jede_seite_markiert_ihren_bereich(threaded_db_session, router_test_clie
         assert aktiv == ([] if bereich == "keiner" else [bereich]) and nav.count('aria-current="page"') == len(aktiv), (a.vorlage, aktiv)
         geprueft.add(a.vorlage)
     assert len(geprueft) == 42
+
+
+def test_grundregeln_fuer_a_und_button_nur_ohne_klasse():
+    """Seit 1.8.174 (Pilot): in ds-basis.css gelten Regeln für a und button nur für Elemente ohne Klasse -- sonst überstimmte ein Element
+    unter .ds-seite (0,1,1) die Klassen der Bausteine (0,1,0): Linkfarbe in Leiste und Kontomenü, keine weiße Schrift auf dem grünen
+    Knopf. Im Browser misst klicktest_rahmen (Teil pruefvorlagen) Leiste, Kontomenü und Knopf auf der Pilotseite."""
+    text = re.sub(r"/\*.*?\*/", "", (ROOT / "app" / "static" / "ds" / "ds-basis.css").read_text(encoding="utf-8"), flags=re.S)
+    for selektoren in re.findall(r"([^{}]+)\{", text):
+        for sel in (s.strip() for s in selektoren.split(",")):
+            letzter = re.split(r"[\s>+~]+", sel)[-1]
+            if re.match(r"(a|button)(?![\w-])", letzter):
+                assert ":not([class])" in letzter, sel
+

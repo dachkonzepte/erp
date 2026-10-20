@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.173** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.174** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -338,6 +338,9 @@ Behoben, drei Teile:
   `app/static/ds/ds-basis.css`, nur unter `.ds-seite` (die Seite setzt die Klasse beim Umzug an ihr `<body>`); gemeinsamer Seitenkopf als
   Makro `teile/seitenkopf.html` mit `_seitenkopf.html` (`seitenkopf()`), Menüs über `_menue.html` (`dsMenue()`). Jede Seite mit Leiste
   beginnt mit `{% set bereich = "…" -%}` -- die Leiste markiert danach ihren Eintrag (seit 1.8.162); Wächter `tests/test_v441_rahmen_baustein.py`.
+  **Umgezogen** (`UMGEZOGEN` dort): seit 1.8.174 die Prüfvorlagen als Pilot -- `.ds-seite` am `<body>`, Seitenkopf über das Makro, eigene
+  Farben nur über `--ds-*` (keine Akzentfarbe mehr), die alten Namen `--danger`/`--warning` im `:root` nur noch für `_speichern.html`;
+  in `ds-basis.css` gelten Regeln für `a` und `button` nur ohne Klasse (`:not([class])`), sonst überstimmen sie Bausteine und Rahmen.
 
 ## Kritische, nicht verhandelbare Regeln
 
@@ -780,7 +783,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     keinen Wert ein: das Element trägt `data-klick`/`data-aenderung`/`data-eingabe` und seine Werte als data-Attribute (mit esc()), die
     Seite meldet `aktion('name', el => …)` an (`_aktionen.html`, liest `el.dataset` -- immer Text). Ein href/src/Navigation aus Daten geht
     über `sichererLink()`/`sichereBildquelle()` (`_links.html`) oder beginnt mit einem festen lokalen Pfad, mailto:, tel: oder http(s)://.
-    `tests/test_v407_daten_im_html.py` prüft alle drei über alle Vorlagen; die Ausnahmelisten (Changelog; 373 Handler mit Zahlen/IDs) dürfen
+    `tests/test_v407_daten_im_html.py` prüft alle drei über alle Vorlagen; die Ausnahmelisten (Changelog; 364 Handler mit Zahlen/IDs) dürfen
     nur kürzer werden. Details: `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.102".
 
 33. **Schreibende Anfragen nur von einer Seite des ERP, kein Einrahmen, Secure und HSTS, seit 1.8.104.** Die Anmeldeschranke lehnt
@@ -1932,7 +1935,7 @@ zufällig (`app/audit.py`, `session.dirty`), deshalb setzt `befuellen()` den Pro
 - ~~Befund 1.8.100 Sicherheit der Seiten~~ -- seit 1.8.104 alle zwölf Lücken geschlossen (Regeln 31–33), `tests/test_v405_befund_seiten.py`
   ohne xfail. HSTS setzt seit 1.8.107 die Anwendung; offen bleibt, ob Nginx den Host weitergibt (für Tablets ohne `Sec-Fetch-Site`) und
   ob es HSTS zusätzlich setzt -- Betreiberprüfung, `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.104" und "Umsetzung 1.8.107".
-- **373 on…-Attribute mit Zahlen und IDs** stehen in `AUSNAHMEN_HANDLER` (`tests/test_v407_daten_im_html.py`, Regel 32): kein Text mehr,
+- **364 on…-Attribute mit Zahlen und IDs** stehen in `AUSNAHMEN_HANDLER` (`tests/test_v407_daten_im_html.py`, Regel 32): kein Text mehr,
   aber dasselbe Muster -- Abbau auf data-Attribute bei Gelegenheit, die Liste darf nur kürzer werden.
 - **`client_uuid` am Einsatzbericht ist nicht idempotent -- Pflicht vor Checklisten-Stufe 3
   (offline)** (gefunden beim Checklisten-Befund, 29.09.2026): `InspectionItem`/`Finding`/

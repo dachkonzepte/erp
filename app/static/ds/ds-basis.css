@@ -9,6 +9,14 @@
    bleibt unverändert. Hier stehen keine --ds-*-Werte (die setzt nur
    ds.css), keine At-Regeln, kein !important (Wächter:
    tests/test_v441_rahmen_baustein.py). Regel 37 für ds.css bleibt.
+
+   Seit 1.8.174 (Pilot Prüfvorlagen, die erste Seite mit .ds-seite): die
+   Regeln für a und button gelten nur für Elemente ohne eigene Klasse
+   (:not([class])). Ein Element unter .ds-seite (Spezifität 0,1,1) wiegt
+   mehr als eine Klasse (0,1,0) -- sonst färbte .ds-seite a die Einträge
+   der Leiste und „Mein Konto“ im Kontomenü in Linkfarbe, und
+   color:inherit nähme dem grünen Knopf (.ds-knopf-aktion) die weiße
+   Schrift.
    ===================================================================== */
 
 .ds-seite {
@@ -32,7 +40,7 @@
   color: var(--ds-text);
 }
 
-.ds-seite button,
+.ds-seite button:not([class]),
 .ds-seite input,
 .ds-seite select,
 .ds-seite textarea {
@@ -49,22 +57,22 @@
   color: var(--ds-text);
 }
 
-.ds-seite button {
+.ds-seite button:not([class]) {
   border-radius: var(--ds-ecke-feld);
 }
 
 .ds-seite.ds-tablet input,
 .ds-seite.ds-tablet select,
 .ds-seite.ds-tablet textarea,
-.ds-seite.ds-tablet button {
+.ds-seite.ds-tablet button:not([class]) {
   border-radius: var(--ds-ecke-tablet-feld);
 }
 
-.ds-seite a {
+.ds-seite a:not([class]) {
   color: var(--ds-link);
 }
 
-.ds-seite a:hover {
+.ds-seite a:not([class]):hover {
   color: var(--ds-link-hover);
 }
 
