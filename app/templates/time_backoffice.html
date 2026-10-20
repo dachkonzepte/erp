@@ -57,7 +57,7 @@ const NUR_ADMIN_BUCHUNG='Fremde Buchungen und Buchungen im abgeschlossenen Zeitr
 const NUR_ADMIN_ANTRAG='Genehmigen oder Ablehnen dürfen nur Administratoren.';
 const NUR_ADMIN_OEFFNEN='Einen abgeschlossenen Zeitraum wieder öffnen darf nur ein Administrator.';
 // Anträge anderer liest nur der Admin (app/routers/absence_requests.py: sonst nur die eigenen, ohne Mitarbeiter 403).
-const NUR_EIGENE_ANTRAEGE=ICH.mitarbeiter===null?'Ihr Konto ist keinem Mitarbeiter zugeordnet und hat keine eigenen Anträge – die Anträge anderer sieht und entscheidet ein Administrator.':'Hier stehen nur deine eigenen Anträge – die Anträge anderer sieht und entscheidet ein Administrator.';
+const NUR_EIGENE_ANTRAEGE=ICH.mitarbeiter===null?{{ kein_mitarbeiter|tojson }}:'Hier stehen nur deine eigenen Anträge – die Anträge anderer sieht und entscheidet ein Administrator.';
 function darfBuchungAendern(e){return ICH.admin||(ICH.mitarbeiter!==null&&e.employee_id===ICH.mitarbeiter&&!(settings.locked_until&&e.work_date<=settings.locked_until))}
 const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));let entriesGeladen=false,employees=[],entries=[],absence=[],payroll=[],settings={},groups=[],editingEntry=null,timeContext={orders:[]};const editDialog=$('editDialog');
 async function api(url,opt={}){const r=await fetch(url,opt);if(!r.ok){let d={};try{d=await r.json()}catch{}throw Error(d.detail||`${r.status} ${r.statusText}`)}return r.status===204?null:r.json()}

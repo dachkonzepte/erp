@@ -52,7 +52,7 @@ async function init(){
   try{await lesen('einstellungen',()=>api('/api/time-tracking/settings'),s=>{timeSettings=s})}catch(e){console.warn('Zeiterfassungs-Einstellungen konnten nicht geladen werden',e)}
   try{await lesen('kontext',()=>loadContext(initialEmployeeId||null),c=>{ctx=c})}catch(e){
     const isUnlinked=auth.authenticated&&auth.user?.role!=='admin'&&!auth.user?.employee_id;
-    showLoadWarning(isUnlinked?'Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet. Bitte unter Einstellungen → Benutzer & Zugriff einen Mitarbeiter zuordnen lassen.':`Stammdaten konnten nicht vollständig geladen werden: ${e.message}`);
+    showLoadWarning(isUnlinked?{{ kein_mitarbeiter|tojson }}:`Stammdaten konnten nicht vollständig geladen werden: ${e.message}`);
     ctx={employees:[],orders:[],teams:[],current_employee_id:auth.user?.employee_id||null,is_admin:auth.user?.role==='admin'};
     // Fallback nur, wenn die Benutzerzuordnung fachlich eindeutig ist. Ein nicht verknüpfter Standardbenutzer bekommt keine fremden Stammdaten angezeigt.
     if(!isUnlinked){

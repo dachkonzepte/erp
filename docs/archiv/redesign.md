@@ -625,3 +625,50 @@ Festlegung 1.8.155 Nr. 1 (ok mit eigenen Werten) und die Festlegung zum Klicktes
 | `app/tasks.py:202` | Diese Aufgabe ist für Ihre Rolle nicht sichtbar. | Diese Aufgabe ist für deine Rolle nicht sichtbar. |
 | `app/time_tracking.py:419` | Sie gehören nicht zum ausgewählten Team. | Du gehörst nicht zum ausgewählten Team. |
 | `app/time_tracking.py:422` | Sie dürfen nur für Kollegen des ausgewählten Teams mitbuchen. | Du darfst nur für Kollegen des ausgewählten Teams mitbuchen. |
+
+### Punkt 3 (1.8.159): eine Meldung „… keinem Mitarbeiter zugeordnet“
+
+- **Neu an allen 20 Stellen**: „Dein Konto ist keinem Mitarbeiter zugeordnet. Ein Administrator kann das unter Einstellungen → Benutzer und Zugriff ändern.“ -- per Du, mit dem Weg zur Abhilfe (die Benutzerverwaltung kann nur ein Admin öffnen,
+  seit 1.8.134). Bis 1.8.158 neun Fassungen: „Ihr ERP-Benutzer …“ (10), „Ihr ERP-Benutzerkonto …“ (4, zwei davon „-- bitte einen
+  Administrator kontaktieren“), „Ihr Büro-Konto …“ (2), je einmal „Ihr Benutzer … – Aufgaben können nicht angezeigt werden“, „Ihr
+  Benutzer … – Zeit buchen ist nicht möglich“, „Ihr Konto … und hat keine eigenen Anträge …“, „Ihr Konto ist mit keinem Mitarbeiter
+  verknüpft“; drei davon nannten den Menüpunkt noch „Benutzer & Zugriff“ (heute „Benutzer und Zugriff“).
+- **Umsetzung**: `app/meldungen.py::KEIN_MITARBEITER` (neu) -- die 14 Stellen im Server (`app/tasks.py`, `app/time_tracking.py`,
+  `app/routers/absence_requests.py`, `checklists.py`, `field_defects.py`, `field_view.py` ×2, `maintenance_contracts.py`, `time_tracking.py`
+  ×4, `work_preparation.py`) nehmen die Konstante; die 6 Vorlagen (`dashboard.html`, `field_timesheet.html`, `service_reports.html`,
+  `time_backoffice.html`, `time_tracking.html`, `time_tracking_field.html`) den Jinja-Global `kein_mitarbeiter` als
+  `{{ kein_mitarbeiter|tojson }}` (im Dashboard in `esc()`, Regel 32). Was eine Seite zusätzlich sagte („Aufgaben können nicht
+  angezeigt werden“, „hat keine eigenen Anträge – die Anträge anderer sieht ein Administrator“), entfällt -- eine Meldung.
+- **Test** (neu `tests/test_v440_runde_du.py`, alle vorher rot): `test_keine_eigene_fassung_der_meldung` (keine Zeichenkette unter `app/`
+  außer `app/meldungen.py` und keine Vorlage enthält die Meldung selbst; genau die sechs Vorlagen nehmen den Global),
+  `test_seiten_zeigen_die_gemeinsame_meldung` (fünf gezeichnete Seiten tragen sie), `test_server_meldet_die_gemeinsame_meldung`
+  (Zeiterfassung und Monteursansicht als Konto ohne Mitarbeiter: 403/422 mit genau der Meldung). Klicktest `klicktest_backoffice_buero`
+  prüft im Browser genau die neue Meldung (Konto „Fin“ ohne Mitarbeiter): 23/23.
+- **Angepasste Erwartungen** (Regel 28): `tests/test_v100_time_tracking.py::test_time_tracking_ui_loads_core_data_independently_and_auth_exposes_employee_id`
+  -- alt „keinem Mitarbeiter zugeordnet“ im Quelltext von `time_tracking.html`, neu `{{ kein_mitarbeiter|tojson }}`; Klicktest
+  `klicktest_backoffice_buero` -- alt enthält „keinem Mitarbeiter zugeordnet“, neu enthält die ganze neue Meldung.
+
+#### Liste alt → neu (20 Stellen, neu jeweils „Dein Konto ist keinem Mitarbeiter zugeordnet. Ein Administrator kann das unter Einstellungen → Benutzer und Zugriff ändern.“)
+
+| Datei:Zeile | alt |
+|---|---|
+| `app/templates/dashboard.html:87` | Ihr Benutzer ist keinem Mitarbeiter zugeordnet – Aufgaben können nicht angezeigt werden. |
+| `app/templates/field_timesheet.html:125` | Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet. Bitte unter Einstellungen → Benutzer & Zugriff einen Mitarbeiter zuordnen lassen. |
+| `app/templates/service_reports.html:1377` | Ihr Benutzer ist keinem Mitarbeiter zugeordnet – Zeit buchen ist nicht möglich. |
+| `app/templates/time_backoffice.html:60` | Ihr Konto ist keinem Mitarbeiter zugeordnet und hat keine eigenen Anträge – die Anträge anderer sieht und entscheidet ein Administrator. |
+| `app/templates/time_tracking.html:55` | Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet. Bitte unter Einstellungen → Benutzer & Zugriff einen Mitarbeiter zuordnen lassen. |
+| `app/templates/time_tracking_field.html:515` | Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet. Bitte unter Einstellungen → Benutzer & Zugriff einen Mitarbeiter zuordnen lassen. |
+| `app/routers/absence_requests.py:37` | Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet. |
+| `app/routers/checklists.py:99` | Ihr Konto ist mit keinem Mitarbeiter verknüpft. |
+| `app/routers/field_defects.py:42` | Ihr ERP-Benutzerkonto ist keinem Mitarbeiter zugeordnet -- bitte einen Administrator kontaktieren. |
+| `app/routers/field_view.py:121` | Ihr ERP-Benutzerkonto ist keinem Mitarbeiter zugeordnet -- bitte einen Administrator kontaktieren. |
+| `app/routers/field_view.py:221` | Ihr ERP-Benutzerkonto ist keinem Mitarbeiter zugeordnet. |
+| `app/routers/maintenance_contracts.py:212` | Ihr ERP-Benutzerkonto ist keinem Mitarbeiter zugeordnet. |
+| `app/routers/time_tracking.py:46` | Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet. |
+| `app/routers/time_tracking.py:169` | Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet. |
+| `app/routers/time_tracking.py:187` | Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet. |
+| `app/routers/time_tracking.py:311` | Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet. |
+| `app/routers/work_preparation.py:44` | Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet. |
+| `app/tasks.py:167` | Ihr Büro-Konto ist keinem Mitarbeiter zugeordnet. |
+| `app/tasks.py:197` | Ihr Büro-Konto ist keinem Mitarbeiter zugeordnet. |
+| `app/time_tracking.py:412` | Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet. |

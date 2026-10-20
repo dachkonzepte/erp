@@ -26,6 +26,7 @@ from fastapi import Depends, HTTPException, Query, Request, Response
 from sqlalchemy.orm import Session
 
 from ..berlin_time import berlin_now, berlin_today
+from ..meldungen import KEIN_MITARBEITER
 from ..database import get_db
 from ..models import AppUser, TimeEntry, TimeEntryGroup
 from ..permissions import ROLE_FIELD, darf_zeit_fuer_andere_buchen, require_min_role
@@ -43,7 +44,7 @@ def _time_entry_employee_for_request(request: Request, requested_employee_id: in
     user = getattr(request.state, "erp_user", None)
     if not darf_zeit_fuer_andere_buchen(user):  # seit 1.8.152 aus app/permissions.py, dieselbe Regel wie die Oberfläche
         if user.employee_id is None:
-            raise HTTPException(status_code=403, detail="Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet.")
+            raise HTTPException(status_code=403, detail=KEIN_MITARBEITER)
         if requested_employee_id is not None and requested_employee_id != user.employee_id:
             raise HTTPException(status_code=403, detail="Du darfst nur eigene Zeiten erfassen.")
         return user.employee_id
@@ -166,7 +167,7 @@ def _group_actor(request: Request) -> tuple[int | None, bool, int | None]:
     is_admin=bool(user is None or user.role=="admin")
     actor_employee_id=getattr(user,"employee_id",None) if user is not None else None
     if not is_admin and actor_employee_id is None:
-        raise HTTPException(status_code=403,detail="Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet.")
+        raise HTTPException(status_code=403,detail=KEIN_MITARBEITER)
     return actor_employee_id,is_admin,getattr(user,"id",None)
 
 
@@ -184,7 +185,7 @@ def get_time_tracking_context(request: Request, employee_id: int | None = None, 
     include_all = bool(user and user.role == "admin")
     if user is not None and user.role != "admin":
         if user.employee_id is None:
-            raise HTTPException(status_code=403, detail="Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet.")
+            raise HTTPException(status_code=403, detail=KEIN_MITARBEITER)
         resolved = user.employee_id
     if user is not None and user.role == ROLE_FIELD:
         result = field_time_tracking_context(db, resolved)
@@ -308,7 +309,7 @@ def _visible_employee_id(request: Request, employee_id: int | None) -> int | Non
     user = getattr(request.state, "erp_user", None)
     if user is not None and user.role == ROLE_FIELD:
         if user.employee_id is None:
-            raise HTTPException(status_code=403, detail="Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet.")
+            raise HTTPException(status_code=403, detail=KEIN_MITARBEITER)
         return user.employee_id
     return employee_id
 

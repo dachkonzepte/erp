@@ -6,6 +6,7 @@ from sqlalchemy import and_, case, select, func, or_
 from sqlalchemy.orm import Session, selectinload
 
 from .berlin_time import berlin_now
+from .meldungen import KEIN_MITARBEITER
 from .models import (
     Employee, Order, OrderItem, Project, TimeEntry, Team, TeamEmployee,
     TimeEntryGroup, TimeEntryGroupMember,
@@ -409,7 +410,7 @@ def validate_group_members(db: Session, employee_ids: list[int], *, team_id: int
                 raise ValueError("Mindestens ein Mitarbeiter gehört nicht zum ausgewählten Team.")
         return employees
     if actor_employee_id is None:
-        raise ValueError("Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet.")
+        raise ValueError(KEIN_MITARBEITER)
     if actor_employee_id not in ids:
         raise ValueError("Bei einer Gruppenbuchung muss der buchende Mitarbeiter selbst enthalten sein.")
     if team_id is None:

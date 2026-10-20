@@ -42,6 +42,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..berlin_time import berlin_now, berlin_today
+from ..meldungen import KEIN_MITARBEITER
 from .. import sitzungen
 from ..auth import COOKIE_NAME
 from ..dateiauslieferung import datei_antwort
@@ -118,7 +119,7 @@ def get_field_view_today(request: Request, db: Session = Depends(get_db, scope="
     if user.employee_id is None:
         raise HTTPException(
             status_code=422,
-            detail="Ihr ERP-Benutzerkonto ist keinem Mitarbeiter zugeordnet -- bitte einen Administrator kontaktieren.",
+            detail=KEIN_MITARBEITER,
         )
     draft_reports = list_draft_reports_for_employee(db, user.employee_id) if is_module_enabled(db, "wartungen") else []
     return {
@@ -217,7 +218,7 @@ def get_field_view_timesheet_pdf(
     Rahmen, nur für die Spaltenauswahl)."""
     user = getattr(request.state, "erp_user", None)
     if user is None or user.employee_id is None:
-        raise HTTPException(status_code=422, detail="Ihr ERP-Benutzerkonto ist keinem Mitarbeiter zugeordnet.")
+        raise HTTPException(status_code=422, detail=KEIN_MITARBEITER)
     today = berlin_today()
     year = year or today.year
     month = month or today.month

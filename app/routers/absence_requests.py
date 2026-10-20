@@ -10,6 +10,7 @@ from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from ..absence_requests import request_to_dict as absence_request_to_dict, cancel_request as cancel_absence_request_row, create_request as create_absence_request_row, list_requests as list_absence_request_rows, review_request as review_absence_request_row
+from ..meldungen import KEIN_MITARBEITER
 from ..database import get_db
 from ..deps import require_admin
 from ..models import AppUser, EmployeeAbsenceRequest
@@ -34,7 +35,7 @@ def get_absence_requests(request: Request, employee_id: int | None = None, statu
     user=getattr(request.state,"erp_user",None)
     if user is not None and user.role != "admin":
         if user.employee_id is None:
-            raise HTTPException(status_code=403,detail="Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet.")
+            raise HTTPException(status_code=403,detail=KEIN_MITARBEITER)
         employee_id=user.employee_id
     rows=list_absence_request_rows(db,employee_id=employee_id,status=status)
     return [EmployeeAbsenceRequestOut.model_validate(absence_request_to_dict(db,x)) for x in rows]

@@ -20,6 +20,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from ..dateiauslieferung import datei_antwort
+from ..meldungen import KEIN_MITARBEITER
 from ..database import get_db
 from ..defects import (
     AcceptanceFileError, DefectConflict, field_photo, field_report_dict, field_report_replay, field_visible_defect,
@@ -39,8 +40,7 @@ NOT_FOUND = "Mangel nicht gefunden."
 
 def _employee_id(user: AppUser) -> int:
     if user.employee_id is None:
-        raise HTTPException(status_code=422, detail="Ihr ERP-Benutzerkonto ist keinem Mitarbeiter zugeordnet -- bitte "
-                                                    "einen Administrator kontaktieren.")
+        raise HTTPException(status_code=422, detail=KEIN_MITARBEITER)
     return user.employee_id
 
 

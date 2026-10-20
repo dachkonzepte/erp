@@ -17,6 +17,7 @@ from jinja2 import pass_context
 from sqlalchemy.orm import Session
 
 from ..checklist_purposes import DEFAULT_PURPOSE, PURPOSES
+from ..meldungen import KEIN_MITARBEITER
 from ..concern_notices import OPEN_CONCERNS_TEXT
 from ..database import get_db
 from ..deps import require_admin
@@ -32,6 +33,7 @@ router = APIRouter()
 
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
 templates.env.globals["app_version"] = APP_VERSION
+templates.env.globals["kein_mitarbeiter"] = KEIN_MITARBEITER  # seit 1.8.159: eine Meldung für Server und Vorlagen
 
 # Die fuenf Jinja-Globals unten laufen bei JEDER Seitenanfrage (jede Seite bindet _sidebar.html
 # UND seit 1.3.45 _topbar.html ein, die get_theme()/is_module_enabled()/sidebar_logo_url()/

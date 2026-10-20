@@ -108,5 +108,5 @@ def test_time_tracking_ui_loads_core_data_independently_and_auth_exposes_employe
     main=(root/"app/routers/auth.py").read_text(encoding="utf-8")
     assert "safeOptionGroup" in html
     assert "Mitarbeiter-Fallback" in html and "Auftrags-Fallback" in html
-    assert "keinem Mitarbeiter zugeordnet" in html
+    assert "{{ kein_mitarbeiter|tojson }}" in html  # seit 1.8.159 die gemeinsame Meldung (app/meldungen.py) statt eigenem Text
     assert '"employee_id"' in main and "user.employee_id" in main  # exakte Formatierung ist beim Umbau auf 2FA (1.3.34) nicht mehr identisch

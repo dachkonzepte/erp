@@ -122,7 +122,7 @@ function zeigeMonat(list){
 async function init(){
   const auth=await api('/api/auth/status');
   if(!auth.authenticated||!auth.user?.employee_id){
-    showLoadWarning('Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet. Bitte unter Einstellungen → Benutzer & Zugriff einen Mitarbeiter zuordnen lassen.');
+    showLoadWarning({{ kein_mitarbeiter|tojson }});
     return;
   }
   const currentYm=berlinMonth();  // seit 1.8.87 der Berliner Monat

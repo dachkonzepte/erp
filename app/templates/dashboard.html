@@ -84,7 +84,7 @@ function isInquiryClosed(i){return['gewonnen','verloren'].includes(i.status)}
 async function renderMyTasksWidget(container){
   if(!authStatus.authenticated){container.innerHTML='<div class="status err">Bitte zuerst als ERP-Benutzer anmelden.</div>';return}
   const isAdmin=authStatus.user.role==='admin';
-  if(!isAdmin&&!authStatus.user.employee_id){container.innerHTML='<div class="muted small">Ihr Benutzer ist keinem Mitarbeiter zugeordnet – Aufgaben können nicht angezeigt werden.</div>';return}
+  if(!isAdmin&&!authStatus.user.employee_id){container.innerHTML='<div class="muted small">'+esc({{ kein_mitarbeiter|tojson }})+'</div>';return}
   let selectorHtml='';
   if(isAdmin){
     if(selectedTaskEmployeeId===''&&authStatus.user.employee_id)selectedTaskEmployeeId=String(authStatus.user.employee_id);

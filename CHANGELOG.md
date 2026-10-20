@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.159 – Eine Meldung „Dein Konto ist keinem Mitarbeiter zugeordnet“
+
+Runde „Du“, Punkt 3. Die Meldung für ein Konto ohne zugeordneten Mitarbeiter gab es in neun Fassungen an 20 Stellen (14 im Server, sechs in Seiten) -- „Ihr ERP-Benutzer …“, „Ihr ERP-Benutzerkonto …“, „Ihr Büro-Konto …“, „… mit keinem Mitarbeiter verknüpft“, teils mit einem veralteten Menüpunkt. Jetzt überall eine: „Dein Konto ist keinem Mitarbeiter zugeordnet. Ein Administrator kann das unter Einstellungen → Benutzer und Zugriff ändern.“ -- eine Konstante in `app/meldungen.py`, für die Seiten als Jinja-Global. Ein Test hält sie bei dieser einen.
+
 ## 1.8.158 – Oberfläche per Du
 
 Runde „Du“, Punkt 2. Die Oberfläche spricht Nutzer jetzt mit Du an: die 30 Stellen aus dem Befund vom 19.10.2026 ohne die Meldung „… keinem Mitarbeiter zugeordnet“ (die bekommt in 1.8.159 eine gemeinsame Fassung) -- Sperrseite, Hinweise in Checklisten-Vorlage, Dachfläche, Aufgaben, Monteursansicht, Zeiterfassung und Backoffice, Meldungen des Servers („Du darfst …“, „… ist dir nicht zugeordnet“, „für deine Rolle“). Kurz und sachlich, z. B. „Klicken Sie auf die Skizze …“ → „Klick auf die Skizze …“. Kundentexte (Angebote, Rechnungen, Mahnungen, Briefe, E-Mails, PDFs) bleiben beim Sie. Die Liste alt → neu steht im Archiv.

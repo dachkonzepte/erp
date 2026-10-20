@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..dateiauslieferung import gespeicherter_typ
+from ..meldungen import KEIN_MITARBEITER
 from ..database import get_db
 from ..document_categories import resolve_category_id
 from ..models import AppUser, Employee, Order, PlanningSlot, ProjectDocument, Supplier, Team, TeamEmployee, TeamResource, WorkPreparation, WorkPreparationDeliveryNote, WorkPreparationEmployee, WorkPreparationMaterial, WorkPreparationMaterialDeliveryNote, WorkPreparationMaterialSupplier, WorkPreparationTask, WorkPreparationTeamAssignment, WorkPreparationTeamEmployee, WorkPreparationTeamResource
@@ -41,7 +42,7 @@ def get_open_work_preparation_tasks(request: Request, employee_id: int | None = 
     user = getattr(request.state, "erp_user", None)
     if user is not None and user.role != "admin":
         if user.employee_id is None:
-            raise HTTPException(status_code=403, detail="Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet.")
+            raise HTTPException(status_code=403, detail=KEIN_MITARBEITER)
         employee_id = user.employee_id
     return list_open_tasks(db, employee_id=employee_id)
 

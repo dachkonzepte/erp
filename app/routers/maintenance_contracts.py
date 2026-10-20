@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..meldungen import KEIN_MITARBEITER
 from ..deps import require_admin
 from ..models import AppUser
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
@@ -209,7 +210,7 @@ def post_perform_maintenance(contract_id: int, request: Request, db: Session = D
     _require_module_enabled(db)
     if _role.role == ROLE_FIELD:
         if _role.employee_id is None:
-            raise HTTPException(status_code=403, detail="Ihr ERP-Benutzerkonto ist keinem Mitarbeiter zugeordnet.")
+            raise HTTPException(status_code=403, detail=KEIN_MITARBEITER)
         if not field_may_perform_maintenance(db, _role.employee_id, contract_id):
             raise HTTPException(status_code=403, detail="Dieses Objekt ist dir aktuell nicht zugeordnet.")
     try:

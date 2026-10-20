@@ -162,8 +162,10 @@ async def pruefen(tab, seed, p):
     p.pruefe("Fin: keine Anfrage an Buchungskontext und Anträge", [
         tab.netz.suche(r"/api/time-tracking/context", "GET", ab=vorher), tab.netz.suche(r"/api/absence-requests", "GET", ab=vorher)],
         [[], []])
+    # seit 1.8.159 genau die gemeinsame Meldung (app/meldungen.py::KEIN_MITARBEITER)
     p.pruefe("Fin: Hinweis 'keinem Mitarbeiter zugeordnet'", await tab.js(
-        "document.getElementById('absenceDashboard').innerText.includes('keinem Mitarbeiter zugeordnet')"), True)
+        "document.getElementById('absenceDashboard').innerText.includes('Dein Konto ist keinem Mitarbeiter zugeordnet. Ein Administrator "
+        "kann das unter Einstellungen → Benutzer und Zugriff ändern.')"), True)
     await tab.js("showTab('entries')")
     p.pruefe("Fin: alle Buchungen 'nur Admin'", await tab.js(
         "[...document.querySelectorAll('#entryRows tr')].map(tr=>tr.cells[8].innerText.trim())"), ["nur Admin"] * 4)

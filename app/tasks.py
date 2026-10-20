@@ -17,6 +17,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session, selectinload
 
 from .grunddaten import einzelzeile
+from .meldungen import KEIN_MITARBEITER
 from .audit import TASK_ENTITY_TYPE, record_audit_entry
 from .models import AppUser, Employee, Task, TaskChecklistItem, TaskColumn, TaskSettings
 from .zugehoerigkeit import require_project
@@ -164,7 +165,7 @@ def list_tasks_for_user(db: Session, user: AppUser, *, status: str | None = None
         effective_employee_id = employee_id
     else:
         if user.employee_id is None:
-            raise ValueError("Ihr Büro-Konto ist keinem Mitarbeiter zugeordnet.")
+            raise ValueError(KEIN_MITARBEITER)
         effective_employee_id = user.employee_id
     rows = list_tasks(db, employee_id=effective_employee_id, status=status, project_id=project_id,
                        include_archived=include_archived, unassigned_only=unassigned_only, search=search)
@@ -194,7 +195,7 @@ def claim_task(db: Session, task_id: int, user: AppUser) -> dict | None:
     still zu überschreiben. Die Übernahme steht in der Änderungshistorie (Eintrag in derselben
     Transaktion; sichtbar nur für Admin, siehe app/routers/audit.py)."""
     if user.employee_id is None:
-        raise ValueError("Ihr Büro-Konto ist keinem Mitarbeiter zugeordnet.")
+        raise ValueError(KEIN_MITARBEITER)
     task = db.get(Task, task_id)
     if task is None:
         return None

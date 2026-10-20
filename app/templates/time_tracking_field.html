@@ -512,7 +512,7 @@ async function init(){
   let auth=null;
   await lesen('anmeldung',()=>api('/api/auth/status'),a=>{auth=a});
   if(!auth?.authenticated||!auth.user?.employee_id){
-    showLoadWarning('Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet. Bitte unter Einstellungen → Benutzer & Zugriff einen Mitarbeiter zuordnen lassen.');
+    showLoadWarning({{ kein_mitarbeiter|tojson }});
     return;
   }
   myEmployeeId=auth.user.employee_id;

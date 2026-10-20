@@ -1374,7 +1374,7 @@ async function saveReportTimeEntry(){
   try{
   // Seit 1.8.109 im try: die Stunden über _zahl.html, eine abgelehnte Zahl erscheint als Fehler.
   const hours=zahlFeld('teHours');
-  if(!employeeId&&nurFuerSichBuchen()){st.className='status err';st.textContent='Ihr Benutzer ist keinem Mitarbeiter zugeordnet – Zeit buchen ist nicht möglich.';return}
+  if(!employeeId&&nurFuerSichBuchen()){st.className='status err';st.textContent={{ kein_mitarbeiter|tojson }};return}
   if(!employeeId||!workDate||hours===null){st.className='status err';st.textContent='Bitte Mitarbeiter, Datum und Stunden angeben.';return}
   const payload={
     employee_id:Number(employeeId), order_id:orderId, work_date:workDate,

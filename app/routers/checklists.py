@@ -44,6 +44,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ..checklist_email import get_checklist_recipient_email, send_checklist_email
+from ..meldungen import KEIN_MITARBEITER
 from ..checklist_follow_ups import list_checklists_with_open_follow_ups, list_follow_ups, run_checklist_follow_ups
 from ..checklist_pdf import build_checklist_pdf
 from ..checklist_versions import completion_version, list_versions
@@ -96,7 +97,7 @@ def _is_office(role: AppUser) -> bool:
 
 def _require_field_employee(role: AppUser) -> int:
     if role.employee_id is None:
-        raise HTTPException(status_code=403, detail="Ihr Konto ist mit keinem Mitarbeiter verknüpft.")
+        raise HTTPException(status_code=403, detail=KEIN_MITARBEITER)
     return role.employee_id
 
 
