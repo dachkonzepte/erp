@@ -71,26 +71,24 @@ def test_mobile_menu_button_lives_outside_the_aside_it_controls():
     )
 
 
-def test_mobile_menu_button_appears_before_search_slot_and_hidden_on_desktop():
+def test_menu_button_appears_before_search_slot_and_since_1_8_162_also_on_desktop():
+    """Bis 1.8.161 nur unter 1000 px sichtbar. Seit 1.8.162 (Stufe 2 „Rahmen“) auch am Desktop: er klappt dort die Leiste ein und aus
+    (bis dahin der Knopf #appSidebarToggle unten in der Leiste, dessen Platz jetzt nur noch die Version hat)."""
     html = _render()
     btn_idx = html.index('id="appTopbarMenuBtn"')
     slot_idx = html.index('<div class="app-topbar-search-slot">')
     assert btn_idx < slot_idx  # steht links davor, wie verlangt
-    # Standardmäßig (Desktop) unsichtbar -- braucht dort keinen Platz vor der künftigen Suche.
-    assert ".app-topbar-menu-btn{display:none" in html
+    regeln = [r for r in html.split("}") if ".app-topbar-menu-btn{" in r]
+    assert regeln and all("display:none" not in r for r in regeln) and any("display:flex" in r for r in regeln)
 
 
-def test_mobile_menu_button_becomes_visible_at_the_same_breakpoint_as_the_sidebar():
+def test_menu_button_collapses_on_desktop_and_opens_below_the_sidebar_breakpoint():
+    """Derselbe Umbruchpunkt wie die Off-Canvas-Leiste in _sidebar.html (max-width:1000px): schmal öffnet der Knopf die Leiste über dem
+    Inhalt, breit klappt er sie ein und merkt das (localStorage erp_sidebar_collapsed, gelesen in _sidebar.html)."""
     html = _render()
-    # Derselbe Umbruchpunkt wie _sidebar.html's Off-Canvas-Umschaltung (max-width:1000px) --
-    # ein abweichender Wert würde ein Fenster öffnen, in dem der Knopf entweder sichtbar ist,
-    # aber nichts Erreichbares steuert, oder unsichtbar bleibt, während die Sidebar bereits
-    # off-canvas ist. Die Regel schließt mit zwei aufeinanderfolgenden "}" (Regel + @media-Block),
-    # das grenzt den ganzen Block sauber ein, ohne von einzelnen "}" innerhalb verwirrt zu werden.
-    media_start = html.index("@media(max-width:1000px){.app-topbar{")
-    media_block_end = html.index("}}", media_start) + 2
-    media_block = html[media_start:media_block_end]
-    assert ".app-topbar-menu-btn{display:flex}" in media_block
+    assert "@media(max-width:1000px){\n  .app-sidebar{position:fixed" in html
+    assert "window.matchMedia('(max-width:1000px)')" in html
+    assert "classList.toggle('collapsed')" in html and "localStorage.setItem('erp_sidebar_collapsed'" in html
 
 
 def test_mobile_menu_button_toggles_the_same_state_as_the_scrim_and_drawer():
@@ -100,56 +98,36 @@ def test_mobile_menu_button_toggles_the_same_state_as_the_scrim_and_drawer():
     html = _render()
     assert "getElementById('appTopbarMenuBtn')" in html
     assert "classList.toggle('mobile-open')" in html
-    assert "classList.toggle('visible',open)" in html
+    assert "classList.toggle('visible'," in html
 
 
 def test_mobile_menu_button_has_accessible_attributes():
+    """Seit 1.8.162 heißt er "Navigation ein- und ausblenden" (auch am Desktop); aria-expanded zieht das Skript nach (sichtbar = true)."""
     html = _render()
     btn_start = html.index('id="appTopbarMenuBtn"')
     btn_tag_end = html.index(">", btn_start)
     btn_tag = html[html.rindex("<button", 0, btn_start):btn_tag_end]
-    assert 'aria-label="Navigation öffnen"' in btn_tag
+    assert 'aria-label="Navigation ein- und ausblenden"' in btn_tag
     assert 'aria-controls="appSidebar"' in btn_tag
-    assert 'aria-expanded="false"' in btn_tag
+    assert 'aria-expanded="' in btn_tag
 
 
-# ---------------------------------------------------------------------------
-# Die alte Bedienung (#appSidebarToggle) blendet sich unterhalb des
-# Umbruchpunkts aus -- kein Kollabieren im Desktop-Sinn auf Mobilgeräten,
-# nur Auf/Zu, keine zwei Bedienungen für dieselbe Aktion nebeneinander.
-# ---------------------------------------------------------------------------
-
-def test_old_sidebar_toggle_is_hidden_below_the_breakpoint():
+def test_old_sidebar_toggle_is_gone_since_1_8_162():
+    """Bis 1.8.161 klappte #appSidebarToggle unten in der Leiste ein (unter 1000 px ausgeblendet). Seit 1.8.162 gibt es nur noch den
+    Menüknopf der Kopfzeile -- eine Bedienung für dieselbe Aktion."""
     html = _render()
-    mobile_media_start = html.index("@media(max-width:1000px){\n  .app-sidebar{position:fixed")
-    mobile_media_end = html.index("</style>", mobile_media_start)
-    mobile_media = html[mobile_media_start:mobile_media_end]
-    assert ".app-sidebar-toggle{display:none}" in mobile_media
-    # Bewusst NICHT dieselbe Regel wie die 1.3.44-Desktop-Prüfung (die bleibt unverändert
-    # gültig -- dort geht es um das Kollabieren, hier um Mobilgeräte).
-    assert ".app-sidebar.collapsed .app-sidebar-toggle{display:none}" not in html
-
-
-def test_old_sidebar_toggle_click_handler_no_longer_touches_mobile_open():
-    """Der jetzt tote isMobile()-Zweig in #appSidebarToggle's Klick-Handler wurde entfernt --
-    unerreichbar, da das Element selbst display:none ist (siehe Test oben)."""
-    html = _render()
-    handler_start = html.index("toggle.addEventListener('click',function(){")
-    handler_end = html.index("});", handler_start)
-    handler = html[handler_start:handler_end]
-    assert "mobile-open" not in handler
-    assert "collapsed" in handler  # das Desktop-Kollabieren bleibt
+    assert "appSidebarToggle" not in html and "app-sidebar-toggle" not in html
 
 
 # ---------------------------------------------------------------------------
 # Schließen per Klick auf den Hintergrund bleibt bei _sidebar.html -- der
-# neue Knopf synchronisiert dabei nur sein eigenes aria-expanded.
+# Knopf synchronisiert dabei nur sein eigenes aria-expanded.
 # ---------------------------------------------------------------------------
 
 def test_menu_button_aria_expanded_resyncs_on_scrim_click():
+    import re as _re
     html = _render()
-    assert "mobileScrim.addEventListener('click'" in html
-    assert "menuBtn.setAttribute('aria-expanded','false')" in html
+    assert _re.search(r"\w*[sS]crim\.addEventListener\('click',function\(\)\{\s*menuBtn\.setAttribute\('aria-expanded','false'\)", html)
 
 
 # ---------------------------------------------------------------------------

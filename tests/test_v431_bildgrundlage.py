@@ -155,7 +155,7 @@ ERWARTETE_ZUSTAENDE = {
     "menue_offen": ((412, 800), {bg.BUERO, bg.MONTEUR}),
     "leiste_eingeklappt": ((1280, 1440), {bg.BUERO, bg.MONTEUR}),
     "kontomenue_offen": ((1440,), {bg.BUERO, bg.MONTEUR}),
-    "leiste_unten": ((1440,), {bg.BUERO}),  # die Leiste der Monteurin passt ins Fenster (beim Aufnehmen geprüft)
+    # bis 1.8.161 dazu "leiste_unten" fürs Büro -- seit 1.8.162 scrollt die Leiste bei 1440 × 900 nicht mehr (beim Aufnehmen geprüft)
     "leiste": ((1440,), {bg.BUERO_AUFTRAG}),
 }
 
@@ -167,13 +167,13 @@ def test_zustaende_wie_vorgegeben():
         for rolle in z.rollen:
             assert {(b.thema, b.breite, b.aufnahme.name) for b in geplant if b.zustand is z and b.rolle == rolle} == \
                 {(t, w, bg.ZUSTANDSSEITEN[rolle]) for t in bg.THEMEN for w in z.breiten}, (z.name, rolle)
-    assert len(geplant) == 24  # 8 Menü + 8 eingeklappt + 4 Kontomenü + 2 ganz unten + 2 Büro – Auftrag
+    assert len(geplant) == 22  # 8 Menü + 8 eingeklappt + 4 Kontomenü + 2 Büro – Auftrag (bis 1.8.161 dazu 2 ganz unten)
 
 
 def test_dateinamen_eindeutig_und_die_bisherigen_zuerst():
     geplant = bg.geplante_bilder()
     namen = [b.datei for b in geplant]
-    assert len(namen) == len(set(namen)) == 304  # 240 wie bisher + 40 TerraPad + 24 Zustände
+    assert len(namen) == len(set(namen)) == 302  # 240 wie bisher + 40 TerraPad + 22 Zustände (bis 1.8.161: 24)
     assert all("__" not in b.aufnahme.name and (b.zustand is None or "__" not in b.zustand.name) for b in geplant)
     bisher = [b for b in geplant if b.breite in bg.BREITEN and b.zustand is None]
     assert geplant[:len(bisher)] == bisher and len(bisher) == 240, "die bisherigen Bilder entstehen zuerst, in der bisherigen Reihenfolge"
@@ -194,7 +194,7 @@ def _rahmen_kennungen() -> set:
 
 def test_zustandsseiten_zeichnen_den_rahmen_fuer_ihre_rolle(threaded_db_session, router_test_client):
     kennungen = _rahmen_kennungen()
-    assert kennungen == {"appSidebar", "appTopbarMenuBtn", "appSidebarToggle", "appTopbarAccountBtn", "appTopbarAccountMenu"}
+    assert kennungen == {"appSidebar", "appTopbarMenuBtn", "appTopbarAccountBtn", "appTopbarAccountMenu"}  # seit 1.8.162 ohne appSidebarToggle
     for rolle, name in bg.ZUSTANDSSEITEN.items():
         a = bg.AUFNAHME[name]
         client = router_test_client(threaded_db_session, pages_router, role=ROLLE_IM_TEST[rolle], employee_id=1)
@@ -202,7 +202,7 @@ def test_zustandsseiten_zeichnen_den_rahmen_fuer_ihre_rolle(threaded_db_session,
         assert antwort.status_code == 200 and antwort.template.name == a.vorlage, (rolle, name)
         fehlen = sorted(k for k in kennungen if f'id="{k}"' not in antwort.text)
         assert fehlen == [], (rolle, name, fehlen)
-        assert "app-sidebar-nav" in antwort.text  # die Leiste, die "leiste_unten" scrollt
+        assert "app-sidebar-nav" in antwort.text  # die Leiste, deren Bildlauf beim Aufnehmen geprüft wird
 
 
 def test_monteurin_hat_den_rahmen_auf_einsatzbericht_und_konto(threaded_db_session, router_test_client):

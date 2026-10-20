@@ -1,163 +1,74 @@
-{# _sidebar.html -- gemeinsame Navigations-Sidebar, per {% include %} eingebunden.
-   Erwartet: request (von Jinja2Templates automatisch bereitgestellt).
-   Rollenprüfung direkt aus request.state.erp_user -- kein zusätzlicher API-Call,
-   keine Änderung an den Python-Routen nötig.
+{# _sidebar.html -- gemeinsame Navigations-Sidebar, per {% include %} eingebunden. Erwartet: request (von Jinja2Templates
+   bereitgestellt) und bereich (die Seite setzt ihn als erste Anweisung, {% set bereich = "…" -%}; Wächter in
+   tests/test_v441_rahmen_baustein.py). Rollenprüfung über can(current_user, …) (app/routers/pages.py) -- kein Rollenvergleich hier.
 
-   Theming: alle Farben laufen über --sidebar-*/--accent, mit Fallback auf die
-   bisherigen Werte (var(--sidebar-bg, #163a2b) usw.), damit Seiten, die noch
-   nicht auf das neue Token-System umgestellt sind, unverändert im alten
-   dunkelgrünen Look bleiben. Erst wenn eine Seite --sidebar-bg/--accent im
-   eigenen :root selbst definiert (siehe settings.html), greift das neue Theme.
-
-   Firmenlogo/Sidebar-Logo (seit 1.3.38, Anzeigehöhe einstellbar seit 1.3.39, eigener,
-   dedizierter Sidebar-Upload seit 1.3.43, Kopfbereich-Umgestaltung seit 1.3.44 -- siehe
-   CLAUDE.md "Firmenlogo in der Sidebar"/"Umgestaltung der Sidebar"):
-   sidebar_logo_url() (Jinja-Global, app/routers/pages.py) liefert eine URL oder None -- ohne
-   Logo bleibt es beim Schriftzug, eine leere Stelle wäre schlechter als Text. Die "welches
-   Logo"-Entscheidung (Sidebar-Logo -> Firmenlogo -> Schriftzug) liegt bewusst in
-   company_logo.py::sidebar_logo_filename(), nicht hier -- dieser Include kennt nur das Ergebnis
-   (eine URL), nicht die beiden getrennten Ordner/Endpunkte dahinter. Die Höhe kommt per
-   Inline-Style von sidebar_logo_height_px() (Einstellungen -> Unternehmensstammdaten, seit
-   1.3.44 24-120px) -- bewusst NICHT zusätzlich als max-width/max-height auf demselben <img>
-   begrenzt: ein Wrapper (.app-sidebar-logo-wrap, max-width:100% -- seit 1.3.44 die volle
-   verfügbare Kopfbereichsbreite statt vorher fester 200px, da der Kopf sich seither nicht mehr
-   mit den beiden Schaltflächen teilen muss, siehe unten) schneidet ein zu breites Logo
-   stattdessen rechts ab, statt die eingestellte Höhe wieder zu verkleinern -- ein <img> mit
-   sowohl fester Höhe ALS AUCH einer Breitenbegrenzung würde bei einem sehr breiten Logo genau
-   das tun (die CSS-Ersatzelement-Breiten/Höhen-Auflösung verwirft die feste Höhe, sobald
-   max-width eingreift), das war ein real gefundener Fehler in der ersten Fassung (1.3.39). Bei
-   der Vergrößerung auf bis zu 120px seit 1.3.44 gilt dieselbe Regel unverändert weiter -- die
-   Breitenbegrenzung wächst automatisch mit (relativ, nicht fest), sonst würde sie bei einem
-   breiten Logo genau wie damals zuerst greifen. flex:0 0 auto auf dem <img> verhindert
-   zusätzlich, dass Flexbox selbst es verkleinert.
-
-   Eingeklappte Sidebar (60px breit, seit 1.3.44): für das Logo dort eine eigene, feste,
-   kleinere Höhe (32px, per !important, da die konfigurierte Höhe als Inline-Style sonst
-   Vorrang hätte) statt der einstellbaren -- bei 60px Breite ist ohnehin kaum Platz, eine
-   eigene Behandlung ist sinnvoller als die für die volle Breite gedachte Einstellung dort
-   ebenfalls anzuwenden. Der reine Schriftzug-Rückfall (kein Logo hinterlegt) bleibt beim
-   bisherigen Verhalten, komplett ausgeblendet -- für "DACHKONZEPTE" ist bei 60px kein
-   sinnvoller Platz. Beides gilt bewusst nur auf Desktop-Breite (@media(min-width:1001px)):
-   auf Mobilgeräten bedeutet "collapsed" (durch einen Resize ohne Neuladen entstanden, siehe
-   das bestehende @media(max-width:1000px)-Zurücksetzen unten) weiterhin die volle,
-   unveränderte Darstellung.
-
-   Die beiden Kopfzeilen-Schaltflächen (Hell/Dunkel, Ein-/Ausklappen) sind seit 1.3.44 in den
-   unteren Bereich gewandert (.app-sidebar-utilities, direkt über dem Benutzer-/Abmelden-Block)
-   -- der Kopf zeigt seither ausschließlich das Logo, zentriert, mit der vollen Breite. Beide
-   Schaltflächen werden dafür NICHT von renderAuthFoot() (weiter unten im Skript) mitgerendert,
-   sondern bleiben als statisches Jinja-Markup außerhalb von #appSidebarFoot bestehen -- ihre
-   Event-Listener werden dadurch beim Ersetzen von #appSidebarFoot.innerHTML nie zerstört, ein
-   erneutes Binden ist nicht nötig.
-
-   Mobiler Öffnen-Umschalter (seit 1.3.46, echter Fund: siehe CLAUDE.md "Umgestaltung der
-   Sidebar" -> "Schritt 2: Topbar", Nebenbefund): #appSidebarToggle war auf schmalen Bildschirmen
-   nie erreichbar, da er selbst innerhalb dieses <aside> steckt, das im geschlossenen Zustand per
-   transform:translateX(-100%) komplett unsichtbar ist -- die Off-Canvas-Sidebar ließ sich dort
-   also überhaupt nicht öffnen. Der tatsächliche Öffnen-Auslöser sitzt seither in _topbar.html
-   (#appTopbarMenuBtn, außerhalb dieses <aside>, daher auch im geschlossenen Zustand erreichbar).
-   #appSidebarToggle selbst blendet sich deshalb unterhalb des Umbruchpunkts vollständig aus
-   (@media(max-width:1000px) unten) -- er hätte dort ohnehin nur dieselbe Auf/Zu-Aktion wie der
-   neue Knopf ausgelöst, mit einer für "Ein-/Ausklappen" (Desktop-Kollabieren) irreführenden
-   Beschriftung/Ikonografie, da es auf Mobilgeräten kein Kollabieren im Desktop-Sinn gibt, nur
-   Auf/Zu. Zwei verschiedene Bedienungen für dieselbe Aktion nebeneinander wären verwirrender
-   gewesen als eine einzige. Sein Klick-Handler verliert dafür den jetzt toten
-   isMobile()-Zweig -- unerreichbar, da das Element selbst display:none ist, kein Grund, den
-   Code stehen zu lassen.
-
-   Fußbereich aufgeräumt (seit 1.3.49): Benutzername, "Mein Konto" und "Abmelden" sind hier
-   entfernt -- alle drei sind seit Schritt 2 (1.3.45) über den Kontoknopf der Topbar erreichbar
-   (_topbar.html), zwei Stellen für dasselbe hätten nur verwirrt. #appSidebarFoot bleibt als
-   Element bestehen (jetzt IMMER leer gerendert, unabhängig vom Anmeldestatus) -- es wird
-   weiterhin gebraucht, aber nur noch für den einen verbleibenden Fall: eine Sitzung, die
-   während des Browsens abläuft, bekommt dort (ohne Neuladen der Seite) ein kompaktes
-   Anmeldeformular zurück, siehe renderAuthFoot() im Skript unten. Ohne einen einzigen ERP-
-   Benutzer im System (Bootstrap-Fall) bzw. bei einer bestehenden Anmeldung bleibt das Element
-   leer -- .app-sidebar-foot:empty{padding:0} verhindert dabei eine unnötige, gepolsterte
-   Leerstelle zwischen den beiden Schaltflächen und der Versionsnummer. Der eigens dafür
-   geschriebene escHtml()-Helfer und die alte bindLogout()-Funktion sind mit dem Wegfall des
-   serverseitig UND clientseitig gerenderten Benutzernamens/Abmelden-Buttons hier ebenfalls
-   entfernt -- beide hatten sonst keinen Aufrufer mehr. Die Monteursansicht (/vor-ort,
-   _mobile_header.html) hat einen eigenen, komplett unabhängigen Abmelden-Weg (#mobileHeaderLogout,
-   eigene CSS-Klassen ohne app-sidebar-Präfix) und ist von dieser Aufräumung nicht betroffen. #}
+   Seit 1.8.162 (Stufe 2 „Rahmen“, Runde 1, Teil 2; Befund docs/archiv/befund-rahmen.md):
+   - 232 px breit, in beiden Modi dunkel: Farben aus --ds-navi-* (app/static/ds/ds.css), nicht mehr aus den --sidebar-*-Werten der Seite
+     und nicht aus der Akzentfarbe (die färbt die Oberfläche nicht mehr, Entscheidung für Stufe 2).
+   - Logo-Zeile 52 px: Kachel 36 px (Logo der Leiste bzw. Firmenlogo aus sidebar_logo_url(), auf weißer Kachel -- sonst ein Dach auf
+     marke-hell), daneben „DACHKONZEPTE“ / „Rödchen GmbH · ERP“. Die einstellbare Höhe des Logos (sidebar_logo_height_px) wirkt hier
+     nicht mehr: die Kachel ist fest.
+   - Vier Gruppen: Übersicht · Aufträge · Kaufmännisch (mit Zeiterfassung und Backoffice) · Verwaltung (Stammdaten, Einstellungen);
+     eine Überschrift nur, wo die Rolle etwas sieht. Zeilen 36 px, Schrift 14 px, Symbole 18 px; Befunde eingerückt unter Wartungen.
+   - Aktiv ist der Eintrag des Bereichs der Seite (data-bereich == bereich), nicht mehr die genaue Adresse: navi-aktiv mit 3 px Strich
+     links in marke-hell, aria-current="page". Vorher markierten 21 der 42 Seiten keinen Eintrag (alle Detailseiten).
+   - Fuß nur „Version …“. Hell/Dunkel steht im Kontomenü der Kopfzeile, das Ein-/Ausklappen am Menüknopf der Kopfzeile
+     (#appTopbarMenuBtn: am Desktop einklappen, schmal die Leiste öffnen) -- vorher zwei Knöpfe hier unten.
+   - #appSidebarFoot bleibt (leer): eine während des Browsens abgelaufene Sitzung bekommt dort ohne Neuladen ein kompaktes
+     Anmeldeformular (renderAuthFoot() unten, seit 1.3.49); der Zwei-Faktor-Check auf jeder Seite bleibt.
+   - Eingeklappt 60 px: nur Kachel und Symbole. Unter 1000 px liegt die Leiste außerhalb und öffnet über den Menüknopf der Kopfzeile.
+   Die Monteursansicht hat ihren eigenen Kopf (_mobile_header.html) und bindet diese Leiste nicht ein. #}
 {% set current_user = request.state.erp_user %}
-{# Seit "Rechtekonzept" (siehe CLAUDE.md): Rollenprüfung läuft ausschließlich über den
-   can(current_user, ...)-Jinja-Global (app/routers/pages.py) -- kein current_user.role-
-   Vergleich mehr direkt hier, damit nicht doch wieder zwei leicht unterschiedliche Wege
-   entstehen (siehe Kommentar bei can() für die Begründung). #}
-{% set path = request.url.path %}
+{% set _bereich = bereich | default("") %}
 <style>
 .app-layout{display:flex;min-height:100vh}
-.app-sidebar{width:240px;flex:0 0 240px;
-  --_bg:var(--sidebar-bg,#163a2b);--_text:var(--sidebar-text,#ffffff);
-  --_text-dim:var(--sidebar-text-dim,rgba(255,255,255,.88));--_border:var(--sidebar-border,rgba(255,255,255,.18));
-  --_hover:var(--sidebar-hover,rgba(255,255,255,.1));--_active-bg:var(--sidebar-active-bg,rgba(255,255,255,.14));
-  --_active-text:var(--sidebar-active-text,#ffffff);--_active-border:var(--sidebar-active-border,#ffffff);
-  background:var(--_bg);color:var(--_text);display:flex;flex-direction:column;transition:width .15s ease,flex-basis .15s ease;overflow:hidden;position:sticky;top:0;height:100vh;border-right:1px solid var(--_border)
-}
+.app-sidebar{width:232px;flex:0 0 232px;box-sizing:border-box;background:var(--ds-navi-grund);color:var(--ds-navi-text);display:flex;flex-direction:column;overflow:hidden;position:sticky;top:0;height:100vh;font-family:var(--ds-schrift-text);font-size:14px;line-height:1.3;transition:width .15s ease,flex-basis .15s ease}
 .app-sidebar.collapsed{width:60px;flex-basis:60px}
-.app-sidebar-head{display:flex;align-items:center;justify-content:center;padding:20px 14px;border-bottom:1px solid var(--_border);white-space:nowrap;gap:8px}
-.app-sidebar-brand{font-weight:800;letter-spacing:.03em;overflow:hidden}
-.app-sidebar-logo-wrap{max-width:100%;overflow:hidden;display:flex;align-items:center}
-.app-sidebar-logo{width:auto;display:block;flex:0 0 auto}
-.app-sidebar.collapsed .app-sidebar-brand{display:none}
-.app-sidebar-bottom{border-top:1px solid var(--_border)}
-.app-sidebar-utilities{display:flex;align-items:center;gap:6px;padding:10px 14px}
-.app-sidebar-toggle,.app-theme-toggle{background:none;border:1px solid var(--_border);color:var(--_text);width:30px;height:30px;flex:0 0 30px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
-.app-sidebar-toggle:hover,.app-theme-toggle:hover{background:var(--_hover)}
-.app-sidebar-toggle svg,.app-theme-toggle svg{width:15px;height:15px}
-.app-sidebar.collapsed .app-theme-toggle{display:none}
-.app-sidebar-nav{padding:10px;overflow-y:auto;overflow-x:hidden;flex:1}
-.app-sidebar-foot{padding:10px;white-space:nowrap;overflow:hidden}
-.app-sidebar-foot:empty{padding:0}
-.app-sidebar-version{padding:8px 10px 12px;font-size:11px;color:var(--_text-dim);white-space:nowrap;overflow:hidden}
-@media(min-width:1001px){
-  /* Eingeklappte Sidebar (60px): eigene, feste, kleinere Logo-Hoehe statt der einstellbaren --
-     bei so wenig Breite ist die fuer die volle Breite gedachte Einstellung nicht sinnvoll
-     anwendbar. !important, da die konfigurierte Hoehe als Inline-Style sonst Vorrang haette.
-     Nur auf Desktop-Breite wirksam, siehe @media(max-width:1000px) weiter unten. */
-  .app-sidebar.collapsed .app-sidebar-head{padding-left:6px;padding-right:6px}
-  .app-sidebar.collapsed .app-sidebar-logo{height:32px!important}
-  .app-sidebar.collapsed .app-sidebar-utilities{justify-content:center;padding:10px 8px}
-}
-.app-sidebar.collapsed .app-sidebar-version{display:none}
-.app-sidebar-login-status{padding:6px 10px 8px;font-size:12px;color:var(--_text-dim);display:flex;align-items:center;gap:7px}
-.app-sidebar-login-status .dot{width:7px;height:7px;background:#e08a8a;flex:0 0 7px}
-.app-sidebar-login-form{display:flex;flex-direction:column;gap:6px}
-.app-sidebar-login-form input{width:100%;padding:7px 9px;border:1px solid var(--_border);background:color-mix(in srgb,var(--_text) 6%,transparent);color:var(--_text);font:inherit;font-size:13px}
-.app-sidebar-login-form input::placeholder{color:var(--_text-dim)}
-.app-sidebar-login-form button{background:var(--_text);color:var(--_bg);border:0;padding:8px;font-weight:700;cursor:pointer;font-size:13px}
-.app-sidebar-login-error{font-size:11px;color:#ff8f87;min-height:14px}
-.app-sidebar.collapsed .app-sidebar-login-form,.app-sidebar.collapsed .app-sidebar-login-status{display:none}
-.app-sidebar-login-link{display:none}
-.app-sidebar.collapsed .app-sidebar-login-link{display:flex;align-items:center;justify-content:center;color:var(--_text);text-decoration:none;padding:9px 0}
-.app-sidebar-login-link svg{width:17px;height:17px}
-.app-sidebar-link{display:flex;align-items:center;gap:11px;color:var(--_text-dim);text-decoration:none;font-weight:600;font-size:14px;padding:9px 10px 9px 8px;white-space:nowrap;margin-bottom:1px;border-left:2px solid transparent}
-.app-sidebar-link:hover{background:var(--_hover)}
-.app-sidebar-link.active{background:var(--_active-bg);color:var(--_active-text);border-left-color:var(--_active-border)}
-.app-sidebar-icon{flex:0 0 18px;display:inline-flex;align-items:center;justify-content:center}
-.app-sidebar-icon svg,.app-sidebar-toggle svg,.app-sidebar-login-link svg,.app-theme-toggle svg{stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.app-sidebar-head{display:flex;align-items:center;gap:10px;box-sizing:border-box;height:52px;flex:0 0 52px;padding:0 12px;white-space:nowrap;overflow:hidden}
+.app-sidebar-kachel{display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:36px;height:36px;flex:0 0 36px;border-radius:var(--ds-ecke-feld);overflow:hidden;background:var(--ds-marke-hell);color:var(--ds-navi-grund)}
+.app-sidebar-kachel.mit-logo{background:#FFFFFF;padding:3px}
+.app-sidebar-kachel img{display:block;max-width:100%;max-height:100%;object-fit:contain}
+.app-sidebar-kachel svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.app-sidebar-marke{display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.app-sidebar-marke-name{font-family:var(--ds-schrift-titel);font-weight:700;font-size:14px;letter-spacing:.04em;color:var(--ds-navi-text);line-height:1.15}
+.app-sidebar-marke-zusatz{font-size:11.5px;color:var(--ds-navi-leise);line-height:1.25}
+.app-sidebar-nav{padding:4px 8px 4px;overflow-y:auto;overflow-x:hidden;flex:1}
+.app-sidebar-group{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--ds-navi-leise);margin:8px 10px 3px;line-height:14px;white-space:nowrap;overflow:hidden}
+.app-sidebar-nav>.app-sidebar-group:first-child{margin-top:4px}
+.app-sidebar-link{display:flex;align-items:center;gap:10px;box-sizing:border-box;height:36px;margin:0;padding:0 10px 0 9px;border-left:3px solid transparent;color:var(--ds-navi-text);text-decoration:none;font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden}
+.app-sidebar-link:hover{background:var(--ds-navi-aktiv)}
+.app-sidebar-link.active{background:var(--ds-navi-aktiv);border-left-color:var(--ds-marke-hell);color:var(--ds-navi-text)}
+.app-sidebar-link:focus-visible{outline:2px solid var(--ds-marke-hell);outline-offset:-2px}
+.app-sidebar-icon{flex:0 0 18px;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center}
+.app-sidebar-icon svg,.app-sidebar-login-link svg{stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .app-sidebar-icon svg .fdot{fill:currentColor}
 .app-sidebar-icon svg{width:18px;height:18px}
-.app-sidebar.collapsed .app-sidebar-label{display:none}
-.app-sidebar-sub{margin-left:29px;font-size:13px;opacity:.92}
-.app-sidebar.collapsed .app-sidebar-sub{margin-left:0}
-.app-sidebar-group{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:var(--_text-dim);margin:16px 10px 6px;white-space:nowrap;overflow:hidden}
-.app-sidebar-nav>.app-sidebar-group:first-child{margin-top:6px}
-.app-sidebar.collapsed .app-sidebar-group{opacity:0;height:1px;margin:8px 0;overflow:hidden}
+.app-sidebar-sub{padding-left:37px}
+.app-sidebar-bottom{flex:0 0 auto;border-top:1px solid var(--ds-navi-aktiv)}
+.app-sidebar-foot{padding:10px;white-space:nowrap;overflow:hidden}
+.app-sidebar-foot:empty{padding:0}
+.app-sidebar-version{padding:7px 14px 8px;font-size:11.5px;color:var(--ds-navi-leise);white-space:nowrap;overflow:hidden}
+.app-sidebar.collapsed .app-sidebar-marke,.app-sidebar.collapsed .app-sidebar-label,.app-sidebar.collapsed .app-sidebar-version{display:none}
+.app-sidebar.collapsed .app-sidebar-sub{padding-left:9px}
+.app-sidebar.collapsed .app-sidebar-group{opacity:0;height:1px;margin:6px 0;overflow:hidden}
+.app-sidebar-login-status{padding:6px 10px 8px;font-size:12px;color:var(--ds-navi-leise);display:flex;align-items:center;gap:7px}
+.app-sidebar-login-status .dot{width:7px;height:7px;background:var(--ds-fehler);flex:0 0 7px}
+.app-sidebar-login-form{display:flex;flex-direction:column;gap:6px}
+.app-sidebar-login-form input{width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid var(--ds-navi-leise);border-radius:var(--ds-ecke-feld);background:var(--ds-navi-aktiv);color:var(--ds-navi-text);font:inherit;font-size:13px}
+.app-sidebar-login-form input::placeholder{color:var(--ds-navi-leise)}
+.app-sidebar-login-form button{background:var(--ds-aktion);color:var(--ds-auf-aktion);border:0;border-radius:var(--ds-ecke-feld);padding:8px;font:inherit;font-weight:600;cursor:pointer;font-size:13px}
+.app-sidebar-login-error{font-size:11px;color:var(--ds-fehler-text);min-height:14px}
+.app-sidebar.collapsed .app-sidebar-login-form,.app-sidebar.collapsed .app-sidebar-login-status{display:none}
+.app-sidebar-login-link{display:none}
+.app-sidebar.collapsed .app-sidebar-login-link{display:flex;align-items:center;justify-content:center;color:var(--ds-navi-text);text-decoration:none;padding:9px 0}
+.app-sidebar-login-link svg{width:17px;height:17px}
 .app-content{flex:1;min-width:0}
 @media(max-width:1000px){
-  .app-sidebar{position:fixed;top:0;left:0;bottom:0;z-index:40;width:240px;flex-basis:240px;transform:translateX(-100%);transition:transform .15s ease}
+  .app-sidebar{position:fixed;top:0;left:0;bottom:0;z-index:40;width:232px;flex-basis:232px;transform:translateX(-100%);transition:transform .15s ease}
   .app-sidebar.mobile-open{transform:translateX(0)}
-  .app-sidebar.collapsed{width:240px;flex-basis:240px}
-  .app-sidebar.collapsed .app-sidebar-brand,.app-sidebar.collapsed .app-sidebar-label{opacity:1;width:auto;display:flex}
-  .app-sidebar.collapsed .app-theme-toggle{display:flex}
-  /* Seit 1.3.46: kein Kollabieren im Desktop-Sinn auf Mobilgeräten, nur Auf/Zu -- dafür sitzt
-     seither der Umschalter #appTopbarMenuBtn in _topbar.html, erreichbar auch bei geschlossener
-     Sidebar. #appSidebarToggle waere hier ohnehin unerreichbar gewesen (siehe Kommentar oben)
-     und blendet sich deshalb komplett aus, statt zwei Bedienungen fuer dieselbe Aktion
-     nebeneinanderzustellen. */
-  .app-sidebar-toggle{display:none}
+  .app-sidebar.collapsed{width:232px;flex-basis:232px}
+  .app-sidebar.collapsed .app-sidebar-marke,.app-sidebar.collapsed .app-sidebar-version{display:flex}
+  .app-sidebar.collapsed .app-sidebar-label{display:inline}
   .app-sidebar-scrim{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:39}
   .app-sidebar-scrim.visible{display:block}
 }
@@ -166,26 +77,17 @@
   <div class="app-sidebar-head">
     {% set logo_url = sidebar_logo_url() %}
     {% if logo_url %}
-    <span class="app-sidebar-logo-wrap"><img class="app-sidebar-logo" src="{{ logo_url }}" alt="DACHKONZEPTE" style="height:{{ sidebar_logo_height_px() }}px"></span>
+    <span class="app-sidebar-kachel mit-logo"><img class="app-sidebar-logo" src="{{ logo_url }}" alt=""></span>
     {% else %}
-    <span class="app-sidebar-brand">DACHKONZEPTE</span>
+    <span class="app-sidebar-kachel" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 13.5 12 5l9 8.5"/><path d="M6.5 10.5V19h11v-8.5"/></svg></span>
     {% endif %}
+    <span class="app-sidebar-marke"><span class="app-sidebar-marke-name">DACHKONZEPTE</span><span class="app-sidebar-marke-zusatz">Rödchen GmbH · ERP</span></span>
   </div>
   <nav class="app-sidebar-nav">
-    {# Seit 1.8.112 (neue Ordnung, Stufe 1 "Ordnen"): je Gruppe eine Überschrift -- Übersicht, Aufträge, Kaufmännisch, Personal,
-       Stammdaten, System. Nur verschoben und umbenannt ("Planung" heißt "Plantafel", "Mängel" heißt "Befunde"), alle Adressen und
-       Rollenbedingungen wie bisher; das Versandprotokoll steht nicht mehr hier, sondern in Kundenakte, Projektmappe und
-       Einstellungen -> System -> Protokolle. Eine Überschrift erscheint nur, wenn die Rolle in der Gruppe etwas sieht.
-       Die Modul- und Rollenprüfungen stehen deshalb einmal oben (bis 1.8.113 öffnete is_module_enabled() je Aufruf eine Verbindung,
-       seit 1.8.114 liest es die Seitendaten der Anfrage, app/seitendaten.py).
-
-       Seit "Rechtekonzept": Aufgaben bleiben für Monteure gesperrt (heute wird keine Aufgabe an einen Monteur zugewiesen).
-       Seit 1.8.24: Wartungen/Befunde und Anfragen/Projekte/Plantafel nur für Büro/Admin -- vorher landete ein Monteur über diese
-       Links auf access_denied.html; tests/test_v328_navigation_ohne_sperrseiten.py prüft je Rolle jeden Link. Finanzen, Mahnwesen,
-       Stammdaten und Einstellungen sind für einen Monteur nicht vorgesehen -- ausgeblendet, nicht ausgegraut. Betriebskosten und
-       Eingangsrechnungen sind STRENGER gegated (nur buero_finanzen/admin), siehe CLAUDE.md "Rechtekonzept" -> "Vier Rollen".
-       Kalender (Büro-Termine, seit 1.7.0) bleibt getrennt von der Plantafel (Einsatz-/Feldplanung). Checklisten erreichen Monteure
-       ausschließlich über /mobil. #}
+    {# Modul- und Rollenprüfungen einmal oben (seit 1.8.112; is_module_enabled() liest seit 1.8.114 die Seitendaten der Anfrage).
+       Aufgaben bleiben für Monteure gesperrt; Anfragen/Projekte/Plantafel, Wartungen/Befunde, Finanzen, Mahnwesen, Stammdaten und
+       Einstellungen nur für Büro/Admin (tests/test_v328_navigation_ohne_sperrseiten.py prüft je Rolle jeden Link); Betriebskosten und
+       Eingangsrechnungen nur Büro – Finanzen und Admin. Kalender (Büro-Termine) bleibt getrennt von der Plantafel. #}
     {% set sb_buero = can(current_user, 'admin', 'buero_finanzen', 'buero_auftrag') %}
     {% set sb_finanzen = can(current_user, 'admin', 'buero_finanzen') %}
     {% set sb_aufgaben = sb_buero and is_module_enabled('aufgabenmanagement') %}
@@ -195,50 +97,46 @@
     {% set sb_eingang = sb_finanzen and is_module_enabled('buchhaltung') %}
     {% set sb_betriebskosten = sb_finanzen and is_module_enabled('betriebskosten') %}
     <div class="app-sidebar-group">Übersicht</div>
-    <a class="app-sidebar-link{{ ' active' if path == '/' }}" href="/"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9"/><path d="M10 20v-6h4v6"/></svg></span><span class="app-sidebar-label">Start</span></a>
+    <a class="app-sidebar-link{{ ' active' if _bereich == 'start' }}" data-bereich="start" href="/"{% if _bereich == 'start' %} aria-current="page"{% endif %}><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9"/><path d="M10 20v-6h4v6"/></svg></span><span class="app-sidebar-label">Start</span></a>
     {% if sb_aufgaben %}
-    <a class="app-sidebar-link{{ ' active' if path == '/tasks' }}" href="/tasks"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="4.5" y="3.5" width="15" height="17" rx="0"/><polyline points="8,9 9.3,10.3 12,7.6"/><line x1="14" y1="9" x2="16.5" y2="9"/><polyline points="8,15 9.3,16.3 12,13.6"/><line x1="14" y1="15" x2="16.5" y2="15"/></svg></span><span class="app-sidebar-label">Aufgaben</span></a>
+    <a class="app-sidebar-link{{ ' active' if _bereich == 'aufgaben' }}" data-bereich="aufgaben" href="/tasks"{% if _bereich == 'aufgaben' %} aria-current="page"{% endif %}><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="4.5" y="3.5" width="15" height="17" rx="0"/><polyline points="8,9 9.3,10.3 12,7.6"/><line x1="14" y1="9" x2="16.5" y2="9"/><polyline points="8,15 9.3,16.3 12,13.6"/><line x1="14" y1="15" x2="16.5" y2="15"/></svg></span><span class="app-sidebar-label">Aufgaben</span></a>
     {% endif %}
     {% if sb_kalender %}
-    <a class="app-sidebar-link{{ ' active' if path == '/kalender' }}" href="/kalender"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="1"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/><circle class="fdot" cx="8" cy="13.5" r="1"/><circle class="fdot" cx="12" cy="13.5" r="1"/><circle class="fdot" cx="16" cy="13.5" r="1"/><circle class="fdot" cx="8" cy="17.5" r="1"/><circle class="fdot" cx="12" cy="17.5" r="1"/></svg></span><span class="app-sidebar-label">Kalender</span></a>
+    <a class="app-sidebar-link{{ ' active' if _bereich == 'kalender' }}" data-bereich="kalender" href="/kalender"{% if _bereich == 'kalender' %} aria-current="page"{% endif %}><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="1"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/><circle class="fdot" cx="8" cy="13.5" r="1"/><circle class="fdot" cx="12" cy="13.5" r="1"/><circle class="fdot" cx="16" cy="13.5" r="1"/><circle class="fdot" cx="8" cy="17.5" r="1"/><circle class="fdot" cx="12" cy="17.5" r="1"/></svg></span><span class="app-sidebar-label">Kalender</span></a>
     {% endif %}
     {% if sb_buero %}
     <div class="app-sidebar-group">Aufträge</div>
-    <a class="app-sidebar-link{{ ' active' if path == '/inquiries' }}" href="/inquiries"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M4 13h4.5l1.5 2.5h4L15.5 13H20"/><path d="M4 13V6a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v7"/><path d="M4 13v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></svg></span><span class="app-sidebar-label">Anfragen</span></a>
-    <a class="app-sidebar-link{{ ' active' if path == '/projects' }}" href="/projects"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M3.5 7.5a1 1 0 0 1 1-1h4.5l2 2h8.5a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z"/></svg></span><span class="app-sidebar-label">Projekte</span></a>
-    <a class="app-sidebar-link{{ ' active' if path == '/planning' }}" href="/planning"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg></span><span class="app-sidebar-label">Plantafel</span></a>
+    <a class="app-sidebar-link{{ ' active' if _bereich == 'anfragen' }}" data-bereich="anfragen" href="/inquiries"{% if _bereich == 'anfragen' %} aria-current="page"{% endif %}><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M4 13h4.5l1.5 2.5h4L15.5 13H20"/><path d="M4 13V6a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v7"/><path d="M4 13v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></svg></span><span class="app-sidebar-label">Anfragen</span></a>
+    <a class="app-sidebar-link{{ ' active' if _bereich == 'projekte' }}" data-bereich="projekte" href="/projects"{% if _bereich == 'projekte' %} aria-current="page"{% endif %}><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M3.5 7.5a1 1 0 0 1 1-1h4.5l2 2h8.5a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z"/></svg></span><span class="app-sidebar-label">Projekte</span></a>
+    <a class="app-sidebar-link{{ ' active' if _bereich == 'plantafel' }}" data-bereich="plantafel" href="/planning"{% if _bereich == 'plantafel' %} aria-current="page"{% endif %}><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15"/><line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg></span><span class="app-sidebar-label">Plantafel</span></a>
     {% if sb_checklisten %}
-    <a class="app-sidebar-link{{ ' active' if path.startswith('/checklisten') }}" href="/checklisten"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="5" y="3.5" width="14" height="17"/><line x1="9" y1="3.5" x2="15" y2="3.5"/><polyline points="8,9.5 9.3,10.8 11.5,8.6"/><line x1="13" y1="9.7" x2="16" y2="9.7"/><polyline points="8,15 9.3,16.3 11.5,14.1"/><line x1="13" y1="15.2" x2="16" y2="15.2"/></svg></span><span class="app-sidebar-label">Checklisten</span></a>
+    <a class="app-sidebar-link{{ ' active' if _bereich == 'checklisten' }}" data-bereich="checklisten" href="/checklisten"{% if _bereich == 'checklisten' %} aria-current="page"{% endif %}><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="5" y="3.5" width="14" height="17"/><line x1="9" y1="3.5" x2="15" y2="3.5"/><polyline points="8,9.5 9.3,10.8 11.5,8.6"/><line x1="13" y1="9.7" x2="16" y2="9.7"/><polyline points="8,15 9.3,16.3 11.5,14.1"/><line x1="13" y1="15.2" x2="16" y2="15.2"/></svg></span><span class="app-sidebar-label">Checklisten</span></a>
     {% endif %}
     {% if sb_wartungen %}
-    <a class="app-sidebar-link{{ ' active' if path == '/maintenance-contracts' }}" href="/maintenance-contracts"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><circle cx="7" cy="7" r="3"/><line x1="9.5" y1="9.5" x2="17" y2="17"/><polyline points="15,15 17,13 19,15 17,17"/></svg></span><span class="app-sidebar-label">Wartungen</span></a>
-    <a class="app-sidebar-link app-sidebar-sub{{ ' active' if path == '/findings' }}" href="/findings"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M12 3.5 4.5 18h15z"/><line x1="12" y1="9" x2="12" y2="13.5"/><circle class="fdot" cx="12" cy="16" r="0.9"/></svg></span><span class="app-sidebar-label">Befunde</span></a>
+    <a class="app-sidebar-link{{ ' active' if _bereich == 'wartungen' }}" data-bereich="wartungen" href="/maintenance-contracts"{% if _bereich == 'wartungen' %} aria-current="page"{% endif %}><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><circle cx="7" cy="7" r="3"/><line x1="9.5" y1="9.5" x2="17" y2="17"/><polyline points="15,15 17,13 19,15 17,17"/></svg></span><span class="app-sidebar-label">Wartungen</span></a>
+    <a class="app-sidebar-link app-sidebar-sub{{ ' active' if _bereich == 'befunde' }}" data-bereich="befunde" href="/findings"{% if _bereich == 'befunde' %} aria-current="page"{% endif %}><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M12 3.5 4.5 18h15z"/><line x1="12" y1="9" x2="12" y2="13.5"/><circle class="fdot" cx="12" cy="16" r="0.9"/></svg></span><span class="app-sidebar-label">Befunde</span></a>
+    {% endif %}
     {% endif %}
     <div class="app-sidebar-group">Kaufmännisch</div>
-    <a class="app-sidebar-link{{ ' active' if path == '/finanzen' }}" href="/finanzen"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M16.5 7.2a5.8 5.8 0 1 0 0 9.6"/><line x1="6" y1="10.5" x2="14" y2="10.5"/><line x1="6" y1="13.5" x2="13" y2="13.5"/></svg></span><span class="app-sidebar-label">Finanzen</span></a>
-    <a class="app-sidebar-link{{ ' active' if path == '/mahnwesen' }}" href="/mahnwesen"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="13"/><polyline points="3.7,6 12,13 20.3,6"/></svg></span><span class="app-sidebar-label">Mahnwesen</span></a>
+    {% if sb_buero %}
+    <a class="app-sidebar-link{{ ' active' if _bereich == 'finanzen' }}" data-bereich="finanzen" href="/finanzen"{% if _bereich == 'finanzen' %} aria-current="page"{% endif %}><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M16.5 7.2a5.8 5.8 0 1 0 0 9.6"/><line x1="6" y1="10.5" x2="14" y2="10.5"/><line x1="6" y1="13.5" x2="13" y2="13.5"/></svg></span><span class="app-sidebar-label">Finanzen</span></a>
+    <a class="app-sidebar-link{{ ' active' if _bereich == 'mahnwesen' }}" data-bereich="mahnwesen" href="/mahnwesen"{% if _bereich == 'mahnwesen' %} aria-current="page"{% endif %}><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="13"/><polyline points="3.7,6 12,13 20.3,6"/></svg></span><span class="app-sidebar-label">Mahnwesen</span></a>
     {% if sb_eingang %}
-    <a class="app-sidebar-link{{ ' active' if path == '/eingangsrechnungen' }}" href="/eingangsrechnungen"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="4" y="3.5" width="16" height="17" rx="0.5"/><line x1="7.5" y1="8" x2="16.5" y2="8"/><line x1="7.5" y1="11.5" x2="16.5" y2="11.5"/><line x1="7.5" y1="15" x2="13" y2="15"/></svg></span><span class="app-sidebar-label">Eingangsrechnungen</span></a>
+    <a class="app-sidebar-link{{ ' active' if _bereich == 'eingangsrechnungen' }}" data-bereich="eingangsrechnungen" href="/eingangsrechnungen"{% if _bereich == 'eingangsrechnungen' %} aria-current="page"{% endif %}><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="4" y="3.5" width="16" height="17" rx="0.5"/><line x1="7.5" y1="8" x2="16.5" y2="8"/><line x1="7.5" y1="11.5" x2="16.5" y2="11.5"/><line x1="7.5" y1="15" x2="13" y2="15"/></svg></span><span class="app-sidebar-label">Eingangsrechnungen</span></a>
     {% endif %}
     {% if sb_betriebskosten %}
-    <a class="app-sidebar-link{{ ' active' if path == '/betriebskosten' }}" href="/betriebskosten"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M17 5.5c0-1.8-2.2-2.8-5-2.8s-5 1.2-5 3c0 4 10 2 10 6.3 0 1.8-2.2 3-5 3s-5-1-5-2.8"/></svg></span><span class="app-sidebar-label">Betriebskosten</span></a>
+    <a class="app-sidebar-link{{ ' active' if _bereich == 'betriebskosten' }}" data-bereich="betriebskosten" href="/betriebskosten"{% if _bereich == 'betriebskosten' %} aria-current="page"{% endif %}><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M17 5.5c0-1.8-2.2-2.8-5-2.8s-5 1.2-5 3c0 4 10 2 10 6.3 0 1.8-2.2 3-5 3s-5-1-5-2.8"/></svg></span><span class="app-sidebar-label">Betriebskosten</span></a>
     {% endif %}
     {% endif %}
-    <div class="app-sidebar-group">Personal</div>
-    <a class="app-sidebar-link{{ ' active' if path == '/time-tracking' }}" href="/time-tracking"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.3"/><polyline points="12,7.3 12,12 15.3,14"/></svg></span><span class="app-sidebar-label">Zeiterfassung</span></a>
+    <a class="app-sidebar-link{{ ' active' if _bereich == 'zeiterfassung' }}" data-bereich="zeiterfassung" href="/time-tracking"{% if _bereich == 'zeiterfassung' %} aria-current="page"{% endif %}><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.3"/><polyline points="12,7.3 12,12 15.3,14"/></svg></span><span class="app-sidebar-label">Zeiterfassung</span></a>
     {% if sb_buero %}
-    <a class="app-sidebar-link{{ ' active' if path == '/time-backoffice' }}" href="/time-backoffice"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="5.5" y="3" width="13" height="18"/><line x1="8" y1="7.5" x2="16" y2="7.5"/><line x1="8" y1="11.5" x2="16" y2="11.5"/><line x1="8" y1="15.5" x2="13" y2="15.5"/></svg></span><span class="app-sidebar-label">Backoffice</span></a>
-    <div class="app-sidebar-group">Stammdaten</div>
-    <a class="app-sidebar-link{{ ' active' if path == '/master-data' }}" href="/master-data"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6.3" rx="8" ry="2.8"/><path d="M4 6.3v5.7c0 1.55 3.58 2.8 8 2.8s8-1.25 8-2.8V6.3"/><path d="M4 12v5.7c0 1.55 3.58 2.8 8 2.8s8-1.25 8-2.8V12"/></svg></span><span class="app-sidebar-label">Stammdaten</span></a>
-    <div class="app-sidebar-group">System</div>
-    <a class="app-sidebar-link{{ ' active' if path == '/settings' }}" href="/settings"><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><circle class="fdot" cx="9" cy="7" r="1.7"/><line x1="4" y1="12.5" x2="20" y2="12.5"/><circle class="fdot" cx="15" cy="12.5" r="1.7"/><line x1="4" y1="18" x2="20" y2="18"/><circle class="fdot" cx="7" cy="18" r="1.7"/></svg></span><span class="app-sidebar-label">Einstellungen</span></a>
+    <a class="app-sidebar-link{{ ' active' if _bereich == 'backoffice' }}" data-bereich="backoffice" href="/time-backoffice"{% if _bereich == 'backoffice' %} aria-current="page"{% endif %}><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="5.5" y="3" width="13" height="18"/><line x1="8" y1="7.5" x2="16" y2="7.5"/><line x1="8" y1="11.5" x2="16" y2="11.5"/><line x1="8" y1="15.5" x2="13" y2="15.5"/></svg></span><span class="app-sidebar-label">Backoffice</span></a>
+    <div class="app-sidebar-group">Verwaltung</div>
+    <a class="app-sidebar-link{{ ' active' if _bereich == 'stammdaten' }}" data-bereich="stammdaten" href="/master-data"{% if _bereich == 'stammdaten' %} aria-current="page"{% endif %}><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6.3" rx="8" ry="2.8"/><path d="M4 6.3v5.7c0 1.55 3.58 2.8 8 2.8s8-1.25 8-2.8V6.3"/><path d="M4 12v5.7c0 1.55 3.58 2.8 8 2.8s8-1.25 8-2.8V12"/></svg></span><span class="app-sidebar-label">Stammdaten</span></a>
+    <a class="app-sidebar-link{{ ' active' if _bereich == 'einstellungen' }}" data-bereich="einstellungen" href="/settings"{% if _bereich == 'einstellungen' %} aria-current="page"{% endif %}><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><circle class="fdot" cx="9" cy="7" r="1.7"/><line x1="4" y1="12.5" x2="20" y2="12.5"/><circle class="fdot" cx="15" cy="12.5" r="1.7"/><line x1="4" y1="18" x2="20" y2="18"/><circle class="fdot" cx="7" cy="18" r="1.7"/></svg></span><span class="app-sidebar-label">Einstellungen</span></a>
     {% endif %}
   </nav>
   <div class="app-sidebar-bottom">
-    <div class="app-sidebar-utilities">
-      <button type="button" class="app-theme-toggle" id="appThemeToggle" aria-label="Hell/Dunkel umschalten" title="Hell/Dunkel umschalten"></button>
-      <button type="button" class="app-sidebar-toggle" id="appSidebarToggle" aria-label="Navigation ein-/ausklappen"><svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></button>
-    </div>
     <div class="app-sidebar-foot" id="appSidebarFoot"></div>
     <div class="app-sidebar-version"><span class="app-sidebar-label">Version {{ app_version }}</span></div>
   </div>
@@ -248,42 +146,20 @@
 <script>
 (function(){
   var sidebar=document.getElementById('appSidebar');
-  var toggle=document.getElementById('appSidebarToggle');
   var scrim=document.getElementById('appSidebarScrim');
-  var themeToggle=document.getElementById('appThemeToggle');
   var KEY_ICON='<svg viewBox="0 0 24 24"><circle cx="7.5" cy="16.5" r="3"/><line x1="9.7" y1="14.3" x2="19" y2="5"/><line x1="14.5" y1="9.5" x2="17" y2="7"/></svg>';
-  var SUN_ICON='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/><line x1="4.5" y1="4.5" x2="6.5" y2="6.5"/><line x1="17.5" y1="17.5" x2="19.5" y2="19.5"/><line x1="4.5" y1="19.5" x2="6.5" y2="17.5"/><line x1="17.5" y1="6.5" x2="19.5" y2="4.5"/></svg>';
-  var MOON_ICON='<svg viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/></svg>';
   var isMobile=function(){return window.matchMedia('(max-width:1000px)').matches};
+  // Eingeklappt (Desktop) bleibt über Seiten hinweg -- umgeschaltet seit 1.8.162 am Menüknopf der Kopfzeile (_topbar.html)
   var apply=function(){
     if(isMobile()) return;
-    var collapsed=localStorage.getItem('erp_sidebar_collapsed')==='1';
+    var collapsed=false;
+    try{collapsed=localStorage.getItem('erp_sidebar_collapsed')==='1'}catch(e){}
     sidebar.classList.toggle('collapsed',collapsed);
   };
-  toggle.addEventListener('click',function(){
-    // Seit 1.3.46 nur noch das Desktop-Kollabieren -- auf Mobilgeräten ist dieser Knopf
-    // per CSS ausgeblendet (siehe @media(max-width:1000px) oben), das Auf/Zu der
-    // Off-Canvas-Sidebar dort übernimmt #appTopbarMenuBtn in _topbar.html.
-    var collapsed=sidebar.classList.toggle('collapsed');
-    localStorage.setItem('erp_sidebar_collapsed',collapsed?'1':'0');
-  });
   scrim.addEventListener('click',function(){
     sidebar.classList.remove('mobile-open');
     scrim.classList.remove('visible');
   });
-  var currentTheme=function(){return document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light'};
-  var renderThemeToggle=function(){
-    var dark=currentTheme()==='dark';
-    themeToggle.innerHTML=dark?SUN_ICON:MOON_ICON;
-    themeToggle.title=dark?'Zu hellem Modus wechseln':'Zu dunklem Modus wechseln';
-  };
-  themeToggle.addEventListener('click',function(){
-    var next=currentTheme()==='dark'?'light':'dark';
-    document.documentElement.setAttribute('data-theme',next);
-    try{localStorage.setItem('erp_theme',next)}catch(e){}
-    renderThemeToggle();
-  });
-  renderThemeToggle();
   var bindLoginForm=function(){
     var form=document.getElementById('appSidebarLoginForm');
     if(!form)return;
@@ -315,14 +191,9 @@
     var foot=document.getElementById('appSidebarFoot');
     if(!foot)return;
     if(status.authenticated){
-      // Seit 1.3.49: nichts mehr anzuzeigen -- Benutzername/"Mein Konto"/"Abmelden" leben
-      // ausschließlich noch im Kontoknopf der Topbar (_topbar.html). Der Zwei-Faktor-Check
-      // bleibt trotzdem nötig, unabhängig davon, ob hier etwas angezeigt wird: eine frische
-      // Anmeldung als Administrator ohne bereits diese Sitzung bestätigten zweiten Faktor darf
-      // keine andere Seite als "Mein Konto" tatsächlich benutzen -- jeder /api/-Aufruf dort
-      // würde ohnehin von app/main.py's Middleware mit 401/two_factor_pending abgelehnt. Dieser
-      // Status-Abruf läuft auf jeder Seite (dieses Include steckt überall), daher hier statt in
-      // jeder einzelnen Seiten-Datei geprüft.
+      // Seit 1.3.49: nichts anzuzeigen -- Benutzername, "Mein Konto" und "Abmelden" stehen im Kontomenü der Kopfzeile. Der
+      // Zwei-Faktor-Check bleibt: eine frische Anmeldung als Administrator ohne bestätigten zweiten Faktor darf keine andere Seite
+      // als "Mein Konto" benutzen (jeder /api/-Aufruf würde ohnehin mit 401 abgelehnt). Dieser Abruf läuft auf jeder Seite mit Leiste.
       if(status.two_factor_required && !status.otp_ok && location.pathname!=='/account'){
         location.href='/account';
       }

@@ -245,8 +245,9 @@ def _render(logo_url, height=48):
 
 
 def test_sidebar_shows_wordmark_when_no_logo():
+    """Seit 1.8.162 steht der Schriftzug immer neben der Kachel; ohne Logo zeigt die Kachel ein Dach."""
     html = _render(None)
-    assert '<span class="app-sidebar-brand">DACHKONZEPTE</span>' in html
+    assert '<span class="app-sidebar-marke-name">DACHKONZEPTE</span>' in html
     # Nicht auf "app-sidebar-logo" insgesamt prüfen -- die CSS-Regel dafür steht immer im
     # <style>-Block, unabhängig davon, ob das <img> tatsächlich gerendert wird.
     assert '<img class="app-sidebar-logo"' not in html
@@ -256,12 +257,14 @@ def test_sidebar_shows_logo_image_when_present():
     html = _render("/api/settings/general/logo?v=abc123.png")
     assert 'class="app-sidebar-logo"' in html
     assert 'src="/api/settings/general/logo?v=abc123.png"' in html
-    assert '<span class="app-sidebar-brand">DACHKONZEPTE</span>' not in html
+    assert '<span class="app-sidebar-kachel mit-logo">' in html  # seit 1.8.162 in der Kachel, der Schriftzug daneben bleibt
 
 
-def test_sidebar_logo_uses_configured_height_as_inline_style():
+def test_sidebar_logo_sits_in_a_fixed_tile_since_1_8_162():
+    """Bis 1.8.161 bekam das Logo die eingestellte Höhe als Inline-Maß. Seit 1.8.162 steht es in einer festen Kachel (36 px) -- die
+    Einstellung wirkt in der Leiste nicht mehr (die Funktion sidebar_logo_height_px() bleibt, oben geprüft)."""
     html = _render("/api/settings/general/logo?v=abc123.png", height=64)
-    assert 'style="height:64px"' in html
+    assert 'style="height:64px"' not in html
 
 
 def test_sidebar_logo_wrapped_in_width_limiting_clip_container_not_on_img_itself():
@@ -271,7 +274,8 @@ def test_sidebar_logo_wrapped_in_width_limiting_clip_container_not_on_img_itself
     eingreift). Die Breitenbegrenzung muss deshalb auf einem umschließenden Element sitzen,
     das <img> selbst darf kein max-width/max-height tragen."""
     html = _render("/api/settings/general/logo?v=abc123.png")
-    assert '<span class="app-sidebar-logo-wrap"><img class="app-sidebar-logo"' in html
+    # seit 1.8.162 die Kachel als umschließendes Element; das Bild passt sich mit max-width/max-height aus dem Stilblock ein (object-fit)
+    assert '<span class="app-sidebar-kachel mit-logo"><img class="app-sidebar-logo"' in html
     img_tag = html[html.index('<img class="app-sidebar-logo"'):]
     img_tag = img_tag[:img_tag.index(">") + 1]
     assert "max-width" not in img_tag

@@ -19,13 +19,12 @@ from tests.test_v260_role_audit import _discover_api_routes, _iter_role_marked_d
 ROOT = Path(__file__).parents[1]
 BUERO = (ROLE_ADMIN, ROLE_OFFICE_FINANZEN, ROLE_OFFICE_AUFTRAG)
 
+# Seit 1.8.162 vier Gruppen (Stufe 2 „Rahmen“): Personal in Kaufmännisch, Stammdaten und System in Verwaltung
 SEITENLEISTE = [
     ("Übersicht", ["Start", "Aufgaben", "Kalender"]),
     ("Aufträge", ["Anfragen", "Projekte", "Plantafel", "Checklisten", "Wartungen", "Befunde"]),
-    ("Kaufmännisch", ["Finanzen", "Mahnwesen", "Eingangsrechnungen", "Betriebskosten"]),
-    ("Personal", ["Zeiterfassung", "Backoffice"]),
-    ("Stammdaten", ["Stammdaten"]),
-    ("System", ["Einstellungen"]),
+    ("Kaufmännisch", ["Finanzen", "Mahnwesen", "Eingangsrechnungen", "Betriebskosten", "Zeiterfassung", "Backoffice"]),
+    ("Verwaltung", ["Stammdaten", "Einstellungen"]),
 ]
 
 # Bereiche, die nur ein Administrator speichern darf, mit den Anfängen ihrer Schreibwege.
@@ -86,7 +85,7 @@ def _rollen(pfad_anfang: str) -> list[set[str]]:
 @pytest.mark.parametrize("rolle", (*BUERO, ROLE_FIELD))
 def test_seitenleiste_in_gruppen_je_rolle(seite, rolle):
     if rolle == ROLE_FIELD:
-        erwartet = [("Übersicht", ["Start"]), ("Personal", ["Zeiterfassung"])]
+        erwartet = [("Übersicht", ["Start"]), ("Kaufmännisch", ["Zeiterfassung"])]
     elif rolle == ROLE_OFFICE_AUFTRAG:
         erwartet = [(g, [x for x in e if x not in ("Eingangsrechnungen", "Betriebskosten")]) for g, e in SEITENLEISTE]
     else:

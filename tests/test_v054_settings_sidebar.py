@@ -48,7 +48,7 @@ def test_main_app_sidebar_stays_pinned_while_scrolling():
     Die bestehende Mobile-Sonderregel (position:fixed als Ausklapp-Menü bei
     schmalen Bildschirmen) bleibt davon unberührt."""
     html = (Path(__file__).parents[1] / "app" / "templates" / "_sidebar.html").read_text(encoding="utf-8")
-    base_rule = html[html.index(".app-sidebar{width:240px"):html.index("}", html.index(".app-sidebar{width:240px"))]
+    base_rule = html[html.index(".app-sidebar{width:232px"):html.index("}", html.index(".app-sidebar{width:232px"))]  # seit 1.8.162 232 px
     assert "position:sticky" in base_rule
     assert "top:0" in base_rule
     assert "height:100vh" in base_rule

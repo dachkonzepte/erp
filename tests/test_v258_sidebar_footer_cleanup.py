@@ -78,11 +78,13 @@ def test_bottom_area_no_longer_shows_username_account_link_or_logout():
     assert "Test Nutzer" not in bottom
 
 
-def test_bottom_area_still_shows_both_buttons_and_the_version():
+def test_bottom_area_shows_only_the_version_since_1_8_162():
+    """Bis 1.8.161 unten Hell/Dunkel und Einklappen neben der Version. Seit 1.8.162 (Stufe 2 „Rahmen“): Fuß nur „Version …“ --
+    Hell/Dunkel im Kontomenü, Einklappen am Menüknopf der Kopfzeile (tests/test_v253_sidebar_layout.py)."""
     html = _render()
     bottom = _bottom_markup(html)
-    assert 'id="appThemeToggle"' in bottom
-    assert 'id="appSidebarToggle"' in bottom
+    assert 'id="appThemeToggle"' not in bottom
+    assert 'id="appSidebarToggle"' not in bottom
     assert "Version 1.0.0" in bottom
 
 

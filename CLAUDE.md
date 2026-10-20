@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.161** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.162** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -325,13 +325,19 @@ Behoben, drei Teile:
   "_sidebar.html" %}` definiert im eigenen `:root`/`:root[data-theme="dark"]`-Block dieselben
   CSS-Variablen (`--accent` aus `{{ get_theme().accent_color }}`, `--bg`, `--card`, `--ink`,
   `--muted`, `--line`, `--field-border(-hover)`, `--soft`, `--danger(-soft)`, ggf.
-  `--warning(-soft)`/`--success(-soft)`, plus die `--sidebar-*`-Token für `_sidebar.html`), dazu ein
+  `--warning(-soft)`/`--success(-soft)`, plus die `--sidebar-*`-Token -- seit 1.8.162 ungelesen, die Leiste nimmt `--ds-navi-*`), dazu ein
   FOUC-Vermeidungs-Script vor dem `<style>`-Block. Eckige Ecken durchgängig (kein
   `border-radius`), keine farbige Kopfleiste – Seitentitel/Aktionen stattdessen in einer normalen
   Karte. `settings.html` als Referenzvorlage für Feldlayout, Buttons, Status-Meldungen.
-- **Neues Design-System „Schiefer & Signal“ (seit 1.8.127, Redesign Stufe 1, noch ohne sichtbare Wirkung):** `app/static/ds/ds.css`
+- **Neues Design-System „Schiefer & Signal“ (seit 1.8.127, Redesign Stufe 1):** `app/static/ds/ds.css`
   mit Tokens `--ds-*` (hell und dunkel; seit 1.8.155 Firmengrün `--ds-aktion*` als Hauptaktion, Signal nur „wartet auf dich“) und selbst gehosteten Schriften (Archivo, IBM Plex Sans, IBM Plex Mono), über
-  `_ds_kopf.html` in jeder Seite eingebunden -- Regel 37, `docs/archiv/redesign.md`.
+  `_ds_kopf.html` in jeder Seite eingebunden -- Regel 37, `docs/archiv/redesign.md`. **Stufe 2 „Rahmen“ (seit 1.8.161)**: Entscheidungen für
+  die ganze Stufe -- Hauptaktion in `--ds-aktion`, die Akzentfarbe aus den Einstellungen färbt die Oberfläche nicht mehr (App-Symbol bleibt
+  vorerst); Ecken 10/12 px, Tablet 12/16 px; Seitentitel 30 px, Tablet 26 px; Leiste dunkel in beiden Modi mit vier Gruppen;
+  Formularseiten bekommen den Rahmen; Einsatzbericht und Konto der Monteure im Monteursrahmen. Grundregeln einer umgezogenen Seite in
+  `app/static/ds/ds-basis.css`, nur unter `.ds-seite` (die Seite setzt die Klasse beim Umzug an ihr `<body>`); gemeinsamer Seitenkopf als
+  Makro `teile/seitenkopf.html` mit `_seitenkopf.html` (`seitenkopf()`), Menüs über `_menue.html` (`dsMenue()`). Jede Seite mit Leiste
+  beginnt mit `{% set bereich = "…" -%}` -- die Leiste markiert danach ihren Eintrag (seit 1.8.162); Wächter `tests/test_v441_rahmen_baustein.py`.
 
 ## Kritische, nicht verhandelbare Regeln
 

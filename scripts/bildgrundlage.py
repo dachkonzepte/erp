@@ -10,8 +10,9 @@ aufnehmen   Eine Testinstanz (scripts/cdp_klicktest.py, Wegwerf-SQLite, Regel 16
             dunkel) und je Breite (412 px als Gerät, 1440 px) ein ganzseitiges PNG; die Seiten der Monteurin zusätzlich auf dem
             TerraPad 1201, hoch (800 × 1100) und quer (1280 × 620), als Gerät (seit 1.8.131, Fenster seit 1.8.156). Danach die
             Zustände des Rahmens (ZUSTAENDE, seit
-            1.8.131): Menü aufgeklappt, Seitenleiste eingeklappt, Kontomenü offen, Seitenleiste ganz unten, Seitenleiste von Büro –
-            Auftrag -- je auf der Seite aus ZUSTANDSSEITEN, je Thema, als Bild des Fensters (nicht der ganzen Seite: die Leiste und
+            1.8.131): Menü aufgeklappt, Seitenleiste eingeklappt, Kontomenü offen, Seitenleiste von Büro – Auftrag (bis 1.8.161
+            auch „Seitenleiste ganz unten“ -- seit 1.8.162 scrollt sie bei 1440 × 900 nicht mehr, geprüft beim Aufnehmen) -- je auf
+            der Seite aus ZUSTANDSSEITEN, je Thema, als Bild des Fensters (nicht der ganzen Seite: die Leiste und
             die Menüs hängen am Fenster). Vor jedem Bild: Seite geladen und keine Anfrage mehr unterwegs (seit 0,8 s), Schriften
             bereit, Animationen, Übergänge und Textcursor aus, kein Fokus. Geprüft je Bild: geladen und Status 200 (die Sperrseite
             403) -- sonst zeigte das Bild die Sperrseite statt der Seite --, bei einem Zustand dazu, dass er eingetreten ist;
@@ -155,14 +156,12 @@ Z = Zustand
 ZUSTAENDE = (
     Z("menue_offen", "(()=>{document.getElementById('appTopbarMenuBtn').click();"
                      "return document.getElementById('appSidebar').classList.contains('mobile-open')})()", (412, 800), (BUERO, MONTEUR)),
-    Z("leiste_eingeklappt", "(()=>{document.getElementById('appSidebarToggle').click();"
+    # seit 1.8.162 am Menüknopf der Kopfzeile (bis dahin #appSidebarToggle unten in der Leiste)
+    Z("leiste_eingeklappt", "(()=>{document.getElementById('appTopbarMenuBtn').click();"
                             "return document.getElementById('appSidebar').classList.contains('collapsed')})()", (1280, 1440),
       (BUERO, MONTEUR)),
     Z("kontomenue_offen", "(()=>{document.getElementById('appTopbarAccountBtn').click();"
                           "return !document.getElementById('appTopbarAccountMenu').hidden})()", (1440,), (BUERO, MONTEUR)),
-    # nur das Büro: bei der Monteurin passt die Leiste ins Fenster (geprüft beim Aufnehmen, LEISTE_OHNE_BILDLAUF)
-    Z("leiste_unten", f"(()=>{{const n={_LEISTE_SCROLLT};if(!n)return false;n.scrollTop=n.scrollHeight;"
-                      "return n.scrollTop>0&&Math.abs(n.scrollTop+n.clientHeight-n.scrollHeight)<=1})()", (1440,), (BUERO,)),
     Z("leiste", "!!document.getElementById('appSidebar')", (1440,), (BUERO_AUFTRAG,)),
 )
 LEISTE_OHNE_BILDLAUF = f"!{_LEISTE_SCROLLT}"
@@ -456,9 +455,10 @@ async def pruefen(tab, seed, p):
                  (True, 403 if a.vorlage == "access_denied.html" else 200))
         if b.zustand is not None:
             p.pruefe(f"{datei.name}: Zustand eingetreten", stand["eingetreten"], True)
-        if b.rolle == MONTEUR and b.zustand is not None and b.zustand.name == "kontomenue_offen":
-            # neben dem Kontomenü (1440, Fenster) passt die Leiste der Monteurin ins Fenster -- darum kein Zustand "leiste_unten" für sie
-            p.pruefe(f"{datei.name}: Leiste der Monteurin ohne Bildlauf", await tab.js(LEISTE_OHNE_BILDLAUF), True)
+        if b.zustand is not None and b.zustand.name in ("kontomenue_offen", "leiste"):
+            # seit 1.8.162 passt die Leiste bei 1440 × 900 in jeder Rolle ohne Bildlauf ins Fenster (bis dahin nur die der Monteurin;
+            # fürs Büro gab es den Zustand "leiste_unten")
+            p.pruefe(f"{datei.name}: Leiste ohne Bildlauf", await tab.js(LEISTE_OHNE_BILDLAUF), True)
         bilder.append({"datei": datei.name, "seite": a.name, "vorlage": a.vorlage, "pfad": pfad, "rolle": b.rolle, "thema": b.thema,
                        "breite": b.breite, "zustand": b.zustand.name if b.zustand else None, "hoehe": stand["hoehe"],
                        "status": stand["status"], "js_fehler": list(tab.fehler)})

@@ -47,28 +47,30 @@ def test_settings_still_has_the_one_true_calculation_settings_editor():
 # Punkt 3: sichtbare Gruppenueberschriften
 # ---------------------------------------------------------------------------
 
-def test_sidebar_has_labeled_stammdaten_and_system_groups_in_order():
+def test_sidebar_has_labeled_verwaltung_group_with_stammdaten_and_settings():
+    """Bis 1.8.161 je eine Gruppe "Stammdaten" und "System"; seit 1.8.162 (vier Gruppen) beide in "Verwaltung"."""
     html = (TEMPLATES / "_sidebar.html").read_text(encoding="utf-8")
-    stammdaten_group = html.index('class="app-sidebar-group">Stammdaten<')
-    system_group = html.index('class="app-sidebar-group">System<')
+    verwaltung_group = html.index('class="app-sidebar-group">Verwaltung<')
     master_data_link = html.index('href="/master-data"')
     settings_link = html.index('href="/settings"')
-    assert stammdaten_group < master_data_link < system_group < settings_link
+    assert verwaltung_group < master_data_link < settings_link
+    assert 'class="app-sidebar-group">Stammdaten<' not in html and 'class="app-sidebar-group">System<' not in html
 
 
 # ---------------------------------------------------------------------------
 # Punkt 4: Backoffice bleibt bei Zeiterfassung
 # ---------------------------------------------------------------------------
 
-def test_backoffice_steht_direkt_nach_der_zeiterfassung_in_der_gruppe_personal():
+def test_backoffice_steht_direkt_nach_der_zeiterfassung_in_der_gruppe_kaufmaennisch():
     """Bis 1.8.111 ein eingerückter Unterpunkt der Zeiterfassung. Seit 1.8.112 (neue Ordnung, Gruppen mit Überschrift): Zeiterfassung und Backoffice bilden die Gruppe "Personal" --
-    Backoffice steht direkt nach der Zeiterfassung, als gleichrangiger Eintrag der Gruppe statt eingerückt."""
+    Backoffice steht direkt nach der Zeiterfassung, als gleichrangiger Eintrag der Gruppe statt eingerückt. Seit 1.8.162 (vier Gruppen)
+    stehen beide am Ende der Gruppe "Kaufmännisch", vor "Verwaltung"."""
     html = (TEMPLATES / "_sidebar.html").read_text(encoding="utf-8")
-    personal_group = html.index('class="app-sidebar-group">Personal<')
+    kaufmaennisch_group = html.index('class="app-sidebar-group">Kaufmännisch<')
     time_tracking = html.index('href="/time-tracking"')
     backoffice = html.index('href="/time-backoffice"')
-    stammdaten_group = html.index('class="app-sidebar-group">Stammdaten<')
-    assert personal_group < time_tracking < backoffice < stammdaten_group
+    verwaltung_group = html.index('class="app-sidebar-group">Verwaltung<')
+    assert kaufmaennisch_group < time_tracking < backoffice < verwaltung_group
     assert 'href="/' not in html[time_tracking + 1:backoffice]  # nichts dazwischen
     body = html[max(0, backoffice - 200):backoffice]
     assert "app-sidebar-sub" not in body

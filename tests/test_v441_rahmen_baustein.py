@@ -297,3 +297,33 @@ def test_bereich_aendert_das_gerenderte_html_nicht(threaded_db_session, router_t
     for adresse in ("/projects", "/settings", "/suche?q=x", "/account"):
         text = client.get(adresse).text
         assert text.startswith("<!doctype html>"), (adresse, text[:40])
+
+
+# ---------------------------------------------------------------------------
+# Seit 1.8.162: die Seitenleiste markiert den Bereich der Seite
+# ---------------------------------------------------------------------------
+
+def test_bereiche_sind_die_eintraege_der_seitenleiste():
+    leiste = (TEMPLATES / "_sidebar.html").read_text(encoding="utf-8")
+    assert set(re.findall(r'data-bereich="([a-z]+)"', leiste)) | {"keiner"} == BEREICHE
+
+
+def test_jede_seite_markiert_ihren_bereich(threaded_db_session, router_test_client):
+    """Gezeichnet als Admin (sieht jeden Eintrag): genau der Eintrag des Bereichs ist aktiv und trägt aria-current, bei "keiner" keiner."""
+    import scripts.bildgrundlage as bg
+    from app.routers.pages import router as pages_router
+
+    client = router_test_client(threaded_db_session, pages_router, role="admin")
+    werte = {k: 1 for k in ("projekt", "angebot", "auftrag", "rechnung", "checkliste", "checklistenvorlage", "vertrag", "pruefvorlage",
+                            "kunde", "objekt", "dachflaeche", "geraet", "leistung", "mitarbeiter")}
+    geprueft = set()
+    for a in bg.AUFNAHMEN:
+        if a.vorlage in geprueft or not vj.bindet_ein(a.vorlage, "_sidebar.html") or bg.MONTEUR in a.rollen and len(a.rollen) == 1:
+            continue
+        text = client.get(a.pfad.format(**werte), follow_redirects=False).text
+        bereich = BEREICH_RE.match((TEMPLATES / a.vorlage).read_text(encoding="utf-8")).group(1)
+        nav = text[text.index('<nav class="app-sidebar-nav">'):text.index("</nav>", text.index('<nav class="app-sidebar-nav">'))]
+        aktiv = re.findall(r'<a class="app-sidebar-link[^"]*\bactive\b[^"]*" data-bereich="([a-z]+)"[^>]*aria-current="page"', nav)
+        assert aktiv == ([] if bereich == "keiner" else [bereich]) and nav.count('aria-current="page"') == len(aktiv), (a.vorlage, aktiv)
+        geprueft.add(a.vorlage)
+    assert len(geprueft) == 42

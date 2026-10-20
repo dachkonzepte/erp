@@ -1,4 +1,4 @@
-"""Version 1.3.44 -- Umgestaltung der Sidebar, erster von vier Schritten (Topbar, Suche und
+"""Seit 1.8.162 die neue Leiste (Stufe 2 „Rahmen“, Tests unten); ursprünglich Version 1.3.44 -- Umgestaltung der Sidebar, erster von vier Schritten (Topbar, Suche und
 Schnellzugriff folgen einzeln in späteren Schritten, siehe CLAUDE.md "Umgestaltung der
 Sidebar").
 
@@ -78,79 +78,67 @@ def _bottom_markup(html):
 # Punkt 1: Logo allein im Kopfbereich, zentriert, volle Breite
 # ---------------------------------------------------------------------------
 
-def test_head_contains_only_the_logo_no_buttons():
-    html = _render("/api/settings/general/logo?v=abc123.png")
-    head = _head_markup(html)
-    assert "app-sidebar-logo-wrap" in head
-    assert 'id="appThemeToggle"' not in head
-    assert 'id="appSidebarToggle"' not in head
-
-
-def test_head_still_shows_wordmark_fallback_without_buttons():
-    html = _render(None)
-    head = _head_markup(html)
-    assert "app-sidebar-brand" in head
-    assert 'id="appThemeToggle"' not in head
-    assert 'id="appSidebarToggle"' not in head
-
-
-def test_head_is_centered_and_logo_wrap_uses_full_available_width():
-    html = _render("/api/settings/general/logo?v=abc123.png")
-    assert ".app-sidebar-head{display:flex;align-items:center;justify-content:center" in html
-    assert ".app-sidebar-logo-wrap{max-width:100%" in html
-    # Die vorherige feste 200px-Breitenbegrenzung darf nicht mehr vorkommen.
-    assert "max-width:200px" not in html
-
-
-def test_configurable_height_range_is_24_to_120():
-    html = _render("/api/settings/general/logo?v=abc123.png", height=120)
-    assert 'style="height:120px"' in html
-
-
-def test_collapsed_sidebar_uses_its_own_fixed_smaller_logo_height():
-    """60px Breite -- die für die volle Breite gedachte, einstellbare Höhe passt dort nicht,
-    deshalb eine eigene, feste Höhe statt der konfigurierten (per !important, da die
-    konfigurierte Höhe sonst als Inline-Style Vorrang hätte)."""
-    html = _render("/api/settings/general/logo?v=abc123.png", height=120)
-    assert ".app-sidebar.collapsed .app-sidebar-logo{height:32px!important}" in html
-    # Nur auf Desktop-Breite wirksam -- auf Mobilgeräten bedeutet "collapsed" (durch einen
-    # Resize ohne Neuladen) weiterhin die volle, unveränderte Darstellung.
-    idx = html.index(".app-sidebar.collapsed .app-sidebar-logo{height:32px!important}")
-    media_start = html.rindex("@media(min-width:1001px)", 0, idx)
-    media_open_brace = html.index("{", media_start)
-    assert media_start < idx  # liegt tatsächlich innerhalb dieses Blocks
-    assert media_open_brace < idx
-
-
-def test_wordmark_fallback_stays_fully_hidden_when_collapsed_not_shrunk():
-    """Für "DACHKONZEPTE" gibt es bei 60px keinen sinnvollen Platz -- anders als beim Logo
-    (das schrumpft) bleibt der reine Textschriftzug beim bisherigen Verhalten: ausgeblendet."""
-    html = _render(None)
-    assert ".app-sidebar.collapsed .app-sidebar-brand{display:none}" in html
-
-
 # ---------------------------------------------------------------------------
-# Punkt 2: Hell/Dunkel + Einklappen in den unteren Bereich, neben Abmelden
+# Seit 1.8.162 (Stufe 2 „Rahmen“, Runde 1, Teil 2): Logo-Zeile 52 px mit Kachel 36 px und Schriftzug, Fuß nur „Version …“, Hell/Dunkel
+# im Kontomenü, Einklappen am Menüknopf der Kopfzeile, vier Gruppen, aktiv über `bereich`. Die Tests bis 1.8.161 prüften das Logo mit
+# einstellbarer Höhe im Kopf und die beiden Knöpfe unten in der Leiste.
 # ---------------------------------------------------------------------------
 
-def test_theme_and_collapse_buttons_are_in_the_bottom_area():
+def test_kopf_kachel_mit_logo_und_schriftzug_ohne_knoepfe():
+    head = _head_markup(_render("/api/settings/general/logo?v=abc123.png"))
+    assert '<span class="app-sidebar-kachel mit-logo"><img class="app-sidebar-logo" src="/api/settings/general/logo?v=abc123.png" alt=""></span>' in head
     html = _render("/api/settings/general/logo?v=abc123.png")
-    bottom = _bottom_markup(html)
-    assert 'id="appThemeToggle"' in bottom
-    assert 'id="appSidebarToggle"' in bottom
-    # Beide Schaltflaechen erscheinen bereits VOR (oberhalb von) dem Benutzer-/Abmelden-Block --
-    # "neben Abmelden" im Sinne von: im selben unteren Bereich, direkt angrenzend.
-    assert bottom.index('id="appThemeToggle"') < bottom.index('id="appSidebarFoot"')
-    assert bottom.index('id="appSidebarToggle"') < bottom.index('id="appSidebarFoot"')
+    kopf = html[html.index('<div class="app-sidebar-head"'):html.index('<nav class="app-sidebar-nav">')]
+    assert "DACHKONZEPTE" in kopf and "Rödchen GmbH · ERP" in kopf
+    assert 'id="appThemeToggle"' not in kopf and 'id="appSidebarToggle"' not in kopf
 
 
-def test_collapse_toggle_is_never_hidden_when_collapsed_but_theme_toggle_is():
-    """Kritisch fuers Bedienbar-Bleiben: die Schaltflaeche, mit der man die eingeklappte
-    Sidebar wieder ausklappt, darf im eingeklappten Zustand selbst nicht verschwinden --
-    anders als der (dort ohnehin bereits vorher ausgeblendete) Hell/Dunkel-Umschalter."""
-    html = _render("/api/settings/general/logo?v=abc123.png")
-    assert ".app-sidebar.collapsed .app-sidebar-toggle{display:none}" not in html
-    assert ".app-sidebar.collapsed .app-theme-toggle{display:none}" in html
+def test_kopf_ohne_logo_zeigt_ein_dach_auf_der_kachel():
+    html = _render(None)
+    kopf = html[html.index('<div class="app-sidebar-head"'):html.index('<nav class="app-sidebar-nav">')]
+    assert '<span class="app-sidebar-kachel" aria-hidden="true"><svg' in kopf and "<img" not in kopf
+    assert "DACHKONZEPTE" in kopf and "Rödchen GmbH · ERP" in kopf
+
+
+def test_kopf_52px_kachel_36px_breite_232px():
+    html = _render(None)
+    assert ".app-sidebar{width:232px;flex:0 0 232px;box-sizing:border-box;" in html
+    assert ".app-sidebar-head{display:flex;align-items:center;gap:10px;box-sizing:border-box;height:52px;flex:0 0 52px;" in html
+    assert "width:36px;height:36px;flex:0 0 36px;" in html.split(".app-sidebar-kachel{", 1)[1].split("}", 1)[0]
+
+
+def test_logo_hoehe_der_einstellung_wirkt_nicht_mehr():
+    """Die Kachel ist fest 36 px -- die einstellbare Höhe (24–120 px, sidebar_logo_height_px) setzt kein Inline-Maß mehr."""
+    html = _render("/api/settings/general/logo?v=abc123.png", height=120)
+    assert 'style="height:120px"' not in html and "sidebar_logo_height_px" not in html
+
+
+def test_eingeklappt_60px_nur_kachel_und_symbole():
+    html = _render(None)
+    assert ".app-sidebar.collapsed{width:60px;flex-basis:60px}" in html
+    regel = html.split(".app-sidebar.collapsed .app-sidebar-marke,", 1)[1].split("}", 1)[0]
+    assert ".app-sidebar.collapsed .app-sidebar-label" in regel and ".app-sidebar.collapsed .app-sidebar-version" in regel
+    assert "display:none" in regel
+
+
+def test_fuss_nur_version_und_das_feld_fuer_eine_abgelaufene_sitzung():
+    bottom = _bottom_markup(_render(None))
+    assert 'id="appSidebarFoot"' in bottom and "Version 1.0.0" in bottom
+    assert "<button" not in bottom and "appThemeToggle" not in bottom and "appSidebarToggle" not in bottom
+
+
+def test_hell_dunkel_im_kontomenue_und_einklappen_am_menueknopf_der_kopfzeile():
+    """Was die Leiste abgibt, bleibt erreichbar: Hell/Dunkel im Kontomenü (_topbar.html), Einklappen am Menüknopf der Kopfzeile -- der
+    steht außerhalb der Leiste und ist auch am Desktop sichtbar, also nie in der eingeklappten Leiste verschwunden."""
+    root = Path(__file__).parents[1]
+    topbar = (root / "app" / "templates" / "_topbar.html").read_text(encoding="utf-8")
+    assert 'id="appThemeToggle"' in topbar and "localStorage.setItem('erp_theme'" in topbar
+    assert "localStorage.setItem('erp_sidebar_collapsed'" in topbar
+    regeln = [r for r in topbar.split("}") if ".app-topbar-menu-btn{" in r]
+    assert regeln and all("display:none" not in r for r in regeln)
+    html = _render(None)
+    aside = html[html.index('<aside class="app-sidebar"'):html.index("</aside>")]
+    assert "appTopbarMenuBtn" not in aside
 
 
 def test_account_link_removed_since_1_3_49():
@@ -161,17 +149,27 @@ def test_account_link_removed_since_1_3_49():
     assert "app-sidebar-account-link" not in html
 
 
-# ---------------------------------------------------------------------------
-# "Was unveraendert bleibt": Navigationseintraege, Reihenfolge, Gruppen
-# ---------------------------------------------------------------------------
+def test_vier_gruppen_in_reihenfolge():
+    html = _render(None)
+    nav = html[html.index('<nav class="app-sidebar-nav">'):html.index("</nav>")]
+    import re as _re
+    folge = _re.findall(r'<div class="app-sidebar-group">([^<]+)</div>|data-bereich="([a-z]+)"', nav)
+    assert [g or b for g, b in folge] == [
+        "Übersicht", "start", "aufgaben", "kalender",
+        "Aufträge", "anfragen", "projekte", "plantafel", "checklisten", "wartungen", "befunde",
+        "Kaufmännisch", "finanzen", "mahnwesen", "eingangsrechnungen", "betriebskosten", "zeiterfassung", "backoffice",
+        "Verwaltung", "stammdaten", "einstellungen"]
+    befunde = nav[nav.rindex("<a ", 0, nav.index('data-bereich="befunde"')):nav.index('data-bereich="befunde"')]
+    assert "app-sidebar-sub" in befunde
 
-def test_navigation_groups_and_order_unchanged():
-    html = _render("/api/settings/general/logo?v=abc123.png")
-    stammdaten_idx = html.index('<div class="app-sidebar-group">Stammdaten</div>')
-    system_idx = html.index('<div class="app-sidebar-group">System</div>')
-    master_data_idx = html.index('href="/master-data"')
-    settings_idx = html.index('href="/settings"')
-    assert stammdaten_idx < master_data_idx < system_idx < settings_idx
+
+def test_aktiv_ist_der_bereich_der_seite():
+    """project_folder.html nennt bereich "projekte" -- genau dieser Eintrag ist aktiv, mit aria-current."""
+    html = _render(None)
+    nav = html[html.index('<nav class="app-sidebar-nav">'):html.index("</nav>")]
+    assert nav.count(" active") == 1 and nav.count('aria-current="page"') == 1
+    projekte = nav[nav.index('data-bereich="projekte"') - 60:nav.index('data-bereich="projekte"') + 80]
+    assert "app-sidebar-link active" in projekte and 'aria-current="page"' in projekte
 
 
 def test_mobile_header_include_untouched():

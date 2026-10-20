@@ -108,29 +108,28 @@ def test_toggle_is_fixed_size_and_does_not_shrink_or_wrap():
 
 
 # ---------------------------------------------------------------------------
-# Derselbe Mechanismus wie _sidebar.html
+# Derselbe Mechanismus wie das Kontomenü der Kopfzeile (bis 1.8.161 der Knopf unten in _sidebar.html)
 # ---------------------------------------------------------------------------
 
-def test_toggle_uses_the_same_storage_key_and_attribute_as_the_sidebar():
+def test_toggle_uses_the_same_storage_key_and_attribute_as_the_account_menu():
+    """Seit 1.8.162 steht Hell/Dunkel der Büroseiten im Kontomenü der Kopfzeile (_topbar.html), nicht mehr in der Seitenleiste."""
     mobile_js = (TEMPLATES_DIR / "_mobile_header.html").read_text(encoding="utf-8")
-    sidebar_js = (TEMPLATES_DIR / "_sidebar.html").read_text(encoding="utf-8")
+    topbar_js = (TEMPLATES_DIR / "_topbar.html").read_text(encoding="utf-8")
     for needle in (
         "document.documentElement.getAttribute('data-theme')",
         "document.documentElement.setAttribute('data-theme'",
         "localStorage.setItem('erp_theme'",
     ):
         assert needle in mobile_js, needle
-        assert needle in sidebar_js, needle
+        assert needle in topbar_js, needle
 
 
-def test_toggle_swaps_sun_and_moon_icon_like_the_sidebar():
+def test_toggle_swaps_sun_and_moon_icon():
+    """Bis 1.8.161 dieselben Symbole wie der Knopf der Seitenleiste; seit 1.8.162 ist Hell/Dunkel dort ein Eintrag im Kontomenü
+    (Text, ohne Symbol) -- der Knopf des Monteurskopfs wechselt weiter zwischen Sonne und Mond."""
     mobile_js = (TEMPLATES_DIR / "_mobile_header.html").read_text(encoding="utf-8")
-    sidebar_js = (TEMPLATES_DIR / "_sidebar.html").read_text(encoding="utf-8")
-    # Dieselben SVG-Icon-Strings, keine eigene, abweichende Ikonografie.
-    sun_icon = sidebar_js[sidebar_js.index("var SUN_ICON="):sidebar_js.index(";", sidebar_js.index("var SUN_ICON="))]
-    moon_icon = sidebar_js[sidebar_js.index("var MOON_ICON="):sidebar_js.index(";", sidebar_js.index("var MOON_ICON="))]
-    assert sun_icon in mobile_js
-    assert moon_icon in mobile_js
+    assert "var SUN_ICON='<svg" in mobile_js and "var MOON_ICON='<svg" in mobile_js
+    assert "themeToggle.innerHTML=dark?SUN_ICON:MOON_ICON" in mobile_js
 
 
 def test_toggle_click_handler_writes_to_localstorage_and_updates_the_dom():

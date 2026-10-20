@@ -2,8 +2,9 @@
 
 Geprüft wird im echten Browser, je Rolle (Monteur, Büro – Auftrag, Büro – Finanzen, Admin):
 
-    Seitenleiste      Gruppen mit Überschrift und ihre Einträge (Übersicht, Aufträge, Kaufmännisch, Personal, Stammdaten,
-                      System), "Plantafel" und "Befunde" statt "Planung" und "Mängel", kein Versandprotokoll; jeder sichtbare Link
+    Seitenleiste      Gruppen mit Überschrift und ihre Einträge (seit 1.8.162 vier: Übersicht, Aufträge, Kaufmännisch mit
+                      Zeiterfassung und Backoffice, Verwaltung), "Plantafel" und "Befunde" statt "Planung" und "Mängel", kein
+                      Versandprotokoll; jeder sichtbare Link
                       liefert als dieselbe Rolle weder 403 noch 404
     Einstellungen     Menü je Rolle (zehn Gruppen; nur für Admin: Anbindungen, Module, Benutzer und Zugriff, Wartungen,
                       Projekt-Pipeline, Aufgaben, Vor Ort; Kalkulation nur Finanzen und Admin), jeder Menüpunkt öffnet seinen
@@ -38,16 +39,14 @@ ROLLEN = ("field", "buero_auftrag", "buero_finanzen", "admin")
 SEITENLEISTE_BUERO = [
     ["Übersicht", ["Start", "Aufgaben", "Kalender"]],
     ["Aufträge", ["Anfragen", "Projekte", "Plantafel", "Checklisten", "Wartungen", "Befunde"]],
-    ["Kaufmännisch", ["Finanzen", "Mahnwesen", "Eingangsrechnungen", "Betriebskosten"]],
-    ["Personal", ["Zeiterfassung", "Backoffice"]],
-    ["Stammdaten", ["Stammdaten"]],
-    ["System", ["Einstellungen"]],
-]
+    ["Kaufmännisch", ["Finanzen", "Mahnwesen", "Eingangsrechnungen", "Betriebskosten", "Zeiterfassung", "Backoffice"]],
+    ["Verwaltung", ["Stammdaten", "Einstellungen"]],
+]  # seit 1.8.162 vier Gruppen (bis dahin dazu Personal, Stammdaten und System)
 
 
 def seitenleiste(rolle):
     if rolle == "field":
-        return [["Übersicht", ["Start"]], ["Personal", ["Zeiterfassung"]]]
+        return [["Übersicht", ["Start"]], ["Kaufmännisch", ["Zeiterfassung"]]]
     if rolle == "buero_auftrag":
         return [[g, [x for x in e if x not in ("Eingangsrechnungen", "Betriebskosten")]] for g, e in SEITENLEISTE_BUERO]
     return SEITENLEISTE_BUERO

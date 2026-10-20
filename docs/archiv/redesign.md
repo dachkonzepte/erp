@@ -891,3 +891,68 @@ Grundlage: der Befund `docs/archiv/befund-rahmen.md`. Die Entscheidungen oben ge
 5. **Ein Menü für alle**: `_menue.html` für „⋮“ und die Kontomenüs.
 6. **`bereich` als erste Anweisung der Vorlage**, Zuordnung wie oben (Prüfvorlagen unter Wartungen, Leistungskatalog unter Stammdaten,
    die System-Seiten unter Einstellungen, Suche und Konto ohne Bereich).
+
+### Teil 2 (1.8.162): Seitenleiste
+
+- **`_sidebar.html`** neu: 232 px, Farben nur aus `--ds-navi-*` (dunkel in beiden Modi) -- nicht mehr aus den `--sidebar-*`-Werten
+  der Seiten und nicht aus der Akzentfarbe. **Logo-Zeile 52 px**: Kachel 36 px (Logo der Leiste bzw. Firmenlogo auf weißer Kachel,
+  ohne Logo ein Dach auf `marke-hell`), daneben „DACHKONZEPTE“ (Archivo 14 px) / „Rödchen GmbH · ERP“ (11,5 px, `navi-leise`).
+  **Vier Gruppen**: Übersicht (Start, Aufgaben, Kalender) · Aufträge (Anfragen, Projekte, Plantafel, Checklisten, Wartungen, Befunde
+  eingerückt) · Kaufmännisch (Finanzen, Mahnwesen, Eingangsrechnungen, Betriebskosten, Zeiterfassung, Backoffice) · Verwaltung
+  (Stammdaten, Einstellungen); eine Überschrift nur, wo die Rolle etwas sieht, Rollen- und Modulbedingungen unverändert. **Zeilen**
+  36 px, Schrift 14 px (IBM Plex Sans), Symbole 18 px. **Aktiv** ist der Eintrag mit `data-bereich` gleich dem `bereich` der Seite
+  (Teil 1): `navi-aktiv` mit 3 px Strich links in `marke-hell`, `aria-current="page"`. **Fuß** nur „Version …“ (dazu das leere
+  `#appSidebarFoot` für eine abgelaufene Sitzung). Eingeklappt 60 px (Kachel und Symbole), schmal wie bisher außerhalb.
+- **Was die Leiste abgibt, in die Kopfzeile** (`_topbar.html`, Teil 3 baut sie danach um): der Menüknopf `#appTopbarMenuBtn` ist
+  auch am Desktop sichtbar und klappt dort ein (localStorage `erp_sidebar_collapsed`, wie bisher der Knopf unten in der Leiste),
+  schmal öffnet er die Leiste; Hell/Dunkel (`#appThemeToggle`) steht im Kontomenü.
+- **Gemessen** (Instanz der Bildgrundlage, Chrome 155, vor der letzten Feinabstimmung): Leiste 232 px, Kopf 52 px, Fuß 31 px,
+  Navigation bei 17 Einträgen 724 px -- ohne Bildlauf ab 807 px Fensterhöhe; bei 1440 × 900 in allen vier Rollen kein Bildlauf.
+  Danach 2 px weniger Abstand über den Gruppen und unten: rund 799 px, die Leiste passt auch bei 1280 × 800.
+
+#### Tests und Prüfung
+
+- `tests/test_v441_rahmen_baustein.py` um zwei Tests: die Bereiche sind genau die `data-bereich` der Leiste (+ „keiner“); jede der 42
+  Seiten mit Leiste, gezeichnet als Admin, markiert genau ihren Bereich mit `aria-current` (Suche und Konto keinen).
+- `scripts/bildgrundlage.py`: Zustand „Leiste eingeklappt“ über den Menüknopf der Kopfzeile; „Leiste ganz unten“ entfällt (die Leiste
+  scrollt bei 1440 × 900 nicht mehr), dafür prüft das Aufnehmen bei „Kontomenü offen“ und „Leiste von Büro – Auftrag“, dass die Leiste
+  ohne Bildlauf passt. 302 statt 304 Bilder.
+- Klicktests `klicktest_neue_ordnung` 81/81, `klicktest_monteur_navigation` 27/27, `klicktest_dateien_nie_aktiv` 42/42.
+- **Gegenproben** (Regel 24): aktiv nach Adresse statt `bereich`; Eintrag ohne `data-bereich`; Hell/Dunkel nicht im Kontomenü;
+  Menüknopf am Desktop versteckt -- 4 von 4 rot, je Datei byte-genau zurück.
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v253_sidebar_layout`: die neun Tests zu Kopf, Logo und Knöpfen unten (Logo allein im Kopf, Schriftzug als Ersatz, zentriert,
+    Höhe 24–120 px als Inline-Maß, eingeklappt 32 px, Schriftzug eingeklappt aus, beide Knöpfe unten, Einklappen nie versteckt, Gruppen
+    Stammdaten/System) ersetzt durch: Kachel mit Logo und Schriftzug ohne Knöpfe, Dach ohne Logo, 52 px Kopf/36 px Kachel/232 px, die
+    eingestellte Höhe wirkt nicht mehr, eingeklappt 60 px, Fuß nur Version, Hell/Dunkel im Kontomenü und Einklappen am Menüknopf
+    (außerhalb der Leiste, nie versteckt), vier Gruppen in Reihenfolge, aktiv über `bereich`.
+  - `test_v258::test_bottom_area_still_shows_both_buttons_and_the_version` → `…_shows_only_the_version_since_1_8_162`: alt beide
+    Knöpfe und Version, neu nur die Version.
+  - `test_v249`: Schriftzug ohne Logo -- alt `app-sidebar-brand`, neu `app-sidebar-marke-name`; Logo vorhanden -- alt ohne Schriftzug,
+    neu Kachel `mit-logo` (Schriftzug bleibt); `…_uses_configured_height_as_inline_style` → `…_sits_in_a_fixed_tile_since_1_8_162`:
+    alt Inline-Höhe, neu keine; Begrenzung auf dem umschließenden Element -- alt `app-sidebar-logo-wrap`, neu die Kachel (nur Aufbau).
+  - `test_v242`: Gruppen -- alt „Stammdaten“ und „System“, neu „Verwaltung“; Backoffice nach der Zeiterfassung -- alt Gruppe „Personal“
+    vor „Stammdaten“, neu „Kaufmännisch“ vor „Verwaltung“.
+  - `test_v054::test_main_app_sidebar_stays_pinned_while_scrolling`: alt Regel `.app-sidebar{width:240px…`, neu `…232px…` (nur Aufbau).
+  - `test_v255`: Menüknopf -- alt am Desktop `display:none`, neu sichtbar; alt sichtbar erst im `@media`-Block, neu derselbe Umbruch
+    im Skript (breit einklappen, schmal öffnen); alt `aria-label="Navigation öffnen"`/`aria-expanded="false"`, neu „Navigation ein- und
+    ausblenden“, `aria-expanded` vom Skript; die zwei Tests zum alten Knopf in der Leiste (unter 1000 px versteckt, Klick ohne
+    `mobile-open`) → einer: es gibt ihn nicht mehr; Scrim-Abgleich und Umschalten -- nur Aufbau (Regex statt Wortlaut).
+  - `test_v417::test_seitenleiste_in_gruppen_je_rolle`: alt sechs Gruppen, Monteurin „Personal“; neu vier, Monteurin „Kaufmännisch“
+    (bis Teil 4, danach hat sie keine Leiste).
+  - `test_v431`: Zustände -- alt mit „leiste_unten“ (24 Bilder, 304 gesamt, Kennung `appSidebarToggle`), neu ohne (22, 302, ohne).
+  - Klicktest `klicktest_neue_ordnung`: alt sechs Gruppen, Monteurin „Personal“; neu vier, „Kaufmännisch“.
+  - `test_v272_mobile_header_theme_toggle`: Hell/Dunkel des Monteurskopfs -- alt derselbe Mechanismus und dieselben Symbole wie der
+    Knopf der Seitenleiste, neu derselbe Mechanismus wie das Kontomenü der Kopfzeile; Symbole nur noch im Monteurskopf geprüft (das
+    Kontomenü zeigt Text).
+
+#### Festlegungen 1.8.162 (Bitte bestätigen)
+
+1. **Einklappen am Menüknopf der Kopfzeile**, jetzt auch am Desktop (schmal öffnet er die Leiste wie bisher); Hell/Dunkel im Kontomenü.
+2. **Logo in fester Kachel** (36 px, weiß; ohne Logo ein Dach auf `marke-hell`): die einstellbare Höhe des Logos der Leiste wirkt nicht
+   mehr -- die Einstellung bleibt bis zur Bereinigung stehen.
+3. **Schriftzug fest** „DACHKONZEPTE“ / „Rödchen GmbH · ERP“ wie vorgegeben, nicht aus dem Firmennamen der Einstellungen.
+4. **Zeilen ohne Ecken**, der Strich als linker Rand 3 px; Befunde 28 px eingerückt.
+5. **Abstände so knapp, dass die Leiste auch bei 1280 × 800 passt** (rund 799 px Bedarf mit 17 Einträgen).
+6. **Die `--sidebar-*`-Werte der 42 Seiten bleiben stehen** (ungelesen), bis die Farben der Seiten umziehen.
+7. **Monteurin bis Teil 4**: ihre Zeiterfassung steht unter „Kaufmännisch“ (vier Gruppen) -- ab Teil 4 hat sie keine Leiste mehr.
