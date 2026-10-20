@@ -1,7 +1,7 @@
 """Klicktest: Design-System auf der Anmeldeseite -- ds.css und alle drei Schriftfamilien laden ohne Anmeldung (1.8.127, Stufe 1 des
 Redesigns, Vorgabe vom 19.10.2026, Punkt 7).
 
-    ds.css          die Anmeldeseite bindet /static/ds/ds.css?v=<Prüfsumme> ein (bis 1.8.172 ?v=<Version>; seit 1.8.161 danach
+    ds.css          die Anmeldeseite bindet /static/ds/ds.css?v=<Prüfsumme> ein (bis 1.9.1 ?v=<Version>; seit 1.8.161 danach
                     ds-basis.css, wirksam erst mit
                     .ds-seite): --ds-grund hell #EEF0F1, dunkel #121619; die Akzentfarbe aus den Einstellungen (--accent) und die
                     Schrift der Seite bleiben, wie sie sind

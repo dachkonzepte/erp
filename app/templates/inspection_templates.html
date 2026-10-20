@@ -2,7 +2,7 @@
 <!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP – Prüfvorlagen</title>
 <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
 {% include "_ds_kopf.html" %}
-{#- Seit 1.8.174 Pilot der Stufe 2 „Rahmen“: die Seite schaltet .ds-seite ein (Grundregeln aus ds-basis.css), ihr Kopf ist der gemeinsame
+{#- Seit 1.9.3 Pilot der Stufe 2 „Rahmen“: die Seite schaltet .ds-seite ein (Grundregeln aus ds-basis.css), ihr Kopf ist der gemeinsame
     Seitenkopf (teile/seitenkopf.html, Variante Liste: Titel, eine grüne Hauptaktion, Weiteres im Menü „⋮“), ihre Farben laufen über die
     --ds-*-Werte (Knöpfe in aktion, Ecken 10/12 px) -- die Akzentfarbe aus den Einstellungen färbt sie nicht mehr. Die vier alten Namen im
     :root lesen Bausteine, die noch nicht umgezogen sind (_speichern.html: Hinweis „Seite neu laden“, „Anmeldung abgelaufen“). -#}
@@ -99,7 +99,7 @@ function roofTypeOptionsHtml(selected){
   return '<option value="">— jeder Dachtyp —</option>'+roofTypes.map(o=>`<option value="${esc(o.value)}" ${selected===o.value?'selected':''}>${esc(o.label)}</option>`).join('');
 }
 
-/* Seit 1.8.174: der Dachtyp ausgeschrieben aus der Auswahlliste (bis dahin der gespeicherte Wert); ein Wert in anderer Schreibweise
+/* Seit 1.9.3: der Dachtyp ausgeschrieben aus der Auswahlliste (bis dahin der gespeicherte Wert); ein Wert in anderer Schreibweise
    (z. B. „flachdach“) findet seinen Eintrag auch, ein unbekannter bleibt, wie er ist. */
 function dachtypName(wert){
   if(!wert)return 'jeder Dachtyp';

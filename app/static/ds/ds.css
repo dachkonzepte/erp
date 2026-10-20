@@ -46,7 +46,7 @@
   /* Navigation (in beiden Modi dunkel) */
   --ds-navi-grund: #1F2529;
   --ds-navi-aktiv: #333C43;
-  --ds-navi-hover: #2A3238;     /* Hover in Leiste und Monteurskopf (seit 1.8.172) */
+  --ds-navi-hover: #2A3238;     /* Hover in Leiste und Monteurskopf (seit 1.9.1) */
   --ds-navi-text: #D5DBDF;
   --ds-navi-leise: #9AA5AD;
 

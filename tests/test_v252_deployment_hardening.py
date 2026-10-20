@@ -244,7 +244,7 @@ def test_no_further_database_backed_jinja_globals_exist_unguarded():
     (app/meldungen.py::KEIN_MITARBEITER), deshalb ebenfalls ohne Absicherung; geprüft, dass genau die Konstante
     zugewiesen wird.
 
-    Seit 1.8.173 als NEUNTES und ZEHNTES ds_css_pruefsumme und ds_basis_pruefsumme -- feste Zeichenketten aus dem Inhalt von ds.css und
+    Seit 1.9.2 als NEUNTES und ZEHNTES ds_css_pruefsumme und ds_basis_pruefsumme -- feste Zeichenketten aus dem Inhalt von ds.css und
     ds-basis.css, beim Start gebildet (app/design_dateien.py::pruefsumme()), ohne Datenbank, deshalb ohne Absicherung."""
     root = Path(__file__).parents[1]
     matches = []

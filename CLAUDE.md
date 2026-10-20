@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.174** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.3** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -338,7 +338,7 @@ Behoben, drei Teile:
   `app/static/ds/ds-basis.css`, nur unter `.ds-seite` (die Seite setzt die Klasse beim Umzug an ihr `<body>`); gemeinsamer Seitenkopf als
   Makro `teile/seitenkopf.html` mit `_seitenkopf.html` (`seitenkopf()`), Menüs über `_menue.html` (`dsMenue()`). Jede Seite mit Leiste
   beginnt mit `{% set bereich = "…" -%}` -- die Leiste markiert danach ihren Eintrag (seit 1.8.162); Wächter `tests/test_v441_rahmen_baustein.py`.
-  **Umgezogen** (`UMGEZOGEN` dort): seit 1.8.174 die Prüfvorlagen als Pilot -- `.ds-seite` am `<body>`, Seitenkopf über das Makro, eigene
+  **Umgezogen** (`UMGEZOGEN` dort): seit 1.9.3 die Prüfvorlagen als Pilot -- `.ds-seite` am `<body>`, Seitenkopf über das Makro, eigene
   Farben nur über `--ds-*` (keine Akzentfarbe mehr), die alten Namen `--danger`/`--warning` im `:root` nur noch für `_speichern.html`;
   in `ds-basis.css` gelten Regeln für `a` und `button` nur ohne Klasse (`:not([class])`), sonst überstimmen sie Bausteine und Rahmen.
 
@@ -838,7 +838,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     `div:not(.ds-x)` verboten) -- nie `--accent` (die Akzentfarbe aus den Einstellungen bleibt), kein `color-scheme`, keine
     Element-Selektoren, keine andere At-Regel. In `app/static/` liegen nur `.css`, `.woff2` und Lizenztexte (`ofl-*.txt`), alle Namen kleingeschrieben (sonst ohne
     Anmeldung nicht erreichbar), keine Symlinks. Jede Seite aus `seiten()` bindet `_ds_kopf.html` im Kopf vor ihrem eigenen `<style>` ein
-    (`ds.css?v=<Prüfsumme des Inhalts>`, seit 1.8.173 aus `app/design_dateien.py::pruefsumme()`, bis dahin die Version); eine neue Seite ebenso. Die Prüfpaare im Kopfkommentar von `ds.css` halten hell und dunkel (Text 4,5 : 1,
+    (`ds.css?v=<Prüfsumme des Inhalts>`, seit 1.9.2 aus `app/design_dateien.py::pruefsumme()`, bis dahin die Version); eine neue Seite ebenso. Die Prüfpaare im Kopfkommentar von `ds.css` halten hell und dunkel (Text 4,5 : 1,
     Bedienelemente 3 : 1). `/static/` wird ein Jahr zwischengespeichert: eine geänderte Schrift bekommt einen neuen Dateinamen.
     `tests/test_v432_design_fundament.py` (Wächter, Kontrast, Auslieferung, Angriffe über ASGI und echten uvicorn samt Gegenprobe
     „Präfixvergleich“), Klicktest `klicktest_ds_schriften.py`. Details: `docs/archiv/redesign.md`.

@@ -1331,7 +1331,7 @@ Grundlage: der Befund `docs/archiv/befund-rahmen.md`. Die Entscheidungen oben ge
 
 ## Runde 2 (Festlegungen 1.8.169 und 1.8.170 bestätigt, außer 1.8.170 Nr. 1)
 
-### Punkt 1 (1.8.171): aktiver Reiter weiß in 600
+### Punkt 1 (1.9.0): aktiver Reiter weiß in 600
 
 - `_mobile_header.html`: `.mobile-nav-reiter.active` mit `color:#FFFFFF; font-weight:600` (bis 1.8.170 navi-text in 500) --
   ersetzt Festlegung 1.8.170 Nr. 1. Fläche, Ecken und Strich unverändert.
@@ -1344,11 +1344,11 @@ Grundlage: der Befund `docs/archiv/befund-rahmen.md`. Die Entscheidungen oben ge
 - **Angepasste Erwartung** (Regel 28): Klicktest `klicktest_rahmen` „aktiver Reiter“: alt `[Text, aria-current, Schatten, Fläche,
   Ecken]`; neu dazu Farbe `rgb(255, 255, 255)` und Stärke `600`.
 
-### Punkt 2 (1.8.172): --ds-navi-hover
+### Punkt 2 (1.9.1): --ds-navi-hover
 
 - `ds.css`: `--ds-navi-hover` hell `#2A3238`, dunkel `#171D20` (zwischen navi-grund `#0B0F11` und navi-aktiv `#232B30`); Prüfpaar
   `navi-text/navi-hover` im Kopfkommentar, also im Kontrasttest (hell 9,32 : 1, dunkel 12,19 : 1, gefordert 4,5).
-- Leiste: Hover der Einträge `var(--ds-navi-hover)` (bis 1.8.171 fest `#2A3238`). Monteurskopf: Hover der Reiter, der Lupe und des
+- Leiste: Hover der Einträge `var(--ds-navi-hover)` (bis 1.9.0 fest `#2A3238`). Monteurskopf: Hover der Reiter, der Lupe und des
   Kontoknopfs `var(--ds-navi-hover)` (bis dahin navi-aktiv); geöffnet (Lupe, Kontomenü: `aria-expanded="true"`) bleiben sie
   navi-aktiv.
 
@@ -1364,15 +1364,15 @@ Grundlage: der Befund `docs/archiv/befund-rahmen.md`. Die Entscheidungen oben ge
   - Klicktest `klicktest_rahmen` Hover der Leiste: alt `rgb(42, 50, 56)` in beiden Modi; neu der Wert `--ds-navi-hover` (dunkel
     `rgb(23, 29, 32)`).
 
-#### Festlegungen 1.8.172 (Bitte bestätigen)
+#### Festlegungen 1.9.1 (Bitte bestätigen)
 
 1. **Geöffnet bleibt navi-aktiv**: Lupe und Kontoknopf mit offenem Feld bzw. Menü behalten navi-aktiv, nur der Hover nimmt navi-hover.
 
-### Punkt 3 (1.8.173): Prüfsumme statt Version
+### Punkt 3 (1.9.2): Prüfsumme statt Version
 
 - `app/design_dateien.py::pruefsumme(name)`: die ersten 10 Zeichen der SHA-256 des Inhalts einer Datei unter `app/static/ds/`;
   beim Start einmal gebildet (`ds_pruefsummen()`), als Jinja-Werte `ds_css_pruefsumme` und `ds_basis_pruefsumme`
-  (`app/routers/pages.py`). `_ds_kopf.html` bindet `ds.css?v=…` und `ds-basis.css?v=…` damit ein (bis 1.8.172 `?v={{ app_version }}`).
+  (`app/routers/pages.py`). `_ds_kopf.html` bindet `ds.css?v=…` und `ds-basis.css?v=…` damit ein (bis 1.9.1 `?v={{ app_version }}`).
   Grenze 1 aus dem Befund der Korrektur ist damit weg; Grenze 2 (eine offene Seite bis zum Neuladen) bleibt.
 
 #### Tests und Prüfung
@@ -1386,11 +1386,11 @@ Grundlage: der Befund `docs/archiv/befund-rahmen.md`. Die Entscheidungen oben ge
   - `test_v252::test_no_further_database_backed_jinja_globals_exist_unguarded`: alt 8 Jinja-Globals; neu 10 -- dazu die beiden
     Prüfsummen, feste Zeichenketten ohne Datenbank, geprüft mit genau ihrer Zuweisung.
 
-#### Festlegungen 1.8.173 (Bitte bestätigen)
+#### Festlegungen 1.9.2 (Bitte bestätigen)
 
 1. **Prüfsumme beim Start**, nicht je Anfrage -- die Dateien ändern sich nur mit einem Deploy, und `update.sh` startet neu.
 
-### Punkt 4 (1.8.174): Pilot Prüfvorlagen
+### Punkt 4 (1.9.3): Pilot Prüfvorlagen
 
 - `inspection_templates.html` ist die erste umgezogene Seite (`UMGEZOGEN` in `test_v441`):
   - `<body class="ds-seite">` -- Schrift, Farben und Felder aus `ds-basis.css`.
@@ -1435,7 +1435,7 @@ Grundlage: der Befund `docs/archiv/befund-rahmen.md`. Die Entscheidungen oben ge
   („Flachdach“). Ob die Detailseite einer Prüfvorlage einen so geschriebenen Wert in ihrer Auswahl vorwählt, ist nicht untersucht -- bei
   ihrem Umzug prüfen. Die Testdaten bleiben, wie sie sind (sie steuern auch die Vorlage im Einsatzbericht).
 
-#### Festlegungen 1.8.174 (Bitte bestätigen)
+#### Festlegungen 1.9.3 (Bitte bestätigen)
 
 1. **„Archivierte anzeigen“ ins Menü „⋮“** als einziger Eintrag (Text wechselt auf „Archivierte ausblenden“), statt eines Häkchens.
 2. **Abschnitte als Karten mit Überschrift** („Standardvorlage je Dachtyp“ mit Hinweis, „Vorlagen“).
@@ -1459,3 +1459,21 @@ Grundlage: der Befund `docs/archiv/befund-rahmen.md`. Die Entscheidungen oben ge
   pixelgenau. Kein Befund am Code; der Vergleich der Bildgrundlage kennt keine Toleranz, solches Rauschen erscheint dort als Abweichung.
 - **Bilder**: `bildgrundlage/rahmen_runde2_f1fcac7.zip` (Prüfvorlagen 1440 × 900 vorher und nachher je hell und dunkel, Monteurskopf
   1280 × 620), Ordner in `.gitignore`.
+
+## Nachtrag zu Runde 2 und Runde 3 (Festlegungen 1.9.1–1.9.3 bestätigt, außer 1.9.3 Nr. 5)
+
+### Punkt 0: Versionsnummer -- das Redesign läuft unter 1.9.x
+
+- **Regel 8 (Wortlaut des maßgeblichen Satzes):** „**Seit 1.1.0 zusätzlich:** ein Minor-Versionssprung (`1.X.0`) markiert die
+  Einführung eines neuen, echten Moduls (siehe Modul-Umschalter unten), ein reiner Patch-Level (`1.0.X`) alles andere – Infrastruktur,
+  Fixes, Redesign, Anpassungen an bestehenden Modulen.“
+- **Warum der Sprung ausblieb:** die Regel nennt das Redesign ausdrücklich unter dem Patch-Level -- jede Runde zählte deshalb 1.8.x
+  weiter. Eine Regel, die eine große Überarbeitung als Minor-Sprung führt, gibt es nicht.
+- **Umbenannt (Vorgabe Betreiber, 20.10.2026):** die nicht gepushten Versionen 1.8.171–1.8.174 heißen 1.9.0–1.9.3 -- im Changelog (mit
+  Vermerk unter jeder Überschrift: zuerst als 1.8.17x committet, mit Commit), in `VERSION`, CLAUDE.md, Kommentaren, Tests und in diesem
+  Archiv (die Abschnitte von Runde 2 oben heißen jetzt 1.9.0–1.9.3, die Festlegungen 1.8.172–1.8.174 sind 1.9.1–1.9.3). Die Commits
+  `0838162`, `9de69fb`, `bc2b7e4`, `f1fcac7` behalten ihre Nachrichten. Diese Runde zählt ab 1.9.4.
+- **Vorschlag für Regel 8 (nicht festgeschrieben):** „Ein Minor-Sprung (`1.X.0`) markiert die Einführung eines neuen, echten Moduls
+  **oder den Beginn einer großen, über viele Seiten sichtbaren Überarbeitung** (z. B. Stufe 2 des Redesigns: 1.9.0); was dazu zählt,
+  legt der Betreiber fest. Innerhalb zählt der Patch-Level weiter. Alles andere bleibt Patch-Level -- Infrastruktur, Fixes, einzelne
+  Anpassungen an bestehenden Modulen.“

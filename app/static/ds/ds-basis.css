@@ -10,7 +10,7 @@
    ds.css), keine At-Regeln, kein !important (Wächter:
    tests/test_v441_rahmen_baustein.py). Regel 37 für ds.css bleibt.
 
-   Seit 1.8.174 (Pilot Prüfvorlagen, die erste Seite mit .ds-seite): die
+   Seit 1.9.3 (Pilot Prüfvorlagen, die erste Seite mit .ds-seite): die
    Regeln für a und button gelten nur für Elemente ohne eigene Klasse
    (:not([class])). Ein Element unter .ds-seite (Spezifität 0,1,1) wiegt
    mehr als eine Klasse (0,1,0) -- sonst färbte .ds-seite a die Einträge

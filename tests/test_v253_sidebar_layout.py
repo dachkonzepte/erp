@@ -243,7 +243,7 @@ def test_eintraege_mit_abstand_ecken_und_strich_als_schatten():
     aktiv = regel(".app-sidebar-link.active")
     assert "background:var(--ds-navi-aktiv)" in aktiv and "color:#FFFFFF" in aktiv and "font-weight:600" in aktiv
     assert "box-shadow:inset 3px 0 0 var(--ds-marke-hell)" in aktiv and "border" not in aktiv
-    assert regel(".app-sidebar-link:hover") == "background:var(--ds-navi-hover)"  # seit 1.8.172 der Wert (bis dahin fest #2A3238)
+    assert regel(".app-sidebar-link:hover") == "background:var(--ds-navi-hover)"  # seit 1.9.1 der Wert (bis dahin fest #2A3238)
     assert regel(".app-sidebar-sub") == "padding-left:40px"  # 12 px wie jeder Eintrag + 28 px Einzug
     assert regel(".app-sidebar.collapsed .app-sidebar-link,.app-sidebar.collapsed .app-sidebar-sub") == "padding:0 9px"
 

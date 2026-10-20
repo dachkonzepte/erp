@@ -96,8 +96,8 @@ def test_kopf_64_px_reiter_48_px_lupe_48_px():
     assert "height:48px" in reiter and "font-size:16px" in reiter and "border-radius:10px" in reiter and "border-bottom" not in reiter
     aktiv = regel(".mobile-header-wrap .mobile-nav-reiter.active")
     assert "background:var(--ds-navi-aktiv)" in aktiv and "box-shadow:inset 0 -3px 0 var(--ds-marke-hell)" in aktiv and "border" not in aktiv
-    assert "color:#FFFFFF" in aktiv and "font-weight:600" in aktiv  # seit 1.8.171 wie in der Leiste (bis dahin navi-text in 500)
-    # seit 1.8.172 Hover über --ds-navi-hover, geöffnet (Lupe, Kontomenü) navi-aktiv
+    assert "color:#FFFFFF" in aktiv and "font-weight:600" in aktiv  # seit 1.9.0 wie in der Leiste (bis dahin navi-text in 500)
+    # seit 1.9.1 Hover über --ds-navi-hover, geöffnet (Lupe, Kontomenü) navi-aktiv
     assert "background:var(--ds-navi-hover)" in regel(".mobile-header-wrap .mobile-nav-reiter:hover")
     assert regel(".mobile-header-wrap .mobile-lupe:hover") == "background:var(--ds-navi-hover)"
     assert regel('.mobile-header-wrap .mobile-lupe[aria-expanded="true"]') == "background:var(--ds-navi-aktiv)"

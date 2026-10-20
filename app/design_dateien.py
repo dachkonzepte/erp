@@ -13,7 +13,7 @@ Anmeldung vorbei; die Angriffstests prüfen das.
 
 Eine Antwort 200 auf eine solche Anfrage trägt "Cache-Control: public, max-age=31536000, immutable" -- die einzige Ausnahme vom
 Cache-Verbot der Regel 30; jede andere Antwort dort "no-store". Eine geänderte Datei braucht deshalb eine neue Adresse: ds.css und
-ds-basis.css kommen seit 1.8.173 über ?v=<Prüfsumme ihres Inhalts> (pruefsumme(), _ds_kopf.html; bis dahin ?v=<Version> -- ein Commit,
+ds-basis.css kommen seit 1.9.2 über ?v=<Prüfsumme ihres Inhalts> (pruefsumme(), _ds_kopf.html; bis dahin ?v=<Version> -- ein Commit,
 der eine Datei ohne neue Version änderte, hätte sie ein Jahr lang alt gelassen), eine geänderte Schrift bekommt einen neuen Dateinamen."""
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ _PFAD = re.compile(rf"/static(?:/{_ABSCHNITT})+")
 
 
 def pruefsumme(name: str, ordner: Path = DS_DIR) -> str:
-    """Die ersten 10 Zeichen der SHA-256 des Inhalts von <ordner>/<name> (seit 1.8.173): der Zusatz ?v= an ds.css und ds-basis.css in
+    """Die ersten 10 Zeichen der SHA-256 des Inhalts von <ordner>/<name> (seit 1.9.2): der Zusatz ?v= an ds.css und ds-basis.css in
     _ds_kopf.html -- ändert sich der Inhalt, ändert sich die Adresse, auch ohne neue Version. Beim Start gebildet (app/routers/pages.py),
     die Dateien ändern sich nur mit einem Deploy, und update.sh startet den Dienst neu."""
     return hashlib.sha256((ordner / name).read_bytes()).hexdigest()[:10]

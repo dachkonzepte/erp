@@ -17,7 +17,7 @@ Geprüft wird im echten Browser auf den Testdaten der Bildgrundlage (scripts/bil
                    schaltet data-theme um und zeigt den Zustand; Klick daneben schließt
     Vollname       seit 1.8.167: ist der Name im Kontoknopf gekürzt oder ausgeblendet (Büro bei 412 px, Monteurin mit schmalem Knopf),
                    steht er vollständig oben im Kontomenü; ganz zu sehen bleibt er dort verborgen; die Tastatur springt darüber
-    Prüfvorlagen   seit 1.8.174 (Pilot): .ds-seite, Seitenkopf mit Titel 30 px und genau einer grünen Hauptaktion (Schrift
+    Prüfvorlagen   seit 1.9.3 (Pilot): .ds-seite, Seitenkopf mit Titel 30 px und genau einer grünen Hauptaktion (Schrift
                    auf-aktion), Menü „⋮“ per Tastatur mit „Archivierte anzeigen“, Dachtyp ausgeschrieben, Karten 12 px und Knöpfe 10 px
                    Ecken, Leiste und Kontomenü unverändert (Farben, keine Linkfarbe); Kontrast jedes sichtbaren Texts gegen seinen
                    Hintergrund (4,5 : 1, großer Text 3 : 1) hell und dunkel, auch mit offenem Menü und offenem Editor
@@ -172,7 +172,7 @@ async def _aktiv(tab, seed, p):
         if i < 2:
             sel = "#appSidebar .app-sidebar-link:not(.active)"
             await _maus(tab, "mouseMoved", sel)
-            # seit 1.8.172 der Wert --ds-navi-hover (hell #2A3238, dunkel #171D20; bis dahin fest #2A3238)
+            # seit 1.9.1 der Wert --ds-navi-hover (hell #2A3238, dunkel #171D20; bis dahin fest #2A3238)
             p.pruefe(f"{wo}: Hover eines anderen Eintrags in navi-hover mit 8 px Ecken", await tab.js(
                 f"(e=>[getComputedStyle(e).backgroundColor==={FARBE}('--ds-navi-hover'),getComputedStyle(e).borderTopLeftRadius])"
                 f"(document.querySelector({json.dumps(sel)}))"), [True, "8px"])
@@ -350,7 +350,7 @@ leiste:leiste?cs(leiste).color===F('--ds-navi-text'):null}})()""" % FARBE
 
 
 async def _pruefvorlagen(tab, seed, p):
-    """Seit 1.8.174: die Pilotseite Prüfvorlagen."""
+    """Seit 1.9.3: die Pilotseite Prüfvorlagen."""
     await tab.anmelden(seed["cookies"][bg.BUERO])
     for thema in ("hell", "dunkel"):
         wo = f"Prüfvorlagen {thema}"
@@ -434,11 +434,11 @@ async def _monteurskopf(tab, seed, p):
             p.pruefe(f"{wo}: Reiter 48 px mit 16 px, Lupe 48 × 48", [m["reiter"], m["lupe"]],
                      [[["Einsätze", 48, "16px"], ["Zeiterfassung", 48, "16px"], ["Stundenzettel", 48, "16px"]], [48, 48]])
             # seit 1.8.170 auf navi-aktiv mit 10 px Ecken, der Strich als inset-Schatten (bis dahin unterer Rand von 3 px)
-            # seit 1.8.171 Schrift weiß in 600 (bis dahin navi-text in 500)
+            # seit 1.9.0 Schrift weiß in 600 (bis dahin navi-text in 500)
             p.pruefe(f"{wo}: aktiver Reiter", m["aktiv"], [[reiter, "page", True, True, "10px", "rgb(255, 255, 255)", "600"]] if reiter else [])
             p.pruefe(f"{wo}: Bildmarke auf weißer Kachel 40 px (seit 1.8.165)", m["kachel"], [40, "rgb(255, 255, 255)", 3, False])
             p.pruefe(f"{wo}: keine JS-Fehler", tab.fehler, [])
-    # seit 1.8.172: Hover eines nicht aktiven Reiters in navi-hover, hell und dunkel
+    # seit 1.9.1: Hover eines nicht aktiven Reiters in navi-hover, hell und dunkel
     for thema in ("hell", "dunkel"):
         p.pruefe(f"Monteurskopf Hover {thema}: geladen", await _laden(tab, seed, "einsatzbericht", thema, 1280, 620), True)
         sel = ".mobile-header-wrap .mobile-nav-reiter:not(.active)"

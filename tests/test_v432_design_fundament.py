@@ -540,7 +540,7 @@ def test_jede_seite_bindet_den_ds_kopf_vor_ihrem_stil_ein():
 
 
 def test_ds_kopf_bindet_ds_css_und_ds_basis_mit_pruefsumme_ein():
-    """Seit 1.8.161 dazu ds-basis.css (Grundregeln nur unter .ds-seite, tests/test_v441_rahmen_baustein.py) -- nach ds.css. Seit 1.8.173
+    """Seit 1.8.161 dazu ds-basis.css (Grundregeln nur unter .ds-seite, tests/test_v441_rahmen_baustein.py) -- nach ds.css. Seit 1.9.2
     mit der Prüfsumme des Inhalts statt der Version (bis dahin ?v={{ app_version }})."""
     text = _ohne_jinja_kommentare((ROOT / "app" / "templates" / "_ds_kopf.html").read_text(encoding="utf-8")).strip()
     assert text.splitlines() == ['<link rel="stylesheet" href="/static/ds/ds.css?v={{ ds_css_pruefsumme }}">',
@@ -548,7 +548,7 @@ def test_ds_kopf_bindet_ds_css_und_ds_basis_mit_pruefsumme_ein():
 
 
 def test_pruefsumme_folgt_dem_inhalt(tmp_path):
-    """Ändert sich der Inhalt, ändert sich die Adresse (seit 1.8.173) -- unabhängig von der Version; derselbe Inhalt, dieselbe Adresse."""
+    """Ändert sich der Inhalt, ändert sich die Adresse (seit 1.9.2) -- unabhängig von der Version; derselbe Inhalt, dieselbe Adresse."""
     import hashlib
 
     import jinja2
@@ -662,7 +662,7 @@ def test_kontrast_der_pruefpaare_hell_und_dunkel():
     text = DS_CSS.read_text(encoding="utf-8")
     paare = pruefpaare(text)
     # seit 1.8.155 39 statt 34: Firmengrün als Hauptaktion -- Schrift auf dem Knopf und grüne Schrift mindestens 4,5, der Knopf
-    # selbst auf Fläche und Grund mindestens 3; seit 1.8.157 40: der Knopf auch auf flaeche-2 (Hover, Infokasten); seit 1.8.172 41:
+    # selbst auf Fläche und Grund mindestens 3; seit 1.8.157 40: der Knopf auch auf flaeche-2 (Hover, Infokasten); seit 1.9.1 41:
     # navi-text auf navi-hover (Hover in Leiste und Monteurskopf)
     assert len(paare) == 41 and {g for g, _, _ in paare} == {4.5, 3.0}
     assert (4.5, "navi-text", "navi-hover") in paare

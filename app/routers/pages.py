@@ -34,7 +34,7 @@ router = APIRouter()
 
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
 templates.env.globals["app_version"] = APP_VERSION
-# Seit 1.8.173: Zusatz ?v= an ds.css und ds-basis.css aus dem Inhalt (_ds_kopf.html), beim Start gebildet -- einfache Werte statt einer
+# Seit 1.9.2: Zusatz ?v= an ds.css und ds-basis.css aus dem Inhalt (_ds_kopf.html), beim Start gebildet -- einfache Werte statt einer
 # Funktion, damit Tests mit einer schlanken Jinja-Umgebung die Seiten weiter rendern (ein fehlender Wert ergibt dort leeren Text)
 templates.env.globals["ds_css_pruefsumme"] = ds_pruefsumme("ds.css")
 templates.env.globals["ds_basis_pruefsumme"] = ds_pruefsumme("ds-basis.css")

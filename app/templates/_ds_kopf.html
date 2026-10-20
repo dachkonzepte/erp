@@ -1,6 +1,6 @@
 {#- Design-System (seit 1.8.127, Stufe 1 des Redesigns): Tokens (--ds-*) und Schriften aus app/static/ds/ds.css. Jede Seite bindet
     diesen Baustein im Kopf ein, vor ihrem eigenen Stilblock (tests/test_v432_design_fundament.py). /static/ wird ein Jahr
-    zwischengespeichert, ?v= holt eine geänderte Datei neu: seit 1.8.173 die ersten 10 Zeichen der SHA-256 ihres Inhalts
+    zwischengespeichert, ?v= holt eine geänderte Datei neu: seit 1.9.2 die ersten 10 Zeichen der SHA-256 ihres Inhalts
     (app/design_dateien.py::pruefsumme(), bis dahin die Version). Seit 1.8.161 dazu ds-basis.css: die Grundregeln für Schrift und
     Steuerelemente, nur unter .ds-seite -- sie wirken erst, wenn eine Seite beim Umzug die Klasse an ihr <body> setzt. -#}
 <link rel="stylesheet" href="/static/ds/ds.css?v={{ ds_css_pruefsumme }}">
