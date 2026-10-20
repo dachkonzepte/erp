@@ -1303,3 +1303,28 @@ Grundlage: der Befund `docs/archiv/befund-rahmen.md`. Die Entscheidungen oben ge
 
 1. **Schrift des aktiven Reiters bleibt** navi-text in 500 (die Zeichnung nennt für den Reiter nur Fläche, Ecken und Strich).
 2. **Hover der übrigen Reiter** bleibt navi-aktiv, mit denselben 10 px Ecken.
+
+### Punkt 3: Versionszusatz an ds.css und ds-basis.css (nur geprüft, nichts geändert)
+
+- **Ja**: `_ds_kopf.html` bindet beide mit `?v={{ app_version }}` ein, alle 53 Seiten aus `seiten()` binden `_ds_kopf.html` ein (auch die
+  Anmeldeseite). `app_version` ist `APP_VERSION` aus `app/version.py` -- beim Start aus der Datei `VERSION` gelesen; `update.sh` startet
+  den Dienst neu, danach steht die neue Version in jeder Seite. `/static/` antwortet mit `public, max-age=31536000, immutable`; die
+  Seiten einer angemeldeten Sitzung mit `no-store` -- jede Navigation holt also neues HTML mit der neuen Adresse, und die neue Datei
+  kommt, statt der alten aus dem Zwischenspeicher. Einen Service Worker gibt es nicht. Schriften stehen ohne Zusatz in `ds.css`, eine
+  geänderte Schrift bekommt aber einen neuen Dateinamen (Regel 37).
+- **Grenze 1 -- der Zusatz ist die Version, nicht der Inhalt**: ändert ein Commit `ds.css` oder `ds-basis.css`, ohne `VERSION` zu
+  erhöhen (z. B. ein Nachtrag-Commit „<Version> (Nachtrag)“, der die Version beibehält), bleibt die Adresse gleich, und Geräte, die
+  die Datei schon haben, behalten die alte bis zu einem Jahr (`immutable`). Heute sichert das nur Regel 8 (jede spürbare Änderung
+  erhöht `VERSION`). Abhilfe, falls gewünscht: Prüfsumme des Inhalts statt der Version im Zusatz (beim Start berechnet), oder ein
+  Wächter, der eine Änderung an `app/static/ds/` ohne neue Version ablehnt.
+- **Grenze 2 -- eine offene Seite**: ein Tablet mit einer geöffneten Seite behält die alte Gestaltung bis zum nächsten Laden oder
+  Wechsel der Seite; ein Deploy lädt offene Seiten nicht neu.
+- Am Rande: die Anmeldeseite ohne Sitzung trägt keinen `Cache-Control`-Kopf (`no-store` nur für angemeldete Sitzungen); ohne
+  `ETag`/`Last-Modified` nimmt der Browser sie beim normalen Laden nicht aus dem Zwischenspeicher, höchstens beim Zurück-Blättern.
+
+### Korrektur abgeschlossen: Endläufe (Stand `d83996c`)
+
+- **Volle Suite** auf sauberer Arbeitskopie, Commit `d83996c`: 6270 passed, 3 skipped.
+- **Alle Klicktests** (`klicktest_alle.py --gleichzeitig 4`): 80 von 80 wie erwartet, Laufzeit 7:43.
+- **Bilder**: `bildgrundlage/rahmen_korrektur_d83996c.zip` (Leiste 1440 × 900 hell und dunkel auf der Projektmappe, Monteurskopf 1280 × 620 auf dem
+  Einsatzbericht), Ordner in `.gitignore`.
