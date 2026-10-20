@@ -727,3 +727,53 @@ Umgesetzt wie im Befund vorgeschlagen (`docs/archiv/befund-du-statt-sie.md`, „
    zählen nicht.
 4. Texte, die ein Admin in den Einstellungen selbst einträgt (E-Mail-Vorlagen, Mahntexte, Standardsätze), prüft der Wächter nicht --
    nur die Vorgaben im Code und die PDFs aus Testdaten.
+
+### Punkt 5 (Befund, nur docs/): die erste Design-Datei nach dem Serverstart
+
+Frage: Warum braucht die erste Design-Datei nach dem Serverstart im Klicktest-Server rund 500 ms, allein aber 47 ms? Nur gemessen,
+nichts geändert.
+
+**Messaufbau.** Wie der Klicktest-Server: Wegwerf-SQLite mit Grunddaten und einem Konto (ohne Konto antwortet seit 1.8.130 jede Seite
+mit 503), `ERP_ENV=development`, `python -m uvicorn app.main:app --log-level trace` mit der Log-Konfiguration aus
+`scripts/cdp_klicktest.py::log_konfiguration()`. Bereit ist der Server, sobald `/login` 200 liefert (wie `_warte_auf()`). Danach per urllib
+`ds.css`, zwei Schriften und noch einmal `ds.css`, je drei Läufe. Zum Zerlegen lief derselbe Server in einem Hilfsskript mit Zeitmessern
+an den Schritten: StaticFiles, FileResponse, `mimetypes`, `anyio.to_thread`, BaseHTTPMiddleware, `_IncludedRouter.effective_candidates`.
+Dazu ein GC-Rückruf und Stichproben der Aufrufkette. Alles nur im Messprozess, nichts in `app/`.
+
+| | erste Design-Datei | weitere Design-Dateien |
+|---|---|---|
+| Server wie im Klicktest, ohne andere Last | 321–336 ms | 2–19 ms |
+| derselbe mit Zeitmessern | 339–348 ms | 2–4 ms (im Server) |
+| vier solche Server zugleich | 380–458 ms | 3–24 ms |
+
+**Zerlegung der ersten Anfrage** (339–348 ms, je Lauf gleich):
+- **308–315 ms: FastAPI baut die Routen der eingebundenen Router auf.** In der installierten FastAPI 0.141.1 bleibt jedes
+  `include_router()` ein `_IncludedRouter`. Der baut seine Routen erst beim ersten Abgleich auf (`effective_candidates()` →
+  `_EffectiveRouteContext.from_api_route`: Abhängigkeiten, pydantic-Schemas), je Router einmal, danach zwischengespeichert. Die App hat
+  oben 71 Einträge: 70 eingebundene Router und als letzten den Mount `/static` (`app/design_dateien.py::einbinden()`).
+  - `/login` passt schon im ersten Router (pages): aufgebaut 1 Router mit 54 Routen in 7 ms.
+  - Die erste Design-Datei passt erst am Mount und läuft dabei an allen 69 übrigen Routern vorbei: aufgebaut 69 Router mit 703 Routen
+    in 308–315 ms (auf der Event-Loop; in den Stichproben `pydantic/_internal/_generate_schema.py`).
+  - Danach kostet derselbe Weg nichts mehr (0 Router aufgebaut).
+- **25–30 ms: `mimetypes.init()`** beim ersten `guess_type()`. Starlettes FileResponse ohne `media_type` liest dafür unter Windows die
+  Registry, obwohl DesignDateien den Typ danach fest setzt.
+- Rest unter 5 ms (check_config, lookup_path, Senden).
+
+**Warum allein 47 ms:** Die Einzelmessung lief mit DesignDateien ohne die 70 Router, dort fehlt der Aufbau. Ihre 28 ms für `mimetypes`
+und 15 ms für Importe passen zur Zerlegung.
+
+**Warum im Endlauf rund 500 ms:** Dort liefen vier Klicktests samt Chrome zugleich. Mit vier Servern zugleich steigt die erste Anfrage
+hier auf 380–458 ms: derselbe Aufbau, langsamer bei geteilter CPU. Die 506 ms im Verbindungsprotokoll liegen in derselben Größenordnung.
+
+**Folgen:**
+- **Klicktest:** Die erste Seite nach dem Start wartet 0,35–0,5 s auf `ds.css`. Das war der Anlass der Wartebedingung in
+  `klicktest_anmelden` (1.8.156, Nachtrag).
+- **Betrieb:** Jeder der zwei gunicorn-Arbeitsprozesse zahlt den Aufbau einmal nach dem Neustart, bei der ersten Anfrage, die an Routern
+  vorbeiläuft. Auf dem VPS mit zwei Kernen eher länger. Danach nie wieder. Kein Fehler, nur eine einmalige Verzögerung.
+- Das betrifft nicht nur Design-Dateien: Jede erste Anfrage an einen Router weit hinten baut alle Router davor auf.
+
+**Möglichkeiten** (nicht umgesetzt, Punkt 5 heißt nur messen):
+- den Aufbau beim Start vorwegnehmen: ein Startereignis, das jede `_IncludedRouter.effective_candidates()` einmal aufruft (private API von
+  FastAPI);
+- den Mount `/static` vor die Router setzen: dann zahlt die Design-Datei nichts, die erste API-Anfrage weiterhin;
+- `mimetypes.init()` beim Start aufrufen oder FileResponse mit festem `media_type` bauen.
