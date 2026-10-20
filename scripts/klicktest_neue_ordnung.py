@@ -134,7 +134,20 @@ async def pruefen(tab, seed, p):
     for rolle in ROLLEN:
         await tab.anmelden(seed["cookies"][rolle])
         # --- Seitenleiste ---
-        start = "/account" if rolle == "field" else "/"
+        if rolle == "field":
+            # seit 1.8.164 hat die Monteurin auch auf der Kontoseite den Monteurskopf (bis dahin die Seitenleiste mit Start, Zeiterfassung)
+            if not await tab.oeffnen("/account", "document.getElementById('mobileHeaderWrap')"):
+                p.pruefe(f"{rolle} /account: Seite geladen", False, True)
+                continue
+            p.pruefe(f"{rolle}: Monteurskopf statt Seitenleiste", await tab.js(
+                "[!!document.getElementById('appSidebar'),[...document.querySelectorAll('.mobile-nav-reiter')].map(a=>a.textContent.trim())]"),
+                [False, ["Einsätze", "Zeiterfassung", "Stundenzettel"]])
+            status = await tab.js(f"{_STATUS}([...document.querySelectorAll('.mobile-nav-reiter')].map(a=>a.getAttribute('href')))")
+            p.pruefe(f"{rolle}: Reiter ohne 403/404", sorted(h for h, s in (status or {}).items() if s in (403, 404)), [])
+            p.pruefe(f"{rolle}: JS-Fehler", tab.fehler, [])
+            await tab.bild(f"{rolle}_monteurskopf")
+            continue
+        start = "/"
         if not await tab.oeffnen(start, "document.getElementById('appSidebar')"):
             p.pruefe(f"{rolle} {start}: Seite geladen", False, True)
             continue
@@ -145,9 +158,6 @@ async def pruefen(tab, seed, p):
         p.pruefe(f"{rolle}: Links der Seitenleiste ohne 403/404 ({len(status or {})})",
                  sorted(h for h, s in (status or {}).items() if s in (403, 404)), [])
         await tab.bild(f"{rolle}_seitenleiste")
-        if rolle == "field":
-            p.pruefe(f"{rolle}: JS-Fehler", tab.fehler, [])
-            continue
         # --- Menü der Einstellungen und jeder Bereich ---
         if not await einstellungen_oeffnen(tab):
             p.pruefe(f"{rolle} /settings: Seite geladen", False, True)
@@ -275,4 +285,4 @@ async def pruefen(tab, seed, p):
 
 
 if __name__ == "__main__":
-    sys.exit(klicktest_main(befuellen, pruefen, beschreibung=__doc__))
+    sys.exit(klicktest_main(befuellen, pruefen, beschreibung=__doc__, uhr="10:00"))  # seit 1.8.164: der Reiter Einsätze führt nach /mobil

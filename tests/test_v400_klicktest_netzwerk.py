@@ -373,9 +373,10 @@ def test_every_run_wires_the_protocol_into_the_checks_and_the_end_report():
 
 
 def test_the_login_click_test_covers_both_forms_and_both_headers():
-    """Vorgabe Punkt 5: Anmelden über Formular und Seitenleiste, Abmelden über beide Kopfzeilen."""
+    """Vorgabe Punkt 5: Anmelden über Formular und Seitenleiste, Abmelden über beide Kopfzeilen (seit 1.8.164 dasselbe Kontomenü, im
+    Monteurskopf auf /mobil -- bis dahin #mobileHeaderLogout)."""
     quelle = (SCRIPTS / "klicktest_anmelden.py").read_text(encoding="utf-8")
-    for teil in ('"#u"', '"#appSidebarLoginForm button"', '"#appTopbarLogout"', '"#mobileHeaderLogout"',
+    for teil in ('"#u"', '"#appSidebarLoginForm button"', '"#appTopbarLogout"', 'seite="/mobil"',
                  'await tab.im_netz_anhalten("*/api/auth/logout")', 'await tab.im_netz_anhalten("*/api/auth/login")'):
         assert teil in quelle, teil
 

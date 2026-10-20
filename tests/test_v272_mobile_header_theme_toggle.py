@@ -24,11 +24,15 @@ import jinja2
 TEMPLATES_DIR = Path(__file__).parents[1] / "app" / "templates"
 
 
-def _render_mobile_header(user=None):
+def _render_mobile_header(user=None, path="/mobil"):
     env = jinja2.Environment(loader=jinja2.FileSystemLoader(str(TEMPLATES_DIR)))
+    # seit 1.8.164: Logo-Kachel und Kontomenü (_kontomenue.html) im Monteurskopf
+    env.globals["sidebar_logo_url"] = lambda: None
+    env.globals["account_display"] = lambda u: ({"full_name": "Max Mustermann", "initials": "MM"} if u is not None
+                                                else {"full_name": "", "initials": ""})
 
     class _FakeURL:
-        path = "/mobil"
+        pass
 
     class _FakeState:
         def __init__(self, u):
@@ -37,6 +41,7 @@ def _render_mobile_header(user=None):
     class _FakeRequest:
         def __init__(self, u):
             self.url = _FakeURL()
+            self.url.path = path
             self.state = _FakeState(u)
 
     class _FakeUser:
@@ -46,100 +51,108 @@ def _render_mobile_header(user=None):
     return tmpl.render(request=_FakeRequest(user if user is not None else _FakeUser()))
 
 
-# ---------------------------------------------------------------------------
-# Struktur/Platzierung
-# ---------------------------------------------------------------------------
-
-def test_theme_toggle_button_exists_inside_mobile_header_row():
-    html = _render_mobile_header()
-    header_start = html.index('<div class="mobile-header">')
-    header_end = html.index('<div class="mobile-search-bar">')
-    header_row = html[header_start:header_end]
-    assert 'id="mobileThemeToggle"' in header_row
-    assert 'class="mobile-theme-toggle"' in header_row
-
-
-def test_theme_toggle_sits_next_to_username_not_in_search_or_nav():
-    """Kollisionsfreiheit mit Suchfeld (1.3.65) und den vier Reitern -- der Umschalter steckt
-    ausschliesslich im Kopf-Block, strukturell getrennt von .mobile-search-bar/.mobile-nav."""
-    html = _render_mobile_header()
-    search_start = html.index('<div class="mobile-search-bar">')
-    nav_start = html.index('<nav class="mobile-nav">')
-    nav_end = html.index('</nav>')
-    search_bar = html[search_start:nav_start]
-    nav = html[nav_start:nav_end]
-    assert "mobileThemeToggle" not in search_bar
-    assert "mobileThemeToggle" not in nav
-    # Gruppiert mit dem Benutzernamen in einem gemeinsamen Rechts-Wrapper, wie vorgegeben
-    # ("vermutlich oben rechts neben dem Benutzernamen").
-    right_start = html.index('<div class="mobile-header-right">')
-    right_end = html.index('</div>', html.index('id="mobileThemeToggle"'))
-    right_block = html[right_start:right_end]
-    assert "mobile-header-user" in right_block
-    assert "mobileThemeToggle" in right_block
-
-
-def test_mobile_header_has_exactly_two_direct_children_preserving_space_between():
-    """.mobile-header nutzt justify-content:space-between -- ein dritter direkter Kindknoten
-    wuerde die Zeile verschieben statt Benutzer+Umschalter zusammen rechts zu halten. Der neue
-    Umschalter muss deshalb INNERHALB des rechten Wrappers stecken, nicht als eigenes,
-    drittes Geschwisterelement von .mobile-header-brand."""
-    html = _render_mobile_header()
+def _kopfzeile(html):
     start = html.index('<div class="mobile-header">')
-    end = html.index("</div>", html.rindex('id="mobileThemeToggle"'))
-    end = html.index("</div>", end)  # schliesst .mobile-header-right
-    end = html.index("</div>", end + 1)  # schliesst .mobile-header selbst
-    block = html[start:end]
-    assert block.count('<span class="mobile-header-brand"') == 1
-    assert block.count('<div class="mobile-header-right"') == 1
-
-
-def test_toggle_is_fixed_size_and_does_not_shrink_or_wrap():
-    """Strukturelle Absicherung gegen Umbruch/Verdraengung auf schmalen Bildschirmen: der
-    Rechts-Wrapper ist flex:0 0 auto (schrumpft nie), der Umschalter selbst hat eine feste
-    30x30px-Groesse -- nur .mobile-header-brand (bereits mit overflow:hidden) darf schrumpfen."""
-    html = _render_mobile_header()
-    style_start = html.index("<style>")
-    style_end = html.index("</style>")
-    css = html[style_start:style_end]
-    assert ".mobile-header-right{display:flex;align-items:center;gap:8px;flex:0 0 auto" in css
-    assert ".mobile-theme-toggle{background:none;border:1px solid var(--line);color:var(--ink);width:30px;height:30px;flex:0 0 30px" in css
-    assert "overflow:hidden" in css.split(".mobile-header-brand{", 1)[1].split("}", 1)[0]
+    return html[start:html.index('<div class="mobile-suche"', start)]
 
 
 # ---------------------------------------------------------------------------
-# Derselbe Mechanismus wie das Kontomenü der Kopfzeile (bis 1.8.161 der Knopf unten in _sidebar.html)
+# Struktur/Platzierung (seit 1.8.164: eine Zeile mit Kachel, Reitern, Lupe und Kontomenü)
+# ---------------------------------------------------------------------------
+
+def test_hell_dunkel_steht_im_kontomenue_des_monteurskopfs():
+    """Bis 1.8.163 ein eigener Knopf (#mobileThemeToggle, 30 px, Sonne/Mond) neben dem Namen. Seit 1.8.164 im Kontomenü -- dasselbe wie in
+    der Kopfzeile des Büros (_kontomenue.html)."""
+    kopf = _kopfzeile(_render_mobile_header())
+    menue = kopf[kopf.index('id="appTopbarAccountMenu"'):]
+    assert 'id="appThemeToggle"' in menue and "mobileThemeToggle" not in kopf
+
+
+def test_kopf_ist_eine_zeile_mit_kachel_reitern_lupe_und_konto():
+    kopf = _kopfzeile(_render_mobile_header())
+    stellen = [kopf.index(s) for s in ('class="mobile-header-kachel', '<nav class="mobile-nav"', 'id="mobileSearchToggle"',
+                                       'id="appTopbarAccountBtn"')]
+    assert stellen == sorted(stellen)
+    reiter = [t.split(">")[-1] for t in kopf[kopf.index("<nav"):kopf.index("</nav>")].split("</a>")[:-1]]
+    assert reiter == ["Einsätze", "Zeiterfassung", "Stundenzettel"]
+
+
+def test_der_name_steht_immer_im_kopf():
+    """„Ein Bericht, der versehentlich unter fremdem Namen unterschrieben wird, ist das Schlimmste, was hier passieren kann“ (1.3.0) --
+    der volle Name steht im Kontoknopf, auch schmal (anders als in der Kopfzeile des Büros)."""
+    html = _render_mobile_header()
+    assert '<span class="app-konto-name">Max Mustermann</span>' in _kopfzeile(html)
+    css = (TEMPLATES_DIR / "_mobile_header.html").read_text(encoding="utf-8").split("</style>")[0]
+    assert "app-konto-name{display:none" not in css.replace(" ", "") and ".app-konto-name,.mobile" not in css
+
+
+def test_kopf_64_px_reiter_48_px_lupe_48_px():
+    css = (TEMPLATES_DIR / "_mobile_header.html").read_text(encoding="utf-8").split("</style>")[0]
+    regel = lambda sel: css.split(sel + "{")[1].split("}")[0]  # noqa: E731
+    kopf = regel(".mobile-header-wrap .mobile-header")
+    assert "height:64px" in kopf and "box-sizing:border-box" in kopf and "background:var(--ds-navi-grund)" in kopf
+    reiter = regel(".mobile-header-wrap .mobile-nav-reiter")
+    assert "height:48px" in reiter and "font-size:16px" in reiter and "border-bottom:3px solid transparent" in reiter
+    assert "border-bottom-color:var(--ds-marke-hell)" in regel(".mobile-header-wrap .mobile-nav-reiter.active")
+    lupe = regel(".mobile-header-wrap .mobile-lupe")
+    assert "width:48px" in lupe and "height:48px" in lupe
+    assert "width:40px" in regel(".mobile-header-wrap .mobile-header-kachel")
+
+
+def test_seitenregeln_greifen_nicht_in_den_kopf():
+    """Zeiterfassung, Objekt und Stundenzettel der Monteurin setzen button{min-height:44px;width:100%} -- bis 1.8.163 wurde der Kopf dort
+    188 statt 173 px hoch. Seit 1.8.164 trägt jede Regel des Kopfs (außer der des Wrappers selbst) zwei Klassen."""
+    import re
+
+    css = (TEMPLATES_DIR / "_mobile_header.html").read_text(encoding="utf-8").split("<style>")[1].split("</style>")[0]
+    css = re.sub(r"@media[^{]*\{", "", css)
+    for selektoren in re.findall(r"([^{}]+)\{", css):
+        for sel in selektoren.split(","):
+            if sel.strip() != ".mobile-header-wrap":
+                assert sel.strip().startswith(".mobile-header-wrap ") and len(re.findall(r"\.[\w-]+", sel)) >= 2, sel.strip()
+
+
+def test_einsaetze_ist_auch_auf_den_seiten_darunter_aktiv():
+    def aktiv(pfad):
+        nav = _kopfzeile(_render_mobile_header(path=pfad))
+        nav = nav[nav.index("<nav"):nav.index("</nav>")]
+        reiter = [stueck[stueck.rindex("<a "):] for stueck in nav.split("</a>")[:-1]]
+        return [r.split(">")[-1] for r in reiter if "active" in r.split(">")[0] and 'aria-current="page"' in r.split(">")[0]]
+
+    assert aktiv("/mobil") == ["Einsätze"] and aktiv("/orders/5/service-reports") == ["Einsätze"]
+    assert aktiv("/checklisten/3") == ["Einsätze"] and aktiv("/mobil/objekt/2") == ["Einsätze"]
+    assert aktiv("/time-tracking") == ["Zeiterfassung"] and aktiv("/mobil/stundenzettel") == ["Stundenzettel"]
+    assert aktiv("/account") == []
+
+
+# ---------------------------------------------------------------------------
+# Derselbe Mechanismus wie die Kopfzeile des Büros: seit 1.8.164 dasselbe Kontomenü
 # ---------------------------------------------------------------------------
 
 def test_toggle_uses_the_same_storage_key_and_attribute_as_the_account_menu():
-    """Seit 1.8.162 steht Hell/Dunkel der Büroseiten im Kontomenü der Kopfzeile, nicht mehr in der Seitenleiste; seit 1.8.163 im
-    Baustein _kontomenue.html, den die Kopfzeile einbindet."""
-    mobile_js = (TEMPLATES_DIR / "_mobile_header.html").read_text(encoding="utf-8")
-    topbar_js = (TEMPLATES_DIR / "_kontomenue.html").read_text(encoding="utf-8")
-    for needle in (
-        "document.documentElement.getAttribute('data-theme')",
-        "document.documentElement.setAttribute('data-theme'",
-        "localStorage.setItem('erp_theme'",
-    ):
-        assert needle in mobile_js, needle
-        assert needle in topbar_js, needle
+    """Bis 1.8.163 eigener Code im Monteurskopf, verglichen mit der Kopfzeile; seit 1.8.164 binden beide _kontomenue.html ein."""
+    from tests import vorlagen_js
+
+    assert vorlagen_js.bindet_ein("_mobile_header.html", "_kontomenue.html", TEMPLATES_DIR, nur_selbst=True)
+    assert vorlagen_js.bindet_ein("_topbar.html", "_kontomenue.html", TEMPLATES_DIR, nur_selbst=True)
+    konto = (TEMPLATES_DIR / "_kontomenue.html").read_text(encoding="utf-8")
+    for needle in ("document.documentElement.getAttribute('data-theme')", "document.documentElement.setAttribute('data-theme'",
+                   "localStorage.setItem('erp_theme'"):
+        assert needle in konto, needle
 
 
-def test_toggle_swaps_sun_and_moon_icon():
-    """Bis 1.8.161 dieselben Symbole wie der Knopf der Seitenleiste; seit 1.8.162 ist Hell/Dunkel dort ein Eintrag im Kontomenü
-    (Text, ohne Symbol) -- der Knopf des Monteurskopfs wechselt weiter zwischen Sonne und Mond."""
-    mobile_js = (TEMPLATES_DIR / "_mobile_header.html").read_text(encoding="utf-8")
-    assert "var SUN_ICON='<svg" in mobile_js and "var MOON_ICON='<svg" in mobile_js
-    assert "themeToggle.innerHTML=dark?SUN_ICON:MOON_ICON" in mobile_js
+def test_toggle_shows_the_current_theme():
+    """Bis 1.8.163 wechselte der Knopf zwischen Sonne und Mond; seit 1.8.164 nennt der Eintrag im Kontomenü den Zustand."""
+    konto = (TEMPLATES_DIR / "_kontomenue.html").read_text(encoding="utf-8")
+    assert "themaZustand.textContent=thema()==='dark'?'dunkel':'hell'" in konto
 
 
 def test_toggle_click_handler_writes_to_localstorage_and_updates_the_dom():
-    mobile_js = (TEMPLATES_DIR / "_mobile_header.html").read_text(encoding="utf-8")
-    handler_start = mobile_js.index("themeToggle.addEventListener('click'")
-    handler_end = mobile_js.index("});", handler_start)
-    handler = mobile_js[handler_start:handler_end]
-    assert "document.documentElement.setAttribute('data-theme',next)" in handler
-    assert "localStorage.setItem('erp_theme',next)" in handler
+    konto = (TEMPLATES_DIR / "_kontomenue.html").read_text(encoding="utf-8")
+    handler = konto[konto.index("themaKnopf.addEventListener('click'"):]
+    handler = handler[:handler.index("});")]
+    assert "document.documentElement.setAttribute('data-theme',neu)" in handler
+    assert "localStorage.setItem('erp_theme',neu)" in handler
 
 
 # ---------------------------------------------------------------------------

@@ -130,9 +130,12 @@ def test_projektmappe_und_kundenakte_zeigen_ihren_versand():
 
 
 def test_mobile_kopfzeile_mit_mein_konto():
-    kopf = (TEMPLATES / "_mobile_header.html").read_text(encoding="utf-8")
-    rechts = kopf[kopf.index('<div class="mobile-header-right">'):kopf.index('<div class="mobile-search-bar">')]
-    assert '<a class="mobile-header-account" href="/account">Mein Konto</a>' in rechts
+    """Bis 1.8.163 ein eigener Link „Mein Konto“ rechts im Kopf; seit 1.8.164 im Kontomenü, das der Monteurskopf einbindet."""
+    from tests import vorlagen_js
+
+    assert vorlagen_js.bindet_ein("_mobile_header.html", "_kontomenue.html", TEMPLATES, nur_selbst=True)
+    konto = (TEMPLATES / "_kontomenue.html").read_text(encoding="utf-8")
+    assert '<a class="ds-menue-eintrag" href="/account">Mein Konto</a>' in konto
 
 
 @pytest.mark.parametrize("pfad, erwartet", [("/services/new", "const serviceId = null;"), ("/services/7/edit", "const serviceId = 7;")])

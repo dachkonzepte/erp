@@ -35,7 +35,7 @@ FUENF = ["Anfragen", "Projekte", "Plantafel", "Wartungen", "Befunde"]
 
 # Sichtbare Links (offsetParent/getClientRects), als Pfad; Navigation = Seitenleiste + Kopfzeile.
 _SICHTBAR = "(a=>a.getClientRects().length>0&&getComputedStyle(a).visibility!=='hidden')"
-_NAVIGATION = (f"[...document.querySelectorAll('#appSidebar a[href], .app-topbar a[href]')].filter({_SICHTBAR})"
+_NAVIGATION = (f"[...document.querySelectorAll('#appSidebar a[href], .app-topbar a[href], .mobile-header-wrap a[href]')].filter({_SICHTBAR})"
                ".map(a=>a.getAttribute('href')).filter(h=>h.startsWith('/'))")
 _INHALT = (f"[...document.querySelectorAll('main a[href]')].filter({_SICHTBAR})"
            ".map(a=>a.getAttribute('href')).filter(h=>h.startsWith('/'))")
@@ -83,7 +83,7 @@ async def pruefen(tab, seed, p):
         await tab.anmelden(seed["cookies"][rolle])
         seiten = [(berichtsseite, "authStatus&&authStatus.authenticated&&document.getElementById('breadcrumb').textContent.length>0")]
         if rolle == "field":
-            seiten.append(("/account", "document.getElementById('appSidebar')"))
+            seiten.append(("/account", "document.getElementById('mobileHeaderWrap')"))
         for pfad, bereit in seiten:
             if not await tab.oeffnen(pfad, bereit):
                 p.pruefe(f"{rolle} {pfad}: Seite geladen", False, True)
@@ -102,7 +102,10 @@ async def pruefen(tab, seed, p):
             beschriftung = await tab.js("[...document.querySelectorAll('#appSidebar .app-sidebar-link .app-sidebar-label')]"
                                         ".map(x=>x.textContent.trim())")
             if rolle == "field":
-                p.pruefe(f"{rolle} {pfad}: Seitenleiste", beschriftung, ["Start", "Zeiterfassung"])
+                # seit 1.8.164 auf Einsatzbericht und Konto der Monteurskopf statt der Seitenleiste (bis dahin Start, Zeiterfassung)
+                reiter = await tab.js("[...document.querySelectorAll('.mobile-header-wrap .mobile-nav-reiter')].map(x=>x.textContent.trim())")
+                p.pruefe(f"{rolle} {pfad}: Monteurskopf statt Seitenleiste", [beschriftung, reiter],
+                         [[], ["Einsätze", "Zeiterfassung", "Stundenzettel"]])
             elif pfad == berichtsseite:
                 p.pruefe(f"{rolle}: die fünf Links da", [x for x in beschriftung if x in FUENF], FUENF)
             p.pruefe(f"{rolle} {pfad}: JS-Fehler", tab.fehler, [])
@@ -114,4 +117,4 @@ async def pruefen(tab, seed, p):
 
 
 if __name__ == "__main__":
-    sys.exit(klicktest_main(befuellen, pruefen, beschreibung=__doc__))
+    sys.exit(klicktest_main(befuellen, pruefen, beschreibung=__doc__, uhr="10:00"))  # seit 1.8.164: der Reiter Einsätze führt nach /mobil

@@ -48,62 +48,56 @@ def test_every_mobile_page_gets_the_search_bar_for_free():
         assert vorlagen_js.bindet_ein(name, "_mobile_header.html", TEMPLATES), name
 
 
-def test_search_results_dropdown_is_anchored_below_the_whole_header_not_below_the_input():
-    """Die Vorschlagsliste darf die Reiter nicht überlagern (sonst würde ein Tipp auf einen
-    Reiter bei offener Liste zuerst die Liste treffen, nicht den Reiter -- ein zweiter Tipp wäre
-    nötig). Dafür muss sie strukturell NACH <nav> als Kind des GESAMTEN sticky-Wrappers stehen,
-    nicht direkt unter dem Suchfeld -- ihr `top:100%` bezieht sich dann auf die Unterkante des
-    ganzen Kopfblocks (Kopf+Suche+Reiter), nicht auf die Unterkante des Eingabefelds."""
+def test_search_opens_from_the_magnifier_below_the_header_since_1_8_164():
+    """Bis 1.8.163 eine eigene Zeile unter dem Kopf (Kopf 173 px). Seit 1.8.164 öffnet die Lupe (48 px) im einzeiligen Kopf das Feld als
+    Fläche unter dem Kopf: Feld und Vorschläge in EINER Fläche, absolut am sticky-Wrapper (top:100%) -- sie liegt unter der ganzen
+    Kopfzeile samt Reitern, überlagert die Reiter also nie."""
     header = _read("_mobile_header.html")
     wrap_start = header.index('id="mobileHeaderWrap"')
-    search_bar_pos = header.index('class="mobile-search-bar"', wrap_start)
-    nav_pos = header.index("<nav", wrap_start)
+    lupe = header[header.rindex("<button", 0, header.index('id="mobileSearchToggle"')):]
+    lupe = lupe[:lupe.index(">")]
+    assert 'aria-controls="mobileSearchPanel"' in lupe and 'aria-expanded="false"' in lupe and 'aria-label="Objekt suchen"' in lupe
+    nav_end = header.index("</nav>", wrap_start)
+    panel_pos = header.index('id="mobileSearchPanel"', wrap_start)
+    input_pos = header.index('id="mobileObjectSearch"', wrap_start)
     results_pos = header.index('id="mobileObjectSearchResults"', wrap_start)
     wrap_end = header.index("</div>\n<script>", wrap_start)
-    assert search_bar_pos < nav_pos < results_pos < wrap_end
-    # Die Vorschlagsliste ist absolut positioniert relativ zum sticky-Wrapper (ihrem nächsten
-    # positionierten Vorfahren) -- kein zweiter, innerer positionierter Container dazwischen, der
-    # sie stattdessen unter das Suchfeld ziehen würde.
-    assert "position:relative" not in header.split('class="mobile-search-bar"')[1].split("<nav")[0]
+    assert nav_end < panel_pos < input_pos < results_pos < wrap_end
+    panel_tag = header[header.rindex("<div", 0, panel_pos):header.index(">", panel_pos)]
+    assert " hidden" in panel_tag
+    regel = header.split(".mobile-header-wrap .mobile-suche{")[1].split("}")[0]
+    assert "position:absolute" in regel and "top:100%" in regel
+    assert "lupe.focus()" in header and "searchInput.focus()" in header  # Fokus ins Feld, Escape zurück an die Lupe
 
 
 def test_search_bar_has_a_max_width_for_tablets_but_stays_full_width_on_phones():
-    """Punkt 2: auf einem Tablet soll das Suchfeld nicht unnötig breit wirken -- eine
-    Maximalbreite mit zentrierender Randauflösung (margin:auto) erreicht das, ohne auf einem
-    schmalen Smartphone-Bildschirm etwas zu ändern (dort ist die volle Breite ohnehin kleiner
-    als die Maximalbreite, die Regel bleibt dort wirkungslos)."""
+    """Punkt 2: auf einem Tablet soll das Suchfeld nicht unnötig breit wirken -- eine Maximalbreite mit zentrierender Randauflösung
+    (margin:auto). Seit 1.8.164 am Feld der Fläche unter der Lupe (bis dahin .mobile-search-bar input)."""
     header = _read("_mobile_header.html")
-    assert "max-width:640px" in header
-    assert ".mobile-search-bar input{" in header
-    input_rule = header.split(".mobile-search-bar input{")[1].split("}")[0]
-    assert "width:100%" in input_rule
-    assert "max-width:640px" in input_rule
+    input_rule = header.split(".mobile-header-wrap .mobile-suche-feld{")[1].split("}")[0]
+    assert "width:100%" in input_rule and "max-width:640px" in input_rule and "margin:0 auto" in input_rule
 
 
 def test_search_bar_and_tabs_are_stacked_in_normal_flow_never_overlapping():
-    """Kopf/Suche/Reiter liegen als normale Blockzeilen in EINEM sticky-Wrapper -- keine
-    einzelnen, mit hart codierten top-Pixelwerten aufeinander gestapelten sticky-Elemente mehr
-    (das ursprüngliche 1.3.45-Muster, das bei einer neuen Zeile hätte neu vermessen werden
-    müssen). Ohne Restüberlappungsrisiko auf jeder Bildschirmgröße, da normale Blockelemente sich
-    nie überlappen können, unabhängig von der Fensterbreite."""
+    """Kopf und Reiter liegen in EINEM sticky-Wrapper -- keine einzelnen, mit hart codierten top-Pixelwerten aufeinander gestapelten
+    sticky-Elemente (das ursprüngliche 1.3.45-Muster). Seit 1.8.164 stehen die Reiter in der Kopfzeile selbst (unter 600 px in deren
+    zweiter Zeile)."""
     header = _read("_mobile_header.html")
     assert ".mobile-header-wrap{position:sticky" in header
-    # .mobile-header und .mobile-nav selbst duerfen NICHT mehr einzeln sticky sein -- das war das
-    # alte, fragile Stapel-Muster.
-    header_rule = header.split(".mobile-header{")[1].split("}")[0]
-    nav_rule = header.split(".mobile-nav{")[1].split("}")[0]
+    header_rule = header.split(".mobile-header-wrap .mobile-header{")[1].split("}")[0]
+    nav_rule = header.split(".mobile-header-wrap .mobile-nav{")[1].split("}")[0]
     assert "position:sticky" not in header_rule
     assert "position:sticky" not in nav_rule
     assert "top:45px" not in header
 
 
 def test_search_results_layer_above_page_content_but_the_wrapper_itself_carries_the_z_index():
+    """Seit 1.8.164 liegen die Vorschläge in der Fläche unter der Lupe (absolut, bis dahin die Liste selbst mit z-index:20)."""
     header = _read("_mobile_header.html")
     wrap_rule = header.split(".mobile-header-wrap{")[1].split("}")[0]
-    results_rule = header.split(".mobile-search-results{")[1].split("}")[0]
+    panel_rule = header.split(".mobile-header-wrap .mobile-suche{")[1].split("}")[0]
     assert "z-index:30" in wrap_rule
-    assert "position:absolute" in results_rule
-    assert "z-index:20" in results_rule
+    assert "position:absolute" in panel_rule
 
 
 def test_customer_name_shown_in_suggestion_subline():

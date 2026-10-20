@@ -1,4 +1,4 @@
-"""Klicktest: Rahmen der Seiten, Stufe 2 „Rahmen“, Runde 1 (seit 1.8.163; Seitenleiste 1.8.162, Kopfzeile 1.8.163).
+"""Klicktest: Rahmen der Seiten, Stufe 2 „Rahmen“, Runde 1 (seit 1.8.163; Seitenleiste 1.8.162, Kopfzeile 1.8.163, Monteurskopf 1.8.164).
 
 Geprüft wird im echten Browser auf den Testdaten der Bildgrundlage (scripts/bildgrundlage.py, stehende Uhr), hell und dunkel:
 
@@ -15,13 +15,19 @@ Geprüft wird im echten Browser auf den Testdaten der Bildgrundlage (scripts/bil
                    schaltet data-theme um und zeigt den Zustand; Klick daneben schließt
     Seitenregeln   auf den Einstellungen (button:hover und button:active in der Akzentfarbe): Kontoknopf unter der Maus und per
                    Leertaste gedrückt (:active ohne :hover), Menüeintrag unter der Maus -- nie in der Akzentfarbe
+    Monteurskopf   auf jeder Seite der Monteurin (Mobil, Objekt, Stundenzettel, Zeiterfassung, Betriebsmittel, Checkliste,
+                   Checklisten je Auftrag, Einsatzbericht, Konto) bei 1280 × 620 und 800 × 1100: 64 px, einzeilig, keine Seitenleiste
+                   und keine Kopfzeile des Büros, Name ganz zu sehen, Reiter 48 px mit 16 px, der richtige aktiv (3 px Strich in
+                   marke-hell), Lupe 48 × 48 -- auch auf den drei Seiten mit button{min-height:44px;width:100%}; hell und dunkel; bei
+                   412 px zwei Zeilen (112 px) mit Name; Lupe öffnet die Objektsuche mit Fokus im Feld, Escape schließt mit Fokus an
+                   der Lupe; Kontomenü per Tastatur
 
 AUFRUF (aus dem Projektordner):
 
     .venv\\Scripts\\python.exe scripts\\klicktest_rahmen.py [--nur TEIL[,TEIL]] [--app-port N] [--cdp-port N]
         [--arbeitsordner PFAD] [--chrome PFAD] [--offen-lassen]
 
---nur: nur diese Teile (seitenleiste, aktiv, menueknopf, kopfzeile, kontomenue, seitenregeln) -- für Gegenproben, die nach 2 min
+--nur: nur diese Teile (seitenleiste, aktiv, menueknopf, kopfzeile, kontomenue, seitenregeln, monteurskopf) -- für Gegenproben, die nach 2 min
 abbrechen (Regel 24).
 
 Optionen, Ablauf, Rückgabecode und Regeln (isolierte Wegwerf-Datenbank, Prozesse nur über die
@@ -37,14 +43,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bildgrundlage as bg  # noqa: E402
 from cdp_klicktest import klicktest_main  # noqa: E402
 
-ROLLEN = (bg.BUERO, bg.BUERO_AUFTRAG, bg.ADMIN, bg.MONTEUR)
-GRUPPEN = {
-    bg.BUERO: ["Übersicht", "Aufträge", "Kaufmännisch", "Verwaltung"],
-    bg.BUERO_AUFTRAG: ["Übersicht", "Aufträge", "Kaufmännisch", "Verwaltung"],
-    bg.ADMIN: ["Übersicht", "Aufträge", "Kaufmännisch", "Verwaltung"],
-    bg.MONTEUR: ["Übersicht", "Kaufmännisch"],  # bis Teil 4 (1.8.164): Start und Zeiterfassung
-}
-SEITE_JE_ROLLE = {bg.BUERO: "start", bg.BUERO_AUFTRAG: "start", bg.ADMIN: "start", bg.MONTEUR: "einsatzbericht"}
+ROLLEN = (bg.BUERO, bg.BUERO_AUFTRAG, bg.ADMIN)  # die Monteurin hat seit 1.8.164 keine Seitenleiste mehr (Teil "monteurskopf")
+GRUPPEN = {r: ["Übersicht", "Aufträge", "Kaufmännisch", "Verwaltung"] for r in ROLLEN}
+SEITE_JE_ROLLE = {bg.BUERO: "start", bg.BUERO_AUFTRAG: "start", bg.ADMIN: "start"}
+# Seiten der Monteurin -> aktiver Reiter
+MONTEUR_SEITEN = {"mobil": "Einsätze", "mobil_objekt": "Einsätze", "stundenzettel": "Stundenzettel",
+                  "zeiterfassung_monteur": "Zeiterfassung", "betriebsmittel_monteur": "Einsätze", "checkliste": "Einsätze",
+                  "checklisten_auftrag": "Einsätze", "einsatzbericht": "Einsätze", "konto": None}
 AKTIV = [("projektmappe", "projekte"), ("rechnung", "projekte"), ("kunde", "stammdaten"), ("befunde", "befunde"),
          ("einstellungen", "einstellungen"), ("zeiterfassung", "zeiterfassung"), ("suche", None), ("konto", None)]
 
@@ -80,6 +85,22 @@ return {offen:!m.hidden,expanded:k.getAttribute('aria-expanded'),fokus:a===k?'kn
 ARIA = """(()=>{const k=document.getElementById('appTopbarAccountBtn');const m=document.getElementById('appTopbarAccountMenu');
 return {knopf:[k.getAttribute('aria-haspopup'),k.getAttribute('aria-controls'),k.getAttribute('aria-label')],rolle:m.getAttribute('role'),
 eintraege:[...m.querySelectorAll('.ds-menue-eintrag')].map(e=>[e.getAttribute('role'),e.getAttribute('tabindex'),e.textContent.replace(/\\s+/g,' ').trim()])}})()"""
+
+MKOPF = """(()=>{const F=%s;const w=document.getElementById('mobileHeaderWrap');const h=w&&w.querySelector('.mobile-header');
+const r=e=>e?e.getBoundingClientRect():null;const cs=e=>getComputedStyle(e);
+const teile=h?[h.querySelector('.mobile-header-kachel'),h.querySelector('.mobile-nav'),document.getElementById('mobileSearchToggle'),
+document.getElementById('appTopbarAccountBtn')]:[];
+const mitten=teile.map(e=>e?Math.round(r(e).top+r(e).height/2):null);const name=h&&h.querySelector('.app-konto-name');
+const reiter=h?[...h.querySelectorAll('.mobile-nav-reiter')]:[];const aktiv=reiter.filter(a=>a.classList.contains('active'));
+const lupe=document.getElementById('mobileSearchToggle');
+return {hoehe:h?Math.round(r(h).height):null,wrap:w?Math.round(r(w).height):null,
+einzeilig:mitten.every(m=>m!==null)&&Math.max(...mitten)-Math.min(...mitten)<=2,
+leiste:!!document.getElementById('appSidebar'),topbar:!!document.querySelector('.app-topbar'),
+name:name?name.textContent:null,name_ganz:!!name&&cs(name).display!=='none'&&r(name).width>0&&name.scrollWidth<=name.clientWidth,
+reiter:reiter.map(a=>[a.textContent.trim(),Math.round(r(a).height),cs(a).fontSize]),
+aktiv:aktiv.map(a=>[a.textContent.trim(),a.getAttribute('aria-current'),cs(a).borderBottomWidth,cs(a).borderBottomColor===F('--ds-marke-hell')]),
+lupe:lupe?[Math.round(r(lupe).width),Math.round(r(lupe).height)]:null,grund_navi:h?cs(h).backgroundColor===F('--ds-navi-grund'):null,
+breit_scroll:document.documentElement.scrollWidth>innerWidth+1}})()""" % FARBE
 
 TASTEN = {"Enter": 13, "Escape": 27, "ArrowDown": 40, "ArrowUp": 38, "Home": 36, "End": 35, "Tab": 9}
 
@@ -242,8 +263,47 @@ async def _seitenregeln(tab, seed, p):
              [False, "/settings"])
 
 
+async def _monteurskopf(tab, seed, p):
+    await tab.anmelden(seed["cookies"][bg.MONTEUR])
+    for (breite, hoehe), thema in (((1280, 620), "hell"), ((800, 1100), "hell"), ((1280, 620), "dunkel"), ((800, 1100), "dunkel")):
+        seiten = MONTEUR_SEITEN if thema == "hell" else {n: MONTEUR_SEITEN[n] for n in ("einsatzbericht", "konto", "zeiterfassung_monteur")}
+        for name, reiter in seiten.items():
+            wo = f"Monteurskopf {name} {thema} {breite}×{hoehe}"
+            p.pruefe(f"{wo}: geladen", await _laden(tab, seed, name, thema, breite, hoehe), True)
+            m = await tab.js(MKOPF)
+            p.pruefe(f"{wo}: 64 px, einzeilig, ohne Leiste und Kopfzeile des Büros, Grund navi",
+                     [m["hoehe"], m["wrap"], m["einzeilig"], m["leiste"], m["topbar"], m["grund_navi"], m["breit_scroll"]],
+                     [64, 64, True, False, False, True, False])
+            p.pruefe(f"{wo}: Name ganz zu sehen", [m["name"], m["name_ganz"]], ["Mia Monteurin", True])
+            p.pruefe(f"{wo}: Reiter 48 px mit 16 px, Lupe 48 × 48", [m["reiter"], m["lupe"]],
+                     [[["Einsätze", 48, "16px"], ["Zeiterfassung", 48, "16px"], ["Stundenzettel", 48, "16px"]], [48, 48]])
+            p.pruefe(f"{wo}: aktiver Reiter", m["aktiv"], [[reiter, "page", "3px", True]] if reiter else [])
+            p.pruefe(f"{wo}: keine JS-Fehler", tab.fehler, [])
+    # Telefon: zwei Zeilen, Name bleibt
+    p.pruefe("Monteurskopf 412 px: geladen", await _laden(tab, seed, "einsatzbericht", "hell", 412, 900), True)
+    m = await tab.js(MKOPF)
+    p.pruefe("Monteurskopf 412 px: zwei Zeilen (112 px), Name ganz, kein waagrechter Bildlauf",
+             [m["hoehe"], m["name"], m["name_ganz"], m["breit_scroll"]], [112, "Mia Monteurin", True, False])
+    # Lupe und Kontomenü per Tastatur
+    p.pruefe("Monteurskopf Lupe: geladen", await _laden(tab, seed, "einsatzbericht", "hell", 1280, 620), True)
+    suche = ("(()=>{const l=document.getElementById('mobileSearchToggle'),s=document.getElementById('mobileSearchPanel');"
+             "return [!s.hidden,l.getAttribute('aria-expanded'),document.activeElement&&document.activeElement.id]})()")
+    await tab.js("document.getElementById('mobileSearchToggle').focus()")
+    await _taste(tab, "Enter")
+    p.pruefe("Monteurskopf Lupe: Enter öffnet die Suche, Fokus im Feld", await tab.js(suche), [True, "true", "mobileObjectSearch"])
+    await _taste(tab, "Escape")
+    p.pruefe("Monteurskopf Lupe: Escape schließt, Fokus an der Lupe", await tab.js(suche), [False, "false", "mobileSearchToggle"])
+    await tab.js("document.getElementById('appTopbarAccountBtn').focus()")
+    for taste, offen, fokus in (("Enter", True, "/account"), ("ArrowDown", True, "appThemeToggle"), ("End", True, "appTopbarLogout"),
+                                ("Escape", False, "knopf")):
+        await _taste(tab, taste)
+        m = await tab.js(MENUE)
+        p.pruefe(f"Monteurskopf Kontomenü: {taste}", [m["offen"], m["expanded"], m["fokus"]], [offen, "true" if offen else "false", fokus])
+    p.pruefe("Monteurskopf: keine JS-Fehler", tab.fehler, [])
+
+
 TEILE = {"seitenleiste": _seitenleiste, "aktiv": _aktiv, "menueknopf": _menueknopf, "kopfzeile": _kopfzeile,
-         "kontomenue": _kontomenue, "seitenregeln": _seitenregeln}
+         "kontomenue": _kontomenue, "seitenregeln": _seitenregeln, "monteurskopf": _monteurskopf}
 NUR: list = []
 
 

@@ -356,11 +356,12 @@ async def _seitenleiste(tab, seed, p):
 # -- Abmelden auf /mobil -----------------------------------------------------------
 
 async def _abmelden_mobil(tab, seed, p):
-    bereit = "document.getElementById('mobileHeaderLogout')&&document.readyState==='complete'"
-    daten = "document.querySelector('.mobile-header-user')?.textContent.includes('Mia Monteurin')"
+    # seit 1.8.164 über das Kontomenü des Monteurskopfs (bis dahin der Reiter „Abmelden“, #mobileHeaderLogout)
+    bereit = "document.getElementById('appTopbarLogout')&&document.readyState==='complete'"
+    daten = "document.querySelector('.mobile-header-wrap .app-konto-name')?.textContent.includes('Mia Monteurin')"
     await tab.anmelden(seed["cookies"]["mia"])
     await tab.fenster(412, 900, mobil=True)
-    vorher = await _abmelden(tab, p, "Abmelden Mobil", seite="/mobil", bereit=bereit, knoepfe=["#mobileHeaderLogout"],
+    vorher = await _abmelden(tab, p, "Abmelden Mobil", seite="/mobil", bereit=bereit, knoepfe=["#appTopbarAccountBtn", "#appTopbarLogout"],
                              anhalten=True, api="/api/field-view/today")
     p.pruefe("Abmelden Mobil: der alte Cookie-Wert gilt nicht mehr",
              await asyncio.to_thread(_status_mit_cookie, tab.base + "/api/field-view/today", vorher), 401)

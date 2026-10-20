@@ -85,8 +85,11 @@ def _rollen(pfad_anfang: str) -> list[set[str]]:
 @pytest.mark.parametrize("rolle", (*BUERO, ROLE_FIELD))
 def test_seitenleiste_in_gruppen_je_rolle(seite, rolle):
     if rolle == ROLE_FIELD:
-        erwartet = [("Übersicht", ["Start"]), ("Kaufmännisch", ["Zeiterfassung"])]
-    elif rolle == ROLE_OFFICE_AUFTRAG:
+        # bis 1.8.163 die Seitenleiste mit Start und Zeiterfassung; seit 1.8.164 hat die Monteurin auf der Kontoseite den Monteurskopf
+        html = seite("/account", rolle)
+        assert 'class="app-sidebar-nav"' not in html and 'id="mobileHeaderWrap"' in html
+        return
+    if rolle == ROLE_OFFICE_AUFTRAG:
         erwartet = [(g, [x for x in e if x not in ("Eingangsrechnungen", "Betriebskosten")]) for g, e in SEITENLEISTE]
     else:
         erwartet = SEITENLEISTE

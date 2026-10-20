@@ -10,8 +10,9 @@ aufnehmen   Eine Testinstanz (scripts/cdp_klicktest.py, Wegwerf-SQLite, Regel 16
             dunkel) und je Breite (412 px als Gerät, 1440 px) ein ganzseitiges PNG; die Seiten der Monteurin zusätzlich auf dem
             TerraPad 1201, hoch (800 × 1100) und quer (1280 × 620), als Gerät (seit 1.8.131, Fenster seit 1.8.156). Danach die
             Zustände des Rahmens (ZUSTAENDE, seit
-            1.8.131): Menü aufgeklappt, Seitenleiste eingeklappt, Kontomenü offen, Seitenleiste von Büro – Auftrag (bis 1.8.161
-            auch „Seitenleiste ganz unten“ -- seit 1.8.162 scrollt sie bei 1440 × 900 nicht mehr, geprüft beim Aufnehmen) -- je auf
+            1.8.131): Menü aufgeklappt, Seitenleiste eingeklappt (beide seit 1.8.164 nur fürs Büro), Kontomenü offen, Objektsuche
+            offen (Monteurin, seit 1.8.164), Seitenleiste von Büro – Auftrag (bis 1.8.161 auch „Seitenleiste ganz unten“ -- seit
+            1.8.162 scrollt sie bei 1440 × 900 nicht mehr, geprüft beim Aufnehmen) -- je auf
             der Seite aus ZUSTANDSSEITEN, je Thema, als Bild des Fensters (nicht der ganzen Seite: die Leiste und
             die Menüs hängen am Fenster). Vor jedem Bild: Seite geladen und keine Anfrage mehr unterwegs (seit 0,8 s), Schriften
             bereit, Animationen, Übergänge und Textcursor aus, kein Fokus. Geprüft je Bild: geladen und Status 200 (die Sperrseite
@@ -148,20 +149,25 @@ class Zustand:
     rollen: tuple
 
 
-# Die Seite je Rolle: für das Büro die Startseite, für die Monteurin der Einsatzbericht (eine ihrer zwei Seiten mit Seitenleiste und
-# Kopfzeile -- die übrigen haben den Kopf der Monteursansicht, _mobile_header.html, ohne Menü und Kontomenü)
+# Die Seite je Rolle: für das Büro die Startseite, für die Monteurin der Einsatzbericht (bis 1.8.163 eine ihrer zwei Seiten mit
+# Seitenleiste und Kopfzeile; seit 1.8.164 hat sie überall den Monteurskopf, _mobile_header.html, mit Lupe und Kontomenü)
 ZUSTANDSSEITEN = {BUERO: "start", BUERO_AUFTRAG: "start", MONTEUR: "einsatzbericht"}
 _LEISTE_SCROLLT = "[...document.querySelectorAll('#appSidebar,#appSidebar .app-sidebar-nav')].find(e=>e.scrollHeight>e.clientHeight+1)"
 Z = Zustand
 ZUSTAENDE = (
+    # Menü und eingeklappte Leiste seit 1.8.164 nur fürs Büro (die Monteurin hat keine Seitenleiste mehr)
     Z("menue_offen", "(()=>{document.getElementById('appTopbarMenuBtn').click();"
-                     "return document.getElementById('appSidebar').classList.contains('mobile-open')})()", (412, 800), (BUERO, MONTEUR)),
+                     "return document.getElementById('appSidebar').classList.contains('mobile-open')})()", (412, 800), (BUERO,)),
     # seit 1.8.162 am Menüknopf der Kopfzeile (bis dahin #appSidebarToggle unten in der Leiste)
     Z("leiste_eingeklappt", "(()=>{document.getElementById('appTopbarMenuBtn').click();"
                             "return document.getElementById('appSidebar').classList.contains('collapsed')})()", (1280, 1440),
-      (BUERO, MONTEUR)),
+      (BUERO,)),
+    # dasselbe Kontomenü (_kontomenue.html) in Kopfzeile und Monteurskopf
     Z("kontomenue_offen", "(()=>{document.getElementById('appTopbarAccountBtn').click();"
                           "return !document.getElementById('appTopbarAccountMenu').hidden})()", (1440,), (BUERO, MONTEUR)),
+    # seit 1.8.164: die Lupe des Monteurskopfs öffnet die Objektsuche unter dem Kopf
+    Z("suche_offen", "(()=>{document.getElementById('mobileSearchToggle').click();"
+                     "return !document.getElementById('mobileSearchPanel').hidden})()", (800, 1280), (MONTEUR,)),
     Z("leiste", "!!document.getElementById('appSidebar')", (1440,), (BUERO_AUFTRAG,)),
 )
 LEISTE_OHNE_BILDLAUF = f"!{_LEISTE_SCROLLT}"

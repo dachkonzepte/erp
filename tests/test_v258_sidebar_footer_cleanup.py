@@ -141,8 +141,13 @@ def test_two_factor_pending_redirect_check_is_preserved():
 # ---------------------------------------------------------------------------
 
 def test_mobile_header_keeps_its_own_independent_logout():
+    """Seit 1.8.164 im Kontomenü (_kontomenue.html), das der Monteurskopf einbindet -- bis dahin ein eigener Reiter „Abmelden“
+    (#mobileHeaderLogout). Unabhängig von der Seitenleiste wie bisher."""
+    from tests import vorlagen_js
+
     root = Path(__file__).parents[1] / "app" / "templates"
     mobile_header = (root / "_mobile_header.html").read_text(encoding="utf-8")
-    assert 'id="mobileHeaderLogout"' in mobile_header
+    assert vorlagen_js.bindet_ein("_mobile_header.html", "_kontomenue.html", root, nur_selbst=True)
+    assert 'id="appTopbarLogout"' in (root / "_kontomenue.html").read_text(encoding="utf-8")
     for cls in ("app-sidebar-foot", "app-sidebar-user", "app-sidebar-logout", "app-sidebar-account-link"):
         assert cls not in mobile_header

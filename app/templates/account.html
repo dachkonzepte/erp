@@ -30,10 +30,13 @@ button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:
    blau unterstrichener Browser-Standardlink statt im Design-System, siehe CLAUDE.md. */
 a{color:var(--accent)}
 </style></head><body>
+{# Seit 1.8.164 (Stufe 2 „Rahmen“): die Monteurin im Monteurskopf, das Büro mit Seitenleiste und Kopfzeile (ersetzt Festlegung 1.8.113
+   Nr. 6: „die Kontoseite zeigt dem Monteur die Seitenleiste“). #}
+{% set monteursrahmen = can(request.state.erp_user, 'field') %}
 <div class="app-layout">
-{% include "_sidebar.html" %}
+{% if not monteursrahmen %}{% include "_sidebar.html" %}{% endif %}
 <div class="app-content">
-{% include "_topbar.html" %}
+{% if monteursrahmen %}{% include "_mobile_header.html" %}{% else %}{% include "_topbar.html" %}{% endif %}
 <main>
 <!-- Bewusst ein einfacher href="/" statt onclick="history.back();return false" (das "← Zurück"-Muster
      früherer Seiten, seit 1.8.154 überall durch feste Ziele ersetzt): diese Seite ist während der 1.3.34-Zwei-Faktor-Pflicht oft über

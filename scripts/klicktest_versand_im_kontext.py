@@ -174,14 +174,16 @@ async def pruefen(tab, seed, p):
     # --- Mein Konto in der mobilen Kopfzeile ---
     await tab.anmelden(seed["cookies"]["monteurin"])
     await tab.fenster(412, 900, mobil=True)
-    await tab.oeffnen("/mobil", "document.querySelector('.mobile-header-account')")
-    p.pruefe("/mobil: Mein Konto in der Kopfzeile", await tab.js(
-        "(a=>[a.textContent.trim(),a.getAttribute('href'),a.getClientRects().length>0])(document.querySelector('.mobile-header .mobile-header-account'))"),
+    # seit 1.8.164 im Kontomenü des Monteurskopfs (bis dahin ein eigener Link rechts im Kopf)
+    await tab.oeffnen("/mobil", "document.getElementById('appTopbarAccountBtn')")
+    await tab.js("document.getElementById('appTopbarAccountBtn').click()")
+    p.pruefe("/mobil: Mein Konto im Kontomenü der Kopfzeile", await tab.js(
+        "(a=>[a.textContent.trim(),a.getAttribute('href'),a.getClientRects().length>0])(document.querySelector('.mobile-header #appTopbarAccountMenu a[href=\"/account\"]'))"),
         ["Mein Konto", "/account", True])
     p.pruefe("/mobil: Kopfzeile ohne waagrechte Scrollleiste",
              await tab.js("document.documentElement.scrollWidth<=document.documentElement.clientWidth+1"), True)
     await tab.bild("mobil_mein_konto_412")
-    await tab.js("document.querySelector('.mobile-header-account').click()")
+    await tab.js("document.querySelector('#appTopbarAccountMenu a[href=\"/account\"]').click()")
     await tab.warten("location.pathname==='/account'&&!!document.getElementById('currentPassword')")
     p.pruefe("/mobil: Mein Konto öffnet das Konto", await tab.js("location.pathname"), "/account")
     p.pruefe("/account (Monteurin): JS-Fehler", tab.fehler, [])

@@ -922,3 +922,11 @@ eine fremde Fläche der Vertragsposition weggelassen. „Erfasst von“ am Prüf
 Anmeldung. Schnellauftrag und Wartungsvertrag am Objekt eines anderen Kunden nur mit Bestätigung (409 sonst), der Vorgang aus dem
 Vertrag bekommt dessen Kunden und Objekt, der Mustervorgang muss einer sein, die Wartungshistorie in /mobil gilt nur für Objekte
 der eigenen Aufträge. Herleitung, Festlegungen und Tests: `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.70".
+
+## Nachtrag 1.8.164: Monteurskopf (Stufe 2 „Rahmen“)
+
+`_mobile_header.html` ist seit 1.8.164 eine Zeile von 64 px: Logo-Kachel, Reiter Einsätze · Zeiterfassung · Stundenzettel, Lupe für
+die Objektsuche (Fläche unter dem Kopf statt eigener Zeile), Kontoknopf mit vollem Namen und Menü Mein Konto · Hell/Dunkel · Abmelden
+(`_kontomenue.html`, dasselbe wie im Büro). Der frühere Reiter „Abmelden“ und der Knopf Hell/Dunkel sind im Kontomenü. Anders als oben
+(„`service_reports.html` bekommt bewusst KEINE eigene Kopfzeile“) haben Einsatzbericht und Konto der Monteurin seither diesen Kopf
+statt der Seitenleiste. Herleitung, Maße und Festlegungen: `docs/archiv/redesign.md`, „Teil 4 (1.8.164): Monteurskopf“.

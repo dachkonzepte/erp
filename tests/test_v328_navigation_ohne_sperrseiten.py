@@ -145,16 +145,18 @@ def test_seitenleiste_des_monteurs_auf_der_berichtsseite(welt, monkeypatch):
     monkeypatch.setitem(templates.env.globals, "is_module_enabled", lambda key: True)
     db, pfad = welt["db"], "/orders/1/service-reports"
     monteur = _client_als(db, [pages_router], welt["user_ids"][ROLE_FIELD]).get(pfad)
-    assert _links(monteur.text) == {"/", "/time-tracking"}
+    # seit 1.8.164 der Monteurskopf mit seinen drei Reitern statt der Seitenleiste (bis dahin Start und Zeiterfassung)
+    assert _links(monteur.text) == {"/mobil", "/time-tracking", "/mobil/stundenzettel"}
     buero = _client_als(db, [pages_router], welt["user_ids"][ROLE_OFFICE_AUFTRAG]).get(pfad)
     assert {"/maintenance-contracts", "/findings", "/inquiries", "/projects", "/planning"} <= _links(buero.text)
 
 
 def test_gegenprobe_links_ohne_rollenbedingung_fallen_auf(welt, monkeypatch):
     """Alle Rollenbedingungen in den Vorlagen aufgehoben (can() immer wahr) -- der Durchlauf muss die
-    fünf Links aus 1.8.24 beim Monteur als gesperrt melden."""
+    fünf Links aus 1.8.24 beim Monteur als gesperrt melden. Seit 1.8.164 bleibt dabei die Weiche zum Monteurskopf
+    (can(user, 'field')) falsch: sonst bekäme die Seite gar keine Seitenleiste, die Gegenprobe prüfte nichts."""
     monkeypatch.setitem(templates.env.globals, "is_module_enabled", lambda key: True)
-    monkeypatch.setitem(templates.env.globals, "can", lambda user, *roles: True)
+    monkeypatch.setitem(templates.env.globals, "can", lambda user, *roles: roles != ("field",))
     ergebnis = _durchlauf(welt, ROLE_FIELD)
     links = {link for _, seite, link in ergebnis["gesperrt"] if seite == "/orders/1/service-reports"}
     assert {"/maintenance-contracts", "/findings", "/inquiries", "/projects", "/planning"} <= links

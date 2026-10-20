@@ -152,9 +152,11 @@ def test_monteurin_auch_auf_dem_terrapad():
 
 # Vorgabe vom 19.10.2026, Punkt 5: Zustand -> (Breiten, Rollen)
 ERWARTETE_ZUSTAENDE = {
-    "menue_offen": ((412, 800), {bg.BUERO, bg.MONTEUR}),
-    "leiste_eingeklappt": ((1280, 1440), {bg.BUERO, bg.MONTEUR}),
+    # Menü und eingeklappte Leiste bis 1.8.163 auch für die Monteurin -- seit 1.8.164 hat sie den Monteurskopf ohne Leiste
+    "menue_offen": ((412, 800), {bg.BUERO}),
+    "leiste_eingeklappt": ((1280, 1440), {bg.BUERO}),
     "kontomenue_offen": ((1440,), {bg.BUERO, bg.MONTEUR}),
+    "suche_offen": ((800, 1280), {bg.MONTEUR}),
     # bis 1.8.161 dazu "leiste_unten" fürs Büro -- seit 1.8.162 scrollt die Leiste bei 1440 × 900 nicht mehr (beim Aufnehmen geprüft)
     "leiste": ((1440,), {bg.BUERO_AUFTRAG}),
 }
@@ -167,13 +169,13 @@ def test_zustaende_wie_vorgegeben():
         for rolle in z.rollen:
             assert {(b.thema, b.breite, b.aufnahme.name) for b in geplant if b.zustand is z and b.rolle == rolle} == \
                 {(t, w, bg.ZUSTANDSSEITEN[rolle]) for t in bg.THEMEN for w in z.breiten}, (z.name, rolle)
-    assert len(geplant) == 22  # 8 Menü + 8 eingeklappt + 4 Kontomenü + 2 Büro – Auftrag (bis 1.8.161 dazu 2 ganz unten)
+    assert len(geplant) == 18  # 4 Menü + 4 eingeklappt + 4 Kontomenü + 4 Suche + 2 Büro – Auftrag (1.8.162: 22, bis 1.8.161: 24)
 
 
 def test_dateinamen_eindeutig_und_die_bisherigen_zuerst():
     geplant = bg.geplante_bilder()
     namen = [b.datei for b in geplant]
-    assert len(namen) == len(set(namen)) == 302  # 240 wie bisher + 40 TerraPad + 22 Zustände (bis 1.8.161: 24)
+    assert len(namen) == len(set(namen)) == 298  # 240 wie bisher + 40 TerraPad + 18 Zustände (1.8.162: 22, bis 1.8.161: 24)
     assert all("__" not in b.aufnahme.name and (b.zustand is None or "__" not in b.zustand.name) for b in geplant)
     bisher = [b for b in geplant if b.breite in bg.BREITEN and b.zustand is None]
     assert geplant[:len(bisher)] == bisher and len(bisher) == 240, "die bisherigen Bilder entstehen zuerst, in der bisherigen Reihenfolge"
@@ -183,38 +185,43 @@ def test_dateinamen_eindeutig_und_die_bisherigen_zuerst():
 def test_teilauswahl_nimmt_nur_passende_seiten():
     assert {b.aufnahme.name for b in bg.geplante_bilder(["start"])} == {"start"}
     assert {(b.rolle, b.zustand.name if b.zustand else None) for b in bg.geplante_bilder(["einsatzbericht"])} >= {
-        (bg.MONTEUR, None), (bg.MONTEUR, "menue_offen"), (bg.BUERO, None)}
+        (bg.MONTEUR, None), (bg.MONTEUR, "suche_offen"), (bg.BUERO, None)}
 
 
-def _rahmen_kennungen() -> set:
+def _rahmen_kennungen(rolle=None) -> set:
+    """Die Kennungen, die die Zustände (einer Rolle) anfassen; die Leiste dazu für jede Rolle mit Seitenleiste."""
     import re
 
-    return {k for z in bg.ZUSTAENDE for k in re.findall(r"getElementById\('([^']+)'\)", z.aktion)} | {"appSidebar"}
+    zustaende = [z for z in bg.ZUSTAENDE if rolle is None or rolle in z.rollen]
+    leiste = {"appSidebar"} if rolle in (None, bg.BUERO, bg.BUERO_AUFTRAG) else set()
+    return {k for z in zustaende for k in re.findall(r"getElementById\('([^']+)'\)", z.aktion)} | leiste
 
 
 def test_zustandsseiten_zeichnen_den_rahmen_fuer_ihre_rolle(threaded_db_session, router_test_client):
-    kennungen = _rahmen_kennungen()
-    assert kennungen == {"appSidebar", "appTopbarMenuBtn", "appTopbarAccountBtn", "appTopbarAccountMenu"}  # seit 1.8.162 ohne appSidebarToggle
+    """Seit 1.8.164 je Rolle: das Büro mit Leiste, Menüknopf und Kontomenü, die Monteurin mit Lupe und Kontomenü des Monteurskopfs."""
+    assert _rahmen_kennungen() == {"appSidebar", "appTopbarMenuBtn", "appTopbarAccountBtn", "appTopbarAccountMenu", "mobileSearchToggle",
+                                   "mobileSearchPanel"}
+    assert _rahmen_kennungen(bg.MONTEUR) == {"appTopbarAccountBtn", "appTopbarAccountMenu", "mobileSearchToggle", "mobileSearchPanel"}
     for rolle, name in bg.ZUSTANDSSEITEN.items():
         a = bg.AUFNAHME[name]
         client = router_test_client(threaded_db_session, pages_router, role=ROLLE_IM_TEST[rolle], employee_id=1)
         antwort = client.get(_pfad(a), follow_redirects=False)
         assert antwort.status_code == 200 and antwort.template.name == a.vorlage, (rolle, name)
-        fehlen = sorted(k for k in kennungen if f'id="{k}"' not in antwort.text)
+        fehlen = sorted(k for k in _rahmen_kennungen(rolle) if f'id="{k}"' not in antwort.text)
         assert fehlen == [], (rolle, name, fehlen)
-        assert "app-sidebar-nav" in antwort.text  # die Leiste, deren Bildlauf beim Aufnehmen geprüft wird
+        assert ("app-sidebar-nav" in antwort.text) is (rolle != bg.MONTEUR)  # die Leiste, deren Bildlauf beim Aufnehmen geprüft wird
 
 
-def test_monteurin_hat_den_rahmen_auf_einsatzbericht_und_konto(threaded_db_session, router_test_client):
-    """"wo es ihn gibt": die übrigen Seiten der Monteurin haben den Kopf der Monteursansicht ohne Menü und Kontomenü."""
+def test_monteurin_hat_ueberall_den_monteurskopf_seit_1_8_164(threaded_db_session, router_test_client):
+    """Bis 1.8.163 hatten Einsatzbericht und Konto der Monteurin Seitenleiste und Kopfzeile des Büros (Festlegung 1.8.113 Nr. 6). Seit
+    1.8.164 zeigt jede ihrer Seiten den Monteurskopf mit Kontomenü und keine Seitenleiste."""
     client = router_test_client(threaded_db_session, pages_router, role="field", employee_id=1)
-    mit_rahmen = set()
-    for a in (a for a in bg.AUFNAHMEN if bg.MONTEUR in a.rollen and a.vorlage != "access_denied.html"):
+    seiten = [a for a in bg.AUFNAHMEN if bg.MONTEUR in a.rollen and a.vorlage != "access_denied.html"]
+    assert {"einsatzbericht", "konto", "mobil", "checkliste"} <= {a.name for a in seiten}
+    for a in seiten:
         text = client.get(_pfad(a), follow_redirects=False).text
-        if 'id="appSidebar"' in text and 'id="appTopbarAccountBtn"' in text:
-            mit_rahmen.add(a.name)
-    assert mit_rahmen == {"einsatzbericht", "konto"}
-    assert bg.ZUSTANDSSEITEN[bg.MONTEUR] in mit_rahmen
+        assert ['id="mobileHeaderWrap"' in text, 'id="appSidebar"' in text, 'id="appTopbarAccountBtn"' in text] == [True, False, True], a.name
+    assert bg.ZUSTANDSSEITEN[bg.MONTEUR] == "einsatzbericht"
 
 
 def test_testdaten_haben_ein_konto_je_rolle():

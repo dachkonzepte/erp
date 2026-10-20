@@ -1090,7 +1090,7 @@ Navigation je Rolle, jeder Einstellungsbereich erreichbar. Stufe 2 „Bereinigen
 3. **Aufgaben-Benachrichtigungen stehen nie in den gefilterten Listen**, auch nicht für Admin -- sie gehören zu keinem Dokument.
 4. **`project_id` und `customer_id` zugleich lehnt die API ab (400)**; das Versandprotokoll nimmt `?projekt=` oder `?kunde=` und nennt den Filter mit Link zurück.
 5. **Mahnung: Link auf die Rechnung mit `?mahnung=`**, dort hervorgehoben und einmal hingescrollt; fehlt die Rechnung, wie bisher ins Mahnwesen.
-6. **„Mein Konto“ als kleiner Knopf in der Kopfzeile** (30 px wie der Hell/Dunkel-Umschalter), nicht als fünfter Reiter -- vier Reiter passen auf 412 px gerade noch; die Kontoseite zeigt dem Monteur die Seitenleiste, „Start“ führt ihn nach `/mobil` zurück.
+6. **„Mein Konto“ als kleiner Knopf in der Kopfzeile** (30 px wie der Hell/Dunkel-Umschalter), nicht als fünfter Reiter -- vier Reiter passen auf 412 px gerade noch; die Kontoseite zeigt dem Monteur die Seitenleiste, „Start“ führt ihn nach `/mobil` zurück. **Ersetzt seit 1.8.164** (Entscheidung Stufe 2 „Rahmen“): „Mein Konto“ steht im Kontomenü des Monteurskopfs, die Kontoseite der Monteurin hat den Monteurskopf (`docs/archiv/redesign.md`, „Teil 4 (1.8.164)“).
 7. **Leistungsformular ohne neuen Endpunkt**: ohne das Recht auf die Kalkulationsvorgaben die Standardwerte aus der Kalkulation der Leistung, sonst „—“ mit Hinweis; Büro – Finanzen und Admin wie bisher.
 8. **„Leistung anlegen“ mit behoben, als Teil von Punkt 6**: `/services/new` brach seit dem ersten Commit für jede Rolle mit „None is not defined“ ab (`default('null')` greift in Jinja nicht bei `None`) -- gefunden im Klicktest; ohne die Korrektur wäre „Das Leistungsformular lädt wieder“ für neue Leistungen nicht erfüllt.
 

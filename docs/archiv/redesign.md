@@ -1017,3 +1017,89 @@ Grundlage: der Befund `docs/archiv/befund-rahmen.md`. Die Entscheidungen oben ge
 2. **Das Menü nennt den Namen nicht noch einmal** (er steht im Knopf); Hell/Dunkel zeigt den aktuellen Zustand.
 3. **Kontoknopf rund (Pille), Initialen-Kreis in `--ds-aktion`**, Hover `--ds-flaeche-2`; Menüknopf und Suchfeld mit `--ds-ecke-feld`.
 4. **Zwei Klassen je Regel des Kopfs und `:active` in `ds.css`** als Schutz gegen die button-Regeln der Seiten (bis sie umziehen).
+
+### Teil 4 (1.8.164): Monteurskopf
+
+- **`_mobile_header.html`** neu, eine Zeile von 64 px in `--ds-navi-grund` (dunkel in beiden Modi): Logo-Kachel 40 px (Firmenlogo
+  auf Weiß, sonst Dach auf `marke-hell`), die Reiter **Einsätze · Zeiterfassung · Stundenzettel** (48 px, 16 px, `navi-leise`; aktiv
+  `navi-text` mit 3 px Strich unten in `marke-hell` und `aria-current`), rechts die **Lupe** (48 × 48, `aria-controls`/`-expanded`) und
+  der **Kontoknopf** aus `_kontomenue.html` (Teil 3) mit Initialen und vollem Namen, 48 px; Menü Mein Konto · Hell/Dunkel · Abmelden
+  mit 48 px hohen Einträgen. Einsätze ist auch auf Objekt, Einsatzbericht, Checklisten und Betriebsmittel aktiv, auf dem Konto keiner.
+  Unter 600 px rutschen die Reiter in eine zweite Zeile (Kopf 112 px), der Name bleibt.
+- **Objektsuche hinter der Lupe**: bis 1.8.163 eine eigene Zeile unter dem Kopf (Kopf 173 px, auf drei Seiten 188 px); jetzt eine Fläche
+  unter dem Kopf (absolut am sticky-Wrapper), Fokus ins Feld; Escape schließt erst die Vorschläge, dann die Fläche mit Fokus zurück an
+  die Lupe. Logik unverändert (ab zwei Zeichen nach 300 ms, `GET /api/field-view/properties/search`).
+- **Einsatzbericht und Konto der Monteurin** bekommen den Monteurskopf (`service_reports.html`, `account.html`: Weiche
+  `can(current_user, 'field')` wie `checklist.html`; ersetzt Festlegung 1.8.113 Nr. 6). Damit hat die Monteurin auf keiner Seite mehr
+  Seitenleiste und Kopfzeile des Büros, der Name steht auch dort, wo unterschrieben wird.
+- **Die button-Regeln dreier Seiten greifen nicht mehr in den Kopf** (Zeiterfassung, Objekt, Stundenzettel: `button{min-height:44px;
+  width:100%}`): jede Regel des Kopfs trägt zwei Klassen und setzt ihre Maße selbst (Breite und Flex-Basis der Lupe, Höhe des
+  Kontoknopfs). `_mobile_header.html` bindet `_speichern.html` nicht mehr ein (das Abmelden steht im Kontomenü).
+- **Gemessen** (Instanz der Bildgrundlage): Kopf 64 px auf allen neun Seiten der Monteurin bei 1280 × 620 und 800 × 1100, auch auf den
+  drei mit der button-Regel -- bis 1.8.163 173/188 px, für den Inhalt bleiben quer jetzt 556 statt 447 px (432 auf den drei Seiten);
+  412 px: 112 px statt 173.
+
+#### Tests und Prüfung
+
+- `klicktest_rahmen.py` um den Teil `monteurskopf`: neun Seiten der Monteurin bei 1280 × 620 und 800 × 1100 (hell; Einsatzbericht, Konto
+  und Zeiterfassung auch dunkel): 64 px, einzeilig (Mitte von Kachel, Reitern, Lupe und Konto auf ±2 px), keine Leiste und Kopfzeile des
+  Büros, Name ganz, Reiter 48 px/16 px, der richtige aktiv, Lupe 48 × 48, kein waagrechter Bildlauf; 412 px zwei Zeilen; Lupe per
+  Tastatur mit Fokus; Kontomenü per Tastatur. Die Monteurin fällt aus dem Teil `seitenleiste` heraus. 289 von 289.
+- `test_v272`: neue Tests zu Zeile, Name, Maßen, Seitenregeln (jede Regel mit `.mobile-header-wrap` und zwei Klassen), aktivem Reiter;
+  `test_v431`: die Monteurin hat überall den Monteurskopf.
+- `scripts/bildgrundlage.py`: Zustände Menü aufgeklappt und Leiste eingeklappt nur noch fürs Büro, Kontomenü offen für Büro und Monteurin
+  (dasselbe Menü), neu **Objektsuche offen** der Monteurin bei 800 und 1280 px -- 298 statt 302 Bilder.
+- Klicktests `klicktest_anmelden` (Abmelden auf `/mobil` über das Kontomenü), `klicktest_monteur_navigation`, `klicktest_neue_ordnung`,
+  `klicktest_versand_im_kontext` angepasst (siehe unten).
+- **Gegenproben** (Regel 24, pytest und `klicktest_rahmen --nur monteurskopf`): Lupe ohne Breite und Flex-Basis (Klicktest 128 von 154:
+  die button-Regel der Seite macht sie breit); Einsätze nur auf `/mobil` aktiv (142 von 154); Name im Monteurskopf ausgeblendet
+  (129 von 154); Einsatzbericht der Monteurin weiter im Büro-Rahmen (134 von 154, dazu v431 und v328); Kopf 72 px (130 von 154) --
+  5 von 5 rot, je Datei byte-genau zurück. Die erste Fassung der Lupen-Probe nahm nur die Breite weg und blieb im Klicktest grün
+  (`flex:0 0 48px` hielt sie) -- verschärft, nicht als Beleg gezählt.
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v431::ERWARTETE_ZUSTAENDE`: alt Menü und Leiste eingeklappt für Büro und Monteurin; neu nur Büro, dazu „suche_offen“ (Monteurin,
+    800/1280); Zustandsbilder alt 22, neu 18; Bilder alt 302, neu 298; Teilauswahl alt `(MONTEUR, "menue_offen")`, neu
+    `(MONTEUR, "suche_offen")`.
+  - `test_v431::test_zustandsseiten_zeichnen_den_rahmen_fuer_ihre_rolle`: alt dieselben vier Kennungen und die Leiste für jede Rolle; neu je
+    Rolle die Kennungen ihrer Zustände, die Leiste nur fürs Büro.
+  - `test_v431::test_monteurin_hat_den_rahmen_auf_einsatzbericht_und_konto` → `test_monteurin_hat_ueberall_den_monteurskopf_seit_1_8_164`:
+    alt genau Einsatzbericht und Konto mit Leiste und Kontoknopf; neu jede Seite mit Monteurskopf und Kontoknopf, keine mit Leiste.
+  - `test_v417::test_seitenleiste_in_gruppen_je_rolle[field]`: alt Leiste Übersicht/Start und Kaufmännisch/Zeiterfassung auf `/account`;
+    neu dort der Monteurskopf ohne Leiste.
+  - `test_v258::test_mobile_header_keeps_its_own_independent_logout`: alt `#mobileHeaderLogout` im Kopf; neu über `_kontomenue.html`
+    (`#appTopbarLogout`).
+  - `test_v418::test_mobile_kopfzeile_mit_mein_konto`: alt Link `.mobile-header-account` rechts im Kopf; neu Eintrag im Kontomenü.
+  - `test_v400::test_the_login_click_test_covers_both_forms_and_both_headers`: alt `"#mobileHeaderLogout"` im Klicktest; neu
+    `seite="/mobil"` (Abmelden über das Kontomenü des Monteurskopfs).
+  - `test_v269`: Ankerung der Vorschläge -- alt Suchzeile und Liste nach den Reitern, Liste mit eigenem z-index; neu
+    `test_search_opens_from_the_magnifier_below_the_header_since_1_8_164` (Lupe mit aria, Fläche nach den Reitern, absolut mit
+    `top:100%`, Fokus) und Fläche absolut mit z-index am Wrapper; Maximalbreite alt an `.mobile-search-bar input`, neu an
+    `.mobile-suche-feld`; „gestapelt ohne Überlappen“ nur Aufbau (Selektoren mit `.mobile-header-wrap`).
+  - `test_v272`: die Tests zum eigenen Hell/Dunkel-Knopf (`#mobileThemeToggle` in der Kopfzeile neben dem Namen, genau zwei Kinder,
+    30 px, Sonne/Mond, Klick) → Hell/Dunkel im Kontomenü des Monteurskopfs, derselbe Mechanismus weil dasselbe Kontomenü, Zustand statt
+    Symbol, Klick im Kontomenü; `_render_mobile_header()` mit Stubs für Logo und Konto (nur Aufbau).
+  - `test_v328::test_seitenleiste_des_monteurs_auf_der_berichtsseite`: alt `{"/", "/time-tracking"}`; neu die drei Reiter
+    `{"/mobil", "/time-tracking", "/mobil/stundenzettel"}`. `test_gegenprobe_links_ohne_rollenbedingung_fallen_auf`: alt `can()` immer
+    wahr; neu immer wahr außer `can(user, 'field')` (die Weiche zum Monteurskopf -- sonst gäbe es keine Leiste zu prüfen).
+  - Klicktest `klicktest_anmelden`: Abmelden auf `/mobil` -- alt `#mobileHeaderLogout` und `.mobile-header-user`; neu
+    `#appTopbarAccountBtn`, `#appTopbarLogout` und `.app-konto-name`.
+  - Klicktest `klicktest_versand_im_kontext`: „Mein Konto“ auf `/mobil` -- alt Link `.mobile-header-account`; neu Eintrag im Kontomenü.
+  - Klicktest `klicktest_monteur_navigation`: Monteurin auf Bericht und Konto -- alt Seitenleiste [Start, Zeiterfassung]; neu keine
+    Leiste und die drei Reiter, Navigation auch aus `.mobile-header-wrap`; feste Uhr 10:00 (der Reiter Einsätze führt nach `/mobil`).
+  - Klicktest `klicktest_neue_ordnung`: Monteurin -- alt Seitenleiste auf `/account`; neu Monteurskopf mit Reitern ohne 403/404; feste
+    Uhr 10:00.
+  - Klicktest `klicktest_rahmen`: Monteurin -- alt im Teil `seitenleiste` mit Übersicht und Kaufmännisch auf dem Einsatzbericht; neu im
+    Teil `monteurskopf`.
+
+#### Festlegungen 1.8.164 (Bitte bestätigen)
+
+1. **Abmelden und Hell/Dunkel im Kontomenü** auch im Monteurskopf -- Abmelden braucht zwei Tipps statt einem (bis 1.8.163 eigener
+   Reiter), dafür dasselbe Menü wie im Büro.
+2. **Objektsuche hinter der Lupe** als Fläche unter dem Kopf statt einer immer sichtbaren Zeile; Escape schließt erst die Vorschläge,
+   dann die Fläche.
+3. **Einsätze aktiv** auf Mobil, Objekt, Einsatzbericht, Checklisten und Betriebsmittel; auf dem Konto kein Reiter.
+4. **Telefon (unter 600 px): zwei Zeilen**, die Reiter gleich breit darunter, Kopf 112 px; der Name bleibt.
+5. **Kontoknopf und Menüeinträge 48 px**, Name 15 px; sehr lange Namen mit „…“, die Reiter schrumpfen nie.
+6. **Logo-Kachel 40 px statt Schriftzug** „DACHKONZEPTE · Mobil“ (bleibt als `title`), wie die Kachel der Leiste.
+7. **Weiche an der Rolle** (`can(current_user, 'field')`) in Einsatzbericht und Konto; die Einträge der Seitenleiste für die Monteurin
+   (Start, Zeiterfassung) bleiben im Markup, keine Seite zeigt sie ihr noch -- Aufräumen bei der Bereinigung.

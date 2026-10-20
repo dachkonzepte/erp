@@ -119,15 +119,17 @@ a{color:var(--accent)}
    (vorher "Zugriff verweigert", Rechtekonzept "ausblenden statt ausgrauen"). #}
 {% set current_user = request.state.erp_user %}
 {% set darf_buero_seiten = can(current_user, 'admin', 'buero_finanzen', 'buero_auftrag') %}
+{# Seit 1.8.164 (Stufe 2 „Rahmen“): die Monteurin im Monteurskopf -- Reiter, Lupe, Konto mit vollem Namen --, das Büro mit Seitenleiste
+   und Kopfzeile; die Weiche hängt an der Rolle (Muster checklist.html). Den Entprell-Helfer bringt der Monteurskopf selbst mit. #}
+{% set monteursrahmen = can(current_user, 'field') %}
 <div class="app-layout">
-{% include "_sidebar.html" %}
-{% include "_debounce.html" %}
+{% if not monteursrahmen %}{% include "_sidebar.html" %}{% include "_debounce.html" %}{% endif %}
 {% include "_unterschrift.html" %}
 {% include "_time_entries_list.html" %}
 {% include "_berlin_date.html" %}
 {% if is_module_enabled('checklisten') %}{% include "_offene_bedenken.html" %}{% endif %}
 <div class="app-content">
-{% include "_topbar.html" %}
+{% if monteursrahmen %}{% include "_mobile_header.html" %}{% else %}{% include "_topbar.html" %}{% endif %}
 <main>
 {% if is_module_enabled('wartungen') %}
 <div class="breadcrumb" id="breadcrumb">Lädt …</div>

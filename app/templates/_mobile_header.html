@@ -1,129 +1,98 @@
-{# _mobile_header.html -- schlanke Kopfzeile für die Monteursansicht (/mobil, seit 1.3.0 --
-   bis 1.3.60 unter /vor-ort, reine Umbenennung, siehe CLAUDE.md "Monteursansicht: Umbenennung
-   zu /mobil") statt der vollen _sidebar.html (die hat keine Konfigurationsmöglichkeit für einen
-   reduzierten Modus, siehe CLAUDE.md "Monteursansicht" -- geprüft, reine statische
-   Include-Datei). Erwartet: request (von Jinja2Templates automatisch bereitgestellt) sowie
-   dieselben --accent/--card/--ink/--muted/--line/--soft/--danger-Token, die jede Seite dieses
-   Design-Systems im eigenen :root definiert (siehe settings.html als Referenzvorlage).
+{# _mobile_header.html -- Kopf der Monteursansicht (seit 1.3.0) statt Seitenleiste und Kopfzeile der Büroseiten. Erwartet: request.
 
-   Zeigt den angemeldeten Mitarbeiter (current_user.display_name) IMMER sichtbar -- Punkt 4:
-   "ein Bericht, der versehentlich unter fremdem Namen unterschrieben wird, ist das Schlimmste,
-   was hier passieren kann". Alle vier Ziele (Einsätze/Zeiterfassung/Stundenzettel/Abmelden) sind
-   mindestens 44px hoch (Bestandsaufnahme: bisherige Bedienelemente maßen 28-40px, siehe CLAUDE.md).
-
-   "Zeiterfassung" verlinkt seit 1.3.60 unveraendert auf /time-tracking -- die Seite selbst
-   entscheidet seither rollenbewusst, welche Vorlage sie rendert (time_tracking_field.html fuer
-   `field`, siehe app/routers/pages.py::time_tracking_page() und CLAUDE.md "Zeiterfassung fuer
-   Monteure"), diese Kopfzeile muss den Pfad deshalb nicht kennen. "Stundenzettel" (seit 1.3.61)
-   ist dagegen eine eigene, nur fuer `field` gedachte Seite (/mobil/stundenzettel).
-
-   Seit 1.3.65 zusätzlich die Objektsuche (siehe CLAUDE.md "Suche als Einstieg") -- vorher stand
-   sie nur auf mobil.html, jetzt in einer eigenen Zeile über den vier Reitern, damit sie von JEDER
-   Seite der Monteursansicht erreichbar ist. Kopf/Suche/Reiter/Vorschlagsliste liegen dafür
-   gemeinsam in EINEM sticky-Wrapper (.mobile-header-wrap) statt -- wie vorher bei Kopf und Reiter
-   je einzeln -- mit hart codierten "top"-Pixelwerten aufeinander gestapelt zu werden: eine neue
-   Zeile hätte sonst jeden dieser Werte neu vermessen müssen, ein einziger sticky-Block braucht
-   das nicht. Die Vorschlagsliste hängt bewusst als letztes Kind DIESES Wrappers (nicht direkt
-   unter dem Suchfeld) mit `top:100%` relativ zum GANZEN Wrapper -- sie öffnet sich dadurch erst
-   UNTERHALB der Reiter, überlagert sie also nie: sonst hätte ein Tipp auf einen Reiter bei
-   offener Vorschlagsliste zuerst die Liste getroffen (und nur geschlossen), nicht den Reiter
-   selbst -- ein zweiter Tipp wäre nötig gewesen. Bindet dafür den Debounce-Helfer ein (siehe
-   app/templates/_debounce.html, vorher auf mobil.html gebunden, jetzt hier, da die Suche von
-   dort weggezogen ist) -- kein anderes Template, das diese Kopfzeile einbindet, bindet ihn
-   zusätzlich selbst ein, keine doppelte Funktionsdefinition.
-
-   Seit 1.3.68 zusätzlich der Hell/Dunkel-Umschalter (#mobileThemeToggle, oben rechts neben dem
-   Benutzernamen, in .mobile-header-right zusammen mit .mobile-header-user gruppiert, damit
-   .mobile-header weiterhin genau zwei Kinder hat und die bestehende
-   justify-content:space-between-Aufteilung unverändert greift) -- fehlte hier bisher, obwohl die
-   Büro-Sidebar ihn seit 1.3.44 im Fußbereich hat. Derselbe Mechanismus wie dort (data-theme-
-   Attribut auf <html>, localStorage-Schlüssel 'erp_theme'), damit ein Monteur, der auf dem
-   Tablet umschaltet, seine Wahl beim nächsten Öffnen wiederfindet. #}
+   Seit 1.8.164 (Stufe 2 „Rahmen“, Runde 1, Teil 4; Befund docs/archiv/befund-rahmen.md, Abschnitt 3):
+   - eine Zeile, 64 px, in --ds-navi-grund (dunkel in beiden Modi): Logo-Kachel 40 px, die Reiter Einsätze · Zeiterfassung ·
+     Stundenzettel (48 px hoch, 16 px, aktiv mit 3 px Strich unten in marke-hell), rechts die Lupe (48 px) und der Kontoknopf mit Initialen
+     und vollem Namen (_kontomenue.html: Mein Konto, Hell/Dunkel, Abmelden). Unter 600 px (Telefon) rutschen die Reiter in eine zweite
+     Zeile -- der Name bleibt sichtbar.
+   - Der Name steht immer da: „ein Bericht, der versehentlich unter fremdem Namen unterschrieben wird, ist das Schlimmste, was hier
+     passieren kann“ (Punkt 4 der Monteursansicht, 1.3.0). Seit 1.8.164 haben auch Einsatzbericht und Konto der Monteurin diesen Kopf
+     (bis dahin Seitenleiste und Kopfzeile des Büros, nur Initialen; Festlegung 1.8.113 Nr. 6 ersetzt).
+   - Die Lupe öffnet die Objektsuche (seit 1.3.65, bis 1.8.163 eine eigene Zeile unter dem Kopf) als Feld unter dem Kopf: Vorschläge ab
+     zwei Zeichen nach 300 ms (_debounce.html), GET /api/field-view/properties/search, höchstens zehn; Escape schließt Liste und Feld.
+   - Der Reiter Einsätze ist auch auf den Seiten darunter aktiv (Objekt, Einsatzbericht, Checklisten, Betriebsmittel).
+   - Jedes Maß steht auf eigenen Klassen mit zwei Klassen im Selektor: Regeln einer Seite wie button{min-height:44px;width:100%} (Zeit-
+     erfassung, Objekt, Stundenzettel) greifen nicht mehr in den Kopf (bis 1.8.163 wurde er dort 188 statt 173 px hoch).
+   - Kontoknopf und Menüeinträge 48 px hoch (Tablet); die Reiter schrumpfen nie, ein sehr langer Name wird mit „…“ gekürzt. #}
 {% set current_user = request.state.erp_user %}
 {% set path = request.url.path %}
+{% set _einsaetze = path == '/mobil' or path.startswith('/mobil/objekt') or path.startswith('/orders/') or path.startswith('/checklisten') or path.startswith('/betriebsmittel') %}
 {% include "_debounce.html" %}
-{% include "_speichern.html" %}
 <style>
 .mobile-header-wrap{position:sticky;top:0;z-index:30}
-.mobile-header{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--card);border-bottom:1px solid var(--line);padding:10px 14px}
-.mobile-header-brand{font-weight:800;letter-spacing:.02em;color:var(--ink);font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mobile-header-right{display:flex;align-items:center;gap:8px;flex:0 0 auto;min-width:0}
-.mobile-header-user{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px;white-space:nowrap}
-.mobile-header-user .dot{width:7px;height:7px;background:var(--success,#1f8a5f);flex:0 0 7px;display:inline-block}
-.mobile-theme-toggle{background:none;border:1px solid var(--line);color:var(--ink);width:30px;height:30px;flex:0 0 30px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
-.mobile-theme-toggle:active{background:var(--soft)}
-.mobile-header-account{display:flex;align-items:center;height:30px;padding:0 9px;border:1px solid var(--line);color:var(--ink);font-size:12.5px;font-weight:650;text-decoration:none;white-space:nowrap}
-.mobile-header-account:active{background:var(--soft)}
-.mobile-theme-toggle svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
-.mobile-search-bar{background:var(--card);border-bottom:1px solid var(--line);padding:8px 14px}
-.mobile-search-bar input{display:block;width:100%;max-width:640px;margin:0 auto;padding:11px 13px;font-size:16px;min-height:44px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:0}
-.mobile-search-bar input:focus{outline:2px solid var(--accent);outline-offset:-1px}
-.mobile-nav{display:flex;gap:6px;padding:8px 10px;background:var(--card);border-bottom:1px solid var(--line)}
-.mobile-nav a,.mobile-nav button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;min-height:44px;background:var(--soft);color:var(--ink);border:1px solid var(--line);font-weight:650;font-size:12.5px;text-decoration:none;cursor:pointer;font-family:inherit}
-.mobile-nav a.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-.mobile-nav button{color:var(--danger,#c0362c)}
-.mobile-nav button:active,.mobile-nav a:active{background:color-mix(in srgb,var(--ink) 8%,var(--soft))}
-.mobile-search-results{position:absolute;left:0;right:0;top:100%;max-width:640px;margin-left:auto;margin-right:auto;background:var(--card);border-bottom:1px solid var(--line);max-height:70vh;overflow-y:auto;z-index:20}
-.mobile-search-hit{display:block;padding:11px 14px;text-decoration:none;color:var(--ink);border-bottom:1px solid var(--line)}
-.mobile-search-hit:last-child{border-bottom:none}
-.mobile-search-hit:active{background:var(--soft)}
-.mobile-search-hit .obj{font-weight:700;font-size:14.5px}
-.mobile-search-hit .cust{color:var(--muted);font-size:12.5px;margin-top:1px}
-.mobile-search-note{padding:9px 14px;color:var(--muted);font-size:12.5px;border-top:1px solid var(--line)}
+.mobile-header-wrap .mobile-header{display:flex;align-items:center;gap:12px;box-sizing:border-box;height:64px;margin:0;padding:0 12px;background:var(--ds-navi-grund);color:var(--ds-navi-text);font-family:var(--ds-schrift-text);font-size:14px;line-height:1.3;letter-spacing:normal}
+.mobile-header-wrap .mobile-header-kachel{display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:40px;height:40px;flex:0 0 40px;border-radius:var(--ds-ecke-tablet-feld);overflow:hidden;background:var(--ds-marke-hell);color:var(--ds-navi-grund)}
+.mobile-header-wrap .mobile-header-kachel.mit-logo{background:#FFFFFF;padding:3px}
+.mobile-header-wrap .mobile-header-kachel img{display:block;max-width:100%;max-height:100%;object-fit:contain}
+.mobile-header-wrap .mobile-header-kachel svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.mobile-header-wrap .mobile-nav{display:flex;align-items:stretch;gap:2px;flex:0 0 auto;min-width:0;height:48px;margin:0;padding:0;background:transparent;border:0}
+.mobile-header-wrap .mobile-nav-reiter{display:flex;align-items:center;justify-content:center;box-sizing:border-box;height:48px;min-height:48px;margin:0;padding:0 14px;border:0;border-bottom:3px solid transparent;border-radius:0;background:transparent;color:var(--ds-navi-leise);font-family:var(--ds-schrift-text);font-size:16px;font-weight:500;line-height:1;text-decoration:none;white-space:nowrap}
+.mobile-header-wrap .mobile-nav-reiter:hover{background:var(--ds-navi-aktiv);color:var(--ds-navi-text)}
+.mobile-header-wrap .mobile-nav-reiter.active{color:var(--ds-navi-text);border-bottom-color:var(--ds-marke-hell)}
+.mobile-header-wrap .mobile-nav-reiter:focus-visible{outline:2px solid var(--ds-marke-hell);outline-offset:-2px}
+.mobile-header-wrap .mobile-lupe{display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:48px;height:48px;min-height:48px;flex:0 0 48px;margin:0 0 0 auto;padding:0;border:0;border-radius:var(--ds-ecke-tablet-feld);background:transparent;color:var(--ds-navi-text);box-shadow:none;cursor:pointer}
+.mobile-header-wrap .mobile-lupe:hover,.mobile-header-wrap .mobile-lupe[aria-expanded="true"]{background:var(--ds-navi-aktiv)}
+.mobile-header-wrap .mobile-lupe:focus-visible{outline:2px solid var(--ds-marke-hell);outline-offset:2px}
+.mobile-header-wrap .mobile-lupe svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round}
+.mobile-header-wrap .app-konto{flex:0 1 auto;min-width:0}
+.mobile-header-wrap .app-konto .app-konto-knopf{max-width:100%;height:48px;min-height:48px;color:var(--ds-navi-text);background:transparent;font-size:15px}
+.mobile-header-wrap .app-konto .app-konto-knopf:hover,.mobile-header-wrap .app-konto .app-konto-knopf[aria-expanded="true"]{background:var(--ds-navi-aktiv)}
+.mobile-header-wrap .app-konto .app-konto-knopf:focus-visible{outline:2px solid var(--ds-marke-hell);outline-offset:2px}
+.mobile-header-wrap .ds-menue .ds-menue-eintrag{height:48px;min-height:48px;font-size:16px}
+.mobile-header-wrap .mobile-suche{position:absolute;left:0;right:0;top:100%;box-sizing:border-box;margin:0;padding:10px 12px;background:var(--ds-flaeche);border-bottom:1px solid var(--ds-linie);box-shadow:0 8px 24px rgba(0,0,0,.18);font-family:var(--ds-schrift-text)}
+.mobile-header-wrap .mobile-suche[hidden]{display:none}
+.mobile-header-wrap .mobile-suche-feld{display:block;box-sizing:border-box;width:100%;max-width:640px;height:48px;min-height:48px;margin:0 auto;padding:0 14px;border:1px solid var(--ds-feld-rand);border-radius:var(--ds-ecke-tablet-feld);background:var(--ds-flaeche);color:var(--ds-text);font-family:var(--ds-schrift-text);font-size:16px}
+.mobile-header-wrap .mobile-suche-feld:focus{outline:2px solid var(--ds-fokus);outline-offset:1px}
+.mobile-header-wrap .mobile-search-results{max-width:640px;margin:8px auto 0;max-height:60vh;overflow-y:auto;background:var(--ds-flaeche);border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-tablet-karte)}
+.mobile-header-wrap .mobile-search-results[hidden]{display:none}
+.mobile-header-wrap .mobile-search-hit{display:block;padding:11px 14px;text-decoration:none;color:var(--ds-text);border-bottom:1px solid var(--ds-linie)}
+.mobile-header-wrap .mobile-search-hit:last-child{border-bottom:0}
+.mobile-header-wrap .mobile-search-hit:hover,.mobile-header-wrap .mobile-search-hit:focus{background:var(--ds-flaeche-2);outline:none}
+.mobile-header-wrap .mobile-search-hit .obj{font-weight:600;font-size:15px}
+.mobile-header-wrap .mobile-search-hit .cust{color:var(--ds-text-2);font-size:13px;margin-top:1px}
+.mobile-header-wrap .mobile-search-note{padding:10px 14px;color:var(--ds-text-2);font-size:13px}
+@media(max-width:599px){
+  .mobile-header-wrap .mobile-header{flex-wrap:wrap;height:auto;padding:8px 12px 0;row-gap:8px}
+  .mobile-header-wrap .mobile-nav{order:5;flex:1 0 100%;margin:0 -12px;padding:0 4px}
+  .mobile-header-wrap .mobile-nav-reiter{flex:1 1 0;padding:0 6px}
+  .mobile-header-wrap .app-konto{max-width:220px}
+}
 </style>
 <div class="mobile-header-wrap" id="mobileHeaderWrap">
   <div class="mobile-header">
-    <span class="mobile-header-brand">DACHKONZEPTE · Mobil</span>
-    <div class="mobile-header-right">
-      <span class="mobile-header-user">{% if current_user %}<span class="dot"></span>{{ current_user.display_name }}{% endif %}</span>
-      {# Seit 1.8.113 (Vorgabe vom 16.10.2026 Punkt 5): "Mein Konto" auch hier -- vorher nur über das Kontomenü der Büro-Kopfzeile. #}
-      {% if current_user %}<a class="mobile-header-account" href="/account">Mein Konto</a>{% endif %}
-      <button type="button" class="mobile-theme-toggle" id="mobileThemeToggle" aria-label="Hell/Dunkel umschalten" title="Hell/Dunkel umschalten"></button>
-    </div>
+    {% set logo_url = sidebar_logo_url() %}
+    {% if logo_url %}
+    <span class="mobile-header-kachel mit-logo" title="DACHKONZEPTE · Mobil"><img src="{{ logo_url }}" alt="DACHKONZEPTE"></span>
+    {% else %}
+    <span class="mobile-header-kachel" title="DACHKONZEPTE · Mobil" aria-label="DACHKONZEPTE" role="img"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13.5 12 5l9 8.5"/><path d="M6.5 10.5V19h11v-8.5"/></svg></span>
+    {% endif %}
+    <nav class="mobile-nav" aria-label="Monteursansicht">
+      <a href="/mobil" class="mobile-nav-reiter{{ ' active' if _einsaetze }}"{% if _einsaetze %} aria-current="page"{% endif %}>Einsätze</a>
+      <a href="/time-tracking" class="mobile-nav-reiter{{ ' active' if path == '/time-tracking' }}"{% if path == '/time-tracking' %} aria-current="page"{% endif %}>Zeiterfassung</a>
+      <a href="/mobil/stundenzettel" class="mobile-nav-reiter{{ ' active' if path == '/mobil/stundenzettel' }}"{% if path == '/mobil/stundenzettel' %} aria-current="page"{% endif %}>Stundenzettel</a>
+    </nav>
+    <button type="button" class="mobile-lupe" id="mobileSearchToggle" aria-label="Objekt suchen" title="Objekt suchen" aria-expanded="false" aria-controls="mobileSearchPanel"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><line x1="16" y1="16" x2="20.5" y2="20.5"/></svg></button>
+    {% include "_kontomenue.html" %}
   </div>
-  <div class="mobile-search-bar">
-    <input id="mobileObjectSearch" type="search" placeholder="Objekt suchen (Name, Adresse, Ort, Kunde) …" autocomplete="off" aria-label="Objekt suchen">
+  <div class="mobile-suche" id="mobileSearchPanel" role="search" hidden>
+    <input id="mobileObjectSearch" class="mobile-suche-feld" type="search" placeholder="Objekt suchen (Name, Adresse, Ort, Kunde) …" autocomplete="off" aria-label="Objekt suchen">
+    <div id="mobileObjectSearchResults" class="mobile-search-results" hidden></div>
   </div>
-  <nav class="mobile-nav">
-    <a href="/mobil" class="{{ 'active' if path == '/mobil' }}">Einsätze</a>
-    <a href="/time-tracking" class="{{ 'active' if path == '/time-tracking' }}">Zeiterfassung</a>
-    <a href="/mobil/stundenzettel" class="{{ 'active' if path == '/mobil/stundenzettel' }}">Stundenzettel</a>
-    <button type="button" id="mobileHeaderLogout">Abmelden</button>
-  </nav>
-  <div id="mobileObjectSearchResults" class="mobile-search-results" hidden></div>
 </div>
 <script>
 (function(){
-  var logoutBtn=document.getElementById('mobileHeaderLogout');
-  if(logoutBtn){
-    logoutBtn.addEventListener('click',function(){
-      speichern('abmelden',()=>fetch('/api/auth/logout',{method:'POST'})).finally(function(){
-        location.href='/login?next='+encodeURIComponent(location.pathname);
-      });
-    });
-  }
-  // Hell/Dunkel-Umschalter -- derselbe Mechanismus wie _sidebar.html (data-theme-Attribut,
-  // localStorage-Schlüssel 'erp_theme'), hier dupliziert statt geteilt (Projektkonvention: kein
-  // gemeinsames JS-Modul, kleine Snippets werden geteilt statt ausgelagert).
-  var themeToggle=document.getElementById('mobileThemeToggle');
-  var SUN_ICON='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/><line x1="4.5" y1="4.5" x2="6.5" y2="6.5"/><line x1="17.5" y1="17.5" x2="19.5" y2="19.5"/><line x1="4.5" y1="19.5" x2="6.5" y2="17.5"/><line x1="17.5" y1="6.5" x2="19.5" y2="4.5"/></svg>';
-  var MOON_ICON='<svg viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/></svg>';
-  var currentTheme=function(){return document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light'};
-  var renderThemeToggle=function(){
-    var dark=currentTheme()==='dark';
-    themeToggle.innerHTML=dark?SUN_ICON:MOON_ICON;
-    themeToggle.title=dark?'Zu hellem Modus wechseln':'Zu dunklem Modus wechseln';
-  };
-  themeToggle.addEventListener('click',function(){
-    var next=currentTheme()==='dark'?'light':'dark';
-    document.documentElement.setAttribute('data-theme',next);
-    try{localStorage.setItem('erp_theme',next)}catch(e){}
-    renderThemeToggle();
-  });
-  renderThemeToggle();
   function esc(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})}
+  var lupe=document.getElementById('mobileSearchToggle');
+  var panel=document.getElementById('mobileSearchPanel');
   var searchInput=document.getElementById('mobileObjectSearch');
   var searchBox=document.getElementById('mobileObjectSearchResults');
+  function sucheZu(fokusZurueck){
+    if(panel.hidden)return;
+    panel.hidden=true;searchBox.hidden=true;lupe.setAttribute('aria-expanded','false');
+    if(fokusZurueck)lupe.focus();
+  }
+  function sucheAuf(){panel.hidden=false;lupe.setAttribute('aria-expanded','true');searchInput.focus()}
+  lupe.addEventListener('click',function(){if(panel.hidden)sucheAuf();else sucheZu(false)});
   function renderSearchResults(hits){
     if(!hits.length){
       searchBox.innerHTML='<div class="mobile-search-note">Kein Objekt gefunden.</div>';
@@ -135,9 +104,8 @@
       return '<a class="mobile-search-hit" href="/mobil/objekt/'+h.id+'"><div class="obj">'+esc(h.name)+'</div>'
         +(sub?'<div class="cust">'+esc(sub)+'</div>':'')+'</a>';
     }).join('');
-    // Der Server begrenzt fest auf zehn Treffer (SEARCH_RESULT_LIMIT, app/search.py) und liefert
-    // keine Gesamtzahl mit -- sind es genau zehn, ist "mehr vorhanden" die naheliegendste
-    // Annahme, kein zusätzlicher Zähl-Request nötig.
+    // Der Server begrenzt fest auf zehn Treffer (SEARCH_RESULT_LIMIT, app/search.py) und liefert keine Gesamtzahl -- sind es genau
+    // zehn, ist "mehr vorhanden" die naheliegendste Annahme, kein zusätzlicher Zähl-Request nötig.
     if(hits.length>=10){
       html+='<div class="mobile-search-note">Weitere Treffer möglich -- Suche verfeinern.</div>';
     }
@@ -158,14 +126,13 @@
   }
   var debouncedObjectSearch=debounce(runObjectSearch,300);
   searchInput.addEventListener('input',debouncedObjectSearch);
-  // Escape schliesst die Liste (seit 1.3.67 nachgezogen -- fehlte hier bisher, nur Klick
-  // daneben schloss; die Büro-Suche in der Topbar hat beides von Anfang an).
+  // Escape schließt erst die Liste, dann das Feld (Fokus zurück an die Lupe)
   searchInput.addEventListener('keydown',function(e){
-    if(e.key==='Escape')searchBox.hidden=true;
+    if(e.key==='Escape'){if(!searchBox.hidden)searchBox.hidden=true;else sucheZu(true)}
   });
   document.addEventListener('click',function(e){
     var wrap=document.getElementById('mobileHeaderWrap');
-    if(!wrap.contains(e.target))searchBox.hidden=true;
+    if(!wrap.contains(e.target))sucheZu(false);
   });
 })();
 </script>
