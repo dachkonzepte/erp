@@ -56,7 +56,7 @@ def _require_visible_task(db: Session, user: AppUser, task_id: int) -> Task:
     if task is None:
         raise HTTPException(status_code=404, detail="Aufgabe nicht gefunden.")
     if not task_visible_for_user(user, task.assigned_employee_id, task.min_visible_role):
-        raise HTTPException(status_code=403, detail="Diese Aufgabe ist für Sie nicht sichtbar.")
+        raise HTTPException(status_code=403, detail="Diese Aufgabe ist für dich nicht sichtbar.")
     return task
 
 

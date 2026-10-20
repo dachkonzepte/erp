@@ -214,8 +214,8 @@ function renderVersionNotice(){
   const el=document.getElementById('versionNotice');
   if(!version){el.innerHTML='';return}
   el.innerHTML=editable()
-    ?`<div class="notice">Sie bearbeiten den <b>Entwurf (Fassung ${esc(version.version_no)})</b>. Monteure sehen ihn erst nach dem Veröffentlichen; bereits ausgefüllte Checklisten behalten ihre Fassung.</div>`
-    :`<div class="notice info">Sie sehen die <b>gültige Fassung ${esc(version.version_no)}</b> (nur lesen). Zum Ändern „Neuen Entwurf anlegen“.</div>`;
+    ?`<div class="notice">Du bearbeitest den <b>Entwurf (Fassung ${esc(version.version_no)})</b>. Monteure sehen ihn erst nach dem Veröffentlichen; bereits ausgefüllte Checklisten behalten ihre Fassung.</div>`
+    :`<div class="notice info">Du siehst die <b>gültige Fassung ${esc(version.version_no)}</b> (nur lesen). Zum Ändern „Neuen Entwurf anlegen“.</div>`;
   const probs=editable()?(template.system_field_problems||[]):[];
   if(probs.length)el.innerHTML+=`<div class="notice"><b>Systemfelder des Zwecks „${esc(template.purpose_label)}“:</b><ul style="margin:6px 0 8px 18px;padding:0">${probs.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>
     <button class="small-btn" onclick="syncSystemFields()">Systemfelder angleichen</button> <span id="syncStatus" class="status"></span></div>`;

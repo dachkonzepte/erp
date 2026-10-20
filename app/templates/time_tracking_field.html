@@ -110,7 +110,7 @@
 
   <div id="crewCard" class="card" hidden>
     <h2>Kolonne</h2>
-    <div class="muted small" style="margin-bottom:10px">Als Kolonnenführer buchen Sie hier für die ausgewählten Kollegen mit. Jede Buchung zeigt, dass Sie sie angelegt haben.</div>
+    <div class="muted small" style="margin-bottom:10px">Als Kolonnenführer buchst du hier für die ausgewählten Kollegen mit. Jede Buchung zeigt, dass du sie angelegt hast.</div>
     <div id="crewRunning" class="crew-running" hidden></div>
     <div class="field"><label>Kolonne</label><select id="crewTeam"></select></div>
     <div class="field"><label>Wer ist dabei?</label><div id="crewMembers"></div></div>
@@ -531,7 +531,7 @@ async function init(){
   $('quickActivity').innerHTML='<option value="">— optional —</option>'+activities.map(x=>`<option value="${esc(x.value)}">${esc(x.label)}</option>`).join('');
   $('manualActivity').innerHTML=activityOptions(null);
   $('quickOrder').innerHTML=orderOptions(initialOrderId||null);
-  if(!orders.length)showLoadWarning('Keine eigenen Aufträge im Zeitraum gefunden. Ist ein Einsatz nicht dabei, wenden Sie sich an das Büro.');
+  if(!orders.length)showLoadWarning('Keine eigenen Aufträge im Zeitraum gefunden. Fehlt ein Einsatz, wende dich an das Büro.');
   renderQuickTiles();
   $('stopBtn').addEventListener('click',stopCurrent);
   $('openManualBtn').addEventListener('click',()=>openManual());

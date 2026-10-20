@@ -67,7 +67,7 @@ def _visible_sources(db: Session, user: AppUser) -> list:
 def _require_source(db: Session, user: AppUser, key: str) -> None:
     source = office_source(key)
     if not office_source_visible(db, user.role, source):
-        raise HTTPException(status_code=403, detail=f"{source.label} sind für Ihre Rolle nicht sichtbar.")
+        raise HTTPException(status_code=403, detail=f"{source.label} sind für deine Rolle nicht sichtbar.")
 
 
 @router.get("/api/project-participant-roles", response_model=list[ParticipantRoleOut])

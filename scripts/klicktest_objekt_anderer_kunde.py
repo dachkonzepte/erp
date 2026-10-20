@@ -159,7 +159,7 @@ async def pruefen(tab, seed, p):
     await tab.oeffnen(f"/mobil/objekt/{hof}", "document.getElementById('historyList').className!=='loading'")
     p.pruefe("/mobil fremdes Objekt: ruhiger Hinweis",
              await tab.js("[document.getElementById('historyList').className,document.getElementById('historyList').textContent]"),
-             ["empty", "Die Wartungshistorie zeigt die Monteursansicht nur für Objekte Ihrer Aufträge."])
+             ["empty", "Die Wartungshistorie zeigt die Monteursansicht nur für Objekte deiner Aufträge."])
     p.pruefe("/mobil fremdes Objekt: Objektansicht offen",
              await tab.js("document.getElementById('propertyCard').textContent.includes('Wohnanlage Hof')"), True)
     await tab.bild("mobil_fremdes_objekt")

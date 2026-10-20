@@ -216,7 +216,7 @@ def test_history_only_for_properties_of_own_orders(welt):
     assert c.get(f"{base}/{welt['eigen'].id}/maintenance-history/{eigener_bericht}/pdf").status_code == 200
     liste = c.get(f"{base}/{welt['fremd'].id}/maintenance-history")
     assert liste.status_code == 403
-    assert "Objekte Ihrer Aufträge" in liste.json()["detail"]
+    assert "Objekte deiner Aufträge" in liste.json()["detail"]  # seit 1.8.158 per Du
     pdf = c.get(f"{base}/{welt['fremd'].id}/maintenance-history/{fremder_bericht}/pdf")
     assert _antwort(pdf) == _antwort(c.get(f"{base}/{welt['fremd'].id}/maintenance-history/{welt['unbekannt']}/pdf")) == (
         404, {"detail": "Bericht nicht gefunden."})

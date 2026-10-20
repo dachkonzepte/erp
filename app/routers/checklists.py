@@ -80,7 +80,7 @@ _office_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 
 NOT_OWNER = "Diese Checkliste hat eine andere Person angelegt."
 OFFICE_PURPOSE = "Diese Checkliste führt das Büro."  # seit 1.8.61, Zweck nur fürs Büro (Abnahmeprotokoll)
-ANSWERS_HIDDEN = "Von dieser Checkliste sind für Sie nur Titel, Datum und Ersteller sichtbar."
+ANSWERS_HIDDEN = "Von dieser Checkliste sind für dich nur Titel, Datum und Ersteller sichtbar."
 COMPANY_OFFICE_ONLY = "Checklisten im Kontext Betrieb sind dem Büro vorbehalten."
 OFFICE_FIELD = "Dieses Feld füllt das Büro aus."
 

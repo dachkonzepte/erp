@@ -67,7 +67,7 @@ def delete_absence_request(request_id:int,request:Request,db:Session=Depends(get
     user=getattr(request.state,"erp_user",None)
     if user is not None and user.role != "admin":
         if user.employee_id is None or row.employee_id != user.employee_id:
-            raise HTTPException(status_code=403,detail="Sie dürfen diesen Abwesenheitsantrag nicht zurückziehen.")
+            raise HTTPException(status_code=403,detail="Du darfst diesen Abwesenheitsantrag nicht zurückziehen.")
     try: cancel_absence_request_row(db,request_id)
     except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
     return {"cancelled":True}

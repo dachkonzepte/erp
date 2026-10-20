@@ -211,7 +211,7 @@ def post_perform_maintenance(contract_id: int, request: Request, db: Session = D
         if _role.employee_id is None:
             raise HTTPException(status_code=403, detail="Ihr ERP-Benutzerkonto ist keinem Mitarbeiter zugeordnet.")
         if not field_may_perform_maintenance(db, _role.employee_id, contract_id):
-            raise HTTPException(status_code=403, detail="Dieses Objekt ist Ihnen aktuell nicht zugeordnet.")
+            raise HTTPException(status_code=403, detail="Dieses Objekt ist dir aktuell nicht zugeordnet.")
     try:
         return create_maintenance_visit(db, contract_id, created_by_employee_id=_employee_for_request(request, None))
     except ValueError as exc:

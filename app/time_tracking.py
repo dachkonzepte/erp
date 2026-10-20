@@ -416,10 +416,10 @@ def validate_group_members(db: Session, employee_ids: list[int], *, team_id: int
         raise ValueError("Bitte für die Gruppenbuchung ein Team auswählen.")
     actor_in_team = db.scalar(select(TeamEmployee.id).where(TeamEmployee.team_id==team_id, TeamEmployee.employee_id==actor_employee_id).limit(1))
     if actor_in_team is None:
-        raise ValueError("Sie gehören nicht zum ausgewählten Team.")
+        raise ValueError("Du gehörst nicht zum ausgewählten Team.")
     member_ids=set(db.scalars(select(TeamEmployee.employee_id).where(TeamEmployee.team_id==team_id)).all())
     if not set(ids).issubset(member_ids):
-        raise ValueError("Sie dürfen nur für Kollegen des ausgewählten Teams mitbuchen.")
+        raise ValueError("Du darfst nur für Kollegen des ausgewählten Teams mitbuchen.")
     return employees
 
 

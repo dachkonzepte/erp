@@ -199,7 +199,7 @@ def claim_task(db: Session, task_id: int, user: AppUser) -> dict | None:
     if task is None:
         return None
     if task.min_visible_role is not None and not has_min_role(user, task.min_visible_role):
-        raise PermissionError("Diese Aufgabe ist für Ihre Rolle nicht sichtbar.")
+        raise PermissionError("Diese Aufgabe ist für deine Rolle nicht sichtbar.")
     if task.assigned_employee_id is not None:
         raise ValueError(TASK_ALREADY_TAKEN)
     claimed = db.execute(

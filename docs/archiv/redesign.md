@@ -571,3 +571,57 @@ Festlegung 1.8.155 Nr. 1 (ok mit eigenen Werten) und die Festlegung zum Klicktes
 - **Kontrast dunkel mit `#3D823E`**: aktion/flaeche-2 3,10 (vorher 2,91), aktion/flaeche 3,50 (3,28), aktion/grund 3,86 (3,62), auf-aktion/aktion 4,71 (5,02 -- bleibt über 4,5); hell aktion/flaeche-2 5,24.
 - **Test**: `test_kontrast_der_pruefpaare_hell_und_dunkel` verlangt 40 Paare samt aktion/flaeche-2; `test_kontrast_gegenprobe` zusätzlich: das alte Grün `#3B7D3C` → „dunkel aktion/flaeche-2“ rot; neu `test_ok_traegt_die_werte_von_aktion` (ok, ok-hell, ok-text = aktion, aktion-hell, aktion-text, hell und dunkel; Gegenprobe: nur aktion geändert → „dunkel ok: #3D823E statt #3E843F (aktion)“). Ohne die Änderung alle drei rot. Klicktest `klicktest_ds_schriften` 27/27.
 - **Angepasste Erwartungen** (Regel 28): `test_kontrast_der_pruefpaare_hell_und_dunkel` -- alt 39 Paare, neu 40 samt aktion/flaeche-2; `test_kontrast_gegenprobe` -- der Fall „dunkles Grün zu dunkel“ ersetzt jetzt `#3D823E` statt `#3B7D3C`.
+
+### Punkt 2 (1.8.158): Oberfläche per Du
+
+- **Umfang**: die 50 Oberflächen-Stellen aus `docs/archiv/befund-du-statt-sie.md` -- hier die 30 ohne „… keinem Mitarbeiter
+  zugeordnet“ (dazu in `time_backoffice.html:60` der zweite Text derselben Zeile, „Hier stehen nur Ihre eigenen Anträge“); die 20 mit
+  dieser Meldung bekommen in Punkt 3 die gemeinsame Meldung per Du. Die 30 Kundentexte und die neun Stellen in dritter Person
+  („Sie bleibt als Beleg …“) unverändert.
+- **Ton**: kurz und sachlich, Imperativ wie vorgegeben („Zieh …“, „Klick …“, „Wende dich …“), sonst nur die Anrede getauscht.
+- **Prüfung**: dieselbe Suche wie im Befund danach -- außerhalb der Kundentexte nur noch die 20 Stellen für Punkt 3 und die dritte
+  Person.
+- **Angepasste Erwartungen** (Regel 28): `tests/test_v260_role_audit.py` (Sperrseite) alt „Diese Seite ist für Ihre Rolle nicht
+  verfügbar“, neu „… für deine Rolle …“; `tests/test_v373_zugehoerigkeit.py` (Wartungshistorie in /mobil) alt „Objekte Ihrer Aufträge“,
+  neu „Objekte deiner Aufträge“; `tests/test_v437_befund_zeit_fuer_andere.py::test_monteurin_bucht_einzeln_nur_fuer_sich` alt „Sie dürfen
+  nur eigene Zeiten erfassen.“, neu „Du darfst nur eigene Zeiten erfassen.“; Klicktest `klicktest_backoffice_buero` alt „Hier stehen nur
+  Ihre eigenen Anträge“, neu „… deine eigenen …“; Klicktest `klicktest_objekt_anderer_kunde` alt „… Objekte Ihrer Aufträge.“, neu
+  „… Objekte deiner Aufträge.“
+- Klicktests `klicktest_backoffice_buero`, `klicktest_objekt_anderer_kunde`, `klicktest_aufgaben_ohne_zustaendigkeit`,
+  `klicktest_monteur_navigation` grün.
+
+#### Liste alt → neu (31 Texte)
+
+| Datei:Zeile | alt | neu |
+|---|---|---|
+| `app/templates/access_denied.html:22` | Diese Seite ist für Ihre Rolle nicht verfügbar | Diese Seite ist für deine Rolle nicht verfügbar |
+| `app/templates/access_denied.html:23` | Bitte wenden Sie sich an eine Person mit den passenden Rechten, falls Sie diese Seite benötigen. | Brauchst du diese Seite, wende dich an eine Person mit den passenden Rechten. |
+| `app/templates/checklist_template.html:217` | Sie bearbeiten den <b>Entwurf | Du bearbeitest den <b>Entwurf |
+| `app/templates/checklist_template.html:218` | Sie sehen die <b>gültige Fassung | Du siehst die <b>gültige Fassung |
+| `app/templates/mobil.html:151` | el.textContent='Keine Wartungen an Ihren aktuellen Objekten.';return} | el.textContent='Keine Wartungen an deinen aktuellen Objekten.';return} |
+| `app/templates/mobil.html:339` | textContent='Keine Wartungen an Ihren aktuellen Objekten.'; | textContent='Keine Wartungen an deinen aktuellen Objekten.'; |
+| `app/templates/roof_area.html:534` | `Ziehen Sie ein Rechteck auf der Skizze auf, | `Zieh ein Rechteck auf der Skizze auf, |
+| `app/templates/roof_area.html:535` | `Klicken Sie auf die Skizze, | `Klick auf die Skizze, |
+| `app/templates/tasks.html:80` | „Übernehmen“ macht die Aufgabe zu Ihrer eigenen. | „Übernehmen“ macht die Aufgabe zu deiner eigenen. |
+| `app/templates/tasks.html:395` | Übernommen – die Aufgabe steht jetzt bei Ihren Aufgaben. | Übernommen – die Aufgabe steht jetzt bei deinen Aufgaben. |
+| `app/templates/time_backoffice.html:60` | 'Hier stehen nur Ihre eigenen Anträge – | 'Hier stehen nur deine eigenen Anträge – |
+| `app/templates/time_tracking_field.html:113` | Als Kolonnenführer buchen Sie hier für die ausgewählten Kollegen mit. Jede Buchung zeigt, dass Sie sie angelegt haben. | Als Kolonnenführer buchst du hier für die ausgewählten Kollegen mit. Jede Buchung zeigt, dass du sie angelegt hast. |
+| `app/templates/time_tracking_field.html:534` | Keine eigenen Aufträge im Zeitraum gefunden. Ist ein Einsatz nicht dabei, wenden Sie sich an das Büro. | Keine eigenen Aufträge im Zeitraum gefunden. Fehlt ein Einsatz, wende dich an das Büro. |
+| `app/operational_assets.py:413` | gelöscht werden -- archivieren Sie es stattdessen (Status auf Inaktiv). | gelöscht werden -- archiviere es stattdessen (Status auf Inaktiv). |
+| `app/operational_assets.py:421` | "Archivieren Sie es stattdessen (Status auf Inaktiv)." | "Archiviere es stattdessen (Status auf Inaktiv)." |
+| `app/permissions.py:89` | _DEFAULT_MESSAGE = "Für Ihre Rolle nicht verfügbar." | _DEFAULT_MESSAGE = "Für deine Rolle nicht verfügbar." |
+| `app/routers/absence_requests.py:70` | Sie dürfen diesen Abwesenheitsantrag nicht zurückziehen. | Du darfst diesen Abwesenheitsantrag nicht zurückziehen. |
+| `app/routers/checklists.py:83` | Von dieser Checkliste sind für Sie nur Titel, Datum und Ersteller sichtbar. | Von dieser Checkliste sind für dich nur Titel, Datum und Ersteller sichtbar. |
+| `app/routers/field_view.py:371` | Die Wartungshistorie zeigt die Monteursansicht nur für Objekte Ihrer Aufträge. | Die Wartungshistorie zeigt die Monteursansicht nur für Objekte deiner Aufträge. |
+| `app/routers/maintenance_contracts.py:214` | Dieses Objekt ist Ihnen aktuell nicht zugeordnet. | Dieses Objekt ist dir aktuell nicht zugeordnet. |
+| `app/routers/orders.py:41` | Dieser Auftrag ist Ihnen nicht zugeordnet. | Dieser Auftrag ist dir nicht zugeordnet. |
+| `app/routers/project_participants.py:70` | sind für Ihre Rolle nicht sichtbar. | sind für deine Rolle nicht sichtbar. |
+| `app/routers/service_reports.py:91` | Sie dürfen nur sich selbst als Mitarbeiter angeben. | Du darfst nur dich selbst als Mitarbeiter angeben. |
+| `app/routers/tasks.py:59` | Diese Aufgabe ist für Sie nicht sichtbar. | Diese Aufgabe ist für dich nicht sichtbar. |
+| `app/routers/time_tracking.py:48` | Sie dürfen nur eigene Zeiten erfassen. | Du darfst nur eigene Zeiten erfassen. |
+| `app/routers/time_tracking.py:374` | Sie dürfen diese Zeiterfassung nicht ändern. | Du darfst diese Zeiterfassung nicht ändern. |
+| `app/routers/time_tracking.py:406` | Sie dürfen diese Zeitbuchung nicht ändern. | Du darfst diese Zeitbuchung nicht ändern. |
+| `app/routers/time_tracking.py:427` | Sie dürfen diese Zeitbuchung nicht löschen. | Du darfst diese Zeitbuchung nicht löschen. |
+| `app/tasks.py:202` | Diese Aufgabe ist für Ihre Rolle nicht sichtbar. | Diese Aufgabe ist für deine Rolle nicht sichtbar. |
+| `app/time_tracking.py:419` | Sie gehören nicht zum ausgewählten Team. | Du gehörst nicht zum ausgewählten Team. |
+| `app/time_tracking.py:422` | Sie dürfen nur für Kollegen des ausgewählten Teams mitbuchen. | Du darfst nur für Kollegen des ausgewählten Teams mitbuchen. |

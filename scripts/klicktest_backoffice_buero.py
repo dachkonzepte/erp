@@ -4,7 +4,7 @@ Bis 1.8.116 brach die Seite für jede Rolle außer Admin mit "Dieses Backoffice 
 Endpunkte seit 1.4.8 Büro – Auftrag und Büro – Finanzen offenstehen und die Seitenleiste den Link zeigt.
 
     Büro – Auftrag  Bea (mit Mitarbeiterin verknüpft): Dashboard mit Kennzahlen, kein Fehler; ihr eigener offener Antrag ohne
-                    Genehmigen/Ablehnen, mit Hinweis "nur Ihre eigenen Anträge" (Mias Antrag sieht nur ein Admin, wie der Server es
+                    Genehmigen/Ablehnen, mit Hinweis "nur deine eigenen Anträge" (Mias Antrag sieht nur ein Admin, wie der Server es
                     regelt); Buchungen: Mias "nur Admin" (fremd), Beas am Monatsersten "nur Admin" (abgeschlossen), Beas am Zweiten mit
                     Bearbeiten/Löschen und Hinweis über der Liste; eigene Buchung auf 2,5 Std. geändert und gespeichert; Stundenzettel PDF
                     und CSV, DATEV-Export: 200; "Abgeschlossen bis" auf den Zweiten vorgerückt -- die eigene Buchung sofort "nur Admin";
@@ -93,7 +93,7 @@ async def pruefen(tab, seed, p):
              True)
     p.pruefe("Bea: eigener offener Antrag im Dashboard, ohne Entscheiden, nur die eigenen", await tab.js(
         "(()=>{const t=document.getElementById('absenceDashboard').innerText;return [t.includes('Bea Büro'),t.includes('Mia Monteurin'),"
-        "t.includes('Genehmigen oder Ablehnen dürfen nur Administratoren.'),t.includes('Hier stehen nur Ihre eigenen Anträge'),"
+        "t.includes('Genehmigen oder Ablehnen dürfen nur Administratoren.'),t.includes('Hier stehen nur deine eigenen Anträge'),"
         "!!document.querySelector('#absenceDashboard button')]})()"), [True, False, True, True, False])
 
     await tab.js("showTab('entries')")

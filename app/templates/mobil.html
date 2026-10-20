@@ -148,7 +148,7 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
   }
   function renderMaintenance(groups){
     var el=document.getElementById('maintenanceList');
-    if(!groups.length){el.className='empty';el.textContent='Keine Wartungen an Ihren aktuellen Objekten.';return}
+    if(!groups.length){el.className='empty';el.textContent='Keine Wartungen an deinen aktuellen Objekten.';return}
     el.className='';
     el.innerHTML=groups.map(function(g){
       var rows=g.contracts.map(function(c){
@@ -336,7 +336,7 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
     renderMaintenance(groups||[]);
   }).catch(function(){
     document.getElementById('maintenanceList').className='empty';
-    document.getElementById('maintenanceList').textContent='Keine Wartungen an Ihren aktuellen Objekten.';
+    document.getElementById('maintenanceList').textContent='Keine Wartungen an deinen aktuellen Objekten.';
   });
 })();
 </script>

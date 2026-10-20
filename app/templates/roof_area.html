@@ -531,8 +531,8 @@ function startPlacing(componentId){
   const type=componentTypes.find(t=>t.value===(c&&c.component_type));
   placingIsArea=!!(type&&type.is_area);
   document.getElementById('placingText').textContent=placingIsArea
-    ?`Ziehen Sie ein Rechteck auf der Skizze auf, um die Fläche von "${c?c.name:''}" zu markieren.`
-    :`Klicken Sie auf die Skizze, um die Position von "${c?c.name:''}" zu setzen.`;
+    ?`Zieh ein Rechteck auf der Skizze auf, um die Fläche von "${c?c.name:''}" zu markieren.`
+    :`Klick auf die Skizze, um die Position von "${c?c.name:''}" zu setzen.`;
   document.getElementById('placingBanner').classList.remove('hidden');
 }
 function cancelPlacing(){

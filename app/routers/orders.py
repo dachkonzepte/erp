@@ -38,7 +38,7 @@ router = APIRouter()
 _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 _any_role_dep = Depends(require_min_role(ROLE_FIELD))
 
-FIELD_ORDER_DENIED = "Dieser Auftrag ist Ihnen nicht zugeordnet."
+FIELD_ORDER_DENIED = "Dieser Auftrag ist dir nicht zugeordnet."
 
 
 def require_field_order_access(db: Session, role: AppUser, order_id: int) -> None:

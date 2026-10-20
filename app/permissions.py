@@ -86,7 +86,7 @@ def default_home_page_for_role(role: str | None) -> str:
     alle drei kennen die Rolle bereits aus request.state.erp_user."""
     return "/mobil" if role == ROLE_FIELD else "/"
 
-_DEFAULT_MESSAGE = "Für Ihre Rolle nicht verfügbar."
+_DEFAULT_MESSAGE = "Für deine Rolle nicht verfügbar."
 
 
 def has_role(user: AppUser | None, *roles: str) -> bool:

@@ -77,7 +77,7 @@ button:hover{background:color-mix(in srgb,var(--accent) 85%,black);border-color:
 
 <div id="unassignedCard" class="unassigned-card">
   <div class="column-head"><span>Ohne Zuständigkeit</span><span class="count" id="count-unassigned">0</span></div>
-  <div class="hint">Für jedes Büro-Konto sichtbar. „Übernehmen“ macht die Aufgabe zu Ihrer eigenen.</div>
+  <div class="hint">Für jedes Büro-Konto sichtbar. „Übernehmen“ macht die Aufgabe zu deiner eigenen.</div>
   <div id="unassignedStatus" class="status" style="margin-bottom:8px"></div>
   <div id="unassignedList" class="unassigned-list"></div>
 </div>
@@ -392,7 +392,7 @@ async function claimTaskNow(id){
   }catch(e){st.className='status err';st.textContent=e.message}
   if(editingTaskId===id)closeEditor();
   await loadTasks();
-  if(ok){st.className='status ok';st.textContent='Übernommen – die Aufgabe steht jetzt bei Ihren Aufgaben.'}
+  if(ok){st.className='status ok';st.textContent='Übernommen – die Aufgabe steht jetzt bei deinen Aufgaben.'}
 }
 
 async function releaseTaskNow(){

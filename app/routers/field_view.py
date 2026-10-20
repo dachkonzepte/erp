@@ -368,7 +368,7 @@ def upload_field_view_property_document(
     }
 
 
-FIELD_HISTORY_DENIED = "Die Wartungshistorie zeigt die Monteursansicht nur für Objekte Ihrer Aufträge."
+FIELD_HISTORY_DENIED = "Die Wartungshistorie zeigt die Monteursansicht nur für Objekte deiner Aufträge."
 
 
 def _field_may_see_history(db: Session, role: AppUser, property_id: int) -> bool:

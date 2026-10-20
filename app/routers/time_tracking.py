@@ -45,7 +45,7 @@ def _time_entry_employee_for_request(request: Request, requested_employee_id: in
         if user.employee_id is None:
             raise HTTPException(status_code=403, detail="Ihr ERP-Benutzer ist keinem Mitarbeiter zugeordnet.")
         if requested_employee_id is not None and requested_employee_id != user.employee_id:
-            raise HTTPException(status_code=403, detail="Sie dürfen nur eigene Zeiten erfassen.")
+            raise HTTPException(status_code=403, detail="Du darfst nur eigene Zeiten erfassen.")
         return user.employee_id
     if requested_employee_id is None:
         if user is not None and user.employee_id is not None:
@@ -371,7 +371,7 @@ def stop_time_entry(entry_id: int, payload: TimeTimerStop, request: Request, db:
     if current is None:
         raise HTTPException(status_code=404, detail="Zeiterfassung nicht gefunden.")
     if not _time_entry_can_edit(request, current):
-        raise HTTPException(status_code=403, detail="Sie dürfen diese Zeiterfassung nicht ändern.")
+        raise HTTPException(status_code=403, detail="Du darfst diese Zeiterfassung nicht ändern.")
     _require_open_period(request, db, current.work_date)
     try:
         group = group_for_entry(db, entry_id)
@@ -403,7 +403,7 @@ def put_time_entry(entry_id: int, payload: TimeEntryUpdate, request: Request, db
     if current is None:
         raise HTTPException(status_code=404, detail="Zeitbuchung nicht gefunden.")
     if not _time_entry_can_edit(request, current):
-        raise HTTPException(status_code=403, detail="Sie dürfen diese Zeitbuchung nicht ändern.")
+        raise HTTPException(status_code=403, detail="Du darfst diese Zeitbuchung nicht ändern.")
     changes = payload.model_dump(exclude_unset=True)
     values = _merge_time_changes(current, changes)
     _validate_time_rules(db, order_item_id=values["order_item_id"], activity=values["activity"])
@@ -424,7 +424,7 @@ def remove_time_entry(entry_id: int, request: Request, db: Session = Depends(get
     if current is None:
         raise HTTPException(status_code=404, detail="Zeitbuchung nicht gefunden.")
     if not _time_entry_can_edit(request, current):
-        raise HTTPException(status_code=403, detail="Sie dürfen diese Zeitbuchung nicht löschen.")
+        raise HTTPException(status_code=403, detail="Du darfst diese Zeitbuchung nicht löschen.")
     _require_open_period(request, db, current.work_date)
     try:
         delete_time_entry_row(db, entry_id)

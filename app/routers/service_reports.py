@@ -88,7 +88,7 @@ def _employee_for_request(request: Request, requested_employee_id: int | None) -
     user = getattr(request.state, "erp_user", None)
     if user is not None and user.role != "admin":
         if requested_employee_id is not None and requested_employee_id != user.employee_id:
-            raise HTTPException(status_code=403, detail="Sie dürfen nur sich selbst als Mitarbeiter angeben.")
+            raise HTTPException(status_code=403, detail="Du darfst nur dich selbst als Mitarbeiter angeben.")
         return user.employee_id
     return requested_employee_id
 

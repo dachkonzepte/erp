@@ -7,7 +7,7 @@ Ergebnis (Ist-Stand 1.8.142, über die echte Anmeldeschranke):
 
 - Einzelbuchung (`POST /api/time-entries`, `/start`, `PUT/DELETE /api/time-entries/{id}`, `/stop`, `GET …/active?employee_id=`):
   für jede Rolle außer Admin nur die eigene Person (`app/routers/time_tracking.py::_time_entry_employee_for_request()` -- fremde
-  `employee_id` 403 „Sie dürfen nur eigene Zeiten erfassen.“; `_time_entry_can_edit()` -- fremde Buchung 403). Auch für die Kolonne
+  `employee_id` 403 „Du darfst nur eigene Zeiten erfassen.“ (bis 1.8.157 „Sie dürfen …“); `_time_entry_can_edit()` -- fremde Buchung 403). Auch für die Kolonne
   nicht: eine Einzelbuchung für einen Kollegen derselben Kolonne lehnt der Server ebenso ab.
 - Gruppenbuchung (`POST /api/time-entry-groups`, `/start`): nur als Kolonnenführerin eines aktiven Teams (`_require_crew_leader()`,
   `TeamEmployee.is_crew_leader`), nur Mitglieder dieses Teams, sie selbst dabei (`app/time_tracking.py::validate_group_members()`),
@@ -113,7 +113,7 @@ def test_monteurin_bucht_einzeln_nur_fuer_sich(welt):
     for fremd in (ids["Max"], ids["Lea"], ids["Otto"]):  # Kolonne (Mitglied, Kolonnenführerin) und fremdes Team
         antwort = mia.post("/api/time-entries", json=_manuell(welt, fremd))
         assert antwort.status_code == 403, antwort.text
-        assert antwort.json()["detail"] == "Sie dürfen nur eigene Zeiten erfassen."
+        assert antwort.json()["detail"] == "Du darfst nur eigene Zeiten erfassen."
         start = {"employee_id": fremd, "order_id": welt["auftrag"]}
         assert mia.post("/api/time-entries/start", json=start).status_code == 403
         assert mia.get(f"/api/time-entries/active?employee_id={fremd}").status_code == 403
