@@ -762,8 +762,11 @@ Dazu ein GC-Rückruf und Stichproben der Aufrufkette. Alles nur im Messprozess, 
 **Warum allein 47 ms:** Die Einzelmessung lief mit DesignDateien ohne die 70 Router, dort fehlt der Aufbau. Ihre 28 ms für `mimetypes`
 und 15 ms für Importe passen zur Zerlegung.
 
-**Warum im Endlauf rund 500 ms:** Dort liefen vier Klicktests samt Chrome zugleich. Mit vier Servern zugleich steigt die erste Anfrage
-hier auf 380–458 ms: derselbe Aufbau, langsamer bei geteilter CPU. Die 506 ms im Verbindungsprotokoll liegen in derselben Größenordnung.
+**Warum damals rund 500 ms:** `klicktest_anmelden` läuft allein (`ALLEIN`), nicht neben anderen Klicktests. Die erste Fassung dieses
+Befunds (Commit `e82e41d`) nannte hier fälschlich vier Klicktests zugleich. Im Endlauf auf `3463e2c` brauchte die erste Design-Datei
+dort 364 ms (Verbindungsprotokoll; allein, Chrome lädt die Seite zugleich), passend zu 321–348 ms ohne Chrome. Die 509 ms im Endlauf
+der Stufe „Grundlage“ sind dieselbe Arbeit bei mehr Last auf dem Rechner; welche Last das war, lässt sich nicht mehr feststellen. Wie
+stark Last die Zeit streckt, zeigen vier Server zugleich: 380–458 ms.
 
 **Folgen:**
 - **Klicktest:** Die erste Seite nach dem Start wartet 0,35–0,5 s auf `ds.css`. Das war der Anlass der Wartebedingung in
@@ -790,3 +793,12 @@ hier auf 380–458 ms: derselbe Aufbau, langsamer bei geteilter CPU. Die 506 ms 
   `app/meldungen.py` bekommt. Eigener Commit „1.8.159 (Nachtrag)“; Suite und Klicktests danach neu (Regel 26).
 - **Angepasste Erwartung** (Regel 28): `test_v252::test_no_further_database_backed_jinja_globals_exist_unguarded` -- alt 7 Zuweisungen
   (`app_version`, fünf abgesicherte Globals mit Datenbank, `can`), neu 8 (dazu `kein_mitarbeiter`, nur die Konstante).
+
+### Endlauf der Runde „Du“ (Regel 26)
+
+- **Erster Lauf auf `e82e41d`**: volle Suite 6201 grün, 3 übersprungen, 1 rot (`test_v252`, siehe Nachtrag oben), 7:25 min. Klicktests nicht
+  gestartet, weil der Stand danach ohnehin neu lief.
+- **Endstand `3463e2c`** (saubere Arbeitskopie): volle Suite `pytest -q -n 16 --dist loadfile` 6202 grün, 3 übersprungen, 0 rot, 7:20 min;
+  `klicktest_alle.py --gleichzeitig 4` 79 von 79 wie erwartet, 1775 von 1775 Prüfungen, 7:01 min (sechs allein: `klicktest_abschliessen`,
+  `klicktest_anmelden`, `klicktest_feierabend`, `klicktest_fremde_seite`, `klicktest_hochladen`, `klicktest_veraltete_antworten`).
+- Danach nur `docs/` geändert (Korrektur im Befund zu Punkt 5, dieses Ergebnis) -- kein neuer Endlauf (Regel 26).
