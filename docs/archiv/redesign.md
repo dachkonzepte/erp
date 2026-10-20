@@ -558,3 +558,16 @@ zugeordnet“ in neun Fassungen -- bei der Umstellung eine gemeinsame Meldung.
   lädt `_get_invoice_or_404()` vorher und meldet einen schon gelöschten Entwurf mit 404). Allein fünfmal grün, die Datei 19/19; mit dieser
   Runde ohne Zusammenhang. Zweiter voller Lauf auf `26a93ce`: 6187 bestanden, 3 übersprungen (8:22 min). Nicht geändert, als
   Nebenbefund gemeldet: der Test wackelt unter Last (die zweite Aktion sollte den Entwurf vor dem Warten laden).
+
+## Runde „Du“ (1.8.157 ff.)
+
+Vorgabe vom 20.10.2026 (übernommen wie gegeben): „Runde „Du“. Festlegungen 1.8.155 Nr. 1 und zum Klicktest-Werkzeug sind bestätigt. 1. ds.css, dunkel: --ds-aktion und --ds-ok von #3B7D3C auf #3D823E (grüner Knopf auf flaeche-2 lag bei 2,91). Kontrasttest um aktion/flaeche-2 erweitern, hell und dunkel, Grenze 3. Dazu ein Wächter: ok, ok-hell, ok-text tragen dieselben Werte wie aktion, aktion-hell, aktion-text. 2. Du statt Sie nach docs/archiv/befund-du-statt-sie.md: die 50 Oberflächen-Stellen auf Du. Ton kurz und sachlich, z. B. „Bitte wählen Sie einen Kunden aus.“ → „Wähle einen Kunden aus.“ Die 30 Kundentexte nicht anfassen. 3. „… keinem Mitarbeiter zugeordnet“: eine gemeinsame Meldung statt neun Fassungen. 4. Wächter-Test wie vorgeschlagen: Verzeichnis aller Kundentexte, darin keine Du-Form (auch in echten PDFs aus Testdaten); Texte mit Kundentext-Merkmal müssen im Verzeichnis stehen; außerhalb keine Sie-Anrede. 5. Nur Befund: Warum braucht die erste Design-Datei nach dem Serverstart im Klicktest-Server rund 500 ms, allein aber 47 ms? Messen und melden, nichts ändern. Am Ende: volle Suite und Klicktests auf sauberer Arbeitskopie, Bericht je Punkt, dazu eine Liste alt → neu für alle geänderten Texte. Ein Commit je Punkt, nicht pushen.“
+
+Festlegung 1.8.155 Nr. 1 (ok mit eigenen Werten) und die Festlegung zum Klicktest-Werkzeug (Formular-Klicktests warten auf das Skript der Seite) damit bestätigt.
+
+### Punkt 1 (1.8.157): dunkles Grün, ok gleich aktion
+
+- **Änderung** (`app/static/ds/ds.css`, dunkel): `--ds-aktion` und `--ds-ok` `#3B7D3C` → `#3D823E`; Prüfpaar `aktion/flaeche-2` (Bedienelement, 3 : 1) im Kopfkommentar.
+- **Kontrast dunkel mit `#3D823E`**: aktion/flaeche-2 3,10 (vorher 2,91), aktion/flaeche 3,50 (3,28), aktion/grund 3,86 (3,62), auf-aktion/aktion 4,71 (5,02 -- bleibt über 4,5); hell aktion/flaeche-2 5,24.
+- **Test**: `test_kontrast_der_pruefpaare_hell_und_dunkel` verlangt 40 Paare samt aktion/flaeche-2; `test_kontrast_gegenprobe` zusätzlich: das alte Grün `#3B7D3C` → „dunkel aktion/flaeche-2“ rot; neu `test_ok_traegt_die_werte_von_aktion` (ok, ok-hell, ok-text = aktion, aktion-hell, aktion-text, hell und dunkel; Gegenprobe: nur aktion geändert → „dunkel ok: #3D823E statt #3E843F (aktion)“). Ohne die Änderung alle drei rot. Klicktest `klicktest_ds_schriften` 27/27.
+- **Angepasste Erwartungen** (Regel 28): `test_kontrast_der_pruefpaare_hell_und_dunkel` -- alt 39 Paare, neu 40 samt aktion/flaeche-2; `test_kontrast_gegenprobe` -- der Fall „dunkles Grün zu dunkel“ ersetzt jetzt `#3D823E` statt `#3B7D3C`.

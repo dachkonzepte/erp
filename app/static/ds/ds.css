@@ -24,7 +24,7 @@
    Bedienelemente und Rahmen mindestens 3 : 1
      feld-rand/flaeche fokus/flaeche fokus/grund
      signal/flaeche stark/flaeche info/flaeche ok/flaeche fehler/flaeche
-     aktion/flaeche aktion/grund
+     aktion/flaeche aktion/grund aktion/flaeche-2
    ===================================================================== */
 
 :root {
@@ -141,7 +141,7 @@
   --ds-stark: #D5DBDF;
   --ds-auf-stark: #121619;
 
-  --ds-aktion: #3B7D3C;
+  --ds-aktion: #3D823E;          /* seit 1.8.157 (vorher #3B7D3C: auf flaeche-2 nur 2,91) */
   --ds-auf-aktion: #FFFFFF;
   --ds-aktion-hell: #17281A;
   --ds-aktion-rand: #2F5A30;
@@ -157,7 +157,7 @@
   --ds-info: #3B82D0;
   --ds-info-hell: #15283C;
   --ds-info-text: #A9CCF5;
-  --ds-ok: #3B7D3C;
+  --ds-ok: #3D823E;
   --ds-ok-hell: #17281A;
   --ds-ok-text: #B9DA86;
   --ds-warn-hell: #36200F;

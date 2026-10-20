@@ -626,10 +626,10 @@ def test_kontrast_der_pruefpaare_hell_und_dunkel():
     text = DS_CSS.read_text(encoding="utf-8")
     paare = pruefpaare(text)
     # seit 1.8.155 39 statt 34: Firmengrün als Hauptaktion -- Schrift auf dem Knopf und grüne Schrift mindestens 4,5, der Knopf
-    # selbst auf Fläche und Grund mindestens 3
-    assert len(paare) == 39 and {g for g, _, _ in paare} == {4.5, 3.0}
+    # selbst auf Fläche und Grund mindestens 3; seit 1.8.157 40: der Knopf auch auf flaeche-2 (Hover, Infokasten)
+    assert len(paare) == 40 and {g for g, _, _ in paare} == {4.5, 3.0}
     assert {(4.5, "auf-aktion", "aktion"), (4.5, "aktion-text", "aktion-hell"), (4.5, "aktion-text", "flaeche"),
-            (3.0, "aktion", "flaeche"), (3.0, "aktion", "grund")} <= set(paare)
+            (3.0, "aktion", "flaeche"), (3.0, "aktion", "grund"), (3.0, "aktion", "flaeche-2")} <= set(paare)
     assert kontrast_verstoesse(text) == []
 
 
@@ -643,9 +643,30 @@ def test_kontrast_gegenprobe():
     ohne_token = text.replace("--ds-ok-hell: #EEF5E8;", "", 1)  # bis 1.8.154 #DDF1EE
     assert any("ok-text/ok-hell: Token fehlt" in f for f in kontrast_verstoesse(ohne_token))
     # seit 1.8.155: das dunkle Grün zu dunkel für den Knopf auf der Fläche, Schrift auf dem Knopf zu hell, Token fehlt
-    gruen_zu_dunkel = text.replace("--ds-aktion: #3B7D3C;", "--ds-aktion: #2F5A30;", 1)
+    gruen_zu_dunkel = text.replace("--ds-aktion: #3D823E;", "--ds-aktion: #2F5A30;", 1)
     assert "dunkel aktion/flaeche" in " ".join(kontrast_verstoesse(gruen_zu_dunkel))
     schrift_zu_hell = text.replace("--ds-aktion: #367337;", "--ds-aktion: #A7CD5D;", 1)
     assert "hell auf-aktion/aktion" in " ".join(kontrast_verstoesse(schrift_zu_hell))
     ohne_gruen = text.replace("--ds-aktion-text: #2A5C2B;", "", 1)
     assert any("aktion-text/flaeche: Token fehlt" in f for f in kontrast_verstoesse(ohne_gruen))
+    # seit 1.8.157: das dunkle Grün von 1.8.155 (#3B7D3C) lag auf flaeche-2 bei 2,91
+    gruen_alt = text.replace("--ds-aktion: #3D823E;", "--ds-aktion: #3B7D3C;", 1)
+    assert "dunkel aktion/flaeche-2" in " ".join(kontrast_verstoesse(gruen_alt))
+
+
+def ok_wie_aktion_verstoesse(text: str) -> list[str]:
+    hell, dunkel = _tokens(text)
+    return [f"{thema} {ok}: {werte.get(ok)} statt {werte.get(aktion)} ({aktion})"
+            for thema, werte in (("hell", hell), ("dunkel", dunkel))
+            for ok, aktion in (("ok", "aktion"), ("ok-hell", "aktion-hell"), ("ok-text", "aktion-text"))
+            if werte.get(ok) is None or werte.get(ok, "").upper() != werte.get(aktion, "").upper()]
+
+
+def test_ok_traegt_die_werte_von_aktion():
+    """Festlegung 1.8.155 Nr. 1 (bestätigt): ok, ok-hell, ok-text tragen dieselben Hex-Werte wie aktion, aktion-hell, aktion-text
+    (eigene Werte statt Verweis, damit der Kontrasttest sie liest) -- seit 1.8.157 hält ein Wächter sie gleich."""
+    text = DS_CSS.read_text(encoding="utf-8")
+    assert ok_wie_aktion_verstoesse(text) == []
+    # Gegenprobe: nur aktion geändert, ok nicht nachgezogen
+    nur_aktion = text.replace("--ds-aktion: #3D823E;", "--ds-aktion: #3E843F;", 1)
+    assert ok_wie_aktion_verstoesse(nur_aktion) == ["dunkel ok: #3D823E statt #3E843F (aktion)"]

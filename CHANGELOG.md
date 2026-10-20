@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.157 – Design-System: dunkles Grün heller, ok gleich aktion als Wächter
+
+Runde „Du“, Punkt 1. Im dunklen Thema lag ein grüner Knopf auf `flaeche-2` (Hover, Infokasten) nur bei 2,91 : 1. `--ds-aktion` und `--ds-ok` sind dunkel jetzt `#3D823E` statt `#3B7D3C` -- auf flaeche-2 3,10, auf Fläche 3,50, auf Grund 3,86, weiße Schrift darauf 4,71. Der Kontrasttest prüft aktion/flaeche-2 hell und dunkel (Grenze 3), und ein Wächter hält ok, ok-hell und ok-text bei den Werten von aktion, aktion-hell und aktion-text (Festlegung 1.8.155 Nr. 1). Sichtbar ändert sich nichts, keine Seite nutzt die Tokens.
+
 ## 1.8.156 – Bildgrundlage: Fenster des TerraPad 1201
 
 Stufe „Grundlage“, Teil B. Die Bildgrundlage nahm die Seiten der Monteurin auf dem TerraPad mit der ganzen Anzeige auf (hoch 800 × 1280, quer 1280 × 800). Jetzt mit dem Fenster, das der Browser auf dem TerraPad 1201 tatsächlich hat: hoch 800 × 1100, quer 1280 × 620. Die Breiten bleiben, ganzseitige Bilder wachsen weiter mit der Seite; die Zustände des Rahmens (Menü aufgeklappt bei 800, Seitenleiste eingeklappt bei 1280) sind Bilder des Fensters und werden niedriger. Die Aufnahme „benutzer“ läuft seit 1.8.134 als Admin.
