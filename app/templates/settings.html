@@ -205,7 +205,7 @@
       <button type="button" class="danger" id="companyLogoRemove" style="display:none" onclick="removeCompanyLogo()">Entfernen</button>
     </div>
     <span id="companyLogoStatus" class="status"></span>
-    <div class="hint">Wird auf PDF-Dokumenten (abschaltbar unter „Logo im PDF“ gleich darunter) sowie als Symbol der Monteursansicht auf dem Startbildschirm verwendet. Erscheint außerdem ersatzweise oben links in der Seitenleiste, solange dort kein eigenes Logo der Leiste hinterlegt ist (siehe unten). PNG, JPEG, WebP oder SVG, max. 5 MB.</div>
+    <div class="hint">Wird auf PDF-Dokumenten (abschaltbar unter „Logo im PDF“ gleich darunter) sowie als Symbol der Monteursansicht auf dem Startbildschirm verwendet. PNG, JPEG, WebP oder SVG, max. 5 MB.</div>
 
     {# Seit 1.8.112 hier statt unter Dokumentlayout -> Gezeichnete Bausteine: derselbe Baustein "logo" des gemeinsamen
        PDF-Rahmens (toggleDocumentLayoutBlock(), geladen in loadDocumentLayoutSection()). #}
@@ -232,12 +232,12 @@
       <button type="button" onclick="saveLogoHeight()">Übernehmen</button>
     </div>
     <span id="sidebarLogoStatus" class="status"></span>
-    <div class="hint">Erscheint ausschließlich oben links in der Seitenleiste, statt des Firmenlogos bzw. des Schriftzugs "DACHKONZEPTE" -- sinnvoll, wenn das Firmenlogo (wie hier) selbst einen Schriftzug enthält, der bei keiner erlaubten Höhe mehr lesbar wäre. Hier lässt sich stattdessen eine reduzierte Variante hinterlegen (z. B. nur ein Bildzeichen). <span id="sidebarLogoFallbackHint"></span> Die Höhe oben gilt für das jeweils tatsächlich in der Seitenleiste gezeigte Logo. PNG, JPEG, WebP oder SVG, max. 5 MB. Ist das gezeigte Logo breiter als der verfügbare Platz, wird es rechts abgeschnitten statt in der Höhe verkleinert.</div>
+    <div class="hint">Seit 1.8.165 zeigen Seitenleiste und Monteurskopf fest die Bildmarke von DACHKONZEPTE -- ein hier hinterlegtes Logo und die Höhe werden dort nicht mehr angezeigt, bleiben aber gespeichert, bis die Einstellungen bereinigt werden. PNG, JPEG, WebP oder SVG, max. 5 MB.</div>
 
     {# Seit 1.8.130 nur für Administratoren im Markup -- die Akzentfarbe speichert nur ein Administrator (PUT admin-only). #}
     {% if ist_admin %}
     <h3 style="margin:22px 0 8px;font-size:14px">Akzentfarbe</h3>
-    <div class="hint">Der Hell/Dunkel-Modus wird unten in der Seitenleiste umgeschaltet und pro Gerät im Browser gespeichert. Die Akzentfarbe gilt dagegen zentral für alle Benutzer.</div>
+    <div class="hint">Der Hell/Dunkel-Modus wird im Kontomenü oben rechts umgeschaltet und pro Gerät im Browser gespeichert. Die Akzentfarbe gilt dagegen zentral für alle Benutzer.</div>
     <div class="list-narrow">
       <div class="field"><label>Akzentfarbe</label>
         <div>
@@ -1762,7 +1762,6 @@ function renderCompanyLogo(){
   }else{
     wrap.style.display='none';emptyHint.style.display='inline';removeBtn.style.display='none';
   }
-  renderSidebarLogoFallbackHint();
 }
 async function uploadCompanyLogo(){
   const input=document.getElementById('companyLogoFile'),st=document.getElementById('companyLogoStatus');
@@ -1781,15 +1780,6 @@ async function removeCompanyLogo(){
     st.textContent='Entfernt.';
   }catch(e){st.textContent='Fehler: '+e.message}
 }
-function renderSidebarLogoFallbackHint(){
-  const hint=document.getElementById('sidebarLogoFallbackHint');
-  if(!hint)return;
-  const hasSidebarLogo=generalSettings&&generalSettings.sidebar_logo_filename;
-  if(hasSidebarLogo){hint.textContent='';return}
-  hint.textContent=(generalSettings&&generalSettings.logo_filename)
-    ? 'Ohne eigenes Logo der Leiste zeigt die Seitenleiste aktuell ersatzweise das Firmenlogo.'
-    : 'Ohne eigenes Logo der Leiste UND ohne Firmenlogo zeigt die Seitenleiste aktuell den Schriftzug "DACHKONZEPTE".';
-}
 function renderSidebarLogo(){
   const wrap=document.getElementById('sidebarLogoPreviewWrap'),emptyHint=document.getElementById('sidebarLogoEmptyHint'),removeBtn=document.getElementById('sidebarLogoRemove'),img=document.getElementById('sidebarLogoPreview'),heightInput=document.getElementById('sidebarLogoHeight');
   const height=(generalSettings&&generalSettings.sidebar_logo_height_px)||48;
@@ -1801,7 +1791,6 @@ function renderSidebarLogo(){
   }else{
     wrap.style.display='none';emptyHint.style.display='inline';removeBtn.style.display='none';
   }
-  renderSidebarLogoFallbackHint();
 }
 async function saveLogoHeight(){
   const input=document.getElementById('sidebarLogoHeight'),st=document.getElementById('sidebarLogoStatus');

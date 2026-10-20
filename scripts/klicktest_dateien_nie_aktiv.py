@@ -11,7 +11,8 @@ stünde danach dort ein Eintrag.
     Projektmappe    dasselbe
     Objekt          dasselbe (Bilder als JPEG abgelegt); /mobil/objekt als Monteurin: "Ansehen" nur bei Foto und PDF, view direkt
                     geöffnet wie oben
-    Logo            SVG-Logo mit Skript in der Seitenleiste als Bild sichtbar, direkt geöffnet ein Download, kein Skript
+    Logo            SVG-Logo mit Skript als Bild sichtbar (seit 1.8.165 in der Vorschau der Einstellungen -- die Seitenleiste zeigt fest die
+                    Bildmarke), direkt geöffnet ein Download, kein Skript
 
 AUFRUF (aus dem Projektordner):
 
@@ -225,12 +226,16 @@ async def pruefen(tab, seed, p):
                         f"fd.append('file',new Blob([new Uint8Array({json.dumps(list(SVG))})],{{type:'image/svg+xml'}}),'logo.svg');"
                         "const r=await fetch('/api/settings/general/sidebar-logo',{method:'POST',body:fd});return r.status})()")
     p.pruefe("Logo: SVG hochgeladen", logo, 200)
-    await tab.oeffnen(f"/customers/{kid}", bereit_kunde)
-    sichtbar = await tab.warten("(()=>{const i=document.querySelector('.app-sidebar-logo');"
+    # seit 1.8.165 zeigt die Seitenleiste fest die Bildmarke -- das hochgeladene Logo erscheint in der Vorschau der Einstellungen
+    await tab.oeffnen("/settings#appearance", "document.querySelector('.settings-menu')")
+    sichtbar = await tab.warten("(()=>{const i=document.getElementById('sidebarLogoPreview');"
                                 "return !!i&&i.complete&&i.naturalWidth>0})()", 10)
-    p.pruefe("Logo: SVG in der Seitenleiste als Bild sichtbar", sichtbar, True)
-    await tab.bild("logo_seitenleiste")
-    src = await tab.js("document.querySelector('.app-sidebar-logo')?.getAttribute('src')")
+    p.pruefe("Logo: SVG in der Vorschau der Einstellungen als Bild sichtbar", sichtbar, True)
+    await tab.bild("logo_einstellungen")
+    p.pruefe("Logo: die Seitenleiste zeigt die Bildmarke, nicht das hochgeladene Logo", await tab.js(
+        "[!!document.querySelector('#appSidebar .app-sidebar-kachel svg polygon'),!!document.querySelector('#appSidebar img')]"),
+        [True, False])
+    src = await tab.js("document.getElementById('sidebarLogoPreview')?.getAttribute('src')")
     await _download_pruefen(tab, p, "Logo: direkt geöffnet", src or "/api/settings/general/sidebar-logo", download, "sidebar-logo.svg")
     await tab.oeffnen(f"/customers/{kid}", bereit_kunde)
     p.pruefe("Logo: kein Skript gelaufen", await _xss(tab), None)

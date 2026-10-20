@@ -1131,3 +1131,43 @@ Grundlage: der Befund `docs/archiv/befund-rahmen.md`. Die Entscheidungen oben ge
   `STILL`, Zustände ausgelassen) -- nicht ins Projekt übernommen; bei Bedarf für die nächsten Runden.
 - **Bilder für den Bericht**: `bildgrundlage/rahmen_runde1_581a80a.zip` (Projektmappe 1440 × 900 hell und dunkel, Einsatzbericht als
   Monteurin 1280 × 620 und 800 × 1100), Ordner in `.gitignore`.
+
+## Nachrunde zu Runde 1 (Festlegungen 1.8.161–1.8.164 bestätigt)
+
+### Punkt 1 (1.8.165): Bildmarke statt Haus
+
+- **`_bildmarke.html`** (neu): die Bildmarke von DACHKONZEPTE als feste SVG -- `viewBox="240 47 1441 1184"`, zwei Polygone in
+  #A7CD5D, eines in #367337, genau wie vorgegeben. Feste Farben der Marke, keine --ds-Werte (sie ändern sich nicht mit dem Modus).
+- **Seitenleiste** (Kachel 36 px, 4 px Abstand) und **Monteurskopf** (Kachel 40 px, 5 px Abstand) binden sie ein, auf weißer Kachel
+  (`#FFFFFF`) auch im Dunkelmodus. Bis 1.8.164 zeigte die Kachel das Logo der Leiste bzw. das Firmenlogo (`sidebar_logo_url()`), sonst ein
+  Haus auf `marke-hell`. Das hochgeladene Firmenlogo bleibt für die PDF-Dokumente und das Symbol der Monteursansicht.
+- **Einstellungen → Erscheinungsbild**: der Abschnitt „Logo der Leiste“ (eigener Upload samt Höhe, seit 1.3.43) bewirkt nichts mehr --
+  er bleibt stehen, sein Hinweis sagt das jetzt; der Hinweis beim Firmenlogo nennt die Seitenleiste nicht mehr, und der Hinweis bei der
+  Akzentfarbe nennt Hell/Dunkel im Kontomenü (stand seit 1.8.162 noch „unten in der Seitenleiste“).
+
+#### Tests und Prüfung
+
+- `test_v253::test_bildmarke_wie_vorgegeben_in_leiste_und_monteurskopf` (neu): viewBox, die drei Polygone mit Farbe und Punkten, beide
+  Köpfe binden `_bildmarke.html` ein, kein Aufruf von `sidebar_logo_url()`, Kachel 36/40 px auf `#FFFFFF`.
+- `klicktest_rahmen`: Bildmarke auf weißer Kachel in der Leiste (alle Büro-Rollen, hell und dunkel) und im Monteurskopf (40 px, kein
+  `<img>`). 322 von 322. `klicktest_dateien_nie_aktiv` 43/43, `klicktest_neue_ordnung` 80/80, `klicktest_teil_updates` 9/9.
+- **Gegenproben**: Kachel der Leiste wieder hellgrün (pytest und Klicktest 45 von 54); Monteurskopf mit Haus statt Bildmarke (pytest
+  und Klicktest 154 von 178); Bildmarke in falscher Farbe (pytest) -- 3 von 3 rot, je Datei byte-genau zurück.
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v249::test_sidebar_shows_logo_image_when_present` → `…_shows_the_brand_mark_even_with_an_uploaded_logo_since_1_8_165`: alt
+    `<img>` mit der Logo-Adresse in der Kachel `mit-logo`; neu die Bildmarke, kein `<img>`, keine Logo-Adresse.
+  - `test_v249::test_sidebar_logo_wrapped_in_width_limiting_clip_container_not_on_img_itself` →
+    `test_sidebar_tile_is_white_in_both_themes_since_1_8_165`: alt `<img>` ohne eigene Breitenbegrenzung; neu Kachel `#FFFFFF`, kein --ds-Wert.
+  - `test_v253::test_kopf_kachel_mit_logo_und_schriftzug_ohne_knoepfe` → `…_mit_bildmarke_…`: alt `<img>` in der Kachel; neu die Bildmarke.
+  - `test_v253::test_kopf_ohne_logo_zeigt_ein_dach_auf_der_kachel` → `…_zeigt_dieselbe_bildmarke`: alt Haus-SVG; neu die Bildmarke.
+  - Klicktest `klicktest_dateien_nie_aktiv` „Logo“: alt SVG-Logo in der Seitenleiste als Bild sichtbar; neu in der Vorschau der
+    Einstellungen, dazu: die Leiste zeigt die Bildmarke, kein `<img>`.
+
+#### Festlegungen 1.8.165 (Bitte bestätigen)
+
+1. **Bildmarke als eigener Baustein** `_bildmarke.html` mit festen Farben der Marke, von Leiste und Monteurskopf eingebunden.
+2. **Abstand in der Kachel** 4 px (Leiste) bzw. 5 px (Monteurskopf) -- die Marke steht etwa 28 × 23 bzw. 30 × 25 px groß.
+3. **„Logo der Leiste“ bleibt bis zur Bereinigung** in den Einstellungen (Upload, Höhe, Endpunkte, Spalten, die Globals
+   `sidebar_logo_url()`/`sidebar_logo_height_px()` und das Lesen in den Seitendaten), mit Hinweis, dass es nicht mehr angezeigt wird;
+   Vorschlag: bei der Bereinigung samt allem entfernen.
+4. **Schriftzug bleibt** neben der Kachel in der Leiste; im Monteurskopf nur die Kachel (`aria-label` „DACHKONZEPTE“).

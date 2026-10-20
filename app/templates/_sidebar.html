@@ -5,8 +5,9 @@
    Seit 1.8.162 (Stufe 2 „Rahmen“, Runde 1, Teil 2; Befund docs/archiv/befund-rahmen.md):
    - 232 px breit, in beiden Modi dunkel: Farben aus --ds-navi-* (app/static/ds/ds.css), nicht mehr aus den --sidebar-*-Werten der Seite
      und nicht aus der Akzentfarbe (die färbt die Oberfläche nicht mehr, Entscheidung für Stufe 2).
-   - Logo-Zeile 52 px: Kachel 36 px (Logo der Leiste bzw. Firmenlogo aus sidebar_logo_url(), auf weißer Kachel -- sonst ein Dach auf
-     marke-hell), daneben „DACHKONZEPTE“ / „Rödchen GmbH · ERP“. Die einstellbare Höhe des Logos (sidebar_logo_height_px) wirkt hier
+   - Logo-Zeile 52 px: Kachel 36 px mit der Bildmarke von DACHKONZEPTE (_bildmarke.html, seit 1.8.165 fest auf Weiß, auch im
+     Dunkelmodus, unabhängig von hochgeladenen Logos -- bis dahin Logo der Leiste bzw. Firmenlogo aus sidebar_logo_url(), sonst ein Dach
+     auf marke-hell), daneben „DACHKONZEPTE“ / „Rödchen GmbH · ERP“. Die einstellbare Höhe des Logos (sidebar_logo_height_px) wirkt hier
      nicht mehr: die Kachel ist fest.
    - Vier Gruppen: Übersicht · Aufträge · Kaufmännisch (mit Zeiterfassung und Backoffice) · Verwaltung (Stammdaten, Einstellungen);
      eine Überschrift nur, wo die Rolle etwas sieht. Zeilen 36 px, Schrift 14 px, Symbole 18 px; Befunde eingerückt unter Wartungen.
@@ -25,10 +26,8 @@
 .app-sidebar{width:232px;flex:0 0 232px;box-sizing:border-box;background:var(--ds-navi-grund);color:var(--ds-navi-text);display:flex;flex-direction:column;overflow:hidden;position:sticky;top:0;height:100vh;font-family:var(--ds-schrift-text);font-size:14px;line-height:1.3;transition:width .15s ease,flex-basis .15s ease}
 .app-sidebar.collapsed{width:60px;flex-basis:60px}
 .app-sidebar-head{display:flex;align-items:center;gap:10px;box-sizing:border-box;height:52px;flex:0 0 52px;padding:0 12px;white-space:nowrap;overflow:hidden}
-.app-sidebar-kachel{display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:36px;height:36px;flex:0 0 36px;border-radius:var(--ds-ecke-feld);overflow:hidden;background:var(--ds-marke-hell);color:var(--ds-navi-grund)}
-.app-sidebar-kachel.mit-logo{background:#FFFFFF;padding:3px}
-.app-sidebar-kachel img{display:block;max-width:100%;max-height:100%;object-fit:contain}
-.app-sidebar-kachel svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.app-sidebar-kachel{display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:36px;height:36px;flex:0 0 36px;padding:4px;border-radius:var(--ds-ecke-feld);overflow:hidden;background:#FFFFFF}
+.app-sidebar-kachel svg{display:block;width:100%;height:100%}
 .app-sidebar-marke{display:flex;flex-direction:column;min-width:0;overflow:hidden}
 .app-sidebar-marke-name{font-family:var(--ds-schrift-titel);font-weight:700;font-size:14px;letter-spacing:.04em;color:var(--ds-navi-text);line-height:1.15}
 .app-sidebar-marke-zusatz{font-size:11.5px;color:var(--ds-navi-leise);line-height:1.25}
@@ -75,12 +74,7 @@
 </style>
 <aside class="app-sidebar" id="appSidebar" aria-label="Hauptnavigation">
   <div class="app-sidebar-head">
-    {% set logo_url = sidebar_logo_url() %}
-    {% if logo_url %}
-    <span class="app-sidebar-kachel mit-logo"><img class="app-sidebar-logo" src="{{ logo_url }}" alt=""></span>
-    {% else %}
-    <span class="app-sidebar-kachel" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 13.5 12 5l9 8.5"/><path d="M6.5 10.5V19h11v-8.5"/></svg></span>
-    {% endif %}
+    <span class="app-sidebar-kachel" aria-hidden="true">{% include "_bildmarke.html" %}</span>
     <span class="app-sidebar-marke"><span class="app-sidebar-marke-name">DACHKONZEPTE</span><span class="app-sidebar-marke-zusatz">Rödchen GmbH · ERP</span></span>
   </div>
   <nav class="app-sidebar-nav">

@@ -66,7 +66,9 @@ scrollt:n.scrollHeight>n.clientHeight+1,version_im_fenster:r(v).bottom<=innerHei
 version:(v.textContent||'').trim().startsWith('Version '),grund_navi:cs(s).backgroundColor===F('--ds-navi-grund'),
 gruppen:[...s.querySelectorAll('.app-sidebar-group')].map(g=>g.textContent.trim().toLowerCase()),
 aktiv:aktiv.map(x=>x.dataset.bereich),aria:[...s.querySelectorAll('[aria-current="page"]')].map(x=>x.dataset.bereich||x.textContent.trim()),
-strich:a?[cs(a).borderLeftWidth,cs(a).borderLeftColor===F('--ds-marke-hell'),cs(a).backgroundColor===F('--ds-navi-aktiv')]:null}})()""" % FARBE
+strich:a?[cs(a).borderLeftWidth,cs(a).borderLeftColor===F('--ds-marke-hell'),cs(a).backgroundColor===F('--ds-navi-aktiv')]:null,
+kachel_weiss:cs(s.querySelector('.app-sidebar-kachel')).backgroundColor==='rgb(255, 255, 255)',
+bildmarke:s.querySelectorAll('.app-sidebar-kachel svg polygon').length,bild:!!s.querySelector('.app-sidebar-kachel img')}})()""" % FARBE
 
 KOPF = """(()=>{const F=%s;const t=document.querySelector('.app-topbar');const r=e=>e?e.getBoundingClientRect():null;
 const such=document.querySelector('.app-topbar-search');const k=document.getElementById('appTopbarAccountBtn');
@@ -100,6 +102,7 @@ name:name?name.textContent:null,name_ganz:!!name&&cs(name).display!=='none'&&r(n
 reiter:reiter.map(a=>[a.textContent.trim(),Math.round(r(a).height),cs(a).fontSize]),
 aktiv:aktiv.map(a=>[a.textContent.trim(),a.getAttribute('aria-current'),cs(a).borderBottomWidth,cs(a).borderBottomColor===F('--ds-marke-hell')]),
 lupe:lupe?[Math.round(r(lupe).width),Math.round(r(lupe).height)]:null,grund_navi:h?cs(h).backgroundColor===F('--ds-navi-grund'):null,
+kachel:h?(k=>[Math.round(r(k).width),cs(k).backgroundColor,k.querySelectorAll('svg polygon').length,!!k.querySelector('img')])(h.querySelector('.mobile-header-kachel')):null,
 breit_scroll:document.documentElement.scrollWidth>innerWidth+1}})()""" % FARBE
 
 TASTEN = {"Enter": 13, "Escape": 27, "ArrowDown": 40, "ArrowUp": 38, "Home": 36, "End": 35, "Tab": 9}
@@ -137,6 +140,7 @@ async def _seitenleiste(tab, seed, p):
             p.pruefe(f"{wo}: 232 px, Kopf 52, Kachel 36, Zeile 36, Grund navi", [m["breite"], m["kopf"], m["kachel"], m["zeile"], m["grund_navi"]],
                      [232, 52, 36, 36, True])
             p.pruefe(f"{wo}: Gruppen", m["gruppen"], [g.lower() for g in GRUPPEN[rolle]])
+            p.pruefe(f"{wo}: Bildmarke auf weißer Kachel (seit 1.8.165)", [m["kachel_weiss"], m["bildmarke"], m["bild"]], [True, 3, False])
             p.pruefe(f"{wo}: keine JS-Fehler", tab.fehler, [])
 
 
@@ -278,6 +282,7 @@ async def _monteurskopf(tab, seed, p):
             p.pruefe(f"{wo}: Reiter 48 px mit 16 px, Lupe 48 × 48", [m["reiter"], m["lupe"]],
                      [[["Einsätze", 48, "16px"], ["Zeiterfassung", 48, "16px"], ["Stundenzettel", 48, "16px"]], [48, 48]])
             p.pruefe(f"{wo}: aktiver Reiter", m["aktiv"], [[reiter, "page", "3px", True]] if reiter else [])
+            p.pruefe(f"{wo}: Bildmarke auf weißer Kachel 40 px (seit 1.8.165)", m["kachel"], [40, "rgb(255, 255, 255)", 3, False])
             p.pruefe(f"{wo}: keine JS-Fehler", tab.fehler, [])
     # Telefon: zwei Zeilen, Name bleibt
     p.pruefe("Monteurskopf 412 px: geladen", await _laden(tab, seed, "einsatzbericht", "hell", 412, 900), True)

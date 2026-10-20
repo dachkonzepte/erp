@@ -253,11 +253,12 @@ def test_sidebar_shows_wordmark_when_no_logo():
     assert '<img class="app-sidebar-logo"' not in html
 
 
-def test_sidebar_shows_logo_image_when_present():
+def test_sidebar_shows_the_brand_mark_even_with_an_uploaded_logo_since_1_8_165():
+    """Bis 1.8.164 zeigte die Kachel ein hochgeladenes Logo (Logo der Leiste bzw. Firmenlogo). Seit 1.8.165 fest die Bildmarke
+    (_bildmarke.html), unabhängig davon -- das Firmenlogo bleibt für die PDF-Dokumente."""
     html = _render("/api/settings/general/logo?v=abc123.png")
-    assert 'class="app-sidebar-logo"' in html
-    assert 'src="/api/settings/general/logo?v=abc123.png"' in html
-    assert '<span class="app-sidebar-kachel mit-logo">' in html  # seit 1.8.162 in der Kachel, der Schriftzug daneben bleibt
+    assert 'class="app-sidebar-logo"' not in html and "/api/settings/general/logo" not in html
+    assert '<span class="app-sidebar-kachel" aria-hidden="true"><svg viewBox="240 47 1441 1184"' in html
 
 
 def test_sidebar_logo_sits_in_a_fixed_tile_since_1_8_162():
@@ -267,16 +268,9 @@ def test_sidebar_logo_sits_in_a_fixed_tile_since_1_8_162():
     assert 'style="height:64px"' not in html
 
 
-def test_sidebar_logo_wrapped_in_width_limiting_clip_container_not_on_img_itself():
-    """Der reale, in 1.3.39 gefundene Fehler: ein <img> mit sowohl fester Höhe ALS AUCH
-    max-width verkleinert bei einem breiten Logo die Höhe wieder (die
-    Ersatzelement-Breiten/Höhen-Auflösung verwirft die feste Höhe, sobald max-width
-    eingreift). Die Breitenbegrenzung muss deshalb auf einem umschließenden Element sitzen,
-    das <img> selbst darf kein max-width/max-height tragen."""
-    html = _render("/api/settings/general/logo?v=abc123.png")
-    # seit 1.8.162 die Kachel als umschließendes Element; das Bild passt sich mit max-width/max-height aus dem Stilblock ein (object-fit)
-    assert '<span class="app-sidebar-kachel mit-logo"><img class="app-sidebar-logo"' in html
-    img_tag = html[html.index('<img class="app-sidebar-logo"'):]
-    img_tag = img_tag[:img_tag.index(">") + 1]
-    assert "max-width" not in img_tag
-    assert "max-height" not in img_tag
+def test_sidebar_tile_is_white_in_both_themes_since_1_8_165():
+    """Bis 1.8.164 prüfte dieser Platz, dass ein <img> seine Breite nicht selbst begrenzt (Fund 1.3.39) -- ein <img> gibt es in der Kachel
+    nicht mehr. Seit 1.8.165 ist die Kachel fest weiß (#FFFFFF, kein --ds-Wert, also auch im Dunkelmodus) mit der Bildmarke."""
+    html = _render(None)
+    regel = html.split(".app-sidebar-kachel{", 1)[1].split("}", 1)[0]
+    assert "background:#FFFFFF" in regel and "var(--ds-" not in regel.split("background:")[1]

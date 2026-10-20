@@ -84,19 +84,21 @@ def _bottom_markup(html):
 # einstellbarer Höhe im Kopf und die beiden Knöpfe unten in der Leiste.
 # ---------------------------------------------------------------------------
 
-def test_kopf_kachel_mit_logo_und_schriftzug_ohne_knoepfe():
+def test_kopf_kachel_mit_bildmarke_und_schriftzug_ohne_knoepfe():
+    """Bis 1.8.164 mit hochgeladenem Logo dessen <img> in der Kachel; seit 1.8.165 immer die Bildmarke."""
     head = _head_markup(_render("/api/settings/general/logo?v=abc123.png"))
-    assert '<span class="app-sidebar-kachel mit-logo"><img class="app-sidebar-logo" src="/api/settings/general/logo?v=abc123.png" alt=""></span>' in head
+    assert '<span class="app-sidebar-kachel" aria-hidden="true"><svg viewBox="240 47 1441 1184"' in head and "<img" not in head
     html = _render("/api/settings/general/logo?v=abc123.png")
     kopf = html[html.index('<div class="app-sidebar-head"'):html.index('<nav class="app-sidebar-nav">')]
     assert "DACHKONZEPTE" in kopf and "Rödchen GmbH · ERP" in kopf
     assert 'id="appThemeToggle"' not in kopf and 'id="appSidebarToggle"' not in kopf
 
 
-def test_kopf_ohne_logo_zeigt_ein_dach_auf_der_kachel():
+def test_kopf_ohne_logo_zeigt_dieselbe_bildmarke():
+    """Bis 1.8.164 ohne Logo ein Dach auf marke-hell; seit 1.8.165 dieselbe Bildmarke wie mit Logo."""
     html = _render(None)
     kopf = html[html.index('<div class="app-sidebar-head"'):html.index('<nav class="app-sidebar-nav">')]
-    assert '<span class="app-sidebar-kachel" aria-hidden="true"><svg' in kopf and "<img" not in kopf
+    assert '<span class="app-sidebar-kachel" aria-hidden="true"><svg viewBox="240 47 1441 1184"' in kopf and "<img" not in kopf
     assert "DACHKONZEPTE" in kopf and "Rödchen GmbH · ERP" in kopf
 
 
@@ -183,3 +185,32 @@ def test_mobile_header_include_untouched():
     mobile_header = (root / "app" / "templates" / "_mobile_header.html").read_text(encoding="utf-8")
     for cls in ("app-sidebar-head", "app-sidebar-utilities", "app-theme-toggle", "app-sidebar-toggle"):
         assert cls not in mobile_header
+
+
+# ---------------------------------------------------------------------------
+# Seit 1.8.165 (Nachrunde): die Bildmarke von DACHKONZEPTE fest in Leiste und Monteurskopf
+# ---------------------------------------------------------------------------
+
+def test_bildmarke_wie_vorgegeben_in_leiste_und_monteurskopf():
+    """Vorgabe: viewBox 240 47 1441 1184, drei Polygone (zweimal #A7CD5D, einmal #367337), weiße Kachel 36 bzw. 40 px, auch im
+    Dunkelmodus, unabhängig vom hochgeladenen Logo."""
+    import re
+
+    from tests import vorlagen_js
+
+    root = Path(__file__).parents[1] / "app" / "templates"
+    marke = (root / "_bildmarke.html").read_text(encoding="utf-8")
+    assert 'viewBox="240 47 1441 1184"' in marke
+    assert re.findall(r'<polygon fill="([^"]+)" points="([^"]+)"/>', marke) == [
+        ("#A7CD5D", "240,402 972,47 972,316 240,670"),
+        ("#A7CD5D", "240,962 972,607 972,877 240,1231"),
+        ("#367337", "972,47 1681,390 1681,1220 972,877 972,607 1438,832 1438,542 972,316"),
+    ]
+    for datei, regel, groesse in (("_sidebar.html", ".app-sidebar-kachel{", "36px"),
+                                  ("_mobile_header.html", ".mobile-header-wrap .mobile-header-kachel{", "40px")):
+        assert vorlagen_js.bindet_ein(datei, "_bildmarke.html", root, nur_selbst=True), datei
+        text = (root / datei).read_text(encoding="utf-8")
+        assert not re.search(r"\{[{%][^}]*sidebar_logo_url\(", text), datei  # kein Aufruf mehr (im Kommentar erwähnt)
+        css = text.split(regel, 1)[1].split("}", 1)[0]
+        assert f"width:{groesse};height:{groesse}" in css and "background:#FFFFFF" in css, datei
+

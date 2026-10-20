@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.164** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.165** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -334,7 +334,7 @@ Behoben, drei Teile:
   `_ds_kopf.html` in jeder Seite eingebunden -- Regel 37, `docs/archiv/redesign.md`. **Stufe 2 „Rahmen“ (seit 1.8.161)**: Entscheidungen für
   die ganze Stufe -- Hauptaktion in `--ds-aktion`, die Akzentfarbe aus den Einstellungen färbt die Oberfläche nicht mehr (App-Symbol bleibt
   vorerst); Ecken 10/12 px, Tablet 12/16 px; Seitentitel 30 px, Tablet 26 px; Leiste dunkel in beiden Modi mit vier Gruppen;
-  Formularseiten bekommen den Rahmen; Einsatzbericht und Konto der Monteure im Monteursrahmen. Grundregeln einer umgezogenen Seite in
+  Formularseiten bekommen den Rahmen; Einsatzbericht und Konto der Monteure im Monteursrahmen; oben links in Leiste und Monteurskopf fest die Bildmarke (`_bildmarke.html`, seit 1.8.165) auf weißer Kachel, nie ein hochgeladenes Logo. Grundregeln einer umgezogenen Seite in
   `app/static/ds/ds-basis.css`, nur unter `.ds-seite` (die Seite setzt die Klasse beim Umzug an ihr `<body>`); gemeinsamer Seitenkopf als
   Makro `teile/seitenkopf.html` mit `_seitenkopf.html` (`seitenkopf()`), Menüs über `_menue.html` (`dsMenue()`). Jede Seite mit Leiste
   beginnt mit `{% set bereich = "…" -%}` -- die Leiste markiert danach ihren Eintrag (seit 1.8.162); Wächter `tests/test_v441_rahmen_baustein.py`.

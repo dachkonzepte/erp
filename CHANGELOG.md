@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.165 – Rahmen, Nachrunde: Bildmarke statt Haus
+
+Stufe 2 „Rahmen“, Nachrunde zu Runde 1, Punkt 1. Seitenleiste und Monteurskopf zeigen oben links die Bildmarke von DACHKONZEPTE als feste SVG auf weißer Kachel (36 bzw. 40 px), auch im Dunkelmodus und unabhängig von einem hochgeladenen Logo -- bis jetzt ein Haus auf hellgrüner Kachel bzw. das hochgeladene Logo. Das Firmenlogo bleibt für die PDF-Dokumente. Der Abschnitt „Logo der Leiste“ in den Einstellungen sagt jetzt, dass er nichts mehr bewirkt; dabei auch den veralteten Hinweis zu Hell/Dunkel bei der Akzentfarbe korrigiert.
+
 ## 1.8.164 – Rahmen, Teil 4: Monteurskopf
 
 Stufe 2 „Rahmen“, Runde 1, Teil 4. Der Kopf der Monteursansicht ist eine Zeile von 64 px statt 173 px: Logo-Kachel, die Reiter Einsätze, Zeiterfassung und Stundenzettel (48 px, aktiv mit Strich in Markengrün), rechts eine Lupe für die Objektsuche und der Kontoknopf mit vollem Namen und dem Menü Mein Konto, Hell/Dunkel, Abmelden. Einsatzbericht und Konto der Monteurin haben jetzt auch diesen Kopf statt Seitenleiste und Kopfzeile des Büros -- der Name steht damit auch dort, wo unterschrieben wird. Die button-Regeln von Zeiterfassung, Objekt und Stundenzettel greifen nicht mehr in den Kopf (bis jetzt 188 statt 173 px).
