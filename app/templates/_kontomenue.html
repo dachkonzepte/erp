@@ -1,6 +1,8 @@
 {#- Kontoknopf mit Menü (seit 1.8.163, Stufe 2 „Rahmen“): eine Fassung für die Kopfzeile der Büroseiten (_topbar.html) und den
     Monteurskopf (_mobile_header.html, seit 1.8.164). Initialen im Kreis in --ds-aktion und der volle Name (account_display(),
     app/auth.py::resolve_account_display()); Menü Mein Konto · Hell/Dunkel · Abmelden mit Tastatur und aria über dsMenue() (_menue.html).
+    Ist der Name im Knopf gekürzt („…“) oder ausgeblendet (Kopfzeile unter 600 px), steht er vollständig oben im Menü (seit 1.8.167,
+    #appKontoVollname, kein Menüeintrag -- die Tastatur springt darüber hinweg).
     Hell/Dunkel schaltet data-theme an <html> und merkt es in localStorage erp_theme (wie bis 1.8.161 der Knopf in der Seitenleiste);
     Abmelden beendet die Sitzung (POST /api/auth/logout) und führt zur Anmeldung zurück. Die Farben setzt der Kopf, der den Knopf
     einbindet (hell in der Kopfzeile, dunkel im Monteurskopf). Ohne angemeldeten Benutzer nichts. -#}
@@ -16,11 +18,14 @@
 .app-konto .app-konto-name{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .app-konto .app-konto-pfeil{width:14px;height:14px;flex:0 0 14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .app-konto .app-konto-zustand{margin-left:auto;color:var(--ds-text-3);font-size:13px}
+.app-konto .ds-menue{width:max-content;max-width:min(360px,calc(100vw - 24px))}
+.app-konto .app-konto-vollname{white-space:normal;overflow:visible;overflow-wrap:anywhere}
 </style>
 {% if _konto_benutzer %}
 <div class="app-konto">
   <button type="button" class="app-konto-knopf" id="appTopbarAccountBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="appTopbarAccountMenu" aria-label="Konto: {{ _konto.full_name }}" title="{{ _konto.full_name }}"><span class="app-konto-initialen" aria-hidden="true">{{ _konto.initials }}</span><span class="app-konto-name">{{ _konto.full_name }}</span><svg class="app-konto-pfeil" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6,9 12,15 18,9"/></svg></button>
   <div class="ds-menue" id="appTopbarAccountMenu" role="menu" aria-label="Konto" hidden>
+    <div class="ds-menue-kopf app-konto-vollname" id="appKontoVollname" role="presentation" hidden>{{ _konto.full_name }}</div>
     <a class="ds-menue-eintrag" href="/account">Mein Konto</a>
     <button type="button" class="ds-menue-eintrag" id="appThemeToggle">Hell/Dunkel <span class="app-konto-zustand" id="appThemeState"></span></button>
     <button type="button" class="ds-menue-eintrag" id="appTopbarLogout">Abmelden</button>
@@ -35,6 +40,16 @@
   var menue=document.getElementById('appTopbarAccountMenu');
   if(!knopf||!menue)return;
   dsMenue(knopf,menue);
+  // Seit 1.8.167: der volle Name oben im Menü, sobald der Knopf ihn kürzt oder ausblendet
+  var nameImKnopf=knopf.querySelector('.app-konto-name');
+  var vollname=document.getElementById('appKontoVollname');
+  var gekuerzt=function(){return !nameImKnopf||nameImKnopf.offsetWidth===0||nameImKnopf.scrollWidth>nameImKnopf.clientWidth};
+  var vollnameZeigen=function(){if(vollname)vollname.hidden=!gekuerzt()};
+  knopf.addEventListener('click',vollnameZeigen);
+  knopf.addEventListener('keydown',vollnameZeigen);
+  window.addEventListener('resize',vollnameZeigen);
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(vollnameZeigen);
+  vollnameZeigen();
   var themaKnopf=document.getElementById('appThemeToggle');
   var themaZustand=document.getElementById('appThemeState');
   var thema=function(){return document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light'};

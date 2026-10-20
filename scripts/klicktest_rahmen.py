@@ -15,6 +15,8 @@ Geprüft wird im echten Browser auf den Testdaten der Bildgrundlage (scripts/bil
                    Pfeile wandern im Kreis, Pos1/Ende, Escape schließt mit Fokus zurück am Knopf, Tab schließt; role menu/menuitem,
                    aria-haspopup, aria-controls, aria-expanded folgt; Mein Konto · Hell/Dunkel · Abmelden; Hell/Dunkel per Enter
                    schaltet data-theme um und zeigt den Zustand; Klick daneben schließt
+    Vollname       seit 1.8.167: ist der Name im Kontoknopf gekürzt oder ausgeblendet (Büro bei 412 px, Monteurin mit schmalem Knopf),
+                   steht er vollständig oben im Kontomenü; ganz zu sehen bleibt er dort verborgen; die Tastatur springt darüber
     Seitenregeln   auf den Einstellungen (button:hover und button:active in der Akzentfarbe): Kontoknopf unter der Maus und per
                    Leertaste gedrückt (:active ohne :hover), Menüeintrag unter der Maus -- nie in der Akzentfarbe
     Monteurskopf   auf jeder Seite der Monteurin (Mobil, Objekt, Stundenzettel, Zeiterfassung, Betriebsmittel, Checkliste,
@@ -29,7 +31,8 @@ AUFRUF (aus dem Projektordner):
     .venv\\Scripts\\python.exe scripts\\klicktest_rahmen.py [--nur TEIL[,TEIL]] [--app-port N] [--cdp-port N]
         [--arbeitsordner PFAD] [--chrome PFAD] [--offen-lassen]
 
---nur: nur diese Teile (seitenleiste, aktiv, schrift, menueknopf, kopfzeile, kontomenue, seitenregeln, monteurskopf) -- für Gegenproben, die nach 2 min
+--nur: nur diese Teile (seitenleiste, aktiv, schrift, menueknopf, kopfzeile, kontomenue, vollname, seitenregeln, monteurskopf) -- für
+Gegenproben, die nach 2 min
 abbrechen (Regel 24).
 
 Optionen, Ablauf, Rückgabecode und Regeln (isolierte Wegwerf-Datenbank, Prozesse nur über die
@@ -266,6 +269,43 @@ async def _kontomenue(tab, seed, p):
         p.pruefe(f"{wo}: keine JS-Fehler", tab.fehler, [])
 
 
+VOLLNAME = """(()=>{const v=document.getElementById('appKontoVollname'),m=document.getElementById('appTopbarAccountMenu');
+const n=document.querySelector('#appTopbarAccountBtn .app-konto-name');const r=v.getBoundingClientRect();
+return {offen:!m.hidden,sichtbar:!v.hidden&&r.width>0,text:v.textContent.trim(),ganz:v.scrollWidth<=v.clientWidth+1,
+name_gekuerzt:n.offsetWidth===0||n.scrollWidth>n.clientWidth,fokus:document.activeElement&&(document.activeElement.id||document.activeElement.getAttribute('href'))}})()"""
+
+
+async def _vollname(tab, seed, p):
+    """Seit 1.8.167: der volle Name im Kontomenü, wenn der Knopf ihn kürzt."""
+    await tab.anmelden(seed["cookies"][bg.BUERO])
+    for breite, hoehe, gekuerzt in ((1440, 900, False), (412, 900, True)):
+        wo = f"Vollname Büro {breite} px"
+        p.pruefe(f"{wo}: geladen", await _laden(tab, seed, "projektmappe", "hell", breite, hoehe), True)
+        await tab.js("document.getElementById('appTopbarAccountBtn').focus()")
+        await _taste(tab, "Enter")
+        m = await tab.js(VOLLNAME)
+        p.pruefe(f"{wo}: Name im Knopf gekürzt → oben im Menü vollständig, Fokus auf dem ersten Eintrag",
+                 [m["offen"], m["name_gekuerzt"], m["sichtbar"], m["text"], m["fokus"]], [True, gekuerzt, gekuerzt, "Bernd Büro", "/account"])
+        await _taste(tab, "Escape")
+    # Monteurin: der Knopf wird schmal gemacht (langer Name), danach Größenänderung -- wie ein schmales Fenster
+    await tab.anmelden(seed["cookies"][bg.MONTEUR])
+    for thema in ("hell", "dunkel"):
+        wo = f"Vollname Monteurin {thema}"
+        p.pruefe(f"{wo}: geladen", await _laden(tab, seed, "einsatzbericht", thema, 1280, 620), True)
+        await tab.js("document.getElementById('appTopbarAccountBtn').click()")
+        vorher = await tab.js(VOLLNAME)
+        await _taste(tab, "Escape")
+        await tab.js("document.querySelector('.mobile-header-wrap .app-konto').style.maxWidth='110px';dispatchEvent(new Event('resize'))")
+        await tab.js("document.getElementById('appTopbarAccountBtn').focus()")
+        await _taste(tab, "Enter")
+        m = await tab.js(VOLLNAME)
+        p.pruefe(f"{wo}: Name ganz → kein Kopf; gekürzt → Kopf mit vollem Namen, ganz zu sehen, Fokus auf dem ersten Eintrag",
+                 [vorher["sichtbar"], m["name_gekuerzt"], m["sichtbar"], m["text"], m["ganz"], m["fokus"]],
+                 [False, True, True, "Mia Monteurin", True, "/account"])
+        await _taste(tab, "Escape")
+    p.pruefe("Vollname: keine JS-Fehler", tab.fehler, [])
+
+
 async def _seitenregeln(tab, seed, p):
     """Die Einstellungen färben button:hover und button:active in der Akzentfarbe (Spezifität 0,1,1) -- im Kopf darf das nicht ankommen.
     :active ohne :hover gibt es beim Drücken per Leertaste: dann zählt allein die Spezifität der Regel des Kopfs."""
@@ -334,7 +374,7 @@ async def _monteurskopf(tab, seed, p):
 
 
 TEILE = {"seitenleiste": _seitenleiste, "aktiv": _aktiv, "schrift": _schrift, "menueknopf": _menueknopf, "kopfzeile": _kopfzeile,
-         "kontomenue": _kontomenue, "seitenregeln": _seitenregeln, "monteurskopf": _monteurskopf}
+         "kontomenue": _kontomenue, "vollname": _vollname, "seitenregeln": _seitenregeln, "monteurskopf": _monteurskopf}
 NUR: list = []
 
 

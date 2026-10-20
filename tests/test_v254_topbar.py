@@ -200,12 +200,14 @@ def test_account_menu_has_account_theme_and_logout_since_1_8_163():
     start = html.rindex("<div", 0, html.index('id="appTopbarAccountMenu"'))
     kopf = html[start:html.index(">", start)]
     assert 'class="ds-menue"' in kopf and 'role="menu"' in kopf and " hidden" in kopf
-    menu = html[start:html.index("</div>", start)]
+    menu = html[start:html.index("</div>", html.index('id="appTopbarLogout"', start))]  # seit 1.8.167 mit dem Kopf (eigenes div) davor
     eintraege = _re.findall(r'<(a|button) [^>]*class="ds-menue-eintrag"[^>]*>(.*?)</\1>', menu, flags=_re.S)
     texte = [_re.sub(r"<[^>]+>", "", inhalt).strip() for _, inhalt in eintraege]
     assert texte == ["Mein Konto", "Hell/Dunkel", "Abmelden"]
     assert 'href="/account"' in menu and 'id="appThemeToggle"' in menu and 'id="appTopbarLogout"' in menu
-    assert "Tobias Rödchen" not in menu
+    # seit 1.8.167 steht der Name im Menü nur im verborgenen Kopf, der erscheint, wenn der Knopf ihn kürzt (kein Menüeintrag)
+    kopf = '<div class="ds-menue-kopf app-konto-vollname" id="appKontoVollname" role="presentation" hidden>Tobias Rödchen</div>'
+    assert menu.count("Tobias Rödchen") == 1 and kopf in menu
 
 
 def test_account_menu_is_wired_through_the_menu_baustein():
@@ -334,3 +336,16 @@ def test_every_template_with_sidebar_also_includes_topbar():
     _debounce.html, dort ein JS-Kommentar statt eines Jinja-Kommentars -- hier bewusst geprüft,
     nicht nur angenommen). Seit 1.8.124 die zusammengesetzte Seite (zusammensetzen() liest keine Kommentare)."""
     assert _seitenleiste_ohne_topbar()[1] == []
+
+
+def test_full_name_in_the_menu_when_the_button_shortens_it_since_1_8_167():
+    """Nachrunde Punkt 3: ist der Name im Kontoknopf gekürzt („…“) oder ausgeblendet (Kopfzeile unter 600 px), steht er vollständig im
+    Kontomenü -- in Kopfzeile und Monteurskopf, weil beide _kontomenue.html einbinden. Der Kopf darf umbrechen (kein „…“ im Menü) und ist
+    kein Menüeintrag. Im Browser prüft das scripts/klicktest_rahmen.py (Teil „vollname“)."""
+    konto = (Path(__file__).parents[1] / "app" / "templates" / "_kontomenue.html").read_text(encoding="utf-8")
+    assert "nameImKnopf.offsetWidth===0||nameImKnopf.scrollWidth>nameImKnopf.clientWidth" in konto
+    assert "vollname.hidden=!gekuerzt()" in konto and "window.addEventListener('resize',vollnameZeigen)" in konto
+    assert ".app-konto .app-konto-vollname{white-space:normal;" in konto
+    kopf = konto[konto.index('id="appKontoVollname"') - 60:konto.index('id="appKontoVollname"')]
+    assert "ds-menue-eintrag" not in kopf
+

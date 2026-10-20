@@ -1188,3 +1188,25 @@ Grundlage: der Befund `docs/archiv/befund-rahmen.md`. Die Entscheidungen oben ge
 #### Festlegungen 1.8.166 (Bitte bestätigen)
 
 1. **Nur die Stärke ändert sich** (Schrift, Größe und Farben wie gehabt); die Gruppenüberschriften bleiben 600 in Großbuchstaben.
+
+### Punkt 3 (1.8.167): voller Name im Kontomenü
+
+- `_kontomenue.html`: oben im Menü `#appKontoVollname` (`.ds-menue-kopf`, `role="presentation"`, kein Menüeintrag -- Pfeile und
+  Pos1 springen darüber), sichtbar genau dann, wenn der Name im Knopf gekürzt ist (`scrollWidth > clientWidth`) oder ausgeblendet
+  (`offsetWidth === 0`, Kopfzeile unter 600 px); geprüft beim Laden, nach dem Laden der Schriften, bei Größenänderung und bei jedem
+  Öffnen. Der Kopf bricht um statt zu kürzen; das Menü wird so breit wie nötig, höchstens 360 px.
+
+#### Tests und Prüfung
+
+- `test_v254::test_full_name_in_the_menu_when_the_button_shortens_it_since_1_8_167` (neu); `klicktest_rahmen` Teil `vollname` (neu):
+  Büro 1440 px ohne Kopf, 412 px mit „Bernd Büro“; Monteurin hell und dunkel: ganz ohne Kopf, mit schmalem Knopf Kopf mit
+  „Mia Monteurin“, ganz zu sehen; Fokus jeweils auf „Mein Konto“. Mit dem Teil „kontomenue“ zusammen 47 von 47.
+- **Gegenproben**: voller Name nie im Menü (Klicktest 6 von 9); immer im Menü (6 von 9); Kopf kürzt wieder mit „…“ (pytest) -- 3 von 3 rot, je mit pytest, Datei byte-genau zurück.
+- **Angepasste Erwartung** (Regel 28): `test_v254::test_account_menu_has_account_theme_and_logout_since_1_8_163`: alt „der Name steht
+  nicht im Menü“; neu genau einmal, im verborgenen Kopf `#appKontoVollname`.
+
+#### Festlegungen 1.8.167 (Bitte bestätigen)
+
+1. **Kopf nur bei Bedarf**: passt der Name in den Knopf, zeigt das Menü ihn nicht noch einmal (Festlegung 1.8.163 Nr. 2 bleibt so).
+2. **Ausgeblendet zählt als gekürzt** (Kopfzeile des Büros unter 600 px zeigt nur die Initialen).
+3. **Der Kopf ist kein Menüeintrag** (`role="presentation"`); Bildschirmleser hören den Namen weiter über `aria-label` des Knopfs.
