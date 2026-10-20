@@ -106,7 +106,8 @@ einzeilig:mitten.every(m=>m!==null)&&Math.max(...mitten)-Math.min(...mitten)<=2,
 leiste:!!document.getElementById('appSidebar'),topbar:!!document.querySelector('.app-topbar'),
 name:name?name.textContent:null,name_ganz:!!name&&cs(name).display!=='none'&&r(name).width>0&&name.scrollWidth<=name.clientWidth,
 reiter:reiter.map(a=>[a.textContent.trim(),Math.round(r(a).height),cs(a).fontSize]),
-aktiv:aktiv.map(a=>[a.textContent.trim(),a.getAttribute('aria-current'),cs(a).borderBottomWidth,cs(a).borderBottomColor===F('--ds-marke-hell')]),
+aktiv:aktiv.map(a=>[a.textContent.trim(),a.getAttribute('aria-current'),cs(a).boxShadow===F('--ds-marke-hell')+' 0px -3px 0px 0px inset',
+cs(a).backgroundColor===F('--ds-navi-aktiv'),cs(a).borderTopLeftRadius]),
 lupe:lupe?[Math.round(r(lupe).width),Math.round(r(lupe).height)]:null,grund_navi:h?cs(h).backgroundColor===F('--ds-navi-grund'):null,
 kachel:h?(k=>[Math.round(r(k).width),cs(k).backgroundColor,k.querySelectorAll('svg polygon').length,!!k.querySelector('img')])(h.querySelector('.mobile-header-kachel')):null,
 breit_scroll:document.documentElement.scrollWidth>innerWidth+1}})()""" % FARBE
@@ -357,7 +358,8 @@ async def _monteurskopf(tab, seed, p):
             p.pruefe(f"{wo}: Name ganz zu sehen", [m["name"], m["name_ganz"]], ["Mia Monteurin", True])
             p.pruefe(f"{wo}: Reiter 48 px mit 16 px, Lupe 48 × 48", [m["reiter"], m["lupe"]],
                      [[["Einsätze", 48, "16px"], ["Zeiterfassung", 48, "16px"], ["Stundenzettel", 48, "16px"]], [48, 48]])
-            p.pruefe(f"{wo}: aktiver Reiter", m["aktiv"], [[reiter, "page", "3px", True]] if reiter else [])
+            # seit 1.8.170 auf navi-aktiv mit 10 px Ecken, der Strich als inset-Schatten (bis dahin unterer Rand von 3 px)
+            p.pruefe(f"{wo}: aktiver Reiter", m["aktiv"], [[reiter, "page", True, True, "10px"]] if reiter else [])
             p.pruefe(f"{wo}: Bildmarke auf weißer Kachel 40 px (seit 1.8.165)", m["kachel"], [40, "rgb(255, 255, 255)", 3, False])
             p.pruefe(f"{wo}: keine JS-Fehler", tab.fehler, [])
     # Telefon: zwei Zeilen, Name bleibt

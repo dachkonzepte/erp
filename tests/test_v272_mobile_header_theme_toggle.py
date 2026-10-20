@@ -92,8 +92,10 @@ def test_kopf_64_px_reiter_48_px_lupe_48_px():
     kopf = regel(".mobile-header-wrap .mobile-header")
     assert "height:64px" in kopf and "box-sizing:border-box" in kopf and "background:var(--ds-navi-grund)" in kopf
     reiter = regel(".mobile-header-wrap .mobile-nav-reiter")
-    assert "height:48px" in reiter and "font-size:16px" in reiter and "border-bottom:3px solid transparent" in reiter
-    assert "border-bottom-color:var(--ds-marke-hell)" in regel(".mobile-header-wrap .mobile-nav-reiter.active")
+    # seit 1.8.170 Ecken 10 px und der Strich als inset-Schatten auf navi-aktiv (bis dahin ein unterer Rand von 3 px ohne Fläche)
+    assert "height:48px" in reiter and "font-size:16px" in reiter and "border-radius:10px" in reiter and "border-bottom" not in reiter
+    aktiv = regel(".mobile-header-wrap .mobile-nav-reiter.active")
+    assert "background:var(--ds-navi-aktiv)" in aktiv and "box-shadow:inset 0 -3px 0 var(--ds-marke-hell)" in aktiv and "border" not in aktiv
     lupe = regel(".mobile-header-wrap .mobile-lupe")
     assert "width:48px" in lupe and "height:48px" in lupe
     assert "width:40px" in regel(".mobile-header-wrap .mobile-header-kachel")

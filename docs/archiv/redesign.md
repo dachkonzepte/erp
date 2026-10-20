@@ -1280,3 +1280,26 @@ Grundlage: der Befund `docs/archiv/befund-rahmen.md`. Die Entscheidungen oben ge
 1. **Gruppenüberschriften 12 px eingerückt**, bündig mit den Symbolen der Einträge.
 2. **Der aktive Eintrag behält beim Hover seine Fläche** (navi-aktiv), nur die übrigen werden `#2A3238`.
 3. **Eingeklappt** Einträge 36 px breit, Symbol in der Mitte (9 px Abstand), dieselben Ecken und derselbe Strich.
+
+### Punkt 2 (1.8.170): aktiver Reiter des Monteurskopfs
+
+- `_mobile_header.html`: Reiter `border:0; border-radius:10px` (bis 1.8.169 unterer Rand 3 px, keine Ecken); aktiv
+  `background` navi-aktiv, `box-shadow:inset 0 -3px 0 var(--ds-marke-hell)` -- der Strich liegt innerhalb der Ecken. Schrift wie
+  bisher (navi-text, 16 px, 500). Hover der übrigen wie bisher navi-aktiv, jetzt mit denselben Ecken.
+
+#### Tests und Prüfung
+
+- `klicktest_rahmen` Teil `monteurskopf`: aktiver Reiter mit Schatten in marke-hell, Fläche navi-aktiv, Ecken 10 px auf allen
+  neun Seiten bei 1280 × 620 und 800 × 1100. 178 von 178.
+- **Gegenproben**: aktiver Reiter wieder mit unterem Rand statt Schatten (Klicktest 158 von 178); Reiter ohne Ecken (158 von 178) -- 2 von 2 rot, je mit pytest, Datei byte-genau zurück.
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v272::test_kopf_64_px_reiter_48_px_lupe_48_px`: Reiter alt `border-bottom:3px solid transparent`, aktiv
+    `border-bottom-color` marke-hell; neu `border-radius:10px` ohne unteren Rand, aktiv Fläche navi-aktiv und
+    `box-shadow:inset 0 -3px 0` in marke-hell.
+  - Klicktest `klicktest_rahmen` „aktiver Reiter“: alt `[Text, aria-current, borderBottomWidth 3px, Randfarbe marke-hell]`; neu
+    `[Text, aria-current, Schatten unten in marke-hell, Fläche navi-aktiv, Ecken 10 px]`.
+
+#### Festlegungen 1.8.170 (Bitte bestätigen)
+
+1. **Schrift des aktiven Reiters bleibt** navi-text in 500 (die Zeichnung nennt für den Reiter nur Fläche, Ecken und Strich).
+2. **Hover der übrigen Reiter** bleibt navi-aktiv, mit denselben 10 px Ecken.
