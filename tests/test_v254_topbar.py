@@ -46,24 +46,33 @@ def test_resolve_account_display_prefers_linked_employee(db_session):
     assert result == {"full_name": "Tobias Rödchen", "initials": "TR"}
 
 
-def test_resolve_account_display_falls_back_to_username_without_employee_link(db_session):
-    user = AppUser(username="admin", display_name="Administrator", role="admin", active=True,
+def test_resolve_account_display_falls_back_to_display_name_without_employee_link(db_session):
+    """Seit 1.8.168 der Anzeigename des Kontos (bis 1.8.167 der Benutzername "admin")."""
+    user = AppUser(username="admin", display_name="Ada Admin", role="admin", active=True,
                     password_hash="x")
     db_session.add(user); db_session.commit()
 
     result = resolve_account_display(db_session, user)
-    assert result == {"full_name": "admin", "initials": "AD"}
+    assert result == {"full_name": "Ada Admin", "initials": "AA"}
 
 
-def test_resolve_account_display_falls_back_to_username_when_employee_id_points_nowhere(db_session):
+def test_resolve_account_display_falls_back_to_username_without_display_name(db_session):
+    """Erst ohne Anzeigenamen (leer oder nur Leerzeichen) der Benutzername."""
+    user = AppUser(username="admin", display_name="  ", role="admin", active=True, password_hash="x")
+    db_session.add(user); db_session.commit()
+
+    assert resolve_account_display(db_session, user) == {"full_name": "admin", "initials": "AD"}
+
+
+def test_resolve_account_display_falls_back_to_display_name_when_employee_id_points_nowhere(db_session):
     """Verteidigung in der Tiefe: employee_id gesetzt, aber der Mitarbeiter existiert nicht
-    (mehr) -- fällt auf den Benutzernamen zurück statt eines Fehlers."""
+    (mehr) -- fällt auf den Anzeigenamen zurück (seit 1.8.168, bis dahin den Benutzernamen) statt eines Fehlers."""
     user = AppUser(username="geist", display_name="Geist", role="user", active=True,
                     password_hash="x", employee_id=999999)
     db_session.add(user); db_session.commit()
 
     result = resolve_account_display(db_session, user)
-    assert result == {"full_name": "geist", "initials": "GE"}
+    assert result == {"full_name": "Geist", "initials": "GE"}
 
 
 def test_resolve_account_display_single_character_username_does_not_crash():
@@ -84,6 +93,19 @@ def test_resolve_account_display_single_character_username_does_not_crash():
 
 def test_account_display_global_returns_empty_for_anonymous_user():
     assert pages_router_module._account_display(None, None) == {"full_name": "", "initials": ""}
+
+
+def test_account_display_global_falls_back_to_display_name_on_error(monkeypatch):
+    """Seit 1.8.168 auch hier der Anzeigename vor dem Benutzernamen (bis dahin nur der Benutzername)."""
+    class _MitAnzeigename:
+        username = "admin"
+        display_name = "Ada Admin"
+
+    def _kaputt(db, user):
+        raise RuntimeError("simulierter DB-Fehler")
+
+    monkeypatch.setattr(seitendaten, "resolve_account_display", _kaputt)
+    assert pages_router_module._account_display(None, _MitAnzeigename()) == {"full_name": "Ada Admin", "initials": "AA"}
 
 
 def test_account_display_global_falls_back_to_username_on_error(monkeypatch):

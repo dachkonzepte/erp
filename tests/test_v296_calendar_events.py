@@ -119,9 +119,9 @@ def test_create_event_basic_and_owner_name_resolved():
     data = create_event(db, owner_user_id=owner.id, **_base_event_kwargs())
     assert data["title"] == "Besichtigung"
     assert data["owner_user_id"] == owner.id
-    # Ohne Employee-Verknüpfung fällt resolve_account_display() auf den Benutzernamen zurück,
-    # unverändert (keine Kapitalisierung) -- Muster app/auth.py::resolve_account_display().
-    assert data["owner_name"] == "tobias"
+    # Ohne Employee-Verknüpfung fällt resolve_account_display() seit 1.8.168 auf den Anzeigenamen des Kontos zurück
+    # (hier "Tobias", bis 1.8.167 der Benutzername "tobias") -- nur Anzeige, Schlüssel bleibt owner_user_id.
+    assert data["owner_name"] == "Tobias"
     assert data["external_source"] == "erp"
     assert data["outlook_event_id"] is None
 

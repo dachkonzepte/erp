@@ -1210,3 +1210,33 @@ Grundlage: der Befund `docs/archiv/befund-rahmen.md`. Die Entscheidungen oben ge
 1. **Kopf nur bei Bedarf**: passt der Name in den Knopf, zeigt das Menü ihn nicht noch einmal (Festlegung 1.8.163 Nr. 2 bleibt so).
 2. **Ausgeblendet zählt als gekürzt** (Kopfzeile des Büros unter 600 px zeigt nur die Initialen).
 3. **Der Kopf ist kein Menüeintrag** (`role="presentation"`); Bildschirmleser hören den Namen weiter über `aria-label` des Knopfs.
+
+### Punkt 4 (1.8.168): Anzeigename vor Benutzername
+
+- **Geprüft vor der Änderung**: `resolve_account_display()` nutzen außer dem Kontoknopf (Seitendaten) nur `app/calendar_events.py`
+  (`_owner_name()` → `owner_name` an jedem Termin und an der „belegt“-Fassung privater Termine; `list_owners()` → Beschriftung der
+  Besitzer-Auswahl, Wert ist die ID) und `app/outlook_calendar_sync.py::list_series_occurrences()` (`owner_name` an Serien-Terminen,
+  gemerkt je `owner_user_id`). Überall **nur Anzeige** (Kalenderseite: Besitzer, Titel „Privater Termin von …“, Auswahl); Schlüssel
+  und Vergleiche laufen über `owner_user_id`, nach Outlook geschrieben wird der Name nicht, sortiert wird die Auswahl in SQL nach
+  `display_name`. Deshalb geändert, nichts zu melden.
+- `app/auth.py::resolve_account_display()`: Mitarbeiter (Vor- und Nachname) → **Anzeigename des Kontos** → Benutzername; Initialen
+  aus der neuen Funktion `name_und_initialen()`. Der Rückfall der Seitendaten ohne Datenbank (`konto_rueckfall()`) folgt derselben
+  Reihenfolge (bis 1.8.167 nur der Benutzername).
+
+#### Tests und Prüfung
+
+- `test_v254`: Anzeigename ohne Mitarbeiter, Benutzername ohne Anzeigenamen (nur Leerzeichen), Rückfall der Seitendaten mit
+  Anzeigenamen (neu). Klicktest-Teil „kopfzeile“ 18 von 18 (Admin heißt „Ada Admin“).
+- **Gegenproben**: wieder der Benutzername (pytest v254 und v296, Klicktest 16 von 18); Anzeigename aus Leerzeichen gilt als gesetzt (pytest); Rückfall der Seitendaten nur mit dem Benutzernamen (pytest) -- 3 von 3 rot, Dateien byte-genau zurück.
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v254::test_resolve_account_display_falls_back_to_username_without_employee_link` → `…_to_display_name_…`: alt „admin“/„AD“;
+    neu der Anzeigename „Ada Admin“/„AA“ (Testkonto mit diesem Anzeigenamen statt „Administrator“).
+  - `test_v254::test_resolve_account_display_falls_back_to_username_when_employee_id_points_nowhere` → `…_to_display_name_…`: alt
+    „geist“; neu „Geist“.
+  - `test_v296::test_create_event_basic_and_owner_name_resolved`: `owner_name` alt „tobias“, neu „Tobias“ (Anzeigename des Testkontos).
+  - Klicktest `klicktest_rahmen` Kopfzeile Admin: alt Name „ada“, neu „Ada Admin“.
+
+#### Festlegungen 1.8.168 (Bitte bestätigen)
+
+1. **Leerer Anzeigename** (auch nur Leerzeichen) zählt als fehlend -- dann der Benutzername.
+2. **Kalender und Outlook-Serien zeigen denselben Namen** wie der Kontoknopf (eine Funktion für alle Anzeigen).

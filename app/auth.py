@@ -117,15 +117,21 @@ def resolve_account_display(db, user: AppUser) -> dict:
     1.3.34) verknüpften Employee (first_name/last_name), da AppUser.display_name ein einzelnes
     Freitextfeld ist, das sich nicht zuverlässig in zwei Initialen zerlegen lässt ("Tobias
     Rödchen" -> "TR" braucht die getrennten Namensteile, nicht irgendeinen Anzeigetext). Fehlt
-    die Verknüpfung (oder zeigt sie ins Leere, z. B. ein gelöschter Mitarbeiter), fällt es auf
-    den Benutzernamen zurück."""
+    die Verknüpfung (oder zeigt sie ins Leere, z. B. ein gelöschter Mitarbeiter), nimmt es seit 1.8.168 den Anzeigenamen des Kontos
+    (AppUser.display_name), erst ohne ihn den Benutzernamen (bis 1.8.167 gleich den Benutzernamen). Kalender und Outlook-Abgleich
+    zeigen den Namen nur an (Besitzer eines Termins, Auswahl), Schlüssel ist dort überall die ID des Kontos."""
     full_name = None
     if user.employee_id:
         employee = db.get(Employee, user.employee_id)
         if employee is not None:
             full_name = f"{employee.first_name} {employee.last_name}".strip()
-    if not full_name:
-        full_name = user.username
+    return name_und_initialen(full_name or (getattr(user, "display_name", None) or "").strip() or user.username)
+
+
+def name_und_initialen(full_name: str | None) -> dict:
+    """Voller Name und Initialen (seit 1.8.168 eigene Funktion, auch für den Rückfall der Seitendaten): zwei Teile -> je der erste
+    Buchstabe des ersten und letzten, ein Teil -> die ersten zwei Buchstaben, leer -> "?"."""
+    full_name = (full_name or "").strip()
     parts = full_name.split()
     if len(parts) >= 2:
         initials = (parts[0][0] + parts[-1][0]).upper()

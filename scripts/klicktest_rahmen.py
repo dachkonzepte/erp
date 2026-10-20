@@ -202,9 +202,9 @@ async def _menueknopf(tab, seed, p):
 
 
 async def _kopfzeile(tab, seed, p):
-    # Bernd ist mit seinem Mitarbeiter verknüpft (Vor- und Nachname), Ada nicht -- dann zeigt der Knopf den Benutzernamen
-    # (app/auth.py::resolve_account_display(), unverändert)
-    namen = {bg.BUERO: "Bernd Büro", bg.ADMIN: "ada"}
+    # Bernd ist mit seinem Mitarbeiter verknüpft (Vor- und Nachname), Ada nicht -- dann zeigt der Knopf seit 1.8.168 den Anzeigenamen
+    # des Kontos (bis dahin den Benutzernamen „ada“), app/auth.py::resolve_account_display()
+    namen = {bg.BUERO: "Bernd Büro", bg.ADMIN: "Ada Admin"}
     for rolle in (bg.BUERO, bg.ADMIN):
         await tab.anmelden(seed["cookies"][rolle])
         for thema in ("hell", "dunkel"):

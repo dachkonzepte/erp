@@ -24,7 +24,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.routing import APIRoute
 from starlette.routing import Match
 
-from .auth import resolve_account_display
+from .auth import name_und_initialen, resolve_account_display
 from .company_logo import DEFAULT_SIDEBAR_LOGO_HEIGHT_PX, sidebar_logo_filename, sidebar_logo_height_px
 from .database import SessionLocal
 from .modules import module_enabled_in, stored_module_states
@@ -56,11 +56,12 @@ class Seitendaten:
 
 
 def konto_rueckfall(user) -> dict:
-    """Name und Initialen ohne Datenbank: der Benutzername."""
+    """Name und Initialen ohne Datenbank: seit 1.8.168 der Anzeigename des Kontos, ohne ihn der Benutzername (wie
+    resolve_account_display() ohne verknüpften Mitarbeiter; bis 1.8.167 nur der Benutzername)."""
     if user is None:
         return {"full_name": "", "initials": ""}
-    username = getattr(user, "username", "") or ""
-    return {"full_name": username, "initials": (username[:2].upper() if username else "?")}
+    name = (getattr(user, "display_name", "") or "").strip() or getattr(user, "username", "") or ""
+    return name_und_initialen(name) if name else {"full_name": "", "initials": "?"}
 
 
 def _logo_url(db) -> str | None:
