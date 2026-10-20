@@ -1328,3 +1328,18 @@ Grundlage: der Befund `docs/archiv/befund-rahmen.md`. Die Entscheidungen oben ge
 - **Alle Klicktests** (`klicktest_alle.py --gleichzeitig 4`): 80 von 80 wie erwartet, Laufzeit 7:43.
 - **Bilder**: `bildgrundlage/rahmen_korrektur_d83996c.zip` (Leiste 1440 × 900 hell und dunkel auf der Projektmappe, Monteurskopf 1280 × 620 auf dem
   Einsatzbericht), Ordner in `.gitignore`.
+
+## Runde 2 (Festlegungen 1.8.169 und 1.8.170 bestätigt, außer 1.8.170 Nr. 1)
+
+### Punkt 1 (1.8.171): aktiver Reiter weiß in 600
+
+- `_mobile_header.html`: `.mobile-nav-reiter.active` mit `color:#FFFFFF; font-weight:600` (bis 1.8.170 navi-text in 500) --
+  ersetzt Festlegung 1.8.170 Nr. 1. Fläche, Ecken und Strich unverändert.
+
+#### Tests und Prüfung
+
+- `test_v272::test_kopf_64_px_reiter_48_px_lupe_48_px` um Weiß und 600 ergänzt; `klicktest_rahmen` Teil `monteurskopf` misst Farbe
+  und Stärke des aktiven Reiters auf allen Seiten der Monteurin. 178 von 178.
+- **Gegenproben**: aktiver Reiter wieder navi-text in 500 (pytest; Klicktest 158 von 178) -- 1 von 1 rot, Datei byte-genau zurück.
+- **Angepasste Erwartung** (Regel 28): Klicktest `klicktest_rahmen` „aktiver Reiter“: alt `[Text, aria-current, Schatten, Fläche,
+  Ecken]`; neu dazu Farbe `rgb(255, 255, 255)` und Stärke `600`.

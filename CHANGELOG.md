@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.171 – Rahmen, Runde 2: aktiver Reiter weiß in 600
+
+Stufe 2 „Rahmen“, Runde 2, Punkt 1. Der aktive Reiter im Monteurskopf hat jetzt weiße Schrift in 600 wie der aktive Eintrag der Leiste (bis jetzt navi-text in 500); ersetzt Festlegung 1.8.170 Nr. 1.
+
 ## 1.8.170 – Rahmen, Korrektur: aktiver Reiter des Monteurskopfs
 
 Stufe 2 „Rahmen“, Korrektur nach Zeichnung, Punkt 2. Der aktive Reiter im Monteurskopf ist eine Fläche in navi-aktiv mit 10 px Ecken und dem Strich in Markengrün unten innerhalb der Ecken (box-shadow statt Rand).
