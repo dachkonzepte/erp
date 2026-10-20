@@ -1343,3 +1343,27 @@ Grundlage: der Befund `docs/archiv/befund-rahmen.md`. Die Entscheidungen oben ge
 - **Gegenproben**: aktiver Reiter wieder navi-text in 500 (pytest; Klicktest 158 von 178) -- 1 von 1 rot, Datei byte-genau zurück.
 - **Angepasste Erwartung** (Regel 28): Klicktest `klicktest_rahmen` „aktiver Reiter“: alt `[Text, aria-current, Schatten, Fläche,
   Ecken]`; neu dazu Farbe `rgb(255, 255, 255)` und Stärke `600`.
+
+### Punkt 2 (1.8.172): --ds-navi-hover
+
+- `ds.css`: `--ds-navi-hover` hell `#2A3238`, dunkel `#171D20` (zwischen navi-grund `#0B0F11` und navi-aktiv `#232B30`); Prüfpaar
+  `navi-text/navi-hover` im Kopfkommentar, also im Kontrasttest (hell 9,32 : 1, dunkel 12,19 : 1, gefordert 4,5).
+- Leiste: Hover der Einträge `var(--ds-navi-hover)` (bis 1.8.171 fest `#2A3238`). Monteurskopf: Hover der Reiter, der Lupe und des
+  Kontoknopfs `var(--ds-navi-hover)` (bis dahin navi-aktiv); geöffnet (Lupe, Kontomenü: `aria-expanded="true"`) bleiben sie
+  navi-aktiv.
+
+#### Tests und Prüfung
+
+- `test_v432`: Prüfpaar navi-text/navi-hover in beiden Modi (der Test liest die Paare aus dem Kopfkommentar, dazu eine Prüfung,
+  dass das Paar dort steht); `test_v253`, `test_v272`: Hover über den Wert. `klicktest_rahmen`: Hover der Leiste hell und dunkel,
+  Hover eines Reiters im Monteurskopf. Teile „aktiv“ und „monteurskopf“ zusammen 206 von 206.
+- **Gegenproben**: Hover der Leiste wieder fest #2A3238 (Klicktest 23 von 24: rot genau im Dunkelmodus); Hover der Reiter in navi-aktiv (180 von 182); navi-hover dunkel zu hell für navi-text (Kontrasttest) -- 3 von 3 rot, je mit pytest, Dateien byte-genau zurück.
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v253::test_eintraege_mit_abstand_ecken_und_strich_als_schatten`: Hover alt `background:#2A3238`, neu
+    `background:var(--ds-navi-hover)`.
+  - Klicktest `klicktest_rahmen` Hover der Leiste: alt `rgb(42, 50, 56)` in beiden Modi; neu der Wert `--ds-navi-hover` (dunkel
+    `rgb(23, 29, 32)`).
+
+#### Festlegungen 1.8.172 (Bitte bestätigen)
+
+1. **Geöffnet bleibt navi-aktiv**: Lupe und Kontoknopf mit offenem Feld bzw. Menü behalten navi-aktiv, nur der Hover nimmt navi-hover.

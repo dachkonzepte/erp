@@ -15,7 +15,7 @@
      links in marke-hell, aria-current="page"; Schrift normal 500, aktiv 600 (seit 1.8.166, bis dahin auch aktiv 500). Seit 1.8.169
      (Korrektur nach Zeichnung, ersetzt Festlegung 1.8.162 Nr. 4): Einträge 12 px vom Rand der Leiste, Ecken 8 px; aktiv navi-aktiv, Schrift
      weiß 600, der Strich als box-shadow inset 3px 0 0 in marke-hell (innerhalb der Ecken, bis dahin ein linker Rand ohne Ecken); Hover der
-     übrigen #2A3238; Befunde 28 px eingerückt; eingeklappt die Einträge 36 px breit mit dem Symbol in der Mitte. Vorher markierten 21 der 42 Seiten keinen Eintrag (alle Detailseiten).
+     übrigen #2A3238 (seit 1.8.172 der Wert --ds-navi-hover, dunkel #171D20); Befunde 28 px eingerückt; eingeklappt die Einträge 36 px breit mit dem Symbol in der Mitte. Vorher markierten 21 der 42 Seiten keinen Eintrag (alle Detailseiten).
    - Fuß nur „Version …“. Hell/Dunkel steht im Kontomenü der Kopfzeile, das Ein-/Ausklappen am Menüknopf der Kopfzeile
      (#appTopbarMenuBtn: am Desktop einklappen, schmal die Leiste öffnen) -- vorher zwei Knöpfe hier unten.
    - #appSidebarFoot bleibt (leer): eine während des Browsens abgelaufene Sitzung bekommt dort ohne Neuladen ein kompaktes
@@ -38,7 +38,7 @@
 .app-sidebar-group{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--ds-navi-leise);margin:8px 12px 3px;line-height:14px;white-space:nowrap;overflow:hidden}
 .app-sidebar-nav>.app-sidebar-group:first-child{margin-top:4px}
 .app-sidebar-link{display:flex;align-items:center;gap:10px;box-sizing:border-box;height:36px;margin:0;padding:0 12px;border:0;border-radius:8px;color:var(--ds-navi-text);text-decoration:none;font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden}
-.app-sidebar-link:hover{background:#2A3238}
+.app-sidebar-link:hover{background:var(--ds-navi-hover)}
 .app-sidebar-link.active{background:var(--ds-navi-aktiv);color:#FFFFFF;font-weight:600;box-shadow:inset 3px 0 0 var(--ds-marke-hell)}
 .app-sidebar-link:focus-visible{outline:2px solid var(--ds-marke-hell);outline-offset:-2px}
 .app-sidebar-icon{flex:0 0 18px;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center}

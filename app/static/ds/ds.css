@@ -16,7 +16,7 @@
      text/grund text/flaeche text/flaeche-2
      text-2/grund text-2/flaeche text-2/flaeche-2
      text-3/grund text-3/flaeche text-3/flaeche-2
-     navi-text/navi-grund navi-text/navi-aktiv navi-leise/navi-grund
+     navi-text/navi-grund navi-text/navi-aktiv navi-leise/navi-grund navi-text/navi-hover
      auf-stark/stark auf-signal/signal auf-fehler/fehler
      auf-aktion/aktion aktion-text/aktion-hell aktion-text/flaeche
      signal-text/signal-hell signal-text/flaeche signal-text/grund
@@ -46,6 +46,7 @@
   /* Navigation (in beiden Modi dunkel) */
   --ds-navi-grund: #1F2529;
   --ds-navi-aktiv: #333C43;
+  --ds-navi-hover: #2A3238;     /* Hover in Leiste und Monteurskopf (seit 1.8.172) */
   --ds-navi-text: #D5DBDF;
   --ds-navi-leise: #9AA5AD;
 
@@ -139,6 +140,7 @@
 
   --ds-navi-grund: #0B0F11;
   --ds-navi-aktiv: #232B30;
+  --ds-navi-hover: #171D20;     /* zwischen navi-grund und navi-aktiv */
   --ds-navi-text: #D5DBDF;
   --ds-navi-leise: #9AA5AD;
 

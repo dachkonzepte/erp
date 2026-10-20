@@ -167,9 +167,10 @@ async def _aktiv(tab, seed, p):
         if i < 2:
             sel = "#appSidebar .app-sidebar-link:not(.active)"
             await _maus(tab, "mouseMoved", sel)
-            p.pruefe(f"{wo}: Hover eines anderen Eintrags #2A3238 mit 8 px Ecken", await tab.js(
-                f"(e=>[getComputedStyle(e).backgroundColor,getComputedStyle(e).borderTopLeftRadius])(document.querySelector({json.dumps(sel)}))"),
-                ["rgb(42, 50, 56)", "8px"])
+            # seit 1.8.172 der Wert --ds-navi-hover (hell #2A3238, dunkel #171D20; bis dahin fest #2A3238)
+            p.pruefe(f"{wo}: Hover eines anderen Eintrags in navi-hover mit 8 px Ecken", await tab.js(
+                f"(e=>[getComputedStyle(e).backgroundColor==={FARBE}('--ds-navi-hover'),getComputedStyle(e).borderTopLeftRadius])"
+                f"(document.querySelector({json.dumps(sel)}))"), [True, "8px"])
             await tab.cmd("Input.dispatchMouseEvent", type="mouseMoved", x=900, y=500)
 
 
@@ -363,6 +364,14 @@ async def _monteurskopf(tab, seed, p):
             p.pruefe(f"{wo}: aktiver Reiter", m["aktiv"], [[reiter, "page", True, True, "10px", "rgb(255, 255, 255)", "600"]] if reiter else [])
             p.pruefe(f"{wo}: Bildmarke auf weißer Kachel 40 px (seit 1.8.165)", m["kachel"], [40, "rgb(255, 255, 255)", 3, False])
             p.pruefe(f"{wo}: keine JS-Fehler", tab.fehler, [])
+    # seit 1.8.172: Hover eines nicht aktiven Reiters in navi-hover, hell und dunkel
+    for thema in ("hell", "dunkel"):
+        p.pruefe(f"Monteurskopf Hover {thema}: geladen", await _laden(tab, seed, "einsatzbericht", thema, 1280, 620), True)
+        sel = ".mobile-header-wrap .mobile-nav-reiter:not(.active)"
+        await _maus(tab, "mouseMoved", sel)
+        p.pruefe(f"Monteurskopf Hover {thema}: anderer Reiter in navi-hover", await tab.js(
+            f"getComputedStyle(document.querySelector({json.dumps(sel)})).backgroundColor==={FARBE}('--ds-navi-hover')"), True)
+        await tab.cmd("Input.dispatchMouseEvent", type="mouseMoved", x=640, y=400)
     # Telefon: zwei Zeilen, Name bleibt
     p.pruefe("Monteurskopf 412 px: geladen", await _laden(tab, seed, "einsatzbericht", "hell", 412, 900), True)
     m = await tab.js(MKOPF)
