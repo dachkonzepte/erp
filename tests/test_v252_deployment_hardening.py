@@ -238,7 +238,11 @@ def test_no_further_database_backed_jinja_globals_exist_unguarded():
     Seit "Rechtekonzept" (siehe CLAUDE.md) kommt can() als SIEBTES Global dazu -- bewusst NICHT
     Teil der obigen Fünf/Sechs-Zählung, da es keinen Datenbankzugriff hat (current_user kommt
     fertig aus request.state, siehe app/permissions.py-Parallele) und deshalb auch keine
-    try/except-Absicherung braucht, siehe Docstring von can() selbst."""
+    try/except-Absicherung braucht, siehe Docstring von can() selbst.
+
+    Seit 1.8.159 als ACHTES kein_mitarbeiter -- wie app_version eine feste Zeichenkette ohne Datenbank
+    (app/meldungen.py::KEIN_MITARBEITER), deshalb ebenfalls ohne Absicherung; geprüft, dass genau die Konstante
+    zugewiesen wird."""
     root = Path(__file__).parents[1]
     matches = []
     for py_file in (root / "app").rglob("*.py"):
@@ -249,5 +253,8 @@ def test_no_further_database_backed_jinja_globals_exist_unguarded():
 
     src = (root / "app" / "routers" / "pages.py").read_text(encoding="utf-8")
     assigned = [line.strip() for line in src.splitlines() if line.strip().startswith("templates.env.globals[")]
-    assert len(assigned) == 7  # app_version + die fünf abgesicherten, DB-gestützten Globals + can()
+    assert len(assigned) == 8  # app_version + die fünf abgesicherten, DB-gestützten Globals + can() + kein_mitarbeiter
     assert 'templates.env.globals["can"] = _can' in assigned
+    assert [a for a in assigned if a.startswith('templates.env.globals["kein_mitarbeiter"]')] == [
+        'templates.env.globals["kein_mitarbeiter"] = KEIN_MITARBEITER  # seit 1.8.159: eine Meldung für Server und Vorlagen']
+    assert "from ..meldungen import KEIN_MITARBEITER" in src

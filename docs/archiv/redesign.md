@@ -777,3 +777,16 @@ hier auf 380–458 ms: derselbe Aufbau, langsamer bei geteilter CPU. Die 506 ms 
   FastAPI);
 - den Mount `/static` vor die Router setzen: dann zahlt die Design-Datei nichts, die erste API-Anfrage weiterhin;
 - `mimetypes.init()` beim Start aufrufen oder FileResponse mit festem `media_type` bauen.
+
+### Nachtrag (Endlauf der Runde „Du“): `test_v252` rot -- der neue Jinja-Global aus 1.8.159
+
+- **Befund**: Die volle Suite auf `e82e41d` hatte einen roten Test, `tests/test_v252_deployment_hardening.py::
+  test_no_further_database_backed_jinja_globals_exist_unguarded` („assert 8 == 7“). Der Test zählt die Zuweisungen
+  `templates.env.globals[…]` in `app/routers/pages.py`. Mit `kein_mitarbeiter` (Punkt 3, 1.8.159) sind es acht.
+- **Eigener Fehler**: Vor dem Commit von 1.8.159 lief nur `tests/test_v440_runde_du.py` und die angepassten Tests, nicht die volle Suite
+  (Regel 15). Sonst wäre der Test dort rot geworden.
+- **Änderung**: `kein_mitarbeiter` ist wie `app_version` eine feste Zeichenkette ohne Datenbank und braucht keine Absicherung. Der Test
+  erwartet jetzt acht Zuweisungen und prüft zusätzlich, dass `kein_mitarbeiter` genau die Konstante `KEIN_MITARBEITER` aus
+  `app/meldungen.py` bekommt. Eigener Commit „1.8.159 (Nachtrag)“; Suite und Klicktests danach neu (Regel 26).
+- **Angepasste Erwartung** (Regel 28): `test_v252::test_no_further_database_backed_jinja_globals_exist_unguarded` -- alt 7 Zuweisungen
+  (`app_version`, fünf abgesicherte Globals mit Datenbank, `can`), neu 8 (dazu `kein_mitarbeiter`, nur die Konstante).
