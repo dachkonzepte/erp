@@ -12,7 +12,10 @@
    - Vier Gruppen: Übersicht · Aufträge · Kaufmännisch (mit Zeiterfassung und Backoffice) · Verwaltung (Stammdaten, Einstellungen);
      eine Überschrift nur, wo die Rolle etwas sieht. Zeilen 36 px, Schrift 14 px, Symbole 18 px; Befunde eingerückt unter Wartungen.
    - Aktiv ist der Eintrag des Bereichs der Seite (data-bereich == bereich), nicht mehr die genaue Adresse: navi-aktiv mit 3 px Strich
-     links in marke-hell, aria-current="page"; Schrift normal 500, aktiv 600 (seit 1.8.166, bis dahin auch aktiv 500). Vorher markierten 21 der 42 Seiten keinen Eintrag (alle Detailseiten).
+     links in marke-hell, aria-current="page"; Schrift normal 500, aktiv 600 (seit 1.8.166, bis dahin auch aktiv 500). Seit 1.8.169
+     (Korrektur nach Zeichnung, ersetzt Festlegung 1.8.162 Nr. 4): Einträge 12 px vom Rand der Leiste, Ecken 8 px; aktiv navi-aktiv, Schrift
+     weiß 600, der Strich als box-shadow inset 3px 0 0 in marke-hell (innerhalb der Ecken, bis dahin ein linker Rand ohne Ecken); Hover der
+     übrigen #2A3238; Befunde 28 px eingerückt; eingeklappt die Einträge 36 px breit mit dem Symbol in der Mitte. Vorher markierten 21 der 42 Seiten keinen Eintrag (alle Detailseiten).
    - Fuß nur „Version …“. Hell/Dunkel steht im Kontomenü der Kopfzeile, das Ein-/Ausklappen am Menüknopf der Kopfzeile
      (#appTopbarMenuBtn: am Desktop einklappen, schmal die Leiste öffnen) -- vorher zwei Knöpfe hier unten.
    - #appSidebarFoot bleibt (leer): eine während des Browsens abgelaufene Sitzung bekommt dort ohne Neuladen ein kompaktes
@@ -31,24 +34,24 @@
 .app-sidebar-marke{display:flex;flex-direction:column;min-width:0;overflow:hidden}
 .app-sidebar-marke-name{font-family:var(--ds-schrift-titel);font-weight:700;font-size:14px;letter-spacing:.04em;color:var(--ds-navi-text);line-height:1.15}
 .app-sidebar-marke-zusatz{font-size:11.5px;color:var(--ds-navi-leise);line-height:1.25}
-.app-sidebar-nav{padding:4px 8px 4px;overflow-y:auto;overflow-x:hidden;flex:1}
-.app-sidebar-group{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--ds-navi-leise);margin:8px 10px 3px;line-height:14px;white-space:nowrap;overflow:hidden}
+.app-sidebar-nav{padding:4px 12px 4px;overflow-y:auto;overflow-x:hidden;flex:1}
+.app-sidebar-group{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--ds-navi-leise);margin:8px 12px 3px;line-height:14px;white-space:nowrap;overflow:hidden}
 .app-sidebar-nav>.app-sidebar-group:first-child{margin-top:4px}
-.app-sidebar-link{display:flex;align-items:center;gap:10px;box-sizing:border-box;height:36px;margin:0;padding:0 10px 0 9px;border-left:3px solid transparent;color:var(--ds-navi-text);text-decoration:none;font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden}
-.app-sidebar-link:hover{background:var(--ds-navi-aktiv)}
-.app-sidebar-link.active{background:var(--ds-navi-aktiv);border-left-color:var(--ds-marke-hell);color:var(--ds-navi-text);font-weight:600}
+.app-sidebar-link{display:flex;align-items:center;gap:10px;box-sizing:border-box;height:36px;margin:0;padding:0 12px;border:0;border-radius:8px;color:var(--ds-navi-text);text-decoration:none;font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden}
+.app-sidebar-link:hover{background:#2A3238}
+.app-sidebar-link.active{background:var(--ds-navi-aktiv);color:#FFFFFF;font-weight:600;box-shadow:inset 3px 0 0 var(--ds-marke-hell)}
 .app-sidebar-link:focus-visible{outline:2px solid var(--ds-marke-hell);outline-offset:-2px}
 .app-sidebar-icon{flex:0 0 18px;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center}
 .app-sidebar-icon svg,.app-sidebar-login-link svg{stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .app-sidebar-icon svg .fdot{fill:currentColor}
 .app-sidebar-icon svg{width:18px;height:18px}
-.app-sidebar-sub{padding-left:37px}
+.app-sidebar-sub{padding-left:40px}
 .app-sidebar-bottom{flex:0 0 auto;border-top:1px solid var(--ds-navi-aktiv)}
 .app-sidebar-foot{padding:10px;white-space:nowrap;overflow:hidden}
 .app-sidebar-foot:empty{padding:0}
 .app-sidebar-version{padding:7px 14px 8px;font-size:11.5px;color:var(--ds-navi-leise);white-space:nowrap;overflow:hidden}
 .app-sidebar.collapsed .app-sidebar-marke,.app-sidebar.collapsed .app-sidebar-label,.app-sidebar.collapsed .app-sidebar-version{display:none}
-.app-sidebar.collapsed .app-sidebar-sub{padding-left:9px}
+.app-sidebar.collapsed .app-sidebar-link,.app-sidebar.collapsed .app-sidebar-sub{padding:0 9px}
 .app-sidebar.collapsed .app-sidebar-group{opacity:0;height:1px;margin:6px 0;overflow:hidden}
 .app-sidebar-login-status{padding:6px 10px 8px;font-size:12px;color:var(--ds-navi-leise);display:flex;align-items:center;gap:7px}
 .app-sidebar-login-status .dot{width:7px;height:7px;background:var(--ds-fehler);flex:0 0 7px}

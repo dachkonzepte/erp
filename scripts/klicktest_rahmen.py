@@ -71,7 +71,8 @@ scrollt:n.scrollHeight>n.clientHeight+1,version_im_fenster:r(v).bottom<=innerHei
 version:(v.textContent||'').trim().startsWith('Version '),grund_navi:cs(s).backgroundColor===F('--ds-navi-grund'),
 gruppen:[...s.querySelectorAll('.app-sidebar-group')].map(g=>g.textContent.trim().toLowerCase()),
 aktiv:aktiv.map(x=>x.dataset.bereich),aria:[...s.querySelectorAll('[aria-current="page"]')].map(x=>x.dataset.bereich||x.textContent.trim()),
-strich:a?[cs(a).borderLeftWidth,cs(a).borderLeftColor===F('--ds-marke-hell'),cs(a).backgroundColor===F('--ds-navi-aktiv')]:null,
+strich:a?[cs(a).boxShadow===F('--ds-marke-hell')+' 3px 0px 0px 0px inset',cs(a).backgroundColor===F('--ds-navi-aktiv'),cs(a).color,
+cs(a).borderTopLeftRadius,Math.round(r(a).left-r(s).left),Math.round(r(s).right-r(a).right)]:null,
 kachel_weiss:cs(s.querySelector('.app-sidebar-kachel')).backgroundColor==='rgb(255, 255, 255)',
 bildmarke:s.querySelectorAll('.app-sidebar-kachel svg polygon').length,bild:!!s.querySelector('.app-sidebar-kachel img')}})()""" % FARBE
 
@@ -159,7 +160,16 @@ async def _aktiv(tab, seed, p):
         soll = [bereich] if bereich else []
         p.pruefe(f"{wo}: aktiver Eintrag und aria-current", [m["aktiv"], m["aria"]], [soll, soll])
         if bereich:
-            p.pruefe(f"{wo}: Strich 3 px in marke-hell auf navi-aktiv", m["strich"], ["3px", True, True])
+            # seit 1.8.169 der Strich als inset-Schatten innerhalb der 8-px-Ecken, Schrift weiß, 12 px vom Rand (bis dahin linker Rand)
+            p.pruefe(f"{wo}: Strich 3 px in marke-hell (Schatten) auf navi-aktiv, weiß, Ecken 8 px, 12 px vom Rand", m["strich"],
+                     [True, True, "rgb(255, 255, 255)", "8px", 12, 12])
+        if i < 2:
+            sel = "#appSidebar .app-sidebar-link:not(.active)"
+            await _maus(tab, "mouseMoved", sel)
+            p.pruefe(f"{wo}: Hover eines anderen Eintrags #2A3238 mit 8 px Ecken", await tab.js(
+                f"(e=>[getComputedStyle(e).backgroundColor,getComputedStyle(e).borderTopLeftRadius])(document.querySelector({json.dumps(sel)}))"),
+                ["rgb(42, 50, 56)", "8px"])
+            await tab.cmd("Input.dispatchMouseEvent", type="mouseMoved", x=900, y=500)
 
 
 SCHRIFT = """(()=>{const s=document.getElementById('appSidebar');if(!s)return null;const w=e=>getComputedStyle(e).fontWeight;

@@ -1247,3 +1247,36 @@ Grundlage: der Befund `docs/archiv/befund-rahmen.md`. Die Entscheidungen oben ge
 - **Alle Klicktests** (`klicktest_alle.py --gleichzeitig 4`): 80 von 80 wie erwartet, Laufzeit 7:31.
 - **Bilder** der Runde 1 neu: `bildgrundlage/rahmen_runde1_331745e.zip` (Projektmappe 1440 × 900 hell und dunkel, Einsatzbericht als
   Monteurin 1280 × 620 und 800 × 1100), Ordner in `.gitignore`.
+
+## Korrektur an Leiste und Monteurskopf nach Zeichnung (ersetzt Festlegung 1.8.162 Nr. 4)
+
+### Punkt 1 (1.8.169): Einträge der Leiste
+
+- `_sidebar.html`: Navigation `padding:4px 12px` (Einträge 12 px vom linken und rechten Rand, bis 1.8.168 8 px), Eintrag
+  `padding:0 12px; border:0; border-radius:8px` (bis dahin ohne Ecken, mit linkem Rand 3 px). Aktiv: `background` navi-aktiv,
+  `color:#FFFFFF`, `font-weight:600`, `box-shadow:inset 3px 0 0 var(--ds-marke-hell)` -- der Strich liegt innerhalb der Ecken.
+  Hover der übrigen `#2A3238` mit denselben Ecken; der aktive behält beim Hover seine Fläche. Befunde `padding-left:40px` (12 px
+  wie jeder Eintrag + 28 px Einzug wie bisher); Gruppenüberschriften 12 px eingerückt (über den Symbolen); eingeklappt die Einträge
+  36 px breit, das Symbol mit 9 px Abstand in der Mitte.
+- Höhen unverändert (Zeilen 36 px): bei 1280 × 800 und 1440 × 900 in allen Büro-Rollen ohne Bildlauf (Klicktest).
+- **Hinweis zum Dunkelmodus**: `#2A3238` ist fest vorgegeben; im Dunkelmodus ist navi-aktiv `#232B30`, der Hover also eine Spur
+  heller als der aktive Eintrag (im hellen Modus dunkler: navi-aktiv `#333C43`). Der aktive bleibt durch weiße 600er-Schrift und
+  Strich unterscheidbar; soll der Hover im Dunkelmodus dunkler sein, bräuchte er einen eigenen Wert.
+
+#### Tests und Prüfung
+
+- `test_v253::test_eintraege_mit_abstand_ecken_und_strich_als_schatten` (neu).
+- `klicktest_rahmen` Teil `aktiv`: Schatten in marke-hell, Fläche navi-aktiv, Schrift weiß, Ecken 8 px, 12 px vom linken und
+  rechten Rand; Hover eines anderen Eintrags `rgb(42, 50, 56)` mit 8 px Ecken (hell und dunkel). Teile `seitenleiste`, `aktiv`,
+  `menueknopf` zusammen 86 von 86.
+- **Gegenproben**: Strich wieder als linker Rand (Klicktest 18 von 24); Einträge 8 px vom Rand (18 von 24); Hover in navi-aktiv
+  (22 von 24) -- 3 von 3 rot, je mit pytest, Datei byte-genau zurück.
+- **Angepasste Erwartung** (Regel 28): Klicktest `klicktest_rahmen` „Strich 3 px in marke-hell auf navi-aktiv“: alt
+  `[borderLeftWidth 3px, Randfarbe marke-hell, Fläche navi-aktiv]`; neu `[Schatten inset 3px in marke-hell, Fläche navi-aktiv,
+  Schrift weiß, Ecken 8 px, 12 px links, 12 px rechts]`.
+
+#### Festlegungen 1.8.169 (Bitte bestätigen)
+
+1. **Gruppenüberschriften 12 px eingerückt**, bündig mit den Symbolen der Einträge.
+2. **Der aktive Eintrag behält beim Hover seine Fläche** (navi-aktiv), nur die übrigen werden `#2A3238`.
+3. **Eingeklappt** Einträge 36 px breit, Symbol in der Mitte (9 px Abstand), dieselben Ecken und derselbe Strich.

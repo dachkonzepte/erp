@@ -229,3 +229,21 @@ def test_schriftstaerke_normal_500_aktiv_600():
         if sel.strip() not in (".app-sidebar-link", ".app-sidebar-link.active"):
             assert "font-weight" not in inhalt, sel.strip()
 
+
+def test_eintraege_mit_abstand_ecken_und_strich_als_schatten():
+    """Seit 1.8.169 (Korrektur nach Zeichnung, ersetzt Festlegung 1.8.162 Nr. 4): Einträge 12 px vom Rand der Leiste (links und rechts),
+    Ecken 8 px; aktiv navi-aktiv, Schrift weiß 600, Strich 3 px links in marke-hell als inset-Schatten innerhalb der Ecken; Hover der
+    übrigen #2A3238; Befunde bleibt eingerückt (28 px); eingeklappt das Symbol in der Mitte. Bis 1.8.168: 8 px Abstand, ohne Ecken,
+    Strich als linker Rand."""
+    css = (Path(__file__).parents[1] / "app" / "templates" / "_sidebar.html").read_text(encoding="utf-8").split("</style>")[0]
+    regel = lambda sel: css.split(sel + "{", 1)[1].split("}", 1)[0]  # noqa: E731
+    assert regel(".app-sidebar-nav").startswith("padding:4px 12px 4px;")
+    eintrag = regel(".app-sidebar-link")
+    assert "padding:0 12px;" in eintrag and "border:0;" in eintrag and "border-radius:8px" in eintrag and "border-left" not in eintrag
+    aktiv = regel(".app-sidebar-link.active")
+    assert "background:var(--ds-navi-aktiv)" in aktiv and "color:#FFFFFF" in aktiv and "font-weight:600" in aktiv
+    assert "box-shadow:inset 3px 0 0 var(--ds-marke-hell)" in aktiv and "border" not in aktiv
+    assert regel(".app-sidebar-link:hover") == "background:#2A3238"
+    assert regel(".app-sidebar-sub") == "padding-left:40px"  # 12 px wie jeder Eintrag + 28 px Einzug
+    assert regel(".app-sidebar.collapsed .app-sidebar-link,.app-sidebar.collapsed .app-sidebar-sub") == "padding:0 9px"
+
