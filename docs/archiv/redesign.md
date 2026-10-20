@@ -1367,3 +1367,25 @@ Grundlage: der Befund `docs/archiv/befund-rahmen.md`. Die Entscheidungen oben ge
 #### Festlegungen 1.8.172 (Bitte bestätigen)
 
 1. **Geöffnet bleibt navi-aktiv**: Lupe und Kontoknopf mit offenem Feld bzw. Menü behalten navi-aktiv, nur der Hover nimmt navi-hover.
+
+### Punkt 3 (1.8.173): Prüfsumme statt Version
+
+- `app/design_dateien.py::pruefsumme(name)`: die ersten 10 Zeichen der SHA-256 des Inhalts einer Datei unter `app/static/ds/`;
+  beim Start einmal gebildet (`ds_pruefsummen()`), als Jinja-Werte `ds_css_pruefsumme` und `ds_basis_pruefsumme`
+  (`app/routers/pages.py`). `_ds_kopf.html` bindet `ds.css?v=…` und `ds-basis.css?v=…` damit ein (bis 1.8.172 `?v={{ app_version }}`).
+  Grenze 1 aus dem Befund der Korrektur ist damit weg; Grenze 2 (eine offene Seite bis zum Neuladen) bleibt.
+
+#### Tests und Prüfung
+
+- `test_v432`: die Seite nennt die Prüfsumme des heutigen Inhalts; geänderter Inhalt → andere Prüfsumme und andere Adresse (Datei
+  im Wegwerf-Ordner); dieselbe Prüfsumme für denselben Inhalt. Klicktest `klicktest_ds_schriften` 28 von 28 (Pfade und Kopfzeilen unverändert).
+- **Gegenproben**: wieder die Version als Zusatz (pytest, drei Tests rot); Prüfsumme unabhängig vom Inhalt (pytest) -- 2 von 2 rot, Dateien byte-genau zurück.
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v432::test_ds_kopf_bindet_nur_ds_css_mit_version_ein` → `test_ds_kopf_bindet_ds_css_und_ds_basis_mit_pruefsumme_ein`:
+    alt `?v={{ app_version }}`; neu die Prüfsummen-Werte.
+  - `test_v252::test_no_further_database_backed_jinja_globals_exist_unguarded`: alt 8 Jinja-Globals; neu 10 -- dazu die beiden
+    Prüfsummen, feste Zeichenketten ohne Datenbank, geprüft mit genau ihrer Zuweisung.
+
+#### Festlegungen 1.8.173 (Bitte bestätigen)
+
+1. **Prüfsumme beim Start**, nicht je Anfrage -- die Dateien ändern sich nur mit einem Deploy, und `update.sh` startet neu.

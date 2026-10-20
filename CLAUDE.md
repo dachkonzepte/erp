@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.8.172** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.8.173** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -835,7 +835,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     `div:not(.ds-x)` verboten) -- nie `--accent` (die Akzentfarbe aus den Einstellungen bleibt), kein `color-scheme`, keine
     Element-Selektoren, keine andere At-Regel. In `app/static/` liegen nur `.css`, `.woff2` und Lizenztexte (`ofl-*.txt`), alle Namen kleingeschrieben (sonst ohne
     Anmeldung nicht erreichbar), keine Symlinks. Jede Seite aus `seiten()` bindet `_ds_kopf.html` im Kopf vor ihrem eigenen `<style>` ein
-    (`ds.css?v={{ app_version }}`); eine neue Seite ebenso. Die Prüfpaare im Kopfkommentar von `ds.css` halten hell und dunkel (Text 4,5 : 1,
+    (`ds.css?v=<Prüfsumme des Inhalts>`, seit 1.8.173 aus `app/design_dateien.py::pruefsumme()`, bis dahin die Version); eine neue Seite ebenso. Die Prüfpaare im Kopfkommentar von `ds.css` halten hell und dunkel (Text 4,5 : 1,
     Bedienelemente 3 : 1). `/static/` wird ein Jahr zwischengespeichert: eine geänderte Schrift bekommt einen neuen Dateinamen.
     `tests/test_v432_design_fundament.py` (Wächter, Kontrast, Auslieferung, Angriffe über ASGI und echten uvicorn samt Gegenprobe
     „Präfixvergleich“), Klicktest `klicktest_ds_schriften.py`. Details: `docs/archiv/redesign.md`.

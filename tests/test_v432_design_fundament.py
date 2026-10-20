@@ -539,11 +539,45 @@ def test_jede_seite_bindet_den_ds_kopf_vor_ihrem_stil_ein():
     assert funde == []
 
 
-def test_ds_kopf_bindet_nur_ds_css_mit_version_ein():
-    """Seit 1.8.161 dazu ds-basis.css (Grundregeln nur unter .ds-seite, tests/test_v441_rahmen_baustein.py) -- nach ds.css."""
+def test_ds_kopf_bindet_ds_css_und_ds_basis_mit_pruefsumme_ein():
+    """Seit 1.8.161 dazu ds-basis.css (Grundregeln nur unter .ds-seite, tests/test_v441_rahmen_baustein.py) -- nach ds.css. Seit 1.8.173
+    mit der Prüfsumme des Inhalts statt der Version (bis dahin ?v={{ app_version }})."""
     text = _ohne_jinja_kommentare((ROOT / "app" / "templates" / "_ds_kopf.html").read_text(encoding="utf-8")).strip()
-    assert text.splitlines() == ['<link rel="stylesheet" href="/static/ds/ds.css?v={{ app_version }}">',
-                                 '<link rel="stylesheet" href="/static/ds/ds-basis.css?v={{ app_version }}">']
+    assert text.splitlines() == ['<link rel="stylesheet" href="/static/ds/ds.css?v={{ ds_css_pruefsumme }}">',
+                                 '<link rel="stylesheet" href="/static/ds/ds-basis.css?v={{ ds_basis_pruefsumme }}">']
+
+
+def test_pruefsumme_folgt_dem_inhalt(tmp_path):
+    """Ändert sich der Inhalt, ändert sich die Adresse (seit 1.8.173) -- unabhängig von der Version; derselbe Inhalt, dieselbe Adresse."""
+    import hashlib
+
+    import jinja2
+
+    from app.design_dateien import pruefsumme
+
+    datei = tmp_path / "ds.css"
+    datei.write_text(":root{--ds-grund:#EEF0F1}", encoding="utf-8")
+    vorher = pruefsumme("ds.css", tmp_path)
+    assert re.fullmatch(r"[0-9a-f]{10}", vorher) and vorher == hashlib.sha256(datei.read_bytes()).hexdigest()[:10]
+    assert pruefsumme("ds.css", tmp_path) == vorher
+    datei.write_text(":root{--ds-grund:#EEF0F2}", encoding="utf-8")
+    nachher = pruefsumme("ds.css", tmp_path)
+    assert nachher != vorher
+    kopf = jinja2.Environment(loader=jinja2.FileSystemLoader(str(ROOT / "app" / "templates"))).get_template("_ds_kopf.html")
+    adressen = [next(z for z in kopf.render(ds_css_pruefsumme=p, ds_basis_pruefsumme="x").splitlines() if "/ds.css?" in z)
+                for p in (vorher, nachher)]
+    assert adressen[0] != adressen[1] and f"ds.css?v={nachher}" in adressen[1]
+
+
+def test_seite_nennt_die_pruefsumme_des_heutigen_inhalts(threaded_db_session, router_test_client):
+    import hashlib
+
+    from app.routers.pages import router as pages_router
+
+    html = router_test_client(threaded_db_session, pages_router).get("/inspection-templates").text
+    for name in ("ds.css", "ds-basis.css"):
+        soll = hashlib.sha256((ROOT / "app" / "static" / "ds" / name).read_bytes()).hexdigest()[:10]
+        assert f'href="/static/ds/{name}?v={soll}"' in html, name
 
 
 def test_waechter_seite_ohne_ds_kopf(tmp_path):

@@ -24,6 +24,7 @@ from ..deps import require_admin
 from ..models import AppUser
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, darf_zeit_fuer_andere_buchen, default_home_page_for_role, has_min_role, has_role, require_min_role
 from .. import seitendaten
+from ..design_dateien import pruefsumme as ds_pruefsumme
 from ..version import APP_VERSION
 from ..weiterleitung import ist_lokal, sicheres_ziel
 
@@ -33,6 +34,10 @@ router = APIRouter()
 
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
 templates.env.globals["app_version"] = APP_VERSION
+# Seit 1.8.173: Zusatz ?v= an ds.css und ds-basis.css aus dem Inhalt (_ds_kopf.html), beim Start gebildet -- einfache Werte statt einer
+# Funktion, damit Tests mit einer schlanken Jinja-Umgebung die Seiten weiter rendern (ein fehlender Wert ergibt dort leeren Text)
+templates.env.globals["ds_css_pruefsumme"] = ds_pruefsumme("ds.css")
+templates.env.globals["ds_basis_pruefsumme"] = ds_pruefsumme("ds-basis.css")
 templates.env.globals["kein_mitarbeiter"] = KEIN_MITARBEITER  # seit 1.8.159: eine Meldung für Server und Vorlagen
 
 # Die fuenf Jinja-Globals unten laufen bei JEDER Seitenanfrage (jede Seite bindet _sidebar.html
