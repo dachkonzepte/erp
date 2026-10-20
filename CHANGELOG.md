@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.8.161 – Rahmen, Teil 1: Baustein ohne sichtbare Änderung
+
+Stufe 2 „Rahmen“, Runde 1, Teil 1. Der Baustein für den neuen Rahmen, noch ohne sichtbare Wirkung: `ds-basis.css` mit den Grundregeln für Schrift und Steuerelemente (nur unter `.ds-seite`, eine Seite schaltet beim Umzug um), das Makro `teile/seitenkopf.html` (Pfad, Kennung, Titel, Status, Hauptaktion, Menü „⋮“), das Skript `seitenkopf()` für nachgeladene Köpfe, ein gemeinsames Menü mit Tastatur und aria (`_menue.html`) und je Seite mit Seitenleiste ihr `bereich`. In `ds.css` die Werte nach den Entscheidungen (Seitentitel 30 px, Tablet 26 px, Tablet-Ecken 12/16 px) und die Regeln der Bausteine. Wächter: jede Seite mit Leiste nennt ihren Bereich, `ds-basis.css` bleibt unter `.ds-seite`.
+
 ## 1.8.160 – Wächter: Kundentexte beim Sie, Oberfläche beim Du
 
 Runde „Du“, Punkt 4. Ein Verzeichnis aller Kundentexte (`KUNDENTEXTE` in `tests/test_v440_runde_du.py`: E-Mail-Vorgaben, Briefe, Sätze der Rechnung, Standardsätze, Mahntexte samt Migration, die neun PDF-Renderer an Kunden, zwei Platzhalter in den Einstellungen). Darin keine Du-Form, auch nicht in echten PDFs aus Testdaten (Angebot, Auftrag, Vertrag, Rechnung mit Erstattung, Mahnung, Behinderungs- und Bedenkenanzeige). Jede Zeichenkette mit einem Kundentext-Merkmal (z. B. „Sehr geehrte“) muss im Verzeichnis stehen, und außerhalb gibt es keine Sie-Anrede mehr. „Sie“ als dritte Person steht in einer Ausnahmeliste, die nur kürzer werden darf. Kein Text geändert.

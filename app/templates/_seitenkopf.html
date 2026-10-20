@@ -1,0 +1,72 @@
+{#- Skript zum gemeinsamen Seitenkopf (seit 1.8.161, Stufe 2 „Rahmen“): teile/seitenkopf.html zeichnet die Gliederung, seitenkopf()
+    setzt, was erst nach dem Laden feststeht (Kennung, Titel, Untertitel, Status, Pfad), und das Menü „⋮“ bekommt sein Verhalten aus
+    _menue.html. Mehrfach einbindbar: Funktionsdeklarationen und die Einrichtung des Menüs, die ein zweites Mal nichts tut (dsMenue()
+    merkt sich den Knopf).
+
+    seitenkopf({kennung, titel, untertitel, status: {text, art}, pfad: [{text, href}]}) -- nur die genannten Teile ändern sich. Text immer
+    über textContent (kein HTML aus Daten), Links über sichererLink() (Regel 32), die Art des Status nur aus SEITENKOPF_ARTEN (sonst
+    "neutral"); das letzte Glied des Pfads ohne href ist die Seite selbst (aria-current="page").
+
+    Der Import unten verbindet die beiden Teile auch für die Strukturtests: tests/vorlagen_js.py::seiten() zählt eine Vorlage, die keine
+    andere einbindet oder importiert, als Seite -- das Makro allein wäre sonst eine 54. Seite. -#}
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{% include "_links.html" %}
+{% include "_menue.html" %}
+<script>
+function seitenkopfArten() {
+  return ['neutral', 'info', 'ok', 'warn', 'fehler', 'signal'];
+}
+function seitenkopf(daten) {
+  const d = daten || {};
+  const text = (id, wert) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = wert == null ? '' : String(wert);
+  };
+  if ('kennung' in d) text('seitenkopfKennung', d.kennung);
+  if ('titel' in d) text('seitenkopfTitel', d.titel);
+  if ('untertitel' in d) text('seitenkopfUntertitel', d.untertitel);
+  if ('status' in d) {
+    const el = document.getElementById('seitenkopfStatus');
+    if (el) {
+      const s = d.status || {};
+      const art = seitenkopfArten().includes(s.art) ? s.art : 'neutral';
+      el.textContent = s.text == null ? '' : String(s.text);
+      el.className = 'ds-status ds-status-' + art;
+    }
+  }
+  if ('pfad' in d) {
+    const nav = document.getElementById('seitenkopfPfad');
+    if (nav) {
+      const teile = [];
+      (Array.isArray(d.pfad) ? d.pfad : []).forEach((glied, i) => {
+        const g = glied || {};
+        if (i) {
+          const trenner = document.createElement('span');
+          trenner.className = 'ds-kopf-trenner';
+          trenner.setAttribute('aria-hidden', 'true');
+          trenner.textContent = '/';
+          teile.push(trenner);
+        }
+        let el;
+        if (g.href) {
+          el = document.createElement('a');
+          el.className = 'ds-kopf-pfadglied';
+          el.setAttribute('href', sichererLink(g.href));
+        } else {
+          el = document.createElement('span');
+          el.className = 'ds-kopf-pfadende';
+          el.setAttribute('aria-current', 'page');
+        }
+        el.textContent = g.text == null ? '' : String(g.text);
+        teile.push(el);
+      });
+      nav.replaceChildren(...teile);
+    }
+  }
+}
+function seitenkopfMenueEinrichten() {
+  return dsMenue(document.getElementById('seitenkopfMenueKnopf'), document.getElementById('seitenkopfMenue'));
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', seitenkopfMenueEinrichten);
+else seitenkopfMenueEinrichten();
+</script>

@@ -1,0 +1,45 @@
+{#- Gemeinsamer Seitenkopf (seit 1.8.161, Stufe 2 „Rahmen“; Befund: docs/archiv/befund-rahmen.md, Abschnitt 5).
+
+    Aufruf in einer Seite (die Teile, die die Scanner prüfen -- href der Pfad-Links, Knöpfe mit data-klick nach Regel 32 --, stehen
+    wörtlich in der Seite; im Makro steht kein Jinja in href=, type=, on…= oder an der Stelle eines Attributs, Makro-Regel 1.8.124):
+
+        {% from "teile/seitenkopf.html" import seitenkopf %}
+        {% call(teil) seitenkopf("Projektmappe", untertitel="…", kennung="", mit_pfad=true, mit_aktion=true, mit_menue=true) %}
+          {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/projects">Projekte</a>
+          {% elif teil == "aktion" %}<button type="button" class="ds-knopf ds-knopf-aktion" data-klick="bearbeiten">Bearbeiten</button>
+          {% elif teil == "menue" %}<button type="button" class="ds-menue-eintrag" data-klick="kopieren">Kopieren</button>{% endif %}
+        {% endcall %}
+
+    Gliederung: Pfad (nav) · Kennung · genau ein h1 · Status · Untertitel · eine Hauptaktion · Menü „⋮“. Feste IDs (ein Kopf je Seite):
+    seitenkopfPfad, seitenkopfKennung, seitenkopfTitel, seitenkopfStatus, seitenkopfUntertitel, seitenkopfMenueKnopf, seitenkopfMenue --
+    was erst nach dem Laden feststeht, setzt seitenkopf() aus _seitenkopf.html (Text über textContent, Links über sichererLink()). Leere
+    Teile blendet ds.css über :empty aus. Regeln für den Inhalt: genau eine Hauptaktion (.ds-knopf-aktion), alles Weitere und „Löschen“ ins
+    Menü, der Pfad ersetzt den Zurück-Link. Wer das Makro nutzt, bindet _seitenkopf.html ein (tests/test_v441_rahmen_baustein.py). -#}
+{% macro seitenkopf(titel, untertitel="", kennung="", mit_pfad=false, mit_aktion=false, mit_menue=false) -%}
+<header class="ds-kopf" id="seitenkopf">
+  {%- if mit_pfad %}
+  <nav class="ds-kopf-pfad" id="seitenkopfPfad" aria-label="Pfad">{{ caller("pfad") }}</nav>
+  {%- endif %}
+  <div class="ds-kopf-zeile">
+    <div class="ds-kopf-text">
+      <div class="ds-kopf-kennung" id="seitenkopfKennung">{{ kennung }}</div>
+      <div class="ds-kopf-titelzeile">
+        <h1 class="ds-kopf-titel" id="seitenkopfTitel">{{ titel }}</h1>
+        <span class="ds-status ds-status-neutral" id="seitenkopfStatus" role="status"></span>
+      </div>
+      <p class="ds-kopf-untertitel" id="seitenkopfUntertitel">{{ untertitel }}</p>
+    </div>
+    <div class="ds-kopf-aktionen">
+      {%- if mit_aktion %}
+      {{ caller("aktion") }}
+      {%- endif %}
+      {%- if mit_menue %}
+      <div class="ds-kopf-menue">
+        <button type="button" class="ds-knopf ds-knopf-symbol" id="seitenkopfMenueKnopf" aria-haspopup="menu" aria-expanded="false" aria-controls="seitenkopfMenue" aria-label="Weitere Aktionen" title="Weitere Aktionen">⋮</button>
+        <div class="ds-menue" id="seitenkopfMenue" role="menu" aria-label="Weitere Aktionen" hidden>{{ caller("menue") }}</div>
+      </div>
+      {%- endif %}
+    </div>
+  </div>
+</header>
+{%- endmacro %}

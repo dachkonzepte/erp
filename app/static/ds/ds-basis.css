@@ -1,0 +1,74 @@
+/* =====================================================================
+   DACHKONZEPTE ERP – Grundregeln einer umgezogenen Seite
+   app/static/ds/ds-basis.css (seit 1.8.161, Stufe 2 „Rahmen“)
+
+   Schrift, Farben und Steuerelemente für Seiten, die auf das
+   Design-System „Schiefer & Signal“ umgezogen sind. Jede Regel gilt nur
+   unter .ds-seite (die Klasse setzt eine Seite beim Umzug an ihr <body>,
+   für das Tablet zusätzlich .ds-tablet) -- eine Seite ohne die Klasse
+   bleibt unverändert. Hier stehen keine --ds-*-Werte (die setzt nur
+   ds.css), keine At-Regeln, kein !important (Wächter:
+   tests/test_v441_rahmen_baustein.py). Regel 37 für ds.css bleibt.
+   ===================================================================== */
+
+.ds-seite {
+  margin: 0;
+  background: var(--ds-grund);
+  color: var(--ds-text);
+  font-family: var(--ds-schrift-text);
+  font-size: var(--ds-groesse-4);
+  line-height: 1.45;
+}
+
+.ds-seite.ds-tablet {
+  font-size: var(--ds-groesse-5);
+}
+
+.ds-seite h1,
+.ds-seite h2,
+.ds-seite h3 {
+  font-family: var(--ds-schrift-titel);
+  font-weight: 600;
+  color: var(--ds-text);
+}
+
+.ds-seite button,
+.ds-seite input,
+.ds-seite select,
+.ds-seite textarea {
+  font: inherit;
+  color: inherit;
+}
+
+.ds-seite input,
+.ds-seite select,
+.ds-seite textarea {
+  border: 1px solid var(--ds-feld-rand);
+  border-radius: var(--ds-ecke-feld);
+  background: var(--ds-flaeche);
+  color: var(--ds-text);
+}
+
+.ds-seite button {
+  border-radius: var(--ds-ecke-feld);
+}
+
+.ds-seite.ds-tablet input,
+.ds-seite.ds-tablet select,
+.ds-seite.ds-tablet textarea,
+.ds-seite.ds-tablet button {
+  border-radius: var(--ds-ecke-tablet-feld);
+}
+
+.ds-seite a {
+  color: var(--ds-link);
+}
+
+.ds-seite a:hover {
+  color: var(--ds-link-hover);
+}
+
+.ds-seite :focus-visible {
+  outline: 2px solid var(--ds-fokus);
+  outline-offset: 2px;
+}

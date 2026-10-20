@@ -831,3 +831,63 @@ die Bildgrundlage (Stand `7c5172c`, Chrome 155.0.8059.40), Bilder aus `bildgrund
   - Makro `teile/seitenkopf.html` mit wörtlichen Teilen über `{% call %}` (Makro-Regel), Skript `seitenkopf()` für nachgeladene Köpfe,
     `.ds-kopf`-Regeln, `bereich` für den aktiven Eintrag.
   - Reihenfolge in 11 Schritten vom Pilot (Prüfvorlagen) bis zur Monteursansicht; sieben Entscheidungen vorab.
+
+## Stufe 2 „Rahmen“, Runde 1 (1.8.161 ff.)
+
+Vorgabe vom 20.10.2026 (übernommen wie gegeben): „Stufe 2 „Rahmen“, Runde 1. Entscheidungen von Tobias für die ganze Stufe 2: - Hauptaktion in --ds-aktion; die Akzentfarbe aus den Einstellungen färbt die Oberfläche künftig nicht mehr (App-Symbol bleibt vorerst). - Ecken 10 px Knöpfe/Felder, 12 px Karten, Tablet 12/16 px. Seitentitel 30 px, Tablet 26 px. - Seitenleiste dunkel in beiden Modi, vier Gruppen. - Grundregeln für Schrift und Steuerelemente in eigener Datei ds-basis.css, nur unter .ds-seite; eine Seite schaltet beim Umzug um. Regel 37 bleibt. - Formularseiten bekommen den Rahmen. Einsatzbericht und Konto der Monteure kommen in den Monteursrahmen (ersetzt Festlegung 1.8.113 Nr. 6). Diese Runde, ein Commit je Teil: 1. Baustein ohne sichtbare Änderung: ds-basis.css, Makro teile/seitenkopf.html, Skript seitenkopf(), `bereich` je Seite. Wächter: jede Seite mit Leiste nennt ihren Bereich. 2. Seitenleiste: 232 px, navi-Farben, Logo-Zeile 52 px (Kachel 36 px, „DACHKONZEPTE“ / „Rödchen GmbH · ERP“). Gruppen: Übersicht (Start, Aufgaben, Kalender) · Aufträge (Anfragen, Projekte, Plantafel, Checklisten, Wartungen, Befunde eingerückt) · Kaufmännisch (Finanzen, Mahnwesen, Eingangsrechnungen, Betriebskosten, Zeiterfassung, Backoffice) · Verwaltung (Stammdaten, Einstellungen). Zeilen 36 px, Schrift 14 px, Symbole 18 px. Aktiv: navi-aktiv mit 3 px Strich links in marke-hell, gesetzt über `bereich`. Fuß nur „Version …“. 3. Kopfzeile Büro: 64 px, Suche 480 px breit, rechts Kontoknopf mit Initialen (Kreis in aktion) und vollem Namen. Menü: Mein Konto, Hell/Dunkel, Abmelden. 4. Monteurskopf: 64 px, navi-grund, Logo-Kachel 40 px, Reiter Einsätze · Zeiterfassung · Stundenzettel (48 px hoch, 16 px Schrift, aktiv mit 3 px Strich unten in marke-hell). Rechts: Lupe 48 px, öffnet die bisherige Objektsuche; Kontoknopf mit Initialen und vollem Namen, Menü wie oben. Gilt für alle Monteursseiten samt Einsatzbericht und Konto. Die button-Regeln dreier Seiten dürfen nicht mehr in den Kopf greifen. Prüfen: Leiste ohne Bildlauf bei 1440 × 900 in jeder Rolle. Monteurskopf 64 px und einzeilig bei 1280 × 620 und 800 × 1100, Name immer sichtbar. Menüs per Tastatur bedienbar, mit aria. Hell und dunkel. Bildvergleich: außer Leiste, Kopfzeile und Monteurskopf weicht nichts ab. Am Ende: volle Suite und Klicktests auf sauberer Arbeitskopie, Bericht je Teil. Dazu als ZIP je ein Bild: Projektmappe 1440 × 900 hell und dunkel, Einsatzbericht als Monteurin 1280 × 620 und 800 × 1100. Nicht pushen.“
+
+Grundlage: der Befund `docs/archiv/befund-rahmen.md`. Die Entscheidungen oben gelten für die ganze Stufe 2; Festlegung 1.8.113 Nr. 6
+(Konto der Monteurin mit Seitenleiste) ist damit ersetzt.
+
+### Teil 1 (1.8.161): Baustein ohne sichtbare Änderung
+
+- **`app/static/ds/ds-basis.css`** (neu): Grundregeln einer umgezogenen Seite -- Schrift (IBM Plex Sans, 15 px, Tablet 17 px), Farben
+  von Grund und Text, Titel in Archivo, `font:inherit` für Steuerelemente, Felder mit Rand `feld-rand` und Ecke 10 px (Tablet 12 px),
+  Links, Fokus. Jede Regel nur unter `.ds-seite` (die Klasse setzt eine Seite beim Umzug an ihr `<body>`, für das Tablet dazu
+  `.ds-tablet`); keine `--ds-*`-Werte, keine At-Regeln, kein `!important`. `_ds_kopf.html` bindet sie auf jeder Seite nach `ds.css` ein
+  -- ohne `.ds-seite` wirkt nichts. Regel 37 für `ds.css` bleibt.
+- **`ds.css`**: Werte nach den Entscheidungen -- `--ds-groesse-9` (Seitentitel) 30 statt 38 px, neu `--ds-groesse-9-tablet` 26 px;
+  `--ds-ecke-tablet` (20 px) ersetzt durch `--ds-ecke-tablet-feld` 12 px und `--ds-ecke-tablet-karte` 16 px. Dazu Regeln für Bausteine,
+  alle mit einer `.ds-`-Klasse als Ziel (Regel 37): Seitenkopf `.ds-kopf…`, Knöpfe `.ds-knopf`, `.ds-knopf-aktion` (Hauptaktion in
+  `--ds-aktion`), `.ds-knopf-symbol`, Menü `.ds-menue`, `.ds-menue-eintrag`, Status `.ds-status-<art>`. Jede setzt ihre Maße selbst
+  (Höhe, Breite, Hintergrund, Schrift), damit Element-Regeln einer Seite sie nicht verschieben. Leere Teile des Kopfes blendet `:empty` aus.
+- **Makro `app/templates/teile/seitenkopf.html`**: `{% call(teil) seitenkopf(titel, untertitel, kennung, mit_pfad, mit_aktion,
+  mit_menue) %}` -- Pfad (`nav`, aria-label), Kennung, genau ein h1, Status (`role="status"`), Untertitel, Hauptaktion, Menü „⋮“
+  (`aria-haspopup`, `aria-expanded`, `aria-controls`). Pfad-Links, Hauptaktion und Menüeinträge schreibt die Seite wörtlich in den
+  Aufruf -- so bleibt die Makro-Regel (kein Jinja in `href`/`type`/`on…` im Makro) eingehalten und die Scanner sehen sie.
+- **`_seitenkopf.html`**: `seitenkopf({kennung, titel, untertitel, status, pfad})` für Köpfe, deren Daten nachgeladen werden -- Text nur
+  über `textContent`, Links über `sichererLink()`, Status-Art aus fester Liste (`neutral`, `info`, `ok`, `warn`, `fehler`, `signal`),
+  Trenner „/“, letztes Glied ohne Link mit `aria-current="page"`. Importiert das Makro (sonst zählte `seiten()` es als 54. Seite).
+- **`_menue.html`** (neu): `dsMenue(knopf, liste)` -- eine Umsetzung für das Menü „⋮“ und die Kontomenüs (Teil 3 und 4), nach dem
+  Muster „Menu Button“: role `menu`/`menuitem`, aria, Klick/Enter öffnen mit Fokus auf dem ersten Eintrag, Pfeile, Pos1/Ende, Escape
+  schließt mit Fokus zurück, Tab und Klick daneben schließen.
+- **`bereich` je Seite**: jede der 42 Seiten mit Seitenleiste beginnt mit `{% set bereich = "…" -%}` (Teil 2 markiert danach den
+  Eintrag); das `-` vor `%}` nimmt den Zeilenumbruch mit, die Seite beginnt weiter mit `<!doctype html>`. Zuordnung: Projektmappe,
+  Angebot, Auftrag, Arbeitsvorbereitung, Einsatzbericht, Rechnung → `projekte`; Wartungsvertrag, Prüfvorlagen, Prüfvorlage →
+  `wartungen`; Kunde, Objekt, Dachfläche, Betriebsmittel, Leistungskatalog → `stammdaten`; Benutzer, Änderungshistorie, Adressimport,
+  Versandprotokoll, Changelog → `einstellungen`; Checklisten-Seiten → `checklisten`; Suche, Konto → `keiner`; sonst der eigene Eintrag.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v441_rahmen_baustein.py` (26 Tests): Wächter `ds-basis.css` (nur unter `.ds-seite`, keine Werte, keine At-Regeln, kein
+  `!important`; 7 Gegenbeispiele, ein Durchlass), auf jeder Seite einmal nach `ds.css` geladen, noch keine Seite mit `.ds-seite`
+  (`UMGEZOGEN`); Makro gerendert mit allen und ohne Teile (ein h1, IDs, aria, Text maskiert), Makro-Regel; `dsMenue()` und
+  `seitenkopf()` in node mit einem kleinen DOM-Nachbau (Tastatur, aria, schließen; Text als Text, `javascript:` → `#`, unbekannte
+  Art → neutral, nur genannte Teile ändern sich); `bereich` auf allen 42 Seiten mit Leiste, auf keiner ohne, als erste Anweisung
+  (4 Gegenbeispiele); Seiten beginnen weiter mit `<!doctype html>`.
+- **Gegenproben** (Regel 24, je Datei byte-genau zurück): Regel ohne `.ds-seite` in `ds-basis.css`; Seite ohne `bereich`; Menüknopf
+  ohne `aria-expanded`; Escape ohne Fokus zurück; Titel als HTML; Pfad ohne `sichererLink()` -- 6 von 6 rot, je mit `test_v357`.
+- **Angepasste Erwartung** (Regel 28): `tests/test_v432_design_fundament.py::test_ds_kopf_bindet_nur_ds_css_mit_version_ein` -- alt
+  genau ein Link (`ds.css`), neu zwei (`ds.css`, danach `ds-basis.css`).
+
+#### Festlegungen 1.8.161 (Bitte bestätigen)
+
+1. **`ds-basis.css` lädt jede Seite**, wirksam erst mit `.ds-seite` am `<body>` -- kein Umschalten der Links beim Umzug.
+2. **Tablet-Werte als eigene Token**: `--ds-groesse-9-tablet` 26 px, `--ds-ecke-tablet-feld` 12 px, `--ds-ecke-tablet-karte` 16 px;
+   die Seite schaltet sie mit `.ds-tablet` zu.
+3. **Bausteine in `ds.css`** (Seitenkopf, Knopf, Menü, Status) -- erlaubt nach Regel 37, weil jedes Ziel eine `.ds-`-Klasse trägt;
+   Seitenleiste, Kopfzeile und Monteurskopf behalten ihre Regeln im eigenen Baustein (sie brauchen `@media`, das `ds.css` nicht zulässt).
+4. **Pfad-Trenner „/“** (bisher „·“ auf 8 und „/“ auf 2 Seiten).
+5. **Ein Menü für alle**: `_menue.html` für „⋮“ und die Kontomenüs.
+6. **`bereich` als erste Anweisung der Vorlage**, Zuordnung wie oben (Prüfvorlagen unter Wartungen, Leistungskatalog unter Stammdaten,
+   die System-Seiten unter Einstellungen, Suche und Konto ohne Bereich).

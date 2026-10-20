@@ -4,10 +4,12 @@
    aus der Vorgabe ds-tokens.css, seit 1.8.155 Firmengrün als
    Hauptaktion: --ds-aktion*, --ds-marke-hell, --ds-ok* = aktion*)
 
-   Diese Datei setzt nur --ds-*-Eigenschaften und @font-face. Sie
-   zeichnet selbst nichts und verändert keine bestehende Seite. Kein
-   color-scheme, keine Element-Selektoren, keine Klassen ohne .ds-
-   (Wächter: tests/test_v432_design_fundament.py).
+   Diese Datei setzt --ds-*-Eigenschaften, @font-face und (seit 1.8.161)
+   Regeln für Bausteine, deren Ziel eine Klasse .ds-… trägt -- eine Seite
+   ohne diese Klassen bleibt unverändert. Kein color-scheme, keine
+   Element-Selektoren, keine At-Regeln außer @font-face (Wächter:
+   tests/test_v432_design_fundament.py). Grundregeln für Schrift und
+   Steuerelemente einer umgezogenen Seite: ds-basis.css (.ds-seite).
 
    Prüfpaare für den Kontrasttest (je hell und dunkel):
    Text mindestens 4,5 : 1
@@ -99,7 +101,8 @@
   --ds-groesse-6: 19px;         /* Kartentitel */
   --ds-groesse-7: 24px;         /* Abschnittstitel Tablet */
   --ds-groesse-8: 30px;         /* Kennzahlen */
-  --ds-groesse-9: 38px;         /* Seitentitel */
+  --ds-groesse-9: 30px;         /* Seitentitel Büro -- seit 1.8.161 (vorher 38) */
+  --ds-groesse-9-tablet: 26px;  /* Seitentitel Tablet -- seit 1.8.161 */
 
   /* Abstände (Raster 4 px) */
   --ds-abstand-1: 4px;
@@ -113,7 +116,8 @@
   /* Ecken */
   --ds-ecke-feld: 10px;         /* Knöpfe, Eingabefelder */
   --ds-ecke-karte: 12px;
-  --ds-ecke-tablet: 20px;
+  --ds-ecke-tablet-feld: 12px;  /* Tablet: Knöpfe, Eingabefelder -- seit 1.8.161 (vorher ein Wert, 20) */
+  --ds-ecke-tablet-karte: 16px; /* Tablet: Karten -- seit 1.8.161 */
   --ds-ecke-rund: 999px;        /* Status-Kennzeichen */
 
   /* Mindestgröße von Klickflächen */
@@ -325,4 +329,280 @@
   font-display: swap;
   src: url("schriften/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* =====================================================================
+   Bausteine (seit 1.8.161, Stufe 2 „Rahmen“): Regeln nur auf .ds-Klassen
+   (Regel 37) -- Seitenkopf (app/templates/teile/seitenkopf.html,
+   _seitenkopf.html), Knöpfe, Menü (_menue.html), Status-Kennzeichen.
+   Eine Seite, die keine dieser Klassen trägt, bleibt unverändert. Jede
+   Regel setzt ihre Maße selbst (Höhe, Breite, Hintergrund, Schrift):
+   Element-Regeln einer Seite (button{…}) sollen sie nicht verschieben.
+   ===================================================================== */
+
+.ds-kopf {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-abstand-2);
+  margin: 0 0 var(--ds-abstand-5);
+  font-family: var(--ds-schrift-text);
+  color: var(--ds-text);
+}
+
+.ds-kopf-pfad {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-abstand-2);
+  font-size: var(--ds-groesse-2);
+  color: var(--ds-text-3);
+}
+
+.ds-kopf-pfad:empty {
+  display: none;
+}
+
+.ds-kopf-pfadglied {
+  color: var(--ds-link);
+  text-decoration: none;
+}
+
+.ds-kopf-pfadglied:hover {
+  color: var(--ds-link-hover);
+  text-decoration: underline;
+}
+
+.ds-kopf-pfadende,
+.ds-kopf-trenner {
+  color: var(--ds-text-3);
+}
+
+.ds-kopf-zeile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--ds-abstand-4);
+}
+
+.ds-kopf-text {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.ds-kopf-kennung {
+  margin: 0 0 var(--ds-abstand-1);
+  font-family: var(--ds-schrift-mono);
+  font-size: var(--ds-groesse-1);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--ds-text-3);
+}
+
+.ds-kopf-kennung:empty {
+  display: none;
+}
+
+.ds-kopf-titelzeile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-abstand-3);
+}
+
+.ds-kopf-titel {
+  margin: 0;
+  font-family: var(--ds-schrift-titel);
+  font-size: var(--ds-groesse-9);
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--ds-text);
+}
+
+.ds-tablet .ds-kopf-titel {
+  font-size: var(--ds-groesse-9-tablet);
+}
+
+.ds-kopf-untertitel {
+  margin: var(--ds-abstand-1) 0 0;
+  font-size: var(--ds-groesse-3);
+  color: var(--ds-text-2);
+}
+
+.ds-kopf-untertitel:empty {
+  display: none;
+}
+
+.ds-kopf-aktionen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-abstand-2);
+}
+
+.ds-kopf-menue {
+  position: relative;
+}
+
+.ds-status {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: var(--ds-ecke-rund);
+  font-family: var(--ds-schrift-text);
+  font-size: var(--ds-groesse-2);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.ds-status:empty {
+  display: none;
+}
+
+.ds-status-neutral {
+  background: var(--ds-flaeche-2);
+  color: var(--ds-text-2);
+}
+
+.ds-status-info {
+  background: var(--ds-info-hell);
+  color: var(--ds-info-text);
+}
+
+.ds-status-ok {
+  background: var(--ds-ok-hell);
+  color: var(--ds-ok-text);
+}
+
+.ds-status-warn {
+  background: var(--ds-warn-hell);
+  color: var(--ds-warn-text);
+}
+
+.ds-status-fehler {
+  background: var(--ds-fehler-hell);
+  color: var(--ds-fehler-text);
+}
+
+.ds-status-signal {
+  background: var(--ds-signal-hell);
+  color: var(--ds-signal-text);
+}
+
+.ds-knopf {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ds-abstand-2);
+  box-sizing: border-box;
+  width: auto;
+  min-width: 0;
+  height: 40px;
+  min-height: 40px;
+  margin: 0;
+  padding: 0 var(--ds-abstand-4);
+  border: 1px solid var(--ds-linie-stark);
+  border-radius: var(--ds-ecke-feld);
+  background: var(--ds-flaeche);
+  color: var(--ds-text);
+  font-family: var(--ds-schrift-text);
+  font-size: var(--ds-groesse-3);
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ds-knopf:hover {
+  background: var(--ds-flaeche-2);
+}
+
+.ds-knopf:focus-visible {
+  outline: 2px solid var(--ds-fokus);
+  outline-offset: 2px;
+}
+
+.ds-knopf-aktion {
+  border-color: var(--ds-aktion);
+  background: var(--ds-aktion);
+  color: var(--ds-auf-aktion);
+}
+
+.ds-knopf-aktion:hover {
+  background: var(--ds-aktion);
+  filter: brightness(0.92);
+}
+
+.ds-knopf-symbol {
+  width: 40px;
+  padding: 0;
+}
+
+.ds-menue {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 50;
+  box-sizing: border-box;
+  min-width: 220px;
+  margin: 0;
+  padding: var(--ds-abstand-1);
+  border: 1px solid var(--ds-linie);
+  border-radius: var(--ds-ecke-karte);
+  background: var(--ds-flaeche);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  font-family: var(--ds-schrift-text);
+}
+
+.ds-menue[hidden] {
+  display: none;
+}
+
+.ds-menue-kopf {
+  margin: 0 0 var(--ds-abstand-1);
+  padding: var(--ds-abstand-2) var(--ds-abstand-3);
+  border-bottom: 1px solid var(--ds-linie);
+  font-size: var(--ds-groesse-3);
+  font-weight: 600;
+  color: var(--ds-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ds-menue-eintrag {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-abstand-2);
+  box-sizing: border-box;
+  width: 100%;
+  height: 40px;
+  min-height: 40px;
+  margin: 0;
+  padding: 0 var(--ds-abstand-3);
+  border: 0;
+  border-radius: var(--ds-ecke-feld);
+  background: transparent;
+  color: var(--ds-text);
+  font-family: var(--ds-schrift-text);
+  font-size: var(--ds-groesse-3);
+  font-weight: 500;
+  line-height: 1;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ds-menue-eintrag:hover,
+.ds-menue-eintrag:focus-visible {
+  background: var(--ds-flaeche-2);
+  color: var(--ds-text);
+  outline: none;
+}
+
+.ds-menue-eintrag-fehler,
+.ds-menue-eintrag-fehler:hover {
+  color: var(--ds-fehler-text);
 }

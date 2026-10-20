@@ -1,0 +1,74 @@
+{#- Menü an einem Knopf (seit 1.8.161, Stufe 2 „Rahmen“): eine Umsetzung für das Menü „⋮“ im Seitenkopf (teile/seitenkopf.html) und
+    das Kontomenü in Kopfzeile und Monteurskopf. Mehrfach einbindbar (nur eine Funktionsdeklaration).
+
+    dsMenue(knopf, liste) macht aus einem Knopf und einer Liste mit Einträgen der Klasse .ds-menue-eintrag ein Menü nach dem Muster
+    „Menu Button“ der WAI-ARIA-Praxis: role="menu"/"menuitem", aria-haspopup, aria-expanded, aria-controls; Klick, Enter oder Leertaste
+    öffnen und setzen den Fokus auf den ersten Eintrag, Pfeil hoch/runter (auch am Knopf), Pos1/Ende wandern, Escape schließt und gibt
+    den Fokus an den Knopf zurück, Tab und ein Klick daneben schließen. Ein Klick auf einen Eintrag schließt das Menü, die Aktion des
+    Eintrags meldet die Seite selbst an. Gibt {oeffnen, schliessen} zurück; ein zweiter Aufruf am selben Knopf tut nichts.
+    tests/test_v441_rahmen_baustein.py prüft das in node. -#}
+<script>
+function dsMenue(knopf, liste) {
+  if (!knopf || !liste || knopf.getAttribute('data-ds-menue') === 'an') return null;
+  knopf.setAttribute('data-ds-menue', 'an');
+  const eintraege = () => Array.from(liste.querySelectorAll('.ds-menue-eintrag')).filter((e) => !e.hidden && !e.disabled);
+  liste.setAttribute('role', 'menu');
+  for (const e of liste.querySelectorAll('.ds-menue-eintrag')) {
+    e.setAttribute('role', 'menuitem');
+    e.setAttribute('tabindex', '-1');
+  }
+  knopf.setAttribute('aria-haspopup', 'menu');
+  knopf.setAttribute('aria-expanded', 'false');
+  if (liste.id) knopf.setAttribute('aria-controls', liste.id);
+  const offen = () => !liste.hidden;
+  const schliessen = (fokusZurueck) => {
+    if (!offen()) return;
+    liste.hidden = true;
+    knopf.setAttribute('aria-expanded', 'false');
+    if (fokusZurueck) knopf.focus();
+  };
+  const oeffnen = (wohin) => {
+    liste.hidden = false;
+    knopf.setAttribute('aria-expanded', 'true');
+    const es = eintraege();
+    if (es.length) (wohin === 'ende' ? es[es.length - 1] : es[0]).focus();
+  };
+  knopf.addEventListener('click', () => (offen() ? schliessen(false) : oeffnen('anfang')));
+  knopf.addEventListener('keydown', (ev) => {
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+      ev.preventDefault();
+      oeffnen(ev.key === 'ArrowUp' ? 'ende' : 'anfang');
+    }
+  });
+  liste.addEventListener('keydown', (ev) => {
+    const es = eintraege();
+    if (!es.length) return;
+    const i = es.indexOf(document.activeElement);
+    if (ev.key === 'Escape') {
+      ev.preventDefault();
+      schliessen(true);
+    } else if (ev.key === 'ArrowDown') {
+      ev.preventDefault();
+      es[(i + 1) % es.length].focus();
+    } else if (ev.key === 'ArrowUp') {
+      ev.preventDefault();
+      es[(i - 1 + es.length) % es.length].focus();
+    } else if (ev.key === 'Home') {
+      ev.preventDefault();
+      es[0].focus();
+    } else if (ev.key === 'End') {
+      ev.preventDefault();
+      es[es.length - 1].focus();
+    } else if (ev.key === 'Tab') {
+      schliessen(false);
+    }
+  });
+  liste.addEventListener('click', (ev) => {
+    if (ev.target && ev.target.closest && ev.target.closest('.ds-menue-eintrag')) schliessen(false);
+  });
+  document.addEventListener('click', (ev) => {
+    if (offen() && !knopf.contains(ev.target) && !liste.contains(ev.target)) schliessen(false);
+  });
+  return { oeffnen, schliessen };
+}
+</script>

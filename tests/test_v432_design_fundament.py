@@ -540,8 +540,10 @@ def test_jede_seite_bindet_den_ds_kopf_vor_ihrem_stil_ein():
 
 
 def test_ds_kopf_bindet_nur_ds_css_mit_version_ein():
+    """Seit 1.8.161 dazu ds-basis.css (Grundregeln nur unter .ds-seite, tests/test_v441_rahmen_baustein.py) -- nach ds.css."""
     text = _ohne_jinja_kommentare((ROOT / "app" / "templates" / "_ds_kopf.html").read_text(encoding="utf-8")).strip()
-    assert text == '<link rel="stylesheet" href="/static/ds/ds.css?v={{ app_version }}">'
+    assert text.splitlines() == ['<link rel="stylesheet" href="/static/ds/ds.css?v={{ app_version }}">',
+                                 '<link rel="stylesheet" href="/static/ds/ds-basis.css?v={{ app_version }}">']
 
 
 def test_waechter_seite_ohne_ds_kopf(tmp_path):
