@@ -159,7 +159,7 @@ def test_search_slot_carries_the_office_search_for_admin_and_office():
         user.username = "test.nutzer"
         html = _render(user=user)
         start = html.index('<div class="app-topbar-search-slot">')
-        end = html.index('<div class="app-topbar-account">', start)
+        end = html.index('<div class="app-konto">', start)  # seit 1.8.163 (bis dahin app-topbar-account)
         slot = html[start:end]
         assert 'id="appTopbarSearchInput"' in slot, role
         assert 'id="appTopbarSearchResults"' in slot, role
@@ -173,30 +173,50 @@ def test_search_slot_is_empty_for_field():
         username = "monteur"
     html = _render(user=_FieldUser())
     start = html.index('<div class="app-topbar-search-slot">')
-    end = html.index('<div class="app-topbar-account">', start)
+    end = html.index('<div class="app-konto">', start)  # seit 1.8.163 (bis dahin app-topbar-account)
     slot = html[start:end]
     assert "appTopbarSearchInput" not in slot
 
 
-def test_account_button_shows_the_resolved_initials():
+def test_account_button_shows_initials_and_full_name_since_1_8_163():
+    """Bis 1.8.162 ein runder Knopf nur mit den Initialen (Name erst im Menü). Seit 1.8.163 (Stufe 2 „Rahmen“, Teil 3): Initialen im
+    Kreis und daneben der volle Name, im Knopf selbst; aria-label und title nennen den Namen auch, wo er schmal ausgeblendet ist."""
     html = _render(account={"full_name": "Tobias Rödchen", "initials": "TR"})
-    assert '<button type="button" class="app-topbar-account-btn" id="appTopbarAccountBtn"' in html
-    btn_start = html.index('id="appTopbarAccountBtn"')
-    btn_end = html.index("</button>", btn_start)  # index() zeigt auf das "<" von "</button>"
-    assert html[btn_start:btn_end].endswith(">TR")
+    start = html.rindex("<button", 0, html.index('id="appTopbarAccountBtn"'))
+    knopf = html[start:html.index("</button>", start)]
+    assert 'class="app-konto-knopf"' in knopf
+    assert 'aria-label="Konto: Tobias Rödchen"' in knopf and 'title="Tobias Rödchen"' in knopf
+    assert '<span class="app-konto-initialen" aria-hidden="true">TR</span>' in knopf
+    assert '<span class="app-konto-name">Tobias Rödchen</span>' in knopf
+    assert 'aria-haspopup="menu"' in knopf and 'aria-expanded="false"' in knopf and 'aria-controls="appTopbarAccountMenu"' in knopf
 
 
-def test_account_menu_contains_full_name_account_link_and_logout():
+def test_account_menu_has_account_theme_and_logout_since_1_8_163():
+    """Bis 1.8.162: Name als Überschrift, Mein Konto, Hell/Dunkel, Abmelden. Seit 1.8.163 steht der Name im Knopf; das Menü hat genau
+    Mein Konto · Hell/Dunkel · Abmelden als Einträge des Bausteins (dsMenue(), Tastatur und aria -- in node geprüft in
+    tests/test_v441_rahmen_baustein.py::test_dsmenue_tastatur_aria_und_schliessen)."""
+    import re as _re
     html = _render(account={"full_name": "Tobias Rödchen", "initials": "TR"})
-    menu_start = html.index('id="appTopbarAccountMenu"')
-    first_inner_div_close = html.index("</div>", menu_start)  # schliesst .app-topbar-account-name
-    menu_end = html.index("</div>", first_inner_div_close + 1)  # schliesst .app-topbar-account-menu selbst
-    menu = html[menu_start:menu_end]
-    assert "Tobias Rödchen" in menu
-    assert 'href="/account"' in menu
-    assert "Mein Konto" in menu
-    assert 'id="appTopbarLogout"' in menu
-    assert "Abmelden" in menu
+    start = html.rindex("<div", 0, html.index('id="appTopbarAccountMenu"'))
+    kopf = html[start:html.index(">", start)]
+    assert 'class="ds-menue"' in kopf and 'role="menu"' in kopf and " hidden" in kopf
+    menu = html[start:html.index("</div>", start)]
+    eintraege = _re.findall(r'<(a|button) [^>]*class="ds-menue-eintrag"[^>]*>(.*?)</\1>', menu, flags=_re.S)
+    texte = [_re.sub(r"<[^>]+>", "", inhalt).strip() for _, inhalt in eintraege]
+    assert texte == ["Mein Konto", "Hell/Dunkel", "Abmelden"]
+    assert 'href="/account"' in menu and 'id="appThemeToggle"' in menu and 'id="appTopbarLogout"' in menu
+    assert "Tobias Rödchen" not in menu
+
+
+def test_account_menu_is_wired_through_the_menu_baustein():
+    """Das Kontomenü nutzt dsMenue() aus _menue.html (eine Umsetzung für Tastatur und aria), keine eigene Klick-Logik mehr."""
+    vorlagen = Path(__file__).parents[1] / "app" / "templates"
+    assert vorlagen_js.bindet_ein("_topbar.html", "_kontomenue.html", vorlagen, nur_selbst=True)
+    assert vorlagen_js.bindet_ein("_kontomenue.html", "_menue.html", vorlagen, nur_selbst=True)
+    konto = (vorlagen / "_kontomenue.html").read_text(encoding="utf-8")
+    assert "dsMenue(knopf,menue)" in konto
+    assert "localStorage.setItem('erp_theme'" in konto
+    assert "speichern('abmelden',()=>fetch('/api/auth/logout',{method:'POST'}))" in konto
 
 
 def test_no_account_button_when_not_authenticated():
@@ -208,10 +228,16 @@ def test_no_account_button_when_not_authenticated():
 
 
 def test_topbar_is_sticky_and_uses_design_system_variables_only():
+    """Seit 1.8.163 aus den --ds-*-Werten (bis dahin --card/--line der Seite) und ohne die Akzentfarbe -- die färbt die Oberfläche
+    nicht mehr (Entscheidung Stufe 2)."""
     html = _render()
     assert ".app-topbar{position:sticky;top:0" in html
-    assert "background:var(--card)" in html
-    assert "border-bottom:1px solid var(--line)" in html
+    assert "background:var(--ds-flaeche)" in html
+    assert "border-bottom:1px solid var(--ds-linie)" in html
+    for datei in ("_topbar.html", "_kontomenue.html"):
+        text = (Path(__file__).parents[1] / "app" / "templates" / datei).read_text(encoding="utf-8")
+        css = text[text.index("<style>"):text.index("</style>")]
+        assert "--accent" not in css and "var(--card)" not in css and "var(--line)" not in css, datei
     # Keine im Hex-Code fest eingetragene, projektfremde Farbe im Topbar-Regelsatz -- "#fff" für
     # Text auf Akzentfarbe ist die bereits im ganzen Projekt etablierte Konvention (z. B.
     # settings.html: "button{background:var(--accent);color:#fff;...}"), keine neue Erfindung.
@@ -219,6 +245,44 @@ def test_topbar_is_sticky_and_uses_design_system_variables_only():
     topbar_css_end = html.index("</style>", topbar_css_start)
     topbar_css = html[topbar_css_start:topbar_css_end]
     assert topbar_css.count("#") == topbar_css.count("#fff")
+
+
+def test_topbar_is_64px_with_a_480px_search_and_the_initials_in_aktion():
+    """Vorgabe Stufe 2, Runde 1, Teil 3: Kopfzeile 64 px, Suche 480 px breit, Initialen im Kreis in --ds-aktion."""
+    html = _render()
+    regel = html[html.index(".app-topbar{"):html.index("}", html.index(".app-topbar{"))]
+    assert "box-sizing:border-box" in regel and "height:64px" in regel
+    assert ".app-topbar-search{position:relative;width:100%;max-width:480px}" in html
+    kreis = html[html.index(".app-konto .app-konto-initialen{"):]
+    kreis = kreis[:kreis.index("}")]
+    assert "border-radius:50%" in kreis and "background:var(--ds-aktion)" in kreis and "color:var(--ds-auf-aktion)" in kreis
+
+
+def test_page_button_rules_do_not_reach_the_head():
+    """34 Seiten haben button:hover, eine button:active (Spezifität 0,1,1) -- eine Regel mit nur einer Klasse (0,1,0) verlöre gegen sie,
+    der Kontoknopf färbte sich dann in der Akzentfarbe. Darum trägt jede Regel an einem Knopf oder Feld des Kopfs zwei Klassen, und
+    ds.css hat :active für Knopf und Menüeintrag."""
+    import re as _re
+    vorlagen = Path(__file__).parents[1] / "app" / "templates"
+    for datei in ("_topbar.html", "_kontomenue.html"):
+        text = (vorlagen / datei).read_text(encoding="utf-8")
+        css = _re.sub(r"/\*.*?\*/", "", text[text.index("<style>") + 7:text.index("</style>")], flags=_re.S)
+        css = _re.sub(r"@media[^{]*\{", "", css)
+        for selektoren in _re.findall(r"([^{}]+)\{", css):
+            for sel in selektoren.split(","):
+                if any(k in sel for k in ("app-konto-knopf", "app-topbar-menu-btn", "app-topbar-search input", "app-topbar-search-hit")):
+                    assert len(_re.findall(r"\.[\w-]+", sel)) >= 2, (datei, sel.strip())
+    ds = (Path(__file__).parents[1] / "app" / "static" / "ds" / "ds.css").read_text(encoding="utf-8")
+    assert ".ds-menue-eintrag:active" in ds and ".ds-knopf:active" in ds and ".ds-knopf-aktion:active" in ds
+
+
+def test_name_hidden_only_on_phones_and_only_in_the_office_topbar():
+    """Unter 600 px nur die Initialen (Festlegung 1.8.163) -- in der Kopfzeile der Büroseiten; der Monteurskopf (Teil 4) bindet dasselbe
+    Kontomenü ein und zeigt den Namen immer, darum steht die Regel in _topbar.html, nicht im Kontomenü."""
+    vorlagen = Path(__file__).parents[1] / "app" / "templates"
+    topbar = (vorlagen / "_topbar.html").read_text(encoding="utf-8")
+    assert "@media(max-width:599px){.app-topbar .app-konto-name,.app-topbar .app-konto-pfeil{display:none}" in topbar
+    assert "display:none" not in (vorlagen / "_kontomenue.html").read_text(encoding="utf-8").split("</style>")[0]
 
 
 # ---------------------------------------------------------------------------

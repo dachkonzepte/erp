@@ -515,8 +515,11 @@
   cursor: pointer;
 }
 
-.ds-knopf:hover {
+.ds-knopf:hover,
+.ds-knopf:active {
   background: var(--ds-flaeche-2);
+  color: var(--ds-text);
+  text-decoration: none;
 }
 
 .ds-knopf:focus-visible {
@@ -530,8 +533,10 @@
   color: var(--ds-auf-aktion);
 }
 
-.ds-knopf-aktion:hover {
+.ds-knopf-aktion:hover,
+.ds-knopf-aktion:active {
   background: var(--ds-aktion);
+  color: var(--ds-auf-aktion);
   filter: brightness(0.92);
 }
 
@@ -595,10 +600,13 @@
   cursor: pointer;
 }
 
+/* :hover und :active mit zwei Teilen (0,2,0) -- die Seiten haben button:hover/button:active (0,1,1), die sonst in Knopf und Menü greifen */
 .ds-menue-eintrag:hover,
+.ds-menue-eintrag:active,
 .ds-menue-eintrag:focus-visible {
   background: var(--ds-flaeche-2);
   color: var(--ds-text);
+  text-decoration: none;
   outline: none;
 }
 

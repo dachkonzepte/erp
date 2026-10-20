@@ -1,195 +1,84 @@
-{# _topbar.html -- Leiste oberhalb des Inhaltsbereichs (seit 1.3.45, "Umgestaltung der Sidebar",
-   Schritt 2/4, siehe CLAUDE.md). Wird als ERSTES Kind innerhalb von .app-content eingebunden --
-   also NACH {% include "_sidebar.html" %}, direkt hinter <div class="app-content">, VOR <main>
-   -- dadurch beginnt sie automatisch rechts neben der Sidebar (kein CSS-Sonderfall nötig: die
-   Sidebar ist ein eigener Flex-Nachbar von .app-content, die Topbar liegt INNERHALB von
-   .app-content). Bleibt beim Scrollen sichtbar über position:sticky;top:0 -- dieselbe Technik
-   wie .app-sidebar selbst (dort zusätzlich height:100vh, hier nicht nötig, da die Topbar nur
-   eine schmale Zeile ist, kein volles Rail).
+{# _topbar.html -- Kopfzeile über dem Inhaltsbereich der Büroseiten (seit 1.3.45), als erstes Kind von .app-content eingebunden, rechts
+   neben der Seitenleiste; bleibt beim Scrollen stehen (position:sticky). Die Monteursansicht hat ihren eigenen Kopf (_mobile_header.html).
 
-   Design-System: ausschließlich vorhandene --card/--line/--ink/--muted/--soft/--accent-
-   Variablen (dieselben, die jede Seite ohnehin in ihrem eigenen :root definiert, siehe
-   CLAUDE.md "Design-System") -- keine eigenen Farben.
-
-   Kollision mit der Sidebar geprüft, beide Zustände: eingeklappt (60px, Desktop) --
-   .app-content{flex:1} füllt automatisch den verbleibenden Platz, die Topbar (darin) beginnt
-   entsprechend weiter links, keine Überlappung. Schmaler Bildschirm (<1000px) -- .app-sidebar
-   wird dort position:fixed (siehe _sidebar.html), fällt dadurch aus der Flex-Berechnung von
-   .app-layout heraus, .app-content (und damit die Topbar) nimmt die volle Breite ein; eine
-   geöffnete Mobil-Sidebar (.mobile-open, z-index:40) legt sich beim Öffnen bewusst ÜBER die
-   Topbar (z-index hier niedriger, siehe unten) -- das ist das gewünschte Überlagern einer
-   Flyout-Schublade, keine kaputte Kollision.
-
-   Links: die Büro-Suche (seit 1.3.67, "Büro-Suche" -> "Etappe 2", siehe CLAUDE.md) --
-   .app-topbar-search-slot (flex:1, seit 1.3.45 reserviert) trägt jetzt das Eingabefeld samt
-   Vorschlagsliste. Vorschläge beim Tippen (300ms Debounce, Mindestlänge 2 -- dieselben Werte
-   wie die Monteurs-Suche in _mobile_header.html, absichtlich NICHT über den geteilten
-   _debounce.html-Helfer, sondern ein eigener, winziger Timer direkt in der bestehenden IIFE
-   unten: _topbar.html wird auf allen 31 Büro-Seiten eingebunden, von denen mindestens zwei
-   (roof_area.html, service_reports.html) _debounce.html bereits selbst einbinden -- ein
-   zusätzliches Include hier hätte die Funktion global doppelt definiert, exakt das Muster, das
-   seit 1.3.65 für die Monteurs-Kopfzeile bewusst vermieden wird). Ruft GET /api/search auf --
-   niemals den Monteurs-Suchendpunkt aus _mobile_header.html, der bleibt ausschließlich der
-   Monteurs-Suche vorbehalten (Separate-Endpunkt-Prinzip, siehe CLAUDE.md "Büro-Suche"). Ein Klick auf einen
-   Vorschlag führt direkt auf dessen url; Bestätigen (Enter) öffnet /suche?q=... -- die
-   Ergebnisseite mit Gruppen/Filtern/"weitere anzeigen" (app/templates/search_results.html).
-   Erscheint NICHT auf /mobil (siehe unten, "Erscheint NICHT auf /vor-ort") -- der Monteur hat
-   seine eigene, bereits bestehende Suche.
-
-   Mobiler Öffnen-Umschalter (#appTopbarMenuBtn, seit 1.3.46, echter Nebenbefund aus Schritt 2):
-   unterhalb des Umbruchpunkts (max-width:1000px, derselbe Wert wie _sidebar.html) gab es KEINEN
-   erreichbaren Weg, die Off-Canvas-Sidebar zu öffnen -- ihr einziger bisheriger Umschalter
-   (#appSidebarToggle) steckte selbst innerhalb von <aside class="app-sidebar">, die im
-   geschlossenen Zustand per transform komplett unsichtbar ist. Dieser neue Knopf steht deshalb
-   bewusst AUSSERHALB der Sidebar (hier, in .app-content) -- als erstes Kind von .app-topbar, VOR
-   dem Suchen-Platzhalter, damit er auch bei geschlossener Sidebar erreichbar bleibt. Erscheint
-   ausschließlich unterhalb des Umbruchpunkts (auf Desktop-Breite gibt es die Off-Canvas-Sidebar
-   gar nicht, dort bleibt der Knopf display:none) -- braucht dadurch auf Desktop-Breite keinen
-   Platz, der Suchen-Platzhalter bekommt seine volle Breite ungeschmälert. Bei der künftigen
-   Suche (Schritt 3) muss dieser reservierte 38px-Knopf links mitgedacht werden, nicht erst dann
-   entdeckt werden. Öffnet/schließt dieselbe Sidebar wie #appSidebarToggle (dasselbe Zustandspaar
-   .app-sidebar.mobile-open/#appSidebarScrim.visible) -- #appSidebarToggle blendet sich seither
-   unterhalb des Umbruchpunkts komplett aus (siehe _sidebar.html), damit nicht zwei Bedienungen
-   für dieselbe Aktion nebeneinanderstehen (dort gibt es ohnehin kein Kollabieren im
-   Desktop-Sinn, nur Auf/Zu). Schließen bei Klick auf den Hintergrund übernimmt weiterhin
-   _sidebar.html::scrim (unverändert) -- dieser Knopf synchronisiert dabei nur sein eigenes
-   aria-expanded, damit es nicht fälschlich "true" bleibt, wenn über den Hintergrund geschlossen
-   wurde.
-
-   Kontoknopf rechts: runde Schaltfläche mit den Initialen (account_display(current_user),
-   siehe app/auth.py::resolve_account_display() -- bevorzugt Employee.first_name/last_name über
-   AppUser.employee_id (seit 1.3.34), sonst der Benutzername). Klick öffnet ein Menü mit vollem
-   Namen als Überschrift, "Mein Konto" (-> /account) und "Abmelden" -- schließt bei Klick daneben
-   oder Escape. "Abmelden" dupliziert bewusst dieselben drei Zeilen wie
-   _sidebar.html::bindLogout() (kein gemeinsames JS-Modul in diesem Projekt, siehe an anderer
-   Stelle bereits etablierte Konvention) -- "Abmelden" bleibt dabei ZUSÄTZLICH unten in der
-   Sidebar bestehen (zwei Wege schaden nicht, siehe CLAUDE.md).
-
-   Erscheint NICHT auf /vor-ort -- _mobile_header.html hat seit 1.3.0 einen eigenen, bewusst
-   schmal gehaltenen Aufbau und bindet dieses Include nicht ein.
-
-   Ohne angemeldeten Benutzer bleibt der Kontobereich rechts leer (praktisch nie der Fall, jede
-   Seite mit Topbar verlangt ohnehin eine Anmeldung) -- defensiv statt eines leeren/kaputten
-   Knopfes. #}
+   Seit 1.8.163 (Stufe 2 „Rahmen“, Runde 1, Teil 3; Befund docs/archiv/befund-rahmen.md):
+   - 64 px hoch, Farben aus den --ds-*-Werten (Fläche, Linie, Text) -- nicht mehr aus den Variablen der Seite, nicht aus der Akzentfarbe.
+   - Links der Menüknopf (#appTopbarMenuBtn, seit 1.8.162 auch am Desktop): breit klappt er die Seitenleiste ein und aus (gemerkt in
+     localStorage erp_sidebar_collapsed), schmal (bis 1000 px, derselbe Umbruch wie _sidebar.html) öffnet er sie über dem Inhalt. Er steht
+     außerhalb der Leiste, damit er auch bei geschlossener Leiste erreichbar ist (Fund 1.3.46).
+   - Die Büro-Suche (seit 1.3.67), 480 px breit: Vorschläge ab zwei Zeichen nach 300 ms (GET /api/search), Enter öffnet /suche?q=…; für
+     die Monteurin nicht im Markup (sie hat ihre eigene Suche im Monteurskopf).
+   - Rechts der Kontoknopf: Initialen im Kreis in --ds-aktion und der volle Name (account_display(), app/auth.py::resolve_account_display()
+     -- Vor- und Nachname des verknüpften Mitarbeiters, sonst der Benutzername; schmal unter 600 px nur die Initialen). Menü über
+     _kontomenue.html: Mein Konto, Hell/Dunkel, Abmelden -- mit Tastatur und aria (dsMenue(), _menue.html).
+   Ohne angemeldeten Benutzer kein Kontoknopf. #}
 {% set current_user = request.state.erp_user %}
-{% set _account = account_display(current_user) %}
 <style>
-.app-topbar{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 20px;background:var(--card);border-bottom:1px solid var(--line)}
-.app-topbar-menu-btn{display:flex;flex:0 0 auto;width:38px;height:38px;border:1px solid var(--line);background:none;color:var(--ink);cursor:pointer;align-items:center;justify-content:center;padding:0}
-.app-topbar-menu-btn:hover{background:var(--soft)}
-.app-topbar-menu-btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
-.app-topbar-menu-btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.app-topbar{position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:16px;box-sizing:border-box;height:64px;padding:0 20px;background:var(--ds-flaeche);border-bottom:1px solid var(--ds-linie);color:var(--ds-text);font-family:var(--ds-schrift-text);font-size:14px;line-height:1.3}
+.app-topbar .app-topbar-menu-btn{display:flex;align-items:center;justify-content:center;box-sizing:border-box;flex:0 0 40px;width:40px;height:40px;min-height:40px;margin:0;padding:0;border:1px solid var(--ds-linie-stark);border-radius:var(--ds-ecke-feld);background:var(--ds-flaeche);color:var(--ds-text);cursor:pointer}
+.app-topbar .app-topbar-menu-btn:hover{background:var(--ds-flaeche-2)}
+.app-topbar .app-topbar-menu-btn:focus-visible{outline:2px solid var(--ds-fokus);outline-offset:2px}
+.app-topbar .app-topbar-menu-btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .app-topbar-search-slot{flex:1;min-width:0}
 .app-topbar-search{position:relative;width:100%;max-width:480px}
-.app-topbar-search input{width:100%;box-sizing:border-box;padding:8px 12px;font-size:14px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
-.app-topbar-search input:focus{outline:2px solid var(--accent);outline-offset:-1px}
-.app-topbar-search-results{position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--card);border:1px solid var(--line);box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:20;max-height:70vh;overflow-y:auto}
+.app-topbar-search-lupe{position:absolute;left:12px;top:50%;width:16px;height:16px;margin-top:-8px;color:var(--ds-text-3);pointer-events:none}
+.app-topbar-search-lupe svg{display:block;width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round}
+.app-topbar .app-topbar-search input{display:block;box-sizing:border-box;width:100%;height:40px;margin:0;padding:0 12px 0 36px;border:1px solid var(--ds-feld-rand);border-radius:var(--ds-ecke-feld);background:var(--ds-flaeche);color:var(--ds-text);font-family:var(--ds-schrift-text);font-size:14px}
+.app-topbar .app-topbar-search input::placeholder{color:var(--ds-text-3)}
+.app-topbar .app-topbar-search input:focus{outline:2px solid var(--ds-fokus);outline-offset:1px}
+.app-topbar-search-results{position:absolute;left:0;right:0;top:calc(100% + 6px);box-sizing:border-box;background:var(--ds-flaeche);border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-karte);box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:20;max-height:70vh;overflow-y:auto;padding:4px}
 .app-topbar-search-results[hidden]{display:none}
-.app-topbar-search-hit{display:block;padding:9px 12px;text-decoration:none;color:var(--ink);border-bottom:1px solid var(--line)}
-.app-topbar-search-hit:last-child{border-bottom:none}
-.app-topbar-search-hit:hover,.app-topbar-search-hit:focus{background:var(--soft)}
-.app-topbar-search-hit .grp{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:var(--muted)}
-.app-topbar-search-hit .ttl{font-weight:700;font-size:14px}
-.app-topbar-search-hit .sub{color:var(--muted);font-size:12.5px;margin-top:1px}
-.app-topbar-search-note{padding:9px 12px;color:var(--muted);font-size:12.5px}
-.app-topbar-account{position:relative;flex:0 0 auto}
-.app-topbar-account-btn{width:38px;height:38px;border-radius:50%;background:var(--accent);color:#fff;border:0;font-weight:800;font-size:13px;letter-spacing:.02em;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
-.app-topbar-account-btn:hover{background:color-mix(in srgb,var(--accent) 85%,black)}
-.app-topbar-account-btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
-.app-topbar-account-menu{position:absolute;top:calc(100% + 8px);right:0;min-width:200px;background:var(--card);border:1px solid var(--line);box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:45;padding:6px}
-.app-topbar-account-menu[hidden]{display:none}
-.app-topbar-account-name{padding:8px 10px;font-weight:800;color:var(--ink);font-size:13px;border-bottom:1px solid var(--line);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.app-topbar-account-menu a,.app-topbar-account-menu button{display:block;width:100%;text-align:left;padding:9px 10px;font:inherit;font-size:13.5px;font-weight:650;color:var(--ink);background:none;border:0;text-decoration:none;cursor:pointer;box-sizing:border-box}
-.app-topbar-account-menu a:hover,.app-topbar-account-menu button:hover{background:var(--soft)}
-@media(max-width:1000px){.app-topbar{padding:10px 16px}}
+.app-topbar .app-topbar-search-hit{display:block;padding:8px 10px;border-radius:var(--ds-ecke-feld);text-decoration:none;color:var(--ds-text)}
+.app-topbar .app-topbar-search-hit:hover,.app-topbar .app-topbar-search-hit:focus{background:var(--ds-flaeche-2);outline:none}
+.app-topbar-search-hit .grp{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ds-text-3)}
+.app-topbar-search-hit .ttl{font-weight:600;font-size:14px}
+.app-topbar-search-hit .sub{color:var(--ds-text-2);font-size:13px;margin-top:1px}
+.app-topbar-search-note{padding:9px 12px;color:var(--ds-text-2);font-size:13px}
+.app-topbar .app-konto-knopf:hover{background:var(--ds-flaeche-2)}
+@media(max-width:1000px){.app-topbar{gap:10px;padding:0 12px}}
+/* schmal (Telefon) nur die Initialen -- der volle Name bleibt in aria-label und title des Knopfs */
+@media(max-width:599px){.app-topbar .app-konto-name,.app-topbar .app-konto-pfeil{display:none}.app-topbar .app-konto .app-konto-knopf{padding:0 4px}}
 </style>
 <div class="app-topbar">
   <button type="button" class="app-topbar-menu-btn" id="appTopbarMenuBtn" aria-label="Navigation ein- und ausblenden" title="Navigation ein- und ausblenden" aria-controls="appSidebar" aria-expanded="true"><svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></button>
   <div class="app-topbar-search-slot">
     {% if current_user and current_user.role in ("admin", "buero_finanzen", "buero_auftrag") %}
-    <div class="app-topbar-search">
+    <div class="app-topbar-search" role="search">
+      <span class="app-topbar-search-lupe" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><line x1="16" y1="16" x2="20.5" y2="20.5"/></svg></span>
       <input type="search" id="appTopbarSearchInput" placeholder="Suchen (Kunden, Aufträge, Rechnungen, …) …" autocomplete="off" aria-label="Suche">
       <div class="app-topbar-search-results" id="appTopbarSearchResults" hidden></div>
     </div>
     {% endif %}
   </div>
-  <div class="app-topbar-account">
-    {% if current_user %}
-    <button type="button" class="app-topbar-account-btn" id="appTopbarAccountBtn" aria-haspopup="true" aria-expanded="false" title="{{ _account.full_name }}">{{ _account.initials }}</button>
-    <div class="app-topbar-account-menu" id="appTopbarAccountMenu" hidden>
-      <div class="app-topbar-account-name">{{ _account.full_name }}</div>
-      <a href="/account">Mein Konto</a>
-      <button type="button" id="appThemeToggle">Hell/Dunkel</button>
-      <button type="button" id="appTopbarLogout">Abmelden</button>
-    </div>
-    {% endif %}
-  </div>
+  {% include "_kontomenue.html" %}
 </div>
-{% include "_speichern.html" %}
 {% include "_links.html" %}
 <script>
 (function(){
-  var btn=document.getElementById('appTopbarAccountBtn');
-  var menu=document.getElementById('appTopbarAccountMenu');
-  if(!btn||!menu)return;
-  var close=function(){menu.hidden=true;btn.setAttribute('aria-expanded','false')};
-  var open=function(){menu.hidden=false;btn.setAttribute('aria-expanded','true')};
-  btn.addEventListener('click',function(e){
-    e.stopPropagation();
-    if(menu.hidden)open();else close();
-  });
-  document.addEventListener('click',function(e){
-    if(!menu.hidden && !menu.contains(e.target) && e.target!==btn)close();
-  });
-  document.addEventListener('keydown',function(e){
-    if(e.key==='Escape' && !menu.hidden)close();
-  });
-  // Seit 1.8.162 hier statt unten in der Seitenleiste: Hell/Dunkel (data-theme an <html>, localStorage erp_theme)
-  var themeBtn=document.getElementById('appThemeToggle');
-  if(themeBtn){
-    themeBtn.addEventListener('click',function(){
-      var next=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';
-      document.documentElement.setAttribute('data-theme',next);
-      try{localStorage.setItem('erp_theme',next)}catch(err){}
-    });
-  }
-  var logoutBtn=document.getElementById('appTopbarLogout');
-  if(logoutBtn){
-    logoutBtn.addEventListener('click',function(){
-      speichern('abmelden',()=>fetch('/api/auth/logout',{method:'POST'})).finally(function(){
-        location.href='/login?next='+encodeURIComponent(location.pathname);
-      });
-    });
-  }
   var menuBtn=document.getElementById('appTopbarMenuBtn');
-  var mobileSidebar=document.getElementById('appSidebar');
-  var mobileScrim=document.getElementById('appSidebarScrim');
-  // Seit 1.8.162 auch am Desktop: breit klappt der Knopf die Leiste ein und aus (bis dahin der Knopf unten in der Leiste), schmal
-  // öffnet er sie über dem Inhalt -- derselbe Umbruch wie _sidebar.html.
+  var sidebar=document.getElementById('appSidebar');
+  var scrim=document.getElementById('appSidebarScrim');
   var schmal=function(){return window.matchMedia('(max-width:1000px)').matches};
-  var nachziehen=function(){menuBtn.setAttribute('aria-expanded',(schmal()?mobileSidebar.classList.contains('mobile-open'):!mobileSidebar.classList.contains('collapsed'))?'true':'false')};
-  if(menuBtn && mobileSidebar && mobileScrim){
+  var sichtbar=function(){return schmal()?sidebar.classList.contains('mobile-open'):!sidebar.classList.contains('collapsed')};
+  var nachziehen=function(){if(menuBtn&&sidebar)menuBtn.setAttribute('aria-expanded',sichtbar()?'true':'false')};
+  if(menuBtn && sidebar && scrim){
     menuBtn.addEventListener('click',function(e){
       e.stopPropagation();
       if(schmal()){
-        var open=mobileSidebar.classList.toggle('mobile-open');
-        mobileScrim.classList.toggle('visible',open);
+        var offen=sidebar.classList.toggle('mobile-open');
+        scrim.classList.toggle('visible',offen);
       }else{
-        var zu=mobileSidebar.classList.toggle('collapsed');
+        var zu=sidebar.classList.toggle('collapsed');
         try{localStorage.setItem('erp_sidebar_collapsed',zu?'1':'0')}catch(err){}
       }
       nachziehen();
     });
+    // Schließen über den Hintergrund passiert in _sidebar.html -- hier nur aria-expanded nachziehen
+    scrim.addEventListener('click',function(){menuBtn.setAttribute('aria-expanded','false')});
     window.addEventListener('resize',nachziehen);
     nachziehen();
-    // Schliessen per Klick auf den Hintergrund passiert bereits in _sidebar.html -- hier nur
-    // aria-expanded nachziehen, damit es nach diesem Weg nicht faelschlich "true" bleibt.
-    mobileScrim.addEventListener('click',function(){
-      menuBtn.setAttribute('aria-expanded','false');
-    });
   }
-  // Büro-Suche (seit 1.3.67) -- fehlt im Markup fuer field (siehe Jinja-Bedingung oben), diese
-  // Elemente existieren dann schlicht nicht, kein Fehler.
+  // Büro-Suche (seit 1.3.67) -- fehlt im Markup für field (Jinja-Bedingung oben), diese Elemente gibt es dann nicht
   var searchInput=document.getElementById('appTopbarSearchInput');
   var searchResults=document.getElementById('appTopbarSearchResults');
   if(searchInput && searchResults){

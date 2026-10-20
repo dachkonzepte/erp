@@ -956,3 +956,64 @@ Grundlage: der Befund `docs/archiv/befund-rahmen.md`. Die Entscheidungen oben ge
 5. **Abstände so knapp, dass die Leiste auch bei 1280 × 800 passt** (rund 799 px Bedarf mit 17 Einträgen).
 6. **Die `--sidebar-*`-Werte der 42 Seiten bleiben stehen** (ungelesen), bis die Farben der Seiten umziehen.
 7. **Monteurin bis Teil 4**: ihre Zeiterfassung steht unter „Kaufmännisch“ (vier Gruppen) -- ab Teil 4 hat sie keine Leiste mehr.
+
+### Teil 3 (1.8.163): Kopfzeile Büro
+
+- **`_topbar.html`** neu: 64 px (Rahmen-Box samt Linie unten), Farben aus `--ds-flaeche`/`--ds-linie`/`--ds-text`, Schrift IBM Plex
+  Sans 14 px; links der Menüknopf 40 px (seit 1.8.162 auch am Desktop), daneben die Büro-Suche mit Lupe, 40 px hoch, höchstens
+  480 px breit (Logik unverändert: ab zwei Zeichen nach 300 ms, Enter öffnet `/suche`); rechts der Kontoknopf.
+- **`_kontomenue.html`** (neu, eine Fassung für Kopfzeile und -- ab Teil 4 -- Monteurskopf): Initialen im Kreis 36 px in
+  `--ds-aktion` und der volle Name (`account_display()`), Pfeil; `aria-label="Konto: <Name>"`. Menü `.ds-menue` mit Mein Konto ·
+  Hell/Dunkel (mit Zustand „hell“/„dunkel“) · Abmelden, bedient über `dsMenue()` (`_menue.html`, Teil 1): Enter, Pfeil runter/hoch
+  öffnen, Pfeile im Kreis, Pos1/Ende, Escape mit Fokus zurück, Tab und Klick daneben schließen, `role=menu`/`menuitem`,
+  `aria-haspopup`/`-controls`/`-expanded`. Der Name stand bis 1.8.162 erst im Menü, der Knopf zeigte nur die Initialen in der
+  Akzentfarbe. Unter 600 px zeigt die Kopfzeile nur die Initialen (Regel in `_topbar.html`, nicht im Kontomenü).
+- **Seitenregeln greifen nicht in den Kopf**: 34 Seiten haben `button:hover`, eine `button:active` (Spezifität 0,1,1). Jede Regel an
+  Knopf, Feld oder Treffer des Kopfs trägt deshalb zwei Klassen (0,2,0); `ds.css` hat `:active` (und `text-decoration:none`) für
+  `.ds-knopf`, `.ds-knopf-aktion` und `.ds-menue-eintrag`. Anlass im Klicktest: per Leertaste gedrückt (`:active` ohne `:hover`)
+  färbte sich ein Knopf mit nur einer Klasse auf den Einstellungen in der Akzentfarbe.
+- `_topbar.html` bindet `_speichern.html` nicht mehr selbst ein -- das Abmelden steht im Kontomenü, das ihn einbindet.
+
+#### Tests und Prüfung
+
+- `tests/test_v254_topbar.py`: drei neue Tests -- 64 px, Suche 480 px, Initialen in `--ds-aktion`; jede Regel an Knopf, Feld und
+  Treffer des Kopfs mit zwei Klassen, `:active` in `ds.css`; Name nur unter 600 px und nur in der Kopfzeile ausgeblendet --, dazu
+  „Kontomenü über `dsMenue()`“.
+- **Neuer Klicktest `scripts/klicktest_rahmen.py`** (Testdaten der Bildgrundlage, `--nur TEIL` für Gegenproben): Seitenleiste je Rolle
+  bei 1440 × 900 hell/dunkel und 1280 × 800 ohne Bildlauf, Maße, Gruppen; aktiver Eintrag auf acht Seiten; Menüknopf klappt ein und aus;
+  Kopfzeile 64 px, Suche 480 px, Name ganz zu sehen, Kreis in aktion, 412 px nur Initialen; Kontomenü per Tastatur mit aria, Hell/Dunkel
+  per Enter, Klick daneben; Seitenregeln auf den Einstellungen (Maus und Leertaste). 150 von 150.
+- Klicktests `klicktest_anmelden` 69/69 (Abmelden über das Kontomenü), `klicktest_monteur_navigation` 27/27,
+  `klicktest_versand_im_kontext` 24/24, `klicktest_neue_ordnung` 81/81.
+- **Gegenproben** (Regel 24, pytest und der passende Klicktest-Teil): Kontoknopf mit nur einer Klasse (Klicktest: per Leertaste in der
+  Akzentfarbe); Name ausgeblendet; Kontomenü ohne `dsMenue()` (30 von 38 Prüfungen rot); Kopfzeile 63 px und Suche 470 px; `ds.css`
+  ohne `:active` am Menüeintrag -- 5 von 5 rot, je Datei byte-genau zurück.
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v254::test_search_slot_*` (zwei Tests): Ende des Suchbereichs -- alt `<div class="app-topbar-account">`, neu
+    `<div class="app-konto">` (nur Aufbau).
+  - `test_v254::test_account_button_shows_the_resolved_initials` → `…_shows_initials_and_full_name_since_1_8_163`: alt Knopf
+    `app-topbar-account-btn` mit genau „TR“; neu `app-konto-knopf` mit Initialen und vollem Namen, aria-label und Menü-aria.
+  - `test_v254::test_account_menu_contains_full_name_account_link_and_logout` → `test_account_menu_has_account_theme_and_logout_since_1_8_163`:
+    alt Name als Überschrift im Menü; neu genau Mein Konto · Hell/Dunkel · Abmelden, der Name nicht im Menü.
+  - `test_v254::test_topbar_is_sticky_and_uses_design_system_variables_only`: alt `var(--card)`/`var(--line)`; neu `var(--ds-flaeche)`/
+    `var(--ds-linie)`, in Kopfzeile und Kontomenü kein `--accent`.
+  - `test_v251::test_account_page_is_reachable_from_the_global_chrome`: alt `href="/account"` in `_topbar.html`; neu in
+    `_kontomenue.html`, das die Kopfzeile einbindet.
+  - `test_v253::test_hell_dunkel_im_kontomenue_…`: alt Hell/Dunkel in `_topbar.html`; neu in `_kontomenue.html` (nur Aufbau).
+  - `test_v272::test_toggle_uses_the_same_storage_key_and_attribute_as_the_account_menu`: alt Vergleich mit `_topbar.html` (seit
+    1.8.162); neu mit `_kontomenue.html` (nur Aufbau).
+
+#### Nebenbefund
+
+- Ein Konto ohne verknüpften Mitarbeiter zeigt im Kontoknopf den **Benutzernamen** als „vollen Namen“ (Testdaten: „ada“ statt „Ada
+  Admin“) -- so liefert es `app/auth.py::resolve_account_display()` seit 1.3.45, auch für Kalender und Outlook-Sync. Nicht geändert;
+  wäre `display_name` als zweiter Rückfall gewünscht, ist das eine eigene Entscheidung (drei Tests in `test_v254` halten den
+  Benutzernamen fest).
+
+#### Festlegungen 1.8.163 (Bitte bestätigen)
+
+1. **Unter 600 px nur die Initialen** in der Kopfzeile des Büros (der Name bleibt in `aria-label` und `title`); im Monteurskopf
+   immer mit Name.
+2. **Das Menü nennt den Namen nicht noch einmal** (er steht im Knopf); Hell/Dunkel zeigt den aktuellen Zustand.
+3. **Kontoknopf rund (Pille), Initialen-Kreis in `--ds-aktion`**, Hover `--ds-flaeche-2`; Menüknopf und Suchfeld mit `--ds-ecke-feld`.
+4. **Zwei Klassen je Regel des Kopfs und `:active` in `ds.css`** als Schutz gegen die button-Regeln der Seiten (bis sie umziehen).

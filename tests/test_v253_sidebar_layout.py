@@ -128,11 +128,15 @@ def test_fuss_nur_version_und_das_feld_fuer_eine_abgelaufene_sitzung():
 
 
 def test_hell_dunkel_im_kontomenue_und_einklappen_am_menueknopf_der_kopfzeile():
-    """Was die Leiste abgibt, bleibt erreichbar: Hell/Dunkel im Kontomenü (_topbar.html), Einklappen am Menüknopf der Kopfzeile -- der
-    steht außerhalb der Leiste und ist auch am Desktop sichtbar, also nie in der eingeklappten Leiste verschwunden."""
+    """Was die Leiste abgibt, bleibt erreichbar: Hell/Dunkel im Kontomenü (seit 1.8.163 _kontomenue.html, von der Kopfzeile eingebunden),
+    Einklappen am Menüknopf der Kopfzeile -- der steht außerhalb der Leiste und ist auch am Desktop sichtbar, also nie in der
+    eingeklappten Leiste verschwunden."""
+    from tests import vorlagen_js
     root = Path(__file__).parents[1]
     topbar = (root / "app" / "templates" / "_topbar.html").read_text(encoding="utf-8")
-    assert 'id="appThemeToggle"' in topbar and "localStorage.setItem('erp_theme'" in topbar
+    konto = (root / "app" / "templates" / "_kontomenue.html").read_text(encoding="utf-8")
+    assert vorlagen_js.bindet_ein("_topbar.html", "_kontomenue.html", root / "app" / "templates", nur_selbst=True)
+    assert 'id="appThemeToggle"' in konto and "localStorage.setItem('erp_theme'" in konto
     assert "localStorage.setItem('erp_sidebar_collapsed'" in topbar
     regeln = [r for r in topbar.split("}") if ".app-topbar-menu-btn{" in r]
     assert regeln and all("display:none" not in r for r in regeln)

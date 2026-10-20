@@ -79,9 +79,12 @@ def test_account_page_shows_recovery_codes_only_once_with_print_option():
 def test_account_page_is_reachable_from_the_global_chrome():
     """Bis 1.3.48 verlinkte _sidebar.html selbst auf /account ("Mein Konto" im Fußbereich) --
     seit 1.3.49 (Aufräumen des Fußbereichs, siehe CLAUDE.md) lebt dieser Link nur noch im
-    Kontoknopf der Topbar, die Sidebar selbst nicht mehr. Eigener Regressionstest dafür in
-    tests/test_v254_topbar.py::test_account_menu_contains_full_name_account_link_and_logout."""
-    html = (Path(__file__).parents[1] / "app" / "templates" / "_topbar.html").read_text(encoding="utf-8")
+    Kontoknopf der Topbar, die Sidebar selbst nicht mehr. Seit 1.8.163 im Kontomenü _kontomenue.html, das die Kopfzeile einbindet.
+    Eigener Regressionstest dafür in tests/test_v254_topbar.py::test_account_menu_has_account_theme_and_logout_since_1_8_163."""
+    from tests import vorlagen_js
+    vorlagen = Path(__file__).parents[1] / "app" / "templates"
+    assert vorlagen_js.bindet_ein("_topbar.html", "_kontomenue.html", vorlagen, nur_selbst=True)
+    html = (vorlagen / "_kontomenue.html").read_text(encoding="utf-8")
     assert 'href="/account"' in html
 
 

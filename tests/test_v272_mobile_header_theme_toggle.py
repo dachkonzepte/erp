@@ -112,9 +112,10 @@ def test_toggle_is_fixed_size_and_does_not_shrink_or_wrap():
 # ---------------------------------------------------------------------------
 
 def test_toggle_uses_the_same_storage_key_and_attribute_as_the_account_menu():
-    """Seit 1.8.162 steht Hell/Dunkel der Büroseiten im Kontomenü der Kopfzeile (_topbar.html), nicht mehr in der Seitenleiste."""
+    """Seit 1.8.162 steht Hell/Dunkel der Büroseiten im Kontomenü der Kopfzeile, nicht mehr in der Seitenleiste; seit 1.8.163 im
+    Baustein _kontomenue.html, den die Kopfzeile einbindet."""
     mobile_js = (TEMPLATES_DIR / "_mobile_header.html").read_text(encoding="utf-8")
-    topbar_js = (TEMPLATES_DIR / "_topbar.html").read_text(encoding="utf-8")
+    topbar_js = (TEMPLATES_DIR / "_kontomenue.html").read_text(encoding="utf-8")
     for needle in (
         "document.documentElement.getAttribute('data-theme')",
         "document.documentElement.setAttribute('data-theme'",

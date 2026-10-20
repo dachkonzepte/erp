@@ -1,0 +1,60 @@
+{#- Kontoknopf mit Menü (seit 1.8.163, Stufe 2 „Rahmen“): eine Fassung für die Kopfzeile der Büroseiten (_topbar.html) und den
+    Monteurskopf (_mobile_header.html, seit 1.8.164). Initialen im Kreis in --ds-aktion und der volle Name (account_display(),
+    app/auth.py::resolve_account_display()); Menü Mein Konto · Hell/Dunkel · Abmelden mit Tastatur und aria über dsMenue() (_menue.html).
+    Hell/Dunkel schaltet data-theme an <html> und merkt es in localStorage erp_theme (wie bis 1.8.161 der Knopf in der Seitenleiste);
+    Abmelden beendet die Sitzung (POST /api/auth/logout) und führt zur Anmeldung zurück. Die Farben setzt der Kopf, der den Knopf
+    einbindet (hell in der Kopfzeile, dunkel im Monteurskopf). Ohne angemeldeten Benutzer nichts. -#}
+{% set _konto_benutzer = request.state.erp_user %}
+{% set _konto = account_display(_konto_benutzer) %}
+<style>
+/* Zwei Klassen je Regel: die Seiten haben eigene button-Regeln (button:hover, button:active, 34 bzw. 1 Seite) -- die dürfen nicht
+   in den Kopf greifen. Hover und Farben setzt der Kopf (.app-topbar bzw. .mobile-header-wrap). */
+.app-konto{position:relative;flex:0 0 auto;min-width:0}
+.app-konto .app-konto-knopf{display:flex;align-items:center;gap:8px;box-sizing:border-box;width:auto;max-width:280px;height:44px;min-height:44px;margin:0;padding:0 10px 0 4px;border:0;border-radius:var(--ds-ecke-rund);background:transparent;color:inherit;font-family:var(--ds-schrift-text);font-size:14px;font-weight:500;line-height:1;letter-spacing:normal;text-transform:none;text-decoration:none;box-shadow:none;opacity:1;cursor:pointer}
+.app-konto .app-konto-knopf:focus-visible{outline:2px solid var(--ds-fokus);outline-offset:2px}
+.app-konto .app-konto-initialen{display:flex;align-items:center;justify-content:center;width:36px;height:36px;flex:0 0 36px;border-radius:50%;background:var(--ds-aktion);color:var(--ds-auf-aktion);font-size:13px;font-weight:600;letter-spacing:.02em}
+.app-konto .app-konto-name{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.app-konto .app-konto-pfeil{width:14px;height:14px;flex:0 0 14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.app-konto .app-konto-zustand{margin-left:auto;color:var(--ds-text-3);font-size:13px}
+</style>
+{% if _konto_benutzer %}
+<div class="app-konto">
+  <button type="button" class="app-konto-knopf" id="appTopbarAccountBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="appTopbarAccountMenu" aria-label="Konto: {{ _konto.full_name }}" title="{{ _konto.full_name }}"><span class="app-konto-initialen" aria-hidden="true">{{ _konto.initials }}</span><span class="app-konto-name">{{ _konto.full_name }}</span><svg class="app-konto-pfeil" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6,9 12,15 18,9"/></svg></button>
+  <div class="ds-menue" id="appTopbarAccountMenu" role="menu" aria-label="Konto" hidden>
+    <a class="ds-menue-eintrag" href="/account">Mein Konto</a>
+    <button type="button" class="ds-menue-eintrag" id="appThemeToggle">Hell/Dunkel <span class="app-konto-zustand" id="appThemeState"></span></button>
+    <button type="button" class="ds-menue-eintrag" id="appTopbarLogout">Abmelden</button>
+  </div>
+</div>
+{% endif %}
+{% include "_menue.html" %}
+{% include "_speichern.html" %}
+<script>
+(function(){
+  var knopf=document.getElementById('appTopbarAccountBtn');
+  var menue=document.getElementById('appTopbarAccountMenu');
+  if(!knopf||!menue)return;
+  dsMenue(knopf,menue);
+  var themaKnopf=document.getElementById('appThemeToggle');
+  var themaZustand=document.getElementById('appThemeState');
+  var thema=function(){return document.documentElement.getAttribute('data-theme')==='dark'?'dark':'light'};
+  var zeigen=function(){if(themaZustand)themaZustand.textContent=thema()==='dark'?'dunkel':'hell'};
+  if(themaKnopf){
+    themaKnopf.addEventListener('click',function(){
+      var neu=thema()==='dark'?'light':'dark';
+      document.documentElement.setAttribute('data-theme',neu);
+      try{localStorage.setItem('erp_theme',neu)}catch(e){}
+      zeigen();
+    });
+  }
+  zeigen();
+  var abmelden=document.getElementById('appTopbarLogout');
+  if(abmelden){
+    abmelden.addEventListener('click',function(){
+      speichern('abmelden',()=>fetch('/api/auth/logout',{method:'POST'})).finally(function(){
+        location.href='/login?next='+encodeURIComponent(location.pathname);
+      });
+    });
+  }
+})();
+</script>
