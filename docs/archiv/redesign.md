@@ -1477,3 +1477,70 @@ Grundlage: der Befund `docs/archiv/befund-rahmen.md`. Die Entscheidungen oben ge
   **oder den Beginn einer großen, über viele Seiten sichtbaren Überarbeitung** (z. B. Stufe 2 des Redesigns: 1.9.0); was dazu zählt,
   legt der Betreiber fest. Innerhalb zählt der Patch-Level weiter. Alles andere bleibt Patch-Level -- Infrastruktur, Fixes, einzelne
   Anpassungen an bestehenden Modulen.“
+
+### Punkt 2: Befund Dachtyp (nur festgehalten, nichts geändert)
+
+Anlass: die Testdaten der Bildgrundlage speichern an einer Prüfvorlage „flachdach“, die Liste der Prüfvorlagen zeigt seit 1.9.3 den
+Namen aus der Auswahlliste ohne Rücksicht auf die Schreibweise (Nebenbefund 1.9.3).
+
+**Was das Programm speichert.**
+
+- Vier Spalten tragen einen Dachtyp, alle freier Text (`String(80)`), kein Fremdschlüssel, keine Prüfung gegen die Auswahlliste:
+  `inspection_templates.roof_type` (leer = jeder Dachtyp), `roof_type_inspection_template_defaults.roof_type` (eindeutig),
+  `roof_areas.roof_type`, `roof_layer_types.roof_type` (Schichttypen des Dachaufbaus). Die Schemas `InspectionTemplateCreate/Update`
+  und `RoofAreaCreate/Update` nehmen jeden Text an (`str | None`).
+- Die Oberfläche schreibt den Wert (`value`) eines Eintrags der Auswahlliste „Dachtypen“ (`roof_types`). Vorgabe
+  (`app/option_settings.py`, `DEFAULT_OPTION_GROUPS`): Steildach, Flachdach, Gründach, Terrasse -- Wert gleich Bezeichnung, groß
+  geschrieben.
+- Die Migrationen schreiben dieselbe Schreibweise: `09b654357a58` (Startvorlagen „Flachdach“, „Steildach“), `b8adafd0b997`
+  (Schichttypen mit Dachtyp Steildach, Flachdach, Gründach; `flachdach_*` sind dort Schlüssel der Schichttypen, kein Dachtyp),
+  `06299a5101f5` übernimmt die vorhandenen Werte der Vorlagen in die Standardzuordnung.
+- **„flachdach“ klein schreibt weder das Programm noch eine Migration** -- nur die Testdaten der Bildgrundlage
+  (`pruefvorlage_anlegen(…, roof_type="flachdach")`).
+
+**Was aus älteren Versionen in der Datenbank stehen kann.**
+
+- Eine andere Schreibweise aus dem Programm: keine gefunden (Migrationskette und Grunddaten durchgesehen).
+- Werte eines später umbenannten Eintrags: in Einstellungen → Auswahllisten ist „Wert / Text“ frei änderbar
+  (`PUT /api/settings/option-groups/roof_types/options/{id}` mit `value`), ein Eintrag lässt sich auch löschen -- gespeicherte
+  Vorlagen, Zuordnungen, Dachflächen und Schichttypen behalten den alten Wert.
+- Werte eines deaktivierten Eintrags (bleibt in der Liste, `active` falsch).
+- Jeder Text, der über die Schnittstelle oder direkt in der Datenbank gesetzt wurde.
+
+**Was im Editor einer Prüfvorlage passiert** (`inspection_template.html`).
+
+- `roofTypeOptionsHtml()` (Zeile 105 f.) wählt nur einen Eintrag vor, dessen Wert genau gleich ist (`selected===o.value`), nicht über
+  `auswahlOptionen()` (Regel 22). Ein Wert ohne genau passenden Eintrag erscheint nicht, die Auswahl zeigt „— jeder Dachtyp —“.
+  Deaktivierte Einträge liefert die Schnittstelle mit, sie werden vorgewählt (ohne Kennzeichnung).
+- Belegt mit der Funktion selbst (in node, Auswahlliste der Vorgabe, Terrasse deaktiviert): „flachdach“ → nichts vorgewählt;
+  „Flachdach“ → Flachdach; „Terrasse“ → Terrasse; „Pultdach“ (nicht in der Liste) → nichts.
+- **Speichern:** `saveTemplateMeta()` (Zeile 130) schickt `roof_type: <Auswahl> || null` mit, auch wenn nur Bezeichnung oder
+  Beschreibung geändert wurden; `update_template()` setzt `roof_type` auf leer und erhöht die Version. **Der Altwert ist danach still
+  weg, die Vorlage gilt für jeden Dachtyp.** Der Endpunkt steht in `BEKANNT` (`test_v329`, „volles Formular“) -- das Formular schickt
+  zwar alle Felder, aber einen Wert, den es nicht anzeigen konnte.
+- Zum Vergleich die Dachfläche (`roof_area.html`): sie baut ihre Auswahl über `auswahlOptionen()`, der Altwert bleibt vorgewählt
+  („flachdach (nicht mehr verfügbar)“) und geht beim Speichern unverändert zurück.
+
+**Was ein Altwert sonst bewirkt (überall genauer Vergleich, Groß-/Kleinschreibung zählt).**
+
+- Einsatzbericht: `_resolve_inspection_template()` (`app/service_reports.py`) sucht die Standardvorlage und danach eine Vorlage mit
+  genau dem Dachtyp der Dachfläche. Eine Dachfläche „flachdach“ findet weder die Standardvorlage „Flachdach“ noch eine Vorlage
+  „Flachdach“ -- nur eine unter „flachdach“ zugeordnete, eine Vorlage „flachdach“ oder die für jeden Dachtyp; umgekehrt ebenso.
+- Standardvorlage je Dachtyp (Einstellungen): `list_roof_type_template_defaults()` listet nur aktive Werte der Auswahlliste -- eine
+  Zuordnung unter einem Altwert ist dort unsichtbar, wirkt im Einsatzbericht aber weiter.
+- Dachaufbau einer Dachfläche: Schichttypen genau nach Dachtyp (`app/roof_areas.py`, Zeile 391) -- „flachdach“ zeigt keine
+  Flachdach-Schichten.
+- Liste der Prüfvorlagen (seit 1.9.3): `dachtypName()` vergleicht ohne Rücksicht auf die Schreibweise und zeigt „Flachdach“ -- das
+  **verdeckt** die Abweichung, die der Einsatzbericht macht. Bei einer Behebung dort die Abweichung kennzeichnen statt angleichen.
+
+**Abfrage für den Server:** `scripts/pruefabfrage_dachtypen.sql` (nur lesend: schreibgeschützte Transaktion, endet mit `ROLLBACK`;
+Aufruf `psql -d dachkonzepte -f scripts/pruefabfrage_dachtypen.sql`). Zwei Ergebnisse: jeder Wert je Ort mit Anzahl (die Auswahlliste mit
+„aktiv“, dazu die vier Spalten), und jeder Wert, den kein Eintrag der Auswahlliste genau so trägt -- mit dem Eintrag, der nur in der
+Schreibweise abweicht. Geprobt gegen die lokale PostgreSQL-Spielwiese in einem Wegwerf-Schema (Grunddaten, dazu Vorlagen „flachdach“,
+„Flachdach“ und „jeder Dachtyp“, Dachflächen „flachdach“, „Steildach“, „Pultdach“, Standardzuordnung „Flachdach“): beide Ergebnisse wie
+erwartet (zweites: Dachfläche „flachdach“ → Flachdach, Dachfläche „Pultdach“ → ohne Entsprechung, Prüfvorlage „flachdach“ →
+Flachdach), Zeilenzahlen vorher und nachher gleich, Schema danach gelöscht.
+
+**Mögliche Behebung (nicht gebaut, zur Entscheidung nach dem Ergebnis der Abfrage):** Editor der Prüfvorlage über `auswahlOptionen()`
+wie die Dachfläche (Altwert bleibt vorgewählt und gekennzeichnet); Werte, die nur in der Schreibweise abweichen, per Migration auf den
+Wert der Auswahlliste bringen -- erst, wenn die Abfrage auf dem Server zeigt, dass es solche gibt.
