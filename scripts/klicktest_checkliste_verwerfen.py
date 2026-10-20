@@ -190,13 +190,13 @@ async def pruefen(tab, seed, p):
     await tab.oeffnen(f"/checklisten/{cid}", "document.getElementById('completionSeal')")
     p.pruefe("Hellmodus: Abweichung in der Warnfarbe", await tab.js(
         "[document.documentElement.dataset.theme, getComputedStyle(document.querySelector('#completionSeal .seal')).color]"),
-        ["light", "rgb(192, 54, 44)"])
+        ["light", "rgb(143, 26, 26)"])  # seit 1.9.5 --ds-fehler-text (bis 1.9.4 #c0362c)
     await tab.bild("buero_abschluss_abweichung_hell")
     await tab.js("localStorage.setItem('erp_theme','dark')")
     await tab.oeffnen(f"/checklisten/{cid}", "document.getElementById('completionSeal')")
     p.pruefe("Dunkelmodus: Abweichung in der Warnfarbe", await tab.js(
         "[document.documentElement.dataset.theme, getComputedStyle(document.querySelector('#completionSeal .seal')).color]"),
-        ["dark", "rgb(242, 131, 122)"])
+        ["dark", "rgb(246, 170, 168)"])
     await tab.bild("buero_abschluss_abweichung_dunkel")
     await tab.js("localStorage.removeItem('erp_theme')")
     p.pruefe("PDF", await tab.js(f"fetch('{api}/pdf').then(r=>[r.status,r.headers.get('content-type')])"), [200, "application/pdf"])

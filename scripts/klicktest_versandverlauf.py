@@ -184,13 +184,14 @@ async def _pruefen(tab, seed, p):
     p.pruefe("Nachtragen: Beleg kommt als Bild zurück", beleg, [200, "image/jpeg", len(belegdatei.read_bytes())])
     p.pruefe("Nachtragen: keine Mail", len(POSTFACH), 1)
     p.pruefe("Rechnung: JS-Fehler", tab.fehler, [])
-    p.pruefe("Hell: Pille 'Gesendet'", await tab.js(f"getComputedStyle(document.querySelector('#{H} .dh-pill.gesendet')).backgroundColor"), "rgb(234, 245, 239)")
+    # seit 1.9.5 --success-soft = --ds-ok-hell (ds-alte-namen.css), bis 1.9.4 #eaf5ef bzw. #173226
+    p.pruefe("Hell: Pille 'Gesendet'", await tab.js(f"getComputedStyle(document.querySelector('#{H} .dh-pill.gesendet')).backgroundColor"), "rgb(238, 245, 232)")
     await tab.js(f"document.getElementById('{H}').scrollIntoView({{block:'start'}}); true")
     await tab.bild("rechnung_verlauf_hell")
 
     await tab.js("localStorage.setItem('erp_theme','dark'); true")
     await tab.oeffnen(f"/invoices/{seed['rechnung']}", f"document.querySelectorAll('#{H} .dh-row').length===2")
-    p.pruefe("Dunkel: Pille 'Gesendet' nicht hell", await tab.js(f"getComputedStyle(document.querySelector('#{H} .dh-pill.gesendet')).backgroundColor"), "rgb(23, 50, 38)")
+    p.pruefe("Dunkel: Pille 'Gesendet' nicht hell", await tab.js(f"getComputedStyle(document.querySelector('#{H} .dh-pill.gesendet')).backgroundColor"), "rgb(23, 40, 26)")
     await tab.js(f"document.getElementById('{H}').scrollIntoView({{block:'start'}}); true")
     await tab.bild("rechnung_verlauf_dunkel")
     await tab.js("localStorage.setItem('erp_theme','light'); true")

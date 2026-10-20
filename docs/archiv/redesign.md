@@ -1735,3 +1735,20 @@ Bildlaufs: **alle 160 vorher und nachher gleich** (jedes Element, auf die Hunder
    Themen).
 8. **Akzentfarbe nur noch für App-Symbol, Manifest und `theme-color` von `/mobil`**; die Einstellungen zeigen keine Vorschau mehr und
    sagen, wofür die Farbe noch gilt.
+
+#### Nachtrag 1.9.5: vier Klicktests mit festen alten Farbwerten
+
+- Der Endlauf auf `4cb9b79` (alle Klicktests) fand vier Klicktests, die fest mit Werten der alten Palette verglichen -- veraltete
+  Erwartungen seit 1.9.5, kein Fehler der Seiten. Vor dem Commit liefen nur die fünf Klicktests, die `--accent` lesen; die vier fielen
+  erst im Gesamtlauf auf (Regel 26). Ein erster Gesamtlauf scheiterte vorher an einem schon benutzten Ausgabeordner (alle 80 nach
+  0:00 „Arbeitsordner ist nicht leer“) und wurde mit neuem Ordner wiederholt.
+- **Angepasste Erwartungen** (Regel 28):
+  - `klicktest_checkliste_verwerfen` „Abweichung in der Warnfarbe“: alt hell `rgb(192, 54, 44)` (#c0362c), dunkel `rgb(242, 131, 122)`;
+    neu `--ds-fehler-text` hell `rgb(143, 26, 26)`, dunkel `rgb(246, 170, 168)`.
+  - `klicktest_versandprotokoll` „Hintergrund hell/dunkel“: alt `rgb(244, 246, 245)` / `rgb(18, 24, 22)`, neu `--ds-grund`
+    `rgb(238, 240, 241)` / `rgb(18, 22, 25)`; „Warnkarte nicht weiß“ dunkel: alt `rgb(58, 47, 20)`, neu `--ds-warn-hell` `rgb(54, 32, 15)`.
+  - `klicktest_versandverlauf` Pille „Gesendet“: alt hell `rgb(234, 245, 239)`, dunkel `rgb(23, 50, 38)`; neu `--ds-ok-hell`
+    `rgb(238, 245, 232)` / `rgb(23, 40, 26)`.
+  - `klicktest_beleg_und_hinweis` „deutlich/lesbar“ (Hinweis „Offene Bedenken“): alt „Rahmenfarbe = Textfarbe“ (beide `--danger`), neu
+    „Rahmen `--ds-fehler`, Text `--ds-fehler-text`“ (Fläche und Text getrennt, Festlegung 1.9.5 Nr. 3).
+- Die vier einzeln: 4 von 4 wie erwartet (124 Prüfungen). Übrige Klicktests mit festen alten Werten: keine (Suche über `scripts/`).

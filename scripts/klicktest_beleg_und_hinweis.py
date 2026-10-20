@@ -144,8 +144,10 @@ async def _thema(tab, pfad: str, bereit: str, theme: str, p, wer: str) -> None:
 HINWEIS_DA = "document.getElementById('concernAlert') && !document.getElementById('concernAlert').hidden"
 EINTRAEGE = ("[...document.querySelectorAll('#concernAlert .concern-item')].map(e=>[e.tagName,e.textContent,"
              "e.getAttribute('href')])")
-LESBAR = ("(()=>{const s=getComputedStyle(document.getElementById('concernAlert'));"
-          "return s.color!==s.backgroundColor&&s.borderTopColor===s.color})()")
+# seit 1.9.5: Rahmen im Flächenwert --ds-fehler, Text im Textwert --ds-fehler-text (--danger, ds-alte-namen.css) -- bis 1.9.4 beide --danger
+LESBAR = ("(()=>{const f=v=>{const d=document.createElement('span');d.style.color='var('+v+')';document.body.appendChild(d);"
+          "const c=getComputedStyle(d).color;d.remove();return c};const s=getComputedStyle(document.getElementById('concernAlert'));"
+          "return s.color!==s.backgroundColor&&s.borderTopColor===f('--ds-fehler')&&s.color===f('--ds-fehler-text')})()")
 
 
 async def pruefen(tab, seed, p):

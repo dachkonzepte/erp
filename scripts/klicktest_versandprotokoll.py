@@ -250,14 +250,15 @@ async def _pruefen(tab, seed, p):
                        "const r=await fetch('/api/sent-documents/'+id+'/file');const b=new Uint8Array(await r.arrayBuffer());"
                        "return [r.status,r.headers.get('content-type'),String.fromCharCode(...b.slice(0,4))]})()")
     p.pruefe("Protokoll: PDF aus der Ablage", pdf, [200, "application/pdf", "%PDF"])
-    p.pruefe("Protokoll: Hintergrund hell", await tab.js("getComputedStyle(document.body).backgroundColor"), "rgb(244, 246, 245)")
+    # seit 1.9.5 die --ds-Werte (ds-alte-namen.css): --bg = --ds-grund, --warning-soft = --ds-warn-hell (bis 1.9.4 die alte Palette)
+    p.pruefe("Protokoll: Hintergrund hell", await tab.js("getComputedStyle(document.body).backgroundColor"), "rgb(238, 240, 241)")
     p.pruefe("Protokoll: JS-Fehler", tab.fehler, [])
     await tab.bild("protokoll_hell")
 
     await tab.js("localStorage.setItem('erp_theme','dark'); true")
     await tab.oeffnen("/versandprotokoll", FERTIG)
-    p.pruefe("Protokoll: Hintergrund dunkel", await tab.js("getComputedStyle(document.body).backgroundColor"), "rgb(18, 24, 22)")
-    p.pruefe("Protokoll dunkel: Warnkarte nicht weiß", await tab.js("getComputedStyle(document.getElementById('stuckCard')).backgroundColor"), "rgb(58, 47, 20)")
+    p.pruefe("Protokoll: Hintergrund dunkel", await tab.js("getComputedStyle(document.body).backgroundColor"), "rgb(18, 22, 25)")
+    p.pruefe("Protokoll dunkel: Warnkarte nicht weiß", await tab.js("getComputedStyle(document.getElementById('stuckCard')).backgroundColor"), "rgb(54, 32, 15)")
     await tab.bild("protokoll_dunkel")
     await tab.js("localStorage.setItem('erp_theme','light'); true")
 
