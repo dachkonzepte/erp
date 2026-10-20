@@ -1000,3 +1000,12 @@ Stufe „Grundlage“)“), lief Enter ins Leere. `_anmelden_formular()` wartet 
 
 1. **Formular-Klicktests warten auf das Skript der Seite, nicht nur auf das Feld** -- ein Feld im DOM ist noch kein bedienbares Feld,
    solange ein Stylesheet im Kopf das Skript aufhält (ein Nutzer sieht die Seite dann noch nicht).
+
+## Festlegungen zum Testablauf, Stufe 2 „Rahmen“ Runde 1 (1.8.162–1.8.164, Bitte bestätigen)
+
+1. Bildgrundlage: Zustände des Rahmens je Rolle -- Menü aufgeklappt und Leiste eingeklappt nur fürs Büro, Kontomenü offen für Büro und Monteurin, neu „Objektsuche offen“ der Monteurin (800/1280); „Leiste ganz unten“ entfällt (seit 1.8.162), beim Aufnehmen wird geprüft, dass die Leiste ohne Bildlauf passt. 298 Bilder je Lauf. (Bitte bestätigen)
+2. `klicktest_rahmen.py` nutzt die Testdaten der Bildgrundlage (`bg.befuellen`) statt eigener -- dieselben Konten, Seiten und die stehende Uhr. (Bitte bestätigen)
+3. `klicktest_rahmen.py --nur TEIL`: Gegenproben laufen nur den betroffenen Teil, damit sie unter dem 2-Minuten-Abbruch bei gesetztem Marker bleiben (Regel 24). (Bitte bestätigen)
+4. Gegenproben einer Oberflächenregel prüfen pytest UND den passenden Klicktest-Teil (Werkzeug `gegenprobe_klick.py` im Scratchpad); eine Probe, die im Klicktest grün bleibt, wird verschärft und nicht als Beleg gezählt. (Bitte bestätigen)
+5. Bildvergleich bei Umbauten des Rahmens: Rahmen in beiden Läufen einfärben, im alten Lauf die neuen Maße erzwingen, nur die Bilder ohne Zustände vergleichen -- dann muss jedes Bild pixelgleich sein. (Bitte bestätigen)
+6. `klicktest_monteur_navigation` und `klicktest_neue_ordnung` halten die Uhr fest (10:00), seit sie den Reiter Einsätze (`/mobil`) abrufen. (Bitte bestätigen)

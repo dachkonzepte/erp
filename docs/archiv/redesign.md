@@ -1111,3 +1111,23 @@ Grundlage: der Befund `docs/archiv/befund-rahmen.md`. Die Entscheidungen oben ge
 6. **Logo-Kachel 40 px statt Schriftzug** „DACHKONZEPTE · Mobil“ (bleibt als `title`), wie die Kachel der Leiste.
 7. **Weiche an der Rolle** (`can(current_user, 'field')`) in Einsatzbericht und Konto; die Einträge der Seitenleiste für die Monteurin
    (Start, Zeiterfassung) bleiben im Markup, keine Seite zeigt sie ihr noch -- Aufräumen bei der Bereinigung.
+
+### Runde 1 abgeschlossen: Endläufe und Bildvergleich (Stand `581a80a`)
+
+- **Volle Suite** auf sauberer Arbeitskopie, Commit `581a80a`: 6258 passed, 3 skipped (dritter Lauf; im zweiten ein wackelnder Test, siehe unten).
+- **Alle Klicktests** (`klicktest_alle.py --gleichzeitig 4`): 80 von 80 wie erwartet, Laufzeit 7:12. Im ersten Endlauf auf `cbd99f4` war
+  `klicktest_ds_schriften` rot (Erwartung veraltet seit 1.8.161, siehe „Nachtrag 1.8.164“), danach Nachtrag `581a80a` und beide Läufe neu.
+- **Nebenbefund, ein wackelnder Test**: im zweiten Suite-Lauf auf `581a80a` war `tests/test_v323_dispatch_completion.py::test_two_simultaneous_dispatches_on_postgresql_exactly_one_sends` rot (beide Versände „gesendet“), einzeln zehnmal grün, der dritte volle
+  Lauf grün. Ursache im Testaufbau: die Schranke (`threading.Barrier`) hält beide Threads nur bis nach der Vorabprüfung; wird B danach
+  unter Last lange genug aufgehalten, hat A seinen Versand schon abgeschlossen (Status „gesendet“), der Eintrag „läuft“, an dem die
+  Datenbank B abweisen soll, ist weg -- und zwei Versände nacheinander sind erlaubt. Kein Fehler im Versand, nicht in dieser Runde
+  geändert; der Test müsste B vor dem Abschluss von A anlegen lassen (z. B. A im Senden anhalten, bis B angelegt hat). Offen.
+- **Bildvergleich „außer Leiste, Kopfzeile und Monteurskopf weicht nichts ab“**: Bildgrundlage ohne die Zustände (280 Bilder) auf
+  `82d5c71` (vor Teil 1, Git-Worktree) und auf `cbd99f4`. In beiden Läufen sind Seitenleiste, Kopfzeile und Monteurskopf einfarbig
+  (#FF00FF) und ohne sichtbaren Inhalt; im alten Lauf haben sie die Maße von heute (Leiste 232 px, Kopfzeile 64 px, Monteurskopf 64 px,
+  unter 600 px 112 px), und auf Einsatzbericht und Konto der Monteurin ist die alte Leiste weg und die Kopfzeile so hoch wie der
+  Monteurskopf. Ergebnis: **280 gleich, 0 abweichend** -- kein Pixel des Inhalts hat sich geändert, auf keiner Seite, in keiner Rolle,
+  keinem Thema, keiner Breite. Werkzeug: `rahmen_vergleich.py` (Scratchpad, umhüllt `scripts/bildgrundlage.py` unverändert: Zusatz zu
+  `STILL`, Zustände ausgelassen) -- nicht ins Projekt übernommen; bei Bedarf für die nächsten Runden.
+- **Bilder für den Bericht**: `bildgrundlage/rahmen_runde1_581a80a.zip` (Projektmappe 1440 × 900 hell und dunkel, Einsatzbericht als
+  Monteurin 1280 × 620 und 800 × 1100), Ordner in `.gitignore`.
