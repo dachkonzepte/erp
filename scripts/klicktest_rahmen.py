@@ -448,7 +448,7 @@ KOPFGRUPPE = (
     ("zeiterfassung", "Zeiterfassung", None, [], None),
 )
 UMSCHALTER = {"Archivierte anzeigen": "Archivierte ausblenden", "Inaktive anzeigen": "Inaktive ausblenden"}
-KOPF = """(()=>{const F=%s;const cs=e=>getComputedStyle(e);const k=document.getElementById('seitenkopf');
+KOPFGRUPPE_JS = """(()=>{const F=%s;const cs=e=>getComputedStyle(e);const k=document.getElementById('seitenkopf');
 const akt=[...k.querySelectorAll('.ds-knopf-aktion')];
 const links=[...document.querySelectorAll('main a[href]')].filter(a=>a.getClientRects().length&&!a.closest('#seitenkopf')
   &&!a.matches('.ds-knopf,.ds-menue-eintrag')&&['inline','inline-block'].includes(cs(a).display)
@@ -457,7 +457,7 @@ return {ds:document.body.classList.contains('ds-seite'),h1:[...document.querySel
   aktion:akt.map(a=>[a.textContent.trim(),cs(a).backgroundColor===F('--ds-aktion'),cs(a).color===F('--ds-auf-aktion')]),
   menue:[...document.querySelectorAll('#seitenkopfMenue .ds-menue-eintrag')].map(e=>e.textContent.trim()),
   links:links.length,falsch:links.filter(a=>cs(a).color!==F('--ds-link')).map(a=>a.textContent.trim().slice(0,30)+' '+cs(a).color)}})()""" % FARBE
-FOKUS = """(()=>{const F=%s;const e=[...document.querySelectorAll('main input:not([type=checkbox]):not([type=radio]):not([type=hidden]),main select,main textarea')]
+KOPFGRUPPE_FOKUS = """(()=>{const F=%s;const e=[...document.querySelectorAll('main input:not([type=checkbox]):not([type=radio]):not([type=hidden]),main select,main textarea')]
   .find(x=>x.getClientRects().length&&!x.disabled);if(!e)return 'kein Feld';e.focus();const s=getComputedStyle(e);
   const r=[s.outlineStyle,s.outlineColor===F('--ds-fokus')];e.blur();return r})()""" % FARBE
 
@@ -472,12 +472,12 @@ async def _kopfgruppe(tab, seed, p):
         for thema in ("hell", "dunkel"):
             wo = f"Kopf {name} {thema}"
             p.pruefe(f"{wo}: geladen", await _laden(tab, seed, name, thema, 1440, 900), True)
-            m = await tab.js(KOPF)
+            m = await tab.js(KOPFGRUPPE_JS)
             p.pruefe(f"{wo}: .ds-seite, genau ein h1 (Seitenkopf) „{titel}“, Hauptaktion {aktion or '—'}, Menü {menue or '—'}",
                      [m["ds"], m["h1"], m["aktion"], m["menue"]],
                      [True, [["seitenkopfTitel", titel]], [[aktion, True, True]] if aktion else [], menue])
             p.pruefe(f"{wo}: {m['links']} Textlinks im Inhalt, alle in --ds-link", m["falsch"], [])
-            fokus = await tab.js(FOKUS)
+            fokus = await tab.js(KOPFGRUPPE_FOKUS)
             p.pruefe(f"{wo}: erstes Feld mit Fokus im Umriss --ds-fokus", fokus if fokus == "kein Feld" else fokus[1],
                      "kein Feld" if fokus == "kein Feld" else True)
             k = await tab.js(KONTRAST)

@@ -1946,3 +1946,12 @@ Was bis dahin von der Zeit abhing und unter Last kippen konnte, und was jetzt st
    die Schranke auf den Pool wartet).
 4. **Beleg unter Last** = CPU-Last (14 Prozesse mit Dauerschleife, halb so viele wie logische Kerne) und je drei gleichzeitige
    Testströme mit altem und neuem Stand, zur selben Zeit unter derselben Last.
+
+#### Nachtrag 1.9.7: überdeckte Konstante im Klicktest
+
+- Der Endlauf auf `8bb0e86` fand `klicktest_rahmen` rot (Abbruch im Teil „kopfzeile“, `'NoneType' object is not subscriptable`):
+  der neue Teil „kopfgruppe“ legte eine Konstante `KOPF` an, die die gleichnamige des Teils „kopfzeile“ überdeckte -- „kopfzeile“
+  führte danach das Skript des Seitenkopfs auf der Projektmappe aus. Mein Fehler: geprüft hatte ich nur mit `--nur kopfgruppe` und
+  `--nur pruefvorlagen`. Umbenannt in `KOPFGRUPPE_JS` und `KOPFGRUPPE_FOKUS`; der ganze Klicktest 610 von 610.
+- Neuer Wächter `tests/test_v444_klicktest_eindeutige_namen.py`: kein Name auf oberster Ebene eines Klicktest-Skripts (dazu
+  `cdp_klicktest.py`, `bildgrundlage.py`) zweimal vergeben. Gegenprobe: auf dem Stand mit der Überdeckung meldet er „KOPF (Zeile 451)“.
