@@ -87,7 +87,9 @@ def update_time_settings(db: Session, payload) -> TimeTrackingSettings:
     advanced = load_advanced_settings(db)
     advanced.datev_personnel_equals_erp_number = bool(getattr(payload, "datev_personnel_equals_erp_number", False))
     model_id = getattr(payload, "default_work_time_model_id", None)
-    if model_id is not None:
+    # Seit 1.9.14 (Regel 22): "aktiv" nur bei einem neu gewählten Modell prüfen -- ein inzwischen abgeschaltetes Standardmodell bleibt
+    # gewählt, sonst ließen sich die Zeitregeln nach dem Abschalten gar nicht mehr speichern.
+    if model_id is not None and model_id != advanced.default_work_time_model_id:
         model = db.get(WorkTimeModel, int(model_id))
         if model is None or not model.active:
             raise ValueError("Das gewählte Standard-Arbeitszeitmodell existiert nicht oder ist inaktiv.")

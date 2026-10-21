@@ -446,3 +446,9 @@ Auftrag, Zeitbuchung einem Mangel zugeordnet oder als Kulanz gekennzeichnet, nie
 Nachkalkulation getrennt als "davon Mängelbeseitigung / Kulanz"; dazu "Abschließen ohne Rechnung" als
 Parkplatz vor dem Echtbetrieb. Wortlaut und Befund: `docs/archiv/befund-vor-echtbetrieb.md`,
 "Entscheidungen Rechnungen" (Ergänzung nach Nachfrage 10 zu 1.8.95) und "Parkplatz vor dem Echtbetrieb".
+
+## Zeitregeln mit abgeschaltetem Standardmodell (seit 1.9.14)
+
+`update_time_settings()` prüft „aktiv“ nur bei einem neu gewählten Standard-Arbeitszeitmodell (Regel 22); bis 1.9.13 ließen sich die
+Zeitregeln nach dem Abschalten des Standardmodells nicht mehr speichern. Herleitung und Test: `docs/archiv/redesign.md`, „Runde 7“,
+„Punkt 2 (1.9.14)“; `tests/test_v448_zeitregeln_standardmodell.py`.

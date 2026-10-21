@@ -2353,3 +2353,20 @@ Baustein), nichts geht still verloren. Nichts geändert.
   nachher, das Betriebsmittel nachher (alle 1440 × 900), dazu die vier PDFs und der Textvergleich (14 Dateien).
 - Commits der Runde: `9ef5b62` (1.9.11 Kennung als Kennzeichen), `b14cdc6` (1.9.12 Auswahlfelder), `f700950` (1.9.13 Seitenkopf der
   Rechnung).
+
+## Runde 7 (Festlegungen 1.9.11 bis 1.9.13 bestätigt)
+
+Auftrag (21.10.2026): 1. die Auswahlfelder für Fremdschlüssel (Befund 1.9.12 B): archivierte oder inaktive Ziele vorwählen und behalten,
+nie still umstellen, je Feld ein Test, Wächter erweitern; 2. Zeitregeln speichern nach dem Abschalten des Standardmodells; 3. „Ändern“ in
+der Zeiterfassung bei abweichendem Auswertungsdatum; 4. Zahlenformat aller Anzeigen über `zahlText()`, Wächter gegen Rohformate; 5.
+Seitenkopf des Angebots (LV-Editor); 6. Klicktest einmal automatisch wiederholen, nur wenn die einzige Abweichung „Anfrage nicht
+angekommen“ ist. Bildvergleich: außer Angebot und den korrigierten Feldern weicht nichts ab. Server-Abfrage der Auswahlwerte (1.9.12):
+ein Altwert („Geburtstag“), vom Betreiber korrigiert, jetzt 0.
+
+### Punkt 2 (1.9.14): Zeitregeln mit abgeschaltetem Standardmodell
+
+- `app/time_backoffice.py::update_time_settings()`: „aktiv“ nur prüfen, wenn `default_work_time_model_id` vom gespeicherten abweicht
+  (bis 1.9.13 bei jedem Speichern -- nach dem Abschalten des Standardmodells scheiterte jedes Speichern der Zeitregeln mit 422).
+- Tests: neu `tests/test_v448_zeitregeln_standardmodell.py` -- Speichern mit abgeschaltetem Standardmodell (Rundung geändert, Modell
+  bleibt; bis 1.9.13 rot mit 422), neu gewähltes abgeschaltetes und unbekanntes Modell 422 ohne Änderung, Oberfläche baut die Auswahl über
+  `auswahlOptionen()` und schickt ihren Wert. Angepasste Erwartungen: keine.
