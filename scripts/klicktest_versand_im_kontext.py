@@ -148,7 +148,7 @@ async def pruefen(tab, seed, p):
     await tab.bild("kundenakte_versand")
     # --- Leistungsformular als Büro – Auftrag ---
     await tab.oeffnen(f"/services/{seed['leistung']}/edit",
-                      "document.getElementById('heading').textContent==='Leistung bearbeiten'&&document.getElementById('calcPreview').children.length>0")
+                      "document.getElementById('seitenkopfTitel').textContent==='Leistung bearbeiten'&&document.getElementById('calcPreview').children.length>0")
     p.pruefe("Leistung (Büro – Auftrag): Standard-Stundensatz aus der Kalkulation der Leistung",
              await tab.js("/^\\(Standard: [\\d.,]+\\s€\\/h\\)$/.test(document.getElementById('laborRateDefault').textContent)"), True)
     p.pruefe("Leistung (Büro – Auftrag): Vorschau mit Preis, ohne Hinweis",

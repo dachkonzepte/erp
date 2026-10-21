@@ -101,7 +101,8 @@ def test_form_page_renders_the_employee_form():
     form = _form()
     assert "function employeeForm()" in form
     assert "type==='employees'" in form
-    assert "el('heading').textContent=editing?'Mitarbeiter bearbeiten':'Mitarbeiter anlegen'" in form
+    # seit 1.9.22 (Runde 8) über titel() in den Seitenkopf (bis dahin el('heading').textContent=…)
+    assert "titel(editing?'Mitarbeiter bearbeiten':'Mitarbeiter anlegen')" in form
 
 
 # ---------------------------------------------------------------------------

@@ -389,6 +389,17 @@ def zurueck_stammdaten(data_type: str, record_id: int | None = None, projekt: in
     return {"href": f"/master-data#{bereich}", "text": f"Stammdaten: {name}"}
 
 
+def pfad_stammdaten(data_type: str, record_id: int | None = None, projekt: int | None = None) -> list[dict]:
+    """Seit 1.9.22 (Stufe 2, Runde 8): die Glieder des Pfads im Stammdaten-Formular vor der Seite selbst -- der Bereich der Leiste (aus der
+    Projektmappe kommend: Projekte), dann der bisherige Rückweg (dasselbe Ziel wie zurueck_stammdaten(), das „Abbrechen“ nimmt)."""
+    if data_type == "contacts" and projekt:
+        return [{"href": "/projects", "text": "Projekte"}, {"href": f"/projects/{projekt}#sec-participants", "text": "Projektmappe"}]
+    if data_type == "properties" and record_id:
+        return [{"href": "/master-data", "text": "Stammdaten"}, {"href": f"/properties/{record_id}", "text": "Objekt"}]
+    bereich, name = STAMMDATEN_BEREICHE[data_type]
+    return [{"href": "/master-data", "text": "Stammdaten"}, {"href": f"/master-data#{bereich}", "text": name}]
+
+
 @router.get("/projects/new", response_class=HTMLResponse)
 def project_create_page(request: Request, customer_id: str | None = None, _role: AppUser = _role_dep):
     kunde = _zahl(customer_id)
@@ -443,6 +454,7 @@ def master_data_create_page(request: Request, data_type: str, projekt: str | Non
     _require_finanzen_for_employees(data_type, _role)
     return templates.TemplateResponse(request=request, name="master_data_form.html",
                                       context={"data_type": data_type, "zurueck": zurueck_stammdaten(data_type, projekt=_zahl(projekt)),
+                                               "pfad": pfad_stammdaten(data_type, projekt=_zahl(projekt)),
                                                "listenbereich": STAMMDATEN_BEREICHE[data_type][0]})
 
 
@@ -454,7 +466,7 @@ def master_data_edit_page(request: Request, data_type: str, record_id: int, _rol
     return templates.TemplateResponse(
         request=request, name="master_data_form.html",
         context={"data_type": data_type, "record_id": record_id, "zurueck": zurueck_stammdaten(data_type, record_id=record_id),
-                 "listenbereich": STAMMDATEN_BEREICHE[data_type][0]},
+                 "pfad": pfad_stammdaten(data_type, record_id=record_id), "listenbereich": STAMMDATEN_BEREICHE[data_type][0]},
     )
 
 

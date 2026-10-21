@@ -4,6 +4,17 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.22 – Rahmen, Runde 8: Stammdaten-Formular und Leistung im Rahmen
+
+Stufe 2, Runde 8, Punkt 3 (Entscheidung 5 der Seitenprüfung). Die Formularseiten Stammdaten-Formular (Anlegen und Bearbeiten aller
+Stammdatenbereiche) und Leistung (anlegen, bearbeiten) haben jetzt Seitenleiste (Bereich Stammdaten) und Kopfzeile, `.ds-seite` und den
+gemeinsamen Seitenkopf: Pfad aus dem Bereich der Leiste und dem bisherigen Rückweg bis zur Seite selbst (Stammdaten / Mitarbeiter /
+Mitarbeiter bearbeiten, Stammdaten / Leistungskataloge / Leistungskatalog / Leistung bearbeiten; aus der Projektmappe Projekte / Projektmappe
+/ Kontakt anlegen), im Kopf „Abbrechen“ neutral zum bisherigen Zurück-Ziel und „Speichern“ grün -- es ruft dasselbe `save()` wie der Knopf
+unten, der bleibt; bleibt die Seite nach dem Speichern stehen (abgelehnte Eingabe), rückt die Meldung unten ins Bild. Felder, Speichern und
+die Ziele danach unverändert; eine importierte Leistung zeigt auch oben kein „Speichern“. Neues Projekt und Neues Angebot bleiben (Stufe 7).
+Neuer Test `test_v455`, Klicktest `klicktest_rahmen` Teil „formularseiten“; drei Tests und ein Klicktest mit angepasster Erwartung.
+
 ## 1.9.21 – Rahmen, Runde 8: Seitenkopf der Seiten mit Untermenü und mit Zurück-Link
 
 Stufe 2, Runde 8, Punkt 2. Die Gruppen „Untermenü links“ (Stammdaten, Einstellungen, Zeiterfassungs-Backoffice) und „Zurück-Link + Karte“

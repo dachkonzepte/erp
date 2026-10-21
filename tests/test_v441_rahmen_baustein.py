@@ -52,6 +52,9 @@ UMGEZOGEN |= BELEGKOPF
 UNTERMENUE_LINKS = {"master_data.html", "settings.html", "time_backoffice.html"}
 ZURUECK_UND_KARTE = {"account.html", "users.html", "history.html", "address_import.html", "index.html"}
 UMGEZOGEN |= UNTERMENUE_LINKS | ZURUECK_UND_KARTE
+# seit 1.9.22 die Formularseiten Stammdaten-Formular und Leistung im Rahmen (K7; Neues Projekt und Neues Angebot werden Dialoge)
+FORMULARSEITEN = {"master_data_form.html", "service_form.html"}
+UMGEZOGEN |= FORMULARSEITEN
 
 
 # ---------------------------------------------------------------------------
@@ -388,7 +391,7 @@ def bereich_verstoesse(name: str, wurzel: Path = TEMPLATES) -> list[str]:
 
 def test_jede_seite_mit_leiste_nennt_ihren_bereich():
     mit_leiste = [name for name in vj.seiten() if vj.bindet_ein(name, "_sidebar.html")]
-    assert len(mit_leiste) == 42
+    assert len(mit_leiste) == 44  # seit 1.9.22 mit Stammdaten-Formular und Leistung (bis dahin 42)
     assert [f for name in mit_leiste for f in bereich_verstoesse(name)] == []
 
 
@@ -445,7 +448,7 @@ def test_jede_seite_markiert_ihren_bereich(threaded_db_session, router_test_clie
         aktiv = re.findall(r'<a class="app-sidebar-link[^"]*\bactive\b[^"]*" data-bereich="([a-z]+)"[^>]*aria-current="page"', nav)
         assert aktiv == ([] if bereich == "keiner" else [bereich]) and nav.count('aria-current="page"') == len(aktiv), (a.vorlage, aktiv)
         geprueft.add(a.vorlage)
-    assert len(geprueft) == 42
+    assert len(geprueft) == 44  # seit 1.9.22 mit Stammdaten-Formular und Leistung (bis dahin 42)
 
 
 def test_grundregeln_mit_gewicht_null():

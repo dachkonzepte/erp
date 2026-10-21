@@ -112,11 +112,13 @@ FORMULARSEITEN = ("project_form.html", "quote_form.html", "master_data_form.html
     ("/projects/new?customer_id=5", "/customers/5", "Kundenakte"),
     ("/quotes/new", "/projects", "Projekte"),
     ("/quotes/new?project_id=7", "/projects/7", "Projektmappe"),
-    ("/master-data/employees/1/edit", "/master-data#employees", "Stammdaten: Mitarbeiter"),
-    ("/master-data/customers/new", "/master-data#customers", "Stammdaten: Kunden"),
-    ("/master-data/resources/new", "/master-data#assets", "Stammdaten: Fuhrpark & Maschinen"),
-    ("/master-data/assets/new", "/master-data#assets", "Stammdaten: Betriebsmittel"),
-    ("/master-data/materials/new", "/master-data#materials", "Stammdaten: Materialkataloge"),
+    # seit 1.9.22 (Stufe 2, Runde 8) Stammdaten-Formular und Leistung im Rahmen: statt „← Name“ das letzte Glied des Pfads und
+    # „Abbrechen“ im Seitenkopf, beide zum selben Ziel wie bisher (bis dahin „← Stammdaten: Mitarbeiter“ usw.)
+    ("/master-data/employees/1/edit", "/master-data#employees", "Mitarbeiter"),
+    ("/master-data/customers/new", "/master-data#customers", "Kunden"),
+    ("/master-data/resources/new", "/master-data#assets", "Fuhrpark & Maschinen"),
+    ("/master-data/assets/new", "/master-data#assets", "Betriebsmittel"),
+    ("/master-data/materials/new", "/master-data#materials", "Materialkataloge"),
     ("/master-data/properties/3/edit", "/properties/3", "Objekt"),
     ("/master-data/contacts/new?projekt=7", "/projects/7#sec-participants", "Projektmappe"),
     ("/services/1/edit", "/leistungskatalog", "Leistungskatalog"),
@@ -130,6 +132,12 @@ def test_zurueck_link_mit_echtem_ziel(threaded_db_session, router_test_client, a
     antwort = router_test_client(threaded_db_session, pages_router, role="buero_finanzen").get(adresse, follow_redirects=False)
     assert antwort.status_code == 200
     markup = re.sub(r"<script.*?</script>", "", antwort.text, flags=re.S | re.I)  # Anker in Skript-Zeichenketten zählen nicht
+    if adresse.startswith(("/master-data/", "/services/")):
+        assert 'class="back' not in markup
+        glied = re.findall(r'<a class="ds-kopf-pfadglied" href="([^"]*)">([^<]*)</a>', markup)[-1]
+        abbrechen = re.search(r'<a class="ds-knopf" id="abbrechenLink" href="([^"]*)">Abbrechen</a>', markup).group(1)
+        assert [html.unescape(glied[0]), html.unescape(glied[1]), html.unescape(abbrechen)] == [ziel, name, ziel]
+        return
     links = re.findall(r'<a[^>]*class="back"[^>]*>(.*?)</a>', markup, flags=re.S)
     assert len(links) == 1, links
     anker = re.search(r'<a[^>]*class="back"[^>]*>', markup).group(0)

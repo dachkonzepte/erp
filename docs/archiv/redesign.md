@@ -2675,3 +2675,72 @@ Ausführlich in `docs/archiv/testablauf-und-klicktests.md`, „Testdaten der Bil
    Monteurin Einsätze / Mein Konto (dorthin leitete „Zur Startseite“ sie schon).
 7. **Akzentfarbe an Nicht-Links bleibt** (Monatsbanner im Backoffice, Pfeil der aufklappbaren Rechner, Kennzeichen „Lieferant“ im
    Adressimport) -- wie bei den früheren Gruppen.
+
+### Punkt 3 (1.9.22): Stammdaten-Formular und Leistung im Rahmen
+
+- **Rahmen**: Seitenleiste (Bereich „Stammdaten“, als erste Anweisung) und Kopfzeile, `.ds-seite`, der Inhalt in `<main>` links unter dem
+  Kopf (bis dahin eine zentrierte Karte ohne Leiste); die Karte behält ihre Breite (1000 bzw. 1100 px), der Kopf ist so breit wie sie.
+  Damit haben 44 Seiten die Leiste (bis dahin 42); ohne Rahmen bleiben Anmeldung, Sperrseite, Neues Projekt und Neues Angebot.
+- **Pfad**: Bereich der Leiste, dann der bisherige Rückweg, am Ende die Seite selbst. Stammdaten-Formular: die Glieder vor der Seite kommen
+  vom Server (`app/routers/pages.py::pfad_stammdaten()`: Stammdaten / <Bereich>, beim Objekt Stammdaten / Objekt, aus der Projektmappe
+  Projekte / Projektmappe), das letzte setzt `titel()` zusammen mit dem Titel (bis dahin `el('heading').textContent=…`, die Texte sind
+  dieselben). Leistung: fest Stammdaten / Leistungskataloge / Leistungskatalog.
+- **Kopf**: „Abbrechen“ (neutral, `href` = bisheriges Zurück-Ziel `zurueck.href`, dasselbe wie das letzte Glied vor der Seite) und
+  „Speichern“ (grün, `data-klick="speichern"` -> dasselbe `save()` wie der Knopf unten). Der Knopf unten bleibt, mit seiner Meldung `#msg`;
+  bleibt die Seite nach einem Klick oben stehen (abgelehnte Eingabe, Fehler), rückt die Meldung ins Bild (`scrollIntoView` mittig, nur dann).
+  Eine importierte Leistung (nicht bearbeitbar) verbirgt beide „Speichern“.
+- **Unverändert**: Felder, `save()` und die Ziele danach (Liste des Bereichs, Objekt, Betriebsmittel, Projektmappe mit neuem Kontakt,
+  Katalog der Leistung), die Rückfrage bei laufender Gruppenzeit (Teams). Links im Kontaktformular („Kunde öffnen“, die Projekte) in
+  `--ds-link` (bis dahin die Klasse `.back` in der Akzentfarbe), Fokus in `--ds-fokus`; tote Regeln `header`, `.back`, `.topnav`, `h1`
+  entfernt.
+
+| Seite | Pfad | Hauptaktion | Menü „⋮“ |
+|---|---|---|---|
+| Stammdaten-Formular | Stammdaten / <Bereich> / <Titel> (z. B. Mitarbeiter bearbeiten, Kunde anlegen); Objekt: Stammdaten / Objekt / …; Kontakt aus der Projektmappe: Projekte / Projektmappe / Kontakt anlegen | „Speichern“ (daneben „Abbrechen“ neutral) | -- |
+| Leistung | Stammdaten / Leistungskataloge / Leistungskatalog / Leistung bearbeiten bzw. anlegen | „Speichern“ (daneben „Abbrechen“ neutral; bei einer importierten Leistung nur „Abbrechen“) | -- |
+
+#### Tests und Prüfung
+
+- `test_v441`: `UMGEZOGEN` um die 2 Seiten (`FORMULARSEITEN`, 35 Seiten); 44 statt 42 Seiten mit Leiste, beide mit `bereich`.
+- Neu `tests/test_v455_formularseiten_im_rahmen.py` (17 Tests): Rahmen und Bereich; im Kopf genau „Abbrechen“ (neutral, Zurück-Ziel) und
+  „Speichern“ (grün, ruft `save()` und holt die Meldung ins Bild), der Knopf unten bleibt; jeder Titel über `titel()`; für jeden Bereich endet
+  `pfad_stammdaten()` am Ziel von `zurueck_stammdaten()`; neun Adressen gerendert: Pfad, „Abbrechen“ = letztes Glied, jedes Ziel 200,
+  „Stammdaten“ in der Leiste aktiv; importierte Leistung ohne „Speichern“ oben.
+- `klicktest_rahmen` Teil `formularseiten` (neu): Mitarbeiter bearbeiten, Leistung bearbeiten, Kunde anlegen, Kontakt aus der Projektmappe,
+  je hell und dunkel bei 1440 × 900 -- Leiste mit „Stammdaten“ aktiv, Kopfzeile, `.ds-seite`, ein h1 mit dem Titel, Pfad (jeder Link öffnet
+  eine Seite), „Abbrechen“ neutral mit dem Zurück-Ziel, „Speichern“ grün, Knopf unten mit `save()`, Links, Fokus, Kontrast; dazu „Speichern“
+  oben ohne Kurztext -> „Bitte Kurztext und Einheit ausfüllen.“ unten im Bild, Seite bleibt; mit Kurztext gespeichert, Ziel der Katalog;
+  Mitarbeiter mit „Speichern“ oben -> Liste der Mitarbeiter; „Abbrechen“ mit geändertem Nachnamen -> Liste, nichts gespeichert.
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück, je pytest und -- wo der Browser es zeigt -- Klicktest-Teil):
+„Abbrechen“ im Stammdaten-Formular nach `/master-data` statt zum Zurück-Ziel (H1); „Speichern“ oben in der Leistung ohne `save()` (H2);
+  Pfad des Stammdaten-Formulars ohne den Bereich der Leiste (H3, `pfad_stammdaten()`); Meldung nicht ins Bild (H4); importierte Leistung mit
+  „Speichern“ oben (H5); Stammdaten-Formular ohne `bereich` (H6) -- **6 von 6 rot** in pytest (FAILED: H1 15 Tests aus `test_v455` und
+  `test_v436`, H2 1, H3 6, H4 1, H5 1, H6 10 mit den beiden Zählungen in `test_v441`), der Klicktest-Teil `formularseiten` für H1–H4 und
+  H6 je rot (73, 78, 76, 79, 74 von 80: „Abbrechen“ mit falschem Ziel und die Liste ohne `#employees`; keine Meldung und kein Speichern;
+  Pfad ohne „Stammdaten“; Meldung unter dem Fenster; kein aktiver Eintrag der Leiste); H5 zeigt der Browser nicht (die Testdaten haben
+  keine importierte Leistung), dafür nur pytest.
+- **Untersucht und geändert** (vor dem Commit): der erste Lauf des Klicktest-Teils fand die Meldung nach „Speichern“ oben nicht im Bild --
+  mit `scrollIntoView({block:'nearest'})` lag sie genau am unteren Fensterrand (Unterkante 900 von 900 px, mit Bruchteil darüber). Jetzt
+  `block:'center'`: die Meldung steht mit dem Knopf unten mitten im Fenster.
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v436::test_zurueck_link_mit_echtem_ziel` (9 der 13 Fälle): alt genau ein `.back`-Link „← Stammdaten: Mitarbeiter“ usw. bzw. „←
+    Leistungskatalog“; neu das letzte Glied des Pfads („Mitarbeiter“, „Kunden“, „Fuhrpark & Maschinen“, „Betriebsmittel“,
+    „Materialkataloge“, „Objekt“, „Projektmappe“, „Leistungskatalog“) und „Abbrechen“, beide zum selben Ziel wie bisher, kein `.back`.
+  - `test_v246::test_form_page_renders_the_employee_form`: alt `el('heading').textContent=editing?'Mitarbeiter bearbeiten':'Mitarbeiter
+    anlegen'`; neu `titel(editing?'Mitarbeiter bearbeiten':'Mitarbeiter anlegen')`.
+  - `test_v441::test_jede_seite_mit_leiste_nennt_ihren_bereich` und `test_jede_seite_markiert_ihren_bereich`: alt 42 Seiten; neu 44.
+  - `test_v441::UMGEZOGEN`: alt 33 Seiten; neu dazu die 2.
+  - `klicktest_versand_im_kontext`: alt bereit, wenn `#heading` „Leistung bearbeiten“ zeigt; neu `#seitenkopfTitel`.
+
+#### Festlegungen 1.9.22 (Bitte bestätigen)
+
+1. **Inhalt links unter dem Kopf** in der bisherigen Breite der Karte (1000 bzw. 1100 px), der Kopf so breit wie die Karte; nicht mehr
+   zentriert.
+2. **Pfad des Stammdaten-Formulars = Bereich der Leiste + bisheriger Rückweg + Seite**; aus der Projektmappe beginnt er mit Projekte (die
+   Leiste zeigt weiter Stammdaten).
+3. **Titel unverändert** (die Texte aus dem Skript, bis zum Laden „Stammdaten“ bzw. „Leistung anlegen“ wie bisher), er ist zugleich das
+   letzte Glied des Pfads; der Hilfetext bleibt als erster Absatz in der Karte.
+4. **„Speichern“ oben = derselbe Weg wie unten**; bleibt die Seite stehen, rückt die Meldung unten ins Bild -- sonst sähe man oben nach einer
+   abgelehnten Eingabe nichts.
+5. **„Abbrechen“ ohne Rückfrage** zum bisherigen Zurück-Ziel (wie der Zurück-Link bisher); Speichern unten bleibt mit seiner Meldung.
+6. **Importierte Leistung**: oben nur „Abbrechen“ (wie unten kein Speichern).

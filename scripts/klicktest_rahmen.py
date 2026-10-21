@@ -53,6 +53,11 @@ Geprüft wird im echten Browser auf den Testdaten der Bildgrundlage (scripts/bil
                    ohne Pfad), kein .back, Hauptaktion nur „+ Hinzufügen“ der Stammdaten, kein Menü, Links, Fokus, Kontrast; Stammdaten:
                    Titel und Ziel von „+ Hinzufügen“ folgen dem Bereich, Büro – Auftrag ohne „+ Hinzufügen“ bei Mitarbeitern;
                    Einstellungen behalten den Titel; „Aktualisieren“ im Backoffice lädt ohne Fehler
+    Formularseiten seit 1.9.22 Stammdaten-Formular (Mitarbeiter bearbeiten, Kunde anlegen, Kontakt aus der Projektmappe) und Leistung im
+                   Rahmen, hell und dunkel: Leiste („Stammdaten“ aktiv) und Kopfzeile, ein h1, Pfad bis zur Seite (jeder Link öffnet eine
+                   Seite), „Abbrechen“ neutral zum bisherigen Zurück-Ziel und „Speichern“ grün im Kopf, der Knopf unten bleibt, Links,
+                   Fokus, Kontrast; „Speichern“ oben speichert wie unten (Ziel wie bisher), eine abgelehnte Eingabe zeigt die Meldung im
+                   Bild, „Abbrechen“ führt zurück ohne zu speichern
     Seitenregeln   auf den Einstellungen (button:hover und button:active in der Akzentfarbe): Kontoknopf unter der Maus und per
                    Leertaste gedrückt (:active ohne :hover), Menüeintrag unter der Maus -- nie in der Akzentfarbe
     Monteurskopf   auf jeder Seite der Monteurin (Mobil, Objekt, Stundenzettel, Zeiterfassung, Betriebsmittel, Checkliste,
@@ -68,7 +73,7 @@ AUFRUF (aus dem Projektordner):
         [--arbeitsordner PFAD] [--chrome PFAD] [--offen-lassen]
 
 --nur: nur diese Teile (seitenleiste, aktiv, schrift, menueknopf, kopfzeile, kontomenue, vollname, pruefvorlagen, kopfgruppe,
-seitenregeln, monteurskopf, datensatzkopf, rechnungskopf, angebotskopf, untermenue) -- für
+seitenregeln, monteurskopf, datensatzkopf, rechnungskopf, angebotskopf, untermenue, formularseiten) -- für
 Gegenproben, die nach 2 min
 abbrechen (Regel 24).
 
@@ -1047,10 +1052,108 @@ async def _untermenue(tab, seed, p):
     await tab.bild("untermenue_zuletzt")
 
 
+# Seit 1.9.22: die Formularseiten Stammdaten-Formular und Leistung im Rahmen
+FORMULARSEITEN = (
+    dict(seite="stammdaten_mitarbeiter", adresse=None, titel="Mitarbeiter bearbeiten",
+         pfad=[["Stammdaten", "/master-data"], ["Mitarbeiter", "/master-data#employees"], ["Mitarbeiter bearbeiten", None]],
+         abbrechen="/master-data#employees"),
+    dict(seite="leistung", adresse=None, titel="Leistung bearbeiten",
+         pfad=[["Stammdaten", "/master-data"], ["Leistungskataloge", "/master-data#catalogs"], ["Leistungskatalog", "/leistungskatalog"],
+               ["Leistung bearbeiten", None]], abbrechen="/leistungskatalog"),
+    dict(seite="stammdaten_mitarbeiter", adresse="/master-data/customers/new", titel="Kunde anlegen",
+         pfad=[["Stammdaten", "/master-data"], ["Kunden", "/master-data#customers"], ["Kunde anlegen", None]], abbrechen="/master-data#customers"),
+    dict(seite="stammdaten_mitarbeiter", adresse="/master-data/contacts/new?projekt={projekt}", titel="Kontakt anlegen",
+         pfad=[["Projekte", "/projects"], ["Projektmappe", "/projects/{projekt}#sec-participants"], ["Kontakt anlegen", None]],
+         abbrechen="/projects/{projekt}#sec-participants"),
+)
+FORMULAR_JS = """(()=>{const F=%s;const cs=e=>getComputedStyle(e);const k=document.getElementById('seitenkopf');
+const knoepfe=[...k.querySelectorAll('.ds-kopf-aktionen .ds-knopf')].filter(e=>cs(e).display!=='none');
+const unten=document.getElementById('saveBtn');const aktiv=[...document.querySelectorAll('#appSidebar .app-sidebar-link.active')];
+return {knoepfe:knoepfe.map(e=>[e.textContent.trim(),e.getAttribute('href'),e.classList.contains('ds-knopf-aktion'),
+    cs(e).backgroundColor===F(e.classList.contains('ds-knopf-aktion')?'--ds-aktion':'--ds-flaeche')]),
+  unten:[unten.textContent.trim(),unten.getAttribute('onclick'),cs(unten).display!=='none'],
+  leiste:[aktiv.map(a=>a.dataset.bereich),aktiv.map(a=>a.getAttribute('aria-current'))],kopfzeile:!!document.querySelector('.app-topbar')}})()""" % FARBE
+IM_BILD = ("(()=>{const r=document.getElementById('msg').getBoundingClientRect();"
+           "return [document.getElementById('msg').textContent,r.top>=0&&r.bottom<=innerHeight,location.pathname]})()")
+
+
+async def _formular_laden(tab, seed, f, thema):
+    if not f["adresse"]:
+        return await _laden(tab, seed, f["seite"], thema, 1440, 900)
+    await tab.cmd("Emulation.setEmulatedMedia", features=[{"name": "prefers-color-scheme", "value": "dark" if thema == "dunkel" else "light"}])
+    await tab.cmd("Emulation.setDeviceMetricsOverride", width=1440, height=900, deviceScaleFactor=1, mobile=False)
+    ok = await tab.oeffnen(f["adresse"].format(**seed), bg.BEREIT, timeout=45)
+    await tab.js(bg.RUHE)
+    return ok
+
+
+async def _formularseiten(tab, seed, p):
+    """Seit 1.9.22: Stammdaten-Formular (Mitarbeiter bearbeiten, Kunde anlegen, Kontakt aus der Projektmappe) und Leistung im Rahmen,
+    hell und dunkel: Leiste mit „Stammdaten“ aktiv und Kopfzeile, .ds-seite, ein h1 mit dem Titel, Pfad bis zur Seite (jeder Link öffnet
+    eine Seite), im Kopf „Abbrechen“ neutral zum bisherigen Zurück-Ziel und „Speichern“ grün, der Knopf unten bleibt; Links, Fokus,
+    Kontrast. Dazu (hell): „Speichern“ im Kopf speichert wie der Knopf unten (Mitarbeiter -> Liste der Mitarbeiter, Leistung -> Katalog),
+    eine abgelehnte Eingabe zeigt die Meldung unten im Bild und die Seite bleibt; „Abbrechen“ führt zum Zurück-Ziel."""
+    await tab.cmd("Emulation.setFocusEmulationEnabled", enabled=True)
+    await tab.anmelden(seed["cookies"][bg.BUERO])
+    for f in FORMULARSEITEN:
+        for thema in ("hell", "dunkel"):
+            wo = f"Formular {f['adresse'] or f['seite']} {thema}"
+            p.pruefe(f"{wo}: geladen", await _formular_laden(tab, seed, f, thema), True)
+            await tab.warten("document.getElementById('seitenkopfTitel').textContent===%s" % json.dumps(f["titel"]), 10)
+            m = await tab.js(DATENSATZKOPF_JS)
+            p.pruefe(f"{wo}: .ds-seite, genau ein h1 „{f['titel']}“", [m["ds"], m["h1"]], [True, [["seitenkopfTitel", f["titel"]]]])
+            pfad = [[t, h.format(**seed) if h else None, None if h else "page"] for t, h in f["pfad"]]
+            p.pruefe(f"{wo}: Pfad {' / '.join(g[0] for g in pfad)}", m["pfad"], pfad)
+            offen = await tab.js(PFAD_OEFFNEN)
+            p.pruefe(f"{wo}: jeder Link im Pfad öffnet eine Seite ({len(offen)} Links)",
+                     [o for o in offen if o[1:] != [200, False, "text/html"]], [])
+            r = await tab.js(FORMULAR_JS)
+            p.pruefe(f"{wo}: Leiste (Stammdaten aktiv) und Kopfzeile; im Kopf „Abbrechen“ neutral, „Speichern“ grün; Knopf unten bleibt",
+                     [r["leiste"], r["kopfzeile"], r["knoepfe"], r["unten"]],
+                     [[["stammdaten"], ["page"]], True, [["Abbrechen", f["abbrechen"].format(**seed), False, True], ["Speichern", None, True, True]],
+                      ["Speichern", "save()", True]])
+            p.pruefe(f"{wo}: {m['links']} Textlinks im Inhalt, alle in --ds-link", m["falsch"], [])
+            fokus = await tab.js(KOPFGRUPPE_FOKUS)
+            p.pruefe(f"{wo}: erstes Feld mit Fokus im Umriss --ds-fokus", fokus if fokus == "kein Feld" else fokus[1],
+                     "kein Feld" if fokus == "kein Feld" else True)
+            k = await tab.js(KONTRAST)
+            p.pruefe(f"{wo}: Kontrast ({k['anzahl']} Elemente, kleinster {k['min']} : 1)", k["schwach"], [])
+            p.pruefe(f"{wo}: keine JS-Fehler", tab.fehler, [])
+    # Leistung: Kurztext leer -> „Speichern“ oben lehnt ab wie unten, die Meldung rückt ins Bild; ausgefüllt speichert es und führt zum Katalog
+    leistung = FORMULARSEITEN[1]
+    p.pruefe("Formular leistung Speichern: geladen", await _formular_laden(tab, seed, leistung, "hell"), True)
+    await tab.warten("document.getElementById('seitenkopfTitel').textContent==='Leistung bearbeiten'", 10)
+    await tab.js("window.scrollTo(0,0);document.getElementById('shortText').value=''")
+    await tab.js("document.getElementById('kopfSpeichern').click()")
+    await tab.warten("document.getElementById('msg').textContent!==''", 10)
+    p.pruefe("Formular leistung: „Speichern“ oben ohne Kurztext -> Meldung unten im Bild, Seite bleibt", await tab.js(IM_BILD),
+             ["Bitte Kurztext und Einheit ausfüllen.", True, f"/services/{seed['leistung']}/edit"])
+    await tab.js("window.scrollTo(0,0);document.getElementById('shortText').value='Rinne reinigen'")
+    await tab.js("document.getElementById('kopfSpeichern').click()")
+    p.pruefe("Formular leistung: „Speichern“ oben speichert und führt zum Katalog der Leistung",
+             await tab.warten("location.pathname==='/leistungskatalog'&&location.search.startsWith('?catalog_id=')", 20), True)
+    # Mitarbeiter: „Speichern“ oben -> Liste der Mitarbeiter; „Abbrechen“ -> dasselbe Ziel ohne Speichern
+    mitarbeiter = FORMULARSEITEN[0]
+    p.pruefe("Formular Mitarbeiter Speichern: geladen", await _formular_laden(tab, seed, mitarbeiter, "hell"), True)
+    await tab.warten("document.getElementById('seitenkopfTitel').textContent==='Mitarbeiter bearbeiten'&&!!document.getElementById('lastName')", 10)
+    await tab.js("document.getElementById('kopfSpeichern').click()")
+    p.pruefe("Formular Mitarbeiter: „Speichern“ oben speichert und führt zur Liste der Mitarbeiter",
+             await tab.warten("location.pathname==='/master-data'&&location.hash==='#employees'", 20), True)
+    p.pruefe("Formular Mitarbeiter Abbrechen: geladen", await _formular_laden(tab, seed, mitarbeiter, "hell"), True)
+    await tab.warten("document.getElementById('seitenkopfTitel').textContent==='Mitarbeiter bearbeiten'", 10)
+    await tab.js("document.getElementById('lastName').value='Nicht gespeichert';document.getElementById('abbrechenLink').click()")
+    zurueck = await tab.warten("location.pathname==='/master-data'&&location.hash==='#employees'", 20)
+    gespeichert = await tab.js(f"fetch('/api/employees').then(r=>r.json()).then(l=>l.find(e=>e.id==={seed['mitarbeiter']}).last_name)")
+    p.pruefe("Formular Mitarbeiter: „Abbrechen“ führt zur Liste, nichts gespeichert", [zurueck, gespeichert], [True, "Monteurin"])
+    p.pruefe("Formular: keine JS-Fehler", tab.fehler, [])
+    await tab.bild("formularseiten_zuletzt")
+
+
 TEILE = {"seitenleiste": _seitenleiste, "aktiv": _aktiv, "schrift": _schrift, "menueknopf": _menueknopf, "kopfzeile": _kopfzeile,
          "kontomenue": _kontomenue, "vollname": _vollname, "pruefvorlagen": _pruefvorlagen, "kopfgruppe": _kopfgruppe,
          "seitenregeln": _seitenregeln, "monteurskopf": _monteurskopf, "datensatzkopf": _datensatzkopf,
-         "rechnungskopf": _rechnungskopf, "angebotskopf": _angebotskopf, "untermenue": _untermenue}
+         "rechnungskopf": _rechnungskopf, "angebotskopf": _angebotskopf, "untermenue": _untermenue,
+         "formularseiten": _formularseiten}
 NUR: list = []
 
 

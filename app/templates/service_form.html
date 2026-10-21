@@ -1,3 +1,4 @@
+{% set bereich = "stammdaten" -%}
 <!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP – Leistung</title>
 <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
 {% include "_ds_kopf.html" %}
@@ -5,8 +6,8 @@
 :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light;color:var(--ink);background:var(--bg)}
 :root[data-theme="dark"]{color-scheme:dark}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
-.topnav{max-width:1100px;margin:24px auto 0;padding:0 22px}.back{color:var(--accent);text-decoration:none;font-weight:700}
-.wrap{max-width:1100px;margin:12px auto 24px;background:var(--card);border:1px solid var(--line);padding:22px}
+main{max-width:1140px;margin:0;padding:20px}
+.wrap{background:var(--card);border:1px solid var(--line);padding:22px}
 .section{margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid var(--line)}
 .section:last-of-type{border-bottom:0}
 .section h3{margin:0 0 12px;color:var(--ink)}
@@ -15,7 +16,7 @@
 label{display:block;font-size:12px;font-weight:650;color:var(--muted);margin-bottom:5px}
 input,select,textarea{width:100%;padding:10px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit}
 input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
-input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-aktion);outline-offset:-1px;border-color:var(--ds-aktion)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-fokus);outline-offset:-1px;border-color:var(--ds-fokus)}
 textarea{resize:vertical}
 button{background:var(--ds-aktion);color:#fff;border:1px solid var(--ds-aktion);padding:11px 16px;font-weight:650;cursor:pointer}
 button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-color:color-mix(in srgb,var(--ds-aktion) 85%,black)}
@@ -37,12 +38,22 @@ th{font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700}
 .metric.highlight{background:color-mix(in srgb,var(--ds-aktion) 12%,var(--soft));border-color:color-mix(in srgb,var(--ds-aktion) 35%,var(--line))}
 .addRow{display:flex;gap:8px;margin-top:10px;align-items:end;flex-wrap:wrap}
 .addRow .field{margin:0}
-h1{color:var(--ink)}
 @media(max-width:700px){.grid{grid-template-columns:1fr}.full{grid-column:auto}}
-</style></head><body>
-<div class="topnav"><a class="back" href="{{ zurueck.href }}">← {{ zurueck.text }}</a></div>
+</style></head><body class="ds-seite">
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+{% include "_topbar.html" %}
+<main>
+{# Seit 1.9.22 (Stufe 2, Runde 8; Entscheidung 5 der Seitenprüfung): die Formularseite im Rahmen -- Leiste (Bereich Stammdaten),
+   Kopfzeile, Seitenkopf mit Pfad (Stammdaten / Leistungskataloge / Leistungskatalog, am Ende die Seite selbst, gesetzt von titel()); im Kopf „Abbrechen“ (neutral, zum
+   bisherigen Zurück-Ziel) und „Speichern“ (grün, dasselbe save() wie der Knopf unten, der bleibt). Felder und Speichern unverändert. #}
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{% call(teil) seitenkopf("Leistung anlegen", mit_pfad=true, mit_aktion=true) %}
+  {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/master-data">Stammdaten</a><span class="ds-kopf-trenner" aria-hidden="true">/</span><a class="ds-kopf-pfadglied" href="/master-data#catalogs">Leistungskataloge</a><span class="ds-kopf-trenner" aria-hidden="true">/</span><a class="ds-kopf-pfadglied" href="/leistungskatalog">Leistungskatalog</a>
+  {% elif teil == "aktion" %}<a class="ds-knopf" id="abbrechenLink" href="{{ zurueck.href }}">Abbrechen</a><button type="button" class="ds-knopf ds-knopf-aktion" id="kopfSpeichern" data-klick="speichern">Speichern</button>{% endif %}
+{% endcall %}
 <div class="wrap">
-  <h1 id="heading">Leistung anlegen</h1>
   <p id="help" class="muted"></p>
   <div id="lockedNotice" class="hidden" style="background:var(--warning-soft);border:1px solid color-mix(in srgb,var(--ds-warn-text) 35%,transparent);padding:12px;margin-bottom:18px;font-size:14px;color:var(--ink)">
     Diese Leistung wurde importiert und wird bei einem erneuten Import überschrieben, deshalb nicht direkt bearbeitbar. Über „Kopieren“ in der Katalogansicht lässt sich eine unabhängige, bearbeitbare Kopie anlegen.
@@ -119,10 +130,15 @@ h1{color:var(--ink)}
     <button id="saveBtn" onclick="save()">Speichern</button> <span id="msg" class="muted"></span>
   </div>
 </div>
+</main>
+</div>
+</div>
 
 {% include "_auswahl.html" %}
 {% include "_speichern.html" %}
 {% include "_zahl.html" %}
+{% include "_aktionen.html" %}
+{% include "_seitenkopf.html" %}
 <script>
 // Seit 1.8.113 auch für None "null": default() greift nur bei fehlender Variable -- /services/new übergibt None, die Seite brach bis
 // dahin mit "None is not defined" ab ("Leistung anlegen" ging für keine Rolle).
@@ -144,6 +160,11 @@ let searchDebounce = null;
 let serviceTypes = [];
 
 const el = id => document.getElementById(id);
+// Seit 1.9.22 (Runde 8): Titel und letztes Glied des Pfads im Seitenkopf (bis dahin h1#heading); die Glieder davor stehen fest im Kopf.
+const PFAD = [...document.querySelectorAll('#seitenkopfPfad a')].map(a => ({text: a.textContent, href: a.getAttribute('href')}));
+function titel(t) { seitenkopf({titel: t, pfad: [...PFAD, {text: t}]}); }
+// „Speichern“ im Kopf: dasselbe save() wie der Knopf unten; die Meldung steht unten bei #msg -- bleibt die Seite stehen, rückt sie ins Bild.
+aktion('speichern', async () => { await save(); if (el('msg').textContent) el('msg').scrollIntoView({block: 'center'}); });
 const esc = s => String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const v = id => document.getElementById(id)?.value ?? '';
 async function api(u, o) {
@@ -180,12 +201,13 @@ async function init() {
     ]), ([service, calc]) => {
     currentService = service;
     if (!isEditable(service)) {
-      el('heading').textContent = `${service.external_id} · ${firstLine(service.short_text)}`;
+      titel(`${service.external_id} · ${firstLine(service.short_text)}`);
       el('lockedNotice').classList.remove('hidden');
       el('editableArea').classList.add('hidden');
+      el('kopfSpeichern').hidden = true;  // seit 1.9.22: wie der Knopf unten (in editableArea) -- eine importierte Leistung speichert nicht
       return;
     }
-    el('heading').textContent = 'Leistung bearbeiten';
+    titel('Leistung bearbeiten');
     el('help').textContent = `${service.external_id}`;
     if (!kannVorgabenLesen) {  // seit 1.8.113: Standardwerte aus der Kalkulation der Leistung, wo kein eigener Wert steht
       globalSettings = {
@@ -224,7 +246,7 @@ async function init() {
     recalc();
     });
   } else {
-    el('heading').textContent = 'Leistung anlegen';
+    titel('Leistung anlegen');
     el('help').textContent = 'Wird direkt im gewählten Katalog gespeichert.';
     recalc();
   }
