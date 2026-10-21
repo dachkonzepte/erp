@@ -2554,3 +2554,22 @@ formatieren schon deutsch.
 Ausführlich in `docs/archiv/testablauf-und-klicktests.md`, „Wiederholung bei „Anfrage nicht angekommen““ (Erkennung, Ablauf, Ausweisen, fünf
 Festlegungen zum Testablauf). Test `tests/test_v452_klicktest_wiederholung.py`. Angepasste Erwartungen: keine (die Zeilen von `ausfuehren()`
 haben ein fünftes Feld; `test_v413` prüft nur die ersten drei).
+
+### Runde 7 abgeschlossen: Endläufe, Bildvergleich, Beleg (Stand `babfaca`)
+
+- **Endlauf** auf `babfaca` bei sauberer Arbeitskopie (vorher und nachher keine Änderung): volle Suite **6567 bestanden, 3 übersprungen,
+  0 rot** (7:10); **Klicktests 80 von 80** wie erwartet (zu viert, 7:33), **keine Wiederholung** nötig (Punkt 6 griff nicht).
+- **Bildvergleich** (volle Bildgrundlage, 298 Bilder), Ausgangsstand `bee5363` (Worktree, Stand vor der Runde) gegen `babfaca`, unmittelbar
+  hintereinander aufgenommen: **286 gleich, 12 abweichend** -- 4 Angebot (Büro, hell und dunkel, 412 und 1440 px: neuer Kopf, Grundregeln
+  der umgezogenen Seite) und 8 Auftrag und Rechnung (je hell/dunkel, 412/1440): je ein Rechteck von 55–62 × 14 px, die Auswahl
+  Steuerschlüssel „Privat (19,0000 %)“ -> „Privat (19 %)“ (Punkt 4, korrigiertes Feld; Ausschnitt geprüft). Die übrigen korrigierten
+  Auswahlfelder (Punkt 1) stehen in Dialogen oder zeigen in den Testdaten keinen Altwert, die übrigen Zahlenanzeigen (Punkt 4) erscheinen in
+  den Testdaten nicht (keine Dokumente mit Dateigröße, kein Material im Leistungsformular, Einstellungen mit unveränderten Texten der
+  sichtbaren Bereiche); die vier Seiten, die `_zahl.html` neu einbinden, sind pixelgleich. Außer Angebot und den korrigierten Feldern weicht
+  damit nichts ab.
+- **Beleg Angebot**: PDF aus den Testdaten, vor der Runde (`bee5363`) und auf `babfaca`, am selben Tag: Inhaltsstrom byte-gleich (43
+  Textstücke), A-2026-0001, 45.945,00 / 0,00 / 8.729,55 / 54.674,55 € in beiden Ständen.
+- **Bilder**: `bildgrundlage/rahmen_runde7_babfaca.zip` -- Angebot 1440 × 900 hell und dunkel, je vorher und nachher, dazu die zwei
+  Angebots-PDFs und der Textvergleich (7 Dateien).
+- Commits der Runde: `747f084` (1.9.14 Zeitregeln), `681ccb0` (1.9.15 Ändern in der Zeiterfassung), `c27c9f3` (1.9.16 Fremdschlüssel),
+  `e2874a3` (1.9.17 Zahlen über zahlText()), `0f3e86c` (1.9.18 Seitenkopf des Angebots), `babfaca` (1.9.19 Wiederholung im Klicktest).
