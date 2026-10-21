@@ -34,7 +34,9 @@ Rollen: "buero" ist Büro – Finanzen (die Büro-Rolle, die jede Büroseite öf
 Adresse für ihre Rolle die genannte Vorlage zeichnet und jede Seite, die die Monteurin öffnet, mit ihrer Rolle aufgenommen wird.
 
 Fest gehalten, damit zwei Läufe gleich sind: Uhr (UHR, stehend), alle gespeicherten Zeitstempel (nach dem Befüllen auf UHR gesetzt,
-außer dem Ablauf der Sitzungen und BEWUSST_GESETZT), Versionsnummer und Changelog der Instanz (cdp_klicktest KLICKTEST_ANZEIGE -- beide
+außer dem Ablauf der Sitzungen und BEWUSST_GESETZT; seit 1.9.20 laufen schon beim Befüllen die Spaltenvorgaben datetime.utcnow auf UHR --
+_vorgaben_auf_die_uhr() --, damit Werte, die beim Anlegen daraus entstehen, nicht am Lauftag hängen: Angebotsdatum und „Gültig bis“, die
+Abschrift des Auftrags; tests/test_v453_bildgrundlage_lauftag.py), Versionsnummer und Changelog der Instanz (cdp_klicktest KLICKTEST_ANZEIGE -- beide
 ändern sich mit jedem Commit), localStorage (leer bei jedem Laden), Thema über prefers-color-scheme, Text ohne LCD-Kantenglättung
 (CHROME_ARGUMENTE), kein Flush mit zwei geänderten Objekten in den Testdaten (Projektstatus vorab, siehe befuellen()). Verglichen werden
 volle Läufe -- mit --nur hängt eine Seite davon ab, welche vorher besucht wurden. Unter einer Gegenprobe (Marker GEGENPROBE unter app/)
@@ -231,9 +233,30 @@ _ZIEL: dict = {}  # im Hauptprozess gesetzt: ziel, nur
 # Feste Testdaten (im Kindprozess, isolierte Instanz)
 # ---------------------------------------------------------------------------
 
+def _vorgaben_auf_die_uhr() -> None:
+    """Seit 1.9.20: im Kindprozess des Befüllens jede Spaltenvorgabe datetime.utcnow (default und onupdate) auf die Uhr der App
+    (app.berlin_time._utc_now, hier die stehende UHR) umlegen. Die Vorgaben lesen sonst die echte Uhr: das Angebot bekam created_at vom
+    Lauftag, seine Kopfzeile daraus Datum und „Gültig bis“ (Date-Spalten, die _zeitstempel_festsetzen() nicht erfasst), die Abschrift des
+    Auftrags (OrderRevision.snapshot_json) ebenso -- das PDF des Angebots war nur am selben Tag vergleichbar. Vorgaben aus berlin_today()
+    folgen der Uhr schon. Nur in diesem Prozess; die Sitzungen setzen ihren Ablauf selbst (app/sitzungen.py, echte Zeit)."""
+    from app import berlin_time
+    from app.database import Base
+
+    def jetzt(_kontext=None):
+        return berlin_time._utc_now().replace(tzinfo=None)
+
+    for tabelle in Base.metadata.sorted_tables:
+        for spalte in tabelle.columns:
+            for vorgabe in (spalte.default, spalte.onupdate):
+                if vorgabe is not None and getattr(vorgabe, "is_callable", False) and getattr(vorgabe.arg, "__name__", "") == "utcnow":
+                    vorgabe.arg = jetzt
+
+
 def befuellen(db, k):
     from datetime import datetime, timedelta
     from decimal import Decimal
+
+    _vorgaben_auf_die_uhr()
 
     from app.berlin_time import _utc_now, berlin_today
     from app.checklist_templates import add_field, create_template, publish_draft

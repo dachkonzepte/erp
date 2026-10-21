@@ -1115,3 +1115,24 @@ wiederholt einen Klicktest genau einmal, wenn seine einzige Abweichung solche An
 3. Genau eine Wiederholung; gezählt wird der zweite Lauf, das erste Protokoll bleibt daneben. (Bitte bestätigen)
 4. Die Wiederholung läuft als nächster Klicktest derselben Gruppe. (Bitte bestätigen)
 5. Jede Wiederholung steht in Zeile, Kopfzeile und Zusammenfassung, auch wenn der zweite Lauf wie erwartet war. (Bitte bestätigen)
+
+## Testdaten der Bildgrundlage hängen nicht am Lauftag (1.9.20, Runde 8 Punkt 1)
+
+- **Befund**: das PDF des Angebots aus den Testdaten zeigte „Datum 21.10.2026“ (Tag des Laufs), die Uhr der Instanz steht auf 14.10.2026.
+  Ursache: Spaltenvorgaben `default=datetime.utcnow` (321 Vorgaben mit Funktion in den Modellen, die meisten `utcnow`) lesen die echte
+  Uhr; `app.berlin_time._utc_now` -- die eine Uhr der App, im Klicktest gesetzt -- erreichen sie nicht. Beim Befüllen bekam das Angebot so
+  `created_at` vom Lauftag, `_default_quote_meta()` legte daraus `quote_date` und `valid_until` an (Date-Spalten); `_zeitstempel_festsetzen()`
+  setzt danach nur DateTime-Spalten auf die Uhr.
+- **Suche** (Skript im Scratchpad, dann als Test): Testdaten in einer Wegwerf-Instanz befüllt, zuerst mit der stehenden Uhr der Bildgrundlage
+  (Suche nach dem echten Tag in jeder Date-, DateTime- und Textspalte und in den abgelegten Dateien, PDF dekodiert), dann mit einer fernen
+  stehenden Uhr (2030-01-15) -- was der Uhr folgt, wandert nach 2030, was bei 2026 bleibt, hängt an der echten Zeit oder ist ein fester Wert.
+  Gefunden: `quote_document_meta.quote_date` und `valid_until`, `order_revisions.snapshot_json` (`created_at` des Auftrags) samt ihrer Kopie
+  in `audit_logs.details`. Fest und unbedenklich: die Nummern der Testdaten (P-/A-/AN-2026-…, ihre Echos in Labels und Details). Bewusst
+  echt: `user_sessions.expires_at` (Ablauf gegen die echte Zeit, `app/sitzungen.py`), `data/erp.log` (Protokoll der App, keine Seite).
+- **Änderung**: `scripts/bildgrundlage.py::_vorgaben_auf_die_uhr()` -- am Anfang von `befuellen()` (Kindprozess des Befüllens) jede
+  Spaltenvorgabe mit Funktion `utcnow` (default und onupdate) auf `app.berlin_time._utc_now()` ohne Zeitzone umgelegt. Vorgaben aus
+  `berlin_today()` folgen der Uhr schon; die Sitzungen setzen ihren Ablauf selbst. Wirkt für alles, was `befuellen()` nutzt
+  (Bildgrundlage, `klicktest_rahmen`, Belege).
+- **Test** `tests/test_v453_bildgrundlage_lauftag.py`: befüllt mit der fernen Uhr; kein Datum vor 2029 in Date/DateTime (außer
+  `expires_at`), kein Datum 2026–2028 in Textspalten und abgelegten Dateien (nach Abzug der festen Nummern), Vergleichsfall „die ferne Uhr
+  wirkt“ (Kopfzeile des Angebots 15.01.2030 / 14.02.2030). Gegen den Stand vor 1.9.20: drei von vier rot, mit genau den Fundstellen.

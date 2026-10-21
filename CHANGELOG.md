@@ -4,6 +4,17 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.20 – Bildgrundlage: Testdaten hängen nicht am Lauftag
+
+Stufe 2, Runde 8, Punkt 1 (Nebenbefund aus Runde 7). Das PDF des Angebots aus den Testdaten der Bildgrundlage trug den Tag des Laufs
+(„Datum 21.10.2026“), obwohl die Uhr der Instanz auf dem 14.10.2026 steht: Spaltenvorgaben wie `default=datetime.utcnow` lesen die echte
+Uhr, nicht die der App; das Angebot bekam beim Befüllen `created_at` vom Lauftag, seine Kopfzeile daraus Datum und „Gültig bis“ (Date-
+Spalten, die das nachträgliche Festsetzen der Zeitstempel nicht erfasst). Seither legt `scripts/bildgrundlage.py` im Kindprozess des
+Befüllens jede solche Vorgabe auf die stehende Uhr um (`_vorgaben_auf_die_uhr()`). Gesucht wurde mit einer fernen stehenden Uhr (2030) über
+jede Date-, DateTime- und Textspalte und die abgelegten Dateien: außer Datum und „Gültig bis“ hing nur noch die Abschrift des Auftrags
+(`OrderRevision.snapshot_json`, dazu ihre Kopie im Änderungsprotokoll) am Lauftag -- jetzt auch sie nicht mehr. Bewusst bei der echten
+Zeit: der Ablauf der Sitzungen und das Protokoll der App. Neuer Test `test_v453` (befüllt mit der fernen Uhr; bis 1.9.19 drei von vier rot).
+
 ## 1.9.19 – Klicktests: einmal wiederholen, wenn nur eine Anfrage nicht ankam
 
 Stufe 2, Runde 7, Punkt 6 (zum Befund aus Runde 6, Punkt 2: einzelne Anfragen kommen im Gesamtlauf nie beim Server an -- Testaufbau,
