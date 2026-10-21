@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.9 – Rahmen, Runde 5: Statuskennzeichen an einer Stelle
+
+Stufe 2, Runde 5, Punkt 3. Der Status im Seitenkopf kommt jetzt aus einem Baustein (`_statuskennzeichen.html`, eingebunden über `_seitenkopf.html`): eine Tabelle ordnet jeder Bedeutung ihre Farbe zu (läuft = info, erledigt/bezahlt = ok, wartet auf dich = signal, überfällig/Fehler = fehler, Entwurf = warn, ruht = neutral), eine zweite jedem gespeicherten Wert je Gruppe (Auftrag, Wartungsvertrag, Checklisten-Vorlage, Prüfvorlage, Dachfläche, Betriebsmittel) seinen lesbaren Text und seine Bedeutung -- „Beauftragt“ statt „beauftragt“. `statusKennzeichen(gruppe, wert)` liefert beides für `seitenkopf()`; ein unbekannter Wert erscheint lesbar und neutral, ein leerer gar nicht.
+
+Neuer Test `test_v445`: Bedeutungen wie festgelegt, jeder Wert, den der Server für Auftrag, Wartungsvertrag und Fassung einer Checklisten-Vorlage schreibt, steht in der Tabelle, und jeder Status in `seitenkopf({…})` kommt über `statusKennzeichen()` mit einer bekannten Gruppe; kein Skript setzt das Kennzeichen daran vorbei. Noch keine Seite nutzt den Status -- das folgt mit den sieben Seiten in 1.9.10.
+
 ## 1.9.8 – Wartung: Gleichzeitigkeitstests ohne Zeitabhängigkeit
 
 Stufe 2, Runde 4, Punkt 3. test_v323, test_v376 und test_v419 hingen an festen Wartezeiten und Zeitschranken und kippten unter Last. Jetzt warten sie auf beobachtbare Zustände: die zweite Aktion wartet nachweislich auf die Sperre (pg_locks) bevor die erste freigibt, der zweite Versand meldet seinen Konflikt, bevor der erste sendet, und der Lasttest prüft Antworten, Transaktionen und gelesene Bytes statt Dauern. Belegt mit 20 Läufen unter Last.

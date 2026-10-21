@@ -1,0 +1,39 @@
+{#- Statuskennzeichen im Seitenkopf (seit 1.9.9, Stufe 2 „Rahmen“, Runde 5): die eine Stelle, an der ein gespeicherter Status zu seinem
+    lesbaren Text und seiner Farbe kommt. Mehrfach einbindbar (nur Funktionsdeklarationen); eingebunden über _seitenkopf.html.
+
+    statusBedeutungen()  Bedeutung -> Art des Seitenkopfs: läuft = info, erledigt/bezahlt = ok, wartet auf dich = signal, überfällig/Fehler
+                         = fehler, Entwurf = warn, ruht (pausiert, storniert, archiviert, inaktiv) = neutral
+    statusTabelle()      je Gruppe jeder Wert mit Text und Bedeutung -- ein neuer Status oder eine neue Seite mit Status kommt hier hinein
+    statusKennzeichen(gruppe, wert) -> {text, art} für seitenkopf({status: …}); ein Wert, den die Tabelle nicht kennt, erscheint lesbar
+                         (erster Buchstabe groß, _ als Leerzeichen) und neutral, ein leerer gar nicht (ds.css blendet das leere Kennzeichen aus).
+
+    tests/test_v445_statuskennzeichen.py prüft beide Tabellen, dass jeder Wert, den der Server schreibt, eingetragen ist, und dass jeder
+    Status im Seitenkopf über statusKennzeichen() kommt. -#}
+<script>
+function statusBedeutungen() {
+  return { laeuft: 'info', erledigt: 'ok', wartet: 'signal', fehler: 'fehler', entwurf: 'warn', ruht: 'neutral' };
+}
+function statusTabelle() {
+  return {
+    auftrag: { beauftragt: ['Beauftragt', 'laeuft'], abgeschlossen: ['Abgeschlossen', 'erledigt'], storniert: ['Storniert', 'ruht'] },
+    wartungsvertrag: {
+      aktiv: ['Aktiv', 'laeuft'], pausiert: ['Pausiert', 'ruht'], beendet: ['Beendet', 'erledigt'], archiviert: ['Archiviert', 'ruht'],
+    },
+    checklistenvorlage: { entwurf: ['Entwurf', 'entwurf'], veroeffentlicht: ['Veröffentlicht', 'erledigt'], archiviert: ['Archiviert', 'ruht'] },
+    pruefvorlage: { archiviert: ['Archiviert', 'ruht'] },
+    dachflaeche: { archiviert: ['Archiviert', 'ruht'] },
+    betriebsmittel: {
+      pruefung_ueberfaellig: ['Prüfung überfällig', 'fehler'], pruefung_faellig: ['Prüfung fällig', 'wartet'], inaktiv: ['Inaktiv', 'ruht'],
+    },
+  };
+}
+function statusKennzeichen(gruppe, wert) {
+  if (wert == null || wert === '') return { text: '', art: 'neutral' };
+  const eintrag = (statusTabelle()[gruppe] || {})[wert];
+  if (!eintrag) {
+    const lesbar = String(wert).replace(/_/g, ' ');
+    return { text: lesbar.charAt(0).toUpperCase() + lesbar.slice(1), art: 'neutral' };
+  }
+  return { text: eintrag[0], art: statusBedeutungen()[eintrag[1]] || 'neutral' };
+}
+</script>

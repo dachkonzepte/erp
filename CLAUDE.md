@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.8** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.9** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -338,7 +338,8 @@ Behoben, drei Teile:
   vorerst); Ecken 10/12 px, Tablet 12/16 px; Seitentitel 30 px, Tablet 26 px; Leiste dunkel in beiden Modi mit vier Gruppen;
   Formularseiten bekommen den Rahmen; Einsatzbericht und Konto der Monteure im Monteursrahmen; oben links in Leiste und Monteurskopf fest die Bildmarke (`_bildmarke.html`, seit 1.8.165) auf weißer Kachel, nie ein hochgeladenes Logo. Grundregeln einer umgezogenen Seite in
   `app/static/ds/ds-basis.css`, nur unter `.ds-seite` (die Seite setzt die Klasse beim Umzug an ihr `<body>`); gemeinsamer Seitenkopf als
-  Makro `teile/seitenkopf.html` mit `_seitenkopf.html` (`seitenkopf()`), Menüs über `_menue.html` (`dsMenue()`). Jede Seite mit Leiste
+  Makro `teile/seitenkopf.html` mit `_seitenkopf.html` (`seitenkopf()`), Menüs über `_menue.html` (`dsMenue()`); der Status im Kopf nur
+  über `statusKennzeichen()` aus `_statuskennzeichen.html` (seit 1.9.9: Status -> Text und Farbe an einer Stelle, ein neuer Status kommt dort hinein, `tests/test_v445_statuskennzeichen.py`). Jede Seite mit Leiste
   beginnt mit `{% set bereich = "…" -%}` -- die Leiste markiert danach ihren Eintrag (seit 1.8.162); Wächter `tests/test_v441_rahmen_baustein.py`.
   **Umgezogen** (`UMGEZOGEN` dort): seit 1.9.3 die Prüfvorlagen als Pilot, seit 1.9.7 die 15 Seiten der Gruppe „Titelzeilen und Titelkarten“ (Kopf, Links in `--ds-link`, Fokus in `--ds-fokus`; Strukturtest `test_umgezogene_seite_hat_den_gemeinsamen_kopf`) -- `.ds-seite` am `<body>`, Seitenkopf über das Makro, eigene
   Farben nur über `--ds-*` (keine Akzentfarbe mehr);

@@ -4,14 +4,16 @@
     merkt sich den Knopf).
 
     seitenkopf({kennung, titel, untertitel, status: {text, art}, pfad: [{text, href}]}) -- nur die genannten Teile ändern sich. Text immer
-    über textContent (kein HTML aus Daten), Links über sichererLink() (Regel 32), die Art des Status nur aus SEITENKOPF_ARTEN (sonst
-    "neutral"); das letzte Glied des Pfads ohne href ist die Seite selbst (aria-current="page").
+    über textContent (kein HTML aus Daten), Links über sichererLink() (Regel 32), die Art des Status nur aus seitenkopfArten() (sonst
+    "neutral"); das letzte Glied des Pfads ohne href ist die Seite selbst (aria-current="page"). Den Status bringt seit 1.9.9
+    statusKennzeichen() aus _statuskennzeichen.html (Text und Farbe an einer Stelle): seitenkopf({status: statusKennzeichen('auftrag', o.status)}).
 
     Der Import unten verbindet die beiden Teile auch für die Strukturtests: tests/vorlagen_js.py::seiten() zählt eine Vorlage, die keine
     andere einbindet oder importiert, als Seite -- das Makro allein wäre sonst eine 54. Seite. -#}
 {% from "teile/seitenkopf.html" import seitenkopf %}
 {% include "_links.html" %}
 {% include "_menue.html" %}
+{% include "_statuskennzeichen.html" %}
 <script>
 function seitenkopfArten() {
   return ['neutral', 'info', 'ok', 'warn', 'fehler', 'signal'];

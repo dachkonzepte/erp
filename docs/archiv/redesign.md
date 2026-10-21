@@ -1972,3 +1972,42 @@ Was bis dahin von der Zeit abhing und unter Last kippen konnte, und was jetzt st
   dunkel, je nachher und vorher (`70c3617`); Ordner in `.gitignore`.
 - Commits der Runde: `520241c` (Regel 8), `b4aba7f` (1.9.6 Dachtyp), `58074cb` (1.9.7 Seitenkopf), `ab5ebfb` (1.9.8 Wartung),
   `8bb0e86` (1.9.8 Nachtrag: Beleg unter Last, CLAUDE.md), `0df8d8b` (1.9.7 Nachtrag: Klicktest).
+
+## Runde 5: Seitenkopf der Gruppe „Datensatz mit Pfad“
+
+Auftrag (21.10.2026): die 7 Seiten der Gruppe K3 aus `befund-rahmen.md` (Objekt, Dachfläche, Betriebsmittel, Wartungsvertrag,
+Checklisten-Vorlage, Prüfvorlage, Einsatzbericht) bekommen den gemeinsamen Seitenkopf mit Pfad, Kennung, Titel, Status, höchstens einer
+grünen Hauptaktion und Menü „⋮“; der Pfad schließt die fehlenden Rückwege aus `bildgrundlage/pruefung/ablaeufe.md`; der Status erscheint
+als lesbares Kennzeichen in der Farbe seiner Bedeutung, die Zuordnung an einer Stelle; „Löschen“ ins Menü mit Rückfrage wie bisher.
+
+### Punkt 3 (1.9.9): Statuskennzeichen an einer Stelle
+
+- Neuer Baustein `app/templates/_statuskennzeichen.html`, eingebunden über `_seitenkopf.html` (jede Seite mit dem Seitenkopf hat ihn):
+  - `statusBedeutungen()`: Bedeutung -> Art des Seitenkopfs -- `laeuft` info, `erledigt` ok (auch bezahlt), `wartet` signal (wartet
+    auf dich), `fehler` fehler (überfällig, Fehler), `entwurf` warn, `ruht` neutral (pausiert, storniert, archiviert, inaktiv).
+  - `statusTabelle()`: je Gruppe jeder Wert mit Text und Bedeutung -- Auftrag (beauftragt, abgeschlossen, storniert), Wartungsvertrag
+    (aktiv, pausiert, beendet, archiviert), Checklisten-Vorlage (entwurf, veroeffentlicht, archiviert), Prüfvorlage und Dachfläche
+    (archiviert), Betriebsmittel (pruefung_ueberfaellig, pruefung_faellig, inaktiv).
+  - `statusKennzeichen(gruppe, wert)` -> `{text, art}` für `seitenkopf({status: …})`. Unbekannter Wert: lesbar (erster Buchstabe groß,
+    `_` als Leerzeichen), neutral -- der Auftragsstatus kommt laut Schema auch frei vom Client. Leer: kein Kennzeichen (ds.css blendet
+    das leere aus).
+- Die Zuordnung liegt im Browser, weil die Köpfe dieser Seiten sich erst nach dem Laden füllen (Daten per `lesen()`).
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v445_statuskennzeichen.py` (7 Tests): Bedeutungen wie festgelegt und jede Art eine des Seitenkopfs; jeder Eintrag
+  mit Text und bekannter Bedeutung; jeder Wert, den der Server schreibt, steht in der Tabelle (`orders.status` aus `FESTE_LITERALE`,
+  `app.maintenance_contracts.STATUSES` und archiviert, Fassungen der Checklisten-Vorlage ohne „abgeloest“ und archiviert);
+  Kennzeichen in node (Text, Art, unbekannt, leer, HTML bleibt Text); `_seitenkopf.html` bindet den Baustein ein; Scanner über alle
+  Vorlagen: jeder Status in `seitenkopf({…})` als `statusKennzeichen('<gruppe>', …)` mit bekannter Gruppe, jeder feste Wert darin ein
+  Wert der Gruppe, kein Skript setzt `seitenkopfStatus` an `seitenkopf()` vorbei; Wächter des Scanners an erfundenen Vorlagen.
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück): läuft in ok; „abgeschlossen“ fehlt beim Auftrag; unbekannter Wert ohne
+  großen Anfangsbuchstaben; `_seitenkopf.html` ohne den Baustein -- 4 von 4 rot aus dem richtigen Grund.
+- Angepasste Erwartungen: keine.
+
+#### Festlegungen 1.9.9 (Bitte bestätigen)
+
+1. **Sechste Bedeutung „ruht“ = neutral** für pausiert, storniert, archiviert und inaktiv (der Auftrag nennt fünf Bedeutungen).
+2. **Storniert ruht** (neutral), nicht fehler; **pausiert ruht**, **beendet ist erledigt** (ok).
+3. **Ein unbekannter Wert ist kein Fehler**: lesbar und neutral.
+4. **Die Zuordnung liegt im Browser** (`_statuskennzeichen.html`), nicht im Server.
