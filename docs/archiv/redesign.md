@@ -1955,3 +1955,20 @@ Was bis dahin von der Zeit abhing und unter Last kippen konnte, und was jetzt st
   `--nur pruefvorlagen`. Umbenannt in `KOPFGRUPPE_JS` und `KOPFGRUPPE_FOKUS`; der ganze Klicktest 610 von 610.
 - Neuer Wächter `tests/test_v444_klicktest_eindeutige_namen.py`: kein Name auf oberster Ebene eines Klicktest-Skripts (dazu
   `cdp_klicktest.py`, `bildgrundlage.py`) zweimal vergeben. Gegenprobe: auf dem Stand mit der Überdeckung meldet er „KOPF (Zeile 451)“.
+
+### Runde 4 abgeschlossen: Endläufe und Bildvergleich (Stand `0df8d8b`)
+
+- **Endlauf** auf `0df8d8b` bei sauberer Arbeitskopie (vorher und nachher keine Änderung): volle Suite **6397 bestanden, 3
+  übersprungen, 0 rot** (6:56); **alle Klicktests 80 von 80** (2587 Prüfungen, zu viert, 7:21). Ein erster Endlauf auf `8bb0e86`
+  fand `klicktest_rahmen` rot (Nachtrag 1.9.7 oben).
+- **Bildvergleich** (volle Bildgrundlage, 298 Bilder) Ausgangsstand `70c3617` gegen `8bb0e86` (der Nachtrag ändert nur Klicktest und
+  Wächter): **218 gleich, 76 erlaubt abweichend** (die 15 Seiten der Gruppe und die Liste der Prüfvorlagen), **4 auf der
+  Prüfvorlage** als Folge von 1c (nur das Feld „Dachtyp“: jetzt „Flachdach“ vorgewählt statt „— jeder Dachtyp —“), **0 unerwartet**.
+  Die erste Grundlage vom Morgen taugte nicht: derselbe Stand `70c3617` zeichnete am Nachmittag die Anmeldeseite in der
+  Kantenglättung des Formulars anders (gleiche Chrome-Version 155.0.8059.40) -- verglichen wurde deshalb mit einer Grundlage, die
+  unmittelbar vor dem Vergleich vom Ausgangsstand neu aufgenommen wurde. Die Ursache der Abweichung liegt außerhalb des Codes
+  (Umgebung), sie ist nicht untersucht.
+- **Bilder**: `bildgrundlage/rahmen_runde4_8bb0e86.zip` -- die 15 Seiten 1440 × 900 hell, Start, Projekte und Zeiterfassung auch
+  dunkel, je nachher und vorher (`70c3617`); Ordner in `.gitignore`.
+- Commits der Runde: `520241c` (Regel 8), `b4aba7f` (1.9.6 Dachtyp), `58074cb` (1.9.7 Seitenkopf), `ab5ebfb` (1.9.8 Wartung),
+  `8bb0e86` (1.9.8 Nachtrag: Beleg unter Last, CLAUDE.md), `0df8d8b` (1.9.7 Nachtrag: Klicktest).
