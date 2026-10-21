@@ -162,7 +162,7 @@ async def pruefen(tab, seed, p):
     await tab.js("closeModal('participantModal')")
 
     # --- Adressbuch -------------------------------------------------------------------------------------------
-    await tab.oeffnen("/master-data#contacts", "document.getElementById('title').textContent==='Adressbuch'")
+    await tab.oeffnen("/master-data#contacts", "document.getElementById('seitenkopfTitel').textContent==='Adressbuch'")
     zeilen = "[...document.querySelectorAll('#content tbody tr')].map(r=>r.cells[0].innerText.replace(/\\n/g,' | '))"
     p.pruefe("Adressbuch: Herkunft in der Liste", await tab.js(zeilen),
              ["Anna Architekt", "Gerüstbau Alt | aus Lieferantenstamm · Lieferant inaktiv", "Hausverwaltung Hof GmbH | aus Kundenstamm"])
@@ -179,7 +179,7 @@ async def pruefen(tab, seed, p):
     await tab.js("document.getElementById('function').value='Objektbetreuung';save()")
     tab.fehler = []
     p.pruefe("Formular: nach dem Speichern zurück in der Liste",
-             await _warten_ueber_seitenwechsel(tab, "location.pathname==='/master-data'&&document.getElementById('title')?.textContent==='Adressbuch'"), True)
+             await _warten_ueber_seitenwechsel(tab, "location.pathname==='/master-data'&&document.getElementById('seitenkopfTitel')?.textContent==='Adressbuch'"), True)
     gespeichert = await tab.js(f"fetch('/api/contacts/{eintrag}').then(r=>r.json()).then(c=>[c.function,c.email])")
     p.pruefe("Formular: Funktion gespeichert, E-Mail weiter aus dem Kunden", gespeichert, ["Objektbetreuung", "neu@hof.example"])
     p.pruefe("Adressbuch: JS-Fehler", tab.fehler, [])

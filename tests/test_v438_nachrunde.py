@@ -30,11 +30,11 @@ def test_benutzerseite_zurueck_in_die_einstellungen(threaded_db_session, router_
     antwort = router_test_client(threaded_db_session, pages_router, role="admin").get("/users")
     assert antwort.status_code == 200
     markup = re.sub(r"<script.*?</script>", "", antwort.text, flags=re.S | re.I)
-    links = re.findall(r'<a[^>]*class="back"[^>]*>.*?</a>', markup, flags=re.S)
-    assert len(links) == 1, links
-    assert re.search(r'href="([^"]*)"', links[0]).group(1) == "/settings"
-    assert "onclick" not in links[0] and "history.back" not in antwort.text
-    assert html.unescape(re.sub(r"<[^>]+>", "", links[0])).strip() == "← Einstellungen"
+    # seit 1.9.21 (Stufe 2, Runde 8) als Pfad im Seitenkopf statt „← Einstellungen“
+    assert 'class="back' not in markup and "history.back" not in antwort.text
+    nav = re.search(r'<nav class="ds-kopf-pfad"[^>]*>(.*?)</nav>', markup, flags=re.S).group(1)
+    assert re.findall(r'<a class="ds-kopf-pfadglied" href="([^"]*)">([^<]*)</a>', nav) == [("/settings", "Einstellungen")]
+    assert html.unescape(re.search(r'class="ds-kopf-pfadende" aria-current="page">([^<]*)<', nav).group(1)) == "Benutzer und Zugriff"
     assert router_test_client(threaded_db_session, pages_router, role="admin").get("/settings").status_code == 200
 
 

@@ -153,24 +153,27 @@ def test_team_mit_gruppenbuchungen_wird_unter_postgresql_deaktiviert():
 # 4. Zurück-Links mit echtem Ziel statt history.back()
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("adresse,rolle,ziel,name", [
-    ("/address-import", "admin", "/settings", "Einstellungen"),
-    ("/history", "buero_finanzen", "/settings", "Einstellungen"),
-    ("/leistungskatalog", "buero_finanzen", "/master-data#catalogs", "Stammdaten: Leistungskataloge"),
+@pytest.mark.parametrize("adresse,rolle,glieder,ende", [
+    ("/address-import", "admin", [("/settings", "Einstellungen")], "Adressimport"),
+    ("/history", "buero_finanzen", [("/settings", "Einstellungen")], "Änderungshistorie"),
+    ("/leistungskatalog", "buero_finanzen", [("/master-data", "Stammdaten"), ("/master-data#catalogs", "Leistungskataloge")],
+     "Leistungskatalog"),
 ])
-def test_zurueck_link_mit_echtem_ziel(threaded_db_session, router_test_client, adresse, rolle, ziel, name):
-    """Bis 1.8.153 gingen die drei Seiten per history.back() zurück -- nach direktem Aufruf ins Leere."""
+def test_zurueck_link_mit_echtem_ziel(threaded_db_session, router_test_client, adresse, rolle, glieder, ende):
+    """Bis 1.8.153 gingen die drei Seiten per history.back() zurück -- nach direktem Aufruf ins Leere. Seit 1.9.21 (Stufe 2, Runde 8)
+    steht das Ziel als Pfad im Seitenkopf (bis dahin „← Einstellungen“ bzw. „← Stammdaten: Leistungskataloge“)."""
     from app.routers.pages import router as pages_router
 
     client = router_test_client(threaded_db_session, pages_router, role=rolle)
     antwort = client.get(adresse)
     assert antwort.status_code == 200
     markup = re.sub(r"<script.*?</script>", "", antwort.text, flags=re.S | re.I)
-    links = re.findall(r'<a[^>]*class="back"[^>]*>.*?</a>', markup, flags=re.S)
-    assert len(links) == 1, links
-    assert re.search(r'href="([^"]*)"', links[0]).group(1) == ziel and "onclick" not in links[0]
-    assert html.unescape(re.sub(r"<[^>]+>", "", links[0])).strip() == f"← {name}"
-    assert client.get(ziel.split("#")[0]).status_code == 200
+    assert 'class="back' not in markup
+    nav = re.search(r'<nav class="ds-kopf-pfad"[^>]*>(.*?)</nav>', markup, flags=re.S).group(1)
+    assert re.findall(r'<a class="ds-kopf-pfadglied" href="([^"]*)">([^<]*)</a>', nav) == glieder and "onclick" not in nav
+    assert html.unescape(re.search(r'class="ds-kopf-pfadende" aria-current="page">([^<]*)<', nav).group(1)) == ende
+    for ziel, _ in glieder:
+        assert client.get(ziel.split("#")[0]).status_code == 200
 
 
 def test_kein_history_back_mehr_in_den_vorlagen():

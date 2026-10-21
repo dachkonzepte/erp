@@ -47,6 +47,12 @@ Geprüft wird im echten Browser auf den Testdaten der Bildgrundlage (scripts/bil
                    Link öffnet eine Seite), Netto/Optional/MwSt./Brutto, „PDF-Vorschau“ neutral und die grüne Hauptaktion, Menü „⋮“ mit
                    Angebotsdetails und OZ neu nummerieren per Tastatur, kein alter Kopf, Links, Fokus, Kontrast; „PDF-Vorschau“ öffnet
                    das PDF, „Angebotsdetails“ den Reiter, die Hauptaktion den Auftrag
+    Untermenü      seit 1.9.21 die Seiten mit Untermenü links (Stammdaten, Einstellungen, Backoffice) und mit Zurück-Link und Karte
+                   (Konto -- auch als Monteurin --, Benutzer, Änderungshistorie, Adressimport, Leistungskatalog) hell und dunkel:
+                   .ds-seite, ein h1 mit dem Titel, Untertitel, Pfad statt „← …“ (jeder Link öffnet eine Seite; die Seiten mit Untermenü
+                   ohne Pfad), kein .back, Hauptaktion nur „+ Hinzufügen“ der Stammdaten, kein Menü, Links, Fokus, Kontrast; Stammdaten:
+                   Titel und Ziel von „+ Hinzufügen“ folgen dem Bereich, Büro – Auftrag ohne „+ Hinzufügen“ bei Mitarbeitern;
+                   Einstellungen behalten den Titel; „Aktualisieren“ im Backoffice lädt ohne Fehler
     Seitenregeln   auf den Einstellungen (button:hover und button:active in der Akzentfarbe): Kontoknopf unter der Maus und per
                    Leertaste gedrückt (:active ohne :hover), Menüeintrag unter der Maus -- nie in der Akzentfarbe
     Monteurskopf   auf jeder Seite der Monteurin (Mobil, Objekt, Stundenzettel, Zeiterfassung, Betriebsmittel, Checkliste,
@@ -62,7 +68,7 @@ AUFRUF (aus dem Projektordner):
         [--arbeitsordner PFAD] [--chrome PFAD] [--offen-lassen]
 
 --nur: nur diese Teile (seitenleiste, aktiv, schrift, menueknopf, kopfzeile, kontomenue, vollname, pruefvorlagen, kopfgruppe,
-seitenregeln, monteurskopf, datensatzkopf, rechnungskopf, angebotskopf) -- für
+seitenregeln, monteurskopf, datensatzkopf, rechnungskopf, angebotskopf, untermenue) -- für
 Gegenproben, die nach 2 min
 abbrechen (Regel 24).
 
@@ -952,10 +958,99 @@ async def _angebotskopf(tab, seed, p):
     await tab.bild("angebotskopf_zuletzt")
 
 
+# Seit 1.9.21: Seitenkopf der Gruppen „Untermenü links“ (K5) und „Zurück-Link + Karte“ (K6)
+UNTERMENUE = (
+    dict(seite="stammdaten", rolle=bg.BUERO, titel="Kunden", untertitel="2 Kundenstammsätze", pfad=[], aktion="+ Hinzufügen"),
+    dict(seite="einstellungen", rolle=bg.BUERO, titel="Einstellungen", untertitel="", pfad=[], aktion=None),
+    dict(seite="backoffice", rolle=bg.BUERO, titel="Zeiterfassungs-Backoffice",
+         untertitel="Kontrolle, Monatsauswertung, Stundenzettel, Abschluss und Lohnexport.", pfad=[], aktion=None),
+    dict(seite="konto", rolle=bg.BUERO, titel="Mein Konto", untertitel="", pfad=[["Start", "/"], ["Mein Konto", None]], aktion=None),
+    dict(seite="konto", rolle=bg.MONTEUR, titel="Mein Konto", untertitel="", pfad=[["Einsätze", "/mobil"], ["Mein Konto", None]],
+         aktion=None),
+    dict(seite="benutzer", rolle=bg.ADMIN, titel="Benutzer und Zugriff", untertitel="",
+         pfad=[["Einstellungen", "/settings"], ["Benutzer und Zugriff", None]], aktion=None),
+    dict(seite="verlauf", rolle=bg.BUERO, titel="Änderungshistorie", untertitel="",
+         pfad=[["Einstellungen", "/settings"], ["Änderungshistorie", None]], aktion=None),
+    dict(seite="adressimport", rolle=bg.ADMIN, titel="Adressimport", untertitel="",
+         pfad=[["Einstellungen", "/settings"], ["Adressimport", None]], aktion=None),
+    dict(seite="leistungskatalog", rolle=bg.BUERO, titel="Leistungskatalog", untertitel="",
+         pfad=[["Stammdaten", "/master-data"], ["Leistungskataloge", "/master-data#catalogs"], ["Leistungskatalog", None]], aktion=None),
+)
+HINZUFUEGEN = ("(()=>{const a=document.getElementById('addLink');return [document.getElementById('seitenkopfTitel').textContent,"
+               "a.getAttribute('href'),a.hidden,getComputedStyle(a).display!=='none',location.hash]})()")
+
+
+async def _untermenue(tab, seed, p):
+    """Seit 1.9.21: die 3 Seiten mit Untermenü links (Stammdaten, Einstellungen, Backoffice) und die 5 mit Zurück-Link und Karte (Konto
+    -- auch als Monteurin --, Benutzer, Änderungshistorie, Adressimport, Leistungskatalog) im gemeinsamen Seitenkopf, hell und dunkel:
+    .ds-seite, genau ein h1 mit dem Titel, Untertitel, Pfad statt „← …“ (jeder Link öffnet eine Seite; ohne Pfad die Seiten mit
+    Untermenü), kein .back mehr, Hauptaktion nur in den Stammdaten, kein Menü, Textlinks in --ds-link, Fokus in --ds-fokus, Kontrast.
+    Dazu (hell): Stammdaten wechseln Titel und Ziel von „+ Hinzufügen“ mit dem Bereich, Büro – Auftrag sieht es bei Mitarbeitern nicht;
+    Einstellungen behalten den Titel beim Wechsel des Bereichs; „Aktualisieren“ im Backoffice lädt ohne Fehler."""
+    await tab.cmd("Emulation.setFocusEmulationEnabled", enabled=True)
+    # Büro – Auftrag legt keine Mitarbeiter an: „+ Hinzufügen“ dort verborgen, in den übrigen Bereichen sichtbar (wie bisher)
+    await tab.anmelden(seed["cookies"][bg.BUERO_AUFTRAG])
+    p.pruefe("Untermenü stammdaten (buero_auftrag): geladen", await _laden(tab, seed, "stammdaten", "hell", 1440, 900), True)
+    await tab.js("document.querySelector('.side button[data-view=employees]').click()")
+    mitarbeiter = await tab.js(HINZUFUEGEN)
+    await tab.js("document.querySelector('.side button[data-view=suppliers]').click()")
+    lieferanten = await tab.js(HINZUFUEGEN)
+    p.pruefe("Untermenü stammdaten (buero_auftrag): „+ Hinzufügen“ bei Mitarbeitern verborgen, bei Lieferanten sichtbar",
+             [mitarbeiter, lieferanten], [["Mitarbeiter", "/master-data/employees/new", True, False, "#employees"],
+                                          ["Lieferanten", "/master-data/suppliers/new", False, True, "#suppliers"]])
+    p.pruefe("Untermenü stammdaten (buero_auftrag): keine JS-Fehler", tab.fehler, [])
+    angemeldet = None
+    for f in UNTERMENUE:
+        if f["rolle"] != angemeldet:
+            await tab.anmelden(seed["cookies"][f["rolle"]])
+            angemeldet = f["rolle"]
+        for thema in ("hell", "dunkel"):
+            wo = f"Untermenü {f['seite']} ({f['rolle']}) {thema}"
+            p.pruefe(f"{wo}: geladen", await _laden(tab, seed, f["seite"], thema, 1440, 900), True)
+            m = await tab.js(DATENSATZKOPF_JS)
+            p.pruefe(f"{wo}: .ds-seite, genau ein h1 „{f['titel']}“, Untertitel, ohne Kennung und Status",
+                     [m["ds"], m["h1"], m["untertitel"], m["kennzeichen"], m["status"]],
+                     [True, [["seitenkopfTitel", f["titel"]]], f["untertitel"], "verborgen", ["", "neutral", False]])
+            pfad = [[t, h, None if h else "page"] for t, h in f["pfad"]]
+            p.pruefe(f"{wo}: Pfad {' / '.join(g[0] for g in pfad) or '—'}, kein „← …“ (.back)",
+                     [m["pfad"], await tab.js("document.querySelectorAll('.back').length")], [pfad, 0])
+            offen = await tab.js(PFAD_OEFFNEN)
+            p.pruefe(f"{wo}: jeder Link im Pfad öffnet eine Seite ({len(offen)} Links)",
+                     [o for o in offen if o[1:] != [200, False, "text/html"]], [])
+            p.pruefe(f"{wo}: Hauptaktion {f['aktion'] or '—'}, kein Menü",
+                     [m["aktion"], await tab.js("document.getElementById('seitenkopfMenueKnopf')===null")],
+                     [[[f["aktion"], True, True]] if f["aktion"] else [], True])
+            p.pruefe(f"{wo}: {m['links']} Textlinks im Inhalt, alle in --ds-link", m["falsch"], [])
+            fokus = await tab.js(KOPFGRUPPE_FOKUS)
+            p.pruefe(f"{wo}: erstes Feld mit Fokus im Umriss --ds-fokus", fokus if fokus == "kein Feld" else fokus[1],
+                     "kein Feld" if fokus == "kein Feld" else True)
+            k = await tab.js(KONTRAST)
+            p.pruefe(f"{wo}: Kontrast ({k['anzahl']} Elemente, kleinster {k['min']} : 1)", k["schwach"], [])
+            if thema == "hell" and f["seite"] == "stammdaten":
+                vorher = await tab.js(HINZUFUEGEN)
+                await tab.js("document.querySelector('.side button[data-view=properties]').click()")
+                nachher = await tab.js(HINZUFUEGEN)
+                p.pruefe(f"{wo}: „Objekte“ im Untermenü -> Titel Objekte, „+ Hinzufügen“ legt ein Objekt an", [vorher, nachher],
+                         [["Kunden", "/master-data/customers/new", False, True, ""],
+                          ["Objekte", "/master-data/properties/new", False, True, "#properties"]])
+            if thema == "hell" and f["seite"] == "einstellungen":
+                await tab.js("document.querySelector('[data-settings-section=numbers]').click()")
+                r = await tab.js("[document.getElementById('seitenkopfTitel').textContent,location.hash,"
+                                 "document.querySelector('.settings-section.active h2').textContent.trim()]")
+                p.pruefe(f"{wo}: Bereich Nummernkreise gewählt, Titel bleibt „Einstellungen“", r, ["Einstellungen", "#numbers", "Nummernkreise"])
+            if thema == "hell" and f["seite"] == "backoffice":
+                await tab.warte_auf_neu_geladene_liste("document.querySelector('.card.toolbar button').click()", "#metrics")
+                p.pruefe(f"{wo}: „Aktualisieren“ lädt die Kennzahlen neu, der Kopf bleibt",
+                         [await tab.js("document.querySelectorAll('#metrics .metric').length>0"),
+                          await tab.js("document.getElementById('seitenkopfTitel').textContent")], [True, f["titel"]])
+            p.pruefe(f"{wo}: keine JS-Fehler", tab.fehler, [])
+    await tab.bild("untermenue_zuletzt")
+
+
 TEILE = {"seitenleiste": _seitenleiste, "aktiv": _aktiv, "schrift": _schrift, "menueknopf": _menueknopf, "kopfzeile": _kopfzeile,
          "kontomenue": _kontomenue, "vollname": _vollname, "pruefvorlagen": _pruefvorlagen, "kopfgruppe": _kopfgruppe,
          "seitenregeln": _seitenregeln, "monteurskopf": _monteurskopf, "datensatzkopf": _datensatzkopf,
-         "rechnungskopf": _rechnungskopf, "angebotskopf": _angebotskopf}
+         "rechnungskopf": _rechnungskopf, "angebotskopf": _angebotskopf, "untermenue": _untermenue}
 NUR: list = []
 
 

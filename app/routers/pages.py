@@ -233,7 +233,9 @@ dashboard_page.dk_ohne_seite = lambda user: user is not None and user.role == RO
 
 @router.get("/leistungskatalog", response_class=HTMLResponse)
 def service_catalog_page(request: Request, _role: AppUser = _role_dep):
-    return templates.TemplateResponse(request=request, name="index.html", context={"zurueck": zurueck_stammdaten("catalogs")})
+    # seit 1.9.21 (Stufe 2, Runde 8) der Pfad Stammdaten / Leistungskataloge fest im Seitenkopf (bis dahin „zurueck“ aus
+    # zurueck_stammdaten("catalogs"))
+    return templates.TemplateResponse(request=request, name="index.html", context={})
 
 
 @router.get("/tasks", response_class=HTMLResponse)

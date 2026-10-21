@@ -2573,3 +2573,105 @@ haben ein fünftes Feld; `test_v413` prüft nur die ersten drei).
   Angebots-PDFs und der Textvergleich (7 Dateien).
 - Commits der Runde: `747f084` (1.9.14 Zeitregeln), `681ccb0` (1.9.15 Ändern in der Zeiterfassung), `c27c9f3` (1.9.16 Fremdschlüssel),
   `e2874a3` (1.9.17 Zahlen über zahlText()), `0f3e86c` (1.9.18 Seitenkopf des Angebots), `babfaca` (1.9.19 Wiederholung im Klicktest).
+
+## Runde 8 (Festlegungen 1.9.14 bis 1.9.19 bestätigt)
+
+Auftrag (21.10.2026): 1. das Angebotsdatum der Testdaten läuft auf der stehenden Uhr der Bildgrundlage, dazu prüfen, ob weitere Testdaten
+am Lauftag hängen; 2. Seitenkopf der Gruppen „Untermenü links“ und „Zurück-Link + Karte“ (Makro, `.ds-seite`, Links in `--ds-link`, Fokus
+in `--ds-fokus`, der Zurück-Link wird zum Pfad; grüne Hauptaktion nur, wo der Kopf eine hatte; Löschen ins Menü); 3. Stammdaten-Formular
+und Leistung bekommen den Rahmen (Leiste, Kopfzeile, Seitenkopf mit Pfad; „Abbrechen“ neutral zum bisherigen Zurück-Ziel, „Speichern“ grün,
+der Knopf unten bleibt; Bereich Stammdaten; Felder und Speichern unverändert). Neues Projekt und Neues Angebot bleiben (Stufe 7: Dialoge).
+Bildvergleich: außer diesen Seiten weicht nichts ab.
+
+### Punkt 1 (1.9.20): Testdaten hängen nicht am Lauftag
+
+Ausführlich in `docs/archiv/testablauf-und-klicktests.md`, „Testdaten der Bildgrundlage hängen nicht am Lauftag“. Test
+`tests/test_v453_bildgrundlage_lauftag.py`. Angepasste Erwartungen: keine.
+
+### Punkt 2 (1.9.21): Seitenkopf der Gruppen „Untermenü links“ und „Zurück-Link + Karte“ (8 Seiten)
+
+- Die 8 Seiten aus `befund-rahmen.md` (K5, K6) tragen `.ds-seite` und den gemeinsamen Seitenkopf (`teile/seitenkopf.html`,
+  `_seitenkopf.html`). Umgestellt wurde, was im Kopf stand: Titel, Untertitel, „← Ziel“; kein Knopf aus dem Inhalt wandert in den Kopf,
+  Filter und Werkzeugleisten bleiben in ihren Karten (Suche der Stammdaten, Zeitraum und „Aktualisieren“ des Backoffice, Filter der
+  Änderungshistorie).
+- **Untermenü links** (Stammdaten, Einstellungen, Backoffice): der Kopf steht über Menü und Inhalt, an derselben Stelle wie auf jeder
+  anderen Seite; ohne Pfad (Einstiegsseiten ihres Bereichs der Leiste, das Menü bleibt die Navigation). Stammdaten: Titel und Untertitel des
+  gewählten Bereichs im Kopf (bis dahin das h1 der Karte, `render()` setzt sie wie bisher, jetzt in `#seitenkopfTitel` und
+  `#seitenkopfUntertitel`), „+ Hinzufügen“ als Hauptaktion (Ziel je Bereich wie bisher, verborgen über `hidden` statt `style.display` -- das
+  hätte das `display` von `.ds-knopf` überschrieben). Einstellungen: Titel „Einstellungen“ (bis dahin ohne Seitentitel), das Menü ohne
+  eigene Überschrift, jeder Bereich behält seine Überschrift in der Karte. Backoffice: Titel und Untertitel aus der ersten Karte in den Kopf,
+  der Kopf vor `<main>` (ein Ladefehler ersetzt nur `main`, der Kopf bleibt); das Raster ohne `min-height:100vh` (mit dem Kopf darüber
+  rollte sonst jede Seite um dessen Höhe).
+- **Zurück-Link + Karte**: „← Ziel“ wird zum Pfad, das letzte Glied ist die Seite selbst; Titel = Name des Eintrags, über den man die Seite
+  öffnet. Die Karten behalten ihre Überschriften, außer die eine, die bis dahin den Titel trug (Änderungshistorie).
+- **Links in `--ds-link`** (`a{…}` von Konto und Einstellungen, `.link` der Stammdaten, drei Links mit `style="color:var(--accent)"`),
+  **Fokus in `--ds-fokus`** auf allen 8 Seiten (Einstellungen auch `button:focus-visible` und das Menü, bis dahin `--ink`); die toten Regeln
+  `.back`, `.head`, `.add` und `.settings-sidebar h2` entfernt. Die Akzentfarbe an Stellen, die keine Links sind (Monatsbanner des
+  Backoffice, Pfeil der aufklappbaren Rechner in den Einstellungen), bleibt -- wie bei den früheren Gruppen.
+
+| Seite | Pfad | Hauptaktion | Menü „⋮“ |
+|---|---|---|---|
+| Stammdaten | -- | „+ Hinzufügen“ (je Bereich; bei Mitarbeitern nur Büro – Finanzen und Admin, wie bisher) | -- |
+| Einstellungen | -- | -- | -- |
+| Zeiterfassungs-Backoffice | -- | -- („Aktualisieren“ bleibt bei den Filtern) | -- |
+| Mein Konto | Start / Mein Konto (Monteurin: Einsätze / Mein Konto) | -- | -- |
+| Benutzer und Zugriff | Einstellungen / Benutzer und Zugriff | -- | -- |
+| Änderungshistorie | Einstellungen / Änderungshistorie | -- | -- |
+| Adressimport | Einstellungen / Adressimport | -- | -- |
+| Leistungskatalog | Stammdaten / Leistungskataloge / Leistungskatalog | -- („+ Leistung anlegen“ bleibt in der Liste) | -- |
+
+#### Tests und Prüfung
+
+- `test_v441`: `UMGEZOGEN` um die 8 Seiten (`UNTERMENUE_LINKS`, `ZURUECK_UND_KARTE`), der Strukturtest
+  `test_umgezogene_seite_hat_den_gemeinsamen_kopf` läuft damit für 33 Seiten.
+- Neu `tests/test_v454_untermenue_und_karte.py` (13 Tests): der Pfad jeder K6-Seite je Rolle gerendert (das Konto auch als Monteurin), jedes
+  Ziel öffnet sich für diese Rolle mit 200 ohne Umleitung; die K5-Seiten ohne Pfad; Stammdaten: „+ Hinzufügen“ als einzige Aktion im Kopf,
+  `render()` schreibt in den Kopf und blendet über `hidden` aus; Einstellungen: Menü ohne eigene Überschrift; Backoffice: Kopf vor `<main>`,
+  Raster ohne `min-height`.
+- `klicktest_rahmen` Teil `untermenue` (neu): je Seite hell und dunkel bei 1440 × 900, das Konto auch als Monteurin -- `.ds-seite`, ein h1
+  mit dem Titel, Untertitel, Pfad mit Texten und Zielen (jeder Link mit der Anmeldung der Seite geladen: 200 ohne Umleitung, HTML), kein
+  `.back`, Hauptaktion nur in den Stammdaten, kein Menü, Textlinks in `--ds-link`, Fokus in `--ds-fokus`, Kontrast; Stammdaten: „Objekte“ im
+  Untermenü wechselt Titel und Ziel von „+ Hinzufügen“, Büro – Auftrag ohne „+ Hinzufügen“ bei Mitarbeitern (sichtbar bei Lieferanten);
+  Einstellungen behalten den Titel beim Wechsel des Bereichs; „Aktualisieren“ im Backoffice lädt die Kennzahlen neu.
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück, je pytest und -- wo der Browser es zeigt -- Klicktest-Teil):
+„+ Hinzufügen“ der Stammdaten wieder über `style.display` (G1); Pfad-Link der Benutzerseite ins Leere (`/einstellungen`, G2); Fokus der
+  Änderungshistorie wieder in `--ds-aktion` (G3); Pfad der Monteurin im Konto über `/` statt `/mobil` (G4); Link im Leistungskatalog wieder
+  in der Akzentfarbe (G5); Backoffice-Raster wieder mit `min-height:100vh` (G6); Überschrift „Einstellungen“ wieder im Menü (G7) -- **7 von
+  7 rot** in pytest (FAILED, je der zuständige Test: `test_v454` G1, G2 mit `test_v438`, G4, G6, G7; `test_v441` G3, G5), der Klicktest-Teil
+  `untermenue` für G1–G5 je rot (167, 164, 166, 164, 166 von 168: Büro – Auftrag sähe „+ Hinzufügen“ mit `hidden=false` versteckt, Pfad
+  und 404, Fokus, Umleitung über `/`, Linkfarbe); G6 und G7 zeigt der Browser nicht als Abweichung (Höhe des Rasters, eine Überschrift
+  mehr), dafür nur pytest.
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v441::UMGEZOGEN`: alt 25 Seiten; neu dazu die 8.
+  - `test_v438::test_benutzerseite_zurueck_in_die_einstellungen`: alt genau ein `.back`-Link „← Einstellungen“ nach /settings; neu der Pfad
+    „Einstellungen“ (/settings) / „Benutzer und Zugriff“, kein `.back`.
+  - `test_v439::test_zurueck_link_mit_echtem_ziel`: alt je ein `.back`-Link „← Einstellungen“ (Adressimport, Änderungshistorie) bzw. „←
+    Stammdaten: Leistungskataloge“; neu die Pfad-Glieder mit Zielen und das letzte Glied, jedes Ziel 200.
+  - `test_v244::test_users_and_history_pages_have_back_link_to_settings`: alt der wörtliche `.back`-Link; neu der wörtliche Pfad-Link
+    „Einstellungen“.
+  - `test_v243::test_leistungskatalog_page_has_back_link_to_master_data`: alt `.back`-Link aus `zurueck` und
+    `zurueck_stammdaten("catalogs")`; neu die Pfad-Links „Stammdaten“ und „Leistungskataloge“, kein `.back` (die Route gibt kein `zurueck`
+    mehr).
+  - `test_v257::test_account_html_back_link_has_no_history_back_shortcut`: alt `class="back no-print"` mit `href="/"`; neu der Pfad „Start“
+    (`/`) und für die Monteurin „Einsätze“ (`/mobil`), ohne history.back.
+  - `test_v259`: alt `a{color:var(--accent)}` in Konto und Einstellungen und `.back{color:var(--accent)…` im Konto; neu
+    `a{color:var(--ds-link)}` und kein `.back` (Pfad-Link statt dessen).
+  - `klicktest_beteiligte`, `klicktest_beteiligte_stammdaten`: alt bereit, wenn `#title` „Adressbuch“ zeigt; neu `#seitenkopfTitel`.
+
+#### Festlegungen 1.9.21 (Bitte bestätigen)
+
+1. **Untermenü-Seiten ohne Pfad**, Kopf über Menü und Inhalt (wie auf jeder Seite oben links); das Untermenü bleibt die Navigation.
+2. **Stammdaten: Titel = gewählter Bereich** (wie bis dahin das h1 der Karte), Untertitel = Zahl der Einträge, „+ Hinzufügen“ als
+   Hauptaktion; die Suche bleibt in der Karte; die Links „Leistungen durchsuchen / XML importieren“ und „alle Materialien anzeigen“ bleiben im
+   Untertitel.
+3. **Einstellungen: Titel „Einstellungen“**, das Menü ohne eigene Überschrift, die Bereiche behalten ihre Überschrift in der Karte (kein
+   wechselnder Titel -- er stünde doppelt).
+4. **Backoffice: Zeitraum und „Aktualisieren“ bleiben als Werkzeugleiste** in der ersten Karte (keine Hauptaktion im Kopf); Raster ohne
+   `min-height:100vh`.
+5. **Zurück-Link-Seiten: Titel = Name des Eintrags, über den man kommt** (Mein Konto, Benutzer und Zugriff, Änderungshistorie,
+   Adressimport, Leistungskatalog); die Karten behalten ihre Überschriften („ERP-Benutzer“, „Adressimport aus dem Altsystem“, die Liste des
+   Leistungskatalogs), nur die Änderungshistorie verliert ihre (sie war der Titel).
+6. **Pfad = bisheriger Rückweg + Seite**: Einstellungen / …, Stammdaten / Leistungskataloge / Leistungskatalog, Start / Mein Konto; die
+   Monteurin Einsätze / Mein Konto (dorthin leitete „Zur Startseite“ sie schon).
+7. **Akzentfarbe an Nicht-Links bleibt** (Monatsbanner im Backoffice, Pfeil der aufklappbaren Rechner, Kennzeichen „Lieferant“ im
+   Adressimport) -- wie bei den früheren Gruppen.

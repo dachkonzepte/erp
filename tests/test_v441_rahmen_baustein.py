@@ -48,6 +48,10 @@ UMGEZOGEN |= DATENSATZ_MIT_PFAD
 # seit 1.9.13 die Rechnung aus der Gruppe „Belegkopf in Karte“ (K4)
 BELEGKOPF = {"invoice_detail.html", "quote_editor.html"}  # Angebot seit 1.9.18
 UMGEZOGEN |= BELEGKOPF
+# seit 1.9.21 die Gruppen „Untermenü links“ (K5) und „Zurück-Link + Karte“ (K6)
+UNTERMENUE_LINKS = {"master_data.html", "settings.html", "time_backoffice.html"}
+ZURUECK_UND_KARTE = {"account.html", "users.html", "history.html", "address_import.html", "index.html"}
+UMGEZOGEN |= UNTERMENUE_LINKS | ZURUECK_UND_KARTE
 
 
 # ---------------------------------------------------------------------------

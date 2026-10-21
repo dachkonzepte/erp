@@ -85,7 +85,7 @@ async def pruefen(tab, seed, p):
     await tab.js("localStorage.setItem('erp_theme','light')")  # headless Chrome wählt sonst Dunkel
 
     # --- Adressbuch ----------------------------------------------------------------------------------------
-    await tab.oeffnen("/master-data#contacts", "document.getElementById('title').textContent==='Adressbuch'")
+    await tab.oeffnen("/master-data#contacts", "document.getElementById('seitenkopfTitel').textContent==='Adressbuch'")
     zeilen = "[...document.querySelectorAll('#content tbody tr')].map(r=>r.cells[0].innerText.split('\\n')[0])"
     p.pruefe("Adressbuch: Liste zuerst, ohne Archivierte", await tab.js(zeilen), ["Anna Architekt", "Hausverwaltung Meyer GmbH"])
     p.pruefe("Adressbuch: Projekte je Kontakt", await tab.js("[...document.querySelectorAll('#content tbody tr')].map(r=>r.cells[5].innerText)"), ["1", "—"])
@@ -180,7 +180,7 @@ async def pruefen(tab, seed, p):
     await tab.bild("beteiligte_hell")
 
     # --- Archivieren eines verwendeten Kontakts, Löschen eines unbenutzten -----------------------------------
-    await tab.oeffnen("/master-data?archiv=1#contacts", "document.getElementById('title').textContent==='Adressbuch'")
+    await tab.oeffnen("/master-data?archiv=1#contacts", "document.getElementById('seitenkopfTitel').textContent==='Adressbuch'")
     await tab.js(f"setContactArchived({seed['meyer']},true)")
     await tab.warten("document.querySelectorAll('#content tbody tr').length===2")
     p.pruefe("Archiviert: fehlt in der Liste", await tab.js(zeilen), ["Anna Architekt", "Gerd Lot"])

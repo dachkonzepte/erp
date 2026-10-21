@@ -15,7 +15,6 @@
     .card{background:var(--card);border:1px solid var(--line);padding:18px;margin-bottom:18px}
     .card h2{margin-top:0}
     .section-title{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
-    .back{color:var(--accent);text-decoration:none;font-weight:650;display:inline-block;margin-bottom:12px}
     button{background:var(--ds-aktion);color:#fff;border:1px solid var(--ds-aktion);padding:9px 15px;cursor:pointer;font-weight:650;font-size:13.5px}
     button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black)}
     button:disabled{opacity:.5;cursor:not-allowed}
@@ -48,13 +47,18 @@
     @media(max-width:900px){.summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
   </style>
 </head>
-<body>
+<body class="ds-seite">
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
 <main>
-  {# seit 1.8.154 festes Ziel statt history.back() -- der Adressimport hängt an Einstellungen → Anbindungen #}<a class="back" href="/settings">← Einstellungen</a>
+  {# seit 1.8.154 festes Ziel statt history.back() -- der Adressimport hängt an Einstellungen → Anbindungen; seit 1.9.21 (Stufe 2,
+     Runde 8) als Pfad im Seitenkopf, Titel wie der Eintrag im Menü der Einstellungen #}
+  {% from "teile/seitenkopf.html" import seitenkopf %}
+  {% call(teil) seitenkopf("Adressimport", mit_pfad=true) %}
+    {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/settings">Einstellungen</a><span class="ds-kopf-trenner" aria-hidden="true">/</span><span class="ds-kopf-pfadende" aria-current="page">Adressimport</span>{% endif %}
+  {% endcall %}
 
   <section class="card">
     <h2>Adressimport aus dem Altsystem</h2>
@@ -106,6 +110,7 @@
 </div>
 </div>
 {% include "_speichern.html" %}
+{% include "_seitenkopf.html" %}
 <script>
 let customers = [];
 let worklist = [];

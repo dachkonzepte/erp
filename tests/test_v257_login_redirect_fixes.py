@@ -312,8 +312,9 @@ def test_account_html_setup_flow_still_stays_on_account():
 def test_account_html_back_link_has_no_history_back_shortcut():
     from pathlib import Path
     html = (Path(__file__).parents[1] / "app" / "templates" / "account.html").read_text(encoding="utf-8")
-    link_start = html.index('class="back no-print"')
-    link_end = html.index("</a>", link_start)
-    link = html[link_start:link_end]
-    assert "history.back" not in link
-    assert 'href="/"' in link
+    # seit 1.9.21 (Stufe 2, Runde 8) das Ziel als Pfad „Start“ im Seitenkopf (bis dahin „← Zur Startseite“, class="back no-print"),
+    # die Monteurin über „Einsätze“ nach /mobil
+    pfad = html[html.index('{% if teil == "pfad" %}'):html.index("{% endcall %}")]
+    assert "history.back" not in pfad
+    assert '<a class="ds-kopf-pfadglied" href="/">Start</a>' in pfad
+    assert '<a class="ds-kopf-pfadglied" href="/mobil">Einsätze</a>' in pfad

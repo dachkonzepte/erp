@@ -38,13 +38,13 @@ def _style_block(html):
 
 def test_account_html_has_a_general_link_color_rule():
     html = (TEMPLATES / "account.html").read_text(encoding="utf-8")
-    assert "a{color:var(--accent)}" in _style_block(html)
+    assert "a{color:var(--ds-link)}" in _style_block(html)  # seit 1.9.21 (Runde 8, Seitenkopf): Links in --ds-link, bis dahin --accent
     assert '<a href="/login">anmelden</a>' in html  # der ursprünglich gemeldete Link bleibt
 
 
 def test_settings_html_has_a_general_link_color_rule():
     html = (TEMPLATES / "settings.html").read_text(encoding="utf-8")
-    assert "a{color:var(--accent)}" in _style_block(html)
+    assert "a{color:var(--ds-link)}" in _style_block(html)  # seit 1.9.21 (Runde 8, Seitenkopf): Links in --ds-link, bis dahin --accent
     assert '<a href="/master-data#employees">Stammdaten → Mitarbeiter</a>' in html
 
 
@@ -69,7 +69,8 @@ def test_more_specific_link_styles_are_still_present_and_unaffected():
     spezifischeren Regeln müssen unverändert erhalten bleiben (sie gewinnen weiterhin gegen
     die neue Fallback-Regel, unabhängig von der Reihenfolge im Stylesheet)."""
     account_html = (TEMPLATES / "account.html").read_text(encoding="utf-8")
-    assert ".back{color:var(--accent);text-decoration:none" in account_html
+    # seit 1.9.21 (Runde 8): kein .back mehr -- der Zurück-Link ist der Pfad im Seitenkopf (ds.css, .ds-kopf-pfadglied in --ds-link)
+    assert ".back{" not in account_html and 'class="ds-kopf-pfadglied"' in account_html
 
     service_reports_html = (TEMPLATES / "service_reports.html").read_text(encoding="utf-8")
     assert ".report-actions a{" in service_reports_html

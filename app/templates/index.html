@@ -31,7 +31,7 @@
 
     input, textarea, select { width:100%; padding:9px 10px; border:1px solid var(--field-border); background:var(--card); color:var(--ink); font:inherit; }
     input:hover, textarea:hover, select:hover { border-color: var(--field-border-hover); }
-    input:focus, textarea:focus, select:focus { outline: 2px solid var(--ds-aktion); outline-offset: -1px; border-color: var(--ds-aktion); }
+    input:focus, textarea:focus, select:focus { outline: 2px solid var(--ds-fokus); outline-offset: -1px; border-color: var(--ds-fokus); }
     input[type="checkbox"] { width:auto; }
     label { font-size:12px; font-weight:650; color:var(--muted); display:block; margin-bottom:5px; }
     .field { margin-bottom:12px; }
@@ -62,7 +62,6 @@
     .hidden { display:none !important; }
     .section-title { display:flex; justify-content:space-between; align-items:center; gap:10px; }
     .hint { padding:9px 11px; background:var(--warning-soft); color:var(--ink); font-size:12px; margin:10px 0; }
-    .back { color:var(--accent); text-decoration:none; font-weight:650; display:inline-block; margin-bottom:12px; }
     @media (max-width: 1000px) {
       .grid, .split { grid-template-columns:1fr; }
       .fields, .summary { grid-template-columns:repeat(2, minmax(0,1fr)); }
@@ -70,14 +69,18 @@
     @media (max-width: 600px) { .fields, .fields.two, .summary { grid-template-columns:1fr; } main { padding:12px; } }
   </style>
 </head>
-<body>
+<body class="ds-seite">
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
 <main>
-  {# seit 1.8.154 echtes Ziel statt history.back(): der Leistungskatalog öffnet sich aus Stammdaten → Leistungskataloge #}
-  <a class="back" href="{{ zurueck.href }}">← {{ zurueck.text }}</a>
+  {# seit 1.8.154 echtes Ziel statt history.back(): der Leistungskatalog öffnet sich aus Stammdaten → Leistungskataloge; seit 1.9.21
+     (Stufe 2, Runde 8) als Pfad im Seitenkopf (bis dahin „← Stammdaten: Leistungskataloge“) #}
+  {% from "teile/seitenkopf.html" import seitenkopf %}
+  {% call(teil) seitenkopf("Leistungskatalog", mit_pfad=true) %}
+    {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/master-data">Stammdaten</a><span class="ds-kopf-trenner" aria-hidden="true">/</span><a class="ds-kopf-pfadglied" href="/master-data#catalogs">Leistungskataloge</a><span class="ds-kopf-trenner" aria-hidden="true">/</span><span class="ds-kopf-pfadende" aria-current="page">Leistungskatalog</span>{% endif %}
+  {% endcall %}
   <div class="grid">
     <section class="card">
       <h2>Leistungskatalog importieren</h2>
@@ -91,7 +94,7 @@
 
     <section class="card">
       <h2>Kalkulationsvorgaben</h2>
-      <p class="muted small">Lohnansatz, Materialaufschlag, Gemeinkosten und Wagnis &amp; Gewinn gelten global für alle Kataloge und werden unter <a href="/settings#calculation" style="color:var(--accent);font-weight:650">Einstellungen → Kalkulationsgrundlagen</a> gepflegt (dieselbe Ansicht, kein zweiter Datensatz).</p>
+      <p class="muted small">Lohnansatz, Materialaufschlag, Gemeinkosten und Wagnis &amp; Gewinn gelten global für alle Kataloge und werden unter <a href="/settings#calculation" style="color:var(--ds-link);font-weight:650">Einstellungen → Kalkulationsgrundlagen</a> gepflegt (dieselbe Ansicht, kein zweiter Datensatz).</p>
     </section>
   </div>
 
@@ -174,6 +177,7 @@
 </div>
 {% include "_speichern.html" %}
 {% include "_zahl.html" %}
+{% include "_seitenkopf.html" %}
 <script>
 let servicesData = [];
 let availableCatalogs = [];
@@ -217,7 +221,7 @@ function renderServices() {
     const delta = Number(s.calculation_delta || 0);
     const editable = s.source_type !== 'leistungen_dach';
     const tr=document.createElement('tr'); tr.style.cursor='pointer'; tr.onclick=()=>loadDetail(s.id);
-    tr.innerHTML=`<td><b>${esc(s.external_id)}</b></td><td>${esc(firstLine(s.short_text))}</td><td>${esc(s.unit)}</td><td class="number">${fmt(s.site_time_raw)}</td><td class="number">${money(s.sale_price)}</td><td class="number"><b>${money(s.calculated_sale_price)}</b></td><td class="number ${delta>=0?'positive':'negative'}">${signedMoney(delta)}</td><td class="number">${esc(s.material_count)}</td><td>${esc(s.catalog_name||'—')}</td><td onclick="event.stopPropagation()">${editable?`<a href="/services/${s.id}/edit" style="display:inline-block;margin-bottom:5px;font-size:12px;color:var(--accent);font-weight:650;text-decoration:none">Bearbeiten</a><br>`:''}<select id="catalogTarget${s.id}" data-service-id="${s.id}" style="width:auto;font-size:12px;padding:3px 5px;margin-bottom:3px">${catalogOptions}</select><br><button onclick="moveOrCopyService(${s.id},'move')" style="font-size:11px;padding:4px 7px;margin-right:4px">Verschieben</button><button class="secondary" onclick="moveOrCopyService(${s.id},'copy')" style="font-size:11px;padding:4px 7px">Kopieren</button></td>`;
+    tr.innerHTML=`<td><b>${esc(s.external_id)}</b></td><td>${esc(firstLine(s.short_text))}</td><td>${esc(s.unit)}</td><td class="number">${fmt(s.site_time_raw)}</td><td class="number">${money(s.sale_price)}</td><td class="number"><b>${money(s.calculated_sale_price)}</b></td><td class="number ${delta>=0?'positive':'negative'}">${signedMoney(delta)}</td><td class="number">${esc(s.material_count)}</td><td>${esc(s.catalog_name||'—')}</td><td onclick="event.stopPropagation()">${editable?`<a href="/services/${s.id}/edit" style="display:inline-block;margin-bottom:5px;font-size:12px;color:var(--ds-link);font-weight:650;text-decoration:none">Bearbeiten</a><br>`:''}<select id="catalogTarget${s.id}" data-service-id="${s.id}" style="width:auto;font-size:12px;padding:3px 5px;margin-bottom:3px">${catalogOptions}</select><br><button onclick="moveOrCopyService(${s.id},'move')" style="font-size:11px;padding:4px 7px;margin-right:4px">Verschieben</button><button class="secondary" onclick="moveOrCopyService(${s.id},'copy')" style="font-size:11px;padding:4px 7px">Kopieren</button></td>`;
     body.appendChild(tr);
   }
 }

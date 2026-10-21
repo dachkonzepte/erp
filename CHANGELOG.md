@@ -4,6 +4,18 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.21 – Rahmen, Runde 8: Seitenkopf der Seiten mit Untermenü und mit Zurück-Link
+
+Stufe 2, Runde 8, Punkt 2. Die Gruppen „Untermenü links“ (Stammdaten, Einstellungen, Zeiterfassungs-Backoffice) und „Zurück-Link + Karte“
+(Mein Konto, Benutzer und Zugriff, Änderungshistorie, Adressimport, Leistungskatalog) aus `docs/archiv/befund-rahmen.md` tragen `.ds-seite`
+und den gemeinsamen Seitenkopf; Links in `--ds-link`, Fokus in `--ds-fokus`. Der Zurück-Link ist zum Pfad geworden (Einstellungen /
+Benutzer und Zugriff, Stammdaten / Leistungskataloge / Leistungskatalog, Start / Mein Konto -- die Monteurin über „Einsätze“ nach /mobil);
+die Seiten mit Untermenü sind Einstiegsseiten ihres Bereichs und haben keinen Pfad, der Kopf steht über Menü und Inhalt. Eine grüne
+Hauptaktion nur in den Stammdaten („+ Hinzufügen“, Titel und Untertitel des gewählten Bereichs im Kopf wie bis dahin in der Karte);
+„Löschen“ gab es in keinem dieser Köpfe. Das Backoffice-Raster verliert `min-height:100vh` (mit dem Kopf darüber rollte sonst jede Seite).
+Neuer Test `test_v454`, Klicktest `klicktest_rahmen` Teil „untermenue“; sechs Tests und zwei Klicktests mit angepasster Erwartung (Pfad
+statt „← …“, `--ds-link` statt Akzentfarbe, `#seitenkopfTitel` statt `#title`).
+
 ## 1.9.20 – Bildgrundlage: Testdaten hängen nicht am Lauftag
 
 Stufe 2, Runde 8, Punkt 1 (Nebenbefund aus Runde 7). Das PDF des Angebots aus den Testdaten der Bildgrundlage trug den Tag des Laufs
