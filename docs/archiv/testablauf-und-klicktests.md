@@ -1136,3 +1136,13 @@ wiederholt einen Klicktest genau einmal, wenn seine einzige Abweichung solche An
 - **Test** `tests/test_v453_bildgrundlage_lauftag.py`: befüllt mit der fernen Uhr; kein Datum vor 2029 in Date/DateTime (außer
   `expires_at`), kein Datum 2026–2028 in Textspalten und abgelegten Dateien (nach Abzug der festen Nummern), Vergleichsfall „die ferne Uhr
   wirkt“ (Kopfzeile des Angebots 15.01.2030 / 14.02.2030). Gegen den Stand vor 1.9.20: drei von vier rot, mit genau den Fundstellen.
+
+### Festlegungen 1.9.20 zu Werkzeug und Testablauf (Bitte bestätigen)
+
+1. **Spaltenvorgaben `datetime.utcnow` laufen beim Befüllen der Bildgrundlage auf der stehenden Uhr** -- nur im Kindprozess des Befüllens
+   (`_vorgaben_auf_die_uhr()`), die App selbst bleibt unverändert; wirkt für alles, was `befuellen()` nutzt (Bildgrundlage, `klicktest_rahmen`,
+   Belege).
+2. **Bewusst bei der echten Zeit**: der Ablauf der Sitzungen (`user_sessions.expires_at`, gegen die echte Zeit geprüft) und das Protokoll der
+   App (`data/erp.log`, keine Seite).
+3. **Prüfung mit ferner Uhr (2030) als Test** (`test_v453`): Date/DateTime vor 2029, ein Datum 2020–2028 in Text oder abgelegter Datei ist
+   ein Befund; die festen Nummern der Testdaten (P-/A-/AN-2026-…) sind ausgenommen.

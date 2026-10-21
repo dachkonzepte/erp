@@ -2744,3 +2744,23 @@ Ausführlich in `docs/archiv/testablauf-und-klicktests.md`, „Testdaten der Bil
    abgelehnten Eingabe nichts.
 5. **„Abbrechen“ ohne Rückfrage** zum bisherigen Zurück-Ziel (wie der Zurück-Link bisher); Speichern unten bleibt mit seiner Meldung.
 6. **Importierte Leistung**: oben nur „Abbrechen“ (wie unten kein Speichern).
+
+### Runde 8 abgeschlossen: Endläufe, Bildvergleich, Beleg (Stand `dc0224c`)
+
+- **Endlauf** auf `dc0224c` bei sauberer Arbeitskopie (vorher und nachher keine Änderung): volle Suite **6611 bestanden, 3 übersprungen,
+  0 rot** (7:53); **Klicktests 80 von 80** wie erwartet (zu viert, 8:15), keine Wiederholung nötig.
+- **Bildvergleich** (volle Bildgrundlage, je 298 Bilder, drei Läufe unmittelbar hintereinander, gleiche Chrome-Version):
+  - Rundenstart `fd499ab` gegen 1.9.20 `dffe586` (Punkt 1): **298 von 298 gleich** -- Angebotsdatum und „Gültig bis“ stehen auf keiner
+    aufgenommenen Seite (nur im PDF und im Reiter „Angebotsdetails“), die Abschrift des Auftrags ebenso nicht; die Änderung wirkt auf die
+    Belege und die Daten selbst (`test_v453`).
+  - 1.9.20 `dffe586` gegen `dc0224c` (Punkte 2 und 3): **250 gleich, 48 abweichend, alle auf den 10 Seiten der Runde** -- Stammdaten,
+    Einstellungen, Backoffice, Benutzer, Änderungshistorie, Adressimport, Leistungskatalog, Stammdaten-Formular und Leistung je 4 Bilder
+    (hell/dunkel, 412/1440), Mein Konto 12 (Büro 4, Monteurin 8 mit TerraPad). Jede Seite der Runde weicht ab, keine andere.
+- **Bilder**: `bildgrundlage/rahmen_runde8_dc0224c.zip` (14 Dateien) -- `nachher/`: die 11 Ansichten der Runde als Fenster 1440 × 900 hell
+  (Konto auch als Monteurin), die Stammdaten auch dunkel; `vorher/` (1.9.20): Stammdaten-Formular (Mitarbeiter bearbeiten) und Leistung.
+- Commits der Runde: `dffe586` (1.9.20 Testdaten nicht am Lauftag), `d734c64` (1.9.21 Untermenü und Zurück-Link), `dc0224c` (1.9.22
+  Formularseiten im Rahmen).
+- **Nebenbefund** aus einem Zwischenlauf (16 Klicktests zu viert, vor dem Commit von 1.9.22): im Teil „schrift“ von `klicktest_rahmen` kam
+  eine Anfrage der Seite „Checklisten je Auftrag“ nie beim Server an (`/api/checklists/startable-templates`, „Server: nicht angekommen“) --
+  derselbe Befund wie in Runde 6, Punkt 2. Die Wiederholung (1.9.19) griff dort nicht, weil derselbe Lauf eine zweite, echte Abweichung
+  hatte (die Meldung nach „Speichern“ oben, siehe Punkt 3); der Teil lief danach einzeln und im Endlauf grün.
