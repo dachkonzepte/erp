@@ -1882,3 +1882,59 @@ Bildlaufs: **alle 160 vorher und nachher gleich** (jedes Element, auf die Hunder
 6. **Textlinks in `--ds-link`, Zeilen- und Kachellinks in Textfarbe** (ganze Zeile klickbar mit Fläche beim Überfahren: Aufgaben auf
    dem Start, Treffer der Suche).
 7. **Fokus der Seiten in `--ds-fokus`** (Umriss und Rahmenfarbe).
+
+### Punkt 3 (1.9.8): test_v323, test_v376 und test_v419 ohne Zeitabhängigkeit
+
+Was bis dahin von der Zeit abhing und unter Last kippen konnte, und was jetzt stattdessen gilt:
+
+- **`_run()`** (`tests/test_v375_rechnungen_sperren.py`, benutzt von test_v376 und test_v378–v386): die erste Aktion hielt ihre
+  Sperre eine feste Sekunde, dann ließ `_run()` los -- egal, ob die zweite schon wartete -- und verlangte, dass die zweite mindestens
+  0,9 s gebraucht hatte. Unter Last (Lauf mit 1.9.5 parallel zu Bildaufnahmen) startete die zweite Aktion erst nach dem Commit der
+  ersten, fand den gelöschten Entwurf nicht mehr und scheiterte anders („'NoneType' object has no attribute 'status'“). Jetzt gibt
+  `_run()` frei, sobald die zweite Aktion **nachweislich auf die Sperre wartet** (`_wartet_auf_sperre()`: unter PostgreSQL eine nicht
+  gewährte Sperre ihres Backends in `pg_locks`; unter SQLite, ohne Sicht auf wartende Sperren, ihre erste schreibende Anweisung --
+  die erste hält die Schreibsperre). Statt „≥ 0,9 s“ wird geprüft, dass sie gewartet hat. Das Freigeben im angehaltenen Commit wartet
+  nur noch als Sicherheitsnetz (300 s statt 30 s).
+- **test_v323** (zwei Versände gleichzeitig unter PostgreSQL): beide warten nach der Vorabprüfung an einer Barriere, dann entscheidet
+  der Sperrschlüssel. Unter Last konnte der Gewinner fertig sein (Sperrschlüssel wieder leer), bevor der andere anlegte -- der legte
+  dann ungehindert an und sendete ein zweites Mal. Jetzt sendet der Gewinner erst, wenn der andere seinen Konflikt gemeldet hat
+  (`FakeSMTP.during_send` wartet auf dieses Ereignis). Zeitgrenzen an Barriere und `join()` nur noch als Sicherheitsnetz, danach
+  geprüft, dass kein Versand hängt.
+- **test_v419_verbindungen_unter_last**:
+  - Langsame Downloads: statt „jede Antwort unter 2 s“ (unter Last 3,5 s bei richtigem Ergebnis) jede mit 200 -- ein gehaltener Pool
+    gäbe nach seinem Zeitlimit 503; statt „keine Verbindung seit über 1 s ‚idle in transaction‘“ keine mit einer Transaktion von vor
+    dem Start der Prüfrunden (`xact_start` gegen die Uhr der Datenbank) -- ein Download, der seine Verbindung hielte, hätte sie vorher
+    begonnen. 15 Prüfrunden statt 6 s mit Pausen; erst geprüft, wenn jeder Download Daten bekommen hat.
+  - Viele gleichzeitige Seiten: die Schranke „längste Antwort unter 10 s“ entfällt (Status und Rückfallwerte bleiben).
+  - Leerer Pool: die zwei gesperrten Abfragen werden abgewartet, bis `pg_stat_activity` sie zeigt (bis dahin höchstens 15 s, dann
+    rot); statt 4,5 s Schlaf und „Pause unter 1,5 s“ werden die beiden Antworten (503 nach dem Zeitlimit des Pools) abgewartet und
+    geprüft, dass der Download in dieser Zeit mindestens eine Sekunde seiner Lesemenge bekam (`RATE` Bytes) -- stünde der Prozess
+    still, kämen nur die Puffer. „503 in unter 6 s“ entfällt.
+  - Beendete Verbindungen: statt einer festen halben Sekunde abwarten, bis `pg_stat_activity` keine Verbindung des Servers mehr zeigt.
+- Was bleibt: das Zeitlimit des Pools im Testserver (3 s, der Mechanismus unter Test) und Sicherheitsnetze gegen einen hängenden Lauf
+  (`_bis()` mit 120 s, dann rot mit Grund). `test_v419_verbindungen.py` hatte keine Zeitabhängigkeit.
+
+#### Tests und Prüfung
+
+- Die betroffenen Dateien einzeln (ohne Last): 319 Tests grün (test_v323, v375, v376, v378–v386, v419 beide).
+- **Gegenproben** (Marker, Dateien byte-genau zurück) -- die zeitfreien Prüfungen erkennen den Fehler weiterhin:
+- Auftragszeile nicht gesperrt (`lock_order()` ausgelassen): die vier Gleichzeitigkeitstests von test_v376 rot -- die zweite
+    Aktion wartet nicht.
+  - Schranke liest auf der Event-Loop (ohne `run_in_threadpool`): leerer Pool und viele Seiten rot (test_v419).
+  - Download hält seine Sitzung (`Depends(get_db)` ohne `scope="function"`): langsame Downloads und leerer Pool rot.
+  - Versand ohne Sperrschlüssel: test_v323 rot (zweimal gesendet).
+  - 4 von 4 rot (FAILED, nicht ERROR).
+- **Angepasste Erwartungen** (Regel 28): `_run()`: alt „zweite Aktion ≥ 0,9 s“, neu „zweite Aktion hat nachweislich gewartet“;
+  test_v419 langsame Downloads: alt „unter 2 s mit 200“ und „keine seit über 1 s idle in transaction“, neu „200“ und „keine mit
+  Transaktion von vor den Prüfrunden“; viele Seiten: alt „unter 10 s“, neu entfällt; leerer Pool: alt „Pause unter 1,5 s“ und „503
+  unter 6 s“, neu „mindestens RATE Bytes während des Wartens“ und „503“.
+
+#### Festlegungen 1.9.8 (Bitte bestätigen)
+
+1. **Synchronisation im gemeinsamen `_run()`** statt nur in test_v376 -- dieselbe Ursache trifft test_v378–v386.
+2. **„Gewartet“ unter SQLite = erste schreibende Anweisung begonnen** (SQLite zeigt keine wartenden Sperren); unter PostgreSQL der
+   Nachweis aus `pg_locks`.
+3. **Fortschritt in Bytes statt Pausenlänge** beim leeren Pool (mindestens eine Sekunde der Lesemenge während der drei Sekunden, die
+   die Schranke auf den Pool wartet).
+4. **Beleg unter Last** = CPU-Last (je logischer Kern eine Dauerschleife) und zwei gleichzeitige Testströme, alter und neuer Stand
+   zur selben Zeit.

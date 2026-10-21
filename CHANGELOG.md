@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.8 – Wartung: Gleichzeitigkeitstests ohne Zeitabhängigkeit
+
+Stufe 2, Runde 4, Punkt 3. test_v323, test_v376 und test_v419 hingen an festen Wartezeiten und Zeitschranken und kippten unter Last. Jetzt warten sie auf beobachtbare Zustände: die zweite Aktion wartet nachweislich auf die Sperre (pg_locks) bevor die erste freigibt, der zweite Versand meldet seinen Konflikt, bevor der erste sendet, und der Lasttest prüft Antworten, Transaktionen und gelesene Bytes statt Dauern. Belegt mit 20 Läufen unter Last.
+
 ## 1.9.7 – Rahmen, Runde 4: Seitenkopf für Titelzeilen und Titelkarten
 
 Stufe 2, Runde 4, Punkt 2. Die 15 Seiten der Gruppe „Titelzeilen und Titelkarten“ (Start, Aufgaben, Checklisten, Checklisten-Vorlagen, Wartungen, Mängel, Eingangsrechnungen, Betriebskosten, Projekte, Finanzen, Mahnwesen, Versandprotokoll, Changelog, Suche, Zeiterfassung) tragen das Design-System (.ds-seite) und den gemeinsamen Seitenkopf: Titel, Untertitel, höchstens eine grüne Hauptaktion, Weiteres im Menü „⋮“. Links stehen in der Linkfarbe, der Fokus in der Fokusfarbe; der Inhalt bleibt, wie er war.

@@ -23,7 +23,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import create_engine, func, select, text
+from sqlalchemy import create_engine, event, func, select, text
 from sqlalchemy.orm import close_all_sessions, sessionmaker
 
 from app.database import Base
@@ -504,7 +504,7 @@ def _held(Session, action, ready):
     def angehalten():
         holder.flush()
         ready.set()
-        release.wait(timeout=30)
+        release.wait(timeout=300)  # seit 1.9.8 nur Sicherheitsnetz: _run() gibt frei, sobald die zweite Aktion nachweislich wartet
         commit()
     holder.commit = angehalten
     result = {}
@@ -529,9 +529,44 @@ def _timed(fn) -> dict:
     return done
 
 
+def _wartet_auf_sperre(session):
+    """Seit 1.9.8: ein Prüfer, ob die Aktion in session auf eine Sperre wartet (statt einer festen Sekunde). PostgreSQL: ihr Backend hat
+    eine nicht gewährte Sperre (pg_locks). SQLite kennt keine Sicht auf wartende Sperren: dort, ob sie ihre erste schreibende Anweisung
+    begonnen hat -- die erste Aktion hält die Schreibsperre der Datei, die Anweisung muss warten."""
+    verbindung = session.connection()
+    if verbindung.dialect.name == "postgresql":
+        pid = verbindung.connection.dbapi_connection.info.backend_pid
+        engine = session.get_bind()
+
+        def wartet():
+            with engine.connect() as conn:
+                return conn.execute(text("SELECT EXISTS (SELECT 1 FROM pg_locks WHERE pid = :pid AND NOT granted)"),
+                                    {"pid": pid}).scalar()
+        return wartet
+    begonnen = threading.Event()
+
+    def vorher(conn, cursor, statement, parameters, context, executemany):
+        if statement.lstrip().split(None, 1)[0].upper() in ("UPDATE", "INSERT", "DELETE"):
+            begonnen.set()
+    event.listen(verbindung, "before_cursor_execute", vorher)
+    return begonnen.is_set
+
+
+def _bis(bedingung, was: str, sicherheitsnetz: float = 120.0):
+    """Wartet, bis bedingung() wahr ist -- Synchronisation auf einen beobachtbaren Zustand; sicherheitsnetz begrenzt nur einen hängenden
+    Lauf (dann rot mit was), es ist keine erwartete Dauer."""
+    ende = time.monotonic() + sicherheitsnetz
+    while not bedingung():
+        assert time.monotonic() < ende, f"{was} -- nach {sicherheitsnetz:.0f} s nicht eingetreten"
+        time.sleep(0.01)
+
+
 def _run(Session, first, second):
-    """first hält die Sperre eine Sekunde; second startet währenddessen in einer eigenen Sitzung, lädt dort zuerst seine
-    Objekte (alter Stand, wie der Router) und muss dann warten.
+    """first hält seine Sperre; second startet in einer eigenen Sitzung, lädt dort zuerst seine Objekte (alter Stand, wie der Router)
+    und muss dann warten. Seit 1.9.8 gibt _run die erste Aktion frei, sobald die zweite nachweislich auf die Sperre wartet
+    (_wartet_auf_sperre()) -- bis dahin nach einer festen Sekunde: unter Last war die zweite Aktion dann manchmal noch nicht so weit,
+    lud den neuen Stand und scheiterte anders (test_v376, "'NoneType' object has no attribute 'status'"), oder ihre gemessene Wartezeit
+    lag unter 0,9 s.
 
     Seit 1.8.87 (Nebenbefund 5 aus 1.8.85) schließt _run auch die Sitzung der zweiten Aktion: wirft sie nach der Sperre (wie
     erwartet), blieb ihre Transaktion offen und hielt die Sperre der Auftragszeile -- traf eine spätere Aktion darauf, wartete
@@ -544,22 +579,27 @@ def _run(Session, first, second):
     im parallelen Lauf). Hängt die erste Aktion trotzdem, wird der Test rot statt zu hängen."""
     ready = threading.Event()
     holder, release, thread, first_result = _held(Session, first, ready)
-    assert ready.wait(timeout=10)
+    _bis(lambda: ready.is_set() or not thread.is_alive(), "die erste Aktion erreicht ihren Commit nicht")
+    assert ready.is_set(), first_result.get("result")
     result = {}
     second_session = Session()
+    wartet = _wartet_auf_sperre(second_session)
     other = threading.Thread(target=lambda: result.update(_timed(lambda: second(second_session))))
     other.start()
-    time.sleep(1.0)
+    gewartet = []
+    _bis(lambda: gewartet.append(True) or True if wartet() else not other.is_alive(),
+         "die zweite Aktion wartet weder auf die Sperre noch ist sie fertig")
     release.set()
-    other.join(timeout=30)
+    other.join(timeout=120)
     if not other.is_alive():  # hängt sie noch, nicht aus diesem Thread an ihre Verbindung gehen
         second_session.close()
-    thread.join(timeout=30)
+    thread.join(timeout=120)
     assert not thread.is_alive(), "die erste Aktion hängt -- wartet sie auf eine Sperre der zweiten?"
+    assert not other.is_alive(), "die zweite Aktion hängt nach der Freigabe"
     holder.close()
     first = first_result.get("result")
     assert not isinstance(first, Exception), first
-    assert result["seconds"] >= 0.9, result  # hat auf die Sperre gewartet
+    assert gewartet, ("die zweite Aktion hat nicht auf die Sperre der ersten gewartet", result)
     return first, result["result"]
 
 

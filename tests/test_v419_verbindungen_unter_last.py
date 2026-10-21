@@ -6,12 +6,18 @@ Ein echter uvicorn-Server (Kindprozess) auf einem Wegwerf-Schema der Spielwiese 
 der Server muss also über die ganze Prüfzeit weiter senden.
 
 1. Langsame Downloads halten keine Verbindung: vier Downloads zugleich (doppelt so viele wie der Pool), keine Verbindung des Servers
-   länger als 1 s "idle in transaction", Abfragen und Seiten daneben in unter 2 s mit 200 (Punkt 1b).
+   "idle in transaction" mit einer Transaktion von vor dem Start der Downloads, Abfragen und Seiten daneben mit 200 -- ein gehaltener
+   Pool gäbe nach dem Zeitlimit 503 (Punkt 1b).
 2. Viele gleichzeitige Seiten (40, darunter /users mit eigener Sitzung) und Abfragen: alle 200 (/users 403 -- seit 1.8.134 nur für
    Administratoren, die Sperrseite wird ebenso gezeichnet), keine 503 (Punkt 1c).
 3. Leerer Pool hält nicht den Prozess an: zwei Abfragen warten auf eine gesperrte Tabelle und halten beide Verbindungen; zwei weitere
-   Anfragen warten in der Schranke auf den Pool (nach 3 s 503) -- ein laufender Download bekommt dabei weiter Daten, nie über 1,5 s
-   Pause (Punkt 1a). Danach läuft alles wieder.
+   Anfragen warten in der Schranke auf den Pool (nach 3 s 503) -- ein laufender Download bekommt dabei weiter Daten: in dieser Zeit
+   mindestens eine Sekunde seiner Lesemenge (Punkt 1a). Danach läuft alles wieder.
+
+Seit 1.9.8 ohne Zeitabhängigkeit (Runde 4, Punkt 3): kein Test wartet eine feste Zeit auf einen Zustand -- er wartet, bis der Zustand
+eintritt (Sperren in pg_stat_activity, beendete Verbindungen, Antworten), und keine Prüfung misst eine Dauer gegen eine feste Schranke:
+bis dahin "unter 2 s", "unter 10 s", "unter 6 s", "Pause unter 1,5 s" -- unter Last brauchte eine Seite 3,5 s und war trotzdem richtig.
+Was bleibt, ist das Zeitlimit des Pools im Server (3 s, der Mechanismus unter Test) und Sicherheitsnetze gegen einen hängenden Lauf.
 4. Beendete Verbindungen (Neustart von PostgreSQL, pg_terminate_backend): die nächsten Anfragen gelingen (pool_pre_ping, Punkt 1d).
 
 Opt-in wie alle PostgreSQL-Tests (ERP_TEST_POSTGRES_URL), sonst übersprungen."""
@@ -206,29 +212,44 @@ def _anfrage(s, pfad):
     return pfad, antwort.status_code, time.monotonic() - t0
 
 
-def _haengende_transaktionen(s) -> int:
-    """Verbindungen des Servers, die seit über 1 s in einer offenen Transaktion ruhen (kurze Abfragen zählen nicht)."""
+def _jetzt_in_der_datenbank(s):
+    with s["engine"].connect() as conn:
+        return conn.execute(text("SELECT now()")).scalar()
+
+
+def _haengende_transaktionen(s, vor) -> int:
+    """Verbindungen des Servers, die in einer offenen Transaktion ruhen, die vor `vor` (Zeit der Datenbank) begann -- seit 1.9.8 statt
+    "seit über 1 s": ein Download, der seine Verbindung hielte, hätte seine Transaktion vor dem Start der Prüfung begonnen; eine Abfrage
+    daneben beginnt danach, auch wenn sie unter Last länger ruht."""
     with s["engine"].connect() as conn:
         return conn.execute(text("SELECT count(*) FROM pg_stat_activity WHERE application_name = :n AND state = 'idle in transaction' "
-                                 "AND now() - state_change > interval '1 second'"), {"n": s["schema"]}).scalar()
+                                 "AND xact_start < :vor"), {"n": s["schema"], "vor": vor}).scalar()
+
+
+def _bis(bedingung, was: str, sicherheitsnetz: float = 120.0):
+    """Wartet, bis bedingung() wahr ist (Synchronisation); sicherheitsnetz begrenzt nur einen hängenden Lauf."""
+    ende = time.monotonic() + sicherheitsnetz
+    while not bedingung():
+        assert time.monotonic() < ende, f"{was} -- nach {sicherheitsnetz:.0f} s nicht eingetreten"
+        time.sleep(0.05)
 
 
 def test_langsame_downloads_halten_keine_verbindung(server):
     s = server
     laeufe = _downloads(s, 4)
     try:
+        _bis(lambda: all(d.empfangen for d in laeufe), "nicht jeder Download hat Daten bekommen")
+        vor = _jetzt_in_der_datenbank(s)
         haengend, ergebnisse = [], []
-        ende = time.monotonic() + 6
-        while time.monotonic() < ende:
-            haengend.append(_haengende_transaktionen(s))
+        for _ in range(15):  # Runden, keine Dauer
+            haengend.append(_haengende_transaktionen(s, vor))
             ergebnisse += [_anfrage(s, f"/api/customers/{s['kunde']}"), _anfrage(s, "/projects"), _anfrage(s, "/health")]
-            time.sleep(0.3)
-        assert max(haengend) == 0, f"Verbindungen 'idle in transaction' während der Downloads: {haengend}"
+        assert max(haengend) == 0, f"Verbindungen 'idle in transaction' seit vor den Prüfrunden: {haengend}"
         assert [d.status for d in laeufe] == [200] * 4, [d.status for d in laeufe]
-        assert all(status == 200 and dauer < 2 for _, status, dauer in ergebnisse), \
-            [e for e in ergebnisse if e[1] != 200 or e[2] >= 2]
+        assert all(status == 200 for _, status, _ in ergebnisse), [e for e in ergebnisse if e[1] != 200]
         jetzt = time.monotonic()
         assert all(0 < d.bytes_bis(jetzt) < s["groesse"] for d in laeufe), "die Downloads liefen nicht über die ganze Prüfzeit"
+        assert all(d.is_alive() and d.fehler is None for d in laeufe), "ein Download endete während der Prüfung"
     finally:
         _stoppen(laeufe)
 
@@ -248,7 +269,6 @@ def test_viele_gleichzeitige_seiten_und_abfragen(server):
     falsch = [e for e in ergebnisse if e[1] != ERWARTET.get(e[0], 200)]
     assert not falsch, f"(Pfad, Status, Dauer): {falsch}"
     assert _rueckfaelle(s)[vorher:] == [], "Seitendaten fielen unter Last auf Rückfallwerte"
-    assert max(d for _, _, d in ergebnisse) < 10, max(ergebnisse, key=lambda e: e[2])
 
 
 def test_ein_leerer_pool_haelt_den_prozess_nicht_an(server):
@@ -261,25 +281,22 @@ def test_ein_leerer_pool_haelt_den_prozess_nicht_an(server):
         sperre.execute(text("LOCK TABLE customers IN ACCESS EXCLUSIVE MODE"))
         with ThreadPoolExecutor(max_workers=4) as pool:
             gesperrt = [pool.submit(_anfrage, s, f"/api/customers/{s['kunde']}") for _ in range(2)]
-            frist = time.monotonic() + 15
-            while time.monotonic() < frist:
+
+            def wartend():
                 with s["engine"].connect() as conn:
-                    wartend = conn.execute(text("SELECT count(*) FROM pg_stat_activity WHERE application_name = :n "
-                                                "AND wait_event_type = 'Lock'"), {"n": s["schema"]}).scalar()
-                if wartend == 2:
-                    break
-                time.sleep(0.1)
-            assert wartend == 2, f"nur {wartend} Abfragen warten auf die Sperre -- Pool nicht leer"
+                    return conn.execute(text("SELECT count(*) FROM pg_stat_activity WHERE application_name = :n "
+                                             "AND wait_event_type = 'Lock'"), {"n": s["schema"]}).scalar()
+            _bis(lambda: wartend() == 2, "nicht zwei Abfragen warten auf die Sperre -- Pool nicht leer")
             von = time.monotonic()
             ohne_pool = [pool.submit(_anfrage, s, "/health"), pool.submit(_anfrage, s, "/projects")]
-            time.sleep(4.5)
-            bis = time.monotonic()
-            pause = download.laengste_pause(von, bis)
-            blockiert = [f.result(timeout=30) for f in ohne_pool]
+            blockiert = [f.result(timeout=120) for f in ohne_pool]  # kommen nach dem Zeitlimit des Pools zurück
+            bis = min(von + b[2] for b in blockiert)
+            gelesen = download.bytes_bis(bis) - download.bytes_bis(von)
             sperre.rollback()
-            frei = [f.result(timeout=30) for f in gesperrt]
-        assert pause < 1.5, f"der Download stand {pause:.1f} s still, während die Schranke auf den Pool wartete"
-        assert [b[1] for b in blockiert] == [503, 503] and all(b[2] < 6 for b in blockiert), blockiert
+            frei = [f.result(timeout=120) for f in gesperrt]
+        # die Downloads lesen RATE Bytes je Sekunde (hinter dem Plan ohne Pause); stünde der Prozess still, kämen nur die Puffer
+        assert gelesen >= RATE, f"der Download bekam nur {gelesen} Bytes, während die Schranke auf den Pool wartete"
+        assert [b[1] for b in blockiert] == [503, 503], blockiert
         assert [f[1] for f in frei] == [200, 200], frei
         assert _anfrage(s, "/health")[1] == 200 and _anfrage(s, "/projects")[1] == 200
     finally:
@@ -294,6 +311,10 @@ def test_beendete_verbindungen_ersetzt_der_pool(server):
         beendet = conn.execute(text("SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE application_name = :n"),
                                {"n": s["schema"]}).scalar()
     assert beendet >= 1
-    time.sleep(0.5)
+
+    def verbleibend():
+        with s["engine"].connect() as conn:
+            return conn.execute(text("SELECT count(*) FROM pg_stat_activity WHERE application_name = :n"), {"n": s["schema"]}).scalar()
+    _bis(lambda: verbleibend() == 0, "die beendeten Verbindungen sind noch da")  # bis dahin eine feste halbe Sekunde
     ergebnisse = [_anfrage(s, f"/api/customers/{s['kunde']}"), _anfrage(s, "/projects"), _anfrage(s, "/health")]
     assert [e[1] for e in ergebnisse] == [200, 200, 200], ergebnisse

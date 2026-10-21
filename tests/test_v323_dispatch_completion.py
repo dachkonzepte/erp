@@ -156,7 +156,11 @@ def test_task_mails_take_no_document_lock(db_session, smtp):
 @pytest.mark.skipif(not PG_TEST_DATABASE_URL, reason="ERP_TEST_POSTGRES_URL nicht gesetzt -- PostgreSQL-Testlauf ist bewusst opt-in.")
 def test_two_simultaneous_dispatches_on_postgresql_exactly_one_sends(monkeypatch):
     """Zwei echte Threads, zwei Verbindungen; beide warten nach der Vorabprüfung aufeinander, so
-    dass keiner den anderen dort sehen kann -- die Datenbank entscheidet (Wegwerf-Schema, Regel 16)."""
+    dass keiner den anderen dort sehen kann -- die Datenbank entscheidet (Wegwerf-Schema, Regel 16).
+
+    Seit 1.9.8 sendet der Gewinner erst, wenn der andere seinen Konflikt gemeldet hat (FakeSMTP.during_send): unter Last konnte der
+    Gewinner bis dahin schon fertig sein (Sperrschlüssel wieder leer) -- der andere legte dann ungehindert an und sendete ein zweites
+    Mal. Die Zeitgrenzen an Barriere und join() sind nur Sicherheitsnetz."""
     schema = f"pgtest_versand_{uuid.uuid4().hex[:8]}"
     admin_engine = create_engine(PG_TEST_DATABASE_URL)
     with admin_engine.begin() as conn:
@@ -172,11 +176,16 @@ def test_two_simultaneous_dispatches_on_postgresql_exactly_one_sends(monkeypatch
         monkeypatch.setattr("app.email_sending.smtplib.SMTP", FakeSMTP)
         barrier = threading.Barrier(2)
         original = dispatch_module._running_dispatch
+        verlierer = threading.Event()
 
         def check_then_wait(db, document_type, document_id):
             found = original(db, document_type, document_id)
-            barrier.wait(timeout=15)
+            barrier.wait(timeout=120)
             return found
+
+        def erst_nach_dem_konflikt():
+            assert verlierer.wait(timeout=120), "der andere Versand meldet keinen Konflikt"
+        FakeSMTP.during_send = erst_nach_dem_konflikt
         monkeypatch.setattr(dispatch_module, "_running_dispatch", check_then_wait)
         results = {}
 
@@ -191,6 +200,7 @@ def test_two_simultaneous_dispatches_on_postgresql_exactly_one_sends(monkeypatch
                 results[name] = result.dispatch.status
             except DispatchConflict as e:
                 results[name] = str(e)
+                verlierer.set()
             finally:
                 session.close()
 
@@ -198,7 +208,8 @@ def test_two_simultaneous_dispatches_on_postgresql_exactly_one_sends(monkeypatch
         for t in threads:
             t.start()
         for t in threads:
-            t.join(timeout=30)
+            t.join(timeout=300)
+        assert not any(t.is_alive() for t in threads), "ein Versand hängt"
         assert sorted(results.values()) == sorted(["gesendet", RUNNING_TEXT]), results
         assert len(FakeSMTP.sent) == 1
         check = Session()
