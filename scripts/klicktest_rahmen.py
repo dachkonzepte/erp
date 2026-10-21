@@ -42,6 +42,11 @@ Geprüft wird im echten Browser auf den Testdaten der Bildgrundlage (scripts/bil
                    Menü, kein alter Kopf; Textlinks in --ds-link, Fokus in --ds-fokus, Kontrast; „PDF herunterladen“ öffnet das PDF
                    wie bisher; über die unveränderte Karte „Status“ festgeschrieben: Kennung = Rechnungsnummer, Status „Offen“ (info),
                    Beträge gleich
+    Angebotskopf   seit 1.9.18 das Angebot (LV-Editor, beauftragt) hell und dunkel: .ds-seite, ein h1 mit der Bezeichnung, Kennung =
+                   Angebotsnummer als Kennzeichen neben dem Status „Beauftragt“ (ok), Pfad Projekte / Kunde / Projekt / Angebot (jeder
+                   Link öffnet eine Seite), Netto/Optional/MwSt./Brutto, „PDF-Vorschau“ neutral und die grüne Hauptaktion, Menü „⋮“ mit
+                   Angebotsdetails und OZ neu nummerieren per Tastatur, kein alter Kopf, Links, Fokus, Kontrast; „PDF-Vorschau“ öffnet
+                   das PDF, „Angebotsdetails“ den Reiter, die Hauptaktion den Auftrag
     Seitenregeln   auf den Einstellungen (button:hover und button:active in der Akzentfarbe): Kontoknopf unter der Maus und per
                    Leertaste gedrückt (:active ohne :hover), Menüeintrag unter der Maus -- nie in der Akzentfarbe
     Monteurskopf   auf jeder Seite der Monteurin (Mobil, Objekt, Stundenzettel, Zeiterfassung, Betriebsmittel, Checkliste,
@@ -57,7 +62,7 @@ AUFRUF (aus dem Projektordner):
         [--arbeitsordner PFAD] [--chrome PFAD] [--offen-lassen]
 
 --nur: nur diese Teile (seitenleiste, aktiv, schrift, menueknopf, kopfzeile, kontomenue, vollname, pruefvorlagen, kopfgruppe,
-seitenregeln, monteurskopf, datensatzkopf, rechnungskopf) -- für
+seitenregeln, monteurskopf, datensatzkopf, rechnungskopf, angebotskopf) -- für
 Gegenproben, die nach 2 min
 abbrechen (Regel 24).
 
@@ -852,10 +857,105 @@ async def _rechnungskopf(tab, seed, p):
     await tab.bild("rechnungskopf_zuletzt")
 
 
+# Seit 1.9.18: Seitenkopf des Angebots (Testdaten der Bildgrundlage: A-2026-0001, beauftragt, Auftrag gleichauf mit dem Angebot)
+ANGEBOTSKOPF_JS = """(()=>{const F=%s;const cs=e=>getComputedStyle(e);const k=document.getElementById('seitenkopf');
+const st=document.getElementById('seitenkopfStatus');const sichtbar=e=>e.getClientRects().length>0;
+const eintraege=[...document.querySelectorAll('#seitenkopfMenue .ds-menue-eintrag')];
+const links=[...document.querySelectorAll('main a[href]')].filter(a=>sichtbar(a)&&!a.closest('#seitenkopf')
+  &&!a.matches('.ds-knopf,.ds-menue-eintrag,.secondary')&&['inline','inline-block'].includes(cs(a).display)
+  &&cs(a).backgroundColor==='rgba(0, 0, 0, 0)'&&cs(a).borderTopStyle==='none');
+const kz=document.getElementById('seitenkopfKennung'),t=document.getElementById('seitenkopfTitel'),r=e=>e.getBoundingClientRect(),m=e=>r(e).top+r(e).height/2;
+return {ds:document.body.classList.contains('ds-seite'),h1:[...document.querySelectorAll('h1')].map(e=>[e.id,e.textContent.trim()]),
+  kennung:kz.textContent,untertitel:document.getElementById('seitenkopfUntertitel').textContent,
+  status:[st.textContent,st.className.replace('ds-status ds-status-',''),cs(st).display!=='none'],
+  kennzeichen:[cs(kz).fontFamily.includes('IBM Plex Mono'),cs(kz).borderTopStyle,Math.abs(m(kz)-m(t))<8,r(kz).right<=r(st).left],
+  pfad:[...document.querySelectorAll('#seitenkopfPfad .ds-kopf-pfadglied,#seitenkopfPfad .ds-kopf-pfadende')]
+    .map(e=>[e.textContent,e.getAttribute('href'),e.getAttribute('aria-current')]),
+  aktionen:[...k.querySelectorAll('.ds-kopf-aktionen > .ds-knopf')].filter(sichtbar).map(b=>{const a=b.classList.contains('ds-knopf-aktion');
+    return [b.textContent.trim(),a,a?cs(b).backgroundColor===F('--ds-aktion')&&cs(b).color===F('--ds-auf-aktion')
+      :cs(b).backgroundColor===F('--ds-flaeche')&&cs(b).color===F('--ds-text')]}),
+  menue:eintraege.filter(e=>!e.hidden).map(e=>e.textContent.trim()),
+  verborgen_sichtbar:eintraege.filter(e=>e.hidden&&cs(e).display!=='none').map(e=>e.textContent.trim()),
+  kennzahlen:[...k.querySelectorAll('.ds-kopf-kennzahlen .ds-kennzahl')].map(e=>[e.querySelector('.ds-kennzahl-name').textContent,
+    e.querySelector('.ds-kennzahl-wert').textContent]),
+  alt:['breadcrumb','quoteName','quoteContext','quoteStatusBadge'].filter(id=>document.getElementById(id)),
+  links:links.length,falsch:links.filter(a=>cs(a).color!==F('--ds-link')).map(a=>a.textContent.trim().slice(0,30)+' '+cs(a).color)}})()""" % FARBE
+ANGEBOT_BETRAEGE = [["Netto", "45.945,00\xa0€"], ["Optional", "0,00\xa0€"], ["MwSt.", "8.729,55\xa0€"], ["Brutto", "54.674,55\xa0€"]]
+
+
+async def _angebotskopf(tab, seed, p):
+    """Seit 1.9.18: Kopf des Angebots (LV-Editor) im gemeinsamen Seitenkopf -- hell und dunkel: .ds-seite, ein h1 mit der Bezeichnung,
+    Kennung = Angebotsnummer als Kennzeichen neben dem Status „Beauftragt“ (ok), Pfad Projekte / Kunde / Projekt / Angebot (jeder Link
+    öffnet eine Seite), Netto/Optional/MwSt./Brutto, „PDF-Vorschau“ neutral und die grüne Hauptaktion (hier „Auftrag AUF-… öffnen“), Menü
+    „⋮“ mit Angebotsdetails und OZ neu nummerieren (der Link zum Auftrag verborgen -- der Hauptknopf führt hin), per Tastatur; kein alter
+    Kopf; Links, Fokus, Kontrast. Hell zusätzlich: „PDF-Vorschau“ öffnet das PDF wie bisher, „Angebotsdetails“ öffnet den Reiter, die
+    Hauptaktion öffnet den Auftrag."""
+    await tab.cmd("Emulation.setFocusEmulationEnabled", enabled=True)
+    await tab.anmelden(seed["cookies"][bg.BUERO])
+    holen = "(u=>fetch(u).then(r=>r.json()))"
+    angebot = auftragsnummer = None
+    for thema in ("hell", "dunkel"):
+        wo = f"Angebotskopf {thema}"
+        p.pruefe(f"{wo}: geladen", await _laden(tab, seed, "angebot", thema, 1440, 900), True)
+        if angebot is None:
+            angebot = await tab.js(f"{holen}('/api/quotes/{seed['angebot']}')")
+            auftragsnummer = await tab.js(f"{holen}('/api/orders/{seed['auftrag']}').then(o=>o.order_number)")
+        m = await tab.js(ANGEBOTSKOPF_JS)
+        p.pruefe(f"{wo}: .ds-seite, h1 = Bezeichnung, Kennung = Angebotsnummer, Untertitel, kein alter Kopf",
+                 [m["ds"], m["h1"], m["kennung"], m["untertitel"], m["alt"]],
+                 [True, [["seitenkopfTitel", angebot["title"]]], angebot["quote_number"],
+                  f"{angebot['customer_name']} · {angebot['project_number']} · {angebot['property_name'] or 'ohne Objekt'}", []])
+        p.pruefe(f"{wo}: Status „Beauftragt“ (ok), Kennung als Kennzeichen daneben", [m["status"], m["kennzeichen"]],
+                 [["Beauftragt", "ok", True], [True, "solid", True, True]])
+        p.pruefe(f"{wo}: Pfad Projekte / Kunde / Projekt / Angebot", m["pfad"],
+                 [["Projekte", "/projects", None], [angebot["customer_name"], f"/customers/{seed['kunde']}", None],
+                  [angebot["project_number"], f"/projects/{seed['projekt']}", None], ["Angebot", None, "page"]])
+        offen = await tab.js(PFAD_OEFFNEN)
+        p.pruefe(f"{wo}: jeder Link im Pfad öffnet eine Seite ({len(offen)} Links)", [o for o in offen if o[1:] != [200, False, "text/html"]],
+                 [])
+        p.pruefe(f"{wo}: „PDF-Vorschau“ neutral, Hauptaktion grün; Menü Angebotsdetails, OZ neu nummerieren; Kennzahlen",
+                 [m["aktionen"], m["menue"], m["verborgen_sichtbar"], m["kennzahlen"]],
+                 [[["PDF-Vorschau", False, True], [f"Auftrag {auftragsnummer} öffnen", True, True]],
+                  ["Angebotsdetails", "OZ neu nummerieren"], [], ANGEBOT_BETRAEGE])
+        p.pruefe(f"{wo}: {m['links']} Textlinks im Inhalt, alle in --ds-link", m["falsch"], [])
+        fokus = await tab.js(KOPFGRUPPE_FOKUS)
+        p.pruefe(f"{wo}: erstes Feld mit Fokus im Umriss --ds-fokus", fokus if fokus == "kein Feld" else fokus[1],
+                 "kein Feld" if fokus == "kein Feld" else True)
+        k = await tab.js(KONTRAST)
+        p.pruefe(f"{wo}: Kontrast ({k['anzahl']} Elemente, kleinster {k['min']} : 1)", k["schwach"], [])
+        await tab.js("document.getElementById('seitenkopfMenueKnopf').focus()")
+        await _taste(tab, "Enter")
+        auf = await tab.js("[!document.getElementById('seitenkopfMenue').hidden,document.activeElement.textContent.trim()]")
+        await _taste(tab, "ArrowDown")
+        zweiter = await tab.js("document.activeElement.textContent.trim()")
+        await _taste(tab, "Escape")
+        zu = await tab.js("[document.getElementById('seitenkopfMenue').hidden,document.activeElement.id]")
+        p.pruefe(f"{wo}: Menü per Enter offen (Fokus „Angebotsdetails“), Pfeil runter, Escape schließt mit Fokus am Knopf",
+                 [auf, zweiter, zu], [[True, "Angebotsdetails"], "OZ neu nummerieren", [True, "seitenkopfMenueKnopf"]])
+        if thema == "hell":
+            await tab.js("window.__dkGeoeffnet=[];window.open=(...a)=>{window.__dkGeoeffnet.push(a);return null}")
+            await tab.js("document.querySelector('#seitenkopf [data-klick=\"pdf-vorschau\"]').click()")
+            pdf = await tab.js(f"fetch('/api/quotes/{seed['angebot']}/pdf').then(r=>[r.status,r.headers.get('content-type')])")
+            p.pruefe(f"{wo}: „PDF-Vorschau“ öffnet das PDF des Angebots wie bisher", [await tab.js("window.__dkGeoeffnet"), pdf],
+                     [[[f"/api/quotes/{seed['angebot']}/pdf", "_blank"]], [200, "application/pdf"]])
+            await tab.js("document.getElementById('seitenkopfMenueKnopf').click()")
+            await tab.js("document.querySelector('#seitenkopfMenue [data-klick=\"angebotsdetails\"]').click()")
+            reiter = await tab.js("[!document.getElementById('panelDetails').classList.contains('hidden'),"
+                                  "document.getElementById('tabDetails').classList.contains('active')]")
+            p.pruefe(f"{wo}: „Angebotsdetails“ im Menü öffnet den Reiter", reiter, [True, True])
+            p.pruefe(f"{wo}: keine JS-Fehler", tab.fehler, [])
+            await tab.js("document.getElementById('orderButton').click()")
+            ziel = await tab.warten(f"location.pathname==='/orders/{seed['auftrag']}'", 20)
+            p.pruefe(f"{wo}: Hauptaktion öffnet den Auftrag", ziel, True)
+        else:
+            p.pruefe(f"{wo}: keine JS-Fehler", tab.fehler, [])
+    await tab.bild("angebotskopf_zuletzt")
+
+
 TEILE = {"seitenleiste": _seitenleiste, "aktiv": _aktiv, "schrift": _schrift, "menueknopf": _menueknopf, "kopfzeile": _kopfzeile,
          "kontomenue": _kontomenue, "vollname": _vollname, "pruefvorlagen": _pruefvorlagen, "kopfgruppe": _kopfgruppe,
          "seitenregeln": _seitenregeln, "monteurskopf": _monteurskopf, "datensatzkopf": _datensatzkopf,
-         "rechnungskopf": _rechnungskopf}
+         "rechnungskopf": _rechnungskopf, "angebotskopf": _angebotskopf}
 NUR: list = []
 
 

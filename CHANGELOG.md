@@ -4,6 +4,18 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.18 – Rahmen, Runde 7: Seitenkopf des Angebots
+
+Stufe 2, Runde 7, Punkt 5. Der LV-Editor (Angebot) trägt das Design-System (.ds-seite) und den gemeinsamen Seitenkopf: Pfad Projekte /
+Kunde / Projekt / Angebot (ersetzt die Brotkrume), Titel = Bezeichnung des Angebots, Kennung = Angebotsnummer als Kennzeichen, Status
+lesbar in der Farbe seiner Bedeutung (neue Gruppe „angebot“ in `_statuskennzeichen.html`; bis dahin der rohe Wert, z. B. „in_pruefung“),
+Netto/Optional/MwSt./Brutto als Kennzahlen. Die bisherige grüne Aktion bleibt Hauptaktion (Angebot beauftragen, Auftrag … öffnen bzw.
+Änderungen … übernehmen), „PDF-Vorschau“ ist die neutrale Nebenaktion; Angebotsdetails, OZ neu nummerieren und der Link „Auftrag …
+öffnen“ (nur sichtbar, wenn der Hauptknopf die Änderungen übernimmt) stehen im Menü „⋮“. Weil vier Kennzahlen und zwei Knöpfe dem Titel
+in einer Zeile nur gut 300 px ließen, hat das Makro die Variante `breit` (`ds-kopf-breit`): der Text über die ganze erste Zeile,
+Kennzahlen und Aktionen darunter -- nur das Angebot nutzt sie. Beträge, LV und Versand unverändert; der Text des Angebots-PDFs aus den
+Testdaten ist vor und nach dem Umbau gleich.
+
 ## 1.9.17 – Zahlen in der Anzeige über zahlText()
 
 Stufe 2, Runde 7, Punkt 4. Der Steuerschlüssel stand in der Auswahl von Rechnung, Auftrag und Angebot als „Regelsteuersatz (19,0000 %)“:

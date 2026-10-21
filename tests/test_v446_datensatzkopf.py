@@ -33,6 +33,8 @@ RUECKWEGE = {
     "service_reports.html": {"/projects", "/customers/{x}", "/projects/{x}", "/maintenance-contracts/{x}", "/orders/{x}", "/mobil"},
     # seit 1.9.13 die Rechnung (ersetzt „← Auftrag“)
     "invoice_detail.html": {"/projects", "/customers/{x}", "/projects/{x}", "/orders/{x}"},
+    # seit 1.9.18 das Angebot (ersetzt die Brotkrume Kunde · Projekt · Nummer)
+    "quote_editor.html": {"/projects", "/customers/{x}", "/projects/{x}"},
 }
 MIT_LOESCHEN = {"roof_area.html", "operational_asset.html", "maintenance_contract.html", "checklist_template.html"}
 

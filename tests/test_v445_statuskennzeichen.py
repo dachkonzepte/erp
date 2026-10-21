@@ -74,6 +74,9 @@ def test_jeder_wert_des_servers_steht_in_der_tabelle(tabellen):
 
     auswahl = re.search(r'<select id="status">(.*?)</select>', (vj.TEMPLATES / "order.html").read_text(encoding="utf-8"), flags=re.S)
     assert set(re.findall(r'value="([^"]*)"', auswahl.group(1))) <= set(t["auftrag"])
+    # seit 1.9.18: jeder Status, den der LV-Editor anbietet (der Server nimmt ihn vom Client), und jeder, den er selbst schreibt
+    angebot = re.search(r'<select id="hStatus">(.*?)</select>', (vj.TEMPLATES / "quote_editor.html").read_text(encoding="utf-8"), flags=re.S)
+    assert set(re.findall(r'value="([^"]*)"', angebot.group(1))) | set(FESTE_LITERALE["quotes.status"]) <= set(t["angebot"])
     rechnung = set(FESTE_LITERALE["invoices.status"]) | set(STATES) | set(OVERVIEW_LABELS) | {"enthalten"}
     assert rechnung <= set(t["rechnung"]), sorted(rechnung - set(t["rechnung"]))
 

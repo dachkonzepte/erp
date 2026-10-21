@@ -46,7 +46,7 @@ DATENSATZ_MIT_PFAD = {
 }
 UMGEZOGEN |= DATENSATZ_MIT_PFAD
 # seit 1.9.13 die Rechnung aus der Gruppe „Belegkopf in Karte“ (K4)
-BELEGKOPF = {"invoice_detail.html"}
+BELEGKOPF = {"invoice_detail.html", "quote_editor.html"}  # Angebot seit 1.9.18
 UMGEZOGEN |= BELEGKOPF
 
 
@@ -215,6 +215,17 @@ def test_makro_kennzahlen_zwischen_text_und_aktionen():
     assert html.index('class="ds-kopf-text"') < html.index('class="ds-kopf-kennzahlen"') < html.index('class="ds-kopf-aktionen"')
     assert '<div class="ds-kopf-kennzahlen"><div class="ds-kennzahl">' in html
     assert "ds-kopf-kennzahlen" not in _rendern('{% from "teile/seitenkopf.html" import seitenkopf %}{{ seitenkopf("X") }}')
+
+
+def test_makro_variante_breit():
+    """Seit 1.9.18: breit=true setzt ds-kopf-breit -- der Text über die ganze erste Zeile, Kennzahlen und Aktionen darunter (Angebot);
+    ohne bleibt der Kopf wie bisher."""
+    breit = _rendern('{% from "teile/seitenkopf.html" import seitenkopf %}{{ seitenkopf("A", breit=true) }}')
+    schmal = _rendern('{% from "teile/seitenkopf.html" import seitenkopf %}{{ seitenkopf("A") }}')
+    assert '<header class="ds-kopf ds-kopf-breit" id="seitenkopf">' in breit
+    assert '<header class="ds-kopf" id="seitenkopf">' in schmal and "ds-kopf-breit" not in schmal
+    css = (STATIC_DIR / "ds" / "ds.css").read_text(encoding="utf-8")
+    assert re.search(r"\.ds-kopf-breit \.ds-kopf-text \{\s*flex-basis: 100%;\s*\}", css)
 
 
 def test_makro_ohne_teile_ohne_pfad_aktion_und_menue():

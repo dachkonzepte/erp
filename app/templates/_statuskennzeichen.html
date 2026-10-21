@@ -21,6 +21,11 @@ function statusTabelle() {
       beauftragt: ['Beauftragt', 'laeuft'], arbeitsvorbereitung: ['Arbeitsvorbereitung', 'laeuft'], in_ausfuehrung: ['In Ausführung', 'laeuft'],
       pausiert: ['Pausiert', 'ruht'], abgeschlossen: ['Abgeschlossen', 'erledigt'], storniert: ['Storniert', 'ruht'],
     },
+    // seit 1.9.18: Stand eines Angebots (Auswahl „Status“ im LV-Editor, quotes.status)
+    angebot: {
+      entwurf: ['Entwurf', 'entwurf'], versendet: ['Versendet', 'laeuft'], in_pruefung: ['In Prüfung', 'laeuft'],
+      beauftragt: ['Beauftragt', 'erledigt'], abgelehnt: ['Abgelehnt', 'ruht'],
+    },
     // seit 1.9.13: Stand der Rechnung -- invoice.status, solange es keinen Zahlstand gibt, sonst invoice.overview.state (Zahlstand, an der
     // Endrechnung der Zahlbetrag); Texte wie bis 1.9.12 im Kennzeichen der Rechnungsseite
     rechnung: {

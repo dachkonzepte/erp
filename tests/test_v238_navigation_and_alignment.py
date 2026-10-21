@@ -62,7 +62,8 @@ def test_invoice_to_dict_includes_navigation_fields_for_breadcrumb():
 
 def test_quote_editor_has_breadcrumb_with_customer_and_project_links():
     html = (Path(__file__).parents[1] / "app" / "templates" / "quote_editor.html").read_text(encoding="utf-8")
-    assert 'id="breadcrumb"' in html
+    # seit 1.9.18 der Pfad im gemeinsamen Seitenkopf (bis dahin eine Brotkrume #breadcrumb)
+    assert 'mit_pfad=true' in html and "seitenkopf({pfad:" in html
     assert "function renderBreadcrumb()" in html
     assert "/customers/${quote.customer_id}" in html
     assert "/projects/${quote.project_id}" in html

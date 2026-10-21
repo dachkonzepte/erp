@@ -173,16 +173,14 @@ def test_lv_editor_ein_weg_zum_auftrag(stand):
     Nur wenn die Änderungen übernommen werden können, ist der Hauptknopf „Änderungen … übernehmen“; dann bleibt der Link der eine Weg."""
     auftrag = "null" if stand == "ohne Auftrag" else json.dumps({"id": 5, "order_number": "AUF-2026-0001", **AUFTRAG_STAENDE[stand]})
     lauf = im_browser(seite("quote_editor.html", "load().catch("), f"""
-      const k = new Set(['hidden']);
-      _element('orderOpenLink').classList = {{add: c => k.add(c), remove: c => k.delete(c), contains: c => k.has(c),
-        toggle: (c, an) => (an ?? !k.has(c)) ? k.add(c) : k.delete(c)}};
+      _element('orderOpenLink').hidden = true;  // seit 1.9.18 ein Eintrag im Menü „⋮“, verborgen über das Attribut hidden
       quote = {{quote_number: 'A-1', title: 'T', customer_name: 'K', project_number: 'P', property_name: null, status: 'beauftragt',
                vat_rate: '19', items: [], sections: [], document_meta: {{}}, project_id: 1, customer_id: 1}};
       existingOrder = {auftrag};
       renderQuoteEmailSection = () => {{}};  // Versand-Baustein (_email_dispatch.html) gehört nicht zur Attrappe
       renderAll();
       const link = _element('orderOpenLink'), knopf = _element('orderButton');
-      return {{link: !link.classList.contains('hidden') ? link.textContent || 'Auftrag öffnen' : null, knopf: knopf.textContent}};""")
+      return {{link: !link.hidden ? link.textContent || 'Auftrag öffnen' : null, knopf: knopf.textContent}};""")
     e = lauf["ergebnis"]
     wege = [t for t in (e["link"], e["knopf"]) if t and t.endswith("öffnen")]
     if stand == "ohne Auftrag":

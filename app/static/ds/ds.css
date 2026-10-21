@@ -392,6 +392,11 @@
   min-width: 0;
 }
 
+/* seit 1.9.18: Variante „breit“ (seitenkopf(…, breit=true)) -- der Text über die ganze erste Zeile, Kennzahlen und Aktionen darunter */
+.ds-kopf-breit .ds-kopf-text {
+  flex-basis: 100%;
+}
+
 /* seit 1.9.11 ein Kennzeichen in Mono mit Rahmen in der Titelzeile, zwischen Titel und Status (bis dahin eine Zeile über dem Titel) */
 .ds-kopf-kennung {
   display: inline-flex;

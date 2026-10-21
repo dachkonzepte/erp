@@ -2490,3 +2490,61 @@ formatieren schon deutsch.
 3. **`toFixed` bleibt fürs Maschinenformat** (Körper, Adresse, Wert einer Auswahl) und wird je Vorlage gezählt; jede neue Stelle muss dort
    eingeordnet werden.
 4. **Wer `_auswahl.html` einbindet, bindet `_zahl.html` ein** (vier Seiten neu), statt `_auswahl.html` eine eigene Formatierung zu geben.
+
+### Punkt 5 (1.9.18): Seitenkopf des Angebots (LV-Editor)
+
+- `quote_editor.html` trägt `.ds-seite` und den gemeinsamen Seitenkopf (Gruppe K4 „Belegkopf in Karte“, nach der Rechnung die zweite
+  Seite). Pfad `Projekte / <Kunde> / <Projektnummer> / Angebot` (ersetzt die Brotkrume `#breadcrumb` „Kunde · Projekt · Nummer“), Titel =
+  Bezeichnung (`quote.title`), Kennung = Angebotsnummer, Untertitel wie bisher „Kunde · Projekt · Objekt“ (bis 1.9.17 Titel „Nummer ·
+  Bezeichnung“ mit dieser Unterzeile).
+- Status über `statusKennzeichen('angebot', quote.status)`; neue Gruppe „angebot“: Entwurf warn, Versendet und In Prüfung info (läuft beim
+  Kunden), Beauftragt ok, Abgelehnt neutral -- bis 1.9.17 stand der rohe Wert im Kennzeichen („beauftragt“, „in_pruefung“).
+- Kennzahlen Netto, Optional, MwSt., Brutto (gleiche IDs `sumNet`, `sumOptional`, `sumVat`, `sumGross`, gleiche Beträge über `money()`).
+- Aktionen: grüne Hauptaktion = der bisherige grüne Knopf `#orderButton` (Text und Ziel wie bisher je nach Auftrag: „Angebot beauftragen“
+  -> Dialog, „Auftrag … öffnen“, „Änderungen in … übernehmen“); daneben „PDF-Vorschau“ neutral (`data-klick="pdf-vorschau"`, öffnet
+  dieselbe Adresse). Menü „⋮“: „Angebotsdetails“ (Reiter), „OZ neu nummerieren“ und `#orderOpenLink` „Auftrag … öffnen“ -- verborgen über
+  das Attribut `hidden` (bis 1.9.17 Klasse `.hidden`), sichtbar nur, wenn der Hauptknopf die Änderungen übernimmt (ein Weg zum Auftrag,
+  1.8.136).
+- **Variante `breit`** des Makros (`seitenkopf(…, breit=true)`, Klasse `ds-kopf-breit`, ds.css `.ds-kopf-breit .ds-kopf-text {flex-basis:
+  100%}`): mit vier Kennzahlen, zwei Knöpfen und Menü blieben dem Titel in einer Zeile gut 300 px -- „Dachsanierung Halle Nord“ brach um,
+  Kennung und Status rutschten unter den Titel. Breit steht die Titelzeile allein oben, Kennzahlen links und Aktionen rechts darunter.
+  Nur das Angebot nutzt sie; die Rechnung passt in eine Zeile und bleibt.
+- Fokus in `--ds-fokus` (zwei Regeln), Kopf-CSS der Brotkrume und der Werkzeugleiste entfernt; die Grundregeln aus `ds-basis.css` gelten
+  jetzt auch hier (Felder und Knöpfe wie auf den übrigen umgezogenen Seiten).
+- **Beleg „Beträge, LV und Versand unverändert“**: Testdaten der Bildgrundlage (A-2026-0001, beauftragt, zwei Positionen), Stand vor der
+  Runde (`bee5363`, Worktree) und nach dem Umbau: Netto 45.945,00, Optional 0,00, USt 8.729,55, Brutto 54.674,55 in beiden Ständen; der
+  dekodierte Inhaltsstrom des Angebots-PDFs byte-gleich (43 Textstücke). Versand: `klicktest_versandprotokoll` und
+  `klicktest_versand_im_kontext` wie erwartet.
+- **Nebenbefund (nicht behoben)**: das Angebotsdatum der Testdaten ist der Tag des Laufs (das Angebot hat kein Datum in der Kopfzeile,
+  `_default_quote_meta()` nimmt `created_at`, und die Bildgrundlage setzt `created_at` des Angebots nicht auf die stehende Uhr) -- das PDF
+  zeigt „Datum 21.10.2026“, obwohl die Uhr der Instanz auf 14.10.2026 steht. Der Vergleich vorher/nachher lief am selben Tag; zwischen
+  zwei Tagen weicht der Text an dieser Stelle ab.
+
+#### Tests und Prüfung
+
+- `test_v441`: `quote_editor.html` in `BELEGKOPF` (alle Regeln der umgezogenen Seiten); neu `test_makro_variante_breit`.
+- `test_v445`: Vollständigkeit auch für die Auswahl „Status“ des LV-Editors und `quotes.status`.
+- `test_v446`: Angebot in `RUECKWEGE` (Projekte, Kunde, Projekt; jeder Link öffnet eine Seite).
+- `klicktest_rahmen` Teil `angebotskopf`: hell und dunkel -- .ds-seite, h1 = Bezeichnung, Kennung, Untertitel, Status „Beauftragt“ ok,
+  Kennzeichen neben dem Titel, Pfad mit Texten und Zielen (jeder Link öffnet eine Seite), „PDF-Vorschau“ neutral und Hauptaktion grün,
+  Menü mit zwei Einträgen (Link zum Auftrag verborgen) per Tastatur, Kennzahlen, kein alter Kopf, Links, Fokus, Kontrast; hell zusätzlich
+  „PDF-Vorschau“ öffnet das PDF, „Angebotsdetails“ den Reiter, die Hauptaktion den Auftrag -- 25 von 25; Teil gesamt 876 von 876.
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück): Status roh -- `test_v445` und Klicktest rot; Link zum Auftrag beim Übernehmen
+  über die Klasse statt das Attribut -- `test_v436` rot (der erste Versuch störte nur Zweige, in denen der Link ohnehin verborgen bleibt,
+  und blieb grün -- benannt, wiederholt); ohne `breit` -- Klicktest rot (Kennung unter dem Titel); „PDF-Vorschau“ grün -- `test_v441` und
+  Klicktest rot; Pfad ohne Kunde -- `test_v446`, `test_v238` und Klicktest rot.
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v238::test_quote_editor_has_breadcrumb_with_customer_and_project_links`: alt `id="breadcrumb"`; neu `mit_pfad=true` und
+    `seitenkopf({pfad:` (die zwei Links unverändert geprüft).
+  - `test_v436::test_lv_editor_ein_weg_zum_auftrag`: alt Sichtbarkeit des Links über die Klasse `hidden` (Attrappe mit `classList`); neu
+    über das Attribut `hidden` -- Soll der vier Zustände unverändert.
+  - `test_v446`, `test_v441`, `test_v445`: nur Einträge ergänzt (Angebot), keine bestehende Erwartung geändert.
+
+#### Festlegungen 1.9.18 (Bitte bestätigen)
+
+1. **Hauptaktion = der bisherige grüne Knopf** mit seinem Verhalten je Auftrag (Beauftragen, Auftrag öffnen, Änderungen übernehmen).
+2. **Nebenaktion „PDF-Vorschau“**; im Menü „Angebotsdetails“, „OZ neu nummerieren“ und „Auftrag … öffnen“ (nur beim Übernehmen).
+3. **Titel = Bezeichnung, Kennung = Angebotsnummer, Untertitel = Kunde · Projekt · Objekt.**
+4. **Pfad wie die Brotkrume, vorn „Projekte“, am Ende „Angebot“** ohne Link.
+5. **Farben der Angebotsstände**: Entwurf warn, Versendet und In Prüfung info, Beauftragt ok, Abgelehnt neutral.
+6. **Variante `breit` des Seitenkopfs** (Kennzahlen und Aktionen unter der Titelzeile), heute nur am Angebot.
