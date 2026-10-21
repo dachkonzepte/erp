@@ -1009,3 +1009,80 @@ Stufe „Grundlage“)“), lief Enter ins Leere. `_anmelden_formular()` wartet 
 4. Gegenproben einer Oberflächenregel prüfen pytest UND den passenden Klicktest-Teil (Werkzeug `gegenprobe_klick.py` im Scratchpad); eine Probe, die im Klicktest grün bleibt, wird verschärft und nicht als Beleg gezählt. (Bitte bestätigen)
 5. Bildvergleich bei Umbauten des Rahmens: Rahmen in beiden Läufen einfärben, im alten Lauf die neuen Maße erzwingen, nur die Bilder ohne Zustände vergleichen -- dann muss jedes Bild pixelgleich sein. (Bitte bestätigen)
 6. `klicktest_monteur_navigation` und `klicktest_neue_ordnung` halten die Uhr fest (10:00), seit sie den Reiter Einsätze (`/mobil`) abrufen. (Bitte bestätigen)
+
+## Befund: Anfragen, die im Klicktest-Gesamtlauf nie beim Server ankommen (21.10.2026, Runde 6 Punkt 2, nur Befund)
+
+Auftrag: Warum kommen im Gesamtlauf unter vier gleichzeitigen Instanzen einzelne Anfragen nie beim Server an (customer-balances,
+ds-alte-namen.css)? Testaufbau oder Programm? Kann das im Betrieb (gunicorn hinter nginx) passieren? Nichts ändern -- geändert wurde
+nichts, die Versuche liefen im Scratchpad.
+
+### Die Fälle
+
+Beide im ersten Gesamtlauf auf `440828e` (Runde 5, `kt_r5_440828e`, 11 780 Anfragen); der zweite Gesamtlauf auf demselben Stand lief
+80 von 80. In allen aufbewahrten Gesamtläufen mit Verbindungsprotokoll (2 030 Instanzen, 269 128 Anfragen) sind es genau diese zwei --
+`klicktest_verbindungsprotokoll` erzeugt „nicht angekommen“ absichtlich und zählt nicht.
+
+| | `klicktest_rahmen` (Startseite) | `klicktest_objekt_anderer_kunde` (Wartungsliste) |
+|---|---|---|
+| Anfrage | `GET /api/payments/customer-balances` (Fetch), 12:56:03.283 | `GET /static/ds/ds-alte-namen.css` (Stylesheet), 13:00:43.587 |
+| Chrome | gesendet (requestWillBeSentExtraInfo), keine Antwort | gesendet, keine Antwort |
+| Server | 12:56:03.287 neue Verbindung `:52499` angenommen („HTTP connection made“), nie ein Byte gelesen; geschlossen 45,3 s später, genau als der Klicktest zur nächsten Seite ging | 13:00:44.034 neue Verbindung `:59433` angenommen, nie gelesen, nie geschlossen |
+| Umfeld | Chrome öffnete binnen 17 ms vier neue Verbindungen (Startseite mit vielen gleichzeitigen Anfragen); die drei anderen bekamen ihre Anfrage sofort | erste Seite der frisch gestarteten Instanz, drei Stylesheets zugleich; die Ereignisschleife stand rund 450 ms (`ds.css` 478 ms, `ds-basis.css` auf einer schon offenen Verbindung erst nach 444 ms gelesen), danach angenommen |
+
+Beim Wechsel zur nächsten Seite schloss Chrome genau diese eine Verbindung, keine andere -- Chrome bricht dabei offene Anfragen ab und
+schließt ihre Verbindung, unbenutzte bleiben für die nächste Seite offen; die Anfrage lag also auf `:52499`. Alle übrigen „angenommen, ohne Anfrage“ im Protokoll schließen nach 0 bis 21 s
+-- Verbindungen, die Chrome vorab öffnet und unbenutzt wieder zumacht, normal.
+
+### Programm ausgeschlossen
+
+Die Anfrage erreichte das ERP nie: uvicorn schreibt „ASGI [n] Started scope“, bevor es die App aufruft (Anmeldeschranke, Router, jeder
+Code unter `app/`) -- für beide Anfragen gibt es diese Zeile nicht, auch kein Zugriffsprotokoll und keine 4xx/5xx. Dass die Schleife
+zeitweise stand, ist Last auf dem Rechner (vier Instanzen, vier Chrome, die Klicktest-Prozesse), nicht Datenbank auf der Schleife
+(Regel 35; statische Dateien liest Starlette im Threadpool). Ein Ausgabestau ist es auch nicht: Server und Klicktests schreiben in
+Dateien, nicht in Pipes (`cdp_klicktest.py`, `klicktest_alle.py`).
+
+### Versuch: uvicorn allein unter Last
+
+Auf diesem Rechner, derselbe Stapel wie im Klicktest (Python 3.13.15, uvicorn 0.52.4, httptools 0.8.0, ohne uvloop; uvicorn wählt unter
+Windows den Proactor-Loop), eine kleine ASGI-App mit Arbeit im Threadpool, vier Server und vier Clients mit rohen Sockets gleichzeitig;
+der Server zählt jede angenommene Verbindung, die ohne ein einziges Byte endet:
+
+| Versuch | Proactor (wie im Klicktest) | Selector |
+|---|---|---|
+| Stau: eine Anfrage hält die Schleife 0,5 s an, währenddessen sechs neue Verbindungen mit je einer Anfrage (wie im Objekt-Fall), 4 × 240 s | 10 296 Anfragen, 0 verloren | 10 296 Anfragen, 0 verloren |
+| Dauerlast: je Runde sechs neue Verbindungen zugleich, je fünf Anfragen, 4 × 120 s | 289 120 Anfragen, 0 verloren | 250 015 Anfragen, 0 verloren |
+
+Jede angenommene Verbindung bekam ihre Daten (außer der Bereitschaftsprobe des Versuchs, die absichtlich nichts sendet). In der Dauerlast
+scheiterten zehntausende Verbindungsaufbauten mit WinError 10048 (kurzlebige Ports erschöpft, rund 39 000 Verbindungen in TIME_WAIT) --
+der Client sieht dort einen Fehler beim Verbinden, keine angenommene Verbindung ohne Anfrage; ein anderes Bild als im Klicktest.
+**Eigene Fehler im Versuch, benannt**: der erste Anlauf scheiterte an einem fehlenden Import (`anyio.to_thread`), der zweite daran, dass
+die Server ihren Bericht jede Sekunde in eine Pipe schrieben, die erst am Ende gelesen wurde -- nach einigen KB blockierte `print()` die
+Schleife, alle Server standen gleichzeitig nach 36 bzw. 48 s (Proactor wie Selector). Zuerst als Erschöpfung der Ports gedeutet, das war
+falsch; mit dem Bericht in eine Datei verschwand es. Die Zahlen oben stammen aus dem dritten Anlauf.
+
+### Ergebnis
+
+**Testaufbau, nicht das Programm.** Das ERP ist ausgeschlossen (die Anfragen kamen nie bis zur App), uvicorn mit asyncio unter Windows
+für sich lässt sich mit denselben Mustern nicht dazu bringen (über 550 000 Anfragen, auch genau im Stau). Übrig bleibt der Weg
+Chrome headless -> Loopback -> uvicorn auf einem Rechner mit vier Instanzen unter Last: Chrome meldet die Kopfzeilen als gesendet, beim
+Server kommen auf der angenommenen Verbindung keine Bytes an. Ob Chrome die Anfrage auf diese Verbindung schrieb oder sie intern
+festhielt, oder ob das Betriebssystem (Loopback, Filtertreiber) sie zurückhielt, lässt sich ohne Netzprotokoll von Chrome (NetLog) nicht
+entscheiden; nachgestellt ist es nicht. Häufigkeit: zwei von 269 128 Anfragen, beide im selben Gesamtlauf.
+
+### Im Betrieb
+
+Der beobachtete Weg existiert dort nicht: der Browser spricht nur mit nginx (TLS), nginx öffnet eigene Verbindungen zu gunicorn; die
+Arbeitsprozesse laufen unter Linux (epoll, mit `uvicorn[standard]` uvloop statt des Proactor-Loops von Windows; die Worker-Klasse steht
+nicht im Repo, laut `docs/archiv/ki-fundament.md` asyncio-Ereignisschleifen je Prozess). Käme dort doch eine Anfrage bei gunicorn nie an
+oder nie zur Bearbeitung, bliebe sie nicht still hängen: nginx beendet sie nach `proxy_read_timeout` (Vorgabe 60 s) mit 504, der
+Baustein `_speichern.html` bricht nach 60 s ab und meldet den Bereich „unklar“ mit „Seite neu laden“ (Regel 29); eine schreibende Anfrage,
+die das ERP nie erreichte, hat nichts geschrieben, Doppelversand verhindert der Versandschlüssel (Regel 21); ein hängender Arbeitsprozess
+wird nach 120 s neu gestartet (`--timeout 120`). Von hier nicht prüfbar: die Einstellungen von nginx (`proxy_read_timeout`, keepalive zum
+upstream) -- Betreiberprüfung, falls gewünscht.
+
+### Vorschläge (nicht gebaut)
+
+1. Chrome im Klicktest mit `--log-net-log=<Arbeitsordner>/netlog.json`, damit ein nächster Fall zeigt, auf welche Verbindung Chrome die
+   Anfrage schrieb (Datei groß, nur bei Bedarf einschalten).
+2. `klicktest_alle.py` wiederholt einen Klicktest einmal, wenn seine einzige Abweichung eine Anfrage „nicht angekommen“ ist, und nennt das
+   im Bericht -- heute von Hand gemacht (Runde 5: einzeln 21 von 21 und 811 von 811).

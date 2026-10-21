@@ -2325,3 +2325,31 @@ realistisch.
 7. **Kennzahlen als Teil des Makros** (`mit_kennzahlen`), für Angebot und Auftrag wiederverwendbar.
 8. **Auftragsstände der Auswahl in der Tabelle** (Arbeitsvorbereitung, In Ausführung info, Pausiert neutral); der Wächter prüft auch die
    Auswahl der Auftragsseite.
+
+### Punkt 2 (nur Befund): Anfragen, die im Gesamtlauf nie ankommen
+
+Ausführlich in `docs/archiv/testablauf-und-klicktests.md`, „Befund: Anfragen, die im Klicktest-Gesamtlauf nie beim Server ankommen“.
+Kurz: zwei von 269 128 Anfragen in allen aufbewahrten Gesamtläufen, beide im ersten Gesamtlauf von Runde 5; uvicorn nahm die Verbindung
+an, las aber nie ein Byte, die App wurde nie aufgerufen -- **Testaufbau, nicht das Programm**; uvicorn allein unter Windows lässt sich mit
+denselben Mustern nicht dazu bringen (über 550 000 Anfragen, Proactor und Selector, auch während die Schleife steht). Im Betrieb existiert
+der Weg nicht (nginx vor gunicorn unter Linux); käme dort eine Anfrage nie an, endet sie nach 60 s sichtbar (504 von nginx, „unklar“ im
+Baustein), nichts geht still verloren. Nichts geändert.
+
+### Runde 6 abgeschlossen: Endläufe, Bildvergleich, Beleg (Stand `f700950`)
+
+- **Endlauf** auf `f700950` bei sauberer Arbeitskopie (vorher und nachher keine Änderung): volle Suite **6505 bestanden, 3 übersprungen,
+  0 rot** (7:06); **Klicktests 80 von 80** wie erwartet (zu viert, 7:33).
+- **Bildvergleich** (volle Bildgrundlage, 298 Bilder), Ausgangsstand `97b9dc0` (Worktree, Stand vor der Runde) gegen `f700950`,
+  unmittelbar hintereinander aufgenommen: **271 gleich, 26 erlaubt abweichend** -- Rechnung (Büro, hell und dunkel, 412 und 1440 px),
+  Einsatzbericht (Kennung in der Titelzeile, Seite 21 px kürzer; Büro und Monteurin samt Zuständen „Suche offen“ und „Kontomenü
+  offen“), Betriebsmittel (nur das Feld „Typ“: „Leiter (nicht mehr verfügbar)“ statt „Fahrzeug“, 190 × 14 px) --, **1 unerwartet**:
+  Büro dunkel 1440 Projekte, dasselbe einzelne Pixel (212, 245) wie in Runde 5 (vorher RGB 11,15,17, nachher 23,29,23). Gegenprobe: die Projektliste
+  einzeln aus beiden Ständen aufgenommen, alle vier Bilder pixelgleich (das Pixel je 23,29,23) -- ein Ausreißer der Kantenglättung im
+  vollen Lauf, nicht die Änderung. Außer Rechnung, den Köpfen mit Kennung und dem korrigierten Auswahlfeld weicht damit nichts ab. Die
+  übrigen 16 korrigierten Auswahlfelder stehen in Dialogen oder auf Seiten ohne Altwert in den Testdaten; sie erscheinen nicht im Bild.
+- **Beleg Rechnung**: PDF des Entwurfs und der festgeschriebenen Rechnung aus den Testdaten, vor der Runde (`97b9dc0`) und auf `f700950`:
+  Inhaltsstrom byte-gleich, R-2026-0001 vom 14.10.2026, 12.000,00 / 2.280,00 / 14.280,00 € in beiden Ständen.
+- **Bilder**: `bildgrundlage/rahmen_runde6_f700950.zip` -- Rechnung als Entwurf und festgeschrieben, hell und dunkel, je vorher und
+  nachher, das Betriebsmittel nachher (alle 1440 × 900), dazu die vier PDFs und der Textvergleich (14 Dateien).
+- Commits der Runde: `9ef5b62` (1.9.11 Kennung als Kennzeichen), `b14cdc6` (1.9.12 Auswahlfelder), `f700950` (1.9.13 Seitenkopf der
+  Rechnung).
