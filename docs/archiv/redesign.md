@@ -2370,3 +2370,16 @@ ein Altwert („Geburtstag“), vom Betreiber korrigiert, jetzt 0.
 - Tests: neu `tests/test_v448_zeitregeln_standardmodell.py` -- Speichern mit abgeschaltetem Standardmodell (Rundung geändert, Modell
   bleibt; bis 1.9.13 rot mit 422), neu gewähltes abgeschaltetes und unbekanntes Modell 422 ohne Änderung, Oberfläche baut die Auswahl über
   `auswahlOptionen()` und schickt ihren Wert. Angepasste Erwartungen: keine.
+
+### Punkt 3 (1.9.15): „Ändern“ in der Zeiterfassung bei anderem Auswertungsdatum
+
+- `time_tracking.html::editEntry()` sucht die Buchung in `todayEntries` (Liste „Heutige Buchungen“, dort steht der Knopf) und in `entries`
+  (Auswertung); bis 1.9.14 nur in `entries` -- zeigte die Auswertung einen anderen Tag, öffnete „Ändern“ an einer Buchung von heute nichts.
+  Steht die Buchung in keiner Liste, erscheint unter „Heutige Buchungen“ (`#todayMsg`, role="status") „Diese Buchung steht nicht mehr in
+  der Liste (gelöscht oder verschoben) – bitte die Seite neu laden.“
+- **Entscheidung: ändern statt ablehnen.** Die Buchung ist geladen und gehört zur Liste, an der der Knopf sitzt; das Bearbeiten selbst
+  prüft der Server wie bisher (Abschluss, eigene Buchung, Teil-Update). Ein „geht nicht“ hätte nur die Lücke der Seite benannt.
+- Monteursseite (`time_tracking_field.html`): nicht betroffen, `editEntry()` sucht dort in `allEntries`, der Liste mit den Knöpfen.
+- Tests: neu `tests/test_v449_zeiterfassung_aendern.py` -- Seitenskript in node (`openManual` aufgezeichnet): Auswertung gestern, „Ändern“
+  an der Buchung von heute öffnet sie (bis 1.9.14 rot: nichts geöffnet); gleiches Datum (Vergleichsfall, auch vorher grün); Buchung in
+  keiner Liste -> Meldung; Meldungsfeld im Markup. Angepasste Erwartungen: keine.

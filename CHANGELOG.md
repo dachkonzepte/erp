@@ -4,6 +4,15 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.15 – Zeiterfassung: „Ändern“ bei anderem Auswertungsdatum
+
+Stufe 2, Runde 7, Punkt 3 (Nebenbefund aus 1.9.12). In der Büro-Zeiterfassung steht „Ändern“ an den heutigen Buchungen, die Karte
+„Auswertung“ zeigt einen frei wählbaren Tag. `editEntry()` suchte die Buchung nur in der Liste der Auswertung -- stand dort ein anderes
+Datum, tat der Knopf still nichts. Entschieden: ändern statt ablehnen -- die Buchung ist geladen, und es gibt keinen Grund, sie nicht zu
+öffnen; gesucht wird jetzt in beiden Listen. Steht sie in keiner (inzwischen gelöscht oder verschoben), sagt die Seite das unter „Heutige
+Buchungen“ („… bitte die Seite neu laden“). Die Monteursseite war nicht betroffen (dort sucht „Ändern“ in genau der Liste mit den Knöpfen).
+Neuer Test `test_v449` (Seitenskript in node, bis 1.9.14 rot).
+
 ## 1.9.14 – Zeitregeln speichern mit abgeschaltetem Standardmodell
 
 Stufe 2, Runde 7, Punkt 2 (Nebenbefund aus 1.9.12). Wurde das Standard-Arbeitszeitmodell abgeschaltet, ließen sich die Zeitregeln

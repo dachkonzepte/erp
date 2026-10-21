@@ -452,3 +452,9 @@ Parkplatz vor dem Echtbetrieb. Wortlaut und Befund: `docs/archiv/befund-vor-echt
 `update_time_settings()` prüft „aktiv“ nur bei einem neu gewählten Standard-Arbeitszeitmodell (Regel 22); bis 1.9.13 ließen sich die
 Zeitregeln nach dem Abschalten des Standardmodells nicht mehr speichern. Herleitung und Test: `docs/archiv/redesign.md`, „Runde 7“,
 „Punkt 2 (1.9.14)“; `tests/test_v448_zeitregeln_standardmodell.py`.
+
+## „Ändern“ bei anderem Auswertungsdatum (seit 1.9.15)
+
+In der Büro-Zeiterfassung sucht „Ändern“ die Buchung in der Liste „Heutige Buchungen“ und in der Auswertung; bis 1.9.14 nur in der
+Auswertung -- bei einem anderen Datum tat der Knopf still nichts. Steht sie in keiner, sagt die Seite das. Herleitung:
+`docs/archiv/redesign.md`, „Runde 7“, „Punkt 3 (1.9.15)“; `tests/test_v449_zeiterfassung_aendern.py`.
