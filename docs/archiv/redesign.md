@@ -2107,3 +2107,22 @@ und Objekt, Einsatzbericht -> Auftrag und Kundenakte, Vorlagen -> Vorlagenliste.
 10. **„Löschen“ im Menü in der Fehlerfarbe**, Rückfrage unverändert.
 11. **Der Untertitel behält die bisherige Zeile** (der Wartungsvertrag nennt Kunde und Objekt auch dort, obwohl sie im Pfad stehen; der
     Einsatzbericht nennt den Kunden statt „Auftragsnummer · Kunde“, die Nummer steht als Kennung).
+
+### Runde 5 abgeschlossen: Endläufe und Bildvergleich (Stand `440828e`)
+
+- **Endlauf** auf `440828e` bei sauberer Arbeitskopie (vorher und nachher keine Änderung): volle Suite **6453 bestanden, 3
+  übersprungen, 0 rot** (7:01). **Klicktests**: der erste Gesamtlauf 78 von 80 -- `klicktest_rahmen` 810 von 811 (Teil
+  „seitenleiste“: die Startseite wurde nicht bereit, `GET /api/payments/customer-balances` laut Chrome gesendet, laut
+  Verbindungsprotokoll nie beim Server angekommen) und `klicktest_objekt_anderer_kunde` im Zeitlimit von 15 min (Wartungsliste:
+  `ds-alte-namen.css` gesendet, nie angekommen); beide Seiten gehören nicht zur Runde. Einzeln wiederholt 21 von 21 und 811 von 811;
+  der **zweite Gesamtlauf 80 von 80** (2788 Prüfungen, zu viert, 7:31). Warum unter vier gleichzeitigen Instanzen gelegentlich eine
+  Anfrage nicht ankommt, ist nicht untersucht.
+- **Bildvergleich** (volle Bildgrundlage, 298 Bilder), Ausgangsstand `8c80435` (Worktree) gegen `440828e`, unmittelbar hintereinander
+  aufgenommen: **255 gleich, 42 erlaubt abweichend** (die 7 Seiten in allen Rollen, Breiten, Themen und Zuständen), **1 unerwartet**:
+  Büro dunkel 1440 Projekte, ein einzelnes Pixel (212, 245) an der Rundung des aktiven Eintrags der Seitenleiste (RGB 23,29,23 statt
+  11,15,17). Gegenprobe: dieselbe Seite einzeln aufgenommen, vom Ausgangsstand und von `440828e` je 23,29,23 -- gleich dem Vorher des
+  vollen Laufs; ein Ausreißer der Kantenglättung im vollen Lauf, nicht die Änderung. Außer den 7 Seiten weicht damit nichts ab.
+- **Bilder**: `bildgrundlage/rahmen_runde5_440828e.zip` -- die 7 Seiten 1440 × 900 hell, Wartungsvertrag und Einsatzbericht auch
+  dunkel, je nachher und vorher (`8c80435`), 18 Bilder; Ordner in `.gitignore`.
+- Commits der Runde: `25f09f7` (1.9.9 Statuskennzeichen), `440828e` (1.9.10 Seitenkopf der 7 Seiten).
+
