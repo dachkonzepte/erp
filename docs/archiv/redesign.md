@@ -1917,6 +1917,14 @@ Was bis dahin von der Zeit abhing und unter Last kippen konnte, und was jetzt st
 #### Tests und Prüfung
 
 - Die betroffenen Dateien einzeln (ohne Last): 319 Tests grün (test_v323, v375, v376, v378–v386, v419 beide).
+- **Beleg unter Last** (Werkzeug `last_parallel.py` im Scratchpad der Runde): je Lauf pytest über den Versandtest von test_v323,
+  test_v376 (ganz) und test_v419 (beide Dateien), 36 Tests. Alter Stand (`58074cb`, 1.9.7) und neuer Stand (`ab5ebfb`, 1.9.8) liefen
+  **zur selben Zeit** in eigenen Worktrees, je drei Testströme mit sieben Läufen, dazu 14 Prozesse mit Dauerschleife (28 logische
+  Kerne). Ergebnis: **neuer Stand 21 von 21 Läufen grün**; alter Stand 16 von 21 Läufen mit Fehlschlag -- 9 × viele Seiten (der Grund
+  steht nicht im Protokoll des Laufs; Status und Rückfallwerte prüft der neue Stand unverändert und war grün, also sehr wahrscheinlich
+  die Schranke „unter 10 s“), 4 × langsame Downloads, 2 × leerer Pool, 1 × test_v323. Ein Lauf dauerte 214–260 s.
+- Gegenlauf nur mit CPU-Last (28 Prozesse, ein Strom, alter Stand, 10 Läufe): 10 von 10 grün, je 6–9 min -- reine CPU-Last löste die
+  Fehler nicht aus, erst gleichzeitige Testströme (wie in der parallelen Suite).
 - **Gegenproben** (Marker, Dateien byte-genau zurück) -- die zeitfreien Prüfungen erkennen den Fehler weiterhin:
 - Auftragszeile nicht gesperrt (`lock_order()` ausgelassen): die vier Gleichzeitigkeitstests von test_v376 rot -- die zweite
     Aktion wartet nicht.
@@ -1936,5 +1944,5 @@ Was bis dahin von der Zeit abhing und unter Last kippen konnte, und was jetzt st
    Nachweis aus `pg_locks`.
 3. **Fortschritt in Bytes statt Pausenlänge** beim leeren Pool (mindestens eine Sekunde der Lesemenge während der drei Sekunden, die
    die Schranke auf den Pool wartet).
-4. **Beleg unter Last** = CPU-Last (je logischer Kern eine Dauerschleife) und zwei gleichzeitige Testströme, alter und neuer Stand
-   zur selben Zeit.
+4. **Beleg unter Last** = CPU-Last (14 Prozesse mit Dauerschleife, halb so viele wie logische Kerne) und je drei gleichzeitige
+   Testströme mit altem und neuem Stand, zur selben Zeit unter derselben Last.

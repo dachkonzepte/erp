@@ -1620,8 +1620,10 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
   `with ohne_grunddaten():` (`tests/grunddaten_schalter.py`) an. Audit-Zähler in Tests: die Grunddaten schreiben
   "System angelegt"-Einträge -- vorher/nachher vergleichen statt absolut zählen.
 
-- **Gleichzeitigkeit in Tests** (`tests/test_v375_rechnungen_sperren.py::_run()`): die erste Aktion hält ihre Sperren eine Sekunde,
-  die zweite wartet; seit 1.8.87 schließt `_run` auch die Sitzung der zweiten Aktion (sie hielt nach einem Fehler die Sperre der
+- **Gleichzeitigkeit in Tests** (`tests/test_v375_rechnungen_sperren.py::_run()`): die erste Aktion hält ihre Sperren, bis die zweite
+  nachweislich wartet (seit 1.9.8 `_wartet_auf_sperre()`: unter PostgreSQL eine nicht gewährte Sperre in `pg_locks`, unter SQLite ihre
+  erste schreibende Anweisung -- bis dahin eine feste Sekunde, unter Last zu kurz); ein Test wartet nie eine feste Zeit auf einen Zustand,
+  sondern bis er eintritt (`_bis()`, Zeitgrenze nur als Sicherheitsnetz), und prüft keine Dauer gegen eine feste Schranke; seit 1.8.87 schließt `_run` auch die Sitzung der zweiten Aktion (sie hielt nach einem Fehler die Sperre der
   Auftragszeile) -- die zweite Aktion gibt Werte zurück, keine Objekte, die erst danach nachladen. Seit 1.8.111 schließen auch die
   Kopien in `tests/test_v363_zweck_abnahme.py` und `tests/test_v365_abnahme_aus_protokoll.py` die zweite Sitzung, bevor sie auf die
   erste warten; eine hängende Aktion macht den Test rot.
