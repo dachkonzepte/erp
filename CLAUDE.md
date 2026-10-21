@@ -407,7 +407,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
    Versionssprünge als einen vagen Sammel-Eintrag. **Seit 1.1.0 zusätzlich:** ein
    Minor-Versionssprung (`1.X.0`) markiert die Einführung eines neuen, echten Moduls (siehe
    Modul-Umschalter unten), ein reiner Patch-Level (`1.0.X`) alles andere – Infrastruktur, Fixes,
-   Redesign, Anpassungen an bestehenden Modulen.
+   Redesign, Anpassungen an bestehenden Modulen. **Ergänzt am 21.10.2026 (Betreibervorgabe):** Ein Minor-Sprung
+   markiert ein neues, echtes Modul oder den Beginn einer großen, über viele Seiten sichtbaren Überarbeitung
+   (z. B. Stufe 2: 1.9.0); was dazu zählt, legt Tobias fest. Innerhalb zählt der Patch-Level weiter.
 
 9. **Nach jedem abgeschlossenen Update (seit 1.1.4) läuft zusätzlich `backup_windows.ps1`.**
    Grund: das Projekt liegt bisher in keinem Git-Repository – ohne ein eigenes Backup gibt es
