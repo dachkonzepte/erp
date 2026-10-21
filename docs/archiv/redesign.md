@@ -2383,3 +2383,64 @@ ein Altwert („Geburtstag“), vom Betreiber korrigiert, jetzt 0.
 - Tests: neu `tests/test_v449_zeiterfassung_aendern.py` -- Seitenskript in node (`openManual` aufgezeichnet): Auswertung gestern, „Ändern“
   an der Buchung von heute öffnet sie (bis 1.9.14 rot: nichts geöffnet); gleiches Datum (Vergleichsfall, auch vorher grün); Buchung in
   keiner Liste -> Meldung; Meldungsfeld im Markup. Angepasste Erwartungen: keine.
+
+### Punkt 1 (1.9.16): Auswahlfelder für Fremdschlüssel
+
+**Bestandsaufnahme** (alle 32 Fundstellen mit Klasse „fremdschluessel“ aus 1.9.12, nur lesend): 6 echte Fehler (die „fünf“ aus Befund B --
+Büro-Zeiterfassung mit Auftrag und LV-Position, Monteurs-Zeiterfassung, Projektmappe, Wartungsvertrag), 2 nur falsch angezeigt
+(Ersteller des Einsatzberichts, Standardvorlage je Dachtyp), 3 nur bei abgeschaltetem Modul (Eingangsrechnung: Betriebsmittel und
+Kostenposten; Kostenposten: Betriebsmittel), dazu ein Randfall der Anfrage (Objekt nachträglich einem anderen Kunden zugeordnet); die
+übrigen zeigen nie einen gespeicherten Wert oder ihre Liste enthält jede speicherbare ID.
+
+**Umgestellt (11 Felder, alle über `auswahlOptionen()`):**
+
+| Seite, Feld | bis 1.9.15 | seit 1.9.16 |
+|---|---|---|
+| Büro-Zeiterfassung, Auftrag (Bearbeiten) | Auftrag abgeschlossen, storniert oder nicht zugeordnet: Auswahl leer, Speichern 422 „Auftrag wurde nicht gefunden“ bzw. Umbuchen | nachgeladen (`bearbeitungsAuftrag()`, `GET /api/orders/{id}`), gewählt „… (abgeschlossen)“/„(storniert)“/„(nicht in der Auswahl)“ |
+| Büro-Zeiterfassung, LV-Position | im Ausweichweg ohne Kontext (`items: null`) nur „— keine —“, Speichern null | Positionen nachgeladen; fehlt die Position, bleibt sie mit Namen aus der Buchung |
+| Monteurs-Zeiterfassung, Auftrag (Einzel und Kolonne) | außerhalb der Auswahl (±14 Tage, abgeschlossen): „— Auftrag wählen —“, Umbuchen erzwungen | bleibt „AUF-… · Projekt (nicht mehr in der Auswahl)“; neue Buchungen schlagen nur Aufträge der Auswahl vor |
+| Projektmappe, Objekt | Öffnen setzte bei „kein Objekt“ und einem fremden Objekt still die Hauptadresse | bleibt; fremdes „… (Objekt eines anderen Kunden)“; Hauptadresse nur beim Kundenwechsel |
+| Wartungsvertrag, Objekt | Objekt mit Hauptadresse fehlte (`_objekt_anderer_kunde.html`) | bleibt in der Liste, wenn gespeichert |
+| Anfrage, Objekt | nachträglich einem anderen Kunden zugeordnet: still „Kein Objekt“ | bleibt „… (gehört nicht mehr zum Kunden)“; der Server lehnt beim Speichern ab (sichtbar) |
+| Einsatzbericht, Ersteller | inaktiv: „— nicht zugeordnet —“ (nur Anzeige) | „(inaktiv)“, neu nur aktive |
+| Prüfvorlagen, Standardvorlage je Dachtyp | archiviert: „— keine —“ (nur Anzeige) | „(archiviert)“, neu nur aktive |
+| Eingangsrechnung, Betriebsmittel / Kostenposten | Modul aus: Liste leer, Speichern null; inaktive ohne Kennzeichen wählbar | Name aus der Rechnung „… (nicht in der Auswahl)“; „(inaktiv)“, neu nur aktive |
+| Kostenposten, Betriebsmittel | Modul aus: Liste leer, Speichern null | Name aus `asset_name` (neu in `cost_to_dict()`/`RecurringCostOut`) |
+
+- **Server**: keine Prüfung geändert. Den unveränderten abgeschlossenen Auftrag einer Buchung nimmt der Server fürs Büro an
+  (`update_entry()` prüft nur die Existenz), für die Monteurin solange der Auftrag ihr zugeordnet ist (`require_field_order_access()`, ohne
+  Zeitfenster); ein Objekt eines anderen Kunden am Projekt unverändert ebenso. Neu nur `asset_name` am Kostenposten.
+- **Wächter** (`test_v447`, `tests/vorlagen_auswahl.py`): die Freiklasse `fremdschluessel` ist weg; die verbleibenden Fremdschlüssel sind
+  `vollstaendig` (10, Grund mit Quelle: alle Kunden, alle Abschnitte des Angebots, nachgeladener Auftrag im Backoffice …), `neu` (9) oder
+  `eigen` (2: Objekt-Baustein, Mitarbeiterfunktion). Neue Fundart **P3**: `auswahlOptionen()`/`auswahlEintraege()` über eine vorher mit
+  `.filter(` gefilterte Liste -- sie wirft einen gespeicherten inaktiven Eintrag hinaus, bevor die Altwert-Behandlung ihn sieht (den
+  Filter macht `opt.aktiv`); heute keine Fundstelle. Grenze: ein Filter in einer Hilfsfunktion, die die Liste liefert, bleibt unsichtbar.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v450_auswahl_fremdschluessel.py`: je Feld ein Test (Seitenskript in node, Antworten des Servers aus der Attrappe), dazu
+  Speichern in der Büro-Zeiterfassung (PUT behält Auftrag und Position) und der Server-Test für `asset_name`; **19 von 22 im Stand des
+  Rundenstarts rot** aus dem richtigen Grund (falsche oder leere Auswahl, PUT mit `order_id` 0 und ohne Position, `asset_name` fehlt), die
+  drei grünen sind Vergleichsfälle (neue Buchung Büro und Monteurin, Kundenwechsel in der Projektmappe).
+- `test_v447`: neu `test_waechter_findet_vorher_gefilterte_liste` (P3 an erfundenen Stücken).
+- Attrappe der node-Tests (`test_v334`): `_objekt_anderer_kunde.html` und `_time_entries_list.html` in `BAUSTEINE`.
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück): Auftrag der Buchung nicht nachgeladen -- vier Büro-Tests rot; Monteurin ohne
+  Altwert -- beide Monteur-Tests rot; Ersteller über `employees.filter(e=>e.active)` -- Feldtest und Wächter (P3) rot; Hauptadresse im
+  Wartungsvertrag wieder ausgeschlossen -- rot; Projektmappe beim Öffnen wieder Hauptadresse -- beide rot.
+- **Angepasste Erwartungen** (Regel 28): `test_v447::KLASSEN` -- alt 32 Einträge mit Klasse `fremdschluessel`; neu 11 entfallen (umgebaut),
+  10 `vollstaendig`, 9 `neu`, 2 `eigen` (die Erwartung des Wächters selbst ist strenger, nicht schwächer).
+
+#### Festlegungen 1.9.16 (Bitte bestätigen)
+
+1. **Umfang**: die fünf aus Befund B, dazu die zwei Anzeigefehler, die drei Felder bei abgeschaltetem Modul und der Randfall der Anfrage --
+   „nie still umstellen“ gilt für alle.
+2. **Kennzeichen** nach dem Grund: „(abgeschlossen)“/„(storniert)“ (Stand des Auftrags), „(inaktiv)“, „(archiviert)“, „(nicht mehr in der
+   Auswahl)“ (Monteurin, Auftrag außerhalb ±14 Tage), „(nicht in der Auswahl)“ (Büro, Auftrag nicht zugeordnet; Modul abgeschaltet),
+   „(Objekt eines anderen Kunden)“, „(gehört nicht mehr zum Kunden)“.
+3. **Neue Buchungen** schlagen nur Ziele der Auswahl vor (ein Auftrag aus der Adresse außerhalb der Auswahl wird nicht vorgewählt).
+4. **Inaktive und archivierte Ziele werden nicht mehr neu angeboten** (Eingangsrechnung: Betriebsmittel und Kostenposten; Einsatzbericht;
+   Standardvorlage) -- wie Festlegung 1.9.12 Nr. 6.
+5. **Projektmappe**: die Hauptadresse ist nur beim Kundenwechsel Vorschlag; beim Öffnen bleibt auch „kein Objekt“.
+6. **Anfrage**: ein Objekt, das nicht mehr zum Kunden gehört, bleibt gewählt; der Server lehnt das Speichern ab, bis ein anderes gewählt
+   ist (statt still „Kein Objekt“).
+7. **Wächter**: Klassen `vollstaendig`/`neu`/`eigen` statt der Freiklasse; neue Fundart P3.

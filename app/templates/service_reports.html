@@ -224,6 +224,7 @@ a{color:var(--ds-link)}
 </div>
 </div>
 {% include "_speichern.html" %}
+{% include "_auswahl.html" %}
 {% include "_zahl.html" %}
 {% include "_aktionen.html" %}
 <script>
@@ -328,8 +329,10 @@ function zeitMitarbeiterOptionen(){
   const eigen=employees.find(e=>e.id===authStatus.user.employee_id);
   return eigen?`<option value="${eigen.id}" selected>${esc(eigen.first_name+' '+eigen.last_name)}</option>`:'';
 }
-function employeeOptionsHtml(selected){
-  return '<option value="">— nicht zugeordnet —</option>'+employees.filter(e=>e.active).map(e=>`<option value="${e.id}" ${Number(selected)===e.id?'selected':''}>${esc(e.first_name+' '+e.last_name)}</option>`).join('');
+// Seit 1.9.16 über auswahlOptionen(): ein inaktiver Ersteller bleibt gewählt („(inaktiv)“), neu angeboten nur aktive; bis 1.9.15 stand dann
+// „— nicht zugeordnet —“ (gespeichert wird er beim Bearbeiten nicht, die Anzeige war falsch).
+function employeeOptionsHtml(selected,name=null){
+  return auswahlOptionen(employees,selected??'',e=>e.first_name+' '+e.last_name,{leer:'— nicht zugeordnet —',fehlt:()=>`${name||'Mitarbeiter'} (nicht mehr verfügbar)`});
 }
 function editRoofAreaChecksHtml(selectedIds){
   return roofAreasForOrder.map(a=>`<label style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:400">
@@ -399,7 +402,7 @@ function openEditEditor(id){
   document.getElementById('editorHeading').textContent='Bericht bearbeiten';
   document.getElementById('editType').value=r.report_type;
   document.getElementById('editPerformedAt').value=r.performed_at;
-  document.getElementById('editEmployee').innerHTML=employeeOptionsHtml(r.created_by_employee_id);
+  document.getElementById('editEmployee').innerHTML=employeeOptionsHtml(r.created_by_employee_id,r.created_by_employee_name);
   document.getElementById('editDescription').value=r.description||'';
   document.getElementById('editorStatus').textContent='';
   // Dachfläche/Vorlage sind nur beim Anlegen wählbar -- Generierung ist ein Einmal-Vorgang.

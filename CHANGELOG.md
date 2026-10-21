@@ -4,6 +4,31 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.16 – Auswahlfelder für Fremdschlüssel behalten ihr Ziel
+
+Stufe 2, Runde 7, Punkt 1 (Befund 1.9.12 B). Elf Auswahlfelder für einen gespeicherten Verweis auf einen anderen Datensatz zeigten ihn
+nicht, wenn das Ziel inzwischen archiviert, inaktiv oder nicht mehr in der Auswahl war -- und das nächste Speichern stellte still um oder
+scheiterte. Seither bleibt das Ziel gewählt und gespeichert, mit Kennzeichen, alle über `auswahlOptionen()`:
+
+- **Büro-Zeiterfassung**: der Auftrag einer Buchung, der abgeschlossen, storniert oder nicht zugeordnet ist, wird beim Bearbeiten
+  nachgeladen und gewählt („… (abgeschlossen)“), samt LV-Positionen (wie im Backoffice seit 1.8.30) -- bis dahin war die Auswahl leer, und
+  Speichern scheiterte mit „Auftrag wurde nicht gefunden“ oder verlangte ein Umbuchen; im Ausweichweg ohne Kontext ging die LV-Position
+  still verloren.
+- **Monteurs-Zeiterfassung**: Einzel- und Kolonnenbuchung behalten einen Auftrag außerhalb der Auswahl (±14 Tage) beim Ändern („… (nicht
+  mehr in der Auswahl)“).
+- **Projektmappe**: beim Öffnen bleibt das gespeicherte Objekt, auch „kein Objekt“ und ein bestätigtes Objekt eines anderen Kunden -- bis
+  dahin setzte das Öffnen still die Hauptadresse; die Hauptadresse nur noch als Vorschlag beim Kundenwechsel.
+- **Wartungsvertrag**: ein gespeichertes Objekt mit Hauptadresse fehlte in der Liste (Speichern schrieb null oder scheiterte an den
+  Positionen). **Anfrage**: ein Objekt, das inzwischen einem anderen Kunden gehört, bleibt gewählt (der Server lehnt es sichtbar ab, statt
+  dass es still auf „Kein Objekt“ geht).
+- **Nur falsch angezeigt**: inaktiver Ersteller eines Einsatzberichts, archivierte Standardvorlage je Dachtyp.
+- **Bei abgeschaltetem Modul**: Betriebsmittel und Kostenposten an der Eingangsrechnung, Betriebsmittel am Kostenposten behalten ihre
+  Zuordnung mit Namen (der Kostenposten liefert dafür neu `asset_name`); inaktive sind gekennzeichnet und werden nicht mehr neu angeboten.
+
+Der Wächter (`test_v447`) kennt keine Freiklasse „fremdschluessel“ mehr: jede Fundstelle ist `vollstaendig` (die Liste enthält jede
+speicherbare ID, Grund mit Quelle), `neu` oder `eigen`; neu findet er `auswahlOptionen()` über eine vorher gefilterte Liste (P3). Neuer
+Test `test_v450` je Feld (19 von 22 bis 1.9.15 rot, die drei grünen sind Vergleichsfälle).
+
 ## 1.9.15 – Zeiterfassung: „Ändern“ bei anderem Auswertungsdatum
 
 Stufe 2, Runde 7, Punkt 3 (Nebenbefund aus 1.9.12). In der Büro-Zeiterfassung steht „Ändern“ an den heutigen Buchungen, die Karte

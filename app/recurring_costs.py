@@ -167,6 +167,13 @@ def _document_to_dict(document: RecurringCostDocument) -> dict:
     }
 
 
+def _asset_name(asset: OperationalAsset | None) -> str | None:
+    if asset is None:
+        return None
+    from .operational_assets import resolve_asset_identity  # lokal: operational_assets importiert dieses Modul
+    return resolve_asset_identity(asset)[0]
+
+
 def cost_to_dict(cost: RecurringCost, lead_days: int, *, today: date | None = None) -> dict:
     """is_asset_quick_entry (seit "Betriebsmittel-Kosten fest als Kostenposten") ist der
     Transparenz-Hinweis, welcher Posten vom Betriebsmittel-Formular selbst verwaltet wird --
@@ -191,6 +198,8 @@ def cost_to_dict(cost: RecurringCost, lead_days: int, *, today: date | None = No
         "is_cancellation_due": is_cancellation_due(deadline, lead_days, today=today),
         "is_cancellation_overdue": is_cancellation_overdue(deadline, today=today),
         "asset_id": cost.asset_id,
+        # seit 1.9.16: Name des Betriebsmittels -- die Auswahl der Seite zeigt ihn auch, wenn das Modul abgeschaltet ist (Liste leer)
+        "asset_name": _asset_name(cost.asset),
         "is_asset_quick_entry": cost.is_asset_quick_entry,
         "active": cost.active,
         "notes": cost.notes,

@@ -242,10 +242,12 @@ def test_angebot_status():
 #   ja_nein          Ja/Nein-Auswahl
 #   neu              zeigt keinen gespeicherten Wert: Vorgabe für einen neuen Datensatz, Filter, Ziel einer Aktion
 #   eigen            eigene, geprüfte Altwert-Behandlung (der gespeicherte Wert bleibt gewählt)
-#   fremdschluessel  ID eines Datensatzes -- nicht „gespeicherter Freitext“; bekannte Fehler als „Befund 1.9.12 (B)“ (Archiv)
+#   vollstaendig     (seit 1.9.16) die Liste enthält jede ID, die gespeichert sein kann (Quelle im Grund) -- bis 1.9.15 stand hier die
+#                    Freiklasse „fremdschluessel“ für jede ID; ein Fremdschlüssel, dessen Ziel archiviert, inaktiv oder nicht mehr in der
+#                    Auswahl sein kann, geht über auswahlOptionen() (test_v450)
 KLASSEN = {
     ('_abnahme.html', 'P2', 'workKindSelect'): ('server_fest', 'WORK_KINDS'),
-    ('_objekt_anderer_kunde.html', 'P1', 'g===p.id'): ('fremdschluessel', 'ID eines Datensatzes; Befund 1.9.12 (B): Objekt mit Hauptadresse fehlt in der Liste des Wartungsvertrags'),
+    ('_objekt_anderer_kunde.html', 'P1', 'g===p.id'): ('eigen', 'das gespeicherte Objekt bleibt gewählt: eigenes, fremdes und seit 1.9.16 das mit Hauptadresse (test_v450)'),
     ('checklist_template.html', 'P1', "(f.signer_mode||'frei')===k"): ('server_fest', 'SIGNER_MODES'),
     ('checklist_template.html', 'P1', 'p.key===r.link_purpose'): ('server_fest', 'PURPOSES, ein unbekannter Zweck wird als „(unbekannt)“ ergänzt'),
     ('checklist_template.html', 'P1', 'p.key===template.purpose'): ('server_fest', 'PURPOSES, ein unbekannter Zweck wird als „(unbekannt)“ ergänzt'),
@@ -262,56 +264,48 @@ KLASSEN = {
     ('incoming_invoices.html', 'P1', 'Number(item.tax_rate_pct)===0'): ('server_fest', 'Steuersatz 19/7/0'),
     ('incoming_invoices.html', 'P1', 'Number(item.tax_rate_pct)===19'): ('server_fest', 'Steuersatz 19/7/0'),
     ('incoming_invoices.html', 'P1', 'Number(item.tax_rate_pct)===7'): ('server_fest', 'Steuersatz 19/7/0'),
-    ('incoming_invoices.html', 'P1', 'Number(selected)===a.id'): ('fremdschluessel', 'ID eines Datensatzes'),
-    ('incoming_invoices.html', 'P1', 'Number(selected)===c.id'): ('fremdschluessel', 'ID eines Datensatzes'),
     ('incoming_invoices.html', 'P2', 'editPaymentStatus'): ('server_fest', 'Zahlstatus der Eingangsrechnung'),
     ('incoming_invoices.html', 'P2', 'editTaxRate'): ('server_fest', 'Steuersatz 19/7/0'),
-    ('inquiries.html', 'P1', 'p.id===Number(selected)'): ('fremdschluessel', 'ID eines Datensatzes'),
-    ('inquiries.html', 'P2', 'editCustomer'): ('fremdschluessel', 'ID eines Datensatzes'),
+    ('inquiries.html', 'P2', 'editCustomer'): ('vollstaendig', 'alle Kunden (GET /api/customers, Kunden kennen kein Archiv)'),
     ('inquiries.html', 'P2', 'editPriority'): ('server_fest', 'PRIORITIES der Anfrage'),
-    ('inquiries.html', 'P2', 'editProperty'): ('fremdschluessel', 'ID eines Datensatzes'),
     ('inquiries.html', 'P2', 'editStatus'): ('server_fest', 'STATUSES der Anfrage'),
     ('inquiries.html', 'P2', 'newCustomer'): ('neu', 'neue Anfrage'),
     ('inquiries.html', 'P2', 'newProperty'): ('neu', 'neue Anfrage'),
     ('inspection_template.html', 'P1', 'selected===v'): ('server_fest', 'ITEM_TYPES'),
-    ('inspection_templates.html', 'P1', 'Number(selected)===t.id'): ('fremdschluessel', 'ID eines Datensatzes'),
     ('inspection_templates.html', 'P1', 'selected===o.value'): ('neu', 'Dachtyp einer neuen Prüfvorlage'),
-    ('maintenance_contracts.html', 'P1', 'Number(selected)===c.id'): ('fremdschluessel', 'ID eines Datensatzes'),
-    ('maintenance_contracts.html', 'P1', 'Number(selected)===e.id'): ('fremdschluessel', 'ID eines Datensatzes'),
-    ('maintenance_contracts.html', 'P1', 'Number(selected)===t.id'): ('fremdschluessel', 'ID eines Datensatzes'),
-    ('master_data_form.html', 'P1', 'Number(selected)===f.id'): ('fremdschluessel', 'ID eines Datensatzes'),
+    ('maintenance_contracts.html', 'P1', 'Number(selected)===c.id'): ('neu', 'Kunde eines neuen Vertrags bzw. Schnellauftrags'),
+    ('maintenance_contracts.html', 'P1', 'Number(selected)===e.id'): ('neu', 'Verantwortlicher eines neuen Vertrags bzw. Schnellauftrags'),
+    ('maintenance_contracts.html', 'P1', 'Number(selected)===t.id'): ('neu', 'Prüfvorlage eines neuen Vertrags'),
+    ('master_data_form.html', 'P1', 'Number(selected)===f.id'): ('eigen', 'activeFunctions(): aktive und die gespeicherte („(inaktiv)“); eine zugeordnete Funktion zu löschen lehnt der Server ab (409)'),
     ('master_data_form.html', 'P1', 'x.is_default'): ('neu', 'Kategorie eines neuen Kunden (Vorgabe)'),
     ('master_data_form.html', 'P2', 'compensationType'): ('server_fest', 'hourly/fixed_salary'),
     ('master_data_form.html', 'P2', 'costAllocation'): ('server_fest', 'labor_rate/variable_overhead/excluded'),
-    ('master_data_form.html', 'P2', 'customer'): ('fremdschluessel', 'ID eines Datensatzes'),
+    ('master_data_form.html', 'P2', 'customer'): ('vollstaendig', 'alle Kunden (GET /api/customers, Kunden kennen kein Archiv)'),
     ('master_data_form.html', 'P2', 'resourceType'): ('eigen', 'Optionen vorher über auswahlOptionen() mit demselben Wert gebaut'),
     ('order.html', 'P2', 'payment'): ('eigen', 'Zahlungsbedingung: ein gespeicherter Text außerhalb der Liste erscheint als „· bisher“'),
-    ('planning.html', 'P1', 'x.id===selected'): ('fremdschluessel', 'ID eines Datensatzes'),
+    ('planning.html', 'P1', 'x.id===selected'): ('neu', 'Auftrag eines neuen Planungsabschnitts'),
     ('planning.html', 'P2', 'newOrder'): ('neu', 'neuer Einsatz'),
     ('planning.html', 'P2', 'newTeam'): ('neu', 'neuer Einsatz'),
     ('project_folder.html', 'P1', 'r.key===p.role'): ('server_fest', 'project_participants.ROLES, eine fehlende Rolle wird ergänzt'),
     ('project_folder.html', 'P1', 'x.is_default'): ('neu', 'Kategorie eines neuen Dokuments (Vorgabe)'),
     ('project_folder.html', 'P2', 'categoryFilter'): ('neu', 'Filter'),
-    ('project_folder.html', 'P2', 'editCustomer'): ('fremdschluessel', 'ID eines Datensatzes'),
-    ('project_folder.html', 'P2', 'editProperty'): ('fremdschluessel', 'ID eines Datensatzes; Befund 1.9.12 (B): ohne Objekt still die Hauptadresse, bestätigtes Objekt eines anderen Kunden überschrieben'),
+    ('project_folder.html', 'P2', 'editCustomer'): ('vollstaendig', 'alle Kunden (GET /api/customers, Kunden kennen kein Archiv)'),
     ('project_form.html', 'P1', 'x.is_default'): ('neu', 'Kategorie eines neuen Projekts (Vorgabe)'),
     ('project_form.html', 'P2', 'customer'): ('neu', 'neues Projekt'),
     ('project_form.html', 'P2', 'property'): ('neu', 'neues Projekt'),
     ('property.html', 'P1', 'o.value===selected'): ('neu', 'Dachtyp beim Anlegen mehrerer Dachflächen'),
-    ('quote_editor.html', 'P1', 'Number(selected)===e.id'): ('fremdschluessel', 'ID eines Datensatzes'),
+    ('quote_editor.html', 'P1', 'Number(selected)===e.id'): ('neu', 'Vorschlag für den neuen Auftrag (Dialog „Beauftragen“)'),
     ('quote_editor.html', 'P1', 'u===current'): ('eigen', 'Einheit: unitOptionsHtml() setzt den gespeicherten Wert vorn in die Liste'),
     ('quote_editor.html', 'P2', 'hContractBasis'): ('server_fest', 'Vertragsgrundlagen'),
-    ('quote_editor.html', 'P2', 'iSection'): ('fremdschluessel', 'ID eines Datensatzes'),
+    ('quote_editor.html', 'P2', 'iSection'): ('vollstaendig', 'alle Abschnitte des Angebots'),
     ('quote_editor.html', 'P2', 'oPayment'): ('neu', 'Zahlungsbedingung beim Beauftragen (Vorschlag)'),
-    ('quote_editor.html', 'P2', 'sParent'): ('fremdschluessel', 'ID eines Datensatzes'),
+    ('quote_editor.html', 'P2', 'sParent'): ('vollstaendig', 'alle obersten Titel des Angebots; der Server erlaubt nur zwei Ebenen'),
     ('quote_form.html', 'P2', 'project'): ('neu', 'neues Angebot'),
-    ('recurring_costs.html', 'P1', 'Number(selected)===a.id'): ('fremdschluessel', 'ID eines Datensatzes'),
     ('recurring_costs.html', 'P2', 'editClassification'): ('server_fest', 'Gemeinkosten-Einordnung'),
     ('recurring_costs.html', 'P2', 'editInterval'): ('server_fest', 'Abrechnungsintervall'),
     ('recurring_costs.html', 'P2', 'editTaxRate'): ('server_fest', 'Steuersatz 19/7/0'),
-    ('service_reports.html', 'P1', 'Number(selected)===e.id'): ('fremdschluessel', 'ID eines Datensatzes'),
-    ('service_reports.html', 'P1', 'Number(selected)===t.id'): ('fremdschluessel', 'ID eines Datensatzes'),
-    ('service_reports.html', 'P1', 'draft.roofAreaId===String(a.roof_area_id)'): ('fremdschluessel', 'ID eines Datensatzes'),
+    ('service_reports.html', 'P1', 'Number(selected)===t.id'): ('neu', 'Prüfvorlage eines neuen Berichts'),
+    ('service_reports.html', 'P1', 'draft.roofAreaId===String(a.roof_area_id)'): ('neu', 'Entwurf einer neuen Materialzeile im Browser'),
     ('service_reports.html', 'P1', 'f.action===k'): ('server_fest', 'findings.ACTIONS'),
     ('service_reports.html', 'P1', 'f.status===k'): ('server_fest', 'findings.STATUSES'),
     ('service_reports.html', 'P1', 'o.value===selected'): ('neu', 'Zeitart und Tätigkeit einer neuen Buchung'),
@@ -334,23 +328,20 @@ KLASSEN = {
     ('settings.html', 'P2', 'variableOverheadMode'): ('server_fest', 'eur/pct'),
     ('tasks.html', 'P1', 'String(e.id)===selectedEmployeeId'): ('neu', 'Filter'),
     ('tasks.html', 'P2', 'editStatus'): ('server_fest', 'Spalten der Aufgaben (eine benutzte Spalte lässt sich nicht löschen)'),
-    ('time_backoffice.html', 'P2', 'editOrderItem'): ('fremdschluessel', 'ID eines Datensatzes'),
-    ('time_backoffice.html', 'P2', 'editProject'): ('fremdschluessel', 'ID eines Datensatzes'),
-    ('time_tracking.html', 'P1', 'String(e.id)===String(selected)'): ('fremdschluessel', 'ID eines Datensatzes'),
-    ('time_tracking.html', 'P1', 'String(i.id)===String(selected)'): ('fremdschluessel', 'ID eines Datensatzes; Befund 1.9.12 (B): LV-Position im Ausweichweg still auf null'),
-    ('time_tracking.html', 'P1', 'String(o.id)===String(selected)'): ('fremdschluessel', 'ID eines Datensatzes; Befund 1.9.12 (B): ein Auftrag außerhalb der Liste erzwingt Umbuchen'),
+    ('time_backoffice.html', 'P2', 'editOrderItem'): ('vollstaendig', 'Positionen des Auftrags der Buchung; ein nicht mehr offener Auftrag wird nachgeladen (seit 1.8.30)'),
+    ('time_backoffice.html', 'P2', 'editProject'): ('vollstaendig', 'Projekt des Auftrags der Buchung, der Auftrag ist immer in der Liste (nachgeladen)'),
+    ('time_tracking.html', 'P1', 'String(e.id)===String(selected)'): ('vollstaendig', 'aktive Mitarbeiter; bearbeitbar sind nur Buchungen des in derselben Liste gewählten Mitarbeiters'),
     ('time_tracking.html', 'P2', 'absenceEmployee'): ('neu', 'neuer Antrag'),
     ('time_tracking.html', 'P2', 'groupOrder'): ('neu', 'Vorgabe aus der Adresse'),
-    ('time_tracking.html', 'P2', 'manualEmployee'): ('fremdschluessel', 'ID eines Datensatzes'),
-    ('time_tracking.html', 'P2', 'manualOrder'): ('fremdschluessel', 'ID eines Datensatzes; Befund 1.9.12 (B): ein Auftrag außerhalb der Liste erzwingt Umbuchen'),
+    ('time_tracking.html', 'P2', 'manualEmployee'): ('vollstaendig', 'Mitarbeiter der Buchung = der in derselben Liste gewählte'),
+    ('time_tracking.html', 'P2', 'manualOrder'): ('neu', 'Vorgabe aus der Adresse für eine neue Buchung'),
     ('time_tracking.html', 'P2', 'quickOrder'): ('neu', 'Vorgabe aus der Adresse'),
-    ('time_tracking_field.html', 'P1', 'String(o.id)===String(selected)'): ('fremdschluessel', 'ID eines Datensatzes; Befund 1.9.12 (B): ein Auftrag außerhalb der Liste (±14 Tage, offen) erzwingt Umbuchen'),
     ('users.html', 'P2', 'active'): ('ja_nein', 'Ja/Nein'),
-    ('users.html', 'P2', 'employee'): ('fremdschluessel', 'ID eines Datensatzes'),
+    ('users.html', 'P2', 'employee'): ('vollstaendig', 'alle Mitarbeiter (GET /api/employees ohne Filter)'),
     ('users.html', 'P2', 'role'): ('server_fest', 'permissions.ROLES'),
-    ('work_preparation.html', 'P1', 'Number(selected)===x.id'): ('fremdschluessel', 'ID eines Datensatzes'),
+    ('work_preparation.html', 'P1', 'Number(selected)===x.id'): ('neu', 'Ziel der Sammelaktion (Lieferschein)'),
 }
-ERLAUBTE_KLASSEN = {"server_fest", "ja_nein", "neu", "eigen", "fremdschluessel"}
+ERLAUBTE_KLASSEN = {"server_fest", "ja_nein", "neu", "eigen", "vollstaendig"}
 
 
 def test_kein_auswahlfeld_fuer_gespeicherte_werte_ohne_auswahloptionen():
@@ -399,6 +390,20 @@ def test_waechter_findet_beide_bauweisen():
             "document.getElementById('a').value=rec.aktiv?'1':'0'; auswahlWert(document.getElementById('a'),rec.typ);</script>")
     assert [(art, k) for art, k, _ in fundstellen("x.html", text)] == [
         ("P1", "o.value===sel"), ("P1", "r.s==='fest'"), ("P2", "a"), ("P2", "a")]
+
+
+def test_waechter_findet_vorher_gefilterte_liste():
+    """Seit 1.9.16 (P3): auswahlOptionen() über eine vorher nach aktiv/archiviert gefilterte Liste -- ein gespeicherter inaktiver Eintrag
+    wäre hinausgeworfen, bevor die Altwert-Behandlung ihn sieht. Ohne .filter( im Argument keine Fundstelle."""
+    from tests.vorlagen_auswahl import fundstellen
+
+    text = ("<script>a.innerHTML=auswahlOptionen(employees.filter(e=>e.active),sel,e=>e.name);"
+            "b.innerHTML=auswahlOptionen(templates.filter(t=>!t.archived), r.id, t=>t.label, {leer:'—'});"
+            "c.innerHTML=auswahlOptionen((o?.items)||[],sel,i=>i.text);d.innerHTML=auswahlOptionen(props,g,x=>x.name,{aktiv:x=>!x.archived});"
+            "e.innerHTML=auswahlEintraege(xs.filter(x=>x.active!==false).map(x=>x),g).join('');</script>")
+    assert [(art, k) for art, k, _ in fundstellen("x.html", text)] == [
+        ("P3", "employees.filter(e=>e.active)"), ("P3", "templates.filter(t=>!t.archived)"),
+        ("P3", "xs.filter(x=>x.active!==false).map(x=>x)")]
 
 
 # --- Prüfabfrage für den Server (scripts/pruefabfrage_auswahlwerte.sql) -------------------------------------------------------------

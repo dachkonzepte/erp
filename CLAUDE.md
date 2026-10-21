@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.15** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.16** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -647,6 +647,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Liste im Markup über `auswahlWert()`: ein Wert außerhalb der Liste bleibt gewählt ("… (nicht mehr verfügbar)") und erhalten; nie
     `select.value = gespeichert` oder Optionen von Hand mit bedingtem `selected` -- Wächter `tests/test_v447_auswahl_altwerte.py`
     (Scanner `tests/vorlagen_auswahl.py`, jede andere Fundstelle in `KLASSEN` mit Grund), Prüfabfrage `scripts/pruefabfrage_auswahlwerte.sql`.
+    **Seit 1.9.16 ebenso jeder Fremdschlüssel** (Auftrag, Objekt, Mitarbeiter, Vorlage …): ein archiviertes, inaktives oder nicht mehr
+    in der Auswahl stehendes Ziel bleibt gewählt und gekennzeichnet (`opt.aktiv`/`opt.vermerk`, `opt.fehlt` mit dem Namen aus dem
+    Datensatz), nie still umgestellt; nie `auswahlOptionen()` über eine vorher gefilterte Liste (Wächter P3); `KLASSEN` kennt dafür nur
+    `vollstaendig` (Liste enthält jede speicherbare ID), `neu` oder `eigen` (`tests/test_v450_auswahl_fremdschluessel.py`).
     `tests/test_v329_update_handler_struktur.py` prüft jeden
     PUT/PATCH-Handler per AST; die 62 Altfälle (seit 1.8.96, vorher 70) stehen dort als Liste, die nur kürzer werden darf.
     Details: `docs/archiv/teil-updates.md`.

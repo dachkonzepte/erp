@@ -4747,6 +4747,7 @@ class RecurringCostOut(BaseModel):
     is_cancellation_due: bool
     is_cancellation_overdue: bool
     asset_id: int | None = None
+    asset_name: str | None = None  # seit 1.9.16: Name des Betriebsmittels für die Auswahl, auch bei abgeschaltetem Modul
     # Seit "Betriebsmittel-Kosten fest als Kostenposten": true, wenn dieser Posten vom
     # "Laufende Kosten je Monat"-Feld des Betriebsmittel-Formulars selbst verwaltet wird (siehe
     # app/operational_assets.py::sync_asset_recurring_cost()) -- löst asset_quick_cost_hint ab.

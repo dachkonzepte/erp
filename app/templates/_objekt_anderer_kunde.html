@@ -13,7 +13,8 @@ label.objekt-andere input,.objekt-abweichung label.objekt-bestaetigen input{flex
 
    objektOptionen(objekte, kunden, kundeId, gewaehlt, andereZeigen) -> HTML der <option>-Elemente: erst die Objekte des
      Kunden (ohne Hauptadresse), mit andereZeigen danach "Objekte anderer Kunden"; ein gespeichertes fremdes Objekt bleibt
-     immer vorgewählt (sonst leerte das nächste Speichern es).
+     immer vorgewählt (sonst leerte das nächste Speichern es), seit 1.9.16 ebenso ein gespeichertes Objekt mit Hauptadresse (bis
+     dahin fehlte es: der Vertrag zeigte „Hauptadresse verwenden“, Speichern schrieb null oder scheiterte an den Positionen).
    objektAbweichungHtml(objekte, kunden, kundeId, objektId, idBestaetigung) -> Hinweis mit Häkchen, oder '' ohne Abweichung.
    objektAbweichung(objekte, kundeId, objektId) -> das fremde Objekt oder null. */
 function objektAbweichung(objekte, kundeId, objektId) {
@@ -27,7 +28,7 @@ function objektOptionen(objekte, kunden, kundeId, gewaehlt, andereZeigen) {
   const g = Number(gewaehlt) || null;
   const opt = p => `<option value="${p.id}" ${g === p.id ? 'selected' : ''}>${m(p.name)}</option>`;
   const fremdOpt = p => `<option value="${p.id}" ${g === p.id ? 'selected' : ''}>${m(p.name + ' – ' + name(p.customer_id))}</option>`;
-  const eigene = (objekte || []).filter(p => p.customer_id === Number(kundeId) && !p.is_primary_address);
+  const eigene = (objekte || []).filter(p => p.customer_id === Number(kundeId) && (!p.is_primary_address || p.id === g));
   const fremde = (objekte || []).filter(p => p.customer_id !== Number(kundeId) && (andereZeigen || p.id === g));
   let html = '<option value="">— Hauptadresse verwenden —</option>' + eigene.map(opt).join('');
   if (fremde.length) html += `<optgroup label="Objekte anderer Kunden">${fremde.map(fremdOpt).join('')}</optgroup>`;

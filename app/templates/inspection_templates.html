@@ -87,6 +87,7 @@ td select{width:100%;max-width:360px;height:40px;padding:0 10px}
 </div>
 </div>
 {% include "_speichern.html" %}
+{% include "_auswahl.html" %}
 {% include "_aktionen.html" %}
 {% include "_seitenkopf.html" %}
 <script>
@@ -110,14 +111,16 @@ function dachtypZelle(wert){
   return esc(wert)+(marke?' <span class="ds-status ds-status-warn">'+marke+'</span>':'');
 }
 
-function defaultTemplateOptionsHtml(selected){
-  return '<option value="">— keine —</option>'+templates.filter(t=>!t.archived).map(t=>`<option value="${t.id}" ${Number(selected)===t.id?'selected':''}>${esc(t.label)}</option>`).join('');
+// Seit 1.9.16 über auswahlOptionen(): eine archivierte Standardvorlage bleibt gewählt („(archiviert)“), neu angeboten nur aktive; bis 1.9.15
+// zeigte die Zeile dann „— keine —“.
+function defaultTemplateOptionsHtml(selected,name=null){
+  return auswahlOptionen(templates,selected??'',t=>t.label,{aktiv:t=>!t.archived,vermerk:()=>'archiviert',leer:'— keine —',fehlt:()=>`${name||'Vorlage'} (nicht mehr verfügbar)`});
 }
 
 function defaultRow(d){
   return `<tr>
     <td>${esc(d.roof_type_label)}</td>
-    <td><select data-aenderung="standardvorlage" data-dachart="${esc(d.roof_type)}" aria-label="Standardvorlage für ${esc(d.roof_type_label)}">${defaultTemplateOptionsHtml(d.inspection_template_id)}</select></td>
+    <td><select data-aenderung="standardvorlage" data-dachart="${esc(d.roof_type)}" aria-label="Standardvorlage für ${esc(d.roof_type_label)}">${defaultTemplateOptionsHtml(d.inspection_template_id,d.inspection_template_label)}</select></td>
   </tr>`;
 }
 

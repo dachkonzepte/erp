@@ -101,7 +101,8 @@ globalThis.fetch = async (url, opt = {}) => {
 # seit 1.9.10 dazu der gemeinsame Seitenkopf mit Menü und Statuskennzeichen (Stufe 2 „Rahmen“): eine Seite, die seitenkopf() aufruft,
 # scheiterte sonst in node an "seitenkopf is not defined"
 BAUSTEINE = ("_auswahl.html", "_speichern.html", "_aktionen.html", "_weiterleitung.html", "_links.html", "_zahl.html", "_fehlertext.html",
-             "_menue.html", "_statuskennzeichen.html", "_seitenkopf.html", "_berlin_date.html")  # _berlin_date.html seit 1.9.12
+             "_menue.html", "_statuskennzeichen.html", "_seitenkopf.html", "_berlin_date.html",  # _berlin_date.html seit 1.9.12
+             "_objekt_anderer_kunde.html", "_time_entries_list.html")  # seit 1.9.16 (Wartungsvertrag, Zeiterfassung)
 
 
 def eingebunden(vorlage: str) -> list[str]:

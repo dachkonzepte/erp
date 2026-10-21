@@ -236,13 +236,14 @@ function projectOptionsHtml(selected){
   // beim Speichern geleert zu werden; neu wählbar sind nur nicht archivierte.
   return auswahlOptionen(projects,selected,p=>p.project_number+' · '+p.name,{leer:'— kein Projekt —',aktiv:p=>!p.archived});
 }
-function assetOptionsHtml(selected){
-  const opts=assets.map(a=>`<option value="${a.id}" ${Number(selected)===a.id?'selected':''}>${esc(a.name||('#'+a.id))}</option>`).join('');
-  return '<option value="">— kein Betriebsmittel —</option>'+opts;
+// Seit 1.9.16 über auswahlOptionen(): ein inaktives Betriebsmittel bzw. ein inaktiver Kostenposten bleibt gewählt („(inaktiv)“), neu
+// angeboten nur aktive; bei abgeschaltetem Modul (Liste leer) bleibt die Zuordnung mit dem Namen aus der Rechnung -- bis 1.9.15 schrieb das
+// nächste Speichern dann null.
+function assetOptionsHtml(selected,name=null){
+  return auswahlOptionen(assets,selected??'',a=>a.name||('#'+a.id),{leer:'— kein Betriebsmittel —',fehlt:()=>`${name||('Betriebsmittel #'+selected)} (nicht in der Auswahl)`});
 }
-function recurringCostOptionsHtml(selected){
-  const opts=recurringCosts.map(c=>`<option value="${c.id}" ${Number(selected)===c.id?'selected':''}>${esc(c.label)}</option>`).join('');
-  return '<option value="">— kein Kostenposten —</option>'+opts;
+function recurringCostOptionsHtml(selected,name=null){
+  return auswahlOptionen(recurringCosts,selected??'',c=>c.label,{leer:'— kein Kostenposten —',fehlt:()=>`${name||('Kostenposten #'+selected)} (nicht in der Auswahl)`});
 }
 function accountOptionsHtml(selected){
   // Muster supplierOptionsHtml() -- ein bereits gewähltes, inzwischen archiviertes Konto bleibt
@@ -473,8 +474,8 @@ function openEditEditor(id){
   syncPaymentDateField();
   document.getElementById('editAccount').innerHTML=accountOptionsHtml(inv.account_id);
   document.getElementById('editProject').innerHTML=projectOptionsHtml(inv.project_id);
-  document.getElementById('editAsset').innerHTML=assetOptionsHtml(inv.asset_id);
-  document.getElementById('editRecurringCost').innerHTML=recurringCostOptionsHtml(inv.recurring_cost_id);
+  document.getElementById('editAsset').innerHTML=assetOptionsHtml(inv.asset_id,inv.asset_name);
+  document.getElementById('editRecurringCost').innerHTML=recurringCostOptionsHtml(inv.recurring_cost_id,inv.recurring_cost_label);
   document.getElementById('itemRows').innerHTML='';
   (inv.items||[]).forEach(addItemRow);
   updateItemsSumHint();

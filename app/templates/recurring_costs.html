@@ -167,9 +167,11 @@ function categoryOptionsHtml(selected){
 function documentTypeOptionsHtml(){
   return documentTypes.map(o=>`<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
 }
-function assetOptionsHtml(selected){
-  const opts=assets.map(a=>`<option value="${a.id}" ${Number(selected)===a.id?'selected':''}>${esc(a.name||('#'+a.id))}</option>`).join('');
-  return '<option value="">— kein Betriebsmittel —</option>'+opts;
+// Seit 1.9.16 über auswahlOptionen(): ein inaktives Betriebsmittel bleibt gewählt („(inaktiv)“), neu angeboten nur aktive; bei
+// abgeschaltetem Modul (Liste leer) bleibt die Zuordnung mit dem Namen aus dem Kostenposten (asset_name) -- bis 1.9.15 schrieb das nächste
+// Speichern dann null.
+function assetOptionsHtml(selected,name=null){
+  return auswahlOptionen(assets,selected??'',a=>a.name||('#'+a.id),{leer:'— kein Betriebsmittel —',fehlt:()=>`${name||('Betriebsmittel #'+selected)} (nicht in der Auswahl)`});
 }
 function assetName(id){
   const a=assets.find(x=>x.id===id);
@@ -223,7 +225,7 @@ function openEditEditor(id){
   document.getElementById('editInterval').value=c.billing_interval;
   document.getElementById('editContractEnd').value=c.contract_end_date||'';
   document.getElementById('editNoticePeriod').value=zahlText(c.notice_period_months);
-  document.getElementById('editAsset').innerHTML=assetOptionsHtml(c.asset_id);
+  document.getElementById('editAsset').innerHTML=assetOptionsHtml(c.asset_id,c.asset_name);
   document.getElementById('editActive').value=c.active?'1':'0';
   document.getElementById('editActiveWrap').classList.remove('hidden');
   document.getElementById('editNotes').value=c.notes||'';

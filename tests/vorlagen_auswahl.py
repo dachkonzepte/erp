@@ -9,9 +9,13 @@ und das nächste Speichern schreibt das):
     P2  ein <select> der Vorlage bekommt seinen Wert per Zuweisung -- `getElementById('id').value = …`, `$('id').value = …`,
         `el('id').value = …` oder über einen Helfer `setv('id', …)` (const setv=(id,x)=>document.getElementById(id).value=…);
         Kennung = die id. Nicht gezählt: ein fester Text als Wert ('normal'), Ja/Nein (`x?'1':'0'`, `x?'true':'false'`)
+    P3  (seit 1.9.16) auswahlOptionen()/auswahlEintraege() über eine vorher gefilterte Liste -- `auswahlOptionen(xs.filter(x=>x.active), …)`
+        wirft einen gespeicherten inaktiven oder archivierten Eintrag hinaus, bevor die Altwert-Behandlung ihn sehen kann (sie zeigte ihn
+        nur noch als „nicht mehr verfügbar“ ohne Namen); den Filter macht opt.aktiv. Kennung = das erste Argument ohne Leerzeichen
 
 Was hier nicht erscheint: auswahlOptionen() und auswahlWert() aus _auswahl.html (der richtige Weg) und _auswahl.html selbst. Grenzen: eine
-Zuweisung über eine Variable (`const s=…; s.value=…`) oder einen anderen Helfer findet der Scanner nicht."""
+Zuweisung über eine Variable (`const s=…; s.value=…`) oder einen anderen Helfer findet der Scanner nicht, ebenso wenig einen Filter in einer
+Hilfsfunktion, die die Liste liefert (P3 sieht nur `.filter(` im Argument selbst)."""
 
 import re
 
@@ -22,6 +26,7 @@ ZUWEISUNG = re.compile(r"""(?:getElementById|\$|el)\(\s*['"]([\w-]+)['"]\s*\)\.v
 HELFER = re.compile(r"""(?:const|let|var)\s+(\w+)\s*=\s*\((\w+)\s*,\s*(\w+)\)\s*=>\s*document\.getElementById\(\2\)\.value\s*=""")
 FESTER_TEXT = re.compile(r"""^(['"])[^'"]*\1\s*$""")
 JA_NEIN = re.compile(r"""\?\s*'(1|true)'\s*:\s*'(0|false)'\s*\}*\s*$""")
+P3 = re.compile(r"""\bauswahl(?:Optionen|Eintraege)\(\s*([^,()]*(?:\([^()]*\)[^,()]*)*?\.filter\((?:[^()]|\([^()]*\))*\)[^,]*),""")
 
 
 def fundstellen(name: str, text: str | None = None) -> list[tuple[str, str, int]]:
@@ -38,6 +43,7 @@ def fundstellen(name: str, text: str | None = None) -> list[tuple[str, str, int]
     for sid, wert, pos in zuweisungen:
         if sid in selects and not FESTER_TEXT.match(wert) and not JA_NEIN.search(wert):
             funde.append(("P2", sid, zeile(pos)))
+    funde += [("P3", re.sub(r"\s+", "", m.group(1)), zeile(m.start())) for m in P3.finditer(text)]
     return funde
 
 

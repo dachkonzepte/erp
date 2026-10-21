@@ -243,7 +243,11 @@ const WEATHER_TYPES=['weather_winter','weather_summer'];
 // Gesetzliche Schlechtwetterzeit im Dachdeckerhandwerk: 1.12.-31.3. Winter, sonst Sommer --
 // reiner Vorschlag anhand des Buchungsdatums, beide Kacheln bleiben unabhaengig davon anklickbar.
 function weatherSeasonFor(dateStr){const d=new Date((dateStr||today())+'T12:00:00');const m=d.getMonth()+1;return (m===12||m<=3)?'weather_winter':'weather_summer'}
-function orderOptions(selected){return '<option value="">— Auftrag wählen —</option>'+orders.map(o=>`<option value="${o.id}" ${String(o.id)===String(selected)?'selected':''}>${esc(o.order_number)}${o.customer_name?' · '+esc(o.customer_name):''}${o.property_address?' · '+esc(o.property_address.replace(/\n/g,', ')):''}</option>`).join('')}
+// Seit 1.9.16 über auswahlOptionen() (Regel 22): beim Ändern bleibt der Auftrag der Buchung gewählt, auch wenn er nicht mehr in der Auswahl
+// steht (außerhalb von ±14 Tagen, abgeschlossen) -- fehlt: Beschriftung aus der Buchung (auftragNichtInAuswahl()); bis 1.9.15 stand dann
+// „— Auftrag wählen —“, und Speichern verlangte ein Umbuchen. Ein Vorschlag für eine neue Buchung gilt nur, wenn er in der Auswahl steht.
+function orderOptions(selected,fehlt=null){const g=selected!=null&&selected!==''&&(fehlt||orders.some(o=>String(o.id)===String(selected)))?selected:'';return auswahlOptionen(orders,g,o=>`${o.order_number||''}${o.customer_name?' · '+o.customer_name:''}${o.property_address?' · '+o.property_address.replace(/\n/g,', '):''}`,{leer:'— Auftrag wählen —',fehlt:()=>fehlt})}
+function auftragNichtInAuswahl(x){return `${x.order_number||('Auftrag '+x.order_id)}${x.project_name?' · '+x.project_name:''} (nicht mehr in der Auswahl)`}
 
 function renderQuickTiles(){
   const suggested=weatherSeasonFor(today());
@@ -365,7 +369,7 @@ function openCrewDialog(groupId=null){
   crewEditingId=g?g.id:null;
   $('crewDialogTitle').textContent=g?'Kolonnenbuchung ändern':'Nachtrag für Kolonne';
   $('crewDialogMembers').textContent=(g?g.members.map(m=>m.name):crewSelectedNames()).join(', ');
-  $('crewDialogOrder').innerHTML=orderOptions(g?g.order_id:($('crewOrder').value||null));
+  $('crewDialogOrder').innerHTML=orderOptions(g?g.order_id:($('crewOrder').value||null),g?auftragNichtInAuswahl(g):null);
   $('crewDialogDate').value=g?g.work_date:today();
   $('crewDialogHours').value=zahlText(g?g.hours:8);
   $('crewDialogType').innerHTML=typeOptions(g?g.entry_type:$('crewType').value);
@@ -431,7 +435,7 @@ function setMode(mode){
 function openManual(row=null){
   editingId=row?.id||null;
   $('manualTitle').textContent=row?'Buchung ändern':'Buchung nachtragen';
-  $('manualOrder').innerHTML=orderOptions(row?.order_id||initialOrderId||null);
+  $('manualOrder').innerHTML=orderOptions(row?.order_id||initialOrderId||null,row?auftragNichtInAuswahl(row):null);
   $('manualDate').value=row?.work_date||today();
   manualType=row?.entry_type||types.find(t=>t.is_default)?.value||'site';
   renderManualTiles();
