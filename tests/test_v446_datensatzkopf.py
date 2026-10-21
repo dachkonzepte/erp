@@ -31,6 +31,8 @@ RUECKWEGE = {
     "checklist_template.html": {"/checklisten", "/checklisten/vorlagen"},
     "inspection_template.html": {"/settings", "/inspection-templates"},
     "service_reports.html": {"/projects", "/customers/{x}", "/projects/{x}", "/maintenance-contracts/{x}", "/orders/{x}", "/mobil"},
+    # seit 1.9.13 die Rechnung (ersetzt „← Auftrag“)
+    "invoice_detail.html": {"/projects", "/customers/{x}", "/projects/{x}", "/orders/{x}"},
 }
 MIT_LOESCHEN = {"roof_area.html", "operational_asset.html", "maintenance_contract.html", "checklist_template.html"}
 
@@ -72,7 +74,11 @@ def skript_pfad_ziele(name: str) -> set[str]:
             if wert.art == "str":
                 ziel = wert.wert + ("{x}" if a.t[k + 3].wert == "+" else "")
             elif wert.art == "tpl":
-                ziel = re.sub(r"\$\{[^}]*\}", "{x}", wert.wert)
+                # der Tokenizer zerlegt `/a/${x}/b` in tpl '/a/', ( x ), tpl '/b' -- jedem ${…} folgt ein Stück, auch ein leeres
+                ziel, j = wert.wert, k + 2
+                while a.t[j + 1].wert == "(" and a.t[j + 1].art == "punct" and a.t[a.partner[j + 1] + 1].art == "tpl":
+                    j = a.partner[j + 1] + 1
+                    ziel += "{x}" + a.t[j].wert
             else:
                 ziel = "?"
             ziele.add(ziel)
@@ -83,7 +89,7 @@ def _seitenrouten() -> list[re.Pattern]:
     return [re.compile("^" + re.sub(r"\{[^}]+\}", "[^/]+", r.path) + "$") for r in pages_router.routes if "GET" in getattr(r, "methods", ())]
 
 
-@pytest.mark.parametrize("name", sorted(DATENSATZ_MIT_PFAD))
+@pytest.mark.parametrize("name", sorted(RUECKWEGE))
 def test_pfad_schliesst_die_rueckwege(name):
     """Der Pfad nach dem Laden (seitenkopf() ersetzt den festen ganz) enthält die Rückwege; was vor dem Laden fest dasteht, gehört dazu."""
     nach_dem_laden = skript_pfad_ziele(name)
@@ -102,7 +108,7 @@ def test_menueeintraege_verborgen_ueber_hidden(name):
     assert falsch == [], (name, falsch)
 
 
-@pytest.mark.parametrize("name", sorted(DATENSATZ_MIT_PFAD))
+@pytest.mark.parametrize("name", sorted(RUECKWEGE))
 def test_jedes_pfad_ziel_ist_eine_seitenroute(name):
     routen = _seitenrouten()
     falsch = [z for z in pfad_ziele(name) if not any(r.match(z.replace("{x}", "1").split("#")[0].split("?")[0]) for r in routen)]
@@ -115,7 +121,7 @@ def seiten_mit_modulen(monkeypatch):
     monkeypatch.setitem(templates.env.globals, "is_module_enabled", lambda key: True)
 
 
-@pytest.mark.parametrize("name", sorted(DATENSATZ_MIT_PFAD))
+@pytest.mark.parametrize("name", sorted(RUECKWEGE))
 def test_jeder_pfad_link_oeffnet_eine_seite(name, threaded_db_session, router_test_client, seiten_mit_modulen):
     """Büro – Auftrag (die schwächste Rolle, die diese Seiten sieht) öffnet jedes Ziel; „/mobil“ öffnet die Monteurin (nur ihr Pfad)."""
     buero = router_test_client(threaded_db_session, pages_router, role="buero_auftrag")
@@ -126,7 +132,7 @@ def test_jeder_pfad_link_oeffnet_eine_seite(name, threaded_db_session, router_te
         assert r.status_code == 200 and r.headers["content-type"].startswith("text/html"), (name, ziel, r.status_code)
 
 
-@pytest.mark.parametrize("name", sorted(DATENSATZ_MIT_PFAD))
+@pytest.mark.parametrize("name", sorted(RUECKWEGE))
 def test_loeschen_nur_im_menue_mit_rueckfrage(name):
     block = _call_block(name)
     text = (vj.TEMPLATES / name).read_text(encoding="utf-8")
@@ -147,3 +153,12 @@ def test_loeschen_nur_im_menue_mit_rueckfrage(name):
 def test_ds_css_haelt_verborgene_knoepfe_und_eintraege_verborgen():
     css = (STATIC_DIR / "ds" / "ds.css").read_text(encoding="utf-8")
     assert re.search(r"\.ds-knopf\[hidden\],\s*\.ds-menue-eintrag\[hidden\]\s*\{\s*display:\s*none;\s*\}", css)
+
+
+def test_scanner_liest_template_literale_ganz(tmp_path, monkeypatch):
+    """Seit 1.9.13: ein Ziel als Template-Literal zählt ganz (bis 1.9.12 las der Scanner nur das Stück vor dem ersten ${…})."""
+    (tmp_path / "a.html").write_text(
+        "<script>seitenkopf({pfad:[{text:'A',href:`/a/${x.id}/b`},{text:'B',href:`/c/${y}`},{text:'C',href:'/d/'+z},"
+        "{text:'D',href:`/e`}]});</script>", encoding="utf-8")
+    monkeypatch.setattr(vj, "TEMPLATES", tmp_path)
+    assert skript_pfad_ziele("a.html") == {"/a/{x}/b", "/c/{x}", "/d/{x}", "/e"}

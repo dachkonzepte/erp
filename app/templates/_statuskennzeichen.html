@@ -4,8 +4,10 @@
     statusBedeutungen()  Bedeutung -> Art des Seitenkopfs: läuft = info, erledigt/bezahlt = ok, wartet auf dich = signal, überfällig/Fehler
                          = fehler, Entwurf = warn, ruht (pausiert, storniert, archiviert, inaktiv) = neutral
     statusTabelle()      je Gruppe jeder Wert mit Text und Bedeutung -- ein neuer Status oder eine neue Seite mit Status kommt hier hinein
-    statusKennzeichen(gruppe, wert) -> {text, art} für seitenkopf({status: …}); ein Wert, den die Tabelle nicht kennt, erscheint lesbar
-                         (erster Buchstabe groß, _ als Leerzeichen) und neutral, ein leerer gar nicht (ds.css blendet das leere Kennzeichen aus).
+    statusKennzeichen(gruppe, wert, opt) -> {text, art} für seitenkopf({status: …}); ein Wert, den die Tabelle nicht kennt, erscheint
+                         lesbar (erster Buchstabe groß, _ als Leerzeichen) und neutral, ein leerer gar nicht (ds.css blendet das leere
+                         Kennzeichen aus). Seit 1.9.13 opt.zusatz (Text dahinter, z. B. ein Betrag oder eine Nummer) und opt.ueberfaellig
+                         (" · überfällig" dahinter, Farbe der Bedeutung fehler).
 
     tests/test_v445_statuskennzeichen.py prüft beide Tabellen, dass jeder Wert, den der Server schreibt, eingetragen ist, und dass jeder
     Status im Seitenkopf über statusKennzeichen() kommt. -#}
@@ -15,7 +17,18 @@ function statusBedeutungen() {
 }
 function statusTabelle() {
   return {
-    auftrag: { beauftragt: ['Beauftragt', 'laeuft'], abgeschlossen: ['Abgeschlossen', 'erledigt'], storniert: ['Storniert', 'ruht'] },
+    auftrag: {
+      beauftragt: ['Beauftragt', 'laeuft'], arbeitsvorbereitung: ['Arbeitsvorbereitung', 'laeuft'], in_ausfuehrung: ['In Ausführung', 'laeuft'],
+      pausiert: ['Pausiert', 'ruht'], abgeschlossen: ['Abgeschlossen', 'erledigt'], storniert: ['Storniert', 'ruht'],
+    },
+    // seit 1.9.13: Stand der Rechnung -- invoice.status, solange es keinen Zahlstand gibt, sonst invoice.overview.state (Zahlstand, an der
+    // Endrechnung der Zahlbetrag); Texte wie bis 1.9.12 im Kennzeichen der Rechnungsseite
+    rechnung: {
+      entwurf: ['Entwurf', 'entwurf'], versendet: ['Finalisiert', 'laeuft'], storniert: ['Storniert', 'ruht'], bezahlt: ['Bezahlt', 'erledigt'],
+      offen: ['Offen', 'laeuft'], teilweise_bezahlt: ['Teilweise bezahlt', 'laeuft'], einbehalt_offen: ['Einbehalt offen', 'laeuft'],
+      zahlbetrag_offen: ['Zahlbetrag offen', 'laeuft'], guthaben: ['Guthaben', 'wartet'], ausgeglichen: ['Ausgeglichen', 'erledigt'],
+      enthalten: ['Enthalten in Schlussrechnung', 'ruht'],
+    },
     wartungsvertrag: {
       aktiv: ['Aktiv', 'laeuft'], pausiert: ['Pausiert', 'ruht'], beendet: ['Beendet', 'erledigt'], archiviert: ['Archiviert', 'ruht'],
     },
@@ -27,13 +40,17 @@ function statusTabelle() {
     },
   };
 }
-function statusKennzeichen(gruppe, wert) {
+function statusKennzeichen(gruppe, wert, opt = {}) {
   if (wert == null || wert === '') return { text: '', art: 'neutral' };
   const eintrag = (statusTabelle()[gruppe] || {})[wert];
-  if (!eintrag) {
-    const lesbar = String(wert).replace(/_/g, ' ');
-    return { text: lesbar.charAt(0).toUpperCase() + lesbar.slice(1), art: 'neutral' };
+  const lesbar = String(wert).replace(/_/g, ' ');
+  let text = eintrag ? eintrag[0] : lesbar.charAt(0).toUpperCase() + lesbar.slice(1);
+  let art = eintrag ? statusBedeutungen()[eintrag[1]] || 'neutral' : 'neutral';
+  if (opt.zusatz) text += ' ' + opt.zusatz;
+  if (opt.ueberfaellig) {
+    text += ' · überfällig';
+    art = statusBedeutungen().fehler;
   }
-  return { text: eintrag[0], art: statusBedeutungen()[eintrag[1]] || 'neutral' };
+  return { text, art };
 }
 </script>

@@ -121,7 +121,7 @@ async def pruefen(tab, seed, p):
         lambda v: v.startswith(f"In der Schlussrechnung {seed['schluss_nr']} vom ") and "Der Einbehalt (38,00 €) ist mit der Schlussrechnung fällig." in v)
     # Seit 1.8.91 (Nacharbeit R4c Punkt 1) heißt das Kennzeichen "Enthalten in Schlussrechnung …" statt "… · in … abgezogen".
     p.pruefe("Abschlag: nicht überfällig, Kennzeichen „Enthalten in Schlussrechnung …“", await tab.js(
-        "[invoice.is_overdue,document.getElementById('statusBadge').textContent]"),
+        "[invoice.is_overdue,document.getElementById('seitenkopfStatus').textContent]"),
         [False, f"Enthalten in Schlussrechnung {seed['schluss_nr']}"])
     _passt(p, "Abschlag: Grund statt „Mahnung anlegen“", await tab.js(
         "document.querySelector('#reminderActions [data-grund]')?.textContent||''"),
@@ -135,7 +135,7 @@ async def pruefen(tab, seed, p):
         "document.getElementById('reminderStatusInfo').textContent"),
         lambda v: v.startswith("Gemahnt wird der Zahlbetrag 495,00 €") and seed["pauschal_nr"] in v and seed["abschlag_nr"] in v)
     p.pruefe("Schlussrechnung: überfällig, Zahlbetrag offen", await tab.js(
-        "[invoice.is_overdue,document.getElementById('statusBadge').textContent.includes('Zahlbetrag offen 495,00')]"), [True, True])
+        "[invoice.is_overdue,document.getElementById('seitenkopfStatus').textContent.includes('Zahlbetrag offen 495,00')]"), [True, True])
     await tab.js("document.querySelector('#reminderActions button').click()")
     p.pruefe("Entwurf angelegt", await tab.warten("currentReminders.length===1"), True)
     _passt(p, "Aufstellung je Rechnung mit Nummer", await tab.js(

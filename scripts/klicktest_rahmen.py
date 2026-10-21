@@ -36,6 +36,12 @@ Geprüft wird im echten Browser auf den Testdaten der Bildgrundlage (scripts/bil
                    gesperrte und der verborgene Eintrag werden übersprungen), Textlinks in --ds-link, Fokus in --ds-fokus, Kontrast;
                    „Löschen“ fragt wie bisher, „Kopieren …“ öffnet die Karte mit vorausgefülltem Namen, Pausieren/Reaktivieren wechselt
                    Status und Menü; „Wartung durchführen“ öffnet den Einsatzbericht des neuen Auftrags mit dem Wartungsvertrag im Pfad
+    Rechnungskopf  seit 1.9.13 die Rechnung (Abschlag der Testdaten) als Entwurf hell und dunkel: .ds-seite, ein h1 mit der Art, Kennung
+                   „ohne Nummer“ als Kennzeichen neben dem Status „Entwurf“ (warn), Pfad Projekte / Kunde / Projekt / Auftrag /
+                   Rechnung (jeder Link öffnet eine Seite), Netto/MwSt./Brutto im Kopf, einzige Aktion „PDF herunterladen“ neutral, kein
+                   Menü, kein alter Kopf; Textlinks in --ds-link, Fokus in --ds-fokus, Kontrast; „PDF herunterladen“ öffnet das PDF
+                   wie bisher; über die unveränderte Karte „Status“ festgeschrieben: Kennung = Rechnungsnummer, Status „Offen“ (info),
+                   Beträge gleich
     Seitenregeln   auf den Einstellungen (button:hover und button:active in der Akzentfarbe): Kontoknopf unter der Maus und per
                    Leertaste gedrückt (:active ohne :hover), Menüeintrag unter der Maus -- nie in der Akzentfarbe
     Monteurskopf   auf jeder Seite der Monteurin (Mobil, Objekt, Stundenzettel, Zeiterfassung, Betriebsmittel, Checkliste,
@@ -51,7 +57,7 @@ AUFRUF (aus dem Projektordner):
         [--arbeitsordner PFAD] [--chrome PFAD] [--offen-lassen]
 
 --nur: nur diese Teile (seitenleiste, aktiv, schrift, menueknopf, kopfzeile, kontomenue, vollname, pruefvorlagen, kopfgruppe,
-seitenregeln, monteurskopf, datensatzkopf) -- für
+seitenregeln, monteurskopf, datensatzkopf, rechnungskopf) -- für
 Gegenproben, die nach 2 min
 abbrechen (Regel 24).
 
@@ -765,9 +771,91 @@ async def _datensatzkopf(tab, seed, p):
     await tab.bild("datensatzkopf_zuletzt")
 
 
+# Seit 1.9.13: Seitenkopf der Rechnung (Testdaten der Bildgrundlage: Abschlag pauschal 12.000 € netto, Entwurf)
+RECHNUNGSKOPF_JS = """(()=>{const F=%s;const cs=e=>getComputedStyle(e);const k=document.getElementById('seitenkopf');
+const st=document.getElementById('seitenkopfStatus');const sichtbar=e=>e.getClientRects().length>0;
+const links=[...document.querySelectorAll('main a[href]')].filter(a=>sichtbar(a)&&!a.closest('#seitenkopf')
+  &&!a.matches('.ds-knopf,.ds-menue-eintrag')&&['inline','inline-block'].includes(cs(a).display)
+  &&cs(a).backgroundColor==='rgba(0, 0, 0, 0)'&&cs(a).borderTopStyle==='none');
+const kz=document.getElementById('seitenkopfKennung'),t=document.getElementById('seitenkopfTitel'),r=e=>e.getBoundingClientRect(),m=e=>r(e).top+r(e).height/2;
+return {ds:document.body.classList.contains('ds-seite'),h1:[...document.querySelectorAll('h1')].map(e=>[e.id,e.textContent.trim()]),
+  kennung:kz.textContent,untertitel:document.getElementById('seitenkopfUntertitel').textContent,
+  status:[st.textContent,st.className.replace('ds-status ds-status-',''),cs(st).display!=='none'],
+  kennzeichen:[cs(kz).fontFamily.includes('IBM Plex Mono'),cs(kz).borderTopStyle,Math.abs(m(kz)-m(t))<8,r(kz).right<=r(st).left],
+  pfad:[...document.querySelectorAll('#seitenkopfPfad .ds-kopf-pfadglied,#seitenkopfPfad .ds-kopf-pfadende')]
+    .map(e=>[e.textContent,e.getAttribute('href'),e.getAttribute('aria-current')]),
+  aktionen:[...k.querySelectorAll('.ds-kopf-aktionen .ds-knopf')].filter(sichtbar)
+    .map(b=>[b.textContent.trim(),b.classList.contains('ds-knopf-aktion'),cs(b).backgroundColor===F('--ds-flaeche'),cs(b).color===F('--ds-text')]),
+  menue:!!document.getElementById('seitenkopfMenueKnopf'),
+  kennzahlen:[...k.querySelectorAll('.ds-kopf-kennzahlen .ds-kennzahl')].map(e=>[e.querySelector('.ds-kennzahl-name').textContent,
+    e.querySelector('.ds-kennzahl-wert').textContent]),
+  alt:['breadcrumb','backOrder','statusBadge','invTitle'].filter(id=>document.getElementById(id)),
+  links:links.length,falsch:links.filter(a=>cs(a).color!==F('--ds-link')).map(a=>a.textContent.trim().slice(0,30)+' '+cs(a).color)}})()""" % FARBE
+RECHNUNG_BETRAEGE = [["Netto", "12.000,00\xa0€"], ["MwSt.", "2.280,00\xa0€"], ["Brutto", "14.280,00\xa0€"]]
+
+
+async def _rechnungskopf(tab, seed, p):
+    """Seit 1.9.13: Kopf der Rechnung im gemeinsamen Seitenkopf -- als Entwurf hell und dunkel (Pfad mit allen Links geöffnet, Kennung
+    „ohne Nummer“, Status „Entwurf“, Netto/MwSt./Brutto, „PDF herunterladen“ als einzige, neutrale Aktion ohne Menü, kein alter Kopf
+    mehr), dann über die unveränderte Karte „Status“ festgeschrieben: Kennung = Rechnungsnummer, Status „Offen“, Beträge gleich."""
+    await tab.cmd("Emulation.setFocusEmulationEnabled", enabled=True)
+    await tab.anmelden(seed["cookies"][bg.BUERO])
+    holen = "(u=>fetch(u).then(r=>r.json()))"
+    auftragsnummer = None
+    for thema in ("hell", "dunkel"):
+        wo = f"Rechnungskopf Entwurf {thema}"
+        p.pruefe(f"{wo}: geladen", await _laden(tab, seed, "rechnung", thema, 1440, 900), True)
+        if auftragsnummer is None:
+            auftragsnummer = await tab.js(f"{holen}('/api/orders/{seed['auftrag']}').then(o=>o.order_number)")
+        m = await tab.js(RECHNUNGSKOPF_JS)
+        p.pruefe(f"{wo}: .ds-seite, h1 „Abschlagsrechnung (Pauschal)“, Kennung „ohne Nummer“, Untertitel, kein alter Kopf",
+                 [m["ds"], m["h1"], m["kennung"], m["untertitel"], m["alt"]],
+                 [True, [["seitenkopfTitel", "Abschlagsrechnung (Pauschal)"]], "ohne Nummer", "Hallenbau GmbH · Halle Nord", []])
+        p.pruefe(f"{wo}: Status „Entwurf“ (warn), Kennung als Kennzeichen daneben", [m["status"], m["kennzeichen"]],
+                 [["Entwurf", "warn", True], [True, "solid", True, True]])
+        p.pruefe(f"{wo}: Pfad Projekte / Kunde / Projekt / Auftrag / Rechnung", m["pfad"],
+                 [["Projekte", "/projects", None], ["Hallenbau GmbH", f"/customers/{seed['kunde']}", None],
+                  ["P-2026-0001", f"/projects/{seed['projekt']}", None], [auftragsnummer, f"/orders/{seed['auftrag']}", None],
+                  ["Rechnung", None, "page"]])
+        offen = await tab.js(PFAD_OEFFNEN)
+        p.pruefe(f"{wo}: jeder Link im Pfad öffnet eine Seite ({len(offen)} Links)", [o for o in offen if o[1:] != [200, False, "text/html"]],
+                 [])
+        p.pruefe(f"{wo}: einzige Aktion „PDF herunterladen“, neutral (Fläche, Schrift text), kein Menü; Netto/MwSt./Brutto im Kopf",
+                 [m["aktionen"], m["menue"], m["kennzahlen"]], [[["PDF herunterladen", False, True, True]], False, RECHNUNG_BETRAEGE])
+        p.pruefe(f"{wo}: {m['links']} Textlinks im Inhalt, alle in --ds-link", m["falsch"], [])
+        fokus = await tab.js(KOPFGRUPPE_FOKUS)
+        p.pruefe(f"{wo}: erstes Feld mit Fokus im Umriss --ds-fokus", fokus if fokus == "kein Feld" else fokus[1],
+                 "kein Feld" if fokus == "kein Feld" else True)
+        k = await tab.js(KONTRAST)
+        p.pruefe(f"{wo}: Kontrast ({k['anzahl']} Elemente, kleinster {k['min']} : 1)", k["schwach"], [])
+        if thema == "hell":
+            await tab.js("window.__dkGeoeffnet=[];window.open=(...a)=>{window.__dkGeoeffnet.push(a);return null}")
+            await tab.js("document.querySelector('#seitenkopf .ds-knopf').click()")
+            pdf = await tab.js(f"fetch('/api/invoices/{seed['rechnung']}/pdf').then(r=>[r.status,r.headers.get('content-type')])")
+            p.pruefe(f"{wo}: „PDF herunterladen“ öffnet das PDF der Rechnung wie bisher", [await tab.js("window.__dkGeoeffnet"), pdf],
+                     [[[f"/api/invoices/{seed['rechnung']}/pdf", "_blank"]], [200, "application/pdf"]])
+        p.pruefe(f"{wo}: keine JS-Fehler", tab.fehler, [])
+    # Festschreiben über die Karte „Status“ (unverändert), Leistungszeitraum vorher wie über „Übernehmen“
+    wo = "Rechnungskopf festgeschrieben"
+    await tab.js(f"fetch('/api/invoices/{seed['rechnung']}',{{method:'PUT',headers:{{'Content-Type':'application/json'}},"
+                 "body:JSON.stringify({service_period_start:'2026-10-01',service_period_end:'2026-10-14'})}).then(r=>r.status)")
+    p.pruefe(f"{wo}: geladen", await _laden(tab, seed, "rechnung", "hell", 1440, 900), True)
+    await tab.js("window.confirm=()=>true")
+    await tab.js("[...document.querySelectorAll('#statusActions button')].find(b=>b.textContent==='Rechnung finalisieren').click()")
+    fertig = await tab.warten("invoice&&invoice.status==='versendet'&&document.getElementById('seitenkopfStatus').textContent==='Offen'", 20)
+    nummer = await tab.js(f"{holen}('/api/invoices/{seed['rechnung']}').then(i=>i.invoice_number)")
+    m = await tab.js(RECHNUNGSKOPF_JS)
+    p.pruefe(f"{wo}: Kennung = Rechnungsnummer, Status „Offen“ (info), Beträge gleich, Titel gleich",
+             [fertig, bool(nummer), m["kennung"], m["status"], m["kennzahlen"], m["h1"]],
+             [True, True, nummer, ["Offen", "info", True], RECHNUNG_BETRAEGE, [["seitenkopfTitel", "Abschlagsrechnung (Pauschal)"]]])
+    p.pruefe(f"{wo}: keine JS-Fehler", tab.fehler, [])
+    await tab.bild("rechnungskopf_zuletzt")
+
+
 TEILE = {"seitenleiste": _seitenleiste, "aktiv": _aktiv, "schrift": _schrift, "menueknopf": _menueknopf, "kopfzeile": _kopfzeile,
          "kontomenue": _kontomenue, "vollname": _vollname, "pruefvorlagen": _pruefvorlagen, "kopfgruppe": _kopfgruppe,
-         "seitenregeln": _seitenregeln, "monteurskopf": _monteurskopf, "datensatzkopf": _datensatzkopf}
+         "seitenregeln": _seitenregeln, "monteurskopf": _monteurskopf, "datensatzkopf": _datensatzkopf,
+         "rechnungskopf": _rechnungskopf}
 NUR: list = []
 
 

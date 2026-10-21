@@ -120,7 +120,7 @@ async def _zeilen(tab):
 
 
 async def _karte(tab):
-    return await tab.js("({badge:document.getElementById('statusBadge').textContent,offen:document.querySelector('[data-offen]')"
+    return await tab.js("({badge:document.getElementById('seitenkopfStatus').textContent,offen:document.querySelector('[data-offen]')"
                         "?.textContent||null,einbehalt:document.querySelector('[data-einbehalt]')?.textContent||null,mahnfaehig:"
                         "document.querySelector('[data-mahnfaehig]')?.textContent||null,stand:document.querySelector("
                         "'[data-zahlstand]')?.textContent||null,knopf:!!document.querySelector('#paymentActions button'),"

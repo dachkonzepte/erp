@@ -45,6 +45,9 @@ DATENSATZ_MIT_PFAD = {
     "inspection_template.html", "service_reports.html",
 }
 UMGEZOGEN |= DATENSATZ_MIT_PFAD
+# seit 1.9.13 die Rechnung aus der Gruppe „Belegkopf in Karte“ (K4)
+BELEGKOPF = {"invoice_detail.html"}
+UMGEZOGEN |= BELEGKOPF
 
 
 # ---------------------------------------------------------------------------
@@ -154,6 +157,12 @@ def test_umgezogene_seite_hat_den_gemeinsamen_kopf(name):
     aufrufe = re.findall(r"\{%\s*call\(teil\)\s*seitenkopf\(.*?\{%\s*endcall\s*%\}", eigen, flags=re.S)
     assert len(aufrufe) + len(re.findall(r"\{\{\s*seitenkopf\(", eigen)) == 1, name
     assert sum(a.count("ds-knopf-aktion") for a in aufrufe) <= 1, name
+    # seit 1.9.13: daneben höchstens eine neutrale Nebenaktion (.ds-knopf ohne -aktion) im Teil "aktion"
+    for a in aufrufe:
+        teil = re.search(r'teil == "aktion" %\}(.*?)(?:\{%\s*(?:elif|endif))', a, flags=re.S)
+        if teil:
+            klassen = re.findall(r'class="(ds-knopf[^"]*)"', teil.group(1))
+            assert sum("ds-knopf-aktion" not in k.split() for k in klassen) <= 1, (name, klassen)
     stil = _seitenstil(name)
     fokus = [r for r in re.findall(r"[^{}]*:focus[^{}]*\{[^}]*\}", stil) if re.search(r"outline:[^;}]*var\(--(?!ds-fokus)", r)]
     assert fokus == [], (name, fokus)
@@ -194,6 +203,18 @@ def test_makro_gliederung_mit_allen_teilen():
         assert attr in knopf, attr
     assert re.search(r'<div class="ds-menue" id="seitenkopfMenue" role="menu" aria-label="Weitere Aktionen" hidden><button[^>]*>Löschen</button></div>', html)
     assert html.index("Bearbeiten") < html.index("seitenkopfMenueKnopf")  # Hauptaktion vor dem Menü
+
+
+def test_makro_kennzahlen_zwischen_text_und_aktionen():
+    """Seit 1.9.13: Teil "kennzahlen" (Rechnung: Netto, MwSt., Brutto) zwischen Text und Aktionen."""
+    quelle = ('{% from "teile/seitenkopf.html" import seitenkopf %}{% call(teil) seitenkopf("R", mit_aktion=true, mit_kennzahlen=true) %}'
+              '{% if teil == "kennzahlen" %}<div class="ds-kennzahl"><span class="ds-kennzahl-name">Netto</span>'
+              '<b class="ds-kennzahl-wert" id="mNet">1</b></div>{% elif teil == "aktion" %}<button type="button" class="ds-knopf">PDF</button>'
+              '{% endif %}{% endcall %}')
+    html = re.sub(r">\s+<", "><", _rendern(quelle))
+    assert html.index('class="ds-kopf-text"') < html.index('class="ds-kopf-kennzahlen"') < html.index('class="ds-kopf-aktionen"')
+    assert '<div class="ds-kopf-kennzahlen"><div class="ds-kennzahl">' in html
+    assert "ds-kopf-kennzahlen" not in _rendern('{% from "teile/seitenkopf.html" import seitenkopf %}{{ seitenkopf("X") }}')
 
 
 def test_makro_ohne_teile_ohne_pfad_aktion_und_menue():

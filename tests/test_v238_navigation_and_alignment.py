@@ -78,7 +78,8 @@ def test_order_page_has_breadcrumb_with_customer_and_project_links():
 
 def test_invoice_detail_has_breadcrumb_with_customer_project_and_order_links():
     html = (Path(__file__).parents[1] / "app" / "templates" / "invoice_detail.html").read_text(encoding="utf-8")
-    assert 'id="breadcrumb"' in html
+    # seit 1.9.13 der Pfad im gemeinsamen Seitenkopf (bis dahin eine Brotkrume #breadcrumb)
+    assert 'mit_pfad=true' in html and "seitenkopf({pfad:" in html
     assert "function renderBreadcrumb()" in html
     assert "/customers/${invoice.customer_id}" in html
     assert "/projects/${invoice.project_id}" in html

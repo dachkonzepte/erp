@@ -156,13 +156,13 @@ async def pruefen(tab, seed, p):
         lambda v: f"Enthalten in Schlussrechnung {b['schluss_nr']}" in v and "Guthaben 24,00" in v)
 
     # --- Rechnungsseite ---
-    await tab.oeffnen(f"/invoices/{a['abschlag']}", "invoice&&invoice.id&&document.getElementById('statusBadge').textContent")
+    await tab.oeffnen(f"/invoices/{a['abschlag']}", "invoice&&invoice.id&&document.getElementById('seitenkopfStatus').textContent")
     p.pruefe("Rechnungsseite Abschlag A: Kennzeichen enthalten, Zahlstand teilweise bezahlt", await _js(tab, 
-        "[document.getElementById('statusBadge').textContent,document.querySelector('[data-zahlstand]')?.textContent||'']"),
+        "[document.getElementById('seitenkopfStatus').textContent,document.querySelector('[data-zahlstand]')?.textContent||'']"),
         [f"Enthalten in Schlussrechnung {a['schluss_nr']}", "Zahlstand: teilweise bezahlt"])
-    await tab.oeffnen(f"/invoices/{a['schluss']}", "invoice&&invoice.id&&document.getElementById('statusBadge').textContent")
+    await tab.oeffnen(f"/invoices/{a['schluss']}", "invoice&&invoice.id&&document.getElementById('seitenkopfStatus').textContent")
     p.pruefe("Rechnungsseite Schlussrechnung A: Zahlbetrag offen 495 €",
-             await _js(tab, "document.getElementById('statusBadge').textContent"), "Zahlbetrag offen 495,00 €")
+             await _js(tab, "document.getElementById('seitenkopfStatus').textContent"), "Zahlbetrag offen 495,00 €")
     p.pruefe("JS-Fehler Büro", tab.fehler, [])
 
     # --- 412 px dunkel ---

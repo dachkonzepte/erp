@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.12** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.13** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -341,7 +341,7 @@ Behoben, drei Teile:
   Makro `teile/seitenkopf.html` mit `_seitenkopf.html` (`seitenkopf()`), Menüs über `_menue.html` (`dsMenue()`); der Status im Kopf nur
   über `statusKennzeichen()` aus `_statuskennzeichen.html` (seit 1.9.9: Status -> Text und Farbe an einer Stelle, ein neuer Status kommt dort hinein, `tests/test_v445_statuskennzeichen.py`). Jede Seite mit Leiste
   beginnt mit `{% set bereich = "…" -%}` -- die Leiste markiert danach ihren Eintrag (seit 1.8.162); Wächter `tests/test_v441_rahmen_baustein.py`.
-  **Umgezogen** (`UMGEZOGEN` dort): seit 1.9.3 die Prüfvorlagen als Pilot, seit 1.9.7 die 15 Seiten der Gruppe „Titelzeilen und Titelkarten“ (Kopf, Links in `--ds-link`, Fokus in `--ds-fokus`; Strukturtest `test_umgezogene_seite_hat_den_gemeinsamen_kopf`), seit 1.9.10 die 7 Seiten der Gruppe „Datensatz mit Pfad“ (Pfad mit den Rückwegen, Kennung, Status über `statusKennzeichen()`, „Löschen“ im Menü; ein Menüeintrag, der nicht gilt, trägt `hidden`, nie die Klasse `.hidden`; `tests/test_v446_datensatzkopf.py`) -- `.ds-seite` am `<body>`, Seitenkopf über das Makro, eigene
+  **Umgezogen** (`UMGEZOGEN` dort): seit 1.9.3 die Prüfvorlagen als Pilot, seit 1.9.7 die 15 Seiten der Gruppe „Titelzeilen und Titelkarten“ (Kopf, Links in `--ds-link`, Fokus in `--ds-fokus`; Strukturtest `test_umgezogene_seite_hat_den_gemeinsamen_kopf`), seit 1.9.10 die 7 Seiten der Gruppe „Datensatz mit Pfad“ (Pfad mit den Rückwegen, Kennung, Status über `statusKennzeichen()`, „Löschen“ im Menü; ein Menüeintrag, der nicht gilt, trägt `hidden`, nie die Klasse `.hidden`; `tests/test_v446_datensatzkopf.py`), seit 1.9.13 die Rechnung (Pfad bis zum Auftrag, Kennung = Nummer oder „ohne Nummer“, Kennzahlen im Kopf über den Teil `kennzahlen` des Makros, neben der grünen Hauptaktion höchstens eine neutrale Nebenaktion) -- `.ds-seite` am `<body>`, Seitenkopf über das Makro, eigene
   Farben nur über `--ds-*` (keine Akzentfarbe mehr);
   in `ds-basis.css` steht seit 1.9.4 jeder Selektor ganz in `:where(…)` (Gewicht null): die Grundregeln gelten für alle Elemente, jede
   Klasse überstimmt sie (ersetzt „nur ohne Klasse“, 1.9.3).

@@ -2253,3 +2253,75 @@ realistisch.
 7. **Feste Listen im Markup über `auswahlWert()`**, die Zeilen der Arbeitsvorbereitung über Konstanten im Skript.
 8. **Wächter mit Klassen und Grund** statt einer Liste, die nur kürzer werden darf: `server_fest`, `ja_nein`, `neu`, `eigen` bleiben,
    `fremdschluessel` bis zum eigenen Punkt.
+
+### Punkt 4 (1.9.13): Seitenkopf der Rechnung
+
+- `invoice_detail.html` trägt `.ds-seite` und den gemeinsamen Seitenkopf (aus der Gruppe K4 „Belegkopf in Karte“ in `befund-rahmen.md`,
+  die erste Seite dieser Gruppe). Pfad `Projekte / <Kunde> / <Projektnummer> / <Auftragsnummer> / Rechnung` -- fest im call-Block steht
+  „Projekte“, das Skript setzt den ganzen Pfad nach dem Laden (`renderBreadcrumb()` über `seitenkopf({pfad})`); er ersetzt die
+  Brotkrume `#breadcrumb` und den Knopf „← Auftrag“. Titel = Art der Rechnung (`TYPE_LABELS`), Kennung = `invoice_number` oder „ohne
+  Nummer“, Untertitel = Kunde · Objekt (bis 1.9.12 der Titel „<Nummer oder Entwurf> · <Art>“ mit dieser Unterzeile).
+- Status über `statusKennzeichen('rechnung', overview.state oder status, {zusatz, ueberfaellig})`: dieselben Texte wie das bisherige
+  Kennzeichen `#statusBadge` -- Zahlbetrag mit Betrag, Guthaben mit Betrag, „Enthalten in Schlussrechnung R-…“, „· in R-… abgezogen“,
+  „· überfällig“. `_statuskennzeichen.html`: neue Gruppe „rechnung“ (Entwurf warn; Finalisiert, Offen, Teilweise bezahlt, Einbehalt
+  offen, Zahlbetrag offen info; Bezahlt, Ausgeglichen ok; Guthaben signal; Storniert, Enthalten neutral), `statusKennzeichen()` mit
+  `opt.zusatz` und `opt.ueberfaellig` (Farbe fehler). Dazu in der Gruppe „auftrag“ Arbeitsvorbereitung, In Ausführung (info) und Pausiert
+  (neutral): die Auswahl „Status“ der Auftragsseite bietet sie an, der Server nimmt sie, am Einsatzbericht erschienen sie bis dahin nur
+  lesbar gemacht („In ausfuehrung“, neutral).
+- Netto/MwSt./Brutto bleiben im Kopf: neuer Teil `kennzahlen` des Makros (`mit_kennzahlen=true`, `.ds-kopf-kennzahlen` zwischen Text und
+  Aktionen; je `.ds-kennzahl` mit `.ds-kennzahl-name` in Großbuchstaben 12 px, text-3, und `.ds-kennzahl-wert` 600 mit Ziffern gleicher Breite, gleiche IDs `mNet`,
+  `mVat`, `mGross` wie bisher). Rechts daneben „PDF herunterladen“ als neutraler Knopf (`.ds-knopf`, `data-klick="pdf"`, öffnet dieselbe
+  Adresse wie bisher). Keine grüne Hauptaktion, kein Menü (siehe Festlegungen).
+- Links in `--ds-link` (Zahlungen, Endrechnung), Fokus in `--ds-fokus`; die Grundregeln aus `ds-basis.css` gelten jetzt auch hier (Felder
+  und Knöpfe wie auf den übrigen umgezogenen Seiten).
+- **Beleg „Beträge, Festschreiben und Versand unverändert“**: Testdaten der Bildgrundlage (Abschlag pauschal 12.000 € netto, Entwurf),
+  je im Stand vor der Runde (`97b9dc0`, Worktree) und nach dem Umbau: PDF des Entwurfs holen, Leistungszeitraum eintragen, über den Knopf
+  „Rechnung finalisieren“ der Karte „Status“ festschreiben, PDF aus der Ablage holen. Ergebnis: Rechnung R-2026-0001 vom 14.10.2026, netto
+  12.000,00, USt 2.280,00, brutto 14.280,00 in beiden Ständen; je PDF der dekodierte Inhaltsstrom byte-gleich (37 bzw. 38 Textstücke
+  gleich), verschieden nur Erstellungs- und Änderungszeit in den Metadaten (Uhr des Rechners). Versand: `klicktest_versandverlauf`,
+  `klicktest_versandprotokoll` und die Mahn- und Zahlungs-Klicktests im Endlauf.
+
+#### Tests und Prüfung
+
+- `test_v441`: `BELEGKOPF = {"invoice_detail.html"}` in `UMGEZOGEN` (alle Regeln der umgezogenen Seiten); in
+  `test_umgezogene_seite_hat_den_gemeinsamen_kopf` neu: im Teil „aktion“ höchstens ein `.ds-knopf` ohne `-aktion`; neu
+  `test_makro_kennzahlen_zwischen_text_und_aktionen`.
+- `test_v445`: Beispiele mit Zusatz, überfällig, Guthaben, Enthalten, Entwurf, Finalisiert, In Ausführung; Vollständigkeit auch für die
+  Auswahl „Status“ der Auftragsseite und jeden Stand einer Rechnung (`invoices.status`, `payments.STATES`, `OVERVIEW_LABELS`, enthalten).
+- `test_v446`: Rechnung in `RUECKWEGE` (Projekte, Kunde, Projekt, Auftrag); die Pfad-Tests laufen über `RUECKWEGE`. Der Scanner
+  `skript_pfad_ziele()` las ein Ziel als Template-Literal nur bis zum ersten `${…}` (der Tokenizer zerlegt `` `/a/${x}` `` in Stücke) --
+  bis 1.9.12 nutzte keine Seite im Pfad ein Template-Literal; neu `test_scanner_liest_template_literale_ganz`.
+- `klicktest_rahmen` Teil `rechnungskopf`: Entwurf hell und dunkel (.ds-seite, ein h1, Kennung „ohne Nummer“ als Kennzeichen neben dem
+  Status „Entwurf“ warn, Pfad mit Texten und Zielen, jeder Link öffnet eine Seite, einzige Aktion „PDF herunterladen“ neutral, kein Menü,
+  Kennzahlen, kein alter Kopf, Links, Fokus, Kontrast; „PDF herunterladen“ öffnet das PDF), dann über die Karte „Status“ festgeschrieben:
+  Kennung = Rechnungsnummer, Status „Offen“ info, Beträge gleich -- 24 von 24; Teil gesamt 851 von 851.
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück, je pytest und Klicktest-Teil): G1 Status roh statt `statusKennzeichen()` --
+  `test_v445` und Klicktest rot; G2 Pfad ohne Projekt -- `test_v446`, `test_v238` und Klicktest rot; G3 zweite neutrale Nebenaktion --
+  `test_v441` und Klicktest rot; G4 „PDF herunterladen“ grün -- nur der Klicktest rot (eine grüne Aktion ist erlaubt, nur nicht für diese
+  Nebenaktion); G5 Kennung „Entwurf“ statt „ohne Nummer“ -- nur der Klicktest rot; G6 überfällig ohne Fehlerfarbe -- `test_v445` rot; G7
+  Kennzahlen fehlen im Makro -- `test_v441` und Klicktest rot.
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v238::test_invoice_detail_has_breadcrumb_with_customer_project_and_order_links`: alt `id="breadcrumb"`; neu `mit_pfad=true` und
+    `seitenkopf({pfad:` (die drei Links unverändert geprüft).
+  - `klicktest_finanzen_zahlbetrag` (4 Stellen), `klicktest_mahnen_endrechnung` (2), `klicktest_ueberzahlung` (1), `klicktest_zahlungen`
+    (1): alt der Text von `#statusBadge`; neu der Text von `#seitenkopfStatus` -- die erwarteten Texte unverändert.
+  - `test_v446`: Pfad-Tests über `RUECKWEGE` statt `DATENSATZ_MIT_PFAD` (nur Aufbau, dieselben 7 Seiten plus die Rechnung).
+  - `test_v445::test_kennzeichen_lesbar_und_in_der_farbe_der_bedeutung`: sieben Beispiele dazu, die alten unverändert.
+
+#### Festlegungen 1.9.13 (Bitte bestätigen)
+
+1. **Keine grüne Hauptaktion im Kopf der Rechnung**: Festschreiben und Versand bleiben unverändert in der Karte „Status“ (Auftrag:
+   „unverändert“; 1.9.7 Nr. 1: kein Knopf wandert aus dem Inhalt in den Kopf).
+2. **Kein Menü „⋮“**: es gibt keine weitere Kopfaktion (bis 1.9.12 nur „← Auftrag“, jetzt im Pfad, und „PDF herunterladen“); Storno und
+   „Entwurf löschen“ bleiben in der Karte „Status“.
+3. **Titel = Art der Rechnung, Kennung = Nummer oder „ohne Nummer“, Untertitel = Kunde · Objekt.**
+4. **Pfad wie die bisherige Brotkrume, vorn „Projekte“**: Kunde mit Namen, Projekt mit Projektnummer, Auftrag mit Auftragsnummer, am Ende
+   „Rechnung“ ohne Link.
+5. **Farben der Rechnungsstände**: Entwurf warn; Finalisiert, Offen, Teilweise bezahlt, Einbehalt offen, Zahlbetrag offen info; Bezahlt,
+   Ausgeglichen ok; Guthaben signal (wartet auf eine Erstattung); Storniert, Enthalten neutral; überfällig fehler. Bis 1.9.12 waren
+   Guthaben grün und Einbehalt offen gelb.
+6. **Texte des Kennzeichens unverändert**; „· überfällig“ steht jetzt immer am Ende (bis 1.9.12 vor „· in R-… abgezogen“ -- beides
+   zugleich tritt nur bei einer abgezogenen, bezahlten Rechnung auf, die nicht überfällig ist).
+7. **Kennzahlen als Teil des Makros** (`mit_kennzahlen`), für Angebot und Auftrag wiederverwendbar.
+8. **Auftragsstände der Auswahl in der Tabelle** (Arbeitsvorbereitung, In Ausführung info, Pausiert neutral); der Wächter prüft auch die
+   Auswahl der Auftragsseite.

@@ -127,7 +127,7 @@ async def pruefen(tab, seed, p):
         "[invoice.outro_text,!!document.querySelector('[data-erstattung-schlusstext]')]"), [ERSTATTUNG_TEXT, False])
 
     # --- Guthaben und Erstattung ---
-    p.pruefe("Kennzeichen Guthaben", await tab.js("document.getElementById('statusBadge').textContent.includes('Guthaben 119,00')"),
+    p.pruefe("Kennzeichen Guthaben", await tab.js("document.getElementById('seitenkopfStatus').textContent.includes('Guthaben 119,00')"),
              True)
     p.pruefe("Karte Zahlungen: Guthaben und Formular", await tab.js(
         "[!!document.querySelector('[data-guthaben]'),document.getElementById('refundAmount')?.value]"), [True, "119,00"])

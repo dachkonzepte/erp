@@ -10,14 +10,17 @@
           {% elif teil == "menue" %}<button type="button" class="ds-menue-eintrag" data-klick="kopieren">Kopieren</button>{% endif %}
         {% endcall %}
 
-    Gliederung: Pfad (nav) · Titelzeile aus genau einem h1, Kennung und Status · Untertitel · eine Hauptaktion · Menü „⋮“. Die
+    Gliederung: Pfad (nav) · Titelzeile aus genau einem h1, Kennung und Status · Untertitel · Kennzahlen · eine Hauptaktion · Menü „⋮“. Die
     Kennung (Nummer des Datensatzes) steht seit 1.9.11 als Kennzeichen in Mono mit Rahmen zwischen Titel und Status (bis dahin eine
     eigene Zeile über dem Titel). Feste IDs (ein Kopf je Seite):
     seitenkopfPfad, seitenkopfKennung, seitenkopfTitel, seitenkopfStatus, seitenkopfUntertitel, seitenkopfMenueKnopf, seitenkopfMenue --
     was erst nach dem Laden feststeht, setzt seitenkopf() aus _seitenkopf.html (Text über textContent, Links über sichererLink()). Leere
     Teile blendet ds.css über :empty aus. Regeln für den Inhalt: genau eine Hauptaktion (.ds-knopf-aktion), alles Weitere und „Löschen“ ins
-    Menü, der Pfad ersetzt den Zurück-Link. Wer das Makro nutzt, bindet _seitenkopf.html ein (tests/test_v441_rahmen_baustein.py). -#}
-{% macro seitenkopf(titel, untertitel="", kennung="", mit_pfad=false, mit_aktion=false, mit_menue=false) -%}
+    Menü, der Pfad ersetzt den Zurück-Link; neben der grünen Hauptaktion höchstens eine neutrale Nebenaktion (.ds-knopf, seit 1.9.13 an
+    der Rechnung „PDF herunterladen“). Kennzahlen (seit 1.9.13, mit_kennzahlen, Teil "kennzahlen": je .ds-kennzahl mit .ds-kennzahl-name
+    und .ds-kennzahl-wert -- an der Rechnung Netto, MwSt., Brutto) stehen zwischen Text und Aktionen. Wer das Makro nutzt, bindet
+    _seitenkopf.html ein (tests/test_v441_rahmen_baustein.py). -#}
+{% macro seitenkopf(titel, untertitel="", kennung="", mit_pfad=false, mit_aktion=false, mit_menue=false, mit_kennzahlen=false) -%}
 <header class="ds-kopf" id="seitenkopf">
   {%- if mit_pfad %}
   <nav class="ds-kopf-pfad" id="seitenkopfPfad" aria-label="Pfad">{{ caller("pfad") }}</nav>
@@ -31,6 +34,9 @@
       </div>
       <p class="ds-kopf-untertitel" id="seitenkopfUntertitel">{{ untertitel }}</p>
     </div>
+    {%- if mit_kennzahlen %}
+    <div class="ds-kopf-kennzahlen">{{ caller("kennzahlen") }}</div>
+    {%- endif %}
     <div class="ds-kopf-aktionen">
       {%- if mit_aktion %}
       {{ caller("aktion") }}

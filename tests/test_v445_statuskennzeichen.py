@@ -35,7 +35,13 @@ def tabellen():
                   statusKennzeichen('betriebsmittel', 'pruefung_faellig'), statusKennzeichen('betriebsmittel', 'pruefung_ueberfaellig'),
                   statusKennzeichen('checklistenvorlage', 'entwurf'), statusKennzeichen('wartungsvertrag', 'pausiert'),
                   statusKennzeichen('auftrag', 'in_pruefung'), statusKennzeichen('gibt_es_nicht', 'x'),
-                  statusKennzeichen('auftrag', ''), statusKennzeichen('auftrag', null), statusKennzeichen('auftrag', '<b>neu</b>')] }));
+                  statusKennzeichen('auftrag', ''), statusKennzeichen('auftrag', null), statusKennzeichen('auftrag', '<b>neu</b>'),
+                  statusKennzeichen('rechnung', 'zahlbetrag_offen', { zusatz: '495,00 €' }),
+                  statusKennzeichen('rechnung', 'zahlbetrag_offen', { zusatz: '495,00 €', ueberfaellig: true }),
+                  statusKennzeichen('rechnung', 'guthaben', { zusatz: '119,00 €' }),
+                  statusKennzeichen('rechnung', 'enthalten', { zusatz: 'R-2026-0003' }),
+                  statusKennzeichen('rechnung', 'entwurf'), statusKennzeichen('rechnung', 'versendet'),
+                  statusKennzeichen('auftrag', 'in_ausfuehrung')] }));
     """
     return node_ausfuehren(skript)
 
@@ -62,6 +68,14 @@ def test_jeder_wert_des_servers_steht_in_der_tabelle(tabellen):
     assert set(STATUSES) | {"archiviert"} <= set(t["wartungsvertrag"])
     fassungen = set(FESTE_LITERALE["checklist_template_versions.status"]) - {"abgeloest"}
     assert fassungen | {"archiviert"} <= set(t["checklistenvorlage"])
+    # seit 1.9.13: jeder Status, den die Auftragsseite anbietet (der Server nimmt ihn vom Client), und jeder Stand einer Rechnung
+    from app.final_dunning import OVERVIEW_LABELS
+    from app.payments import STATES
+
+    auswahl = re.search(r'<select id="status">(.*?)</select>', (vj.TEMPLATES / "order.html").read_text(encoding="utf-8"), flags=re.S)
+    assert set(re.findall(r'value="([^"]*)"', auswahl.group(1))) <= set(t["auftrag"])
+    rechnung = set(FESTE_LITERALE["invoices.status"]) | set(STATES) | set(OVERVIEW_LABELS) | {"enthalten"}
+    assert rechnung <= set(t["rechnung"]), sorted(rechnung - set(t["rechnung"]))
 
 
 def test_kennzeichen_lesbar_und_in_der_farbe_der_bedeutung(tabellen):
@@ -71,6 +85,10 @@ def test_kennzeichen_lesbar_und_in_der_farbe_der_bedeutung(tabellen):
         {"text": "Entwurf", "art": "warn"}, {"text": "Pausiert", "art": "neutral"},
         {"text": "In pruefung", "art": "neutral"}, {"text": "X", "art": "neutral"},
         {"text": "", "art": "neutral"}, {"text": "", "art": "neutral"}, {"text": "<b>neu</b>", "art": "neutral"},  # Text, kein HTML
+        # seit 1.9.13 mit Zusatz und überfällig -- dieselben Texte wie bis 1.9.12 im Kennzeichen der Rechnungsseite
+        {"text": "Zahlbetrag offen 495,00 €", "art": "info"}, {"text": "Zahlbetrag offen 495,00 € · überfällig", "art": "fehler"},
+        {"text": "Guthaben 119,00 €", "art": "signal"}, {"text": "Enthalten in Schlussrechnung R-2026-0003", "art": "neutral"},
+        {"text": "Entwurf", "art": "warn"}, {"text": "Finalisiert", "art": "info"}, {"text": "In Ausführung", "art": "info"},
     ]
 
 

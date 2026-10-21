@@ -454,6 +454,35 @@
   position: relative;
 }
 
+/* seit 1.9.13: Kennzahlen im Kopf (Rechnung: Netto, MwSt., Brutto) -- der Name klein über dem Wert */
+.ds-kopf-kennzahlen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ds-abstand-5);
+}
+
+.ds-kennzahl {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ds-kennzahl-name {
+  font-size: var(--ds-groesse-1);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ds-text-3);
+}
+
+.ds-kennzahl-wert {
+  font-size: var(--ds-groesse-4);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-text);
+}
+
 .ds-status {
   display: inline-flex;
   align-items: center;

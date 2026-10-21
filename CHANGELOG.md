@@ -4,6 +4,25 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.13 – Rahmen, Runde 6: Seitenkopf der Rechnung
+
+Stufe 2, Runde 6, Punkt 4. Die Rechnungsseite trägt das Design-System (.ds-seite) und den gemeinsamen Seitenkopf: Pfad Projekte / Kunde /
+Projekt / Auftrag / Rechnung (ersetzt die Brotkrume und „← Auftrag“), Titel = Art der Rechnung, Kennung = Rechnungsnummer oder „ohne
+Nummer“ als Kennzeichen, Untertitel Kunde · Objekt, Status als lesbares Kennzeichen in der Farbe seiner Bedeutung, Netto/MwSt./Brutto
+als Kennzahlen im Kopf (neuer Teil `kennzahlen` des Makros, zwischen Text und Aktionen) und „PDF herunterladen“ als einzige, neutrale
+Nebenaktion. Eine grüne Hauptaktion und ein Menü „⋮“ gibt es im Kopf der Rechnung nicht: Festschreiben, Versand, Storno und Löschen
+bleiben unverändert in der Karte „Status“. Links in `--ds-link`, Fokus in `--ds-fokus`.
+
+Der Status kommt jetzt auch hier über `statusKennzeichen()` (neue Gruppe „rechnung“ mit Entwurf, Finalisiert, Storniert, den Zahlständen
+und den Ständen nach der Endrechnung; neue Optionen `zusatz` für Betrag oder Nummer und `ueberfaellig` für „· überfällig“ in der
+Fehlerfarbe) -- dieselben Texte wie bisher. Die Auswahl „Status“ der Auftragsseite bietet Arbeitsvorbereitung, In Ausführung und Pausiert
+an; die standen nicht in der Tabelle der Auftragsstände und kamen am Einsatzbericht nur als „In ausfuehrung“ an -- jetzt eingetragen, der
+Test prüft auch die Auswahl. Beträge, Festschreiben und Versand unverändert: der Text der PDFs aus den Testdaten der Bildgrundlage
+(Entwurf und festgeschrieben) ist vor und nach dem Umbau gleich. Tests: `test_v441` (Rechnung umgezogen, neben der Hauptaktion höchstens
+eine neutrale Nebenaktion, Makro mit Kennzahlen), `test_v445` (Gruppe „rechnung“ vollständig, Zusatz und überfällig), `test_v446` (Pfad
+der Rechnung mit allen Rückwegen, jeder Link öffnet eine Seite; der Scanner liest ein Ziel als Template-Literal jetzt ganz),
+`klicktest_rahmen` Teil `rechnungskopf`.
+
 ## 1.9.12 – Auswahlfelder mit gespeichertem Text über auswahlOptionen()
 
 Stufe 2, Runde 6, Punkt 1. 17 Auswahlfelder zeigten einen gespeicherten Text, der nicht in ihrer Liste stand, nicht an -- die Auswahl stand leer oder auf dem ersten Eintrag, und das nächste Speichern schrieb das (wie bis 1.9.5 beim Dachtyp). Am Betriebsmittel wurde aus „Leiter“ „Fahrzeug“, die Prüfungsart verlangte beim Bearbeiten eine andere, die Kategorie einer Betriebskostenposition ging auf „— keine —“, eine Alternativposition im Auftrag stand ohne Auswahl (der Dialog bot „alternative“, das Angebot speichert „alternativ“), Zusatzinfos aus „Kunde anlegen“ („Telefon“) wurden in der Kundenakte zu „phone“, der Projektstatus „angebot“ (Umwandlung einer Anfrage) fehlte in der Projektmappe, und Feld und Option einer Checklisten-Regel änderten sich still; dazu zehn feste Listen, die der Server nicht erzwingt (Status von Auftrag, Angebot, Plantafel, Arbeitsvorbereitung, Material und Aufgaben, Prioritäten, Positionsart im Angebot, Auswahlliste eines Schichttyps). Alle bauen jetzt über `auswahlOptionen()`; feste Listen im Markup setzt der neue Helfer `auswahlWert()` (_auswahl.html). Ein Altwert bleibt gewählt als „… (nicht mehr verfügbar)“ (abgeschaltet: „… (inaktiv)“) und geht beim Speichern unverändert zurück. Die zweiten Schreibwege sind mit behoben: der Auftragsdialog bietet „alternativ“, „Kunde anlegen“ schreibt phone/email/birthday/info, die Projektmappe bietet „Angebot“.
