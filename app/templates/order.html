@@ -120,7 +120,7 @@ let contractBases=[],contractBasisChanges=[];
 // versendeten Fassung abweicht oder es keine gibt (sichtbare Auswahl, kein Popup -- Regel 4). Festgeschrieben
 // sind die Fallfelder gesperrt; "Neue Fassung" macht wieder einen Entwurf daraus, die alten bleiben sichtbar.
 let contractInfo=null,contractAttachment=null;
-const fmtSize=n=>n>=1048576?(n/1048576).toFixed(1).replace('.',',')+' MB':Math.max(1,Math.round(n/1024))+' KB';
+const fmtSize=n=>n>=1048576?zahlText(n/1048576,1)+' MB':Math.max(1,Math.round(n/1024))+' KB';  // seit 1.9.17 über zahlText()
 async function loadContract(){try{await lesen('vertrag',()=>api(`/api/orders/${orderId}/contract`),d=>{contractInfo=d;contractAttachment=null;renderContract();loadContractAttachment();renderSync();renderContractBasis()})}catch(e){document.getElementById('contractBody').textContent='Fehler: '+e.message}}
 async function loadContractAttachment(){
   const c=contractInfo&&contractInfo.contract;

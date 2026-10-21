@@ -287,7 +287,8 @@ def test_archivierter_steuerschluessel_bleibt_sichtbar_und_vorgewaehlt(threaded_
       return {{gewaehlt: _gewaehlt(id), werte: _element(id).options.map(o => o.value)}};"""
     ergebnis = im_browser(seite(vorlage, start), ablauf)["ergebnis"]
     assert ergebnis["gewaehlt"]["value"] == str(alt.id)
-    assert ergebnis["gewaehlt"]["text"].startswith("Alt 16 (16,") and ergebnis["gewaehlt"]["text"].endswith(" %) (inaktiv)")
+    # seit 1.9.17 der Satz über zahlText() -- bis 1.9.16 prüfte der Test nur den Anfang „Alt 16 (16,“ (angezeigt „16,0000 %“)
+    assert ergebnis["gewaehlt"]["text"] == "Alt 16 (16 %) (inaktiv)"
     assert str(auch_alt.id) not in ergebnis["werte"]          # neu angeboten nur aktive
     assert len(ergebnis["werte"]) == db.query(TaxKey).filter_by(archived=False).count() + 1
 

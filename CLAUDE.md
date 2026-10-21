@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.16** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.17** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -825,7 +825,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     keine Grenze im Browser strenger als die des Servers: jedes Zahlenfeld und jeder Leseaufruf mit Grenzen steht in `ABGLEICH`
     (`tests/test_v424_zahlgrenzen.py`, Lesen in `tests/zahlgrenzen.py`) mit dem Schemafeld, Grenzen nur im Code mit Beleg; ein neues
     Feld mit Grenzen gehört dort hinein, eine neue Grenze im Browser auch auf den Server ("Umsetzung 1.8.119"). Ist-Mengen nehmen 0 an
-    (seit 1.8.121 Wächter in `tests/test_v426_ist_menge_null.py`, Server und Browser).
+    (seit 1.8.121 Wächter in `tests/test_v426_ist_menge_null.py`, Server und Browser). **Seit 1.9.17 auch jede Anzeige einer Zahl**
+    (Satz, Menge, Stunden, Dateigröße) über `zahlText(wert, stellen)` -- nie Komma per `replace`, nie `toFixed` in der Anzeige (nur fürs
+    Maschinenformat, je Vorlage gezählt in `MASCHINENFORMAT`), kein Dezimalfeld roh im HTML; Wächter `tests/test_v451_zahlformat_anzeige.py`.
 35. **Keine Datenbank auf der Event-Loop, Sitzung vor dem Senden zu, eine Verbindung je Seite, seit 1.8.114.** Jeder Endpunkt bindet seine
     Sitzung mit `Depends(get_db, scope="function")` ein (FastAPI schließt sie, bevor die Antwort gesendet wird -- bis 1.8.113 hielt eine
     Datei ihre Verbindung samt offener Transaktion bis zum letzten Byte); ein Endpunkt oder eine Abhängigkeit mit Datenbank ist nie

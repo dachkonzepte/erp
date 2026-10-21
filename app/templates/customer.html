@@ -228,7 +228,7 @@ function renderInquiries(){document.getElementById('inquiries').innerHTML=inquir
 function renderProjects(){const h=document.getElementById('projects');h.innerHTML=projects.map(p=>{const qs=projectQuotes.get(p.id)||[];return`<div class="project-card"><div class="section-title"><div><b>${esc(p.project_number)} · ${esc(p.name)}</b><div class="muted small">${esc(p.property_name||'Kein Objekt')} · Status ${esc(p.status)}</div></div><a href="/projects?project_id=${p.id}"><button class="secondary">Projekt öffnen</button></a></div><div style="margin-top:8px">${qs.length?qs.map(q=>`<div class="quote"><div><b>${esc(q.quote_number)}</b></div><div>${esc(q.title)} <span class="badge">${esc(q.status)}</span></div><div class="number">${money(q.net_total)} netto</div><div class="number">${money(q.gross_total)} brutto</div></div>`).join(''):'<div class="muted small">Noch kein Angebot.</div>'}</div></div>`}).join('');document.getElementById('projectsEmpty').classList.toggle('hidden',projects.length>0)}
 
 function docIcon(d){if(d.is_image)return `<img loading="lazy" src="/api/customer-documents/${d.id}/view" alt="">`;if(d.content_type==='application/pdf')return 'PDF';if((d.content_type||'').includes('spreadsheet')||(d.original_filename||'').match(/\.xlsx?$/i))return 'XLS';if((d.content_type||'').includes('word')||(d.original_filename||'').match(/\.docx?$/i))return 'DOC';return '📄'}
-function fileSize(x){return x<1024?x+' B':x<1048576?(x/1024).toFixed(1)+' KB':(x/1048576).toFixed(1)+' MB'}
+function fileSize(x){return x<1024?x+' B':x<1048576?zahlText(x/1024,1)+' KB':zahlText(x/1048576,1)+' MB'}  // seit 1.9.17 über zahlText() (bis dahin „1.5 KB“)
 
 function renderDocCategories(){
   const cats=docCategoryGroup.options||[];

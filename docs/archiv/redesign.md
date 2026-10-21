@@ -2444,3 +2444,49 @@ Kostenposten; Kostenposten: Betriebsmittel), dazu ein Randfall der Anfrage (Obje
 6. **Anfrage**: ein Objekt, das nicht mehr zum Kunden gehört, bleibt gewählt; der Server lehnt das Speichern ab, bis ein anderes gewählt
    ist (statt still „Kein Objekt“).
 7. **Wächter**: Klassen `vollstaendig`/`neu`/`eigen` statt der Freiklasse; neue Fundart P3.
+
+### Punkt 4 (1.9.17): Zahlen in der Anzeige über zahlText()
+
+**Befund** (alle Vorlagen, nur lesend): von Hand formatiert -- Komma per `replace` an 9 Stellen, `toFixed` in der Anzeige an 4, ein
+Dezimalfeld roh an 2; `toFixed` im Maschinenformat an 14 Stellen (Körper von Zahlung und Erstattung, Adresse des Zahlungsvorschlags, Werte
+der Auswahl Steuersatz „19.00“, Mahngebühr); lokale Formatierer mit `toLocaleString('de-DE')` (`qty()`, `num()`, `signed()`, `money()`)
+formatieren schon deutsch.
+
+| Seite, Anzeige | bis 1.9.16 | seit 1.9.17 |
+|---|---|---|
+| Rechnung, Auftrag, Angebot: Auswahl Steuerschlüssel (`steuerschluesselOptionen()`, `_auswahl.html`) | „Regelsteuersatz (19,0000 %)“ | „Regelsteuersatz (19 %)“, „Sonder (10,7 %)“ |
+| Rechnung: Zahlungsbedingung mit Skonto | „2,50 % Skonto“ (Komma von Hand) | „2,5 % Skonto“ |
+| Rechnung, Mahnwesen: Verzugszinsen „… Prozentpunkte über dem Basiszinssatz“ | „9,00“ | „9“ |
+| Rechnung: Zeilen des Zahlungsdialogs (`fmt()`, füllt Eingabefelder) | `toFixed(2)` + Komma | `zahlText(x, 2)` (gleicher Text, Regel 34) |
+| Einstellungen: Steuerschlüssel, Zahlungsbedingungen, Konten | „19,0000 %“, „2,50 % bei“, „19,00 %“ | „19 %“, „2,5 % bei“, „19 %“ |
+| Kundenakte, Projektmappe: Dateigröße | „1.5 KB“ (Punkt) | „1,5 KB“ |
+| Auftrag, Versandprotokoll: Dateigröße | „1,5 MB“ (Komma von Hand) | „1,5 MB“ über `zahlText()` |
+| Leistungsformular: Menge eines Materials | „2.500“ roh | „2,5“ |
+| Plantafel, Ressourcen: Belegung | `${c.planned_hours}× belegt` (ganze Zahl) | über `zahlText()` (gleicher Text) |
+
+- `_zahl.html` neu eingebunden in `email_dispatches.html` (Dateigröße) und -- weil `_auswahl.html` jetzt `zahlText()` aufruft -- in
+  `calendar.html`, `inquiries.html`, `inspection_templates.html`, `tasks.html` (Wächter `test_v414::test_jede_seite_mit_zahlenfeld_bindet_
+  den_baustein_ein` über `vorlagen_zahlen.ohne_einbindung()`); `_zahl.html` bringt nur CSS für abgelehnte Zahlenfelder mit, keine sichtbare
+  Änderung.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v451_zahlformat_anzeige.py`: Wächter (kein Komma von Hand; `toFixed` je Vorlage gezählt in `MASCHINENFORMAT` mit Grund;
+  kein Satz/Menge/Stunden roh im HTML; wer `zahlText()` oder `steuerschluesselOptionen()` nutzt, bindet `_zahl.html` ein; Gegenprobe der
+  Muster an erfundenen Stücken) und die Anzeigen in node (Steuerschlüssel in Rechnung, Auftrag, Angebot; Skonto und Zinsaufschlag der
+  Rechnung; Steuerschlüssel, Skonto, Konten der Einstellungen; Dateigrößen in Kundenakte, Projektmappe, Auftrag, Versandprotokoll; Menge im
+  Leistungsformular). **11 von 15 vor dem Umbau rot**; grün waren die zwei Strukturtests und zwei Vergleichsfälle (Dateigröße in Auftrag und
+  Versandprotokoll war mit Komma von Hand schon deutsch).
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück): Steuerschlüssel wieder mit Komma von Hand -- Wächter und drei Anzeigetests rot;
+  Menge wieder roh -- Wächter und Anzeigetest rot; Dateigröße wieder per `toFixed` -- Zählung und Anzeigetest rot.
+- **Angepasste Erwartungen** (Regel 28): `test_v334::test_archivierter_steuerschluessel_bleibt_sichtbar_und_vorgewaehlt` -- alt: Text beginnt
+  mit „Alt 16 (16,“ und endet mit „ %) (inaktiv)“ (hielt das Rohformat „16,0000 %“ fest); neu genau „Alt 16 (16 %) (inaktiv)“.
+
+#### Festlegungen 1.9.17 (Bitte bestätigen)
+
+1. **Anzeige = `zahlText()` ohne feste Stellen** (so viele wie nötig: „19 %“, „10,7 %“), Dateigrößen mit einer Stelle, Felder, die ein
+   Eingabefeld füllen, mit zwei (wie bisher).
+2. **Lokale Formatierer mit `toLocaleString('de-DE')` bleiben** (`qty()`, `num()`, `signed()`, `money()`) -- kein Rohformat.
+3. **`toFixed` bleibt fürs Maschinenformat** (Körper, Adresse, Wert einer Auswahl) und wird je Vorlage gezählt; jede neue Stelle muss dort
+   eingeordnet werden.
+4. **Wer `_auswahl.html` einbindet, bindet `_zahl.html` ein** (vier Seiten neu), statt `_auswahl.html` eine eigene Formatierung zu geben.

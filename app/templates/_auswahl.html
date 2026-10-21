@@ -64,8 +64,10 @@ function auswahlWert(feld, gespeichert, opt = {}) {
 /* Steuerschlüssel in Angebot, Auftrag und Rechnung (seit 1.8.31): die Seiten laden sie mit
    ?include_archived=true, ein archivierter gespeicherter bleibt so sichtbar und vorgewählt. Gewechselt wird
    nur über das onchange der Auswahl. */
+/* Seit 1.9.17 der Satz über zahlText() (_zahl.html; jede Seite mit Steuerschlüsseln bindet ihn ein, test_v451): „19 %“ statt
+   „19,0000 %“ (bis 1.9.16 String(vat_rate) mit Komma). */
 function steuerschluesselOptionen(steuerschluessel, gespeichert) {
-  return auswahlOptionen(steuerschluessel, gespeichert, t => `${t.label} (${String(t.vat_rate).replace('.', ',')} %)`,
+  return auswahlOptionen(steuerschluessel, gespeichert, t => `${t.label} (${zahlText(t.vat_rate)} %)`,
     {aktiv: t => !t.archived}) || '<option value="">Kein Steuerschlüssel hinterlegt</option>';
 }
 </script>

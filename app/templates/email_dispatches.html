@@ -60,12 +60,13 @@ textarea:hover{border-color:var(--field-border-hover)}
 </div>
 {% include "_email_dispatch.html" %}
 {% include "_speichern.html" %}
+{% include "_zahl.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
 // Der Server liefert *_local bereits in Berliner Zeit (naiv) -- nur umformatieren, nicht umrechnen.
 function fmtLocal(v){if(!v)return '';const m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);return m?`${m[3]}.${m[2]}.${m[1]} ${m[4]}:${m[5]}`:esc(v)}
-function fmtSize(n){return n>=1048576?(n/1048576).toFixed(1).replace('.',',')+' MB':Math.max(1,Math.round(n/1024))+' KB'}
+function fmtSize(n){return n>=1048576?zahlText(n/1048576,1)+' MB':Math.max(1,Math.round(n/1024))+' KB'}  // seit 1.9.17 über zahlText()
 const params=new URLSearchParams(location.search);
 const docType=params.get('typ')||'', docId=params.get('id')||'';
 // Seit 1.8.113 auch je Projekt oder Kunde (Links aus Projektmappe und Kundenakte); der Link des Dokuments kommt aus

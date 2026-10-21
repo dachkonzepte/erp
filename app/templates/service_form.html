@@ -335,7 +335,7 @@ function renderMaterialRows() {
   const body = el('materialRows');
   if (!materialRows.length) { body.innerHTML = '<tr><td colspan="7" class="muted">Noch kein Material zugeordnet.</td></tr>'; return; }
   body.innerHTML = materialRows.map((r, i) => `<tr>
-    <td>${esc(r.name)}</td><td class="number">${esc(r.quantity)}</td><td>${esc(r.unit)}</td>
+    <td>${esc(r.name)}</td><td class="number">${esc(zahlText(r.quantity))}</td><td>${esc(r.unit)}</td>
     <td class="number">${esc(r.wastePct)}</td><td class="number">${money(r.purchasePrice)}</td>
     <td class="number">${money(materialRowCost(r))}</td>
     <td><button type="button" class="secondary" style="padding:5px 9px;font-size:12px" onclick="removeMaterialRow(${i})">Entfernen</button></td>

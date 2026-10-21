@@ -64,6 +64,7 @@ button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-col
 <div class="app-content">
 {% include "_topbar.html" %}
 {% include "_auswahl.html" %}
+{% include "_zahl.html" %}{# seit 1.9.17: _auswahl.html formatiert Steuersätze über zahlText() #}
 {% include "_berlin_date.html" %}
 <main>
 {% if is_module_enabled('aufgabenmanagement') %}

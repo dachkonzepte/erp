@@ -4,6 +4,19 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.17 – Zahlen in der Anzeige über zahlText()
+
+Stufe 2, Runde 7, Punkt 4. Der Steuerschlüssel stand in der Auswahl von Rechnung, Auftrag und Angebot als „Regelsteuersatz (19,0000 %)“:
+der Satz kam im Maschinenformat aus der API und bekam nur sein Komma. Ebenso von Hand formatiert waren Skonto und Zinsaufschlag (Rechnung,
+Mahnwesen), Steuerschlüssel, Skonto und Steuersatz der Konten in den Einstellungen, Dateigrößen (Kundenakte und Projektmappe mit Punkt:
+„1.5 KB“) und die Menge im Leistungsformular („2.500“ -- im Deutschen zweitausendfünfhundert). Alle gehen jetzt über `zahlText()`
+(`_zahl.html`): „19 %“, „10,7 %“, „2,5 % Skonto“, „1,5 KB“, „2,5“. Weil `steuerschluesselOptionen()` in `_auswahl.html` nun `zahlText()`
+nutzt, binden auch Kalender, Anfragen, Prüfvorlagen und Aufgaben `_zahl.html` ein (der Wächter aus 1.8.109 verlangt es).
+
+Neuer Wächter `test_v451`: kein Komma per `replace` an einer Zahl, `toFixed` nur fürs Maschinenformat (Körper einer Anfrage, Wert einer
+Auswahl -- je Vorlage gezählt mit Grund), kein Satz, keine Menge, keine Stunden roh im HTML; dazu die Anzeigen in node. Lokale Formatierer,
+die schon deutsch formatieren (`toLocaleString('de-DE')`), bleiben.
+
 ## 1.9.16 – Auswahlfelder für Fremdschlüssel behalten ihr Ziel
 
 Stufe 2, Runde 7, Punkt 1 (Befund 1.9.12 B). Elf Auswahlfelder für einen gespeicherten Verweis auf einen anderen Datensatz zeigten ihn
