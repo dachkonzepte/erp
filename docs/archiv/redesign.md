@@ -2126,3 +2126,38 @@ und Objekt, Einsatzbericht -> Auftrag und Kundenakte, Vorlagen -> Vorlagenliste.
   dunkel, je nachher und vorher (`8c80435`), 18 Bilder; Ordner in `.gitignore`.
 - Commits der Runde: `25f09f7` (1.9.9 Statuskennzeichen), `440828e` (1.9.10 Seitenkopf der 7 Seiten).
 
+## Runde 6 (Festlegungen 1.9.9 und 1.9.10 bestätigt)
+
+Auftrag (21.10.2026): 1. Auswahlfelder mit gespeichertem Freitext über `auswahlOptionen()`, Wächter, je Feld ein Test, Abfrage für den
+Server; 2. nur Befund: Anfragen, die im Klicktest-Gesamtlauf nie beim Server ankommen; 3. Kennung als Kennzeichen in Mono mit Rahmen
+neben dem Status auf allen umgezogenen Seiten; 4. Seitenkopf der Rechnung. Bildvergleich: außer Rechnung, den Köpfen mit Kennung und den
+korrigierten Auswahlfeldern weicht nichts ab.
+
+### Punkt 3 (1.9.11): Kennung als Kennzeichen
+
+- Makro `teile/seitenkopf.html`: die Kennung (`#seitenkopfKennung`) ist ein `span` in der Titelzeile zwischen h1 und Status (bis
+  1.9.10 ein `div` über dem Titel). `ds.css` `.ds-kopf-kennung`: `inline-flex`, 24 px hoch (wie `.ds-status`), Innenabstand 0 8 px,
+  Rahmen 1 px `--ds-linie-stark`, Ecken 6 px, IBM Plex Mono `--ds-groesse-1` (12 px, laut Tokenliste für Kennzeichen) in 500, Schrift
+  `--ds-text-2` (Prüfpaar text-2/grund und text-2/flaeche). Ohne Kennung blendet `:empty` sie aus wie bisher; in der Titelzeile zählt
+  ein ausgeblendetes Element nicht für den Abstand -- Köpfe ohne Kennung bleiben pixelgleich.
+- Betroffen sind die Köpfe mit Kennung: heute der Einsatzbericht (Auftragsnummer, Büro und Monteurin), das Betriebsmittel mit
+  Inventarnummer und ab 1.9.13 die Rechnung.
+
+#### Tests und Prüfung
+
+- `test_v441`: neu `test_kennung_ist_ein_kennzeichen_in_mono_mit_rahmen` (Stil in ds.css); `test_makro_gliederung_mit_allen_teilen`
+  prüft die Reihenfolge in der Titelzeile (Titel, Kennung, Status).
+- `klicktest_rahmen` Teil `datensatzkopf`: je Seite „Kennung als Kennzeichen“ -- Mono, Rahmen `solid` in linie-stark, Schrift text-2,
+  auf der Höhe des Titels, rechts davon und links vom Status; ohne Kennung verborgen (217 von 217).
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück): Kennung wieder über dem Titel -- pytest und Klicktest rot; Kennzeichen ohne
+  Rahmen -- zuerst nur der Klicktest rot, nach dem neuen Stiltest auch pytest rot.
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v441::test_makro_gliederung_mit_allen_teilen`: alt `id="seitenkopfKennung">…</div>` über dem Titel; neu `…</span>` in der
+    Titelzeile zwischen Titel und Status.
+  - `test_v441::test_makro_ohne_teile_ohne_pfad_aktion_und_menue`: alt `id="seitenkopfKennung"></div>`; neu `…></span>`.
+
+#### Festlegungen 1.9.11 (Bitte bestätigen)
+
+1. **Maße ohne Zeichnung**: die Zeichnung liegt im Projekt nicht vor -- umgesetzt nach dem Wortlaut: Reihenfolge Titel · Kennung · Status,
+   24 px hoch wie der Status, Ecken 6 px (der Status ist rund), Rahmen linie-stark, Schrift text-2, Mono 12 px.
+2. **Ohne Kennung kein leeres Kennzeichen** (verborgen wie bisher).

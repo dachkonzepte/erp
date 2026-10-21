@@ -10,7 +10,9 @@
           {% elif teil == "menue" %}<button type="button" class="ds-menue-eintrag" data-klick="kopieren">Kopieren</button>{% endif %}
         {% endcall %}
 
-    Gliederung: Pfad (nav) · Kennung · genau ein h1 · Status · Untertitel · eine Hauptaktion · Menü „⋮“. Feste IDs (ein Kopf je Seite):
+    Gliederung: Pfad (nav) · Titelzeile aus genau einem h1, Kennung und Status · Untertitel · eine Hauptaktion · Menü „⋮“. Die
+    Kennung (Nummer des Datensatzes) steht seit 1.9.11 als Kennzeichen in Mono mit Rahmen zwischen Titel und Status (bis dahin eine
+    eigene Zeile über dem Titel). Feste IDs (ein Kopf je Seite):
     seitenkopfPfad, seitenkopfKennung, seitenkopfTitel, seitenkopfStatus, seitenkopfUntertitel, seitenkopfMenueKnopf, seitenkopfMenue --
     was erst nach dem Laden feststeht, setzt seitenkopf() aus _seitenkopf.html (Text über textContent, Links über sichererLink()). Leere
     Teile blendet ds.css über :empty aus. Regeln für den Inhalt: genau eine Hauptaktion (.ds-knopf-aktion), alles Weitere und „Löschen“ ins
@@ -22,9 +24,9 @@
   {%- endif %}
   <div class="ds-kopf-zeile">
     <div class="ds-kopf-text">
-      <div class="ds-kopf-kennung" id="seitenkopfKennung">{{ kennung }}</div>
       <div class="ds-kopf-titelzeile">
         <h1 class="ds-kopf-titel" id="seitenkopfTitel">{{ titel }}</h1>
+        <span class="ds-kopf-kennung" id="seitenkopfKennung">{{ kennung }}</span>
         <span class="ds-status ds-status-neutral" id="seitenkopfStatus" role="status"></span>
       </div>
       <p class="ds-kopf-untertitel" id="seitenkopfUntertitel">{{ untertitel }}</p>

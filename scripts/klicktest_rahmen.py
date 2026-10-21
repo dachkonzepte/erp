@@ -637,6 +637,10 @@ const links=[...document.querySelectorAll('main a[href]')].filter(a=>a.getClient
   &&cs(a).backgroundColor==='rgba(0, 0, 0, 0)'&&cs(a).borderTopStyle==='none');
 return {ds:document.body.classList.contains('ds-seite'),h1:[...document.querySelectorAll('h1')].map(e=>[e.id,e.textContent.trim()]),
   kennung:document.getElementById('seitenkopfKennung').textContent,untertitel:document.getElementById('seitenkopfUntertitel').textContent,
+  kennzeichen:(()=>{const k=document.getElementById('seitenkopfKennung'),t=document.getElementById('seitenkopfTitel'),s=document.getElementById('seitenkopfStatus');
+    if(!k.textContent)return cs(k).display==='none'?'verborgen':'leer, aber sichtbar';const r=e=>e.getBoundingClientRect(),m=e=>r(e).top+r(e).height/2;
+    return [cs(k).fontFamily.includes('IBM Plex Mono'),cs(k).borderTopStyle,cs(k).borderTopColor===F('--ds-linie-stark'),cs(k).color===F('--ds-text-2'),
+      Math.abs(m(k)-m(t))<8,r(k).left>=r(t).right,!s.textContent||(Math.abs(m(k)-m(s))<2&&r(k).right<=r(s).left)]})(),
   status:[st.textContent,st.className.replace('ds-status ds-status-',''),cs(st).display!=='none'],
   pfad:[...document.querySelectorAll('#seitenkopfPfad .ds-kopf-pfadglied,#seitenkopfPfad .ds-kopf-pfadende')]
     .map(e=>[e.textContent,e.getAttribute('href'),e.getAttribute('aria-current')]),
@@ -682,6 +686,10 @@ async def _datensatzkopf(tab, seed, p):
             p.pruefe(f"{wo}: .ds-seite, genau ein h1 „{f['titel']}“, Kennung, Untertitel", [m["ds"], m["h1"], m["kennung"], m["untertitel"]],
                      [True, [["seitenkopfTitel", f["titel"]]], soll(f["kennung"]), soll(f["untertitel"])])
             p.pruefe(f"{wo}: Status „{f['status'][0]}“ ({f['status'][1]})", m["status"], [*f["status"], bool(f["status"][0])])
+            # seit 1.9.11: Kennung als Kennzeichen in Mono mit Rahmen (linie-stark, Schrift text-2), in der Zeile des Titels, rechts davon
+            # und links vom Status; ohne Kennung verborgen
+            p.pruefe(f"{wo}: Kennung als Kennzeichen", m["kennzeichen"],
+                     [True, "solid", True, True, True, True, True] if soll(f["kennung"]) else "verborgen")
             pfad = [[soll(t), soll(h) if h else None, None if h else "page"] for t, h in f["pfad"]]
             p.pruefe(f"{wo}: Pfad {' / '.join(g[0] for g in pfad)}", m["pfad"], pfad)
             offen = await tab.js(PFAD_OEFFNEN)

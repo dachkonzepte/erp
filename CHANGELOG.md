@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.11 – Rahmen, Runde 6: Kennung als Kennzeichen
+
+Stufe 2, Runde 6, Punkt 3. Die Kennung im gemeinsamen Seitenkopf (Nummer des Datensatzes, z. B. die Auftragsnummer am Einsatzbericht) steht jetzt als Kennzeichen in Mono mit Rahmen in der Titelzeile, zwischen Titel und Status -- bis dahin eine kleine Zeile über dem Titel. Gilt für alle umgezogenen Seiten über das Makro (`teile/seitenkopf.html`, Stil `.ds-kopf-kennung` in ds.css: 24 px hoch wie der Status, Rahmen in linie-stark, Schrift text-2); ohne Kennung bleibt das Kennzeichen verborgen. Strukturtest und Klicktest prüfen Reihenfolge, Schrift, Rahmen und Lage neben dem Status.
+
 ## 1.9.10 – Rahmen, Runde 5: Seitenkopf für Datensätze mit Pfad
 
 Stufe 2, Runde 5, Punkte 1, 2 und 4. Die sieben Seiten der Gruppe „Datensatz mit Pfad“ (Objekt, Dachfläche, Betriebsmittel, Wartungsvertrag, Checklisten-Vorlage, Prüfvorlage, Einsatzbericht) tragen das Design-System (.ds-seite) und den gemeinsamen Seitenkopf: Pfad, Kennung, Titel, Status als lesbares Kennzeichen (über `statusKennzeichen()` aus 1.9.9), Untertitel, höchstens eine grüne Hauptaktion, alles Weitere im Menü „⋮“. Umgestellt wurde nur, was im Kopf stand; „Löschen“ steht im Menü (in der Fehlerfarbe) und fragt wie bisher. Kopieren (Checklisten-Vorlage, Prüfvorlage) öffnet aus dem Menü eine Karte mit vorausgefülltem Namen. Links in --ds-link, Fokus in --ds-fokus.

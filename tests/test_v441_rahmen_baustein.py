@@ -183,7 +183,11 @@ def test_makro_gliederung_mit_allen_teilen():
     html = re.sub(r">\s+<", "><", _rendern(AUFRUF, titel="Dachsanierung <Nord>"))
     assert html.count("<h1") == 1 and 'id="seitenkopfTitel">Dachsanierung &lt;Nord&gt;</h1>' in html
     assert '<nav class="ds-kopf-pfad" id="seitenkopfPfad" aria-label="Pfad"><a class="ds-kopf-pfadglied" href="/projects">Projekte</a></nav>' in html
-    assert 'id="seitenkopfKennung">P-2026-0001</div>' in html and 'id="seitenkopfUntertitel">Kunde · Objekt</p>' in html
+    assert 'id="seitenkopfKennung">P-2026-0001</span>' in html and 'id="seitenkopfUntertitel">Kunde · Objekt</p>' in html
+    # seit 1.9.11: die Kennung als Kennzeichen in der Titelzeile, zwischen Titel und Status (bis dahin eine Zeile über dem Titel)
+    zeile = re.search(r'<div class="ds-kopf-titelzeile">(.*?)</div>', html).group(1)
+    assert re.findall(r'id="(seitenkopf\w+)"', zeile) == ["seitenkopfTitel", "seitenkopfKennung", "seitenkopfStatus"]
+    assert '<span class="ds-kopf-kennung" id="seitenkopfKennung">' in zeile
     assert re.search(r'<span class="ds-status ds-status-neutral" id="seitenkopfStatus" role="status"></span>', html)
     knopf = re.search(r'<button[^>]*id="seitenkopfMenueKnopf"[^>]*>', html).group(0)
     for attr in ('type="button"', 'aria-haspopup="menu"', 'aria-expanded="false"', 'aria-controls="seitenkopfMenue"', 'aria-label="Weitere Aktionen"'):
@@ -195,7 +199,7 @@ def test_makro_gliederung_mit_allen_teilen():
 def test_makro_ohne_teile_ohne_pfad_aktion_und_menue():
     html = _rendern('{% from "teile/seitenkopf.html" import seitenkopf %}{{ seitenkopf("Prüfvorlagen") }}')
     assert "seitenkopfPfad" not in html and "seitenkopfMenue" not in html and "ds-knopf-aktion" not in html
-    assert 'id="seitenkopfKennung"></div>' in html and 'id="seitenkopfUntertitel"></p>' in html  # leer: ds.css blendet aus (:empty)
+    assert 'id="seitenkopfKennung"></span>' in html and 'id="seitenkopfUntertitel"></p>' in html  # leer: ds.css blendet aus (:empty)
     assert html.count("<h1") == 1
 
 
@@ -207,6 +211,16 @@ def test_wer_das_makro_nutzt_bindet_das_skript_ein():
     funde = [name for name in vj.alle_vorlagen() if "import seitenkopf" in (TEMPLATES / name).read_text(encoding="utf-8")
              and name not in ("teile/seitenkopf.html", "_seitenkopf.html") and not vj.bindet_ein(name, "_seitenkopf.html")]
     assert funde == []
+
+
+def test_kennung_ist_ein_kennzeichen_in_mono_mit_rahmen():
+    """Seit 1.9.11 (Runde 6, Punkt 3): die Kennung ein Kennzeichen wie der Status (24 px hoch), in Mono, mit Rahmen in linie-stark,
+    Schrift text-2 (geprüftes Kontrastpaar auf grund und flaeche)."""
+    css = (STATIC_DIR / "ds" / "ds.css").read_text(encoding="utf-8")
+    rumpf = re.search(r"\n\.ds-kopf-kennung\s*\{([^}]*)\}", css).group(1)
+    for deklaration in ("display: inline-flex", "height: 24px", "border: 1px solid var(--ds-linie-stark)",
+                        "font-family: var(--ds-schrift-mono)", "font-size: var(--ds-groesse-1)", "color: var(--ds-text-2)"):
+        assert deklaration in rumpf, deklaration
 
 
 def test_leere_teile_blendet_ds_css_aus():
