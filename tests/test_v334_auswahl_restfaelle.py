@@ -44,7 +44,7 @@ function _element(id) {
   const z = {html: '', optionen: null, index: -1, wert: ''};
   const ziel = {id, style: {}, dataset: {}, classList: {add() {}, remove() {}, toggle() {}, contains() { return false; }},
     showModal() {}, close() {}, focus() {}, addEventListener() {}, setAttribute() {}, removeAttribute() {}, getAttribute: () => null,
-    querySelectorAll: () => [], querySelector: () => null,
+    querySelectorAll: () => [], querySelector: () => null, replaceChildren(...kinder) { this.kinder = kinder; },  // seit 1.9.10 (Pfad des Seitenkopfs)
     remove() { delete _elemente[id]; }};  // seit 1.8.116: wie ein echtes Element (speichern() nimmt so den Hinweis "abgelaufen" weg)
   return _elemente[id] = new Proxy(ziel, {
     get(t, k) {
@@ -76,7 +76,9 @@ function _element(id) {
 }
 function _gewaehlt(id) { const e = _element(id); return e.selectedIndex >= 0 ? e.options[e.selectedIndex] : null; }
 var document = {getElementById: _element, querySelector: () => _element('__query'), querySelectorAll: () => [],
-  documentElement: _element('__html'), body: _element('__body'), addEventListener() {}};
+  documentElement: _element('__html'), body: _element('__body'), addEventListener() {},
+  createElement: (tag) => ({tagName: tag.toUpperCase(), attrs: {}, textContent: '', className: '',  // seit 1.9.10 (Pfad des Seitenkopfs)
+    setAttribute(k, v) { this.attrs[k] = String(v); }, getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; }})};
 var window = globalThis;
 window.matchMedia = () => ({matches: false, addEventListener() {}});
 var location = {hash: '', href: '', search: '', pathname: '/'};
@@ -93,7 +95,10 @@ globalThis.fetch = async (url, opt = {}) => {
 """
 
 
-BAUSTEINE = ("_auswahl.html", "_speichern.html", "_aktionen.html", "_weiterleitung.html", "_links.html", "_zahl.html", "_fehlertext.html")
+# seit 1.9.10 dazu der gemeinsame Seitenkopf mit Menü und Statuskennzeichen (Stufe 2 „Rahmen“): eine Seite, die seitenkopf() aufruft,
+# scheiterte sonst in node an "seitenkopf is not defined"
+BAUSTEINE = ("_auswahl.html", "_speichern.html", "_aktionen.html", "_weiterleitung.html", "_links.html", "_zahl.html", "_fehlertext.html",
+             "_menue.html", "_statuskennzeichen.html", "_seitenkopf.html")
 
 
 def eingebunden(vorlage: str) -> list[str]:

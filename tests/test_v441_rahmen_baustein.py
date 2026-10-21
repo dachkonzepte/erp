@@ -39,6 +39,12 @@ TITELZEILEN_UND_TITELKARTEN = {
     "time_tracking.html",
 }
 UMGEZOGEN |= TITELZEILEN_UND_TITELKARTEN
+# seit 1.9.10 die Gruppe „Datensatz mit Pfad“ (befund-rahmen.md: K3)
+DATENSATZ_MIT_PFAD = {
+    "property.html", "roof_area.html", "operational_asset.html", "maintenance_contract.html", "checklist_template.html",
+    "inspection_template.html", "service_reports.html",
+}
+UMGEZOGEN |= DATENSATZ_MIT_PFAD
 
 
 # ---------------------------------------------------------------------------

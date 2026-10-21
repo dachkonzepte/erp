@@ -2011,3 +2011,99 @@ als lesbares Kennzeichen in der Farbe seiner Bedeutung, die Zuordnung an einer S
 2. **Storniert ruht** (neutral), nicht fehler; **pausiert ruht**, **beendet ist erledigt** (ok).
 3. **Ein unbekannter Wert ist kein Fehler**: lesbar und neutral.
 4. **Die Zuordnung liegt im Browser** (`_statuskennzeichen.html`), nicht im Server.
+
+### Punkte 1, 2 und 4 (1.9.10): Seitenkopf der Gruppe „Datensatz mit Pfad“ (7 Seiten)
+
+- Die 7 Seiten aus `befund-rahmen.md` (K3) tragen `.ds-seite` und den gemeinsamen Seitenkopf (`teile/seitenkopf.html`,
+  `_seitenkopf.html`): Pfad, Kennung, Titel 30 px, Status, Untertitel, höchstens eine grüne Hauptaktion, Weiteres im Menü „⋮“.
+  Umgestellt wurde nur, was im Kopf stand; kein Knopf aus dem Inhalt wandert in den Kopf (wie 1.9.7). Kopf-Knöpfe über `data-klick`
+  (`_aktionen.html`), ihre IDs bleiben (`archiveBtn`, `performMaintenanceBtn`, `createProjectBtn`, `pauseBtn`, `reactivateBtn`,
+  `finishBtn`, `timeLink`, `copyLabel`). Was erst nach dem Laden feststeht, setzt `seitenkopf()` (Text über textContent, Links über
+  `sichererLink()`), der Status kommt über `statusKennzeichen()` (1.9.9).
+- **Pfad**: Bereich der Seitenleiste, dann die Kette über den Kunden bis zum Datensatz, das letzte Glied ist die Seite selbst
+  (`aria-current="page"`). Die Ziele stehen fest im call-Block oder werden aus den geladenen Daten gebaut.
+- **Löschen** im Menü in der Fehlerfarbe (`.ds-menue-eintrag-fehler`), die Rückfrage (`confirm`) unverändert in der bisherigen Funktion.
+- **Verborgene Einträge**: was nicht gilt (Pausieren/Reaktivieren/Beenden je Status, Vorgang erstellen mit Positionen, Entwurf
+  verwerfen, Löschen einer Vorlage mit Zweck), trägt `hidden` statt der Klasse `.hidden` -- `dsMenue()` überspringt es auch per
+  Tastatur. Neu in `ds.css`: `.ds-knopf[hidden], .ds-menue-eintrag[hidden] {display: none}` (das `display` der Klassen schlug `[hidden]`).
+- **Links in `--ds-link`** (Regeln und `style="…color:var(--accent)…"`, auch `a{…}` des Einsatzberichts und der Knopf „Mängel“ der
+  Dachfläche), **Fokus in `--ds-fokus`** auf allen 7 Seiten; die toten Regeln `.breadcrumb`, `.hero`, `.top-links` entfernt.
+
+| Seite | Pfad | Kennung / Status | Hauptaktion | Menü „⋮“ |
+|---|---|---|---|---|
+| Objekt | Stammdaten / Kunde / Objekt | -- / -- (kein Status) | -- | -- |
+| Dachfläche | Stammdaten / Kunde / Objekt / Dachfläche | -- / „Archiviert“ (neutral) | -- | Archivieren bzw. Entarchivieren, Löschen |
+| Betriebsmittel | Stammdaten / Betriebsmittel / Name | Inventarnummer / „Prüfung überfällig“ (fehler), „Prüfung fällig“ (signal), „Inaktiv“ (neutral) | -- | Etikett drucken, Löschen |
+| Wartungsvertrag | Wartungen / Kunde / Objekt / Vertrag | -- / „Aktiv“ (info), „Pausiert“ (neutral), „Beendet“ (ok), „Archiviert“ (neutral) | „Wartung durchführen“ | Vorgang erstellen, Pausieren bzw. Reaktivieren, Beenden, Archivieren bzw. Entarchivieren, Löschen |
+| Checklisten-Vorlage | Checklisten / Vorlagen / Vorlage | -- / „Entwurf“ (warn, nie veröffentlicht), „Veröffentlicht“ (ok), „Archiviert“ (neutral) | „Entwurf veröffentlichen“ bzw. „Neuen Entwurf anlegen“ | Entwurf verwerfen, Kopieren …, Archivieren bzw. Entarchivieren, Löschen (nur Zweck „allgemein“) |
+| Prüfvorlage | Einstellungen / Prüfvorlagen / Vorlage | -- (Version im Untertitel) / „Archiviert“ (neutral) | -- | Vorlage kopieren … |
+| Einsatzbericht (Büro) | Projekte / Kunde / [Wartungsvertrag] / Projekt / Auftrag / Einsatzbericht | Auftragsnummer / „Beauftragt“ (info), „Abgeschlossen“ (ok), „Storniert“ (neutral) | -- | Zeiterfassung (Auftrag) |
+| Einsatzbericht (Monteurin) | Einsätze / Einsatzbericht | Auftragsnummer / -- (der Server liefert ihr keinen Status) | -- | Zeiterfassung (Auftrag) |
+
+**Rückwege** (`bildgrundlage/pruefung/ablaeufe.md`, „Fehlende Wege zurück“): Wartungsvertrag -> Wartungen geschlossen; Einsatzbericht
+-> Projektmappe geschlossen, -> Wartungsvertrag geschlossen, sobald ein Bericht des Auftrags aus einem Vertrag entstand
+(`ServiceReport.maintenance_contract_id`, Vertrag nachgeladen nur fürs Büro); Einsatzbericht (Monteurin) -> `/mobil` geschlossen (Pfad
+„Einsätze“, dazu seit 1.8.164 der Reiter); Prüfvorlage -> Einstellungen geschlossen (von der Vorlage aus); Checklisten-Vorlage ->
+Einstellungen bleibt offen (der Pfad folgt dem Bereich Checklisten, Festlegung 4). Erhalten: Objekt/Dachfläche/Wartungsvertrag -> Kunde
+und Objekt, Einsatzbericht -> Auftrag und Kundenakte, Vorlagen -> Vorlagenliste.
+
+#### Tests und Prüfung
+
+- `test_v441`: `UMGEZOGEN` um die 7 Seiten (`DATENSATZ_MIT_PFAD`), der Strukturtest `test_umgezogene_seite_hat_den_gemeinsamen_kopf`
+  läuft damit für 23 Seiten.
+- Neu `tests/test_v446_datensatzkopf.py` (36 Tests): jedes Ziel im Pfad (fest im call-Block oder als Glied `{text, href}` im Skript)
+  ist eine Seitenroute und öffnet sich mit 200 als HTML für Büro – Auftrag (`/mobil` für die Monteurin); der Pfad nach dem Laden enthält
+  die Rückwege je Seite und den festen Pfad; ein Menüeintrag, der nicht gilt, wird über `hidden` verborgen, nie über die Klasse `.hidden`; „Löschen“ nur im Menü in der Fehlerfarbe und die aufgerufene Funktion fragt zuerst (`confirm`); ds.css hält `[hidden]`.
+- `klicktest_rahmen` Teil `datensatzkopf` (neu): je Seite hell und dunkel bei 1440 × 900, der Einsatzbericht auch als Monteurin --
+  `.ds-seite`, genau ein h1 mit dem Titel, Kennung, Untertitel, Status (Text, Art, sichtbar), Pfad mit Texten und Zielen, **jeder Link
+  im Pfad mit der Anmeldung der Seite geladen: 200 ohne Umleitung, HTML**, Hauptaktion grün, Menü mit genau den geltenden Einträgen
+  (verborgene verborgen, „Löschen“ in Fehlerfarbe), Menü per Tastatur (am Vertrag überspringt Pfeil runter den gesperrten „Vorgang
+  erstellen“ und das verborgene „Reaktivieren“), Textlinks in `--ds-link`, Fokus in `--ds-fokus`, Kontrast auch mit offenem Menü;
+  „Löschen“ fragt wie bisher (abgelehnt, die Seite bleibt), „Kopieren …“ öffnet die Karte mit „<Name> (Kopie)“ und Fokus, Pausieren und
+  Reaktivieren wechseln Status und Menü; „Wartung durchführen“ öffnet den Einsatzbericht des neuen Auftrags mit Projekte / Kunde /
+  Wartungsvertrag / Projekt / Auftrag / Einsatzbericht, jeder Link öffnet sich. 201 von 201.
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück, je pytest und Klicktest-Teil): Wartungsvertrag ohne Rückweg zu Wartungen; Prüfvorlage mit Pfad-Link ins Leere (`/einstellungen`); Status des Vertrags ohne Kennzeichen (`{text:contract.status}`); „Löschen“ der Dachfläche nicht in der Fehlerfarbe; Menüeintrag über die Klasse `.hidden` statt `[hidden]`; ds.css ohne `[hidden]` für Menüeinträge -- der Klicktest-Teil 6 von 6 rot (197 bis 199 von 201), pytest zuerst nur 4 von 6: der Rückweg-Test sah den festen Link „Wartungen“ im call-Block statt des Pfads nach dem Laden, und die Klasse `.hidden` prüfte nur der Klicktest. **Selbst gefunden und nachgeschärft**: Rückwege nur gegen den Pfad des Skripts (der feste Pfad muss darin enthalten sein), neuer Test `test_menueeintraege_verborgen_ueber_hidden`; danach beide rot, dazu „Einsatzbericht ohne Projektmappe im Pfad“ rot.
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v328::test_berichtsseite_baut_auftrags_und_kundenlinks_nur_fuers_buero`: alt `id="orderLink"` nur fürs Büro im Markup; neu
+    der Anfang des Pfads -- „Projekte“ fürs Büro, „Einsätze“ (`/mobil`) für den Monteur.
+  - `test_v441::UMGEZOGEN`: alt 16 Seiten; neu dazu die 7.
+  - `klicktest_monteur_navigation`: alt bereit, wenn `#breadcrumb` Text hat, Prüfung `#breadcrumb a[href^="/orders/"]`; neu bereit, wenn
+    `#seitenkopfKennung` Text hat, Prüfung `#seitenkopfPfad a[href^="/orders/"]` (weiter nur fürs Büro).
+  - `klicktest_checkliste_zweck`: alt `#versionBadges` enthält „Zweck: Abnahme“ bzw. „Gültig: Fassung 1“, „Löschen“ unter `#heroActions`;
+    neu `#seitenkopfUntertitel`, „Löschen“ = `#vorlageLoeschen` nicht verborgen.
+  - `klicktest_daten_im_html`: alt `#assetMeta` beginnt mit der Art; neu `#seitenkopfUntertitel`.
+  - `test_v259::test_service_reports_html_has_a_general_link_color_rule`: alt `a{color:var(--accent)}` im Stil des Einsatzberichts; neu
+    `a{color:var(--ds-link)}`.
+- **Attrappe der node-Tests** (`tests/test_v334_auswahl_restfaelle.py::seite()`): `BAUSTEINE` um `_menue.html`, `_statuskennzeichen.html`
+  und `_seitenkopf.html` ergänzt, die Element-Attrappe um `replaceChildren`, `document` um `createElement` -- die volle Suite fand
+  `test_v443` rot („seitenkopf is not defined“: die Prüfvorlage ruft `seitenkopf()` jetzt beim Füllen des Formulars). Keine Erwartung
+  geändert; die 12 Testdateien, die die Attrappe nutzen, grün.
+
+#### Nebenbefund (nur festgehalten, nicht behoben)
+
+- **Betriebsmittel, Feld „Typ“**: `typeOptionsHtml()` (`operational_asset.html`) baut die Optionen ohne `auswahlOptionen()` -- ein
+  gespeicherter Typ außerhalb der Auswahlliste „resource_types“ (in den Testdaten der Bildgrundlage „Leiter“) wird nicht vorgewählt, die
+  Auswahl zeigt die erste Option („Fahrzeug“), und Speichern überschriebe den Typ still. Dieselbe Fehlerklasse wie der Dachtyp der
+  Prüfvorlage (1.9.6, Regel 22). Der Kopf zeigt den gespeicherten Typ im Untertitel richtig.
+
+#### Festlegungen 1.9.10 (Bitte bestätigen)
+
+1. **Pfad = Bereich der Seitenleiste, dann die Kette über den Kunden bis zum Datensatz**, das letzte Glied ist die Seite selbst.
+2. **Einsatzbericht (Büro)**: Projekte / Kunde / [Wartungsvertrag] / Projekt / Auftrag / Einsatzbericht -- der Vertrag zwischen Kunde und
+   Projekt (das Projekt entstand aus ihm), nur wenn ein Bericht des Auftrags einen Vertrag nennt.
+3. **Einsatzbericht (Monteurin)**: Einsätze / Einsatzbericht, ohne Status (der Server liefert ihr keinen, Datengrenze).
+4. **Prüfvorlage** beginnt mit Einstellungen (einziger Einstieg), der Bereich der Leiste bleibt Wartungen; **Checklisten-Vorlage** folgt
+   dem Bereich (Checklisten / Vorlagen), ihr Rückweg in die Einstellungen bleibt offen.
+5. **Status nur, wo der Datensatz einen hat**: Objekt keiner; Dachfläche und Prüfvorlage nur „Archiviert“; Betriebsmittel überfällig vor
+   fällig vor inaktiv (sonst kein Status, „Inaktiv“ neben einer Prüfung im Untertitel); Wartungsvertrag archiviert vor dem Vertragsstatus;
+   Checklisten-Vorlage archiviert vor veröffentlicht vor Entwurf -- eine veröffentlichte Vorlage mit neuem Entwurf heißt „Veröffentlicht“,
+   der Entwurf steht im Untertitel.
+6. **Hauptaktion nur, wo der Kopf einen grünen Knopf hatte** (Wartungsvertrag, Checklisten-Vorlage); bei der Checklisten-Vorlage ein Knopf,
+   der je nach Stand veröffentlicht oder einen Entwurf anlegt (bis dahin zwei Knöpfe im Wechsel).
+7. **Kopieren** (Checklisten-Vorlage, Prüfvorlage): Feld und Knopf aus dem Kopf in eine Karte unter dem Kopf, die „Kopieren …“ im Menü
+   öffnet; der Name ist mit „<Name> (Kopie)“ vorausgefüllt (bis dahin leer mit Platzhalter).
+8. **Kennung = Nummer des Datensatzes** (Inventarnummer, Auftragsnummer), sonst leer; die Prüfvorlage zeigt ihre Version im Untertitel.
+9. **Was nicht gilt, ist verborgen** (`hidden`), auch für die Tastatur; ds.css hält `[hidden]` an Knöpfen und Menüeinträgen durch.
+10. **„Löschen“ im Menü in der Fehlerfarbe**, Rückfrage unverändert.
+11. **Der Untertitel behält die bisherige Zeile** (der Wartungsvertrag nennt Kunde und Objekt auch dort, obwohl sie im Pfad stehen; der
+    Einsatzbericht nennt den Kunden statt „Auftragsnummer · Kunde“, die Nummer steht als Kennung).

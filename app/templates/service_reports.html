@@ -7,13 +7,6 @@
 :root[data-theme="dark"]{color-scheme:dark}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
 main{max-width:900px;margin:0;padding:18px}
-.breadcrumb{font-size:12.5px;color:var(--muted);margin-bottom:10px}
-.breadcrumb a{color:var(--accent);text-decoration:none;font-weight:650}
-.hero{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
-.hero h1{margin:0 0 4px;font-size:22px}.hero .muted{color:var(--muted)}
-.top-links{display:flex;gap:8px;flex-wrap:wrap}
-.top-links a{padding:9px 12px;border:1px solid var(--line);color:var(--ink);text-decoration:none;font-weight:650;font-size:13.5px}
-.top-links a:hover{background:var(--soft)}
 .card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px}
 .card h2{margin:0 0 12px;font-size:16px}
 .fields-2col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -21,7 +14,7 @@ main{max-width:900px;margin:0;padding:18px}
 .field{margin:0}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
 input,select,textarea{padding:10px 11px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;font-size:14px;width:100%}
 input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
-input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-aktion);outline-offset:-1px;border-color:var(--ds-aktion)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-fokus);outline-offset:-1px;border-color:var(--ds-fokus)}
 textarea{min-height:80px;resize:vertical}
 button{border:1px solid var(--ds-aktion);background:var(--ds-aktion);color:#fff;padding:11px 15px;font:inherit;font-weight:650;font-size:14px;cursor:pointer}
 button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-color:color-mix(in srgb,var(--ds-aktion) 85%,black)}
@@ -98,7 +91,6 @@ tr:last-child td{border-bottom:none}
   .inspection-row .ictl input,.inspection-row .ictl select{min-height:44px;font-size:14px;padding:9px 10px}
   .report-actions button,.report-actions a{min-height:44px;padding:10px 13px;font-size:13.5px}
   .editor-actions button{min-height:44px}
-  .top-links a{min-height:44px;display:inline-flex;align-items:center}
   .table-scroll table thead{display:none}
   .table-scroll table,.table-scroll table tbody,.table-scroll table tr{display:block;width:100%}
   .table-scroll table tr{border:1px solid var(--line);margin-bottom:8px;padding:2px 8px}
@@ -110,9 +102,9 @@ tr:last-child td{border-bottom:none}
 /* Seit 1.3.50: allgemeine Link-Farbe (Muster login.html) -- der PDF-Link in historyCard()
    (Wartungshistorie-Panel) hatte bislang keine eigene Regel und erschien deshalb als blau
    unterstrichener Browser-Standardlink statt im Design-System, siehe CLAUDE.md. Die bereits
-   spezifischer gestylten Links (.report-actions a, .top-links a) bleiben davon unberührt. */
-a{color:var(--accent)}
-</style></head><body>
+   spezifischer gestylten Links (.report-actions a) bleiben davon unberührt. Seit 1.9.10 in --ds-link. */
+a{color:var(--ds-link)}
+</style></head><body class="ds-seite">
 {# current_user hier setzen, nicht nur in _sidebar.html/_topbar.html: ein {% set %} in einem
    {% include %} wirkt nicht in dieser Vorlage nach (siehe settings.html). Seit 1.8.27: Auftrag,
    Kunde und Einstellungen öffnet nur das Büro -- der Monteur bekommt keine Links dorthin
@@ -132,11 +124,14 @@ a{color:var(--accent)}
 {% if monteursrahmen %}{% include "_mobile_header.html" %}{% else %}{% include "_topbar.html" %}{% endif %}
 <main>
 {% if is_module_enabled('wartungen') %}
-<div class="breadcrumb" id="breadcrumb">Lädt …</div>
-<div class="hero">
-  <div><h1>Einsatzbericht</h1><div class="muted small" id="orderContext">Auftrag wird geladen …</div></div>
-  <div class="top-links">{% if darf_buero_seiten %}<a id="orderLink" href="#">← Auftrag</a>{% endif %}<a id="timeLink" href="#">Zeiterfassung (Auftrag)</a></div>
-</div>
+{# Seit 1.9.10 (Stufe 2 „Rahmen“, Runde 5): gemeinsamer Seitenkopf -- Kennung = Auftragsnummer, Untertitel = Kunde, Status des Auftrags,
+   Pfad fürs Büro Projekte / Kunde / [Wartungsvertrag] / Projekt / Auftrag, für die Monteurin Einsätze (/mobil): Auftrag, Kunde, Projekt
+   und Vertrag sind Büro-Seiten. „Zeiterfassung (Auftrag)“ im Menü „⋮“. #}
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{% call(teil) seitenkopf("Einsatzbericht", untertitel="Auftrag wird geladen …", mit_pfad=true, mit_menue=true) %}
+  {% if teil == "pfad" %}{% if darf_buero_seiten %}<a class="ds-kopf-pfadglied" href="/projects">Projekte</a>{% else %}<a class="ds-kopf-pfadglied" href="/mobil">Einsätze</a>{% endif %}
+  {% elif teil == "menue" %}<a class="ds-menue-eintrag" id="timeLink" href="/time-tracking">Zeiterfassung (Auftrag)</a>{% endif %}
+{% endcall %}
 {# Seit 1.8.45: offene Bedenkenanzeige am Auftrag -- vor dem Bericht sichtbar, für Büro und Monteur. #}
 {% if is_module_enabled('checklisten') %}<div id="concernAlert" class="concern-alert" role="alert" hidden></div>{% endif %}
 
@@ -222,9 +217,10 @@ a{color:var(--accent)}
   <div id="timeEntriesTable"></div>
 </div>
 {% else %}
-<div class="card"><h2>Wartungen & Reparaturen</h2><div class="muted">Dieses Modul ist deaktiviert. Ein Administrator kann es in den {% if darf_buero_seiten %}<a href="/settings#modules" style="color:var(--accent)">Einstellungen</a>{% else %}Einstellungen{% endif %} wieder aktivieren.</div></div>
+<div class="card"><h2>Wartungen & Reparaturen</h2><div class="muted">Dieses Modul ist deaktiviert. Ein Administrator kann es in den {% if darf_buero_seiten %}<a href="/settings#modules" style="color:var(--ds-link)">Einstellungen</a>{% else %}Einstellungen{% endif %} wieder aktivieren.</div></div>
 {% endif %}
 </main>
+{% include "_seitenkopf.html" %}
 </div>
 </div>
 {% include "_speichern.html" %}
@@ -753,7 +749,7 @@ function findingCard(f,r){
   const isDraft=r.status==='entwurf';
   const photoThumbs=photos.map(p=>photoThumbHtml(p,r.id,isDraft)).join('');
   const uploadControl=isDraft?`<input type="file" accept="image/png,image/jpeg,image/webp" capture="environment" class="hidden" id="findingPhoto-${f.id}" onchange="uploadFindingPhoto(${f.id},${r.id})"><button type="button" class="secondary" onclick="document.getElementById('findingPhoto-${f.id}').click()">+ Foto</button>`:'';
-  const followUpLink=f.follow_up_order_id&&darfBueroSeiten?`<a href="/orders/${f.follow_up_order_id}" style="color:var(--accent)">Folgeauftrag ansehen</a>`:'';
+  const followUpLink=f.follow_up_order_id&&darfBueroSeiten?`<a href="/orders/${f.follow_up_order_id}" style="color:var(--ds-link)">Folgeauftrag ansehen</a>`:'';
   // Sperre auf BEIDE Artefakte geprüft, nicht nur follow_up_task_id -- ein per Migration auf
   // buero_pruefen umgeschriebener, ehemals "folgeauftrag"-Mangel trägt nur follow_up_order_id.
   const lockedAction=(action)=>action==='buero_pruefen'&&(f.follow_up_task_id||f.follow_up_order_id)&&f.action!==action;
@@ -1275,6 +1271,30 @@ function renderReportList(){
   document.getElementById('reportList').innerHTML=reports.map(reportCard).join('')||'<div class="empty">Noch keine Berichte zu diesem Auftrag.</div>';
 }
 
+// Seit 1.9.10 im gemeinsamen Seitenkopf (_seitenkopf.html): Kennung = Auftragsnummer, Untertitel = Kunde, Status des Auftrags
+// (statusKennzeichen(); der Monteurin liefert der Server keinen Status), Pfad fürs Büro Projekte / Kunde / [Wartungsvertrag] / Projekt /
+// Auftrag -- die Rückwege zu Projektmappe und Wartungsvertrag (ablaeufe.md) --, für die Monteurin Einsätze.
+let kopfVertrag=null;
+function kopfZeichnen(){
+  const o=orderData;
+  if(!o)return;
+  const pfad=darfBueroSeiten?[
+    {text:'Projekte',href:'/projects'},
+    o.customer_id?{text:o.customer_name,href:'/customers/'+o.customer_id}:null,
+    kopfVertrag?{text:kopfVertrag.title,href:'/maintenance-contracts/'+kopfVertrag.id}:null,
+    o.project_id?{text:o.project_name||o.project_number,href:'/projects/'+o.project_id}:null,
+    {text:o.order_number,href:'/orders/'+orderId},
+  ]:[{text:'Einsätze',href:'/mobil'}];
+  pfad.push({text:'Einsatzbericht'});
+  seitenkopf({kennung:o.order_number,untertitel:o.customer_name,status:statusKennzeichen('auftrag',o.status),pfad:pfad.filter(Boolean)});
+}
+// Der Wartungsvertrag, aus dem ein Bericht dieses Auftrags entstand (nur fürs Büro, eigener Bereich).
+async function kopfVertragLaden(){
+  const id=(reports.find(r=>r.maintenance_contract_id)||{}).maintenance_contract_id;
+  if(!darfBueroSeiten||!id||(kopfVertrag&&kopfVertrag.id===id))return;
+  await lesen('kopf-vertrag',()=>api(`/api/maintenance-contracts/${id}`).catch(()=>null),v=>{kopfVertrag=v;kopfZeichnen()});
+}
+
 async function loadReports(){
   const st=document.getElementById('listStatus');
   st.className='status';st.textContent='Lädt …';
@@ -1289,6 +1309,7 @@ async function loadReports(){
       hasInspectionSection(r)?loadReportInspectionItems(r.id):Promise.resolve(),
     ])));
     renderReportList();
+    await kopfVertragLaden();
     st.textContent='';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
@@ -1404,15 +1425,10 @@ async function init(){
     return;
   }
   if(window.offeneBedenkenZeigen)offeneBedenkenZeigen('concernAlert',orderId);  // seit 1.8.45, läuft nebenher
-  const orderLinkEl=document.getElementById('orderLink');
-  if(orderLinkEl)orderLinkEl.href='/orders/'+orderId;
   document.getElementById('timeLink').href='/time-tracking?order_id='+orderId;
   lesen('auftrag',()=>api(`/api/orders/${orderId}`),o=>{
     orderData=o;
-    document.getElementById('orderContext').textContent=`${o.order_number} · ${o.customer_name}`;
-    const customerLink=o.customer_id&&darfBueroSeiten?`<a href="/customers/${o.customer_id}">${esc(o.customer_name)}</a>`:esc(o.customer_name);
-    const orderLink=darfBueroSeiten?`<a href="/orders/${orderId}">${esc(o.order_number)}</a>`:esc(o.order_number);
-    document.getElementById('breadcrumb').innerHTML=[customerLink,orderLink,'Einsatzberichte'].join(' · ');
+    kopfZeichnen();
     refreshTimeEntryOrderItemOptions();
   }).catch(()=>{});
   await lesen('stammdaten',()=>api('/api/employees').catch(()=>[]),d=>{employees=d});

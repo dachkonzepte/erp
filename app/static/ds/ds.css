@@ -567,6 +567,12 @@
   display: none;
 }
 
+/* seit 1.9.10: ein verborgener Knopf oder Menüeintrag bleibt verborgen -- das display aus .ds-knopf und .ds-menue-eintrag schlüge [hidden] */
+.ds-knopf[hidden],
+.ds-menue-eintrag[hidden] {
+  display: none;
+}
+
 .ds-menue-kopf {
   margin: 0 0 var(--ds-abstand-1);
   padding: var(--ds-abstand-2) var(--ds-abstand-3);

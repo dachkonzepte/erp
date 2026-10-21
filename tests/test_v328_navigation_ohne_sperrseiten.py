@@ -178,14 +178,16 @@ def test_gegenprobe_die_frueheren_ausnahmen_fallen_auf(welt, monkeypatch):
 
 @pytest.mark.parametrize("rolle,erwartet", [(ROLE_FIELD, False), (ROLE_OFFICE_AUFTRAG, True), (ROLE_ADMIN, True)])
 def test_berichtsseite_baut_auftrags_und_kundenlinks_nur_fuers_buero(welt, monkeypatch, rolle, erwartet):
-    """Die Breadcrumb (Kunde, Auftragsnummer), "← Auftrag" und "Folgeauftrag ansehen" baut erst das
+    """Den Pfad im Seitenkopf (Kunde, Projekt, Wartungsvertrag, Auftragsnummer) und "Folgeauftrag ansehen" baut erst das
     JavaScript -- der Durchlauf oben sieht sie nicht. Die Seite bekommt deshalb vom Server, ob die Rolle
-    Büro-Seiten öffnen darf; "← Auftrag" fehlt für den Monteur schon im Markup. Im Browser prüft das
+    Büro-Seiten öffnen darf; der Anfang des Pfads steht schon im Markup: "Projekte" fürs Büro, "Einsätze" (/mobil) für den
+    Monteur (seit 1.9.10, bis dahin der Knopf "← Auftrag" nur fürs Büro). Im Browser prüft das
     scripts/klicktest_monteur_navigation.py."""
     monkeypatch.setitem(templates.env.globals, "is_module_enabled", lambda key: True)
     html = _client_als(welt["db"], [pages_router], welt["user_ids"][rolle]).get("/orders/1/service-reports").text
     assert f"const darfBueroSeiten={'true' if erwartet else 'false'};" in html
-    assert ('id="orderLink"' in html) is erwartet
+    assert ('<a class="ds-kopf-pfadglied" href="/projects">Projekte</a>' in html) is erwartet
+    assert ('<a class="ds-kopf-pfadglied" href="/mobil">Einsätze</a>' in html) is not erwartet
 
 
 # ---------------------------------------------------------------------------

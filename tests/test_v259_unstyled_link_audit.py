@@ -50,7 +50,7 @@ def test_settings_html_has_a_general_link_color_rule():
 
 def test_service_reports_html_has_a_general_link_color_rule():
     html = (TEMPLATES / "service_reports.html").read_text(encoding="utf-8")
-    assert "a{color:var(--accent)}" in _style_block(html)
+    assert "a{color:var(--ds-link)}" in _style_block(html)  # seit 1.9.10 (Runde 5, Seitenkopf): Links in --ds-link, bis dahin --accent
     history_start = html.index("function historyCard(")
     history_end = html.index("\n}", history_start)
     assert 'href="/api/service-reports/${r.id}/pdf"' in html[history_start:history_end]

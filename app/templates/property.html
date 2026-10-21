@@ -7,14 +7,10 @@
 :root[data-theme="dark"]{color-scheme:dark}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
 main{max-width:1200px;margin:0;padding:20px}
-.breadcrumb{font-size:12.5px;color:var(--muted);margin-bottom:10px}
-.breadcrumb a{color:var(--accent);text-decoration:none;font-weight:650}
-.hero{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
-.hero h1{margin:0 0 4px;font-size:22px}.hero .muted{color:var(--muted)}
 .field{margin:0}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
 input,select,textarea{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;width:100%}
 input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
-input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-aktion);outline-offset:-1px;border-color:var(--ds-aktion)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-fokus);outline-offset:-1px;border-color:var(--ds-fokus)}
 textarea{min-height:60px;resize:vertical}
 button{border:1px solid var(--ds-aktion);background:var(--ds-aktion);color:#fff;padding:9px 13px;font:inherit;font-weight:650;font-size:13.5px;cursor:pointer}
 button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-color:color-mix(in srgb,var(--ds-aktion) 85%,black)}
@@ -41,16 +37,16 @@ tr:last-child td{border-bottom:none}
 .bulk-name-row{display:flex;gap:8px;margin-bottom:8px}
 .bulk-name-row input{flex:1}
 @media(max-width:900px){.fields-2col{grid-template-columns:1fr}table{font-size:12.5px}th,td{padding:8px}}
-</style></head><body>
+</style></head><body class="ds-seite">
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
 <main>
-<div class="breadcrumb" id="breadcrumb">Lädt …</div>
-<div class="hero">
-  <div><h1 id="propertyName">Objekt</h1><div class="muted small" id="propertyMeta"></div></div>
-</div>
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{% call(teil) seitenkopf("Objekt", mit_pfad=true) %}
+  {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/master-data">Stammdaten</a>{% endif %}
+{% endcall %}
 
 <div class="editor-card">
   <h2>Objektstammdaten</h2>
@@ -149,6 +145,7 @@ tr:last-child td{border-bottom:none}
 <div class="card"><h2>Checklisten</h2><div id="checklistSection"></div></div>
 {% endif %}
 </main>
+{% include "_seitenkopf.html" %}
 </div>
 </div>
 {% include "_speichern.html" %}
@@ -170,14 +167,13 @@ async function isModuleEnabled(key){
   return m?m.enabled:true;
 }
 
+// Seit 1.9.10 im gemeinsamen Seitenkopf (_seitenkopf.html): Pfad Stammdaten / Kunde / Objekt, Titel, Anschrift als Untertitel.
 function renderBreadcrumb(){
-  const customerLink=customer?`<a href="/customers/${customer.id}">${esc(customer.name)}</a>`:null;
-  document.getElementById('breadcrumb').innerHTML=[customerLink,esc(property.name)].filter(Boolean).join(' · ');
+  seitenkopf({pfad:[{text:'Stammdaten',href:'/master-data'},customer?{text:customer.name,href:'/customers/'+customer.id}:null,{text:property.name}].filter(Boolean)});
 }
 
 function renderHeader(){
-  document.getElementById('propertyName').textContent=property.name;
-  document.getElementById('propertyMeta').textContent=[property.street,[property.postal_code,property.city].filter(Boolean).join(' ')].filter(Boolean).join(', ')||'Keine Adresse hinterlegt';
+  seitenkopf({titel:property.name,untertitel:[property.street,[property.postal_code,property.city].filter(Boolean).join(' ')].filter(Boolean).join(', ')||'Keine Adresse hinterlegt'});
 }
 
 function fillPropertyForm(){
@@ -217,13 +213,13 @@ async function saveProperty(){
 
 function roofAreaRow(r){
   return `<tr>
-    <td><a href="/roof-areas/${r.id}" style="color:var(--accent);font-weight:650;text-decoration:none">${esc(r.name)}</a></td>
+    <td><a href="/roof-areas/${r.id}" style="color:var(--ds-link);font-weight:650;text-decoration:none">${esc(r.name)}</a></td>
     <td>${esc(r.roof_type||'—')}</td>
     <td>${r.area_sqm?Number(r.area_sqm).toLocaleString('de-DE')+' m²':'—'}</td>
     <td>${esc(r.covering||'—')}</td>
     <td>${acceptanceWarrantyEnd(r.id)}</td>
     <td>${r.third_party_guarantee_until?fmtDate(r.third_party_guarantee_until):'—'}</td>
-    <td><a href="/roof-areas/${r.id}" style="color:var(--accent);font-weight:650;text-decoration:none">Öffnen</a></td>
+    <td><a href="/roof-areas/${r.id}" style="color:var(--ds-link);font-weight:650;text-decoration:none">Öffnen</a></td>
   </tr>`;
 }
 
@@ -241,7 +237,7 @@ function acceptanceWarrantyRow(a){
   const areas=a.roof_areas.length?`<div class="muted small">Dachflächen: ${a.roof_areas.map(r=>esc(r.name)).join(', ')}</div>`:'';
   const w=a.warranty;
   return `<tr>
-    <td><a href="/orders/${a.order_id}" style="color:var(--accent);font-weight:650;text-decoration:none">${esc(a.order_number)}</a><div class="muted small">${esc(a.order_title||'')}</div></td>
+    <td><a href="/orders/${a.order_id}" style="color:var(--ds-link);font-weight:650;text-decoration:none">${esc(a.order_number)}</a><div class="muted small">${esc(a.order_title||'')}</div></td>
     <td>${scope}${areas}</td>
     <td>${fmtDate(a.accepted_on)} · ${esc(a.kind_label)}</td>
     <td>${esc(a.result_text)}</td>
@@ -295,23 +291,23 @@ function maintenanceRow(c){
     <td>${esc(c.title)}</td>
     <td><span class="badge ${c.is_due?'due':''}">${esc(c.status)}</span></td>
     <td>${fmtDate(c.next_due_date)}</td>
-    <td><a href="/maintenance-contracts/${c.id}" style="color:var(--accent);font-weight:650;text-decoration:none">Öffnen</a></td>
+    <td><a href="/maintenance-contracts/${c.id}" style="color:var(--ds-link);font-weight:650;text-decoration:none">Öffnen</a></td>
   </tr>`;
 }
 
 let documentCategories=[];
 
 function propertyDocumentRow(d){
-  const origin=d.source==='property'?'Objekt':`<a href="/projects/${d.project_id}" style="color:var(--accent);font-weight:650;text-decoration:none">Projekt</a>`;
+  const origin=d.source==='property'?'Objekt':`<a href="/projects/${d.project_id}" style="color:var(--ds-link);font-weight:650;text-decoration:none">Projekt</a>`;
   const viewUrl=d.source==='property'?`/api/property-documents/${d.id}/view`:`/api/project-documents/${d.id}/view`;
   const downloadUrl=d.source==='property'?`/api/property-documents/${d.id}/download`:`/api/project-documents/${d.id}/download`;
   return `<tr>
     <td>${esc(d.category_label)}</td>
-    <td>${d.can_preview?`<a href="${viewUrl}" target="_blank" style="color:var(--accent);text-decoration:none">${esc(d.original_filename)}</a>`:esc(d.original_filename)}</td>
+    <td>${d.can_preview?`<a href="${viewUrl}" target="_blank" style="color:var(--ds-link);text-decoration:none">${esc(d.original_filename)}</a>`:esc(d.original_filename)}</td>
     <td>${origin}</td>
     <td>${fmtDate((d.uploaded_at||'').slice(0,10))}</td>
     <td style="white-space:nowrap">
-      <a href="${downloadUrl}" style="color:var(--accent);font-weight:650;text-decoration:none">Laden</a>
+      <a href="${downloadUrl}" style="color:var(--ds-link);font-weight:650;text-decoration:none">Laden</a>
       ${d.source==='property'?` <button type="button" class="danger" onclick="deletePropertyDocument(${d.id})">Löschen</button>`:''}
     </td>
   </tr>`;
@@ -377,7 +373,7 @@ async function init(){
       return [geladen,await api(`/api/customers/${geladen.customer_id}`).catch(()=>null)];
     },([geladen,kunde])=>{property=geladen;customer=kunde;renderBreadcrumb();renderHeader();fillPropertyForm()});
   }catch(e){
-    document.getElementById('breadcrumb').textContent='Fehler: '+e.message;
+    seitenkopf({untertitel:'Fehler: '+e.message});
     return;
   }
   await loadAcceptanceWarranties();

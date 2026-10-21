@@ -130,7 +130,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Gespeichert: Zweck und Kontexte", await tab.js(f"{api(seed['wird'])}.then(t=>[t.purpose,t.contexts,t.editable_version.purpose])"),
              ["abnahme", ["auftrag"], "abnahme"])
     p.pruefe("Kopf: Kennzeichen, kein Löschen mehr", await tab.js(
-        "[document.getElementById('versionBadges').textContent.includes('Zweck: Abnahme'), [...document.querySelectorAll('#heroActions button')].some(b=>b.textContent==='Löschen')]"),
+        "[document.getElementById('seitenkopfUntertitel').textContent.includes('Zweck: Abnahme'), !document.getElementById('vorlageLoeschen').hidden]"),
         [True, False])
     p.pruefe("Büro (Zweck): JS-Fehler", tab.fehler, [])
     await tab.bild("zweck_gewaehlt_hell")
@@ -175,7 +175,7 @@ async def pruefen(tab, seed, p):
     # Veröffentlichen -- danach ist der Zweck fest
     await tab.oeffnen(f"/checklisten/vorlagen/{seed['abnahme']}", bereit)
     await tab.js("publish()")
-    await tab.warten("document.getElementById('versionBadges').textContent.includes('Gültig: Fassung 1')", 10)
+    await tab.warten("document.getElementById('seitenkopfUntertitel').textContent.includes('Gültig: Fassung 1')", 10)
     p.pruefe("Nach Veröffentlichen: Zweck gesperrt", await tab.js(
         "[document.getElementById('metaPurpose').disabled, document.getElementById('purposeHint').textContent.includes('seit der ersten Veröffentlichung festgelegt')]"),
         [True, True])

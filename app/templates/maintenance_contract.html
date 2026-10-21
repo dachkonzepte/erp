@@ -7,14 +7,10 @@
 :root[data-theme="dark"]{color-scheme:dark}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
 main{max-width:1200px;margin:0;padding:20px}
-.breadcrumb{font-size:12.5px;color:var(--muted);margin-bottom:10px}
-.breadcrumb a{color:var(--accent);text-decoration:none;font-weight:650}
-.hero{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
-.hero h1{margin:0 0 4px;font-size:22px}.hero .muted{color:var(--muted)}
 .field{margin:0}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
 input,select,textarea{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;width:100%}
 input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
-input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-aktion);outline-offset:-1px;border-color:var(--ds-aktion)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-fokus);outline-offset:-1px;border-color:var(--ds-fokus)}
 textarea{min-height:60px;resize:vertical}
 button{border:1px solid var(--ds-aktion);background:var(--ds-aktion);color:#fff;padding:9px 13px;font:inherit;font-weight:650;font-size:13.5px;cursor:pointer}
 button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-color:color-mix(in srgb,var(--ds-aktion) 85%,black)}
@@ -46,7 +42,7 @@ tr:last-child td{border-bottom:none}
 .row-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
 @media(max-width:900px){.fields-2col{grid-template-columns:1fr}table{font-size:12.5px}th,td{padding:8px}}
-</style></head><body>
+</style></head><body class="ds-seite">
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
@@ -54,19 +50,17 @@ tr:last-child td{border-bottom:none}
 {% include "_auswahl.html" %}
 {% include "_objekt_anderer_kunde.html" %}
 <main>
-<div class="breadcrumb" id="breadcrumb">Lädt …</div>
-<div class="hero">
-  <div><h1 id="contractTitle">Wartungsvertrag</h1><div class="muted small" id="contractMeta"></div></div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-    <button id="performMaintenanceBtn" onclick="performMaintenanceNow()">Wartung durchführen</button>
-    <button class="secondary" id="createProjectBtn" onclick="createProjectNow(null)">Vorgang erstellen</button>
-    <button class="secondary" id="pauseBtn" onclick="setStatus('pausiert')">Pausieren</button>
-    <button class="secondary" id="reactivateBtn" onclick="setStatus('aktiv')">Reaktivieren</button>
-    <button class="secondary" id="finishBtn" onclick="setStatus('beendet')">Beenden</button>
-    <button class="secondary" id="archiveBtn" onclick="toggleArchived()">Archivieren</button>
-    <button class="danger" onclick="deleteContractNow()">Löschen</button>
-  </div>
-</div>
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{% call(teil) seitenkopf("Wartungsvertrag", mit_pfad=true, mit_aktion=true, mit_menue=true) %}
+  {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/maintenance-contracts">Wartungen</a>
+  {% elif teil == "aktion" %}<button type="button" class="ds-knopf ds-knopf-aktion" id="performMaintenanceBtn" data-klick="wartung">Wartung durchführen</button>
+  {% elif teil == "menue" %}<button type="button" class="ds-menue-eintrag" id="createProjectBtn" data-klick="vorgang">Vorgang erstellen</button>
+  <button type="button" class="ds-menue-eintrag" id="pauseBtn" data-klick="pausieren">Pausieren</button>
+  <button type="button" class="ds-menue-eintrag" id="reactivateBtn" data-klick="reaktivieren">Reaktivieren</button>
+  <button type="button" class="ds-menue-eintrag" id="finishBtn" data-klick="beenden">Beenden</button>
+  <button type="button" class="ds-menue-eintrag" id="archiveBtn" data-klick="archivieren">Archivieren</button>
+  <button type="button" class="ds-menue-eintrag ds-menue-eintrag-fehler" data-klick="loeschen">Löschen</button>{% endif %}
+{% endcall %}
 <div class="muted small hidden" id="performMaintenanceHint" style="margin:-6px 0 12px"></div>
 <div class="muted small hidden" id="createProjectHint" style="margin:-6px 0 12px"></div>
 <div class="muted small hidden" id="createProjectResult" style="margin:8px 0;padding:10px 12px;background:var(--soft);border:1px solid var(--line)"></div>
@@ -117,6 +111,8 @@ tr:last-child td{border-bottom:none}
 </div>
 
 </main>
+{% include "_aktionen.html" %}
+{% include "_seitenkopf.html" %}
 </div>
 </div>
 {% include "_speichern.html" %}
@@ -170,18 +166,25 @@ function inspectionTemplateOptionsHtml(){
   return '<option value="">— automatisch nach Dachtyp —</option>'+inspectionTemplates.filter(t=>!t.archived).map(t=>`<option value="${t.id}">${esc(t.label)}</option>`).join('');
 }
 
+// Seit 1.9.10 im gemeinsamen Seitenkopf (_seitenkopf.html): Pfad Wartungen / Kunde / Objekt / Vertrag (Rückweg zur Liste, ablaeufe.md),
+// Status des Vertrags (statusKennzeichen()), „Wartung durchführen“ als Hauptaktion, alles Weitere im Menü „⋮“ -- ein Eintrag, der
+// nicht gilt, ist verborgen (hidden: das Menü überspringt ihn auch per Tastatur).
 function renderBreadcrumb(){
-  const customerLink=`<a href="/customers/${contract.customer_id}">${esc(contract.customer_name||'Kunde')}</a>`;
-  const propertyLink=contract.property_id?`<a href="/properties/${contract.property_id}">${esc(contract.property_name||'Objekt')}</a>`:null;
-  document.getElementById('breadcrumb').innerHTML=[customerLink,propertyLink,esc(contract.title)].filter(Boolean).join(' · ');
+  seitenkopf({pfad:[
+    {text:'Wartungen',href:'/maintenance-contracts'},
+    {text:contract.customer_name||'Kunde',href:'/customers/'+contract.customer_id},
+    contract.property_id?{text:contract.property_name||'Objekt',href:'/properties/'+contract.property_id}:null,
+    {text:contract.title},
+  ].filter(Boolean)});
 }
 
 function renderHero(){
-  document.getElementById('contractTitle').textContent=contract.title;
-  document.getElementById('contractMeta').textContent=[contract.customer_name,contract.property_name,`${contract.interval_months} Monate Intervall`].filter(Boolean).join(' · ');
-  document.getElementById('pauseBtn').classList.toggle('hidden',contract.status!=='aktiv');
-  document.getElementById('reactivateBtn').classList.toggle('hidden',contract.status!=='pausiert');
-  document.getElementById('finishBtn').classList.toggle('hidden',contract.status==='beendet');
+  seitenkopf({titel:contract.title,
+    untertitel:[contract.customer_name,contract.property_name,`${contract.interval_months} Monate Intervall`].filter(Boolean).join(' · '),
+    status:statusKennzeichen('wartungsvertrag',contract.archived?'archiviert':contract.status)});
+  document.getElementById('pauseBtn').hidden=contract.status!=='aktiv';
+  document.getElementById('reactivateBtn').hidden=contract.status!=='pausiert';
+  document.getElementById('finishBtn').hidden=contract.status==='beendet';
   document.getElementById('archiveBtn').textContent=contract.archived?'Entarchivieren':'Archivieren';
   updatePerformMaintenanceButton();
   updateCreateProjectButton();
@@ -212,11 +215,11 @@ function updateCreateProjectButton(){
   if(maintenanceSettings.use_roof_area_items&&activeItems.length>0){
     // Positionen übernehmen die Fälligkeit vollständig -- "Vorgang erstellen" existiert dann
     // nur je Dachfläche in der Tabelle unten, das Backend lehnt den Vertrags-weiten Aufruf ab.
-    btn.classList.add('hidden');
+    btn.hidden=true;
     hint.classList.add('hidden');
     return;
   }
-  btn.classList.remove('hidden');
+  btn.hidden=false;
   if(!contract.template_project_id){
     btn.disabled=true;
     hint.textContent='Für diesen Vertrag ist kein Mustervorgang hinterlegt -- ohne Mustervorgang kann kein Vorgang erstellt werden.';
@@ -409,7 +412,7 @@ async function deleteContractItem(itemId){
 
 function renderHistory(){
   document.getElementById('historyBody').innerHTML=history.length
-    ?`<div class="table-scroll"><table><thead><tr><th>Datum</th><th>Auftrag</th><th>Typ</th></tr></thead><tbody>${history.map(h=>`<tr><td>${fmtDate(h.performed_at)}</td><td><a href="/orders/${h.order_id}" style="color:var(--accent)">${esc(h.order_number||'')}</a></td><td>${esc(h.report_type_label||'')}</td></tr>`).join('')}</tbody></table></div>`
+    ?`<div class="table-scroll"><table><thead><tr><th>Datum</th><th>Auftrag</th><th>Typ</th></tr></thead><tbody>${history.map(h=>`<tr><td>${fmtDate(h.performed_at)}</td><td><a href="/orders/${h.order_id}" style="color:var(--ds-link)">${esc(h.order_number||'')}</a></td><td>${esc(h.report_type_label||'')}</td></tr>`).join('')}</tbody></table></div>`
     :'<div class="muted small">Noch keine unterschriebenen Einsatzberichte.</div>';
 }
 
@@ -429,7 +432,7 @@ async function init(){
   try{
     await lesen('vertrag',()=>api(`/api/maintenance-contracts/${contractId}`),d=>{contract=d});
   }catch(e){
-    document.getElementById('breadcrumb').textContent='Fehler: '+e.message;
+    seitenkopf({untertitel:'Fehler: '+e.message});
     return;
   }
   await lesen('stammdaten',()=>Promise.all([
@@ -447,5 +450,13 @@ async function init(){
   await lesen('verlauf',()=>api(`/api/maintenance-contracts/${contractId}/history`).catch(()=>[]),d=>{history=d;renderHistory()});
 }
 init();
+/* Seit 1.9.10: Kopf über den gemeinsamen Seitenkopf (data-klick, _aktionen.html). */
+aktion('wartung',()=>performMaintenanceNow());
+aktion('vorgang',()=>createProjectNow(null));
+aktion('pausieren',()=>setStatus('pausiert'));
+aktion('reaktivieren',()=>setStatus('aktiv'));
+aktion('beenden',()=>setStatus('beendet'));
+aktion('archivieren',()=>toggleArchived());
+aktion('loeschen',()=>deleteContractNow());
 </script>
 </body></html>

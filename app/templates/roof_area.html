@@ -7,14 +7,10 @@
 :root[data-theme="dark"]{color-scheme:dark}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
 main{max-width:1200px;margin:0;padding:20px}
-.breadcrumb{font-size:12.5px;color:var(--muted);margin-bottom:10px}
-.breadcrumb a{color:var(--accent);text-decoration:none;font-weight:650}
-.hero{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
-.hero h1{margin:0 0 4px;font-size:22px}.hero .muted{color:var(--muted)}
 .field{margin:0}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
 input,select,textarea{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;width:100%}
 input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
-input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-aktion);outline-offset:-1px;border-color:var(--ds-aktion)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-fokus);outline-offset:-1px;border-color:var(--ds-fokus)}
 textarea{min-height:60px;resize:vertical}
 button{border:1px solid var(--ds-aktion);background:var(--ds-aktion);color:#fff;padding:9px 13px;font:inherit;font-weight:650;font-size:13.5px;cursor:pointer}
 button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-color:color-mix(in srgb,var(--ds-aktion) 85%,black)}
@@ -46,13 +42,13 @@ tr:last-child td{border-bottom:none}
 .sketch-rect{position:absolute;border:2px solid var(--ds-aktion);background:color-mix(in srgb,var(--ds-aktion) 18%,transparent);pointer-events:none}
 .sketch-rect-preview{position:absolute;border:2px dashed var(--ds-aktion);background:color-mix(in srgb,var(--ds-aktion) 10%,transparent);pointer-events:none}
 .placing-banner{background:var(--warning-soft);color:var(--warning);padding:8px 12px;margin-bottom:10px;font-size:13px;font-weight:650;display:flex;justify-content:space-between;align-items:center;gap:10px}
-.finding-count-link{background:none;border:0;color:var(--accent);font:inherit;font-size:12.5px;font-weight:650;cursor:pointer;padding:0}
+.finding-count-link{background:none;border:0;color:var(--ds-link);font:inherit;font-size:12.5px;font-weight:650;cursor:pointer;padding:0}
 .finding-count-link:hover{text-decoration:underline}
 .finding-history-row td{background:var(--soft)}
 .finding-history-item{display:flex;gap:10px;padding:5px 0;border-bottom:1px solid var(--line);font-size:12.5px}
 .finding-history-item:last-child{border-bottom:none}
 @media(max-width:900px){.fields-2col{grid-template-columns:1fr}table{font-size:12.5px}th,td{padding:8px}}
-</style></head><body>
+</style></head><body class="ds-seite">
 <div class="app-layout">
 {% include "_sidebar.html" %}
 {% include "_debounce.html" %}
@@ -61,14 +57,12 @@ tr:last-child td{border-bottom:none}
 {% include "_auswahl.html" %}
 {% include "_fehlertext.html" %}
 <main>
-<div class="breadcrumb" id="breadcrumb">Lädt …</div>
-<div class="hero">
-  <div><h1 id="areaName">Dachfläche</h1><div class="muted small" id="areaMeta"></div></div>
-  <div style="display:flex;gap:8px">
-    <button class="secondary" id="archiveBtn" onclick="toggleAreaArchived()">Archivieren</button>
-    <button class="danger" onclick="deleteRoofAreaNow()">Löschen</button>
-  </div>
-</div>
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{% call(teil) seitenkopf("Dachfläche", mit_pfad=true, mit_menue=true) %}
+  {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/master-data">Stammdaten</a>
+  {% elif teil == "menue" %}<button type="button" class="ds-menue-eintrag" id="archiveBtn" data-klick="archivieren">Archivieren</button>
+  <button type="button" class="ds-menue-eintrag ds-menue-eintrag-fehler" data-klick="loeschen">Löschen</button>{% endif %}
+{% endcall %}
 
 <div class="editor-card">
   <h2>Angaben zur Dachfläche</h2>
@@ -163,6 +157,7 @@ tr:last-child td{border-bottom:none}
   <span id="componentListStatus" class="status"></span>
 </div>
 </main>
+{% include "_seitenkopf.html" %}
 </div>
 </div>
 {% include "_speichern.html" %}
@@ -211,15 +206,21 @@ function findingHistoryRowHtml(c){
   return `<tr class="finding-history-row"><td colspan="10">${items}</td></tr>`;
 }
 
+// Seit 1.9.10 im gemeinsamen Seitenkopf (_seitenkopf.html): Pfad Stammdaten / Kunde / Objekt / Dachfläche, Status „Archiviert“
+// (statusKennzeichen()), Archivieren und Löschen im Menü „⋮“.
 function renderBreadcrumb(){
-  const customerLink=area.customer_id?`<a href="/customers/${area.customer_id}">${esc(area.customer_name||'Kunde')}</a>`:null;
-  const propertyLink=`<a href="/properties/${area.property_id}">${esc(area.property_name||'Objekt')}</a>`;
-  document.getElementById('breadcrumb').innerHTML=[customerLink,propertyLink,esc(area.name)].filter(Boolean).join(' · ');
+  seitenkopf({pfad:[
+    {text:'Stammdaten',href:'/master-data'},
+    area.customer_id?{text:area.customer_name||'Kunde',href:'/customers/'+area.customer_id}:null,
+    {text:area.property_name||'Objekt',href:'/properties/'+area.property_id},
+    {text:area.name},
+  ].filter(Boolean)});
 }
 
 function renderHeader(){
-  document.getElementById('areaName').textContent=area.name;
-  document.getElementById('areaMeta').textContent=[area.roof_type,area.covering,area.area_sqm?Number(area.area_sqm).toLocaleString('de-DE')+' m²':null].filter(Boolean).join(' · ')||'Noch keine Angaben';
+  seitenkopf({titel:area.name,
+    untertitel:[area.roof_type,area.covering,area.area_sqm?Number(area.area_sqm).toLocaleString('de-DE')+' m²':null].filter(Boolean).join(' · ')||'Noch keine Angaben',
+    status:statusKennzeichen('dachflaeche',area.archived?'archiviert':'')});
   document.getElementById('archiveBtn').textContent=area.archived?'Entarchivieren':'Archivieren';
 }
 
@@ -716,9 +717,9 @@ async function loadAcceptanceWarranties(){
   try{data=await api(`/api/roof-areas/${roofAreaId}/acceptance-warranties`)}catch(e){box.textContent='Konnte nicht geladen werden: '+e.message;return}
   const rows=data.acceptances.map(a=>{
     const w=a.warranty,scope=a.scope==='teil'?`Teilabnahme (${esc(a.scope_description)})`:'Gesamtabnahme';
-    return `<div style="padding:6px 0;border-bottom:1px solid var(--line)"><a href="/orders/${a.order_id}" style="color:var(--accent);font-weight:650;text-decoration:none">${esc(a.order_number)}</a> · ${scope} · ${esc(a.kind_label)} am ${fmtDate(a.accepted_on)} · ${esc(a.result_text)}<div>${w&&w.end?`<b title="${esc(w.rule||'')}">${esc(w.text)}</b> <span class="muted small">· ${esc(w.hint)}</span>`:`<span style="color:var(--warning)">${esc(w?w.text:'')}</span>`}</div>${w&&w.check?(w.check.ok?'<div class="muted small">✓ Prüfsumme stimmt</div>':`<div style="color:var(--danger);font-weight:700">⚠ Prüfung: ${esc(w.check.text)} – Ende nicht verlässlich</div>`):''}</div>`;
+    return `<div style="padding:6px 0;border-bottom:1px solid var(--line)"><a href="/orders/${a.order_id}" style="color:var(--ds-link);font-weight:650;text-decoration:none">${esc(a.order_number)}</a> · ${scope} · ${esc(a.kind_label)} am ${fmtDate(a.accepted_on)} · ${esc(a.result_text)}<div>${w&&w.end?`<b title="${esc(w.rule||'')}">${esc(w.text)}</b> <span class="muted small">· ${esc(w.hint)}</span>`:`<span style="color:var(--warning)">${esc(w?w.text:'')}</span>`}</div>${w&&w.check?(w.check.ok?'<div class="muted small">✓ Prüfsumme stimmt</div>':`<div style="color:var(--danger);font-weight:700">⚠ Prüfung: ${esc(w.check.text)} – Ende nicht verlässlich</div>`):''}</div>`;
   });
-  const hint=data.property_without_roof_areas?`<div style="margin-top:8px">${esc(data.property_without_roof_areas)} Abnahme${data.property_without_roof_areas===1?'':'n'} am Objekt ohne Angabe von Dachflächen – ${data.property_without_roof_areas===1?'sie kann':'sie können'} auch diese Fläche betreffen (siehe <a href="/properties/${area.property_id}" style="color:var(--accent);font-weight:650">Objekt</a>).</div>`:'';
+  const hint=data.property_without_roof_areas?`<div style="margin-top:8px">${esc(data.property_without_roof_areas)} Abnahme${data.property_without_roof_areas===1?'':'n'} am Objekt ohne Angabe von Dachflächen – ${data.property_without_roof_areas===1?'sie kann':'sie können'} auch diese Fläche betreffen (siehe <a href="/properties/${area.property_id}" style="color:var(--ds-link);font-weight:650">Objekt</a>).</div>`:'';
   box.className='small';
   box.innerHTML=(rows.join('')||'<div class="muted">Keine Abnahme nennt diese Dachfläche.</div>')+hint;
 }
@@ -744,7 +745,7 @@ async function init(){
       renderBreadcrumb();renderHeader();fillAreaForm();
     });
   }catch(e){
-    document.getElementById('breadcrumb').textContent='Fehler: '+e.message;
+    seitenkopf({untertitel:'Fehler: '+e.message});
     return;
   }
   await loadAcceptanceWarranties();
@@ -752,5 +753,8 @@ async function init(){
   await loadLayers();
 }
 init();
+/* Seit 1.9.10: Kopf über den gemeinsamen Seitenkopf (data-klick, _aktionen.html). */
+aktion('archivieren',()=>toggleAreaArchived());
+aktion('loeschen',()=>deleteRoofAreaNow());
 </script>
 </body></html>

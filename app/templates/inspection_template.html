@@ -7,14 +7,10 @@
 :root[data-theme="dark"]{color-scheme:dark}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
 main{max-width:1400px;margin:0;padding:20px}
-.breadcrumb{font-size:12.5px;color:var(--muted);margin-bottom:6px}
-.breadcrumb a{color:var(--accent);text-decoration:none}
-.hero{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
-.hero h1{margin:0 0 4px;font-size:22px}.hero .muted{color:var(--muted)}
 .field{margin:0}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
 input,select,textarea{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;width:100%}
 input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
-input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-aktion);outline-offset:-1px;border-color:var(--ds-aktion)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-fokus);outline-offset:-1px;border-color:var(--ds-fokus)}
 textarea{min-height:60px;resize:vertical}
 button{border:1px solid var(--ds-aktion);background:var(--ds-aktion);color:#fff;padding:9px 13px;font:inherit;font-weight:650;font-size:13.5px;cursor:pointer}
 button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-color:color-mix(in srgb,var(--ds-aktion) 85%,black)}
@@ -39,20 +35,22 @@ td input,td select{padding:6px 7px;font-size:12.5px}
 .empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
 .badge{font-size:10.5px;font-weight:800;text-transform:uppercase;padding:2px 7px;background:var(--soft);color:var(--muted)}
 @media(max-width:700px){.fields-2col,.fields-4col{grid-template-columns:1fr}}
-</style></head><body>
+</style></head><body class="ds-seite">
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
 {% include "_auswahl.html" %}
 <main>
-<div class="breadcrumb"><a href="/inspection-templates">Prüfvorlagen</a> / <span id="breadcrumbLabel">…</span></div>
-<div class="hero">
-  <div><h1 id="pageTitle">Prüfvorlage</h1><div class="muted small">Version <span id="versionBadge">1</span></div></div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-    <input id="copyLabel" placeholder="Name der Kopie …" style="width:220px">
-    <button class="secondary" onclick="copyTemplate()">Vorlage kopieren</button>
-  </div>
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{% call(teil) seitenkopf("Prüfvorlage", mit_pfad=true, mit_menue=true) %}
+  {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/settings">Einstellungen</a><span class="ds-kopf-trenner" aria-hidden="true">/</span><a class="ds-kopf-pfadglied" href="/inspection-templates">Prüfvorlagen</a>
+  {% elif teil == "menue" %}<button type="button" class="ds-menue-eintrag" data-klick="kopie-oeffnen">Vorlage kopieren …</button>{% endif %}
+{% endcall %}
+<div class="card" id="kopieKarte" hidden>
+  <h2>Vorlage kopieren</h2>
+  <div class="field"><label for="copyLabel">Name der Kopie</label><input id="copyLabel"></div>
+  <div class="editor-actions"><button type="button" data-klick="kopieren">Kopieren</button><button type="button" class="secondary" data-klick="kopie-schliessen">Abbrechen</button></div>
 </div>
 
 <div class="card">
@@ -85,6 +83,8 @@ td input,td select{padding:6px 7px;font-size:12.5px}
   </div>
 </div>
 </main>
+{% include "_aktionen.html" %}
+{% include "_seitenkopf.html" %}
 </div>
 </div>
 {% include "_speichern.html" %}
@@ -117,10 +117,15 @@ function itemTypeOptionsHtml(selected){
   return ITEM_TYPES.map(([v,l])=>`<option value="${v}" ${selected===v?'selected':''}>${esc(l)}</option>`).join('');
 }
 
+// Seit 1.9.10 im gemeinsamen Seitenkopf (_seitenkopf.html): Pfad Einstellungen / Prüfvorlagen / Vorlage (Rückweg in die Einstellungen,
+// ablaeufe.md), Version als Untertitel, Status „Archiviert“ (statusKennzeichen()); Kopieren aus dem Menü „⋮“ in einer Karte.
+function kopfZeichnen(){
+  seitenkopf({titel:template.label,untertitel:'Version '+template.version,status:statusKennzeichen('pruefvorlage',template.archived?'archiviert':''),
+    pfad:[{text:'Einstellungen',href:'/settings'},{text:'Prüfvorlagen',href:'/inspection-templates'},{text:template.label}]});
+}
+
 function fillMetaForm(){
-  document.getElementById('pageTitle').textContent=template.label;
-  document.getElementById('breadcrumbLabel').textContent=template.label;
-  document.getElementById('versionBadge').textContent=template.version;
+  kopfZeichnen();
   document.getElementById('editLabel').value=template.label;
   document.getElementById('editRoofType').innerHTML=roofTypeOptionsHtml(template.roof_type);
   document.getElementById('editDescription').value=template.description||'';
@@ -135,6 +140,13 @@ async function saveTemplateMeta(){
     await speichern('vorlage',()=>api(`/api/inspection-templates/${templateId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{anwenden:d=>{template=d;fillMetaForm()}});
     st.textContent='Gespeichert.';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+}
+
+// Seit 1.9.10: Kopieren aus dem Menü „⋮“ öffnet eine Karte unter dem Kopf, der Name der Kopie vorausgefüllt (Regel 4).
+function kopieOeffnen(){
+  const karte=document.getElementById('kopieKarte'),feld=document.getElementById('copyLabel');
+  if(karte.hidden)feld.value=template?template.label+' (Kopie)':'';
+  karte.hidden=false;feld.focus();feld.select();
 }
 
 async function copyTemplate(){
@@ -202,7 +214,7 @@ function readItemForm(row){
 function loadTemplate(){
   return lesen('vorlage',()=>api(`/api/inspection-templates/${templateId}`),d=>{
     template=d;
-    document.getElementById('versionBadge').textContent=template.version;
+    kopfZeichnen();
   });
 }
 
@@ -257,5 +269,9 @@ async function init(){
   await lesen('vorlage',()=>api(`/api/inspection-templates/${templateId}`),d=>{template=d;fillMetaForm();renderItems()});
 }
 init();
+/* Seit 1.9.10: Kopf über den gemeinsamen Seitenkopf (data-klick, _aktionen.html). */
+aktion('kopie-oeffnen',()=>kopieOeffnen());
+aktion('kopieren',()=>copyTemplate());
+aktion('kopie-schliessen',()=>{document.getElementById('kopieKarte').hidden=true});
 </script>
 </body></html>

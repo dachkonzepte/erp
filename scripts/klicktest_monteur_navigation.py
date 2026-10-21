@@ -11,8 +11,9 @@ Büro/Admin. Geprüft wird im echten Browser, nach dem Laden der Seite:
     Büro               die fünf Links unverändert da
 
 Seit 1.8.27 auch die Links im Seiteninhalt, die erst das JavaScript aus geladenen Daten baut
-(Breadcrumb mit Kunde und Auftragsnummer, "← Auftrag"): kein 403, der Monteur sieht Kunde und
-Auftragsnummer als Text. Dazu die Einstellungen: "Adressimport (Altsystem)" nur für Admin.
+(seit 1.9.10 der Pfad im Seitenkopf mit Kunde, Projekt und Auftragsnummer, bis dahin Breadcrumb und "← Auftrag"): kein 403,
+der Monteur sieht Kunde und Auftragsnummer als Text und im Pfad nur "Einsätze". Dazu die Einstellungen: "Adressimport
+(Altsystem)" nur für Admin.
 
 AUFRUF (aus dem Projektordner):
 
@@ -81,7 +82,7 @@ async def pruefen(tab, seed, p):
     berichtsseite = f"/orders/{seed['auftrag']}/service-reports"
     for rolle in ROLLEN:
         await tab.anmelden(seed["cookies"][rolle])
-        seiten = [(berichtsseite, "authStatus&&authStatus.authenticated&&document.getElementById('breadcrumb').textContent.length>0")]
+        seiten = [(berichtsseite, "authStatus&&authStatus.authenticated&&document.getElementById('seitenkopfKennung').textContent.length>0")]  # seit 1.9.10 Seitenkopf
         if rolle == "field":
             seiten.append(("/account", "document.getElementById('mobileHeaderWrap')"))
         for pfad, bereit in seiten:
@@ -97,8 +98,8 @@ async def pruefen(tab, seed, p):
             p.pruefe(f"{rolle} {pfad}: Links im Seiteninhalt ohne 403 ({len(inhalt)} Links)",
                      sorted(h for h, s in inhalt.items() if s == 403), [])
             if pfad == berichtsseite:
-                p.pruefe(f"{rolle}: Auftragsnummer in der Breadcrumb verlinkt",
-                         await tab.js("!!document.querySelector('#breadcrumb a[href^=\"/orders/\"]')"), rolle != "field")
+                p.pruefe(f"{rolle}: Auftragsnummer im Pfad des Seitenkopfs verlinkt",
+                         await tab.js("!!document.querySelector('#seitenkopfPfad a[href^=\"/orders/\"]')"), rolle != "field")
             beschriftung = await tab.js("[...document.querySelectorAll('#appSidebar .app-sidebar-link .app-sidebar-label')]"
                                         ".map(x=>x.textContent.trim())")
             if rolle == "field":

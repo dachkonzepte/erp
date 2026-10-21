@@ -7,14 +7,10 @@
 :root[data-theme="dark"]{color-scheme:dark}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
 main{max-width:1100px;margin:0;padding:20px}
-.breadcrumb{font-size:12.5px;color:var(--muted);margin-bottom:10px}
-.breadcrumb a{color:var(--accent);text-decoration:none;font-weight:650}
-.hero{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
-.hero h1{margin:0 0 4px;font-size:22px}.hero .muted{color:var(--muted)}
 .field{margin:0}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
 input,select,textarea{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;width:100%}
 input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
-input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-aktion);outline-offset:-1px;border-color:var(--ds-aktion)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-fokus);outline-offset:-1px;border-color:var(--ds-fokus)}
 textarea{min-height:60px;resize:vertical}
 button{border:1px solid var(--ds-aktion);background:var(--ds-aktion);color:#fff;padding:9px 13px;font:inherit;font-weight:650;font-size:13.5px;cursor:pointer}
 button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-color:color-mix(in srgb,var(--ds-aktion) 85%,black)}
@@ -33,7 +29,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .section-title h2{margin:0;font-size:16px}
 .readiness-banner{background:var(--danger-soft);border-left:4px solid var(--ds-fehler);color:var(--ink);padding:12px 14px;margin:10px 0 14px}
 .readiness-banner b{color:var(--danger)}
-.readiness-banner a{color:var(--accent)}
+.readiness-banner a{color:var(--ds-link)}
 .readiness-banner .release-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
 .readiness-banner .release-row input{flex:1 1 260px;min-width:0}
 .readiness-info{background:var(--soft);border-left:4px solid var(--line);padding:10px 14px;margin:10px 0 14px}
@@ -59,21 +55,19 @@ tr:last-child td{border-bottom:none}
   #printLabelImg{width:60mm;height:60mm}
   #printLabelName{font-size:16pt;font-weight:700;text-align:center}
 }
-</style></head><body>
+</style></head><body class="ds-seite">
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
 {% include "_auswahl.html" %}
 <main>
-<div class="breadcrumb" id="breadcrumb">Lädt …</div>
-<div class="hero">
-  <div><h1 id="assetTitle">Betriebsmittel</h1><div class="muted small" id="assetMeta"></div></div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-    <button class="secondary" onclick="printLabel()">Etikett drucken</button>
-    <button class="danger" onclick="deleteAssetNow()">Löschen</button>
-  </div>
-</div>
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{% call(teil) seitenkopf("Betriebsmittel", mit_pfad=true, mit_menue=true) %}
+  {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/master-data">Stammdaten</a><span class="ds-kopf-trenner" aria-hidden="true">/</span><a class="ds-kopf-pfadglied" href="/master-data#assets">Betriebsmittel</a>
+  {% elif teil == "menue" %}<button type="button" class="ds-menue-eintrag" data-klick="etikett">Etikett drucken</button>
+  <button type="button" class="ds-menue-eintrag ds-menue-eintrag-fehler" data-klick="loeschen">Löschen</button>{% endif %}
+{% endcall %}
 <span id="assetStatus" class="status"></span>
 <div id="readinessBanner" class="readiness-banner" style="display:none"></div>
 
@@ -108,12 +102,12 @@ tr:last-child td{border-bottom:none}
   <div class="fields-2col">
     <div class="field"><label>Artikelnummer <span class="muted small">(optional)</span></label><input id="editArticleNumber"></div>
     <div class="field"><label>Produktlink <span class="muted small">(optional, http/https)</span></label><input id="editProductUrl" type="url" placeholder="https://..."></div>
-    <div class="field full hidden" id="productUrlPreviewWrap"><a id="productUrlPreview" href="#" target="_blank" rel="noopener" style="color:var(--accent)">Produktlink öffnen →</a></div>
+    <div class="field full hidden" id="productUrlPreviewWrap"><a id="productUrlPreview" href="#" target="_blank" rel="noopener" style="color:var(--ds-link)">Produktlink öffnen →</a></div>
     <div class="field"><label>Anschaffungsdatum</label><input id="editAcqDate" type="date"></div>
     <div class="field"><label>Anschaffungskosten (EUR)</label><input id="editAcqCost" type="text" inputmode="decimal" data-zahl data-min="0" data-stellen="2"></div>
     <div class="field"><label>Laufende Kosten je Monat (Netto, EUR) <span class="muted small">(erzeugt/ändert einen echten Kostenposten in der Betriebskosten-Übersicht -- 19&nbsp;% Steuersatz, ohne Gemeinkosten-Einordnung als Vorgabe, dort anpassbar)</span></label><input id="editRecurringCost" type="text" inputmode="decimal" data-zahl data-min="0" data-stellen="2" data-feld="Laufende Kosten je Monat"></div>
     <div class="field full hidden" id="recurringCostFinanceOnlyHint"><div class="status">Nur Finanzen/Admin können diesen Wert ändern.</div></div>
-    <div class="field full hidden" id="recurringCostLinkWrap"><a id="recurringCostLink" href="/betriebskosten" style="color:var(--accent)">→ Kostenposten in der Betriebskosten-Übersicht ansehen/bearbeiten</a></div>
+    <div class="field full hidden" id="recurringCostLinkWrap"><a id="recurringCostLink" href="/betriebskosten" style="color:var(--ds-link)">→ Kostenposten in der Betriebskosten-Übersicht ansehen/bearbeiten</a></div>
     <div class="field full"><label>Kosten-Notizen</label><textarea id="editCostNotes"></textarea></div>
   </div>
   <div class="editor-actions">
@@ -166,6 +160,8 @@ tr:last-child td{border-bottom:none}
 <div class="card"><div class="section-title"><h2>Checklisten</h2></div><div id="checklistSection"></div></div>
 {% endif %}
 </main>
+{% include "_aktionen.html" %}
+{% include "_seitenkopf.html" %}
 </div>
 </div>
 <div id="printLabel" class="print-only">
@@ -206,20 +202,18 @@ function toggleResourceFields(){
   }
 }
 
+// Seit 1.9.10 im gemeinsamen Seitenkopf (_seitenkopf.html): Pfad Stammdaten / Betriebsmittel / Name, Kennung = Inventarnummer, Status
+// Prüfung überfällig / Prüfung fällig / Inaktiv (statusKennzeichen()), die übrigen Angaben als Untertitel; Etikett und Löschen im Menü „⋮“.
 function renderBreadcrumb(){
-  document.getElementById('breadcrumb').innerHTML=
-    '<a href="/master-data#assets">Stammdaten · Betriebsmittel</a> · '+esc(asset.name);
+  seitenkopf({pfad:[{text:'Stammdaten',href:'/master-data'},{text:'Betriebsmittel',href:'/master-data#assets'},{text:asset.name}]});
 }
 
 function renderHero(){
-  document.getElementById('assetTitle').textContent=asset.asset_number?`${asset.asset_number} · ${asset.name}`:asset.name;
-  const badges=[];
-  badges.push(asset.resource_id?'<span class="badge linked">Mit Ressourcenbezug</span>':'<span class="badge standalone">Eigenständig</span>');
-  if(!asset.active)badges.push('<span class="badge inactive">Inaktiv</span>');
-  if(asset.selectable_in_reports)badges.push('<span class="badge">Im Bericht auswählbar</span>');
-  if(asset.is_overdue)badges.push('<span class="badge overdue">⚠ Prüfung überfällig</span>');
-  else if(asset.is_due)badges.push('<span class="badge due">Prüfung fällig</span>');
-  document.getElementById('assetMeta').innerHTML=[esc(asset.asset_type),badges.join(' ')].filter(Boolean).join(' · ');
+  const angaben=[asset.asset_type,asset.resource_id?'Mit Ressourcenbezug':'Eigenständig'];
+  if(!asset.active&&(asset.is_overdue||asset.is_due))angaben.push('Inaktiv');  // sonst steht „Inaktiv“ als Status
+  if(asset.selectable_in_reports)angaben.push('Im Bericht auswählbar');
+  seitenkopf({kennung:asset.asset_number||'',titel:asset.name,untertitel:angaben.filter(Boolean).join(' · '),
+    status:statusKennzeichen('betriebsmittel',asset.is_overdue?'pruefung_ueberfaellig':asset.is_due?'pruefung_faellig':!asset.active?'inaktiv':'')});
 }
 
 function printLabel(){
@@ -261,7 +255,7 @@ function fillEditor(){
   }
   const link=document.getElementById('resourceEditLink');
   if(asset.resource_id){
-    link.innerHTML=`<a href="/master-data/resources/${asset.resource_id}/edit" style="color:var(--accent)">Ressourcen-Stammdaten bearbeiten →</a>`;
+    link.innerHTML=`<a href="/master-data/resources/${asset.resource_id}/edit" style="color:var(--ds-link)">Ressourcen-Stammdaten bearbeiten →</a>`;
     link.classList.remove('hidden');
   }else{
     link.classList.add('hidden');
@@ -354,7 +348,7 @@ function inspectionRow(insp){
   if(insp.is_overdue)badges.push('<span class="badge overdue">⚠ überfällig</span>');
   else if(insp.is_due)badges.push('<span class="badge due">fällig</span>');
   const doc=insp.document_filename
-    ?`<a href="/api/operational-asset-inspections/${insp.id}/document" target="_blank" style="color:var(--accent)">${esc(insp.document_original_name||'ansehen')}</a> <button class="secondary" style="padding:3px 8px" onclick="removeInspectionDocument(${insp.id})">✕</button>`
+    ?`<a href="/api/operational-asset-inspections/${insp.id}/document" target="_blank" style="color:var(--ds-link)">${esc(insp.document_original_name||'ansehen')}</a> <button class="secondary" style="padding:3px 8px" onclick="removeInspectionDocument(${insp.id})">✕</button>`
     :`<input type="file" id="inspFile${insp.id}" class="hidden" onchange="uploadInspectionDocument(${insp.id})"><button class="secondary" style="padding:3px 8px" onclick="document.getElementById('inspFile${insp.id}').click()">Hochladen</button>`;
   return `<tr>
     <td>${esc(insp.inspection_type)}</td>
@@ -486,7 +480,7 @@ function documentTypeOptionsHtml(){
 function documentRow(doc){
   return `<tr>
     <td>${esc(doc.document_type)}</td>
-    <td><a href="/api/operational-asset-documents/${doc.id}/file" target="_blank" style="color:var(--accent)">${esc(doc.original_filename)}</a></td>
+    <td><a href="/api/operational-asset-documents/${doc.id}/file" target="_blank" style="color:var(--ds-link)">${esc(doc.original_filename)}</a></td>
     <td>${fmtDate(doc.uploaded_at)}</td>
     <td>${esc(doc.notes||'')}</td>
     <td class="row-actions"><button class="danger" onclick="deleteDocumentNow(${doc.id})">Löschen</button></td>
@@ -564,7 +558,7 @@ async function init(){
       render();
     });
   }catch(e){
-    document.getElementById('breadcrumb').textContent='Fehler: '+e.message;
+    seitenkopf({untertitel:'Fehler: '+e.message});
   }
 }
 init();
@@ -585,7 +579,7 @@ function renderReadiness(s){
     el.style.display='';
   }else if(s.released_at){
     el.className='readiness-info';
-    el.innerHTML=`Wieder einsatzbereit – als repariert markiert ${esc(fmtDate(s.released_at))}${s.released_by_name?' von '+esc(s.released_by_name):''}${s.release_note?': '+esc(s.release_note):''}. <span class="muted small">Meldung „nicht einsatzbereit“: ${source}, <a href="/checklisten/${s.checklist_id}" style="color:var(--accent)">ansehen</a></span>`;
+    el.innerHTML=`Wieder einsatzbereit – als repariert markiert ${esc(fmtDate(s.released_at))}${s.released_by_name?' von '+esc(s.released_by_name):''}${s.release_note?': '+esc(s.release_note):''}. <span class="muted small">Meldung „nicht einsatzbereit“: ${source}, <a href="/checklisten/${s.checklist_id}" style="color:var(--ds-link)">ansehen</a></span>`;
     el.style.display='';
   }
 }
@@ -606,5 +600,8 @@ if(window.renderChecklistSection){
   // Seit 1.8.97 über lesen() (_speichern.html), Bereich wie "Als repariert markieren".
   lesen('einsatzbereitschaft',()=>fetch(`/api/checklists/asset-readiness/${assetId}`).then(r=>r.ok?r.json():null),renderReadiness);
 }
+/* Seit 1.9.10: Kopf über den gemeinsamen Seitenkopf (data-klick, _aktionen.html). */
+aktion('etikett',()=>printLabel());
+aktion('loeschen',()=>deleteAssetNow());
 </script>
 </body></html>

@@ -7,14 +7,11 @@
 :root[data-theme="dark"]{color-scheme:dark}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
 main{max-width:1100px;margin:0;padding:20px}
-.breadcrumb{font-size:12.5px;color:var(--muted);margin-bottom:6px}
-.breadcrumb a{color:var(--accent);text-decoration:none}
-.hero{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:14px}
-.hero h1{margin:0 0 6px;font-size:22px}.muted{color:var(--muted)}.small{font-size:12.5px}
+.muted{color:var(--muted)}.small{font-size:12.5px}
 .field{margin:0}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
 input,select,textarea{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;width:100%}
 input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
-input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-aktion);outline-offset:-1px;border-color:var(--ds-aktion)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-fokus);outline-offset:-1px;border-color:var(--ds-fokus)}
 input:disabled,select:disabled,textarea:disabled{background:var(--soft);color:var(--muted)}
 input[type=checkbox]{width:auto}
 textarea{min-height:60px;resize:vertical}
@@ -53,17 +50,26 @@ th{color:var(--muted);font-size:12px;text-transform:uppercase;font-weight:650}
 tr:last-child td{border-bottom:none}
 .empty{padding:18px;text-align:center;color:var(--muted);font-size:13px}
 @media(max-width:700px){.fields-2col,.fields-4col{grid-template-columns:1fr}}
-</style></head><body>
+</style></head><body class="ds-seite">
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
 <main>
 {% if is_module_enabled('checklisten') %}
-<div class="breadcrumb"><a href="/checklisten/vorlagen">Checklisten-Vorlagen</a> / <span id="breadcrumbLabel">…</span></div>
-<div class="hero">
-  <div><h1 id="pageTitle">Vorlage</h1><div id="versionBadges"></div></div>
-  <div class="actions" style="margin-top:0" id="heroActions"></div>
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{% call(teil) seitenkopf("Vorlage", mit_pfad=true, mit_aktion=true, mit_menue=true) %}
+  {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/checklisten">Checklisten</a><span class="ds-kopf-trenner" aria-hidden="true">/</span><a class="ds-kopf-pfadglied" href="/checklisten/vorlagen">Vorlagen</a>
+  {% elif teil == "aktion" %}<button type="button" class="ds-knopf ds-knopf-aktion" id="fassungKnopf" data-klick="fassung" hidden>Entwurf veröffentlichen</button>
+  {% elif teil == "menue" %}<button type="button" class="ds-menue-eintrag" id="entwurfVerwerfen" data-klick="entwurf-verwerfen" hidden>Entwurf verwerfen</button>
+  <button type="button" class="ds-menue-eintrag" data-klick="kopie-oeffnen">Kopieren …</button>
+  <button type="button" class="ds-menue-eintrag" id="archivUmschalter" data-klick="archivieren">Archivieren</button>
+  <button type="button" class="ds-menue-eintrag ds-menue-eintrag-fehler" id="vorlageLoeschen" data-klick="loeschen" hidden>Löschen</button>{% endif %}
+{% endcall %}
+<div class="card" id="kopieKarte" hidden>
+  <h2>Vorlage kopieren</h2>
+  <div class="field"><label for="copyLabel">Name der Kopie</label><input id="copyLabel"></div>
+  <div class="actions"><button type="button" data-klick="kopieren">Kopieren</button><button type="button" class="secondary" data-klick="kopie-schliessen">Abbrechen</button></div>
 </div>
 <div id="pageStatus" class="status"></div>
 
@@ -113,9 +119,11 @@ tr:last-child td{border-bottom:none}
   <div id="versionView"></div>
 </div>
 {% else %}
-<div class="card"><h2>Checklisten-Vorlage</h2><div class="muted">Das Modul Checklisten &amp; Formulare ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--accent)">Einstellungen</a> wieder aktivieren.</div></div>
+<div class="card"><h2>Checklisten-Vorlage</h2><div class="muted">Das Modul Checklisten &amp; Formulare ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--ds-link)">Einstellungen</a> wieder aktivieren.</div></div>
 {% endif %}
 </main>
+{% include "_aktionen.html" %}
+{% include "_seitenkopf.html" %}
 </div>
 </div>
 {% include "_fehlertext.html" %}
@@ -157,27 +165,23 @@ function setStatus(id,text,cls){const el=document.getElementById(id);if(!el)retu
 
 // --- Kopf, Allgemein, Fassungshinweis --------------------------------------------------
 
+// Seit 1.9.10 im gemeinsamen Seitenkopf (_seitenkopf.html): Pfad Checklisten / Vorlagen / Vorlage, Status Entwurf (nie veröffentlicht)
+// / Veröffentlicht / Archiviert (statusKennzeichen()), die Fassungen als Untertitel; Hauptaktion je nach Stand „Entwurf veröffentlichen“
+// oder „Neuen Entwurf anlegen“, alles Weitere im Menü „⋮“ (ein Eintrag, der nicht gilt, ist verborgen), Kopieren in einer Karte.
 function renderHead(){
-  document.getElementById('pageTitle').textContent=template.label;
-  document.getElementById('breadcrumbLabel').textContent=template.label;
-  const b=[];
-  b.push(template.published_version_no?`<span class="badge ok">Gültig: Fassung ${esc(template.published_version_no)}</span>`:'<span class="badge">noch nicht veröffentlicht</span>');
-  if(template.draft_version_no)b.push(`<span class="badge draft">Entwurf: Fassung ${esc(template.draft_version_no)}</span>`);
-  if(template.purpose!=='allgemein')b.push(`<span class="badge">Zweck: ${esc(template.purpose_label)}</span>`);
-  if(template.archived)b.push('<span class="badge">Archiviert</span>');
-  document.getElementById('versionBadges').innerHTML=b.join(' ');
-  const a=[];
-  if(template.draft_version_id){
-    a.push('<button onclick="publish()">Entwurf veröffentlichen</button>');
-    if(template.published_version_no)a.push('<button class="secondary" onclick="discardDraft()">Entwurf verwerfen</button>');
-  }else{
-    a.push('<button onclick="startDraft()">Neuen Entwurf anlegen</button>');
-  }
-  a.push('<input id="copyLabel" placeholder="Name der Kopie …" style="width:200px">','<button class="secondary" onclick="copyTemplate()">Kopieren</button>');
-  a.push(`<button class="secondary" onclick="toggleArchived()">${template.archived?'Entarchivieren':'Archivieren'}</button>`);
+  const fassungen=[template.published_version_no?`Gültig: Fassung ${template.published_version_no}`:'Noch nicht veröffentlicht'];
+  if(template.draft_version_no)fassungen.push(`Entwurf: Fassung ${template.draft_version_no}`);
+  if(template.purpose!=='allgemein')fassungen.push(`Zweck: ${template.purpose_label}`);
+  seitenkopf({titel:template.label,untertitel:fassungen.join(' · '),
+    status:statusKennzeichen('checklistenvorlage',template.archived?'archiviert':template.published_version_no?'veroeffentlicht':'entwurf'),
+    pfad:[{text:'Checklisten',href:'/checklisten'},{text:'Vorlagen',href:'/checklisten/vorlagen'},{text:template.label}]});
+  const fassung=document.getElementById('fassungKnopf');
+  fassung.textContent=template.draft_version_id?'Entwurf veröffentlichen':'Neuen Entwurf anlegen';
+  fassung.hidden=false;
+  document.getElementById('entwurfVerwerfen').hidden=!(template.draft_version_id&&template.published_version_no);
+  document.getElementById('archivUmschalter').textContent=template.archived?'Entarchivieren':'Archivieren';
   // Vorlagen mit Zweck sind nur archivierbar (seit 1.8.16) -- der Server lehnt Löschen ohnehin ab.
-  if(template.purpose==='allgemein')a.push('<button class="danger" onclick="deleteTemplate()">Löschen</button>');
-  document.getElementById('heroActions').innerHTML=a.join('');
+  document.getElementById('vorlageLoeschen').hidden=template.purpose!=='allgemein';
 }
 
 function renderMeta(){
@@ -558,6 +562,13 @@ const discardDraft=()=>templateAction(`/api/checklist-templates/${templateId}/dr
 const publish=()=>templateAction(`/api/checklist-templates/${templateId}/publish`,'POST','Entwurf veröffentlichen? Monteure füllen ab dann diese Fassung aus.');
 const toggleArchived=()=>templateAction(`/api/checklist-templates/${templateId}/${template.archived?'unarchive':'archive'}`,'POST');
 
+// Seit 1.9.10: Kopieren aus dem Menü „⋮“ öffnet eine Karte unter dem Kopf, der Name der Kopie vorausgefüllt (Regel 4).
+function kopieOeffnen(){
+  const karte=document.getElementById('kopieKarte'),feld=document.getElementById('copyLabel');
+  if(karte.hidden)feld.value=template?template.label+' (Kopie)':'';
+  karte.hidden=false;feld.focus();feld.select();
+}
+
 async function copyTemplate(){
   const label=document.getElementById('copyLabel').value.trim();
   if(!label){setStatus('pageStatus','Bitte einen Namen für die Kopie angeben.','err');return}
@@ -599,5 +610,13 @@ async function init(){
   catch(e){setStatus('pageStatus','Fehler: '+e.message,'err')}
 }
 init();
+/* Seit 1.9.10: Kopf über den gemeinsamen Seitenkopf (data-klick, _aktionen.html). */
+aktion('fassung',()=>template&&(template.draft_version_id?publish():startDraft()));
+aktion('entwurf-verwerfen',()=>discardDraft());
+aktion('kopie-oeffnen',()=>kopieOeffnen());
+aktion('kopieren',()=>copyTemplate());
+aktion('kopie-schliessen',()=>{document.getElementById('kopieKarte').hidden=true});
+aktion('archivieren',()=>toggleArchived());
+aktion('loeschen',()=>deleteTemplate());
 </script>
 </body></html>

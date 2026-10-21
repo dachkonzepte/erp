@@ -28,6 +28,14 @@ Geprüft wird im echten Browser auf den Testdaten der Bildgrundlage (scripts/bil
                    Umschalter wechseln ihren Text), jeder sichtbare Textlink im Inhalt in --ds-link, das erste Feld mit Fokus im Umriss
                    --ds-fokus, Kontrast jedes Texts; die Hauptaktion tut, was sie vorher tat (Editor offen, „+ Projekt“ nach
                    /projects/new)
+    Datensatzkopf  seit 1.9.10 die 7 Seiten der Gruppe „Datensatz mit Pfad“ (Objekt, Dachfläche, Betriebsmittel, Wartungsvertrag,
+                   Checklisten-Vorlage, Prüfvorlage, Einsatzbericht -- dieser auch als Monteurin), hell und dunkel: .ds-seite, genau ein
+                   h1 mit dem Titel, Kennung, Untertitel, Status als lesbares Kennzeichen in der Farbe seiner Bedeutung, Pfad mit Texten
+                   und Zielen, jeder Link im Pfad öffnet eine Seite (200 ohne Umleitung, HTML), höchstens eine grüne Hauptaktion, Menü
+                   „⋮“ mit genau den geltenden Einträgen (verborgene verborgen, „Löschen“ in der Fehlerfarbe), per Tastatur (der
+                   gesperrte und der verborgene Eintrag werden übersprungen), Textlinks in --ds-link, Fokus in --ds-fokus, Kontrast;
+                   „Löschen“ fragt wie bisher, „Kopieren …“ öffnet die Karte mit vorausgefülltem Namen, Pausieren/Reaktivieren wechselt
+                   Status und Menü; „Wartung durchführen“ öffnet den Einsatzbericht des neuen Auftrags mit dem Wartungsvertrag im Pfad
     Seitenregeln   auf den Einstellungen (button:hover und button:active in der Akzentfarbe): Kontoknopf unter der Maus und per
                    Leertaste gedrückt (:active ohne :hover), Menüeintrag unter der Maus -- nie in der Akzentfarbe
     Monteurskopf   auf jeder Seite der Monteurin (Mobil, Objekt, Stundenzettel, Zeiterfassung, Betriebsmittel, Checkliste,
@@ -43,7 +51,7 @@ AUFRUF (aus dem Projektordner):
         [--arbeitsordner PFAD] [--chrome PFAD] [--offen-lassen]
 
 --nur: nur diese Teile (seitenleiste, aktiv, schrift, menueknopf, kopfzeile, kontomenue, vollname, pruefvorlagen, kopfgruppe,
-seitenregeln, monteurskopf) -- für
+seitenregeln, monteurskopf, datensatzkopf) -- für
 Gegenproben, die nach 2 min
 abbrechen (Regel 24).
 
@@ -588,9 +596,170 @@ async def _monteurskopf(tab, seed, p):
     p.pruefe("Monteurskopf: keine JS-Fehler", tab.fehler, [])
 
 
+# Seit 1.9.10: die Gruppe „Datensatz mit Pfad“ -- je Aufnahme und Rolle: Titel, Kennung, Untertitel, Pfad als [Text, Ziel] (None = die
+# Seite selbst), Status [Text, Art], Hauptaktion (oder None), sichtbare Einträge des Menüs, der erste per Tastatur erreichbare (ein
+# gesperrter wird übersprungen), Anfang der Rückfrage von „Löschen“; {…} aus den Testdaten und der Schnittstelle (_datensatz_werte())
+DATENSATZKOPF = (
+    dict(seite="objekt", rolle=bg.BUERO, titel="Halle Nord", kennung="", untertitel="Werkstr. 5, 52531 Übach-Palenberg",
+         pfad=[["Stammdaten", "/master-data"], ["Hallenbau GmbH", "/customers/{kunde}"], ["Halle Nord", None]],
+         status=["", "neutral"], aktion=None, menue=[]),
+    dict(seite="dachflaeche", rolle=bg.BUERO, titel="Nord", kennung="", untertitel="Noch keine Angaben",
+         pfad=[["Stammdaten", "/master-data"], ["Hallenbau GmbH", "/customers/{kunde}"], ["Halle Nord", "/properties/{objekt}"],
+               ["Nord", None]],
+         status=["", "neutral"], aktion=None, menue=["Archivieren", "Löschen"], loeschen="Diese Dachfläche inkl. aller Bauteile"),
+    dict(seite="betriebsmittel", rolle=bg.BUERO, titel="Anlegeleiter 3-teilig", kennung="{inventarnummer}", untertitel="Leiter · Eigenständig",
+         pfad=[["Stammdaten", "/master-data"], ["Betriebsmittel", "/master-data#assets"], ["Anlegeleiter 3-teilig", None]],
+         status=["", "neutral"], aktion=None, menue=["Etikett drucken", "Löschen"], loeschen="Dieses Betriebsmittel wirklich löschen?"),
+    dict(seite="wartungsvertrag", rolle=bg.BUERO, titel="Wartung Halle Nord", kennung="",
+         untertitel="Hallenbau GmbH · Halle Nord · 12 Monate Intervall",
+         pfad=[["Wartungen", "/maintenance-contracts"], ["Hallenbau GmbH", "/customers/{kunde}"], ["Halle Nord", "/properties/{objekt}"],
+               ["Wartung Halle Nord", None]],
+         status=["Aktiv", "info"], aktion="Wartung durchführen", menue=["Vorgang erstellen", "Pausieren", "Beenden", "Archivieren", "Löschen"],
+         erster="Pausieren", loeschen="Diesen Wartungsvertrag wirklich löschen?"),
+    dict(seite="checklistenvorlage", rolle=bg.BUERO, titel="Sicherheitscheck", kennung="", untertitel="Gültig: Fassung 1",
+         pfad=[["Checklisten", "/checklisten"], ["Vorlagen", "/checklisten/vorlagen"], ["Sicherheitscheck", None]],
+         status=["Veröffentlicht", "ok"], aktion="Neuen Entwurf anlegen", menue=["Kopieren …", "Archivieren", "Löschen"],
+         loeschen="Diese Vorlage mit allen Fassungen wirklich löschen?", kopie="Sicherheitscheck (Kopie)"),
+    dict(seite="pruefvorlage", rolle=bg.BUERO, titel="Flachdach-Wartung", kennung="", untertitel="Version {pruefvorlage_version}",
+         pfad=[["Einstellungen", "/settings"], ["Prüfvorlagen", "/inspection-templates"], ["Flachdach-Wartung", None]],
+         status=["", "neutral"], aktion=None, menue=["Vorlage kopieren …"], kopie="Flachdach-Wartung (Kopie)"),
+    dict(seite="einsatzbericht", rolle=bg.BUERO, titel="Einsatzbericht", kennung="{auftragsnummer}", untertitel="Hallenbau GmbH",
+         pfad=[["Projekte", "/projects"], ["Hallenbau GmbH", "/customers/{kunde}"], ["Dachsanierung Halle Nord", "/projects/{projekt}"],
+               ["{auftragsnummer}", "/orders/{auftrag}"], ["Einsatzbericht", None]],
+         status=["Beauftragt", "info"], aktion=None, menue=["Zeiterfassung (Auftrag)"]),
+    dict(seite="einsatzbericht", rolle=bg.MONTEUR, titel="Einsatzbericht", kennung="{auftragsnummer}", untertitel="Hallenbau GmbH",
+         pfad=[["Einsätze", "/mobil"], ["Einsatzbericht", None]], status=["", "neutral"], aktion=None, menue=["Zeiterfassung (Auftrag)"]),
+)
+DATENSATZKOPF_JS = """(()=>{const F=%s;const cs=e=>getComputedStyle(e);const k=document.getElementById('seitenkopf');
+const st=document.getElementById('seitenkopfStatus');const eintraege=[...document.querySelectorAll('#seitenkopfMenue .ds-menue-eintrag')];
+const links=[...document.querySelectorAll('main a[href]')].filter(a=>a.getClientRects().length&&!a.closest('#seitenkopf')
+  &&!a.matches('.ds-knopf,.ds-menue-eintrag')&&['inline','inline-block'].includes(cs(a).display)
+  &&cs(a).backgroundColor==='rgba(0, 0, 0, 0)'&&cs(a).borderTopStyle==='none');
+return {ds:document.body.classList.contains('ds-seite'),h1:[...document.querySelectorAll('h1')].map(e=>[e.id,e.textContent.trim()]),
+  kennung:document.getElementById('seitenkopfKennung').textContent,untertitel:document.getElementById('seitenkopfUntertitel').textContent,
+  status:[st.textContent,st.className.replace('ds-status ds-status-',''),cs(st).display!=='none'],
+  pfad:[...document.querySelectorAll('#seitenkopfPfad .ds-kopf-pfadglied,#seitenkopfPfad .ds-kopf-pfadende')]
+    .map(e=>[e.textContent,e.getAttribute('href'),e.getAttribute('aria-current')]),
+  aktion:[...k.querySelectorAll('.ds-knopf-aktion')].filter(a=>cs(a).display!=='none')
+    .map(a=>[a.textContent.trim(),cs(a).backgroundColor===F('--ds-aktion'),cs(a).color===F('--ds-auf-aktion')]),
+  menue:eintraege.filter(e=>!e.hidden).map(e=>e.textContent.trim()),
+  verborgen_sichtbar:eintraege.filter(e=>e.hidden&&cs(e).display!=='none').map(e=>e.textContent.trim()),
+  loeschen:eintraege.filter(e=>!e.hidden&&e.textContent.trim()==='Löschen').map(e=>e.classList.contains('ds-menue-eintrag-fehler')),
+  links:links.length,falsch:links.filter(a=>cs(a).color!==F('--ds-link')).map(a=>a.textContent.trim().slice(0,30)+' '+cs(a).color)}})()""" % FARBE
+# jeder Link im Pfad: mit der Anmeldung der Seite geladen -- 200, ohne Umleitung (auf /login oder anderswohin), eine HTML-Seite
+PFAD_OEFFNEN = """(async()=>{const r=[];for(const a of document.querySelectorAll('#seitenkopfPfad a[href]')){const h=a.getAttribute('href');
+try{const x=await fetch(h,{credentials:'same-origin'});r.push([h,x.status,x.redirected,(x.headers.get('content-type')||'').split(';')[0]])}
+catch(e){r.push([h,String(e)])}}return r})()"""
+
+
+async def _datensatz_werte(tab, seed):
+    """Werte, die erst die Schnittstelle kennt (Nummernkreis, Version der Prüfvorlage), gelesen mit der Anmeldung des Büros."""
+    holen = "(u=>fetch(u).then(r=>r.json()))"
+    return {**seed,
+            "auftragsnummer": await tab.js(f"{holen}('/api/orders/{seed['auftrag']}').then(o=>o.order_number)"),
+            "pruefvorlage_version": await tab.js(f"{holen}('/api/inspection-templates/{seed['pruefvorlage']}').then(t=>t.version)"),
+            "inventarnummer": await tab.js(f"{holen}('/api/operational-assets/{seed['geraet']}').then(a=>a.asset_number||'')")}
+
+
+async def _datensatzkopf(tab, seed, p):
+    """Seit 1.9.10: die 7 Seiten der Gruppe „Datensatz mit Pfad“ (Einsatzbericht auch als Monteurin) im gemeinsamen Seitenkopf, hell und
+    dunkel; dazu (hell) Menü per Tastatur, „Löschen“ mit der bisherigen Rückfrage (abgelehnt, nichts gelöscht), „Kopieren …“ öffnet die
+    Karte mit vorausgefülltem Namen, am Wartungsvertrag Pausieren/Reaktivieren mit Status und Menü; zum Schluss „Wartung durchführen“ ->
+    Einsatzbericht des neuen Auftrags mit dem Wartungsvertrag im Pfad."""
+    await tab.cmd("Emulation.setFocusEmulationEnabled", enabled=True)
+    werte, angemeldet = None, None
+    for f in DATENSATZKOPF:
+        if f["rolle"] != angemeldet:
+            await tab.anmelden(seed["cookies"][f["rolle"]])
+            angemeldet = f["rolle"]
+        for thema in ("hell", "dunkel"):
+            wo = f"Datensatzkopf {f['seite']} ({f['rolle']}) {thema}"
+            p.pruefe(f"{wo}: geladen", await _laden(tab, seed, f["seite"], thema, 1440, 900), True)
+            if werte is None:
+                werte = await _datensatz_werte(tab, seed)
+            soll = lambda s: s.format(**werte) if isinstance(s, str) else s  # noqa: E731
+            m = await tab.js(DATENSATZKOPF_JS)
+            p.pruefe(f"{wo}: .ds-seite, genau ein h1 „{f['titel']}“, Kennung, Untertitel", [m["ds"], m["h1"], m["kennung"], m["untertitel"]],
+                     [True, [["seitenkopfTitel", f["titel"]]], soll(f["kennung"]), soll(f["untertitel"])])
+            p.pruefe(f"{wo}: Status „{f['status'][0]}“ ({f['status'][1]})", m["status"], [*f["status"], bool(f["status"][0])])
+            pfad = [[soll(t), soll(h) if h else None, None if h else "page"] for t, h in f["pfad"]]
+            p.pruefe(f"{wo}: Pfad {' / '.join(g[0] for g in pfad)}", m["pfad"], pfad)
+            offen = await tab.js(PFAD_OEFFNEN)
+            p.pruefe(f"{wo}: jeder Link im Pfad öffnet eine Seite ({len(offen)} Links)",
+                     [o for o in offen if o[1:] != [200, False, "text/html"]], [])
+            p.pruefe(f"{wo}: Hauptaktion {f['aktion'] or '—'}, Menü {f['menue'] or '—'}, Löschen in Fehlerfarbe, Verborgenes verborgen",
+                     [m["aktion"], m["menue"], m["loeschen"], m["verborgen_sichtbar"]],
+                     [[[f["aktion"], True, True]] if f["aktion"] else [], f["menue"], [True] if "Löschen" in f["menue"] else [], []])
+            p.pruefe(f"{wo}: {m['links']} Textlinks im Inhalt, alle in --ds-link", m["falsch"], [])
+            fokus = await tab.js(KOPFGRUPPE_FOKUS)
+            p.pruefe(f"{wo}: erstes Feld mit Fokus im Umriss --ds-fokus", fokus if fokus == "kein Feld" else fokus[1],
+                     "kein Feld" if fokus == "kein Feld" else True)
+            k = await tab.js(KONTRAST)
+            p.pruefe(f"{wo}: Kontrast ({k['anzahl']} Elemente, kleinster {k['min']} : 1)", k["schwach"], [])
+            if f["menue"]:
+                await tab.js("document.getElementById('seitenkopfMenueKnopf').focus()")
+                await _taste(tab, "Enter")
+                auf = await tab.js("[!document.getElementById('seitenkopfMenue').hidden,document.activeElement.textContent.trim()]")
+                k_menue = await tab.js(KONTRAST)
+                folge = []
+                if f["seite"] == "wartungsvertrag" and thema == "hell":
+                    for _ in range(4):
+                        await _taste(tab, "ArrowDown")
+                        folge.append(await tab.js("document.activeElement.textContent.trim()"))
+                await _taste(tab, "Escape")
+                zu = await tab.js("[document.getElementById('seitenkopfMenue').hidden,document.activeElement.id]")
+                p.pruefe(f"{wo}: Menü per Enter offen (Fokus „{f.get('erster', f['menue'][0])}“), Escape schließt, Fokus am Knopf",
+                         [auf, zu], [[True, f.get("erster", f["menue"][0])], [True, "seitenkopfMenueKnopf"]])
+                p.pruefe(f"{wo}: Kontrast mit offenem Menü (kleinster {k_menue['min']} : 1)", k_menue["schwach"], [])
+                if folge:
+                    p.pruefe(f"{wo}: Pfeil runter springt über den gesperrten und den verborgenen Eintrag", folge,
+                             ["Beenden", "Archivieren", "Löschen", "Pausieren"])
+            if thema == "hell" and f.get("loeschen"):
+                await tab.js("window.__dkRueckfragen=[];window.confirm=t=>{window.__dkRueckfragen.push(t);return false}")
+                await tab.js("document.querySelector('#seitenkopfMenue [data-klick=loeschen]').click()")
+                r = await tab.js("[window.__dkRueckfragen.length,(window.__dkRueckfragen[0]||'').slice(0,%d),location.pathname]" % len(f["loeschen"]))
+                p.pruefe(f"{wo}: „Löschen“ fragt wie bisher („{f['loeschen']} …“), abgelehnt bleibt die Seite", r,
+                         [1, f["loeschen"], bg.AUFNAHME[f["seite"]].pfad.format(**seed)])
+            if thema == "hell" and f.get("kopie"):
+                await tab.js("document.querySelector('#seitenkopfMenue [data-klick=kopie-oeffnen]').click()")
+                r = await tab.js("[!document.getElementById('kopieKarte').hidden,document.getElementById('copyLabel').value,"
+                                 "document.activeElement&&document.activeElement.id]")
+                p.pruefe(f"{wo}: „Kopieren …“ öffnet die Karte, Name vorausgefüllt, Fokus im Feld", r, [True, f["kopie"], "copyLabel"])
+            if thema == "hell" and f["seite"] == "wartungsvertrag":
+                zustand = ("[document.getElementById('seitenkopfStatus').textContent,document.getElementById('seitenkopfStatus').className,"
+                           "[...document.querySelectorAll('#seitenkopfMenue .ds-menue-eintrag')].filter(e=>!e.hidden).map(e=>e.textContent.trim())]")
+                await tab.js("document.querySelector('#seitenkopfMenue [data-klick=pausieren]').click()")
+                await tab.warten("document.getElementById('seitenkopfStatus').textContent==='Pausiert'", 10)
+                p.pruefe(f"{wo}: „Pausieren“ -> Status Pausiert (neutral), im Menü „Reaktivieren“ statt „Pausieren“", await tab.js(zustand),
+                         ["Pausiert", "ds-status ds-status-neutral", ["Vorgang erstellen", "Reaktivieren", "Beenden", "Archivieren", "Löschen"]])
+                await tab.js("document.querySelector('#seitenkopfMenue [data-klick=reaktivieren]').click()")
+                await tab.warten("document.getElementById('seitenkopfStatus').textContent==='Aktiv'", 10)
+                p.pruefe(f"{wo}: „Reaktivieren“ -> wieder Aktiv (info)", await tab.js(zustand),
+                         ["Aktiv", "ds-status ds-status-info", f["menue"]])
+            p.pruefe(f"{wo}: keine JS-Fehler", tab.fehler, [])
+    # „Wartung durchführen“ legt Auftrag und Bericht an und öffnet den Einsatzbericht -- der Pfad führt zurück zum Vertrag
+    await tab.anmelden(seed["cookies"][bg.BUERO])
+    p.pruefe("Datensatzkopf Wartung durchführen: geladen", await _laden(tab, seed, "wartungsvertrag", "hell", 1440, 900), True)
+    await tab.js("document.getElementById('performMaintenanceBtn').click()")
+    da = await tab.warten("location.pathname.endsWith('/service-reports')&&document.querySelectorAll('#seitenkopfPfad a').length>=5", 30)
+    m = await tab.js(DATENSATZKOPF_JS)
+    g = m["pfad"]
+    p.pruefe("Datensatzkopf Wartung durchführen: Einsatzbericht des neuen Auftrags, Pfad Projekte / Kunde / Wartungsvertrag / Projekt / "
+             "Auftrag / Einsatzbericht",
+             [da, [x[:2] for x in g[:3]], len(g), g[3][1].startswith("/projects/") if len(g) > 3 else None,
+              g[4][1] == "/orders/" + str(await tab.js("Number(location.pathname.split('/')[2])")) if len(g) > 4 else None, g[-1][:2]],
+             [True, [["Projekte", "/projects"], ["Hallenbau GmbH", f"/customers/{seed['kunde']}"],
+                     ["Wartung Halle Nord", f"/maintenance-contracts/{seed['vertrag']}"]], 6, True, True, ["Einsatzbericht", None]])
+    offen = await tab.js(PFAD_OEFFNEN)
+    p.pruefe(f"Datensatzkopf Wartung durchführen: jeder Link im Pfad öffnet eine Seite ({len(offen)} Links)",
+             [o for o in offen if o[1:] != [200, False, "text/html"]], [])
+    p.pruefe("Datensatzkopf Wartung durchführen: keine JS-Fehler", tab.fehler, [])
+    await tab.bild("datensatzkopf_zuletzt")
+
+
 TEILE = {"seitenleiste": _seitenleiste, "aktiv": _aktiv, "schrift": _schrift, "menueknopf": _menueknopf, "kopfzeile": _kopfzeile,
          "kontomenue": _kontomenue, "vollname": _vollname, "pruefvorlagen": _pruefvorlagen, "kopfgruppe": _kopfgruppe,
-         "seitenregeln": _seitenregeln, "monteurskopf": _monteurskopf}
+         "seitenregeln": _seitenregeln, "monteurskopf": _monteurskopf, "datensatzkopf": _datensatzkopf}
 NUR: list = []
 
 

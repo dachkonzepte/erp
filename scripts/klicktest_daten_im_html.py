@@ -154,8 +154,8 @@ async def pruefen(tab, seed, p):
     await _kein_skript(tab, p, "Kalender")
 
     # --- Betriebsmittel ----------------------------------------------------------------------------------------------------
-    await tab.oeffnen(f"/betriebsmittel/{seed['geraet']}", "(document.getElementById('assetMeta')?.textContent||'').length>0")
-    p.pruefe("Betriebsmittel: Art als Text", await tab.js("document.getElementById('assetMeta').textContent.startsWith("
+    await tab.oeffnen(f"/betriebsmittel/{seed['geraet']}", "(document.getElementById('seitenkopfUntertitel')?.textContent||'').length>0")
+    p.pruefe("Betriebsmittel: Art als Text", await tab.js("document.getElementById('seitenkopfUntertitel').textContent.startsWith("
                                                          + json.dumps(ART) + ")"), True)
     await _kein_skript(tab, p, "Betriebsmittel")
 
