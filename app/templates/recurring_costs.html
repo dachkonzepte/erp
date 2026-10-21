@@ -142,6 +142,7 @@ tr:last-child td{border-bottom:none}
 {% include "_seitenkopf.html" %}
 </div>
 </div>
+{% include "_auswahl.html" %}
 {% include "_speichern.html" %}
 {% include "_zahl.html" %}
 <script>
@@ -159,7 +160,9 @@ const CLASSIFICATION_LABELS={keine:'—',fix:'Fest',auslastungsabhaengig:'Auslas
 let costs=[],categories=[],documentTypes=[],assets=[],currentEditId=null;
 
 function categoryOptionsHtml(selected){
-  return '<option value="">— keine —</option>'+categories.map(o=>`<option value="${esc(o.value)}" ${o.value===selected?'selected':''}>${esc(o.label)}</option>`).join('');
+  // seit 1.9.12 über auswahlOptionen() (_auswahl.html): eine gespeicherte Kategorie außerhalb der Auswahlliste bleibt vorgewählt
+  // (bis 1.9.11 stand „— keine —“ da, Speichern löschte sie)
+  return auswahlOptionen(categories,selected,o=>o.label,{wert:o=>o.value,leer:'— keine —'});
 }
 function documentTypeOptionsHtml(){
   return documentTypes.map(o=>`<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');

@@ -127,6 +127,7 @@ tr:last-child td{border-bottom:none}
 </div>
 </div>
 {% include "_fehlertext.html" %}
+{% include "_auswahl.html" %}
 {% include "_speichern.html" %}
 {% include "_zahl.html" %}
 <script>
@@ -442,11 +443,14 @@ function ruleForm(r){
   // Erst die Bedingung, dann nur die dazu passenden Felder -- so ist jede Bedingung jederzeit
   // wählbar (vorher bot eine neue "immer"-Regel gar keine andere Bedingung an).
   const fitting=version.fields.filter(f=>r.operator!=='immer'&&operatorAllowed(r.operator,f));
-  const fieldOpts='<option value="">— Feld wählen —</option>'+fitting.map(f=>`<option value="${esc(f.field_key)}" ${f.field_key===r.field_key?'selected':''}>${esc(f.label)} (${esc(TYPE_LABEL[f.field_type])})</option>`).join('');
+  // Seit 1.9.12 Feld und Option über auswahlOptionen() (_auswahl.html): ein gespeichertes Feld oder eine Option, die es nicht mehr gibt (Typ
+  // geändert, Systemfelder angeglichen), bleibt gewählt als „… (nicht mehr verfügbar)“ -- bis 1.9.11 stand die erste Option da, und
+  // Speichern änderte die Regel still.
+  const fieldOpts=auswahlOptionen(fitting,r.field_key,f=>`${f.label} (${TYPE_LABEL[f.field_type]})`,{wert:f=>f.field_key,leer:'— Feld wählen —'});
   const field=fitting.find(f=>f.field_key===r.field_key);
   const ops=OPERATORS.map(([v,l])=>`<option value="${v}" ${v===r.operator?'selected':''}>${esc(l)}</option>`).join('');
   let operand='';
-  if(r.operator==='enthaelt'&&field)operand=`<div class="field"><label>Option</label><select data-r="operand" ${d}>${field.options.map(o=>`<option value="${esc(o.option_key)}" ${o.option_key===r.operand?'selected':''}>${esc(o.label)}</option>`).join('')}</select></div>`;
+  if(r.operator==='enthaelt'&&field)operand=`<div class="field"><label>Option</label><select data-r="operand" ${d}>${auswahlOptionen(field.options,r.operand,o=>o.label,{wert:o=>o.option_key})}</select></div>`;
   if(['kleiner','groesser','gleich'].includes(r.operator))operand=`<div class="field"><label>Vergleichswert</label><input type="text" inputmode="decimal" data-zahl data-r="operand" value="${zahlText(r.operand)}" ${d}></div>`;
   return `<div class="fields-2col">
     <div class="field"><label>Bedingung</label><select data-r="operator" ${d} onchange="ruleDraftChange(${r.id??'null'})">${ops}</select></div>

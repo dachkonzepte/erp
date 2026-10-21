@@ -266,7 +266,7 @@ function openEditor(id){
   document.getElementById('editTitle').value=t.title;
   document.getElementById('editDescription').value=t.description||'';
   document.getElementById('editStatus').value=t.status;
-  document.getElementById('editPriority').value=t.priority;
+  auswahlWert(document.getElementById('editPriority'),t.priority);  // seit 1.9.12 (_auswahl.html)
   document.getElementById('editDue').value=t.due_date||'';
   document.getElementById('editEmployee').innerHTML=employeeOptionsHtml(t.assigned_employee_id);
   document.getElementById('editProject').innerHTML=projectOptionsHtml(t.project_id);

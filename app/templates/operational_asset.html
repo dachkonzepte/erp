@@ -185,11 +185,16 @@ let asset=null,resources=[],assetTypes=[],editingInspectionId=null,canManageRecu
 function resourceOptionsHtml(selected){
   return auswahlOptionen(resources,selected,r=>r.resource_type+' · '+r.name,{leer:'— bitte wählen —',aktiv:r=>r.active&&(!r.taken||r.id===Number(selected))});
 }
+// Seit 1.9.12 über auswahlOptionen() (_auswahl.html): ein gespeicherter Typ außerhalb der Auswahlliste (z. B. „Leiter“) bleibt vorgewählt
+// als „… (nicht mehr verfügbar)“, ein abgeschalteter als „… (inaktiv)“ -- bis 1.9.11 stand der erste Eintrag da, und Speichern schrieb ihn.
+// Ohne gespeicherten Typ eine Leer-Option (bis dahin wurde auch dann der erste Typ gespeichert).
 function typeOptionsHtml(selected){
-  return assetTypes.map(o=>`<option value="${esc(o.value)}" ${o.value===selected?'selected':''}>${esc(o.label)}</option>`).join('');
+  return auswahlOptionen(assetTypes,selected,o=>o.label,{wert:o=>o.value,leer:selected?undefined:'— kein Typ —'});
 }
-function inspectionTypeOptionsHtml(){
-  return assetInspectionTypes.map(o=>`<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
+// Seit 1.9.12 über auswahlOptionen(): beim Bearbeiten bleibt eine gespeicherte Art außerhalb der Liste gewählt (bis 1.9.11 stand die
+// Auswahl leer, Speichern verlangte eine andere Art), neu angeboten werden nur aktive Einträge.
+function inspectionTypeOptionsHtml(selected){
+  return auswahlOptionen(assetInspectionTypes,selected,o=>o.label,{wert:o=>o.value});
 }
 let assetInspectionTypes=[];
 let assetDocumentTypes=[];
@@ -367,7 +372,8 @@ function inspectionRow(insp){
 function renderInspections(){
   const rows=asset.inspections||[];
   document.getElementById('inspectionRows').innerHTML=rows.length?rows.map(inspectionRow).join(''):'<tr><td colspan="7" class="empty">Noch keine Prüffristen erfasst.</td></tr>';
-  document.getElementById('inspType').innerHTML=inspectionTypeOptionsHtml();
+  // seit 1.9.12 behält ein Neuladen während des Bearbeitens die Auswahl (bis 1.9.11 setzte es sie auf den ersten Eintrag zurück)
+  document.getElementById('inspType').innerHTML=inspectionTypeOptionsHtml(editingInspectionId?document.getElementById('inspType').value:'');
 }
 
 function syncInspNextDueState(){
@@ -378,7 +384,7 @@ function syncInspNextDueState(){
 }
 
 function fillInspectionForm(insp){
-  document.getElementById('inspType').value=insp.inspection_type;
+  document.getElementById('inspType').innerHTML=inspectionTypeOptionsHtml(insp.inspection_type);
   document.getElementById('inspInterval').value=zahlText(insp.interval_months||'');
   document.getElementById('inspLast').value=insp.last_inspection_date||'';
   document.getElementById('inspNext').value=insp.next_due_date||'';
@@ -388,7 +394,7 @@ function fillInspectionForm(insp){
 }
 
 function clearInspectionForm(){
-  document.getElementById('inspType').selectedIndex=0;
+  document.getElementById('inspType').innerHTML=inspectionTypeOptionsHtml('');
   document.getElementById('inspInterval').value='';
   document.getElementById('inspLast').value='';
   document.getElementById('inspNext').value='';

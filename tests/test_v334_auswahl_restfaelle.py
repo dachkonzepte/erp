@@ -45,6 +45,7 @@ function _element(id) {
   const ziel = {id, style: {}, dataset: {}, classList: {add() {}, remove() {}, toggle() {}, contains() { return false; }},
     showModal() {}, close() {}, focus() {}, addEventListener() {}, setAttribute() {}, removeAttribute() {}, getAttribute: () => null,
     querySelectorAll: () => [], querySelector: () => null, replaceChildren(...kinder) { this.kinder = kinder; },  // seit 1.9.10 (Pfad des Seitenkopfs)
+    scrollIntoView() {},  // seit 1.9.12
     remove() { delete _elemente[id]; }};  // seit 1.8.116: wie ein echtes Element (speichern() nimmt so den Hinweis "abgelaufen" weg)
   return _elemente[id] = new Proxy(ziel, {
     get(t, k) {
@@ -81,6 +82,8 @@ var document = {getElementById: _element, querySelector: () => _element('__query
     setAttribute(k, v) { this.attrs[k] = String(v); }, getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; }})};
 var window = globalThis;
 window.matchMedia = () => ({matches: false, addEventListener() {}});
+window.addEventListener = window.addEventListener || (() => {});  // seit 1.9.12 (Projektmappe, Plantafel)
+globalThis.MutationObserver = globalThis.MutationObserver || class { observe() {} disconnect() {} };
 var location = {hash: '', href: '', search: '', pathname: '/'};
 var localStorage = {getItem: () => null, setItem() {}, removeItem() {}};
 var confirm = () => true, alert = () => {};
@@ -98,7 +101,7 @@ globalThis.fetch = async (url, opt = {}) => {
 # seit 1.9.10 dazu der gemeinsame Seitenkopf mit Menü und Statuskennzeichen (Stufe 2 „Rahmen“): eine Seite, die seitenkopf() aufruft,
 # scheiterte sonst in node an "seitenkopf is not defined"
 BAUSTEINE = ("_auswahl.html", "_speichern.html", "_aktionen.html", "_weiterleitung.html", "_links.html", "_zahl.html", "_fehlertext.html",
-             "_menue.html", "_statuskennzeichen.html", "_seitenkopf.html")
+             "_menue.html", "_statuskennzeichen.html", "_seitenkopf.html", "_berlin_date.html")  # _berlin_date.html seit 1.9.12
 
 
 def eingebunden(vorlage: str) -> list[str]:

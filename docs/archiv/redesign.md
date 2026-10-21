@@ -2161,3 +2161,95 @@ korrigierten Auswahlfeldern weicht nichts ab.
 1. **Maße ohne Zeichnung**: die Zeichnung liegt im Projekt nicht vor -- umgesetzt nach dem Wortlaut: Reihenfolge Titel · Kennung · Status,
    24 px hoch wie der Status, Ecken 6 px (der Status ist rund), Rahmen linie-stark, Schrift text-2, Mono 12 px.
 2. **Ohne Kennung kein leeres Kennzeichen** (verborgen wie bisher).
+
+### Punkt 1 (1.9.12): Auswahlfelder mit gespeichertem Text
+
+**Bestandsaufnahme** (alle 233 `<select>` in 45 Vorlagen, nur lesend): (A) gespeicherter Text oder Zahl -- 7 echte Fehler, 10 nur
+theoretisch (feste Liste im Browser, der Server nimmt jeden Text), alle übrigen in Ordnung (über `auswahlOptionen()`, eigene
+Altwert-Behandlung, vom Server erzwungene Liste oder Ja/Nein); (B) Fremdschlüssel -- 5 echte Fehler, 3 nur bei abgeschaltetem Modul
+(siehe Befund unten); (C) nur für neue Datensätze, Filter, Ziel einer Aktion. Wichtig für die Bewertung: `GET /api/settings/option-groups/{key}`
+liefert auch abgeschaltete Einträge, Einträge lassen sich umbenennen und löschen -- ein gespeicherter Wert außerhalb der Liste ist
+realistisch.
+
+**Umgestellt (17 Felder)** -- bis 1.9.11 stand jeweils der erste Eintrag oder nichts gewählt, das nächste Speichern schrieb das:
+
+| Seite, Feld | Spalte | Liste | bis 1.9.11 | seit 1.9.12 |
+|---|---|---|---|---|
+| Betriebsmittel, Typ | `operational_assets.asset_type` | Optionsgruppe `resource_types` | erster Typ (auch statt leer) | `auswahlOptionen()`, ohne Typ Leer-Option „— kein Typ —“ |
+| Betriebsmittel, Prüfungsart | `operational_asset_inspections.inspection_type` | `operational_asset_inspection_types` | leer, Speichern verlangte eine andere; Neuladen beim Bearbeiten setzte auf den ersten Eintrag | `auswahlOptionen()`, Neuladen behält die Auswahl |
+| Betriebskosten, Kategorie | `recurring_costs.category` | `recurring_cost_categories` | „— keine —“ (gelöscht) | `auswahlOptionen()` |
+| Auftrag, Positionsart | `order_items.position_type` | fest (normal, zulage, bedarf, **alternativ**) | Alternativposition ohne Auswahl, Speichern `''` | `auswahlWert()`, Wert „alternativ“ wie im Angebot |
+| Kunde, Art der Zusatzinfo | `customer_extra_infos.info_type` | fest (phone, email, birthday, info) | „Telefon“ wurde phone | `auswahlOptionen()`; „Kunde anlegen“ schreibt die Schlüssel |
+| Projektmappe, Status | `projects.status` | fest, **„Angebot“ ergänzt** | „angebot“ ohne Auswahl, Speichern `''` | `auswahlWert()` |
+| Checklisten-Vorlage, Regel: Feld | `checklist_template_rules.field_key` | Felder der Fassung | „— Feld wählen —“ | `auswahlOptionen()` |
+| Checklisten-Vorlage, Regel: Option | `checklist_template_rules.operand` | Optionen des Felds | erste Option, still geändert | `auswahlOptionen()` |
+| Einstellungen, Schichttyp: Auswahlliste | `roof_layer_types.option_group` | Gruppen `layer_*` | leer | `auswahlWert()` |
+| Plantafel, Status | `planning_slots.status` | fest | leer | `auswahlWert()` |
+| Arbeitsvorbereitung, Status | `work_preparations.status` | fest | leer | `auswahlWert()` |
+| Arbeitsvorbereitung, Material: Status | `work_preparation_materials.status` | fest | erster Eintrag | `auswahlOptionen()` (`MATERIAL_STATUS`) |
+| Arbeitsvorbereitung, Aufgabe: Status | `work_preparation_tasks.status` | fest | erster Eintrag | `auswahlOptionen()` (`AUFGABE_STATUS`) |
+| Arbeitsvorbereitung, Aufgabe: Priorität | `work_preparation_tasks.priority` | fest | erster Eintrag | `auswahlOptionen()` (`AUFGABE_PRIO`) |
+| Aufgaben, Priorität | `tasks.priority` | fest | leer | `auswahlWert()` |
+| Angebot, Positionsart und Status | `quote_items.position_type`, `quotes.status` | fest | leer | `auswahlWert()` |
+| Auftrag, Status | `orders.status` | fest | leer | `auswahlWert()` |
+
+- **`auswahlWert(feld, gespeichert, opt)`** (neu in `_auswahl.html`): für feste Listen im Markup -- liest die Optionen der Vorlage und
+  baut sie über `auswahlOptionen()` neu; ein fehlender Wert erscheint als „… (nicht mehr verfügbar)“ und fällt beim nächsten Aufruf
+  wieder heraus; ein leerer Wert ohne Leer-Option wählt nichts (wie bisher `feld.value = ''`).
+- `_auswahl.html` neu eingebunden in `recurring_costs.html` und `checklist_template.html`.
+- **Wächter** `tests/vorlagen_auswahl.py` + `test_v447::test_kein_auswahlfeld_fuer_gespeicherte_werte_ohne_auswahloptionen`: findet
+  Optionen von Hand mit bedingtem `selected` (P1) und Wertzuweisungen an ein `<select>` (P2, auch über `setv()`); jede Fundstelle steht
+  in `KLASSEN` mit Klasse und Grund -- 105 heute: vom Server erzwungene Listen (`server_fest`, mit der Liste im Grund), Ja/Nein, nur für
+  Neues/Filter (`neu`), eigene geprüfte Altwert-Behandlung (`eigen`: Zahlungsbedingung im Auftrag, Einheit im Angebot, zwei schon über
+  `auswahlOptionen()` gebaute) und Fremdschlüssel. Eine Liste aus einer Optionsgruppe von Hand ist nur für Neues erlaubt. Grenze: eine
+  Zuweisung über eine Variable findet der Scanner nicht.
+- **Prüfabfrage für den Server**: `scripts/pruefabfrage_auswahlwerte.sql`, nur lesend (`BEGIN TRANSACTION READ ONLY` … `ROLLBACK`,
+  dazu `PGOPTIONS`), über alle 17 Spalten -- je Spalte jeder Wert außerhalb der Liste mit Anzahl und Hinweis (inaktiv, abweichende
+  Schreibweise). Befehl auf dem Server, als `tobias`:
+
+      cd /home/tobias/erp
+      set -a; source .env; set +a
+      PGOPTIONS='-c default_transaction_read_only=on' psql "${DATABASE_URL/postgresql+psycopg:/postgresql:}" -v ON_ERROR_STOP=1 -f scripts/pruefabfrage_auswahlwerte.sql
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v447_auswahl_altwerte.py`: **je Feld ein Test** (Seitenskript in node mit den Optionen aus der Vorlage), 25 Fälle,
+  **23 bis 1.9.11 rot** aus dem richtigen Grund (falsche oder keine Auswahl; die zwei grünen sind Vergleichsfälle mit einem Wert aus der
+  Liste), dazu der Test für „Kunde anlegen“ (Schlüssel); Wächter (fünf Tests); feste Listen der Prüfabfrage wie auf den Seiten
+  (12 Tests); Prüfabfrage nur lesend; Prüfabfrage unter PostgreSQL im Wegwerf-Schema (Regel 27) mit gesäten Altwerten -- genau sie.
+- Attrappe der node-Tests (`test_v334`): `_berlin_date.html` in `BAUSTEINE`, Elemente mit `scrollIntoView`, `window.addEventListener`,
+  `MutationObserver` -- die Einstellungen, Betriebskosten, Aufgaben, Projektmappe und Plantafel liefen in node bisher nicht.
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück): Typ des Betriebsmittels wieder von Hand -- Feldtests und Wächter rot;
+  Auftragsstatus wieder per `.value` -- Feldtest und Wächter rot; `auswahlWert()` ohne Altwert -- neun Feldtests rot; Prüfabfrage nimmt
+  „Telefon“ in die Liste -- Listenabgleich und PostgreSQL-Test rot.
+- Angepasste Erwartungen: keine.
+
+#### Befund Fremdschlüssel (B, nicht behoben)
+
+- Zeiterfassung (Büro und Monteurin): ein Auftrag, der nicht in der Liste steht (abgeschlossen, außerhalb ±14 Tage, nicht zugeordnet),
+  zwingt beim Bearbeiten einer Buchung zum Umbuchen; im Ausweichweg ohne Kontext geht die LV-Position still auf null (`time_tracking.html`
+  `orderOptions`/`itemOptions`/`#manualOrder`, `time_tracking_field.html` `orderOptions`, `#manualOrder`, `#crewDialogOrder`).
+- Projektmappe, Objekt: ohne gespeichertes Objekt still die Hauptadresse; ein bestätigtes Objekt eines anderen Kunden wird überschrieben.
+- Wartungsvertrag, Objekt: die Liste lässt das Objekt mit Hauptadresse weg (`_objekt_anderer_kunde.html`) -- ohne Positionen wird NULL
+  gespeichert, mit Positionen scheitert jedes Speichern mit 400.
+- Nur bei abgeschaltetem Modul: Betriebsmittel/Kostenposten an Eingangsrechnung und Kostenposten (leere Liste, Speichern schreibt null).
+
+#### Nebenbefunde (nicht behoben)
+
+- `app/routers/time_backoffice.py:89–94`: die Zeitregeln lehnen ein abgeschaltetes Standardmodell auch dann ab, wenn es unverändert
+  bleibt -- nach dem Abschalten lassen sie sich nicht mehr speichern (widerspricht Regel 22).
+- `time_tracking.html` `editEntry`: sucht die Buchung in der Liste des Auswertungsdatums -- steht dort ein anderes Datum, tut „Ändern“
+  bei einer Buchung von heute still nichts.
+
+#### Festlegungen 1.9.12 (Bitte bestätigen)
+
+1. **Umfang = gespeicherter Text oder Zahl** (Abschnitt A, 17 Felder); Fremdschlüssel nur als Befund, eigener Punkt.
+2. **Vom Server erzwungene Listen bleiben** (im Wächter `server_fest` mit der Liste im Grund).
+3. **Die zweite Quelle mit behoben**: Auftragsdialog „alternativ“ wie das Angebot, „Kunde anlegen“ schreibt phone/email/birthday/info,
+   Projektmappe bietet „Angebot“.
+4. **Ein Altwert heißt „… (nicht mehr verfügbar)“**, auch „Telefon“ usw. aus dem alten Formular (keine Umdeutung in phone).
+5. **Betriebsmittel ohne Typ**: Leer-Option „— kein Typ —“, nur wenn kein Typ gespeichert ist.
+6. **Neu angeboten nur aktive Einträge** (Typ, Prüfungsart; bis 1.9.11 auch abgeschaltete ohne Kennzeichen).
+7. **Feste Listen im Markup über `auswahlWert()`**, die Zeilen der Arbeitsvorbereitung über Konstanten im Skript.
+8. **Wächter mit Klassen und Grund** statt einer Liste, die nur kürzer werden darf: `server_fest`, `ja_nein`, `neu`, `eigen` bleiben,
+   `fremdschluessel` bis zum eigenen Punkt.

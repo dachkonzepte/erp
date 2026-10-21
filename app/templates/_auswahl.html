@@ -44,6 +44,23 @@ function auswahlEintraege(eintraege, gespeichert, opt = {}) {
   return (eintraege || []).filter(x => aktiv(x) || g.has(String(wert(x))));
 }
 
+/* Eine Auswahl mit fester Liste im Markup (<option> in der Vorlage) auf einen gespeicherten Wert setzen (seit 1.9.12) -- statt
+   feld.value = wert, das einen Wert außerhalb der Liste nicht wählt (die Auswahl stand leer oder auf dem ersten Eintrag, und das nächste
+   Speichern schrieb das). Baut die Optionen über auswahlOptionen() neu: steht der Wert nicht in der Liste, erscheint er als
+   "<wert> (nicht mehr verfügbar)" und bleibt gewählt; ein so eingefügter Eintrag fällt beim nächsten Aufruf wieder heraus. Ein leerer
+   Wert ohne Leer-Option in der Liste wählt nichts (wie feld.value = ''). opt.fehlt wie bei auswahlOptionen().
+   tests/test_v447_auswahl_altwerte.py. */
+function auswahlWert(feld, gespeichert, opt = {}) {
+  if (!feld) return;
+  const g = gespeichert === null || gespeichert === undefined ? '' : String(gespeichert);
+  const alt = feld.dataset.auswahlFehlt || '';
+  const liste = Array.from(feld.options || []).map(o => [String(o.value), String(o.text)])
+    .filter(([v, t]) => !(alt && v === alt && t.endsWith(' (nicht mehr verfügbar)')));
+  feld.innerHTML = auswahlOptionen(liste, g, x => x[1], {wert: x => x[0], aktiv: () => true, fehlt: opt.fehlt});
+  feld.dataset.auswahlFehlt = g !== '' && !liste.some(([v]) => v === g) ? g : '';
+  if (g === '' && !liste.some(([v]) => v === '')) feld.value = '';
+}
+
 /* Steuerschlüssel in Angebot, Auftrag und Rechnung (seit 1.8.31): die Seiten laden sie mit
    ?include_archived=true, ein archivierter gespeicherter bleibt so sichtbar und vorgewählt. Gewechselt wird
    nur über das onchange der Auswahl. */

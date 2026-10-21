@@ -1437,7 +1437,7 @@ function editRoofLayerType(id){
   document.getElementById('roofLayerTypeKey').disabled=true;
   document.getElementById('roofLayerTypeLabel').value=t.label;
   renderRoofLayerTypeRoofType(t.roof_type);
-  document.getElementById('roofLayerTypeOptionGroup').value=t.option_group||'';
+  auswahlWert(document.getElementById('roofLayerTypeOptionGroup'),t.option_group||'');  // seit 1.9.12 (_auswahl.html)
   document.getElementById('roofLayerTypeHasExecution').value=t.has_execution?'true':'false';
   document.getElementById('roofLayerTypeHasThickness').value=t.has_thickness?'true':'false';
   document.getElementById('roofLayerTypeHasNotes').value=t.has_notes?'true':'false';

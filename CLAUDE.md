@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.11** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.12** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -642,7 +642,11 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     nie einen beim Laden gemerkten Stand. Eine Auswahlliste aus Stammdaten baut ihre Optionen über
     `auswahlOptionen()` (`_auswahl.html`, seit 1.8.30): ein inaktiver gespeicherter Wert bleibt vorgewählt
     und gekennzeichnet; der Server prüft "aktiv" nur bei einem neu gewählten Wert. Ein leerer gespeicherter
-    Wert bleibt leer -- eine Vorgabe aus den Einstellungen gilt nur beim Anlegen (seit 1.8.31).
+    Wert bleibt leer -- eine Vorgabe aus den Einstellungen gilt nur beim Anlegen (seit 1.8.31). **Seit 1.9.12 jedes Auswahlfeld mit
+    gespeichertem Text oder Zahl** (Optionsgruppe oder feste Liste, die der Server nicht erzwingt) über `auswahlOptionen()`, eine feste
+    Liste im Markup über `auswahlWert()`: ein Wert außerhalb der Liste bleibt gewählt ("… (nicht mehr verfügbar)") und erhalten; nie
+    `select.value = gespeichert` oder Optionen von Hand mit bedingtem `selected` -- Wächter `tests/test_v447_auswahl_altwerte.py`
+    (Scanner `tests/vorlagen_auswahl.py`, jede andere Fundstelle in `KLASSEN` mit Grund), Prüfabfrage `scripts/pruefabfrage_auswahlwerte.sql`.
     `tests/test_v329_update_handler_struktur.py` prüft jeden
     PUT/PATCH-Handler per AST; die 62 Altfälle (seit 1.8.96, vorher 70) stehen dort als Liste, die nur kürzer werden darf.
     Details: `docs/archiv/teil-updates.md`.
