@@ -13,7 +13,7 @@ main{max-width:1400px;margin:0;padding:20px}
 .field{margin:0}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
 input,select,textarea{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;width:100%}
 input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
-input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-aktion);outline-offset:-1px;border-color:var(--ds-aktion)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-fokus);outline-offset:-1px;border-color:var(--ds-fokus)}
 button{border:1px solid var(--ds-aktion);background:var(--ds-aktion);color:#fff;padding:9px 13px;font:inherit;font-weight:650;font-size:13.5px;cursor:pointer}
 button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-color:color-mix(in srgb,var(--ds-aktion) 85%,black)}
 .secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}.secondary:hover{background:var(--soft)}
@@ -32,10 +32,10 @@ tr:last-child td{border-bottom:none}
 .badge.overdue{background:var(--danger-soft);color:var(--danger)}
 .desc-cell{max-width:320px;white-space:normal}
 .empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
-a.row-link{color:var(--accent);text-decoration:none;font-weight:650}
+a.row-link{color:var(--ds-link);text-decoration:none;font-weight:650}
 a.row-link:hover{text-decoration:underline}
 @media(max-width:900px){.toolbar{flex-direction:column;align-items:stretch}table{font-size:12.5px}th,td{padding:8px}}
-</style></head><body>
+</style></head><body class="ds-seite">
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
@@ -43,7 +43,8 @@ a.row-link:hover{text-decoration:underline}
 {% include "_berlin_date.html" %}
 <main>
 {% if is_module_enabled('wartungen') %}
-<div class="hero"><div><h1>Mängel</h1><div class="muted small">Mängel aus Einsatzberichten, über alle Objekte.</div></div></div>
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{{ seitenkopf("Mängel", untertitel="Mängel aus Einsatzberichten, über alle Objekte.") }}
 
 <div class="toolbar">
   <div class="field" style="min-width:160px"><label>Status</label><select id="filterStatus" onchange="loadFindings()"><option value="">Alle</option></select></div>
@@ -65,9 +66,10 @@ a.row-link:hover{text-decoration:underline}
   </div>
 </div>
 {% else %}
-<div class="card"><h2>Wartungen & Reparaturen</h2><div class="muted">Dieses Modul ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--accent)">Einstellungen</a> wieder aktivieren.</div></div>
+<div class="card"><h2>Wartungen & Reparaturen</h2><div class="muted">Dieses Modul ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--ds-link)">Einstellungen</a> wieder aktivieren.</div></div>
 {% endif %}
 </main>
+{% include "_seitenkopf.html" %}
 </div>
 </div>
 <script>

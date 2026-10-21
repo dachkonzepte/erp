@@ -10,7 +10,7 @@
 .field{display:flex;flex-direction:column;gap:4px}
 .field label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:700}
 input,select{padding:9px 11px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit}
-input:hover,select:hover{border-color:var(--field-border-hover)}input:focus,select:focus{outline:2px solid var(--ds-aktion);outline-offset:-1px;border-color:var(--ds-aktion)}
+input:hover,select:hover{border-color:var(--field-border-hover)}input:focus,select:focus{outline:2px solid var(--ds-fokus);outline-offset:-1px;border-color:var(--ds-fokus)}
 .field select,.field input{min-width:180px}
 .search{min-width:260px}
 .check{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:650;color:var(--ink);padding-bottom:9px}
@@ -21,7 +21,7 @@ input:hover,select:hover{border-color:var(--field-border-hover)}input:focus,sele
 .view-toggle button.active{background:var(--ds-aktion);color:#fff}
 .add{background:var(--ds-aktion);color:#fff;text-decoration:none;padding:10px 14px;font-weight:650;border:1px solid var(--ds-aktion)}.add:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black)}
 table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:10px 9px;border-bottom:1px solid var(--line);vertical-align:top}th{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;position:sticky;top:0;background:var(--card);font-weight:700}tbody tr:hover{background:color-mix(in srgb,var(--ink) 5%,transparent)}.wrap{overflow:auto;max-height:70vh}
-.muted{color:var(--muted)}.small{font-size:12px}.pill{display:inline-block;padding:2px 8px;background:var(--soft);border:1px solid var(--line);font-size:10.5px}.link{color:var(--accent);font-weight:650;text-decoration:none}.number{text-align:right}.empty{padding:45px;text-align:center;color:var(--muted)}.placeholder{border:1px dashed var(--field-border);background:var(--soft);padding:45px;text-align:center}.placeholder h2{margin-top:0;color:var(--ink)}
+.muted{color:var(--muted)}.small{font-size:12px}.pill{display:inline-block;padding:2px 8px;background:var(--soft);border:1px solid var(--line);font-size:10.5px}.link{color:var(--ds-link);font-weight:650;text-decoration:none}.number{text-align:right}.empty{padding:45px;text-align:center;color:var(--muted)}.placeholder{border:1px dashed var(--field-border);background:var(--soft);padding:45px;text-align:center}.placeholder h2{margin-top:0;color:var(--ink)}
 .archived-row{opacity:.6}
 .menu-cell{position:relative;width:36px}
 .menu-btn{border:1px solid transparent;background:transparent;color:var(--ink);font-size:16px;line-height:1;padding:6px 9px;cursor:pointer}
@@ -41,13 +41,17 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 .kanban-card-title{font-weight:650;margin:2px 0}
 .kanban-empty{padding:10px;text-align:center}
 @media(max-width:850px){.head{flex-direction:column;align-items:flex-start}.toolbar{flex-direction:column;align-items:stretch}.field select,.field input,.search{min-width:0;width:100%}.view-toggle{margin-left:0}}
-</style></head><body>
+</style></head><body class="ds-seite">
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
-<main><section class="card">
-<div class="head"><div><h1>Projekte</h1><div id="subtitle" class="muted small"></div></div><a id="addLink" class="add" href="/projects/new">+ Projekt</a></div>
+<main>
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{% call(teil) seitenkopf("Projekte", untertitel="Projektübersicht mit Kanban-Pipeline", mit_aktion=true) %}
+  {% if teil == "aktion" %}<a id="addLink" class="ds-knopf ds-knopf-aktion" href="/projects/new">+ Projekt</a>{% endif %}
+{% endcall %}
+<section class="card">
 <div class="toolbar">
  <div class="field"><label>Suche</label><input id="search" class="search" placeholder="Projektnr., Bezeichnung, Kunde …" oninput="render()"></div>
  <div class="field"><label>Kategorie</label><select id="categoryFilter" onchange="render()"><option value="">Alle Kategorien</option></select></div>
@@ -64,6 +68,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 </div>
 <div id="content"></div>
 </section></main>
+{% include "_seitenkopf.html" %}
 </div>
 </div>
 {% include "_speichern.html" %}
@@ -106,8 +111,8 @@ function applyViewButtons(){document.getElementById('viewListBtn').classList.tog
 function onTemplatesToggle(){onlyTemplates=document.getElementById('onlyTemplates').checked;render()}
 
 function render(){
-  document.getElementById('addLink').style.display=onlyTemplates?'none':'inline-block';
-  document.getElementById('subtitle').textContent=onlyTemplates?'Vorlagen für wiederkehrende Vorgänge – erscheinen nicht in der normalen Projektübersicht':'Projektübersicht mit Kanban-Pipeline';
+  document.getElementById('addLink').style.display=onlyTemplates?'none':'';  // seit 1.9.7 im Seitenkopf (ds-knopf)
+  seitenkopf({untertitel:onlyTemplates?'Vorlagen für wiederkehrende Vorgänge – erscheinen nicht in der normalen Projektübersicht':'Projektübersicht mit Kanban-Pipeline'});
   const rows=filteredRows();
   const content=document.getElementById('content');
   if(onlyTemplates&&!templates.length&&!document.getElementById('search').value.trim()){

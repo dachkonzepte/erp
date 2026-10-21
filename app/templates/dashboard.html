@@ -23,7 +23,7 @@ main{max-width:1300px;margin:0;padding:20px}
 .field{margin-bottom:10px}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
 select,input{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit}
 select:hover,input:hover{border-color:var(--field-border-hover)}
-select:focus,input:focus{outline:2px solid var(--ds-aktion);outline-offset:-1px;border-color:var(--ds-aktion)}
+select:focus,input:focus{outline:2px solid var(--ds-fokus);outline-offset:-1px;border-color:var(--ds-fokus)}
 button{border:1px solid var(--ds-aktion);background:var(--ds-aktion);color:#fff;padding:9px 13px;font:inherit;font-weight:650;font-size:13.5px;cursor:pointer}
 button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-color:color-mix(in srgb,var(--ds-aktion) 85%,black)}
 .secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}
@@ -37,7 +37,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}
 th{text-align:left;font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:800;padding:8px;border-bottom:2px solid var(--line)}
 td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
 .number{text-align:right}
-a.link{color:var(--accent);font-weight:650;text-decoration:none}
+a.link{color:var(--ds-link);font-weight:650;text-decoration:none}
 .task-list{display:flex;flex-direction:column}
 .task-row{display:flex;gap:12px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--line);text-decoration:none;color:var(--ink)}
 .task-row:last-child{border-bottom:0}
@@ -50,19 +50,21 @@ a.link{color:var(--accent);font-weight:650;text-decoration:none}
 .task-due{flex:0 0 auto;color:var(--muted);font-size:12px;white-space:nowrap}
 .widget-picker{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 @media(max-width:760px){main{padding:12px}.task-due{display:none}}
-</style></head><body>
+</style></head><body class="ds-seite">
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
 <main>
-<div class="hero"><h1 id="greeting">Start</h1><div class="muted small">Aufgaben, Kennzahlen und laufende Projekte auf einen Blick. Über „+ Widget hinzufügen" lässt sich das Dashboard anpassen.</div></div>
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{{ seitenkopf("Start", untertitel='Aufgaben, Kennzahlen und laufende Projekte auf einen Blick. Über „+ Widget hinzufügen" lässt sich das Dashboard anpassen.') }}
 <div class="widgets" id="widgets"></div>
 <div class="widget-card" style="margin-top:14px">
   <button class="secondary" onclick="toggleAddWidgetPanel()">+ Widget hinzufügen</button>
   <div id="addWidgetPanel" class="hidden widget-picker"></div>
 </div>
 </main>
+{% include "_seitenkopf.html" %}
 </div>
 </div>
 {% include "_berlin_date.html" %}
@@ -330,14 +332,13 @@ function renderShell(){
   if(!document.getElementById('addWidgetPanel').classList.contains('hidden'))renderAddWidgetList();
 }
 
-function renderGreeting(){
-  const el=document.getElementById('greeting');
+function renderGreeting(){  // seit 1.9.7 der Titel des gemeinsamen Seitenkopfs (bis dahin h1#greeting)
   if(authStatus&&authStatus.authenticated){
     const hour=Number(berlinTime().slice(0,2));
     const salute=hour<11?'Guten Morgen':hour<18?'Guten Tag':'Guten Abend';
-    el.textContent=`${salute}, ${authStatus.user.display_name}.`;
+    seitenkopf({titel:`${salute}, ${authStatus.user.display_name}.`});
   }else{
-    el.textContent='Start';
+    seitenkopf({titel:'Start'});
   }
 }
 

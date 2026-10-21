@@ -1822,3 +1822,63 @@ Bildlaufs: **alle 160 vorher und nachher gleich** (jedes Element, auf die Hunder
 3. **Altwert der Testdaten als eigene Prüfvorlage** „Altbestand Flachdach“ (`DACHTYP_ALTWERT`), die bisherige trägt „Flachdach“.
 4. **Serverbefehl mit dem Datenbank-Benutzer der Anwendung** aus `.env` (keiner in der Betriebsdoku) und doppelt schreibgeschützt
    (`PGOPTIONS` und `BEGIN TRANSACTION READ ONLY`).
+
+### Punkt 2 (1.9.7): Seitenkopf der Gruppe „Titelzeilen und Titelkarten“ (15 Seiten)
+
+- Die 15 Seiten aus `befund-rahmen.md` (K1 ohne die Prüfvorlagen, K2) tragen `.ds-seite` und den gemeinsamen Seitenkopf
+  (`teile/seitenkopf.html`, `_seitenkopf.html`): Titel 30 px, Untertitel, höchstens eine grüne Hauptaktion, Weiteres im Menü „⋮“.
+  Umgestellt wurde nur, was im Kopf stand; kein Knopf aus dem Inhalt wandert in den Kopf, Filter und Werkzeugleisten bleiben, wo
+  sie waren. Kopf-Knöpfe über `data-klick` (`_aktionen.html`), die IDs bleiben (`addLink`).
+- **Links in `--ds-link`**: jede Linkregel der Seiten in der Akzentfarbe (`a.link`, `.link`, `td a`, `a.row-link`,
+  `.contract-link`) und jeder Link mit `style="…color:var(--accent)…"` -- 24 Stellen. **Fokus in `--ds-fokus`**: die Fokusregeln
+  der Seiten (Umriss und Rahmenfarbe, bis dahin `--ds-aktion`) -- 9 Seiten (Festlegung 1.9.5 Nr. 5 für diese Seiten eingelöst).
+- Folgen von `.ds-seite` (Grundregeln mit Gewicht null, 1.9.4): Schrift IBM Plex Sans, Überschriften Archivo, Felder und Knöpfe ohne
+  eigene Ecken bekommen 10 px -- der Inhalt bleibt, wie er war.
+
+| Seite | Hauptaktion | ins Menü „⋮“ |
+|---|---|---|
+| Start | -- (keine im Kopf; „+ Widget hinzufügen“ bleibt unter den Widgets) | -- |
+| Aufgaben | „+ Aufgabe“ | -- (Filter und „Archivierte anzeigen“ bleiben in der Werkzeugleiste) |
+| Checklisten | -- | „Vorlagen verwalten“ (Link, bis dahin Knopf rechts im Kopf) |
+| Checklisten-Vorlagen | „+ Neue Vorlage“ | „Archivierte anzeigen“ (Umschalter, bis dahin Häkchen im Kopf) |
+| Wartungen & Reparaturen | „+ Wartungsvertrag“ | „Archivierte anzeigen“ (Umschalter, bis dahin Häkchen im Kopf) |
+| Mängel (Befunde) | -- | -- (Filter bleiben in der Werkzeugleiste) |
+| Eingangsrechnungen | „+ Eingangsrechnung“ | -- |
+| Betriebskosten-Übersicht | „+ Kostenposten“ | „Inaktive anzeigen“ (Umschalter, bis dahin Häkchen im Kopf) |
+| Projekte | „+ Projekt“ (Link nach /projects/new, bei „Nur Mustervorgänge“ ausgeblendet wie bisher) | -- (Werkzeugleiste mit Suche, Filtern, Liste/Kanban bleibt in der Karte unter dem Kopf) |
+| Finanzen | -- | -- |
+| Mahnwesen | -- | „Versandprotokoll der Mahnungen“ (Link, bis dahin im Untertitel) |
+| Versandprotokoll | -- | -- |
+| Changelog | -- | -- |
+| Suche | -- | -- (Suchformular und Arten-Filter bleiben in der Karte unter dem Kopf) |
+| Zeiterfassung (Büro) | -- (Starten, „+ Manuell buchen“, „Gruppe buchen“ bleiben in ihren Karten) | -- (Auswahl „Mitarbeiter“, nur Admin, in eigener Karte links oben, bis dahin rechts im Titel) |
+
+#### Tests und Prüfung
+
+- `test_v441`: `UMGEZOGEN` um die 15 Seiten (`TITELZEILEN_UND_TITELKARTEN`); neuer Strukturtest
+  `test_umgezogene_seite_hat_den_gemeinsamen_kopf` je umgezogener Seite (16): Makro importiert und `_seitenkopf.html` eingebunden,
+  genau ein Aufruf des Seitenkopfs, kein eigenes `.hero`/`.head`/`.breadcrumb`/`.back`, genau ein h1, höchstens eine
+  `.ds-knopf-aktion` im call-Block, Fokusregeln nur in `--ds-fokus`, keine Linkregel und kein Link-Stil in Akzent- oder Aktionsfarbe.
+- `klicktest_rahmen` Teil `kopfgruppe` (neu): je Seite hell und dunkel bei 1440 × 900 -- `.ds-seite`, genau ein h1 mit dem Titel,
+  Hauptaktion grün mit Schrift auf-aktion, Menü per Tastatur (Umschalter wechseln den Text, Links mit Ziel, Escape schließt), jeder
+  sichtbare Textlink im Inhalt in `--ds-link` (Zeilen- und Kachellinks ausgenommen), erstes Feld mit Fokus im Umriss `--ds-fokus`
+  (mit Fokus-Emulation -- das kopflose Chrome hat keinen Fensterfokus), Kontrast jedes Texts auch mit offenem Menü, die Hauptaktion
+  tut, was sie tat (Editor offen bzw. Ziel /projects/new). 205 von 205.
+- **Gegenproben** (pytest und Klicktest): Befunde ohne `.ds-seite`; Finanzen-Link wieder in der Akzentfarbe; Fokus der Aufgaben wieder
+  in `--ds-aktion`; zweite grüne Hauptaktion in den Aufgaben -- 4 von 4 rot (Klicktest je 203 von 205). Die vierte blieb im
+  Strukturtest zuerst grün (er zählte im zusammengesetzten Makro, in dem der call-Block nicht steht) -- korrigiert, danach rot.
+- **Angepasste Erwartungen** (Regel 28): `test_v441::UMGEZOGEN`: alt `{"inspection_templates.html"}`, neu dazu die 15 Seiten.
+
+#### Festlegungen 1.9.7 (Bitte bestätigen)
+
+1. **Keine Hauptaktion, wo der Kopf keine Aktion hatte** (Start, Checklisten, Mängel, Finanzen, Mahnwesen, Versandprotokoll, Changelog,
+   Suche, Zeiterfassung): kein Knopf aus dem Inhalt wandert in den Kopf.
+2. **Schalter „Archivierte/Inaktive anzeigen“ aus dem Kopf ins Menü** (wie beim Pilot); in einer Werkzeugleiste mit Filtern
+   (Aufgaben, Projekte) bleibt er dort.
+3. **Navigation ins Menü statt als Hauptaktion**: „Vorlagen verwalten“ (Checklisten), „Versandprotokoll der Mahnungen“ (Mahnwesen;
+   der Untertitel nennt das Menü statt eines Links).
+4. **Zeiterfassung**: Titel als h1 über dem Raster (bis dahin h2 in der linken Spalte), Auswahl „Mitarbeiter“ in eigener Karte.
+5. **Projekte und Suche**: Kopf über der Karte; Werkzeugleiste bzw. Suchformular bleiben in der Karte.
+6. **Textlinks in `--ds-link`, Zeilen- und Kachellinks in Textfarbe** (ganze Zeile klickbar mit Fläche beim Überfahren: Aufgaben auf
+   dem Start, Treffer der Suche).
+7. **Fokus der Seiten in `--ds-fokus`** (Umriss und Rahmenfarbe).

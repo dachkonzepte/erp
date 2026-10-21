@@ -12,7 +12,7 @@ main{max-width:1400px;margin:0;padding:20px}
 .field{margin:0}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
 input,select,textarea{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;width:100%}
 input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
-input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-aktion);outline-offset:-1px;border-color:var(--ds-aktion)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-fokus);outline-offset:-1px;border-color:var(--ds-fokus)}
 textarea{min-height:60px;resize:vertical}
 button{border:1px solid var(--ds-aktion);background:var(--ds-aktion);color:#fff;padding:9px 13px;font:inherit;font-weight:650;font-size:13.5px;cursor:pointer}
 button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-color:color-mix(in srgb,var(--ds-aktion) 85%,black)}
@@ -46,14 +46,18 @@ tr:last-child td{border-bottom:none}
 .metric .value{font-size:19px;font-weight:700}
 .hint-icon{cursor:help;color:var(--warning);font-weight:800}
 @media(max-width:900px){.fields-2col{grid-template-columns:1fr}table{font-size:12.5px}th,td{padding:8px}.metric{min-width:130px}}
-</style></head><body>
+</style></head><body class="ds-seite">
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
 <main>
 {% if is_module_enabled('betriebskosten') %}
-<div class="hero"><div><h1>Betriebskosten-Übersicht</h1><div class="muted small">Wiederkehrende Kostenposten (Miete, Leasing, Versicherung, Software u. Ä.) -- Kündigungsfristen und Jahressumme auf einen Blick.</div></div><div style="display:flex;gap:14px;align-items:center"><label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:650"><input type="checkbox" id="showInactive" style="width:auto" onchange="renderRows()"> Inaktive anzeigen</label><button onclick="openCreateEditor()">+ Kostenposten</button></div></div>
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{% call(teil) seitenkopf("Betriebskosten-Übersicht", untertitel="Wiederkehrende Kostenposten (Miete, Leasing, Versicherung, Software u. Ä.) -- Kündigungsfristen und Jahressumme auf einen Blick.", mit_aktion=true, mit_menue=true) %}
+  {% if teil == "aktion" %}<button type="button" class="ds-knopf ds-knopf-aktion" data-klick="neuer-kostenposten">+ Kostenposten</button>
+  {% elif teil == "menue" %}<button type="button" class="ds-menue-eintrag" id="inaktiveUmschalten" data-klick="inaktive">Inaktive anzeigen</button>{% endif %}
+{% endcall %}
 
 <div class="editor-card">
   <h2>Summe &amp; Kündigungsfristen</h2>
@@ -131,9 +135,11 @@ tr:last-child td{border-bottom:none}
 </div>
 <span id="listStatus" class="status"></span>
 {% else %}
-<div class="editor-card"><h2>Betriebskosten-Übersicht</h2><div class="muted">Dieses Modul ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--accent)">Einstellungen</a> wieder aktivieren.</div></div>
+<div class="editor-card"><h2>Betriebskosten-Übersicht</h2><div class="muted">Dieses Modul ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--ds-link)">Einstellungen</a> wieder aktivieren.</div></div>
 {% endif %}
 </main>
+{% include "_aktionen.html" %}
+{% include "_seitenkopf.html" %}
 </div>
 </div>
 {% include "_speichern.html" %}
@@ -290,7 +296,7 @@ async function deleteCostNow(id){
 function documentRow(doc){
   return `<tr>
     <td>${esc(doc.document_type)}</td>
-    <td><a href="/api/recurring-cost-documents/${doc.id}/file" target="_blank" style="color:var(--accent)">${esc(doc.original_filename)}</a></td>
+    <td><a href="/api/recurring-cost-documents/${doc.id}/file" target="_blank" style="color:var(--ds-link)">${esc(doc.original_filename)}</a></td>
     <td>${fmtDate(doc.uploaded_at)}</td>
     <td>${esc(doc.notes||'')}</td>
     <td class="row-actions"><button class="danger" onclick="deleteDocumentNow(${doc.id})">Löschen</button></td>
@@ -362,14 +368,14 @@ function row(c){
 }
 
 function renderRows(){
-  const showInactive=document.getElementById('showInactive').checked;
+  const showInactive=inaktiveZeigen;
   const visible=costs.filter(c=>showInactive||c.active);
   document.getElementById('costRows').innerHTML=visible.map(row).join('')||'<tr><td colspan="9" class="empty">Noch keine Kostenposten angelegt.</td></tr>';
 }
 
 function cancellationRow(c){
   return `<tr${c.is_cancellation_overdue?' class="row-overdue"':''}>
-    <td><a href="#" onclick="openEditEditor(${c.id});return false" style="color:var(--accent)">${esc(c.label)}</a></td>
+    <td><a href="#" onclick="openEditEditor(${c.id});return false" style="color:var(--ds-link)">${esc(c.label)}</a></td>
     <td>${esc(c.category||'—')}</td>
     <td>${fmtDate(c.cancellation_deadline)}</td>
     <td>${c.is_cancellation_overdue?'<span class="badge overdue">⚠ überfällig</span>':'<span class="badge due">fällig</span>'}</td>
@@ -430,5 +436,9 @@ async function init(){
   await loadAll();
 }
 init();
+/* Seit 1.9.7: Kopf über den gemeinsamen Seitenkopf (data-klick, _aktionen.html). */
+var inaktiveZeigen=false;  // seit 1.9.7 aus dem Menü „⋮“ (bis dahin ein Häkchen im Kopf)
+aktion('neuer-kostenposten',()=>openCreateEditor());
+aktion('inaktive',el=>{inaktiveZeigen=!inaktiveZeigen;el.textContent=inaktiveZeigen?'Inaktive ausblenden':'Inaktive anzeigen';renderRows()});
 </script>
 </body></html>

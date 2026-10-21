@@ -20,7 +20,7 @@ td{padding:10px 8px;border-bottom:1px solid var(--line);font-size:13px;vertical-
 .pill.entwurf{background:var(--warning-soft);color:var(--warning)}
 .pill.offen{background:var(--warning-soft);color:var(--warning)}
 .pill.ersetzt{background:var(--soft);color:var(--muted);text-decoration:line-through}
-a.link{color:var(--accent);font-weight:700;text-decoration:none}
+a.link{color:var(--ds-link);font-weight:700;text-decoration:none}
 .empty{padding:30px;text-align:center;color:var(--muted)}
 .row-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 button{font-family:inherit;cursor:pointer;padding:6px 11px;font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--card);color:var(--ink)}
@@ -30,7 +30,7 @@ button.primary:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);bo
 button.danger{background:var(--danger-soft);color:var(--danger);border-color:transparent}
 button.danger:hover{background:color-mix(in srgb,var(--ds-fehler) 20%,transparent)}
 .status-msg{font-size:12px;color:var(--muted);margin-left:4px}
-</style></head><body>
+</style></head><body class="ds-seite">
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
@@ -38,7 +38,10 @@ button.danger:hover{background:color-mix(in srgb,var(--ds-fehler) 20%,transparen
 {% include "_email_dispatch.html" %}
 {% include "_fehlertext.html" %}
 <main>
-<div class="card"><h1>Mahnwesen</h1><div class="muted">Zur Mahnung fällige Rechnungen, offene Mahnungsentwürfe und die vollständige Mahnungshistorie. Entwürfe entstehen nur per Klick. Jeder E-Mail-Versand steht im <a class="link" href="/versandprotokoll?typ=mahnung">Versandprotokoll</a>.</div></div>
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{% call(teil) seitenkopf("Mahnwesen", untertitel="Zur Mahnung fällige Rechnungen, offene Mahnungsentwürfe und die vollständige Mahnungshistorie. Entwürfe entstehen nur per Klick. Jeder E-Mail-Versand steht im Versandprotokoll (Menü „⋮“).", mit_menue=true) %}
+  {% if teil == "menue" %}<a class="ds-menue-eintrag" href="/versandprotokoll?typ=mahnung">Versandprotokoll der Mahnungen</a>{% endif %}
+{% endcall %}
 <div class="metrics" id="metrics"></div>
 <div class="card" id="editorCard" style="display:none">
   <h2>Mahnungsentwurf bearbeiten</h2>
@@ -91,6 +94,7 @@ button.danger:hover{background:color-mix(in srgb,var(--ds-fehler) 20%,transparen
   <div style="overflow:auto"><table><thead><tr><th>Mahnung</th><th>Rechnung</th><th>Kunde</th><th>Stufe</th><th>Datum</th><th class="number">Betrag</th><th>Status</th><th>Aktionen</th><th>E-Mail</th></tr></thead><tbody id="allRows"></tbody></table></div>
 </div>
 </main>
+{% include "_seitenkopf.html" %}
 </div>
 </div>
 {% include "_speichern.html" %}

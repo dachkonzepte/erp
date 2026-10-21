@@ -13,7 +13,7 @@ main{max-width:1500px;margin:0;padding:20px}
 .field{margin:0}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
 input,select,textarea{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;width:100%}
 input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
-input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-aktion);outline-offset:-1px;border-color:var(--ds-aktion)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-fokus);outline-offset:-1px;border-color:var(--ds-fokus)}
 textarea{min-height:70px;resize:vertical}
 button{border:1px solid var(--ds-aktion);background:var(--ds-aktion);color:#fff;padding:9px 13px;font:inherit;font-weight:650;font-size:13.5px;cursor:pointer}
 button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-color:color-mix(in srgb,var(--ds-aktion) 85%,black)}
@@ -58,7 +58,7 @@ button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-col
 .unassigned-list .task-card{margin:0}
 .task-actions{margin-top:8px}.task-actions button{padding:5px 10px;font-size:12.5px}
 @media(max-width:900px){.board{grid-template-columns:1fr}.fields-2col{grid-template-columns:1fr}}
-</style></head><body>
+</style></head><body class="ds-seite">
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
@@ -67,7 +67,10 @@ button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-col
 {% include "_berlin_date.html" %}
 <main>
 {% if is_module_enabled('aufgabenmanagement') %}
-<div class="hero"><div><h1>Aufgaben</h1><div class="muted small">Eigene und zugewiesene Aufgaben, optional mit einem Projekt verknüpft.</div></div><button onclick="openCreateEditor()">+ Aufgabe</button></div>
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{% call(teil) seitenkopf("Aufgaben", untertitel="Eigene und zugewiesene Aufgaben, optional mit einem Projekt verknüpft.", mit_aktion=true) %}
+  {% if teil == "aktion" %}<button type="button" class="ds-knopf ds-knopf-aktion" data-klick="neue-aufgabe">+ Aufgabe</button>{% endif %}
+{% endcall %}
 
 <div class="toolbar">
   <div class="field" id="employeeFilterField" style="min-width:220px"><label>Aufgaben von</label><select id="employeeFilter"></select></div>
@@ -121,9 +124,11 @@ button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-col
 
 <div class="board" id="board"></div>
 {% else %}
-<div class="editor-card"><h2>Aufgabenmanagement</h2><div class="muted">Dieses Modul ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--accent)">Einstellungen</a> wieder aktivieren.</div></div>
+<div class="editor-card"><h2>Aufgabenmanagement</h2><div class="muted">Dieses Modul ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--ds-link)">Einstellungen</a> wieder aktivieren.</div></div>
 {% endif %}
 </main>
+{% include "_aktionen.html" %}
+{% include "_seitenkopf.html" %}
 </div>
 </div>
 {% include "_speichern.html" %}
@@ -441,5 +446,7 @@ async function init(){
   }
 }
 init();
+/* Seit 1.9.7: Kopf über den gemeinsamen Seitenkopf (data-klick, _aktionen.html). */
+aktion('neue-aufgabe',()=>openCreateEditor());
 </script>
 </body></html>

@@ -21,16 +21,17 @@ td{padding:10px 8px;border-bottom:1px solid var(--line);font-size:13px}
 .pill{background:var(--soft);padding:4px 9px;font-size:11px;font-weight:800}
 .pill.overdue{background:var(--danger-soft);color:var(--danger)}
 .pill.bezahlt{color:var(--accent)}
-a.link{color:var(--accent);font-weight:700;text-decoration:none}
+a.link{color:var(--ds-link);font-weight:700;text-decoration:none}
 .empty{padding:30px;text-align:center;color:var(--muted)}
-</style></head><body>
+</style></head><body class="ds-seite">
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
 {% include "_aktionen.html" %}
 <main>
-<div class="card"><h1>Finanzen</h1><div class="muted">Alle Rechnungen im Überblick.</div></div>
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{{ seitenkopf("Finanzen", untertitel="Alle Rechnungen im Überblick.") }}
 <div class="metrics" id="metrics"></div>
 <div class="card" id="unallocatedCard" style="display:none"><h2 style="margin:0 0 4px">Guthaben der Kunden</h2><div class="muted small" style="margin-bottom:8px">Nicht zugeordnete Zahlungen und Überzahlungen aus Schlussrechnungen je Kunde -- zuordnen oder erstatten in der Kundenakte.</div><div id="unallocatedRows"></div></div>
 <div class="card" id="reminderCard" style="display:none"><h2 style="margin:0 0 4px">Mahnwesen</h2><div class="muted small" id="reminderSummaryText" style="margin-bottom:8px"></div><a class="link" href="/mahnwesen">Zum Mahnwesen →</a></div>
@@ -39,6 +40,7 @@ a.link{color:var(--accent);font-weight:700;text-decoration:none}
   <div style="overflow:auto"><table><thead><tr><th>Rechnung</th><th>Typ</th><th>Kunde</th><th>Auftrag</th><th>Datum</th><th>Fällig</th><th>Status</th><th class="number">Brutto</th><th class="number">Offen</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
 </div>
 </main>
+{% include "_seitenkopf.html" %}
 </div>
 </div>
 <script>

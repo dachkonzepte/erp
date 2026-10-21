@@ -21,7 +21,7 @@ td{padding:10px 8px;border-bottom:1px solid var(--line);font-size:13px;vertical-
 .pill.fehlgeschlagen{background:var(--danger-soft);color:var(--danger)}
 .pill.in_arbeit{background:var(--warning-soft);color:var(--warning)}
 .pill.haengt{background:var(--danger-soft);color:var(--danger)}
-a.link{color:var(--accent);font-weight:700;text-decoration:none}
+a.link{color:var(--ds-link);font-weight:700;text-decoration:none}
 .empty{padding:30px;text-align:center;color:var(--muted)}
 .mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;word-break:break-all}
 .check-ok{color:var(--success);font-weight:700}.check-bad{color:var(--danger);font-weight:700}
@@ -34,13 +34,14 @@ textarea{font-family:inherit;font-size:13px;padding:6px 8px;border:1px solid var
 textarea:hover{border-color:var(--field-border-hover)}
 .resolve{margin-top:8px;display:flex;flex-direction:column;gap:4px}
 .resolved-note{margin-top:4px;padding:6px 8px;background:var(--soft);font-size:12px}
-</style></head><body>
+</style></head><body class="ds-seite">
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
 <main>
-<div class="card"><h1>Versandprotokoll</h1><div class="muted">Jeder E-Mail-Versand von Angeboten, Aufträgen, Verträgen, Rechnungen, Mahnungen und Checklisten – mit dem abgelegten PDF genau so, wie es hinausging – und jede nachgetragene Zustellung auf anderem Weg (Einschreiben, persönliche Übergabe, Bote, Fax) mit Beleg. Einträge werden nie gelöscht; einen hängengebliebenen klärt das Büro einmal mit Notiz. Zu jedem gesendeten Eintrag lässt sich einmal vermerken, ob der Empfang bestätigt ist oder er unzustellbar war.</div></div>
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{{ seitenkopf("Versandprotokoll", untertitel="Jeder E-Mail-Versand von Angeboten, Aufträgen, Verträgen, Rechnungen, Mahnungen und Checklisten – mit dem abgelegten PDF genau so, wie es hinausging – und jede nachgetragene Zustellung auf anderem Weg (Einschreiben, persönliche Übergabe, Bote, Fax) mit Beleg. Einträge werden nie gelöscht; einen hängengebliebenen klärt das Büro einmal mit Notiz. Zu jedem gesendeten Eintrag lässt sich einmal vermerken, ob der Empfang bestätigt ist oder er unzustellbar war.") }}
 <div class="card stuck" id="stuckCard" style="display:none"></div>
 <div class="card">
   <div class="filters">
@@ -54,6 +55,7 @@ textarea:hover{border-color:var(--field-border-hover)}
   <div class="small muted" style="margin-top:8px">Die Kennung je Versand geht als Kopfzeile <code>X-DK-Versand-ID</code> mit der Mail – damit lässt sich eine Nachricht im Postausgang eindeutig zuordnen.</div>
 </div>
 </main>
+{% include "_seitenkopf.html" %}
 </div>
 </div>
 {% include "_email_dispatch.html" %}

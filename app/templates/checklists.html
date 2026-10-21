@@ -23,13 +23,13 @@ table{width:100%;border-collapse:collapse;font-size:13.5px}
 th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line)}
 th{color:var(--muted);font-size:12px;text-transform:uppercase;font-weight:650}
 tr:last-child td{border-bottom:none}
-td a{color:var(--accent);text-decoration:none;font-weight:650}
+td a{color:var(--ds-link);text-decoration:none;font-weight:650}
 .badge{font-size:10.5px;font-weight:800;text-transform:uppercase;padding:2px 7px;background:var(--soft);color:var(--muted);white-space:nowrap}
 .badge.draft{background:var(--warning-soft);color:var(--warning)}
 .badge.done{background:var(--success-soft);color:var(--success)}
 .empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
 .status{font-size:13px;color:var(--muted)}.status.err{color:var(--danger)}
-</style></head><body>
+</style></head><body class="ds-seite">
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
@@ -37,10 +37,10 @@ td a{color:var(--accent);text-decoration:none;font-weight:650}
 <main>
 {% if is_module_enabled('checklisten') %}
 {% include "_checklists_section.html" %}
-<div class="hero">
-  <div><h1>Checklisten</h1><div class="muted small">Alle ausgefüllten und begonnenen Checklisten. Neue Checklisten startet man am Auftrag, am Objekt oder am Betriebsmittel -- oder hier im Bereich Betrieb.</div></div>
-  <a class="btnlink" href="/checklisten/vorlagen">Vorlagen verwalten</a>
-</div>
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{% call(teil) seitenkopf("Checklisten", untertitel="Alle ausgefüllten und begonnenen Checklisten. Neue Checklisten startet man am Auftrag, am Objekt oder am Betriebsmittel -- oder hier im Bereich Betrieb.", mit_menue=true) %}
+  {% if teil == "menue" %}<a class="ds-menue-eintrag" href="/checklisten/vorlagen">Vorlagen verwalten</a>{% endif %}
+{% endcall %}
 <div class="card" id="openRulesCard" style="display:none;border-left:4px solid var(--ds-warn-text)">
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:240px"><b id="openRulesText"></b>
     <div class="muted small">Ausgelöste Regeln und Folgen (z. B. „Behinderungsanzeige versenden“), deren Aufgabe nicht angelegt wurde (z. B. weil das Aufgabenmodul ausgeschaltet war).</div></div>
@@ -66,9 +66,10 @@ td a{color:var(--accent);text-decoration:none;font-weight:650}
   <div id="companySection"></div>
 </div>
 {% else %}
-<div class="card"><h2>Checklisten</h2><div class="muted">Das Modul Checklisten &amp; Formulare ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--accent)">Einstellungen</a> wieder aktivieren.</div></div>
+<div class="card"><h2>Checklisten</h2><div class="muted">Das Modul Checklisten &amp; Formulare ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--ds-link)">Einstellungen</a> wieder aktivieren.</div></div>
 {% endif %}
 </main>
+{% include "_seitenkopf.html" %}
 </div>
 </div>
 {% include "_fehlertext.html" %}
@@ -96,7 +97,7 @@ async function load(){
         <td>${esc(fmt(c.created_at))}</td><td>${esc(c.created_by_name)}</td>
         <td>${c.status==='entwurf'?'<span class="badge draft">Entwurf</span>':(c.status==='gegenstandslos'?'<span class="badge">Gegenstandslos</span>':'<span class="badge done">Abgeschlossen</span>')}</td></tr>`).join('')
         ||'<tr><td colspan="5" class="empty">Keine Checklisten gefunden.</td></tr>';
-      st.innerHTML=onlyOpenRules?'Nur mit nicht angelegten Aufgaben · <a href="#" style="color:var(--accent)" onclick="onlyOpenRules=false;load();return false">alle zeigen</a>':'';
+      st.innerHTML=onlyOpenRules?'Nur mit nicht angelegten Aufgaben · <a href="#" style="color:var(--ds-link)" onclick="onlyOpenRules=false;load();return false">alle zeigen</a>':'';
     });
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }

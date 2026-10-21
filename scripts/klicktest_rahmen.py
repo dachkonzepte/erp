@@ -21,6 +21,13 @@ Geprüft wird im echten Browser auf den Testdaten der Bildgrundlage (scripts/bil
                    auf-aktion), Menü „⋮“ per Tastatur mit „Archivierte anzeigen“, Dachtyp ausgeschrieben, Karten 12 px und Knöpfe 10 px
                    Ecken, Leiste und Kontomenü unverändert (Farben, keine Linkfarbe); Kontrast jedes sichtbaren Texts gegen seinen
                    Hintergrund (4,5 : 1, großer Text 3 : 1) hell und dunkel, auch mit offenem Menü und offenem Editor
+    Kopfgruppe     seit 1.9.7 die 15 Seiten der Gruppe „Titelzeilen und Titelkarten“ (Start, Aufgaben, Checklisten,
+                   Checklisten-Vorlagen, Wartungen, Befunde, Eingangsrechnungen, Betriebskosten, Projekte, Finanzen, Mahnwesen,
+                   Versandprotokoll, Changelog, Suche, Zeiterfassung), hell und dunkel: .ds-seite, genau ein h1 (das des Seitenkopfs) mit
+                   dem Titel, höchstens eine grüne Hauptaktion (Schrift auf-aktion), das Menü „⋮“ mit seinen Einträgen (per Tastatur,
+                   Umschalter wechseln ihren Text), jeder sichtbare Textlink im Inhalt in --ds-link, das erste Feld mit Fokus im Umriss
+                   --ds-fokus, Kontrast jedes Texts; die Hauptaktion tut, was sie vorher tat (Editor offen, „+ Projekt“ nach
+                   /projects/new)
     Seitenregeln   auf den Einstellungen (button:hover und button:active in der Akzentfarbe): Kontoknopf unter der Maus und per
                    Leertaste gedrückt (:active ohne :hover), Menüeintrag unter der Maus -- nie in der Akzentfarbe
     Monteurskopf   auf jeder Seite der Monteurin (Mobil, Objekt, Stundenzettel, Zeiterfassung, Betriebsmittel, Checkliste,
@@ -35,8 +42,8 @@ AUFRUF (aus dem Projektordner):
     .venv\\Scripts\\python.exe scripts\\klicktest_rahmen.py [--nur TEIL[,TEIL]] [--app-port N] [--cdp-port N]
         [--arbeitsordner PFAD] [--chrome PFAD] [--offen-lassen]
 
---nur: nur diese Teile (seitenleiste, aktiv, schrift, menueknopf, kopfzeile, kontomenue, vollname, pruefvorlagen, seitenregeln,
-monteurskopf) -- für
+--nur: nur diese Teile (seitenleiste, aktiv, schrift, menueknopf, kopfzeile, kontomenue, vollname, pruefvorlagen, kopfgruppe,
+seitenregeln, monteurskopf) -- für
 Gegenproben, die nach 2 min
 abbrechen (Regel 24).
 
@@ -421,6 +428,89 @@ async def _pruefvorlagen(tab, seed, p):
     p.pruefe("Prüfvorlage mit Altwert: keine JS-Fehler", tab.fehler, [])
 
 
+# Seit 1.9.7: die Gruppe „Titelzeilen und Titelkarten“ -- Aufnahme, Titel, Hauptaktion (oder None), Einträge des Menüs, was die
+# Hauptaktion tut ("editor": #editorCard sichtbar, "/…": Ziel des Links, None: nicht geklickt -- legt sofort etwas an)
+KOPFGRUPPE = (
+    ("start", "Guten Morgen, Bernd Büro.", None, [], None),
+    ("aufgaben", "Aufgaben", "+ Aufgabe", [], "editor"),
+    ("checklisten", "Checklisten", None, ["Vorlagen verwalten"], None),
+    ("checklistenvorlagen", "Checklisten-Vorlagen", "+ Neue Vorlage", ["Archivierte anzeigen"], None),
+    ("wartungen", "Wartungen & Reparaturen", "+ Wartungsvertrag", ["Archivierte anzeigen"], "editor"),
+    ("befunde", "Mängel", None, [], None),
+    ("eingangsrechnungen", "Eingangsrechnungen", "+ Eingangsrechnung", [], "editor"),
+    ("betriebskosten", "Betriebskosten-Übersicht", "+ Kostenposten", ["Inaktive anzeigen"], "editor"),
+    ("projekte", "Projekte", "+ Projekt", [], "/projects/new"),
+    ("finanzen", "Finanzen", None, [], None),
+    ("mahnwesen", "Mahnwesen", None, ["Versandprotokoll der Mahnungen"], None),
+    ("versandprotokoll", "Versandprotokoll", None, [], None),
+    ("changelog", "Changelog", None, [], None),
+    ("suche", "Suche", None, [], None),
+    ("zeiterfassung", "Zeiterfassung", None, [], None),
+)
+UMSCHALTER = {"Archivierte anzeigen": "Archivierte ausblenden", "Inaktive anzeigen": "Inaktive ausblenden"}
+KOPF = """(()=>{const F=%s;const cs=e=>getComputedStyle(e);const k=document.getElementById('seitenkopf');
+const akt=[...k.querySelectorAll('.ds-knopf-aktion')];
+const links=[...document.querySelectorAll('main a[href]')].filter(a=>a.getClientRects().length&&!a.closest('#seitenkopf')
+  &&!a.matches('.ds-knopf,.ds-menue-eintrag')&&['inline','inline-block'].includes(cs(a).display)
+  &&cs(a).backgroundColor==='rgba(0, 0, 0, 0)'&&cs(a).borderTopStyle==='none');
+return {ds:document.body.classList.contains('ds-seite'),h1:[...document.querySelectorAll('h1')].map(e=>[e.id,e.textContent.trim()]),
+  aktion:akt.map(a=>[a.textContent.trim(),cs(a).backgroundColor===F('--ds-aktion'),cs(a).color===F('--ds-auf-aktion')]),
+  menue:[...document.querySelectorAll('#seitenkopfMenue .ds-menue-eintrag')].map(e=>e.textContent.trim()),
+  links:links.length,falsch:links.filter(a=>cs(a).color!==F('--ds-link')).map(a=>a.textContent.trim().slice(0,30)+' '+cs(a).color)}})()""" % FARBE
+FOKUS = """(()=>{const F=%s;const e=[...document.querySelectorAll('main input:not([type=checkbox]):not([type=radio]):not([type=hidden]),main select,main textarea')]
+  .find(x=>x.getClientRects().length&&!x.disabled);if(!e)return 'kein Feld';e.focus();const s=getComputedStyle(e);
+  const r=[s.outlineStyle,s.outlineColor===F('--ds-fokus')];e.blur();return r})()""" % FARBE
+
+
+async def _kopfgruppe(tab, seed, p):
+    """Seit 1.9.7: die 15 Seiten der Gruppe „Titelzeilen und Titelkarten“ im gemeinsamen Seitenkopf. Textlinks = Links in der Zeile
+    (display inline/inline-block) ohne Fläche und Rahmen -- Zeilen- und Kachellinks (ganze Zeile klickbar, display block/flex) behalten
+    ihre Textfarbe. Fokus: das kopflose Chrome hat keinen Fensterfokus, ohne Fokus-Emulation griffe :focus nicht."""
+    await tab.cmd("Emulation.setFocusEmulationEnabled", enabled=True)
+    await tab.anmelden(seed["cookies"][bg.BUERO])
+    for name, titel, aktion, menue, klick in KOPFGRUPPE:
+        for thema in ("hell", "dunkel"):
+            wo = f"Kopf {name} {thema}"
+            p.pruefe(f"{wo}: geladen", await _laden(tab, seed, name, thema, 1440, 900), True)
+            m = await tab.js(KOPF)
+            p.pruefe(f"{wo}: .ds-seite, genau ein h1 (Seitenkopf) „{titel}“, Hauptaktion {aktion or '—'}, Menü {menue or '—'}",
+                     [m["ds"], m["h1"], m["aktion"], m["menue"]],
+                     [True, [["seitenkopfTitel", titel]], [[aktion, True, True]] if aktion else [], menue])
+            p.pruefe(f"{wo}: {m['links']} Textlinks im Inhalt, alle in --ds-link", m["falsch"], [])
+            fokus = await tab.js(FOKUS)
+            p.pruefe(f"{wo}: erstes Feld mit Fokus im Umriss --ds-fokus", fokus if fokus == "kein Feld" else fokus[1],
+                     "kein Feld" if fokus == "kein Feld" else True)
+            k = await tab.js(KONTRAST)
+            p.pruefe(f"{wo}: Kontrast ({k['anzahl']} Elemente, kleinster {k['min']} : 1)", k["schwach"], [])
+            if menue:
+                await tab.js("document.getElementById('seitenkopfMenueKnopf').focus()")
+                await _taste(tab, "Enter")
+                offen = await tab.js("[!document.getElementById('seitenkopfMenue').hidden,document.activeElement.textContent.trim()]")
+                k_menue = await tab.js(KONTRAST)
+                eintrag = menue[0]
+                if eintrag in UMSCHALTER:
+                    await _taste(tab, "Enter")
+                    nachher = await tab.js("[document.getElementById('seitenkopfMenue').hidden,"
+                                           "document.querySelector('#seitenkopfMenue .ds-menue-eintrag').textContent.trim()]")
+                    p.pruefe(f"{wo}: Menü per Enter offen (Fokus „{eintrag}“), Enter schaltet um und schließt", [offen, nachher],
+                             [[True, eintrag], [True, UMSCHALTER[eintrag]]])
+                else:
+                    ziel = await tab.js("document.querySelector('#seitenkopfMenue .ds-menue-eintrag').getAttribute('href')")
+                    await _taste(tab, "Escape")
+                    p.pruefe(f"{wo}: Menü per Enter offen (Fokus „{eintrag}“), Link {ziel}, Escape schließt",
+                             [offen, await tab.js("document.getElementById('seitenkopfMenue').hidden")], [[True, eintrag], True])
+                p.pruefe(f"{wo}: Kontrast mit offenem Menü (kleinster {k_menue['min']} : 1)", k_menue["schwach"], [])
+            if klick == "editor" and thema == "hell":
+                await tab.js("document.querySelector('#seitenkopf .ds-knopf-aktion').click()")
+                p.pruefe(f"{wo}: „{aktion}“ öffnet den Editor", await tab.warten(
+                    "!document.getElementById('editorCard').classList.contains('hidden')", 10), True)
+            elif klick and klick.startswith("/") and thema == "hell":
+                p.pruefe(f"{wo}: „{aktion}“ führt nach {klick}", await tab.js(
+                    "document.querySelector('#seitenkopf .ds-knopf-aktion').getAttribute('href')"), klick)
+            p.pruefe(f"{wo}: keine JS-Fehler", tab.fehler, [])
+    await tab.bild("kopfgruppe_zuletzt")
+
+
 async def _seitenregeln(tab, seed, p):
     """Die Einstellungen färben button:hover und button:active in der Akzentfarbe (Spezifität 0,1,1) -- im Kopf darf das nicht ankommen.
     :active ohne :hover gibt es beim Drücken per Leertaste: dann zählt allein die Spezifität der Regel des Kopfs."""
@@ -499,7 +589,8 @@ async def _monteurskopf(tab, seed, p):
 
 
 TEILE = {"seitenleiste": _seitenleiste, "aktiv": _aktiv, "schrift": _schrift, "menueknopf": _menueknopf, "kopfzeile": _kopfzeile,
-         "kontomenue": _kontomenue, "vollname": _vollname, "pruefvorlagen": _pruefvorlagen, "seitenregeln": _seitenregeln, "monteurskopf": _monteurskopf}
+         "kontomenue": _kontomenue, "vollname": _vollname, "pruefvorlagen": _pruefvorlagen, "kopfgruppe": _kopfgruppe,
+         "seitenregeln": _seitenregeln, "monteurskopf": _monteurskopf}
 NUR: list = []
 
 

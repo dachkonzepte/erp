@@ -12,7 +12,7 @@ main{max-width:1400px;margin:0;padding:20px}
 .field{margin:0}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
 input,select,textarea{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;width:100%}
 input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
-input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-aktion);outline-offset:-1px;border-color:var(--ds-aktion)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-fokus);outline-offset:-1px;border-color:var(--ds-fokus)}
 textarea{min-height:60px;resize:vertical}
 button{border:1px solid var(--ds-aktion);background:var(--ds-aktion);color:#fff;padding:9px 13px;font:inherit;font-weight:650;font-size:13.5px;cursor:pointer}
 button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-color:color-mix(in srgb,var(--ds-aktion) 85%,black)}
@@ -55,7 +55,7 @@ tr:last-child td{border-bottom:none}
 .supplier-row{display:flex;gap:8px;align-items:end}
 .supplier-row .field{flex:1}
 @media(max-width:900px){.fields-2col,.fields-3col,.assignment-row{grid-template-columns:1fr}table{font-size:12.5px}th,td{padding:8px}.metric{min-width:130px}.item-row,.item-row-head{grid-template-columns:1fr}}
-</style></head><body>
+</style></head><body class="ds-seite">
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
@@ -64,7 +64,10 @@ tr:last-child td{border-bottom:none}
 {% include "_berlin_date.html" %}
 <main>
 {% if is_module_enabled('buchhaltung') %}
-<div class="hero"><div><h1>Eingangsrechnungen</h1><div class="muted small">Vorbereitende Buchhaltung -- Lieferantenrechnungen mit Beleg erfassen und ablegen, für die spätere Kontierung und den Steuerberater.</div></div><button onclick="openCreateEditor()">+ Eingangsrechnung</button></div>
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{% call(teil) seitenkopf("Eingangsrechnungen", untertitel="Vorbereitende Buchhaltung -- Lieferantenrechnungen mit Beleg erfassen und ablegen, für die spätere Kontierung und den Steuerberater.", mit_aktion=true) %}
+  {% if teil == "aktion" %}<button type="button" class="ds-knopf ds-knopf-aktion" data-klick="neue-eingangsrechnung">+ Eingangsrechnung</button>{% endif %}
+{% endcall %}
 
 <div class="editor-card">
   <h2>Offene Verbindlichkeiten</h2>
@@ -182,9 +185,11 @@ tr:last-child td{border-bottom:none}
 </div>
 <span id="listStatus" class="status"></span>
 {% else %}
-<div class="editor-card"><h2>Eingangsrechnungen</h2><div class="muted">Dieses Modul ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--accent)">Einstellungen</a> wieder aktivieren.</div></div>
+<div class="editor-card"><h2>Eingangsrechnungen</h2><div class="muted">Dieses Modul ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--ds-link)">Einstellungen</a> wieder aktivieren.</div></div>
 {% endif %}
 </main>
+{% include "_aktionen.html" %}
+{% include "_seitenkopf.html" %}
 </div>
 </div>
 {% include "_speichern.html" %}
@@ -377,7 +382,7 @@ function renderDocumentSection(invoice){
   const info=document.getElementById('documentCurrent');
   const removeBtn=document.getElementById('docRemoveBtn');
   if(invoice.has_document){
-    info.innerHTML=`Aktueller Beleg: <a href="/api/incoming-invoices/${invoice.id}/document/file" target="_blank" style="color:var(--accent)">${esc(invoice.document_original_name||'Beleg')}</a>`;
+    info.innerHTML=`Aktueller Beleg: <a href="/api/incoming-invoices/${invoice.id}/document/file" target="_blank" style="color:var(--ds-link)">${esc(invoice.document_original_name||'Beleg')}</a>`;
     removeBtn.style.display='inline-block';
   }else{
     info.textContent='Noch kein Beleg hinterlegt.';
@@ -607,7 +612,7 @@ function renderRows(){
 
 function skontoRow(inv){
   return `<tr${inv.is_skonto_overdue?' class="row-overdue"':''}>
-    <td><a href="#" onclick="openEditEditor(${inv.id});return false" style="color:var(--accent)">${esc(inv.supplier_name||'')}</a></td>
+    <td><a href="#" onclick="openEditEditor(${inv.id});return false" style="color:var(--ds-link)">${esc(inv.supplier_name||'')}</a></td>
     <td>${fmtDate(inv.skonto_deadline)}</td>
     <td>${inv.skonto_percent!=null?esc(inv.skonto_percent)+' %':'—'}</td>
     <td>${inv.is_skonto_overdue?'<span class="badge overdue">⚠ verpasst</span>':'<span class="badge due">läuft ab</span>'}</td>
@@ -682,5 +687,7 @@ async function init(){
   await loadAll();
 }
 init();
+/* Seit 1.9.7: Kopf über den gemeinsamen Seitenkopf (data-klick, _aktionen.html). */
+aktion('neue-eingangsrechnung',()=>openCreateEditor());
 </script>
 </body></html>

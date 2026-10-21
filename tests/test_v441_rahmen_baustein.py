@@ -31,6 +31,14 @@ BEREICHE = {"start", "aufgaben", "kalender", "anfragen", "projekte", "plantafel"
             "mahnwesen", "eingangsrechnungen", "betriebskosten", "zeiterfassung", "backoffice", "stammdaten", "einstellungen", "keiner"}
 # Seiten, die auf das Design-System umgezogen sind (<body class="… ds-seite …">) -- wird mit jedem Umzug länger
 UMGEZOGEN: set[str] = {"inspection_templates.html"}  # seit 1.9.3 (Pilot)
+# seit 1.9.7 die Gruppe „Titelzeilen und Titelkarten“ (docs/archiv/befund-rahmen.md: K1 ohne Prüfvorlagen, K2)
+TITELZEILEN_UND_TITELKARTEN = {
+    "dashboard.html", "tasks.html", "checklists.html", "checklist_templates.html", "maintenance_contracts.html", "findings.html",
+    "incoming_invoices.html", "recurring_costs.html",
+    "projects.html", "finanzen.html", "mahnwesen.html", "email_dispatches.html", "changelog.html", "search_results.html",
+    "time_tracking.html",
+}
+UMGEZOGEN |= TITELZEILEN_UND_TITELKARTEN
 
 
 # ---------------------------------------------------------------------------
@@ -114,9 +122,40 @@ def test_ds_basis_ist_eine_design_datei_und_auf_jeder_seite_geladen():
 
 
 def test_umgezogen_heisst_ds_seite_am_body():
-    """Eine Seite schaltet beim Umzug um: <body class="… ds-seite …">. Seit 1.9.3 die Prüfvorlagen (bis dahin keine)."""
+    """Eine Seite schaltet beim Umzug um: <body class="… ds-seite …">. Seit 1.9.3 die Prüfvorlagen (bis dahin keine), seit 1.9.7 die
+    15 Seiten der Gruppe „Titelzeilen und Titelkarten“."""
     mit = {name for name in vj.seiten() if re.search(r"<body[^>]*class=\"[^\"]*\bds-seite\b", vj.zusammensetzen(name)[0])}
     assert mit == UMGEZOGEN
+
+
+def _seitenstil(name: str) -> str:
+    """Die <style>-Blöcke der Seite selbst (ohne eingebundene Bausteine)."""
+    return "\n".join(re.findall(r"<style>(.*?)</style>", (vj.TEMPLATES / name).read_text(encoding="utf-8"), flags=re.S))
+
+
+@pytest.mark.parametrize("name", sorted(UMGEZOGEN))
+def test_umgezogene_seite_hat_den_gemeinsamen_kopf(name):
+    """Seit 1.9.7 (befund-rahmen.md, „Reihenfolge“: umgezogen heißt kein eigenes .hero/.head/.breadcrumb/.back, h1 nur aus dem Makro):
+    Kopf über teile/seitenkopf.html mit _seitenkopf.html, genau ein h1 (das des Makros), höchstens eine grüne Hauptaktion im Kopf
+    (.ds-knopf-aktion), Fokusregeln der Seite in --ds-fokus, Links der Seite nicht in der Akzent- oder Aktionsfarbe."""
+    eigen = (vj.TEMPLATES / name).read_text(encoding="utf-8")
+    seite = vj.zusammensetzen(name)[0]
+    assert vj.bindet_ein(name, "_seitenkopf.html"), name
+    assert re.search(r"\{%\s*from \"teile/seitenkopf.html\" import seitenkopf\s*%\}", eigen), name
+    assert not re.search(r"class=\"(hero|head|breadcrumb|back)\b", eigen), name
+    assert re.findall(r"<h1\b", seite) == ["<h1"], name
+    # die Teile des Kopfs stehen im call-Block der Seite (das Makro setzt sie über caller() ein)
+    aufrufe = re.findall(r"\{%\s*call\(teil\)\s*seitenkopf\(.*?\{%\s*endcall\s*%\}", eigen, flags=re.S)
+    assert len(aufrufe) + len(re.findall(r"\{\{\s*seitenkopf\(", eigen)) == 1, name
+    assert sum(a.count("ds-knopf-aktion") for a in aufrufe) <= 1, name
+    stil = _seitenstil(name)
+    fokus = [r for r in re.findall(r"[^{}]*:focus[^{}]*\{[^}]*\}", stil) if re.search(r"outline:[^;}]*var\(--(?!ds-fokus)", r)]
+    assert fokus == [], (name, fokus)
+    for selektor, rumpf in re.findall(r"([^{}]+)\{([^}]*)\}", stil):
+        ziele = [re.split(r"[\s>+~]+", s.strip())[-1] for s in selektor.split(",")]
+        if any(re.match(r"a(\.|:|$)", z) for z in ziele):
+            assert not re.search(r"(?<![-\w])color:var\(--(accent|ds-aktion|ds-aktion-text)\)", rumpf), (name, selektor)
+    assert not re.search(r"<a [^>]*style=\"[^\"]*color:var\(--accent\)", eigen), name
 
 
 # ---------------------------------------------------------------------------

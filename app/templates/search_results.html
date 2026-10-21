@@ -11,7 +11,7 @@ h1{margin:0 0 4px;color:var(--ink)}h2{color:var(--ink)}.muted{color:var(--muted)
 .empty{padding:30px;text-align:center;color:var(--muted)}
 .search-form{display:flex;gap:8px;margin-top:10px}
 .search-form input{flex:1;min-width:0;padding:9px 12px;font-size:14px;border:1px solid var(--field-border);background:var(--card);color:var(--ink)}
-.search-form input:focus{outline:2px solid var(--ds-aktion);outline-offset:-1px;border-color:var(--field-border-hover)}
+.search-form input:focus{outline:2px solid var(--ds-fokus);outline-offset:-1px;border-color:var(--field-border-hover)}
 .search-form button{padding:9px 18px;background:var(--ds-aktion);color:#fff;border:0;font-weight:700;font-size:14px;cursor:pointer}
 .filters{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
 .filters button{border:1px solid var(--line);background:var(--card);padding:6px 12px;font-size:12.5px;font-weight:700;cursor:pointer;color:var(--ink)}
@@ -24,15 +24,15 @@ h1{margin:0 0 4px;color:var(--ink)}h2{color:var(--ink)}.muted{color:var(--muted)
 .result-hit .sub{color:var(--muted);font-size:12.5px;margin-top:1px}
 .more-btn{margin-top:10px;border:1px solid var(--line);background:var(--card);padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;color:var(--ink)}
 .more-btn:hover{background:var(--soft)}
-</style></head><body>
+</style></head><body class="ds-seite">
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
 <main>
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{{ seitenkopf("Suche", untertitel="Kunden, Objekte, Aufträge, Rechnungen und alle übrigen Gruppe-A-Datensatzarten.") }}
 <div class="card">
-  <h1>Suche</h1>
-  <div class="muted small">Kunden, Objekte, Aufträge, Rechnungen und alle übrigen Gruppe-A-Datensatzarten.</div>
   <form class="search-form" id="searchForm">
     <input type="search" id="searchInput" placeholder="Suchbegriff (mindestens 2 Zeichen) …" autocomplete="off" aria-label="Suchbegriff">
     <button type="submit">Suchen</button>
@@ -41,6 +41,7 @@ h1{margin:0 0 4px;color:var(--ink)}h2{color:var(--ink)}.muted{color:var(--muted)
 </div>
 <div id="resultGroups"></div>
 </main>
+{% include "_seitenkopf.html" %}
 </div>
 </div>
 {% include "_speichern.html" %}

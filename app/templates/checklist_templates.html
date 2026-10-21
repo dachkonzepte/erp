@@ -27,20 +27,18 @@ tr:last-child td{border-bottom:none}
 .row-archived{opacity:.6}
 .empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
 @media(max-width:700px){table{font-size:12.5px}th,td{padding:8px}}
-</style></head><body>
+</style></head><body class="ds-seite">
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
 <main>
 {% if is_module_enabled('checklisten') %}
-<div class="hero">
-  <div><h1>Checklisten-Vorlagen</h1><div class="muted small">Vorlagen, die Monteure am Auftrag, am Objekt, am Betriebsmittel oder im Betrieb ausfüllen. Monteure sehen nur veröffentlichte Fassungen; eine Änderung wirkt erst nach erneutem Veröffentlichen und nie auf bereits ausgefüllte Checklisten.</div></div>
-  <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
-    <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:650"><input type="checkbox" id="showArchived" onchange="renderRows()"> Archivierte anzeigen</label>
-    <button onclick="createTemplate()">+ Neue Vorlage</button>
-  </div>
-</div>
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{% call(teil) seitenkopf("Checklisten-Vorlagen", untertitel="Vorlagen, die Monteure am Auftrag, am Objekt, am Betriebsmittel oder im Betrieb ausfüllen. Monteure sehen nur veröffentlichte Fassungen; eine Änderung wirkt erst nach erneutem Veröffentlichen und nie auf bereits ausgefüllte Checklisten.", mit_aktion=true, mit_menue=true) %}
+  {% if teil == "aktion" %}<button type="button" class="ds-knopf ds-knopf-aktion" data-klick="neue-vorlage">+ Neue Vorlage</button>
+  {% elif teil == "menue" %}<button type="button" class="ds-menue-eintrag" id="archivierteUmschalten" data-klick="archivierte">Archivierte anzeigen</button>{% endif %}
+{% endcall %}
 <div class="card">
   <div class="table-scroll">
   <table>
@@ -51,9 +49,11 @@ tr:last-child td{border-bottom:none}
 </div>
 <span id="listStatus" class="status"></span>
 {% else %}
-<div class="editor-card"><h2>Checklisten-Vorlagen</h2><div class="muted">Das Modul Checklisten &amp; Formulare ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--accent)">Einstellungen</a> wieder aktivieren.</div></div>
+<div class="editor-card"><h2>Checklisten-Vorlagen</h2><div class="muted">Das Modul Checklisten &amp; Formulare ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--ds-link)">Einstellungen</a> wieder aktivieren.</div></div>
 {% endif %}
 </main>
+{% include "_aktionen.html" %}
+{% include "_seitenkopf.html" %}
 </div>
 </div>
 {% include "_speichern.html" %}
@@ -79,16 +79,16 @@ function row(t){
   const published=t.published_version_no?`<span class="badge ok">Fassung ${esc(t.published_version_no)}</span>`:'<span class="muted small">noch nicht veröffentlicht</span>';
   const draft=t.draft_version_no?`<span class="badge draft">Entwurf ${esc(t.draft_version_no)}</span>`:'';
   return `<tr${t.archived?' class="row-archived"':''}>
-    <td><a href="/checklisten/vorlagen/${t.id}" style="color:var(--accent);font-weight:650;text-decoration:none">${esc(t.label)}</a> ${t.purpose!=='allgemein'?`<span class="badge">${esc(t.purpose_label)}</span>`:''} ${t.archived?'<span class="badge">Archiviert</span>':''}</td>
+    <td><a href="/checklisten/vorlagen/${t.id}" style="color:var(--ds-link);font-weight:650;text-decoration:none">${esc(t.label)}</a> ${t.purpose!=='allgemein'?`<span class="badge">${esc(t.purpose_label)}</span>`:''} ${t.archived?'<span class="badge">Archiviert</span>':''}</td>
     <td>${contexts}</td>
     <td>${published}</td>
     <td>${draft}</td>
-    <td><a href="/checklisten/vorlagen/${t.id}" style="color:var(--accent)">Öffnen</a></td>
+    <td><a href="/checklisten/vorlagen/${t.id}" style="color:var(--ds-link)">Öffnen</a></td>
   </tr>`;
 }
 
 function renderRows(){
-  const showArchived=document.getElementById('showArchived').checked;
+  const showArchived=archivierteZeigen;
   const visible=templates.filter(t=>showArchived||!t.archived);
   document.getElementById('templateRows').innerHTML=visible.map(row).join('')||'<tr><td colspan="5" class="empty">Noch keine Vorlagen angelegt.</td></tr>';
 }
@@ -104,5 +104,9 @@ async function init(){
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 init();
+/* Seit 1.9.7: Kopf über den gemeinsamen Seitenkopf (data-klick, _aktionen.html). */
+var archivierteZeigen=false;  // seit 1.9.7 aus dem Menü „⋮“ (bis dahin ein Häkchen im Kopf)
+aktion('neue-vorlage',()=>createTemplate());
+aktion('archivierte',el=>{archivierteZeigen=!archivierteZeigen;el.textContent=archivierteZeigen?'Archivierte ausblenden':'Archivierte anzeigen';renderRows()});
 </script>
 </body></html>

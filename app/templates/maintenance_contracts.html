@@ -12,7 +12,7 @@ main{max-width:1400px;margin:0;padding:20px}
 .field{margin:0}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
 input,select,textarea{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;width:100%}
 input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
-input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-aktion);outline-offset:-1px;border-color:var(--ds-aktion)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-fokus);outline-offset:-1px;border-color:var(--ds-fokus)}
 textarea{min-height:60px;resize:vertical}
 button{border:1px solid var(--ds-aktion);background:var(--ds-aktion);color:#fff;padding:9px 13px;font:inherit;font-weight:650;font-size:13.5px;cursor:pointer}
 button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-color:color-mix(in srgb,var(--ds-aktion) 85%,black)}
@@ -40,10 +40,10 @@ tr:last-child td{border-bottom:none}
 .row-overdue{background:var(--danger-soft)}
 .empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
 .table-scroll{overflow-x:auto}
-.contract-link{color:var(--accent);text-decoration:none;font-weight:700}
+.contract-link{color:var(--ds-link);text-decoration:none;font-weight:700}
 .contract-link:hover{text-decoration:underline}
 @media(max-width:900px){.fields-2col{grid-template-columns:1fr}table{font-size:12.5px}th,td{padding:8px}}
-</style></head><body>
+</style></head><body class="ds-seite">
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
@@ -51,7 +51,11 @@ tr:last-child td{border-bottom:none}
 {% include "_objekt_anderer_kunde.html" %}
 <main>
 {% if is_module_enabled('wartungen') %}
-<div class="hero"><div><h1>Wartungen &amp; Reparaturen</h1><div class="muted small">Wiederkehrende Wartungsverträge, ihre Fälligkeiten und einmalige Reparatur-/Wartungsaufträge.</div></div><div style="display:flex;gap:14px;align-items:center"><label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:650"><input type="checkbox" id="showArchived" style="width:auto" onchange="renderRows()"> Archivierte anzeigen</label><button onclick="openCreateEditor()">+ Wartungsvertrag</button></div></div>
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{% call(teil) seitenkopf("Wartungen & Reparaturen", untertitel="Wiederkehrende Wartungsverträge, ihre Fälligkeiten und einmalige Reparatur-/Wartungsaufträge.", mit_aktion=true, mit_menue=true) %}
+  {% if teil == "aktion" %}<button type="button" class="ds-knopf ds-knopf-aktion" data-klick="neuer-vertrag">+ Wartungsvertrag</button>
+  {% elif teil == "menue" %}<button type="button" class="ds-menue-eintrag" id="archivierteUmschalten" data-klick="archivierte">Archivierte anzeigen</button>{% endif %}
+{% endcall %}
 
 <div class="editor-card">
   <h2>Fällige Wartungen im Fenster</h2>
@@ -110,9 +114,11 @@ tr:last-child td{border-bottom:none}
 </div>
 <span id="listStatus" class="status"></span>
 {% else %}
-<div class="editor-card"><h2>Wartungen & Reparaturen</h2><div class="muted">Dieses Modul ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--accent)">Einstellungen</a> wieder aktivieren.</div></div>
+<div class="editor-card"><h2>Wartungen & Reparaturen</h2><div class="muted">Dieses Modul ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--ds-link)">Einstellungen</a> wieder aktivieren.</div></div>
 {% endif %}
 </main>
+{% include "_aktionen.html" %}
+{% include "_seitenkopf.html" %}
 </div>
 </div>
 {% include "_speichern.html" %}
@@ -252,7 +258,7 @@ function row(c){
 }
 
 function renderRows(){
-  const showArchived=document.getElementById('showArchived').checked;
+  const showArchived=archivierteZeigen;
   const visible=contracts.filter(c=>showArchived||!c.archived);
   document.getElementById('contractRows').innerHTML=visible.map(row).join('')||'<tr><td colspan="6" class="empty">Noch keine Wartungsverträge angelegt.</td></tr>';
 }
@@ -269,7 +275,7 @@ async function loadDueOverview(){
       });
       container.innerHTML=Object.keys(groups).sort().map(key=>{
         const rowsHtml=groups[key].map(r=>`<tr${r.is_overdue?' class="row-overdue"':''}>
-          <td><a href="/maintenance-contracts/${r.contract_id}" style="color:var(--accent)">${esc(r.contract_title)}</a></td><td>${esc(r.customer_name||'')}</td><td>${esc(r.roof_area_name||'')}</td>
+          <td><a href="/maintenance-contracts/${r.contract_id}" style="color:var(--ds-link)">${esc(r.contract_title)}</a></td><td>${esc(r.customer_name||'')}</td><td>${esc(r.roof_area_name||'')}</td>
           <td>${esc(r.maintenance_window_label||'')}</td><td>${fmtDate(r.next_due_date)}</td>
           <td>${r.is_overdue?'<span class="badge overdue">⚠ überfällig</span>':'<span class="badge due">fällig</span>'}</td>
         </tr>`).join('');
@@ -312,5 +318,9 @@ async function init(){
   await loadDueOverview();
 }
 init();
+/* Seit 1.9.7: Kopf über den gemeinsamen Seitenkopf (data-klick, _aktionen.html). */
+var archivierteZeigen=false;  // seit 1.9.7 aus dem Menü „⋮“ (bis dahin ein Häkchen im Kopf)
+aktion('neuer-vertrag',()=>openCreateEditor());
+aktion('archivierte',el=>{archivierteZeigen=!archivierteZeigen;el.textContent=archivierteZeigen?'Archivierte ausblenden':'Archivierte anzeigen';renderRows()});
 </script>
 </body></html>
