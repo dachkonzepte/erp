@@ -102,8 +102,11 @@ const ITEM_TYPES=[
 
 let authStatus=null,template=null,roofTypes=[],componentTypes=[];
 
+/* Seit 1.9.6 über auswahlOptionen() wie die Dachfläche: ein gespeicherter Wert außerhalb der Auswahlliste (andere Schreibweise,
+   umbenannter oder gelöschter Eintrag) bleibt vorgewählt als „… (nicht mehr verfügbar)“, ein deaktivierter als „… (inaktiv)“, und geht
+   beim Speichern unverändert zurück. Bis 1.9.5 stand die Auswahl dann auf „— jeder Dachtyp —“, das Speichern löschte den Wert still. */
 function roofTypeOptionsHtml(selected){
-  return '<option value="">— jeder Dachtyp —</option>'+roofTypes.map(o=>`<option value="${esc(o.value)}" ${selected===o.value?'selected':''}>${esc(o.label)}</option>`).join('');
+  return auswahlOptionen(roofTypes,selected,o=>o.label,{wert:o=>o.value,leer:'— jeder Dachtyp —'});
 }
 // Seit 1.8.30 über auswahlOptionen() (_auswahl.html), mit inaktiven Bauteiltypen geladen: ein abgeschalteter
 // gespeicherter Bauteiltyp bleibt vorgewählt und gekennzeichnet -- vorher leerte ihn jedes Verlassen der Zeile.

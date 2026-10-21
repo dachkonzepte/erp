@@ -1,8 +1,13 @@
 -- Prüfabfrage Dachtypen (Befund 20.10.2026, Stufe 2 Redesign, Nachtrag zu Runde 2): welche Dachtypen stehen in der Datenbank?
 -- NUR LESEN -- läuft in einer schreibgeschützten Transaktion und endet mit ROLLBACK, ändert nichts.
 --
--- Aufruf auf dem Server (PostgreSQL), z. B.:
---     psql -d dachkonzepte -f scripts/pruefabfrage_dachtypen.sql
+-- Aufruf auf dem Server (seit 1.9.6 genau so, als Benutzer tobias): die Verbindung aus /home/tobias/erp/.env -- derselbe
+-- Datenbank-Benutzer wie die Anwendung (ein eigener steht in der Betriebsdoku nicht) --, ohne den Treiberzusatz "+psycopg", den psql
+-- nicht kennt; PGOPTIONS macht jede Transaktion der Sitzung schreibgeschützt (doppelt zum BEGIN TRANSACTION READ ONLY unten):
+--
+--     cd /home/tobias/erp
+--     set -a; source .env; set +a
+--     PGOPTIONS='-c default_transaction_read_only=on' psql "${DATABASE_URL/postgresql+psycopg:/postgresql:}" -v ON_ERROR_STOP=1 -f scripts/pruefabfrage_dachtypen.sql
 --
 -- Zwei Ergebnisse:
 --   1. Jeder Wert je Ort mit Anzahl: die Auswahlliste "Dachtypen" (roof_types, mit aktiv ja/nein) und die vier Spalten, die einen
@@ -37,8 +42,8 @@ SELECT t.ort, t.dachtyp, t.anzahl,
         UNION ALL SELECT 'Dachflächen', roof_type, count(*) FROM roof_areas WHERE roof_type IS NOT NULL GROUP BY roof_type
         UNION ALL SELECT 'Schichttypen (Dachaufbau)', roof_type, count(*) FROM roof_layer_types WHERE roof_type IS NOT NULL GROUP BY roof_type
        ) t
- WHERE t.dachtyp NOT IN (SELECT o.value FROM setting_options o JOIN setting_option_groups g ON g.id = o.group_id
-                          WHERE g.group_key = 'roof_types')
+ WHERE NOT EXISTS (SELECT 1 FROM setting_options o JOIN setting_option_groups g ON g.id = o.group_id
+                    WHERE g.group_key = 'roof_types' AND o.value = t.dachtyp)
  ORDER BY 1, 2;
 
 ROLLBACK;

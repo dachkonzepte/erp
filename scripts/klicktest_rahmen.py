@@ -370,8 +370,9 @@ async def _pruefvorlagen(tab, seed, p):
         p.pruefe(f"{wo}: .ds-seite, Titel 30 px, genau eine grüne Hauptaktion (Schrift auf-aktion, Ecken 10 px), Menü „⋮“",
                  [m["ds_seite"], m["titel"], m["aktion"], m["menue"]],
                  [True, ["Prüfvorlagen", "30px"], [["+ Neue Vorlage", True, True, "10px"]], True])
-        p.pruefe(f"{wo}: Karten 12 px, Knöpfe 10 px, Dachtyp ausgeschrieben, Leiste unverändert",
-                 [m["karte"], m["knopf"], m["dachtyp"], m["leiste"]], ["12px", "10px", ["Flachdach"], True])
+        p.pruefe(f"{wo}: Karten 12 px, Knöpfe 10 px, Dachtyp wie gespeichert (Altwert markiert), Leiste unverändert",
+                 [m["karte"], m["knopf"], m["dachtyp"], m["leiste"]],
+                 ["12px", "10px", ["Flachdach", "flachdach nicht mehr verfügbar"], True])  # seit 1.9.6 der gespeicherte Wert, Altwert markiert
         g = await tab.js(GEWICHT_NULL)
         p.pruefe(f"{wo}: Grundregeln mit Gewicht null -- alter Knopf mit Klasse bekommt Schrift und Ecken wie einer ohne, Link mit und "
                  "ohne Klasse in Linkfarbe, die Klasse einer Seite überstimmt Ecken des Felds und Farbe des Links",
@@ -406,6 +407,18 @@ async def _pruefvorlagen(tab, seed, p):
     k = await tab.js(KONTRAST)
     p.pruefe(f"Prüfvorlagen 412 px: Kontrast (kleinster {k['min']} : 1), kein waagrechter Bildlauf",
              [k["schwach"], await tab.js("document.documentElement.scrollWidth<=innerWidth+1")], [[], True])
+    # seit 1.9.6: der Editor einer Prüfvorlage mit Altwert behält ihn -- vorgewählt als „… (nicht mehr verfügbar)“, Speichern ändert nichts
+    adresse = f"/inspection-templates/{seed['pruefvorlage_altwert']}"
+    bereit = "document.getElementById('editRoofType')&&document.getElementById('editRoofType').options.length>1"
+    gewaehlt = "(s=>[s.value,s.options[s.selectedIndex].text])(document.getElementById('editRoofType'))"
+    p.pruefe("Prüfvorlage mit Altwert: geladen", await tab.oeffnen(adresse, bereit), True)
+    p.pruefe("Prüfvorlage mit Altwert: „flachdach (nicht mehr verfügbar)“ vorgewählt", await tab.js(gewaehlt),
+             ["flachdach", "flachdach (nicht mehr verfügbar)"])
+    await tab.js("saveTemplateMeta()")
+    p.pruefe("Prüfvorlage mit Altwert: Kopf gespeichert", await tab.js("document.getElementById('metaStatus').textContent"), "Gespeichert.")
+    p.pruefe("Prüfvorlage mit Altwert: nach dem Neuladen weiter „flachdach“",
+             await tab.oeffnen(adresse + "?neu=1", bereit) and await tab.js(gewaehlt), ["flachdach", "flachdach (nicht mehr verfügbar)"])
+    p.pruefe("Prüfvorlage mit Altwert: keine JS-Fehler", tab.fehler, [])
 
 
 async def _seitenregeln(tab, seed, p):

@@ -1762,3 +1762,63 @@ Bildlaufs: **alle 160 vorher und nachher gleich** (jedes Element, auf die Hunder
 - **Bilder**: `bildgrundlage/rahmen_runde3_4cb9b79.zip` -- Start, Projektmappe, Rechnung, LV-Editor, Zeiterfassung Büro je 1440 × 900
   hell und dunkel, `/mobil` als Monteurin 1280 × 620 hell und dunkel; je vorher (`3e54421`) und nachher (der Nachtrag ändert nur
   Klicktests). Ordner in `.gitignore`.
+
+## Runde 4 (Festlegungen 1.9.4 und 1.9.5 bestätigt)
+
+### Punkt 0: Regel 8 ergänzt (nur CLAUDE.md, `520241c`)
+
+- Wortlaut (Betreibervorgabe 21.10.2026): „Ein Minor-Sprung markiert ein neues, echtes Modul oder den Beginn einer großen, über viele
+  Seiten sichtbaren Überarbeitung (z. B. Stufe 2: 1.9.0); was dazu zählt, legt Tobias fest. Innerhalb zählt der Patch-Level weiter.“
+  Diese Runde zählt ab 1.9.6.
+
+### Punkt 1 (1.9.6): Dachtyp -- Altwerte sichtbar und erhalten
+
+- **a) Editor einer Prüfvorlage** (`inspection_template.html`): die Auswahl entsteht über `auswahlOptionen()` wie bei der Dachfläche.
+  Ein gespeicherter Wert ohne Eintrag (andere Schreibweise, umbenannt, gelöscht) bleibt vorgewählt als „… (nicht mehr verfügbar)“,
+  ein deaktivierter als „… (inaktiv)“; Speichern des Kopfs schickt ihn unverändert zurück. Bis 1.9.5 stand die Auswahl dann auf
+  „— jeder Dachtyp —“, das Speichern löschte den Wert still und erhöhte die Version.
+- **b) Liste der Prüfvorlagen** (`inspection_templates.html`, `dachtypZelle()`): der gespeicherte Wert, wie er steht; ohne Eintrag
+  mit Marke „nicht mehr verfügbar“, bei deaktiviertem Eintrag „inaktiv“ (`.ds-status-warn`). Ersetzt das Ausschreiben aus 1.9.3, das
+  „flachdach“ als „Flachdach“ zeigte, obwohl der Einsatzbericht beide trennt.
+- **c) Testdaten der Bildgrundlage**: die Prüfvorlage „Flachdach-Wartung“ trägt „Flachdach“ (bis 1.9.5 „flachdach“); der Altwert
+  bleibt als eigener Fall -- Prüfvorlage „Altbestand Flachdach“ mit `DACHTYP_ALTWERT = "flachdach"` (`scripts/bildgrundlage.py`,
+  Seed `pruefvorlage_altwert`). Die Liste der Prüfvorlagen zeigt damit beide Fälle.
+- **d) Abfrage auf dem Server**, als Benutzer `tobias` (Pfad laut Betriebsdoku: `/home/tobias/erp`, Umgebung `.env`, Datenbank
+  `dachkonzepte`; einen eigenen Datenbank-Benutzer nennt die Betriebsdoku nicht -- der Befehl nimmt den der Anwendung aus
+  `DATABASE_URL`):
+
+      cd /home/tobias/erp
+      set -a; source .env; set +a
+      PGOPTIONS='-c default_transaction_read_only=on' psql "${DATABASE_URL/postgresql+psycopg:/postgresql:}" -v ON_ERROR_STOP=1 -f scripts/pruefabfrage_dachtypen.sql
+
+  `${…/postgresql+psycopg:/postgresql:}` nimmt den Treiberzusatz weg, den psql nicht kennt; `PGOPTIONS` macht jede Transaktion der
+  Sitzung schreibgeschützt (dazu die Abfrage selbst: `BEGIN TRANSACTION READ ONLY` … `ROLLBACK`). Steht so im Kopf der Abfrage. Die
+  zweite Abfrage prüft jetzt mit `NOT EXISTS` statt `NOT IN` (robust gegen leere Werte). **Geprobt wörtlich** in Git Bash mit einer
+  `.env` wie auf dem Server gegen die lokale Spielwiese (nur zusätzlich `search_path` auf ein Wegwerf-Schema): Abfrage Rückgabecode 0,
+  beide Ergebnisse wie erwartet; ein `DELETE` in derselben Art Sitzung scheitert („DELETE kann nicht in einer Read-Only-Transaktion
+  ausgeführt werden“); Zeilenzahlen unverändert, Schema gelöscht.
+
+#### Tests und Prüfung
+
+- `tests/test_v443_dachtyp.py` (neu, 7 Tests, die Seiten in node mit Antworten des echten Dienstes): Editor mit „flachdach“,
+  „Pultdach“, „Terrasse“ (deaktiviert), „Flachdach“ und ohne Dachtyp -- vorgewählt und gesendet; Liste mit fünf Vorlagen; Testdaten
+  der Bildgrundlage per AST. **Vor der Änderung 5 rot** (Editor: „— jeder Dachtyp —“ vorgewählt, gesendet `null`; Liste: „Flachdach“
+  statt „flachdach“; Testdaten: „flachdach“ ohne Erklärung), danach 7 grün.
+- `klicktest_rahmen` Teil `pruefvorlagen`: Editor der Vorlage mit Altwert -- vorgewählt, Kopf gespeichert, nach dem Neuladen weiter
+  „flachdach“ (5 neue Prüfungen, 27 von 27).
+- **Gegenproben** (pytest und Klicktest): Editor wieder mit dem Vergleich von vorher (3 rot, Klicktest 25 von 27); Liste ohne Marke
+  (1 rot, Klicktest 25 von 27) -- 2 von 2 rot, Dateien byte-genau zurück.
+- **Angepasste Erwartungen** (Regel 28):
+  - `klicktest_rahmen` „Dachtyp ausgeschrieben“ → „Dachtyp wie gespeichert (Altwert markiert)“: alt `["Flachdach"]`, neu
+    `["Flachdach", "flachdach nicht mehr verfügbar"]` (zweite Vorlage aus den Testdaten); Teil `pruefvorlagen` 22 → 27 Prüfungen.
+  - Bildgrundlage: Testdaten mit einer Prüfvorlage mehr -- ändert die Liste der Prüfvorlagen und die Prüfvorlage (Dachtyp jetzt
+    „Flachdach“ vorgewählt statt „— jeder Dachtyp —“).
+
+#### Festlegungen 1.9.6 (Bitte bestätigen)
+
+1. **Marken der Liste wie im Editor**: „nicht mehr verfügbar“ ohne Eintrag, „inaktiv“ bei deaktiviertem Eintrag, als `.ds-status-warn`.
+2. **Deaktivierte Dachtypen im Editor nicht mehr neu wählbar** (`auswahlOptionen()`, Regel 22) -- bis 1.9.5 bot der Editor jeden
+   Eintrag an, auch deaktivierte, ohne Kennzeichen.
+3. **Altwert der Testdaten als eigene Prüfvorlage** „Altbestand Flachdach“ (`DACHTYP_ALTWERT`), die bisherige trägt „Flachdach“.
+4. **Serverbefehl mit dem Datenbank-Benutzer der Anwendung** aus `.env` (keiner in der Betriebsdoku) und doppelt schreibgeschützt
+   (`PGOPTIONS` und `BEGIN TRANSACTION READ ONLY`).

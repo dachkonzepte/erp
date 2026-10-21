@@ -99,13 +99,15 @@ function roofTypeOptionsHtml(selected){
   return '<option value="">— jeder Dachtyp —</option>'+roofTypes.map(o=>`<option value="${esc(o.value)}" ${selected===o.value?'selected':''}>${esc(o.label)}</option>`).join('');
 }
 
-/* Seit 1.9.3: der Dachtyp ausgeschrieben aus der Auswahlliste (bis dahin der gespeicherte Wert); ein Wert in anderer Schreibweise
-   (z. B. „flachdach“) findet seinen Eintrag auch, ein unbekannter bleibt, wie er ist. */
-function dachtypName(wert){
+/* Seit 1.9.6: der gespeicherte Dachtyp, wie er steht. Trägt ihn kein Eintrag der Auswahlliste genau so (andere Schreibweise,
+   umbenannter oder gelöschter Eintrag), steht die Marke „nicht mehr verfügbar“ dahinter, bei einem deaktivierten Eintrag „inaktiv“ --
+   dieselben Wörter wie die Auswahl im Editor; der Einsatzbericht vergleicht genau. 1.9.3 bis 1.9.5 schrieb die Liste den Wert in
+   die Bezeichnung um, auch bei anderer Schreibweise, und verdeckte so die Abweichung. */
+function dachtypZelle(wert){
   if(!wert)return 'jeder Dachtyp';
-  const klein=String(wert).toLowerCase();
-  const option=roofTypes.find(o=>o.value===wert)||roofTypes.find(o=>String(o.value).toLowerCase()===klein);
-  return option?option.label:wert;
+  const eintrag=roofTypes.find(o=>o.value===wert);
+  const marke=!eintrag?'nicht mehr verfügbar':eintrag.active===false?'inaktiv':'';
+  return esc(wert)+(marke?' <span class="ds-status ds-status-warn">'+marke+'</span>':'');
 }
 
 function defaultTemplateOptionsHtml(selected){
@@ -177,7 +179,7 @@ function row(t){
   if(t.archived)badges.push('<span class="pv-abzeichen">Archiviert</span>');
   return `<tr${t.archived?' class="pv-archiviert"':''}>
     <td><b>${esc(t.label)}</b> ${badges.join(' ')}</td>
-    <td>${esc(dachtypName(t.roof_type))}</td>
+    <td>${dachtypZelle(t.roof_type)}</td>
     <td>${esc(t.version)}</td>
     <td>${esc(t.item_count)}</td>
     <td><a href="/inspection-templates/${t.id}">Öffnen</a></td>

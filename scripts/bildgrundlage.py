@@ -55,6 +55,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from cdp_klicktest import ANZEIGE_ENV, ROOT, klicktest_main  # noqa: E402
 
 UHR = "2026-10-14 10:00"  # Mittwoch; steht in Befüllen, Server und Browser
+# Seit 1.9.6: Dachtypen in den Testdaten nur aus der Auswahlliste ("Flachdach", wie das Programm speichert) -- dazu genau ein Altwert als
+# eigener Fall (andere Schreibweise, wie aus älteren Versionen oder über die Schnittstelle), an einer eigenen Prüfvorlage
+# (tests/test_v443_dachtyp.py). Bis 1.9.5 trug die einzige Prüfvorlage "flachdach".
+DACHTYP_ALTWERT = "flachdach"
 BUERO, MONTEUR, ADMIN, ANONYM = "buero", "monteur", "admin", "anonym"
 BUERO_AUFTRAG = "buero_auftrag"  # seit 1.8.131, nur für die Seitenleiste dieser Rolle (ZUSTAENDE)
 THEMEN = ("hell", "dunkel")
@@ -326,9 +330,10 @@ def befuellen(db, k):
     checkliste = create_checklist(db, template_id=veroeffentlicht["id"], context_type="auftrag", order_id=auftrag.id,
                                   created_by_employee_id=mia.id, created_by_user_id=monteur.id)
 
-    pruefvorlage = pruefvorlage_anlegen(db, "Flachdach-Wartung", roof_type="flachdach")
+    pruefvorlage = pruefvorlage_anlegen(db, "Flachdach-Wartung", roof_type="Flachdach")
     create_template_item(db, pruefvorlage["id"], "Abdichtung Sichtprüfung", "ja_nein")
     create_template_item(db, pruefvorlage["id"], "Rinnen und Abläufe frei", "ja_nein")
+    altbestand = pruefvorlage_anlegen(db, "Altbestand Flachdach", roof_type=DACHTYP_ALTWERT)
 
     fenster = MaintenanceWindow(label="Frühjahr", month_from=3, month_to=5)
     vertrag = MaintenanceContract(customer_id=kunde.id, property_id=objekt.id, title="Wartung Halle Nord", interval_months=12,
@@ -369,7 +374,8 @@ def befuellen(db, k):
     _zeitstempel_festsetzen(db, _utc_now().replace(tzinfo=None))
     return {"cookies": cookies, "uhr_ms": k.uhr_ms(), "kunde": kunde.id, "objekt": objekt.id, "dachflaeche": nord.id,
             "projekt": projekt.id, "angebot": angebot.id, "auftrag": auftrag.id, "rechnung": rechnung.id, "checkliste": checkliste["id"],
-            "checklistenvorlage": vorlage["id"], "vertrag": vertrag.id, "pruefvorlage": pruefvorlage["id"], "geraet": geraet.id,
+            "checklistenvorlage": vorlage["id"], "vertrag": vertrag.id, "pruefvorlage": pruefvorlage["id"],
+            "pruefvorlage_altwert": altbestand["id"], "geraet": geraet.id,
             "leistung": leistung.id, "mitarbeiter": mia.id}
 
 
