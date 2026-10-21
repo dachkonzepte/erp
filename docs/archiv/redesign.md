@@ -2548,3 +2548,9 @@ formatieren schon deutsch.
 4. **Pfad wie die Brotkrume, vorn „Projekte“, am Ende „Angebot“** ohne Link.
 5. **Farben der Angebotsstände**: Entwurf warn, Versendet und In Prüfung info, Beauftragt ok, Abgelehnt neutral.
 6. **Variante `breit` des Seitenkopfs** (Kennzahlen und Aktionen unter der Titelzeile), heute nur am Angebot.
+
+### Punkt 6 (1.9.19): Klicktest einmal wiederholen, wenn nur eine Anfrage nicht ankam
+
+Ausführlich in `docs/archiv/testablauf-und-klicktests.md`, „Wiederholung bei „Anfrage nicht angekommen““ (Erkennung, Ablauf, Ausweisen, fünf
+Festlegungen zum Testablauf). Test `tests/test_v452_klicktest_wiederholung.py`. Angepasste Erwartungen: keine (die Zeilen von `ausfuehren()`
+haben ein fünftes Feld; `test_v413` prüft nur die ersten drei).

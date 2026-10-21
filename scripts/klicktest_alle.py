@@ -18,6 +18,14 @@ AUFRUF (aus dem Projektordner):
                     Chrome) über die eigene PID beendet (taskkill /T, Regel 12) und als "Zeitlimit" geführt. Ein Klicktest,
                     der selbst abbricht (Rückgabecode 3: eigenes Zeitlimit, Gegenprobe), heißt ebenso "Zeitlimit".
 
+WIEDERHOLUNG (seit 1.9.19): ein Klicktest, der rot endet (Rückgabecode 1) oder ins Zeitlimit läuft und dessen einzige Abweichung eine
+Anfrage ist, die laut Verbindungsprotokoll nie beim Server ankam (nur_nicht_angekommen(); Befund Runde 6 Punkt 2 in
+docs/archiv/testablauf-und-klicktests.md: Testaufbau, nicht das Programm), läuft genau einmal neu -- mit eigenem Protokoll
+<name>.wiederholt.log und Arbeitsordner <name>_wiederholt, das erste Protokoll bleibt. Zeile und Zusammenfassung nennen jede Wiederholung
+mit dem Ergebnis des ersten Laufs und der Anfrage; gezählt wird das Ergebnis des zweiten. Nie wiederholt: Rückgabecode 2 (Aufbau
+gescheitert), 3 (eigenes Zeitlimit, Gegenprobe), eine Abweichung ohne Netzwerkprotokoll oder mit einer angekommenen, fehlgeschlagenen oder
+beim Seitenwechsel offen gebliebenen Anfrage.
+
 Rückgabecode 0, wenn alle wie erwartet liefen. Jeder Klicktest startet seine eigene Wegwerf-Instanz (Regel 16, eigene Ports, eigener
 Arbeitsordner) und beendet seine Prozesse selbst; dieses Skript beendet nur die eigenen Kindprozesse und deren Baum. Kein Teil der
 pytest-Suite."""
@@ -96,6 +104,47 @@ def _baum_beenden(pid: int) -> None:
             pass
 
 
+NICHT_ANGEKOMMEN = "Server: nicht angekommen"
+
+
+def nur_nicht_angekommen(protokoll: str) -> list[str] | None:
+    """Seit 1.9.19: die Anfragen, die nie beim Server ankamen, wenn jede Abweichung des Protokolls genau an solchen hängt -- sonst None.
+
+    Eine Abweichung ist eine Zeile „XX  …“; das Werkzeug druckt unmittelbar darunter das Netzwerkprotokoll (cdp_klicktest.py):
+    „    Netzwerk: N offen“ mit je offener Anfrage einer Zeile „      METHODE /pfad …“ und darunter „          Server: …“, oder
+    „    Netzwerk: unverändert seit der letzten Meldung (N offen)“. Sie zählt nur, wenn jede offene Anfrage „Server: nicht angekommen“
+    heißt (bzw. der letzte Bericht so war) und der Bericht sonst nichts meldet (fehlgeschlagen, beim Seitenwechsel offen geblieben).
+    Eine Abweichung ohne Netzwerkprotokoll, „keine offenen Anfragen“ oder ein Protokoll ohne Abweichung: None."""
+    zeilen = protokoll.splitlines()
+    anfragen: list[str] = []
+    abweichungen = 0
+    letzter_zaehlt = False
+    for i, zeile in enumerate(zeilen):
+        if not zeile.startswith("XX  "):
+            continue
+        abweichungen += 1
+        block = []
+        for folge in zeilen[i + 1:]:
+            if not folge.startswith("    "):
+                break
+            block.append(folge)
+        kopf = block[0].strip() if block else ""
+        if kopf.startswith("Netzwerk: unverändert seit der letzten Meldung"):
+            if not letzter_zaehlt:
+                return None
+            continue
+        if not re.fullmatch(r"Netzwerk: \d+ offen", kopf):
+            return None
+        offen = [b for b in block[1:] if re.match(r" {6}[A-Z]+ /", b)]
+        server = [b.strip() for b in block[1:] if b.strip().startswith("Server:")]
+        sonst = [b for b in block[1:] if b.strip().startswith("Netzwerk:")]
+        if not offen or sonst or len(server) != len(offen) or not all(s.startswith(NICHT_ANGEKOMMEN) for s in server):
+            return None
+        anfragen += [re.split(r"\s{2,}seit ", o.strip())[0] for o in offen]
+        letzter_zaehlt = True
+    return anfragen if abweichungen and anfragen else None
+
+
 def klicktests(nur: list[str], ab: str | None) -> list[Path]:
     alle = sorted(p for p in SCRIPTS.glob("klicktest_*.py") if p.name != Path(__file__).name)
     if nur:
@@ -125,14 +174,18 @@ def gruppen(liste: list[Path], gleichzeitig: int) -> list[tuple[list[Path], int]
 
 
 class Lauf:
-    """Ein laufender Klicktest: eigener Prozess, Ausgabe in <name>.log."""
+    """Ein laufender Klicktest: eigener Prozess, Ausgabe in <name>.log. Seit 1.9.19 wiederholung = der Hinweis zum ersten Lauf, wenn dies
+    der zweite ist (Protokoll <name>.wiederholt.log, Arbeitsordner <name>_wiederholt)."""
 
-    def __init__(self, skript: Path, ausgabe: Path, env: dict):
+    def __init__(self, skript: Path, ausgabe: Path, env: dict, wiederholung: str | None = None):
+        self.skript = skript
         self.name = skript.stem
-        self.log = ausgabe / f"{self.name}.log"
+        self.wiederholung = wiederholung
+        self.log = ausgabe / f"{self.name}{'.wiederholt' if wiederholung else ''}.log"
         self._out = open(self.log, "wb")
         self.start = time.monotonic()
-        self.proc = subprocess.Popen([sys.executable, str(skript), "--arbeitsordner", str(ausgabe / self.name)], cwd=ROOT,
+        arbeitsordner = ausgabe / f"{self.name}{'_wiederholt' if wiederholung else ''}"
+        self.proc = subprocess.Popen([sys.executable, str(skript), "--arbeitsordner", str(arbeitsordner)], cwd=ROOT,
                                      env=env, stdout=self._out, stderr=subprocess.STDOUT)
         self.code: int | None = None
         self.zeitlimit = False
@@ -155,7 +208,18 @@ class Lauf:
             _baum_beenden(self.proc.pid)
         self._out.close()
 
-    def zeile(self) -> tuple[str, str, str, float]:
+    def wiederholen(self) -> str | None:
+        """Seit 1.9.19: der Hinweis für einen zweiten Lauf, wenn dieser der erste war, rot (1) oder im Zeitlimit von klicktest_alle
+        endete und seine einzige Abweichung Anfragen sind, die nie beim Server ankamen -- sonst None."""
+        if self.wiederholung is not None or not (self.code == 1 or self.zeitlimit):
+            return None
+        anfragen = nur_nicht_angekommen(self.log.read_text(encoding="utf-8", errors="replace"))
+        if not anfragen:
+            return None
+        _, ergebnis, pruefungen, _, _ = self.zeile()
+        return f"1. Lauf {ergebnis} {pruefungen}, Anfrage nicht angekommen: {'; '.join(anfragen)}"
+
+    def zeile(self) -> tuple[str, str, str, float, str | None]:
         text = self.log.read_text(encoding="utf-8", errors="replace")
         treffer = re.findall(r"(\d+) von (\d+) Prüfungen wie erwartet", text)
         pruefungen = f"{treffer[-1][0]}/{treffer[-1][1]}" if treffer else "-"
@@ -163,24 +227,33 @@ class Lauf:
             ergebnis = "Zeitlimit"
         else:
             ergebnis = "OK" if self.code == 0 else f"ROT ({self.code})"
-        return self.name, ergebnis, pruefungen, self.dauer
+        return self.name, ergebnis, pruefungen, self.dauer, self.wiederholung
 
 
 def ausfuehren(gruppen: list[tuple[list[Path], int]], ausgabe: Path, env: dict, zeitlimit: float, gesamt: int) -> list[tuple]:
-    """Gruppen nacheinander, innerhalb einer Gruppe bis zu n zugleich (n = 1: nacheinander). Druckt je fertigem Klicktest eine Zeile."""
+    """Gruppen nacheinander, innerhalb einer Gruppe bis zu n zugleich (n = 1: nacheinander). Druckt je fertigem Klicktest eine Zeile.
+    Seit 1.9.19: ein Klicktest, dessen einzige Abweichung Anfragen sind, die nie ankamen (Lauf.wiederholen()), läuft einmal neu -- als
+    nächster seiner Gruppe; gezählt und gedruckt wird erst der zweite Lauf, mit dem Hinweis zum ersten (5. Feld der Zeile)."""
     zeilen: list[tuple] = []
     laufend: list[Lauf] = []
     try:
         for liste, n in gruppen:
-            warteschlange = list(liste)
+            warteschlange: list[tuple[Path, str | None]] = [(p, None) for p in liste]
             while warteschlange or laufend:
                 while warteschlange and len(laufend) < n:
-                    laufend.append(Lauf(warteschlange.pop(0), ausgabe, env))
+                    skript, wiederholung = warteschlange.pop(0)
+                    laufend.append(Lauf(skript, ausgabe, env, wiederholung))
                 for lauf in [x for x in laufend if x.fertig(zeitlimit)]:
                     laufend.remove(lauf)
+                    hinweis = lauf.wiederholen()
+                    if hinweis:
+                        print(f"[wiederholt] {lauf.name} -- {hinweis}", flush=True)
+                        warteschlange.insert(0, (lauf.skript, hinweis))
+                        continue
                     zeile = lauf.zeile()
                     zeilen.append(zeile)
-                    print(f"[{len(zeilen):>2}/{gesamt}] {zeile[1]:<9} {zeile[2]:>7}  {_dauer(zeile[3]):>7}  {zeile[0]}", flush=True)
+                    zusatz = f"  (wiederholt -- {zeile[4]})" if zeile[4] else ""
+                    print(f"[{len(zeilen):>2}/{gesamt}] {zeile[1]:<9} {zeile[2]:>7}  {_dauer(zeile[3]):>7}  {zeile[0]}{zusatz}", flush=True)
                 if laufend:
                     time.sleep(0.2)
     finally:
@@ -218,16 +291,28 @@ def main() -> int:
     gesamt_start = time.monotonic()
     zeilen = sorted(ausfuehren(reihenfolge, ausgabe, env, args.zeitlimit, len(liste)))
     gesamt = time.monotonic() - gesamt_start
-    ok = sum(1 for z in zeilen if z[1] == "OK")
-    rot = [z for z in zeilen if z[1] != "OK"]
     art = "nacheinander" if args.gleichzeitig == 1 else f"zu {args.gleichzeitig} zugleich"
-    zusammenfassung = [f"{ok} von {len(zeilen)} Klicktests wie erwartet ({art}), Laufzeit gesamt {_dauer(gesamt)}"]
-    zusammenfassung += [f"  {z[1]:<9} {z[2]:>7}  {_dauer(z[3]):>7}  {z[0]}  (Protokoll: {ausgabe / (z[0] + '.log')})" for z in rot]
+    text = zusammenfassung(zeilen, art, gesamt, ausgabe)
     (ausgabe / "zusammenfassung.txt").write_text(
-        "\n".join(zusammenfassung + ["", *(f"{z[1]:<9} {z[2]:>7}  {_dauer(z[3]):>7}  {z[0]}" for z in zeilen)]) + "\n",
-        encoding="utf-8")
-    print("\n".join(zusammenfassung), flush=True)
-    return 0 if not rot else 1
+        "\n".join(text + ["", *(f"{z[1]:<9} {z[2]:>7}  {_dauer(z[3]):>7}  {z[0]}" + (f"  (wiederholt -- {z[4]})" if z[4] else "")
+                              for z in zeilen)]) + "\n", encoding="utf-8")
+    print("\n".join(text), flush=True)
+    return 0 if all(z[1] == "OK" for z in zeilen) else 1
+
+
+def zusammenfassung(zeilen: list[tuple], art: str, gesamt: float, ausgabe: Path) -> list[str]:
+    """Kopfzeile, je nicht erwarteter Klicktest eine Zeile mit Protokoll, seit 1.9.19 je wiederholter eine Zeile mit beiden Protokollen
+    -- auch wenn der zweite Lauf wie erwartet war (im Bericht immer ausweisen)."""
+    ok = sum(1 for z in zeilen if z[1] == "OK")
+    wiederholt = [z for z in zeilen if z[4]]
+    kopf = f"{ok} von {len(zeilen)} Klicktests wie erwartet ({art})"
+    if wiederholt:
+        kopf += f", davon {len(wiederholt)} wiederholt (nur Anfrage nicht angekommen)"
+    text = [kopf + f", Laufzeit gesamt {_dauer(gesamt)}"]
+    text += [f"  {z[1]:<9} {z[2]:>7}  {_dauer(z[3]):>7}  {z[0]}  (Protokoll: {ausgabe / (z[0] + ('.wiederholt' if z[4] else '') + '.log')})"
+             for z in zeilen if z[1] != "OK"]
+    text += [f"  wiederholt: {z[0]} -- {z[4]}; 2. Lauf {z[1]} {z[2]} (Protokolle: {z[0]}.log, {z[0]}.wiederholt.log)" for z in wiederholt]
+    return text
 
 
 if __name__ == "__main__":

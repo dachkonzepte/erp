@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.18** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.19** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -1887,7 +1887,7 @@ jedem Bericht, Ergebnis im Bericht (Regel 26). **Mehrere zugleich** (seit 1.8.10
 dem etwas NICHT geschehen darf (`warten("false", …, melden=False)` -- unter Last zu kurz, die Prüfung würde still schwächer), ein
 Zeitlimit über `window.__dkZeitlimit`, gedrosseltes Netz (`tests/test_v413_testlauf_parallel.py`). Ohne `--gleichzeitig` wie bisher
 nacheinander. **Zeitlimit** (seit 1.8.108): `--zeitlimit SEK` an jedem Klicktest; steht der Marker `GEGENPROBE` unter `app/`, bricht
-jeder Klicktest nach höchstens 2 min ab (Rückgabecode 3, `klicktest_alle.py` führt ihn als "Zeitlimit"). **Ports** (seit 1.8.125):
+jeder Klicktest nach höchstens 2 min ab (Rückgabecode 3, `klicktest_alle.py` führt ihn als "Zeitlimit"). **Wiederholung** (seit 1.9.19): ist die einzige Abweichung eines roten (oder ins Zeitlimit gelaufenen) Klicktests eine Anfrage, die nie beim Server ankam (`nur_nicht_angekommen()`), läuft er genau einmal neu (`<name>.wiederholt.log`); die Übersicht weist jede Wiederholung aus, der Bericht nennt sie immer (Befund: `docs/archiv/testablauf-und-klicktests.md`). **Ports** (seit 1.8.125):
 `_freier_port()` wählt außerhalb der kurzlebigen Ports des Betriebssystems -- im Bereich ab 49152 konnte sich `_warte_auf()` mit sich
 selbst verbinden, solange Chrome noch nicht lauschte (`BadStatusLine: GET /json/version`); ein neuer Port-Helfer nimmt `_freier_port()`.
 Seit 1.8.126 nimmt jeder Klicktest diesen einen Helfer (auch die SMTP-Empfänger), geprüft vor der Rückgabe auf 127.0.0.1 und 0.0.0.0.

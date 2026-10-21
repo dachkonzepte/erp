@@ -1086,3 +1086,32 @@ upstream) -- Betreiberprüfung, falls gewünscht.
    Anfrage schrieb (Datei groß, nur bei Bedarf einschalten).
 2. `klicktest_alle.py` wiederholt einen Klicktest einmal, wenn seine einzige Abweichung eine Anfrage „nicht angekommen“ ist, und nennt das
    im Bericht -- heute von Hand gemacht (Runde 5: einzeln 21 von 21 und 811 von 811).
+
+## Wiederholung bei „Anfrage nicht angekommen“ (1.9.19, Runde 7 Punkt 6)
+
+Zum Befund oben (zwei von 269 128 Anfragen kamen im Gesamtlauf nie beim Server an; Testaufbau, nicht das Programm): `scripts/klicktest_alle.py`
+wiederholt einen Klicktest genau einmal, wenn seine einzige Abweichung solche Anfragen sind.
+
+- `nur_nicht_angekommen(protokoll)`: jede Zeile „XX  …“ trägt unmittelbar das Netzwerkprotokoll des Werkzeugs; „Netzwerk: N offen“ zählt,
+  wenn jede offene Anfrage „Server: nicht angekommen“ heißt und der Bericht sonst nichts meldet (fehlgeschlagen, beim Seitenwechsel offen
+  geblieben); „unverändert seit der letzten Meldung“ zählt nur nach einem solchen Bericht. Keine Abweichung, eine ohne Netzwerkprotokoll,
+  „keine offenen Anfragen“, eine angekommene Anfrage: nicht wiederholt. Rückgabe: die betroffenen Anfragen („GET /api/… [Fetch]“).
+- `Lauf.wiederholen()`: nur der erste Lauf, nur Rückgabecode 1 oder das Zeitlimit von `klicktest_alle`; nie 2 (Aufbau gescheitert) oder 3
+  (eigenes Zeitlimit, Gegenprobe). Der zweite Lauf startet als nächster seiner Gruppe (ein Klicktest mit `ALLEIN` bleibt allein), mit
+  `<name>.wiederholt.log` und Arbeitsordner `<name>_wiederholt`; das erste Protokoll bleibt.
+- Ausweisen: Zeile „[wiederholt] <name> -- 1. Lauf ROT (1) 810/811, Anfrage nicht angekommen: …“ beim Neustart, die Ergebniszeile mit
+  „(wiederholt -- …)“, Kopfzeile „N von M Klicktests wie erwartet (…), davon K wiederholt (nur Anfrage nicht angekommen)“ und je Wiederholung
+  eine Zeile mit beiden Protokollen (`zusammenfassung()`, auch in `zusammenfassung.txt`). Der Bericht nennt jede Wiederholung (Regel 26).
+- Test `tests/test_v452_klicktest_wiederholung.py`: die zwei echten Fälle aus Runde 5 erkannt, sieben Gegenbeispiele nicht, Ablauf mit
+  Schein-Klicktests (wiederholt, echte Abweichung, Rückgabecode 2, zweimal nicht angekommen -> nur einmal wiederholt), Zusammenfassung --
+  alle 11 gegen den Stand vor 1.9.19 rot. Gegenproben (Marker, byte-genau zurück): Wiederholung auch bei Rückgabecode 2, beliebig oft,
+  angekommene Anfrage zählt mit -- je rot (die letzte zuerst mit einem Syntaxfehler, ERROR statt FAILED; berichtigt und wiederholt).
+
+### Festlegungen zum Testablauf 1.9.19 (Bitte bestätigen)
+
+1. Wiederholt wird nur bei Rückgabecode 1 oder dem Zeitlimit von `klicktest_alle`, nie bei 2 oder 3. (Bitte bestätigen)
+2. Erkennung streng: jede Abweichung braucht ein Netzwerkprotokoll mit ausschließlich nicht angekommenen Anfragen; ein Fehlschlag oder eine
+   beim Seitenwechsel offen gebliebene Anfrage schließt aus. (Bitte bestätigen)
+3. Genau eine Wiederholung; gezählt wird der zweite Lauf, das erste Protokoll bleibt daneben. (Bitte bestätigen)
+4. Die Wiederholung läuft als nächster Klicktest derselben Gruppe. (Bitte bestätigen)
+5. Jede Wiederholung steht in Zeile, Kopfzeile und Zusammenfassung, auch wenn der zweite Lauf wie erwartet war. (Bitte bestätigen)
