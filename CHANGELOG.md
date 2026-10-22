@@ -4,6 +4,13 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.32 – CLAUDE.md: Commit nur nach grünem Lauf, Befehle mit &&
+
+Nachtrag Stufe 2, Punkt A2 (Betreibervorgabe 22.10.2026). Regel 15 sagt jetzt ausdrücklich: ein Commit läuft nur nach einem grünen Lauf der
+vollen Suite auf genau dem Stand, der committet wird; ein roter Test wird zuerst geklärt, auch wenn er mit der Änderung nichts zu tun
+scheint. Befehle hintereinander werden mit `&&` verkettet, nie mit `;` -- so bricht die Kette beim ersten Fehler ab. Anlass: 1.9.26 wurde in
+Runde 9 hinter `;` committet, obwohl der Teillauf davor einen roten Test hatte (`test_v413`, geklärt in 1.9.31). Regel 13 verweist darauf.
+
 ## 1.9.31 – Testschemas: kein anderer Lauf räumt das Schema eines Tests weg
 
 Nachtrag Stufe 2, Punkt A3. `test_v413::test_pg_ein_testlauf_raeumt_zu_beginn_auf` war in Runde 9 einmal rot. Ursache: der Test legt ein

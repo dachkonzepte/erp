@@ -1196,3 +1196,11 @@ wiederholt einen Klicktest genau einmal, wenn seine einzige Abweichung solche An
 - **Festlegung zu Werkzeug und Testablauf 1.9.31 (Bitte bestätigen)**: ein Test, der ein liegen gebliebenes Testschema nachstellt, gibt ihm
   einen eigenen Rechnernamen (`ERP_TEST_RECHNER`) und stellt den gleichzeitigen anderen Lauf nach -- nie die Kennung eines beendeten
   Prozesses dieses Rechners.
+
+## Commit nur nach grünem Lauf, Befehle mit && (1.9.32, Nachtrag Stufe 2, Punkt A2)
+
+- **Anlass**: in Runde 9 lief vor dem Commit von 1.9.26 nur ein Teillauf, und der hatte einen roten Test (`test_v413`, siehe 1.9.31). Die
+  Befehle standen mit `;` hintereinander (`pytest …; git add …; git commit …`) -- der Commit lief trotzdem.
+- **Regel** (CLAUDE.md, Regel 15; Betreibervorgabe 22.10.2026): ein Commit nur nach einem grünen Lauf der vollen Suite auf genau dem Stand,
+  der committet wird (auch nach einer Änderung an `VERSION`, `CHANGELOG.md` oder Doku läuft die Suite noch einmal); ein roter Test wird
+  zuerst geklärt. Befehle hintereinander mit `&&`, nie mit `;`. Regel 13 verweist darauf.

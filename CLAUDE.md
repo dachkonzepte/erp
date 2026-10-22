@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.31** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.32** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -503,7 +503,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Regel festgehalten, damit für jede abgeschlossene Version (Regel 8: neuer `VERSION`-Stand
     + `CHANGELOG.md`-Eintrag) automatisch auch ein Commit entsteht, ohne dass jedes Mal erst
     nachgefragt werden muss. Ein Commit fasst dabei genau eine inhaltlich zusammenhängende
-    Änderung, nicht mehrere unabhängige Themen gemeinsam (Vorbild: das eigene
+    Änderung, nicht mehrere unabhängige Themen gemeinsam, und nur nach grünem Lauf (Regel 15) (Vorbild: das eigene
     1.3.71-Vorgehen, dort ausdrücklich "eigener Commit, wie verlangt" für einen von der
     Hauptänderung unabhängigen Fund). `git push` bleibt davon ausgenommen und wird niemals
     von selbst ausgeführt -- das Hochladen auf den gemeinsamen Verlauf (und damit potenziell
@@ -529,7 +529,11 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     parallel** (pytest-xdist): `.venv\Scripts\python.exe -m pytest -q -n 16 --dist loadfile` -- je Testdatei ein Arbeitsprozess,
     dynamisch verteilt, gemessen rund 7 min statt 41 min nacheinander (16 Arbeitsprozesse sind auf diesem Rechner das Optimum, mehr
     werden langsamer). **Vor jedem Commit läuft die volle Suite so, parallel -- nicht gezielte Teilläufe** (die bleiben für die
-    Arbeit dazwischen und die Suche nach einem Fehler); Regel 26 bleibt unverändert. Klicktests zugleich:
+    Arbeit dazwischen und die Suche nach einem Fehler); Regel 26 bleibt unverändert. **Ein Commit läuft nur nach grünem Lauf** (seit
+    1.9.32, Betreibervorgabe 22.10.2026): die volle Suite auf genau dem Stand, der committet wird (auch `VERSION`, `CHANGELOG.md`, Doku);
+    ist ein Test rot -- auch einer, der mit der Änderung nichts zu tun scheint --, wird er zuerst geklärt, nie trotzdem committet.
+    **Befehle hintereinander mit `&&`, nie mit `;`** (Bash wie PowerShell 7): die Kette bricht beim ersten Fehler ab. Anlass: 1.9.26
+    wurde hinter `;` committet, obwohl der Teillauf davor einen roten Test hatte. Klicktests zugleich:
     `scripts\klicktest_alle.py --gleichzeitig 4`. Messungen und Festlegungen: `docs/archiv/testablauf-und-klicktests.md`. **Seit 1.8.111**
     hat jeder Test eine Zeitgrenze (300 s, `tests/zeitgrenze.py`; `@pytest.mark.zeitgrenze(n)`, `--zeitgrenze SEK`, 0 = aus): ein
     hängender Test beendet seinen Testprozess mit dem Stapel aller Threads, im parallelen Lauf geht der Lauf ohne ihn weiter.
