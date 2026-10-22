@@ -3636,3 +3636,65 @@ nennt sie. Anlass: Endlauf zu 1.9.37 (siehe „R1 Nachtrag“). Keine Festlegung
 2. **Rückfrage auf der Seite** (`<dialog>`, 48-px-Knöpfe, Fokus auf „Abbrechen“) statt `confirm()` -- sichtbar im Bild und auf dem Tablet
    gut zu treffen; andere Seiten fragen weiter über `confirm()`.
 3. **Knopf schmaler als die halbe Zeile** gilt im Klicktest als „nicht über die ganze Breite“.
+
+### Nachrunde Punkt 1 (1.9.42): Zeiten im Einsatzbericht -- ein Bericht je Tag
+
+- **Gespeichert schon heute?** Nein. Ein unterschriebener Einsatzbericht speichert keinen Stand seiner Zeiten: das PDF entsteht bei jedem
+  Abruf neu (`GET /api/service-reports/{id}/pdf`, auch das der Monteurin in der Wartungshistorie), es gibt keinen Versand über das
+  Versandprotokoll und keine Kopie in der Ablage (`app/dispatch_documents.py` kennt den Einsatzbericht nicht). Mit der Unterschrift
+  unveränderlich sind bisher nur Unterschriftsbilder und -namen, Prüfpunkte, Mängel, Material und Betriebsmittel. Darauf ließ sich nicht
+  aufbauen -- neu ist die Spalte `service_reports.time_rows_json`.
+- **Regel** (ersetzt 1.9.37 Nr. 1–5): `zeiten_am_tag(db, report)` -- `list_entries(order_id, start_date = end_date = performed_at)`, alle
+  Personen, jeder Status; sortiert nach Beginn (ohne Beginn zuletzt), Person, ID. Eine Zeile `{tag, person, von, bis, stunden, laeuft}`:
+  von/bis „HH:MM“ aus Beginn und Ende (ohne: leer), Stunden kaufmännisch auf zwei Stellen als Text; läuft die Zeit: kein Ende, keine Stunden.
+  `einsaetze_des_berichts()` und `zeit_gehoert_zum_einsatz()` (1.9.37) entfallen.
+- **Stand**: `sign_report()` schreibt im selben Commit wie die Unterschrift `time_rows_json = {"format": 1, "zeilen": zeiten_am_tag()}`.
+- **Eine Funktion für Seite und PDF**: `zeiten_des_berichts()` -- `gespeichert` (Stand), `aktuell` (Entwurf, live), `alt` (unterschrieben ohne
+  Stand: wie vor 1.9.37 alle Zeiten des Auftrags, `{tag, person, taetigkeit, stunden}`). `GET /api/service-reports/{id}/zeiten` (Ersteller-
+  Prüfung wie jeder Bericht-Endpunkt) liefert sie der Seite; das PDF druckt dieselben Zeilen -- „Zeiten am <Tag>“ mit Tag, Person, von–bis,
+  Stunden (alt: „Erfasste Zeiten“ mit Datum, Mitarbeiter, Tätigkeit, Stunden wie bisher).
+- **Seite**: je Bericht in seiner Karte die Tabelle mit Titel („Zeiten am … – Stand der Unterschrift“, „– Stand jetzt, wird mit der
+  Unterschrift gespeichert“, alt „Zeiten des Auftrags (wie im PDF dieses älteren Berichts)“); nach „Zeit buchen“ laden die Entwürfe neu.
+- **Migration** `b7e3d91c4a58`: Spalte hinzu (leer), keine vorhandene Zeile geändert; `downgrade()` verweigert, solange ein Bericht einen Stand
+  hat (er ginge verloren).
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v467_zeiten_einsatzbericht.py` (7 Tests): Vortag und Folgetag desselben Auftrags nicht im Bericht (Angriff) / die Zeit des
+  Kollegen am Berichtstag drin (Gegenprobe); mit einem Plantafel-Abschnitt nur für Mia dieselben Zeilen; nach der Unterschrift eine Zeit am
+  Berichtstag gebucht und eine geändert -- Seite und PDF des unterschriebenen Berichts unverändert (Angriff) / ein Entwurf desselben Tages
+  zeigt beides (Gegenprobe); laufende Zeit beim Unterschreiben „läuft seit 13:00“ ohne Stunden, bleibt nach dem Stopp so, im PDF; alter
+  unterschriebener Bericht ohne Stand wie vor 1.9.37 (alle Zeiten mit Tätigkeit, Seite und PDF); Seite und PDF dieselben Zeilen; Monteurin
+  sieht die Zeilen ihres Berichts, einen fremden nicht (403).
+- Neu `tests/test_v468_zeiten_stand_migration.py` (2 Tests): Bestand auf 8c86e12540cf (Auftrag, unterschriebener Bericht, Entwurf), hoch --
+  jede Zeile unverändert, Spalte leer; runter -- wie vorher; mit Stand runter -- verweigert, nichts geändert; SQLite und PostgreSQL
+  (Wegwerf-Schema).
+- Neuer Klicktest `scripts/klicktest_einsatzbericht_zeiten.py` (11 Prüfungen): Anna 1400 px hell -- unterschriebener Bericht und Entwurf mit
+  denselben Zeilen, ohne Vortag; PDF vorher (pdf_vorher.pdf); Zeit über das Formular der Seite gebucht und Mias Zeit geändert -- unterschriebener
+  Bericht und PDF (pdf_nachher.pdf) unverändert, Entwurf mit beidem; Mia 412 px dunkel -- ihr Bericht mit denselben Zeilen. Beim ersten Lauf
+  drei Prüfungen rot: mein Fehler im Klicktest (JS-Ausdruck mit doppelten Klammern), korrigiert.
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück, alle FAILED): kein Stand bei der Unterschrift (Z1) -- 3 Tests und 5
+  Klicktest-Prüfungen rot; alle Tage des Auftrags (Z2) -- 5; gespeicherter Stand übergangen (Z3) -- 3; Rückweg ohne Schutz (Z4) -- 2.
+- **Angepasste Erwartungen** (Regel 28):
+  - `tests/test_v465_pdf_einsatz.py` (5 Tests, Regel von 1.9.37) entfällt -- die Regel ist ersetzt; die neuen Fälle stehen in `test_v467`.
+  - `test_v315::test_hours_in_service_report_and_field_timesheet_pdfs_round_up` (nur Aufbau, Soll „1,13“ unverändert): der Bericht liegt auf
+    dem Tag der Buchung (bis dahin heute -- dann stünde die Buchung nicht im Bericht).
+  - `test_v273::test_field_pdf_never_calls_list_entries_and_carries_no_price_key` (nur Aufbau): `list_entries()` wird in
+    `app/service_reports.py` abgefangen statt im PDF-Modul (dort wird es nicht mehr aufgerufen).
+  - `test_v311::test_service_report_pdf_lists_all_501_entries_of_order` (nur Aufbau, Soll unverändert): der Bericht der Fixture hat keinen
+    gespeicherten Stand (wie vor 1.9.42 unterschrieben) -- nur dann zeigt das PDF alle Zeiten des Auftrags, und damit jede der 501.
+
+#### Festlegungen 1.9.42 (Bitte bestätigen)
+
+1. **Stand** = JSON in `service_reports.time_rows_json` (Tag, Person, von, bis, Stunden auf zwei Stellen, läuft), gespeichert im selben
+   Aufruf wie beide Unterschriften.
+2. **Reihenfolge** der Zeilen: nach Beginn, Zeiten ohne Beginn (Dauer) zuletzt, dann Person; eine Dauer ohne Beginn und Ende zeigt „–“.
+3. **Laufende Zeit von einem früheren Tag** gehört zu ihrem Starttag (wie ihr Buchungstag), nicht zum späteren Bericht.
+4. **Seite**: die Zeiten stehen je Bericht in seiner Karte; die Karte „Erfasste Zeiten zu diesem Auftrag“ (Buchen, alle Zeiten des Auftrags)
+   bleibt, wie sie ist.
+5. **Alter Bericht** (vor 1.9.42 unterschrieben): die Seite zeigt dieselben Zeilen wie sein PDF (alle Zeiten des Auftrags, mit Tätigkeit)
+   und sagt das; nichts wird nachträglich gespeichert.
+6. **Die Monteurin** sieht in ihrem eigenen Bericht die Zeilen aller Personen des Tages -- wie im PDF dieses Berichts, das sie schon abrufen
+   kann; das Monteur-PDF der Wartungshistorie bleibt ohne Zeiten.
+7. **PDF**: Titel „Zeiten am <Tag>“, Spalten Tag (25 mm), Person (50 mm), von–bis (Rest), Stunden (30 mm) -- die Breiten von bisher.
+8. **Rückweg** der Migration verweigert, solange ein Bericht einen gespeicherten Stand hat.

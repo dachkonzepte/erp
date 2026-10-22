@@ -49,7 +49,7 @@ from ..service_reports import (
     get_report_row, list_assets_for_report, list_inspection_items, list_materials_for_invoicing,
     list_materials_for_report, list_photos, list_property_history, list_property_history_for_field, list_reports,
     list_reports_for_field, list_roof_areas_for_order, material_to_dict, noch_offen, NochOffen, VorlagenpunktGeschuetzt,
-    regenerate_inspection_items, sign_report,
+    regenerate_inspection_items, sign_report, zeiten_des_berichts,
     sync_inspection_items, update_asset_usage, update_inspection_item, update_material, update_report,
 )
 from ..zugehoerigkeit import NotInOrderProperty
@@ -242,6 +242,19 @@ def get_service_report_noch_offen(report_id: int, db: Session = Depends(get_db, 
     if report is None:
         raise HTTPException(status_code=404, detail="Bericht nicht gefunden.")
     return {"offen": noch_offen(report) if report.status == "entwurf" else []}
+
+
+@router.get("/api/service-reports/{report_id}/zeiten")
+def get_service_report_zeiten(report_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+    """Seit 1.9.42 (Stufe 4, R1 Nachrunde, Punkt 1): die Zeiten des Berichts -- dieselben Zeilen wie im PDF
+    (app/service_reports.py::zeiten_des_berichts(): gespeichert, aktuell oder alt). Die Monteurin sieht sie in ihrem eigenen Bericht für
+    alle Personen des Tages, wie im PDF dieses Berichts."""
+    _require_module_enabled(db)
+    require_field_report_ownership(db, _role, report_id)
+    report = get_report_row(db, report_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="Bericht nicht gefunden.")
+    return zeiten_des_berichts(db, report)
 
 
 @router.post("/api/service-reports/{report_id}/sign", response_model=ServiceReportOut)

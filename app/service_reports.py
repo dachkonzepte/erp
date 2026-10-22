@@ -14,6 +14,7 @@ einer späteren Vorlagenänderung nicht rückwirkend ändert. sync_inspection_it
 und regenerate_inspection_items() (vollständiger Neuaufbau, nur Entwurf) sind die beiden
 Antworten auf einen sich zwischen Berichtsanlage und Ausführung ändernden Bauteilbestand."""
 
+import json
 import logging
 import os
 from datetime import date, datetime
@@ -32,14 +33,15 @@ from .models import (
     Finding, InspectionItem, InspectionTemplate, InspectionTemplateItem, MaintenanceContract,
     MaintenanceContractItem, Material, OperationalAsset, Order, Project, Property, RoofArea,
     RoofTypeInspectionTemplateDefault, ServiceReport, ServiceReportAsset, ServiceReportMaterial,
-    ServiceReportPhoto, ServiceReportRoofArea, Task, PlanningSlot, WorkPreparation, WorkPreparationEmployee,
-    WorkPreparationTeamEmployee,
+    ServiceReportPhoto, ServiceReportRoofArea, Task,
 )
 from .operational_assets import resolve_asset_identity
 from .roof_areas import list_roof_areas
+from .rounding import round_hours
 from .service_report_photos import delete_photo_file, resize_and_store_photo
 from .signature_image import MAX_SIGNATURE_PNG_BYTES as _MAX_SIGNATURE_PNG_BYTES, check_signature_png
 from .tasks import create_task
+from .time_tracking import employee_name as _person, list_entries
 from .zugehoerigkeit import order_property_id, require_in_order_property, roof_area_in_order_property
 
 logger = logging.getLogger(__name__)
@@ -723,33 +725,45 @@ def _kurz(text: str | None, laenge: int = 80) -> str:
     return text if len(text) <= laenge else text[:laenge - 1].rstrip() + "…"
 
 
-def einsaetze_des_berichts(db: Session, report: ServiceReport) -> list[tuple[date, date, set[int]]] | None:
-    """Seit 1.9.37 (Stufe 4, R1, Punkt 4): die Einsätze der Plantafel zum Auftrag des Berichts, deren Zeitraum den Tag des Berichts
-    (performed_at) umfasst -- je Beginn, Ende und die eingeteilten Personen: die Besetzung der Team-Zuweisung des Abschnitts (Schnappschuss)
-    und die Einzelzuweisungen an der Arbeitsvorbereitung (dieselben zwei Wege wie planning._employee_assignment_slot_condition()). None,
-    wenn der Bericht keinen Einsatz-Bezug hat (kein Abschnitt umfasst seinen Tag)."""
-    slots = db.scalars(
-        select(PlanningSlot).join(WorkPreparation, PlanningSlot.preparation_id == WorkPreparation.id)
-        .where(WorkPreparation.order_id == report.order_id, PlanningSlot.start_date <= report.performed_at,
-               PlanningSlot.end_date >= report.performed_at)
-        .order_by(PlanningSlot.start_date, PlanningSlot.id)
-    ).all()
-    if not slots:
-        return None
-    einsaetze = []
-    for slot in slots:
-        team = set(db.scalars(select(WorkPreparationTeamEmployee.employee_id)
-                              .where(WorkPreparationTeamEmployee.assignment_id == slot.team_assignment_id)).all())
-        einzeln = set(db.scalars(select(WorkPreparationEmployee.employee_id)
-                                 .where(WorkPreparationEmployee.preparation_id == slot.preparation_id)).all())
-        einsaetze.append((slot.start_date, slot.end_date, team | einzeln))
-    return einsaetze
+ZEITEN_FORMAT = 1
 
 
-def zeit_gehoert_zum_einsatz(entry, einsaetze: list[tuple[date, date, set[int]]]) -> bool:
-    """Seit 1.9.37: eine Zeit desselben Auftrags gehört zum Einsatz, wenn ihr Tag im Zeitraum eines der Einsätze liegt und ihre Person
-    dort eingeteilt ist (der Auftrag prüft der Aufrufer)."""
-    return any(beginn <= entry.work_date <= ende and entry.employee_id in leute for beginn, ende, leute in einsaetze)
+def _zeit_zeile(entry) -> dict:
+    """Eine Zeile „Tag, Person, von–bis, Stunden“ (seit 1.9.42); eine laufende Zeit ohne Ende und Stunden („läuft seit …“)."""
+    laeuft = entry.status == "running"
+    return {
+        "tag": entry.work_date.isoformat(), "person": _person(entry.employee) or "",
+        "von": entry.started_at.strftime("%H:%M") if entry.started_at else None,
+        "bis": entry.ended_at.strftime("%H:%M") if entry.ended_at and not laeuft else None,
+        "stunden": None if laeuft else str(round_hours(entry.hours)), "laeuft": laeuft,
+    }
+
+
+def zeiten_am_tag(db: Session, report: ServiceReport) -> list[dict]:
+    """Seit 1.9.42 (Stufe 4, R1 Nachrunde, Punkt 1): ein Bericht je Tag -- alle Zeiten auf dem Auftrag des Berichts am Tag des Berichts
+    (performed_at), alle Personen, mit und ohne Plantafel; nach Beginn (Zeiten ohne Beginn zuletzt), dann Person. Ersetzt die Regel
+    von 1.9.37 (Plantafel-Abschnitt und eingeteilte Personen)."""
+    rows = list_entries(db, order_id=report.order_id, start_date=report.performed_at, end_date=report.performed_at, limit=None)
+    rows = sorted(rows, key=lambda e: (e.started_at is None, e.started_at or datetime.min, _person(e.employee) or "", e.id))
+    return [_zeit_zeile(e) for e in rows]
+
+
+def zeiten_des_berichts(db: Session, report: ServiceReport) -> dict:
+    """Seit 1.9.42: die Zeiten, die Berichtsseite und PDF zeigen -- dieselben Zeilen an beiden Stellen.
+
+    gespeichert  unterschrieben ab 1.9.42: der Stand der Unterschrift (time_rows_json), spätere Buchungen oder Änderungen ändern ihn nicht
+    aktuell      Entwurf: zeiten_am_tag(), wie es jetzt steht -- mit der Unterschrift so gespeichert
+    alt          vor 1.9.42 unterschrieben (ohne gespeicherten Stand): wie vor 1.9.37 alle Zeiten des Auftrags, Spalten Datum, Mitarbeiter,
+                 Tätigkeit, Stunden -- nichts wird rückwirkend geändert"""
+    if report.time_rows_json:
+        stand = json.loads(report.time_rows_json)
+        return {"art": "gespeichert", "tag": report.performed_at, "zeilen": stand["zeilen"]}
+    if report.status == "unterschrieben":
+        return {"art": "alt", "tag": report.performed_at, "zeilen": [
+            {"tag": e.work_date.isoformat(), "person": _person(e.employee) or "", "taetigkeit": e.activity or "",
+             "stunden": str(round_hours(e.hours))}
+            for e in list_entries(db, order_id=report.order_id, limit=None)]}
+    return {"art": "aktuell", "tag": report.performed_at, "zeilen": zeiten_am_tag(db, report)}
 
 
 def noch_offen(report: ServiceReport) -> list[str]:
@@ -1376,6 +1390,8 @@ def sign_report(
     report.signature_name = customer_signature_name.strip()
     report.signed_at = datetime.utcnow()
     report.status = "unterschrieben"
+    # Seit 1.9.42: die Zeiten des Berichtstags, wie sie jetzt angezeigt sind -- danach zeigen Seite und PDF nur diesen Stand
+    report.time_rows_json = json.dumps({"format": ZEITEN_FORMAT, "zeilen": zeiten_am_tag(db, report)}, ensure_ascii=False)
 
     if report.advance_due_date_on_sign and report.maintenance_contract_id is not None:
         contract = db.get(MaintenanceContract, report.maintenance_contract_id)

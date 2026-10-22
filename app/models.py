@@ -3624,6 +3624,9 @@ class ServiceReport(Base):
     inspection_template_id: Mapped[int | None] = mapped_column(ForeignKey("inspection_templates.id"), nullable=True)
     inspection_template_version: Mapped[int | None] = mapped_column(nullable=True)
     advance_due_date_on_sign: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    # Seit 1.9.42 (Stufe 4, R1 Nachrunde): die Zeiten des Berichtstags, wie sie bei der Unterschrift angezeigt waren (JSON,
+    # app/service_reports.py::zeiten_des_berichts()); leer = Entwurf oder vor 1.9.42 unterschrieben.
+    time_rows_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

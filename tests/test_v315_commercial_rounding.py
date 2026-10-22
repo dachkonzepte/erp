@@ -297,7 +297,8 @@ def test_hours_in_service_report_and_field_timesheet_pdfs_round_up(tmp_path, mon
     db = db_session()
     emp = _hours_setup(db, "1.125")
     order_id = db.query(TimeEntry).one().order_id
-    report = service_reports.create_report(db, order_id, "rapport", description="Reparatur")
+    # seit 1.9.42 zeigt das PDF die Zeiten des Berichtstags -- der Bericht liegt deshalb auf dem Tag der Buchung
+    report = service_reports.create_report(db, order_id, "rapport", description="Reparatur", performed_at=date(2026, 9, 7))
     sign_report_for_test(db, report["id"])
     for pdf in (build_service_report_pdf(db, db.get(ServiceReport, report["id"])), build_field_timesheet_pdf(db, emp.id, 2026, 9)):
         text_ = _extract_pdf_text(pdf)

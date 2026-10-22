@@ -948,3 +948,10 @@ Zeiten des Auftrags, deren Tag im Zeitraum eines Einsatzes liegt, der den Tag de
 (`VorlagenpunktGeschuetzt`, 409) -- die Herkunft ist eindeutig: `_generate_inspection_items()` setzt sie immer, `add_inspection_item()` nie.
 Der Knopf „×“ steht nur am von Hand ergänzten Punkt, 48 × 48 px am Ende der Titelzeile, mit Rückfrage auf der Seite (`<dialog>`) statt
 `confirm()`. Festlegungen: `docs/archiv/redesign.md`, „Nachrunde Punkt 3 (1.9.41)“.
+
+**Seit 1.9.42: Zeiten des Berichtstags, mit der Unterschrift gespeichert (ersetzt 1.9.37).** Ein Bericht gilt für einen Tag:
+`zeiten_am_tag()` -- alle Zeiten auf dem Auftrag am `performed_at`, alle Personen, mit und ohne Plantafel. Seite (Karte des Berichts,
+`GET /api/service-reports/{id}/zeiten`) und PDF zeigen dieselben Zeilen aus `zeiten_des_berichts()`: Entwurf „Stand jetzt“, unterschrieben
+der in `ServiceReport.time_rows_json` gespeicherte Stand der Unterschrift (eine laufende Zeit „läuft seit HH:MM“ ohne Stunden), vor 1.9.42
+unterschrieben (ohne Stand) wie vor 1.9.37 alle Zeiten des Auftrags mit Tätigkeit. Die Karte „Erfasste Zeiten zu diesem Auftrag“ (Buchen und
+alle Zeiten des Auftrags) bleibt. Festlegungen: `docs/archiv/redesign.md`, „Nachrunde Punkt 1 (1.9.42)“.

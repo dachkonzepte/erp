@@ -18,7 +18,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.models import Employee, EmployeePayrollSettings, Order, TimeEntry
+from app.models import Employee, EmployeePayrollSettings, Order, ServiceReport, TimeEntry
 from app.service_report_pdf import build_service_report_pdf
 from app.service_reports import _load as _load_report, create_report, sign_report
 from app.time_backoffice import (
@@ -58,6 +58,10 @@ def bookings():
     report = create_report(db, order_a.id, "rapport", description="Dach kontrolliert.")
     sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test",
                 customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
+    # Seit 1.9.42 zeigt ein Bericht die Zeiten seines Tages (mit der Unterschrift gespeichert); alle Zeiten des Auftrags -- und damit
+    # jede der 501 -- zeigt das PDF nur noch für einen vor 1.9.42 unterschriebenen Bericht ohne gespeicherten Stand: so wird er hier.
+    db.get(ServiceReport, report["id"]).time_rows_json = None
+    db.commit()
     yield SimpleNamespace(db=db, report_id=report["id"])
     db.close()
     engine.dispose()

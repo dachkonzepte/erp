@@ -31,6 +31,9 @@ button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-col
 /* seit 1.9.36: was vor der Unterschrift noch offen ist */
 .noch-offen{margin-top:10px;color:var(--danger);font-size:13.5px}
 .noch-offen ul{margin:4px 0 0 18px;padding:0}
+/* seit 1.9.42: die Zeiten des Berichts -- dieselben Zeilen wie im PDF */
+.bericht-zeiten{margin-top:10px}
+.bericht-zeiten-titel{font-weight:700;font-size:13.5px;margin-bottom:6px}
 .office-hint{margin-top:8px;padding:8px 10px;border:1px solid var(--ds-warn-text);background:var(--warning-soft);color:var(--ink);border-radius:var(--ds-ecke-karte)}
 .report-desc{white-space:pre-wrap;margin-top:8px;font-size:13.5px}
 .report-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
@@ -493,6 +496,27 @@ async function nochOffenPruefen(id){
   renderReportList();
   return offen;
 }
+// Seit 1.9.42 (Stufe 4, R1 Nachrunde): die Zeiten des Berichts (GET …/zeiten) -- dieselben Zeilen wie im PDF. Entwurf: alle Zeiten des
+// Auftrags am Tag des Berichts, jetzt; unterschrieben: der Stand der Unterschrift; vor 1.9.42 unterschrieben: wie im PDF alle Zeiten.
+let zeitenCache={};
+async function ladeBerichtsZeiten(id){
+  await lesen('zeiten-bericht-'+id,()=>api(`/api/service-reports/${id}/zeiten`),d=>{zeitenCache[id]=d});
+}
+function zeitenStunden(wert){return wert==null?'–':`${zahlText(wert,2)} h`}
+function zeitenHtml(r){
+  const z=zeitenCache[r.id];
+  if(!z)return '';
+  const titel=z.art==='alt'?'Zeiten des Auftrags (wie im PDF dieses älteren Berichts)'
+    :z.art==='gespeichert'?`Zeiten am ${fmtDate(z.tag)} – Stand der Unterschrift`:`Zeiten am ${fmtDate(z.tag)} – Stand jetzt, wird mit der Unterschrift gespeichert`;
+  if(!z.zeilen.length)return `<div class="bericht-zeiten"><div class="bericht-zeiten-titel">${esc(titel)}</div><div class="muted small">Keine Zeiten.</div></div>`;
+  const kopf=z.art==='alt'?['Datum','Mitarbeiter','Tätigkeit','Stunden']:['Tag','Person','von–bis','Stunden'];
+  const zeilen=z.zeilen.map(x=>z.art==='alt'
+    ?[fmtDate(x.tag),x.person,x.taetigkeit,zeitenStunden(x.stunden)]
+    :[fmtDate(x.tag),x.person,x.laeuft?`läuft seit ${x.von}`:(x.von?`${x.von}–${x.bis}`:'–'),zeitenStunden(x.stunden)]);
+  return `<div class="bericht-zeiten"><div class="bericht-zeiten-titel">${esc(titel)}</div><div class="table-scroll"><table>`
+    +`<thead><tr>${kopf.map(k=>`<th>${esc(k)}</th>`).join('')}</tr></thead>`
+    +`<tbody>${zeilen.map(zeile=>`<tr>${zeile.map((wert,i)=>`<td data-label="${esc(kopf[i])}">${esc(wert)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`;
+}
 function nochOffenHtml(r){
   const offen=r.status==='entwurf'?(r.noch_offen||[]):[];
   if(!offen.length)return '';
@@ -623,6 +647,7 @@ function reportCard(r){
     ${signedInfo}
     <div class="report-actions">${actions.join('')}</div>
     ${nochOffenHtml(r)}
+    ${zeitenHtml(r)}
     ${panel}
     ${findingsPanel}
     ${materialsPanel}
@@ -1371,6 +1396,7 @@ async function loadReports(){
     // (Mängel/Fotos), nur um Prüfpunkte ergänzt.
     await Promise.all(reports.map(r=>Promise.all([
       loadReportExtras(r.id),
+      ladeBerichtsZeiten(r.id),  // seit 1.9.42
       hasInspectionSection(r)?loadReportInspectionItems(r.id):Promise.resolve(),
     ])));
     renderReportList();
@@ -1476,6 +1502,7 @@ async function saveReportTimeEntry(){
     document.getElementById('teHours').value='';
     document.getElementById('teNotes').value='';
     await loadTimeEntries();
+    await Promise.all(reports.filter(r=>r.status==='entwurf').map(r=>ladeBerichtsZeiten(r.id)));renderReportList();  // seit 1.9.42
     st.textContent='Gebucht.';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }

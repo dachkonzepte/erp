@@ -19,6 +19,9 @@ ServiceReportAsset keine Menge/Einheit kennt. Erscheint unbedingt, auch im reduz
 (include_time_entries=False) -- anders als Zeitbuchungen sind eingesetzte Betriebsmittel keine
 fremden Personendaten."""
 
+from datetime import date
+from decimal import Decimal
+
 from PIL import Image as PILImage
 from reportlab.lib import colors
 from reportlab.lib.units import mm
@@ -30,10 +33,8 @@ from .document_page_margins import get_margins
 from .document_pdf import build_din5008_header_block, build_object_address_block, build_styles, ptext
 from .findings import ACTION_LABELS, SEVERITY_LABELS, STATUS_LABELS
 from .service_report_photos import photo_path
-from .rounding import round_hours
-from .service_reports import REPORT_TYPE_LABELS, einsaetze_des_berichts, report_to_dict, signature_path, zeit_gehoert_zum_einsatz
+from .service_reports import REPORT_TYPE_LABELS, report_to_dict, signature_path, zeiten_des_berichts
 from .settings import load_general_settings
-from .time_tracking import entry_to_dict, list_entries
 
 CONDITION_GRADE_LABELS = {1: "Neuwertig", 2: "Gebrauchsspuren", 3: "Abgenutzt", 4: "Sanierung erforderlich"}
 RESULT_LABELS = {"ok": "OK", "nok": "Nicht OK", "na": "Entfällt"}
@@ -141,7 +142,7 @@ def _render_photo_flowables(photos, small_style, content_width_mm: float, max_wi
 
 def build_service_report_pdf(db, report, *, include_time_entries: bool = True) -> bytes:
     """include_time_entries=False (siehe build_service_report_pdf_for_field() unten) lässt den
-    Abschnitt "Erfasste Zeiten" komplett weg -- list_entries() wird dann gar nicht erst
+    Abschnitt "Erfasste Zeiten" komplett weg -- die Zeiten werden dann gar nicht erst
     aufgerufen, nicht nur die Tabelle ausgeblendet. Alles andere bleibt byte-identisch zum
     Kundendokument: kein zweiter Renderer, nur ein Schalter für exakt diesen einen Abschnitt."""
     if report.status != "unterschrieben":
@@ -346,21 +347,25 @@ def build_service_report_pdf(db, report, *, include_time_entries: bool = True) -
                 story.append(KeepTogether(block))
                 story.append(Spacer(1, 2 * mm))
 
-        entries = list_entries(db, order_id=order.id, limit=None) if include_time_entries else []
-        # Seit 1.9.37 (Stufe 4, R1): nur die Zeiten dieses Einsatzes -- dieser Auftrag, Tag im Zeitraum des Einsatzes, Person dort
-        # eingeteilt (einsaetze_des_berichts()); bis 1.9.36 jede Zeit des Auftrags, auch die anderer Einsätze. Ohne Einsatz-Bezug (kein
-        # Abschnitt der Plantafel umfasst den Tag des Berichts) bleibt es bei allen Zeiten des Auftrags -- offen, siehe Festlegungen 1.9.37.
-        einsaetze = einsaetze_des_berichts(db, report) if entries else None
-        if einsaetze is not None:
-            entries = [e for e in entries if zeit_gehoert_zum_einsatz(e, einsaetze)]
-        if entries:
-            rows = [["Datum", "Mitarbeiter", "Tätigkeit", "Stunden"]]
-            for e in entries:
-                d = entry_to_dict(e)
-                rows.append([
-                    d["work_date"].strftime("%d.%m.%Y"), d["employee_name"] or "",
-                    d["activity"] or "", f"{round_hours(d['hours']):.2f}".replace(".", ","),  # kaufmännisch, seit 1.8.11
-                ])
+        # Seit 1.9.42 (Stufe 4, R1 Nachrunde): dieselben Zeilen wie die Berichtsseite (zeiten_des_berichts()) -- der Stand der
+        # Unterschrift „Tag, Person, von–bis, Stunden“; ein vor 1.9.42 unterschriebener Bericht wie vor 1.9.37 alle Zeiten des Auftrags
+        # mit Tätigkeit. Die Regel von 1.9.37 (Plantafel-Abschnitt) entfällt.
+        zeiten = zeiten_des_berichts(db, report) if include_time_entries else None
+        if zeiten and zeiten["zeilen"]:
+            def stunden_text(wert):
+                return f"{Decimal(wert):.2f}".replace(".", ",") if wert is not None else ""
+            if zeiten["art"] == "alt":
+                titel = "Erfasste Zeiten"
+                rows = [["Datum", "Mitarbeiter", "Tätigkeit", "Stunden"]] + [
+                    [date.fromisoformat(z["tag"]).strftime("%d.%m.%Y"), z["person"], z["taetigkeit"], stunden_text(z["stunden"])]
+                    for z in zeiten["zeilen"]]
+            else:
+                titel = f"Zeiten am {zeiten['tag']:%d.%m.%Y}"
+                rows = [["Tag", "Person", "von–bis", "Stunden"]] + [
+                    [date.fromisoformat(z["tag"]).strftime("%d.%m.%Y"), z["person"],
+                     f"läuft seit {z['von']}" if z["laeuft"] else (f"{z['von']}–{z['bis']}" if z["von"] else "–"),
+                     stunden_text(z["stunden"])]
+                    for z in zeiten["zeilen"]]
             fixed_width = sum(TIME_ENTRY_FIXED_COLS_MM.values()) * mm
             taetigkeit_width = content_width - fixed_width
             table = Table(rows, colWidths=[
@@ -375,7 +380,7 @@ def build_service_report_pdf(db, report, *, include_time_entries: bool = True) -
             ]))
             # KeepTogether: Abschnittstitel und Zeiten-Tabelle zusammenhalten, gleiche Begründung wie
             # bei den Prüfpunkt-Gruppen oben.
-            story.append(KeepTogether([Paragraph("Erfasste Zeiten", h2), table]))
+            story.append(KeepTogether([Paragraph(titel, h2), table]))
             story.append(Spacer(1, 6 * mm))
 
         # KeepTogether für den Unterschriftenblock (Titel, Bestätigungssatz, Bild) -- der gemeldete

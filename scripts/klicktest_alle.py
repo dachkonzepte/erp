@@ -56,7 +56,7 @@ KLICKTEST_DAUERN: dict[str, float] = {
     "klicktest_behinderungsanzeige": 14, "klicktest_behinderungsanzeige_abschluss": 32, "klicktest_behinderungsanzeige_versand": 16,
     "klicktest_beleg_und_hinweis": 15, "klicktest_beteiligte": 15, "klicktest_beteiligte_stammdaten": 13,
     "klicktest_browser_datum": 13, "klicktest_checkliste_abschnitte": 12, "klicktest_checkliste_unterschrift": 13,
-    "klicktest_checkliste_verwerfen": 11, "klicktest_checkliste_zweck": 12, "klicktest_dashboard_monatswechsel": 9,
+    "klicktest_checkliste_verwerfen": 11, "klicktest_checkliste_zweck": 12, "klicktest_einsatzbericht_zeiten": 14, "klicktest_dashboard_monatswechsel": 9,
     "klicktest_dateien_nie_aktiv": 32, "klicktest_daten_im_html": 13, "klicktest_ds_schriften": 9, "klicktest_endrechnung": 12,
     "klicktest_feierabend": 10, "klicktest_feste_fassung": 12, "klicktest_finanzen_zahlbetrag": 11,
     "klicktest_fremde_seite": 10, "klicktest_hochladen": 12, "klicktest_leistungszeitraum": 11,

@@ -189,7 +189,10 @@ def test_field_pdf_never_calls_list_entries_and_carries_no_price_key(threaded_db
 
     def _boom(*args, **kwargs):
         raise AssertionError("list_entries() darf für die Field-PDF-Variante nicht aufgerufen werden.")
-    monkeypatch.setattr(service_report_pdf_module, "list_entries", _boom)
+    # seit 1.9.42 liest das PDF die Zeiten über app/service_reports.py::zeiten_des_berichts() -- dort wird list_entries() abgefangen
+    import app.service_reports as service_reports_module
+    monkeypatch.setattr(service_reports_module, "list_entries", _boom)
+    assert service_report_pdf_module.build_service_report_pdf
     build_service_report_pdf_for_field(db, report)  # wirft nicht -> list_entries() wurde nie erreicht
 
     def keys(obj):
