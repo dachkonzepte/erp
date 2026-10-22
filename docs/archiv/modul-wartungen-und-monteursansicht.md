@@ -955,3 +955,9 @@ Der Knopf „×“ steht nur am von Hand ergänzten Punkt, 48 × 48 px am Ende d
 der in `ServiceReport.time_rows_json` gespeicherte Stand der Unterschrift (eine laufende Zeit „läuft seit HH:MM“ ohne Stunden), vor 1.9.42
 unterschrieben (ohne Stand) wie vor 1.9.37 alle Zeiten des Auftrags mit Tätigkeit. Die Karte „Erfasste Zeiten zu diesem Auftrag“ (Buchen und
 alle Zeiten des Auftrags) bleibt. Festlegungen: `docs/archiv/redesign.md`, „Nachrunde Punkt 1 (1.9.42)“.
+
+**Seit 1.9.43: ein Vorlagenpunkt, der in Einsatzberichten steckt, lässt sich nicht löschen.** `delete_template_item()` sperrt die Zeile
+des Vorlagenpunkts, zählt die Berichte, deren Prüfpunkte über `template_item_id` auf ihn verweisen, und lehnt dann mit
+`VorlagenpunktInBerichten` ab (409 mit Anzahl); ein `IntegrityError` beim Commit (Verweis, den die Sperre nicht abgefangen hat) endet
+ebenso in 409. Kein `ON DELETE` am Fremdschlüssel -- `template_item_id` eines Punkts aus der Vorlage wird nie leer. Festlegungen:
+`docs/archiv/redesign.md`, „R2 Punkt 7a (1.9.43)“.

@@ -4146,7 +4146,9 @@ class InspectionItem(Base):
     target_min/target_max/unit/die photo_*-Flags werden dabei PHYSISCH kopiert, nie zur
     Laufzeit von der Vorlage gelesen -- ändert sich die Vorlage später, ändert sich ein bereits
     erzeugter Bericht nicht rückwirkend. template_item_id/roof_component_id sind entsprechend
-    reine, optionale Herkunftsangaben und dürfen ins Leere zeigen.
+    reine, optionale Herkunftsangaben. template_item_id zeigt nie ins Leere: leer heißt "von Hand
+    ergänzt" (seit 1.9.41 nur so löschbar), und ein Vorlagenpunkt, der in Berichten steckt, lässt sich
+    seit 1.9.43 nicht löschen (409, delete_template_item(); bis 1.9.42 stand hier "dürfen ins Leere zeigen").
 
     roof_area_id (seit 1.2.22, Mehrflächen-Berichte) wird bei JEDER Generierung gesetzt --
     unabhängig davon, ob roof_component_id gesetzt ist. Für component-lose Punkte (component_type

@@ -3698,3 +3698,45 @@ nennt sie. Anlass: Endlauf zu 1.9.37 (siehe „R1 Nachtrag“). Keine Festlegung
    kann; das Monteur-PDF der Wartungshistorie bleibt ohne Zeiten.
 7. **PDF**: Titel „Zeiten am <Tag>“, Spalten Tag (25 mm), Person (50 mm), von–bis (Rest), Stunden (30 mm) -- die Breiten von bisher.
 8. **Rückweg** der Migration verweigert, solange ein Bericht einen gespeicherten Stand hat.
+
+## Stufe 4, R2 „Heute“ für die Monteurin (1.9.43–)
+
+Auftrag von Tobias (22.10.2026): der Reiter „Einsätze“ wird „Heute“ nach den freigegebenen Vorlagen
+`bildgrundlage/entwurf-stufe4/heute-quer.html`, `heute-gestern.html`, `heute-hoch.html` (Maße, Abstände, Reihenfolge, Texte gelten;
+Farben über die Tokens). Dazu nebenbei: Zeitpunkte in Europe/Berlin, Vorlagenpunkt mit Berichten nicht löschbar; nur berichtet: wie die
+Pausenregel rechnet. Die Runde beginnt mit den kleinen Punkten (7), dann Server und Seite für „Heute“.
+
+### R2 Punkt 7a (1.9.43): Vorlagenpunkt, der in Berichten steckt -- 409 statt 500
+
+- **Vorher**: `delete_template_item()` löschte ohne Prüfung. Unter PostgreSQL lehnt der Fremdschlüssel `inspection_items.template_item_id`
+  (ohne `ON DELETE`) das ab, der Router fing nichts -- 500. Unter SQLite (Fremdschlüssel nicht erzwungen) blieb `template_item_id` auf eine
+  nicht mehr vorhandene Zeile gesetzt.
+- **Jetzt**: die Zeile des Vorlagenpunkts wird gesperrt (`with_for_update()`: unter PostgreSQL wartet die Sperre auf einen Bericht, der gerade
+  aus der Vorlage entsteht -- er hält den Punkt mit FOR KEY SHARE --, danach zählt die Abfrage ihn mit), dann zählt
+  `_berichte_mit_punkt()` die Berichte (je Bericht einmal, auch wenn der Punkt je Bauteil mehrfach im Bericht steht); mindestens einer ->
+  `VorlagenpunktInBerichten` (409): „Dieser Prüfpunkt steckt in einem Einsatzbericht | n Einsatzberichten und lässt sich deshalb nicht
+  löschen. Für neue Berichte ohne ihn: Vorlage kopieren und den Punkt in der Kopie löschen.“ Punkt, Version und Verweise bleiben. Als Netz
+  endet ein `IntegrityError` beim Commit ebenfalls in dieser Meldung (nie 500). Kein `ON DELETE SET NULL` oder `CASCADE`.
+- Die Seite der Prüfvorlage zeigt die Meldung unter der Tabelle („Fehler: …“), wie jede abgelehnte Änderung dort -- an der Seite nichts
+  geändert.
+
+#### Nebenbefund (nicht geändert)
+
+- `delete_roof_component()` sperrt nur bei Verweisen aus **unterschriebenen** Berichten und bei Mängeln; ein Prüfpunkt eines
+  **Entwurfs** mit `roof_component_id` auf das Bauteil dürfte unter PostgreSQL denselben Fehler am Fremdschlüssel auslösen (500). Aus dem
+  Code gelesen, nicht nachgestellt.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v470_vorlagenpunkt_loeschen.py` (4 Tests): Punkt in einem bzw. zwei Berichten -> 409 mit „einem Einsatzbericht“ bzw.
+  „2 Einsatzberichten“, Punkt, Version und Verweise unverändert (Angriff); neuer Punkt ohne Bericht -> gelöscht, Version + 1 (Gegenprobe);
+  unter PostgreSQL (Wegwerf-Schema) Sperre statt `IntegrityError`, danach löscht dieselbe Sitzung einen freien Punkt.
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück): ohne Zählung und ohne Netz (Stand 1.9.42, P1) -- 3 Tests rot (SQLite 200,
+  PostgreSQL `IntegrityError`); nur das Netz (P2) -- 2 Tests rot, der PostgreSQL-Test bleibt grün (das Netz fängt den Fremdschlüssel, wie
+  gewollt); Router ohne 409 (P3) -- 2 Tests rot.
+
+#### Festlegungen 1.9.43 (Bitte bestätigen)
+
+1. **Gezählt werden alle Berichte**, Entwurf wie unterschrieben, je Bericht einmal.
+2. **Die Meldung nennt den Ausweg** „Vorlage kopieren und den Punkt in der Kopie löschen“ -- ein Ausblenden einzelner Punkte gibt es nicht.
+3. **Netz**: ein `IntegrityError` beim Löschen endet ebenfalls in 409 (Anzahl neu gezählt, mindestens 1).

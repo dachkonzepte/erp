@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..inspection_templates import (
-    copy_template, create_template, create_template_item, delete_template_item, get_template,
+    VorlagenpunktInBerichten, copy_template, create_template, create_template_item, delete_template_item, get_template,
     list_roof_type_template_defaults, list_templates, set_roof_type_template_default, set_template_archived,
     update_template, update_template_item,
 )
@@ -135,7 +135,11 @@ def put_inspection_template_item(item_id: int, payload: InspectionTemplateItemUp
 @router.delete("/api/inspection-template-items/{item_id}")
 def delete_inspection_template_item(item_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
-    if not delete_template_item(db, item_id):
+    try:
+        geloescht = delete_template_item(db, item_id)
+    except VorlagenpunktInBerichten as exc:  # seit 1.9.43: steckt in Einsatzberichten -- 409 mit Anzahl, kein 500
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if not geloescht:
         raise HTTPException(status_code=404, detail="Prüfpunkt nicht gefunden.")
     return {"ok": True}
 

@@ -8,9 +8,10 @@ Schnappschuss-Stempel dafür, gegen welchen Stand ein Bericht generiert wurde. S
 Metadaten- als auch Punkt-Änderungen zählen als "Speichern der Vorlage" und erhöhen version."""
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from .models import InspectionTemplate, InspectionTemplateItem, RoofTypeInspectionTemplateDefault
+from .models import InspectionItem, InspectionTemplate, InspectionTemplateItem, RoofTypeInspectionTemplateDefault
 from .option_settings import get_option_group
 
 ITEM_TYPES = ("ja_nein", "condition_grade", "measurement", "quantity", "leak_test", "free_text", "photo")
@@ -185,14 +186,43 @@ def update_template_item(db: Session, item_id: int, text: str, item_type: str, g
     return template_item_to_dict(item)
 
 
+class VorlagenpunktInBerichten(ValueError):
+    """Seit 1.9.43: ein Vorlagenpunkt, der in Einsatzberichten steckt, lässt sich nicht löschen (409) -- der Prüfpunkt im Bericht
+    verweist über template_item_id auf ihn, und daran erkennt der Bericht seit 1.9.41 einen Punkt aus der Vorlage. Bis 1.9.42 lief das
+    Löschen unter PostgreSQL in den Fremdschlüssel (500), unter SQLite blieb ein Verweis ins Leere."""
+
+    def __init__(self, berichte: int):
+        self.berichte = berichte
+        wo = "einem Einsatzbericht" if berichte == 1 else f"{berichte} Einsatzberichten"
+        super().__init__(f"Dieser Prüfpunkt steckt in {wo} und lässt sich deshalb nicht löschen. "
+                         "Für neue Berichte ohne ihn: Vorlage kopieren und den Punkt in der Kopie löschen.")
+
+
+def _berichte_mit_punkt(db: Session, item_id: int) -> int:
+    return db.scalar(select(func.count(func.distinct(InspectionItem.service_report_id)))
+                     .where(InspectionItem.template_item_id == item_id)) or 0
+
+
 def delete_template_item(db: Session, item_id: int) -> bool:
-    item = db.get(InspectionTemplateItem, item_id)
+    """Löscht einen Vorlagenpunkt, der in keinem Einsatzbericht steckt; sonst VorlagenpunktInBerichten (seit 1.9.43). Die Zeile
+    wird zuerst gesperrt: unter PostgreSQL wartet die Sperre auf einen Bericht, der gerade aus der Vorlage entsteht (er hält den
+    Punkt mit FOR KEY SHARE), danach zählt die Abfrage ihn mit. Kein ON DELETE SET NULL oder CASCADE: template_item_id eines
+    Punkts aus der Vorlage wird nie leer."""
+    item = db.scalar(select(InspectionTemplateItem).where(InspectionTemplateItem.id == item_id).with_for_update())
     if item is None:
         return False
+    berichte = _berichte_mit_punkt(db, item_id)
+    if berichte:
+        db.rollback()
+        raise VorlagenpunktInBerichten(berichte)
     template = item.template
     db.delete(item)
     _bump_version(template)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:  # Netz: ein Verweis, den die Sperre nicht abgefangen hat -- nie 500
+        db.rollback()
+        raise VorlagenpunktInBerichten(max(_berichte_mit_punkt(db, item_id), 1)) from None
     return True
 
 
