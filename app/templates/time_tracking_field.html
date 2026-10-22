@@ -137,6 +137,7 @@
 
   <div class="card">
     <div class="date-head"><h2>Meine Buchungen</h2><button class="secondary" id="openManualBtn" hidden>+ Nachtragen</button></div>
+    <div id="buchungsHinweis" class="status" role="status"></div>
     <div id="entriesList" class="entries"></div>
   </div>
 
@@ -462,6 +463,8 @@ async function saveManual(){
   if(manualMode==='range'){
     hours=hoursFromRange($('manualFrom').value,$('manualTo').value);
     if(hours===null){$('manualStatus').textContent='Bitte Von und Bis angeben -- Bis muss nach Von liegen.';return}
+    // Seit 1.9.34 schickt ein neuer Nachtrag Von und Bis: der Server zieht die Pause nach der Zeitregel ab wie beim Feierabend (bis dahin
+    // rechnete die Seite Bis − Von und buchte das ohne Pause). Ändern schickt weiter die Stunden (gebucht).
   }else{
     // Seit 1.8.109 über _zahl.html (deutsches Format); eine abgelehnte Eingabe steht in der Statuszeile des Dialogs.
     try{hours=zahlFeld('manualDuration',{leer:0})}catch(e){$('manualStatus').textContent=e.message;return}
@@ -471,7 +474,13 @@ async function saveManual(){
   const body={order_id:orderId,work_date:$('manualDate').value,entry_type:manualType,activity:$('manualActivity').value||null,hours,notes:$('manualNotes').value.trim()||null};
   try{
     if(editingId)await speichern('buchungen',()=>api(`/api/time-entries/${editingId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}));
-    else{const neu=JSON.stringify({...body,employee_id:myEmployeeId,break_minutes:timeSettings.default_break_minutes||0});await speichern('buchungen',()=>api('/api/time-entries',{method:'POST',headers:{'Content-Type':'application/json'},body:neu}))}
+    else{
+      const neuBody={...body,employee_id:myEmployeeId,break_minutes:timeSettings.default_break_minutes||0};
+      if(manualMode==='range'){delete neuBody.hours;neuBody.von=$('manualFrom').value;neuBody.bis=$('manualTo').value}
+      const neu=JSON.stringify(neuBody);
+      const d=await speichern('buchungen',()=>api('/api/time-entries',{method:'POST',headers:{'Content-Type':'application/json'},body:neu}));
+      $('buchungsHinweis').textContent=d?`Nachgetragen: gebucht ${zahlText(d.gebucht,2)} h · anwesend ${zahlText(d.anwesend,2)} h · Pause ${zahlText(d.pause,0)} min`:'';
+    }
     manualDialog.close();await loadEntries();
   }catch(e){$('manualStatus').textContent='Fehler: '+e.message}
 }

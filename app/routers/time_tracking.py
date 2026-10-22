@@ -33,8 +33,7 @@ from ..permissions import ROLE_FIELD, darf_zeit_fuer_andere_buchen, require_min_
 from .orders import require_field_order_access
 from ..schemas import CrewGroupSummaryOut, CrewOut, TimeEntryManualCreate, TimeEntryOut, TimeEntrySummaryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeGroupUpdate, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
 from ..time_backoffice import load_time_settings, locked_until, rounded_hours, time_settings_dict
-from ..time_tracking import MAX_LIST_LIMIT, active_group_for_employee, active_entry as active_time_entry, count_entries, create_group_manual_entry, create_manual_entry, crew_leader_team_ids, delete_entry as delete_time_entry_row, delete_group, entry_to_dict, field_time_tracking_context, group_for_entry, group_member_ids, group_to_dict, list_crews_for_leader, list_entries as list_time_entries, list_groups_initiated_by, start_group_timer, start_timer, stop_group_timer, stop_timer, summarize_entries, time_tracking_context, update_entry as update_time_entry_row, update_group
-from ..work_time_models import automatic_break_minutes_for_timer
+from ..time_tracking import MAX_LIST_LIMIT, active_group_for_employee, active_entry as active_time_entry, count_entries, create_group_manual_entry, create_manual_entry, crew_leader_team_ids, delete_entry as delete_time_entry_row, delete_group, entry_to_dict, field_time_tracking_context, nachtrag_nach_zeitregel, group_for_entry, group_member_ids, group_to_dict, list_crews_for_leader, list_entries as list_time_entries, list_groups_initiated_by, start_group_timer, start_timer, stop_group_timer, stop_timer, summarize_entries, time_tracking_context, update_entry as update_time_entry_row, update_group
 
 router = APIRouter()
 
@@ -293,9 +292,7 @@ def stop_time_group(group_id:int,payload:TimeGroupTimerStop,request:Request,db:S
         raise HTTPException(status_code=403,detail=CREW_LEADER_ONLY)
     _require_open_period(request,db,group.work_date)
     try:
-        end=payload.ended_at or berlin_now()
-        member_breaks={eid:automatic_break_minutes_for_timer(db,eid,group.started_at,end) for eid in group_member_ids(db,group.id)} if group.started_at else {}
-        group=stop_group_timer(db,group_id,ended_at=end,break_minutes=payload.break_minutes,break_minutes_by_employee=member_breaks)
+        group=stop_group_timer(db,group_id,ended_at=payload.ended_at or berlin_now(),break_minutes=payload.break_minutes)
     except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
     return _group_out(request,db,group)
 
@@ -346,7 +343,15 @@ def create_time_entry(payload: TimeEntryManualCreate, request: Request, db: Sess
     _require_open_period(request, db, payload.work_date)
     user = getattr(request.state, "erp_user", None)
     try:
-        row = create_manual_entry(db, employee_id=employee_id, order_id=payload.order_id, order_item_id=payload.order_item_id, work_date=payload.work_date, entry_type=payload.entry_type, activity=payload.activity, hours=rounded_hours(Decimal(payload.hours),settings.rounding_minutes), break_minutes=payload.break_minutes, notes=payload.notes, created_by_user_id=getattr(user, "id", None))
+        # Seit 1.9.34: mit Von/Bis die Pause nach der Zeitregel (dieselbe Funktion wie beim Feierabend), gebucht = anwesend − Pause;
+        # eine reine Dauer ist gebuchte Arbeitszeit (netto) wie bisher
+        beginn = ende = None
+        stunden, pause = Decimal(payload.hours or 0), payload.break_minutes
+        if payload.von is not None:
+            werte = nachtrag_nach_zeitregel(db, employee_id=employee_id, work_date=payload.work_date, von=payload.von, bis=payload.bis,
+                                            mindestpause=payload.break_minutes)
+            stunden, pause, beginn, ende = werte["netto"], werte["pause"], werte["beginn"], werte["ende"]
+        row = create_manual_entry(db, employee_id=employee_id, order_id=payload.order_id, order_item_id=payload.order_item_id, work_date=payload.work_date, entry_type=payload.entry_type, activity=payload.activity, hours=rounded_hours(stunden,settings.rounding_minutes), break_minutes=pause, started_at=beginn, ended_at=ende, notes=payload.notes, created_by_user_id=getattr(user, "id", None))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return TimeEntryOut.model_validate(entry_to_dict(row))
@@ -379,14 +384,11 @@ def stop_time_entry(entry_id: int, payload: TimeTimerStop, request: Request, db:
         user = getattr(request.state, "erp_user", None)
         # Seit 1.8.144: ohne Kennzeichen stoppt die Initiatorin nur noch ihre eigene Zeit, wie ein Mitglied (die Gruppe läuft weiter).
         if group is not None and group.status == "running" and (user is None or user.role == "admin" or user.employee_id == group.initiated_by_employee_id) and _noch_kolonnenfuehrer(request, db, group):
-            end=payload.ended_at or berlin_now()
-            member_breaks={eid:automatic_break_minutes_for_timer(db,eid,group.started_at,end) for eid in group_member_ids(db,group.id)} if group.started_at else {}
-            stop_group_timer(db, group.id, ended_at=end, break_minutes=payload.break_minutes, break_minutes_by_employee=member_breaks)
+            # seit 1.9.34 rechnet die Pause stop_group_timer()/stop_timer() selbst nach der einen Zeitregel (pause_nach_zeitregel())
+            stop_group_timer(db, group.id, ended_at=payload.ended_at or berlin_now(), break_minutes=payload.break_minutes)
             row = db.get(TimeEntry, entry_id)
         else:
-            end=payload.ended_at or berlin_now()
-            auto_break=automatic_break_minutes_for_timer(db,current.employee_id,current.started_at,end) if current.started_at else 0
-            row = stop_timer(db, entry_id, ended_at=end, break_minutes=max(int(payload.break_minutes or 0),int(auto_break or 0)))
+            row = stop_timer(db, entry_id, ended_at=payload.ended_at or berlin_now(), break_minutes=payload.break_minutes)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     loaded = db.get(TimeEntry, row.id)

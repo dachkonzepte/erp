@@ -3274,3 +3274,46 @@ erst nach beiden Unterschriften geprüft werden, vor jeder Unterschrift prüfen.
 2. **Die Seite `/mobil` bleibt für jede Rolle offen** (wie bisher, Bildgrundlage nimmt sie auch fürs Büro auf); das Büro sieht dort die
    Meldung statt der Einsätze -- die übrigen Abschnitte (Termine, Wartungen) bleiben, wie sie sind (R5).
 3. **Auch der Feierabend-POST** nur für diese Rollen (sonst bliebe die Ursache über einen direkten Aufruf bestehen).
+
+### R1 Punkt 3 (1.9.34): Nachtragen nach derselben Pausenregel
+
+Vor Punkt 2 gebaut, weil „Ende nachtragen“ dieselbe Pausenregel und dieselben Antwortfelder braucht.
+
+- **Befund** (Befund Stufe 4, B2): `stop_timer()` rechnete `max(eingegeben, automatisch)`, der Router für Einzel- und Gruppen-Stopp noch
+  einmal je für sich (`automatic_break_minutes_for_timer()`), `stop_group_timer()` ein drittes Mal; der Nachtrag speicherte die Pause nur.
+  Die Zeiterfassung der Monteurin rechnete bei Von/Bis die Stunden im Browser (Bis − Von) und buchte sie ohne Pause.
+- **Eine Funktion**: `pause_nach_zeitregel(db, employee_id, anwesend, am, mindestpause)` = `max(mindestpause, automatische Pause des
+  Arbeitszeitmodells für die Anwesenheit am Tag)`; dazu `anwesend_stunden(beginn, ende)` und `nachtrag_nach_zeitregel()` (Von/Bis →
+  anwesend, Pause, netto). `stop_timer()`, `stop_group_timer()` (je Mitglied nach seinem Modell; der Parameter `break_minutes_by_employee`
+  entfällt) und der Nachtrag rufen sie; der Router rechnet keine Pause mehr. Wächter: unter `app/` ruft außerhalb von
+  `work_time_models.py` nur `pause_nach_zeitregel()` die automatische Pause auf.
+- **Nachtrag**: `POST /api/time-entries` nimmt entweder `hours` (gebuchte Arbeitszeit, netto -- unverändert) oder `von` und `bis` (die
+  Anwesenheit am `work_date`; der Server zieht die Pause nach der Regel ab, speichert Beginn und Ende als Nachweis, rundet wie bisher).
+  `create_manual_entry()` nimmt die Stunden immer, wie sie kommen (bis dahin rechnete es sie aus Beginn und Ende selbst, ohne Regel). Die
+  Zeiterfassung der Monteurin schickt bei „Von / Bis“ jetzt Von und Bis; „Ändern“ schickt weiter die Stunden.
+- **Antwort**: jede Zeitbuchung (`TimeEntryOut`) trägt `anwesend` (Stunden vor der Pause: aus Beginn und Ende, ohne beide gebucht + Pause),
+  `pause` (Minuten) und `gebucht` (Stunden); bei laufender Zeit leer. Nach dem Nachtragen zeigt die Zeiterfassung der Monteurin „Nachgetragen:
+  gebucht … h · anwesend … h · Pause … min“.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v462_nachtrag_pausenregel.py` (11 Tests): 06:45–16:00 → anwesend 9,25, Pause 45, gebucht 8,50 (Angriff auf die alte
+  Rechnung) / 4 h als Dauer und als 07:00–11:00 → kein Abzug (Gegenprobe); 9 h als Dauer bleiben 9 h; Mindestpause 20 → 45, 60 → 60; Von ohne
+  Bis, Bis vor Von, ohne beides 422; der Stopp 06:45–16:00 ergibt dieselben Werte; Wächter „eine Pausenregel“.
+- Bestehende Zeiterfassungs-Tests unverändert grün (Stopp und Gruppen-Stopp rechnen wie vorher).
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück): Stopp ohne Regel (R1) -- 2 rot; Nachtrag ohne Abzug (R2) -- 3 rot; Summe statt
+  Mindestpause (R3) -- 2 rot; zweite, gleich rechnende Stelle im Stopp (R4) -- der Wächter rot. Alle FAILED.
+- **Angepasste Erwartung** (Regel 28): `test_v424::ABGLEICH`, Eintrag `time_tracking.html id=manualHours`: alt ohne Grenze im Code; neu
+  `code={"pflicht": True}` mit Beleg „Bitte die Dauer oder Von und Bis angeben.“ in `app/schemas.py` -- die Stunden sind im Schema optional
+  (ein Nachtrag mit Von/Bis braucht keine), ohne Von/Bis verlangt sie der Validator.
+
+#### Festlegungen 1.9.34 (Bitte bestätigen)
+
+1. **Die Regel gilt, wo die Anwesenheit eingegeben wird**: Timer-Stopp, Ende nachtragen, Nachtrag mit Von/Bis. **Eine Dauer ist gebuchte
+   Arbeitszeit (netto)** und wird nicht gekürzt -- wie „Stunden (netto)“ im Büro (sonst zöge der Server dem Büro die Pause doppelt ab).
+2. **Mindestpause**: die eingegebene Pause (auch die Standardpause aus den Zeitregeln, die die Monteurin beim Nachtragen mitschickt) gilt als
+   Mindestpause, die Regel kann sie erhöhen, nie senken; keine Summe.
+3. **Rundung** wie bisher: nach Abzug der Pause auf die Rundung der Zeitregeln (Nachtrag und Einzel-Stopp; Gruppen-Stopp und
+   Gruppen-Nachtrag weiter ohne Rundung -- Befund, nicht Teil dieser Runde).
+4. **Der Kolonnen-Nachtrag** hat nur „Stunden je Person“ (eine Dauer) und bleibt, wie er ist.
+5. **anwesend ohne Beginn und Ende** (eine Dauer) = gebucht + Pause.

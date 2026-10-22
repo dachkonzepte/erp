@@ -4,6 +4,17 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.34 – Stufe 4, R1: Nachtragen nach derselben Pausenregel wie der Feierabend
+
+Stufe 4 „Monteurin“, Runde 1, Punkt 3. Die Pause rechnete der Stopp eines Timers nach dem Arbeitszeitmodell, der Gruppen-Stopp und der
+Router noch einmal je für sich, der Nachtrag gar nicht: „Von/Bis 7–16 Uhr“ buchte 9 h, derselbe Zeitraum als Timer 8,25 h (Befund Stufe 4).
+Jetzt gibt es eine Funktion, `app/time_tracking.py::pause_nach_zeitregel()` -- die automatische Pause nach der Anwesenheit (Vorgabe ab
+6 h 30 min, ab 9 h 45 min), mindestens die eingegebene Pause („Zusätzliche Pause“ bleibt Mindestpause, keine Summe). Stopp, Gruppen-Stopp und
+der neue Nachtrag mit Von/Bis nehmen sie; ein Wächter findet jede zweite Rechnung unter `app/`. Ein Nachtrag schickt jetzt Von und Bis an den
+Server (bis dahin rechnete die Seite die Stunden selbst), der Server zieht die Pause ab; eine reine Dauer bleibt gebuchte Arbeitszeit (netto)
+wie „Stunden (netto)“ im Büro. Jede Zeitbuchung nennt in der Antwort `anwesend`, `pause` und `gebucht`; die Zeiterfassung der Monteurin zeigt
+sie nach dem Nachtragen. Neuer Test `test_v462`.
+
 ## 1.9.33 – Stufe 4, R1: Einsätze und Feierabend nur in der Monteursansicht
 
 Stufe 4 „Monteurin“, Runde 1, Punkt 1. `GET /api/field-view/today` hatte keine Rollenprüfung und meldete ab der Feierabend-Uhrzeit jeder Rolle

@@ -177,7 +177,9 @@ ABGLEICH = [
     # -- Zeiterfassung
     Z("time_backoffice.html", None, ("TimeEntryUpdate.hours",), lesen=("zahlFeld('editHours')",)),
     Z("time_tracking.html", "id=stopBreak", ("TimeTimerStop.break_minutes", "TimeGroupTimerStop.break_minutes")),
-    Z("time_tracking.html", "id=manualHours", ("TimeEntryManualCreate.hours", "TimeEntryUpdate.hours"), lesen=("zahlFeld('manualHours')",)),
+    # seit 1.9.34 sind die Stunden im Schema optional (ein Nachtrag mit Von/Bis braucht keine) -- ohne Von/Bis verlangt sie der Validator
+    Z("time_tracking.html", "id=manualHours", ("TimeEntryManualCreate.hours", "TimeEntryUpdate.hours"), lesen=("zahlFeld('manualHours')",),
+      code={"pflicht": True}, beleg=("app/schemas.py", "Bitte die Dauer oder Von und Bis angeben.")),
     Z("time_tracking.html", "id=manualBreak", ("TimeEntryManualCreate.break_minutes", "TimeEntryUpdate.break_minutes")),
     Z("time_tracking.html", "id=groupHours", ("TimeGroupManualCreate.hours", "TimeGroupUpdate.hours"), lesen=("zahlFeld('groupHours')",)),
     Z("time_tracking.html", "id=groupBreak", ("TimeGroupManualCreate.break_minutes", "TimeGroupUpdate.break_minutes")),

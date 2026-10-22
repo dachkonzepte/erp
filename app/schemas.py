@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import ClassVar, Literal
 from urllib.parse import urlparse
@@ -3132,9 +3132,21 @@ class TimeEntryManualCreate(BaseModel):
     work_date: date
     entry_type: str = Field(default="site", max_length=40)
     activity: str | None = Field(default=None, max_length=180)
-    hours: Decimal = Field(ge=Decimal("0.01"), le=24)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    # seit 1.9.34: entweder die Dauer (gebuchte Arbeitszeit, netto) oder Von und Bis (die Anwesenheit -- der Server zieht die Pause nach
+    # der Zeitregel ab, app/time_tracking.py::nachtrag_nach_zeitregel())
+    hours: Decimal | None = Field(default=None, ge=Decimal("0.01"), le=24)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    von: time | None = None
+    bis: time | None = None
     break_minutes: int = Field(default=0, ge=0, le=720)
     notes: str | None = None
+
+    @model_validator(mode="after")
+    def _dauer_oder_von_bis(self):
+        if (self.von is None) != (self.bis is None):
+            raise ValueError("Bitte Von und Bis angeben.")
+        if self.von is None and self.hours is None:
+            raise ValueError("Bitte die Dauer oder Von und Bis angeben.")
+        return self
 
 class TimeEntryUpdate(PartialUpdate):
     """Teil-Update: die mobile Zeiterfassung bearbeitet weder Pause noch LV-Position (bis 1.8.24
@@ -3241,6 +3253,10 @@ class TimeEntryOut(BaseModel):
     source: str
     status: str
     created_at: datetime
+    # Seit 1.9.34 (Stufe 4, R1): anwesend (Stunden vor Abzug der Pause), Pause (Minuten), gebucht (Stunden) -- bei laufender Zeit leer
+    anwesend: Decimal | None = None
+    pause: int | None = None
+    gebucht: Decimal | None = None
     # Seit 1.7.12 (Nachvollziehbarkeit Kolonnenführer): wer die Buchung angelegt hat -- bei einer
     # Gruppenbuchung ist das der Kolonnenführer, nicht der Mitarbeiter, dem sie gehört.
     booked_by_name: str | None = None

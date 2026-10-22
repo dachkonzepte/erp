@@ -13,7 +13,7 @@ from .models import (
 )
 
 from .rounding import round_half_up, round_hours
-from .work_time_models import automatic_break_minutes_for_timer
+from .work_time_models import automatic_break_minutes_for_duration
 
 ENTRY_TYPES = {"site", "workshop", "travel", "other"}
 # Zeitarten, die NIE als produktiv gelten -- travel (Fahrzeit) sowie die beiden Schlechtwetter-
@@ -44,6 +44,35 @@ def compute_hours(started_at: datetime, ended_at: datetime, break_minutes: int =
     if net <= 0:
         raise ValueError("Die Netto-Arbeitszeit muss größer als 0 sein.")
     return net.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+
+
+def anwesend_stunden(beginn: datetime, ende: datetime) -> Decimal:
+    """Seit 1.9.34: die Anwesenheit zwischen Beginn und Ende in Stunden (vor Abzug der Pause)."""
+    return (Decimal(str((ende - beginn).total_seconds())) / Decimal("3600")).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+
+
+def pause_nach_zeitregel(db: Session, employee_id: int, anwesend, am: date, mindestpause: int = 0) -> int:
+    """Seit 1.9.34 (Stufe 4, R1, Punkt 3): die EINE Pausenregel -- für den Feierabend (Stopp eines Timers, auch einer Gruppe), Ende
+    nachtragen und den Nachtrag mit Von/Bis. Die automatische Pause des Arbeitszeitmodells nach der Anwesenheit (app/work_time_models.py,
+    Vorgabe ab 6 h 30 min, ab 9 h 45 min), mindestens die eingegebene Pause -- „Zusätzliche Pause“ bleibt Mindestpause, keine Summe.
+    Bis 1.9.33 rechneten Stopp und Gruppen-Stopp sie je für sich, der Nachtrag gar nicht (er speicherte die Pause nur)."""
+    automatisch = automatic_break_minutes_for_duration(db, employee_id, Decimal(str(anwesend or 0)), am)
+    return max(0, int(mindestpause or 0), int(automatisch or 0))
+
+
+def nachtrag_nach_zeitregel(db: Session, *, employee_id: int, work_date: date, von: time, bis: time, mindestpause: int = 0) -> dict:
+    """Seit 1.9.34: ein Nachtrag mit Von/Bis (die Anwesenheit ist bekannt) nach der Pausenregel -- Rückgabe anwesend, pause, netto (vor
+    der Rundung), beginn, ende. Eine reine Dauer ist dagegen gebuchte Arbeitszeit (netto) und bleibt, wie sie ist (wie „Stunden (netto)“
+    im Büro)."""
+    beginn, ende = datetime.combine(work_date, von), datetime.combine(work_date, bis)
+    if ende <= beginn:
+        raise ValueError("Bis muss nach Von liegen.")
+    anwesend = anwesend_stunden(beginn, ende)
+    pause = pause_nach_zeitregel(db, employee_id, anwesend, work_date, mindestpause)
+    netto = anwesend - Decimal(pause) / Decimal("60")
+    if netto <= 0:
+        raise ValueError("Nach Abzug der Pause bleibt keine Arbeitszeit.")
+    return {"anwesend": anwesend, "pause": pause, "netto": netto, "beginn": beginn, "ende": ende}
 
 
 def load_entry(db: Session, entry_id: int) -> TimeEntry | None:
@@ -93,9 +122,9 @@ def create_manual_entry(
     if entry_type not in ENTRY_TYPES:
         # frei gepflegte Typen bleiben möglich; nur travel ist nicht-produktiv
         entry_type = entry_type.strip() or "other"
+    # Seit 1.9.34 sind die Stunden immer die gebuchten (netto): ein Nachtrag mit Von/Bis rechnet sie vorher nach der Pausenregel
+    # (nachtrag_nach_zeitregel()) und gibt Beginn und Ende als Nachweis mit -- bis dahin rechnete diese Funktion sie selbst ohne Regel.
     amount = _d(hours)
-    if started_at and ended_at:
-        amount = compute_hours(started_at, ended_at, break_minutes)
     if amount <= 0:
         raise ValueError("Die Stunden müssen größer als 0 sein.")
     row = TimeEntry(
@@ -143,8 +172,11 @@ def stop_timer(db: Session, entry_id: int, *, ended_at: datetime | None = None, 
         raise ValueError("Diese Zeiterfassung läuft nicht mehr.")
     end = ended_at or berlin_now()
     row.ended_at = end
-    auto_break = automatic_break_minutes_for_timer(db, row.employee_id, row.started_at, end)
-    row.break_minutes = max(0, int(break_minutes or 0), int(auto_break or 0))
+    if end > row.started_at:
+        row.break_minutes = pause_nach_zeitregel(db, row.employee_id, anwesend_stunden(row.started_at, end), row.started_at.date(),
+                                                 break_minutes)
+    else:
+        row.break_minutes = max(0, int(break_minutes or 0))  # compute_hours() lehnt das Ende gleich darauf ab
     row.hours = compute_hours(row.started_at, end, row.break_minutes)
     row.status = "booked"
     link = _group_link_for_entry(db, row.id)
@@ -230,10 +262,23 @@ def entry_to_dict(row: TimeEntry) -> dict:
         "counts_as_productive": row.counts_as_productive, "activity": row.activity,
         "started_at": row.started_at, "ended_at": row.ended_at, "break_minutes": row.break_minutes,
         "hours": row.hours, "notes": row.notes, "source": row.source, "status": row.status,
+        # seit 1.9.34 (Stufe 4, R1): anwesend (Stunden vor Abzug der Pause), Pause (Minuten), gebucht (Stunden) -- anwesend aus Beginn und
+        # Ende, ohne beide (eine reine Dauer) gebucht + Pause; eine laufende Zeit hat noch keins
+        **_anwesend_pause_gebucht(row),
         "created_at": row.created_at,
         "booked_by_name": row.created_by.display_name if row.created_by else None,
         "booked_by_employee_id": row.created_by.employee_id if row.created_by else None,
     }
+
+
+def _anwesend_pause_gebucht(row: TimeEntry) -> dict:
+    if row.status == "running":
+        return {"anwesend": None, "pause": None, "gebucht": None}
+    if row.started_at and row.ended_at and row.ended_at > row.started_at:
+        anwesend = anwesend_stunden(row.started_at, row.ended_at)
+    else:
+        anwesend = (_d(row.hours) + Decimal(int(row.break_minutes or 0)) / Decimal("60")).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+    return {"anwesend": anwesend, "pause": int(row.break_minutes or 0), "gebucht": row.hours}
 
 
 # Höchste Zeilenzahl je Abruf von list_entries() mit einer Zahl als limit, damit auch von
@@ -463,7 +508,7 @@ def start_group_timer(db: Session, *, employee_ids: list[int], team_id: int | No
     db.commit();return db.get(TimeEntryGroup,group.id)
 
 
-def stop_group_timer(db: Session, group_id: int, *, ended_at: datetime | None=None, break_minutes: int=0, break_minutes_by_employee: dict[int,int] | None=None) -> TimeEntryGroup:
+def stop_group_timer(db: Session, group_id: int, *, ended_at: datetime | None=None, break_minutes: int=0) -> TimeEntryGroup:
     group=db.get(TimeEntryGroup,group_id)
     if group is None: raise ValueError("Gruppenbuchung wurde nicht gefunden.")
     if group.status!='running' or group.started_at is None: raise ValueError("Diese Gruppenbuchung läuft nicht mehr.")
@@ -473,10 +518,9 @@ def stop_group_timer(db: Session, group_id: int, *, ended_at: datetime | None=No
     for link in links:
         entry=db.get(TimeEntry,link.time_entry_id)
         if entry and entry.status=='running':
-            auto=(break_minutes_by_employee or {}).get(link.employee_id)
-            if auto is None:
-                auto=automatic_break_minutes_for_timer(db,link.employee_id,group.started_at,end)
-            applied=max(0,int(break_minutes or 0),int(auto or 0))
+            # seit 1.9.34 dieselbe Pausenregel wie der Einzel-Stopp, je Mitglied nach seinem Arbeitszeitmodell (pause_nach_zeitregel())
+            applied=(pause_nach_zeitregel(db,link.employee_id,anwesend_stunden(group.started_at,end),group.started_at.date(),break_minutes)
+                     if end>group.started_at else max(0,int(break_minutes or 0)))
             amount=compute_hours(group.started_at,end,applied)
             entry.ended_at=end;entry.break_minutes=applied;entry.hours=amount;entry.status='booked'
             amounts.append(amount);applied_breaks.append(applied)
