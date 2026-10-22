@@ -51,6 +51,7 @@ from ..concern_notices import OPEN_CONCERNS_TEXT, open_concerns
 from ..deps import require_admin
 from ..document_categories import field_may_see_category
 from ..field_timesheet_pdf import build_field_timesheet_pdf
+from ..heute import heute_fuer
 from ..maintenance_contracts import list_relevant_contracts_for_employee
 from ..mobile_manifest import build_icon_png, build_manifest
 from ..mobile_settings import load_mobile_settings, is_past_shift_end, mobile_settings_to_dict, update_mobile_settings
@@ -134,6 +135,8 @@ def get_field_view_today(request: Request, db: Session = Depends(get_db, scope="
         "open_concerns_text": OPEN_CONCERNS_TEXT,
         # seit 1.9.35 (Stufe 4, R1): eine Zeit, die seit einem früheren Tag läuft (vergessener Feierabend) -- nichts schließt sie von selbst
         "offene_zeit": offene_zeit_info(db, user.employee_id),
+        # seit 1.9.44 (Stufe 4, R2): alles für „Heute“ oben auf /mobil (app/heute.py) -- Arbeitszeit, Einsatz je Auftrag, Offen, Nächste Tage
+        "heute": heute_fuer(db, user.employee_id, heute=_now().date(), jetzt=_now(), ist_monteur=user.role == ROLE_FIELD),
     }
 
 

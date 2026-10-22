@@ -26,7 +26,7 @@ vorkommt, färbt den Test ebenfalls rot."""
 import importlib
 import importlib.util
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from io import BytesIO
 from pathlib import Path
@@ -354,8 +354,12 @@ def _monteur_welt(db: Session) -> dict:
                         notes="Eigene Notiz", created_by_user_id=user.id)
     create_manual_entry(db, employee_id=kollege.id, order_id=order.id, work_date=today, hours=Decimal("3"),
                         notes="Notiz des Kollegen")
+    # seit 1.9.44 seit gestern (vergessener Feierabend): so liefern „Heute“ (Zustand „früher“) und die Vorschau „Ende nachtragen“ Inhalt
     start_group_timer(db, employee_ids=[monteur.id, kollege.id], team_id=team.id, actor_employee_id=monteur.id,
-                      is_admin=False, order_id=order.id, notes="Kolonne läuft", created_by_user_id=user.id)
+                      is_admin=False, order_id=order.id, notes="Kolonne läuft", created_by_user_id=user.id,
+                      started_at=datetime.combine(today - timedelta(days=1), time(7)))
+    from app.models import TimeEntry
+    laufend = db.scalar(select(TimeEntry.id).where(TimeEntry.employee_id == monteur.id, TimeEntry.status == "running"))
     create_request(db, employee_id=monteur.id, absence_type="Urlaub", absence_category="urlaub",
                    start_date=today + timedelta(days=30), end_date=today + timedelta(days=31), notes="Familienfeier")
     create_contract(db, customer.id, prop.id, "Wartung Halle Süd", 12, next_due_date=today,
@@ -419,6 +423,7 @@ def _monteur_welt(db: Session) -> dict:
         "attachment_id": checklist["attachments"][0]["id"], "customer_id": customer.id,
         "project_id": order.project_id, "material_id": material.id, "item_id": inspection["id"],
         "team_id": team.id, "kollege_id": kollege.id,
+        "entry_id": laufend, "ende_gestern": f"{(today - timedelta(days=1)).isoformat()}T15:00",  # seit 1.9.44
     }
 
 
@@ -451,6 +456,8 @@ QUERY_JE_ROUTE = {
     "/api/email-dispatches/delivery-recipients": {"document_type": "auftrag", "document_id": "@order_id"},
     # Vorschlag zum Zahlungseingang (seit 1.8.78)
     "/api/invoices/{invoice_id}/payment-proposal": {"amount": "100", "received_on": "2026-10-01"},
+    # Vorschau „Ende nachtragen“ (seit 1.9.44): die Gruppenzeit der Testdaten läuft seit gestern
+    "/api/time-entries/{entry_id}/ende-vorschau": {"ende": "@ende_gestern"},
 }
 
 

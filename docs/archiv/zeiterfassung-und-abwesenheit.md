@@ -458,3 +458,24 @@ Zeitregeln nach dem Abschalten des Standardmodells nicht mehr speichern. Herleit
 In der Büro-Zeiterfassung sucht „Ändern“ die Buchung in der Liste „Heutige Buchungen“ und in der Auswertung; bis 1.9.14 nur in der
 Auswertung -- bei einem anderen Datum tat der Knopf still nichts. Steht sie in keiner, sagt die Seite das. Herleitung:
 `docs/archiv/redesign.md`, „Runde 7“, „Punkt 3 (1.9.15)“; `tests/test_v449_zeiterfassung_aendern.py`.
+
+## „Heute“: Zeitart wechseln und Vorschau „Ende nachtragen“ (seit 1.9.44)
+
+Für „Heute“ auf /mobil (Stufe 4, R2, `docs/archiv/redesign.md`, „R2 Punkte 2–5 (1.9.44)“) zwei neue Wege und eine gemeinsame Rechnung:
+`ende_rechnen(db, employee_id, beginn, ende, mindestpause)` liefert anwesend, Pause (`pause_nach_zeitregel()`) und gebuchte Stunden
+(`gebucht_nach_zeitregel()`); Stopp, Gruppen-Stopp (je Mitglied), Zeitart wechseln und `ende_vorschau()` nehmen sie, Ende nachtragen über
+Stopp bzw. Gruppen-Stopp. `GET /api/time-entries/{id}/ende-vorschau?ende=…` prüft wie das Nachtragen (Rechte, Monat abgeschlossen,
+Kolonnenführer) und bucht nichts. `POST /api/time-entries/{id}/zeitart-wechseln` beendet die laufende Zeit jetzt und beginnt im selben
+Augenblick eine neue (LV-Position und Tätigkeit wie bisher) -- nicht für eine Zeit von früher und nicht für eine laufende Gruppenzeit (409).
+
+**Befund (nur berichtet, R2 Punkt 8): die Pausenregel rechnet je Buchung, nicht je Tag.** `pause_nach_zeitregel()` bekommt die
+Anwesenheit genau der Buchung, die gerade endet (Stopp, Gruppen-Stopp, Ende nachtragen, Nachtrag mit Von/Bis); frühere Buchungen desselben
+Tages zählen nicht mit. Vorgabe der Grunddaten: ab 6 h Anwesenheit 30 min, ab 9 h 45 min.
+- Fahrzeit 06:15–07:00 (0:45 h, keine Pause) + Baustelle 07:00–16:00 (9:00 h, 45 min): zusammen 45 min, gebucht 0,75 + 8,25 = 9,00 h -- je
+  Tag (9:45 h) wären es auch 45 min, hier zufällig gleich. Mit Baustelle bis 15:45 (8:45 h, 30 min) wären es je Buchung 30 min, je Tag
+  (9:30 h) 45 min.
+- Zwei Buchungen à 5 h am selben Tag: je Buchung unter 6 h, keine Pause, gebucht 10,00 h; je Tag (10 h) wären es 45 min, gebucht 9,25 h.
+- „Zeitart wechseln“ (seit 1.9.44) teilt einen Tag in Buchungen und macht das häufiger: Baustelle 07:00–12:00, dann Werkstatt bis 16:00 --
+  5 h + 4 h, keine Pause; je Tag (9 h) 45 min.
+- § 4 ArbZG rechnet je Arbeitstag („mehr als sechs bis zu neun Stunden“ 30 min, „mehr als neun Stunden“ 45 min); die Regeln im Code gelten
+  „ab“ der Schwelle (≥), das Gesetz „mehr als“.

@@ -108,4 +108,7 @@ def test_eine_pausenregel_keine_zweite_rechnung():
     assert funde == []
     quelle = ast.parse((ROOT / "app" / "time_tracking.py").read_text(encoding="utf-8"))
     nutzer = {f.name for f in ast.walk(quelle) if isinstance(f, ast.FunctionDef) and _aufrufe(f, "pause_nach_zeitregel")}
-    assert {"stop_timer", "stop_group_timer", "nachtrag_nach_zeitregel"} <= nutzer
+    assert {"ende_rechnen", "nachtrag_nach_zeitregel"} <= nutzer
+    # seit 1.9.44 rechnen Stopp, Gruppen-Stopp, die Vorschau von „Ende nachtragen“ und „Zeitart wechseln“ über ende_rechnen()
+    rechnen = {f.name for f in ast.walk(quelle) if isinstance(f, ast.FunctionDef) and _aufrufe(f, "ende_rechnen")}
+    assert {"stop_timer", "stop_group_timer", "ende_vorschau", "zeitart_wechseln"} <= rechnen

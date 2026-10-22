@@ -3740,3 +3740,62 @@ Pausenregel rechnet. Die Runde beginnt mit den kleinen Punkten (7), dann Server 
 1. **Gezählt werden alle Berichte**, Entwurf wie unterschrieben, je Bericht einmal.
 2. **Die Meldung nennt den Ausweg** „Vorlage kopieren und den Punkt in der Kopie löschen“ -- ein Ausblenden einzelner Punkte gibt es nicht.
 3. **Netz**: ein `IntegrityError` beim Löschen endet ebenfalls in 409 (Anzahl neu gezählt, mindestens 1).
+
+### R2 Punkte 2–5 (1.9.44): der Server für „Heute“
+
+- **Ein Endpunkt**: `GET /api/field-view/today` trägt zusätzlich `heute` (`app/heute.py::heute_fuer()`), die alten Schlüssel bleiben
+  (Tests, ältere Seitenstände). Die Seite rechnet nichts davon nach.
+- **Arbeitszeit** (`arbeitszeit()`): „laeuft“ -- Zeitart, Beginn HH:MM, Dauer in Minuten bis jetzt (Anwesenheit ohne Pause), Auftrag und
+  Objekt; in einer laufenden Gruppe `gruppe.kolonnenfuehrer` nur für den, der sie gestartet hat und es im Team noch ist (wie der
+  Gruppen-Stopp seit 1.8.144), sonst `gruppe.stoppt` mit dessen Namen. „frueher“ -- die Zeit läuft seit einem früheren Tag: Tag, „gestern“,
+  Beginn, `monat_abgeschlossen` (Monteurin, Starttag im abgeschlossenen Zeitraum), `nachtragen_durch` (Mitglied einer Gruppe: der
+  Kolonnenführer). „nichts“ -- buchbare Aufträge (`list_field_bookable_orders()`), `vorbelegt` nur bei genau einem Auftrag im heutigen
+  Einsatz, der buchbar ist. Dazu die aktiven Zeitarten für die Kacheln.
+- **Einsatz** (`einsaetze()`): eine Karte je Auftrag, Zeitraum von der frühesten bis zur spätesten Grenze der heute geltenden Abschnitte;
+  Objekt, Kunde, Adresse wie die Plantafel; darin die eigenen Berichte (Entwürfe mit „noch n offen“ aus `noch_offen()`, dazu heute
+  unterschriebene mit Berichtstag heute) und die eigenen Checklisten am Auftrag (offen mit der Zahl der fehlenden Pflichtangaben aus
+  `missing_required_labels()`, dazu heute abgeschlossene; nie eine nur fürs Büro), offene Bedenken wie bisher.
+- **Offen** (`offen()`): eigene Berichtsentwürfe, eigene offene Checklisten (wie `GET /api/checklists/mine`), Mängel zur Beseitigung (wie
+  `GET /api/field-view/defects`).
+- **Nächste Tage** (`naechste_tage()`): morgen bis heute + 14; je Auftrag aufeinander folgende Tage in einer Zeile; Nebentext „Fortsetzung“,
+  wenn der Auftrag heute Einsatz ist, sonst der Titel des Auftrags (ohne Titel die Nummer). Bei einer offenen Zeit von früher steht heute
+  vorn als eigene Zeile (Vorlage „Heute und nächste Tage“, dort ersetzt diese Liste die Einsatzkarte).
+- **Zeitart wechseln** (`zeitart_wechseln()`, `POST /api/time-entries/{id}/zeitart-wechseln`): die laufende Zeit endet jetzt nach der
+  Zeitregel (`ende_rechnen()`), die neue beginnt im selben Augenblick mit der neuen Zeitart, demselben Auftrag, derselben LV-Position und
+  Tätigkeit; ein Commit. Abgelehnt: fremde Zeit 403, abgeschlossener Zeitraum 403, Zeit von früher 409, laufende Gruppenzeit 409, dieselbe
+  oder eine unbekannte Zeitart 422; dazu die Regeln eines Starts (LV-Position, Tätigkeit, buchbarer Auftrag).
+- **Vorschau** (`ende_vorschau()`, `GET /api/time-entries/{id}/ende-vorschau`): dieselben Prüfungen wie „Ende nachtragen“, dieselbe Rechnung,
+  bucht nichts.
+- Befund zur Pausenregel (Punkt 8, je Buchung statt je Tag): `docs/archiv/zeiterfassung-und-abwesenheit.md`, „„Heute“: Zeitart wechseln und
+  Vorschau“.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v471_heute_server.py` (17 Tests): Vorschau = Buchung (drei Enden bzw. Mindestpause, dazu die Gruppenzeit des
+  Kolonnenführers), Vorschau-Rechte (fremd 403, heute gestartet 409); Arbeitszeit läuft mit Dauer; Gruppenmitglied ohne Knopf / Kolonnenführer
+  mit, ohne Kennzeichen kein Knopf, Gruppen-Stopp durch das Mitglied 403; nichts läuft mit Vorbelegung (ein Auftrag) bzw. ohne (zwei);
+  früher offen mit „Monat abgeschlossen“ und Nachtragen durch den Kolonnenführer; zwei Zeitfenster am selben Auftrag -> eine Karte; heute
+  nicht in „Nächste Tage“, morgen drin, nach 14 Tagen nichts; bei offener Zeit von früher heute vorn; Zeitart wechseln ohne Lücke und
+  Überschneidung, abgelehnt (Gruppe, gestern, fremd, gleich, unbekannt).
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück): Vorschau ohne Mindestpause (P1) -- 1 Test rot; Zeitart wechseln mit Lücke (P2) --
+  1 rot; Einsatz je Abschnitt (P3) -- 1 rot; Nächste Tage ab heute (P4) -- 2 rot; jedes Gruppenmitglied als Kolonnenführer (P5) -- 3 rot;
+  Zeitart wechseln in der Gruppe (P6) -- 1 rot.
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v462::test_eine_pausenregel_keine_zweite_rechnung`: alt Stopp, Gruppen-Stopp und Nachtrag rufen `pause_nach_zeitregel()`; neu
+    `ende_rechnen()` und Nachtrag rufen sie, Stopp, Gruppen-Stopp, Vorschau und Zeitart wechseln rufen `ende_rechnen()`.
+  - `test_v326` (Testdaten, Aufbau): die Gruppenzeit der Monteurin startet gestern 07:00 statt beim Anlegen -- so liefern „Heute“ (Zustand
+    „früher“) und die Vorschau Inhalt; dazu `entry_id` und `ende` für die neue Route. Ein Schlüssel `zusatz` fiel dort als verboten auf
+    (Wortteil „satz“), er heißt `nebentext`.
+
+#### Festlegungen 1.9.44 (Bitte bestätigen)
+
+1. **„Heute“ im bestehenden Endpunkt** `GET /api/field-view/today` (Schlüssel `heute`), kein neuer.
+2. **Zeitart wechseln übernimmt LV-Position und Tätigkeit**; die neue Zeitart nur aus den aktiven Zeitarten; nicht für eine Gruppenzeit (409).
+3. **Knopf in der Gruppe** nur für den, der sie gestartet hat, solange er Kolonnenführer ist; alle anderen „stoppt <Name>“.
+4. **Im Einsatz** die eigenen Berichte (Entwürfe und heute unterschriebene) und eigenen Checklisten (offene und heute abgeschlossene), keine
+   eines Kollegen -- seinen Bericht darf die Monteurin ohnehin nicht öffnen.
+5. **„noch n offen“ einer Checkliste** = Zahl der fehlenden Pflichtangaben (`missing_required_labels()`), wie beim Abschließen.
+6. **Nächste Tage**: Nebentext „Fortsetzung“, wenn der Auftrag heute Einsatz ist, sonst der Titel des Auftrags; bei offener Zeit von früher
+   heute als eigene Zeile vorn, nicht mit den folgenden Tagen zusammengefasst.
+7. **Vorbelegung** nur bei genau einem Auftrag im heutigen Einsatz, der auch buchbar ist.
+8. **Dauer** = Anwesenheit seit Beginn (vor Abzug der Pause), vom Server in Minuten; die Seite zählt jede Minute weiter.

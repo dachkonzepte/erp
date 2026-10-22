@@ -20,7 +20,7 @@ require_admin().
 """
 
 from fastapi import APIRouter
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from fastapi import Depends, HTTPException, Query, Request, Response
 from sqlalchemy.orm import Session
@@ -31,9 +31,10 @@ from ..database import get_db
 from ..models import AppUser, TimeEntry, TimeEntryGroup
 from ..permissions import ROLE_FIELD, darf_zeit_fuer_andere_buchen, require_min_role
 from .orders import require_field_order_access
-from ..schemas import CrewGroupSummaryOut, CrewOut, TimeEntryManualCreate, TimeEntryOut, TimeEntrySummaryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeGroupUpdate, TimeEndeNachtragen, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
+from ..schemas import CrewGroupSummaryOut, CrewOut, TimeEntryManualCreate, TimeEntryOut, TimeEntrySummaryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeGroupUpdate, TimeEndeNachtragen, TimeEndeVorschauOut, TimeZeitartWechseln, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
+from ..heute import zeitarten
 from ..time_backoffice import load_time_settings, locked_until, time_settings_dict
-from ..time_tracking import MAX_LIST_LIMIT, active_group_for_employee, active_entry as active_time_entry, count_entries, create_group_manual_entry, create_manual_entry, crew_leader_team_ids, delete_entry as delete_time_entry_row, delete_group, ende_nachtragen, entry_to_dict, field_time_tracking_context, laeuft_seit_frueher, load_entry, nachtrag_nach_zeitregel, OffeneZeit, group_for_entry, group_member_ids, group_to_dict, list_crews_for_leader, list_entries as list_time_entries, list_groups_initiated_by, start_group_timer, start_timer, stop_group_timer, stop_timer, summarize_entries, time_tracking_context, update_entry as update_time_entry_row, update_group
+from ..time_tracking import MAX_LIST_LIMIT, active_group_for_employee, active_entry as active_time_entry, count_entries, create_group_manual_entry, create_manual_entry, crew_leader_team_ids, delete_entry as delete_time_entry_row, delete_group, ende_nachtragen, ende_vorschau, ZeitartInGruppe, zeitart_wechseln, entry_to_dict, field_time_tracking_context, laeuft_seit_frueher, load_entry, nachtrag_nach_zeitregel, OffeneZeit, group_for_entry, group_member_ids, group_to_dict, list_crews_for_leader, list_entries as list_time_entries, list_groups_initiated_by, start_group_timer, start_timer, stop_group_timer, stop_timer, summarize_entries, time_tracking_context, update_entry as update_time_entry_row, update_group
 
 router = APIRouter()
 
@@ -408,6 +409,33 @@ def ende_nachtragen_endpunkt(entry_id: int, payload: TimeEndeNachtragen, request
     Die eigene Zeit, oder die einer anderen Person nach darf_zeit_fuer_andere_buchen() (heute nur Admin; wer, steht im Verlauf). Ist der
     Monat des Starttags abgeschlossen, schließt sie nur ein Admin (wie jede Änderung dort). Gehört sie zu einer laufenden Gruppe, schließt
     sie nur der Kolonnenführer, der die Gruppe gestartet hat (oder ein Admin) -- für die ganze Gruppe, wie der Gruppen-Stopp."""
+    current = _ende_nachtragen_pruefen(request, db, entry_id)
+    ende = payload.ende
+    if ende.tzinfo is not None:  # Beginn und Ende einer Zeitbuchung sind naive Ortszeit (Regel 20)
+        ende = ende.astimezone(BERLIN).replace(tzinfo=None)
+    try:
+        row = ende_nachtragen(db, entry_id, ende=ende, mindestpause=payload.pause_minuten)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return TimeEntryOut.model_validate(entry_to_dict(load_entry(db, row.id)))
+
+
+@router.get("/api/time-entries/{entry_id}/ende-vorschau", response_model=TimeEndeVorschauOut)
+def ende_vorschau_endpunkt(entry_id: int, ende: datetime, request: Request, pause_minuten: int = Query(0, ge=0, le=720),
+                          db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+    """Seit 1.9.44 (Stufe 4, R2): was „Ende nachtragen“ mit diesem Ende buchen würde -- anwesend, Pause nach der Zeitregel,
+    gebucht --, ohne zu buchen (ende_vorschau(), dieselbe Rechnung wie die Buchung). Dieselben Prüfungen wie das Nachtragen."""
+    _ende_nachtragen_pruefen(request, db, entry_id)
+    if ende.tzinfo is not None:
+        ende = ende.astimezone(BERLIN).replace(tzinfo=None)
+    try:
+        return ende_vorschau(db, entry_id, ende=ende, mindestpause=pause_minuten)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+def _ende_nachtragen_pruefen(request: Request, db: Session, entry_id: int) -> TimeEntry:
+    """Rechte für Ende nachtragen und seine Vorschau (seit 1.9.35, seit 1.9.44 für beide)."""
     current = db.get(TimeEntry, entry_id)
     if current is None:
         raise HTTPException(status_code=404, detail="Zeiterfassung nicht gefunden.")
@@ -429,14 +457,38 @@ def ende_nachtragen_endpunkt(entry_id: int, payload: TimeEndeNachtragen, request
                            and _noch_kolonnenfuehrer(request, db, group))
         if not (darf_zeit_fuer_andere_buchen(user) or kolonnenfuehrer):
             raise HTTPException(status_code=403, detail=GRUPPENZEIT_NUR_KOLONNENFUEHRER)
-    ende = payload.ende
-    if ende.tzinfo is not None:  # Beginn und Ende einer Zeitbuchung sind naive Ortszeit (Regel 20)
-        ende = ende.astimezone(BERLIN).replace(tzinfo=None)
+    return current
+
+
+@router.post("/api/time-entries/{entry_id}/zeitart-wechseln", response_model=TimeEntryOut)
+def zeitart_wechseln_endpunkt(entry_id: int, payload: TimeZeitartWechseln, request: Request,
+                             db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+    """Seit 1.9.44 (Stufe 4, R2): die laufende Zeit endet jetzt nach der Zeitregel, im selben Augenblick beginnt eine neue mit der
+    neuen Zeitart auf demselben Auftrag (zeitart_wechseln()). Nur die eigene Zeit (oder nach darf_zeit_fuer_andere_buchen()), nicht im
+    abgeschlossenen Zeitraum, nicht für eine Zeit von früher und nicht für eine laufende Gruppenzeit (409); dieselben Regeln wie ein
+    Start (LV-Position, Tätigkeit, buchbarer Auftrag) für die neue Zeit."""
+    current = db.get(TimeEntry, entry_id)
+    if current is None:
+        raise HTTPException(status_code=404, detail="Zeiterfassung nicht gefunden.")
+    if not _time_entry_can_edit(request, current):
+        raise HTTPException(status_code=403, detail="Du darfst diese Zeiterfassung nicht ändern.")
+    if current.status != "running":
+        raise HTTPException(status_code=409, detail="Diese Zeiterfassung läuft nicht mehr.")
+    _require_open_period(request, db, current.work_date, berlin_today())
+    if laeuft_seit_frueher(current):
+        raise HTTPException(status_code=409, detail=_stopp_vom_vortag(current.started_at))
+    if payload.entry_type not in {a["value"] for a in zeitarten(db)}:
+        raise HTTPException(status_code=422, detail="Unbekannte Zeitart.")
+    _validate_time_rules(db, order_item_id=current.order_item_id, activity=current.activity)
+    _require_bookable_order(request, db, current.order_id)
+    user = getattr(request.state, "erp_user", None)
     try:
-        row = ende_nachtragen(db, entry_id, ende=ende, mindestpause=payload.pause_minuten)
+        row = zeitart_wechseln(db, entry_id, payload.entry_type, created_by_user_id=getattr(user, "id", None))
+    except (OffeneZeit, ZeitartInGruppe) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return TimeEntryOut.model_validate(entry_to_dict(load_entry(db, row.id)))
+    return TimeEntryOut.model_validate(entry_to_dict(row))
 
 
 @router.put("/api/time-entries/{entry_id}", response_model=TimeEntryOut)

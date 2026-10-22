@@ -129,6 +129,15 @@ def nachtrag_nach_zeitregel(db: Session, *, employee_id: int, work_date: date, v
     return {"anwesend": anwesend, "pause": pause, "netto": netto, "beginn": beginn, "ende": ende}
 
 
+def ende_rechnen(db: Session, employee_id: int, beginn: datetime, ende: datetime, mindestpause: int = 0) -> dict:
+    """Seit 1.9.44 (Stufe 4, R2): anwesend (Stunden), Pause (Minuten) und gebuchte Stunden einer Zeit von beginn bis ende -- die eine
+    Rechnung für den Feierabend (Stopp, Gruppen-Stopp je Mitglied, Zeitart wechseln), Ende nachtragen und dessen Vorschau
+    (ende_vorschau(), „Gebucht werden …“ auf /mobil). compute_hours() lehnt ein Ende vor dem Beginn ab."""
+    anwesend = anwesend_stunden(beginn, ende)
+    pause = pause_nach_zeitregel(db, employee_id, anwesend, beginn.date(), mindestpause)
+    return {"anwesend": anwesend, "pause": pause, "gebucht": gebucht_nach_zeitregel(db, compute_hours(beginn, ende, pause))}
+
+
 def load_entry(db: Session, entry_id: int) -> TimeEntry | None:
     return db.scalar(
         select(TimeEntry)
@@ -234,12 +243,12 @@ def stop_timer(db: Session, entry_id: int, *, ended_at: datetime | None = None, 
         raise ValueError("Diese Zeiterfassung läuft nicht mehr.")
     end = ended_at or berlin_now()
     row.ended_at = end
-    if end > row.started_at:
-        row.break_minutes = pause_nach_zeitregel(db, row.employee_id, anwesend_stunden(row.started_at, end), row.started_at.date(),
-                                                 break_minutes)
+    if end > row.started_at:  # seit 1.9.44 über ende_rechnen() (dieselbe Rechnung wie die Vorschau)
+        werte = ende_rechnen(db, row.employee_id, row.started_at, end, break_minutes)
+        row.break_minutes, row.hours = werte["pause"], werte["gebucht"]
     else:
-        row.break_minutes = max(0, int(break_minutes or 0))  # compute_hours() lehnt das Ende gleich darauf ab
-    row.hours = gebucht_nach_zeitregel(db, compute_hours(row.started_at, end, row.break_minutes))  # seit 1.9.39 hier gerundet
+        row.break_minutes = max(0, int(break_minutes or 0))
+        row.hours = compute_hours(row.started_at, end, row.break_minutes)  # lehnt das Ende ab
     row.status = "booked"
     link = _group_link_for_entry(db, row.id)
     if link is not None:
@@ -255,6 +264,15 @@ def ende_nachtragen(db: Session, entry_id: int, *, ende: datetime, mindestpause:
     Pause nach derselben Regel wie beim Feierabend (pause_nach_zeitregel() über stop_timer()/stop_group_timer()). Gehört die Zeit zu einer
     laufenden Gruppe, schließt sie die Gruppe wie der Gruppen-Stopp. Nur auf Klick; Rechte, Abschluss und Kolonnenführer prüft der Router."""
     row = db.get(TimeEntry, entry_id)
+    _ende_pruefen(row, ende)
+    group = group_for_entry(db, entry_id)
+    if group is not None and group.status == "running":
+        stop_group_timer(db, group.id, ended_at=ende, break_minutes=mindestpause)
+        return load_entry(db, entry_id)
+    return stop_timer(db, entry_id, ended_at=ende, break_minutes=mindestpause)
+
+
+def _ende_pruefen(row: TimeEntry | None, ende: datetime) -> None:
     if row is None or row.status != "running" or row.started_at is None:
         raise ValueError("Diese Zeit ist schon geschlossen.")
     if not laeuft_seit_frueher(row):
@@ -263,11 +281,50 @@ def ende_nachtragen(db: Session, entry_id: int, *, ende: datetime, mindestpause:
         raise ValueError(f"Das Ende muss am Starttag liegen ({row.started_at:%d.%m.%Y}).")
     if ende <= row.started_at:
         raise ValueError(f"Das Ende muss nach dem Start liegen ({row.started_at:%H:%M} Uhr).")
+
+
+def ende_vorschau(db: Session, entry_id: int, *, ende: datetime, mindestpause: int = 0) -> dict:
+    """Seit 1.9.44 (Stufe 4, R2): was ende_nachtragen() mit diesem Ende buchen würde -- anwesend, Pause, gebucht --, ohne zu buchen.
+    Dieselbe Prüfung und dieselbe Rechnung (ende_rechnen() mit dem Beginn, den auch der Stopp nimmt: in einer laufenden Gruppe deren
+    Beginn), für die Person dieser Zeit."""
+    row = db.get(TimeEntry, entry_id)
+    _ende_pruefen(row, ende)
+    group = group_for_entry(db, entry_id)
+    beginn = group.started_at if group is not None and group.status == "running" else row.started_at
+    return ende_rechnen(db, row.employee_id, beginn, ende, mindestpause)
+
+
+class ZeitartInGruppe(ValueError):
+    """Seit 1.9.44: eine Gruppenzeit wechselt die Zeitart nicht (409) -- sie stoppt der Kolonnenführer für alle."""
+
+
+def zeitart_wechseln(db: Session, entry_id: int, entry_type: str, *, jetzt: datetime | None = None,
+                     created_by_user_id: int | None = None) -> TimeEntry:
+    """Seit 1.9.44 (Stufe 4, R2): „Zeitart wechseln“ auf /mobil -- die laufende Zeit endet jetzt (wie der Feierabend, Pause nach der
+    Zeitregel über ende_rechnen()), im selben Augenblick beginnt eine neue mit der neuen Zeitart auf demselben Auftrag (LV-Position und
+    Tätigkeit wie bisher): keine Lücke, keine Überschneidung, ein Commit. Nicht für eine Zeit von früher (erst Ende nachtragen) und nicht
+    für eine laufende Gruppenzeit."""
+    row = db.get(TimeEntry, entry_id)
+    if row is None or row.status != "running" or row.started_at is None:
+        raise ValueError("Diese Zeiterfassung läuft nicht mehr.")
+    if laeuft_seit_frueher(row):
+        raise OffeneZeit(f"Die Zeit vom {row.started_at:%d.%m.%Y} läuft noch – zuerst das Ende nachtragen.")
     group = group_for_entry(db, entry_id)
     if group is not None and group.status == "running":
-        stop_group_timer(db, group.id, ended_at=ende, break_minutes=mindestpause)
-        return load_entry(db, entry_id)
-    return stop_timer(db, entry_id, ended_at=ende, break_minutes=mindestpause)
+        raise ZeitartInGruppe("Eine Gruppenzeit wechselt die Zeitart nicht – Feierabend für die Gruppe macht der Kolonnenführer.")
+    if entry_type == row.entry_type:
+        raise ValueError("Diese Zeitart läuft schon.")
+    jetzt = jetzt or berlin_now()
+    werte = ende_rechnen(db, row.employee_id, row.started_at, jetzt)
+    row.ended_at, row.break_minutes, row.hours, row.status = jetzt, werte["pause"], werte["gebucht"], "booked"
+    neu = TimeEntry(
+        employee_id=row.employee_id, project_id=row.project_id, order_id=row.order_id, order_item_id=row.order_item_id,
+        work_date=jetzt.date(), entry_type=entry_type, counts_as_productive=entry_type_is_productive(entry_type), activity=row.activity,
+        started_at=jetzt, ended_at=None, break_minutes=0, hours=Decimal("0"), notes=None, source="timer", status="running",
+        created_by_user_id=created_by_user_id,
+    )
+    db.add(neu); db.commit()
+    return load_entry(db, neu.id)
 
 
 def _group_link_for_entry(db: Session, entry_id: int) -> TimeEntryGroupMember | None:
@@ -605,9 +662,11 @@ def stop_group_timer(db: Session, group_id: int, *, ended_at: datetime | None=No
         entry=db.get(TimeEntry,link.time_entry_id)
         if entry and entry.status=='running':
             # seit 1.9.34 dieselbe Pausenregel wie der Einzel-Stopp, je Mitglied nach seinem Arbeitszeitmodell (pause_nach_zeitregel())
-            applied=(pause_nach_zeitregel(db,link.employee_id,anwesend_stunden(group.started_at,end),group.started_at.date(),break_minutes)
-                     if end>group.started_at else max(0,int(break_minutes or 0)))
-            amount=gebucht_nach_zeitregel(db,compute_hours(group.started_at,end,applied))  # seit 1.9.39 je Mitglied wie ein Einzel-Stopp
+            # seit 1.9.44 über ende_rechnen() -- dieselbe Rechnung wie Einzel-Stopp und Vorschau (seit 1.9.39 je Mitglied gerundet)
+            if end>group.started_at:
+                werte=ende_rechnen(db,link.employee_id,group.started_at,end,break_minutes);applied,amount=werte["pause"],werte["gebucht"]
+            else:
+                applied=max(0,int(break_minutes or 0));amount=compute_hours(group.started_at,end,applied)  # lehnt das Ende ab
             entry.ended_at=end;entry.break_minutes=applied;entry.hours=amount;entry.status='booked'
             amounts.append(amount);applied_breaks.append(applied)
     group.ended_at=end

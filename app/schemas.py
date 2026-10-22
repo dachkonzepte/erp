@@ -3176,6 +3176,16 @@ class TimeTimerStop(BaseModel):
     ended_at: datetime | None = None
     break_minutes: int = Field(default=0, ge=0, le=720)
 
+class TimeZeitartWechseln(BaseModel):
+    """Seit 1.9.44 (Stufe 4, R2): die neue Zeitart -- die laufende Zeit endet, eine neue beginnt im selben Augenblick."""
+    entry_type: str = Field(min_length=1, max_length=40)
+
+class TimeEndeVorschauOut(BaseModel):
+    """Seit 1.9.44: was „Ende nachtragen“ mit diesem Ende buchen würde (time_tracking.ende_vorschau())."""
+    anwesend: Decimal
+    pause: int
+    gebucht: Decimal
+
 class TimeEndeNachtragen(BaseModel):
     """Seit 1.9.35 (Stufe 4, R1): das Ende einer Zeit, die seit einem früheren Tag läuft -- am Starttag, nach dem Start; Pause nach der
     Zeitregel, die eingegebene als Mindestpause."""
