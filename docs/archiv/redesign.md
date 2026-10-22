@@ -3568,3 +3568,22 @@ nennt sie. Anlass: Endlauf zu 1.9.37 (siehe „R1 Nachtrag“). Keine Festlegung
    dann auf zwei Stellen rundete (`round_hours()`); so ergeben Nachtrag mit Von/Bis und Stopp derselben Zeiten genau dieselben Stunden.
 2. **Gruppen-Nachtrag**: die eingegebenen Stunden je Person werden einmal gerundet, jede Person bekommt denselben Wert.
 3. **Ändern** einer Buchung (einzeln oder Gruppe) rundet weiter nicht -- wie bisher, nicht Teil dieser Vorgabe.
+
+### Nachrunde Punkt 4 (1.9.40): Zeiterfassung der Monteurin
+
+- **Alte Meldung**: `endeNachtragen()` leert nach dem Erfolg `#quickStatus` (Meldung des abgelehnten Starts) und `#endeStatus`.
+- **„✓“**: Befund -- das Zeichen kam nicht vom Start. `renderQuickTiles()` und `renderManualTiles()` hängen seit 1.5.3 an die zur
+  Jahreszeit passende Schlechtwetter-Zeitart (`weatherSeasonFor()`: 1.12.–31.3. Winter, sonst Sommer) „✓“ und einen grünen Rand; das stand
+  vor und nach jedem Klick da. Jetzt der Text „Vorschlag“ (`.vorschlag`, kleine zweite Zeile) statt „✓“, der Rand bleibt.
+
+#### Tests und Prüfung
+
+- `klicktest_monteurin_regeln` um zwei Prüfungen ergänzt (29): nach dem abgelehnten Start kein „✓“ an einer Kachel, „Vorschlag“ als Text;
+  nach „Ende nachtragen“ sind beide Meldungen leer.
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück): wieder „✓“ (V1) -- 1 Prüfung rot; Meldung bleibt (V2) -- 1 Prüfung rot.
+- **Angepasste Erwartungen**: keine.
+
+#### Festlegungen 1.9.40 (Bitte bestätigen)
+
+1. **„Vorschlag“ statt „✓“** an der vorgeschlagenen Schlechtwetter-Kachel, in „Schnell starten“ und im Dialog „Nachtragen“; der grüne Rand
+   bleibt.

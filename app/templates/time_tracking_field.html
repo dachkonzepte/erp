@@ -49,6 +49,9 @@
     .tiles button.travel{border-color:var(--travel-btn)}
     .tiles button.workshop{border-color:var(--workshop-btn)}
     .tiles button.suggested{box-shadow:inset 0 0 0 2px var(--ds-ok)}
+    /* seit 1.9.40: die vorgeschlagene Schlechtwetter-Zeitart trägt „Vorschlag“ statt „✓“ (las sich wie „gestartet“) */
+    .tiles .vorschlag{display:block;font-size:11.5px;font-weight:600;color:var(--muted);margin-top:2px}
+    .tiles button.selected .vorschlag{color:inherit}
     .tiles button.selected{background:var(--ds-aktion);color:#fff;border-color:var(--ds-aktion)}
     .timer-time{font-size:30px;font-weight:900;letter-spacing:.02em;margin:6px 0 2px}
     .timer-context{font-weight:700}
@@ -260,7 +263,7 @@ function renderQuickTiles(){
   const suggested=weatherSeasonFor(today());
   $('quickTiles').innerHTML=types.map(t=>{
     const isSuggested=WEATHER_TYPES.includes(t.value)&&t.value===suggested;
-    return `<button type="button" class="${typeCssClass(t.value)}${isSuggested?' suggested':''}" data-value="${esc(t.value)}">▶ ${esc(t.label)}${isSuggested?' ✓':''}</button>`;
+    return `<button type="button" class="${typeCssClass(t.value)}${isSuggested?' suggested':''}" data-value="${esc(t.value)}">▶ ${esc(t.label)}${isSuggested?'<span class="vorschlag">Vorschlag</span>':''}</button>`;
   }).join('');
   $('quickTiles').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>startQuick(b.dataset.value)));
 }
@@ -268,7 +271,7 @@ function renderManualTiles(){
   const suggested=weatherSeasonFor($('manualDate').value||today());
   $('manualTiles').innerHTML=types.map(t=>{
     const isSuggested=WEATHER_TYPES.includes(t.value)&&t.value===suggested;
-    return `<button type="button" class="${typeCssClass(t.value)}${t.value===manualType?' selected':''}${isSuggested?' suggested':''}" data-value="${esc(t.value)}">${esc(t.label)}${isSuggested?' ✓':''}</button>`;
+    return `<button type="button" class="${typeCssClass(t.value)}${t.value===manualType?' selected':''}${isSuggested?' suggested':''}" data-value="${esc(t.value)}">${esc(t.label)}${isSuggested?'<span class="vorschlag">Vorschlag</span>':''}</button>`;
   }).join('');
   $('manualTiles').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{manualType=b.dataset.value;renderManualTiles()}));
 }
@@ -328,6 +331,8 @@ async function endeNachtragen(){
     const url=`/api/time-entries/${active.id}/ende-nachtragen`,body=JSON.stringify({ende:`${active.work_date}T${zeit}`,pause_minuten:zahlFeld('stopBreak',{leer:0})});
     const d=await speichern('timer',()=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:body}));
     $('buchungsHinweis').textContent=d?`Ende nachgetragen: gebucht ${zahlText(d.gebucht,2)} h · anwesend ${zahlText(d.anwesend,2)} h · Pause ${zahlText(d.pause,0)} min`:'';
+    // seit 1.9.40: die Meldung eines abgelehnten Starts („… läuft noch …“) ist danach erledigt
+    $('quickStatus').textContent='';$('endeStatus').textContent='';
     $('stopBreak').value=zahlText(0);$('endeZeit').value='';await loadActive();await loadEntries();await loadCrewState();
   }catch(e){$('endeStatus').textContent=e.message}
 }

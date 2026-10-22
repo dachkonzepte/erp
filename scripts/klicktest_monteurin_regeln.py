@@ -151,6 +151,10 @@ async def pruefen(tab, seed, p):
              f"Fehler: Die Zeit vom {g} läuft noch – zuerst das Ende nachtragen, dann neu starten.")
     await tab.js("document.getElementById('quickCard').scrollIntoView({block:'center'})")
     await tab.bild("2_start_mit_offener_zeit_dunkel_412")
+    # seit 1.9.40: an keiner Kachel ein „✓“ (bis 1.9.39 trug die vorgeschlagene Schlechtwetter-Zeitart eins, las sich wie „gestartet“)
+    p.pruefe("Abgelehnter Start: kein „✓“ an einem Knopf, Vorschlag als Text", await tab.js(
+        "[[...document.querySelectorAll('#quickTiles button')].some(b=>b.textContent.includes('✓')),"
+        "[...document.querySelectorAll('#quickTiles .vorschlag')].map(s=>s.textContent)]"), [False, ["Vorschlag"]])
 
     await tab.js("window.scrollTo(0,0);document.getElementById('endeBtn').click()")
     p.pruefe("Ende leer: Meldung", await tab.js("document.getElementById('endeStatus').textContent"), "Bitte das Ende angeben.")
@@ -165,6 +169,9 @@ async def pruefen(tab, seed, p):
              "Ende nachgetragen: gebucht 8,50 h · anwesend 9,25 h · Pause 45 min")
     p.pruefe("Danach: keine laufende Zeit, „Schnell starten“ sichtbar", await tab.js(
         "[document.getElementById('activeCard').hidden, document.getElementById('quickCard').hidden]"), [True, False])
+    # seit 1.9.40: die Meldung des abgelehnten Starts ist nach „Ende nachtragen“ weg
+    p.pruefe("Nach „Ende nachtragen“: alte Meldungen weg", await tab.js(
+        "[document.getElementById('quickStatus').textContent, document.getElementById('endeStatus').textContent]"), ["", ""])
     await tab.bild("4_ende_nachgetragen_dunkel_412")
     await tab.js(f"document.getElementById('quickOrder').value='{seed['auftrag']}'")
     await tab.js("document.querySelector('#quickTiles button').click()")
