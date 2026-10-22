@@ -3229,3 +3229,22 @@ und Klicktests auf sauberer Arbeitskopie für Teil A. Bericht je Punkt. Dazu als
 - **Bilder**: `bildgrundlage/nachtrag_stufe2_6d81016.zip` (20 Dateien): die neun Seiten der Monteurin als Fenster 1280 × 620 und
   800 × 1100 hell (`monteursseiten_heute/`), die Projektmappe 1440 × 900 hell vorher (`cb27ba5`) und nachher (`ecken_vorher_nachher/`).
 - **Teil B**: Befund Stufe 4 „Monteurin“ in `docs/archiv/befund-monteurin.md` (nur Befund, nichts am Programm geändert).
+
+## Stufe 4 „Monteurin“ (ab 1.9.33)
+
+Grundlage: `docs/archiv/befund-monteurin.md` (Befund vom 22.10.2026, Entwurf von Tobias freigegeben). Plan der Stufe:
+
+| Runde | Inhalt |
+|---|---|
+| R1 | **Regeln** (Server und kleinste Anzeige): Zugriff auf die Einsätze nur für die Rollen der Monteursansicht, vergessener Feierabend („Ende nachtragen“, nichts automatisch), eine Pausenregel für Stopp und Nachtrag, Pflichten des Einsatzberichts vor jeder Unterschrift, Pflichtpunkte sichtbar und nicht löschbar, im PDF nur die Zeiten des Einsatzes |
+| R2 | **Heute** -- die Karte oben auf /mobil (Zeitstatus, heutiger Einsatz, nächster Schritt) |
+| R3 | **Meine Zeiten und Nachtragen** -- die Zeiterfassung der Monteurin neu |
+| R4 | **Einsatzbericht in 5 Schritten** und Tablet-Ziele (Fingermaße) |
+| R5 | **Büro**: Einsätze, Zeiterfassung der Monteure, Stundenzettel aus Sicht des Büros |
+
+Vorgabe R1 vom 22.10.2026 (übernommen wie gegeben, gekürzt um die Testliste): „Stufe 4 · Runde 1 – Regeln für die Monteurin (Server +
+Minimal-Anzeige). […] Diese Runde baut nur die Regeln; die neuen Oberflächen kommen ab Runde 2. […] 1. Zugriff – GET /api/field-view/today
+nur für Rollen mit /mobil, sonst 403. Büro-Nutzer werden auf /mobil nach 19 Uhr nicht mehr abgemeldet (Ursache aus dem Befund beheben).
+2. Vergessener Feierabend – nichts automatisch […] 3. Nachtragen – Dieselbe Pausenregel wie beim Feierabend – eine gemeinsame Funktion,
+keine Kopie. Antwort enthält anwesend, Pause, gebucht. „Zusätzliche Pause“ bleibt Mindestpause. 4. Einsatzbericht – Die Pflichten, die heute
+erst nach beiden Unterschriften geprüft werden, vor jeder Unterschrift prüfen. […] PDF: nur Zeiten dieses Einsatzes […]“
