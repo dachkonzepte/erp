@@ -4,6 +4,15 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.33 – Stufe 4, R1: Einsätze und Feierabend nur in der Monteursansicht
+
+Stufe 4 „Monteurin“, Runde 1, Punkt 1. `GET /api/field-view/today` hatte keine Rollenprüfung und meldete ab der Feierabend-Uhrzeit jeder Rolle
+„feierabend“; öffnete das Büro `/mobil` nach 19 Uhr, beendete die Seite über `POST /api/field-view/feierabend` seine Sitzung (Befund Stufe 4).
+Jetzt gibt es die Rollen der Monteursansicht (`app/permissions.py::MOBIL_ROLLEN`, heute nur die Monteurin): nur sie bekommen die heutigen
+Einsätze und den Feierabend, jede andere Rolle 403 -- geprüft vor der Feierabend-Uhrzeit, das Büro sieht nie „feierabend“ und wird nicht
+mehr abgemeldet. Die Seite `/mobil` öffnet weiter jede Rolle und zeigt dem Büro die Meldung einmal oben statt in jeder Liste. `today` steht
+damit nicht mehr in der Ausnahmeliste des Rollen-Audits. Neuer Test `test_v461`.
+
 ## 1.9.32 – CLAUDE.md: Commit nur nach grünem Lauf, Befehle mit &&
 
 Nachtrag Stufe 2, Punkt A2 (Betreibervorgabe 22.10.2026). Regel 15 sagt jetzt ausdrücklich: ein Commit läuft nur nach einem grünen Lauf der

@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.32** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.33** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -1448,6 +1448,8 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   Definition dafür, `require_field_report_ownership()` verschärft das für Schreibzugriffe auf
   den eigenen Bericht. Die Wartungshistorie in /mobil gilt seit 1.8.70 nur für Objekte dieser Aufträge
   (`field_accessible_property_ids()`); Objektansicht und Dokumente bleiben für jedes Objekt offen.
+- **Einsätze und Feierabend nur für die Rollen der Monteursansicht** (seit 1.9.33, `app/permissions.py::MOBIL_ROLLEN`, heute nur `field`):
+  `GET /api/field-view/today` und `POST /api/field-view/feierabend` 403 für jede andere Rolle -- das Büro wird auf `/mobil` nicht abgemeldet.
 - **Zeit für andere buchen nur nach `app/permissions.py::darf_zeit_fuer_andere_buchen()`** (seit 1.8.152, heute nur Admin): der Server
   prüft damit Buchen und Ändern fremder Zeiten, `/api/auth/status` meldet sie (`zeit_fuer_andere_buchen`), der Einsatzbericht zeigt
   die Auswahl „Mitarbeiter“ nur danach -- eine neue Stelle mit derselben Frage nimmt diese Funktion, keine eigene Rollenabfrage.

@@ -3248,3 +3248,29 @@ nur für Rollen mit /mobil, sonst 403. Büro-Nutzer werden auf /mobil nach 19 Uh
 2. Vergessener Feierabend – nichts automatisch […] 3. Nachtragen – Dieselbe Pausenregel wie beim Feierabend – eine gemeinsame Funktion,
 keine Kopie. Antwort enthält anwesend, Pause, gebucht. „Zusätzliche Pause“ bleibt Mindestpause. 4. Einsatzbericht – Die Pflichten, die heute
 erst nach beiden Unterschriften geprüft werden, vor jeder Unterschrift prüfen. […] PDF: nur Zeiten dieses Einsatzes […]“
+
+### R1 Punkt 1 (1.9.33): Zugriff
+
+- **Befund** (`docs/archiv/befund-monteurin.md`, Auffälligkeit 24): `GET /api/field-view/today` stand ohne Rollenprüfung in
+  `ROLE_AUDIT_EXEMPT` und meldete ab der Feierabend-Uhrzeit jeder angemeldeten Rolle 401 „feierabend“; `/mobil` schickte darauf
+  `POST /api/field-view/feierabend` (ab Rolle `field`, also auch für das Büro) -- die Sitzung des Büros war beendet.
+- **Änderung**: `MOBIL_ROLLEN = {field}` und `hat_monteursansicht()` in `app/permissions.py` (wer `/mobil` als Arbeitsplatz hat -- die
+  Startseite der Rolle). `today` und der Feierabend-POST über `require_role(*MOBIL_ROLLEN)` mit der Meldung „Die Einsätze gibt es nur in der
+  Monteursansicht.“; die Rollenprüfung läuft vor der Feierabend-Prüfung im Rumpf. `today` aus `ROLE_AUDIT_EXEMPT` gestrichen (jetzt mit
+  Rollenprüfung). `/mobil` zeigt bei 403 die Meldung einmal in „Heutige Einsätze“ statt in fünf Listen.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v461_monteurin_zugriff.py` (7 Tests, echte Anmeldeschranke): Büro – Auftrag, Büro – Finanzen und Admin bekommen `today`
+  403 mit Meldung (Angriff) / die Monteurin 200 (Gegenprobe); das Büro um 20 Uhr: GET ohne „feierabend“, POST 403, Sitzung gilt weiter
+  (Angriff) / die Monteurin wird um 20 Uhr weiter abgemeldet (Gegenprobe).
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück): `today` ohne Rollenprüfung (Q1) -- 4 rot; Feierabend-POST für jede Rolle (Q2) --
+  1 rot (FAILED).
+- **Angepasste Erwartungen**: keine.
+
+#### Festlegungen 1.9.33 (Bitte bestätigen)
+
+1. **Rollen der Monteursansicht** = die Rolle `field` (`MOBIL_ROLLEN`); auch Admin bekommt `today` und den Feierabend nicht.
+2. **Die Seite `/mobil` bleibt für jede Rolle offen** (wie bisher, Bildgrundlage nimmt sie auch fürs Büro auf); das Büro sieht dort die
+   Meldung statt der Einsätze -- die übrigen Abschnitte (Termine, Wartungen) bleiben, wie sie sind (R5).
+3. **Auch der Feierabend-POST** nur für diese Rollen (sonst bliebe die Ursache über einen direkten Aufruf bestehen).

@@ -57,7 +57,7 @@ from ..mobile_settings import load_mobile_settings, is_past_shift_end, mobile_se
 from ..models import AppUser, DocumentCategory, Property
 from ..modules import is_module_enabled
 from ..orders import field_accessible_property_ids
-from ..permissions import ROLE_FIELD, require_min_role
+from ..permissions import MOBIL_ROLLEN, NUR_MONTEURSANSICHT, ROLE_FIELD, require_min_role, require_role
 from ..planning import list_field_bookable_orders, list_todays_assignments_for_employee, list_upcoming_assignments_for_employee
 from ..property_documents import (
     MAX_UPLOAD_BYTES, can_preview_type, create_property_document, is_image_type,
@@ -100,8 +100,13 @@ def _now() -> datetime:
     return berlin_now()
 
 
+# Seit 1.9.33 (Stufe 4, R1): Einsätze und Feierabend nur für die Rollen der Monteursansicht (app/permissions.py::MOBIL_ROLLEN), jede
+# andere bekommt 403 -- vor der Prüfung der Feierabend-Uhrzeit, sodass das Büro auf /mobil nie "feierabend" sieht und nie abgemeldet wird.
+_mobil_rollen_dep = Depends(require_role(*MOBIL_ROLLEN, message=NUR_MONTEURSANSICHT))
+
+
 @router.get("/api/field-view/today")
-def get_field_view_today(request: Request, db: Session = Depends(get_db, scope="function")):
+def get_field_view_today(request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _mobil_rollen_dep):
     """Löst den Mitarbeiter ausschließlich über request.state.erp_user.employee_id auf, nie
     über einen Client-Parameter -- jeder sieht ausschließlich seine eigenen Einsätze. Prüft
     zusätzlich die Feierabend-Grenze (MobileSettings.shift_end_time) und meldet bei
@@ -138,7 +143,7 @@ def _with_open_concerns(db: Session, assignments: list[dict]) -> list[dict]:
 
 
 @router.post("/api/field-view/feierabend")
-def end_shift(request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def end_shift(request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _mobil_rollen_dep):
     """Seit 1.8.106 (Korrektur 103-3): der Feierabend als POST. Nach der Feierabend-Uhrzeit (MobileSettings.shift_end_time) beendet er
     die Sitzung dieses Geräts auf dem Server wie das Abmelden -- nur diese, ein zweites Gerät desselben Monteurs bleibt angemeldet
     (Festlegung 1.8.103 Nr. 4) -- und löscht das Cookie. Davor 409, nichts ändert sich. /mobil ruft ihn, sobald GET

@@ -100,6 +100,19 @@ def has_role(user: AppUser | None, *roles: str) -> bool:
     return user is not None and user.role in roles
 
 
+# Seit 1.9.33 (Stufe 4, R1): die Rollen der Monteursansicht -- wer /mobil als Arbeitsplatz hat (Startseite /mobil,
+# default_home_page_for_role() oben). Nur sie bekommen die heutigen Einsätze (GET /api/field-view/today) und den Feierabend (POST
+# /api/field-view/feierabend). Die Seite /mobil öffnet weiter jede Rolle -- das Büro wird dort aber nach Feierabend nicht mehr abgemeldet
+# (bis 1.9.32 meldete der GET jeder Rolle ab 19 Uhr "feierabend", /mobil beendete dann die Sitzung).
+MOBIL_ROLLEN = frozenset({ROLE_FIELD})
+NUR_MONTEURSANSICHT = "Die Einsätze gibt es nur in der Monteursansicht."
+
+
+def hat_monteursansicht(user: AppUser | None) -> bool:
+    """Seit 1.9.33: gehört die Person zu den Rollen der Monteursansicht (MOBIL_ROLLEN)?"""
+    return has_role(user, *MOBIL_ROLLEN)
+
+
 def darf_zeit_fuer_andere_buchen(user: AppUser | None) -> bool:
     """Seit 1.8.152: wer Zeit für andere bucht oder deren Buchungen ändert -- die eine Stelle für den Server
     (app/routers/time_tracking.py) und die Oberfläche (Auswahl "Mitarbeiter" im Einsatzbericht, über /api/auth/status und die
@@ -205,10 +218,6 @@ ROLE_AUDIT_EXEMPT = frozenset({
     # haben heute je ein vertrautes Gerät, aber der Endpunkt wirkt ausschließlich auf das eigene
     # Konto), siehe CLAUDE.md "Zwei-Faktor-Authentifizierung".
     ("POST", "/api/account/trusted-devices/revoke-all"),
-    # Heutige Einsätze der Monteursansicht -- prüft stattdessen, ob request.state.erp_user.
-    # employee_id gesetzt ist (app/routers/field_view.py), eine feinere, personenbezogene
-    # Prüfung als eine reine Rollenzugehörigkeit. Objekt-Filterung, nicht Rollen-Gate.
-    ("GET", "/api/field-view/today"),
     # PWA-Icon der Monteursansicht -- liefert nur ein aus dem Firmenlogo abgeleitetes
     # Platzhalterbild, keine Kunden-/Geschäftsdaten. Seit 1.8.130 auch ohne Anmeldung erreichbar
     # (app/anmeldeschranke.py::OEFFENTLICH, GET und HEAD), wie /manifest.json, das darauf verweist.
