@@ -397,6 +397,26 @@
   flex-basis: 100%;
 }
 
+/* seit 1.9.25: Variante „tablet“ (seitenkopf(…, tablet=true)) -- der Kopf im Monteursrahmen: Pfad 15 px, Titel 26 px, Knöpfe, Menüknopf
+   und Menüeinträge 48 px hoch (Ziel für den Finger) */
+.ds-kopf-tablet .ds-kopf-pfad {
+  font-size: var(--ds-groesse-4);
+}
+
+.ds-kopf-tablet .ds-kopf-titel {
+  font-size: var(--ds-groesse-9-tablet);
+}
+
+.ds-kopf-tablet .ds-knopf,
+.ds-kopf-tablet .ds-menue-eintrag {
+  height: 48px;
+  min-height: 48px;
+}
+
+.ds-kopf-tablet .ds-knopf-symbol {
+  width: 48px;
+}
+
 /* seit 1.9.11 ein Kennzeichen in Mono mit Rahmen in der Titelzeile, zwischen Titel und Status (bis dahin eine Zeile über dem Titel) */
 .ds-kopf-kennung {
   display: inline-flex;

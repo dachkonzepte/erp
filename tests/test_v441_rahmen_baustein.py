@@ -58,6 +58,9 @@ UMGEZOGEN |= FORMULARSEITEN
 # seit 1.9.24 Anfragen (K9) und Arbeitsvorbereitung (K4)
 ANFRAGEN_UND_ARBEITSVORBEREITUNG = {"inquiries.html", "work_preparation.html"}
 UMGEZOGEN |= ANFRAGEN_UND_ARBEITSVORBEREITUNG
+# seit 1.9.25 die Monteursseiten, die bleiben (im Monteursrahmen mit Tablet-Maßen; Checkliste und Checklisten zum Auftrag auch fürs Büro)
+MONTEURSSEITEN = {"checklist.html", "checklist_order.html", "mobil_objekt.html", "operational_asset_field.html"}
+UMGEZOGEN |= MONTEURSSEITEN
 
 
 # ---------------------------------------------------------------------------
@@ -234,6 +237,9 @@ def test_makro_variante_breit():
     schmal = _rendern('{% from "teile/seitenkopf.html" import seitenkopf %}{{ seitenkopf("A") }}')
     assert '<header class="ds-kopf ds-kopf-breit" id="seitenkopf">' in breit
     assert '<header class="ds-kopf" id="seitenkopf">' in schmal and "ds-kopf-breit" not in schmal
+    # seit 1.9.25: tablet=true setzt ds-kopf-tablet (Kopf im Monteursrahmen, tests/test_v457_monteursseiten.py)
+    tablet = _rendern('{% from "teile/seitenkopf.html" import seitenkopf %}{{ seitenkopf("T", tablet=true) }}')
+    assert '<header class="ds-kopf ds-kopf-tablet" id="seitenkopf">' in tablet
     css = (STATIC_DIR / "ds" / "ds.css").read_text(encoding="utf-8")
     assert re.search(r"\.ds-kopf-breit \.ds-kopf-text \{\s*flex-basis: 100%;\s*\}", css)
 

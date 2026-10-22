@@ -22,14 +22,18 @@
 .cl-main{max-width:760px;margin:0;padding:16px 14px 60px}
 body.field .cl-main{margin:0 auto}
 .card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:12px}
-h1{margin:0 0 4px;font-size:20px}.muted{color:var(--muted)}
-.back{display:inline-block;color:var(--accent);text-decoration:none;font-size:13.5px;margin-bottom:8px}
+.muted{color:var(--muted)}
 </style></head>
-<body class="{{ 'field' if is_field else 'office' }}">
+<body class="ds-seite {{ 'field' if is_field else 'office' }}">
 {% if is_field %}{% include "_mobile_header.html" %}{% else %}<div class="app-layout">{% include "_sidebar.html" %}<div class="app-content">{% include "_topbar.html" %}{% endif %}
 <main class="cl-main">
-  <a class="back" href="{{ '/mobil' if is_field else '/orders/' ~ order_id }}">← zurück</a>
-  <div class="card"><h1 id="orderTitle">Auftrag</h1><div class="muted" id="orderSub"></div></div>
+  {# Seit 1.9.25 (Stufe 2, Runde 9): gemeinsamer Seitenkopf (bis dahin „← zurück“ und eine Karte „Auftrag …“), für den Monteur im
+     Monteursrahmen mit Tablet-Maßen: Büro Checklisten / Auftrag / Checklisten zum Auftrag, Monteur Einsätze / Checklisten zum Auftrag;
+     Kennung = Auftragsnummer, Untertitel = Kunde. #}
+  {% from "teile/seitenkopf.html" import seitenkopf %}
+  {% call(teil) seitenkopf("Checklisten zum Auftrag", untertitel="Auftrag wird geladen …", mit_pfad=true, tablet=is_field) %}
+    {% if teil == "pfad" %}{% if is_field %}<a class="ds-kopf-pfadglied" href="/mobil">Einsätze</a>{% else %}<a class="ds-kopf-pfadglied" href="/checklisten">Checklisten</a><span class="ds-kopf-trenner" aria-hidden="true">/</span><a class="ds-kopf-pfadglied" href="/orders/{{ order_id }}">Auftrag</a>{% endif %}<span class="ds-kopf-trenner" aria-hidden="true">/</span><span class="ds-kopf-pfadende" aria-current="page">Checklisten zum Auftrag</span>{% endif %}
+  {% endcall %}
   {% if is_module_enabled('checklisten') %}
   {% include "_offene_bedenken.html" %}
   <div id="concernAlert" class="concern-alert" role="alert" hidden></div>
@@ -41,13 +45,15 @@ h1{margin:0 0 4px;font-size:20px}.muted{color:var(--muted)}
   {% endif %}
 </main>
 {% if not is_field %}</div></div>{% endif %}
+{% include "_seitenkopf.html" %}
 <script>
 (function(){
-  var orderId={{ order_id }};
+  var orderId={{ order_id }},istMonteur={{ 'true' if is_field else 'false' }};
   fetch('/api/orders/'+orderId).then(function(r){return r.ok?r.json():null}).then(function(o){
-    if(!o)return;
-    document.getElementById('orderTitle').textContent='Auftrag '+o.order_number;
-    document.getElementById('orderSub').textContent=o.customer_name||'';
+    if(!o){seitenkopf({untertitel:''});return}
+    // seit 1.9.25: Kennung, Kunde und Pfad im Seitenkopf (bis dahin „Auftrag <Nummer>“ und der Kunde in einer Karte)
+    seitenkopf({kennung:o.order_number,untertitel:o.customer_name||'',pfad:istMonteur?[{text:'Einsätze',href:'/mobil'},{text:'Checklisten zum Auftrag'}]:
+      [{text:'Checklisten',href:'/checklisten'},{text:o.order_number,href:'/orders/'+orderId},{text:'Checklisten zum Auftrag'}]});
   });
   if(window.offeneBedenkenZeigen)offeneBedenkenZeigen('concernAlert',orderId);
   var zweck={{ zweck|tojson }},zweckLabel={{ zweck_label|tojson }};

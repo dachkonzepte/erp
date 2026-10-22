@@ -248,7 +248,7 @@ async def _pruefen(tab, seed, p):
     # --- Checkliste als Monteur, 412 px
     await tab.anmelden(seed["cookies"]["monteur"])
     await tab.fenster(412, 900, mobil=True)
-    await tab.oeffnen(f"/checklisten/{cid}", "!!document.querySelector('.card h1')")
+    await tab.oeffnen(f"/checklisten/{cid}", "!!document.querySelector('#seitenkopfPfad .ds-kopf-pfadende')")  # seit 1.9.25: Kopf geladen
     p.pruefe("Monteur: kein Versandbereich", await tab.js("!!document.getElementById('sendCard')"), False)
     p.pruefe("Monteur: JS-Fehler", tab.fehler, [])
     await tab.anmelden(seed["cookies"]["buero"])

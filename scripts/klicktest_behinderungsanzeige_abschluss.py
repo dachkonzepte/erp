@@ -284,8 +284,8 @@ async def _pruefen(tab, seed, p):
     p.pruefe("Gegenstandslos: Rückfrage vor dem Abschluss", await tab.js(
         "window.__confirms.some(t=>t.includes('als gegenstandslos abschließen?'))"), True)
     p.pruefe("Gegenstandslos: Badge, Begründung, PDF, keine Fußleiste", await tab.js(
-        "[document.querySelector('.badge.void')?.textContent,document.getElementById('voidInfo').textContent.includes('Übliche Witterung'),"
-        "!!document.getElementById('pdfLink'),!document.getElementById('completeBtn'),!document.getElementById('voidCard')]"),
+        "[document.getElementById('seitenkopfStatus').textContent,document.getElementById('voidInfo').textContent.includes('Übliche Witterung'),"
+        "!document.getElementById('pdfLink').hidden,!document.getElementById('completeBtn'),!document.getElementById('voidCard')]"),
         ["Gegenstandslos", True, True, True, True])
     await tab.warten(f"{BEH} && {BEH}.dataset.status")
     p.pruefe("Gegenstandslos: Anzeige-Karte ohne Brief-Aktionen", await tab.js(

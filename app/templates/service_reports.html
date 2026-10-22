@@ -128,7 +128,8 @@ a{color:var(--ds-link)}
    Pfad fürs Büro Projekte / Kunde / [Wartungsvertrag] / Projekt / Auftrag, für die Monteurin Einsätze (/mobil): Auftrag, Kunde, Projekt
    und Vertrag sind Büro-Seiten. „Zeiterfassung (Auftrag)“ im Menü „⋮“. #}
 {% from "teile/seitenkopf.html" import seitenkopf %}
-{% call(teil) seitenkopf("Einsatzbericht", untertitel="Auftrag wird geladen …", mit_pfad=true, mit_menue=true) %}
+{# seit 1.9.25: im Monteursrahmen mit den Tablet-Maßen des Kopfs (tablet) #}
+{% call(teil) seitenkopf("Einsatzbericht", untertitel="Auftrag wird geladen …", mit_pfad=true, mit_menue=true, tablet=monteursrahmen) %}
   {% if teil == "pfad" %}{% if darf_buero_seiten %}<a class="ds-kopf-pfadglied" href="/projects">Projekte</a>{% else %}<a class="ds-kopf-pfadglied" href="/mobil">Einsätze</a>{% endif %}
   {% elif teil == "menue" %}<a class="ds-menue-eintrag" id="timeLink" href="/time-tracking">Zeiterfassung (Auftrag)</a>{% endif %}
 {% endcall %}

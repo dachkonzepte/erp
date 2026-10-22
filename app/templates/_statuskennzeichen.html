@@ -37,6 +37,8 @@ function statusTabelle() {
     wartungsvertrag: {
       aktiv: ['Aktiv', 'laeuft'], pausiert: ['Pausiert', 'ruht'], beendet: ['Beendet', 'erledigt'], archiviert: ['Archiviert', 'ruht'],
     },
+    // seit 1.9.25: Stand einer ausgefüllten Checkliste (checklists.status, app/checklists.py::STATUS_LABELS)
+    checkliste: { entwurf: ['Entwurf', 'entwurf'], abgeschlossen: ['Abgeschlossen', 'erledigt'], gegenstandslos: ['Gegenstandslos', 'ruht'] },
     checklistenvorlage: { entwurf: ['Entwurf', 'entwurf'], veroeffentlicht: ['Veröffentlicht', 'erledigt'], archiviert: ['Archiviert', 'ruht'] },
     pruefvorlage: { archiviert: ['Archiviert', 'ruht'] },
     dachflaeche: { archiviert: ['Archiviert', 'ruht'] },

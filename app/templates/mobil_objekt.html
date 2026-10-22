@@ -19,12 +19,10 @@
     :root[data-theme="dark"]{color-scheme:dark}
     *{box-sizing:border-box}body{margin:0}
     main{max-width:720px;margin:0 auto;padding:16px 14px 60px}
-    a{color:var(--accent)}
-    .back-link{display:inline-block;margin-bottom:12px;color:var(--muted);text-decoration:none;font-size:13px}
-    h1{font-size:15px;margin:20px 0 10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:800}
-    h1:first-of-type{margin-top:6px}
+    a{color:var(--ds-link)}
+    h2{font-size:15px;margin:20px 0 10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:800}
+    h2:first-of-type{margin-top:6px}
     .card{background:var(--card);border:1px solid var(--line);padding:14px 16px;margin-bottom:10px}
-    .obj-name{font-weight:800;font-size:18px}
     .obj-addr{margin-top:4px}
     .obj-addr a{text-decoration:none}
     .contact-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
@@ -55,16 +53,21 @@
     .finding-row .sev{font-weight:700}
   </style>
 </head>
-<body>
+<body class="ds-seite">
 {% include "_mobile_header.html" %}
 <main>
-  <a class="back-link" href="/mobil">← Einsätze</a>
+  {# Seit 1.9.25 (Stufe 2, Runde 9): gemeinsamer Seitenkopf mit Tablet-Maßen (die Seite steht für jede Rolle im Monteursrahmen): Pfad
+     Einsätze / Objekt (bis dahin „← Einsätze“), Titel = Name des Objekts (bis dahin fett in der Karte); die Abschnitte als h2. #}
+  {% from "teile/seitenkopf.html" import seitenkopf %}
+  {% call(teil) seitenkopf("Objekt", mit_pfad=true, tablet=true) %}
+    {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/mobil">Einsätze</a>{% endif %}
+  {% endcall %}
   <div id="propertyCard" class="card loading">Lädt…</div>
 
-  <h1>Dokumente</h1>
+  <h2>Dokumente</h2>
   <div id="documentsList" class="loading">Lädt…</div>
 
-  <h1>Datei hochladen</h1>
+  <h2>Datei hochladen</h2>
   <div class="card">
     <form id="uploadForm">
       <div class="field">
@@ -86,14 +89,15 @@
 
   {% if is_module_enabled('checklisten') %}
   {% include "_checklists_section.html" %}
-  <h1>Checklisten</h1>
+  <h2>Checklisten</h2>
   <div class="card"><div id="checklistSection"></div></div>
   {% endif %}
 
-  <h1>Frühere Wartungsberichte</h1>
+  <h2>Frühere Wartungsberichte</h2>
   <div id="historyList" class="loading">Lädt…</div>
 </main>
 {% include "_speichern.html" %}
+{% include "_seitenkopf.html" %}
 <script>
 (function(){
   var propertyId={{ property_id }};
@@ -125,7 +129,8 @@
     var addrParts=[p.street,[p.postal_code,p.city].filter(Boolean).join(' ')].filter(Boolean);
     var addrText=addrParts.join(', ');
     var mapsUrl='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(addrText);
-    var html='<div class="obj-name">'+esc(p.name)+'</div>';
+    seitenkopf({titel:p.name,pfad:[{text:'Einsätze',href:'/mobil'},{text:p.name}]});  // seit 1.9.25: Name im Seitenkopf
+    var html='';
     if(addrText)html+='<div class="obj-addr"><a href="'+mapsUrl+'" target="_blank" rel="noopener">'+esc(addrText)+'</a></div>';
     if(p.site_contact_name||p.site_contact_phone){
       html+='<div class="contact-row"><span>'+esc(p.site_contact_name||'Ansprechpartner vor Ort')+'</span>';
@@ -139,6 +144,7 @@
     }
     el.className='card';
     el.innerHTML=html;
+    el.hidden=!html;
   }
 
   function renderDocuments(list){

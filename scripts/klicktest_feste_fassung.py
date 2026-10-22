@@ -119,8 +119,9 @@ async def pruefen(tab, seed, p):
     await tab.warten(f"{karte}.querySelector('[data-version=\"1\"] [id^=verCheck_]').textContent.length>2", 15)
     p.pruefe("Prüfen: Datei unverändert", await tab.js(
         f"{karte}.querySelector('[data-version=\"1\"] [id^=verCheck_]').textContent.includes('Datei unverändert')"), True)
-    p.pruefe("PDF-Link in Akzentfarbe (nicht die Linkfarbe des Browsers)", await tab.js(
-        f"(a=>{{const probe=document.createElement('span');probe.style.color='var(--accent)';document.body.appendChild(probe);"
+    # seit 1.9.25 (Seitenkopf der Checkliste): Links der Seite in --ds-link (bis dahin --accent)
+    p.pruefe("PDF-Link in --ds-link (nicht die Linkfarbe des Browsers)", await tab.js(
+        f"(a=>{{const probe=document.createElement('span');probe.style.color='var(--ds-link)';document.body.appendChild(probe);"
         f"const soll=getComputedStyle(probe).color;probe.remove();return getComputedStyle(a).color===soll}})"
         f"({karte}.querySelector('.ver-row a'))"), True)
     p.pruefe("Büro: keine JS-Fehler", tab.fehler, [])

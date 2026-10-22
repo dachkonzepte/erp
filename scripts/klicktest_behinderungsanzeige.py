@@ -238,9 +238,9 @@ async def pruefen(tab, seed, p):
         f"!!document.querySelector('#clFocus .cl-open a[href=\"/checklisten/{cid}\"]')"), True)
     await tab.bild("4_buero_link_anlegen")
     await tab.js("document.querySelector('#clFocus button').click()")
-    await tab.warten(f"/^\\/checklisten\\/\\d+$/.test(location.pathname) && location.pathname!=='/checklisten/{cid}' && document.querySelector('#clMain h1')")
+    await tab.warten(f"/^\\/checklisten\\/\\d+$/.test(location.pathname) && location.pathname!=='/checklisten/{cid}' && !!document.querySelector('#seitenkopfPfad .ds-kopf-pfadende')")  # seit 1.9.25: Titel im Seitenkopf
     p.pruefe("Klick legt eine neue Behinderungsanzeige an", await tab.js(
-        "[document.querySelector('#clMain h1').textContent, cl.purpose, cl.status]"),
+        "[document.getElementById('seitenkopfTitel').textContent, cl.purpose, cl.status]"),
         ["Behinderungsanzeige", "behinderungsanzeige", "entwurf"])
     await tab.oeffnen(f"/checklisten/auftrag/{auftrag}?zweck=gibt_es_nicht", start_bereit)
     p.pruefe("Unbekannter Zweck: kein Kasten", await tab.js("!document.getElementById('clFocus')"), True)

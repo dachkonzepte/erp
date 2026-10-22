@@ -290,11 +290,14 @@ async def _pruefen(tab, seed, p):
     p.pruefe("412 px: kein waagrechter Scrollbalken", await tab.js("document.documentElement.scrollWidth<=window.innerWidth"), True)
     farben = await tab.js(f"(()=>{{const s=getComputedStyle({BEH}.querySelector('[data-notice-to]'));return [s.color,s.backgroundColor]}})()")
     p.pruefe("Dunkel: Feld 'An' lesbar (Text und Fläche verschieden)", farben[0] != farben[1], True)
-    p.pruefe("Dunkel: Links in Akzentfarbe, nicht Browser-Blau/-Lila", await tab.js(
-        f"(()=>{{const a=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();"
-        f"const l=[{BEH}.querySelector('[data-notice-letter] a'),document.querySelector('#notice-behinderungsanzeige-history .dh-muted a')];"
-        "const c=document.createElement('span');c.style.color=a;document.body.appendChild(c);const soll=getComputedStyle(c).color;c.remove();"
-        "return l.map(x=>!!x&&getComputedStyle(x).color===soll)})()"), [True, True])
+    # seit 1.9.25 (Seitenkopf der Checkliste): der Link der Seite in --ds-link, der im Versandverlauf in der Farbe des Bausteins
+    # _email_dispatch.html (--accent, unverändert) -- beide gestaltet, nicht Browser-Blau/-Lila
+    p.pruefe("Dunkel: Brief-Link in --ds-link, Link im Versandverlauf in der Farbe des Bausteins", await tab.js(
+        "(()=>{const farbe=v=>{const c=document.createElement('span');c.style.color='var('+v+')';document.body.appendChild(c);"
+        "const f=getComputedStyle(c).color;c.remove();return f};"
+        "const l=[[" + BEH + ".querySelector('[data-notice-letter] a'),'--ds-link'],"
+        "[document.querySelector('#notice-behinderungsanzeige-history .dh-muted a'),'--accent']];"
+        "return l.map(([x,v])=>!!x&&getComputedStyle(x).color===farbe(v))})()"), [True, True])
     await tab.js(f"{BEH}.scrollIntoView({{block:'start'}})")
     await asyncio.sleep(0.2)
     await tab.bild("5_buero_dunkel_412")

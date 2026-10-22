@@ -161,7 +161,7 @@ async def pruefen(tab, seed, p):
              await tab.js("[document.getElementById('historyList').className,document.getElementById('historyList').textContent]"),
              ["empty", "Die Wartungshistorie zeigt die Monteursansicht nur für Objekte deiner Aufträge."])
     p.pruefe("/mobil fremdes Objekt: Objektansicht offen",
-             await tab.js("document.getElementById('propertyCard').textContent.includes('Wohnanlage Hof')"), True)
+             await tab.js("document.getElementById('seitenkopfTitel').textContent==='Wohnanlage Hof'"), True)  # seit 1.9.25 Name im Seitenkopf
     await tab.bild("mobil_fremdes_objekt")
     p.pruefe("Monteurin: JS-Fehler", tab.fehler, [])
     print(json.dumps({"auftrag": order_id}, ensure_ascii=False))

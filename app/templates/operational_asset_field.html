@@ -24,10 +24,9 @@
     *{box-sizing:border-box}body{margin:0}
     main{max-width:640px;margin:0 auto;padding:16px 14px 60px}
     .card{background:var(--card);border:1px solid var(--line);padding:16px}
-    h1{margin:0 0 4px;font-size:20px}
     .muted{color:var(--muted)}
-    .meta{font-size:14px;margin-bottom:14px}
     .field-block{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+    .field-block:first-child{margin-top:0;padding-top:0;border-top:0}
     .field-block h2{margin:0 0 6px;font-size:13px;color:var(--muted);text-transform:uppercase;font-weight:650}
     .field-block .text{font-size:15px;white-space:pre-wrap}
     .readiness-banner{background:#b3261e;color:#fff;padding:14px 16px;margin-bottom:12px;font-size:14.5px}
@@ -38,9 +37,16 @@
     .error{color:var(--danger)}
   </style>
 </head>
-<body>
+<body class="ds-seite">
 {% include "_mobile_header.html" %}
 <main>
+  {# Seit 1.9.25 (Stufe 2, Runde 9): gemeinsamer Seitenkopf mit Tablet-Maßen: Pfad Einsätze / Betriebsmittel (bis dahin kein Rückweg
+     außer dem Reiter), Titel = Name, Untertitel Art · Hersteller · Modell (bis dahin h1 und Zeile in der Karte). Die Meldung „Nicht
+     einsatzbereit“ steht direkt darunter. #}
+  {% from "teile/seitenkopf.html" import seitenkopf %}
+  {% call(teil) seitenkopf("Betriebsmittel", mit_pfad=true, tablet=true) %}
+    {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/mobil">Einsätze</a>{% endif %}
+  {% endcall %}
   <div id="readinessBanner" class="readiness-banner" style="display:none"></div>
   <div class="card" id="assetCard">
     <div class="muted">Lädt …</div>
@@ -51,6 +57,7 @@
   <div class="card"><div id="checklistSection"></div></div>
   {% endif %}
 </main>
+{% include "_seitenkopf.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const assetId={{ asset_id }};
@@ -58,11 +65,10 @@ const assetId={{ asset_id }};
 function render(asset){
   const card=document.getElementById('assetCard');
   const meta=[asset.asset_type,asset.manufacturer,asset.model].filter(Boolean).join(' · ');
-  card.innerHTML=`
-    <h1>${esc(asset.name)}</h1>
-    ${meta?`<div class="meta muted">${esc(meta)}</div>`:''}
-    ${asset.usage_notes?`<div class="field-block"><h2>Bedienungshinweise</h2><div class="text">${esc(asset.usage_notes)}</div></div>`:''}
-  `;
+  // seit 1.9.25: Name und Art im Seitenkopf, die Karte nur mit den Bedienungshinweisen (ohne Hinweise verborgen)
+  seitenkopf({titel:asset.name,untertitel:meta,pfad:[{text:'Einsätze',href:'/mobil'},{text:asset.name}]});
+  card.innerHTML=asset.usage_notes?`<div class="field-block"><h2>Bedienungshinweise</h2><div class="text">${esc(asset.usage_notes)}</div></div>`:'';
+  card.hidden=!asset.usage_notes;
 }
 
 // Einsatzbereitschaft (seit 1.8.1, Checklisten-Entscheidung B): die letzte abgeschlossene

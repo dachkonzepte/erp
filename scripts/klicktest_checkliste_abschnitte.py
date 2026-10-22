@@ -199,9 +199,9 @@ async def pruefen(tab, seed, p):
         f"[!document.querySelector('#q_{f['ende']} input'), document.querySelectorAll('.sealed-tag').length, document.querySelector('#lockCard .lock-title').textContent.includes('Antworten und Fotos')]"),
         [True, 0, True])
     await tab.js("document.getElementById('completeBtn').click()")
-    await tab.warten("document.querySelector('.badge.done')", 10)
+    await tab.warten("document.getElementById('seitenkopfStatus').textContent==='Abgeschlossen'", 10)
     p.pruefe("Abgeschlossen, beide Unterschriften unverändert, PDF-Knopf",
-             [await tab.js(seal("sig1")), await tab.js(seal("sig2")), await tab.js("!!document.getElementById('pdfLink')")],
+             [await tab.js(seal("sig1")), await tab.js(seal("sig2")), await tab.js("!document.getElementById('pdfLink').hidden")],
              ["unveraendert", "unveraendert", True])
     p.pruefe("Monteurin (2): JS-Fehler", tab.fehler, [])
     await tab.bild("monteurin_abgeschlossen")

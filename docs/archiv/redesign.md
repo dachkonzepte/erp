@@ -2879,3 +2879,94 @@ mit Stufe und Grund. Bildvergleich: außer den Seiten der Runde weicht nichts ab
    Ausführung laufen (info), Bereit und Abgeschlossen erledigt (ok).
 4. **„Zeiterfassung (Auftrag)“ ins Menü**, „← Auftrag“ und „Projektmappe“ in den Pfad; keine Hauptaktion (der Kopf hatte keine grüne).
 5. **Die sechs Kennzahlen unter dem Kopf** (für den Kopf zu viele; an der Rechnung drei, am Angebot vier im Kopf).
+
+### Punkt 3 (1.9.25): Monteursseiten im Seitenkopf mit Tablet-Maßen
+
+- **Befund vorweg**: der Auftrag nennt den Einsatzbericht als Vorbild für die Tablet-Maße (Pfad 15 px, Titel 26 px, Knöpfe mindestens
+  48 px). Der Einsatzbericht hatte sie nicht: keine Seite setzte die Tablet-Klasse, die Monteurin sah dort den Kopf des Büros (Titel 30 px,
+  Pfad 13 px, Menüknopf 40 px); in `ds.css` stand nur `.ds-tablet .ds-kopf-titel` (26 px) für eine Klasse, die niemand setzte. Umgesetzt
+  daher als Variante des Makros und für jede Seite im Monteursrahmen, den Einsatzbericht und das Konto der Monteurin eingeschlossen.
+- **Variante `tablet`** (`seitenkopf(…, tablet=…)`, Klasse `ds-kopf-tablet`, Regeln in `ds.css`): Pfad `--ds-groesse-4` (15 px), Titel
+  `--ds-groesse-9-tablet` (26 px), `.ds-knopf`, Menüknopf (`.ds-knopf-symbol` 48 × 48) und `.ds-menue-eintrag` 48 px hoch. Nur der Kopf --
+  keine Tablet-Klasse am `<body>`, die übrige Seite bleibt, wie sie war.
+- **Checkliste** (Büro und Monteur; bis dahin „← zurück“ und eine Karte mit h1, Kennzeichen und PDF, alles aus `renderHeader()`): der Kopf
+  steht vor dem neu gezeichneten Inhalt (`#clMain`), `kopfZeichnen()` setzt nach dem Laden Titel (Vorlage), Untertitel (Kontextangabe ·
+  angelegt … · Fassung), Status (`statusKennzeichen('checkliste', …)`, neue Gruppe: Entwurf, Abgeschlossen, Gegenstandslos) und Pfad:
+  Bereich (Büro „Checklisten“, Monteur „Einsätze“) / Kontext mit dem bisherigen Rückweg (`backLink()`: der Monteur über „Checklisten zum
+  Auftrag“ bzw. Objekt und Betriebsmittel der Monteursansicht, das Büro über Auftrag, Objekt, Betriebsmittel; bei „Betrieb“ ohne
+  Kontextglied) / Titel. „PDF“ als neutrale Aktion im Kopf, verborgen, solange die Checkliste Entwurf ist; „Nur lesen …“ und das
+  Abschlusssiegel in einer Karte unter dem Kopf.
+- **Checklisten zum Auftrag** (bis dahin „← zurück“ und eine Karte „Auftrag <Nummer>“): Titel „Checklisten zum Auftrag“, Kennung =
+  Auftragsnummer, Untertitel = Kunde; Pfad Büro Checklisten / <Auftrag> / Checklisten zum Auftrag, Monteur Einsätze / Checklisten zum
+  Auftrag.
+- **Objekt der Monteursansicht** (für jede Rolle im Monteursrahmen; bis dahin „← Einsätze“ und der Name fett in der Karte): Titel = Name
+  des Objekts, Pfad Einsätze / <Objekt>; die Karte mit Adresse, Ansprechpartner und Zugang (ohne Angaben verborgen); die Abschnitte
+  (Dokumente, Datei hochladen, Checklisten, Frühere Wartungsberichte) als h2 statt h1.
+- **Betriebsmittel der Monteurin** (bis dahin ohne Rückweg außer dem Reiter, h1 und Zeile in der Karte): Titel = Name, Untertitel Art ·
+  Hersteller · Modell, Pfad Einsätze / <Betriebsmittel>; die Meldung „Nicht einsatzbereit“ direkt unter dem Kopf; die Karte nur mit den
+  Bedienungshinweisen (ohne verborgen).
+- Links in `--ds-link`, Fokus in `--ds-fokus`; tote Regeln `.back`, `.back-link`, `h1`, `.obj-name`, `.meta` entfernt.
+
+| Seite | Pfad | Hauptaktion | Menü „⋮“ |
+|---|---|---|---|
+| Checkliste (Monteurin) | Einsätze / Auftrag <Nr.> (Checklisten zum Auftrag) bzw. Objekt / Betriebsmittel / <Vorlage> | -- („PDF“ neutral ab Abschluss) | -- |
+| Checkliste (Büro) | Checklisten / Auftrag <Nr.> bzw. Objekt / Betriebsmittel / <Vorlage> | -- („PDF“ neutral ab Abschluss) | -- |
+| Checklisten zum Auftrag (Monteurin) | Einsätze / Checklisten zum Auftrag | -- | -- |
+| Checklisten zum Auftrag (Büro) | Checklisten / <Auftragsnummer> / Checklisten zum Auftrag | -- | -- |
+| Objekt der Monteursansicht | Einsätze / <Objekt> | -- | -- |
+| Betriebsmittel der Monteurin | Einsätze / <Betriebsmittel> | -- | -- |
+| Einsatzbericht, Konto (Monteurin, nur Maße) | unverändert | -- | unverändert |
+
+#### Tests und Prüfung
+
+- `test_v441`: `UMGEZOGEN` um die 4 Seiten (`MONTEURSSEITEN`, 41 Seiten); Makro mit `tablet=true` -> `ds-kopf-tablet`.
+- Neu `tests/test_v457_monteursseiten.py` (20 Tests): je Seite und Rolle gerendert -- Kopf mit `ds-kopf-tablet` genau im Monteursrahmen,
+  feste Pfad-Links (jedes Ziel 200 für die Rolle), kein „← …“, genau ein h1; die Regeln der Variante in `ds.css` (15 px, 26 px, 48 px);
+  jede Seite im Monteursrahmen ruft das Makro mit `tablet`; Pfad der Checkliste nach dem Laden über den bisherigen Rückweg, Status über
+  das Kennzeichen.
+- `test_v445::test_jeder_wert_des_servers_steht_in_der_tabelle` um die Checkliste (`app/checklists.py::STATUS_LABELS`).
+- `klicktest_rahmen` Teil `monteursseiten` (neu): Checkliste, Checklisten zum Auftrag, Objekt, Betriebsmittel, Einsatzbericht und Konto als
+  Monteurin bei 1280 × 620 hell und dunkel -- Monteursrahmen ohne Leiste, Kopf `ds-kopf-tablet` mit Pfad 15 px, Titel 26 px, jeder sichtbare
+  Knopf im Kopf mindestens 48 px; Titel, Kennung, Status, Untertitel, Pfad nach dem Laden (jeder Link öffnet eine Seite), „PDF“ nur ohne
+  Entwurf, kein alter Kopf, Links, Fokus, Kontrast; Checkliste und Checklisten zum Auftrag dazu fürs Büro bei 1440 × 900 (Kopf 13/30/40 px,
+  Pfad über Checklisten und den Auftrag). 150 von 150.
+- Dazu die Klicktests, die eine der Seiten öffnen (38, zu viert): 34 sofort wie erwartet; drei mit überholter Erwartung (unten), danach
+  grün; `klicktest_veraltete_antworten` rot aus einem Grund außerhalb der Runde -- auch auf dem Stand vor der Runde (`4527b7c`) rot, behoben
+  in 1.9.26.
+- **Nebenbefund** (nicht geändert): der Baustein Versandverlauf (`_email_dispatch.html`) färbt seine Links weiter in `--accent` -- auch auf
+  den schon umgezogenen Seiten, die ihn einbinden (Rechnung, Angebot, Versandprotokoll, Mahnwesen, jetzt Checkliste); in den Testdaten
+  ohne Versand unsichtbar. Gehört in die Runde, in der seine letzten Nutzer umziehen (Stufe 5: Projektmappe, Auftrag, Kundenakte).
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück): Titel im Tablet-Kopf wieder 30 px (L1); Pfad der Checkliste für den Monteur
+  über den Auftrag des Büros (L2); Objekt ohne Tablet-Variante (L3); „PDF“ auch im Entwurf (L4); Einsatzbericht der Monteurin ohne
+  Tablet-Variante (L5) -- in pytest 4 von 5 rot (FAILED, `test_v457`; L4 prüft nur der Browser), im Klicktest-Teil **5 von 5 rot** (138,
+  146, 148, 146, 148 von 150 -- L2 dazu: der Link auf den Auftrag ergibt für den Monteur 403).
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v441::UMGEZOGEN`: alt 37 Seiten; neu dazu die 4.
+  - `klicktest_checkliste_unterschrift`, `klicktest_checkliste_abschnitte`: alt bereit, wenn `.badge.done` erscheint, „PDF-Knopf da“ =
+    `#pdfLink` vorhanden; neu der Status im Seitenkopf „Abgeschlossen“, `#pdfLink` nicht verborgen.
+  - `klicktest_checkliste_verwerfen`: alt bereit bei `.badge.done`; neu der Status im Seitenkopf „Abgeschlossen“.
+  - `klicktest_behinderungsanzeige_abschluss`: alt Text von `.badge.void` und `#pdfLink` vorhanden; neu Text von `#seitenkopfStatus`
+    („Gegenstandslos“) und `#pdfLink` nicht verborgen.
+  - `klicktest_objekt_anderer_kunde`: alt `#propertyCard` enthält den Namen des Objekts; neu `#seitenkopfTitel` ist der Name.
+  - `klicktest_versandverlauf`: alt bereit bei `.card h1` der Checkliste; neu bereit, wenn der Pfad sein letztes Glied trägt.
+  - `klicktest_behinderungsanzeige`: alt bereit, wenn `#clMain h1` erscheint, Titel aus `#clMain h1`; neu bereit mit dem letzten Glied
+    des Pfads, Titel aus `#seitenkopfTitel`.
+  - `klicktest_behinderungsanzeige_versand`: alt beide Links in der Akzentfarbe; neu der Brief-Link der Seite in `--ds-link`, der Link im
+    Versandverlauf in der Farbe des Bausteins (`--accent`, unverändert, siehe Nebenbefund).
+  - `klicktest_feste_fassung`: alt PDF-Link der Fassungen in der Akzentfarbe; neu in `--ds-link`.
+
+#### Festlegungen 1.9.25 (Bitte bestätigen)
+
+1. **Tablet-Maße nur im Kopf** (Variante `tablet`: Pfad 15 px, Titel 26 px, Knöpfe, Menüknopf, Menüeinträge 48 px); keine Tablet-Klasse
+   am `<body>` -- die übrige Seite bleibt.
+2. **Jede Seite im Monteursrahmen nimmt die Variante**, auch Einsatzbericht und Konto der Monteurin (der Einsatzbericht hatte sie noch
+   nicht); das Objekt der Monteursansicht auch fürs Büro (dieselbe Seite im Monteursrahmen).
+3. **Pfad der Monteurin**: Einsätze / [Kontext] / Seite -- eine Checkliste am Auftrag über „Auftrag <Nr.>“ zu den Checklisten zum Auftrag
+   (der bisherige Rückweg; den Auftrag selbst öffnet sie nicht), am Objekt über das Objekt, am Betriebsmittel über das Betriebsmittel.
+4. **Pfad im Büro**: Checklisten (Bereich der Leiste) / Kontext mit dem bisherigen Rückweg (Auftrag, Objekt, Betriebsmittel) / Seite;
+   Checklisten „Betrieb“ ohne Kontextglied.
+5. **Checkliste**: Titel = Vorlage, Untertitel Kontextangabe · angelegt … · Fassung, Status Entwurf (warn) / Abgeschlossen (ok) /
+   Gegenstandslos (neutral), „PDF“ neutral im Kopf ab Abschluss, keine Hauptaktion.
+6. **Checklisten zum Auftrag**: Titel „Checklisten zum Auftrag“, Kennung Auftragsnummer, Untertitel Kunde.
+7. **Objekt und Betriebsmittel**: der Name als Titel (aus der Karte genommen); Objekt-Abschnitte als h2; leere Karten verborgen; „Nicht
+   einsatzbereit“ direkt unter dem Kopf.

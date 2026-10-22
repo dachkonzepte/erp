@@ -165,7 +165,7 @@ async def pruefen(tab, seed, p):
     await tab.warten(f"document.querySelector('#q_{f['sig2']} .seal')", 10)
     p.pruefe("Kein Abschluss-Hinweis im Entwurf", await tab.js("!document.getElementById('completionSeal')"), True)
     await tab.js("document.getElementById('completeBtn').click()")
-    await tab.warten("document.querySelector('.badge.done')", 10)
+    await tab.warten("document.getElementById('seitenkopfStatus').textContent==='Abgeschlossen'", 10)
     p.pruefe("Abschluss: Inhalt unverändert", await tab.js(
         "[document.querySelector('#completionSeal .seal')?.dataset.seal, document.getElementById('completionSeal').textContent.trim().split(' · ')[0]]"),
         ["unveraendert", "Abschluss: ✓ Inhalt unverändert – passt zur Prüfsumme."])

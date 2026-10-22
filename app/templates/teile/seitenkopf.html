@@ -20,10 +20,12 @@
     der Rechnung „PDF herunterladen“). Kennzahlen (seit 1.9.13, mit_kennzahlen, Teil "kennzahlen": je .ds-kennzahl mit .ds-kennzahl-name
     und .ds-kennzahl-wert -- an der Rechnung Netto, MwSt., Brutto) stehen zwischen Text und Aktionen. breit (seit 1.9.18, Klasse
     ds-kopf-breit): der Text nimmt die ganze erste Zeile, Kennzahlen und Aktionen stehen darunter -- für Köpfe, deren Kennzahlen und
-    Aktionen dem Titel sonst zu wenig Platz ließen (Angebot: vier Kennzahlen, zwei Knöpfe, Menü). Wer das Makro nutzt, bindet
+    Aktionen dem Titel sonst zu wenig Platz ließen (Angebot: vier Kennzahlen, zwei Knöpfe, Menü). tablet (seit 1.9.25, Klasse
+    ds-kopf-tablet): der Kopf im Monteursrahmen -- Pfad 15 px, Titel 26 px, Knöpfe, Menüknopf und Menüeinträge 48 px hoch; nicht zusammen
+    mit breit (heute keine Seite). Wer das Makro nutzt, bindet
     _seitenkopf.html ein (tests/test_v441_rahmen_baustein.py). -#}
-{% macro seitenkopf(titel, untertitel="", kennung="", mit_pfad=false, mit_aktion=false, mit_menue=false, mit_kennzahlen=false, breit=false) -%}
-{% if breit %}<header class="ds-kopf ds-kopf-breit" id="seitenkopf">{% else %}<header class="ds-kopf" id="seitenkopf">{% endif %}
+{% macro seitenkopf(titel, untertitel="", kennung="", mit_pfad=false, mit_aktion=false, mit_menue=false, mit_kennzahlen=false, breit=false, tablet=false) -%}
+{% if breit %}<header class="ds-kopf ds-kopf-breit" id="seitenkopf">{% elif tablet %}<header class="ds-kopf ds-kopf-tablet" id="seitenkopf">{% else %}<header class="ds-kopf" id="seitenkopf">{% endif %}
   {%- if mit_pfad %}
   <nav class="ds-kopf-pfad" id="seitenkopfPfad" aria-label="Pfad">{{ caller("pfad") }}</nav>
   {%- endif %}

@@ -58,9 +58,7 @@
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
 .cl-main{max-width:760px;margin:0;padding:16px 14px 80px}
 body.field .cl-main{margin:0 auto}
-.back{display:inline-block;color:var(--accent);text-decoration:none;font-size:13.5px;margin-bottom:8px;min-height:32px}
 .card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:12px}
-h1{margin:0 0 4px;font-size:21px}
 .muted{color:var(--muted)}.small{font-size:12.5px}
 .badge{font-size:10.5px;font-weight:800;text-transform:uppercase;padding:3px 8px;background:var(--soft);color:var(--muted);white-space:nowrap}
 .badge.draft{background:var(--warning-soft);color:var(--warning)}
@@ -81,7 +79,7 @@ h1{margin:0 0 4px;font-size:21px}
 .tile.on{background:var(--ds-aktion);border-color:var(--ds-aktion);color:#fff}
 .tile:disabled{cursor:default;opacity:.85}
 input,textarea{padding:11px 12px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;font-size:16px;width:100%;min-height:44px}
-input:focus,textarea:focus{outline:2px solid var(--ds-aktion);outline-offset:-1px;border-color:var(--ds-aktion)}
+input:focus,textarea:focus{outline:2px solid var(--ds-fokus);outline-offset:-1px;border-color:var(--ds-fokus)}
 input:disabled,textarea:disabled{background:var(--soft);color:var(--ink)}
 textarea{min-height:90px;resize:vertical}
 .num-row{display:flex;gap:8px;align-items:center}.num-row input{max-width:220px}
@@ -133,7 +131,7 @@ textarea{min-height:90px;resize:vertical}
 .psum-def{font-size:13.5px;padding:4px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.psum-def.out{opacity:.7}
 .psum-tag{display:inline-block;font-size:12px;font-weight:700;padding:1px 6px;border:1px solid var(--line);margin-left:6px}
 .psum-tag.warn{color:var(--warning);border-color:var(--ds-warn-text)}.psum-tag.out{color:var(--muted)}
-.psum-acc{margin-top:10px;font-size:13.5px}.psum-acc a{color:var(--accent);font-weight:650}
+.psum-acc{margin-top:10px;font-size:13.5px}.psum-acc a{color:var(--ds-link);font-weight:650}
 @media (max-width:520px){.psum-row{grid-template-columns:1fr;gap:0}}
 .pad-actions select{flex:1;min-width:180px;padding:10px 12px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;font-size:16px;min-height:44px}
 .signer-fixed{flex:1;min-width:180px;font-size:14px;font-weight:650;color:var(--ink)}
@@ -145,7 +143,7 @@ textarea{min-height:90px;resize:vertical}
 .rules h2{margin:0 0 10px;font-size:16px}
 .rule-row{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
 .rule-row:last-of-type{border-bottom:none}
-.rule-row a{color:var(--accent);font-weight:650;text-decoration:none}
+.rule-row a{color:var(--ds-link);font-weight:650;text-decoration:none}
 .badge.open{background:var(--warning-soft);color:var(--warning)}
 .send-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
 .send-row input{flex:1 1 220px;width:auto}
@@ -172,7 +170,7 @@ textarea{min-height:90px;resize:vertical}
 .ver-row .ver-links{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .ver-row .mono{font-family:ui-monospace,Consolas,monospace;font-size:12px}
 .ver-row.superseded .ver-main{color:var(--muted)}
-.ver-row a{color:var(--accent);font-weight:600}
+.ver-row a{color:var(--ds-link);font-weight:600}
 .badge.bad{background:var(--danger-soft);color:var(--danger)}
 .badge.bad{background:var(--danger-soft);color:var(--danger)}
 .timeline{display:flex;flex-wrap:wrap;gap:0;margin:10px 0 2px;border:1px solid var(--line)}
@@ -189,21 +187,25 @@ textarea{min-height:90px;resize:vertical}
 .void-card textarea{min-height:70px;margin-top:6px}
 .void-info{border-left:3px solid var(--muted);background:var(--soft)}
 .void-info .reason{white-space:pre-wrap;margin-top:6px}
-.notice-row a{color:var(--accent);font-weight:650;text-decoration:none}
+.notice-row a{color:var(--ds-link);font-weight:650;text-decoration:none}
 </style>
-<body class="{{ 'field' if is_field else 'office' }}">
-{% if is_field %}
-{% include "_mobile_header.html" %}
-<main class="cl-main" id="clMain"><div class="card muted">Lädt …</div></main>
-{% else %}
-<div class="app-layout">
+<body class="ds-seite {{ 'field' if is_field else 'office' }}">
+{% if is_field %}{% include "_mobile_header.html" %}{% else %}<div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
-{% include "_topbar.html" %}
-<main class="cl-main" id="clMain"><div class="card muted">Lädt …</div></main>
-</div>
-</div>
-{% endif %}
+{% include "_topbar.html" %}{% endif %}
+<main class="cl-main">
+{# Seit 1.9.25 (Stufe 2, Runde 9): gemeinsamer Seitenkopf, für den Monteur im Monteursrahmen mit Tablet-Maßen; Titel, Untertitel, Status und
+   Pfad setzt kopfZeichnen() nach dem Laden. Der Inhalt (#clMain) zeichnet render() neu, der Kopf steht davor. #}
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{% call(teil) seitenkopf("Checkliste", mit_pfad=true, mit_aktion=true, tablet=is_field) %}
+  {% if teil == "pfad" %}{% if is_field %}<a class="ds-kopf-pfadglied" href="/mobil">Einsätze</a>{% else %}<a class="ds-kopf-pfadglied" href="/checklisten">Checklisten</a>{% endif %}
+  {% elif teil == "aktion" %}<a class="ds-knopf" id="pdfLink" href="/api/checklists/{{ checklist_id }}/pdf" target="_blank" rel="noopener" hidden>PDF</a>{% endif %}
+{% endcall %}
+<div id="clMain"><div class="card muted">Lädt …</div></div>
+</main>
+{% if not is_field %}</div>
+</div>{% endif %}
 {% if not is_field %}{% include "_email_dispatch.html" %}{% endif %}
 {% include "_unterschrift.html" %}
 {% include "_fehlertext.html" %}
@@ -212,6 +214,7 @@ textarea{min-height:90px;resize:vertical}
 {% include "_zahl.html" %}
 {% include "_links.html" %}
 {% include "_aktionen.html" %}
+{% include "_seitenkopf.html" %}
 <script>
 const checklistId={{ checklist_id }};
 const IS_FIELD={{ 'true' if is_field else 'false' }};
@@ -247,17 +250,23 @@ function missingOf(f){return (cl.missing_required||[]).filter(m=>m===f.label||m.
 
 // --- Rendern ---------------------------------------------------------------------------
 
+// seit 1.9.25 (Stufe 2, Runde 9): der Kopf über den gemeinsamen Seitenkopf (bis dahin „← zurück“ und eine Karte mit h1, Kennzeichen und
+// PDF) -- Pfad: Bereich (Büro Checklisten, Monteur Einsätze) / Kontext mit dem bisherigen Rückweg (backLink(); ohne bei „Betrieb“) / Titel;
+// Untertitel Kontext, angelegt, Fassung; Status über statusKennzeichen('checkliste'); „PDF“ neutral im Kopf, sobald nicht mehr Entwurf
+function kopfZeichnen(){
+  const who=[cl.created_by_name?`angelegt von ${cl.created_by_name}`:null,`am ${fmtDateTime(cl.created_at)}`,cl.completed_at&&cl.status!=='gegenstandslos'?`abgeschlossen ${fmtDateTime(cl.completed_at)}`:null].filter(Boolean).join(' · ');
+  const zurueck=backLink();
+  const pfad=[IS_FIELD?{text:'Einsätze',href:'/mobil'}:{text:'Checklisten',href:'/checklisten'},
+    zurueck!=='/checklisten'?{text:cl.context_label,href:zurueck}:null,{text:cl.template_label}];
+  seitenkopf({titel:cl.template_label,untertitel:[cl.context_detail,who,`Fassung ${cl.version_no}`].filter(Boolean).join(' · '),
+    status:statusKennzeichen('checkliste',cl.status),pfad:pfad.filter(Boolean)});
+  document.getElementById('pdfLink').hidden=cl.status==='entwurf';
+}
 function renderHeader(){
-  const badge={entwurf:'<span class="badge draft">Entwurf</span>',gegenstandslos:'<span class="badge void">Gegenstandslos</span>'}[cl.status]||'<span class="badge done">Abgeschlossen</span>';
-  const meta=[cl.context_label,cl.context_detail].filter(Boolean).map(esc).join(' – ');
-  const who=[cl.created_by_name?`angelegt von ${esc(cl.created_by_name)}`:null,`am ${esc(fmtDateTime(cl.created_at))}`,cl.completed_at&&cl.status!=='gegenstandslos'?`abgeschlossen ${esc(fmtDateTime(cl.completed_at))}`:null].filter(Boolean).join(' · ');
-  return `<a class="back" href="${backLink()}">← zurück</a>
-    <div class="card"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap">
-      <div><h1>${esc(cl.template_label)}</h1><div class="muted">${meta}</div><div class="muted small" style="margin-top:4px">${who} · Fassung ${esc(cl.version_no)}</div></div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${cl.status!=='entwurf'?`<a class="btn secondary" id="pdfLink" href="/api/checklists/${cl.id}/pdf" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center">PDF</a>`:''}${badge}</div></div>
-      ${!cl.can_sign&&cl.status==='entwurf'?'<div class="muted small" style="margin-top:8px">Nur lesen – diese Checkliste hat eine andere Person angelegt.</div>':''}
-      ${renderCompletionSeal()}
-    </div>${renderVoidInfo()}${renderLockCard()}`;
+  kopfZeichnen();
+  const nurLesen=!cl.can_sign&&cl.status==='entwurf'?'<div class="muted small">Nur lesen – diese Checkliste hat eine andere Person angelegt.</div>':'';
+  const siegel=renderCompletionSeal();
+  return `${nurLesen||siegel?`<div class="card">${nurLesen}${siegel}</div>`:''}${renderVoidInfo()}${renderLockCard()}`;
 }
 
 // Seit 1.8.41: als gegenstandslos abgeschlossen -- für jede Rolle sichtbar, mit Begründung.

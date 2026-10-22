@@ -62,6 +62,11 @@ Geprüft wird im echten Browser auf den Testdaten der Bildgrundlage (scripts/bil
     Anfragen, AV   seit 1.9.24 Anfragen (Titel über den Kennzahlen) und Arbeitsvorbereitung (Pfad Projekte / Kunde / Projekt / Auftrag /
                    Arbeitsvorbereitung, Kennung, Status als Kennzeichen, Zeiterfassung im Menü) hell und dunkel: ein h1, Pfad (jeder Link
                    öffnet eine Seite), kein alter Kopf, keine Hauptaktion, Links, Fokus, Kontrast; der Status wechselt nach dem Speichern
+    Monteursseiten seit 1.9.25 Checkliste, Checklisten zum Auftrag, Objekt, Betriebsmittel, Einsatzbericht und Konto als Monteurin bei
+                   1280 × 620 hell und dunkel: Monteursrahmen mit Tablet-Maßen (Pfad 15 px, Titel 26 px, Knöpfe mindestens 48 px), Pfad
+                   nach dem Laden (Einsätze, die Checkliste über „Checklisten zum Auftrag“; jeder Link öffnet eine Seite), Kennung, Status,
+                   „PDF“ nur ohne Entwurf, kein alter Kopf, Links, Fokus, Kontrast; Checkliste und Checklisten zum Auftrag auch fürs Büro
+                   (gewohnter Kopf 13/30/40 px, Pfad über Checklisten und den Auftrag)
     Seitenregeln   auf den Einstellungen (button:hover und button:active in der Akzentfarbe): Kontoknopf unter der Maus und per
                    Leertaste gedrückt (:active ohne :hover), Menüeintrag unter der Maus -- nie in der Akzentfarbe
     Monteurskopf   auf jeder Seite der Monteurin (Mobil, Objekt, Stundenzettel, Zeiterfassung, Betriebsmittel, Checkliste,
@@ -77,7 +82,7 @@ AUFRUF (aus dem Projektordner):
         [--arbeitsordner PFAD] [--chrome PFAD] [--offen-lassen]
 
 --nur: nur diese Teile (seitenleiste, aktiv, schrift, menueknopf, kopfzeile, kontomenue, vollname, pruefvorlagen, kopfgruppe,
-seitenregeln, monteurskopf, datensatzkopf, rechnungskopf, angebotskopf, untermenue, formularseiten, anfragen_av) -- für
+seitenregeln, monteurskopf, datensatzkopf, rechnungskopf, angebotskopf, untermenue, formularseiten, anfragen_av, monteursseiten) -- für
 Gegenproben, die nach 2 min
 abbrechen (Regel 24).
 
@@ -1247,11 +1252,101 @@ async def _anfragen_av(tab, seed, p):
     await tab.bild("anfragen_av_zuletzt")
 
 
+# Seit 1.9.25: Seitenkopf der Monteursseiten (Tablet-Maße im Monteursrahmen), dazu Einsatzbericht und Konto der Monteurin
+MASSE = """(()=>{const cs=e=>getComputedStyle(e);const k=document.getElementById('seitenkopf');const pf=k.querySelector('.ds-kopf-pfad');
+const kn=[...k.querySelectorAll('.ds-knopf')].filter(e=>cs(e).display!=='none').map(e=>[e.id||e.textContent.trim(),Math.round(e.getBoundingClientRect().height),
+  Math.round(e.getBoundingClientRect().width)]);
+return {klasse:k.className,titel:cs(document.getElementById('seitenkopfTitel')).fontSize,pfad:pf?cs(pf).fontSize:null,knoepfe:kn,
+  monteurskopf:!!document.getElementById('mobileHeaderWrap'),leiste:!!document.getElementById('appSidebar')}})()"""
+
+
+async def _monteur_werte(tab, seed):
+    holen = "(u=>fetch(u).then(r=>r.json()))"
+    cl = await tab.js(f"{holen}('/api/checklists/{seed['checkliste']}')")
+    a = await tab.js(f"{holen}('/api/operational-assets/{seed['geraet']}')")
+    o = await tab.js(f"{holen}('/api/orders/{seed['auftrag']}')")
+    return cl, a, o
+
+
+async def _monteursseiten(tab, seed, p):
+    """Seit 1.9.25: Checkliste, Checklisten zum Auftrag, Objekt und Betriebsmittel als Monteurin (1280 × 620, hell und dunkel) im
+    Monteursrahmen mit Tablet-Maßen (Pfad 15 px, Titel 26 px, jeder Knopf im Kopf mindestens 48 px hoch), dazu Einsatzbericht und Konto der
+    Monteurin; Checkliste und Checklisten zum Auftrag auch fürs Büro (1440 × 900, der gewohnte Kopf: 13 px, 30 px, 40 px). Je Seite
+    .ds-seite, ein h1, Kennung, Untertitel, Status, Pfad nach dem Laden (jeder Link öffnet eine Seite), kein alter Kopf, Links, Fokus,
+    Kontrast; „PDF“ der Checkliste nur, wenn sie kein Entwurf mehr ist."""
+    await tab.cmd("Emulation.setFocusEmulationEnabled", enabled=True)
+    for rolle in (bg.MONTEUR, bg.BUERO):
+        await tab.anmelden(seed["cookies"][rolle])
+        p.pruefe(f"Monteursseiten ({rolle}): Werte laden", await _laden(tab, seed, "checkliste", "hell", 1440, 900), True)
+        cl, a, o = await _monteur_werte(tab, seed)
+        monteur = rolle == bg.MONTEUR
+        status_cl = {"entwurf": ["Entwurf", "warn"], "abgeschlossen": ["Abgeschlossen", "ok"], "gegenstandslos": ["Gegenstandslos", "neutral"]}
+        rueck_cl = f"/checklisten/auftrag/{cl['order_id']}" if monteur else f"/orders/{cl['order_id']}"
+        anfang = ["Einsätze", "/mobil"] if monteur else ["Checklisten", "/checklisten"]
+        seiten = [
+            dict(seite="checkliste", titel=cl["template_label"], kennung="", status=status_cl[cl["status"]],
+                 pfad=[anfang, [cl["context_label"], rueck_cl], [cl["template_label"], None]], pdf=cl["status"] != "entwurf"),
+            dict(seite="checklisten_auftrag", titel="Checklisten zum Auftrag", kennung=o["order_number"], untertitel=o["customer_name"],
+                 status=["", "neutral"], pfad=[anfang] + ([] if monteur else [[o["order_number"], f"/orders/{seed['auftrag']}"]])
+                 + [["Checklisten zum Auftrag", None]]),
+        ]
+        if monteur:
+            meta = " · ".join(x for x in (a.get("asset_type"), a.get("manufacturer"), a.get("model")) if x)
+            seiten += [
+                dict(seite="mobil_objekt", titel="Halle Nord", kennung="", untertitel="", status=["", "neutral"],
+                     pfad=[["Einsätze", "/mobil"], ["Halle Nord", None]]),
+                dict(seite="betriebsmittel_monteur", titel=a["name"], kennung="", untertitel=meta, status=["", "neutral"],
+                     pfad=[["Einsätze", "/mobil"], [a["name"], None]]),
+                dict(seite="einsatzbericht", titel="Einsatzbericht", kennung=o["order_number"], untertitel=o["customer_name"],
+                     status=["", "neutral"], pfad=[["Einsätze", "/mobil"], ["Einsatzbericht", None]]),
+                dict(seite="konto", titel="Mein Konto", kennung="", untertitel="", status=["", "neutral"],
+                     pfad=[["Einsätze", "/mobil"], ["Mein Konto", None]]),
+            ]
+        breite, hoehe = (1280, 620) if monteur else (1440, 900)
+        for f in seiten:
+            for thema in ("hell", "dunkel"):
+                wo = f"Monteursseite {f['seite']} ({rolle}) {thema}"
+                p.pruefe(f"{wo}: geladen", await _laden(tab, seed, f["seite"], thema, breite, hoehe), True)
+                await tab.warten("!!document.querySelector('#seitenkopfPfad .ds-kopf-pfadende')", 10)
+                m = await tab.js(DATENSATZKOPF_JS)
+                pruef = [m["ds"], m["h1"], m["kennung"], m["status"][:2]] + ([m["untertitel"]] if "untertitel" in f else [])
+                soll = [True, [["seitenkopfTitel", f["titel"]]], f["kennung"], f["status"]] + ([f["untertitel"]] if "untertitel" in f else [])
+                p.pruefe(f"{wo}: .ds-seite, ein h1 „{f['titel']}“, Kennung, Status{', Untertitel' if 'untertitel' in f else ''}", pruef, soll)
+                pfad = [[t, h, None if h else "page"] for t, h in f["pfad"]]
+                p.pruefe(f"{wo}: Pfad {' / '.join(g[0] for g in pfad)}, kein alter Kopf",
+                         [m["pfad"], await tab.js("document.querySelectorAll('.back,.back-link,#orderTitle,.obj-name').length")], [pfad, 0])
+                offen = await tab.js(PFAD_OEFFNEN)
+                p.pruefe(f"{wo}: jeder Link im Pfad öffnet eine Seite ({len(offen)} Links)",
+                         [o2 for o2 in offen if o2[1:] != [200, False, "text/html"]], [])
+                mass = await tab.js(MASSE)
+                if monteur:
+                    p.pruefe(f"{wo}: Monteursrahmen mit Tablet-Maßen -- Pfad 15 px, Titel 26 px, jeder Knopf im Kopf mindestens 48 px",
+                             [mass["klasse"], mass["monteurskopf"], mass["leiste"], mass["pfad"], mass["titel"],
+                              [k for k in mass["knoepfe"] if k[1] < 48]], ["ds-kopf ds-kopf-tablet", True, False, "15px", "26px", []])
+                else:
+                    p.pruefe(f"{wo}: im Büro der gewohnte Kopf -- Pfad 13 px, Titel 30 px, Knöpfe 40 px",
+                             [mass["klasse"], mass["leiste"], mass["pfad"], mass["titel"], [k for k in mass["knoepfe"] if k[1] != 40]],
+                             ["ds-kopf", True, "13px", "30px", []])
+                if "pdf" in f:
+                    p.pruefe(f"{wo}: „PDF“ im Kopf {'sichtbar' if f['pdf'] else 'verborgen (Entwurf)'}", await tab.js(
+                        "(e=>[getComputedStyle(e).display!=='none',e.getAttribute('href')])(document.getElementById('pdfLink'))"),
+                        [f["pdf"], f"/api/checklists/{seed['checkliste']}/pdf"])
+                p.pruefe(f"{wo}: {m['links']} Textlinks im Inhalt, alle in --ds-link", m["falsch"], [])
+                fokus = await tab.js(KOPFGRUPPE_FOKUS)
+                p.pruefe(f"{wo}: erstes Feld mit Fokus im Umriss --ds-fokus", fokus if fokus == "kein Feld" else fokus[1],
+                         "kein Feld" if fokus == "kein Feld" else True)
+                k = await tab.js(KONTRAST)
+                p.pruefe(f"{wo}: Kontrast ({k['anzahl']} Elemente, kleinster {k['min']} : 1)", k["schwach"], [])
+                p.pruefe(f"{wo}: keine JS-Fehler", tab.fehler, [])
+    await tab.bild("monteursseiten_zuletzt")
+
+
 TEILE = {"seitenleiste": _seitenleiste, "aktiv": _aktiv, "schrift": _schrift, "menueknopf": _menueknopf, "kopfzeile": _kopfzeile,
          "kontomenue": _kontomenue, "vollname": _vollname, "pruefvorlagen": _pruefvorlagen, "kopfgruppe": _kopfgruppe,
          "seitenregeln": _seitenregeln, "monteurskopf": _monteurskopf, "datensatzkopf": _datensatzkopf,
          "rechnungskopf": _rechnungskopf, "angebotskopf": _angebotskopf, "untermenue": _untermenue,
-         "formularseiten": _formularseiten, "anfragen_av": _anfragen_av}
+         "formularseiten": _formularseiten, "anfragen_av": _anfragen_av,
+         "monteursseiten": _monteursseiten}
 NUR: list = []
 
 
