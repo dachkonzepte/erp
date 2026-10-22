@@ -32,7 +32,8 @@ from .models import (
     Finding, InspectionItem, InspectionTemplate, InspectionTemplateItem, MaintenanceContract,
     MaintenanceContractItem, Material, OperationalAsset, Order, Project, Property, RoofArea,
     RoofTypeInspectionTemplateDefault, ServiceReport, ServiceReportAsset, ServiceReportMaterial,
-    ServiceReportPhoto, ServiceReportRoofArea, Task,
+    ServiceReportPhoto, ServiceReportRoofArea, Task, PlanningSlot, WorkPreparation, WorkPreparationEmployee,
+    WorkPreparationTeamEmployee,
 )
 from .operational_assets import resolve_asset_identity
 from .roof_areas import list_roof_areas
@@ -719,6 +720,35 @@ class PflichtpunktGeschuetzt(ValueError):
 def _kurz(text: str | None, laenge: int = 80) -> str:
     text = " ".join((text or "").split())
     return text if len(text) <= laenge else text[:laenge - 1].rstrip() + "…"
+
+
+def einsaetze_des_berichts(db: Session, report: ServiceReport) -> list[tuple[date, date, set[int]]] | None:
+    """Seit 1.9.37 (Stufe 4, R1, Punkt 4): die Einsätze der Plantafel zum Auftrag des Berichts, deren Zeitraum den Tag des Berichts
+    (performed_at) umfasst -- je Beginn, Ende und die eingeteilten Personen: die Besetzung der Team-Zuweisung des Abschnitts (Schnappschuss)
+    und die Einzelzuweisungen an der Arbeitsvorbereitung (dieselben zwei Wege wie planning._employee_assignment_slot_condition()). None,
+    wenn der Bericht keinen Einsatz-Bezug hat (kein Abschnitt umfasst seinen Tag)."""
+    slots = db.scalars(
+        select(PlanningSlot).join(WorkPreparation, PlanningSlot.preparation_id == WorkPreparation.id)
+        .where(WorkPreparation.order_id == report.order_id, PlanningSlot.start_date <= report.performed_at,
+               PlanningSlot.end_date >= report.performed_at)
+        .order_by(PlanningSlot.start_date, PlanningSlot.id)
+    ).all()
+    if not slots:
+        return None
+    einsaetze = []
+    for slot in slots:
+        team = set(db.scalars(select(WorkPreparationTeamEmployee.employee_id)
+                              .where(WorkPreparationTeamEmployee.assignment_id == slot.team_assignment_id)).all())
+        einzeln = set(db.scalars(select(WorkPreparationEmployee.employee_id)
+                                 .where(WorkPreparationEmployee.preparation_id == slot.preparation_id)).all())
+        einsaetze.append((slot.start_date, slot.end_date, team | einzeln))
+    return einsaetze
+
+
+def zeit_gehoert_zum_einsatz(entry, einsaetze: list[tuple[date, date, set[int]]]) -> bool:
+    """Seit 1.9.37: eine Zeit desselben Auftrags gehört zum Einsatz, wenn ihr Tag im Zeitraum eines der Einsätze liegt und ihre Person
+    dort eingeteilt ist (der Auftrag prüft der Aufrufer)."""
+    return any(beginn <= entry.work_date <= ende and entry.employee_id in leute for beginn, ende, leute in einsaetze)
 
 
 def noch_offen(report: ServiceReport) -> list[str]:

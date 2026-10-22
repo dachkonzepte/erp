@@ -3468,3 +3468,47 @@ Vor Punkt 2 gebaut, weil „Ende nachtragen“ dieselbe Pausenregel und dieselbe
 5. **Pflichtpunkt = `required`** am Prüfpunkt (aus der Vorlage; von Hand ergänzte sind nie Pflicht). „Neu erzeugen“ löscht weiter alle Punkte
    und baut sie aus der Vorlage neu -- die Pflichtpunkte kommen dabei wieder.
 6. **Wortlaut** der Einträge wie oben, Kurzfassung des Prüfpunkts bis 80, des Mangels bis 60 Zeichen.
+
+### R1 Punkt 4 (1.9.37): PDF nur mit den Zeiten dieses Einsatzes
+
+- **Befund** (Befund Stufe 4, B3): `build_service_report_pdf()` nahm `list_entries(db, order_id=…)` -- jede Zeit des Auftrags, aller Tage und
+  Personen. Bei einem Auftrag mit mehreren Einsätzen (verschiedene Wochen, verschiedene Kolonnen) stand im PDF eines Einsatzes jede Zeit der
+  anderen.
+- **Einsatz-Bezug**: `einsaetze_des_berichts(db, report)` -- die Abschnitte der Plantafel (`PlanningSlot`) zur Arbeitsvorbereitung des
+  Auftrags, deren Zeitraum den Tag des Berichts (`performed_at`) umfasst; je Beginn, Ende und die eingeteilten Personen: die Besetzung der
+  Team-Zuweisung des Abschnitts (Schnappschuss `WorkPreparationTeamEmployee`) und die Einzelzuweisungen an der Arbeitsvorbereitung
+  (`WorkPreparationEmployee`, gelten für jeden Abschnitt) -- dieselben zwei Wege wie `/mobil` (`planning._employee_assignment_slot_condition()`).
+  `None`, wenn kein Abschnitt den Tag umfasst.
+- **Filter**: `zeit_gehoert_zum_einsatz(entry, einsaetze)` -- Tag der Zeit im Zeitraum eines Einsatzes und ihre Person dort eingeteilt. Das PDF
+  filtert die Zeiten des Auftrags damit; ohne Einsatz-Bezug bleibt es bei allen.
+
+#### Was gilt ohne Einsatz-Bezug (nur berichtet, nicht geraten)
+
+Ein Bericht hat keinen Einsatz-Bezug, wenn kein Abschnitt der Plantafel zu seinem Auftrag seinen Tag umfasst: ein Auftrag ohne Plantafel
+(Schnellauftrag, Wartungsbesuch aus dem Vertrag ohne Einplanung, „ungeplante Wartung“ aus `/mobil`), ein Bericht an einem Tag außerhalb der
+geplanten Abschnitte (Einsatz verschoben, ohne die Plantafel nachzuziehen). Dort zeigt das PDF weiter alle Zeiten des Auftrags. Zur
+Entscheidung offen: so lassen, nur die Zeiten am Tag des Berichts, oder die des Erstellers/der Personen mit Zeiten an diesem Tag.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v465_pdf_einsatz.py` (5 Tests): ein Auftrag, Einsatz A (5.–7.10., Kolonne A mit Mia), Einsatz B (12.–13.10., Kolonne B mit
+  Tom), vier Zeiten: Einsatz des Berichts = A mit Mia; PDF von A enthält nur Mias Zeit vom 6.10., keine von B, nicht Toms Zeit am Tag von A,
+  nicht Mias Zeit an einem Tag von B (Angriff) / PDF von B nur Toms Zeit vom 12.10. (Gegenprobe); Einzelzuweisung an der Arbeitsvorbereitung
+  zählt für jeden Einsatz; ohne Einsatz-Bezug alle vier Zeiten.
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück, alle FAILED): PDF ohne Filter (E1) -- 3 rot; ohne die Personen (nur Zeitraum,
+  E2) -- 2 rot; ohne Einzelzuweisungen (E3) -- 1 rot.
+- Zum PDF bestehende Tests (18 Dateien, die das PDF des Einsatzberichts erzeugen) unverändert grün; der Test unterschreibt seine Berichte
+  (ein PDF gibt es nur für unterschriebene), die Unterschriften liegen über `monkeypatch` im Testordner.
+- **Angepasste Erwartungen**: keine.
+
+#### Festlegungen 1.9.37 (Bitte bestätigen)
+
+1. **Einsatz** = jeder Abschnitt der Plantafel zum Auftrag, dessen Zeitraum den Tag des Berichts umfasst; mehrere solche (zwei Kolonnen
+   gleichzeitig) zählen zusammen.
+2. **Zeitraum des Einsatzes** = Beginn bis Ende des Abschnitts (ganze Tage), nicht nur der Tag des Berichts -- ein Bericht am Ende eines
+   dreitägigen Einsatzes zeigt alle drei Tage.
+3. **Eingeteilte Personen** = Besetzung der Team-Zuweisung (Schnappschuss) und Einzelzuweisungen an der Arbeitsvorbereitung; eine Zeit einer
+   nicht eingeteilten Person am selben Auftrag und Tag fehlt im PDF.
+4. **Ohne Einsatz-Bezug** alle Zeiten des Auftrags wie bisher -- offen (siehe oben).
+5. **Nur das PDF**: die Tabelle „Erfasste Zeiten zu diesem Auftrag“ auf der Berichtsseite bleibt auftragsweit; das PDF wird bei jedem Abruf neu
+   erzeugt, auch für schon unterschriebene Berichte gilt damit der Filter.

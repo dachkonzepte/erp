@@ -4,6 +4,15 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.37 – Stufe 4, R1: PDF des Einsatzberichts nur mit den Zeiten dieses Einsatzes
+
+Stufe 4 „Monteurin“, Runde 1, Punkt 4 (PDF). Das PDF eines Einsatzberichts listete unter „Erfasste Zeiten“ jede Zeit des Auftrags -- auch
+die anderer Einsätze und Kolonnen. Jetzt nur die Zeiten dieses Einsatzes: dieser Auftrag, der Tag im Zeitraum eines Einsatzes der Plantafel,
+der den Tag des Berichts umfasst, und eine dort eingeteilte Person (Besetzung der Team-Zuweisung oder Einzelzuweisung an der
+Arbeitsvorbereitung; `app/service_reports.py::einsaetze_des_berichts()`). Hat der Bericht keinen Einsatz-Bezug (kein Abschnitt der Plantafel
+umfasst seinen Tag), bleibt es bei allen Zeiten des Auftrags -- das ist offen und im Bericht genannt, nicht geraten. Die Tabelle auf der
+Berichtsseite bleibt auftragsweit. Neuer Test `test_v465`.
+
 ## 1.9.36 – Stufe 4, R1: Einsatzbericht – „Noch offen“ vor jeder Unterschrift
 
 Stufe 4 „Monteurin“, Runde 1, Punkt 4. Die Pflichten eines Einsatzberichts (Pflichtpunkt beantwortet, Mangel zu negativem Ergebnis, Foto je

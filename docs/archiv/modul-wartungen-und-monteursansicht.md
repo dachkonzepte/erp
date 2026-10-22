@@ -937,3 +937,9 @@ die Seite fragt vor jeder Unterschrift und zeigt sie am Knopf „Unterschreiben�
 `ValueError` mit der Anzahl, 400). Ein Pflichtpunkt lässt sich nicht löschen (409). `hasInspectionSection()` erkennt die Vorlage auch an der
 Dachfläche (`roof_areas[].inspection_template_id`) -- ein Rapportbericht mit Vorlage zeigt seine Prüfpunkte. Herleitung, Tests und
 Festlegungen: `docs/archiv/redesign.md`, „R1 Punkt 4 (1.9.36)“.
+
+**Seit 1.9.37: PDF nur mit den Zeiten des Einsatzes.** „Erfasste Zeiten“ im PDF (nur Büro; das PDF der Monteurin hat keine Zeiten) zeigt die
+Zeiten des Auftrags, deren Tag im Zeitraum eines Einsatzes liegt, der den Tag des Berichts umfasst, und deren Person dort eingeteilt ist
+(`app/service_reports.py::einsaetze_des_berichts()`/`zeit_gehoert_zum_einsatz()`). Ohne Einsatz-Bezug wie bisher alle Zeiten des Auftrags
+(offen). Die Tabelle „Erfasste Zeiten zu diesem Auftrag“ auf der Seite bleibt bewusst auftragsweit (siehe oben). Festlegungen:
+`docs/archiv/redesign.md`, „R1 Punkt 4 (1.9.37)“.

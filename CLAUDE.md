@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.36** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.37** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -1460,7 +1460,8 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
 - **Einsatzbericht: „Noch offen“ vor jeder Unterschrift** (seit 1.9.36): die Pflichten nur aus `app/service_reports.py::noch_offen()`
   (dieselben wie seit 1.2.16/1.2.17, je mit Namen); die Seite fragt `GET /api/service-reports/{id}/noch-offen` vor der Unterschrift des
   Monteurs und vor der des Kunden, nach `nachDemSpeichern()` (`_speichern.html`); die Unterschrift lehnt mit 409 und der Liste ab. Ein
-  Pflichtpunkt ist nicht löschbar (409). Eine neue Pflicht gehört in `noch_offen()`. `tests/test_v464_noch_offen.py`.
+  Pflichtpunkt ist nicht löschbar (409). Eine neue Pflicht gehört in `noch_offen()`. `tests/test_v464_noch_offen.py`. Seit 1.9.37 zeigt
+  das PDF nur die Zeiten des Einsatzes (`einsaetze_des_berichts()`, `zeit_gehoert_zum_einsatz()`); ohne Einsatz-Bezug alle des Auftrags.
 - **Zeit für andere buchen nur nach `app/permissions.py::darf_zeit_fuer_andere_buchen()`** (seit 1.8.152, heute nur Admin): der Server
   prüft damit Buchen und Ändern fremder Zeiten, `/api/auth/status` meldet sie (`zeit_fuer_andere_buchen`), der Einsatzbericht zeigt
   die Auswahl „Mitarbeiter“ nur danach -- eine neue Stelle mit derselben Frage nimmt diese Funktion, keine eigene Rollenabfrage.

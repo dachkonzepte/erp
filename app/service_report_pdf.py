@@ -31,7 +31,7 @@ from .document_pdf import build_din5008_header_block, build_object_address_block
 from .findings import ACTION_LABELS, SEVERITY_LABELS, STATUS_LABELS
 from .service_report_photos import photo_path
 from .rounding import round_hours
-from .service_reports import REPORT_TYPE_LABELS, report_to_dict, signature_path
+from .service_reports import REPORT_TYPE_LABELS, einsaetze_des_berichts, report_to_dict, signature_path, zeit_gehoert_zum_einsatz
 from .settings import load_general_settings
 from .time_tracking import entry_to_dict, list_entries
 
@@ -347,6 +347,12 @@ def build_service_report_pdf(db, report, *, include_time_entries: bool = True) -
                 story.append(Spacer(1, 2 * mm))
 
         entries = list_entries(db, order_id=order.id, limit=None) if include_time_entries else []
+        # Seit 1.9.37 (Stufe 4, R1): nur die Zeiten dieses Einsatzes -- dieser Auftrag, Tag im Zeitraum des Einsatzes, Person dort
+        # eingeteilt (einsaetze_des_berichts()); bis 1.9.36 jede Zeit des Auftrags, auch die anderer Einsätze. Ohne Einsatz-Bezug (kein
+        # Abschnitt der Plantafel umfasst den Tag des Berichts) bleibt es bei allen Zeiten des Auftrags -- offen, siehe Festlegungen 1.9.37.
+        einsaetze = einsaetze_des_berichts(db, report) if entries else None
+        if einsaetze is not None:
+            entries = [e for e in entries if zeit_gehoert_zum_einsatz(e, einsaetze)]
         if entries:
             rows = [["Datum", "Mitarbeiter", "Tätigkeit", "Stunden"]]
             for e in entries:
