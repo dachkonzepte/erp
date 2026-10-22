@@ -1146,3 +1146,14 @@ wiederholt einen Klicktest genau einmal, wenn seine einzige Abweichung solche An
    App (`data/erp.log`, keine Seite).
 3. **Prüfung mit ferner Uhr (2030) als Test** (`test_v453`): Date/DateTime vor 2029, ein Datum 2020–2028 in Text oder abgelegter Datei ist
    ein Befund; die festen Nummern der Testdaten (P-/A-/AN-2026-…) sind ausgenommen.
+
+## Klicktest Mahnwesen: Frist im Format der Seite (1.9.26, gefunden in Runde 9)
+
+- **Befund**: `klicktest_veraltete_antworten`, Teil Mahnwesen, rot am 22.10.2026 („wieder geöffnet zeigt der Editor 40 Tage und die Frist
+  dazu: ['40', False]“), auch auf `4527b7c` (Stand vor Runde 9, am 21.10. noch 80 von 80). Die Frist (heute + 40 Tage) fiel auf den
+  01.12.2026: der Test suchte „01.12.2026“ (`strftime("%d.%m.%Y")` beim Befüllen), das Mahnwesen schreibt `toLocaleDateString('de-DE')`
+  ohne Optionen, also „1.12.2026“. Die Rechnungsseite schreibt mit `day:'2-digit'` -- dort stimmte der Vergleich weiter.
+- **Änderung**: das Befüllen liefert zusätzlich `frist_kurz` (Tag und Monat ohne führende Null), der Teil Mahnwesen vergleicht damit; die
+  Prüfungen der Rechnungsseite bleiben bei `frist`. Danach 27 von 27.
+- **Festlegung zu Werkzeug und Testablauf 1.9.26 (Bitte bestätigen)**: ein Klicktest vergleicht ein Datum in der Schreibweise der Seite,
+  die er prüft (nicht in einer festen eigenen) -- sonst hängt sein Ergebnis am Kalendertag.

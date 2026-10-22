@@ -115,6 +115,9 @@ def befuellen(db, k):
     return {"checklist": cl["id"], "fields": felder, "order": a2.id, "acceptances": abnahmen, "invoice": invoice.id,
             "reminder": mahnung.id,
             "frist": {str(n): (heute + timedelta(days=n)).strftime("%d.%m.%Y") for n in (10, 20, 30, 40)},
+            # seit 1.9.26: das Mahnwesen schreibt das Datum wie toLocaleDateString('de-DE') -- Tag und Monat ohne führende Null
+            # („1.12.2026“); bis dahin verglich der Test mit „01.12.2026“ und wurde rot, sobald die Frist auf einen einstelligen Tag fiel
+            "frist_kurz": {str(n): "{0.day}.{0.month}.{0.year}".format(heute + timedelta(days=n)) for n in (10, 20, 30, 40)},
             "cookies": {"anna": k.cookies(anna), "mia": k.cookies(mia)}}
 
 
@@ -214,7 +217,7 @@ async def _mahnung_rechnung(tab, seed, p):
 
 
 async def _mahnung_mahnwesen(tab, seed, p):
-    rid, frist = seed["reminder"], seed["frist"]
+    rid, frist = seed["reminder"], seed["frist_kurz"]  # Mahnwesen: Datum ohne führende Null (seit 1.9.26)
     tage = f"allReminders.filter(r=>r.id==={rid}).map(r=>r.payment_days)"
 
     async def speichern_mit(tage_zahl):

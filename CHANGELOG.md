@@ -4,6 +4,14 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.26 – Klicktest Mahnwesen: Frist im Format der Seite
+
+Gefunden in Runde 9 (nicht Teil des Auftrags): `klicktest_veraltete_antworten` wurde am 22.10.2026 rot -- auch auf dem Stand vor der Runde.
+Der Test verglich die Frist im Editor des Mahnwesens mit „01.12.2026“ (`strftime("%d.%m.%Y")`), die Seite schreibt das Datum wie überall im
+Mahnwesen mit `toLocaleDateString('de-DE')`, also „1.12.2026“. Bis zum Vortag fiel die Frist (heute + 40 Tage) auf einen zweistelligen Tag
+(30.11.), da stimmten beide Schreibweisen überein. Der Test nimmt für das Mahnwesen jetzt dieselbe Schreibweise wie die Seite
+(`frist_kurz`); die Rechnungsseite schreibt zweistellig und bleibt beim bisherigen Vergleich. Die Seite selbst ist unverändert.
+
 ## 1.9.25 – Rahmen, Runde 9: Monteursseiten im Seitenkopf mit Tablet-Maßen
 
 Stufe 2, Runde 9, Punkt 3. Die Monteursseiten, die bleiben -- Checkliste, Checklisten zum Auftrag, Objekt der Monteursansicht,
