@@ -252,6 +252,8 @@ async def pruefen(tab, seed, p):
     await _zeichnen(tab, "#sigCanvas")
     p.pruefe("Bericht dunkel: Fläche weiß, Strich dunkel", await tab.js(_hell_und_dunkel_strich("#sigCanvas")), [WEISS, True, True])
     await tab.js("document.getElementById('signNextBtn').click(); true")
+    # Seit 1.9.36 fragt „Weiter“ vor dem Schritt des Kunden den Server, was noch offen ist (GET …/noch-offen) -- erst danach der Schritt
+    await tab.warten("document.getElementById('signHeading').textContent==='Unterschrift Kunde'", 10)
     p.pruefe("Bericht: Schritt Kunde, Fläche geleert",
              [await tab.js("document.getElementById('signHeading').textContent"), (await tab.js(_hell_und_dunkel_strich("#sigCanvas")))[1]],
              ["Unterschrift Kunde", False])

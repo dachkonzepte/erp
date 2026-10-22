@@ -3512,3 +3512,16 @@ Entscheidung offen: so lassen, nur die Zeiten am Tag des Berichts, oder die des 
 4. **Ohne Einsatz-Bezug** alle Zeiten des Auftrags wie bisher -- offen (siehe oben).
 5. **Nur das PDF**: die Tabelle „Erfasste Zeiten zu diesem Auftrag“ auf der Berichtsseite bleibt auftragsweit; das PDF wird bei jedem Abruf neu
    erzeugt, auch für schon unterschriebene Berichte gilt damit der Filter.
+
+### R1 Nachtrag (nach 1.9.37): Endlauf
+
+- **Endlauf auf bcfdcec** (saubere Arbeitskopie): volle Suite 6746 passed, 3 skipped; Klicktests 80 von 81 wie erwartet. Rot:
+  `klicktest_vertrag_unterschrift`, Prüfung „Bericht: Schritt Kunde, Fläche geleert“ -- ist `['Unterschrift Monteur', True]`, Soll
+  `['Unterschrift Kunde', False]`. Ursache: seit 1.9.36 fragt „Weiter“ vor dem Schritt des Kunden den Server (`GET …/noch-offen`), der
+  Schritt wechselt erst nach der Antwort; der Klicktest prüfte sofort nach dem Klick (im Netzprotokoll die Anfrage noch offen). Die
+  Unterschrift selbst ging danach durch. Mein Versäumnis in 1.9.36: dieser Klicktest unterschreibt ebenfalls einen Einsatzbericht und lief
+  vor dem Commit nicht mit.
+- **Angepasste Erwartung** (Regel 28, nur Aufbau, Soll unverändert): `klicktest_vertrag_unterschrift`, Einsatzbericht -- wartet nach
+  „Weiter“ auf die Überschrift „Unterschrift Kunde“ (bis zu 10 s), statt sofort zu prüfen.
+- Ohne Bezug zu dieser Runde, nur genannt: derselbe Klicktest meldet bei „Vorlage: Kennzeichen ändern“ in jedem Lauf (auch allen früheren
+  grünen) „warten: nach 15 s nicht erfüllt: … .ctStatus …“ -- die Seite schreibt dort nicht „Gespeichert.“; die Prüfung danach ist grün.
