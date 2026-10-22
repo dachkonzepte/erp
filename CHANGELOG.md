@@ -4,6 +4,18 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.28 – Rahmen, Runde 9: Hinweise ohne interne Dateien
+
+Stufe 2, Runde 9, Punkt 5. „Benutzer und Zugriff“ warnte bei nur einem aktiven Administrator: „… die eigenen, ausgedruckten
+Wiederherstellungscodes und das Notfallskript auf dem Server (siehe CLAUDE.md) sind die einzige Absicherung …“ -- wer die Seite benutzt,
+kennt CLAUDE.md nicht. Jetzt sagt der Hinweis, was zu tun ist: Wiederherstellungscodes sicher aufbewahren und einen zweiten
+Administrator anlegen; fehlen Telefon und Codes, kann den zweiten Faktor nur noch zurücksetzen, wer Zugang zum Server hat. Beim Durchsehen
+aller Vorlagen und Meldungen dazu gefunden und ebenso umgestellt: der Hinweis zum Outlook-Kalender in den Einstellungen („vollständige
+Anleitung: docs/archiv/…“ -> wer das Postfach in die Gruppe aufnehmen kann) und die Meldung eines abgelehnten Graph-Aufrufs („siehe
+docs/archiv/…“ -> das Postfach in die Gruppe ERP-Zugriff aufnehmen). Neuer Wächter `test_v459`: kein sichtbarer Text einer Vorlage und
+keine Meldung in `app/` nennt CLAUDE.md, `docs/…`, `scripts/….py` oder `app/….py` -- Ausnahmen nur mit Grund (der Befehl der
+Ersteinrichtung, die Meldung eines Programmierfehlers an Entwickler).
+
 ## 1.9.27 – Rahmen, Runde 9: Anmeldung und Sperrseite
 
 Stufe 2, Runde 9, Punkt 4. Anmeldung und Sperrseite tragen `.ds-seite`, darüber die Bildmarke mit Schriftzug (neuer Baustein

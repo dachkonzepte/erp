@@ -485,7 +485,7 @@
   <section class="card settings-section" id="settings-outlook-sync">
     <div class="section-title"><div><h2 style="margin-bottom:4px">Outlook-Kalender</h2><div class="muted small">Gleicht die eigenen Termine jeder Person mit ihrem unter „Benutzer und Zugriff“ hinterlegten Outlook-Postfach ab.</div></div></div>
 
-    <div class="hint">Nutzt dieselbe Microsoft-365-App-Registrierung wie unter „E-Mail und Microsoft 365“ (Mandanten-ID/Client-ID/Client-Secret) -- die Rolle <code>Calendars.ReadWrite</code> wird wie <code>Mail.Send</code> ausschließlich über Exchange "RBAC for Applications" (Scope "ERP-Zugriff") vergeben, nie in Entra ID -- jedes zu synchronisierende Postfach muss Mitglied der Gruppe <code>ERP-Zugriff@dachkonzepte.gmbh</code> sein (vollständige Anleitung: docs/archiv/modul-kalender-und-outlook-sync.md). Solange der Schalter unten aus ist, ruft niemand Microsoft Graph für Kalenderdaten auf.</div>
+    <div class="hint">Nutzt dieselbe Microsoft-365-App-Registrierung wie unter „E-Mail und Microsoft 365“ (Mandanten-ID/Client-ID/Client-Secret) -- die Rolle <code>Calendars.ReadWrite</code> wird wie <code>Mail.Send</code> ausschließlich über Exchange "RBAC for Applications" (Scope "ERP-Zugriff") vergeben, nie in Entra ID -- jedes zu synchronisierende Postfach muss Mitglied der Gruppe <code>ERP-Zugriff@dachkonzepte.gmbh</code> sein; aufnehmen kann es, wer euer Microsoft 365 verwaltet. Solange der Schalter unten aus ist, ruft niemand Microsoft Graph für Kalenderdaten auf.</div>
 
     <div class="field" style="max-width:420px;margin-top:12px">
       <label style="display:flex;align-items:center;gap:8px;font-weight:650"><input id="outlookSyncEnabled" type="checkbox" style="width:auto"> Outlook-Kalendersynchronisation aktivieren</label>

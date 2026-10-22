@@ -3034,3 +3034,43 @@ mit Stufe und Grund. Bildvergleich: außer den Seiten der Runde weicht nichts ab
    darunter; danach immer „Brauchst du sie, wende dich an eine Person mit den passenden Rechten.“; „Zur Startseite“ grüne Hauptaktion unter
    dem Text.
 4. **Karten bleiben eckig** auf beiden Seiten, wie auf den übrigen umgezogenen Seiten (Ecken der Karten sind nicht Teil von Stufe 2).
+
+### Punkt 5 (1.9.28): Hinweise ohne interne Dateien
+
+- **„Benutzer und Zugriff“** (Warnung bei nur einem aktiven Administrator, `#soleAdminWarning`): bis dahin „Es gibt aktuell nur einen
+  einzigen aktiven Administrator. Der Weg "Zweiten Faktor zurücksetzen" über diese Seite steht deshalb praktisch nicht zur Verfügung -- die
+  eigenen, ausgedruckten Wiederherstellungscodes und das Notfallskript auf dem Server (siehe CLAUDE.md) sind die einzige Absicherung, falls
+  das Telefon mit der Authenticator-App verloren geht.“ Jetzt: „Es gibt nur einen aktiven Administrator – den zweiten Faktor kann dir
+  deshalb niemand über diese Seite zurücksetzen. Bewahre deine ausgedruckten Wiederherstellungscodes sicher auf und lege einen zweiten
+  Administrator an. Geht das Telefon mit der Authenticator-App verloren und fehlen die Codes, kann den zweiten Faktor nur noch
+  zurücksetzen, wer Zugang zum Server hat.“
+- **Beim Durchsehen gefunden** (Suche über alle Vorlagen ohne Kommentare und alle Texte in `app/` außer Docstrings): der Hinweis zum
+  Outlook-Kalender in den Einstellungen endete mit „(vollständige Anleitung: docs/archiv/modul-kalender-und-outlook-sync.md)“ -- jetzt
+  „aufnehmen kann es, wer euer Microsoft 365 verwaltet“; die Meldung eines mit 403 abgelehnten Graph-Aufrufs
+  (`app/outlook_calendar_sync.py`, angezeigt beim Abgleich) endete mit „siehe docs/archiv/…“ -- jetzt „das Postfach in die Gruppe
+  ERP-Zugriff aufnehmen“. Der Befehl der geschlossenen Ersteinrichtung (`python scripts/erstes_konto.py <benutzername>`,
+  `app/anmeldeschranke.py`) bleibt: er ist selbst, was zu tun ist.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v459_keine_internen_dateien.py` (9 Tests): keine Vorlage nennt im sichtbaren Text oder im Skript (ohne Kommentare
+  `{# … #}`, `<!-- … -->`, `/* … */`, `// …`) CLAUDE.md, `docs/…`, `scripts/….py` oder `app/….py`; kein Text in `app/` ebenso, außer
+  freistehenden Strings (Docstrings und Beschreibungen unter einer Zuweisung wie in `app/ai_types.py` -- nie angezeigt); Ausnahmen mit Grund
+  nur der Befehl der Ersteinrichtung und die `ValueError` eines nicht eingetragenen Dokumenttyps in `app/document_frame.py` (Programmierfehler,
+  die Oberfläche sieht nur die 500 ohne Text), jede Ausnahme muss es noch geben; der Hinweis auf „Benutzer und Zugriff“ sagt, was zu tun
+  ist; Selbsttests des Wächters (findet in Text und Skript, lässt Kommentare und Adressen durch, freistehende Strings in Python).
+- Vor der Änderung 3 von 9 rot (Vorlagen: `users.html`, `settings.html`; Meldungen: `app/outlook_calendar_sync.py`; Hinweis).
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück): „siehe CLAUDE.md“ wieder im Hinweis auf „Benutzer und Zugriff“ (N1);
+  „docs/archiv/…“ wieder im Outlook-Hinweis der Einstellungen (N2); „siehe docs/archiv/…“ wieder in der Graph-Meldung (N3) -- in pytest
+  **3 von 3 rot** (FAILED, `test_v459`; N1 dazu der Test des Hinweises).
+- **Angepasste Erwartungen** (Regel 28): keine.
+
+#### Festlegungen 1.9.28 (Bitte bestätigen)
+
+1. **Kein sichtbarer Text und keine Meldung nennt eine interne Datei** (CLAUDE.md, `docs/…`, `scripts/….py`, `app/….py`), sondern sagt,
+   was zu tun ist; Ausnahmen nur mit Grund: ein Befehl, der selbst die Handlung ist (Ersteinrichtung), und die Meldung eines
+   Programmierfehlers an Entwickler, die die Oberfläche nie erreicht. Wächter über alle Vorlagen und `app/`.
+2. **Mit umgestellt, obwohl nicht im Auftrag**: der Outlook-Hinweis in den Einstellungen und die Meldung eines abgelehnten Graph-Aufrufs
+   (dieselbe Art Fehler, der Wächter hätte sie sonst als Ausnahme gebraucht).
+3. **Wortlaut der Warnung** auf „Benutzer und Zugriff“: Codes sicher aufbewahren, zweiten Administrator anlegen; ohne Telefon und Codes
+   nur noch über den Server -- ohne Namen des Notfallskripts.
