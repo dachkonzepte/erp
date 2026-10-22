@@ -3176,6 +3176,12 @@ class TimeTimerStop(BaseModel):
     ended_at: datetime | None = None
     break_minutes: int = Field(default=0, ge=0, le=720)
 
+class TimeEndeNachtragen(BaseModel):
+    """Seit 1.9.35 (Stufe 4, R1): das Ende einer Zeit, die seit einem früheren Tag läuft -- am Starttag, nach dem Start; Pause nach der
+    Zeitregel, die eingegebene als Mindestpause."""
+    ende: datetime
+    pause_minuten: int = Field(default=0, ge=0, le=720)
+
 class TimeGroupManualCreate(BaseModel):
     employee_ids: list[int] = Field(min_length=1)
     team_id: int | None = None
@@ -3257,6 +3263,8 @@ class TimeEntryOut(BaseModel):
     anwesend: Decimal | None = None
     pause: int | None = None
     gebucht: Decimal | None = None
+    # Seit 1.9.35: läuft seit einem früheren Tag -- dann „Ende nachtragen“ statt „Zeit stoppen“
+    laeuft_seit_frueher: bool = False
     # Seit 1.7.12 (Nachvollziehbarkeit Kolonnenführer): wer die Buchung angelegt hat -- bei einer
     # Gruppenbuchung ist das der Kolonnenführer, nicht der Mitarbeiter, dem sie gehört.
     booked_by_name: str | None = None

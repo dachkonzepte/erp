@@ -69,6 +69,7 @@ from ..schemas import (
 )
 from ..search import search_properties_for_field
 from ..service_report_pdf import build_service_report_pdf_for_field
+from ..time_tracking import offene_zeit_info
 from ..service_reports import (
     list_draft_reports_for_employee, list_maintenance_history_for_property_field,
     resolve_property_history_report_for_field,
@@ -131,6 +132,8 @@ def get_field_view_today(request: Request, db: Session = Depends(get_db, scope="
         "assignments": _with_open_concerns(db, list_todays_assignments_for_employee(db, user.employee_id)),
         "draft_reports": draft_reports,
         "open_concerns_text": OPEN_CONCERNS_TEXT,
+        # seit 1.9.35 (Stufe 4, R1): eine Zeit, die seit einem früheren Tag läuft (vergessener Feierabend) -- nichts schließt sie von selbst
+        "offene_zeit": offene_zeit_info(db, user.employee_id),
     }
 
 

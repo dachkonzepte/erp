@@ -61,7 +61,7 @@ KLICKTEST_DAUERN: dict[str, float] = {
     "klicktest_feierabend": 10, "klicktest_feste_fassung": 12, "klicktest_finanzen_zahlbetrag": 11,
     "klicktest_fremde_seite": 10, "klicktest_hochladen": 12, "klicktest_leistungszeitraum": 11,
     "klicktest_maengel": 14, "klicktest_maengel_monteur": 12, "klicktest_mahnen_endrechnung": 11,
-    "klicktest_mahnwesen": 13, "klicktest_monteur_dachflaechen": 8, "klicktest_monteur_navigation": 12,
+    "klicktest_mahnwesen": 13, "klicktest_monteur_dachflaechen": 8, "klicktest_monteur_navigation": 12, "klicktest_monteurin_regeln": 12,
     "klicktest_nachtrag": 11, "klicktest_nebenforderungen": 13, "klicktest_neue_ordnung": 26, "klicktest_objekt_anderer_kunde": 10,
     "klicktest_protokoll_maengel": 12, "klicktest_protokoll_versand": 11, "klicktest_rahmen": 47, "klicktest_rechnung_rundung": 9,
     "klicktest_rechnungen_sperren": 13, "klicktest_rechnungsdatum": 9, "klicktest_teil_updates": 9,

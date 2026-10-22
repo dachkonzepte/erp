@@ -83,7 +83,10 @@ def test_field_cannot_stop_a_timer_that_runs_in_the_locked_period(threaded_db_se
     field = router_test_client(db, time_router, role="field", employee_id=me.id)
     assert field.post(f"/api/time-entries/{running.id}/stop", json={}).status_code == 403
     admin = router_test_client(db, time_router, role="admin")
-    assert admin.post(f"/api/time-entries/{running.id}/stop", json={"ended_at": datetime.combine(LOCKED_DAY, datetime.min.time()).replace(hour=15).isoformat()}).status_code == 200
+    # Seit 1.9.35 stoppt keiner eine Zeit, die seit einem früheren Tag läuft (409), auch ein Admin nicht -- er trägt das Ende nach
+    ende = datetime.combine(LOCKED_DAY, datetime.min.time()).replace(hour=15).isoformat()
+    assert admin.post(f"/api/time-entries/{running.id}/stop", json={"ended_at": ende}).status_code == 409
+    assert admin.post(f"/api/time-entries/{running.id}/ende-nachtragen", json={"ende": ende}).status_code == 200
 
 
 def test_timer_start_is_blocked_when_today_is_already_locked(threaded_db_session, router_test_client):

@@ -25,15 +25,15 @@ from decimal import Decimal
 from fastapi import Depends, HTTPException, Query, Request, Response
 from sqlalchemy.orm import Session
 
-from ..berlin_time import berlin_now, berlin_today
+from ..berlin_time import BERLIN, berlin_now, berlin_today
 from ..meldungen import KEIN_MITARBEITER
 from ..database import get_db
 from ..models import AppUser, TimeEntry, TimeEntryGroup
 from ..permissions import ROLE_FIELD, darf_zeit_fuer_andere_buchen, require_min_role
 from .orders import require_field_order_access
-from ..schemas import CrewGroupSummaryOut, CrewOut, TimeEntryManualCreate, TimeEntryOut, TimeEntrySummaryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeGroupUpdate, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
+from ..schemas import CrewGroupSummaryOut, CrewOut, TimeEntryManualCreate, TimeEntryOut, TimeEntrySummaryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeGroupUpdate, TimeEndeNachtragen, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
 from ..time_backoffice import load_time_settings, locked_until, rounded_hours, time_settings_dict
-from ..time_tracking import MAX_LIST_LIMIT, active_group_for_employee, active_entry as active_time_entry, count_entries, create_group_manual_entry, create_manual_entry, crew_leader_team_ids, delete_entry as delete_time_entry_row, delete_group, entry_to_dict, field_time_tracking_context, nachtrag_nach_zeitregel, group_for_entry, group_member_ids, group_to_dict, list_crews_for_leader, list_entries as list_time_entries, list_groups_initiated_by, start_group_timer, start_timer, stop_group_timer, stop_timer, summarize_entries, time_tracking_context, update_entry as update_time_entry_row, update_group
+from ..time_tracking import MAX_LIST_LIMIT, active_group_for_employee, active_entry as active_time_entry, count_entries, create_group_manual_entry, create_manual_entry, crew_leader_team_ids, delete_entry as delete_time_entry_row, delete_group, ende_nachtragen, entry_to_dict, field_time_tracking_context, laeuft_seit_frueher, load_entry, nachtrag_nach_zeitregel, OffeneZeit, group_for_entry, group_member_ids, group_to_dict, list_crews_for_leader, list_entries as list_time_entries, list_groups_initiated_by, start_group_timer, start_timer, stop_group_timer, stop_timer, summarize_entries, time_tracking_context, update_entry as update_time_entry_row, update_group
 
 router = APIRouter()
 
@@ -103,6 +103,13 @@ def _require_open_period(request: Request, db: Session, *work_dates: date) -> No
 
 
 CREW_LEADER_ONLY = "Gruppenbuchungen sind für Monteure dem Kolonnenführer des Teams vorbehalten."
+# Seit 1.9.35 (Stufe 4, R1, Punkt 2): eine Zeit, die seit einem früheren Tag läuft
+MONAT_ABGESCHLOSSEN = "Monat abgeschlossen – das Büro schließt die Zeit."
+GRUPPENZEIT_NUR_KOLONNENFUEHRER = "Die Gruppenzeit schließt der Kolonnenführer."
+
+
+def _stopp_vom_vortag(started_at) -> str:
+    return f"Diese Zeit läuft seit dem {started_at:%d.%m.%Y} – bitte „Ende nachtragen“ (Ende am Starttag) statt stoppen."
 
 _TIME_FIELDS = ("order_id", "order_item_id", "work_date", "entry_type", "activity", "hours", "break_minutes", "notes")
 
@@ -291,6 +298,8 @@ def stop_time_group(group_id:int,payload:TimeGroupTimerStop,request:Request,db:S
     if not _noch_kolonnenfuehrer(request,db,group):
         raise HTTPException(status_code=403,detail=CREW_LEADER_ONLY)
     _require_open_period(request,db,group.work_date)
+    if group.status=="running" and group.started_at is not None and group.started_at.date()<berlin_today():  # seit 1.9.35
+        raise HTTPException(status_code=409,detail=_stopp_vom_vortag(group.started_at))
     try:
         group=stop_group_timer(db,group_id,ended_at=payload.ended_at or berlin_now(),break_minutes=payload.break_minutes)
     except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
@@ -366,6 +375,8 @@ def start_time_entry(payload: TimeTimerStart, request: Request, db: Session = De
     user = getattr(request.state, "erp_user", None)
     try:
         row = start_timer(db, employee_id=employee_id, order_id=payload.order_id, order_item_id=payload.order_item_id, entry_type=payload.entry_type, activity=payload.activity, notes=payload.notes, started_at=payload.started_at, created_by_user_id=getattr(user, "id", None))
+    except OffeneZeit as exc:  # seit 1.9.35: eine Zeit von früher ist noch offen
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=409 if "läuft bereits" in str(exc) else 422, detail=str(exc)) from exc
     return TimeEntryOut.model_validate(entry_to_dict(row))
@@ -379,6 +390,8 @@ def stop_time_entry(entry_id: int, payload: TimeTimerStop, request: Request, db:
     if not _time_entry_can_edit(request, current):
         raise HTTPException(status_code=403, detail="Du darfst diese Zeiterfassung nicht ändern.")
     _require_open_period(request, db, current.work_date)
+    if laeuft_seit_frueher(current):  # seit 1.9.35: bis dahin buchte der Stopp sie bis jetzt auf den Starttag (z. B. 24 h)
+        raise HTTPException(status_code=409, detail=_stopp_vom_vortag(current.started_at))
     try:
         group = group_for_entry(db, entry_id)
         user = getattr(request.state, "erp_user", None)
@@ -396,6 +409,45 @@ def stop_time_entry(entry_id: int, payload: TimeTimerStop, request: Request, db:
     loaded = next((x for x in list_time_entries(db, employee_id=loaded.employee_id, start_date=loaded.work_date, end_date=loaded.work_date, limit=2000) if x.id==loaded.id), loaded)
     loaded=_apply_time_rounding(db,loaded)
     return TimeEntryOut.model_validate(entry_to_dict(loaded))
+
+
+@router.post("/api/time-entries/{entry_id}/ende-nachtragen", response_model=TimeEntryOut)
+def ende_nachtragen_endpunkt(entry_id: int, payload: TimeEndeNachtragen, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+    """Seit 1.9.35 (Stufe 4, R1, Punkt 2): das Ende einer Zeit nachtragen, die seit einem früheren Tag läuft (vergessener Feierabend).
+    Die eigene Zeit, oder die einer anderen Person nach darf_zeit_fuer_andere_buchen() (heute nur Admin; wer, steht im Verlauf). Ist der
+    Monat des Starttags abgeschlossen, schließt sie nur ein Admin (wie jede Änderung dort). Gehört sie zu einer laufenden Gruppe, schließt
+    sie nur der Kolonnenführer, der die Gruppe gestartet hat (oder ein Admin) -- für die ganze Gruppe, wie der Gruppen-Stopp."""
+    current = db.get(TimeEntry, entry_id)
+    if current is None:
+        raise HTTPException(status_code=404, detail="Zeiterfassung nicht gefunden.")
+    if not _time_entry_can_edit(request, current):
+        raise HTTPException(status_code=403, detail="Du darfst diese Zeit nicht schließen.")
+    if current.status != "running":
+        raise HTTPException(status_code=409, detail="Diese Zeit ist schon geschlossen.")
+    if not laeuft_seit_frueher(current):
+        raise HTTPException(status_code=409, detail="Diese Zeit läuft seit heute – bitte normal stoppen.")
+    user = getattr(request.state, "erp_user", None)
+    lock = locked_until(db)
+    if user is not None and user.role == ROLE_FIELD and lock is not None and current.work_date <= lock:
+        raise HTTPException(status_code=403, detail=MONAT_ABGESCHLOSSEN)
+    _require_open_period(request, db, current.work_date)  # für das Büro unverändert: im abgeschlossenen Zeitraum nur ein Admin
+    group = group_for_entry(db, entry_id)
+    gruppe_laeuft = group is not None and group.status == "running"
+    if gruppe_laeuft:
+        kolonnenfuehrer = (user is not None and user.employee_id == group.initiated_by_employee_id
+                           and _noch_kolonnenfuehrer(request, db, group))
+        if not (darf_zeit_fuer_andere_buchen(user) or kolonnenfuehrer):
+            raise HTTPException(status_code=403, detail=GRUPPENZEIT_NUR_KOLONNENFUEHRER)
+    ende = payload.ende
+    if ende.tzinfo is not None:  # Beginn und Ende einer Zeitbuchung sind naive Ortszeit (Regel 20)
+        ende = ende.astimezone(BERLIN).replace(tzinfo=None)
+    try:
+        row = ende_nachtragen(db, entry_id, ende=ende, mindestpause=payload.pause_minuten)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if not gruppe_laeuft:
+        row = _apply_time_rounding(db, load_entry(db, row.id))  # wie der Einzel-Stopp; die Gruppe wie der Gruppen-Stopp ohne Rundung
+    return TimeEntryOut.model_validate(entry_to_dict(load_entry(db, row.id)))
 
 
 @router.put("/api/time-entries/{entry_id}", response_model=TimeEntryOut)

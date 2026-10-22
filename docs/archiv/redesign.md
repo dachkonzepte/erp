@@ -3317,3 +3317,90 @@ Vor Punkt 2 gebaut, weil „Ende nachtragen“ dieselbe Pausenregel und dieselbe
    Gruppen-Nachtrag weiter ohne Rundung -- Befund, nicht Teil dieser Runde).
 4. **Der Kolonnen-Nachtrag** hat nur „Stunden je Person“ (eine Dauer) und bleibt, wie er ist.
 5. **anwesend ohne Beginn und Ende** (eine Dauer) = gebucht + Pause.
+
+### R1 Punkt 2 (1.9.35): vergessener Feierabend
+
+- **Befund** (Befund Stufe 4, B2): `stop_timer()` nahm jedes Ende nach dem Start -- der Stopp am nächsten Morgen buchte die Zeit auf den
+  Starttag bis jetzt (über 24 h, Pause nach der Regel). `start_timer()` meldete bei jeder laufenden Zeit „läuft bereits“, ohne zu sagen, seit
+  wann; `/mobil` und die Zeiterfassung zeigten eine Uhr mit 25 Stunden. Ein Monat ließ sich mit einer laufenden Zeit abschließen (siehe unten).
+- **Offene Zeit**: `laeuft_seit_frueher(row)` -- läuft, Start an einem früheren Tag (Berliner Datum, `berlin_today()`). `TimeEntryOut` trägt
+  `laeuft_seit_frueher`; `GET /api/field-view/today` liefert `offene_zeit` (`offene_zeit_info()`: ID, Start, Tag, Zeitart mit Namen aus der
+  Optionsgruppe, Auftragsnummer, ob Gruppe, ob sie selbst schließen darf) oder `null`. Nichts geschieht von selbst.
+- **Stopp**: `POST /api/time-entries/{id}/stop` und `POST /api/time-entry-groups/{id}/stop` lehnen eine offene Zeit von früher mit 409 ab
+  („Diese Zeit läuft seit dem … – bitte „Ende nachtragen“ (Ende am Starttag) statt stoppen.“) -- nach der Rechte- und Abschlussprüfung (die
+  Monteurin im abgeschlossenen Monat sieht weiter die Meldung des Abschlusses). Eine heute gestartete Zeit stoppt wie bisher.
+- **Ende nachtragen**: `POST /api/time-entries/{id}/ende-nachtragen` (`TimeEndeNachtragen`: `ende`, `pause_minuten` 0–720). Prüfungen der
+  Reihe nach: unbekannt 404; nicht die eigene Zeit und nicht `darf_zeit_fuer_andere_buchen()` 403 „Du darfst diese Zeit nicht schließen.“;
+  schon geschlossen 409; seit heute 409 „… bitte normal stoppen.“; Monteurin und Monat des Starttags abgeschlossen 403 „Monat abgeschlossen –
+  das Büro schließt die Zeit.“; sonst `_require_open_period()` wie bisher (nur Admin); laufende Gruppe: nur wer sie gestartet hat und noch
+  Kolonnenführer ist (`_noch_kolonnenfuehrer()`), oder nach `darf_zeit_fuer_andere_buchen()`, sonst 403 „Die Gruppenzeit schließt der
+  Kolonnenführer.“. Dann `ende_nachtragen()`: Ende am Starttag (422 „Das Ende muss am Starttag liegen (…).“), nach dem Start (422 „Das Ende
+  muss nach dem Start liegen (… Uhr).“); eine laufende Gruppe über `stop_group_timer()` für alle, sonst `stop_timer()` -- beide mit
+  `pause_nach_zeitregel()` (1.9.34); der Einzelfall rundet wie der Einzel-Stopp. Ein Ende mit Zeitzone rechnet der Server in Ortszeit um.
+- **Start**: `start_timer()` wirft `OffeneZeit` (409): „Die Zeit vom … läuft noch – zuerst das Ende nachtragen, dann neu starten.“; gehört sie
+  zu einer laufenden Gruppe eines anderen: „Die Gruppenzeit vom … läuft noch – das Ende trägt der Kolonnenführer nach, dann kannst du neu
+  starten.“ Der Gruppen-Start nennt bei belegten Personen „(offen seit TT.MM.)“.
+- **Verlauf**: jede Änderung an `TimeEntry` steht im Änderungsverlauf mit dem Namen des Kontos (`AuditLog.actor_name` aus der
+  Anmeldeschranke) -- schließt ein Admin, steht er dort.
+- **Anzeige (Minimal)**: `/mobil` oben eine Karte (`.zeit-offen-karte`, Ecke `--ds-ecke-karte`) „Deine Zeit läuft noch seit <Tag>, <Uhrzeit>
+  Uhr“ mit Zeitart, Auftrag und „Ende nachtragen →“ zur Zeiterfassung (darf sie nicht selbst schließen: „Das Ende trägt der Kolonnenführer nach
+  – zur Zeiterfassung →“). Zeiterfassung der Monteurin und im Büro: statt Uhr und „Zeit stoppen“ der Hinweis „Die Zeit vom … läuft noch (seit
+  … Uhr)“, Feld „Ende an diesem Tag“ (Uhrzeit), „Zusätzliche Pause (Min.)“ und „Ende nachtragen“; danach „Ende nachgetragen: gebucht … h ·
+  anwesend … h · Pause … min“. „Schnell starten“ bleibt bei der Monteurin sichtbar und zeigt die Meldung des Servers; im Büro meldet die Seite
+  die offene Zeit selbst.
+
+#### Was gilt (nur berichtet, nichts geändert)
+
+- **Monat abschließen, während eine Zeit läuft**: geht. `set_time_lock()` (`app/time_backoffice.py:66`) prüft keine laufenden Zeiten. Die
+  Zeit bleibt laufend mit einem Starttag im abgeschlossenen Zeitraum; danach schließt sie nur ein Admin (Stopp und „Ende nachtragen“ prüfen
+  den Abschluss).
+- **Büro im abgeschlossenen Monat**: unverändert -- jede Änderung im abgeschlossenen Zeitraum nur ein Admin (`_require_open_period()`);
+  Büro – Auftrag und Büro – Finanzen schließen dort auch die eigene Zeit nicht. Fremde Zeiten schließen sie nirgends
+  (`darf_zeit_fuer_andere_buchen()` = nur Admin). „Das Büro schließt die Zeit“ heißt heute also: ein Admin.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v463_ende_nachtragen.py` (25 Tests): today nennt die offene Zeit / ohne bei heute gestarteter; Stopp am nächsten Morgen
+  409, Zeit läuft weiter (Angriff) / heute gestartet 200 (Gegenprobe); Gruppen-Stopp am nächsten Morgen 409; Ende vor dem Start, gleich dem
+  Start, am Folgetag 422 (Angriff) / 16:00 am Starttag: gebucht 8,50 h, Pause 45 min, anwesend 9,25 h (Gegenprobe); Mindestpause 60; zweimal
+  schließen 409; heute gestartet über „Ende nachtragen“ 409; Start mit offener Zeit 409 mit Meldung / neben heute laufender Zeit „läuft
+  bereits“ / nach dem Nachtragen 200; Monteurin schließt Toms Zeit 403, Büro – Finanzen und Büro – Auftrag 403 (Angriff) / Admin 200, im
+  Verlauf „Admin Anna“ für Ende und Status (Gegenprobe); Ex-Kolonnenführerin 403 (Angriff), Mitglied 403 und sein Start nennt den
+  Kolonnenführer / Kolonnenführerin schließt die ganze Gruppe, je Person 45 min und 8,50 h (Gegenprobe); Monteurin im abgeschlossenen Monat 403
+  mit der Meldung / Admin 200; `laeuft_seit_frueher()` nach Berliner Datum.
+- Neuer Klicktest `scripts/klicktest_monteurin_regeln.py` (19 Prüfungen): Mia 412 px dunkel -- Hinweis in `/mobil` (16 px Ecke, kein
+  waagrechter Bildlauf), offene Anzeige in der Zeiterfassung, Start abgelehnt mit Meldung, „Bitte das Ende angeben.“, Ende 06:00 mit Meldung des
+  Servers, 16:00 gebucht mit Pause, neu gestartet; Anna 1400 px hell -- Toms offene Zeit, 15:30 gebucht (8,25 h, 30 min), Verlauf. Beim ersten
+  Lauf war eine Prüfung rot: meine Erwartung für 15:30 (8,00 h, 45 min) war falsch gerechnet (8,75 h anwesend liegen unter 9 h), korrigiert auf
+  8,25 h und 30 min -- so rechnet der Server.
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück, alle FAILED): Stopp vom Vortag erlaubt (S1) -- 2 rot; Ende am Folgetag (S2) -- 1;
+  Start trotz offener Zeit (S3) -- 2; Gruppenzeit ohne Kolonnenführer-Kennzeichen (S4) -- 1; Monteurin im abgeschlossenen Monat (S5) -- 1;
+  „Ende nachtragen“ schließt nur die eigene Zeit der Gruppe (S6) -- 1; today ohne offene Zeit und Seite ohne offene Anzeige (S7) -- 1 Test und
+  5 Prüfungen des Klicktests rot.
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v100::test_timer_start_stop_computes_net_hours_and_prevents_parallel_timer`: alt Meldung „läuft bereits“ beim zweiten Start; neu
+    „läuft noch – zuerst das Ende nachtragen“ -- die Zeit begann am 07.09.2026, vor heute, ist also eine offene Zeit von früher (der Fall
+    „heute schon gestartet“ steht neu in `test_v463`).
+  - `test_v300::test_field_cannot_stop_a_timer_that_runs_in_the_locked_period`: alt Admin stoppt die Zeit im abgeschlossenen Zeitraum (200);
+    neu Admin-Stopp 409, Admin „Ende nachtragen“ 200 -- die Zeit läuft seit einem früheren Tag. Die Prüfung der Monteurin (403) unverändert.
+
+#### Festlegungen 1.9.35 (Bitte bestätigen)
+
+1. **„Früherer Tag“** = Starttag vor dem heutigen Berliner Datum (`berlin_today()`); eine Nachtschicht über Mitternacht gilt damit am Morgen
+   als offen und wird über „Ende nachtragen“ am Starttag geschlossen (ein Ende nach Mitternacht ist so nicht buchbar -- heute kein Fall).
+2. **Auch ein Admin stoppt eine Zeit von früher nicht** -- der Stopp lehnt für jede Rolle ab, geschlossen wird nur über „Ende nachtragen“
+   (eine Regel für alle, kein 24-h-Stopp durchs Büro).
+3. **Reihenfolge der Ablehnungen**: Rechte und Abschluss vor „seit früher“ -- die Monteurin im abgeschlossenen Monat sieht beim Stopp die
+   Meldung des Abschlusses, bei „Ende nachtragen“ „Monat abgeschlossen – das Büro schließt die Zeit.“
+4. **Im abgeschlossenen Monat** gilt für das Büro die bisherige Meldung (`_require_open_period()`, nur Admin); die neue Meldung nur für die
+   Monteurin.
+5. **Gruppenzeit**: „Ende nachtragen“ an der eigenen Zeit einer laufenden Gruppe schließt die ganze Gruppe (wie der Gruppen-Stopp), erlaubt
+   nur der Kolonnenführerin, die sie gestartet hat und es noch ist, oder einem Admin; ein Mitglied schließt seine Zeit nicht einzeln (anders als
+   beim Stopp am selben Tag) und kann bis dahin nicht neu starten -- die Meldung sagt es.
+6. **Rundung**: der Einzelfall rundet nach den Zeitregeln wie der Einzel-Stopp, die Gruppe nicht (wie der Gruppen-Stopp; Festlegung 1.9.34
+   Nr. 3).
+7. **Uhrzeit statt Datum und Uhrzeit**: die Oberfläche fragt nur die Uhrzeit („Ende an diesem Tag“), das Datum ist der Starttag.
+8. **„Schnell starten“ bleibt bei offener Zeit sichtbar** (Monteurin): der Start zeigt die Meldung des Servers; bis Runde 2 keine eigene
+   Sperre im Browser.
+9. **`offene_zeit` in today** nennt nur Start, Tag, Zeitart, Auftragsnummer und zwei Kennzeichen (Gruppe, selbst schließen) -- keine Inhalte
+   darüber hinaus (Datengrenze der Monteurin).

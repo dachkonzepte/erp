@@ -5,8 +5,9 @@ from decimal import Decimal, ROUND_HALF_UP
 from sqlalchemy import and_, case, select, func, or_
 from sqlalchemy.orm import Session, selectinload
 
-from .berlin_time import berlin_now
+from .berlin_time import berlin_now, berlin_today
 from .meldungen import KEIN_MITARBEITER
+from .option_settings import get_option_group
 from .models import (
     Employee, Order, OrderItem, Project, TimeEntry, Team, TeamEmployee,
     TimeEntryGroup, TimeEntryGroupMember,
@@ -44,6 +45,47 @@ def compute_hours(started_at: datetime, ended_at: datetime, break_minutes: int =
     if net <= 0:
         raise ValueError("Die Netto-Arbeitszeit muss größer als 0 sein.")
     return net.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+
+
+class OffeneZeit(ValueError):
+    """Seit 1.9.35 (Stufe 4, R1, Punkt 2): eine Zeit läuft seit einem früheren Tag -- erst „Ende nachtragen“, dann neu starten (409)."""
+
+
+def laeuft_seit_frueher(row: TimeEntry | None, heute: date | None = None) -> bool:
+    """Seit 1.9.35: läuft diese Zeit seit einem früheren Tag (Berliner Datum)? Dann stoppt sie kein „Zeit stoppen“ (das buchte sie bis
+    jetzt auf den Starttag), nur „Ende nachtragen“ -- nichts schließt sie von selbst, kein Abschluss um Mitternacht, kein Hintergrundjob."""
+    return bool(row is not None and row.status == "running" and row.started_at is not None
+                and row.started_at.date() < (heute or berlin_today()))
+
+
+def offene_zeit_von_frueher(db: Session, employee_id: int) -> TimeEntry | None:
+    """Seit 1.9.35: die laufende Zeit dieser Person, wenn sie seit einem früheren Tag läuft."""
+    row = active_entry(db, employee_id)
+    return row if laeuft_seit_frueher(row) else None
+
+
+ZEITART_NAMEN = {"site": "Baustellenzeit", "travel": "Fahrzeit", "workshop": "Werkstattzeit", "other": "Sonstige"}
+
+
+def offene_zeit_info(db: Session, employee_id: int) -> dict | None:
+    """Seit 1.9.35: für /mobil (GET /api/field-view/today) die Zeit, die seit einem früheren Tag läuft -- Start mit Datum, Zeitart,
+    Auftrag; ob sie zu einer laufenden Gruppe gehört und ob die Person sie selbst schließen darf (eine Gruppenzeit nur der Kolonnenführer,
+    der sie gestartet hat). Sonst None."""
+    row = offene_zeit_von_frueher(db, employee_id)
+    if row is None:
+        return None
+    arten = get_option_group(db, "time_entry_types")
+    namen = {o.value: o.label for o in (arten.options if arten is not None else [])}
+    gruppe = group_for_entry(db, row.id)
+    gruppe_laeuft = gruppe is not None and gruppe.status == "running"
+    selbst = (not gruppe_laeuft) or (gruppe.initiated_by_employee_id == employee_id
+                                     and gruppe.team_id in crew_leader_team_ids(db, employee_id))
+    return {
+        "id": row.id, "started_at": row.started_at, "work_date": row.work_date, "entry_type": row.entry_type,
+        "entry_type_label": namen.get(row.entry_type) or ZEITART_NAMEN.get(row.entry_type, row.entry_type),
+        "order_id": row.order_id, "order_number": row.order.order_number if row.order is not None else None,
+        "gruppe": gruppe_laeuft, "selbst_schliessen": selbst,
+    }
 
 
 def anwesend_stunden(beginn: datetime, ende: datetime) -> Decimal:
@@ -144,7 +186,14 @@ def start_timer(
     order_item_id: int | None = None, activity: str | None = None, notes: str | None = None,
     started_at: datetime | None = None, created_by_user_id: int | None = None,
 ) -> TimeEntry:
-    if active_entry(db, employee_id) is not None:
+    laufend = active_entry(db, employee_id)
+    if laufend is not None:
+        if laeuft_seit_frueher(laufend):  # seit 1.9.35: kein neuer Start, solange eine Zeit von früher offen ist
+            gruppe = group_for_entry(db, laufend.id)
+            if gruppe is not None and gruppe.status == "running" and gruppe.initiated_by_employee_id != employee_id:
+                raise OffeneZeit(f"Die Gruppenzeit vom {laufend.started_at:%d.%m.%Y} läuft noch – das Ende trägt der Kolonnenführer nach, "
+                                 "dann kannst du neu starten.")
+            raise OffeneZeit(f"Die Zeit vom {laufend.started_at:%d.%m.%Y} läuft noch – zuerst das Ende nachtragen, dann neu starten.")
         raise ValueError("Für diesen Mitarbeiter läuft bereits eine Zeiterfassung.")
     employee = db.get(Employee, employee_id); order = db.get(Order, order_id)
     if employee is None or not employee.active:
@@ -186,6 +235,26 @@ def stop_timer(db: Session, entry_id: int, *, ended_at: datetime | None = None, 
             _mark_individual_change(link)  # vorzeitig einzeln gestoppt, die Gruppe läuft weiter
     db.commit()
     return load_entry(db, row.id)
+
+
+def ende_nachtragen(db: Session, entry_id: int, *, ende: datetime, mindestpause: int = 0) -> TimeEntry:
+    """Seit 1.9.35 (Stufe 4, R1, Punkt 2): das Ende einer Zeit, die seit einem früheren Tag läuft -- am Starttag und nach dem Start, die
+    Pause nach derselben Regel wie beim Feierabend (pause_nach_zeitregel() über stop_timer()/stop_group_timer()). Gehört die Zeit zu einer
+    laufenden Gruppe, schließt sie die Gruppe wie der Gruppen-Stopp. Nur auf Klick; Rechte, Abschluss und Kolonnenführer prüft der Router."""
+    row = db.get(TimeEntry, entry_id)
+    if row is None or row.status != "running" or row.started_at is None:
+        raise ValueError("Diese Zeit ist schon geschlossen.")
+    if not laeuft_seit_frueher(row):
+        raise ValueError("Diese Zeit läuft seit heute – bitte normal stoppen.")
+    if ende.date() != row.started_at.date():
+        raise ValueError(f"Das Ende muss am Starttag liegen ({row.started_at:%d.%m.%Y}).")
+    if ende <= row.started_at:
+        raise ValueError(f"Das Ende muss nach dem Start liegen ({row.started_at:%H:%M} Uhr).")
+    group = group_for_entry(db, entry_id)
+    if group is not None and group.status == "running":
+        stop_group_timer(db, group.id, ended_at=ende, break_minutes=mindestpause)
+        return load_entry(db, entry_id)
+    return stop_timer(db, entry_id, ended_at=ende, break_minutes=mindestpause)
 
 
 def _group_link_for_entry(db: Session, entry_id: int) -> TimeEntryGroupMember | None:
@@ -265,6 +334,7 @@ def entry_to_dict(row: TimeEntry) -> dict:
         # seit 1.9.34 (Stufe 4, R1): anwesend (Stunden vor Abzug der Pause), Pause (Minuten), gebucht (Stunden) -- anwesend aus Beginn und
         # Ende, ohne beide (eine reine Dauer) gebucht + Pause; eine laufende Zeit hat noch keins
         **_anwesend_pause_gebucht(row),
+        "laeuft_seit_frueher": laeuft_seit_frueher(row),  # seit 1.9.35: dann „Ende nachtragen“ statt „Zeit stoppen“
         "created_at": row.created_at,
         "booked_by_name": row.created_by.display_name if row.created_by else None,
         "booked_by_employee_id": row.created_by.employee_id if row.created_by else None,
@@ -498,7 +568,10 @@ def start_group_timer(db: Session, *, employee_ids: list[int], team_id: int | No
     order=db.get(Order,order_id)
     if order is None: raise ValueError("Auftrag wurde nicht gefunden.")
     validate_order_item(db,order_id,order_item_id)
-    busy=[employee_name(e) for e in employees if active_entry(db,e.id) is not None]
+    laufend={e.id:active_entry(db,e.id) for e in employees}
+    # seit 1.9.35 mit dem Tag, an dem eine offene Zeit von früher begann
+    busy=[employee_name(e)+(f" (offen seit {laufend[e.id].started_at:%d.%m.})" if laeuft_seit_frueher(laufend[e.id]) else "")
+          for e in employees if laufend[e.id] is not None]
     if busy: raise ValueError("Für folgende Mitarbeiter läuft bereits eine Zeiterfassung: "+", ".join(busy))
     start=started_at or berlin_now()
     group=_create_group_header(db,initiated_by_employee_id=actor_employee_id,team_id=team_id,order=order,order_item_id=order_item_id,mode='timer',entry_type=entry_type,activity=activity,work_date=start.date(),started_at=start,hours=Decimal('0'),break_minutes=0,notes=notes,status='running',created_by_user_id=created_by_user_id)

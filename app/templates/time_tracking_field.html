@@ -93,11 +93,17 @@
     <div class="muted small">Laufende Zeiterfassung</div>
     <div id="activeTime" class="timer-time">00:00:00</div>
     <div id="activeContext" class="timer-context"></div>
+    <div id="offenBlock" hidden>
+      <div id="offenHinweis" class="offen-hinweis" role="alert"></div>
+      <div class="field" style="margin-top:12px"><label for="endeZeit">Ende an diesem Tag</label><input id="endeZeit" type="time"></div>
+    </div>
     <div class="field" style="margin-top:12px">
-      <label>Zusätzliche Pause beim Stoppen (Min.)</label>
+      <label id="stopBreakLabel">Zusätzliche Pause beim Stoppen (Min.)</label>
       <input id="stopBreak" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-feld="Zusätzliche Pause" value="0">
     </div>
     <button class="danger" style="width:100%" id="stopBtn">■ Zeit stoppen</button>
+    <button style="width:100%" id="endeBtn" hidden>Ende nachtragen</button>
+    <div id="endeStatus" class="status" role="status"></div>
   </div>
 
   <div id="quickCard" class="card" hidden>
@@ -277,7 +283,13 @@ async function loadActive(){
   if(tick){clearInterval(tick);tick=null}
   if(active){
     $('activeContext').textContent=`${active.order_number||''}${active.project_name?' · '+active.project_name:''} · ${typeLabel(active.entry_type)}`;
-    updateClock();tick=setInterval(updateClock,1000);
+    // Seit 1.9.35 (Stufe 4, R1): läuft die Zeit seit einem früheren Tag, gibt es statt „Zeit stoppen“ nur „Ende nachtragen“ (Ende am
+    // Starttag, Pause nach der Zeitregel) -- die Uhr läuft nicht weiter; „Schnell starten“ bleibt sichtbar, der Server lehnt den Start ab.
+    const offen=!!active.laeuft_seit_frueher;
+    $('offenBlock').hidden=!offen;$('endeBtn').hidden=!offen;$('stopBtn').hidden=offen;$('activeTime').hidden=offen;$('quickCard').hidden=!offen;
+    $('stopBreakLabel').textContent=offen?'Zusätzliche Pause (Min.)':'Zusätzliche Pause beim Stoppen (Min.)';
+    if(offen)$('offenHinweis').textContent=`Die Zeit vom ${fmtDate(active.work_date)} läuft noch (seit ${String(active.started_at||'').slice(11,16)} Uhr). Trag das Ende an diesem Tag nach.`;
+    else{updateClock();tick=setInterval(updateClock,1000)}
   }
   });
 }
@@ -304,6 +316,20 @@ async function stopCurrent(){
     await speichern('timer',()=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:body}));
     $('stopBreak').value=zahlText(0);await loadActive();await loadEntries();await loadCrewState();
   }catch(e){alert(e.message)}
+}
+// Seit 1.9.35: das Ende einer Zeit, die seit einem früheren Tag läuft -- am Starttag; der Server prüft Ende, Rechte und Abschluss und
+// zieht die Pause nach der Zeitregel ab (die eingegebene als Mindestpause).
+async function endeNachtragen(){
+  if(!active)return;
+  const zeit=$('endeZeit').value;
+  if(!zeit){$('endeStatus').textContent='Bitte das Ende angeben.';return}
+  $('endeStatus').textContent='';
+  try{
+    const url=`/api/time-entries/${active.id}/ende-nachtragen`,body=JSON.stringify({ende:`${active.work_date}T${zeit}`,pause_minuten:zahlFeld('stopBreak',{leer:0})});
+    const d=await speichern('timer',()=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:body}));
+    $('buchungsHinweis').textContent=d?`Ende nachgetragen: gebucht ${zahlText(d.gebucht,2)} h · anwesend ${zahlText(d.anwesend,2)} h · Pause ${zahlText(d.pause,0)} min`:'';
+    $('stopBreak').value=zahlText(0);$('endeZeit').value='';await loadActive();await loadEntries();await loadCrewState();
+  }catch(e){$('endeStatus').textContent=e.message}
 }
 
 // --- Kolonnenführer (seit 1.7.12) -----------------------------------------------------------
@@ -547,6 +573,7 @@ async function init(){
   if(!orders.length)showLoadWarning('Keine eigenen Aufträge im Zeitraum gefunden. Fehlt ein Einsatz, wende dich an das Büro.');
   renderQuickTiles();
   $('stopBtn').addEventListener('click',stopCurrent);
+  $('endeBtn').addEventListener('click',endeNachtragen);
   $('openManualBtn').addEventListener('click',()=>openManual());
   $('manualCancelBtn').addEventListener('click',()=>manualDialog.close());
   $('manualSaveBtn').addEventListener('click',saveManual);

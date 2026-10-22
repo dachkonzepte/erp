@@ -43,6 +43,10 @@
     .perform-btn:disabled{opacity:.6}
     .concern-alert{margin:-10px 0 10px;padding:10px 14px;border:2px solid var(--ds-fehler);border-top:none;background:var(--card);color:var(--danger);font-weight:700;font-size:14px;line-height:1.35;overflow-wrap:anywhere;border-radius:0 0 var(--ds-ecke-karte) var(--ds-ecke-karte)}
     .concern-alert a{display:block;margin-top:6px;color:var(--danger);font-weight:650;font-size:13.5px}
+    /* seit 1.9.35: Hinweis auf eine Zeit, die seit einem früheren Tag läuft */
+    .zeit-offen-karte{background:var(--card);border:2px solid var(--ds-warn-text);padding:12px 16px;margin-bottom:12px;border-radius:var(--ds-ecke-karte);color:var(--ink);font-size:14px;line-height:1.4;overflow-wrap:anywhere}
+    .zeit-offen-karte .zeit-offen-info{color:var(--muted);font-size:13px;margin-top:2px}
+    .zeit-offen-karte a{display:flex;align-items:center;min-height:44px;color:var(--accent);font-weight:650;text-decoration:none}
     .checklist-link{display:flex;align-items:center;min-height:44px;margin:-10px 0 10px;padding:0 16px;border:1px solid var(--line);border-top:none;border-radius:0 0 var(--ds-ecke-karte) var(--ds-ecke-karte);background:var(--card);color:var(--accent);font-weight:650;font-size:13.5px;text-decoration:none}
     /* seit 1.9.30: Hinweis „Offene Bedenken“ und Link hängen unter ihrer Einsatzkarte -- was darüber steht, ist unten eckig, der letzte
        Kasten unten rund (tests/test_v460_ecken_der_karten.py) */
@@ -67,6 +71,7 @@
 <body>
 {% include "_mobile_header.html" %}
 <main>
+  <div id="offeneZeit" hidden></div>
   <h1>Heutige Einsätze</h1>
   <div id="assignmentsList" class="loading">Lädt…</div>
   <h1>Offene Berichte</h1>
@@ -106,6 +111,17 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
       +list.map(function(c){return '<a href="/checklisten/'+c.checklist_id+'">'+esc(c.template_label||'Bedenkenanzeige')
         +' Nr. '+c.checklist_id+(c.decision_due?' – Entscheidung erbeten bis '+esc(fmtDate(c.decision_due)):'')+' →</a>'}).join('')
       +'</div>';
+  }
+  // Seit 1.9.35 (Stufe 4, R1): eine Zeit, die seit einem früheren Tag läuft (vergessener Feierabend) -- nichts schließt sie von selbst.
+  // Der Hinweis nennt Start, Zeitart und Auftrag und führt zu „Ende nachtragen“ in der Zeiterfassung.
+  function renderOffeneZeit(z){
+    var el=document.getElementById('offeneZeit');
+    if(!z){el.hidden=true;el.innerHTML='';return}
+    el.hidden=false;
+    el.innerHTML='<div class="zeit-offen-karte" role="alert"><strong>Deine Zeit läuft noch seit '+esc(fmtDate(z.work_date))+', '
+      +esc(String(z.started_at||'').slice(11,16))+' Uhr</strong>'
+      +'<div class="zeit-offen-info">'+esc(z.entry_type_label||'')+(z.order_number?' · '+esc(z.order_number):'')+(z.gruppe?' · Gruppenzeit':'')+'</div>'
+      +'<a href="/time-tracking">'+(z.selbst_schliessen?'Ende nachtragen →':'Das Ende trägt der Kolonnenführer nach – zur Zeiterfassung →')+'</a></div>';
   }
   function renderAssignments(list){
     var el=document.getElementById('assignmentsList');
@@ -309,6 +325,7 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
     }
     return r.json();
   }).then(function(data){
+    renderOffeneZeit(data.offene_zeit||null);
     renderAssignments(data.assignments||[]);
     renderDrafts(data.draft_reports||[]);
     loadDefects();

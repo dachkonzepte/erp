@@ -61,7 +61,9 @@ def test_timer_start_stop_computes_net_hours_and_prevents_parallel_timer():
         start_timer(db,employee_id=emp.id,order_id=order.id,entry_type="travel",started_at=datetime(2026,9,7,8,0,0))
         assert False,"Parallel timer should fail"
     except ValueError as exc:
-        assert "läuft bereits" in str(exc)
+        # seit 1.9.35: der 07.09.2026 liegt vor heute -- die laufende Zeit ist eine offene Zeit von früher, die Meldung verweist auf
+        # „Ende nachtragen“ (bis 1.9.34 „läuft bereits“; der Fall „heute schon gestartet“ in test_v463)
+        assert "läuft noch – zuerst das Ende nachtragen" in str(exc)
     row=stop_timer(db,row.id,ended_at=datetime(2026,9,7,16,0,0),break_minutes=30)
     assert row.status=="booked"
     assert row.hours==Decimal("8.2500")

@@ -4,6 +4,20 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.35 – Stufe 4, R1: vergessener Feierabend – Ende nachtragen
+
+Stufe 4 „Monteurin“, Runde 1, Punkt 2. Vergaß die Monteurin den Feierabend, lief ihre Zeit über Nacht weiter; der Stopp am nächsten Morgen
+buchte sie bis dahin auf den Vortag (z. B. 24 h), ein neuer Start meldete nur „läuft bereits“. Jetzt geschieht nichts von selbst -- kein
+Abschluss um Mitternacht, kein Hintergrundjob --, aber eine Zeit, die seit einem früheren Tag läuft, ist erkennbar (`laeuft_seit_frueher`):
+`GET /api/field-view/today` nennt sie (Start mit Datum, Zeitart, Auftrag), `/mobil` zeigt oben den Hinweis „Deine Zeit läuft noch seit …“.
+Der normale Stopp (einzeln wie Gruppe) lehnt sie mit 409 ab und verweist auf den neuen Weg `POST /api/time-entries/{id}/ende-nachtragen`:
+Ende am Starttag und nach dem Start, Pause nach derselben Zeitregel wie beim Feierabend (`pause_nach_zeitregel()`, die eingegebene als
+Mindestpause). Solange sie offen ist, lehnt der Start ab (409 „Die Zeit vom … läuft noch – zuerst das Ende nachtragen, dann neu starten.“).
+Eine Gruppenzeit schließt nur der Kolonnenführer, der sie gestartet hat, für die ganze Gruppe; eine fremde Zeit nur, wer nach
+`darf_zeit_fuer_andere_buchen()` darf (heute Admin), im Verlauf steht, wer; im abgeschlossenen Monat die Monteurin nicht („Monat
+abgeschlossen – das Büro schließt die Zeit.“). Die Zeiterfassung der Monteurin und die im Büro zeigen statt Uhr und „Zeit stoppen“ das Feld
+„Ende an diesem Tag“ und „Ende nachtragen“. Neuer Test `test_v463`, neuer Klicktest `klicktest_monteurin_regeln`.
+
 ## 1.9.34 – Stufe 4, R1: Nachtragen nach derselben Pausenregel wie der Feierabend
 
 Stufe 4 „Monteurin“, Runde 1, Punkt 3. Die Pause rechnete der Stopp eines Timers nach dem Arbeitszeitmodell, der Gruppen-Stopp und der
