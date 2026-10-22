@@ -62,6 +62,11 @@
   .mobile-header-wrap .app-konto{max-width:220px}
 }
 </style>
+{#- Seit 1.9.30 (Nachtrag Stufe 2, Punkt A1): Karten im Monteursrahmen mit 16 px Ecken (Entscheidung 2 der Stufe 2: Tablet 12/16 px).
+    Jede Karte jeder Seite nimmt var(--ds-ecke-karte) (12 px, ds.css); dieser Kopf steht genau in den Seiten des Monteursrahmens und legt den
+    Wert dort auf die Tablet-Ecke -- so braucht keine Seite eine eigene Bedingung (tests/test_v460_ecken_der_karten.py). Eigener Block: die
+    Regeln des Kopfs oben tragen je zwei Klassen (tests/test_v272_mobile_header_theme_toggle.py). -#}
+<style>:root{--ds-ecke-karte:var(--ds-ecke-tablet-karte)}</style>
 <div class="mobile-header-wrap" id="mobileHeaderWrap">
   <div class="mobile-header">
     <span class="mobile-header-kachel" title="DACHKONZEPTE · Mobil" aria-label="DACHKONZEPTE" role="img">{% include "_bildmarke.html" %}</span>

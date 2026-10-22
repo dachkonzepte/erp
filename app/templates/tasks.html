@@ -9,7 +9,7 @@
 main{max-width:1500px;margin:0;padding:20px}
 .hero{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
 .hero h1{margin:0 0 4px;font-size:22px}.hero .muted{color:var(--muted)}
-.toolbar{background:var(--card);border:1px solid var(--line);padding:12px 14px;margin-bottom:14px;display:flex;gap:12px;align-items:end;flex-wrap:wrap}
+.toolbar{background:var(--card);border:1px solid var(--line);padding:12px 14px;margin-bottom:14px;display:flex;gap:12px;align-items:end;flex-wrap:wrap;border-radius:var(--ds-ecke-karte)}
 .field{margin:0}.field label{display:block;font-size:12.5px;color:var(--muted);font-weight:650;margin-bottom:5px}
 input,select,textarea{padding:8px 9px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;width:100%}
 input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
@@ -21,16 +21,16 @@ button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-col
 .danger{background:var(--danger-soft);color:var(--danger);border:1px solid transparent}.danger:hover{background:color-mix(in srgb,var(--ds-fehler) 20%,transparent)}
 .hidden{display:none!important}
 .status{font-size:13px;color:var(--muted)}.status.err{color:var(--danger)}.status.ok{color:var(--success)}
-.editor-card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px}
+.editor-card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:14px;border-radius:var(--ds-ecke-karte)}
 .editor-card h2{margin:0 0 12px;font-size:16px}
 .fields-2col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .full{grid-column:1/-1}
 .editor-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .board{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
-.column{background:var(--card);border:1px solid var(--line);padding:12px;min-height:200px}
+.column{background:var(--card);border:1px solid var(--line);padding:12px;min-height:200px;border-radius:var(--ds-ecke-karte)}
 .column-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-weight:800}
 .count{background:var(--soft);color:var(--muted);padding:2px 8px;font-size:12px;font-weight:800}
-.task-card{border:1px solid var(--line);padding:10px;margin-bottom:8px;cursor:pointer}
+.task-card{border:1px solid var(--line);padding:10px;margin-bottom:8px;cursor:pointer;border-radius:var(--ds-ecke-karte)}
 .task-card:hover{border-color:var(--ds-aktion)}
 .task-card.overdue{border-left:3px solid var(--ds-fehler)}
 .task-card.archived{opacity:.6}
@@ -52,7 +52,7 @@ button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-col
 .checklist-row button{padding:3px 8px;font-size:12px}
 .checklist-add{display:flex;gap:8px;margin-top:8px}
 .checklist-hint{color:var(--muted);font-size:13px}
-.unassigned-card{background:var(--card);border:1px solid var(--line);padding:12px;margin-bottom:14px}
+.unassigned-card{background:var(--card);border:1px solid var(--line);padding:12px;margin-bottom:14px;border-radius:var(--ds-ecke-karte)}
 .unassigned-card .hint{color:var(--muted);font-size:12.5px;margin:-4px 0 8px}
 .unassigned-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px}
 .unassigned-list .task-card{margin:0}

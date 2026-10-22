@@ -4,6 +4,18 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.30 – Nachtrag Stufe 2: Karten mit 12 px Ecken, im Monteursrahmen 16 px
+
+Nachtrag Stufe 2, Punkt A1 (Entscheidung 2 der Stufe 2, ersetzt Festlegung 1.9.27 Nr. 4 „Karten bleiben eckig“). Jede Karte auf jeder
+Seite -- auch auf den zehn aufgeschobenen -- trägt `border-radius: var(--ds-ecke-karte)` (12 px): die Karten der Seiten (`.card` und die
+übrigen Klassen mit „card“ im Namen), Kopf- und Formularkarten, Kennzahl-Kacheln, Spalten, Einträge und Kästen in Karten, Hinweiskästen,
+Ablageflächen, Dialoge und Aufklappmenüs -- 180 Regeln in 55 Vorlagen. Im Monteursrahmen legt `_mobile_header.html`, der genau in dessen
+Seiten steht, den Wert auf `--ds-ecke-tablet-karte` (16 px); keine Seite braucht dafür eine eigene Bedingung. Knöpfe und Felder,
+Kennzeichen, Raster und Tafelteile, die Skizze der Dachfläche und Vorschaubilder sind keine Karten. In `/mobil` hängen Hinweis „Offene
+Bedenken“ und Link „Checklisten zu diesem Auftrag“ unter ihrer Einsatzkarte -- was darüber steht, ist unten eckig. Neuer Wächter
+`test_v460`: jede umrandete Fläche ist als Karte oder Nicht-Karte eingeordnet, jede Karte trägt die Ecke; Klicktest `klicktest_rahmen` Teil
+„ecken“ misst 12 und 16 px im Browser.
+
 ## 1.9.29 – Abschluss Stufe 2: jede Seite umgezogen oder aufgeschoben
 
 Stufe 2, Runde 9, Punkt 6 -- Abschluss der Stufe „Rahmen“. Ein Wächter in `tests/test_v441_rahmen_baustein.py` verlangt, dass jede Seite

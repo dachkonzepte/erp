@@ -109,7 +109,8 @@ def test_kopf_64_px_reiter_48_px_lupe_48_px():
 
 def test_seitenregeln_greifen_nicht_in_den_kopf():
     """Zeiterfassung, Objekt und Stundenzettel der Monteurin setzen button{min-height:44px;width:100%} -- bis 1.8.163 wurde der Kopf dort
-    188 statt 173 px hoch. Seit 1.8.164 trägt jede Regel des Kopfs (außer der des Wrappers selbst) zwei Klassen."""
+    188 statt 173 px hoch. Seit 1.8.164 trägt jede Regel des Kopfs (außer der des Wrappers selbst) zwei Klassen. Seit 1.9.30 steht dahinter
+    ein zweiter Block mit genau einer Regel: :root legt die Ecke der Karten im Monteursrahmen auf 16 px (tests/test_v460_ecken_der_karten.py)."""
     import re
 
     css = (TEMPLATES_DIR / "_mobile_header.html").read_text(encoding="utf-8").split("<style>")[1].split("</style>")[0]
@@ -118,6 +119,8 @@ def test_seitenregeln_greifen_nicht_in_den_kopf():
         for sel in selektoren.split(","):
             if sel.strip() != ".mobile-header-wrap":
                 assert sel.strip().startswith(".mobile-header-wrap ") and len(re.findall(r"\.[\w-]+", sel)) >= 2, sel.strip()
+    bloecke = (TEMPLATES_DIR / "_mobile_header.html").read_text(encoding="utf-8").split("<style>")[2:]
+    assert [b.split("</style>")[0] for b in bloecke] == [":root{--ds-ecke-karte:var(--ds-ecke-tablet-karte)}"]
 
 
 def test_einsaetze_ist_auch_auf_den_seiten_darunter_aktiv():

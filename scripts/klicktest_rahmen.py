@@ -71,6 +71,9 @@ Geprüft wird im echten Browser auf den Testdaten der Bildgrundlage (scripts/bil
                    dunkel: .ds-seite, Bildmarke mit Schriftzug in weißer Kachel über dem Seitenkopf, ein h1 in Archivo 30 px, Text in
                    IBM Plex Sans, Kontrast in der Karte; Anmeldung mit Untertitel „Melde dich mit deinem Benutzernamen an.“ und Fokus
                    in --ds-fokus; Sperrseite ohne doppelten Text, „Zur Startseite“ grün nach /mobil
+    Ecken          seit 1.9.30 Karten mit 12 px Ecken auf Büro-Seiten (Start, Projekte, Einstellungen, Rechnung, Formular, Checkliste,
+                   Einsatzbericht) und 16 px im Monteursrahmen (die Seiten der Monteurin bei 1280 × 620), hell und dunkel; in /mobil
+                   schließt „Checklisten zu diesem Auftrag“ an seine Karte an
     Seitenregeln   auf den Einstellungen (button:hover und button:active in der Akzentfarbe): Kontoknopf unter der Maus und per
                    Leertaste gedrückt (:active ohne :hover), Menüeintrag unter der Maus -- nie in der Akzentfarbe
     Monteurskopf   auf jeder Seite der Monteurin (Mobil, Objekt, Stundenzettel, Zeiterfassung, Betriebsmittel, Checkliste,
@@ -87,7 +90,7 @@ AUFRUF (aus dem Projektordner):
 
 --nur: nur diese Teile (seitenleiste, aktiv, schrift, menueknopf, kopfzeile, kontomenue, vollname, pruefvorlagen, kopfgruppe,
 seitenregeln, monteurskopf, datensatzkopf, rechnungskopf, angebotskopf, untermenue, formularseiten, anfragen_av, monteursseiten,
-anmeldung) -- für
+anmeldung, ecken) -- für
 Gegenproben, die nach 2 min
 abbrechen (Regel 24).
 
@@ -1410,12 +1413,61 @@ async def _anmeldung(tab, seed, p):
              True)
 
 
+# Ecke des ersten sichtbaren Elements je Selektor, ohne angehängten Link darunter: [Selektor, oben links, unten links] (None, wenn keins
+# sichtbar) -- eine Einsatzkarte mit „Checklisten zu diesem Auftrag“ ist unten gewollt eckig, das prüft ANSCHLUSS
+ECKEN = """(sel=>sel.map(s=>{const e=[...document.querySelectorAll(s)].find(x=>x.getClientRects().length&&!(x.nextElementSibling&&x.nextElementSibling.classList.contains('checklist-link')));if(!e)return [s,null,null];
+const cs=getComputedStyle(e);return [s,cs.borderTopLeftRadius,cs.borderBottomLeftRadius]}))(%s)"""
+# (Aufnahme, Rolle, Fenster, Selektoren der Karten, Soll)
+ECKEN_FAELLE = [
+    ("start", bg.BUERO, (1440, 900), [".widget-card", ".metric"], "12px"),
+    ("projekte", bg.BUERO, (1440, 900), [".card"], "12px"),
+    ("einstellungen", bg.BUERO, (1440, 900), [".settings-sidebar", ".card"], "12px"),
+    ("rechnung", bg.BUERO, (1440, 900), [".card"], "12px"),
+    ("stammdaten_mitarbeiter", bg.BUERO, (1440, 900), [".wrap"], "12px"),
+    ("checkliste", bg.BUERO, (1440, 900), [".q", ".footer-card"], "12px"),
+    ("einsatzbericht", bg.BUERO, (1440, 900), [".card"], "12px"),
+    ("mobil", bg.MONTEUR, (1280, 620), [".assign-card"], "16px"),
+    ("zeiterfassung_monteur", bg.MONTEUR, (1280, 620), [".card"], "16px"),
+    ("stundenzettel", bg.MONTEUR, (1280, 620), [".card"], "16px"),
+    ("checkliste", bg.MONTEUR, (1280, 620), [".q", ".footer-card"], "16px"),
+    ("einsatzbericht", bg.MONTEUR, (1280, 620), [".card"], "16px"),
+    ("konto", bg.MONTEUR, (1280, 620), [".card"], "16px"),
+    ("mobil_objekt", bg.MONTEUR, (1280, 620), [".card"], "16px"),
+    ("betriebsmittel_monteur", bg.MONTEUR, (1280, 620), [".card"], "16px"),
+]
+ANSCHLUSS = """(()=>{const l=document.querySelector('.checklist-link');if(!l)return null;const k=l.previousElementSibling;
+const a=getComputedStyle(k),b=getComputedStyle(l);return [k.className,a.borderBottomLeftRadius,a.borderBottomRightRadius,a.borderTopLeftRadius,
+b.borderTopLeftRadius,b.borderBottomLeftRadius,b.borderBottomRightRadius]})()"""
+
+
+async def _ecken(tab, seed, p):
+    """Seit 1.9.30: Karten mit 12 px Ecken im Büro, 16 px im Monteursrahmen (die Seiten der Monteurin bei 1280 × 620; Checkliste und
+    Einsatzbericht in beiden Rahmen), hell und dunkel; in /mobil schließt „Checklisten zu diesem Auftrag“ unten an seine Karte an (Karte
+    unten eckig, Link unten rund)."""
+    angemeldet = None
+    for seite, rolle, (breite, hoehe), selektoren, soll in ECKEN_FAELLE:
+        if rolle != angemeldet:
+            await tab.anmelden(seed["cookies"][rolle])
+            angemeldet = rolle
+        for thema in ("hell", "dunkel"):
+            wo = f"Ecken {seite} ({rolle}) {thema}"
+            p.pruefe(f"{wo}: geladen", await _laden(tab, seed, seite, thema, breite, hoehe), True)
+            ecken = await tab.js(ECKEN % json.dumps(selektoren))
+            p.pruefe(f"{wo}: {', '.join(selektoren)} mit {soll} Ecken", ecken, [[s, soll, soll] for s in selektoren])
+            if seite == "mobil":
+                a = await tab.js(ANSCHLUSS)
+                p.pruefe(f"{wo}: Link unter der Einsatzkarte schließt an (Karte unten 0, oben 16 px; Link oben 0, unten 16 px)",
+                         a, ["assign-card", "0px", "0px", "16px", "0px", "16px", "16px"])
+            p.pruefe(f"{wo}: keine JS-Fehler", tab.fehler, [])
+    await tab.bild("ecken_zuletzt")
+
+
 TEILE = {"seitenleiste": _seitenleiste, "aktiv": _aktiv, "schrift": _schrift, "menueknopf": _menueknopf, "kopfzeile": _kopfzeile,
          "kontomenue": _kontomenue, "vollname": _vollname, "pruefvorlagen": _pruefvorlagen, "kopfgruppe": _kopfgruppe,
          "seitenregeln": _seitenregeln, "monteurskopf": _monteurskopf, "datensatzkopf": _datensatzkopf,
          "rechnungskopf": _rechnungskopf, "angebotskopf": _angebotskopf, "untermenue": _untermenue,
          "formularseiten": _formularseiten, "anfragen_av": _anfragen_av,
-         "monteursseiten": _monteursseiten, "anmeldung": _anmeldung}
+         "monteursseiten": _monteursseiten, "anmeldung": _anmeldung, "ecken": _ecken}
 NUR: list = []
 
 

@@ -22,7 +22,7 @@
     body { margin: 0; background: var(--bg); color: var(--ink); }
     main { max-width: 1500px; margin: 0; padding: 22px; }
     .grid { display:grid; grid-template-columns: 1fr 1fr; gap:18px; }
-    .card { background: var(--card); border: 1px solid var(--line); padding: 18px; margin-bottom: 18px; }
+    .card { background: var(--card); border: 1px solid var(--line); padding: 18px; margin-bottom: 18px; border-radius:var(--ds-ecke-karte); }
     .card h2, .card h3 { margin-top:0; color: var(--ink); }
     button { background: var(--ds-aktion); color: #fff; border: 1px solid var(--ds-aktion); padding: 10px 15px; cursor: pointer; font-weight:650; }
     button:hover { background: color-mix(in srgb, var(--ds-aktion) 85%, black); border-color: color-mix(in srgb, var(--ds-aktion) 85%, black); }
@@ -53,11 +53,11 @@
     .negative { color:var(--danger); }
     .split { display:grid; grid-template-columns: minmax(320px,.9fr) minmax(550px,1.6fr); gap:18px; }
     .summary { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:10px; margin:14px 0; }
-    .metric { background:var(--soft); border:1px solid var(--line); padding:10px; }
+    .metric { background:var(--soft); border:1px solid var(--line); padding:10px; border-radius:var(--ds-ecke-karte); }
     .metric .label { color:var(--muted); font-size:11px; }
     .metric .value { font-size:18px; font-weight:750; margin-top:3px; color:var(--ink); }
-    .source-box { background:var(--soft); border:1px solid var(--line); padding:12px; }
-    .calc-box { background:color-mix(in srgb, var(--ds-aktion) 6%, var(--card)); border:1px solid color-mix(in srgb, var(--ds-aktion) 30%, var(--line)); padding:12px; }
+    .source-box { background:var(--soft); border:1px solid var(--line); padding:12px; border-radius:var(--ds-ecke-karte); }
+    .calc-box { background:color-mix(in srgb, var(--ds-aktion) 6%, var(--card)); border:1px solid color-mix(in srgb, var(--ds-aktion) 30%, var(--line)); padding:12px; border-radius:var(--ds-ecke-karte); }
     .material-input { min-width:90px; }
     .hidden { display:none !important; }
     .section-title { display:flex; justify-content:space-between; align-items:center; gap:10px; }

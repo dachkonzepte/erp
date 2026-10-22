@@ -58,13 +58,13 @@
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
 .cl-main{max-width:760px;margin:0;padding:16px 14px 80px}
 body.field .cl-main{margin:0 auto}
-.card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:12px}
+.card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:12px;border-radius:var(--ds-ecke-karte)}
 .muted{color:var(--muted)}.small{font-size:12.5px}
 .badge{font-size:10.5px;font-weight:800;text-transform:uppercase;padding:3px 8px;background:var(--soft);color:var(--muted);white-space:nowrap}
 .badge.draft{background:var(--warning-soft);color:var(--warning)}
 .badge.done{background:var(--success-soft);color:var(--success)}
 .group-title{font-size:12.5px;text-transform:uppercase;font-weight:800;color:var(--muted);margin:18px 0 8px}
-.q{background:var(--card);border:1px solid var(--line);padding:14px;margin-bottom:10px}
+.q{background:var(--card);border:1px solid var(--line);padding:14px;margin-bottom:10px;border-radius:var(--ds-ecke-karte)}
 .q.missing{border-left:3px solid var(--ds-warn-text)}
 .q-label{font-weight:650;font-size:15px}
 .q-label .req{color:var(--danger);margin-left:3px}
@@ -118,7 +118,7 @@ textarea{min-height:90px;resize:vertical}
 .pad-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center}
 .pad-actions input{flex:1;min-width:180px}
 /* Feld "Mängel" (seit 1.8.60) */
-.pdef{border:1px solid var(--line);padding:10px;margin-bottom:8px;background:var(--card)}
+.pdef{border:1px solid var(--line);padding:10px;margin-bottom:8px;background:var(--card);border-radius:var(--ds-ecke-karte)}
 .pdef.discarded{opacity:.75;border-style:dashed}
 .pdef-head{font-weight:700}.pdef-row{font-size:13.5px;margin-top:3px}
 .pdef-form{border-top:1px solid var(--line);margin-top:10px;padding-top:10px;display:grid;gap:8px}
@@ -136,7 +136,7 @@ textarea{min-height:90px;resize:vertical}
 .pad-actions select{flex:1;min-width:180px;padding:10px 12px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;font-size:16px;min-height:44px}
 .signer-fixed{flex:1;min-width:180px;font-size:14px;font-weight:650;color:var(--ink)}
 .sig .signer-line{display:block;font-weight:400;font-size:12.5px;color:#5c6f68;margin-top:2px}.sig .signer-line .no-poa{color:#8a5a00;font-weight:600}
-.footer-card{position:sticky;bottom:0;background:var(--card);border:1px solid var(--line);padding:12px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;box-shadow:0 -4px 14px rgba(0,0,0,.06)}
+.footer-card{position:sticky;bottom:0;background:var(--card);border:1px solid var(--line);padding:12px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;box-shadow:0 -4px 14px rgba(0,0,0,.06);border-radius:var(--ds-ecke-karte)}
 .footer-card .missing-text{flex:1;min-width:200px;font-size:13px;color:var(--muted)}
 .error-box{color:var(--danger)}
 .value-ro{font-size:15px;white-space:pre-wrap}
@@ -157,7 +157,7 @@ textarea{min-height:90px;resize:vertical}
 .notice-info{margin-top:8px;padding:8px 10px;border-left:3px solid var(--ds-warn-text);background:var(--warning-soft);color:var(--ink);font-size:13px}
 .notice-row{margin-top:8px;font-size:13.5px;overflow-wrap:anywhere}
 .notice-row .mono{font-family:ui-monospace,Consolas,monospace;font-size:12px}
-.notice-to{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 10px;border:1px solid var(--line);background:var(--soft);font-size:14px;min-height:44px}
+.notice-to{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 10px;border:1px solid var(--line);background:var(--soft);font-size:14px;min-height:44px;border-radius:var(--ds-ecke-karte)}
 .notice-to .fixed{font-size:11.5px;font-weight:700;text-transform:uppercase;color:var(--muted)}
 .notice-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
 .notice-actions a.btn{text-decoration:none;display:inline-flex;align-items:center}

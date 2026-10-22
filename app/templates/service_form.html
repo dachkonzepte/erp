@@ -7,7 +7,7 @@
 :root[data-theme="dark"]{color-scheme:dark}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink)}
 main{max-width:1140px;margin:0;padding:20px}
-.wrap{background:var(--card);border:1px solid var(--line);padding:22px}
+.wrap{background:var(--card);border:1px solid var(--line);padding:22px;border-radius:var(--ds-ecke-karte)}
 .section{margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid var(--line)}
 .section:last-of-type{border-bottom:0}
 .section h3{margin:0 0 12px;color:var(--ink)}
@@ -32,7 +32,7 @@ th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);font-
 th{font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700}
 .number{text-align:right}
 .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
-.metric{background:var(--soft);border:1px solid var(--line);padding:10px}
+.metric{background:var(--soft);border:1px solid var(--line);padding:10px;border-radius:var(--ds-ecke-karte)}
 .metric .label{color:var(--muted);font-size:11px}
 .metric .value{font-size:18px;font-weight:750;margin-top:3px;color:var(--ink)}
 .metric.highlight{background:color-mix(in srgb,var(--ds-aktion) 12%,var(--soft));border-color:color-mix(in srgb,var(--ds-aktion) 35%,var(--line))}

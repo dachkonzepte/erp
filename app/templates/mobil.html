@@ -26,7 +26,7 @@
     main{max-width:720px;margin:0 auto;padding:16px 14px 60px}
     h1{font-size:15px;margin:20px 0 10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:800}
     h1:first-of-type{margin-top:6px}
-    .assign-card{background:var(--card);border:1px solid var(--line);padding:14px 16px;margin-bottom:10px;display:block;text-decoration:none;color:var(--ink)}
+    .assign-card{background:var(--card);border:1px solid var(--line);padding:14px 16px;margin-bottom:10px;display:block;text-decoration:none;color:var(--ink);border-radius:var(--ds-ecke-karte)}
     .assign-card:active{background:var(--soft)}
     .assign-card .obj{font-weight:800;font-size:15.5px}
     .assign-card .addr{color:var(--muted);font-size:13px;margin-top:2px}
@@ -41,9 +41,12 @@
     .contract-row .contract-title{font-size:13.5px;font-weight:650}
     .perform-btn{border:1px solid var(--ds-aktion);background:var(--ds-aktion);color:#fff;padding:8px 11px;font-weight:650;font-size:13px;white-space:nowrap}
     .perform-btn:disabled{opacity:.6}
-    .concern-alert{margin:-10px 0 10px;padding:10px 14px;border:2px solid var(--ds-fehler);border-top:none;background:var(--card);color:var(--danger);font-weight:700;font-size:14px;line-height:1.35;overflow-wrap:anywhere}
+    .concern-alert{margin:-10px 0 10px;padding:10px 14px;border:2px solid var(--ds-fehler);border-top:none;background:var(--card);color:var(--danger);font-weight:700;font-size:14px;line-height:1.35;overflow-wrap:anywhere;border-radius:0 0 var(--ds-ecke-karte) var(--ds-ecke-karte)}
     .concern-alert a{display:block;margin-top:6px;color:var(--danger);font-weight:650;font-size:13.5px}
-    .checklist-link{display:flex;align-items:center;min-height:44px;margin:-10px 0 10px;padding:0 16px;border:1px solid var(--line);border-top:none;background:var(--card);color:var(--accent);font-weight:650;font-size:13.5px;text-decoration:none}
+    .checklist-link{display:flex;align-items:center;min-height:44px;margin:-10px 0 10px;padding:0 16px;border:1px solid var(--line);border-top:none;border-radius:0 0 var(--ds-ecke-karte) var(--ds-ecke-karte);background:var(--card);color:var(--accent);font-weight:650;font-size:13.5px;text-decoration:none}
+    /* seit 1.9.30: Hinweis „Offene Bedenken“ und Link hängen unter ihrer Einsatzkarte -- was darüber steht, ist unten eckig, der letzte
+       Kasten unten rund (tests/test_v460_ecken_der_karten.py) */
+    .assign-card:has(+ .concern-alert),.assign-card:has(+ .checklist-link),.concern-alert:has(+ .checklist-link){border-bottom-left-radius:0;border-bottom-right-radius:0}
     /* Seit 1.8.52: Mängel zur Beseitigung */
     .defect-desc{margin-top:8px;font-size:14.5px;font-weight:650;white-space:pre-wrap;overflow-wrap:anywhere}
     .defect-place{margin-top:4px;font-size:13px;color:var(--muted);overflow-wrap:anywhere}

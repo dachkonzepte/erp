@@ -3145,3 +3145,66 @@ mit Stufe und Grund. Bildvergleich: außer den Seiten der Runde weicht nichts ab
 - **Nebenbefund** aus einem Teillauf vor dem Commit von 1.9.26: `tests/test_v413_testlauf_parallel.py::test_pg_ein_testlauf_raeumt_zu_beginn_auf`
   scheiterte einmal in einem kleinen parallelen Lauf weniger Dateien und lief danach einzeln und in allen vollen Läufen grün -- vermutlich ein
   Wettlauf beim Aufräumen der Testschemas, wenn zwei Arbeitsprozesse fast gleichzeitig beginnen; nicht weiter untersucht.
+
+## Nachtrag Stufe 2 (ab 1.9.30)
+
+Vorgabe vom 22.10.2026 (übernommen wie gegeben): „Nachtrag Stufe 2 und Befund Stufe 4 „Monteurin“. Festlegungen 1.9.23 bis 1.9.29
+bestätigt, außer 1.9.27 Nr. 4. Version weiter ab 1.9.30. A. Nachtrag Stufe 2: 1. Karten auf allen Seiten mit 12 px Ecken, im
+Monteursrahmen 16 px (Entscheidung 2 der Stufe 2; ersetzt 1.9.27 Nr. 4). Bildvergleich: nur Ecken weichen ab. 2. CLAUDE.md: Ein Commit
+läuft nur nach grünem Lauf; Befehle mit && verketten, nie mit ;. 3. test_v413::test_pg_ein_testlauf_raeumt_zu_beginn_auf: Ursache des
+einmaligen Fehlschlags klären und ohne Zeitabhängigkeit machen. B. Befund Stufe 4, nichts am Programm ändern: […] Am Ende: volle Suite
+und Klicktests auf sauberer Arbeitskopie für Teil A. Bericht je Punkt. Dazu als ZIP die Monteursseiten heute bei 1280 × 620 und
+800 × 1100 und eine Seite mit den neuen Ecken vorher und nachher. Nicht pushen.“ (Teil B vollständig in `docs/archiv/befund-monteurin.md`.)
+
+### Punkt A1 (1.9.30): Karten mit 12 px Ecken, im Monteursrahmen 16 px
+
+- **Befund vorweg**: `.card` steht auf 44 Vorlagen, dazu rund 20 weitere Klassen mit „card“ im Namen; bis auf `.pv-karte` (Prüfvorlagen)
+  und die Bausteine des Design-Systems (Menü „⋮“, Suchergebnisse: schon `--ds-ecke-karte`) hatte keine eine Ecke. Dieselbe Fläche
+  (Kartengrund oder Rand) zeichnen viele Regeln ohne diesen Namen -- Kopf- und Formularkarten, Kennzahl-Kacheln, Spalten, Kästen in
+  Karten, Hinweise, Dialoge. Wären nur die „card“-Klassen rund geworden, hätte die Projektmappe runde Karten mit eckigen Kästen darin
+  gezeigt.
+- **Was eine Karte ist** (`tests/test_v460_ecken_der_karten.py`): eine Regel, deren Ziel genau eine Karten-Klasse ist -- Name mit „card“
+  oder „karte“, eine der Flächen in `KARTEN_OHNE_NAMEN` (63, je mit Grund) oder `dialog` -- und die eine Fläche zeichnet (umlaufender
+  Rand oder ein Grund). Zustände (`:hover`) und Teile einer Karte (`.card h2`) zählen nicht. **Keine Karte** (`NICHT_KARTEN`, 41, je mit
+  Grund): Knöpfe und Felder (eigene Ecke 10 px, nicht Teil dieses Punkts), Kennzeichen, Raster und Tafelteile (Monatsraster, Plantafel,
+  Zeitstrahl, Kopf der Positionen), die Skizze der Dachfläche, Vorschaubilder, die Kachel der Bildmarke. Jede umrandete Fläche einer
+  Vorlage (Ziel genau eine Klasse, ohne Leiste, Kopfzeile, Monteurskopf und Design-System) steht in einer der beiden Listen -- eine neue
+  kommt dort hinein.
+- **Ecke**: `border-radius: var(--ds-ecke-karte)` an jeder solchen Regel (180 Regeln in 55 Vorlagen, dazu `.pv-karte` mit schon vorhandener Ecke; per Skript mit derselben Erkennung
+  wie der Wächter). Kein `overflow: hidden` -- der Inhalt der Karten hat Innenabstand; im Bildvergleich geprüft.
+- **Monteursrahmen**: `_mobile_header.html` steht genau in den Seiten des Monteursrahmens (bei Einsatzbericht, Konto, Checkliste und
+  Checklisten zum Auftrag nur für die Monteurin) und setzt in einem eigenen Block `:root{--ds-ecke-karte:var(--ds-ecke-tablet-karte)}` --
+  keine Seite braucht eine Bedingung, keine Klasse am `<body>` (Festlegung 1.9.25 Nr. 1 bleibt). Damit ist im Rahmen alles 16 px, was
+  `--ds-ecke-karte` nimmt, auch das Menü „⋮“ und das Kontomenü. Sonst setzt keine Vorlage einen `--ds-`-Wert, keine nimmt die Tablet-Ecke
+  selbst (Wächter).
+- **Anschluss** in `/mobil`: Hinweis „Offene Bedenken“ (`.concern-alert`, `border-top:none`) und Link „Checklisten zu diesem Auftrag“ hängen
+  unter ihrer Einsatzkarte. Was darüber steht, ist unten eckig (`.assign-card:has(+ .concern-alert)` u. a.), der letzte Kasten nur unten
+  rund (`0 0 var(--ds-ecke-karte) var(--ds-ecke-karte)`).
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v460_ecken_der_karten.py` (8 Tests): jede Karte jeder Vorlage mit der Ecke (angeschlossen nur unten); jede umrandete
+  Fläche eingeordnet; Karten auf mindestens 48 Seiten (Start, Aufgaben, /mobil, Formularseiten eingeschlossen); der Block im Monteurskopf;
+  kein anderer `--ds-`-Wert in einer Vorlage, keine Tablet-Ecke außerhalb des Kopfs; Anschluss in `/mobil`; Selbsttests des Wächters.
+- `klicktest_rahmen` Teil `ecken` (neu): Start, Projekte, Einstellungen, Rechnung, Stammdaten-Formular, Checkliste und Einsatzbericht im Büro
+  (1440 × 900) mit 12 px; /mobil, Zeiterfassung, Stundenzettel, Checkliste, Einsatzbericht, Konto, Objekt und Betriebsmittel der Monteurin
+  (1280 × 620) mit 16 px -- je oben und unten links, hell und dunkel; in /mobil die Einsatzkarte über dem Link unten 0, oben 16 px, der Link
+  oben 0, unten 16 px. 92 von 92.
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück): Monteurskopf ohne den Block mit 16 px (P1); Widgets der Startseite ohne Ecke
+  (P2); Einsatzkarte über Hinweis und Link unten rund (P3); Frage der Checkliste nimmt die Tablet-Ecke selbst (P4) -- in pytest **4 von 4
+  rot** (FAILED; `test_v460`, P1 dazu `test_v272`), im Klicktest-Teil **4 von 4 rot** (74, 90, 90, 90 von 92).
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v272::test_seitenregeln_greifen_nicht_in_den_kopf`: alt nur der erste `<style>`-Block des Monteurskopfs (jede Regel mit zwei
+    Klassen); neu dazu genau ein zweiter Block mit der einen Regel `:root{--ds-ecke-karte:var(--ds-ecke-tablet-karte)}` (Aufbau erweitert,
+    die Prüfung des ersten Blocks unverändert).
+
+#### Festlegungen 1.9.30 (Bitte bestätigen)
+
+1. **Karte** = jede Fläche mit Rand oder Grund aus einer Karten-Klasse (Name mit „card“/„karte“ oder in `KARTEN_OHNE_NAMEN`: Kopf- und
+   Formularkarten, Kennzahl-Kacheln, Spalten, Einträge und Kästen in Karten, Hinweiskästen, Ablage- und Leerflächen, Dialoge,
+   Aufklappmenüs); **keine Karte**: Knöpfe und Felder, Kennzeichen, Raster und Tafelteile, Skizze, Vorschaubilder, Kachel der Bildmarke.
+2. **Auch die aufgeschobenen Seiten** (Stufen 4–7) bekommen die Ecken jetzt („auf allen Seiten“).
+3. **16 px über den Monteurskopf**: `_mobile_header.html` legt `--ds-ecke-karte` auf die Tablet-Ecke; alles, was diesen Wert nimmt, ist im
+   Rahmen 16 px -- auch Menü „⋮“, Kontomenü und Suchergebnisse.
+4. **Angeschlossene Kästen** (Hinweis und Link unter einer Einsatzkarte) nur unten rund, die Karte darüber unten eckig.
+5. **Kein `overflow: hidden`** an Karten.
