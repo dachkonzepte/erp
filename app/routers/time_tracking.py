@@ -32,7 +32,7 @@ from ..models import AppUser, TimeEntry, TimeEntryGroup
 from ..permissions import ROLE_FIELD, darf_zeit_fuer_andere_buchen, require_min_role
 from .orders import require_field_order_access
 from ..schemas import CrewGroupSummaryOut, CrewOut, TimeEntryManualCreate, TimeEntryOut, TimeEntrySummaryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeGroupUpdate, TimeEndeNachtragen, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
-from ..time_backoffice import load_time_settings, locked_until, rounded_hours, time_settings_dict
+from ..time_backoffice import load_time_settings, locked_until, time_settings_dict
 from ..time_tracking import MAX_LIST_LIMIT, active_group_for_employee, active_entry as active_time_entry, count_entries, create_group_manual_entry, create_manual_entry, crew_leader_team_ids, delete_entry as delete_time_entry_row, delete_group, ende_nachtragen, entry_to_dict, field_time_tracking_context, laeuft_seit_frueher, load_entry, nachtrag_nach_zeitregel, OffeneZeit, group_for_entry, group_member_ids, group_to_dict, list_crews_for_leader, list_entries as list_time_entries, list_groups_initiated_by, start_group_timer, start_timer, stop_group_timer, stop_timer, summarize_entries, time_tracking_context, update_entry as update_time_entry_row, update_group
 
 router = APIRouter()
@@ -70,14 +70,6 @@ def _validate_time_rules(db: Session, *, order_item_id: int | None, activity: st
     if settings.require_activity and not (activity or "").strip():
         raise HTTPException(status_code=422,detail="Für Zeitbuchungen ist eine Tätigkeit erforderlich.")
     return settings
-
-
-def _apply_time_rounding(db: Session, entry: TimeEntry):
-    settings=load_time_settings(db)
-    if entry.status=="booked" and settings.rounding_minutes:
-        entry.hours=rounded_hours(Decimal(entry.hours or 0),settings.rounding_minutes)
-        db.commit(); db.refresh(entry)
-    return entry
 
 
 def _require_bookable_order(request: Request, db: Session, order_id: int) -> None:
@@ -346,7 +338,7 @@ def get_active_time_entry(request: Request, employee_id: int | None = None, db: 
 
 @router.post("/api/time-entries", response_model=TimeEntryOut)
 def create_time_entry(payload: TimeEntryManualCreate, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
-    settings=_validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity,manual=True)
+    _validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity,manual=True)
     employee_id = _time_entry_employee_for_request(request, payload.employee_id, db)
     _require_bookable_order(request, db, payload.order_id)
     _require_open_period(request, db, payload.work_date)
@@ -360,7 +352,7 @@ def create_time_entry(payload: TimeEntryManualCreate, request: Request, db: Sess
             werte = nachtrag_nach_zeitregel(db, employee_id=employee_id, work_date=payload.work_date, von=payload.von, bis=payload.bis,
                                             mindestpause=payload.break_minutes)
             stunden, pause, beginn, ende = werte["netto"], werte["pause"], werte["beginn"], werte["ende"]
-        row = create_manual_entry(db, employee_id=employee_id, order_id=payload.order_id, order_item_id=payload.order_item_id, work_date=payload.work_date, entry_type=payload.entry_type, activity=payload.activity, hours=rounded_hours(stunden,settings.rounding_minutes), break_minutes=pause, started_at=beginn, ended_at=ende, notes=payload.notes, created_by_user_id=getattr(user, "id", None))
+        row = create_manual_entry(db, employee_id=employee_id, order_id=payload.order_id, order_item_id=payload.order_item_id, work_date=payload.work_date, entry_type=payload.entry_type, activity=payload.activity, hours=stunden, break_minutes=pause, started_at=beginn, ended_at=ende, notes=payload.notes, created_by_user_id=getattr(user, "id", None))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return TimeEntryOut.model_validate(entry_to_dict(row))
@@ -407,7 +399,6 @@ def stop_time_entry(entry_id: int, payload: TimeTimerStop, request: Request, db:
     loaded = db.get(TimeEntry, row.id)
     # Beziehungen fuer die Ausgabe wie beim regulaeren Stop neu laden.
     loaded = next((x for x in list_time_entries(db, employee_id=loaded.employee_id, start_date=loaded.work_date, end_date=loaded.work_date, limit=2000) if x.id==loaded.id), loaded)
-    loaded=_apply_time_rounding(db,loaded)
     return TimeEntryOut.model_validate(entry_to_dict(loaded))
 
 
@@ -445,8 +436,6 @@ def ende_nachtragen_endpunkt(entry_id: int, payload: TimeEndeNachtragen, request
         row = ende_nachtragen(db, entry_id, ende=ende, mindestpause=payload.pause_minuten)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    if not gruppe_laeuft:
-        row = _apply_time_rounding(db, load_entry(db, row.id))  # wie der Einzel-Stopp; die Gruppe wie der Gruppen-Stopp ohne Rundung
     return TimeEntryOut.model_validate(entry_to_dict(load_entry(db, row.id)))
 
 

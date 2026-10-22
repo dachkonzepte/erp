@@ -3539,3 +3539,32 @@ nachtragen“, kein „✓“ nach abgelehntem Start. (5) CLAUDE.md: Klicktests 
 Regel 15 ergänzt: vor jedem Commit zusätzlich zur vollen Suite jeder Klicktest, der eine geänderte Seite berührt (Suche in
 `scripts/klicktest_*.py` nach Vorlage, Seitenpfad, geänderten Funktionen und Element-IDs), auf genau dem Stand des Commits; der Bericht
 nennt sie. Anlass: Endlauf zu 1.9.37 (siehe „R1 Nachtrag“). Keine Festlegung, Betreibervorgabe.
+
+### Nachrunde Punkt 2 (1.9.39): Gruppenzeiten gerundet wie Einzelzeiten
+
+- **Befund**: gerundet wurde im Router (`_apply_time_rounding()` nach dem Einzel-Stopp, `rounded_hours()` beim Einzel-Nachtrag); im
+  Gruppenfall des Stopps traf `_apply_time_rounding()` nur die Zeit dessen, der stoppte, der Gruppen-Stopp und der Gruppen-Nachtrag rundeten
+  gar nicht, „Ende nachtragen“ für eine Gruppe ebenfalls nicht (Festlegungen 1.9.34 Nr. 3 und 1.9.35 Nr. 6, beide ersetzt).
+- **Eine Funktion**: `gebucht_nach_zeitregel(db, stunden)` -- Rundung der Zeitregeln (`rounding_minutes`, `time_backoffice.rounded_hours()`),
+  ohne eingestellte Rundung der Wert unverändert. Aufgerufen in `stop_timer()`, `stop_group_timer()` (je Mitglied),
+  `create_manual_entry()`, `create_group_manual_entry()` (je Mitglied); „Ende nachtragen“ und der Stopp im Gruppenfall laufen über
+  `stop_timer()`/`stop_group_timer()`. Der Router rundet nicht mehr (`_apply_time_rounding()` entfällt). Ändern einer Buchung rundet wie
+  bisher nicht. Wächter: unter `app/` ruft `rounded_hours()` nur sie -- und der DATEV-Export (`build_datev_export()`, summiert gerundet,
+  unverändert).
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v466_rundung_gruppen.py` (8 Tests, Rundung 15 min, 07:00–12:07 = 5,1167 h): Gruppen-Stopp, Stopp im Gruppenfall,
+  Gruppen-Nachtrag (5,1 h) und Ende nachtragen der Gruppe -- je Mitglied 5,00 h (Angriff auf die alte Rechnung) / Einzel-Stopp 5,00 h
+  (Gegenprobe); ohne Rundung 5,1167 h; eine schon gebuchte, ungerundete Gruppenzeit bleibt nach dem Einschalten der Rundung 5,1167 h;
+  Wächter „eine Rundung“.
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück, alle FAILED): keine Rundung (G1) -- 6 rot; Gruppen-Stopp ohne Rundung (G2) -- 3;
+  Gruppen-Nachtrag ohne Rundung (G3) -- 1; zweite Rundung im Router (G4) -- Wächter rot.
+- Alle Zeiterfassungs-Tests (68 Dateien) unverändert grün. **Angepasste Erwartungen**: keine.
+
+#### Festlegungen 1.9.39 (Bitte bestätigen)
+
+1. **Ohne eingestellte Rundung bleibt jede Buchung, wie gerechnet** (vier Nachkommastellen) -- auch der Einzel-Nachtrag, der bis 1.9.38
+   dann auf zwei Stellen rundete (`round_hours()`); so ergeben Nachtrag mit Von/Bis und Stopp derselben Zeiten genau dieselben Stunden.
+2. **Gruppen-Nachtrag**: die eingegebenen Stunden je Person werden einmal gerundet, jede Person bekommt denselben Wert.
+3. **Ändern** einer Buchung (einzeln oder Gruppe) rundet weiter nicht -- wie bisher, nicht Teil dieser Vorgabe.

@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.38** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.39** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -1456,7 +1456,9 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   `GET /api/field-view/today` und `POST /api/field-view/feierabend` 403 für jede andere Rolle -- das Büro wird auf `/mobil` nicht abgemeldet.
 - **Eine Pausenregel** (seit 1.9.34): Stopp, Gruppen-Stopp, Ende nachtragen und Nachtrag mit Von/Bis rechnen die Pause nur über
   `app/time_tracking.py::pause_nach_zeitregel()` (automatisch nach Anwesenheit, eingegebene Pause als Mindestpause); eine reine Dauer ist
-  gebuchte Arbeitszeit (netto). Wächter `tests/test_v462_nachtrag_pausenregel.py`.
+  gebuchte Arbeitszeit (netto). Wächter `tests/test_v462_nachtrag_pausenregel.py`. **Eine Rundung** (seit 1.9.39): jede neue Buchung --
+  auch je Mitglied einer Gruppe -- rundet nur `gebucht_nach_zeitregel()` nach den Zeitregeln (ohne Rundung bleibt der Wert); Wächter
+  `tests/test_v466_rundung_gruppen.py`.
 - **Vergessener Feierabend** (seit 1.9.35): nichts schließt eine Zeit von selbst. Läuft sie seit einem früheren Tag
   (`app/time_tracking.py::laeuft_seit_frueher()`), lehnt der Stopp ab (409), ebenso jeder neue Start (`OffeneZeit`); geschlossen wird sie
   nur über `POST /api/time-entries/{id}/ende-nachtragen` (Ende am Starttag, Pausenregel; Gruppenzeit nur der Kolonnenführer, fremde nach

@@ -29,6 +29,18 @@ def _d(v) -> Decimal:
     return Decimal(str(v or 0))
 
 
+def gebucht_nach_zeitregel(db: Session, stunden) -> Decimal:
+    """Seit 1.9.39 (Stufe 4, R1 Nachrunde, Punkt 2): die gebuchten Stunden nach der Rundung der Zeitregeln (Zeiterfassungs-Backoffice,
+    rounding_minutes) -- die eine Stelle für jede neue Buchung: Stopp, Gruppen-Stopp und Stopp im Gruppenfall (je Mitglied), Nachtrag,
+    Gruppen-Nachtrag (je Mitglied), Ende nachtragen (einzeln und für die Gruppe). Ohne eingestellte Rundung bleibt der Wert, wie er ist
+    (gespeichert mit vier Nachkommastellen). Bis 1.9.38 rundeten nur Einzel-Stopp und Einzel-Nachtrag (im Router), der Stopp im
+    Gruppenfall nur die Zeit dessen, der stoppte, Gruppen-Stopp und Gruppen-Nachtrag gar nicht. Ändern rundet nicht (wie bisher)."""
+    from .time_backoffice import load_time_settings, rounded_hours  # lokal: time_backoffice importiert dieses Modul
+    schritt = load_time_settings(db).rounding_minutes
+    wert = _d(stunden)
+    return rounded_hours(wert, schritt) if schritt else wert
+
+
 def employee_name(emp: Employee | None) -> str | None:
     return f"{emp.first_name} {emp.last_name}".strip() if emp else None
 
@@ -166,7 +178,8 @@ def create_manual_entry(
         entry_type = entry_type.strip() or "other"
     # Seit 1.9.34 sind die Stunden immer die gebuchten (netto): ein Nachtrag mit Von/Bis rechnet sie vorher nach der Pausenregel
     # (nachtrag_nach_zeitregel()) und gibt Beginn und Ende als Nachweis mit -- bis dahin rechnete diese Funktion sie selbst ohne Regel.
-    amount = _d(hours)
+    # Seit 1.9.39 rundet sie hier nach den Zeitregeln (gebucht_nach_zeitregel(), bis dahin der Router)
+    amount = gebucht_nach_zeitregel(db, hours)
     if amount <= 0:
         raise ValueError("Die Stunden müssen größer als 0 sein.")
     row = TimeEntry(
@@ -226,7 +239,7 @@ def stop_timer(db: Session, entry_id: int, *, ended_at: datetime | None = None, 
                                                  break_minutes)
     else:
         row.break_minutes = max(0, int(break_minutes or 0))  # compute_hours() lehnt das Ende gleich darauf ab
-    row.hours = compute_hours(row.started_at, end, row.break_minutes)
+    row.hours = gebucht_nach_zeitregel(db, compute_hours(row.started_at, end, row.break_minutes))  # seit 1.9.39 hier gerundet
     row.status = "booked"
     link = _group_link_for_entry(db, row.id)
     if link is not None:
@@ -554,7 +567,7 @@ def create_group_manual_entry(db: Session, *, employee_ids: list[int], team_id: 
     order=db.get(Order,order_id)
     if order is None: raise ValueError("Auftrag wurde nicht gefunden.")
     validate_order_item(db,order_id,order_item_id)
-    amount=_d(hours)
+    amount=gebucht_nach_zeitregel(db,hours)  # seit 1.9.39 je Mitglied gerundet wie ein Einzel-Nachtrag (alle dieselbe Dauer)
     if amount<=0: raise ValueError("Die Stunden müssen größer als 0 sein.")
     group=_create_group_header(db,initiated_by_employee_id=actor_employee_id,team_id=team_id,order=order,order_item_id=order_item_id,mode='manual',entry_type=entry_type,activity=activity,work_date=work_date,started_at=None,hours=amount,break_minutes=break_minutes,notes=notes,status='booked',created_by_user_id=created_by_user_id)
     for emp in employees:
@@ -594,7 +607,7 @@ def stop_group_timer(db: Session, group_id: int, *, ended_at: datetime | None=No
             # seit 1.9.34 dieselbe Pausenregel wie der Einzel-Stopp, je Mitglied nach seinem Arbeitszeitmodell (pause_nach_zeitregel())
             applied=(pause_nach_zeitregel(db,link.employee_id,anwesend_stunden(group.started_at,end),group.started_at.date(),break_minutes)
                      if end>group.started_at else max(0,int(break_minutes or 0)))
-            amount=compute_hours(group.started_at,end,applied)
+            amount=gebucht_nach_zeitregel(db,compute_hours(group.started_at,end,applied))  # seit 1.9.39 je Mitglied wie ein Einzel-Stopp
             entry.ended_at=end;entry.break_minutes=applied;entry.hours=amount;entry.status='booked'
             amounts.append(amount);applied_breaks.append(applied)
     group.ended_at=end
