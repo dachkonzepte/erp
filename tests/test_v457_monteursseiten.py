@@ -20,16 +20,16 @@ from tests.test_v441_rahmen_baustein import MONTEURSSEITEN
 
 # Adresse je Seite; Rollen: (Rolle, Tablet?, feste Pfad-Links vor dem Laden)
 FAELLE = [
-    ("/checklisten/1", "field", True, [("/mobil", "Einsätze")]),
+    ("/checklisten/1", "field", True, [("/mobil", "Heute")]),
     ("/checklisten/1", "buero_auftrag", False, [("/checklisten", "Checklisten")]),
-    ("/checklisten/auftrag/1", "field", True, [("/mobil", "Einsätze")]),
+    ("/checklisten/auftrag/1", "field", True, [("/mobil", "Heute")]),
     ("/checklisten/auftrag/1", "buero_auftrag", False, [("/checklisten", "Checklisten"), ("/orders/1", "Auftrag")]),
-    ("/mobil/objekt/1", "field", True, [("/mobil", "Einsätze")]),
-    ("/mobil/objekt/1", "buero_auftrag", True, [("/mobil", "Einsätze")]),  # die Seite steht für jede Rolle im Monteursrahmen
-    ("/betriebsmittel/1", "field", True, [("/mobil", "Einsätze")]),
-    ("/orders/1/service-reports", "field", True, [("/mobil", "Einsätze")]),  # Einsatzbericht
+    ("/mobil/objekt/1", "field", True, [("/mobil", "Heute")]),
+    ("/mobil/objekt/1", "buero_auftrag", True, [("/mobil", "Heute")]),  # die Seite steht für jede Rolle im Monteursrahmen
+    ("/betriebsmittel/1", "field", True, [("/mobil", "Heute")]),
+    ("/orders/1/service-reports", "field", True, [("/mobil", "Heute")]),  # Einsatzbericht
     ("/orders/1/service-reports", "buero_auftrag", False, [("/projects", "Projekte")]),
-    ("/account", "field", True, [("/mobil", "Einsätze")]),
+    ("/account", "field", True, [("/mobil", "Heute")]),
     ("/account", "buero_auftrag", False, [("/", "Start")]),
 ]
 
@@ -81,7 +81,7 @@ def test_checkliste_pfad_nach_dem_laden_ueber_den_bisherigen_rueckweg():
     (backLink(): Monteur „Checklisten zum Auftrag“, Büro der Auftrag), am Ende der Titel; Status nur über statusKennzeichen('checkliste')."""
     skript = vj.eigene_skripte("checklist.html").text
     kopf = skript[skript.index("function kopfZeichnen()"):skript.index("function renderHeader()")]
-    assert "IS_FIELD?{text:'Einsätze',href:'/mobil'}:{text:'Checklisten',href:'/checklisten'}" in kopf
+    assert "IS_FIELD?{text:'Heute',href:'/mobil'}:{text:'Checklisten',href:'/checklisten'}" in kopf
     assert "{text:cl.context_label,href:zurueck}" in kopf and "const zurueck=backLink();" in kopf
     assert "status:statusKennzeichen('checkliste',cl.status)" in kopf
     rueck = skript[skript.index("function backLink()"):skript.index("function answerOf(")]

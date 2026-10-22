@@ -92,7 +92,8 @@ class TestVorOrtRenamedToMobil:
         field = router_test_client(db, pages_router, role="field")
         resp = field.get("/mobil")
         assert resp.status_code == 200
-        assert "<title>DACHKONZEPTE ERP – Mobil</title>" in resp.text  # seit 1.8.139 einheitlich (vorher „DACHKONZEPTE GmbH - Mobil“)
+        # seit 1.8.139 einheitlich (vorher „DACHKONZEPTE GmbH - Mobil“), seit 1.9.45 „Heute“ wie der Reiter (bis dahin „– Mobil“)
+        assert "<title>DACHKONZEPTE ERP – Heute</title>" in resp.text
 
     def test_office_and_admin_are_blocked_from_mobil_pages_unchanged(self, router_test_client, threaded_db_session):
         """Reine Regression -- /mobil war schon vor 1.3.61 (als /vor-ort) für jede Rolle

@@ -199,7 +199,7 @@ textarea{min-height:90px;resize:vertical}
    Pfad setzt kopfZeichnen() nach dem Laden. Der Inhalt (#clMain) zeichnet render() neu, der Kopf steht davor. #}
 {% from "teile/seitenkopf.html" import seitenkopf %}
 {% call(teil) seitenkopf("Checkliste", mit_pfad=true, mit_aktion=true, tablet=is_field) %}
-  {% if teil == "pfad" %}{% if is_field %}<a class="ds-kopf-pfadglied" href="/mobil">Einsätze</a>{% else %}<a class="ds-kopf-pfadglied" href="/checklisten">Checklisten</a>{% endif %}
+  {% if teil == "pfad" %}{% if is_field %}<a class="ds-kopf-pfadglied" href="/mobil">Heute</a>{% else %}<a class="ds-kopf-pfadglied" href="/checklisten">Checklisten</a>{% endif %}
   {% elif teil == "aktion" %}<a class="ds-knopf" id="pdfLink" href="/api/checklists/{{ checklist_id }}/pdf" target="_blank" rel="noopener" hidden>PDF</a>{% endif %}
 {% endcall %}
 <div id="clMain"><div class="card muted">Lädt …</div></div>
@@ -256,7 +256,7 @@ function missingOf(f){return (cl.missing_required||[]).filter(m=>m===f.label||m.
 function kopfZeichnen(){
   const who=[cl.created_by_name?`angelegt von ${cl.created_by_name}`:null,`am ${fmtDateTime(cl.created_at)}`,cl.completed_at&&cl.status!=='gegenstandslos'?`abgeschlossen ${fmtDateTime(cl.completed_at)}`:null].filter(Boolean).join(' · ');
   const zurueck=backLink();
-  const pfad=[IS_FIELD?{text:'Einsätze',href:'/mobil'}:{text:'Checklisten',href:'/checklisten'},
+  const pfad=[IS_FIELD?{text:'Heute',href:'/mobil'}:{text:'Checklisten',href:'/checklisten'},
     zurueck!=='/checklisten'?{text:cl.context_label,href:zurueck}:null,{text:cl.template_label}];
   seitenkopf({titel:cl.template_label,untertitel:[cl.context_detail,who,`Fassung ${cl.version_no}`].filter(Boolean).join(' · '),
     status:statusKennzeichen('checkliste',cl.status),pfad:pfad.filter(Boolean)});

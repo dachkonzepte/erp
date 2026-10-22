@@ -7,3 +7,7 @@ dieser einen.
 """
 
 KEIN_MITARBEITER = "Dein Konto ist keinem Mitarbeiter zugeordnet. Ein Administrator kann das unter Einstellungen → Benutzer und Zugriff ändern."
+
+# Seit 1.9.35 (Stufe 4, R1): eine Zeit von früher im abgeschlossenen Monat schließt nur das Büro -- seit 1.9.45 hier, weil auch
+# „Heute“ auf /mobil sie zeigt (app/heute.py), bis dahin in app/routers/time_tracking.py.
+MONAT_ABGESCHLOSSEN = "Monat abgeschlossen – das Büro schließt die Zeit."

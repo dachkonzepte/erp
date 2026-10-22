@@ -111,9 +111,9 @@ ROLLEN = (bg.BUERO, bg.BUERO_AUFTRAG, bg.ADMIN)  # die Monteurin hat seit 1.8.16
 GRUPPEN = {r: ["Übersicht", "Aufträge", "Kaufmännisch", "Verwaltung"] for r in ROLLEN}
 SEITE_JE_ROLLE = {bg.BUERO: "start", bg.BUERO_AUFTRAG: "start", bg.ADMIN: "start"}
 # Seiten der Monteurin -> aktiver Reiter
-MONTEUR_SEITEN = {"mobil": "Einsätze", "mobil_objekt": "Einsätze", "stundenzettel": "Stundenzettel",
-                  "zeiterfassung_monteur": "Zeiterfassung", "betriebsmittel_monteur": "Einsätze", "checkliste": "Einsätze",
-                  "checklisten_auftrag": "Einsätze", "einsatzbericht": "Einsätze", "konto": None}
+MONTEUR_SEITEN = {"mobil": "Heute", "mobil_objekt": "Heute", "stundenzettel": "Stundenzettel",
+                  "zeiterfassung_monteur": "Zeiterfassung", "betriebsmittel_monteur": "Heute", "checkliste": "Heute",
+                  "checklisten_auftrag": "Heute", "einsatzbericht": "Heute", "konto": None}
 AKTIV = [("projektmappe", "projekte"), ("rechnung", "projekte"), ("kunde", "stammdaten"), ("befunde", "befunde"),
          ("einstellungen", "einstellungen"), ("zeiterfassung", "zeiterfassung"), ("suche", None), ("konto", None)]
 
@@ -598,7 +598,7 @@ async def _monteurskopf(tab, seed, p):
                      [64, 64, True, False, False, True, False])
             p.pruefe(f"{wo}: Name ganz zu sehen", [m["name"], m["name_ganz"]], ["Mia Monteurin", True])
             p.pruefe(f"{wo}: Reiter 48 px mit 16 px, Lupe 48 × 48", [m["reiter"], m["lupe"]],
-                     [[["Einsätze", 48, "16px"], ["Zeiterfassung", 48, "16px"], ["Stundenzettel", 48, "16px"]], [48, 48]])
+                     [[["Heute", 48, "16px"], ["Zeiterfassung", 48, "16px"], ["Stundenzettel", 48, "16px"]], [48, 48]])
             # seit 1.8.170 auf navi-aktiv mit 10 px Ecken, der Strich als inset-Schatten (bis dahin unterer Rand von 3 px)
             # seit 1.9.0 Schrift weiß in 600 (bis dahin navi-text in 500)
             p.pruefe(f"{wo}: aktiver Reiter", m["aktiv"], [[reiter, "page", True, True, "10px", "rgb(255, 255, 255)", "600"]] if reiter else [])
@@ -667,7 +667,7 @@ DATENSATZKOPF = (
                ["{auftragsnummer}", "/orders/{auftrag}"], ["Einsatzbericht", None]],
          status=["Beauftragt", "info"], aktion=None, menue=["Zeiterfassung (Auftrag)"]),
     dict(seite="einsatzbericht", rolle=bg.MONTEUR, titel="Einsatzbericht", kennung="{auftragsnummer}", untertitel="Hallenbau GmbH",
-         pfad=[["Einsätze", "/mobil"], ["Einsatzbericht", None]], status=["", "neutral"], aktion=None, menue=["Zeiterfassung (Auftrag)"]),
+         pfad=[["Heute", "/mobil"], ["Einsatzbericht", None]], status=["", "neutral"], aktion=None, menue=["Zeiterfassung (Auftrag)"]),
 )
 DATENSATZKOPF_JS = """(()=>{const F=%s;const cs=e=>getComputedStyle(e);const k=document.getElementById('seitenkopf');
 const st=document.getElementById('seitenkopfStatus');const eintraege=[...document.querySelectorAll('#seitenkopfMenue .ds-menue-eintrag')];
@@ -987,7 +987,7 @@ UNTERMENUE = (
     dict(seite="backoffice", rolle=bg.BUERO, titel="Zeiterfassungs-Backoffice",
          untertitel="Kontrolle, Monatsauswertung, Stundenzettel, Abschluss und Lohnexport.", pfad=[], aktion=None),
     dict(seite="konto", rolle=bg.BUERO, titel="Mein Konto", untertitel="", pfad=[["Start", "/"], ["Mein Konto", None]], aktion=None),
-    dict(seite="konto", rolle=bg.MONTEUR, titel="Mein Konto", untertitel="", pfad=[["Einsätze", "/mobil"], ["Mein Konto", None]],
+    dict(seite="konto", rolle=bg.MONTEUR, titel="Mein Konto", untertitel="", pfad=[["Heute", "/mobil"], ["Mein Konto", None]],
          aktion=None),
     dict(seite="benutzer", rolle=bg.ADMIN, titel="Benutzer und Zugriff", untertitel="",
          pfad=[["Einstellungen", "/settings"], ["Benutzer und Zugriff", None]], aktion=None),
@@ -1290,7 +1290,7 @@ async def _monteursseiten(tab, seed, p):
         monteur = rolle == bg.MONTEUR
         status_cl = {"entwurf": ["Entwurf", "warn"], "abgeschlossen": ["Abgeschlossen", "ok"], "gegenstandslos": ["Gegenstandslos", "neutral"]}
         rueck_cl = f"/checklisten/auftrag/{cl['order_id']}" if monteur else f"/orders/{cl['order_id']}"
-        anfang = ["Einsätze", "/mobil"] if monteur else ["Checklisten", "/checklisten"]
+        anfang = ["Heute", "/mobil"] if monteur else ["Checklisten", "/checklisten"]
         seiten = [
             dict(seite="checkliste", titel=cl["template_label"], kennung="", status=status_cl[cl["status"]],
                  pfad=[anfang, [cl["context_label"], rueck_cl], [cl["template_label"], None]], pdf=cl["status"] != "entwurf"),
@@ -1302,13 +1302,13 @@ async def _monteursseiten(tab, seed, p):
             meta = " · ".join(x for x in (a.get("asset_type"), a.get("manufacturer"), a.get("model")) if x)
             seiten += [
                 dict(seite="mobil_objekt", titel="Halle Nord", kennung="", untertitel="", status=["", "neutral"],
-                     pfad=[["Einsätze", "/mobil"], ["Halle Nord", None]]),
+                     pfad=[["Heute", "/mobil"], ["Halle Nord", None]]),
                 dict(seite="betriebsmittel_monteur", titel=a["name"], kennung="", untertitel=meta, status=["", "neutral"],
-                     pfad=[["Einsätze", "/mobil"], [a["name"], None]]),
+                     pfad=[["Heute", "/mobil"], [a["name"], None]]),
                 dict(seite="einsatzbericht", titel="Einsatzbericht", kennung=o["order_number"], untertitel=o["customer_name"],
-                     status=["", "neutral"], pfad=[["Einsätze", "/mobil"], ["Einsatzbericht", None]]),
+                     status=["", "neutral"], pfad=[["Heute", "/mobil"], ["Einsatzbericht", None]]),
                 dict(seite="konto", titel="Mein Konto", kennung="", untertitel="", status=["", "neutral"],
-                     pfad=[["Einsätze", "/mobil"], ["Mein Konto", None]]),
+                     pfad=[["Heute", "/mobil"], ["Mein Konto", None]]),
             ]
         breite, hoehe = (1280, 620) if monteur else (1440, 900)
         for f in seiten:
@@ -1426,7 +1426,7 @@ ECKEN_FAELLE = [
     ("stammdaten_mitarbeiter", bg.BUERO, (1440, 900), [".wrap"], "12px"),
     ("checkliste", bg.BUERO, (1440, 900), [".q", ".footer-card"], "12px"),
     ("einsatzbericht", bg.BUERO, (1440, 900), [".card"], "12px"),
-    ("mobil", bg.MONTEUR, (1280, 620), [".assign-card"], "16px"),
+    ("mobil", bg.MONTEUR, (1280, 620), [".heute-karte"], "16px"),
     ("zeiterfassung_monteur", bg.MONTEUR, (1280, 620), [".card"], "16px"),
     ("stundenzettel", bg.MONTEUR, (1280, 620), [".card"], "16px"),
     ("checkliste", bg.MONTEUR, (1280, 620), [".q", ".footer-card"], "16px"),
@@ -1435,9 +1435,10 @@ ECKEN_FAELLE = [
     ("mobil_objekt", bg.MONTEUR, (1280, 620), [".card"], "16px"),
     ("betriebsmittel_monteur", bg.MONTEUR, (1280, 620), [".card"], "16px"),
 ]
-ANSCHLUSS = """(()=>{const l=document.querySelector('.checklist-link');if(!l)return null;const k=l.previousElementSibling;
-const a=getComputedStyle(k),b=getComputedStyle(l);return [k.className,a.borderBottomLeftRadius,a.borderBottomRightRadius,a.borderTopLeftRadius,
-b.borderTopLeftRadius,b.borderBottomLeftRadius,b.borderBottomRightRadius]})()"""
+# Seit 1.9.45 („Heute“): Hinweis „Offene Bedenken“ und die Wege zum Auftrag stehen IN der Einsatzkarte, nichts hängt unten an (bis 1.9.44
+# hing „Checklisten zu diesem Auftrag“ unter der Karte, die darüber unten eckig)
+ANSCHLUSS = """[document.querySelectorAll('.checklist-link').length,
+[...document.querySelectorAll('.einsatz-wege,.concern-alert')].every(e=>!!e.closest('.heute-karte'))]"""
 
 
 async def _ecken(tab, seed, p):
@@ -1456,8 +1457,7 @@ async def _ecken(tab, seed, p):
             p.pruefe(f"{wo}: {', '.join(selektoren)} mit {soll} Ecken", ecken, [[s, soll, soll] for s in selektoren])
             if seite == "mobil":
                 a = await tab.js(ANSCHLUSS)
-                p.pruefe(f"{wo}: Link unter der Einsatzkarte schließt an (Karte unten 0, oben 16 px; Link oben 0, unten 16 px)",
-                         a, ["assign-card", "0px", "0px", "16px", "0px", "16px", "16px"])
+                p.pruefe(f"{wo}: Hinweis und Wege in der Einsatzkarte, nichts angehängt", a, [0, True])
             p.pruefe(f"{wo}: keine JS-Fehler", tab.fehler, [])
     await tab.bild("ecken_zuletzt")
 

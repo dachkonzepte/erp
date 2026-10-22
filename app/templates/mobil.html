@@ -3,36 +3,122 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>DACHKONZEPTE ERP – Mobil</title>
+  <title>DACHKONZEPTE ERP – Heute</title>
   {# Manifest/Theme-Farbe/Apple-Touch-Icon bewusst NUR auf dieser Seite (seit 1.3.0) -- das ist
      die einzige Seite, die als Startadresse installiert werden soll (start_url in
-     app/mobile_manifest.py), siehe CLAUDE.md "Web-App-Manifest". Seite hieß bis 1.3.60 /vor-ort
-     (app/templates/vor_ort.html), reine Umbenennung samt neuem Titel, siehe CLAUDE.md
-     "Monteursansicht: Umbenennung zu /mobil". Seit 1.3.61 zusätzlich "Meine kommenden Termine"
-     (Punkt 5, siehe CLAUDE.md "Zeiterfassung für Monteure" -> "Eigene Plantafel-Einträge") --
-     reine Leseansicht, KEIN Zugriff auf die Plantafel selbst, deshalb bewusst als reine Karte
-     ohne Link gerendert (anders als "Heutige Einsätze", die in den Bericht führen). Seit 1.8.52 "Mängel zur
-     Beseitigung" (app/routers/field_defects.py, docs/archiv/abnahme-und-gewaehrleistung.md, "Umsetzung 1.8.52"). #}
+     app/mobile_manifest.py), siehe CLAUDE.md "Web-App-Manifest". Seite hieß bis 1.3.60 /vor-ort.
+     Seit 1.9.45 (Stufe 4, R2) „Heute“ nach den Vorlagen bildgrundlage/entwurf-stufe4/heute-quer.html, heute-hoch.html und
+     heute-gestern.html: oben Arbeitszeit (läuft / nichts läuft / Zeit von früher offen), heutiger Einsatz je Auftrag, rechts „Offen“ und
+     „Nächste Tage“ -- ab 1000 px zwei Spalten (rechts 420 px), darunter eine Spalte in der Reihenfolge von heute-hoch. Alles kommt aus
+     GET /api/field-view/today, Schlüssel "heute" (app/heute.py); die Seite rechnet nichts davon nach. Darunter die bisherigen Listen
+     (offene Berichte, Mängel zur Beseitigung mit „Beseitigt melden“, offene Checklisten, Wartungen an meinen Objekten) -- dorthin führen
+     die Zeilen von „Offen“. „Meine kommenden Termine“ ist in „Nächste Tage“ aufgegangen. #}
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="{{ get_theme().accent_color }}">
   <link rel="apple-touch-icon" href="/api/mobile-icon/192.png">
   <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
-  
+
 {% include "_ds_kopf.html" %}
 <style>
-    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:light;color:var(--ink);background:var(--bg)}
+    :root{font-family:var(--ds-schrift-text);color-scheme:light;color:var(--ds-text);background:var(--ds-grund)}
     :root[data-theme="dark"]{color-scheme:dark}
-    *{box-sizing:border-box}body{margin:0}
-    main{max-width:720px;margin:0 auto;padding:16px 14px 60px}
-    h1{font-size:15px;margin:20px 0 10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:800}
-    h1:first-of-type{margin-top:6px}
+    *{box-sizing:border-box}body{margin:0;background:var(--ds-grund)}
+    [hidden]{display:none!important}  /* sonst überstimmt display:grid/flex der Karten und Kacheln das Attribut */
+    a{color:var(--ds-link)}a:hover{color:var(--ds-link-hover)}
+    :focus-visible{outline:3px solid var(--ds-fokus);outline-offset:3px}
+    .nur-vorleser{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+    /* --- Heute (seit 1.9.45): Maße, Abstände und Reihenfolge aus den Vorlagen, Farben über die Tokens --- */
+    .heute{display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:16px;padding:16px 20px;align-items:start;max-width:1400px;margin:0 auto}
+    .heute-spalte,#arbeitszeit{min-width:0;display:flex;flex-direction:column;gap:16px}
+    @media (max-width:999px){.heute{grid-template-columns:minmax(0,1fr);padding:16px}}
+    .heute-karte{background:var(--ds-flaeche);border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-karte);padding:18px 20px;display:flex;flex-direction:column;gap:14px;min-width:0}
+    .heute-karte.liste{padding:18px 20px 4px;gap:8px}
+    .heute-karte.einsatz{padding:18px 20px 6px;gap:4px}
+    .eb{font-family:var(--ds-schrift-mono);font-size:12px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--ds-text-3)}
+    .zeit-kopf{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .laeuft-pill{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--ds-info-text);background:var(--ds-info-hell);border-radius:var(--ds-ecke-rund);padding:4px 12px}
+    .laeuft-pill .punkt{width:8px;height:8px;border-radius:50%;background:var(--ds-info)}
+    .zeit-mitte{display:flex;align-items:flex-end;justify-content:space-between;gap:16px}
+    .zeit-text{min-width:0;display:flex;flex-direction:column;gap:4px}
+    .zeit-titel{font-family:var(--ds-schrift-titel);font-weight:700;font-size:26px;line-height:1.15}
+    .zeit-sub,.einsatz-sub,.signal-sub{font-size:16px;color:var(--ds-text-2);overflow-wrap:anywhere}
+    .zeit-dauer{font-family:var(--ds-schrift-titel);font-weight:700;font-size:40px;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
+    .zeit-knoepfe{display:flex;gap:12px}
+    .zeit-knoepfe button{flex:1}
+    .zeit-hinweis{font-size:16px;color:var(--ds-text-2)}
+    .knopf{height:64px;border-radius:var(--ds-ecke-tablet-feld);font-family:var(--ds-schrift-text);font-size:18px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:10px;padding:0 24px;text-decoration:none}
+    .knopf:active{transform:scale(.985)}
+    .knopf-stark{border:0;background:var(--ds-stark);color:var(--ds-auf-stark)}
+    .knopf-neutral{border:1px solid var(--ds-linie-stark);background:var(--ds-flaeche);color:var(--ds-stark)}
+    .knopf-aktion{border:0;background:var(--ds-aktion);color:var(--ds-auf-aktion)}
+    .knopf-aktion:hover{color:var(--ds-auf-aktion)}
+    .knopf-gesperrt{border:1px solid var(--ds-linie);background:var(--ds-flaeche-2);color:var(--ds-text-3);cursor:default}
+    .knopf:disabled{cursor:default}
+    .knopf-klein{height:48px;font-size:16px;padding:0 18px}
+    .kacheln{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+    .kacheln .knopf{height:64px;flex-direction:column;gap:0;padding:0 12px;font-size:17px}
+    .kacheln .vorschlag{display:block;font-size:12px;font-weight:600;color:var(--ds-text-3);margin-top:2px}
+    .feld{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600;color:var(--ds-stark)}
+    .feld select{height:56px;border:1px solid var(--ds-feld-rand);border-radius:var(--ds-ecke-tablet-feld);padding:0 14px;font-family:var(--ds-schrift-text);font-size:17px;color:var(--ds-text);background:var(--ds-flaeche)}
+    .status{font-size:14px;color:var(--ds-fehler-text);overflow-wrap:anywhere}
+    .status:empty{display:none}
+    /* Zeit von früher offen (heute-gestern): Signalkarte „Wartet auf dich“ */
+    .signal-karte{background:var(--ds-signal-hell);border:1px solid var(--ds-signal-rand);border-radius:var(--ds-ecke-karte);padding:20px;display:flex;flex-direction:column;gap:14px;min-width:0}
+    .signal-eb{display:inline-flex;align-items:center;gap:8px;font-family:var(--ds-schrift-mono);font-size:12px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--ds-signal-text)}
+    .signal-eb .punkt{width:8px;height:8px;border-radius:50%;background:var(--ds-signal)}
+    .signal-kopf{display:flex;flex-direction:column;gap:4px}
+    .signal-kopf h2{margin:0;font-family:var(--ds-schrift-titel);font-weight:700;font-size:26px;line-height:1.15}
+    .ende-zeile{display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap}
+    .ende-zeile label{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600;color:var(--ds-stark)}
+    .ende-zeile input{height:64px;width:180px;border:1px solid var(--ds-feld-rand);border-radius:var(--ds-ecke-tablet-feld);padding:0 16px;font-family:var(--ds-schrift-text);font-size:24px;font-weight:600;color:var(--ds-text);background:var(--ds-flaeche)}
+    .ende-vorschau{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;padding-bottom:6px}
+    .ende-vorschau .anwesend{font-size:15px;color:var(--ds-stark)}
+    .ende-vorschau .gebucht{font-size:19px;font-weight:700}
+    .ende-knopf-zeile{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+    .ende-knopf-zeile .knopf{flex:none;padding:0 28px}
+    .ende-knopf-zeile span{flex:1;min-width:220px;font-size:14px;line-height:1.45;color:var(--ds-text-2)}
+    .signal-hinweis{font-size:16px;font-weight:600;color:var(--ds-signal-text)}
+    .zeit-gesperrt{flex-direction:row;align-items:center;gap:16px}
+    .zeit-gesperrt .zeit-text{flex:1}
+    /* Heutiger Einsatz */
+    .einsatz-kopf{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .einsatz-kopf h2{margin:0;font-family:var(--ds-schrift-titel);font-weight:700;font-size:24px;overflow-wrap:anywhere}
+    .route{min-height:48px;display:inline-flex;align-items:center;gap:6px;font-size:16px;font-weight:600;flex:none}
+    .einsatz-sub{font-size:15px;margin:0 0 10px}
+    .zeile{display:flex;align-items:center;gap:14px;text-decoration:none;color:var(--ds-text);border-top:1px solid var(--ds-grund);min-height:56px}
+    .zeile:hover{color:var(--ds-text)}
+    .zeile-bericht{min-height:72px}
+    .zeile-liste{min-height:68px}
+    .zeile-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+    .zeile-titel{font-size:17px;font-weight:600;overflow-wrap:anywhere}
+    .zeile-sub{font-size:14px;color:var(--ds-text-2)}
+    .zeile .knopf-aktion{height:56px;padding:0 24px;font-size:17px;flex:none}
+    .pfeil{flex:none;color:var(--ds-text-3)}
+    .einsatz-wege{display:flex;gap:18px;flex-wrap:wrap;border-top:1px solid var(--ds-grund)}
+    .einsatz-wege a{min-height:48px;display:inline-flex;align-items:center;font-size:15px;font-weight:600}
+    .leer-text{font-size:16px;color:var(--ds-text-2);padding:0 0 14px}
+    .concern-alert{margin:0 0 10px;padding:10px 14px;border:2px solid var(--ds-fehler);background:var(--ds-flaeche);color:var(--ds-fehler-text);font-weight:700;font-size:14px;line-height:1.35;overflow-wrap:anywhere;border-radius:var(--ds-ecke-karte)}
+    .concern-alert a{display:flex;align-items:center;min-height:44px;color:var(--ds-fehler-text);font-weight:650;font-size:13.5px}
+    /* Offen, Nächste Tage */
+    .offen-zeile{min-height:60px}
+    .offen-zeile .zeile-titel{flex:1}
+    .zahl-pill{min-width:32px;height:28px;padding:0 10px;border-radius:var(--ds-ecke-rund);background:var(--ds-flaeche-2);font-size:15px;font-weight:600;display:inline-flex;align-items:center;justify-content:center}
+    /* Datumsspalte 96 px (hoch 110 px) wie die Vorlage; steht ein Bereich in der Liste („Mi 15.10.–Do 16.10.“), für alle Zeilen breiter */
+    .tag-spalte{width:96px;flex:none;white-space:nowrap;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+    .mit-spanne .tag-spalte{width:156px}
+    @media (max-width:999px){.tag-spalte{width:110px}.mit-spanne .tag-spalte{width:166px}}
+    .tag-text{flex:1;min-width:0;font-size:16px;overflow-wrap:anywhere}
+    .tag-text span{color:var(--ds-text-2)}
+    /* --- die bisherigen Listen darunter --- */
+    .listen{max-width:1400px;margin:0 auto;padding:4px 20px 60px}
+    @media (max-width:999px){.listen{padding:4px 16px 60px}}
+    .liste-titel{font-family:var(--ds-schrift-mono);font-size:12px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--ds-text-3);margin:20px 0 10px}
     .assign-card{background:var(--card);border:1px solid var(--line);padding:14px 16px;margin-bottom:10px;display:block;text-decoration:none;color:var(--ink);border-radius:var(--ds-ecke-karte)}
     .assign-card:active{background:var(--soft)}
     .assign-card .obj{font-weight:800;font-size:15.5px}
     .assign-card .addr{color:var(--muted);font-size:13px;margin-top:2px}
     .assign-card .meta{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;font-size:12.5px;color:var(--muted)}
     .status-pill{display:inline-block;padding:4px 9px;font-size:11.5px;font-weight:700;border:1px solid var(--line);white-space:nowrap}
-    .status-pill.has-report{color:var(--success);border-color:var(--ds-ok)}
     .status-pill.due{color:var(--danger);border-color:var(--ds-fehler)}
     .empty,.loading,.error{color:var(--muted);font-size:13.5px;padding:14px 2px}
     .error{color:var(--danger)}
@@ -41,16 +127,6 @@
     .contract-row .contract-title{font-size:13.5px;font-weight:650}
     .perform-btn{border:1px solid var(--ds-aktion);background:var(--ds-aktion);color:#fff;padding:8px 11px;font-weight:650;font-size:13px;white-space:nowrap}
     .perform-btn:disabled{opacity:.6}
-    .concern-alert{margin:-10px 0 10px;padding:10px 14px;border:2px solid var(--ds-fehler);border-top:none;background:var(--card);color:var(--danger);font-weight:700;font-size:14px;line-height:1.35;overflow-wrap:anywhere;border-radius:0 0 var(--ds-ecke-karte) var(--ds-ecke-karte)}
-    .concern-alert a{display:block;margin-top:6px;color:var(--danger);font-weight:650;font-size:13.5px}
-    /* seit 1.9.35: Hinweis auf eine Zeit, die seit einem früheren Tag läuft */
-    .zeit-offen-karte{background:var(--card);border:2px solid var(--ds-warn-text);padding:12px 16px;margin-bottom:12px;border-radius:var(--ds-ecke-karte);color:var(--ink);font-size:14px;line-height:1.4;overflow-wrap:anywhere}
-    .zeit-offen-karte .zeit-offen-info{color:var(--muted);font-size:13px;margin-top:2px}
-    .zeit-offen-karte a{display:flex;align-items:center;min-height:44px;color:var(--accent);font-weight:650;text-decoration:none}
-    .checklist-link{display:flex;align-items:center;min-height:44px;margin:-10px 0 10px;padding:0 16px;border:1px solid var(--line);border-top:none;border-radius:0 0 var(--ds-ecke-karte) var(--ds-ecke-karte);background:var(--card);color:var(--accent);font-weight:650;font-size:13.5px;text-decoration:none}
-    /* seit 1.9.30: Hinweis „Offene Bedenken“ und Link hängen unter ihrer Einsatzkarte -- was darüber steht, ist unten eckig, der letzte
-       Kasten unten rund (tests/test_v460_ecken_der_karten.py) */
-    .assign-card:has(+ .concern-alert),.assign-card:has(+ .checklist-link),.concern-alert:has(+ .checklist-link){border-bottom-left-radius:0;border-bottom-right-radius:0}
     /* Seit 1.8.52: Mängel zur Beseitigung */
     .defect-desc{margin-top:8px;font-size:14.5px;font-weight:650;white-space:pre-wrap;overflow-wrap:anywhere}
     .defect-place{margin-top:4px;font-size:13px;color:var(--muted);overflow-wrap:anywhere}
@@ -71,39 +147,197 @@
 <body>
 {% include "_mobile_header.html" %}
 <main>
-  <div id="offeneZeit" hidden></div>
-  <h1>Heutige Einsätze</h1>
-  <div id="assignmentsList" class="loading">Lädt…</div>
-  <h1>Offene Berichte</h1>
-  <div id="draftReportsList" class="loading">Lädt…</div>
-  <h1>Mängel zur Beseitigung</h1>
-  <div id="defectsStatus" class="defects-status" role="status"></div>
-  <div id="defectsList" class="loading">Lädt…</div>
-  {% if is_module_enabled('checklisten') %}
-  <h1>Offene Checklisten</h1>
-  <div id="draftChecklistsList" class="loading">Lädt…</div>
-  {% endif %}
-  <h1>Meine kommenden Termine</h1>
-  <div id="upcomingList" class="loading">Lädt…</div>
-  <h1>Wartungen an meinen Objekten</h1>
-  <div id="maintenanceList" class="loading">Lädt…</div>
+  <h1 class="nur-vorleser">Heute</h1>
+  <div class="heute" id="heute">
+    <div class="heute-spalte" id="heuteLinks">
+      <div id="arbeitszeit"></div>
+      <div id="assignmentsList" class="heute-spalte loading">Lädt…</div>
+    </div>
+    <div class="heute-spalte" id="heuteRechts">
+      <section class="heute-karte liste" id="offenKarte" aria-labelledby="offenTitel" hidden>
+        <span class="eb" id="offenTitel">Offen</span>
+        <div id="offenZeilen"></div>
+      </section>
+      <section class="heute-karte liste" id="naechsteKarte" aria-labelledby="naechsteTitel" hidden>
+        <span class="eb" id="naechsteTitel">Nächste Tage</span>
+        <div id="naechsteZeilen"></div>
+      </section>
+    </div>
+  </div>
+  <div class="listen">
+    <section id="offene-berichte" aria-labelledby="berichteTitel">
+      <h2 class="liste-titel" id="berichteTitel">Offene Berichte</h2>
+      <div id="draftReportsList" class="loading">Lädt…</div>
+    </section>
+    <section id="maengel" aria-labelledby="maengelTitel">
+      <h2 class="liste-titel" id="maengelTitel">Mängel zur Beseitigung</h2>
+      <div id="defectsStatus" class="defects-status" role="status"></div>
+      <div id="defectsList" class="loading">Lädt…</div>
+    </section>
+    {% if is_module_enabled('checklisten') %}
+    <section id="offene-checklisten" aria-labelledby="checklistenTitel">
+      <h2 class="liste-titel" id="checklistenTitel">Offene Checklisten</h2>
+      <div id="draftChecklistsList" class="loading">Lädt…</div>
+    </section>
+    {% endif %}
+    <section aria-labelledby="wartungenTitel">
+      <h2 class="liste-titel" id="wartungenTitel">Wartungen an meinen Objekten</h2>
+      <div id="maintenanceList" class="loading">Lädt…</div>
+    </section>
+  </div>
 </main>
 {% include "_berlin_date.html" %}
 {% include "_fehlertext.html" %}
+{% include "_auswahl.html" %}
+{% include "_zahl.html" %}
 {% include "_speichern.html" %}
 <script>
 var CHECKLISTS_ENABLED={{ 'true' if is_module_enabled('checklisten') else 'false' }};
 var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
 (function(){
   function esc(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})}
+  function el(id){return document.getElementById(id)}
   function fmtDate(s){
     if(!s)return'';
     var d=new Date(s+'T00:00:00');
     if(isNaN(d))return s;
     return d.toLocaleDateString('de-DE');
   }
-  // Seit 1.8.43: offene Bedenkenanzeige am Auftrag (ohne Entscheidung des Auftraggebers) -- deutlicher Hinweis
-  // direkt unter dem Einsatz, mit Link zur Anzeige.
+  // --- Kalendertage (reine Daten 'JJJJ-MM-TT', ohne Zeitzone) ---
+  var WOCHENTAG=['So','Mo','Di','Mi','Do','Fr','Sa'];
+  function pad2(n){return String(n).padStart(2,'0')}
+  function teile(iso){var p=String(iso).split('-').map(Number);return {j:p[0],m:p[1],t:p[2],wt:WOCHENTAG[new Date(Date.UTC(p[0],p[1]-1,p[2])).getUTCDay()]}}
+  function tagKurz(iso){var x=teile(iso);return x.wt+' '+pad2(x.t)+'.'+pad2(x.m)+'.'}       // „Di 14.10.“
+  function tagsSpanne(von,bis){return von===bis?tagKurz(von):tagKurz(von)+'–'+tagKurz(bis)}  // „Mi 15.10.–Do 16.10.“
+  function zeitraum(von,bis){                                                                // „14.–16.10.“
+    var a=teile(von),b=teile(bis);
+    if(von===bis)return pad2(a.t)+'.'+pad2(a.m)+'.';
+    if(a.j===b.j&&a.m===b.m)return pad2(a.t)+'.–'+pad2(b.t)+'.'+pad2(b.m)+'.';
+    if(a.j===b.j)return pad2(a.t)+'.'+pad2(a.m)+'.–'+pad2(b.t)+'.'+pad2(b.m)+'.';
+    return pad2(a.t)+'.'+pad2(a.m)+'.'+a.j+'–'+pad2(b.t)+'.'+pad2(b.m)+'.'+b.j;
+  }
+  function stundenUhr(minuten){var m=Math.max(0,Math.round(minuten));return Math.floor(m/60)+':'+pad2(m%60)+' h'}  // „3:15 h“
+  async function api(url,opt){
+    var r=await fetch(url,opt);var body=null;try{body=await r.json()}catch(e){}
+    if(!r.ok)throw new Error(fehlerText(body,r.status,{}));
+    return body;
+  }
+  var PFEIL='<svg class="pfeil" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>';
+  var PIN='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"></path><circle cx="12" cy="10" r="2.5"></circle></svg>';
+  var STOPP='<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg>';
+  var WECHSEL='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h13l-3-3M20 16H7l3 3"></path></svg>';
+  // Gesetzliche Schlechtwetterzeit im Dachdeckerhandwerk: 1.12.-31.3. Winter, sonst Sommer -- wie „Schnell starten“ nur ein Vorschlag.
+  function wetterVorschlag(){var m=teile(berlinToday()).m;return (m===12||m<=3)?'weather_winter':'weather_summer'}
+
+  var H=null,DAUER=null,tick=null;
+
+  // --- Arbeitszeit ---------------------------------------------------------------------------------------------------------------
+  function renderArbeitszeit(h){
+    var z=h.arbeitszeit,box=el('arbeitszeit'),kopf='Arbeitszeit · '+tagKurz(h.tag);
+    if(tick){clearInterval(tick);tick=null}
+    if(z.zustand==='frueher'){box.innerHTML=signalKarte(z)+gesperrteKarte(kopf);bindeFrueher(z);return}
+    if(z.zustand==='laeuft'){box.innerHTML=laeuftKarte(z,kopf,h.zeitarten);bindeLaeuft(z);return}
+    box.innerHTML=nichtsKarte(z,kopf,h.zeitarten);bindeNichts(z);
+  }
+  function laeuftKarte(z,kopf,arten){
+    var g=z.gruppe,knoepfe;
+    if(g&&g.kolonnenfuehrer)knoepfe='<div class="zeit-knoepfe"><button type="button" class="knopf knopf-stark" id="feierabendGruppe">'+STOPP+'Feierabend für die Gruppe</button></div>';
+    else if(g)knoepfe='<div class="zeit-hinweis" id="stopptHinweis">Gruppenzeit · stoppt '+esc(g.stoppt)+'</div>';
+    else knoepfe='<div class="zeit-knoepfe"><button type="button" class="knopf knopf-stark" id="feierabendKnopf">'+STOPP+'Feierabend</button>'
+      +'<button type="button" class="knopf knopf-neutral" id="wechselKnopf" aria-expanded="false" aria-controls="wechselKacheln">'+WECHSEL+'Zeitart wechseln</button></div>'
+      +'<div id="wechselKacheln" class="kacheln" hidden>'+arten.filter(function(a){return a.value!==z.zeitart}).map(function(a){
+        return '<button type="button" class="knopf knopf-neutral" data-zeitart="'+esc(a.value)+'">'+esc(a.label)+'</button>'}).join('')+'</div>';
+    return '<section class="heute-karte" aria-labelledby="zeitTitel"><div class="zeit-kopf"><span class="eb" id="zeitTitel">'+esc(kopf)+'</span>'
+      +'<span class="laeuft-pill"><span class="punkt"></span>läuft</span></div>'
+      +'<div class="zeit-mitte"><div class="zeit-text"><span class="zeit-titel">'+esc(z.zeitart_label)+' seit '+esc(z.beginn)+'</span>'
+      +'<span class="zeit-sub">'+esc([z.order_number,z.objekt].filter(Boolean).join(' · '))+'</span></div>'
+      +'<span class="zeit-dauer" id="zeitDauer">'+esc(stundenUhr(z.dauer_minuten))+'</span></div>'
+      +knoepfe+'<div class="status" id="zeitStatus" role="status"></div></section>';
+  }
+  function bindeLaeuft(z){
+    // Die Dauer läuft im Browser jede Minute mit -- Ausgang ist die Dauer des Servers beim Laden, gezählt über die Uhr des Geräts
+    // seit dem Laden (performance.now()), nie über dessen Datum oder Zeitzone.
+    DAUER={basis:z.dauer_minuten,seit:performance.now()};
+    tick=setInterval(function(){var d=el('zeitDauer');if(d&&DAUER)d.textContent=stundenUhr(DAUER.basis+Math.floor((performance.now()-DAUER.seit)/60000))},15000);
+    var stopp=el('feierabendKnopf'),gruppe=el('feierabendGruppe'),wechsel=el('wechselKnopf');
+    if(stopp)stopp.addEventListener('click',function(){zeitAktion(stopp,'/api/time-entries/'+z.id+'/stop',{break_minutes:0})});
+    if(gruppe)gruppe.addEventListener('click',function(){zeitAktion(gruppe,'/api/time-entry-groups/'+z.gruppe.id+'/stop',{break_minutes:0})});
+    if(wechsel)wechsel.addEventListener('click',function(){
+      var k=el('wechselKacheln');k.hidden=!k.hidden;wechsel.setAttribute('aria-expanded',String(!k.hidden));
+    });
+    document.querySelectorAll('#wechselKacheln [data-zeitart]').forEach(function(b){
+      b.addEventListener('click',function(){zeitAktion(b,'/api/time-entries/'+z.id+'/zeitart-wechseln',{entry_type:b.dataset.zeitart})});
+    });
+  }
+  function nichtsKarte(z,kopf,arten){
+    var vorschlag=wetterVorschlag();
+    var kacheln=arten.map(function(a){
+      var v=(a.value==='weather_winter'||a.value==='weather_summer')&&a.value===vorschlag;
+      return '<button type="button" class="knopf knopf-neutral" data-zeitart="'+esc(a.value)+'">'+esc(a.label)+(v?'<span class="vorschlag">Vorschlag</span>':'')+'</button>';
+    }).join('');
+    return '<section class="heute-karte" aria-labelledby="zeitTitel"><span class="eb" id="zeitTitel">'+esc(kopf)+'</span>'
+      +'<label class="feld" for="startAuftrag">Auftrag<select id="startAuftrag"></select></label>'
+      +'<div class="kacheln" id="startKacheln">'+kacheln+'</div><div class="status" id="zeitStatus" role="status"></div></section>';
+  }
+  function bindeNichts(z){
+    el('startAuftrag').innerHTML=auswahlOptionen(z.auftraege,z.vorbelegt,function(o){
+      return (o.order_number||'')+(o.customer_name?' · '+o.customer_name:'')+(o.property_address?' · '+String(o.property_address).replace(/\n/g,', '):'')},
+      {leer:'— Auftrag wählen —'});
+    document.querySelectorAll('#startKacheln [data-zeitart]').forEach(function(b){
+      b.addEventListener('click',function(){
+        var auftrag=el('startAuftrag').value;  // die ID als Text, der Server liest sie als Zahl
+        if(!auftrag){el('zeitStatus').textContent='Bitte Auftrag auswählen.';return}
+        zeitAktion(b,'/api/time-entries/start',{employee_id:H.mitarbeiter_id,order_id:auftrag,entry_type:b.dataset.zeitart});
+      });
+    });
+  }
+  function signalKarte(z){
+    var tag=z.gestern?'von gestern':'vom '+tagKurz(z.tag);
+    var feld='';
+    if(z.monat_abgeschlossen)feld='<p class="signal-hinweis" id="offenHinweis">'+esc(z.meldung)+'</p>';
+    else if(z.nachtragen_durch)feld='<p class="signal-hinweis" id="offenHinweis">Gruppenzeit – das Ende trägt '+esc(z.nachtragen_durch)+' nach.</p>';
+    else feld='<div class="ende-zeile"><label for="endeZeit">Feierabend '+(z.gestern?'gestern':'am '+esc(tagKurz(z.tag)))+' um<input id="endeZeit" type="time"></label>'
+      +'<div class="ende-vorschau" id="endeVorschau" aria-live="polite"></div></div>'
+      +'<div class="ende-knopf-zeile"><button type="button" class="knopf knopf-aktion" id="endeKnopf">Feierabend eintragen</button>'
+      +'<span>Gebucht wird erst mit deinem Klick. Weißt du es nicht genau, trag deine beste Schätzung ein – das Büro sieht den Nachtrag.</span></div>';
+    return '<section class="signal-karte" aria-labelledby="offenTitelZeit"><span class="signal-eb"><span class="punkt"></span>Wartet auf dich</span>'
+      +'<div class="signal-kopf"><h2 id="offenTitelZeit">Deine Zeit '+esc(tag)+' läuft noch</h2>'
+      +'<p class="signal-sub" style="margin:0">'+esc(z.zeitart_label)+' seit '+esc(tagKurz(z.tag))+', '+esc(z.beginn)+esc([z.order_number,z.objekt].filter(Boolean).map(function(x){return ' · '+x}).join(''))+'</p></div>'
+      +feld+'<div class="status" id="zeitStatus" role="status"></div></section>';
+  }
+  function gesperrteKarte(kopf){
+    return '<section class="heute-karte zeit-gesperrt" aria-labelledby="zeitTitel"><div class="zeit-text"><span class="eb" id="zeitTitel">'+esc(kopf)+'</span>'
+      +'<span class="zeit-sub">Heute startest du, sobald gestern abgeschlossen ist.</span></div>'
+      +'<button type="button" class="knopf knopf-gesperrt" disabled>Arbeitsbeginn buchen</button></section>';
+  }
+  function bindeFrueher(z){
+    var feld=el('endeZeit');
+    if(!feld)return;
+    feld.addEventListener('input',function(){vorschauLaden(z)});
+    feld.addEventListener('change',function(){vorschauLaden(z)});
+    el('endeKnopf').addEventListener('click',function(){
+      if(!feld.value){el('zeitStatus').textContent='Bitte die Uhrzeit des Feierabends angeben.';return}
+      zeitAktion(el('endeKnopf'),'/api/time-entries/'+z.id+'/ende-nachtragen',{ende:z.tag+'T'+feld.value});
+    });
+  }
+  // „Anwesend … · Pause nach Zeitregel − … · Gebucht werden …“ kommt vom Server (ende-vorschau, dieselbe Rechnung wie die Buchung)
+  function vorschauLaden(z){
+    var wert=el('endeZeit').value,box=el('endeVorschau');
+    var url='/api/time-entries/'+z.id+'/ende-vorschau?ende='+encodeURIComponent(z.tag+'T'+wert);
+    // ohne Uhrzeit ein Lesen ohne Anfrage (Regel 29): eine spät ankommende Vorschau überschreibt das leere Feld nicht
+    return lesen('vorschau',()=>wert?api(url):Promise.resolve(null),function(v){
+      if(!v){box.innerHTML='';return}
+      box.innerHTML='<span class="anwesend">Anwesend '+esc(stundenUhr(Number(v.anwesend)*60))+' · Pause nach Zeitregel − '+esc(stundenUhr(v.pause))+'</span>'
+        +'<span class="gebucht">Gebucht werden '+esc(zahlText(v.gebucht,2))+' h</span>';
+    }).catch(function(e){box.innerHTML='<span class="status">'+esc(e.message)+'</span>'});
+  }
+  function zeitAktion(knopf,url,body){
+    var st=el('zeitStatus');st.textContent='';knopf.disabled=true;
+    return speichern('heute',()=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{neuLaden:ladeHeute})
+      .catch(function(e){var s=el('zeitStatus');if(s)s.textContent=e.message;knopf.disabled=false});
+  }
+
+  // --- Heutiger Einsatz ----------------------------------------------------------------------------------------------------------
   function concernAlert(a){
     var list=a.open_concerns||[];
     if(!list.length)return'';
@@ -112,64 +346,83 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
         +' Nr. '+c.checklist_id+(c.decision_due?' – Entscheidung erbeten bis '+esc(fmtDate(c.decision_due)):'')+' →</a>'}).join('')
       +'</div>';
   }
-  // Seit 1.9.35 (Stufe 4, R1): eine Zeit, die seit einem früheren Tag läuft (vergessener Feierabend) -- nichts schließt sie von selbst.
-  // Der Hinweis nennt Start, Zeitart und Auftrag und führt zu „Ende nachtragen“ in der Zeiterfassung.
-  function renderOffeneZeit(z){
-    var el=document.getElementById('offeneZeit');
-    if(!z){el.hidden=true;el.innerHTML='';return}
-    el.hidden=false;
-    el.innerHTML='<div class="zeit-offen-karte" role="alert"><strong>Deine Zeit läuft noch seit '+esc(fmtDate(z.work_date))+', '
-      +esc(String(z.started_at||'').slice(11,16))+' Uhr</strong>'
-      +'<div class="zeit-offen-info">'+esc(z.entry_type_label||'')+(z.order_number?' · '+esc(z.order_number):'')+(z.gruppe?' · Gruppenzeit':'')+'</div>'
-      +'<a href="/time-tracking">'+(z.selbst_schliessen?'Ende nachtragen →':'Das Ende trägt der Kolonnenführer nach – zur Zeiterfassung →')+'</a></div>';
+  function berichtZeile(k,r){
+    var href='/orders/'+k.order_id+'/service-reports?report='+r.id;
+    if(r.status==='entwurf'){
+      var sub='Entwurf · '+(r.noch_offen?'noch '+r.noch_offen+' offen':'bereit zur Unterschrift');
+      return '<div class="zeile zeile-bericht" data-bericht="'+r.id+'"><div class="zeile-text"><span class="zeile-titel">'+esc(r.titel)+'</span>'
+        +'<span class="zeile-sub">'+esc(sub)+'</span></div><a class="knopf knopf-aktion" href="'+href+'">Weiter</a></div>';
+    }
+    return '<a class="zeile zeile-liste" href="'+href+'" data-bericht="'+r.id+'"><div class="zeile-text"><span class="zeile-titel">'+esc(r.titel)+'</span>'
+      +'<span class="zeile-sub">Unterschrieben</span></div>'+PFEIL+'</a>';
   }
-  function renderAssignments(list){
-    var el=document.getElementById('assignmentsList');
-    if(!list.length){el.className='empty';el.textContent='Für heute sind keine Einsätze geplant.';return}
-    el.className='';
-    el.innerHTML=list.map(function(a){
-      var hasReport=a.report_count>0;
-      var period=fmtDate(a.start_date)+(a.end_date&&a.end_date!==a.start_date?' – '+fmtDate(a.end_date):'');
-      return '<a class="assign-card" href="/orders/'+a.order_id+'/service-reports">'
-        +'<div class="obj">'+esc(a.property_name||a.customer_name)+'</div>'
-        +(a.property_address?'<div class="addr">'+esc(a.property_address)+'</div>':'')
-        +'<div class="meta"><span>Auftrag '+esc(a.order_number)+' · '+esc(period)+'</span>'
-        +'<span class="status-pill'+(hasReport?' has-report':'')+'">'+(hasReport?esc(a.report_count)+' Bericht(e)':'Kein Bericht')+'</span></div>'
-        +'</a>'
-        +concernAlert(a)
-        +(CHECKLISTS_ENABLED?'<a class="checklist-link" href="/checklisten/auftrag/'+a.order_id+'">Checklisten zu diesem Auftrag →</a>':'');
-    }).join('');
+  function checklistenZeile(c){
+    var sub=c.status==='entwurf'?'Entwurf · '+(c.noch_offen?'noch '+c.noch_offen+' offen':'alles ausgefüllt'):'Abgeschlossen';
+    return '<a class="zeile zeile-liste" href="/checklisten/'+c.id+'" data-checkliste="'+c.id+'"><div class="zeile-text"><span class="zeile-titel">'+esc(c.titel)+'</span>'
+      +'<span class="zeile-sub">'+esc(sub)+'</span></div>'+PFEIL+'</a>';
   }
+  function einsatzKarte(k){
+    var route=k.adresse?'<a class="route" href="'+esc('https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(k.adresse))+'" target="_blank" rel="noopener">'+PIN+'Route</a>':'';
+    return '<section class="heute-karte einsatz" aria-labelledby="einsatz-'+k.order_id+'" data-einsatz="'+k.order_id+'">'
+      +'<span class="eb">Heutiger Einsatz · '+esc(zeitraum(k.von,k.bis))+'</span>'
+      +'<div class="einsatz-kopf"><h2 id="einsatz-'+k.order_id+'">'+esc(k.objekt)+'</h2>'+route+'</div>'
+      +'<p class="einsatz-sub">'+esc([k.kunde,k.adresse].filter(Boolean).join(' · '))+'</p>'
+      +concernAlert(k)
+      +k.berichte.map(function(r){return berichtZeile(k,r)}).join('')
+      +k.checklisten.map(checklistenZeile).join('')
+      +'<div class="einsatz-wege"><a href="/orders/'+k.order_id+'/service-reports">Bericht anlegen</a>'
+      +(CHECKLISTS_ENABLED?'<a href="/checklisten/auftrag/'+k.order_id+'">Checklisten zum Auftrag</a>':'')+'</div></section>';
+  }
+  function renderEinsaetze(h){
+    var box=el('assignmentsList');box.className='heute-spalte';
+    // Vorlage heute-gestern: solange eine Zeit von früher offen ist, steht der heutige Einsatz in „Heute und nächste Tage“
+    if(h.arbeitszeit.zustand==='frueher'){box.innerHTML='';return}
+    if(!h.einsaetze.length){
+      box.innerHTML='<section class="heute-karte einsatz" aria-labelledby="keinEinsatz"><span class="eb" id="keinEinsatz">Heutiger Einsatz</span>'
+        +'<p class="leer-text" style="margin:0">Heute ist nichts eingeplant.</p></section>';
+      return;
+    }
+    box.innerHTML=h.einsaetze.map(einsatzKarte).join('');
+  }
+
+  // --- Offen, Nächste Tage -------------------------------------------------------------------------------------------------------
+  // Jede Zeile führt zur bisherigen Liste darunter; eine leere Gruppe fehlt
+  function offenZeile(titel,zahl){return '<span class="zeile-titel">'+esc(titel)+'</span><span class="zahl-pill">'+esc(zahl)+'</span>'+PFEIL+'</a>'}
+  function renderOffen(o){
+    var html='';
+    if(o.berichte>0)html+='<a class="zeile offen-zeile" href="#offene-berichte">'+offenZeile('Berichte',o.berichte);
+    if(CHECKLISTS_ENABLED&&o.checklisten>0)html+='<a class="zeile offen-zeile" href="#offene-checklisten">'+offenZeile('Checklisten',o.checklisten);
+    if(o.maengel>0)html+='<a class="zeile offen-zeile" href="#maengel">'+offenZeile('Mängel zur Beseitigung',o.maengel);
+    el('offenKarte').hidden=false;
+    el('offenZeilen').innerHTML=html||'<p class="leer-text" style="margin:0">Nichts offen.</p>';
+  }
+  function renderNaechste(h){
+    el('naechsteKarte').hidden=false;
+    el('naechsteTitel').textContent=h.arbeitszeit.zustand==='frueher'?'Heute und nächste Tage':'Nächste Tage';
+    el('naechsteZeilen').classList.toggle('mit-spanne',h.naechste_tage.some(function(z){return z.von!==z.bis}));
+    el('naechsteZeilen').innerHTML=h.naechste_tage.length?h.naechste_tage.map(function(z){
+      return '<div class="zeile" data-auftrag="'+z.order_id+'"><span class="tag-spalte">'+esc(tagsSpanne(z.von,z.bis))+'</span>'
+        +'<span class="tag-text">'+esc(z.objekt)+' <span>· '+esc(z.nebentext)+'</span></span></div>'}).join('')
+      :'<p class="leer-text" style="margin:0">In den nächsten 14 Tagen ist nichts eingeplant.</p>';
+  }
+
+  // --- die bisherigen Listen ----------------------------------------------------------------------------------------------------
   function renderDrafts(list){
-    var el=document.getElementById('draftReportsList');
-    if(!list.length){el.className='empty';el.textContent='Keine offenen Entwürfe.';return}
-    el.className='';
-    el.innerHTML=list.map(function(r){
-      return '<a class="assign-card" href="/orders/'+r.order_id+'/service-reports">'
+    var box=el('draftReportsList');
+    if(!list.length){box.className='empty';box.textContent='Keine offenen Entwürfe.';return}
+    box.className='';
+    box.innerHTML=list.map(function(r){
+      return '<a class="assign-card" href="/orders/'+r.order_id+'/service-reports?report='+r.id+'">'
         +'<div class="obj">'+esc(r.order_number?('Auftrag '+r.order_number):('Auftrag #'+r.order_id))+'</div>'
         +'<div class="addr">'+esc(r.report_type_label)+'</div>'
         +'</a>';
     }).join('');
   }
-  function renderUpcoming(list){
-    var el=document.getElementById('upcomingList');
-    if(!list.length){el.className='empty';el.textContent='Keine kommenden Termine geplant.';return}
-    el.className='';
-    el.innerHTML=list.map(function(a){
-      var period=fmtDate(a.start_date)+(a.end_date&&a.end_date!==a.start_date?' – '+fmtDate(a.end_date):'');
-      return '<div class="assign-card">'
-        +'<div class="obj">'+esc(a.property_name||a.customer_name)+'</div>'
-        +(a.property_address?'<div class="addr">'+esc(a.property_address)+'</div>':'')
-        +'<div class="meta"><span>Auftrag '+esc(a.order_number)+'</span><span>'+esc(period)+'</span></div>'
-        +'</div>'
-        +concernAlert(a);
-    }).join('');
-  }
   function renderMaintenance(groups){
-    var el=document.getElementById('maintenanceList');
-    if(!groups.length){el.className='empty';el.textContent='Keine Wartungen an deinen aktuellen Objekten.';return}
-    el.className='';
-    el.innerHTML=groups.map(function(g){
+    var box=el('maintenanceList');
+    if(!groups.length){box.className='empty';box.textContent='Keine Wartungen an deinen aktuellen Objekten.';return}
+    box.className='';
+    box.innerHTML=groups.map(function(g){
       var rows=g.contracts.map(function(c){
         return '<div class="contract-row">'
           +'<div class="contract-info"><span class="contract-title">'+esc(c.title)+'</span>'
@@ -183,7 +436,7 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
         +rows
         +'</div>';
     }).join('');
-    el.querySelectorAll('.perform-btn').forEach(function(btn){
+    box.querySelectorAll('.perform-btn').forEach(function(btn){
       btn.addEventListener('click',function(){performMaintenance(Number(btn.dataset.contractId),btn)});
     });
   }
@@ -214,12 +467,11 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
     var h=Array.prototype.map.call(b,function(x){return x.toString(16).padStart(2,'0')}).join('');
     return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20);
   }
-  function todayBerlin(){var p=berlinDateParts();return p.year+'-'+String(p.month).padStart(2,'0')+'-'+String(p.day).padStart(2,'0')}
   function renderDefects(list){
-    var el=document.getElementById('defectsList');
-    if(!list.length){el.className='empty';el.textContent='Keine Mängel zur Beseitigung.';return}
-    el.className='';
-    el.innerHTML=list.map(function(d){
+    var box=el('defectsList');
+    if(!list.length){box.className='empty';box.textContent='Keine Mängel zur Beseitigung.';return}
+    box.className='';
+    box.innerHTML=list.map(function(d){
       var place=[d.roof_area_name?'Dachfläche: '+esc(d.roof_area_name):'',d.location?'Ort: '+esc(d.location):''].filter(Boolean).join(' · ');
       var photos=d.photos.map(function(f){var u='/api/field-view/defects/'+d.id+'/photos/'+f.id;return '<a href="'+u+'" target="_blank" rel="noopener"><img src="'+u+'" alt="Foto zum Mangel" loading="lazy"></a>'}).join('');
       return '<div class="assign-card defect-card" id="mmangel-'+d.id+'" data-defect="'+d.id+'">'
@@ -239,7 +491,7 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
         +'<div class="defect-status" role="status"></div>'
         +'</div></div>';
     }).join('');
-    el.querySelectorAll('.defect-card').forEach(function(card){
+    box.querySelectorAll('.defect-card').forEach(function(card){
       card.querySelector('.defect-report-btn').addEventListener('click',function(){toggleReport(card)});
       card.querySelector('.defect-send-btn').addEventListener('click',function(e){sendReport(card,e.currentTarget)});
     });
@@ -249,7 +501,7 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
     box.hidden=!box.hidden;
     if(box.hidden)return;
     if(!box.dataset.kennung)box.dataset.kennung=newKey();
-    var heute=todayBerlin();date.max=heute;if(!date.value)date.value=heute;
+    var heute=berlinToday();date.max=heute;if(!date.value)date.value=heute;
   }
   function sendReport(card,btn){
     var box=card.querySelector('.defect-report'),st=box.querySelector('.defect-status');
@@ -269,28 +521,29 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
         return body;
       });
     }).then(function(){
-      document.getElementById('defectsStatus').textContent='Mangel als beseitigt gemeldet – das Büro prüft die Abnahme der Beseitigung.';
+      el('defectsStatus').textContent='Mangel als beseitigt gemeldet – das Büro prüft die Abnahme der Beseitigung.';
+      return ladeHeute();
     }).catch(function(err){
       st.textContent='Fehler: '+(err.message||'Meldung nicht gesendet.');
       btn.disabled=false;
     });
   }
   function loadDefects(){
-    var el=document.getElementById('defectsList');
+    var box=el('defectsList');
     return lesen('maengel',()=>fetch('/api/field-view/defects').then(function(r){
       return r.json().catch(function(){return null}).then(function(body){
         if(!r.ok)throw new Error(fehlerText(body,r.status,DEFECT_FIELDS));
         return body;
       });
     }),function(list){renderDefects(list||[])}).catch(function(err){
-      el.className='error';el.textContent=err.message||'Fehler beim Laden.';
+      box.className='error';box.textContent=err.message||'Fehler beim Laden.';
     });
   }
   function showError(message){
-    ['assignmentsList','draftReportsList','defectsList','upcomingList','maintenanceList'].forEach(function(id){
-      var el=document.getElementById(id);
-      el.className='error';
-      el.textContent=message;
+    ['assignmentsList','draftReportsList','defectsList','maintenanceList'].forEach(function(id){
+      var box=el(id);
+      box.className='error';
+      box.textContent=message;
     });
   }
   // Seit 1.8.106 (Korrektur 103-3): nach Feierabend meldet GET /api/field-view/today nur "feierabend" (ein Lesepfad schreibt nicht,
@@ -306,64 +559,51 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
       return r.json().catch(function(){return {}}).then(function(d){feierabendFehler((d&&d.detail)||('HTTP '+r.status+'.'))});
     },function(e){feierabendFehler((e&&e.message)||'keine Verbindung.')});
   }
-  fetch('/api/field-view/today').then(function(r){
-    if(r.status===401){
-      return r.json().catch(function(){return {}}).then(function(d){
+  // Seit 1.9.45 über lesen() (_speichern.html), Bereich 'heute' wie jede Aktion an der Arbeitszeit: eine ältere Antwort überschreibt nie
+  // eine neuere, nach einer Aktion lädt die Seite den Stand neu.
+  function ladeHeute(){
+    return lesen('heute',()=>fetch('/api/field-view/today').then(function(r){return r.json().catch(function(){return {}}).then(function(b){return {status:r.status,body:b}})}),function(a){
+      var d=a.body||{};
+      if(a.status===401){
         if(d&&d.feierabend)return feierabend();
-        location.href='/login?next='+encodeURIComponent(location.pathname);
-      }).then(function(){throw new Error('nicht angemeldet')});
-    }
-    // Seit 1.9.33: die Einsätze gibt es nur für die Rollen der Monteursansicht -- für jede andere eine Meldung, einmal oben
-    if(r.status===403){
-      return r.json().catch(function(){return {}}).then(function(d){
-        var el=document.getElementById('assignmentsList');el.className='error';el.textContent=d.detail||'Für deine Rolle nicht verfügbar.';
-        ['draftReportsList','defectsList'].forEach(function(id){document.getElementById(id).textContent='';});
-      }).then(function(){throw new Error('angezeigt')});
-    }
-    if(!r.ok){
-      return r.json().catch(function(){return {}}).then(function(d){throw new Error(d.detail||'Fehler beim Laden.')});
-    }
-    return r.json();
-  }).then(function(data){
-    renderOffeneZeit(data.offene_zeit||null);
-    renderAssignments(data.assignments||[]);
-    renderDrafts(data.draft_reports||[]);
-    loadDefects();
-  }).catch(function(err){
-    if(err.message!=='nicht angemeldet'&&err.message!=='angezeigt') showError(err.message||'Fehler beim Laden.');
-  });
+        location.href='/login?next='+encodeURIComponent(location.pathname);return;
+      }
+      // Seit 1.9.33: die Einsätze gibt es nur für die Rollen der Monteursansicht -- für jede andere eine Meldung, einmal oben
+      if(a.status===403){
+        var box=el('assignmentsList');box.className='error';box.textContent=d.detail||'Für deine Rolle nicht verfügbar.';
+        ['draftReportsList','defectsList'].forEach(function(id){el(id).textContent=''});
+        return;
+      }
+      if(a.status!==200){showError(fehlerText(d,a.status,{}));return}
+      H=d.heute;
+      renderArbeitszeit(H);
+      renderEinsaetze(H);
+      renderOffen(H.offen);
+      renderNaechste(H);
+      renderDrafts(d.draft_reports||[]);
+      return loadDefects();
+    }).catch(function(e){showError(e.message||'Fehler beim Laden.')});
+  }
+  ladeHeute();
   if(CHECKLISTS_ENABLED){
-    fetch('/api/checklists/mine').then(function(r){return r.ok?r.json():[]}).then(function(list){
-      var el=document.getElementById('draftChecklistsList');
-      if(!list.length){el.className='empty';el.textContent='Keine offenen Checklisten.';return}
-      el.className='';
-      el.innerHTML=list.map(function(c){
+    lesen('checklisten',()=>fetch('/api/checklists/mine').then(function(r){return r.ok?r.json():[]}),function(list){
+      var box=el('draftChecklistsList');
+      if(!list.length){box.className='empty';box.textContent='Keine offenen Checklisten.';return}
+      box.className='';
+      box.innerHTML=list.map(function(c){
         return '<a class="assign-card" href="/checklisten/'+c.id+'">'
           +'<div class="obj">'+esc(c.template_label)+'</div>'
           +'<div class="addr">'+esc(c.context_label||'')+'</div>'
           +'</a>';
       }).join('');
     }).catch(function(){
-      var el=document.getElementById('draftChecklistsList');el.className='empty';el.textContent='Keine offenen Checklisten.';
+      var box=el('draftChecklistsList');box.className='empty';box.textContent='Keine offenen Checklisten.';
     });
   }
-  fetch('/api/field-view/upcoming').then(function(r){
-    if(!r.ok) return [];
-    return r.json();
-  }).then(function(list){
-    renderUpcoming(list||[]);
-  }).catch(function(){
-    document.getElementById('upcomingList').className='empty';
-    document.getElementById('upcomingList').textContent='Keine kommenden Termine geplant.';
-  });
-  fetch('/api/field-view/maintenance-contracts').then(function(r){
-    if(!r.ok) return [];
-    return r.json();
-  }).then(function(groups){
+  lesen('wartungen',()=>fetch('/api/field-view/maintenance-contracts').then(function(r){return r.ok?r.json():[]}),function(groups){
     renderMaintenance(groups||[]);
   }).catch(function(){
-    document.getElementById('maintenanceList').className='empty';
-    document.getElementById('maintenanceList').textContent='Keine Wartungen an deinen aktuellen Objekten.';
+    var box=el('maintenanceList');box.className='empty';box.textContent='Keine Wartungen an deinen aktuellen Objekten.';
   });
 })();
 </script>

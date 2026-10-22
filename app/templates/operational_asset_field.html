@@ -45,7 +45,7 @@
      einsatzbereit“ steht direkt darunter. #}
   {% from "teile/seitenkopf.html" import seitenkopf %}
   {% call(teil) seitenkopf("Betriebsmittel", mit_pfad=true, tablet=true) %}
-    {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/mobil">Einsätze</a>{% endif %}
+    {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/mobil">Heute</a>{% endif %}
   {% endcall %}
   <div id="readinessBanner" class="readiness-banner" style="display:none"></div>
   <div class="card" id="assetCard">
@@ -66,7 +66,7 @@ function render(asset){
   const card=document.getElementById('assetCard');
   const meta=[asset.asset_type,asset.manufacturer,asset.model].filter(Boolean).join(' · ');
   // seit 1.9.25: Name und Art im Seitenkopf, die Karte nur mit den Bedienungshinweisen (ohne Hinweise verborgen)
-  seitenkopf({titel:asset.name,untertitel:meta,pfad:[{text:'Einsätze',href:'/mobil'},{text:asset.name}]});
+  seitenkopf({titel:asset.name,untertitel:meta,pfad:[{text:'Heute',href:'/mobil'},{text:asset.name}]});
   card.innerHTML=asset.usage_notes?`<div class="field-block"><h2>Bedienungshinweise</h2><div class="text">${esc(asset.usage_notes)}</div></div>`:'';
   card.hidden=!asset.usage_notes;
 }

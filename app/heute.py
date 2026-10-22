@@ -30,6 +30,7 @@ from .checklist_purposes import purpose_office_only
 from .checklists import list_checklists, missing_required_labels
 from .concern_notices import open_concerns
 from .defects import list_field_defects
+from .meldungen import MONAT_ABGESCHLOSSEN
 from .models import Checklist, Employee, Order, ServiceReport
 from .modules import is_module_enabled
 from .option_settings import get_option_group
@@ -80,7 +81,7 @@ def arbeitszeit(db: Session, employee_id: int, *, heute: date, jetzt: datetime, 
             "zustand": "frueher", "id": row.id, "tag": row.started_at.date(), "gestern": row.started_at.date() == heute - timedelta(days=1),
             "beginn": row.started_at.strftime("%H:%M"), "zeitart": row.entry_type, "zeitart_label": _zeitart_name(arten, row.entry_type),
             "order_id": row.order_id, "order_number": row.order.order_number if row.order else None, "objekt": _objekt(row.order),
-            "monat_abgeschlossen": bool(lock is not None and row.work_date <= lock),
+            "monat_abgeschlossen": bool(lock is not None and row.work_date <= lock), "meldung": MONAT_ABGESCHLOSSEN,
             "gruppe": gruppe is not None, "nachtragen_durch": gruppe["stoppt"] if gruppe and not gruppe["kolonnenfuehrer"] else None,
         }
     if row is not None:
@@ -112,7 +113,7 @@ def _berichte(db: Session, employee_id: int, order_ids: list[int], heute: date) 
     ).all()
     result: dict[int, list[dict]] = {}
     for r in rows:
-        flaechen = ", ".join(a["name"] for a in _report_roof_areas_to_dicts(r) if a.get("name"))
+        flaechen = ", ".join(a["roof_area_name"] for a in _report_roof_areas_to_dicts(r) if a.get("roof_area_name"))
         result.setdefault(r.order_id, []).append({
             "id": r.id, "titel": REPORT_TYPE_LABELS.get(r.report_type, r.report_type) + (f" · {flaechen}" if flaechen else ""),
             "status": r.status, "noch_offen": len(noch_offen(r)) if r.status == "entwurf" else 0,
@@ -218,7 +219,7 @@ def heute_fuer(db: Session, employee_id: int, *, heute: date, jetzt: datetime, i
     zeit = arbeitszeit(db, employee_id, heute=heute, jetzt=jetzt, ist_monteur=ist_monteur, arten=arten,
                        einsatz_auftraege=sorted(einsatz_auftraege))
     return {
-        "tag": heute, "arbeitszeit": zeit, "zeitarten": arten, "einsaetze": karten, "offen": offen(db, employee_id),
+        "tag": heute, "mitarbeiter_id": employee_id, "arbeitszeit": zeit, "zeitarten": arten, "einsaetze": karten, "offen": offen(db, employee_id),
         "naechste_tage": naechste_tage(db, employee_id, heute=heute, mit_heute=zeit["zustand"] == "frueher",
                                        einsatz_auftraege=einsatz_auftraege),
     }

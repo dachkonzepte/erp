@@ -2,7 +2,7 @@
 
    Seit 1.8.164 (Stufe 2 „Rahmen“, Runde 1, Teil 4; Befund docs/archiv/befund-rahmen.md, Abschnitt 3):
    - eine Zeile, 64 px, in --ds-navi-grund (dunkel in beiden Modi): Logo-Kachel 40 px (seit 1.8.165 fest die Bildmarke auf Weiß,
-     _bildmarke.html -- bis dahin das hochgeladene Logo, sonst ein Dach), die Reiter Einsätze · Zeiterfassung ·
+     _bildmarke.html -- bis dahin das hochgeladene Logo, sonst ein Dach), die Reiter Heute (bis 1.9.44 Einsätze) · Zeiterfassung ·
      Stundenzettel (48 px hoch, 16 px, Ecken 10 px; aktiv seit 1.8.170 auf navi-aktiv mit dem Strich 3 px unten in marke-hell als
      box-shadow inset 0 -3px 0 innerhalb der Ecken -- bis dahin ein unterer Rand ohne Fläche; seit 1.9.0 Schrift weiß in 600 wie in der
      Leiste; Hover von Reitern, Lupe und Kontoknopf seit 1.9.1 --ds-navi-hover, geöffnet navi-aktiv), rechts die Lupe (48 px) und der
@@ -14,7 +14,7 @@
      (bis dahin Seitenleiste und Kopfzeile des Büros, nur Initialen; Festlegung 1.8.113 Nr. 6 ersetzt).
    - Die Lupe öffnet die Objektsuche (seit 1.3.65, bis 1.8.163 eine eigene Zeile unter dem Kopf) als Feld unter dem Kopf: Vorschläge ab
      zwei Zeichen nach 300 ms (_debounce.html), GET /api/field-view/properties/search, höchstens zehn; Escape schließt Liste und Feld.
-   - Der Reiter Einsätze ist auch auf den Seiten darunter aktiv (Objekt, Einsatzbericht, Checklisten, Betriebsmittel).
+   - Der Reiter Heute ist auch auf den Seiten darunter aktiv (Objekt, Einsatzbericht, Checklisten, Betriebsmittel).
    - Jedes Maß steht auf eigenen Klassen mit zwei Klassen im Selektor: Regeln einer Seite wie button{min-height:44px;width:100%} (Zeit-
      erfassung, Objekt, Stundenzettel) greifen nicht mehr in den Kopf (bis 1.8.163 wurde er dort 188 statt 173 px hoch).
    - Kontoknopf und Menüeinträge 48 px hoch (Tablet); die Reiter schrumpfen nie, ein sehr langer Name wird mit „…“ gekürzt. #}
@@ -71,7 +71,7 @@
   <div class="mobile-header">
     <span class="mobile-header-kachel" title="DACHKONZEPTE · Mobil" aria-label="DACHKONZEPTE" role="img">{% include "_bildmarke.html" %}</span>
     <nav class="mobile-nav" aria-label="Monteursansicht">
-      <a href="/mobil" class="mobile-nav-reiter{{ ' active' if _einsaetze }}"{% if _einsaetze %} aria-current="page"{% endif %}>Einsätze</a>
+      <a href="/mobil" class="mobile-nav-reiter{{ ' active' if _einsaetze }}"{% if _einsaetze %} aria-current="page"{% endif %}>Heute</a>
       <a href="/time-tracking" class="mobile-nav-reiter{{ ' active' if path == '/time-tracking' }}"{% if path == '/time-tracking' %} aria-current="page"{% endif %}>Zeiterfassung</a>
       <a href="/mobil/stundenzettel" class="mobile-nav-reiter{{ ' active' if path == '/mobil/stundenzettel' }}"{% if path == '/mobil/stundenzettel' %} aria-current="page"{% endif %}>Stundenzettel</a>
     </nav>

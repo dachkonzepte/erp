@@ -3799,3 +3799,95 @@ Pausenregel rechnet. Die Runde beginnt mit den kleinen Punkten (7), dann Server 
    heute als eigene Zeile vorn, nicht mit den folgenden Tagen zusammengefasst.
 7. **Vorbelegung** nur bei genau einem Auftrag im heutigen Einsatz, der auch buchbar ist.
 8. **Dauer** = Anwesenheit seit Beginn (vor Abzug der Pause), vom Server in Minuten; die Seite zählt jede Minute weiter.
+
+### R2 Punkte 1–6 (1.9.45): die Seite „Heute“
+
+- **Aufbau** (`app/templates/mobil.html`): oben `.heute` -- ab 1000 px ein Raster `minmax(0,1fr) 420px`, Abstand 16 px, Rand 16 px 20 px;
+  darunter eine Spalte (Rand 16 px) in der Reihenfolge der Vorlage heute-hoch (links Arbeitszeit und Einsatz, rechts Offen und Nächste
+  Tage, im Quelltext hintereinander). Karten `.heute-karte`/`.signal-karte` mit `var(--ds-ecke-karte)` (im Monteursrahmen 16 px wie die
+  Vorlage), Farben nur über `--ds-*`; dunkel über die Tokens. Unter „Heute“ die bisherigen Listen (offene Berichte, Mängel zur Beseitigung
+  mit „Beseitigt melden“, offene Checklisten, Wartungen an meinen Objekten) mit Ankern -- dorthin führen die Zeilen von „Offen“. „Meine
+  kommenden Termine“ ist in „Nächste Tage“ aufgegangen (der Endpunkt `GET /api/field-view/upcoming` bleibt).
+- **Arbeitszeit**: läuft -- Kopf „Arbeitszeit · Do 22.10.“ mit „läuft“ (Info-Töne), „<Zeitart> seit HH:MM“ (Archivo 26 px), Auftrag · Objekt,
+  Dauer h:mm (40 px; vom Server in Minuten, im Browser über `performance.now()` jede Minute weiter, nie über Datum oder Zeitzone des
+  Geräts); „Feierabend“ (`--ds-stark`) und „Zeitart wechseln“ (neutral) je 64 px, die Kacheln der anderen Zeitarten erst nach dem Klick.
+  Gruppenzeit: Kolonnenführer „Feierabend für die Gruppe“ (`POST /api/time-entry-groups/{id}/stop`), Mitglied „Gruppenzeit · stoppt <Name>“
+  ohne Knopf. Nichts läuft: Auswahl „Auftrag“ (`auswahlOptionen()`, vorbelegt nach dem Server) und die Kacheln der Zeitarten (64 px,
+  „Vorschlag“ an der Schlechtwetter-Zeitart der Jahreszeit wie „Schnell starten“). Zeit von früher offen: Signalkarte (`--ds-signal-*`)
+  „Wartet auf dich“, „Deine Zeit von gestern läuft noch“ bzw. „vom <Tag>“, „<Zeitart> seit <Tag>, HH:MM · Auftrag · Objekt“, Feld „Feierabend
+  gestern um“ bzw. „am <Tag> um“ (64 × 180 px, leer), darunter die Vorschau aus `GET …/ende-vorschau` („Anwesend h:mm · Pause nach Zeitregel
+  − h:mm“, „Gebucht werden x,xx h“), „Feierabend eintragen“ (grün, 64 px) mit dem Hinweistext; Mitglied einer Gruppe ohne Feld („Gruppenzeit –
+  das Ende trägt <Name> nach.“), Monat abgeschlossen ohne Feld mit der Meldung aus R1 (seit 1.9.45 in `app/meldungen.py`). Darunter die
+  Karte für heute mit gesperrtem „Arbeitsbeginn buchen“. Jede Aktion über `speichern('heute', …)`, danach lädt `lesen('heute', …)` neu.
+- **Einsatz**: je Auftrag eine Karte „Heutiger Einsatz · 21.–24.10.“, Objekt (24 px), „Route“ (≥ 48 px) öffnet
+  `https://www.google.com/maps/search/?api=1&query=<Adresse>` in einem neuen Fenster (auf Tablet und Telefon die Karten-App), „Kunde ·
+  Adresse“; Hinweis „Offene Bedenken“ in der Karte; Berichtsentwurf mit „Entwurf · noch n offen“ bzw. „bereit zur Unterschrift“ und grünem
+  „Weiter“ (56 px, zum Bericht), heute unterschriebener Bericht und Checklisten als Zeile mit Pfeil; unten „Bericht anlegen“ und „Checklisten
+  zum Auftrag“ (48 px). Kein Einsatz: „Heute ist nichts eingeplant.“ Bei offener Zeit von früher keine Einsatzkarte (Vorlage heute-gestern):
+  der Einsatz steht dann in „Heute und nächste Tage“.
+- **Offen**: „Berichte“, „Checklisten“, „Mängel zur Beseitigung“ mit Anzahl (60 px), leere Gruppen fehlen, alle leer: „Nichts offen.“
+  **Nächste Tage**: Datum 96 px (hoch 110 px; steht ein Bereich in der Liste, für alle Zeilen 156 bzw. 166 px), Objekt · Nebentext, 56 px;
+  leer: „In den nächsten 14 Tagen ist nichts eingeplant.“
+- **Reiter und Pfad**: der Reiter „Einsätze“ heißt „Heute“ (`_mobile_header.html`), ebenso der Anfang des Pfads auf Konto, Checkliste,
+  Checklisten zum Auftrag, Objekt, Betriebsmittel und Einsatzbericht der Monteurin; die Adresse bleibt `/mobil`. „Meine Zeiten“ aus der Vorlage
+  ist nicht Teil von R2 -- die Reiter „Zeiterfassung“ und „Stundenzettel“ bleiben.
+- `[hidden]{display:none!important}` auf der Seite: sonst überstimmt `display:grid/flex` der Karten und Kacheln das Attribut (im ersten
+  Klicktest waren die Kacheln von „Zeitart wechseln“ ohne Klick offen).
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v472_heute_seite.py` (4 Tests): Einsatz mit eigenem Bericht („Wartungsbericht · Dachfläche Nord“, noch 3 offen) und
+  eigener Checkliste (noch 1 offen), Toms Bericht nicht bei Mia; Raster, Maße und `[hidden]` im Stil; Lesen über `lesen()`, Route mit festem
+  https-Anfang, Aktionen über `speichern()`; Reiter und Pfad „Heute“ in allen Vorlagen.
+- Neu `scripts/klicktest_heute.py` (32 Prüfungen): Mia quer und hoch, hell und dunkel (Bilder), zwei Spalten mit rechts 420 px, eine Spalte
+  in der Reihenfolge der Vorlage, Inhalte der Karten, Maße (Zeilen ≥ 56, Knöpfe ≥ 48, Hauptknöpfe 64, „Weiter“ 56), Zeitart wechseln -> zwei
+  Buchungen ohne Lücke, Feierabend -> nichts läuft; Ole mit Zeit von gestern: Signalkarte, Vorschau „Anwesend 9:15 h · Pause nach Zeitregel −
+  0:45 h“, „Gebucht werden 8,50 h“, gebucht wie die Vorschau, „Heute und nächste Tage“; Lea: nichts läuft mit Vorbelegung und Vorschlag,
+  Start; Tom ohne Knopf mit „stoppt Kai Kolonne“, Kai mit „Feierabend für die Gruppe“. Beim ersten Lauf vier Prüfungen rot: der Berichtstitel
+  ohne Dachfläche (falscher Schlüssel in `app/heute.py`, behoben), die Uhr der Instanz läuft weiter (Prüfung „ohne Lücke“ auf Ende = Beginn
+  umgestellt, mein Fehler), „Feierabend“ in derselben Sekunde wie der Wechsel (`berlin_now()` ist sekundengenau -- 422 „Endzeit muss nach der
+  Startzeit liegen“; der Klicktest wartet eine Sekunde über `tab.warten()`), das Thema vor dem ersten Laden gesetzt (mein Fehler).
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück): Titel ohne Dachfläche (P1) -- 1 Test und 1 Klicktest-Prüfung rot; `[hidden]` ohne
+  Vorrang (P2) -- 1 Test und 1 Prüfung; Einsatzkarte auch bei Zeit von gestern (P3) -- 1 Prüfung; leere Gruppe in „Offen“ (P4) -- 1
+  Prüfung; Reiter wieder „Einsätze“ (P5) -- 3 Tests und 1 Prüfung. P1 lief zuerst mit einem Marker mitten im Ausdruck (ERROR statt FAILED,
+  mein Fehler) und wurde wiederholt.
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v272` (2 Tests), `test_v257`, `test_v328`, `test_v454`, `test_v457`, `klicktest_monteur_navigation`, `klicktest_neue_ordnung`,
+    `klicktest_rahmen` (Reiter, Pfade): alt „Einsätze“; neu „Heute“.
+  - `test_v460::test_kaesten_unter_der_einsatzkarte_schliessen_an`: alt Hinweis und „Checklisten zu diesem Auftrag“ unten an der Karte (Karte
+    unten eckig); neu beides in der Karte, kein angehängter Kasten, der Hinweis mit eigener Ecke. `NICHT_KARTEN` um `knopf-neutral` und
+    `knopf-gesperrt` ergänzt (Knöpfe).
+  - `klicktest_rahmen`, Teil „ecken“: alt `.assign-card` 16 px und „Link schließt unten an“; neu `.heute-karte` 16 px und „Hinweis und Wege in
+    der Einsatzkarte, nichts angehängt“.
+  - `klicktest_bedenkenanzeige`: alt Hinweis unter der Karte `.assign-card`; neu in der Einsatzkarte `[data-einsatz]` (Aufbau).
+  - `klicktest_monteurin_regeln`, `/mobil`: alt Hinweis „Deine Zeit läuft noch seit <Datum>, 06:45 Uhr“ mit Link „Ende nachtragen →“ zur
+    Zeiterfassung; neu Signalkarte „Deine Zeit von gestern läuft noch“ mit Feld und „Feierabend eintragen“.
+  - `test_v411` (Aufbau): der Ausschnitt für den node-Lauf endet an „// Seit 1.9.45 über lesen()“ statt am direkten `fetch()`.
+  - `test_v400`: Ausnahme `("mobil.html", "<oben>", "fetch")` gestrichen (alles Lesen über `lesen()`).
+  - `test_v441`: Grund von `mobil.html` in `AUFGESCHOBEN`: „Heute -- seit 1.9.45 nach den Vorlagen der Stufe 4, die keinen Seitenkopf haben“.
+  - `test_v265::test_mobil_reachable_for_field_with_correct_title`: alt Titel „DACHKONZEPTE ERP – Mobil“; neu „DACHKONZEPTE ERP – Heute“.
+  - `klicktest_bedenkenanzeige`, „Hinweis deutlich“: alt obere bzw. linke Rahmenfarbe = Textfarbe (der Hinweis hing oben ohne Rahmen unter
+    der Karte); neu Rahmen oben und links in `--ds-fehler`, Text in `--ds-fehler-text` (der Hinweis steht mit vollem Rahmen in der Karte).
+    Im ersten vollen Lauf auf 1.9.45 waren diese Prüfung und die beiden Tests rot, dazu `test_v346` (die Seite nannte `concernAlert(k)`
+    statt `concernAlert(a)` -- an der Seite zurückbenannt, der Test unverändert).
+
+#### Festlegungen 1.9.45 (Bitte bestätigen)
+
+1. **Pfad-Anfang „Heute“** auch auf den Seiten unter /mobil (Konto, Checkliste, Objekt, Betriebsmittel, Einsatzbericht), nicht nur der Reiter.
+2. **„Meine Zeiten“ aus der Vorlage nicht übernommen** -- R2 benennt nur „Einsätze“ um; „Zeiterfassung“ und „Stundenzettel“ bleiben.
+3. **/mobil bleibt in `AUFGESCHOBEN`**: umgezogen hieße Seitenkopf mit Titel und Pfad, die Vorlage hat keinen.
+4. **Die bisherigen Listen bleiben unter „Heute“** (offene Berichte, Mängel mit „Beseitigt melden“, offene Checklisten, Wartungen an meinen
+   Objekten); „Offen“ springt dorthin. „Meine kommenden Termine“ entfällt (in „Nächste Tage“).
+5. **Route über Google Maps** (`https://www.google.com/maps/search/?api=1&query=…`): öffnet auf Android und iOS die Karten-App, am Rechner die
+   Webseite; die Adresse geht erst mit dem Klick hinaus.
+6. **Feld „Feierabend gestern um“ ohne Vorbelegung** (die Vorlage zeigt 16:00 als Beispiel) -- die Vorschau erscheint mit der ersten Eingabe.
+7. **Gruppenzeit ohne „Zeitart wechseln“**, auch nicht für den Kolonnenführer (Server 409).
+8. **Status im Einsatz**: Bericht „Entwurf · noch n offen“ / „Entwurf · bereit zur Unterschrift“ / „Unterschrieben“, Checkliste „Entwurf · noch
+   n offen“ / „Entwurf · alles ausgefüllt“ / „Abgeschlossen“ (statt „Schritt 1 von 5“ und „ein Pflichtpunkt fehlt“ der Vorlage).
+9. **Alles leer in „Offen“**: die Karte bleibt mit „Nichts offen.“ (statt ganz zu fehlen).
+10. **Datumsspalte in „Nächste Tage“** 96 px wie die Vorlage; steht ein Bereich darin, für alle Zeilen 156 px (hoch 166 px), ohne Umbruch.
+
+#### Hinweis (nicht geändert)
+
+- Feldrahmen auf der Signalfläche: `--ds-feld-rand` auf `--ds-signal-hell` hat hell 2,84 : 1 (dunkel 3,48 : 1) -- wie die Vorlage (#88929A
+  auf #FDF0E7); das Feld selbst ist weiß. Text auf der Signalfläche: `--ds-text` 15,4 : 1, `--ds-text-2` 6,8 : 1 (dunkel 13,0 und 8,6).

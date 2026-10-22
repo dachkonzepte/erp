@@ -128,14 +128,15 @@ async def pruefen(tab, seed, p):
     await tab.oeffnen("/mobil", MOBIL_BEREIT)
     await tab.js("localStorage.setItem('erp_theme','dark')")
     await tab.oeffnen("/mobil", MOBIL_BEREIT)
-    await tab.warten("!document.getElementById('offeneZeit').hidden")
-    text = await tab.js("document.getElementById('offeneZeit').innerText")
-    p.pruefe("/mobil: Hinweis mit Start, Zeitart, Auftrag", [f"Deine Zeit läuft noch seit {g}, 06:45 Uhr" in (text or ""),
-             "Baustellenzeit" in (text or ""), seed["auftragsnummer"] in (text or "")], [True, True, True])
-    p.pruefe("/mobil: Link „Ende nachtragen →“ zur Zeiterfassung", await tab.js(
-        "(a=>[a.textContent, new URL(a.href).pathname])(document.querySelector('#offeneZeit a'))"), ["Ende nachtragen →", "/time-tracking"])
+    # seit 1.9.45 („Heute“): Signalkarte „Wartet auf dich“ mit dem Feld „Feierabend gestern um“ statt Hinweis mit Link zur Zeiterfassung
+    await tab.warten("document.querySelector('.signal-karte')")
+    text = await tab.js("document.querySelector('.signal-karte').innerText")
+    p.pruefe("/mobil: Signalkarte mit Start, Zeitart, Auftrag", ["Deine Zeit von gestern läuft noch" in (text or ""),
+             ", 06:45" in (text or ""), "Baustellenzeit" in (text or ""), seed["auftragsnummer"] in (text or "")], [True, True, True, True])
+    p.pruefe("/mobil: Feld und Knopf „Feierabend eintragen“", await tab.js(
+        "[!!document.getElementById('endeZeit'), document.getElementById('endeKnopf').textContent]"), [True, "Feierabend eintragen"])
     p.pruefe("/mobil: Ecke der Karte 16 px (Monteursrahmen)", await tab.js(
-        "getComputedStyle(document.querySelector('.zeit-offen-karte')).borderTopLeftRadius"), "16px")
+        "getComputedStyle(document.querySelector('.signal-karte')).borderTopLeftRadius"), "16px")
     p.pruefe("/mobil 412 px: kein waagrechter Scrollbalken", await tab.js(
         "document.documentElement.scrollWidth<=document.documentElement.clientWidth+1"), True)
     await tab.bild("1_mobil_offene_zeit_dunkel_412")

@@ -68,7 +68,7 @@ UMGEZOGEN |= ANMELDUNG_UND_SPERRSEITE
 # in genau einer der beiden Listen (test_jede_seite_umgezogen_oder_aufgeschoben). Eine neue Seite kommt umgezogen dazu oder mit Stufe
 # und Grund hierher; zieht eine aufgeschobene um, wandert sie nach UMGEZOGEN.
 AUFGESCHOBEN: dict[str, tuple[int, str]] = {
-    "mobil.html": (4, "Einsätze -- Startseite der Monteursansicht, die Stufe 4 als Ganzes gestaltet"),
+    "mobil.html": (4, "Heute -- seit 1.9.45 nach den Vorlagen der Stufe 4, die keinen Seitenkopf haben; in den Rahmen mit Stufe 4 als Ganzes"),
     "time_tracking_field.html": (4, "Zeiterfassung der Monteure -- gehört zur Monteursansicht (Stufe 4)"),
     "field_timesheet.html": (4, "Stundenzettel -- gehört zur Monteursansicht (Stufe 4)"),
     "project_folder.html": (5, "Projektmappe -- große Arbeitsseite mit Reitern, Stufe 5 zusammen mit Auftrag und Kundenakte"),

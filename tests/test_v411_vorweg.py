@@ -266,7 +266,8 @@ def test_mobil_geht_nur_mit_beendeter_sitzung_zur_anmeldung(antwort, navigiert, 
     /mobil mit der Meldung stehen -- mit der noch gültigen Sitzung schickte /login sonst sofort zurück nach /mobil, die Seite liefe im
     Kreis (so in der Gegenprobe ohne POST beobachtet)."""
     text = _mobil()
-    js = text[text.index("  function feierabendFehler(text){"):text.index("  fetch('/api/field-view/today')")]
+    # seit 1.9.45 („Heute“) folgt auf feierabend() das Laden über lesen() (ladeHeute()), bis dahin der direkte fetch()
+    js = text[text.index("  function feierabendFehler(text){"):text.index("  // Seit 1.9.45 über lesen()")]
     script = ("const location={pathname:'/mobil',href:''};const fehler=[];function showError(m){fehler.push(m)}\n"
               "const gesendet=[];function fetch(u,o){gesendet.push([u,(o||{}).method]);return Promise.resolve(" + antwort + ")}\n"
               "async function speichern(b,f){return await f()}\n" + js

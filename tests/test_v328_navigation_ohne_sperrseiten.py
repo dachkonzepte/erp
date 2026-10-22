@@ -187,7 +187,7 @@ def test_berichtsseite_baut_auftrags_und_kundenlinks_nur_fuers_buero(welt, monke
     html = _client_als(welt["db"], [pages_router], welt["user_ids"][rolle]).get("/orders/1/service-reports").text
     assert f"const darfBueroSeiten={'true' if erwartet else 'false'};" in html
     assert ('<a class="ds-kopf-pfadglied" href="/projects">Projekte</a>' in html) is erwartet
-    assert ('<a class="ds-kopf-pfadglied" href="/mobil">Einsätze</a>' in html) is not erwartet
+    assert ('<a class="ds-kopf-pfadglied" href="/mobil">Heute</a>' in html) is not erwartet
 
 
 # ---------------------------------------------------------------------------

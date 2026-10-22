@@ -95,7 +95,6 @@ AUSNAHMEN = {
     ("findings.html", "init", "api"): "nur Anzeige",
     ("findings.html", "loadFindings", "api"): "nur Anzeige",
     ("history.html", "load", "api"): "nur Anzeige",
-    ("mobil.html", "<oben>", "fetch"): "nur Anzeige",
     ("mobil_objekt.html", "<oben>", "api"): "nur Anzeige",
     ("mobil_objekt.html", "<oben>", "fetch"): "nur Anzeige",
     ("operational_asset_field.html", "<oben>", "init"): "nur Anzeige",

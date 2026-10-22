@@ -32,7 +32,7 @@ body.field .cl-main{margin:0 auto}
      Kennung = Auftragsnummer, Untertitel = Kunde. #}
   {% from "teile/seitenkopf.html" import seitenkopf %}
   {% call(teil) seitenkopf("Checklisten zum Auftrag", untertitel="Auftrag wird geladen …", mit_pfad=true, tablet=is_field) %}
-    {% if teil == "pfad" %}{% if is_field %}<a class="ds-kopf-pfadglied" href="/mobil">Einsätze</a>{% else %}<a class="ds-kopf-pfadglied" href="/checklisten">Checklisten</a><span class="ds-kopf-trenner" aria-hidden="true">/</span><a class="ds-kopf-pfadglied" href="/orders/{{ order_id }}">Auftrag</a>{% endif %}<span class="ds-kopf-trenner" aria-hidden="true">/</span><span class="ds-kopf-pfadende" aria-current="page">Checklisten zum Auftrag</span>{% endif %}
+    {% if teil == "pfad" %}{% if is_field %}<a class="ds-kopf-pfadglied" href="/mobil">Heute</a>{% else %}<a class="ds-kopf-pfadglied" href="/checklisten">Checklisten</a><span class="ds-kopf-trenner" aria-hidden="true">/</span><a class="ds-kopf-pfadglied" href="/orders/{{ order_id }}">Auftrag</a>{% endif %}<span class="ds-kopf-trenner" aria-hidden="true">/</span><span class="ds-kopf-pfadende" aria-current="page">Checklisten zum Auftrag</span>{% endif %}
   {% endcall %}
   {% if is_module_enabled('checklisten') %}
   {% include "_offene_bedenken.html" %}
@@ -52,7 +52,7 @@ body.field .cl-main{margin:0 auto}
   fetch('/api/orders/'+orderId).then(function(r){return r.ok?r.json():null}).then(function(o){
     if(!o){seitenkopf({untertitel:''});return}
     // seit 1.9.25: Kennung, Kunde und Pfad im Seitenkopf (bis dahin „Auftrag <Nummer>“ und der Kunde in einer Karte)
-    seitenkopf({kennung:o.order_number,untertitel:o.customer_name||'',pfad:istMonteur?[{text:'Einsätze',href:'/mobil'},{text:'Checklisten zum Auftrag'}]:
+    seitenkopf({kennung:o.order_number,untertitel:o.customer_name||'',pfad:istMonteur?[{text:'Heute',href:'/mobil'},{text:'Checklisten zum Auftrag'}]:
       [{text:'Checklisten',href:'/checklisten'},{text:o.order_number,href:'/orders/'+orderId},{text:'Checklisten zum Auftrag'}]});
   });
   if(window.offeneBedenkenZeigen)offeneBedenkenZeigen('concernAlert',orderId);

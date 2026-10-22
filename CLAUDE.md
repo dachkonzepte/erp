@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.44** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.45** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -345,6 +345,11 @@ Behoben, drei Teile:
   Farben nur über `--ds-*` (keine Akzentfarbe mehr);
   in `ds-basis.css` steht seit 1.9.4 jeder Selektor ganz in `:where(…)` (Gewicht null): die Grundregeln gelten für alle Elemente, jede
   Klasse überstimmt sie (ersetzt „nur ohne Klasse“, 1.9.3).
+- **Stufe 4 „Monteurin“ (seit 1.9.33):** seit 1.9.45 ist `/mobil` die Seite „Heute“ nach den Vorlagen
+  `bildgrundlage/entwurf-stufe4/heute-*.html` (Daten nur aus `app/heute.py`, Schlüssel `heute` in `GET /api/field-view/today`; die Seite
+  rechnet nichts nach); Reiter und Pfad-Anfang der Seiten darunter heißen „Heute“ (Adresse bleibt). Sie bleibt in `AUFGESCHOBEN` (die
+  Vorlage hat keinen Seitenkopf). Klicktest `klicktest_heute.py`, Wächter `tests/test_v472_heute_seite.py`. Archiv: `docs/archiv/redesign.md`,
+  „Stufe 4, R2“.
 
 ## Kritische, nicht verhandelbare Regeln
 

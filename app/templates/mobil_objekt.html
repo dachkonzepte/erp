@@ -60,7 +60,7 @@
      Einsätze / Objekt (bis dahin „← Einsätze“), Titel = Name des Objekts (bis dahin fett in der Karte); die Abschnitte als h2. #}
   {% from "teile/seitenkopf.html" import seitenkopf %}
   {% call(teil) seitenkopf("Objekt", mit_pfad=true, tablet=true) %}
-    {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/mobil">Einsätze</a>{% endif %}
+    {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/mobil">Heute</a>{% endif %}
   {% endcall %}
   <div id="propertyCard" class="card loading">Lädt…</div>
 
@@ -129,7 +129,7 @@
     var addrParts=[p.street,[p.postal_code,p.city].filter(Boolean).join(' ')].filter(Boolean);
     var addrText=addrParts.join(', ');
     var mapsUrl='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(addrText);
-    seitenkopf({titel:p.name,pfad:[{text:'Einsätze',href:'/mobil'},{text:p.name}]});  // seit 1.9.25: Name im Seitenkopf
+    seitenkopf({titel:p.name,pfad:[{text:'Heute',href:'/mobil'},{text:p.name}]});  // seit 1.9.25: Name im Seitenkopf
     var html='';
     if(addrText)html+='<div class="obj-addr"><a href="'+mapsUrl+'" target="_blank" rel="noopener">'+esc(addrText)+'</a></div>';
     if(p.site_contact_name||p.site_contact_phone){

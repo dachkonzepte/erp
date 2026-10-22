@@ -11,8 +11,8 @@ ersetzt Festlegung 1.9.27 Nr. 4 „Karten bleiben eckig“).
                    Kasten, der unten an eine Karte anschließt (border-top:none), nur unten: 0 0 var(--ds-ecke-karte) var(--ds-ecke-karte)
     Monteursrahmen _mobile_header.html (steht genau in den Seiten des Monteursrahmens) setzt --ds-ecke-karte auf --ds-ecke-tablet-karte
                    (16 px); sonst setzt keine Vorlage einen --ds-Wert
-    Anschluss      in /mobil hängen der Hinweis „Offene Bedenken“ und der Link „Checklisten zu diesem Auftrag“ unter ihrer Einsatzkarte: was
-                   darüber steht, ist unten eckig
+    Anschluss      bis 1.9.44 hingen in /mobil der Hinweis „Offene Bedenken“ und der Link „Checklisten zu diesem Auftrag“ unter ihrer
+                   Einsatzkarte (darüber unten eckig); seit 1.9.45 („Heute“) stehen sie in der Karte, nichts hängt mehr an
 
 Im Browser misst das scripts/klicktest_rahmen.py, Teil „ecken“ (Büro 12 px, Monteursrahmen 16 px, hell und dunkel).
 """
@@ -93,7 +93,8 @@ KARTEN_OHNE_NAMEN = {
 NICHT_KARTEN = {
     **{k: "Knopf oder Feld -- eigene Ecke, nicht Teil dieses Punkts" for k in (
         "add", "btn", "btnlink", "cat", "danger", "dh-btn", "filter", "ghost", "iconbtn", "menu-btn", "more-btn", "p-role", "perform-btn",
-        "secondary", "tile", "view-toggle", "checklist-link")},
+        "secondary", "tile", "view-toggle", "checklist-link",
+        "knopf-neutral", "knopf-gesperrt")},  # seit 1.9.45 die Knöpfe von „Heute“ (/mobil)
     **{k: "Kennzeichen" for k in (
         "addendum-badge", "badge", "cl-badge", "count", "def-badge", "delivery-tag", "dot", "entry-version", "pill", "psum-tag",
         "status-pill")},
@@ -207,12 +208,12 @@ def test_tablet_ecke_der_karte_nur_ueber_den_monteursrahmen():
 
 
 def test_kaesten_unter_der_einsatzkarte_schliessen_an():
+    """Seit 1.9.45 („Heute“): der Hinweis „Offene Bedenken“ steht in der Einsatzkarte, mit eigener Ecke; kein Kasten hängt mehr unten an
+    einer Karte (bis 1.9.44: Hinweis und „Checklisten zu diesem Auftrag“ unter der Karte, die darüber unten eckig)."""
     stil = re.sub(r"\s", "", _stil("mobil.html"))
-    assert (".assign-card:has(+.concern-alert),.assign-card:has(+.checklist-link),.concern-alert:has(+.checklist-link)"
-            "{border-bottom-left-radius:0;border-bottom-right-radius:0}") in stil
-    for klasse in ("concern-alert", "checklist-link"):
-        rumpf = re.search(rf"\.{klasse}\{{([^}}]*)\}}", stil)[1]
-        assert "border-top:none" in rumpf and "border-radius:00var(--ds-ecke-karte)var(--ds-ecke-karte)" in rumpf, klasse
+    assert ":has(+" not in stil and "border-top:none" not in stil and ".checklist-link" not in stil
+    rumpf = re.search(r"\.concern-alert\{([^}]*)\}", stil)[1]
+    assert "border-radius:var(--ds-ecke-karte)" in rumpf
 
 
 def test_waechter_findet_und_laesst_durch():

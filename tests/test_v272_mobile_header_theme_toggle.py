@@ -74,7 +74,7 @@ def test_kopf_ist_eine_zeile_mit_kachel_reitern_lupe_und_konto():
                                        'id="appTopbarAccountBtn"')]
     assert stellen == sorted(stellen)
     reiter = [t.split(">")[-1] for t in kopf[kopf.index("<nav"):kopf.index("</nav>")].split("</a>")[:-1]]
-    assert reiter == ["Einsätze", "Zeiterfassung", "Stundenzettel"]
+    assert reiter == ["Heute", "Zeiterfassung", "Stundenzettel"]
 
 
 def test_der_name_steht_immer_im_kopf():
@@ -130,8 +130,8 @@ def test_einsaetze_ist_auch_auf_den_seiten_darunter_aktiv():
         reiter = [stueck[stueck.rindex("<a "):] for stueck in nav.split("</a>")[:-1]]
         return [r.split(">")[-1] for r in reiter if "active" in r.split(">")[0] and 'aria-current="page"' in r.split(">")[0]]
 
-    assert aktiv("/mobil") == ["Einsätze"] and aktiv("/orders/5/service-reports") == ["Einsätze"]
-    assert aktiv("/checklisten/3") == ["Einsätze"] and aktiv("/mobil/objekt/2") == ["Einsätze"]
+    assert aktiv("/mobil") == ["Heute"] and aktiv("/orders/5/service-reports") == ["Heute"]
+    assert aktiv("/checklisten/3") == ["Heute"] and aktiv("/mobil/objekt/2") == ["Heute"]
     assert aktiv("/time-tracking") == ["Zeiterfassung"] and aktiv("/mobil/stundenzettel") == ["Stundenzettel"]
     assert aktiv("/account") == []
 

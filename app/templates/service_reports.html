@@ -145,7 +145,7 @@ a{color:var(--ds-link)}
 {% from "teile/seitenkopf.html" import seitenkopf %}
 {# seit 1.9.25: im Monteursrahmen mit den Tablet-Maßen des Kopfs (tablet) #}
 {% call(teil) seitenkopf("Einsatzbericht", untertitel="Auftrag wird geladen …", mit_pfad=true, mit_menue=true, tablet=monteursrahmen) %}
-  {% if teil == "pfad" %}{% if darf_buero_seiten %}<a class="ds-kopf-pfadglied" href="/projects">Projekte</a>{% else %}<a class="ds-kopf-pfadglied" href="/mobil">Einsätze</a>{% endif %}
+  {% if teil == "pfad" %}{% if darf_buero_seiten %}<a class="ds-kopf-pfadglied" href="/projects">Projekte</a>{% else %}<a class="ds-kopf-pfadglied" href="/mobil">Heute</a>{% endif %}
   {% elif teil == "menue" %}<a class="ds-menue-eintrag" id="timeLink" href="/time-tracking">Zeiterfassung (Auftrag)</a>{% endif %}
 {% endcall %}
 {# Seit 1.8.45: offene Bedenkenanzeige am Auftrag -- vor dem Bericht sichtbar, für Büro und Monteur. #}
@@ -1374,7 +1374,7 @@ function kopfZeichnen(){
     kopfVertrag?{text:kopfVertrag.title,href:'/maintenance-contracts/'+kopfVertrag.id}:null,
     o.project_id?{text:o.project_name||o.project_number,href:'/projects/'+o.project_id}:null,
     {text:o.order_number,href:'/orders/'+orderId},
-  ]:[{text:'Einsätze',href:'/mobil'}];
+  ]:[{text:'Heute',href:'/mobil'}];
   pfad.push({text:'Einsatzbericht'});
   seitenkopf({kennung:o.order_number,untertitel:o.customer_name,status:statusKennzeichen('auftrag',o.status),pfad:pfad.filter(Boolean)});
 }

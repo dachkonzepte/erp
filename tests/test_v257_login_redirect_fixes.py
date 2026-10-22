@@ -317,4 +317,4 @@ def test_account_html_back_link_has_no_history_back_shortcut():
     pfad = html[html.index('{% if teil == "pfad" %}'):html.index("{% endcall %}")]
     assert "history.back" not in pfad
     assert '<a class="ds-kopf-pfadglied" href="/">Start</a>' in pfad
-    assert '<a class="ds-kopf-pfadglied" href="/mobil">Einsätze</a>' in pfad
+    assert '<a class="ds-kopf-pfadglied" href="/mobil">Heute</a>' in pfad

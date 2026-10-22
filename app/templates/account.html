@@ -49,7 +49,7 @@ a{color:var(--ds-link)}
      über „Einsätze“ nach /mobil (dorthin leitet / sie ohnehin weiter). -->
 {% from "teile/seitenkopf.html" import seitenkopf %}
 {% call(teil) seitenkopf("Mein Konto", mit_pfad=true, tablet=monteursrahmen) %}{# seit 1.9.25 im Monteursrahmen mit Tablet-Maßen #}
-  {% if teil == "pfad" %}{% if monteursrahmen %}<a class="ds-kopf-pfadglied" href="/mobil">Einsätze</a>{% else %}<a class="ds-kopf-pfadglied" href="/">Start</a>{% endif %}<span class="ds-kopf-trenner" aria-hidden="true">/</span><span class="ds-kopf-pfadende" aria-current="page">Mein Konto</span>{% endif %}
+  {% if teil == "pfad" %}{% if monteursrahmen %}<a class="ds-kopf-pfadglied" href="/mobil">Heute</a>{% else %}<a class="ds-kopf-pfadglied" href="/">Start</a>{% endif %}<span class="ds-kopf-trenner" aria-hidden="true">/</span><span class="ds-kopf-pfadende" aria-current="page">Mein Konto</span>{% endif %}
 {% endcall %}
 <div id="loadingMsg" class="muted">Lädt …</div>
 

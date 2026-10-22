@@ -26,7 +26,7 @@ from fastapi import Depends, HTTPException, Query, Request, Response
 from sqlalchemy.orm import Session
 
 from ..berlin_time import BERLIN, berlin_now, berlin_today
-from ..meldungen import KEIN_MITARBEITER
+from ..meldungen import KEIN_MITARBEITER, MONAT_ABGESCHLOSSEN
 from ..database import get_db
 from ..models import AppUser, TimeEntry, TimeEntryGroup
 from ..permissions import ROLE_FIELD, darf_zeit_fuer_andere_buchen, require_min_role
@@ -97,7 +97,6 @@ def _require_open_period(request: Request, db: Session, *work_dates: date) -> No
 
 CREW_LEADER_ONLY = "Gruppenbuchungen sind für Monteure dem Kolonnenführer des Teams vorbehalten."
 # Seit 1.9.35 (Stufe 4, R1, Punkt 2): eine Zeit, die seit einem früheren Tag läuft
-MONAT_ABGESCHLOSSEN = "Monat abgeschlossen – das Büro schließt die Zeit."
 GRUPPENZEIT_NUR_KOLONNENFUEHRER = "Die Gruppenzeit schließt der Kolonnenführer."
 
 

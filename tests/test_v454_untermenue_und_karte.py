@@ -28,7 +28,7 @@ ADRESSE = {"master_data.html": "/master-data", "settings.html": "/settings", "ti
 # je K6-Seite und Rolle (die schwächste, die sie öffnet; das Konto auch als Monteurin): Pfad-Links und das letzte Glied
 PFAD = {
     ("account.html", "buero_auftrag"): ([("/", "Start")], "Mein Konto"),
-    ("account.html", "field"): ([("/mobil", "Einsätze")], "Mein Konto"),
+    ("account.html", "field"): ([("/mobil", "Heute")], "Mein Konto"),
     ("users.html", "admin"): ([("/settings", "Einstellungen")], "Benutzer und Zugriff"),
     ("history.html", "buero_auftrag"): ([("/settings", "Einstellungen")], "Änderungshistorie"),
     ("address_import.html", "admin"): ([("/settings", "Einstellungen")], "Adressimport"),

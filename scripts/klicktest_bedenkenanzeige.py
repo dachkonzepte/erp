@@ -89,7 +89,7 @@ def befuellen(db, k):
 
 
 async def _mobil(tab, p, wer: str, theme: str):
-    bereit = "document.querySelector('#assignmentsList .assign-card')"
+    bereit = "document.querySelector('#assignmentsList [data-einsatz]')"  # seit 1.9.45 die Einsatzkarte von „Heute“
     await tab.oeffnen("/mobil", bereit)
     await tab.js(f"localStorage.setItem('erp_theme','{theme}')")
     await tab.oeffnen("/mobil", bereit)
@@ -105,7 +105,7 @@ async def pruefen(tab, seed, p):
     await tab.fenster(412, 900, mobil=True)
     await _mobil(tab, p, "Monteurin", "light")
     p.pruefe("Monteurin: heutiger Einsatz, noch kein Hinweis", await tab.js(
-        "[document.querySelectorAll('#assignmentsList .assign-card').length, document.querySelectorAll('.concern-alert').length]"),
+        "[document.querySelectorAll('#assignmentsList [data-einsatz]').length, document.querySelectorAll('.concern-alert').length]"),
         [1, 0])
     start_bereit = "document.querySelector('#checklistSection .cl-start-buttons button')"
     await tab.oeffnen(f"/checklisten/auftrag/{auftrag}", start_bereit)
@@ -129,13 +129,17 @@ async def pruefen(tab, seed, p):
 
     await _mobil(tab, p, "Monteurin", "light")
     await tab.warten("document.querySelector('.concern-alert')")
-    p.pruefe("Monteurin: Hinweis unter dem Einsatz", await tab.js(
-        "(()=>{const a=document.querySelector('.concern-alert');return [a.previousElementSibling.classList.contains('assign-card'),"
+    p.pruefe("Monteurin: Hinweis in der Einsatzkarte", await tab.js(
+        "(()=>{const a=document.querySelector('.concern-alert');return [!!a.closest('[data-einsatz]'),"
         "a.childNodes[0].textContent, a.querySelector('a').getAttribute('href')]})()"),
         [True, HINWEIS, f"/checklisten/{cid}"])
+    # seit 1.9.45 in der Einsatzkarte mit vollem Rahmen: Rahmen in --ds-fehler, Text in --ds-fehler-text (bis dahin oben ohne Rahmen --
+    # die obere Rahmenfarbe war dann die Textfarbe)
     p.pruefe("Monteurin: Hinweis deutlich (Rahmen und Text in Warnfarbe)", await tab.js(
-        "(()=>{const s=getComputedStyle(document.querySelector('.concern-alert'));return s.borderTopColor===s.color||s.borderLeftColor===s.color})()"),
-        True)
+        "(()=>{const s=getComputedStyle(document.querySelector('.concern-alert')),t=document.createElement('span');document.body.append(t);"
+        "t.style.color='var(--ds-fehler)';const f=getComputedStyle(t).color;t.style.color='var(--ds-fehler-text)';const ft=getComputedStyle(t).color;"
+        "t.remove();return [s.borderTopColor===f,s.borderLeftColor===f,s.color===ft]})()"),
+        [True, True, True])
     p.pruefe("Monteurin: kein waagrechter Scrollbalken", await tab.js("document.documentElement.scrollWidth<=window.innerWidth"), True)
     await tab.bild("1_monteurin_mobil_hinweis")
     p.pruefe("Monteurin: keine JS-Fehler", tab.fehler, [])
