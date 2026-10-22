@@ -1157,3 +1157,13 @@ wiederholt einen Klicktest genau einmal, wenn seine einzige Abweichung solche An
   Prüfungen der Rechnungsseite bleiben bei `frist`. Danach 27 von 27.
 - **Festlegung zu Werkzeug und Testablauf 1.9.26 (Bitte bestätigen)**: ein Klicktest vergleicht ein Datum in der Schreibweise der Seite,
   die er prüft (nicht in einer festen eigenen) -- sonst hängt sein Ergebnis am Kalendertag.
+
+## Bildgrundlage: abgeschnittener Text wechselt die Kantenglättung (Runde 9)
+
+- **Befund**: im Endlauf von Runde 9 wich das Angebot (Büro, hell, 1440 px) in einem Rechteck von 73 × 15 px ab, ohne dass die Seite
+  geändert war. Je zwei weitere Aufnahmen beider Stände (`bildgrundlage.py --nur angebot`, abwechselnd) zeigen zwei Varianten desselben
+  Rechtecks, unabhängig vom Stand, hell wie dunkel: der Text des Knopfs „+ Übernehmen“ ragt über den Knopf hinaus und wird abgeschnitten;
+  an genau dieser Kante wechselt die Kantenglättung zwischen den Läufen.
+- **Folge für den Vergleich**: eine Abweichung nur an abgeschnittenem Text einer nicht geänderten Seite wird durch Wiederholung geklärt
+  (beide Stände je zweimal), nicht als Befund der Runde gewertet. Der abgeschnittene Knopf selbst ist ein alter Darstellungsfehler des
+  Angebots (siehe `docs/archiv/redesign.md`, „Runde 9 abgeschlossen“); mit seiner Behebung verschwindet auch die Unruhe im Bild.

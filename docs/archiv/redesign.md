@@ -3115,3 +3115,33 @@ mit Stufe und Grund. Bildvergleich: außer den Seiten der Runde weicht nichts ab
 1. **Stufe 2 ist abgeschlossen**, wenn jede Seite umgezogen oder mit Stufe und Grund aufgeschoben ist; eine neue Seite kommt umgezogen dazu
    oder in `AUFGESCHOBEN`.
 2. **Gründe der aufgeschobenen Seiten** wie in der Tabelle oben (Kurzfassung nach den vorgegebenen Stufen).
+
+### Runde 9 abgeschlossen: Endläufe, Bildvergleich, Beleg (Stand `f8da8c0`) -- Stufe 2 „Rahmen“ abgeschlossen
+
+- **Endlauf** auf `f8da8c0` bei sauberer Arbeitskopie (vorher und nachher keine Änderung): volle Suite **6679 bestanden, 3 übersprungen,
+  0 rot** (7:21); **Klicktests 80 von 80** wie erwartet (zu viert, 8:13), keine Wiederholung nötig.
+- **Bildvergleich** Rundenstart `4527b7c` gegen `f8da8c0` (volle Bildgrundlage, je 298 Bilder, unmittelbar hintereinander, gleiche
+  Chrome-Version): **207 gleich, 90 abweichend auf den Seiten der Runde, 1 weitere**:
+  - Seiten der Runde: Anfragen, Arbeitsvorbereitung, Checkliste (Büro 4, Monteurin 8), Checklisten zum Auftrag (Büro 4, Monteurin 8), Objekt
+    der Monteursansicht (Büro 4, Monteurin 8), Betriebsmittel der Monteurin 8, Einsatzbericht nur der Monteurin 14 (die vier Bilder des Büros
+    gleich), Konto nur der Monteurin 8 (Büro gleich), Anmeldung 4, Sperrseite 8, Benutzer und Zugriff 4 (der Hinweis bei nur einem
+    Administrator, Punkt 5). Ohne Abweichung: Stammdaten-Formular und Leistung (Punkt 1 ändert nur das Verhalten von „Abbrechen“) und die
+    Einstellungen (der geänderte Outlook-Hinweis steht nicht im aufgenommenen Bereich).
+  - **Die eine weitere**: Angebot, Büro, hell, 1440 px -- Rechteck 73 × 15 px (387 Pixel) im abgeschnittenen Text des Knopfs „+ Übernehmen“
+    in der Leistungssuche. **Kein Befund der Runde, ein Zufall der Darstellung**: das Angebot je zweimal auf beiden Ständen aufgenommen
+    (abwechselnd, `--nur angebot`) -- dasselbe Rechteck wechselt zwischen zwei Varianten, unabhängig vom Stand: hell liefert der Endstand
+    beide (eine seiner Wiederholungen gleicht dem Rundenstart bis aufs Pixel), dunkel der Rundenstart beide (eine Wiederholung weicht genau
+    in diesem Rechteck ab). Das Angebot ist in Runde 9 nicht geändert.
+- **Nebenbefund** (alt, nicht behoben): im Angebot (LV-Editor, 1440 px) bricht in der Leistungssuche der Knopf „+ Übernehmen“ um, wird
+  rechts abgeschnitten („Übernehm…“) und erzeugt einen waagrechten Bildlauf in der Karte. Schon auf `bee5363` (vor Runde 7, vor dem Umzug
+  des Angebots in 1.9.18) so; der abgeschnittene Text ist auch die Stelle, an der die Kantenglättung zwischen zwei Läufen wechselt.
+- **Bilder**: `bildgrundlage/rahmen_runde9_f8da8c0.zip` (16 Dateien): Stammdaten-Formular (Mitarbeiter), Leistung, Anfragen,
+  Arbeitsvorbereitung, Checkliste und Checklisten zum Auftrag (Büro), Benutzer und Zugriff, Sperrseite als Fenster 1440 × 900 hell; Checkliste,
+  Checklisten zum Auftrag, Objekt, Betriebsmittel, Einsatzbericht und Konto der Monteurin 1280 × 620 hell; die Anmeldung 1440 × 900 hell und
+  dunkel. Der Hinweis bei nur einem Administrator ist in den Testdaten sichtbar (ein Admin).
+- Commits der Runde: `ecff1f7` (1.9.23 Abbrechen fragt), `4ee72d0` (1.9.24 Anfragen und Arbeitsvorbereitung), `df8a4b0` (1.9.25
+  Monteursseiten), `1168956` (1.9.26 Klicktest Mahnwesen), `c17fa57` (1.9.27 Anmeldung und Sperrseite), `817278c` (1.9.28 Hinweise ohne
+  interne Dateien), `f8da8c0` (1.9.29 Abschluss Stufe 2).
+- **Nebenbefund** aus einem Teillauf vor dem Commit von 1.9.26: `tests/test_v413_testlauf_parallel.py::test_pg_ein_testlauf_raeumt_zu_beginn_auf`
+  scheiterte einmal in einem kleinen parallelen Lauf weniger Dateien und lief danach einzeln und in allen vollen Läufen grün -- vermutlich ein
+  Wettlauf beim Aufräumen der Testschemas, wenn zwei Arbeitsprozesse fast gleichzeitig beginnen; nicht weiter untersucht.
