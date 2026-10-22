@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.37** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.38** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -533,7 +533,11 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     1.9.32, Betreibervorgabe 22.10.2026): die volle Suite auf genau dem Stand, der committet wird (auch `VERSION`, `CHANGELOG.md`, Doku);
     ist ein Test rot -- auch einer, der mit der Änderung nichts zu tun scheint --, wird er zuerst geklärt, nie trotzdem committet.
     **Befehle hintereinander mit `&&`, nie mit `;`** (Bash wie PowerShell 7): die Kette bricht beim ersten Fehler ab. Anlass: 1.9.26
-    wurde hinter `;` committet, obwohl der Teillauf davor einen roten Test hatte. Klicktests zugleich:
+    wurde hinter `;` committet, obwohl der Teillauf davor einen roten Test hatte. **Vor jedem Commit laufen auch die Klicktests, die
+    eine geänderte Seite berühren** (seit 1.9.38, Betreibervorgabe 22.10.2026): gesucht in `scripts/klicktest_*.py` nach der Vorlage, dem
+    Seitenpfad und den geänderten Funktionen bzw. Element-IDs, jeder Treffer einzeln auf genau dem Stand des Commits; der Bericht nennt sie.
+    Anlass: 1.9.36 machte „Weiter“ im Einsatzbericht asynchron, `klicktest_vertrag_unterschrift` (unterschreibt auch einen
+    Einsatzbericht) lief erst im Endlauf und war rot. Klicktests zugleich:
     `scripts\klicktest_alle.py --gleichzeitig 4`. Messungen und Festlegungen: `docs/archiv/testablauf-und-klicktests.md`. **Seit 1.8.111**
     hat jeder Test eine Zeitgrenze (300 s, `tests/zeitgrenze.py`; `@pytest.mark.zeitgrenze(n)`, `--zeitgrenze SEK`, 0 = aus): ein
     hängender Test beendet seinen Testprozess mit dem Stapel aller Threads, im parallelen Lauf geht der Lauf ohne ihn weiter.

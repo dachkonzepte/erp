@@ -3525,3 +3525,17 @@ Entscheidung offen: so lassen, nur die Zeiten am Tag des Berichts, oder die des 
   „Weiter“ auf die Überschrift „Unterschrift Kunde“ (bis zu 10 s), statt sofort zu prüfen.
 - Ohne Bezug zu dieser Runde, nur genannt: derselbe Klicktest meldet bei „Vorlage: Kennzeichen ändern“ in jedem Lauf (auch allen früheren
   grünen) „warten: nach 15 s nicht erfüllt: … .ctStatus …“ -- die Seite schreibt dort nicht „Gespeichert.“; die Prüfung danach ist grün.
+
+## Stufe 4, R1 Nachrunde (1.9.38–): Entscheidungen von Tobias
+
+Vorgabe vom 22.10.2026: Festlegungen R1 bestätigt, außer 1.9.34 Nr. 3, 1.9.35 Nr. 6 und 1.9.37 Nr. 1–5 -- die ersetzt diese Runde.
+(1) Zeiten im Einsatzbericht: ein Bericht je Tag, alle Zeiten des Auftrags am Tag des Berichts, alle Personen, mit und ohne Plantafel; Seite
+und PDF dieselben Zeilen; mit der Unterschrift gespeichert. (2) Rundung der Gruppenzeiten je Mitglied wie Einzelzeiten, eine Funktion.
+(3) Nur selbst hinzugefügte Prüfpunkte löschbar, Löschknopf 48 × 48 px mit Rückfrage. (4) Zeiterfassung: alte Fehlermeldung weg nach „Ende
+nachtragen“, kein „✓“ nach abgelehntem Start. (5) CLAUDE.md: Klicktests der geänderten Seiten vor jedem Commit.
+
+### Nachrunde Punkt 5 (1.9.38): Klicktests der geänderten Seiten vor jedem Commit
+
+Regel 15 ergänzt: vor jedem Commit zusätzlich zur vollen Suite jeder Klicktest, der eine geänderte Seite berührt (Suche in
+`scripts/klicktest_*.py` nach Vorlage, Seitenpfad, geänderten Funktionen und Element-IDs), auf genau dem Stand des Commits; der Bericht
+nennt sie. Anlass: Endlauf zu 1.9.37 (siehe „R1 Nachtrag“). Keine Festlegung, Betreibervorgabe.
