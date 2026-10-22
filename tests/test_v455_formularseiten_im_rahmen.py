@@ -49,7 +49,8 @@ def test_im_rahmen_mit_bereich_stammdaten(name):
 @pytest.mark.parametrize("name", SEITEN)
 def test_kopf_abbrechen_neutral_speichern_gruen_knopf_unten_bleibt(name):
     aktion = re.search(r'teil == "aktion" %\}(.*?)\{%\s*endif', _call_block(name), flags=re.S).group(1)
-    assert aktion == ('<a class="ds-knopf" id="abbrechenLink" href="{{ zurueck.href }}">Abbrechen</a>'
+    # seit 1.9.23 mit data-klick="abbrechen": fragt bei ungespeicherten Änderungen (tests/test_v456_abbrechen_fragt.py)
+    assert aktion == ('<a class="ds-knopf" id="abbrechenLink" href="{{ zurueck.href }}" data-klick="abbrechen">Abbrechen</a>'
                       '<button type="button" class="ds-knopf ds-knopf-aktion" id="kopfSpeichern" data-klick="speichern">Speichern</button>')
     text = (vj.TEMPLATES / name).read_text(encoding="utf-8")
     assert text.count('<button id="saveBtn" onclick="save()">Speichern</button>') == 1
@@ -85,7 +86,7 @@ def test_pfad_gerendert_und_ziele_oeffnen_sich(threaded_db_session, router_test_
     markup = re.sub(r"<script.*?</script>", "", antwort.text, flags=re.S | re.I)
     nav = re.search(r'<nav class="ds-kopf-pfad" id="seitenkopfPfad" aria-label="Pfad">(.*?)</nav>', markup, flags=re.S).group(1)
     assert [(html.unescape(h), html.unescape(t)) for h, t in re.findall(r'<a class="ds-kopf-pfadglied" href="([^"]*)">([^<]*)</a>', nav)] == glieder
-    abbrechen = re.search(r'<a class="ds-knopf" id="abbrechenLink" href="([^"]*)">Abbrechen</a>', markup).group(1)
+    abbrechen = re.search(r'<a class="ds-knopf" id="abbrechenLink" href="([^"]*)"[^>]*>Abbrechen</a>', markup).group(1)
     assert html.unescape(abbrechen) == glieder[-1][0]
     for ziel, _ in glieder:
         assert client.get(ziel.split("#")[0], follow_redirects=False).status_code == 200, ziel

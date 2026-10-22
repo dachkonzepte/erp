@@ -57,7 +57,8 @@ Geprüft wird im echten Browser auf den Testdaten der Bildgrundlage (scripts/bil
                    Rahmen, hell und dunkel: Leiste („Stammdaten“ aktiv) und Kopfzeile, ein h1, Pfad bis zur Seite (jeder Link öffnet eine
                    Seite), „Abbrechen“ neutral zum bisherigen Zurück-Ziel und „Speichern“ grün im Kopf, der Knopf unten bleibt, Links,
                    Fokus, Kontrast; „Speichern“ oben speichert wie unten (Ziel wie bisher), eine abgelehnte Eingabe zeigt die Meldung im
-                   Bild, „Abbrechen“ führt zurück ohne zu speichern
+                   Bild, „Abbrechen“ führt zurück ohne zu speichern; seit 1.9.23 fragt es „Änderungen verwerfen?“ nur nach einer
+                   Änderung (abgelehnt bleibt die Seite, die Materialsuche der Leistung zählt nicht)
     Seitenregeln   auf den Einstellungen (button:hover und button:active in der Akzentfarbe): Kontoknopf unter der Maus und per
                    Leertaste gedrückt (:active ohne :hover), Menüeintrag unter der Maus -- nie in der Akzentfarbe
     Monteurskopf   auf jeder Seite der Monteurin (Mobil, Objekt, Stundenzettel, Zeiterfassung, Betriebsmittel, Checkliste,
@@ -1139,12 +1140,47 @@ async def _formularseiten(tab, seed, p):
     await tab.js("document.getElementById('kopfSpeichern').click()")
     p.pruefe("Formular Mitarbeiter: „Speichern“ oben speichert und führt zur Liste der Mitarbeiter",
              await tab.warten("location.pathname==='/master-data'&&location.hash==='#employees'", 20), True)
+    # seit 1.9.23: „Abbrechen“ fragt „Änderungen verwerfen?“, aber nur bei ungespeicherten Änderungen (die Rückfrage abgefangen wie beim
+    # Löschen im Datensatzkopf: window.confirm zählt mit und antwortet wie vorgegeben)
+    bereit = ("document.getElementById('seitenkopfTitel').textContent==='Mitarbeiter bearbeiten'&&_abbrechenStand!==null")
+    rueckfrage = "window.__dkRueckfragen=[];window.confirm=t=>{window.__dkRueckfragen.push(t);return %s}"
+    liste = "location.pathname==='/master-data'&&location.hash==='#employees'"
+    # Klick ausgelöst wie vom Nutzer: dispatchEvent meldet false, wenn die Seite preventDefault rief (die Seite bleibt) -- ohne Wartefenster;
+    # der Zustand danach im selben Schritt gelesen (folgte der Link doch, ist die Seite gleich weg)
+    klick = ("(feld=>{const ev=new MouseEvent('click',{bubbles:true,cancelable:true,button:0});"
+             "const verhindert=!document.getElementById('abbrechenLink').dispatchEvent(ev);"
+             "return [verhindert,window.__dkRueckfragen,location.pathname,document.getElementById(feld).value]})(%s)")
     p.pruefe("Formular Mitarbeiter Abbrechen: geladen", await _formular_laden(tab, seed, mitarbeiter, "hell"), True)
-    await tab.warten("document.getElementById('seitenkopfTitel').textContent==='Mitarbeiter bearbeiten'", 10)
-    await tab.js("document.getElementById('lastName').value='Nicht gespeichert';document.getElementById('abbrechenLink').click()")
-    zurueck = await tab.warten("location.pathname==='/master-data'&&location.hash==='#employees'", 20)
+    await tab.warten(bereit, 10)
+    await tab.js(rueckfrage % "false")
+    await tab.js("document.getElementById('abbrechenLink').click()")
+    p.pruefe("Formular Mitarbeiter: „Abbrechen“ ohne Änderung führt ohne Rückfrage zur Liste", await tab.warten(liste, 20), True)
+    p.pruefe("Formular Mitarbeiter Abbrechen: wieder geladen", await _formular_laden(tab, seed, mitarbeiter, "hell"), True)
+    await tab.warten(bereit, 10)
+    await tab.js(rueckfrage % "false")
+    await tab.js("document.getElementById('lastName').value='Nicht gespeichert'")
+    p.pruefe("Formular Mitarbeiter: geändert, „Abbrechen“ fragt „Änderungen verwerfen?“, abgelehnt bleibt die Seite mit der Eingabe",
+             await tab.js(klick % "'lastName'"),
+             [True, ["Änderungen verwerfen?"], f"/master-data/employees/{seed['mitarbeiter']}/edit", "Nicht gespeichert"])
+    await tab.js(rueckfrage % "true")
+    await tab.js("document.getElementById('abbrechenLink').click()")
+    zurueck = await tab.warten(liste, 20)
     gespeichert = await tab.js(f"fetch('/api/employees').then(r=>r.json()).then(l=>l.find(e=>e.id==={seed['mitarbeiter']}).last_name)")
-    p.pruefe("Formular Mitarbeiter: „Abbrechen“ führt zur Liste, nichts gespeichert", [zurueck, gespeichert], [True, "Monteurin"])
+    p.pruefe("Formular Mitarbeiter: bestätigt führt „Abbrechen“ zur Liste, nichts gespeichert", [zurueck, gespeichert], [True, "Monteurin"])
+    # Leistung: eine Eingabe im Kurztext zählt, die Materialsuche nicht
+    p.pruefe("Formular leistung Abbrechen: geladen", await _formular_laden(tab, seed, leistung, "hell"), True)
+    await tab.warten("document.getElementById('seitenkopfTitel').textContent==='Leistung bearbeiten'&&_abbrechenStand!==null", 10)
+    await tab.js(rueckfrage % "false")
+    await tab.js("document.getElementById('materialSearch').value='Bahn';document.getElementById('abbrechenLink').click()")
+    p.pruefe("Formular leistung: nur die Materialsuche geändert -- „Abbrechen“ ohne Rückfrage zum Katalog",
+             [await tab.warten("location.pathname==='/leistungskatalog'", 20), await tab.js("window.__dkRueckfragen||[]")], [True, []])
+    p.pruefe("Formular leistung Abbrechen: wieder geladen", await _formular_laden(tab, seed, leistung, "hell"), True)
+    await tab.warten("document.getElementById('seitenkopfTitel').textContent==='Leistung bearbeiten'&&_abbrechenStand!==null", 10)
+    await tab.js(rueckfrage % "false")
+    await tab.js("document.getElementById('shortText').value='Rinne reinigen und spülen'")
+    p.pruefe("Formular leistung: Kurztext geändert -- „Abbrechen“ fragt, abgelehnt bleibt die Seite",
+             await tab.js(klick % "'shortText'"),
+             [True, ["Änderungen verwerfen?"], f"/services/{seed['leistung']}/edit", "Rinne reinigen und spülen"])
     p.pruefe("Formular: keine JS-Fehler", tab.fehler, [])
     await tab.bild("formularseiten_zuletzt")
 

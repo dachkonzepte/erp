@@ -4,6 +4,16 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.23 – Formularseiten: „Abbrechen“ fragt bei ungespeicherten Änderungen
+
+Stufe 2, Runde 9, Punkt 1 (ersetzt Festlegung 1.9.22 Nr. 5). „Abbrechen“ im Kopf von Stammdaten-Formular und Leistung fragt
+„Änderungen verwerfen?“, aber nur, wenn es ungespeicherte Änderungen gibt: der neue Baustein `_abbrechen.html` merkt am Ende des Ladens den
+Stand der Felder des Formulars (`abbrechenEinrichten()`) und vergleicht beim Klick; zurückgeändert gilt als unverändert. Mit dazu zählen
+vorgemerkte Zeilen, die erst das Speichern schickt (Material einer neuen Leistung, Dokumente eines neuen Betriebsmittels), nicht die Felder,
+über die man eine Zeile erst hinzufügt (`data-ohne-stand`). Abgelehnt bleibt die Seite mit allen Eingaben, bestätigt folgt der Link seinem
+bisherigen Ziel; ein Klick mit Strg/Cmd (neuer Tab) fragt nicht. Neuer Test `test_v456` (gegen 1.9.22 vier von vier rot), Klicktest
+`klicktest_rahmen` Teil „formularseiten“ erweitert.
+
 ## 1.9.22 – Rahmen, Runde 8: Stammdaten-Formular und Leistung im Rahmen
 
 Stufe 2, Runde 8, Punkt 3 (Entscheidung 5 der Seitenprüfung). Die Formularseiten Stammdaten-Formular (Anlegen und Bearbeiten aller

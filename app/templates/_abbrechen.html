@@ -1,0 +1,33 @@
+{#- „Abbrechen“ einer Formularseite (seit 1.9.23, Stufe 2, Runde 9): fragt „Änderungen verwerfen?“, aber nur, wenn es ungespeicherte
+    Änderungen gibt.
+
+    abbrechenEinrichten(wurzel, zusatz) -- am Ende des Ladens aufgerufen -- merkt den Stand jedes Felds unter wurzel (Wert, Häkchen, gewählte
+    Dateien; ein Feld mit data-ohne-stand zählt nicht, z. B. die Suche, über die man eine Zeile erst hinzufügt) und, wenn angegeben,
+    zusatz() (Stand außerhalb der Felder, z. B. vorgemerkte Zeilen, die erst das Speichern schickt). Das Element mit
+    data-klick="abbrechen" (ein Link zum bisherigen Zurück-Ziel) fragt danach nur, wenn sich der Stand unterscheidet: abgelehnt bleibt die
+    Seite (preventDefault), bestätigt folgt der Link seinem Ziel. Ein Klick mit Strg, Umschalt, Alt oder Cmd öffnet den Link anderswo und
+    verwirft nichts -- dann keine Frage. Vor dem Ende des Ladens (oder wenn es scheiterte) fragt „Abbrechen“ nie. Braucht _aktionen.html.
+    Geprüft in tests/test_v456_abbrechen_fragt.py. -#}
+<script>
+function formularStand(wurzel, zusatz) {
+  const felder = [...(wurzel ? wurzel.querySelectorAll('input, select, textarea') : [])]
+    .filter(f => !('ohneStand' in (f.dataset || {})))
+    .map(f => {
+      if (f.type === 'checkbox' || f.type === 'radio') return f.checked ? '1' : '0';
+      if (f.type === 'file') return [...(f.files || [])].map(d => d.name + ':' + d.size).join('|');
+      return f.value;
+    });
+  return JSON.stringify([felder, zusatz ? zusatz() : null]);
+}
+let _abbrechenStand = null;
+function abbrechenEinrichten(wurzel, zusatz) {
+  _abbrechenStand = {wurzel, zusatz, stand: formularStand(wurzel, zusatz)};
+}
+function ungespeicherteAenderungen() {
+  return !!_abbrechenStand && formularStand(_abbrechenStand.wurzel, _abbrechenStand.zusatz) !== _abbrechenStand.stand;
+}
+aktion('abbrechen', (el, ev) => {
+  if (ev && (ev.ctrlKey || ev.shiftKey || ev.altKey || ev.metaKey)) return;
+  if (ungespeicherteAenderungen() && !confirm('Änderungen verwerfen?')) ev.preventDefault();
+});
+</script>

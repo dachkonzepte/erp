@@ -2743,6 +2743,7 @@ Ausführlich in `docs/archiv/testablauf-und-klicktests.md`, „Testdaten der Bil
 4. **„Speichern“ oben = derselbe Weg wie unten**; bleibt die Seite stehen, rückt die Meldung unten ins Bild -- sonst sähe man oben nach einer
    abgelehnten Eingabe nichts.
 5. **„Abbrechen“ ohne Rückfrage** zum bisherigen Zurück-Ziel (wie der Zurück-Link bisher); Speichern unten bleibt mit seiner Meldung.
+   -- **Nicht bestätigt** (Runde 9): ersetzt durch 1.9.23, „Abbrechen“ fragt bei ungespeicherten Änderungen.
 6. **Importierte Leistung**: oben nur „Abbrechen“ (wie unten kein Speichern).
 
 ### Runde 8 abgeschlossen: Endläufe, Bildvergleich, Beleg (Stand `dc0224c`)
@@ -2764,3 +2765,62 @@ Ausführlich in `docs/archiv/testablauf-und-klicktests.md`, „Testdaten der Bil
   eine Anfrage der Seite „Checklisten je Auftrag“ nie beim Server an (`/api/checklists/startable-templates`, „Server: nicht angekommen“) --
   derselbe Befund wie in Runde 6, Punkt 2. Die Wiederholung (1.9.19) griff dort nicht, weil derselbe Lauf eine zweite, echte Abweichung
   hatte (die Meldung nach „Speichern“ oben, siehe Punkt 3); der Teil lief danach einzeln und im Endlauf grün.
+
+## Runde 9 (Festlegungen 1.9.20 bis 1.9.22 bestätigt, außer 1.9.22 Nr. 5) -- letzte Runde des Rahmens
+
+Auftrag (22.10.2026): 1. Formularseiten: „Abbrechen“ fragt „Änderungen verwerfen?“, nur bei ungespeicherten Änderungen, mit einem Test,
+der vorher scheitert; 2. Seitenkopf von Anfragen und Arbeitsvorbereitung (diese mit Pfad über Projekt und Auftrag, Kennung und Status);
+3. Monteursseiten, die bleiben (Checkliste, Checklisten zum Auftrag, Objekt der Monteursansicht, Betriebsmittel der Monteurin): Seitenkopf
+im Monteursrahmen mit Tablet-Maßen (Pfad 15 px, Titel 26 px, Knöpfe mindestens 48 px), Pfad zurück zu „Einsätze“ bzw. zum Auftrag; 4.
+Anmeldung und Sperrseite: `.ds-seite`, Bildmarke mit Schriftzug, neuer Untertitel der Anmeldung, auf der Sperrseite nichts doppelt; 5.
+„Benutzer und Zugriff“: der Hinweis nennt keine internen Dateien; 6. Abschluss Stufe 2: Wächter, jede Seite umgezogen oder aufgeschoben
+mit Stufe und Grund. Bildvergleich: außer den Seiten der Runde weicht nichts ab.
+
+### Punkt 1 (1.9.23): „Abbrechen“ fragt bei ungespeicherten Änderungen
+
+- Neuer Baustein `app/templates/_abbrechen.html` (braucht `_aktionen.html`): `abbrechenEinrichten(wurzel, zusatz)` merkt am Ende des Ladens
+  den Stand jedes Felds unter `wurzel` -- Wert, Häkchen, gewählte Dateien; ein Feld mit `data-ohne-stand` zählt nicht -- und, wenn
+  angegeben, `zusatz()`; der Link „Abbrechen“ (`data-klick="abbrechen"`, `href` unverändert das bisherige Zurück-Ziel) vergleicht beim
+  Klick: unterscheidet sich der Stand, fragt `confirm('Änderungen verwerfen?')`; abgelehnt `preventDefault()` (die Seite bleibt mit allen
+  Eingaben), bestätigt folgt der Link. Vor dem Ende des Ladens (oder wenn es scheiterte) gibt es keinen Stand und keine Frage; ein Klick
+  mit Strg, Umschalt, Alt oder Cmd (neuer Tab oder Fenster) verwirft nichts und fragt nicht.
+- **Stammdaten-Formular**: Stand über `#form` am Ende von `init()`; vorgemerkte Dokumente eines neuen Betriebsmittels zählen mit
+  (`pendingAssetDocuments`), die Felder zum Vormerken (Art, Datei, Bemerkung) nicht. **Leistung**: Stand über `#editableArea`; Material
+  einer neuen Leistung zählt mit (geht erst mit dem Speichern hinaus; beim Bearbeiten speichert „+ Hinzufügen“ sofort), die Felder zum
+  Hinzufügen (Suche, Auswahl, Menge, Verschnitt) nicht.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v456_abbrechen_fragt.py` (4 Tests): die vom Server gezeichnete Seite läuft in node bis zum Ende von `init()` (Stammdaten-
+  Formular „Lieferant anlegen“, „Leistung anlegen“), danach der Klick auf „Abbrechen“: vor dem Laden keine Frage, ohne Änderung keine Frage
+  und kein `preventDefault`, nach einer Änderung die Frage -- abgelehnt verhindert, bestätigt nicht --, mit Strg keine Frage,
+  zurückgeändert keine Frage; Materialsuche zählt nicht, vorgemerktes Material und Kurztext zählen; Stand am Ende von `init()` über die
+  Felder des Formulars, Hilfsfelder mit `data-ohne-stand`. **Gegen 1.9.22: 4 von 4 rot** („Abbrechen“ ohne Aktion, kein Stand).
+- `klicktest_rahmen` Teil `formularseiten` erweitert: Mitarbeiter -- „Abbrechen“ ohne Änderung ohne Rückfrage zur Liste; Nachname geändert:
+  Rückfrage „Änderungen verwerfen?“, abgelehnt bleibt die Seite mit der Eingabe (der ausgelöste Klick meldet `preventDefault`, der Zustand
+  im selben Schritt gelesen -- kein Wartefenster), bestätigt zur Liste, nichts gespeichert; Leistung -- nur die Materialsuche geändert: ohne
+  Rückfrage zum Katalog, Kurztext geändert: Rückfrage, abgelehnt bleibt die Seite. 87 von 87.
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück): „Abbrechen“ fragt immer (J1), nie (J2), Materialsuche zählt mit (J3), Stand
+  über die ganze Seite statt `#form` (J4), vorgemerktes Material zählt nicht (J5) -- **5 von 5 rot** in pytest (FAILED, `test_v456`), der
+  Klicktest-Teil für J1–J3 rot (85, ..., 86 von 87: ohne Änderung gefragt bzw. nicht weiter; geändert nicht gefragt; Suche gefragt); J4 und J5
+  zeigt der Browser nicht (die ganze Seite enthält das Formular; die Testdaten legen keine neue Leistung mit Material an). **Selbst gefunden**:
+  unter J2 stürzte der Klicktest ab (die Seite folgte dem Link, bevor der Zustand gelesen war), statt die Abweichung zu melden -- seither
+  liest er Klick und Zustand in einem Schritt; danach meldete J2 seine zwei Abweichungen.
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v455::test_kopf_abbrechen_neutral_speichern_gruen_knopf_unten_bleibt`: alt `<a class="ds-knopf" id="abbrechenLink" href="{{
+    zurueck.href }}">Abbrechen</a>`; neu mit `data-klick="abbrechen"`.
+  - `test_v455::test_pfad_gerendert_und_ziele_oeffnen_sich` und `test_v436::test_zurueck_link_mit_echtem_ziel`: nur der Aufbau -- das
+    Muster des Links lässt weitere Attribute nach `href` zu.
+  - `klicktest_rahmen` (formularseiten): alt „Abbrechen“ mit geändertem Nachnamen führt ohne Frage zur Liste; neu fragt es, abgelehnt bleibt
+    die Seite, bestätigt zur Liste.
+- **Attrappe der node-Tests** (`tests/test_v334_auswahl_restfaelle.py`): `BAUSTEINE` um `_abbrechen.html` (eine Seite, die ihn einbindet,
+  bekommt ihn auch im Test).
+
+#### Festlegungen 1.9.23 (Bitte bestätigen)
+
+1. **Gefragt wird nur bei „Abbrechen“**; Pfad, Leiste und Kopfzeile verlassen die Seite wie bisher ohne Frage.
+2. **Ungespeichert = Stand der Felder des Formulars nach dem Laden ungleich jetzt** -- zurückgeändert gilt als unverändert; vorgemerkte
+   Zeilen zählen, Felder zum Hinzufügen nicht.
+3. **Frage als Ja/Nein-Dialog des Browsers** (`confirm`, wie „wirklich löschen?“, Regel 4): „Änderungen verwerfen?“, OK verwirft.
+4. **Klick mit Strg/Cmd/Umschalt/Alt** (neuer Tab oder Fenster) fragt nicht -- die Seite bleibt ja offen.
+5. **Vor dem Ende des Ladens fragt „Abbrechen“ nie.**

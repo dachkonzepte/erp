@@ -47,11 +47,12 @@ th{font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700}
 <main>
 {# Seit 1.9.22 (Stufe 2, Runde 8; Entscheidung 5 der Seitenprüfung): die Formularseite im Rahmen -- Leiste (Bereich Stammdaten),
    Kopfzeile, Seitenkopf mit Pfad (Stammdaten / Leistungskataloge / Leistungskatalog, am Ende die Seite selbst, gesetzt von titel()); im Kopf „Abbrechen“ (neutral, zum
-   bisherigen Zurück-Ziel) und „Speichern“ (grün, dasselbe save() wie der Knopf unten, der bleibt). Felder und Speichern unverändert. #}
+   bisherigen Zurück-Ziel) und „Speichern“ (grün, dasselbe save() wie der Knopf unten, der bleibt). Felder und Speichern unverändert.
+   Seit 1.9.23 fragt „Abbrechen“ „Änderungen verwerfen?“, wenn es ungespeicherte Änderungen gibt (_abbrechen.html). #}
 {% from "teile/seitenkopf.html" import seitenkopf %}
 {% call(teil) seitenkopf("Leistung anlegen", mit_pfad=true, mit_aktion=true) %}
   {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/master-data">Stammdaten</a><span class="ds-kopf-trenner" aria-hidden="true">/</span><a class="ds-kopf-pfadglied" href="/master-data#catalogs">Leistungskataloge</a><span class="ds-kopf-trenner" aria-hidden="true">/</span><a class="ds-kopf-pfadglied" href="/leistungskatalog">Leistungskatalog</a>
-  {% elif teil == "aktion" %}<a class="ds-knopf" id="abbrechenLink" href="{{ zurueck.href }}">Abbrechen</a><button type="button" class="ds-knopf ds-knopf-aktion" id="kopfSpeichern" data-klick="speichern">Speichern</button>{% endif %}
+  {% elif teil == "aktion" %}<a class="ds-knopf" id="abbrechenLink" href="{{ zurueck.href }}" data-klick="abbrechen">Abbrechen</a><button type="button" class="ds-knopf ds-knopf-aktion" id="kopfSpeichern" data-klick="speichern">Speichern</button>{% endif %}
 {% endcall %}
 <div class="wrap">
   <p id="help" class="muted"></p>
@@ -91,10 +92,10 @@ th{font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700}
         <tbody id="materialRows"></tbody>
       </table>
       <div class="addRow">
-        <div class="field" style="flex:2 1 220px"><label>Material suchen</label><input id="materialSearch" oninput="searchMaterials()" placeholder="Name oder Artikelnummer …"></div>
-        <div class="field" style="flex:2 1 220px"><label>Auswahl</label><select id="materialPick"><option value="">— suchen, dann wählen —</option></select></div>
-        <div class="field" style="width:110px"><label>Menge</label><input id="materialQty" type="text" inputmode="decimal" data-zahl data-feld="Materialmenge" value="1"></div>
-        <div class="field" style="width:110px"><label>Verschnitt %</label><input id="materialWaste" type="text" inputmode="decimal" data-zahl value="0"></div>
+        <div class="field" style="flex:2 1 220px"><label>Material suchen</label><input id="materialSearch" data-ohne-stand oninput="searchMaterials()" placeholder="Name oder Artikelnummer …"></div>
+        <div class="field" style="flex:2 1 220px"><label>Auswahl</label><select id="materialPick" data-ohne-stand><option value="">— suchen, dann wählen —</option></select></div>
+        <div class="field" style="width:110px"><label>Menge</label><input id="materialQty" data-ohne-stand type="text" inputmode="decimal" data-zahl data-feld="Materialmenge" value="1"></div>
+        <div class="field" style="width:110px"><label>Verschnitt %</label><input id="materialWaste" data-ohne-stand type="text" inputmode="decimal" data-zahl value="0"></div>
         <button type="button" onclick="addMaterialRow()">+ Hinzufügen</button>
       </div>
     </div>
@@ -138,6 +139,7 @@ th{font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700}
 {% include "_speichern.html" %}
 {% include "_zahl.html" %}
 {% include "_aktionen.html" %}
+{% include "_abbrechen.html" %}
 {% include "_seitenkopf.html" %}
 <script>
 // Seit 1.8.113 auch für None "null": default() greift nur bei fehlender Variable -- /services/new übergibt None, die Seite brach bis
@@ -250,6 +252,9 @@ async function init() {
     el('help').textContent = 'Wird direkt im gewählten Katalog gespeichert.';
     recalc();
   }
+  // seit 1.9.23: Stand nach dem Laden merken -- „Abbrechen“ fragt nur bei ungespeicherten Änderungen (_abbrechen.html). Material
+  // einer neuen Leistung zählt mit (es geht erst mit dem Speichern hinaus); beim Bearbeiten speichert „+ Hinzufügen“ sofort.
+  abbrechenEinrichten(el('editableArea'), () => editing ? null : materialRows.map(r => [r.materialId, r.quantity, r.wastePct]));
 }
 
 function renderDefaults() {

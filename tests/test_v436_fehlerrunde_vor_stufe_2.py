@@ -135,7 +135,7 @@ def test_zurueck_link_mit_echtem_ziel(threaded_db_session, router_test_client, a
     if adresse.startswith(("/master-data/", "/services/")):
         assert 'class="back' not in markup
         glied = re.findall(r'<a class="ds-kopf-pfadglied" href="([^"]*)">([^<]*)</a>', markup)[-1]
-        abbrechen = re.search(r'<a class="ds-knopf" id="abbrechenLink" href="([^"]*)">Abbrechen</a>', markup).group(1)
+        abbrechen = re.search(r'<a class="ds-knopf" id="abbrechenLink" href="([^"]*)"[^>]*>Abbrechen</a>', markup).group(1)
         assert [html.unescape(glied[0]), html.unescape(glied[1]), html.unescape(abbrechen)] == [ziel, name, ziel]
         return
     links = re.findall(r'<a[^>]*class="back"[^>]*>(.*?)</a>', markup, flags=re.S)
