@@ -55,6 +55,9 @@ UMGEZOGEN |= UNTERMENUE_LINKS | ZURUECK_UND_KARTE
 # seit 1.9.22 die Formularseiten Stammdaten-Formular und Leistung im Rahmen (K7; Neues Projekt und Neues Angebot werden Dialoge)
 FORMULARSEITEN = {"master_data_form.html", "service_form.html"}
 UMGEZOGEN |= FORMULARSEITEN
+# seit 1.9.24 Anfragen (K9) und Arbeitsvorbereitung (K4)
+ANFRAGEN_UND_ARBEITSVORBEREITUNG = {"inquiries.html", "work_preparation.html"}
+UMGEZOGEN |= ANFRAGEN_UND_ARBEITSVORBEREITUNG
 
 
 # ---------------------------------------------------------------------------

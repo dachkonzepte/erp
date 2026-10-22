@@ -58,7 +58,7 @@ def test_service_reports_html_has_a_general_link_color_rule():
 
 def test_work_preparation_html_has_a_general_link_color_rule():
     html = (TEMPLATES / "work_preparation.html").read_text(encoding="utf-8")
-    assert "a{color:var(--accent)}" in _style_block(html)
+    assert "a{color:var(--ds-link)}" in _style_block(html)  # seit 1.9.24 (Runde 9, Seitenkopf): Links in --ds-link, bis dahin --accent
     delivery_start = html.index("function renderDelivery(")
     delivery_end = html.index("\n", delivery_start)
     assert 'href="/api/project-documents/${x.project_document_id}/view"' in html[delivery_start:delivery_end]
@@ -76,5 +76,6 @@ def test_more_specific_link_styles_are_still_present_and_unaffected():
     assert ".report-actions a{" in service_reports_html
 
     work_preparation_html = (TEMPLATES / "work_preparation.html").read_text(encoding="utf-8")
-    assert ".top-actions a{" in work_preparation_html
-    assert ".delivery-tag a{" in work_preparation_html
+    # seit 1.9.24 (Runde 9): .top-actions a entfällt -- die Links des alten Kopfs sind Pfad und Menü des Seitenkopfs (ds.css)
+    assert ".top-actions a{" not in work_preparation_html and 'class="ds-kopf-pfadglied"' in work_preparation_html
+    assert ".delivery-tag a{color:var(--ds-link)}" in work_preparation_html

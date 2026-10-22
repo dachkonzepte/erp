@@ -4,6 +4,15 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.24 – Rahmen, Runde 9: Seitenkopf von Anfragen und Arbeitsvorbereitung
+
+Stufe 2, Runde 9, Punkt 2. Anfragen (bis dahin ohne Seitentitel, zuerst die Kennzahlen) und Arbeitsvorbereitung (Titel als fettes `div` in
+einem eigenen Kopf mit „← Auftrag“, „Projektmappe“ und dem Status roh, z. B. „in_planung“) tragen `.ds-seite` und den gemeinsamen
+Seitenkopf. Anfragen: Titel und Untertitel über den Kennzahlen, keine Hauptaktion. Arbeitsvorbereitung: Pfad Projekte / Kunde / Projekt /
+Auftrag / Arbeitsvorbereitung (der Kunde aus dem Auftrag), Kennung = Auftragsnummer, Status der Arbeitsvorbereitung als Kennzeichen (neue
+Gruppe in `_statuskennzeichen.html`: Offen, In Planung, Bereit, In Ausführung, Abgeschlossen), „Zeiterfassung (Auftrag)“ im Menü, die
+Kennzahlen unter dem Kopf. Links in `--ds-link`, Fokus in `--ds-fokus`. Klicktest `klicktest_rahmen` Teil „anfragen_av“.
+
 ## 1.9.23 – Formularseiten: „Abbrechen“ fragt bei ungespeicherten Änderungen
 
 Stufe 2, Runde 9, Punkt 1 (ersetzt Festlegung 1.9.22 Nr. 5). „Abbrechen“ im Kopf von Stammdaten-Formular und Leistung fragt

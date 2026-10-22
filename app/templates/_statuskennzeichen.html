@@ -40,6 +40,11 @@ function statusTabelle() {
     checklistenvorlage: { entwurf: ['Entwurf', 'entwurf'], veroeffentlicht: ['Veröffentlicht', 'erledigt'], archiviert: ['Archiviert', 'ruht'] },
     pruefvorlage: { archiviert: ['Archiviert', 'ruht'] },
     dachflaeche: { archiviert: ['Archiviert', 'ruht'] },
+    // seit 1.9.24: Stand einer Arbeitsvorbereitung (Auswahl „Status“ der Seite, work_preparations.status; der Server schreibt selbst nur offen)
+    arbeitsvorbereitung: {
+      offen: ['Offen', 'wartet'], in_planung: ['In Planung', 'laeuft'], bereit: ['Bereit', 'erledigt'], in_ausfuehrung: ['In Ausführung', 'laeuft'],
+      abgeschlossen: ['Abgeschlossen', 'erledigt'],
+    },
     betriebsmittel: {
       pruefung_ueberfaellig: ['Prüfung überfällig', 'fehler'], pruefung_faellig: ['Prüfung fällig', 'wartet'], inaktiv: ['Inaktiv', 'ruht'],
     },

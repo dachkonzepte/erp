@@ -59,6 +59,9 @@ Geprüft wird im echten Browser auf den Testdaten der Bildgrundlage (scripts/bil
                    Fokus, Kontrast; „Speichern“ oben speichert wie unten (Ziel wie bisher), eine abgelehnte Eingabe zeigt die Meldung im
                    Bild, „Abbrechen“ führt zurück ohne zu speichern; seit 1.9.23 fragt es „Änderungen verwerfen?“ nur nach einer
                    Änderung (abgelehnt bleibt die Seite, die Materialsuche der Leistung zählt nicht)
+    Anfragen, AV   seit 1.9.24 Anfragen (Titel über den Kennzahlen) und Arbeitsvorbereitung (Pfad Projekte / Kunde / Projekt / Auftrag /
+                   Arbeitsvorbereitung, Kennung, Status als Kennzeichen, Zeiterfassung im Menü) hell und dunkel: ein h1, Pfad (jeder Link
+                   öffnet eine Seite), kein alter Kopf, keine Hauptaktion, Links, Fokus, Kontrast; der Status wechselt nach dem Speichern
     Seitenregeln   auf den Einstellungen (button:hover und button:active in der Akzentfarbe): Kontoknopf unter der Maus und per
                    Leertaste gedrückt (:active ohne :hover), Menüeintrag unter der Maus -- nie in der Akzentfarbe
     Monteurskopf   auf jeder Seite der Monteurin (Mobil, Objekt, Stundenzettel, Zeiterfassung, Betriebsmittel, Checkliste,
@@ -74,7 +77,7 @@ AUFRUF (aus dem Projektordner):
         [--arbeitsordner PFAD] [--chrome PFAD] [--offen-lassen]
 
 --nur: nur diese Teile (seitenleiste, aktiv, schrift, menueknopf, kopfzeile, kontomenue, vollname, pruefvorlagen, kopfgruppe,
-seitenregeln, monteurskopf, datensatzkopf, rechnungskopf, angebotskopf, untermenue, formularseiten) -- für
+seitenregeln, monteurskopf, datensatzkopf, rechnungskopf, angebotskopf, untermenue, formularseiten, anfragen_av) -- für
 Gegenproben, die nach 2 min
 abbrechen (Regel 24).
 
@@ -1185,11 +1188,70 @@ async def _formularseiten(tab, seed, p):
     await tab.bild("formularseiten_zuletzt")
 
 
+# Seit 1.9.24: Seitenkopf von Anfragen und Arbeitsvorbereitung
+ANFRAGEN_AV = (
+    dict(seite="anfragen", titel="Anfragen", kennung="", untertitel="Vertriebsfälle von der Anfrage bis zum Projekt", pfad=[],
+         status=["", "neutral"], menue=[]),
+    dict(seite="arbeitsvorbereitung", titel="Arbeitsvorbereitung", kennung="{auftragsnummer}", untertitel="P-2026-0001 · Dachsanierung Halle Nord",
+         pfad=[["Projekte", "/projects"], ["Hallenbau GmbH", "/customers/{kunde}"], ["Dachsanierung Halle Nord", "/projects/{projekt}#sec-orders"],
+               ["{auftragsnummer}", "/orders/{auftrag}"], ["Arbeitsvorbereitung", None]],
+         status=["Offen", "signal"], menue=["Zeiterfassung (Auftrag)"]),
+)
+
+
+async def _anfragen_av(tab, seed, p):
+    """Seit 1.9.24: Anfragen (Titel über den Kennzahlen, keine Hauptaktion) und Arbeitsvorbereitung (Pfad Projekte / Kunde / Projekt /
+    Auftrag / Arbeitsvorbereitung, Kennung = Auftragsnummer, Status der Arbeitsvorbereitung als Kennzeichen, „Zeiterfassung (Auftrag)“ im
+    Menü, Kennzahlen unter dem Kopf), hell und dunkel: .ds-seite, ein h1, jeder Link im Pfad öffnet eine Seite, Links, Fokus, Kontrast; dazu
+    (hell) der Status wechselt nach „Status“ + Speichern im Kopf mit (In Planung, info), die Kennzahlen der Anfragen stehen unter dem Kopf."""
+    await tab.cmd("Emulation.setFocusEmulationEnabled", enabled=True)
+    await tab.anmelden(seed["cookies"][bg.BUERO])
+    werte = None
+    for f in ANFRAGEN_AV:
+        for thema in ("hell", "dunkel"):
+            wo = f"Kopf {f['seite']} {thema}"
+            p.pruefe(f"{wo}: geladen", await _laden(tab, seed, f["seite"], thema, 1440, 900), True)
+            if werte is None:
+                werte = await _datensatz_werte(tab, seed)
+            soll = lambda s: s.format(**werte) if isinstance(s, str) else s  # noqa: E731
+            m = await tab.js(DATENSATZKOPF_JS)
+            p.pruefe(f"{wo}: .ds-seite, genau ein h1 „{f['titel']}“, Kennung, Untertitel, Status „{f['status'][0]}“",
+                     [m["ds"], m["h1"], m["kennung"], m["untertitel"], m["status"][:2]],
+                     [True, [["seitenkopfTitel", f["titel"]]], soll(f["kennung"]), f["untertitel"], f["status"]])
+            pfad = [[soll(t), soll(h) if h else None, None if h else "page"] for t, h in f["pfad"]]
+            p.pruefe(f"{wo}: Pfad {' / '.join(g[0] for g in pfad) or '—'}, kein alter Kopf (.hero, .top-actions)",
+                     [m["pfad"], await tab.js("document.querySelectorAll('.hero,.top-actions,#statusPill').length")], [pfad, 0])
+            offen = await tab.js(PFAD_OEFFNEN)
+            p.pruefe(f"{wo}: jeder Link im Pfad öffnet eine Seite ({len(offen)} Links)",
+                     [o for o in offen if o[1:] != [200, False, "text/html"]], [])
+            p.pruefe(f"{wo}: keine Hauptaktion, Menü {f['menue'] or '—'}", [m["aktion"], m["menue"]], [[], f["menue"]])
+            p.pruefe(f"{wo}: {m['links']} Textlinks im Inhalt, alle in --ds-link", m["falsch"], [])
+            fokus = await tab.js(KOPFGRUPPE_FOKUS)
+            p.pruefe(f"{wo}: erstes Feld mit Fokus im Umriss --ds-fokus", fokus if fokus == "kein Feld" else fokus[1],
+                     "kein Feld" if fokus == "kein Feld" else True)
+            k = await tab.js(KONTRAST)
+            p.pruefe(f"{wo}: Kontrast ({k['anzahl']} Elemente, kleinster {k['min']} : 1)", k["schwach"], [])
+            if thema == "hell" and f["seite"] == "anfragen":
+                p.pruefe(f"{wo}: die Kennzahlen stehen unter dem Kopf", await tab.js(
+                    "(()=>{const k=document.getElementById('seitenkopf').getBoundingClientRect(),m=document.querySelector('.metric-grid').getBoundingClientRect();"
+                    "return [m.top>=k.bottom,document.getElementById('metricOpen')!==null]})()"), [True, True])
+            if thema == "dunkel" and f["seite"] == "arbeitsvorbereitung":  # zuletzt: das Speichern ändert den Status
+                p.pruefe(f"{wo}: Menü „Zeiterfassung (Auftrag)“ mit dem Auftrag", await tab.js(
+                    "document.getElementById('timeLink').getAttribute('href')"), f"/time-tracking?order_id={seed['auftrag']}")
+                await tab.warte_auf_neu_geladene_liste(
+                    "document.getElementById('prepStatus').value='in_planung';saveHeader()", None)
+                p.pruefe(f"{wo}: Status „In Planung“ gespeichert -- der Kopf wechselt mit (info)", await tab.js(
+                    "[document.getElementById('seitenkopfStatus').textContent,document.getElementById('seitenkopfStatus').className]"),
+                    ["In Planung", "ds-status ds-status-info"])
+            p.pruefe(f"{wo}: keine JS-Fehler", tab.fehler, [])
+    await tab.bild("anfragen_av_zuletzt")
+
+
 TEILE = {"seitenleiste": _seitenleiste, "aktiv": _aktiv, "schrift": _schrift, "menueknopf": _menueknopf, "kopfzeile": _kopfzeile,
          "kontomenue": _kontomenue, "vollname": _vollname, "pruefvorlagen": _pruefvorlagen, "kopfgruppe": _kopfgruppe,
          "seitenregeln": _seitenregeln, "monteurskopf": _monteurskopf, "datensatzkopf": _datensatzkopf,
          "rechnungskopf": _rechnungskopf, "angebotskopf": _angebotskopf, "untermenue": _untermenue,
-         "formularseiten": _formularseiten}
+         "formularseiten": _formularseiten, "anfragen_av": _anfragen_av}
 NUR: list = []
 
 

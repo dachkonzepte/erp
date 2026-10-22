@@ -2824,3 +2824,58 @@ mit Stufe und Grund. Bildvergleich: außer den Seiten der Runde weicht nichts ab
 3. **Frage als Ja/Nein-Dialog des Browsers** (`confirm`, wie „wirklich löschen?“, Regel 4): „Änderungen verwerfen?“, OK verwirft.
 4. **Klick mit Strg/Cmd/Umschalt/Alt** (neuer Tab oder Fenster) fragt nicht -- die Seite bleibt ja offen.
 5. **Vor dem Ende des Ladens fragt „Abbrechen“ nie.**
+
+### Punkt 2 (1.9.24): Seitenkopf von Anfragen und Arbeitsvorbereitung
+
+- **Anfragen** (befund-rahmen.md K9, bis dahin ohne Seitentitel): Titel „Anfragen“ mit Untertitel über den Kennzahlen; keine Hauptaktion
+  (es gab keinen Kopf) -- „Neue Anfrage“ bleibt die Karte darunter, „Aktualisieren“ bei der Pipeline.
+- **Arbeitsvorbereitung** (K4, bis dahin `.hero` mit fettem `div` als Titel, „← Auftrag“, „Projektmappe“, „Zeiterfassung (Auftrag)“ als
+  umrandete Links, Status roh als Pille): Pfad Projekte / Kunde / Projekt / Auftrag / Arbeitsvorbereitung -- den Kunden nennt erst der
+  Auftrag, die Seite lädt dafür zusätzlich `GET /api/orders/{id}` (fehlt er, steht der Pfad ohne Kunden); das Projekt führt wie bis
+  dahin „Projektmappe“ auf den Reiter Aufträge (`#sec-orders`, `test_v064`); Kennung = Auftragsnummer;
+  Untertitel wie bis dahin „Projektnummer · Projektname“; Status der Arbeitsvorbereitung über `statusKennzeichen('arbeitsvorbereitung', …)`;
+  „Zeiterfassung (Auftrag)“ im Menü (wie am Einsatzbericht, `#timeLink` mit dem Auftrag); die sechs Kennzahlen in der Zeile unter dem Kopf.
+  Ändert das Büro den Status und speichert, zeichnet `render()` den Kopf mit (über `kopfZeichnen()`).
+- Neue Gruppe `arbeitsvorbereitung` in `_statuskennzeichen.html`: Offen (wartet auf dich), In Planung (läuft), Bereit (erledigt), In
+  Ausführung (läuft), Abgeschlossen (erledigt).
+- Links in `--ds-link` (`a{…}`, `.delivery-tag a`), Fokus in `--ds-fokus` auf beiden Seiten; tote Regeln `.hero`, `.grow`, `.top-actions`
+  entfernt.
+
+| Seite | Pfad | Hauptaktion | Menü „⋮“ |
+|---|---|---|---|
+| Anfragen | -- | -- | -- |
+| Arbeitsvorbereitung | Projekte / Kunde / Projekt / Auftrag / Arbeitsvorbereitung | -- | Zeiterfassung (Auftrag) |
+
+#### Tests und Prüfung
+
+- `test_v441`: `UMGEZOGEN` um die 2 Seiten (`ANFRAGEN_UND_ARBEITSVORBEREITUNG`, 37 Seiten).
+- `test_v446::RUECKWEGE` um die Arbeitsvorbereitung (Projekte, Kunde, Projekt, Auftrag; jedes Ziel eine Seite für Büro – Auftrag).
+- `test_v445::test_jeder_wert_des_servers_steht_in_der_tabelle` um die Arbeitsvorbereitung (jede Option der Auswahl „Status“ und der Wert,
+  den der Server schreibt).
+- `klicktest_rahmen` Teil `anfragen_av` (neu): beide Seiten hell und dunkel bei 1440 × 900 -- `.ds-seite`, ein h1, Kennung, Untertitel,
+  Status (Arbeitsvorbereitung: „Offen“, signal), Pfad mit Zielen (jeder Link öffnet eine Seite), kein alter Kopf, keine Hauptaktion, Menü,
+  Links, Fokus, Kontrast; die Kennzahlen der Anfragen unter dem Kopf; „Zeiterfassung (Auftrag)“ mit dem Auftrag; Status „In Planung“
+  gespeichert -> der Kopf zeigt „In Planung“ (info). 39 von 39. Dazu die Klicktests, die die Seiten öffnen (`klicktest_arbeitsvorbereitung`,
+  `klicktest_auswahl_inaktiv`, `klicktest_zahleneingaben`): 3 von 3.
+- **Selbst gefunden** (volle Suite vor dem Commit): `test_v064` verlangt den Sprung der Arbeitsvorbereitung auf den Reiter Aufträge der
+  Projektmappe (`#sec-orders`) -- das Pfad-Glied des Projekts führte zuerst nur auf `/projects/{id}`; seither mit `#sec-orders`.
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück): Pfad der Arbeitsvorbereitung ohne Kunden (K1); Status roh statt über das
+  Kennzeichen (K2); Fokus der Anfragen wieder in `--ds-aktion` (K3); Gruppe ohne „bereit“ (K4) -- **4 von 4 rot** in pytest (FAILED:
+  `test_v446` Rückwege, `test_v445` Status nur über das Kennzeichen, `test_v441` Fokus, `test_v445` Werte des Servers), der Klicktest-Teil
+  für K1–K3 rot (37, 36, 37 von 39); K4 zeigt der Browser nicht (die Testdaten stehen auf „offen“).
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v441::UMGEZOGEN`: alt 35 Seiten; neu dazu die 2.
+  - `test_v259::test_work_preparation_html_has_a_general_link_color_rule`: alt `a{color:var(--accent)}`; neu `a{color:var(--ds-link)}`.
+  - `test_v259::test_more_specific_link_styles_are_still_present_and_unaffected` (Arbeitsvorbereitung): alt `.top-actions a{` und
+    `.delivery-tag a{` vorhanden; neu kein `.top-actions a{` (Pfad-Link statt dessen), `.delivery-tag a{color:var(--ds-link)}`.
+
+#### Festlegungen 1.9.24 (Bitte bestätigen)
+
+1. **Anfragen: Titel „Anfragen“, Untertitel „Vertriebsfälle von der Anfrage bis zum Projekt“**, keine Hauptaktion, die Kennzahlen unter
+   dem Kopf.
+2. **Arbeitsvorbereitung: Pfad Projekte / Kunde / Projekt / Auftrag / Arbeitsvorbereitung** (wie Rechnung und Einsatzbericht), Kennung =
+   Auftragsnummer, Untertitel „Projektnummer · Projektname“ wie bis dahin.
+3. **Status im Kopf = Status der Arbeitsvorbereitung** (nicht der des Auftrags): Offen wartet auf dich (signal), In Planung und In
+   Ausführung laufen (info), Bereit und Abgeschlossen erledigt (ok).
+4. **„Zeiterfassung (Auftrag)“ ins Menü**, „← Auftrag“ und „Projektmappe“ in den Pfad; keine Hauptaktion (der Kopf hatte keine grüne).
+5. **Die sechs Kennzahlen unter dem Kopf** (für den Kopf zu viele; an der Rechnung drei, am Angebot vier im Kopf).
