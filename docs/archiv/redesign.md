@@ -3208,3 +3208,24 @@ und Klicktests auf sauberer Arbeitskopie für Teil A. Bericht je Punkt. Dazu als
    Rahmen 16 px -- auch Menü „⋮“, Kontomenü und Suchergebnisse.
 4. **Angeschlossene Kästen** (Hinweis und Link unter einer Einsatzkarte) nur unten rund, die Karte darüber unten eckig.
 5. **Kein `overflow: hidden`** an Karten.
+
+### Nachtrag Stufe 2 abgeschlossen: Endlauf, Bildvergleich, Beleg (Stand `6d81016`)
+
+- **Commits**: `e495046` (1.9.30 Karten mit Ecken), `f94afec` (1.9.31 Testschemas ohne Zeitfenster), `6d81016` (1.9.32 Commit nur nach
+  grünem Lauf). Vor jedem Commit lief die volle Suite auf genau dem Stand, der committet wurde (Regel 15, seit 1.9.32 ausdrücklich), bei
+  1.9.30 zweimal (vor und nach der Doku).
+- **Endlauf** auf `6d81016` bei sauberer Arbeitskopie (vorher und nachher keine Änderung): volle Suite **6687 bestanden, 3 übersprungen,
+  0 rot** (7:14); **Klicktests 80 von 80** wie erwartet (zu viert, 8:06), keine Wiederholung nötig.
+- **Bildvergleich** Stand vor Teil A (`cb27ba5`, Worktree) gegen `6d81016` (volle Bildgrundlage, je 298 Bilder, unmittelbar hintereinander,
+  gleiche Chrome-Version): **alle Bildgrößen gleich** (kein Layout verschoben); 8 Bilder gleich (Prüfvorlagen -- hatten die Ecke schon --
+  und `/mobil` des Büros ohne Karte im Bild); **258 weichen nur in Eckzwickeln ab** (jede zusammenhängende Abweichung höchstens 18 × 18 px,
+  automatisch geprüft); **32 zusätzlich entlang ganzer Ränder** -- alle aus den Ecken: gestrichelte Ränder verteilen ihre Striche entlang
+  des gerundeten Rands neu (leere Listen, „Positionen ohne Titel“ im Angebot), Kästen mit verschieden breiten oder halbtransparenten Rändern
+  werden mit Ecke als Pfad gezeichnet (Fragen der Checkliste mit Pflichtstrich links, Hinweis am Auftrag, Erfolgskasten im Backoffice), und
+  Schatten folgen der Ecke (Kontomenü im Monteursrahmen 16 statt 12 px, Fußleiste der Checkliste). Alle 2842 Flecken dieser 32 Bilder
+  eingeordnet: 2722 Eckzwickel, 34 Randlinien (höchstens 3 px), 86 Rahmen um einen Kasten oder Schattenzonen an Ecken (bis 36 px) --
+  stichprobenweise je Art im Bild nachgesehen (Checkliste, Angebot, Backoffice, Auftrag, Zeiterfassung, Kontomenü, Fußleiste). Sichtbar
+  ändern sich nur die Ecken.
+- **Bilder**: `bildgrundlage/nachtrag_stufe2_6d81016.zip` (20 Dateien): die neun Seiten der Monteurin als Fenster 1280 × 620 und
+  800 × 1100 hell (`monteursseiten_heute/`), die Projektmappe 1440 × 900 hell vorher (`cb27ba5`) und nachher (`ecken_vorher_nachher/`).
+- **Teil B**: Befund Stufe 4 „Monteurin“ in `docs/archiv/befund-monteurin.md` (nur Befund, nichts am Programm geändert).
