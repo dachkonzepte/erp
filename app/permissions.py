@@ -87,6 +87,7 @@ def default_home_page_for_role(role: str | None) -> str:
     return "/mobil" if role == ROLE_FIELD else "/"
 
 _DEFAULT_MESSAGE = "Für deine Rolle nicht verfügbar."
+ROLLE_NICHT_VERFUEGBAR = _DEFAULT_MESSAGE  # seit 1.9.27: die Sperrseite zeigt diese allgemeine Meldung nicht (app/main.py)
 
 
 def has_role(user: AppUser | None, *roles: str) -> bool:

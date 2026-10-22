@@ -12,16 +12,20 @@
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);display:grid;min-height:100vh;place-items:center}
 .card{width:min(430px,calc(100% - 30px));background:var(--card);border:1px solid var(--line);padding:28px}
-h1{margin:0 0 10px;font-size:20px}
 p{margin:0 0 18px;color:var(--muted);font-size:14px;line-height:1.5}
-a.button{display:inline-block;border:1px solid var(--ds-aktion);padding:11px 16px;background:var(--ds-aktion);color:#fff;font-weight:650;font-size:13.5px;text-decoration:none}
-a.button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-color:color-mix(in srgb,var(--ds-aktion) 85%,black)}
 </style></head>
-<body>
+<body class="ds-seite">
 <div class="card">
-  <h1>Diese Seite ist für deine Rolle nicht verfügbar</h1>
-  <p>{{ message or "Brauchst du diese Seite, wende dich an eine Person mit den passenden Rechten." }}</p>
-  <a class="button" href="{{ home_url or '/' }}">Zur Startseite</a>
+  {# Seit 1.9.27 (Stufe 2, Runde 9): Bildmarke mit Schriftzug und der gemeinsame Seitenkopf. Titel und Text sagen nicht zweimal dasselbe
+     (bis dahin „Diese Seite ist für deine Rolle nicht verfügbar“ und darunter meist „Für deine Rolle nicht verfügbar.“): der Titel
+     sagt, dass es keinen Zugriff gibt, der Text nur einen genaueren Grund (die allgemeine Meldung lässt app/main.py weg) und was zu tun ist. #}
+  {% include "_marke.html" %}
+  {% from "teile/seitenkopf.html" import seitenkopf %}
+  {{ seitenkopf("Kein Zugriff auf diese Seite") }}
+  {% if message %}<p>{{ message }}</p>{% endif %}
+  <p>Brauchst du sie, wende dich an eine Person mit den passenden Rechten.</p>
+  <a class="ds-knopf ds-knopf-aktion" href="{{ home_url or '/' }}">Zur Startseite</a>
 </div>
+{% include "_seitenkopf.html" %}
 </body>
 </html>

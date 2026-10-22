@@ -12,23 +12,25 @@
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);display:grid;min-height:100vh;place-items:center}
 .card{width:min(430px,calc(100% - 30px));background:var(--card);border:1px solid var(--line);padding:28px}
-h1{margin:0 0 4px;font-size:22px}
 label{display:block;font-size:13px;font-weight:650;color:var(--muted);margin:14px 0 6px}
 input{width:100%;padding:10px 11px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;font-size:13.5px}
 input:hover{border-color:var(--field-border-hover)}
-input:focus{outline:2px solid var(--ds-aktion);outline-offset:-1px;border-color:var(--ds-aktion)}
+input:focus{outline:2px solid var(--ds-fokus);outline-offset:-1px;border-color:var(--ds-fokus)}
 button{width:100%;margin-top:18px;border:1px solid var(--ds-aktion);padding:11px;background:var(--ds-aktion);color:#fff;font-weight:650;cursor:pointer;font-size:13.5px}
 button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-color:color-mix(in srgb,var(--ds-aktion) 85%,black)}
-button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
-.muted{color:var(--muted);font-size:12.5px}
+button:focus-visible{outline:2px solid var(--ds-fokus);outline-offset:2px}
 .err{color:var(--danger);font-size:13px;margin-top:10px;font-weight:600}
-a{color:var(--accent)}
+a{color:var(--ds-link)}
 </style>
 </head>
-<body>
+<body class="ds-seite">
 <div class="card">
-  <h1>DACHKONZEPTE ERP</h1>
-  <div class="muted">Anmeldung für personengenaue Änderungshistorie</div>
+  {# Seit 1.9.27 (Stufe 2, Runde 9): Bildmarke mit Schriftzug statt „DACHKONZEPTE ERP“ als Überschrift, darunter der gemeinsame
+     Seitenkopf -- Titel „Anmelden“, Untertitel „Melde dich mit deinem Benutzernamen an.“ (bis dahin „Anmeldung für personengenaue
+     Änderungshistorie“). #}
+  {% include "_marke.html" %}
+  {% from "teile/seitenkopf.html" import seitenkopf %}
+  {{ seitenkopf("Anmelden", untertitel="Melde dich mit deinem Benutzernamen an.") }}
   <label>Benutzername</label><input id="u" autofocus>
   <label>Passwort</label><input id="p" type="password" onkeydown="if(event.key==='Enter')login()">
   <button onclick="login()">Anmelden</button>
@@ -38,6 +40,7 @@ a{color:var(--accent)}
 </div>
 {% include "_speichern.html" %}
 {% include "_weiterleitung.html" %}
+{% include "_seitenkopf.html" %}
 <script>
 async function login(){
   const r=await speichern('anmeldung',()=>fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.getElementById('u').value,password:document.getElementById('p').value})}));

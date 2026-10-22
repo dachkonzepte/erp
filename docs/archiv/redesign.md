@@ -2970,3 +2970,67 @@ mit Stufe und Grund. Bildvergleich: außer den Seiten der Runde weicht nichts ab
 6. **Checklisten zum Auftrag**: Titel „Checklisten zum Auftrag“, Kennung Auftragsnummer, Untertitel Kunde.
 7. **Objekt und Betriebsmittel**: der Name als Titel (aus der Karte genommen); Objekt-Abschnitte als h2; leere Karten verborgen; „Nicht
    einsatzbereit“ direkt unter dem Kopf.
+
+### Punkt 4 (1.9.27): Anmeldung und Sperrseite
+
+- **Beide Seiten** (ohne Leiste und Kopfzeile, die Karte mittig): `<body class="ds-seite">`, in der Karte oben die Bildmarke mit
+  Schriftzug (neuer Baustein `_marke.html`: Kachel 44 px, weiß mit Rand wie in Leiste und Monteurskopf, darin `_bildmarke.html`;
+  daneben „DACHKONZEPTE“ in Archivo 700 und „Rödchen GmbH · ERP“ in den Farben der Karte -- hell und dunkel lesbar; die Regeln mit `svg`
+  stehen im Baustein, `ds.css` nimmt nur Klassen `.ds-…`, Regel 37), darunter der gemeinsame Seitenkopf ohne Pfad (Titel 30 px). Text
+  in IBM Plex Sans (die Grundregeln von `.ds-seite`), Links in `--ds-link`, Fokus in `--ds-fokus`. Die Karte bleibt eckig wie auf den
+  übrigen umgezogenen Seiten.
+- **Anmeldung**: Titel „Anmelden“, Untertitel „Melde dich mit deinem Benutzernamen an.“ (bis dahin h1 „DACHKONZEPTE ERP“ und „Anmeldung
+  für personengenaue Änderungshistorie“). Felder und der grüne Knopf „Anmelden“ unverändert (Knopf über die ganze Breite unter den
+  Feldern, keine Aktion im Kopf); `<title>` bleibt „DACHKONZEPTE ERP – Anmeldung“.
+- **Sperrseite**: bis dahin h1 „Diese Seite ist für deine Rolle nicht verfügbar“ und darunter die Meldung der Prüfung -- fast immer die
+  Vorgabe von `require_role()`/`require_min_role()` „Für deine Rolle nicht verfügbar.“, also zweimal dasselbe; nur ohne Meldung stand
+  „Brauchst du diese Seite, wende dich …“ da. Jetzt: Titel „Kein Zugriff auf diese Seite“; die allgemeine Meldung lässt der 403-Handler
+  in `app/main.py` weg (Vergleich mit `app/permissions.py::ROLLE_NICHT_VERFUEGBAR`, der Vorgabe beider Prüfungen), eine genauere (z. B.
+  `require_admin()`: „Diese Aktion ist nur für Administratoren verfügbar.“) steht einmal unter dem Titel; darunter immer „Brauchst du sie,
+  wende dich an eine Person mit den passenden Rechten.“ und „Zur Startseite“ als grüne Hauptaktion (`.ds-knopf.ds-knopf-aktion`, Ziel wie
+  bisher die Startseite der Rolle). `<title>` bleibt „DACHKONZEPTE ERP – Kein Zugriff“.
+
+| Seite | Pfad | Hauptaktion | Menü „⋮“ |
+|---|---|---|---|
+| Anmeldung | -- | „Anmelden“ (unter den Feldern) | -- |
+| Sperrseite | -- | „Zur Startseite“ (unter dem Text) | -- |
+
+#### Tests und Prüfung
+
+- `test_v441`: `UMGEZOGEN` um die 2 Seiten (`ANMELDUNG_UND_SPERRSEITE`, 43 Seiten).
+- Neu `tests/test_v458_anmeldung_und_sperrseite.py` (7 Tests): beide Seiten `.ds-seite` mit `_marke.html`; die Marke mit Bildmarke,
+  Schriftzug und weißer Kachel, Regeln im Baustein; Anmeldung gerendert mit Marke vor dem Kopf vor den Feldern, h1 „Anmelden“, Untertitel,
+  ohne den alten Text, Felder und Knopf unverändert; Sperrseite hinter dem 403-Handler für `require_role()` und `require_min_role()`: genau
+  der Titel, kein „nicht verfügbar“, „Zugriff“ einmal, der sichtbare Text vollständig; `require_admin()` zeigt seine Meldung einmal zwischen
+  Titel und Hinweis; „Zur Startseite“ grün mit der Startseite der Rolle; `ROLLE_NICHT_VERFUEGBAR` ist die Vorgabe beider Prüfungen.
+- `klicktest_rahmen` Teil `anmeldung` (neu): Anmeldung ohne Anmeldung und Sperrseite als Monteurin auf `/projects`, je 1440 × 900 und
+  412 × 915, hell und dunkel -- `.ds-seite`, Grund `--ds-grund`, ein h1 in Archivo 30 px, Untertitel, Text in IBM Plex Sans, kein alter Kopf,
+  kein waagrechter Bildlauf; Marke mit Schriftzug, Kachel 44 × 44 weiß, über dem Kopf; Anmeldung: Knopf grün, Fokus im Benutzernamen in
+  `--ds-fokus`; Sperrseite: darunter nur der Hinweis, kein „nicht verfügbar“, „Zur Startseite“ grün 40 px nach `/mobil` (Klick öffnet
+  `/mobil`); Kontrast in der Karte. 57 von 57.
+- Betroffene Klicktests (Anmeldung, Sperrseite, Schriften, Beteiligte, Abnahme, Versandprotokoll, Navigation der Monteurin, neue Ordnung,
+  Ersteinrichtung, Akzentfarbe, Feierabend, fremde Seite, Anmeldung abgelaufen): **15 von 15** wie erwartet (zu 4 zugleich, 1:59).
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück): alter Untertitel der Anmeldung (M1); allgemeine Meldung wieder unter dem
+  Titel der Sperrseite (M2); Sperrseite ohne Bildmarke (M3); Anmeldung ohne `.ds-seite` (M4); Kachel der Marke in der Kartenfarbe statt
+  weiß (M5) -- in pytest **5 von 5 rot** (FAILED; `test_v458`, M4 dazu `test_v441`), im Klicktest-Teil **5 von 5 rot** (53, 53, 49, 53,
+  53 von 57).
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v441::UMGEZOGEN`: alt 41 Seiten; neu dazu die 2.
+  - `test_v260::test_403_on_a_page_route_renders_access_denied_html_not_json`: alt „Diese Seite ist für deine Rolle nicht verfügbar“ im
+    HTML; neu „Kein Zugriff auf diese Seite“.
+  - `klicktest_beteiligte` („Monteur: Formularseite gesperrt“): alt „nicht verfügbar“ im Text der Seite; neu „Kein Zugriff auf diese Seite“.
+  - `klicktest_ds_schriften`: alt „Schrift der Seite unverändert (keine neue Familie)“ -- kein Archivo/Plex in der Schrift von `body` --
+    und „vorher nichts geladen“ (0 geladene Schriften); neu „Schrift der Seite IBM Plex Sans“ und „vorher nur die Familien der Seite
+    geladen“ (nach `document.fonts.ready` genau Archivo und IBM Plex Sans). Die Anmeldung ist umgezogen, die Seite lädt die Schriften
+    des Design-Systems selbst.
+
+#### Festlegungen 1.9.27 (Bitte bestätigen)
+
+1. **Bildmarke mit Schriftzug auf Seiten ohne Leiste** (`_marke.html`): Kachel 44 px weiß mit Rand, „DACHKONZEPTE“ / „Rödchen GmbH · ERP“
+   in den Farben der Karte, über dem Seitenkopf -- heute Anmeldung und Sperrseite.
+2. **Anmeldung**: Titel „Anmelden“, Untertitel „Melde dich mit deinem Benutzernamen an.“; „Anmelden“ bleibt der breite grüne Knopf unter
+   den Feldern, keine Aktion im Kopf.
+3. **Sperrseite**: Titel „Kein Zugriff auf diese Seite“; die allgemeine Meldung der Rollenprüfung entfällt, eine genauere steht einmal
+   darunter; danach immer „Brauchst du sie, wende dich an eine Person mit den passenden Rechten.“; „Zur Startseite“ grüne Hauptaktion unter
+   dem Text.
+4. **Karten bleiben eckig** auf beiden Seiten, wie auf den übrigen umgezogenen Seiten (Ecken der Karten sind nicht Teil von Stufe 2).

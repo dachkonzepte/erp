@@ -12,7 +12,7 @@ from .anmeldeschranke import (  # noqa: F401
 )
 from .auth import warn_if_secret_key_mismatches_file
 from .design_dateien import einbinden as _design_dateien_einbinden
-from .permissions import default_home_page_for_role
+from .permissions import ROLLE_NICHT_VERFUEGBAR, default_home_page_for_role
 from .catalogs import backfill_existing_services, ensure_import_catalog
 from .database import DATABASE_URL, Base, SessionLocal, engine
 from . import grunddaten
@@ -205,7 +205,10 @@ async def _role_check_403_shows_access_denied_page(request: Request, exc: HTTPEx
         home_url = "/" if user is None else default_home_page_for_role(user.role)
         return await run_in_threadpool(
             pages.templates.TemplateResponse, request=request, name="access_denied.html",
-            context={"message": exc.detail if isinstance(exc.detail, str) else None, "home_url": home_url},
+            # seit 1.9.27: die allgemeine Meldung sagt nur, was der Titel der Sperrseite schon sagt -- dann ohne Meldung, nur der
+            # Hinweis, was zu tun ist; eine genauere (z. B. „nur für Administratoren“) bleibt
+            context={"message": exc.detail if isinstance(exc.detail, str) and exc.detail != ROLLE_NICHT_VERFUEGBAR else None,
+                     "home_url": home_url},
             status_code=403,
         )
     return await http_exception_handler(request, exc)

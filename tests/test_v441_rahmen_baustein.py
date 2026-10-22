@@ -61,6 +61,9 @@ UMGEZOGEN |= ANFRAGEN_UND_ARBEITSVORBEREITUNG
 # seit 1.9.25 die Monteursseiten, die bleiben (im Monteursrahmen mit Tablet-Maßen; Checkliste und Checklisten zum Auftrag auch fürs Büro)
 MONTEURSSEITEN = {"checklist.html", "checklist_order.html", "mobil_objekt.html", "operational_asset_field.html"}
 UMGEZOGEN |= MONTEURSSEITEN
+# seit 1.9.27 Anmeldung und Sperrseite (ohne Leiste und Kopfzeile; Bildmarke mit Schriftzug aus _marke.html über dem Seitenkopf)
+ANMELDUNG_UND_SPERRSEITE = {"login.html", "access_denied.html"}
+UMGEZOGEN |= ANMELDUNG_UND_SPERRSEITE
 
 
 # ---------------------------------------------------------------------------

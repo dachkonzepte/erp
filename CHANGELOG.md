@@ -4,6 +4,17 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.27 – Rahmen, Runde 9: Anmeldung und Sperrseite
+
+Stufe 2, Runde 9, Punkt 4. Anmeldung und Sperrseite tragen `.ds-seite`, darüber die Bildmarke mit Schriftzug (neuer Baustein
+`_marke.html`: weiße Kachel mit der Bildmarke, „DACHKONZEPTE“ und „Rödchen GmbH · ERP“ wie in der Leiste) und darunter den gemeinsamen
+Seitenkopf. Die Anmeldung heißt „Anmelden“ mit dem Untertitel „Melde dich mit deinem Benutzernamen an.“ (bis dahin die Überschrift
+„DACHKONZEPTE ERP“ und „Anmeldung für personengenaue Änderungshistorie“). Auf der Sperrseite sagten Titel und Text meist zweimal dasselbe
+(„Diese Seite ist für deine Rolle nicht verfügbar“ und darunter die Vorgabe der Rollenprüfung „Für deine Rolle nicht verfügbar.“): der
+Titel heißt jetzt „Kein Zugriff auf diese Seite“, die allgemeine Meldung lässt `app/main.py` weg (`ROLLE_NICHT_VERFUEGBAR`), eine genauere
+wie „nur für Administratoren“ steht einmal da, darunter immer, was zu tun ist; „Zur Startseite“ ist die grüne Hauptaktion. Neuer Test
+`test_v458`, Klicktest `klicktest_rahmen` Teil „anmeldung“.
+
 ## 1.9.26 – Klicktest Mahnwesen: Frist im Format der Seite
 
 Gefunden in Runde 9 (nicht Teil des Auftrags): `klicktest_veraltete_antworten` wurde am 22.10.2026 rot -- auch auf dem Stand vor der Runde.

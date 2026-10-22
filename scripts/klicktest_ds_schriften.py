@@ -3,8 +3,10 @@ Redesigns, Vorgabe vom 19.10.2026, Punkt 7).
 
     ds.css          die Anmeldeseite bindet /static/ds/ds.css?v=<Prüfsumme> ein (bis 1.9.1 ?v=<Version>; seit 1.8.161 danach
                     ds-basis.css, wirksam erst mit
-                    .ds-seite; seit 1.9.5 ds-alte-namen.css): --ds-grund hell #EEF0F1, dunkel #121619; die Schrift der Seite bleibt,
-                    wie sie ist; --accent zeigt seit 1.9.5 auf --ds-aktion-text (bis 1.9.4 die Akzentfarbe aus den Einstellungen)
+                    .ds-seite; seit 1.9.5 ds-alte-namen.css): --ds-grund hell #EEF0F1, dunkel #121619; die Schrift der Seite ist seit
+                    1.9.27 IBM Plex Sans (.ds-seite, bis dahin die alte Schrift), vor dem Laden sind nur Archivo und IBM Plex Sans
+                    geladen (Titel und Text der Seite); --accent zeigt seit 1.9.5 auf --ds-aktion-text (bis 1.9.4 die Akzentfarbe aus
+                    den Einstellungen)
     Schriften       document.fonts.load() lädt Archivo 500/600/700, IBM Plex Sans 400/500/600 und IBM Plex Mono 400/500 -- je mit
                     deutschem Text (latin) und mit "ŐŁ" (latin-ext); danach meldet document.fonts.check() alle als geladen, 16 woff2
                     kamen mit 200
@@ -63,9 +65,13 @@ async def pruefen(tab, seed, p):
     # seit 1.9.5 färbt die Akzentfarbe der Einstellungen die Oberfläche nicht mehr: --accent kommt zentral aus ds-alte-namen.css
     p.pruefe("--accent zeigt auf --ds-aktion-text, nicht auf die Akzentfarbe der Einstellungen",
              [(await tab.js(token.format("--accent"))).lower(), seed["akzent"].lower() != "#2a5c2b"], ["#2a5c2b", True])
+    # seit 1.9.27 ist die Anmeldung umgezogen (.ds-seite): Text in IBM Plex Sans, Titel und Schriftzug in Archivo -- bis dahin die
+    # alte Schrift und vor dem Laden keine Schrift des Design-Systems
     schrift = await tab.js("getComputedStyle(document.body).fontFamily")
-    p.pruefe("Schrift der Seite unverändert (keine neue Familie)", any(f in schrift for f in ("Archivo", "Plex")), False)
-    p.pruefe("vorher nichts geladen", await tab.js("[...document.fonts].filter(f=>f.status==='loaded').length"), 0)
+    p.pruefe("Schrift der Seite IBM Plex Sans", schrift.split(",")[0].strip().strip('"'), "IBM Plex Sans")
+    p.pruefe("vorher nur die Familien der Seite geladen", await tab.js(
+        "document.fonts.ready.then(()=>[...new Set([...document.fonts].filter(f=>f.status==='loaded')"
+        ".map(f=>f.family.replace(/\"/g,'')))].sort())"), ["Archivo", "IBM Plex Sans"])
 
     for familie, gewicht in SCHNITTE:
         p.pruefe(f"{familie} {gewicht} latin", await tab.js(_laden(familie, gewicht, "Dachfläche Größe 1.250,00 € „Signal“")),

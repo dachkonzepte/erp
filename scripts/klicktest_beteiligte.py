@@ -224,7 +224,8 @@ async def pruefen(tab, seed, p):
     await tab.oeffnen("/mobil", "document.readyState==='complete'")
     p.pruefe("Monteur: API gesperrt", await tab.js(f"Promise.all(['/api/contacts','/api/projects/{projekt}/participants','/api/project-participant-roles'].map(u=>fetch(u).then(r=>r.status))).then(s=>s.join())"), "403,403,403")
     await tab.oeffnen("/master-data/contacts/new", "document.readyState==='complete'")
-    p.pruefe("Monteur: Formularseite gesperrt", "nicht verfügbar" in (await tab.js("document.body.innerText") or ""), True)
+    # seit 1.9.27 heißt die Sperrseite „Kein Zugriff auf diese Seite“ (bis dahin „… für deine Rolle nicht verfügbar“)
+    p.pruefe("Monteur: Formularseite gesperrt", "Kein Zugriff auf diese Seite" in (await tab.js("document.body.innerText") or ""), True)
 
 
 if __name__ == "__main__":

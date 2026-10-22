@@ -67,6 +67,10 @@ Geprüft wird im echten Browser auf den Testdaten der Bildgrundlage (scripts/bil
                    nach dem Laden (Einsätze, die Checkliste über „Checklisten zum Auftrag“; jeder Link öffnet eine Seite), Kennung, Status,
                    „PDF“ nur ohne Entwurf, kein alter Kopf, Links, Fokus, Kontrast; Checkliste und Checklisten zum Auftrag auch fürs Büro
                    (gewohnter Kopf 13/30/40 px, Pfad über Checklisten und den Auftrag)
+    Anmeldung      seit 1.9.27 Anmeldung (ohne Anmeldung) und Sperrseite (Monteurin auf /projects) bei 1440 und 412 px, hell und
+                   dunkel: .ds-seite, Bildmarke mit Schriftzug in weißer Kachel über dem Seitenkopf, ein h1 in Archivo 30 px, Text in
+                   IBM Plex Sans, Kontrast in der Karte; Anmeldung mit Untertitel „Melde dich mit deinem Benutzernamen an.“ und Fokus
+                   in --ds-fokus; Sperrseite ohne doppelten Text, „Zur Startseite“ grün nach /mobil
     Seitenregeln   auf den Einstellungen (button:hover und button:active in der Akzentfarbe): Kontoknopf unter der Maus und per
                    Leertaste gedrückt (:active ohne :hover), Menüeintrag unter der Maus -- nie in der Akzentfarbe
     Monteurskopf   auf jeder Seite der Monteurin (Mobil, Objekt, Stundenzettel, Zeiterfassung, Betriebsmittel, Checkliste,
@@ -82,7 +86,8 @@ AUFRUF (aus dem Projektordner):
         [--arbeitsordner PFAD] [--chrome PFAD] [--offen-lassen]
 
 --nur: nur diese Teile (seitenleiste, aktiv, schrift, menueknopf, kopfzeile, kontomenue, vollname, pruefvorlagen, kopfgruppe,
-seitenregeln, monteurskopf, datensatzkopf, rechnungskopf, angebotskopf, untermenue, formularseiten, anfragen_av, monteursseiten) -- für
+seitenregeln, monteurskopf, datensatzkopf, rechnungskopf, angebotskopf, untermenue, formularseiten, anfragen_av, monteursseiten,
+anmeldung) -- für
 Gegenproben, die nach 2 min
 abbrechen (Regel 24).
 
@@ -1340,13 +1345,77 @@ async def _monteursseiten(tab, seed, p):
                 p.pruefe(f"{wo}: keine JS-Fehler", tab.fehler, [])
     await tab.bild("monteursseiten_zuletzt")
 
+ANMELDUNG_JS = """(()=>{const F=%s;const cs=e=>getComputedStyle(e);const k=document.getElementById('seitenkopf');const m=document.querySelector('.marke');
+const ka=m&&m.querySelector('.marke-kachel');const r=e=>e.getBoundingClientRect();const t=document.getElementById('seitenkopfTitel');
+const erste=s=>s.split(',')[0].replace(/"/g,'').trim();
+return {ds:document.body.classList.contains('ds-seite'),h1:[...document.querySelectorAll('h1')].map(e=>e.textContent.trim()),
+ untertitel:document.getElementById('seitenkopfUntertitel').textContent,titel:[cs(t).fontSize,erste(cs(t).fontFamily)],
+ marke:m?[m.querySelector('.marke-name').textContent,m.querySelector('.marke-zusatz').textContent,!!ka.querySelector('svg'),
+   Math.round(r(ka).width),Math.round(r(ka).height),cs(ka).backgroundColor,erste(cs(m.querySelector('.marke-name')).fontFamily)]:null,
+ vorKopf:!!(m&&k&&(m.compareDocumentPosition(k)&Node.DOCUMENT_POSITION_FOLLOWING)),schrift:erste(cs(document.body).fontFamily),
+ grund:cs(document.body).backgroundColor===F('--ds-grund'),ohneBildlauf:document.documentElement.scrollWidth<=window.innerWidth,
+ alt:document.querySelectorAll('.muted,.button').length}})()"""
+# Farben und Maß eines Elements gegen --ds-Werte: [Höhe, Grund = --ds-aktion, Schrift = --ds-auf-aktion]
+GRUENER_KNOPF = """(e=>{const F=%s;const cs=getComputedStyle(e);return [Math.round(e.getBoundingClientRect().height),
+ cs.backgroundColor===F('--ds-aktion'),cs.color===F('--ds-auf-aktion'),e.className,e.getAttribute('href')]})"""
+FOKUS_FELD = """(e=>{const F=%s;e.focus();const cs=getComputedStyle(e);return [document.activeElement===e,cs.outlineStyle,
+ cs.outlineColor===F('--ds-fokus')]})"""
+# KONTRAST misst unter main -- Anmeldung und Sperrseite haben keins, dort die Karte
+KONTRAST_KARTE = KONTRAST.replace("'main *, #seitenkopfMenue *'", "'.card *'")
+MARKE = ["DACHKONZEPTE", "Rödchen GmbH · ERP", True, 44, 44, "rgb(255, 255, 255)", "Archivo"]
+
+
+async def _anmeldung(tab, seed, p):
+    """Seit 1.9.27: Anmeldung (ohne Anmeldung) und Sperrseite (Monteurin auf /projects) bei 1440 × 900 und 412 × 915, hell und dunkel:
+    .ds-seite, die Bildmarke mit Schriftzug in weißer Kachel (44 px) über dem Seitenkopf, ein h1 in Archivo 30 px, Text in IBM Plex Sans,
+    kein waagrechter Bildlauf, Kontrast in der Karte. Anmeldung: Titel „Anmelden“, Untertitel „Melde dich mit deinem Benutzernamen an.“,
+    Fokus im Benutzernamen in --ds-fokus, der grüne Knopf „Anmelden“. Sperrseite: Titel „Kein Zugriff auf diese Seite“, darunter nur,
+    was zu tun ist (nichts doppelt, kein „nicht verfügbar“), „Zur Startseite“ als grüne Hauptaktion nach /mobil."""
+    await tab.cmd("Emulation.setFocusEmulationEnabled", enabled=True)
+    fall = [("anmeldung", {}, "Anmelden", "Melde dich mit deinem Benutzernamen an."),
+            ("sperrseite", seed["cookies"][bg.MONTEUR], "Kein Zugriff auf diese Seite", "")]
+    for seite, cookies, titel, untertitel in fall:
+        await tab.anmelden(cookies)
+        for breite, hoehe in ((1440, 900), (412, 915)):
+            for thema in ("hell", "dunkel"):
+                wo = f"{seite} {breite} px {thema}"
+                p.pruefe(f"{wo}: geladen", await _laden(tab, seed, seite, thema, breite, hoehe), True)
+                m = await tab.js(ANMELDUNG_JS % FARBE)
+                p.pruefe(f"{wo}: .ds-seite, Grund --ds-grund, ein h1 „{titel}“ in Archivo 30 px, Untertitel, Text in IBM Plex Sans, "
+                         f"kein alter Kopf, kein waagrechter Bildlauf",
+                         [m["ds"], m["grund"], m["h1"], m["titel"], m["untertitel"], m["schrift"], m["alt"], m["ohneBildlauf"]],
+                         [True, True, [titel], ["30px", "Archivo"], untertitel, "IBM Plex Sans", 0, True])
+                p.pruefe(f"{wo}: Bildmarke mit Schriftzug in weißer Kachel 44 px über dem Seitenkopf", [m["marke"], m["vorKopf"]],
+                         [MARKE, True])
+                if seite == "anmeldung":
+                    p.pruefe(f"{wo}: „Anmelden“ grün", (await tab.js(f"({GRUENER_KNOPF % FARBE})(document.querySelector('.card button'))"))[1:3],
+                             [True, True])
+                    p.pruefe(f"{wo}: Fokus im Benutzernamen im Umriss --ds-fokus",
+                             await tab.js(f"({FOKUS_FELD % FARBE})(document.getElementById('u'))"), [True, "solid", True])
+                else:
+                    texte = await tab.js("[[...document.querySelectorAll('.card > p')].map(e=>e.textContent.trim()),"
+                                         "document.body.innerText.includes('nicht verfügbar')]")
+                    p.pruefe(f"{wo}: darunter nur, was zu tun ist -- nichts doppelt", texte,
+                             [["Brauchst du sie, wende dich an eine Person mit den passenden Rechten."], False])
+                    p.pruefe(f"{wo}: „Zur Startseite“ grüne Hauptaktion 40 px nach /mobil",
+                             await tab.js(f"({GRUENER_KNOPF % FARBE})(document.querySelector('.card a'))"),
+                             [40, True, True, "ds-knopf ds-knopf-aktion", "/mobil"])
+                k = await tab.js(KONTRAST_KARTE)
+                p.pruefe(f"{wo}: Kontrast ({k['anzahl']} Elemente, kleinster {k['min']} : 1)", [k["anzahl"] > 3, k["schwach"]], [True, []])
+                p.pruefe(f"{wo}: keine JS-Fehler", tab.fehler, [])
+        await tab.bild(f"{seite}_zuletzt")
+    # „Zur Startseite“ führt die Monteurin zu ihren Einsätzen
+    await tab.js("document.querySelector('.card a').click()")
+    p.pruefe("Sperrseite: „Zur Startseite“ öffnet /mobil", await tab.warten("location.pathname==='/mobil'&&document.readyState==='complete'", 15),
+             True)
+
 
 TEILE = {"seitenleiste": _seitenleiste, "aktiv": _aktiv, "schrift": _schrift, "menueknopf": _menueknopf, "kopfzeile": _kopfzeile,
          "kontomenue": _kontomenue, "vollname": _vollname, "pruefvorlagen": _pruefvorlagen, "kopfgruppe": _kopfgruppe,
          "seitenregeln": _seitenregeln, "monteurskopf": _monteurskopf, "datensatzkopf": _datensatzkopf,
          "rechnungskopf": _rechnungskopf, "angebotskopf": _angebotskopf, "untermenue": _untermenue,
          "formularseiten": _formularseiten, "anfragen_av": _anfragen_av,
-         "monteursseiten": _monteursseiten}
+         "monteursseiten": _monteursseiten, "anmeldung": _anmeldung}
 NUR: list = []
 
 

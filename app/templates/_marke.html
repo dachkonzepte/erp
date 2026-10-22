@@ -1,0 +1,13 @@
+{#- Bildmarke mit Schriftzug (seit 1.9.27, Stufe 2, Runde 9) für die Seiten ohne Leiste und Kopfzeile: Anmeldung und Sperrseite. Die
+    Kachel mit der Bildmarke wie in Leiste und Monteurskopf (_bildmarke.html, weiße Kachel -- hier mit Rand, auf der hellen Karte sonst
+    ohne Kante), daneben „DACHKONZEPTE“ und „Rödchen GmbH · ERP“ wie in der Leiste (_sidebar.html), in den Farben der Karte, hell und
+    dunkel lesbar. -#}
+<style>
+.marke{display:flex;align-items:center;gap:12px;margin:0 0 20px}
+.marke-kachel{display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:44px;height:44px;flex:0 0 44px;padding:5px;border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-feld);overflow:hidden;background:#FFFFFF}
+.marke-kachel svg{display:block;width:100%;height:100%}
+.marke-text{display:flex;flex-direction:column;min-width:0}
+.marke-name{font-family:var(--ds-schrift-titel);font-weight:700;font-size:16px;letter-spacing:.04em;color:var(--ds-text);line-height:1.15}
+.marke-zusatz{font-size:12.5px;color:var(--ds-text-2);line-height:1.3}
+</style>
+<div class="marke"><span class="marke-kachel" aria-hidden="true">{% include "_bildmarke.html" %}</span><span class="marke-text"><span class="marke-name">DACHKONZEPTE</span><span class="marke-zusatz">Rödchen GmbH · ERP</span></span></div>
