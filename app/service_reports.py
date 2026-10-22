@@ -713,8 +713,9 @@ class NochOffen(ValueError):
         super().__init__("Noch offen: " + "; ".join(offen))
 
 
-class PflichtpunktGeschuetzt(ValueError):
-    """Seit 1.9.36: ein Pflichtpunkt lässt sich nicht löschen (409 im Router)."""
+class VorlagenpunktGeschuetzt(ValueError):
+    """Seit 1.9.41: ein Prüfpunkt aus der Vorlage lässt sich nicht löschen (409 im Router) -- bis 1.9.40 galt das nur für
+    Pflichtpunkte (1.9.36, PflichtpunktGeschuetzt)."""
 
 
 def _kurz(text: str | None, laenge: int = 80) -> str:
@@ -867,8 +868,10 @@ def delete_inspection_item(db: Session, item_id: int) -> bool:
     if item is None:
         return False
     _require_draft_report(db, item.service_report_id)
-    if item.required:  # seit 1.9.36: ein Pflichtpunkt (aus der Prüfvorlage) bleibt -- sonst ließe sich die Pflicht wegklicken
-        raise PflichtpunktGeschuetzt("Ein Pflichtpunkt lässt sich nicht löschen.")
+    # Seit 1.9.41 (Stufe 4, R1 Nachrunde, Punkt 3): löschbar ist nur ein von Hand ergänzter Punkt (add_inspection_item(), ohne
+    # template_item_id); ein Punkt aus der Vorlage bleibt -- trifft er nicht zu, „Entfällt“. Bis 1.9.40 nur Pflichtpunkte (1.9.36).
+    if item.template_item_id is not None:
+        raise VorlagenpunktGeschuetzt("Ein Prüfpunkt aus der Vorlage lässt sich nicht löschen – trifft er nicht zu, „Entfällt“ wählen.")
     db.delete(item)
     db.commit()
     return True

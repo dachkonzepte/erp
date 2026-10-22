@@ -1,9 +1,9 @@
 """Klicktest: Regeln für die Monteurin, Minimal-Anzeige (Stufe 4, Runde 1; seit 1.9.35 vergessener Feierabend, seit 1.9.36
-Einsatzbericht: „Noch offen“ vor der Unterschrift, Pflichtpunkte).
+Einsatzbericht: „Noch offen“ vor der Unterschrift, Pflichtpunkte; seit 1.9.41 Löschknopf nur am von Hand ergänzten Punkt).
 
 Befüllt: Auftrag mit Einsatz (Plantafel heute ± 7 Tage) für Mia (Monteurin) und Tom (Monteur); beide haben eine Zeit, die gestern um
 06:45 Uhr begann und noch läuft (Feierabend vergessen); Anna (Admin). Seit 1.9.36 dazu am Objekt des Auftrags die Dachfläche „Hauptdach“
-(Flachdach, ein Gully) und Mias Rapportbericht mit Prüfvorlage (vier Pflichtpunkte, zwei freie).
+(Flachdach, ein Gully) und Mias Rapportbericht mit Prüfvorlage (vier Pflichtpunkte, zwei freie) und einem von Hand ergänzten Punkt.
 
     Mia (412 px, dunkel)  /mobil: Hinweis „Deine Zeit läuft noch seit <gestern>, 06:45 Uhr“ mit Zeitart, Auftrag und „Ende nachtragen →“.
                           Zeiterfassung: statt Uhr und „Zeit stoppen“ der Hinweis „Die Zeit vom … läuft noch“, Feld „Ende an diesem Tag“,
@@ -15,7 +15,9 @@ Befüllt: Auftrag mit Einsatz (Plantafel heute ± 7 Tage) für Mia (Monteurin) u
     Mia (412 px, dunkel)  Einsatzbericht (seit 1.9.36): der Rapportbericht zeigt „Prüfpunkte“; am Knopf „Unterschreiben“ die Liste „Noch
                           offen vor der Unterschrift“ mit den vier Pflichtpunkten; Pflichtpunkte mit „*“ und ohne „×“, freie mit „×“;
                           „Unterschreiben“ öffnet die Unterschrift nicht, solange etwas offen ist; Pflichtpunkt löschen 409; nach dem
-                          Beantworten öffnet sie, die Liste ist weg.
+                          Beantworten öffnet sie, die Liste ist weg. Seit 1.9.41: „×“ nur am von Hand ergänzten Punkt, 48 × 48 px und
+                          schmaler als die Zeile; Rückfrage „Prüfpunkt „…“ löschen?“ auf der Seite -- Abbrechen: bleibt, Löschen: weg;
+                          Punkt aus der Vorlage löschen (API) 409.
 
 Feste Uhr 10:00 (/mobil meldet ab 19 Uhr ab); die Daten liegen relativ zum heutigen Tag.
 
@@ -46,7 +48,7 @@ def befuellen(db, k):
         WorkPreparationTeamAssignment,
     )
     from app.roof_areas import create_roof_area, create_roof_component
-    from app.service_reports import create_report
+    from app.service_reports import add_inspection_item, create_report
     from app.orders import create_order_from_quote
     from app.project_pipeline_columns import default_pipeline_column_id
     from app.time_tracking import start_timer
@@ -104,6 +106,7 @@ def befuellen(db, k):
     create_roof_component(db, flaeche["id"], "Gully 1", component_type="Gully", sort_order=10)
     bericht = create_report(db, auftrag.id, "rapport", description="Abdichtung am Anschluss erneuert", created_by_employee_id=mia.id,
                             roof_area_ids=[flaeche["id"]], inspection_template_id=vorlage["id"])
+    add_inspection_item(db, bericht["id"], "Dachluke geprüft", "ja_nein", roof_area_id=flaeche["id"])  # seit 1.9.41: von Hand ergänzt
     return {"auftrag": auftrag.id, "auftragsnummer": auftrag.order_number, "tom": tom.id, "zeiten": zeiten,
             "bericht": bericht["id"], "flaeche": flaeche["id"],
             "gestern": gestern.isoformat(), "gestern_de": f"{gestern:%d.%m.%Y}",
@@ -219,14 +222,18 @@ async def pruefen(tab, seed, p):
     p.pruefe("Am Knopf: „Noch offen vor der Unterschrift“ mit den vier Pflichtpunkten", await tab.js(liste),
              ["Noch offen vor der Unterschrift:", offen])
     await tab.js(f"void toggleReportInspectionItems({b})")
-    await tab.warten(f"(inspectionItemsCache[{b}]||[]).length===6", 10)
+    await tab.warten(f"(inspectionItemsCache[{b}]||[]).length===7", 10)
     await tab.warte_auf_neu_geladene_liste()
     await tab.js(f"toggleReportArea({b},{seed['flaeche']}); true")
-    await tab.warten("document.querySelectorAll('.inspection-row .itext').length===6", 10)  # ohne die Zeile „Zusätzlicher Prüfpunkt“
+    await tab.warten("document.querySelectorAll('.inspection-row .itext').length===7", 10)  # ohne die Zeile „Zusätzlicher Prüfpunkt“
     zeilen = await tab.js("[...document.querySelectorAll('.inspection-row')].filter(z=>z.querySelector('.itext')).map(z=>[z.querySelector('.itext').textContent.trim(),"
                           "!!z.querySelector('.req'),!!z.querySelector('button.danger')])")
-    p.pruefe("Prüfpunkte: Pflicht mit „*“ ohne „×“, frei mit „×“", sorted([pflicht, kreuz] for _, pflicht, kreuz in (zeilen or [])),
-             [[False, True], [False, True], [True, False], [True, False], [True, False], [True, False]])
+    # seit 1.9.41: „×“ nur am von Hand ergänzten Punkt (bis 1.9.40 an jedem freien Punkt, auch aus der Vorlage)
+    p.pruefe("Prüfpunkte: Pflicht mit „*“, „×“ nur am von Hand ergänzten Punkt", sorted([text, pflicht, kreuz] for text, pflicht, kreuz in (zeilen or [])),
+             sorted([["* Zugang und Absturzsicherung geprüft", True, False], ["* Gesamtzustand Dachfläche", True, False],
+                     ["* Gully 1: Ablauf frei und funktionsfähig", True, False], ["Gully 1: Laubfang vorhanden und intakt", False, False],
+                     ["* Abdichtung auf Blasen, Risse, Falten", True, False], ["Bemerkungen", False, False],
+                     ["Dachluke geprüft", False, True]]))
     await tab.js("[...document.querySelectorAll('.inspection-group')].find(g=>g.textContent.includes('Entwässerung')).scrollIntoView({block:'start'})")
     await tab.bild("6_rapport_pflichtpunkte_dunkel_412")
     await tab.js(f"{karte}.querySelector('.report-actions button[onclick^=\"openSignPanel\"]').click()")
@@ -238,9 +245,45 @@ async def pruefen(tab, seed, p):
     await tab.bild("7_noch_offen_dunkel_412")
     punkte = await tab.js(f"fetch('/api/service-reports/{b}/inspection-items').then(r=>r.json())")
     pflicht = [x["id"] for x in punkte if x["required"]]
-    p.pruefe("Pflichtpunkt löschen (API): 409", await tab.js(
-        f"fetch('/api/inspection-items/{pflicht[0]}',{{method:'DELETE'}}).then(async r=>[r.status,(await r.json()).detail])"),
-        [409, "Ein Pflichtpunkt lässt sich nicht löschen."])
+    vorlage_frei = next(x["id"] for x in punkte if not x["required"] and x["template_item_id"] is not None)
+    p.pruefe("Punkt aus der Vorlage löschen (API, Pflicht und frei): 409", await tab.js(
+        f"Promise.all([{pflicht[0]},{vorlage_frei}].map(i=>fetch('/api/inspection-items/'+i,{{method:'DELETE'}}).then(async r=>[r.status,(await r.json()).detail])))"),
+        [[409, "Ein Prüfpunkt aus der Vorlage lässt sich nicht löschen – trifft er nicht zu, „Entfällt“ wählen."]] * 2)
+
+    # --- seit 1.9.41: Löschknopf am von Hand ergänzten Punkt, Rückfrage auf der Seite -------------------------------------
+    await tab.oeffnen(f"/orders/{seed['auftrag']}/service-reports", "typeof reports!=='undefined'&&reports.length===1")
+    await tab.warte_auf_neu_geladene_liste()
+    await tab.js(f"void toggleReportInspectionItems({b})")
+    await tab.warten(f"(inspectionItemsCache[{b}]||[]).length===7", 10)
+    await tab.warte_auf_neu_geladene_liste()
+    await tab.js(f"toggleReportArea({b},{seed['flaeche']}); true")
+    knopf = "document.querySelector('.inspection-row .punkt-loeschen')"
+    await tab.warten(f"!!{knopf}", 10)
+    mass = await tab.js(f"(k=>{{const a=k.getBoundingClientRect(),z=k.closest('.inspection-row').getBoundingClientRect();"
+                        f"return [Math.round(a.width),Math.round(a.height),Math.round(z.width)]}})({knopf})")
+    p.pruefe("Löschknopf: mindestens 48 × 48 px", [mass[0] >= 48, mass[1] >= 48] if mass else None, [True, True])
+    p.pruefe("Löschknopf: schmaler als die Zeile", (mass[0] < mass[2] / 2) if mass else None, True)
+    p.pruefe("Löschknopf: am Ende der Titelzeile des eigenen Punkts", await tab.js(
+        f"(k=>[k.parentElement.className,k.parentElement.querySelector('.itext').textContent.trim(),k===k.parentElement.lastElementChild])({knopf})"),
+        ["ikopf", "Dachluke geprüft", True])
+    await tab.js(f"{knopf}.scrollIntoView({{block:'center'}})")
+    await tab.bild("8_loeschknopf_dunkel_412")
+    await tab.js(f"{knopf}.click()")
+    await tab.warten("document.getElementById('punktLoeschenDialog').open", 10)
+    p.pruefe("Rückfrage auf der Seite", await tab.js("document.getElementById('punktLoeschenFrage').textContent"),
+             "Prüfpunkt „Dachluke geprüft“ löschen?")
+    await tab.bild("9_rueckfrage_loeschen_dunkel_412")
+    await tab.js("document.getElementById('punktLoeschenNein').click()")
+    await tab.warte_auf_ruhe()
+    p.pruefe("Abbrechen: Punkt bleibt", [await tab.js("document.getElementById('punktLoeschenDialog').open"), await tab.js(
+        f"fetch('/api/service-reports/{b}/inspection-items').then(r=>r.json()).then(l=>l.some(x=>x.text==='Dachluke geprüft'))")],
+        [False, True])
+    await tab.js(f"{knopf}.click()")
+    await tab.warten("document.getElementById('punktLoeschenDialog').open", 10)
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('punktLoeschenJa').click()", "#reportList")
+    p.pruefe("Löschen: Punkt weg, kein Knopf mehr", [await tab.js(
+        f"fetch('/api/service-reports/{b}/inspection-items').then(r=>r.json()).then(l=>l.some(x=>x.text==='Dachluke geprüft'))"),
+        await tab.js(f"!!{knopf}")], [False, False])
     for item_id in pflicht:  # Testhandlung: beantwortet über die API
         await tab.js(f"fetch('/api/inspection-items/{item_id}',{{method:'PUT',headers:{{'Content-Type':'application/json'}},"
                      "body:JSON.stringify({result:'ok',condition_grade:1})}).then(r=>r.status)")

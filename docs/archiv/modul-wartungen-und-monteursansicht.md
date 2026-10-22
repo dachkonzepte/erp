@@ -943,3 +943,8 @@ Zeiten des Auftrags, deren Tag im Zeitraum eines Einsatzes liegt, der den Tag de
 (`app/service_reports.py::einsaetze_des_berichts()`/`zeit_gehoert_zum_einsatz()`). Ohne Einsatz-Bezug wie bisher alle Zeiten des Auftrags
 (offen). Die Tabelle „Erfasste Zeiten zu diesem Auftrag“ auf der Seite bleibt bewusst auftragsweit (siehe oben). Festlegungen:
 `docs/archiv/redesign.md`, „R1 Punkt 4 (1.9.37)“.
+
+**Seit 1.9.41: nur von Hand ergänzte Prüfpunkte löschbar.** `delete_inspection_item()` lehnt jeden Punkt mit `template_item_id` ab
+(`VorlagenpunktGeschuetzt`, 409) -- die Herkunft ist eindeutig: `_generate_inspection_items()` setzt sie immer, `add_inspection_item()` nie.
+Der Knopf „×“ steht nur am von Hand ergänzten Punkt, 48 × 48 px am Ende der Titelzeile, mit Rückfrage auf der Seite (`<dialog>`) statt
+`confirm()`. Festlegungen: `docs/archiv/redesign.md`, „Nachrunde Punkt 3 (1.9.41)“.

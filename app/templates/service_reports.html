@@ -54,6 +54,14 @@ tr:last-child td{border-bottom:none}
 .inspection-row{display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
 .inspection-row .itext{flex:1;min-width:220px;font-size:13px}
 .inspection-row .itext .req{color:var(--danger);font-weight:800}
+/* seit 1.9.41: Titelzeile eines Prüfpunkts mit dem Löschknopf am Ende (48 × 48 px, nur an einem von Hand ergänzten Punkt) */
+.inspection-row .ikopf{display:flex;align-items:flex-start;gap:8px;flex:1;min-width:220px}
+.inspection-row .ikopf .itext{flex:1;min-width:0}
+.inspection-row .punkt-loeschen{flex:0 0 48px;width:48px;height:48px;min-height:48px;padding:0;font-size:20px;line-height:1;display:inline-flex;align-items:center;justify-content:center}
+.rueckfrage-karte{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:var(--ds-ecke-karte);padding:20px;width:min(420px,calc(100vw - 32px))}
+.rueckfrage-karte p{margin:0 0 16px;font-size:16px;line-height:1.4;overflow-wrap:anywhere}
+.rueckfrage-knoepfe{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.rueckfrage-knoepfe button{min-height:48px;min-width:120px}
 .inspection-row .ictl{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .inspection-row .ictl button{padding:6px 10px;font-size:12px}
 .inspection-row .ictl input,.inspection-row .ictl select{width:auto;padding:6px 7px;font-size:12.5px}
@@ -88,6 +96,7 @@ tr:last-child td{border-bottom:none}
 @media(max-width:900px){
   .inspection-row{flex-direction:column;align-items:stretch}
   .inspection-row .itext{min-width:0}
+  .inspection-row .ikopf{min-width:0}
   .inspection-row .ictl{width:100%}
   .inspection-row .ictl .result-picker{width:100%}
   .inspection-row .ictl .result-picker button{flex:1;min-height:44px;font-size:13.5px;padding:8px 6px}
@@ -220,6 +229,11 @@ a{color:var(--ds-link)}
   </div>
   <div id="timeEntriesTable"></div>
 </div>
+{#- seit 1.9.41: Rückfrage vor dem Löschen eines Prüfpunkts auf der Seite (sichtbar, 48-px-Knöpfe) statt confirm() -#}
+<dialog id="punktLoeschenDialog" class="rueckfrage-karte" aria-labelledby="punktLoeschenFrage">
+  <p id="punktLoeschenFrage"></p>
+  <div class="rueckfrage-knoepfe"><button type="button" class="secondary" id="punktLoeschenNein">Abbrechen</button><button type="button" class="danger" id="punktLoeschenJa">Löschen</button></div>
+</dialog>
 {% else %}
 <div class="card"><h2>Wartungen & Reparaturen</h2><div class="muted">Dieses Modul ist deaktiviert. Ein Administrator kann es in den {% if darf_buero_seiten %}<a href="/settings#modules" style="color:var(--ds-link)">Einstellungen</a>{% else %}Einstellungen{% endif %} wieder aktivieren.</div></div>
 {% endif %}
@@ -1178,8 +1192,24 @@ async function regenerateInspectionItems(reportId){
   }catch(e){alert('Fehler: '+e.message)}
 }
 
+// Seit 1.9.41: Rückfrage auf der Seite -- true nur nach „Löschen“, „Abbrechen“ und Esc ergeben false.
+function rueckfrage(text){
+  const d=document.getElementById('punktLoeschenDialog');
+  document.getElementById('punktLoeschenFrage').textContent=text;
+  return new Promise(res=>{
+    const fertig=ok=>{d.removeEventListener('close',beiEsc);if(d.open)d.close();res(ok)};
+    const beiEsc=()=>fertig(false);
+    document.getElementById('punktLoeschenJa').onclick=()=>fertig(true);
+    document.getElementById('punktLoeschenNein').onclick=()=>fertig(false);
+    d.addEventListener('close',beiEsc);
+    d.showModal();
+    document.getElementById('punktLoeschenNein').focus();
+  });
+}
+
 async function deleteInspectionItemUI(itemId,reportId){
-  if(!confirm('Diesen Prüfpunkt wirklich löschen?'))return;
+  const punkt=(inspectionItemsCache[reportId]||[]).find(i=>i.id===itemId);
+  if(!await rueckfrage(`Prüfpunkt „${punkt?punkt.text:''}“ löschen?`))return;
   try{
     await speichern('pruefpunkte-'+reportId,()=>api(`/api/inspection-items/${itemId}`,{method:'DELETE'}),{neuLaden:()=>loadInspectionItems(reportId)});
     renderReportList();
@@ -1218,10 +1248,9 @@ function inspectionItemRowHtml(item,r){
   const notesField=(showNotesToggle&&notesOpen)?`<input placeholder="Bemerkung" value="${esc(item.notes)}" style="min-width:160px" onchange="saveInspectionResult(${item.id})" oninput="debouncedSaveInspectionResult(${item.id})" data-field="notes">`:'';
   return `
     <div class="inspection-row">
-      <div class="itext">${item.required?'<span class="req">*</span> ':''}${esc(item.text)}</div>
+      <div class="ikopf"><div class="itext">${item.required?'<span class="req">*</span> ':''}${esc(item.text)}</div>${r.status==='entwurf'&&item.template_item_id==null?`<button type="button" class="danger punkt-loeschen" aria-label="Prüfpunkt löschen" title="Prüfpunkt löschen" onclick="deleteInspectionItemUI(${item.id},${r.id})">×</button>`:''}</div>
       <div class="ictl" data-item="${item.id}">${itemControlInnerHtml(item)}${notesField}</div>
       ${notesToggleBtn}
-      ${r.status==='entwurf'&&!item.required?`<button type="button" class="danger" onclick="deleteInspectionItemUI(${item.id},${r.id})">×</button>`:''}
     </div>
     ${findingHint}
     ${findingCardsHtml}

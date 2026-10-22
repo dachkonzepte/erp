@@ -3587,3 +3587,52 @@ nennt sie. Anlass: Endlauf zu 1.9.37 (siehe „R1 Nachtrag“). Keine Festlegung
 
 1. **„Vorschlag“ statt „✓“** an der vorgeschlagenen Schlechtwetter-Kachel, in „Schnell starten“ und im Dialog „Nachtragen“; der grüne Rand
    bleibt.
+
+### Nachrunde Punkt 3 (1.9.41): Prüfpunkte -- nur eigene löschbar, Löschknopf 48 px mit Rückfrage
+
+- **Unterscheidbar?** Ja: `_generate_inspection_items()` setzt an jedem Punkt aus der Vorlage `template_item_id`, `add_inspection_item()`
+  (von Hand ergänzt, Seite und Schnittstelle) setzt es nie; andere Wege, Prüfpunkte anzulegen, gibt es nicht (keine Migration legt welche
+  an). Die Spalte kann nicht nachträglich leer werden: `delete_template_item()` löscht die Vorlagenzeile, der Fremdschlüssel hat kein
+  `ON DELETE` -- unter SQLite zeigt er danach ins Leere (bleibt gesetzt), unter PostgreSQL scheitert das Löschen eines in einem Bericht
+  benutzten Vorlagenpunkts (Befund, siehe unten).
+- **Server**: `delete_inspection_item()` lehnt jeden Punkt mit `template_item_id` ab (`VorlagenpunktGeschuetzt` statt
+  `PflichtpunktGeschuetzt`, 409 „Ein Prüfpunkt aus der Vorlage lässt sich nicht löschen – trifft er nicht zu, „Entfällt“ wählen.“), für jede
+  Rolle. Ein von Hand ergänzter Punkt bleibt löschbar, auch wenn er über die Schnittstelle als Pflicht angelegt wurde.
+- **Seite**: Titelzeile `.ikopf` (Text, am Ende der Knopf); `.punkt-loeschen` 48 × 48 px, nur bei `template_item_id == null`. Rückfrage
+  `rueckfrage()` über `<dialog id="punktLoeschenDialog" class="rueckfrage-karte">` mit „Abbrechen“ (Fokus) und „Löschen“, 48 px hoch;
+  Esc = Abbrechen.
+
+#### Befund (nicht geändert)
+
+- `delete_template_item()` (Einstellungen → Prüfvorlagen): ein Vorlagenpunkt, aus dem schon Prüfpunkte in Berichten entstanden sind,
+  lässt sich unter PostgreSQL nicht löschen -- `inspection_items.template_item_id` verweist ohne `ON DELETE` darauf, das Löschen endet mit
+  einem Fehler der Datenbank (500). Unter SQLite fällt es nicht auf.
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v469_vorlagenpunkte.py` (5 Tests, als Monteurin): Herkunft unterscheidbar; Pflichtpunkt und freier Punkt aus der Vorlage
+  löschen 409, der Punkt bleibt (Angriff) / eigener Punkt und eigener Pflichtpunkt löschen 200 (Gegenprobe); Seite: Knopf nur am eigenen
+  Punkt, Rückfrage ohne `confirm()`, Dialog, 48 px.
+- `klicktest_monteurin_regeln` (35 Prüfungen): „×“ nur am von Hand ergänzten Punkt; Knopf ≥ 48 × 48 px, schmaler als die halbe Zeile, am
+  Ende der Titelzeile; Rückfrage „Prüfpunkt „Dachluke geprüft“ löschen?“; Abbrechen: Punkt bleibt; Löschen: Punkt weg; Punkt aus der
+  Vorlage (Pflicht und frei) über die Schnittstelle 409. Beim ersten Lauf zwei Prüfungen rot -- mein Fehler im Klicktest (ein Teil des
+  JS-Ausdrucks war kein f-String), korrigiert.
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück): Server löscht Vorlagenpunkte (P1) -- 4 Tests rot; Knopf an jedem Punkt (P2) --
+  2 Tests und 4 Klicktest-Prüfungen rot; Löschen ohne Rückfrage (P3) -- 1 Test und 2 Klicktest-Prüfungen rot.
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v464::test_pflichtpunkt_loeschen_abgelehnt`: alt Meldung „Ein Pflichtpunkt lässt sich nicht löschen.“; neu „Ein Prüfpunkt aus der
+    Vorlage lässt sich nicht löschen – trifft er nicht zu, „Entfällt“ wählen.“
+  - `test_v464::test_freier_punkt_loeschen_ok`: alt freier Punkt aus der Vorlage löschen 200; neu 409 (eigener Punkt weiter 200).
+  - `test_v464::test_seite_fragt_vor_jeder_unterschrift_und_ohne_kreuz_am_pflichtpunkt`: alt Knopf bei `!item.required`; neu bei
+    `item.template_item_id==null` mit Klasse `punkt-loeschen`.
+  - `klicktest_monteurin_regeln`, Prüfung „Prüfpunkte“: alt „×“ an den beiden freien Punkten aus der Vorlage; neu „×“ nur am von Hand
+    ergänzten Punkt (Testdaten um diesen Punkt ergänzt, 7 statt 6 Punkte); „Pflichtpunkt löschen (API)“ prüft jetzt Pflicht- und freien
+    Punkt aus der Vorlage mit der neuen Meldung.
+
+#### Festlegungen 1.9.41 (Bitte bestätigen)
+
+1. **„Selbst hinzugefügt“ = von Hand ergänzt** (ohne Herkunft aus der Vorlage), gleich wer ihn ergänzt hat; die Regel gilt für jede Rolle,
+   auch Büro und Admin.
+2. **Rückfrage auf der Seite** (`<dialog>`, 48-px-Knöpfe, Fokus auf „Abbrechen“) statt `confirm()` -- sichtbar im Bild und auf dem Tablet
+   gut zu treffen; andere Seiten fragen weiter über `confirm()`.
+3. **Knopf schmaler als die halbe Zeile** gilt im Klicktest als „nicht über die ganze Breite“.

@@ -48,7 +48,7 @@ from ..service_reports import (
     delete_inspection_item, delete_material, delete_photo, delete_report, get_property_context_for_order,
     get_report_row, list_assets_for_report, list_inspection_items, list_materials_for_invoicing,
     list_materials_for_report, list_photos, list_property_history, list_property_history_for_field, list_reports,
-    list_reports_for_field, list_roof_areas_for_order, material_to_dict, noch_offen, NochOffen, PflichtpunktGeschuetzt,
+    list_reports_for_field, list_roof_areas_for_order, material_to_dict, noch_offen, NochOffen, VorlagenpunktGeschuetzt,
     regenerate_inspection_items, sign_report,
     sync_inspection_items, update_asset_usage, update_inspection_item, update_material, update_report,
 )
@@ -353,7 +353,7 @@ def delete_inspection_item_endpoint(item_id: int, db: Session = Depends(get_db, 
     require_field_report_ownership(db, _role, _report_id_for_child(db, InspectionItem, item_id, "Prüfpunkt nicht gefunden."))
     try:
         deleted = delete_inspection_item(db, item_id)
-    except PflichtpunktGeschuetzt as exc:  # seit 1.9.36
+    except VorlagenpunktGeschuetzt as exc:  # seit 1.9.36 Pflichtpunkte, seit 1.9.41 jeder Punkt aus der Vorlage
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

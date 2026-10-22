@@ -4,7 +4,8 @@
                    beantwortet, Mangel zu negativem Ergebnis, Foto je Mangel, Wiedervorlage bei zurückgestellt) -- je Eintrag mit Namen;
                    GET /api/service-reports/{id}/noch-offen liefert die Liste (die Seite fragt vor jeder Unterschrift), die Unterschrift
                    lehnt mit 409 „Noch offen: …“ ab, vor jeder Prüfung der Bilder (bis 1.9.35 400 mit Zahlen, nach der Bildprüfung)
-    Pflichtpunkt   lässt sich nicht löschen (409), ein freier Punkt schon; die Seite zeigt am Pflichtpunkt keinen Knopf „×“
+    Pflichtpunkt   lässt sich nicht löschen (409); seit 1.9.41 gilt das für jeden Punkt aus der Vorlage, löschbar ist nur ein von Hand
+                   ergänzter (tests/test_v469_vorlagenpunkte.py)
     Rapport        ein Rapportbericht mit Prüfvorlage trägt seine Vorlage an der Dachfläche (roof_areas[].inspection_template_id) -- die
                    Seite zeigt daran seine Prüfpunkte (bis 1.9.35 nur Wartung oder die alte Spalte inspection_template_id)
 """
@@ -127,15 +128,16 @@ def test_pflichtpunkt_loeschen_abgelehnt(bericht):
     db, client, r = bericht
     pflicht = next(i for i in list_inspection_items(db, r["id"]) if i["required"])
     antwort = client.delete(f"/api/inspection-items/{pflicht['id']}")
-    assert (antwort.status_code, antwort.json()["detail"]) == (409, "Ein Pflichtpunkt lässt sich nicht löschen.")
+    assert (antwort.status_code, antwort.json()["detail"]) == (409, "Ein Prüfpunkt aus der Vorlage lässt sich nicht löschen – trifft er nicht zu, „Entfällt“ wählen.")  # seit 1.9.41 jeder Punkt aus der Vorlage
     assert any(i["id"] == pflicht["id"] for i in list_inspection_items(db, r["id"]))
 
 
 def test_freier_punkt_loeschen_ok(bericht):
-    """Gegenprobe: ein freier Punkt (aus der Vorlage ohne Pflicht oder von Hand ergänzt) lässt sich löschen."""
+    """Seit 1.9.41: ein freier Punkt aus der Vorlage bleibt (409) / Gegenprobe: ein von Hand ergänzter lässt sich löschen (bis 1.9.40
+    ließ sich auch der freie Punkt aus der Vorlage löschen)."""
     db, client, r = bericht
     frei = next(i for i in list_inspection_items(db, r["id"]) if not i["required"])
-    assert client.delete(f"/api/inspection-items/{frei['id']}").status_code == 200
+    assert client.delete(f"/api/inspection-items/{frei['id']}").status_code == 409
     eigener = add_inspection_item(db, r["id"], "Dachluke geprüft", "ja_nein")
     assert client.delete(f"/api/inspection-items/{eigener['id']}").status_code == 200
 
@@ -160,5 +162,6 @@ def test_seite_fragt_vor_jeder_unterschrift_und_ohne_kreuz_am_pflichtpunkt():
     assert "await nachDemSpeichern()" in pruefen and "api(`/api/service-reports/${id}/noch-offen`)" in pruefen
     assert "await nochOffenPruefen(id)" in oeffnen
     assert bestaetigen.index("await nochOffenPruefen(signingReportId)") < bestaetigen.index("installerSigDataUrl=dataUrl")
-    assert "r.status==='entwurf'&&!item.required?`<button type=\"button\" class=\"danger\" onclick=\"deleteInspectionItemUI(" in text
+    # seit 1.9.41 nur an einem von Hand ergänzten Punkt (ohne template_item_id), bis dahin an jedem Punkt ohne Pflicht
+    assert "r.status==='entwurf'&&item.template_item_id==null?`<button type=\"button\" class=\"danger punkt-loeschen\"" in text
     assert "(r.roof_areas||[]).some(a=>!!a.inspection_template_id)" in text
