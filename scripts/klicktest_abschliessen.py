@@ -1,14 +1,18 @@
 """Klicktest: abschließende Aktion wartet auf laufendes Speichern; Zeitlimit (1.8.96, Baustein app/templates/_speichern.html,
 Vorgabe 1.8.96 Punkte 1 und 2).
 
-Einsatzbericht (Wartung) mit einem Pflicht-Prüfpunkt "Freitext", als Büro auf der Berichtsseite des Auftrags:
+Einsatzbericht (Wartung) mit einem Pflicht-Prüfpunkt "Freitext" (beantwortet: "vorher") und einem freien Prüfpunkt, als Büro auf der
+Berichtsseite des Auftrags. Seit 1.9.36 öffnet die Unterschrift erst, wenn nichts mehr offen ist (Prüfung nach dem Speichern der Seite),
+ebenso der Schritt zum Kunden -- geändert wird deshalb, während der Kunde unterschreibt (bis 1.9.35 vor dem Öffnen der Unterschrift,
+mit unbeantwortetem Pflichtpunkt):
 
-    Warten          Prüfpunkt eintragen, das Speichern hält zurück (die Anfrage geht noch nicht hinaus); dann Monteur und Kunde
-                    unterschreiben: die Unterschrift geht nicht hinaus, solange der Prüfpunkt nicht gespeichert ist (Bericht bleibt
+    Warten          Monteur unterschreibt; beim Kunden den Prüfpunkt ändern, das Speichern hält zurück (die Anfrage geht noch nicht
+                    hinaus); Kunde unterschreibt: die Unterschrift geht nicht hinaus, solange der Prüfpunkt nicht gespeichert ist (Bericht bleibt
                     Entwurf, die Seite warnt beim Verlassen); nach der Freigabe erst der Prüfpunkt, dann die Unterschrift -- der
                     Bericht ist unterschrieben, mit dem eingetragenen Wert. Ohne das Warten käme die Unterschrift vor dem Prüfpunkt an
                     und der Server lehnte sie ab (Pflicht-Prüfpunkt offen).
-    Scheitern       Zweiter Bericht: Speichern des Prüfpunkts zurückhalten, unterschreiben, dann den Prüfpunkt anderswo löschen und
+    Scheitern       Zweiter Bericht: Speichern des freien Prüfpunkts zurückhalten (seit 1.9.36 lässt sich ein Pflichtpunkt nicht
+                    löschen), unterschreiben, dann den Prüfpunkt anderswo löschen und
                     freigeben -- das Speichern scheitert (404), die Unterschrift läuft nicht ("Nicht ausgeführt: …"), der Bericht
                     bleibt Entwurf. Ohne die Prüfung wäre er ohne den Pflicht-Prüfpunkt unterschrieben.
     Zeitlimit       Dritter Bericht, Zeitlimit für den Test auf 2 s (window.__dkZeitlimit vor dem Laden der Seite): die Antwort auf das
@@ -47,7 +51,7 @@ def befuellen(db, k):
 
     from app.models import AppUser, Customer, Employee, Order, Project
     from app.project_pipeline_columns import default_pipeline_column_id
-    from app.service_reports import add_inspection_item, create_report
+    from app.service_reports import add_inspection_item, create_report, update_inspection_item
 
     mia = Employee(employee_number="E-1", first_name="Mia", last_name="Monteurin", employee_group="gewerblich", active=True,
                    hourly_wage=Decimal("22.00"))
@@ -60,12 +64,14 @@ def befuellen(db, k):
     auftrag = Order(order_number="AUF-KT-AB", project_id=projekt.id, source_quote_id=1, quote_number_snapshot="A-1", title="Dach Ost",
                     customer_name="Bauherr Abschluss", property_name="Halle", property_address="Weg 1\n12345 Stadt")
     db.add(auftrag); db.commit()
-    berichte, punkte = [], []
+    berichte, punkte, freie = [], [], []
     for nr in (1, 2, 3):
         bericht = create_report(db, auftrag.id, "wartung", description=f"Wartung {nr}", created_by_employee_id=mia.id)
         punkt = add_inspection_item(db, bericht["id"], f"Dachrinne frei ({nr})", "free_text", required=True)
-        berichte.append(bericht["id"]); punkte.append(punkt["id"])
-    return {"order": auftrag.id, "reports": berichte, "items": punkte, "cookies": {"anna": k.cookies(anna)}}
+        update_inspection_item(db, punkt["id"], {"notes": "vorher"})  # seit 1.9.36: sonst öffnet die Unterschrift nicht
+        frei = add_inspection_item(db, bericht["id"], f"Bemerkung ({nr})", "free_text")
+        berichte.append(bericht["id"]); punkte.append(punkt["id"]); freie.append(frei["id"])
+    return {"order": auftrag.id, "reports": berichte, "items": punkte, "frei": freie, "cookies": {"anna": k.cookies(anna)}}
 
 
 async def _zeichnen(tab) -> None:
@@ -80,13 +86,17 @@ async def _zeichnen(tab) -> None:
     await tab.cmd("Input.dispatchMouseEvent", type="mouseReleased", x=x0 + 160, y=y0, button="left", buttons=0, clickCount=1)
 
 
-async def _unterschreiben(tab, bericht: int) -> None:
-    """Monteur (Schritt 1) und Kunde (Schritt 2); der zweite Klick sendet -- über abschliessen()."""
-    await tab.js(f"openSignPanel({bericht}); true")
-    await asyncio.sleep(0.3)
+async def _unterschreiben(tab, bericht: int, zwischen=None) -> None:
+    """Monteur (Schritt 1) und Kunde (Schritt 2); der zweite Klick sendet -- über abschliessen(). Seit 1.9.36 öffnet die Unterschrift
+    erst nach der Prüfung „Noch offen“ (GET …/noch-offen nach dem Speichern der Seite), ebenso der Schritt zum Kunden; zwischen() läuft,
+    wenn der Schritt des Kunden offen ist (dort ändert der Test einen Prüfpunkt, während unterschrieben wird)."""
+    await tab.js(f"void openSignPanel({bericht}); true")
+    await tab.warten("!document.getElementById('signCard').classList.contains('hidden')", 10)
     await _zeichnen(tab)
     await tab.js("document.getElementById('signatureName').value='Anna Admin';document.getElementById('signNextBtn').click();true")
-    await asyncio.sleep(0.2)
+    await tab.warten("document.getElementById('signHeading').textContent==='Unterschrift Kunde'", 10)
+    if zwischen is not None:
+        await zwischen()
     await _zeichnen(tab)
     await tab.js("document.getElementById('signatureName').value='Bernd Bauherr';document.getElementById('signNextBtn').click();true")
 
@@ -126,10 +136,12 @@ async def _warten(tab, seed, p):
     auftrag, bericht, punkt = seed["order"], seed["reports"][0], seed["items"][0]
     await _oeffnen_mit_pruefpunkten(tab, p, auftrag, bericht, punkt)
     await tab.zurueckhalten(rf"/api/inspection-items/{punkt}$", "PUT", art="anfrage")
-    await _eintragen(tab, punkt, "Dach dicht")
-    await tab.warte_bis_gehalten(1, beantwortet=False)
-    p.pruefe("Warten: Seite warnt beim Verlassen, solange das Speichern wartet", await tab.js(VERLASSEN), True)
-    await _unterschreiben(tab, bericht)
+
+    async def eintragen():
+        await _eintragen(tab, punkt, "Dach dicht")
+        await tab.warte_bis_gehalten(1, beantwortet=False)
+        p.pruefe("Warten: Seite warnt beim Verlassen, solange das Speichern wartet", await tab.js(VERLASSEN), True)
+    await _unterschreiben(tab, bericht, eintragen)
     await tab.warten("false", 1.0, melden=False)  # Zeit, in der eine nicht wartende Seite die Unterschrift schon gesendet hätte
     p.pruefe("Warten: Unterschrift nicht gesendet, Bericht Entwurf", [await tab.js(_sign_gesendet(bericht)),
              await tab.js(_status(bericht, auftrag))], [0, "entwurf"])
@@ -147,12 +159,14 @@ async def _warten(tab, seed, p):
 
 
 async def _scheitern(tab, seed, p):
-    auftrag, bericht, punkt = seed["order"], seed["reports"][1], seed["items"][1]
+    auftrag, bericht, punkt = seed["order"], seed["reports"][1], seed["frei"][1]  # seit 1.9.36 der freie Punkt
     await _oeffnen_mit_pruefpunkten(tab, p, auftrag, bericht, punkt)
     await tab.zurueckhalten(rf"/api/inspection-items/{punkt}$", "PUT", art="anfrage")
-    await _eintragen(tab, punkt, "Rinne voll Laub")
-    await tab.warte_bis_gehalten(1, beantwortet=False)
-    await _unterschreiben(tab, bericht)
+
+    async def eintragen():
+        await _eintragen(tab, punkt, "Rinne voll Laub")
+        await tab.warte_bis_gehalten(1, beantwortet=False)
+    await _unterschreiben(tab, bericht, eintragen)
     await tab.warten("false", 0.6, melden=False)
     # Jemand anderes löscht den Prüfpunkt (Testhandlung, direkt an der API vorbei am Baustein).
     p.pruefe("Scheitern: Prüfpunkt anderswo gelöscht", await tab.js(

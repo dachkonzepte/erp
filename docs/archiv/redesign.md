@@ -3404,3 +3404,67 @@ Vor Punkt 2 gebaut, weil „Ende nachtragen“ dieselbe Pausenregel und dieselbe
    Sperre im Browser.
 9. **`offene_zeit` in today** nennt nur Start, Tag, Zeitart, Auftragsnummer und zwei Kennzeichen (Gruppe, selbst schließen) -- keine Inhalte
    darüber hinaus (Datengrenze der Monteurin).
+
+### R1 Punkt 4 (1.9.36): Einsatzbericht – „Noch offen“ vor jeder Unterschrift
+
+- **Befund** (Befund Stufe 4, B3): `sign_report()` prüfte die Pflichten (seit 1.2.16 Pflichtpunkte, seit 1.2.17 negatives Ergebnis ohne Mangel,
+  Mangel ohne Foto, zurückgestellt ohne Wiedervorlage) erst im Aufruf mit beiden Unterschriften -- nach der Prüfung der Bilder, mit
+  Meldungen wie „3 Pflichtpunkt(e) sind noch nicht beantwortet.“ (400). Monteurin und Kunde hatten dann schon unterschrieben. Ein
+  Rapportbericht mit ausdrücklich gewählter Prüfvorlage bekam Pflichtpunkte, aber die Seite zeigte keine Prüfpunkte (`hasInspectionSection()`
+  las die Spalte `inspection_template_id`, die `create_report()` seit 1.2.22 nicht mehr schreibt) -- die Pflicht war unsichtbar. Jeder
+  Prüfpunkt, auch ein Pflichtpunkt, ließ sich im Entwurf löschen.
+- **Eine Liste**: `noch_offen(report)` -- dieselben vier Pflichten, keine neuen, in dieser Reihenfolge, je ein Eintrag mit dem Namen des
+  Prüfpunkts bzw. der Kurzfassung des Mangels („Pflichtpunkt „…“ beantworten“, „Mangel zum Prüfpunkt „…“ erfassen (negatives Ergebnis)“,
+  „Foto zum Mangel „…“ aufnehmen“, „Wiedervorlagedatum zum zurückgestellten Mangel „…“ angeben“). `sign_report()` wirft `NochOffen` (mit
+  der Liste) vor der Prüfung der Bilder; der Router prüft sie vor dem Dekodieren der Unterschriften und antwortet 409
+  `{"detail": "Noch offen: a; b", "offen": [a, b]}`. `GET /api/service-reports/{id}/noch-offen` → `{"offen": [...]}` (Ersteller-Prüfung wie
+  jeder Bericht-Endpunkt; unterschrieben: leer). `ServiceReportOut` trägt `noch_offen` (nur im Entwurf).
+- **Vor jeder Unterschrift**: `openSignPanel()` und der Schritt „Weiter“ zum Kunden fragen die Liste über `nochOffenPruefen()` -- erst nach
+  `nachDemSpeichern()` (neu im Baustein `_speichern.html`: wartet auf jedes laufende und wartende Speichern der Seite, speichert
+  zurückgehaltene Eingaben vorher), damit der Server den gespeicherten Stand prüft. Ist sie nicht leer, öffnet die Unterschrift nicht bzw. geht
+  nicht zum Kunden weiter; die Liste steht als „Noch offen vor der Unterschrift:“ unter den Knöpfen des Berichts (schon beim Laden aus
+  `noch_offen` des Berichts).
+- **Pflichtpunkte bleiben**: `delete_inspection_item()` lehnt einen Pflichtpunkt ab (`PflichtpunktGeschuetzt`, 409 „Ein Pflichtpunkt lässt sich
+  nicht löschen.“), der Knopf „×“ fehlt dort. Von Hand ergänzte Punkte sind nie Pflicht (die Seite setzt `required` nicht) -- „Pflichtpunkt“
+  heißt also: aus der Prüfvorlage. „Neu erzeugen“ und „Abgleich“ bauen aus der Vorlage und bleiben, wie sie sind.
+- **Rapport mit Vorlage**: `hasInspectionSection()` erkennt die Vorlage zusätzlich an der Dachfläche (`roof_areas[].inspection_template_id`).
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v464_noch_offen.py` (10 Tests): Rapport mit Vorlage trägt sie an der Dachfläche (vier Pflichtpunkte); Bericht und GET nennen
+  die vier Pflichtpunkte mit Namen; Unterschrift mit einem offenen Pflichtpunkt 409, genau dieser Punkt in Liste und Meldung, Bericht bleibt
+  Entwurf (Angriff) / alles beantwortet: unterschrieben, nichts offen (Gegenprobe); Pflichten vor den Bildern (kaputte Unterschrift + offene
+  Pflicht → 409); alle vier Pflichten mit Namen nacheinander; Pflichtpunkt löschen 409 (Angriff) / freier Punkt aus der Vorlage und von Hand
+  ergänzt 200 (Gegenprobe); unterschriebener Bericht ohne Liste; Seite: Prüfung vor beiden Unterschriften nach `nachDemSpeichern()`, kein
+  „×“ am Pflichtpunkt, Vorlage an der Fläche.
+- `scripts/klicktest_monteurin_regeln.py` um den Einsatzbericht ergänzt (27 Prüfungen): Mia 412 px dunkel -- Knopf „Prüfpunkte“ am Rapport,
+  Liste „Noch offen vor der Unterschrift“ mit vier Pflichtpunkten, Pflicht mit „*“ ohne „×“, frei mit „×“, „Unterschreiben“ öffnet nicht,
+  Pflichtpunkt löschen 409, beantwortet: Liste weg, Unterschrift öffnet.
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück, alle FAILED): Unterschrift ohne Prüfung (N1) -- 8 rot; Pflichtpunkt löschbar (N2) --
+  1; noch-offen meldet nichts (N3) -- 1; Seite öffnet trotz offener Pflichten (N4) -- 1 Test, 1 Prüfung des Klicktests; alte Erkennung der
+  Vorlage und „×“ am Pflichtpunkt (N5) -- 1 Test, 2 Prüfungen des Klicktests.
+- **Angepasste Erwartungen** (Regel 28):
+  - `test_v213::test_sign_report_blocks_on_open_required_items_and_names_count_then_succeeds`: alt „4“ bzw. „1“ in der Meldung (Anzahl); neu
+    `NochOffen.offen` mit vier Einträgen, Meldung beginnt mit „Noch offen: Pflichtpunkt „“, bzw. genau der letzte Pflichtpunkt mit Namen.
+  - `test_v213::test_router_endpoints_generate_items_and_reject_open_required_via_http`: alt 400 und „\d+ Pflichtpunkt“; neu 409, „Noch
+    offen: Pflichtpunkt „…“, `offen` mit vier Einträgen.
+  - `test_v214::test_router_endpoints_create_finding_and_reject_sign_without_photo`: alt 400 und „Foto“ in der Meldung; neu 409 und genau
+    „Noch offen: Foto zum Mangel „Kaputt“ aufnehmen“.
+  - `klicktest_abschliessen` (Aufbau, dieselben 19 Prüfungen und Soll-Werte): der Pflichtpunkt ist vorab beantwortet („vorher“), geändert
+    wird, während der Kunde unterschreibt (bis 1.9.35 vor dem Öffnen der Unterschrift, mit unbeantwortetem Pflichtpunkt -- das lässt die
+    Prüfung jetzt nicht mehr zu); „Scheitern“ löscht einen freien Punkt (ein Pflichtpunkt ist nicht mehr löschbar); `_unterschreiben()`
+    wartet auf die geöffnete Unterschrift und den Schritt des Kunden statt fester Pausen.
+
+#### Festlegungen 1.9.36 (Bitte bestätigen)
+
+1. **„Vor jeder Unterschrift“** = vor der Unterschrift des Monteurs (Öffnen) und vor der Übergabe an den Kunden („Weiter“), jeweils über
+   `GET …/noch-offen`; beim Absenden prüft der Server ein drittes Mal (409). Die Unterschriften bleiben ein Aufruf (getrennte Aufrufe sind
+   Runde 4).
+2. **Status 409** für „Noch offen“ (Zustand des Berichts), mit `offen` als Liste neben `detail`; die übrigen Ablehnungen der Unterschrift
+   (Bild, Name, schon unterschrieben) bleiben 400.
+3. **Die Prüfung wartet auf das Speichern der Seite** (`nachDemSpeichern()`): sonst meldete sie einen gerade beantworteten Punkt als offen.
+4. **Die Liste steht schon beim Laden** am Bericht (aus `noch_offen` der Berichtsliste); nach dem Beantworten eines Punkts frischt sie erst der
+   nächste Klick auf „Unterschreiben“ oder das Neuladen auf (Übergang bis Runde 4).
+5. **Pflichtpunkt = `required`** am Prüfpunkt (aus der Vorlage; von Hand ergänzte sind nie Pflicht). „Neu erzeugen“ löscht weiter alle Punkte
+   und baut sie aus der Vorlage neu -- die Pflichtpunkte kommen dabei wieder.
+6. **Wortlaut** der Einträge wie oben, Kurzfassung des Prüfpunkts bis 80, des Mangels bis 60 Zeichen.

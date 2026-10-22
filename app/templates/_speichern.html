@@ -248,6 +248,15 @@ function abschliessen(bereich, anfrage, optionen = {}) {
     }
   });
 }
+// Seit 1.9.36: wartet, bis jedes beim Aufruf laufende oder wartende Speichern der Seite zurück ist (gelungen oder nicht) -- für eine
+// Prüfung, die den gespeicherten Stand lesen soll, bevor eine abschließende Aktion beginnt (Einsatzbericht: „Noch offen“ vor der
+// Unterschrift). Zurückgehaltene Eingaben (_debounce.html) werden vorher gespeichert, wie bei abschliessen().
+async function nachDemSpeichern() {
+  for (const jetzt of [...(window.__dkEntprellt || [])]) {
+    try { jetzt(); } catch (e) { console.error(e); }
+  }
+  await Promise.all([...window.__dkSpeichern].map(s => Promise.resolve(s.ergebnis).catch(() => null)));
+}
 function _dkSchluessel(ziel, angaben) {
   // Gleiche Anfrage = gleiche Methode, Adresse und Body als Text; ein anderer Body (FormData, Datei) ist nie gleich.
   const body = angaben && angaben.body;

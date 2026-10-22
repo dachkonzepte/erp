@@ -28,6 +28,9 @@ button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-col
 .badge{font-size:10.5px;font-weight:800;text-transform:uppercase;padding:2px 7px;background:var(--soft);color:var(--muted)}
 .badge.unterschrieben{background:var(--success-soft);color:var(--success)}
 .badge.entwurf{background:var(--warning-soft);color:var(--warning)}
+/* seit 1.9.36: was vor der Unterschrift noch offen ist */
+.noch-offen{margin-top:10px;color:var(--danger);font-size:13.5px}
+.noch-offen ul{margin:4px 0 0 18px;padding:0}
 .office-hint{margin-top:8px;padding:8px 10px;border:1px solid var(--ds-warn-text);background:var(--warning-soft);color:var(--ink);border-radius:var(--ds-ecke-karte)}
 .report-desc{white-space:pre-wrap;margin-top:8px;font-size:13.5px}
 .report-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
@@ -463,7 +466,29 @@ function clearSignature(){if(sigPad)sigPad.leeren()}
 // beide Unterschriften in einem API-Aufruf (siehe sign_report() in app/service_reports.py).
 let sigStep='monteur',installerSigDataUrl=null,installerSigName='';
 
-function openSignPanel(id){
+// Seit 1.9.36 (Stufe 4, R1): vor jeder Unterschrift (Monteur, dann Kunde) fragt die Seite den Server, was noch offen ist -- erst nach
+// jedem laufenden Speichern der Seite (nachDemSpeichern(), _speichern.html), damit er den gespeicherten Stand sieht. Die Liste steht am
+// Knopf „Unterschreiben“ (nochOffenHtml()); ist sie nicht leer, öffnet die Unterschrift nicht bzw. geht nicht zum Kunden weiter.
+async function nochOffenPruefen(id){
+  await nachDemSpeichern();
+  let offen=[];
+  await lesen('noch-offen-'+id,()=>api(`/api/service-reports/${id}/noch-offen`),d=>{
+    offen=d.offen||[];
+    const r=reports.find(x=>x.id===id);if(r)r.noch_offen=offen;
+  });
+  renderReportList();
+  return offen;
+}
+function nochOffenHtml(r){
+  const offen=r.status==='entwurf'?(r.noch_offen||[]):[];
+  if(!offen.length)return '';
+  return `<div class="noch-offen" role="alert"><b>Noch offen vor der Unterschrift:</b><ul>${offen.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`;
+}
+
+async function openSignPanel(id){
+  try{
+    if((await nochOffenPruefen(id)).length){closeSignPanel();return}
+  }catch(e){document.getElementById('listStatus').textContent='Fehler: '+e.message;return}
   signingReportId=id;
   sigStep='monteur';installerSigDataUrl=null;installerSigName='';
   document.getElementById('editorCard').classList.add('hidden');
@@ -506,6 +531,10 @@ async function confirmSignatureStep(){
   if(!sigPad||sigPad.leer()){st.textContent='Bitte zuerst unterschreiben.';return}
   const dataUrl=sigPad.alsDataUrl();
   if(sigStep==='monteur'){
+    // seit 1.9.36: vor der Unterschrift des Kunden noch einmal fragen, was offen ist
+    let offen=[];
+    try{offen=await nochOffenPruefen(signingReportId)}catch(e){st.textContent='Fehler: '+e.message;return}
+    if(offen.length){st.textContent='Noch offen: '+offen.join('; ');return}
     installerSigDataUrl=dataUrl;
     installerSigName=name;
     sigStep='kunde';
@@ -532,8 +561,10 @@ async function confirmSignatureStep(){
 
 const CONDITION_GRADE_LABELS={1:'Neuwertig',2:'Gebrauchsspuren',3:'Abgenutzt',4:'Sanierung erforderlich'};
 
+// Seit 1.9.36 auch ein Rapportbericht mit Prüfvorlage: die Vorlage steht an seiner Dachfläche (roof_areas[].inspection_template_id) --
+// create_report() schreibt die alte Spalte inspection_template_id seit 1.2.22 nicht mehr, seine Pflichtpunkte blieben bis dahin unsichtbar.
 function hasInspectionSection(r){
-  return r.report_type==='wartung'||!!r.inspection_template_id;
+  return r.report_type==='wartung'||!!r.inspection_template_id||(r.roof_areas||[]).some(a=>!!a.inspection_template_id);
 }
 
 function reportCard(r){
@@ -577,6 +608,7 @@ function reportCard(r){
     ${r.description?`<div class="report-desc">${esc(r.description)}</div>`:''}
     ${signedInfo}
     <div class="report-actions">${actions.join('')}</div>
+    ${nochOffenHtml(r)}
     ${panel}
     ${findingsPanel}
     ${materialsPanel}
@@ -1189,7 +1221,7 @@ function inspectionItemRowHtml(item,r){
       <div class="itext">${item.required?'<span class="req">*</span> ':''}${esc(item.text)}</div>
       <div class="ictl" data-item="${item.id}">${itemControlInnerHtml(item)}${notesField}</div>
       ${notesToggleBtn}
-      ${r.status==='entwurf'?`<button type="button" class="danger" onclick="deleteInspectionItemUI(${item.id},${r.id})">×</button>`:''}
+      ${r.status==='entwurf'&&!item.required?`<button type="button" class="danger" onclick="deleteInspectionItemUI(${item.id},${r.id})">×</button>`:''}
     </div>
     ${findingHint}
     ${findingCardsHtml}

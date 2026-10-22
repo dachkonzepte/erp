@@ -1,7 +1,9 @@
-"""Klicktest: Regeln für die Monteurin, Minimal-Anzeige (Stufe 4, Runde 1; seit 1.9.35 vergessener Feierabend).
+"""Klicktest: Regeln für die Monteurin, Minimal-Anzeige (Stufe 4, Runde 1; seit 1.9.35 vergessener Feierabend, seit 1.9.36
+Einsatzbericht: „Noch offen“ vor der Unterschrift, Pflichtpunkte).
 
 Befüllt: Auftrag mit Einsatz (Plantafel heute ± 7 Tage) für Mia (Monteurin) und Tom (Monteur); beide haben eine Zeit, die gestern um
-06:45 Uhr begann und noch läuft (Feierabend vergessen); Anna (Admin).
+06:45 Uhr begann und noch läuft (Feierabend vergessen); Anna (Admin). Seit 1.9.36 dazu am Objekt des Auftrags die Dachfläche „Hauptdach“
+(Flachdach, ein Gully) und Mias Rapportbericht mit Prüfvorlage (vier Pflichtpunkte, zwei freie).
 
     Mia (412 px, dunkel)  /mobil: Hinweis „Deine Zeit läuft noch seit <gestern>, 06:45 Uhr“ mit Zeitart, Auftrag und „Ende nachtragen →“.
                           Zeiterfassung: statt Uhr und „Zeit stoppen“ der Hinweis „Die Zeit vom … läuft noch“, Feld „Ende an diesem Tag“,
@@ -10,6 +12,10 @@ Befüllt: Auftrag mit Einsatz (Plantafel heute ± 7 Tage) für Mia (Monteurin) u
                           9,25 h · Pause 45 min“, danach startet sie neu (Uhr und „Zeit stoppen“ wieder da).
     Anna (1400 px, hell)  Zeiterfassung für Tom: dieselbe offene Anzeige, „Ende nachtragen“ 15:30 -> gebucht mit Pause; im Verlauf (API)
                           steht Anna.
+    Mia (412 px, dunkel)  Einsatzbericht (seit 1.9.36): der Rapportbericht zeigt „Prüfpunkte“; am Knopf „Unterschreiben“ die Liste „Noch
+                          offen vor der Unterschrift“ mit den vier Pflichtpunkten; Pflichtpunkte mit „*“ und ohne „×“, freie mit „×“;
+                          „Unterschreiben“ öffnet die Unterschrift nicht, solange etwas offen ist; Pflichtpunkt löschen 409; nach dem
+                          Beantworten öffnet sie, die Liste ist weg.
 
 Feste Uhr 10:00 (/mobil meldet ab 19 Uhr ab); die Daten liegen relativ zum heutigen Tag.
 
@@ -34,9 +40,13 @@ def befuellen(db, k):
     from decimal import Decimal
 
     from app.berlin_time import berlin_today
+    from app.inspection_templates import create_template, create_template_item
     from app.models import (
-        AppUser, Customer, Employee, PlanningSlot, Project, Quote, QuoteItem, Team, WorkPreparationEmployee, WorkPreparationTeamAssignment,
+        AppUser, Customer, Employee, PlanningSlot, Project, Property, Quote, QuoteItem, Team, WorkPreparationEmployee,
+        WorkPreparationTeamAssignment,
     )
+    from app.roof_areas import create_roof_area, create_roof_component
+    from app.service_reports import create_report
     from app.orders import create_order_from_quote
     from app.project_pipeline_columns import default_pipeline_column_id
     from app.time_tracking import start_timer
@@ -56,8 +66,10 @@ def befuellen(db, k):
     db.add_all(benutzer.values()); db.flush()
     kunde = Customer(name="Hallenbau GmbH", last_name="Hallenbau GmbH", is_consumer=False)
     db.add(kunde); db.flush()
+    objekt = Property(customer_id=kunde.id, name="Halle Nord", street="Werkstr. 5", postal_code="52531", city="Uebach")
+    db.add(objekt); db.flush()
     projekt = Project(project_number="P-KT-MR", name="Dachsanierung Halle", customer_id=kunde.id, status="angebot",
-                      pipeline_column_id=default_pipeline_column_id(db))
+                      property_id=objekt.id, pipeline_column_id=default_pipeline_column_id(db))
     db.add(projekt); db.flush()
     angebot = Quote(quote_number="A-KT-MR", project_id=projekt.id, title="Dachsanierung Halle", vat_rate=Decimal("19"))
     db.add(angebot); db.flush()
@@ -78,7 +90,22 @@ def befuellen(db, k):
     db.commit()
     zeiten = {name: start_timer(db, employee_id=emp.id, order_id=auftrag.id, started_at=datetime.combine(gestern, time(6, 45))).id
               for name, emp in (("mia", mia), ("tom", tom))}
+    # Seit 1.9.36: Rapportbericht mit Prüfvorlage (vier Pflichtpunkte, zwei freie)
+    vorlage = create_template(db, "Flachdach Rapport", roof_type="Flachdach")
+    for nr, (text, art, gruppe, bauteil, pflicht) in enumerate((
+            ("Zugang und Absturzsicherung geprüft", "ja_nein", "Allgemein", None, True),
+            ("Gesamtzustand Dachfläche", "condition_grade", "Allgemein", None, True),
+            ("Ablauf frei und funktionsfähig", "ja_nein", "Entwässerung", "Gully", True),
+            ("Laubfang vorhanden und intakt", "ja_nein", "Entwässerung", "Gully", False),
+            ("Abdichtung auf Blasen, Risse, Falten", "condition_grade", "Fläche", None, True),
+            ("Bemerkungen", "free_text", "Abschluss", None, False)), start=1):
+        create_template_item(db, vorlage["id"], text, art, group_name=gruppe, component_type=bauteil, required=pflicht, sort_order=10 * nr)
+    flaeche = create_roof_area(db, objekt.id, "Hauptdach", roof_type="Flachdach")
+    create_roof_component(db, flaeche["id"], "Gully 1", component_type="Gully", sort_order=10)
+    bericht = create_report(db, auftrag.id, "rapport", description="Abdichtung am Anschluss erneuert", created_by_employee_id=mia.id,
+                            roof_area_ids=[flaeche["id"]], inspection_template_id=vorlage["id"])
     return {"auftrag": auftrag.id, "auftragsnummer": auftrag.order_number, "tom": tom.id, "zeiten": zeiten,
+            "bericht": bericht["id"], "flaeche": flaeche["id"],
             "gestern": gestern.isoformat(), "gestern_de": f"{gestern:%d.%m.%Y}",
             "cookies": {name: k.cookies(u) for name, u in benutzer.items()}}
 
@@ -167,6 +194,57 @@ async def pruefen(tab, seed, p):
     felder = sorted({e.get("field_name") for e in (verlauf or []) if e.get("actor_name") == "Anna Admin"})
     p.pruefe("Verlauf: Anna hat Toms Zeit geschlossen (Ende, Status)", {"ended_at", "status"} <= set(felder), True)
     p.pruefe("Anna: keine JS-Fehler", tab.fehler, [])
+
+    # --- Mia: Einsatzbericht (seit 1.9.36) ---------------------------------------------------------------------------------------
+    b = seed["bericht"]
+    await tab.anmelden(seed["cookies"]["mia"])
+    await tab.fenster(412, 900, mobil=True)
+    await tab.js("localStorage.setItem('erp_theme','dark')")
+    await tab.oeffnen(f"/orders/{seed['auftrag']}/service-reports", "typeof reports!=='undefined'&&reports.length===1")
+    await tab.warte_auf_neu_geladene_liste()
+    karte = "document.querySelector('#reportList .report-card')"
+    p.pruefe("Rapportbericht: Knopf „Prüfpunkte“ (Vorlage an der Dachfläche)", await tab.js(
+        f"[...{karte}.querySelectorAll('.report-actions button')].map(x=>x.textContent).includes('Prüfpunkte')"), True)
+    offen = ["Pflichtpunkt „Zugang und Absturzsicherung geprüft“ beantworten", "Pflichtpunkt „Gesamtzustand Dachfläche“ beantworten",
+             "Pflichtpunkt „Gully 1: Ablauf frei und funktionsfähig“ beantworten",
+             "Pflichtpunkt „Abdichtung auf Blasen, Risse, Falten“ beantworten"]
+    liste = f"(e=>e?[e.querySelector('b').textContent,[...e.querySelectorAll('li')].map(x=>x.textContent)]:null)({karte}.querySelector('.noch-offen'))"
+    p.pruefe("Am Knopf: „Noch offen vor der Unterschrift“ mit den vier Pflichtpunkten", await tab.js(liste),
+             ["Noch offen vor der Unterschrift:", offen])
+    await tab.js(f"void toggleReportInspectionItems({b})")
+    await tab.warten(f"(inspectionItemsCache[{b}]||[]).length===6", 10)
+    await tab.warte_auf_neu_geladene_liste()
+    await tab.js(f"toggleReportArea({b},{seed['flaeche']}); true")
+    await tab.warten("document.querySelectorAll('.inspection-row .itext').length===6", 10)  # ohne die Zeile „Zusätzlicher Prüfpunkt“
+    zeilen = await tab.js("[...document.querySelectorAll('.inspection-row')].filter(z=>z.querySelector('.itext')).map(z=>[z.querySelector('.itext').textContent.trim(),"
+                          "!!z.querySelector('.req'),!!z.querySelector('button.danger')])")
+    p.pruefe("Prüfpunkte: Pflicht mit „*“ ohne „×“, frei mit „×“", sorted([pflicht, kreuz] for _, pflicht, kreuz in (zeilen or [])),
+             [[False, True], [False, True], [True, False], [True, False], [True, False], [True, False]])
+    await tab.js("[...document.querySelectorAll('.inspection-group')].find(g=>g.textContent.includes('Entwässerung')).scrollIntoView({block:'start'})")
+    await tab.bild("6_rapport_pflichtpunkte_dunkel_412")
+    await tab.js(f"{karte}.querySelector('.report-actions button[onclick^=\"openSignPanel\"]').click()")
+    await tab.warte_auf_ruhe()
+    p.pruefe("„Unterschreiben“ mit offenen Pflichten: Unterschrift öffnet nicht, die Liste steht am Knopf", [await tab.js(
+        "document.getElementById('signCard').classList.contains('hidden')"), await tab.js(liste)],
+        [True, ["Noch offen vor der Unterschrift:", offen]])
+    await tab.js(f"{karte}.querySelector('.noch-offen').scrollIntoView({{block:'center'}})")
+    await tab.bild("7_noch_offen_dunkel_412")
+    punkte = await tab.js(f"fetch('/api/service-reports/{b}/inspection-items').then(r=>r.json())")
+    pflicht = [x["id"] for x in punkte if x["required"]]
+    p.pruefe("Pflichtpunkt löschen (API): 409", await tab.js(
+        f"fetch('/api/inspection-items/{pflicht[0]}',{{method:'DELETE'}}).then(async r=>[r.status,(await r.json()).detail])"),
+        [409, "Ein Pflichtpunkt lässt sich nicht löschen."])
+    for item_id in pflicht:  # Testhandlung: beantwortet über die API
+        await tab.js(f"fetch('/api/inspection-items/{item_id}',{{method:'PUT',headers:{{'Content-Type':'application/json'}},"
+                     "body:JSON.stringify({result:'ok',condition_grade:1})}).then(r=>r.status)")
+    await tab.oeffnen(f"/orders/{seed['auftrag']}/service-reports", "typeof reports!=='undefined'&&reports.length===1")
+    await tab.warte_auf_neu_geladene_liste()
+    p.pruefe("Beantwortet: keine Liste mehr", await tab.js(f"!!{karte}.querySelector('.noch-offen')"), False)
+    await tab.js(f"{karte}.querySelector('.report-actions button[onclick^=\"openSignPanel\"]').click()")
+    await tab.warten("!document.getElementById('signCard').classList.contains('hidden')", 10)
+    p.pruefe("Beantwortet: Unterschrift öffnet (Monteur)", await tab.js("document.getElementById('signHeading').textContent"),
+             "Unterschrift Monteur")
+    p.pruefe("Einsatzbericht: keine JS-Fehler", tab.fehler, [])
 
 
 if __name__ == "__main__":

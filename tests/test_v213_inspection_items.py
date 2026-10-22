@@ -173,7 +173,8 @@ def test_sign_report_blocks_on_open_required_items_and_names_count_then_succeeds
         sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
         assert False, "sollte ValueError auslösen"
     except ValueError as exc:
-        assert "4" in str(exc)
+        # seit 1.9.36 die Liste „Noch offen: …“ mit Namen statt der Zahl (NochOffen.offen)
+        assert len(exc.offen) == 4 and str(exc).startswith("Noch offen: Pflichtpunkt „")
 
     for item in required_items[:-1]:
         update_inspection_item(db, item["id"], {"result": "ok", "condition_grade": 1})
@@ -182,7 +183,7 @@ def test_sign_report_blocks_on_open_required_items_and_names_count_then_succeeds
         sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
         assert False, "sollte ValueError auslösen"
     except ValueError as exc:
-        assert "1" in str(exc)
+        assert exc.offen == [f"Pflichtpunkt „{required_items[-1]['text']}“ beantworten"]
 
     last = required_items[-1]
     update_inspection_item(db, last["id"], {"result": "ok", "condition_grade": 1})
@@ -461,5 +462,6 @@ def test_router_endpoints_generate_items_and_reject_open_required_via_http(threa
         "installer_signature_png_base64": png, "installer_signature_name": "Monteur Test",
         "customer_signature_png_base64": png, "customer_signature_name": "Max Mustermann",
     })
-    assert sign_resp.status_code == 400
-    assert re.search(r"\d+ Pflichtpunkt", sign_resp.json()["detail"])
+    # seit 1.9.36: 409 mit der Liste „Noch offen: …“ (bis 1.9.35 400 mit „4 Pflichtpunkt(e) …“)
+    assert sign_resp.status_code == 409
+    assert sign_resp.json()["detail"].startswith("Noch offen: Pflichtpunkt „") and len(sign_resp.json()["offen"]) == 4

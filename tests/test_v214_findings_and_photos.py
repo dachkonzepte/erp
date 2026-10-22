@@ -411,8 +411,9 @@ def test_router_endpoints_create_finding_and_reject_sign_without_photo(threaded_
         "installer_signature_png_base64": png, "installer_signature_name": "Monteur Test",
         "customer_signature_png_base64": png, "customer_signature_name": "Max Mustermann",
     })
-    assert sign_resp.status_code == 400
-    assert "Foto" in sign_resp.json()["detail"]
+    # seit 1.9.36: 409 mit der Liste „Noch offen: …“ (bis 1.9.35 400 mit „1 Mangel/Mängel haben noch kein Foto.“)
+    assert sign_resp.status_code == 409
+    assert sign_resp.json()["detail"] == "Noch offen: Foto zum Mangel „Kaputt“ aufnehmen"
 
     list_resp = client.get("/api/findings")
     assert list_resp.status_code == 200

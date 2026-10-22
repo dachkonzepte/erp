@@ -26,6 +26,7 @@ Büro-Entscheidung) bleibt Büro/Admin."""
 
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from ..dateiauslieferung import datei_antwort
@@ -47,7 +48,8 @@ from ..service_reports import (
     delete_inspection_item, delete_material, delete_photo, delete_report, get_property_context_for_order,
     get_report_row, list_assets_for_report, list_inspection_items, list_materials_for_invoicing,
     list_materials_for_report, list_photos, list_property_history, list_property_history_for_field, list_reports,
-    list_reports_for_field, list_roof_areas_for_order, material_to_dict, regenerate_inspection_items, sign_report,
+    list_reports_for_field, list_roof_areas_for_order, material_to_dict, noch_offen, NochOffen, PflichtpunktGeschuetzt,
+    regenerate_inspection_items, sign_report,
     sync_inspection_items, update_asset_usage, update_inspection_item, update_material, update_report,
 )
 from ..zugehoerigkeit import NotInOrderProperty
@@ -225,10 +227,31 @@ def delete_service_report(report_id: int, db: Session = Depends(get_db, scope="f
     return {"ok": True}
 
 
+def _noch_offen_antwort(offen: list[str]) -> JSONResponse:
+    return JSONResponse(status_code=409, content={"detail": "Noch offen: " + "; ".join(offen), "offen": offen})
+
+
+@router.get("/api/service-reports/{report_id}/noch-offen")
+def get_service_report_noch_offen(report_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+    """Seit 1.9.36 (Stufe 4, R1, Punkt 4): was vor einer Unterschrift noch zu erledigen ist (app/service_reports.py::noch_offen(), dieselbe
+    Prüfung wie beim Unterschreiben) -- die Seite fragt es vor jeder Unterschrift (Monteur, dann Kunde) und öffnet die Unterschrift nur bei
+    leerer Liste. Ein unterschriebener Bericht hat nichts offen."""
+    _require_module_enabled(db)
+    require_field_report_ownership(db, _role, report_id)
+    report = get_report_row(db, report_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="Bericht nicht gefunden.")
+    return {"offen": noch_offen(report) if report.status == "entwurf" else []}
+
+
 @router.post("/api/service-reports/{report_id}/sign", response_model=ServiceReportOut)
 def post_sign_service_report(report_id: int, payload: ServiceReportSign, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
     require_field_report_ownership(db, _role, report_id)
+    # Seit 1.9.36: zuerst die Pflichten -- 409 mit der Liste „Noch offen: …“, vor jeder Prüfung der Unterschriften
+    report = get_report_row(db, report_id)
+    if report is not None and report.status == "entwurf" and (offen := noch_offen(report)):
+        return _noch_offen_antwort(offen)
     try:
         installer_bytes = signature_png_from_base64(payload.installer_signature_png_base64)
         customer_bytes = signature_png_from_base64(payload.customer_signature_png_base64)
@@ -237,6 +260,8 @@ def post_sign_service_report(report_id: int, payload: ServiceReportSign, db: Ses
             installer_signature_png_bytes=installer_bytes, installer_signature_name=payload.installer_signature_name,
             customer_signature_png_bytes=customer_bytes, customer_signature_name=payload.customer_signature_name,
         )
+    except NochOffen as exc:
+        return _noch_offen_antwort(exc.offen)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if result is None:
@@ -328,6 +353,8 @@ def delete_inspection_item_endpoint(item_id: int, db: Session = Depends(get_db, 
     require_field_report_ownership(db, _role, _report_id_for_child(db, InspectionItem, item_id, "Prüfpunkt nicht gefunden."))
     try:
         deleted = delete_inspection_item(db, item_id)
+    except PflichtpunktGeschuetzt as exc:  # seit 1.9.36
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not deleted:

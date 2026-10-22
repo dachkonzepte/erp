@@ -144,6 +144,8 @@ def report_to_dict(report: ServiceReport) -> dict:
         "inspection_template_label": report.inspection_template.label if report.inspection_template else None,
         "inspection_template_version": report.inspection_template_version,
         "roof_areas": _report_roof_areas_to_dicts(report),
+        # seit 1.9.36: was vor der Unterschrift noch offen ist (nur im Entwurf) -- die Liste am Knopf „Unterschreiben“
+        "noch_offen": noch_offen(report) if report.status == "entwurf" else [],
         "created_at": report.created_at,
         "updated_at": report.updated_at,
     }
@@ -701,6 +703,40 @@ def inspection_item_to_dict(item: InspectionItem) -> dict:
     }
 
 
+class NochOffen(ValueError):
+    """Seit 1.9.36 (Stufe 4, R1, Punkt 4): vor der Unterschrift ist noch etwas zu erledigen -- `offen` ist die Liste für die Meldung
+    „Noch offen: …“ (409 im Router)."""
+
+    def __init__(self, offen: list[str]):
+        self.offen = offen
+        super().__init__("Noch offen: " + "; ".join(offen))
+
+
+class PflichtpunktGeschuetzt(ValueError):
+    """Seit 1.9.36: ein Pflichtpunkt lässt sich nicht löschen (409 im Router)."""
+
+
+def _kurz(text: str | None, laenge: int = 80) -> str:
+    text = " ".join((text or "").split())
+    return text if len(text) <= laenge else text[:laenge - 1].rstrip() + "…"
+
+
+def noch_offen(report: ServiceReport) -> list[str]:
+    """Seit 1.9.36 (Stufe 4, R1, Punkt 4): was vor einer Unterschrift erledigt sein muss -- genau die Pflichten, die sign_report() seit
+    1.2.16/1.2.17 prüft (Pflichtpunkt beantwortet, Mangel zu negativem Ergebnis, Foto je Mangel, Wiedervorlage bei zurückgestellt), keine
+    neuen; je Eintrag mit dem Namen des Prüfpunkts bzw. Mangels, in dieser Reihenfolge. Leer = unterschreibbar. Bis 1.9.35 prüfte sie
+    erst der Aufruf mit beiden Unterschriften und nannte nur Zahlen."""
+    offen = [f"Pflichtpunkt „{_kurz(i.text)}“ beantworten" for i in report.inspection_items
+             if i.required and not _is_item_answered(i)]
+    findings_by_item_id = {f.inspection_item_id for f in report.findings if f.inspection_item_id is not None}
+    offen += [f"Mangel zum Prüfpunkt „{_kurz(i.text)}“ erfassen (negatives Ergebnis)" for i in report.inspection_items
+              if (i.result == "nok" or i.condition_grade in (3, 4)) and i.id not in findings_by_item_id]
+    offen += [f"Foto zum Mangel „{_kurz(f.description, 60)}“ aufnehmen" for f in report.findings if not f.photos]
+    offen += [f"Wiedervorlagedatum zum zurückgestellten Mangel „{_kurz(f.description, 60)}“ angeben" for f in report.findings
+              if f.action == "zurueckgestellt" and f.resubmission_date is None]
+    return offen
+
+
 def _is_item_answered(item: InspectionItem) -> bool:
     if item.item_type in ("ja_nein", "leak_test"):
         return item.result is not None
@@ -801,6 +837,8 @@ def delete_inspection_item(db: Session, item_id: int) -> bool:
     if item is None:
         return False
     _require_draft_report(db, item.service_report_id)
+    if item.required:  # seit 1.9.36: ein Pflichtpunkt (aus der Prüfvorlage) bleibt -- sonst ließe sich die Pflicht wegklicken
+        raise PflichtpunktGeschuetzt("Ein Pflichtpunkt lässt sich nicht löschen.")
     db.delete(item)
     db.commit()
     return True
@@ -1279,27 +1317,13 @@ def sign_report(
         return None
     if report.status == "unterschrieben":
         raise ValueError("Dieser Bericht ist bereits unterschrieben.")
+    # Seit 1.9.36: die Pflichten vor den Bildern und in einer Liste (noch_offen(), dieselbe Prüfung wie GET …/noch-offen vor jeder
+    # Unterschrift) -- bis 1.9.35 vier Einzelmeldungen mit Zahlen, erst nach der Prüfung der Bilder.
+    offen = noch_offen(report)
+    if offen:
+        raise NochOffen(offen)
     for png, who in ((installer_signature_png_bytes, "des Monteurs"), (customer_signature_png_bytes, "des Kunden")):
         check_signature_png(png, who)
-    open_required = [i for i in report.inspection_items if i.required and not _is_item_answered(i)]
-    if open_required:
-        raise ValueError(f"{len(open_required)} Pflichtpunkt(e) sind noch nicht beantwortet.")
-
-    findings_by_item_id = {f.inspection_item_id for f in report.findings if f.inspection_item_id is not None}
-    negative_items = [
-        i for i in report.inspection_items
-        if (i.result == "nok" or i.condition_grade in (3, 4)) and i.id not in findings_by_item_id
-    ]
-    if negative_items:
-        raise ValueError(f"{len(negative_items)} Prüfpunkt(e) mit negativem Ergebnis haben noch keinen Mangel.")
-
-    findings_without_photo = [f for f in report.findings if not f.photos]
-    if findings_without_photo:
-        raise ValueError(f"{len(findings_without_photo)} Mangel/Mängel haben noch kein Foto.")
-
-    postponed_without_date = [f for f in report.findings if f.action == "zurueckgestellt" and f.resubmission_date is None]
-    if postponed_without_date:
-        raise ValueError(f"{len(postponed_without_date)} zurückgestellte(r) Mangel/Mängel ohne Wiedervorlagedatum.")
 
     if not installer_signature_name.strip():
         raise ValueError("Bitte den Namen des unterschreibenden Monteurs angeben.")

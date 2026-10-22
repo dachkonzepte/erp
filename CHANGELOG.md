@@ -4,6 +4,18 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.36 – Stufe 4, R1: Einsatzbericht – „Noch offen“ vor jeder Unterschrift
+
+Stufe 4 „Monteurin“, Runde 1, Punkt 4. Die Pflichten eines Einsatzberichts (Pflichtpunkt beantwortet, Mangel zu negativem Ergebnis, Foto je
+Mangel, Wiedervorlage bei zurückgestellt) prüfte der Server erst, nachdem Monteurin und Kunde unterschrieben hatten -- dann hieß es „3
+Pflichtpunkt(e) sind noch nicht beantwortet.“, ohne zu sagen welche. Jetzt nennt `app/service_reports.py::noch_offen()` dieselben Pflichten
+(keine neuen) je mit Namen; `GET /api/service-reports/{id}/noch-offen` liefert die Liste, die Berichtsseite fragt sie vor jeder Unterschrift
+(vor der des Monteurs und vor der Übergabe an den Kunden, erst nach jedem laufenden Speichern der Seite -- neuer Helfer `nachDemSpeichern()` im
+Baustein `_speichern.html`) und zeigt sie am Knopf „Unterschreiben“; die Unterschrift lehnt mit 409 „Noch offen: …“ ab, vor jeder Prüfung der
+Bilder. Ein Pflichtpunkt lässt sich nicht mehr löschen (409, der Knopf „×“ fehlt), ein freier schon. Ein Rapportbericht mit Prüfvorlage zeigt
+seine Prüfpunkte (die Seite erkannte die Vorlage nur an einer Spalte, die seit 1.2.22 nicht mehr beschrieben wird). Neuer Test `test_v464`,
+`klicktest_monteurin_regeln` um den Einsatzbericht ergänzt, `klicktest_abschliessen` an den neuen Ablauf angepasst.
+
 ## 1.9.35 – Stufe 4, R1: vergessener Feierabend – Ende nachtragen
 
 Stufe 4 „Monteurin“, Runde 1, Punkt 2. Vergaß die Monteurin den Feierabend, lief ihre Zeit über Nacht weiter; der Stopp am nächsten Morgen

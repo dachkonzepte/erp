@@ -4349,6 +4349,8 @@ class ServiceReportOut(BaseModel):
     inspection_template_label: str | None = None
     inspection_template_version: int | None = None
     roof_areas: list[ServiceReportRoofAreaOut] = []
+    # Seit 1.9.36: was vor der Unterschrift noch offen ist (nur im Entwurf)
+    noch_offen: list[str] = []
     created_at: datetime
     updated_at: datetime
 

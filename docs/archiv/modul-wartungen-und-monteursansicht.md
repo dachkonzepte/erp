@@ -930,3 +930,10 @@ die Objektsuche (Fläche unter dem Kopf statt eigener Zeile), Kontoknopf mit vol
 (`_kontomenue.html`, dasselbe wie im Büro). Der frühere Reiter „Abmelden“ und der Knopf Hell/Dunkel sind im Kontomenü. Anders als oben
 („`service_reports.html` bekommt bewusst KEINE eigene Kopfzeile“) haben Einsatzbericht und Konto der Monteurin seither diesen Kopf
 statt der Seitenleiste. Herleitung, Maße und Festlegungen: `docs/archiv/redesign.md`, „Teil 4 (1.8.164): Monteurskopf“.
+
+**Seit 1.9.36 (Stufe 4, R1, Punkt 4): „Noch offen“ vor jeder Unterschrift.** Die vier Vollständigkeitsprüfungen von `sign_report()` (seit
+1.2.16/1.2.17) stehen in `app/service_reports.py::noch_offen()` als Liste mit Namen; `GET /api/service-reports/{id}/noch-offen` liefert sie,
+die Seite fragt vor jeder Unterschrift und zeigt sie am Knopf „Unterschreiben“, die Unterschrift lehnt mit 409 „Noch offen: …“ ab (vorher
+`ValueError` mit der Anzahl, 400). Ein Pflichtpunkt lässt sich nicht löschen (409). `hasInspectionSection()` erkennt die Vorlage auch an der
+Dachfläche (`roof_areas[].inspection_template_id`) -- ein Rapportbericht mit Vorlage zeigt seine Prüfpunkte. Herleitung, Tests und
+Festlegungen: `docs/archiv/redesign.md`, „R1 Punkt 4 (1.9.36)“.
