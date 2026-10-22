@@ -96,6 +96,7 @@
   <h2>Frühere Wartungsberichte</h2>
   <div id="historyList" class="loading">Lädt…</div>
 </main>
+{% include "_berlin_date.html" %}
 {% include "_speichern.html" %}
 {% include "_seitenkopf.html" %}
 <script>
@@ -107,12 +108,6 @@
     var d=new Date(s+'T00:00:00');
     if(isNaN(d))return s;
     return d.toLocaleDateString('de-DE');
-  }
-  function fmtDateTime(s){
-    if(!s)return'';
-    var d=new Date(s);
-    if(isNaN(d))return s;
-    return d.toLocaleDateString('de-DE')+' '+d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
   }
   async function api(u,o){
     var r=await fetch(u,o);
@@ -160,7 +155,7 @@
       }
       var base='/api/field-view/properties/'+propertyId+'/documents/'+d.source+'/'+d.id;
       html+='<div class="card doc-row"><div><div class="doc-name">'+esc(d.original_filename)+'</div>'
-        +'<div class="doc-meta">'+esc(fmtDate((d.uploaded_at||'').slice(0,10)))+(d.description?' · '+esc(d.description):'')+'</div></div>'
+        +'<div class="doc-meta">'+esc(berlinZeitpunkt(d.uploaded_at,'datum'))+(d.description?' · '+esc(d.description):'')+'</div></div>'
         +'<div class="doc-actions">'
         +(d.can_preview?'<a href="'+esc(base)+'/view" target="_blank" rel="noopener">Ansehen</a>':'')
         +'<a href="'+esc(base)+'/download">Laden</a>'

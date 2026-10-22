@@ -58,6 +58,7 @@
   {% endif %}
 </main>
 {% include "_seitenkopf.html" %}
+{% include "_berlin_date.html" %}
 <script>
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const assetId={{ asset_id }};
@@ -80,7 +81,7 @@ async function loadReadiness(){
   if(!r||!r.ok)return;
   const s=await r.json();
   if(s.ready!==false)return;
-  const when=s.completed_at?new Date(s.completed_at+'Z').toLocaleDateString('de-DE'):'';
+  const when=s.completed_at?berlinZeitpunkt(s.completed_at,'datum'):'';
   const el=document.getElementById('readinessBanner');
   el.innerHTML=`<b>Nicht einsatzbereit</b><div>Gemeldet ${esc(when)}${s.created_by_name?' von '+esc(s.created_by_name):''} (${esc(s.template_label)}). Erst wieder benutzen, wenn eine neue Prüfung „einsatzbereit“ ergibt oder das Büro das Gerät als repariert markiert hat.</div>${s.checklist_id?`<a href="/checklisten/${s.checklist_id}">Meldung ansehen</a>`:''}`;
   el.style.display='';

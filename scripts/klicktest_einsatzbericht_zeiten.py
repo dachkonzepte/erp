@@ -135,6 +135,10 @@ async def pruefen(tab, seed, p):
     await tab.js(f"document.querySelectorAll('#reportList .report-card')[reports.findIndex(r=>r.id==={s})].scrollIntoView({{block:'start'}})")
     await tab.bild("10_bericht_unterschrieben_vorher_hell")
     vorher = await _pdf(tab, s, "pdf_vorher.pdf")
+    # seit 1.9.46 (R2 Punkt 7): die Unterschrift auf der Seite in Europe/Berlin -- dieselbe Zeit wie im PDF (bis dahin UTC)
+    zeit = await tab.js(rf"((t)=>(t.match(/Kunde: Bernd Bauherr \((\d\d\.\d\d\.\d{{4}} \d\d:\d\d) Uhr\)/)||[])[1]||null)"
+                        f"([...document.querySelectorAll('#reportList .report-card')][reports.findIndex(r=>r.id==={s})].innerText)")
+    p.pruefe("Unterschrift auf der Seite = Zeit im PDF", [bool(zeit), f"am {zeit} Uhr" in vorher], [True, True])
     p.pruefe("PDF vorher: dieselben Zeilen (Personen, von–bis, Stunden), nicht der Vortag",
              [f"Zeiten am {h}" in vorher, "Mia Monteurin" in vorher, "Tom Monteur" in vorher, "06:45" in vorher, "12:00" in vorher,
               "5,25" in vorher, "3,00" in vorher, "2,00" in vorher, "Vortag" in vorher], [True] * 7 + [False, False])

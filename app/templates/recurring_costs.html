@@ -138,6 +138,7 @@ tr:last-child td{border-bottom:none}
 <div class="editor-card"><h2>Betriebskosten-Übersicht</h2><div class="muted">Dieses Modul ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--ds-link)">Einstellungen</a> wieder aktivieren.</div></div>
 {% endif %}
 </main>
+{% include "_berlin_date.html" %}
 {% include "_aktionen.html" %}
 {% include "_seitenkopf.html" %}
 </div>
@@ -302,7 +303,7 @@ function documentRow(doc){
   return `<tr>
     <td>${esc(doc.document_type)}</td>
     <td><a href="/api/recurring-cost-documents/${doc.id}/file" target="_blank" style="color:var(--ds-link)">${esc(doc.original_filename)}</a></td>
-    <td>${fmtDate(doc.uploaded_at)}</td>
+    <td>${esc(berlinZeitpunkt(doc.uploaded_at,'datum'))}</td>
     <td>${esc(doc.notes||'')}</td>
     <td class="row-actions"><button class="danger" onclick="deleteDocumentNow(${doc.id})">Löschen</button></td>
   </tr>`;

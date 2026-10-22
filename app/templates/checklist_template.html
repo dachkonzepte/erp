@@ -122,6 +122,7 @@ tr:last-child td{border-bottom:none}
 <div class="card"><h2>Checklisten-Vorlage</h2><div class="muted">Das Modul Checklisten &amp; Formulare ist deaktiviert. Ein Administrator kann es in den <a href="/settings#modules" style="color:var(--ds-link)">Einstellungen</a> wieder aktivieren.</div></div>
 {% endif %}
 </main>
+{% include "_berlin_date.html" %}
 {% include "_aktionen.html" %}
 {% include "_seitenkopf.html" %}
 </div>
@@ -239,7 +240,7 @@ function renderVersionNotice(){
 function renderVersions(){
   document.getElementById('versionRows').innerHTML=template.versions.slice().reverse().map(v=>{
     const st={entwurf:'<span class="badge draft">Entwurf</span>',veroeffentlicht:'<span class="badge ok">gültig</span>',abgeloest:'<span class="badge">abgelöst</span>'}[v.status]||esc(v.status);
-    const pub=v.published_at?new Date(v.published_at+'Z').toLocaleString('de-DE'):'—';
+    const pub=v.published_at?esc(berlinZeitpunkt(v.published_at)):'—';
     return `<tr><td>${esc(v.version_no)}</td><td>${st}</td><td>${pub}</td><td>${esc(v.field_count)}</td><td><button class="secondary small-btn" onclick="viewVersion(${v.id})">Ansehen</button></td></tr>`;
   }).join('')||'<tr><td colspan="5" class="empty">Keine Fassungen.</td></tr>';
 }

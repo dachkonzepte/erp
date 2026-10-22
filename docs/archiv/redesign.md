@@ -3891,3 +3891,35 @@ Pausenregel rechnet. Die Runde beginnt mit den kleinen Punkten (7), dann Server 
 
 - Feldrahmen auf der Signalfläche: `--ds-feld-rand` auf `--ds-signal-hell` hat hell 2,84 : 1 (dunkel 3,48 : 1) -- wie die Vorlage (#88929A
   auf #FDF0E7); das Feld selbst ist weiß. Text auf der Signalfläche: `--ds-text` 15,4 : 1, `--ds-text-2` 6,8 : 1 (dunkel 13,0 und 8,6).
+
+### R2 Punkt 7b (1.9.46): angezeigte Zeitpunkte in Europe/Berlin
+
+Herleitung, Helfer und die Liste aller Stellen: `docs/archiv/zeiterfassung-und-abwesenheit.md`, „Angezeigte Zeitpunkte in Europe/Berlin
+(seit 1.9.46)“. Das Inventar entstand über alle 83 Vorlagen (Feld bis zum Serializer und zur Spalte verfolgt): 18 falsche Anzeigen, 20 nur im
+Berliner Browser richtige, rund 30 schon richtige (`*_local`), rund 13 mit naiver Ortszeit, 1 unklar (Änderungsprotokoll, alter/neuer Wert).
+
+#### Tests und Prüfung
+
+- Neu `tests/test_v473_zeitpunkte_berlin.py`: der Helfer in node unter Europe/Berlin, UTC, America/New_York und Asia/Tokyo (Sommer- und
+  Winterzeit, über Mitternacht, Silvester, beide Umstellungen, mit 'Z' und Versatz, leer, unlesbar); Wächter über alle Vorlagen (kein 'Z'
+  angehängt, kein UTC-Feld in `new Date()`/`fmtDate()`/`fmt()`/`dateDe()`/`accDateTime()` u. a., keins abgeschnitten) samt Gegenprobe an den
+  Mustern des Inventars; wer den Helfer nimmt, bindet `_berlin_date.html` ein; Unterschrift: gespeichert und geliefert 15:33 UTC, Seite
+  „22.10.2026 17:33“ (Helfer in einem Browser in UTC) = PDF „am 22.10.2026 17:33 Uhr“.
+- `klicktest_einsatzbericht_zeiten` um die Prüfung „Unterschrift auf der Seite = Zeit im PDF“ ergänzt (im Browser: die Zeit in „Kunde: …
+  (TT.MM.JJJJ HH:MM Uhr)“ steht als „am … Uhr“ im PDF).
+- Nebenbei: `users.html` zeigt für „nie angemeldet“ weiter „—“; die nicht mehr gebrauchten Hilfsfunktionen (`fmtDate` in users.html,
+  `fmt` in checklists.html und `_checklists_section.html`, `fmtDateTime` in checklist.html und service_reports.html, die schon vorher tote
+  `fmtDateTime` in mobil_objekt.html) sind entfernt; jeder Aufruf in HTML steht in `esc()` (der Helfer gibt Unlesbares unverändert zurück).
+  `_berlin_date.html` ist in 15 weiteren Seiten eingebunden (wer den Helfer nimmt, auch über einen Teil wie `_checklists_section.html`).
+- **Gegenproben** (Marker `GEGENPROBE`, byte-genau zurück): Helfer liest naives UTC als Ortszeit des Browsers (P1) -- 3 Tests rot (Berlin, New
+  York, Tokio; in UTC stimmt es zufällig) und die Prüfung im Klicktest; Unterschrift wieder über `new Date()` (P2) -- Wächter, Test
+  „Seite = PDF“ und Klicktest rot; Stand der Unterschrift in der Checkliste wieder roh (P3) -- Wächter und `test_v366` rot.
+- **Angepasste Erwartungen** (Regel 28): `test_v366::test_page_shows_the_summary_card`: alt `fmtDateTime(s.signature.signed_at)`; neu
+  `berlinZeitpunkt(s.signature.signed_at)`.
+
+#### Festlegungen 1.9.46 (Bitte bestätigen)
+
+1. **Ein Format** „TT.MM.JJJJ HH:MM“ (wie die PDFs und `_berlin_text()`) für jeden Zeitpunkt mit Uhrzeit, „TT.MM.JJJJ“ für ein Datum --
+   ersetzt „22.10.26, 17:33“ (Checklisten) und „22.10.2026, 17:33:12“ (`toLocaleString`).
+2. **Die Unterschrift im Einsatzbericht mit „Uhr“** wie im PDF.
+3. **Das Änderungsprotokoll (alter/neuer Wert) bleibt roh** -- dafür bräuchte der Server die Art der Spalte.

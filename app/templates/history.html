@@ -16,6 +16,7 @@
 </div>
 </div>
 {% include "_seitenkopf.html" %}
+{% include "_berlin_date.html" %}
 <script>
 // Seit 1.8.138 seitenweise (100 je Seite; ob ältere folgen, sagt der Server in X-DK-Weitere) statt bis zu 500 Einträge auf einmal;
 // Art lesbar (entity_type_label, app/verlauf_namen.py), der Filter schickt weiter die gespeicherte Art.
@@ -34,7 +35,7 @@ async function aeltere(){if(weitere)await load(seite+1)}
 async function aktualisieren(){await load(seite)}
 function render(){const q=document.getElementById('q').value.toLowerCase();
   const list=rows.filter(x=>!q||[x.actor_name,x.action,x.entity_type_label,x.entity_label,x.field_label,x.old_value,x.new_value].some(v=>String(v||'').toLowerCase().includes(q)));
-  document.getElementById('rows').innerHTML=list.map(x=>`<tr><td>${new Date(x.occurred_at+'Z').toLocaleString('de-DE')}</td><td><b>${esc(x.actor_name)}</b></td><td><span class="pill">${esc(x.action)}</span></td><td><b>${esc(x.entity_type_label||x.entity_type)}</b><div class="muted">${esc(x.entity_label||('#'+(x.entity_id||'')))}</div></td><td>${esc(x.field_label||'—')}</td><td class="change">${x.action==='geändert'?`<span class="old">${esc(x.old_value??'—')}</span> → <span class="new">${esc(x.new_value??'—')}</span>`:esc(x.action==='angelegt'?'Datensatz angelegt':'Datensatz gelöscht')}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">Keine Änderungen gefunden.</td></tr>';
+  document.getElementById('rows').innerHTML=list.map(x=>`<tr><td>${esc(berlinZeitpunkt(x.occurred_at))}</td><td><b>${esc(x.actor_name)}</b></td><td><span class="pill">${esc(x.action)}</span></td><td><b>${esc(x.entity_type_label||x.entity_type)}</b><div class="muted">${esc(x.entity_label||('#'+(x.entity_id||'')))}</div></td><td>${esc(x.field_label||'—')}</td><td class="change">${x.action==='geändert'?`<span class="old">${esc(x.old_value??'—')}</span> → <span class="new">${esc(x.new_value??'—')}</span>`:esc(x.action==='angelegt'?'Datensatz angelegt':'Datensatz gelöscht')}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">Keine Änderungen gefunden.</td></tr>';
   document.getElementById('seiteInfo').textContent=`Seite ${seite+1}`;
   document.getElementById('neuere').disabled=seite===0;document.getElementById('aeltere').disabled=!weitere}
 load();

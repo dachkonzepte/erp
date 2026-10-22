@@ -4,6 +4,18 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.46 – Angezeigte Zeitpunkte in Europe/Berlin
+
+Stufe 4 „Monteurin“, R2, Punkt 7 (Befund: die Berichtsseite zeigte die Unterschrift um 15:33, das PDF um 17:33). Gespeicherte
+Zeitpunkte (naives UTC aus `datetime.utcnow()`) zeigt jede Seite jetzt über einen Helfer, `berlinZeitpunkt()` in `_berlin_date.html`, in
+Europe/Berlin -- unabhängig von der Zeitzone des Browsers, im Format der PDFs („TT.MM.JJJJ HH:MM“). Gespeicherte Werte bleiben, wie sie sind.
+18 Anzeigen zeigten die UTC-Uhr oder das UTC-Datum: Unterschrift im Einsatzbericht, Hochladezeit in Kundenakte und Projektmappe,
+Revisionen und Gewährleistungs-Historie am Auftrag, angelegt an der Anfrage, letzte Anmeldung, Nebenforderung, Mahnung versendet,
+Dokumente an Objekt, Betriebsmittel und Betriebskosten, Bereitschaft des Betriebsmittels, Mängelhistorie am Bauteil. Dazu 20, die nur in
+einem Browser mit Berliner Zeit stimmten (Checklisten, Änderungsprotokoll, Adressimport, Vorlagenfassung, Vertragsgrundlage, Vollmachten,
+Abschluss der Zeiterfassung). Naive Ortszeit (Zeitbuchungen, Termine, Wiedervorlage) und die schon in Berlin gelieferten `*_local`-Felder
+bleiben unverändert. Neuer Test `test_v473` (Helfer in vier Zeitzonen, Wächter über alle Vorlagen, Unterschrift Seite = PDF).
+
 ## 1.9.45 – „Heute“ für die Monteurin: die Seite
 
 Stufe 4 „Monteurin“, R2, Punkte 1–6 (Seite). `/mobil` heißt „Heute“ und folgt den freigegebenen Vorlagen

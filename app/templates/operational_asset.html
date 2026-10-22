@@ -60,6 +60,7 @@ tr:last-child td{border-bottom:none}
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
+{% include "_berlin_date.html" %}
 {% include "_auswahl.html" %}
 <main>
 {% from "teile/seitenkopf.html" import seitenkopf %}
@@ -487,7 +488,7 @@ function documentRow(doc){
   return `<tr>
     <td>${esc(doc.document_type)}</td>
     <td><a href="/api/operational-asset-documents/${doc.id}/file" target="_blank" style="color:var(--ds-link)">${esc(doc.original_filename)}</a></td>
-    <td>${fmtDate(doc.uploaded_at)}</td>
+    <td>${esc(berlinZeitpunkt(doc.uploaded_at,'datum'))}</td>
     <td>${esc(doc.notes||'')}</td>
     <td class="row-actions"><button class="danger" onclick="deleteDocumentNow(${doc.id})">Löschen</button></td>
   </tr>`;
@@ -578,14 +579,14 @@ function renderReadiness(s){
   const el=document.getElementById('readinessBanner');
   el.style.display='none';el.className='readiness-banner';el.innerHTML='';
   if(!s||s.ready===null||s.ready===undefined)return;
-  const source=`${esc(s.template_label)}, ${esc(fmtDate(s.completed_at))}${s.created_by_name?' von '+esc(s.created_by_name):''}`;
+  const source=`${esc(s.template_label)}, ${esc(berlinZeitpunkt(s.completed_at,'datum'))}${s.created_by_name?' von '+esc(s.created_by_name):''}`;
   if(s.ready===false){
-    el.innerHTML=`<b>Nicht einsatzbereit</b> – gemeldet ${esc(fmtDate(s.completed_at))}${s.created_by_name?' von '+esc(s.created_by_name):''} (${esc(s.template_label)}). <a href="/checklisten/${s.checklist_id}">Meldung ansehen</a>
+    el.innerHTML=`<b>Nicht einsatzbereit</b> – gemeldet ${esc(berlinZeitpunkt(s.completed_at,'datum'))}${s.created_by_name?' von '+esc(s.created_by_name):''} (${esc(s.template_label)}). <a href="/checklisten/${s.checklist_id}">Meldung ansehen</a>
       <div class="release-row"><input id="releaseNote" maxlength="2000" placeholder="Was wurde repariert? (Pflicht), z. B. Kabel getauscht"><button class="secondary" id="releaseBtn" onclick="markRepaired()">Als repariert markieren</button><span id="releaseStatus" class="status"></span></div>`;
     el.style.display='';
   }else if(s.released_at){
     el.className='readiness-info';
-    el.innerHTML=`Wieder einsatzbereit – als repariert markiert ${esc(fmtDate(s.released_at))}${s.released_by_name?' von '+esc(s.released_by_name):''}${s.release_note?': '+esc(s.release_note):''}. <span class="muted small">Meldung „nicht einsatzbereit“: ${source}, <a href="/checklisten/${s.checklist_id}" style="color:var(--ds-link)">ansehen</a></span>`;
+    el.innerHTML=`Wieder einsatzbereit – als repariert markiert ${esc(berlinZeitpunkt(s.released_at,'datum'))}${s.released_by_name?' von '+esc(s.released_by_name):''}${s.release_note?': '+esc(s.release_note):''}. <span class="muted small">Meldung „nicht einsatzbereit“: ${source}, <a href="/checklisten/${s.checklist_id}" style="color:var(--ds-link)">ansehen</a></span>`;
     el.style.display='';
   }
 }

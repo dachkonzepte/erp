@@ -49,7 +49,6 @@ if(!window.renderChecklistSection){
     var esc=function(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})};
     var param={auftrag:'order_id',objekt:'property_id',betriebsmittel:'operational_asset_id'}[context];
     var listUrl='/api/checklists?'+(param?param+'='+encodeURIComponent(contextId):'context='+encodeURIComponent(context));
-    var fmt=function(s){if(!s)return '';var d=new Date(s+(String(s).endsWith('Z')?'':'Z'));return isNaN(d)?s:d.toLocaleDateString('de-DE')};
     // Lesbare Meldung über fehlerText(), wenn die einbindende Seite _fehlertext.html einbindet (seit
     // 1.8.38); sonst nur ein Text-detail -- nie "[object Object]" aus einer 422-Liste.
     var errText=function(d,status){
@@ -71,14 +70,14 @@ if(!window.renderChecklistSection){
         html+=fitting.length
           ?'<div class="cl-start-buttons">'+fitting.map(startButton).join('')+'</div>'
           :'<div class="cl-empty">Keine veröffentlichte Vorlage mit Zweck „'+esc(zweckLabel)+'“ – bitte unter Checklisten → Vorlagen veröffentlichen.</div>';
-        if(openOnes.length)html+='<div class="cl-open">Schon offen an diesem Auftrag: '+openOnes.map(function(c){return '<a href="/checklisten/'+c.id+'">'+esc(c.template_label)+' vom '+esc(fmt(c.created_at))+'</a>'}).join(', ')+'</div>';
+        if(openOnes.length)html+='<div class="cl-open">Schon offen an diesem Auftrag: '+openOnes.map(function(c){return '<a href="/checklisten/'+c.id+'">'+esc(c.template_label)+' vom '+esc(berlinZeitpunkt(c.created_at,'datum'))+'</a>'}).join(', ')+'</div>';
         html+='</div>';
       }
       if(rows.length){
         html+='<div class="cl-list">'+rows.map(function(c){
           // seit 1.8.41 auch "gegenstandslos" (Behinderungs-/Bedenkenanzeige ohne Anlass, bleibt als Beleg)
           var badge=c.status==='entwurf'?'<span class="cl-badge draft">Entwurf</span>':(c.status==='gegenstandslos'?'<span class="cl-badge">Gegenstandslos</span>':'<span class="cl-badge">Abgeschlossen</span>');
-          var meta=[fmt(c.completed_at||c.created_at),c.created_by_name,c.is_own?'eigene':null].filter(Boolean).join(' · ');
+          var meta=[berlinZeitpunkt(c.completed_at||c.created_at,'datum'),c.created_by_name,c.is_own?'eigene':null].filter(Boolean).join(' · ');
           var inner='<div><div class="cl-title">'+esc(c.template_label)+'</div><div class="cl-meta">'+esc(meta)+'</div></div>'+badge;
           return c.can_open?'<a class="cl-row" href="/checklisten/'+c.id+'">'+inner+'</a>':'<div class="cl-row" title="Nur Titel, Datum und Ersteller sichtbar">'+inner+'</div>';
         }).join('')+'</div>';

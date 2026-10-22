@@ -54,6 +54,7 @@ tr:last-child td{border-bottom:none}
 {% include "_debounce.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
+{% include "_berlin_date.html" %}
 {% include "_auswahl.html" %}
 {% include "_fehlertext.html" %}
 <main>
@@ -201,7 +202,7 @@ function findingHistoryRowHtml(c){
   if(!expandedComponentFindings.has(c.id))return'';
   const findings=componentFindingsCache[c.id]||[];
   const items=findings.length
-    ?findings.map(f=>`<div class="finding-history-item"><span>${fmtDate(f.created_at)}</span><span style="flex:1">${esc(f.description)}</span><span class="badge">${esc(f.status_label)}</span></div>`).join('')
+    ?findings.map(f=>`<div class="finding-history-item"><span>${esc(berlinZeitpunkt(f.created_at,'datum'))}</span><span style="flex:1">${esc(f.description)}</span><span class="badge">${esc(f.status_label)}</span></div>`).join('')
     :'<div class="muted small">Keine Mängel erfasst.</div>';
   return `<tr class="finding-history-row"><td colspan="10">${items}</td></tr>`;
 }

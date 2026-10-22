@@ -479,3 +479,30 @@ Tages zählen nicht mit. Vorgabe der Grunddaten: ab 6 h Anwesenheit 30 min, ab 9
   5 h + 4 h, keine Pause; je Tag (9 h) 45 min.
 - § 4 ArbZG rechnet je Arbeitstag („mehr als sechs bis zu neun Stunden“ 30 min, „mehr als neun Stunden“ 45 min); die Regeln im Code gelten
   „ab“ der Schwelle (≥), das Gesetz „mehr als“.
+
+## Angezeigte Zeitpunkte in Europe/Berlin (seit 1.9.46)
+
+Stufe 4, R2, Punkt 7 (Befund der Monteurin: Unterschrift auf der Berichtsseite 15:33, im PDF 17:33). Der offene Punkt „Zeitstempel im Browser
+noch aus UTC gelesen“ (oben, „Weiter offen“; die dortige Liste vom 29.09.2026 war veraltet -- die Versandzeiten zeigen die Seiten seit 1.8.17
+über `_email_dispatch.html` mit den `*_local`-Feldern) ist damit erledigt:
+
+- **Helfer** `berlinZeitpunkt(wert, art)` in `_berlin_date.html`: naives UTC (wie die API es liefert, ohne 'Z'; mit 'Z' oder Versatz
+  ebenso) -> Europe/Berlin über `Intl.DateTimeFormat(…, {timeZone: 'Europe/Berlin'})`; `'zeit'` „TT.MM.JJJJ HH:MM“ wie die PDFs, `'datum'`
+  „TT.MM.JJJJ“, `'tag'` „JJJJ-MM-TT“. Nicht für naive Ortszeit (Beginn/Ende einer Zeitbuchung, Termine, Wiedervorlage, `datum_uhrzeit` einer
+  Checkliste) und nicht für `*_local` (kommt in Berlin vom Server).
+- **Umgestellt, vorher falsch** (UTC-Uhr bzw. UTC-Datum): `service_reports.html` Unterschrift „Kunde: … (… Uhr)“; `customer.html` und
+  `project_folder.html` Hochladezeit; `order.html` Revisionen; `_abnahme.html` „abweichend festgelegt am“ und Historie der Gewährleistung;
+  `inquiries.html` „angelegt“; `users.html` letzte Anmeldung; `invoice_detail.html` Nebenforderung „gebucht“; `mahnwesen.html` „versendet“;
+  `mobil_objekt.html` und `property.html` Dokumente; `operational_asset.html` Dokumente, „gemeldet“ (2) und „als repariert markiert“;
+  `recurring_costs.html` Dokumente; `roof_area.html` Mängelhistorie.
+- **Umgestellt, vorher nur im Berliner Browser richtig** (`+'Z'`, `toLocale…` ohne Zeitzone): `checklist.html` (über `fmtDateTime`:
+  angelegt/abgeschlossen, Fassung im Versand, Fassungen und „verworfen am“, Folgen, ausgelöste Aufgaben, Stand der Unterschrift des
+  Auftraggebers), `_checklists_section.html` (2), `checklists.html`, `history.html` und `project_folder.html` Änderungsprotokoll,
+  `address_import.html` Läufe, `checklist_template.html` Veröffentlichung, `operational_asset_field.html` Bereitschaft, `order.html`
+  Vertragsgrundlage geändert, `project_folder.html` Vollmachten (2), `time_backoffice.html` Abschluss.
+- **Unverändert, schon richtig**: `*_local` aus dem Server (Versandverlauf, Abnahmen, Mängel, Vertragsfassungen, Anhänge der Checkliste);
+  naive Ortszeit (Kalender, Termine in Projektmappe und Angebot, Anfragen, Dashboard, Zeiterfassung, „Heute“).
+- **Offen (nicht geändert)**: im Änderungsprotokoll (`history.html`, Projektmappe) stehen alter und neuer Wert als roher ISO-Text aus
+  `app/audit.py::_text()` -- je nach Spalte UTC oder Ortszeit, im Browser nicht unterscheidbar; das bräuchte die Spalte auf dem Server.
+  Ebenso auf dem Server: `app/findings.py` filtert `Finding.created_at` (UTC) mit Mitternacht eines Kalendertags (Grenzen um 1–2 Std.
+  verschoben) -- nicht geprüft, wie oft es greift.

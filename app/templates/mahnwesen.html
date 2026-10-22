@@ -36,6 +36,7 @@ button.danger:hover{background:color-mix(in srgb,var(--ds-fehler) 20%,transparen
 <div class="app-content">
 {% include "_topbar.html" %}
 {% include "_email_dispatch.html" %}
+{% include "_berlin_date.html" %}
 {% include "_fehlertext.html" %}
 <main>
 {% from "teile/seitenkopf.html" import seitenkopf %}
@@ -177,7 +178,7 @@ function replaceNotice(r){if(!r||!(r.replaces||[]).length)return '';return 'Beim
 function emailStatusLabel(r){
   // Seit 1.8.80: eine auf anderem Weg zugestellte Mahnung ist hinausgegangen, nur nicht per E-Mail.
   if(!r.email_sent_at) return r.reached_on?'<span class="small muted">nicht per E-Mail (zugestellt)</span>':'<span class="small muted">noch nicht versendet</span>';
-  return `<span class="small muted">versendet ${fmtDate(r.email_sent_at.slice(0,10))} an ${esc(r.email_sent_to)}</span>`;
+  return `<span class="small muted">versendet ${esc(berlinZeitpunkt(r.email_sent_at,'datum'))} an ${esc(r.email_sent_to)}</span>`;
 }
 function renderAllRows(){
   document.getElementById('allRows').innerHTML=allReminders.length?allReminders.map(r=>{

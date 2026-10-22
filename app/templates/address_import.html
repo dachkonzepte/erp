@@ -109,6 +109,7 @@
 </main>
 </div>
 </div>
+{% include "_berlin_date.html" %}
 {% include "_speichern.html" %}
 {% include "_seitenkopf.html" %}
 <script>
@@ -221,7 +222,7 @@ async function discardWorklistRow(id) {
 
 async function loadRuns() {
   await lesen('importlaeufe', () => api('/api/address-import/runs'), runs => {
-    document.getElementById('runRows').innerHTML = runs.map(r => `<tr><td>${new Date(r.created_at + 'Z').toLocaleString('de-DE')}</td><td>${esc(r.source_filename)}</td><td>${esc(r.row_count_customers)}</td><td>${esc(r.row_count_suppliers)}</td><td>${esc(r.row_count_unassigned)}</td><td>${esc(r.row_count_skipped_duplicates)}</td><td>${r.status === 'reverted' ? '<span class="pill">Rückgängig gemacht</span>' : '<span class="pill customer">Abgeschlossen</span>'}</td><td>${r.can_revert ? `<button class="danger" onclick="revertRun(${r.id})">Rückgängig machen</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Noch keine Importläufe.</td></tr>';
+    document.getElementById('runRows').innerHTML = runs.map(r => `<tr><td>${esc(berlinZeitpunkt(r.created_at))}</td><td>${esc(r.source_filename)}</td><td>${esc(r.row_count_customers)}</td><td>${esc(r.row_count_suppliers)}</td><td>${esc(r.row_count_unassigned)}</td><td>${esc(r.row_count_skipped_duplicates)}</td><td>${r.status === 'reverted' ? '<span class="pill">Rückgängig gemacht</span>' : '<span class="pill customer">Abgeschlossen</span>'}</td><td>${r.can_revert ? `<button class="danger" onclick="revertRun(${r.id})">Rückgängig machen</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Noch keine Importläufe.</td></tr>';
   });
 }
 

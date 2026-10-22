@@ -72,6 +72,7 @@ td a{color:var(--ds-link);text-decoration:none;font-weight:650}
 {% include "_seitenkopf.html" %}
 </div>
 </div>
+{% include "_berlin_date.html" %}
 {% include "_fehlertext.html" %}
 {% include "_speichern.html" %}
 <script>
@@ -79,7 +80,6 @@ const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 // Abgelehnte Antworten lesbar über fehlerText() (_fehlertext.html, seit 1.8.38 auch hier).
 async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status,{status:'Status',context:'Bereich',template_id:'Vorlage'}));return r.json()}
 const CONTEXT_LABELS={auftrag:'Auftrag',objekt:'Objekt',betriebsmittel:'Betriebsmittel',betrieb:'Betrieb'};
-const fmt=s=>s?new Date(s+'Z').toLocaleString('de-DE',{dateStyle:'short',timeStyle:'short'}):'';
 
 async function load(){
   const st=document.getElementById('listStatus');
@@ -94,7 +94,7 @@ async function load(){
       document.getElementById('rows').innerHTML=rows.map(c=>`<tr>
         <td><a href="/checklisten/${c.id}">${esc(c.template_label)}</a></td>
         <td>${esc(CONTEXT_LABELS[c.context_type]||c.context_type)}: ${esc(c.context_label)}<div class="muted small">${esc(c.context_detail)}</div></td>
-        <td>${esc(fmt(c.created_at))}</td><td>${esc(c.created_by_name)}</td>
+        <td>${esc(berlinZeitpunkt(c.created_at))}</td><td>${esc(c.created_by_name)}</td>
         <td>${c.status==='entwurf'?'<span class="badge draft">Entwurf</span>':(c.status==='gegenstandslos'?'<span class="badge">Gegenstandslos</span>':'<span class="badge done">Abgeschlossen</span>')}</td></tr>`).join('')
         ||'<tr><td colspan="5" class="empty">Keine Checklisten gefunden.</td></tr>';
       st.innerHTML=onlyOpenRules?'Nur mit nicht angelegten Aufgaben · <a href="#" style="color:var(--ds-link)" onclick="onlyOpenRules=false;load();return false">alle zeigen</a>':'';

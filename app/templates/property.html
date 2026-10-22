@@ -141,6 +141,7 @@ tr:last-child td{border-bottom:none}
 </div>
 {% if is_module_enabled('checklisten') %}
 {% include "_checklists_section.html" %}
+{% include "_berlin_date.html" %}
 {% include "_fehlertext.html" %}
 <div class="card"><h2>Checklisten</h2><div id="checklistSection"></div></div>
 {% endif %}
@@ -305,7 +306,7 @@ function propertyDocumentRow(d){
     <td>${esc(d.category_label)}</td>
     <td>${d.can_preview?`<a href="${viewUrl}" target="_blank" style="color:var(--ds-link);text-decoration:none">${esc(d.original_filename)}</a>`:esc(d.original_filename)}</td>
     <td>${origin}</td>
-    <td>${fmtDate((d.uploaded_at||'').slice(0,10))}</td>
+    <td>${esc(berlinZeitpunkt(d.uploaded_at,'datum'))}</td>
     <td style="white-space:nowrap">
       <a href="${downloadUrl}" style="color:var(--ds-link);font-weight:650;text-decoration:none">Laden</a>
       ${d.source==='property'?` <button type="button" class="danger" onclick="deletePropertyDocument(${d.id})">Löschen</button>`:''}

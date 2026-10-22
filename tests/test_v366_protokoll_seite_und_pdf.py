@@ -140,7 +140,7 @@ def test_summary_is_office_only_and_null_for_other_checklists(protokoll, router_
 def test_page_shows_the_summary_card():
     page = (ROOT / "app" / "templates" / "checklist.html").read_text(encoding="utf-8")
     assert "protocolSummaryCard" in page and "/protocol-summary" in page and "Erklärungen und Mängel" in page
-    assert "runSummaryAcceptance" in page and "fmtDateTime(s.signature.signed_at)" in page
+    assert "runSummaryAcceptance" in page and "berlinZeitpunkt(s.signature.signed_at)" in page  # seit 1.9.46 in Berlin (bis dahin fmtDateTime)
 
 
 # ---------------------------------------------------------------------------

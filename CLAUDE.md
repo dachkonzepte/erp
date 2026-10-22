@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.45** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.46** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -615,8 +615,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     druckt oder ein Datum daraus ableitet, rechnet mit `to_berlin()` um. Beginn/Ende einer
     Zeitbuchung sind dagegen naive Ortszeit. Browser-Seite: "heute" nur aus `_berlin_date.html` (`berlinToday()` u. a.,
     seit 1.8.87); `tests/test_v390_browser_datum.py` lässt `toISOString()`, `new Date()`/`Date.now()` ohne Argument in den
-    Vorlagen nur als begründeten Zeitpunkt zu. Details und die offenen Browser-Stellen (Zeitstempel):
-    `docs/archiv/zeiterfassung-und-abwesenheit.md`, "Kalenderdatum in Europe/Berlin statt UTC".
+    Vorlagen nur als begründeten Zeitpunkt zu. Details: `docs/archiv/zeiterfassung-und-abwesenheit.md`, "Kalenderdatum in Europe/Berlin
+    statt UTC". **Seit 1.9.46 jeder angezeigte gespeicherte Zeitpunkt** (naives UTC) im Browser nur über `berlinZeitpunkt(wert, art)` aus
+    `_berlin_date.html` -- nie `new Date(x)`, `+'Z'`, `toLocale…` ohne `timeZone` oder `slice()` auf einem UTC-Feld
+    (`tests/test_v473_zeitpunkte_berlin.py`, Liste `UTC_FELDER`); naive Ortszeit und `*_local`-Felder nie durch den Helfer.
 
 21. **Jede E-Mail geht über `app/email_dispatch.py::dispatch_email()`, seit 1.8.17** -- nie direkt
     über `app/email_sending.py::send_message()`, SMTP oder Graph. Nur so entsteht der
@@ -2170,7 +2172,8 @@ vollständig aufgelöst: `_search_tasks()` (`app/search.py`) nutzt seither `list
   `onupdate`) neu durchdenken, nicht nur `datetime.utcnow()` durch `datetime.now(UTC)` ersetzen.
   Bewusst NICHT jetzt umgebaut -- eigene, spätere, sorgfältig zu planende Runde, kein Teil der
   CLAUDE.md-Aufräumung.
-- **Zeitstempel im Browser noch aus UTC gelesen** ("heute" seit 1.8.87 überall aus Berlin, Server seit 1.8.12, Regel
+- ~~Zeitstempel im Browser noch aus UTC gelesen~~ -- seit 1.9.46 erledigt (`berlinZeitpunkt()`, Regel 20; offen nur alter/neuer Wert im
+  Änderungsprotokoll, `docs/archiv/zeiterfassung-und-abwesenheit.md`, "Angezeigte Zeitpunkte in Europe/Berlin"). Bis dahin: ("heute" seit 1.8.87 überall aus Berlin, Server seit 1.8.12, Regel
   20): naive UTC-Zeitstempel ohne `'Z'` an `new Date()` (u. a. E-Mail-Versandzeit bei Rechnung, Auftrag, Angebot) und
   `slice(0,10)` eines Zeitstempels (u. a. Mahnwesen "versendet …"). Liste mit Zeilen:
   `docs/archiv/zeiterfassung-und-abwesenheit.md`, "Kalenderdatum in Europe/Berlin statt UTC".

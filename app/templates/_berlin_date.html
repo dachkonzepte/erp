@@ -53,4 +53,23 @@ function localDateIso(d) {
 function berlinTodayDate(now = new Date()) {
   return new Date(berlinToday(now) + 'T00:00:00');
 }
+/* Seit 1.9.46 (Stufe 4, R2): ein gespeicherter Zeitpunkt in Europe/Berlin, unabhängig von der Zeitzone des Browsers -- wie
+   app/berlin_time.py::to_berlin() auf dem Server. Eingang: was die API liefert, ein naives UTC aus datetime.utcnow() ohne 'Z' (mit 'Z'
+   oder Versatz ebenso). art: 'zeit' (Vorgabe) „TT.MM.JJJJ HH:MM“ wie die PDFs, 'datum' „TT.MM.JJJJ“, 'tag' „JJJJ-MM-TT“ (zum Rechnen).
+   Leer bleibt leer, Unlesbares kommt unverändert zurück. Nie für naive Ortszeit (Beginn und Ende einer Zeitbuchung, Termine,
+   Wiedervorlage) und nie für ein Feld *_local -- das kommt schon in Berliner Zeit vom Server. tests/test_v473_zeitpunkte_berlin.py. */
+function berlinZeitpunkt(wert, art = 'zeit') {
+  if (wert === null || wert === undefined || wert === '') return '';
+  const s = String(wert);
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/.exec(s);
+  if (!m) return s;
+  const d = m[7] ? new Date(s.replace(' ', 'T')) : new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)));
+  if (isNaN(d)) return s;
+  const p = {};
+  for (const x of new Intl.DateTimeFormat('en-US', {timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit',
+                                                    hour: '2-digit', minute: '2-digit', hourCycle: 'h23'}).formatToParts(d)) p[x.type] = x.value;
+  if (art === 'tag') return `${p.year}-${p.month}-${p.day}`;
+  if (art === 'datum') return `${p.day}.${p.month}.${p.year}`;
+  return `${p.day}.${p.month}.${p.year} ${p.hour}:${p.minute}`;
+}
 </script>

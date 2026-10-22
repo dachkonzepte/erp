@@ -225,7 +225,6 @@ function uuid(){if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();c
 const FELDNAMEN={value:'Antwort',signer_name:'Name',reason:'Begründung',signature_id:'Unterschrift',to_email:'An',cc_email:'CC',
   client_uuid:'Kennung',client_recorded_at:'Zeitpunkt',file:'Datei',field_id:'Feld'};
 async function api(u,o){const r=await fetch(u,o);const d=await r.json().catch(()=>null);if(!r.ok){const e=new Error(fehlerText(d,r.status,FELDNAMEN));e.status=r.status;throw e}return d}
-const fmtDateTime=s=>{if(!s)return '';const d=new Date(s+(String(s).endsWith('Z')?'':'Z'));return isNaN(d)?s:d.toLocaleString('de-DE',{dateStyle:'short',timeStyle:'short'})};
 
 let cl=null;
 const timers={};          // Feld-ID -> ausstehender, verzögerter Speichervorgang
@@ -254,7 +253,7 @@ function missingOf(f){return (cl.missing_required||[]).filter(m=>m===f.label||m.
 // PDF) -- Pfad: Bereich (Büro Checklisten, Monteur Einsätze) / Kontext mit dem bisherigen Rückweg (backLink(); ohne bei „Betrieb“) / Titel;
 // Untertitel Kontext, angelegt, Fassung; Status über statusKennzeichen('checkliste'); „PDF“ neutral im Kopf, sobald nicht mehr Entwurf
 function kopfZeichnen(){
-  const who=[cl.created_by_name?`angelegt von ${cl.created_by_name}`:null,`am ${fmtDateTime(cl.created_at)}`,cl.completed_at&&cl.status!=='gegenstandslos'?`abgeschlossen ${fmtDateTime(cl.completed_at)}`:null].filter(Boolean).join(' · ');
+  const who=[cl.created_by_name?`angelegt von ${cl.created_by_name}`:null,`am ${berlinZeitpunkt(cl.created_at)}`,cl.completed_at&&cl.status!=='gegenstandslos'?`abgeschlossen ${berlinZeitpunkt(cl.completed_at)}`:null].filter(Boolean).join(' · ');
   const zurueck=backLink();
   const pfad=[IS_FIELD?{text:'Heute',href:'/mobil'}:{text:'Checklisten',href:'/checklisten'},
     zurueck!=='/checklisten'?{text:cl.context_label,href:zurueck}:null,{text:cl.template_label}];
@@ -699,7 +698,7 @@ function protocolDispatchHtml(s){
     <div class="muted small">Auftrag ${esc(s.order_number)}. Versendet wird immer die jüngste gültige feste Fassung aus der Ablage – nie neu erzeugt.</div>`;
   if(!s.ready)return html+`<div class="notice-row muted" data-protocol-waiting>${esc(s.waiting_text||'')}</div><div id="protocolDispatchHistory"></div>`;
   const v=s.version,doc=v.sent_document;
-  html+=`<div class="notice-row" data-protocol-version>Fassung ${esc(v.version_no)} vom ${esc(fmtDateTime(v.created_at))} · <span class="mono" title="SHA-256 ${esc(doc.sha256)}">Prüfsumme ${esc(doc.sha256.slice(0,12))}…</span> · <a href="/api/sent-documents/${doc.id}/file" target="_blank" rel="noopener">PDF öffnen</a></div>`;
+  html+=`<div class="notice-row" data-protocol-version>Fassung ${esc(v.version_no)} vom ${esc(berlinZeitpunkt(v.created_at))} · <span class="mono" title="SHA-256 ${esc(doc.sha256)}">Prüfsumme ${esc(doc.sha256.slice(0,12))}…</span> · <a href="/api/sent-documents/${doc.id}/file" target="_blank" rel="noopener">PDF öffnen</a></div>`;
   const m=s.customer_mismatch;
   if(m)html+=`<div class="notice-warn" data-customer-mismatch><b>Abweichender Kunde:</b> ${esc(m.text)}
     <label class="notice-confirm"><input type="checkbox" id="protocolConfirmCustomer" ${protocolConfirmCustomer?'checked':''} onchange="protocolConfirmCustomer=this.checked"><span>Abweichung geprüft – E-Mail an ${esc(m.project_customer)}</span></label></div>`;
@@ -794,8 +793,8 @@ function renderVersions(rows){
   card.innerHTML=`<h2>Feste Fassungen</h2><div class="muted small">Jede Unterschrift und der Abschluss legen das PDF dieses Stands mit Prüfsumme in die Ablage; es wird nie neu erzeugt.</div>`
     +rows.slice().reverse().map(v=>{const d=v.sent_document;
       const state=v.valid?'<span class="badge done">gilt</span>':'<span class="badge bad">überholt</span>';
-      const why=v.superseded?`<div class="muted small" data-superseded>Überholt: Unterschrift „${esc(v.superseded.field_label)}“ (${esc(v.superseded.signer_name||'ohne Namen')}) verworfen am ${esc(fmtDateTime(v.superseded.discarded_at))}${v.superseded.discarded_by_name?' von '+esc(v.superseded.discarded_by_name):''} – nicht mehr versendbar.</div>`:'';
-      return `<div class="ver-row${v.valid?'':' superseded'}" data-version="${esc(v.version_no)}"><div class="ver-main"><b>Fassung ${esc(v.version_no)}</b> · ${anlass(v)} · ${esc(fmtDateTime(v.created_at))} · erstellt von ${esc(v.created_by_name)}
+      const why=v.superseded?`<div class="muted small" data-superseded>Überholt: Unterschrift „${esc(v.superseded.field_label)}“ (${esc(v.superseded.signer_name||'ohne Namen')}) verworfen am ${esc(berlinZeitpunkt(v.superseded.discarded_at))}${v.superseded.discarded_by_name?' von '+esc(v.superseded.discarded_by_name):''} – nicht mehr versendbar.</div>`:'';
+      return `<div class="ver-row${v.valid?'':' superseded'}" data-version="${esc(v.version_no)}"><div class="ver-main"><b>Fassung ${esc(v.version_no)}</b> · ${anlass(v)} · ${esc(berlinZeitpunkt(v.created_at))} · erstellt von ${esc(v.created_by_name)}
         <div class="muted small"><span class="mono" title="SHA-256 ${esc(d.sha256)}">Prüfsumme ${esc(d.sha256.slice(0,12))}…</span> · ${Math.max(1,Math.round(d.size_bytes/1024))} KB <span id="verCheck_${v.id}"></span></div>${why}</div>
         <div class="ver-links">${state}<a href="/api/sent-documents/${d.id}/file" target="_blank" rel="noopener">PDF</a><button type="button" class="btn secondary" onclick="checkVersion(${v.id},${d.id},this)">Prüfen</button></div></div>`}).join('');
 }
@@ -820,7 +819,7 @@ function renderFollowUps(rows){
   // seit 1.8.41: nach "gegenstandslos" keine Folgen mehr; seit 1.8.63 ist "entfallen" (Unterschrift verworfen) nicht offen
   const open=rows.some(r=>r.status==='ausstehend'||r.status==='modul_aus')&&cl.status!=='gegenstandslos';
   card.style.display='';
-  card.innerHTML=`<h2>Folgen</h2>${rows.map(r=>`<div class="rule-row"><div>${r.target_url?`<a href="${esc(sichererLink(r.target_url))}">${esc(r.target_title||r.label)}</a>`:esc(r.label)}<div class="muted small">${esc(r.trigger_label)} · ${esc(fmtDateTime(r.executed_at))}</div></div>
+  card.innerHTML=`<h2>Folgen</h2>${rows.map(r=>`<div class="rule-row"><div>${r.target_url?`<a href="${esc(sichererLink(r.target_url))}">${esc(r.target_title||r.label)}</a>`:esc(r.label)}<div class="muted small">${esc(r.trigger_label)} · ${esc(berlinZeitpunkt(r.executed_at))}</div></div>
       <span class="badge ${r.status==='erledigt'?'done':'open'}">${esc(r.status_label)}</span></div>`).join('')}
     ${open?`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px"><button type="button" class="btn" id="followUpsRetryBtn" onclick="retryFollowUps()">Folgen nachholen</button><span class="muted small" id="followUpsStatus"></span></div>`:''}`;
 }
@@ -847,7 +846,7 @@ function renderRules(rows){
   // "aufgabe_vorhanden" (seit 1.8.38): eine Aufgabe mit demselben Link war schon offen -- erledigt, nicht nachzuholen.
   const done=r=>r.status==='aufgabe_angelegt'||r.status==='aufgabe_vorhanden';
   const open=rows.some(r=>!done(r));
-  card.innerHTML=`<h2>Ausgelöste Aufgaben</h2>${rows.length?rows.map(r=>`<div class="rule-row"><div>${r.task_id?`<a href="/tasks?task=${r.task_id}">${esc(r.task_title||r.rule_title)}</a>`:esc(r.rule_title)}<div class="muted small">Priorität ${esc(r.priority)} · ${esc(fmtDateTime(r.executed_at))}</div></div>
+  card.innerHTML=`<h2>Ausgelöste Aufgaben</h2>${rows.length?rows.map(r=>`<div class="rule-row"><div>${r.task_id?`<a href="/tasks?task=${r.task_id}">${esc(r.task_title||r.rule_title)}</a>`:esc(r.rule_title)}<div class="muted small">Priorität ${esc(r.priority)} · ${esc(berlinZeitpunkt(r.executed_at))}</div></div>
       <span class="badge ${done(r)?'done':'open'}">${esc(r.status_label)}</span></div>`).join(''):'<div class="muted small">Keine Regel dieser Vorlage hat ausgelöst.</div>'}
     ${open?`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px"><button type="button" class="btn" id="rulesRetryBtn" onclick="retryRules()">Aufgaben nachholen</button><span class="muted small" id="rulesStatus"></span></div>`:''}`;
 }
@@ -997,7 +996,7 @@ function renderProtocolSummary(s){
   if(s.acceptance)acc=`Abnahme am Auftrag: <a href="${esc(sichererLink(s.acceptance.url))}">vom ${esc(String(s.acceptance.accepted_on).split('-').reverse().join('.'))}</a>${s.acceptance.discarded?' <span class="pdef-bad">(verworfen – eine neue entsteht nur mit einer neuen Unterschrift des Auftraggebers)</span>':''}`;
   else if(s.pending)acc=`<span class="pdef-bad">Die Abnahme am Auftrag ist noch nicht angelegt.</span>${s.problem?` <span class="pdef-bad">${esc(s.problem)}</span>`:''} <button type="button" class="btn secondary" id="psumRun" onclick="runSummaryAcceptance(this)">Abnahme jetzt anlegen</button> <span class="small" id="psumStatus"></span>`;
   else acc='<span class="muted">Die Abnahme am Auftrag entsteht mit der Unterschrift des Auftraggebers.</span>';
-  card.innerHTML=`<h2>Erklärungen und Mängel</h2><div class="muted small">${s.signed?`Stand der Unterschrift des Auftraggebers vom ${esc(fmtDateTime(s.signature.signed_at))} – ${esc(s.signature.text||s.signature.name||'')}`:'Noch nicht unterschrieben – aktuelle Angaben.'}</div>
+  card.innerHTML=`<h2>Erklärungen und Mängel</h2><div class="muted small">${s.signed?`Stand der Unterschrift des Auftraggebers vom ${esc(berlinZeitpunkt(s.signature.signed_at))} – ${esc(s.signature.text||s.signature.name||'')}`:'Noch nicht unterschrieben – aktuelle Angaben.'}</div>
     ${errs}<h3>Erklärungen des Auftraggebers</h3>${s.declarations.map(r=>`<div class="psum-row"><span>${esc(r.label)}</span><span style="white-space:pre-wrap">${esc(r.value)}</span></div>`).join('')}
     <h3>Mängel</h3>${defs||'<div class="muted small">Kein Mangel erfasst.</div>'}
     <div class="psum-acc" id="psumAcceptance">${acc}</div>`;

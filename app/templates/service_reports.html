@@ -259,7 +259,6 @@ const assetsModuleEnabled={{ 'true' if is_module_enabled('betriebsmittel') else 
 const darfBueroSeiten={{ 'true' if darf_buero_seiten else 'false' }};
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
-function fmtDateTime(s){if(!s)return'';return new Date(s).toLocaleString('de-DE')}
 async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
 
 let authStatus=null,employees=[],reports=[],editingReportId=null,signingReportId=null;
@@ -629,7 +628,7 @@ function reportCard(r){
     const assetCount=(assetsCache[r.id]||[]).length;
     actions.push(`<button class="secondary" onclick="toggleReportAssets(${r.id})">Betriebsmittel${assetCount?' ('+assetCount+')':''}</button>`);
   }
-  const signedInfo=r.status==='unterschrieben'?`<div class="muted small" style="margin-top:6px">${r.installer_signature_name?'Monteur: '+esc(r.installer_signature_name)+' · ':''}Kunde: ${esc(r.signature_name)} (${fmtDateTime(r.signed_at)})</div>`:'';
+  const signedInfo=r.status==='unterschrieben'?`<div class="muted small" style="margin-top:6px">${r.installer_signature_name?'Monteur: '+esc(r.installer_signature_name)+' · ':''}Kunde: ${esc(r.signature_name)} (${esc(berlinZeitpunkt(r.signed_at))} Uhr)</div>`:'';
   const isOpen=expandedReportIds.has(r.id);
   const panel=hasInspectionSection(r)&&isOpen?`<div class="inspection-panel">${inspectionItemsPanelHtml(r)}</div>`:'';
   const findingsOpen=expandedFindingsReportIds.has(r.id);

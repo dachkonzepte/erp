@@ -46,6 +46,7 @@ body.field .cl-main{margin:0 auto}
 </main>
 {% if not is_field %}</div></div>{% endif %}
 {% include "_seitenkopf.html" %}
+{% include "_berlin_date.html" %}
 <script>
 (function(){
   var orderId={{ order_id }},istMonteur={{ 'true' if is_field else 'false' }};
