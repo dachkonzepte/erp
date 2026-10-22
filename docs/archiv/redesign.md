@@ -3074,3 +3074,44 @@ mit Stufe und Grund. Bildvergleich: außer den Seiten der Runde weicht nichts ab
    (dieselbe Art Fehler, der Wächter hätte sie sonst als Ausnahme gebraucht).
 3. **Wortlaut der Warnung** auf „Benutzer und Zugriff“: Codes sicher aufbewahren, zweiten Administrator anlegen; ohne Telefon und Codes
    nur noch über den Server -- ohne Namen des Notfallskripts.
+
+### Punkt 6 (1.9.29): Abschluss Stufe 2
+
+- **Wächter** `test_jede_seite_umgezogen_oder_aufgeschoben` (`tests/test_v441_rahmen_baustein.py`): jede Seite aus `seiten()` steht in
+  `UMGEZOGEN` oder in `AUFGESCHOBEN`, keine in beiden, keine der Listen nennt eine Seite, die es nicht gibt; jede aufgeschobene mit einer
+  Stufe von 3 bis 7 und einem Grund (mindestens vier Wörter). Eine aufgeschobene Seite trägt kein `.ds-seite` (das prüft weiter
+  `test_umgezogen_heisst_ds_seite_am_body`: `.ds-seite` genau auf den Seiten in `UMGEZOGEN`).
+- **Stand am Ende von Stufe 2**: 53 Seiten, davon 43 umgezogen, 10 aufgeschoben:
+
+| Seite | Vorlage | Stufe | Grund |
+|---|---|---|---|
+| Einsätze | `mobil.html` | 4 | Startseite der Monteursansicht, die Stufe 4 als Ganzes gestaltet |
+| Zeiterfassung der Monteure | `time_tracking_field.html` | 4 | gehört zur Monteursansicht |
+| Stundenzettel | `field_timesheet.html` | 4 | gehört zur Monteursansicht |
+| Projektmappe | `project_folder.html` | 5 | große Arbeitsseite mit Reitern, zusammen mit Auftrag und Kundenakte |
+| Auftrag | `order.html` | 5 | große Arbeitsseite mit vielen Karten, zusammen mit Projektmappe und Kundenakte |
+| Kundenakte | `customer.html` | 5 | große Arbeitsseite mit Reitern, zusammen mit Projektmappe und Auftrag |
+| Kalender | `calendar.html` | 6 | Ansicht über eine Zeitachse, zusammen mit der Plantafel |
+| Plantafel | `planning.html` | 6 | Ansicht über eine Zeitachse, zusammen mit dem Kalender |
+| Neues Projekt | `project_form.html` | 7 | wird ein Dialog statt einer eigenen Seite |
+| Neues Angebot | `quote_form.html` | 7 | wird ein Dialog statt einer eigenen Seite |
+
+- Stufen und Zuordnung wie vorgegeben (Auftrag Runde 9, Punkt 6); die Gründe sind meine Kurzfassung. Mit Stufe 5 zieht auch der
+  Versandverlauf (`_email_dispatch.html`, Links noch in `--accent`) um -- seine letzten Nutzer sind Projektmappe, Auftrag und Kundenakte.
+
+#### Tests und Prüfung
+
+- `test_v441`: neue Liste `AUFGESCHOBEN` (10 Seiten mit Stufe und Grund), neuer Wächter `test_jede_seite_umgezogen_oder_aufgeschoben`,
+  Selbsttest `test_waechter_umgezogen_oder_aufgeschoben_findet` (drei erfundene Fälle: weder noch, beides, keine Seite).
+- Ohne `AUFGESCHOBEN` (Stand vor 1.9.29) scheitert der Wächter mit „weder umgezogen noch aufgeschoben“ an genau den 10 Seiten der Tabelle.
+- **Gegenproben** (Marker `GEGENPROBE`, danach zurück: Prüfsummen gleich bzw. Datei gelöscht): eine neue Seitenvorlage
+  `gegenprobe_neue_seite.html` (O1, „weder umgezogen noch aufgeschoben“); „Neues Projekt“ in die Projektliste eingebunden -- keine Seite
+  mehr, steht aber in `AUFGESCHOBEN` (O2, „keine Seite“; dazu zwei Strukturtests der Projektliste); Kalender mit `.ds-seite`, steht aber
+  in `AUFGESCHOBEN` (O3, `test_umgezogen_heisst_ds_seite_am_body`) -- in pytest **3 von 3 rot** (FAILED).
+- **Angepasste Erwartungen** (Regel 28): keine.
+
+#### Festlegungen 1.9.29 (Bitte bestätigen)
+
+1. **Stufe 2 ist abgeschlossen**, wenn jede Seite umgezogen oder mit Stufe und Grund aufgeschoben ist; eine neue Seite kommt umgezogen dazu
+   oder in `AUFGESCHOBEN`.
+2. **Gründe der aufgeschobenen Seiten** wie in der Tabelle oben (Kurzfassung nach den vorgegebenen Stufen).

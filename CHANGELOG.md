@@ -4,6 +4,14 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.29 – Abschluss Stufe 2: jede Seite umgezogen oder aufgeschoben
+
+Stufe 2, Runde 9, Punkt 6 -- Abschluss der Stufe „Rahmen“. Ein Wächter in `tests/test_v441_rahmen_baustein.py` verlangt, dass jede Seite
+in `UMGEZOGEN` steht (43 Seiten) oder in der neuen Liste `AUFGESCHOBEN` mit der Stufe, die sie umzieht, und einem Grund (10 Seiten):
+Einsätze, Zeiterfassung der Monteure und Stundenzettel in Stufe 4, Projektmappe, Auftrag und Kundenakte in Stufe 5, Kalender und Plantafel
+in Stufe 6, Neues Projekt und Neues Angebot in Stufe 7. Keine Seite in beiden, keine Liste nennt eine Seite, die es nicht gibt -- eine
+neue Seite kommt umgezogen dazu oder mit Stufe und Grund in die Liste. An den Seiten selbst ändert sich nichts.
+
 ## 1.9.28 – Rahmen, Runde 9: Hinweise ohne interne Dateien
 
 Stufe 2, Runde 9, Punkt 5. „Benutzer und Zugriff“ warnte bei nur einem aktiven Administrator: „… die eigenen, ausgedruckten

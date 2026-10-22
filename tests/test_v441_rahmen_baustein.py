@@ -64,6 +64,21 @@ UMGEZOGEN |= MONTEURSSEITEN
 # seit 1.9.27 Anmeldung und Sperrseite (ohne Leiste und Kopfzeile; Bildmarke mit Schriftzug aus _marke.html über dem Seitenkopf)
 ANMELDUNG_UND_SPERRSEITE = {"login.html", "access_denied.html"}
 UMGEZOGEN |= ANMELDUNG_UND_SPERRSEITE
+# Seit 1.9.29 (Abschluss Stufe 2): was nicht umgezogen ist, steht hier mit der Stufe, die es umzieht, und dem Grund -- jede Seite steht
+# in genau einer der beiden Listen (test_jede_seite_umgezogen_oder_aufgeschoben). Eine neue Seite kommt umgezogen dazu oder mit Stufe
+# und Grund hierher; zieht eine aufgeschobene um, wandert sie nach UMGEZOGEN.
+AUFGESCHOBEN: dict[str, tuple[int, str]] = {
+    "mobil.html": (4, "Einsätze -- Startseite der Monteursansicht, die Stufe 4 als Ganzes gestaltet"),
+    "time_tracking_field.html": (4, "Zeiterfassung der Monteure -- gehört zur Monteursansicht (Stufe 4)"),
+    "field_timesheet.html": (4, "Stundenzettel -- gehört zur Monteursansicht (Stufe 4)"),
+    "project_folder.html": (5, "Projektmappe -- große Arbeitsseite mit Reitern, Stufe 5 zusammen mit Auftrag und Kundenakte"),
+    "order.html": (5, "Auftrag -- große Arbeitsseite mit vielen Karten, Stufe 5 zusammen mit Projektmappe und Kundenakte"),
+    "customer.html": (5, "Kundenakte -- große Arbeitsseite mit Reitern, Stufe 5 zusammen mit Projektmappe und Auftrag"),
+    "calendar.html": (6, "Kalender -- Ansicht über eine Zeitachse, Stufe 6 zusammen mit der Plantafel"),
+    "planning.html": (6, "Plantafel -- Ansicht über eine Zeitachse, Stufe 6 zusammen mit dem Kalender"),
+    "project_form.html": (7, "Neues Projekt -- wird ein Dialog statt einer eigenen Seite (Stufe 7)"),
+    "quote_form.html": (7, "Neues Angebot -- wird ein Dialog statt einer eigenen Seite (Stufe 7)"),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -144,6 +159,33 @@ def test_ds_basis_ist_eine_design_datei_und_auf_jeder_seite_geladen():
         elif text.find('href="/static/ds/ds-basis.css?v=') < text.find('href="/static/ds/ds.css?v='):
             funde.append(f"{name}: ds-basis.css vor ds.css")
     assert funde == []
+
+
+def test_jede_seite_umgezogen_oder_aufgeschoben():
+    """Seit 1.9.29 (Abschluss Stufe 2): jede Seite aus seiten() steht in UMGEZOGEN oder in AUFGESCHOBEN, keine in beiden, keine Liste
+    nennt eine Seite, die es nicht gibt; jede aufgeschobene mit einer späteren Stufe (3 bis 7) und einem Grund."""
+    alle = set(vj.seiten())
+    aufgeschoben = set(AUFGESCHOBEN)
+    assert sorted(alle - UMGEZOGEN - aufgeschoben) == [], "weder umgezogen noch aufgeschoben"
+    assert sorted(UMGEZOGEN & aufgeschoben) == [], "umgezogen und aufgeschoben zugleich"
+    assert sorted((UMGEZOGEN | aufgeschoben) - alle) == [], "keine Seite"
+    for name, (stufe, grund) in sorted(AUFGESCHOBEN.items()):
+        assert isinstance(stufe, int) and 3 <= stufe <= 7, (name, stufe)
+        assert isinstance(grund, str) and len(grund.split()) >= 4, (name, grund)
+
+
+@pytest.mark.parametrize("umgezogen, aufgeschoben, fund", [
+    ({"a.html"}, {"b.html": (5, "Grund mit vier Wörtern")}, "weder umgezogen noch aufgeschoben"),
+    ({"a.html", "b.html", "c.html"}, {"c.html": (5, "Grund mit vier Wörtern")}, "zugleich"),
+    ({"a.html", "b.html", "c.html"}, {"x.html": (5, "Grund mit vier Wörtern")}, "keine Seite"),
+])
+def test_waechter_umgezogen_oder_aufgeschoben_findet(monkeypatch, umgezogen, aufgeschoben, fund):
+    """Der Wächter oben schlägt an -- mit erfundenen Listen gegen erfundene Seiten a, b, c."""
+    monkeypatch.setattr(vj, "seiten", lambda: ["a.html", "b.html", "c.html"])
+    monkeypatch.setitem(globals(), "UMGEZOGEN", umgezogen)
+    monkeypatch.setitem(globals(), "AUFGESCHOBEN", aufgeschoben)
+    with pytest.raises(AssertionError, match=fund):
+        test_jede_seite_umgezogen_oder_aufgeschoben()
 
 
 def test_umgezogen_heisst_ds_seite_am_body():
