@@ -4,6 +4,17 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.31 – Testschemas: kein anderer Lauf räumt das Schema eines Tests weg
+
+Nachtrag Stufe 2, Punkt A3. `test_v413::test_pg_ein_testlauf_raeumt_zu_beginn_auf` war in Runde 9 einmal rot. Ursache: der Test legt ein
+Schema mit der Kennung eines beendeten Prozesses dieses Rechners an und lässt dann einen pytest-Unterprozess beim Start aufräumen. Jeder
+andere Testlauf, der in diesem Moment startet -- im selben parallelen Lauf etwa die pytest-Unterprozesse von `test_v416` --, räumt beim Start
+genauso auf und darf dieses Schema löschen; dann fehlt es in der Meldung des Unterprozesses. Dasselbe Fenster hatte
+`test_pg_aufraeumen_loescht_nur_schemas_beendeter_prozesse`. Jetzt trägt die Kennung solcher Schemas einen eigenen Rechnernamen
+(`ERP_TEST_RECHNER`, nur Tests, `tests/pg_schutz.py`): für jeden anderen Lauf ist es ein Schema eines anderen Rechners, nur der Lauf mit
+demselben Namen räumt es auf. Beide Tests stellen den anderen Lauf ausdrücklich nach und verlangen, dass das Schema stehen bleibt -- ohne
+Zeitfenster.
+
 ## 1.9.30 – Nachtrag Stufe 2: Karten mit 12 px Ecken, im Monteursrahmen 16 px
 
 Nachtrag Stufe 2, Punkt A1 (Entscheidung 2 der Stufe 2, ersetzt Festlegung 1.9.27 Nr. 4 „Karten bleiben eckig“). Jede Karte auf jeder

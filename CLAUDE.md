@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.30** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.31** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -710,7 +710,9 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     `CREATE SCHEMA`); zu Beginn eines Testlaufs löscht `tests/conftest.py` jedes, dessen Prozess nicht mehr läuft -- nie eines eines
     laufenden Prozesses, nie eines ohne Kennung (nur genannt), nie `public` (`tests/pg_schutz.py::liegen_gebliebene_schemas_loeschen()`).
     Die Spielwiese läuft mit `max_locks_per_transaction = 1024`: ein `DROP SCHEMA` braucht über 1100 Sperren, mit der Vorgabe 64 brachen
-    gleichzeitige Läufe mit "Shared Memory aufgebraucht" ab.
+    gleichzeitige Läufe mit "Shared Memory aufgebraucht" ab. **Seit 1.9.31** ersetzt `ERP_TEST_RECHNER` (nur Tests) den Rechnernamen in
+    der Kennung: ein Test, der ein liegen gebliebenes Schema nachstellt, gibt ihm einen eigenen Namen -- kein anderer, gleichzeitig
+    startender Lauf räumt es weg (`tests/test_v413_testlauf_parallel.py`).
 
 28. **Der Bericht nennt jede neue Festlegung in einer Zeile, nicht nur die wichtigsten, seit 1.8.91.** Jede Festlegung, die eine Runde
     trifft (im Archiv unter "Festlegungen <Version> (Bitte bestätigen)"), steht im Bericht mit Version und Nummer in genau einer Zeile --

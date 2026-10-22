@@ -7,7 +7,14 @@
   zeitkritische Klicktest (Fenster, in dem nichts geschehen darf; Zeitlimit; gedrosseltes Netz) setzt ALLEIN.
 - Klicktests in einer Gegenprobe (Marker GEGENPROBE unter app/) brechen nach 2 min ab: eigene Prozesse beendet, Rückgabecode 3.
 
-Die Tests gegen PostgreSQL sind opt-in (ERP_TEST_POSTGRES_URL) wie alle anderen."""
+Die Tests gegen PostgreSQL sind opt-in (ERP_TEST_POSTGRES_URL) wie alle anderen.
+
+Seit 1.9.31 (Nachtrag Stufe 2, Punkt A3): die Tests, die ein liegen gebliebenes Schema nachstellen, geben ihm einen eigenen
+Rechnernamen (ERP_TEST_RECHNER, tests/pg_schutz.py). Bis dahin trug es die Kennung eines beendeten Prozesses dieses Rechners -- jeder
+andere Testlauf, der in dem Moment startete (z. B. die pytest-Unterprozesse von tests/test_v416_testablauf.py im selben parallelen
+Lauf), durfte es löschen, bevor der Test selbst aufräumte; dann fehlte es in dessen Meldung (einmal rot in Runde 9). Jetzt stellt jeder
+der beiden Tests diesen anderen Lauf ausdrücklich nach (Aufräumen mit dem echten Rechnernamen) und verlangt, dass das Schema stehen
+bleibt -- ohne Zeitfenster."""
 
 import importlib.util
 import os
@@ -87,6 +94,18 @@ def pg_url():
     return PG_URL
 
 
+def _eigener_rechner() -> str:
+    """Ein Rechnername nur für diesen Test (ERP_TEST_RECHNER): seine Schemas sind für jeden anderen Lauf die eines anderen Rechners."""
+    return f"pgtest-{uuid.uuid4().hex[:12]}"
+
+
+def _anderer_lauf_raeumt_auf(url: str, monkeypatch) -> dict:
+    """Ein gleichzeitig startender Testlauf: räumt mit dem echten Rechnernamen auf (wie tests/conftest.py zu Beginn jedes Laufs)."""
+    with monkeypatch.context() as m:
+        m.delenv("ERP_TEST_RECHNER", raising=False)
+        return liegen_gebliebene_schemas_loeschen(url)
+
+
 def _katalog(url):
     """Engine für Katalog und Verwaltung (search_path pg_catalog, nicht public -- Regel 27)."""
     return create_engine(url, connect_args={"options": "-csearch_path=pg_catalog"})
@@ -118,7 +137,8 @@ def test_pg_ein_angelegtes_testschema_traegt_die_kennung_dieses_prozesses(pg_url
         katalog.dispose()
 
 
-def test_pg_aufraeumen_loescht_nur_schemas_beendeter_prozesse(pg_url):
+def test_pg_aufraeumen_loescht_nur_schemas_beendeter_prozesse(pg_url, monkeypatch):
+    monkeypatch.setenv("ERP_TEST_RECHNER", _eigener_rechner())  # die Kennungen unten tragen ihn; kein anderer Lauf räumt sie weg
     kurz = uuid.uuid4().hex[:8]
     lebend = _wartender_prozess()
     schemas = {
@@ -138,6 +158,11 @@ def test_pg_aufraeumen_loescht_nur_schemas_beendeter_prozesse(pg_url):
                 conn.execute(text(f"CREATE SCHEMA {schema}"))
                 conn.execute(text(f"CREATE TABLE {schema}.probe (id integer)"))
                 conn.execute(text(f"COMMENT ON SCHEMA {schema} IS " + ("NULL" if kennung is None else f"'{kennung}'")))
+
+        # ein anderer Lauf, der in diesem Moment startet, lässt alle stehen -- für ihn sind es Schemas eines anderen Rechners
+        andere = _anderer_lauf_raeumt_auf(pg_url, monkeypatch)
+        assert not {s for s, _ in schemas.values()} & set(andere["geloescht"])
+        assert [_gibt_es(katalog, s) for s, _ in schemas.values()] == [True] * 5
 
         ergebnis = liegen_gebliebene_schemas_loeschen(pg_url)
 
@@ -159,21 +184,26 @@ def test_pg_aufraeumen_loescht_nur_schemas_beendeter_prozesse(pg_url):
         katalog.dispose()
 
 
-def test_pg_ein_testlauf_raeumt_zu_beginn_auf(pg_url, tmp_path):
-    """Ende zu Ende: ein Testlauf (pytest im Unterprozess) löscht beim Start ein liegen gebliebenes Schema und nennt es."""
+def test_pg_ein_testlauf_raeumt_zu_beginn_auf(pg_url, tmp_path, monkeypatch):
+    """Ende zu Ende: ein Testlauf (pytest im Unterprozess) löscht beim Start ein liegen gebliebenes Schema und nennt es. Seit 1.9.31
+    mit eigenem Rechnernamen: ein anderer Lauf, der vorher aufräumt, lässt es stehen (nachgestellt), der Unterprozess löscht genau dieses."""
+    rechner = _eigener_rechner()
+    monkeypatch.setenv("ERP_TEST_RECHNER", rechner)
     schema = f"pgtest_lauf_{uuid.uuid4().hex[:8]}"
     katalog = _katalog(pg_url)
     try:
         with katalog.begin() as conn:
             conn.execute(text(f"CREATE SCHEMA {schema}"))
             conn.execute(text(f"COMMENT ON SCHEMA {schema} IS '{_beendete_kennung()}'"))
+        andere = _anderer_lauf_raeumt_auf(pg_url, monkeypatch)
+        assert schema in andere["fremder_rechner"] and _gibt_es(katalog, schema)
         lauf = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "no:xdist",
                                f"{Path(__file__).relative_to(ROOT).as_posix()}::test_allein_grund_wird_gelesen"],
                               cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
-                              env=dict(os.environ, PYTHONIOENCODING="utf-8"))
+                              env=dict(os.environ, PYTHONIOENCODING="utf-8", ERP_TEST_RECHNER=rechner))
         assert lauf.returncode == 0, lauf.stdout[-2000:] + lauf.stderr[-2000:]
-        zeile = re.search(r"PostgreSQL-Testschemas: liegen geblieben, gelöscht: \d+ \((.*)\)", lauf.stdout)
-        assert zeile and (schema in zeile[1] or zeile[1].endswith("…")), lauf.stdout[-2000:]  # höchstens fünf Namen
+        # nur dieser Lauf kennt den Rechnernamen -- er löscht genau dieses eine Schema
+        assert f"PostgreSQL-Testschemas: liegen geblieben, gelöscht: 1 ({schema})" in lauf.stdout, lauf.stdout[-2000:]
         assert not _gibt_es(katalog, schema)
     finally:
         with katalog.begin() as conn:

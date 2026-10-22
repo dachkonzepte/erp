@@ -1167,3 +1167,32 @@ wiederholt einen Klicktest genau einmal, wenn seine einzige Abweichung solche An
 - **Folge für den Vergleich**: eine Abweichung nur an abgeschnittenem Text einer nicht geänderten Seite wird durch Wiederholung geklärt
   (beide Stände je zweimal), nicht als Befund der Runde gewertet. Der abgeschnittene Knopf selbst ist ein alter Darstellungsfehler des
   Angebots (siehe `docs/archiv/redesign.md`, „Runde 9 abgeschlossen“); mit seiner Behebung verschwindet auch die Unruhe im Bild.
+
+## Testschemas: kein anderer Lauf räumt das Schema eines Tests weg (1.9.31, Nachtrag Stufe 2, Punkt A3)
+
+- **Befund**: `tests/test_v413_testlauf_parallel.py::test_pg_ein_testlauf_raeumt_zu_beginn_auf` scheiterte in Runde 9 einmal in einem
+  kleinen parallelen Lauf (vor dem Commit von 1.9.26) und lief sonst immer grün. Der Test legt ein Schema `pgtest_lauf_…` mit der Kennung
+  eines **beendeten Prozesses dieses Rechners** an, startet dann pytest im Unterprozess und verlangt, dass dessen Aufräumen beim Start
+  (`tests/conftest.py::pytest_sessionstart`) genau dieses Schema löscht und nennt.
+- **Ursache**: jeder pytest-Hauptprozess räumt beim Start auf, nicht nur der Unterprozess des Tests. Im selben parallelen Lauf starten
+  `tests/test_v416_testablauf.py` (Zeitgrenze, `_lauf()`) mehrere pytest-Unterprozesse; startet einer davon zwischen dem Anlegen des Schemas
+  und dem Unterprozess des Tests, löscht er das Schema -- es ist ja das eines beendeten Prozesses. Der Unterprozess findet es dann nicht
+  mehr, seine Meldung nennt es nicht (oder fehlt), der Test wird rot. Ebenso ein gleichzeitiger zweiter Testlauf (eine Gegenprobe, ein
+  Klicktest-Lauf mit pytest). Dasselbe Fenster hatte `test_pg_aufraeumen_loescht_nur_schemas_beendeter_prozesse` (Schema „beendet“
+  zwischen Anlegen und eigenem Aufräumen). Deterministisch nachgestellt: ein Aufräumen mit dem echten Rechnernamen zwischen Anlegen und
+  Unterprozess löscht das Schema (Gegenprobe A3-1 unten).
+- **Änderung** (nur Tests): `ERP_TEST_RECHNER` ersetzt den Rechnernamen in der Kennung (`tests/pg_schutz.py::_rechner()`). Beide Tests geben
+  ihren Schemas einen eigenen Namen (`pgtest-<zufall>`): für jeden anderen Lauf sind es Schemas eines anderen Rechners („Kennung eines
+  anderen Rechners“, stehen gelassen), nur ein Lauf mit demselben Namen räumt sie auf -- der Unterprozess des Tests bekommt ihn. Jeder der
+  beiden Tests stellt den anderen Lauf ausdrücklich nach (Aufräumen ohne `ERP_TEST_RECHNER`) und verlangt, dass alle seine Schemas stehen
+  bleiben; der Unterprozess muss genau eines löschen („gelöscht: 1 (<schema>)“ statt „enthält es oder ist abgeschnitten“). Kein Warten,
+  kein Zeitfenster.
+- **Gegenproben** (in `tests/`, byte-genau zurück): `ERP_TEST_RECHNER` wirkungslos -- der Stand vor 1.9.31 (A3-1): **beide Tests rot**,
+  das nachgestellte Aufräumen eines anderen Laufs löscht ihre Schemas (die Ursache des Fehlschlags, jetzt ohne Zufall nachgestellt);
+  Unterprozess ohne den eigenen Rechnernamen (A3-2): `test_pg_ein_testlauf_raeumt_zu_beginn_auf` rot (er löscht das Schema nicht mehr). Eine
+  erste Fassung von A3-1 hatte einen Syntaxfehler (Kommentar mitten im Ausdruck) und lief nicht -- wiederholt mit gültigem Code.
+- **Angepasste Erwartung** (Regel 28): `test_pg_ein_testlauf_raeumt_zu_beginn_auf`: alt „die Meldung nennt das Schema oder ist nach fünf
+  Namen abgeschnitten“; neu „gelöscht: 1 (<schema>)“ -- mit eigenem Rechnernamen löscht der Unterprozess genau dieses eine.
+- **Festlegung zu Werkzeug und Testablauf 1.9.31 (Bitte bestätigen)**: ein Test, der ein liegen gebliebenes Testschema nachstellt, gibt ihm
+  einen eigenen Rechnernamen (`ERP_TEST_RECHNER`) und stellt den gleichzeitigen anderen Lauf nach -- nie die Kennung eines beendeten
+  Prozesses dieses Rechners.

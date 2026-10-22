@@ -16,6 +16,10 @@ als Kommentar die Kennung dieses Prozesses (Rechner, PID, Startzeit -- schema_wa
 an, in derselben Transaktion). Zu Beginn eines Testlaufs löscht liegen_gebliebene_schemas_loeschen() (aus tests/conftest.py, nur im
 Hauptprozess) jedes pgtest_*-Schema, dessen Prozess nicht mehr läuft -- nie eines eines laufenden Prozesses, nie eines ohne Kennung
 (von einem Stand vor 1.8.108 oder nicht aus einem Testlauf; es wird nur genannt), nie public oder ein anderes Schema.
+
+Seit 1.9.31: ERP_TEST_RECHNER ersetzt den Rechnernamen in der Kennung (nur Tests). Ein Test, der ein liegen gebliebenes Schema
+nachstellt, gibt ihm einen eigenen Rechnernamen: für jeden anderen Testlauf ist es ein Schema eines anderen Rechners und bleibt stehen,
+nur ein Lauf mit demselben Namen räumt es auf (bis dahin konnte ein gleichzeitig startender Lauf es vorher löschen, Runde 9).
 """
 
 import os
@@ -134,7 +138,8 @@ def prozess_start(pid: int) -> int | None:
 
 
 def _rechner() -> str:
-    return re.sub(r"[^A-Za-z0-9._-]", "_", socket.gethostname()) or "unbekannt"
+    """Name dieses Rechners in der Kennung -- seit 1.9.31 ersetzt ERP_TEST_RECHNER ihn (siehe Kopf)."""
+    return re.sub(r"[^A-Za-z0-9._-]", "_", os.environ.get("ERP_TEST_RECHNER") or socket.gethostname()) or "unbekannt"
 
 
 def lauf_kennung(pid: int | None = None) -> str:
