@@ -249,7 +249,8 @@ def automatic_break_minutes_for_duration(db: Session, employee_id: int, gross_ho
     gross = Decimal(str(gross_hours or 0))
     result = 0
     for rule in sorted(model.break_rules, key=lambda x: Decimal(x.threshold_hours)):
-        if gross >= Decimal(rule.threshold_hours):
+        # seit 1.9.48 (Stufe 4, R2 Nachrunde) „mehr als“ die Schwelle wie § 4 ArbZG -- bis 1.9.46 „ab“ (>=)
+        if gross > Decimal(rule.threshold_hours):
             result = max(result, int(rule.break_minutes or 0))
     return result
 

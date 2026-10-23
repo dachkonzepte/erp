@@ -10,7 +10,7 @@ gestern 06:45 offen. Lea: nichts läuft. Kai und Tom: Gruppenzeit seit 07:00. Fe
                            Checklisten 1, keine Mängel; Nächste Tage: A ab morgen „Fortsetzung“, B; heute nicht; hell und dunkel
     Mia hoch (800 × 1100)  eine Spalte in der Reihenfolge Arbeitszeit, Einsatz, Offen, Nächste Tage; hell und dunkel
     Mia                    Zeitart wechseln -> Fahrzeit seit 10:00, zwei Buchungen ohne Lücke; Feierabend -> nichts läuft
-    Ole                    „Deine Zeit von gestern läuft noch“, Feld 64 px, 16:00 -> Vorschau wie der Server, Feierabend eintragen ->
+    Ole                    „Deine Zeit von gestern läuft noch“, Feld 64 px, 15:45 -> Vorschau wie der Server, Feierabend eintragen ->
                            gebucht wie die Vorschau; Karte „Arbeitszeit“ mit gesperrtem „Arbeitsbeginn buchen“; „Heute und nächste Tage“
     Lea                    nichts läuft: Auftrag A vorbelegt, Kacheln 64 px mit „Vorschlag“, Start -> läuft
     Tom / Kai              Mitglied ohne Knopf mit „stoppt Kai Kolonne“ / Kolonnenführer mit „Feierabend für die Gruppe“
@@ -27,6 +27,7 @@ Optionen, Ablauf, Rückgabecode und Regeln (isolierte Wegwerf-Datenbank, Prozess
 scripts/cdp_klicktest.py. Dauer etwa eine Minute.
 """
 
+import re
 import sys
 from datetime import date
 from pathlib import Path
@@ -71,7 +72,7 @@ def befuellen(db, k):
     )
     from app.project_pipeline_columns import default_pipeline_column_id
     from app.service_reports import create_report
-    from app.time_tracking import start_group_timer, start_timer
+    from app.time_tracking import start_group_timer, start_timer, stop_timer
     from app.work_preparation import ensure_preparation
 
     heute = berlin_today()
@@ -122,6 +123,10 @@ def befuellen(db, k):
     db.commit()
 
     start_timer(db, employee_id=leute["mia"].id, order_id=a.id, started_at=datetime.combine(heute, time(6, 45)))
+    # Ole: gestern Fahrzeit 06:00–06:45 gebucht (seit 1.9.48: zählt für die Pause des Tages und „Tag zusammen“), Baustelle seit 06:45 offen
+    fahrt = start_timer(db, employee_id=leute["ole"].id, order_id=a.id, entry_type="travel",
+                        started_at=datetime.combine(heute - timedelta(days=1), time(6)))
+    stop_timer(db, fahrt.id, ended_at=datetime.combine(heute - timedelta(days=1), time(6, 45)))
     start_timer(db, employee_id=leute["ole"].id, order_id=a.id, started_at=datetime.combine(heute - timedelta(days=1), time(6, 45)))
     start_group_timer(db, employee_ids=[leute["kai"].id, leute["tom"].id], team_id=team.id, actor_employee_id=leute["kai"].id,
                       is_admin=False, order_id=a.id, started_at=datetime.combine(heute, time(7)))
@@ -233,6 +238,11 @@ async def pruefen(tab, seed, p):
     await tab.warten(f"performance.now()>{t + 1100}")
     await tab.warte_auf_neu_geladene_liste("document.getElementById('feierabendKnopf').click()", "#arbeitszeit")
     p.pruefe("Feierabend: keine Meldung", await tab.js("(document.getElementById('zeitStatus')||{}).textContent||''"), "")
+    # seit 1.9.48: das Ergebnis mit „Tag zusammen“ (zwei Buchungen am Tag: 06:45–10:00 und die Fahrzeit seit dem Wechsel)
+    ergebnis = await tab.js("document.getElementById('zeitErgebnis').textContent")
+    p.pruefe("Feierabend: Ergebnis mit Tag zusammen", bool(re.fullmatch(r"Feierabend gebucht: 0,0\d h · Pause 0:00 h · Tag zusammen 3:15 h", ergebnis or "")),
+             True)
+    await tab.bild("heute_nach_feierabend_zwei_buchungen_hell")
     p.pruefe("nach dem Feierabend: nichts läuft, Auftrag vorbelegt", await tab.js("document.getElementById('startAuftrag').value"), str(a))
     p.pruefe("Mia: keine JS-Fehler", tab.fehler, [])
 
@@ -252,15 +262,23 @@ async def pruefen(tab, seed, p):
         "[document.querySelector('.knopf-gesperrt').disabled,document.querySelector('.zeit-gesperrt .zeit-sub').textContent,"
         "document.querySelectorAll('[data-einsatz]').length,document.getElementById('naechsteTitel').textContent]"),
         [True, "Heute startest du, sobald gestern abgeschlossen ist.", 0, "Heute und nächste Tage"])
-    await tab.js("(f=>{f.value='16:00';f.dispatchEvent(new Event('input'))})(document.getElementById('endeZeit'))")
+    await tab.js("(f=>{f.value='15:45';f.dispatchEvent(new Event('input'))})(document.getElementById('endeZeit'))")
     await tab.warten("document.querySelector('#endeVorschau .gebucht')")
     vorschau = await tab.js("[...document.querySelectorAll('#endeVorschau span')].map(s=>s.textContent)")
-    p.pruefe("Ole: Vorschau vom Server", vorschau, ["Anwesend 9:15 h · Pause nach Zeitregel − 0:45 h", "Gebucht werden 8,50 h"])
+    # seit 1.9.48 je Tag: die Fahrzeit 06:00–06:45 zählt mit -- Baustelle 06:45–15:45 allein genau 9:00 h (je Buchung 30 min), der Tag
+    # 9:45 h -> 45 min; dazu „Tag zusammen“ (0,75 + 8,25 h)
+    p.pruefe("Ole: Vorschau vom Server", vorschau,
+             ["Anwesend 9:00 h · Pause nach Zeitregel − 0:45 h", "Gebucht werden 8,25 h", "Tag zusammen 9:00 h"])
     await tab.bild("heute_gestern_offen_vorschau_hell")
+    await tab.js("document.documentElement.setAttribute('data-theme','dark')")  # dunkel ohne Neuladen (die Eingabe bleibt)
+    await tab.bild("heute_gestern_offen_vorschau_dunkel")
+    await tab.js("document.documentElement.setAttribute('data-theme','light')")
     await tab.warte_auf_neu_geladene_liste("document.getElementById('endeKnopf').click()", "#arbeitszeit")
     gebucht = await tab.js(f"fetch('/api/time-entries?employee_id={seed['ole']}&start_date={seed['gestern']}&end_date={seed['gestern']}')"
-                           ".then(r=>r.json()).then(l=>l.map(e=>[e.status,Number(e.anwesend),e.pause,Number(e.hours)]))")
-    p.pruefe("Ole: gebucht wie die Vorschau", gebucht, [["booked", 9.25, 45, 8.5]])
+                           ".then(r=>r.json()).then(l=>l.sort((x,y)=>x.started_at<y.started_at?-1:1).map(e=>[e.status,Number(e.anwesend),e.pause,Number(e.hours)]))")
+    p.pruefe("Ole: gebucht wie die Vorschau, die Fahrzeit unverändert", gebucht, [["booked", 0.75, 0, 0.75], ["booked", 9.0, 45, 8.25]])
+    p.pruefe("Ole: Ergebnis mit Tag zusammen", await tab.js("document.getElementById('zeitErgebnis').textContent"),
+             "Feierabend gestern eingetragen: 8,25 h · Pause 0:45 h · Tag zusammen 9:00 h")
     p.pruefe("Ole: danach startet heute", await tab.js("!!document.getElementById('startKacheln')"), True)
     p.pruefe("Ole: keine JS-Fehler", tab.fehler, [])
 

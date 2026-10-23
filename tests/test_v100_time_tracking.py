@@ -66,7 +66,7 @@ def test_timer_start_stop_computes_net_hours_and_prevents_parallel_timer():
         assert "läuft noch – zuerst das Ende nachtragen" in str(exc)
     row=stop_timer(db,row.id,ended_at=datetime(2026,9,7,16,0,0),break_minutes=30)
     assert row.status=="booked"
-    assert row.hours==Decimal("8.2500")
+    assert row.hours==Decimal("8.5000")  # seit 1.9.48: genau 9:00 h ist nicht „mehr als 9 h“ -> 30 min (bis 1.9.46 45 min, 8,25 h)
 
 
 def test_work_preparation_uses_time_entries_for_actual_and_variance():

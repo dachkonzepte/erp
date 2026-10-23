@@ -55,12 +55,15 @@ def test_work_time_models_and_automatic_break_on_timer():
     summer = next(x for x in models if x["code"] == "summer")
     set_employee_model(db, emp.id, summer["id"])
     assert automatic_break_minutes_for_duration(db, emp.id, Decimal("5.99")) == 0
-    assert automatic_break_minutes_for_duration(db, emp.id, Decimal("6.00")) == 30
-    assert automatic_break_minutes_for_duration(db, emp.id, Decimal("9.00")) == 45
+    # seit 1.9.48 „mehr als“ die Schwelle (bis 1.9.46 „ab“: 6,00 -> 30, 9,00 -> 45)
+    assert automatic_break_minutes_for_duration(db, emp.id, Decimal("6.00")) == 0
+    assert automatic_break_minutes_for_duration(db, emp.id, Decimal("6.0167")) == 30
+    assert automatic_break_minutes_for_duration(db, emp.id, Decimal("9.00")) == 30
+    assert automatic_break_minutes_for_duration(db, emp.id, Decimal("9.0167")) == 45
     entry = start_timer(db, employee_id=emp.id, order_id=order.id, started_at=datetime(2026,9,1,7,0))
-    entry = stop_timer(db, entry.id, ended_at=datetime(2026,9,1,16,0), break_minutes=0)
+    entry = stop_timer(db, entry.id, ended_at=datetime(2026,9,1,16,15), break_minutes=0)  # 9:15 h (bis 1.9.46 16:00)
     assert entry.break_minutes == 45
-    assert entry.hours == Decimal("8.2500")
+    assert entry.hours == Decimal("8.5000")
 
 
 def test_backoffice_ui_has_separate_options_work_models_and_current_month_entries():

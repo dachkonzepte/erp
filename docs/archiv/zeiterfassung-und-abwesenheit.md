@@ -506,3 +506,25 @@ noch aus UTC gelesen“ (oben, „Weiter offen“; die dortige Liste vom 29.09.2
   `app/audit.py::_text()` -- je nach Spalte UTC oder Ortszeit, im Browser nicht unterscheidbar; das bräuchte die Spalte auf dem Server.
   Ebenso auf dem Server: `app/findings.py` filtert `Finding.created_at` (UTC) mit Mitternacht eines Kalendertags (Grenzen um 1–2 Std.
   verschoben) -- nicht geprüft, wie oft es greift.
+
+## Pausenregel je Tag (seit 1.9.48)
+
+Entscheidung Tobias vom 23.10.2026 (Stufe 4, R2 Nachrunde, Punkt 1), nur für neue Buchungen. Befund aus R2: die Pause hing an der einzelnen
+Buchung -- zwei Buchungen à 5 h am selben Tag (z. B. Baustelle, dann Werkstatt nach „Zeitart wechseln“) bekamen keine Pause, eine Buchung
+über 9 h am Stück 45 min.
+
+- **Schwellen „mehr als“**: über 6:00 h Anwesenheit 30 min, über 9:00 h 45 min -- die Werte bleiben in den Grunddaten bzw. den Zeitregeln,
+  nur der Vergleich in `app/work_time_models.py::automatic_break_minutes_for_duration()` ist seit 1.9.48 `>` (bis 1.9.46 `>=`). Die Funktion
+  hat nur einen Aufrufer (`pause_nach_zeitregel()`), alte Buchungen werden nicht umgerechnet.
+- **Der Tag**: maßgeblich ist die Anwesenheit der Person am Starttag (`work_date`) über alle gebuchten Zeiten (`booked`) samt der neuen:
+  Ende − Beginn, bei einer reinen Dauer Stunden + Pause (`buchungen_am_tag()`, `_anwesend_der_buchung()`).
+- **Was abgezogen wird**: Pflichtpause des Tages − schon abgezogene Pausen des Tages, mindestens die eingegebene Pause, höchstens die
+  Anwesenheit der neuen Buchung (`pause_nach_zeitregel()`). Frisst die fehlende Pause die ganze Buchung, wird sie mit 0 h geschlossen (Stopp,
+  Gruppen-Stopp, Ende nachtragen, Wechsel); ein Nachtrag mit Von/Bis wird dann abgelehnt wie bisher („Nach Abzug der Pause bleibt keine
+  Arbeitszeit.“).
+- **Überall eine Funktion**: Stopp, Gruppen-Stopp (je Mitglied seine eigene Tagesrechnung), Ende nachtragen, Nachtrag mit Von/Bis, Zeitart
+  wechseln (die abgeschlossene erste Buchung zählt für die zweite) und die Vorschau von „Ende nachtragen“ -- über `ende_rechnen()` bzw.
+  `nachtrag_nach_zeitregel()`.
+- **Tag zusammen**: `tag_stand()` -- gebuchte Stunden des Tages und Zahl der Buchungen; in der Antwort jeder Buchung (`TimeEntryOut`,
+  beim Gruppen-Stopp für den, der stoppt) und in der Vorschau (`TimeEndeVorschauOut`). Angezeigt als h:mm, nur bei mehr als einer Buchung.
+- Festlegungen und Tests: `docs/archiv/redesign.md`, „R2 Nachrunde, Punkt 1 (1.9.48)“.

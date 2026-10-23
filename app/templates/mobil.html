@@ -61,6 +61,8 @@
     .feld{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600;color:var(--ds-stark)}
     .feld select{height:56px;border:1px solid var(--ds-feld-rand);border-radius:var(--ds-ecke-tablet-feld);padding:0 14px;font-family:var(--ds-schrift-text);font-size:17px;color:var(--ds-text);background:var(--ds-flaeche)}
     .status{font-size:14px;color:var(--ds-fehler-text);overflow-wrap:anywhere}
+    .ergebnis{font-size:15px;font-weight:600;color:var(--ds-ok-text);overflow-wrap:anywhere}  /* seit 1.9.48: Ergebnis nach dem Feierabend */
+    .ergebnis:empty{display:none}
     .status:empty{display:none}
     /* Zeit von früher offen (heute-gestern): Signalkarte „Wartet auf dich“ */
     .signal-karte{background:var(--ds-signal-hell);border:1px solid var(--ds-signal-rand);border-radius:var(--ds-ecke-karte);padding:20px;display:flex;flex-direction:column;gap:14px;min-width:0}
@@ -217,6 +219,13 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
     return pad2(a.t)+'.'+pad2(a.m)+'.'+a.j+'–'+pad2(b.t)+'.'+pad2(b.m)+'.'+b.j;
   }
   function stundenUhr(minuten){var m=Math.max(0,Math.round(minuten));return Math.floor(m/60)+':'+pad2(m%60)+' h'}  // „3:15 h“
+  // Seit 1.9.48 (Stufe 4, R2 Nachrunde): „Tag zusammen“, wenn der Tag mehr als diese eine Buchung hat
+  function tagZusammen(d){return d&&d.tag_buchungen>1?' · Tag zusammen '+stundenUhr(Number(d.tag_zusammen)*60):''}
+  function ergebnisBuchung(wie){return function(d){return wie+': '+zahlText(d.gebucht,2)+' h · Pause '+stundenUhr(d.pause)+tagZusammen(d)}}
+  function ergebnisGruppe(d){
+    var eigene=(d.member_entries||[]).find(function(e){return e.employee_id===H.mitarbeiter_id});
+    return 'Feierabend für die Gruppe gebucht'+(eigene?' · deine Zeit '+zahlText(eigene.hours,2)+' h':'')+tagZusammen(d);
+  }
   async function api(url,opt){
     var r=await fetch(url,opt);var body=null;try{body=await r.json()}catch(e){}
     if(!r.ok)throw new Error(fehlerText(body,r.status,{}));
@@ -260,8 +269,8 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
     DAUER={basis:z.dauer_minuten,seit:performance.now()};
     tick=setInterval(function(){var d=el('zeitDauer');if(d&&DAUER)d.textContent=stundenUhr(DAUER.basis+Math.floor((performance.now()-DAUER.seit)/60000))},15000);
     var stopp=el('feierabendKnopf'),gruppe=el('feierabendGruppe'),wechsel=el('wechselKnopf');
-    if(stopp)stopp.addEventListener('click',function(){zeitAktion(stopp,'/api/time-entries/'+z.id+'/stop',{break_minutes:0})});
-    if(gruppe)gruppe.addEventListener('click',function(){zeitAktion(gruppe,'/api/time-entry-groups/'+z.gruppe.id+'/stop',{break_minutes:0})});
+    if(stopp)stopp.addEventListener('click',function(){zeitAktion(stopp,'/api/time-entries/'+z.id+'/stop',{break_minutes:0},ergebnisBuchung('Feierabend gebucht'))});
+    if(gruppe)gruppe.addEventListener('click',function(){zeitAktion(gruppe,'/api/time-entry-groups/'+z.gruppe.id+'/stop',{break_minutes:0},ergebnisGruppe)});
     if(wechsel)wechsel.addEventListener('click',function(){
       var k=el('wechselKacheln');k.hidden=!k.hidden;wechsel.setAttribute('aria-expanded',String(!k.hidden));
     });
@@ -277,7 +286,8 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
     }).join('');
     return '<section class="heute-karte" aria-labelledby="zeitTitel"><span class="eb" id="zeitTitel">'+esc(kopf)+'</span>'
       +'<label class="feld" for="startAuftrag">Auftrag<select id="startAuftrag"></select></label>'
-      +'<div class="kacheln" id="startKacheln">'+kacheln+'</div><div class="status" id="zeitStatus" role="status"></div></section>';
+      +'<div class="kacheln" id="startKacheln">'+kacheln+'</div><div class="status" id="zeitStatus" role="status"></div>'
+      +'<div class="ergebnis" id="zeitErgebnis" role="status"></div></section>';
   }
   function bindeNichts(z){
     el('startAuftrag').innerHTML=auswahlOptionen(z.auftraege,z.vorbelegt,function(o){
@@ -317,7 +327,8 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
     feld.addEventListener('change',function(){vorschauLaden(z)});
     el('endeKnopf').addEventListener('click',function(){
       if(!feld.value){el('zeitStatus').textContent='Bitte die Uhrzeit des Feierabends angeben.';return}
-      zeitAktion(el('endeKnopf'),'/api/time-entries/'+z.id+'/ende-nachtragen',{ende:z.tag+'T'+feld.value});
+      zeitAktion(el('endeKnopf'),'/api/time-entries/'+z.id+'/ende-nachtragen',{ende:z.tag+'T'+feld.value},
+                 ergebnisBuchung(z.gestern?'Feierabend gestern eingetragen':'Feierabend am '+tagKurz(z.tag)+' eingetragen'));
     });
   }
   // „Anwesend … · Pause nach Zeitregel − … · Gebucht werden …“ kommt vom Server (ende-vorschau, dieselbe Rechnung wie die Buchung)
@@ -328,12 +339,15 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
     return lesen('vorschau',()=>wert?api(url):Promise.resolve(null),function(v){
       if(!v){box.innerHTML='';return}
       box.innerHTML='<span class="anwesend">Anwesend '+esc(stundenUhr(Number(v.anwesend)*60))+' · Pause nach Zeitregel − '+esc(stundenUhr(v.pause))+'</span>'
-        +'<span class="gebucht">Gebucht werden '+esc(zahlText(v.gebucht,2))+' h</span>';
+        +'<span class="gebucht">Gebucht werden '+esc(zahlText(v.gebucht,2))+' h</span>'
+        +(v.tag_buchungen>1?'<span class="anwesend">Tag zusammen '+esc(stundenUhr(Number(v.tag_zusammen)*60))+'</span>':'');  // seit 1.9.48
     }).catch(function(e){box.innerHTML='<span class="status">'+esc(e.message)+'</span>'});
   }
-  function zeitAktion(knopf,url,body){
+  // ergebnis (seit 1.9.48): Text aus der Antwort, steht nach dem Neuladen in der Karte (#zeitErgebnis, „nichts läuft“)
+  function zeitAktion(knopf,url,body,ergebnis){
     var st=el('zeitStatus');st.textContent='';knopf.disabled=true;
     return speichern('heute',()=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{neuLaden:ladeHeute})
+      .then(function(d){var e=el('zeitErgebnis');if(e&&ergebnis&&d)e.textContent=ergebnis(d)})
       .catch(function(e){var s=el('zeitStatus');if(s)s.textContent=e.message;knopf.disabled=false});
   }
 

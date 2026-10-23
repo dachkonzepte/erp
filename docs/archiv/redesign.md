@@ -3943,3 +3943,49 @@ eigene Seite „Heute / Offen“); Pausenregel je Tag (nur neue Buchungen, Schwe
   die Rückfrage bleibt offen, „Löschen“ antwortet „ja“ (Angriff); Esc -> „nein“ (Gegenprobe). Messkopie danach 3 von 3 grün (einmal traf das
   alte `close` sichtbar ein und wurde ignoriert). **Gegenprobe** (alter Stand, jedes `close` als Esc): der Angriffstest rot; der Klicktest in
   diesem Lauf grün -- er trifft das Rennen nur manchmal, der node-Test immer.
+
+### R2 Nachrunde, Punkt 1 (1.9.48): Pausenregel je Tag
+
+- **Umsetzung**: `app/time_tracking.py::pause_nach_zeitregel()` rechnet je Tag (`buchungen_am_tag()`, `_anwesend_der_buchung()`), `ende_rechnen()`
+  liefert dazu `tag_zusammen`/`tag_buchungen`, `tag_stand()` für die Antworten (`app/routers/time_tracking.py::_mit_tag()`: Nachtrag, Stopp, Ende
+  nachtragen, Zeitart wechseln; Gruppen-Stopp für den, der stoppt). Schwelle `>` in `automatic_break_minutes_for_duration()`. „Heute“: Ergebnis
+  nach dem Feierabend (`#zeitErgebnis`, grün, bleibt bis zum nächsten Laden), „Tag zusammen“ in der Vorschau; Zeiterfassung der Monteurin: Hinweis
+  nach Stopp (neu mit Ergebnis), Ende nachtragen und Nachtrag. Einstellungen „über … h“. Herleitung: `docs/archiv/zeiterfassung-und-abwesenheit.md`,
+  „Pausenregel je Tag (seit 1.9.48)“.
+
+**Festlegungen 1.9.48 (Bitte bestätigen)**
+
+1. „Mehr als“ wirkt nur für neue Buchungen: `automatic_break_minutes_for_duration()` hat keinen anderen Aufrufer als `pause_nach_zeitregel()`;
+   Pausen, die nach „ab“ entstanden, bleiben.
+2. Der Tag ist der Starttag (`work_date`) aller gebuchten Zeiten der Person; eine laufende zählt nicht mit. Anwesenheit = Ende − Beginn, ohne
+   Uhrzeiten Stunden + Pause.
+3. Frisst die fehlende Pause die ganze neue Buchung (07:00–13:00, dann 13:00–13:20 -> 20 min Pause), schließen Stopp, Gruppen-Stopp, Ende
+   nachtragen und Wechsel sie mit 0 h; ein Nachtrag mit Von/Bis wird abgelehnt (wie bisher bei 0 h). Eine eingegebene Pause über der
+   Anwesenheit bleibt abgelehnt.
+4. „Tag zusammen“ = gebuchte Stunden (netto) des Tages samt der neuen, als h:mm; angezeigt nur, wenn der Tag mehr als diese eine Buchung hat.
+5. Gruppen-Stopp: die Antwort nennt den Tag dessen, der stoppt (wenn er Mitglied ist); jedes Mitglied rechnet seinen eigenen Tag.
+6. Das Beispiel der Vorgabe (07:00–12:00, Wechsel, Werkstatt bis 16:00 -> 2. Buchung − 45 min, Tag 8,25 h) widerspricht „genau 9:00 -> 30“:
+   der Tag hat genau 9:00 h -> 30 min, Tag 8,50 h. Gebaut nach der Regel; der Test prüft bis 16:00 (− 30 min, 8,50 h) und bis 16:15 (− 45 min,
+   8,50 h); je Buchung wären es 9,00 bzw. 9,25 h.
+7. Die Einstellungen sagen „über … h“ (Liste der Pausenregeln und Beschriftung des Felds).
+8. „Heute“: das Ergebnis nach „Feierabend“/„Feierabend eintragen“ steht in der Karte „nichts läuft“, bis die Seite neu lädt; die Zeiterfassung
+   der Monteurin zeigt nach dem Stopp jetzt auch ein Ergebnis (bis dahin keins).
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v474_pause_je_tag.py` (16 Tests): Schwelle (genau 6:00 -> 0, 6:01 -> 30, genau 9:00 -> 30, 9:01 -> 45), Wechsel mittags (bis
+  16:00 und 16:15), zwei Buchungen à 5 h -> 45 min, Nachtrag für den Vormittag nach der Nachmittagsbuchung (fehlender Teil beim Nachtrag, frühere
+  unverändert), eingegebene Pause 60 -> 60, Dauer-Buchung zählt mit, Gruppenmitglied mit eigener früherer Buchung, frühere Buchungen unverändert,
+  fehlende Pause frisst die letzte Buchung (Stopp 0 h, Nachtrag 422), Vorschau = Buchung samt „Tag zusammen“, Feierabend nennt „Tag zusammen“.
+- Angepasste Erwartungen: `test_v100::test_timer_start_stop_computes_net_hours_and_prevents_parallel_timer` 07:00–16:00, Pause 30: alt 8,25 h,
+  neu 8,50 h; `test_v102::test_group_timer_starts_and_stops_all_members` ebenso alt 8,25 h, neu 8,50 h;
+  `test_v104::test_work_time_models_and_automatic_break_on_timer` alt 6,00 -> 30 und 9,00 -> 45, neu 6,00 -> 0, 6,0167 -> 30, 9,00 -> 30,
+  9,0167 -> 45, der Stopp bis 16:15 statt 16:00 (45 min, 8,50 h statt 8,25 h); `test_v424` Beschriftung „Pausenregel – über Brutto-Stunden“
+  statt „ab“; `klicktest_heute` Ole: neu die Fahrzeit 06:00–06:45 in den Testdaten und Ende 15:45 statt 16:00 (die Baustelle allein hat
+  dann genau 9:00 h, je Buchung wären es 30 min -- mit 16:00 gaben je Buchung und je Tag dieselben 45 min, die Gegenprobe P1 blieb im
+  Klicktest grün); Vorschau alt [„Anwesend 9:15 h · Pause nach Zeitregel − 0:45 h“, „Gebucht werden 8,50 h“], neu [„Anwesend 9:00 h · Pause
+  nach Zeitregel − 0:45 h“, „Gebucht werden 8,25 h“, „Tag zusammen 9:00 h“]; gebucht alt [9,25 h, 45 min, 8,50 h], neu Fahrzeit [0,75, 0, 0,75]
+  und Baustelle [9,00 h, 45 min, 8,25 h]; neu die Prüfungen „Ergebnis mit Tag zusammen“ (Mia und Ole) und ein Bild dunkel.
+- **Gegenproben** (Marker GEGENPROBE, byte-genau zurück): P1 je Buchung statt je Tag -> 7 Tests rot, `klicktest_heute` 3 Prüfungen rot;
+  P2 Schwelle „ab“ -> 5 rot (v474, v104); P3 eingegebene Pause nicht als Mindestpause -> 1 rot; P4 „Tag zusammen“ ohne frühere Buchungen ->
+  3 rot, `klicktest_heute` 3 rot; P5 Pause nicht auf die Anwesenheit begrenzt -> 1 rot.

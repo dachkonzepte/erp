@@ -4,6 +4,22 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.48 – Pausenregel je Tag (Stufe 4, R2 Nachrunde, Punkt 1)
+
+Entscheidung Tobias (23.10.2026), nur für neue Buchungen: die Pause richtet sich nach der Anwesenheit der Person am Starttag über alle
+Buchungen samt der neuen, nicht mehr nach der einen Buchung -- bis 1.9.46 bekamen zwei Buchungen à 5 h am selben Tag keine Pause (Befund R2).
+`pause_nach_zeitregel()` rechnet die Pflichtpause des Tages (Schwellen jetzt „mehr als“: über 6:00 h 30 min, über 9:00 h 45 min, Werte aus
+den Grunddaten; bis 1.9.46 „ab“), zieht die schon abgezogenen Pausen des Tages ab und gibt der neuen Buchung den Rest, mindestens die
+eingegebene Pause, höchstens ihre Anwesenheit. Eine reine Dauer zählt mit Stunden + Pause. Frühere Buchungen werden nie angefasst. Weiter eine
+Funktion für Stopp, Gruppen-Stopp (je Mitglied seine eigene Tagesrechnung), Ende nachtragen, Nachtrag mit Von/Bis, Zeitart wechseln und die
+Vorschau.
+
+Die Antwort auf eine Buchung und die Vorschau nennen „Tag zusammen“ (gebuchte Stunden des Tages, `tag_stand()`) und die Zahl der Buchungen;
+„Heute“ zeigt nach dem Feierabend das Ergebnis und in der Vorschau „Tag zusammen h:mm“, die Zeiterfassung der Monteurin im Hinweis nach Stopp,
+Ende nachtragen und Nachtrag -- jeweils nur, wenn der Tag schon Buchungen hat. Die Einstellungen sagen „über … h“. Neuer Test `test_v474`;
+angepasst v100, v102 und v104 (genau 9:00 h -> 30 min statt 45) und v424 (Beschriftung). Das Beispiel der Vorgabe (07:00–12:00, Wechsel, bis
+16:00 -> 45 min, Tag 8,25 h) widerspricht „genau 9:00 -> 30“; gebaut nach der Regel (Tag 8,50 h), festgehalten zur Bestätigung.
+
 ## 1.9.47 – Einsatzbericht: die Rückfrage beim Löschen eines Prüfpunkts fängt kein altes close mehr
 
 Gefunden zu Beginn der R2-Nachrunde: `klicktest_monteurin_regeln` wackelte an „Löschen: Punkt weg“. Ursache war die Rückfrage aus 1.9.41

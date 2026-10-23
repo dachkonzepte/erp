@@ -81,7 +81,7 @@ def test_group_timer_starts_and_stops_all_members():
     assert group.status=="running"
     assert all(active_entry(db,e.id) is not None for e in emps)
     group=stop_group_timer(db,group.id,ended_at=datetime(2026,9,7,16,0),break_minutes=30)
-    assert group.status=="booked" and group.hours==Decimal("8.2500")
+    assert group.status=="booked" and group.hours==Decimal("8.5000")  # seit 1.9.48 genau 9:00 h -> 30 min (bis 1.9.46 45 min, 8,25 h)
     assert all(active_entry(db,e.id) is None for e in emps)
 
 

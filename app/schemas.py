@@ -3185,6 +3185,8 @@ class TimeEndeVorschauOut(BaseModel):
     anwesend: Decimal
     pause: int
     gebucht: Decimal
+    tag_zusammen: Decimal  # seit 1.9.48: gebuchte Stunden des Tages samt dieser
+    tag_buchungen: int     # seit 1.9.48: Buchungen des Tages samt dieser
 
 class TimeEndeNachtragen(BaseModel):
     """Seit 1.9.35 (Stufe 4, R1): das Ende einer Zeit, die seit einem früheren Tag läuft -- am Starttag, nach dem Start; Pause nach der
@@ -3242,6 +3244,9 @@ class TimeGroupOut(BaseModel):
     # Seit 1.7.13, nur in der Antwort auf eine Gruppenkorrektur: Mitglieder, deren einzeln
     # geänderte Buchung unangetastet blieb.
     skipped_members: list[str] = Field(default_factory=list)
+    # Seit 1.9.48, nur in der Antwort auf den Gruppen-Stopp: der Tag dessen, der stoppt (wenn er Mitglied ist)
+    tag_zusammen: Decimal | None = None
+    tag_buchungen: int | None = None
 
 
 class TimeEntryOut(BaseModel):
@@ -3275,6 +3280,9 @@ class TimeEntryOut(BaseModel):
     gebucht: Decimal | None = None
     # Seit 1.9.35: läuft seit einem früheren Tag -- dann „Ende nachtragen“ statt „Zeit stoppen“
     laeuft_seit_frueher: bool = False
+    # Seit 1.9.48 (Stufe 4, R2 Nachrunde), nur in der Antwort auf eine Buchung: gebuchte Stunden des Tages und Zahl seiner Buchungen
+    tag_zusammen: Decimal | None = None
+    tag_buchungen: int | None = None
     # Seit 1.7.12 (Nachvollziehbarkeit Kolonnenführer): wer die Buchung angelegt hat -- bei einer
     # Gruppenbuchung ist das der Kolonnenführer, nicht der Mitarbeiter, dem sie gehört.
     booked_by_name: str | None = None

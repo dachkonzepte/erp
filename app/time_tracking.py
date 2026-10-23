@@ -105,13 +105,34 @@ def anwesend_stunden(beginn: datetime, ende: datetime) -> Decimal:
     return (Decimal(str((ende - beginn).total_seconds())) / Decimal("3600")).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
 
 
+def buchungen_am_tag(db: Session, employee_id: int, tag: date) -> list[TimeEntry]:
+    """Seit 1.9.48: die gebuchten Zeiten der Person an diesem Tag (work_date = Starttag), ohne laufende."""
+    return list(db.scalars(select(TimeEntry).where(TimeEntry.employee_id == employee_id, TimeEntry.work_date == tag,
+                                                   TimeEntry.status == "booked")).all())
+
+
+def _anwesend_der_buchung(row: TimeEntry) -> Decimal:
+    """Anwesenheit einer gebuchten Zeit: aus Beginn und Ende, eine reine Dauer als Stunden + Pause (wie entry_to_dict())."""
+    if row.started_at and row.ended_at and row.ended_at > row.started_at:
+        return anwesend_stunden(row.started_at, row.ended_at)
+    return _d(row.hours) + Decimal(int(row.break_minutes or 0)) / Decimal("60")
+
+
 def pause_nach_zeitregel(db: Session, employee_id: int, anwesend, am: date, mindestpause: int = 0) -> int:
-    """Seit 1.9.34 (Stufe 4, R1, Punkt 3): die EINE Pausenregel -- für den Feierabend (Stopp eines Timers, auch einer Gruppe), Ende
-    nachtragen und den Nachtrag mit Von/Bis. Die automatische Pause des Arbeitszeitmodells nach der Anwesenheit (app/work_time_models.py,
-    Vorgabe ab 6 h 30 min, ab 9 h 45 min), mindestens die eingegebene Pause -- „Zusätzliche Pause“ bleibt Mindestpause, keine Summe.
-    Bis 1.9.33 rechneten Stopp und Gruppen-Stopp sie je für sich, der Nachtrag gar nicht (er speicherte die Pause nur)."""
-    automatisch = automatic_break_minutes_for_duration(db, employee_id, Decimal(str(anwesend or 0)), am)
-    return max(0, int(mindestpause or 0), int(automatisch or 0))
+    """Die EINE Pausenregel (seit 1.9.34) -- für Stopp, Gruppen-Stopp (je Mitglied), Ende nachtragen, den Nachtrag mit Von/Bis,
+    Zeitart wechseln und die Vorschau. Seit 1.9.48 (Stufe 4, R2 Nachrunde, Entscheidung Tobias) je Tag: maßgeblich ist die Anwesenheit
+    der Person am Tag `am` über alle gebuchten Zeiten samt der neuen (`anwesend`, Stunden); die Pflichtpause des Arbeitszeitmodells
+    dafür (über 6 h 30 min, über 9 h 45 min -- „mehr als“ seit 1.9.48) minus die an diesem Tag schon abgezogenen Pausen ist, was dem
+    Tag noch fehlt. Die neue Buchung bekommt das, höchstens ihre Anwesenheit, mindestens die eingegebene Pause („Zusätzliche Pause“ bleibt
+    Mindestpause, keine Summe). Frühere Buchungen werden nie angefasst. Bis 1.9.46 je Buchung (zwei Buchungen à 5 h ohne Pause)."""
+    frueher = buchungen_am_tag(db, employee_id, am)
+    neu = Decimal(str(anwesend or 0))
+    anwesend_tag = sum((_anwesend_der_buchung(r) for r in frueher), Decimal("0")) + neu
+    abgezogen = sum(int(r.break_minutes or 0) for r in frueher)
+    fehlt = max(0, int(automatic_break_minutes_for_duration(db, employee_id, anwesend_tag, am) or 0) - abgezogen)
+    # Minuten der neuen Buchung, kaufmännisch gerundet (die Anwesenheit kommt auf vier Stellen gerundet: 20 min = 0,3333 h)
+    hoechstens = max(0, int((neu * 60).quantize(Decimal("1"), rounding=ROUND_HALF_UP)))
+    return max(0, int(mindestpause or 0), min(fehlt, hoechstens))
 
 
 def nachtrag_nach_zeitregel(db: Session, *, employee_id: int, work_date: date, von: time, bis: time, mindestpause: int = 0) -> dict:
@@ -124,7 +145,7 @@ def nachtrag_nach_zeitregel(db: Session, *, employee_id: int, work_date: date, v
     anwesend = anwesend_stunden(beginn, ende)
     pause = pause_nach_zeitregel(db, employee_id, anwesend, work_date, mindestpause)
     netto = anwesend - Decimal(pause) / Decimal("60")
-    if netto <= 0:
+    if netto <= 0:  # seit 1.9.48 auch, wenn die fehlende Pause des Tages den Nachtrag ganz aufzehrt
         raise ValueError("Nach Abzug der Pause bleibt keine Arbeitszeit.")
     return {"anwesend": anwesend, "pause": pause, "netto": netto, "beginn": beginn, "ende": ende}
 
@@ -135,7 +156,22 @@ def ende_rechnen(db: Session, employee_id: int, beginn: datetime, ende: datetime
     (ende_vorschau(), „Gebucht werden …“ auf /mobil). compute_hours() lehnt ein Ende vor dem Beginn ab."""
     anwesend = anwesend_stunden(beginn, ende)
     pause = pause_nach_zeitregel(db, employee_id, anwesend, beginn.date(), mindestpause)
-    return {"anwesend": anwesend, "pause": pause, "gebucht": gebucht_nach_zeitregel(db, compute_hours(beginn, ende, pause))}
+    if ende > beginn and pause > max(0, int(mindestpause or 0)) and pause * 60 >= (ende - beginn).total_seconds():
+        netto = Decimal("0")  # seit 1.9.48: die fehlende Pause des Tages zehrt die Zeit ganz auf -- sie wird trotzdem geschlossen
+    else:
+        netto = compute_hours(beginn, ende, pause)
+    gebucht = gebucht_nach_zeitregel(db, netto)
+    frueher = buchungen_am_tag(db, employee_id, beginn.date())
+    return {"anwesend": anwesend, "pause": pause, "gebucht": gebucht,
+            # seit 1.9.48: die gebuchten Stunden des Tages samt dieser und wie viele Buchungen der Tag dann hat
+            "tag_zusammen": sum((_d(r.hours) for r in frueher), Decimal("0")) + gebucht, "tag_buchungen": len(frueher) + 1}
+
+
+def tag_stand(db: Session, employee_id: int, tag: date) -> dict:
+    """Seit 1.9.48 (Stufe 4, R2 Nachrunde): „Tag zusammen“ für die Antwort einer Buchung -- die gebuchten Stunden der Person an
+    diesem Tag und die Zahl der Buchungen (die Seite zeigt „Tag zusammen“, wenn es mehr als eine ist)."""
+    rows = buchungen_am_tag(db, employee_id, tag)
+    return {"tag_zusammen": sum((_d(r.hours) for r in rows), Decimal("0")), "tag_buchungen": len(rows)}
 
 
 def load_entry(db: Session, entry_id: int) -> TimeEntry | None:

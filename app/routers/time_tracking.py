@@ -34,7 +34,7 @@ from .orders import require_field_order_access
 from ..schemas import CrewGroupSummaryOut, CrewOut, TimeEntryManualCreate, TimeEntryOut, TimeEntrySummaryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeGroupUpdate, TimeEndeNachtragen, TimeEndeVorschauOut, TimeZeitartWechseln, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
 from ..heute import zeitarten
 from ..time_backoffice import load_time_settings, locked_until, time_settings_dict
-from ..time_tracking import MAX_LIST_LIMIT, active_group_for_employee, active_entry as active_time_entry, count_entries, create_group_manual_entry, create_manual_entry, crew_leader_team_ids, delete_entry as delete_time_entry_row, delete_group, ende_nachtragen, ende_vorschau, ZeitartInGruppe, zeitart_wechseln, entry_to_dict, field_time_tracking_context, laeuft_seit_frueher, load_entry, nachtrag_nach_zeitregel, OffeneZeit, group_for_entry, group_member_ids, group_to_dict, list_crews_for_leader, list_entries as list_time_entries, list_groups_initiated_by, start_group_timer, start_timer, stop_group_timer, stop_timer, summarize_entries, time_tracking_context, update_entry as update_time_entry_row, update_group
+from ..time_tracking import MAX_LIST_LIMIT, active_group_for_employee, active_entry as active_time_entry, count_entries, create_group_manual_entry, create_manual_entry, crew_leader_team_ids, delete_entry as delete_time_entry_row, delete_group, ende_nachtragen, ende_vorschau, tag_stand, ZeitartInGruppe, zeitart_wechseln, entry_to_dict, field_time_tracking_context, laeuft_seit_frueher, load_entry, nachtrag_nach_zeitregel, OffeneZeit, group_for_entry, group_member_ids, group_to_dict, list_crews_for_leader, list_entries as list_time_entries, list_groups_initiated_by, start_group_timer, start_timer, stop_group_timer, stop_timer, summarize_entries, time_tracking_context, update_entry as update_time_entry_row, update_group
 
 router = APIRouter()
 
@@ -295,7 +295,10 @@ def stop_time_group(group_id:int,payload:TimeGroupTimerStop,request:Request,db:S
     try:
         group=stop_group_timer(db,group_id,ended_at=payload.ended_at or berlin_now(),break_minutes=payload.break_minutes)
     except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
-    return _group_out(request,db,group)
+    out=_group_out(request,db,group)
+    if user is not None and user.employee_id in group_member_ids(db,group.id):  # seit 1.9.48: der eigene Tag dessen, der stoppt
+        out=out.model_copy(update=tag_stand(db,user.employee_id,group.work_date))
+    return out
 
 
 def _visible_employee_id(request: Request, employee_id: int | None) -> int | None:
@@ -355,7 +358,7 @@ def create_time_entry(payload: TimeEntryManualCreate, request: Request, db: Sess
         row = create_manual_entry(db, employee_id=employee_id, order_id=payload.order_id, order_item_id=payload.order_item_id, work_date=payload.work_date, entry_type=payload.entry_type, activity=payload.activity, hours=stunden, break_minutes=pause, started_at=beginn, ended_at=ende, notes=payload.notes, created_by_user_id=getattr(user, "id", None))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return TimeEntryOut.model_validate(entry_to_dict(row))
+    return _mit_tag(db, entry_to_dict(row))
 
 
 @router.post("/api/time-entries/start", response_model=TimeEntryOut)
@@ -399,7 +402,7 @@ def stop_time_entry(entry_id: int, payload: TimeTimerStop, request: Request, db:
     loaded = db.get(TimeEntry, row.id)
     # Beziehungen fuer die Ausgabe wie beim regulaeren Stop neu laden.
     loaded = next((x for x in list_time_entries(db, employee_id=loaded.employee_id, start_date=loaded.work_date, end_date=loaded.work_date, limit=2000) if x.id==loaded.id), loaded)
-    return TimeEntryOut.model_validate(entry_to_dict(loaded))
+    return _mit_tag(db, entry_to_dict(loaded))
 
 
 @router.post("/api/time-entries/{entry_id}/ende-nachtragen", response_model=TimeEntryOut)
@@ -416,7 +419,7 @@ def ende_nachtragen_endpunkt(entry_id: int, payload: TimeEndeNachtragen, request
         row = ende_nachtragen(db, entry_id, ende=ende, mindestpause=payload.pause_minuten)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return TimeEntryOut.model_validate(entry_to_dict(load_entry(db, row.id)))
+    return _mit_tag(db, entry_to_dict(load_entry(db, row.id)))
 
 
 @router.get("/api/time-entries/{entry_id}/ende-vorschau", response_model=TimeEndeVorschauOut)
@@ -487,7 +490,12 @@ def zeitart_wechseln_endpunkt(entry_id: int, payload: TimeZeitartWechseln, reque
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return TimeEntryOut.model_validate(entry_to_dict(row))
+    return _mit_tag(db, entry_to_dict(row))
+
+
+def _mit_tag(db: Session, data: dict) -> TimeEntryOut:
+    """Seit 1.9.48 (Stufe 4, R2 Nachrunde): die Antwort auf eine Buchung nennt „Tag zusammen“ (tag_stand())."""
+    return TimeEntryOut.model_validate({**data, **tag_stand(db, data["employee_id"], data["work_date"])})
 
 
 @router.put("/api/time-entries/{entry_id}", response_model=TimeEntryOut)
