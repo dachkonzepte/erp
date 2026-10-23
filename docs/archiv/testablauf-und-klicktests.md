@@ -1227,3 +1227,18 @@ Warten): der Wächter rot. Die acht betroffenen Klicktests laufen danach grün.
 
 - **Festlegung zu Werkzeug und Testablauf 1.9.55 (Bitte bestätigen)**: eine Hilfsfunktion eines Klicktests, die nach Eingaben misst oder
   zeichnet, wartet vorher auf Ruhe (`warte_auf_ruhe()`) statt auf eine feste Zeit.
+
+## Test mit laufender fester Uhr prüft keine Sekunde (1.9.56)
+
+Befund: im vollen Lauf vor dem Commit von 1.9.55 einmal rot `tests/test_v471_heute_server.py::test_zeitart_wechseln_ohne_luecke_und_ueberschneidung`
+(einzeln dreimal grün, der volle Lauf danach grün). Die Fixture `feste_uhr` (`tests/uhr.py`) lässt die Uhr ab 10:00 *weiterlaufen*,
+`berlin_now()` ist sekundengenau -- der Test verglich den Übergang mit genau 10:00:00; vergeht unter Last zwischen Aufbau und Anfrage mehr als
+eine Sekunde, steht dort 10:00:01. Seit 1.9.56 prüft er: Ende der alten = Beginn der neuen Zeit, 10:00 <= Übergang <= `berlin_now()`, gebuchte
+Stunden = `anwesend_stunden(06:15, Übergang)` (3,75 <= h < 3,77). Durchgesehen: keine andere Stelle vergleicht einen Zeitpunkt der laufenden
+festen Uhr auf die Sekunde. Gegenprobe (neue Zeit eine Sekunde später, `app/time_tracking.py::zeitart_wechseln()`): rot an „keine Lücke“
+(Ende 10:00:00, Beginn 10:00:01) -- von Hand nachgesehen, aus dem richtigen Grund.
+
+- **Festlegung zu Werkzeug und Testablauf 1.9.56 (Bitte bestätigen)**: ein Test mit laufender fester Uhr vergleicht keinen Zeitpunkt auf die
+  Sekunde, sondern Reihenfolge und Grenzen (ab der festen Uhrzeit, höchstens jetzt).
+- Angepasste Erwartung: `test_v471::test_zeitart_wechseln_ohne_luecke_und_ueberschneidung` alt Übergang == 10:00:00 und 3,75 h, neu Übergang
+  == Beginn der neuen Zeit, zwischen 10:00 und jetzt, gebucht = Anwesenheit 06:15 bis zum Übergang.

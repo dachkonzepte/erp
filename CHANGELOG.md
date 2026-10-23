@@ -4,6 +4,14 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.56 – Test „Zeitart wechseln ohne Lücke“ hängt nicht mehr an der Sekunde
+
+Im vollen Lauf vor dem Commit von 1.9.55 war `test_v471::test_zeitart_wechseln_ohne_luecke_und_ueberschneidung` einmal rot (einzeln dreimal
+grün, der Lauf danach grün): der Test erwartete den Wechsel genau um 10:00:00. Die feste Uhr der Tests läuft aber ab 10:00 weiter und
+`berlin_now()` zählt Sekunden -- unter der Last von 16 Prozessen lag der Wechsel bei 10:00:01. Jetzt prüft der Test, worum es geht: das Ende
+der alten Zeit ist der Beginn der neuen, der Übergang liegt zwischen 10:00 und jetzt, die gebuchten Stunden sind die Anwesenheit bis dorthin.
+Gegenprobe (die neue Zeit beginnt eine Sekunde später): rot an „keine Lücke“.
+
 ## 1.9.55 – Klicktest: Unterschrift erst nach dem Speichern (Stufe 4, R2 Nachrunde 2, Punkt 3)
 
 Im Endlauf zu 1.9.52 war `klicktest_behinderungsanzeige_versand` einmal rot: er trug zwei Datumsfelder ein (jedes speichert, die Checkliste

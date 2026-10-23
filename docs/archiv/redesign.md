@@ -4191,3 +4191,9 @@ Beispiel der Vorgabe war falsch, „mehr als“ gilt wie gebaut. Punkte: „Tag 
 `_unterschreiben()` wartet zuerst auf Ruhe (`Tab.warte_auf_ruhe()`) -- Herleitung, Wächter und Gegenprobe in
 `docs/archiv/testablauf-und-klicktests.md`, „Unterschrift im Klicktest erst nach dem Speichern (1.9.55)“. Keine Festlegung außer der zum
 Testablauf, keine angepasste Erwartung.
+
+### R2 Nachrunde 2, Nachtrag (1.9.56): Test „Zeitart wechseln ohne Lücke“ unabhängig von der Sekunde
+
+Gefunden im vollen Lauf vor dem Commit von 1.9.55 (ein roter Test, der mit 1.9.55 nichts zu tun hatte, Regel 15): Herleitung, Festlegung zum
+Testablauf, angepasste Erwartung und Gegenprobe in `docs/archiv/testablauf-und-klicktests.md`, „Test mit laufender fester Uhr prüft keine
+Sekunde (1.9.56)“.

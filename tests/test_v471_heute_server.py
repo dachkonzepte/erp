@@ -21,7 +21,7 @@ from app import berlin_time
 from app.models import PlanningSlot, TeamEmployee, TimeEntry, WorkPreparation, WorkPreparationTeamAssignment, WorkPreparationTeamEmployee
 from app.routers import field_view as field_view_router
 from app.routers import time_tracking as time_tracking_router
-from app.time_tracking import start_group_timer, start_timer
+from app.time_tracking import anwesend_stunden, start_group_timer, start_timer
 from tests.test_v224_field_view import make_employee, make_team
 from tests.test_v325_contract_basis import beauftragen, make_quote
 
@@ -228,8 +228,13 @@ def test_zeitart_wechseln_ohne_luecke_und_ueberschneidung(welt):
     welt["db"].expire_all()
     zeilen = welt["db"].scalars(select(TimeEntry).where(TimeEntry.employee_id == welt["mia"].id).order_by(TimeEntry.started_at)).all()
     assert [(z.entry_type, z.status, z.order_id) for z in zeilen] == [("travel", "booked", welt["order"].id), ("site", "running", welt["order"].id)]
-    assert zeilen[0].ended_at == zeilen[1].started_at == datetime.combine(welt["heute"], time(10))  # feste Uhr: keine Lücke, keine Überschneidung
-    assert zeilen[0].hours == Decimal("3.75") and zeilen[0].break_minutes == 0
+    # keine Lücke, keine Überschneidung: das Ende der alten ist der Beginn der neuen. Seit 1.9.56 nicht mehr genau 10:00:00 -- die feste Uhr
+    # läuft ab 10:00 weiter und berlin_now() zählt Sekunden; unter der Last des parallelen Laufs lag der Wechsel einmal bei 10:00:01 (rot)
+    uebergang = zeilen[0].ended_at
+    assert uebergang == zeilen[1].started_at
+    assert datetime.combine(welt["heute"], time(10)) <= uebergang <= berlin_time.berlin_now()
+    assert zeilen[0].hours == anwesend_stunden(datetime.combine(welt["heute"], time(6, 15)), uebergang)  # ohne Pause: anwesend = gebucht
+    assert zeilen[0].break_minutes == 0 and Decimal("3.75") <= zeilen[0].hours < Decimal("3.77")
     assert antwort.json()["id"] == zeilen[1].id
 
 
