@@ -4243,6 +4243,39 @@ Reiter „Stundenzettel“ (`/mobil/stundenzettel`, `field_timesheet.html`):
 | S4 | PDF herunterladen | Karte „Monat“: „Stundenzettel als PDF“ |
 | S5 | Hinweis „Liste gekürzt“ | entfällt: die Seite holt den Monat vollständig (`limit=None` im Server) |
 
+### R3, Heute (1.9.58)
+
+- **Umsetzung**: `app/heute.py`: `taetigkeiten()`, in "nichts" `taetigkeiten`, `taetigkeit_pflicht` (Zeitregeln) und `kolonnen`
+  (`list_crews_for_leader()`, nur mit Gruppenbuchungen); `app/templates/mobil.html`: „⋮“ in der Karte „nichts läuft“ (`dsMenue()` aus
+  `_menue.html`), Dialog `#startDialog` (POST `/api/time-entries/start` bzw. `/api/time-entry-groups/start`, wie die Zeiterfassung), Kacheln
+  `repeat(3,…)`, unter 1000 px `repeat(2,…)`.
+
+**Festlegungen 1.9.58 (Bitte bestätigen)**
+
+1. „⋮“ in „nichts läuft“ nur, wenn es etwas zu wählen gibt: „Mit Tätigkeit starten“ bei mindestens einer aktiven Tätigkeit, „Für die
+   Kolonne starten“ nur für den Kolonnenführer und nur mit Gruppenbuchungen (der Start lehnte sonst ab).
+2. Ein Dialog für beide: Auftrag aus der Karte vorgewählt, Zeitart die erste aktive (bzw. die angeklickte Kachel), Tätigkeit leer =
+   „ohne Tätigkeit“; für die Kolonne alle Mitglieder angehakt, die eigene Person fest (wie die Zeiterfassung).
+3. Verlangen die Zeitregeln eine Tätigkeit, öffnet auch eine Zeitart-Kachel den Dialog mit dieser Zeitart -- bis 1.9.57 lehnte der Server
+   den Start über die Kachel ab (422).
+4. „Quer 3 / hoch 2“ an derselben Grenze wie die Seite (unter 1000 px gilt als hoch); auch für „Zeitart wechseln“.
+5. Der Dialog trägt die Ecke der Karte (im Monteursrahmen 16 px) statt der 20 px der Vorlage (Wächter `test_v460`); Maße sonst wie der
+   Dialog der Vorlage zeiten-nachtragen (620 px, Felder 52 px, Knöpfe 56 px, Schließen 48 px).
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v484_heute_starten.py`: Tätigkeiten und Kolonne in "nichts" (Mitglied ohne Kolonne), ohne Gruppenbuchungen keine Kolonne,
+  Pflicht der Tätigkeit, inaktive Tätigkeit fehlt, Start mit Tätigkeit und für die Kolonne wie der Dialog (Mitglied 403), Kacheln 3/2,
+  Menü und Dialog in der Seite.
+- `scripts/klicktest_heute.py` erweitert (nur ergänzt): Kacheln quer 3 und hoch 2 („Zeitart wechseln“ und Start), Lea startet über „⋮ Mit
+  Tätigkeit starten“ (bis 1.9.57 über die Kachel -- angepasste Erwartung: „Lea: gestartet“ jetzt mit Tätigkeit und Dialog zu), Ole startet
+  über die Kachel, Kai stoppt die Gruppe und startet sie über „⋮ Für die Kolonne starten“.
+- `klicktest_heute`: dazu „Lea 1440 px: Kacheln in 3 Spalten“ -- bei 1280 px ergab „so viele wie passen“ zufällig ebenfalls drei (die
+  Gegenprobe P2 blieb dort zuerst grün).
+- **Gegenproben**: P1 Kolonne auch ohne Gruppenbuchungen -> 1 rot (test_v484); P2 Kacheln wieder „so viele wie passen“ -> 1 rot
+  (test_v484) und im Klicktest bei 1440 px 4 statt 3 Spalten; P3 Dialog startet ohne die Tätigkeit -> Klicktest rot („Lea: die
+  Tätigkeit an der laufenden Zeit“ None).
+
 ### R3, Server (1.9.57)
 
 Fund im vollen Lauf vor dem Commit: `pausen_vorschau()` rief `automatic_break_minutes_for_duration()` selbst auf -- der Wächter

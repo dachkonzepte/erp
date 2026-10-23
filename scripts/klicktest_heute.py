@@ -18,8 +18,12 @@ gestern 06:45 offen. Lea: nichts läuft. Kai und Tom: Gruppenzeit seit 07:00. Fe
                            Ole hoch 16 px zwischen den Karten; Feldrahmen auf der Signalfläche ≥ 3 : 1 hell und dunkel
     Ole                    „Deine Zeit von gestern läuft noch“, Feld 64 px, 15:45 -> Vorschau wie der Server, Feierabend eintragen ->
                            gebucht wie die Vorschau; Karte „Arbeitszeit“ mit gesperrtem „Arbeitsbeginn buchen“; „Heute und nächste Tage“
-    Lea                    nichts läuft: Auftrag A vorbelegt, Kacheln 64 px mit „Vorschlag“, Start -> läuft
-    Tom / Kai              Mitglied ohne Knopf mit „stoppt Kai Kolonne“ / Kolonnenführer mit „Feierabend für die Gruppe“
+    Lea                    nichts läuft: Auftrag A vorbelegt, Kacheln 64 px mit „Vorschlag“; seit 1.9.58 quer 3 Spalten, „⋮“ 48 px nur mit
+                           „Mit Tätigkeit starten“, Dialog (Felder 52 px, Knöpfe 56 px) mit A und Baustellenzeit, Tätigkeit „Dachdeckung“
+                           -> läuft mit Tätigkeit (bis 1.9.57 über die Kachel)
+    Ole (seit 1.9.58)      nach dem Ende: Kacheln hoch 2 Spalten, Start über die Kachel -> läuft
+    Tom / Kai              Mitglied ohne Knopf mit „stoppt Kai Kolonne“ / Kolonnenführer mit „Feierabend für die Gruppe“; seit 1.9.58
+                           Kai danach „⋮ Für die Kolonne starten“: Kolonne Nord, Kai (ich) fest, Tom angehakt -> Gruppenzeit für beide
     überall                Zeilen ≥ 56 px, Knöpfe ≥ 48 px, Hauptknöpfe 64 px; Reiter „Heute“; keine JS-Fehler
 
 Die Bilder (heute_*.png) liegen im Ordner der Screenshots.
@@ -174,6 +178,11 @@ const L=c=>{const v=c.map(x=>{x/=255;return x<=0.03928?x/12.92:Math.pow((x+0.055
 const a=L(rgb(getComputedStyle(f).borderTopColor)),b=L(rgb(getComputedStyle(k).backgroundColor));
 return Math.round((Math.max(a,b)+0.05)/(Math.min(a,b)+0.05)*100)/100})()"""
 
+# seit 1.9.58: Spalten eines Kachel-Rasters (quer 3, hoch 2)
+def spalten(raster):
+    return f"getComputedStyle(document.getElementById('{raster}')).gridTemplateColumns.split(' ').length"
+
+
 REIHENFOLGE = """(()=>{const y=s=>Math.round(document.querySelector(s).getBoundingClientRect().top);
 return [y('#arbeitszeit .heute-karte'),y('[data-einsatz]'),y('#offenKarte'),y('#naechsteKarte')]})()"""
 
@@ -284,6 +293,7 @@ async def pruefen(tab, seed, p):
 
     # --- Mia: Zeitart wechseln, dann Feierabend ---
     await tab.js("document.getElementById('wechselKnopf').click()")
+    p.pruefe("hoch: Kacheln „Zeitart wechseln“ in 2 Spalten", await tab.js(spalten("wechselKacheln")), 2)  # seit 1.9.58
     p.pruefe("Zeitart wechseln zeigt die anderen Zeitarten", await tab.js(
         "[...document.querySelectorAll('#wechselKacheln [data-zeitart]')].map(b=>b.dataset.zeitart).includes('travel')"), True)
     await tab.warte_auf_neu_geladene_liste("document.querySelector('#wechselKacheln [data-zeitart=\"travel\"]').click()", "#arbeitszeit")
@@ -352,6 +362,13 @@ async def pruefen(tab, seed, p):
     p.pruefe("Ole: Ergebnis mit Tag zusammen", await tab.js("document.getElementById('zeitErgebnis').textContent"),
              "Feierabend gestern eingetragen: anwesend 9:00 h · Tag zusammen 9:45 h · Pause nach Zeitregel − 0:45 h · gebucht 8,25 h")
     p.pruefe("Ole: danach startet heute", await tab.js("!!document.getElementById('startKacheln')"), True)
+    # seit 1.9.58: hoch 2 Spalten (dieselbe Seite, nur das Fenster schmaler), Start über die Kachel
+    await tab.fenster(800, 1100)
+    p.pruefe("Ole hoch: Kacheln in 2 Spalten", await tab.js(spalten("startKacheln")), 2)
+    await tab.fenster(1280, 620)
+    await tab.warte_auf_neu_geladene_liste("document.querySelector('#startKacheln [data-zeitart=\"site\"]').click()", "#arbeitszeit")
+    p.pruefe("Ole: über die Kachel gestartet", await tab.js("document.querySelector('#arbeitszeit .zeit-titel').textContent"),
+             "Baustellenzeit seit 10:00")
     p.pruefe("Ole: keine JS-Fehler", tab.fehler, [])
 
     # --- Lea: nichts läuft ---
@@ -361,8 +378,36 @@ async def pruefen(tab, seed, p):
         "[document.getElementById('startAuftrag').value,document.querySelectorAll('#startKacheln .vorschlag').length]"), [str(a), 1])
     masse = await tab.js(MASSE)
     p.pruefe(f"Maße nichts läuft {masse[1]}", masse[0], [True, True, True, True])
-    await tab.warte_auf_neu_geladene_liste("document.querySelector('#startKacheln [data-zeitart=\"site\"]').click()", "#arbeitszeit")
-    p.pruefe("Lea: gestartet", await tab.js("document.querySelector('#arbeitszeit .zeit-titel').textContent"), "Baustellenzeit seit 10:00")
+    # seit 1.9.58: Kacheln quer 3 Spalten; „⋮ Mit Tätigkeit starten“ (Lea führt keine Kolonne: nur dieser Eintrag)
+    p.pruefe("Lea quer: Kacheln in 3 Spalten", await tab.js(spalten("startKacheln")), 3)
+    # auch breiter immer 3 (bei 1280 px ergäbe „so viele wie passen“ zufällig ebenfalls 3 -- Gegenprobe 1.9.58 P2)
+    await tab.fenster(1440, 900)
+    p.pruefe("Lea 1440 px: Kacheln in 3 Spalten", await tab.js(spalten("startKacheln")), 3)
+    await tab.fenster(1280, 620)
+    await tab.js("document.getElementById('startMenueKnopf').click()")
+    p.pruefe("Lea: „⋮“ 48 px, nur „Mit Tätigkeit starten“ (48 px)", await tab.js(
+        "[Math.round(document.getElementById('startMenueKnopf').getBoundingClientRect().height),"
+        "[...document.querySelectorAll('#startMenue .ds-menue-eintrag')].map(e=>[e.textContent,Math.round(e.getBoundingClientRect().height)])]"),
+        [48, [["Mit Tätigkeit starten", 48]]])
+    await tab.bild("heute_menue_starten_quer_hell")
+    await tab.js("document.getElementById('startMitTaetigkeit').click()")
+    p.pruefe("Lea: Dialog mit Auftrag A, Baustellenzeit, ohne Kolonne", await tab.js(
+        "[document.getElementById('startDialog').open,document.getElementById('startDialogTitel').textContent,"
+        "document.getElementById('startDialogAuftrag').value,document.getElementById('startZeitart').value,"
+        "document.getElementById('startKolonneFeld').hidden,document.getElementById('startTaetigkeit').value]"),
+        [True, "Mit Tätigkeit starten", str(a), "site", True, ""])
+    p.pruefe("Lea: Dialog Felder 52 px, Knöpfe 56 px, Schließen 48 px", await tab.js(
+        "(h=>[[...document.querySelectorAll('#startDialog select')].filter(e=>e.getClientRects().length).map(h),"
+        "[...document.querySelectorAll('#startDialog .dialog-knoepfe .knopf')].map(h),h(document.getElementById('startDialogZu'))])"
+        "(e=>Math.round(e.getBoundingClientRect().height))"), [[52, 52, 52], [56, 56], 48])
+    await tab.js("(s=>{s.value='Dachdeckung';s.dispatchEvent(new Event('change'))})(document.getElementById('startTaetigkeit'))")
+    await tab.bild("heute_mit_taetigkeit_starten_quer_hell")
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('startDialogStarten').click()", "#arbeitszeit")
+    p.pruefe("Lea: gestartet, Dialog zu", await tab.js(
+        "[document.querySelector('#arbeitszeit .zeit-titel').textContent,document.getElementById('startDialog').open]"),
+        ["Baustellenzeit seit 10:00", False])
+    p.pruefe("Lea: die Tätigkeit an der laufenden Zeit", await tab.js(
+        "fetch('/api/time-entries/active').then(r=>r.json()).then(e=>[e.entry_type,e.activity])"), ["site", "Dachdeckung"])
     p.pruefe("Lea: keine JS-Fehler", tab.fehler, [])
 
     # --- Tom (Mitglied) und Kai (Kolonnenführer) ---
@@ -376,6 +421,27 @@ async def pruefen(tab, seed, p):
     p.pruefe("Kai: Feierabend für die Gruppe, kein Zeitart wechseln", await tab.js(
         "[document.getElementById('feierabendGruppe').textContent,!!document.getElementById('wechselKnopf')]"),
         ["Feierabend für die Gruppe", False])
+    # --- seit 1.9.58: Kai stoppt die Gruppe und startet sie über „⋮ Für die Kolonne starten“ neu ---
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('feierabendGruppe').click()", "#arbeitszeit")
+    await tab.js("document.getElementById('startMenueKnopf').click()")
+    p.pruefe("Kai: „⋮“ mit beiden Einträgen", await tab.js(
+        "[...document.querySelectorAll('#startMenue .ds-menue-eintrag')].map(e=>e.textContent)"),
+        ["Mit Tätigkeit starten", "Für die Kolonne starten"])
+    await tab.js("document.getElementById('startFuerKolonne').click()")
+    p.pruefe("Kai: Dialog mit Kolonne Nord, Kai (ich) fest, Tom angehakt", await tab.js(
+        "[document.getElementById('startDialogTitel').textContent,document.getElementById('startKolonne').selectedOptions[0].textContent,"
+        "[...document.querySelectorAll('#startMitglieder .mitglied')].map(l=>[l.textContent,l.querySelector('input').checked,"
+        "l.querySelector('input').disabled,Math.round(l.getBoundingClientRect().height)])]"),
+        ["Für die Kolonne starten", "Kolonne Nord", [["Kai Kolonne (ich)", True, True, 48], ["Tom Mitglied", True, False, 48]]])
+    await tab.bild("heute_fuer_die_kolonne_starten_quer_hell")
+    # berlin_now() ist sekundengenau: ein Start in derselben Sekunde wie der Feierabend begänne vor dessen Ende -- erst weiter
+    t = await tab.js("performance.now()")
+    await tab.warten(f"performance.now()>{t + 1100}")
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('startDialogStarten').click()", "#arbeitszeit")
+    p.pruefe("Kai: Gruppenzeit läuft wieder für Kai und Tom", await tab.js(
+        "Promise.all([document.getElementById('feierabendGruppe').textContent,document.getElementById('startDialog').open,"
+        "fetch('/api/time-entry-groups/active').then(r=>r.json()).then(g=>g.member_entries.map(m=>m.employee_name).sort())])"),
+        ["Feierabend für die Gruppe", False, ["Kai Kolonne", "Tom Mitglied"]])
     p.pruefe("Tom/Kai: keine JS-Fehler", tab.fehler, [])
 
 

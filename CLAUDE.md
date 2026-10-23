@@ -347,7 +347,8 @@ Behoben, drei Teile:
   Klasse überstimmt sie (ersetzt „nur ohne Klasse“, 1.9.3).
 - **Stufe 4 „Monteurin“ (seit 1.9.33):** seit 1.9.45 ist `/mobil` die Seite „Heute“ nach den Vorlagen
   `bildgrundlage/entwurf-stufe4/heute-*.html` (Daten nur aus `app/heute.py`, Schlüssel `heute` in `GET /api/field-view/today`; die Seite
-  rechnet nichts nach); Reiter und Pfad-Anfang der Seiten darunter heißen „Heute“ (Adresse bleibt). Sie bleibt in `AUFGESCHOBEN` (die
+  rechnet nichts nach); Reiter und Pfad-Anfang der Seiten darunter heißen „Heute“ (Adresse bleibt). Seit 1.9.58 startet „Heute“ auch
+  mit Tätigkeit und für die Kolonne („⋮“ in „nichts läuft“); Zeitart-Kacheln quer 3, hoch 2 Spalten. Sie bleibt in `AUFGESCHOBEN` (die
   Vorlage hat keinen Seitenkopf). Klicktest `klicktest_heute.py`, Wächter `tests/test_v472_heute_seite.py`. **Seit 1.9.49** stehen die
   Listen (offene Berichte, Mängel, Checklisten, Wartungen) auf „Heute / Offen“ (`/mobil/offen`, `mobil_offen.html`, umgezogen: Monteursrahmen
   mit Seitenkopf); ein leerer Abschnitt fehlt, „Heute“ endet mit „Nächste Tage“, die Zeilen von „Offen“ springen dorthin; Wächter

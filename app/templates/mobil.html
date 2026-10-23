@@ -13,7 +13,10 @@
      GET /api/field-view/today, Schlüssel "heute" (app/heute.py); die Seite rechnet nichts davon nach. Die Listen darunter (offene
      Berichte, Mängel zur Beseitigung mit „Beseitigt melden“, offene Checklisten, Wartungen an meinen Objekten) stehen seit 1.9.49 auf der
      eigenen Seite „Heute / Offen“ (/mobil/offen, mobil_offen.html) -- dorthin führen die Zeilen von „Offen“; „Heute“ endet mit „Nächste
-     Tage“. „Meine kommenden Termine“ ist in „Nächste Tage“ aufgegangen. #}
+     Tage“. „Meine kommenden Termine“ ist in „Nächste Tage“ aufgegangen.
+     Seit 1.9.58 (Stufe 4, R3) Starten und Stoppen nur noch hier: „⋮“ in „nichts läuft“ mit „Mit Tätigkeit starten“ und (für den
+     Kolonnenführer) „Für die Kolonne starten“ -- ein Dialog für beide; bis dahin auf der Zeiterfassung der Monteurin, die „Meine Zeiten“
+     ersetzt. Zeitart-Kacheln quer immer 3 Spalten, hoch 2. #}
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="{{ get_theme().accent_color }}">
   <link rel="apple-touch-icon" href="/api/mobile-icon/192.png">
@@ -57,9 +60,31 @@
     .knopf-gesperrt{border:1px solid var(--ds-linie);background:var(--ds-flaeche-2);color:var(--ds-text-3);cursor:default}
     .knopf:disabled{cursor:default}
     .knopf-klein{height:48px;font-size:16px;padding:0 18px}
-    .kacheln{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+    /* seit 1.9.58: Zeitart-Kacheln quer immer 3 Spalten, hoch 2 (bis dahin so viele, wie 180 px breit passten) */
+    .kacheln{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+    @media (max-width:999px){.kacheln{grid-template-columns:repeat(2,minmax(0,1fr))}}
     .kacheln .knopf{height:64px;flex-direction:column;gap:0;padding:0 12px;font-size:17px}
     .kacheln .vorschlag{display:block;font-size:12px;font-weight:600;color:var(--ds-text-3);margin-top:2px}
+    .kacheln .knopf{line-height:1.15;text-align:center}
+    /* seit 1.9.58: „⋮“ in „nichts läuft“ (48 px) und der Dialog „Mit Tätigkeit starten“ / „Für die Kolonne starten“ -- Maße wie der
+       Dialog der Vorlage zeiten-nachtragen (620 px, Felder 52 px, Knöpfe 56 px), Ecke der Karte */
+    .menue-anker{position:relative;flex:none}
+    .knopf-symbol{width:48px;height:48px;padding:0;flex:none}
+    .menue-anker .ds-menue-eintrag{height:48px;min-height:48px;font-size:16px}
+    .dialog-karte{width:min(620px,calc(100% - 32px));max-height:calc(100% - 32px);overflow:auto;box-sizing:border-box;border:0;border-radius:var(--ds-ecke-karte);padding:22px 24px;background:var(--ds-flaeche);color:var(--ds-text);box-shadow:0 16px 48px rgba(23,28,31,.25)}
+    .dialog-karte[open]{display:flex;flex-direction:column;gap:16px}
+    .dialog-karte::backdrop{background:rgba(23,28,31,.5)}
+    .dialog-kopf{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .dialog-kopf h2{margin:0;font-family:var(--ds-schrift-titel);font-weight:700;font-size:24px}
+    .dialog-felder{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
+    .dialog-felder .breit{grid-column:1/-1}
+    .dialog-karte .feld select{height:52px}
+    .mitglieder{display:flex;flex-direction:column;gap:2px;font-size:14px;font-weight:600;color:var(--ds-stark)}
+    .mitglied{display:flex;align-items:center;gap:12px;min-height:48px;font-size:16px;font-weight:500;color:var(--ds-text);cursor:pointer}
+    .mitglied input{width:22px;height:22px;margin:0;accent-color:var(--ds-aktion)}
+    .dialog-knoepfe{display:flex;justify-content:flex-end;gap:12px;flex-wrap:wrap}
+    .dialog-knoepfe .knopf{height:56px;font-size:17px;padding:0 24px}
+    @media (max-width:560px){.dialog-felder{grid-template-columns:minmax(0,1fr)}}
     .feld{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600;color:var(--ds-stark)}
     .feld select{height:56px;border:1px solid var(--ds-feld-rand);border-radius:var(--ds-ecke-tablet-feld);padding:0 14px;font-family:var(--ds-schrift-text);font-size:17px;color:var(--ds-text);background:var(--ds-flaeche)}
     .status{font-size:14px;color:var(--ds-fehler-text);overflow-wrap:anywhere}
@@ -140,11 +165,26 @@
     </div>
   </div>
 </main>
+<dialog id="startDialog" class="dialog-karte" aria-labelledby="startDialogTitel">
+  <div class="dialog-kopf"><h2 id="startDialogTitel">Mit Tätigkeit starten</h2>
+    <button type="button" class="knopf knopf-neutral knopf-symbol" id="startDialogZu" aria-label="Schließen"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+  <div class="dialog-felder">
+    <label class="feld breit" id="startKolonneFeld" for="startKolonne">Kolonne<select id="startKolonne"></select></label>
+    <div class="mitglieder breit" id="startMitgliederFeld" role="group" aria-labelledby="startMitgliederTitel"><span id="startMitgliederTitel">Wer ist dabei?</span><div id="startMitglieder"></div></div>
+    <label class="feld breit" for="startDialogAuftrag">Auftrag<select id="startDialogAuftrag"></select></label>
+    <label class="feld" for="startZeitart">Zeitart<select id="startZeitart"></select></label>
+    <label class="feld" for="startTaetigkeit">Tätigkeit<select id="startTaetigkeit"></select></label>
+  </div>
+  <div class="status" id="startDialogStatus" role="status"></div>
+  <div class="dialog-knoepfe"><button type="button" class="knopf knopf-neutral" id="startDialogAbbrechen">Abbrechen</button>
+    <button type="button" class="knopf knopf-aktion" id="startDialogStarten">Starten</button></div>
+</dialog>
 {% include "_berlin_date.html" %}
 {% include "_fehlertext.html" %}
 {% include "_auswahl.html" %}
 {% include "_zahl.html" %}
 {% include "_speichern.html" %}
+{% include "_menue.html" %}
 <script>
 var CHECKLISTS_ENABLED={{ 'true' if is_module_enabled('checklisten') else 'false' }};
 var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
@@ -191,6 +231,7 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
   var PFEIL='<svg class="pfeil" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>';
   var PIN='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"></path><circle cx="12" cy="10" r="2.5"></circle></svg>';
   var STOPP='<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg>';
+  var PUNKTE='<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="12" cy="19" r="1.8"></circle></svg>';
   var WECHSEL='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h13l-3-3M20 16H7l3 3"></path></svg>';
   // Gesetzliche Schlechtwetterzeit im Dachdeckerhandwerk: 1.12.-31.3. Winter, sonst Sommer -- wie „Schnell starten“ nur ein Vorschlag.
   function wetterVorschlag(){var m=teile(berlinToday()).m;return (m===12||m<=3)?'weather_winter':'weather_summer'}
@@ -241,23 +282,86 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
       var v=(a.value==='weather_winter'||a.value==='weather_summer')&&a.value===vorschlag;
       return '<button type="button" class="knopf knopf-neutral" data-zeitart="'+esc(a.value)+'">'+esc(a.label)+(v?'<span class="vorschlag">Vorschlag</span>':'')+'</button>';
     }).join('');
-    return '<section class="heute-karte" aria-labelledby="zeitTitel"><span class="eb" id="zeitTitel">'+esc(kopf)+'</span>'
+    return '<section class="heute-karte" aria-labelledby="zeitTitel"><div class="zeit-kopf"><span class="eb" id="zeitTitel">'+esc(kopf)+'</span>'
+      +startMenue(z)+'</div>'
       +'<label class="feld" for="startAuftrag">Auftrag<select id="startAuftrag"></select></label>'
       +'<div class="kacheln" id="startKacheln">'+kacheln+'</div><div class="status" id="zeitStatus" role="status"></div>'
       +'<div class="ergebnis" id="zeitErgebnis" role="status"></div></section>';
   }
+  function auftragText(o){return (o.order_number||'')+(o.customer_name?' · '+o.customer_name:'')+(o.property_address?' · '+String(o.property_address).replace(/\n/g,', '):'')}
+  // Seit 1.9.58: „⋮“ nur, wenn es etwas zu wählen gibt -- Tätigkeiten (Optionsgruppe) bzw. Kolonnen des Kolonnenführers
+  function startMenue(z){
+    var eintraege=(z.taetigkeiten.length?'<button type="button" class="ds-menue-eintrag" id="startMitTaetigkeit">Mit Tätigkeit starten</button>':'')
+      +(z.kolonnen.length?'<button type="button" class="ds-menue-eintrag" id="startFuerKolonne">Für die Kolonne starten</button>':'');
+    if(!eintraege)return '';
+    return '<div class="menue-anker"><button type="button" class="knopf knopf-neutral knopf-symbol" id="startMenueKnopf" aria-label="Weitere Arten zu starten">'+PUNKTE+'</button>'
+      +'<div class="ds-menue" id="startMenue" hidden>'+eintraege+'</div></div>';
+  }
   function bindeNichts(z){
-    el('startAuftrag').innerHTML=auswahlOptionen(z.auftraege,z.vorbelegt,function(o){
-      return (o.order_number||'')+(o.customer_name?' · '+o.customer_name:'')+(o.property_address?' · '+String(o.property_address).replace(/\n/g,', '):'')},
-      {leer:'— Auftrag wählen —'});
+    el('startAuftrag').innerHTML=auswahlOptionen(z.auftraege,z.vorbelegt,auftragText,{leer:'— Auftrag wählen —'});
+    if(el('startMenueKnopf'))dsMenue(el('startMenueKnopf'),el('startMenue'));
+    if(el('startMitTaetigkeit'))el('startMitTaetigkeit').addEventListener('click',function(){startDialogOeffnen(z,'taetigkeit',null)});
+    if(el('startFuerKolonne'))el('startFuerKolonne').addEventListener('click',function(){startDialogOeffnen(z,'kolonne',null)});
     document.querySelectorAll('#startKacheln [data-zeitart]').forEach(function(b){
       b.addEventListener('click',function(){
+        // verlangen die Zeitregeln eine Tätigkeit, startet eine Kachel über den Dialog (bis 1.9.58 lehnte der Server ab, 422)
+        if(z.taetigkeit_pflicht){startDialogOeffnen(z,'taetigkeit',b.dataset.zeitart);return}
         var auftrag=el('startAuftrag').value;  // die ID als Text, der Server liest sie als Zahl
         if(!auftrag){el('zeitStatus').textContent='Bitte Auftrag auswählen.';return}
         zeitAktion(b,'/api/time-entries/start',{employee_id:H.mitarbeiter_id,order_id:auftrag,entry_type:b.dataset.zeitart});
       });
     });
   }
+  // --- Seit 1.9.58 (Stufe 4, R3): Dialog „Mit Tätigkeit starten“ / „Für die Kolonne starten“ -- bis dahin auf der Zeiterfassung der
+  // Monteurin (Schnell starten mit Tätigkeit, Kolonne starten). Der Server prüft Auftrag, Kolonne und Zeitregeln wie bisher
+  // (POST /api/time-entries/start bzw. /api/time-entry-groups/start); IDs gehen als Text, der Server liest sie als Zahl.
+  var START=null;
+  function startDialogOeffnen(z,art,zeitart){
+    START={art:art,z:z};
+    var kolonne=art==='kolonne';
+    el('startDialogTitel').textContent=kolonne?'Für die Kolonne starten':'Mit Tätigkeit starten';
+    el('startKolonneFeld').hidden=!kolonne;el('startMitgliederFeld').hidden=!kolonne;
+    if(kolonne){
+      el('startKolonne').innerHTML=auswahlOptionen(z.kolonnen,z.kolonnen[0].team_id,function(k){return k.name},{wert:function(k){return k.team_id}});
+      startMitglieder();
+    }
+    el('startDialogAuftrag').innerHTML=auswahlOptionen(z.auftraege,el('startAuftrag').value||z.vorbelegt,auftragText,{leer:'— Auftrag wählen —'});
+    el('startZeitart').innerHTML=auswahlOptionen(H.zeitarten,zeitart||H.zeitarten[0].value,function(a){return a.label},{wert:function(a){return a.value}});
+    el('startTaetigkeit').innerHTML=auswahlOptionen(z.taetigkeiten,'',function(t){return t.label},
+      {wert:function(t){return t.value},leer:z.taetigkeit_pflicht?'— Tätigkeit wählen —':'— ohne Tätigkeit —'});
+    el('startDialogStatus').textContent='';el('startDialogStarten').disabled=false;
+    el('startDialog').showModal();
+  }
+  // Wer ist dabei? -- die Mitglieder der gewählten Kolonne, alle angehakt; die eigene Person immer (wie bisher)
+  function startMitglieder(){
+    var k=START.z.kolonnen.find(function(x){return String(x.team_id)===el('startKolonne').value})||{members:[]};
+    el('startMitglieder').innerHTML=k.members.map(function(m){
+      var ich=m.employee_id===H.mitarbeiter_id;
+      return '<label class="mitglied"><input type="checkbox" class="start-mitglied" value="'+m.employee_id+'" checked'+(ich?' disabled':'')+'>'
+        +esc(m.name)+(ich?' (ich)':'')+'</label>'}).join('');
+  }
+  function startDialogStarten(){
+    var z=START.z,knopf=el('startDialogStarten'),st=el('startDialogStatus');
+    var auftrag=el('startDialogAuftrag').value,taetigkeit=el('startTaetigkeit').value||null,url,body;
+    if(!auftrag){st.textContent='Bitte Auftrag auswählen.';return}
+    if(z.taetigkeit_pflicht&&!taetigkeit){st.textContent='Bitte eine Tätigkeit wählen.';return}
+    if(START.art==='kolonne'){
+      url='/api/time-entry-groups/start';
+      body={employee_ids:Array.from(document.querySelectorAll('.start-mitglied')).filter(function(x){return x.checked}).map(function(x){return x.value}),
+            team_id:el('startKolonne').value,order_id:auftrag,entry_type:el('startZeitart').value,activity:taetigkeit};
+    }else{
+      url='/api/time-entries/start';
+      body={employee_id:H.mitarbeiter_id,order_id:auftrag,entry_type:el('startZeitart').value,activity:taetigkeit};
+    }
+    st.textContent='';knopf.disabled=true;
+    return speichern('heute',()=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{neuLaden:ladeHeute})
+      .then(function(){el('startDialog').close()})
+      .catch(function(e){st.textContent=e.message;knopf.disabled=false});
+  }
+  el('startDialogZu').addEventListener('click',function(){el('startDialog').close()});
+  el('startDialogAbbrechen').addEventListener('click',function(){el('startDialog').close()});
+  el('startDialogStarten').addEventListener('click',startDialogStarten);
+  el('startKolonne').addEventListener('change',startMitglieder);
   function signalKarte(z){
     var tag=z.gestern?'von gestern':'vom '+tagKurz(z.tag);
     var feld='';

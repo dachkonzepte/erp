@@ -9,7 +9,10 @@ reicht die Rolle nur als "ist_monteur" für die Sperre "Monat abgeschlossen" her
                  Mitglied "stoppt" mit seinem Namen und keinen Knopf.
                  "frueher": die eigene Zeit läuft seit einem früheren Tag (vergessener Feierabend) -- Ende nachtragen nur, wer sie
                  selbst schließen darf (offene_zeit_info()), nicht im abgeschlossenen Monat (Monteurin).
-                 "nichts": Auftragsauswahl (list_field_bookable_orders()), vorbelegt bei genau einem Auftrag im heutigen Einsatz.
+                 "nichts": Auftragsauswahl (list_field_bookable_orders()), vorbelegt bei genau einem Auftrag im heutigen Einsatz; seit
+                 1.9.58 (Stufe 4, R3) dazu die Tätigkeiten (taetigkeiten(), Pflicht nach den Zeitregeln) für „⋮ Mit Tätigkeit starten“
+                 und die Kolonnen des Kolonnenführers (list_crews_for_leader(), nur mit Gruppenbuchungen) für „⋮ Für die Kolonne
+                 starten“ -- bis dahin auf der Zeiterfassung der Monteurin, die „Meine Zeiten“ ersetzt (Starten nur noch auf „Heute“).
     Einsätze     je Auftrag eine Karte, auch bei mehreren Plantafel-Abschnitten am selben Auftrag; Zeitraum = früheste bis späteste
                  Abschnittsgrenze der heute geltenden Abschnitte. Darin die eigenen Berichte (Entwürfe, dazu heute unterschriebene) mit
                  "noch n offen" aus noch_offen() und die eigenen Checklisten (offen, dazu heute abgeschlossene) mit den fehlenden
@@ -38,8 +41,10 @@ from .modules import is_module_enabled
 from .option_settings import get_option_group
 from .planning import list_field_bookable_orders, list_todays_assignments_for_employee, list_upcoming_assignments_for_employee
 from .service_reports import REPORT_TYPE_LABELS, _report_roof_areas_to_dicts, list_draft_reports_for_employee, noch_offen
-from .time_backoffice import locked_until
-from .time_tracking import ZEITART_NAMEN, active_entry, crew_leader_team_ids, employee_name, group_for_entry, laeuft_seit_frueher
+from .time_backoffice import load_time_settings, locked_until
+from .time_tracking import (
+    ZEITART_NAMEN, active_entry, crew_leader_team_ids, employee_name, group_for_entry, laeuft_seit_frueher, list_crews_for_leader,
+)
 
 NAECHSTE_TAGE = 14
 
@@ -50,6 +55,14 @@ def zeitarten(db: Session) -> list[dict]:
     optionen = sorted((o for o in (gruppe.options if gruppe is not None else []) if o.active), key=lambda o: (o.sort_order, o.id))
     if not optionen:
         return [{"value": k, "label": v} for k, v in ZEITART_NAMEN.items()]
+    return [{"value": o.value, "label": o.label} for o in optionen]
+
+
+def taetigkeiten(db: Session) -> list[dict]:
+    """Die aktiven Tätigkeiten (Optionsgruppe time_entry_activities) für „⋮ Mit Tätigkeit starten“ (seit 1.9.58) -- dieselbe Quelle wie
+    das Feld „Tätigkeit“ der Zeiterfassung."""
+    gruppe = get_option_group(db, "time_entry_activities")
+    optionen = sorted((o for o in (gruppe.options if gruppe is not None else []) if o.active), key=lambda o: (o.sort_order, o.id))
     return [{"value": o.value, "label": o.label} for o in optionen]
 
 
@@ -98,8 +111,13 @@ def arbeitszeit(db: Session, employee_id: int, *, heute: date, jetzt: datetime, 
     auftraege = list_field_bookable_orders(db, employee_id)
     buchbar = {a["id"] for a in auftraege}
     eindeutig = sorted(set(einsatz_auftraege))
+    regeln = load_time_settings(db)
     return {"zustand": "nichts", "auftraege": auftraege,
-            "vorbelegt": eindeutig[0] if len(eindeutig) == 1 and eindeutig[0] in buchbar else None}
+            "vorbelegt": eindeutig[0] if len(eindeutig) == 1 and eindeutig[0] in buchbar else None,
+            # seit 1.9.58: „⋮ Mit Tätigkeit starten“ (verlangen die Zeitregeln eine Tätigkeit, öffnet auch eine Kachel den Dialog) und
+            # „⋮ Für die Kolonne starten“ -- nur mit Gruppenbuchungen (der Server lehnte den Start sonst ab, 403)
+            "taetigkeiten": taetigkeiten(db), "taetigkeit_pflicht": bool(regeln.require_activity),
+            "kolonnen": list_crews_for_leader(db, employee_id) if regeln.allow_group_bookings else []}
 
 
 def _berichte(db: Session, employee_id: int, order_ids: list[int], heute: date) -> dict[int, list[dict]]:
