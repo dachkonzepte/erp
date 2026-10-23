@@ -4444,7 +4444,8 @@ denselben Zahlen (test_v483 unverändert grün).
    Ändern nicht weiter (sie ist nicht gespeichert).
 3. „Nach Zeitregel“ eines Tags ist, was die Regel den Buchungen in der Reihenfolge des Tags gäbe (nach Beginn, reine Dauern zuletzt; jede
    bekommt, was dem Tag fehlt, höchstens ihre Anwesenheit; ohne Mindestpausen); der Tag passt, wenn die Summen gleich sind -- eine andere
-   Verteilung bei gleicher Summe passt.
+   Verteilung bei gleicher Summe passt. **Für reine Dauern ersetzt durch Festlegung 1.9.59 Nr. 16**: eine Dauer behält ihre Pause und
+   zählt vor den Buchungen mit Uhrzeiten (bis dahin rechnete die Prüfung sie neu, Befund im Klicktest 1.9.59).
 4. Eine bewusst längere Pause lässt den Tag als „passt nicht“ erscheinen; „Pausen neu rechnen“ würde sie auf die Zeitregel zurücksetzen --
    die Vorschau zeigt das vor dem Klick, nichts geschieht von selbst.
 5. „Pausen neu rechnen“ ändert nur Buchungen mit anderer Pause (Pause und gebucht nach der Rundung), bucht genau die gezeigte Vorschau (sonst
