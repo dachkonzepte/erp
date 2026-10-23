@@ -6,7 +6,8 @@
                    Pausen), mindestens die eingegebene Pause, höchstens ihre Anwesenheit; frühere Buchungen nie angefasst
     überall        Stopp, Gruppen-Stopp (je Mitglied), Ende nachtragen, Nachtrag mit Von/Bis, Zeitart wechseln, Vorschau -- eine Funktion
                    (pause_nach_zeitregel() über ende_rechnen())
-    Tag zusammen   Antwort und Vorschau nennen die gebuchten Stunden des Tages und die Zahl seiner Buchungen
+    Tag zusammen   Antwort und Vorschau nennen „Tag zusammen“ und die Zahl der Buchungen des Tages -- seit 1.9.53 die Anwesenheit des
+                   Tages samt der neuen, vor der Pause (davon hängt die Pause ab); 1.9.48–1.9.52 die gebuchten Stunden
 """
 
 from datetime import datetime, time, timedelta
@@ -99,7 +100,7 @@ def test_nachtrag_vormittag_nach_der_nachmittagsbuchung(welt):
         "employee_id": welt["mia"].id, "order_id": welt["order"].id, "work_date": welt["tag"].isoformat(), "von": "07:00", "bis": "12:00"})
     assert antwort.status_code == 200, antwort.text
     d = antwort.json()
-    assert (d["pause"], Decimal(d["gebucht"]), Decimal(d["tag_zusammen"]), d["tag_buchungen"]) == (30, Decimal("4.5"), Decimal("8"), 2)
+    assert (d["pause"], Decimal(d["gebucht"]), Decimal(d["tag_zusammen"]), d["tag_buchungen"]) == (30, Decimal("4.5"), Decimal("8.5"), 2)  # Tag 3:30 + 5:00 anwesend
     welt["db"].expire_all()
     n = welt["db"].get(TimeEntry, nachmittag.id)
     assert (n.break_minutes, n.hours, n.ended_at) == vorher
@@ -156,15 +157,42 @@ def test_fehlende_pause_zehrt_die_letzte_buchung_auf(welt):
 # --- Vorschau = Buchung, Tag zusammen --------------------------------------------------------------------------------------------
 
 def test_vorschau_gleich_buchung_mit_frueherer_buchung_am_tag(welt):
-    """Gestern Fahrzeit 06:00–06:45 gebucht, dann Baustelle seit 06:45 offen: Ende 16:00 -> Tag 10 h, 45 min fehlen -- Vorschau und
-    „Ende nachtragen“ liefern dieselben Zahlen samt „Tag zusammen“."""
+    """Der Fall der Vorgabe (1.9.53): gestern Fahrzeit 06:00–06:45 gebucht, dann Baustelle seit 06:45 offen, Ende 15:45 -> die Baustelle
+    allein 9:00 h (je Buchung wären es 30 min), „Tag zusammen“ 9:45 h, 45 min -- Vorschau und „Ende nachtragen“ liefern dieselben Zahlen.
+    Bis 1.9.52 Ende 16:00 und „Tag zusammen“ als gebuchte Stunden (9,25)."""
     _zeit(welt, welt["mia"], _um(welt, 6), _um(welt, 6, 45), art="travel")
     offen = start_timer(welt["db"], employee_id=welt["mia"].id, order_id=welt["order"].id, started_at=_um(welt, 6, 45))
     client = _als(welt, welt["mia"])
-    v = client.get(f"/api/time-entries/{offen.id}/ende-vorschau", params={"ende": f"{welt['tag'].isoformat()}T16:00"}).json()
-    b = client.post(f"/api/time-entries/{offen.id}/ende-nachtragen", json={"ende": f"{welt['tag'].isoformat()}T16:00"}).json()
-    assert (v["pause"], Decimal(v["gebucht"]), Decimal(v["tag_zusammen"]), v["tag_buchungen"]) == (45, Decimal("8.5"), Decimal("9.25"), 2)
-    assert (b["pause"], Decimal(b["hours"]), Decimal(b["tag_zusammen"]), b["tag_buchungen"]) == (45, Decimal("8.5"), Decimal("9.25"), 2)
+    v = client.get(f"/api/time-entries/{offen.id}/ende-vorschau", params={"ende": f"{welt['tag'].isoformat()}T15:45"}).json()
+    b = client.post(f"/api/time-entries/{offen.id}/ende-nachtragen", json={"ende": f"{welt['tag'].isoformat()}T15:45"}).json()
+    assert (Decimal(v["anwesend"]), Decimal(v["tag_zusammen"]), v["pause"], Decimal(v["gebucht"]), v["tag_buchungen"]) == \
+        (Decimal("9"), Decimal("9.75"), 45, Decimal("8.25"), 2)
+    assert (Decimal(b["anwesend"]), Decimal(b["tag_zusammen"]), b["pause"], Decimal(b["hours"]), b["tag_buchungen"]) == \
+        (Decimal("9"), Decimal("9.75"), 45, Decimal("8.25"), 2)
+
+
+def test_ohne_fruehere_buchung_tag_zusammen_gleich_anwesend(welt):
+    """Gegenprobe (1.9.53): dieselbe Baustelle ohne frühere Buchung -- eine Buchung am Tag (die Seiten zeigen dann kein „Tag zusammen“),
+    „Tag zusammen“ ist ihre eigene Anwesenheit, 9:00 h sind nicht „mehr als 9 h“ -> 30 min."""
+    offen = start_timer(welt["db"], employee_id=welt["mia"].id, order_id=welt["order"].id, started_at=_um(welt, 6, 45))
+    v = _als(welt, welt["mia"]).get(f"/api/time-entries/{offen.id}/ende-vorschau", params={"ende": f"{welt['tag'].isoformat()}T15:45"}).json()
+    assert (Decimal(v["anwesend"]), Decimal(v["tag_zusammen"]), v["pause"], Decimal(v["gebucht"]), v["tag_buchungen"]) == \
+        (Decimal("9"), Decimal("9"), 30, Decimal("8.5"), 1)
+
+
+def test_echter_tag_baustelle_wechsel_werkstatt(welt):
+    """Der echte Tag der Vorgabe (1.9.53): Baustelle 07:00–12:00, „Zeitart wechseln“, Werkstatt bis 16:15 -> Werkstatt anwesend 4:15 h,
+    „Tag zusammen“ 9:15 h, Pause 45 min, gebucht 3,50 h; der Tag gebucht 8,50 h."""
+    db, h = welt["db"], welt["heute"]  # heute: eine Zeit von gestern wechselt die Zeitart nicht
+    row = start_timer(db, employee_id=welt["mia"].id, order_id=welt["order"].id, started_at=datetime.combine(h, time(7)))
+    neu = zeitart_wechseln(db, row.id, "workshop", jetzt=datetime.combine(h, time(12)))
+    zweite = stop_timer(db, neu.id, ended_at=datetime.combine(h, time(16, 15)))
+    from app.time_tracking import entry_to_dict, tag_stand
+    d = {**entry_to_dict(zweite), **tag_stand(db, welt["mia"].id, h)}
+    assert (Decimal(d["anwesend"]), Decimal(d["tag_zusammen"]), d["pause"], Decimal(d["gebucht"]), d["tag_buchungen"]) == \
+        (Decimal("4.25"), Decimal("9.25"), 45, Decimal("3.5"), 2)
+    db.expire_all()
+    assert db.get(TimeEntry, row.id).hours + db.get(TimeEntry, zweite.id).hours == Decimal("8.5")
 
 
 def test_vorschau_rechnet_wie_die_funktion(welt):
@@ -174,9 +202,9 @@ def test_vorschau_rechnet_wie_die_funktion(welt):
 
 
 def test_feierabend_nennt_tag_zusammen(welt):
-    """Stopp über die Schnittstelle heute: zweite Buchung des Tages -> „Tag zusammen“ mit beiden."""
+    """Stopp über die Schnittstelle heute: zweite Buchung des Tages -> „Tag zusammen“ mit beiden (seit 1.9.53 ihre Anwesenheit)."""
     heute = welt["heute"]
     _zeit(welt, welt["mia"], datetime.combine(heute, time(6)), datetime.combine(heute, time(7)))
     laeuft = start_timer(welt["db"], employee_id=welt["mia"].id, order_id=welt["order"].id, started_at=datetime.combine(heute, time(7)))
     d = _als(welt, welt["mia"]).post(f"/api/time-entries/{laeuft.id}/stop", json={"break_minutes": 0}).json()
-    assert (Decimal(d["tag_zusammen"]), d["tag_buchungen"]) == (Decimal("1") + Decimal(d["hours"]), 2)  # feste Uhr 10:00
+    assert (Decimal(d["tag_zusammen"]), d["tag_buchungen"]) == (Decimal("1") + Decimal(d["anwesend"]), 2)  # feste Uhr 10:00

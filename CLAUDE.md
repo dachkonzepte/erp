@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.52** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.53** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -1471,7 +1471,8 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   `ende_rechnen()` (Pause und gebuchte Stunden aus einer Funktion). Wächter `tests/test_v462_nachtrag_pausenregel.py`. **Seit 1.9.48 je
   Tag** (nur neue Buchungen): Pflichtpause aus der Anwesenheit des Starttags über alle gebuchten Zeiten samt der neuen (Schwellen „mehr
   als“), die neue Buchung bekommt, was dem Tag fehlt -- mindestens die eingegebene, höchstens ihre Anwesenheit --, frühere bleiben
-  unverändert; jede Antwort auf eine Buchung nennt „Tag zusammen“ (`tag_stand()`); Wächter `tests/test_v474_pause_je_tag.py`. **Eine Rundung** (seit 1.9.39): jede neue Buchung --
+  unverändert; jede Antwort auf eine Buchung nennt „Tag zusammen“ (`tag_stand()`, seit 1.9.53 die Anwesenheit des Tages vor der Pause,
+  angezeigt zwischen „anwesend“ und der Pause); Wächter `tests/test_v474_pause_je_tag.py`, `tests/test_v480_tag_zusammen_anzeige.py`. **Eine Rundung** (seit 1.9.39): jede neue Buchung --
   auch je Mitglied einer Gruppe -- rundet nur `gebucht_nach_zeitregel()` nach den Zeitregeln (ohne Rundung bleibt der Wert); Wächter
   `tests/test_v466_rundung_gruppen.py`.
 - **Vergessener Feierabend** (seit 1.9.35): nichts schließt eine Zeit von selbst. Läuft sie seit einem früheren Tag
@@ -1904,7 +1905,9 @@ Bildlauf und mit aktivem Bereich, Menüknopf, Kopfzeile 64 px mit Suche 480 px u
 Seiten greifen nicht in den Kopf; seit 1.8.164 der Monteurskopf auf neun Seiten der Monteurin bei 1280 × 620 und 800 × 1100: 64 px,
 einzeilig, Name, Reiter, Lupe; `--nur TEIL` für Gegenproben) und `klicktest_einsatzbericht_zeiten.py` (1.9.42: Zeiten am Berichtstag auf Seite und im PDF, gespeichert mit der Unterschrift, PDFs vor und
 nach einer nachträglichen Buchung im Ordner der Screenshots) und `klicktest_monteurin_regeln.py` (1.9.35, Stufe 4 R1: offene Zeit in
-`/mobil`, Start mit offener Zeit abgelehnt, „Ende nachtragen“ mit Meldungen und Ergebnis, Admin schließt eine fremde Zeit, Verlauf). Kopfzeilen einer Antwort aus urllib klein geschrieben vergleichen (der Server schickt sie klein). **Netzwerkprotokoll** (seit 1.8.97): jeder Tab zeichnet die Network-Ereignisse auf (`tab.netz`); beim Scheitern (Abweichung in `pruefe()`, Seite nicht bereit, Warte-Helfer abgebrochen, `warten()` abgelaufen, Ende eines nicht erfolgreichen Laufs) druckt das Werkzeug die offenen Anfragen mit Adresse, Startzeit und "gesendet ja/nein"; eine gewollte Pause `warten("false", 1.0, melden=False)`; `tab.im_netz_anhalten()` hält eine Anfrage an, bevor sie gesendet wird. Ein Dialog des Browsers (vor allem „Seite verlassen?“ bei einer Navigation während eines Speicherns) hielt bis 1.8.97 jeden weiteren CDP-Befehl an; seit 1.8.98 meldet das Werkzeug ihn (Lauf nicht wie erwartet, samt Netzprotokoll) und nimmt ihn an. **Verbindungsprotokoll und Ausgang** (seit 1.8.115): jede Instanz schreibt die Spur von uvicorn (trace) in `verbindungen.log` ihres Arbeitsordners; das Netzprotokoll nennt unter jeder gemeldeten Anfrage ihren Stand auf dem Server („Server: [41] angekommen …, Antwort-Kopf 200 …“ oder „nicht angekommen“) und trägt den Ausgang einer zuvor als offen gemeldeten Anfrage nach („fertig, Status 200 nach …“, „fehlgeschlagen: net::… nach …“ aus `loadingFailed`), auch am Ende eines erfolgreichen Laufs; Klicktest `klicktest_verbindungsprotokoll.py`.
+`/mobil`, Start mit offener Zeit abgelehnt, „Ende nachtragen“ mit Meldungen und Ergebnis, Admin schließt eine fremde Zeit, Verlauf) und
+`klicktest_echter_tag.py` (1.9.53, stehende Uhr 16:15: Baustelle 07:00–12:00, Wechsel, Werkstatt bis 16:15 -- Ergebnis mit „Tag zusammen“;
+ohne frühere Buchung keins). Kopfzeilen einer Antwort aus urllib klein geschrieben vergleichen (der Server schickt sie klein). **Netzwerkprotokoll** (seit 1.8.97): jeder Tab zeichnet die Network-Ereignisse auf (`tab.netz`); beim Scheitern (Abweichung in `pruefe()`, Seite nicht bereit, Warte-Helfer abgebrochen, `warten()` abgelaufen, Ende eines nicht erfolgreichen Laufs) druckt das Werkzeug die offenen Anfragen mit Adresse, Startzeit und "gesendet ja/nein"; eine gewollte Pause `warten("false", 1.0, melden=False)`; `tab.im_netz_anhalten()` hält eine Anfrage an, bevor sie gesendet wird. Ein Dialog des Browsers (vor allem „Seite verlassen?“ bei einer Navigation während eines Speicherns) hielt bis 1.8.97 jeden weiteren CDP-Befehl an; seit 1.8.98 meldet das Werkzeug ihn (Lauf nicht wie erwartet, samt Netzprotokoll) und nimmt ihn an. **Verbindungsprotokoll und Ausgang** (seit 1.8.115): jede Instanz schreibt die Spur von uvicorn (trace) in `verbindungen.log` ihres Arbeitsordners; das Netzprotokoll nennt unter jeder gemeldeten Anfrage ihren Stand auf dem Server („Server: [41] angekommen …, Antwort-Kopf 200 …“ oder „nicht angekommen“) und trägt den Ausgang einer zuvor als offen gemeldeten Anfrage nach („fertig, Status 200 nach …“, „fehlgeschlagen: net::… nach …“ aus `loadingFailed`), auch am Ende eines erfolgreichen Laufs; Klicktest `klicktest_verbindungsprotokoll.py`.
 **Nach einer Aktion, die neu lädt** (seit 1.8.94), nie eine feste Pause oder einen Statustext als Beleg nehmen -- viele Seiten setzen
 ihn vor dem Neuladen --, sondern `await tab.warte_auf_neu_geladene_liste("…click()", "#liste")` (wartet, bis keine Anfrage der Seite
 mehr unterwegs und die Liste neu gezeichnet ist; ohne Aktion nach `oeffnen()`, bevor geprüft wird, dass etwas NICHT erscheint);

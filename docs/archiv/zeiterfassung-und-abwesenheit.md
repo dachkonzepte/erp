@@ -538,3 +538,14 @@ wäre UTC-Mitternacht, 1 Std. (Winter) bzw. 2 Std. (Sommer) zu spät. Erste Stel
 (`app/findings.py::list_findings()`, bis 1.9.51 mit UTC-Mitternacht). Durchgesehen (`datetime.combine(…, datetime.min.time())` unter `app/`):
 `app/notice_letters.py` (Zustelldatum als Anzeige, kein Filter) und `app/outlook_calendar_sync.py` (eigene Umrechnung, bewusst unangetastet)
 -- keine weitere Stelle dieser Art. Test `tests/test_v479_befunde_tage_berlin.py`.
+
+## „Tag zusammen“ = Anwesenheit des Tages (seit 1.9.53)
+
+Entscheidung Tobias (23.10.2026, ersetzt Festlegung 1.9.48 Nr. 4): „Tag zusammen“ ist die Anwesenheit der Person am Starttag über alle
+gebuchten Zeiten samt der neuen, vor der Pause -- die Zahl, nach der die Pause bemessen wird (`app/time_tracking.py::_anwesend_summe()`, von
+`pause_nach_zeitregel()`, `ende_rechnen()` und `tag_stand()` gemeinsam genutzt). 1.9.48–1.9.52 war es die Summe der gebuchten Stunden: bei
+„Anwesend 9:00 h · Pause − 0:45 h“ stand „Tag zusammen 9:00 h“ (0,75 + 8,25 gebucht) da und erklärte die 45 min nicht. Die gebuchten Stunden
+bleiben dezimal. Anzeige: Vorschau „Anwesend 9:00 h · Tag zusammen 9:45 h · Pause nach Zeitregel − 0:45 h“ / „Gebucht werden 8,25 h“; Ergebnis
+auf „Heute“ „Feierabend gebucht: anwesend 4:15 h · Tag zusammen 9:15 h · Pause nach Zeitregel − 0:45 h · gebucht 3,50 h“; Zeiterfassung der
+Monteurin „Gestoppt/Ende nachgetragen/Nachgetragen: anwesend … · Tag zusammen … · Pause … · gebucht … h“. „Tag zusammen“ nur, wenn der Tag
+schon Buchungen hat. Festlegungen: `docs/archiv/redesign.md`, „R2 Nachrunde 2, Punkt 1 (1.9.53)“.

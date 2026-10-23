@@ -65,6 +65,7 @@
     .status{font-size:14px;color:var(--ds-fehler-text);overflow-wrap:anywhere}
     .ergebnis{font-size:15px;font-weight:600;color:var(--ds-ok-text);overflow-wrap:anywhere}  /* seit 1.9.48: Ergebnis nach dem Feierabend */
     .ergebnis:empty{display:none}
+    .ergebnis .teil{white-space:nowrap}  /* seit 1.9.53: ein Teil („gebucht 3,50 h“) bricht nicht in sich um, nur zwischen den Teilen */
     .status:empty{display:none}
     /* Zeit von früher offen (heute-gestern): Signalkarte „Wartet auf dich“ */
     .signal-karte{background:var(--ds-signal-hell);border:1px solid var(--ds-signal-rand);border-radius:var(--ds-ecke-karte);padding:20px;display:flex;flex-direction:column;gap:14px;min-width:0}
@@ -170,9 +171,14 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
     return pad2(a.t)+'.'+pad2(a.m)+'.'+a.j+'–'+pad2(b.t)+'.'+pad2(b.m)+'.'+b.j;
   }
   function stundenUhr(minuten){var m=Math.max(0,Math.round(minuten));return Math.floor(m/60)+':'+pad2(m%60)+' h'}  // „3:15 h“
-  // Seit 1.9.48 (Stufe 4, R2 Nachrunde): „Tag zusammen“, wenn der Tag mehr als diese eine Buchung hat
+  // Seit 1.9.48 (Stufe 4, R2 Nachrunde): „Tag zusammen“, wenn der Tag mehr als diese eine Buchung hat -- seit 1.9.53 die Anwesenheit
+  // des Tages vor der Pause (danach bemisst der Server die Pause), deshalb direkt hinter „anwesend“ und vor der Pause
   function tagZusammen(d){return d&&d.tag_buchungen>1?' · Tag zusammen '+stundenUhr(Number(d.tag_zusammen)*60):''}
-  function ergebnisBuchung(wie){return function(d){return wie+': '+zahlText(d.gebucht,2)+' h · Pause '+stundenUhr(d.pause)+tagZusammen(d)}}
+  // Ergebnis wie die Vorschau: anwesend · Tag zusammen · Pause, dann die gebuchten Stunden (dezimal), seit 1.9.53; jeder Teil zwischen
+  // „ · “ ohne Umbruch in sich (der Text bleibt derselbe)
+  function ergebnisTeile(text){return String(text).split(' · ').map(function(t){return '<span class="teil">'+esc(t)+'</span>'}).join(' · ')}
+  function ergebnisBuchung(wie){return function(d){return wie+': anwesend '+stundenUhr(Number(d.anwesend)*60)+tagZusammen(d)
+    +' · Pause nach Zeitregel − '+stundenUhr(d.pause)+' · gebucht '+zahlText(d.gebucht,2)+' h'}}
   function ergebnisGruppe(d){
     var eigene=(d.member_entries||[]).find(function(e){return e.employee_id===H.mitarbeiter_id});
     return 'Feierabend für die Gruppe gebucht'+(eigene?' · deine Zeit '+zahlText(eigene.hours,2)+' h':'')+tagZusammen(d);
@@ -282,23 +288,26 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
                  ergebnisBuchung(z.gestern?'Feierabend gestern eingetragen':'Feierabend am '+tagKurz(z.tag)+' eingetragen'));
     });
   }
-  // „Anwesend … · Pause nach Zeitregel − … · Gebucht werden …“ kommt vom Server (ende-vorschau, dieselbe Rechnung wie die Buchung)
+  // „Anwesend … · Tag zusammen … · Pause nach Zeitregel − … · Gebucht werden …“ kommt vom Server (ende-vorschau, dieselbe Rechnung wie
+  // die Buchung)
   function vorschauLaden(z){
     var wert=el('endeZeit').value,box=el('endeVorschau');
     var url='/api/time-entries/'+z.id+'/ende-vorschau?ende='+encodeURIComponent(z.tag+'T'+wert);
     // ohne Uhrzeit ein Lesen ohne Anfrage (Regel 29): eine spät ankommende Vorschau überschreibt das leere Feld nicht
     return lesen('vorschau',()=>wert?api(url):Promise.resolve(null),function(v){
       if(!v){box.innerHTML='';return}
-      box.innerHTML='<span class="anwesend">Anwesend '+esc(stundenUhr(Number(v.anwesend)*60))+' · Pause nach Zeitregel − '+esc(stundenUhr(v.pause))+'</span>'
-        +'<span class="gebucht">Gebucht werden '+esc(zahlText(v.gebucht,2))+' h</span>'
-        +(v.tag_buchungen>1?'<span class="anwesend">Tag zusammen '+esc(stundenUhr(Number(v.tag_zusammen)*60))+'</span>':'');  // seit 1.9.48
+      // seit 1.9.53 „Tag zusammen“ (Anwesenheit des Tages) zwischen „Anwesend“ und der Pause -- bis dahin eine eigene Zeile mit den
+      // gebuchten Stunden des Tages
+      box.innerHTML='<span class="anwesend">Anwesend '+esc(stundenUhr(Number(v.anwesend)*60))+esc(tagZusammen(v))
+        +' · Pause nach Zeitregel − '+esc(stundenUhr(v.pause))+'</span>'
+        +'<span class="gebucht">Gebucht werden '+esc(zahlText(v.gebucht,2))+' h</span>';
     }).catch(function(e){box.innerHTML='<span class="status">'+esc(e.message)+'</span>'});
   }
   // ergebnis (seit 1.9.48): Text aus der Antwort, steht nach dem Neuladen in der Karte (#zeitErgebnis, „nichts läuft“)
   function zeitAktion(knopf,url,body,ergebnis){
     var st=el('zeitStatus');st.textContent='';knopf.disabled=true;
     return speichern('heute',()=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{neuLaden:ladeHeute})
-      .then(function(d){var e=el('zeitErgebnis');if(e&&ergebnis&&d)e.textContent=ergebnis(d)})
+      .then(function(d){var e=el('zeitErgebnis');if(e&&ergebnis&&d)e.innerHTML=ergebnisTeile(ergebnis(d))})
       .catch(function(e){var s=el('zeitStatus');if(s)s.textContent=e.message;knopf.disabled=false});
   }
 

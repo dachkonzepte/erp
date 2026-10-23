@@ -8,8 +8,9 @@ Befüllt: Auftrag mit Einsatz (Plantafel heute ± 7 Tage) für Mia (Monteurin) u
     Mia (412 px, dunkel)  /mobil: Hinweis „Deine Zeit läuft noch seit <gestern>, 06:45 Uhr“ mit Zeitart, Auftrag und „Ende nachtragen →“.
                           Zeiterfassung: statt Uhr und „Zeit stoppen“ der Hinweis „Die Zeit vom … läuft noch“, Feld „Ende an diesem Tag“,
                           Knopf „Ende nachtragen“; „Schnell starten“ meldet die offene Zeit (Server 409). Ende leer -> „Bitte das Ende
-                          angeben.“, 06:00 -> Meldung des Servers (vor dem Start), 16:00 -> „Ende nachgetragen: gebucht 8,50 h · anwesend
-                          9,25 h · Pause 45 min“, danach startet sie neu (Uhr und „Zeit stoppen“ wieder da).
+                          angeben.“, 06:00 -> Meldung des Servers (vor dem Start), 16:00 -> „Ende nachgetragen: anwesend 9:15 h · Pause
+                          0:45 h · gebucht 8,50 h“ (seit 1.9.53 in dieser Reihenfolge), danach startet sie neu (Uhr und „Zeit
+                          stoppen“ wieder da).
     Anna (1400 px, hell)  Zeiterfassung für Tom: dieselbe offene Anzeige, „Ende nachtragen“ 15:30 -> gebucht mit Pause; im Verlauf (API)
                           steht Anna.
     Mia (412 px, dunkel)  Einsatzbericht (seit 1.9.36): der Rapportbericht zeigt „Prüfpunkte“; am Knopf „Unterschreiben“ die Liste „Noch
@@ -170,7 +171,7 @@ async def pruefen(tab, seed, p):
     await tab.js("document.getElementById('endeZeit').value='16:00'")
     await tab.warte_auf_neu_geladene_liste("document.getElementById('endeBtn').click()", "#entriesList")
     p.pruefe("Ende nachgetragen: gebucht, anwesend, Pause", await tab.js("document.getElementById('buchungsHinweis').textContent"),
-             "Ende nachgetragen: gebucht 8,50 h · anwesend 9,25 h · Pause 45 min")
+             "Ende nachgetragen: anwesend 9:15 h · Pause 0:45 h · gebucht 8,50 h")  # seit 1.9.53 (bis dahin gebucht · anwesend dezimal · Minuten)
     p.pruefe("Danach: keine laufende Zeit, „Schnell starten“ sichtbar", await tab.js(
         "[document.getElementById('activeCard').hidden, document.getElementById('quickCard').hidden]"), [True, False])
     # seit 1.9.40: die Meldung des abgelehnten Starts ist nach „Ende nachtragen“ weg

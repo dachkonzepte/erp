@@ -302,7 +302,9 @@ async def pruefen(tab, seed, p):
     p.pruefe("Feierabend: keine Meldung", await tab.js("(document.getElementById('zeitStatus')||{}).textContent||''"), "")
     # seit 1.9.48: das Ergebnis mit „Tag zusammen“ (zwei Buchungen am Tag: 06:45–10:00 und die Fahrzeit seit dem Wechsel)
     ergebnis = await tab.js("document.getElementById('zeitErgebnis').textContent")
-    p.pruefe("Feierabend: Ergebnis mit Tag zusammen", bool(re.fullmatch(r"Feierabend gebucht: 0,0\d h · Pause 0:00 h · Tag zusammen 3:15 h", ergebnis or "")),
+    # seit 1.9.53 wie die Vorschau: anwesend · Tag zusammen (Anwesenheit des Tages) · Pause, dann gebucht
+    p.pruefe("Feierabend: Ergebnis mit Tag zusammen", bool(re.fullmatch(
+        r"Feierabend gebucht: anwesend 0:00 h · Tag zusammen 3:15 h · Pause nach Zeitregel − 0:00 h · gebucht 0,0\d h", ergebnis or "")),
              True)
     await tab.bild("heute_nach_feierabend_zwei_buchungen_hell")
     p.pruefe("nach dem Feierabend: nichts läuft, Auftrag vorbelegt", await tab.js("document.getElementById('startAuftrag').value"), str(a))
@@ -332,9 +334,9 @@ async def pruefen(tab, seed, p):
     await tab.warten("document.querySelector('#endeVorschau .gebucht')")
     vorschau = await tab.js("[...document.querySelectorAll('#endeVorschau span')].map(s=>s.textContent)")
     # seit 1.9.48 je Tag: die Fahrzeit 06:00–06:45 zählt mit -- Baustelle 06:45–15:45 allein genau 9:00 h (je Buchung 30 min), der Tag
-    # 9:45 h -> 45 min; dazu „Tag zusammen“ (0,75 + 8,25 h)
+    # 9:45 h -> 45 min; seit 1.9.53 steht „Tag zusammen“ (die Anwesenheit des Tages, 9:45 h) zwischen „Anwesend“ und der Pause
     p.pruefe("Ole: Vorschau vom Server", vorschau,
-             ["Anwesend 9:00 h · Pause nach Zeitregel − 0:45 h", "Gebucht werden 8,25 h", "Tag zusammen 9:00 h"])
+             ["Anwesend 9:00 h · Tag zusammen 9:45 h · Pause nach Zeitregel − 0:45 h", "Gebucht werden 8,25 h"])
     await tab.bild("heute_gestern_offen_vorschau_hell")
     kontrast_hell = await tab.js(KONTRAST_FELD)
     await tab.js("document.documentElement.setAttribute('data-theme','dark')")  # dunkel ohne Neuladen (die Eingabe bleibt)
@@ -348,7 +350,7 @@ async def pruefen(tab, seed, p):
                            ".then(r=>r.json()).then(l=>l.sort((x,y)=>x.started_at<y.started_at?-1:1).map(e=>[e.status,Number(e.anwesend),e.pause,Number(e.hours)]))")
     p.pruefe("Ole: gebucht wie die Vorschau, die Fahrzeit unverändert", gebucht, [["booked", 0.75, 0, 0.75], ["booked", 9.0, 45, 8.25]])
     p.pruefe("Ole: Ergebnis mit Tag zusammen", await tab.js("document.getElementById('zeitErgebnis').textContent"),
-             "Feierabend gestern eingetragen: 8,25 h · Pause 0:45 h · Tag zusammen 9:00 h")
+             "Feierabend gestern eingetragen: anwesend 9:00 h · Tag zusammen 9:45 h · Pause nach Zeitregel − 0:45 h · gebucht 8,25 h")
     p.pruefe("Ole: danach startet heute", await tab.js("!!document.getElementById('startKacheln')"), True)
     p.pruefe("Ole: keine JS-Fehler", tab.fehler, [])
 

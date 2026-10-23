@@ -4,6 +4,20 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.53 – „Tag zusammen“ erklärt die Pause (Stufe 4, R2 Nachrunde 2, Punkt 1)
+
+Tobias hat Festlegung 1.9.48 Nr. 4 ersetzt: „Tag zusammen“ ist jetzt die Anwesenheit des Tages samt der neuen Buchung, vor der Pause (h:mm)
+-- genau die Zahl, nach der die Pause bemessen wird; bis 1.9.52 war es die Summe der gebuchten Stunden, die die Pause nicht erklärte. Die
+gebuchten Stunden bleiben dezimal. `ende_rechnen()` und `tag_stand()` zählen die Anwesenheit über dieselbe Funktion wie die Pausenregel
+(`_anwesend_summe()`). Die Vorschau auf „Heute“ zeigt „Anwesend 9:00 h · Tag zusammen 9:45 h · Pause nach Zeitregel − 0:45 h“, darunter
+„Gebucht werden 8,25 h“ (die eigene Zeile „Tag zusammen“ entfällt); das Ergebnis nach dem Feierabend und die Hinweise der Zeiterfassung der
+Monteurin nennen in derselben Reihenfolge anwesend · Tag zusammen · Pause, dann gebucht -- „Tag zusammen“ nur, wenn der Tag schon Buchungen
+hat. Ein Teil des Ergebnisses bricht nicht mehr in sich um („gebucht 3,50 h“).
+
+Neuer Klicktest `klicktest_echter_tag` (stehende Uhr 16:15: Baustelle 07:00–12:00, Wechsel, Werkstatt bis 16:15 -> anwesend 4:15 h, Tag
+zusammen 9:15 h, Pause − 0:45 h, gebucht 3,50 h, der Tag 8,50 h; ohne frühere Buchung kein „Tag zusammen“), neuer Test `test_v480`; angepasst
+v474, `klicktest_heute` und `klicktest_monteurin_regeln`.
+
 ## 1.9.52 – Befundliste: Tagesgrenzen des Datumsfilters in Europe/Berlin
 
 Nebenbefund aus R2 (festgehalten in 1.9.46): `app/findings.py::list_findings()` filterte `Finding.created_at` (naive UTC) mit Mitternacht des

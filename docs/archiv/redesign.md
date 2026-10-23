@@ -4112,3 +4112,48 @@ eigene Seite „Heute / Offen“); Pausenregel je Tag (nur neue Buchungen, Schwe
   Grenze. Keine angepasste Erwartung.
 - **Gegenproben**: P1 Filter mit UTC-Mitternacht (Stand bis 1.9.51) -> 2 Tests rot (nach Mitternacht, Sommer und Winter); P2 Tagesbeginn
   ohne Zeitzone -> 6 rot. Der Fall „kurz vor Mitternacht“ bleibt in beiden grün (dort lag auch die alte Grenze richtig).
+
+## Stufe 4, R2 Nachrunde 2 (1.9.53–): „Tag zusammen“ verständlich, Dachfläche löschen
+
+Auftrag von Tobias (23.10.2026): Festlegungen der R2-Nachrunde bestätigt außer 1.9.48 Nr. 4 (ersetzt durch Punkt 1); zu 1.9.48 Nr. 6: das
+Beispiel der Vorgabe war falsch, „mehr als“ gilt wie gebaut. Punkte: „Tag zusammen“ erklärt die Pause, Dachfläche löschen wie das Bauteil,
+`_unterschreiben()` im Klicktest misst erst nach dem Speichern.
+
+### R2 Nachrunde 2, Punkt 1 (1.9.53): „Tag zusammen“ erklärt die Pause
+
+- **Umsetzung**: `app/time_tracking.py::_anwesend_summe()` für Pausenregel, `ende_rechnen()` (Vorschau, Stopp, Wechsel, Ende nachtragen) und
+  `tag_stand()` (Antworten); `mobil.html`: Vorschau mit „Tag zusammen“ in der ersten Zeile, `ergebnisBuchung()` in der Reihenfolge der
+  Vorschau, `ergebnisTeile()` (jeder Teil ohne Umbruch in sich); `time_tracking_field.html`: `ergebnisText()` für Stopp, Ende nachtragen und
+  Nachtrag. Herleitung: `docs/archiv/zeiterfassung-und-abwesenheit.md`, „„Tag zusammen“ = Anwesenheit des Tages (seit 1.9.53)“.
+
+**Festlegungen 1.9.53 (Bitte bestätigen)**
+
+1. „Tag zusammen“ = Anwesenheit aller gebuchten Zeiten des Starttags samt der neuen, vor der Pause (eine reine Dauer zählt mit Stunden +
+   Pause) -- in der Antwort auf eine Buchung (auch dem Gruppen-Stopp für den, der stoppt) und in der Vorschau; ersetzt 1.9.48 Nr. 4.
+2. Vorschau: eine Zeile „Anwesend … · Tag zusammen … · Pause nach Zeitregel − …“, darunter „Gebucht werden … h“; die eigene Zeile „Tag
+   zusammen“ (1.9.48) entfällt.
+3. Ergebnis auf „Heute“: „<Was>: anwesend … · Tag zusammen … · Pause nach Zeitregel − … · gebucht … h“ (bis 1.9.52 „<Was>: … h · Pause … ·
+   Tag zusammen …“); das Ergebnis für die Gruppe bleibt im Aufbau, „Tag zusammen“ ist dort die Anwesenheit dessen, der stoppt.
+4. Zeiterfassung der Monteurin ebenso: „Gestoppt/Ende nachgetragen/Nachgetragen: anwesend 9:15 h · [Tag zusammen …] · Pause 0:45 h · gebucht
+   8,50 h“ (bis 1.9.52 „gebucht 8,50 h · anwesend 9,25 h · Pause 45 min“) -- Dauern in h:mm, gebuchte Stunden dezimal.
+5. Ein Teil des Ergebnisses zwischen „ · “ bricht nicht in sich um (vorher stand „3,50“ am Zeilenende und „h“ darunter).
+
+**Tests und Prüfung**
+
+- Neu: `tests/test_v480_tag_zusammen_anzeige.py` (5 Tests, Texte der Seiten in node zusammengesetzt: Ergebnis auf „Heute“ mit und ohne frühere
+  Buchung, Vorschau, Zeiterfassung mit und ohne frühere Buchung); in `tests/test_v474_pause_je_tag.py` zwei neue Tests (ohne frühere Buchung:
+  „Tag zusammen“ = eigene Anwesenheit, eine Buchung; der echte Tag: Werkstatt 4,25 / Tag 9,25 / 45 / 3,50, Tag gebucht 8,50); neuer Klicktest
+  `scripts/klicktest_echter_tag.py` (7 Prüfungen, Bild nach dem Feierabend und Vorschau ohne frühere Buchung).
+- Angepasste Erwartungen: `test_v474::test_nachtrag_vormittag_nach_der_nachmittagsbuchung` „Tag zusammen“ alt 8 (gebucht), neu 8,5
+  (Anwesenheit 3:30 + 5:00); `test_v474::test_vorschau_gleich_buchung_mit_frueherer_buchung_am_tag` alt Ende 16:00 -> (45 min, 8,50 h, Tag 9,25,
+  2), neu Ende 15:45 -> (anwesend 9, Tag 9,75, 45 min, 8,25 h, 2) -- der Fall der Vorgabe; `test_v474::test_feierabend_nennt_tag_zusammen` alt
+  1 + gebuchte Stunden, neu 1 + Anwesenheit; `klicktest_heute` Mia Ergebnis alt „Feierabend gebucht: 0,0x h · Pause 0:00 h · Tag zusammen
+  3:15 h“, neu „Feierabend gebucht: anwesend 0:00 h · Tag zusammen 3:15 h · Pause nach Zeitregel − 0:00 h · gebucht 0,0x h“; Ole Vorschau alt
+  [„Anwesend 9:00 h · Pause nach Zeitregel − 0:45 h“, „Gebucht werden 8,25 h“, „Tag zusammen 9:00 h“], neu [„Anwesend 9:00 h · Tag zusammen 9:45 h ·
+  Pause nach Zeitregel − 0:45 h“, „Gebucht werden 8,25 h“]; Ole Ergebnis alt „Feierabend gestern eingetragen: 8,25 h · Pause 0:45 h · Tag
+  zusammen 9:00 h“, neu „Feierabend gestern eingetragen: anwesend 9:00 h · Tag zusammen 9:45 h · Pause nach Zeitregel − 0:45 h · gebucht 8,25
+  h“; `klicktest_monteurin_regeln` alt „Ende nachgetragen: gebucht 8,50 h · anwesend 9,25 h · Pause 45 min“, neu „Ende nachgetragen: anwesend
+  9:15 h · Pause 0:45 h · gebucht 8,50 h“.
+- **Gegenproben**: P1 „Tag zusammen“ als gebuchte Stunden -> 4 Tests rot, `klicktest_echter_tag` 1 rot („Tag zusammen 8:30 h“); P2 Vorschau
+  ohne „Tag zusammen“ -> 1 rot, `klicktest_heute` 1 rot; P3 „Tag zusammen“ auch ohne frühere Buchung -> 1 rot, `klicktest_echter_tag` 1 rot
+  (Pia); P4 Zeiterfassung in alter Reihenfolge -> 2 rot, `klicktest_monteurin_regeln` 1 rot.

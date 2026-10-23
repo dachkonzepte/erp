@@ -238,8 +238,12 @@ const $=id=>document.getElementById(id);
 const params=new URLSearchParams(location.search),initialOrderId=Number(params.get('order_id')||0);
 const today=()=>berlinToday();  // seit 1.8.87 Berlin statt UTC (_berlin_date.html)
 const fmtDate=s=>s?new Date(s+'T12:00:00').toLocaleDateString('de-DE'):'—';
-// Seit 1.9.48 (Stufe 4, R2 Nachrunde): „Tag zusammen h:mm“ aus der Antwort einer Buchung, wenn der Tag schon Buchungen hat
-function tagZusammen(d){if(!d||!(d.tag_buchungen>1))return '';const m=Math.round(Number(d.tag_zusammen)*60);return ` · Tag zusammen ${Math.floor(m/60)}:${String(m%60).padStart(2,'0')} h`}
+// Seit 1.9.48 (Stufe 4, R2 Nachrunde): „Tag zusammen h:mm“ aus der Antwort einer Buchung, wenn der Tag schon Buchungen hat; seit
+// 1.9.53 die Anwesenheit des Tages vor der Pause. Das Ergebnis einer Buchung wie auf „Heute“: anwesend · Tag zusammen · Pause (h:mm),
+// dann die gebuchten Stunden (dezimal) -- bis 1.9.52 „gebucht … h · anwesend … h · Pause … min“.
+function dauerUhr(stunden){const m=Math.max(0,Math.round(Number(stunden||0)*60));return `${Math.floor(m/60)}:${String(m%60).padStart(2,'0')} h`}
+function tagZusammen(d){return d&&d.tag_buchungen>1?` · Tag zusammen ${dauerUhr(d.tag_zusammen)}`:''}
+function ergebnisText(was,d){return `${was}: anwesend ${dauerUhr(d.anwesend)}${tagZusammen(d)} · Pause ${dauerUhr(Number(d.pause||0)/60)} · gebucht ${zahlText(d.gebucht,2)} h`}
 const num=x=>Number(x||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 async function api(url,opt={}){const r=await fetch(url,opt);let data=null;try{data=await r.json()}catch{}if(!r.ok)throw new Error(data?.detail||`HTTP ${r.status}`);return data}
@@ -320,7 +324,7 @@ async function stopCurrent(){
     const url=`/api/time-entries/${active.id}/stop`,body=JSON.stringify({break_minutes:zahlFeld('stopBreak',{leer:0})});
     const d=await speichern('timer',()=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:body}));
     // seit 1.9.48 mit Ergebnis (Pause nach der Regel je Tag, „Tag zusammen“)
-    $('buchungsHinweis').textContent=d&&d.status==='booked'?`Gestoppt: gebucht ${zahlText(d.gebucht,2)} h · anwesend ${zahlText(d.anwesend,2)} h · Pause ${zahlText(d.pause,0)} min${tagZusammen(d)}`:'';
+    $('buchungsHinweis').textContent=d&&d.status==='booked'?ergebnisText('Gestoppt',d):'';
     $('stopBreak').value=zahlText(0);await loadActive();await loadEntries();await loadCrewState();
   }catch(e){alert(e.message)}
 }
@@ -334,7 +338,7 @@ async function endeNachtragen(){
   try{
     const url=`/api/time-entries/${active.id}/ende-nachtragen`,body=JSON.stringify({ende:`${active.work_date}T${zeit}`,pause_minuten:zahlFeld('stopBreak',{leer:0})});
     const d=await speichern('timer',()=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:body}));
-    $('buchungsHinweis').textContent=d?`Ende nachgetragen: gebucht ${zahlText(d.gebucht,2)} h · anwesend ${zahlText(d.anwesend,2)} h · Pause ${zahlText(d.pause,0)} min${tagZusammen(d)}`:'';
+    $('buchungsHinweis').textContent=d?ergebnisText('Ende nachgetragen',d):'';
     // seit 1.9.40: die Meldung eines abgelehnten Starts („… läuft noch …“) ist danach erledigt
     $('quickStatus').textContent='';$('endeStatus').textContent='';
     $('stopBreak').value=zahlText(0);$('endeZeit').value='';await loadActive();await loadEntries();await loadCrewState();
@@ -514,7 +518,7 @@ async function saveManual(){
       if(manualMode==='range'){delete neuBody.hours;neuBody.von=$('manualFrom').value;neuBody.bis=$('manualTo').value}
       const neu=JSON.stringify(neuBody);
       const d=await speichern('buchungen',()=>api('/api/time-entries',{method:'POST',headers:{'Content-Type':'application/json'},body:neu}));
-      $('buchungsHinweis').textContent=d?`Nachgetragen: gebucht ${zahlText(d.gebucht,2)} h · anwesend ${zahlText(d.anwesend,2)} h · Pause ${zahlText(d.pause,0)} min${tagZusammen(d)}`:'';
+      $('buchungsHinweis').textContent=d?ergebnisText('Nachgetragen',d):'';
     }
     manualDialog.close();await loadEntries();
   }catch(e){$('manualStatus').textContent='Fehler: '+e.message}

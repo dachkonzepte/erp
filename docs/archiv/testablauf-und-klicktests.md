@@ -1204,3 +1204,13 @@ wiederholt einen Klicktest genau einmal, wenn seine einzige Abweichung solche An
 - **Regel** (CLAUDE.md, Regel 15; Betreibervorgabe 22.10.2026): ein Commit nur nach einem grünen Lauf der vollen Suite auf genau dem Stand,
   der committet wird (auch nach einer Änderung an `VERSION`, `CHANGELOG.md` oder Doku läuft die Suite noch einmal); ein roter Test wird
   zuerst geklärt. Befehle hintereinander mit `&&`, nie mit `;`. Regel 13 verweist darauf.
+
+## Klicktest „echter Tag“ mit stehender Uhr (1.9.53)
+
+`scripts/klicktest_echter_tag.py` braucht einen Tag mit drei Zeitpunkten (07:00, Wechsel um 12:00, Feierabend um 16:15); die Uhr einer
+Instanz lässt sich nicht vorstellen. Die Instanz steht deshalb auf 23.10.2026 16:15 (Instanz und Browser), das Befüllen startet die Baustelle
+um 07:00 und wechselt um 12:00 über `app/time_tracking.py::zeitart_wechseln()` -- dieselbe Funktion, die der Knopf „Zeitart wechseln“ über
+`POST /api/time-entries/{id}/zeitart-wechseln` aufruft --, im Browser wird „Feierabend“ um 16:15 geklickt.
+
+- **Festlegung zu Werkzeug und Testablauf 1.9.53 (Bitte bestätigen)**: der Wechsel um 12:00 im Klicktest „echter Tag“ geschieht im Befüllen
+  über die Funktion hinter dem Knopf, nicht per Klick (die stehende Uhr steht auf dem Feierabend); geklickt wird der Feierabend.
