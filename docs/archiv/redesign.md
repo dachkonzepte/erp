@@ -4243,6 +4243,115 @@ Reiter „Stundenzettel“ (`/mobil/stundenzettel`, `field_timesheet.html`):
 | S4 | PDF herunterladen | Karte „Monat“: „Stundenzettel als PDF“ |
 | S5 | Hinweis „Liste gekürzt“ | entfällt: die Seite holt den Monat vollständig (`limit=None` im Server) |
 
+### R3, Meine Zeiten (1.9.59)
+
+- **Umsetzung**: `app/templates/mobil_zeiten.html` (neu; Skript auf oberster Ebene, Ereignisse in `binden()` -- die node-Tests führen
+  das Skript bis davor aus), Route `/mobil/zeiten`, `/mobil/stundenzettel` und `/time-tracking` (field) als Weiterleitung mit
+  `dk_ohne_seite`; `_mobile_header.html` zwei Reiter; `app/meine_zeiten.py`: Daten der Dialoge (Zeitarten, Tätigkeiten, buchbare Aufträge,
+  „Nachtragen erlaubt“, Standardpause, Kolonnen, eigene Gruppenbuchungen des Monats, Arten der Abwesenheit, `mitarbeiter_id`), Gruppen in
+  einer Abfrage (`_gruppen()`); `time_tracking_field.html` und `field_timesheet.html` entfernt.
+
+**Festlegungen 1.9.59 (Bitte bestätigen)**
+
+1. „Meine Zeiten“ unter `/mobil/zeiten` (eigene Adresse wie „Heute / Offen“); Reiter „Heute · Meine Zeiten“; `/time-tracking` leitet für die
+   Monteurin dorthin (ein `?order_id=` nur als Zahl), `/mobil/stundenzettel` immer; das Büro behält `/time-tracking`.
+2. Die Seite steht in `AUFGESCHOBEN` (Stufe 4; die Vorlage hat keinen Seitenkopf), wie „Heute“.
+3. Zeile: in der Datumsspalte (96 px) Von–Bis, dann „Zeitart · Auftrag“, rechts gebucht; zweite Zeile Tätigkeit · Notiz · „gebucht von …“
+   (nur wenn ein anderer gebucht hat); laufend ohne Stunden und ohne „⋮“, von früher mit „Feierabend auf „Heute“ eintragen“.
+4. „⋮“ an jeder gebuchten Zeile außerhalb des Abschlusses: Ändern und Löschen nur mit „manuelle Buchungen erlaubt“; an der eigenen
+   Gruppenbuchung des Kolonnenführers dazu „Für die Kolonne ändern / löschen“; „Nachtrag für die Kolonne“ im „⋮“ neben „+ Nachtragen“
+   (Kolonnenführer, manuelle und Gruppenbuchungen erlaubt). Kolonnen-Nachtrag und -Ändern bleiben „Stunden je Person“ wie bisher (eine
+   Dauer, keine Pausenregel).
+5. Dialog „Zeit nachtragen“ / „Zeit ändern“: Datum, Zeitart, Von, Bis, Auftrag; unter „Weitere Angaben“ Tätigkeit, Notiz und „Pause
+   mindestens“ (leer = nach Zeitregel; beim Ändern mit dem Hinweis „Bisher abgezogen …“), immer zugeklappt -- beim Ändern nennt der
+   Knopf Tätigkeit und Notiz der Buchung (aufgeklappt rutschten Vorschau und Knopf bei 620 px Höhe aus dem Bild). Knopf aus der
+   Vorschau „x,xx h nachtragen“ bzw. „x,xx h speichern“, ohne Vorschau „Nachtragen“/„Speichern“.
+6. Der Nachtrag schickt als Mindestpause nur „Pause mindestens“ (sonst 0) -- die alte Seite setzte die Standardpause der Zeitregeln ein;
+   jetzt gilt wie beim Feierabend die Pausenregel des Tages. Der Kolonnen-Nachtrag schickt die Standardpause wie bisher.
+7. Eine Buchung ohne Uhrzeiten (Dauer, z. B. aus dem Büro) ändert die Monteurin nur mit Von und Bis (Hinweis im Dialog).
+8. Löschen fragt in einem Dialog auf der Seite nach (Buchung: mit dem Hinweis auf „Pausen neu rechnen“; Kolonnenbuchung: selbst geänderte
+   bleiben); „Zurückziehen“ eines Antrags fragt in seiner Zeile nach (bis 1.9.58 confirm()).
+9. „Pausen neu rechnen“ steht in der Kopfzeile des Tages, nicht im Abschluss; der Klick lädt die Vorschau frisch vom Server, „So buchen“
+   bucht genau sie (sonst 409 mit Meldung).
+10. Nach dem Speichern zeigt die Seite den Monat der Buchung; „›“ nicht über den laufenden Monat hinaus.
+11. Abwesenheit: die Karte nennt die offenen Anträge, „+ Antrag“ öffnet den Dialog mit Formular und „Meine Anträge“ (wie bisher).
+12. Monat: Summe, Tage, „davon Fahrzeit · produktiv“ des angezeigten Monats (bis 1.9.58 die Kennzahlen „Heute“), „Stundenzettel als PDF“
+    für diesen Monat.
+13. Hinweise oben: „Konto ohne Mitarbeiter“ (app/meldungen.py), keine eigenen Aufträge.
+14. `meine_zeiten()` liest die Gruppen aller Zeilen in einer Abfrage (bis dahin eine je Zeile).
+15. Bildgrundlage: „meine_zeiten“ (Büro und Monteurin) statt „zeiterfassung_monteur“ und „stundenzettel“.
+16. Die Pausenprüfung eines Tags (`pausen_vorschau()`) lässt eine reine Dauer stehen: sie ist gebuchte Arbeitszeit, ihre Pause bleibt; sie
+    zählt mit Stunden + Pause vor den Buchungen mit Uhrzeiten zur Anwesenheit des Tags (wie beim Buchen). Neu gerechnet werden nur Buchungen
+    mit Von und Bis.
+
+**Befund im Klicktest (behoben in dieser Version)**: ein Tag mit nur einer reinen Dauer (Kolonnen-Nachtrag 8 h, Pause 0) zeigte „Pause
+abgezogen 0:00 h · nach Zeitregel 0:30 h“, „Pausen neu rechnen“ hätte 7,50 h gebucht -- `pausen_vorschau()` (1.9.57) rechnete auch eine
+Dauer nach der Regel neu. Seit 1.9.59 bleibt sie (Festlegung 16), Tests `test_v483::test_reine_dauer_behaelt_ihre_pause` und
+`::test_dauer_zaehlt_vor_den_zeiten_zum_tag`.
+
+**Tests und Prüfung**
+
+- Neu `scripts/klicktest_meine_zeiten.py` (45 Prüfungen, stehende Uhr Mi 14.10.2026 10:00): alte Adressen und Reiter, quer und hoch hell
+  und dunkel, Kacheln ohne laufende Zeit, Tage und Zeilen, Abwesenheit und Monat, PDF, Nachtragen mit „Tag zusammen“, Ändern mit
+  Mindestpause, Löschen mit Rückfrage, „Pausen neu rechnen“, Kolonne ändern, nachtragen, löschen, abgeschlossener September, Antrag und
+  Zurückziehen, „gebucht von“, Zeit von früher, Konto ohne Mitarbeiter -- jede Funktion aus dem Befund hier oder in `klicktest_heute`.
+- `test_v483`: zwei Tests zur Dauer (Befund oben), 15 Tests.
+- Angepasste Erwartungen (Test: alt -> neu):
+  - `test_v260::test_field_reaches_only_the_pages_it_needs`: `/mobil/stundenzettel` und `/time-tracking` 200 -> 302 auf `/mobil/zeiten`; dazu
+    `/mobil/zeiten` 200.
+  - `test_v264::test_field_gets_the_reduced_template_without_sidebar_or_group_booking` (jetzt `test_field_is_sent_to_meine_zeiten`): 200 mit
+    `time_tracking_field.html` -> 302 auf „Meine Zeiten“, dort ohne Seitenleiste, Büro-Gruppenbuchung und Mitarbeiterfeld, Kolonne verborgen.
+  - `test_v264::test_field_gets_reduced_template_even_with_order_id_query_param`: 200 -> 302 auf `/mobil/zeiten?order_id=1`, sonst ohne Zahl.
+  - `test_v265::test_quick_and_manual_activity_selects_are_present`: `quickActivity`/`manualActivity` auf `/time-tracking` -> `startTaetigkeit`
+    auf `/mobil`, `zdTaetigkeit` auf `/mobil/zeiten`.
+  - `test_v269` (2 Tests), `test_v272::test_monteursseiten_nehmen_die_alten_farbnamen_zentral`: Seiten des Monteurskopfs mit
+    `field_timesheet.html`, `time_tracking_field.html` -> mit `mobil_zeiten.html`.
+  - `test_v272::test_kopf_ist_eine_zeile_mit_kachel_reitern_lupe_und_konto`: Reiter Heute · Zeiterfassung · Stundenzettel -> Heute · Meine Zeiten.
+  - `test_v272::test_einsaetze_ist_auch_auf_den_seiten_darunter_aktiv`: aktiv auf `/time-tracking` und `/mobil/stundenzettel` -> „Meine Zeiten“
+    auf `/mobil/zeiten`.
+  - `test_v313::test_every_page_listing_time_entries_reads_total_and_shows_truncation_notice`: Liste mit den beiden alten Seiten -> ohne sie,
+    `mobil_zeiten.html` nicht darunter (holt den Monat vollständig).
+  - `test_v328::test_seitenleiste_des_monteurs_auf_der_berichtsseite`: Links `/mobil`, `/time-tracking`, `/mobil/stundenzettel` -> `/mobil`,
+    `/mobil/zeiten`.
+  - `test_v329::test_mobile_zeitbuchung_aendern_laesst_pause_und_lv_position` (jetzt `test_meine_zeiten_aendern_laesst_die_lv_position`):
+    Schlüssel mit `hours`, Pause 45 bleibt -> Schlüssel mit `von`/`bis` (dazu `pause_minuten`), LV-Position bleibt, Pause nach der Tagesregel
+    (0 bei 6:00 h).
+  - `test_v329::test_mobile_kolonnenbuchung_aendern_laesst_pause_und_lv_position`: `saveCrewDialog` der Zeiterfassung -> `kolonneSpeichern`
+    von „Meine Zeiten“ (Schlüssel gleich).
+  - `test_v390`: begründeter Zeitpunkt `updateClock` der alten Seite entfällt; `today()` der alten Seite -> `berlinToday()` als Vorgabedatum
+    der Dialoge.
+  - `test_v400`: Ausnahme `field_timesheet.html | init` entfällt; „Monatswechsel des Stundenzettels“ -> „Monatswechsel von Meine Zeiten“
+    (`laden()`, der zuletzt gewählte Monat gewinnt).
+  - `test_v407`: drei Handler-Ausnahmen der alten Seite entfallen (Liste kürzer).
+  - `test_v424`: drei Felder der alten Seite -> zwei von „Meine Zeiten“ (`zdPause`, `kdStunden`); Mindestzahl der Felder 88 -> 87.
+  - `test_v425::test_jede_umleitung_einer_seitenroute_steht_an_der_route`: umleitend login, dashboard -> dazu Stundenzettel und Zeiterfassung.
+  - `test_v401::test_jede_weiterleitung_des_servers_hat_ein_festes_oder_geprueftes_ziel`: 4 -> 6 Weiterleitungen.
+  - `test_v431`: Seiten ohne Büro ohne `time_tracking_field.html`; Bilder 310 -> 302, die bisherigen 248 -> 244.
+  - `test_v440`: Nutzer der Meldung „Konto ohne Mitarbeiter“ `field_timesheet.html`, `time_tracking_field.html` -> `mobil_zeiten.html`;
+    gezeichnete Seiten `/time-tracking` (field) und `/mobil/stundenzettel` -> `/mobil/zeiten`.
+  - `test_v441`: `AUFGESCHOBEN` mit den beiden alten Seiten -> mit `mobil_zeiten.html` (Stufe 4).
+  - `test_v450` (3 Tests): Dialoge der Zeiterfassung -> `zeitDialogOeffnen()`/`kolonneDialogOeffnen()` (Ergebnisse gleich).
+  - `test_v480::test_ergebnis_in_der_zeiterfassung` (jetzt `test_ergebnis_auf_meine_zeiten`): „Ende nachgetragen: … · Pause 0:45 h · gebucht
+    …“ -> „Nachgetragen: … · Pause nach Zeitregel − 0:45 h · gebucht …“ (wie „Heute“).
+  - `klicktest_monteurin_regeln`: offene Anzeige der Zeiterfassung, abgelehnter Start, „Bitte das Ende angeben.“, „Ende nachgetragen: anwesend
+    9:15 h · Pause 0:45 h · gebucht 8,50 h“, Uhr und „Zeit stoppen“ -> Zeile „läuft seit 06:45“ mit Weg zu „Heute“; auf „Heute“ Start
+    gesperrt, „Bitte die Uhrzeit des Feierabends angeben.“, „Feierabend gestern eingetragen: anwesend 9:15 h · Pause nach Zeitregel − 0:45 h
+    · gebucht 8,50 h“, Start über die Kachel.
+  - `klicktest_teil_updates`: Buchung ändern -- Pause 45 bleibt -> mit Von/Bis, Pause nach der Tagesregel (0), 4,00 h, LV-Position bleibt;
+    Kolonnenbuchung -- Meldung „Korrektur gespeichert“ -> „Kolonnenbuchung geändert.“
+  - `klicktest_zeitbuchungen_liste`: Monteurin Hinweis „gekürzt“ (500 bzw. 2000) -> Vormonat vollständig, jede Buchung eine Zeile, kein Hinweis.
+  - `klicktest_browser_datum`: `today()` und Monat des Stundenzettels -> Buchung von heute in der Liste, Vorgabedatum des Dialogs, Monat der
+    Seite.
+  - `klicktest_rahmen`: Reiter Heute · Zeiterfassung · Stundenzettel -> Heute · Meine Zeiten; Seiten `stundenzettel`/`zeiterfassung_monteur`
+    -> `meine_zeiten`; Ecken `.card` -> `.zahl-karte`, `.zeiten-karte`.
+  - `klicktest_monteur_navigation`, `klicktest_neue_ordnung`: Reiter wie oben.
+  - Bildgrundlage: Aufnahmen `zeiterfassung_monteur` und `stundenzettel` -> `meine_zeiten`.
+- **Gegenproben**: P1 reine Dauer wieder neu gerechnet -> 2 rot (test_v483, Dauer); P2 `/time-tracking` leitet die Monteurin nicht weiter -> 3
+  rot (test_v264 2, test_v260); P3 Löschen ohne Rückfrage -> Klicktest rot („Rückfrage auf der Seite“, „Abbrechen lässt alles“).
+
+**Offen (für 1.9.60)**: Die Karte „Erfasste Zeiten“ im Einsatzbericht bucht für die Monteurin noch eine Dauer -- lehnt der Server eine
+reine Dauer von `field` ab (Auftrag R3, Punkt 3), muss sie Von/Bis bekommen; deshalb in einer eigenen Version mit der Ablehnung.
+
 ### R3, Heute (1.9.58)
 
 - **Umsetzung**: `app/heute.py`: `taetigkeiten()`, in "nichts" `taetigkeiten`, `taetigkeit_pflicht` (Zeitregeln) und `kolonnen`

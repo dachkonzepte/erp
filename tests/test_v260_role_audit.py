@@ -763,13 +763,17 @@ class TestPageRouteClassification:
         entscheidet das Ziel, nicht ob der Weg gesperrt ist. Seit 1.8.1 (Checklisten) zwei weitere:
         /checklisten/{id} (Ausfüllen) und /checklisten/auftrag/{order_id} (Einstieg aus /mobil) --
         die Zugriffsprüfung je Checkliste/Auftrag sitzt in der API, die Seiten rendern nur das
-        Gerüst. Die Büro-Übersicht /checklisten und die Vorlagen bleiben gesperrt."""
+        Gerüst. Die Büro-Übersicht /checklisten und die Vorlagen bleiben gesperrt. Seit 1.9.59 „Meine Zeiten“ (/mobil/zeiten) statt
+        Zeiterfassung und Stundenzettel: /time-tracking und /mobil/stundenzettel leiten für field dorthin."""
         from app.routers.pages import router as pages_router
         db = threaded_db_session
         field = router_test_client(db, pages_router, role="field")
-        for path in ("/account", "/mobil", "/mobil/offen", "/mobil/stundenzettel", "/mobil/objekt/1", "/time-tracking", "/orders/1/service-reports", "/betriebsmittel/1",
+        for path in ("/account", "/mobil", "/mobil/offen", "/mobil/zeiten", "/mobil/objekt/1", "/orders/1/service-reports", "/betriebsmittel/1",
                      "/checklisten/1", "/checklisten/auftrag/1"):
             assert field.get(path, follow_redirects=False).status_code == 200, path
+        for path in ("/time-tracking", "/mobil/stundenzettel"):
+            weiter = field.get(path, follow_redirects=False)
+            assert (weiter.status_code, weiter.headers["location"]) == (302, "/mobil/zeiten"), path
         # /vor-ort entfällt ersatzlos -- keine Route mehr registriert, 404 statt 403/200.
         assert field.get("/vor-ort", follow_redirects=False).status_code == 404
         # "/" leitet auf die eigene Startseite weiter, statt zu sperren.

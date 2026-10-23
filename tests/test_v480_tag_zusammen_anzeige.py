@@ -4,8 +4,8 @@
                    tag_stand()) -- davon hängt die Pause ab; die gebuchten Stunden bleiben dezimal (bis 1.9.52 war „Tag zusammen“ die
                    Summe der gebuchten Stunden)
     Vorschau       „Anwesend 9:00 h · Tag zusammen 9:45 h · Pause nach Zeitregel − 0:45 h“, darunter „Gebucht werden 8,25 h“
-    Ergebnis       nach „Feierabend“ (Heute) und in der Zeiterfassung der Monteurin in derselben Reihenfolge: anwesend · Tag zusammen ·
-                   Pause, dann gebucht
+    Ergebnis       nach „Feierabend“ (Heute) und nach „Zeit nachtragen“ auf „Meine Zeiten“ (seit 1.9.59, bis dahin die Zeiterfassung der
+                   Monteurin) in derselben Reihenfolge: anwesend · Tag zusammen · Pause nach Zeitregel, dann gebucht
     nur mit Tag    „Tag zusammen“ nur, wenn der Tag schon Buchungen hat (tag_buchungen > 1)
 
 Die Zahlen des Servers prüft tests/test_v474_pause_je_tag.py, im Browser scripts/klicktest_heute.py und scripts/klicktest_echter_tag.py.
@@ -75,14 +75,15 @@ def test_vorschau_auf_heute_tag_zusammen_zwischen_anwesend_und_pause():
 
 
 @pytest.mark.parametrize("daten, erwartet", [
-    (MIT_TAG, "Ende nachgetragen: anwesend 9:00 h · Tag zusammen 9:45 h · Pause 0:45 h · gebucht 8,25 h"),
-    (OHNE_TAG, "Ende nachgetragen: anwesend 9:00 h · Pause 0:30 h · gebucht 8,50 h"),
+    ({**MIT_TAG, "hours": "8.2500"}, "Nachgetragen: anwesend 9:00 h · Tag zusammen 9:45 h · Pause nach Zeitregel − 0:45 h · gebucht 8,25 h"),
+    ({**OHNE_TAG, "hours": "8.5000"}, "Nachgetragen: anwesend 9:00 h · Pause nach Zeitregel − 0:30 h · gebucht 8,50 h"),
 ], ids=["mit_frueherer_buchung", "ohne_fruehere_buchung"])
-def test_ergebnis_in_der_zeiterfassung(daten, erwartet):
-    text = _skript("time_tracking_field.html")
-    teile = [_funktion(text, k) for k in ("function dauerUhr(", "function tagZusammen(", "function ergebnisText(")]
-    js = _zahl() + "\n" + "\n".join(teile) + f"\nprocess.stdout.write(JSON.stringify(ergebnisText('Ende nachgetragen',{json.dumps(daten)})));"
+def test_ergebnis_auf_meine_zeiten(daten, erwartet):
+    """Seit 1.9.59 „Meine Zeiten“ statt der Zeiterfassung der Monteurin: dieselbe Zeile wie auf „Heute“ (bis 1.9.58 „Pause 0:45 h“)."""
+    text = _skript("mobil_zeiten.html")
+    teile = [_funktion(text, k) for k in ("function pad2(", "function stundenUhr(", "function stunden(", "function tagZusammen(",
+                                          "function buchungsText(")]
+    js = (_zahl() + "\n" + "\n".join(teile) + f"\nconst d={json.dumps(daten)};"
+          "process.stdout.write(JSON.stringify('Nachgetragen: '+buchungsText(d)+' · gebucht '+stunden(d.hours)));")
     assert node_ausfuehren(js) == erwartet
-    for was in ("Gestoppt", "Ende nachgetragen", "Nachgetragen"):
-        assert f"ergebnisText('{was}',d)" in text
-    assert "anwesend ${zahlText(d.anwesend,2)} h" not in text  # die frühere Fassung (anwesend dezimal, Pause in Minuten)
+    assert "ergebnis((aendern?'Geändert':'Nachgetragen')+': '+buchungsText(d)+' · gebucht '+stunden(d.hours))" in text

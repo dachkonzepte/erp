@@ -146,7 +146,7 @@ def test_seitenleiste_des_monteurs_auf_der_berichtsseite(welt, monkeypatch):
     db, pfad = welt["db"], "/orders/1/service-reports"
     monteur = _client_als(db, [pages_router], welt["user_ids"][ROLE_FIELD]).get(pfad)
     # seit 1.8.164 der Monteurskopf mit seinen drei Reitern statt der Seitenleiste (bis dahin Start und Zeiterfassung)
-    assert _links(monteur.text) == {"/mobil", "/time-tracking", "/mobil/stundenzettel"}
+    assert _links(monteur.text) == {"/mobil", "/mobil/zeiten"}  # seit 1.9.59 „Heute · Meine Zeiten“
     buero = _client_als(db, [pages_router], welt["user_ids"][ROLE_OFFICE_AUFTRAG]).get(pfad)
     assert {"/maintenance-contracts", "/findings", "/inquiries", "/projects", "/planning"} <= _links(buero.text)
 

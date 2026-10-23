@@ -190,21 +190,18 @@ class TestFieldTimeTrackingPageRouting:
     ein mitgegebener ?order_id=-Query-Parameter (wie ihn service_reports.html anhängt) daran
     nichts ändert."""
 
-    def test_field_gets_the_reduced_template_without_sidebar_or_group_booking(self, router_test_client, threaded_db_session):
+    def test_field_is_sent_to_meine_zeiten(self, router_test_client, threaded_db_session):
+        """Seit 1.9.59 (Stufe 4, R3): statt time_tracking_field.html eine Weiterleitung auf „Meine Zeiten“ -- dort ohne Seitenleiste,
+        ohne Büro-Gruppenbuchung, ohne Mitarbeiterfeld; die Kolonne nur unter „⋮“ für den Kolonnenführer."""
         from app.routers.pages import router as pages_router
         db = threaded_db_session
         field = router_test_client(db, pages_router, role="field")
-        resp = field.get("/time-tracking")
-        assert resp.status_code == 200
-        body = resp.text
-        assert "quickTiles" in body  # eindeutiger Marker aus time_tracking_field.html
-        assert "app-sidebar" not in body  # keine volle Sidebar (_sidebar.html)
-        assert "groupDialog" not in body  # keine Büro-Gruppenbuchung
-        # Seit 1.7.12 gibt es einen Kolonnen-Abschnitt -- standardmäßig verborgen, eingeblendet nur
-        # für Kolonnenführer (GET /api/time-tracking/crews), und serverseitig ebenso gesperrt
-        # (tests/test_v302_crew_leader.py). Löst die 1.3.60-Entscheidung "keine Gruppenbuchung" ab.
-        assert 'id="crewCard" class="card" hidden' in body
-        assert "manualEmployeeWrap" not in body  # kein Mitarbeiterfeld
+        resp = field.get("/time-tracking", follow_redirects=False)
+        assert (resp.status_code, resp.headers["location"]) == (302, "/mobil/zeiten")
+        body = field.get("/time-tracking").text
+        assert 'id="nachtragenKnopf"' in body  # Marker aus mobil_zeiten.html
+        assert "app-sidebar" not in body and "groupDialog" not in body and "manualEmployeeWrap" not in body
+        assert 'id="kolonneAnker" hidden' in body
 
     def test_field_gets_reduced_template_even_with_order_id_query_param(self, router_test_client, threaded_db_session):
         """Der Weg von service_reports.html (#timeLink -> /time-tracking?order_id=...) darf die
@@ -212,10 +209,11 @@ class TestFieldTimeTrackingPageRouting:
         from app.routers.pages import router as pages_router
         db = threaded_db_session
         field = router_test_client(db, pages_router, role="field")
-        resp = field.get("/time-tracking?order_id=1")
-        assert resp.status_code == 200
-        assert "quickTiles" in resp.text
-        assert "app-sidebar" not in resp.text
+        resp = field.get("/time-tracking?order_id=1", follow_redirects=False)
+        assert (resp.status_code, resp.headers["location"]) == (302, "/mobil/zeiten?order_id=1")  # seit 1.9.59 mit dem Auftrag
+        for unsinn in ("abc", "1/../x", "-3", ""):
+            weiter = field.get("/time-tracking", params={"order_id": unsinn}, follow_redirects=False)
+            assert weiter.headers["location"] == "/mobil/zeiten", unsinn  # nur eine Zahl geht mit
 
     def test_office_and_admin_still_get_the_full_sidebar_template_with_group_booking(self, router_test_client, threaded_db_session):
         from app.routers.pages import router as pages_router

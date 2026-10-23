@@ -7,7 +7,8 @@ seite(), im_browser(); Antworten des Servers als ANTWORTEN):
 
     Büro-Zeiterfassung      Auftrag der Buchung abgeschlossen bzw. nicht zugeordnet: nachgeladen, gewählt mit Stand, samt LV-Position;
                             Ausweichweg ohne Kontext: die Positionen des Auftrags werden nachgeladen, die LV-Position bleibt
-    Monteurs-Zeiterfassung  Einzelbuchung und Kolonnenbuchung: Auftrag außerhalb der Auswahl (±14 Tage) bleibt gewählt
+    Meine Zeiten            Einzelbuchung und Kolonnenbuchung: Auftrag außerhalb der Auswahl (±14 Tage) bleibt gewählt (bis 1.9.58 die
+                            Zeiterfassung der Monteurin)
     Projektmappe            Objekt eines anderen Kunden (bestätigt) und „kein Objekt“ bleiben beim Öffnen; die Hauptadresse nur beim
                             Kundenwechsel
     Wartungsvertrag         gespeichertes Objekt mit Hauptadresse bleibt gewählt
@@ -88,33 +89,35 @@ def test_buero_zeiterfassung_neue_buchung_wie_bisher():
     assert _lauf("time_tracking.html", "init().catch(", ablauf)["ergebnis"] == ["", "— Auftrag / Baustelle wählen —"]
 
 
-# --- Monteurs-Zeiterfassung --------------------------------------------------------------------------------------------------------
+# --- Meine Zeiten (seit 1.9.59, bis dahin die Zeiterfassung der Monteurin) -----------------------------------------------------------
 
-FELD_KONTEXT = ("orders = [{id: 1, order_number: 'AUF-1', customer_name: 'Kunde', property_address: null}];"
-                "types = [{value: 'site', label: 'Baustelle', is_default: true}]; allTypes = types; activities = []; allActivities = [];"
-                "globalThis.manualDialog = _element('manualDialog'); globalThis.crewDialog = _element('crewDialog');")
+FELD_KONTEXT = ("D = {mitarbeiter_id: 5, abgeschlossen_bis: null, standardpause: 0, taetigkeiten: [], kolonnen_buchungen: [],"
+                " auftraege: [{id: 1, order_number: 'AUF-1', customer_name: 'Kunde', property_address: null}],"
+                " zeitarten: [{value: 'site', label: 'Baustelle'}], kolonnen: [{team_id: 3, name: 'Kolonne', members: []}]};")
+ZEILE = {"id": 9, "work_date": "2026-10-20", "order_id": 2, "order_number": "AUF-2", "project_name": "Lager", "entry_type": "site",
+         "zeitart": "Baustelle", "activity": None, "notes": "", "von": None, "bis": None, "gebucht": "5.00", "pause": 0}
 
 
 @nur_mit_node
 def test_monteur_einzelbuchung_auftrag_ausserhalb_der_auswahl():
     """Auftrag der Buchung außerhalb von ±14 Tagen (bis 1.9.15: „— Auftrag wählen —“, Speichern verlangte Umbuchen)."""
-    ablauf = FELD_KONTEXT + f"openManual({json.dumps(BUCHUNG)}); return _feld('manualOrder');"
-    assert _lauf("time_tracking_field.html", "init().catch(", ablauf)["ergebnis"] == ["2", "AUF-2 · Lager (nicht mehr in der Auswahl)"]
+    ablauf = FELD_KONTEXT + f"zeitDialogOeffnen({json.dumps(ZEILE)}); return _feld('zdAuftrag');"
+    assert _lauf("mobil_zeiten.html", "binden();", ablauf)["ergebnis"] == ["2", "AUF-2 · Lager (nicht mehr in der Auswahl)"]
 
 
 @nur_mit_node
 def test_monteur_kolonnenbuchung_auftrag_ausserhalb_der_auswahl():
     gruppe = {"id": 4, "order_id": 2, "order_number": "AUF-2", "members": [{"name": "Max"}], "work_date": "2026-10-20", "hours": "8",
               "entry_type": "site", "activity": None, "notes": ""}
-    ablauf = FELD_KONTEXT + f"crewGroups = [{json.dumps(gruppe)}]; openCrewDialog(4); return _feld('crewDialogOrder');"
-    assert _lauf("time_tracking_field.html", "init().catch(", ablauf)["ergebnis"] == ["2", "AUF-2 (nicht mehr in der Auswahl)"]
+    ablauf = FELD_KONTEXT + f"kolonneDialogOeffnen({json.dumps(gruppe)}); return _feld('kdAuftrag');"
+    assert _lauf("mobil_zeiten.html", "binden();", ablauf)["ergebnis"] == ["2", "AUF-2 (nicht mehr in der Auswahl)"]
 
 
 @nur_mit_node
 def test_monteur_neue_buchung_ohne_vorgabe_ausserhalb():
     """Vergleichsfall: eine neue Buchung schlägt keinen Auftrag außerhalb der Auswahl vor."""
-    ablauf = FELD_KONTEXT + "openManual(); return _feld('manualOrder');"
-    assert _lauf("time_tracking_field.html", "init().catch(", ablauf)["ergebnis"] == ["", "— Auftrag wählen —"]
+    ablauf = FELD_KONTEXT + "zeitDialogOeffnen(null); return _feld('zdAuftrag');"
+    assert _lauf("mobil_zeiten.html", "binden();", ablauf)["ergebnis"] == ["", "— Auftrag wählen —"]
 
 
 # --- Projektmappe --------------------------------------------------------------------------------------------------------------------

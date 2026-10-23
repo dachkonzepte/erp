@@ -212,10 +212,13 @@ def pausen_vorschau(db: Session, employee_id: int, tag: date) -> dict:
     Reihenfolge des Tags gäbe (wie pause_nach_zeitregel(): jede bekommt, was dem Tag noch fehlt, höchstens ihre Anwesenheit; ohne
     Mindestpause; über pause_nach_zeitregel(vorher=…), die eine Pausenregel). passt = die Summen sind gleich (eine andere Verteilung bei
     gleicher Summe passt). buchungen: je Buchung, deren Pause sich ändern würde, alt -> neu (Pause in Minuten, gebucht nach der Rundung
-    der Zeitregeln)."""
+    der Zeitregeln). Seit 1.9.59: eine reine Dauer (ohne Uhrzeiten) ist gebuchte Arbeitszeit -- ihre Pause bleibt, wie sie ist; sie
+    zählt mit Stunden + Pause vor den Buchungen mit Uhrzeiten zur Anwesenheit des Tags (wie beim Buchen). Bis dahin rechnete die Prüfung
+    auch sie neu: ein Kolonnen-Nachtrag von 8 h hieß „nach Zeitregel 0:30 h“, „Pausen neu rechnen“ hätte 7,50 h gebucht."""
     rows = _reihenfolge_am_tag(buchungen_am_tag(db, employee_id, tag))
-    anwesend_vorher, pause_vorher, plan = Decimal("0"), 0, []
-    for r in rows:
+    dauern = [r for r in rows if not (r.started_at and r.ended_at and r.ended_at > r.started_at)]
+    anwesend_vorher, pause_vorher, plan = _anwesend_summe(dauern), sum(int(r.break_minutes or 0) for r in dauern), []
+    for r in (r for r in rows if r not in dauern):
         anwesend = _anwesend_der_buchung(r)
         neu = pause_nach_zeitregel(db, employee_id, anwesend, tag, vorher=(anwesend_vorher, pause_vorher))
         alt = int(r.break_minutes or 0)

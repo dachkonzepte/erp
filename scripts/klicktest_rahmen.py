@@ -76,7 +76,8 @@ Geprüft wird im echten Browser auf den Testdaten der Bildgrundlage (scripts/bil
                    schließt „Checklisten zu diesem Auftrag“ an seine Karte an
     Seitenregeln   auf den Einstellungen (button:hover und button:active in der Akzentfarbe): Kontoknopf unter der Maus und per
                    Leertaste gedrückt (:active ohne :hover), Menüeintrag unter der Maus -- nie in der Akzentfarbe
-    Monteurskopf   auf jeder Seite der Monteurin (Mobil, Objekt, Stundenzettel, Zeiterfassung, Betriebsmittel, Checkliste,
+    Monteurskopf   auf jeder Seite der Monteurin (Mobil, Objekt, Meine Zeiten -- bis 1.9.58 Stundenzettel und Zeiterfassung --,
+                   Betriebsmittel, Checkliste,
                    Checklisten je Auftrag, Einsatzbericht, Konto) bei 1280 × 620 und 800 × 1100: 64 px, einzeilig, keine Seitenleiste
                    und keine Kopfzeile des Büros, Name ganz zu sehen, Reiter 48 px mit 16 px, der richtige aktiv (3 px Strich in
                    marke-hell), Lupe 48 × 48 -- auch auf den drei Seiten mit button{min-height:44px;width:100%}; hell und dunkel; bei
@@ -111,8 +112,8 @@ ROLLEN = (bg.BUERO, bg.BUERO_AUFTRAG, bg.ADMIN)  # die Monteurin hat seit 1.8.16
 GRUPPEN = {r: ["Übersicht", "Aufträge", "Kaufmännisch", "Verwaltung"] for r in ROLLEN}
 SEITE_JE_ROLLE = {bg.BUERO: "start", bg.BUERO_AUFTRAG: "start", bg.ADMIN: "start"}
 # Seiten der Monteurin -> aktiver Reiter
-MONTEUR_SEITEN = {"mobil": "Heute", "mobil_objekt": "Heute", "stundenzettel": "Stundenzettel",
-                  "zeiterfassung_monteur": "Zeiterfassung", "betriebsmittel_monteur": "Heute", "checkliste": "Heute",
+MONTEUR_SEITEN = {"mobil": "Heute", "mobil_objekt": "Heute", "meine_zeiten": "Meine Zeiten",  # seit 1.9.59
+                  "betriebsmittel_monteur": "Heute", "checkliste": "Heute",
                   "checklisten_auftrag": "Heute", "einsatzbericht": "Heute", "konto": None}
 AKTIV = [("projektmappe", "projekte"), ("rechnung", "projekte"), ("kunde", "stammdaten"), ("befunde", "befunde"),
          ("einstellungen", "einstellungen"), ("zeiterfassung", "zeiterfassung"), ("suche", None), ("konto", None)]
@@ -588,7 +589,7 @@ async def _seitenregeln(tab, seed, p):
 async def _monteurskopf(tab, seed, p):
     await tab.anmelden(seed["cookies"][bg.MONTEUR])
     for (breite, hoehe), thema in (((1280, 620), "hell"), ((800, 1100), "hell"), ((1280, 620), "dunkel"), ((800, 1100), "dunkel")):
-        seiten = MONTEUR_SEITEN if thema == "hell" else {n: MONTEUR_SEITEN[n] for n in ("einsatzbericht", "konto", "zeiterfassung_monteur")}
+        seiten = MONTEUR_SEITEN if thema == "hell" else {n: MONTEUR_SEITEN[n] for n in ("einsatzbericht", "konto", "meine_zeiten")}
         for name, reiter in seiten.items():
             wo = f"Monteurskopf {name} {thema} {breite}×{hoehe}"
             p.pruefe(f"{wo}: geladen", await _laden(tab, seed, name, thema, breite, hoehe), True)
@@ -598,7 +599,7 @@ async def _monteurskopf(tab, seed, p):
                      [64, 64, True, False, False, True, False])
             p.pruefe(f"{wo}: Name ganz zu sehen", [m["name"], m["name_ganz"]], ["Mia Monteurin", True])
             p.pruefe(f"{wo}: Reiter 48 px mit 16 px, Lupe 48 × 48", [m["reiter"], m["lupe"]],
-                     [[["Heute", 48, "16px"], ["Zeiterfassung", 48, "16px"], ["Stundenzettel", 48, "16px"]], [48, 48]])
+                     [[["Heute", 48, "16px"], ["Meine Zeiten", 48, "16px"]], [48, 48]])  # seit 1.9.59
             # seit 1.8.170 auf navi-aktiv mit 10 px Ecken, der Strich als inset-Schatten (bis dahin unterer Rand von 3 px)
             # seit 1.9.0 Schrift weiß in 600 (bis dahin navi-text in 500)
             p.pruefe(f"{wo}: aktiver Reiter", m["aktiv"], [[reiter, "page", True, True, "10px", "rgb(255, 255, 255)", "600"]] if reiter else [])
@@ -1427,8 +1428,7 @@ ECKEN_FAELLE = [
     ("checkliste", bg.BUERO, (1440, 900), [".q", ".footer-card"], "12px"),
     ("einsatzbericht", bg.BUERO, (1440, 900), [".card"], "12px"),
     ("mobil", bg.MONTEUR, (1280, 620), [".heute-karte"], "16px"),
-    ("zeiterfassung_monteur", bg.MONTEUR, (1280, 620), [".card"], "16px"),
-    ("stundenzettel", bg.MONTEUR, (1280, 620), [".card"], "16px"),
+    ("meine_zeiten", bg.MONTEUR, (1280, 620), [".zahl-karte", ".zeiten-karte"], "16px"),  # seit 1.9.59
     ("checkliste", bg.MONTEUR, (1280, 620), [".q", ".footer-card"], "16px"),
     ("einsatzbericht", bg.MONTEUR, (1280, 620), [".card"], "16px"),
     ("konto", bg.MONTEUR, (1280, 620), [".card"], "16px"),

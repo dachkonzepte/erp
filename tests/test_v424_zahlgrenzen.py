@@ -183,9 +183,9 @@ ABGLEICH = [
     Z("time_tracking.html", "id=manualBreak", ("TimeEntryManualCreate.break_minutes", "TimeEntryUpdate.break_minutes")),
     Z("time_tracking.html", "id=groupHours", ("TimeGroupManualCreate.hours", "TimeGroupUpdate.hours"), lesen=("zahlFeld('groupHours')",)),
     Z("time_tracking.html", "id=groupBreak", ("TimeGroupManualCreate.break_minutes", "TimeGroupUpdate.break_minutes")),
-    Z("time_tracking_field.html", "id=stopBreak", ("TimeTimerStop.break_minutes",)),
-    Z("time_tracking_field.html", "id=manualDuration", ("TimeEntryManualCreate.hours", "TimeEntryUpdate.hours")),
-    Z("time_tracking_field.html", "id=crewDialogHours", ("TimeGroupManualCreate.hours", "TimeGroupUpdate.hours")),
+    # -- Meine Zeiten (seit 1.9.59, statt der Zeiterfassung der Monteurin)
+    Z("mobil_zeiten.html", "id=zdPause", ("TimeEntryManualCreate.break_minutes", "TimeEntryUpdate.pause_minuten")),
+    Z("mobil_zeiten.html", "id=kdStunden", ("TimeGroupManualCreate.hours", "TimeGroupUpdate.hours")),
     # -- Arbeitsvorbereitung
     Z("work_preparation.html", "id=mqty-${x.id}", ("WorkPreparationMaterialUpdateV082.planned_quantity",)),
 ]
@@ -240,7 +240,7 @@ def test_jedes_feld_und_jeder_leseaufruf_mit_grenzen_steht_genau_einmal_im_abgle
     markup = [(z.vorlage, z.markup) for z in ABGLEICH if z.markup]
     gelesen = [(z.vorlage, a) for z in ABGLEICH for a in z.lesen]
     vorhanden_markup, vorhanden_lesen = _vorhanden()
-    assert len(vorhanden_markup) >= 88 and len(vorhanden_lesen) >= 35
+    assert len(vorhanden_markup) >= 87 and len(vorhanden_lesen) >= 35  # seit 1.9.59 87 (Meine Zeiten 2 Felder statt der Zeiterfassung 3)
     assert sorted(set(vorhanden_markup) - set(markup)) == [], "Zahlenfeld mit Grenzen fehlt im Abgleich"
     assert sorted(set(markup) - set(vorhanden_markup)) == [], "Abgleich nennt ein Feld, das es nicht (mehr) gibt"
     assert len(markup) == len(set(markup))

@@ -6,11 +6,10 @@ Befüllt: Auftrag mit Einsatz (Plantafel heute ± 7 Tage) für Mia (Monteurin) u
 (Flachdach, ein Gully) und Mias Rapportbericht mit Prüfvorlage (vier Pflichtpunkte, zwei freie) und einem von Hand ergänzten Punkt.
 
     Mia (412 px, dunkel)  /mobil: Hinweis „Deine Zeit läuft noch seit <gestern>, 06:45 Uhr“ mit Zeitart, Auftrag und „Ende nachtragen →“.
-                          Zeiterfassung: statt Uhr und „Zeit stoppen“ der Hinweis „Die Zeit vom … läuft noch“, Feld „Ende an diesem Tag“,
-                          Knopf „Ende nachtragen“; „Schnell starten“ meldet die offene Zeit (Server 409). Ende leer -> „Bitte das Ende
-                          angeben.“, 06:00 -> Meldung des Servers (vor dem Start), 16:00 -> „Ende nachgetragen: anwesend 9:15 h · Pause
-                          0:45 h · gebucht 8,50 h“ (seit 1.9.53 in dieser Reihenfolge), danach startet sie neu (Uhr und „Zeit
-                          stoppen“ wieder da).
+                          Meine Zeiten (seit 1.9.59 statt der Zeiterfassung): Zeile „läuft seit 06:45“ ohne Stunden mit „Feierabend auf
+                          „Heute“ eintragen“; auf „Heute“ Start gesperrt, Ende leer -> „Bitte die Uhrzeit des Feierabends angeben.“, 06:00
+                          -> Meldung des Servers (vor dem Start), 16:00 -> „Feierabend gestern eingetragen: anwesend 9:15 h · Pause nach
+                          Zeitregel − 0:45 h · gebucht 8,50 h“, danach startet sie über die Kachel neu.
     Anna (1400 px, hell)  Zeiterfassung für Tom: dieselbe offene Anzeige, „Ende nachtragen“ 15:30 -> gebucht mit Pause; im Verlauf (API)
                           steht Anna.
     Mia (412 px, dunkel)  Einsatzbericht (seit 1.9.36): der Rapportbericht zeigt „Prüfpunkte“; am Knopf „Unterschreiben“ die Liste „Noch
@@ -115,7 +114,7 @@ def befuellen(db, k):
 
 
 MOBIL_BEREIT = "!document.getElementById('assignmentsList').textContent.includes('Lädt')"
-FELD_BEREIT = "!document.getElementById('activeCard').hidden && document.getElementById('quickOrder').options.length>1"
+ZEITEN_BEREIT = "typeof D!=='undefined'&&D&&D.tage.length>0"
 BUERO_BEREIT = "document.getElementById('activeCard').style.display==='block'"
 
 
@@ -142,47 +141,35 @@ async def pruefen(tab, seed, p):
         "document.documentElement.scrollWidth<=document.documentElement.clientWidth+1"), True)
     await tab.bild("1_mobil_offene_zeit_dunkel_412")
 
-    # --- Mia: Zeiterfassung, offene Zeit ------------------------------------------------------------------------------------------
-    await tab.oeffnen("/time-tracking", FELD_BEREIT)
-    p.pruefe("Zeiterfassung: offene Anzeige statt Uhr und Stopp", await tab.js(
-        "['offenBlock','endeBtn','stopBtn','activeTime','quickCard'].map(id=>document.getElementById(id).hidden)"),
-        [False, False, True, True, False])
-    p.pruefe("Zeiterfassung: Hinweis", await tab.js("document.getElementById('offenHinweis').textContent"),
-             f"Die Zeit vom {g} läuft noch (seit 06:45 Uhr). Trag das Ende an diesem Tag nach.")
-    await tab.js(f"document.getElementById('quickOrder').value='{seed['auftrag']}'")
-    await tab.js("document.querySelector('#quickTiles button').click()")
-    await tab.warten("document.getElementById('quickStatus').textContent.length>0")
-    p.pruefe("Start mit offener Zeit: Meldung des Servers", await tab.js("document.getElementById('quickStatus').textContent"),
-             f"Fehler: Die Zeit vom {g} läuft noch – zuerst das Ende nachtragen, dann neu starten.")
-    await tab.js("document.getElementById('quickCard').scrollIntoView({block:'center'})")
-    await tab.bild("2_start_mit_offener_zeit_dunkel_412")
-    # seit 1.9.40: an keiner Kachel ein „✓“ (bis 1.9.39 trug die vorgeschlagene Schlechtwetter-Zeitart eins, las sich wie „gestartet“)
-    p.pruefe("Abgelehnter Start: kein „✓“ an einem Knopf, Vorschlag als Text", await tab.js(
-        "[[...document.querySelectorAll('#quickTiles button')].some(b=>b.textContent.includes('✓')),"
-        "[...document.querySelectorAll('#quickTiles .vorschlag')].map(s=>s.textContent)]"), [False, ["Vorschlag"]])
-
-    await tab.js("window.scrollTo(0,0);document.getElementById('endeBtn').click()")
-    p.pruefe("Ende leer: Meldung", await tab.js("document.getElementById('endeStatus').textContent"), "Bitte das Ende angeben.")
-    await tab.js("document.getElementById('endeZeit').value='06:00';document.getElementById('endeBtn').click()")
-    await tab.warten("document.getElementById('endeStatus').textContent.includes('Start')")
-    p.pruefe("Ende vor dem Start: Meldung des Servers", await tab.js("document.getElementById('endeStatus').textContent"),
+    # --- Mia: Meine Zeiten und Heute, offene Zeit (seit 1.9.59; bis dahin die Zeiterfassung der Monteurin) ------------------------
+    await tab.oeffnen("/mobil/zeiten", ZEITEN_BEREIT)
+    p.pruefe("Meine Zeiten: die offene Zeit „läuft seit 06:45“ ohne Stunden, Weg zu „Heute“", await tab.js(
+        "(z=>[z.querySelector('.zeile-text span').textContent,z.querySelector('.zeile-stunden').textContent,"
+        "z.querySelector('a.knopf').textContent,z.querySelector('a.knopf').getAttribute('href')])(document.querySelector('#tage .zeile'))"),
+        [f"Baustellenzeit · {seed['auftragsnummer']} · läuft seit 06:45", "", "Feierabend auf „Heute“ eintragen", "/mobil"])
+    await tab.bild("2_meine_zeiten_offene_zeit_dunkel_412")
+    await tab.oeffnen("/mobil", "!!document.getElementById('endeKnopf')")
+    p.pruefe("Heute: Start gesperrt, solange gestern offen ist", await tab.js(
+        "[document.querySelector('.knopf-gesperrt').disabled,!!document.getElementById('startKacheln')]"), [True, False])
+    await tab.js("document.getElementById('endeKnopf').click()")
+    p.pruefe("Ende leer: Meldung", await tab.js("document.getElementById('zeitStatus').textContent"),
+             "Bitte die Uhrzeit des Feierabends angeben.")
+    await tab.js("(f=>{f.value='06:00';f.dispatchEvent(new Event('input'))})(document.getElementById('endeZeit'));"
+                 "document.getElementById('endeKnopf').click()")
+    await tab.warten("document.getElementById('zeitStatus').textContent.includes('Start')")
+    p.pruefe("Ende vor dem Start: Meldung des Servers", await tab.js("document.getElementById('zeitStatus').textContent"),
              "Das Ende muss nach dem Start liegen (06:45 Uhr).")
     await tab.bild("3_ende_vor_start_dunkel_412")
-    await tab.js("document.getElementById('endeZeit').value='16:00'")
-    await tab.warte_auf_neu_geladene_liste("document.getElementById('endeBtn').click()", "#entriesList")
-    p.pruefe("Ende nachgetragen: gebucht, anwesend, Pause", await tab.js("document.getElementById('buchungsHinweis').textContent"),
-             "Ende nachgetragen: anwesend 9:15 h · Pause 0:45 h · gebucht 8,50 h")  # seit 1.9.53 (bis dahin gebucht · anwesend dezimal · Minuten)
-    p.pruefe("Danach: keine laufende Zeit, „Schnell starten“ sichtbar", await tab.js(
-        "[document.getElementById('activeCard').hidden, document.getElementById('quickCard').hidden]"), [True, False])
-    # seit 1.9.40: die Meldung des abgelehnten Starts ist nach „Ende nachtragen“ weg
-    p.pruefe("Nach „Ende nachtragen“: alte Meldungen weg", await tab.js(
-        "[document.getElementById('quickStatus').textContent, document.getElementById('endeStatus').textContent]"), ["", ""])
+    await tab.js("(f=>{f.value='16:00';f.dispatchEvent(new Event('input'))})(document.getElementById('endeZeit'))")
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('endeKnopf').click()", "#arbeitszeit")
+    p.pruefe("Ende nachgetragen: anwesend, Pause, gebucht", await tab.js("document.getElementById('zeitErgebnis').textContent"),
+             "Feierabend gestern eingetragen: anwesend 9:15 h · Pause nach Zeitregel − 0:45 h · gebucht 8,50 h")
     await tab.bild("4_ende_nachgetragen_dunkel_412")
-    await tab.js(f"document.getElementById('quickOrder').value='{seed['auftrag']}'")
-    await tab.js("document.querySelector('#quickTiles button').click()")
-    await tab.warten("!document.getElementById('activeCard').hidden")
-    p.pruefe("Neu gestartet: Uhr und „Zeit stoppen“, keine offene Anzeige", await tab.js(
-        "['offenBlock','endeBtn','stopBtn','activeTime'].map(id=>document.getElementById(id).hidden)"), [True, True, False, False])
+    await tab.js(f"document.getElementById('startAuftrag').value='{seed['auftrag']}'")
+    await tab.warte_auf_neu_geladene_liste("document.querySelector('#startKacheln [data-zeitart=\"site\"]').click()", "#arbeitszeit")
+    p.pruefe("Neu gestartet: Baustellenzeit seit 10:00 mit „Feierabend“", await tab.js(
+        "[document.querySelector('#arbeitszeit .zeit-titel').textContent,!!document.getElementById('feierabendKnopf')]"),
+        ["Baustellenzeit seit 10:00", True])
     p.pruefe("Mia: keine JS-Fehler", tab.fehler, [])
 
     # --- Anna: Zeiterfassung für Tom -----------------------------------------------------------------------------------------------

@@ -117,7 +117,6 @@ AUFNAHMEN = (
     A("eingangsrechnungen", "incoming_invoices.html", "/eingangsrechnungen", (BUERO,)),
     A("betriebskosten", "recurring_costs.html", "/betriebskosten", (BUERO,)),
     A("zeiterfassung", "time_tracking.html", "/time-tracking", (BUERO,)),
-    A("zeiterfassung_monteur", "time_tracking_field.html", "/time-tracking", (MONTEUR,)),
     A("backoffice", "time_backoffice.html", "/time-backoffice", (BUERO,)),
     A("stammdaten", "master_data.html", "/master-data", (BUERO,)),
     A("stammdaten_mitarbeiter", "master_data_form.html", "/master-data/employees/{mitarbeiter}/edit", (BUERO,)),
@@ -139,7 +138,7 @@ AUFNAHMEN = (
     A("mobil", "mobil.html", "/mobil", (BUERO, MONTEUR)),
     A("mobil_offen", "mobil_offen.html", "/mobil/offen", (BUERO, MONTEUR)),  # seit 1.9.49 „Heute / Offen“
     A("mobil_objekt", "mobil_objekt.html", "/mobil/objekt/{objekt}", (BUERO, MONTEUR)),
-    A("stundenzettel", "field_timesheet.html", "/mobil/stundenzettel", (BUERO, MONTEUR)),
+    A("meine_zeiten", "mobil_zeiten.html", "/mobil/zeiten", (BUERO, MONTEUR)),  # seit 1.9.59 statt Zeiterfassung und Stundenzettel
     A("anmeldung", "login.html", "/login", (ANONYM,)),
     A("sperrseite", "access_denied.html", "/projects", (MONTEUR,)),
 )

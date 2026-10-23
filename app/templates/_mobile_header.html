@@ -2,8 +2,8 @@
 
    Seit 1.8.164 (Stufe 2 „Rahmen“, Runde 1, Teil 4; Befund docs/archiv/befund-rahmen.md, Abschnitt 3):
    - eine Zeile, 64 px, in --ds-navi-grund (dunkel in beiden Modi): Logo-Kachel 40 px (seit 1.8.165 fest die Bildmarke auf Weiß,
-     _bildmarke.html -- bis dahin das hochgeladene Logo, sonst ein Dach), die Reiter Heute (bis 1.9.44 Einsätze) · Zeiterfassung ·
-     Stundenzettel (48 px hoch, 16 px, Ecken 10 px; aktiv seit 1.8.170 auf navi-aktiv mit dem Strich 3 px unten in marke-hell als
+     _bildmarke.html -- bis dahin das hochgeladene Logo, sonst ein Dach), die Reiter Heute (bis 1.9.44 Einsätze) · Meine Zeiten (seit
+     1.9.59; bis dahin Zeiterfassung · Stundenzettel) (48 px hoch, 16 px, Ecken 10 px; aktiv seit 1.8.170 auf navi-aktiv mit dem Strich 3 px unten in marke-hell als
      box-shadow inset 0 -3px 0 innerhalb der Ecken -- bis dahin ein unterer Rand ohne Fläche; seit 1.9.0 Schrift weiß in 600 wie in der
      Leiste; Hover von Reitern, Lupe und Kontoknopf seit 1.9.1 --ds-navi-hover, geöffnet navi-aktiv), rechts die Lupe (48 px) und der
      Kontoknopf mit Initialen
@@ -72,8 +72,7 @@
     <span class="mobile-header-kachel" title="DACHKONZEPTE · Mobil" aria-label="DACHKONZEPTE" role="img">{% include "_bildmarke.html" %}</span>
     <nav class="mobile-nav" aria-label="Monteursansicht">
       <a href="/mobil" class="mobile-nav-reiter{{ ' active' if _einsaetze }}"{% if _einsaetze %} aria-current="page"{% endif %}>Heute</a>
-      <a href="/time-tracking" class="mobile-nav-reiter{{ ' active' if path == '/time-tracking' }}"{% if path == '/time-tracking' %} aria-current="page"{% endif %}>Zeiterfassung</a>
-      <a href="/mobil/stundenzettel" class="mobile-nav-reiter{{ ' active' if path == '/mobil/stundenzettel' }}"{% if path == '/mobil/stundenzettel' %} aria-current="page"{% endif %}>Stundenzettel</a>
+      <a href="/mobil/zeiten" class="mobile-nav-reiter{{ ' active' if path == '/mobil/zeiten' }}"{% if path == '/mobil/zeiten' %} aria-current="page"{% endif %}>Meine Zeiten</a>
     </nav>
     <button type="button" class="mobile-lupe" id="mobileSearchToggle" aria-label="Objekt suchen" title="Objekt suchen" aria-expanded="false" aria-controls="mobileSearchPanel"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><line x1="16" y1="16" x2="20.5" y2="20.5"/></svg></button>
     {% include "_kontomenue.html" %}

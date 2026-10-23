@@ -8,8 +8,8 @@ Das Skript lässt die Instanz heute ab 00:30 Uhr laufen (`klicktest_main(..., uh
 heute 00:30 Uhr Berliner Zeit fest (eigene Date-Klasse per Page.addScriptToEvaluateOnNewDocument), mit der Zeitzone des
 Browsers auf UTC bzw. New York (Emulation.setTimezoneOverride) -- dort ist es noch gestern. Geprüft:
 
-- Monteur, Zeiterfassung (412 px): die Buchung von heute steht in der Liste, `today()` ist der Berliner Tag;
-- Monteur, Stundenzettel: der Monat vorbelegt mit dem Berliner Monat;
+- Monteur, Meine Zeiten (412 px; seit 1.9.59 statt Zeiterfassung und Stundenzettel): die Buchung von heute steht in der Liste,
+  „Zeit nachtragen“ schlägt den Berliner Tag vor, der Monat der Seite ist der Berliner;
 - Büro, Zeiterfassung: `today()`; Aufgaben: fällig gestern überfällig, fällig heute nicht;
 - Plantafel: Wochenbeginn und Markierung "heute" aus dem Berliner Tag; Kalender: Ausgangstag heute.
 
@@ -94,14 +94,15 @@ async def pruefen(tab, seed, p):
         # --- Monteur ---------------------------------------------------------------------------------------------------
         await tab.anmelden(seed["cookies"]["max"])
         await tab.fenster(412, 900, mobil=True)
-        bereit = await tab.oeffnen("/time-tracking", f"allEntries.some(e=>e.id==={seed['eintrag']})")
-        p.pruefe(f"{zone}: Monteur-Zeiterfassung zeigt die Buchung von heute", bereit, True)
-        p.pruefe(f"{zone}: Monteur today()", await tab.js("today()"), seed["heute"])
+        bereit = await tab.oeffnen("/mobil/zeiten", f"!!document.querySelector('[data-zeile=\"{seed['eintrag']}\"]')")
+        p.pruefe(f"{zone}: Meine Zeiten zeigt die Buchung von heute", bereit, True)
+        await tab.js("document.getElementById('nachtragenKnopf').click()")
+        p.pruefe(f"{zone}: „Zeit nachtragen“ mit dem Berliner Tag", await tab.js("document.getElementById('zdDatum').value"), seed["heute"])
+        await tab.js("document.getElementById('zeitDialog').close()")
+        p.pruefe(f"{zone}: Monat der Seite", await tab.js("D.monat"), seed["heute"][:7])
         p.pruefe(f"{zone}: Monteur JS-Fehler", tab.fehler, [])
         if zone == "UTC":
-            await tab.bild("monteur_zeiterfassung_0030")
-        await tab.oeffnen("/mobil/stundenzettel", "document.getElementById('monthInput').value")
-        p.pruefe(f"{zone}: Stundenzettel-Monat", await tab.js("document.getElementById('monthInput').value"), seed["heute"][:7])
+            await tab.bild("monteur_meine_zeiten_0030")
 
         # --- Büro ------------------------------------------------------------------------------------------------------
         await tab.anmelden(seed["cookies"]["anna"])

@@ -284,19 +284,23 @@ def lea_buchung(world):  # noqa: F811
     return {**world, "entry_id": entry.id}
 
 
-def test_mobile_zeitbuchung_aendern_laesst_pause_und_lv_position(lea_buchung):
+def test_meine_zeiten_aendern_laesst_die_lv_position(lea_buchung):
+    """Seit 1.9.59 „Meine Zeiten“ (bis dahin die Zeiterfassung der Monteurin, Ändern mit Dauer): der Dialog schickt seine Felder samt
+    Von und Bis -- die LV-Position (nicht im Dialog) bleibt, die Pause rechnet der Server nach der Tagesregel neu (Festlegung 1.9.57
+    Nr. 1; bis 1.9.58 blieb hier die Pause 45, weil eine Dauer geschickt wurde)."""
     db, order = lea_buchung["db"], lea_buchung["order"]
-    keys = ui_keys("time_tracking_field.html", "saveManual", "const body=")
-    assert set(keys) == {"order_id", "work_date", "entry_type", "activity", "hours", "notes"}
-    assert ("`/api/time-entries/${editingId}`,{method:'PUT',headers:{'Content-Type':'application/json'},"
-            "body:JSON.stringify(body)}") in funktion("time_tracking_field.html", "saveManual")
-    werte = {**ZEIT_WERTE, "order_id": order.id, "employee_id": lea_buchung["emp"]["lea"].id}
-    response = _as(lea_buchung, "lea").put(f"/api/time-entries/{lea_buchung['entry_id']}", json=payload(keys, werte))
+    keys = ui_keys("mobil_zeiten.html", "zeitSpeichern", "var felder=")
+    assert set(keys) == {"order_id", "work_date", "entry_type", "activity", "notes", "von", "bis"}
+    rumpf = funktion("mobil_zeiten.html", "zeitSpeichern")
+    assert "url=aendern?'/api/time-entries/'+ZD.id" in rumpf and "Object.assign({},felder,{pause_minuten:pause})" in rumpf
+    werte = {**ZEIT_WERTE, "order_id": order.id, "von": "07:00", "bis": "13:00"}
+    response = _as(lea_buchung, "lea").put(f"/api/time-entries/{lea_buchung['entry_id']}",
+                                           json={**payload(keys, werte), "pause_minuten": 0})
     assert response.status_code == 200, response.text
     db.expire_all()
     entry = db.get(TimeEntry, lea_buchung["entry_id"])
-    assert (entry.break_minutes, entry.order_item_id) == (45, _position(db, order.id))
-    assert (entry.hours, entry.notes) == (Decimal("6"), "Rinne gereinigt")
+    assert entry.order_item_id == _position(db, order.id)
+    assert (entry.hours, entry.break_minutes, entry.notes) == (Decimal("6"), 0, "Rinne gereinigt")  # 6:00 h -- keine Pause
 
 
 def test_auftragswechsel_ohne_neue_position_laesst_die_alte_fallen(lea_buchung):
@@ -339,10 +343,12 @@ def test_mobile_kolonnenbuchung_aendern_laesst_pause_und_lv_position(world):  # 
         db, employee_ids=[e["lea"].id, e["max"].id], team_id=crew.id, actor_employee_id=e["lea"].id,
         is_admin=False, order_id=order.id, work_date=HEUTE, hours=Decimal("8"), order_item_id=position,
         break_minutes=45)
-    keys = ui_keys("time_tracking_field.html", "saveCrewDialog", "const body=")
+    # seit 1.9.59 auf „Meine Zeiten“ („⋮ Für die Kolonne ändern“), bis dahin die Zeiterfassung der Monteurin
+    keys = ui_keys("mobil_zeiten.html", "kolonneSpeichern", "var body=")
     assert set(keys) == {"order_id", "work_date", "entry_type", "activity", "hours", "notes"}
-    assert ("`/api/time-entry-groups/${crewEditingId}`,{method:'PUT',headers:{'Content-Type':'application/json'},"
-            "body:JSON.stringify(body)}") in funktion("time_tracking_field.html", "saveCrewDialog")
+    rumpf = funktion("mobil_zeiten.html", "kolonneSpeichern")
+    assert "url=aendern?'/api/time-entry-groups/'+KD.id:'/api/time-entry-groups'" in rumpf and "method:aendern?'PUT':'POST'" in rumpf
+    assert "if(!aendern)body=Object.assign(body," in rumpf  # Kolonne, Mitglieder und Pause nur beim Nachtrag
     response = _as(world, "lea").put(f"/api/time-entry-groups/{gruppe.id}",
                                      json=payload(keys, {**ZEIT_WERTE, "order_id": order.id}))
     assert response.status_code == 200, response.text

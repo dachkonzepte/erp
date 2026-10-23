@@ -181,6 +181,33 @@ def test_pausen_passen_bei_gleicher_summe(welt):  # noqa: F811
     assert (t["abgezogen"], t["nach_zeitregel"], t["passt"], t["buchungen"]) == (30, 30, True, [])
 
 
+def test_reine_dauer_behaelt_ihre_pause(welt):  # noqa: F811
+    """Seit 1.9.59 (Fund im Klicktest): eine reine Dauer ist gebuchte Arbeitszeit -- ein Kolonnen-Nachtrag von 8 h ohne Pause passt,
+    „Pausen neu rechnen“ bietet nichts an (bis dahin „nach Zeitregel 0:30 h“ und 7,50 h als Vorschlag)."""
+    client = _monteurin(welt)
+    create_manual_entry(welt["db"], employee_id=welt["mia"].id, order_id=welt["order"].id, work_date=welt["heute"], hours=Decimal("8"))
+    t = client.get("/api/time-entries/tagespause", params={"work_date": welt["heute"].isoformat()}).json()
+    assert (t["abgezogen"], t["nach_zeitregel"], t["passt"], t["buchungen"]) == (0, 0, True, [])
+
+
+def test_dauer_zaehlt_vor_den_zeiten_zum_tag(welt):  # noqa: F811
+    """Angriff: 07:00–12:00 gebucht (allein ohne Pause), danach eine Dauer von 4 h nachgetragen -- der Tag hat 9 h, die Regel will
+    30 min: vorgeschlagen wird nur die Buchung mit Uhrzeiten (0 -> 30, 5,00 -> 4,50), die Dauer bleibt; gebucht genau so."""
+    client = _monteurin(welt)
+    zeit = _zeit(welt, welt["mia"], time(7), time(12))
+    dauer = create_manual_entry(welt["db"], employee_id=welt["mia"].id, order_id=welt["order"].id, work_date=welt["heute"],
+                                hours=Decimal("4"))
+    tag = welt["heute"].isoformat()
+    t = client.get("/api/time-entries/tagespause", params={"work_date": tag}).json()
+    assert (t["abgezogen"], t["nach_zeitregel"], t["passt"]) == (0, 30, False)
+    assert [(b["id"], b["pause_alt"], b["pause_neu"], Decimal(str(b["gebucht_neu"]))) for b in t["buchungen"]] == [
+        (zeit.id, 0, 30, Decimal("4.5"))]
+    assert client.post("/api/time-entries/pausen-neu-rechnen",
+                       json={"work_date": tag, "buchungen": [{"id": zeit.id, "pause": 30}]}).status_code == 200
+    welt["db"].expire_all()
+    assert (welt["db"].get(TimeEntry, dauer.id).hours, welt["db"].get(TimeEntry, dauer.id).break_minutes) == (Decimal("4"), 0)
+
+
 def test_pausen_neu_rechnen_im_abgeschlossenen_monat_abgelehnt(welt):  # noqa: F811
     client = _monteurin(welt)
     gestern = welt["heute"] - timedelta(days=1)

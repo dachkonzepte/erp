@@ -4,6 +4,27 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.59 – „Meine Zeiten“ ersetzt Zeiterfassung und Stundenzettel der Monteurin (Stufe 4, R3)
+
+Neue Seite `/mobil/zeiten` nach der Vorlage zeiten-nachtragen: Kacheln Heute · Diese Woche · <Monat> (gebuchte Stunden, eine laufende
+Zeit zählt nicht), die Buchungen des Monats (‹ ›) je Tag mit Kopfzeile und Summe, rechts Abwesenheit und Monat mit dem Stundenzettel als
+PDF; hoch eine Spalte. Der Monteurskopf hat zwei Reiter, „Heute · Meine Zeiten“; `/time-tracking` (für die Monteurin, ein `?order_id=`
+geht als Zahl mit) und `/mobil/stundenzettel` leiten hierher, die beiden alten Vorlagen sind entfernt. „+ Nachtragen“ und „⋮ Ändern“
+öffnen denselben Dialog (Datum, Zeitart, Von, Bis, Auftrag; unter „Weitere Angaben“ Tätigkeit, Notiz, „Pause mindestens“) mit der
+Vorschau des Servers („Anwesend · Tag zusammen · Pause nach Zeitregel −“, groß die gebuchten Stunden) und dem Knopf „x,xx h
+nachtragen“. „⋮ Löschen“ fragt auf der Seite nach; passt danach die Pause eines Tags nicht mehr, zeigt seine Kopfzeile „Pause abgezogen …
+· nach Zeitregel …“ und „Pausen neu rechnen“ mit Vorschau je Buchung -- gebucht wird nur mit Klick. Was die Zeiterfassung der Monteurin
+sonst konnte, steht unter „⋮“: „Nachtrag für die Kolonne“ neben „+ Nachtragen“, „Für die Kolonne ändern / löschen“ an der eigenen
+Gruppenbuchung; Abwesenheit mit Anträgen und „Zurückziehen“ (Rückfrage in der Zeile); Fahrzeit und produktiv in der Karte „Monat“.
+Wo jede Funktion der beiden alten Seiten steht: `docs/archiv/redesign.md`, Befund Z1–Z22 und S1–S5. `meine_zeiten()` liefert dazu die
+Daten der Dialoge und liest die Gruppen aller Zeilen in einer Abfrage. Dabei gefunden (Klicktest): die Pausenprüfung eines Tags rechnete
+auch eine reine Dauer neu (Kolonnen-Nachtrag 8 h: „nach Zeitregel 0:30 h“, „Pausen neu rechnen“ hätte 7,50 h gebucht) -- eine Dauer ist
+gebuchte Arbeitszeit, ihre Pause bleibt jetzt; neu gerechnet werden nur Buchungen mit Von und Bis.
+
+Neuer Klicktest `klicktest_meine_zeiten` (jede Funktion aus dem Befund); angepasst: `klicktest_monteurin_regeln`,
+`klicktest_teil_updates`, `klicktest_zeitbuchungen_liste`, `klicktest_browser_datum`, `klicktest_rahmen`, `klicktest_monteur_navigation`,
+`klicktest_neue_ordnung`, die Bildgrundlage und 17 Tests, die auf die alten Seiten zeigten.
+
 ## 1.9.58 – „Heute“ startet mit Tätigkeit und für die Kolonne, Kacheln quer 3 / hoch 2 (Stufe 4, R3)
 
 Starten und Stoppen stehen künftig nur noch auf „Heute“ -- was die Zeiterfassung der Monteurin dafür zusätzlich konnte, kommt hierher:

@@ -106,7 +106,7 @@ async def pruefen(tab, seed, p):
                 # seit 1.8.164 auf Einsatzbericht und Konto der Monteurskopf statt der Seitenleiste (bis dahin Start, Zeiterfassung)
                 reiter = await tab.js("[...document.querySelectorAll('.mobile-header-wrap .mobile-nav-reiter')].map(x=>x.textContent.trim())")
                 p.pruefe(f"{rolle} {pfad}: Monteurskopf statt Seitenleiste", [beschriftung, reiter],
-                         [[], ["Heute", "Zeiterfassung", "Stundenzettel"]])
+                         [[], ["Heute", "Meine Zeiten"]])  # seit 1.9.59
             elif pfad == berichtsseite:
                 p.pruefe(f"{rolle}: die fünf Links da", [x for x in beschriftung if x in FUENF], FUENF)
             p.pruefe(f"{rolle} {pfad}: JS-Fehler", tab.fehler, [])

@@ -51,12 +51,11 @@ def test_keine_eigene_fassung_der_meldung():
     assert KEIN_MITARBEITER == ("Dein Konto ist keinem Mitarbeiter zugeordnet. Ein Administrator kann das unter Einstellungen → "
                                 "Benutzer und Zugriff ändern.")
     nutzer = {name for name in alle_vorlagen() if "{{ kein_mitarbeiter|tojson }}" in (TEMPLATES / name).read_text(encoding="utf-8")}
-    assert nutzer == {"dashboard.html", "field_timesheet.html", "service_reports.html", "time_backoffice.html", "time_tracking.html",
-                      "time_tracking_field.html"}
+    assert nutzer == {"dashboard.html", "mobil_zeiten.html", "service_reports.html", "time_backoffice.html", "time_tracking.html"}
 
 
-@pytest.mark.parametrize("adresse,rolle", [("/time-tracking", "buero_finanzen"), ("/time-tracking", "field"), ("/", "buero_auftrag"),
-                                           ("/mobil/stundenzettel", "field"), ("/time-backoffice", "buero_finanzen")])
+@pytest.mark.parametrize("adresse,rolle", [("/time-tracking", "buero_finanzen"), ("/mobil/zeiten", "field"), ("/", "buero_auftrag"),
+                                           ("/time-backoffice", "buero_finanzen")])
 def test_seiten_zeigen_die_gemeinsame_meldung(threaded_db_session, router_test_client, adresse, rolle):
     """Die gezeichnete Seite trägt genau die Meldung aus app/meldungen.py (als JSON-Zeichenkette im Skript)."""
     from jinja2.utils import htmlsafe_json_dumps

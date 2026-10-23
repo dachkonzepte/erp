@@ -74,7 +74,7 @@ def test_kopf_ist_eine_zeile_mit_kachel_reitern_lupe_und_konto():
                                        'id="appTopbarAccountBtn"')]
     assert stellen == sorted(stellen)
     reiter = [t.split(">")[-1] for t in kopf[kopf.index("<nav"):kopf.index("</nav>")].split("</a>")[:-1]]
-    assert reiter == ["Heute", "Zeiterfassung", "Stundenzettel"]
+    assert reiter == ["Heute", "Meine Zeiten"]  # seit 1.9.59 (bis dahin Heute · Zeiterfassung · Stundenzettel)
 
 
 def test_der_name_steht_immer_im_kopf():
@@ -132,7 +132,7 @@ def test_einsaetze_ist_auch_auf_den_seiten_darunter_aktiv():
 
     assert aktiv("/mobil") == ["Heute"] and aktiv("/orders/5/service-reports") == ["Heute"]
     assert aktiv("/checklisten/3") == ["Heute"] and aktiv("/mobil/objekt/2") == ["Heute"]
-    assert aktiv("/time-tracking") == ["Zeiterfassung"] and aktiv("/mobil/stundenzettel") == ["Stundenzettel"]
+    assert aktiv("/mobil/zeiten") == ["Meine Zeiten"]  # seit 1.9.59 (bis dahin Zeiterfassung und Stundenzettel)
     assert aktiv("/account") == []
 
 
@@ -173,7 +173,7 @@ def test_toggle_click_handler_writes_to_localstorage_and_updates_the_dom():
 def test_monteursseiten_nehmen_die_alten_farbnamen_zentral():
     from tests import vorlagen_js
 
-    for page in ("mobil.html", "mobil_objekt.html", "field_timesheet.html", "time_tracking_field.html"):
+    for page in ("mobil.html", "mobil_objekt.html", "mobil_zeiten.html"):
         text = (TEMPLATES_DIR / page).read_text(encoding="utf-8")
         assert vorlagen_js.bindet_ein(page, "_mobile_header.html", TEMPLATES_DIR), page  # seit 1.8.124 auch im Basis-Template
         assert vorlagen_js.bindet_ein(page, "_ds_kopf.html", TEMPLATES_DIR), page  # bindet ds-alte-namen.css ein

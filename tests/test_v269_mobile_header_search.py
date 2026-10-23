@@ -35,7 +35,7 @@ def test_debounce_helper_included_exactly_once_via_mobile_header():
     # selbst einbinden -- sonst wäre `debounce` doppelt definiert (harmlos in JS, aber ein Zeichen
     # für auseinanderlaufende Konventionen).
     # Seit 1.8.124 (Stufe 0b): eingebunden selbst oder im Basis-Template der Seite (tests/vorlagen_js.py::bindet_ein()).
-    for name in ("mobil.html", "mobil_objekt.html", "field_timesheet.html", "time_tracking_field.html"):
+    for name in ("mobil.html", "mobil_objekt.html", "mobil_zeiten.html"):  # seit 1.9.59 „Meine Zeiten“ statt Zeiterfassung und Stundenzettel
         assert vorlagen_js.bindet_ein(name, "_mobile_header.html", TEMPLATES), f"{name} bindet die Kopfzeile nicht ein"
         assert not vorlagen_js.bindet_ein(name, "_debounce.html", TEMPLATES), f"{name} bindet den Debounce-Helfer doppelt ein"
 
@@ -44,7 +44,7 @@ def test_every_mobile_page_gets_the_search_bar_for_free():
     """Punkt 2 der Anfrage: die Suche muss von JEDER Seite der Monteursansicht aus erreichbar
     sein, nicht nur von /mobil -- da alle vier Seiten _mobile_header.html einbinden, erreicht sie
     das automatisch, ohne dass jede Seite das Suchfeld einzeln nachbauen müsste."""
-    for name in ("mobil.html", "mobil_objekt.html", "field_timesheet.html", "time_tracking_field.html"):
+    for name in ("mobil.html", "mobil_objekt.html", "mobil_zeiten.html"):
         assert vorlagen_js.bindet_ein(name, "_mobile_header.html", TEMPLATES), name
 
 

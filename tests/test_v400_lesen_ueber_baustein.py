@@ -90,7 +90,6 @@ AUSNAHMEN = {
     ("dashboard.html", "renderDueMaintenanceWidget", "api"): "nur Anzeige",
     ("dashboard.html", "renderKpisWidget", "api"): "nur Anzeige",
     ("email_dispatches.html", "checkArchive", "api"): "Prüfung ohne Formular",
-    ("field_timesheet.html", "init", "api"): "Anmeldestatus",
     ("finanzen.html", "load", "api"): "nur Anzeige",
     ("findings.html", "init", "api"): "nur Anzeige",
     ("findings.html", "loadFindings", "api"): "nur Anzeige",
@@ -278,25 +277,22 @@ def test_roof_type_change_the_last_chosen_type_wins():
 
 
 @nur_mit_node
-def test_timesheet_month_change_the_last_chosen_month_wins():
-    """September gewählt (Antwort hängt), dann Oktober: die späte Antwort für September überschreibt Oktober nicht."""
-    vorbereitung = """
-        const $=id=>document.getElementById(id);
-        const esc=s=>String(s??'');const num=x=>Number(x||0).toFixed(2);
-        function timeEntriesTruncatedNotice(){return ''}
-        async function fetchTimeEntries(url){const r=await fetch(url);return {rows:await r.json(),total:0}}
-    """
-    log = _ausfuehren("field_timesheet.html", ["monthBounds", "fmtDay", "loadMonth", "zeigeMonat"], vorbereitung, """
-        const a=loadMonth('2026-09'); await ruhe(); const b=loadMonth('2026-10'); await ruhe();
-        await antworte('/api/time-entries?start_date=2026-10-01&end_date=2026-10-31&limit=2000',
-          [{status:'booked',work_date:'2026-10-05',hours:8,order_number:'AUF-OKT',activity:''}]);
-        await antworte('/api/time-entries?start_date=2026-09-01&end_date=2026-09-30&limit=2000',
-          [{status:'booked',work_date:'2026-09-07',hours:3,order_number:'AUF-SEP',activity:''}]);
+def test_meine_zeiten_month_change_the_last_chosen_month_wins():
+    """„Meine Zeiten“ (seit 1.9.59, bis dahin der Stundenzettel): September gewählt (Antwort hängt), dann Oktober -- die späte Antwort
+    für September überschreibt Oktober nicht."""
+    log = _ausfuehren("mobil_zeiten.html", ["laden"], """
+        let D=null,MONAT=null;const KEIN_MITARBEITER='';
+        async function api(url){const r=await fetch(url);return r.json()}
+        function ladeHinweis(){}
+        function zeichnen(d){LOG.push('gezeichnet '+d.monat)}
+    """, """
+        MONAT='2026-09'; const a=laden(); await ruhe(); MONAT='2026-10'; const b=laden(); await ruhe();
+        await antworte('/api/field-view/meine-zeiten?monat=2026-10',{monat:'2026-10'});
+        await antworte('/api/field-view/meine-zeiten?monat=2026-09',{monat:'2026-09'});
         await a; await b;
-        const h=$('entriesArea').innerHTML;
-        LOG.push((h.includes('AUF-OKT')?'Oktober':'')+(h.includes('AUF-SEP')?'September':'')+' '+$('monthTotal').textContent);
+        LOG.push('Monat '+MONAT);
     """)
-    assert log[-1] == "Oktober 8.00 h"
+    assert [x for x in log if not x.startswith("fetch")] == ["gezeichnet 2026-10", "Monat 2026-10"]
 
 
 def test_customer_documents_are_set_only_in_their_own_area():

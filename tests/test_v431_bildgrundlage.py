@@ -73,7 +73,7 @@ def test_namen_und_rollen():
         assert a.rollen and set(a.rollen) <= {bg.BUERO, bg.MONTEUR, bg.ADMIN, bg.ANONYM}, a
         assert "__" not in a.name and a.pfad.startswith("/"), a
     ohne_buero = {a.vorlage for a in bg.AUFNAHMEN if bg.BUERO not in a.rollen}
-    assert ohne_buero == {"time_tracking_field.html", "operational_asset_field.html", "login.html", "access_denied.html",
+    assert ohne_buero == {"operational_asset_field.html", "login.html", "access_denied.html",  # seit 1.9.59 ohne time_tracking_field
                           "address_import.html", "users.html"}, "Büro-Rolle überall, wo die Seite eine Büro-Fassung hat und das Büro sie öffnet"
 
 
@@ -175,12 +175,14 @@ def test_zustaende_wie_vorgegeben():
 def test_dateinamen_eindeutig_und_die_bisherigen_zuerst():
     geplant = bg.geplante_bilder()
     namen = [b.datei for b in geplant]
-    # seit 1.9.49 310: „Heute / Offen“ für Büro (4) und Monteurin (8) -- 248 in 412/1440 + 44 TerraPad + 18 Zustände (bis 1.9.48 298:
-    # 240 + 40 + 18; 1.8.162: 22 Zustände, bis 1.8.161: 24)
-    assert len(namen) == len(set(namen)) == 310
+    # seit 1.9.59 302: „Meine Zeiten“ (Büro 4, Monteurin 8) statt Stundenzettel (Büro 4, Monteurin 8) und Zeiterfassung der Monteurin (8)
+    # -- 244 in 412/1440 + 40 TerraPad + 18 Zustände; 1.9.49–1.9.58 310: „Heute / Offen“ für Büro (4) und Monteurin (8) -- 248 + 44 + 18
+    # (bis 1.9.48 298: 240 + 40 + 18; 1.8.162: 22 Zustände, bis 1.8.161: 24)
+    assert len(namen) == len(set(namen)) == 302
     assert all("__" not in b.aufnahme.name and (b.zustand is None or "__" not in b.zustand.name) for b in geplant)
     bisher = [b for b in geplant if b.breite in bg.BREITEN and b.zustand is None]
-    assert geplant[:len(bisher)] == bisher and len(bisher) == 248, "die bisherigen Bilder entstehen zuerst, in der bisherigen Reihenfolge"
+    # seit 1.9.59 244 (bis 1.9.58 248)
+    assert geplant[:len(bisher)] == bisher and len(bisher) == 244, "die bisherigen Bilder entstehen zuerst, in der bisherigen Reihenfolge"
     assert [b.datei for b in bisher[:2]] == ["buero__hell__412__start.png", "buero__hell__412__aufgaben.png"]
 
 

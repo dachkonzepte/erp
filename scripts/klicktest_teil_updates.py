@@ -4,8 +4,9 @@ Bis 1.8.24 übernahm der Server jedes Feld eines PUT, auch ein nicht gesendetes 
 Vorgabewert), und einige Seiten schickten Werte mit, die sie gar nicht bearbeiten. Geprüft wird über
 die echten Seiten:
 
-    Zeiterfassung (Monteur)   Buchung ändern: Pause und LV-Position bleiben, die Notiz ändert sich;
-                              Kolonnenbuchung ändern (Kolonnenführer): dasselbe
+    Meine Zeiten (Monteur)    seit 1.9.59 (bis dahin die Zeiterfassung, Ändern mit Dauer): Buchung ändern mit Von/Bis -- LV-Position
+                              bleibt, die Notiz ändert sich, die Pause rechnet der Server nach der Tagesregel; Kolonnenbuchung
+                              ändern (Kolonnenführer): Pause und LV-Position bleiben, die Notiz ändert sich
     Einstellungen (Admin)     Unternehmensstammdaten speichern, dann Logohöhe übernehmen: die neue
                               Telefonnummer bleibt, die Höhe kommt an; noch einmal Stammdaten
                               speichern: die Höhe bleibt
@@ -112,22 +113,26 @@ async def pruefen(tab, seed, p):
     # --- Monteur: Buchung und Kolonnenbuchung ändern ---------------------------------------
     await tab.anmelden(seed["cookies"]["max"])
     await tab.fenster(430, 900, mobil=True)
-    await tab.oeffnen("/time-tracking", "allEntries.length>=2&&crewGroups.length===1&&orders.length===1")
+    await tab.oeffnen("/mobil/zeiten", "typeof D!=='undefined'&&D&&D.kolonnen_buchungen.length===1&&D.auftraege.length===1")
     meine = f"{_api('/api/time-entries')}.then(l=>l.find(e=>e.id==={seed['einzeln']}))"
-    await tab.js(f"editEntry({seed['einzeln']});$('manualNotes').value='Rinne gereinigt';saveManual()")
-    await tab.warten("!manualDialog.open")
-    eintrag = await tab.js(f"{meine}.then(e=>[e.notes,e.break_minutes,e.order_item_id])")
-    p.pruefe("Buchung ändern: Notiz neu, Pause und LV-Position unverändert", eintrag,
-             ["Rinne gereinigt", 45, seed["position"]])
+    await tab.js(f"zeitDialogOeffnen(zeileZu({seed['einzeln']}))")
+    await tab.js("document.getElementById('zdVon').value='07:00';document.getElementById('zdBis').value='11:00';"
+                 "document.getElementById('zdNotiz').value='Rinne gereinigt'")
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('zdSpeichern').click()", "#tage")
+    eintrag = await tab.js(f"{meine}.then(e=>[e.notes,e.order_item_id,Number(e.hours),e.break_minutes])")
+    # der Tag hat schon die Kolonnenbuchung (8 h + 45 min Pause): 07:00–11:00 bekommt keine Pause mehr, gebucht 4,00 h
+    p.pruefe("Buchung ändern (Von/Bis): Notiz neu, LV-Position unverändert, Pause nach der Tagesregel", eintrag,
+             ["Rinne gereinigt", seed["position"], 4.0, 0])
 
     kolonne = f"{_api('/api/time-entry-groups/mine')}.then(l=>l.find(g=>g.id==={seed['gruppe']}))"
-    await tab.js(f"openCrewDialog({seed['gruppe']});$('crewDialogNotes').value='Kolonne neu';saveCrewDialog()")
-    await tab.warten("$('crewStatus').textContent.includes('Korrektur gespeichert')")
+    await tab.js(f"kolonneDialogOeffnen(gruppeZu({seed['gruppe']}));document.getElementById('kdNotiz').value='Kolonne neu'")
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('kdSpeichern').click()", "#tage")
+    p.pruefe("Kolonnenbuchung ändern: Meldung", await tab.js("document.getElementById('ergebnis').textContent"), "Kolonnenbuchung geändert.")
     gruppe = await tab.js(f"{kolonne}.then(g=>[g.notes,g.break_minutes,g.order_item_id])")
     p.pruefe("Kolonnenbuchung ändern: Notiz neu, Pause und LV-Position unverändert", gruppe,
              ["Kolonne neu", 45, seed["position"]])
     p.pruefe("Monteur: JS-Fehler", tab.fehler, [])
-    await tab.bild("zeiterfassung_monteur")
+    await tab.bild("meine_zeiten_monteur")
 
     # --- Admin: Einstellungen, Rechnung, Leistung ------------------------------------------
     await tab.anmelden(seed["cookies"]["anna"])

@@ -4,7 +4,8 @@
 1. Umbenennung /vor-ort -> /mobil, /vor-ort entfällt ersatzlos.
 2. Startseite für Monteure: "/" leitet für `field` auf /mobil weiter (siehe auch
    test_v260_role_audit.py::TestPageRouteClassification::test_field_reaches_only_the_five_pages_it_needs).
-3. Tätigkeit im Nachtrag UND im Schnellstart (time_tracking_field.html).
+3. Tätigkeit im Nachtrag UND im Schnellstart (bis 1.9.58 time_tracking_field.html; seit 1.9.58 der Dialog „Mit Tätigkeit starten“ auf
+   „Heute“, seit 1.9.59 der Dialog „Zeit nachtragen“ auf „Meine Zeiten“).
 4. Stundenzettel: GET /api/field-view/timesheet.pdf (eigener PDF-Renderer, gemeinsamer Rahmen).
 5. Eigene Plantafel-Einträge: GET /api/field-view/upcoming (list_upcoming_assignments_for_employee()).
 
@@ -151,9 +152,8 @@ class TestTaetigkeitInSchnellstartUndNachtrag:
         from app.routers.pages import router as pages_router
         db = threaded_db_session
         field = router_test_client(db, pages_router, role="field")
-        body = field.get("/time-tracking").text
-        assert 'id="quickActivity"' in body
-        assert 'id="manualActivity"' in body
+        assert 'id="startTaetigkeit"' in field.get("/mobil").text       # seit 1.9.58: „⋮ Mit Tätigkeit starten“
+        assert 'id="zdTaetigkeit"' in field.get("/mobil/zeiten").text   # seit 1.9.59: „Zeit nachtragen“, „Weitere Angaben“
 
     def test_time_entries_start_and_manual_create_accept_an_activity_value(self, router_test_client, threaded_db_session):
         """Backend-seitig war activity schon immer optional auf beiden Schemas -- hier als

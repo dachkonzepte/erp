@@ -72,8 +72,8 @@ UMGEZOGEN |= HEUTE_OFFEN
 # und Grund hierher; zieht eine aufgeschobene um, wandert sie nach UMGEZOGEN.
 AUFGESCHOBEN: dict[str, tuple[int, str]] = {
     "mobil.html": (4, "Heute -- seit 1.9.45 nach den Vorlagen der Stufe 4, die keinen Seitenkopf haben; in den Rahmen mit Stufe 4 als Ganzes"),
-    "time_tracking_field.html": (4, "Zeiterfassung der Monteure -- gehört zur Monteursansicht (Stufe 4)"),
-    "field_timesheet.html": (4, "Stundenzettel -- gehört zur Monteursansicht (Stufe 4)"),
+    "mobil_zeiten.html": (4, "Meine Zeiten -- seit 1.9.59 nach der Vorlage zeiten-nachtragen der Stufe 4, die keinen Seitenkopf hat; in den "
+                             "Rahmen mit Stufe 4 als Ganzes (ersetzt Zeiterfassung der Monteure und Stundenzettel)"),
     "project_folder.html": (5, "Projektmappe -- große Arbeitsseite mit Reitern, Stufe 5 zusammen mit Auftrag und Kundenakte"),
     "order.html": (5, "Auftrag -- große Arbeitsseite mit vielen Karten, Stufe 5 zusammen mit Projektmappe und Kundenakte"),
     "customer.html": (5, "Kundenakte -- große Arbeitsseite mit Reitern, Stufe 5 zusammen mit Projektmappe und Auftrag"),

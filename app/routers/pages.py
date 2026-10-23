@@ -147,7 +147,7 @@ templates.env.globals["can"] = _can
 # nicht "für jeden Angemeldeten offen" (tests/test_v260_role_audit.py::
 # test_all_page_routes_have_an_explicit_role_check() erzwingt das). _any_role_dep ist die
 # Ausnahme für die sechs Seiten, die ein Monteur tatsächlich braucht (/account, /mobil,
-# /mobil/stundenzettel, /mobil/objekt/{property_id}, /time-tracking,
+# /mobil/stundenzettel (seit 1.9.59 Weiterleitung auf /mobil/zeiten), /mobil/objekt/{property_id}, /time-tracking,
 # /orders/{id}/service-reports -- seit "Dateiablage je Objekt" sechs, vorher fünf seit 1.3.61,
 # vorher vier; /mobil hieß bis 1.3.60 /vor-ort) -- jede andere Seite ist Büro/Admin, exakt gespiegelt an der
 # API-Klassifizierung der jeweiligen Fachdomäne (siehe dort). Ein 403 aus diesen Dependencies
@@ -266,13 +266,23 @@ def field_open_page(request: Request, _role: AppUser = _any_role_dep):
     return templates.TemplateResponse(request=request, name="mobil_offen.html", context={})
 
 
+@router.get("/mobil/zeiten", response_class=HTMLResponse)
+def field_times_page(request: Request, _role: AppUser = _any_role_dep):
+    """„Meine Zeiten“ (seit 1.9.59, Stufe 4, R3): Kacheln, Buchungen des Monats, Nachtragen und Ändern nach der Tagesregel,
+    Abwesenheit, Stundenzettel als PDF -- ersetzt die Zeiterfassung der Monteurin (/time-tracking) und den Stundenzettel
+    (/mobil/stundenzettel), beide leiten hierher. Im Monteursrahmen für jede Rolle wie „Heute / Offen“; rendert nur das Gerüst, die
+    Daten kommen aus GET /api/field-view/meine-zeiten (immer die eigenen)."""
+    return templates.TemplateResponse(request=request, name="mobil_zeiten.html", context={})
+
+
 @router.get("/mobil/stundenzettel", response_class=HTMLResponse)
 def field_timesheet_page(request: Request, _role: AppUser = _any_role_dep):
-    """Eigener Stundenzettel für Monteure (seit 1.3.61, siehe CLAUDE.md "Zeiterfassung für
-    Monteure" -> "Stundenzettel"). Eigene Seite statt eines weiteren Kartenabschnitts auf /mobil
-    -- Monatswahl, Liste und PDF-Knopf passen strukturell nicht zur einfachen Karten-Liste der
-    übrigen Abschnitte dort. Rendert nur das statische Gerüst, alle Daten kommen per fetch()."""
-    return templates.TemplateResponse(request=request, name="field_timesheet.html", context={})
+    """Frühere Adresse des Stundenzettels (1.3.61–1.9.58, field_timesheet.html) -- seit 1.9.59 steht er auf „Meine Zeiten“ (Karte
+    „Monat“: Monat, Summe, PDF); ein Lesezeichen landet dort."""
+    return RedirectResponse(url="/mobil/zeiten", status_code=302)
+
+
+field_timesheet_page.dk_ohne_seite = lambda user: True  # seit 1.9.59, siehe login_page
 
 
 @router.get("/mobil/objekt/{property_id}", response_class=HTMLResponse)
@@ -361,9 +371,18 @@ def time_tracking_page(request: Request, _role: AppUser = _any_role_dep):
     unterwegs ist (oder umgekehrt), sieht bei JEDEM Aufruf -- Sidebar-Link, altes Lesezeichen,
     eingetippte Adresse, ?order_id=-Link von service_reports.html -- exakt das, was die aktuelle
     Sitzungsrolle vorsieht. `_role` ist das AppUser-Objekt aus require_role() (siehe
-    app/permissions.py), keine zweite Anfrage an request.state nötig."""
-    template_name = "time_tracking_field.html" if _role.role == ROLE_FIELD else "time_tracking.html"
-    return templates.TemplateResponse(request=request, name=template_name, context={})
+    app/permissions.py), keine zweite Anfrage an request.state nötig.
+
+    Seit 1.9.59 (Stufe 4, R3): für `field` eine Weiterleitung auf „Meine Zeiten“ (/mobil/zeiten) statt time_tracking_field.html --
+    Starten und Stoppen stehen auf „Heute“, alles andere auf „Meine Zeiten“; ein ?order_id= (Link „Zeiterfassung (Auftrag)“ im
+    Einsatzbericht) geht als Zahl mit und wählt den Auftrag im Dialog „Zeit nachtragen“ vor."""
+    if _role.role == ROLE_FIELD:
+        auftrag = request.query_params.get("order_id") or ""
+        return RedirectResponse(url=f"/mobil/zeiten?order_id={int(auftrag)}" if auftrag.isdigit() else "/mobil/zeiten", status_code=302)
+    return templates.TemplateResponse(request=request, name="time_tracking.html", context={})
+
+
+time_tracking_page.dk_ohne_seite = lambda user: user is not None and user.role == ROLE_FIELD  # seit 1.9.59, siehe login_page
 
 
 @router.get("/time-backoffice", response_class=HTMLResponse)

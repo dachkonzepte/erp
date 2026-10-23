@@ -141,7 +141,7 @@ async def pruefen(tab, seed, p):
                 continue
             p.pruefe(f"{rolle}: Monteurskopf statt Seitenleiste", await tab.js(
                 "[!!document.getElementById('appSidebar'),[...document.querySelectorAll('.mobile-nav-reiter')].map(a=>a.textContent.trim())]"),
-                [False, ["Heute", "Zeiterfassung", "Stundenzettel"]])
+                [False, ["Heute", "Meine Zeiten"]])  # seit 1.9.59
             status = await tab.js(f"{_STATUS}([...document.querySelectorAll('.mobile-nav-reiter')].map(a=>a.getAttribute('href')))")
             p.pruefe(f"{rolle}: Reiter ohne 403/404", sorted(h for h, s in (status or {}).items() if s in (403, 404)), [])
             p.pruefe(f"{rolle}: JS-Fehler", tab.fehler, [])

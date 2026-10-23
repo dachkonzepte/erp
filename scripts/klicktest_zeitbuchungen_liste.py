@@ -10,8 +10,8 @@ Hinweis "Liste gekürzt: X von Y" (Helfer `_time_entries_list.html`) und Summen 
              Dashboard ("Meine Stunden (Monat)")
     Admin    Backoffice, Reiter Zeitbuchungen (laufender Monat, über 2000 Buchungen)
              Büro-Zeiterfassung (ein Tag mit 501 Buchungen; "Heute" ohne Hinweis)
-    Monteur  Zeiterfassung (Fenster der letzten 14 Tage, über 500 Buchungen), Stundenzettel
-             (Vormonat, über 2000 Buchungen), in Handybreite
+    Monteur  Meine Zeiten (seit 1.9.59 statt Zeiterfassung und Stundenzettel): der Vormonat mit über 2000 Buchungen vollständig,
+             ohne Hinweis „gekürzt“, in Handybreite
 
 Die Buchungen liegen relativ zum heutigen Datum (laufender Monat, Vormonat, letzte 14 Tage), die
 erwarteten Zahlen rechnet befuellen() aus dem angelegten Datensatz aus -- das Skript läuft also in
@@ -182,17 +182,15 @@ async def pruefen(tab, seed, p):
 
     await tab.anmelden(seed["cookies"]["mia"])
     await tab.fenster(390, 844, mobil=True)
-    await tab.oeffnen("/time-tracking", "document.getElementById('entriesList')?.children.length>0")
-    p.pruefe("Monteurin Zeiterfassung: Hinweis", await tab.js(NOTICE.format(sel="'#entriesList'")), _gekuerzt(500, seed["monteurin_14_tage"]))
-    p.pruefe("Monteurin Zeiterfassung: JS-Fehler", tab.fehler, [])
-    await tab.js("document.getElementById('entriesList').scrollIntoView()")
-    await tab.bild("monteurin_zeiterfassung")
-    await tab.oeffnen("/mobil/stundenzettel", "!document.getElementById('entriesArea').classList.contains('loading')")
-    await tab.js(f"document.getElementById('monthInput').value='{seed['vormonat']}'; loadMonth('{seed['vormonat']}')")
-    await tab.warten("(document.querySelector('#entriesArea .time-entries-truncated')?.textContent||'').includes('2.000')", 15)
-    p.pruefe("Monteurin Stundenzettel: Hinweis", await tab.js(NOTICE.format(sel="'#entriesArea'")), _gekuerzt(2000, seed["monteurin_vormonat"]))
-    p.pruefe("Monteurin Stundenzettel: JS-Fehler", tab.fehler, [])
-    await tab.bild("monteurin_stundenzettel")
+    # seit 1.9.59 „Meine Zeiten“ (bis dahin Zeiterfassung mit 14 Tagen, Liste 500, und Stundenzettel, Liste 2000): ein Monat kommt
+    # vollständig (GET /api/field-view/meine-zeiten ohne Grenze) -- kein Hinweis „gekürzt“, jede Buchung eine Zeile
+    await tab.oeffnen("/mobil/zeiten", "typeof D!=='undefined'&&D&&D.tage.length>0", timeout=60)
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('monatZurueck').click()", "#tage")
+    p.pruefe("Monteurin Meine Zeiten: Vormonat vollständig, ohne Hinweis", await tab.js(
+        "[D.monat,document.querySelectorAll('#tage .zeile').length,!!document.querySelector('.time-entries-truncated')]"),
+        [seed["vormonat"], seed["monteurin_vormonat"], False])
+    p.pruefe("Monteurin Meine Zeiten: JS-Fehler", tab.fehler, [])
+    await tab.bild("monteurin_meine_zeiten")
 
 
 if __name__ == "__main__":

@@ -154,4 +154,5 @@ def test_jede_umleitung_einer_seitenroute_steht_an_der_route():
     umleitend = {m.group(1) for m in re.finditer(r"\ndef (\w+)\([^)]*\):(?:(?!\ndef ).)*?return RedirectResponse", quelle, flags=re.S)
                  if m.group(1).endswith("_page")}
     mit_merkmal = {name for name in dir(pages) if callable(getattr(pages, name)) and hasattr(getattr(pages, name), "dk_ohne_seite")}
-    assert umleitend == {"login_page", "dashboard_page"} and umleitend <= mit_merkmal
+    # seit 1.9.59 dazu der Stundenzettel (immer) und /time-tracking (für die Monteurin) -- beide auf „Meine Zeiten“
+    assert umleitend == {"login_page", "dashboard_page", "field_timesheet_page", "time_tracking_page"} and umleitend <= mit_merkmal
