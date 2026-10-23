@@ -4437,7 +4437,7 @@ denselben Zahlen (test_v483 unverändert grün).
   von/bis/pause_minuten (Schema `TimeEntryUpdate`); `app/meine_zeiten.py` (`meine_zeiten()`, `tagessumme()`, auch im Stundenzettel als PDF),
   `GET /api/field-view/meine-zeiten`.
 
-**Festlegungen 1.9.57 (Nr. 1, 3 und 5–9 bestätigt am 23.10.2026; Nr. 2 und 4 werden ersetzt, R3 Nachrunde Punkt 3)**
+**Festlegungen 1.9.57 (Nr. 1, 3 und 5–9 bestätigt am 23.10.2026; Nr. 2 ersetzt durch 1.9.62 Nr. 3, Nr. 4 durch 1.9.62 Nr. 5)**
 
 1. Ändern mit Von/Bis rechnet wie ein Nachtrag: Pause aus dem Tag ohne die alte Fassung dieser Buchung, gebucht nach der Rundung der
    Zeitregeln (bis 1.9.56 rundete Ändern nicht); Ändern mit Dauer (Büro) wie bisher.
@@ -4539,3 +4539,61 @@ Seiten (L3, L5) als eingegebene Mindestpause in die Buchung.
 
 - Ändert das Büro die Stunden einer Buchung (reine Dauer im Ändern), bleiben Von und Bis stehen -- Beginn und Ende passen dann nicht mehr zu
   den Stunden. Zu klären in R5 (Büro): Von/Bis leeren, anpassen oder mit Hinweis stehen lassen.
+
+### R3 Nachrunde, Punkt 3 (1.9.62): die eingetragene Mindestpause wird gemerkt
+
+- **Umsetzung**: Spalte `time_entries.min_break_minutes` (Integer, leer erlaubt), Migration **`c4f2a8e61d35`** (auf `b7e3d91c4a58`;
+  `downgrade()` verweigert, solange eine Buchung einen Wert hat). `app/time_tracking.py::mindestpause_der_buchung()` (gemerkter Wert, ohne
+  die abgezogene Pause); gesetzt in `create_manual_entry()` (`min_break_minutes`, ohne Angabe die Pause), `stop_timer()`,
+  `stop_group_timer()`, `zeitart_wechseln()` (0), `update_entry()` (mit Von/Bis die Mindestpause des Ändern, sonst `min_break_minutes`, wenn
+  angegeben), `create_group_manual_entry()` und `update_group()` (die Pause der Gruppe); `pausen_vorschau()` gibt jeder Buchung mindestens
+  ihre Mindestpause, `pausen_neu_rechnen()` schreibt bei einer Buchung ohne Wert die bisherige Pause als Mindestpause fest. Router: PUT ohne
+  `pause_minuten` mit der gemerkten Mindestpause, Dauer mit `hours`/`break_minutes` merkt die Pause; `nachtrag-vorschau` mit `entry_id` ohne
+  `pause_minuten` ebenso. `TimeEntryOut.min_break_minutes`, „Meine Zeiten“ je Zeile `mindestpause`; `mobil_zeiten.html` belegt „Pause
+  mindestens“ beim Ändern vor und nennt sie im Knopf „Weitere Angaben“. Im Änderungsverlauf heißt die Spalte „Pause mindestens (Min.)“
+  (`app/audit.py`; im ersten Lauf der Suite fehlte der Name, `test_v436::test_jedes_protokollierte_feld_hat_einen_namen` und
+  `test_v438::test_namen_der_historie_sind_lesbar` waren rot).
+
+**Festlegungen 1.9.62 (Bitte bestätigen)**
+
+1. Neue Spalte `time_entries.min_break_minutes`, leer erlaubt (Migration `c4f2a8e61d35`); Rückweg verweigert, sobald ein Wert gespeichert ist
+   (wie 1.9.42).
+2. Gesetzt: Nachtrag = „Pause mindestens“ (leer 0), eine reine Dauer = die eingetragene Pause; Ändern mit Von/Bis = `pause_minuten`; Ändern
+   einer Dauer mit Stunden oder Pause (Büro) = die Pause; Kolonne (Nachtrag, Ändern) = die Pause der Gruppe; Feierabend, Gruppen-Feierabend
+   und „Ende nachtragen“ = die eingegebene Pause, ohne Eingabe 0; Zeitart wechseln = 0; eine laufende Zeit hat noch keinen Wert.
+3. Ändern ohne `pause_minuten` behält die gemerkte Mindestpause (Regel 22; ersetzt 1.9.57 Nr. 2 „ohne Angabe 0“); ebenso die Vorschau beim
+   Ändern ohne Angabe.
+4. Eine Buchung von vor 1.9.62 (ohne Wert): die abgezogene Pause gilt als Mindestpause (`mindestpause_der_buchung()`); ändert „Pausen neu
+   rechnen“ eine solche Buchung, schreibt es die bisherige Pause als Mindestpause fest -- sonst läge die Mindestpause danach bei der neuen,
+   höheren Pause.
+5. Die Pausenprüfung gibt jeder Buchung mindestens ihre Mindestpause; „passt nicht“ nur, wenn neu rechnen etwas ändern würde -- eine bewusst
+   längere Pause lässt den Tag passen (ersetzt 1.9.57 Nr. 4). Gleiche Summe bei anderer Verteilung passt weiter (1.9.57 Nr. 3).
+6. „Ändern“ belegt „Pause mindestens“ mit der Mindestpause vor, auch 0; der Knopf „Weitere Angaben“ nennt sie, wenn sie über 0 liegt
+   („Pause mindestens 1:00 h“); der Hinweis darunter lautet „Bisher abgezogen: … Abgezogen wird die Pause nach Zeitregel, mindestens
+   „Pause mindestens“.“
+7. Antworten: `min_break_minutes` an jeder Zeitbuchung (roh, leer bei alten), `mindestpause` je Zeile von „Meine Zeiten“ (wirksam; laufend
+   leer).
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v487_mindestpause_merken.py` (8 Tests): Nachtrag mit und ohne „Pause mindestens“; Feierabend ohne und mit Pause, „Ende
+  nachtragen“, Zeitart wechseln; Ändern setzt sie und behält sie ohne Angabe (auch die Vorschau), nur die Notiz lässt sie; Büro: Dauer und
+  Kolonne merken die Pause; 08:00–12:00 und 12:30–16:30 mit 60, die erste gelöscht -> kein Hinweis, Pause bleibt 60 (Gegenprobe im Test:
+  ohne Mindestpause 30 -> 0); Mindestpause über der Regel passt; alte Buchungen ohne Wert: nach dem Löschen nicht nach unten, 0 -> 30 nach
+  oben und danach 0 festgeschrieben; „Meine Zeiten“ liefert die Mindestpause (gemerkt, alt, laufend) und der Dialog belegt sie vor.
+- Neu `tests/test_v488_mindestpause_migration.py` (2 Tests): Bestand auf `b7e3d91c4a58` (eine Buchung mit Uhrzeiten und Pause, eine Dauer),
+  hoch ohne Änderung einer Zeile, runter exakt wie vorher, mit Wert Rückweg verweigert -- SQLite und PostgreSQL (Wegwerf-Schema).
+- Angepasste Erwartungen (`klicktest_meine_zeiten`; die Buchung „Ändern“ der Testdaten ist jetzt eine von vor 1.9.62, ohne Wert):
+  - „Ändern: vorbelegt“: acht Felder -> neun, dazu „Pause mindestens“ = „30“ (die abgezogene Pause).
+  - „Ändern: „Weitere Angaben“ zu, der Knopf nennt Tätigkeit und Notiz“: „Weitere Angaben · Dachdeckung · Rinne geprüft“ -> „… · Pause
+    mindestens 0:30 h“ (Name der Prüfung um „und Mindestpause“ ergänzt).
+  - neu: leer gespeichert -> „0“ vorbelegt; mit 60 gespeichert -> „60“ vorbelegt, Knopf und Hinweis; Vorschau mit der gemerkten Mindestpause
+    (− 1:00 h); Bild `meine_zeiten_aendern_mindestpause_hell`.
+- `klicktest_teil_updates`, „Buchung ändern (Von/Bis): … Pause nach der Tagesregel“: Pause 0, gebucht 4,00 h -> Pause 45, gebucht 3,25 h
+  (Prüfung umbenannt in „…, mindestens die gemerkte“). Die Buchung der Testdaten ist eine Dauer mit eingetragener Pause 45 min; seit 1.9.62
+  belegt „Ändern“ sie als Mindestpause vor (Festlegungen 2 und 6) -- rot im ersten Endlauf von 1.9.62, die Erwartung war seit dieser
+  Version veraltet.
+- **Gegenproben**: P1 Pausenprüfung ohne Mindestpause -> 3 rot; P2 alte Buchung ohne Wert gilt als 0 -> 2 rot, Klicktest 2 rot (Vorbelegung
+  „0“ statt „30“, Knopf ohne Mindestpause); P3 Ändern ohne Angabe nimmt 0 -> 1 rot; P4 Feierabend merkt die Pause nicht -> 1 rot; P5 Ändern
+  ohne Vorbelegung -> 1 rot, Klicktest 4 rot; P6 neu rechnen schreibt die alte Pause nicht fest -> 1 rot; P7 Rückweg der Migration nicht
+  verweigert -> 2 rot (SQLite und PostgreSQL).

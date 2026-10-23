@@ -119,6 +119,7 @@ def befuellen(db, k):
     zeit(mia, date(2026, 10, 9), time(6, 15), time(7), "travel")
     aendern = zeit(mia, date(2026, 10, 9), time(7), time(15), activity="Dachdeckung")
     aendern.notes = "Rinne geprüft"
+    aendern.min_break_minutes = None  # seit 1.9.62: wie eine Buchung von vor 1.9.62 -- „Ändern“ belegt mit der abgezogenen Pause vor
     db.commit()
     gruppe = create_group_manual_entry(db, employee_ids=[mia.id, leute["tom"].id], team_id=team.id, actor_employee_id=mia.id, is_admin=False,
                                        order_id=a.id, work_date=date(2026, 10, 8), hours=Decimal("8"))
@@ -267,12 +268,13 @@ async def pruefen(tab, seed, p):
     # --- Ändern: Bis 16:30, Mindestpause, die Fahrzeit des Tags bleibt -------------------------------------------------------------
     await tab.js(menue(seed["aendern"], "aendern"))
     p.pruefe("Ändern: vorbelegt", await tab.js(
-        "['zdTitel','zdDatum','zdZeitart','zdVon','zdBis','zdAuftrag','zdTaetigkeit','zdNotiz'].map(i=>{const e=document.getElementById(i);"
+        "['zdTitel','zdDatum','zdZeitart','zdVon','zdBis','zdAuftrag','zdTaetigkeit','zdNotiz','zdPause'].map(i=>{const e=document.getElementById(i);"
         "return e.tagName==='H2'?e.textContent:e.value})"),
-        ["Zeit ändern", "2026-10-09", "site", "07:00", "15:00", str(a), "Dachdeckung", "Rinne geprüft"])
-    p.pruefe("Ändern: „Weitere Angaben“ zu, der Knopf nennt Tätigkeit und Notiz", await tab.js(
+        # seit 1.9.62 „Pause mindestens“ vorbelegt: eine Buchung von vor 1.9.62 mit der abgezogenen Pause (30)
+        ["Zeit ändern", "2026-10-09", "site", "07:00", "15:00", str(a), "Dachdeckung", "Rinne geprüft", "30"])
+    p.pruefe("Ändern: „Weitere Angaben“ zu, der Knopf nennt Tätigkeit, Notiz und Mindestpause", await tab.js(
         "[document.getElementById('zdWeitereFelder').hidden,document.getElementById('zdWeitere').textContent]"),
-        [True, "Weitere Angaben · Dachdeckung · Rinne geprüft"])
+        [True, "Weitere Angaben · Dachdeckung · Rinne geprüft · Pause mindestens 0:30 h"])
     await tab.warten(VORSCHAU_DA)
     await tab.js(setze("zdBis", "16:30"))
     await tab.warten("document.getElementById('zdVorschauZahl').textContent==='8,75 h'")
@@ -290,6 +292,26 @@ async def pruefen(tab, seed, p):
     p.pruefe("geändert, die Fahrzeit des Tags unverändert", await tab.js(zeilen_des_tags("2026-10-09")),
              [["06:15–07:00", "Fahrzeit · AUF-2026-0001", "", "0,75 h", True],
               ["07:00–16:30", "Baustellenzeit · AUF-2026-0001", "Dachdeckung · Rinne geprüft", "8,75 h", True]])
+
+    # --- seit 1.9.62: die eingetragene Mindestpause bleibt und belegt „Ändern“ vor -------------------------------------------------
+    await tab.js(menue(seed["aendern"], "aendern"))
+    p.pruefe("Ändern: „Pause mindestens“ leer gespeichert -> 0 vorbelegt", await tab.js("document.getElementById('zdPause').value"), "0")
+    await tab.warten("document.getElementById('zdVorschauZahl').textContent==='8,75 h'")
+    await tab.js(setze("zdPause", "60"))
+    await tab.warten("document.getElementById('zdVorschauZahl').textContent==='8,50 h'")
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('zdSpeichern').click()", "#tage")
+    await tab.js(menue(seed["aendern"], "aendern"))
+    p.pruefe("Ändern: mit der gemerkten Mindestpause 60 vorbelegt, der Knopf nennt sie", await tab.js(
+        "[document.getElementById('zdPause').value,document.getElementById('zdWeitere').textContent,"
+        "document.getElementById('zdPauseBisher').textContent]"),
+        ["60", "Weitere Angaben · Dachdeckung · Rinne geprüft · Pause mindestens 1:00 h",
+         "Bisher abgezogen: 1:00 h. Abgezogen wird die Pause nach Zeitregel, mindestens „Pause mindestens“."])
+    await tab.warten("document.getElementById('zdVorschauZahl').textContent==='8,50 h'")
+    p.pruefe("Vorschau mit der gemerkten Mindestpause", await tab.js("document.getElementById('zdVorschauZeile').textContent"),
+             "Anwesend 9:30 h · Tag zusammen 10:15 h · Pause nach Zeitregel − 1:00 h")
+    await tab.js("document.getElementById('zdWeitere').click()")
+    await tab.bild("meine_zeiten_aendern_mindestpause_hell")
+    await tab.js("document.getElementById('zdAbbrechen').click()")
 
     # --- Löschen mit Rückfrage, „Pausen neu rechnen“ --------------------------------------------------------------------------------
     await tab.js(menue(seed["erste"], "loeschen"))

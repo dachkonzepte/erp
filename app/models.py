@@ -2796,6 +2796,10 @@ class TimeEntry(Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     break_minutes: Mapped[int] = mapped_column(default=0)
+    # Seit 1.9.62 (Stufe 4, R3 Nachrunde): die eingetragene Mindestpause („Pause mindestens“, beim Feierabend die eingegebene Pause, ohne
+    # Eingabe 0) -- „Pausen neu rechnen“ geht nie darunter. Leer bei Buchungen von vor 1.9.62: dort gilt die abgezogene Pause als
+    # Mindestpause (app/time_tracking.py::mindestpause_der_buchung()).
+    min_break_minutes: Mapped[int | None] = mapped_column(nullable=True)
     hours: Mapped[Decimal] = mapped_column(Numeric(18, 4), default=Decimal("0"))
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     source: Mapped[str] = mapped_column(String(30), default="manual", index=True)

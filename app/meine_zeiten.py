@@ -34,7 +34,7 @@ from .rounding import round_hours
 from .time_backoffice import load_time_settings, locked_until
 from .time_tracking import (
     _reihenfolge_am_tag, crew_leader_team_ids, entry_to_dict, list_crews_for_leader, list_entries,
-    list_groups_initiated_by, pausen_vorschau,
+    list_groups_initiated_by, mindestpause_der_buchung, pausen_vorschau,
 )
 
 MONATSNAMEN = {
@@ -80,6 +80,8 @@ def _zeile(row, gruppe, arten: list[dict], employee_id: int, kolonnen: set[int],
         "zeitart": next((a["label"] for a in arten if a["value"] == row.entry_type), None) or row.entry_type,
         "order_id": row.order_id, "order_number": d["order_number"], "project_name": d["project_name"],
         "gebucht": None if laeuft else round_hours(row.hours or 0), "anwesend": d["anwesend"], "pause": d["pause"],
+        # seit 1.9.62: die eingetragene Mindestpause (eine Buchung von vor 1.9.62: die abgezogene Pause) -- „Ändern“ belegt sie vor
+        "mindestpause": None if laeuft else mindestpause_der_buchung(row),
         "von": row.started_at.strftime("%H:%M") if row.started_at else None,
         "bis": row.ended_at.strftime("%H:%M") if row.ended_at else None,
         "laeuft": laeuft, "laeuft_seit_frueher": d["laeuft_seit_frueher"],

@@ -5,7 +5,8 @@ Vorgabewert), und einige Seiten schickten Werte mit, die sie gar nicht bearbeite
 die echten Seiten:
 
     Meine Zeiten (Monteur)    seit 1.9.59 (bis dahin die Zeiterfassung, Ändern mit Dauer): Buchung ändern mit Von/Bis -- LV-Position
-                              bleibt, die Notiz ändert sich, die Pause rechnet der Server nach der Tagesregel; Kolonnenbuchung
+                              bleibt, die Notiz ändert sich, die Pause rechnet der Server nach der Tagesregel (seit 1.9.62
+                              mindestens die gemerkte Mindestpause, vorbelegt); Kolonnenbuchung
                               ändern (Kolonnenführer): Pause und LV-Position bleiben, die Notiz ändert sich
     Einstellungen (Admin)     Unternehmensstammdaten speichern, dann Logohöhe übernehmen: die neue
                               Telefonnummer bleibt, die Höhe kommt an; noch einmal Stammdaten
@@ -118,9 +119,10 @@ async def pruefen(tab, seed, p):
                  "document.getElementById('zdNotiz').value='Rinne gereinigt'")
     await tab.warte_auf_neu_geladene_liste("document.getElementById('zdSpeichern').click()", "#tage")
     eintrag = await tab.js(f"{meine}.then(e=>[e.notes,e.order_item_id,Number(e.hours),e.break_minutes])")
-    # der Tag hat schon die Kolonnenbuchung (8 h + 45 min Pause): 07:00–11:00 bekommt keine Pause mehr, gebucht 4,00 h
-    p.pruefe("Buchung ändern (Von/Bis): Notiz neu, LV-Position unverändert, Pause nach der Tagesregel", eintrag,
-             ["Rinne gereinigt", seed["position"], 4.0, 0])
+    # der Tag hat schon die Kolonnenbuchung (8 h + 45 min Pause): nach der Tagesregel bekäme 07:00–11:00 keine Pause mehr -- seit 1.9.62
+    # belegt „Ändern“ aber die eingetragene Pause der Buchung (45 min, eine Dauer) als Mindestpause vor: 45 min, gebucht 3,25 h
+    p.pruefe("Buchung ändern (Von/Bis): Notiz neu, LV-Position unverändert, Pause nach der Tagesregel, mindestens die gemerkte", eintrag,
+             ["Rinne gereinigt", seed["position"], 3.25, 45])
 
     kolonne = f"{_api('/api/time-entry-groups/mine')}.then(l=>l.find(g=>g.id==={seed['gruppe']}))"
     await tab.js(f"kolonneDialogOeffnen(gruppeZu({seed['gruppe']}));document.getElementById('kdNotiz').value='Kolonne neu'")

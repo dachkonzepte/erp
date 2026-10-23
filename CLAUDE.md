@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.61** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.62** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -1480,7 +1480,10 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   angezeigt zwischen „anwesend“ und der Pause); Wächter `tests/test_v474_pause_je_tag.py`, `tests/test_v480_tag_zusammen_anzeige.py`.
   **Seit 1.9.57** rechnet Ändern mit Von/Bis (`PUT /api/time-entries/{id}`) wie ein Nachtrag, mit dem Tag ohne die alte Fassung
   (`buchungen_am_tag(…, ohne_id)`); passt die Pause eines Tags danach nicht mehr, zeigt `pausen_vorschau()` alt -> neu und
-  `pausen_neu_rechnen()` bucht genau diese Vorschau, nur auf Klick (`tests/test_v483_meine_zeiten_server.py`). **Eine Rundung** (seit 1.9.39): jede neue Buchung --
+  `pausen_neu_rechnen()` bucht genau diese Vorschau, nur auf Klick (`tests/test_v483_meine_zeiten_server.py`). **Seit 1.9.62** merkt jede
+  Buchung ihre eingetragene Mindestpause (`TimeEntry.min_break_minutes`, Migration `c4f2a8e61d35`; leer = vor 1.9.62, dann gilt die
+  abgezogene Pause, `mindestpause_der_buchung()`): neu rechnen geht nie darunter, „passt nicht“ nur, wenn neu rechnen etwas ändern würde,
+  Ändern ohne „pause_minuten“ behält sie (`tests/test_v487_mindestpause_merken.py`). **Eine Rundung** (seit 1.9.39): jede neue Buchung --
   auch je Mitglied einer Gruppe -- rundet nur `gebucht_nach_zeitregel()` nach den Zeitregeln (ohne Rundung bleibt der Wert); Wächter
   `tests/test_v466_rundung_gruppen.py`.
 - **Vergessener Feierabend** (seit 1.9.35): nichts schließt eine Zeit von selbst. Läuft sie seit einem früheren Tag

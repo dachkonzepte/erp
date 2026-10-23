@@ -3308,6 +3308,7 @@ class TimeEntryOut(BaseModel):
     started_at: datetime | None = None
     ended_at: datetime | None = None
     break_minutes: int
+    min_break_minutes: int | None = None  # seit 1.9.62: die eingetragene Mindestpause (leer: Buchung von vor 1.9.62)
     hours: Decimal
     notes: str | None = None
     source: str

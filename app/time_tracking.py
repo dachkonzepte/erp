@@ -127,6 +127,13 @@ def _anwesend_summe(rows: list[TimeEntry]) -> Decimal:
     return sum((_anwesend_der_buchung(r) for r in rows), Decimal("0"))
 
 
+def mindestpause_der_buchung(row: TimeEntry) -> int:
+    """Seit 1.9.62 (Stufe 4, R3 Nachrunde): die eingetragene Mindestpause einer Buchung (TimeEntry.min_break_minutes) -- für
+    „Pausen neu rechnen“ (nie darunter), die Vorbelegung von „Ändern“ und ein Ändern ohne neue Angabe. Eine Buchung von vor 1.9.62 hat
+    keinen Wert: dort gilt die abgezogene Pause als Mindestpause, neu rechnen kann nur mehr Pause ergeben."""
+    return max(0, int(row.min_break_minutes if row.min_break_minutes is not None else (row.break_minutes or 0)))
+
+
 def pause_nach_zeitregel(db: Session, employee_id: int, anwesend, am: date, mindestpause: int = 0, ohne_id: int | None = None, *,
                          vorher: tuple[Decimal, int] | None = None) -> int:
     """Die EINE Pausenregel (seit 1.9.34) -- für Stopp, Gruppen-Stopp (je Mitglied), Ende nachtragen, den Nachtrag mit Von/Bis,
@@ -209,18 +216,20 @@ def _reihenfolge_am_tag(rows: list[TimeEntry]) -> list[TimeEntry]:
 def pausen_vorschau(db: Session, employee_id: int, tag: date) -> dict:
     """Seit 1.9.57 (Stufe 4, R3, Punkt 5): passt die abgezogene Pause des Tags noch zur Zeitregel? Nach Ändern oder Löschen einer
     Buchung kann sie das nicht mehr -- nichts rechnet sie von selbst neu. „Nach Zeitregel“ ist, was die Regel den Buchungen in der
-    Reihenfolge des Tags gäbe (wie pause_nach_zeitregel(): jede bekommt, was dem Tag noch fehlt, höchstens ihre Anwesenheit; ohne
-    Mindestpause; über pause_nach_zeitregel(vorher=…), die eine Pausenregel). passt = die Summen sind gleich (eine andere Verteilung bei
+    Reihenfolge des Tags gäbe (wie pause_nach_zeitregel(): jede bekommt, was dem Tag noch fehlt, höchstens ihre Anwesenheit; seit 1.9.62
+    mindestens ihre eingetragene Mindestpause, mindestpause_der_buchung() -- bis 1.9.61 ohne, eine bewusst längere Pause hieß „passt
+    nicht“; über pause_nach_zeitregel(vorher=…), die eine Pausenregel). passt = die Summen sind gleich (eine andere Verteilung bei
     gleicher Summe passt). buchungen: je Buchung, deren Pause sich ändern würde, alt -> neu (Pause in Minuten, gebucht nach der Rundung
     der Zeitregeln). Seit 1.9.59: eine reine Dauer (ohne Uhrzeiten) ist gebuchte Arbeitszeit -- ihre Pause bleibt, wie sie ist; sie
     zählt mit Stunden + Pause vor den Buchungen mit Uhrzeiten zur Anwesenheit des Tags (wie beim Buchen). Bis dahin rechnete die Prüfung
-    auch sie neu: ein Kolonnen-Nachtrag von 8 h hieß „nach Zeitregel 0:30 h“, „Pausen neu rechnen“ hätte 7,50 h gebucht."""
+    auch sie neu: ein Kolonnen-Nachtrag von 8 h hieß „nach Zeitregel 0:30 h“, „Pausen neu rechnen“ hätte 7,50 h gebucht. Seit 1.9.62
+    heißt „passt nicht“ deshalb: neu rechnen würde etwas ändern (jede Buchung behält mindestens, was eingetragen ist)."""
     rows = _reihenfolge_am_tag(buchungen_am_tag(db, employee_id, tag))
     dauern = [r for r in rows if not (r.started_at and r.ended_at and r.ended_at > r.started_at)]
     anwesend_vorher, pause_vorher, plan = _anwesend_summe(dauern), sum(int(r.break_minutes or 0) for r in dauern), []
     for r in (r for r in rows if r not in dauern):
         anwesend = _anwesend_der_buchung(r)
-        neu = pause_nach_zeitregel(db, employee_id, anwesend, tag, vorher=(anwesend_vorher, pause_vorher))
+        neu = pause_nach_zeitregel(db, employee_id, anwesend, tag, mindestpause_der_buchung(r), vorher=(anwesend_vorher, pause_vorher))
         alt = int(r.break_minutes or 0)
         if neu != alt:
             plan.append({"id": r.id, "pause_alt": alt, "pause_neu": neu, "gebucht_alt": _d(r.hours),
@@ -250,6 +259,8 @@ def pausen_neu_rechnen(db: Session, employee_id: int, tag: date, erwartet: dict[
         b = plan.get(r.id)
         if b is None:
             continue
+        if r.min_break_minutes is None:  # seit 1.9.62: eine Buchung von vor 1.9.62 behält ihre bisherige Pause als Mindestpause
+            r.min_break_minutes = int(r.break_minutes or 0)
         r.break_minutes, r.hours = b["pause_neu"], b["gebucht_neu"]
         link = _group_link_for_entry(db, r.id)
         if link is not None:
@@ -297,8 +308,10 @@ def create_manual_entry(
     hours: Decimal, entry_type: str = "site", order_item_id: int | None = None,
     activity: str | None = None, notes: str | None = None,
     started_at: datetime | None = None, ended_at: datetime | None = None,
-    break_minutes: int = 0, created_by_user_id: int | None = None,
+    break_minutes: int = 0, created_by_user_id: int | None = None, min_break_minutes: int | None = None,
 ) -> TimeEntry:
+    """Seit 1.9.62: min_break_minutes = die eingetragene Mindestpause (der Nachtrag mit Von/Bis: „Pause mindestens“); ohne Angabe die
+    Pause selbst (eine reine Dauer: die eingetragene Pause)."""
     employee = db.get(Employee, employee_id)
     order = db.get(Order, order_id)
     if employee is None or not employee.active:
@@ -320,6 +333,7 @@ def create_manual_entry(
         order_item_id=order_item_id, work_date=work_date, entry_type=entry_type,
         counts_as_productive=entry_type_is_productive(entry_type), activity=(activity or None),
         started_at=started_at, ended_at=ended_at, break_minutes=max(0, int(break_minutes or 0)),
+        min_break_minutes=max(0, int((break_minutes if min_break_minutes is None else min_break_minutes) or 0)),
         hours=amount, notes=(notes or None), source="manual", status="booked",
         created_by_user_id=created_by_user_id,
     )
@@ -374,6 +388,7 @@ def stop_timer(db: Session, entry_id: int, *, ended_at: datetime | None = None, 
         row.break_minutes = max(0, int(break_minutes or 0))
         row.hours = compute_hours(row.started_at, end, row.break_minutes)  # lehnt das Ende ab
     row.status = "booked"
+    row.min_break_minutes = max(0, int(break_minutes or 0))  # seit 1.9.62: die eingegebene Pause, ohne Eingabe 0
     link = _group_link_for_entry(db, row.id)
     if link is not None:
         group = db.get(TimeEntryGroup, link.group_id)
@@ -441,6 +456,7 @@ def zeitart_wechseln(db: Session, entry_id: int, entry_type: str, *, jetzt: date
     jetzt = jetzt or berlin_now()
     werte = ende_rechnen(db, row.employee_id, row.started_at, jetzt)
     row.ended_at, row.break_minutes, row.hours, row.status = jetzt, werte["pause"], werte["gebucht"], "booked"
+    row.min_break_minutes = 0  # seit 1.9.62: beim Wechsel wird keine Pause eingegeben
     neu = TimeEntry(
         employee_id=row.employee_id, project_id=row.project_id, order_id=row.order_id, order_item_id=row.order_item_id,
         work_date=jetzt.date(), entry_type=entry_type, counts_as_productive=entry_type_is_productive(entry_type), activity=row.activity,
@@ -466,11 +482,13 @@ def update_entry(
     db: Session, entry_id: int, *, employee_id: int, order_id: int, work_date: date,
     hours: Decimal, entry_type: str, order_item_id: int | None = None,
     activity: str | None = None, notes: str | None = None, break_minutes: int = 0,
-    von: time | None = None, bis: time | None = None, mindestpause: int = 0,
+    von: time | None = None, bis: time | None = None, mindestpause: int = 0, min_break_minutes: int | None = None,
 ) -> TimeEntry:
     """Seit 1.9.57 (Stufe 4, R3) mit von/bis: dieselbe Rechnung wie ein Nachtrag (nachtrag_nach_zeitregel()) -- Pause aus dem Tag ohne
     die alte Fassung dieser Buchung, gebucht nach der Rundung der Zeitregeln, Beginn und Ende neu; hours und break_minutes zählen dann
-    nicht. Andere Buchungen werden nie angefasst. Ohne von/bis wie bisher: die Stunden zählen, die Zeitstempel bleiben Nachweis."""
+    nicht. Andere Buchungen werden nie angefasst. Ohne von/bis wie bisher: die Stunden zählen, die Zeitstempel bleiben Nachweis.
+    Seit 1.9.62 die eingetragene Mindestpause: mit von/bis die dieses Ändern (mindestpause), sonst min_break_minutes, wenn angegeben (eine
+    Dauer mit neuer Pause, Büro); ohne beides bleibt sie."""
     row = db.get(TimeEntry, entry_id)
     if row is None:
         raise ValueError("Zeitbuchung wurde nicht gefunden.")
@@ -495,6 +513,10 @@ def update_entry(
     row.order_item_id=order_item_id; row.work_date=work_date; row.hours=amount
     row.entry_type=entry_type; row.counts_as_productive=entry_type_is_productive(entry_type)
     row.activity=activity or None; row.notes=notes or None; row.break_minutes=max(0,int(break_minutes or 0))
+    if von is not None:
+        row.min_break_minutes = max(0, int(mindestpause or 0))
+    elif min_break_minutes is not None:
+        row.min_break_minutes = max(0, int(min_break_minutes))
     # Bei manueller Korrektur zählt der Stundenwert als führend; alte Timer-Zeitstempel bleiben Nachweis.
     link = _group_link_for_entry(db, row.id)
     if link is not None:
@@ -534,6 +556,7 @@ def entry_to_dict(row: TimeEntry) -> dict:
         "work_date": row.work_date, "entry_type": row.entry_type,
         "counts_as_productive": row.counts_as_productive, "activity": row.activity,
         "started_at": row.started_at, "ended_at": row.ended_at, "break_minutes": row.break_minutes,
+        "min_break_minutes": row.min_break_minutes,  # seit 1.9.62: die eingetragene Mindestpause (leer: Buchung von vor 1.9.62)
         "hours": row.hours, "notes": row.notes, "source": row.source, "status": row.status,
         # seit 1.9.34 (Stufe 4, R1): anwesend (Stunden vor Abzug der Pause), Pause (Minuten), gebucht (Stunden) -- anwesend aus Beginn und
         # Ende, ohne beide (eine reine Dauer) gebucht + Pause; eine laufende Zeit hat noch keins
@@ -762,7 +785,7 @@ def create_group_manual_entry(db: Session, *, employee_ids: list[int], team_id: 
     if amount<=0: raise ValueError("Die Stunden müssen größer als 0 sein.")
     group=_create_group_header(db,initiated_by_employee_id=actor_employee_id,team_id=team_id,order=order,order_item_id=order_item_id,mode='manual',entry_type=entry_type,activity=activity,work_date=work_date,started_at=None,hours=amount,break_minutes=break_minutes,notes=notes,status='booked',created_by_user_id=created_by_user_id)
     for emp in employees:
-        entry=TimeEntry(employee_id=emp.id,project_id=order.project_id,order_id=order.id,order_item_id=order_item_id,work_date=work_date,entry_type=entry_type,counts_as_productive=entry_type_is_productive(entry_type),activity=activity or None,started_at=None,ended_at=None,break_minutes=max(0,int(break_minutes or 0)),hours=amount,notes=notes or None,source='group_manual',status='booked',created_by_user_id=created_by_user_id)
+        entry=TimeEntry(employee_id=emp.id,project_id=order.project_id,order_id=order.id,order_item_id=order_item_id,work_date=work_date,entry_type=entry_type,counts_as_productive=entry_type_is_productive(entry_type),activity=activity or None,started_at=None,ended_at=None,break_minutes=max(0,int(break_minutes or 0)),min_break_minutes=max(0,int(break_minutes or 0)),hours=amount,notes=notes or None,source='group_manual',status='booked',created_by_user_id=created_by_user_id)
         db.add(entry);db.flush();db.add(TimeEntryGroupMember(group_id=group.id,employee_id=emp.id,time_entry_id=entry.id))
     db.commit();return db.get(TimeEntryGroup,group.id)
 
@@ -802,6 +825,7 @@ def stop_group_timer(db: Session, group_id: int, *, ended_at: datetime | None=No
             else:
                 applied=max(0,int(break_minutes or 0));amount=compute_hours(group.started_at,end,applied)  # lehnt das Ende ab
             entry.ended_at=end;entry.break_minutes=applied;entry.hours=amount;entry.status='booked'
+            entry.min_break_minutes=max(0,int(break_minutes or 0))  # seit 1.9.62: die eingegebene Pause, ohne Eingabe 0
             amounts.append(amount);applied_breaks.append(applied)
     group.ended_at=end
     group.break_minutes=max(applied_breaks or [max(0,int(break_minutes or 0))])
@@ -908,6 +932,7 @@ def update_group(db: Session, group_id: int, *, order_id: int, work_date: date, 
         entry.work_date = work_date; entry.hours = amount; entry.entry_type = entry_type
         entry.counts_as_productive = entry_type_is_productive(entry_type)
         entry.activity = activity or None; entry.notes = notes or None; entry.break_minutes = max(0, int(break_minutes or 0))
+        entry.min_break_minutes = entry.break_minutes  # seit 1.9.62: die eingetragene Pause der Kolonne
     group.order_id = order.id; group.project_id = order.project_id; group.order_item_id = order_item_id
     group.work_date = work_date; group.hours = amount; group.entry_type = entry_type
     group.activity = activity or None; group.notes = notes or None; group.break_minutes = max(0, int(break_minutes or 0))

@@ -4,6 +4,22 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.62 – Die eingetragene Mindestpause wird gemerkt (Stufe 4, R3 Nachrunde)
+
+Neue Spalte `time_entries.min_break_minutes` (Migration `c4f2a8e61d35`, Rückweg verweigert, sobald ein Wert gespeichert ist): jede
+Buchung merkt ihre eingetragene Mindestpause -- beim Nachtrag „Pause mindestens“, beim Ändern `pause_minuten`, in der Kolonne die Pause
+der Gruppe, beim Feierabend und „Ende nachtragen“ die eingegebene Pause, ohne Eingabe 0; eine reine Dauer des Büros die eingetragene
+Pause. „Pausen neu rechnen“ geht je Buchung nie unter diese Mindestpause; eine Buchung von vor 1.9.62 hat keinen Wert, dort gilt die
+abgezogene Pause als Mindestpause (`app/time_tracking.py::mindestpause_der_buchung()`) -- neu rechnen kann dort nur mehr Pause ergeben
+und schreibt die bisherige Pause dann als Mindestpause fest. So zeigt ein Tag „passt nicht“ nur noch, wenn neu rechnen etwas ändern
+würde: eine bewusst längere Pause (12:30–16:30 mit 60 min, die Buchung davor gelöscht) bleibt ohne Hinweis stehen (bis 1.9.61 bot neu
+rechnen dort 0 min an).
+
+„Ändern“ in „Meine Zeiten“ belegt „Pause mindestens“ mit der Mindestpause vor (alte Buchungen: die abgezogene Pause), der Knopf
+„Weitere Angaben“ nennt sie; ein Ändern ohne „pause_minuten“ behält sie (Regel 22, bis 1.9.61 hieß ohne Angabe 0), ebenso die Vorschau
+beim Ändern. Antworten: `min_break_minutes` an jeder Zeitbuchung, `mindestpause` je Zeile von „Meine Zeiten“. Neue Tests `test_v487`
+(8) und `test_v488` (Migration unter SQLite und PostgreSQL); `klicktest_meine_zeiten` prüft die Vorbelegung.
+
 ## 1.9.61 – Die Standardpause entfällt (Stufe 4, R3 Nachrunde)
 
 Entscheidung von Tobias: es gilt überall nur die Pause nach Zeitregel je Tag und die selbst eingetragene Mindestpause -- Feierabend,

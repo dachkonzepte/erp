@@ -398,12 +398,14 @@ function zeitDialogOeffnen(z){
   el('zdTaetigkeit').innerHTML=auswahlOptionen(D.taetigkeiten,aendern?z.activity:'',function(t){return t.label},
     {wert:function(t){return t.value},leer:'— ohne Tätigkeit —'});
   el('zdNotiz').value=aendern?(z.notes||''):'';
-  el('zdPause').value='';el('zdPause').removeAttribute('aria-invalid');
+  // seit 1.9.62 beim Ändern die eingetragene Mindestpause der Buchung (eine Buchung von vor 1.9.62: die abgezogene Pause)
+  el('zdPause').value=aendern?zahlText(z.mindestpause||0):'';el('zdPause').removeAttribute('aria-invalid');
   el('zdPauseBisher').hidden=!aendern;
-  el('zdPauseBisher').textContent=aendern?'Bisher abgezogen: '+stundenUhr(z.pause||0)+'. „Pause mindestens“ leer: die Pause nach der Zeitregel.':'';
+  el('zdPauseBisher').textContent=aendern?'Bisher abgezogen: '+stundenUhr(z.pause||0)+'. Abgezogen wird die Pause nach Zeitregel, mindestens „Pause mindestens“.':'';
   // „Weitere Angaben“ zu (sonst rutschen Vorschau und Knopf auf dem Tablet quer aus dem Bild); was darin steht, nennt der Knopf
   el('zdWeitereFelder').hidden=true;el('zdWeitere').setAttribute('aria-expanded','false');
-  el('zdWeitere').textContent='Weitere Angaben'+(aendern?[z.activity,z.notes].filter(Boolean).map(function(x){return ' · '+x}).join(''):'');
+  el('zdWeitere').textContent='Weitere Angaben'+(aendern?[z.activity,z.notes,z.mindestpause?'Pause mindestens '+stundenUhr(z.mindestpause):null]
+    .filter(Boolean).map(function(x){return ' · '+x}).join(''):'');
   el('zdStatus').textContent='';el('zdSpeichern').disabled=false;
   vorschauZeigen(null,null);
   el('zeitDialog').showModal();

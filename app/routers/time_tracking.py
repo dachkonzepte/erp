@@ -34,7 +34,7 @@ from .orders import require_field_order_access
 from ..schemas import CrewGroupSummaryOut, CrewOut, TimeEntryManualCreate, TimeEntryOut, TimeEntrySummaryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeGroupUpdate, TimeEndeNachtragen, TimeEndeVorschauOut, TimePausenNeuRechnen, TimePausenVorschauOut, TimeZeitartWechseln, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
 from ..heute import zeitarten
 from ..time_backoffice import load_time_settings, locked_until, time_settings_dict
-from ..time_tracking import MAX_LIST_LIMIT, active_group_for_employee, active_entry as active_time_entry, count_entries, create_group_manual_entry, create_manual_entry, crew_leader_team_ids, delete_entry as delete_time_entry_row, delete_group, ende_nachtragen, ende_vorschau, tag_stand, PausenVorschauVeraltet, pausen_neu_rechnen, pausen_vorschau, ZeitartInGruppe, zeitart_wechseln, entry_to_dict, field_time_tracking_context, laeuft_seit_frueher, load_entry, nachtrag_nach_zeitregel, OffeneZeit, group_for_entry, group_member_ids, group_to_dict, list_crews_for_leader, list_entries as list_time_entries, list_groups_initiated_by, start_group_timer, start_timer, stop_group_timer, stop_timer, summarize_entries, time_tracking_context, update_entry as update_time_entry_row, update_group
+from ..time_tracking import MAX_LIST_LIMIT, active_group_for_employee, active_entry as active_time_entry, count_entries, create_group_manual_entry, create_manual_entry, crew_leader_team_ids, delete_entry as delete_time_entry_row, delete_group, ende_nachtragen, ende_vorschau, tag_stand, PausenVorschauVeraltet, pausen_neu_rechnen, pausen_vorschau, ZeitartInGruppe, zeitart_wechseln, entry_to_dict, field_time_tracking_context, laeuft_seit_frueher, load_entry, nachtrag_nach_zeitregel, mindestpause_der_buchung, OffeneZeit, group_for_entry, group_member_ids, group_to_dict, list_crews_for_leader, list_entries as list_time_entries, list_groups_initiated_by, start_group_timer, start_timer, stop_group_timer, stop_timer, summarize_entries, time_tracking_context, update_entry as update_time_entry_row, update_group
 
 router = APIRouter()
 
@@ -358,7 +358,7 @@ def create_time_entry(payload: TimeEntryManualCreate, request: Request, db: Sess
             werte = nachtrag_nach_zeitregel(db, employee_id=employee_id, work_date=payload.work_date, von=payload.von, bis=payload.bis,
                                             mindestpause=payload.break_minutes)
             stunden, pause, beginn, ende = werte["netto"], werte["pause"], werte["beginn"], werte["ende"]
-        row = create_manual_entry(db, employee_id=employee_id, order_id=payload.order_id, order_item_id=payload.order_item_id, work_date=payload.work_date, entry_type=payload.entry_type, activity=payload.activity, hours=stunden, break_minutes=pause, started_at=beginn, ended_at=ende, notes=payload.notes, created_by_user_id=getattr(user, "id", None))
+        row = create_manual_entry(db, employee_id=employee_id, order_id=payload.order_id, order_item_id=payload.order_item_id, work_date=payload.work_date, entry_type=payload.entry_type, activity=payload.activity, hours=stunden, break_minutes=pause, min_break_minutes=payload.break_minutes, started_at=beginn, ended_at=ende, notes=payload.notes, created_by_user_id=getattr(user, "id", None))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _mit_tag(db, entry_to_dict(row))
@@ -426,7 +426,7 @@ def ende_nachtragen_endpunkt(entry_id: int, payload: TimeEndeNachtragen, request
 
 
 @router.get("/api/time-entries/nachtrag-vorschau", response_model=TimeEndeVorschauOut)
-def nachtrag_vorschau(request: Request, work_date: date, von: time, bis: time, pause_minuten: int = Query(0, ge=0, le=720),
+def nachtrag_vorschau(request: Request, work_date: date, von: time, bis: time, pause_minuten: int | None = Query(None, ge=0, le=720),
                       entry_id: int | None = None, employee_id: int | None = None,
                       db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Seit 1.9.57 (Stufe 4, R3): was „Zeit nachtragen“ (bzw. mit entry_id „Ändern“) mit diesen Zeiten buchen würde -- dieselbe
@@ -441,6 +441,8 @@ def nachtrag_vorschau(request: Request, work_date: date, von: time, bis: time, p
         if not _time_entry_can_edit(request, row):
             raise HTTPException(status_code=403, detail="Du darfst diese Zeitbuchung nicht ändern.")
         ohne_id = row.id
+    if pause_minuten is None:  # seit 1.9.62 wie PUT: beim Ändern ohne Angabe die eingetragene Mindestpause der Buchung, sonst 0
+        pause_minuten = mindestpause_der_buchung(row) if ohne_id is not None else 0
     try:
         werte = nachtrag_nach_zeitregel(db, employee_id=mitarbeiter, work_date=work_date, von=von, bis=bis, mindestpause=pause_minuten,
                                         ohne_id=ohne_id)
@@ -567,9 +569,13 @@ def put_time_entry(entry_id: int, payload: TimeEntryUpdate, request: Request, db
         # seit 1.9.60: die Monteurin ändert die Zeit nur über Von und Bis -- nach den Rechteprüfungen (403 bleibt 403)
         raise HTTPException(status_code=422, detail=NUR_VON_BIS)
     # Seit 1.9.57 (Stufe 4, R3): mit Von und Bis wie ein Nachtrag -- Pause aus dem Tag ohne die alte Fassung, Rundung der Zeitregeln
-    von_bis = {"von": changes.get("von"), "bis": changes.get("bis"), "mindestpause": changes.get("pause_minuten") or 0}
+    # Seit 1.9.62: ohne „pause_minuten“ gilt die eingetragene Mindestpause der Buchung weiter (Regel 22; eine Buchung von vor 1.9.62: die
+    # abgezogene Pause) -- bis 1.9.61 hieß ohne Angabe 0; eine Dauer mit Stunden oder Pause (Büro) merkt die neue Pause als Mindestpause
+    mindest = (changes.get("pause_minuten") or 0) if "pause_minuten" in changes else mindestpause_der_buchung(current)
+    von_bis = {"von": changes.get("von"), "bis": changes.get("bis"), "mindestpause": mindest}
+    merken = values["break_minutes"] if changes.keys() & {"hours", "break_minutes"} else None
     try:
-        row = update_time_entry_row(db, entry_id, employee_id=employee_id, **values, **von_bis)
+        row = update_time_entry_row(db, entry_id, employee_id=employee_id, **values, **von_bis, min_break_minutes=merken)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _mit_tag(db, entry_to_dict(row))
