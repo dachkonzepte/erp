@@ -14,6 +14,8 @@ gestern 06:45 offen. Lea: nichts läuft. Kai und Tom: Gruppenzeit seit 07:00. Fe
                            meinen Objekten) springen auf /mobil/offen#…; dort Kopf „Heute / Offen“, genau die drei nicht leeren
                            Abschnitte, „Wartung durchführen“; hell und dunkel
     Mia                    Zeitart wechseln -> Fahrzeit seit 10:00, zwei Buchungen ohne Lücke; Feierabend -> nichts läuft
+    seit 1.9.50            Checkliste als „Checkliste <Name>“, „Bericht anlegen“ und „Checklisten zum Auftrag“ neutrale Knöpfe 48 px;
+                           Ole hoch 16 px zwischen den Karten; Feldrahmen auf der Signalfläche ≥ 3 : 1 hell und dunkel
     Ole                    „Deine Zeit von gestern läuft noch“, Feld 64 px, 15:45 -> Vorschau wie der Server, Feierabend eintragen ->
                            gebucht wie die Vorschau; Karte „Arbeitszeit“ mit gesperrtem „Arbeitsbeginn buchen“; „Heute und nächste Tage“
     Lea                    nichts läuft: Auftrag A vorbelegt, Kacheln 64 px mit „Vorschlag“, Start -> läuft
@@ -165,6 +167,13 @@ return [[z.every(x=>x>=56),k.every(x=>x>=48),haupt.length>0&&haupt.every(x=>x===
 SPALTEN = """(()=>{const r=id=>document.getElementById(id).getBoundingClientRect();const l=r('heuteLinks'),re=r('heuteRechts');
 return [Math.round(re.width),l.left<re.left&&Math.abs(l.top-re.top)<2]})()"""
 
+# seit 1.9.50: Kontrast des Feldrahmens zur Signalfläche, gemessen an den berechneten Farben (WCAG 2.x)
+KONTRAST_FELD = """(()=>{const f=document.getElementById('endeZeit'),k=f.closest('.signal-karte');
+const rgb=s=>s.match(/[\\d.]+/g).slice(0,3).map(Number);
+const L=c=>{const v=c.map(x=>{x/=255;return x<=0.03928?x/12.92:Math.pow((x+0.055)/1.055,2.4)});return 0.2126*v[0]+0.7152*v[1]+0.0722*v[2]};
+const a=L(rgb(getComputedStyle(f).borderTopColor)),b=L(rgb(getComputedStyle(k).backgroundColor));
+return Math.round((Math.max(a,b)+0.05)/(Math.min(a,b)+0.05)*100)/100})()"""
+
 REIHENFOLGE = """(()=>{const y=s=>Math.round(document.querySelector(s).getBoundingClientRect().top);
 return [y('#arbeitszeit .heute-karte'),y('[data-einsatz]'),y('#offenKarte'),y('#naechsteKarte')]})()"""
 
@@ -219,7 +228,11 @@ async def pruefen(tab, seed, p):
         "z.querySelector('.zeile-sub').textContent,(z.querySelector('.knopf-aktion')||{}).textContent||null,!!z.querySelector('.pfeil'),"
         "(z.querySelector('a')||z).getAttribute('href')])"),
         [["Wartungsbericht · Dachfläche Nord", "Entwurf · noch 3 offen", "Weiter", False, f"/orders/{a}/service-reports?report={seed['bericht']}"],
-         ["Sicherheitscheck", "Entwurf · noch 1 offen", None, True, f"/checklisten/{seed['checkliste']}"]])
+         ["Checkliste Sicherheitscheck", "Entwurf · noch 1 offen", None, True, f"/checklisten/{seed['checkliste']}"]])  # seit 1.9.50
+    p.pruefe("Einsatz: „Bericht anlegen“ und „Checklisten zum Auftrag“ als neutrale Knöpfe 48 px", await tab.js(
+        "[...document.querySelectorAll('[data-einsatz] .einsatz-wege a')].map(x=>[x.textContent,x.className,"
+        "Math.round(x.getBoundingClientRect().height)])"),
+        [["Bericht anlegen", "knopf knopf-neutral knopf-klein", 48], ["Checklisten zum Auftrag", "knopf knopf-neutral knopf-klein", 48]])
     p.pruefe("Weg zum Anlegen eines Berichts", await tab.js("document.querySelector('.einsatz-wege a').getAttribute('href')"),
              f"/orders/{a}/service-reports")
     # seit 1.9.49: die Zeilen springen auf „Heute / Offen“, dazu „Wartungen an meinen Objekten“ (bis dahin #… auf die Listen darunter)
@@ -299,6 +312,10 @@ async def pruefen(tab, seed, p):
     for breite, hoehe, art in ((1280, 620, "quer"), (800, 1100, "hoch")):
         await _ansehen(tab, seed, "ole", breite, hoehe, "light")
         await tab.bild(f"heute_gestern_offen_{art}_hell")
+    # seit 1.9.50: der leere Einsatz zählt nicht als zweiter Abstand (bis dahin 32 px)
+    p.pruefe("Ole hoch: 16 px zwischen Arbeitszeit und Offen", await tab.js(
+        "Math.round(document.getElementById('offenKarte').getBoundingClientRect().top-document.getElementById('arbeitszeit').getBoundingClientRect().bottom)"),
+        16)
     await _ansehen(tab, seed, "ole", 1280, 620, "light")
     p.pruefe("Ole: Signalkarte mit Titel, Zeile und Feld", await tab.js(
         "[document.querySelector('.signal-eb').textContent,document.getElementById('offenTitelZeit').textContent,"
@@ -319,8 +336,12 @@ async def pruefen(tab, seed, p):
     p.pruefe("Ole: Vorschau vom Server", vorschau,
              ["Anwesend 9:00 h · Pause nach Zeitregel − 0:45 h", "Gebucht werden 8,25 h", "Tag zusammen 9:00 h"])
     await tab.bild("heute_gestern_offen_vorschau_hell")
+    kontrast_hell = await tab.js(KONTRAST_FELD)
     await tab.js("document.documentElement.setAttribute('data-theme','dark')")  # dunkel ohne Neuladen (die Eingabe bleibt)
     await tab.bild("heute_gestern_offen_vorschau_dunkel")
+    kontrast_dunkel = await tab.js(KONTRAST_FELD)
+    p.pruefe(f"Feldrahmen auf der Signalfläche ≥ 3 : 1 (hell {kontrast_hell}, dunkel {kontrast_dunkel})",
+             [kontrast_hell >= 3, kontrast_dunkel >= 3], [True, True])
     await tab.js("document.documentElement.setAttribute('data-theme','light')")
     await tab.warte_auf_neu_geladene_liste("document.getElementById('endeKnopf').click()", "#arbeitszeit")
     gebucht = await tab.js(f"fetch('/api/time-entries?employee_id={seed['ole']}&start_date={seed['gestern']}&end_date={seed['gestern']}')"

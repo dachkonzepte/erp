@@ -42,7 +42,8 @@ def test_einsatz_mit_eigenen_berichten_und_checklisten(welt):  # noqa: F811
     liste = create_checklist(db, template_id=cl["id"], context_type="auftrag", order_id=order.id, created_by_employee_id=welt["mia"].id)
     karte = _heute(welt, welt["mia"])["einsaetze"][0]
     assert karte["berichte"] == [{"id": eigener["id"], "titel": "Wartungsbericht · Dachfläche Nord", "status": "entwurf", "noch_offen": 3}]
-    assert karte["checklisten"] == [{"id": liste["id"], "titel": "Sicherheitscheck", "status": "entwurf", "noch_offen": 1}]
+    # seit 1.9.50 „Checkliste <Name>“ (bis dahin der Name allein)
+    assert karte["checklisten"] == [{"id": liste["id"], "titel": "Checkliste Sicherheitscheck", "status": "entwurf", "noch_offen": 1}]
     assert (karte["objekt"], karte["adresse"]) == ("Halle Nord", "Werkstr. 5, 52531 Übach-Palenberg")
     assert _heute(welt, welt["tom"])["einsaetze"][0]["berichte"][0]["titel"] == "Rapportbericht"
 
@@ -58,7 +59,8 @@ def test_seite_masse_und_spalten():
     assert "[hidden]{display:none!important}" in stil
     assert re.search(r"\.knopf\{height:64px;", stil) and ".zeile.knopf-aktion{height:56px;" in stil
     assert re.search(r"\.zeile\{[^}]*min-height:56px", stil) and ".offen-zeile{min-height:60px}" in stil
-    assert re.search(r"\.route\{min-height:48px", stil) and re.search(r"\.einsatz-wegea\{min-height:48px", stil)
+    # seit 1.9.50 sind die Wege des Einsatzes Knöpfe 48 px (bis dahin Links mit min-height 48 px)
+    assert re.search(r"\.route\{min-height:48px", stil) and re.search(r"\.knopf-klein\{height:48px;", stil)
 
 
 def test_seite_liest_ueber_den_baustein_und_baut_die_route_fest():

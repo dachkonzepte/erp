@@ -123,6 +123,13 @@ def _berichte(db: Session, employee_id: int, order_ids: list[int], heute: date) 
     return result
 
 
+def checklisten_titel(name: str | None) -> str:
+    """Seit 1.9.50 (Stufe 4, R2 Nachrunde, Punkt 3): die Zeile einer Checkliste heißt „Checkliste <Name>“ -- beginnt der Name schon
+    mit „Checkliste“, bleibt er (kein „Checkliste Checkliste …“)."""
+    name = (name or "").strip()
+    return name if name.casefold().startswith("checkliste") else f"Checkliste {name}".strip()
+
+
 def _checklisten(db: Session, employee_id: int, order_ids: list[int], heute: date) -> dict[int, list[dict]]:
     """Die eigenen Checklisten je Auftrag: offene (mit den fehlenden Pflichtangaben) und heute abgeschlossene; nie eine des Büros."""
     if not order_ids:
@@ -140,7 +147,7 @@ def _checklisten(db: Session, employee_id: int, order_ids: list[int], heute: dat
         if c.status == "abgeschlossen" and (c.completed_at is None or to_berlin(c.completed_at).date() != heute):
             continue
         result.setdefault(c.order_id, []).append({
-            "id": c.id, "titel": c.template_label_snapshot, "status": c.status,
+            "id": c.id, "titel": checklisten_titel(c.template_label_snapshot), "status": c.status,
             "noch_offen": len(missing_required_labels(c)) if c.status == "entwurf" else 0,
         })
     return result

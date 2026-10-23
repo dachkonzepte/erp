@@ -4038,3 +4038,30 @@ eigene Seite „Heute / Offen“); Pausenregel je Tag (nur neue Buchungen, Schwe
 - **Gegenproben**: P1 jeder Abschnitt sichtbar -> 3 Tests rot, `klicktest_heute` 1 rot; P2 `offen()` ohne Wartungen -> 1 rot,
   `klicktest_heute` 1 rot; P3 Schnittstelle mit allen Feldern -> 1 rot; P4 kein Sprung -> `klicktest_heute` 1 rot (in node nicht prüfbar);
   P5 „Heute“ ohne Zeile Wartungen -> 1 rot.
+
+### R2 Nachrunde, Punkt 3 (1.9.50): Kleinigkeiten auf „Heute“
+
+- **Umsetzung**: `app/heute.py::checklisten_titel()` für die Zeilen der Checklisten im Einsatz; `mobil.html`: Wege des Einsatzes als
+  `knopf knopf-neutral knopf-klein` (48 px, 12 px Abstand, umbrechend; Hover ohne Linkfarbe), `#assignmentsList:empty{display:none}`, Feld der
+  Signalkarte mit `--ds-feld-rand-signal`; `ds.css`: Token hell #7A848C, dunkel #6E7A83, Prüfpaare `feld-rand-signal/signal-hell` und
+  `feld-rand-signal/flaeche` (hell 3,41 und 3,81, dunkel 3,48 und 3,74).
+
+**Festlegungen 1.9.50 (Bitte bestätigen)**
+
+1. „Checkliste <Name>“ setzt der Server (`checklisten_titel()`); beginnt der Name schon mit „Checkliste“ (Groß- und Kleinschreibung egal),
+   bleibt er unverändert; gilt für die Zeile im Einsatz auf „Heute“, nicht für die Liste auf „Heute / Offen“ (Überschrift „Offene Checklisten“).
+2. Die beiden Wege sind neutrale Knöpfe nebeneinander (Rahmen linie-stark, 48 px, 12 px Abstand), auf schmalem Gerät untereinander.
+3. Der leere Einsatzbereich wird bei einer Zeit von gestern ausgeblendet (`:empty`), nicht aus der Seite genommen.
+4. Neues Token `--ds-feld-rand-signal` nur für ein Feld auf der Signalfläche; dunkel gleich `--ds-feld-rand` (dort schon 3,48 : 1).
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v477_heute_kleinigkeiten.py` (8 Tests): Titel der Checkliste (fünf Fälle), Wege als neutrale Knöpfe 48 px ohne
+  Link-Regel, leerer Einsatz ohne Platz, Feldrahmen mit Token, Prüfpaaren und Kontrast hell und dunkel (und dass feld-rand hell nicht reicht).
+- Angepasste Erwartungen: `test_v472::test_einsatz_mit_eigenen_berichten_und_checklisten` Titel alt „Sicherheitscheck“, neu „Checkliste
+  Sicherheitscheck“; `test_v472::test_seite_masse_und_spalten` alt `.einsatz-wege a{min-height:48px`, neu `.knopf-klein{height:48px`;
+  `test_v432::test_kontrast_der_pruefpaare_hell_und_dunkel` alt 41 Prüfpaare, neu 43; `klicktest_heute` Einsatz alt „Sicherheitscheck“, neu
+  „Checkliste Sicherheitscheck“, neu die Prüfungen „Wege als neutrale Knöpfe 48 px“, „Ole hoch: 16 px“ und „Feldrahmen ≥ 3 : 1 hell und
+  dunkel“ (an den berechneten Farben gemessen).
+- **Gegenproben**: P1 Checkliste ohne Vorsatz -> 4 Tests rot, `klicktest_heute` 1 rot; P2 „Bericht anlegen“ wieder Link -> 1 rot, Klicktest 1
+  rot; P3 leerer Einsatz nimmt Platz -> 1 rot, Klicktest 1 rot (32 px); P4 feld-rand auf der Signalfläche -> 1 rot, Klicktest 1 rot (hell 2,84).

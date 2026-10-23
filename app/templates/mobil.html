@@ -31,6 +31,7 @@
     /* --- Heute (seit 1.9.45): Maße, Abstände und Reihenfolge aus den Vorlagen, Farben über die Tokens --- */
     .heute{display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:16px;padding:16px 20px;align-items:start;max-width:1400px;margin:0 auto}
     .heute-spalte,#arbeitszeit{min-width:0;display:flex;flex-direction:column;gap:16px}
+    #assignmentsList:empty{display:none}  /* seit 1.9.50: leer bei Zeit von gestern -- sonst zwei Abstände übereinander (32 px) */
     @media (max-width:999px){.heute{grid-template-columns:minmax(0,1fr);padding:16px}}
     .heute-karte{background:var(--ds-flaeche);border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-karte);padding:18px 20px;display:flex;flex-direction:column;gap:14px;min-width:0}
     .heute-karte.liste{padding:18px 20px 4px;gap:8px}
@@ -73,7 +74,7 @@
     .signal-kopf h2{margin:0;font-family:var(--ds-schrift-titel);font-weight:700;font-size:26px;line-height:1.15}
     .ende-zeile{display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap}
     .ende-zeile label{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600;color:var(--ds-stark)}
-    .ende-zeile input{height:64px;width:180px;border:1px solid var(--ds-feld-rand);border-radius:var(--ds-ecke-tablet-feld);padding:0 16px;font-family:var(--ds-schrift-text);font-size:24px;font-weight:600;color:var(--ds-text);background:var(--ds-flaeche)}
+    .ende-zeile input{height:64px;width:180px;border:1px solid var(--ds-feld-rand-signal);border-radius:var(--ds-ecke-tablet-feld);padding:0 16px;font-family:var(--ds-schrift-text);font-size:24px;font-weight:600;color:var(--ds-text);background:var(--ds-flaeche)}
     .ende-vorschau{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;padding-bottom:6px}
     .ende-vorschau .anwesend{font-size:15px;color:var(--ds-stark)}
     .ende-vorschau .gebucht{font-size:19px;font-weight:700}
@@ -97,8 +98,9 @@
     .zeile-sub{font-size:14px;color:var(--ds-text-2)}
     .zeile .knopf-aktion{height:56px;padding:0 24px;font-size:17px;flex:none}
     .pfeil{flex:none;color:var(--ds-text-3)}
-    .einsatz-wege{display:flex;gap:18px;flex-wrap:wrap;border-top:1px solid var(--ds-grund)}
-    .einsatz-wege a{min-height:48px;display:inline-flex;align-items:center;font-size:15px;font-weight:600}
+    /* seit 1.9.50: „Bericht anlegen“ und „Checklisten zum Auftrag“ als neutrale Knöpfe 48 px (bis dahin Links) */
+    .einsatz-wege{display:flex;gap:12px;flex-wrap:wrap;border-top:1px solid var(--ds-grund);padding:14px 0 12px}
+    .einsatz-wege .knopf-neutral:hover{color:var(--ds-stark);background:var(--ds-flaeche-2)}
     .leer-text{font-size:16px;color:var(--ds-text-2);padding:0 0 14px}
     .concern-alert{margin:0 0 10px;padding:10px 14px;border:2px solid var(--ds-fehler);background:var(--ds-flaeche);color:var(--ds-fehler-text);font-weight:700;font-size:14px;line-height:1.35;overflow-wrap:anywhere;border-radius:var(--ds-ecke-karte)}
     .concern-alert a{display:flex;align-items:center;min-height:44px;color:var(--ds-fehler-text);font-weight:650;font-size:13.5px}
@@ -333,8 +335,9 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
       +concernAlert(k)
       +k.berichte.map(function(r){return berichtZeile(k,r)}).join('')
       +k.checklisten.map(checklistenZeile).join('')
-      +'<div class="einsatz-wege"><a href="/orders/'+k.order_id+'/service-reports">Bericht anlegen</a>'
-      +(CHECKLISTS_ENABLED?'<a href="/checklisten/auftrag/'+k.order_id+'">Checklisten zum Auftrag</a>':'')+'</div></section>';
+      +'<div class="einsatz-wege"><a class="knopf knopf-neutral knopf-klein" href="/orders/'+k.order_id+'/service-reports">Bericht anlegen</a>'
+      +(CHECKLISTS_ENABLED?'<a class="knopf knopf-neutral knopf-klein" href="/checklisten/auftrag/'+k.order_id+'">Checklisten zum Auftrag</a>':'')
+      +'</div></section>';
   }
   function renderEinsaetze(h){
     var box=el('assignmentsList');box.className='heute-spalte';

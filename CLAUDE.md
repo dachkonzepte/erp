@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.49** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.50** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -351,7 +351,8 @@ Behoben, drei Teile:
   Vorlage hat keinen Seitenkopf). Klicktest `klicktest_heute.py`, Wächter `tests/test_v472_heute_seite.py`. **Seit 1.9.49** stehen die
   Listen (offene Berichte, Mängel, Checklisten, Wartungen) auf „Heute / Offen“ (`/mobil/offen`, `mobil_offen.html`, umgezogen: Monteursrahmen
   mit Seitenkopf); ein leerer Abschnitt fehlt, „Heute“ endet mit „Nächste Tage“, die Zeilen von „Offen“ springen dorthin; Wächter
-  `tests/test_v476_heute_offen.py`. Archiv: `docs/archiv/redesign.md`, „Stufe 4, R2“ und „R2 Nachrunde“.
+  `tests/test_v476_heute_offen.py`. Seit 1.9.50 ein Feld auf der Signalfläche mit `--ds-feld-rand-signal` (≥ 3 : 1 zu signal-hell).
+  Archiv: `docs/archiv/redesign.md`, „Stufe 4, R2“ und „R2 Nachrunde“.
 
 ## Kritische, nicht verhandelbare Regeln
 

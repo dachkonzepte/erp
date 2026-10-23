@@ -25,6 +25,7 @@
      link/flaeche link/grund link-hover/flaeche
    Bedienelemente und Rahmen mindestens 3 : 1
      feld-rand/flaeche fokus/flaeche fokus/grund
+     feld-rand-signal/signal-hell feld-rand-signal/flaeche
      signal/flaeche stark/flaeche info/flaeche ok/flaeche fehler/flaeche
      aktion/flaeche aktion/grund aktion/flaeche-2
    ===================================================================== */
@@ -37,6 +38,7 @@
   --ds-linie: #DADEE1;          /* Rahmen und Trenner */
   --ds-linie-stark: #C9CFD4;    /* Rahmen von Zweitknöpfen */
   --ds-feld-rand: #88929A;      /* Rahmen von Eingabefeldern */
+  --ds-feld-rand-signal: #7A848C; /* seit 1.9.50: Rahmen eines Felds auf der Signalfläche (feld-rand dort nur 2,84 : 1) */
 
   /* Schrift */
   --ds-text: #171C1F;           /* Fließtext, Titel, Beträge */
@@ -133,6 +135,7 @@
   --ds-linie: #2E373D;
   --ds-linie-stark: #3E4951;
   --ds-feld-rand: #6E7A83;
+  --ds-feld-rand-signal: #6E7A83;
 
   --ds-text: #E9EDEF;
   --ds-text-2: #BAC3C9;
