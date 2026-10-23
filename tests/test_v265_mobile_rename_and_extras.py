@@ -169,7 +169,7 @@ class TestTaetigkeitInSchnellstartUndNachtrag:
         field = router_test_client(db, fv_router, tt_router, role="field", employee_id=emp.id)
         resp = field.post("/api/time-entries", json={
             "employee_id": emp.id, "order_id": order.id, "work_date": date.today().isoformat(),
-            "entry_type": "site", "activity": "Dacheindeckung", "hours": "2.5",
+            "entry_type": "site", "activity": "Dacheindeckung", "von": "07:00", "bis": "09:30",  # seit 1.9.60 Von/Bis
         })
         assert resp.status_code == 200, resp.text
         assert resp.json()["activity"] == "Dacheindeckung"

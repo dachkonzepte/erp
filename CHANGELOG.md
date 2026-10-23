@@ -4,6 +4,19 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.60 – Die Monteurin trägt Zeiten mit Von und Bis nach, eine reine Dauer nur das Büro (Stufe 4, R3)
+
+Der Server lehnt eine reine Dauer von der Monteurin ab: `POST /api/time-entries` ohne Von/Bis und `PUT /api/time-entries/{id}` mit
+Stunden antworten für `field` mit 422 und „Bitte Von und Bis angeben – eine reine Dauer trägt nur das Büro ein.“ -- so gilt für jede ihrer
+Zeiten die Pausenregel des Tages. Das Büro trägt Dauern ein wie bisher. Die eine Regel steht in `app/permissions.py::zeit_nur_mit_von_bis()`,
+die Meldung in `app/meldungen.py`. Die Karte „Erfasste Zeiten“ im Einsatzbericht zeigt der Monteurin deshalb Von und Bis statt „Stunden“
+(dem Büro unverändert die Stunden); „Meine Zeiten“ trägt schon seit 1.9.59 nur mit Von und Bis nach. Kolonnen-Nachtrag und -Ändern
+(Stunden je Person) bleiben eine Dauer.
+
+Neuer Test `test_v485`; `klicktest_monteur_dachflaechen` bucht als Monteur 07:00–09:30 statt „2,5“; acht Tests, die als Monteurin eine
+Dauer buchten, buchen mit Von und Bis (oder die Dauer als Büro). Die Ablehnung steht hinter den Rechteprüfungen -- was nicht erlaubt ist,
+bleibt 403.
+
 ## 1.9.59 – „Meine Zeiten“ ersetzt Zeiterfassung und Stundenzettel der Monteurin (Stufe 4, R3)
 
 Neue Seite `/mobil/zeiten` nach der Vorlage zeiten-nachtragen: Kacheln Heute · Diese Woche · <Monat> (gebuchte Stunden, eine laufende

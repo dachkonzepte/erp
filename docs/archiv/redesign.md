@@ -4243,6 +4243,44 @@ Reiter „Stundenzettel“ (`/mobil/stundenzettel`, `field_timesheet.html`):
 | S4 | PDF herunterladen | Karte „Monat“: „Stundenzettel als PDF“ |
 | S5 | Hinweis „Liste gekürzt“ | entfällt: die Seite holt den Monat vollständig (`limit=None` im Server) |
 
+### R3, Nur Von und Bis für die Monteurin (1.9.60)
+
+- **Umsetzung**: `app/permissions.py::zeit_nur_mit_von_bis()` (heute `field`), `app/meldungen.py::NUR_VON_BIS`; `POST /api/time-entries`
+  ohne Von/Bis und `PUT /api/time-entries/{id}` mit `hours` 422 für diese Rolle; Seitenroute des Einsatzberichts mit
+  `zeit_nur_mit_von_bis`, die Karte „Erfasste Zeiten“ mit `teVon`/`teBis` statt `teHours` (welches Feld sichtbar ist, legt der Server
+  fest; das Skript nimmt Von/Bis nur, wenn das Feld ausdrücklich sichtbar ist).
+
+**Festlegungen 1.9.60 (Bitte bestätigen)**
+
+1. Eine reine Dauer trägt nur das Büro ein: für die Monteurin lehnen Nachtrag ohne Von/Bis und Ändern mit Stunden mit 422 und der
+   Meldung „Bitte Von und Bis angeben – eine reine Dauer trägt nur das Büro ein.“ ab.
+2. Ändern ohne Zeiten (Tätigkeit, Notiz, Auftrag, Zeitart) bleibt der Monteurin erlaubt; mit Von/Bis rechnet es nach der Tagesregel
+   (1.9.57).
+3. Kolonnen-Nachtrag und -Ändern („Stunden je Person“) bleiben eine Dauer -- die Gruppenbuchung ist nicht betroffen.
+4. Einsatzbericht: die Karte „Erfasste Zeiten“ zeigt der Monteurin Von und Bis statt „Stunden“, dem Büro unverändert die Stunden.
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v485_nur_von_bis.py` (6 Tests): die Regel nur für `field`; Nachtrag mit Stunden als Monteurin 422 (nichts gebucht), mit
+  Von/Bis gebucht, als Büro wie bisher; Ändern mit Stunden als Monteurin 422, mit Von/Bis und nur Notiz gespeichert, als Büro wie bisher;
+  Einsatzbericht zeigt der Monteurin Von/Bis, dem Büro die Stunden.
+- Die Ablehnung kommt nach den Rechteprüfungen: was nicht erlaubt ist (fremde Person, fremder Auftrag, abgeschlossener Monat, Konto ohne
+  Mitarbeiter), bleibt 403 bzw. die Meldung „Konto ohne Mitarbeiter“ -- zuerst stand sie vorn, sieben Tests sahen 422 statt 403.
+- Angepasste Erwartungen (Test: alt -> neu, jeweils weil die Monteurin dort eine reine Dauer buchte; geprüft wird weiter dasselbe):
+  - `test_v437::_manuell` (Einzelbuchung, Kontrolle „für sich selbst geht es“): `hours` 3 -> Von/Bis 07:00–10:00.
+  - `test_v265::test_time_entries_start_and_manual_create_accept_an_activity_value`: `hours` 2,5 -> 07:00–09:30.
+  - `test_v329::test_auftragswechsel_ohne_neue_position_laesst_die_alte_fallen`: PUT mit `order_id` und `hours` -> nur `order_id`.
+  - `test_v462::test_nachtrag_4_stunden_ohne_abzug[dauer]`, `::test_eine_dauer_bleibt_gebuchte_arbeitszeit`: die Dauer als Monteurin -> als
+    Büro (die Dauer-Regel selbst unverändert).
+  - `test_v300::_entry` (Abschluss): `hours` 2 -> 07:00–09:00.
+  - `test_v303` (2 Tests): Max ändert die eigene Buchung der Gruppe mit `hours` 7 -> 07:00–14:30 (30 min Pause, 7 h); beim zweiten Test
+    jetzt mit geprüftem Status 200.
+  - `test_v299::_manual` (Auftragsbezug): `hours` 2 -> 07:00–09:00.
+  - `klicktest_monteur_dachflaechen`: Monteur „Zeit buchen“ mit „2,5“ Stunden -> 07:00–09:30 (gebucht 2,5 h wie bisher), dazu die Prüfung
+    „Von und Bis statt Stunden“.
+- **Gegenproben**: P1 Nachtrag mit Dauer als Monteurin angenommen -> 1 rot (test_v485); P2 Ändern mit Stunden angenommen -> 1 rot; P3
+  Einsatzbericht zeigt der Monteurin Stunden -> 1 rot und Klicktest rot („Von und Bis statt Stunden“, Buchung ohne Stunden abgelehnt).
+
 ### R3, Meine Zeiten (1.9.59)
 
 - **Umsetzung**: `app/templates/mobil_zeiten.html` (neu; Skript auf oberster Ebene, Ereignisse in `binden()` -- die node-Tests führen

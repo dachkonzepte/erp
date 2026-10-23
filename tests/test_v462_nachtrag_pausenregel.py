@@ -51,16 +51,21 @@ def test_nachtrag_von_bis_zieht_die_pause_nach_der_zeitregel_ab(monkeypatch, mon
 
 
 @pytest.mark.parametrize("werte", [{"hours": "4"}, {"von": "07:00", "bis": "11:00"}], ids=["dauer", "von_bis"])
-def test_nachtrag_4_stunden_ohne_abzug(monteurin, werte):
-    """Gegenprobe: 4 h -- als Dauer wie als Von/Bis unter der ersten Schwelle, kein Abzug."""
+def test_nachtrag_4_stunden_ohne_abzug(monteurin, router_test_client, werte):
+    """Gegenprobe: 4 h -- als Dauer wie als Von/Bis unter der ersten Schwelle, kein Abzug. Seit 1.9.60 bucht die Dauer das Büro (die
+    Monteurin nur mit Von und Bis, tests/test_v485_nur_von_bis.py)."""
     db, client, order, emp = monteurin
+    if "hours" in werte:
+        client = router_test_client(db, time_tracking_router.router, role="buero_auftrag", employee_id=emp.id)
     d = _nachtrag(client, order, emp, **werte).json()
     assert (Decimal(d["anwesend"]), d["pause"], Decimal(d["gebucht"])) == (Decimal("4"), 0, Decimal("4"))
 
 
-def test_eine_dauer_bleibt_gebuchte_arbeitszeit(monteurin):
-    """9 h als Dauer sind gebuchte Arbeitszeit (netto) -- die Regel greift nur, wo die Anwesenheit eingegeben wird (wie im Büro)."""
-    db, client, order, emp = monteurin
+def test_eine_dauer_bleibt_gebuchte_arbeitszeit(monteurin, router_test_client):
+    """9 h als Dauer sind gebuchte Arbeitszeit (netto) -- die Regel greift nur, wo die Anwesenheit eingegeben wird. Seit 1.9.60 als Büro
+    (eine reine Dauer trägt nur das Büro ein)."""
+    db, _, order, emp = monteurin
+    client = router_test_client(db, time_tracking_router.router, role="buero_auftrag", employee_id=emp.id)
     d = _nachtrag(client, order, emp, hours="9").json()
     assert (Decimal(d["gebucht"]), d["pause"], Decimal(d["anwesend"])) == (Decimal("9"), 0, Decimal("9"))
 

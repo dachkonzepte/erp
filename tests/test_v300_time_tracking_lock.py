@@ -28,7 +28,8 @@ def _setup(db):
 
 
 def _entry(employee_id, order_id, work_date):
-    return {"employee_id": employee_id, "order_id": order_id, "work_date": work_date.isoformat(), "hours": "2"}
+    # seit 1.9.60 mit Von und Bis (2 h): eine reine Dauer trägt nur das Büro ein, die Monteurin nicht
+    return {"employee_id": employee_id, "order_id": order_id, "work_date": work_date.isoformat(), "von": "07:00", "bis": "09:00"}
 
 
 def test_backoffice_may_advance_but_only_admin_may_reopen_or_clear(threaded_db_session, router_test_client):

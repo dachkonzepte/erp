@@ -102,7 +102,9 @@ def _buchungen(welt):
 
 
 def _manuell(welt, mitarbeiter, **mehr):
-    return {"employee_id": mitarbeiter, "order_id": welt["auftrag"], "work_date": HEUTE.isoformat(), "hours": "3", **mehr}
+    # seit 1.9.60 mit Von und Bis (3 h): eine reine Dauer trägt nur das Büro ein
+    return {"employee_id": mitarbeiter, "order_id": welt["auftrag"], "work_date": HEUTE.isoformat(), "von": "07:00", "bis": "10:00",
+            **mehr}
 
 
 # --- Angriffstest: Einzelbuchung für andere ----------------------------------------------------------------------------------

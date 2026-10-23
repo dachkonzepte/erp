@@ -51,7 +51,8 @@ def test_the_reported_example_member_corrected_to_14_stays_after_leader_moves_st
     assert lea.post(f"/api/time-entry-groups/{group_id}/stop", json={"ended_at": _at(16), "break_minutes": 0}).status_code == 200
 
     max_entry = _entry(world, "max")
-    own = {"employee_id": e["max"].id, "order_id": order.id, "work_date": TODAY.isoformat(), "hours": "7", "break_minutes": 0}
+    # seit 1.9.60 mit Von und Bis (die Monteurin nur so): 07:00–14:30, 30 min Pause nach der Regel -> 7 h
+    own = {"employee_id": e["max"].id, "order_id": order.id, "work_date": TODAY.isoformat(), "von": "07:00", "bis": "14:30"}
     assert _as(world, "max").put(f"/api/time-entries/{max_entry.id}", json=own).status_code == 200
 
     resp = lea.put(f"/api/time-entry-groups/{group_id}", json=_correction(world, "8.5"))
@@ -107,8 +108,8 @@ def test_deleting_the_group_keeps_the_individually_changed_entry_as_a_standalone
     group_id = lea.post("/api/time-entry-groups", json=_manual(world["crew"].id, [e["lea"].id, e["max"].id], order.id)).json()["id"]
     max_client = _as(world, "max")
     max_id = _entry(world, "max").id
-    body = {"employee_id": e["max"].id, "order_id": order.id, "work_date": TODAY.isoformat(), "hours": "7", "break_minutes": 0}
-    max_client.put(f"/api/time-entries/{max_id}", json=body)
+    body = {"employee_id": e["max"].id, "order_id": order.id, "work_date": TODAY.isoformat(), "von": "07:00", "bis": "14:30"}  # seit 1.9.60
+    assert max_client.put(f"/api/time-entries/{max_id}", json=body).status_code == 200
 
     resp = lea.delete(f"/api/time-entry-groups/{group_id}")
     assert resp.json() == {"deleted": True, "kept_members": ["Max Mitglied"]}

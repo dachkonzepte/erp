@@ -22,7 +22,7 @@ from ..concern_notices import OPEN_CONCERNS_TEXT
 from ..database import get_db
 from ..deps import require_admin
 from ..models import AppUser
-from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, darf_zeit_fuer_andere_buchen, default_home_page_for_role, has_min_role, has_role, require_min_role
+from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, darf_zeit_fuer_andere_buchen, default_home_page_for_role, has_min_role, has_role, require_min_role, zeit_nur_mit_von_bis
 from .. import seitendaten
 from ..design_dateien import pruefsumme as ds_pruefsumme
 from ..version import APP_VERSION
@@ -553,7 +553,8 @@ def work_preparation_page(request: Request, order_id: int, _role: AppUser = _rol
 @router.get("/orders/{order_id}/service-reports", response_class=HTMLResponse)
 def service_reports_page(request: Request, order_id: int, _role: AppUser = _any_role_dep):
     return templates.TemplateResponse(request=request, name="service_reports.html",
-                                      context={"order_id": order_id, "zeit_fuer_andere_buchen": darf_zeit_fuer_andere_buchen(_role)})
+                                      context={"order_id": order_id, "zeit_fuer_andere_buchen": darf_zeit_fuer_andere_buchen(_role),
+                                               "zeit_nur_mit_von_bis": zeit_nur_mit_von_bis(_role)})  # seit 1.9.60
 
 
 @router.get("/roof-areas/{roof_area_id}", response_class=HTMLResponse)

@@ -120,6 +120,13 @@ def darf_zeit_fuer_andere_buchen(user: AppUser | None) -> bool:
     return user is None or has_role(user, ROLE_ADMIN)
 
 
+def zeit_nur_mit_von_bis(user: AppUser | None) -> bool:
+    """Seit 1.9.60 (Stufe 4, R3, Punkt 3): wer eine Zeit nur mit Von und Bis nachträgt oder ändert, nie als reine Dauer -- heute die
+    Monteurin (field), damit die Pausenregel des Tages gilt; das Büro trägt weiter Dauern ein. Die eine Stelle für den Server
+    (POST/PUT /api/time-entries) und die Oberfläche (Einsatzbericht, Seitenroute); ohne Konto (Tests ohne Anmeldung) ohne Einschränkung."""
+    return user is not None and has_role(user, ROLE_FIELD)
+
+
 def has_min_role(user: AppUser | None, min_role: str) -> bool:
     """Hierarchie-Prüfung: hat diese Person MINDESTENS den Rang von min_role (ROLE_RANK)? Anders
     als has_role() keine Mengenzugehörigkeit, sondern eine Rang-Schwelle -- admin erfüllt jede

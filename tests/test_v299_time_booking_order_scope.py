@@ -19,7 +19,8 @@ def _setup(db):
 
 
 def _manual(employee_id, order_id):
-    return {"employee_id": employee_id, "order_id": order_id, "work_date": date.today().isoformat(), "hours": "2"}
+    # seit 1.9.60 mit Von und Bis (2 h): eine reine Dauer trägt nur das Büro ein
+    return {"employee_id": employee_id, "order_id": order_id, "work_date": date.today().isoformat(), "von": "07:00", "bis": "09:00"}
 
 
 def test_field_can_book_own_order_but_not_a_foreign_or_unknown_one(threaded_db_session, router_test_client):

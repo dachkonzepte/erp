@@ -26,10 +26,10 @@ from fastapi import Depends, HTTPException, Query, Request, Response
 from sqlalchemy.orm import Session
 
 from ..berlin_time import BERLIN, berlin_now, berlin_today
-from ..meldungen import KEIN_MITARBEITER, MONAT_ABGESCHLOSSEN
+from ..meldungen import KEIN_MITARBEITER, MONAT_ABGESCHLOSSEN, NUR_VON_BIS
 from ..database import get_db
 from ..models import AppUser, TimeEntry, TimeEntryGroup
-from ..permissions import ROLE_FIELD, darf_zeit_fuer_andere_buchen, require_min_role
+from ..permissions import ROLE_FIELD, darf_zeit_fuer_andere_buchen, require_min_role, zeit_nur_mit_von_bis
 from .orders import require_field_order_access
 from ..schemas import CrewGroupSummaryOut, CrewOut, TimeEntryManualCreate, TimeEntryOut, TimeEntrySummaryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeGroupUpdate, TimeEndeNachtragen, TimeEndeVorschauOut, TimePausenNeuRechnen, TimePausenVorschauOut, TimeZeitartWechseln, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
 from ..heute import zeitarten
@@ -346,6 +346,9 @@ def create_time_entry(payload: TimeEntryManualCreate, request: Request, db: Sess
     _require_bookable_order(request, db, payload.order_id)
     _require_open_period(request, db, payload.work_date)
     user = getattr(request.state, "erp_user", None)
+    if payload.von is None and zeit_nur_mit_von_bis(user):
+        # seit 1.9.60: die Monteurin nur mit Von und Bis -- nach den Rechteprüfungen (was nicht erlaubt ist, bleibt 403)
+        raise HTTPException(status_code=422, detail=NUR_VON_BIS)
     try:
         # Seit 1.9.34: mit Von/Bis die Pause nach der Zeitregel (dieselbe Funktion wie beim Feierabend), gebucht = anwesend − Pause;
         # eine reine Dauer ist gebuchte Arbeitszeit (netto) wie bisher
@@ -560,6 +563,9 @@ def put_time_entry(entry_id: int, payload: TimeEntryUpdate, request: Request, db
                    if "employee_id" in changes else current.employee_id)
     _require_bookable_order(request, db, values["order_id"])
     _require_open_period(request, db, current.work_date, values["work_date"])
+    if "hours" in changes and zeit_nur_mit_von_bis(getattr(request.state, "erp_user", None)):
+        # seit 1.9.60: die Monteurin ändert die Zeit nur über Von und Bis -- nach den Rechteprüfungen (403 bleibt 403)
+        raise HTTPException(status_code=422, detail=NUR_VON_BIS)
     # Seit 1.9.57 (Stufe 4, R3): mit Von und Bis wie ein Nachtrag -- Pause aus dem Tag ohne die alte Fassung, Rundung der Zeitregeln
     von_bis = {"von": changes.get("von"), "bis": changes.get("bis"), "mindestpause": changes.get("pause_minuten") or 0}
     try:

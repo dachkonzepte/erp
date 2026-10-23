@@ -310,7 +310,7 @@ def test_auftragswechsel_ohne_neue_position_laesst_die_alte_fallen(lea_buchung):
     neu, _ = _order(db, "AUF-329-0002", "P-329-0002")
     _assign_via_team(db, neu, lea)
     response = _as(lea_buchung, "lea").put(f"/api/time-entries/{lea_buchung['entry_id']}",
-                                           json={"order_id": neu.id, "hours": 2})
+                                           json={"order_id": neu.id})  # seit 1.9.60 ohne Stunden (die Monteurin nur mit Von/Bis)
     assert response.status_code == 200, response.text
     db.expire_all()
     entry = db.get(TimeEntry, lea_buchung["entry_id"])

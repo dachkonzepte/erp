@@ -11,3 +11,6 @@ KEIN_MITARBEITER = "Dein Konto ist keinem Mitarbeiter zugeordnet. Ein Administra
 # Seit 1.9.35 (Stufe 4, R1): eine Zeit von früher im abgeschlossenen Monat schließt nur das Büro -- seit 1.9.45 hier, weil auch
 # „Heute“ auf /mobil sie zeigt (app/heute.py), bis dahin in app/routers/time_tracking.py.
 MONAT_ABGESCHLOSSEN = "Monat abgeschlossen – das Büro schließt die Zeit."
+
+# Seit 1.9.60 (Stufe 4, R3, Punkt 3): eine reine Dauer trägt nur das Büro ein -- die Monteurin mit Von und Bis (Pausenregel des Tages)
+NUR_VON_BIS = "Bitte Von und Bis angeben – eine reine Dauer trägt nur das Büro ein."

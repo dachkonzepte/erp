@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.59** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.60** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -350,7 +350,8 @@ Behoben, drei Teile:
   rechnet nichts nach); Reiter und Pfad-Anfang der Seiten darunter heißen „Heute“ (Adresse bleibt). Seit 1.9.58 startet „Heute“ auch
   mit Tätigkeit und für die Kolonne („⋮“ in „nichts läuft“); Zeitart-Kacheln quer 3, hoch 2 Spalten. Seit 1.9.59 ersetzt „Meine Zeiten“
   (`/mobil/zeiten`, `mobil_zeiten.html`, Daten aus `app/meine_zeiten.py`) Zeiterfassung und Stundenzettel der Monteurin; Reiter „Heute ·
-  Meine Zeiten“, die alten Adressen leiten weiter; Klicktest `klicktest_meine_zeiten.py`. Sie bleibt in `AUFGESCHOBEN` (die
+  Meine Zeiten“, die alten Adressen leiten weiter; Klicktest `klicktest_meine_zeiten.py`. Seit 1.9.60 trägt die Monteurin nur mit Von und
+  Bis nach (`app/permissions.py::zeit_nur_mit_von_bis()`, Server 422 für eine reine Dauer), auch im Einsatzbericht. Sie bleibt in `AUFGESCHOBEN` (die
   Vorlage hat keinen Seitenkopf). Klicktest `klicktest_heute.py`, Wächter `tests/test_v472_heute_seite.py`. **Seit 1.9.49** stehen die
   Listen (offene Berichte, Mängel, Checklisten, Wartungen) auf „Heute / Offen“ (`/mobil/offen`, `mobil_offen.html`, umgezogen: Monteursrahmen
   mit Seitenkopf); ein leerer Abschnitt fehlt, „Heute“ endet mit „Nächste Tage“, die Zeilen von „Offen“ springen dorthin; Wächter

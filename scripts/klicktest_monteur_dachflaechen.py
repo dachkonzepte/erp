@@ -7,6 +7,7 @@ weiter funktioniert, so wie der Monteur sie sieht:
     Berichtsseite      die Dachfläche kommt ohne Notiz, Fremdfirma, Gewährleistung, Kunden-ID an
     Bericht anlegen    die Fläche steht in der Auswahl, ein Wartungsbericht mit ihr entsteht und
                        trägt sie (Prüfpunkte aus der Vorlage des Dachtyps)
+    Zeit buchen        seit 1.9.60 der Monteur mit Von und Bis (keine reine Dauer), das Büro mit Stunden
 
 AUFRUF (aus dem Projektordner):
 
@@ -99,7 +100,10 @@ async def pruefen(tab, seed, p):
              await tab.js("getComputedStyle(document.getElementById('teEmployeeField')).display"), "none")
     p.pruefe("Zeit buchen: nur die eigene Person",
              await tab.js("[...document.getElementById('teEmployee').options].map(o=>o.textContent).join('|')"), "Max Monteur")
-    await tab.js("document.getElementById('teHours').value='2,5'")
+    # seit 1.9.60 Von und Bis statt der Stunden (eine reine Dauer trägt nur das Büro ein)
+    p.pruefe("Zeit buchen: Von und Bis statt Stunden", await tab.js(
+        "['teHoursField','teVonField','teBisField'].map(i=>document.getElementById(i).hidden)"), [True, False, False])
+    await tab.js("document.getElementById('teVon').value='07:00';document.getElementById('teBis').value='09:30'")
     await tab.warte_auf_neu_geladene_liste("document.querySelector('button[onclick=\"saveReportTimeEntry()\"]').click()",
                                            "#timeEntriesTable")
     p.pruefe("Zeit buchen: gebucht", await tab.js("document.getElementById('teStatus').textContent"), "Gebucht.")

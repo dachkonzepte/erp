@@ -223,7 +223,11 @@ a{color:var(--ds-link)}
     <div class="field"><label>Zeitart</label><select id="teType"></select></div>
     <div class="field"><label>Tätigkeit</label><select id="teActivity"></select></div>
     <div class="field"><label>LV-Position <span class="muted small">(optional)</span></label><select id="teOrderItem"></select></div>
-    <div class="field"><label>Stunden</label><input id="teHours" type="text" inputmode="decimal" data-zahl data-min="0"></div>
+    {# Seit 1.9.60 (Stufe 4, R3): die Monteurin bucht mit Von und Bis (Pausenregel des Tages, app/permissions.py::zeit_nur_mit_von_bis),
+       das Büro weiter eine Dauer -- schon im Markup verborgen, das Skript liest, welches Feld sichtbar ist #}
+    <div class="field" id="teHoursField"{% if zeit_nur_mit_von_bis %} hidden{% endif %}><label>Stunden</label><input id="teHours" type="text" inputmode="decimal" data-zahl data-min="0"></div>
+    <div class="field" id="teVonField"{% if not zeit_nur_mit_von_bis %} hidden{% endif %}><label>Von</label><input id="teVon" type="time"></div>
+    <div class="field" id="teBisField"{% if not zeit_nur_mit_von_bis %} hidden{% endif %}><label>Bis</label><input id="teBis" type="time"></div>
     <div class="field full"><label>Notizen <span class="muted small">(optional)</span></label><input id="teNotes"></div>
   </div>
   <div class="editor-actions" style="margin-bottom:10px">
@@ -1488,10 +1492,13 @@ async function saveReportTimeEntry(){
   const employeeId=document.getElementById('teEmployee').value;
   const workDate=document.getElementById('teDate').value;
   try{
-  // Seit 1.8.109 im try: die Stunden über _zahl.html, eine abgelehnte Zahl erscheint als Fehler.
-  const hours=zahlFeld('teHours');
+  // Seit 1.8.109 im try: die Stunden über _zahl.html, eine abgelehnte Zahl erscheint als Fehler. Seit 1.9.60 für die Monteurin Von und Bis
+  // statt der Stunden (welches Feld sichtbar ist, legt der Server fest) -- die Pause rechnet der Server nach der Regel des Tages.
+  const vonBis=document.getElementById('teVonField').hidden===false,von=document.getElementById('teVon').value,bis=document.getElementById('teBis').value;
+  const hours=vonBis?null:zahlFeld('teHours');
   if(!employeeId&&nurFuerSichBuchen()){st.className='status err';st.textContent={{ kein_mitarbeiter|tojson }};return}
-  if(!employeeId||!workDate||hours===null){st.className='status err';st.textContent='Bitte Mitarbeiter, Datum und Stunden angeben.';return}
+  if(vonBis&&(!workDate||!von||!bis)){st.className='status err';st.textContent='Bitte Datum, Von und Bis angeben.';return}
+  if(!vonBis&&(!employeeId||!workDate||hours===null)){st.className='status err';st.textContent='Bitte Mitarbeiter, Datum und Stunden angeben.';return}
   const payload={
     employee_id:Number(employeeId), order_id:orderId, work_date:workDate,
     order_item_id:document.getElementById('teOrderItem').value?Number(document.getElementById('teOrderItem').value):null,
@@ -1499,8 +1506,10 @@ async function saveReportTimeEntry(){
     activity:document.getElementById('teActivity').value||null,
     hours:hours, notes:document.getElementById('teNotes').value.trim()||null,
   };
+  if(vonBis){delete payload.hours;payload.von=von;payload.bis=bis}
     await speichern('zeiten',()=>api('/api/time-entries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));
     document.getElementById('teHours').value='';
+    document.getElementById('teVon').value='';document.getElementById('teBis').value='';
     document.getElementById('teNotes').value='';
     await loadTimeEntries();
     await Promise.all(reports.filter(r=>r.status==='entwurf').map(r=>ladeBerichtsZeiten(r.id)));renderReportList();  // seit 1.9.42
