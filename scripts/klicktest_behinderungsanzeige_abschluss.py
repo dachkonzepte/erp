@@ -254,7 +254,7 @@ async def _pruefen(tab, seed, p):
     await _eingeben(tab, f[B + "wieder_aufgenommen_am"], "2026-10-07", "change")
     await _unterschreiben(tab, f[B + "unterschrift_wegfall"], "Mia Monteurin")
     await tab.warten(f"document.querySelector('#q_{f[B + 'unterschrift_wegfall']} .sig')")
-    await tab.oeffnen("/mobil", "document.getElementById('draftChecklistsList') && !document.getElementById('draftChecklistsList').classList.contains('loading')")
+    await tab.oeffnen("/mobil/offen", "document.getElementById('offenLaedt').hidden")  # seit 1.9.49 „Heute / Offen“
     p.pruefe("Monteurin /mobil: beide Anzeigen offen", await tab.js(
         f"[!!document.querySelector('#draftChecklistsList a[href=\"/checklisten/{cid}\"]'),!!document.querySelector('#draftChecklistsList a[href=\"/checklisten/{cid2}\"]')]"),
         [True, True])
@@ -301,7 +301,7 @@ async def _pruefen(tab, seed, p):
     # --- Monteurin: die gegenstandslose ist nicht mehr offen -------------------------------------------
     await tab.anmelden(seed["cookies"]["mia"])
     await tab.fenster(412, 900, mobil=True)
-    await tab.oeffnen("/mobil", "document.getElementById('draftChecklistsList') && !document.getElementById('draftChecklistsList').classList.contains('loading')")
+    await tab.oeffnen("/mobil/offen", "document.getElementById('offenLaedt').hidden")  # seit 1.9.49 „Heute / Offen“
     p.pruefe("Monteurin /mobil: gegenstandslose fehlt, die andere bleibt", await tab.js(
         f"[!!document.querySelector('#draftChecklistsList a[href=\"/checklisten/{cid}\"]'),!!document.querySelector('#draftChecklistsList a[href=\"/checklisten/{cid2}\"]')]"),
         [True, False])

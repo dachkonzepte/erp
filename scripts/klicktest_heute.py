@@ -8,7 +8,11 @@ gestern 06:45 offen. Lea: nichts läuft. Kai und Tom: Gruppenzeit seit 07:00. Fe
     Mia quer (1280 × 620)  zwei Spalten, rechts 420 px; Arbeitszeit „Baustellenzeit seit 06:45“, Dauer 3:15 h, Knöpfe 64 px; eine Karte
                            für A (zwei Abschnitte) mit Zeitraum, Route, Bericht mit „Weiter“ 56 px, Checkliste mit Pfeil; Offen: Berichte 1,
                            Checklisten 1, keine Mängel; Nächste Tage: A ab morgen „Fortsetzung“, B; heute nicht; hell und dunkel
-    Mia hoch (800 × 1100)  eine Spalte in der Reihenfolge Arbeitszeit, Einsatz, Offen, Nächste Tage; hell und dunkel
+    Mia hoch (800 × 1100)  eine Spalte in der Reihenfolge Arbeitszeit, Einsatz, Offen, Nächste Tage; hell und dunkel (Bilder bis zum
+                           Seitenende)
+    Mia Offen (seit 1.9.49) „Heute“ ohne Listen, endet mit „Nächste Tage“; die Zeilen von „Offen“ (Berichte, Checklisten, Wartungen an
+                           meinen Objekten) springen auf /mobil/offen#…; dort Kopf „Heute / Offen“, genau die drei nicht leeren
+                           Abschnitte, „Wartung durchführen“; hell und dunkel
     Mia                    Zeitart wechseln -> Fahrzeit seit 10:00, zwei Buchungen ohne Lücke; Feierabend -> nichts läuft
     Ole                    „Deine Zeit von gestern läuft noch“, Feld 64 px, 15:45 -> Vorschau wie der Server, Feierabend eintragen ->
                            gebucht wie die Vorschau; Karte „Arbeitszeit“ mit gesperrtem „Arbeitsbeginn buchen“; „Heute und nächste Tage“
@@ -66,6 +70,7 @@ def befuellen(db, k):
     from app.checklist_templates import add_field, create_template, publish_draft
     from app.checklists import create_checklist
     from app.inspection_templates import create_template as create_inspection_template, create_template_item
+    from app.maintenance_contracts import create_contract
     from app.models import (
         AppUser, Customer, Employee, Order, OrderItem, PlanningSlot, Project, Property, RoofArea, Team, TeamEmployee,
         WorkPreparationTeamAssignment, WorkPreparationTeamEmployee,
@@ -137,6 +142,8 @@ def befuellen(db, k):
     publish_draft(db, cl_vorlage["id"])
     checkliste = create_checklist(db, template_id=cl_vorlage["id"], context_type="auftrag", order_id=a.id,
                                   created_by_employee_id=leute["mia"].id)
+    # seit 1.9.49: ein Wartungsvertrag an Halle Nord -- „Wartungen an meinen Objekten“ in „Offen“ und auf „Heute / Offen“
+    create_contract(db, kunde.id, halle.id, "Jahreswartung Flachdach", 12, heute + timedelta(days=30))
     return {"a": a.id, "b": b.id, "bericht": bericht["id"], "checkliste": checkliste["id"], "heute": heute.isoformat(),
             "gestern": (heute - timedelta(days=1)).isoformat(), "morgen": (heute + timedelta(days=1)).isoformat(),
             "uebermorgen": (heute + timedelta(days=2)).isoformat(), "b_von": (heute + timedelta(days=5)).isoformat(),
@@ -162,6 +169,17 @@ REIHENFOLGE = """(()=>{const y=s=>Math.round(document.querySelector(s).getBoundi
 return [y('#arbeitszeit .heute-karte'),y('[data-einsatz]'),y('#offenKarte'),y('#naechsteKarte')]})()"""
 
 
+async def _ganze_seite(tab, name, breite, hoehe):
+    """Bild bis zum Seitenende (seit 1.9.49): das Fenster so hoch wie die Seite, danach wieder wie vorher."""
+    voll = await tab.js("Math.ceil(document.documentElement.scrollHeight)")
+    await tab.fenster(breite, max(hoehe, voll))
+    await tab.bild(name)
+    await tab.fenster(breite, hoehe)
+
+
+OFFEN_BEREIT = "document.getElementById('offenLaedt').hidden"
+
+
 async def _ansehen(tab, seed, wer, breite, hoehe, thema):
     """Als wer anmelden, Fenster setzen, /mobil öffnen, Thema setzen (erst auf der Seite des ERP möglich) und neu laden."""
     await tab.anmelden(seed["cookies"][wer])
@@ -181,7 +199,7 @@ async def pruefen(tab, seed, p):
     for breite, hoehe, art in ((1280, 620, "quer"), (800, 1100, "hoch")):
         for thema in ("light", "dark"):
             await _ansehen(tab, seed, "mia", breite, hoehe, thema)
-            await tab.bild(f"heute_{art}_{'hell' if thema == 'light' else 'dunkel'}")
+            await _ganze_seite(tab, f"heute_{art}_{'hell' if thema == 'light' else 'dunkel'}", breite, hoehe)
     await _ansehen(tab, seed, "mia", 1280, 620, "light")
     p.pruefe("Reiter „Heute“ aktiv", await tab.js("document.querySelector('.mobile-nav-reiter.active').textContent"), "Heute")
     p.pruefe("quer: zwei Spalten, rechts 420 px", await tab.js(SPALTEN), [420, True])
@@ -204,10 +222,15 @@ async def pruefen(tab, seed, p):
          ["Sicherheitscheck", "Entwurf · noch 1 offen", None, True, f"/checklisten/{seed['checkliste']}"]])
     p.pruefe("Weg zum Anlegen eines Berichts", await tab.js("document.querySelector('.einsatz-wege a').getAttribute('href')"),
              f"/orders/{a}/service-reports")
-    p.pruefe("Offen: Berichte 1, Checklisten 1, keine leere Gruppe, Zeilen führen zur Liste", await tab.js(
+    # seit 1.9.49: die Zeilen springen auf „Heute / Offen“, dazu „Wartungen an meinen Objekten“ (bis dahin #… auf die Listen darunter)
+    p.pruefe("Offen: Berichte 1, Checklisten 1, Wartungen 1, keine leere Gruppe, Zeilen springen auf „Heute / Offen“", await tab.js(
         "[...document.querySelectorAll('#offenZeilen .zeile')].map(z=>[z.querySelector('.zeile-titel').textContent,"
-        "z.querySelector('.zahl-pill').textContent,z.getAttribute('href'),!!document.querySelector(z.getAttribute('href'))])"),
-        [["Berichte", "1", "#offene-berichte", True], ["Checklisten", "1", "#offene-checklisten", True]])
+        "z.querySelector('.zahl-pill').textContent,z.getAttribute('href')])"),
+        [["Berichte", "1", "/mobil/offen#offene-berichte"], ["Checklisten", "1", "/mobil/offen#offene-checklisten"],
+         ["Wartungen an meinen Objekten", "1", "/mobil/offen#wartungen"]])
+    p.pruefe("Heute ohne Listen, die letzte Karte ist „Nächste Tage“", await tab.js(
+        "[!!document.querySelector('.listen,#draftReportsList,#defectsList,#maintenanceList,#draftChecklistsList'),"
+        "[...document.querySelectorAll('main section')].filter(s=>s.getClientRects().length).pop().id]"), [False, "naechsteKarte"])
     p.pruefe("Nächste Tage: A ab morgen in einer Zeile „Fortsetzung“, B; heute nicht", await tab.js(
         "[document.getElementById('naechsteTitel').textContent,[...document.querySelectorAll('#naechsteZeilen .zeile')].map(z=>z.textContent)]"),
         ["Nächste Tage", [f"{spanne(seed['morgen'], seed['uebermorgen'])}Halle Nord · Fortsetzung",
@@ -215,6 +238,32 @@ async def pruefen(tab, seed, p):
     masse = await tab.js(MASSE)
     p.pruefe(f"Maße quer {masse[1]}", masse[0], [True, True, True, True])
     p.pruefe("Mia quer: keine JS-Fehler", tab.fehler, [])
+
+    # --- seit 1.9.49: „Heute / Offen“ über die Zeile „Wartungen an meinen Objekten“ (der letzte Abschnitt: die Seite springt) ---
+    ziel = await tab.js("document.querySelector('#offenZeilen a[href$=\"#wartungen\"]').getAttribute('href')")
+    await tab.fenster(412, 600, mobil=True)  # schmal und niedrig: die Seite ist länger als das Fenster, der Sprung sichtbar
+    await tab.oeffnen(ziel, OFFEN_BEREIT)
+    p.pruefe("Offen: Kopf „Heute / Offen“, Reiter „Heute“ aktiv", await tab.js(
+        "[[...document.querySelectorAll('#seitenkopfPfad a')].map(x=>[x.getAttribute('href'),x.textContent]),"
+        "document.getElementById('seitenkopfTitel').textContent,document.querySelector('.mobile-nav-reiter.active').textContent]"),
+        [[["/mobil", "Heute"]], "Offen", "Heute"])
+    p.pruefe("Offen: genau die nicht leeren Abschnitte, kein „Nichts offen.“", await tab.js(
+        "[[...document.querySelectorAll('main section')].filter(s=>!s.hidden).map(s=>s.id),document.getElementById('nichtsOffen').hidden]"),
+        [["offene-berichte", "offene-checklisten", "wartungen"], True])
+    p.pruefe("Offen: zum Abschnitt gesprungen (Wartungen unter dem Kopf im Bild)", await tab.js(
+        "(r=>[scrollY>0,r.top>=64&&r.top<innerHeight])(document.getElementById('wartungen').getBoundingClientRect())"), [True, True])
+    p.pruefe("Offen: Bericht, Checkliste, Wartung mit „Wartung durchführen“", await tab.js(
+        "[[...document.querySelectorAll('#draftReportsList a')].map(x=>x.getAttribute('href')),"
+        "[...document.querySelectorAll('#draftChecklistsList a')].map(x=>x.getAttribute('href')),"
+        "[...document.querySelectorAll('#maintenanceList .contract-title,#maintenanceList .perform-btn')].map(x=>x.textContent)]"),
+        [[f"/orders/{a}/service-reports?report={seed['bericht']}"], [f"/checklisten/{seed['checkliste']}"],
+         ["Jahreswartung Flachdach", "Wartung durchführen"]])
+    p.pruefe("Offen: keine JS-Fehler", tab.fehler, [])
+    for thema in ("light", "dark"):
+        await tab.fenster(800, 1100)
+        await tab.js(f"localStorage.setItem('erp_theme','{thema}')")
+        await tab.oeffnen("/mobil/offen", OFFEN_BEREIT)
+        await _ganze_seite(tab, f"heute_offen_hoch_{'hell' if thema == 'light' else 'dunkel'}", 800, 1100)
 
     await _ansehen(tab, seed, "mia", 800, 1100, "light")
     p.pruefe("hoch: eine Spalte in der Reihenfolge Arbeitszeit, Einsatz, Offen, Nächste Tage",

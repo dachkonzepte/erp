@@ -180,6 +180,21 @@ def get_field_view_maintenance_contracts(request: Request, db: Session = Depends
     return list_relevant_contracts_for_employee(db, user.employee_id)
 
 
+@router.get("/api/field-view/offene-berichte")
+def get_field_view_offene_berichte(request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+    """Seit 1.9.49 (Stufe 4, R2 Nachrunde, Punkt 2): „Offene Berichte“ auf „Heute / Offen“ (/mobil/offen) -- die eigenen Entwürfe
+    (list_draft_reports_for_employee(); bis 1.9.48 las /mobil sie aus GET /api/field-view/today, dort stehen sie weiter). Der
+    Mitarbeiter kommt nur aus der Anmeldung; ohne Verknüpfung oder ohne Modul "wartungen" eine leere Liste wie bei den Wartungen.
+    Nur die Felder, die die Seite zeigt."""
+    if not is_module_enabled(db, "wartungen"):
+        return []
+    user = getattr(request.state, "erp_user", None)
+    if user is None or user.employee_id is None:
+        return []
+    return [{"id": r["id"], "order_id": r["order_id"], "order_number": r["order_number"], "report_type_label": r["report_type_label"]}
+            for r in list_draft_reports_for_employee(db, user.employee_id)]
+
+
 @router.get("/api/field-view/time-tracking/orders")
 def get_field_view_time_tracking_orders(request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Auftragsauswahl für die reduzierte Zeiterfassung auf /mobil (seit 1.3.60, siehe

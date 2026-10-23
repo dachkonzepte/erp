@@ -137,6 +137,7 @@ AUFNAHMEN = (
     A("suche", "search_results.html", "/suche?q=Halle", (BUERO,)),
     A("konto", "account.html", "/account", (BUERO, MONTEUR)),
     A("mobil", "mobil.html", "/mobil", (BUERO, MONTEUR)),
+    A("mobil_offen", "mobil_offen.html", "/mobil/offen", (BUERO, MONTEUR)),  # seit 1.9.49 „Heute / Offen“
     A("mobil_objekt", "mobil_objekt.html", "/mobil/objekt/{objekt}", (BUERO, MONTEUR)),
     A("stundenzettel", "field_timesheet.html", "/mobil/stundenzettel", (BUERO, MONTEUR)),
     A("anmeldung", "login.html", "/login", (ANONYM,)),

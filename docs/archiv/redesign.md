@@ -3989,3 +3989,52 @@ eigene Seite „Heute / Offen“); Pausenregel je Tag (nur neue Buchungen, Schwe
 - **Gegenproben** (Marker GEGENPROBE, byte-genau zurück): P1 je Buchung statt je Tag -> 7 Tests rot, `klicktest_heute` 3 Prüfungen rot;
   P2 Schwelle „ab“ -> 5 rot (v474, v104); P3 eingegebene Pause nicht als Mindestpause -> 1 rot; P4 „Tag zusammen“ ohne frühere Buchungen ->
   3 rot, `klicktest_heute` 3 rot; P5 Pause nicht auf die Anwesenheit begrenzt -> 1 rot.
+
+### R2 Nachrunde, Punkt 2 (1.9.49): „Heute / Offen“
+
+- **Umsetzung**: Seite `/mobil/offen` (`app/routers/pages.py::field_open_page()`, für jede Rolle wie das Objekt), Vorlage `mobil_offen.html`
+  (umgezogen: `.ds-seite`, Monteursrahmen, `seitenkopf("Offen", mit_pfad=true, tablet=true)` mit Pfad „Heute“; in `UMGEZOGEN` als
+  `HEUTE_OFFEN`). Die vier Abschnitte (Reihenfolge wie bisher die Listen: offene Berichte, Mängel zur Beseitigung, offene Checklisten,
+  Wartungen an meinen Objekten) tragen `hidden`, bis ihr Laden etwas bringt; danach „Nichts offen.“ oder der Sprung zum Anker. Markup und
+  Verhalten der Listen aus `mobil.html` übernommen (Karten, „Beseitigt melden“ mit Kennung, „Wartung durchführen“), Knöpfe 48 px hoch.
+  Neu `GET /api/field-view/offene-berichte` (`app/routers/field_view.py`, Mitarbeiter aus der Anmeldung, ohne Modul „wartungen“ leer). „Heute“
+  (`mobil.html`): Listen, ihr CSS und Skript entfernt; `renderOffen()` verlinkt auf `/mobil/offen#…`, Zeile „Wartungen an meinen Objekten“ aus
+  `heute.offen["wartungen"]` (`app/heute.py::offen()`, zählt Verträge aus `list_relevant_contracts_for_employee()`). Reiter „Heute“ auch auf
+  `/mobil/offen` aktiv (`_mobile_header.html`). Bildgrundlage: Aufnahme `mobil_offen` für Büro und Monteurin.
+
+**Festlegungen 1.9.49 (Bitte bestätigen)**
+
+1. „Heute / Offen“ liegt unter `/mobil/offen`, Titel „Offen“, Pfad „Heute“; im Monteursrahmen für jede Rolle (wie das Objekt), umgezogen.
+2. Ein Abschnitt erscheint nur, wenn er beim Laden etwas enthält; scheitert sein Laden, erscheint er mit der Meldung (ein Fehler bleibt nie
+   unsichtbar); ist alles leer, steht „Nichts offen.“.
+3. Nach „Beseitigt melden“ bleibt der Abschnitt mit der Bestätigung stehen, auch wenn er leer wird („Keine Mängel zur Beseitigung.“) -- er
+   verschwindet erst beim nächsten Laden; es lädt nur die Mängelliste neu (bis 1.9.48 lud „Heute“ ganz neu, um die Zahl in „Offen“
+   nachzuziehen).
+4. Die Reihenfolge der Zeilen in „Offen“ bleibt (Berichte, Checklisten, Mängel), „Wartungen an meinen Objekten“ kommt als letzte dazu und
+   zählt Verträge, nicht Objekte; die Seite behält die Reihenfolge der bisherigen Listen.
+5. Der Sprung zum Abschnitt geschieht, wenn alle vier geladen sind (vorher stehen sie nicht); 80 px Abstand oben für den festen Kopf.
+6. `GET /api/field-view/today` liefert `draft_reports` weiter (Tests nutzen es), `/mobil` liest es nicht mehr; die neue Schnittstelle gibt
+   nur `id`, `order_id`, `order_number`, `report_type_label` heraus.
+7. „Beseitigt melden“, „Meldung senden“ und „Wartung durchführen“ sind 48 px hoch (bis dahin 44 px bzw. etwa 33 px), das Kennzeichen
+   „Fällig“ nur so breit wie sein Text; sonst sehen die Listen aus wie bisher (ihr Umbau ins neue Design gehört zu Stufe 4 als Ganzes).
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v476_heute_offen.py` (8 Tests): „Heute“ ohne Listen, endet mit „Nächste Tage“, keine Anfragen der Listen im Skript; Zeilen
+  von „Offen“ mit Zielen auf `/mobil/offen#…` samt Wartungen; Seite im Monteursrahmen für drei Rollen (Kopf, Pfad, Reiter, Abschnitte
+  verborgen); das Seitenskript in node: genau die nicht leeren Abschnitte, alles leer -> „Nichts offen.“, ein Fehler beim Laden bleibt
+  sichtbar; Schnittstelle nur eigene Entwürfe und nur die Felder der Seite; `offen()["wartungen"]` zählt Verträge an Objekten meiner Einsätze.
+- Angepasste Erwartungen: `test_v354::test_mobil_page_carries_the_defect_section` alt `/mobil`, neu `/mobil/offen`; `test_v457` FAELLE neu
+  `/mobil/offen` für Monteurin und Büro, Tablet-Variante neu `mobil_offen.html`; `test_v260` Seiten der Monteurin neu `/mobil/offen`;
+  `test_v441` neu `HEUTE_OFFEN` in `UMGEZOGEN`; `test_v431::test_dateinamen_eindeutig_und_die_bisherigen_zuerst` alt 298 Bilder (240 in
+  412/1440), neu 310 (248); `klicktest_heute` „Offen“ alt [Titel, Zahl, „#offene-…“, Ziel auf der Seite vorhanden] für Berichte und
+  Checklisten, neu [Titel, Zahl, „/mobil/offen#…“] mit der Zeile Wartungen (Wartungsvertrag neu in den Testdaten), neu die Prüfungen „Heute
+  ohne Listen“ und fünf zu „Heute / Offen“, Bilder „Heute“ bis zum Seitenende, neu `heute_offen_hoch_hell/dunkel`;
+  `klicktest_maengel_monteur` alt `/mobil`, neu `/mobil/offen` (5 Stellen); `klicktest_behinderungsanzeige_abschluss` alt `/mobil` mit
+  Bereitschaft der Checklistenliste, neu `/mobil/offen` mit `offenLaedt` verborgen (2 Stellen); `klicktest_abnahmeprotokoll` neu die
+  Prüfung „„Heute / Offen“ nennt kein Abnahmeprotokoll“; `test_v399` `ABSCHLIESSEND` alt (`mobil.html`, `sendReport`), neu
+  (`mobil_offen.html`, `sendReport`); `test_v356::test_mobil_page_has_the_optional_note` alt `/mobil`, Rumpf bis `loadDefects`, neu
+  `/mobil/offen`, Rumpf bis `ladeMaengel` (beide erst im vollen Lauf rot gewesen).
+- **Gegenproben**: P1 jeder Abschnitt sichtbar -> 3 Tests rot, `klicktest_heute` 1 rot; P2 `offen()` ohne Wartungen -> 1 rot,
+  `klicktest_heute` 1 rot; P3 Schnittstelle mit allen Feldern -> 1 rot; P4 kein Sprung -> `klicktest_heute` 1 rot (in node nicht prüfbar);
+  P5 „Heute“ ohne Zeile Wartungen -> 1 rot.

@@ -14,8 +14,9 @@ reicht die Rolle nur als "ist_monteur" für die Sperre "Monat abgeschlossen" her
                  Abschnittsgrenze der heute geltenden Abschnitte. Darin die eigenen Berichte (Entwürfe, dazu heute unterschriebene) mit
                  "noch n offen" aus noch_offen() und die eigenen Checklisten (offen, dazu heute abgeschlossene) mit den fehlenden
                  Pflichtangaben (missing_required_labels()).
-    Offen        Zahl der eigenen offenen Berichte, offenen Checklisten (wie GET /api/checklists/mine) und Mängel zur Beseitigung
-                 (list_field_defects()).
+    Offen        Zahl der eigenen offenen Berichte, offenen Checklisten (wie GET /api/checklists/mine), Mängel zur Beseitigung
+                 (list_field_defects()) und seit 1.9.49 der Wartungsverträge an meinen Objekten (list_relevant_contracts_for_employee())
+                 -- dieselben Listen wie auf „Heute / Offen“ (/mobil/offen).
     Nächste Tage Plantafel ab morgen, 14 Tage (bei offener Zeit von früher ab heute, Vorlage „Heute und nächste Tage“); aufeinander
                  folgende Tage desselben Auftrags in einer Zeile.
 """
@@ -30,6 +31,7 @@ from .checklist_purposes import purpose_office_only
 from .checklists import list_checklists, missing_required_labels
 from .concern_notices import open_concerns
 from .defects import list_field_defects
+from .maintenance_contracts import list_relevant_contracts_for_employee
 from .meldungen import MONAT_ABGESCHLOSSEN
 from .models import Checklist, Employee, Order, ServiceReport
 from .modules import is_module_enabled
@@ -166,13 +168,16 @@ def einsaetze(db: Session, employee_id: int, *, heute: date) -> list[dict]:
 
 
 def offen(db: Session, employee_id: int) -> dict:
-    """Zahlen für die Karte „Offen“ -- dieselben Listen wie darunter auf der Seite."""
-    berichte = len(list_draft_reports_for_employee(db, employee_id)) if is_module_enabled(db, "wartungen") else 0
+    """Zahlen für die Karte „Offen“ -- dieselben Listen wie auf „Heute / Offen“ (seit 1.9.49 eine eigene Seite, bis dahin unter „Heute“).
+    "wartungen" (seit 1.9.49) zählt die Verträge, nicht die Objekte."""
+    mit_wartungen = is_module_enabled(db, "wartungen")
+    berichte = len(list_draft_reports_for_employee(db, employee_id)) if mit_wartungen else 0
+    wartungen = sum(len(g["contracts"]) for g in list_relevant_contracts_for_employee(db, employee_id)) if mit_wartungen else 0
     checklisten = 0
     if is_module_enabled(db, "checklisten"):
         checklisten = sum(1 for c in list_checklists(db, created_by_employee_id=employee_id, status="entwurf")
                           if c["context_type"] != "betrieb" and not purpose_office_only(c["purpose"]))
-    return {"berichte": berichte, "checklisten": checklisten, "maengel": len(list_field_defects(db, employee_id))}
+    return {"berichte": berichte, "checklisten": checklisten, "maengel": len(list_field_defects(db, employee_id)), "wartungen": wartungen}
 
 
 def naechste_tage(db: Session, employee_id: int, *, heute: date, mit_heute: bool, einsatz_auftraege: set[int]) -> list[dict]:

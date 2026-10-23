@@ -26,6 +26,8 @@ FAELLE = [
     ("/checklisten/auftrag/1", "buero_auftrag", False, [("/checklisten", "Checklisten"), ("/orders/1", "Auftrag")]),
     ("/mobil/objekt/1", "field", True, [("/mobil", "Heute")]),
     ("/mobil/objekt/1", "buero_auftrag", True, [("/mobil", "Heute")]),  # die Seite steht für jede Rolle im Monteursrahmen
+    ("/mobil/offen", "field", True, [("/mobil", "Heute")]),  # seit 1.9.49 „Heute / Offen“
+    ("/mobil/offen", "buero_auftrag", True, [("/mobil", "Heute")]),
     ("/betriebsmittel/1", "field", True, [("/mobil", "Heute")]),
     ("/orders/1/service-reports", "field", True, [("/mobil", "Heute")]),  # Einsatzbericht
     ("/orders/1/service-reports", "buero_auftrag", False, [("/projects", "Projekte")]),
@@ -69,6 +71,7 @@ def test_ds_css_tablet_masse_des_kopfs():
 @pytest.mark.parametrize("name,ausdruck", [
     ("checklist.html", "tablet=is_field"), ("checklist_order.html", "tablet=is_field"), ("mobil_objekt.html", "tablet=true"),
     ("operational_asset_field.html", "tablet=true"), ("service_reports.html", "tablet=monteursrahmen"), ("account.html", "tablet=monteursrahmen"),
+    ("mobil_offen.html", "tablet=true"),
 ])
 def test_jede_seite_im_monteursrahmen_nimmt_die_tablet_variante(name, ausdruck):
     text = (vj.TEMPLATES / name).read_text(encoding="utf-8")

@@ -4,6 +4,19 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.49 – „Heute / Offen“: die Listen auf eigener Seite (Stufe 4, R2 Nachrunde, Punkt 2)
+
+Tobias hat Festlegung 1.9.45 Nr. 4 (die Listen bleiben unter „Heute“) ersetzt: offene Berichte, Mängel zur Beseitigung, offene Checklisten
+und Wartungen an meinen Objekten stehen jetzt auf der eigenen Seite „Heute / Offen“ (`/mobil/offen`, `mobil_offen.html`) im Monteursrahmen
+mit Seitenkopf (Pfad „Heute“, Tablet-Maße). Ein Abschnitt erscheint nur, wenn er beim Laden etwas enthält (scheitert sein Laden, mit der
+Meldung); ist alles leer, steht „Nichts offen.“. „Beseitigt melden“ und „Wartung durchführen“ gehen dort wie bisher. Die offenen Berichte
+liest die Seite aus der neuen Schnittstelle `GET /api/field-view/offene-berichte` (nur die eigenen Entwürfe, nur die angezeigten Felder).
+
+„Heute“ endet mit „Nächste Tage“. Die Zeilen der Karte „Offen“ springen auf `/mobil/offen#<Abschnitt>` (die Seite scrollt dorthin, sobald
+alles geladen ist); „Wartungen an meinen Objekten“ steht als eigene Zeile da, wenn es Verträge an meinen Objekten gibt (`heute.offen`,
+Schlüssel `wartungen`). Neuer Test `test_v476`; angepasst v354, v356, v399, v457, v260, v441, v431 (310 statt 298 Bilder der Bildgrundlage) und die
+Klicktests `klicktest_heute`, `klicktest_maengel_monteur`, `klicktest_behinderungsanzeige_abschluss`, `klicktest_abnahmeprotokoll`.
+
 ## 1.9.48 – Pausenregel je Tag (Stufe 4, R2 Nachrunde, Punkt 1)
 
 Entscheidung Tobias (23.10.2026), nur für neue Buchungen: die Pause richtet sich nach der Anwesenheit der Person am Starttag über alle

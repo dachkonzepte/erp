@@ -238,8 +238,9 @@ def test_office_page_labels_the_field_note(welt, router_test_client):
 
 def test_mobil_page_has_the_optional_note(welt, router_test_client, mia):
     from app.routers import pages
-    html = router_test_client(welt["db"], pages.router, role="field", employee_id=mia["employee_id"]).get("/mobil").text
-    teil = html.split("function renderDefects")[1].split("function loadDefects")[0]
+    # seit 1.9.49 auf „Heute / Offen“ (bis dahin /mobil; der Rumpf endete an loadDefects, jetzt ladeMaengel)
+    html = router_test_client(welt["db"], pages.router, role="field", employee_id=mia["employee_id"]).get("/mobil/offen").text
+    teil = html.split("function renderDefects")[1].split("function ladeMaengel(")[0]
     assert "<textarea" in teil and 'maxlength="500"' in teil and "note:" in teil and "nur fürs Büro" in teil
 
 

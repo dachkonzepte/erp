@@ -1,5 +1,5 @@
 """Klicktest: Monteur-Sicht auf Mängel in /mobil (1.8.52, Stufe 2c-2b, Punkt 1; seit 1.8.54 Hinweis des Monteurs und
-Aufgabe, die dem Status folgt).
+Aufgabe, die dem Status folgt; seit 1.9.49 auf „Heute / Offen“, /mobil/offen).
 
 Befüllt: Gewerbekunde (VOB/B), Objekt "Halle Nord" mit Dachfläche "Nord", Auftrag (Monteurin Mia über die
 Arbeitsvorbereitung zugeordnet), Abnahme vor 20 Tagen mit Vorbehalt Mängel; Mängel: "Attika undicht" (Nord, Attika West,
@@ -165,9 +165,9 @@ async def pruefen(tab, seed, p):
     m, fotos = seed["maengel"], seed["fotos"]
     await tab.anmelden(seed["cookies"]["mia"])
     await tab.fenster(412, 900, mobil=True)
-    await tab.oeffnen("/mobil", MOBIL_BEREIT)
+    await tab.oeffnen("/mobil/offen", MOBIL_BEREIT)
     await tab.js("localStorage.setItem('erp_theme','dark')")
-    await tab.oeffnen("/mobil", MOBIL_BEREIT)
+    await tab.oeffnen("/mobil/offen", MOBIL_BEREIT)
     p.pruefe("Monteurin dunkel: Thema", await tab.js("document.documentElement.dataset.theme"), "dark")
 
     # --- Liste: nur der freigegebene, offene Mangel des eigenen Auftrags ------------------------------------------
@@ -264,7 +264,7 @@ async def pruefen(tab, seed, p):
     await tab.anmelden(seed["cookies"]["mia"])
     await tab.fenster(412, 900, mobil=True)
     await tab.js("localStorage.setItem('erp_theme','light')")
-    await tab.oeffnen("/mobil", MOBIL_BEREIT)
+    await tab.oeffnen("/mobil/offen", MOBIL_BEREIT)
     p.pruefe("Hell: 'Rinne lose' nach der Freigabe sichtbar", await tab.js(
         "[...document.querySelectorAll('#defectsList .defect-card')].map(c=>Number(c.dataset.defect))"), [m["rinne"]])
     await tab.bild("5_mobil_hell_412")
@@ -274,7 +274,7 @@ async def pruefen(tab, seed, p):
         "body:JSON.stringify({released:false,reason:'Kunde zieht zurück'})}).then(r=>r.status)")
     p.pruefe("Büro nimmt die Freigabe zurück", status, 200)
     await tab.anmelden(seed["cookies"]["mia"])
-    await tab.oeffnen("/mobil", MOBIL_BEREIT)
+    await tab.oeffnen("/mobil/offen", MOBIL_BEREIT)
     await asyncio.sleep(0.2)
     p.pruefe("Zurückgenommen: verschwunden", await tab.js("document.getElementById('defectsList').innerText"),
              "Keine Mängel zur Beseitigung.")
@@ -286,7 +286,7 @@ async def pruefen(tab, seed, p):
         f"return fetch('/api/defects/{m['attika']}/status',{{method:'POST',body:f}}).then(r=>r.status)}})()")
     p.pruefe("Büro setzt 'Attika undicht' zurück auf offen", status, 200)
     await tab.anmelden(seed["cookies"]["mia"])
-    await tab.oeffnen("/mobil", MOBIL_BEREIT)
+    await tab.oeffnen("/mobil/offen", MOBIL_BEREIT)
     p.pruefe("Wieder offen: sichtbar, ohne Hinweis", await tab.js(
         "[[...document.querySelectorAll('#defectsList .defect-card')].map(c=>Number(c.dataset.defect)),"
         f"document.getElementById('defectsList').innerText.includes({HINWEIS!r})]"), [[m["attika"]], False])

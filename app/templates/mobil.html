@@ -10,9 +10,10 @@
      Seit 1.9.45 (Stufe 4, R2) „Heute“ nach den Vorlagen bildgrundlage/entwurf-stufe4/heute-quer.html, heute-hoch.html und
      heute-gestern.html: oben Arbeitszeit (läuft / nichts läuft / Zeit von früher offen), heutiger Einsatz je Auftrag, rechts „Offen“ und
      „Nächste Tage“ -- ab 1000 px zwei Spalten (rechts 420 px), darunter eine Spalte in der Reihenfolge von heute-hoch. Alles kommt aus
-     GET /api/field-view/today, Schlüssel "heute" (app/heute.py); die Seite rechnet nichts davon nach. Darunter die bisherigen Listen
-     (offene Berichte, Mängel zur Beseitigung mit „Beseitigt melden“, offene Checklisten, Wartungen an meinen Objekten) -- dorthin führen
-     die Zeilen von „Offen“. „Meine kommenden Termine“ ist in „Nächste Tage“ aufgegangen. #}
+     GET /api/field-view/today, Schlüssel "heute" (app/heute.py); die Seite rechnet nichts davon nach. Die Listen darunter (offene
+     Berichte, Mängel zur Beseitigung mit „Beseitigt melden“, offene Checklisten, Wartungen an meinen Objekten) stehen seit 1.9.49 auf der
+     eigenen Seite „Heute / Offen“ (/mobil/offen, mobil_offen.html) -- dorthin führen die Zeilen von „Offen“; „Heute“ endet mit „Nächste
+     Tage“. „Meine kommenden Termine“ ist in „Nächste Tage“ aufgegangen. #}
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="{{ get_theme().accent_color }}">
   <link rel="apple-touch-icon" href="/api/mobile-icon/192.png">
@@ -111,39 +112,8 @@
     @media (max-width:999px){.tag-spalte{width:110px}.mit-spanne .tag-spalte{width:166px}}
     .tag-text{flex:1;min-width:0;font-size:16px;overflow-wrap:anywhere}
     .tag-text span{color:var(--ds-text-2)}
-    /* --- die bisherigen Listen darunter --- */
-    .listen{max-width:1400px;margin:0 auto;padding:4px 20px 60px}
-    @media (max-width:999px){.listen{padding:4px 16px 60px}}
-    .liste-titel{font-family:var(--ds-schrift-mono);font-size:12px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--ds-text-3);margin:20px 0 10px}
-    .assign-card{background:var(--card);border:1px solid var(--line);padding:14px 16px;margin-bottom:10px;display:block;text-decoration:none;color:var(--ink);border-radius:var(--ds-ecke-karte)}
-    .assign-card:active{background:var(--soft)}
-    .assign-card .obj{font-weight:800;font-size:15.5px}
-    .assign-card .addr{color:var(--muted);font-size:13px;margin-top:2px}
-    .assign-card .meta{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;font-size:12.5px;color:var(--muted)}
-    .status-pill{display:inline-block;padding:4px 9px;font-size:11.5px;font-weight:700;border:1px solid var(--line);white-space:nowrap}
-    .status-pill.due{color:var(--danger);border-color:var(--ds-fehler)}
-    .empty,.loading,.error{color:var(--muted);font-size:13.5px;padding:14px 2px}
+    .loading,.error{color:var(--muted);font-size:13.5px;padding:14px 2px}
     .error{color:var(--danger)}
-    .contract-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
-    .contract-row .contract-info{display:flex;flex-direction:column;gap:3px}
-    .contract-row .contract-title{font-size:13.5px;font-weight:650}
-    .perform-btn{border:1px solid var(--ds-aktion);background:var(--ds-aktion);color:#fff;padding:8px 11px;font-weight:650;font-size:13px;white-space:nowrap}
-    .perform-btn:disabled{opacity:.6}
-    /* Seit 1.8.52: Mängel zur Beseitigung */
-    .defect-desc{margin-top:8px;font-size:14.5px;font-weight:650;white-space:pre-wrap;overflow-wrap:anywhere}
-    .defect-place{margin-top:4px;font-size:13px;color:var(--muted);overflow-wrap:anywhere}
-    .defect-photos{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
-    .defect-photos img{width:88px;height:88px;object-fit:cover;border:1px solid var(--line);display:block}
-    .defect-report-btn{margin-top:12px;min-height:44px}
-    .defect-report{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:grid;gap:10px}
-    .defect-report[hidden]{display:none}
-    .defect-report label{display:grid;gap:4px;font-size:12.5px;font-weight:700;color:var(--muted)}
-    .defect-report input,.defect-report textarea{font:inherit;font-size:15px;padding:9px;border:1px solid var(--line);background:var(--card);color:var(--ink);min-height:44px;width:100%}
-    .defect-report textarea{resize:vertical;font-weight:400}
-    .defect-send-btn{min-height:44px}
-    .defect-status{font-size:13.5px;color:var(--muted);overflow-wrap:anywhere}
-    .defects-status{font-size:13.5px;font-weight:650;color:var(--success);margin:-4px 0 8px}
-    .defects-status:empty{display:none}
   </style>
 </head>
 <body>
@@ -165,27 +135,6 @@
         <div id="naechsteZeilen"></div>
       </section>
     </div>
-  </div>
-  <div class="listen">
-    <section id="offene-berichte" aria-labelledby="berichteTitel">
-      <h2 class="liste-titel" id="berichteTitel">Offene Berichte</h2>
-      <div id="draftReportsList" class="loading">Lädt…</div>
-    </section>
-    <section id="maengel" aria-labelledby="maengelTitel">
-      <h2 class="liste-titel" id="maengelTitel">Mängel zur Beseitigung</h2>
-      <div id="defectsStatus" class="defects-status" role="status"></div>
-      <div id="defectsList" class="loading">Lädt…</div>
-    </section>
-    {% if is_module_enabled('checklisten') %}
-    <section id="offene-checklisten" aria-labelledby="checklistenTitel">
-      <h2 class="liste-titel" id="checklistenTitel">Offene Checklisten</h2>
-      <div id="draftChecklistsList" class="loading">Lädt…</div>
-    </section>
-    {% endif %}
-    <section aria-labelledby="wartungenTitel">
-      <h2 class="liste-titel" id="wartungenTitel">Wartungen an meinen Objekten</h2>
-      <div id="maintenanceList" class="loading">Lädt…</div>
-    </section>
   </div>
 </main>
 {% include "_berlin_date.html" %}
@@ -400,13 +349,15 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
   }
 
   // --- Offen, Nächste Tage -------------------------------------------------------------------------------------------------------
-  // Jede Zeile führt zur bisherigen Liste darunter; eine leere Gruppe fehlt
+  // Jede Zeile führt zu ihrem Abschnitt auf „Heute / Offen“ (seit 1.9.49 eigene Seite, bis dahin die Listen darunter); eine leere Gruppe
+  // fehlt, „Wartungen an meinen Objekten“ (seit 1.9.49) nur, wenn es welche gibt
   function offenZeile(titel,zahl){return '<span class="zeile-titel">'+esc(titel)+'</span><span class="zahl-pill">'+esc(zahl)+'</span>'+PFEIL+'</a>'}
   function renderOffen(o){
     var html='';
-    if(o.berichte>0)html+='<a class="zeile offen-zeile" href="#offene-berichte">'+offenZeile('Berichte',o.berichte);
-    if(CHECKLISTS_ENABLED&&o.checklisten>0)html+='<a class="zeile offen-zeile" href="#offene-checklisten">'+offenZeile('Checklisten',o.checklisten);
-    if(o.maengel>0)html+='<a class="zeile offen-zeile" href="#maengel">'+offenZeile('Mängel zur Beseitigung',o.maengel);
+    if(o.berichte>0)html+='<a class="zeile offen-zeile" href="/mobil/offen#offene-berichte">'+offenZeile('Berichte',o.berichte);
+    if(CHECKLISTS_ENABLED&&o.checklisten>0)html+='<a class="zeile offen-zeile" href="/mobil/offen#offene-checklisten">'+offenZeile('Checklisten',o.checklisten);
+    if(o.maengel>0)html+='<a class="zeile offen-zeile" href="/mobil/offen#maengel">'+offenZeile('Mängel zur Beseitigung',o.maengel);
+    if(o.wartungen>0)html+='<a class="zeile offen-zeile" href="/mobil/offen#wartungen">'+offenZeile('Wartungen an meinen Objekten',o.wartungen);
     el('offenKarte').hidden=false;
     el('offenZeilen').innerHTML=html||'<p class="leer-text" style="margin:0">Nichts offen.</p>';
   }
@@ -420,145 +371,10 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
       :'<p class="leer-text" style="margin:0">In den nächsten 14 Tagen ist nichts eingeplant.</p>';
   }
 
-  // --- die bisherigen Listen ----------------------------------------------------------------------------------------------------
-  function renderDrafts(list){
-    var box=el('draftReportsList');
-    if(!list.length){box.className='empty';box.textContent='Keine offenen Entwürfe.';return}
-    box.className='';
-    box.innerHTML=list.map(function(r){
-      return '<a class="assign-card" href="/orders/'+r.order_id+'/service-reports?report='+r.id+'">'
-        +'<div class="obj">'+esc(r.order_number?('Auftrag '+r.order_number):('Auftrag #'+r.order_id))+'</div>'
-        +'<div class="addr">'+esc(r.report_type_label)+'</div>'
-        +'</a>';
-    }).join('');
-  }
-  function renderMaintenance(groups){
-    var box=el('maintenanceList');
-    if(!groups.length){box.className='empty';box.textContent='Keine Wartungen an deinen aktuellen Objekten.';return}
-    box.className='';
-    box.innerHTML=groups.map(function(g){
-      var rows=g.contracts.map(function(c){
-        return '<div class="contract-row">'
-          +'<div class="contract-info"><span class="contract-title">'+esc(c.title)+'</span>'
-          +(c.is_due?'<span class="status-pill due">Fällig</span>':'')+'</div>'
-          +'<button class="perform-btn" data-contract-id="'+c.id+'">Wartung durchführen</button>'
-          +'</div>';
-      }).join('');
-      return '<div class="assign-card">'
-        +'<div class="obj">'+esc(g.property_name)+(g.city?' · '+esc(g.city):'')+'</div>'
-        +(g.customer_name?'<div class="addr">'+esc(g.customer_name)+'</div>':'')
-        +rows
-        +'</div>';
-    }).join('');
-    box.querySelectorAll('.perform-btn').forEach(function(btn){
-      btn.addEventListener('click',function(){performMaintenance(Number(btn.dataset.contractId),btn)});
-    });
-  }
-  function performMaintenance(contractId,btn){
-    btn.disabled=true;
-    btn.textContent='Wird angelegt…';
-    speichern('wartung',()=>fetch('/api/maintenance-contracts/'+contractId+'/perform-maintenance',{method:'POST'})).then(function(r){
-      if(!r.ok){
-        return r.json().catch(function(){return {}}).then(function(d){throw new Error(d.detail||'Fehler beim Anlegen.')});
-      }
-      return r.json();
-    }).then(function(data){
-      location.href='/orders/'+data.order_id+'/service-reports?report='+data.report_id;
-    }).catch(function(err){
-      alert(err.message||'Fehler beim Anlegen.');
-      btn.disabled=false;
-      btn.textContent='Wartung durchführen';
-    });
-  }
-  // Seit 1.8.52: Mängel zur Beseitigung (freigegeben, offen, an eigenen Aufträgen) -- nur die Positivliste der API
-  // (Beschreibung, Ort, Dachfläche, Frist, Fotos). "Beseitigt melden" mit mindestens einem Foto; die Kennung entsteht
-  // beim Öffnen des Formulars und bleibt bei jeder Wiederholung gleich -- ein zweiter Klick oder eine verlorene Antwort
-  // legt keine zweite Meldung an. Seit 1.8.54 optional ein kurzer Hinweis fürs Büro -- er erscheint hier nie wieder.
-  var DEFECT_FIELDS={client_uuid:'Kennung',event_date:'Datum',photos:'Fotos',note:'Hinweis'};
-  function newKey(){
-    if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();
-    var b=new Uint8Array(16);crypto.getRandomValues(b);b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;
-    var h=Array.prototype.map.call(b,function(x){return x.toString(16).padStart(2,'0')}).join('');
-    return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20);
-  }
-  function renderDefects(list){
-    var box=el('defectsList');
-    if(!list.length){box.className='empty';box.textContent='Keine Mängel zur Beseitigung.';return}
-    box.className='';
-    box.innerHTML=list.map(function(d){
-      var place=[d.roof_area_name?'Dachfläche: '+esc(d.roof_area_name):'',d.location?'Ort: '+esc(d.location):''].filter(Boolean).join(' · ');
-      var photos=d.photos.map(function(f){var u='/api/field-view/defects/'+d.id+'/photos/'+f.id;return '<a href="'+u+'" target="_blank" rel="noopener"><img src="'+u+'" alt="Foto zum Mangel" loading="lazy"></a>'}).join('');
-      return '<div class="assign-card defect-card" id="mmangel-'+d.id+'" data-defect="'+d.id+'">'
-        +'<div class="obj">'+esc(d.property_name||('Auftrag '+d.order_number))+'</div>'
-        +(d.property_address?'<div class="addr">'+esc(d.property_address)+'</div>':'')
-        +'<div class="defect-desc">'+esc(d.description)+'</div>'
-        +(place?'<div class="defect-place">'+place+'</div>':'')
-        +'<div class="meta"><span>Auftrag '+esc(d.order_number)+'</span>'
-        +(d.remedy_due_on?'<span class="status-pill'+(d.remedy_overdue?' due':'')+'">Frist '+esc(fmtDate(d.remedy_due_on))+(d.remedy_overdue?' – überschritten':'')+'</span>':'')+'</div>'
-        +(photos?'<div class="defect-photos">'+photos+'</div>':'')
-        +'<button type="button" class="perform-btn defect-report-btn">Beseitigt melden</button>'
-        +'<div class="defect-report" hidden>'
-        +'<label>Datum der Beseitigung<input type="date"></label>'
-        +'<label>Fotos der Beseitigung (mindestens eins)<input type="file" accept="image/jpeg,image/png,image/webp" multiple></label>'
-        +'<label>Hinweis (optional, nur fürs Büro sichtbar)<textarea maxlength="500" rows="3" placeholder="z. B. Anschluss neu eingeklebt, Rinne gereinigt"></textarea></label>'
-        +'<button type="button" class="perform-btn defect-send-btn">Meldung senden</button>'
-        +'<div class="defect-status" role="status"></div>'
-        +'</div></div>';
-    }).join('');
-    box.querySelectorAll('.defect-card').forEach(function(card){
-      card.querySelector('.defect-report-btn').addEventListener('click',function(){toggleReport(card)});
-      card.querySelector('.defect-send-btn').addEventListener('click',function(e){sendReport(card,e.currentTarget)});
-    });
-  }
-  function toggleReport(card){
-    var box=card.querySelector('.defect-report'),date=box.querySelector('input[type=date]');
-    box.hidden=!box.hidden;
-    if(box.hidden)return;
-    if(!box.dataset.kennung)box.dataset.kennung=newKey();
-    var heute=berlinToday();date.max=heute;if(!date.value)date.value=heute;
-  }
-  function sendReport(card,btn){
-    var box=card.querySelector('.defect-report'),st=box.querySelector('.defect-status');
-    var files=box.querySelector('input[type=file]').files,date=box.querySelector('input[type=date]').value;
-    if(!files.length){st.textContent='Bitte mindestens ein Foto der Beseitigung aufnehmen.';return}
-    if(!date){st.textContent='Bitte das Datum der Beseitigung angeben.';return}
-    var form=new FormData();
-    var note=box.querySelector('textarea').value.trim();
-    form.append('data',JSON.stringify({client_uuid:box.dataset.kennung,event_date:date,note:note||null}));
-    for(var i=0;i<files.length;i++)form.append('photos',files[i]);
-    btn.disabled=true;st.textContent='Wird gesendet…';
-    // Seit 1.8.95 über speichern()/lesen() (_speichern.html), Bereich 'maengel': die Liste lädt nach der Meldung neu, erst
-    // danach steht die Bestätigung da; eine ältere Liste überschreibt nie eine neuere.
-    abschliessen('maengel',()=>fetch('/api/field-view/defects/'+card.dataset.defect+'/remedied',{method:'POST',body:form}),{neuLaden:loadDefects}).then(function(r){
-      return r.json().catch(function(){return null}).then(function(body){
-        if(!r.ok)throw new Error(fehlerText(body,r.status,DEFECT_FIELDS));
-        return body;
-      });
-    }).then(function(){
-      el('defectsStatus').textContent='Mangel als beseitigt gemeldet – das Büro prüft die Abnahme der Beseitigung.';
-      return ladeHeute();
-    }).catch(function(err){
-      st.textContent='Fehler: '+(err.message||'Meldung nicht gesendet.');
-      btn.disabled=false;
-    });
-  }
-  function loadDefects(){
-    var box=el('defectsList');
-    return lesen('maengel',()=>fetch('/api/field-view/defects').then(function(r){
-      return r.json().catch(function(){return null}).then(function(body){
-        if(!r.ok)throw new Error(fehlerText(body,r.status,DEFECT_FIELDS));
-        return body;
-      });
-    }),function(list){renderDefects(list||[])}).catch(function(err){
-      box.className='error';box.textContent=err.message||'Fehler beim Laden.';
-    });
-  }
   function showError(message){
-    ['assignmentsList','draftReportsList','defectsList','maintenanceList'].forEach(function(id){
-      var box=el(id);
-      box.className='error';
-      box.textContent=message;
-    });
+    var box=el('assignmentsList');  // seit 1.9.49 nur noch hier (die Listen stehen auf „Heute / Offen“)
+    box.className='error';
+    box.textContent=message;
   }
   // Seit 1.8.106 (Korrektur 103-3): nach Feierabend meldet GET /api/field-view/today nur "feierabend" (ein Lesepfad schreibt nicht,
   // Regel 23) -- die Seite beendet die Sitzung dann per POST, wie beim Abmelden über speichern(), und geht zur Anmeldung. Nur wenn die
@@ -585,7 +401,6 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
       // Seit 1.9.33: die Einsätze gibt es nur für die Rollen der Monteursansicht -- für jede andere eine Meldung, einmal oben
       if(a.status===403){
         var box=el('assignmentsList');box.className='error';box.textContent=d.detail||'Für deine Rolle nicht verfügbar.';
-        ['draftReportsList','defectsList'].forEach(function(id){el(id).textContent=''});
         return;
       }
       if(a.status!==200){showError(fehlerText(d,a.status,{}));return}
@@ -594,31 +409,9 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
       renderEinsaetze(H);
       renderOffen(H.offen);
       renderNaechste(H);
-      renderDrafts(d.draft_reports||[]);
-      return loadDefects();
     }).catch(function(e){showError(e.message||'Fehler beim Laden.')});
   }
   ladeHeute();
-  if(CHECKLISTS_ENABLED){
-    lesen('checklisten',()=>fetch('/api/checklists/mine').then(function(r){return r.ok?r.json():[]}),function(list){
-      var box=el('draftChecklistsList');
-      if(!list.length){box.className='empty';box.textContent='Keine offenen Checklisten.';return}
-      box.className='';
-      box.innerHTML=list.map(function(c){
-        return '<a class="assign-card" href="/checklisten/'+c.id+'">'
-          +'<div class="obj">'+esc(c.template_label)+'</div>'
-          +'<div class="addr">'+esc(c.context_label||'')+'</div>'
-          +'</a>';
-      }).join('');
-    }).catch(function(){
-      var box=el('draftChecklistsList');box.className='empty';box.textContent='Keine offenen Checklisten.';
-    });
-  }
-  lesen('wartungen',()=>fetch('/api/field-view/maintenance-contracts').then(function(r){return r.ok?r.json():[]}),function(groups){
-    renderMaintenance(groups||[]);
-  }).catch(function(){
-    var box=el('maintenanceList');box.className='empty';box.textContent='Keine Wartungen an deinen aktuellen Objekten.';
-  });
 })();
 </script>
 </body>

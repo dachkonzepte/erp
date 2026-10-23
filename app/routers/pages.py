@@ -258,6 +258,14 @@ def field_view_page(request: Request, _role: AppUser = _any_role_dep):
                                       context={"open_concerns_text": OPEN_CONCERNS_TEXT})
 
 
+@router.get("/mobil/offen", response_class=HTMLResponse)
+def field_open_page(request: Request, _role: AppUser = _any_role_dep):
+    """„Heute / Offen“ (seit 1.9.49, Stufe 4, R2 Nachrunde): offene Berichte, Mängel zur Beseitigung, offene Checklisten und
+    Wartungen an meinen Objekten -- bis 1.9.48 unter „Heute“ (/mobil). Im Monteursrahmen für jede Rolle wie das Objekt; rendert nur
+    das Gerüst, die Daten kommen je Abschnitt aus den Schnittstellen der Monteursansicht."""
+    return templates.TemplateResponse(request=request, name="mobil_offen.html", context={})
+
+
 @router.get("/mobil/stundenzettel", response_class=HTMLResponse)
 def field_timesheet_page(request: Request, _role: AppUser = _any_role_dep):
     """Eigener Stundenzettel für Monteure (seit 1.3.61, siehe CLAUDE.md "Zeiterfassung für

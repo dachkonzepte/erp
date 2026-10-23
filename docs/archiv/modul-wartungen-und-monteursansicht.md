@@ -965,3 +965,12 @@ ebenso in 409. Kein `ON DELETE` am Fremdschlüssel -- `template_item_id` eines P
 **Seit 1.9.47: die Rückfrage beim Löschen eines Prüfpunkts wertet ein close nur bei geschlossenem Dialog.** `rueckfrage()` in
 service_reports.html nahm jedes `close` als Esc; Chrome liefert das `close` eines früheren Schließens mitunter erst beim nächsten Öffnen aus,
 die neue Rückfrage antwortete dann sofort „nein“. Festgehalten in `docs/archiv/redesign.md`, „R2 Nachrunde, Vorweg (1.9.47)“.
+
+## Nachtrag 1.9.49: „Heute / Offen“
+
+Die Listen der Monteursansicht -- offene Berichte, Mängel zur Beseitigung („Beseitigt melden“), offene Checklisten, Wartungen an meinen
+Objekten („Wartung durchführen“) -- stehen seit 1.9.49 auf der eigenen Seite „Heute / Offen“ (`/mobil/offen`, `mobil_offen.html`), nicht mehr
+unter „Heute“ (`/mobil`). Verhalten und Schnittstellen bleiben (`/api/field-view/defects`, `/api/checklists/mine`,
+`/api/field-view/maintenance-contracts`); die offenen Berichte kommen aus `GET /api/field-view/offene-berichte` (bis dahin aus
+`GET /api/field-view/today`, dort stehen sie weiter). Ein Abschnitt erscheint nur mit Inhalt. Herleitung und Festlegungen:
+`docs/archiv/redesign.md`, „R2 Nachrunde, Punkt 2 (1.9.49)“.

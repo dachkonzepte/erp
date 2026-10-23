@@ -767,7 +767,7 @@ class TestPageRouteClassification:
         from app.routers.pages import router as pages_router
         db = threaded_db_session
         field = router_test_client(db, pages_router, role="field")
-        for path in ("/account", "/mobil", "/mobil/stundenzettel", "/mobil/objekt/1", "/time-tracking", "/orders/1/service-reports", "/betriebsmittel/1",
+        for path in ("/account", "/mobil", "/mobil/offen", "/mobil/stundenzettel", "/mobil/objekt/1", "/time-tracking", "/orders/1/service-reports", "/betriebsmittel/1",
                      "/checklisten/1", "/checklisten/auftrag/1"):
             assert field.get(path, follow_redirects=False).status_code == 200, path
         # /vor-ort entfällt ersatzlos -- keine Route mehr registriert, 404 statt 403/200.

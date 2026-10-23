@@ -233,6 +233,9 @@ async def pruefen(tab, seed, p):
         [[], 403, 0])
     p.pruefe("Monteurin: /mobil nennt kein Abnahmeprotokoll", await tab.js(
         "document.body.innerText.includes('Abnahmeprotokoll')"), False)
+    await tab.oeffnen("/mobil/offen", "document.getElementById('offenLaedt').hidden")  # seit 1.9.49 die offenen Checklisten dort
+    p.pruefe("Monteurin: „Heute / Offen“ nennt kein Abnahmeprotokoll", await tab.js(
+        "document.body.innerText.includes('Abnahmeprotokoll')"), False)
     p.pruefe("Monteurin: keine JS-Fehler", tab.fehler, [])
     await tab.bild("3_monteurin_mobil")
 

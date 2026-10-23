@@ -419,8 +419,9 @@ def test_office_account_without_employee_gets_422(welt, router_test_client):
 
 
 def test_mobil_page_carries_the_defect_section(welt, router_test_client, mia):
+    """Seit 1.9.49 auf „Heute / Offen“ (/mobil/offen), bis dahin unter „Heute“ (/mobil)."""
     from app.routers import pages
-    html = router_test_client(welt["db"], pages.router, role="field", employee_id=mia["employee_id"]).get("/mobil").text
+    html = router_test_client(welt["db"], pages.router, role="field", employee_id=mia["employee_id"]).get("/mobil/offen").text
     assert 'id="defectsList"' in html and "/api/field-view/defects" in html and "/remedied" in html
     teil = html.split('id="defectsList"')[1]
     assert "prompt(" not in teil  # Regel 4

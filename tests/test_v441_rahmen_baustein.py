@@ -64,6 +64,9 @@ UMGEZOGEN |= MONTEURSSEITEN
 # seit 1.9.27 Anmeldung und Sperrseite (ohne Leiste und Kopfzeile; Bildmarke mit Schriftzug aus _marke.html über dem Seitenkopf)
 ANMELDUNG_UND_SPERRSEITE = {"login.html", "access_denied.html"}
 UMGEZOGEN |= ANMELDUNG_UND_SPERRSEITE
+# seit 1.9.49 (Stufe 4, R2 Nachrunde) „Heute / Offen“: die Listen von /mobil auf eigener Seite, im Monteursrahmen mit Seitenkopf (Tablet)
+HEUTE_OFFEN = {"mobil_offen.html"}
+UMGEZOGEN |= HEUTE_OFFEN
 # Seit 1.9.29 (Abschluss Stufe 2): was nicht umgezogen ist, steht hier mit der Stufe, die es umzieht, und dem Grund -- jede Seite steht
 # in genau einer der beiden Listen (test_jede_seite_umgezogen_oder_aufgeschoben). Eine neue Seite kommt umgezogen dazu oder mit Stufe
 # und Grund hierher; zieht eine aufgeschobene um, wandert sie nach UMGEZOGEN.

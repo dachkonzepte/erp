@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DACHKONZEPTE ERP – Offen</title>
+  {# „Heute / Offen“ (seit 1.9.49, Stufe 4, R2 Nachrunde, Punkt 2): die Listen, die bis 1.9.48 unter „Heute“ (/mobil) standen -- offene
+     Berichte, Mängel zur Beseitigung mit „Beseitigt melden“, offene Checklisten und Wartungen an meinen Objekten mit „Wartung durchführen“;
+     was dort ging, geht hier unverändert. Ein Abschnitt erscheint nur, wenn er beim Laden etwas enthält (ein leerer fehlt; nach „Beseitigt
+     melden“ bleibt er mit der Bestätigung stehen); ist alles leer, „Nichts offen.“. Die Zeilen der Karte „Offen“ auf „Heute“ springen über
+     den Anker zum Abschnitt (#offene-berichte, #maengel, #offene-checklisten, #wartungen) -- die Seite scrollt dorthin, sobald alles
+     geladen ist, denn erst dann stehen die Abschnitte. Im Monteursrahmen für jede Rolle (wie das Objekt); die Daten kommen je Abschnitt aus
+     den Schnittstellen der Monteursansicht, immer nur für den angemeldeten Mitarbeiter. #}
+  <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+
+{% include "_ds_kopf.html" %}
+<style>
+    :root{font-family:var(--ds-schrift-text);color-scheme:light;color:var(--ds-text);background:var(--ds-grund)}
+    :root[data-theme="dark"]{color-scheme:dark}
+    *{box-sizing:border-box}body{margin:0;background:var(--ds-grund)}
+    [hidden]{display:none!important}
+    main{max-width:820px;margin:0 auto;padding:16px 16px 60px}
+    a{color:var(--ds-link)}a:hover{color:var(--ds-link-hover)}
+    :focus-visible{outline:3px solid var(--ds-fokus);outline-offset:3px}
+    section{scroll-margin-top:80px}  /* der Kopf der Monteursansicht steht oben fest (64 px) */
+    h2{font-family:var(--ds-schrift-mono);font-size:12px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--ds-text-3);margin:24px 0 10px}
+    .leer-text{font-size:16px;color:var(--ds-text-2);margin:16px 2px}
+    .assign-card{background:var(--card);border:1px solid var(--line);padding:14px 16px;margin-bottom:10px;display:block;text-decoration:none;color:var(--ink);border-radius:var(--ds-ecke-karte)}
+    .assign-card:active{background:var(--soft)}
+    .assign-card .obj{font-weight:800;font-size:15.5px}
+    .assign-card .addr{color:var(--muted);font-size:13px;margin-top:2px}
+    .assign-card .meta{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;font-size:12.5px;color:var(--muted)}
+    .status-pill{display:inline-block;align-self:flex-start;padding:4px 9px;font-size:11.5px;font-weight:700;border:1px solid var(--line);white-space:nowrap}
+    .status-pill.due{color:var(--danger);border-color:var(--ds-fehler)}
+    .empty,.loading,.error{color:var(--muted);font-size:13.5px;padding:14px 2px}
+    .error{color:var(--danger)}
+    .contract-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+    .contract-row .contract-info{display:flex;flex-direction:column;gap:3px}
+    .contract-row .contract-title{font-size:13.5px;font-weight:650}
+    .perform-btn{border:1px solid var(--ds-aktion);background:var(--ds-aktion);color:#fff;padding:8px 14px;font-weight:650;font-size:14px;white-space:nowrap;min-height:48px}
+    .perform-btn:disabled{opacity:.6}
+    .defect-desc{margin-top:8px;font-size:14.5px;font-weight:650;white-space:pre-wrap;overflow-wrap:anywhere}
+    .defect-place{margin-top:4px;font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+    .defect-photos{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+    .defect-photos img{width:88px;height:88px;object-fit:cover;border:1px solid var(--line);display:block}
+    .defect-report-btn{margin-top:12px}
+    .defect-report{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:grid;gap:10px}
+    .defect-report label{display:grid;gap:4px;font-size:12.5px;font-weight:700;color:var(--muted)}
+    .defect-report input,.defect-report textarea{font:inherit;font-size:15px;padding:9px;border:1px solid var(--line);background:var(--card);color:var(--ink);min-height:44px;width:100%}
+    .defect-report textarea{resize:vertical;font-weight:400}
+    .defect-status{font-size:13.5px;color:var(--muted);overflow-wrap:anywhere}
+    .defects-status{font-size:13.5px;font-weight:650;color:var(--success);margin:-4px 0 8px}
+    .defects-status:empty{display:none}
+  </style>
+</head>
+<body class="ds-seite">
+{% include "_mobile_header.html" %}
+<main>
+  {% from "teile/seitenkopf.html" import seitenkopf %}
+  {% call(teil) seitenkopf("Offen", mit_pfad=true, tablet=true) %}
+    {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/mobil">Heute</a>{% endif %}
+  {% endcall %}
+  <p class="leer-text" id="offenLaedt">Lädt…</p>
+  <p class="leer-text" id="nichtsOffen" hidden>Nichts offen.</p>
+  <section id="offene-berichte" aria-labelledby="berichteTitel" hidden>
+    <h2 id="berichteTitel">Offene Berichte</h2>
+    <div id="draftReportsList" class="loading">Lädt…</div>
+  </section>
+  <section id="maengel" aria-labelledby="maengelTitel" hidden>
+    <h2 id="maengelTitel">Mängel zur Beseitigung</h2>
+    <div id="defectsStatus" class="defects-status" role="status"></div>
+    <div id="defectsList" class="loading">Lädt…</div>
+  </section>
+  {% if is_module_enabled('checklisten') %}
+  <section id="offene-checklisten" aria-labelledby="checklistenTitel" hidden>
+    <h2 id="checklistenTitel">Offene Checklisten</h2>
+    <div id="draftChecklistsList" class="loading">Lädt…</div>
+  </section>
+  {% endif %}
+  <section id="wartungen" aria-labelledby="wartungenTitel" hidden>
+    <h2 id="wartungenTitel">Wartungen an meinen Objekten</h2>
+    <div id="maintenanceList" class="loading">Lädt…</div>
+  </section>
+</main>
+{% include "_berlin_date.html" %}
+{% include "_fehlertext.html" %}
+{% include "_speichern.html" %}
+{% include "_seitenkopf.html" %}
+<script>
+var CHECKLISTS_ENABLED={{ 'true' if is_module_enabled('checklisten') else 'false' }};
+(function(){
+  function esc(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})}
+  function el(id){return document.getElementById(id)}
+  function fmtDate(s){
+    if(!s)return'';
+    var d=new Date(s+'T00:00:00');
+    if(isNaN(d))return s;
+    return d.toLocaleDateString('de-DE');
+  }
+  // Ein Abschnitt erscheint nur mit Inhalt (oder mit einem Fehler beim Laden -- ein Fehler bleibt nie unsichtbar)
+  function abschnitt(id,sichtbar){var s=el(id);if(s)s.hidden=!sichtbar}
+  function jsonOderFehler(r,felder){
+    return r.json().catch(function(){return null}).then(function(body){
+      if(!r.ok)throw new Error(fehlerText(body,r.status,felder||{}));
+      return body;
+    });
+  }
+  function ladeFehler(liste,abschnittId){return function(err){var box=el(liste);box.className='error';box.textContent=err.message||'Fehler beim Laden.';abschnitt(abschnittId,true)}}
+
+  // --- Offene Berichte ----------------------------------------------------------------------------------------------------------
+  function renderDrafts(list){
+    var box=el('draftReportsList');
+    if(!list.length){box.className='empty';box.textContent='Keine offenen Entwürfe.';return}
+    box.className='';
+    box.innerHTML=list.map(function(r){
+      return '<a class="assign-card" href="/orders/'+r.order_id+'/service-reports?report='+r.id+'">'
+        +'<div class="obj">'+esc(r.order_number?('Auftrag '+r.order_number):('Auftrag #'+r.order_id))+'</div>'
+        +'<div class="addr">'+esc(r.report_type_label)+'</div>'
+        +'</a>';
+    }).join('');
+  }
+  function ladeBerichte(){
+    return lesen('berichte',()=>fetch('/api/field-view/offene-berichte').then(function(r){return jsonOderFehler(r)}),function(list){
+      list=list||[];renderDrafts(list);abschnitt('offene-berichte',list.length>0);
+    }).catch(ladeFehler('draftReportsList','offene-berichte'));
+  }
+
+  // --- Mängel zur Beseitigung (seit 1.8.52, bis 1.9.48 auf /mobil) ----------------------------------------------------------------
+  // Freigegeben, offen, an eigenen Aufträgen -- nur die Positivliste der API (Beschreibung, Ort, Dachfläche, Frist, Fotos). "Beseitigt
+  // melden" mit mindestens einem Foto; die Kennung entsteht beim Öffnen des Formulars und bleibt bei jeder Wiederholung gleich -- ein
+  // zweiter Klick oder eine verlorene Antwort legt keine zweite Meldung an. Seit 1.8.54 optional ein kurzer Hinweis fürs Büro -- er
+  // erscheint hier nie wieder.
+  var DEFECT_FIELDS={client_uuid:'Kennung',event_date:'Datum',photos:'Fotos',note:'Hinweis'};
+  function newKey(){
+    if(window.crypto&&crypto.randomUUID)return crypto.randomUUID();
+    var b=new Uint8Array(16);crypto.getRandomValues(b);b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;
+    var h=Array.prototype.map.call(b,function(x){return x.toString(16).padStart(2,'0')}).join('');
+    return h.slice(0,8)+'-'+h.slice(8,12)+'-'+h.slice(12,16)+'-'+h.slice(16,20)+'-'+h.slice(20);
+  }
+  function renderDefects(list){
+    var box=el('defectsList');
+    if(!list.length){box.className='empty';box.textContent='Keine Mängel zur Beseitigung.';return}
+    box.className='';
+    box.innerHTML=list.map(function(d){
+      var place=[d.roof_area_name?'Dachfläche: '+esc(d.roof_area_name):'',d.location?'Ort: '+esc(d.location):''].filter(Boolean).join(' · ');
+      var photos=d.photos.map(function(f){var u='/api/field-view/defects/'+d.id+'/photos/'+f.id;return '<a href="'+u+'" target="_blank" rel="noopener"><img src="'+u+'" alt="Foto zum Mangel" loading="lazy"></a>'}).join('');
+      return '<div class="assign-card defect-card" id="mmangel-'+d.id+'" data-defect="'+d.id+'">'
+        +'<div class="obj">'+esc(d.property_name||('Auftrag '+d.order_number))+'</div>'
+        +(d.property_address?'<div class="addr">'+esc(d.property_address)+'</div>':'')
+        +'<div class="defect-desc">'+esc(d.description)+'</div>'
+        +(place?'<div class="defect-place">'+place+'</div>':'')
+        +'<div class="meta"><span>Auftrag '+esc(d.order_number)+'</span>'
+        +(d.remedy_due_on?'<span class="status-pill'+(d.remedy_overdue?' due':'')+'">Frist '+esc(fmtDate(d.remedy_due_on))+(d.remedy_overdue?' – überschritten':'')+'</span>':'')+'</div>'
+        +(photos?'<div class="defect-photos">'+photos+'</div>':'')
+        +'<button type="button" class="perform-btn defect-report-btn">Beseitigt melden</button>'
+        +'<div class="defect-report" hidden>'
+        +'<label>Datum der Beseitigung<input type="date"></label>'
+        +'<label>Fotos der Beseitigung (mindestens eins)<input type="file" accept="image/jpeg,image/png,image/webp" multiple></label>'
+        +'<label>Hinweis (optional, nur fürs Büro sichtbar)<textarea maxlength="500" rows="3" placeholder="z. B. Anschluss neu eingeklebt, Rinne gereinigt"></textarea></label>'
+        +'<button type="button" class="perform-btn defect-send-btn">Meldung senden</button>'
+        +'<div class="defect-status" role="status"></div>'
+        +'</div></div>';
+    }).join('');
+    box.querySelectorAll('.defect-card').forEach(function(card){
+      card.querySelector('.defect-report-btn').addEventListener('click',function(){toggleReport(card)});
+      card.querySelector('.defect-send-btn').addEventListener('click',function(e){sendReport(card,e.currentTarget)});
+    });
+  }
+  function toggleReport(card){
+    var box=card.querySelector('.defect-report'),date=box.querySelector('input[type=date]');
+    box.hidden=!box.hidden;
+    if(box.hidden)return;
+    if(!box.dataset.kennung)box.dataset.kennung=newKey();
+    var heute=berlinToday();date.max=heute;if(!date.value)date.value=heute;
+  }
+  function sendReport(card,btn){
+    var box=card.querySelector('.defect-report'),st=box.querySelector('.defect-status');
+    var files=box.querySelector('input[type=file]').files,date=box.querySelector('input[type=date]').value;
+    if(!files.length){st.textContent='Bitte mindestens ein Foto der Beseitigung aufnehmen.';return}
+    if(!date){st.textContent='Bitte das Datum der Beseitigung angeben.';return}
+    var form=new FormData();
+    var note=box.querySelector('textarea').value.trim();
+    form.append('data',JSON.stringify({client_uuid:box.dataset.kennung,event_date:date,note:note||null}));
+    for(var i=0;i<files.length;i++)form.append('photos',files[i]);
+    btn.disabled=true;st.textContent='Wird gesendet…';
+    // Seit 1.8.95 über abschliessen()/lesen() (_speichern.html), Bereich 'maengel': die Liste lädt nach der Meldung neu, erst danach
+    // steht die Bestätigung da; eine ältere Liste überschreibt nie eine neuere. Der Abschnitt bleibt stehen, auch wenn er leer wird.
+    abschliessen('maengel',()=>fetch('/api/field-view/defects/'+card.dataset.defect+'/remedied',{method:'POST',body:form}),{neuLaden:ladeMaengel}).then(function(r){
+      return jsonOderFehler(r,DEFECT_FIELDS);
+    }).then(function(){
+      el('defectsStatus').textContent='Mangel als beseitigt gemeldet – das Büro prüft die Abnahme der Beseitigung.';
+    }).catch(function(err){
+      st.textContent='Fehler: '+(err.message||'Meldung nicht gesendet.');
+      btn.disabled=false;
+    });
+  }
+  function ladeMaengel(){
+    return lesen('maengel',()=>fetch('/api/field-view/defects').then(function(r){return jsonOderFehler(r,DEFECT_FIELDS)}),function(list){
+      renderDefects(list||[]);
+    }).catch(ladeFehler('defectsList','maengel'));
+  }
+  function ladeMaengelErstmals(){
+    return lesen('maengel',()=>fetch('/api/field-view/defects').then(function(r){return jsonOderFehler(r,DEFECT_FIELDS)}),function(list){
+      list=list||[];renderDefects(list);abschnitt('maengel',list.length>0);
+    }).catch(ladeFehler('defectsList','maengel'));
+  }
+
+  // --- Offene Checklisten ---------------------------------------------------------------------------------------------------------
+  function ladeChecklisten(){
+    if(!CHECKLISTS_ENABLED)return Promise.resolve();
+    return lesen('checklisten',()=>fetch('/api/checklists/mine').then(function(r){return jsonOderFehler(r)}),function(list){
+      list=list||[];
+      var box=el('draftChecklistsList');
+      abschnitt('offene-checklisten',list.length>0);
+      if(!list.length){box.className='empty';box.textContent='Keine offenen Checklisten.';return}
+      box.className='';
+      box.innerHTML=list.map(function(c){
+        return '<a class="assign-card" href="/checklisten/'+c.id+'">'
+          +'<div class="obj">'+esc(c.template_label)+'</div>'
+          +'<div class="addr">'+esc(c.context_label||'')+'</div>'
+          +'</a>';
+      }).join('');
+    }).catch(ladeFehler('draftChecklistsList','offene-checklisten'));
+  }
+
+  // --- Wartungen an meinen Objekten ---------------------------------------------------------------------------------------------
+  function renderMaintenance(groups){
+    var box=el('maintenanceList');
+    if(!groups.length){box.className='empty';box.textContent='Keine Wartungen an deinen aktuellen Objekten.';return}
+    box.className='';
+    box.innerHTML=groups.map(function(g){
+      var rows=g.contracts.map(function(c){
+        return '<div class="contract-row">'
+          +'<div class="contract-info"><span class="contract-title">'+esc(c.title)+'</span>'
+          +(c.is_due?'<span class="status-pill due">Fällig</span>':'')+'</div>'
+          +'<button class="perform-btn" data-contract-id="'+c.id+'">Wartung durchführen</button>'
+          +'</div>';
+      }).join('');
+      return '<div class="assign-card">'
+        +'<div class="obj">'+esc(g.property_name)+(g.city?' · '+esc(g.city):'')+'</div>'
+        +(g.customer_name?'<div class="addr">'+esc(g.customer_name)+'</div>':'')
+        +rows
+        +'</div>';
+    }).join('');
+    box.querySelectorAll('.perform-btn').forEach(function(btn){
+      btn.addEventListener('click',function(){performMaintenance(Number(btn.dataset.contractId),btn)});
+    });
+  }
+  function performMaintenance(contractId,btn){
+    btn.disabled=true;
+    btn.textContent='Wird angelegt…';
+    speichern('wartung',()=>fetch('/api/maintenance-contracts/'+contractId+'/perform-maintenance',{method:'POST'})).then(function(r){
+      if(!r.ok){
+        return r.json().catch(function(){return {}}).then(function(d){throw new Error(d.detail||'Fehler beim Anlegen.')});
+      }
+      return r.json();
+    }).then(function(data){
+      location.href='/orders/'+data.order_id+'/service-reports?report='+data.report_id;
+    }).catch(function(err){
+      alert(err.message||'Fehler beim Anlegen.');
+      btn.disabled=false;
+      btn.textContent='Wartung durchführen';
+    });
+  }
+  function ladeWartungen(){
+    return lesen('wartungen',()=>fetch('/api/field-view/maintenance-contracts').then(function(r){return jsonOderFehler(r)}),function(groups){
+      groups=groups||[];renderMaintenance(groups);abschnitt('wartungen',groups.length>0);
+    }).catch(ladeFehler('maintenanceList','wartungen'));
+  }
+
+  // Erst wenn alle Abschnitte geladen sind, steht fest, welche es gibt: dann „Nichts offen.“ oder zum Abschnitt aus dem Anker springen
+  Promise.all([ladeBerichte(),ladeMaengelErstmals(),ladeChecklisten(),ladeWartungen()]).then(function(){
+    el('offenLaedt').hidden=true;
+    var sichtbar=Array.prototype.some.call(document.querySelectorAll('main section'),function(s){return !s.hidden});
+    el('nichtsOffen').hidden=sichtbar;
+    var ziel=location.hash?document.getElementById(location.hash.slice(1)):null;
+    if(ziel&&ziel.tagName==='SECTION'&&!ziel.hidden)ziel.scrollIntoView();
+  });
+})();
+</script>
+</body>
+</html>

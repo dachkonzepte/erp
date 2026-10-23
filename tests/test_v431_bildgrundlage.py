@@ -175,10 +175,12 @@ def test_zustaende_wie_vorgegeben():
 def test_dateinamen_eindeutig_und_die_bisherigen_zuerst():
     geplant = bg.geplante_bilder()
     namen = [b.datei for b in geplant]
-    assert len(namen) == len(set(namen)) == 298  # 240 wie bisher + 40 TerraPad + 18 Zustände (1.8.162: 22, bis 1.8.161: 24)
+    # seit 1.9.49 310: „Heute / Offen“ für Büro (4) und Monteurin (8) -- 248 in 412/1440 + 44 TerraPad + 18 Zustände (bis 1.9.48 298:
+    # 240 + 40 + 18; 1.8.162: 22 Zustände, bis 1.8.161: 24)
+    assert len(namen) == len(set(namen)) == 310
     assert all("__" not in b.aufnahme.name and (b.zustand is None or "__" not in b.zustand.name) for b in geplant)
     bisher = [b for b in geplant if b.breite in bg.BREITEN and b.zustand is None]
-    assert geplant[:len(bisher)] == bisher and len(bisher) == 240, "die bisherigen Bilder entstehen zuerst, in der bisherigen Reihenfolge"
+    assert geplant[:len(bisher)] == bisher and len(bisher) == 248, "die bisherigen Bilder entstehen zuerst, in der bisherigen Reihenfolge"
     assert [b.datei for b in bisher[:2]] == ["buero__hell__412__start.png", "buero__hell__412__aufgaben.png"]
 
 
