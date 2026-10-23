@@ -6,7 +6,7 @@ die echten Seiten:
 
     Meine Zeiten (Monteur)    seit 1.9.59 (bis dahin die Zeiterfassung, Ändern mit Dauer): Buchung ändern mit Von/Bis -- LV-Position
                               bleibt, die Notiz ändert sich, die Pause rechnet der Server nach der Tagesregel (seit 1.9.62
-                              mindestens die gemerkte Mindestpause, vorbelegt); Kolonnenbuchung
+                              mindestens die gemerkte Mindestpause, vorbelegt); Kolonnenbuchung (seit 1.9.63 mit Von/Bis)
                               ändern (Kolonnenführer): Pause und LV-Position bleiben, die Notiz ändert sich
     Einstellungen (Admin)     Unternehmensstammdaten speichern, dann Logohöhe übernehmen: die neue
                               Telefonnummer bleibt, die Höhe kommt an; noch einmal Stammdaten
@@ -125,9 +125,13 @@ async def pruefen(tab, seed, p):
              ["Rinne gereinigt", seed["position"], 3.25, 45])
 
     kolonne = f"{_api('/api/time-entry-groups/mine')}.then(l=>l.find(g=>g.id==={seed['gruppe']}))"
-    await tab.js(f"kolonneDialogOeffnen(gruppeZu({seed['gruppe']}));document.getElementById('kdNotiz').value='Kolonne neu'")
+    # seit 1.9.63 ändert der Kolonnenführer die Zeit der Kolonne nur mit Von und Bis (die Buchung der Testdaten ist eine Dauer von 8 h):
+    # 07:00–15:45 mit der gemerkten Mindestpause 45 (vorbelegt) -> je 45 min, gebucht 8,00 h
+    await tab.js(f"kolonneDialogOeffnen(gruppeZu({seed['gruppe']}));document.getElementById('kdNotiz').value='Kolonne neu';"
+                 "document.getElementById('kdVon').value='07:00';document.getElementById('kdBis').value='15:45'")
     await tab.warte_auf_neu_geladene_liste("document.getElementById('kdSpeichern').click()", "#tage")
-    p.pruefe("Kolonnenbuchung ändern: Meldung", await tab.js("document.getElementById('ergebnis').textContent"), "Kolonnenbuchung geändert.")
+    p.pruefe("Kolonnenbuchung ändern: Meldung", await tab.js("document.getElementById('ergebnis').textContent"),
+             "Kolonnenbuchung geändert: Max Kolonne 8,00 h · Moritz Mitglied 8,00 h")
     gruppe = await tab.js(f"{kolonne}.then(g=>[g.notes,g.break_minutes,g.order_item_id])")
     p.pruefe("Kolonnenbuchung ändern: Notiz neu, Pause und LV-Position unverändert", gruppe,
              ["Kolonne neu", 45, seed["position"]])

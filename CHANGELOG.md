@@ -4,6 +4,24 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.63 – Die Kolonne mit Von und Bis (Stufe 4, R3 Nachrunde)
+
+Entscheidung von Tobias: Kolonnen-Nachtrag und -Ändern des Kolonnenführers nehmen eine Von/Bis-Angabe für die angehakten Mitglieder;
+Pause und Rundung rechnet der Server je Mitglied nach seinem Tag -- dieselbe Rechnung wie sein eigener Nachtrag
+(`app/time_tracking.py::kolonne_rechnen()` über `nachtrag_nach_zeitregel()`). 07:00–12:30 ergibt so für ein Mitglied ohne Vorbuchung
+5,50 h, für eines mit 0:45 h Fahrzeit am Morgen 5,00 h (Tag zusammen 6:15 h, 30 min Pause). Jede Mitgliedsbuchung trägt Beginn und Ende,
+„Pause mindestens“ ist die gemerkte Mindestpause (1.9.62); beim Ändern bleiben selbst geänderte Mitglieder wie bisher, ohne Angabe gilt je
+Mitglied die gemerkte Mindestpause. Wer anders gearbeitet hat, wird einzeln nachgetragen. Eine reine Dauer für die Kolonne trägt nur
+noch das Büro ein: der Kolonnenführer bekommt 422 („Bitte Von und Bis angeben – eine reine Dauer trägt nur das Büro ein.“), nach den
+Rechteprüfungen.
+
+Neu `GET /api/time-entry-groups/nachtrag-vorschau` (Rechte wie beim Buchen): je Mitglied anwesend, Pause, gebucht und „Tag zusammen“.
+Der Dialog in „Meine Zeiten“ zeigt sie als „Mia Monteurin 5,50 h · Tom Mitglied 5,00 h (Tag zusammen 6:15 h)“; Von und Bis ersetzen
+„Stunden je Person“, Tätigkeit, „Pause mindestens“ und Notiz stehen wie bei „Zeit nachtragen“ unter „Weitere Angaben“, die Mitglieder
+nebeneinander -- auf dem Tablet quer bleibt die Vorschau im Blick. Die Meldung nach dem Speichern nennt die Stunden je Person. Neuer Test
+`test_v489` (6); `test_v302`, `test_v303`, `test_v437` und `test_v329` buchen als Kolonnenführer mit Von und Bis; die Büro-Summe in
+`test_v302` sinkt von 18,00 auf 17,50 h (eine zweite Kolonnenbuchung am selben Tag bekommt jetzt die Pause des Tages).
+
 ## 1.9.62 – Die eingetragene Mindestpause wird gemerkt (Stufe 4, R3 Nachrunde)
 
 Neue Spalte `time_entries.min_break_minutes` (Migration `c4f2a8e61d35`, Rückweg verweigert, sobald ein Wert gespeichert ist): jede

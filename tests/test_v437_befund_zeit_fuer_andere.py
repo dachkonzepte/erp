@@ -137,7 +137,9 @@ def test_monteurin_bucht_einzeln_nur_fuer_sich(welt):
 # --- Angriffstest: Gruppenbuchung -----------------------------------------------------------------------------------------------
 
 def _gruppe(welt, team, mitarbeiter):
-    return {"employee_ids": mitarbeiter, "team_id": team, "order_id": welt["auftrag"], "work_date": HEUTE.isoformat(), "hours": "4"}
+    # seit 1.9.63 mit Von und Bis (eine Dauer für die Kolonne nur das Büro): 4 h ohne Pause
+    return {"employee_ids": mitarbeiter, "team_id": team, "order_id": welt["auftrag"], "work_date": HEUTE.isoformat(),
+            "von": "07:00", "bis": "11:00"}
 
 
 def test_kolonnenmitglied_ohne_kennzeichen_bucht_nicht_fuer_die_kolonne(welt):

@@ -3241,9 +3241,40 @@ class TimeGroupManualCreate(BaseModel):
     work_date: date
     entry_type: str = Field(default="site", max_length=40)
     activity: str | None = Field(default=None, max_length=180)
-    hours: Decimal = Field(ge=Decimal("0.01"), le=24)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    # seit 1.9.63 (Stufe 4, R3 Nachrunde): entweder die Dauer (nur noch das Büro) oder Von und Bis für alle angehakten Mitglieder --
+    # Pause und Rundung je Mitglied nach seinem Tag (app/time_tracking.py::kolonne_rechnen()); break_minutes ist dann die Mindestpause
+    hours: Decimal | None = Field(default=None, ge=Decimal("0.01"), le=24)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
+    von: time | None = None
+    bis: time | None = None
     break_minutes: int = Field(default=0, ge=0, le=720)
     notes: str | None = None
+
+    @model_validator(mode="after")
+    def _dauer_oder_von_bis(self):
+        if (self.von is None) != (self.bis is None):
+            raise ValueError("Bitte Von und Bis angeben.")
+        if self.von is None and self.hours is None:
+            raise ValueError("Bitte die Dauer oder Von und Bis angeben.")
+        if self.von is not None and self.hours is not None:
+            raise ValueError("Bitte entweder die Dauer oder Von und Bis angeben.")
+        return self
+
+
+class TimeKolonneVorschauMitglied(BaseModel):
+    """Seit 1.9.63: was ein Kolonnen-Nachtrag mit Von/Bis einem Mitglied buchen würde -- nur Name und Zahlen seines Tages."""
+    employee_id: int
+    name: str
+    anwesend: Decimal
+    pause: int
+    gebucht: Decimal
+    tag_zusammen: Decimal
+    tag_buchungen: int
+
+
+class TimeKolonneVorschauOut(BaseModel):
+    mitglieder: list[TimeKolonneVorschauMitglied] = Field(default_factory=list)
+    # beim Ändern: Mitglieder, deren Buchung nach der Kolonnenbuchung selbst geändert wurde -- sie bleiben, wie sie sind
+    uebersprungen: list[str] = Field(default_factory=list)
 
 
 class TimeGroupTimerStart(BaseModel):
@@ -3355,6 +3386,19 @@ class TimeGroupUpdate(PartialUpdate):
     hours: Decimal | None = Field(default=None, ge=Decimal("0.01"), le=24)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     break_minutes: int | None = Field(default=None, ge=0, le=720)
     notes: str | None = None
+    # Seit 1.9.63 (Stufe 4, R3 Nachrunde): Ändern mit Von und Bis -- je Mitglied wie ein Nachtrag (sein Tag ohne die alte Fassung);
+    # pause_minuten ist dann die Mindestpause, ohne Angabe gilt die gemerkte je Mitglied. Nicht zusammen mit hours.
+    von: time | None = None
+    bis: time | None = None
+    pause_minuten: int | None = Field(default=None, ge=0, le=720)
+
+    @model_validator(mode="after")
+    def _von_bis_zusammen(self):
+        if (self.von is None) != (self.bis is None):
+            raise ValueError("Bitte Von und Bis angeben.")
+        if self.von is not None and self.hours is not None:
+            raise ValueError("Bitte entweder die Dauer oder Von und Bis angeben.")
+        return self
 
 
 class CrewMemberOut(BaseModel):
@@ -3388,6 +3432,10 @@ class CrewGroupSummaryOut(BaseModel):
     notes: str | None = None
     status: str
     members: list[CrewMemberOut] = Field(default_factory=list)
+    # seit 1.9.63: Von und Bis der Kolonnenbuchung (HH:MM, leer bei einer Dauer) und die eingetragene Mindestpause
+    von: str | None = None
+    bis: str | None = None
+    mindestpause: int | None = None
 
 
 class TimeTrackingSettingsOut(BaseModel):

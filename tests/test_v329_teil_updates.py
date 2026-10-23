@@ -343,14 +343,16 @@ def test_mobile_kolonnenbuchung_aendern_laesst_pause_und_lv_position(world):  # 
         db, employee_ids=[e["lea"].id, e["max"].id], team_id=crew.id, actor_employee_id=e["lea"].id,
         is_admin=False, order_id=order.id, work_date=HEUTE, hours=Decimal("8"), order_item_id=position,
         break_minutes=45)
-    # seit 1.9.59 auf „Meine Zeiten“ („⋮ Für die Kolonne ändern“), bis dahin die Zeiterfassung der Monteurin
+    # seit 1.9.59 auf „Meine Zeiten“ („⋮ Für die Kolonne ändern“), bis dahin die Zeiterfassung der Monteurin; seit 1.9.63 mit Von und Bis
+    # statt „Stunden je Person“ (die Mindestpause kommt danach dazu, beim Ändern als pause_minuten)
     keys = ui_keys("mobil_zeiten.html", "kolonneSpeichern", "var body=")
-    assert set(keys) == {"order_id", "work_date", "entry_type", "activity", "hours", "notes"}
+    assert set(keys) == {"order_id", "work_date", "entry_type", "activity", "von", "bis", "notes"}
     rumpf = funktion("mobil_zeiten.html", "kolonneSpeichern")
     assert "url=aendern?'/api/time-entry-groups/'+KD.id:'/api/time-entry-groups'" in rumpf and "method:aendern?'PUT':'POST'" in rumpf
-    assert "if(!aendern)body=Object.assign(body," in rumpf  # Kolonne, Mitglieder und Pause nur beim Nachtrag
+    assert "if(!aendern)body=Object.assign(body," in rumpf  # Kolonne und Mitglieder nur beim Nachtrag
+    # 07:00–13:45 (6:45 h): nach der Regel 30 min, die gemerkte Mindestpause 45 bleibt (ohne pause_minuten) -> je 6,00 h
     response = _as(world, "lea").put(f"/api/time-entry-groups/{gruppe.id}",
-                                     json=payload(keys, {**ZEIT_WERTE, "order_id": order.id}))
+                                     json=payload(keys, {**ZEIT_WERTE, "order_id": order.id, "von": "07:00", "bis": "13:45"}))
     assert response.status_code == 200, response.text
     db.expire_all()
     gruppe = db.get(TimeEntryGroup, gruppe.id)

@@ -117,6 +117,7 @@ def befuellen(db, k):
     erste = zeit(mia, date(2026, 10, 10), time(6), time(13))
     zweite = zeit(mia, date(2026, 10, 10), time(13), time(16))
     zeit(mia, date(2026, 10, 9), time(6, 15), time(7), "travel")
+    zeit(leute["tom"], date(2026, 10, 7), time(6, 15), time(7), "travel")  # seit 1.9.63: Toms Tag vor dem Kolonnen-Nachtrag
     aendern = zeit(mia, date(2026, 10, 9), time(7), time(15), activity="Dachdeckung")
     aendern.notes = "Rinne geprüft"
     aendern.min_break_minutes = None  # seit 1.9.62: wie eine Buchung von vor 1.9.62 -- „Ändern“ belegt mit der abgezogenen Pause vor
@@ -350,24 +351,37 @@ async def pruefen(tab, seed, p):
     zeile_gruppe = await tab.js("(()=>{let e=document.querySelector('#tage .tag-kopf[data-tag=\"2026-10-08\"]').nextElementSibling;"
                                 "while(e&&!e.classList.contains('zeile'))e=e.nextElementSibling;return e.dataset.zeile})()")
     await tab.js(menue(zeile_gruppe, "kolonne-aendern"))
+    # seit 1.9.63 mit Von und Bis (die Kolonnenbuchung der Testdaten ist eine Dauer von 8 h -- Hinweis, Von/Bis leer)
     p.pruefe("Kolonnenbuchung ändern: Mitglieder, vorbelegt", await tab.js(
         "[document.getElementById('kdTitel').textContent,document.getElementById('kdMitgliederText').textContent,"
-        "document.getElementById('kdStunden').value,document.getElementById('kdKolonneFeld').hidden]"),
-        ["Kolonnenbuchung ändern", "Kolonne Nord: Mia Monteurin, Tom Mitglied", "8", True])
-    await tab.js("document.getElementById('kdStunden').value='7,5'")
+        "document.getElementById('kdVon').value,document.getElementById('kdBis').value,document.getElementById('kdPause').value,"
+        "document.getElementById('kdHinweis').textContent,document.getElementById('kdKolonneFeld').hidden]"),
+        ["Kolonnenbuchung ändern", "Kolonne Nord: Mia Monteurin, Tom Mitglied", "", "", "0",
+         "Diese Kolonnenbuchung hat keine Uhrzeiten (8,00 h je Person) – trag Von und Bis ein, dann rechnet der Server je Person neu.", True])
+    await tab.js(setze("kdVon", "07:00") + ";" + setze("kdBis", "15:00"))
+    await tab.warten("document.getElementById('kdVorschauZeile').textContent.includes('Tom')")
+    p.pruefe("Kolonnenbuchung ändern: Vorschau je Mitglied", await tab.js("document.getElementById('kdVorschauZeile').textContent"),
+             "Mia Monteurin 7,50 h · Tom Mitglied 7,50 h")
     await tab.warte_auf_neu_geladene_liste("document.getElementById('kdSpeichern').click()", "#tage")
     p.pruefe("für die Kolonne geändert", [await tab.js("document.getElementById('ergebnis').textContent"), (await tab.js(TAGE))[4]],
-             ["Kolonnenbuchung geändert.", ["Do 08.10.", "7,50 h"]])
+             ["Kolonnenbuchung geändert: Mia Monteurin 7,50 h · Tom Mitglied 7,50 h", ["Do 08.10.", "7,50 h"]])
     await tab.js("document.getElementById('kolonneMenueKnopf').click()")
     await tab.js("document.getElementById('kolonneNachtragen').click()")
     p.pruefe("Nachtrag für die Kolonne: Kolonne Nord, Mia (ich) fest, Tom angehakt", await tab.js(
         "[document.getElementById('kdTitel').textContent,document.getElementById('kdKolonne').selectedOptions[0].textContent,"
         "[...document.querySelectorAll('#kdMitglieder .mitglied')].map(l=>[l.textContent,l.querySelector('input').checked,l.querySelector('input').disabled])]"),
         ["Nachtrag für die Kolonne", "Kolonne Nord", [["Mia Monteurin (ich)", True, True], ["Tom Mitglied", True, False]]])
-    await tab.js(setze("kdDatum", "2026-10-07") + f";document.getElementById('kdAuftrag').value='{a}';document.getElementById('kdStunden').value='6'")
+    # seit 1.9.63: eine Von/Bis-Angabe für alle angehakten, Pause und Rundung je Person nach ihrem Tag (Tom hat am Morgen Fahrzeit)
+    await tab.js(setze("kdDatum", "2026-10-07") + f";document.getElementById('kdAuftrag').value='{a}';"
+                 + setze("kdVon", "07:00") + ";" + setze("kdBis", "12:30"))
+    await tab.warten("document.getElementById('kdVorschauZeile').textContent.includes('Tag zusammen')")
+    p.pruefe("Nachtrag für die Kolonne: Vorschau je Mitglied nach seinem Tag", await tab.js("document.getElementById('kdVorschauZeile').textContent"),
+             "Mia Monteurin 5,50 h · Tom Mitglied 5,00 h (Tag zusammen 6:15 h)")
+    await tab.bild("meine_zeiten_kolonne_nachtrag_vorschau_hell")
     await tab.warte_auf_neu_geladene_liste("document.getElementById('kdSpeichern').click()", "#tage")
     p.pruefe("Nachtrag für die Kolonne gebucht", [await tab.js("document.getElementById('ergebnis').textContent"),
-                                                  (await tab.js(TAGE))[-1]], ["Für die Kolonne nachgetragen.", ["Mi 07.10.", "6,00 h"]])
+                                                  (await tab.js(TAGE))[-1]],
+             ["Für die Kolonne nachgetragen: Mia Monteurin 5,50 h · Tom Mitglied 5,00 h", ["Mi 07.10.", "5,50 h"]])
     await tab.js(menue(zeile_gruppe, "kolonne-loeschen"))
     p.pruefe("Kolonnenbuchung löschen: Rückfrage", await tab.js(
         "[document.getElementById('ldTitel').textContent,document.getElementById('ldFolge').textContent]"),
@@ -408,7 +422,8 @@ async def pruefen(tab, seed, p):
     # --- Tom: „gebucht von“; Ole: Zeit von früher; Pia: ohne Mitarbeiter -------------------------------------------------------------
     await _ansehen(tab, seed, "tom", 1280, 620, "light")
     p.pruefe("Tom: Nachtrag der Kolonne „gebucht von Mia Monteurin“", await tab.js(zeilen_des_tags("2026-10-07")),
-             [["", "Baustellenzeit · AUF-2026-0001", "gebucht von Mia Monteurin", "6,00 h", True]])
+             [["06:15–07:00", "Fahrzeit · AUF-2026-0001", "", "0,75 h", True],
+              ["07:00–12:30", "Baustellenzeit · AUF-2026-0001", "gebucht von Mia Monteurin", "5,00 h", True]])
     await _ansehen(tab, seed, "ole", 1280, 620, "light")
     p.pruefe("Ole: läuft seit gestern, Weg zu „Heute“", await tab.js(
         "[document.querySelector('.zeile .zeile-text span').textContent,document.querySelector('.zeile a.knopf').textContent,"

@@ -31,10 +31,10 @@ from ..database import get_db
 from ..models import AppUser, TimeEntry, TimeEntryGroup
 from ..permissions import ROLE_FIELD, darf_zeit_fuer_andere_buchen, require_min_role, zeit_nur_mit_von_bis
 from .orders import require_field_order_access
-from ..schemas import CrewGroupSummaryOut, CrewOut, TimeEntryManualCreate, TimeEntryOut, TimeEntrySummaryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeGroupUpdate, TimeEndeNachtragen, TimeEndeVorschauOut, TimePausenNeuRechnen, TimePausenVorschauOut, TimeZeitartWechseln, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
+from ..schemas import CrewGroupSummaryOut, CrewOut, TimeEntryManualCreate, TimeEntryOut, TimeEntrySummaryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeGroupUpdate, TimeKolonneVorschauOut, TimeEndeNachtragen, TimeEndeVorschauOut, TimePausenNeuRechnen, TimePausenVorschauOut, TimeZeitartWechseln, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
 from ..heute import zeitarten
 from ..time_backoffice import load_time_settings, locked_until, time_settings_dict
-from ..time_tracking import MAX_LIST_LIMIT, active_group_for_employee, active_entry as active_time_entry, count_entries, create_group_manual_entry, create_manual_entry, crew_leader_team_ids, delete_entry as delete_time_entry_row, delete_group, ende_nachtragen, ende_vorschau, tag_stand, PausenVorschauVeraltet, pausen_neu_rechnen, pausen_vorschau, ZeitartInGruppe, zeitart_wechseln, entry_to_dict, field_time_tracking_context, laeuft_seit_frueher, load_entry, nachtrag_nach_zeitregel, mindestpause_der_buchung, OffeneZeit, group_for_entry, group_member_ids, group_to_dict, list_crews_for_leader, list_entries as list_time_entries, list_groups_initiated_by, start_group_timer, start_timer, stop_group_timer, stop_timer, summarize_entries, time_tracking_context, update_entry as update_time_entry_row, update_group
+from ..time_tracking import MAX_LIST_LIMIT, active_group_for_employee, active_entry as active_time_entry, count_entries, create_group_manual_entry, create_manual_entry, crew_leader_team_ids, delete_entry as delete_time_entry_row, delete_group, ende_nachtragen, ende_vorschau, tag_stand, PausenVorschauVeraltet, pausen_neu_rechnen, pausen_vorschau, ZeitartInGruppe, zeitart_wechseln, entry_to_dict, field_time_tracking_context, laeuft_seit_frueher, load_entry, kolonne_vorschau, validate_group_members, nachtrag_nach_zeitregel, mindestpause_der_buchung, OffeneZeit, group_for_entry, group_member_ids, group_to_dict, list_crews_for_leader, list_entries as list_time_entries, list_groups_initiated_by, start_group_timer, start_timer, stop_group_timer, stop_timer, summarize_entries, time_tracking_context, update_entry as update_time_entry_row, update_group
 
 router = APIRouter()
 
@@ -201,11 +201,39 @@ def create_time_group_manual(payload:TimeGroupManualCreate,request:Request,db:Se
     _require_crew_leader(request,db,payload.team_id)
     _require_bookable_order(request,db,payload.order_id)
     _require_open_period(request,db,payload.work_date)
+    if payload.von is None and zeit_nur_mit_von_bis(getattr(request.state,"erp_user",None)):
+        # seit 1.9.63: der Kolonnenführer trägt für die Kolonne nur mit Von und Bis nach -- nach den Rechteprüfungen (403 bleibt 403)
+        raise HTTPException(status_code=422,detail=NUR_VON_BIS)
     try:
-        group=create_group_manual_entry(db,employee_ids=payload.employee_ids,team_id=payload.team_id,actor_employee_id=actor,is_admin=is_admin,order_id=payload.order_id,order_item_id=payload.order_item_id,work_date=payload.work_date,entry_type=payload.entry_type,activity=payload.activity,hours=payload.hours,break_minutes=payload.break_minutes,notes=payload.notes,created_by_user_id=user_id)
+        group=create_group_manual_entry(db,employee_ids=payload.employee_ids,team_id=payload.team_id,actor_employee_id=actor,is_admin=is_admin,order_id=payload.order_id,order_item_id=payload.order_item_id,work_date=payload.work_date,entry_type=payload.entry_type,activity=payload.activity,hours=payload.hours,break_minutes=payload.break_minutes,notes=payload.notes,created_by_user_id=user_id,von=payload.von,bis=payload.bis)
     except ValueError as exc:
         raise HTTPException(status_code=409 if "läuft bereits" in str(exc) else 422,detail=str(exc)) from exc
     return _group_out(request,db,group)
+
+
+@router.get("/api/time-entry-groups/nachtrag-vorschau", response_model=TimeKolonneVorschauOut)
+def kolonne_nachtrag_vorschau(request: Request, work_date: date, von: time, bis: time,
+                              pause_minuten: int | None = Query(None, ge=0, le=720), team_id: int | None = None,
+                              employee_ids: list[int] = Query(default=[]), group_id: int | None = None,
+                              db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+    """Seit 1.9.63 (Stufe 4, R3 Nachrunde, Punkt 1): was „Nachtrag für die Kolonne“ (team_id, employee_ids) bzw. „Für die Kolonne
+    ändern“ (group_id) mit diesen Zeiten je Mitglied buchen würde -- dieselbe Rechnung wie die Buchung (kolonne_rechnen()). Liest nur.
+    Rechte wie beim Buchen: Kolonnenführer der Kolonne bzw. wer die Kolonnenbuchung angelegt hat."""
+    actor, is_admin, _ = _group_actor(request)
+    try:
+        if group_id is not None:
+            group = db.get(TimeEntryGroup, group_id)
+            if group is None:
+                raise HTTPException(status_code=404, detail="Gruppenbuchung wurde nicht gefunden.")
+            _require_group_owner(request, db, group)
+            werte = kolonne_vorschau(db, group=group, work_date=work_date, von=von, bis=bis, mindestpause=pause_minuten)
+        else:
+            _require_crew_leader(request, db, team_id)
+            employees = validate_group_members(db, employee_ids, team_id=team_id, actor_employee_id=actor, is_admin=is_admin)
+            werte = kolonne_vorschau(db, employees=employees, work_date=work_date, von=von, bis=bis, mindestpause=pause_minuten)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return TimeKolonneVorschauOut.model_validate(werte)
 
 
 @router.post("/api/time-entry-groups/start", response_model=TimeGroupOut)
@@ -256,12 +284,18 @@ def put_time_group(group_id:int,payload:TimeGroupUpdate,request:Request,db:Sessi
     group=db.get(TimeEntryGroup,group_id,with_for_update=True,populate_existing=True)
     if group is None: raise HTTPException(status_code=404,detail="Gruppenbuchung wurde nicht gefunden.")
     _require_group_owner(request,db,group)
-    values=_merge_time_changes(group,payload.model_dump(exclude_unset=True))
+    changes=payload.model_dump(exclude_unset=True)
+    values=_merge_time_changes(group,changes)
     _validate_time_rules(db,order_item_id=values["order_item_id"],activity=values["activity"],manual=True,group=True)
     _require_bookable_order(request,db,values["order_id"])
     _require_open_period(request,db,group.work_date,values["work_date"])
+    if "hours" in changes and zeit_nur_mit_von_bis(getattr(request.state,"erp_user",None)):
+        # seit 1.9.63: der Kolonnenführer ändert die Zeit der Kolonne nur über Von und Bis -- nach den Rechteprüfungen
+        raise HTTPException(status_code=422,detail=NUR_VON_BIS)
+    # seit 1.9.63: ohne „pause_minuten“ gilt je Mitglied die gemerkte Mindestpause (Regel 22)
+    von_bis={"von":changes.get("von"),"bis":changes.get("bis"),"mindestpause":(changes.get("pause_minuten") or 0) if "pause_minuten" in changes else None}
     try:
-        group,skipped=update_group(db,group_id,**values)
+        group,skipped=update_group(db,group_id,**values,**von_bis)
     except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
     out=_group_out(request,db,group)
     out.skipped_members=skipped

@@ -179,11 +179,14 @@ ABGLEICH = [
     Z("time_tracking.html", "id=manualHours", ("TimeEntryManualCreate.hours", "TimeEntryUpdate.hours"), lesen=("zahlFeld('manualHours')",),
       code={"pflicht": True}, beleg=("app/schemas.py", "Bitte die Dauer oder Von und Bis angeben.")),
     Z("time_tracking.html", "id=manualBreak", ("TimeEntryManualCreate.break_minutes", "TimeEntryUpdate.break_minutes")),
-    Z("time_tracking.html", "id=groupHours", ("TimeGroupManualCreate.hours", "TimeGroupUpdate.hours"), lesen=("zahlFeld('groupHours')",)),
+    # seit 1.9.63 sind die Stunden der Kolonne im Schema optional (Von/Bis braucht keine) -- ohne Von/Bis verlangt sie der Validator
+    Z("time_tracking.html", "id=groupHours", ("TimeGroupManualCreate.hours", "TimeGroupUpdate.hours"), lesen=("zahlFeld('groupHours')",),
+      code={"pflicht": True}, beleg=("app/schemas.py", "Bitte die Dauer oder Von und Bis angeben.")),
     Z("time_tracking.html", "id=groupBreak", ("TimeGroupManualCreate.break_minutes", "TimeGroupUpdate.break_minutes")),
     # -- Meine Zeiten (seit 1.9.59, statt der Zeiterfassung der Monteurin)
     Z("mobil_zeiten.html", "id=zdPause", ("TimeEntryManualCreate.break_minutes", "TimeEntryUpdate.pause_minuten")),
-    Z("mobil_zeiten.html", "id=kdStunden", ("TimeGroupManualCreate.hours", "TimeGroupUpdate.hours")),
+    # seit 1.9.63 Von/Bis statt „Stunden je Person“, dazu „Pause mindestens“
+    Z("mobil_zeiten.html", "id=kdPause", ("TimeGroupManualCreate.break_minutes", "TimeGroupUpdate.pause_minuten")),
     # -- Arbeitsvorbereitung
     Z("work_preparation.html", "id=mqty-${x.id}", ("WorkPreparationMaterialUpdateV082.planned_quantity",)),
 ]

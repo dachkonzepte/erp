@@ -463,6 +463,9 @@ QUERY_JE_ROUTE = {
     # Vorschau „Zeit nachtragen“ und Pausen des Tags (seit 1.9.57): der Tag der Testdaten mit der Buchung des Monteurs
     "/api/time-entries/nachtrag-vorschau": {"work_date": "@heute", "von": "13:00", "bis": "15:00"},
     "/api/time-entries/tagespause": {"work_date": "@heute"},
+    # Vorschau des Kolonnen-Nachtrags mit Von/Bis (seit 1.9.63): der Monteur ist Kolonnenführer seines Teams
+    "/api/time-entry-groups/nachtrag-vorschau": {"work_date": "@heute", "von": "13:00", "bis": "15:00", "team_id": "@team_id",
+                                               "employee_ids": "@employee_id"},
 }
 
 

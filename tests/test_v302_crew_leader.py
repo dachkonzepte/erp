@@ -77,8 +77,10 @@ def world(threaded_db_session):
 
 
 def _manual(team_id, employee_ids, order_id, work_date=TODAY, hours="4"):
+    """Seit 1.9.63 bucht der Kolonnenführer mit Von und Bis (eine Dauer nur das Büro): ab 07:00 die Stunden lang -- bis 6 h ohne Pause."""
+    bis = (datetime.combine(work_date, datetime.min.time()) + timedelta(hours=7 + float(hours))).strftime("%H:%M")
     return {"employee_ids": employee_ids, "team_id": team_id, "order_id": order_id,
-            "work_date": work_date.isoformat(), "hours": hours}
+            "work_date": work_date.isoformat(), "von": "07:00", "bis": bis}
 
 
 def _as(world, name):
@@ -93,7 +95,7 @@ def test_member_without_flag_cannot_group_book_even_by_direct_call(world):
     client = _as(world, "max")
     ids = [e["max"].id, e["lea"].id]
     assert client.post("/api/time-entry-groups", json=_manual(crew.id, ids, order.id)).status_code == 403
-    start = {k: v for k, v in _manual(crew.id, ids, order.id).items() if k not in ("work_date", "hours")}
+    start = {k: v for k, v in _manual(crew.id, ids, order.id).items() if k not in ("work_date", "von", "bis")}
     assert client.post("/api/time-entry-groups/start", json=start).status_code == 403
     assert client.post("/api/time-entry-groups", json=_manual(None, ids, order.id)).status_code == 403
     assert world["db"].query(TimeEntry).count() == 0
@@ -257,7 +259,8 @@ def test_crew_leader_summary_and_list_contain_only_own_bookings(world):
     gespeichertem AppUser. Sie bucht für sich und Max (je 4 Std.), Vera für sich und Max (je 3),
     Pia in Kolonne Süd für sich und Lea (je 1), Max trägt 2 Std. selbst nach. Summen, Liste und
     Gesamtzahl zeigen Lea nur ihre eigenen zwei Buchungen (5 Std., eine davon von Pia gebucht) --
-    mit Max, Vera oder Pia im Filter, mit Auftrag oder Projekt. Gegenstück: das Büro sieht alle."""
+    mit Max, Vera oder Pia im Filter, mit Auftrag oder Projekt. Gegenstück: das Büro sieht alle. Seit 1.9.63 bucht die Kolonne mit
+    Von und Bis: Max hat an dem Tag 4 h + 3 h, seine zweite Kolonnenbuchung bekommt nach der Tagesregel 30 min Pause (2,50 h)."""
     e, crew, other, order, db = world["emp"], world["crew"], world["other"], world["order"], world["db"]
     for booker, team, members, hours in (("lea", crew, ("lea", "max"), "4"), ("vera", crew, ("vera", "max"), "3"),
                                          ("pia", other, ("pia", "lea"), "1")):
@@ -278,5 +281,5 @@ def test_crew_leader_summary_and_list_contain_only_own_bookings(world):
 
     office = _client(db, _user(db, "buero", None, role="buero_auftrag"))
     assert _summary(office, f"order_id={order.id}") == {
-        "entry_count": 7, "booked_count": 7, "employee_count": 4, "total_hours": Decimal("18.00"),
-        "productive_hours": Decimal("18.00"), "travel_hours": Decimal("0.00")}
+        "entry_count": 7, "booked_count": 7, "employee_count": 4, "total_hours": Decimal("17.50"),
+        "productive_hours": Decimal("17.50"), "travel_hours": Decimal("0.00")}

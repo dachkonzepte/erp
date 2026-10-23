@@ -115,6 +115,7 @@
     .mitglieder{display:flex;flex-direction:column;gap:2px;font-size:14px;font-weight:600;color:var(--ds-stark)}
     .mitglied{display:flex;align-items:center;gap:12px;min-height:48px;font-size:16px;font-weight:500;color:var(--ds-text);cursor:pointer}
     .mitglied input{width:22px;height:22px;margin:0;accent-color:var(--ds-aktion)}
+    #kdMitglieder{display:flex;flex-wrap:wrap;column-gap:28px}  /* seit 1.9.63 nebeneinander: die Vorschau rückt nach oben */
     .antrag{display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-height:56px;border-top:1px solid var(--ds-linie);padding:8px 0}
     .antrag-text{flex:1;min-width:200px;display:flex;flex-direction:column;gap:2px;font-size:15px;overflow-wrap:anywhere}
     .antrag-text span{color:var(--ds-text-2);font-size:14px}
@@ -202,15 +203,27 @@
   <div class="dialog-kopf"><h2 id="kdTitel">Nachtrag für die Kolonne</h2>
     <button type="button" class="knopf knopf-neutral knopf-symbol" id="kdZu" aria-label="Schließen"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
   <p class="dialog-text" id="kdMitgliederText" hidden></p>
+  <p class="dialog-hinweis" id="kdHinweis" hidden></p>
   <div class="dialog-felder">
     <label class="feld breit" id="kdKolonneFeld" for="kdKolonne">Kolonne<select id="kdKolonne"></select></label>
     <div class="mitglieder breit" id="kdMitgliederFeld" role="group" aria-labelledby="kdMitgliederTitel"><span id="kdMitgliederTitel">Wer ist dabei?</span><div id="kdMitglieder"></div></div>
     <label class="feld" for="kdDatum">Datum<input id="kdDatum" type="date"></label>
-    <label class="feld" for="kdStunden">Stunden je Person<input id="kdStunden" type="text" inputmode="decimal" data-zahl data-min="0.01" data-max="24"></label>
     <label class="feld" for="kdZeitart">Zeitart<select id="kdZeitart"></select></label>
-    <label class="feld" for="kdTaetigkeit">Tätigkeit<select id="kdTaetigkeit"></select></label>
+    {# seit 1.9.63 Von und Bis für alle angehakten statt „Stunden je Person“ -- Pause und Rundung je Person nach ihrem Tag #}
+    <label class="feld" for="kdVon">Von<input id="kdVon" type="time"></label>
+    <label class="feld" for="kdBis">Bis<input id="kdBis" type="time"></label>
     <label class="feld breit" for="kdAuftrag">Auftrag<select id="kdAuftrag"></select></label>
+  </div>
+  {# seit 1.9.63 wie „Zeit nachtragen“: Tätigkeit, Pause und Notiz zugeklappt -- sonst liegt die Vorschau auf dem Tablet quer unter dem Rand #}
+  <button type="button" class="weitere" id="kdWeitere" aria-expanded="false" aria-controls="kdWeitereFelder">Weitere Angaben</button>
+  <div class="dialog-felder" id="kdWeitereFelder" hidden>
+    <label class="feld" for="kdTaetigkeit">Tätigkeit<select id="kdTaetigkeit"></select></label>
+    <label class="feld" for="kdPause">Pause mindestens (Min.)<input id="kdPause" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-max="720" data-feld="Pause mindestens"></label>
     <label class="feld breit" for="kdNotiz">Notiz<input id="kdNotiz" type="text" placeholder="optional"></label>
+  </div>
+  <div class="vorschau" id="kdVorschau" aria-live="polite">
+    <div class="vorschau-text"><span id="kdVorschauZeile">Von und Bis eintragen – dann rechnet der Server je Person die Pause.</span>
+      <span class="klein">Pause und Rundung je Person nach ihrem Tag. Wer anders gearbeitet hat: einzeln nachtragen.</span></div>
   </div>
   <div class="status" id="kdStatus" role="status"></div>
   <div class="dialog-knoepfe"><button type="button" class="knopf knopf-neutral" id="kdAbbrechen">Abbrechen</button>
@@ -471,7 +484,11 @@ function kolonneDialogOeffnen(g){
   }
   el('kdDatum').value=aendern?g.work_date:berlinToday();
   el('kdDatum').min=D.abgeschlossen_bis?berlinAddDays(D.abgeschlossen_bis,1):'';
-  el('kdStunden').value=zahlText(aendern?g.hours:8);
+  // seit 1.9.63 Von und Bis für alle angehakten (bis dahin „Stunden je Person“); beim Ändern die gemerkte Mindestpause vorbelegt
+  el('kdVon').value=aendern?(g.von||''):'';el('kdBis').value=aendern?(g.bis||''):'';
+  el('kdPause').value=aendern?zahlText(g.mindestpause||0):'';el('kdPause').removeAttribute('aria-invalid');
+  var hinweis=aendern&&!(g.von&&g.bis)?'Diese Kolonnenbuchung hat keine Uhrzeiten ('+stunden(g.hours)+' je Person) – trag Von und Bis ein, dann rechnet der Server je Person neu.':'';
+  el('kdHinweis').hidden=!hinweis;el('kdHinweis').textContent=hinweis;
   el('kdZeitart').innerHTML=auswahlOptionen(D.zeitarten,aendern?g.entry_type:D.zeitarten[0].value,function(a){return a.label},
     {wert:function(a){return a.value}});
   el('kdTaetigkeit').innerHTML=auswahlOptionen(D.taetigkeiten,aendern?g.activity:'',function(t){return t.label},
@@ -479,29 +496,63 @@ function kolonneDialogOeffnen(g){
   el('kdAuftrag').innerHTML=auswahlOptionen(D.auftraege,aendern?g.order_id:VORWAHL,auftragText,{leer:'— Auftrag wählen —',
     fehlt:function(w){return aendern?(g.order_number||'Auftrag')+' (nicht mehr in der Auswahl)':w+' (nicht in der Auswahl)'}});
   el('kdNotiz').value=aendern?(g.notes||''):'';
+  el('kdWeitereFelder').hidden=true;el('kdWeitere').setAttribute('aria-expanded','false');
+  el('kdWeitere').textContent='Weitere Angaben'+(aendern?[g.activity,g.notes,g.mindestpause?'Pause mindestens '+stundenUhr(g.mindestpause):null]
+    .filter(Boolean).map(function(x){return ' · '+x}).join(''):'');
   el('kdStatus').textContent='';el('kdSpeichern').disabled=false;
+  kdVorschauZeigen(null,null);
   el('kolonneDialog').showModal();
+  if(aendern&&g.von&&g.bis)kdVorschauLaden();
+}
+// seit 1.9.63: „Mia Monteurin 5,50 h · Tom Mitglied 5,00 h (Tag zusammen 6:15 h)“ -- je Person gebucht, „Tag zusammen“ nur mit weiteren
+// Buchungen an dem Tag; beim Ändern dazu, wer selbst geändert hat und bleibt
+function kolonneVorschauText(v){
+  return v.mitglieder.map(function(m){return m.name+' '+stunden(m.gebucht)+(m.tag_buchungen>1?' (Tag zusammen '+stundenUhr(Number(m.tag_zusammen)*60)+')':'')}).join(' · ')
+    +(v.uebersprungen.length?' · bleibt: '+v.uebersprungen.join(', ')+' (selbst geändert)':'');
+}
+function kdVorschauZeigen(v,fehler){
+  if(v){
+    el('kdVorschauZeile').innerHTML=ergebnisTeile(kolonneVorschauText(v));
+    var box=el('kdVorschau');if(box.scrollIntoView)box.scrollIntoView({block:'nearest'});  // im Dialog sichtbar, auch auf dem Tablet quer
+  }
+  else el('kdVorschauZeile').textContent=fehler||'Von und Bis eintragen – dann rechnet der Server je Person die Pause.';
+}
+function kdMitgliederIds(){return Array.from(document.querySelectorAll('.kd-mitglied')).filter(function(x){return x.checked}).map(function(x){return x.value})}
+// Vorschau vom Server bei jeder Änderung von Datum, Von, Bis, „Pause mindestens“ oder der Mitglieder -- ohne Von oder Bis ein Lesen ohne
+// Anfrage (Regel 29)
+function kdVorschauLaden(){
+  var datum=el('kdDatum').value,von=el('kdVon').value,bis=el('kdBis').value,pause;
+  try{pause=zahlFeld('kdPause',{leer:0})}catch(e){kdVorschauZeigen(null,e.message);return Promise.resolve()}
+  var url='/api/time-entry-groups/nachtrag-vorschau?work_date='+encodeURIComponent(datum)+'&von='+encodeURIComponent(von)+'&bis='+encodeURIComponent(bis)
+    +'&pause_minuten='+pause+(KD?'&group_id='+KD.id:'&team_id='+encodeURIComponent(el('kdKolonne').value)
+    +kdMitgliederIds().map(function(i){return '&employee_ids='+encodeURIComponent(i)}).join(''));
+  return lesen('kolonne-vorschau',()=>datum&&von&&bis?api(url):Promise.resolve(null),function(v){kdVorschauZeigen(v,null)})
+    .catch(function(e){kdVorschauZeigen(null,e.message)});
 }
 function kolonneSpeichern(){
-  var st=el('kdStatus'),knopf=el('kdSpeichern'),auftrag=el('kdAuftrag').value,stunden_;
+  var st=el('kdStatus'),knopf=el('kdSpeichern'),auftrag=el('kdAuftrag').value,pause;
   st.textContent='';
   if(!auftrag){st.textContent='Bitte Auftrag auswählen.';return}
-  try{stunden_=zahlFeld('kdStunden',{leer:0})}catch(e){st.textContent=e.message;return}
-  if(!(stunden_>0)){st.textContent='Bitte Stunden größer als 0 angeben.';return}
+  if(!el('kdVon').value||!el('kdBis').value){st.textContent='Bitte Von und Bis angeben.';return}
+  try{pause=zahlFeld('kdPause',{leer:0})}catch(e){st.textContent=e.message;return}
+  // seit 1.9.63 Von und Bis für alle angehakten (bis dahin „Stunden je Person“) -- Pause und Rundung rechnet der Server je Person
   var body={order_id:auftrag,work_date:el('kdDatum').value,entry_type:el('kdZeitart').value,activity:el('kdTaetigkeit').value||null,
-            hours:stunden_,notes:el('kdNotiz').value.trim()||null};
+            von:el('kdVon').value,bis:el('kdBis').value,notes:el('kdNotiz').value.trim()||null};
   var aendern=!!KD,url=aendern?'/api/time-entry-groups/'+KD.id:'/api/time-entry-groups';
-  // seit 1.9.61 ohne Standardpause (bis dahin schickte der Kolonnen-Nachtrag sie als Pause mit)
-  if(!aendern)body=Object.assign(body,{team_id:el('kdKolonne').value,
-    employee_ids:Array.from(document.querySelectorAll('.kd-mitglied')).filter(function(x){return x.checked}).map(function(x){return x.value})});
+  // seit 1.9.61 ohne Standardpause; seit 1.9.63 „Pause mindestens“ als Mindestpause (Nachtrag break_minutes, Ändern pause_minuten)
+  if(!aendern)body=Object.assign(body,{team_id:el('kdKolonne').value,break_minutes:pause,employee_ids:kdMitgliederIds()});
+  else body=Object.assign(body,{pause_minuten:pause});
   var vorher=MONAT;MONAT=body.work_date.slice(0,7);
   knopf.disabled=true;
   return speichern('zeiten',()=>api(url,{method:aendern?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{neuLaden:laden})
     .then(function(r){
       el('kolonneDialog').close();
       var skipped=(r&&r.skipped_members)||[];
+      // seit 1.9.63 mit den gebuchten Stunden je Person („Für die Kolonne nachgetragen: Mia Monteurin 5,50 h · Tom Mitglied 5,00 h“)
+      var je=((r&&r.member_entries)||[]).filter(function(m){return skipped.indexOf(m.employee_name)<0})
+        .map(function(m){return m.employee_name+' '+stunden(m.hours)}).join(' · ');
       ergebnis(skipped.length?'Nicht übernommen bei: '+skipped.join(', ')+' – hat die eigene Buchung nach der Gruppenbuchung selbst geändert; diese bleibt, wie sie ist.'
-        :(aendern?'Kolonnenbuchung geändert.':'Für die Kolonne nachgetragen.'));
+        :(aendern?'Kolonnenbuchung geändert: ':'Für die Kolonne nachgetragen: ')+je);
     })
     .catch(function(e){MONAT=vorher;st.textContent=e.message;knopf.disabled=false});
 }
@@ -584,6 +635,10 @@ function binden(){
   el('zdZu').addEventListener('click',function(){el('zeitDialog').close()});
   el('kolonneNachtragen').addEventListener('click',function(){kolonneDialogOeffnen(null)});
   el('kdKolonne').addEventListener('change',kdMitglieder);
+  el('kdKolonne').addEventListener('change',kdVorschauLaden);
+  el('kdWeitere').addEventListener('click',function(){var f=el('kdWeitereFelder');f.hidden=!f.hidden;el('kdWeitere').setAttribute('aria-expanded',String(!f.hidden))});
+  el('kdMitglieder').addEventListener('change',kdVorschauLaden);
+  ['kdDatum','kdVon','kdBis','kdPause'].forEach(function(id){el(id).addEventListener('input',kdVorschauLaden);el(id).addEventListener('change',kdVorschauLaden)});
   el('kdSpeichern').addEventListener('click',kolonneSpeichern);
   el('kdAbbrechen').addEventListener('click',function(){el('kolonneDialog').close()});
   el('kdZu').addEventListener('click',function(){el('kolonneDialog').close()});

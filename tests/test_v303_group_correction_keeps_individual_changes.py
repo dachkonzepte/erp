@@ -39,7 +39,10 @@ def _entry(world, name):
 
 
 def _correction(world, hours):
-    return {"order_id": world["order"].id, "work_date": TODAY.isoformat(), "hours": hours, "break_minutes": 0}
+    """Seit 1.9.63 korrigiert der Kolonnenführer mit Von und Bis (eine Dauer nur das Büro): ab 07:00 so lang, dass nach der Tagesregel
+    genau diese Stunden gebucht werden (über 6 h 30 min Pause)."""
+    bis = {"8.5": "16:00", "6": "13:00", "5": "12:00"}[hours]
+    return {"order_id": world["order"].id, "work_date": TODAY.isoformat(), "von": "07:00", "bis": bis, "pause_minuten": 0}
 
 
 def test_the_reported_example_member_corrected_to_14_stays_after_leader_moves_start_to_730(world):

@@ -177,6 +177,27 @@ def nachtrag_nach_zeitregel(db: Session, *, employee_id: int, work_date: date, v
             "tag_buchungen": len(frueher) + 1}
 
 
+def kolonne_rechnen(db: Session, mitglieder: list[tuple[int, str, int | None, int]], *, work_date: date, von: time,
+                    bis: time) -> dict[int, dict]:
+    """Seit 1.9.63 (Stufe 4, R3 Nachrunde, Punkt 1, Entscheidung Tobias): eine Von/Bis-Angabe für die angehakten Mitglieder einer
+    Kolonne -- je Mitglied (employee_id, Name, ohne_id: seine Buchung beim Ändern, Mindestpause) dieselbe Rechnung wie sein eigener
+    Nachtrag (nachtrag_nach_zeitregel(): Pause aus seinem Tag, Rundung der Zeitregeln). Für Vorschau, Nachtrag und Ändern der Kolonne;
+    ein Fehler nennt das Mitglied. Wer anders gearbeitet hat, wird einzeln nachgetragen."""
+    if datetime.combine(work_date, bis) <= datetime.combine(work_date, von):
+        raise ValueError("Bis muss nach Von liegen.")
+    ergebnis: dict[int, dict] = {}
+    for employee_id, name, ohne_id, mindestpause in mitglieder:
+        try:
+            werte = nachtrag_nach_zeitregel(db, employee_id=employee_id, work_date=work_date, von=von, bis=bis,
+                                            mindestpause=mindestpause, ohne_id=ohne_id)
+        except ValueError as exc:
+            raise ValueError(f"{name}: {exc}") from exc
+        if werte["gebucht"] <= 0:
+            raise ValueError(f"{name}: Nach der Rundung bleibt keine Arbeitszeit.")
+        ergebnis[employee_id] = {**werte, "name": name, "mindestpause": max(0, int(mindestpause or 0))}
+    return ergebnis
+
+
 def ende_rechnen(db: Session, employee_id: int, beginn: datetime, ende: datetime, mindestpause: int = 0) -> dict:
     """Seit 1.9.44 (Stufe 4, R2): anwesend (Stunden), Pause (Minuten) und gebuchte Stunden einer Zeit von beginn bis ende -- die eine
     Rechnung für den Feierabend (Stopp, Gruppen-Stopp je Mitglied, Zeitart wechseln), Ende nachtragen und dessen Vorschau
@@ -776,16 +797,45 @@ def _create_group_header(db: Session, *, initiated_by_employee_id: int | None, t
     db.add(row);db.flush();return row
 
 
-def create_group_manual_entry(db: Session, *, employee_ids: list[int], team_id: int | None, actor_employee_id: int | None, is_admin: bool, order_id: int, work_date: date, hours: Decimal, entry_type: str='site', order_item_id: int | None=None, activity: str | None=None, notes: str | None=None, break_minutes: int=0, created_by_user_id: int | None=None) -> TimeEntryGroup:
+def create_group_manual_entry(db: Session, *, employee_ids: list[int], team_id: int | None, actor_employee_id: int | None, is_admin: bool, order_id: int, work_date: date, hours: Decimal | None = None, entry_type: str='site', order_item_id: int | None=None, activity: str | None=None, notes: str | None=None, break_minutes: int=0, created_by_user_id: int | None=None, von: time | None = None, bis: time | None = None) -> TimeEntryGroup:
     employees=validate_group_members(db,employee_ids,team_id=team_id,actor_employee_id=actor_employee_id,is_admin=is_admin)
     order=db.get(Order,order_id)
     if order is None: raise ValueError("Auftrag wurde nicht gefunden.")
     validate_order_item(db,order_id,order_item_id)
+    if von is not None:
+        return _kolonne_von_bis_anlegen(db, employees, team_id=team_id, actor_employee_id=actor_employee_id, order=order, work_date=work_date,
+                                       von=von, bis=bis, mindestpause=break_minutes, entry_type=entry_type, order_item_id=order_item_id,
+                                       activity=activity, notes=notes, created_by_user_id=created_by_user_id)
     amount=gebucht_nach_zeitregel(db,hours)  # seit 1.9.39 je Mitglied gerundet wie ein Einzel-Nachtrag (alle dieselbe Dauer)
     if amount<=0: raise ValueError("Die Stunden müssen größer als 0 sein.")
     group=_create_group_header(db,initiated_by_employee_id=actor_employee_id,team_id=team_id,order=order,order_item_id=order_item_id,mode='manual',entry_type=entry_type,activity=activity,work_date=work_date,started_at=None,hours=amount,break_minutes=break_minutes,notes=notes,status='booked',created_by_user_id=created_by_user_id)
     for emp in employees:
         entry=TimeEntry(employee_id=emp.id,project_id=order.project_id,order_id=order.id,order_item_id=order_item_id,work_date=work_date,entry_type=entry_type,counts_as_productive=entry_type_is_productive(entry_type),activity=activity or None,started_at=None,ended_at=None,break_minutes=max(0,int(break_minutes or 0)),min_break_minutes=max(0,int(break_minutes or 0)),hours=amount,notes=notes or None,source='group_manual',status='booked',created_by_user_id=created_by_user_id)
+        db.add(entry);db.flush();db.add(TimeEntryGroupMember(group_id=group.id,employee_id=emp.id,time_entry_id=entry.id))
+    db.commit();return db.get(TimeEntryGroup,group.id)
+
+
+def _kolonne_kopf(group: TimeEntryGroup, werte: dict[int, dict], work_date: date, von: time, bis: time) -> None:
+    """Seit 1.9.63: der Kopf einer Kolonnenbuchung mit Von/Bis -- Beginn und Ende, Stunden im Mittel (wie beim Gruppen-Stopp), die
+    größte Pause."""
+    group.started_at, group.ended_at = datetime.combine(work_date, von), datetime.combine(work_date, bis)
+    if werte:
+        group.hours = round_half_up(sum((w["gebucht"] for w in werte.values()), Decimal("0")) / Decimal(len(werte)), Decimal("0.0001"))
+        group.break_minutes = max(w["pause"] for w in werte.values())
+
+
+def _kolonne_von_bis_anlegen(db: Session, employees: list[Employee], *, team_id: int | None, actor_employee_id: int | None, order: Order,
+                             work_date: date, von: time, bis: time, mindestpause: int, entry_type: str, order_item_id: int | None,
+                             activity: str | None, notes: str | None, created_by_user_id: int | None) -> TimeEntryGroup:
+    """Seit 1.9.63: Kolonnen-Nachtrag mit Von/Bis -- je Mitglied Pause und Rundung nach seinem Tag (kolonne_rechnen()), Beginn und
+    Ende als Nachweis, die eingetragene Mindestpause gemerkt."""
+    werte = kolonne_rechnen(db, [(e.id, employee_name(e) or f"#{e.id}", None, mindestpause) for e in employees],
+                            work_date=work_date, von=von, bis=bis)
+    group=_create_group_header(db,initiated_by_employee_id=actor_employee_id,team_id=team_id,order=order,order_item_id=order_item_id,mode='manual',entry_type=entry_type,activity=activity,work_date=work_date,started_at=None,hours=Decimal('0'),break_minutes=mindestpause,notes=notes,status='booked',created_by_user_id=created_by_user_id)
+    _kolonne_kopf(group, werte, work_date, von, bis)
+    for emp in employees:
+        w = werte[emp.id]
+        entry=TimeEntry(employee_id=emp.id,project_id=order.project_id,order_id=order.id,order_item_id=order_item_id,work_date=work_date,entry_type=entry_type,counts_as_productive=entry_type_is_productive(entry_type),activity=activity or None,started_at=w["beginn"],ended_at=w["ende"],break_minutes=w["pause"],min_break_minutes=w["mindestpause"],hours=w["gebucht"],notes=notes or None,source='group_manual',status='booked',created_by_user_id=created_by_user_id)
         db.add(entry);db.flush();db.add(TimeEntryGroupMember(group_id=group.id,employee_id=emp.id,time_entry_id=entry.id))
     db.commit();return db.get(TimeEntryGroup,group.id)
 
@@ -900,11 +950,13 @@ def _group_links(db: Session, group_id: int) -> list[TimeEntryGroupMember]:
 
 def update_group(db: Session, group_id: int, *, order_id: int, work_date: date, hours: Decimal, entry_type: str,
                  order_item_id: int | None = None, activity: str | None = None, notes: str | None = None,
-                 break_minutes: int = 0) -> tuple[TimeEntryGroup, list[str]]:
+                 break_minutes: int = 0, von: time | None = None, bis: time | None = None,
+                 mindestpause: int | None = None) -> tuple[TimeEntryGroup, list[str]]:
     """Korrigiert eine abgeschlossene Gruppenbuchung und jede Mitgliedsbuchung, die seit der
     Gruppenbuchung NICHT einzeln geändert wurde (seit 1.7.13, lohnrelevant -- vorher überschrieb
     die Gruppenkorrektur auch eine Einzelkorrektur des Mitglieds). Gibt zusätzlich die Namen der
-    unangetastet gebliebenen Mitglieder zurück."""
+    unangetastet gebliebenen Mitglieder zurück. Seit 1.9.63 mit von/bis: je Mitglied wie ein Nachtrag (kolonne_rechnen(), sein Tag ohne
+    die alte Fassung), Mindestpause = mindestpause oder ohne Angabe die gemerkte des Mitglieds; hours und break_minutes zählen dann nicht."""
     group = db.get(TimeEntryGroup, group_id)
     if group is None: raise ValueError("Gruppenbuchung wurde nicht gefunden.")
     if group.status != "booked": raise ValueError("Eine laufende Gruppenbuchung zuerst stoppen.")
@@ -912,7 +964,7 @@ def update_group(db: Session, group_id: int, *, order_id: int, work_date: date, 
     if order is None: raise ValueError("Auftrag wurde nicht gefunden.")
     validate_order_item(db, order_id, order_item_id)
     amount = _d(hours)
-    if amount <= 0: raise ValueError("Die Stunden müssen größer als 0 sein.")
+    if von is None and amount <= 0: raise ValueError("Die Stunden müssen größer als 0 sein.")
     skipped: list[str] = []
     # Seit 1.8.99: die Mitgliedsbuchungen gesperrt (aufsteigend), danach ihre Verknüpfungen frisch -- eine gleichzeitige Einzelkorrektur
     # eines Mitglieds (PUT /api/time-entries/{id}, gesperrt) ist so entweder schon gespeichert und wird übersprungen, oder sie wartet.
@@ -921,6 +973,12 @@ def update_group(db: Session, group_id: int, *, order_id: int, work_date: date, 
                .with_for_update().execution_options(populate_existing=True)).all()
     for link in links:
         db.refresh(link)
+    werte: dict[int, dict] = {}
+    if von is not None:  # seit 1.9.63: je Mitglied nach seinem Tag, vor jeder Änderung (ein Fehler ändert nichts)
+        offen = [(link, db.get(TimeEntry, link.time_entry_id)) for link in links if link.individually_changed_at is None]
+        werte = kolonne_rechnen(db, [(e.employee_id, employee_name(db.get(Employee, e.employee_id)) or f"#{e.employee_id}", e.id,
+                                      mindestpause if mindestpause is not None else mindestpause_der_buchung(e))
+                                     for _, e in offen if e is not None], work_date=work_date, von=von, bis=bis)
     for link in links:
         entry = db.get(TimeEntry, link.time_entry_id)
         if entry is None:
@@ -933,11 +991,39 @@ def update_group(db: Session, group_id: int, *, order_id: int, work_date: date, 
         entry.counts_as_productive = entry_type_is_productive(entry_type)
         entry.activity = activity or None; entry.notes = notes or None; entry.break_minutes = max(0, int(break_minutes or 0))
         entry.min_break_minutes = entry.break_minutes  # seit 1.9.62: die eingetragene Pause der Kolonne
+        w = werte.get(entry.employee_id)
+        if w is not None:  # seit 1.9.63: Von/Bis
+            entry.started_at, entry.ended_at, entry.hours = w["beginn"], w["ende"], w["gebucht"]
+            entry.break_minutes, entry.min_break_minutes = w["pause"], w["mindestpause"]
     group.order_id = order.id; group.project_id = order.project_id; group.order_item_id = order_item_id
     group.work_date = work_date; group.hours = amount; group.entry_type = entry_type
     group.activity = activity or None; group.notes = notes or None; group.break_minutes = max(0, int(break_minutes or 0))
+    if von is not None:  # alle einzeln geändert: der Kopf behält Stunden und Pause
+        _kolonne_kopf(group, werte, work_date, von, bis)
     db.commit()
     return db.get(TimeEntryGroup, group.id), skipped
+
+
+def kolonne_vorschau(db: Session, *, employees: list[Employee] | None = None, group: TimeEntryGroup | None = None, work_date: date,
+                    von: time, bis: time, mindestpause: int | None) -> dict:
+    """Seit 1.9.63: was der Kolonnen-Nachtrag (employees) bzw. das Ändern einer Kolonnenbuchung (group) mit dieser Von/Bis-Angabe je
+    Mitglied buchen würde -- dieselbe Rechnung (kolonne_rechnen()), ohne zu buchen. Beim Ändern ohne die einzeln geänderten Mitglieder
+    (uebersprungen), ohne Angabe der Mindestpause mit der gemerkten je Mitglied."""
+    mitglieder, uebersprungen = [], []
+    if group is not None:
+        for link in _group_links(db, group.id):
+            name = employee_name(db.get(Employee, link.employee_id)) or f"#{link.employee_id}"
+            entry = db.get(TimeEntry, link.time_entry_id)
+            if link.individually_changed_at is not None or entry is None:
+                uebersprungen.append(name)
+                continue
+            mitglieder.append((link.employee_id, name, entry.id, mindestpause if mindestpause is not None else mindestpause_der_buchung(entry)))
+    else:
+        mitglieder = [(e.id, employee_name(e) or f"#{e.id}", None, mindestpause or 0) for e in employees or []]
+    werte = kolonne_rechnen(db, mitglieder, work_date=work_date, von=von, bis=bis)
+    return {"mitglieder": [{"employee_id": i, "name": w["name"], "anwesend": w["anwesend"], "pause": w["pause"],
+                             "gebucht": w["gebucht"], "tag_zusammen": w["tag_zusammen"], "tag_buchungen": w["tag_buchungen"]}
+                            for i, w in werte.items()], "uebersprungen": uebersprungen}
 
 
 def delete_group(db: Session, group_id: int) -> list[str]:
@@ -970,17 +1056,24 @@ def list_groups_initiated_by(db: Session, employee_id: int, *, start_date: date)
     for g in groups:
         team = db.get(Team, g.team_id) if g.team_id else None
         order = db.get(Order, g.order_id)
-        members = []
+        members, mindestpause = [], None
         for link in _group_links(db, g.id):
             emp = db.get(Employee, link.employee_id)
             members.append({"employee_id": link.employee_id, "name": employee_name(emp) or f"#{link.employee_id}",
                             "individually_changed": link.individually_changed_at is not None})
+            entry = db.get(TimeEntry, link.time_entry_id) if link.individually_changed_at is None else None
+            if mindestpause is None and entry is not None and entry.status == "booked":
+                mindestpause = mindestpause_der_buchung(entry)  # seit 1.9.63: die gemerkte eines nicht einzeln geänderten Mitglieds
         result.append({
             "id": g.id, "team_id": g.team_id, "team_name": team.name if team else None,
             "order_id": g.order_id, "order_number": order.order_number if order else None,
             "order_item_id": g.order_item_id, "mode": g.mode, "entry_type": g.entry_type, "activity": g.activity,
             "work_date": g.work_date, "hours": g.hours, "break_minutes": g.break_minutes, "notes": g.notes,
             "status": g.status, "members": members,
+            # seit 1.9.63: Von und Bis (leer bei einer Dauer) und die eingetragene Mindestpause -- „Für die Kolonne ändern“ belegt sie vor
+            "von": g.started_at.strftime("%H:%M") if g.started_at else None,
+            "bis": g.ended_at.strftime("%H:%M") if g.ended_at else None,
+            "mindestpause": mindestpause if mindestpause is not None else int(g.break_minutes or 0),
         })
     return result
 

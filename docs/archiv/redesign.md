@@ -4250,7 +4250,7 @@ Reiter „Stundenzettel“ (`/mobil/stundenzettel`, `field_timesheet.html`):
   `zeit_nur_mit_von_bis`, die Karte „Erfasste Zeiten“ mit `teVon`/`teBis` statt `teHours` (welches Feld sichtbar ist, legt der Server
   fest; das Skript nimmt Von/Bis nur, wenn das Feld ausdrücklich sichtbar ist).
 
-**Festlegungen 1.9.60 (Nr. 1, 2 und 4 bestätigt am 23.10.2026; Nr. 3 wird ersetzt, R3 Nachrunde Punkt 1)**
+**Festlegungen 1.9.60 (Nr. 1, 2 und 4 bestätigt am 23.10.2026; Nr. 3 ersetzt durch 1.9.63 Nr. 1)**
 
 1. Eine reine Dauer trägt nur das Büro ein: für die Monteurin lehnen Nachtrag ohne Von/Bis und Ändern mit Stunden mit 422 und der
    Meldung „Bitte Von und Bis angeben – eine reine Dauer trägt nur das Büro ein.“ ab.
@@ -4289,8 +4289,8 @@ Reiter „Stundenzettel“ (`/mobil/stundenzettel`, `field_timesheet.html`):
   „Nachtragen erlaubt“, Standardpause, Kolonnen, eigene Gruppenbuchungen des Monats, Arten der Abwesenheit, `mitarbeiter_id`), Gruppen in
   einer Abfrage (`_gruppen()`); `time_tracking_field.html` und `field_timesheet.html` entfernt.
 
-**Festlegungen 1.9.59 (Nr. 1–3, 5 und 7–16 bestätigt am 23.10.2026; Nr. 4 ohne den Teil Kolonne bestätigt, der Teil Kolonne wird
-ersetzt, R3 Nachrunde Punkt 1; Nr. 6 ersetzt durch 1.9.61 Nr. 1)**
+**Festlegungen 1.9.59 (Nr. 1–3, 5 und 7–16 bestätigt am 23.10.2026; Nr. 4 ohne den Teil Kolonne bestätigt, der Teil Kolonne ersetzt
+durch 1.9.63 Nr. 1; Nr. 6 ersetzt durch 1.9.61 Nr. 1)**
 
 1. „Meine Zeiten“ unter `/mobil/zeiten` (eigene Adresse wie „Heute / Offen“); Reiter „Heute · Meine Zeiten“; `/time-tracking` leitet für die
    Monteurin dorthin (ein `?order_id=` nur als Zahl), `/mobil/stundenzettel` immer; das Büro behält `/time-tracking`.
@@ -4597,3 +4597,73 @@ Seiten (L3, L5) als eingegebene Mindestpause in die Buchung.
   „0“ statt „30“, Knopf ohne Mindestpause); P3 Ändern ohne Angabe nimmt 0 -> 1 rot; P4 Feierabend merkt die Pause nicht -> 1 rot; P5 Ändern
   ohne Vorbelegung -> 1 rot, Klicktest 4 rot; P6 neu rechnen schreibt die alte Pause nicht fest -> 1 rot; P7 Rückweg der Migration nicht
   verweigert -> 2 rot (SQLite und PostgreSQL).
+
+### R3 Nachrunde, Punkt 1 (1.9.63): die Kolonne mit Von und Bis
+
+- **Umsetzung**: `app/time_tracking.py::kolonne_rechnen()` (je Mitglied `nachtrag_nach_zeitregel()`, Fehler mit Namen, Bis vor Von vorab);
+  `create_group_manual_entry(von=…, bis=…)` über `_kolonne_von_bis_anlegen()`, `update_group(von=…, bis=…, mindestpause=…)` (rechnet vor jeder
+  Änderung, selbst geänderte bleiben), `_kolonne_kopf()` (Beginn, Ende, Stunden im Mittel, größte Pause), `kolonne_vorschau()`;
+  `list_groups_initiated_by()` mit `von`, `bis`, `mindestpause`. Schemas: `TimeGroupManualCreate` (hours optional, von/bis, Validator),
+  `TimeGroupUpdate` (von/bis/pause_minuten), `TimeKolonneVorschauOut`, `CrewGroupSummaryOut` mit von/bis/mindestpause. Router: POST ohne
+  Von/Bis und PUT mit `hours` 422 für `zeit_nur_mit_von_bis()` (nach den Rechteprüfungen), neue Route
+  `GET /api/time-entry-groups/nachtrag-vorschau`. `mobil_zeiten.html`: Dialog mit `kdVon`/`kdBis`, „Weitere Angaben“ (`kdWeitere`:
+  Tätigkeit, `kdPause`, Notiz), Hinweis für eine Kolonnenbuchung ohne Uhrzeiten, Vorschau `kdVorschau` über `lesen('kolonne-vorschau')`,
+  Mitglieder nebeneinander.
+
+**Festlegungen 1.9.63 (Bitte bestätigen)**
+
+1. Kolonnen-Nachtrag und -Ändern des Kolonnenführers mit einer Von/Bis-Angabe für die angehakten Mitglieder; Pause und Rundung je Mitglied
+   nach seinem Tag (`kolonne_rechnen()`, dieselbe Rechnung wie sein eigener Nachtrag); jede Mitgliedsbuchung trägt Beginn und Ende;
+   „Pause mindestens“ ist die Mindestpause, gemerkt je Mitglied (ersetzt 1.9.60 Nr. 3 und den Teil Kolonne von 1.9.59 Nr. 4).
+2. Eine reine Dauer für die Kolonne nur noch das Büro: der Kolonnenführer (Rolle `field`) bekommt beim Nachtrag ohne Von/Bis und beim Ändern
+   mit Stunden 422 mit der Meldung von 1.9.60, nach den Rechteprüfungen; der Gruppen-Dialog der Büro-Zeiterfassung bleibt eine Dauer.
+3. Ändern der Kolonne: selbst geänderte Mitglieder bleiben (wie seit 1.7.13); ohne `pause_minuten` gilt je Mitglied die gemerkte
+   Mindestpause; eine Kolonnenbuchung ohne Uhrzeiten (Dauer: von vor 1.9.63 oder vom Büro) ändert der Kolonnenführer nur mit Von und Bis
+   (Hinweis im Dialog „… keine Uhrzeiten (8,00 h je Person) – trag Von und Bis ein …“).
+4. Kopf der Kolonnenbuchung mit Von/Bis: Beginn und Ende, Stunden im Mittel der Mitglieder (wie der Gruppen-Stopp), Pause die größte; sind
+   beim Ändern alle Mitglieder selbst geändert, behält der Kopf Stunden und Pause.
+5. Vorschau `GET /api/time-entry-groups/nachtrag-vorschau` (Nachtrag: `team_id` und `employee_ids`, Ändern: `group_id`), Rechte wie beim
+   Buchen (Kolonnenführer der Kolonne bzw. wer die Kolonnenbuchung angelegt hat); je Mitglied Name, anwesend, Pause, gebucht, Tag zusammen;
+   beim Ändern dazu `uebersprungen`.
+6. Anzeige: „Mia Monteurin 5,50 h · Tom Mitglied 5,00 h (Tag zusammen 6:15 h)“ -- volle Namen wie in der Mitgliederliste, „Tag zusammen“ nur
+   mit weiteren Buchungen an dem Tag; beim Ändern „· bleibt: … (selbst geändert)“. Die Meldung nach dem Speichern nennt die gebuchten
+   Stunden je Person („Für die Kolonne nachgetragen: …“, „Kolonnenbuchung geändert: …“).
+7. Scheitert die Rechnung für ein Mitglied (z. B. bleibt nach der Pause keine Arbeitszeit), nennt die Meldung das Mitglied und es wird für
+   niemanden gebucht; „Bis muss nach Von liegen.“ ohne Namen.
+8. Dialog „Nachtrag für die Kolonne“ / „Kolonnenbuchung ändern“: Kolonne, Mitglieder nebeneinander, Datum, Zeitart, Von, Bis, Auftrag;
+   Tätigkeit, „Pause mindestens“ und Notiz unter „Weitere Angaben“ (zugeklappt, beim Ändern nennt der Knopf sie); die Vorschau rückt sich im
+   Dialog ins Bild (bei 1280 × 620 lag sie sonst unter dem Rand).
+9. Die eigenen Kolonnenbuchungen (`GET /api/time-entry-groups/mine`, „Meine Zeiten“) nennen `von`, `bis` (leer bei einer Dauer) und
+   `mindestpause` (die gemerkte eines nicht selbst geänderten Mitglieds, sonst die Pause des Kopfs) -- „Für die Kolonne ändern“ belegt
+   damit vor.
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v489_kolonne_von_bis.py` (6 Tests): 07:00–12:30 für Mia (ohne Vorbuchung) und Tom (Fahrzeit 06:15–07:00) -> 5,50 h ohne
+  Pause bzw. 5,00 h mit 30 min, Vorschau = Buchung, Kopf; Kolonnenführer mit Dauer 422 (nichts gebucht), Stunden ändern 422, Notiz 200, Büro
+  mit Dauer wie bisher; 5:00 h über die Kolonne je 0 min; Ändern mit Von/Bis je Mitglied, der selbst geänderte bleibt (Vorschau
+  „uebersprungen“); Ändern ohne Pause behält die Mindestpause 45 je Mitglied, mit 0 -> 0, `/mine` mit von/bis/mindestpause; Rechte der
+  Vorschau (kein Kolonnenführer 403, fremde Kolonnenbuchung 403), Bis vor Von 422 (Vorschau und Buchung, nichts gebucht).
+- Angepasste Erwartungen (Test: alt -> neu):
+  - `test_v302::_manual` (Kolonnenführer bucht): Dauer `hours` -> Von/Bis ab 07:00 so lang wie die Stunden (nur Aufbau, bis 6 h ohne Pause).
+  - `test_v302::test_crew_leader_summary_and_list_contain_only_own_bookings`: Büro-Summe 18,00 h -> 17,50 h (Max bekommt am selben Tag
+    4 h + 3 h, seine zweite Kolonnenbuchung nach der Tagesregel 30 min Pause, 2,50 h).
+  - `test_v303::_correction` (Kolonnenführer korrigiert): `hours` mit `break_minutes` 0 -> Von/Bis mit `pause_minuten` 0, so dass dieselben
+    Stunden gebucht werden (8,5 -> 07:00–16:00, 6 -> 07:00–13:00, 5 -> 07:00–12:00; nur Aufbau).
+  - `test_v437::_gruppe`: Dauer 4 h -> 07:00–11:00 (nur Aufbau).
+  - `test_v329::test_mobile_kolonnenbuchung_aendern_laesst_pause_und_lv_position`: Schlüssel von `kolonneSpeichern` mit `hours` -> mit
+    `von`/`bis`; PUT mit 07:00–13:45 statt 6 h -- Ergebnis unverändert (Pause 45 bleibt als gemerkte Mindestpause, je 6,00 h).
+  - `test_v424_zahlgrenzen`: `kdStunden` -> `kdPause` (Mindestpause); `groupHours` mit Beleg „Bitte die Dauer oder Von und Bis angeben.“
+    (die Stunden der Kolonne sind im Schema optional).
+  - `test_v326_monteur_datengrenze`: `QUERY_JE_ROUTE` mit der neuen Vorschau (nur Aufbau).
+  - `klicktest_meine_zeiten`: Testdaten mit Toms Fahrzeit 06:15–07:00 am 07.10.; „Kolonnenbuchung ändern: Mitglieder, vorbelegt“ Stunden „8“
+    -> Von/Bis leer, Pause „0“ und Hinweis „keine Uhrzeiten (8,00 h je Person)“; geändert mit 07:00–15:00 statt „7,5“, Meldung
+    „Kolonnenbuchung geändert.“ -> „Kolonnenbuchung geändert: Mia Monteurin 7,50 h · Tom Mitglied 7,50 h“ (Summe 7,50 h wie bisher);
+    Nachtrag 07.10. mit 07:00–12:30 statt „6“, Meldung „Für die Kolonne nachgetragen.“ -> „…: Mia Monteurin 5,50 h · Tom Mitglied 5,00 h“,
+    Summe 6,00 h -> 5,50 h; Tom sieht am 07.10. eine Zeile ohne Uhrzeit mit 6,00 h -> seine Fahrzeit und 07:00–12:30 mit 5,00 h; neu zwei
+    Prüfungen der Vorschau und das Bild `meine_zeiten_kolonne_nachtrag_vorschau_hell`.
+  - `klicktest_teil_updates`: „Kolonnenbuchung ändern“ nur mit Notiz -> mit Von/Bis 07:00–15:45 (die Buchung der Testdaten ist eine Dauer),
+    Meldung „Kolonnenbuchung geändert.“ -> „…: Max Kolonne 8,00 h · Moritz Mitglied 8,00 h“; Pause 45 und LV-Position bleiben wie bisher.
+- **Gegenproben**: P1 Kolonnenführer darf eine Dauer nachtragen -> 1 rot; P2 darf die Stunden der Kolonne ändern -> 1 rot; P3 alle Mitglieder
+  rechnen mit dem Tag des ersten -> 1 rot, Klicktest 5 rot; P4 Ändern ohne Angabe nimmt 0 -> 1 rot; P5 Vorschau ohne Prüfung des
+  Kolonnenführers -> 1 rot; P6 Vorschau ohne „Tag zusammen“ -> Klicktest 1 rot (die Anzeige prüft nur der Klicktest).
