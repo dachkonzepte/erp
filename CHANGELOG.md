@@ -4,6 +4,13 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.55 – Klicktest: Unterschrift erst nach dem Speichern (Stufe 4, R2 Nachrunde 2, Punkt 3)
+
+Im Endlauf zu 1.9.52 war `klicktest_behinderungsanzeige_versand` einmal rot: er trug zwei Datumsfelder ein (jedes speichert, die Checkliste
+zeichnet danach neu) und unterschrieb gleich danach -- unter Last fiel das Messen der Zeichenfläche in das Neuzeichnen, es kam nichts zurück.
+`_unterschreiben()` (`scripts/klicktest_checkliste_unterschrift.py`, von acht Klicktests benutzt) wartet jetzt zuerst, bis kein Speichern der
+Seite mehr unterwegs ist (`Tab.warte_auf_ruhe()`). Wächter `test_v482`.
+
 ## 1.9.54 – Dachfläche löschen: ein Einsatzbericht sperrt (409 statt 500) (Stufe 4, R2 Nachrunde 2, Punkt 2)
 
 Gemeldet in 1.9.51 (Festlegung Nr. 3): `delete_roof_area()` prüfte Einsatzberichte gar nicht und riss die Bauteile der Fläche per Kaskade mit

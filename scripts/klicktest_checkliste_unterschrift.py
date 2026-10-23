@@ -89,9 +89,12 @@ def befuellen(db, k):
 
 
 async def _unterschreiben(tab, feld_id: int, name: str) -> None:
-    """Zeichnet mit echten Mausereignissen auf die Zeichenfläche und übernimmt die Unterschrift."""
+    """Zeichnet mit echten Mausereignissen auf die Zeichenfläche und übernimmt die Unterschrift. Seit 1.9.55 erst, wenn kein Speichern
+    der Seite mehr unterwegs ist (Tab.warte_auf_ruhe()): die Checkliste zeichnet nach dem Speichern eines Felds neu -- fiel das Messen
+    der Zeichenfläche in diesen Moment, kam nichts zurück (Endlauf 1.9.52, klicktest_behinderungsanzeige_versand: TypeError)."""
     import asyncio
 
+    await tab.warte_auf_ruhe()
     await tab.js(f"document.getElementById('pad_{feld_id}').scrollIntoView({{block:'center'}})")
     await asyncio.sleep(0.2)
     r = await tab.js(f"(()=>{{const r=document.getElementById('pad_{feld_id}').getBoundingClientRect();return [r.left,r.top,r.width,r.height]}})()")

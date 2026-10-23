@@ -1214,3 +1214,16 @@ um 07:00 und wechselt um 12:00 über `app/time_tracking.py::zeitart_wechseln()` 
 
 - **Festlegung zu Werkzeug und Testablauf 1.9.53 (Bitte bestätigen)**: der Wechsel um 12:00 im Klicktest „echter Tag“ geschieht im Befüllen
   über die Funktion hinter dem Knopf, nicht per Klick (die stehende Uhr steht auf dem Feierabend); geklickt wird der Feierabend.
+
+## Unterschrift im Klicktest erst nach dem Speichern (1.9.55)
+
+Befund (Endlauf 1.9.52, 1. Lauf): `klicktest_behinderungsanzeige_versand` trug „beendet am“ und „wieder aufgenommen am“ ein (je ein Speichern,
+danach zeichnet die Checkliste neu) und rief gleich `_unterschreiben()` -- `getBoundingClientRect()` der Zeichenfläche kam nicht zurück
+(TypeError im Klicktest), einzeln und im zweiten vollen Lauf grün. `_unterschreiben()` in `scripts/klicktest_checkliste_unterschrift.py` (von
+sieben weiteren Klicktests importiert) wartet seit 1.9.55 zuerst über `Tab.warte_auf_ruhe()` (Anfragenzähler des Werkzeugs, zurückgehaltene
+Antworten ausgenommen). `klicktest_abschliessen` hat eine eigene Fassung (hält Anfragen absichtlich zurück) und bleibt. Wächter
+`tests/test_v482_klicktest_unterschreiben.py` (AST: das erste Warten vor dem ersten `tab.js`; wer die Funktion importiert). Gegenprobe (ohne
+Warten): der Wächter rot. Die acht betroffenen Klicktests laufen danach grün.
+
+- **Festlegung zu Werkzeug und Testablauf 1.9.55 (Bitte bestätigen)**: eine Hilfsfunktion eines Klicktests, die nach Eingaben misst oder
+  zeichnet, wartet vorher auf Ruhe (`warte_auf_ruhe()`) statt auf eine feste Zeit.

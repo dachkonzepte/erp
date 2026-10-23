@@ -4185,3 +4185,9 @@ Beispiel der Vorgabe war falsch, „mehr als“ gilt wie gebaut. Punkte: „Tag 
 - **Gegenproben**: P1 Berichte sperren nicht (Netz bleibt) -> 5 rot (der PostgreSQL-Test bleibt grün: das Netz fängt den Fremdschlüssel);
   P2 dazu ohne Netz -> 6 rot, auch PostgreSQL; P3 nur die Fläche des Berichts zählt (Befund am Bauteil und Material vergessen) -> 2 rot; P4
   Router 400 statt 409 -> 4 rot.
+
+### R2 Nachrunde 2, Punkt 3 (1.9.55): Unterschrift im Klicktest erst nach dem Speichern
+
+`_unterschreiben()` wartet zuerst auf Ruhe (`Tab.warte_auf_ruhe()`) -- Herleitung, Wächter und Gegenprobe in
+`docs/archiv/testablauf-und-klicktests.md`, „Unterschrift im Klicktest erst nach dem Speichern (1.9.55)“. Keine Festlegung außer der zum
+Testablauf, keine angepasste Erwartung.
