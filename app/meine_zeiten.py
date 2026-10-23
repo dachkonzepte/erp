@@ -138,7 +138,7 @@ def meine_zeiten(db: Session, employee_id: int, *, monat: date, heute: date) -> 
         "tage": tag_liste,
         # seit 1.9.59 für die Dialoge der Seite
         "zeitarten": arten, "taetigkeiten": taetigkeiten(db), "auftraege": list_field_bookable_orders(db, employee_id),
-        "nachtragen_erlaubt": bool(regeln.allow_manual_entries), "standardpause": int(regeln.default_break_minutes or 0),
+        "nachtragen_erlaubt": bool(regeln.allow_manual_entries),  # seit 1.9.61 ohne Standardpause
         "kolonnen": list_crews_for_leader(db, employee_id) if regeln.allow_group_bookings else [],
         "kolonnen_buchungen": gruppen, "abwesenheitsarten": abwesenheitsarten(db),
     }

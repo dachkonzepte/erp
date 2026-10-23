@@ -41,7 +41,7 @@ def _in_select(ausdruck: str) -> str:
 BUERO_KONTEXT = ("ctx = {orders: [{id: 1, order_number: 'AUF-1', project_number: 'P-1', project_name: 'Halle', property_address: null, "
                  "items: ITEMS}], employees: [{id: 5, name: 'Max', employee_number: null}], teams: [], current_employee_id: 5, is_admin: true};"
                  "allTypes = [{value: 'site', label: 'Baustelle', active: true}]; types = allTypes; allActivities = [];"
-                 "timeSettings = {default_break_minutes: 0, allow_manual_entries: true}; globalThis.manualDialog = _element('manualDialog');")
+                 "timeSettings = {allow_manual_entries: true}; globalThis.manualDialog = _element('manualDialog');")
 BUCHUNG = {"id": 9, "employee_id": 5, "work_date": "2026-10-20", "order_id": 2, "order_number": "AUF-2", "project_number": "P-2",
            "project_name": "Lager", "order_item_id": 7, "order_item_oz": "01.01", "order_item_text": "Dach", "entry_type": "site",
            "activity": None, "hours": "2.00", "break_minutes": 0, "notes": ""}
@@ -91,7 +91,7 @@ def test_buero_zeiterfassung_neue_buchung_wie_bisher():
 
 # --- Meine Zeiten (seit 1.9.59, bis dahin die Zeiterfassung der Monteurin) -----------------------------------------------------------
 
-FELD_KONTEXT = ("D = {mitarbeiter_id: 5, abgeschlossen_bis: null, standardpause: 0, taetigkeiten: [], kolonnen_buchungen: [],"
+FELD_KONTEXT = ("D = {mitarbeiter_id: 5, abgeschlossen_bis: null, taetigkeiten: [], kolonnen_buchungen: [],"
                 " auftraege: [{id: 1, order_number: 'AUF-1', customer_name: 'Kunde', property_address: null}],"
                 " zeitarten: [{value: 'site', label: 'Baustelle'}], kolonnen: [{team_id: 3, name: 'Kolonne', members: []}]};")
 ZEILE = {"id": 9, "work_date": "2026-10-20", "order_id": 2, "order_number": "AUF-2", "project_name": "Lager", "entry_type": "site",

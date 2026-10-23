@@ -681,12 +681,13 @@
       <h3 style="margin:14px 0 8px;font-size:15px">Allgemeine Zeitregeln</h3>
       <div class="time-grid">
         <div class="field"><label>Rundung</label><select id="rounding"><option value="0">keine Rundung</option><option value="5">5 Minuten</option><option value="10">10 Minuten</option><option value="15">15 Minuten</option><option value="30">30 Minuten</option></select></div>
-        <div class="field"><label>Manuelle Standardpause / Fallback</label><input id="defaultBreak" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-max="240" data-feld="Standardpause"></div>
+        {# seit 1.9.61 ohne „Manuelle Standardpause / Fallback“: es gilt nur die Pause nach Zeitregel je Tag und die selbst eingetragene
+           Mindestpause; das Standard-Arbeitszeitmodell rückt neben die Rundung, die vier Häkchen stehen paarweise darunter #}
+        <div class="field"><label>Standard-Arbeitszeitmodell</label><select id="defaultWorkModel"></select></div>
         <label class="inline-check"><input id="allowManual" type="checkbox"> Manuelle Buchungen erlauben</label>
         <label class="inline-check"><input id="allowGroup" type="checkbox"> Gruppenbuchungen erlauben</label>
         <label class="inline-check"><input id="requireItem" type="checkbox"> LV-Position verpflichtend</label>
         <label class="inline-check"><input id="requireActivity" type="checkbox"> Tätigkeit verpflichtend</label>
-        <div class="field"><label>Standard-Arbeitszeitmodell</label><select id="defaultWorkModel"></select></div>
       </div>
       <h3 style="margin:18px 0 8px;font-size:15px">DATEV / Lohnarten</h3>
       <div class="time-grid">
@@ -2284,7 +2285,7 @@ aktion('lohn-speichern',el=>savePayroll(Number(el.dataset.mitarbeiter)));
 aktion('zeitliste-loeschen',el=>deleteTimeListOption(Number(el.dataset.id)));
 function renderTimeRules(){
   const s=timeRules;if(!s)return;
-  setv('rounding',String(s.rounding_minutes));setv('defaultBreak',zahlText(s.default_break_minutes));
+  setv('rounding',String(s.rounding_minutes));
   document.getElementById('allowManual').checked=!!s.allow_manual_entries;document.getElementById('allowGroup').checked=!!s.allow_group_bookings;
   document.getElementById('requireItem').checked=!!s.require_order_item;document.getElementById('requireActivity').checked=!!s.require_activity;
   setv('datevTarget',s.datev_target);setv('wageSite',s.datev_wage_type_site);setv('wageTravel',s.datev_wage_type_travel);
@@ -2299,8 +2300,7 @@ function renderDefaultModelSelect(){if(!timeRules||!workModels.length)return;doc
 async function saveTimeRules(silent=false){
   const st=document.getElementById('timeRulesStatus');
   try{
-    const defaultBreak=zahlFeld('defaultBreak',{leer:0});
-    const body=JSON.stringify({rounding_minutes:Number(document.getElementById('rounding').value),default_break_minutes:defaultBreak,allow_manual_entries:document.getElementById('allowManual').checked,allow_group_bookings:document.getElementById('allowGroup').checked,require_order_item:document.getElementById('requireItem').checked,require_activity:document.getElementById('requireActivity').checked,datev_target:v('datevTarget'),datev_wage_type_site:nv('wageSite'),datev_wage_type_travel:nv('wageTravel'),datev_wage_type_workshop:nv('wageWorkshop'),datev_wage_type_other:nv('wageOther'),datev_wage_type_weather_winter:nv('wageWeatherWinter'),datev_wage_type_weather_summer:nv('wageWeatherSummer'),datev_personnel_equals_erp_number:document.getElementById('datevSameErp').checked,default_work_time_model_id:v('defaultWorkModel')?Number(v('defaultWorkModel')):null});
+    const body=JSON.stringify({rounding_minutes:Number(document.getElementById('rounding').value),allow_manual_entries:document.getElementById('allowManual').checked,allow_group_bookings:document.getElementById('allowGroup').checked,require_order_item:document.getElementById('requireItem').checked,require_activity:document.getElementById('requireActivity').checked,datev_target:v('datevTarget'),datev_wage_type_site:nv('wageSite'),datev_wage_type_travel:nv('wageTravel'),datev_wage_type_workshop:nv('wageWorkshop'),datev_wage_type_other:nv('wageOther'),datev_wage_type_weather_winter:nv('wageWeatherWinter'),datev_wage_type_weather_summer:nv('wageWeatherSummer'),datev_personnel_equals_erp_number:document.getElementById('datevSameErp').checked,default_work_time_model_id:v('defaultWorkModel')?Number(v('defaultWorkModel')):null});
     await speichern('zeitregeln',()=>api('/api/time-backoffice/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body}),{anwenden:d=>{timeRules=d}});
     if(!silent)document.getElementById('timeRulesStatus').textContent='Zeitregeln und Lohnarten gespeichert.';
     return true;

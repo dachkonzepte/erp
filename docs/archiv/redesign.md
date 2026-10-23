@@ -4250,7 +4250,7 @@ Reiter „Stundenzettel“ (`/mobil/stundenzettel`, `field_timesheet.html`):
   `zeit_nur_mit_von_bis`, die Karte „Erfasste Zeiten“ mit `teVon`/`teBis` statt `teHours` (welches Feld sichtbar ist, legt der Server
   fest; das Skript nimmt Von/Bis nur, wenn das Feld ausdrücklich sichtbar ist).
 
-**Festlegungen 1.9.60 (Bitte bestätigen)**
+**Festlegungen 1.9.60 (Nr. 1, 2 und 4 bestätigt am 23.10.2026; Nr. 3 wird ersetzt, R3 Nachrunde Punkt 1)**
 
 1. Eine reine Dauer trägt nur das Büro ein: für die Monteurin lehnen Nachtrag ohne Von/Bis und Ändern mit Stunden mit 422 und der
    Meldung „Bitte Von und Bis angeben – eine reine Dauer trägt nur das Büro ein.“ ab.
@@ -4289,7 +4289,8 @@ Reiter „Stundenzettel“ (`/mobil/stundenzettel`, `field_timesheet.html`):
   „Nachtragen erlaubt“, Standardpause, Kolonnen, eigene Gruppenbuchungen des Monats, Arten der Abwesenheit, `mitarbeiter_id`), Gruppen in
   einer Abfrage (`_gruppen()`); `time_tracking_field.html` und `field_timesheet.html` entfernt.
 
-**Festlegungen 1.9.59 (Bitte bestätigen)**
+**Festlegungen 1.9.59 (Nr. 1–3, 5 und 7–16 bestätigt am 23.10.2026; Nr. 4 ohne den Teil Kolonne bestätigt, der Teil Kolonne wird
+ersetzt, R3 Nachrunde Punkt 1; Nr. 6 ersetzt durch 1.9.61 Nr. 1)**
 
 1. „Meine Zeiten“ unter `/mobil/zeiten` (eigene Adresse wie „Heute / Offen“); Reiter „Heute · Meine Zeiten“; `/time-tracking` leitet für die
    Monteurin dorthin (ein `?order_id=` nur als Zahl), `/mobil/stundenzettel` immer; das Büro behält `/time-tracking`.
@@ -4397,7 +4398,7 @@ reine Dauer von `field` ab (Auftrag R3, Punkt 3), muss sie Von/Bis bekommen; des
   `_menue.html`), Dialog `#startDialog` (POST `/api/time-entries/start` bzw. `/api/time-entry-groups/start`, wie die Zeiterfassung), Kacheln
   `repeat(3,…)`, unter 1000 px `repeat(2,…)`.
 
-**Festlegungen 1.9.58 (Bitte bestätigen)**
+**Festlegungen 1.9.58 (bestätigt am 23.10.2026)**
 
 1. „⋮“ in „nichts läuft“ nur, wenn es etwas zu wählen gibt: „Mit Tätigkeit starten“ bei mindestens einer aktiven Tätigkeit, „Für die
    Kolonne starten“ nur für den Kolonnenführer und nur mit Gruppenbuchungen (der Start lehnte sonst ab).
@@ -4436,7 +4437,7 @@ denselben Zahlen (test_v483 unverändert grün).
   von/bis/pause_minuten (Schema `TimeEntryUpdate`); `app/meine_zeiten.py` (`meine_zeiten()`, `tagessumme()`, auch im Stundenzettel als PDF),
   `GET /api/field-view/meine-zeiten`.
 
-**Festlegungen 1.9.57 (Bitte bestätigen)**
+**Festlegungen 1.9.57 (Nr. 1, 3 und 5–9 bestätigt am 23.10.2026; Nr. 2 und 4 werden ersetzt, R3 Nachrunde Punkt 3)**
 
 1. Ändern mit Von/Bis rechnet wie ein Nachtrag: Pause aus dem Tag ohne die alte Fassung dieser Buchung, gebucht nach der Rundung der
    Zeitregeln (bis 1.9.56 rundete Ändern nicht); Ändern mit Dauer (Büro) wie bisher.
@@ -4468,3 +4469,73 @@ denselben Zahlen (test_v483 unverändert grün).
   `heute`, `ERLAUBT_JE_ROUTE` mit der Notiz der eigenen Buchung in `meine-zeiten`.
 - **Gegenproben**: P1 Ändern mit der alten Fassung im Tag -> 1 rot; P2 „passt“ nach Verteilung statt Summe -> 1 rot; P3 „Pausen neu rechnen“
   ohne Abgleich -> 1 rot; P4 laufende Zeile mit Stunden -> 1 rot; P5 Mindestpause beim Ändern ignoriert -> 1 rot.
+
+## Stufe 4, R3 Nachrunde (1.9.61–): Kolonne mit Von/Bis, keine Standardpause, Mindestpause merken
+
+Auftrag von Tobias (23.10.2026), Start auf 16c8571. Festlegungen R3 bestätigt, außer 1.9.57 Nr. 2 und 4 (-> Punkt 3), 1.9.59 Nr. 4 (Teil
+Kolonne) und 1.9.60 Nr. 3 (-> Punkt 1), 1.9.59 Nr. 6 (-> Punkt 2).
+
+1. Kolonne mit Von/Bis: Kolonnen-Nachtrag und -Ändern des Kolonnenführers mit einer Von/Bis-Angabe für die angehakten Mitglieder; Pause und
+   Rundung je Mitglied nach seinem Tag (dieselbe Funktion); Vorschau je Mitglied; reine Dauer für die Kolonne nur noch das Büro
+   (Kolonnenführer 422).
+2. Standardpause entfällt: überall nur die Pause nach Zeitregel je Tag und die selbst eingetragene Mindestpause; zuerst alle Stellen
+   auflisten, die sie lesen; die Einstellung aus den Zeitregeln entfernen, die Spalte bleibt und wird nirgends mehr gelesen (Wächter).
+3. Eingetragene Mindestpause merken: neue Spalte (Migration, Rückweg verweigert, sobald ein Wert gespeichert ist); „Pausen neu rechnen“ nie
+   unter diese Mindestpause, alte Buchungen ohne Wert mit der abgezogenen Pause als Mindestpause; „passt nicht“ nur, wenn neu rechnen etwas
+   ändern würde; „Ändern“ belegt „Pause mindestens“ damit vor.
+4. Für R5 vormerken: ändert das Büro die Stunden einer Buchung, bleiben Von/Bis stehen.
+
+### R3 Nachrunde, Punkt 2 (1.9.61): die Standardpause entfällt
+
+**Befund (vor dem Umbau): wer die Standardpause liest** (`TimeTrackingSettings.default_break_minutes`, Einstellung „Manuelle Standardpause /
+Fallback“ in den Zeitregeln, Vorgabe 0):
+
+| # | Stelle | was sie damit tat | danach |
+|---|---|---|---|
+| L1 | `app/schemas.py::TimeTrackingSettingsOut` | Feld der Zeitregeln samt Grenze 0–240 (Validator) | entfernt; eine mitgeschickte wird nicht übernommen |
+| L2 | `app/time_backoffice.py::time_settings_dict()`, `update_time_settings()` | lesen und speichern der Zeitregeln | entfernt |
+| L3 | `app/meine_zeiten.py::meine_zeiten()` (`standardpause`) -> `mobil_zeiten.html::kolonneSpeichern()` | Kolonnen-Nachtrag schickte sie als `break_minutes` | entfernt; Pause 0 |
+| L4 | `app/templates/settings.html` | Feld `defaultBreak` (Lesen, Anzeigen, Speichern) | entfernt |
+| L5 | `app/templates/time_tracking.html` (Büro) | Vorgabe in `timeSettings`, Vorbelegung „Pause“ im Nachtrag (ohne Buchung) und im Gruppen-Nachtrag | entfernt; Vorbelegung 0 bzw. die Pause der Buchung |
+| L6 | `app/audit.py` (`FIELD_LABELS`) | Bezeichnung „Standardpause (Min.)“ für Einträge im Änderungsverlauf | **außerhalb der Zeitbuchung, nicht geändert** (alte Einträge bleiben lesbar) |
+| L7 | `scripts/klicktest_teil_updates.py` | Testdaten setzten 30 min | entfernt |
+| L8 | `tests/test_v424_zahlgrenzen.py`, `tests/test_v450_auswahl_fremdschluessel.py` | Abgleich des Felds, Seitenkontext | angepasst |
+
+Nicht mitgezählt: die Spalte selbst in `app/models.py` und in der Baseline-Migration `2befd7907eef` (bleibt), die Doku (historisch).
+Kein Server-Weg einer Zeitbuchung (Stopp, Ende nachtragen, Nachtrag, Ändern, Gruppen) las die Standardpause -- sie kam nur über die beiden
+Seiten (L3, L5) als eingegebene Mindestpause in die Buchung.
+
+- **Umsetzung**: L1–L5 und L7 entfernt; `app/models.py` mit Kommentar an der Spalte (nirgends mehr gelesen); Karte „Zeitregeln“ neu
+  geordnet (Standard-Arbeitszeitmodell neben der Rundung, die vier Häkchen paarweise darunter -- ohne das Feld stand das Modell allein in
+  einer Zeile und die Häkchen versetzt).
+
+**Festlegungen 1.9.61 (Bitte bestätigen)**
+
+1. Keine Zeitbuchung nimmt mehr die Standardpause: Feierabend, Nachtrag, Kolonne und Büro nur mit der Pause nach Zeitregel je Tag und der
+   eingetragenen Mindestpause (leer = 0); der Kolonnen-Nachtrag schickt keine Pause mehr (ersetzt 1.9.59 Nr. 6).
+2. Die Spalte `time_tracking_settings.default_break_minutes` bleibt in der Datenbank (keine Migration); außer der Spalte in `app/models.py`
+   nennt kein Code unter `app/` sie (Wächter `test_v486`, Bezeichner `default_break_minutes`, `defaultBreak`, `standardpause`).
+3. Die Bezeichnung „Standardpause (Min.)“ in `app/audit.py` bleibt (Änderungsverlauf alter Einträge; liest keinen Wert für eine Buchung).
+4. Die Schnittstelle der Zeitregeln (`GET/PUT /api/time-backoffice/settings`) liefert den Wert nicht mehr; ein mitgeschickter wird still nicht
+   übernommen (kein 422 -- wie jedes andere unbekannte Feld).
+5. Büro-Zeiterfassung: „Pause“ im Nachtrag ist 0 (beim Ändern die Pause der Buchung), im Gruppen-Nachtrag 0.
+6. Karte „Zeitregeln“: Standard-Arbeitszeitmodell neben der Rundung, die vier Häkchen paarweise darunter.
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v486_keine_standardpause.py` (5 Tests): Wächter über `app/` (`.py`, `.html`, `.js`, `.css`, groß/klein genau -- die
+  Erklärung „Standardpause“ in Kommentaren zählt nicht) mit eigener Gegenprobe über einen Leser in `tmp_path`; Zeitregeln ohne das Feld
+  (GET, PUT mit 45 nicht übernommen, Seite ohne `defaultBreak` und ohne „Standardpause“); 5:00 h bei alter Spalte 30 über Feierabend (Ende
+  nachtragen), Nachtrag (Monteurin, Von/Bis) und Kolonne (Büro, Dauer) je 0 min Pause; Vorbelegung im Büro.
+- Angepasste Erwartungen:
+  - `test_v424_zahlgrenzen`: Eintrag `defaultBreak` in `ABGLEICH` entfernt, Untergrenze der Einträge 87 -> 86.
+  - `test_v450_auswahl_fremdschluessel`: Seitenkontext ohne `default_break_minutes`/`standardpause` (nur Aufbau).
+  - `klicktest_teil_updates`: Testdaten ohne Standardpause 30 (nur Aufbau, geprüft wird dasselbe).
+  - `klicktest_neue_ordnung`: neue Prüfung „Zeitregeln ohne Standardpause“ (kein Feld, kein Text).
+- **Gegenproben**: P1 Nachtrag nimmt die Standardpause als Mindestpause (Router) -> 2 rot (Wächter, 5:00 h); P2 „Meine Zeiten“ liefert sie
+  wieder -> 1 rot (Wächter); P3 Büro belegt den Gruppen-Nachtrag mit ihr vor -> 2 rot (Wächter, Vorbelegung).
+
+### Vorgemerkt für R5 (Punkt 4)
+
+- Ändert das Büro die Stunden einer Buchung (reine Dauer im Ändern), bleiben Von und Bis stehen -- Beginn und Ende passen dann nicht mehr zu
+  den Stunden. Zu klären in R5 (Büro): Von/Bis leeren, anpassen oder mit Hinweis stehen lassen.

@@ -4,6 +4,21 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.61 – Die Standardpause entfällt (Stufe 4, R3 Nachrunde)
+
+Entscheidung von Tobias: es gilt überall nur die Pause nach Zeitregel je Tag und die selbst eingetragene Mindestpause -- Feierabend,
+Nachtrag, Kolonne und Büro. Die Einstellung „Manuelle Standardpause / Fallback“ ist aus den Zeitregeln entfernt; die Schnittstelle der
+Zeitregeln liefert sie nicht mehr und übernimmt keine mitgeschickte. Der Kolonnen-Nachtrag in „Meine Zeiten“ schickte sie bis hierher
+als Pause mit, die Zeiterfassung des Büros belegte „Pause“ im Nachtrag und im Gruppen-Nachtrag damit vor -- jetzt mit 0 (beim Ändern mit
+der Pause der Buchung). Die Spalte `time_tracking_settings.default_break_minutes` bleibt in der Datenbank und wird nirgends mehr gelesen:
+Wächter `tests/test_v486_keine_standardpause.py` (außer der Spalte in `app/models.py` nennt kein Code unter `app/` sie; die Bezeichnung
+im Änderungsverlauf in `app/audit.py` bleibt für alte Einträge). Die Karte „Zeitregeln“ ordnet die Felder neu: das
+Standard-Arbeitszeitmodell neben der Rundung, die vier Häkchen paarweise darunter.
+
+Neuer Test `test_v486` (5 Tests: Wächter mit eigener Gegenprobe, Zeitregeln ohne das Feld, 5:00 h über Feierabend, Nachtrag und
+Kolonne je ohne Pause bei gesetzter alter Spalte, Vorbelegung im Büro); `klicktest_neue_ordnung` prüft die Zeitregeln ohne
+Standardpause. Die Liste der Stellen, die die Standardpause lasen, steht im Archiv (`docs/archiv/redesign.md`, „R3 Nachrunde“).
+
 ## 1.9.60 – Die Monteurin trägt Zeiten mit Von und Bis nach, eine reine Dauer nur das Büro (Stufe 4, R3)
 
 Der Server lehnt eine reine Dauer von der Monteurin ab: `POST /api/time-entries` ohne Von/Bis und `PUT /api/time-entries/{id}` mit

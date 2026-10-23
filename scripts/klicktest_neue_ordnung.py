@@ -12,7 +12,8 @@ Geprüft wird im echten Browser, je Rolle (Monteur, Büro – Auftrag, Büro –
     Inhalt            Textbausteine nur die Vor- und Schlusstexte, Auswahllisten ohne sie; Zeit-Listen mit Einträgen; Mahn-
                       Rechtstexte für das Büro lesbar, nicht änderbar; Fristen und Erinnerungen mit den Vorlaufzeiten der Rolle;
                       "Logo im PDF" unter Erscheinungsbild
-    Speichern         Zeitregeln (Admin), Zeitart hinzufügen und löschen (Büro – Auftrag), Logo im PDF (Büro – Finanzen),
+    Speichern         Zeitregeln (Admin; seit 1.9.61 ohne Standardpause), Zeitart hinzufügen und löschen (Büro – Auftrag), Logo im PDF
+                      (Büro – Finanzen),
                       Vorlaufzeit Betriebsmittel (Büro – Auftrag) und Wartungen (Admin) -- je nach dem Neuladen noch da
     Frühere Adressen  #recurring-costs, #incoming-invoices, #operational-assets öffnen "Fristen und Erinnerungen"; ein für die
                       Rolle ausgeblendeter Bereich (#modules, #labor-rate) die Unternehmensdaten; im Backoffice führen
@@ -207,6 +208,10 @@ async def pruefen(tab, seed, p):
         p.pruefe(f"{rolle}: Zeitregeln und DATEV geladen (Rundung, Modelle, Personalnummern)",
                  await tab.js("[document.getElementById('rounding').value!=='',document.querySelectorAll('#workModelCards .model-card').length>0,"
                               "document.querySelectorAll('#payrollRows tr').length]"), [True, True, 2])
+        # seit 1.9.61 ohne Standardpause (Stufe 4, R3 Nachrunde)
+        p.pruefe(f"{rolle}: Zeitregeln ohne Standardpause", await tab.js(
+            "[!!document.getElementById('defaultBreak'),document.getElementById('settings-time-rules').innerText.includes('Standardpause')]"),
+            [False, False])
         p.pruefe(f"{rolle} /settings: JS-Fehler", tab.fehler, [])
         await tab.bild(f"{rolle}_einstellungen_zeitregeln")
         # --- Frühere Adressen ---

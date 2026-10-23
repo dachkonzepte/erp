@@ -489,7 +489,8 @@ function kolonneSpeichern(){
   var body={order_id:auftrag,work_date:el('kdDatum').value,entry_type:el('kdZeitart').value,activity:el('kdTaetigkeit').value||null,
             hours:stunden_,notes:el('kdNotiz').value.trim()||null};
   var aendern=!!KD,url=aendern?'/api/time-entry-groups/'+KD.id:'/api/time-entry-groups';
-  if(!aendern)body=Object.assign(body,{team_id:el('kdKolonne').value,break_minutes:D.standardpause,
+  // seit 1.9.61 ohne Standardpause (bis dahin schickte der Kolonnen-Nachtrag sie als Pause mit)
+  if(!aendern)body=Object.assign(body,{team_id:el('kdKolonne').value,
     employee_ids:Array.from(document.querySelectorAll('.kd-mitglied')).filter(function(x){return x.checked}).map(function(x){return x.value})});
   var vorher=MONAT;MONAT=body.work_date.slice(0,7);
   knopf.disabled=true;

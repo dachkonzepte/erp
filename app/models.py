@@ -2664,6 +2664,8 @@ class TimeTrackingSettings(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, default=1)
     rounding_minutes: Mapped[int] = mapped_column(default=0)
+    # Seit 1.9.61 (Stufe 4, R3 Nachrunde) nirgends mehr gelesen: die Standardpause entfiel -- es gilt nur die Pause nach Zeitregel je Tag
+    # und die selbst eingetragene Mindestpause. Die Spalte bleibt (Wächter tests/test_v486_keine_standardpause.py).
     default_break_minutes: Mapped[int] = mapped_column(default=0)
     allow_manual_entries: Mapped[bool] = mapped_column(Boolean, default=True)
     allow_group_bookings: Mapped[bool] = mapped_column(Boolean, default=True)

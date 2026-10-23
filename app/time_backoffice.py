@@ -31,8 +31,7 @@ def load_time_settings(db: Session) -> TimeTrackingSettings:
 def time_settings_dict(row: TimeTrackingSettings, db: Session | None = None) -> dict:
     advanced = load_advanced_settings(db) if db is not None else None
     return {
-        "rounding_minutes": row.rounding_minutes,
-        "default_break_minutes": row.default_break_minutes,
+        "rounding_minutes": row.rounding_minutes,  # seit 1.9.61 ohne Standardpause
         "allow_manual_entries": row.allow_manual_entries,
         "allow_group_bookings": row.allow_group_bookings,
         "require_order_item": row.require_order_item,
@@ -77,7 +76,7 @@ def set_time_lock(db: Session, new_locked_until: date | None, *, user_id: int | 
 def update_time_settings(db: Session, payload) -> TimeTrackingSettings:
     row = load_time_settings(db)
     for key in (
-        "rounding_minutes", "default_break_minutes", "allow_manual_entries",
+        "rounding_minutes", "allow_manual_entries",  # seit 1.9.61 ohne Standardpause
         "allow_group_bookings", "require_order_item", "require_activity",
         "datev_target", "datev_wage_type_site", "datev_wage_type_travel",
         "datev_wage_type_workshop", "datev_wage_type_other",

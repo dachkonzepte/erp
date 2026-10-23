@@ -3391,7 +3391,7 @@ class CrewGroupSummaryOut(BaseModel):
 
 class TimeTrackingSettingsOut(BaseModel):
     rounding_minutes: int = 0
-    default_break_minutes: int = 0
+    # seit 1.9.61 ohne die Standardpause (entfallen; eine mitgeschickte wird nicht übernommen)
     allow_manual_entries: bool = True
     allow_group_bookings: bool = True
     require_order_item: bool = False
@@ -3417,8 +3417,6 @@ class TimeTrackingSettingsUpdate(TimeTrackingSettingsOut):
     def validate_values(self):
         if self.rounding_minutes not in {0, 5, 10, 15, 30}:
             raise ValueError("Rundung muss 0, 5, 10, 15 oder 30 Minuten betragen.")
-        if self.default_break_minutes < 0 or self.default_break_minutes > 240:
-            raise ValueError("Standardpause muss zwischen 0 und 240 Minuten liegen.")
         if self.datev_target not in {"lohn_gehalt", "lodas"}:
             raise ValueError("DATEV-Ziel muss Lohn und Gehalt oder LODAS sein.")
         return self

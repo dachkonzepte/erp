@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.60** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.61** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -1469,7 +1469,8 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   (`field_accessible_property_ids()`); Objektansicht und Dokumente bleiben für jedes Objekt offen.
 - **Einsätze und Feierabend nur für die Rollen der Monteursansicht** (seit 1.9.33, `app/permissions.py::MOBIL_ROLLEN`, heute nur `field`):
   `GET /api/field-view/today` und `POST /api/field-view/feierabend` 403 für jede andere Rolle -- das Büro wird auf `/mobil` nicht abgemeldet.
-- **Eine Pausenregel** (seit 1.9.34): Stopp, Gruppen-Stopp, Ende nachtragen und Nachtrag mit Von/Bis rechnen die Pause nur über
+- **Eine Pausenregel** (seit 1.9.34; seit 1.9.61 ohne Standardpause, die Spalte liest niemand mehr -- Wächter
+  `tests/test_v486_keine_standardpause.py`): Stopp, Gruppen-Stopp, Ende nachtragen und Nachtrag mit Von/Bis rechnen die Pause nur über
   `app/time_tracking.py::pause_nach_zeitregel()` (automatisch nach Anwesenheit, eingegebene Pause als Mindestpause); eine reine Dauer ist
   gebuchte Arbeitszeit (netto). Seit 1.9.44 rechnen Stopp, Gruppen-Stopp, Zeitart wechseln und die Vorschau von „Ende nachtragen“ über
   `ende_rechnen()` (Pause und gebuchte Stunden aus einer Funktion). Wächter `tests/test_v462_nachtrag_pausenregel.py`. **Seit 1.9.48 je

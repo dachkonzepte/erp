@@ -139,8 +139,6 @@ ABGLEICH = [
     Z("settings.html", "id=optionSort", ("SettingOptionCreate.sort_order", "SettingOptionUpdate.sort_order")),
     Z("settings.html", "id=timeListSort", ("SettingOptionCreate.sort_order",)),
     Z("settings.html", "id=functionSort", ("EmployeeFunctionCreate.sort_order", "EmployeeFunctionUpdate.sort_order")),
-    Z("settings.html", "id=defaultBreak", ("TimeTrackingSettingsUpdate.default_break_minutes",),
-      code={"min": _g(0), "max": _g(240)}, beleg=("app/schemas.py", "self.default_break_minutes > 240")),
     Z("settings.html", "id=fixedOverheadValue", ("LaborRateSettingsUpdate.fixed_overhead_value",)),
     Z("settings.html", "id=variableOverheadValue", ("LaborRateSettingsUpdate.variable_overhead_value",)),
     Z("settings.html", "id=planningDailyHours", ("PlanningSettingsUpdate.daily_work_hours",)),
@@ -240,7 +238,8 @@ def test_jedes_feld_und_jeder_leseaufruf_mit_grenzen_steht_genau_einmal_im_abgle
     markup = [(z.vorlage, z.markup) for z in ABGLEICH if z.markup]
     gelesen = [(z.vorlage, a) for z in ABGLEICH for a in z.lesen]
     vorhanden_markup, vorhanden_lesen = _vorhanden()
-    assert len(vorhanden_markup) >= 87 and len(vorhanden_lesen) >= 35  # seit 1.9.59 87 (Meine Zeiten 2 Felder statt der Zeiterfassung 3)
+    # seit 1.9.61 86 (Standardpause entfallen; 1.9.59: 87, Meine Zeiten 2 Felder statt der Zeiterfassung 3)
+    assert len(vorhanden_markup) >= 86 and len(vorhanden_lesen) >= 35
     assert sorted(set(vorhanden_markup) - set(markup)) == [], "Zahlenfeld mit Grenzen fehlt im Abgleich"
     assert sorted(set(markup) - set(vorhanden_markup)) == [], "Abgleich nennt ein Feld, das es nicht (mehr) gibt"
     assert len(markup) == len(set(markup))

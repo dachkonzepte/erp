@@ -45,7 +45,6 @@ def befuellen(db, k):
     )
     from app.project_pipeline_columns import default_pipeline_column_id
     from app.settings import load_general_settings
-    from app.time_backoffice import load_time_settings
     from app.time_tracking import create_group_manual_entry, create_manual_entry
     from app.work_preparation import ensure_preparation
 
@@ -76,7 +75,6 @@ def befuellen(db, k):
     vorbereitung.planned_start, vorbereitung.planned_end = heute, heute
     db.add_all([WorkPreparationEmployee(preparation_id=vorbereitung.id, employee_id=max_m.id),
                 WorkPreparationEmployee(preparation_id=vorbereitung.id, employee_id=moritz.id)])
-    load_time_settings(db).default_break_minutes = 30
     db.commit()
 
     einzeln = create_manual_entry(db, employee_id=max_m.id, order_id=auftrag.id, order_item_id=position.id,
