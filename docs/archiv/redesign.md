@@ -4094,3 +4094,21 @@ eigene Seite „Heute / Offen“); Pausenregel je Tag (nur neue Buchungen, Schwe
 - **Gegenproben**: P1 kein Prüfpunkt sperrt (das Netz bleibt) -> 4 Tests rot (v478 SQLite zweimal, v213 zweimal); der Test unter
   PostgreSQL bleibt grün -- das Netz fängt den Fremdschlüssel und antwortet mit derselben Sperre; P2 dazu ohne Netz -> 5 rot, auch unter
   PostgreSQL (`IntegrityError` wie bis 1.9.50); P3 Router 400 statt 409 -> 2 rot.
+
+### R2 Nachrunde, Nebenbefund Befunde (1.9.52): Tagesgrenzen in Europe/Berlin
+
+- **Umsetzung**: `app/berlin_time.py::berlin_tag_beginn_utc()`, `app/findings.py::list_findings()` filtert `date_from`/`date_to` damit.
+  Herleitung: `docs/archiv/zeiterfassung-und-abwesenheit.md`, „Tagesgrenzen gespeicherter Zeitstempel (seit 1.9.52)“.
+
+**Festlegungen 1.9.52 (Bitte bestätigen)**
+
+1. Der Datumsfilter der Befundliste meint Kalendertage in Europe/Berlin (`date_to` einschließlich), an den Tagen der Zeitumstellung mit der
+   Mitternacht vor der Umstellung.
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v479_befunde_tage_berlin.py` (7 Tests): Tagesbeginn in UTC (Sommer, Winter, beide Umstellungstage); ein Befund kurz nach
+  Mitternacht in Berlin (Sommer und Winter) und kurz vor Mitternacht steht an seinem Tag, nicht am Vortag oder Folgetag, auch mit nur einer
+  Grenze. Keine angepasste Erwartung.
+- **Gegenproben**: P1 Filter mit UTC-Mitternacht (Stand bis 1.9.51) -> 2 Tests rot (nach Mitternacht, Sommer und Winter); P2 Tagesbeginn
+  ohne Zeitzone -> 6 rot. Der Fall „kurz vor Mitternacht“ bleibt in beiden grün (dort lag auch die alte Grenze richtig).

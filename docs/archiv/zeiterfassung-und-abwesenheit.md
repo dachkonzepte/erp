@@ -504,8 +504,9 @@ noch aus UTC gelesen“ (oben, „Weiter offen“; die dortige Liste vom 29.09.2
   naive Ortszeit (Kalender, Termine in Projektmappe und Angebot, Anfragen, Dashboard, Zeiterfassung, „Heute“).
 - **Offen (nicht geändert)**: im Änderungsprotokoll (`history.html`, Projektmappe) stehen alter und neuer Wert als roher ISO-Text aus
   `app/audit.py::_text()` -- je nach Spalte UTC oder Ortszeit, im Browser nicht unterscheidbar; das bräuchte die Spalte auf dem Server.
-  Ebenso auf dem Server: `app/findings.py` filtert `Finding.created_at` (UTC) mit Mitternacht eines Kalendertags (Grenzen um 1–2 Std.
-  verschoben) -- nicht geprüft, wie oft es greift.
+  ~~Ebenso auf dem Server: `app/findings.py` filtert `Finding.created_at` (UTC) mit Mitternacht eines Kalendertags (Grenzen um 1–2 Std.
+  verschoben)~~ -- seit 1.9.52 behoben: `app/berlin_time.py::berlin_tag_beginn_utc()` (Mitternacht in Europe/Berlin als naive UTC), siehe
+  „Tagesgrenzen gespeicherter Zeitstempel (seit 1.9.52)“.
 
 ## Pausenregel je Tag (seit 1.9.48)
 
@@ -528,3 +529,12 @@ Buchung -- zwei Buchungen à 5 h am selben Tag (z. B. Baustelle, dann Werkstatt 
 - **Tag zusammen**: `tag_stand()` -- gebuchte Stunden des Tages und Zahl der Buchungen; in der Antwort jeder Buchung (`TimeEntryOut`,
   beim Gruppen-Stopp für den, der stoppt) und in der Vorschau (`TimeEndeVorschauOut`). Angezeigt als h:mm, nur bei mehr als einer Buchung.
 - Festlegungen und Tests: `docs/archiv/redesign.md`, „R2 Nachrunde, Punkt 1 (1.9.48)“.
+
+## Tagesgrenzen gespeicherter Zeitstempel (seit 1.9.52)
+
+Wer gespeicherte Zeitstempel (naive UTC aus `datetime.utcnow()`) nach Kalendertagen filtert, nimmt `app/berlin_time.py::berlin_tag_beginn_utc(d)`
+als Grenze: „am Tag d“ heißt `berlin_tag_beginn_utc(d) <= t < berlin_tag_beginn_utc(d + 1 Tag)`. `datetime.combine(d, datetime.min.time())`
+wäre UTC-Mitternacht, 1 Std. (Winter) bzw. 2 Std. (Sommer) zu spät. Erste Stelle: der Datumsfilter der Befundliste
+(`app/findings.py::list_findings()`, bis 1.9.51 mit UTC-Mitternacht). Durchgesehen (`datetime.combine(…, datetime.min.time())` unter `app/`):
+`app/notice_letters.py` (Zustelldatum als Anzeige, kein Filter) und `app/outlook_calendar_sync.py` (eigene Umrechnung, bewusst unangetastet)
+-- keine weitere Stelle dieser Art. Test `tests/test_v479_befunde_tage_berlin.py`.

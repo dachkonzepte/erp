@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.51** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.52** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -615,7 +615,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Windows-Zeit unsichtbar. Beide sind unter `app/` verboten, `tests/test_v316_berlin_time.py`
     sucht sie per AST -- seit 1.8.46 auch als Spaltenvorgabe ohne Klammern (`default=date.today`,
     `default_factory=date.today`); `BEKANNTE_VORGABEN` ist seit 1.8.75 leer (die fünf Altfälle nehmen `berlin_today()`) und bleibt es. Gespeicherte Zeitstempel aus `datetime.utcnow()` bleiben naive UTC; wer sie
-    druckt oder ein Datum daraus ableitet, rechnet mit `to_berlin()` um. Beginn/Ende einer
+    druckt oder ein Datum daraus ableitet, rechnet mit `to_berlin()` um; wer nach Tagen filtert, nimmt `berlin_tag_beginn_utc()` als
+    Grenze (seit 1.9.52). Beginn/Ende einer
     Zeitbuchung sind dagegen naive Ortszeit. Browser-Seite: "heute" nur aus `_berlin_date.html` (`berlinToday()` u. a.,
     seit 1.8.87); `tests/test_v390_browser_datum.py` lässt `toISOString()`, `new Date()`/`Date.now()` ohne Argument in den
     Vorlagen nur als begründeten Zeitpunkt zu. Details: `docs/archiv/zeiterfassung-und-abwesenheit.md`, "Kalenderdatum in Europe/Berlin

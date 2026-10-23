@@ -29,7 +29,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import case, select
 from sqlalchemy.orm import Session, selectinload
 
-from .berlin_time import berlin_today
+from .berlin_time import berlin_tag_beginn_utc, berlin_today
 from .models import Employee, Finding, InspectionItem, Order, Project, RoofComponent, ServiceReport
 from .modules import is_module_enabled
 from .quick_service_orders import create_quick_service_order
@@ -134,10 +134,11 @@ def list_findings(
         query = query.where(Finding.status == status)
     if severity is not None:
         query = query.where(Finding.severity == severity)
+    # seit 1.9.52: Tage in Europe/Berlin (created_at ist naive UTC) -- bis 1.9.51 Mitternacht als UTC, Grenzen 1–2 Std. verschoben
     if date_from is not None:
-        query = query.where(Finding.created_at >= datetime.combine(date_from, datetime.min.time()))
+        query = query.where(Finding.created_at >= berlin_tag_beginn_utc(date_from))
     if date_to is not None:
-        query = query.where(Finding.created_at < datetime.combine(date_to + timedelta(days=1), datetime.min.time()))
+        query = query.where(Finding.created_at < berlin_tag_beginn_utc(date_to + timedelta(days=1)))
     if overdue_only:
         query = query.where(
             Finding.action == "zurueckgestellt", Finding.resubmission_date.is_not(None),

@@ -16,7 +16,7 @@ Die Kalender-Synchronisation (app/outlook_calendar_sync.py) hat ihre eigene, gle
 Umrechnung und bleibt bewusst unangetastet.
 """
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timezone
 from zoneinfo import ZoneInfo
 
 BERLIN = ZoneInfo("Europe/Berlin")
@@ -35,6 +35,13 @@ def berlin_now() -> datetime:
 def berlin_today() -> date:
     """Heute in Europe/Berlin -- das Geschäftsdatum."""
     return berlin_now().date()
+
+
+def berlin_tag_beginn_utc(tag: date) -> datetime:
+    """Seit 1.9.52: Mitternacht des Kalendertags in Europe/Berlin als naive UTC -- die Grenze, mit der ein gespeicherter Zeitstempel
+    (datetime.utcnow()) nach Tagen gefiltert wird: „am Tag d“ heißt berlin_tag_beginn_utc(d) <= t < berlin_tag_beginn_utc(d + 1 Tag).
+    Mitternacht als naive Zeit allein wäre UTC-Mitternacht, 1 Std. (Winter) bzw. 2 Std. (Sommer) zu spät."""
+    return datetime.combine(tag, time.min, tzinfo=BERLIN).astimezone(timezone.utc).replace(tzinfo=None)
 
 
 def to_berlin(value: datetime | None) -> datetime | None:
