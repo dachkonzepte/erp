@@ -4065,3 +4065,32 @@ eigene Seite „Heute / Offen“); Pausenregel je Tag (nur neue Buchungen, Schwe
   dunkel“ (an den berechneten Farben gemessen).
 - **Gegenproben**: P1 Checkliste ohne Vorsatz -> 4 Tests rot, `klicktest_heute` 1 rot; P2 „Bericht anlegen“ wieder Link -> 1 rot, Klicktest 1
   rot; P3 leerer Einsatz nimmt Platz -> 1 rot, Klicktest 1 rot (32 px); P4 feld-rand auf der Signalfläche -> 1 rot, Klicktest 1 rot (hell 2,84).
+
+### R2 Nachrunde, Nebenbefund Bauteil (1.9.51): ein Prüfpunkt sperrt das Löschen
+
+- **Befund (aus R2)**: `delete_roof_component()` prüfte nur Prüfpunkte unterschriebener Berichte (seit 1.2.16) und Befunde (seit 1.2.17).
+  Ein Wartungsbericht legt je Bauteil Prüfpunkte an (`InspectionItem.roof_component_id`, Fremdschlüssel ohne ON DELETE) -- steckte das Bauteil
+  nur in einem Entwurf, lief das Löschen unter PostgreSQL in den Fremdschlüssel (500), unter SQLite blieb ein Verweis ins Leere.
+- **Umsetzung** (Muster `VorlagenpunktInBerichten`, 1.9.43): Zeile des Bauteils `FOR UPDATE`, dann Zahl der Berichte mit einem Prüfpunkt zum
+  Bauteil; mehr als null -> `BauteilInBerichten` (Router 409), sonst wie bisher die Befunde (400) und Löschen; eine `IntegrityError` beim Commit
+  (ein Verweis, den die Sperre nicht abfing) -> ebenfalls `BauteilInBerichten`, nie 500.
+
+**Festlegungen 1.9.51 (Bitte bestätigen)**
+
+1. Jeder Prüfpunkt sperrt das Löschen, gleich ob der Bericht Entwurf oder unterschrieben ist; die Meldung nennt die Zahl der Berichte und
+   „Archivieren geht weiter.“ (409). Kein ON DELETE SET NULL oder CASCADE.
+2. Die Sperre bei erfassten Befunden bleibt wie seit 1.2.17 (400, eigener Text) und wird erst nach den Prüfpunkten geprüft.
+3. Nicht mitgebaut: „Dachfläche löschen“ (`delete_roof_area()`) prüft Prüfpunkte, Berichte und Befunde zur Fläche ebenso wenig und reißt
+   über die Kaskade ihre Bauteile mit -- unter PostgreSQL dieselbe 500, sobald ein Bericht die Fläche oder eines ihrer Bauteile nennt. Gemeldet,
+   nicht behoben (eigener Punkt, Vorschlag: dieselbe Regel).
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v478_bauteil_loeschen.py` (4 Tests): Bauteil in einem bzw. zwei Entwürfen -> 409 mit Anzahl, Bauteil und Verweise
+  unverändert; ein Bauteil ohne Prüfpunkt gelöscht, das gesperrte archivierbar; unter PostgreSQL (Wegwerf-Schema) Sperre statt
+  `IntegrityError`, die Sitzung bleibt brauchbar.
+- Angepasste Erwartung: `test_v213::test_sync_inspection_items_is_purely_additive` alt „Bauteil eines Entwurfs löschen erlaubt“, neu
+  `BauteilInBerichten`, das Bauteil wird archiviert (der Rest des Tests unverändert).
+- **Gegenproben**: P1 kein Prüfpunkt sperrt (das Netz bleibt) -> 4 Tests rot (v478 SQLite zweimal, v213 zweimal); der Test unter
+  PostgreSQL bleibt grün -- das Netz fängt den Fremdschlüssel und antwortet mit derselben Sperre; P2 dazu ohne Netz -> 5 rot, auch unter
+  PostgreSQL (`IntegrityError` wie bis 1.9.50); P3 Router 400 statt 409 -> 2 rot.

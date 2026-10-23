@@ -4,6 +4,15 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.51 – Bauteil löschen: ein Prüfpunkt sperrt, auch im Entwurf (409 statt 500)
+
+Nebenbefund aus R2: `delete_roof_component()` sperrte nur, wenn der Prüfpunkt eines **unterschriebenen** Einsatzberichts auf das Bauteil
+verwies. Steckte es nur in einem Entwurf (jeder Wartungsbericht legt je Bauteil Prüfpunkte an), lief das Löschen unter PostgreSQL in den
+Fremdschlüssel (500), unter SQLite blieb ein Verweis ins Leere. Jetzt wie beim Vorlagenpunkt seit 1.9.43: jeder Prüfpunkt sperrt
+(`BauteilInBerichten`, 409 mit der Zahl der Berichte), kein ON DELETE SET NULL oder CASCADE; die Zeile des Bauteils wird zuerst gesperrt, ein
+Fremdschlüssel, den die Prüfung nicht abfing, ergibt dieselbe 409 statt 500. Archivieren geht weiter. Neuer Test `test_v478` (auch unter
+PostgreSQL); angepasst v213.
+
 ## 1.9.50 – „Heute“: Kleinigkeiten (Stufe 4, R2 Nachrunde, Punkt 3)
 
 Vier Kleinigkeiten auf „Heute“: Die Zeile einer Checkliste im heutigen Einsatz heißt „Checkliste <Name>“ (`app/heute.py::checklisten_titel()`,

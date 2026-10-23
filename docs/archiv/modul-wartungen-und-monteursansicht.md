@@ -974,3 +974,10 @@ unter „Heute“ (`/mobil`). Verhalten und Schnittstellen bleiben (`/api/field-
 `/api/field-view/maintenance-contracts`); die offenen Berichte kommen aus `GET /api/field-view/offene-berichte` (bis dahin aus
 `GET /api/field-view/today`, dort stehen sie weiter). Ein Abschnitt erscheint nur mit Inhalt. Herleitung und Festlegungen:
 `docs/archiv/redesign.md`, „R2 Nachrunde, Punkt 2 (1.9.49)“.
+
+## Nachtrag 1.9.51: Bauteil löschen
+
+Ein Bauteil, auf das ein Prüfpunkt eines Einsatzberichts verweist, lässt sich nicht löschen -- auch nicht, wenn der Bericht ein Entwurf ist
+(`app/roof_areas.py::BauteilInBerichten`, 409 mit der Zahl der Berichte; bis 1.9.50 sperrte nur ein unterschriebener Bericht, der Entwurf lief
+unter PostgreSQL in den Fremdschlüssel). Archivieren bleibt der Weg. Die Sperre bei erfassten Befunden (seit 1.2.17, 400) bleibt. Herleitung:
+`docs/archiv/redesign.md`, „R2 Nachrunde, Nebenbefund Bauteil (1.9.51)“.

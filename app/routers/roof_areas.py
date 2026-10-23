@@ -14,7 +14,7 @@ from ..roof_area_sketches import MAX_UPLOAD_BYTES, sketch_path
 from ..roof_areas import (
     clear_roof_area_sketch, create_component_type, create_layer_type,
     create_roof_area, create_roof_areas_bulk, create_roof_component, delete_component_type,
-    delete_layer_type, delete_roof_area, delete_roof_component, get_roof_area, list_component_types,
+    BauteilInBerichten, delete_layer_type, delete_roof_area, delete_roof_component, get_roof_area, list_component_types,
     list_layer_types, list_roof_areas, list_roof_components, list_roof_layers, reorder_component_types,
     reorder_layer_types, set_component_type_active, set_layer_type_active, set_roof_area_archived,
     set_roof_area_sketch, set_roof_component_archived, set_roof_component_position, update_layer_type,
@@ -212,6 +212,8 @@ def unarchive_roof_component(component_id: int, db: Session = Depends(get_db, sc
 def delete_roof_component_endpoint(component_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         deleted = delete_roof_component(db, component_id)
+    except BauteilInBerichten as exc:  # seit 1.9.51: auch der Prüfpunkt eines Entwurfs sperrt
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not deleted:

@@ -11,11 +11,12 @@ from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import event, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from .models import (
     Finding, InspectionItem, InspectionTemplateItem, MaintenanceContractItem, Property, RoofArea,
-    RoofComponent, RoofComponentType, RoofLayer, RoofLayerType, ServiceReport,
+    RoofComponent, RoofComponentType, RoofLayer, RoofLayerType,
 )
 from .roof_area_sketches import delete_sketch_file, replace_sketch
 
@@ -331,6 +332,23 @@ def set_roof_component_archived(db: Session, component_id: int, archived: bool) 
     return roof_component_to_dict(component, db)
 
 
+class BauteilInBerichten(ValueError):
+    """Seit 1.9.51 (Stufe 4, R2 Nachrunde, Nebenbefund aus R2): ein Bauteil, auf das ein Prüfpunkt eines Einsatzberichts verweist,
+    lässt sich nicht löschen (409) -- gleich, ob der Bericht unterschrieben ist oder ein Entwurf. Bis 1.9.50 sperrte nur ein
+    unterschriebener Bericht; der Prüfpunkt eines Entwurfs lief unter PostgreSQL in den Fremdschlüssel (500), unter SQLite blieb ein
+    Verweis ins Leere. Muster: VorlagenpunktInBerichten (1.9.43). Archivieren bleibt immer möglich."""
+
+    def __init__(self, berichte: int):
+        self.berichte = berichte
+        wo = "einem Einsatzbericht" if berichte == 1 else f"{berichte} Einsatzberichten"
+        super().__init__(f"Dieses Bauteil steckt in {wo} und lässt sich deshalb nicht löschen. Archivieren geht weiter.")
+
+
+def _berichte_mit_bauteil(db: Session, component_id: int) -> int:
+    return db.scalar(select(func.count(func.distinct(InspectionItem.service_report_id)))
+                     .where(InspectionItem.roof_component_id == component_id)) or 0
+
+
 def delete_roof_component(db: Session, component_id: int) -> bool:
     """Blockiert (seit 1.2.16), solange ein InspectionItem eines bereits UNTERSCHRIEBENEN
     Berichts noch auf dieses Bauteil verweist -- exakt das Muster von delete_roof_area()
@@ -343,19 +361,27 @@ def delete_roof_component(db: Session, component_id: int) -> bool:
     Seit 1.2.17 zusätzlich, UNABHÄNGIG vom Berichtsstatus: blockiert, solange irgendein Finding
     (Mangel) auf dieses Bauteil verweist -- ein Finding entfaltet seine Wirkung (Folgeauftrag,
     Aufgabe, Wiedervorlage) bereits während der Bericht noch Entwurf ist, die Mängelhistorie
-    darf deshalb nicht erst ab der Unterschrift geschützt sein."""
-    component = db.get(RoofComponent, component_id)
+    darf deshalb nicht erst ab der Unterschrift geschützt sein.
+
+    Seit 1.9.51: jeder Prüfpunkt sperrt, auch der eines Entwurfs (BauteilInBerichten, 409 mit der Zahl der Berichte) -- kein ON DELETE
+    SET NULL oder CASCADE, roof_component_id eines Prüfpunkts wird nie leer. Die Zeile wird zuerst gesperrt (unter PostgreSQL wartet
+    die Sperre auf einen Bericht, der gerade Prüfpunkte zu diesem Bauteil anlegt, danach zählt die Abfrage sie mit)."""
+    component = db.scalar(select(RoofComponent).where(RoofComponent.id == component_id).with_for_update())
     if component is None:
         return False
-    if db.scalar(
-        select(InspectionItem.id).join(ServiceReport, InspectionItem.service_report_id == ServiceReport.id)
-        .where(InspectionItem.roof_component_id == component_id, ServiceReport.status == "unterschrieben").limit(1)
-    ):
-        raise ValueError("Dieses Bauteil wird in einem bereits unterschriebenen Einsatzbericht referenziert und kann nicht gelöscht werden.")
+    berichte = _berichte_mit_bauteil(db, component_id)
+    if berichte:
+        db.rollback()
+        raise BauteilInBerichten(berichte)
     if db.scalar(select(Finding.id).where(Finding.roof_component_id == component_id).limit(1)):
+        db.rollback()
         raise ValueError("Für dieses Bauteil sind Mängel erfasst -- es kann daher nicht gelöscht werden.")
     db.delete(component)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:  # Netz: ein Verweis, den die Sperre nicht abgefangen hat -- nie 500
+        db.rollback()
+        raise BauteilInBerichten(max(_berichte_mit_bauteil(db, component_id), 1)) from None
     return True
 
 

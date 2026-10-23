@@ -6,7 +6,7 @@ from decimal import Decimal
 from app.inspection_templates import create_template, create_template_item, get_template, update_template_item
 from app.models import InspectionItem
 from app.roof_areas import (
-    create_roof_area, create_roof_component, delete_roof_component, set_roof_component_archived,
+    BauteilInBerichten, create_roof_area, create_roof_component, delete_roof_component, set_roof_component_archived,
 )
 from app.routers.inspection_templates import router as inspection_templates_router
 from app.routers.service_reports import router as service_reports_router
@@ -265,7 +265,12 @@ def test_sync_inspection_items_is_purely_additive():
     new_item = next(i for i in result_added["items"] if i["text"] == "Gully 2: Ablauf frei und funktionsfähig")
     update_inspection_item(db, new_item["id"], {"result": "nok"})
 
-    delete_roof_component(db, new_component["id"])  # Entwurf, kein signierter Bezug -> erlaubt
+    try:  # seit 1.9.51 sperrt auch der Prüfpunkt eines Entwurfs (bis 1.9.50 hier erlaubt) -- archivieren statt löschen
+        delete_roof_component(db, new_component["id"])
+        assert False, "sollte BauteilInBerichten auslösen"
+    except BauteilInBerichten:
+        pass
+    set_roof_component_archived(db, new_component["id"], True)
     result_after_delete = sync_inspection_items(db, report["id"])
     assert result_after_delete["added"] == 0
     still_present = next(i for i in result_after_delete["items"] if i["id"] == new_item["id"])
