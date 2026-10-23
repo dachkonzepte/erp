@@ -4157,3 +4157,31 @@ Beispiel der Vorgabe war falsch, „mehr als“ gilt wie gebaut. Punkte: „Tag 
 - **Gegenproben**: P1 „Tag zusammen“ als gebuchte Stunden -> 4 Tests rot, `klicktest_echter_tag` 1 rot („Tag zusammen 8:30 h“); P2 Vorschau
   ohne „Tag zusammen“ -> 1 rot, `klicktest_heute` 1 rot; P3 „Tag zusammen“ auch ohne frühere Buchung -> 1 rot, `klicktest_echter_tag` 1 rot
   (Pia); P4 Zeiterfassung in alter Reihenfolge -> 2 rot, `klicktest_monteurin_regeln` 1 rot.
+
+### R2 Nachrunde 2, Punkt 2 (1.9.54): Dachfläche löschen wie das Bauteil
+
+- **Befund (1.9.51 Nr. 3)**: `delete_roof_area()` sperrte bei Wartungsvertrag, Abnahme und Mangel, prüfte Einsatzberichte aber nicht; die
+  Bauteile gingen per ORM-Kaskade mit. Fremdschlüssel ohne ON DELETE auf die Fläche: `ServiceReport.roof_area_id`, `ServiceReportRoofArea`,
+  `InspectionItem.roof_area_id`, `ServiceReportMaterial.roof_area_id`; auf ihre Bauteile: `InspectionItem.roof_component_id`,
+  `Finding.roof_component_id`. Unter PostgreSQL 500, unter SQLite Verweise ins Leere.
+- **Umsetzung** (Muster `BauteilInBerichten`, 1.9.51): Zeile der Fläche `FOR UPDATE`; nach den bisherigen Sperren die Zahl der Berichte, die
+  die Fläche oder eines ihrer Bauteile nennen (`_berichte_mit_dachflaeche()`, eine UNION, jeder Bericht einmal); mehr als null ->
+  `DachflaecheInBerichten` (Router 409); eine `IntegrityError` beim Commit -> ebenfalls `DachflaecheInBerichten`.
+
+**Festlegungen 1.9.54 (Bitte bestätigen)**
+
+1. Es sperrt jeder Bericht, der die Fläche als seine Fläche, an einem Prüfpunkt oder an einem Material nennt, und jeder, der eines ihrer
+   Bauteile an einem Prüfpunkt oder Befund nennt -- Entwurf oder unterschrieben; die Meldung nennt die Zahl der Berichte (jeder einmal) und
+   „Archivieren geht weiter.“ (409).
+2. Die bisherigen Sperren (Wartungsvertrag, Abnahme, Mangel; 400, eigene Texte) kommen zuerst und bleiben unverändert.
+3. Eine Fläche ohne Bericht wird wie bisher samt Bauteilen, Schichten und Skizze gelöscht.
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v481_dachflaeche_loeschen.py` (6 Tests): Fläche mit einem bzw. zwei Wartungsberichten (Entwürfe) -> 409 mit Anzahl, Fläche,
+  Bauteil, Verweise, Prüfpunkte und Befunde unverändert; ein Bericht nur mit einem Befund am Gully der Fläche -> 409; ein Bericht nur mit
+  Material an der Fläche -> Sperre; ohne Bericht gelöscht samt Bauteil, eine gesperrte Fläche archivierbar; unter PostgreSQL (Wegwerf-Schema)
+  Sperre statt `IntegrityError`, eine freie Fläche danach löschbar. Keine angepasste Erwartung.
+- **Gegenproben**: P1 Berichte sperren nicht (Netz bleibt) -> 5 rot (der PostgreSQL-Test bleibt grün: das Netz fängt den Fremdschlüssel);
+  P2 dazu ohne Netz -> 6 rot, auch PostgreSQL; P3 nur die Fläche des Berichts zählt (Befund am Bauteil und Material vergessen) -> 2 rot; P4
+  Router 400 statt 409 -> 4 rot.

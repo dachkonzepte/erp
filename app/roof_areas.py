@@ -10,13 +10,13 @@ würde bei deaktiviertem Modul "wartungen" Stammdaten verstecken."""
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import event, func, select
+from sqlalchemy import event, func, or_, select, union
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from .models import (
     Finding, InspectionItem, InspectionTemplateItem, MaintenanceContractItem, Property, RoofArea,
-    RoofComponent, RoofComponentType, RoofLayer, RoofLayerType,
+    RoofComponent, RoofComponentType, RoofLayer, RoofLayerType, ServiceReport, ServiceReportMaterial, ServiceReportRoofArea,
 )
 from .roof_area_sketches import delete_sketch_file, replace_sketch
 
@@ -200,6 +200,34 @@ def set_roof_area_archived(db: Session, roof_area_id: int, archived: bool) -> di
     return roof_area_to_dict(_load_roof_area(db, roof_area.id))
 
 
+class DachflaecheInBerichten(ValueError):
+    """Seit 1.9.54 (Stufe 4, R2 Nachrunde 2, Punkt 2): eine Dachfläche, die ein Einsatzbericht nennt -- als seine Fläche, an einem
+    Prüfpunkt oder Material, oder über eines ihrer Bauteile an einem Prüfpunkt oder Befund --, lässt sich nicht löschen (409), gleich ob
+    der Bericht unterschrieben ist oder ein Entwurf. Bis 1.9.53 prüfte delete_roof_area() Berichte gar nicht und riss die Bauteile per
+    Kaskade mit: unter PostgreSQL 500 am Fremdschlüssel, unter SQLite Verweise ins Leere. Muster: BauteilInBerichten (1.9.51).
+    Archivieren bleibt immer möglich."""
+
+    def __init__(self, berichte: int):
+        self.berichte = berichte
+        wo = "einem Einsatzbericht" if berichte == 1 else f"{berichte} Einsatzberichten"
+        super().__init__(f"Diese Dachfläche steckt in {wo} und lässt sich deshalb nicht löschen. Archivieren geht weiter.")
+
+
+def _berichte_mit_dachflaeche(db: Session, roof_area_id: int) -> int:
+    """Wie viele Einsatzberichte die Dachfläche nennen: als Fläche des Berichts (ServiceReport.roof_area_id, ServiceReportRoofArea), an
+    einem Prüfpunkt (Fläche oder eines ihrer Bauteile), an einem Befund (Bauteil) oder an einem Material -- jeder Bericht einmal."""
+    bauteile = select(RoofComponent.id).where(RoofComponent.roof_area_id == roof_area_id)
+    berichte = union(
+        select(ServiceReport.id.label("bericht")).where(ServiceReport.roof_area_id == roof_area_id),
+        select(ServiceReportRoofArea.service_report_id).where(ServiceReportRoofArea.roof_area_id == roof_area_id),
+        select(InspectionItem.service_report_id).where(or_(InspectionItem.roof_area_id == roof_area_id,
+                                                           InspectionItem.roof_component_id.in_(bauteile))),
+        select(Finding.service_report_id).where(Finding.roof_component_id.in_(bauteile)),
+        select(ServiceReportMaterial.service_report_id).where(ServiceReportMaterial.roof_area_id == roof_area_id),
+    ).subquery()
+    return db.scalar(select(func.count()).select_from(berichte)) or 0
+
+
 def delete_roof_area(db: Session, roof_area_id: int) -> bool:
     """Löscht die Dachfläche endgültig, kaskadiert per ORM auf ihre Bauteile. Die Skizzendatei
     räumt ausschließlich das before_delete-Event oben ab -- kein separater
@@ -209,8 +237,12 @@ def delete_roof_area(db: Session, roof_area_id: int) -> bool:
     Blockiert (seit 1.2.15), solange eine MaintenanceContractItem noch auf diese Dachfläche
     verweist, seit 1.8.46 auch, wenn eine Abnahme sie nennt -- SQLite erzwingt Fremdschlüssel in diesem Projekt nicht selbst
     (app/database.py setzt kein PRAGMA foreign_keys=ON), ein ungeprüftes Löschen würde also
-    eine tote Fremdschlüsselzeile zurücklassen."""
-    roof_area = db.get(RoofArea, roof_area_id)
+    eine tote Fremdschlüsselzeile zurücklassen.
+
+    Seit 1.9.54: nennt ein Einsatzbericht die Fläche oder eines ihrer Bauteile, DachflaecheInBerichten (409 mit der Zahl der Berichte) --
+    nach den Sperren für Wartungsvertrag, Abnahme und Mangel; kein ON DELETE SET NULL oder CASCADE auf Prüfpunkte, Berichte, Befunde.
+    Die Zeile wird zuerst gesperrt; ein Fremdschlüssel, den die Prüfung nicht abfing, ergibt dieselbe Sperre statt 500."""
+    roof_area = db.scalar(select(RoofArea).where(RoofArea.id == roof_area_id).with_for_update())
     if roof_area is None:
         return False
     if db.scalar(select(MaintenanceContractItem.id).where(MaintenanceContractItem.roof_area_id == roof_area_id).limit(1)):
@@ -225,8 +257,16 @@ def delete_roof_area(db: Session, roof_area_id: int) -> bool:
     if db.scalar(select(Defect.id).where(Defect.roof_area_id == roof_area_id).limit(1)):
         # Seit 1.8.49: ein Mangel nennt sie (unveränderlich, Fremdschlüssel) -- ebenso nur archivieren.
         raise ValueError("Diese Dachfläche ist bei einem Mangel genannt und lässt sich nur noch archivieren.")
+    berichte = _berichte_mit_dachflaeche(db, roof_area_id)
+    if berichte:
+        db.rollback()
+        raise DachflaecheInBerichten(berichte)
     db.delete(roof_area)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:  # Netz: ein Verweis, den die Sperre nicht abgefangen hat -- nie 500
+        db.rollback()
+        raise DachflaecheInBerichten(max(_berichte_mit_dachflaeche(db, roof_area_id), 1)) from None
     return True
 
 

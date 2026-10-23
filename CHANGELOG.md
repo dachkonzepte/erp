@@ -4,6 +4,15 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.54 – Dachfläche löschen: ein Einsatzbericht sperrt (409 statt 500) (Stufe 4, R2 Nachrunde 2, Punkt 2)
+
+Gemeldet in 1.9.51 (Festlegung Nr. 3): `delete_roof_area()` prüfte Einsatzberichte gar nicht und riss die Bauteile der Fläche per Kaskade mit
+-- unter PostgreSQL 500 am Fremdschlüssel, sobald ein Bericht die Fläche oder eines ihrer Bauteile nannte, unter SQLite Verweise ins Leere.
+Jetzt dieselbe Regel wie beim Bauteil: nennt ein Bericht die Fläche (als seine Fläche, an einem Prüfpunkt oder Material) oder eines ihrer
+Bauteile (an einem Prüfpunkt oder Befund), `DachflaecheInBerichten` (409 mit der Zahl der Berichte, „Archivieren geht weiter.“); kein ON
+DELETE SET NULL oder CASCADE, Zeilensperre, eine `IntegrityError` als Netz. Wartungsvertrag, Abnahme und Mangel sperren wie bisher (400).
+Neuer Test `test_v481` (auch unter PostgreSQL).
+
 ## 1.9.53 – „Tag zusammen“ erklärt die Pause (Stufe 4, R2 Nachrunde 2, Punkt 1)
 
 Tobias hat Festlegung 1.9.48 Nr. 4 ersetzt: „Tag zusammen“ ist jetzt die Anwesenheit des Tages samt der neuen Buchung, vor der Pause (h:mm)

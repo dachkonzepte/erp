@@ -981,3 +981,11 @@ Ein Bauteil, auf das ein Prüfpunkt eines Einsatzberichts verweist, lässt sich 
 (`app/roof_areas.py::BauteilInBerichten`, 409 mit der Zahl der Berichte; bis 1.9.50 sperrte nur ein unterschriebener Bericht, der Entwurf lief
 unter PostgreSQL in den Fremdschlüssel). Archivieren bleibt der Weg. Die Sperre bei erfassten Befunden (seit 1.2.17, 400) bleibt. Herleitung:
 `docs/archiv/redesign.md`, „R2 Nachrunde, Nebenbefund Bauteil (1.9.51)“.
+
+## Nachtrag 1.9.54: Dachfläche löschen
+
+Eine Dachfläche, die ein Einsatzbericht nennt -- als seine Fläche (`ServiceReport.roof_area_id`, `ServiceReportRoofArea`), an einem Prüfpunkt
+oder Material, oder über eines ihrer Bauteile an einem Prüfpunkt oder Befund --, lässt sich nicht löschen (`app/roof_areas.py::
+DachflaecheInBerichten`, 409 mit der Zahl der Berichte), auch wenn der Bericht ein Entwurf ist. Bis 1.9.53 prüfte das Löschen keine Berichte
+und riss die Bauteile per Kaskade mit (unter PostgreSQL 500). Archivieren bleibt der Weg; Wartungsvertrag, Abnahme und Mangel sperren wie
+bisher (400). Herleitung: `docs/archiv/redesign.md`, „R2 Nachrunde 2, Punkt 2 (1.9.54)“.
