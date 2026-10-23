@@ -961,3 +961,7 @@ des Vorlagenpunkts, zählt die Berichte, deren Prüfpunkte über `template_item_
 `VorlagenpunktInBerichten` ab (409 mit Anzahl); ein `IntegrityError` beim Commit (Verweis, den die Sperre nicht abgefangen hat) endet
 ebenso in 409. Kein `ON DELETE` am Fremdschlüssel -- `template_item_id` eines Punkts aus der Vorlage wird nie leer. Festlegungen:
 `docs/archiv/redesign.md`, „R2 Punkt 7a (1.9.43)“.
+
+**Seit 1.9.47: die Rückfrage beim Löschen eines Prüfpunkts wertet ein close nur bei geschlossenem Dialog.** `rueckfrage()` in
+service_reports.html nahm jedes `close` als Esc; Chrome liefert das `close` eines früheren Schließens mitunter erst beim nächsten Öffnen aus,
+die neue Rückfrage antwortete dann sofort „nein“. Festgehalten in `docs/archiv/redesign.md`, „R2 Nachrunde, Vorweg (1.9.47)“.

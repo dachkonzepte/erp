@@ -3923,3 +3923,23 @@ Berliner Browser richtige, rund 30 schon richtige (`*_local`), rund 13 mit naive
    ersetzt „22.10.26, 17:33“ (Checklisten) und „22.10.2026, 17:33:12“ (`toLocaleString`).
 2. **Die Unterschrift im Einsatzbericht mit „Uhr“** wie im PDF.
 3. **Das Änderungsprotokoll (alter/neuer Wert) bleibt roh** -- dafür bräuchte der Server die Art der Spalte.
+
+## Stufe 4, R2 Nachrunde (1.9.47–): Pause je Tag, Listen auf eigene Seite
+
+Auftrag von Tobias (23.10.2026): Festlegungen R2 bestätigt außer 1.9.45 Nr. 4 (die Listen bleiben nicht unter „Heute“, sondern kommen auf eine
+eigene Seite „Heute / Offen“); Pausenregel je Tag (nur neue Buchungen, Schwellen „mehr als“), Kleinigkeiten auf „Heute“, Nebenbefunde aus R2
+(Bauteil löschen, Tagesgrenzen der Befunde).
+
+### R2 Nachrunde, Vorweg (1.9.47): die Rückfrage beim Löschen eines Prüfpunkts
+
+- **Befund**: `klicktest_monteurin_regeln` war beim ersten Lauf der Nachrunde rot („Löschen: Punkt weg, kein Knopf mehr“, dazu „nicht neu
+  geladen (#reportList)“), allein wiederholt einmal grün, einmal rot. Eine Messkopie des Klicktests (Scratchpad) zeichnete `rueckfrage()`,
+  `speichern()` und die `close`-Ereignisse des Dialogs auf: 4 von 4 Läufen bekam die zweite Rückfrage (nach „Abbrechen“) gleich nach dem
+  Öffnen ein `close`, antwortete „nein“, kein DELETE ging hinaus. Das `close` stammte vom Schließen der ersten Rückfrage -- Chrome liefert es
+  verspätet aus, hier beim nächsten Öffnen; `rueckfrage()` nahm jedes `close` als Esc.
+- **Behebung**: `beiEsc` antwortet „nein“ nur, wenn der Dialog beim `close` wirklich zu ist (Esc schließt ihn, dann kommt `close`); ein `close`
+  bei offenem Dialog zählt nicht. Andere Vorlagen haben keinen `close`-Listener.
+- **Tests**: neu `tests/test_v475_rueckfrage_close.py` (2 Tests, node mit Attrappe des Dialogs): verspätetes `close` nach dem neuen Öffnen ->
+  die Rückfrage bleibt offen, „Löschen“ antwortet „ja“ (Angriff); Esc -> „nein“ (Gegenprobe). Messkopie danach 3 von 3 grün (einmal traf das
+  alte `close` sichtbar ein und wurde ignoriert). **Gegenprobe** (alter Stand, jedes `close` als Esc): der Angriffstest rot; der Klicktest in
+  diesem Lauf grün -- er trifft das Rennen nur manchmal, der node-Test immer.

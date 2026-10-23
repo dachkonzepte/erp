@@ -1222,7 +1222,9 @@ function rueckfrage(text){
   document.getElementById('punktLoeschenFrage').textContent=text;
   return new Promise(res=>{
     const fertig=ok=>{d.removeEventListener('close',beiEsc);if(d.open)d.close();res(ok)};
-    const beiEsc=()=>fertig(false);
+    // Seit 1.9.47: nur ein close, nach dem der Dialog wirklich zu ist (Esc) -- Chrome liefert das close eines früheren Schließens
+    // („Abbrechen“) mitunter erst beim nächsten Öffnen aus; bis dahin beantwortete es die neue Rückfrage sofort mit „nein“.
+    const beiEsc=()=>{if(!d.open)fertig(false)};
     document.getElementById('punktLoeschenJa').onclick=()=>fertig(true);
     document.getElementById('punktLoeschenNein').onclick=()=>fertig(false);
     d.addEventListener('close',beiEsc);
