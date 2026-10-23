@@ -1,0 +1,107 @@
+"""„Meine Zeiten“ der Monteurin (seit 1.9.57, Stufe 4, R3): was die Seite /mobil/zeiten zeigt -- Kacheln, Buchungen des Monats je Tag, Monat.
+
+Eine Funktion, meine_zeiten(), liefert alles für GET /api/field-view/meine-zeiten; die Seite rechnet nichts davon nach. Rollenlos wie jede
+Geschäftslogik: der Router entscheidet, wessen Zeiten (immer die eigenen) und ob „⋮“ gilt.
+
+    Kacheln      Heute, diese Woche (Montag bis Sonntag) und der angezeigte Monat -- gebuchte Stunden; eine laufende Zeit zählt nicht mit
+    Tage         je Tag mit Buchungen eine Kopfzeile mit Summe (tagessumme(), dieselbe Funktion wie der Stundenzettel als PDF) und die
+                 Pausenprüfung (pausen_vorschau(): passt die abgezogene Pause noch zur Zeitregel?); die Zeilen in der Reihenfolge des Tags,
+                 eine laufende Zeit mit „läuft seit“ ohne Stunden
+    Monat        gebuchte Stunden, Tage mit Buchungen, davon Fahrzeit und produktiv (bis 1.9.58 die Kennzahlen „Heute“ der Zeiterfassung)
+
+Summen: jede Summe addiert die gespeicherten Stunden (vier Nachkommastellen) und rundet erst das Ergebnis kaufmännisch auf zwei Stellen;
+die Zeilen zeigen ihre Stunden gerundet -- die Summe der angezeigten Zeilen kann deshalb um 0,01 von der angezeigten Summe abweichen
+(wie im Stundenzettel als PDF).
+"""
+
+from __future__ import annotations
+
+import calendar
+from datetime import date, timedelta
+from decimal import Decimal
+
+from sqlalchemy.orm import Session
+
+from .heute import zeitarten
+from .rounding import round_hours
+from .time_backoffice import locked_until
+from .time_tracking import (
+    _reihenfolge_am_tag, crew_leader_team_ids, entry_to_dict, group_for_entry, list_entries, pausen_vorschau,
+)
+
+MONATSNAMEN = {
+    1: "Januar", 2: "Februar", 3: "März", 4: "April", 5: "Mai", 6: "Juni",
+    7: "Juli", 8: "August", 9: "September", 10: "Oktober", 11: "November", 12: "Dezember",
+}
+
+
+def tagessumme(rows) -> Decimal:
+    """Die gebuchten Stunden mehrerer Zeiten -- eine laufende zählt nicht mit. Dieselbe Funktion für Kacheln, Tagessummen, Monat und den
+    Stundenzettel als PDF (app/field_timesheet_pdf.py); gerundet wird erst das Ergebnis (round_hours())."""
+    return sum((Decimal(str(r.hours or 0)) for r in rows if r.status == "booked"), Decimal("0"))
+
+
+def monatsgrenzen(monat: date) -> tuple[date, date]:
+    erster = monat.replace(day=1)
+    return erster, erster.replace(day=calendar.monthrange(erster.year, erster.month)[1])
+
+
+def _zeile(db: Session, row, arten: list[dict], employee_id: int, kolonnen: set[int], lock: date | None) -> dict:
+    d = entry_to_dict(row)
+    gruppe = group_for_entry(db, row.id)
+    laeuft = row.status == "running"
+    return {
+        "id": row.id, "status": row.status, "work_date": row.work_date, "entry_type": row.entry_type,
+        "zeitart": next((a["label"] for a in arten if a["value"] == row.entry_type), None) or row.entry_type,
+        "order_id": row.order_id, "order_number": d["order_number"], "project_name": d["project_name"],
+        "gebucht": None if laeuft else round_hours(row.hours or 0), "anwesend": d["anwesend"], "pause": d["pause"],
+        "von": row.started_at.strftime("%H:%M") if row.started_at else None,
+        "bis": row.ended_at.strftime("%H:%M") if row.ended_at else None,
+        "laeuft": laeuft, "laeuft_seit_frueher": d["laeuft_seit_frueher"],
+        "activity": row.activity, "notes": row.notes,
+        # „gebucht von“ nur, wenn ein anderer gebucht hat (der Kolonnenführer)
+        "gebucht_von": d["booked_by_name"] if d["booked_by_employee_id"] not in (None, employee_id) else None,
+        "abgeschlossen": lock is not None and row.work_date <= lock,
+        # die Buchung einer Gruppe, die diese Person angelegt hat und als Kolonnenführer noch ändern darf („⋮ Für die Kolonne …“)
+        "gruppe_id": gruppe.id if gruppe is not None else None,
+        "kolonne_aendern": bool(gruppe is not None and gruppe.status == "booked" and gruppe.initiated_by_employee_id == employee_id
+                                and gruppe.team_id in kolonnen),
+    }
+
+
+def meine_zeiten(db: Session, employee_id: int, *, monat: date, heute: date) -> dict:
+    """Alles für „Meine Zeiten“: Kacheln (heute, diese Woche, der angezeigte Monat), die Tage des Monats mit Buchungen (neueste zuerst,
+    je Tag Summe und Pausenprüfung, die Zeilen in der Reihenfolge des Tags), der Monat und der Abschluss."""
+    erster, letzter = monatsgrenzen(monat)
+    woche = heute - timedelta(days=heute.weekday())
+    rows = list_entries(db, employee_id=employee_id, start_date=erster, end_date=letzter, limit=None)
+    kachel_rows = list_entries(db, employee_id=employee_id, start_date=min(woche, heute), end_date=woche + timedelta(days=6), limit=None)
+    arten = zeitarten(db)
+    lock = locked_until(db)
+    kolonnen = set(crew_leader_team_ids(db, employee_id))
+    tage: dict[date, list] = {}
+    for r in rows:
+        tage.setdefault(r.work_date, []).append(r)
+    tag_liste = []
+    for tag in sorted(tage, reverse=True):
+        eintraege = tage[tag]
+        laufend = [r for r in eintraege if r.status == "running"]
+        gebucht = _reihenfolge_am_tag([r for r in eintraege if r.status == "booked"])
+        pause = pausen_vorschau(db, employee_id, tag) if gebucht else None
+        tag_liste.append({
+            "tag": tag, "summe": round_hours(tagessumme(eintraege)), "abgeschlossen": lock is not None and tag <= lock,
+            "pause": pause, "zeilen": [_zeile(db, r, arten, employee_id, kolonnen, lock) for r in gebucht + laufend],
+        })
+    booked = [r for r in rows if r.status == "booked"]
+    return {
+        "heute": heute, "monat": erster.strftime("%Y-%m"), "monat_name": f"{MONATSNAMEN[erster.month]} {erster.year}",
+        "monat_kurz": MONATSNAMEN[erster.month],
+        "kacheln": {"heute": round_hours(tagessumme([r for r in kachel_rows if r.work_date == heute])),
+                    "woche": round_hours(tagessumme([r for r in kachel_rows if woche <= r.work_date <= woche + timedelta(days=6)])),
+                    "monat": round_hours(tagessumme(rows))},
+        "monat_tage": len({r.work_date for r in booked}),
+        "monat_fahrzeit": round_hours(tagessumme([r for r in booked if r.entry_type == "travel"])),
+        "monat_produktiv": round_hours(tagessumme([r for r in booked if r.counts_as_productive])),
+        "abgeschlossen_bis": lock,
+        "tage": tag_liste,
+    }

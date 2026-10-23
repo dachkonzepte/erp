@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.56** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.57** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -1472,7 +1472,10 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   Tag** (nur neue Buchungen): Pflichtpause aus der Anwesenheit des Starttags über alle gebuchten Zeiten samt der neuen (Schwellen „mehr
   als“), die neue Buchung bekommt, was dem Tag fehlt -- mindestens die eingegebene, höchstens ihre Anwesenheit --, frühere bleiben
   unverändert; jede Antwort auf eine Buchung nennt „Tag zusammen“ (`tag_stand()`, seit 1.9.53 die Anwesenheit des Tages vor der Pause,
-  angezeigt zwischen „anwesend“ und der Pause); Wächter `tests/test_v474_pause_je_tag.py`, `tests/test_v480_tag_zusammen_anzeige.py`. **Eine Rundung** (seit 1.9.39): jede neue Buchung --
+  angezeigt zwischen „anwesend“ und der Pause); Wächter `tests/test_v474_pause_je_tag.py`, `tests/test_v480_tag_zusammen_anzeige.py`.
+  **Seit 1.9.57** rechnet Ändern mit Von/Bis (`PUT /api/time-entries/{id}`) wie ein Nachtrag, mit dem Tag ohne die alte Fassung
+  (`buchungen_am_tag(…, ohne_id)`); passt die Pause eines Tags danach nicht mehr, zeigt `pausen_vorschau()` alt -> neu und
+  `pausen_neu_rechnen()` bucht genau diese Vorschau, nur auf Klick (`tests/test_v483_meine_zeiten_server.py`). **Eine Rundung** (seit 1.9.39): jede neue Buchung --
   auch je Mitglied einer Gruppe -- rundet nur `gebucht_nach_zeitregel()` nach den Zeitregeln (ohne Rundung bleibt der Wert); Wächter
   `tests/test_v466_rundung_gruppen.py`.
 - **Vergessener Feierabend** (seit 1.9.35): nichts schließt eine Zeit von selbst. Läuft sie seit einem früheren Tag

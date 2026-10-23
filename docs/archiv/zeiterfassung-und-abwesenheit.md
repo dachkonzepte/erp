@@ -549,3 +549,11 @@ bleiben dezimal. Anzeige: Vorschau „Anwesend 9:00 h · Tag zusammen 9:45 h · 
 auf „Heute“ „Feierabend gebucht: anwesend 4:15 h · Tag zusammen 9:15 h · Pause nach Zeitregel − 0:45 h · gebucht 3,50 h“; Zeiterfassung der
 Monteurin „Gestoppt/Ende nachgetragen/Nachgetragen: anwesend … · Tag zusammen … · Pause … · gebucht … h“. „Tag zusammen“ nur, wenn der Tag
 schon Buchungen hat. Festlegungen: `docs/archiv/redesign.md`, „R2 Nachrunde 2, Punkt 1 (1.9.53)“.
+
+## Ändern nach der Tagesregel, Pausen je Tag (seit 1.9.57)
+
+Ändern mit Von/Bis (`PUT /api/time-entries/{id}`) rechnet wie ein Nachtrag: `nachtrag_nach_zeitregel(…, ohne_id=<Buchung>)` -- der Tag ohne die
+alte Fassung, Rundung der Zeitregeln, Beginn und Ende neu; andere Buchungen nie angefasst. Nach Ändern oder Löschen kann die abgezogene Pause
+eines Tags nicht mehr zur Zeitregel passen: `pausen_vorschau()` sagt das (Summe abgezogen gegen die Summe, die die Regel den Buchungen in der
+Reihenfolge des Tags gäbe) und zeigt je Buchung alt -> neu; `pausen_neu_rechnen()` bucht genau diese Vorschau (sonst 409), nur auf Klick, mit
+einer Zeile „Pausen neu gerechnet“ im Verlauf. Festlegungen: `docs/archiv/redesign.md`, „R3, Server (1.9.57)“.

@@ -34,7 +34,8 @@ def gebucht_nach_zeitregel(db: Session, stunden) -> Decimal:
     rounding_minutes) -- die eine Stelle für jede neue Buchung: Stopp, Gruppen-Stopp und Stopp im Gruppenfall (je Mitglied), Nachtrag,
     Gruppen-Nachtrag (je Mitglied), Ende nachtragen (einzeln und für die Gruppe). Ohne eingestellte Rundung bleibt der Wert, wie er ist
     (gespeichert mit vier Nachkommastellen). Bis 1.9.38 rundeten nur Einzel-Stopp und Einzel-Nachtrag (im Router), der Stopp im
-    Gruppenfall nur die Zeit dessen, der stoppte, Gruppen-Stopp und Gruppen-Nachtrag gar nicht. Ändern rundet nicht (wie bisher)."""
+    Gruppenfall nur die Zeit dessen, der stoppte, Gruppen-Stopp und Gruppen-Nachtrag gar nicht. Ändern mit Dauer rundet nicht (wie
+    bisher); Ändern mit Von/Bis (seit 1.9.57) und „Pausen neu rechnen“ runden hier wie ein Nachtrag."""
     from .time_backoffice import load_time_settings, rounded_hours  # lokal: time_backoffice importiert dieses Modul
     schritt = load_time_settings(db).rounding_minutes
     wert = _d(stunden)
@@ -105,10 +106,13 @@ def anwesend_stunden(beginn: datetime, ende: datetime) -> Decimal:
     return (Decimal(str((ende - beginn).total_seconds())) / Decimal("3600")).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
 
 
-def buchungen_am_tag(db: Session, employee_id: int, tag: date) -> list[TimeEntry]:
-    """Seit 1.9.48: die gebuchten Zeiten der Person an diesem Tag (work_date = Starttag), ohne laufende."""
-    return list(db.scalars(select(TimeEntry).where(TimeEntry.employee_id == employee_id, TimeEntry.work_date == tag,
-                                                   TimeEntry.status == "booked")).all())
+def buchungen_am_tag(db: Session, employee_id: int, tag: date, ohne_id: int | None = None) -> list[TimeEntry]:
+    """Seit 1.9.48: die gebuchten Zeiten der Person an diesem Tag (work_date = Starttag), ohne laufende. Seit 1.9.57 ohne_id: der Tag
+    ohne die alte Fassung einer Buchung, die gerade geändert wird (Stufe 4, R3)."""
+    abfrage = select(TimeEntry).where(TimeEntry.employee_id == employee_id, TimeEntry.work_date == tag, TimeEntry.status == "booked")
+    if ohne_id is not None:
+        abfrage = abfrage.where(TimeEntry.id != ohne_id)
+    return list(db.scalars(abfrage).all())
 
 
 def _anwesend_der_buchung(row: TimeEntry) -> Decimal:
@@ -123,36 +127,47 @@ def _anwesend_summe(rows: list[TimeEntry]) -> Decimal:
     return sum((_anwesend_der_buchung(r) for r in rows), Decimal("0"))
 
 
-def pause_nach_zeitregel(db: Session, employee_id: int, anwesend, am: date, mindestpause: int = 0) -> int:
+def pause_nach_zeitregel(db: Session, employee_id: int, anwesend, am: date, mindestpause: int = 0, ohne_id: int | None = None, *,
+                         vorher: tuple[Decimal, int] | None = None) -> int:
     """Die EINE Pausenregel (seit 1.9.34) -- für Stopp, Gruppen-Stopp (je Mitglied), Ende nachtragen, den Nachtrag mit Von/Bis,
     Zeitart wechseln und die Vorschau. Seit 1.9.48 (Stufe 4, R2 Nachrunde, Entscheidung Tobias) je Tag: maßgeblich ist die Anwesenheit
     der Person am Tag `am` über alle gebuchten Zeiten samt der neuen (`anwesend`, Stunden); die Pflichtpause des Arbeitszeitmodells
     dafür (über 6 h 30 min, über 9 h 45 min -- „mehr als“ seit 1.9.48) minus die an diesem Tag schon abgezogenen Pausen ist, was dem
     Tag noch fehlt. Die neue Buchung bekommt das, höchstens ihre Anwesenheit, mindestens die eingegebene Pause („Zusätzliche Pause“ bleibt
-    Mindestpause, keine Summe). Frühere Buchungen werden nie angefasst. Bis 1.9.46 je Buchung (zwei Buchungen à 5 h ohne Pause)."""
-    frueher = buchungen_am_tag(db, employee_id, am)
+    Mindestpause, keine Summe). Frühere Buchungen werden nie angefasst. Bis 1.9.46 je Buchung (zwei Buchungen à 5 h ohne Pause).
+    Seit 1.9.57 ohne_id: beim Ändern zählt der Tag ohne die alte Fassung dieser Buchung; vorher = (Anwesenheit, abgezogene Pause) der
+    früheren Buchungen statt der gespeicherten -- für pausen_vorschau(), die den Tag in seiner Reihenfolge nachrechnet."""
+    if vorher is None:
+        frueher = buchungen_am_tag(db, employee_id, am, ohne_id)
+        anwesend_vorher, abgezogen = _anwesend_summe(frueher), sum(int(r.break_minutes or 0) for r in frueher)
+    else:
+        anwesend_vorher, abgezogen = vorher
     neu = Decimal(str(anwesend or 0))
-    anwesend_tag = _anwesend_summe(frueher) + neu
-    abgezogen = sum(int(r.break_minutes or 0) for r in frueher)
+    anwesend_tag = anwesend_vorher + neu
     fehlt = max(0, int(automatic_break_minutes_for_duration(db, employee_id, anwesend_tag, am) or 0) - abgezogen)
     # Minuten der neuen Buchung, kaufmännisch gerundet (die Anwesenheit kommt auf vier Stellen gerundet: 20 min = 0,3333 h)
     hoechstens = max(0, int((neu * 60).quantize(Decimal("1"), rounding=ROUND_HALF_UP)))
     return max(0, int(mindestpause or 0), min(fehlt, hoechstens))
 
 
-def nachtrag_nach_zeitregel(db: Session, *, employee_id: int, work_date: date, von: time, bis: time, mindestpause: int = 0) -> dict:
+def nachtrag_nach_zeitregel(db: Session, *, employee_id: int, work_date: date, von: time, bis: time, mindestpause: int = 0,
+                            ohne_id: int | None = None) -> dict:
     """Seit 1.9.34: ein Nachtrag mit Von/Bis (die Anwesenheit ist bekannt) nach der Pausenregel -- Rückgabe anwesend, pause, netto (vor
     der Rundung), beginn, ende. Eine reine Dauer ist dagegen gebuchte Arbeitszeit (netto) und bleibt, wie sie ist (wie „Stunden (netto)“
-    im Büro)."""
+    im Büro). Seit 1.9.57 (Stufe 4, R3) auch gebucht (nach der Rundung der Zeitregeln), tag_zusammen und tag_buchungen -- dieselben
+    Zahlen für die Vorschau des Dialogs „Zeit nachtragen“ und die Buchung; ohne_id: beim Ändern der Tag ohne die alte Fassung."""
     beginn, ende = datetime.combine(work_date, von), datetime.combine(work_date, bis)
     if ende <= beginn:
         raise ValueError("Bis muss nach Von liegen.")
     anwesend = anwesend_stunden(beginn, ende)
-    pause = pause_nach_zeitregel(db, employee_id, anwesend, work_date, mindestpause)
+    pause = pause_nach_zeitregel(db, employee_id, anwesend, work_date, mindestpause, ohne_id)
     netto = anwesend - Decimal(pause) / Decimal("60")
     if netto <= 0:  # seit 1.9.48 auch, wenn die fehlende Pause des Tages den Nachtrag ganz aufzehrt
         raise ValueError("Nach Abzug der Pause bleibt keine Arbeitszeit.")
-    return {"anwesend": anwesend, "pause": pause, "netto": netto, "beginn": beginn, "ende": ende}
+    frueher = buchungen_am_tag(db, employee_id, work_date, ohne_id)
+    return {"anwesend": anwesend, "pause": pause, "netto": netto, "beginn": beginn, "ende": ende,
+            "gebucht": gebucht_nach_zeitregel(db, netto), "tag_zusammen": _anwesend_summe(frueher) + anwesend,
+            "tag_buchungen": len(frueher) + 1}
 
 
 def ende_rechnen(db: Session, employee_id: int, beginn: datetime, ende: datetime, mindestpause: int = 0) -> dict:
@@ -179,6 +194,69 @@ def tag_stand(db: Session, employee_id: int, tag: date) -> dict:
     Zeiten (vor der Pause, wie die Pausenregel sie zählt) -- bis 1.9.52 die gebuchten Stunden."""
     rows = buchungen_am_tag(db, employee_id, tag)
     return {"tag_zusammen": _anwesend_summe(rows), "tag_buchungen": len(rows)}
+
+
+class PausenVorschauVeraltet(ValueError):
+    """Seit 1.9.57: „Pausen neu rechnen“ bucht nur genau die Vorschau, die die Seite gezeigt hat -- hat sich der Tag inzwischen
+    geändert, 409 statt einer anderen Rechnung."""
+
+
+def _reihenfolge_am_tag(rows: list[TimeEntry]) -> list[TimeEntry]:
+    """Die gebuchten Zeiten eines Tags in der Reihenfolge des Tags: mit Beginn nach dem Beginn, reine Dauern danach."""
+    return sorted(rows, key=lambda r: (r.started_at is None, r.started_at or datetime.min, r.id))
+
+
+def pausen_vorschau(db: Session, employee_id: int, tag: date) -> dict:
+    """Seit 1.9.57 (Stufe 4, R3, Punkt 5): passt die abgezogene Pause des Tags noch zur Zeitregel? Nach Ändern oder Löschen einer
+    Buchung kann sie das nicht mehr -- nichts rechnet sie von selbst neu. „Nach Zeitregel“ ist, was die Regel den Buchungen in der
+    Reihenfolge des Tags gäbe (wie pause_nach_zeitregel(): jede bekommt, was dem Tag noch fehlt, höchstens ihre Anwesenheit; ohne
+    Mindestpause; über pause_nach_zeitregel(vorher=…), die eine Pausenregel). passt = die Summen sind gleich (eine andere Verteilung bei
+    gleicher Summe passt). buchungen: je Buchung, deren Pause sich ändern würde, alt -> neu (Pause in Minuten, gebucht nach der Rundung
+    der Zeitregeln)."""
+    rows = _reihenfolge_am_tag(buchungen_am_tag(db, employee_id, tag))
+    anwesend_vorher, pause_vorher, plan = Decimal("0"), 0, []
+    for r in rows:
+        anwesend = _anwesend_der_buchung(r)
+        neu = pause_nach_zeitregel(db, employee_id, anwesend, tag, vorher=(anwesend_vorher, pause_vorher))
+        alt = int(r.break_minutes or 0)
+        if neu != alt:
+            plan.append({"id": r.id, "pause_alt": alt, "pause_neu": neu, "gebucht_alt": _d(r.hours),
+                         "gebucht_neu": gebucht_nach_zeitregel(db, max(Decimal("0"), anwesend - Decimal(neu) / Decimal("60")))})
+        anwesend_vorher += anwesend
+        pause_vorher += neu
+    abgezogen = sum(int(r.break_minutes or 0) for r in rows)
+    passt = abgezogen == pause_vorher
+    return {"tag": tag, "abgezogen": abgezogen, "nach_zeitregel": pause_vorher, "passt": passt, "buchungen": [] if passt else plan}
+
+
+def pausen_neu_rechnen(db: Session, employee_id: int, tag: date, erwartet: dict[int, int]) -> dict:
+    """Seit 1.9.57: bucht genau die Vorschau von pausen_vorschau() -- erwartet = {Buchung: neue Pause}, wie die Seite sie gezeigt hat;
+    weicht die Rechnung jetzt davon ab (der Tag hat sich geändert) oder passt der Tag schon, PausenVorschauVeraltet (409). Ändert nur
+    Pause und gebuchte Stunden der genannten Buchungen (eine Buchung einer Gruppe gilt danach als einzeln geändert), dazu eine Zeile im
+    Verlauf. Nie von selbst -- nur auf den Klick „Pausen neu rechnen“."""
+    rows = db.scalars(select(TimeEntry).where(TimeEntry.employee_id == employee_id, TimeEntry.work_date == tag,
+                                              TimeEntry.status == "booked").with_for_update()).all()
+    vorschau = pausen_vorschau(db, employee_id, tag)
+    plan = {b["id"]: b for b in vorschau["buchungen"]}
+    if vorschau["passt"] or {i: b["pause_neu"] for i, b in plan.items()} != {int(k): int(v) for k, v in erwartet.items()}:
+        db.rollback()
+        raise PausenVorschauVeraltet("Die Pausen des Tages haben sich inzwischen geändert – bitte die Vorschau neu laden.")
+    from .audit import record_audit_entry  # lokal: audit importiert die Modelle, dieses Modul wird früh geladen
+
+    for r in rows:
+        b = plan.get(r.id)
+        if b is None:
+            continue
+        r.break_minutes, r.hours = b["pause_neu"], b["gebucht_neu"]
+        link = _group_link_for_entry(db, r.id)
+        if link is not None:
+            _mark_individual_change(link)
+    record_audit_entry(db, action="Pausen neu gerechnet", entity_type="Zeitbuchung", entity_id=f"{employee_id}/{tag.isoformat()}",
+                       entity_label=f"{employee_name(db.get(Employee, employee_id)) or ''} · {tag:%d.%m.%Y}",
+                       field_name="break_minutes", field_label="Pause des Tages (Minuten)",
+                       old_value=vorschau["abgezogen"], new_value=vorschau["nach_zeitregel"])
+    db.commit()
+    return pausen_vorschau(db, employee_id, tag)
 
 
 def load_entry(db: Session, entry_id: int) -> TimeEntry | None:
@@ -385,7 +463,11 @@ def update_entry(
     db: Session, entry_id: int, *, employee_id: int, order_id: int, work_date: date,
     hours: Decimal, entry_type: str, order_item_id: int | None = None,
     activity: str | None = None, notes: str | None = None, break_minutes: int = 0,
+    von: time | None = None, bis: time | None = None, mindestpause: int = 0,
 ) -> TimeEntry:
+    """Seit 1.9.57 (Stufe 4, R3) mit von/bis: dieselbe Rechnung wie ein Nachtrag (nachtrag_nach_zeitregel()) -- Pause aus dem Tag ohne
+    die alte Fassung dieser Buchung, gebucht nach der Rundung der Zeitregeln, Beginn und Ende neu; hours und break_minutes zählen dann
+    nicht. Andere Buchungen werden nie angefasst. Ohne von/bis wie bisher: die Stunden zählen, die Zeitstempel bleiben Nachweis."""
     row = db.get(TimeEntry, entry_id)
     if row is None:
         raise ValueError("Zeitbuchung wurde nicht gefunden.")
@@ -398,7 +480,13 @@ def update_entry(
         raise ValueError("Mitarbeiter wurde nicht gefunden oder ist inaktiv.")
     if order is None: raise ValueError("Auftrag wurde nicht gefunden.")
     validate_order_item(db, order_id, order_item_id)
-    amount = _d(hours)
+    if von is not None:
+        werte = nachtrag_nach_zeitregel(db, employee_id=employee_id, work_date=work_date, von=von, bis=bis, mindestpause=mindestpause,
+                                        ohne_id=row.id)
+        amount, break_minutes = werte["gebucht"], werte["pause"]
+        row.started_at, row.ended_at = werte["beginn"], werte["ende"]
+    else:
+        amount = _d(hours)
     if amount <= 0: raise ValueError("Die Stunden müssen größer als 0 sein.")
     row.employee_id=employee_id; row.order_id=order_id; row.project_id=order.project_id
     row.order_item_id=order_item_id; row.work_date=work_date; row.hours=amount

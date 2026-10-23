@@ -33,10 +33,10 @@ NICHT mehr "jedes Objekt": nur Objekte der Aufträge, die der Monteur öffnen da
 (_field_may_see_history(), dieselbe Regel wie Auftrag und Bericht). Objektansicht, Dokumente und
 Upload bleiben für jedes Objekt offen."""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -53,6 +53,7 @@ from ..document_categories import field_may_see_category
 from ..field_timesheet_pdf import build_field_timesheet_pdf
 from ..heute import heute_fuer
 from ..maintenance_contracts import list_relevant_contracts_for_employee
+from ..meine_zeiten import meine_zeiten
 from ..mobile_manifest import build_icon_png, build_manifest
 from ..mobile_settings import load_mobile_settings, is_past_shift_end, mobile_settings_to_dict, update_mobile_settings
 from ..models import AppUser, DocumentCategory, Property
@@ -178,6 +179,20 @@ def get_field_view_maintenance_contracts(request: Request, db: Session = Depends
     if user is None or user.employee_id is None:
         return []
     return list_relevant_contracts_for_employee(db, user.employee_id)
+
+
+@router.get("/api/field-view/meine-zeiten")
+def get_field_view_meine_zeiten(request: Request, monat: str | None = Query(None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
+                                db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+    """Seit 1.9.57 (Stufe 4, R3): alles für „Meine Zeiten“ (app/meine_zeiten.py) -- Kacheln, Buchungen des Monats je Tag mit Summe und
+    Pausenprüfung, Monat. Immer die eigenen Zeiten (Mitarbeiter nur aus der Anmeldung, kein Parameter); monat = JJJJ-MM, sonst der
+    laufende Monat in Berlin. Liest nur."""
+    user = getattr(request.state, "erp_user", None)
+    if user is None or user.employee_id is None:
+        raise HTTPException(status_code=422, detail=KEIN_MITARBEITER)
+    heute = _now().date()
+    erster = date(int(monat[:4]), int(monat[5:]), 1) if monat else heute.replace(day=1)
+    return meine_zeiten(db, user.employee_id, monat=erster, heute=heute)
 
 
 @router.get("/api/field-view/offene-berichte")

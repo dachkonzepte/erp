@@ -114,6 +114,7 @@ ERLAUBT_JE_ROUTE = {
     ("/api/service-reports/{report_id}/assets", "$[].notes"): "Bemerkung des Monteurs zum Geräteeinsatz im eigenen Bericht",
     ("/api/time-entries", "$[].notes"): "eigene Zeitbuchung (self-scoped seit 1.3.56), die Notiz schreibt er selbst",
     ("/api/time-entries/active", "$.notes"): "eigene laufende Zeitbuchung",
+    ("/api/field-view/meine-zeiten", "$.tage[].zeilen[].notes"): "eigene Zeitbuchung in „Meine Zeiten“ (seit 1.9.57), die Notiz schreibt er selbst",
     ("/api/time-entry-groups/active", "$.notes"): "Notiz der Kolonnenbuchung, in der er selbst mitgebucht ist (1.7.12)",
     ("/api/time-entry-groups/mine", "$[].notes"): "Notiz der Kolonnenbuchung, in der er selbst mitgebucht ist (1.7.12)",
     ("/api/absence-requests", "$[].notes"): "eigener Abwesenheitsantrag, die Notiz schreibt er selbst",
@@ -424,6 +425,7 @@ def _monteur_welt(db: Session) -> dict:
         "project_id": order.project_id, "material_id": material.id, "item_id": inspection["id"],
         "team_id": team.id, "kollege_id": kollege.id,
         "entry_id": laufend, "ende_gestern": f"{(today - timedelta(days=1)).isoformat()}T15:00",  # seit 1.9.44
+        "heute": today.isoformat(),  # seit 1.9.57
     }
 
 
@@ -458,6 +460,9 @@ QUERY_JE_ROUTE = {
     "/api/invoices/{invoice_id}/payment-proposal": {"amount": "100", "received_on": "2026-10-01"},
     # Vorschau „Ende nachtragen“ (seit 1.9.44): die Gruppenzeit der Testdaten läuft seit gestern
     "/api/time-entries/{entry_id}/ende-vorschau": {"ende": "@ende_gestern"},
+    # Vorschau „Zeit nachtragen“ und Pausen des Tags (seit 1.9.57): der Tag der Testdaten mit der Buchung des Monteurs
+    "/api/time-entries/nachtrag-vorschau": {"work_date": "@heute", "von": "13:00", "bis": "15:00"},
+    "/api/time-entries/tagespause": {"work_date": "@heute"},
 }
 
 

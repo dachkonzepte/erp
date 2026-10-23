@@ -30,12 +30,8 @@ from .models import Employee
 from .option_settings import get_option_group, option_group_to_dict
 from .rounding import round_hours
 from .settings import load_general_settings
+from .meine_zeiten import MONATSNAMEN as MONTH_NAMES_DE, tagessumme
 from .time_tracking import entry_to_dict, list_entries
-
-MONTH_NAMES_DE = {
-    1: "Januar", 2: "Februar", 3: "März", 4: "April", 5: "Mai", 6: "Juni",
-    7: "Juli", 8: "August", 9: "September", 10: "Oktober", 11: "November", 12: "Dezember",
-}
 
 # Feste Spaltenbreiten -- "Auftrag" und "Tätigkeit" teilen sich den variablen Rest, Muster
 # ITEMS_COL_WIDTHS_MM in invoice_pdf.py (dort eine einzige variable Spalte statt zwei; hier zwei,
@@ -109,11 +105,11 @@ def build_field_timesheet_pdf(db: Session, employee_id: int, year: int, month: i
         summary_row_indices: list[int] = []
         month_total = Decimal("0")
         for day in sorted(by_day):
-            day_total = Decimal("0")
+            # seit 1.9.57 die Tagessumme aus app/meine_zeiten.py::tagessumme() -- dieselbe wie „Meine Zeiten“ (Kacheln, Kopfzeile des Tags)
+            day_total = tagessumme(by_day[day])
             for r in sorted(by_day[day], key=lambda x: (x.started_at or x.created_at, x.id)):
                 d = entry_to_dict(r)
                 hours = Decimal(r.hours or 0)
-                day_total += hours
                 table_rows.append([
                     day.strftime("%d.%m.%Y"),
                     escape(d.get("order_number") or ""),

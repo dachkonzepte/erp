@@ -4197,3 +4197,93 @@ Testablauf, keine angepasste Erwartung.
 Gefunden im vollen Lauf vor dem Commit von 1.9.55 (ein roter Test, der mit 1.9.55 nichts zu tun hatte, Regel 15): Herleitung, Festlegung zum
 Testablauf, angepasste Erwartung und Gegenprobe in `docs/archiv/testablauf-und-klicktests.md`, „Test mit laufender fester Uhr prüft keine
 Sekunde (1.9.56)“.
+
+## Stufe 4, R3 (1.9.57–): „Meine Zeiten“
+
+Auftrag von Tobias (23.10.2026): Vorlage `bildgrundlage/entwurf-stufe4/zeiten-nachtragen.html` (freigegeben, nur quer); „Meine Zeiten“
+ersetzt die Reiter „Zeiterfassung“ und „Stundenzettel“, Starten und Stoppen nur noch auf „Heute“, Nachtragen und Ändern nach der Tagesregel,
+„Pausen neu rechnen“ nur auf Klick, Zeitart-Kacheln quer 3 und hoch 2 Spalten. Befund zuerst: keine Funktion fällt still weg.
+
+### Befund (vor dem Umbau): was „Zeiterfassung“ und „Stundenzettel“ der Monteurin können -- und wo es danach steht
+
+Reiter „Zeiterfassung“ (`/time-tracking` für die Rolle `field`, `time_tracking_field.html`):
+
+| # | Funktion heute | danach |
+|---|---|---|
+| Z1 | laufende Zeit sehen (Uhr, Auftrag · Projekt · Zeitart) | „Heute“, Karte Arbeitszeit; „Meine Zeiten“: Zeile „läuft seit HH:MM“ |
+| Z2 | Zeit stoppen | „Heute“: „Feierabend“ |
+| Z3 | zusätzliche Pause beim Stoppen (Mindestpause) | „Meine Zeiten“: „⋮ Ändern“ → „Weitere Angaben“ → „Pause mindestens“ (nach dem Feierabend) |
+| Z4 | Ende nachtragen (Zeit von früher), mit zusätzlicher Pause | „Heute“: Signalkarte; „Meine Zeiten“: Zeile mit Link zu „Heute“; längere Pause danach wie Z3 |
+| Z5 | Schnell starten: Auftrag, Zeitart-Kacheln, Vorschlag Schlechtwetter | „Heute“ (nichts läuft) |
+| Z6 | Schnell starten mit Tätigkeit | „Heute“: „⋮ Mit Tätigkeit starten“ |
+| Z7 | Kolonne starten (Kolonne, Mitglieder, Auftrag, Zeitart, Tätigkeit) | „Heute“: „⋮ Für die Kolonne starten“ (nur Kolonnenführer) |
+| Z8 | Kolonnenzeit für alle stoppen | „Heute“: „Feierabend für die Gruppe“ (seit 1.9.45) |
+| Z9 | Nachtrag für die Kolonne (Stunden je Person) | „Meine Zeiten“: „⋮“ neben „+ Nachtragen“ → „Nachtrag für die Kolonne“ |
+| Z10 | Meine Kolonnenbuchungen (14 Tage): Mitglieder, „selbst geändert“, Ändern und Löschen für alle | „Meine Zeiten“: an der eigenen Buchung der Gruppe „⋮ Für die Kolonne ändern / löschen“; Mitglieder im Dialog |
+| Z11 | Kennzahlen heute: produktiv, Fahrzeit, gesamt | Kachel „Heute“ (gesamt); Fahrzeit und produktiv als Monatswerte in der Karte „Monat“ |
+| Z12 | Meine Buchungen (14 Tage): Zeitart, Datum, Auftrag, „gebucht von“, Notiz, Stunden | „Meine Zeiten“: Buchungen des Monats (‹ ›), Tag als Kopfzeile; „gebucht von“, Tätigkeit und Notiz als zweite Zeile |
+| Z13 | Buchung nachtragen: Auftrag, Datum, Von/Bis oder Dauer, Zeitart, Tätigkeit, Notiz | Dialog „Zeit nachtragen“ (Datum, Zeitart, Von, Bis, Auftrag); Tätigkeit und Notiz unter „Weitere Angaben“; Dauer für die Monteurin nicht mehr (Server 422) |
+| Z14 | Ergebnis nach Nachtrag, Stopp, Ende nachtragen | Vorschau im Dialog vor dem Speichern, danach die Meldung über den Buchungen; Stopp und Ende auf „Heute“ (Ergebnis dort) |
+| Z15 | Buchung ändern | „⋮ Ändern“ (derselbe Dialog, Von/Bis) |
+| Z16 | Buchung löschen (Rückfrage des Browsers) | „⋮ Löschen“ mit Rückfrage auf der Seite |
+| Z17 | „abgeschlossen“ statt Ändern/Löschen | abgeschlossener Monat: Hinweis, kein „⋮“, kein Nachtragen in den Zeitraum |
+| Z18 | Abwesenheit beantragen (Kategorie, Art, Von, Bis, Notiz) | Karte „Abwesenheit“: „+ Antrag“ (Dialog) |
+| Z19 | eigene Anträge (Status, Freigabe-Notiz), Zurückziehen | im Dialog der Abwesenheit wie bisher; die Karte nennt offene Anträge |
+| Z20 | Hinweise: kein Mitarbeiter verknüpft, keine eigenen Aufträge | oben auf „Meine Zeiten“ |
+| Z21 | `?order_id=` (Einsatzbericht „Zeiterfassung (Auftrag)“) wählt den Auftrag vor | Weiterleitung auf „Meine Zeiten“, Auftrag im Dialog „Zeit nachtragen“ vorgewählt |
+| Z22 | Nachtragen, Ändern, Löschen nur mit „manuelle Buchungen erlaubt“ | unverändert |
+
+Reiter „Stundenzettel“ (`/mobil/stundenzettel`, `field_timesheet.html`):
+
+| # | Funktion heute | danach |
+|---|---|---|
+| S1 | Monat wählen | ‹ › über den Buchungen |
+| S2 | je Tag: Auftrag, Tätigkeit, Stunden, Tagessumme | Buchungen je Tag mit Kopfzeile und Summe; Tätigkeit in der zweiten Zeile |
+| S3 | Monatssumme | Kachel „<Monat>“ und Karte „Monat“ („x,xx h an n Tagen“) |
+| S4 | PDF herunterladen | Karte „Monat“: „Stundenzettel als PDF“ |
+| S5 | Hinweis „Liste gekürzt“ | entfällt: die Seite holt den Monat vollständig (`limit=None` im Server) |
+
+### R3, Server (1.9.57)
+
+Fund im vollen Lauf vor dem Commit: `pausen_vorschau()` rief `automatic_break_minutes_for_duration()` selbst auf -- der Wächter
+`test_v462::test_eine_pausenregel_keine_zweite_rechnung` lässt das nur `pause_nach_zeitregel()`. Behoben über den Parameter `vorher`
+(Anwesenheit und abgezogene Pause der früheren Buchungen statt der gespeicherten): die Vorschau rechnet über die eine Pausenregel, mit
+denselben Zahlen (test_v483 unverändert grün).
+
+- **Umsetzung**: `app/time_tracking.py`: `buchungen_am_tag(…, ohne_id)`, `pause_nach_zeitregel(…, ohne_id)`, `nachtrag_nach_zeitregel()` mit
+  gebucht, „Tag zusammen“ und `ohne_id`, `update_entry(…, von, bis, mindestpause)`, `pausen_vorschau()`, `pausen_neu_rechnen()`
+  (`PausenVorschauVeraltet`); `app/routers/time_tracking.py`: `GET …/nachtrag-vorschau`, `GET …/tagespause`, `POST …/pausen-neu-rechnen`, PUT mit
+  von/bis/pause_minuten (Schema `TimeEntryUpdate`); `app/meine_zeiten.py` (`meine_zeiten()`, `tagessumme()`, auch im Stundenzettel als PDF),
+  `GET /api/field-view/meine-zeiten`.
+
+**Festlegungen 1.9.57 (Bitte bestätigen)**
+
+1. Ändern mit Von/Bis rechnet wie ein Nachtrag: Pause aus dem Tag ohne die alte Fassung dieser Buchung, gebucht nach der Rundung der
+   Zeitregeln (bis 1.9.56 rundete Ändern nicht); Ändern mit Dauer (Büro) wie bisher.
+2. „Pause mindestens“ beim Ändern ist die Mindestpause dieses Ändern; ohne Angabe 0 -- eine früher eingegebene längere Pause gilt nach einem
+   Ändern nicht weiter (sie ist nicht gespeichert).
+3. „Nach Zeitregel“ eines Tags ist, was die Regel den Buchungen in der Reihenfolge des Tags gäbe (nach Beginn, reine Dauern zuletzt; jede
+   bekommt, was dem Tag fehlt, höchstens ihre Anwesenheit; ohne Mindestpausen); der Tag passt, wenn die Summen gleich sind -- eine andere
+   Verteilung bei gleicher Summe passt.
+4. Eine bewusst längere Pause lässt den Tag als „passt nicht“ erscheinen; „Pausen neu rechnen“ würde sie auf die Zeitregel zurücksetzen --
+   die Vorschau zeigt das vor dem Klick, nichts geschieht von selbst.
+5. „Pausen neu rechnen“ ändert nur Buchungen mit anderer Pause (Pause und gebucht nach der Rundung), bucht genau die gezeigte Vorschau (sonst
+   409), eine Buchung einer Gruppe gilt danach als einzeln geändert; im Verlauf die Feldänderungen und eine Zeile „Pausen neu gerechnet“ mit der
+   Pause des Tages alt -> neu; im abgeschlossenen Zeitraum nur ein Admin.
+6. Kacheln: heute, diese Woche (Montag bis Sonntag) und der angezeigte Monat, je gebuchte Stunden; eine laufende Zeit zählt nicht und steht
+   ohne Stunden.
+7. Summen addieren die gespeicherten Stunden (vier Stellen) und runden das Ergebnis; die Zeilen zeigen gerundet -- die Summe der angezeigten
+   Zeilen kann um 0,01 von der Summe abweichen (wie im Stundenzettel als PDF).
+8. Tage neueste zuerst, die Zeilen eines Tags in seiner Reihenfolge, eine laufende Zeit zuletzt.
+9. `GET /api/field-view/meine-zeiten` zeigt immer die eigenen Zeiten (Mitarbeiter nur aus der Anmeldung), für jede Rolle mit Mitarbeiter.
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v483_meine_zeiten_server.py` (13 Tests): Nachtrag mit und ohne Vorbuchung (Vorschau = Buchung), Rundung gleich; Ändern ohne
+  die alte Fassung, andere Buchung unverändert, mit Mindestpause, im abgeschlossenen Monat 403, fremd 403/404, Von ohne Bis 422; Löschen ->
+  Hinweis am Tag, nichts von selbst; „Pausen neu rechnen“ genau die Vorschau, veraltet 409, Verlauf; gleiche Summe passt; im abgeschlossenen
+  Monat 403; Kacheln ohne laufende Zeit; Monat und Tage; dieselbe Summenfunktion im PDF (AST).
+- Angepasst (nur Aufbau): `test_v326_monteur_datengrenze` -- `QUERY_JE_ROUTE` mit `nachtrag-vorschau` und `tagespause`, die Testdaten mit
+  `heute`, `ERLAUBT_JE_ROUTE` mit der Notiz der eigenen Buchung in `meine-zeiten`.
+- **Gegenproben**: P1 Ändern mit der alten Fassung im Tag -> 1 rot; P2 „passt“ nach Verteilung statt Summe -> 1 rot; P3 „Pausen neu rechnen“
+  ohne Abgleich -> 1 rot; P4 laufende Zeile mit Stunden -> 1 rot; P5 Mindestpause beim Ändern ignoriert -> 1 rot.

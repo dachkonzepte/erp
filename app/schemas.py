@@ -3162,6 +3162,45 @@ class TimeEntryUpdate(PartialUpdate):
     hours: Decimal | None = Field(default=None, ge=Decimal("0.01"), le=24)  # seit 1.8.119 wie im Browser (tests/test_v424_zahlgrenzen.py)
     break_minutes: int | None = Field(default=None, ge=0, le=720)
     notes: str | None = None
+    # Seit 1.9.57 (Stufe 4, R3): Ändern mit Von und Bis -- dieselbe Rechnung wie ein Nachtrag (Pause aus dem Tag ohne die alte Fassung
+    # dieser Buchung, Rundung der Zeitregeln); pause_minuten ist dann die Mindestpause („Pause mindestens“). Nicht zusammen mit hours.
+    von: time | None = None
+    bis: time | None = None
+    pause_minuten: int | None = Field(default=None, ge=0, le=720)
+
+    @model_validator(mode="after")
+    def _von_bis_zusammen(self):
+        if (self.von is None) != (self.bis is None):
+            raise ValueError("Bitte Von und Bis angeben.")
+        if self.von is not None and self.hours is not None:
+            raise ValueError("Bitte entweder die Dauer oder Von und Bis angeben.")
+        return self
+
+class TimePausenAenderungOut(BaseModel):
+    """Seit 1.9.57: eine Buchung, deren Pause „Pausen neu rechnen“ ändern würde -- alt und neu (Minuten, gebuchte Stunden)."""
+    id: int
+    pause_alt: int
+    pause_neu: int
+    gebucht_alt: Decimal
+    gebucht_neu: Decimal
+
+class TimePausenVorschauOut(BaseModel):
+    """Seit 1.9.57 (Stufe 4, R3, Punkt 5): passt die abgezogene Pause des Tags zur Zeitregel (time_tracking.pausen_vorschau())?"""
+    tag: date
+    abgezogen: int
+    nach_zeitregel: int
+    passt: bool
+    buchungen: list[TimePausenAenderungOut]
+
+class TimePausenErwartet(BaseModel):
+    id: int
+    pause: int = Field(ge=0, le=720)
+
+class TimePausenNeuRechnen(BaseModel):
+    """Seit 1.9.57: bucht genau die Vorschau, die die Seite gezeigt hat (je Buchung die neue Pause)."""
+    work_date: date
+    employee_id: int | None = None
+    buchungen: list[TimePausenErwartet] = Field(min_length=1)
 
 class TimeTimerStart(BaseModel):
     employee_id: int
