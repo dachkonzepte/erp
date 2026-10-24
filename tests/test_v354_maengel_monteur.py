@@ -339,7 +339,7 @@ def test_attack_report_on_hidden_defects_is_404_and_stores_nothing(welt, buero, 
     vorher_dateien = sorted(p.name for p in ablage.rglob("*.*"))
     for defect_id in (nicht_freigegeben["id"], fremder["id"], verworfen["id"], 999_999):
         r = _melden(mia, defect_id)
-        assert r.status_code == 404 and r.json()["detail"] == "Befund nicht gefunden.", defect_id  # seit 1.9.68 „Befund“
+        assert r.status_code == 404 and r.json()["detail"] == "Mangel nicht gefunden.", defect_id
     assert _anzahl(db, DefectEvent) == vorher_events and sorted(p.name for p in ablage.rglob("*.*")) == vorher_dateien
     # Gegenprobe: der freigegebene eigene geht.
     _freigeben(buero, nicht_freigegeben["id"])

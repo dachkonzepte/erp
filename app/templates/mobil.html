@@ -11,8 +11,7 @@
      heute-gestern.html: oben Arbeitszeit (läuft / nichts läuft / Zeit von früher offen), heutiger Einsatz je Auftrag, rechts „Offen“ und
      „Nächste Tage“ -- ab 1000 px zwei Spalten (rechts 420 px), darunter eine Spalte in der Reihenfolge von heute-hoch. Alles kommt aus
      GET /api/field-view/today, Schlüssel "heute" (app/heute.py); die Seite rechnet nichts davon nach. Die Listen darunter (offene
-     Berichte, Befunde zur Beseitigung mit „Beseitigt melden“ -- bis 1.9.67 „Mängel“ --, offene Checklisten, Wartungen an meinen
-     Objekten) stehen seit 1.9.49 auf der
+     Berichte, Mängel zur Beseitigung mit „Beseitigt melden“, offene Checklisten, Wartungen an meinen Objekten) stehen seit 1.9.49 auf der
      eigenen Seite „Heute / Offen“ (/mobil/offen, mobil_offen.html) -- dorthin führen die Zeilen von „Offen“; „Heute“ endet mit „Nächste
      Tage“. „Meine kommenden Termine“ ist in „Nächste Tage“ aufgegangen.
      Seit 1.9.58 (Stufe 4, R3) Starten und Stoppen nur noch hier: „⋮“ in „nichts läuft“ mit „Mit Tätigkeit starten“ und (für den
@@ -477,7 +476,7 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
     var html='';
     if(o.berichte>0)html+='<a class="zeile offen-zeile" href="/mobil/offen#offene-berichte">'+offenZeile('Berichte',o.berichte);
     if(CHECKLISTS_ENABLED&&o.checklisten>0)html+='<a class="zeile offen-zeile" href="/mobil/offen#offene-checklisten">'+offenZeile('Checklisten',o.checklisten);
-    if(o.maengel>0)html+='<a class="zeile offen-zeile" href="/mobil/offen#maengel">'+offenZeile('Befunde zur Beseitigung',o.maengel);
+    if(o.maengel>0)html+='<a class="zeile offen-zeile" href="/mobil/offen#maengel">'+offenZeile('Mängel zur Beseitigung',o.maengel);
     if(o.wartungen>0)html+='<a class="zeile offen-zeile" href="/mobil/offen#wartungen">'+offenZeile('Wartungen an meinen Objekten',o.wartungen);
     el('offenKarte').hidden=false;
     el('offenZeilen').innerHTML=html||'<p class="leer-text" style="margin:0">Nichts offen.</p>';

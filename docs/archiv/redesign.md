@@ -4963,3 +4963,32 @@ Galerie“; keine Buchungskarte für die Monteurin). Gebaut in drei Versionen: 1
 - `test_v223` `test_add_material_rejects_inspection_item_and_finding_from_other_report`: Meldung enthält „Mangel“ -> „Befund“.
 - **Gegenproben**: „Heute“ sagt wieder „Mängel zur Beseitigung“ -> `test_v476` 1 rot; „Heute / Offen“ meldet „Keine Mängel zur
   Beseitigung.“ -> `klicktest_maengel_monteur` 2 rot; der Weg der Monteurin meldet „Mangel nicht gefunden.“ -> `test_v354` 1 rot.
+
+## Stufe 4, R4 Nachrunde (ab 1.9.69)
+
+Auftrag von Tobias (24.10.2026), Start auf 1cb35ae. Festlegungen R4 (1.9.66–1.9.68) bestätigt, außer 1.9.67 Nr. 1 (Schritt 5 ohne feste
+Leiste -> Punkt 1) und 1.9.68 Nr. 1 (Mängel der Abnahme als „Befund“ -> Punkt 5). Punkte: 1 Schritt 5 mit fester Leiste („Bericht
+abschließen“, „Fehlt: …“), bei 1280 × 620 ohne Bildlauf sichtbar; 2 „Noch offen“ mit der Dachfläche bei mehr als einer Fläche, keine zwei
+gleichen Zeilen; 3 „⋮“ eines Prüfpunkts in seiner Titelzeile; 4 Status auf „Einsatzberichte“ über den Statusbaustein; 5 Mängel der Abnahme
+bleiben auch für die Monteurin „Mangel“; 6 Schlüssel-Scan als Monteurin über den Bericht und „Noch offen“; 7 Bildgrundlage neu.
+
+### R4 Nachrunde, Punkt 5 (1.9.69): „Mangel“ für die Mängel der Abnahme
+
+- Zurück auf den Stand vor 1.9.68: `mobil.html` (Zeile „Mängel zur Beseitigung“), `mobil_offen.html` (Überschrift, leere Liste,
+  Bestätigung, Bildtext), `app/routers/field_defects.py::NOT_FOUND` („Mangel nicht gefunden.“), `app/defects.py::report_remedied()`
+  (Datum der Beseitigung vor der Abnahme). Im Kopf von `mobil_offen.html` steht die Regel als Kommentar.
+- Bleibt „Befund“ (Befund aus Einsatzberichten): „Noch offen“ (seit 1.9.66), „Befund nicht gefunden.“ in `app/routers/findings.py` und
+  `app/service_reports.py` (seit 1.9.68).
+- Festlegung 1.9.68 Nr. 1 ist damit ersetzt; Nr. 2 und Nr. 3 gelten weiter (Nr. 2 ist gegenstandslos: der Weg der Monteurin sagt wieder
+  „Mangel“).
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v493_mangel_und_befund.py` (4 Tests): „Heute“ mit „Mängel zur Beseitigung“; „Heute / Offen“ für die Monteurin mit
+  „Mangel“ in Überschrift, leerer Liste, Bestätigung und Bildtext, nirgends „Befund“; die Meldungen ihres Wegs sagen „Mangel“; der Befund
+  des Einsatzberichts bleibt „Befund“ („Noch offen“, „Befund nicht gefunden.“, Schritt „Befunde“).
+- Angepasste Erwartungen (alt -> neu), zurück auf den Stand vor 1.9.68: `test_v354` „Befund nicht gefunden.“ -> „Mangel nicht gefunden.“;
+  `test_v476` „Befunde zur Beseitigung“ -> „Mängel zur Beseitigung“; `test_v399` Beschreibung „Befund als beseitigt melden“ -> „Mangel als
+  beseitigt melden“; `klicktest_maengel_monteur` „Befund als beseitigt gemeldet …“/„Keine Befunde …“ -> „Mangel …“/„Keine Mängel …“.
+- **Gegenproben 1.9.69**: „Heute / Offen“ sagt „Befunde zur Beseitigung“ -> `test_v493` 1 rot; der Weg der Monteurin meldet „Befund nicht
+  gefunden.“ -> `test_v493` und `test_v354` je 1 rot; der Befund im Bericht meldet „Mangel nicht gefunden.“ -> `test_v493` 1 rot.

@@ -5,13 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>DACHKONZEPTE ERP – Offen</title>
   {# „Heute / Offen“ (seit 1.9.49, Stufe 4, R2 Nachrunde, Punkt 2): die Listen, die bis 1.9.48 unter „Heute“ (/mobil) standen -- offene
-     Berichte, Befunde zur Beseitigung mit „Beseitigt melden“ (seit 1.9.68 „Befund“ in der Monteursansicht, der Mangel der Abnahme heißt
-     im Büro weiter „Mangel“), offene Checklisten und Wartungen an meinen Objekten mit „Wartung durchführen“;
+     Berichte, Mängel zur Beseitigung mit „Beseitigt melden“, offene Checklisten und Wartungen an meinen Objekten mit „Wartung durchführen“;
      was dort ging, geht hier unverändert. Ein Abschnitt erscheint nur, wenn er beim Laden etwas enthält (ein leerer fehlt; nach „Beseitigt
      melden“ bleibt er mit der Bestätigung stehen); ist alles leer, „Nichts offen.“. Die Zeilen der Karte „Offen“ auf „Heute“ springen über
      den Anker zum Abschnitt (#offene-berichte, #maengel, #offene-checklisten, #wartungen) -- die Seite scrollt dorthin, sobald alles
      geladen ist, denn erst dann stehen die Abschnitte. Im Monteursrahmen für jede Rolle (wie das Objekt); die Daten kommen je Abschnitt aus
-     den Schnittstellen der Monteursansicht, immer nur für den angemeldeten Mitarbeiter. #}
+     den Schnittstellen der Monteursansicht, immer nur für den angemeldeten Mitarbeiter.
+     Benennung (seit 1.9.69, Stufe 4, R4 Nachrunde): die freigegebenen Mängel der Abnahme heißen auch hier „Mangel“; „Befund“ heißen nur die
+     Befunde aus Einsatzberichten (1.9.68 nannte auch diese Mängel „Befund“ -- korrigiert). #}
   <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
 
 {% include "_ds_kopf.html" %}
@@ -68,7 +69,7 @@
     <div id="draftReportsList" class="loading">Lädt…</div>
   </section>
   <section id="maengel" aria-labelledby="maengelTitel" hidden>
-    <h2 id="maengelTitel">Befunde zur Beseitigung</h2>
+    <h2 id="maengelTitel">Mängel zur Beseitigung</h2>
     <div id="defectsStatus" class="defects-status" role="status"></div>
     <div id="defectsList" class="loading">Lädt…</div>
   </section>
@@ -126,7 +127,7 @@ var CHECKLISTS_ENABLED={{ 'true' if is_module_enabled('checklisten') else 'false
     }).catch(ladeFehler('draftReportsList','offene-berichte'));
   }
 
-  // --- Befunde zur Beseitigung (seit 1.8.52, bis 1.9.48 auf /mobil, bis 1.9.67 „Mängel“) ----------------------------------------------------------------
+  // --- Mängel zur Beseitigung (seit 1.8.52, bis 1.9.48 auf /mobil) ----------------------------------------------------------------
   // Freigegeben, offen, an eigenen Aufträgen -- nur die Positivliste der API (Beschreibung, Ort, Dachfläche, Frist, Fotos). "Beseitigt
   // melden" mit mindestens einem Foto; die Kennung entsteht beim Öffnen des Formulars und bleibt bei jeder Wiederholung gleich -- ein
   // zweiter Klick oder eine verlorene Antwort legt keine zweite Meldung an. Seit 1.8.54 optional ein kurzer Hinweis fürs Büro -- er
@@ -140,11 +141,11 @@ var CHECKLISTS_ENABLED={{ 'true' if is_module_enabled('checklisten') else 'false
   }
   function renderDefects(list){
     var box=el('defectsList');
-    if(!list.length){box.className='empty';box.textContent='Keine Befunde zur Beseitigung.';return}
+    if(!list.length){box.className='empty';box.textContent='Keine Mängel zur Beseitigung.';return}
     box.className='';
     box.innerHTML=list.map(function(d){
       var place=[d.roof_area_name?'Dachfläche: '+esc(d.roof_area_name):'',d.location?'Ort: '+esc(d.location):''].filter(Boolean).join(' · ');
-      var photos=d.photos.map(function(f){var u='/api/field-view/defects/'+d.id+'/photos/'+f.id;return '<a href="'+u+'" target="_blank" rel="noopener"><img src="'+u+'" alt="Foto zum Befund" loading="lazy"></a>'}).join('');
+      var photos=d.photos.map(function(f){var u='/api/field-view/defects/'+d.id+'/photos/'+f.id;return '<a href="'+u+'" target="_blank" rel="noopener"><img src="'+u+'" alt="Foto zum Mangel" loading="lazy"></a>'}).join('');
       return '<div class="assign-card defect-card" id="mmangel-'+d.id+'" data-defect="'+d.id+'">'
         +'<div class="obj">'+esc(d.property_name||('Auftrag '+d.order_number))+'</div>'
         +(d.property_address?'<div class="addr">'+esc(d.property_address)+'</div>':'')
@@ -189,7 +190,7 @@ var CHECKLISTS_ENABLED={{ 'true' if is_module_enabled('checklisten') else 'false
     abschliessen('maengel',()=>fetch('/api/field-view/defects/'+card.dataset.defect+'/remedied',{method:'POST',body:form}),{neuLaden:ladeMaengel}).then(function(r){
       return jsonOderFehler(r,DEFECT_FIELDS);
     }).then(function(){
-      el('defectsStatus').textContent='Befund als beseitigt gemeldet – das Büro prüft die Abnahme der Beseitigung.';
+      el('defectsStatus').textContent='Mangel als beseitigt gemeldet – das Büro prüft die Abnahme der Beseitigung.';
     }).catch(function(err){
       st.textContent='Fehler: '+(err.message||'Meldung nicht gesendet.');
       btn.disabled=false;
