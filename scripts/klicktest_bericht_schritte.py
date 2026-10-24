@@ -483,6 +483,11 @@ async def pruefen(tab, seed, p):
     p.pruefe("Auftragsseite: die Berichte führen zur Berichtsseite",
              await tab.js("[...document.querySelectorAll('#reportList a.bericht-zeile')].map(x=>x.getAttribute('href')).sort()"),
              sorted([f"/service-reports/{w}", f"/service-reports/{r}"]))
+    # seit 1.9.73: Status wie im Kopf der Berichtsseite, nicht in Großbuchstaben
+    p.pruefe("Auftragsseite: Status über den Statusbaustein (Entwurf, Unterschrieben), nicht in Großbuchstaben",
+             await tab.js(f"[{w},{r}].map(id=>{{const s=document.getElementById('bericht-status-'+id);"
+                          "return s?[s.textContent,s.className,getComputedStyle(s).textTransform]:null})"),
+             [["Entwurf", "ds-status ds-status-warn", "none"], ["Unterschrieben", "ds-status ds-status-ok", "none"]])
     await _bild(tab, "10_auftragsseite_monteurin_quer")
     await _bild(tab, "10_auftragsseite_monteurin_quer_dunkel", "dark")
     await tab.js("document.documentElement.setAttribute('data-theme','light')")

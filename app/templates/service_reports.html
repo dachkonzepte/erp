@@ -35,8 +35,6 @@ a.bericht-zeile:hover{background:var(--soft);color:var(--ink)}
 .bericht-zeile .bz-offen{font-size:13px;color:var(--ds-signal-text)}
 .bericht-zeile .bz-weiter{font-weight:650;color:var(--ds-link);white-space:nowrap}
 .badge{font-size:10.5px;font-weight:800;text-transform:uppercase;padding:2px 7px;background:var(--soft);color:var(--muted)}
-.badge.unterschrieben{background:var(--success-soft);color:var(--success)}
-.badge.entwurf{background:var(--warning-soft);color:var(--warning)}
 .office-hint{margin-top:8px;padding:8px 10px;border:1px solid var(--ds-warn-text);background:var(--warning-soft);color:var(--ink);border-radius:var(--ds-ecke-karte)}
 .report-card{border:1px solid var(--line);padding:14px;margin-bottom:10px;border-radius:var(--ds-ecke-karte)}
 .report-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
@@ -287,7 +285,10 @@ function reportRow(r){
   if(!voll)return `<div class="bericht-zeile"><span class="bz-text"><span class="bz-titel">${esc(r.report_type_label)}</span><span class="bz-neben">${esc(neben)}</span><span class="bz-neben">Bericht einer Kollegin oder eines Kollegen – öffnen kann ihn nur, wer ihn angelegt hat.</span></span></div>`;
   const offen=r.status==='entwurf'?(r.noch_offen||[]).length:0;
   const weiter=r.status==='entwurf'?'Bericht fortsetzen':'Bericht ansehen';
-  return `<a class="bericht-zeile" id="bericht-${r.id}" href="/service-reports/${r.id}"><span class="bz-text"><span class="bz-titel">${esc(r.report_type_label)} <span class="badge ${esc(r.status)}">${esc(r.status)}</span></span>`
+  // seit 1.9.73 (Stufe 4, R4 Nachrunde, Punkt 4): der Status über statusKennzeichen() wie im Kopf der Berichtsseite -- „Entwurf“,
+  // „Unterschrieben“ in normaler Schrift (bis 1.9.72 der Rohwert als Kennzeichen in Großbuchstaben)
+  const stand=statusKennzeichen('einsatzbericht',r.status);
+  return `<a class="bericht-zeile" id="bericht-${r.id}" href="/service-reports/${r.id}"><span class="bz-text"><span class="bz-titel">${esc(r.report_type_label)} <span class="ds-status ds-status-${esc(stand.art)}" id="bericht-status-${r.id}">${esc(stand.text)}</span></span>`
     +`<span class="bz-neben">${esc(neben)}</span>`
     +(r.status==='unterschrieben'?`<span class="bz-neben">${r.installer_signature_name?'Monteur: '+esc(r.installer_signature_name)+' · ':''}Kunde: ${esc(r.signature_name)} (${esc(berlinZeitpunkt(r.signed_at))} Uhr)</span>`:'')
     +(offen?`<span class="bz-offen">Noch offen: ${offen===1?'1 Punkt':offen+' Punkte'}</span>`:'')

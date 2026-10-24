@@ -4992,6 +4992,7 @@ bleiben auch für die Monteurin „Mangel“; 6 Schlüssel-Scan als Monteurin ü
   beseitigt melden“; `klicktest_maengel_monteur` „Befund als beseitigt gemeldet …“/„Keine Befunde …“ -> „Mangel …“/„Keine Mängel …“.
 - **Gegenproben 1.9.69**: „Heute / Offen“ sagt „Befunde zur Beseitigung“ -> `test_v493` 1 rot; der Weg der Monteurin meldet „Befund nicht
   gefunden.“ -> `test_v493` und `test_v354` je 1 rot; der Befund im Bericht meldet „Mangel nicht gefunden.“ -> `test_v493` 1 rot.
+
 ### R4 Nachrunde, Punkt 2 (1.9.70): „Noch offen“ mit der Dachfläche
 
 - `app/service_reports.py::noch_offen_je_schritt()`: `_flaechen_des_berichts()` (Fläche -> Name aus dem Schnappschuss am Bericht, nur bei
@@ -5012,6 +5013,7 @@ bleiben auch für die Monteurin „Mangel“; 6 Schlüssel-Scan als Monteurin ü
 - `klicktest_bericht_schritte`: neu „Noch offen“ mit beiden Flächen und ohne doppelte Zeile; angepasste Erwartung „Foto zum Befund „Gully
   verstopft, Laub“ aufnehmen“ -> „… aufnehmen · Dachfläche Nord“ (der Bericht hat zwei Flächen).
 - **Gegenproben**: ohne Fläche in der Zeile -> `test_v494` 2 rot, Klicktest 2 rot; gleiche Zeilen nicht gezählt -> `test_v494` 1 rot.
+
 ### R4 Nachrunde, Punkt 6 (1.9.71): Schlüssel-Scan der Berichtsseite als Monteurin
 
 - Neu `tests/test_v495_bericht_schluessel_monteurin.py`: ein Wartungsbericht der Monteurin mit zwei Dachflächen, Befund und Material aus dem
@@ -5033,6 +5035,7 @@ bleiben auch für die Monteurin „Mangel“; 6 Schlüssel-Scan als Monteurin ü
 - Neu `test_v495` (4 Tests): keine verbotenen Schlüssel; kein Preis und kein Lohn als Wert; keine Daten anderer Aufträge; Zeiten nur vom Berichtstag.
 - **Gegenproben**: Zeiten ab dem Vortag -> „Zeiten“ rot; Zeiten ohne Auftragsfilter -> „Zeiten“ rot; dazu die Auftragsnummer je Zeile -> „andere
   Aufträge“ und „Zeiten“ rot; Stundenlohn im Bericht der Monteurin -> „Schlüssel“ und „Wert“ rot.
+
 ### R4 Nachrunde, Punkte 1 und 3 (1.9.72): feste Leiste in Schritt 5, „⋮“ in der Titelzeile
 
 - `service_report.html`: `#abschlussLeiste` nach dem Raster (`position:sticky; bottom:0`, oben runde Ecken und Schatten wie „Noch offen“ hoch)
@@ -5059,3 +5062,24 @@ bleiben auch für die Monteurin „Mangel“; 6 Schlüssel-Scan als Monteurin ü
 - `test_v460`: `abschluss-leiste` in `NICHT_KARTEN` (Leiste am Fensterrand, oben runde Ecken).
 - **Gegenproben**: Leiste ohne `position:sticky` -> Klicktest rot (Schritt 5 quer, hoch, mit Unterschriften); „⋮“ wieder in der Eingabe ->
   Klicktest rot (Titelzeile quer und hoch).
+
+### R4 Nachrunde, Punkt 4 (1.9.73): Status auf „Einsatzberichte“
+
+- `service_reports.html::reportRow()`: `statusKennzeichen('einsatzbericht', r.status)` (Gruppe seit 1.9.67), Kennzeichen
+  `ds-status ds-status-<art>` mit der ID `bericht-status-<id>`; `.badge.entwurf`/`.badge.unterschrieben` entfallen (`.badge` bleibt für die
+  Art in der Wartungshistorie).
+
+**Festlegungen 1.9.73 (Bitte bestätigen)**
+
+1. Der Status steht an derselben Stelle wie bisher (hinter der Art), Text und Farbe wie im Kopf der Berichtsseite: „Entwurf“ gelb (warn),
+   „Unterschrieben“ grün (ok).
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v496_berichtsliste_status.py` (3 Tests): die Zeile nimmt `statusKennzeichen()`, kein Rohwert und kein `.badge` mehr, die Seite
+  hat den Baustein mit der Gruppe `einsatzbericht`.
+- `klicktest_bericht_schritte` neu: Auftragsseite der Monteurin -- „Entwurf“ (ds-status-warn) und „Unterschrieben“ (ds-status-ok), Schrift ohne
+  Großbuchstaben.
+- **Gegenprobe**: Zeile wieder mit dem Rohwert als `.badge` -> `test_v496` 2 rot, Klicktest rot („entwurf“, `badge entwurf`, `uppercase`).
+  Beim ersten Lauf war der Klicktest auch auf dem echten Stand rot: die neue Prüfung selbst hatte einen Syntaxfehler (`}}` in einem
+  Teil ohne f-String) -- vor dem Commit behoben, die Gegenprobe danach erneut gelaufen.

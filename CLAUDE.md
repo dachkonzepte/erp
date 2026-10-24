@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.72** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.73** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -359,7 +359,9 @@ Behoben, drei Teile:
   „⋮“, Schritte mit Haken, „Noch offen“ rechts bzw. hoch als Leiste unten, Fokus bleibt nach dem Speichern (`teilErsetzen()`), Ziele ≥ 48 px;
   die Seite des Auftrags (`service_reports.html`, „Einsatzberichte“) listet die Berichte, legt an und zeigt der Monteurin statt der
   Buchungskarte „Zeit nachtragen“; `?report=` leitet weiter (`dk_ohne_seite` mit Benutzer und Anfrage). Klicktest
-  `klicktest_bericht_schritte.py`. Seit 1.9.69 heißen die freigegebenen Mängel der Abnahme auch für die Monteurin „Mangel“ („Mängel
+  `klicktest_bericht_schritte.py`. Seit 1.9.72 hat Schritt 5 unten eine feste Leiste („Zurück“, „Fehlt: …“, „Bericht abschließen“, bei
+  1280 × 620 ohne Bildlauf), „⋮“ eines Prüfpunkts steht oben rechts in seiner Titelzeile; seit 1.9.73 zeigt „Einsatzberichte“ den Status
+  über `statusKennzeichen()` (`tests/test_v496_berichtsliste_status.py`). Seit 1.9.69 heißen die freigegebenen Mängel der Abnahme auch für die Monteurin „Mangel“ („Mängel
   zur Beseitigung“), „Befund“ nur die Befunde aus Einsatzberichten (`tests/test_v493_mangel_und_befund.py`; 1.9.68 hieß auch der Mangel
   kurz „Befund“). Sie bleibt in `AUFGESCHOBEN` (die
   Vorlage hat keinen Seitenkopf). Klicktest `klicktest_heute.py`, Wächter `tests/test_v472_heute_seite.py`. **Seit 1.9.49** stehen die
