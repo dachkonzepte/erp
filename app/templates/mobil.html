@@ -132,6 +132,13 @@
     .einsatz-wege{display:flex;gap:12px;flex-wrap:wrap;border-top:1px solid var(--ds-grund);padding:14px 0 12px}
     .einsatz-wege .knopf-neutral:hover{color:var(--ds-stark);background:var(--ds-flaeche-2)}
     .leer-text{font-size:16px;color:var(--ds-text-2);padding:0 0 14px}
+    /* seit 1.9.75: Bericht anlegen ohne Einsatz (56 px, grün) bzw. für einen anderen Auftrag (48 px, neutral) -- Dialog „Für welchen Auftrag?“ */
+    .knopf-56{height:56px;font-size:17px;padding:0 24px}
+    .weitere-wege{display:flex;flex-wrap:wrap;gap:12px}
+    .weitere-wege .knopf-neutral:hover{color:var(--ds-stark);background:var(--ds-flaeche-2)}
+    .auftrag-liste{display:flex;flex-direction:column}
+    .auftrag-liste .zeile{min-height:64px;padding:8px 0}
+    .auftrag-liste .zeile:hover{background:var(--ds-flaeche-2)}
     .concern-alert{margin:0 0 10px;padding:10px 14px;border:2px solid var(--ds-fehler);background:var(--ds-flaeche);color:var(--ds-fehler-text);font-weight:700;font-size:14px;line-height:1.35;overflow-wrap:anywhere;border-radius:var(--ds-ecke-karte)}
     .concern-alert a{display:flex;align-items:center;min-height:44px;color:var(--ds-fehler-text);font-weight:650;font-size:13.5px}
     /* Offen, Nächste Tage */
@@ -182,6 +189,14 @@
   <div class="status" id="startDialogStatus" role="status"></div>
   <div class="dialog-knoepfe"><button type="button" class="knopf knopf-neutral" id="startDialogAbbrechen">Abbrechen</button>
     <button type="button" class="knopf knopf-aktion" id="startDialogStarten">Starten</button></div>
+</dialog>
+{# seit 1.9.75: „Bericht anlegen“ ohne Einsatz und „Bericht für einen anderen Auftrag“ -- die Liste wie „Zeit nachtragen“, danach der
+   gewohnte Weg zum Anlegen auf der Seite des Auftrags (?neu=1 öffnet „Bericht anlegen“ dort gleich) #}
+<dialog id="berichtDialog" class="dialog-karte" aria-labelledby="berichtDialogTitel">
+  <div class="dialog-kopf"><h2 id="berichtDialogTitel">Für welchen Auftrag?</h2>
+    <button type="button" class="knopf knopf-neutral knopf-symbol" id="berichtDialogZu" aria-label="Schließen"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+  <div class="auftrag-liste" id="berichtAuftraege"></div>
+  <div class="dialog-knoepfe"><button type="button" class="knopf knopf-neutral" id="berichtDialogAbbrechen">Abbrechen</button></div>
 </dialog>
 {% include "_berlin_date.html" %}
 {% include "_fehlertext.html" %}
@@ -364,6 +379,8 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
   }
   el('startDialogZu').addEventListener('click',function(){el('startDialog').close()});
   el('startDialogAbbrechen').addEventListener('click',function(){el('startDialog').close()});
+  el('berichtDialogZu').addEventListener('click',function(){el('berichtDialog').close()});
+  el('berichtDialogAbbrechen').addEventListener('click',function(){el('berichtDialog').close()});
   el('startDialogStarten').addEventListener('click',startDialogStarten);
   el('startKolonne').addEventListener('change',startMitglieder);
   function signalKarte(z){
@@ -460,12 +477,30 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
     var box=el('assignmentsList');box.className='heute-spalte';
     // Vorlage heute-gestern: solange eine Zeit von früher offen ist, steht der heutige Einsatz in „Heute und nächste Tage“
     if(h.arbeitszeit.zustand==='frueher'){box.innerHTML='';return}
+    // seit 1.9.75: ohne Einsatz „Bericht anlegen“ in der Karte, mit Einsatz darunter „Bericht für einen anderen Auftrag“ -- beide öffnen
+    // „Für welchen Auftrag?“ (berichtDialogOeffnen)
     if(!h.einsaetze.length){
       box.innerHTML='<section class="heute-karte einsatz" aria-labelledby="keinEinsatz"><span class="eb" id="keinEinsatz">Heutiger Einsatz</span>'
-        +'<p class="leer-text" style="margin:0">Heute ist nichts eingeplant.</p></section>';
+        +'<p class="leer-text" style="margin:0">Heute ist nichts eingeplant.</p>'
+        +'<div class="einsatz-wege"><button type="button" class="knopf knopf-aktion knopf-56" id="berichtOhneEinsatz">Bericht anlegen</button></div></section>';
+      el('berichtOhneEinsatz').addEventListener('click',berichtDialogOeffnen);
       return;
     }
-    box.innerHTML=h.einsaetze.map(einsatzKarte).join('');
+    box.innerHTML=h.einsaetze.map(einsatzKarte).join('')
+      +'<div class="weitere-wege"><button type="button" class="knopf knopf-neutral knopf-klein" id="berichtAndererAuftrag">Bericht für einen anderen Auftrag</button></div>';
+    el('berichtAndererAuftrag').addEventListener('click',berichtDialogOeffnen);
+  }
+  // „Für welchen Auftrag?“: je Auftrag der Liste eine Zeile (64 px) zur Seite des Auftrags, dort öffnet ?neu=1 gleich „Bericht anlegen“;
+  // ohne Auftrag derselbe Hinweis wie in „Meine Zeiten“
+  var KEINE_AUFTRAEGE='Keine eigenen Aufträge im Zeitraum gefunden. Fehlt ein Einsatz, wende dich an das Büro.';
+  function berichtDialogOeffnen(){
+    var liste=(H&&H.auftraege)||[];
+    el('berichtAuftraege').innerHTML=liste.length?liste.map(function(o){
+      var neben=[o.customer_name,String(o.property_address||'').split('\n').join(', ')].filter(Boolean).join(' · ');
+      return '<a class="zeile auftrag-zeile" href="/orders/'+o.id+'/service-reports?neu=1" data-auftrag="'+o.id+'"><div class="zeile-text">'
+        +'<span class="zeile-titel">'+esc(o.order_number||'Auftrag')+'</span>'+(neben?'<span class="zeile-sub">'+esc(neben)+'</span>':'')+'</div>'+PFEIL+'</a>';
+    }).join(''):'<p class="leer-text" style="margin:0">'+esc(KEINE_AUFTRAEGE)+'</p>';
+    el('berichtDialog').showModal();
   }
 
   // --- Offen, Nächste Tage -------------------------------------------------------------------------------------------------------

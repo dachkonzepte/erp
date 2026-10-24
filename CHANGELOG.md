@@ -4,6 +4,15 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.75 – „Heute“: Bericht anlegen auch ohne Einsatz (Stufe 4, R4 Nachtrag)
+
+Ohne Einsatz in der Plantafel kam die Monteurin auf „Heute“ an keinen „Bericht anlegen“ (Notdienst, spontane Reparatur). Jetzt steht in der
+Karte „Heute ist nichts eingeplant.“ der Knopf „Bericht anlegen“ (grün, 56 px), mit Einsatz unter den Karten zusätzlich „Bericht für einen
+anderen Auftrag“ (neutral, 48 px). Beide öffnen „Für welchen Auftrag?“ mit derselben Liste wie „Zeit nachtragen“ in „Meine Zeiten“ (der Server
+liefert sie auf „Heute“ jetzt immer mit, `heute.auftraege`); ein Tipp auf einen Auftrag öffnet dessen Seite mit „Bericht anlegen“ schon offen
+(`?neu=1`), nach „Anlegen“ geht es wie gewohnt in den neuen Bericht. „Bericht anlegen“ in der Einsatzkarte bleibt wie bisher. Anlegen darf sie
+genau für diese Liste (1.9.74). Neuer Test `test_v498`, neuer Klicktest `klicktest_bericht_ohne_einsatz`.
+
 ## 1.9.74 – Bericht nur für einen Auftrag aus der Liste der Monteurin (Stufe 4, R4 Nachtrag)
 
 Die Monteurin legt einen Einsatzbericht jetzt für jeden Auftrag ihrer Liste an -- dieselbe Liste wie „Zeit nachtragen“ in „Meine Zeiten“

@@ -471,6 +471,11 @@ async function init(){
   document.getElementById('teDate').value=berlinToday();
   });
   await loadReports();
+  // seit 1.9.75: ?neu=1 (von „Heute“: „Bericht anlegen“ ohne Einsatz, „Bericht für einen anderen Auftrag“) öffnet gleich „Bericht anlegen“
+  if(new URLSearchParams(location.search).get('neu')==='1'){
+    try{history.replaceState(null,'',location.pathname)}catch(e){}
+    openCreateEditor();
+  }
   await loadPropertyHistory();
   await loadTimeEntries();
 }

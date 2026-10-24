@@ -5140,3 +5140,45 @@ ihrer Liste.
   trägt jetzt heute als Datum -- Soll unverändert (13/13).
 - **Gegenproben**: Anlegen wieder mit der Zugriffsregel -> `test_v497` 7 rot; `field_order_in_list()` immer wahr -> 6 rot; Liste mit
   abgeschlossenen Aufträgen -> 2 rot (Anlegen und Liste wandern zusammen).
+
+### R4 Nachtrag, Punkt 1 (1.9.75): „Heute“ -- Bericht anlegen ohne Einsatz
+
+- `app/heute.py::heute_fuer()`: neuer Schlüssel `auftraege` (`list_field_bookable_orders()`, einmal geholt und an `arbeitszeit()` für die
+  Auswahl „nichts läuft“ weitergereicht) -- mit und ohne Einsatz, auch während eine Zeit läuft.
+- `mobil.html`: ohne Einsatz in der Karte `#berichtOhneEinsatz` („Bericht anlegen“, `knopf-aktion knopf-56`), mit Einsatz nach den Karten
+  `.weitere-wege` mit `#berichtAndererAuftrag` („Bericht für einen anderen Auftrag“, `knopf-neutral knopf-klein`); beide öffnen
+  `#berichtDialog` („Für welchen Auftrag?“, Dialogkarte mit Knopfleiste unten wie seit 1.9.65): je Auftrag aus `H.auftraege` eine Zeile
+  (Auftragsnummer, darunter Kunde · Adresse, 64 px) als Link `/orders/<id>/service-reports?neu=1`, leer derselbe Hinweis wie in „Meine Zeiten“.
+- `service_reports.html`: `?neu=1` öffnet nach dem Laden der Berichte `openCreateEditor()` (Art Rapport, Datum heute wie „+ Bericht“) und
+  entfernt den Parameter aus der Adresse (`history.replaceState`).
+
+**Festlegungen 1.9.75 (Bitte bestätigen)**
+
+1. „Bericht anlegen“ ohne Einsatz ist grün (die Hauptaktion dieser Karte), 56 px, in der Karte unter „Heute ist nichts eingeplant.“
+2. „Bericht für einen anderen Auftrag“ steht einmal unter allen Einsatzkarten (außerhalb der Karten), neutral, 48 px.
+3. Der Dialog zeigt die Aufträge als Zeilen zum Antippen (Auftragsnummer, darunter Kunde · Adresse; ein Tipp öffnet die Seite des Auftrags)
+   statt Auswahlliste mit „Weiter“ wie bei „Zeit nachtragen“ -- dieselbe Liste in derselben Reihenfolge (neueste Auftragsnummer zuerst), ein
+   Tipp weniger, Ziele ≥ 56 px.
+4. Die Liste enthält auch die Aufträge mit heutigem Einsatz -- es ist dieselbe Liste wie „Zeit nachtragen“, nicht nur „andere“.
+5. Ohne Auftrag in der Liste bleibt der Knopf; der Dialog sagt „Keine eigenen Aufträge im Zeitraum gefunden. Fehlt ein Einsatz, wende dich an
+   das Büro.“ (wie „Meine Zeiten“).
+6. Läuft eine Zeit seit einem früheren Tag (vergessener Feierabend), gibt es wie bisher keine Einsatzkarte und damit keinen der beiden Knöpfe --
+   zuerst Feierabend nachtragen.
+7. Nach der Wahl öffnet die Seite des Auftrags „Bericht anlegen“ gleich (Art Rapport, Datum heute); die Adresse verliert `?neu=1` (Neuladen
+   öffnet nicht noch einmal), „Abbrechen“ bleibt auf der Seite des Auftrags.
+8. „Bericht anlegen“ in der Einsatzkarte führt wie bisher auf die Seite des Auftrags, ohne den Editor zu öffnen.
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v498_heute_bericht_anlegen.py` (4 Tests): ohne Einsatz liefert „Heute“ die Liste (= `list_field_bookable_orders()`), mit
+  Einsatz und laufender Zeit ebenso; Knöpfe, Dialog und Zeilen aus `H.auftraege` mit `?neu=1` (Aufbau); `?neu=1` öffnet den Editor nach dem
+  Laden der Berichte.
+- Neu `scripts/klicktest_bericht_ohne_einsatz.py`: Mia ohne Einsatz -- Knopf in der Karte (grün, 56 px), Dialog mit genau ihrer Liste
+  (B, A; nicht F), Zeilen ≥ 56 px mit `?neu=1`, „Abbrechen“, Zeile A -> „Bericht anlegen“ offen (Rapport, heute, Adresse ohne `?neu`),
+  „Anlegen“ -> neuer Bericht an A von Mia; F über die API 403 mit der Meldung; hoch mit Dialog und Knopfleiste im Bild. Tom mit Einsatz --
+  „Bericht anlegen“ in der Karte wie bisher, darunter „Bericht für einen anderen Auftrag“ (neutral, 48 px, außerhalb der Karte), Dialog mit C
+  und A. Keine JS-Fehler.
+- Keine bestehende Erwartung geändert (`klicktest_heute` misst die neuen Knöpfe mit, ≥ 48 px).
+- **Gegenproben**: kein Knopf ohne Einsatz -> `test_v498` 1 rot, Klicktest 6 rot; kein Knopf für einen anderen Auftrag -> `test_v498` 1
+  rot, Klicktest 3 rot; `?neu=1` nicht ausgewertet -> `test_v498` 1 rot, Klicktest 1 rot (Adresse mit `?neu=1`, Datum leer); Liste nur,
+  wenn nichts läuft -> `test_v498` 1 rot.

@@ -22,6 +22,9 @@ reicht die Rolle nur als "ist_monteur" für die Sperre "Monat abgeschlossen" her
                  -- dieselben Listen wie auf „Heute / Offen“ (/mobil/offen).
     Nächste Tage Plantafel ab morgen, 14 Tage (bei offener Zeit von früher ab heute, Vorlage „Heute und nächste Tage“); aufeinander
                  folgende Tage desselben Auftrags in einer Zeile.
+    Aufträge     seit 1.9.75 (Stufe 4, R4 Nachtrag): die Auftragsliste der Monteurin (list_field_bookable_orders(), dieselbe wie „Zeit
+                 nachtragen“) für den Dialog „Für welchen Auftrag?“ -- „Bericht anlegen“ ohne Einsatz und „Bericht für einen anderen
+                 Auftrag“; anlegen darf sie genau dafür (app/planning.py::field_order_in_list()).
 """
 
 from datetime import date, datetime, timedelta
@@ -87,7 +90,7 @@ def _gruppe(db: Session, entry_id: int, employee_id: int) -> dict | None:
 
 
 def arbeitszeit(db: Session, employee_id: int, *, heute: date, jetzt: datetime, ist_monteur: bool, arten: list[dict],
-                einsatz_auftraege: list[int]) -> dict:
+                einsatz_auftraege: list[int], auftraege: list[dict] | None = None) -> dict:
     row = active_entry(db, employee_id)
     if row is not None and laeuft_seit_frueher(row, heute):
         gruppe = _gruppe(db, row.id, employee_id)
@@ -108,7 +111,8 @@ def arbeitszeit(db: Session, employee_id: int, *, heute: date, jetzt: datetime, 
             "order_id": row.order_id, "order_number": row.order.order_number if row.order else None, "objekt": _objekt(row.order),
             "gruppe": gruppe,
         }
-    auftraege = list_field_bookable_orders(db, employee_id)
+    if auftraege is None:
+        auftraege = list_field_bookable_orders(db, employee_id)
     buchbar = {a["id"] for a in auftraege}
     eindeutig = sorted(set(einsatz_auftraege))
     regeln = load_time_settings(db)
@@ -246,10 +250,12 @@ def heute_fuer(db: Session, employee_id: int, *, heute: date, jetzt: datetime, i
     arten = zeitarten(db)
     karten = einsaetze(db, employee_id, heute=heute)
     einsatz_auftraege = {k["order_id"] for k in karten}
+    auftraege = list_field_bookable_orders(db, employee_id)
     zeit = arbeitszeit(db, employee_id, heute=heute, jetzt=jetzt, ist_monteur=ist_monteur, arten=arten,
-                       einsatz_auftraege=sorted(einsatz_auftraege))
+                       einsatz_auftraege=sorted(einsatz_auftraege), auftraege=auftraege)
     return {
         "tag": heute, "mitarbeiter_id": employee_id, "arbeitszeit": zeit, "zeitarten": arten, "einsaetze": karten, "offen": offen(db, employee_id),
+        "auftraege": auftraege,
         "naechste_tage": naechste_tage(db, employee_id, heute=heute, mit_heute=zeit["zustand"] == "frueher",
                                        einsatz_auftraege=einsatz_auftraege),
     }
