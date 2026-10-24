@@ -6,7 +6,7 @@ Arbeitsvorbereitung zugeordnet), Abnahme vor 20 Tagen mit Vorbehalt Mängel; Mä
 Frist gestern, Foto und Beleg, freigegeben, Haltung bestritten), "Rinne lose" (nicht freigegeben), "Kehle offen"
 (freigegeben und zurückgenommen); ein zweiter Auftrag ohne Mia mit einem freigegebenen Mangel "Fremder Mangel".
 
-    Monteurin (412 px, dunkel)  /mobil: Abschnitt "Mängel zur Beseitigung" nur mit "Attika undicht" -- Beschreibung,
+    Monteurin (412 px, dunkel)  /mobil: Abschnitt "Befunde zur Beseitigung" (bis 1.9.67 "Mängel") nur mit "Attika undicht" -- Beschreibung,
                                 Dachfläche, Ort, Frist überschritten, Foto geladen; keine Haltung, keine Abnahme, kein
                                 Beleg. "Beseitigt melden": Datum vorbelegt mit heute, ohne Foto abgelehnt, mit Foto und
                                 Hinweis (seit 1.8.54, höchstens 500 Zeichen, "nur fürs Büro") gesendet -> Meldung,
@@ -228,8 +228,8 @@ async def pruefen(tab, seed, p):
     await tab.warten("!document.querySelector('#defectsList .defect-card')")
     p.pruefe("Gemeldet: Hinweis, Abschnitt leer", await tab.js(
         "[document.getElementById('defectsStatus').textContent, document.getElementById('defectsList').innerText]"),
-        ["Mangel als beseitigt gemeldet – das Büro prüft die Abnahme der Beseitigung.",
-         "Keine Mängel zur Beseitigung."])
+        ["Befund als beseitigt gemeldet – das Büro prüft die Abnahme der Beseitigung.",
+         "Keine Befunde zur Beseitigung."])  # seit 1.9.68 „Befund“
     await tab.bild("3_mobil_gemeldet_dunkel_412")
     wiederholt = await tab.js(f"({melden_js})({m['attika']},{kennung!r})")
     p.pruefe("Dieselbe Kennung noch einmal: 200, ein Foto, dieselbe Meldung",
@@ -277,7 +277,7 @@ async def pruefen(tab, seed, p):
     await tab.oeffnen("/mobil/offen", MOBIL_BEREIT)
     await asyncio.sleep(0.2)
     p.pruefe("Zurückgenommen: verschwunden", await tab.js("document.getElementById('defectsList').innerText"),
-             "Keine Mängel zur Beseitigung.")
+             "Keine Befunde zur Beseitigung.")
 
     # --- Seit 1.8.54: zurück auf offen -- wieder in /mobil ohne Hinweis, im Büro "Erneut beseitigen" --------------------
     await tab.anmelden(seed["cookies"]["buero"])

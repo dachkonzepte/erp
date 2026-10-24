@@ -1139,7 +1139,8 @@ def report_remedied(db: Session, defect: Defect, *, event_date, client_uuid: str
         raise ValueError("Das Datum darf nicht in der Zukunft liegen.")
     acceptance = db.get(OrderAcceptance, defect.acceptance_id) if defect.acceptance_id else None
     if acceptance is not None and event_date < acceptance.accepted_on:
-        raise ValueError("Das Datum der Beseitigung liegt vor der Abnahme, bei der der Mangel festgehalten wurde.")
+        # seit 1.9.68 „Befund“: diese Meldung sieht nur die Monteurin („Beseitigt melden“)
+        raise ValueError("Das Datum der Beseitigung liegt vor der Abnahme, bei der der Befund festgehalten wurde.")
 
     db.execute(select(Defect.id).where(Defect.id == defect.id).with_for_update())
     db.refresh(defect)

@@ -121,7 +121,7 @@ def test_add_material_rejects_inspection_item_and_finding_from_other_report():
         add_material(db, report2["id"], description="Test", quantity=Decimal("1"), finding_id=finding["id"])
         assert False, "sollte ValueError auslösen"
     except ValueError as exc:
-        assert "Mangel" in str(exc)
+        assert "Befund" in str(exc)  # seit 1.9.68 „Befund nicht gefunden.“ (bis dahin „Mangel …“)
 
 
 def test_update_material_exclude_unset_and_material_id_switch_recopies_snapshot():

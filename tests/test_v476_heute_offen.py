@@ -52,7 +52,7 @@ def test_offen_zeilen_springen_auf_die_eigene_seite():
     teil = skript[skript.index("function renderOffen("):skript.index("function renderNaechste(")]
     ziele = re.findall(r"href=\"(/mobil/offen#[a-z-]+)\">'\+offenZeile\('([^']+)'", teil)
     assert ziele == [("/mobil/offen#offene-berichte", "Berichte"), ("/mobil/offen#offene-checklisten", "Checklisten"),
-                     ("/mobil/offen#maengel", "Mängel zur Beseitigung"), ("/mobil/offen#wartungen", "Wartungen an meinen Objekten")]
+                     ("/mobil/offen#maengel", "Befunde zur Beseitigung"), ("/mobil/offen#wartungen", "Wartungen an meinen Objekten")]
     assert "if(o.wartungen>0)" in teil
 
 

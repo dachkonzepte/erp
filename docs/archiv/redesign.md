@@ -4935,3 +4935,31 @@ Galerie“; keine Buchungskarte für die Monteurin). Gebaut in drei Versionen: 1
   Klicktest 1 rot; Segmente 40 px -> Klicktest 2 rot (quer und hoch); „Bericht abschließen“ nicht gesperrt -> Klicktest 2 rot; Abschließen
   ohne frisches „Noch offen“ -> `test_v464` 1 rot; Monteurin mit Buchungskarte -> `test_v485` und `test_v437` je 1 rot, Klicktest rot;
   „Heute“ verlinkt auf `?report=` -> `klicktest_heute` 1 rot; Löschen ohne Rückfrage -> `test_v446` 1 rot.
+
+### R4 Fortsetzung, „Befund“ in den Monteursansichten (1.9.68)
+
+- „Heute“: Zeile „Befunde zur Beseitigung“ (Sprungziel bleibt `#maengel`, der Schlüssel `maengel` in `app/heute.py` bleibt). „Heute / Offen“:
+  Überschrift, „Keine Befunde zur Beseitigung.“, „Befund als beseitigt gemeldet – das Büro prüft die Abnahme der Beseitigung.“, Bildtext
+  „Foto zum Befund“.
+- Server, nur der Weg der Monteurin: `app/routers/field_defects.py::NOT_FOUND` „Befund nicht gefunden.“; `app/defects.py::report_remedied()`
+  „… bei der der Befund festgehalten wurde.“ (dieselbe Meldung beim Büro, `set_status()`, bleibt „Mangel“).
+- Befund des Einsatzberichts (`Finding`): „Befund nicht gefunden.“ in `app/routers/findings.py` (zwei Stellen) und `app/service_reports.py`
+  (`add_photo()`, `add_material()`, `update_material()`).
+
+**Festlegungen 1.9.68 (Bitte bestätigen)**
+
+1. In den Monteursansichten heißt auch der freigegebene Mangel der Abnahme „Befund“ (Entscheidung E: „Befunde zur Beseitigung“); im Büro
+   bleibt er „Mangel“ (Seite des Auftrags, Mängel-Karte, Aufgaben „Mangel beseitigen“).
+2. Meldungen, die Büro und Monteurin teilen (z. B. „Der Mangel steht auf …“ beim Konflikt), bleiben „Mangel“ -- nur was allein der Weg der
+   Monteurin meldet, sagt „Befund“.
+3. Der Befund des Einsatzberichts (`Finding`) meldet auch im Büro „Befund nicht gefunden.“ -- er heißt seit 1.9.66 überall „Befund“.
+
+**Tests und Prüfung**
+
+- Angepasste Erwartungen (alt -> neu): `test_v354` 404 „Mangel nicht gefunden.“ -> „Befund nicht gefunden.“; `test_v476` Zeile „Mängel zur
+  Beseitigung“ -> „Befunde zur Beseitigung“; `test_v399` Beschreibung des Eintrags `sendReport` „Mangel als beseitigt melden“ -> „Befund als
+  beseitigt melden“ (nur der Text des Eintrags); `klicktest_maengel_monteur` „Mangel als beseitigt gemeldet …“/„Keine Mängel zur
+  Beseitigung.“ -> „Befund …“/„Keine Befunde zur Beseitigung.“ (zwei Stellen).
+- `test_v223` `test_add_material_rejects_inspection_item_and_finding_from_other_report`: Meldung enthält „Mangel“ -> „Befund“.
+- **Gegenproben**: „Heute“ sagt wieder „Mängel zur Beseitigung“ -> `test_v476` 1 rot; „Heute / Offen“ meldet „Keine Mängel zur
+  Beseitigung.“ -> `klicktest_maengel_monteur` 2 rot; der Weg der Monteurin meldet „Mangel nicht gefunden.“ -> `test_v354` 1 rot.

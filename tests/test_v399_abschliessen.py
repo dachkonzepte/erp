@@ -372,7 +372,7 @@ ABSCHLIESSEND = {
     ("invoice_detail.html", "confirmStart"): "Verzugsbeginn bestätigen",
     ("invoice_detail.html", "discardStart"): "Verzugsbeginn verwerfen",
     ("mahnwesen.html", "sendReminder"): "Mahnung festschreiben",
-    ("mobil_offen.html", "sendReport"): "Mangel als beseitigt melden",  # seit 1.9.49 auf „Heute / Offen“ (bis dahin mobil.html)
+    ("mobil_offen.html", "sendReport"): "Befund als beseitigt melden",  # seit 1.9.49 auf „Heute / Offen“ (bis dahin mobil.html)
     ("order.html", "submitDeviceSignature"): "Vertrag auf dem Gerät unterschreiben",
     ("order.html", "submitPaperSignature"): "Vertrag als Papier-Scan unterschreiben",
     ("order.html", "freezeContract"): "Vertrag festschreiben",

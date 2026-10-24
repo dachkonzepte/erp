@@ -1127,7 +1127,7 @@ def add_photo(
     else:
         finding = db.get(Finding, finding_id)
         if finding is None or finding.service_report_id != service_report_id:
-            raise ValueError("Mangel nicht gefunden.")
+            raise ValueError("Befund nicht gefunden.")
         kind = "allgemein"
 
     stored = resize_and_store_photo(original_filename, data)
@@ -1220,7 +1220,7 @@ def add_material(
     if finding_id is not None:
         finding = db.get(Finding, finding_id)
         if finding is None or finding.service_report_id != service_report_id:
-            raise ValueError("Mangel nicht gefunden.")
+            raise ValueError("Befund nicht gefunden.")
     if roof_area_id is not None:
         # Seit 1.8.70 (Befund 2e) immer aus dem Objekt des Auftrags -- vorher nur geprüft, wenn der Bericht Flächen hat.
         require_in_order_property(db, report.order, roof_area_ids=[roof_area_id])
@@ -1278,7 +1278,7 @@ def update_material(db: Session, material_id: int, fields: dict) -> dict | None:
         if key == "finding_id" and value is not None:
             finding = db.get(Finding, value)
             if finding is None or finding.service_report_id != row.service_report_id:
-                raise ValueError("Mangel nicht gefunden.")
+                raise ValueError("Befund nicht gefunden.")
         if key == "roof_area_id" and value is not None:
             require_in_order_property(db, report.order, roof_area_ids=[value])
             covered = _report_covered_roof_area_ids(report)

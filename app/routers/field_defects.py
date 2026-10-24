@@ -1,4 +1,4 @@
-"""Router: Mängel zur Beseitigung in der Monteursansicht /mobil (seit 1.8.52, Stufe 2c-2b,
+"""Router: Mängel der Abnahme zur Beseitigung in /mobil (dort seit 1.9.68 „Befunde zur Beseitigung“) (seit 1.8.52, Stufe 2c-2b,
 docs/archiv/abnahme-und-gewaehrleistung.md, "Umsetzung 1.8.52").
 
 - GET /api/field-view/defects: die Mängel, die der eigene Mitarbeiter beseitigen soll -- freigegeben, Status offen, nicht
@@ -35,7 +35,7 @@ from .defects import _parse, _read_uploads
 router = APIRouter()
 
 _role_dep = Depends(require_min_role(ROLE_FIELD))
-NOT_FOUND = "Mangel nicht gefunden."
+NOT_FOUND = "Befund nicht gefunden."  # seit 1.9.68 „Befund“ in der Monteursansicht
 
 
 def _employee_id(user: AppUser) -> int:

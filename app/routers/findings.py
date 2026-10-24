@@ -55,7 +55,7 @@ def _require_module_enabled(db: Session):
 def _report_id_for_finding(db: Session, finding_id: int) -> int:
     finding = db.get(Finding, finding_id)
     if finding is None:
-        raise HTTPException(status_code=404, detail="Mangel nicht gefunden.")
+        raise HTTPException(status_code=404, detail="Befund nicht gefunden.")  # seit 1.9.68 „Befund“
     return finding.service_report_id
 
 
@@ -116,7 +116,7 @@ def put_finding_followup(finding_id: int, payload: FindingFollowupUpdate, db: Se
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if result is None:
-        raise HTTPException(status_code=404, detail="Mangel nicht gefunden.")
+        raise HTTPException(status_code=404, detail="Befund nicht gefunden.")
     return result
 
 
