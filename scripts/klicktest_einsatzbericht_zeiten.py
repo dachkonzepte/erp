@@ -3,7 +3,8 @@
 Befüllt: Auftrag, Mia (Monteurin) und Tom; heute Mia 06:45–12:00 (Timer), Tom 3 h (Dauer), gestern Mia 2 h; Mias unterschriebener
 Bericht von heute (unterschrieben im Befüllen) und ein Entwurf von heute; Anna (Admin).
 
-    Anna (1400 px, hell)  Berichtsseite: am unterschriebenen Bericht „Zeiten am <heute> – Stand der Unterschrift“ mit Mia 06:45–12:00
+    Anna (1400 px, hell)  Berichtsseite (seit 1.9.67 je Bericht, Schritt „Unterschrift“): am unterschriebenen Bericht „Zeiten am
+                          <heute>“, „Stand der Unterschrift“, mit Mia 06:45–12:00
                           5,25 h und Tom – 3,00 h, ohne die Zeit von gestern; am Entwurf dieselben Zeilen „Stand jetzt“. PDF des
                           unterschriebenen Berichts dieselben Zeilen (pdf_vorher.pdf). Dann eine Zeit heute buchen (Tom 2,75 h über das
                           Formular der Seite) und Mias Zeit ändern (6,5 h): der unterschriebene Bericht und sein PDF (pdf_nachher.pdf)
@@ -102,13 +103,14 @@ def befuellen(db, k):
             "heute": heute.isoformat(), "heute_de": f"{heute:%d.%m.%Y}", "cookies": {n: k.cookies(u) for n, u in benutzer.items()}}
 
 
-BEREIT = "typeof reports!=='undefined'&&reports.length===2&&reports.every(r=>zeitenCache[r.id])"
+# seit 1.9.67 je Bericht die Berichtsseite, Schritt „Unterschrift“ (bis 1.9.66 alle Berichte auf der Seite des Auftrags)
+BEREIT = "typeof ZEITEN!=='undefined'&&ZEITEN&&!!document.getElementById('berichtZeiten')"
 
 
-def _zeilen(bericht: int) -> str:
-    return (f"(k=>k?[k.querySelector('.bericht-zeiten-titel').textContent,[...k.querySelectorAll('tbody tr')].map(z=>[...z.cells]"
-            f".map(c=>c.textContent))]:null)([...document.querySelectorAll('#reportList .report-card')].map(c=>c.querySelector('.bericht-zeiten'))"
-            f"[reports.findIndex(r=>r.id==={bericht})])")
+def _zeilen() -> str:
+    """[Titel, [[Tag, Person · von–bis, Stunden], …]] der Zeiten auf der Berichtsseite."""
+    return ("(k=>k?[k.querySelector('.eb').textContent,[...k.querySelectorAll('.zl')].map(z=>[...z.children].map(c=>c.textContent))]:null)"
+            "(document.getElementById('berichtZeiten'))")
 
 
 async def _pdf(tab, bericht: int, name: str) -> str:
@@ -122,41 +124,44 @@ async def _pdf(tab, bericht: int, name: str) -> str:
 async def pruefen(tab, seed, p):
     await tab.cmd("Page.addScriptToEvaluateOnNewDocument", source="window.alert=m=>console.error('alert(): '+m)")
     h, s, e = seed["heute_de"], seed["unterschrieben"], seed["entwurf"]
-    zeilen = [[h, "Mia Monteurin", "06:45–12:00", "5,25 h"], [h, "Tom Monteur", "–", "3,00 h"]]
+    zeilen = [[h, "Mia Monteurin · 06:45–12:00", "5,25 h"], [h, "Tom Monteur", "3,00 h"]]  # seit 1.9.67: Person · von–bis
 
     await tab.anmelden(seed["cookies"]["anna"])
     await tab.fenster(1400, 1000)
     await tab.js("localStorage.setItem('erp_theme','light')")
-    await tab.oeffnen(f"/orders/{seed['auftrag']}/service-reports", BEREIT)
-    p.pruefe("Unterschriebener Bericht: Zeiten am Tag, Stand der Unterschrift, ohne Vortag", await tab.js(_zeilen(s)),
-             [f"Zeiten am {h} – Stand der Unterschrift", zeilen])
-    p.pruefe("Entwurf: dieselben Zeilen, Stand jetzt", await tab.js(_zeilen(e)),
-             [f"Zeiten am {h} – Stand jetzt, wird mit der Unterschrift gespeichert", zeilen])
-    await tab.js(f"document.querySelectorAll('#reportList .report-card')[reports.findIndex(r=>r.id==={s})].scrollIntoView({{block:'start'}})")
+    await tab.oeffnen(f"/service-reports/{s}#unterschrift", BEREIT)
+    p.pruefe("Unterschriebener Bericht: Zeiten am Tag, Stand der Unterschrift, ohne Vortag", [await tab.js(_zeilen()), await tab.js(
+        "document.getElementById('berichtZeiten').textContent.includes('Stand der Unterschrift.')")], [[f"Zeiten am {h}", zeilen], True])
     await tab.bild("10_bericht_unterschrieben_vorher_hell")
+    await tab.oeffnen(f"/service-reports/{e}#unterschrift", BEREIT)
+    p.pruefe("Entwurf: dieselben Zeilen, Stand jetzt", [await tab.js(_zeilen()), await tab.js(
+        "document.getElementById('berichtZeiten').textContent.includes('mit der Unterschrift wird dieser Stand gespeichert')")],
+        [[f"Zeiten am {h}", zeilen], True])
     vorher = await _pdf(tab, s, "pdf_vorher.pdf")
-    # seit 1.9.46 (R2 Punkt 7): die Unterschrift auf der Seite in Europe/Berlin -- dieselbe Zeit wie im PDF (bis dahin UTC)
+    # seit 1.9.46 (R2 Punkt 7): die Unterschrift auf der Seite in Europe/Berlin -- dieselbe Zeit wie im PDF (bis dahin UTC); seit 1.9.67
+    # in der Zeile des Berichts auf der Seite des Auftrags
+    await tab.oeffnen(f"/orders/{seed['auftrag']}/service-reports", "typeof reports!=='undefined'&&reports.length===2")
     zeit = await tab.js(rf"((t)=>(t.match(/Kunde: Bernd Bauherr \((\d\d\.\d\d\.\d{{4}} \d\d:\d\d) Uhr\)/)||[])[1]||null)"
-                        f"([...document.querySelectorAll('#reportList .report-card')][reports.findIndex(r=>r.id==={s})].innerText)")
+                        f"(document.getElementById('bericht-{s}').innerText)")
     p.pruefe("Unterschrift auf der Seite = Zeit im PDF", [bool(zeit), f"am {zeit} Uhr" in vorher], [True, True])
     p.pruefe("PDF vorher: dieselben Zeilen (Personen, von–bis, Stunden), nicht der Vortag",
              [f"Zeiten am {h}" in vorher, "Mia Monteurin" in vorher, "Tom Monteur" in vorher, "06:45" in vorher, "12:00" in vorher,
               "5,25" in vorher, "3,00" in vorher, "2,00" in vorher, "Vortag" in vorher], [True] * 7 + [False, False])
 
-    # nachträglich: eine Zeit heute buchen (Formular der Seite) und Mias Zeit ändern (Schnittstelle)
+    # nachträglich: eine Zeit heute buchen (Formular der Seite des Auftrags) und Mias Zeit ändern (Schnittstelle)
     await tab.js(f"document.getElementById('teEmployee').value='{seed['tom']}';document.getElementById('teDate').value='{seed['heute']}';"
                  "document.getElementById('teHours').value='2,75'")
-    await tab.warte_auf_neu_geladene_liste("saveReportTimeEntry()", "#reportList")
+    await tab.warte_auf_neu_geladene_liste("saveReportTimeEntry()", "#timeEntriesTable")
     p.pruefe("Zeit gebucht", await tab.js("document.getElementById('teStatus').textContent"), "Gebucht.")
     status = await tab.js(f"fetch('/api/time-entries/{seed['mia_zeit']}',{{method:'PUT',headers:{{'Content-Type':'application/json'}},"
                           "body:JSON.stringify({hours:'6.5'})}).then(r=>r.status)")
     p.pruefe("Mias Zeit geändert (6,5 h)", status, 200)
-    await tab.oeffnen(f"/orders/{seed['auftrag']}/service-reports", BEREIT)
-    p.pruefe("Unterschriebener Bericht nachher: unverändert", await tab.js(_zeilen(s)), [f"Zeiten am {h} – Stand der Unterschrift", zeilen])
-    p.pruefe("Entwurf nachher: neue und geänderte Zeit", (await tab.js(_zeilen(e)) or [None, []])[1],
-             [[h, "Mia Monteurin", "06:45–12:00", "6,50 h"], [h, "Tom Monteur", "–", "3,00 h"], [h, "Tom Monteur", "–", "2,75 h"]])
-    await tab.js(f"document.querySelectorAll('#reportList .report-card')[reports.findIndex(r=>r.id==={s})].scrollIntoView({{block:'start'}})")
+    await tab.oeffnen(f"/service-reports/{s}#unterschrift", BEREIT)
+    p.pruefe("Unterschriebener Bericht nachher: unverändert", await tab.js(_zeilen()), [f"Zeiten am {h}", zeilen])
     await tab.bild("11_bericht_unterschrieben_nachher_hell")
+    await tab.oeffnen(f"/service-reports/{e}#unterschrift", BEREIT)
+    p.pruefe("Entwurf nachher: neue und geänderte Zeit", (await tab.js(_zeilen()) or [None, []])[1],
+             [[h, "Mia Monteurin · 06:45–12:00", "6,50 h"], [h, "Tom Monteur", "3,00 h"], [h, "Tom Monteur", "2,75 h"]])
     nachher = await _pdf(tab, s, "pdf_nachher.pdf")
     p.pruefe("PDF nachher: dieselben Zeilen wie vorher, nichts Neues", ["5,25" in nachher, "3,00" in nachher, "6,50" in nachher,
              "2,75" in nachher], [True, True, False, False])
@@ -165,13 +170,11 @@ async def pruefen(tab, seed, p):
     await tab.anmelden(seed["cookies"]["mia"])
     await tab.fenster(412, 900, mobil=True)
     await tab.js("localStorage.setItem('erp_theme','dark')")
-    await tab.oeffnen(f"/orders/{seed['auftrag']}/service-reports", BEREIT)
-    p.pruefe("Mia: ihr unterschriebener Bericht mit denselben Zeilen", await tab.js(_zeilen(s)),
-             [f"Zeiten am {h} – Stand der Unterschrift", zeilen])
-    await tab.js(f"document.querySelectorAll('#reportList .report-card')[reports.findIndex(r=>r.id==={s})].scrollIntoView({{block:'start'}})")
+    await tab.oeffnen(f"/service-reports/{s}#unterschrift", BEREIT)
+    p.pruefe("Mia: ihr unterschriebener Bericht mit denselben Zeilen", await tab.js(_zeilen()), [f"Zeiten am {h}", zeilen])
+    await tab.js("document.getElementById('berichtZeiten').scrollIntoView({block:'start'})")
     await tab.bild("12_bericht_unterschrieben_monteurin_dunkel_412")
     p.pruefe("Mia: keine JS-Fehler", tab.fehler, [])
-
 
 if __name__ == "__main__":
     sys.exit(klicktest_main(befuellen, pruefen, beschreibung="Zeiten im Einsatzbericht (1.9.42)", uhr="10:00"))

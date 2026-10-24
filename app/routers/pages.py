@@ -198,7 +198,7 @@ def login_page(request: Request):
 
 # Seit 1.8.120: wann eine Seitenroute umleitet, statt eine Vorlage zu zeichnen -- dann lädt die Anmeldeschranke keine Seitendaten
 # (app/seitendaten.py::wird_gezeichnet(); tests/test_v425_seitendaten_nur_fuer_seiten.py prüft jede Route je Rolle).
-login_page.dk_ohne_seite = lambda user: user is not None
+login_page.dk_ohne_seite = lambda user, request: user is not None
 
 
 @router.get("/account", response_class=HTMLResponse)
@@ -228,7 +228,7 @@ def dashboard_page(request: Request, _role: AppUser = _any_role_dep):
     return templates.TemplateResponse(request=request, name="dashboard.html", context={})
 
 
-dashboard_page.dk_ohne_seite = lambda user: user is not None and user.role == ROLE_FIELD  # seit 1.8.120, siehe login_page
+dashboard_page.dk_ohne_seite = lambda user, request: user is not None and user.role == ROLE_FIELD  # seit 1.8.120, siehe login_page
 
 
 @router.get("/leistungskatalog", response_class=HTMLResponse)
@@ -282,7 +282,7 @@ def field_timesheet_page(request: Request, _role: AppUser = _any_role_dep):
     return RedirectResponse(url="/mobil/zeiten", status_code=302)
 
 
-field_timesheet_page.dk_ohne_seite = lambda user: True  # seit 1.9.59, siehe login_page
+field_timesheet_page.dk_ohne_seite = lambda user, request: True  # seit 1.9.59, siehe login_page
 
 
 @router.get("/mobil/objekt/{property_id}", response_class=HTMLResponse)
@@ -382,7 +382,7 @@ def time_tracking_page(request: Request, _role: AppUser = _any_role_dep):
     return templates.TemplateResponse(request=request, name="time_tracking.html", context={})
 
 
-time_tracking_page.dk_ohne_seite = lambda user: user is not None and user.role == ROLE_FIELD  # seit 1.9.59, siehe login_page
+time_tracking_page.dk_ohne_seite = lambda user, request: user is not None and user.role == ROLE_FIELD  # seit 1.9.59, siehe login_page
 
 
 @router.get("/time-backoffice", response_class=HTMLResponse)
@@ -550,11 +550,32 @@ def work_preparation_page(request: Request, order_id: int, _role: AppUser = _rol
     return templates.TemplateResponse(request=request, name="work_preparation.html", context={"order_id": order_id})
 
 
+def _bericht_aus_adresse(request: Request) -> int | None:
+    """?report=<id> auf der Auftragsseite (frühere Eingänge, Lesezeichen) -- nur eine Zahl, sonst None."""
+    wert = request.query_params.get("report") or ""
+    return int(wert) if wert.isdigit() else None
+
+
 @router.get("/orders/{order_id}/service-reports", response_class=HTMLResponse)
 def service_reports_page(request: Request, order_id: int, _role: AppUser = _any_role_dep):
+    """Die Seite des Auftrags: Objekt & Zugang, Bedenken, die Berichte mit „+ Bericht“, frühere Berichte, Zeiten. Seit 1.9.67 (Stufe 4,
+    R4, Entscheidung D) steht der Bericht selbst auf /service-reports/{id}; ?report=<id> leitet dorthin."""
+    bericht = _bericht_aus_adresse(request)
+    if bericht is not None:
+        return RedirectResponse(url=f"/service-reports/{bericht}", status_code=302)
     return templates.TemplateResponse(request=request, name="service_reports.html",
                                       context={"order_id": order_id, "zeit_fuer_andere_buchen": darf_zeit_fuer_andere_buchen(_role),
                                                "zeit_nur_mit_von_bis": zeit_nur_mit_von_bis(_role)})  # seit 1.9.60
+
+
+service_reports_page.dk_ohne_seite = lambda user, request: _bericht_aus_adresse(request) is not None  # seit 1.9.67, siehe login_page
+
+
+@router.get("/service-reports/{report_id}", response_class=HTMLResponse)
+def service_report_page(request: Request, report_id: int, _role: AppUser = _any_role_dep):
+    """Seit 1.9.67 (Stufe 4, R4): ein Einsatzbericht in fünf Schritten (service_report.html) -- die Daten lädt die Seite über
+    GET /api/service-reports/{id}, der prüft, ob die Monteurin den Bericht öffnen darf (nur ihren eigenen)."""
+    return templates.TemplateResponse(request=request, name="service_report.html", context={"report_id": report_id})
 
 
 @router.get("/roof-areas/{roof_area_id}", response_class=HTMLResponse)

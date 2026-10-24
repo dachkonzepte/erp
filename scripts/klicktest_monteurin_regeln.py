@@ -194,43 +194,35 @@ async def pruefen(tab, seed, p):
     p.pruefe("Verlauf: Anna hat Toms Zeit geschlossen (Ende, Status)", {"ended_at", "status"} <= set(felder), True)
     p.pruefe("Anna: keine JS-Fehler", tab.fehler, [])
 
-    # --- Mia: Einsatzbericht (seit 1.9.36) ---------------------------------------------------------------------------------------
+    # --- Mia: Einsatzbericht (seit 1.9.36; seit 1.9.67 auf der Berichtsseite /service-reports/{id}) -----------------------------
     b = seed["bericht"]
     await tab.anmelden(seed["cookies"]["mia"])
     await tab.fenster(412, 900, mobil=True)
     await tab.js("localStorage.setItem('erp_theme','dark')")
-    await tab.oeffnen(f"/orders/{seed['auftrag']}/service-reports", "typeof reports!=='undefined'&&reports.length===1")
-    await tab.warte_auf_neu_geladene_liste()
-    karte = "document.querySelector('#reportList .report-card')"
-    p.pruefe("Rapportbericht: Knopf „Prüfpunkte“ (Vorlage an der Dachfläche)", await tab.js(
-        f"[...{karte}.querySelectorAll('.report-actions button')].map(x=>x.textContent).includes('Prüfpunkte')"), True)
+    await tab.oeffnen(f"/service-reports/{b}", "typeof PUNKTE!=='undefined'&&PUNKTE.length===7&&!document.getElementById('raster').hidden")
+    p.pruefe("Rapportbericht: Schritt 1 „Prüfpunkte“ (Vorlage an der Dachfläche)", await tab.js(
+        "document.querySelector('#schritte .schritt').textContent.replace(/^\\d/,'')"), "Prüfpunkte")
     offen = ["Pflichtpunkt „Zugang und Absturzsicherung geprüft“ beantworten", "Pflichtpunkt „Gesamtzustand Dachfläche“ beantworten",
              "Pflichtpunkt „Gully 1: Ablauf frei und funktionsfähig“ beantworten",
              "Pflichtpunkt „Abdichtung auf Blasen, Risse, Falten“ beantworten"]
-    liste = f"(e=>e?[e.querySelector('b').textContent,[...e.querySelectorAll('li')].map(x=>x.textContent)]:null)({karte}.querySelector('.noch-offen'))"
-    p.pruefe("Am Knopf: „Noch offen vor der Unterschrift“ mit den vier Pflichtpunkten", await tab.js(liste),
-             ["Noch offen vor der Unterschrift:", offen])
-    await tab.js(f"void toggleReportInspectionItems({b})")
-    await tab.warten(f"(inspectionItemsCache[{b}]||[]).length===7", 10)
-    await tab.warte_auf_neu_geladene_liste()
-    await tab.js(f"toggleReportArea({b},{seed['flaeche']}); true")
-    await tab.warten("document.querySelectorAll('.inspection-row .itext').length===7", 10)  # ohne die Zeile „Zusätzlicher Prüfpunkt“
-    zeilen = await tab.js("[...document.querySelectorAll('.inspection-row')].filter(z=>z.querySelector('.itext')).map(z=>[z.querySelector('.itext').textContent.trim(),"
-                          "!!z.querySelector('.req'),!!z.querySelector('button.danger')])")
-    # seit 1.9.41: „×“ nur am von Hand ergänzten Punkt (bis 1.9.40 an jedem freien Punkt, auch aus der Vorlage)
-    p.pruefe("Prüfpunkte: Pflicht mit „*“, „×“ nur am von Hand ergänzten Punkt", sorted([text, pflicht, kreuz] for text, pflicht, kreuz in (zeilen or [])),
-             sorted([["* Zugang und Absturzsicherung geprüft", True, False], ["* Gesamtzustand Dachfläche", True, False],
-                     ["* Gully 1: Ablauf frei und funktionsfähig", True, False], ["Gully 1: Laubfang vorhanden und intakt", False, False],
-                     ["* Abdichtung auf Blasen, Risse, Falten", True, False], ["Bemerkungen", False, False],
+    liste = "[...document.querySelectorAll('#offenListe li')].map(x=>x.textContent)"
+    p.pruefe("„Noch offen“ mit den vier Pflichtpunkten", await tab.js(liste), offen)
+    zeilen = await tab.js("PUNKTE.map(x=>[x.text,!!document.querySelector('#punkt-kopf-'+x.id+' .pflicht'),"
+                          "!!document.querySelector('#punkt-menue-'+x.id+' [data-klick=punkt-loeschen]')])")
+    # seit 1.9.41 nur am von Hand ergänzten Punkt (bis 1.9.40 an jedem freien Punkt), seit 1.9.67 im Menü „⋮“ des Punkts statt „×“
+    p.pruefe("Prüfpunkte: Pflicht mit „*“, „Prüfpunkt löschen“ nur am von Hand ergänzten Punkt", sorted(zeilen or []),
+             sorted([["Zugang und Absturzsicherung geprüft", True, False], ["Gesamtzustand Dachfläche", True, False],
+                     ["Gully 1: Ablauf frei und funktionsfähig", True, False], ["Gully 1: Laubfang vorhanden und intakt", False, False],
+                     ["Abdichtung auf Blasen, Risse, Falten", True, False], ["Bemerkungen", False, False],
                      ["Dachluke geprüft", False, True]]))
-    await tab.js("[...document.querySelectorAll('.inspection-group')].find(g=>g.textContent.includes('Entwässerung')).scrollIntoView({block:'start'})")
+    await tab.js("[...document.querySelectorAll('#schrittInhalt .gruppe')].find(g=>g.textContent.includes('Entwässerung')).scrollIntoView({block:'start'})")
     await tab.bild("6_rapport_pflichtpunkte_dunkel_412")
-    await tab.js(f"{karte}.querySelector('.report-actions button[onclick^=\"openSignPanel\"]').click()")
+    await tab.js("document.getElementById('schritt-unterschrift').click()")
     await tab.warte_auf_ruhe()
-    p.pruefe("„Unterschreiben“ mit offenen Pflichten: Unterschrift öffnet nicht, die Liste steht am Knopf", [await tab.js(
-        "document.getElementById('signCard').classList.contains('hidden')"), await tab.js(liste)],
-        [True, ["Noch offen vor der Unterschrift:", offen]])
-    await tab.js(f"{karte}.querySelector('.noch-offen').scrollIntoView({{block:'center'}})")
+    p.pruefe("Unterschrift mit offenen Pflichten: „Bericht abschließen“ gesperrt, „Noch offen“ in der Karte", await tab.js(
+        "[document.getElementById('abschliessenKnopf').disabled,document.getElementById('fehltText').textContent.startsWith('Fehlt: 4 Punkte unter „Noch offen“'),"
+        "[...document.querySelectorAll('#signOffenListe li')].map(x=>x.textContent)]"), [True, True, offen])
+    await tab.js("document.getElementById('signOffen').scrollIntoView({block:'center'})")
     await tab.bild("7_noch_offen_dunkel_412")
     punkte = await tab.js(f"fetch('/api/service-reports/{b}/inspection-items').then(r=>r.json())")
     pflicht = [x["id"] for x in punkte if x["required"]]
@@ -239,50 +231,48 @@ async def pruefen(tab, seed, p):
         f"Promise.all([{pflicht[0]},{vorlage_frei}].map(i=>fetch('/api/inspection-items/'+i,{{method:'DELETE'}}).then(async r=>[r.status,(await r.json()).detail])))"),
         [[409, "Ein Prüfpunkt aus der Vorlage lässt sich nicht löschen – trifft er nicht zu, „Entfällt“ wählen."]] * 2)
 
-    # --- seit 1.9.41: Löschknopf am von Hand ergänzten Punkt, Rückfrage auf der Seite -------------------------------------
-    await tab.oeffnen(f"/orders/{seed['auftrag']}/service-reports", "typeof reports!=='undefined'&&reports.length===1")
-    await tab.warte_auf_neu_geladene_liste()
-    await tab.js(f"void toggleReportInspectionItems({b})")
-    await tab.warten(f"(inspectionItemsCache[{b}]||[]).length===7", 10)
-    await tab.warte_auf_neu_geladene_liste()
-    await tab.js(f"toggleReportArea({b},{seed['flaeche']}); true")
-    knopf = "document.querySelector('.inspection-row .punkt-loeschen')"
-    await tab.warten(f"!!{knopf}", 10)
-    mass = await tab.js(f"(k=>{{const a=k.getBoundingClientRect(),z=k.closest('.inspection-row').getBoundingClientRect();"
-                        f"return [Math.round(a.width),Math.round(a.height),Math.round(z.width)]}})({knopf})")
-    p.pruefe("Löschknopf: mindestens 48 × 48 px", [mass[0] >= 48, mass[1] >= 48] if mass else None, [True, True])
-    p.pruefe("Löschknopf: schmaler als die Zeile", (mass[0] < mass[2] / 2) if mass else None, True)
-    p.pruefe("Löschknopf: am Ende der Titelzeile des eigenen Punkts", await tab.js(
-        f"(k=>[k.parentElement.className,k.parentElement.querySelector('.itext').textContent.trim(),k===k.parentElement.lastElementChild])({knopf})"),
-        ["ikopf", "Dachluke geprüft", True])
-    await tab.js(f"{knopf}.scrollIntoView({{block:'center'}})")
+    # --- seit 1.9.41: Löschen am von Hand ergänzten Punkt, Rückfrage auf der Seite (seit 1.9.67 im Menü „⋮“ des Punkts) -------------
+    await tab.js("document.getElementById('schritt-pruefpunkte').click()")
+    await tab.warte_auf_ruhe()
+    eigen = await tab.js("PUNKTE.find(x=>x.text==='Dachluke geprüft').id")
+    menue, eintrag = f"document.getElementById('punkt-menue-{eigen}')", f"document.querySelector('#punkt-menue-{eigen} [data-klick=punkt-loeschen]')"
+
+    async def menue_auf():
+        await tab.js(f"document.getElementById('punkt-menue-knopf-{eigen}').click()")
+        await tab.warten(f"!{menue}.hidden", 10)
+    await menue_auf()
+    p.pruefe("Menü am eigenen Punkt: „Prüfpunkt löschen“ 48 px hoch, rot", await tab.js(
+        f"(k=>[Math.round(k.getBoundingClientRect().height),k.textContent,k.classList.contains('ds-menue-eintrag-fehler')])({eintrag})"),
+        [48, "Prüfpunkt löschen", True])
     await tab.bild("8_loeschknopf_dunkel_412")
-    await tab.js(f"{knopf}.click()")
-    await tab.warten("document.getElementById('punktLoeschenDialog').open", 10)
-    p.pruefe("Rückfrage auf der Seite", await tab.js("document.getElementById('punktLoeschenFrage').textContent"),
+    await tab.js(f"{eintrag}.click()")
+    await tab.warten("document.getElementById('rueckfrageDialog').open", 10)
+    p.pruefe("Rückfrage auf der Seite", await tab.js("document.getElementById('rueckfrageText').textContent"),
              "Prüfpunkt „Dachluke geprüft“ löschen?")
     await tab.bild("9_rueckfrage_loeschen_dunkel_412")
-    await tab.js("document.getElementById('punktLoeschenNein').click()")
+    await tab.js("document.getElementById('rueckfrageNein').click()")
     await tab.warte_auf_ruhe()
-    p.pruefe("Abbrechen: Punkt bleibt", [await tab.js("document.getElementById('punktLoeschenDialog').open"), await tab.js(
+    p.pruefe("Abbrechen: Punkt bleibt", [await tab.js("document.getElementById('rueckfrageDialog').open"), await tab.js(
         f"fetch('/api/service-reports/{b}/inspection-items').then(r=>r.json()).then(l=>l.some(x=>x.text==='Dachluke geprüft'))")],
         [False, True])
-    await tab.js(f"{knopf}.click()")
-    await tab.warten("document.getElementById('punktLoeschenDialog').open", 10)
-    await tab.warte_auf_neu_geladene_liste("document.getElementById('punktLoeschenJa').click()", "#reportList")
-    p.pruefe("Löschen: Punkt weg, kein Knopf mehr", [await tab.js(
+    await menue_auf()
+    await tab.js(f"{eintrag}.click()")
+    await tab.warten("document.getElementById('rueckfrageDialog').open", 10)
+    await tab.js("document.getElementById('rueckfrageJa').click()")
+    await tab.warten(f"!PUNKTE.some(x=>x.id==={eigen})", 10)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Löschen: Punkt weg", [await tab.js(
         f"fetch('/api/service-reports/{b}/inspection-items').then(r=>r.json()).then(l=>l.some(x=>x.text==='Dachluke geprüft'))"),
-        await tab.js(f"!!{knopf}")], [False, False])
+        await tab.js(f"!!document.getElementById('punkt-{eigen}')")], [False, False])
     for item_id in pflicht:  # Testhandlung: beantwortet über die API
         await tab.js(f"fetch('/api/inspection-items/{item_id}',{{method:'PUT',headers:{{'Content-Type':'application/json'}},"
                      "body:JSON.stringify({result:'ok',condition_grade:1})}).then(r=>r.status)")
-    await tab.oeffnen(f"/orders/{seed['auftrag']}/service-reports", "typeof reports!=='undefined'&&reports.length===1")
-    await tab.warte_auf_neu_geladene_liste()
-    p.pruefe("Beantwortet: keine Liste mehr", await tab.js(f"!!{karte}.querySelector('.noch-offen')"), False)
-    await tab.js(f"{karte}.querySelector('.report-actions button[onclick^=\"openSignPanel\"]').click()")
-    await tab.warten("!document.getElementById('signCard').classList.contains('hidden')", 10)
-    p.pruefe("Beantwortet: Unterschrift öffnet (Monteur)", await tab.js("document.getElementById('signHeading').textContent"),
-             "Unterschrift Monteur")
+    await tab.oeffnen(f"/service-reports/{b}", "typeof PUNKTE!=='undefined'&&PUNKTE.length===6&&!document.getElementById('raster').hidden")
+    p.pruefe("Beantwortet: „Noch offen“ leer", await tab.js(liste), [])
+    await tab.js("document.getElementById('schritt-unterschrift').click()")
+    await tab.warte_auf_ruhe()
+    p.pruefe("Beantwortet: es fehlen nur noch die Unterschriften", await tab.js("document.getElementById('fehltText').textContent"),
+             "Fehlt: Unterschrift Monteur, Name Kunde, Unterschrift Kunde")
     p.pruefe("Einsatzbericht: keine JS-Fehler", tab.fehler, [])
 
 

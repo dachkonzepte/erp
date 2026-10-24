@@ -663,12 +663,13 @@ DATENSATZKOPF = (
     dict(seite="pruefvorlage", rolle=bg.BUERO, titel="Flachdach-Wartung", kennung="", untertitel="Version {pruefvorlage_version}",
          pfad=[["Einstellungen", "/settings"], ["Prüfvorlagen", "/inspection-templates"], ["Flachdach-Wartung", None]],
          status=["", "neutral"], aktion=None, menue=["Vorlage kopieren …"], kopie="Flachdach-Wartung (Kopie)"),
-    dict(seite="einsatzbericht", rolle=bg.BUERO, titel="Einsatzbericht", kennung="{auftragsnummer}", untertitel="Hallenbau GmbH",
+    # seit 1.9.67 heißt die Seite des Auftrags „Einsatzberichte“ (der Bericht selbst steht auf /service-reports/{id})
+    dict(seite="einsatzbericht", rolle=bg.BUERO, titel="Einsatzberichte", kennung="{auftragsnummer}", untertitel="Hallenbau GmbH",
          pfad=[["Projekte", "/projects"], ["Hallenbau GmbH", "/customers/{kunde}"], ["Dachsanierung Halle Nord", "/projects/{projekt}"],
-               ["{auftragsnummer}", "/orders/{auftrag}"], ["Einsatzbericht", None]],
+               ["{auftragsnummer}", "/orders/{auftrag}"], ["Einsatzberichte", None]],
          status=["Beauftragt", "info"], aktion=None, menue=["Zeiterfassung (Auftrag)"]),
-    dict(seite="einsatzbericht", rolle=bg.MONTEUR, titel="Einsatzbericht", kennung="{auftragsnummer}", untertitel="Hallenbau GmbH",
-         pfad=[["Heute", "/mobil"], ["Einsatzbericht", None]], status=["", "neutral"], aktion=None, menue=["Zeiterfassung (Auftrag)"]),
+    dict(seite="einsatzbericht", rolle=bg.MONTEUR, titel="Einsatzberichte", kennung="{auftragsnummer}", untertitel="Hallenbau GmbH",
+         pfad=[["Heute", "/mobil"], ["Einsatzberichte", None]], status=["", "neutral"], aktion=None, menue=["Zeiterfassung (Auftrag)"]),
 )
 DATENSATZKOPF_JS = """(()=>{const F=%s;const cs=e=>getComputedStyle(e);const k=document.getElementById('seitenkopf');
 const st=document.getElementById('seitenkopfStatus');const eintraege=[...document.querySelectorAll('#seitenkopfMenue .ds-menue-eintrag')];
@@ -785,19 +786,22 @@ async def _datensatzkopf(tab, seed, p):
                 p.pruefe(f"{wo}: „Reaktivieren“ -> wieder Aktiv (info)", await tab.js(zustand),
                          ["Aktiv", "ds-status ds-status-info", f["menue"]])
             p.pruefe(f"{wo}: keine JS-Fehler", tab.fehler, [])
-    # „Wartung durchführen“ legt Auftrag und Bericht an und öffnet den Einsatzbericht -- der Pfad führt zurück zum Vertrag
+    # „Wartung durchführen“ legt Auftrag und Bericht an und öffnet den Einsatzbericht (seit 1.9.67 die Berichtsseite) -- der Pfad führt
+    # zurück zum Vertrag
     await tab.anmelden(seed["cookies"][bg.BUERO])
     p.pruefe("Datensatzkopf Wartung durchführen: geladen", await _laden(tab, seed, "wartungsvertrag", "hell", 1440, 900), True)
     await tab.js("document.getElementById('performMaintenanceBtn').click()")
-    da = await tab.warten("location.pathname.endsWith('/service-reports')&&document.querySelectorAll('#seitenkopfPfad a').length>=5", 30)
+    da = await tab.warten("location.pathname.startsWith('/service-reports/')&&document.querySelectorAll('#seitenkopfPfad a').length>=6", 30)
     m = await tab.js(DATENSATZKOPF_JS)
     g = m["pfad"]
-    p.pruefe("Datensatzkopf Wartung durchführen: Einsatzbericht des neuen Auftrags, Pfad Projekte / Kunde / Wartungsvertrag / Projekt / "
-             "Auftrag / Einsatzbericht",
+    auftrag = await tab.js("R.order_id")
+    p.pruefe("Datensatzkopf Wartung durchführen: der neue Bericht, Pfad Projekte / Kunde / Wartungsvertrag / Projekt / Auftrag / "
+             "Einsatzberichte / Wartungsbericht",
              [da, [x[:2] for x in g[:3]], len(g), g[3][1].startswith("/projects/") if len(g) > 3 else None,
-              g[4][1] == "/orders/" + str(await tab.js("Number(location.pathname.split('/')[2])")) if len(g) > 4 else None, g[-1][:2]],
+              g[4][1] == f"/orders/{auftrag}" if len(g) > 4 else None, g[5][:2] if len(g) > 5 else None, g[-1][:2]],
              [True, [["Projekte", "/projects"], ["Hallenbau GmbH", f"/customers/{seed['kunde']}"],
-                     ["Wartung Halle Nord", f"/maintenance-contracts/{seed['vertrag']}"]], 6, True, True, ["Einsatzbericht", None]])
+                     ["Wartung Halle Nord", f"/maintenance-contracts/{seed['vertrag']}"]], 7, True, True,
+              ["Einsatzberichte", f"/orders/{auftrag}/service-reports"], ["Wartungsbericht", None]])
     offen = await tab.js(PFAD_OEFFNEN)
     p.pruefe(f"Datensatzkopf Wartung durchführen: jeder Link im Pfad öffnet eine Seite ({len(offen)} Links)",
              [o for o in offen if o[1:] != [200, False, "text/html"]], [])
@@ -1306,8 +1310,8 @@ async def _monteursseiten(tab, seed, p):
                      pfad=[["Heute", "/mobil"], ["Halle Nord", None]]),
                 dict(seite="betriebsmittel_monteur", titel=a["name"], kennung="", untertitel=meta, status=["", "neutral"],
                      pfad=[["Heute", "/mobil"], [a["name"], None]]),
-                dict(seite="einsatzbericht", titel="Einsatzbericht", kennung=o["order_number"], untertitel=o["customer_name"],
-                     status=["", "neutral"], pfad=[["Heute", "/mobil"], ["Einsatzbericht", None]]),
+                dict(seite="einsatzbericht", titel="Einsatzberichte", kennung=o["order_number"], untertitel=o["customer_name"],
+                     status=["", "neutral"], pfad=[["Heute", "/mobil"], ["Einsatzberichte", None]]),  # seit 1.9.67 „Einsatzberichte“
                 dict(seite="konto", titel="Mein Konto", kennung="", untertitel="", status=["", "neutral"],
                      pfad=[["Heute", "/mobil"], ["Mein Konto", None]]),
             ]

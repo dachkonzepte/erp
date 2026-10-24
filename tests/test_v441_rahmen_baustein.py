@@ -43,6 +43,7 @@ UMGEZOGEN |= TITELZEILEN_UND_TITELKARTEN
 DATENSATZ_MIT_PFAD = {
     "property.html", "roof_area.html", "operational_asset.html", "maintenance_contract.html", "checklist_template.html",
     "inspection_template.html", "service_reports.html",
+    "service_report.html",  # seit 1.9.67 (Stufe 4, R4) der Einsatzbericht in fünf Schritten, im Monteursrahmen mit Seitenkopf (Tablet)
 }
 UMGEZOGEN |= DATENSATZ_MIT_PFAD
 # seit 1.9.13 die Rechnung aus der Gruppe „Belegkopf in Karte“ (K4)
@@ -448,7 +449,7 @@ def bereich_verstoesse(name: str, wurzel: Path = TEMPLATES) -> list[str]:
 
 def test_jede_seite_mit_leiste_nennt_ihren_bereich():
     mit_leiste = [name for name in vj.seiten() if vj.bindet_ein(name, "_sidebar.html")]
-    assert len(mit_leiste) == 44  # seit 1.9.22 mit Stammdaten-Formular und Leistung (bis dahin 42)
+    assert len(mit_leiste) == 45  # seit 1.9.67 mit der Berichtsseite, seit 1.9.22 mit Stammdaten-Formular und Leistung (bis dahin 42)
     assert [f for name in mit_leiste for f in bereich_verstoesse(name)] == []
 
 
@@ -494,7 +495,7 @@ def test_jede_seite_markiert_ihren_bereich(threaded_db_session, router_test_clie
 
     client = router_test_client(threaded_db_session, pages_router, role="admin")
     werte = {k: 1 for k in ("projekt", "angebot", "auftrag", "rechnung", "checkliste", "checklistenvorlage", "vertrag", "pruefvorlage",
-                            "kunde", "objekt", "dachflaeche", "geraet", "leistung", "mitarbeiter")}
+                            "kunde", "objekt", "dachflaeche", "geraet", "leistung", "mitarbeiter", "bericht")}
     geprueft = set()
     for a in bg.AUFNAHMEN:
         if a.vorlage in geprueft or not vj.bindet_ein(a.vorlage, "_sidebar.html") or bg.MONTEUR in a.rollen and len(a.rollen) == 1:
@@ -505,7 +506,7 @@ def test_jede_seite_markiert_ihren_bereich(threaded_db_session, router_test_clie
         aktiv = re.findall(r'<a class="app-sidebar-link[^"]*\bactive\b[^"]*" data-bereich="([a-z]+)"[^>]*aria-current="page"', nav)
         assert aktiv == ([] if bereich == "keiner" else [bereich]) and nav.count('aria-current="page"') == len(aktiv), (a.vorlage, aktiv)
         geprueft.add(a.vorlage)
-    assert len(geprueft) == 44  # seit 1.9.22 mit Stammdaten-Formular und Leistung (bis dahin 42)
+    assert len(geprueft) == 45  # seit 1.9.67 mit der Berichtsseite, seit 1.9.22 mit Stammdaten-Formular und Leistung (bis dahin 42)
 
 
 def test_grundregeln_mit_gewicht_null():

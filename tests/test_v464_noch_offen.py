@@ -153,16 +153,18 @@ def test_unterschriebener_bericht_hat_nichts_offen(threaded_db_session, router_t
     assert client.get(f"/api/service-reports/{r['id']}/noch-offen").json() == {"offen": [], "eintraege": []}
 
 
-def test_seite_fragt_vor_jeder_unterschrift_und_ohne_kreuz_am_pflichtpunkt():
-    """Strukturprüfung der Seite: vor der Unterschrift des Monteurs (openSignPanel) und vor der des Kunden (confirmSignatureStep) fragt sie
-    …/noch-offen nach dem Speichern der Seite; der Knopf „×“ nur an einem freien Punkt; Prüfpunkte auch bei einer Vorlage an der Fläche."""
-    text, _ = seitentext("service_reports.html")
-    oeffnen = text[text.index("async function openSignPanel("):text.index("function renderSignStep(")]
-    bestaetigen = text[text.index("async function confirmSignatureStep("):text.index("const CONDITION_GRADE_LABELS")]
-    pruefen = text[text.index("async function nochOffenPruefen("):text.index("function nochOffenHtml(")]
-    assert "await nachDemSpeichern()" in pruefen and "api(`/api/service-reports/${id}/noch-offen`)" in pruefen
-    assert "await nochOffenPruefen(id)" in oeffnen
-    assert bestaetigen.index("await nochOffenPruefen(signingReportId)") < bestaetigen.index("installerSigDataUrl=dataUrl")
-    # seit 1.9.41 nur an einem von Hand ergänzten Punkt (ohne template_item_id), bis dahin an jedem Punkt ohne Pflicht
-    assert "r.status==='entwurf'&&item.template_item_id==null?`<button type=\"button\" class=\"danger punkt-loeschen\"" in text
-    assert "(r.roof_areas||[]).some(a=>!!a.inspection_template_id)" in text
+def test_seite_fragt_vor_der_unterschrift_und_loeschen_nur_am_eigenen_punkt():
+    """Strukturprüfung der Berichtsseite (seit 1.9.67 service_report.html; bis 1.9.66 je Bericht auf der Seite des Auftrags mit zwei
+    Unterschriftsschritten): vor „Bericht abschließen“ wartet sie das Speichern der Seite ab und fragt …/noch-offen frisch -- steht dort
+    etwas, geht nichts hinaus; „Prüfpunkt löschen“ nur an einem von Hand ergänzten Punkt; ob es Prüfpunkte gibt, sagt der Server
+    (hat_pruefpunkte, auch bei einer Vorlage an der Fläche)."""
+    text, _ = seitentext("service_report.html")
+    abschluss = text[text.index("async function berichtAbschliessen("):text.index("aktion('abschliessen',berichtAbschliessen)")]
+    laden = text[text.index("function nochOffenLaden("):text.index("// --- Inhalt je Schritt")]
+    assert "api('/api/service-reports/'+REPORT_ID+'/noch-offen')" in laden
+    assert abschluss.index("await nachDemSpeichern();await nochOffenLaden()") < abschluss.index("abschliessen('bericht'")
+    assert "if((OFFEN.eintraege||[]).length){abschlussZeichnen();return}" in abschluss
+    # seit 1.9.41 nur an einem von Hand ergänzten Punkt (ohne template_item_id), seit 1.9.67 im Menü „⋮“ des Punkts
+    assert ("(p.template_item_id==null?'<button type=\"button\" class=\"ds-menue-eintrag ds-menue-eintrag-fehler\" "
+            "data-klick=\"punkt-loeschen\"") in text
+    assert "key:R.hat_pruefpunkte?'pruefpunkte':'arbeiten'" in text

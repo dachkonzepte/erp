@@ -107,25 +107,13 @@ async def pruefen(tab, seed, p):
     p.pruefe("Projektmappe: Projektname als Text", await tab.js(f"document.body.innerText.includes({json.dumps(PROJEKT)})"), True)
     await _kein_skript(tab, p, "Projektmappe")
 
-    # --- Einsatzbericht (Nr. 5) ---------------------------------------------------------------------------------------------
+    # --- Einsatzbericht (Nr. 5) -- seit 1.9.67 auf der Berichtsseite: die Gruppe als Überschrift über ihren Punkten (bis 1.9.66 ein
+    # Klappknopf mit dem Namen im data-Attribut auf der Seite des Auftrags) ------------------------------------------------------------
     bericht = seed["bericht"]
-    await tab.oeffnen(f"/orders/{seed['auftrag']}/service-reports", "typeof reports!=='undefined'&&reports.length===1")
-    await tab.warte_auf_neu_geladene_liste()
-    await tab.js(f"void toggleReportInspectionItems({bericht})")
-    await tab.warten(f"(inspectionItemsCache[{bericht}]||[]).length>0", 10)
-    await tab.js(f"toggleReportArea({bericht},'none'); true")
-    gruppe = await tab.warten("!!document.querySelector('.inspection-group[data-gruppe]')", 10)
-    p.pruefe("Einsatzbericht: Gruppe als Text, Wert im data-Attribut", [gruppe, await tab.js(
-        "(()=>{const g=document.querySelector('.inspection-group[data-gruppe]');return [g.dataset.gruppe,g.textContent.slice(2),"
-        "g.getAttributeNames().filter(n=>n.startsWith('on'))]})()")], [True, [GRUPPE, GRUPPE, []]])
-    zeilen = "document.querySelectorAll('.ictl[data-item]').length"
-    vorher = await tab.js(zeilen)
-    await tab.js("document.querySelector('.inspection-group[data-gruppe]').click(); true")
-    await asyncio.sleep(0.3)
-    zu = await tab.js(zeilen)
-    await tab.js("document.querySelector('.inspection-group[data-gruppe]').click(); true")
-    await asyncio.sleep(0.3)
-    p.pruefe("Einsatzbericht: Klick klappt die Gruppe zu und wieder auf", [vorher > 0, zu, await tab.js(zeilen)], [True, 0, vorher])
+    await tab.oeffnen(f"/service-reports/{bericht}", "typeof PUNKTE!=='undefined'&&PUNKTE.length>0&&!!document.querySelector('.punkt')")
+    p.pruefe("Einsatzbericht: Gruppe als Text, ohne on…-Attribute", await tab.js(
+        f"[...document.querySelectorAll('#schrittInhalt .gruppe')].filter(g=>g.textContent==={json.dumps(GRUPPE)})"
+        ".map(g=>[g.textContent,g.children.length,g.getAttributeNames().filter(n=>n.startsWith('on'))])"), [[GRUPPE, 0, []]])
     await _kein_skript(tab, p, "Einsatzbericht")
 
     # --- Neues Projekt / Neues Angebot (Nr. 6) --------------------------------------------------------------------------

@@ -2,9 +2,9 @@
 Vorgabe 1.8.96 Punkte 1 und 2).
 
 Einsatzbericht (Wartung) mit einem Pflicht-Prüfpunkt "Freitext" (beantwortet: "vorher") und einem freien Prüfpunkt, als Büro auf der
-Berichtsseite des Auftrags. Seit 1.9.36 öffnet die Unterschrift erst, wenn nichts mehr offen ist (Prüfung nach dem Speichern der Seite),
-ebenso der Schritt zum Kunden -- geändert wird deshalb, während der Kunde unterschreibt (bis 1.9.35 vor dem Öffnen der Unterschrift,
-mit unbeantwortetem Pflichtpunkt):
+Berichtsseite (seit 1.9.67 /service-reports/{id}, bis 1.9.66 je Bericht auf der Seite des Auftrags). „Bericht abschließen“ wartet das
+Speichern der Seite ab, fragt „Noch offen“ frisch und sendet dann über abschliessen() -- geändert wird deshalb in Schritt 1, danach in
+Schritt 5 unterschrieben (bis 1.9.66 während der Kunde unterschrieb):
 
     Warten          Monteur unterschreibt; beim Kunden den Prüfpunkt ändern, das Speichern hält zurück (die Anfrage geht noch nicht
                     hinaus); Kunde unterschreibt: die Unterschrift geht nicht hinaus, solange der Prüfpunkt nicht gespeichert ist (Bericht bleibt
@@ -74,24 +74,24 @@ def befuellen(db, k):
     return {"order": auftrag.id, "reports": berichte, "items": punkte, "frei": freie, "cookies": {"anna": k.cookies(anna)}}
 
 
-async def _zeichnen(tab) -> None:
+async def _zeichnen(tab, flaeche: str) -> None:
     """Ein Strich mit echten Mausereignissen quer über die Unterschriftsfläche (seit 1.9.64 über Tab.strich())."""
-    await tab.strich("document.getElementById('sigCanvas')", weite=14)
+    await tab.strich(f"document.getElementById('{flaeche}')", weite=14)
 
 
 async def _unterschreiben(tab, bericht: int, zwischen=None) -> None:
-    """Monteur (Schritt 1) und Kunde (Schritt 2); der zweite Klick sendet -- über abschliessen(). Seit 1.9.36 öffnet die Unterschrift
-    erst nach der Prüfung „Noch offen“ (GET …/noch-offen nach dem Speichern der Seite), ebenso der Schritt zum Kunden; zwischen() läuft,
-    wenn der Schritt des Kunden offen ist (dort ändert der Test einen Prüfpunkt, während unterschrieben wird)."""
-    await tab.js(f"void openSignPanel({bericht}); true")
-    await tab.warten("!document.getElementById('signCard').classList.contains('hidden')", 10)
-    await _zeichnen(tab)
-    await tab.js("document.getElementById('signatureName').value='Anna Admin';document.getElementById('signNextBtn').click();true")
-    await tab.warten("document.getElementById('signHeading').textContent==='Unterschrift Kunde'", 10)
+    """Seit 1.9.67 auf der Berichtsseite: zwischen() ändert in Schritt 1 einen Prüfpunkt (das Speichern hält der Test zurück), dann Schritt
+    „Unterschrift“: beide Flächen, Namen, „Bericht abschließen“ -- die Seite wartet das Speichern ab, fragt „Noch offen“ frisch und sendet
+    erst dann über abschliessen() (bis 1.9.66: Monteur, dann Kunde im Unterschriften-Panel der Seite des Auftrags)."""
     if zwischen is not None:
         await zwischen()
-    await _zeichnen(tab)
-    await tab.js("document.getElementById('signatureName').value='Bernd Bauherr';document.getElementById('signNextBtn').click();true")
+    await tab.js("document.getElementById('schritt-unterschrift').click();true")
+    await tab.warten("!!document.getElementById('padKunde')", 10)
+    await _zeichnen(tab, "padMonteur")
+    await _zeichnen(tab, "padKunde")
+    await tab.js("(f=>{f.value='Bernd Bauherr';f.dispatchEvent(new Event('input',{bubbles:true}))})(document.getElementById('signKundeName'));true")
+    await tab.warten("!document.getElementById('abschliessenKnopf').disabled", 10)
+    await tab.js("document.getElementById('abschliessenKnopf').click();true")
 
 
 def _status(bericht: int, auftrag: int) -> str:
@@ -110,19 +110,16 @@ VERLASSEN = "(()=>{const e=new Event('beforeunload',{cancelable:true});window.di
 
 
 async def _oeffnen_mit_pruefpunkten(tab, p, auftrag: int, bericht: int, punkt: int) -> None:
-    await tab.oeffnen(f"/orders/{auftrag}/service-reports", "typeof reports!=='undefined'&&reports.length===3")
-    await tab.warte_auf_neu_geladene_liste()
-    await tab.js(f"void toggleReportInspectionItems({bericht})")
-    await tab.warten(f"(inspectionItemsCache[{bericht}]||[]).length>0", 10)
-    await tab.warte_auf_neu_geladene_liste()
-    await tab.js(f"toggleReportArea({bericht},'none'); true")  # Block "Prüfpunkte" (ohne Dachfläche) aufklappen
-    if not await tab.warten(f"!!document.querySelector('.ictl[data-item=\"{punkt}\"] input')", 10):
+    """Seit 1.9.67 die Berichtsseite, Schritt 1 (bis 1.9.66 die Seite des Auftrags mit aufgeklapptem Block „Prüfpunkte“)."""
+    await tab.oeffnen(f"/service-reports/{bericht}", "typeof PUNKTE!=='undefined'&&PUNKTE.length>0&&!document.getElementById('raster').hidden")
+    await tab.warte_auf_ruhe()
+    if not await tab.warten(f"!!document.getElementById('text-{punkt}')", 10):
         p.pruefe(f"Prüfpunkt {punkt} sichtbar", False, True)
 
 
 async def _eintragen(tab, punkt: int, text: str) -> None:
-    await tab.js(f"(()=>{{const el=document.querySelector('.ictl[data-item=\"{punkt}\"] input');el.value='{text}';"
-                 "el.dispatchEvent(new Event('change'))})()")
+    await tab.js(f"(()=>{{const el=document.getElementById('text-{punkt}');el.value='{text}';"
+                 "el.dispatchEvent(new Event('change',{bubbles:true}))})()")
 
 
 async def _warten(tab, seed, p):
@@ -147,7 +144,8 @@ async def _warten(tab, seed, p):
         "performance.getEntriesByType('resource').map(e=>e.name).filter(n=>/inspection-items\\/\\d+$|\\/sign$/.test(n))"
         ".map(n=>n.endsWith('/sign')?'sign':'pruefpunkt')"), ["pruefpunkt", "sign"])
     p.pruefe("Warten: danach keine Warnung beim Verlassen", await tab.js(VERLASSEN), False)
-    p.pruefe("Warten: keine Meldungen, keine JS-Fehler", [await tab.js("window.__alerts"), tab.fehler], [[], []])
+    p.pruefe("Warten: keine Meldungen, keine JS-Fehler", [await tab.js("window.__alerts"), await tab.js(
+        "document.getElementById('meldung').textContent"), tab.fehler], [[], "", []])
     await tab.bild("warten_unterschrieben")
 
 
@@ -165,14 +163,17 @@ async def _scheitern(tab, seed, p):
     p.pruefe("Scheitern: Prüfpunkt anderswo gelöscht", await tab.js(
         f"fetch('/api/inspection-items/{punkt}',{{method:'DELETE'}}).then(r=>r.status)"), 200)
     await tab.freigeben()
-    await tab.warten("document.getElementById('signStatus').textContent.startsWith('Fehler: Nicht ausgeführt')", 10)
+    await tab.warten("document.getElementById('signStatus').textContent.startsWith('Nicht ausgeführt')", 10)
     await tab.warte_auf_ruhe()
+    # seit 1.9.67 ohne „Fehler: “ davor (die Berichtsseite zeigt die Meldung des Bausteins wörtlich)
     p.pruefe("Scheitern: Meldung an der Unterschrift", await tab.js("document.getElementById('signStatus').textContent"),
-             "Fehler: Nicht ausgeführt: ein Speichern auf der Seite ist gescheitert (Prüfpunkt nicht gefunden.). Bitte prüfen und "
+             "Nicht ausgeführt: ein Speichern auf der Seite ist gescheitert (Prüfpunkt nicht gefunden.). Bitte prüfen und "
              "erneut versuchen.")
     p.pruefe("Scheitern: Unterschrift nie gesendet, Bericht Entwurf", [await tab.js(_sign_gesendet(bericht)),
              await tab.js(_status(bericht, auftrag))], [0, "entwurf"])
-    p.pruefe("Scheitern: das Speichern meldet seinen Fehler", await tab.js("window.__alerts"), ["Fehler: Prüfpunkt nicht gefunden."])
+    # seit 1.9.67 in der Meldungszeile der Seite (bis 1.9.66 per alert())
+    p.pruefe("Scheitern: das Speichern meldet seinen Fehler", await tab.js("document.getElementById('meldung').textContent"),
+             "Prüfpunkt nicht gefunden.")
     p.pruefe("Scheitern: JS-Fehler", tab.fehler, [])
     await tab.bild("scheitern_nicht_unterschrieben")
 
@@ -187,25 +188,25 @@ async def _zeitlimit(tab, seed, p):
     await tab.warte_bis_gehalten(1)
     p.pruefe("Zeitlimit: vor Ablauf kein Hinweis, Warnung beim Verlassen", [await tab.js(
         "!!document.getElementById('dkSpeichernUnklar')"), await tab.js(VERLASSEN)], [False, True])
-    await tab.warten("window.__alerts.length>0", 6)
+    await tab.warten("document.getElementById('meldung').textContent.length>0", 6)
     meldung = "Keine Antwort vom Server nach 2 Sekunden – unklar, ob gespeichert wurde. Bitte die Seite neu laden und prüfen."
-    p.pruefe("Zeitlimit: Meldung des Bereichs", await tab.js("window.__alerts"), ["Fehler: " + meldung])
+    p.pruefe("Zeitlimit: Meldung des Bereichs", await tab.js("document.getElementById('meldung').textContent"), meldung)
     p.pruefe("Zeitlimit: Hinweis oben mit 'Seite neu laden'", await tab.js(
         "(e=>e&&[e.querySelector('.dk-text').textContent,e.querySelector('button').textContent,getComputedStyle(e).position])"
         "(document.getElementById('dkSpeichernUnklar'))"), [meldung, "Seite neu laden", "fixed"])
     p.pruefe("Zeitlimit: nichts wartet mehr, keine Warnung beim Verlassen", await tab.js(VERLASSEN), False)
     await tab.bild("zeitlimit_hinweis")
     await _unterschreiben(tab, bericht)
-    await tab.warten("document.getElementById('signStatus').textContent.startsWith('Fehler:')", 6)
+    await tab.warten("document.getElementById('signStatus').textContent.startsWith('Nicht ausgeführt')", 6)
     p.pruefe("Zeitlimit: Unterschrift abgelehnt, nicht gesendet", [await tab.js("document.getElementById('signStatus').textContent"),
              await tab.js(_sign_gesendet(bericht)), await tab.js(_status(bericht, auftrag))],
-             ["Fehler: Nicht ausgeführt: bei einem Speichern auf der Seite ist unklar, ob es gespeichert wurde. Bitte die Seite neu "
+             ["Nicht ausgeführt: bei einem Speichern auf der Seite ist unklar, ob es gespeichert wurde. Bitte die Seite neu "
               "laden und prüfen.", 0, "entwurf"])
     await tab.js("document.querySelector('#dkSpeichernUnklar button').click(); true")
     await asyncio.sleep(1.0)
     await _oeffnen_mit_pruefpunkten(tab, p, auftrag, bericht, punkt)
     p.pruefe("Zeitlimit: nach dem Neuladen steht der gespeicherte Wert da, kein Hinweis", [await tab.js(
-        f"document.querySelector('.ictl[data-item=\"{punkt}\"] input').value"), await tab.js(
+        f"document.getElementById('text-{punkt}').value"), await tab.js(
         "!!document.getElementById('dkSpeichernUnklar')")], ["Rinne gereinigt", False])
     p.pruefe("Zeitlimit: JS-Fehler", tab.fehler, [])
     await tab.cmd("Page.removeScriptToEvaluateOnNewDocument", identifier=skript)

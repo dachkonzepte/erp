@@ -105,7 +105,6 @@ AUSNAHMEN = {
     ("roof_area.html", "loadAcceptanceWarranties", "api"): "nur Anzeige",
     ("roof_area.html", "toggleComponentFindings", "api"): "nur Anzeige",
     ("service_form.html", "searchMaterials", "api"): "Suche",
-    ("service_reports.html", "searchMaterialsForReport", "api"): "Suche",
     ("tasks.html", "updateCreateProjectFromTaskButton", "api"): "Prüfung ohne Formular",
 }
 

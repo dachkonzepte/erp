@@ -7,7 +7,8 @@ weiter funktioniert, so wie der Monteur sie sieht:
     Berichtsseite      die Dachfläche kommt ohne Notiz, Fremdfirma, Gewährleistung, Kunden-ID an
     Bericht anlegen    die Fläche steht in der Auswahl, ein Wartungsbericht mit ihr entsteht und
                        trägt sie (Prüfpunkte aus der Vorlage des Dachtyps)
-    Zeit buchen        seit 1.9.60 der Monteur mit Von und Bis (keine reine Dauer), das Büro mit Stunden
+    Zeit buchen        seit 1.9.67 die Monteurin nicht mehr hier („Zeit nachtragen“ auf „Meine Zeiten“, bis 1.9.66 mit Von und Bis),
+                       das Büro mit Stunden für sich, der Admin mit Auswahl
 
 AUFRUF (aus dem Projektordner):
 
@@ -88,30 +89,20 @@ async def pruefen(tab, seed, p):
 
     await tab.js("document.getElementById('editType').value='wartung';"
                  "document.querySelector('#editRoofAreaChecks input').checked=true;onEditRoofAreaChange();saveReport()")
-    await tab.warten("reports.length===1")
-    p.pruefe("Bericht mit Fläche angelegt", await tab.js("reports[0].roof_areas.map(a=>a.roof_area_name).join(',')"), "Hauptdach")
-    p.pruefe("Prüfpunkte aus der Vorlage",
-             await tab.js(f"fetch('/api/service-reports/'+reports[0].id+'/inspection-items').then(r=>r.json()).then(j=>j.map(i=>i.text).join(','))"),
-             "Abdichtung Sichtprüfung")
+    # seit 1.9.67 öffnet „Anlegen“ den neuen Bericht (/service-reports/{id})
+    await tab.warten("location.pathname.startsWith('/service-reports/')&&typeof PUNKTE!=='undefined'&&PUNKTE.length>0", 15)
+    p.pruefe("Bericht mit Fläche angelegt und geöffnet", await tab.js("R.roof_areas.map(a=>a.roof_area_name).join(',')"), "Hauptdach")
+    p.pruefe("Prüfpunkte aus der Vorlage", await tab.js("PUNKTE.map(i=>i.text).join(',')"), "Abdichtung Sichtprüfung")
     await tab.bild("bericht_angelegt")
 
-    # Seit 1.8.143: Zeit buchen ohne Auswahl "Mitarbeiter" -- der Monteur bucht für sich
-    p.pruefe("Zeit buchen: Feld Mitarbeiter verborgen",
-             await tab.js("getComputedStyle(document.getElementById('teEmployeeField')).display"), "none")
-    p.pruefe("Zeit buchen: nur die eigene Person",
-             await tab.js("[...document.getElementById('teEmployee').options].map(o=>o.textContent).join('|')"), "Max Monteur")
-    # seit 1.9.60 Von und Bis statt der Stunden (eine reine Dauer trägt nur das Büro ein)
-    p.pruefe("Zeit buchen: Von und Bis statt Stunden", await tab.js(
-        "['teHoursField','teVonField','teBisField'].map(i=>document.getElementById(i).hidden)"), [True, False, False])
-    await tab.js("document.getElementById('teVon').value='07:00';document.getElementById('teBis').value='09:30'")
-    await tab.warte_auf_neu_geladene_liste("document.querySelector('button[onclick=\"saveReportTimeEntry()\"]').click()",
-                                           "#timeEntriesTable")
-    p.pruefe("Zeit buchen: gebucht", await tab.js("document.getElementById('teStatus').textContent"), "Gebucht.")
-    p.pruefe("Zeit buchen: für sich", await tab.js(
-        f"fetch('/api/time-entries?order_id={auftrag}').then(r=>r.json()).then(j=>j.map(e=>e.employee_name+' '+Number(e.hours)).join('|'))"),
-        "Max Monteur 2.5")
+    # Seit 1.9.67 (Stufe 4, R4, Punkt 5): keine Buchungskarte für die Monteurin -- „Zeit nachtragen“ öffnet „Meine Zeiten“ mit dem Auftrag
+    # (bis 1.9.66 buchte sie hier ohne Auswahl „Mitarbeiter“ für sich, seit 1.9.60 mit Von und Bis)
+    await tab.oeffnen(f"/orders/{auftrag}/service-reports", "document.querySelectorAll('#reportList .bericht-zeile').length===1")
+    p.pruefe("Monteurin: keine Buchungskarte, „Zeit nachtragen“ mit dem Auftrag", await tab.js(
+        "[!!document.getElementById('teEmployee'),!!document.getElementById('teHours'),document.getElementById('zeitNachtragen').getAttribute('href')]"),
+        [False, False, f"/mobil/zeiten?order_id={auftrag}"])
     p.pruefe("JS-Fehler", tab.fehler, [])
-    await tab.bild("zeit_gebucht")
+    await tab.bild("monteurin_ohne_buchungskarte")
 
     # Seit 1.8.152: die Auswahl nur, wer laut Server für andere bucht (heute Admin); das Büro bucht für sich wie der Monteur
     await tab.anmelden(seed["cookies"]["buero"])
@@ -120,11 +111,11 @@ async def pruefen(tab, seed, p):
     p.pruefe("Büro: nur die eigene Person",
              await tab.js("[...document.getElementById('teEmployee').options].map(o=>o.textContent).join('|')"), "Bea Büro")
     await tab.js("document.getElementById('teHours').value='1'")
-    await tab.warte_auf_neu_geladene_liste("document.querySelector('button[onclick=\"saveReportTimeEntry()\"]').click()",
+    await tab.warte_auf_neu_geladene_liste("document.querySelector('[data-klick=zeit-buchen]').click()",  # seit 1.9.67 data-klick
                                            "#timeEntriesTable")
     p.pruefe("Büro: gebucht für sich", await tab.js(
         f"fetch('/api/time-entries?order_id={auftrag}').then(r=>r.json()).then(j=>j.map(e=>e.employee_name).sort().join('|'))"),
-        "Bea Büro|Max Monteur")
+        "Bea Büro")  # seit 1.9.67 bucht die Monteurin hier nicht mehr
     await tab.anmelden(seed["cookies"]["admin"])
     await tab.oeffnen(f"/orders/{auftrag}/service-reports", "document.getElementById('teEmployee').options.length>1")
     p.pruefe("Admin: Auswahl sichtbar", await tab.js("getComputedStyle(document.getElementById('teEmployeeField')).display")!="none", True)

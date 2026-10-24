@@ -4,6 +4,26 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.67 – Der Einsatzbericht in fünf Schritten auf eigener Seite (Stufe 4, R4 Fortsetzung)
+
+Der Bericht steht jetzt auf `/service-reports/{id}` (`service_report.html`) nach den Vorlagen `bericht-pruefpunkte` und
+`bericht-unterschrift`: Kopf mit Pfad „Heute / <Auftrag> / <Art>“ (Büro: Projekte / … / Auftrag / Einsatzberichte / <Art>), Status und „⋮“
+(Datum ändern, Art ändern – nur im leeren Bericht –, Prüfpunkte neu erzeugen, PDF, Löschen rot mit Rückfrage); fünf frei anwählbare Schritte
+mit Haken (Prüfpunkte bzw. beim Rapport ohne Vorlage „Arbeiten“ · Befunde · Material · Betriebsmittel · Unterschrift); rechts „Noch offen“,
+nach jedem Speichern frisch, darunter „Zurück“ / „Weiter: …“; im Hochformat eine Spalte, die Schritte als Zeile mit Bildlauf und „Noch offen“
+als feste Leiste unten. Prüfpunkte als Segmentknöpfe (52 px), „Nicht OK“ öffnet den Befund direkt darunter; Bemerkung, Fotos („Aufnehmen“ mit
+der Kamera, „Aus Galerie“) und Löschen des eigenen Punkts im Menü „⋮“ je Punkt; die Beschreibung speichert wie die Bemerkungen. Nach dem
+Speichern wird nur neu gezeichnet, was das Feld mit dem Fokus nicht enthält – der Fokus bleibt. Schritt 5 zeigt „Das steht im Bericht“, die
+„Zeiten am <Tag>“ und die Unterschriften von Monteur und Kunde mit Namensfeld (Flächen 160 px); „Bericht abschließen“ ist gesperrt mit
+„Fehlt: …“ und wartet vor dem Senden das Speichern der Seite ab und fragt „Noch offen“ frisch. Jedes Ziel ist mindestens 48 px hoch.
+
+Die Seite des Auftrags (`/orders/{id}/service-reports`) zeigt nur noch Objekt & Zugang, offene Bedenken, die Berichte als Zeilen, die zum
+Bericht führen („Bericht fortsetzen“ / „Bericht ansehen“), „+ Bericht“ (öffnet den neuen Bericht) und frühere Berichte; das Büro bucht dort
+Zeiten wie bisher, die Monteurin bekommt „Zeit nachtragen“ (auf „Meine Zeiten“, Auftrag vorgewählt). `?report=<id>` leitet der Server zum
+Bericht, „Heute“, „Heute / Offen“ und „Wartung durchführen“ führen direkt dorthin. Neuer Klicktest `klicktest_bericht_schritte`
+(jede Funktion der bisherigen Seite erreichbar, Fokus, 48 px quer und hoch); zwölf Klicktests und 24 Strukturtests auf die neue Seite
+umgestellt.
+
 ## 1.9.66 – Einsatzbericht: Regeln für die Seite in fünf Schritten (Stufe 4, R4 Fortsetzung, Server)
 
 Erster Teil der Entscheidungen zum Befund (R4): der Server kennt jetzt, was die neue Berichtsseite braucht. Ein Rapportbericht ohne

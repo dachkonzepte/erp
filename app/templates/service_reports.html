@@ -1,5 +1,9 @@
 {% set bereich = "projekte" -%}
-<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP – Einsatzbericht</title>
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP – Einsatzberichte</title>
+{# Seit 1.9.67 (Stufe 4, R4, Entscheidung D) die Seite des Auftrags: Objekt & Zugang, offene Bedenken, die Berichte des Auftrags mit
+   „+ Bericht“, frühere Berichte zum Gebäude und die Zeiten (Büro: Liste und Buchen wie bisher; die Monteurin „Zeit nachtragen“ auf „Meine
+   Zeiten“). Der Bericht selbst steht auf /service-reports/{id} (service_report.html) -- bis 1.9.66 standen alle Berichte mit Prüfpunkten,
+   Mängeln, Material, Betriebsmitteln und Unterschrift als Karten hier. ?report=<id> leitet der Server dorthin. #}
 <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
 {% include "_ds_kopf.html" %}
 <style>
@@ -16,96 +20,37 @@ input,select,textarea{padding:10px 11px;border:1px solid var(--field-border);bac
 input:hover,select:hover,textarea:hover{border-color:var(--field-border-hover)}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--ds-fokus);outline-offset:-1px;border-color:var(--ds-fokus)}
 textarea{min-height:80px;resize:vertical}
-button{border:1px solid var(--ds-aktion);background:var(--ds-aktion);color:#fff;padding:11px 15px;font:inherit;font-weight:650;font-size:14px;cursor:pointer}
+button{border:1px solid var(--ds-aktion);background:var(--ds-aktion);color:#fff;padding:11px 15px;font:inherit;font-weight:650;font-size:14px;cursor:pointer;min-height:48px}
 button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-color:color-mix(in srgb,var(--ds-aktion) 85%,black)}
 .secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}.secondary:hover{background:var(--soft)}
-.danger{background:var(--danger-soft);color:var(--danger);border:1px solid transparent}.danger:hover{background:color-mix(in srgb,var(--ds-fehler) 20%,transparent)}
 .hidden{display:none!important}
 .status{font-size:13px;color:var(--muted)}.status.err{color:var(--danger)}
 .editor-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-.report-card{border:1px solid var(--line);padding:14px;margin-bottom:10px;border-radius:var(--ds-ecke-karte)}
-.report-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+/* die Berichte des Auftrags: eine Zeile je Bericht, ganz anklickbar (48 px), zum Bericht auf /service-reports/{id} */
+.bericht-zeile{display:flex;align-items:center;gap:12px;min-height:56px;padding:10px 14px;border:1px solid var(--line);border-radius:var(--ds-ecke-karte);margin-bottom:8px;color:var(--ink);text-decoration:none;flex-wrap:wrap}
+a.bericht-zeile:hover{background:var(--soft);color:var(--ink)}
+.bericht-zeile .bz-text{flex:1;min-width:200px;display:flex;flex-direction:column;gap:2px}
+.bericht-zeile .bz-titel{font-weight:700;font-size:15px}
+.bericht-zeile .bz-neben{font-size:13px;color:var(--muted)}
+.bericht-zeile .bz-offen{font-size:13px;color:var(--ds-signal-text)}
+.bericht-zeile .bz-weiter{font-weight:650;color:var(--ds-link);white-space:nowrap}
 .badge{font-size:10.5px;font-weight:800;text-transform:uppercase;padding:2px 7px;background:var(--soft);color:var(--muted)}
 .badge.unterschrieben{background:var(--success-soft);color:var(--success)}
 .badge.entwurf{background:var(--warning-soft);color:var(--warning)}
-/* seit 1.9.36: was vor der Unterschrift noch offen ist */
-.noch-offen{margin-top:10px;color:var(--danger);font-size:13.5px}
-.noch-offen ul{margin:4px 0 0 18px;padding:0}
-/* seit 1.9.42: die Zeiten des Berichts -- dieselben Zeilen wie im PDF */
-.bericht-zeiten{margin-top:10px}
-.bericht-zeiten-titel{font-weight:700;font-size:13.5px;margin-bottom:6px}
 .office-hint{margin-top:8px;padding:8px 10px;border:1px solid var(--ds-warn-text);background:var(--warning-soft);color:var(--ink);border-radius:var(--ds-ecke-karte)}
+.report-card{border:1px solid var(--line);padding:14px;margin-bottom:10px;border-radius:var(--ds-ecke-karte)}
+.report-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
 .report-desc{white-space:pre-wrap;margin-top:8px;font-size:13.5px}
-.report-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
-.report-actions button,.report-actions a{padding:7px 10px;font-size:12.5px}
-.report-actions a{border:1px solid var(--line);color:var(--ink);text-decoration:none;display:inline-flex;align-items:center}
-.report-actions a:hover{background:var(--soft)}
 .empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
-canvas#sigCanvas{height:220px}
-.sig-hint{color:var(--muted);font-size:12.5px;margin-top:6px}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
 th{color:var(--muted);font-size:11px;text-transform:uppercase;font-weight:650}
 tr:last-child td{border-bottom:none}
 .table-scroll{overflow-x:auto}
-.inspection-panel{border-top:1px solid var(--line);margin-top:10px;padding-top:10px}
-.inspection-progress{font-size:12.5px;color:var(--muted);margin-bottom:8px}
-.inspection-hint{background:var(--soft);border-left:3px solid var(--ds-aktion);padding:8px 10px;font-size:12.5px;margin-bottom:8px}
-.inspection-open-list{margin:2px 0 10px 2px}
-.inspection-area{margin-bottom:4px}
-.inspection-group{font-weight:700;font-size:12.5px;margin:10px 0 4px}
-.inspection-row{display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
-.inspection-row .itext{flex:1;min-width:220px;font-size:13px}
-.inspection-row .itext .req{color:var(--danger);font-weight:800}
-/* seit 1.9.41: Titelzeile eines Prüfpunkts mit dem Löschknopf am Ende (48 × 48 px, nur an einem von Hand ergänzten Punkt) */
-.inspection-row .ikopf{display:flex;align-items:flex-start;gap:8px;flex:1;min-width:220px}
-.inspection-row .ikopf .itext{flex:1;min-width:0}
-.inspection-row .punkt-loeschen{flex:0 0 48px;width:48px;height:48px;min-height:48px;padding:0;font-size:20px;line-height:1;display:inline-flex;align-items:center;justify-content:center}
-.rueckfrage-karte{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:var(--ds-ecke-karte);padding:20px;width:min(420px,calc(100vw - 32px))}
-.rueckfrage-karte p{margin:0 0 16px;font-size:16px;line-height:1.4;overflow-wrap:anywhere}
-.rueckfrage-knoepfe{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
-.rueckfrage-knoepfe button{min-height:48px;min-width:120px}
-.inspection-row .ictl{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.inspection-row .ictl button{padding:6px 10px;font-size:12px}
-.inspection-row .ictl input,.inspection-row .ictl select{width:auto;padding:6px 7px;font-size:12.5px}
-.inspection-row .ictl .result-picker{display:flex;gap:6px;flex-wrap:wrap}
-.badge.out-of-range{background:var(--danger-soft);color:var(--danger);font-weight:800;font-size:10.5px;padding:2px 6px;text-transform:uppercase}
-.badge.dringend,.badge.akute_gefahr{background:var(--danger-soft);color:var(--danger)}
-.badge.mittel{background:var(--warning-soft);color:var(--warning)}
-.badge.erledigt{background:var(--success-soft);color:var(--success)}
-.finding-hint{background:var(--danger-soft);color:var(--danger);padding:6px 10px;font-size:12.5px;font-weight:650;display:flex;justify-content:space-between;align-items:center;gap:8px;margin:4px 0}
-.finding-hint button{padding:4px 9px;font-size:12px}
-.item-photos{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:4px 0 8px}
-.photo-thumb{position:relative;display:inline-flex}
-.photo-thumb img{width:52px;height:52px;object-fit:cover;border:1px solid var(--line)}
-.photo-del{position:absolute;top:-8px;right:-8px;padding:0;width:18px;height:18px;font-size:11px;line-height:1;border-radius:50%}
-.photo-slot-empty{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
-.finding-card{border:1px solid var(--line);padding:10px;margin-bottom:8px;border-radius:var(--ds-ecke-karte)}
-.finding-head{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
-.finding-desc{font-size:13.5px;white-space:pre-wrap}
-.finding-meta{margin-top:4px}
-.finding-followup{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px}
-.finding-followup select{width:auto}
-.finding-followup input[type=date]{width:auto}
-.finding-form{border:1px dashed var(--field-border);padding:10px;margin-top:8px;border-radius:var(--ds-ecke-karte)}
-.finding-form-row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
-.finding-form-row select,.finding-form-row input{width:auto}
+.zeit-nachtragen{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 18px;border:1px solid var(--ds-aktion);background:var(--ds-aktion);color:var(--ds-auf-aktion);font-weight:650;text-decoration:none}
+.zeit-nachtragen:hover{color:var(--ds-auf-aktion)}
 @media(max-width:700px){.fields-2col{grid-template-columns:1fr}}
-/* Tablet-Breakpoint (seit 1.3.0, konsistent mit planning.html 950px/tasks.html 900px) -- die
-   Flächen-/Gruppen-Zuklappblöcke aus 1.2.22 bleiben unverändert, sie funktionieren auf Tablet
-   bereits gut. Alles hier zielt auf Bedienelemente <44px (siehe CLAUDE.md, Bestandsaufnahme:
-   34-40px gemessen) und die beiden Tabellen (Material, Zeitbuchungen), die sich sonst nur per
-   horizontalem Scrollen bedienen ließen. */
 @media(max-width:900px){
-  .inspection-row{flex-direction:column;align-items:stretch}
-  .inspection-row .itext{min-width:0}
-  .inspection-row .ikopf{min-width:0}
-  .inspection-row .ictl{width:100%}
-  .inspection-row .ictl .result-picker{width:100%}
-  .inspection-row .ictl .result-picker button{flex:1;min-height:44px;font-size:13.5px;padding:8px 6px}
-  .inspection-row .ictl input,.inspection-row .ictl select{min-height:44px;font-size:14px;padding:9px 10px}
-  .report-actions button,.report-actions a{min-height:44px;padding:10px 13px;font-size:13.5px}
-  .editor-actions button{min-height:44px}
   .table-scroll table thead{display:none}
   .table-scroll table,.table-scroll table tbody,.table-scroll table tr{display:block;width:100%}
   .table-scroll table tr{border:1px solid var(--line);margin-bottom:8px;padding:2px 8px}
@@ -114,10 +59,6 @@ tr:last-child td{border-bottom:none}
   .table-scroll table td::before{content:attr(data-label);font-weight:700;color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.03em}
   .table-scroll table td input,.table-scroll table td select{width:auto;max-width:60%;min-height:40px}
 }
-/* Seit 1.3.50: allgemeine Link-Farbe (Muster login.html) -- der PDF-Link in historyCard()
-   (Wartungshistorie-Panel) hatte bislang keine eigene Regel und erschien deshalb als blau
-   unterstrichener Browser-Standardlink statt im Design-System, siehe CLAUDE.md. Die bereits
-   spezifischer gestylten Links (.report-actions a) bleiben davon unberührt. Seit 1.9.10 in --ds-link. */
 a{color:var(--ds-link)}
 </style></head><body class="ds-seite">
 {# current_user hier setzen, nicht nur in _sidebar.html/_topbar.html: ein {% set %} in einem
@@ -127,12 +68,11 @@ a{color:var(--ds-link)}
 {% set current_user = request.state.erp_user %}
 {% set darf_buero_seiten = can(current_user, 'admin', 'buero_finanzen', 'buero_auftrag') %}
 {# Seit 1.8.164 (Stufe 2 „Rahmen“): die Monteurin im Monteurskopf -- Reiter, Lupe, Konto mit vollem Namen --, das Büro mit Seitenleiste
-   und Kopfzeile; die Weiche hängt an der Rolle (Muster checklist.html). Den Entprell-Helfer bringt der Monteurskopf selbst mit. #}
+   und Kopfzeile; die Weiche hängt an der Rolle (Muster checklist.html). #}
 {% set monteursrahmen = can(current_user, 'field') %}
 <div class="app-layout">
-{% if not monteursrahmen %}{% include "_sidebar.html" %}{% include "_debounce.html" %}{% endif %}
-{% include "_unterschrift.html" %}
-{% include "_time_entries_list.html" %}
+{% if not monteursrahmen %}{% include "_sidebar.html" %}{% endif %}
+{% if not monteursrahmen %}{% include "_time_entries_list.html" %}{% endif %}
 {% include "_berlin_date.html" %}
 {% if is_module_enabled('checklisten') %}{% include "_offene_bedenken.html" %}{% endif %}
 <div class="app-content">
@@ -140,11 +80,11 @@ a{color:var(--ds-link)}
 <main>
 {% if is_module_enabled('wartungen') %}
 {# Seit 1.9.10 (Stufe 2 „Rahmen“, Runde 5): gemeinsamer Seitenkopf -- Kennung = Auftragsnummer, Untertitel = Kunde, Status des Auftrags,
-   Pfad fürs Büro Projekte / Kunde / [Wartungsvertrag] / Projekt / Auftrag, für die Monteurin Einsätze (/mobil): Auftrag, Kunde, Projekt
+   Pfad fürs Büro Projekte / Kunde / [Wartungsvertrag] / Projekt / Auftrag, für die Monteurin Heute (/mobil): Auftrag, Kunde, Projekt
    und Vertrag sind Büro-Seiten. „Zeiterfassung (Auftrag)“ im Menü „⋮“. #}
 {% from "teile/seitenkopf.html" import seitenkopf %}
 {# seit 1.9.25: im Monteursrahmen mit den Tablet-Maßen des Kopfs (tablet) #}
-{% call(teil) seitenkopf("Einsatzbericht", untertitel="Auftrag wird geladen …", mit_pfad=true, mit_menue=true, tablet=monteursrahmen) %}
+{% call(teil) seitenkopf("Einsatzberichte", untertitel="Auftrag wird geladen …", mit_pfad=true, mit_menue=true, tablet=monteursrahmen) %}
   {% if teil == "pfad" %}{% if darf_buero_seiten %}<a class="ds-kopf-pfadglied" href="/projects">Projekte</a>{% else %}<a class="ds-kopf-pfadglied" href="/mobil">Heute</a>{% endif %}
   {% elif teil == "menue" %}<a class="ds-menue-eintrag" id="timeLink" href="/time-tracking">Zeiterfassung (Auftrag)</a>{% endif %}
 {% endcall %}
@@ -165,43 +105,29 @@ a{color:var(--ds-link)}
   </div>
 </div>
 
+{# „+ Bericht“: Art, Datum, Durchgeführt von, Dachflächen, Vorlage (bei genau einer Fläche), Beschreibung -- nach dem Anlegen geht es zum
+   Bericht (seit 1.9.67; Bearbeiten steht dort: Datum und Art im Menü „⋮“, die Beschreibung im Schritt „Arbeiten“ bzw. unter den Prüfpunkten) #}
 <div id="editorCard" class="card hidden">
   <h2 id="editorHeading">Bericht anlegen</h2>
   <div class="fields-2col">
-    <div class="field"><label>Berichtstyp</label><select id="editType" onchange="onEditTypeChange()"><option value="rapport">Rapportbericht (Reparatur)</option><option value="wartung">Wartungsbericht</option></select></div>
-    <div class="field"><label>Datum des Einsatzes</label><input id="editPerformedAt" type="date"></div>
-    <div class="field full"><label>Durchgeführt von <span class="muted small">(optional)</span></label><select id="editEmployee"></select></div>
+    <div class="field"><label for="editType">Berichtstyp</label><select id="editType" data-aenderung="art-gewaehlt"><option value="rapport">Rapportbericht (Reparatur)</option><option value="wartung">Wartungsbericht</option></select></div>
+    <div class="field"><label for="editPerformedAt">Datum des Einsatzes</label><input id="editPerformedAt" type="date"></div>
+    <div class="field full"><label for="editEmployee">Durchgeführt von <span class="muted small">(optional)</span></label><select id="editEmployee"></select></div>
     <div class="field full" id="editRoofAreaField"><label>Dachflächen <span class="muted small">(für Prüfpunkte, mehrere möglich)</span></label><div id="editRoofAreaChecks" style="display:flex;flex-wrap:wrap;gap:10px"></div></div>
-    <div class="field full" id="editInspectionTemplateField"><label>Vorlage</label><select id="editInspectionTemplate"></select><div class="muted small hidden" id="editInspectionTemplateHint" style="margin-top:6px">Vorlage wird automatisch je Dachfläche nach Dachtyp bestimmt.</div></div>
-    <div class="field full"><label>Durchgeführte Arbeiten / Feststellungen</label><textarea id="editDescription"></textarea></div>
+    <div class="field full" id="editInspectionTemplateField"><label for="editInspectionTemplate">Vorlage</label><select id="editInspectionTemplate"></select><div class="muted small hidden" id="editInspectionTemplateHint" style="margin-top:6px">Vorlage wird automatisch je Dachfläche nach Dachtyp bestimmt.</div></div>
+    <div class="field full"><label for="editDescription">Durchgeführte Arbeiten / Feststellungen</label><textarea id="editDescription"></textarea></div>
   </div>
   <div class="editor-actions">
-    <button onclick="saveReport()">Speichern</button>
-    <button class="secondary" onclick="closeEditor()">Abbrechen</button>
+    <button type="button" data-klick="bericht-anlegen">Anlegen</button>
+    <button type="button" class="secondary" data-klick="editor-zu">Abbrechen</button>
     <span id="editorStatus" class="status"></span>
-  </div>
-</div>
-
-<div id="signCard" class="card hidden">
-  <h2 id="signHeading">Unterschrift Monteur</h2>
-  <div class="muted small" id="signHint" style="margin-bottom:8px">Bitte selbst unterschreiben, danach das Gerät an den Kunden weitergeben.</div>
-  <canvas id="sigCanvas" class="dk-unterschrift"></canvas>
-  <div class="sig-hint">Mit Finger oder Stift direkt auf dem Feld unterschreiben.</div>
-  <div class="fields-2col" style="margin-top:12px">
-    <div class="field full"><label id="signNameLabel">Name des Monteurs</label><input id="signatureName" placeholder="Vor- und Nachname"></div>
-  </div>
-  <div class="editor-actions">
-    <button id="signNextBtn" onclick="confirmSignatureStep()">Weiter</button>
-    <button class="secondary" onclick="clearSignature()">Löschen</button>
-    <button class="secondary" onclick="closeSignPanel()">Abbrechen</button>
-    <span id="signStatus" class="status"></span>
   </div>
 </div>
 
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
     <h2 style="margin:0">Berichte zu diesem Auftrag</h2>
-    <button onclick="openCreateEditor()">+ Bericht</button>
+    <button type="button" id="neuerBericht" data-klick="editor-auf">+ Bericht</button>
   </div>
   <div id="reportList" style="margin-top:12px"></div>
   <span id="listStatus" class="status"></span>
@@ -213,6 +139,15 @@ a{color:var(--ds-link)}
   <div id="historyList"></div>
 </div>
 
+{% if monteursrahmen %}
+{# Seit 1.9.67 (Stufe 4, R4, Punkt 5): die Monteurin bucht hier nicht mehr -- „Zeit nachtragen“ öffnet „Meine Zeiten“ mit diesem Auftrag
+   vorgewählt; Starten und Stoppen stehen auf „Heute“. #}
+<div class="card" id="zeitenKarte">
+  <h2>Zeiten</h2>
+  <p class="muted" style="margin:0 0 12px">Deine Zeiten zu diesem Auftrag trägst du unter „Meine Zeiten“ nach – der Auftrag ist dort schon gewählt.</p>
+  <a class="zeit-nachtragen" id="zeitNachtragen" href="/mobil/zeiten">Zeit nachtragen</a>
+</div>
+{% else %}
 <div class="card">
   <h2>Erfasste Zeiten zu diesem Auftrag</h2>
   <div class="fields-2col" style="margin-bottom:10px">
@@ -223,24 +158,20 @@ a{color:var(--ds-link)}
     <div class="field"><label>Zeitart</label><select id="teType"></select></div>
     <div class="field"><label>Tätigkeit</label><select id="teActivity"></select></div>
     <div class="field"><label>LV-Position <span class="muted small">(optional)</span></label><select id="teOrderItem"></select></div>
-    {# Seit 1.9.60 (Stufe 4, R3): die Monteurin bucht mit Von und Bis (Pausenregel des Tages, app/permissions.py::zeit_nur_mit_von_bis),
-       das Büro weiter eine Dauer -- schon im Markup verborgen, das Skript liest, welches Feld sichtbar ist #}
+    {# Seit 1.9.60 (Stufe 4, R3): wer nur mit Von und Bis bucht (app/permissions.py::zeit_nur_mit_von_bis), bucht mit Von und Bis
+       (Pausenregel des Tages), das Büro weiter eine Dauer -- schon im Markup verborgen, das Skript liest, welches Feld sichtbar ist #}
     <div class="field" id="teHoursField"{% if zeit_nur_mit_von_bis %} hidden{% endif %}><label>Stunden</label><input id="teHours" type="text" inputmode="decimal" data-zahl data-min="0"></div>
     <div class="field" id="teVonField"{% if not zeit_nur_mit_von_bis %} hidden{% endif %}><label>Von</label><input id="teVon" type="time"></div>
     <div class="field" id="teBisField"{% if not zeit_nur_mit_von_bis %} hidden{% endif %}><label>Bis</label><input id="teBis" type="time"></div>
     <div class="field full"><label>Notizen <span class="muted small">(optional)</span></label><input id="teNotes"></div>
   </div>
   <div class="editor-actions" style="margin-bottom:10px">
-    <button type="button" onclick="saveReportTimeEntry()">Zeit buchen</button>
+    <button type="button" data-klick="zeit-buchen">Zeit buchen</button>
     <span id="teStatus" class="status"></span>
   </div>
   <div id="timeEntriesTable"></div>
 </div>
-{#- seit 1.9.41: Rückfrage vor dem Löschen eines Prüfpunkts auf der Seite (sichtbar, 48-px-Knöpfe) statt confirm() -#}
-<dialog id="punktLoeschenDialog" class="rueckfrage-karte" aria-labelledby="punktLoeschenFrage">
-  <p id="punktLoeschenFrage"></p>
-  <div class="rueckfrage-knoepfe"><button type="button" class="secondary" id="punktLoeschenNein">Abbrechen</button><button type="button" class="danger" id="punktLoeschenJa">Löschen</button></div>
-</dialog>
+{% endif %}
 {% else %}
 <div class="card"><h2>Wartungen & Reparaturen</h2><div class="muted">Dieses Modul ist deaktiviert. Ein Administrator kann es in den {% if darf_buero_seiten %}<a href="/settings#modules" style="color:var(--ds-link)">Einstellungen</a>{% else %}Einstellungen{% endif %} wieder aktivieren.</div></div>
 {% endif %}
@@ -254,95 +185,18 @@ a{color:var(--ds-link)}
 {% include "_aktionen.html" %}
 <script>
 const orderId={{ order_id }};
-// Seit 1.4.5 (Betriebsmittelverwaltung Stufe 3) -- "wartungen" (diese ganze Seite) und
-// "betriebsmittel" sind zwei unabhängige Module; Muster maintenanceModuleEnabled in
-// project_folder.html: seiteneigene JS-Konstante, per Jinja-Global gesetzt, blendet den
-// Betriebsmittel-Panel-Umschalter aus, statt einen Knopf zu zeigen, der ohnehin nur 403 liefert.
-const assetsModuleEnabled={{ 'true' if is_module_enabled('betriebsmittel') else 'false' }};
 // Seit 1.8.27: Auftrag, Kunde, Folgeauftrag sind Büro-Seiten -- für den Monteur Text statt Link.
 const darfBueroSeiten={{ 'true' if darf_buero_seiten else 'false' }};
+// die Monteurin hat seit 1.9.67 keine Buchungskarte (statt dessen „Zeit nachtragen“) -- daran erkennt das Skript den Monteursrahmen
+const monteursrahmen=!document.getElementById('teHours');
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
+function fmtDate(s){if(!s)return'';const t=String(s).slice(0,10).split('-');return t.length===3?t[2]+'.'+t[1]+'.'+t[0]:String(s)}
 async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
 
-let authStatus=null,employees=[],reports=[],editingReportId=null,signingReportId=null;
-let roofAreasForOrder=[],inspectionTemplates=[],orderData=null,timeEntryTypes=[],timeEntryActivities=[];
+let authStatus=null,employees=[],reports=[];
+let roofAreasForOrder=[],inspectionTemplates=[],orderData=null,timeEntryTypes=[],timeEntryActivities=[],kopfVertrag=null;
 async function safeOptionGroup(key){try{return await api(`/api/settings/option-groups/${key}`)}catch(e){console.warn('Option group',key,e);return {options:[]}}}
 function optionsHtml(list,selected){return '<option value="">— keine Auswahl —</option>'+(list||[]).filter(o=>o.active!==false).map(o=>`<option value="${esc(o.value)}" ${o.value===selected?'selected':''}>${esc(o.label)}</option>`).join('')}
-const inspectionItemsCache={},inspectionSyncHints={},expandedReportIds=new Set();
-const findingsCache={},photosCache={},expandedFindingsReportIds=new Set();
-let activeFindingForm=null; // {reportId, inspectionItemId}
-// Seit 1.2.23 (Materialerfassung): materialsCache je Bericht, eigener Panel-Umschalter auf
-// gleicher Stufe wie Prüfpunkte/Mängel. pendingMaterialFindingId merkt, dass der NÄCHSTE über
-// das Formular angelegte Eintrag einem bestimmten Mangel zugeordnet werden soll (Button
-// "+ Material" am Mangel, Muster activeFindingForm). selectedMaterialCatalogId je Bericht hält
-// den zuletzt per Suche ausgewählten Katalogeintrag fest, bis das Formular abgeschickt oder der
-// Katalogbezug wieder entfernt wird.
-const materialsCache={},expandedMaterialsReportIds=new Set();
-const pendingMaterialFindingId={},selectedMaterialCatalogId={},materialSearchResults={};
-// Seit 1.4.5 (Betriebsmittelverwaltung Stufe 3): assetsCache je Bericht, vierter,
-// gleichrangiger Panel-Umschalter neben Prüfpunkte/Mängel/Material. selectableAssets wird
-// einmalig in init() geladen (kurze, freigegebene Liste -- kein Debounce-Suchfeld wie bei
-// Material nötig, siehe CLAUDE.md "Betriebsmittelverwaltung" -> Stufe 3), selectedAssetId je
-// Bericht hält die aktuell im Auswahlfeld gewählte asset_id fest.
-const assetsCache={},expandedAssetsReportIds=new Set();
-let selectableAssets=[];
-const selectedAssetId={};
-// Seit 1.2.22 (kompakte Berichtsseite): expandedAreaKeys -- welche Dachflächen-Blöcke
-// aufgeklappt sind (Anwesenheit = offen, Default zu). closedGroupKeys -- welche group_name-
-// Gruppen INNERHALB einer aufgeklappten Fläche zugeklappt sind (Anwesenheit = zu, Default
-// offen -- invers zu den übrigen Sets, da hier "offen" der Normalfall ist). openNotesItemIds --
-// welche Bemerkungsfelder (nicht-free_text-Punkte) manuell aufgeklappt wurden.
-const expandedAreaKeys=new Set(),closedGroupKeys=new Set(),openNotesItemIds=new Set();
-function toggleReportArea(reportId,areaKey){
-  const key=`${reportId}:${areaKey}`;
-  if(expandedAreaKeys.has(key))expandedAreaKeys.delete(key);else expandedAreaKeys.add(key);
-  renderReportList();
-}
-function toggleGroup(reportId,areaKey,groupName){
-  const key=`${reportId}:${areaKey}:${groupName}`;
-  if(closedGroupKeys.has(key))closedGroupKeys.delete(key);else closedGroupKeys.add(key);
-  renderReportList();
-}
-/* Seit 1.8.102 über data-Attribute (_aktionen.html): Gruppenname und Fläche gingen bis 1.8.101 als JS-Zeichenkette ins onclick --
-   ein " im Gruppennamen beendete das Attribut (Befund 1.8.100 Nr. 5). */
-aktion('pruefgruppe',el=>toggleGroup(Number(el.dataset.bericht),el.dataset.flaeche,el.dataset.gruppe));
-aktion('pruefflaeche',el=>toggleReportArea(Number(el.dataset.bericht),el.dataset.flaeche));
-function toggleItemNotes(itemId){
-  if(openNotesItemIds.has(itemId))openNotesItemIds.delete(itemId);else openNotesItemIds.add(itemId);
-  renderReportList();
-}
-function isItemAnswered(item){
-  if(item.item_type==='ja_nein'||item.item_type==='leak_test')return item.result!=null;
-  if(item.item_type==='condition_grade')return item.condition_grade!=null;
-  if(item.item_type==='measurement')return item.measured_value!=null;
-  if(item.item_type==='quantity')return item.quantity!=null;
-  if(item.item_type==='free_text')return !!(item.notes&&item.notes.trim());
-  return true;
-}
-const SEVERITIES=[['gering','Gering'],['mittel','Mittel'],['dringend','Dringend'],['akute_gefahr','Akute Gefahr']];
-const ACTIONS=[['sofort_behoben','Sofort behoben'],['buero_pruefen','Büro prüfen lassen'],['zurueckgestellt','Zurückgestellt']];
-const FINDING_STATUSES=[['offen','Offen'],['in_bearbeitung','In Bearbeitung'],['erledigt','Erledigt'],['zurueckgestellt','Zurückgestellt']];
-
-// Seit 1.8.95 über lesen()/speichern() (_speichern.html): je Bericht ein Bereich je Liste -- 'pruefpunkte-<id>',
-// 'maengel-<id>', 'fotos-<id>', 'material-<id>', 'betriebsmittel-<id>'; dazu 'berichte' (die Berichtsliste), 'zeiten' und
-// 'historie'. Speichern geht je Liste nacheinander hinaus, eine spät ankommende, ältere Liste überschreibt nie eine neuere
-// (Autosave der Prüfpunkte; auch die Antwort des Abgleichs /sync trägt alle Prüfpunkte des Berichts).
-async function loadReportExtras(reportId){
-  await lesen('maengel-'+reportId,()=>api(`/api/service-reports/${reportId}/findings`).catch(()=>[]),d=>{findingsCache[reportId]=d});
-  await lesen('fotos-'+reportId,()=>api(`/api/service-reports/${reportId}/photos`).catch(()=>[]),d=>{photosCache[reportId]=d});
-  await lesen('material-'+reportId,()=>api(`/api/service-reports/${reportId}/materials`).catch(()=>[]),d=>{materialsCache[reportId]=d});
-  if(assetsModuleEnabled)await lesen('betriebsmittel-'+reportId,()=>api(`/api/service-reports/${reportId}/assets`).catch(()=>[]),d=>{assetsCache[reportId]=d});
-}
-function loadMaterials(reportId){
-  return lesen('material-'+reportId,()=>api(`/api/service-reports/${reportId}/materials`),d=>{materialsCache[reportId]=d});
-}
-function loadAssets(reportId){
-  return lesen('betriebsmittel-'+reportId,()=>api(`/api/service-reports/${reportId}/assets`),d=>{assetsCache[reportId]=d});
-}
-function loadInspectionItems(reportId){
-  return lesen('pruefpunkte-'+reportId,()=>api(`/api/service-reports/${reportId}/inspection-items`),d=>{inspectionItemsCache[reportId]=d});
-}
 
 // Für sich buchen (seit 1.8.143 Monteure, seit 1.8.152 jeder, der laut Server nicht für andere buchen darf -- heute alle außer Admin):
 // keine Auswahl "Mitarbeiter", fest die eigene Person. Die Regel kommt vom Server (/api/auth/status, zeit_fuer_andere_buchen aus
@@ -353,14 +207,13 @@ function zeitMitarbeiterOptionen(){
   const eigen=employees.find(e=>e.id===authStatus.user.employee_id);
   return eigen?`<option value="${eigen.id}" selected>${esc(eigen.first_name+' '+eigen.last_name)}</option>`:'';
 }
-// Seit 1.9.16 über auswahlOptionen(): ein inaktiver Ersteller bleibt gewählt („(inaktiv)“), neu angeboten nur aktive; bis 1.9.15 stand dann
-// „— nicht zugeordnet —“ (gespeichert wird er beim Bearbeiten nicht, die Anzeige war falsch).
+// Seit 1.9.16 über auswahlOptionen(): ein inaktiver Mitarbeiter bleibt gewählt („(inaktiv)“), neu angeboten nur aktive.
 function employeeOptionsHtml(selected,name=null){
   return auswahlOptionen(employees,selected??'',e=>e.first_name+' '+e.last_name,{leer:'— nicht zugeordnet —',fehlt:()=>`${name||'Mitarbeiter'} (nicht mehr verfügbar)`});
 }
 function editRoofAreaChecksHtml(selectedIds){
-  return roofAreasForOrder.map(a=>`<label style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:400">
-    <input type="checkbox" value="${a.id}" style="width:auto" ${selectedIds.includes(a.id)?'checked':''} onchange="onEditRoofAreaChange()"> ${esc(a.name)}
+  return roofAreasForOrder.map(a=>`<label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:400;min-height:48px">
+    <input type="checkbox" value="${a.id}" style="width:22px;height:22px" ${selectedIds.includes(a.id)?'checked':''} data-aenderung="flaeche-gewaehlt"> ${esc(a.name)}
   </label>`).join('')||'<span class="muted small">Keine Dachflächen für dieses Objekt.</span>';
 }
 function getEditRoofAreaIds(){
@@ -381,995 +234,70 @@ function onEditRoofAreaChange(){
     hint.classList.remove('hidden');
   }
 }
+aktion('flaeche-gewaehlt',()=>onEditRoofAreaChange(),'change');
 function inspectionTemplateOptionsHtml(selected,reportType){
   const defaultLabel=reportType==='wartung'?'— automatisch nach Dachtyp —':'— keine —';
   return `<option value="">${defaultLabel}</option>`+inspectionTemplates.filter(t=>!t.archived).map(t=>`<option value="${t.id}" ${Number(selected)===t.id?'selected':''}>${esc(t.label)}</option>`).join('');
 }
-
-function updateRoofAreaFieldsVisibility(){
-  const hasRoofAreas=roofAreasForOrder.length>0;
-  document.getElementById('editRoofAreaField').classList.toggle('hidden',!hasRoofAreas);
-  document.getElementById('editInspectionTemplateField').classList.toggle('hidden',!hasRoofAreas);
-}
-
-function onEditTypeChange(){
-  document.getElementById('editInspectionTemplate').innerHTML=inspectionTemplateOptionsHtml(null,document.getElementById('editType').value);
-}
+aktion('art-gewaehlt',()=>{document.getElementById('editInspectionTemplate').innerHTML=inspectionTemplateOptionsHtml(null,document.getElementById('editType').value)},'change');
 
 function openCreateEditor(){
-  editingReportId=null;
-  document.getElementById('editorHeading').textContent='Bericht anlegen';
   document.getElementById('editType').value='rapport';
   document.getElementById('editPerformedAt').value=berlinToday();
   document.getElementById('editEmployee').innerHTML=employeeOptionsHtml(authStatus.user?authStatus.user.employee_id:null);
   document.getElementById('editRoofAreaChecks').innerHTML=editRoofAreaChecksHtml([]);
   document.getElementById('editInspectionTemplate').innerHTML=inspectionTemplateOptionsHtml(null,'rapport');
   onEditRoofAreaChange();
-  updateRoofAreaFieldsVisibility();
-  document.getElementById('editRoofAreaField').classList.remove('hidden');
-  document.getElementById('editInspectionTemplateField').classList.remove('hidden');
-  if(!roofAreasForOrder.length){
-    document.getElementById('editRoofAreaField').classList.add('hidden');
-    document.getElementById('editInspectionTemplateField').classList.add('hidden');
-  }
+  const hasRoofAreas=roofAreasForOrder.length>0;
+  document.getElementById('editRoofAreaField').classList.toggle('hidden',!hasRoofAreas);
+  document.getElementById('editInspectionTemplateField').classList.toggle('hidden',!hasRoofAreas);
   document.getElementById('editDescription').value='';
   document.getElementById('editorStatus').textContent='';
-  document.getElementById('signCard').classList.add('hidden');
   document.getElementById('editorCard').classList.remove('hidden');
   document.getElementById('editorCard').scrollIntoView({behavior:'smooth',block:'start'});
 }
+aktion('editor-auf',()=>openCreateEditor());
+aktion('editor-zu',()=>document.getElementById('editorCard').classList.add('hidden'));
 
-function openEditEditor(id){
-  const r=reports.find(x=>x.id===id);
-  if(!r)return;
-  editingReportId=id;
-  document.getElementById('editorHeading').textContent='Bericht bearbeiten';
-  document.getElementById('editType').value=r.report_type;
-  document.getElementById('editPerformedAt').value=r.performed_at;
-  document.getElementById('editEmployee').innerHTML=employeeOptionsHtml(r.created_by_employee_id,r.created_by_employee_name);
-  document.getElementById('editDescription').value=r.description||'';
-  document.getElementById('editorStatus').textContent='';
-  // Dachfläche/Vorlage sind nur beim Anlegen wählbar -- Generierung ist ein Einmal-Vorgang.
-  document.getElementById('editRoofAreaField').classList.add('hidden');
-  document.getElementById('editInspectionTemplateField').classList.add('hidden');
-  document.getElementById('signCard').classList.add('hidden');
-  document.getElementById('editorCard').classList.remove('hidden');
-  document.getElementById('editorCard').scrollIntoView({behavior:'smooth',block:'start'});
-}
-
-function closeEditor(){
-  editingReportId=null;
-  document.getElementById('editorCard').classList.add('hidden');
-}
-
+// Nach dem Anlegen zum neuen Bericht (Regel „nach dem Anlegen zum Datensatz“, seit 1.9.67 auf /service-reports/{id})
 async function saveReport(){
   const st=document.getElementById('editorStatus');
+  const roofAreaIds=getEditRoofAreaIds(),inspectionTemplateId=document.getElementById('editInspectionTemplate').value;
   const payload={
     report_type:document.getElementById('editType').value,
     description:document.getElementById('editDescription').value.trim()||null,
     performed_at:document.getElementById('editPerformedAt').value||null,
+    created_by_employee_id:document.getElementById('editEmployee').value?Number(document.getElementById('editEmployee').value):null,
+    roof_area_ids:roofAreaIds.length?roofAreaIds:null,
+    inspection_template_id:inspectionTemplateId?Number(inspectionTemplateId):null,
   };
+  let neu=null;
   try{
-    if(editingReportId){
-      const url=`/api/service-reports/${editingReportId}`;
-      await speichern('berichte',()=>api(url,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));
-    }else{
-      payload.created_by_employee_id=document.getElementById('editEmployee').value?Number(document.getElementById('editEmployee').value):null;
-      const roofAreaIds=getEditRoofAreaIds();
-      const inspectionTemplateId=document.getElementById('editInspectionTemplate').value;
-      payload.roof_area_ids=roofAreaIds.length?roofAreaIds:null;
-      payload.inspection_template_id=inspectionTemplateId?Number(inspectionTemplateId):null;
-      await speichern('berichte',()=>api(`/api/orders/${orderId}/service-reports`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));
-    }
-    closeEditor();
-    await loadReports();
-  }catch(e){st.textContent='Fehler: '+e.message}
+    await speichern('berichte',()=>api(`/api/orders/${orderId}/service-reports`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{anwenden:r=>{neu=r}});
+  }catch(e){st.textContent='Fehler: '+e.message;return}
+  location.href='/service-reports/'+neu.id;
 }
+aktion('bericht-anlegen',()=>saveReport());
 
-async function deleteReportConfirm(id){
-  if(!confirm('Diesen Bericht wirklich löschen?'))return;
-  const st=document.getElementById('listStatus');
-  try{
-    await speichern('berichte',()=>api(`/api/service-reports/${id}`,{method:'DELETE'}),{neuLaden:loadReports});
-  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+// Eine Zeile je Bericht: Art, Status, Datum, wer; beim Entwurf, was noch offen ist; die ganze Zeile führt zum Bericht. Ein Bericht einer
+// Kollegin kommt für die Monteurin im reduzierten Schema (ohne status, list_reports_for_field()) -- dann ohne Link, sie öffnet ihn nicht.
+function reportRow(r){
+  const voll='status' in r;
+  const neben=[fmtDate(r.performed_at),r.created_by_employee_name,(r.roof_areas||[]).map(a=>a.roof_area_name).filter(Boolean).join(', ')].filter(Boolean).join(' · ');
+  if(!voll)return `<div class="bericht-zeile"><span class="bz-text"><span class="bz-titel">${esc(r.report_type_label)}</span><span class="bz-neben">${esc(neben)}</span><span class="bz-neben">Bericht einer Kollegin oder eines Kollegen – öffnen kann ihn nur, wer ihn angelegt hat.</span></span></div>`;
+  const offen=r.status==='entwurf'?(r.noch_offen||[]).length:0;
+  const weiter=r.status==='entwurf'?'Bericht fortsetzen':'Bericht ansehen';
+  return `<a class="bericht-zeile" id="bericht-${r.id}" href="/service-reports/${r.id}"><span class="bz-text"><span class="bz-titel">${esc(r.report_type_label)} <span class="badge ${esc(r.status)}">${esc(r.status)}</span></span>`
+    +`<span class="bz-neben">${esc(neben)}</span>`
+    +(r.status==='unterschrieben'?`<span class="bz-neben">${r.installer_signature_name?'Monteur: '+esc(r.installer_signature_name)+' · ':''}Kunde: ${esc(r.signature_name)} (${esc(berlinZeitpunkt(r.signed_at))} Uhr)</span>`:'')
+    +(offen?`<span class="bz-offen">Noch offen: ${offen===1?'1 Punkt':offen+' Punkte'}</span>`:'')
+    +(r.office_hint?`<span class="office-hint small">${esc(r.office_hint)}</span>`:'')
+    +`</span><span class="bz-weiter">${weiter} →</span></a>`;
 }
-
-// Zeichenfläche aus der gemeinsamen Vorlage _unterschrift.html (seit 1.8.34; vorher eigene Kopie ohne
-// devicePixelRatio und mit var(--card) als Hintergrund -- im dunklen Theme kaum zu sehen).
-let sigPad=null;
-function initSignaturePad(){sigPad=unterschriftsfeld(document.getElementById('sigCanvas'))}
-function clearSignature(){if(sigPad)sigPad.leeren()}
-
-// Seit 1.3.0: zwei Unterschriften nacheinander auf derselben Karte -- sigStep steuert, welcher
-// Schritt gerade läuft. Schritt 1 (Monteur) merkt seine PNG-Daten zwischen (installerSigDataUrl/
-// installerSigName) und leert das Canvas für Schritt 2 (Kunde); erst der zweite Schritt sendet
-// beide Unterschriften in einem API-Aufruf (siehe sign_report() in app/service_reports.py).
-let sigStep='monteur',installerSigDataUrl=null,installerSigName='';
-
-// Seit 1.9.36 (Stufe 4, R1): vor jeder Unterschrift (Monteur, dann Kunde) fragt die Seite den Server, was noch offen ist -- erst nach
-// jedem laufenden Speichern der Seite (nachDemSpeichern(), _speichern.html), damit er den gespeicherten Stand sieht. Die Liste steht am
-// Knopf „Unterschreiben“ (nochOffenHtml()); ist sie nicht leer, öffnet die Unterschrift nicht bzw. geht nicht zum Kunden weiter.
-async function nochOffenPruefen(id){
-  await nachDemSpeichern();
-  let offen=[];
-  await lesen('noch-offen-'+id,()=>api(`/api/service-reports/${id}/noch-offen`),d=>{
-    offen=d.offen||[];
-    const r=reports.find(x=>x.id===id);if(r)r.noch_offen=offen;
-  });
-  renderReportList();
-  return offen;
-}
-// Seit 1.9.42 (Stufe 4, R1 Nachrunde): die Zeiten des Berichts (GET …/zeiten) -- dieselben Zeilen wie im PDF. Entwurf: alle Zeiten des
-// Auftrags am Tag des Berichts, jetzt; unterschrieben: der Stand der Unterschrift; vor 1.9.42 unterschrieben: wie im PDF alle Zeiten.
-let zeitenCache={};
-async function ladeBerichtsZeiten(id){
-  await lesen('zeiten-bericht-'+id,()=>api(`/api/service-reports/${id}/zeiten`),d=>{zeitenCache[id]=d});
-}
-function zeitenStunden(wert){return wert==null?'–':`${zahlText(wert,2)} h`}
-function zeitenHtml(r){
-  const z=zeitenCache[r.id];
-  if(!z)return '';
-  const titel=z.art==='alt'?'Zeiten des Auftrags (wie im PDF dieses älteren Berichts)'
-    :z.art==='gespeichert'?`Zeiten am ${fmtDate(z.tag)} – Stand der Unterschrift`:`Zeiten am ${fmtDate(z.tag)} – Stand jetzt, wird mit der Unterschrift gespeichert`;
-  if(!z.zeilen.length)return `<div class="bericht-zeiten"><div class="bericht-zeiten-titel">${esc(titel)}</div><div class="muted small">Keine Zeiten.</div></div>`;
-  const kopf=z.art==='alt'?['Datum','Mitarbeiter','Tätigkeit','Stunden']:['Tag','Person','von–bis','Stunden'];
-  const zeilen=z.zeilen.map(x=>z.art==='alt'
-    ?[fmtDate(x.tag),x.person,x.taetigkeit,zeitenStunden(x.stunden)]
-    :[fmtDate(x.tag),x.person,x.laeuft?`läuft seit ${x.von}`:(x.von?`${x.von}–${x.bis}`:'–'),zeitenStunden(x.stunden)]);
-  return `<div class="bericht-zeiten"><div class="bericht-zeiten-titel">${esc(titel)}</div><div class="table-scroll"><table>`
-    +`<thead><tr>${kopf.map(k=>`<th>${esc(k)}</th>`).join('')}</tr></thead>`
-    +`<tbody>${zeilen.map(zeile=>`<tr>${zeile.map((wert,i)=>`<td data-label="${esc(kopf[i])}">${esc(wert)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`;
-}
-function nochOffenHtml(r){
-  const offen=r.status==='entwurf'?(r.noch_offen||[]):[];
-  if(!offen.length)return '';
-  return `<div class="noch-offen" role="alert"><b>Noch offen vor der Unterschrift:</b><ul>${offen.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`;
-}
-
-async function openSignPanel(id){
-  try{
-    if((await nochOffenPruefen(id)).length){closeSignPanel();return}
-  }catch(e){document.getElementById('listStatus').textContent='Fehler: '+e.message;return}
-  signingReportId=id;
-  sigStep='monteur';installerSigDataUrl=null;installerSigName='';
-  document.getElementById('editorCard').classList.add('hidden');
-  document.getElementById('signStatus').textContent='';
-  renderSignStep();
-  document.getElementById('signCard').classList.remove('hidden');
-  document.getElementById('signCard').scrollIntoView({behavior:'smooth',block:'start'});
-  initSignaturePad();
-}
-
-function renderSignStep(){
-  const nameInput=document.getElementById('signatureName');
-  if(sigStep==='monteur'){
-    document.getElementById('signHeading').textContent='Unterschrift Monteur';
-    document.getElementById('signHint').textContent='Bitte selbst unterschreiben, danach das Gerät an den Kunden weitergeben.';
-    document.getElementById('signNameLabel').textContent='Name des Monteurs';
-    // Vorbelegt mit dem angemeldeten Benutzer, aber änderbar -- es kann jemand anders vor Ort
-    // gewesen sein als wer gerade am ERP angemeldet ist.
-    nameInput.value=(authStatus&&authStatus.user&&authStatus.user.display_name)||'';
-    document.getElementById('signNextBtn').textContent='Weiter';
-  }else{
-    document.getElementById('signHeading').textContent='Unterschrift Kunde';
-    document.getElementById('signHint').textContent='Bitte Gerät zum Unterschreiben an den Kunden weitergeben.';
-    document.getElementById('signNameLabel').textContent='Name der unterschreibenden Person';
-    nameInput.value='';
-    document.getElementById('signNextBtn').textContent='Unterschrift bestätigen';
-  }
-}
-
-function closeSignPanel(){
-  signingReportId=null;
-  sigStep='monteur';installerSigDataUrl=null;installerSigName='';
-  document.getElementById('signCard').classList.add('hidden');
-}
-
-async function confirmSignatureStep(){
-  const st=document.getElementById('signStatus');
-  const name=document.getElementById('signatureName').value.trim();
-  if(!name){st.textContent='Bitte den Namen der unterschreibenden Person angeben.';return}
-  if(!sigPad||sigPad.leer()){st.textContent='Bitte zuerst unterschreiben.';return}
-  const dataUrl=sigPad.alsDataUrl();
-  if(sigStep==='monteur'){
-    // seit 1.9.36: vor der Unterschrift des Kunden noch einmal fragen, was offen ist
-    let offen=[];
-    try{offen=await nochOffenPruefen(signingReportId)}catch(e){st.textContent='Fehler: '+e.message;return}
-    if(offen.length){st.textContent='Noch offen: '+offen.join('; ');return}
-    installerSigDataUrl=dataUrl;
-    installerSigName=name;
-    sigStep='kunde';
-    clearSignature();
-    st.textContent='';
-    renderSignStep();
-    return;
-  }
-  try{
-    // Seit 1.8.109: eine abgelehnte Zahl auf der Seite (rot markiert, _zahl.html) verhindert die Unterschrift wie ein gescheitertes
-    // Speichern -- sonst ginge der Bericht still mit dem alten Wert hinaus. zahlFeld() wirft dann die Meldung des Feldes.
-    const abgelehnt=document.querySelector('input[data-zahl][aria-invalid="true"]');
-    if(abgelehnt)zahlFeld(abgelehnt);
-    const url=`/api/service-reports/${signingReportId}/sign`;
-    const body=JSON.stringify({
-      installer_signature_png_base64:installerSigDataUrl, installer_signature_name:installerSigName,
-      customer_signature_png_base64:dataUrl, customer_signature_name:name,
-    });
-    await abschliessen('berichte',()=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:body}));
-    closeSignPanel();
-    await loadReports();
-  }catch(e){st.textContent='Fehler: '+e.message}
-}
-
-const CONDITION_GRADE_LABELS={1:'Neuwertig',2:'Gebrauchsspuren',3:'Abgenutzt',4:'Sanierung erforderlich'};
-
-// Seit 1.9.36 auch ein Rapportbericht mit Prüfvorlage: die Vorlage steht an seiner Dachfläche (roof_areas[].inspection_template_id) --
-// create_report() schreibt die alte Spalte inspection_template_id seit 1.2.22 nicht mehr, seine Pflichtpunkte blieben bis dahin unsichtbar.
-function hasInspectionSection(r){
-  return r.report_type==='wartung'||!!r.inspection_template_id||(r.roof_areas||[]).some(a=>!!a.inspection_template_id);
-}
-
-function reportCard(r){
-  const badges=[`<span class="badge">${esc(r.report_type_label)}</span>`,`<span class="badge ${esc(r.status)}">${esc(r.status)}</span>`];
-  const actions=[];
-  if(r.status==='entwurf'){
-    actions.push(`<button class="secondary" onclick="openEditEditor(${r.id})">Bearbeiten</button>`);
-    actions.push(`<button onclick="openSignPanel(${r.id})">Unterschreiben</button>`);
-    actions.push(`<button class="danger" onclick="deleteReportConfirm(${r.id})">Löschen</button>`);
-  }else{
-    actions.push(`<a href="/api/service-reports/${r.id}/pdf" target="_blank">PDF öffnen</a>`);
-  }
-  if(hasInspectionSection(r)){
-    actions.push(`<button class="secondary" onclick="toggleReportInspectionItems(${r.id})">Prüfpunkte</button>`);
-  }
-  // Seit 1.2.22: zählt nur Mängel OHNE Prüfpunktbezug -- Mängel zu einem Prüfpunkt rendern
-  // jetzt inline dort (inspectionItemRowHtml()), nicht mehr zusätzlich hier, sonst dieselbe
-  // Mangel-Karte zweimal mit denselben DOM-IDs (Duplikat-Bug, siehe findingsPanelHtml()).
-  const findingCount=(findingsCache[r.id]||[]).filter(f=>f.inspection_item_id==null).length;
-  actions.push(`<button class="secondary" onclick="toggleReportFindings(${r.id})">Mängel ohne Prüfpunkt${findingCount?' ('+findingCount+')':''}</button>`);
-  const materialCount=(materialsCache[r.id]||[]).length;
-  actions.push(`<button class="secondary" onclick="toggleReportMaterials(${r.id})">Material${materialCount?' ('+materialCount+')':''}</button>`);
-  if(assetsModuleEnabled){
-    const assetCount=(assetsCache[r.id]||[]).length;
-    actions.push(`<button class="secondary" onclick="toggleReportAssets(${r.id})">Betriebsmittel${assetCount?' ('+assetCount+')':''}</button>`);
-  }
-  const signedInfo=r.status==='unterschrieben'?`<div class="muted small" style="margin-top:6px">${r.installer_signature_name?'Monteur: '+esc(r.installer_signature_name)+' · ':''}Kunde: ${esc(r.signature_name)} (${esc(berlinZeitpunkt(r.signed_at))} Uhr)</div>`:'';
-  const isOpen=expandedReportIds.has(r.id);
-  const panel=hasInspectionSection(r)&&isOpen?`<div class="inspection-panel">${inspectionItemsPanelHtml(r)}</div>`:'';
-  const findingsOpen=expandedFindingsReportIds.has(r.id);
-  const findingsPanel=findingsOpen?`<div class="inspection-panel">${findingsPanelHtml(r)}</div>`:'';
-  const materialsOpen=expandedMaterialsReportIds.has(r.id);
-  const materialsPanel=materialsOpen?`<div class="inspection-panel">${materialsPanelHtml(r)}</div>`:'';
-  const assetsOpen=assetsModuleEnabled&&expandedAssetsReportIds.has(r.id);
-  const assetsPanel=assetsOpen?`<div class="inspection-panel">${assetsPanelHtml(r)}</div>`:'';
-  return `<div class="report-card">
-    <div class="report-head">
-      <div>${badges.join(' ')} <span class="muted small">${fmtDate(r.performed_at)}${r.created_by_employee_name?' · '+esc(r.created_by_employee_name):''}</span></div>
-    </div>
-    ${r.office_hint?`<div class="office-hint small">${esc(r.office_hint)}</div>`:''}
-    ${r.description?`<div class="report-desc">${esc(r.description)}</div>`:''}
-    ${signedInfo}
-    <div class="report-actions">${actions.join('')}</div>
-    ${nochOffenHtml(r)}
-    ${zeitenHtml(r)}
-    ${panel}
-    ${findingsPanel}
-    ${materialsPanel}
-    ${assetsPanel}
-  </div>`;
-}
-
-function toggleReportMaterials(reportId){
-  if(expandedMaterialsReportIds.has(reportId)){expandedMaterialsReportIds.delete(reportId)}
-  else{expandedMaterialsReportIds.add(reportId)}
-  renderReportList();
-}
-
-function toggleReportAssets(reportId){
-  if(expandedAssetsReportIds.has(reportId)){expandedAssetsReportIds.delete(reportId)}
-  else{expandedAssetsReportIds.add(reportId)}
-  renderReportList();
-}
-
-function toggleReportFindings(reportId){
-  if(expandedFindingsReportIds.has(reportId)){expandedFindingsReportIds.delete(reportId)}
-  else{expandedFindingsReportIds.add(reportId)}
-  renderReportList();
-}
-
-function openFindingForm(reportId,inspectionItemId){
-  activeFindingForm={reportId,inspectionItemId:inspectionItemId||null};
-  expandedFindingsReportIds.add(reportId);
-  renderReportList();
-  const el=document.getElementById('findingFormCard-'+reportId);
-  if(el)el.scrollIntoView({behavior:'smooth',block:'center'});
-}
-
-function closeFindingForm(){
-  activeFindingForm=null;
-  renderReportList();
-}
-
-function onFindingActionChange(reportId){
-  const action=document.getElementById('findingAction-'+reportId).value;
-  document.getElementById('findingResubmission-'+reportId).classList.toggle('hidden',action!=='zurueckgestellt');
-}
-
-async function submitFindingForm(reportId){
-  const st=document.getElementById('findingFormStatus-'+reportId);
-  const description=document.getElementById('findingDesc-'+reportId).value.trim();
-  if(!description){st.textContent='Bitte eine Beschreibung angeben.';return}
-  const action=document.getElementById('findingAction-'+reportId).value;
-  const resubmissionDate=document.getElementById('findingResubmission-'+reportId).value||null;
-  if(action==='zurueckgestellt'&&!resubmissionDate){st.textContent='Bitte ein Wiedervorlagedatum angeben.';return}
-  const report=reports.find(x=>x.id===reportId);
-  const payload={
-    description, severity:document.getElementById('findingSeverity-'+reportId).value, action,
-    inspection_item_id:activeFindingForm.inspectionItemId, resubmission_date:resubmissionDate,
-    created_by_employee_id:(report&&report.created_by_employee_id)||null,
-  };
-  try{
-    // Seit 1.2.21 bewusst KEIN Navigieren mehr nach dem Anlegen -- "buero_pruefen" erzeugt nur
-    // noch eine Aufgabe, nie einen Auftrag/Projekt (siehe app/findings.py). Der Monteur bleibt
-    // im Bericht, genau wie bei jeder anderen Maßnahme.
-    await speichern('maengel-'+reportId,()=>api(`/api/service-reports/${reportId}/findings`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));
-    closeFindingForm();
-    await loadReportExtras(reportId);
-    renderReportList();
-  }catch(e){st.textContent='Fehler: '+e.message}
-}
-
-function findingFormHtml(r){
-  if(!activeFindingForm||activeFindingForm.reportId!==r.id)return'';
-  const item=activeFindingForm.inspectionItemId?(inspectionItemsCache[r.id]||[]).find(i=>i.id===activeFindingForm.inspectionItemId):null;
-  return `<div class="finding-form" id="findingFormCard-${r.id}">
-    ${item?`<div class="muted small">Zu Prüfpunkt: ${esc(item.text)}</div>`:''}
-    <textarea id="findingDesc-${r.id}" placeholder="Beschreibung des Mangels"></textarea>
-    <div class="finding-form-row">
-      <select id="findingSeverity-${r.id}">${SEVERITIES.map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join('')}</select>
-      <select id="findingAction-${r.id}" onchange="onFindingActionChange(${r.id})">${ACTIONS.map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join('')}</select>
-      <input id="findingResubmission-${r.id}" type="date" class="hidden">
-    </div>
-    <div class="editor-actions">
-      <button type="button" onclick="submitFindingForm(${r.id})">Mangel anlegen</button>
-      <button type="button" class="secondary" onclick="closeFindingForm()">Abbrechen</button>
-      <span id="findingFormStatus-${r.id}" class="status"></span>
-    </div>
-  </div>`;
-}
-
-function photoThumbHtml(p,reportId,isDraft){
-  const del=isDraft?`<button type="button" class="danger photo-del" onclick="deletePhotoUI(${p.id},${reportId})">×</button>`:'';
-  return `<span class="photo-thumb"><a href="/api/service-report-photos/${p.id}/file" target="_blank"><img src="/api/service-report-photos/${p.id}/file" alt=""></a>${del}</span>`;
-}
-
-function itemPhotoSectionHtml(item,reportId,isDraft){
-  const photos=(photosCache[reportId]||[]).filter(p=>p.inspection_item_id===item.id);
-  if(item.photo_before_after){
-    const before=photos.find(p=>p.kind==='vorher');
-    const after=photos.find(p=>p.kind==='nachher');
-    const slot=(p,kind,label)=>{
-      if(p)return photoThumbHtml(p,reportId,isDraft);
-      if(!isDraft)return `<span class="photo-slot-empty">${esc(label)}: —</span>`;
-      return `<span class="photo-slot-empty">${esc(label)}: <input type="file" accept="image/png,image/jpeg,image/webp" capture="environment" class="hidden" id="itemPhoto-${item.id}-${kind}" onchange="uploadItemPhoto(${item.id},${reportId},'${kind}')"><button type="button" class="secondary" onclick="document.getElementById('itemPhoto-${item.id}-${kind}').click()">+ ${esc(label)}</button></span>`;
-    };
-    return `<div class="item-photos">${slot(before,'vorher','Vorher')}${slot(after,'nachher','Nachher')}</div>`;
-  }
-  const uploadBtn=isDraft?`<input type="file" accept="image/png,image/jpeg,image/webp" capture="environment" class="hidden" id="itemPhoto-${item.id}-allgemein" onchange="uploadItemPhoto(${item.id},${reportId},'allgemein')"><button type="button" class="secondary" onclick="document.getElementById('itemPhoto-${item.id}-allgemein').click()">+ Foto</button>`:'';
-  if(!photos.length&&!uploadBtn)return'';
-  return `<div class="item-photos">${photos.map(p=>photoThumbHtml(p,reportId,isDraft)).join('')}${uploadBtn}</div>`;
-}
-
-async function uploadItemPhoto(itemId,reportId,kind){
-  const input=document.getElementById(`itemPhoto-${itemId}-${kind}`);
-  if(!input.files.length)return;
-  const fd=new FormData();
-  fd.append('file',input.files[0]);
-  fd.append('inspection_item_id',itemId);
-  fd.append('kind',kind);
-  try{
-    await speichern('fotos-'+reportId,()=>api(`/api/service-reports/${reportId}/photos`,{method:'POST',body:fd}));
-    input.value='';
-    await loadReportExtras(reportId);
-    renderReportList();
-  }catch(e){alert('Fehler: '+e.message)}
-}
-
-async function uploadFindingPhoto(findingId,reportId){
-  const input=document.getElementById('findingPhoto-'+findingId);
-  if(!input.files.length)return;
-  const fd=new FormData();
-  fd.append('file',input.files[0]);
-  fd.append('finding_id',findingId);
-  try{
-    await speichern('fotos-'+reportId,()=>api(`/api/service-reports/${reportId}/photos`,{method:'POST',body:fd}));
-    input.value='';
-    await loadReportExtras(reportId);
-    renderReportList();
-  }catch(e){alert('Fehler: '+e.message)}
-}
-
-async function deletePhotoUI(photoId,reportId){
-  if(!confirm('Dieses Foto wirklich löschen?'))return;
-  try{
-    await speichern('fotos-'+reportId,()=>api(`/api/service-report-photos/${photoId}`,{method:'DELETE'}),{neuLaden:()=>loadReportExtras(reportId)});
-    renderReportList();
-  }catch(e){alert('Fehler: '+e.message)}
-}
-
-function onFfuActionChange(findingId,reportId){
-  const container=document.querySelector(`.finding-followup[data-finding="${findingId}"]`);
-  const action=container.querySelector('.ffu-action').value;
-  const dateInput=container.querySelector('.ffu-resubmission');
-  dateInput.classList.toggle('hidden',action!=='zurueckgestellt');
-  if(action!=='zurueckgestellt')submitFindingFollowup(findingId,reportId);
-}
-
-async function submitFindingFollowup(findingId,reportId){
-  const container=document.querySelector(`.finding-followup[data-finding="${findingId}"]`);
-  const statusEl=document.getElementById('ffuStatus-'+findingId);
-  const finding=(findingsCache[reportId]||[]).find(f=>f.id===findingId);
-  const newStatus=container.querySelector('.ffu-status').value;
-  const newAction=container.querySelector('.ffu-action').value;
-  const resubmissionDate=container.querySelector('.ffu-resubmission').value||null;
-  const payload={};
-  if(finding&&newStatus!==finding.status)payload.status=newStatus;
-  if(finding&&newAction!==finding.action)payload.action=newAction;
-  if(resubmissionDate)payload.resubmission_date=resubmissionDate;
-  if(!Object.keys(payload).length)return;
-  try{
-    await speichern('maengel-'+reportId,()=>api(`/api/findings/${findingId}/followup`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{neuLaden:()=>loadReportExtras(reportId)});
-    renderReportList();
-  }catch(e){statusEl.textContent='Fehler: '+e.message}
-}
-
-function findingCard(f,r){
-  const photos=(photosCache[r.id]||[]).filter(p=>p.finding_id===f.id);
-  const isDraft=r.status==='entwurf';
-  const photoThumbs=photos.map(p=>photoThumbHtml(p,r.id,isDraft)).join('');
-  const uploadControl=isDraft?`<input type="file" accept="image/png,image/jpeg,image/webp" capture="environment" class="hidden" id="findingPhoto-${f.id}" onchange="uploadFindingPhoto(${f.id},${r.id})"><button type="button" class="secondary" onclick="document.getElementById('findingPhoto-${f.id}').click()">+ Foto</button>`:'';
-  const followUpLink=f.follow_up_order_id&&darfBueroSeiten?`<a href="/orders/${f.follow_up_order_id}" style="color:var(--ds-link)">Folgeauftrag ansehen</a>`:'';
-  // Sperre auf BEIDE Artefakte geprüft, nicht nur follow_up_task_id -- ein per Migration auf
-  // buero_pruefen umgeschriebener, ehemals "folgeauftrag"-Mangel trägt nur follow_up_order_id.
-  const lockedAction=(action)=>action==='buero_pruefen'&&(f.follow_up_task_id||f.follow_up_order_id)&&f.action!==action;
-  const canRetryTask=f.action==='buero_pruefen'&&!f.follow_up_task_id&&!f.follow_up_order_id;
-  const retryButton=canRetryTask?`<button type="button" class="secondary" onclick="retryFindingAction(${f.id},${r.id})">Aufgabe nachholen</button>`:'';
-  // Seit 1.2.23: "+ Material" ordnet den nächsten über das Materialformular angelegten Eintrag
-  // direkt diesem Mangel zu (Muster wie "+ Mangel" am Prüfpunkt) -- ein Monteur, der z. B. einen
-  // Gully instandsetzt und dabei Material verbraucht, soll beides zusammen erfassen können.
-  const addMaterialButton=isDraft?`<button type="button" class="secondary" onclick="openMaterialFormForFinding(${r.id},${f.id})">+ Material</button>`:'';
-  return `<div class="finding-card">
-    <div class="finding-head">
-      <span class="badge ${esc(f.severity)}">${esc(f.severity_label)}</span>
-      <span class="badge ${esc(f.status)}">${esc(f.status_label)}</span>
-      ${f.roof_component_name?`<span class="muted small">${esc(f.roof_component_name)}</span>`:''}
-    </div>
-    <div class="finding-desc">${esc(f.description)}</div>
-    <div class="finding-meta muted small">Maßnahme: ${esc(f.action_label)}${f.resubmission_date?' · Wiedervorlage '+fmtDate(f.resubmission_date):''}${followUpLink?' · '+followUpLink:''}</div>
-    <div class="item-photos">${photoThumbs}${uploadControl}</div>
-    ${addMaterialButton?`<div style="margin-top:6px">${addMaterialButton}</div>`:''}
-    <div class="finding-followup" data-finding="${f.id}">
-      <select class="ffu-status" onchange="submitFindingFollowup(${f.id},${r.id})">${FINDING_STATUSES.map(([k,l])=>`<option value="${k}" ${f.status===k?'selected':''}>${esc(l)}</option>`).join('')}</select>
-      <select class="ffu-action" onchange="onFfuActionChange(${f.id},${r.id})">${ACTIONS.map(([k,l])=>`<option value="${k}" ${f.action===k?'selected':''} ${lockedAction(k)?'disabled':''}>${esc(l)}</option>`).join('')}</select>
-      <input type="date" class="ffu-resubmission ${f.action==='zurueckgestellt'?'':'hidden'}" value="${esc(f.resubmission_date||'')}">
-      ${retryButton}
-      <span id="ffuStatus-${f.id}" class="status"></span>
-    </div>
-  </div>`;
-}
-
-async function retryFindingAction(findingId,reportId){
-  try{
-    await speichern('maengel-'+reportId,()=>api(`/api/findings/${findingId}/followup`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'buero_pruefen'})}),{neuLaden:()=>loadReportExtras(reportId)});
-    renderReportList();
-  }catch(e){alert('Fehler: '+e.message)}
-}
-
-function findingsPanelHtml(r){
-  // Seit 1.2.22: nur Mängel OHNE Prüfpunktbezug -- die mit Bezug rendern inline am jeweiligen
-  // Prüfpunkt (inspectionItemRowHtml()); dieselbe Karte hier zusätzlich zu zeigen, würde
-  // doppelte DOM-IDs erzeugen (data-finding/#ffuStatus-* je Mangel sind nicht mehrfachtauglich).
-  const findings=(findingsCache[r.id]||[]).filter(f=>f.inspection_item_id==null);
-  const list=findings.map(f=>findingCard(f,r)).join('')||'<div class="muted small">Keine Mängel ohne Prüfpunktbezug.</div>';
-  const formHtml=findingFormHtml(r);
-  const addBtn=r.status==='entwurf'?`<div style="margin-top:8px"><button type="button" class="secondary" onclick="openFindingForm(${r.id},null)">+ Mangel</button></div>`:'';
-  return `${list}${formHtml}${addBtn}`;
-}
-
-// --- Verbrauchtes Material (seit 1.2.23) ---
-
-const materialFormDraft={}; // {reportId: {search, description, unit, quantity, roofAreaId}}; quantity seit 1.8.109 die Zahl (zahlVorschau), nicht der Text
-function _materialDraft(reportId){
-  if(!materialFormDraft[reportId])materialFormDraft[reportId]={search:'',description:'',unit:'',quantity:'',roofAreaId:''};
-  return materialFormDraft[reportId];
-}
-
-function openMaterialFormForFinding(reportId,findingId){
-  pendingMaterialFindingId[reportId]=findingId;
-  expandedMaterialsReportIds.add(reportId);
-  renderReportList();
-  const el=document.getElementById('matDescription-'+reportId);
-  if(el)el.scrollIntoView({behavior:'smooth',block:'center'});
-}
-function clearPendingMaterialFinding(reportId){
-  pendingMaterialFindingId[reportId]=null;
-  renderReportList();
-}
-
-const _materialSearchDebouncers={};
-function debouncedSearchMaterials(reportId){
-  _materialDraft(reportId).search=document.getElementById('matSearch-'+reportId).value;
-  if(!_materialSearchDebouncers[reportId])_materialSearchDebouncers[reportId]=debounce(id=>searchMaterialsForReport(id),250);
-  _materialSearchDebouncers[reportId](reportId);
-}
-async function searchMaterialsForReport(reportId){
-  const q=_materialDraft(reportId).search.trim();
-  if(!q){materialSearchResults[reportId]=[];renderReportList();return}
-  try{
-    materialSearchResults[reportId]=await api(`/api/materials?search=${encodeURIComponent(q)}`);
-  }catch(e){materialSearchResults[reportId]=[]}
-  renderReportList();
-}
-function pickMaterialFromSearch(reportId){
-  const select=document.getElementById('matSearchResults-'+reportId);
-  const id=Number(select.value);
-  if(!id)return;
-  const material=(materialSearchResults[reportId]||[]).find(m=>m.id===id);
-  if(!material)return;
-  selectedMaterialCatalogId[reportId]=id;
-  const draft=_materialDraft(reportId);
-  draft.description=material.name;
-  draft.unit=material.unit||'';
-  document.getElementById('matDescription-'+reportId).value=draft.description;
-  document.getElementById('matUnit-'+reportId).value=draft.unit;
-}
-function clearMaterialCatalogSelection(reportId){
-  selectedMaterialCatalogId[reportId]=null;
-  renderReportList();
-}
-
-async function saveMaterialRow(reportId){
-  const st=document.getElementById('matStatus-'+reportId);
-  const description=(document.getElementById('matDescription-'+reportId).value||'').trim();
-  const unit=(document.getElementById('matUnit-'+reportId).value||'').trim();
-  const materialId=selectedMaterialCatalogId[reportId]||null;
-  if(!materialId&&!description){st.className='status err';st.textContent='Bitte eine Bezeichnung angeben oder ein Material aus dem Katalog wählen.';return}
-  // Seit 1.8.109 über _zahl.html (deutsches Format); eine abgelehnte Menge erscheint wie ein Fehler beim Speichern.
-  let quantity;
-  try{quantity=zahlFeld('matQuantity-'+reportId)}catch(e){st.className='status err';st.textContent='Fehler: '+e.message;return}
-  if(quantity===null||quantity<=0){st.className='status err';st.textContent='Bitte eine Menge größer als 0 angeben.';return}
-  const areaSelect=document.getElementById('matAreaSel-'+reportId);
-  const roofAreaId=areaSelect&&areaSelect.value?Number(areaSelect.value):null;
-  const payload={
-    material_id:materialId, description:materialId?null:description, quantity:quantity,
-    unit:unit||null, roof_area_id:roofAreaId, finding_id:pendingMaterialFindingId[reportId]||null,
-  };
-  try{
-    await speichern('material-'+reportId,()=>api(`/api/service-reports/${reportId}/materials`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));
-    materialFormDraft[reportId]={search:'',description:'',unit:'',quantity:'',roofAreaId:''};
-    selectedMaterialCatalogId[reportId]=null;
-    materialSearchResults[reportId]=[];
-    await loadMaterials(reportId);
-    st.textContent='';
-    renderReportList();
-  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
-}
-
-async function saveMaterialField(materialId,reportId,field,value){
-  const payload={};
-  if(field==='quantity'){
-    // Seit 1.8.109 ist value hier das Mengenfeld selbst, gelesen über _zahl.html; eine abgelehnte Eingabe bleibt markiert stehen.
-    let num;
-    try{num=zahlFeld(value)}catch(e){alert('Fehler: '+e.message);return}
-    if(num===null||num<=0){alert('Bitte eine Menge größer als 0 angeben.');renderReportList();return}
-    payload.quantity=num;
-  }else if(field==='description'){
-    if(!value.trim()){alert('Bitte eine Bezeichnung angeben.');renderReportList();return}
-    payload.description=value.trim();
-  }else{
-    payload[field]=value.trim()||null;
-  }
-  try{
-    await speichern('material-'+reportId,()=>api(`/api/service-report-materials/${materialId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{neuLaden:()=>loadMaterials(reportId)});
-    renderReportList();
-  }catch(e){alert('Fehler: '+e.message)}
-}
-
-async function deleteMaterialUI(materialId,reportId){
-  if(!confirm('Diese Materialzeile wirklich löschen?'))return;
-  try{
-    await speichern('material-'+reportId,()=>api(`/api/service-report-materials/${materialId}`,{method:'DELETE'}),{neuLaden:()=>loadMaterials(reportId)});
-    renderReportList();
-  }catch(e){alert('Fehler: '+e.message)}
-}
-
-function materialsPanelHtml(r){
-  const rows=materialsCache[r.id]||[];
-  const isDraft=r.status==='entwurf';
-  const namedAreas=(r.roof_areas||[]).filter(a=>a.roof_area_id!=null);
-  const areaName=(id)=>{
-    const a=namedAreas.find(x=>x.roof_area_id===id);
-    return a?(a.roof_area_name||('Fläche '+id)):null;
-  };
-  const rowsHtml=rows.length?`<div class="table-scroll"><table><thead><tr><th>Bezeichnung</th><th>Menge</th><th>Einheit</th><th>Fläche</th><th></th></tr></thead><tbody>${rows.map(m=>`
-    <tr>
-      <td data-label="Bezeichnung">${isDraft?`<input value="${esc(m.description)}" onchange="saveMaterialField(${m.id},${r.id},'description',this.value)" style="min-width:160px">`:esc(m.description)}</td>
-      <td data-label="Menge">${isDraft?`<input type="text" inputmode="decimal" data-zahl data-min="0.001" data-feld="Menge" value="${zahlText(m.quantity)}" style="width:90px" onchange="saveMaterialField(${m.id},${r.id},'quantity',this)">`:esc(String(m.quantity))}</td>
-      <td data-label="Einheit">${isDraft?`<input value="${esc(m.unit||'')}" onchange="saveMaterialField(${m.id},${r.id},'unit',this.value)" style="width:70px">`:esc(m.unit||'')}</td>
-      <td data-label="Fläche" class="muted small">${esc(areaName(m.roof_area_id)||'—')}</td>
-      <td data-label="">${isDraft?`<button type="button" class="danger" onclick="deleteMaterialUI(${m.id},${r.id})">×</button>`:''}</td>
-    </tr>`).join('')}</tbody></table></div>`:'<div class="muted small">Noch kein Material erfasst.</div>';
-
-  if(!isDraft)return rowsHtml;
-
-  const draft=_materialDraft(r.id);
-  const pendingFindingId=pendingMaterialFindingId[r.id];
-  const pendingBadge=pendingFindingId?`<div class="finding-hint">Wird zugeordnet zu Mangel #${esc(pendingFindingId)}<button type="button" class="secondary" onclick="clearPendingMaterialFinding(${r.id})">✕</button></div>`:'';
-  const selectedId=selectedMaterialCatalogId[r.id];
-  const results=materialSearchResults[r.id]||[];
-  const catalogHint=selectedId?`<button type="button" class="secondary" onclick="clearMaterialCatalogSelection(${r.id})">Katalogbezug entfernen</button>`:'';
-  const areaSelect=namedAreas.length>1?`<select id="matAreaSel-${r.id}" onchange="_materialDraft(${r.id}).roofAreaId=this.value">
-      <option value="">— ohne Fläche —</option>
-      ${namedAreas.map(a=>`<option value="${a.roof_area_id}" ${draft.roofAreaId===String(a.roof_area_id)?'selected':''}>${esc(a.roof_area_name||'Fläche '+a.roof_area_id)}</option>`).join('')}
-    </select>`:'';
-
-  return `${pendingBadge}
-  ${rowsHtml}
-  <div class="inspection-row" style="margin-top:10px;flex-wrap:wrap">
-    <input id="matSearch-${r.id}" value="${esc(draft.search)}" placeholder="Material suchen (Name/Artikelnr.) …" oninput="debouncedSearchMaterials(${r.id})" style="min-width:200px">
-    <select id="matSearchResults-${r.id}" onchange="pickMaterialFromSearch(${r.id})" style="min-width:200px">
-      <option value="">${results.length?'— Treffer wählen —':'— suchen —'}</option>
-      ${results.map(m=>`<option value="${m.id}">${esc(m.name)}${m.article_number?' · '+esc(m.article_number):''}</option>`).join('')}
-    </select>
-    ${catalogHint}
-  </div>
-  <div class="inspection-row" style="flex-wrap:wrap">
-    <input id="matDescription-${r.id}" value="${esc(draft.description)}" oninput="_materialDraft(${r.id}).description=this.value" placeholder="Bezeichnung" style="flex:1;min-width:200px">
-    <input id="matUnit-${r.id}" value="${esc(draft.unit)}" oninput="_materialDraft(${r.id}).unit=this.value" placeholder="Einheit" style="width:90px">
-    <input id="matQuantity-${r.id}" type="text" inputmode="decimal" data-zahl data-min="0.001" data-feld="Menge" value="${zahlText(draft.quantity)}" oninput="_materialDraft(${r.id}).quantity=zahlVorschau(this)" placeholder="Menge" style="width:100px">
-    ${areaSelect}
-    <button type="button" onclick="saveMaterialRow(${r.id})">+ Material</button>
-  </div>
-  <span id="matStatus-${r.id}" class="status"></span>`;
-}
-
-// Seit 1.4.5 (Betriebsmittelverwaltung Stufe 3) -- Bedienung bewusst wie Material (derselbe
-// Panel-Umschalter, dieselbe Tabelle+Erfassungszeile-Struktur), aber ein einfaches <select>
-// statt einer Debounce-Suche: die freigegebene Liste (selectable_in_reports) bleibt in der
-// Praxis kurz (Kran, Hubsteiger, …), eine Suche wäre hier unnötiger Aufwand.
-async function saveAssetRow(reportId){
-  const st=document.getElementById('astStatus-'+reportId);
-  const select=document.getElementById('astPick-'+reportId);
-  const assetId=select&&select.value?Number(select.value):null;
-  if(!assetId){st.className='status err';st.textContent='Bitte ein Betriebsmittel wählen.';return}
-  const notesInput=document.getElementById('astNotes-'+reportId);
-  const notes=(notesInput&&notesInput.value||'').trim();
-  try{
-    await speichern('betriebsmittel-'+reportId,()=>api(`/api/service-reports/${reportId}/assets`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({asset_id:assetId,notes:notes||null})}),{neuLaden:()=>loadAssets(reportId)});
-    st.textContent='';
-    renderReportList();
-  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
-}
-
-async function saveAssetNotesField(rowId,reportId,value){
-  try{
-    await speichern('betriebsmittel-'+reportId,()=>api(`/api/service-report-assets/${rowId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({notes:value.trim()||null})}),{neuLaden:()=>loadAssets(reportId)});
-    renderReportList();
-  }catch(e){alert('Fehler: '+e.message)}
-}
-
-async function deleteAssetUI(rowId,reportId){
-  if(!confirm('Dieses Betriebsmittel wirklich aus dem Bericht entfernen?'))return;
-  try{
-    await speichern('betriebsmittel-'+reportId,()=>api(`/api/service-report-assets/${rowId}`,{method:'DELETE'}),{neuLaden:()=>loadAssets(reportId)});
-    renderReportList();
-  }catch(e){alert('Fehler: '+e.message)}
-}
-
-function assetsPanelHtml(r){
-  const rows=assetsCache[r.id]||[];
-  const isDraft=r.status==='entwurf';
-  const rowsHtml=rows.length?`<div class="table-scroll"><table><thead><tr><th>Betriebsmittel</th><th>Notiz</th><th></th></tr></thead><tbody>${rows.map(a=>`
-    <tr>
-      <td data-label="Betriebsmittel">${esc(a.asset_name_snapshot)}</td>
-      <td data-label="Notiz">${isDraft?`<input value="${esc(a.notes||'')}" onchange="saveAssetNotesField(${a.id},${r.id},this.value)" style="min-width:160px">`:esc(a.notes||'')}</td>
-      <td data-label="">${isDraft?`<button type="button" class="danger" onclick="deleteAssetUI(${a.id},${r.id})">×</button>`:''}</td>
-    </tr>`).join('')}</tbody></table></div>`:'<div class="muted small">Noch kein Betriebsmittel erfasst.</div>';
-
-  if(!isDraft)return rowsHtml;
-
-  // Bereits erfasste Betriebsmittel aus der Auswahl entfernen -- verhindert versehentliche
-  // Doppelerfassung desselben Betriebsmittels in einem Bericht.
-  const usedIds=new Set(rows.map(a=>a.asset_id));
-  const available=selectableAssets.filter(a=>!usedIds.has(a.id));
-  const pickerHtml=available.length?`
-    <select id="astPick-${r.id}" style="min-width:200px">
-      <option value="">— Betriebsmittel wählen —</option>
-      ${available.map(a=>`<option value="${a.id}">${esc(a.name)}${a.asset_type?' · '+esc(a.asset_type):''}</option>`).join('')}
-    </select>
-    <input id="astNotes-${r.id}" placeholder="Notiz (optional)" style="flex:1;min-width:160px">
-    <button type="button" onclick="saveAssetRow(${r.id})">+ Betriebsmittel</button>`
-    :'<div class="muted small">Kein weiteres freigegebenes Betriebsmittel verfügbar -- die Freigabe erfolgt in der Betriebsmittelverwaltung.</div>';
-
-  return `${rowsHtml}
-  <div class="inspection-row" style="margin-top:10px;flex-wrap:wrap">
-    ${pickerHtml}
-  </div>
-  <span id="astStatus-${r.id}" class="status"></span>`;
-}
-
-async function toggleReportInspectionItems(reportId){
-  if(expandedReportIds.has(reportId)){
-    expandedReportIds.delete(reportId);
-    renderReportList();
-    return;
-  }
-  expandedReportIds.add(reportId);
-  await loadReportInspectionItems(reportId);
-  renderReportList();
-}
-
-async function loadReportInspectionItems(reportId){
-  const r=reports.find(x=>x.id===reportId);
-  if(!r)return;
-  if(r.status==='entwurf'){
-    try{
-      await speichern('pruefpunkte-'+reportId,()=>api(`/api/service-reports/${reportId}/inspection-items/sync`,{method:'POST'}),
-        {anwenden:syncResult=>{inspectionItemsCache[reportId]=syncResult.items;inspectionSyncHints[reportId]=syncResult.added}});
-    }catch(e){
-      await lesen('pruefpunkte-'+reportId,()=>api(`/api/service-reports/${reportId}/inspection-items`).catch(()=>[]),d=>{inspectionItemsCache[reportId]=d});
-    }
-  }else{
-    await lesen('pruefpunkte-'+reportId,()=>api(`/api/service-reports/${reportId}/inspection-items`).catch(()=>[]),d=>{inspectionItemsCache[reportId]=d});
-  }
-}
-
-function itemControlInnerHtml(item){
-  // Seit 1.2.22: liefert nur noch den INNEREN Inhalt, keinen eigenen .ictl-Wrapper mehr --
-  // inspectionItemRowHtml() baut GENAU EINEN .ictl[data-item]-Container je Zeile, der zusätzlich
-  // das (jetzt für jeden Punkttyp mögliche) Bemerkungsfeld aufnimmt. saveInspectionResult() liest
-  // per querySelector nur den ERSTEN Container mit diesem data-item -- zwei getrennte Container
-  // mit demselben data-item hätten das Bemerkungsfeld beim Speichern stillschweigend ignoriert.
-  if(item.item_type==='ja_nein'||item.item_type==='leak_test'){
-    const durationField=item.item_type==='leak_test'?`<input type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-feld="Dauer (Minuten)" placeholder="Minuten" value="${zahlText(item.duration_minutes)}" style="width:90px" onchange="saveInspectionResult(${item.id})" data-field="duration_minutes">`:'';
-    return `<div class="result-picker">
-      <button type="button" class="${item.result==='ok'?'':'secondary'}" onclick="setResultAndSave(${item.id},'ok')">OK</button>
-      <button type="button" class="${item.result==='nok'?'':'secondary'}" onclick="setResultAndSave(${item.id},'nok')">Nicht OK</button>
-      <button type="button" class="${item.result==='na'?'':'secondary'}" onclick="setResultAndSave(${item.id},'na')">Entfällt</button>
-    </div>
-      ${durationField}`;
-  }
-  if(item.item_type==='condition_grade'){
-    return `<div class="result-picker">${[1,2,3,4].map(g=>`<button type="button" class="${item.condition_grade===g?'':'secondary'}" onclick="setGradeAndSave(${item.id},${g})">${g} – ${esc(CONDITION_GRADE_LABELS[g])}</button>`).join('')}</div>`;
-  }
-  if(item.item_type==='measurement'){
-    const outOfRange=item.measured_value!=null&&((item.target_min!=null&&Number(item.measured_value)<Number(item.target_min))||(item.target_max!=null&&Number(item.measured_value)>Number(item.target_max)));
-    const range=(item.target_min!=null||item.target_max!=null)?`<span class="muted small">Soll: ${esc(item.target_min??'')}–${esc(item.target_max??'')} ${esc(item.unit||'')}</span>`:'';
-    return `<input type="text" inputmode="decimal" data-zahl data-feld="Messwert" value="${zahlText(item.measured_value)}" style="width:90px" onchange="saveInspectionResult(${item.id})" data-field="measured_value">
-      <span class="muted small">${esc(item.unit||'')}</span> ${range}
-      ${outOfRange?'<span class="badge out-of-range">Außerhalb Soll</span>':''}`;
-  }
-  if(item.item_type==='quantity'){
-    return `<input type="text" inputmode="decimal" data-zahl data-feld="Menge" value="${zahlText(item.quantity)}" style="width:90px" onchange="saveInspectionResult(${item.id})" data-field="quantity">
-      <span class="muted small">${esc(item.unit||'')}</span>`;
-  }
-  if(item.item_type==='free_text'){
-    return `<input value="${esc(item.notes)}" style="min-width:220px;flex:1" onchange="saveInspectionResult(${item.id})" oninput="debouncedSaveInspectionResult(${item.id})" data-field="notes">`;
-  }
-  if(item.item_type==='photo'){
-    return `<span class="muted small">Fotoerfassung folgt</span>`;
-  }
-  return '';
-}
-
-function setResultAndSave(itemId,result){
-  saveInspectionResult(itemId,{result});
-}
-
-function setGradeAndSave(itemId,grade){
-  saveInspectionResult(itemId,{condition_grade:grade});
-}
-
-// Debounced Gegenstück zu saveInspectionResult() für Pflicht-Freitextpunkte (seit 1.2.19) --
-// schließt die Blur-Abhängigkeit von onchange: tippt der Monteur einen Punkt aus und drückt
-// direkt "Unterschreiben" statt vorher wegzuklicken, feuert onchange nie, sign_report() lehnt
-// dann mit "Pflichtpunkt nicht beantwortet" ab, obwohl er beantwortet wurde. Eigener Timer je
-// Prüfpunkt, damit paralleles Tippen in zwei Punkten sich nicht gegenseitig verzögert.
-const _inspectionItemDebouncers={};
-function debouncedSaveInspectionResult(itemId){
-  if(!_inspectionItemDebouncers[itemId])_inspectionItemDebouncers[itemId]=debounce(id=>saveInspectionResult(id),600);
-  _inspectionItemDebouncers[itemId](itemId);
-}
-
-async function saveInspectionResult(itemId,overrides){
-  const reportId=[...expandedReportIds].find(id=>(inspectionItemsCache[id]||[]).some(i=>i.id===itemId));
-  const container=document.querySelector(`.ictl[data-item="${itemId}"]`);
-  // Seit 1.2.19: der Container wird IMMER gelesen (nicht mehr übersprungen, sobald overrides
-  // wahr ist) -- vorher sendete z. B. jeder OK/Nicht-OK/Entfällt-Klick auf einem leak_test-Punkt
-  // NUR {result}, wodurch das im selben Container sitzende duration_minutes-Feld serverseitig
-  // gelöscht wurde. overrides gewinnt jetzt nur noch für seine eigenen Schlüssel, per
-  // Object.assign darüber gelegt statt den Read komplett zu ersetzen.
-  const payload={};
-  // Seit 1.8.109 im try: Zahlenfelder (data-zahl) über _zahl.html -- eine abgelehnte Zahl erscheint als Fehler, und der Punkt wird
-  // gar nicht gespeichert (auch nicht das Ergebnis oder die Bemerkung daneben).
-  try{
-  if(container){
-    container.querySelectorAll('[data-field]').forEach(el=>{
-      const field=el.dataset.field;
-      const value=el.value;
-      payload[field]=el.dataset.zahl!==undefined?zahlFeld(el):(value===''?null:value);
-    });
-  }
-  Object.assign(payload,overrides||{});
-  // Seit 1.8.95: Bereich ist der Bericht (die Liste danach trägt alle Prüfpunkte) -- auch bei zugeklapptem Panel
-  // (verzögertes Speichern nach dem Zuklappen); neu geladen wird wie bisher nur aufgeklappt.
-  const bereichId=reportId??Object.keys(inspectionItemsCache).find(id=>(inspectionItemsCache[id]||[]).some(i=>i.id===itemId));
-  // Seit 1.8.70 setzt der Server "erfasst von" aus der Anmeldung -- mitgeschickt lehnt er ab (422).
-    await speichern('pruefpunkte-'+bereichId,()=>api(`/api/inspection-items/${itemId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));
-    if(reportId){
-      await loadInspectionItems(reportId);
-      renderReportList();
-    }
-  }catch(e){alert('Fehler: '+e.message)}
-}
-
-async function regenerateInspectionItems(reportId){
-  if(!confirm('Prüfpunkte wirklich neu erzeugen? Bereits erfasste Ergebnisse gehen dabei verloren.'))return;
-  try{
-    await speichern('pruefpunkte-'+reportId,()=>api(`/api/service-reports/${reportId}/inspection-items/regenerate`,{method:'POST'}),{neuLaden:()=>loadInspectionItems(reportId)});
-    renderReportList();
-  }catch(e){alert('Fehler: '+e.message)}
-}
-
-// Seit 1.9.41: Rückfrage auf der Seite -- true nur nach „Löschen“, „Abbrechen“ und Esc ergeben false.
-function rueckfrage(text){
-  const d=document.getElementById('punktLoeschenDialog');
-  document.getElementById('punktLoeschenFrage').textContent=text;
-  return new Promise(res=>{
-    const fertig=ok=>{d.removeEventListener('close',beiEsc);if(d.open)d.close();res(ok)};
-    // Seit 1.9.47: nur ein close, nach dem der Dialog wirklich zu ist (Esc) -- Chrome liefert das close eines früheren Schließens
-    // („Abbrechen“) mitunter erst beim nächsten Öffnen aus; bis dahin beantwortete es die neue Rückfrage sofort mit „nein“.
-    const beiEsc=()=>{if(!d.open)fertig(false)};
-    document.getElementById('punktLoeschenJa').onclick=()=>fertig(true);
-    document.getElementById('punktLoeschenNein').onclick=()=>fertig(false);
-    d.addEventListener('close',beiEsc);
-    d.showModal();
-    document.getElementById('punktLoeschenNein').focus();
-  });
-}
-
-async function deleteInspectionItemUI(itemId,reportId){
-  const punkt=(inspectionItemsCache[reportId]||[]).find(i=>i.id===itemId);
-  if(!await rueckfrage(`Prüfpunkt „${punkt?punkt.text:''}“ löschen?`))return;
-  try{
-    await speichern('pruefpunkte-'+reportId,()=>api(`/api/inspection-items/${itemId}`,{method:'DELETE'}),{neuLaden:()=>loadInspectionItems(reportId)});
-    renderReportList();
-  }catch(e){alert('Fehler: '+e.message)}
-}
-
-async function addManualInspectionItem(reportId){
-  const input=document.getElementById('newItemText-'+reportId);
-  const text=input.value.trim();
-  if(!text){return}
-  const itemType=document.getElementById('newItemType-'+reportId).value;
-  const areaSelect=document.getElementById('newItemArea-'+reportId);
-  const roofAreaId=areaSelect&&areaSelect.value?Number(areaSelect.value):null;
-  try{
-    await speichern('pruefpunkte-'+reportId,()=>api(`/api/service-reports/${reportId}/inspection-items`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,item_type:itemType,roof_area_id:roofAreaId})}));
-    input.value='';
-    await loadInspectionItems(reportId);
-    renderReportList();
-  }catch(e){alert('Fehler: '+e.message)}
-}
-
-function inspectionItemRowHtml(item,r){
-  const isNegative=item.result==='nok'||[3,4].includes(item.condition_grade);
-  const itemFindings=(findingsCache[r.id]||[]).filter(f=>f.inspection_item_id===item.id);
-  const findingHint=(isNegative&&!itemFindings.length&&r.status==='entwurf')
-    ?`<div class="finding-hint">Mangel fehlt noch.<button type="button" class="secondary" onclick="openFindingForm(${r.id},${item.id})">+ Mangel</button></div>`:'';
-  // Seit 1.2.22: ein bereits erfasster Mangel rendert als echte Karte direkt hier, nicht mehr
-  // nur im separaten "Mängel"-Gesamtpanel (das bleibt zusätzlich als Übersicht bestehen).
-  const findingCardsHtml=itemFindings.map(f=>findingCard(f,r)).join('');
-  // Bemerkungsfeld: bei free_text ist notes bereits die Hauptkontrolle, sonst ein
-  // Auf-Bedarf-Feld -- automatisch aufgeklappt, wenn schon Text drinsteht.
-  const showNotesToggle=item.item_type!=='free_text';
-  const hasNotesText=!!(item.notes&&item.notes.trim());
-  const notesOpen=hasNotesText||openNotesItemIds.has(item.id);
-  const notesToggleBtn=showNotesToggle?`<button type="button" class="secondary" style="padding:5px 8px;font-size:11px" onclick="toggleItemNotes(${item.id})">${notesOpen?'Bemerkung ▲':'+ Bemerkung'}</button>`:'';
-  const notesField=(showNotesToggle&&notesOpen)?`<input placeholder="Bemerkung" value="${esc(item.notes)}" style="min-width:160px" onchange="saveInspectionResult(${item.id})" oninput="debouncedSaveInspectionResult(${item.id})" data-field="notes">`:'';
-  return `
-    <div class="inspection-row">
-      <div class="ikopf"><div class="itext">${item.required?'<span class="req">*</span> ':''}${esc(item.text)}</div>${r.status==='entwurf'&&item.template_item_id==null?`<button type="button" class="danger punkt-loeschen" aria-label="Prüfpunkt löschen" title="Prüfpunkt löschen" onclick="deleteInspectionItemUI(${item.id},${r.id})">×</button>`:''}</div>
-      <div class="ictl" data-item="${item.id}">${itemControlInnerHtml(item)}${notesField}</div>
-      ${notesToggleBtn}
-    </div>
-    ${findingHint}
-    ${findingCardsHtml}
-    ${itemPhotoSectionHtml(item,r.id,r.status==='entwurf')}`;
-}
-
-function inspectionItemsPanelHtml(r){
-  const items=inspectionItemsCache[r.id]||[];
-  const added=inspectionSyncHints[r.id]||0;
-  const syncHint=added>0?`<div class="inspection-hint">${esc(added)} Prüfpunkt${added===1?'':'e'} für neu erfasste Bauteile ergänzt.</div>`:'';
-
-  const answeredCount=items.filter(isItemAnswered).length;
-  const openRequired=items.filter(i=>i.required&&!isItemAnswered(i));
-  const namedAreas=(r.roof_areas||[]).filter(a=>a.roof_area_id!=null);
-  const areaNameById={};
-  namedAreas.forEach(a=>{areaNameById[a.roof_area_id]=a.roof_area_name});
-  const overview=`<div class="inspection-progress"><b>${answeredCount} von ${items.length}</b> beantwortet`
-    +(openRequired.length?`, <b>${openRequired.length}</b> Pflichtpunkt${openRequired.length===1?'':'e'} offen`:'')+'</div>'
-    +(openRequired.length?`<div class="inspection-open-list muted small">${openRequired.map(i=>{
-        const areaName=i.roof_area_id!=null?areaNameById[i.roof_area_id]:null;
-        return `<div>${areaName?esc(areaName)+': ':''}${esc(i.text)}</div>`;
-      }).join('')}</div>`:'');
-
-  // Flächen-Blöcke: bei genau einer Fläche (neu ODER Altbestand-Bericht vor 1.2.22, dessen
-  // Prüfpunkte nie ein roof_area_id trugen) gehören ALLE Punkte in diesen einen Block, egal was
-  // an item.roof_area_id steht -- so funktioniert dieselbe Rendering-Logik für beide Fälle ohne
-  // Sonderfall. Erst ab zwei benannten Flächen wird strikt nach item.roof_area_id zugeordnet;
-  // ein Punkt ohne passende Fläche (z. B. manuell ohne Auswahl ergänzt) landet in einem
-  // zusätzlichen "Ohne Fläche zugeordnet"-Block, statt unsichtbar zu werden.
-  let areaBlocks;
-  if(namedAreas.length<=1){
-    areaBlocks=[{key:namedAreas[0]?namedAreas[0].roof_area_id:'none',label:namedAreas[0]?namedAreas[0].roof_area_name:'Prüfpunkte',items}];
-  }else{
-    areaBlocks=namedAreas.map(a=>({key:a.roof_area_id,label:a.roof_area_name||('Fläche '+a.roof_area_id),items:items.filter(i=>i.roof_area_id===a.roof_area_id)}));
-    const unassigned=items.filter(i=>!namedAreas.some(a=>a.roof_area_id===i.roof_area_id));
-    if(unassigned.length)areaBlocks.push({key:'unassigned',label:'Ohne Fläche zugeordnet',items:unassigned});
-  }
-
-  const areasHtml=areaBlocks.map(block=>{
-    const areaKey=String(block.key);
-    const isOpen=expandedAreaKeys.has(`${r.id}:${areaKey}`);
-    const areaAnswered=block.items.filter(isItemAnswered).length;
-    const groups={};
-    const groupOrder=[];
-    for(const item of block.items){
-      const key=item.group_name||'Allgemein';
-      if(!(key in groups)){groups[key]=[];groupOrder.push(key)}
-      groups[key].push(item);
-    }
-    const groupsHtml=groupOrder.map(groupName=>{
-      const groupKey=`${r.id}:${areaKey}:${groupName}`;
-      const isClosed=closedGroupKeys.has(groupKey);
-      const heading=`<div class="inspection-group" style="cursor:pointer" data-klick="pruefgruppe" data-bericht="${r.id}" data-flaeche="${esc(areaKey)}" data-gruppe="${esc(groupName)}">${isClosed?'▶':'▼'} ${esc(groupName)}</div>`;
-      return heading+(isClosed?'':groups[groupName].map(item=>inspectionItemRowHtml(item,r)).join(''));
-    }).join('');
-    return `<div class="inspection-area">
-      <div class="inspection-area-head" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:8px 2px;border-bottom:1px solid var(--line)" data-klick="pruefflaeche" data-bericht="${r.id}" data-flaeche="${esc(areaKey)}">
-        <b>${isOpen?'▼':'▶'} ${esc(block.label)}</b><span class="muted small">${areaAnswered} von ${block.items.length}</span>
-      </div>
-      ${isOpen?`<div style="padding:2px 0 6px">${groupsHtml||'<div class="muted small">Keine Prüfpunkte.</div>'}</div>`:''}
-    </div>`;
-  }).join('');
-
-  const areaOptionsForAdd=namedAreas.length>1
-    ?`<select id="newItemArea-${r.id}"><option value="">— ohne Fläche —</option>${namedAreas.map(a=>`<option value="${a.roof_area_id}">${esc(a.roof_area_name||'Fläche '+a.roof_area_id)}</option>`).join('')}</select>`:'';
-  const addForm=r.status==='entwurf'?`<div class="inspection-row" style="margin-top:8px">
-    <input id="newItemText-${r.id}" placeholder="Zusätzlicher Prüfpunkt …" style="flex:1;min-width:220px">
-    ${areaOptionsForAdd}
-    <select id="newItemType-${r.id}">
-      <option value="ja_nein">Ja/Nein</option><option value="condition_grade">Zustandsstufe</option>
-      <option value="measurement">Messwert</option><option value="quantity">Menge</option>
-      <option value="leak_test">Dichtheitsprüfung</option><option value="free_text">Freitext</option>
-      <option value="photo">Foto</option>
-    </select>
-    <button type="button" class="secondary" onclick="addManualInspectionItem(${r.id})">+ Punkt</button>
-  </div>`:'';
-  const regenerateButton=r.status==='entwurf'&&r.roof_areas&&r.roof_areas.length>0
-    ?`<div style="margin-top:8px"><button type="button" class="secondary" onclick="regenerateInspectionItems(${r.id})">Prüfpunkte neu erzeugen</button></div>`:'';
-  return `${syncHint}${overview}${areasHtml||'<div class="muted small">Noch keine Prüfpunkte.</div>'}${addForm}${regenerateButton}`;
-}
-
 function renderReportList(){
-  document.getElementById('reportList').innerHTML=reports.map(reportCard).join('')||'<div class="empty">Noch keine Berichte zu diesem Auftrag.</div>';
+  document.getElementById('reportList').innerHTML=reports.length?reports.map(reportRow).join(''):'<div class="empty">Noch keine Berichte zu diesem Auftrag.</div>';
 }
 
-// Seit 1.9.10 im gemeinsamen Seitenkopf (_seitenkopf.html): Kennung = Auftragsnummer, Untertitel = Kunde, Status des Auftrags
-// (statusKennzeichen(); der Monteurin liefert der Server keinen Status), Pfad fürs Büro Projekte / Kunde / [Wartungsvertrag] / Projekt /
-// Auftrag -- die Rückwege zu Projektmappe und Wartungsvertrag (ablaeufe.md) --, für die Monteurin Einsätze.
-let kopfVertrag=null;
 function kopfZeichnen(){
   const o=orderData;
   if(!o)return;
@@ -1380,7 +308,7 @@ function kopfZeichnen(){
     o.project_id?{text:o.project_name||o.project_number,href:'/projects/'+o.project_id}:null,
     {text:o.order_number,href:'/orders/'+orderId},
   ]:[{text:'Heute',href:'/mobil'}];
-  pfad.push({text:'Einsatzbericht'});
+  pfad.push({text:'Einsatzberichte'});
   seitenkopf({kennung:o.order_number,untertitel:o.customer_name,status:statusKennzeichen('auftrag',o.status),pfad:pfad.filter(Boolean)});
 }
 // Der Wartungsvertrag, aus dem ein Bericht dieses Auftrags entstand (nur fürs Büro, eigener Bereich).
@@ -1395,36 +323,28 @@ async function loadReports(){
   st.className='status';st.textContent='Lädt …';
   try{
     await lesen('berichte',()=>api(`/api/orders/${orderId}/service-reports`),d=>{reports=d});
-    // Prüfpunkte werden seit 1.2.22 für JEDEN Bericht eager geladen (nicht mehr erst beim
-    // ersten Aufklappen) -- der Gesamtfortschritt im Bericht-Panel-Kopf braucht die Zahlen
-    // schon vor dem ersten Klick auf "Prüfpunkte". Gleiches Muster wie loadReportExtras()
-    // (Mängel/Fotos), nur um Prüfpunkte ergänzt.
-    await Promise.all(reports.map(r=>Promise.all([
-      loadReportExtras(r.id),
-      ladeBerichtsZeiten(r.id),  // seit 1.9.42
-      hasInspectionSection(r)?loadReportInspectionItems(r.id):Promise.resolve(),
-    ])));
     renderReportList();
     await kopfVertragLaden();
     st.textContent='';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 
+const CONDITION_GRADE_LABELS={1:'Neuwertig',2:'Gebrauchsspuren',3:'Abgenutzt',4:'Sanierung erforderlich'};
 function historyResultLabel(i){
   const parts=[];
   if(i.result==='ok')parts.push('OK');
   else if(i.result==='nok')parts.push('Nicht OK');
   else if(i.result)parts.push(i.result==='na'?'Entfällt':i.result);
   if(i.condition_grade!=null)parts.push('Zustand '+i.condition_grade+(CONDITION_GRADE_LABELS[i.condition_grade]?' – '+CONDITION_GRADE_LABELS[i.condition_grade]:''));
-  if(i.measured_value!=null)parts.push(Number(i.measured_value).toLocaleString('de-DE')+(i.unit?' '+i.unit:''));
-  if(i.quantity!=null)parts.push(Number(i.quantity).toLocaleString('de-DE')+(i.unit?' '+i.unit:''));
+  if(i.measured_value!=null)parts.push(zahlText(i.measured_value)+(i.unit?' '+i.unit:''));
+  if(i.quantity!=null)parts.push(zahlText(i.quantity)+(i.unit?' '+i.unit:''));
   if(i.notes)parts.push(i.notes);
   return parts.join(' · ')||'—';
 }
 
 function historyCard(r){
   // Seit 1.3.56 (Rechtekonzept): ein Monteur bekommt die Historie als reduziertes Modell
-  // (ServiceReportHistoryOut) mit Prüfergebnissen und Mängeln inline -- daran erkennbar, dass
+  // (ServiceReportHistoryOut) mit Prüfergebnissen und Befunden inline -- daran erkennbar, dass
   // inspection_items mitkommt. Das PDF eines fremden Berichts ist für ihn gesperrt (trägt u. a.
   // die Zeitbuchungen der Kollegen), deshalb dann kein PDF-Link. Büro/Admin: unverändert.
   const badges=[`<span class="badge">${esc(r.report_type_label)}</span>`];
@@ -1434,12 +354,12 @@ function historyCard(r){
   const findings=(r.findings||[]).map(f=>`<li><b>${esc(f.severity_label)}</b> ${esc(f.description)}${f.roof_component_name?' ('+esc(f.roof_component_name)+')':''} – ${esc(f.status_label)}${f.action_label?', '+esc(f.action_label):''}</li>`).join('');
   return `<div class="report-card">
     <div class="report-head">
-      <div>${badges.join(' ')} <span class="muted small">${fmtDate(r.performed_at)} · Auftrag ${esc(r.order_number||'')}${r.order_title?' – '+esc(r.order_title):''}${monteur}</span></div>
+      <div>${badges.join(' ')} <span class="muted small">${esc(fmtDate(r.performed_at))} · Auftrag ${esc(r.order_number||'')}${r.order_title?' – '+esc(r.order_title):''}${monteur}</span></div>
       ${reduced?'':`<a href="/api/service-reports/${r.id}/pdf" target="_blank">PDF öffnen</a>`}
     </div>
     ${r.description?`<div class="report-desc">${esc(r.description)}</div>`:''}
     ${items?`<div class="small"><b>Prüfergebnisse</b><ul>${items}</ul></div>`:''}
-    ${findings?`<div class="small"><b>Mängel</b><ul>${findings}</ul></div>`:''}
+    ${findings?`<div class="small"><b>${monteursrahmen?'Befunde':'Mängel'}</b><ul>${findings}</ul></div>`:''}
   </div>`;
 }
 
@@ -1454,19 +374,19 @@ async function loadPropertyHistory(){
 }
 
 async function loadTimeEntries(){
+  if(monteursrahmen)return;
   try{
-    // Seit 1.8.9: die Gesamtsumme kommt per SUM aus der Datenbank (alle Buchungen des Auftrags,
-    // für einen Monteur nur die eigenen), nicht mehr aus der auf 500 Zeilen gekürzten Liste.
+    // Seit 1.8.9: die Gesamtsumme kommt per SUM aus der Datenbank (alle Buchungen des Auftrags), nicht aus der auf 500 Zeilen gekürzten Liste.
     await lesen('zeiten',()=>Promise.all([fetchTimeEntries(`/api/time-entries?order_id=${orderId}`),api(`/api/time-entries/summary?order_id=${orderId}`)]),([list,summary])=>{
-      const rows=list.rows.map(e=>`<tr><td data-label="Datum">${fmtDate(e.work_date)}</td><td data-label="Mitarbeiter">${esc(e.employee_name||'')}</td><td data-label="Tätigkeit">${esc(e.activity||'')}</td><td data-label="Stunden">${Number(e.hours).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})} h</td></tr>`).join('');
+      const rows=list.rows.map(e=>`<tr><td data-label="Datum">${esc(fmtDate(e.work_date))}</td><td data-label="Mitarbeiter">${esc(e.employee_name||'')}</td><td data-label="Tätigkeit">${esc(e.activity||'')}</td><td data-label="Stunden">${zahlText(e.hours,2)} h</td></tr>`).join('');
       if(!rows){document.getElementById('timeEntriesTable').innerHTML='<div class="empty">Noch keine Zeitbuchungen zu diesem Auftrag.</div>';return}
-      const total=Number(summary.total_hours);
-      document.getElementById('timeEntriesTable').innerHTML=`${timeEntriesTruncatedNotice(list,'Die Gesamtsumme enthält alle Buchungen.')}<div class="table-scroll"><table><thead><tr><th>Datum</th><th>Mitarbeiter</th><th>Tätigkeit</th><th>Stunden</th></tr></thead><tbody>${rows}<tr><td colspan="3" data-label="" style="text-align:right"><b>Gesamt</b></td><td data-label="Gesamtstunden"><b>${total.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})} h</b></td></tr></tbody></table></div>`;
+      document.getElementById('timeEntriesTable').innerHTML=`${timeEntriesTruncatedNotice(list,'Die Gesamtsumme enthält alle Buchungen.')}<div class="table-scroll"><table><thead><tr><th>Datum</th><th>Mitarbeiter</th><th>Tätigkeit</th><th>Stunden</th></tr></thead><tbody>${rows}<tr><td colspan="3" data-label="" style="text-align:right"><b>Gesamt</b></td><td data-label="Gesamtstunden"><b>${zahlText(summary.total_hours,2)} h</b></td></tr></tbody></table></div>`;
     });
   }catch(e){document.getElementById('timeEntriesTable').innerHTML=`<div class="status err">Fehler: ${esc(e.message)}</div>`}
 }
 
 function refreshTimeEntryOrderItemOptions(){
+  if(monteursrahmen)return;
   const items=(orderData&&orderData.items)||[];
   document.getElementById('teOrderItem').innerHTML='<option value="">— ohne LV-Position —</option>'
     +items.map(i=>`<option value="${i.id}">${esc(i.position_number||'')} ${esc(i.short_text||'')}</option>`).join('');
@@ -1512,13 +432,12 @@ async function saveReportTimeEntry(){
     document.getElementById('teVon').value='';document.getElementById('teBis').value='';
     document.getElementById('teNotes').value='';
     await loadTimeEntries();
-    await Promise.all(reports.filter(r=>r.status==='entwurf').map(r=>ladeBerichtsZeiten(r.id)));renderReportList();  // seit 1.9.42
     st.textContent='Gebucht.';
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
+aktion('zeit-buchen',()=>saveReportTimeEntry());
 
-// Seit 1.8.97 lädt init() über lesen() (_speichern.html): Anmeldestatus, Auftrag, Objekt und Stammdaten (sie füllen die
-// Formulare für Bericht und Zeitbuchung) je in einem eigenen Bereich, in derselben Reihenfolge wie bisher.
+// Seit 1.8.97 lädt init() über lesen() (_speichern.html): Anmeldestatus, Auftrag, Objekt und Stammdaten je in einem eigenen Bereich.
 async function init(){
   await lesen('anmeldung',()=>api('/api/auth/status').catch(()=>({authenticated:false,user:null})),d=>{authStatus=d});
   if(!authStatus?.authenticated){
@@ -1528,6 +447,7 @@ async function init(){
   }
   if(window.offeneBedenkenZeigen)offeneBedenkenZeigen('concernAlert',orderId);  // seit 1.8.45, läuft nebenher
   document.getElementById('timeLink').href='/time-tracking?order_id='+orderId;
+  if(monteursrahmen)document.getElementById('zeitNachtragen').href='/mobil/zeiten?order_id='+orderId;
   lesen('auftrag',()=>api(`/api/orders/${orderId}`),o=>{
     orderData=o;
     kopfZeichnen();
@@ -1537,8 +457,7 @@ async function init(){
   await lesen('stammdaten',()=>api(`/api/orders/${orderId}/roof-areas`).catch(()=>[]),d=>{roofAreasForOrder=d});
   await lesen('objekt',()=>api(`/api/orders/${orderId}/property`).catch(()=>null),p=>renderPropertyCard(p));
   await lesen('stammdaten',()=>api('/api/inspection-templates').catch(()=>[]),d=>{inspectionTemplates=d});
-  if(assetsModuleEnabled)await lesen('stammdaten',()=>api('/api/operational-assets/selectable-for-report').catch(()=>[]),d=>{selectableAssets=d});
-  await lesen('stammdaten',()=>Promise.all([
+  if(!monteursrahmen)await lesen('stammdaten',()=>Promise.all([
     safeOptionGroup('time_entry_types'), safeOptionGroup('time_entry_activities'),
   ]),([typesGroup,activitiesGroup])=>{
   timeEntryTypes=typesGroup.options||[];
@@ -1551,16 +470,6 @@ async function init(){
   document.getElementById('teDate').value=berlinToday();
   });
   await loadReports();
-  // "Wartung durchführen" (Vertragsseite, seit 1.2.22) navigiert direkt hierher mit
-  // ?report=<id> -- öffnet nur das Prüfpunkte-Panel dieses Berichts, die Dachflächen-Blöcke
-  // darin bleiben trotzdem zugeklappt (kein Widerspruch zum Abnahmekriterium "beim Öffnen ist
-  // keine Prüfliste aufgeklappt").
-  const deepLinkReportId=Number(new URLSearchParams(location.search).get('report'))||null;
-  if(deepLinkReportId&&reports.some(r=>r.id===deepLinkReportId)){
-    expandedReportIds.add(deepLinkReportId);
-    renderReportList();
-    document.querySelector('#reportList')?.scrollIntoView({behavior:'smooth',block:'start'});
-  }
   await loadPropertyHistory();
   await loadTimeEntries();
 }

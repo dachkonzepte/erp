@@ -352,7 +352,7 @@ AUSWAHL = "{optionen: _element('teEmployee').options.map(o => o.text), verborgen
 
 
 @nur_mit_node
-@pytest.mark.parametrize("rolle", ROLLEN)
+@pytest.mark.parametrize("rolle", ROLLEN[:3])  # seit 1.9.67 hat die Monteurin keine Buchungskarte (nächster Test)
 def test_einsatzbericht_bietet_nur_an_was_der_server_annimmt(rolle):
     """Bis 1.8.142 (dort xfail) sah die Monteurin alle aktiven Mitarbeiter, seit 1.8.143 nur sich. Bis 1.8.151 sahen Büro – Finanzen
     und Büro – Auftrag weiter alle -- der Server nahm ihnen eine Buchung für einen Kollegen aber ebenso nicht an (403). Seit 1.8.152
@@ -385,5 +385,8 @@ def test_einsatzbericht_mitarbeiterfeld_im_markup_nur_wer_fuer_andere_bucht(thre
     _assign_via_team(db, order, mia)
     antwort = router_test_client(db, pages_router, role=rolle, employee_id=mia.id).get(f"/orders/{order.id}/service-reports")
     assert antwort.status_code == 200, antwort.status_code
+    if rolle == "field":  # seit 1.9.67 ohne Buchungskarte, „Zeit nachtragen“ auf „Meine Zeiten“
+        assert 'id="teEmployeeField"' not in antwort.text and 'id="zeitNachtragen"' in antwort.text
+        return
     feld = re.search(r'<div class="field" id="teEmployeeField"[^>]*>', antwort.text).group(0)
     assert feld.endswith(" hidden>") is (rolle != "admin"), feld

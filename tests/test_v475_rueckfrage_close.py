@@ -1,4 +1,5 @@
-"""Seit 1.9.47: die Rückfrage „Prüfpunkt … löschen?“ im Einsatzbericht (rueckfrage() in service_reports.html) wertet ein close-Ereignis
+"""Seit 1.9.47: die Rückfrage „Prüfpunkt … löschen?“ im Einsatzbericht (rueckfrage(), seit 1.9.67 in service_report.html für jedes
+Löschen der Berichtsseite, bis 1.9.66 in service_reports.html) wertet ein close-Ereignis
 nur, wenn der Dialog danach wirklich zu ist (Esc).
 
     Befund         Chrome liefert das close eines früheren Schließens („Abbrechen“) mitunter erst beim nächsten Öffnen aus -- die neue
@@ -19,14 +20,15 @@ const dialog={open:false,addEventListener:(n,f)=>{(ereignisse[n]=ereignisse[n]||
   removeEventListener:(n,f)=>{ereignisse[n]=(ereignisse[n]||[]).filter(x=>x!==f)},
   showModal(){this.open=true},close(){this.open=false}};
 function feuern(n){(ereignisse[n]||[]).slice().forEach(f=>f())}
-const knoepfe={punktLoeschenJa:{onclick:null},punktLoeschenNein:{onclick:null,focus(){}}};
-const document={getElementById:id=>id==='punktLoeschenDialog'?dialog:id==='punktLoeschenFrage'?{textContent:''}:knoepfe[id]};
+const knoepfe={rueckfrageJa:{onclick:null,textContent:''},rueckfrageNein:{onclick:null,focus(){}}};
+const document={getElementById:id=>id==='rueckfrageDialog'?dialog:(knoepfe[id]||{textContent:''})};
+function el(id){return document.getElementById(id)}
 """
 
 
 def _rueckfrage() -> str:
-    text, _ = vj.seitentext("service_reports.html")
-    m = re.search(r"function rueckfrage\(text\)\{.*?\n\}\n", text, flags=re.S)
+    text, _ = vj.seitentext("service_report.html")
+    m = re.search(r"function rueckfrage\(titel,text,ja\)\{.*?\n\}\n", text, flags=re.S)
     assert m, "rueckfrage() nicht gefunden"
     return m.group(0)
 
@@ -40,9 +42,9 @@ def test_altes_close_beim_naechsten_oeffnen_zaehlt_nicht():
     """Angriff: „Abbrechen“ (das close kommt verspätet), neu öffnen, dann trifft das alte close ein -- die Rückfrage bleibt offen,
     „Löschen“ antwortet „ja“."""
     ergebnis = _lauf("""
-      const erste=rueckfrage('A'); knoepfe.punktLoeschenNein.onclick(); const a=await erste;
-      const zweite=rueckfrage('B'); feuern('close');            // das verspätete close des ersten Schließens
-      const offen=dialog.open; knoepfe.punktLoeschenJa.onclick();
+      const erste=rueckfrage('A','A','Löschen'); knoepfe.rueckfrageNein.onclick(); const a=await erste;
+      const zweite=rueckfrage('B','B','Löschen'); feuern('close');   // das verspätete close des ersten Schließens
+      const offen=dialog.open; knoepfe.rueckfrageJa.onclick();
       return [a, offen, await zweite];""")
     assert ergebnis == [False, True, True]
 
@@ -50,7 +52,7 @@ def test_altes_close_beim_naechsten_oeffnen_zaehlt_nicht():
 def test_esc_antwortet_nein():
     """Gegenprobe: Esc schließt den Dialog (zu, dann close) -- „nein“, wie bisher."""
     ergebnis = _lauf("""
-      const p=rueckfrage('C'); dialog.close(); feuern('close');
+      const p=rueckfrage('C','C','Löschen'); dialog.close(); feuern('close');
       return [dialog.open, await p];""")
     assert ergebnis == [False, False]
     assert json.dumps(ergebnis)  # nur Werte, keine Objekte

@@ -69,9 +69,11 @@ def test_monteurin_loescht_eigenen_punkt(monteurin):
 
 
 def test_seite_knopf_nur_am_eigenen_punkt_mit_rueckfrage():
-    text, _ = seitentext("service_reports.html")
-    assert "item.template_item_id==null?`<button type=\"button\" class=\"danger punkt-loeschen\" aria-label=\"Prüfpunkt löschen\"" in text
-    loeschen = text[text.index("async function deleteInspectionItemUI("):text.index("async function addManualInspectionItem(")]
-    assert "confirm(" not in loeschen and "await rueckfrage(`Prüfpunkt „${punkt?punkt.text:''}“ löschen?`)" in loeschen
-    assert '<dialog id="punktLoeschenDialog" class="rueckfrage-karte"' in text
-    assert ".inspection-row .punkt-loeschen{flex:0 0 48px;width:48px;height:48px;" in text
+    # seit 1.9.67 auf der Berichtsseite: „Prüfpunkt löschen“ im Menü „⋮“ des Punkts (Einträge 48 px), Rückfrage im Dialog der Seite
+    text, _ = seitentext("service_report.html")
+    assert ("(p.template_item_id==null?'<button type=\"button\" class=\"ds-menue-eintrag ds-menue-eintrag-fehler\" "
+            "data-klick=\"punkt-loeschen\"") in text
+    loeschen = text[text.index("aktion('punkt-loeschen'"):text.index("// --- Befunde")]
+    assert "confirm(" not in loeschen and "rueckfrage('Prüfpunkt löschen?','Prüfpunkt „'+(p?p.text:'')+'“ löschen?','Löschen')" in loeschen
+    assert '<dialog id="rueckfrageDialog" class="dialog-karte"' in text
+    assert ".menue-anker .ds-menue-eintrag{height:48px;min-height:48px;" in text

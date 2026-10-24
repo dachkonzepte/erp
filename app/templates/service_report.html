@@ -1,0 +1,970 @@
+{% set bereich = "projekte" -%}
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP – Einsatzbericht</title>
+{# Ein Einsatzbericht in fünf Schritten (seit 1.9.67, Stufe 4, R4) nach den Vorlagen bildgrundlage/entwurf-stufe4/bericht-pruefpunkte.html und
+   bericht-unterschrift.html -- bis 1.9.66 standen alle Berichte eines Auftrags als Karten auf der Auftragsseite (/orders/{id}/service-reports,
+   service_reports.html), die bleibt für Liste, „+ Bericht“, Objekt & Zugang, Bedenken, frühere Berichte und Zeiten.
+     Kopf      Pfad „Heute / <Auftrag> / <Art>“ (Büro: Projekte / … / Auftrag / Einsatzberichte / <Art>), Status, Objekt · Dachflächen;
+               „⋮“ mit Datum ändern, Art ändern (nur solange der Bericht leer ist), Prüfpunkte neu erzeugen, PDF, Löschen (rot, Rückfrage)
+     Schritte  1 Prüfpunkte (Rapport ohne Vorlage: „Arbeiten“) · 2 Befunde · 3 Material · 4 Betriebsmittel (nur mit Modul) · 5 Unterschrift;
+               frei anwählbar, erledigte mit Haken; „Zurück“ / „Weiter: …“
+     rechts    „Noch offen“ (GET …/noch-offen, nach jedem Speichern frisch) -- hoch (unter 1000 px) eine Spalte, Schritte als Zeile mit
+               Bildlauf, „Noch offen“ über der festen Leiste
+   Fokus: nach dem Speichern wird nur neu gezeichnet, was das Feld mit dem Fokus nicht enthält (Tastatur bleibt offen). #}
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+{% include "_ds_kopf.html" %}
+<style>
+:root{font-family:var(--ds-schrift-text);color-scheme:light;color:var(--ds-text);background:var(--ds-grund)}
+:root[data-theme="dark"]{color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;background:var(--ds-grund);color:var(--ds-text)}
+[hidden]{display:none!important}
+.nur-vorleser{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+a{color:var(--ds-link)}a:hover{color:var(--ds-link-hover)}
+:focus-visible{outline:3px solid var(--ds-fokus);outline-offset:3px}
+main.bericht-seite{padding:14px 20px 16px;display:flex;flex-direction:column;gap:12px;max-width:1400px}
+.eb{font-family:var(--ds-schrift-mono);font-size:12px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--ds-text-3)}
+/* Schritte: 48 px hoch, Nummer im Kreis, aktiv mit 2 px Rand in aktion, erledigt mit Haken */
+.schritte{display:flex;gap:8px}
+.schritt{min-height:48px;padding:0 14px;border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-tablet-feld);background:var(--ds-flaeche);color:var(--ds-stark);font-family:var(--ds-schrift-text);font-size:15px;font-weight:600;display:inline-flex;align-items:center;gap:8px;cursor:pointer;white-space:nowrap;flex:none}
+.schritt .nr{width:24px;height:24px;border-radius:50%;background:var(--ds-flaeche-2);font-size:13px;display:inline-flex;align-items:center;justify-content:center}
+.schritt[aria-current="step"]{background:var(--ds-aktion-hell);border:2px solid var(--ds-aktion);color:var(--ds-aktion-text)}
+.schritt[aria-current="step"] .nr{background:var(--ds-aktion);color:var(--ds-auf-aktion)}
+.schritt.erledigt{border-color:var(--ds-aktion-rand);color:var(--ds-aktion-text)}
+.schritt svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+/* quer: Inhalt und „Noch offen“ (360 px, beim Bildlauf oben fest); hoch eine Spalte, die Schritte als Zeile mit Bildlauf */
+.bericht-raster{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start}
+.bericht-raster.ohne-offen{grid-template-columns:minmax(0,1fr)}
+.bericht-raster.ohne-offen .offen-karte{display:none}
+.schritt-inhalt.ohne-karte{background:transparent;border:0;padding:0}
+.bericht-karte{background:var(--ds-flaeche);border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-karte);min-width:0}
+.schritt-inhalt{padding:14px 20px 18px;display:flex;flex-direction:column;gap:0}
+.offen-karte{padding:16px 18px;display:flex;flex-direction:column;gap:12px;position:sticky;top:76px;max-height:calc(100dvh - 92px)}
+.offen-liste{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px;overflow:auto}
+.offen-liste li{display:flex;gap:10px;font-size:15px;line-height:1.4;overflow-wrap:anywhere}
+.offen-liste li::before{content:"";flex:none;width:8px;height:8px;margin-top:7px;border-radius:50%;background:var(--ds-signal)}
+.offen-leer{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--ds-ok-text);background:var(--ds-ok-hell);border-radius:999px;padding:4px 12px;align-self:flex-start}
+.offen-satz{margin:0;font-size:14px;color:var(--ds-text-2)}
+.offen-satz.trenner{border-top:1px solid var(--ds-grund);padding-top:10px}
+.schritt-knoepfe{margin-top:auto;display:flex;gap:10px}
+.schritt-knoepfe .knopf{height:60px;font-size:18px}
+.schritt-knoepfe .knopf-aktion{flex:1}
+@media (max-width:999px){
+  main.bericht-seite{padding:14px 16px 0}
+  .schritte{overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
+  .bericht-raster{grid-template-columns:minmax(0,1fr)}
+  .offen-karte{position:sticky;top:auto;bottom:0;max-height:none;border-radius:var(--ds-ecke-karte) var(--ds-ecke-karte) 0 0;border-bottom:0;box-shadow:0 -6px 18px rgba(23,28,31,.12)}
+  .offen-karte{padding:12px 16px;gap:8px}
+  .offen-liste{max-height:18vh;gap:6px}
+  .offen-liste li{font-size:14px}
+  .offen-satz{font-size:13px}
+  .schritt-knoepfe .knopf{height:56px;font-size:17px}
+}
+/* Knöpfe wie die Vorlagen: 48 px, Hauptknöpfe 56–60 px */
+.knopf{min-height:48px;height:48px;border-radius:var(--ds-ecke-tablet-feld);font-family:var(--ds-schrift-text);font-size:15px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:10px;padding:0 16px;text-decoration:none;flex:none}
+.knopf:active{transform:scale(.985)}
+.knopf:disabled{cursor:default;background:var(--ds-linie);color:var(--ds-text-2);border-color:transparent}
+.knopf-neutral{border:1px solid var(--ds-linie-stark);background:var(--ds-flaeche);color:var(--ds-stark)}
+.knopf-neutral:hover{background:var(--ds-flaeche-2);color:var(--ds-stark)}
+.knopf-aktion{border:0;background:var(--ds-aktion);color:var(--ds-auf-aktion)}
+.knopf-aktion:hover{color:var(--ds-auf-aktion)}
+.knopf-gefahr{border:0;background:var(--ds-fehler);color:var(--ds-auf-fehler)}
+.knopf-gefahr:hover{color:var(--ds-auf-fehler)}
+.knopf-gross{height:56px;font-size:16px;padding:0 22px}
+.knopf-symbol{width:48px;padding:0}
+.knopf svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.inhalt-kopf{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding-bottom:8px}
+.inhalt-kopf h2{margin:0;font-family:var(--ds-schrift-titel);font-weight:600;font-size:20px}
+.inhalt-kopf .zaehler{font-size:15px;color:var(--ds-text-2);white-space:nowrap}
+.gruppe{margin:12px 0 2px;font-size:14px;font-weight:700;color:var(--ds-text-2)}
+.leer-text{font-size:16px;color:var(--ds-text-2);padding:14px 0}
+.meldung{margin:0;font-size:15px;color:var(--ds-fehler-text);overflow-wrap:anywhere}
+.meldung:empty{display:none}
+.ergebnis{margin:0;font-size:15px;font-weight:600;color:var(--ds-ok-text)}
+.ergebnis:empty{display:none}
+.lade-hinweis{margin:0;font-size:15px;color:var(--ds-text-2)}
+.lade-hinweis:empty{display:none}
+.office-hint{padding:10px 14px;border:1px solid var(--ds-warn-text);background:var(--ds-warn-hell);border-radius:var(--ds-ecke-karte);font-size:15px}
+/* Prüfpunkte: Zeile ab 68 px, Text 17 px, Segmentknöpfe 96 × 52 px */
+.punkt{border-top:1px solid var(--ds-grund);padding:8px 0}
+.punkt-kopf{display:flex;align-items:center;gap:16px;min-height:52px;flex-wrap:wrap}
+.punkt-text{flex:1;min-width:220px;font-size:17px;font-weight:600;overflow-wrap:anywhere}
+.pflicht{color:var(--ds-signal-text)}
+.punkt-eingabe{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.punkt.gestapelt .punkt-eingabe{flex-basis:100%}
+.segmente{display:flex}
+.segment{min-width:96px;height:52px;min-height:52px;padding:0 12px;border:1px solid var(--ds-linie-stark);border-left-width:0;background:var(--ds-flaeche);color:var(--ds-stark);font-family:var(--ds-schrift-text);font-size:15px;font-weight:600;cursor:pointer}
+.segment:first-child{border-left-width:1px;border-radius:var(--ds-ecke-tablet-feld) 0 0 var(--ds-ecke-tablet-feld)}
+.segment:last-child{border-radius:0 var(--ds-ecke-tablet-feld) var(--ds-ecke-tablet-feld) 0}
+.segment[aria-pressed="true"]{background:var(--ds-aktion);border-color:var(--ds-aktion);color:var(--ds-auf-aktion)}
+.segment.negativ[aria-pressed="true"]{background:var(--ds-fehler);border-color:var(--ds-fehler);color:var(--ds-auf-fehler)}
+.segment.neutral[aria-pressed="true"]{background:var(--ds-stark);border-color:var(--ds-stark);color:var(--ds-auf-stark)}
+.segmente.breit{width:100%}
+.segmente.breit .segment{flex:1;min-width:0}
+.feld-zahl{width:140px;height:52px;border:1px solid var(--ds-feld-rand);border-radius:var(--ds-ecke-tablet-feld);padding:0 14px;font:inherit;font-size:16px;background:var(--ds-flaeche);color:var(--ds-text)}
+.feld-text{width:100%;min-height:52px;border:1px solid var(--ds-feld-rand);border-radius:var(--ds-ecke-tablet-feld);padding:12px 14px;font:inherit;font-size:16px;background:var(--ds-flaeche);color:var(--ds-text)}
+textarea.feld-text{min-height:120px;resize:vertical}
+select.feld-text{height:52px;padding:0 14px}
+.einheit{font-size:15px;color:var(--ds-text-2)}
+.soll{font-size:14px;color:var(--ds-text-2)}
+.ausser-soll{font-size:13px;font-weight:700;color:var(--ds-fehler-text);background:var(--ds-fehler-hell);border-radius:999px;padding:3px 10px}
+.punkt-zusatz{display:flex;flex-direction:column;gap:8px;padding-top:8px}
+.punkt-zusatz:empty{display:none}
+.menue-anker{position:relative;flex:none}
+.menue-anker .ds-menue-eintrag{height:48px;min-height:48px;font-size:16px}
+/* Befund direkt unter dem Punkt (wie die Vorlage) */
+.befund-box{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--ds-flaeche-2);border-radius:var(--ds-ecke-tablet-feld);padding:10px 14px;margin-top:8px}
+.befund-box .befund-text{flex:1;min-width:200px;display:flex;flex-direction:column;gap:2px}
+.befund-box .befund-titel{font-size:15px;font-weight:600;overflow-wrap:anywhere}
+.befund-box .befund-stand{font-size:14px;color:var(--ds-signal-text)}
+.befund-box .befund-stand.ok{color:var(--ds-ok-text)}
+.befund-form{display:flex;flex-direction:column;gap:10px;background:var(--ds-flaeche-2);border-radius:var(--ds-ecke-tablet-feld);padding:12px 14px;margin-top:8px}
+.befund-form .form-zeile{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.befund-form .form-zeile .feld-text{flex:1;min-width:180px;width:auto}
+.feld-titel{font-size:14px;font-weight:600;color:var(--ds-stark)}
+/* Fotos: Vorschau 96 px, Löschen 48 px */
+.fotos{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.foto{position:relative;display:inline-flex}
+.foto img{width:96px;height:96px;object-fit:cover;border-radius:var(--ds-ecke-tablet-feld);border:1px solid var(--ds-linie)}
+.foto .knopf-symbol{position:absolute;top:-6px;right:-6px;width:48px;height:48px;background:var(--ds-flaeche);border:1px solid var(--ds-linie-stark);color:var(--ds-fehler-text);font-size:20px}
+.foto-platz{display:flex;align-items:center;gap:10px;font-size:15px;color:var(--ds-text-2)}
+/* Befunde, Material, Betriebsmittel */
+.liste-eintrag{border-top:1px solid var(--ds-grund);padding:12px 0;display:flex;flex-direction:column;gap:8px}
+.liste-eintrag.markiert{background:var(--ds-signal-hell);border-radius:var(--ds-ecke-tablet-feld);padding:12px}
+.kennzeichen-zeile{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.kennzeichen{font-size:12.5px;font-weight:700;border-radius:999px;padding:3px 10px;background:var(--ds-flaeche-2);color:var(--ds-text-2)}
+.kennzeichen.fehler{background:var(--ds-fehler-hell);color:var(--ds-fehler-text)}
+.kennzeichen.warn{background:var(--ds-warn-hell);color:var(--ds-warn-text)}
+.kennzeichen.ok{background:var(--ds-ok-hell);color:var(--ds-ok-text)}
+.eintrag-text{font-size:16px;white-space:pre-wrap;overflow-wrap:anywhere}
+.eintrag-neben{font-size:14px;color:var(--ds-text-2)}
+.reihe{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.reihe .feld-text{flex:1;min-width:160px;width:auto}
+.material-zeile{display:grid;grid-template-columns:minmax(0,1fr) 140px 110px 48px;gap:10px;align-items:center}
+@media (max-width:700px){.material-zeile{grid-template-columns:minmax(0,1fr) 110px 48px}.material-zeile .einheit-feld{grid-column:1/2}}
+.formular{border-top:1px solid var(--ds-linie);margin-top:8px;padding-top:12px;display:flex;flex-direction:column;gap:10px}
+/* Unterschrift: zwei Spalten wie die Vorlage, Zeichenflächen mindestens 160 px hoch */
+.unterschrift-raster{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:999px){.unterschrift-raster{grid-template-columns:minmax(0,1fr)}}
+.zl{display:flex;align-items:baseline;gap:12px;min-height:44px;border-top:1px solid var(--ds-grund);font-size:16px}
+.zl .zl-name{width:140px;flex:none;color:var(--ds-text-2)}
+.zl .zl-wert{flex:1;min-width:0;overflow-wrap:anywhere}
+.zl .zl-stunden{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.sign-block{display:flex;flex-direction:column;gap:6px}
+.sign-block canvas.dk-unterschrift{display:block;width:100%;height:160px;min-height:160px;border:1px dashed var(--ds-feld-rand);border-radius:var(--ds-ecke-tablet-feld)}
+.sign-kopf{display:flex;align-items:center;gap:12px}
+.sign-kopf label{flex:1;display:flex;align-items:center;gap:12px;font-size:14px;font-weight:600;color:var(--ds-stark)}
+.sign-kopf input{flex:1;height:48px;border:1px solid var(--ds-feld-rand);border-radius:var(--ds-ecke-tablet-feld);padding:0 14px;font:inherit;font-size:16px;background:var(--ds-flaeche);color:var(--ds-text)}
+.abschluss{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:6px}
+.abschluss .knopf{flex:1;height:60px;font-size:18px}
+.fehlt{font-size:14px;color:var(--ds-signal-text);overflow-wrap:anywhere}
+.unterschrieben{display:flex;flex-direction:column;gap:8px;font-size:16px}
+.sign-offen{display:flex;flex-direction:column;gap:8px;padding:10px 14px;background:var(--ds-signal-hell);border-radius:var(--ds-ecke-tablet-feld)}
+.sign-offen .offen-liste{max-height:none}
+/* Rückfrage und Dialoge auf der Seite (Knöpfe 48 px, Leiste unten im Bild wie seit 1.9.65) */
+.dialog-karte{width:min(520px,calc(100% - 32px));max-height:calc(100% - 32px);overflow:auto;border:0;border-radius:var(--ds-ecke-karte);padding:22px 24px;background:var(--ds-flaeche);color:var(--ds-text);box-shadow:0 16px 48px rgba(23,28,31,.25)}
+.dialog-karte[open]{display:flex;flex-direction:column;gap:16px}
+.dialog-karte::backdrop{background:rgba(23,28,31,.5)}
+.dialog-karte h2{margin:0;font-family:var(--ds-schrift-titel);font-weight:600;font-size:20px}
+.dialog-karte p{margin:0;font-size:16px;line-height:1.4;overflow-wrap:anywhere}
+.dialog-knoepfe{display:flex;justify-content:flex-end;gap:12px;flex-wrap:wrap}
+.dialog-karte>.dialog-knoepfe{position:sticky;bottom:-22px;z-index:1;margin:0 -24px -22px;padding:12px 24px 22px;background:var(--ds-flaeche);border-top:1px solid var(--ds-linie)}
+.dialog-knoepfe .knopf{min-width:120px}
+</style></head><body class="ds-seite">
+{% set current_user = request.state.erp_user %}
+{% set darf_buero_seiten = can(current_user, 'admin', 'buero_finanzen', 'buero_auftrag') %}
+{% set monteursrahmen = can(current_user, 'field') %}
+<div class="app-layout">
+{% if not monteursrahmen %}{% include "_sidebar.html" %}{% include "_debounce.html" %}{% endif %}
+{% include "_unterschrift.html" %}
+{% include "_berlin_date.html" %}
+{% if is_module_enabled('checklisten') %}{% include "_offene_bedenken.html" %}{% endif %}
+<div class="app-content">
+{% if monteursrahmen %}{% include "_mobile_header.html" %}{% else %}{% include "_topbar.html" %}{% endif %}
+<main class="bericht-seite">
+{% if is_module_enabled('wartungen') %}
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{% call(teil) seitenkopf("Einsatzbericht", untertitel="Bericht wird geladen …", mit_pfad=true, mit_menue=true, tablet=monteursrahmen) %}
+  {% if teil == "pfad" %}{% if darf_buero_seiten %}<a class="ds-kopf-pfadglied" href="/projects">Projekte</a>{% else %}<a class="ds-kopf-pfadglied" href="/mobil">Heute</a>{% endif %}
+  {% elif teil == "menue" %}<button type="button" class="ds-menue-eintrag" id="menueDatum" data-klick="datum-oeffnen" hidden>Datum ändern</button>
+  <button type="button" class="ds-menue-eintrag" id="menueArt" data-klick="art-oeffnen" hidden>Art ändern</button>
+  <button type="button" class="ds-menue-eintrag" id="menueNeu" data-klick="neu-erzeugen" hidden>Prüfpunkte neu erzeugen</button>
+  <a class="ds-menue-eintrag" id="menuePdf" href="/api/service-reports/{{ report_id }}/pdf" target="_blank" rel="noopener" hidden>PDF öffnen</a>
+  <button type="button" class="ds-menue-eintrag ds-menue-eintrag-fehler" id="menueLoeschen" data-klick="loeschen" hidden>Löschen</button>{% endif %}
+{% endcall %}
+{% if is_module_enabled('checklisten') %}<div id="concernAlert" class="concern-alert" role="alert" hidden></div>{% endif %}
+<div class="office-hint" id="bueroHinweis" hidden></div>
+<p class="lade-hinweis" id="ladeHinweis" role="status">Bericht wird geladen …</p>
+<nav class="schritte" id="schritte" aria-label="Schritte des Berichts"></nav>
+<p class="meldung" id="meldung" role="alert"></p>
+<p class="ergebnis" id="ergebnis" role="status"></p>
+<div class="bericht-raster" id="raster" hidden>
+  <section class="bericht-karte schritt-inhalt" id="schrittInhalt" aria-live="polite"></section>
+  <aside class="bericht-karte offen-karte" aria-labelledby="offenTitel">
+    <span class="eb" id="offenTitel">Noch offen</span>
+    <ul class="offen-liste" id="offenListe"></ul>
+    <span class="offen-leer" id="offenLeer" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg>Nichts mehr offen</span>
+    <p class="offen-satz trenner" id="offenSatz">Unterschreiben geht, sobald hier nichts mehr steht.</p>
+    <p class="offen-satz" id="laeuftSatz" hidden></p>
+    <div class="schritt-knoepfe"><button type="button" class="knopf knopf-neutral" id="zurueckKnopf" data-klick="zurueck">Zurück</button><button type="button" class="knopf knopf-aktion" id="weiterKnopf" data-klick="weiter">Weiter</button></div>
+  </aside>
+</div>
+<input type="file" accept="image/png,image/jpeg,image/webp" capture="environment" id="fotoKamera" data-aenderung="foto-gewaehlt" hidden>
+<input type="file" accept="image/png,image/jpeg,image/webp" id="fotoGalerie" data-aenderung="foto-gewaehlt" hidden>
+<dialog id="rueckfrageDialog" class="dialog-karte" aria-labelledby="rueckfrageTitel">
+  <h2 id="rueckfrageTitel">Wirklich?</h2>
+  <p id="rueckfrageText"></p>
+  <div class="dialog-knoepfe"><button type="button" class="knopf knopf-neutral" id="rueckfrageNein">Abbrechen</button><button type="button" class="knopf knopf-gefahr" id="rueckfrageJa">Löschen</button></div>
+</dialog>
+<dialog id="datumDialog" class="dialog-karte" aria-labelledby="datumTitel">
+  <h2 id="datumTitel">Datum ändern</h2>
+  <label class="feld-titel" for="datumFeld">Datum des Einsatzes</label><input class="feld-text" id="datumFeld" type="date">
+  <p class="offen-satz">Die Zeiten im Bericht sind die dieses Tages.</p>
+  <p class="meldung" id="datumStatus" role="status"></p>
+  <div class="dialog-knoepfe"><button type="button" class="knopf knopf-neutral" id="datumAbbrechen" data-klick="dialog-zu" data-dialog="datumDialog">Abbrechen</button><button type="button" class="knopf knopf-aktion" id="datumSpeichern" data-klick="datum-speichern">Speichern</button></div>
+</dialog>
+<dialog id="artDialog" class="dialog-karte" aria-labelledby="artTitel">
+  <h2 id="artTitel">Art ändern</h2>
+  <label class="feld-titel" for="artFeld">Art des Berichts</label><select class="feld-text" id="artFeld"><option value="rapport">Rapportbericht (Reparatur)</option><option value="wartung">Wartungsbericht</option></select>
+  <p class="offen-satz" id="artHinweis">Die Art lässt sich nur ändern, solange der Bericht leer ist – Entwurf löschen und neu anlegen.</p>
+  <p class="meldung" id="artStatus" role="status"></p>
+  <div class="dialog-knoepfe"><button type="button" class="knopf knopf-neutral" id="artAbbrechen" data-klick="dialog-zu" data-dialog="artDialog">Abbrechen</button><button type="button" class="knopf knopf-aktion" id="artSpeichern" data-klick="art-speichern">Speichern</button></div>
+</dialog>
+{% else %}
+<div class="bericht-karte schritt-inhalt"><h2>Wartungen & Reparaturen</h2><p class="leer-text">Dieses Modul ist deaktiviert. Ein Administrator kann es in den {% if darf_buero_seiten %}<a href="/settings#modules">Einstellungen</a>{% else %}Einstellungen{% endif %} wieder aktivieren.</p></div>
+{% endif %}
+</main>
+{% include "_seitenkopf.html" %}
+</div>
+</div>
+{% include "_speichern.html" %}
+{% include "_auswahl.html" %}
+{% include "_zahl.html" %}
+{% include "_aktionen.html" %}
+{% include "_fehlertext.html" %}
+<script>
+var REPORT_ID={{ report_id }};
+var MODUL_BETRIEBSMITTEL={{ 'true' if is_module_enabled('betriebsmittel') else 'false' }};
+var DARF_BUERO={{ 'true' if darf_buero_seiten else 'false' }};
+var MONTEURSRAHMEN={{ 'true' if monteursrahmen else 'false' }};
+var ART_FEST_HINWEIS='Die Art lässt sich nur ändern, solange der Bericht leer ist – Entwurf löschen und neu anlegen.';
+function el(id){return document.getElementById(id)}
+function esc(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})}
+function fmtDatum(s){if(!s)return '';var t=String(s).slice(0,10).split('-');return t.length===3?t[2]+'.'+t[1]+'.'+t[0]:String(s)}
+async function api(url,opt){
+  var r=await fetch(url,opt),body=null;try{body=await r.json()}catch(e){}
+  if(!r.ok){var f=new Error(fehlerText(body,r.status,{description:'Beschreibung',performed_at:'Datum',quantity:'Menge',measured_value:'Messwert'}));f.status=r.status;throw f}
+  return body;
+}
+var JSON_KOPF={'Content-Type':'application/json'};
+function meldung(text){el('meldung').textContent=text||'';if(text)el('ergebnis').textContent=''}
+function ergebnis(text){el('ergebnis').textContent=text||'';if(text)el('meldung').textContent=''}
+
+// --- Stand der Seite -------------------------------------------------------------------------------------------------------------
+var R=null,AUFTRAG=null,OBJEKT=null,AUTH=null,PUNKTE=[],BEFUNDE=[],FOTOS=[],MATERIAL=[],BETRIEBSMITTEL=[],WAEHLBAR=[],ZEITEN=null,OFFEN={offen:[],eintraege:[]};
+var LAUFEND=null,ZEITARTEN=[],SYNC_ERGAENZT=0,SCHRITT=null,BESUCHT={},BEMERKUNG_OFFEN={},BEFUND_FORM={},MAT_SUCHE=[],MAT_KATALOG=null,MAT_BEFUND=null,FOTO_ZIEL=null;
+var KOPF_VERTRAG=null,PAD_MONTEUR=null,PAD_KUNDE=null;
+function entwurf(){return R&&R.status==='entwurf'}
+function besuchtLaden(){try{BESUCHT=JSON.parse(sessionStorage.getItem('bericht-besucht-'+REPORT_ID)||'{}')||{}}catch(e){BESUCHT={}}}
+function besuchtMerken(key){BESUCHT[key]=true;try{sessionStorage.setItem('bericht-besucht-'+REPORT_ID,JSON.stringify(BESUCHT))}catch(e){}}
+
+// --- Schritte (seit 1.9.67): Rapport ohne Vorlage „Arbeiten“, Betriebsmittel nur mit Modul -------------------------------------------
+function schritte(){
+  var liste=[{key:R.hat_pruefpunkte?'pruefpunkte':'arbeiten',name:R.hat_pruefpunkte?'Prüfpunkte':'Arbeiten'},{key:'befunde',name:'Befunde'},
+             {key:'material',name:'Material'}];
+  if(MODUL_BETRIEBSMITTEL)liste.push({key:'betriebsmittel',name:'Betriebsmittel'});
+  liste.push({key:'unterschrift',name:'Unterschrift'});
+  return liste.map(function(s,i){s.nr=i+1;return s});
+}
+function offenIn(schritt){return (OFFEN.eintraege||[]).filter(function(e){return e.schritt===schritt}).length}
+function beantwortet(p){
+  if(p.item_type==='ja_nein'||p.item_type==='leak_test')return p.result!=null;
+  if(p.item_type==='condition_grade')return p.condition_grade!=null;
+  if(p.item_type==='measurement')return p.measured_value!=null;
+  if(p.item_type==='quantity')return p.quantity!=null;
+  if(p.item_type==='free_text')return !!(p.notes&&p.notes.trim());
+  return true;
+}
+// Haken: Schritt 1 ohne Offenes und alles beantwortet (Arbeiten: Beschreibung da); Befunde ohne Offenes und gesehen oder mit Einträgen;
+// Material und Betriebsmittel gesehen oder mit Einträgen; Unterschrift nach dem Abschließen
+function erledigt(key){
+  if(R.status==='unterschrieben')return true;
+  if(key==='pruefpunkte')return !offenIn('pruefpunkte')&&PUNKTE.every(beantwortet)&&(BESUCHT[key]||PUNKTE.length>0);
+  if(key==='arbeiten')return !offenIn('arbeiten');
+  if(key==='befunde')return !offenIn('befunde')&&(BESUCHT[key]||BEFUNDE.length>0);
+  if(key==='material')return !!BESUCHT[key]||MATERIAL.length>0;
+  if(key==='betriebsmittel')return !!BESUCHT[key]||BETRIEBSMITTEL.length>0;
+  return false;
+}
+var HAKEN='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg>';
+function schritteZeichnen(){
+  el('schritte').innerHTML=schritte().map(function(s){
+    var aktiv=s.key===SCHRITT,fertig=!aktiv&&erledigt(s.key);
+    return '<button type="button" class="schritt'+(fertig?' erledigt':'')+'" id="schritt-'+esc(s.key)+'" data-klick="schritt" data-schritt="'+esc(s.key)+'"'
+      +(aktiv?' aria-current="step"':'')+'>'+(fertig?HAKEN:'<span class="nr">'+esc(s.nr)+'</span>')+esc(s.name)
+      +(fertig?'<span class="nur-vorleser"> (erledigt)</span>':'')+'</button>';
+  }).join('');
+  var liste=schritte(),i=liste.findIndex(function(s){return s.key===SCHRITT});
+  el('zurueckKnopf').hidden=i<=0;
+  el('weiterKnopf').hidden=i>=liste.length-1;
+  if(i<liste.length-1)el('weiterKnopf').textContent='Weiter: '+liste[i+1].name;
+}
+function schrittWaehlen(key){
+  if(!schritte().some(function(s){return s.key===key}))key=schritte()[0].key;
+  SCHRITT=key;besuchtMerken(key);meldung('');ergebnis('');
+  try{history.replaceState(null,'','#'+key)}catch(e){}
+  schritteZeichnen();inhaltZeichnen();
+  var aktiv=el('schritt-'+key);if(aktiv&&aktiv.scrollIntoView)aktiv.scrollIntoView({block:'nearest',inline:'nearest'});
+}
+aktion('schritt',function(knopf){schrittWaehlen(knopf.dataset.schritt)});
+aktion('weiter',function(){var l=schritte(),i=l.findIndex(function(s){return s.key===SCHRITT});if(i<l.length-1){schrittWaehlen(l[i+1].key);window.scrollTo(0,0)}});
+aktion('zurueck',function(){var l=schritte(),i=l.findIndex(function(s){return s.key===SCHRITT});if(i>0){schrittWaehlen(l[i-1].key);window.scrollTo(0,0)}});
+
+// --- Noch offen (nach jedem Speichern frisch) ---------------------------------------------------------------------------------------
+function offenZeichnen(){
+  var eintraege=entwurf()?(OFFEN.eintraege||[]):[];
+  el('offenListe').innerHTML=eintraege.map(function(e){return '<li>'+esc(e.text)+'</li>'}).join('');
+  el('offenLeer').hidden=!!eintraege.length;
+  el('offenSatz').textContent=R.status==='unterschrieben'?'Der Bericht ist unterschrieben.':'Unterschreiben geht, sobald hier nichts mehr steht.';
+  if(LAUFEND&&LAUFEND.order_id===R.order_id&&LAUFEND.status==='running'){
+    var art=(ZEITARTEN.find(function(a){return a.value===LAUFEND.entry_type})||{}).label||'';
+    el('laeuftSatz').hidden=false;el('laeuftSatz').textContent='Zeit läuft seit '+String(LAUFEND.started_at||'').slice(11,16)+(art?' · '+art:'');
+  }else el('laeuftSatz').hidden=true;
+  schritteZeichnen();
+  if(SCHRITT==='unterschrift')abschlussZeichnen();
+}
+function nochOffenLaden(){
+  return lesen('noch-offen',()=>api('/api/service-reports/'+REPORT_ID+'/noch-offen'),function(d){OFFEN=d;offenZeichnen()});
+}
+
+// --- Inhalt je Schritt ---------------------------------------------------------------------------------------------------------------
+function inhaltZeichnen(){
+  var box=el('schrittInhalt');
+  el('raster').classList.toggle('ohne-offen',SCHRITT==='unterschrift');box.classList.toggle('ohne-karte',SCHRITT==='unterschrift');
+  if(SCHRITT==='pruefpunkte')box.innerHTML=pruefpunkteHtml()+beschreibungHtml(false);
+  else if(SCHRITT==='arbeiten')box.innerHTML=beschreibungHtml(true);
+  else if(SCHRITT==='befunde')box.innerHTML=befundeHtml();
+  else if(SCHRITT==='material')box.innerHTML=materialHtml();
+  else if(SCHRITT==='betriebsmittel')box.innerHTML=betriebsmittelHtml();
+  else box.innerHTML=unterschriftHtml();
+  menuesEinrichten(box);
+  if(SCHRITT==='unterschrift')unterschriftEinrichten();
+}
+// Ersetzt einen Teil der Seite; enthält er das Feld mit dem Fokus, bleibt er stehen (Tastatur bleibt offen, kein Text geht verloren) --
+// ein Knopf mit Fokus wird nach dem Ersetzen wieder fokussiert
+function teilErsetzen(id,html){
+  var alt=el(id);if(!alt)return;
+  var aktiv=document.activeElement,imTeil=aktiv&&alt.contains(aktiv);
+  if(imTeil&&(aktiv.tagName==='INPUT'||aktiv.tagName==='TEXTAREA'||aktiv.tagName==='SELECT'))return;
+  var fokus=imTeil?aktiv.id:null;
+  var hilfe=document.createElement('div');hilfe.innerHTML=html;var neu=hilfe.firstElementChild;
+  alt.replaceWith(neu);menuesEinrichten(neu);
+  if(fokus){var f=el(fokus);if(f)f.focus({preventScroll:true})}
+}
+function menuesEinrichten(box){
+  box.querySelectorAll('[data-menue-knopf]').forEach(function(k){
+    if(k._dkMenue)return;k._dkMenue=true;dsMenue(k,el(k.getAttribute('aria-controls')));
+  });
+}
+
+// --- Schritt 1: Prüfpunkte ---------------------------------------------------------------------------------------------------------
+var GRADE={1:'Neuwertig',2:'Gebrauchsspuren',3:'Abgenutzt',4:'Sanierung erforderlich'};
+function negativ(p){return p.result==='nok'||p.condition_grade===3||p.condition_grade===4}
+function vorlagenName(){
+  var namen=[];(R.roof_areas||[]).forEach(function(a){if(a.inspection_template_label&&namen.indexOf(a.inspection_template_label)<0)namen.push(a.inspection_template_label)});
+  return namen.join(', ');
+}
+function flaechenName(id){var a=(R.roof_areas||[]).find(function(x){return x.roof_area_id===id});return a?(a.roof_area_name||'Fläche '+id):null}
+function pruefpunkteHtml(){
+  var fertig=PUNKTE.filter(beantwortet).length,name=vorlagenName();
+  var html='<div class="inhalt-kopf"><h2>Prüfpunkte'+(name?' · '+esc(name):'')+'</h2><span class="zaehler" id="punkteZaehler">'+fertig+' von '+PUNKTE.length+'</span></div>';
+  if(SYNC_ERGAENZT>0)html+='<p class="offen-satz">'+esc(SYNC_ERGAENZT)+' Prüfpunkt'+(SYNC_ERGAENZT===1?'':'e')+' für neu erfasste Bauteile ergänzt.</p>';
+  if(!PUNKTE.length)html+='<p class="leer-text">Noch keine Prüfpunkte.</p>';
+  var flaechen=(R.roof_areas||[]).filter(function(a){return a.roof_area_id!=null});
+  var ids=flaechen.map(function(a){return a.roof_area_id});
+  var bloecke=flaechen.map(function(a){return {name:a.roof_area_name||'Fläche '+a.roof_area_id,punkte:PUNKTE.filter(function(p){return p.roof_area_id===a.roof_area_id})}})
+    .concat([{name:'Ohne Fläche',punkte:PUNKTE.filter(function(p){return ids.indexOf(p.roof_area_id)<0})}]);
+  bloecke.forEach(function(b){
+    if(!b.punkte.length)return;
+    if(flaechen.length>1)html+='<h3 class="gruppe">'+esc(b.name)+'</h3>';
+    var letzteGruppe='-';
+    b.punkte.forEach(function(p){
+      var g=p.group_name||'';if(g&&g!==letzteGruppe){html+='<div class="gruppe">'+esc(g)+'</div>';letzteGruppe=g}
+      html+=punktHtml(p);
+    });
+  });
+  if(entwurf())html+=neuerPunktHtml(flaechen);
+  return html;
+}
+function punktHtml(p){
+  var gestapelt=['condition_grade','free_text','photo'].indexOf(p.item_type)>=0;
+  return '<div class="punkt'+(gestapelt?' gestapelt':'')+'" id="punkt-'+p.id+'">'+punktKopfHtml(p)
+    +'<div class="punkt-zusatz" id="punkt-zusatz-'+p.id+'">'+punktZusatzHtml(p)+'</div>'
+    +'<div id="punkt-befund-'+p.id+'">'+punktBefundHtml(p)+'</div></div>';
+}
+function segment(p,feld,wert,text,art){
+  var gedrueckt=String(p[feld])===String(wert);
+  return '<button type="button" class="segment'+(art?' '+art:'')+'" id="seg-'+p.id+'-'+wert+'" aria-pressed="'+gedrueckt+'"'+(entwurf()?'':' disabled')
+    +' data-klick="antwort" data-punkt="'+p.id+'" data-feld="'+feld+'" data-wert="'+wert+'">'+esc(text)+'</button>';
+}
+function punktKopfHtml(p){
+  var eingabe='';
+  if(p.item_type==='ja_nein'||p.item_type==='leak_test'){
+    eingabe='<div class="segmente" role="group" aria-label="Ergebnis">'+segment(p,'result','ok','OK')+segment(p,'result','nok','Nicht OK','negativ')+segment(p,'result','na','Entfällt','neutral')+'</div>';
+    if(p.item_type==='leak_test')eingabe+='<input class="feld-zahl" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-feld="Dauer (Minuten)" placeholder="Minuten" id="dauer-'+p.id+'" value="'+zahlText(p.duration_minutes)+'" data-aenderung="zahl" data-punkt="'+p.id+'" data-schluessel="duration_minutes"'+(entwurf()?'':' disabled')+'><span class="einheit">Min.</span>';
+  }else if(p.item_type==='condition_grade'){
+    eingabe='<div class="segmente breit" role="group" aria-label="Zustand">'+[1,2,3,4].map(function(g){return segment(p,'condition_grade',g,g+' '+GRADE[g],g>=3?'negativ':'')}).join('')+'</div>';
+  }else if(p.item_type==='measurement'){
+    var ausser=p.measured_value!=null&&((p.target_min!=null&&Number(p.measured_value)<Number(p.target_min))||(p.target_max!=null&&Number(p.measured_value)>Number(p.target_max)));
+    eingabe='<input class="feld-zahl" type="text" inputmode="decimal" data-zahl data-feld="Messwert" id="wert-'+p.id+'" value="'+zahlText(p.measured_value)+'" data-aenderung="zahl" data-punkt="'+p.id+'" data-schluessel="measured_value"'+(entwurf()?'':' disabled')+'>'
+      +'<span class="einheit">'+esc(p.unit||'')+'</span>'
+      +((p.target_min!=null||p.target_max!=null)?'<span class="soll">Soll: '+zahlText(p.target_min)+'–'+zahlText(p.target_max)+' '+esc(p.unit||'')+'</span>':'')
+      +(ausser?'<span class="ausser-soll">Außerhalb Soll</span>':'');
+  }else if(p.item_type==='quantity'){
+    eingabe='<input class="feld-zahl" type="text" inputmode="decimal" data-zahl data-feld="Menge" id="menge-'+p.id+'" value="'+zahlText(p.quantity)+'" data-aenderung="zahl" data-punkt="'+p.id+'" data-schluessel="quantity"'+(entwurf()?'':' disabled')+'><span class="einheit">'+esc(p.unit||'')+'</span>';
+  }else if(p.item_type==='free_text'){
+    eingabe='<textarea class="feld-text" id="text-'+p.id+'" aria-label="'+esc(p.text)+'" data-eingabe="text" data-aenderung="text-jetzt" data-punkt="'+p.id+'"'+(entwurf()?'':' disabled')+'>'+esc(p.notes||'')+'</textarea>';
+  }else if(p.item_type==='photo'){
+    eingabe='<span class="einheit">Foto zu diesem Punkt über „⋮“ aufnehmen.</span>';
+  }
+  return '<div class="punkt-kopf" id="punkt-kopf-'+p.id+'"><span class="punkt-text">'+esc(p.text)+(p.required?' <span class="pflicht" aria-label="Pflichtpunkt">*</span>':'')+'</span>'
+    +'<div class="punkt-eingabe">'+eingabe+punktMenueHtml(p)+'</div></div>';
+}
+function punktMenueHtml(p){
+  if(!entwurf())return '';
+  var eintraege=(p.item_type!=='free_text'?'<button type="button" class="ds-menue-eintrag" data-klick="bemerkung" data-punkt="'+p.id+'">Bemerkung</button>':'')
+    +'<button type="button" class="ds-menue-eintrag" data-klick="foto-aufnehmen" data-punkt="'+p.id+'">Foto aufnehmen</button>'
+    +'<button type="button" class="ds-menue-eintrag" data-klick="foto-galerie" data-punkt="'+p.id+'">Foto aus Galerie</button>'
+    +(p.template_item_id==null?'<button type="button" class="ds-menue-eintrag ds-menue-eintrag-fehler" data-klick="punkt-loeschen" data-punkt="'+p.id+'">Prüfpunkt löschen</button>':'');
+  return '<div class="menue-anker"><button type="button" class="knopf knopf-neutral knopf-symbol" id="punkt-menue-knopf-'+p.id+'" data-menue-knopf aria-haspopup="menu" aria-expanded="false" aria-controls="punkt-menue-'+p.id+'" aria-label="Weitere Aktionen zu diesem Punkt">⋮</button>'
+    +'<div class="ds-menue" id="punkt-menue-'+p.id+'" role="menu" hidden>'+eintraege+'</div></div>';
+}
+function fotoHtml(f){
+  return '<span class="foto"><a href="/api/service-report-photos/'+f.id+'/file" target="_blank" rel="noopener"><img src="/api/service-report-photos/'+f.id+'/file" alt="Foto"></a>'
+    +(entwurf()?'<button type="button" class="knopf knopf-symbol" id="foto-loeschen-'+f.id+'" data-klick="foto-loeschen" data-foto="'+f.id+'" aria-label="Foto löschen">×</button>':'')+'</span>';
+}
+function punktZusatzHtml(p){
+  var html='';
+  var bemerkung=p.item_type!=='free_text'&&((p.notes&&p.notes.trim())||BEMERKUNG_OFFEN[p.id]);
+  if(bemerkung)html+='<input class="feld-text" id="notiz-'+p.id+'" placeholder="Bemerkung" aria-label="Bemerkung zu '+esc(p.text)+'" value="'+esc(p.notes||'')+'" data-eingabe="notiz" data-aenderung="notiz-jetzt" data-punkt="'+p.id+'"'+(entwurf()?'':' disabled')+'>';
+  var fotos=FOTOS.filter(function(f){return f.inspection_item_id===p.id});
+  if(p.photo_before_after){
+    var slot=function(kind,name){var f=fotos.find(function(x){return x.kind===kind});
+      return '<span class="foto-platz">'+esc(name)+': '+(f?fotoHtml(f):(entwurf()?'<button type="button" class="knopf knopf-neutral" data-klick="foto-aufnehmen" data-punkt="'+p.id+'" data-art="'+kind+'">Aufnehmen</button><button type="button" class="knopf knopf-neutral" data-klick="foto-galerie" data-punkt="'+p.id+'" data-art="'+kind+'">Aus Galerie</button>':'—'))+'</span>'};
+    html+='<div class="fotos">'+slot('vorher','Vorher')+slot('nachher','Nachher')+'</div>';
+  }else if(fotos.length)html+='<div class="fotos">'+fotos.map(fotoHtml).join('')+'</div>';
+  return html;
+}
+function befundeZuPunkt(p){return BEFUNDE.filter(function(f){return f.inspection_item_id===p.id})}
+// „Nicht OK“ (oder Zustand 3/4) öffnet den Befund direkt darunter: ohne Befund das Formular, mit Befund Stand, „Foto“, „Befund bearbeiten“
+function punktBefundHtml(p){
+  var befunde=befundeZuPunkt(p);
+  if(befunde.length)return befunde.map(function(f){return befundBoxHtml(f)}).join('');
+  if(!negativ(p)||!entwurf())return '';
+  return befundFormHtml('p'+p.id,p.id);
+}
+function befundBoxHtml(f){
+  var fotos=FOTOS.filter(function(x){return x.finding_id===f.id}).length;
+  return '<div class="befund-box" id="befund-box-'+f.id+'"><div class="befund-text"><span class="befund-titel">Befund: '+esc(f.description)+'</span>'
+    +'<span class="befund-stand'+(fotos?' ok':'')+'">'+(fotos?(fotos===1?'1 Foto':fotos+' Fotos'):'Foto fehlt')+'</span></div>'
+    +(entwurf()?fotoKnoepfeHtml('befund-foto-'+f.id,'data-befund="'+f.id+'"'):'')
+    +'<button type="button" class="knopf knopf-neutral" data-klick="befund-bearbeiten" data-befund="'+f.id+'">Befund bearbeiten</button></div>';
+}
+function fotoKnoepfeHtml(id,attr){
+  return '<div class="menue-anker"><button type="button" class="knopf knopf-neutral" id="'+id+'-knopf" data-menue-knopf aria-haspopup="menu" aria-expanded="false" aria-controls="'+id+'-menue">'
+    +'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"></path><circle cx="12" cy="13" r="3.5"></circle></svg>Foto</button>'
+    +'<div class="ds-menue" id="'+id+'-menue" role="menu" hidden><button type="button" class="ds-menue-eintrag" data-klick="foto-aufnehmen" '+attr+'>Aufnehmen</button>'
+    +'<button type="button" class="ds-menue-eintrag" data-klick="foto-galerie" '+attr+'>Aus Galerie</button></div></div>';
+}
+var SCHWEREN=[['gering','Gering'],['mittel','Mittel'],['dringend','Dringend'],['akute_gefahr','Akute Gefahr']];
+var MASSNAHMEN=[['sofort_behoben','Sofort behoben'],['buero_pruefen','Büro prüfen lassen'],['zurueckgestellt','Zurückgestellt']];
+var STATUS_BEFUND=[['offen','Offen'],['in_bearbeitung','In Bearbeitung'],['erledigt','Erledigt'],['zurueckgestellt','Zurückgestellt']];
+function befundFormHtml(schluessel,punktId){
+  var stand=BEFUND_FORM[schluessel]||{schwere:'mittel',massnahme:'sofort_behoben'};
+  return '<div class="befund-form" id="befund-form-'+schluessel+'"><label class="feld-titel" for="befund-text-'+schluessel+'">Befund'+(punktId?'':' ohne Prüfpunkt')+'</label>'
+    +'<textarea class="feld-text" id="befund-text-'+schluessel+'" placeholder="Was ist festgestellt?">'+esc(stand.text||'')+'</textarea>'
+    +'<div class="segmente breit" role="group" aria-label="Schwere">'+SCHWEREN.map(function(s){
+      return '<button type="button" class="segment'+(s[0]==='dringend'||s[0]==='akute_gefahr'?' negativ':'')+'" id="schwere-'+schluessel+'-'+esc(s[0])+'" aria-pressed="'+(stand.schwere===s[0])+'" data-klick="befund-schwere" data-form="'+schluessel+'" data-wert="'+esc(s[0])+'">'+esc(s[1])+'</button>'}).join('')+'</div>'
+    +'<div class="form-zeile"><select class="feld-text" id="befund-massnahme-'+schluessel+'" aria-label="Maßnahme" data-aenderung="befund-massnahme" data-form="'+schluessel+'">'
+    +auswahlOptionen(MASSNAHMEN,stand.massnahme,function(m){return m[1]},{wert:function(m){return m[0]}})+'</select>'
+    +'<input class="feld-text" type="date" id="befund-wiedervorlage-'+schluessel+'" aria-label="Wiedervorlage"'+(stand.massnahme==='zurueckgestellt'?'':' hidden')+'></div>'
+    +'<div class="form-zeile"><button type="button" class="knopf knopf-aktion knopf-gross" data-klick="befund-anlegen" data-form="'+schluessel+'"'+(punktId?' data-punkt="'+punktId+'"':'')+'>Befund anlegen</button></div></div>';
+}
+function neuerPunktHtml(flaechen){
+  var flaeche=flaechen.length>1?'<select class="feld-text" id="neuFlaeche" aria-label="Dachfläche">'+auswahlOptionen(flaechen,'',function(a){return a.roof_area_name||'Fläche '+a.roof_area_id},{wert:function(a){return a.roof_area_id},leer:'— ohne Fläche —'})+'</select>':'';
+  return '<div class="formular"><span class="feld-titel">Zusätzlicher Prüfpunkt</span><div class="reihe"><input class="feld-text" id="neuText" placeholder="Was wird geprüft?" aria-label="Zusätzlicher Prüfpunkt">'
+    +flaeche+'<select class="feld-text" id="neuArt" aria-label="Art des Punkts">'+auswahlOptionen([['ja_nein','OK / Nicht OK'],['condition_grade','Zustand 1–4'],['measurement','Messwert'],['quantity','Menge'],['leak_test','Dichtheitsprüfung'],['free_text','Freitext'],['photo','Foto']],'ja_nein',function(a){return a[1]},{wert:function(a){return a[0]}})+'</select>'
+    +'<button type="button" class="knopf knopf-neutral" data-klick="punkt-neu">+ Punkt</button></div></div>';
+}
+// Beschreibung: beim Rapport ohne Vorlage der Inhalt von „Arbeiten“ (Pflicht), sonst unter den Prüfpunkten -- gespeichert wie die Bemerkungen
+function beschreibungHtml(alsSchritt){
+  var kopf=alsSchritt?'<div class="inhalt-kopf"><h2>Durchgeführte Arbeiten / Feststellungen <span class="pflicht" aria-label="Pflicht">*</span></h2></div>'
+    :'<div class="formular"><label class="feld-titel" for="beschreibung">Durchgeführte Arbeiten / Feststellungen</label>';
+  return (alsSchritt?kopf+'<label class="nur-vorleser" for="beschreibung">Durchgeführte Arbeiten / Feststellungen</label>':kopf)
+    +'<textarea class="feld-text" id="beschreibung" data-eingabe="beschreibung" data-aenderung="beschreibung-jetzt"'+(entwurf()?'':' disabled')+(alsSchritt?' rows="8"':'')+'>'+esc(R.description||'')+'</textarea>'
+    +(alsSchritt?'<p class="offen-satz">Was wurde gemacht, was ist aufgefallen? Steht im Bericht und im PDF.</p>':'</div>');
+}
+
+// --- Speichern der Prüfpunkte: nur der Punkt wird neu gezeichnet, ein Feld mit Fokus bleibt stehen -------------------------------------
+function punktNeuZeichnen(id){
+  var p=PUNKTE.find(function(x){return x.id===id});if(!p)return;
+  teilErsetzen('punkt-kopf-'+id,punktKopfHtml(p));
+  teilErsetzen('punkt-zusatz-'+id,'<div class="punkt-zusatz" id="punkt-zusatz-'+p.id+'">'+punktZusatzHtml(p)+'</div>');
+  teilErsetzen('punkt-befund-'+id,'<div id="punkt-befund-'+p.id+'">'+punktBefundHtml(p)+'</div>');
+  var z=el('punkteZaehler');if(z)z.textContent=PUNKTE.filter(beantwortet).length+' von '+PUNKTE.length;
+}
+function punktSpeichern(id,werte){
+  return speichern('pruefpunkte',()=>api('/api/inspection-items/'+id,{method:'PUT',headers:JSON_KOPF,body:JSON.stringify(werte)}),
+    {anwenden:function(p){PUNKTE=PUNKTE.map(function(x){return x.id===p.id?p:x});punktNeuZeichnen(p.id)}})
+    .then(function(){meldung('');return nochOffenLaden()})
+    .catch(function(e){meldung(e.message)});
+}
+aktion('antwort',function(k){
+  var werte={},wert=k.dataset.wert;
+  werte[k.dataset.feld]=k.dataset.feld==='condition_grade'?{'1':1,'2':2,'3':3,'4':4}[wert]:wert;
+  punktSpeichern(Number(k.dataset.punkt),werte);
+});
+aktion('zahl',function(f){
+  var werte={};try{werte[f.dataset.schluessel]=zahlFeld(f)}catch(e){meldung(e.message);return}
+  punktSpeichern(Number(f.dataset.punkt),werte);
+},'change');
+// je Feld ein Entprellen; es ruft die zuletzt übergebene Funktion (ein neu gezeichnetes Feld ist ein neues Element)
+var _entprellt={},_zuletzt={};
+function entprellt(schluessel,fn){_zuletzt[schluessel]=fn;if(!_entprellt[schluessel])_entprellt[schluessel]=debounce(()=>_zuletzt[schluessel](),600);_entprellt[schluessel]()}
+function textSpeichern(f){punktSpeichern(Number(f.dataset.punkt),{notes:f.value.trim()?f.value:null})}
+aktion('text',function(f){entprellt('text-'+f.dataset.punkt,function(){textSpeichern(f)})},'input');
+aktion('text-jetzt',function(f){textSpeichern(f)},'change');
+aktion('notiz',function(f){entprellt('notiz-'+f.dataset.punkt,function(){textSpeichern(f)})},'input');
+aktion('notiz-jetzt',function(f){textSpeichern(f)},'change');
+aktion('bemerkung',function(k){var id=Number(k.dataset.punkt);BEMERKUNG_OFFEN[id]=true;punktNeuZeichnen(id);var f=el('notiz-'+id);if(f)f.focus()});
+function beschreibungSpeichern(f){
+  var text=f.value;
+  return speichern('bericht',()=>api('/api/service-reports/'+REPORT_ID,{method:'PUT',headers:JSON_KOPF,body:JSON.stringify({description:text.trim()?text:null})}),
+    {anwenden:function(r){R=r}}).then(function(){meldung('');return nochOffenLaden()}).catch(function(e){meldung(e.message)});
+}
+aktion('beschreibung',function(f){entprellt('beschreibung',function(){beschreibungSpeichern(f)})},'input');
+aktion('beschreibung-jetzt',function(f){beschreibungSpeichern(f)},'change');
+aktion('punkt-neu',function(){
+  var text=el('neuText').value.trim();if(!text){meldung('Bitte den Prüfpunkt beschreiben.');return}
+  var flaeche=el('neuFlaeche'),body={text:text,item_type:el('neuArt').value,roof_area_id:flaeche&&flaeche.value?Number(flaeche.value):null};
+  speichern('pruefpunkte',()=>api('/api/service-reports/'+REPORT_ID+'/inspection-items',{method:'POST',headers:JSON_KOPF,body:JSON.stringify(body)}),{neuLaden:punkteLaden})
+    .then(function(){inhaltZeichnen();ergebnis('Prüfpunkt ergänzt.');return nochOffenLaden()}).catch(function(e){meldung(e.message)});
+});
+aktion('punkt-loeschen',function(k){
+  var id=Number(k.dataset.punkt),p=PUNKTE.find(function(x){return x.id===id});
+  rueckfrage('Prüfpunkt löschen?','Prüfpunkt „'+(p?p.text:'')+'“ löschen?','Löschen').then(function(ja){
+    if(!ja)return;
+    speichern('pruefpunkte',()=>api('/api/inspection-items/'+id,{method:'DELETE'}),{neuLaden:punkteLaden})
+      .then(function(){inhaltZeichnen();return nochOffenLaden()}).catch(function(e){meldung(e.message)});
+  });
+});
+
+// --- Befunde ---------------------------------------------------------------------------------------------------------------------
+aktion('befund-schwere',function(k){
+  var s=k.dataset.form;BEFUND_FORM[s]=Object.assign(BEFUND_FORM[s]||{schwere:'mittel',massnahme:'sofort_behoben'},{schwere:k.dataset.wert});
+  document.querySelectorAll('[data-klick="befund-schwere"][data-form="'+s+'"]').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.wert===k.dataset.wert))});
+});
+aktion('befund-massnahme',function(f){
+  var s=f.dataset.form;BEFUND_FORM[s]=Object.assign(BEFUND_FORM[s]||{schwere:'mittel',massnahme:'sofort_behoben'},{massnahme:f.value});
+  el('befund-wiedervorlage-'+s).hidden=f.value!=='zurueckgestellt';
+},'change');
+aktion('befund-anlegen',function(k){
+  var s=k.dataset.form,stand=BEFUND_FORM[s]||{schwere:'mittel',massnahme:'sofort_behoben'};
+  var text=el('befund-text-'+s).value.trim();if(!text){meldung('Bitte den Befund beschreiben.');return}
+  var massnahme=el('befund-massnahme-'+s).value,wiedervorlage=el('befund-wiedervorlage-'+s).value||null;
+  if(massnahme==='zurueckgestellt'&&!wiedervorlage){meldung('Bitte ein Wiedervorlagedatum angeben.');return}
+  var body={description:text,severity:stand.schwere,action:massnahme,inspection_item_id:k.dataset.punkt?Number(k.dataset.punkt):null,resubmission_date:wiedervorlage,
+    created_by_employee_id:R.created_by_employee_id||null};
+  speichern('befunde',()=>api('/api/service-reports/'+REPORT_ID+'/findings',{method:'POST',headers:JSON_KOPF,body:JSON.stringify(body)}),{neuLaden:befundeLaden})
+    .then(function(){delete BEFUND_FORM[s];
+      if(body.inspection_item_id)punktNeuZeichnen(body.inspection_item_id);else inhaltZeichnen();
+      ergebnis('Befund angelegt.');return nochOffenLaden()})
+    .catch(function(e){meldung(e.message)});
+});
+aktion('befund-bearbeiten',function(k){
+  schrittWaehlen('befunde');
+  var karte=el('befund-'+k.dataset.befund);
+  if(karte){karte.classList.add('markiert');karte.scrollIntoView({block:'center'});var f=karte.querySelector('select');if(f)f.focus({preventScroll:true})}
+});
+function befundKarteHtml(f){
+  var fotos=FOTOS.filter(function(x){return x.finding_id===f.id}),punkt=f.inspection_item_id?PUNKTE.find(function(p){return p.id===f.inspection_item_id}):null;
+  var gesperrt=function(m){return m==='buero_pruefen'&&(f.follow_up_task_id||f.follow_up_order_id)&&f.action!==m};
+  var schwere=f.severity==='dringend'||f.severity==='akute_gefahr'?'fehler':f.severity==='mittel'?'warn':'';
+  return '<div class="liste-eintrag" id="befund-'+f.id+'"><div class="kennzeichen-zeile"><span class="kennzeichen '+schwere+'">'+esc(f.severity_label)+'</span>'
+    +'<span class="kennzeichen'+(f.status==='erledigt'?' ok':'')+'">'+esc(f.status_label)+'</span>'
+    +(punkt?'<span class="eintrag-neben">zu „'+esc(punkt.text)+'“</span>':'')+(f.roof_component_name?'<span class="eintrag-neben">'+esc(f.roof_component_name)+'</span>':'')+'</div>'
+    +'<div class="eintrag-text">'+esc(f.description)+'</div>'
+    +'<div class="eintrag-neben">Maßnahme: '+esc(f.action_label)+(f.resubmission_date?' · Wiedervorlage '+esc(fmtDatum(f.resubmission_date)):'')
+    +(f.follow_up_order_id&&DARF_BUERO?' · <a href="/orders/'+f.follow_up_order_id+'">Folgeauftrag ansehen</a>':'')+'</div>'
+    +'<div class="fotos" id="befund-fotos-'+f.id+'">'+fotos.map(fotoHtml).join('')+(entwurf()?fotoKnoepfeHtml('karte-foto-'+f.id,'data-befund="'+f.id+'"'):'')
+    +(!fotos.length?'<span class="befund-stand" style="color:var(--ds-signal-text)">Foto fehlt</span>':'')+'</div>'
+    +'<div class="reihe">'+(entwurf()?'<button type="button" class="knopf knopf-neutral" data-klick="material-zu-befund" data-befund="'+f.id+'">+ Material</button>':'')
+    +'<select class="feld-text" id="befund-status-'+f.id+'" aria-label="Status" data-aenderung="nachverfolgung" data-befund="'+f.id+'">'
+    +auswahlOptionen(STATUS_BEFUND,f.status,function(s){return s[1]},{wert:function(s){return s[0]}})+'</select>'
+    +'<select class="feld-text" id="befund-aktion-'+f.id+'" aria-label="Maßnahme" data-aenderung="nachverfolgung" data-befund="'+f.id+'">'
+    +MASSNAHMEN.map(function(m){return '<option value="'+esc(m[0])+'"'+(f.action===m[0]?' selected':'')+(gesperrt(m[0])?' disabled':'')+'>'+esc(m[1])+'</option>'}).join('')+'</select>'
+    +'<input class="feld-text" type="date" id="befund-datum-'+f.id+'" aria-label="Wiedervorlage" value="'+esc(f.resubmission_date||'')+'" data-aenderung="nachverfolgung" data-befund="'+f.id+'"'+(f.action==='zurueckgestellt'?'':' hidden')+'>'
+    +(f.action==='buero_pruefen'&&!f.follow_up_task_id&&!f.follow_up_order_id?'<button type="button" class="knopf knopf-neutral" data-klick="aufgabe-nachholen" data-befund="'+f.id+'">Aufgabe nachholen</button>':'')
+    +'</div></div>';
+}
+function befundeHtml(){
+  var html='<div class="inhalt-kopf"><h2>Befunde</h2><span class="zaehler">'+BEFUNDE.length+'</span></div>';
+  if(!BEFUNDE.length)html+='<p class="leer-text">Keine Befunde.</p>';
+  html+=BEFUNDE.map(befundKarteHtml).join('');
+  if(entwurf())html+='<div class="formular" id="befundOhnePunkt">'+befundFormHtml('frei',null)+'</div>';
+  return html;
+}
+aktion('nachverfolgung',function(f){
+  var id=Number(f.dataset.befund),befund=BEFUNDE.find(function(x){return x.id===id});if(!befund)return;
+  var status=el('befund-status-'+id).value,massnahme=el('befund-aktion-'+id).value,datum=el('befund-datum-'+id).value||null,body={};
+  el('befund-datum-'+id).hidden=massnahme!=='zurueckgestellt';
+  if(massnahme==='zurueckgestellt'&&!datum&&!befund.resubmission_date)return;  // erst mit Datum
+  if(status!==befund.status)body.status=status;
+  if(massnahme!==befund.action)body.action=massnahme;
+  if(datum&&datum!==befund.resubmission_date)body.resubmission_date=datum;
+  if(!Object.keys(body).length)return;
+  speichern('befunde',()=>api('/api/findings/'+id+'/followup',{method:'PUT',headers:JSON_KOPF,body:JSON.stringify(body)}),{neuLaden:befundeLaden})
+    .then(function(){teilErsetzen('befund-'+id,befundKarteHtml(BEFUNDE.find(function(x){return x.id===id})));return nochOffenLaden()})
+    .catch(function(e){meldung(e.message)});
+},'change');
+aktion('aufgabe-nachholen',function(k){
+  var id=Number(k.dataset.befund);
+  speichern('befunde',()=>api('/api/findings/'+id+'/followup',{method:'PUT',headers:JSON_KOPF,body:JSON.stringify({action:'buero_pruefen'})}),{neuLaden:befundeLaden})
+    .then(function(){inhaltZeichnen();ergebnis('Aufgabe angelegt.')}).catch(function(e){meldung(e.message)});
+});
+
+// --- Fotos: „Aufnehmen“ (Kamera) und „Aus Galerie“, Löschen mit Rückfrage --------------------------------------------------------
+function fotoWaehlen(k,quelle){
+  FOTO_ZIEL={punkt:k.dataset.punkt?Number(k.dataset.punkt):null,befund:k.dataset.befund?Number(k.dataset.befund):null,art:k.dataset.art||'allgemein'};
+  var f=el(quelle);f.value='';f.click();
+}
+aktion('foto-aufnehmen',function(k){fotoWaehlen(k,'fotoKamera')});
+aktion('foto-galerie',function(k){fotoWaehlen(k,'fotoGalerie')});
+aktion('foto-gewaehlt',function(f){
+  if(!f.files.length||!FOTO_ZIEL)return;
+  var ziel=FOTO_ZIEL,fd=new FormData();fd.append('file',f.files[0]);
+  if(ziel.punkt)fd.append('inspection_item_id',ziel.punkt);if(ziel.befund)fd.append('finding_id',ziel.befund);fd.append('kind',ziel.art);
+  ergebnis('Foto wird hochgeladen …');
+  speichern('fotos',()=>api('/api/service-reports/'+REPORT_ID+'/photos',{method:'POST',body:fd}),{neuLaden:fotosLaden})
+    .then(function(){f.value='';fotoTeileNeu(ziel);ergebnis('Foto gespeichert.');return nochOffenLaden()})
+    .catch(function(e){ergebnis('');meldung(e.message)});
+},'change');
+function fotoTeileNeu(ziel){
+  if(SCHRITT==='befunde'){inhaltZeichnen();return}
+  var punkt=ziel.punkt||((BEFUNDE.find(function(b){return b.id===ziel.befund})||{}).inspection_item_id);
+  if(punkt)punktNeuZeichnen(punkt);else inhaltZeichnen();
+}
+aktion('foto-loeschen',function(k){
+  var id=Number(k.dataset.foto),foto=FOTOS.find(function(x){return x.id===id})||{};
+  rueckfrage('Foto löschen?','Dieses Foto aus dem Bericht löschen?','Löschen').then(function(ja){
+    if(!ja)return;
+    speichern('fotos',()=>api('/api/service-report-photos/'+id,{method:'DELETE'}),{neuLaden:fotosLaden})
+      .then(function(){fotoTeileNeu({punkt:foto.inspection_item_id,befund:foto.finding_id});return nochOffenLaden()}).catch(function(e){meldung(e.message)});
+  });
+});
+
+// --- Schritt 3: Material -----------------------------------------------------------------------------------------------------------
+function materialZeileHtml(m){
+  var flaeche=flaechenName(m.roof_area_id);
+  if(!entwurf())return '<div class="liste-eintrag"><div class="eintrag-text">'+esc(m.description)+' · '+zahlText(m.quantity)+' '+esc(m.unit||'')+(flaeche?' · '+esc(flaeche):'')+'</div></div>';
+  return '<div class="liste-eintrag" id="material-'+m.id+'"><div class="material-zeile">'
+    +'<input class="feld-text" id="mat-bez-'+m.id+'" aria-label="Bezeichnung" value="'+esc(m.description)+'" data-aenderung="material-feld" data-material="'+m.id+'" data-schluessel="description">'
+    +'<input class="feld-text" type="text" inputmode="decimal" data-zahl data-min="0.001" data-feld="Menge" id="mat-menge-'+m.id+'" aria-label="Menge" value="'+zahlText(m.quantity)+'" data-aenderung="material-feld" data-material="'+m.id+'" data-schluessel="quantity">'
+    +'<input class="feld-text einheit-feld" id="mat-einheit-'+m.id+'" aria-label="Einheit" value="'+esc(m.unit||'')+'" data-aenderung="material-feld" data-material="'+m.id+'" data-schluessel="unit">'
+    +'<button type="button" class="knopf knopf-neutral knopf-symbol" id="mat-loeschen-'+m.id+'" data-klick="material-loeschen" data-material="'+m.id+'" aria-label="Material löschen">×</button></div>'
+    +(flaeche||m.finding_id?'<div class="eintrag-neben">'+(flaeche?esc(flaeche):'')+(m.finding_id?(flaeche?' · ':'')+'zum Befund':'')+'</div>':'')+'</div>';
+}
+function materialHtml(){
+  var html='<div class="inhalt-kopf"><h2>Material</h2><span class="zaehler">'+MATERIAL.length+'</span></div>';
+  if(!MATERIAL.length)html+='<p class="leer-text">Noch kein Material erfasst.</p>';
+  html+=MATERIAL.map(materialZeileHtml).join('');
+  if(!entwurf())return html;
+  var flaechen=(R.roof_areas||[]).filter(function(a){return a.roof_area_id!=null});
+  var befund=MAT_BEFUND?BEFUNDE.find(function(b){return b.id===MAT_BEFUND}):null;
+  html+='<div class="formular" id="materialFormular"><span class="feld-titel">Material erfassen</span>'
+    +(befund?'<div class="befund-box"><span class="befund-titel">Wird zugeordnet zu Befund „'+esc(befund.description)+'“</span><button type="button" class="knopf knopf-neutral" data-klick="material-befund-weg">Zuordnung entfernen</button></div>':'')
+    +'<div class="reihe"><input class="feld-text" id="matSuche" placeholder="Material suchen (Name, Artikelnummer) …" aria-label="Material suchen" data-eingabe="material-suche">'
+    +'<select class="feld-text" id="matTreffer" aria-label="Treffer" data-aenderung="material-treffer">'+trefferOptionen()+'</select></div>'
+    +'<div class="reihe"><input class="feld-text" id="matBezeichnung" placeholder="Bezeichnung" aria-label="Bezeichnung">'
+    +'<input class="feld-zahl" type="text" inputmode="decimal" data-zahl data-min="0.001" data-feld="Menge" id="matMenge" placeholder="Menge" aria-label="Menge">'
+    +'<input class="feld-text" id="matEinheit" placeholder="Einheit" aria-label="Einheit" style="max-width:140px">'
+    +(flaechen.length>1?'<select class="feld-text" id="matFlaeche" aria-label="Dachfläche">'+auswahlOptionen(flaechen,'',function(a){return a.roof_area_name||'Fläche '+a.roof_area_id},{wert:function(a){return a.roof_area_id},leer:'— ohne Fläche —'})+'</select>':'')
+    +'</div><div class="reihe"><button type="button" class="knopf knopf-aktion knopf-gross" data-klick="material-neu">+ Material</button>'
+    +(MAT_KATALOG?'<button type="button" class="knopf knopf-neutral" data-klick="material-katalog-weg">Katalogbezug entfernen</button>':'')+'</div></div>';
+  return html;
+}
+function trefferOptionen(){return '<option value="">'+(MAT_SUCHE.length?'— Treffer wählen —':'— suchen —')+'</option>'+MAT_SUCHE.map(function(m){return '<option value="'+m.id+'">'+esc(m.name)+(m.article_number?' · '+esc(m.article_number):'')+'</option>'}).join('')}
+aktion('material-suche',function(f){
+  entprellt('material-suche',function(){
+    var q=f.value.trim();
+    lesen('material-suche',()=>q?api('/api/materials?search='+encodeURIComponent(q)):Promise.resolve([]),function(d){MAT_SUCHE=d||[];el('matTreffer').innerHTML=trefferOptionen()}).catch(function(){});
+  });
+},'input');
+aktion('material-treffer',function(f){
+  var m=MAT_SUCHE.find(function(x){return String(x.id)===f.value});if(!m)return;
+  MAT_KATALOG=m.id;el('matBezeichnung').value=m.name;el('matEinheit').value=m.unit||'';
+},'change');
+aktion('material-katalog-weg',function(){MAT_KATALOG=null;inhaltZeichnen()});
+aktion('material-befund-weg',function(){MAT_BEFUND=null;inhaltZeichnen()});
+aktion('material-zu-befund',function(k){MAT_BEFUND=Number(k.dataset.befund);schrittWaehlen('material');var f=el('matSuche');if(f)f.focus()});
+aktion('material-neu',function(){
+  var bezeichnung=el('matBezeichnung').value.trim(),menge;
+  if(!MAT_KATALOG&&!bezeichnung){meldung('Bitte eine Bezeichnung angeben oder ein Material aus dem Katalog wählen.');return}
+  try{menge=zahlFeld('matMenge')}catch(e){meldung(e.message);return}
+  if(menge===null||menge<=0){meldung('Bitte eine Menge größer als 0 angeben.');return}
+  var flaeche=el('matFlaeche'),body={material_id:MAT_KATALOG,description:MAT_KATALOG?null:bezeichnung,quantity:menge,unit:el('matEinheit').value.trim()||null,
+    roof_area_id:flaeche&&flaeche.value?Number(flaeche.value):null,finding_id:MAT_BEFUND};
+  speichern('material',()=>api('/api/service-reports/'+REPORT_ID+'/materials',{method:'POST',headers:JSON_KOPF,body:JSON.stringify(body)}),{neuLaden:materialLaden})
+    .then(function(){MAT_KATALOG=null;MAT_BEFUND=null;MAT_SUCHE=[];inhaltZeichnen();ergebnis('Material erfasst.');var f=el('matSuche');if(f)f.focus()})
+    .catch(function(e){meldung(e.message)});
+});
+aktion('material-feld',function(f){
+  var id=Number(f.dataset.material),body={};
+  if(f.dataset.schluessel==='quantity'){var n;try{n=zahlFeld(f)}catch(e){meldung(e.message);return}if(n===null||n<=0){meldung('Bitte eine Menge größer als 0 angeben.');return}body.quantity=n}
+  else if(f.dataset.schluessel==='description'){if(!f.value.trim()){meldung('Bitte eine Bezeichnung angeben.');return}body.description=f.value.trim()}
+  else body[f.dataset.schluessel]=f.value.trim()||null;
+  speichern('material',()=>api('/api/service-report-materials/'+id,{method:'PUT',headers:JSON_KOPF,body:JSON.stringify(body)}),{neuLaden:materialLaden})
+    .then(function(){meldung('');var m=MATERIAL.find(function(x){return x.id===id});if(m)teilErsetzen('material-'+id,materialZeileHtml(m))}).catch(function(e){meldung(e.message)});
+},'change');
+aktion('material-loeschen',function(k){
+  var id=Number(k.dataset.material),m=MATERIAL.find(function(x){return x.id===id})||{};
+  rueckfrage('Material löschen?','„'+(m.description||'')+'“ aus dem Bericht löschen?','Löschen').then(function(ja){
+    if(!ja)return;
+    speichern('material',()=>api('/api/service-report-materials/'+id,{method:'DELETE'}),{neuLaden:materialLaden})
+      .then(function(){inhaltZeichnen()}).catch(function(e){meldung(e.message)});
+  });
+});
+
+// --- Schritt 4: Betriebsmittel -----------------------------------------------------------------------------------------------------
+function betriebsmittelHtml(){
+  var html='<div class="inhalt-kopf"><h2>Betriebsmittel</h2><span class="zaehler">'+BETRIEBSMITTEL.length+'</span></div>';
+  if(!BETRIEBSMITTEL.length)html+='<p class="leer-text">Noch kein Betriebsmittel erfasst.</p>';
+  html+=BETRIEBSMITTEL.map(function(a){
+    if(!entwurf())return '<div class="liste-eintrag"><div class="eintrag-text">'+esc(a.asset_name_snapshot)+(a.notes?' · '+esc(a.notes):'')+'</div></div>';
+    return '<div class="liste-eintrag" id="bm-'+a.id+'"><div class="reihe"><span class="eintrag-text" style="flex:1;min-width:160px">'+esc(a.asset_name_snapshot)+'</span>'
+      +'<input class="feld-text" id="bm-notiz-'+a.id+'" placeholder="Notiz" aria-label="Notiz" value="'+esc(a.notes||'')+'" data-aenderung="bm-notiz" data-zeile="'+a.id+'">'
+      +'<button type="button" class="knopf knopf-neutral knopf-symbol" id="bm-loeschen-'+a.id+'" data-klick="bm-loeschen" data-zeile="'+a.id+'" aria-label="Betriebsmittel entfernen">×</button></div></div>';
+  }).join('');
+  if(!entwurf())return html;
+  var benutzt=BETRIEBSMITTEL.map(function(a){return a.asset_id}),frei=WAEHLBAR.filter(function(a){return benutzt.indexOf(a.id)<0});
+  html+='<div class="formular"><span class="feld-titel">Betriebsmittel erfassen</span>'+(frei.length?'<div class="reihe"><select class="feld-text" id="bmWahl" aria-label="Betriebsmittel">'
+    +auswahlOptionen(frei,'',function(a){return a.name+(a.asset_type?' · '+a.asset_type:'')},{wert:function(a){return a.id},leer:'— Betriebsmittel wählen —'})+'</select>'
+    +'<input class="feld-text" id="bmNotiz" placeholder="Notiz (optional)" aria-label="Notiz"><button type="button" class="knopf knopf-aktion knopf-gross" data-klick="bm-neu">+ Betriebsmittel</button></div>'
+    :'<p class="leer-text">Kein weiteres freigegebenes Betriebsmittel – die Freigabe erfolgt in der Betriebsmittelverwaltung.</p>')+'</div>';
+  return html;
+}
+aktion('bm-neu',function(){
+  var id=el('bmWahl').value;if(!id){meldung('Bitte ein Betriebsmittel wählen.');return}
+  var body={asset_id:Number(id),notes:el('bmNotiz').value.trim()||null};
+  speichern('betriebsmittel',()=>api('/api/service-reports/'+REPORT_ID+'/assets',{method:'POST',headers:JSON_KOPF,body:JSON.stringify(body)}),{neuLaden:betriebsmittelLaden})
+    .then(function(){inhaltZeichnen();ergebnis('Betriebsmittel erfasst.')}).catch(function(e){meldung(e.message)});
+});
+aktion('bm-notiz',function(f){
+  var id=Number(f.dataset.zeile);
+  speichern('betriebsmittel',()=>api('/api/service-report-assets/'+id,{method:'PUT',headers:JSON_KOPF,body:JSON.stringify({notes:f.value.trim()||null})}),{neuLaden:betriebsmittelLaden})
+    .then(function(){meldung('')}).catch(function(e){meldung(e.message)});
+},'change');
+aktion('bm-loeschen',function(k){
+  var id=Number(k.dataset.zeile),a=BETRIEBSMITTEL.find(function(x){return x.id===id})||{};
+  rueckfrage('Betriebsmittel entfernen?','„'+(a.asset_name_snapshot||'')+'“ aus dem Bericht entfernen?','Entfernen').then(function(ja){
+    if(!ja)return;
+    speichern('betriebsmittel',()=>api('/api/service-report-assets/'+id,{method:'DELETE'}),{neuLaden:betriebsmittelLaden})
+      .then(function(){inhaltZeichnen()}).catch(function(e){meldung(e.message)});
+  });
+});
+
+// --- Schritt 5: Unterschrift -------------------------------------------------------------------------------------------------------
+function zusammenfassungHtml(){
+  var zl=function(name,wert){return '<div class="zl"><span class="zl-name">'+esc(name)+'</span><span class="zl-wert">'+wert+'</span></div>'};
+  var html='<h2 style="margin:0 0 6px;font-family:var(--ds-schrift-titel);font-weight:600;font-size:20px">Das steht im Bericht</h2>';
+  if(R.hat_pruefpunkte){
+    var nok=PUNKTE.filter(negativ).length;
+    html+=zl('Prüfpunkte',esc(PUNKTE.filter(beantwortet).length+' von '+PUNKTE.length+(nok?' · '+nok+' nicht OK':'')));
+  }
+  var text=(R.description||'').trim();
+  html+=zl('Arbeiten',text?esc(text.length>140?text.slice(0,139)+'…':text):'<span style="color:var(--ds-text-2)">keine Beschreibung</span>');
+  html+=zl('Befunde',BEFUNDE.length?BEFUNDE.map(function(f){var n=FOTOS.filter(function(x){return x.finding_id===f.id}).length;return esc(f.description)+(n?', mit Foto':', ohne Foto')}).join('<br>'):'keine');
+  html+=zl('Material',MATERIAL.length?MATERIAL.map(function(m){return esc(m.description+' '+zahlText(m.quantity)+' '+(m.unit||''))}).join(', '):'keins erfasst');
+  if(MODUL_BETRIEBSMITTEL)html+=zl('Betriebsmittel',BETRIEBSMITTEL.length?BETRIEBSMITTEL.map(function(a){return esc(a.asset_name_snapshot)}).join(', '):'keins erfasst');
+  html+=zeitenHtml();
+  return html;
+}
+function zeitenHtml(){
+  var z=ZEITEN;if(!z)return '';
+  var titel=z.art==='alt'?'Zeiten des Auftrags (wie im PDF dieses älteren Berichts)':'Zeiten am '+fmtDatum(z.tag);
+  var html='<div class="bericht-zeiten" id="berichtZeiten"><span class="eb" style="display:block;margin-top:10px">'+esc(titel)+'</span>';
+  if(!z.zeilen.length)return html+'<p class="offen-satz">Keine Zeiten an diesem Tag.</p></div>';
+  html+=z.zeilen.map(function(x){
+    var spanne=z.art==='alt'?(x.taetigkeit||''):(x.laeuft?'läuft seit '+x.von:(x.von?x.von+'–'+x.bis:''));
+    return '<div class="zl"><span class="zl-name">'+esc(fmtDatum(x.tag))+'</span><span class="zl-wert">'+esc(x.person)+(spanne?' · '+esc(spanne):'')+'</span><span class="zl-stunden">'+(x.stunden==null?'–':zahlText(x.stunden,2)+' h')+'</span></div>';
+  }).join('');
+  return html+'<p class="offen-satz" style="margin-top:4px">'+(z.art==='aktuell'?'Nur dieser Tag. Zeiten anderer Tage stehen nicht im Bericht; mit der Unterschrift wird dieser Stand gespeichert.':z.art==='gespeichert'?'Stand der Unterschrift.':'')+'</p></div>';
+}
+function unterschriftHtml(){
+  var links='<section class="bericht-karte schritt-inhalt" aria-label="Das steht im Bericht">'+zusammenfassungHtml()+'</section>';
+  var rechts;
+  if(R.status==='unterschrieben'){
+    rechts='<section class="bericht-karte schritt-inhalt unterschrieben" aria-labelledby="signTitel"><h2 id="signTitel" style="margin:0;font-family:var(--ds-schrift-titel);font-weight:600;font-size:20px">Unterschriften</h2>'
+      +'<span class="offen-leer">Unterschrieben am '+esc(berlinZeitpunkt(R.signed_at))+' Uhr</span>'
+      +'<div>'+(R.installer_signature_name?'Monteur: '+esc(R.installer_signature_name)+'<br>':'')+'Kunde: '+esc(R.signature_name||'')+'</div>'
+      +'<a class="knopf knopf-neutral knopf-gross" href="/api/service-reports/'+REPORT_ID+'/pdf" target="_blank" rel="noopener">PDF öffnen</a></section>';
+  }else{
+    var name=(AUTH&&AUTH.user&&AUTH.user.display_name)||'';
+    rechts='<section class="bericht-karte schritt-inhalt" aria-labelledby="signTitel" style="gap:12px"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px">'
+      +'<h2 id="signTitel" style="margin:0;font-family:var(--ds-schrift-titel);font-weight:600;font-size:20px">Unterschriften</h2><span id="signStand"></span></div>'
+      +'<div class="sign-block"><div class="sign-kopf"><label for="signMonteurName">Monteur<input id="signMonteurName" value="'+esc(name)+'" placeholder="Vor- und Nachname" data-eingabe="sign-name"></label>'
+      +'<button type="button" class="knopf knopf-neutral" data-klick="sign-leeren" data-pad="monteur">Leeren</button></div><canvas class="dk-unterschrift" id="padMonteur" aria-label="Unterschriftsfeld Monteur"></canvas></div>'
+      +'<div class="sign-block"><div class="sign-kopf"><label for="signKundeName">Kunde<input id="signKundeName" placeholder="Name des Kunden" data-eingabe="sign-name"></label>'
+      +'<button type="button" class="knopf knopf-neutral" data-klick="sign-leeren" data-pad="kunde">Leeren</button></div><canvas class="dk-unterschrift" id="padKunde" aria-label="Unterschriftsfeld Kunde"></canvas></div>'
+      +'<div class="sign-offen" id="signOffen" hidden><span class="eb">Noch offen</span><ul class="offen-liste" id="signOffenListe"></ul></div>'
+      +'<div class="abschluss"><button type="button" class="knopf knopf-aktion" id="abschliessenKnopf" data-klick="abschliessen" disabled>Bericht abschließen</button><span class="fehlt" id="fehltText"></span></div>'
+      +'<p class="meldung" id="signStatus" role="status"></p></section>';
+  }
+  return '<div class="unterschrift-raster">'+links+rechts+'</div>';
+}
+function unterschriftEinrichten(){
+  if(R.status!=='entwurf'){PAD_MONTEUR=PAD_KUNDE=null;return}
+  PAD_MONTEUR=unterschriftsfeld(el('padMonteur'));PAD_KUNDE=unterschriftsfeld(el('padKunde'));
+  ['padMonteur','padKunde'].forEach(function(id){el(id).addEventListener('pointerup',abschlussZeichnen);el(id).addEventListener('pointercancel',abschlussZeichnen)});
+  abschlussZeichnen();
+}
+// „Bericht abschließen“ gesperrt mit „Fehlt: …“ -- Noch offen, Namen und beide Unterschriften
+function fehlt(){
+  var liste=[],n=(OFFEN.eintraege||[]).length;
+  if(n)liste.push(n===1?'1 Punkt unter „Noch offen“':n+' Punkte unter „Noch offen“');
+  if(!el('signMonteurName')||!el('signMonteurName').value.trim())liste.push('Name Monteur');
+  if(!PAD_MONTEUR||PAD_MONTEUR.leer())liste.push('Unterschrift Monteur');
+  if(!el('signKundeName')||!el('signKundeName').value.trim())liste.push('Name Kunde');
+  if(!PAD_KUNDE||PAD_KUNDE.leer())liste.push('Unterschrift Kunde');
+  return liste;
+}
+function abschlussZeichnen(){
+  var knopf=el('abschliessenKnopf');if(!knopf)return;
+  var liste=fehlt(),n=(OFFEN.eintraege||[]).length;
+  knopf.disabled=liste.length>0;
+  el('fehltText').textContent=liste.length?'Fehlt: '+liste.join(', '):'';
+  el('signStand').innerHTML=n?'<span class="kennzeichen warn">'+n+' offen</span>':'<span class="offen-leer">'+HAKEN.replace('<svg','<svg width="16" height="16"')+'Nichts mehr offen</span>';
+  el('signOffen').hidden=!n;
+  el('signOffenListe').innerHTML=(OFFEN.eintraege||[]).map(function(e){return '<li>'+esc(e.text)+'</li>'}).join('');
+}
+aktion('sign-name',function(){abschlussZeichnen()},'input');
+aktion('sign-leeren',function(k){var pad=k.dataset.pad==='kunde'?PAD_KUNDE:PAD_MONTEUR;if(pad)pad.leeren();abschlussZeichnen()});
+// Vor dem Abschließen wie seit 1.9.36: erst das Speichern der Seite abwarten, dann „Noch offen“ frisch vom Server -- steht dort etwas,
+// geht nichts hinaus (der Server lehnte sonst mit 409 ab)
+async function berichtAbschliessen(){
+  if(fehlt().length){abschlussZeichnen();return}
+  var st=el('signStatus');st.textContent='';
+  try{var abgelehnt=document.querySelector('input[data-zahl][aria-invalid="true"]');if(abgelehnt)zahlFeld(abgelehnt)}catch(e){st.textContent=e.message;return}
+  var body=JSON.stringify({installer_signature_png_base64:PAD_MONTEUR.alsDataUrl(),installer_signature_name:el('signMonteurName').value.trim(),
+    customer_signature_png_base64:PAD_KUNDE.alsDataUrl(),customer_signature_name:el('signKundeName').value.trim()});
+  el('abschliessenKnopf').disabled=true;
+  try{await nachDemSpeichern();await nochOffenLaden()}catch(e){st.textContent=e.message;abschlussZeichnen();return}
+  if((OFFEN.eintraege||[]).length){abschlussZeichnen();return}
+  abschliessen('bericht',()=>api('/api/service-reports/'+REPORT_ID+'/sign',{method:'POST',headers:JSON_KOPF,body:body}),{anwenden:function(r){R=r}})
+    .then(()=>Promise.all([zeitenLaden(),nochOffenLaden()]))
+    .then(function(){kopfZeichnen();schritteZeichnen();inhaltZeichnen();ergebnis('Bericht abgeschlossen.')})
+    .catch(function(e){st.textContent=e.message;abschlussZeichnen()});
+}
+aktion('abschliessen',berichtAbschliessen);
+
+// --- Kopf, Menü und Dialoge ----------------------------------------------------------------------------------------------------------
+function kopfZeichnen(){
+  var o=AUFTRAG||{},art=R.report_type_label;
+  var pfad=DARF_BUERO?[{text:'Projekte',href:'/projects'},o.customer_id?{text:o.customer_name,href:'/customers/'+o.customer_id}:null,
+    KOPF_VERTRAG?{text:KOPF_VERTRAG.title,href:'/maintenance-contracts/'+KOPF_VERTRAG.id}:null,
+    o.project_id?{text:o.project_name||o.project_number,href:'/projects/'+o.project_id}:null,
+    {text:R.order_number||o.order_number||'Auftrag',href:'/orders/'+R.order_id},{text:'Einsatzberichte',href:`/orders/${R.order_id}/service-reports`}]
+    :[{text:'Heute',href:'/mobil'},{text:R.order_number||'Auftrag',href:`/orders/${R.order_id}/service-reports`}];
+  pfad.push({text:art});
+  var flaechen=(R.roof_areas||[]).map(function(a){return a.roof_area_name}).filter(Boolean);
+  var unter=[OBJEKT&&OBJEKT.name,flaechen.join(', ')].filter(Boolean).join(' · ')||fmtDatum(R.performed_at);  // wie die Vorlage: Objekt · Dachflächen
+  seitenkopf({titel:art,untertitel:unter,status:statusKennzeichen('einsatzbericht',R.status),pfad:pfad.filter(Boolean)});
+  document.title='DACHKONZEPTE ERP – '+art;
+  var e=entwurf();
+  el('menueDatum').hidden=!e;el('menueArt').hidden=!e;el('menueLoeschen').hidden=!e;
+  el('menueNeu').hidden=!(e&&R.hat_pruefpunkte&&(R.roof_areas||[]).length>0);
+  el('menuePdf').hidden=R.status!=='unterschrieben';
+  if(R.office_hint){el('bueroHinweis').hidden=false;el('bueroHinweis').textContent=R.office_hint}else el('bueroHinweis').hidden=true;
+}
+var _rueckfrage=null;
+function rueckfrage(titel,text,ja){
+  var d=el('rueckfrageDialog');el('rueckfrageTitel').textContent=titel;el('rueckfrageText').textContent=text;el('rueckfrageJa').textContent=ja||'Löschen';
+  return new Promise(function(res){
+    var fertig=function(ok){d.removeEventListener('close',beiEsc);if(d.open)d.close();res(ok)};
+    var beiEsc=function(){if(!d.open)fertig(false)};
+    el('rueckfrageJa').onclick=function(){fertig(true)};el('rueckfrageNein').onclick=function(){fertig(false)};
+    d.addEventListener('close',beiEsc);d.showModal();el('rueckfrageNein').focus();
+  });
+}
+aktion('dialog-zu',function(k){el(k.dataset.dialog).close()});
+aktion('datum-oeffnen',function(){el('datumFeld').value=R.performed_at;el('datumStatus').textContent='';el('datumDialog').showModal()});
+aktion('datum-speichern',function(){
+  var datum=el('datumFeld').value;if(!datum){el('datumStatus').textContent='Bitte ein Datum angeben.';return}
+  speichern('bericht',()=>api('/api/service-reports/'+REPORT_ID,{method:'PUT',headers:JSON_KOPF,body:JSON.stringify({performed_at:datum})}),{anwenden:function(r){R=r}})
+    .then(function(){el('datumDialog').close();kopfZeichnen();return zeitenLaden()}).then(function(){inhaltZeichnen();ergebnis('Datum geändert.')})
+    .catch(function(e){el('datumStatus').textContent=e.message});
+});
+aktion('art-oeffnen',function(){
+  auswahlWert(el('artFeld'),R.report_type);el('artFeld').disabled=!R.art_aenderbar;el('artSpeichern').disabled=!R.art_aenderbar;
+  el('artHinweis').textContent=R.art_aenderbar?'Geht nur, solange der Bericht leer ist.':ART_FEST_HINWEIS;
+  el('artStatus').textContent='';el('artDialog').showModal();
+});
+aktion('art-speichern',function(){
+  var art=el('artFeld').value;
+  speichern('bericht',()=>api('/api/service-reports/'+REPORT_ID,{method:'PUT',headers:JSON_KOPF,body:JSON.stringify({report_type:art})}),{anwenden:function(r){R=r}})
+    .then(function(){el('artDialog').close();return allesLaden()}).then(function(){ergebnis('Art geändert.')})
+    .catch(function(e){el('artStatus').textContent=e.message});
+});
+aktion('neu-erzeugen',function(){
+  rueckfrage('Prüfpunkte neu erzeugen?','Bereits erfasste Ergebnisse der Prüfpunkte gehen dabei verloren.','Neu erzeugen').then(function(ja){
+    if(!ja)return;
+    speichern('pruefpunkte',()=>api('/api/service-reports/'+REPORT_ID+'/inspection-items/regenerate',{method:'POST'}),{neuLaden:punkteLaden})
+      .then(function(){inhaltZeichnen();return nochOffenLaden()}).catch(function(e){meldung(e.message)});
+  });
+});
+// Löschen (nur im Entwurf): Rückfrage auf der Seite, danach zurück auf die Seite des Auftrags
+async function berichtLoeschen(){
+  if(!await rueckfrage('Bericht löschen?',R.report_type_label+' vom '+fmtDatum(R.performed_at)+' mit allen Prüfpunkten, Befunden, Fotos und Material löschen?','Löschen'))return;
+  try{await speichern('bericht',()=>api('/api/service-reports/'+REPORT_ID,{method:'DELETE'}))}catch(e){meldung(e.message);return}
+  location.href='/orders/'+R.order_id+'/service-reports';
+}
+aktion('loeschen',()=>berichtLoeschen());
+
+// --- Laden ---------------------------------------------------------------------------------------------------------------------------
+function punkteLaden(){
+  if(entwurf()&&R.hat_pruefpunkte)return speichern('pruefpunkte',()=>api('/api/service-reports/'+REPORT_ID+'/inspection-items/sync',{method:'POST'}),
+    {anwenden:function(d){PUNKTE=d.items;SYNC_ERGAENZT=d.added}}).catch(function(){
+      return lesen('pruefpunkte',()=>api('/api/service-reports/'+REPORT_ID+'/inspection-items'),function(d){PUNKTE=d})});
+  return lesen('pruefpunkte',()=>api('/api/service-reports/'+REPORT_ID+'/inspection-items'),function(d){PUNKTE=d});
+}
+function befundeLaden(){return lesen('befunde',()=>api('/api/service-reports/'+REPORT_ID+'/findings'),function(d){BEFUNDE=d})}
+function fotosLaden(){return lesen('fotos',()=>api('/api/service-reports/'+REPORT_ID+'/photos'),function(d){FOTOS=d})}
+function materialLaden(){return lesen('material',()=>api('/api/service-reports/'+REPORT_ID+'/materials'),function(d){MATERIAL=d})}
+function betriebsmittelLaden(){
+  if(!MODUL_BETRIEBSMITTEL)return Promise.resolve();
+  return lesen('betriebsmittel',()=>api('/api/service-reports/'+REPORT_ID+'/assets'),function(d){BETRIEBSMITTEL=d});
+}
+function zeitenLaden(){return lesen('zeiten',()=>api('/api/service-reports/'+REPORT_ID+'/zeiten'),function(d){ZEITEN=d})}
+function berichtLaden(){return lesen('bericht',()=>api('/api/service-reports/'+REPORT_ID),function(r){R=r})}
+async function allesLaden(){
+  await berichtLaden();
+  await Promise.all([punkteLaden(),befundeLaden(),fotosLaden(),materialLaden(),betriebsmittelLaden(),zeitenLaden(),nochOffenLaden()]);
+  kopfZeichnen();
+  var key=(location.hash||'').slice(1);
+  schrittWaehlen(key||schritte()[0].key);
+  offenZeichnen();
+}
+async function init(){
+  besuchtLaden();
+  await lesen('anmeldung',()=>api('/api/auth/status').catch(()=>({authenticated:false})),function(d){AUTH=d});
+  try{await allesLaden()}catch(e){el('ladeHinweis').textContent='Bericht nicht geladen: '+e.message;return}
+  el('ladeHinweis').textContent='';el('raster').hidden=false;
+  if(window.offeneBedenkenZeigen)offeneBedenkenZeigen('concernAlert',R.order_id);
+  lesen('auftrag',()=>api('/api/orders/'+R.order_id),function(o){AUFTRAG=o;kopfZeichnen()}).catch(function(){});
+  lesen('objekt',()=>api('/api/orders/'+R.order_id+'/property').catch(()=>null),function(p){OBJEKT=p;kopfZeichnen()}).catch(function(){});
+  if(DARF_BUERO&&R.maintenance_contract_id)lesen('kopf-vertrag',()=>api('/api/maintenance-contracts/'+R.maintenance_contract_id).catch(()=>null),function(v){KOPF_VERTRAG=v;kopfZeichnen()}).catch(function(){});
+  if(MODUL_BETRIEBSMITTEL)lesen('waehlbar',()=>api('/api/operational-assets/selectable-for-report').catch(()=>[]),function(d){WAEHLBAR=d||[];if(SCHRITT==='betriebsmittel')inhaltZeichnen()}).catch(function(){});
+  lesen('laufend',()=>Promise.all([api('/api/time-entries/active').catch(()=>null),api('/api/settings/option-groups/time_entry_types').catch(()=>({options:[]}))]),
+    function(d){LAUFEND=d[0];ZEITARTEN=(d[1]&&d[1].options)||[];offenZeichnen()}).catch(function(){});
+}
+if(document.getElementById('raster'))init();
+</script>
+</body></html>

@@ -234,7 +234,7 @@ async function performMaintenanceNow(){
   const st=document.getElementById('contractStatus');
   try{
     const result=await speichern('vertrag',()=>api(`/api/maintenance-contracts/${contractId}/perform-maintenance`,{method:'POST'}));
-    location.href=`/orders/${result.order_id}/service-reports?report=${result.report_id}`;
+    location.href=`/service-reports/${result.report_id}`;  // seit 1.9.67 direkt zum Bericht
   }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
 }
 

@@ -81,9 +81,13 @@ def test_aendern_mit_stunden_als_buero_wie_bisher(welt):  # noqa: F811
     assert welt["db"].get(TimeEntry, row.id).hours == Decimal("6")
 
 
-def test_einsatzbericht_zeigt_der_monteurin_von_und_bis(welt):  # noqa: F811
+def test_einsatzbericht_monteurin_ohne_buchungskarte(welt):  # noqa: F811
+    """Seit 1.9.67 (Stufe 4, R4, Punkt 5) bucht die Monteurin auf der Seite des Auftrags nicht mehr: keine Buchungskarte, „Zeit nachtragen“
+    auf „Meine Zeiten“ (dort nur Von und Bis); das Büro bucht wie bisher eine Dauer. Bis 1.9.66 zeigte die Karte der Monteurin Von und Bis."""
     def seite(rolle):
-        text = welt["client"](welt["db"], pages_router.router, role=rolle).get(f"/orders/{welt['order'].id}/service-reports").text
-        return {name: bool(re.search(rf'id="{name}"[^>]* hidden', text)) for name in ("teHoursField", "teVonField", "teBisField")}
-    assert seite("field") == {"teHoursField": True, "teVonField": False, "teBisField": False}
-    assert seite("buero_auftrag") == {"teHoursField": False, "teVonField": True, "teBisField": True}
+        return welt["client"](welt["db"], pages_router.router, role=rolle).get(f"/orders/{welt['order'].id}/service-reports").text
+    monteurin, buero = seite("field"), seite("buero_auftrag")
+    assert 'id="teHoursField"' not in monteurin and 'id="zeitNachtragen"' in monteurin
+    assert {name: bool(re.search(rf'id="{name}"[^>]* hidden', buero)) for name in ("teHoursField", "teVonField", "teBisField")} == {
+        "teHoursField": False, "teVonField": True, "teBisField": True}
+    assert 'id="zeitNachtragen"' not in buero

@@ -141,6 +141,7 @@ AUFNAHMEN = (
     A("meine_zeiten", "mobil_zeiten.html", "/mobil/zeiten", (BUERO, MONTEUR)),  # seit 1.9.59 statt Zeiterfassung und Stundenzettel
     A("anmeldung", "login.html", "/login", (ANONYM,)),
     A("sperrseite", "access_denied.html", "/projects", (MONTEUR,)),
+    A("bericht", "service_report.html", "/service-reports/{bericht}", (BUERO, MONTEUR)),  # seit 1.9.67 der Bericht in fünf Schritten
 )
 AUFNAHME = {a.name: a for a in AUFNAHMEN}
 
@@ -397,6 +398,7 @@ def befuellen(db, k):
     _zeitstempel_festsetzen(db, _utc_now().replace(tzinfo=None))
     return {"cookies": cookies, "uhr_ms": k.uhr_ms(), "kunde": kunde.id, "objekt": objekt.id, "dachflaeche": nord.id,
             "projekt": projekt.id, "angebot": angebot.id, "auftrag": auftrag.id, "rechnung": rechnung.id, "checkliste": checkliste["id"],
+            "bericht": bericht["id"],
             "checklistenvorlage": vorlage["id"], "vertrag": vertrag.id, "pruefvorlage": pruefvorlage["id"],
             "pruefvorlage_altwert": altbestand["id"], "geraet": geraet.id,
             "leistung": leistung.id, "mitarbeiter": mia.id}

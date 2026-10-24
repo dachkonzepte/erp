@@ -45,6 +45,6 @@ def test_interface_of_the_pad_is_unchanged_for_the_three_pages():
     js = _script()
     for name in ("leer:", "leeren:", "alsBlob:", "alsDataUrl:"):
         assert name in js
-    for page, call in (("checklist.html", "unterschriftsfeld(canvas)"), ("service_reports.html", "unterschriftsfeld("),
+    for page, call in (("checklist.html", "unterschriftsfeld(canvas)"), ("service_report.html", "unterschriftsfeld("),
                        ("order.html", "unterschriftsfeld(")):
         assert call in (ROOT / "app" / "templates" / page).read_text(encoding="utf-8"), page

@@ -73,7 +73,8 @@ def test_more_specific_link_styles_are_still_present_and_unaffected():
     assert ".back{" not in account_html and 'class="ds-kopf-pfadglied"' in account_html
 
     service_reports_html = (TEMPLATES / "service_reports.html").read_text(encoding="utf-8")
-    assert ".report-actions a{" in service_reports_html
+    # seit 1.9.67 ist jeder Bericht eine Zeile, die als Ganzes verlinkt (bis 1.9.66 Knöpfe und Links in .report-actions)
+    assert "a.bericht-zeile:hover{" in service_reports_html and ".report-actions a{" not in service_reports_html
 
     work_preparation_html = (TEMPLATES / "work_preparation.html").read_text(encoding="utf-8")
     # seit 1.9.24 (Runde 9): .top-actions a entfällt -- die Links des alten Kopfs sind Pfad und Menü des Seitenkopfs (ds.css)

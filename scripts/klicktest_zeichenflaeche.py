@@ -157,19 +157,17 @@ async def pruefen(tab, seed, p):
     p.pruefe("Checkliste: keine JS-Fehler", tab.fehler, [])
     await tab.bild("1_checkliste_schmal")
 
-    # --- Einsatzbericht: dieselbe Fläche im Unterschriften-Panel ----------------------------------------------
+    # --- Einsatzbericht: dieselbe Fläche im Schritt „Unterschrift“ (seit 1.9.67 auf der Berichtsseite) ----------------------
     await _geraet(tab, 600, 960, HOCH)
-    await tab.oeffnen(f"/orders/{seed['order']}/service-reports", "typeof openSignPanel==='function' || document.querySelector('#sigCanvas')")
-    geoeffnet = await tab.js(f"(async()=>{{if(typeof openSignPanel==='function')await openSignPanel({seed['report']});"
-                             "return !!document.getElementById('sigCanvas')})()")
+    geoeffnet = await tab.oeffnen(f"/service-reports/{seed['report']}#unterschrift", "!!document.getElementById('padKunde')")
     if geoeffnet:
-        await tab.js("document.getElementById('sigCanvas').scrollIntoView({block:'center'})")
+        await tab.js("document.getElementById('padKunde').scrollIntoView({block:'center'})")
         await _geraet(tab, 960, 600, QUER)
-        await tab.js("document.getElementById('sigCanvas').scrollIntoView({block:'center'})")
-        bericht = await tab.js(_flaeche("#sigCanvas"))
+        await tab.js("document.getElementById('padKunde').scrollIntoView({block:'center'})")
+        bericht = await tab.js(_flaeche("#padKunde"))
         p.pruefe("Einsatzbericht gedreht: neu vermessen", _vermessen_ok(bericht) and bericht[0] > 0, True)
     else:
-        p.pruefe("Einsatzbericht: Unterschriften-Panel geöffnet", geoeffnet, True)
+        p.pruefe("Einsatzbericht: Schritt „Unterschrift“ geöffnet", geoeffnet, True)
     p.pruefe("Einsatzbericht: keine JS-Fehler", tab.fehler, [])
 
 

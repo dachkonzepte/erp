@@ -71,7 +71,7 @@ def test_ds_css_tablet_masse_des_kopfs():
 @pytest.mark.parametrize("name,ausdruck", [
     ("checklist.html", "tablet=is_field"), ("checklist_order.html", "tablet=is_field"), ("mobil_objekt.html", "tablet=true"),
     ("operational_asset_field.html", "tablet=true"), ("service_reports.html", "tablet=monteursrahmen"), ("account.html", "tablet=monteursrahmen"),
-    ("mobil_offen.html", "tablet=true"),
+    ("mobil_offen.html", "tablet=true"), ("service_report.html", "tablet=monteursrahmen"),
 ])
 def test_jede_seite_im_monteursrahmen_nimmt_die_tablet_variante(name, ausdruck):
     text = (vj.TEMPLATES / name).read_text(encoding="utf-8")

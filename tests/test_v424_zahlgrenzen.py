@@ -122,10 +122,11 @@ ABGLEICH = [
     Z("roof_area.html", "data-feld=${esc(type.label)} – Dicke (mm)", ("RoofLayerUpsert.thickness_mm",)),
     # -- Einsatzbericht
     Z("service_reports.html", "id=teHours", ("TimeEntryManualCreate.hours",)),
-    Z("service_reports.html", "data-feld=Menge", ("ServiceReportMaterialUpdate.quantity",),
+    # seit 1.9.67 auf der Berichtsseite (bis 1.9.66 je Bericht auf der Seite des Auftrags)
+    Z("service_report.html", "id=mat-menge-'+m.id+'", ("ServiceReportMaterialUpdate.quantity",),
       code={"pflicht": True}, beleg=("app/service_reports.py", "Bitte eine Menge größer als 0 angeben.")),
-    Z("service_reports.html", "id=matQuantity-${r.id}", ("ServiceReportMaterialCreate.quantity",)),
-    Z("service_reports.html", "data-field=duration_minutes", ("InspectionItemResultUpdate.duration_minutes",)),
+    Z("service_report.html", "id=matMenge", ("ServiceReportMaterialCreate.quantity",)),
+    Z("service_report.html", "id=dauer-'+p.id+'", ("InspectionItemResultUpdate.duration_minutes",)),
     # -- Einstellungen
     Z("settings.html", "id=sidebarLogoHeight", ("GeneralSettingsUpdate.sidebar_logo_height_px",), lesen=("zahlFeld(input)",)),
     Z("settings.html", "id=ptDays", ("PaymentTermCreate.days", "PaymentTermUpdate.days"), lesen=("zahlFeld('ptDays')",)),

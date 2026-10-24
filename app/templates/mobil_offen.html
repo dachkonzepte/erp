@@ -113,7 +113,7 @@ var CHECKLISTS_ENABLED={{ 'true' if is_module_enabled('checklisten') else 'false
     if(!list.length){box.className='empty';box.textContent='Keine offenen Entwürfe.';return}
     box.className='';
     box.innerHTML=list.map(function(r){
-      return '<a class="assign-card" href="/orders/'+r.order_id+'/service-reports?report='+r.id+'">'
+      return '<a class="assign-card" href="/service-reports/'+r.id+'">'
         +'<div class="obj">'+esc(r.order_number?('Auftrag '+r.order_number):('Auftrag #'+r.order_id))+'</div>'
         +'<div class="addr">'+esc(r.report_type_label)+'</div>'
         +'</a>';
@@ -255,7 +255,7 @@ var CHECKLISTS_ENABLED={{ 'true' if is_module_enabled('checklisten') else 'false
       }
       return r.json();
     }).then(function(data){
-      location.href='/orders/'+data.order_id+'/service-reports?report='+data.report_id;
+      location.href='/service-reports/'+data.report_id;
     }).catch(function(err){
       alert(err.message||'Fehler beim Anlegen.');
       btn.disabled=false;

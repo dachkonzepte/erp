@@ -236,7 +236,7 @@ async def pruefen(tab, seed, p):
         "[...document.querySelectorAll('[data-einsatz] .zeile')].map(z=>[z.querySelector('.zeile-titel').textContent,"
         "z.querySelector('.zeile-sub').textContent,(z.querySelector('.knopf-aktion')||{}).textContent||null,!!z.querySelector('.pfeil'),"
         "(z.querySelector('a')||z).getAttribute('href')])"),
-        [["Wartungsbericht · Dachfläche Nord", "Entwurf · noch 3 offen", "Weiter", False, f"/orders/{a}/service-reports?report={seed['bericht']}"],
+        [["Wartungsbericht · Dachfläche Nord", "Entwurf · noch 3 offen", "Weiter", False, f"/service-reports/{seed['bericht']}"],  # seit 1.9.67
          ["Checkliste Sicherheitscheck", "Entwurf · noch 1 offen", None, True, f"/checklisten/{seed['checkliste']}"]])  # seit 1.9.50
     p.pruefe("Einsatz: „Bericht anlegen“ und „Checklisten zum Auftrag“ als neutrale Knöpfe 48 px", await tab.js(
         "[...document.querySelectorAll('[data-einsatz] .einsatz-wege a')].map(x=>[x.textContent,x.className,"
@@ -278,7 +278,7 @@ async def pruefen(tab, seed, p):
         "[[...document.querySelectorAll('#draftReportsList a')].map(x=>x.getAttribute('href')),"
         "[...document.querySelectorAll('#draftChecklistsList a')].map(x=>x.getAttribute('href')),"
         "[...document.querySelectorAll('#maintenanceList .contract-title,#maintenanceList .perform-btn')].map(x=>x.textContent)]"),
-        [[f"/orders/{a}/service-reports?report={seed['bericht']}"], [f"/checklisten/{seed['checkliste']}"],
+        [[f"/service-reports/{seed['bericht']}"], [f"/checklisten/{seed['checkliste']}"],  # seit 1.9.67 direkt zum Bericht
          ["Jahreswartung Flachdach", "Wartung durchführen"]])
     p.pruefe("Offen: keine JS-Fehler", tab.fehler, [])
     for thema in ("light", "dark"):

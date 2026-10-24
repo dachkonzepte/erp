@@ -31,6 +31,9 @@ RUECKWEGE = {
     "checklist_template.html": {"/checklisten", "/checklisten/vorlagen"},
     "inspection_template.html": {"/settings", "/inspection-templates"},
     "service_reports.html": {"/projects", "/customers/{x}", "/projects/{x}", "/maintenance-contracts/{x}", "/orders/{x}", "/mobil"},
+    # seit 1.9.67 der Bericht: bis zur Seite des Auftrags (Einsatzberichte), für die Monteurin Heute / Auftrag
+    "service_report.html": {"/projects", "/customers/{x}", "/projects/{x}", "/maintenance-contracts/{x}", "/orders/{x}",
+                            "/orders/{x}/service-reports", "/mobil"},
     # seit 1.9.13 die Rechnung (ersetzt „← Auftrag“)
     "invoice_detail.html": {"/projects", "/customers/{x}", "/projects/{x}", "/orders/{x}"},
     # seit 1.9.18 das Angebot (ersetzt die Brotkrume Kunde · Projekt · Nummer)
@@ -38,7 +41,8 @@ RUECKWEGE = {
     # seit 1.9.24 die Arbeitsvorbereitung (ersetzt „← Auftrag“ und „Projektmappe“)
     "work_preparation.html": {"/projects", "/customers/{x}", "/projects/{x}", "/orders/{x}"},
 }
-MIT_LOESCHEN = {"roof_area.html", "operational_asset.html", "maintenance_contract.html", "checklist_template.html"}
+MIT_LOESCHEN = {"roof_area.html", "operational_asset.html", "maintenance_contract.html", "checklist_template.html",
+                "service_report.html"}  # seit 1.9.67, Rückfrage auf der Seite (48-px-Knöpfe) statt confirm()
 
 
 def _call_block(name: str) -> str:
@@ -148,10 +152,11 @@ def test_loeschen_nur_im_menue_mit_rueckfrage(name):
     eintrag = re.search(r'<button type="button" class="ds-menue-eintrag ds-menue-eintrag-fehler"[^>]*data-klick="loeschen"[^>]*>Löschen</button>',
                         _teil(block, "menue"))
     assert eintrag, name
-    # die Aktion ruft die bisherige Löschfunktion, die vor dem Löschen fragt
+    # die Aktion ruft die bisherige Löschfunktion, die vor dem Löschen fragt -- mit confirm() oder (seit 1.9.67, Monteursrahmen) der
+    # Rückfrage auf der Seite
     funktion = re.search(r"aktion\('loeschen',\(\)=>(\w+)\(\)\)", ausserhalb).group(1)
     rumpf = re.search(r"async function " + funktion + r"\(\)\{(.*?)\n\}", ausserhalb, flags=re.S).group(1)
-    assert re.match(r"\s*if\(!confirm\('[^']+'\)\)return;", rumpf), (name, funktion)
+    assert re.match(r"\s*if\(!(?:confirm\('[^']+'\)|await rueckfrage\([^\n]*\))\)return;", rumpf), (name, funktion)
 
 
 def test_ds_css_haelt_verborgene_knoepfe_und_eintraege_verborgen():

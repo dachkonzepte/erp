@@ -246,12 +246,12 @@ def _funktion(vorlage: str, name: str) -> str:
 @nur_mit_node
 def test_gruppenname_im_einsatzbericht_bleibt_text():
     """Befund 1.8.100 Nr. 5: Gruppenname eines Prüfpunkts geht nur für JS geschützt (\\') in das onclick-Attribut -- ein \" beendet das Attribut, ein <img onerror> läuft beim Zeichnen des Einsatzberichts. Setzen kann ihn jede Rolle, die den Bericht bearbeitet (auch der Monteur). -- seit 1.8.102 behoben (bis dahin xfail)."""
-    funktion = _funktion("service_reports.html", "inspectionItemsPanelHtml")
-    js = (_esc_js("service_reports.html") + "\n" + funktion + f"""
-const inspectionItemsCache={{1:[{{id:5,text:'Rinne',group_name:{json.dumps('x"' + '>' + SKRIPT)},required:false}}]}};
-const inspectionSyncHints={{}}, expandedAreaKeys=new Set(['1:none']), closedGroupKeys=new Set();
-function isItemAnswered(){{return false}} function inspectionItemRowHtml(){{return ''}}
-process.stdout.write(JSON.stringify(inspectionItemsPanelHtml({{id:1,roof_areas:[],status:'entwurf'}})));""")
+    # seit 1.9.67 die Berichtsseite (pruefpunkteHtml(), das ganze Seitenskript bis vor den Start), bis 1.9.66 inspectionItemsPanelHtml()
+    # der Seite des Auftrags
+    js = seite("service_report.html", "\nif(document.getElementById('raster'))init();") + f"""
+R={{id:1,status:'entwurf',report_type:'wartung',roof_areas:[],hat_pruefpunkte:true}};
+PUNKTE=[{{id:5,text:'Rinne',item_type:'ja_nein',group_name:{json.dumps('x"' + '>' + SKRIPT)},required:false,template_item_id:null}}];
+process.stdout.write(JSON.stringify(pruefpunkteHtml()));"""
     gezeichnet = _node(js, "Europe/Berlin")
     assert "<img" not in gezeichnet
 

@@ -235,24 +235,20 @@ async def pruefen(tab, seed, p):
     p.pruefe("Checkliste: Unterschrift gespeichert", gespeichert, ["Klara Kundin"])
     p.pruefe("Checkliste: JS-Fehler", tab.fehler, [])
 
-    # --- Einsatzbericht: Monteur und Kunde nacheinander ------------------------------------------------
-    await tab.oeffnen(f"/orders/{klara}/service-reports", f"!!document.querySelector('button[onclick=\"openSignPanel({seed['report']})\"]')")
-    await tab.js(f"document.querySelector('button[onclick=\"openSignPanel({seed['report']})\"]').click(); true")
-    await tab.warten("!document.getElementById('signCard').classList.contains('hidden')")
-    p.pruefe("Bericht: Fläche 220 px hoch", await tab.js("Math.round(document.getElementById('sigCanvas').getBoundingClientRect().height)"), 220)
-    await tab.js("document.getElementById('signNextBtn').click(); true")
-    p.pruefe("Bericht: ohne Zeichnung abgewiesen", await tab.js("document.getElementById('signStatus').textContent"), "Bitte zuerst unterschreiben.")
-    await _zeichnen(tab, "#sigCanvas")
-    p.pruefe("Bericht dunkel: Fläche weiß, Strich dunkel", await tab.js(_hell_und_dunkel_strich("#sigCanvas")), [WEISS, True, True])
-    await tab.js("document.getElementById('signNextBtn').click(); true")
-    # Seit 1.9.36 fragt „Weiter“ vor dem Schritt des Kunden den Server, was noch offen ist (GET …/noch-offen) -- erst danach der Schritt
-    await tab.warten("document.getElementById('signHeading').textContent==='Unterschrift Kunde'", 10)
-    p.pruefe("Bericht: Schritt Kunde, Fläche geleert",
-             [await tab.js("document.getElementById('signHeading').textContent"), (await tab.js(_hell_und_dunkel_strich("#sigCanvas")))[1]],
-             ["Unterschrift Kunde", False])
-    await _zeichnen(tab, "#sigCanvas")
-    await tab.js("document.getElementById('signatureName').value='Klara Kundin'; document.getElementById('signNextBtn').click(); true")
-    await tab.warten("document.getElementById('signCard').classList.contains('hidden')", 15)
+    # --- Einsatzbericht: Monteur und Kunde (seit 1.9.67 nebeneinander im Schritt „Unterschrift“ der Berichtsseite) ----------------
+    await tab.oeffnen(f"/service-reports/{seed['report']}#unterschrift", "!!document.getElementById('padMonteur')")
+    p.pruefe("Bericht: beide Flächen mindestens 160 px hoch", await tab.js(
+        "['padMonteur','padKunde'].map(i=>Math.round(document.getElementById(i).getBoundingClientRect().height)>=160)"), [True, True])
+    p.pruefe("Bericht: ohne Zeichnung gesperrt mit „Fehlt“", await tab.js(
+        "[document.getElementById('abschliessenKnopf').disabled,document.getElementById('fehltText').textContent]"),
+        [True, "Fehlt: Unterschrift Monteur, Name Kunde, Unterschrift Kunde"])
+    await _zeichnen(tab, "#padMonteur")
+    p.pruefe("Bericht dunkel: Fläche weiß, Strich dunkel", await tab.js(_hell_und_dunkel_strich("#padMonteur")), [WEISS, True, True])
+    p.pruefe("Bericht: Fläche des Kunden noch leer", (await tab.js(_hell_und_dunkel_strich("#padKunde")))[1], False)
+    await _zeichnen(tab, "#padKunde")
+    await tab.js("(f=>{f.value='Klara Kundin';f.dispatchEvent(new Event('input',{bubbles:true}))})(document.getElementById('signKundeName'));"
+                 "document.getElementById('abschliessenKnopf').click(); true")
+    await tab.warten("typeof R!=='undefined'&&R&&R.status==='unterschrieben'", 15)
     status = await tab.js(f"fetch('/api/orders/{klara}/service-reports').then(r=>r.json()).then(l=>l.filter(d=>d.id==={seed['report']}).map(d=>[d.status,d.signature_name,d.installer_signature_name])[0])")
     p.pruefe("Bericht: unterschrieben (Monteur und Kunde)", status, ["unterschrieben", "Klara Kundin", "Bert Büro"])
     p.pruefe("Bericht: JS-Fehler", tab.fehler, [])

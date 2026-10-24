@@ -20,7 +20,7 @@
    - Kontoknopf und Menüeinträge 48 px hoch (Tablet); die Reiter schrumpfen nie, ein sehr langer Name wird mit „…“ gekürzt. #}
 {% set current_user = request.state.erp_user %}
 {% set path = request.url.path %}
-{% set _einsaetze = path == '/mobil' or path == '/mobil/offen' or path.startswith('/mobil/objekt') or path.startswith('/orders/') or path.startswith('/checklisten') or path.startswith('/betriebsmittel') %}
+{% set _einsaetze = path == '/mobil' or path == '/mobil/offen' or path.startswith('/mobil/objekt') or path.startswith('/orders/') or path.startswith('/service-reports/') or path.startswith('/checklisten') or path.startswith('/betriebsmittel') %}
 {% include "_debounce.html" %}
 <style>
 .mobile-header-wrap{position:sticky;top:0;z-index:30}

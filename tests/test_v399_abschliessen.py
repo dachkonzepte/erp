@@ -379,7 +379,7 @@ ABSCHLIESSEND = {
     ("order.html", "syncSource"): "Abgleich mit dem Angebot",
     ("quote_editor.html", "createOrder"): "Beauftragen",
     ("quote_editor.html", "syncExistingOrder"): "Abgleich mit dem Auftrag",
-    ("service_reports.html", "confirmSignatureStep"): "Einsatzbericht unterschreiben",
+    ("service_report.html", "berichtAbschliessen"): "Einsatzbericht unterschreiben",  # seit 1.9.67 (bis 1.9.66 confirmSignatureStep)
     # Seit 1.8.99 (Festlegung 1.8.96 Nr. 6, korrigiert: Zahlung, Gegenbuchung, Erstattung, Storno, Abnahme, Mangel und
     # Nebenforderung sind abschließend) -- alle übrigen dieser Arten standen schon hier.
     ("incoming_invoices.html", "markPaidNow"): "Eingangsrechnung als bezahlt markieren (Zahlung)",

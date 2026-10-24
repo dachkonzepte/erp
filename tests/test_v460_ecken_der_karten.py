@@ -72,6 +72,7 @@ KARTEN_OHNE_NAMEN = {
     "calc-box": "Rechenkasten (Leistungskatalog)",
     "concern-alert": "Hinweis „Offene Bedenken“",
     "office-hint": "Hinweis fürs Büro (Einsatzbericht)",
+    "bericht-zeile": "Bericht in der Liste je Auftrag (seit 1.9.67)",
     "group-note": "Hinweis zur Gruppe (Zeiterfassung Büro)",
     "warn": "Warnung (Backoffice, Arbeitsvorbereitung)",
     "ok": "Erfolg (Backoffice)",
@@ -94,7 +95,8 @@ NICHT_KARTEN = {
     **{k: "Knopf oder Feld -- eigene Ecke, nicht Teil dieses Punkts" for k in (
         "add", "btn", "btnlink", "cat", "danger", "dh-btn", "filter", "ghost", "iconbtn", "menu-btn", "more-btn", "p-role", "perform-btn",
         "secondary", "tile", "view-toggle", "checklist-link",
-        "knopf-neutral", "knopf-gesperrt")},  # seit 1.9.45 die Knöpfe von „Heute“ (/mobil)
+        "knopf-neutral", "knopf-gesperrt",  # seit 1.9.45 die Knöpfe von „Heute“ (/mobil)
+        "feld-text", "feld-zahl", "knopf-symbol", "schritt", "segment", "zeit-nachtragen")},  # seit 1.9.67 der Einsatzbericht
     **{k: "Kennzeichen" for k in (
         "addendum-badge", "badge", "cl-badge", "count", "def-badge", "delivery-tag", "dot", "entry-version", "pill", "psum-tag",
         "status-pill")},

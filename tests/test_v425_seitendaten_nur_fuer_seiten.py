@@ -138,7 +138,9 @@ def test_die_datei_kommt_ohne_seitendaten(welt, zaehler):
 def test_die_umleitungen_sind_dabei(welt, zaehler):
     """/login für Angemeldete und / für den Monteur leiten um -- ohne Seitendaten; dieselben Adressen zeichnen sonst eine Seite."""
     app, werte = welt
-    for rolle, pfad, gezeichnet in (("admin", "/login", False), (None, "/login", True), ("field", "/", False), ("buero_auftrag", "/", True)):
+    for rolle, pfad, gezeichnet in (("admin", "/login", False), (None, "/login", True), ("field", "/", False), ("buero_auftrag", "/", True),
+                                    ("field", "/orders/1/service-reports?report=1", False),  # seit 1.9.67 zum Bericht
+                                    ("field", "/orders/1/service-reports", True)):
         client = browser_client(app)
         if rolle:
             client.cookies.set(COOKIE_NAME, werte[rolle], domain="testserver.local")
@@ -154,5 +156,7 @@ def test_jede_umleitung_einer_seitenroute_steht_an_der_route():
     umleitend = {m.group(1) for m in re.finditer(r"\ndef (\w+)\([^)]*\):(?:(?!\ndef ).)*?return RedirectResponse", quelle, flags=re.S)
                  if m.group(1).endswith("_page")}
     mit_merkmal = {name for name in dir(pages) if callable(getattr(pages, name)) and hasattr(getattr(pages, name), "dk_ohne_seite")}
-    # seit 1.9.59 dazu der Stundenzettel (immer) und /time-tracking (für die Monteurin) -- beide auf „Meine Zeiten“
-    assert umleitend == {"login_page", "dashboard_page", "field_timesheet_page", "time_tracking_page"} and umleitend <= mit_merkmal
+    # seit 1.9.59 dazu der Stundenzettel (immer) und /time-tracking (für die Monteurin) -- beide auf „Meine Zeiten“; seit 1.9.67 die
+    # Auftragsseite mit ?report= (zum Bericht)
+    assert umleitend == {"login_page", "dashboard_page", "field_timesheet_page", "time_tracking_page", "service_reports_page"}
+    assert umleitend <= mit_merkmal

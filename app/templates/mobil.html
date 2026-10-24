@@ -429,7 +429,7 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
       +'</div>';
   }
   function berichtZeile(k,r){
-    var href='/orders/'+k.order_id+'/service-reports?report='+r.id;
+    var href='/service-reports/'+r.id;  // seit 1.9.67 direkt zum Bericht (Stufe 4, R4)
     if(r.status==='entwurf'){
       var sub='Entwurf · '+(r.noch_offen?'noch '+r.noch_offen+' offen':'bereit zur Unterschrift');
       return '<div class="zeile zeile-bericht" data-bericht="'+r.id+'"><div class="zeile-text"><span class="zeile-titel">'+esc(r.titel)+'</span>'

@@ -4837,3 +4837,101 @@ Galerie“; keine Buchungskarte für die Monteurin). Gebaut in drei Versionen: 1
 - **Gegenproben** (je nur `test_v492`): Beschreibung nicht Pflicht -> 1 rot; Leerzeichen zählen -> 1 rot; Art immer änderbar -> 6 rot;
   Betriebsmittel zählt nicht -> 1 rot; Foto zählt nicht -> 1 rot; PUT übernimmt alle Felder -> 9 rot (Datum `null` an der Spalte); ein
   Bericht ohne Besitzprüfung -> 1 rot; „Mangel“ statt „Befund“ -> 1 rot; Art wechselt ohne Prüfpunkte -> 1 rot.
+
+### R4 Fortsetzung, Berichtsseite und Auftragsseite (1.9.67)
+
+- **Zwei Seiten** (D): `/service-reports/{id}` (`service_report.html`, Seitenroute `service_report_page`, Daten über `GET /api/service-reports/{id}`
+  -- die Monteurin nur ihren eigenen) und `/orders/{id}/service-reports` (`service_reports.html`, verschlankt). `?report=<id>` auf der Seite
+  des Auftrags leitet der Server weiter (`_bericht_aus_adresse()`, Ziel fest `/service-reports/<Zahl>`); `dk_ohne_seite` bekommt dafür seit
+  1.9.67 Benutzer und Anfrage (`app/seitendaten.py::wird_gezeichnet()`). Eingänge: „Heute“ (Weiter am Bericht), „Heute / Offen“ (offene
+  Berichte, „Wartung durchführen“), Wartungsvertrag („Wartung durchführen“) direkt zum Bericht; „Bericht anlegen“ auf „Heute“ weiter zur Seite
+  des Auftrags, „+ Bericht“ dort öffnet nach dem Anlegen den neuen Bericht.
+- **Kopf**: Makro `seitenkopf` (tablet für die Monteurin), Titel = Art, Status über `statusKennzeichen('einsatzbericht', …)` (neue Gruppe:
+  Entwurf, Unterschrieben), Untertitel Objekt · Dachflächen; Menü „⋮“: Datum ändern, Art ändern, Prüfpunkte neu erzeugen, PDF öffnen, Löschen.
+- **Schritte**: `schritte()` -- Schritt 1 nach `hat_pruefpunkte` vom Server, Betriebsmittel nur mit Modul; der Schritt steht in der Adresse
+  (`#pruefpunkte` …); „Noch offen“ aus `GET …/noch-offen` (`eintraege` je Schritt), nach jedem Speichern frisch (`nochOffenLaden()`).
+- **Fokus**: `teilErsetzen()` ersetzt nach dem Speichern nur Kopf, Zusatz oder Befund eines Punkts und lässt einen Teil mit dem fokussierten
+  Feld stehen; ein fokussierter Knopf bekommt den Fokus nach dem Ersetzen zurück. Die Texte speichern 600 ms nach der letzten Taste und beim
+  Verlassen (`entprellt()` über `_debounce.html`; vor „Bericht abschließen“ von `nachDemSpeichern()` sofort ausgelöst).
+- **Unterschrift**: `berichtAbschliessen()` -- `fehlt()` (Noch offen, Namen, Flächen), dann `nachDemSpeichern()` und `nochOffenLaden()`,
+  erst dann `abschliessen('bericht', …/sign)`.
+- **Auftragsseite**: je Bericht `reportRow()`; ein Bericht einer Kollegin (reduziertes Schema ohne `status`) ohne Link; die Buchungskarte nur
+  fürs Büro (`{% if monteursrahmen %}`), die Monteurin „Zeit nachtragen“ -> `/mobil/zeiten?order_id=<id>`.
+
+**Festlegungen 1.9.67 (Bitte bestätigen)**
+
+1. Schritt 5 wie die Vorlage ohne die Spalte „Noch offen“: was offen ist, steht dort in der Karte „Unterschriften“ (Liste „Noch offen“,
+   Kennzeichen „n offen“ bzw. „Nichts mehr offen“); „Zurück“ / „Weiter“ entfallen in Schritt 5 (die Schritte sind frei anwählbar).
+2. „Das steht im Bericht“ hat zusätzlich die Zeile „Arbeiten“ (Beschreibung, nach 140 Zeichen gekürzt); die Zeiten heißen „Zeiten am <Tag>“
+   (Regel aus R1) statt „Zeiten dieses Einsatzes“ der Vorlage, darunter „Nur dieser Tag …“ bzw. „Stand der Unterschrift.“
+3. Monteur und Kunde unterschreiben auf einer Seite nebeneinander, ein Klick „Bericht abschließen“ sendet beides (bis 1.9.66 nacheinander im
+   Panel); der Name des Monteurs ist mit dem angemeldeten Konto vorbelegt und änderbar.
+4. „Fehlt: …“ nennt in dieser Reihenfolge die Zahl der Punkte unter „Noch offen“, Name und Unterschrift des Monteurs, Name und Unterschrift
+   des Kunden.
+5. Haken: Prüfpunkte bzw. Arbeiten, wenn dort nichts offen ist (Prüfpunkte: alle beantwortet); Befunde, wenn nichts offen und angesehen
+   oder mit Einträgen; Material und Betriebsmittel, sobald angesehen (je Gerät und Sitzung) oder mit Einträgen; Unterschrift nach dem
+   Abschluss.
+6. Der Schritt steht in der Adresse (`#pruefpunkte`, `#arbeiten`, `#befunde`, `#material`, `#betriebsmittel`, `#unterschrift`); Neuladen
+   bleibt im Schritt, ein Link kann einen Schritt öffnen.
+7. Prüfpunkte je Dachfläche zusammen (Reihenfolge der Flächen am Bericht), darin nach Gruppe; ohne Fläche zuletzt („Ohne Fläche“, nur bei
+   mehreren Flächen benannt).
+8. „Bemerkung“, „Foto aufnehmen“, „Foto aus Galerie“ und „Prüfpunkt löschen“ (nur am von Hand ergänzten Punkt, rot) stehen im Menü „⋮“
+   je Punkt (Einträge 48 px); eine vorhandene Bemerkung steht als Feld unter dem Punkt.
+9. „Nicht OK“ und Zustand 3/4 öffnen das Befund-Formular direkt unter dem Punkt (Schwere als Segmente, Maßnahme, Wiedervorlage); danach
+   steht dort der Befund mit Stand („Foto fehlt“ / „1 Foto“), „Foto“ (Aufnehmen, Aus Galerie) und „Befund bearbeiten“ (springt zu Schritt 2).
+10. „Aufnehmen“ öffnet die Kamera (`capture="environment"`), „Aus Galerie“ die Dateiauswahl -- bei Vorher/Nachher je Platz beide Knöpfe.
+11. Jede Rückfrage der Berichtsseite (Bericht, Prüfpunkt, Foto, Material, Betriebsmittel löschen; Prüfpunkte neu erzeugen) im Dialog der
+    Seite mit 48-px-Knöpfen, nie `confirm()`.
+12. „Art ändern“ bleibt im Menü, auch wenn der Bericht nicht mehr leer ist: der Dialog zeigt dann gesperrt den Hinweis „… Entwurf löschen
+    und neu anlegen.“
+13. „Prüfpunkte neu erzeugen“ bleibt im Menü (mit Rückfrage), nur im Entwurf mit Prüfpunkten und Dachflächen; „PDF öffnen“ erst nach der
+    Unterschrift (im Menü und in der Karte „Unterschriften“).
+14. Hochformat ab unter 1000 px: eine Spalte, „Noch offen“ als feste Leiste unten (Liste höchstens 18 % der Höhe, mit Bildlauf), Knöpfe dort
+    56 px.
+15. Kopf ohne Kennung (wie die Vorlage), Untertitel Objekt · Dachflächen, ohne beides das Datum.
+16. Meldungen des vorigen Schritts verschwinden beim Schrittwechsel.
+17. Die Seite des Auftrags heißt „Einsatzberichte“ (Titel und letztes Pfadglied); je Bericht eine anklickbare Zeile (Art, Status, Datum,
+    wer, Flächen, „Noch offen: n Punkte“, Hinweis fürs Büro) mit „Bericht fortsetzen“ bzw. „Bericht ansehen“; ein Bericht einer Kollegin
+    ohne Link mit Hinweis. Bearbeiten nur noch auf der Berichtsseite, die Seite des Auftrags legt nur an.
+18. Die Monteurin bekommt auf der Seite des Auftrags die Karte „Zeiten“ mit „Zeit nachtragen“ (`/mobil/zeiten?order_id=…`); „Zeiterfassung
+    (Auftrag)“ im Menü bleibt (führt für sie ebenso auf „Meine Zeiten“).
+19. Die Seitenroute `/service-reports/{id}` prüft selbst nicht, wer den Bericht öffnen darf (wie die Seite des Auftrags); fremd für die
+    Monteurin heißt „Bericht nicht geladen: …“ (403 der Schnittstelle).
+
+**Tests und Prüfung**
+
+- Neu `scripts/klicktest_bericht_schritte.py` (43 Prüfungen): Eingänge („Heute“ -> Weiter, `?report=`, „+ Bericht“), Kopf, fünf Schritte,
+  jede Funktion der bisherigen Seite in ihrem Schritt (Liste aus dem Befund R4), „Nicht OK“ -> Befund darunter und „Noch offen“ sofort,
+  Foto aus der Galerie, Foto löschen 48 px mit Rückfrage, Fokus nach Segmentknopf und Bemerkung (auch wenn eine Antwort beim Weitertippen
+  ankommt), 48 px in jedem Schritt quer (1280 × 620) und
+  hoch (800 × 1100), Befund-Status, Material aus dem Katalog, Betriebsmittel, Schritt 5, Rapport ohne Vorlage gesperrt -> Beschreibung ->
+  abgeschlossen, Art leer/gesperrt, Datum, Löschen, Auftragsseite der Monteurin ohne Buchungskarte, Büro unverändert; Bilder hell und dunkel.
+- Neue Fassungen gegen die Berichtsseite (alt -> neu): `test_v405` Gruppenname in `inspectionItemsPanelHtml()` -> in `pruefpunkteHtml()`;
+  `test_v464` „fragt vor beiden Unterschriften (`openSignPanel`, `confirmSignatureStep`)“ -> „vor ‚Bericht abschließen‘ Speichern abwarten
+  und ‚Noch offen‘ frisch“, „×“ am eigenen Punkt -> Menüeintrag „Prüfpunkt löschen“; `test_v469` Knopf „×“ 48 px mit `punktLoeschenDialog`
+  -> Menüeintrag 48 px mit `rueckfrageDialog`; `test_v475` `rueckfrage(text)` mit `punktLoeschen*` -> `rueckfrage(titel,text,ja)` mit
+  `rueckfrage*`; `test_v485` Monteurin Von/Bis auf der Buchungskarte -> keine Buchungskarte, „Zeit nachtragen“; `test_v437` Auswahl für alle
+  vier Rollen -> für die drei Büro-Rollen, die Monteurin ohne Feld; `test_v337`/`test_v360` `service_reports.html` -> `service_report.html`
+  (Pfad `/service-reports/1`); `test_v259` `.report-actions a{` vorhanden -> `a.bericht-zeile:hover{`; `test_v425` vier umleitende
+  Seitenrouten -> fünf (mit `?report=`), dazu zwei Umleitungsfälle; `test_v401` 6 Weiterleitungen -> 7; `test_v399` `confirmSignatureStep`
+  -> `berichtAbschliessen`; `test_v424` drei Zahlenfelder auf die Berichtsseite; `test_v431` 302 Bilder -> 314, 244 bisherige -> 252;
+  `test_v441` 44 Seiten mit Leiste -> 45.
+- Nur kürzer: `test_v400` (eine Ausnahme weniger), `test_v407` (36 Einträge mit 72 Handlern weniger, 357 -> 285), `test_v447` (vier Einträge weniger).
+- Neu eingetragen: `test_v441` und `test_v446` (Datensatz mit Pfad, Rückwege, Löschen nur im Menü -- dort seit 1.9.67 auch mit der Rückfrage
+  der Seite statt `confirm()`), `test_v457` (Tablet-Variante), `test_v460` (sechs Knöpfe und Felder, die Zeile je Bericht als Eintrag).
+- Klicktests (alt -> neu): `klicktest_abschliessen` (Unterschriften-Panel, Meldungen per alert und mit „Fehler: “ -> Schritt 5, Meldungszeile,
+  Meldung des Bausteins wörtlich); `klicktest_vertrag_unterschrift` (Fläche 220 px, Monteur dann Kunde -> beide Flächen ≥ 160 px, gesperrt
+  mit „Fehlt“); `klicktest_zeichenflaeche` (`#sigCanvas` -> `#padKunde`); `klicktest_einsatzbericht_zeiten` (Tabelle je Bericht auf der
+  Seite des Auftrags, „Zeiten am … – Stand …“ -> Schritt 5 der Berichtsseite, „Zeiten am …“ mit „Person · von–bis“); `klicktest_monteurin_regeln`
+  (Knopf „Prüfpunkte“, „×“, Panel -> Schritt 1, Menüeintrag, Schritt 5 gesperrt); `klicktest_daten_im_html` (Gruppe als Klappknopf -> als
+  Überschrift); `klicktest_abgleich_sperre` (`.report-card` -> `.bericht-zeile`, dazu die Berichtsseite); `klicktest_monteur_dachflaechen`
+  (Monteurin bucht hier -> keine Buchungskarte, Anlegen öffnet den Bericht; Büro „Bea Büro|Max Monteur“ -> „Bea Büro“, Klick über
+  `data-klick`); `klicktest_heute` (`?report=` -> `/service-reports/{id}`, zwei Stellen); `klicktest_rahmen` (Titel und Pfadende
+  „Einsatzbericht“ -> „Einsatzberichte“ an drei Stellen, „Wartung durchführen“ -> Berichtsseite, Pfad mit „Einsatzberichte / Wartungsbericht“).
+- Bildgrundlage: neue Aufnahme `bericht` (Büro und Monteurin) am Ende der Liste.
+- **Gegenproben** (Tests und Klicktest je Probe): `?report=` leitet nicht weiter -> `test_v425` 1 rot, Klicktest rot (landet auf der Seite
+  des Auftrags); „Noch offen“ nach dem Speichern nicht frisch -> Klicktest 1 rot; Feld mit Fokus wird neu gezeichnet -> zuerst grün (der
+  Klicktest tippte alles vor der Antwort), nach dem Nachschärfen (Antwort beim Weitertippen) Klicktest 1 rot; Knopf verliert den Fokus ->
+  Klicktest 1 rot; Segmente 40 px -> Klicktest 2 rot (quer und hoch); „Bericht abschließen“ nicht gesperrt -> Klicktest 2 rot; Abschließen
+  ohne frisches „Noch offen“ -> `test_v464` 1 rot; Monteurin mit Buchungskarte -> `test_v485` und `test_v437` je 1 rot, Klicktest rot;
+  „Heute“ verlinkt auf `?report=` -> `klicktest_heute` 1 rot; Löschen ohne Rückfrage -> `test_v446` 1 rot.

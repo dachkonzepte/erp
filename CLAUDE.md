@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.66** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.67** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -354,7 +354,12 @@ Behoben, drei Teile:
   Bis nach (`app/permissions.py::zeit_nur_mit_von_bis()`, Server 422 für eine reine Dauer), auch im Einsatzbericht; seit 1.9.63 auch der
   Kolonnenführer für die Kolonne (eine Von/Bis-Angabe, Pause und Rundung je Mitglied nach seinem Tag über
   `app/time_tracking.py::kolonne_rechnen()`, Vorschau je Mitglied, `tests/test_v489_kolonne_von_bis.py`). Seit 1.9.65 bleibt in den
-  Dialogen des Monteursrahmens die Knopfleiste unten im Bild (`position:sticky`, `tests/test_v491_dialog_knopfleiste.py`). Sie bleibt in `AUFGESCHOBEN` (die
+  Dialogen des Monteursrahmens die Knopfleiste unten im Bild (`position:sticky`, `tests/test_v491_dialog_knopfleiste.py`). **Seit 1.9.67** steht
+  der Einsatzbericht auf `/service-reports/{id}` (`service_report.html`, umgezogen) in fünf Schritten nach den Vorlagen `bericht-*`: Kopf mit
+  „⋮“, Schritte mit Haken, „Noch offen“ rechts bzw. hoch als Leiste unten, Fokus bleibt nach dem Speichern (`teilErsetzen()`), Ziele ≥ 48 px;
+  die Seite des Auftrags (`service_reports.html`, „Einsatzberichte“) listet die Berichte, legt an und zeigt der Monteurin statt der
+  Buchungskarte „Zeit nachtragen“; `?report=` leitet weiter (`dk_ohne_seite` mit Benutzer und Anfrage). Klicktest
+  `klicktest_bericht_schritte.py`. Sie bleibt in `AUFGESCHOBEN` (die
   Vorlage hat keinen Seitenkopf). Klicktest `klicktest_heute.py`, Wächter `tests/test_v472_heute_seite.py`. **Seit 1.9.49** stehen die
   Listen (offene Berichte, Mängel, Checklisten, Wartungen) auf „Heute / Offen“ (`/mobil/offen`, `mobil_offen.html`, umgezogen: Monteursrahmen
   mit Seitenkopf); ein leerer Abschnitt fehlt, „Heute“ endet mit „Nächste Tage“, die Zeilen von „Offen“ springen dorthin; Wächter
@@ -825,7 +830,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     keinen Wert ein: das Element trägt `data-klick`/`data-aenderung`/`data-eingabe` und seine Werte als data-Attribute (mit esc()), die
     Seite meldet `aktion('name', el => …)` an (`_aktionen.html`, liest `el.dataset` -- immer Text). Ein href/src/Navigation aus Daten geht
     über `sichererLink()`/`sichereBildquelle()` (`_links.html`) oder beginnt mit einem festen lokalen Pfad, mailto:, tel: oder http(s)://.
-    `tests/test_v407_daten_im_html.py` prüft alle drei über alle Vorlagen; die Ausnahmelisten (Changelog; 364 Handler mit Zahlen/IDs) dürfen
+    `tests/test_v407_daten_im_html.py` prüft alle drei über alle Vorlagen; die Ausnahmelisten (Changelog; 285 Handler mit Zahlen/IDs) dürfen
     nur kürzer werden. Details: `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.102".
 
 33. **Schreibende Anfragen nur von einer Seite des ERP, kein Einrahmen, Secure und HSTS, seit 1.8.104.** Die Anmeldeschranke lehnt
@@ -861,7 +866,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Datei ihre Verbindung samt offener Transaktion bis zum letzten Byte); ein Endpunkt oder eine Abhängigkeit mit Datenbank ist nie
     `async def` (ein Upload liest die Datei mit `file.file.read()`), die Anmeldeschranke liest im Threadpool (`_lesen()`). Jinja-Globals
     lesen nur die Seitendaten der Anfrage (`app/seitendaten.py`, von der Schranke in ihrer Sitzung mitgeladen, seit 1.8.120 nur für Seiten,
-    die gezeichnet werden: `wird_gezeichnet()`, eine umleitende Seitenroute trägt `dk_ohne_seite`) -- ein neuer Global mit
+    die gezeichnet werden: `wird_gezeichnet()`, eine umleitende Seitenroute trägt `dk_ohne_seite(user, request)`) -- ein neuer Global mit
     Daten kommt dort in `laden()`, mit Rückfallwert. Ein leerer Pool ergibt 503 („ausgelastet“). Pool unter PostgreSQL in
     `app/database.py` (5 + 35 = Threadpool 40 je Prozess, 10 s, `pool_pre_ping`; `ERP_DB_*`, `.env.example`).
     `tests/test_v419_verbindungen.py` prüft jede Route und die Verbindungen je Seite, `tests/test_v419_verbindungen_unter_last.py` greift
@@ -1494,8 +1499,8 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   nur über `POST /api/time-entries/{id}/ende-nachtragen` (Ende am Starttag, Pausenregel; Gruppenzeit nur der Kolonnenführer, fremde nach
   `darf_zeit_fuer_andere_buchen()`, im abgeschlossenen Monat nicht die Monteurin). `tests/test_v463_ende_nachtragen.py`.
 - **Einsatzbericht: „Noch offen“ vor jeder Unterschrift** (seit 1.9.36): die Pflichten nur aus `app/service_reports.py::noch_offen()`
-  (dieselben wie seit 1.2.16/1.2.17, je mit Namen); die Seite fragt `GET /api/service-reports/{id}/noch-offen` vor der Unterschrift des
-  Monteurs und vor der des Kunden, nach `nachDemSpeichern()` (`_speichern.html`); die Unterschrift lehnt mit 409 und der Liste ab. Ein
+  (dieselben wie seit 1.2.16/1.2.17, je mit Namen); die Seite fragt `GET /api/service-reports/{id}/noch-offen` (seit 1.9.67 vor „Bericht
+  abschließen“ der Berichtsseite, bis 1.9.66 vor beiden Unterschriften) nach `nachDemSpeichern()` (`_speichern.html`); die Unterschrift lehnt mit 409 und der Liste ab. Ein
   Punkt aus der Prüfvorlage ist nicht löschbar (409, seit 1.9.41 jeder, bis dahin nur Pflichtpunkte), nur ein von Hand ergänzter. Eine neue Pflicht gehört in `noch_offen_je_schritt()` (seit 1.9.66 je Schritt der
   Berichtsseite; `noch_offen()` nimmt die Texte daraus). `tests/test_v464_noch_offen.py`. **Seit 1.9.66** braucht ein Rapport ohne Vorlage
   (`hat_pruefpunkte()`) die Beschreibung, die Art ist nur im leeren Bericht änderbar (`bericht_leer()`, sonst 409 `ART_FEST`; mit ihr wechseln
@@ -2021,7 +2026,7 @@ zufällig (`app/audit.py`, `session.dirty`), deshalb setzt `befuellen()` den Pro
 - ~~Befund 1.8.100 Sicherheit der Seiten~~ -- seit 1.8.104 alle zwölf Lücken geschlossen (Regeln 31–33), `tests/test_v405_befund_seiten.py`
   ohne xfail. HSTS setzt seit 1.8.107 die Anwendung; offen bleibt, ob Nginx den Host weitergibt (für Tablets ohne `Sec-Fetch-Site`) und
   ob es HSTS zusätzlich setzt -- Betreiberprüfung, `docs/archiv/befund-vor-echtbetrieb.md`, "Umsetzung 1.8.104" und "Umsetzung 1.8.107".
-- **364 on…-Attribute mit Zahlen und IDs** stehen in `AUSNAHMEN_HANDLER` (`tests/test_v407_daten_im_html.py`, Regel 32): kein Text mehr,
+- **285 on…-Attribute mit Zahlen und IDs** (seit 1.9.67) stehen in `AUSNAHMEN_HANDLER` (`tests/test_v407_daten_im_html.py`, Regel 32): kein Text mehr,
   aber dasselbe Muster -- Abbau auf data-Attribute bei Gelegenheit, die Liste darf nur kürzer werden.
 - **`client_uuid` am Einsatzbericht ist nicht idempotent -- Pflicht vor Checklisten-Stufe 3
   (offline)** (gefunden beim Checklisten-Befund, 29.09.2026): `InspectionItem`/`Finding`/

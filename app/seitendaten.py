@@ -158,12 +158,13 @@ def seitenroute(request) -> APIRoute | None:
 
 def wird_gezeichnet(request, user) -> bool:
     """Seit 1.8.120 (Korrektur 114-5): ob die Anfrage eine Vorlage zeichnet -- eine Seitenroute, die für diesen Benutzer nicht umleitet.
-    Wann eine Seitenroute umleitet, steht an ihr selbst (Attribut dk_ohne_seite am Endpunkt, app/routers/pages.py)."""
+    Wann eine Seitenroute umleitet, steht an ihr selbst (Attribut dk_ohne_seite am Endpunkt, app/routers/pages.py) -- seit 1.9.67 mit
+    Benutzer und Anfrage (die Auftragsseite leitet mit ?report= zum Bericht)."""
     route = seitenroute(request)
     if route is None:
         return False
     ohne_seite = getattr(route.endpoint, "dk_ohne_seite", None)
-    return not (ohne_seite and ohne_seite(user))
+    return not (ohne_seite and ohne_seite(user, request))
 
 
 def fuer_anfrage(request) -> Seitendaten:

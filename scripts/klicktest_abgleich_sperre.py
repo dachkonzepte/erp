@@ -136,11 +136,14 @@ async def pruefen(tab, seed, p):
                                                          or ""), True)
     await tab.bild("editor_gesperrt")
 
-    # --- Einsatzbericht: Hinweis fürs Büro ---
+    # --- Einsatzbericht: Hinweis fürs Büro (seit 1.9.67 in der Liste des Auftrags und auf der Berichtsseite) ---
     await tab.oeffnen(f"/orders/{gesperrt}/service-reports",
-                      "typeof reports!=='undefined'&&reports.length>0&&document.querySelector('#reportList .report-card')")
+                      "typeof reports!=='undefined'&&reports.length>0&&document.querySelector('#reportList .bericht-zeile')")
     hinweis = await tab.js("document.querySelector('#reportList .office-hint')?.textContent||''")
     p.pruefe("Bericht Büro: Hinweis mit Fläche und Objekt", "„Dach Hof“" in hinweis and "„Wohnanlage Hof“" in hinweis, True)
+    await tab.oeffnen(f"/service-reports/{seed['bericht']}", "typeof R!=='undefined'&&R&&!document.getElementById('raster').hidden")
+    hinweis = await tab.js("(e=>e.hidden?'':e.textContent)(document.getElementById('bueroHinweis'))")
+    p.pruefe("Berichtsseite Büro: Hinweis mit Fläche und Objekt", "„Dach Hof“" in hinweis and "„Wohnanlage Hof“" in hinweis, True)
     await tab.bild("bericht_hinweis")
     await tab.js("document.documentElement.setAttribute('data-theme','dark')")
     await tab.bild("bericht_hinweis_dunkel")
@@ -150,9 +153,13 @@ async def pruefen(tab, seed, p):
     await tab.anmelden(seed["cookies"]["monteurin"])
     await tab.fenster(412, 900, mobil=True)
     await tab.oeffnen(f"/orders/{gesperrt}/service-reports",
-                      "typeof reports!=='undefined'&&reports.length>0&&document.querySelector('#reportList .report-card')")
+                      "typeof reports!=='undefined'&&reports.length>0&&document.querySelector('#reportList .bericht-zeile')")
     p.pruefe("Bericht Monteurin: kein Hinweis", await tab.js("document.querySelectorAll('.office-hint').length"), 0)
     p.pruefe("Bericht Monteurin: nichts vom fremden Objekt", "Hof" in (await tab.js("document.body.innerText") or ""), False)
+    await tab.oeffnen(f"/service-reports/{seed['bericht']}", "typeof R!=='undefined'&&R&&!document.getElementById('raster').hidden")
+    p.pruefe("Berichtsseite Monteurin: kein Hinweis, nichts vom fremden Objekt",
+             [await tab.js("document.getElementById('bueroHinweis').hidden"), "Hof" in (await tab.js("document.body.innerText") or "")],
+             [True, False])
     await tab.bild("bericht_monteurin")
     p.pruefe("Monteurin: JS-Fehler", tab.fehler, [])
     print(json.dumps({"gesperrt": gesperrt, "frei": frei}, ensure_ascii=False))
