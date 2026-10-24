@@ -29,6 +29,7 @@ from app.routers.projects import router as projects_router
 from app.routers.quick_service_orders import router as qso_router
 from app.routers.service_reports import router as sr_router
 from tests.test_v213_inspection_items import _seed_test_template
+from tests import eingeplant
 from tests.test_v263_report_ownership_and_contract_scope import _assign_via_team, _employee, _order_with_property
 
 ROUTERS = (sr_router, findings_router, field_view_router, contracts_router, qso_router, invoices_router, projects_router)
@@ -42,6 +43,7 @@ def welt(threaded_db_session, router_test_client):
     kollege = _employee(db, "T-373-K", "Karl", "Kollege")
     order, kunde, eigen = _order_with_property(db, "AUF-373-0001", "P-373-0001", property_name="Objekt Eigen")
     _assign_via_team(db, order, monteurin)
+    eingeplant.heute(db, order.id)  # seit 1.9.74: ein Bericht nur für einen Auftrag der Liste (tests/eingeplant.py)
     fremdkunde = Customer(name="Fremdkunde", last_name="Fremdkunde", city="Fremdstadt")
     db.add(fremdkunde)
     db.commit()

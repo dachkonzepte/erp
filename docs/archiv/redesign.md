@@ -5083,3 +5083,60 @@ bleiben auch für die Monteurin „Mangel“; 6 Schlüssel-Scan als Monteurin ü
 - **Gegenprobe**: Zeile wieder mit dem Rohwert als `.badge` -> `test_v496` 2 rot, Klicktest rot („entwurf“, `badge entwurf`, `uppercase`).
   Beim ersten Lauf war der Klicktest auch auf dem echten Stand rot: die neue Prüfung selbst hatte einen Syntaxfehler (`}}` in einem
   Teil ohne f-String) -- vor dem Commit behoben, die Gegenprobe danach erneut gelaufen.
+
+## Stufe 4, R4 Nachtrag (ab 1.9.74): Bericht anlegen ohne Einsatz
+
+Vorgabe vom 24.10.2026 (Start HEAD 2483eb1, live): ohne Einsatz in der Plantafel kann die Monteurin keinen Bericht anlegen (Notdienst,
+spontane Reparatur) -- Tobias will das flexibler. Punkte: 0 berichten, ob das vor Stufe 4 auf einem anderen Weg ging; 1 „Heute“: ohne Einsatz
+„Bericht anlegen“ in der Karte „Heute ist nichts eingeplant.“, mit Einsatz zusätzlich „Bericht für einen anderen Auftrag“, beides mit dem
+Dialog „Für welchen Auftrag?“ (dieselbe Liste wie „Zeit nachtragen“) und danach dem gewohnten Weg zum Anlegen; 2 Server: nur für einen Auftrag
+dieser Liste, eine Regel an einer Stelle, sonst 403.
+
+### Punkt 0: Ging das vor Stufe 4 auf einem anderen Weg?
+
+Nein, nicht für einen ungeplanten Auftrag. Vor Stufe 4 (bis 1.9.32, `/mobil` „Einsätze“) führten nur „Heutige Einsätze“ und „Offene Berichte“
+zur Seite des Auftrags (`/orders/{id}/service-reports`), dort „+ Bericht“; Zeiterfassung, Stundenzettel und Objektansicht der Monteurin
+hatten keinen Weg dorthin (geprüft an 6d81016, 1.9.32). Ohne Einsatz heute kam sie also nur über einen eigenen offenen Bericht oder eine
+gemerkte Adresse an „+ Bericht“; der Server ließ jeden Auftrag zu, dem sie an der Arbeitsvorbereitung zugeordnet war (auch ohne Datum) oder
+zu dem sie einen eigenen Bericht hatte (`require_field_order_access()`). Daneben seit 1.3.56 „Wartung durchführen“ an einem Wartungsvertrag
+eines Objekts, an dem sie in den letzten oder nächsten 14 Tagen eingeplant ist (`field_may_perform_maintenance()`): legt einen ungeplanten
+Auftrag samt Bericht an -- heute auf „Heute / Offen“ unter „Wartungen an meinen Objekten“, unverändert. Den Schnellauftrag legt nur das Büro
+an (`/api/quick-service-orders`, ab Büro – Auftrag). Einen Notdienst ganz ohne Auftrag ihrer Liste kann die Monteurin auch nach dieser Runde
+nicht selbst beginnen: das Büro legt den Auftrag an und plant sie ein (ein Datum an der Arbeitsvorbereitung genügt) -- danach steht er in
+ihrer Liste.
+
+### R4 Nachtrag, Punkt 2 (1.9.74): Bericht nur für einen Auftrag der Liste
+
+- `app/planning.py::field_order_in_list(db, employee_id, order_id)`: ob `list_field_bookable_orders()` den Auftrag enthält -- dieselbe Liste
+  wie „Zeit nachtragen“ in „Meine Zeiten“ (`app/meine_zeiten.py`), die Auftragsauswahl auf „Heute“ und `GET /api/field-view/time-tracking/
+  orders`. `POST /api/orders/{id}/service-reports` fragt für die Monteurin nur noch sie (sonst 403 `BERICHT_NUR_EIGENE_AUFTRAEGE` aus
+  `app/meldungen.py`; ohne Mitarbeiter 403 `KEIN_MITARBEITER`); die Liste liegt ganz in der Zugriffsregel (Zuordnung an der
+  Arbeitsvorbereitung oder eigener Bericht), die das Anlegen deshalb nicht mehr eigens fragt. Lesen und Bearbeiten bestehender Berichte
+  bleiben bei `require_field_order_access()` und `require_field_report_ownership()`.
+
+**Festlegungen 1.9.74 (Bitte bestätigen)**
+
+1. Beim Anlegen gilt nur die Liste: ein Auftrag, dem die Monteurin an der Arbeitsvorbereitung ohne Datum zugeordnet ist, einer außerhalb der
+   14 Tage und ein abgeschlossener oder stornierter bekommen keinen neuen Bericht mehr von ihr (bis 1.9.73 schon) -- wie beim Buchen von Zeit.
+2. Die Meldung: „Einen Bericht legst du nur für einen deiner Aufträge an – dieselbe Auswahl wie bei „Zeit nachtragen“. Fehlt ein Auftrag, wende
+   dich an das Büro.“ (in `app/meldungen.py`).
+3. Ein Konto ohne Mitarbeiter bekommt beim Anlegen die gemeinsame Meldung `KEIN_MITARBEITER` (bis 1.9.73 die allgemeine Meldung der
+   Auftragsprüfung).
+4. „+ Bericht“ auf der Seite des Auftrags bleibt sichtbar; für einen Auftrag außerhalb der Liste kommt die Meldung beim Anlegen (erreichbar nur
+   noch über eine gemerkte Adresse oder einen abgeschlossenen Auftrag mit eigenem Bericht).
+5. „Wartung durchführen“ behält seine Regel (`field_may_perform_maintenance()`), das Büro legt weiter für jeden Auftrag an.
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v497_bericht_nur_aus_der_liste.py` (10 Tests): ohne heutigen Einsatz (gestern eingeplant) angelegt; zugeordnet ohne Datum,
+  vor 30 Tagen, nie zugeordnet, abgeschlossen -> 403 mit Meldung, nichts angelegt; eigener Bericht genügt; für jeden Auftrag „in der Liste“
+  (`…/time-tracking/orders`, ebenso „Meine Zeiten“) genau dann, wenn das Anlegen gelingt; Büro für jeden Auftrag; ohne Mitarbeiter 403; die
+  Regel an einer Stelle (AST: das Anlegen fragt `field_order_in_list()`, die liest `list_field_bookable_orders()`).
+- Angepasste Erwartungen (nur Aufbau, Soll unverändert): `test_v260` (`test_report_and_finding_endpoints_follow_the_same_order_access`,
+  `test_own_draft_report_survives_being_taken_off_the_planning`), `test_v372` und `test_v373` (Fixture `welt`, damit auch `test_v374`) legen
+  über eine Zuordnung ohne Datum einen Bericht an -- ihr Auftrag wird jetzt für heute eingeplant (`tests/eingeplant.py::heute()`, Datum an der
+  Arbeitsvorbereitung). Der gemeinsame Helfer `_assign_via_team` bleibt ohne Datum (15 Dateien, darunter Tests des Zeitfensters selbst).
+  Ebenso `klicktest_monteur_dachflaechen` (Max war nur ohne Datum zugeordnet, „Bericht mit Fläche angelegt“ rot): seine Arbeitsvorbereitung
+  trägt jetzt heute als Datum -- Soll unverändert (13/13).
+- **Gegenproben**: Anlegen wieder mit der Zugriffsregel -> `test_v497` 7 rot; `field_order_in_list()` immer wahr -> 6 rot; Liste mit
+  abgeschlossenen Aufträgen -> 2 rot (Anlegen und Liste wandern zusammen).

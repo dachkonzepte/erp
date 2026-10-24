@@ -886,6 +886,13 @@ def list_field_bookable_orders(db: Session, employee_id: int) -> list[dict]:
     ]
 
 
+def field_order_in_list(db: Session, employee_id: int, order_id: int) -> bool:
+    """Seit 1.9.74 (Stufe 4, R4 Nachtrag): ob ein Auftrag in der Auftragsliste der Monteurin steht -- list_field_bookable_orders(), dieselbe
+    Liste wie „Zeit nachtragen“ in „Meine Zeiten“ und „Für welchen Auftrag?“ auf „Heute“. Eine Regel für Liste und Prüfung: einen Bericht
+    legt die Monteurin nur für einen Auftrag dieser Liste an (POST /api/orders/{id}/service-reports), auch ohne heutigen Einsatz."""
+    return any(o["id"] == order_id for o in list_field_bookable_orders(db, employee_id))
+
+
 def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSettings) -> tuple[dict[int, list[dict]], dict[int, dict[date, dict]]]:
     result: dict[int, list[dict]] = defaultdict(list)
     distributions: dict[int, dict[date, dict]] = {}

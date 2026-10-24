@@ -25,6 +25,7 @@ from app.routers.findings import router as findings_router
 from app.routers.roof_areas import router as roof_router
 from app.routers.service_reports import router as sr_router
 from tests.test_v213_inspection_items import _extract_pdf_text, _seed_test_template
+from tests import eingeplant
 from tests.test_v263_report_ownership_and_contract_scope import _assign_via_team, _employee, _order_with_property
 from tests.befund_vor_echtbetrieb import vorbedingung as _vorbedingung
 from tests.test_v326_monteur_datengrenze import _verstoesse
@@ -39,6 +40,7 @@ def welt(threaded_db_session, router_test_client, feste_uhr):
     monteurin = _employee(db, "T-372-M", "Mona", "Monteurin")
     order, _, eigen = _order_with_property(db, "AUF-372-0001", "P-372-0001", property_name="Objekt Eigen")
     _assign_via_team(db, order, monteurin)
+    eingeplant.heute(db, order.id)  # seit 1.9.74: ein Bericht nur für einen Auftrag der Liste (tests/eingeplant.py)
     fremdkunde = Customer(name=f"{MARKE}KUNDE Geheim", last_name=f"{MARKE}KUNDE Geheim", city="Fremdstadt")
     db.add(fremdkunde)
     db.commit()

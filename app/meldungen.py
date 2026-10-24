@@ -14,3 +14,8 @@ MONAT_ABGESCHLOSSEN = "Monat abgeschlossen – das Büro schließt die Zeit."
 
 # Seit 1.9.60 (Stufe 4, R3, Punkt 3): eine reine Dauer trägt nur das Büro ein -- die Monteurin mit Von und Bis (Pausenregel des Tages)
 NUR_VON_BIS = "Bitte Von und Bis angeben – eine reine Dauer trägt nur das Büro ein."
+
+# Seit 1.9.74 (Stufe 4, R4 Nachtrag): einen Bericht legt die Monteurin nur für einen Auftrag ihrer Liste an (app/planning.py::
+# field_order_in_list(), dieselbe Liste wie „Zeit nachtragen“)
+BERICHT_NUR_EIGENE_AUFTRAEGE = ("Einen Bericht legst du nur für einen deiner Aufträge an – dieselbe Auswahl wie bei „Zeit nachtragen“. "
+                                "Fehlt ein Auftrag, wende dich an das Büro.")

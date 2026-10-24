@@ -2080,3 +2080,10 @@ Gegenprobe (Regel 24, Marker `GEGENPROBE`, Datei danach byte-genau zurück, SHA-
 (a) `_time_entry_employee_for_request()` gibt für Nicht-Admins die angefragte `employee_id` zurück -- `test_monteurin_bucht_einzeln_nur_fuer_sich`
 rot (Mia bucht für Max, 200); (b) `_require_crew_leader()` ohne Wirkung -- `test_kolonnenmitglied_ohne_kennzeichen_bucht_nicht_fuer_die_kolonne`
 (Mia bucht für die Kolonne, 200) und `test_kolonnenfuehrerin_bucht_nur_fuer_ihre_kolonne` (fremdes Team 422 statt 403) rot.
+
+## Nachtrag 1.9.74: Bericht anlegen nur für einen Auftrag der Liste
+
+Seit 1.9.74 (Stufe 4, R4 Nachtrag) legt die Monteurin einen Bericht nur für einen Auftrag an, den `list_field_bookable_orders()` enthält
+(`app/planning.py::field_order_in_list()`) -- dieselbe Liste wie die Auftragsauswahl der Zeiterfassung (seit 1.3.60, „Zeiterfassung für
+Monteure“), auch ohne heutigen Einsatz; sonst 403. Bis 1.9.73 galt beim Anlegen `require_field_order_access()` (Weg 1a/1b ohne Datum oder Weg
+2). Lesen und Bearbeiten bleiben bei den Wegen oben. Herleitung und Festlegungen: `docs/archiv/redesign.md`, „Stufe 4, R4 Nachtrag“.

@@ -31,9 +31,11 @@ from sqlalchemy.orm import Session
 
 from ..dateiauslieferung import datei_antwort
 from ..database import get_db
+from ..meldungen import BERICHT_NUR_EIGENE_AUFTRAEGE, KEIN_MITARBEITER
 from ..models import AppUser, InspectionItem, ServiceReportAsset, ServiceReportMaterial, ServiceReportPhoto
 from ..modules import is_module_enabled
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
+from ..planning import field_order_in_list
 from ..schemas import (
     InspectionItemCreate, InspectionItemOut, InspectionItemResultUpdate, InspectionItemsSyncResult,
     PropertyAccessOut, RoofAreaFieldOut, RoofAreaOut, ServiceReportAssetCreate, ServiceReportAssetOut, ServiceReportAssetUpdate,
@@ -187,7 +189,14 @@ def get_property_service_report_history(order_id: int, db: Session = Depends(get
 @router.post("/api/orders/{order_id}/service-reports", response_model=ServiceReportOut)
 def post_service_report(order_id: int, payload: ServiceReportCreate, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
-    require_field_order_access(db, _role, order_id)
+    # seit 1.9.74 (Stufe 4, R4 Nachtrag): die Monteurin nur für einen Auftrag ihrer Liste (field_order_in_list(), dieselbe Liste wie
+    # „Zeit nachtragen“) -- bis dahin jeder Auftrag, auf den sie zugreifen darf (require_field_order_access(): AV-Zuordnung ohne Datum
+    # oder eigener Bericht), auch abgeschlossene; die Liste liegt darin
+    if _role.role == ROLE_FIELD:
+        if _role.employee_id is None:
+            raise HTTPException(status_code=403, detail=KEIN_MITARBEITER)
+        if not field_order_in_list(db, _role.employee_id, order_id):
+            raise HTTPException(status_code=403, detail=BERICHT_NUR_EIGENE_AUFTRAEGE)
     employee_id = _employee_for_request(request, payload.created_by_employee_id)
     try:
         return create_report(
