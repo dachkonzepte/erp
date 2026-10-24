@@ -1264,3 +1264,20 @@ Ruhe -> 1 rot; Strich ohne Prüfung auf Tinte -> 1 rot. Die vier Klicktests lauf
 - Angepasste Erwartung: `test_v482::test_unterschreiben_wartet_erst_auf_ruhe` alt erste Anweisung `tab.warte_auf_ruhe`, neu `tab.strich` (das
   Warten steckt im Helfer, geprüft in `test_v490`).
 - Regel 15 bleibt: Suite und Klicktests werden nie mit „;“ verkettet (im Endlauf der R3-Nachrunde geschehen, dort benannt).
+
+## Befund 24.10.2026: Port-Wettlauf zweier gleichzeitig startender Klicktests (nicht behoben)
+
+Beim Lauf der berührten Klicktests vor dem Commit von 1.9.73 (`klicktest_alle.py --gleichzeitig 4`) war `klicktest_heute` rot, ohne eine
+Prüfung zu erreichen: der Server der Instanz konnte seinen Port nicht binden (`[Errno 10048] … ('127.0.0.1', 21198)` in `server.err.log`,
+uvicorn beendete sich gleich nach dem Start), die ersten Seitenaufrufe endeten mit „Seite nicht bereit“, der nächste mit
+`net::ERR_CONNECTION_REFUSED` („Server: nicht angekommen“), danach brach `_ansehen()` an seiner `assert` ab. Einzeln auf demselben Stand
+sofort grün (55/55).
+
+- Ursache: das bekannte Restrisiko aus dem Docstring von `scripts/cdp_klicktest.py::_freier_port()` -- zwischen der Probe (Binden auf
+  127.0.0.1 und 0.0.0.0) und dem Start der Instanz hat ein anderer Prozess den Port genommen, hier wahrscheinlich ein gleichzeitig
+  startender Klicktest (ERP oder Chrome). `_warte_auf()` nimmt jede HTTP-Antwort als „bereit“ (auch einen Fehlerstatus) -- so galt die
+  Instanz als gestartet, obwohl unter dem Port ein fremder Server antwortete.
+- Die Wiederholung seit 1.9.19 griff nicht: die Abweichung war nicht nur eine nie angekommene Anfrage, sondern ein Abbruch im Klicktest.
+- Vorschlag (nicht gebaut): nach `_warte_auf()` prüfen, dass der eigene Serverprozess noch läuft (`poll() is None`), und `/health` mit
+  einer Kennung der Instanz beantworten lassen (z. B. Wert aus der Umgebung des Kindprozesses), die `_warte_auf()` vergleicht; scheitert
+  das, die Instanz mit einem neuen Port neu starten. Bitte bestätigen.
