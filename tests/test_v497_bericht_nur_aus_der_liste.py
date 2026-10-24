@@ -1,8 +1,9 @@
 """Seit 1.9.74 (Stufe 4, R4 Nachtrag, Punkt 2): die Monteurin legt einen Bericht nur für einen Auftrag ihrer Liste an.
 
     Liste      app/planning.py::list_field_bookable_orders() -- dieselbe Liste wie „Zeit nachtragen“ in „Meine Zeiten“: Aufträge, die in den
-               letzten oder nächsten 14 Tagen für sie eingeplant sind (Abschnitt der Plantafel oder Datum der Arbeitsvorbereitung), und
-               Aufträge mit einem eigenen Bericht; ohne abgeschlossene und stornierte
+               letzten oder nächsten 14 Tagen für sie eingeplant sind (Abschnitt der Plantafel oder Datum der Arbeitsvorbereitung),
+               Aufträge mit einem eigenen Bericht und seit 1.9.76 solche, denen sie ohne Datum zugeordnet ist (test_v499); ohne
+               abgeschlossene und stornierte
     Regel      POST /api/orders/{id}/service-reports als Monteurin nur, wenn field_order_in_list() den Auftrag in dieser Liste findet --
                eine Regel für Liste und Prüfung, sonst 403 (BERICHT_NUR_EIGENE_AUFTRAEGE); auch ohne heutigen Einsatz
     bis 1.9.73 jeder Auftrag, auf den sie zugreifen darf (require_field_order_access(): Zuordnung an der Arbeitsvorbereitung auch ohne Datum,
@@ -71,10 +72,10 @@ def test_ohne_heutigen_einsatz_fuer_einen_auftrag_der_liste_angelegt(welt):
     assert antwort.json()["created_by_employee_id"] == welt["mia"].id and antwort.json()["order_id"] == order.id
 
 
-@pytest.mark.parametrize("name", ["ohne_datum", "alt", "fremd", "abgeschlossen"])
+@pytest.mark.parametrize("name", ["alt", "fremd", "abgeschlossen"])
 def test_auftrag_ausserhalb_der_liste_403_und_nichts_angelegt(welt, name):
-    """Angriff direkt über die API: zugeordnet ohne Datum, vor 30 Tagen eingeplant, nie zugeordnet, abgeschlossen -- 403 mit der Meldung,
-    kein Bericht. „ohne_datum“ und „abgeschlossen“ gingen bis 1.9.73 durch."""
+    """Angriff direkt über die API: vor 30 Tagen eingeplant, nie zugeordnet, abgeschlossen -- 403 mit der Meldung, kein Bericht.
+    „abgeschlossen“ ging bis 1.9.73 durch; „ohne_datum“ (zugeordnet ohne Datum) war 1.9.74–1.9.75 hier, seit 1.9.76 steht er in der Liste."""
     order = welt["auftraege"][name]
     antwort = _anlegen(_als_monteurin(welt), order.id)
     assert antwort.status_code == 403 and antwort.json()["detail"] == BERICHT_NUR_EIGENE_AUFTRAEGE
@@ -94,7 +95,7 @@ def test_liste_und_pruefung_sind_eine_regel(welt):
     liste = {o["id"] for o in client.get("/api/field-view/time-tracking/orders").json()}
     assert liste == {o["id"] for o in client.get("/api/field-view/meine-zeiten").json()["auftraege"]}
     angelegt = {order.id for order in welt["auftraege"].values() if _anlegen(client, order.id).status_code == 200}
-    assert angelegt == liste == {welt["auftraege"][n].id for n in ("gestern", "heute", "eigener_bericht")}
+    assert angelegt == liste == {welt["auftraege"][n].id for n in ("gestern", "heute", "eigener_bericht", "ohne_datum")}
 
 
 def test_buero_legt_fuer_jeden_auftrag_an(welt):

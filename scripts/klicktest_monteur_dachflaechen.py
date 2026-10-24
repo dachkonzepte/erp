@@ -30,7 +30,6 @@ def befuellen(db, k):
     from datetime import date
     from decimal import Decimal
 
-    from app.berlin_time import berlin_today
     from app.inspection_templates import create_template, create_template_item, set_roof_type_template_default
     from app.models import (
         AppUser, Customer, Employee, Order, OrderItem, Project, Property, RoofArea, WorkPreparationEmployee,
@@ -59,10 +58,7 @@ def befuellen(db, k):
     db.add(OrderItem(order_id=auftrag.id, sort_order=10, position_number="1", short_text="Abdichtung",
                      quantity=Decimal("850"), unit="m²", unit_price=Decimal("48.90")))
     db.commit()
-    prep = ensure_preparation(db, auftrag.id)
-    # seit 1.9.74 legt die Monteurin einen Bericht nur für einen Auftrag ihrer Liste an -- die Zuordnung braucht dafür ein Datum (heute)
-    prep.planned_start = prep.planned_end = berlin_today()
-    db.add(WorkPreparationEmployee(preparation_id=prep.id, employee_id=max_m.id))
+    db.add(WorkPreparationEmployee(preparation_id=ensure_preparation(db, auftrag.id).id, employee_id=max_m.id))
     vorlage = create_template(db, "Flachdach-Wartung", roof_type="flachdach")
     create_template_item(db, vorlage["id"], "Abdichtung Sichtprüfung", "ja_nein")
     set_roof_type_template_default(db, "flachdach", vorlage["id"])

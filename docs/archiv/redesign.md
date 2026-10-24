@@ -5182,3 +5182,42 @@ ihrer Liste.
 - **Gegenproben**: kein Knopf ohne Einsatz -> `test_v498` 1 rot, Klicktest 6 rot; kein Knopf für einen anderen Auftrag -> `test_v498` 1
   rot, Klicktest 3 rot; `?neu=1` nicht ausgewertet -> `test_v498` 1 rot, Klicktest 1 rot (Adresse mit `?neu=1`, Datum leer); Liste nur,
   wenn nichts läuft -> `test_v498` 1 rot.
+
+## Stufe 4, R4 Nachtrag 2 (ab 1.9.76): Liste der Aufträge
+
+Vorgabe vom 24.10.2026 (Start HEAD 8d47237): Festlegungen des Nachtrags bestätigt, außer 1.9.74 Nr. 1 (-> Punkt 1) und Nr. 4 (-> Punkt 2).
+Punkte: 1 die Liste (`list_field_bookable_orders()`) enthält zusätzlich Aufträge, denen die Monteurin an der Arbeitsvorbereitung ohne Datum
+zugeordnet ist -- für „Zeit nachtragen“, „Heute“ und das Anlegen gleich (eine Funktion); abgeschlossene, stornierte und solche außerhalb der
+14 Tage bleiben draußen; 2 Seite des Auftrags: „+ Bericht“ nur, wenn der Auftrag in ihrer Liste ist, sonst an seiner Stelle „Für diesen Auftrag
+legt das Büro Berichte an.“; 3 jede Zeile der Liste nennt den Titel des Auftrags -- im Dialog „AUF-2026-0102 · Attika“, darunter „Halle Nord ·
+Hallenbau GmbH · Werkstr. 5, …“, in der Auswahl „Auftrag“ einzeilig, gekürzt.
+
+### R4 Nachtrag 2, Punkt 1 (1.9.76): Aufträge ohne Datum in der Liste
+
+- `app/planning.py::_undatiert_zugeordnete_order_ids()`: Aufträge aus `employee_assigned_order_ids()` (einzeln oder über die Kolonne), deren
+  Arbeitsvorbereitung weder einen Abschnitt der Plantafel noch einen geplanten Zeitraum trägt; `list_field_bookable_order_ids()` nimmt sie
+  ungefenstert dazu (wie die Aufträge mit eigenem Bericht). `list_field_bookable_orders()` filtert wie bisher abgeschlossene und stornierte;
+  `field_order_in_list()`, „Meine Zeiten“, „Heute“ und `GET /api/field-view/time-tracking/orders` fragen alle diese eine Funktion.
+- Ersetzt 1.9.74 Festlegung 1 (ohne Datum kein Bericht) -- nicht bestätigt. Die Testanpassungen von 1.9.74 sind zurückgenommen: `test_v260`
+  (zwei Tests), `test_v372`, `test_v373` (damit `test_v374`) und `klicktest_monteur_dachflaechen` legen ihren Bericht wieder über eine
+  Zuordnung ohne Datum an, `tests/eingeplant.py` ist gelöscht.
+
+**Festlegungen 1.9.76 (Bitte bestätigen)**
+
+1. „Ohne Datum“ heißt: die Arbeitsvorbereitung trägt weder einen Abschnitt der Plantafel noch einen geplanten Zeitraum; zugeordnet einzeln oder
+   über die Kolonne. Trägt sie ein Datum, entscheidet weiter das Zeitfenster (14 Tage vor und nach heute).
+2. „Wartungen an meinen Objekten“ (eigene Liste der Objekte, `list_field_relevant_property_ids()`) nimmt Aufträge ohne Datum weiter nicht auf.
+3. Das Buchen von Zeit prüft auf dem Server weiter die Zugriffsregel (`require_field_order_access()`: zugeordnet mit oder ohne Datum, eigener
+   Bericht) -- die Liste liegt darin. Über die API bucht die Monteurin damit weiter auch auf einen abgeschlossenen Auftrag, den keine Liste
+   zeigt (unverändert seit 1.7.9, hier nur festgehalten).
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v499_liste_ohne_datum.py` (8 Tests): einzeln und über die Kolonne ohne Datum -> in der Liste (Funktion, Auswahl der
+  Zeiterfassung, „Meine Zeiten“, „Heute“), Bericht und Nachtrag gehen; nie zugeordnet -> Bericht und Nachtrag 403 wie bisher; abgeschlossen,
+  storniert, außerhalb der 14 Tage -> nicht in der Liste, 403; „Wartungen an meinen Objekten“ unverändert.
+- Angepasste Erwartungen: `test_v497` -- „ohne_datum“ 403 -> in der Liste und angelegt (aus der Parametrisierung der 403 genommen, in der
+  Menge „in der Liste = angelegt“ ergänzt). Zurück auf den Stand vor 1.9.74 (Aufbau): `test_v260`, `test_v372`, `test_v373`,
+  `klicktest_monteur_dachflaechen`.
+- **Gegenproben**: ohne Datum nicht in der Liste -> `test_v499` 3 rot, `test_v497` 1 rot; jede Zuordnung ohne Zeitfenster -> `test_v499` 2 rot,
+  `test_v497` 2 rot; abgeschlossene in der Liste -> `test_v499` 2 rot, `test_v497` 2 rot.

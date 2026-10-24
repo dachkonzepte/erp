@@ -2086,4 +2086,6 @@ rot (Mia bucht für Max, 200); (b) `_require_crew_leader()` ohne Wirkung -- `tes
 Seit 1.9.74 (Stufe 4, R4 Nachtrag) legt die Monteurin einen Bericht nur für einen Auftrag an, den `list_field_bookable_orders()` enthält
 (`app/planning.py::field_order_in_list()`) -- dieselbe Liste wie die Auftragsauswahl der Zeiterfassung (seit 1.3.60, „Zeiterfassung für
 Monteure“), auch ohne heutigen Einsatz; sonst 403. Bis 1.9.73 galt beim Anlegen `require_field_order_access()` (Weg 1a/1b ohne Datum oder Weg
-2). Lesen und Bearbeiten bleiben bei den Wegen oben. Herleitung und Festlegungen: `docs/archiv/redesign.md`, „Stufe 4, R4 Nachtrag“.
+2). Lesen und Bearbeiten bleiben bei den Wegen oben. Seit 1.9.76 steht in der Liste auch ein Auftrag, dem sie an der Arbeitsvorbereitung
+ohne Datum zugeordnet ist (`_undatiert_zugeordnete_order_ids()`). Herleitung und Festlegungen: `docs/archiv/redesign.md`, „Stufe 4,
+R4 Nachtrag“ und „R4 Nachtrag 2“.

@@ -823,6 +823,22 @@ def list_field_relevant_property_ids(db: Session, employee_id: int, *, window_da
     return property_ids
 
 
+def _undatiert_zugeordnete_order_ids(db: Session, employee_id: int) -> set[int]:
+    """Seit 1.9.76 (Stufe 4, R4 Nachtrag 2): Aufträge, denen der Mitarbeiter an der Arbeitsvorbereitung zugeordnet ist
+    (employee_assigned_order_ids(), Team- oder Einzelzuweisung), deren Arbeitsvorbereitung aber kein Datum trägt -- weder einen Abschnitt
+    der Plantafel noch einen geplanten Zeitraum. Eine datierte Arbeitsvorbereitung entscheidet weiter das Zeitfenster."""
+    order_ids = employee_assigned_order_ids(db, employee_id)
+    if not order_ids:
+        return set()
+    preps = db.scalars(select(WorkPreparation).where(
+        WorkPreparation.order_id.in_(order_ids), WorkPreparation.planned_start.is_(None), WorkPreparation.planned_end.is_(None))).all()
+    if not preps:
+        return set()
+    mit_abschnitt = set(db.scalars(
+        select(PlanningSlot.preparation_id).where(PlanningSlot.preparation_id.in_([p.id for p in preps])).distinct()).all())
+    return {p.order_id for p in preps if p.id not in mit_abschnitt}
+
+
 def list_field_bookable_order_ids(db: Session, employee_id: int, *, window_days: int = 14,
                                    today: date | None = None) -> set[int]:
     """Aufträge, die ein Monteur in der reduzierten Zeiterfassung auf /mobil wählen darf (seit
@@ -849,7 +865,13 @@ def list_field_bookable_order_ids(db: Session, employee_id: int, *, window_days:
     öffnen, aber keine Zeit auf den dafür entstandenen Auftrag buchen -- exakt die Divergenz, die
     field_may_access_order() an anderer Stelle bereits ausdrücklich vermeidet ("ein Monteur soll
     nie Zeit auf einen Auftrag buchen können, dessen Bericht er nicht öffnen darf, oder
-    umgekehrt")."""
+    umgekehrt").
+
+    Seit 1.9.76 (Stufe 4, R4 Nachtrag 2) dazu, ebenfalls ungefenstert: jeder Auftrag, dem er an der Arbeitsvorbereitung zugeordnet ist,
+    deren Arbeitsvorbereitung gar kein Datum trägt (_undatiert_zugeordnete_order_ids()) -- bis 1.9.75 fehlte er ("kein Anhaltspunkt
+    für aktuell"), obwohl Buchen und Zugriff ihn zuließen. Seit 1.9.74 gilt diese Liste auch fürs Anlegen eines Berichts
+    (field_order_in_list()); außerhalb des Fensters datierte Aufträge bleiben draußen, abgeschlossene und stornierte filtert
+    list_field_bookable_orders()."""
     today = today or berlin_today()
     relevant_prep_ids = _relevant_preparation_ids_for_employee(db, employee_id, window_days=window_days, today=today)
 
@@ -861,6 +883,7 @@ def list_field_bookable_order_ids(db: Session, employee_id: int, *, window_days:
     order_ids.update(db.scalars(
         select(ServiceReport.order_id).where(ServiceReport.created_by_employee_id == employee_id).distinct()
     ).all())
+    order_ids.update(_undatiert_zugeordnete_order_ids(db, employee_id))
     return order_ids
 
 

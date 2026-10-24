@@ -26,7 +26,6 @@ from app.permissions import (
     PAGE_AUDIT_EXEMPT, ROLE_ADMIN, ROLE_AUDIT_EXEMPT, ROLE_FIELD, ROLE_OFFICE_AUFTRAG,
     ROLE_OFFICE_FINANZEN, require_min_role, require_role,
 )
-from tests import eingeplant
 
 
 def _iter_role_marked_dependants(dependant):
@@ -532,7 +531,6 @@ class TestObjectFilteringForFieldTeilB:
         mine, customer, prop = self._order(db, "AUF-B-0020", "P-B-0020")
         foreign, _, _ = self._order(db, "AUF-B-0021", "P-B-0021", property_id=prop, customer=customer)
         self._assign_via_team(db, mine, monteur)
-        eingeplant.heute(db, mine.id)  # seit 1.9.74: ein Bericht nur für einen Auftrag der Liste (tests/eingeplant.py)
         fid = create_report(db, foreign.id, "rapport")["id"]
         field = router_test_client(db, sr_router, findings_router, templates_router, role="field", employee_id=monteur.id)
         update = {"report_type": "rapport", "performed_at": "2026-09-14"}
@@ -578,7 +576,6 @@ class TestObjectFilteringForFieldTeilB:
         colleague = self._employee(db, "T-B8", "Carl", "Kollege")
         order, _, _ = self._order(db, "AUF-B-0030", "P-B-0030")
         assignment = self._assign_individually(db, order, monteur)
-        eingeplant.heute(db, order.id)  # seit 1.9.74: ein Bericht nur für einen Auftrag der Liste (tests/eingeplant.py)
         field = router_test_client(db, sr_router, role="field", employee_id=monteur.id)
         created = field.post(f"/api/orders/{order.id}/service-reports", json={"report_type": "rapport"})
         assert created.status_code == 200, created.text
