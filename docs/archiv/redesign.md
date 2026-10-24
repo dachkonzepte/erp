@@ -4667,3 +4667,75 @@ Seiten (L3, L5) als eingegebene Mindestpause in die Buchung.
 - **Gegenproben**: P1 Kolonnenführer darf eine Dauer nachtragen -> 1 rot; P2 darf die Stunden der Kolonne ändern -> 1 rot; P3 alle Mitglieder
   rechnen mit dem Tag des ersten -> 1 rot, Klicktest 5 rot; P4 Ändern ohne Angabe nimmt 0 -> 1 rot; P5 Vorschau ohne Prüfung des
   Kolonnenführers -> 1 rot; P6 Vorschau ohne „Tag zusammen“ -> Klicktest 1 rot (die Anzeige prüft nur der Klicktest).
+
+## Stufe 4, R4 (ab 1.9.64): Einsatzbericht in fünf Schritten
+
+Auftrag von Tobias (24.10.2026), Start auf 49089bb. Vorlagen `bildgrundlage/entwurf-stufe4/bericht-pruefpunkte.html` und
+`bericht-unterschrift.html` (freigegeben, nur quer). Punkt 0: Befund zuerst -- welche Berichtsarten es gibt, welche Abschnitte jede hat, auf
+welchen der fünf Schritte (1 Prüfpunkte · 2 Befunde · 3 Material · 4 Betriebsmittel · 5 Unterschrift) sie kommen; ein Schritt ohne Inhalt
+entfällt; passt eine Art nicht sauber in die Schritte: anhalten und berichten, nicht bauen.
+
+### Befund (vor dem Umbau): Berichtsarten, Abschnitte, Schritte
+
+**Die Seite heute** ist eine Seite je **Auftrag**, nicht je Bericht: `/orders/{id}/service-reports` (`service_reports.html`) zeigt alle Berichte
+des Auftrags als Karten, jeder mit den Umschaltern Prüfpunkte · Mängel ohne Prüfpunkt · Material · Betriebsmittel. Eingänge: „Heute“
+(„Bericht fortsetzen“ mit `?report=<id>`, „Bericht anlegen“ ohne), „Heute / Offen“ (`?report=`), Wartungsvertrag „Wartung durchführen“
+(`?report=`), das Büro über die Auftragsseite. `?report=` klappt heute nur die Prüfpunkte dieses Berichts auf.
+
+**Berichtsarten** (`ServiceReport.report_type` nur `rapport` oder `wartung`, `app/service_reports.py::REPORT_TYPES`; ob es Prüfpunkte gibt,
+entscheidet `hasInspectionSection()`: Wartung immer, Rapport nur mit Vorlage an einer seiner Dachflächen):
+
+| Art | entsteht | Prüfpunkte |
+|---|---|---|
+| A Wartungsbericht | „+ Bericht“ mit Art Wartung; „Wartung durchführen“ (Vertrag, „Heute / Offen“) über alle Flächen | aus der Standardvorlage je Dachtyp je gewählter Fläche (ohne Fläche keine, „+ Punkt“ geht immer) |
+| B Rapportbericht mit Prüfvorlage | „+ Bericht“ mit Art Rapport, genau einer Fläche und gewählter Vorlage | aus der Vorlage, „+ Punkt“ |
+| C Rapportbericht ohne Prüfvorlage | „+ Bericht“ mit Art Rapport ohne Vorlage (Reparatur) | keine, auch kein „+ Punkt“ |
+
+Status für alle: `entwurf` oder `unterschrieben`. Die Art lässt sich im Entwurf über „Bearbeiten“ wechseln (A <-> C/B), Prüfpunkte entstehen
+dabei nicht neu.
+
+**Abschnitte je Bericht und ihr Schritt**:
+
+| Abschnitt | A | B | C | Schritt |
+|---|---|---|---|---|
+| Prüfpunkte: Antworten (OK/Nicht OK/Entfällt, Dichtheit mit Minuten, Zustand 1–4, Messwert mit Soll, Menge, Freitext, Foto-Punkt), „+ Bemerkung“, Fotos am Punkt (auch Vorher/Nachher), „+ Punkt“, eigenen Punkt löschen, „Prüfpunkte neu erzeugen“, Hinweis „n Prüfpunkte ergänzt“, Stand „x von y, n Pflichtpunkte offen“ | ja | ja | -- | 1 |
+| Befund am Prüfpunkt: „Mangel fehlt noch“ mit „+ Mangel“, Karte mit Schwere, Maßnahme, Wiedervorlage, Fotos, „+ Material“, Nachverfolgung (Status, Maßnahme, „Aufgabe nachholen“) | ja | ja | -- | 1 (direkt unter dem Punkt) und 2 |
+| Befunde ohne Prüfpunkt (dieselbe Karte, „+ Mangel“) | ja | ja | ja | 2 |
+| Material (Katalogsuche, freie Bezeichnung, Menge, Einheit, Fläche ab zwei, Zuordnung zum Befund, ändern, löschen) | ja | ja | ja | 3 |
+| Betriebsmittel (Modul `betriebsmittel`; Auswahl, Notiz, entfernen) | ja | ja | ja | 4 (entfällt ohne Modul) |
+| Zeiten am Tag des Berichts (Regel aus R1, `zeiten_des_berichts()`) | ja | ja | ja | 5 |
+| Unterschrift Monteur und Kunde mit Namen, „Noch offen“ | ja | ja | ja | 5 |
+| PDF (nach der Unterschrift), Löschen (Entwurf), Hinweis fürs Büro (Fläche fremd) | ja | ja | ja | Kopf („⋮“) |
+| **Beschreibung „Durchgeführte Arbeiten / Feststellungen“** (steht im PDF; heute nur über „Bearbeiten“ → „Speichern“) | ja | ja | ja | **keiner** |
+| **Kopfdaten: Art, Datum** (über „Bearbeiten“; „Durchgeführt von“ nur beim Anlegen) | ja | ja | ja | **keiner** |
+
+**Auf der Ebene des Auftrags** (nicht je Bericht, in der Vorlage nicht enthalten -- sie zeigt einen Bericht): Objekt & Zugang, offene
+Bedenken, die Liste der Berichte mit „+ Bericht“ (Anlegen: Art, Datum, Durchgeführt von, Dachflächen, Vorlage nur bei genau einer Fläche,
+Beschreibung), „Frühere Berichte zu diesem Gebäude“, „Erfasste Zeiten zu diesem Auftrag“ mit Buchen (Punkt 5), im Menü „Zeiterfassung
+(Auftrag)“.
+
+**Schritte je Art**: A und B alle fünf (4 entfällt ohne Modul Betriebsmittel); C ohne Schritt 1 -- 2 Befunde · 3 Material · 4 Betriebsmittel
+· 5 Unterschrift.
+
+**Ergebnis: angehalten, nichts am Einsatzbericht gebaut.** Der Rapportbericht ohne Prüfvorlage (C) passt nicht sauber: sein Kern, die
+Beschreibung der durchgeführten Arbeiten, hat keinen Schritt -- bei A und B ebenso, dort ist sie Ergänzung. Dazu fehlt in den Vorlagen die
+Ebene des Auftrags, auf die der Pfad „Heute / <Auftrag> / <Art>“ zeigt.
+
+**Vorschläge (Entscheidung Tobias)**
+
+1. Beschreibung „Durchgeführte Arbeiten / Feststellungen“:
+   a) **Empfehlung**: Schritt 1 heißt je Art „Prüfpunkte“ (A, B) bzw. „Arbeiten“ (C); das Feld steht bei C als Inhalt von Schritt 1, bei A und B
+      unter den Prüfpunkten -- fünf Schritte für jede Art, keiner entfällt bei C.
+   b) eigener Schritt „Arbeiten“ vor „Befunde“ für alle Arten (sechs Schritte).
+   c) das Feld in Schritt 5 über „Das steht im Bericht“ (zuletzt geschrieben, der Kunde liest es vor der Unterschrift).
+   In allen Fällen gespeichert wie die Bemerkungen (600 ms nach der letzten Taste und beim Verlassen, der Fokus bleibt), nicht mehr über
+   „Bearbeiten“.
+2. Kopfdaten: „⋮ → Datum ändern“ (Dialog auf der Seite); die Art nur beim Anlegen (ein Wechsel ändert, welche Schritte es gibt, ohne
+   Prüfpunkte zu erzeugen) -- oder die Art weiter änderbar, dann wechseln die Schritte mit.
+3. Zwei Seiten: die **Auftragsseite** `/orders/{id}/service-reports` bleibt für Liste, „+ Bericht“, Objekt & Zugang, offene Bedenken,
+   frühere Berichte und die Zeiten (Büro unverändert, die Monteurin „Zeit nachtragen“ → „Meine Zeiten“, Punkt 5); der **Bericht** bekommt
+   eine eigene Seite `/service-reports/{id}` mit den fünf Schritten, Pfad „Heute / <Auftrag> / <Art>“ (Auftrag = die Auftragsseite), fürs
+   Büro „Projekte / … / Auftrag / Einsatzberichte / <Art>“. `?report=<id>` leitet auf die Berichtsseite, „+ Bericht“ öffnet nach dem Anlegen
+   den neuen Bericht (Regel „nach dem Anlegen zum Datensatz“), „Heute“ öffnet „Bericht fortsetzen“ direkt dort.
+4. Benennung: auf der Seite „Befund“ statt „Mangel“ (wie die Vorlage; Modell `Finding`), der Mangel an der Abnahme (`Defect`) bleibt
+   „Mangel“.
