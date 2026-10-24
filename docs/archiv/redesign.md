@@ -5253,3 +5253,33 @@ ebenso dem Hinweis weichen?
   `{id, order_number, customer_name, items}` -> dazu `bericht_anlegen` (und es ist für den ohne Datum zugeordneten Auftrag wahr).
 - **Gegenproben**: Server meldet immer `bericht_anlegen` -> `test_v500` 1 rot, Klicktest 1 rot; Seite fragt das Kennzeichen nicht ->
   `test_v500` 1 rot, Klicktest 1 rot; `?neu=1` ohne Prüfung -> `test_v500` 1 rot, Klicktest 1 rot (Editor offen).
+
+### R4 Nachtrag 2, Punkt 3 (1.9.78): der Titel in jeder Zeile der Liste
+
+- `list_field_bookable_orders()` liefert dazu `title` und `property_name` (Schnappschuss am Auftrag).
+- Neu `app/templates/_auftrag_text.html`: `auftragTitel(o)` („Nummer · Titel“), `auftragNeben(o)` („Objekt · Kunde · Adresse“),
+  `auftragText(o)` (beides einzeilig, höchstens `AUFTRAG_TEXT_MAX` = 60 Zeichen, sonst mit „…“ gekürzt). `mobil.html` (Auswahl „Auftrag“,
+  „Mit Tätigkeit starten“, „Für die Kolonne starten“, Dialog „Für welchen Auftrag?“) und `mobil_zeiten.html` („Zeit nachtragen“, Kolonne)
+  binden ihn ein; ihre eigenen `auftragText()` sind entfallen.
+
+**Festlegungen 1.9.78 (Bitte bestätigen)**
+
+1. Im Dialog die erste Zeile „Nummer · Titel“, die zweite „Objekt · Kunde · Adresse“ (Objekt wie am Auftrag festgehalten); fehlt ein Teil,
+   entfällt er samt Trenner.
+2. In der Auswahl „Nummer · Titel · Objekt · Kunde · Adresse“ in einer Zeile, ab 60 Zeichen nach dem 59. Zeichen mit „…“ gekürzt (nicht an
+   einer Wortgrenze).
+3. Eine Stelle (`_auftrag_text.html`) für „Heute“ und „Meine Zeiten“; die anderen Auftragsanzeigen (Kopf der Seiten, Einsatzkarten, „Nächste
+   Tage“) bleiben, wie sie sind.
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v501_auftrag_mit_titel.py` (4 Tests): die Liste liefert Titel und Objekt; Dialog zweizeilig mit Titel (node, Baustein);
+  zwei Aufträge am selben Objekt in der Auswahl verschieden, je höchstens 60 Zeichen, gekürzt mit „…“, kurz ungekürzt; beide Seiten binden
+  den Baustein ein und haben keine eigene Fassung.
+- `klicktest_bericht_ohne_einsatz` neu: Zeilen des Dialogs „AUF-2026-0102 · Attika“ / „AUF-2026-0101 · Notdienst Rinne“, je darunter „Halle
+  Nord · Hallenbau GmbH · Werkstr. 5, 52531 Übach-Palenberg“; Auswahl in „Zeit nachtragen“ einzeilig mit Titel, höchstens 60 Zeichen,
+  verschieden (Bild 7, die Auswahl fürs Bild als offene Liste). Keine bestehende Erwartung geändert.
+- Aufbau: `tests/test_v334_auswahl_restfaelle.py::BAUSTEINE` nimmt `_auftrag_text.html` auf -- die Attrappe der Seiten in node bindet nur
+  Bausteine dieser Liste ein; ohne ihn liefen `test_v450` (drei Tests zu „Meine Zeiten“) im ersten Lauf auf „auftragText is not defined“.
+- **Gegenproben**: Titel fehlt in der Liste -> `test_v501` 2 rot, Klicktest 2 rot; Auswahl ungekürzt -> `test_v501` 1 rot, Klicktest 1 rot;
+  Dialog ohne Titel -> `test_v501` 1 rot, Klicktest 1 rot.

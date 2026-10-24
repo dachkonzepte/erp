@@ -889,7 +889,8 @@ def list_field_bookable_order_ids(db: Session, employee_id: int, *, window_days:
 
 def list_field_bookable_orders(db: Session, employee_id: int) -> list[dict]:
     """Die offenen Aufträge aus list_field_bookable_order_ids() als Anzeige-Dict (ID,
-    Auftragsnummer, Kundenname, Objektadresse) -- die Auftragsauswahl der reduzierten
+    Auftragsnummer, Kundenname, Objektadresse; seit 1.9.78 Titel und Objekt -- zwei Aufträge am selben Objekt
+    unterscheidet der Titel, app/templates/_auftrag_text.html) -- die Auftragsauswahl der reduzierten
     Zeiterfassung. Eine Definition für GET /api/field-view/time-tracking/orders und den
     Monteur-Zweig von GET /api/time-tracking/context (seit 1.8.24)."""
     order_ids = list_field_bookable_order_ids(db, employee_id)
@@ -904,7 +905,8 @@ def list_field_bookable_orders(db: Session, employee_id: int) -> list[dict]:
         .order_by(Order.order_number.desc())
     ).all()
     return [
-        {"id": o.id, "order_number": o.order_number, "customer_name": o.customer_name, "property_address": o.property_address}
+        {"id": o.id, "order_number": o.order_number, "title": o.title, "property_name": o.property_name,
+         "customer_name": o.customer_name, "property_address": o.property_address}
         for o in rows
     ]
 

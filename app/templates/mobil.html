@@ -204,6 +204,7 @@
 {% include "_zahl.html" %}
 {% include "_speichern.html" %}
 {% include "_menue.html" %}
+{% include "_auftrag_text.html" %}
 <script>
 var CHECKLISTS_ENABLED={{ 'true' if is_module_enabled('checklisten') else 'false' }};
 var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
@@ -307,7 +308,7 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
       +'<div class="kacheln" id="startKacheln">'+kacheln+'</div><div class="status" id="zeitStatus" role="status"></div>'
       +'<div class="ergebnis" id="zeitErgebnis" role="status"></div></section>';
   }
-  function auftragText(o){return (o.order_number||'')+(o.customer_name?' · '+o.customer_name:'')+(o.property_address?' · '+String(o.property_address).replace(/\n/g,', '):'')}
+  // auftragText(), auftragTitel(), auftragNeben(): seit 1.9.78 aus _auftrag_text.html (mit dem Titel des Auftrags)
   // Seit 1.9.58: „⋮“ nur, wenn es etwas zu wählen gibt -- Tätigkeiten (Optionsgruppe) bzw. Kolonnen des Kolonnenführers
   function startMenue(z){
     var eintraege=(z.taetigkeiten.length?'<button type="button" class="ds-menue-eintrag" id="startMitTaetigkeit">Mit Tätigkeit starten</button>':'')
@@ -491,14 +492,14 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
     el('berichtAndererAuftrag').addEventListener('click',berichtDialogOeffnen);
   }
   // „Für welchen Auftrag?“: je Auftrag der Liste eine Zeile (64 px) zur Seite des Auftrags, dort öffnet ?neu=1 gleich „Bericht anlegen“;
-  // ohne Auftrag derselbe Hinweis wie in „Meine Zeiten“
+  // ohne Auftrag derselbe Hinweis wie in „Meine Zeiten“. Seit 1.9.78 „Nummer · Titel“, darunter „Objekt · Kunde · Adresse“
   var KEINE_AUFTRAEGE='Keine eigenen Aufträge im Zeitraum gefunden. Fehlt ein Einsatz, wende dich an das Büro.';
   function berichtDialogOeffnen(){
     var liste=(H&&H.auftraege)||[];
     el('berichtAuftraege').innerHTML=liste.length?liste.map(function(o){
-      var neben=[o.customer_name,String(o.property_address||'').split('\n').join(', ')].filter(Boolean).join(' · ');
+      var neben=auftragNeben(o);
       return '<a class="zeile auftrag-zeile" href="/orders/'+o.id+'/service-reports?neu=1" data-auftrag="'+o.id+'"><div class="zeile-text">'
-        +'<span class="zeile-titel">'+esc(o.order_number||'Auftrag')+'</span>'+(neben?'<span class="zeile-sub">'+esc(neben)+'</span>':'')+'</div>'+PFEIL+'</a>';
+        +'<span class="zeile-titel">'+esc(auftragTitel(o)||'Auftrag')+'</span>'+(neben?'<span class="zeile-sub">'+esc(neben)+'</span>':'')+'</div>'+PFEIL+'</a>';
     }).join(''):'<p class="leer-text" style="margin:0">'+esc(KEINE_AUFTRAEGE)+'</p>';
     el('berichtDialog').showModal();
   }

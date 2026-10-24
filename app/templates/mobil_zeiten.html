@@ -273,6 +273,7 @@
 {% include "_zahl.html" %}
 {% include "_speichern.html" %}
 {% include "_menue.html" %}
+{% include "_auftrag_text.html" %}
 <script>
 var KEIN_MITARBEITER={{ kein_mitarbeiter|tojson }};
 function esc(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})}
@@ -295,7 +296,7 @@ function ergebnisTeile(text){return String(text).split(' · ').map(function(t){r
 function tagZusammen(d){return d&&d.tag_buchungen>1?' · Tag zusammen '+stundenUhr(Number(d.tag_zusammen)*60):''}
 // dieselbe Zeile wie auf „Heute“: anwesend · Tag zusammen · Pause nach Zeitregel (h:mm), dann gebucht (dezimal)
 function buchungsText(d,gross){return (gross?'Anwesend ':'anwesend ')+stundenUhr(Number(d.anwesend)*60)+tagZusammen(d)+' · Pause nach Zeitregel − '+stundenUhr(d.pause)}
-function auftragText(o){return (o.order_number||'')+(o.customer_name?' · '+o.customer_name:'')+(o.property_address?' · '+String(o.property_address).replace(/\n/g,', '):'')}
+// auftragText(): seit 1.9.78 aus _auftrag_text.html (Nummer · Titel · Objekt · Kunde · Adresse, einzeilig gekürzt)
 var PUNKTE='<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="12" cy="19" r="1.8"></circle></svg>';
 
 // ?order_id= (Einsatzbericht „Zeiterfassung (Auftrag)“, frühere Adresse /time-tracking?order_id=) wählt den Auftrag im Dialog vor

@@ -1,0 +1,15 @@
+{# Seit 1.9.78 (Stufe 4, R4 Nachtrag 2, Punkt 3): wie ein Auftrag aus der Liste der Monteurin heißt (list_field_bookable_orders(): Nummer,
+   Titel, Objekt, Kunde, Adresse) -- zwei Aufträge am selben Objekt unterscheidet der Titel. Eine Stelle für „Heute“ und „Meine Zeiten“.
+     auftragTitel(o)  „AUF-2026-0102 · Attika“ -- erste Zeile im Dialog „Für welchen Auftrag?“
+     auftragNeben(o)  „Halle Nord · Hallenbau GmbH · Werkstr. 5, 52531 Übach-Palenberg“ -- zweite Zeile
+     auftragText(o)   beides in einer Zeile, höchstens AUFTRAG_TEXT_MAX Zeichen, sonst mit „…“ gekürzt -- die Auswahl „Auftrag“ in „Zeit
+                      nachtragen“ und auf „Heute“ #}
+<script>
+var AUFTRAG_TEXT_MAX=60;
+function auftragTitel(o){return [o.order_number,o.title].filter(Boolean).join(' · ')}
+function auftragNeben(o){return [o.property_name,o.customer_name,String(o.property_address||'').split('\n').join(', ')].filter(Boolean).join(' · ')}
+function auftragText(o){
+  var t=[auftragTitel(o),auftragNeben(o)].filter(Boolean).join(' · ');
+  return t.length>AUFTRAG_TEXT_MAX?t.slice(0,AUFTRAG_TEXT_MAX-1).trimEnd()+'…':t;
+}
+</script>

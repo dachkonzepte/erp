@@ -10,7 +10,9 @@ Feste Uhr 10:00.
                         Datum heute), die Adresse ohne ?neu; „Anlegen“ -> der neue Bericht (Auftrag A, Mia); quer hell (Bilder 1–3), hoch
                         800 × 1100 mit Dialog; F direkt über die API -> 403 mit der Meldung; seit 1.9.77 Seite von G (auch mit ?neu=1):
                         kein „+ Bericht“, an seiner Stelle „Für diesen Auftrag legt das Büro Berichte an.“, kein Editor (Bild 6, ganze
-                        Seite); Seite von A mit „+ Bericht“ ohne Hinweis
+                        Seite); Seite von A mit „+ Bericht“ ohne Hinweis; seit 1.9.78 Zeilen des Dialogs „Nummer · Titel“, darunter
+                        „Objekt · Kunde · Adresse“ (A und B am selben Objekt unterscheidbar), Auswahl „Auftrag“ in „Zeit nachtragen“
+                        einzeilig mit Titel, höchstens 60 Zeichen (Bild 7, als offene Liste)
     Tom (Einsatz C)     „Bericht anlegen“ in der Karte wie bisher (zur Seite von C), darunter „Bericht für einen anderen Auftrag“ (neutral,
                         48 px, außerhalb der Karte); Klick -> Dialog mit C und A (Bild 4)
     überall             keine JS-Fehler
@@ -97,6 +99,7 @@ ZEILEN = ("[document.getElementById('berichtDialog').open,document.getElementByI
           "[...document.querySelectorAll('#berichtAuftraege a')].map(a=>[Number(a.dataset.auftrag),a.getAttribute('href'),"
           "Math.round(a.getBoundingClientRect().height)>=56])]")
 LISTE = "fetch('/api/field-view/time-tracking/orders').then(r=>r.json()).then(l=>l.map(o=>o.id))"
+ZEITEN_BEREIT = "!document.getElementById('tage').classList.contains('laedt')&&document.getElementById('monatName').textContent!==''"
 AUFTRAG_GELADEN = "typeof orderData!=='undefined'&&!!orderData&&!!document.getElementById('reportList')"
 KNOPF_ODER_HINWEIS = ("[document.getElementById('neuerBericht').hidden,document.getElementById('berichtNurBuero').hidden,"
                       "document.getElementById('berichtNurBuero').textContent,document.getElementById('editorCard').classList.contains('hidden')]")
@@ -131,6 +134,11 @@ async def pruefen(tab, seed, p):
     await tab.warten("document.getElementById('berichtDialog').open")
     p.pruefe("Dialog „Für welchen Auftrag?“: genau diese Liste, je Zeile zur Seite des Auftrags mit ?neu=1, ≥ 56 px", await tab.js(ZEILEN),
              [True, "Für welchen Auftrag?", _soll(liste)])
+    # seit 1.9.78: jede Zeile mit dem Titel -- A und B liegen am selben Objekt
+    p.pruefe("Dialog: „Nummer · Titel“, darunter „Objekt · Kunde · Adresse“ -- zwei Aufträge am selben Objekt unterscheidbar", await tab.js(
+        "[...document.querySelectorAll('#berichtAuftraege a')].map(a=>[a.querySelector('.zeile-titel').textContent,"
+        "a.querySelector('.zeile-sub').textContent])"),
+        [["AUF-2026-0102 · Attika", "Halle Nord · Hallenbau GmbH · Werkstr. 5, 52531 Übach-Palenberg"], ["AUF-2026-0101 · Notdienst Rinne", "Halle Nord · Hallenbau GmbH · Werkstr. 5, 52531 Übach-Palenberg"]])
     await tab.bild("2_dialog_quer_hell")
     await tab.js("document.getElementById('berichtDialogAbbrechen').click()")
     p.pruefe("„Abbrechen“ schließt den Dialog", await tab.js("document.getElementById('berichtDialog').open"), False)
@@ -180,6 +188,18 @@ async def pruefen(tab, seed, p):
         "["+ZEILEN+",(()=>{const r=document.getElementById('berichtDialogAbbrechen').getBoundingClientRect();return r.bottom<=innerHeight&&r.top>=0})()]"),
         [[True, "Für welchen Auftrag?", _soll(liste)], True])
     await tab.bild("2b_dialog_hoch_hell")
+
+    # seit 1.9.78: die Auswahl „Auftrag“ in „Zeit nachtragen“ -- einzeilig mit dem Titel, gekürzt
+    await tab.fenster(1280, 620, mobil=True)
+    await tab.oeffnen("/mobil/zeiten", ZEITEN_BEREIT)
+    await tab.js("document.getElementById('nachtragenKnopf').click()")
+    await tab.warten("document.getElementById('zeitDialog').open")
+    p.pruefe("„Zeit nachtragen“: Auswahl „Auftrag“ einzeilig mit Titel, höchstens 60 Zeichen, unterscheidbar", await tab.js(
+        "(()=>{const t=[...document.querySelectorAll('#zdAuftrag option')].filter(o=>o.value).map(o=>o.textContent);"
+        "return [t.map(x=>x.split(' · ').slice(0,2).join(' · ')),t.every(x=>x.length<=60&&!x.includes('\\n')),new Set(t).size===t.length]})()"),
+        [["AUF-2026-0102 · Attika", "AUF-2026-0101 · Notdienst Rinne"], True, True])
+    await tab.js("(s=>{s.size=3;s.style.height='auto'})(document.getElementById('zdAuftrag'))")  # fürs Bild als offene Liste
+    await tab.bild("7_zeit_nachtragen_auswahl_quer_hell")
     p.pruefe("Mia: keine JS-Fehler", tab.fehler, [])
 
     # --- Tom: Einsatz heute --------------------------------------------------------------------------------------------------------
