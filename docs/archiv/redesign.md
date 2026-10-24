@@ -4992,3 +4992,23 @@ bleiben auch für die Monteurin „Mangel“; 6 Schlüssel-Scan als Monteurin ü
   beseitigt melden“; `klicktest_maengel_monteur` „Befund als beseitigt gemeldet …“/„Keine Befunde …“ -> „Mangel …“/„Keine Mängel …“.
 - **Gegenproben 1.9.69**: „Heute / Offen“ sagt „Befunde zur Beseitigung“ -> `test_v493` 1 rot; der Weg der Monteurin meldet „Befund nicht
   gefunden.“ -> `test_v493` und `test_v354` je 1 rot; der Befund im Bericht meldet „Mangel nicht gefunden.“ -> `test_v493` 1 rot.
+### R4 Nachrunde, Punkt 2 (1.9.70): „Noch offen“ mit der Dachfläche
+
+- `app/service_reports.py::noch_offen_je_schritt()`: `_flaechen_des_berichts()` (Fläche -> Name aus dem Schnappschuss am Bericht, nur bei
+  mehr als einer Fläche), `_befund_flaeche()` (Prüfpunkt, sonst Bauteil); danach werden gleiche Zeilen durchgezählt. `noch_offen()`, die
+  Ablehnung der Unterschrift und die Berichtsseite nehmen die Texte unverändert daraus.
+
+**Festlegungen 1.9.70 (Bitte bestätigen)**
+
+1. Die Fläche steht als „ · <Name der Fläche>“ am Ende der Zeile (Name wie am Bericht festgehalten), nur bei mehr als einer Fläche am Bericht.
+2. Ein Befund bekommt die Fläche seines Prüfpunkts, ohne Prüfpunkt die seines Bauteils; ohne beides keine Angabe.
+3. Bleiben zwei Zeilen gleich, bekommt die zweite „(2)“, die dritte „(3)“ -- die erste bleibt ohne Zahl.
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v494_noch_offen_flaechen.py` (4 Tests): derselbe Pflichtpunkt auf zwei Flächen -> zwei Zeilen mit Fläche, keine doppelt,
+  ebenso in der Ablehnung der Unterschrift; eine Fläche ohne Angabe; Befund mit Fläche über Prüfpunkt und Bauteil, ohne beides ohne; zwei
+  gleichnamige Punkte ohne Fläche -> „(2)“.
+- `klicktest_bericht_schritte`: neu „Noch offen“ mit beiden Flächen und ohne doppelte Zeile; angepasste Erwartung „Foto zum Befund „Gully
+  verstopft, Laub“ aufnehmen“ -> „… aufnehmen · Dachfläche Nord“ (der Bericht hat zwei Flächen).
+- **Gegenproben**: ohne Fläche in der Zeile -> `test_v494` 2 rot, Klicktest 2 rot; gleiche Zeilen nicht gezählt -> `test_v494` 1 rot.

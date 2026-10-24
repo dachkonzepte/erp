@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.69** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.70** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -1504,7 +1504,8 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   (dieselben wie seit 1.2.16/1.2.17, je mit Namen); die Seite fragt `GET /api/service-reports/{id}/noch-offen` (seit 1.9.67 vor „Bericht
   abschließen“ der Berichtsseite, bis 1.9.66 vor beiden Unterschriften) nach `nachDemSpeichern()` (`_speichern.html`); die Unterschrift lehnt mit 409 und der Liste ab. Ein
   Punkt aus der Prüfvorlage ist nicht löschbar (409, seit 1.9.41 jeder, bis dahin nur Pflichtpunkte), nur ein von Hand ergänzter. Eine neue Pflicht gehört in `noch_offen_je_schritt()` (seit 1.9.66 je Schritt der
-  Berichtsseite; `noch_offen()` nimmt die Texte daraus). `tests/test_v464_noch_offen.py`. **Seit 1.9.66** braucht ein Rapport ohne Vorlage
+  Berichtsseite; `noch_offen()` nimmt die Texte daraus; seit 1.9.70 mit „ · <Dachfläche>“ bei mehr als einer Fläche und ohne zwei gleiche
+  Zeilen, `tests/test_v494_noch_offen_flaechen.py`). `tests/test_v464_noch_offen.py`. **Seit 1.9.66** braucht ein Rapport ohne Vorlage
   (`hat_pruefpunkte()`) die Beschreibung, die Art ist nur im leeren Bericht änderbar (`bericht_leer()`, sonst 409 `ART_FEST`; mit ihr wechseln
   Vorlagen und Prüfpunkte wie beim Anlegen), `PUT /api/service-reports/{id}` ist ein Teil-Update, „Befund“ statt „Mangel“
   (`tests/test_v492_bericht_regeln.py`). **Zeiten im

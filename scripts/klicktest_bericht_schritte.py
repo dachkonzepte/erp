@@ -194,6 +194,11 @@ async def pruefen(tab, seed, p):
              ["Prüfpunkte", "Befunde", "Material", "Betriebsmittel", "Unterschrift"])
     p.pruefe("Hinweis: Prüfpunkte für neu erfasste Bauteile ergänzt",
              await tab.js("document.getElementById('schrittInhalt').textContent.includes('1 Prüfpunkt für neu erfasste Bauteile ergänzt')"), True)
+    # seit 1.9.70: zwei Flächen mit gleichem Pflichtpunkt -> zwei verschiedene Zeilen mit der Fläche, keine Zeile doppelt
+    p.pruefe("„Noch offen“: derselbe Pflichtpunkt je Fläche, keine zwei gleichen Zeilen", await tab.js(
+        f"(l=>[l.filter(t=>t.startsWith('Pflichtpunkt „Zugang und Absturzsicherung geprüft“')),l.length===new Set(l).size])({_offen()})"),
+        [["Pflichtpunkt „Zugang und Absturzsicherung geprüft“ beantworten · Dachfläche Nord",
+          "Pflichtpunkt „Zugang und Absturzsicherung geprüft“ beantworten · Dachfläche Süd"], True])
 
     # --- jede Funktion der bisherigen Seite erreichbar ------------------------------------------------------------------------------
     erreichbar = {}
@@ -242,7 +247,7 @@ async def pruefen(tab, seed, p):
     await tab.warte_auf_ruhe()
     p.pruefe("Befund angelegt: „Foto fehlt“, Noch offen: Foto zum Befund",
              [await tab.js("document.querySelector('.befund-box .befund-stand').textContent"),
-              await tab.js(f"{_offen()}.some(t=>t==='Foto zum Befund „Gully verstopft, Laub“ aufnehmen')")],
+              await tab.js(f"{_offen()}.some(t=>t==='Foto zum Befund „Gully verstopft, Laub“ aufnehmen · Dachfläche Nord')")],
              ["Foto fehlt", True])
     befund = await tab.js("BEFUNDE[0].id")
     await tab.js(f"document.querySelector('#befund-box-{befund} [data-klick=foto-galerie]').click()")

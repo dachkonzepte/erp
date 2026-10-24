@@ -834,24 +834,59 @@ def hat_pruefpunkte(report: ServiceReport) -> bool:
 ARBEITEN_BESCHREIBEN = "Durchgeführte Arbeiten beschreiben"
 
 
+def _flaechen_des_berichts(report: ServiceReport) -> dict[int, str]:
+    """Seit 1.9.70: Dachfläche -> Name (Schnappschuss am Bericht), nur wenn der Bericht mehr als eine Fläche hat -- sonst leer (eine
+    Fläche muss „Noch offen“ nicht nennen)."""
+    namen = {}
+    for link in report.report_roof_areas:
+        if link.roof_area_id is not None:
+            namen[link.roof_area_id] = (link.roof_area_name_snapshot or (link.roof_area.name if link.roof_area else None)
+                                        or f"Fläche {link.roof_area_id}")
+    return namen if len(namen) > 1 else {}
+
+
+def _befund_flaeche(finding: Finding) -> int | None:
+    """Die Dachfläche eines Befunds: über seinen Prüfpunkt, sonst über sein Bauteil."""
+    if finding.inspection_item is not None:
+        return finding.inspection_item.roof_area_id
+    if finding.roof_component is not None:
+        return finding.roof_component.roof_area_id
+    return None
+
+
 def noch_offen_je_schritt(report: ServiceReport) -> list[dict]:
     """Seit 1.9.66 (Stufe 4, R4): noch_offen() mit dem Schritt der Berichtsseite je Eintrag -- arbeiten (Beschreibung beim Rapport
     ohne Vorlage, seit 1.9.66 Pflicht), pruefpunkte (Pflichtpunkt ohne Ergebnis, „Nicht OK“ ohne Befund -- der Befund entsteht direkt
-    unter dem Punkt), befunde (Foto, Wiedervorlage). Seit 1.9.66 heißt der Mangel hier „Befund“ (Entscheidung E; der Mangel der Abnahme
-    bleibt „Mangel“)."""
+    unter dem Punkt), befunde (Foto, Wiedervorlage). Seit 1.9.66 heißt der Befund des Einsatzberichts hier „Befund“ (der Mangel der
+    Abnahme bleibt „Mangel“). Seit 1.9.70 (R4 Nachrunde, Punkt 2): hat der Bericht mehr als eine Dachfläche, steht sie hinter der Zeile
+    („… beantworten · Dachfläche Süd“); bleiben trotzdem zwei Zeilen gleich (z. B. zwei von Hand ergänzte Punkte gleichen Namens), bekommt
+    die zweite „(2)“, die dritte „(3)“ -- keine zwei gleichen Zeilen."""
+    flaechen = _flaechen_des_berichts(report)
+
+    def mit_flaeche(text: str, roof_area_id: int | None) -> str:
+        name = flaechen.get(roof_area_id) if roof_area_id is not None else None
+        return f"{text} · {name}" if name else text
+
     eintraege = []
     if not hat_pruefpunkte(report) and not (report.description and report.description.strip()):
         eintraege.append({"text": ARBEITEN_BESCHREIBEN, "schritt": "arbeiten"})
-    eintraege += [{"text": f"Pflichtpunkt „{_kurz(i.text)}“ beantworten", "schritt": "pruefpunkte"} for i in report.inspection_items
-                  if i.required and not _is_item_answered(i)]
+    eintraege += [{"text": mit_flaeche(f"Pflichtpunkt „{_kurz(i.text)}“ beantworten", i.roof_area_id), "schritt": "pruefpunkte"}
+                  for i in report.inspection_items if i.required and not _is_item_answered(i)]
     findings_by_item_id = {f.inspection_item_id for f in report.findings if f.inspection_item_id is not None}
-    eintraege += [{"text": f"Befund zum Prüfpunkt „{_kurz(i.text)}“ erfassen (negatives Ergebnis)", "schritt": "pruefpunkte"}
+    eintraege += [{"text": mit_flaeche(f"Befund zum Prüfpunkt „{_kurz(i.text)}“ erfassen (negatives Ergebnis)", i.roof_area_id),
+                   "schritt": "pruefpunkte"}
                   for i in report.inspection_items
                   if (i.result == "nok" or i.condition_grade in (3, 4)) and i.id not in findings_by_item_id]
-    eintraege += [{"text": f"Foto zum Befund „{_kurz(f.description, 60)}“ aufnehmen", "schritt": "befunde"} for f in report.findings
-                  if not f.photos]
-    eintraege += [{"text": f"Wiedervorlagedatum zum zurückgestellten Befund „{_kurz(f.description, 60)}“ angeben", "schritt": "befunde"}
+    eintraege += [{"text": mit_flaeche(f"Foto zum Befund „{_kurz(f.description, 60)}“ aufnehmen", _befund_flaeche(f)), "schritt": "befunde"}
+                  for f in report.findings if not f.photos]
+    eintraege += [{"text": mit_flaeche(f"Wiedervorlagedatum zum zurückgestellten Befund „{_kurz(f.description, 60)}“ angeben",
+                                       _befund_flaeche(f)), "schritt": "befunde"}
                   for f in report.findings if f.action == "zurueckgestellt" and f.resubmission_date is None]
+    gezaehlt: dict[str, int] = {}
+    for eintrag in eintraege:
+        gezaehlt[eintrag["text"]] = gezaehlt.get(eintrag["text"], 0) + 1
+        if gezaehlt[eintrag["text"]] > 1:
+            eintrag["text"] = f"{eintrag['text']} ({gezaehlt[eintrag['text']]})"
     return eintraege
 
 
