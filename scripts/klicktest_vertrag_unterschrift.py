@@ -26,7 +26,6 @@ Optionen, Ablauf, Rückgabecode und Regeln (isolierte Wegwerf-Datenbank, Prozess
 beenden): siehe scripts/cdp_klicktest.py.
 """
 
-import asyncio
 import sys
 import tempfile
 from pathlib import Path
@@ -117,15 +116,9 @@ WEISS = "rgb(255, 255, 255)"
 
 
 async def _zeichnen(tab, selector: str) -> None:
-    """Zeichnet mit echten Mausereignissen (über CDP, daraus macht Chrome Zeigerereignisse) quer über die Fläche."""
-    await tab.js(f"document.querySelector('{selector}').scrollIntoView({{block:'center'}}); true")
-    await asyncio.sleep(0.2)
-    r = await tab.js(f"(()=>{{const r=document.querySelector('{selector}').getBoundingClientRect();return [r.left,r.top,r.width,r.height]}})()")
-    x0, y0 = r[0] + 25, r[1] + r[3] / 2
-    await tab.cmd("Input.dispatchMouseEvent", type="mousePressed", x=x0, y=y0, button="left", buttons=1, clickCount=1)
-    for i in range(1, 14):
-        await tab.cmd("Input.dispatchMouseEvent", type="mouseMoved", x=x0 + i * 14, y=y0 + (14 if i % 2 else -14), button="left", buttons=1)
-    await tab.cmd("Input.dispatchMouseEvent", type="mouseReleased", x=x0 + 190, y=y0, button="left", buttons=0, clickCount=1)
+    """Zeichnet mit echten Mausereignissen (über CDP, daraus macht Chrome Zeigerereignisse) quer über die Fläche -- seit 1.9.64 über
+    Tab.strich() (Ruhe, ruhige Lage, Prüfung auf Tinte)."""
+    await tab.strich(f"document.querySelector('{selector}')", schritte=14, weite=14, hub=14)
 
 
 def _hell_und_dunkel_strich(selector: str) -> str:

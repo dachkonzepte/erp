@@ -98,18 +98,10 @@ def befuellen(db, k):
 
 
 async def _zeichnen(tab, feld_id: int) -> None:
-    """Strich mit echten Mausereignissen auf die Zeichenfläche des Felds."""
-    import asyncio
-
-    await tab.js(f"document.getElementById('pad_{feld_id}').scrollIntoView({{block:'center'}})")
-    await asyncio.sleep(0.2)
-    r = await tab.js(f"(()=>{{const r=document.getElementById('pad_{feld_id}').getBoundingClientRect();return [r.left,r.top,r.width,r.height]}})()")
-    x0, y0 = r[0] + 20, r[1] + r[3] / 2
-    await tab.cmd("Input.dispatchMouseEvent", type="mousePressed", x=x0, y=y0, button="left", buttons=1, clickCount=1)
-    for i in range(1, 12):
-        await tab.cmd("Input.dispatchMouseEvent", type="mouseMoved", x=x0 + i * 15, y=y0 + (12 if i % 2 else -12),
-                      button="left", buttons=1)
-    await tab.cmd("Input.dispatchMouseEvent", type="mouseReleased", x=x0 + 180, y=y0, button="left", buttons=0, clickCount=1)
+    """Strich mit echten Mausereignissen auf die Zeichenfläche des Felds -- seit 1.9.64 über Tab.strich(): erst wenn kein Speichern
+    mehr unterwegs ist und die Fläche ruhig liegt, danach mit Prüfung auf Tinte (bis dahin feste 0,2 s; im Endlauf der R3-Nachrunde
+    ging so Petras Strich verloren, die Unterschrift wurde nie gesendet)."""
+    await tab.strich(f"document.getElementById('pad_{feld_id}')")
 
 
 def _knopf(feld_id: int) -> str:

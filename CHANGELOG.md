@@ -4,6 +4,20 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.64 – Klicktests zeichnen erst, wenn die Fläche ruhig liegt (Stufe 4, R4 Punkt 7)
+
+Fund aus dem Endlauf der R3-Nachrunde: `klicktest_unterzeichner` scrollte die Zeichenfläche ins Bild, wartete fest 0,2 s und maß dann --
+unter Last (vier Klicktests zugleich) ging Petras Strich verloren, die Seite sendete keine Unterschrift (16 von 19, einzeln dreimal 19 von
+19). Anders als `klicktest_checkliste_unterschrift` (seit 1.9.55) wartete er auch nicht, bis das Speichern der Seite zurück war; die
+Checkliste zeichnet danach neu. Das Werkzeug hat dafür jetzt `Tab.strich(fläche)` (`scripts/cdp_klicktest.py`): erst Ruhe im Netz, dann
+zweimal hintereinander dieselbe Lage der Fläche (`ruhig_im_bild()`), dann der Strich mit echten Mausereignissen und danach die Prüfung, dass
+Tinte auf der Fläche ist -- sonst ist der Lauf nicht wie erwartet, statt still eine leere Unterschrift zu senden. Die vier Klicktests, die
+zeichnen (`klicktest_unterzeichner`, `klicktest_checkliste_unterschrift` samt den sieben, die dessen `_unterschreiben()` nehmen,
+`klicktest_abschliessen`, `klicktest_vertrag_unterschrift`), nehmen ihn.
+
+Neuer Wächter `test_v490` (kein Klicktest schickt selbst eine Mausbewegung mit gedrückter Taste); `test_v482` erwartet als erste Anweisung
+von `_unterschreiben()` jetzt `tab.strich()` statt `tab.warte_auf_ruhe()` (das Warten steckt im Helfer).
+
 ## 1.9.63 – Die Kolonne mit Von und Bis (Stufe 4, R3 Nachrunde)
 
 Entscheidung von Tobias: Kolonnen-Nachtrag und -Ändern des Kolonnenführers nehmen eine Von/Bis-Angabe für die angehakten Mitglieder;

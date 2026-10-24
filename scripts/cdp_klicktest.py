@@ -947,6 +947,47 @@ class Tab:
         await self.netz_melden()
         return False
 
+    async def ruhig_im_bild(self, element: str, *, timeout: float = 10) -> list | None:
+        """Seit 1.9.64: rückt das Element (JS-Ausdruck) in die Mitte und wartet, bis es ruhig liegt -- kein Speichern der Seite mehr
+        unterwegs (warte_auf_ruhe(): manche Seiten zeichnen danach neu) und zweimal hintereinander dieselbe Lage (100 ms Abstand).
+        Rückgabe [links, oben, breite, höhe] oder None (dann nicht wie erwartet, nicht_geladen). Ersetzt die feste Pause von 0,2 s vor
+        dem Messen (Endlauf der R3-Nachrunde: unter Last ging in klicktest_unterzeichner ein Strich verloren)."""
+        await self.warte_auf_ruhe()
+        await self.js(f"(e=>{{if(e)e.scrollIntoView({{block:'center'}});return true}})({element})")
+        messen = f"(()=>{{const e={element};if(!e)return null;const r=e.getBoundingClientRect();return [r.left,r.top,r.width,r.height]}})()"
+        ende, vorher = time.monotonic() + timeout, None
+        while time.monotonic() < ende:
+            jetzt = await self.js(messen)
+            if jetzt and jetzt == vorher and jetzt[2] > 0 and jetzt[3] > 0:
+                return jetzt
+            vorher = jetzt
+            await asyncio.sleep(0.1)
+        self.nicht_geladen.append(f"keine ruhige Lage: {element[:60]}")
+        await self.netz_melden(f"XX  nach {timeout:g} s keine ruhige Lage: {element[:80]}")
+        return None
+
+    async def strich(self, flaeche: str, *, schritte: int = 12, weite: float = 15, hub: float = 12) -> bool:
+        """Seit 1.9.64: ein Strich mit echten Mausereignissen (daraus macht Chrome Zeigerereignisse) über die Zeichenfläche (canvas,
+        JS-Ausdruck) -- erst wenn sie ruhig liegt (ruhig_im_bild()), danach geprüft: auf der Fläche ist Tinte (deckende dunkle Pixel).
+        Ohne Tinte "XX" und False, der Lauf ist nicht wie erwartet (nicht_geladen) -- statt still eine leere Unterschrift zu senden."""
+        r = await self.ruhig_im_bild(flaeche)
+        if r is None:
+            return False
+        x0, y0 = r[0] + 20, r[1] + r[3] / 2
+        await self.cmd("Input.dispatchMouseEvent", type="mousePressed", x=x0, y=y0, button="left", buttons=1, clickCount=1)
+        for i in range(1, schritte):
+            await self.cmd("Input.dispatchMouseEvent", type="mouseMoved", x=x0 + i * weite, y=y0 + (hub if i % 2 else -hub),
+                           button="left", buttons=1)
+        await self.cmd("Input.dispatchMouseEvent", type="mouseReleased", x=x0 + schritte * weite, y=y0, button="left", buttons=0,
+                       clickCount=1)
+        tinte = await self.js(f"(()=>{{const c={flaeche};if(!c||!c.getContext)return 0;const d=c.getContext('2d').getImageData(0,0,c.width,"
+                              "c.height).data;let n=0;for(let i=0;i<d.length;i+=4){if(d[i+3]>200&&d[i]<128)n++}return n})()")
+        if not tinte:
+            self.nicht_geladen.append(f"kein Strich auf {flaeche[:60]}")
+            print(f"XX  kein Strich auf der Zeichenfläche: {flaeche[:80]}")
+            return False
+        return True
+
     async def warten(self, bedingung: str, timeout: float = 15, *, melden: bool = True) -> bool:
         """Wartet, bis der JS-Ausdruck wahr ist. Läuft die Zeit ab, druckt es seit 1.8.97 die offenen Anfragen (mit "--", denn ein
         Ablauf ist nicht immer ein Fehler -- meist scheitert danach die Prüfung); melden=False für eine gewollte Pause. Seit 1.8.97

@@ -1242,3 +1242,25 @@ festen Uhr auf die Sekunde. Gegenprobe (neue Zeit eine Sekunde später, `app/tim
   Sekunde, sondern Reihenfolge und Grenzen (ab der festen Uhrzeit, höchstens jetzt).
 - Angepasste Erwartung: `test_v471::test_zeitart_wechseln_ohne_luecke_und_ueberschneidung` alt Übergang == 10:00:00 und 3,75 h, neu Übergang
   == Beginn der neuen Zeit, zwischen 10:00 und jetzt, gebucht = Anwesenheit 06:15 bis zum Übergang.
+
+## Zeichnen erst, wenn die Fläche ruhig liegt (1.9.64, Stufe 4, R4 Punkt 7)
+
+Befund (Endlauf der R3-Nachrunde auf 49089bb): `klicktest_unterzeichner` 16 von 19 -- Petras Unterschrift wurde nie gesendet (keine Anfrage im
+Netzprotokoll), einzeln dreimal 19 von 19. Sein `_zeichnen()` scrollte, wartete fest 0,2 s und maß; anders als `_unterschreiben()` in
+`klicktest_checkliste_unterschrift` (seit 1.9.55, `warte_auf_ruhe()`) wartete er nicht, bis das Speichern der Seite zurück war -- die
+Checkliste zeichnet danach neu, ein Strich auf der alten Fläche geht verloren.
+
+Umsetzung: `Tab.ruhig_im_bild(element)` (Ruhe im Netz über `warte_auf_ruhe()`, Scrollen in die Mitte, zwei gleiche Messungen im Abstand von
+100 ms, sonst „XX“ und `nicht_geladen`) und `Tab.strich(fläche, schritte, weite, hub)` (danach der Strich mit Mausereignissen, dann die Tinte:
+deckende dunkle Pixel auf dem canvas; ohne Tinte „XX“ und `nicht_geladen`). Umgestellt: `klicktest_unterzeichner`,
+`klicktest_checkliste_unterschrift` (`_unterschreiben()`, von sieben Klicktests genommen), `klicktest_abschliessen`, `klicktest_vertrag_unterschrift`;
+`klicktest_zeichenflaeche` zeichnet per Touch auf eine absichtlich gedrehte Fläche und bleibt. Wächter `tests/test_v490_zeichnen_ruhig.py`
+(AST: kein Klicktest schickt `mouseMoved` mit `buttons=1`; die vier nehmen den Helfer; der Helfer wartet auf Ruhe und Lage und prüft die Tinte;
+Gegenprobe des Wächters über eine Datei in `tmp_path`). Gegenproben: Klicktest zeichnet wieder selbst -> 2 rot; ruhige Lage ohne Warten auf
+Ruhe -> 1 rot; Strich ohne Prüfung auf Tinte -> 1 rot. Die vier Klicktests laufen danach grün (19, 26, 19, 43).
+
+- **Festlegung zu Werkzeug und Testablauf 1.9.64 (Bitte bestätigen)**: ein Klicktest zeichnet nur über `Tab.strich()` -- Ruhe, ruhige Lage,
+  danach Prüfung auf Tinte; eine feste Pause vor dem Messen einer Zeichenfläche gibt es nicht mehr.
+- Angepasste Erwartung: `test_v482::test_unterschreiben_wartet_erst_auf_ruhe` alt erste Anweisung `tab.warte_auf_ruhe`, neu `tab.strich` (das
+  Warten steckt im Helfer, geprüft in `test_v490`).
+- Regel 15 bleibt: Suite und Klicktests werden nie mit „;“ verkettet (im Endlauf der R3-Nachrunde geschehen, dort benannt).

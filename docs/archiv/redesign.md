@@ -4739,3 +4739,8 @@ Ebene des Auftrags, auf die der Pfad „Heute / <Auftrag> / <Art>“ zeigt.
    den neuen Bericht (Regel „nach dem Anlegen zum Datensatz“), „Heute“ öffnet „Bericht fortsetzen“ direkt dort.
 4. Benennung: auf der Seite „Befund“ statt „Mangel“ (wie die Vorlage; Modell `Finding`), der Mangel an der Abnahme (`Defect`) bleibt
    „Mangel“.
+
+### R4, Punkt 7 (1.9.64): Werkzeug -- Zeichnen erst bei ruhiger Fläche
+
+Umgesetzt, obwohl der Einsatzbericht angehalten ist: der Punkt hängt nicht an der Entscheidung zu den Schritten. Einzelheiten in
+`docs/archiv/testablauf-und-klicktests.md`, „Zeichnen erst, wenn die Fläche ruhig liegt“.

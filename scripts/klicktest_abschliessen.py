@@ -75,15 +75,8 @@ def befuellen(db, k):
 
 
 async def _zeichnen(tab) -> None:
-    """Ein Strich mit echten Mausereignissen quer über die Unterschriftsfläche."""
-    await tab.js("document.getElementById('sigCanvas').scrollIntoView({block:'center'}); true")
-    await asyncio.sleep(0.2)
-    r = await tab.js("(()=>{const r=document.getElementById('sigCanvas').getBoundingClientRect();return [r.left,r.top,r.width,r.height]})()")
-    x0, y0 = r[0] + 25, r[1] + r[3] / 2
-    await tab.cmd("Input.dispatchMouseEvent", type="mousePressed", x=x0, y=y0, button="left", buttons=1, clickCount=1)
-    for i in range(1, 12):
-        await tab.cmd("Input.dispatchMouseEvent", type="mouseMoved", x=x0 + i * 14, y=y0 + (12 if i % 2 else -12), button="left", buttons=1)
-    await tab.cmd("Input.dispatchMouseEvent", type="mouseReleased", x=x0 + 160, y=y0, button="left", buttons=0, clickCount=1)
+    """Ein Strich mit echten Mausereignissen quer über die Unterschriftsfläche (seit 1.9.64 über Tab.strich())."""
+    await tab.strich("document.getElementById('sigCanvas')", weite=14)
 
 
 async def _unterschreiben(tab, bericht: int, zwischen=None) -> None:

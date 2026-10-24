@@ -5,7 +5,8 @@ benutzt) misst die Zeichenfläche erst, wenn kein Speichern der Seite mehr unter
                    zeichnet danach neu) und unterschrieb gleich danach -- das Messen der Zeichenfläche fiel unter Last in das Neuzeichnen,
                    getBoundingClientRect() kam nicht zurück (TypeError im Klicktest)
     jetzt          die erste Anweisung wartet über Tab.warte_auf_ruhe() (Anfragenzähler des Werkzeugs, zurückgehaltene Antworten
-                   ausgenommen), bevor gescrollt und gemessen wird
+                   ausgenommen), bevor gescrollt und gemessen wird -- seit 1.9.64 ist sie Tab.strich(), das dieses Warten selbst
+                   mitbringt (über ruhig_im_bild(), geprüft in tests/test_v490_zeichnen_ruhig.py)
 """
 
 import ast
@@ -32,8 +33,8 @@ def _awaits(funktion) -> list[str]:
 
 def test_unterschreiben_wartet_erst_auf_ruhe():
     aufrufe = _awaits(_funktion("_unterschreiben"))
-    assert aufrufe[0] == "tab.warte_auf_ruhe", aufrufe
-    assert aufrufe.index("tab.warte_auf_ruhe") < aufrufe.index("tab.js")  # vor dem Scrollen und Messen
+    assert aufrufe[0] == "tab.strich", aufrufe  # seit 1.9.64 (bis dahin tab.warte_auf_ruhe); strich() wartet selbst auf Ruhe
+    assert aufrufe.index("tab.strich") < aufrufe.index("tab.js")  # vor dem Namen und dem Übernehmen
 
 
 def test_acht_klicktests_nehmen_diese_funktion():

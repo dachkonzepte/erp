@@ -91,18 +91,9 @@ def befuellen(db, k):
 async def _unterschreiben(tab, feld_id: int, name: str) -> None:
     """Zeichnet mit echten Mausereignissen auf die Zeichenfläche und übernimmt die Unterschrift. Seit 1.9.55 erst, wenn kein Speichern
     der Seite mehr unterwegs ist (Tab.warte_auf_ruhe()): die Checkliste zeichnet nach dem Speichern eines Felds neu -- fiel das Messen
-    der Zeichenfläche in diesen Moment, kam nichts zurück (Endlauf 1.9.52, klicktest_behinderungsanzeige_versand: TypeError)."""
-    import asyncio
-
-    await tab.warte_auf_ruhe()
-    await tab.js(f"document.getElementById('pad_{feld_id}').scrollIntoView({{block:'center'}})")
-    await asyncio.sleep(0.2)
-    r = await tab.js(f"(()=>{{const r=document.getElementById('pad_{feld_id}').getBoundingClientRect();return [r.left,r.top,r.width,r.height]}})()")
-    x0, y0 = r[0] + 20, r[1] + r[3] / 2
-    await tab.cmd("Input.dispatchMouseEvent", type="mousePressed", x=x0, y=y0, button="left", buttons=1, clickCount=1)
-    for i in range(1, 12):
-        await tab.cmd("Input.dispatchMouseEvent", type="mouseMoved", x=x0 + i * 15, y=y0 + (12 if i % 2 else -12), button="left", buttons=1)
-    await tab.cmd("Input.dispatchMouseEvent", type="mouseReleased", x=x0 + 180, y=y0, button="left", buttons=0, clickCount=1)
+    der Zeichenfläche in diesen Moment, kam nichts zurück (Endlauf 1.9.52, klicktest_behinderungsanzeige_versand: TypeError). Seit 1.9.64
+    über Tab.strich(), das dieses Warten selbst mitbringt."""
+    await tab.strich(f"document.getElementById('pad_{feld_id}')")  # seit 1.9.64 der gemeinsame Helfer (Ruhe, ruhige Lage, Tinte)
     await tab.js(f"document.getElementById('padName_{feld_id}').value={name!r}")
     await tab.js(f"document.querySelector('#q_{feld_id} .pad-actions .btn:not(.secondary)').click()")
 
