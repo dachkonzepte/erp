@@ -4,6 +4,15 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.71 – Was die Berichtsseite der Monteurin lädt, rekursiv geprüft (Stufe 4, R4 Nachrunde)
+
+Neuer Test `test_v495`: als Monteurin `GET /api/service-reports/{id}`, `…/noch-offen` und `…/zeiten` ihres Berichts, jede Antwort rekursiv --
+kein Schlüssel nach Preis, Satz, Lohn, Notiz oder Kontakt (dieselbe Prüfung wie der Rundgang über alle Endpunkte, hier ohne Ausnahme), weder
+der Einkaufspreis des Materials im Bericht noch der Stundenlohn als Zahl in einem Wert, jede Auftragsangabe die des Berichts und kein Text
+eines anderen Auftrags (auch nicht aus ihrem eigenen Bericht dort am selben Tag), die Zeiten genau die des Berichtstags auf dem Auftrag des
+Berichts. Gegenproben: Vortag in den Zeiten, anderer Auftrag in den Zeiten (auch mit Nummer), Lohn im Bericht -- jede macht den Test rot. Am
+Code war nichts zu ändern.
+
 ## 1.9.70 – „Noch offen“ nennt die Dachfläche (Stufe 4, R4 Nachrunde)
 
 Hat ein Einsatzbericht mehr als eine Dachfläche, stand derselbe Pflichtpunkt jeder Fläche bisher zweimal gleich unter „Noch offen“ (und in

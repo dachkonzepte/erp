@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.70** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.71** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -1527,7 +1527,9 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   Gewährleistung, seit 1.8.24 Personaldaten samt Privatadresse an Personen, seit 1.8.27 "Wichtige
   Infos" am Mitarbeiter, seit 1.8.46 Vertragsstrafe, Einbehalt und Garantie). Ein neuer Endpunkt für
   `field` braucht Testdaten, die ihn mit Inhalt füllen; ein Feld, das der Monteur trotz verbotenem
-  Namen sehen soll, eine begründete Ausnahme in `ERLAUBT_JE_ROUTE`.
+  Namen sehen soll, eine begründete Ausnahme in `ERLAUBT_JE_ROUTE`. Seit 1.9.71 prüft
+  `tests/test_v495_bericht_schluessel_monteurin.py` die Berichtsseite der Monteurin dazu auf Werte (Preis, Lohn), andere Aufträge und den
+  Berichtstag der Zeiten.
 - **Kein sichtbarer Link auf eine gesperrte Seite** (seit 1.8.24):
   `tests/test_v328_navigation_ohne_sperrseiten.py` rendert je Rolle jede erlaubte Seite und ruft
   jeden beim Laden sichtbaren Link als dieselbe Rolle auf -- kein 403, seit 1.8.65 auch kein 404; `BEKANNT_OFFEN` ist seit

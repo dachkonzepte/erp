@@ -5012,3 +5012,24 @@ bleiben auch für die Monteurin „Mangel“; 6 Schlüssel-Scan als Monteurin ü
 - `klicktest_bericht_schritte`: neu „Noch offen“ mit beiden Flächen und ohne doppelte Zeile; angepasste Erwartung „Foto zum Befund „Gully
   verstopft, Laub“ aufnehmen“ -> „… aufnehmen · Dachfläche Nord“ (der Bericht hat zwei Flächen).
 - **Gegenproben**: ohne Fläche in der Zeile -> `test_v494` 2 rot, Klicktest 2 rot; gleiche Zeilen nicht gezählt -> `test_v494` 1 rot.
+### R4 Nachrunde, Punkt 6 (1.9.71): Schlüssel-Scan der Berichtsseite als Monteurin
+
+- Neu `tests/test_v495_bericht_schluessel_monteurin.py`: ein Wartungsbericht der Monteurin mit zwei Dachflächen, Befund und Material aus dem
+  Katalog (Einkaufspreis 987,65), Stundenlohn 54,32 an beiden Personen; Zeiten am Berichtstag auf dem Auftrag (sie und ein Kollege), am Vortag
+  auf demselben Auftrag und am Berichtstag auf einem anderen Auftrag eines anderen Kunden, dort auch ihr eigener Bericht mit Befund. Am Code war
+  nichts zu ändern -- die drei Antworten hielten die Grenze schon.
+
+**Festlegungen 1.9.71 (Bitte bestätigen)**
+
+1. Der Scan nimmt zu den beiden genannten Routen `…/zeiten` dazu -- von dort lädt die Berichtsseite die Zeiten, „Zeiten nur vom Berichtstag“
+   lässt sich sonst nicht prüfen.
+2. Geprüft werden Schlüssel (`_verboten()`/`_privatadresse()` aus `test_v326`, ohne Ausnahmeliste) und Werte: Einkaufspreis und Stundenlohn als
+   Zahl in keinem Wert, `order_id`/`order_number` überall die des Berichts, kein Text des anderen Auftrags (Nummer, Projekt, Titel, Kunde, Befund).
+3. Ein vor 1.9.42 unterschriebener Bericht zeigt weiter alle Zeiten des Auftrags (Art „alt“, Festlegung von 1.9.42, nichts wird rückwirkend
+   geändert) -- nicht Gegenstand des Tests.
+
+**Tests und Prüfung**
+
+- Neu `test_v495` (4 Tests): keine verbotenen Schlüssel; kein Preis und kein Lohn als Wert; keine Daten anderer Aufträge; Zeiten nur vom Berichtstag.
+- **Gegenproben**: Zeiten ab dem Vortag -> „Zeiten“ rot; Zeiten ohne Auftragsfilter -> „Zeiten“ rot; dazu die Auftragsnummer je Zeile -> „andere
+  Aufträge“ und „Zeiten“ rot; Stundenlohn im Bericht der Monteurin -> „Schlüssel“ und „Wert“ rot.
