@@ -153,10 +153,30 @@ def _offen() -> str:
 # Was ein Ziel ist: Knöpfe, Links als Knopf, Felder, Schritte und Segmente in Inhalt, „Noch offen“, Schritten und offenen Dialogen; der
 # Seitenkopf hat eigene Maße (Variante tablet, tests/test_v457_monteursseiten.py), seine Pfadglieder sind Text.
 ZU_KLEIN = ("(()=>{const sichtbar=e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0&&getComputedStyle(e).visibility!=='hidden'};"
-            "const wurzeln=['#schritte','#raster','dialog[open]'].flatMap(s=>[...document.querySelectorAll(s)]);"
+            "const wurzeln=['#schritte','#raster','#abschlussLeiste','dialog[open]'].flatMap(s=>[...document.querySelectorAll(s)]);"
             "const ziele=wurzeln.flatMap(w=>[...w.querySelectorAll('button,a.knopf,input:not([type=file]),select,textarea,.segment,.schritt')]);"
             "return [...new Set(ziele)].filter(sichtbar).map(e=>[e.id||e.dataset.klick||e.className||e.tagName,Math.round(e.getBoundingClientRect().height)])"
             ".filter(([,h])=>h<48)})()")
+
+
+# Seit 1.9.72 (R4 Nachrunde, Punkt 1): Schritt 5 hat unten eine feste Leiste -- von oben (ohne Bildlauf) sind „Bericht abschließen“ und
+# „Fehlt: …“ im Bild, der Knopf nicht verdeckt, beide Zeichenflächen auf der Seite und die Seite länger als das Fenster (sonst bewiese die
+# Prüfung nichts).
+LEISTE_IM_BILD = ("(()=>{window.scrollTo(0,0);const k=document.getElementById('abschliessenKnopf'),f=document.getElementById('fehltText'),"
+                  "r=k.getBoundingClientRect();return [Math.round(scrollY),r.top>=0&&r.bottom<=innerHeight&&r.left>=0&&r.right<=innerWidth,"
+                  "document.elementFromPoint(r.left+r.width/2,r.top+r.height/2)===k,f.getBoundingClientRect().bottom<=innerHeight,"
+                  "!!document.getElementById('padMonteur')&&!!document.getElementById('padKunde'),"
+                  "document.documentElement.scrollHeight>innerHeight+50]})()")
+LEISTE_SOLL = [0, True, True, True, True, True]
+
+# Seit 1.9.72 (Punkt 3): „⋮“ eines Prüfpunkts steht in seiner Titelzeile -- rechts neben dem Text, auf Höhe seiner ersten Zeile, auch bei
+# Bewertungen (die Eingabe darunter über die ganze Breite). Ergebnis: [Punkte außerhalb der Titelzeile, Zahl der geprüften Bewertungen]
+MENUE_IN_TITELZEILE = ("(()=>{const geprueft=PUNKTE.filter(p=>['condition_grade','ja_nein','leak_test','measurement','quantity'].includes(p.item_type)"
+                       "&&document.getElementById('punkt-menue-knopf-'+p.id));"
+                       "const falsch=geprueft.filter(p=>{const m=document.getElementById('punkt-menue-knopf-'+p.id).getBoundingClientRect(),"
+                       "t=document.querySelector('#punkt-kopf-'+p.id+' .punkt-text').getBoundingClientRect();"
+                       "return !(m.top<t.top+30&&m.bottom>t.top&&m.left>=t.right-1)}).map(p=>p.item_type+': '+p.text);"
+                       "return [falsch,geprueft.filter(p=>p.item_type==='condition_grade').length>0]})()")
 
 
 async def _alle_schritte_messen(tab) -> list:
@@ -307,6 +327,7 @@ async def pruefen(tab, seed, p):
     # --- 48 px quer --------------------------------------------------------------------------------------------------------------------
     p.pruefe("Quer: jedes Ziel in jedem Schritt ≥ 48 px", await _alle_schritte_messen(tab), [])
     await _schritt(tab, "pruefpunkte")
+    p.pruefe("Quer: „⋮“ jedes Prüfpunkts in seiner Titelzeile", await tab.js(MENUE_IN_TITELZEILE), [[], True])
     await _bild(tab, "1_schritt1_quer_hell")
 
     # --- Schritte 2–4 ----------------------------------------------------------------------------------------------------------------
@@ -347,6 +368,8 @@ async def pruefen(tab, seed, p):
                           "document.getElementById('abschliessenKnopf').disabled,document.getElementById('fehltText').textContent.startsWith('Fehlt: '),"
                           "document.getElementById('signMonteurName').value]"),
              [True, True, True, True, True, True, True, "Mia Monteurin"])
+    p.pruefe("Schritt 5 quer (1280 × 620): „Bericht abschließen“ und „Fehlt: …“ ohne Bildlauf im Bild, mit beiden Zeichenflächen",
+             await tab.js(LEISTE_IM_BILD), LEISTE_SOLL)
     await _bild(tab, "2_schritt5_quer_hell")
     await _bild(tab, "3_schritt5_quer_dunkel", "dark")
     await _schritt(tab, "pruefpunkte")
@@ -363,8 +386,10 @@ async def pruefen(tab, seed, p):
              [1, "auto", "sticky", "0px"])
     p.pruefe("Hoch: jedes Ziel in jedem Schritt ≥ 48 px", await _alle_schritte_messen(tab), [])
     await _schritt(tab, "pruefpunkte")
+    p.pruefe("Hoch: „⋮“ jedes Prüfpunkts in seiner Titelzeile, auch bei Bewertungen", await tab.js(MENUE_IN_TITELZEILE), [[], True])
     await _bild(tab, "5_schritt1_hoch_hell")
     await _schritt(tab, "unterschrift")
+    p.pruefe("Schritt 5 hoch: die Leiste unten im Bild", await tab.js(LEISTE_IM_BILD), LEISTE_SOLL)
     await _bild(tab, "6_schritt5_hoch_hell")
     voll = await tab.js("Math.ceil(document.documentElement.scrollHeight)")  # dazu bis zum Seitenende (Knopf „Bericht abschließen“)
     await tab.fenster(HOCH[0], max(HOCH[1], voll), mobil=True)
@@ -393,6 +418,7 @@ async def pruefen(tab, seed, p):
              await tab.js("[document.getElementById('abschliessenKnopf').disabled,document.getElementById('fehltText').textContent]"),
              [True, "Fehlt: 1 Punkt unter „Noch offen“"])
     await _schritt(tab, "arbeiten")
+    p.pruefe("Andere Schritte ohne die Leiste von Schritt 5", await tab.js("document.getElementById('abschlussLeiste').hidden"), True)
     await tab.js("document.getElementById('beschreibung').focus()")
     await tab.cmd("Input.insertText", text="Rinne gereinigt, Ablauf frei.")
     await tab.warten(f"{_offen()}.length===0", 10)
@@ -405,6 +431,7 @@ async def pruefen(tab, seed, p):
     await tab.strich("document.getElementById('padKunde')")
     await tab.js("document.getElementById('signKundeName').value='Bernd Bauherr';document.getElementById('signKundeName').dispatchEvent(new Event('input',{bubbles:true}))")
     p.pruefe("Ausgefüllt: „Bericht abschließen“ frei", await tab.js("document.getElementById('abschliessenKnopf').disabled"), False)
+    p.pruefe("Mit beiden Unterschriften: „Bericht abschließen“ ohne Bildlauf im Bild", await tab.js(LEISTE_IM_BILD), LEISTE_SOLL)
     await tab.js("document.getElementById('abschliessenKnopf').click()")
     await tab.warten("R.status==='unterschrieben'", 15)
     await tab.warte_auf_ruhe()
@@ -412,6 +439,7 @@ async def pruefen(tab, seed, p):
              await tab.js("[document.getElementById('seitenkopfStatus').textContent,!document.getElementById('menuePdf').hidden,"
                           "document.getElementById('menueLoeschen').hidden]"),
              ["Unterschrieben", True, True])
+    p.pruefe("Abgeschlossen: keine Leiste mehr", await tab.js("document.getElementById('abschlussLeiste').hidden"), True)
 
     # --- Art ändern: leer geht, mit Antwort gesperrt -----------------------------------------------------------------------------------
     await tab.oeffnen(f"/service-reports/{leer}", BEREIT)

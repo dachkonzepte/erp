@@ -104,6 +104,7 @@ NICHT_KARTEN = {
         "month-grid", "rate-result", "timeline", "lv-columns", "slot")},
     **{k: "Skizze der Dachfläche" for k in ("sketch-wrap", "sketch-rect", "sketch-rect-preview", "sketch-marker", "sketch-marker-label")},
     "marke-kachel": "Kachel der Bildmarke -- eigene Ecke wie in Leiste und Monteurskopf (_marke.html)",
+    "abschluss-leiste": "feste Leiste unten in Schritt 5 des Einsatzberichts (seit 1.9.72) -- oben runde Ecken, unten am Fensterrand",
     **{k: "Vorschau eines Bilds (Foto, Unterschrift)" for k in ("thumb", "sig")},
 }
 ECKE = "var(--ds-ecke-karte)"

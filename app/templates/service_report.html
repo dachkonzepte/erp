@@ -9,6 +9,8 @@
                frei anwählbar, erledigte mit Haken; „Zurück“ / „Weiter: …“
      rechts    „Noch offen“ (GET …/noch-offen, nach jedem Speichern frisch) -- hoch (unter 1000 px) eine Spalte, Schritte als Zeile mit
                Bildlauf, „Noch offen“ über der festen Leiste
+     Schritt 5 seit 1.9.72 unten eine feste Leiste wie in den anderen Schritten: „Zurück“, „Fehlt: …“, „Bericht abschließen“ (#abschlussLeiste)
+     Punkt     seit 1.9.72 steht „⋮“ in der Titelzeile des Punkts (oben rechts), nie in einer eigenen Zeile
    Fokus: nach dem Speichern wird nur neu gezeichnet, was das Feld mit dem Fokus nicht enthält (Tastatur bleibt offen). #}
 <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
 {% include "_ds_kopf.html" %}
@@ -85,7 +87,11 @@ main.bericht-seite{padding:14px 20px 16px;display:flex;flex-direction:column;gap
 .office-hint{padding:10px 14px;border:1px solid var(--ds-warn-text);background:var(--ds-warn-hell);border-radius:var(--ds-ecke-karte);font-size:15px}
 /* Prüfpunkte: Zeile ab 68 px, Text 17 px, Segmentknöpfe 96 × 52 px */
 .punkt{border-top:1px solid var(--ds-grund);padding:8px 0}
-.punkt-kopf{display:flex;align-items:center;gap:16px;min-height:52px;flex-wrap:wrap}
+/* „⋮“ seit 1.9.72 oben rechts in der Titelzeile (absolut, der Kopf hält ihm Platz frei) -- auch wenn die Eingabe darunter umbricht */
+.punkt-kopf{position:relative;display:flex;align-items:center;gap:16px;min-height:52px;flex-wrap:wrap}
+.punkt-kopf.mit-menue{padding-right:64px}
+.punkt-kopf>.menue-anker{position:absolute;top:2px;right:0}
+.punkt-kopf.mit-menue .punkt-text{padding:12px 0}
 .punkt-text{flex:1;min-width:220px;font-size:17px;font-weight:600;overflow-wrap:anywhere}
 .pflicht{color:var(--ds-signal-text)}
 .punkt-eingabe{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -153,8 +159,13 @@ select.feld-text{height:52px;padding:0 14px}
 .sign-kopf{display:flex;align-items:center;gap:12px}
 .sign-kopf label{flex:1;display:flex;align-items:center;gap:12px;font-size:14px;font-weight:600;color:var(--ds-stark)}
 .sign-kopf input{flex:1;height:48px;border:1px solid var(--ds-feld-rand);border-radius:var(--ds-ecke-tablet-feld);padding:0 14px;font:inherit;font-size:16px;background:var(--ds-flaeche);color:var(--ds-text)}
-.abschluss{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:6px}
-.abschluss .knopf{flex:1;height:60px;font-size:18px}
+/* Schritt 5 (seit 1.9.72): unten eine feste Leiste wie „Noch offen“ in den anderen Schritten -- Zurück, „Fehlt: …“, „Bericht abschließen“ */
+.abschluss-leiste{position:sticky;bottom:0;z-index:5;display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 18px;background:var(--ds-flaeche);border:1px solid var(--ds-linie);border-bottom:0;border-radius:var(--ds-ecke-karte) var(--ds-ecke-karte) 0 0;box-shadow:0 -6px 18px rgba(23,28,31,.12)}
+.abschluss-leiste .knopf{height:60px;font-size:18px}
+.abschluss-leiste .knopf-aktion{min-width:280px}
+.abschluss-leiste .fehlt{flex:1;min-width:0}
+.abschluss-leiste .meldung{flex-basis:100%}
+@media (max-width:999px){.abschluss-leiste{padding:12px 16px}.abschluss-leiste .knopf{height:56px;font-size:17px}.abschluss-leiste .fehlt{order:-1;flex-basis:100%}.abschluss-leiste .knopf-aktion{flex:1;min-width:0}}
 .fehlt{font-size:14px;color:var(--ds-signal-text);overflow-wrap:anywhere}
 .unterschrieben{display:flex;flex-direction:column;gap:8px;font-size:16px}
 .sign-offen{display:flex;flex-direction:column;gap:8px;padding:10px 14px;background:var(--ds-signal-hell);border-radius:var(--ds-ecke-tablet-feld)}
@@ -206,6 +217,12 @@ select.feld-text{height:52px;padding:0 14px}
     <p class="offen-satz" id="laeuftSatz" hidden></p>
     <div class="schritt-knoepfe"><button type="button" class="knopf knopf-neutral" id="zurueckKnopf" data-klick="zurueck">Zurück</button><button type="button" class="knopf knopf-aktion" id="weiterKnopf" data-klick="weiter">Weiter</button></div>
   </aside>
+</div>
+<div class="abschluss-leiste" id="abschlussLeiste" hidden>
+  <p class="meldung" id="signStatus" role="status"></p>
+  <button type="button" class="knopf knopf-neutral" id="abschlussZurueck" data-klick="zurueck">Zurück</button>
+  <span class="fehlt" id="fehltText"></span>
+  <button type="button" class="knopf knopf-aktion" id="abschliessenKnopf" data-klick="abschliessen" disabled>Bericht abschließen</button>
 </div>
 <input type="file" accept="image/png,image/jpeg,image/webp" capture="environment" id="fotoKamera" data-aenderung="foto-gewaehlt" hidden>
 <input type="file" accept="image/png,image/jpeg,image/webp" id="fotoGalerie" data-aenderung="foto-gewaehlt" hidden>
@@ -346,7 +363,9 @@ function inhaltZeichnen(){
   else if(SCHRITT==='betriebsmittel')box.innerHTML=betriebsmittelHtml();
   else box.innerHTML=unterschriftHtml();
   menuesEinrichten(box);
+  el('signStatus').textContent='';
   if(SCHRITT==='unterschrift')unterschriftEinrichten();
+  abschlussZeichnen();
 }
 // Ersetzt einen Teil der Seite; enthält er das Feld mit dem Fokus, bleibt er stehen (Tastatur bleibt offen, kein Text geht verloren) --
 // ein Knopf mit Fokus wird nach dem Ersetzen wieder fokussiert
@@ -425,8 +444,9 @@ function punktKopfHtml(p){
   }else if(p.item_type==='photo'){
     eingabe='<span class="einheit">Foto zu diesem Punkt über „⋮“ aufnehmen.</span>';
   }
-  return '<div class="punkt-kopf" id="punkt-kopf-'+p.id+'"><span class="punkt-text">'+esc(p.text)+(p.required?' <span class="pflicht" aria-label="Pflichtpunkt">*</span>':'')+'</span>'
-    +'<div class="punkt-eingabe">'+eingabe+punktMenueHtml(p)+'</div></div>';
+  var menue=punktMenueHtml(p);
+  return '<div class="punkt-kopf'+(menue?' mit-menue':'')+'" id="punkt-kopf-'+p.id+'"><span class="punkt-text">'+esc(p.text)+(p.required?' <span class="pflicht" aria-label="Pflichtpunkt">*</span>':'')+'</span>'
+    +menue+'<div class="punkt-eingabe">'+eingabe+'</div></div>';
 }
 function punktMenueHtml(p){
   if(!entwurf())return '';
@@ -815,8 +835,7 @@ function unterschriftHtml(){
       +'<div class="sign-block"><div class="sign-kopf"><label for="signKundeName">Kunde<input id="signKundeName" placeholder="Name des Kunden" data-eingabe="sign-name"></label>'
       +'<button type="button" class="knopf knopf-neutral" data-klick="sign-leeren" data-pad="kunde">Leeren</button></div><canvas class="dk-unterschrift" id="padKunde" aria-label="Unterschriftsfeld Kunde"></canvas></div>'
       +'<div class="sign-offen" id="signOffen" hidden><span class="eb">Noch offen</span><ul class="offen-liste" id="signOffenListe"></ul></div>'
-      +'<div class="abschluss"><button type="button" class="knopf knopf-aktion" id="abschliessenKnopf" data-klick="abschliessen" disabled>Bericht abschließen</button><span class="fehlt" id="fehltText"></span></div>'
-      +'<p class="meldung" id="signStatus" role="status"></p></section>';
+      +'</section>';
   }
   return '<div class="unterschrift-raster">'+links+rechts+'</div>';
 }
@@ -826,7 +845,8 @@ function unterschriftEinrichten(){
   ['padMonteur','padKunde'].forEach(function(id){el(id).addEventListener('pointerup',abschlussZeichnen);el(id).addEventListener('pointercancel',abschlussZeichnen)});
   abschlussZeichnen();
 }
-// „Bericht abschließen“ gesperrt mit „Fehlt: …“ -- Noch offen, Namen und beide Unterschriften
+// „Bericht abschließen“ gesperrt mit „Fehlt: …“ -- Noch offen, Namen und beide Unterschriften; seit 1.9.72 in der festen Leiste unten,
+// sichtbar nur in Schritt 5 eines Entwurfs
 function fehlt(){
   var liste=[],n=(OFFEN.eintraege||[]).length;
   if(n)liste.push(n===1?'1 Punkt unter „Noch offen“':n+' Punkte unter „Noch offen“');
@@ -837,8 +857,10 @@ function fehlt(){
   return liste;
 }
 function abschlussZeichnen(){
-  var knopf=el('abschliessenKnopf');if(!knopf)return;
-  var liste=fehlt(),n=(OFFEN.eintraege||[]).length;
+  var an=SCHRITT==='unterschrift'&&entwurf()&&!!el('padMonteur');
+  el('abschlussLeiste').hidden=!an;
+  if(!an)return;
+  var knopf=el('abschliessenKnopf'),liste=fehlt(),n=(OFFEN.eintraege||[]).length;
   knopf.disabled=liste.length>0;
   el('fehltText').textContent=liste.length?'Fehlt: '+liste.join(', '):'';
   el('signStand').innerHTML=n?'<span class="kennzeichen warn">'+n+' offen</span>':'<span class="offen-leer">'+HAKEN.replace('<svg','<svg width="16" height="16"')+'Nichts mehr offen</span>';

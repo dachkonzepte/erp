@@ -5033,3 +5033,29 @@ bleiben auch für die Monteurin „Mangel“; 6 Schlüssel-Scan als Monteurin ü
 - Neu `test_v495` (4 Tests): keine verbotenen Schlüssel; kein Preis und kein Lohn als Wert; keine Daten anderer Aufträge; Zeiten nur vom Berichtstag.
 - **Gegenproben**: Zeiten ab dem Vortag -> „Zeiten“ rot; Zeiten ohne Auftragsfilter -> „Zeiten“ rot; dazu die Auftragsnummer je Zeile -> „andere
   Aufträge“ und „Zeiten“ rot; Stundenlohn im Bericht der Monteurin -> „Schlüssel“ und „Wert“ rot.
+### R4 Nachrunde, Punkte 1 und 3 (1.9.72): feste Leiste in Schritt 5, „⋮“ in der Titelzeile
+
+- `service_report.html`: `#abschlussLeiste` nach dem Raster (`position:sticky; bottom:0`, oben runde Ecken und Schatten wie „Noch offen“ hoch)
+  mit „Zurück“, `#fehltText`, `#abschliessenKnopf` und `#signStatus`; `abschlussZeichnen()` zeigt sie nur in Schritt 5 eines Entwurfs,
+  `inhaltZeichnen()` ruft es nach jedem Zeichnen. Der Punkt: `.punkt-kopf` mit `position:relative`, „⋮“ (`.menue-anker`) direkt nach dem Text
+  und absolut oben rechts, der Kopf hält 64 px frei (`.mit-menue`, nur wenn es ein Menü gibt); der Titel bekommt dann 12 px Innenabstand
+  oben und unten, damit „⋮“ (48 px) auf der Höhe seiner ersten Zeile steht.
+- Ersetzt 1.9.67 Festlegung 1 (Schritt 5 ohne feste Leiste, Knopf am Ende der Karte) -- nicht bestätigt.
+
+**Festlegungen 1.9.72 (Bitte bestätigen)**
+
+1. Die Leiste in Schritt 5: „Zurück“ links, „Fehlt: …“ dazwischen, „Bericht abschließen“ rechts (mindestens 280 px); hoch (unter 1000 px)
+   steht „Fehlt: …“ über den Knöpfen. Eine Meldung beim Abschließen steht in der Leiste über den Knöpfen.
+2. Die Leiste gibt es nur in Schritt 5 eines Entwurfs; in einem unterschriebenen Bericht zeigt Schritt 5 Unterschriften und PDF ohne Leiste.
+3. Die Liste „Noch offen“ bleibt in Schritt 5 in der Karte „Unterschriften“ (wie 1.9.67); die Leiste nennt ihre Zahl in „Fehlt: …“.
+4. „⋮“ steht bei jeder Punktart oben rechts auf Höhe der ersten Textzeile; die Eingabe steht daneben (wenn Platz ist) oder darunter.
+
+**Tests und Prüfung**
+
+- `klicktest_bericht_schritte` neu: Schritt 5 quer (1280 × 620) -- ohne Bildlauf „Bericht abschließen“ und „Fehlt: …“ im Bild, der Knopf nicht
+  verdeckt, beide Zeichenflächen auf der Seite, die Seite länger als das Fenster; ebenso hoch und nach beiden Unterschriften; andere Schritte
+  und der abgeschlossene Bericht ohne Leiste; „⋮“ jedes Prüfpunkts in seiner Titelzeile quer und hoch (mit Bewertungen). Die Messung „≥ 48 px“
+  nimmt die Leiste dazu. Keine bestehende Erwartung geändert.
+- `test_v460`: `abschluss-leiste` in `NICHT_KARTEN` (Leiste am Fensterrand, oben runde Ecken).
+- **Gegenproben**: Leiste ohne `position:sticky` -> Klicktest rot (Schritt 5 quer, hoch, mit Unterschriften); „⋮“ wieder in der Eingabe ->
+  Klicktest rot (Titelzeile quer und hoch).
