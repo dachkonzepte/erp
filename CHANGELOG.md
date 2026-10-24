@@ -4,6 +4,23 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.66 – Einsatzbericht: Regeln für die Seite in fünf Schritten (Stufe 4, R4 Fortsetzung, Server)
+
+Erster Teil der Entscheidungen zum Befund (R4): der Server kennt jetzt, was die neue Berichtsseite braucht. Ein Rapportbericht ohne
+Prüfvorlage braucht die Beschreibung „Durchgeführte Arbeiten / Feststellungen“ -- leer (auch nur Leerzeichen) steht „Durchgeführte Arbeiten
+beschreiben“ unter „Noch offen“ und die Unterschrift lehnt mit 409 ab (Entscheidung B); Wartung und Rapport mit Vorlage brauchen sie nicht.
+Die Art ist nur noch änderbar, solange der Bericht leer ist -- keine Antwort, kein Befund, kein Material, kein Betriebsmittel, keine
+Beschreibung, kein Foto (`bericht_leer()`); danach 409 „Die Art lässt sich nur ändern, solange der Bericht leer ist – Entwurf löschen und neu
+anlegen.“ (Entscheidung C). Mit der Art wechseln Vorlagen und Prüfpunkte wie beim Anlegen: ein leerer Rapport wird zur Wartung mit den
+Punkten der Standardvorlage je Fläche, eine leere Wartung zum Rapport ohne Vorlage -- bis hierher behielt ein Wechsel die alten Punkte bzw.
+bekam keine.
+
+`PUT /api/service-reports/{id}` ist ein Teil-Update (Regel 22, aus `BEKANNT` gestrichen): die Seite speichert die Beschreibung allein (wie eine
+Bemerkung) und das Datum allein („⋮ → Datum ändern“). Neu `GET /api/service-reports/{id}` für die Berichtsseite (die Monteurin nur ihren
+eigenen, das Büro mit dem Hinweis zur fremden Fläche). „Noch offen“ kommt zusätzlich je Schritt (`noch_offen_je_schritt()`: arbeiten,
+pruefpunkte, befunde), und in allen Texten heißt der Mangel des Einsatzberichts jetzt „Befund“ (Entscheidung E; der Mangel der Abnahme
+bleibt „Mangel“). Neuer Test `test_v492`; Tests, die einen Rapport ohne Vorlage unterschreiben, tragen eine Beschreibung ein.
+
 ## 1.9.65 – Dialoge im Monteursrahmen: die Knopfleiste bleibt unten im Bild (Stufe 4, R4 Punkt 6)
 
 Auf dem Tablet quer (1280 × 620) sind der Kolonnen-Dialog und „Zeit ändern“ mit aufgeklappten „Weiteren Angaben“ höher als das Fenster;

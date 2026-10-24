@@ -65,7 +65,7 @@ def test_bericht_nennt_was_noch_offen_ist(bericht):
         "Pflichtpunkt „Zugang und Absturzsicherung geprüft“ beantworten", "Pflichtpunkt „Gesamtzustand Dachfläche“ beantworten",
         "Pflichtpunkt „Gully 1: Ablauf frei und funktionsfähig“ beantworten",
         "Pflichtpunkt „Abdichtung auf Blasen, Risse, Falten“ beantworten"]
-    assert client.get(f"/api/service-reports/{r['id']}/noch-offen").json() == {"offen": r["noch_offen"]}
+    assert client.get(f"/api/service-reports/{r['id']}/noch-offen").json()["offen"] == r["noch_offen"]  # seit 1.9.66 dazu eintraege
 
 
 def test_unterschrift_mit_offenem_pflichtpunkt_abgelehnt(bericht):
@@ -83,7 +83,7 @@ def test_unterschrift_erledigt_ok(bericht):
     """Gegenprobe: alle Pflichtpunkte beantwortet -- unterschrieben, nichts mehr offen."""
     db, client, r = bericht
     _beantworten(db, r["id"])
-    assert client.get(f"/api/service-reports/{r['id']}/noch-offen").json() == {"offen": []}
+    assert client.get(f"/api/service-reports/{r['id']}/noch-offen").json() == {"offen": [], "eintraege": []}
     antwort = client.post(f"/api/service-reports/{r['id']}/sign", json=UNTERSCHRIFT)
     assert antwort.status_code == 200, antwort.text
     assert (antwort.json()["status"], antwort.json()["noch_offen"]) == ("unterschrieben", [])
@@ -105,17 +105,18 @@ def test_alle_vier_pflichten_mit_namen(bericht):
     _beantworten(db, r["id"])
     gully = next(i for i in list_inspection_items(db, r["id"]) if i["text"] == "Gully 1: Ablauf frei und funktionsfähig")
     update_inspection_item(db, gully["id"], {"result": "nok"})
-    assert noch_offen(_bericht(db, r["id"])) == ["Mangel zum Prüfpunkt „Gully 1: Ablauf frei und funktionsfähig“ erfassen (negatives Ergebnis)"]
+    # seit 1.9.66 „Befund“ statt „Mangel“ (Stufe 4, R4, Entscheidung E)
+    assert noch_offen(_bericht(db, r["id"])) == ["Befund zum Prüfpunkt „Gully 1: Ablauf frei und funktionsfähig“ erfassen (negatives Ergebnis)"]
     mangel = create_finding(db, r["id"], "Gully verstopft", "mittel", "sofort_behoben", inspection_item_id=gully["id"])
-    assert noch_offen(_bericht(db, r["id"])) == ["Foto zum Mangel „Gully verstopft“ aufnehmen"]
+    assert noch_offen(_bericht(db, r["id"])) == ["Foto zum Befund „Gully verstopft“ aufnehmen"]
     zeile = db.get(Finding, mangel["id"])
     zeile.action = "zurueckgestellt"
     db.commit()
     with pytest.raises(NochOffen) as fehler:
         sign_report(db, r["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Mia",
                     customer_signature_png_bytes=TINY_PNG, customer_signature_name="Bernd")
-    assert fehler.value.offen == ["Foto zum Mangel „Gully verstopft“ aufnehmen",
-                                  "Wiedervorlagedatum zum zurückgestellten Mangel „Gully verstopft“ angeben"]
+    assert fehler.value.offen == ["Foto zum Befund „Gully verstopft“ aufnehmen",
+                                  "Wiedervorlagedatum zum zurückgestellten Befund „Gully verstopft“ angeben"]
 
 
 def _bericht(db, report_id):
@@ -149,7 +150,7 @@ def test_unterschriebener_bericht_hat_nichts_offen(threaded_db_session, router_t
     sign_report(db, r["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Mia",
                 customer_signature_png_bytes=TINY_PNG, customer_signature_name="Bernd")
     client = router_test_client(db, service_reports_router)
-    assert client.get(f"/api/service-reports/{r['id']}/noch-offen").json() == {"offen": []}
+    assert client.get(f"/api/service-reports/{r['id']}/noch-offen").json() == {"offen": [], "eintraege": []}
 
 
 def test_seite_fragt_vor_jeder_unterschrift_und_ohne_kreuz_am_pflichtpunkt():

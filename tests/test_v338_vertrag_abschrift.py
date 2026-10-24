@@ -348,7 +348,7 @@ def test_service_report_signature_is_limited_to_2_mb(router_test_client, threade
 
     root = service_reports_module.SIGNATURE_ROOT
     files = lambda: len(list(root.glob("*"))) if root.exists() else 0  # noqa: E731
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     before = files()
     for installer, customer, who in ((MAX_SIGNATURE_PNG_BYTES + 1, 100, "des Monteurs"),
                                      (100, MAX_SIGNATURE_PNG_BYTES + 1, "des Kunden")):

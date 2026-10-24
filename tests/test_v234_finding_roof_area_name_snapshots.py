@@ -41,7 +41,7 @@ def test_create_finding_snapshots_component_name():
     area = create_roof_area(db, prop.id, "Hauptdach", roof_type="Flachdach")
     component = create_roof_component(db, area["id"], "Gully Nordost", component_type="Gully")
     order = _make_order_for_report(db, prop)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
 
     finding = create_finding(db, report["id"], "Riss im Bauteil", "mittel", "sofort_behoben", roof_component_id=component["id"])
     row = db.get(Finding, finding["id"])
@@ -56,7 +56,7 @@ def test_finding_name_stays_frozen_after_component_renamed():
     area = create_roof_area(db, prop.id, "Hauptdach", roof_type="Flachdach")
     component = create_roof_component(db, area["id"], "Gully Nordost", component_type="Gully")
     order = _make_order_for_report(db, prop)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     finding = create_finding(db, report["id"], "Riss im Bauteil", "mittel", "sofort_behoben", roof_component_id=component["id"])
     add_finding_photo_and_sign(db, report["id"], finding["id"])
 
@@ -87,7 +87,7 @@ def add_finding_photo_and_sign(db, report_id, finding_id):
 def test_finding_without_component_has_no_snapshot():
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     finding = create_finding(db, report["id"], "Allgemeine Feststellung", "gering", "zurueckgestellt", resubmission_date=__import__("datetime").date.today())
     row = db.get(Finding, finding["id"])
     assert row.roof_component_name_snapshot is None
@@ -102,7 +102,7 @@ def test_finding_to_dict_falls_back_to_live_name_when_snapshot_missing():
     area = create_roof_area(db, prop.id, "Hauptdach", roof_type="Flachdach")
     component = create_roof_component(db, area["id"], "Gully Nordost", component_type="Gully")
     order = _make_order_for_report(db, prop)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     finding = create_finding(db, report["id"], "Riss im Bauteil", "mittel", "sofort_behoben", roof_component_id=component["id"])
 
     # Schnappschuss simuliert leeren, wie bei einer echten Bestandszeile vor der Migration.

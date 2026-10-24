@@ -100,7 +100,7 @@ def test_resubmission_date_required_for_zurueckgestellt_at_create_and_sign(tmp_p
     _patch_storage_roots(tmp_path)
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
 
     try:
         create_finding(db, report["id"], "Dachluke klemmt", "gering", "zurueckgestellt")
@@ -171,7 +171,7 @@ def test_signed_report_pdf_includes_findings_and_documentation_sections(tmp_path
 def test_buero_pruefen_can_be_retried_after_module_enabled_later():
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     set_module_enabled(db, "aufgabenmanagement", False)
 
     finding = create_finding(db, report["id"], "Riss in der Attika", "mittel", "buero_pruefen")
@@ -197,7 +197,7 @@ def test_buero_pruefen_can_be_retried_after_module_enabled_later():
 def test_action_change_away_from_sofort_behoben_resets_closed_at_and_creates_task():
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     finding = create_finding(db, report["id"], "Dachpappe lose", "gering", "sofort_behoben")
     assert finding["status"] == "erledigt"
     assert finding["closed_at"] is not None
@@ -215,7 +215,7 @@ def test_buero_pruefen_creates_only_a_task_never_an_order_or_project():
     Auftrag/Projekt -- der Monteur bleibt im (noch nicht unterschriebenen) Bericht."""
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     finding = create_finding(db, report["id"], "Ziegel gebrochen, Büro soll prüfen", "dringend", "buero_pruefen")
     assert finding["follow_up_task_id"] is not None
     assert finding["follow_up_order_id"] is None
@@ -278,7 +278,7 @@ def test_delete_draft_report_removes_photos_from_disk_and_cleans_up_task(tmp_pat
     _patch_storage_roots(tmp_path)
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     finding = create_finding(db, report["id"], "Kaputt", "mittel", "buero_pruefen")
     assert finding["follow_up_task_id"] is not None
     photo = add_photo(db, report["id"], TINY_PNG, "foto.png", finding_id=finding["id"])
@@ -298,7 +298,7 @@ def test_delete_photo_removes_file_when_report_still_draft(tmp_path):
     _patch_storage_roots(tmp_path)
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     finding = create_finding(db, report["id"], "Kaputt", "gering", "sofort_behoben")
     photo = add_photo(db, report["id"], TINY_PNG, "foto.png", finding_id=finding["id"])
 
@@ -315,7 +315,7 @@ def test_findings_and_photos_immutable_after_signature(tmp_path):
     _patch_storage_roots(tmp_path)
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     finding = create_finding(db, report["id"], "Kaputt", "gering", "sofort_behoben")
     photo = add_photo(db, report["id"], TINY_PNG, "foto.png", finding_id=finding["id"])
     sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
@@ -350,7 +350,7 @@ def test_delete_roof_component_blocks_when_finding_references_it_regardless_of_r
     area = create_roof_area(db, prop.id, "Hauptdach")
     component = create_roof_component(db, area["id"], "Gully 1")
     order = _make_order_for_report(db, prop)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     finding = create_finding(db, report["id"], "Verstopft", "gering", "sofort_behoben", roof_component_id=component["id"])
 
     try:
@@ -374,13 +374,13 @@ def test_list_findings_for_component_returns_chronological_history():
     area = create_roof_area(db, prop.id, "Hauptdach")
     component = create_roof_component(db, area["id"], "Gully 1")
     order1 = _make_order_for_report(db, prop)
-    report1 = create_report(db, order1.id, "rapport", performed_at=date(2026, 1, 10))
+    report1 = create_report(db, order1.id, "rapport", description="Arbeiten laut Testfall", performed_at=date(2026, 1, 10))
     finding1 = create_finding(db, report1["id"], "Erste Verstopfung", "gering", "sofort_behoben", roof_component_id=component["id"])
 
     order2, _customer2, project2 = _build_extra_order(db, "0002", source_quote_id=2)
     project2.property_id = prop.id  # seit 1.8.70: Bauteil nur aus dem Objekt des Auftrags -- zweiter Einsatz am selben Objekt
     db.commit()
-    report2 = create_report(db, order2.id, "rapport", performed_at=date(2026, 3, 5))
+    report2 = create_report(db, order2.id, "rapport", description="Arbeiten laut Testfall", performed_at=date(2026, 3, 5))
     finding2 = create_finding(db, report2["id"], "Zweite Verstopfung", "mittel", "sofort_behoben", roof_component_id=component["id"])
 
     history = list_findings_for_component(db, component["id"])
@@ -395,7 +395,7 @@ def test_router_endpoints_create_finding_and_reject_sign_without_photo(threaded_
     order = _make_order_for_report(db)
     client = router_test_client(db, service_reports_router, findings_router)
 
-    resp = client.post(f"/api/orders/{order.id}/service-reports", json={"report_type": "rapport"})
+    resp = client.post(f"/api/orders/{order.id}/service-reports", json={"report_type": "rapport", "description": "Arbeiten laut Testfall"})
     assert resp.status_code == 200, resp.text
     report_id = resp.json()["id"]
 
@@ -411,9 +411,9 @@ def test_router_endpoints_create_finding_and_reject_sign_without_photo(threaded_
         "installer_signature_png_base64": png, "installer_signature_name": "Monteur Test",
         "customer_signature_png_base64": png, "customer_signature_name": "Max Mustermann",
     })
-    # seit 1.9.36: 409 mit der Liste „Noch offen: …“ (bis 1.9.35 400 mit „1 Mangel/Mängel haben noch kein Foto.“)
+    # seit 1.9.36: 409 mit der Liste „Noch offen: …“ (bis 1.9.35 400 mit „1 Mangel/Mängel haben noch kein Foto.“); seit 1.9.66 „Befund“
     assert sign_resp.status_code == 409
-    assert sign_resp.json()["detail"] == "Noch offen: Foto zum Mangel „Kaputt“ aufnehmen"
+    assert sign_resp.json()["detail"] == "Noch offen: Foto zum Befund „Kaputt“ aufnehmen"
 
     list_resp = client.get("/api/findings")
     assert list_resp.status_code == 200

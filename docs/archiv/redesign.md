@@ -4770,3 +4770,70 @@ Kolonnen-Dialog und „Zeit ändern“ mit aufgeklappten „Weiteren Angaben“ 
 - **Gegenproben**: P1 Leiste auf „Meine Zeiten“ nicht festgehalten -> 1 rot, Klicktest 1 rot („Zeit ändern“; der Kolonnen-Dialog rückt die
   Vorschau ins Bild und blieb grün); P2 ohne Abstand der Vorschau -> Klicktest 1 rot, nach dem Nachschärfen auch pytest 1 rot; P3 Leiste auf
   „Heute“ nicht festgehalten -> 1 rot.
+
+## Stufe 4, R4 Fortsetzung (ab 1.9.66): Einsatzbericht bauen
+
+Auftrag von Tobias (24.10.2026), Start auf 29a936d. Festlegungen 1.9.65 Nr. 1–2 und die Werkzeug-Festlegung zu 1.9.64 bestätigt. Entscheidungen
+zum Befund:
+
+- **A** Schritt 1 heißt beim Rapport ohne Vorlage „Arbeiten“ und enthält „Durchgeführte Arbeiten / Feststellungen“; bei Wartung und Rapport
+  mit Vorlage steht das Feld unter den Prüfpunkten. Jede Art hat fünf Schritte. Gespeichert wie die Bemerkungen (der Fokus bleibt).
+- **B** Rapport ohne Vorlage: die Beschreibung ist Pflicht -- leer steht sie unter „Noch offen“ und sperrt die Unterschrift (Server und Seite).
+- **C** Die Art ist änderbar, nur solange der Bericht leer ist (keine Antwort, kein Befund, kein Material, kein Betriebsmittel, keine
+  Beschreibung, kein Foto); danach fest, Meldung mit dem Hinweis „Entwurf löschen und neu anlegen“. Datum über „⋮ → Datum ändern“.
+- **D** Zwei Seiten: die Auftragsseite bleibt (Liste, „+ Bericht“, Objekt & Zugang, Bedenken, frühere Berichte; die Monteurin bekommt „Zeit
+  nachtragen“ statt der Buchungskarte), der Bericht kommt neu unter `/service-reports/{id}`; `?report=`, „+ Bericht“ und „Bericht
+  fortsetzen“ führen direkt hin.
+- **E** „Befund“ statt „Mangel“ in allen Monteursansichten (auch „Heute / Offen“: „Befunde zur Beseitigung“); der Mangel der Abnahme bleibt
+  „Mangel“.
+
+Dazu die Punkte 1–5 aus R4 (Kopf mit Pfad, Status und „⋮“; Schritte mit Haken, feste Leiste, „Noch offen“ rechts bzw. hoch über der Leiste;
+Segmentknöpfe ≥ 52 px, „Nicht OK“ öffnet den Befund darunter; Unterschrift mit Zusammenfassung, Zeiten am Tag, Namensfeldern, Fläche ≥ 160 px,
+„Bericht abschließen“ gesperrt mit „Fehlt: …“; Tablet: Ziele ≥ 48 px, Fokus bleibt, Foto löschen 48 px mit Rückfrage, „Aufnehmen“ und „Aus
+Galerie“; keine Buchungskarte für die Monteurin). Gebaut in drei Versionen: 1.9.66 Server, 1.9.67 die Berichtsseite und die Auftragsseite,
+1.9.68 „Befund“ in den übrigen Monteursansichten.
+
+### R4 Fortsetzung, Server (1.9.66)
+
+- **Beschreibung** (B): `app/service_reports.py::hat_pruefpunkte()` -- Wartung immer, Rapport nur mit Vorlage an einer seiner Flächen (oder in
+  der Altspalte); dieselbe Regel wie `hasInspectionSection()` der Seite bis hierher. Ohne Prüfpunkte und ohne Beschreibung steht
+  `ARBEITEN_BESCHREIBEN` („Durchgeführte Arbeiten beschreiben“) als erster Eintrag unter „Noch offen“ und `sign_report()` lehnt ab (409 mit
+  der Liste, wie seit 1.9.36).
+- **„Noch offen“ je Schritt**: `noch_offen_je_schritt()` liefert je Eintrag Text und Schritt (`arbeiten`, `pruefpunkte`, `befunde`);
+  `noch_offen()` nimmt die Texte daraus. `GET …/noch-offen` antwortet `{"offen": […], "eintraege": […]}`, die Berichtsantwort trägt
+  `noch_offen_je_schritt`, `hat_pruefpunkte`, `art_aenderbar`.
+- **Art** (C): `bericht_leer()`; `update_report()` lehnt einen Wechsel mit `ArtFest` ab (409, `ART_FEST`), dieselbe Art geht immer durch.
+  `_pruefpunkte_wie_beim_anlegen()`: nach dem Wechsel Vorlagen und Prüfpunkte wie `create_report()` ohne ausdrückliche Vorlage.
+- **Teil-Update**: `ServiceReportUpdate` von `PartialUpdate` (`NOT_NULL` Art und Datum), Handler mit `model_dump(exclude_unset=True)`; aus
+  `BEKANNT` in `tests/test_v329_update_handler_struktur.py` gestrichen (61 statt 62).
+- **Ein Bericht**: `GET /api/service-reports/{id}` -- die Monteurin nur ihren eigenen (`require_field_report_ownership()`, wie Ändern und PDF,
+  Schema `ServiceReportOut`), das Büro dazu mit `office_hint` (wie die Liste).
+- **Benennung** (E, Server): „Befund zum Prüfpunkt … erfassen“, „Foto zum Befund … aufnehmen“, „Wiedervorlagedatum zum zurückgestellten Befund
+  … angeben“.
+
+**Festlegungen 1.9.66 (Bitte bestätigen)**
+
+1. Eine Beschreibung nur aus Leerzeichen zählt nicht -- sie steht weiter unter „Noch offen“.
+2. „Leer“ für die Art: ein Prüfpunkt zählt als Eingabe, sobald er ein Ergebnis, einen Zustand, einen Messwert, eine Menge, eine Dauer oder
+   eine Bemerkung trägt; ein Punkt ohne all das (auch ein Foto-Punkt ohne Foto) nicht. Ein Foto am Bericht zählt immer.
+3. Mit der Art wechseln Vorlagen und Prüfpunkte wie beim Anlegen mit der neuen Art (Wartung: Vorlage je Fläche über Vertragsposition und
+   Standardvorlage des Dachtyps; Rapport: ohne Vorlage, Schritt „Arbeiten“) -- auch eine beim Anlegen ausdrücklich gewählte Vorlage eines
+   Rapports entfällt. Es geht nichts verloren, der Bericht ist leer. Ein Altbestand-Bericht von vor 1.2.22 (ohne Flächenzeilen) behält seine
+   Punkte.
+4. Die Reihenfolge unter „Noch offen“: zuerst die Beschreibung, dann Pflichtpunkte, Befunde zu negativen Ergebnissen, Fotos, Wiedervorlagen.
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v492_bericht_regeln.py` (14 Tests): Rapport ohne Vorlage leer gesperrt, nur Leerzeichen gesperrt, ausgefüllt frei; Wartung
+  und Rapport mit Vorlage ohne Beschreibung; Art leer geht, nach Antwort, Beschreibung, Befund, Material, Betriebsmittel oder Foto 409 und
+  nichts geändert; Art-Wechsel legt Prüfpunkte wie beim Anlegen; Datum allein lässt Art und Beschreibung, `null` für Art oder Datum 422; ein
+  Bericht: Monteurin eigener 200 ohne Hinweis, fremder 403, Büro mit Hinweis, unbekannt 404; „Noch offen“ je Schritt mit „Befund“.
+- Angepasste Erwartungen: `test_v464` (`GET …/noch-offen` zusätzlich `eintraege`; „Mangel“ -> „Befund“ in vier Texten); `test_v214`
+  `test_router_endpoints_create_finding_and_reject_sign_without_photo` („Noch offen: Foto zum Mangel „Kaputt“ aufnehmen“ -> „… zum Befund …“, der
+  Bericht bekommt beim Anlegen eine Beschreibung); `test_v329` (`BEKANNT` ohne `PUT /api/service-reports/{report_id}`).
+- Nur Aufbau angepasst (Rapport ohne Vorlage mit Beschreibung, sonst lehnt die Unterschrift ab): `test_v203` (Helfer `sign_report_for_test`
+  trägt eine Beschreibung ein, wenn sie fehlt; `update_report()` mit einem dict), `test_v214`, `test_v223`, `test_v234`, `test_v280`,
+  `test_v338`, `test_v358` (`create_report(…, "rapport", description="Arbeiten laut Testfall")`).
+- **Gegenproben** (je nur `test_v492`): Beschreibung nicht Pflicht -> 1 rot; Leerzeichen zählen -> 1 rot; Art immer änderbar -> 6 rot;
+  Betriebsmittel zählt nicht -> 1 rot; Foto zählt nicht -> 1 rot; PUT übernimmt alle Felder -> 9 rot (Datum `null` an der Spalte); ein
+  Bericht ohne Besitzprüfung -> 1 rot; „Mangel“ statt „Befund“ -> 1 rot; Art wechselt ohne Prüfpunkte -> 1 rot.

@@ -122,7 +122,7 @@ def bericht(threaded_db_session, router_test_client, tmp_path, monkeypatch):
     db = threaded_db_session
     monkeypatch.setattr(service_reports_module, "SIGNATURE_ROOT", tmp_path / "sigs")
     order = beauftragen(db, make_quote(db))
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     return {"db": db, "client": router_test_client(db, sr_router), "id": report["id"], "root": tmp_path / "sigs"}
 
 

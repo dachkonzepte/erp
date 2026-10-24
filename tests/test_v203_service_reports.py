@@ -30,6 +30,14 @@ def sign_report_for_test(db, report_id, installer_name="Monteur Test", customer_
     test_sign_report_writes_signature_file_and_freezes_status gezielt)."""
     installer_bytes = installer_bytes if installer_bytes is not None else TINY_PNG
     customer_bytes = customer_bytes if customer_bytes is not None else TINY_PNG
+    # seit 1.9.66 braucht ein Rapport ohne Vorlage eine Beschreibung (Stufe 4, R4, Entscheidung B) -- der Helfer trägt sie wie die
+    # Monteurin ein, wenn sie fehlt; die Regel selbst prüft tests/test_v492_bericht_regeln.py
+    from app.models import ServiceReport
+    from app.service_reports import hat_pruefpunkte
+    report = db.get(ServiceReport, report_id)
+    if report is not None and not hat_pruefpunkte(report) and not (report.description or "").strip():
+        report.description = "Arbeiten laut Testfall"
+        db.commit()
     return sign_report(
         db, report_id, installer_signature_png_bytes=installer_bytes, installer_signature_name=installer_name,
         customer_signature_png_bytes=customer_bytes, customer_signature_name=customer_name,
@@ -74,13 +82,14 @@ def test_update_and_delete_work_only_while_draft(tmp_path):
     service_reports.SIGNATURE_ROOT = tmp_path / "sigs"
     db = db_session()
     order, _ = make_order_with_item(db)
-    report = create_report(db, order.id, "rapport", description="Erstfassung")
-    updated = update_report(db, report["id"], report_type="wartung", description="Geändert", performed_at=report["performed_at"])
+    # seit 1.9.66 ein Teil-Update, die Art nur solange der Bericht leer ist -- angelegt ohne Beschreibung, Art und Beschreibung in einem
+    report = create_report(db, order.id, "rapport")
+    updated = update_report(db, report["id"], {"report_type": "wartung", "description": "Geändert", "performed_at": report["performed_at"]})
     assert updated["report_type"] == "wartung"
 
     sign_report_for_test(db, report["id"])
     try:
-        update_report(db, report["id"], report_type="rapport", description="x", performed_at=report["performed_at"])
+        update_report(db, report["id"], {"report_type": "rapport", "description": "x", "performed_at": report["performed_at"]})
         assert False, "sollte ValueError auslösen (unveränderlich nach Unterschrift)"
     except ValueError:
         pass

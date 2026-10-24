@@ -149,6 +149,11 @@ def report_to_dict(report: ServiceReport) -> dict:
         "roof_areas": _report_roof_areas_to_dicts(report),
         # seit 1.9.36: was vor der Unterschrift noch offen ist (nur im Entwurf) -- die Liste am Knopf „Unterschreiben“
         "noch_offen": noch_offen(report) if report.status == "entwurf" else [],
+        # seit 1.9.66 (Stufe 4, R4): dasselbe je Schritt der Berichtsseite (arbeiten, pruefpunkte, befunde), ob der Bericht Prüfpunkte
+        # hat (sonst heißt Schritt 1 „Arbeiten“) und ob die Art noch änderbar ist (nur solange der Bericht leer ist)
+        "noch_offen_je_schritt": noch_offen_je_schritt(report) if report.status == "entwurf" else [],
+        "hat_pruefpunkte": hat_pruefpunkte(report),
+        "art_aenderbar": report.status == "entwurf" and bericht_leer(report),
         "created_at": report.created_at,
         "updated_at": report.updated_at,
     }
@@ -634,18 +639,70 @@ def get_property_context_for_order(db: Session, order_id: int) -> Property | Non
     return db.get(Property, order.project.property_id)
 
 
-def update_report(db: Session, report_id: int, report_type: str, description: str | None,
-                   performed_at: date) -> dict | None:
+class ArtFest(ValueError):
+    """Seit 1.9.66 (Stufe 4, R4, Entscheidung C): die Art eines Berichts ist nur änderbar, solange er leer ist (409 im Router)."""
+
+
+ART_FEST = "Die Art lässt sich nur ändern, solange der Bericht leer ist – Entwurf löschen und neu anlegen."
+
+
+def _hat_eingabe(item: InspectionItem) -> bool:
+    """Ob an einem Prüfpunkt etwas eingetragen ist (Ergebnis, Zustand, Messwert, Menge, Dauer, Bemerkung) -- anders als
+    _is_item_answered() zählt ein Punkt vom Typ Foto ohne Eingabe nicht."""
+    return (item.result is not None or item.condition_grade is not None or item.measured_value is not None
+            or item.quantity is not None or item.duration_minutes is not None or bool(item.notes and item.notes.strip()))
+
+
+def bericht_leer(report: ServiceReport) -> bool:
+    """Seit 1.9.66 (Entscheidung C): leer = keine Antwort an einem Prüfpunkt, kein Befund, kein Material, kein Betriebsmittel, keine
+    Beschreibung, kein Foto -- nur dann ist die Art noch änderbar."""
+    return (not any(_hat_eingabe(i) for i in report.inspection_items) and not report.findings and not report.materials
+            and not report.assets and not (report.description and report.description.strip()) and not report.photos)
+
+
+def _pruefpunkte_wie_beim_anlegen(db: Session, report: ServiceReport) -> None:
+    """Seit 1.9.66 (Stufe 4, R4, Entscheidung C): nach einem Wechsel der Art Vorlagen und Prüfpunkte wie beim Anlegen mit der neuen
+    Art (create_report() ohne ausdrückliche Vorlage) -- Wartung: je Dachfläche die Vorlage über _resolve_inspection_template()
+    (Vertragsposition, Standardvorlage des Dachtyps), Rapport: ohne Vorlage (Schritt 1 „Arbeiten“). Die alten Punkte sind leer, der
+    Wechsel geht nur im leeren Bericht (bericht_leer()) -- es geht nichts verloren. Ein Altbestand-Bericht ohne Flächenzeilen (vor
+    1.2.22) behält seine Punkte wie bis 1.9.65."""
+    if not report.report_roof_areas:
+        return
+    for item in list(report.inspection_items):
+        db.delete(item)
+    db.flush()
+    for link in report.report_roof_areas:
+        template = None
+        if report.report_type == "wartung" and link.roof_area is not None:
+            template = _resolve_inspection_template(db, None, report.maintenance_contract_item_id, link.roof_area)
+        link.inspection_template_id = template.id if template else None
+        link.inspection_template_version = template.version if template else None
+        link.inspection_template_label_snapshot = template.label if template else None
+        if template is not None:
+            _generate_inspection_items(db, report, link.roof_area, template)
+
+
+def update_report(db: Session, report_id: int, aenderungen: dict) -> dict | None:
+    """Seit 1.9.66 ein Teil-Update (Regel 22): nur die gesendeten Felder (report_type, description, performed_at) -- die Berichtsseite
+    speichert die Beschreibung allein (wie eine Bemerkung) und das Datum allein („⋮ → Datum ändern“). Die Art nur, solange der Bericht
+    leer ist (bericht_leer(), geprüft vor jeder Änderung dieses Aufrufs), sonst ArtFest; eine unveränderte Art geht immer durch. Mit der
+    Art wechseln Vorlagen und Prüfpunkte wie beim Anlegen (_pruefpunkte_wie_beim_anlegen())."""
     report = db.get(ServiceReport, report_id)
     if report is None:
         return None
     if report.status == "unterschrieben":
         raise ValueError("Ein unterschriebener Bericht kann nicht mehr bearbeitet werden.")
-    if report_type not in REPORT_TYPES:
-        raise ValueError(f"Unbekannter Berichtstyp: {report_type}")
-    report.report_type = report_type
-    report.description = description or None
-    report.performed_at = performed_at
+    if "report_type" in aenderungen and aenderungen["report_type"] != report.report_type:
+        if aenderungen["report_type"] not in REPORT_TYPES:
+            raise ValueError(f"Unbekannter Berichtstyp: {aenderungen['report_type']}")
+        if not bericht_leer(report):
+            raise ArtFest(ART_FEST)
+        report.report_type = aenderungen["report_type"]
+        _pruefpunkte_wie_beim_anlegen(db, report)
+    if "description" in aenderungen:
+        report.description = aenderungen["description"] or None
+    if "performed_at" in aenderungen:
+        report.performed_at = aenderungen["performed_at"]
     db.commit()
     return report_to_dict(_load(db, report.id))
 
@@ -766,20 +823,45 @@ def zeiten_des_berichts(db: Session, report: ServiceReport) -> dict:
     return {"art": "aktuell", "tag": report.performed_at, "zeilen": zeiten_am_tag(db, report)}
 
 
-def noch_offen(report: ServiceReport) -> list[str]:
-    """Seit 1.9.36 (Stufe 4, R1, Punkt 4): was vor einer Unterschrift erledigt sein muss -- genau die Pflichten, die sign_report() seit
-    1.2.16/1.2.17 prüft (Pflichtpunkt beantwortet, Mangel zu negativem Ergebnis, Foto je Mangel, Wiedervorlage bei zurückgestellt), keine
-    neuen; je Eintrag mit dem Namen des Prüfpunkts bzw. Mangels, in dieser Reihenfolge. Leer = unterschreibbar. Bis 1.9.35 prüfte sie
-    erst der Aufruf mit beiden Unterschriften und nannte nur Zahlen."""
-    offen = [f"Pflichtpunkt „{_kurz(i.text)}“ beantworten" for i in report.inspection_items
-             if i.required and not _is_item_answered(i)]
+def hat_pruefpunkte(report: ServiceReport) -> bool:
+    """Seit 1.9.66 (Stufe 4, R4): ob der Bericht Prüfpunkte hat -- ein Wartungsbericht immer, ein Rapportbericht nur mit Vorlage an
+    einer seiner Dachflächen (oder in der Altspalte). Sonst ist er ein Rapportbericht ohne Vorlage: Schritt 1 heißt „Arbeiten“, die
+    Beschreibung ist Pflicht (Entscheidungen A und B). Dieselbe Regel wie hasInspectionSection() der Seite bis 1.9.66."""
+    return (report.report_type == "wartung" or report.inspection_template_id is not None
+            or any(link.inspection_template_id is not None for link in report.report_roof_areas))
+
+
+ARBEITEN_BESCHREIBEN = "Durchgeführte Arbeiten beschreiben"
+
+
+def noch_offen_je_schritt(report: ServiceReport) -> list[dict]:
+    """Seit 1.9.66 (Stufe 4, R4): noch_offen() mit dem Schritt der Berichtsseite je Eintrag -- arbeiten (Beschreibung beim Rapport
+    ohne Vorlage, seit 1.9.66 Pflicht), pruefpunkte (Pflichtpunkt ohne Ergebnis, „Nicht OK“ ohne Befund -- der Befund entsteht direkt
+    unter dem Punkt), befunde (Foto, Wiedervorlage). Seit 1.9.66 heißt der Mangel hier „Befund“ (Entscheidung E; der Mangel der Abnahme
+    bleibt „Mangel“)."""
+    eintraege = []
+    if not hat_pruefpunkte(report) and not (report.description and report.description.strip()):
+        eintraege.append({"text": ARBEITEN_BESCHREIBEN, "schritt": "arbeiten"})
+    eintraege += [{"text": f"Pflichtpunkt „{_kurz(i.text)}“ beantworten", "schritt": "pruefpunkte"} for i in report.inspection_items
+                  if i.required and not _is_item_answered(i)]
     findings_by_item_id = {f.inspection_item_id for f in report.findings if f.inspection_item_id is not None}
-    offen += [f"Mangel zum Prüfpunkt „{_kurz(i.text)}“ erfassen (negatives Ergebnis)" for i in report.inspection_items
-              if (i.result == "nok" or i.condition_grade in (3, 4)) and i.id not in findings_by_item_id]
-    offen += [f"Foto zum Mangel „{_kurz(f.description, 60)}“ aufnehmen" for f in report.findings if not f.photos]
-    offen += [f"Wiedervorlagedatum zum zurückgestellten Mangel „{_kurz(f.description, 60)}“ angeben" for f in report.findings
-              if f.action == "zurueckgestellt" and f.resubmission_date is None]
-    return offen
+    eintraege += [{"text": f"Befund zum Prüfpunkt „{_kurz(i.text)}“ erfassen (negatives Ergebnis)", "schritt": "pruefpunkte"}
+                  for i in report.inspection_items
+                  if (i.result == "nok" or i.condition_grade in (3, 4)) and i.id not in findings_by_item_id]
+    eintraege += [{"text": f"Foto zum Befund „{_kurz(f.description, 60)}“ aufnehmen", "schritt": "befunde"} for f in report.findings
+                  if not f.photos]
+    eintraege += [{"text": f"Wiedervorlagedatum zum zurückgestellten Befund „{_kurz(f.description, 60)}“ angeben", "schritt": "befunde"}
+                  for f in report.findings if f.action == "zurueckgestellt" and f.resubmission_date is None]
+    return eintraege
+
+
+def noch_offen(report: ServiceReport) -> list[str]:
+    """Seit 1.9.36 (Stufe 4, R1, Punkt 4): was vor einer Unterschrift erledigt sein muss -- die Pflichten, die sign_report() seit
+    1.2.16/1.2.17 prüft (Pflichtpunkt beantwortet, Befund zu negativem Ergebnis, Foto je Befund, Wiedervorlage bei zurückgestellt), seit
+    1.9.66 dazu die Beschreibung beim Rapport ohne Vorlage; je Eintrag mit dem Namen des Prüfpunkts bzw. Befunds, in dieser Reihenfolge.
+    Leer = unterschreibbar. Bis 1.9.35 prüfte sie erst der Aufruf mit beiden Unterschriften und nannte nur Zahlen. Die Texte und die
+    Reihenfolge kommen aus noch_offen_je_schritt()."""
+    return [e["text"] for e in noch_offen_je_schritt(report)]
 
 
 def _is_item_answered(item: InspectionItem) -> bool:

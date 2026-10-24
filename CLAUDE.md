@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.65** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.66** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -678,7 +678,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Datensatz), nie still umgestellt; nie `auswahlOptionen()` über eine vorher gefilterte Liste (Wächter P3); `KLASSEN` kennt dafür nur
     `vollstaendig` (Liste enthält jede speicherbare ID), `neu` oder `eigen` (`tests/test_v450_auswahl_fremdschluessel.py`).
     `tests/test_v329_update_handler_struktur.py` prüft jeden
-    PUT/PATCH-Handler per AST; die 62 Altfälle (seit 1.8.96, vorher 70) stehen dort als Liste, die nur kürzer werden darf.
+    PUT/PATCH-Handler per AST; die 61 Altfälle (seit 1.9.66, vorher 62, bis 1.8.95 70) stehen dort als Liste, die nur kürzer werden darf.
     Details: `docs/archiv/teil-updates.md`.
 
 23. **Grunddaten legt der Start an, nie ein Lesepfad -- kein GET schreibt, seit 1.8.42.** Einstellungen
@@ -1496,7 +1496,11 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
 - **Einsatzbericht: „Noch offen“ vor jeder Unterschrift** (seit 1.9.36): die Pflichten nur aus `app/service_reports.py::noch_offen()`
   (dieselben wie seit 1.2.16/1.2.17, je mit Namen); die Seite fragt `GET /api/service-reports/{id}/noch-offen` vor der Unterschrift des
   Monteurs und vor der des Kunden, nach `nachDemSpeichern()` (`_speichern.html`); die Unterschrift lehnt mit 409 und der Liste ab. Ein
-  Punkt aus der Prüfvorlage ist nicht löschbar (409, seit 1.9.41 jeder, bis dahin nur Pflichtpunkte), nur ein von Hand ergänzter. Eine neue Pflicht gehört in `noch_offen()`. `tests/test_v464_noch_offen.py`. **Zeiten im
+  Punkt aus der Prüfvorlage ist nicht löschbar (409, seit 1.9.41 jeder, bis dahin nur Pflichtpunkte), nur ein von Hand ergänzter. Eine neue Pflicht gehört in `noch_offen_je_schritt()` (seit 1.9.66 je Schritt der
+  Berichtsseite; `noch_offen()` nimmt die Texte daraus). `tests/test_v464_noch_offen.py`. **Seit 1.9.66** braucht ein Rapport ohne Vorlage
+  (`hat_pruefpunkte()`) die Beschreibung, die Art ist nur im leeren Bericht änderbar (`bericht_leer()`, sonst 409 `ART_FEST`; mit ihr wechseln
+  Vorlagen und Prüfpunkte wie beim Anlegen), `PUT /api/service-reports/{id}` ist ein Teil-Update, „Befund“ statt „Mangel“
+  (`tests/test_v492_bericht_regeln.py`). **Zeiten im
   Bericht** (seit 1.9.42, ersetzt 1.9.37): alle Zeiten des Auftrags am Tag des Berichts, alle Personen (`zeiten_am_tag()`); Seite und PDF
   zeigen dieselben Zeilen (`zeiten_des_berichts()`), mit der Unterschrift in `ServiceReport.time_rows_json` gespeichert und danach
   unverändert; vor 1.9.42 unterschrieben (ohne Stand) wie vor 1.9.37 alle Zeiten des Auftrags. `tests/test_v467_zeiten_einsatzbericht.py`.
@@ -2041,8 +2045,9 @@ zufällig (`app/audit.py`, `session.dirty`), deshalb setzt `befuellen()` den Pro
 - ~~Kolonnenführer-Rolle für Gruppenbuchungen~~ -- seit 1.7.12 gelöst über das Kennzeichen
   `TeamEmployee.is_crew_leader` (keine eigene Rolle), siehe `docs/archiv/rechtekonzept.md`,
   "Zeiterfassung für Monteure" -> "Nachtrag (seit 1.7.12)".
-- **62 Update-Handler stehen noch in `BEKANNT`** (seit 1.8.96; die sechs mit Datenverlust seit 1.8.25 behoben, die drei der
-  Arbeitsvorbereitung seit 1.8.29, der Auftragskopf seit 1.8.32, die Dachfläche seit 1.8.46, acht mit gemerkten Werten seit 1.8.96, Regel 22;
+- **61 Update-Handler stehen noch in `BEKANNT`** (seit 1.9.66; die sechs mit Datenverlust seit 1.8.25 behoben, die drei der
+  Arbeitsvorbereitung seit 1.8.29, der Auftragskopf seit 1.8.32, die Dachfläche seit 1.8.46, acht mit gemerkten Werten seit 1.8.96, der
+  Einsatzbericht seit 1.9.66, Regel 22;
   darunter die acht, die keine Verstöße sind): jede Oberfläche schickt dort heute alle Felder, kein akuter Datenverlust.
   Eingefroren in `BEKANNT` (`tests/test_v329_update_handler_struktur.py`), Abbau bei Gelegenheit; dazu
   Speichern-Aufrufe, die nicht bearbeitete oder gemerkte Werte schicken: `docs/archiv/teil-updates.md`,

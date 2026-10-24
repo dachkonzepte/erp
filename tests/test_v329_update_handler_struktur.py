@@ -236,7 +236,6 @@ BEKANNT = {
     "PUT /api/roof-layer-types/reorder": _NONE_UNVERAENDERT,
     "PUT /api/roof-layer-types/{layer_type_id}": _VOLLES_FORMULAR,
     "PUT /api/roof-type-template-defaults/{roof_type}": _LEEREN_GEWOLLT,
-    "PUT /api/service-reports/{report_id}": _VOLLES_FORMULAR,
     "PUT /api/services/{service_id}": _VOLLES_FORMULAR,
     "PUT /api/settings/contract-basis-clauses/{basis_key}": _VOLLES_FORMULAR,
     "PUT /api/settings/employee-functions/{function_id}": _VOLLES_FORMULAR,

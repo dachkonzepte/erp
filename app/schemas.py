@@ -4443,6 +4443,10 @@ class ServiceReportOut(BaseModel):
     signed_at: datetime | None = None
     installer_signature_name: str | None = None
     installer_signed_at: datetime | None = None
+    # seit 1.9.66 (Stufe 4, R4): für die Berichtsseite -- Noch offen je Schritt, Prüfpunkte ja/nein, Art noch änderbar
+    noch_offen_je_schritt: list[dict] = Field(default_factory=list)
+    hat_pruefpunkte: bool = False
+    art_aenderbar: bool = False
     status: str
     maintenance_contract_id: int | None = None
     maintenance_contract_item_id: int | None = None
@@ -4518,10 +4522,13 @@ class ServiceReportCreate(BaseModel):
     inspection_template_id: int | None = None
 
 
-class ServiceReportUpdate(BaseModel):
-    report_type: str
+class ServiceReportUpdate(PartialUpdate):
+    """Seit 1.9.66 (Stufe 4, R4) ein Teil-Update: die Berichtsseite speichert die Beschreibung allein (wie eine Bemerkung) und das
+    Datum allein; die Art nur, solange der Bericht leer ist (app/service_reports.py::update_report())."""
+    NOT_NULL = frozenset({"report_type", "performed_at"})
+    report_type: str | None = None
     description: str | None = None
-    performed_at: date
+    performed_at: date | None = None
 
 
 class ServiceReportSign(BaseModel):

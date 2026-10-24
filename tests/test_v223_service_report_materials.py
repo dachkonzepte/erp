@@ -35,7 +35,7 @@ def _make_material(db, name="Bitumenbahn", unit="m2", purchase_price="12.50", pr
 def test_add_material_from_catalog_copies_description_and_unit_as_snapshot():
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     material = _make_material(db, name="Bitumenbahn G200", unit="m2")
 
     row = add_material(db, report["id"], material_id=material.id, quantity=Decimal("5"))
@@ -48,7 +48,7 @@ def test_add_material_from_catalog_copies_description_and_unit_as_snapshot():
 def test_add_material_free_text_creates_no_catalog_entry():
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     before = db.query(Material).count()
 
     row = add_material(db, report["id"], description="3 Dachziegel vom Lager", quantity=Decimal("3"), unit="Stk")
@@ -60,7 +60,7 @@ def test_add_material_free_text_creates_no_catalog_entry():
 def test_add_material_free_text_requires_description():
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     try:
         add_material(db, report["id"], description="   ", quantity=Decimal("1"))
         assert False, "sollte ValueError auslösen"
@@ -71,7 +71,7 @@ def test_add_material_free_text_requires_description():
 def test_add_material_rejects_non_positive_quantity():
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     try:
         add_material(db, report["id"], description="Test", quantity=Decimal("0"))
         assert False, "sollte ValueError auslösen"
@@ -106,7 +106,7 @@ def test_add_material_rejects_inspection_item_and_finding_from_other_report():
     order1.project.property_id = prop.id  # seit 1.8.70: Dachflächen nur aus dem Objekt des Auftrags
     db.commit()
     report1 = create_report(db, order1.id, "wartung", roof_area_ids=[area["id"]])
-    report2 = create_report(db, order2.id, "rapport")
+    report2 = create_report(db, order2.id, "rapport", description="Arbeiten laut Testfall")
     foreign_item = _load_report(db, report1["id"]).inspection_items[0]
 
     try:
@@ -127,7 +127,7 @@ def test_add_material_rejects_inspection_item_and_finding_from_other_report():
 def test_update_material_exclude_unset_and_material_id_switch_recopies_snapshot():
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     material_a = _make_material(db, name="Material A", unit="Stk")
     material_b = _make_material(db, name="Material B", unit="kg")
     row = add_material(db, report["id"], material_id=material_a.id, quantity=Decimal("2"), notes="Ursprüngliche Notiz")
@@ -145,7 +145,7 @@ def test_update_material_exclude_unset_and_material_id_switch_recopies_snapshot(
 def test_delete_material():
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     row = add_material(db, report["id"], description="Test", quantity=Decimal("1"))
     assert delete_material(db, row["id"]) is True
     assert list_materials_for_report(db, report["id"]) == []
@@ -155,7 +155,7 @@ def test_delete_material():
 def test_material_blocked_after_signature():
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     row = add_material(db, report["id"], description="Test", quantity=Decimal("1"))
     sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
 
@@ -179,7 +179,7 @@ def test_material_blocked_after_signature():
 def test_sign_report_without_any_material_is_unaffected():
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     signed = sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
     assert signed["status"] == "unterschrieben"
 
@@ -187,7 +187,7 @@ def test_sign_report_without_any_material_is_unaffected():
 def test_client_uuid_unique_constraint_allows_multiple_nulls_but_not_duplicate_value():
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     add_material(db, report["id"], description="A", quantity=Decimal("1"))
     add_material(db, report["id"], description="B", quantity=Decimal("1"))  # zwei client_uuid=None -- erlaubt
 
@@ -255,7 +255,7 @@ def test_invoice_from_effort_prices_catalog_material_with_configured_markup():
     db.commit()
 
     order, _ = make_order_with_item(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     material = _make_material(db, name="Bitumenbahn", unit="m2", purchase_price="10.00")
     add_material(db, report["id"], material_id=material.id, quantity=Decimal("5"))
     sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
@@ -277,7 +277,7 @@ def test_invoice_from_effort_uses_bare_purchase_price_when_markup_is_zero_defaul
     assert settings.material_markup_pct == Decimal("0")  # Standardwert, nicht extra gesetzt
 
     order, _ = make_order_with_item(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     material = _make_material(db, name="Bitumenbahn", unit="m2", purchase_price="10.00")
     add_material(db, report["id"], material_id=material.id, quantity=Decimal("5"))
     sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
@@ -291,7 +291,7 @@ def test_invoice_from_effort_uses_bare_purchase_price_when_markup_is_zero_defaul
 def test_invoice_from_effort_free_material_has_zero_price_and_is_never_merged():
     db = db_session()
     order, _ = make_order_with_item(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     add_material(db, report["id"], description="Dachziegel Rest", quantity=Decimal("2"), unit="Stk")
     add_material(db, report["id"], description="Dachziegel Rest", quantity=Decimal("3"), unit="Stk")
     sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
@@ -308,11 +308,11 @@ def test_invoice_from_effort_merges_same_catalog_material_across_two_signed_repo
     order, _ = make_order_with_item(db)
     material = _make_material(db, name="Bitumenbahn", unit="m2", purchase_price="10.00")
 
-    report1 = create_report(db, order.id, "rapport")
+    report1 = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     add_material(db, report1["id"], material_id=material.id, quantity=Decimal("5"))
     sign_report(db, report1["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
 
-    report2 = create_report(db, order.id, "rapport")
+    report2 = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     add_material(db, report2["id"], material_id=material.id, quantity=Decimal("3"))
     sign_report(db, report2["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Erika Musterfrau")
 
@@ -327,7 +327,7 @@ def test_invoice_from_effort_merges_same_catalog_material_across_two_signed_repo
 def test_invoice_from_effort_ignores_draft_report_material():
     db = db_session()
     order, _ = make_order_with_item(db)
-    report = create_report(db, order.id, "rapport")  # bleibt Entwurf, nie unterschrieben
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")  # bleibt Entwurf, nie unterschrieben
     add_material(db, report["id"], description="Nicht abrechenbar", quantity=Decimal("1"))
     materials = list_materials_for_invoicing(db, order.id)
     assert materials == []
@@ -362,7 +362,7 @@ def test_router_endpoint_sets_material_markup_hint_only_when_relevant(threaded_d
     db = threaded_db_session
     order, _ = make_order_with_item(db)
     material = _make_material(db, name="Bitumenbahn", unit="m2", purchase_price="10.00")
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     add_material(db, report["id"], material_id=material.id, quantity=Decimal("1"))
     sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
 
@@ -382,7 +382,7 @@ def test_router_endpoint_material_markup_hint_absent_with_configured_markup(thre
     db.commit()
     order, _ = make_order_with_item(db)
     material = _make_material(db, name="Bitumenbahn", unit="m2", purchase_price="10.00")
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     add_material(db, report["id"], material_id=material.id, quantity=Decimal("1"))
     sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
 
@@ -397,7 +397,7 @@ def test_router_endpoint_material_markup_hint_absent_for_free_material_only(thre
 
     db = threaded_db_session
     order, _ = make_order_with_item(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     add_material(db, report["id"], description="Freies Material", quantity=Decimal("1"))
     sign_report(db, report["id"], installer_signature_png_bytes=TINY_PNG, installer_signature_name="Monteur Test", customer_signature_png_bytes=TINY_PNG, customer_signature_name="Max Mustermann")
 
@@ -414,7 +414,7 @@ def test_router_endpoints_for_service_report_materials(threaded_db_session, rout
 
     db = threaded_db_session
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     client = router_test_client(db, service_reports_router)
 
     post_resp = client.post(

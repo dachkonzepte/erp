@@ -53,7 +53,7 @@ def _make_selectable_asset(db, name="Kran"):
 def test_add_asset_usage_freezes_name_snapshot_at_creation():
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     asset = _make_selectable_asset(db, name="Kran 40t")
 
     row = add_asset_usage(db, report["id"], asset_id=asset["id"])
@@ -65,7 +65,7 @@ def test_add_asset_usage_freezes_name_snapshot_at_creation():
 def test_name_snapshot_survives_a_later_rename_of_the_asset():
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     asset = _make_selectable_asset(db, name="Kran 40t")
     row = add_asset_usage(db, report["id"], asset_id=asset["id"])
 
@@ -81,7 +81,7 @@ def test_name_snapshot_survives_deletion_of_the_referenced_asset_via_archiving()
     anfasst. Belegt gleichzeitig, dass der Snapshot auch danach unverändert lesbar bleibt."""
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     asset = _make_selectable_asset(db, name="Kran 40t")
     add_asset_usage(db, report["id"], asset_id=asset["id"])
 
@@ -95,7 +95,7 @@ def test_name_snapshot_survives_deletion_of_the_referenced_asset_via_archiving()
 def test_add_asset_usage_rejects_a_non_selectable_asset():
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     asset = create_asset(db, {"name": "Akkuschrauber"})  # selectable_in_reports Standard False
 
     try:
@@ -110,7 +110,7 @@ def test_selectable_in_reports_defaults_to_false_and_gate_applies_to_every_calle
     add_asset_usage()-Docstring."""
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     asset = create_asset(db, {"name": "Akkuschrauber"})
     assert asset["selectable_in_reports"] is False
     try:
@@ -123,7 +123,7 @@ def test_selectable_in_reports_defaults_to_false_and_gate_applies_to_every_calle
 def test_add_asset_usage_rejects_unknown_asset_id():
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     try:
         add_asset_usage(db, report["id"], asset_id=999999)
         assert False, "sollte ValueError auslösen"
@@ -181,7 +181,7 @@ def test_list_selectable_assets_response_never_carries_a_locked_field():
 def test_delete_asset_is_blocked_while_referenced_by_a_draft_report():
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     asset = _make_selectable_asset(db, name="Kran")
     add_asset_usage(db, report["id"], asset_id=asset["id"])
 
@@ -195,7 +195,7 @@ def test_delete_asset_is_blocked_while_referenced_by_a_draft_report():
 def test_delete_asset_is_blocked_while_referenced_by_a_signed_report():
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     asset = _make_selectable_asset(db, name="Kran")
     add_asset_usage(db, report["id"], asset_id=asset["id"])
     _sign(db, report["id"])
@@ -216,7 +216,7 @@ def test_delete_asset_works_when_unreferenced():
 def test_archiving_a_referenced_asset_remains_possible():
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     asset = _make_selectable_asset(db, name="Kran")
     add_asset_usage(db, report["id"], asset_id=asset["id"])
 
@@ -229,7 +229,7 @@ def test_archiving_a_referenced_asset_remains_possible():
 def test_add_asset_usage_rejects_when_report_already_signed():
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     asset = _make_selectable_asset(db, name="Kran")
     _sign(db, report["id"])
 
@@ -243,7 +243,7 @@ def test_add_asset_usage_rejects_when_report_already_signed():
 def test_update_and_delete_asset_usage_rejected_after_signing():
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     asset = _make_selectable_asset(db, name="Kran")
     row = add_asset_usage(db, report["id"], asset_id=asset["id"])
     _sign(db, report["id"])
@@ -263,7 +263,7 @@ def test_update_and_delete_asset_usage_rejected_after_signing():
 def test_update_asset_usage_changes_only_notes():
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     asset = _make_selectable_asset(db, name="Kran")
     row = add_asset_usage(db, report["id"], asset_id=asset["id"])
 
@@ -275,7 +275,7 @@ def test_update_asset_usage_changes_only_notes():
 def test_delete_asset_usage_removes_the_row():
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     asset = _make_selectable_asset(db, name="Kran")
     row = add_asset_usage(db, report["id"], asset_id=asset["id"])
 
@@ -299,7 +299,7 @@ def test_pdf_omits_assets_section_when_none_recorded():
 def test_pdf_shows_frozen_asset_names_as_a_comma_separated_list_without_notes():
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     kran = _make_selectable_asset(db, name="Kran")
     hubsteiger = _make_selectable_asset(db, name="Hubsteiger")
     add_asset_usage(db, report["id"], asset_id=kran["id"], notes="interne Notiz DARF NICHT im PDF stehen")
@@ -318,7 +318,7 @@ def test_pdf_shows_frozen_asset_names_as_a_comma_separated_list_without_notes():
 def test_pdf_asset_name_stays_frozen_even_if_asset_renamed_after_signing():
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     asset = _make_selectable_asset(db, name="Kran Original")
     add_asset_usage(db, report["id"], asset_id=asset["id"])
     _sign(db, report["id"])
@@ -334,7 +334,7 @@ def test_pdf_asset_name_stays_frozen_even_if_asset_renamed_after_signing():
 def test_field_pdf_also_includes_the_assets_section_no_personal_data_concern():
     db = db_session()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     asset = _make_selectable_asset(db, name="Kran")
     add_asset_usage(db, report["id"], asset_id=asset["id"])
     _sign(db, report["id"])
@@ -352,7 +352,7 @@ def test_router_endpoints_for_service_report_assets(threaded_db_session, router_
 
     db = threaded_db_session
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     asset = _make_selectable_asset(db, name="Kran")
     client = router_test_client(db, service_reports_router)
 
@@ -408,7 +408,7 @@ def test_field_cannot_force_a_non_selectable_asset_into_a_report_via_a_guessed_a
     # greift (siehe app/orders.py) -- der Test soll die asset-spezifische Ablehnung (400) prüfen,
     # nicht eine vorgelagerte Auftrags-/Berichts-Zugriffsablehnung (403), die bereits an anderer
     # Stelle (test_v260_role_audit.py, "Berichts-Eigentümerschaft") belegt ist.
-    report = create_report(db, order.id, "rapport", created_by_employee_id=employee.id)
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall", created_by_employee_id=employee.id)
     not_selectable = create_asset(db, {"name": "Trennschleifer"})
 
     client = router_test_client(db, service_reports_router, role="field", employee_id=employee.id)
@@ -430,7 +430,7 @@ def test_field_cannot_add_an_asset_to_a_colleagues_report(router_test_client, th
     other = Employee(first_name="Otto", last_name="Zwei")
     db.add_all([owner, other]); db.commit()
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport", created_by_employee_id=owner.id)
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall", created_by_employee_id=owner.id)
     asset = _make_selectable_asset(db, name="Kran")
 
     client = router_test_client(db, service_reports_router, role="field", employee_id=other.id)
@@ -445,7 +445,7 @@ def test_betriebsmittel_module_disabled_blocks_asset_endpoints_even_with_wartung
 
     db = threaded_db_session
     order = _make_order_for_report(db)
-    report = create_report(db, order.id, "rapport")
+    report = create_report(db, order.id, "rapport", description="Arbeiten laut Testfall")
     asset = _make_selectable_asset(db, name="Kran")
     db.add(EnabledModule(module_key="betriebsmittel", enabled=False))
     db.commit()
