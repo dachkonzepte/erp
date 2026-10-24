@@ -125,7 +125,9 @@ a{color:var(--ds-link)}
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
     <h2 style="margin:0">Berichte zu diesem Auftrag</h2>
-    <button type="button" id="neuerBericht" data-klick="editor-auf">+ Bericht</button>
+    {# seit 1.9.77: für die Monteurin erst, wenn der Server bericht_anlegen meldet -- sonst an seiner Stelle der Hinweis #}
+    <button type="button" id="neuerBericht" data-klick="editor-auf"{% if monteursrahmen %} hidden{% endif %}>+ Bericht</button>
+    <span id="berichtNurBuero" class="muted" hidden>Für diesen Auftrag legt das Büro Berichte an.</span>
   </div>
   <div id="reportList" style="margin-top:12px"></div>
   <span id="listStatus" class="status"></span>
@@ -299,6 +301,15 @@ function renderReportList(){
   document.getElementById('reportList').innerHTML=reports.length?reports.map(reportRow).join(''):'<div class="empty">Noch keine Berichte zu diesem Auftrag.</div>';
 }
 
+// Seit 1.9.77 (Stufe 4, R4 Nachtrag 2): „+ Bericht“ für die Monteurin nur für einen Auftrag ihrer Liste (der Server meldet es mit
+// bericht_anlegen, dieselbe Regel wie beim Anlegen), sonst an seiner Stelle „Für diesen Auftrag legt das Büro Berichte an.“; das Büro legt
+// immer an
+function berichtAnlegenErlaubt(){return !monteursrahmen||!!(orderData&&orderData.bericht_anlegen)}
+function berichtKnopfZeichnen(){
+  const darf=berichtAnlegenErlaubt();
+  document.getElementById('neuerBericht').hidden=!darf;
+  document.getElementById('berichtNurBuero').hidden=darf||!orderData;
+}
 function kopfZeichnen(){
   const o=orderData;
   if(!o)return;
@@ -449,9 +460,10 @@ async function init(){
   if(window.offeneBedenkenZeigen)offeneBedenkenZeigen('concernAlert',orderId);  // seit 1.8.45, läuft nebenher
   document.getElementById('timeLink').href='/time-tracking?order_id='+orderId;
   if(monteursrahmen)document.getElementById('zeitNachtragen').href='/mobil/zeiten?order_id='+orderId;
-  lesen('auftrag',()=>api(`/api/orders/${orderId}`),o=>{
+  const auftragGeladen=lesen('auftrag',()=>api(`/api/orders/${orderId}`),o=>{
     orderData=o;
     kopfZeichnen();
+    berichtKnopfZeichnen();
     refreshTimeEntryOrderItemOptions();
   }).catch(()=>{});
   await lesen('stammdaten',()=>api('/api/employees').catch(()=>[]),d=>{employees=d});
@@ -474,7 +486,8 @@ async function init(){
   // seit 1.9.75: ?neu=1 (von „Heute“: „Bericht anlegen“ ohne Einsatz, „Bericht für einen anderen Auftrag“) öffnet gleich „Bericht anlegen“
   if(new URLSearchParams(location.search).get('neu')==='1'){
     try{history.replaceState(null,'',location.pathname)}catch(e){}
-    openCreateEditor();
+    await auftragGeladen;  // seit 1.9.77: erst wissen, ob sie hier anlegen darf
+    if(berichtAnlegenErlaubt())openCreateEditor();
   }
   await loadPropertyHistory();
   await loadTimeEntries();

@@ -1,13 +1,16 @@
 """Klicktest: Bericht anlegen ohne Einsatz (seit 1.9.75, Stufe 4, R4 Nachtrag) -- „Heute“, Dialog „Für welchen Auftrag?“, Seite des Auftrags.
 
 Befüllt: Objekt „Halle Nord“ (Hallenbau GmbH); Auftrag A „Notdienst Rinne“ gestern für Mia und Tom eingeplant, B „Attika“ in 5 Tagen für Mia,
-C „Wartung“ heute für Tom, F „Fremdauftrag“ für niemanden. Feste Uhr 10:00.
+C „Wartung“ heute für Tom, F „Fremdauftrag“ für niemanden, G „Altauftrag“ vor 40 Tagen für Mia (zugänglich, nicht in ihrer Liste).
+Feste Uhr 10:00.
 
     Mia (kein Einsatz)  Karte „Heute ist nichts eingeplant.“ mit „Bericht anlegen“ (grün, 56 px), kein „Bericht für einen anderen Auftrag“;
                         Klick -> Dialog „Für welchen Auftrag?“ mit genau der Liste von „Zeit nachtragen“ (B und A, nicht F), je Zeile
                         ≥ 56 px zur Seite des Auftrags mit ?neu=1; „Abbrechen“ schließt; Zeile A -> „Bericht anlegen“ gleich offen (Art,
                         Datum heute), die Adresse ohne ?neu; „Anlegen“ -> der neue Bericht (Auftrag A, Mia); quer hell (Bilder 1–3), hoch
-                        800 × 1100 mit Dialog; F direkt über die API -> 403 mit der Meldung
+                        800 × 1100 mit Dialog; F direkt über die API -> 403 mit der Meldung; seit 1.9.77 Seite von G (auch mit ?neu=1):
+                        kein „+ Bericht“, an seiner Stelle „Für diesen Auftrag legt das Büro Berichte an.“, kein Editor (Bild 6, ganze
+                        Seite); Seite von A mit „+ Bericht“ ohne Hinweis
     Tom (Einsatz C)     „Bericht anlegen“ in der Karte wie bisher (zur Seite von C), darunter „Bericht für einen anderen Auftrag“ (neutral,
                         48 px, außerhalb der Karte); Klick -> Dialog mit C und A (Bild 4)
     überall             keine JS-Fehler
@@ -70,11 +73,13 @@ def befuellen(db, k):
         return o
 
     a, b, c, f = auftrag(1, "Notdienst Rinne"), auftrag(2, "Attika"), auftrag(3, "Wartung"), auftrag(4, "Fremdauftrag")
+    g = auftrag(5, "Altauftrag")
     team = Team(name="Kolonne Nord", active=True)
     db.add(team); db.flush()
     for o, wer, von, bis in ((a, ("mia", "tom"), heute - timedelta(days=1), heute - timedelta(days=1)),
                              (b, ("mia",), heute + timedelta(days=5), heute + timedelta(days=5)),
-                             (c, ("tom",), heute, heute)):
+                             (c, ("tom",), heute, heute),
+                             (g, ("mia",), heute - timedelta(days=40), heute - timedelta(days=40))):
         prep = ensure_preparation(db, o.id)
         zuordnung = WorkPreparationTeamAssignment(preparation_id=prep.id, team_id=team.id, team_name_snapshot=team.name)
         db.add(zuordnung); db.flush()
@@ -82,7 +87,7 @@ def befuellen(db, k):
             db.add(WorkPreparationTeamEmployee(assignment_id=zuordnung.id, employee_id=leute[n].id, employee_name_snapshot=leute[n].first_name))
         db.add(PlanningSlot(preparation_id=prep.id, team_assignment_id=zuordnung.id, start_date=von, end_date=bis))
     db.commit()
-    return {"a": a.id, "b": b.id, "c": c.id, "f": f.id, "heute": heute.isoformat(), "mia": leute["mia"].id, "meldung": BERICHT_NUR_EIGENE_AUFTRAEGE,
+    return {"a": a.id, "b": b.id, "c": c.id, "f": f.id, "g": g.id, "heute": heute.isoformat(), "mia": leute["mia"].id, "meldung": BERICHT_NUR_EIGENE_AUFTRAEGE,
             "cookies": {n: k.cookies(u) for n, u in benutzer.items()}}
 
 
@@ -92,6 +97,9 @@ ZEILEN = ("[document.getElementById('berichtDialog').open,document.getElementByI
           "[...document.querySelectorAll('#berichtAuftraege a')].map(a=>[Number(a.dataset.auftrag),a.getAttribute('href'),"
           "Math.round(a.getBoundingClientRect().height)>=56])]")
 LISTE = "fetch('/api/field-view/time-tracking/orders').then(r=>r.json()).then(l=>l.map(o=>o.id))"
+AUFTRAG_GELADEN = "typeof orderData!=='undefined'&&!!orderData&&!!document.getElementById('reportList')"
+KNOPF_ODER_HINWEIS = ("[document.getElementById('neuerBericht').hidden,document.getElementById('berichtNurBuero').hidden,"
+                      "document.getElementById('berichtNurBuero').textContent,document.getElementById('editorCard').classList.contains('hidden')]")
 
 
 def _soll(liste):
@@ -148,6 +156,22 @@ async def pruefen(tab, seed, p):
     p.pruefe("F direkt über die API: 403 mit der Meldung", await tab.js(
         f"fetch('/api/orders/{f}/service-reports',{{method:'POST',headers:{{'Content-Type':'application/json'}},"
         "body:JSON.stringify({report_type:'rapport'})}).then(async r=>[r.status,(await r.json()).detail])"), [403, seed["meldung"]])
+
+    # seit 1.9.77: Seite eines Auftrags, der nicht in ihrer Liste ist (G, vor 40 Tagen) -- statt „+ Bericht“ der Hinweis, auch ?neu=1
+    # öffnet keinen Editor; Seite von A mit „+ Bericht“
+    g = seed["g"]
+    await tab.oeffnen(f"/orders/{g}/service-reports?neu=1", AUFTRAG_GELADEN)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Seite eines Auftrags außerhalb der Liste: kein „+ Bericht“, an seiner Stelle der Hinweis, ?neu=1 öffnet nichts",
+             await tab.js(KNOPF_ODER_HINWEIS), [True, False, "Für diesen Auftrag legt das Büro Berichte an.", True])
+    voll = await tab.js("Math.ceil(document.documentElement.scrollHeight)")
+    await tab.fenster(1280, max(620, voll), mobil=True)
+    await tab.bild("6_auftragsseite_ohne_bericht_quer_hell")
+    await tab.fenster(1280, 620, mobil=True)
+    await tab.oeffnen(f"/orders/{a}/service-reports", AUFTRAG_GELADEN)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Seite eines Auftrags der Liste: „+ Bericht“ da, kein Hinweis", await tab.js(KNOPF_ODER_HINWEIS),
+             [False, True, "Für diesen Auftrag legt das Büro Berichte an.", True])
 
     await _heute(tab, "mia", seed, 800, 1100)
     await tab.js("document.getElementById('berichtOhneEinsatz').click()")

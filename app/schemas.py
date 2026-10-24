@@ -1438,6 +1438,9 @@ class OrderFieldAccessOut(BaseModel):
     order_number: str
     customer_name: str
     items: list[OrderFieldAccessItemOut] = Field(default_factory=list)
+    # seit 1.9.77 (Stufe 4, R4 Nachtrag 2): ob sie hier einen Bericht anlegen darf -- der Auftrag steht in ihrer Liste
+    # (app/planning.py::field_order_in_list(), dieselbe Regel wie POST …/service-reports); die Seite zeigt danach „+ Bericht“ oder den Hinweis
+    bericht_anlegen: bool = False
 
 
 class OrderContractBasisUpdate(BaseModel):

@@ -504,7 +504,9 @@ class TestObjectFilteringForFieldTeilB:
         response = field.get(f"/api/orders/{mine.id}")
         assert response.status_code == 200, response.text
         body = response.json()
-        assert set(body) == {"id", "order_number", "customer_name", "items"}
+        # seit 1.9.77 dazu bericht_anlegen (Wahrheitswert: der Auftrag steht in ihrer Liste -- hier zugeordnet ohne Datum, seit 1.9.76 ja)
+        assert set(body) == {"id", "order_number", "customer_name", "items", "bericht_anlegen"}
+        assert body["bericht_anlegen"] is True
         assert set(body["items"][0]) == {"id", "position_number", "gaeb_oz", "short_text", "unit"}
 
         assert field.get(f"/api/orders/{foreign.id}").status_code == 403

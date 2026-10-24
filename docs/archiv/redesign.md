@@ -5221,3 +5221,35 @@ Hallenbau GmbH · Werkstr. 5, …“, in der Auswahl „Auftrag“ einzeilig, ge
   `klicktest_monteur_dachflaechen`.
 - **Gegenproben**: ohne Datum nicht in der Liste -> `test_v499` 3 rot, `test_v497` 1 rot; jede Zuordnung ohne Zeitfenster -> `test_v499` 2 rot,
   `test_v497` 2 rot; abgeschlossene in der Liste -> `test_v499` 2 rot, `test_v497` 2 rot.
+
+### R4 Nachtrag 2, Punkt 2 (1.9.77): „+ Bericht“ nur für Aufträge der Liste
+
+- `OrderFieldAccessOut.bericht_anlegen` (`app/schemas.py`), gesetzt in `app/routers/orders.py::get_order()` für die Monteurin aus
+  `field_order_in_list()` -- dieselbe Regel wie `POST /api/orders/{id}/service-reports`.
+- `service_reports.html`: „+ Bericht“ (`#neuerBericht`) für die Monteurin im Markup verborgen, `berichtKnopfZeichnen()` zeigt ihn nach dem
+  Laden des Auftrags (`berichtAnlegenErlaubt()`), sonst `#berichtNurBuero` („Für diesen Auftrag legt das Büro Berichte an.“) an derselben
+  Stelle; `?neu=1` wartet auf den Auftrag und öffnet „Bericht anlegen“ nur, wenn sie darf.
+- Ersetzt 1.9.74 Festlegung 4 („+ Bericht“ bleibt sichtbar, Meldung erst beim Anlegen) -- nicht bestätigt.
+
+**Festlegungen 1.9.77 (Bitte bestätigen)**
+
+1. Die Seite fragt den Server (`bericht_anlegen` an der Antwort des Auftrags) statt selbst zu rechnen; für die Monteurin ist „+ Bericht“ bis
+   dahin verborgen (kein kurzes Aufblitzen), das Büro sieht ihn sofort.
+2. Der Hinweis steht rechts in der Kopfzeile der Karte „Berichte zu diesem Auftrag“, in gedämpfter Schrift.
+3. `?neu=1` (aus dem Dialog auf „Heute“) öffnet „Bericht anlegen“ nur für einen Auftrag der Liste; sonst bleibt es beim Hinweis.
+
+**Offene Frage (nicht gebaut)**: auf derselben Seite bleibt „Zeit nachtragen“ auch für einen Auftrag außerhalb der Liste; „Meine Zeiten“
+wählt ihn dann als „… (nicht in der Auswahl)“ vor, und der Server bucht ihn (Zugriffsregel, 1.9.76 Festlegung 3). Soll „Zeit nachtragen“ dort
+ebenso dem Hinweis weichen?
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v500_auftragsseite_bericht_knopf.py` (3 Tests): für jeden zugänglichen Auftrag meldet `GET` `bericht_anlegen` genau dann,
+  wenn das Anlegen gelingt (ohne Datum und eigener Bericht ja; vor 40 Tagen eingeplant und abgeschlossen mit eigenem Bericht nein); das Büro
+  legt weiter an; Aufbau der Seite (Knopf verborgen für die Monteurin, Hinweis, Kennzeichen, `?neu=1` nach dem Auftrag).
+- `klicktest_bericht_ohne_einsatz` neu: Seite von G (vor 40 Tagen eingeplant, auch mit `?neu=1`) ohne „+ Bericht“ mit dem Hinweis und ohne
+  Editor (Bild 6, ganze Seite); Seite von A mit „+ Bericht“ ohne Hinweis.
+- Angepasste Erwartung: `test_v260` `test_field_gets_only_assigned_orders_and_no_prices` -- Felder der Antwort an die Monteurin
+  `{id, order_number, customer_name, items}` -> dazu `bericht_anlegen` (und es ist für den ohne Datum zugeordneten Auftrag wahr).
+- **Gegenproben**: Server meldet immer `bericht_anlegen` -> `test_v500` 1 rot, Klicktest 1 rot; Seite fragt das Kennzeichen nicht ->
+  `test_v500` 1 rot, Klicktest 1 rot; `?neu=1` ohne Prüfung -> `test_v500` 1 rot, Klicktest 1 rot (Editor offen).

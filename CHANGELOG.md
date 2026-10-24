@@ -4,6 +4,14 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.77 – „+ Bericht“ nur für Aufträge der Liste (Stufe 4, R4 Nachtrag 2)
+
+Auf der Seite eines Auftrags („Einsatzberichte“) sieht die Monteurin „+ Bericht“ nur noch, wenn der Auftrag in ihrer Liste steht; sonst steht
+an seiner Stelle „Für diesen Auftrag legt das Büro Berichte an.“ Bis 1.9.76 stand der Knopf immer da und das Anlegen endete für einen
+Auftrag außerhalb der Liste mit der Meldung (1.9.74 Festlegung 4, nicht bestätigt). Die Antwort auf `GET /api/orders/{id}` meldet ihr dafür
+`bericht_anlegen` -- aus derselben Regel wie das Anlegen (`field_order_in_list()`); auch `?neu=1` öffnet „Bericht anlegen“ nur dann. Das Büro
+sieht den Knopf wie bisher. Neuer Test `test_v500`, der Klicktest `klicktest_bericht_ohne_einsatz` prüft beide Fälle.
+
 ## 1.9.76 – Aufträge ohne Datum in der Liste der Monteurin (Stufe 4, R4 Nachtrag 2)
 
 Ein Auftrag, dem die Monteurin an der Arbeitsvorbereitung zugeordnet ist, der aber noch kein Datum hat (kein Abschnitt der Plantafel, kein
