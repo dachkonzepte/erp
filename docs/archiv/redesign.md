@@ -4744,3 +4744,29 @@ Ebene des Auftrags, auf die der Pfad „Heute / <Auftrag> / <Art>“ zeigt.
 
 Umgesetzt, obwohl der Einsatzbericht angehalten ist: der Punkt hängt nicht an der Entscheidung zu den Schritten. Einzelheiten in
 `docs/archiv/testablauf-und-klicktests.md`, „Zeichnen erst, wenn die Fläche ruhig liegt“.
+
+### R4, Punkt 6 (1.9.65): Dialoge im Monteursrahmen -- die Knopfleiste bleibt unten im Bild
+
+Umgesetzt, obwohl der Einsatzbericht angehalten ist (der Punkt betrifft „Heute“ und „Meine Zeiten“). Befund: im Monteursrahmen haben nur
+`mobil.html` (Start mit Tätigkeit / für die Kolonne) und `mobil_zeiten.html` (Zeit nachtragen/ändern, Kolonne, Löschen, Abwesenheit)
+Dialogkarten; der Einsatzbericht hat nur die kleine Rückfrage beim Löschen eines Prüfpunkts (eigene Klasse). Bei 1280 × 620 waren der
+Kolonnen-Dialog und „Zeit ändern“ mit aufgeklappten „Weiteren Angaben“ höher als das Fenster.
+
+- **Umsetzung**: je Seite `.dialog-karte>.dialog-knoepfe{position:sticky;bottom:-22px;…}` (über die Innenabstände der Karte bis an ihre
+  Ränder, Hintergrund der Karte, Strich oben) und `.dialog-karte .vorschau{scroll-margin-bottom:96px}`.
+
+**Festlegungen 1.9.65 (Bitte bestätigen)**
+
+1. In jeder Dialogkarte des Monteursrahmens bleibt die Knopfleiste unten im Bild; der Inhalt läuft unter ihr durch, ein Strich (`--ds-linie`)
+   trennt sie -- auch in Dialogen, die ins Fenster passen.
+2. Was sich in einem Dialog selbst ins Bild rückt (die Vorschau der Kolonne), hält Abstand zur Leiste.
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v491_dialog_knopfleiste.py` (4 Tests): es gibt Dialogkarten auf „Heute“ und „Meine Zeiten“; jede Seite im Monteursrahmen
+  mit Dialogkarten hält die Leiste fest; jede Dialogkarte endet mit ihrer Leiste; eine Vorschau im Dialog hält Abstand.
+- `klicktest_meine_zeiten`: neu zwei Prüfungen bei 1280 × 620 -- Kolonnen-Dialog: „Speichern“ im Bild und nicht verdeckt, Vorschau über der
+  Leiste; „Zeit ändern“ aufgeklappt: „Speichern“ im Bild.
+- **Gegenproben**: P1 Leiste auf „Meine Zeiten“ nicht festgehalten -> 1 rot, Klicktest 1 rot („Zeit ändern“; der Kolonnen-Dialog rückt die
+  Vorschau ins Bild und blieb grün); P2 ohne Abstand der Vorschau -> Klicktest 1 rot, nach dem Nachschärfen auch pytest 1 rot; P3 Leiste auf
+  „Heute“ nicht festgehalten -> 1 rot.

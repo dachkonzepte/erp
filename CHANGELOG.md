@@ -4,6 +4,17 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.65 – Dialoge im Monteursrahmen: die Knopfleiste bleibt unten im Bild (Stufe 4, R4 Punkt 6)
+
+Auf dem Tablet quer (1280 × 620) sind der Kolonnen-Dialog und „Zeit ändern“ mit aufgeklappten „Weiteren Angaben“ höher als das Fenster;
+bis hierher scrollte der Dialog, „Speichern“ und „Abbrechen“ lagen unter dem Rand. Jetzt hält jede Dialogkarte auf „Heute“ und „Meine
+Zeiten“ ihre Knopfleiste mit `position:sticky` unten fest -- der Inhalt läuft unter ihr durch, ein Strich trennt sie. Die Vorschau im
+Kolonnen-Dialog, die sich selbst ins Bild rückt, hält Abstand zur Leiste (`scroll-margin-bottom`), sonst läge sie darunter.
+
+Neuer Wächter `test_v491` (jede Seite im Monteursrahmen mit Dialogkarten hält die Leiste fest, jede Dialogkarte endet mit ihr, eine Vorschau
+im Dialog hält Abstand); `klicktest_meine_zeiten` misst bei 1280 × 620, dass „Speichern“ im Kolonnen-Dialog und in „Zeit ändern“
+(aufgeklappt) im Bild liegt und nicht verdeckt ist und die Vorschau frei über der Leiste steht.
+
 ## 1.9.64 – Klicktests zeichnen erst, wenn die Fläche ruhig liegt (Stufe 4, R4 Punkt 7)
 
 Fund aus dem Endlauf der R3-Nachrunde: `klicktest_unterzeichner` scrollte die Zeichenfläche ins Bild, wartete fest 0,2 s und maß dann --

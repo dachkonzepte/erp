@@ -111,6 +111,10 @@
     .vorschau-text .teil{white-space:nowrap}  /* ein Teil („Pause nach Zeitregel − 0:45 h“) bricht nicht in sich um */
     .vorschau-zahl{font-size:19px;font-weight:700;white-space:nowrap}
     .dialog-knoepfe{display:flex;justify-content:flex-end;gap:12px;flex-wrap:wrap}
+    /* seit 1.9.65 (Stufe 4, R4 Punkt 6): die Knopfleiste bleibt unten im Bild, auch wenn der Dialog höher als das Fenster ist (Tablet
+       quer 1280 × 620) -- der Inhalt läuft unter ihr durch, ein Strich trennt sie; was sich selbst ins Bild rückt, hält Abstand zu ihr */
+    .dialog-karte>.dialog-knoepfe{position:sticky;bottom:-22px;z-index:1;margin:0 -24px -22px;padding:12px 24px 22px;background:var(--ds-flaeche);border-top:1px solid var(--ds-linie)}
+    .dialog-karte .vorschau{scroll-margin-bottom:96px}
     .dialog-knoepfe .knopf{font-size:17px;padding:0 24px}
     .mitglieder{display:flex;flex-direction:column;gap:2px;font-size:14px;font-weight:600;color:var(--ds-stark)}
     .mitglied{display:flex;align-items:center;gap:12px;min-height:48px;font-size:16px;font-weight:500;color:var(--ds-text);cursor:pointer}

@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.64** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.65** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -353,7 +353,8 @@ Behoben, drei Teile:
   Meine Zeiten“, die alten Adressen leiten weiter; Klicktest `klicktest_meine_zeiten.py`. Seit 1.9.60 trägt die Monteurin nur mit Von und
   Bis nach (`app/permissions.py::zeit_nur_mit_von_bis()`, Server 422 für eine reine Dauer), auch im Einsatzbericht; seit 1.9.63 auch der
   Kolonnenführer für die Kolonne (eine Von/Bis-Angabe, Pause und Rundung je Mitglied nach seinem Tag über
-  `app/time_tracking.py::kolonne_rechnen()`, Vorschau je Mitglied, `tests/test_v489_kolonne_von_bis.py`). Sie bleibt in `AUFGESCHOBEN` (die
+  `app/time_tracking.py::kolonne_rechnen()`, Vorschau je Mitglied, `tests/test_v489_kolonne_von_bis.py`). Seit 1.9.65 bleibt in den
+  Dialogen des Monteursrahmens die Knopfleiste unten im Bild (`position:sticky`, `tests/test_v491_dialog_knopfleiste.py`). Sie bleibt in `AUFGESCHOBEN` (die
   Vorlage hat keinen Seitenkopf). Klicktest `klicktest_heute.py`, Wächter `tests/test_v472_heute_seite.py`. **Seit 1.9.49** stehen die
   Listen (offene Berichte, Mängel, Checklisten, Wartungen) auf „Heute / Offen“ (`/mobil/offen`, `mobil_offen.html`, umgezogen: Monteursrahmen
   mit Seitenkopf); ein leerer Abschnitt fehlt, „Heute“ endet mit „Nächste Tage“, die Zeilen von „Offen“ springen dorthin; Wächter

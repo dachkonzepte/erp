@@ -311,6 +311,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Vorschau mit der gemerkten Mindestpause", await tab.js("document.getElementById('zdVorschauZeile').textContent"),
              "Anwesend 9:30 h · Tag zusammen 10:15 h · Pause nach Zeitregel − 1:00 h")
     await tab.js("document.getElementById('zdWeitere').click()")
+    p.pruefe("„Zeit ändern“ aufgeklappt 1280 × 620: „Speichern“ im Bild", await tab.js("(id=>{const k=document.getElementById(id),r=k.getBoundingClientRect(),d=k.closest('dialog').getBoundingClientRect();return r.top>=d.top&&r.bottom<=Math.min(d.bottom,innerHeight)+0.5&&document.elementFromPoint(r.left+r.width/2,r.top+r.height/2)===k})('zdSpeichern')"), True)
     await tab.bild("meine_zeiten_aendern_mindestpause_hell")
     await tab.js("document.getElementById('zdAbbrechen').click()")
 
@@ -377,6 +378,10 @@ async def pruefen(tab, seed, p):
     await tab.warten("document.getElementById('kdVorschauZeile').textContent.includes('Tag zusammen')")
     p.pruefe("Nachtrag für die Kolonne: Vorschau je Mitglied nach seinem Tag", await tab.js("document.getElementById('kdVorschauZeile').textContent"),
              "Mia Monteurin 5,50 h · Tom Mitglied 5,00 h (Tag zusammen 6:15 h)")
+    # seit 1.9.65: bei 1280 × 620 bleibt die Knopfleiste unten im Bild, die Vorschau steht frei über ihr
+    p.pruefe("Kolonnen-Dialog 1280 × 620: „Speichern“ im Bild, Vorschau nicht verdeckt", await tab.js(
+        "[(id=>{const k=document.getElementById(id),r=k.getBoundingClientRect(),d=k.closest('dialog').getBoundingClientRect();return r.top>=d.top&&r.bottom<=Math.min(d.bottom,innerHeight)+0.5&&document.elementFromPoint(r.left+r.width/2,r.top+r.height/2)===k})('kdSpeichern'),(()=>{const v=document.getElementById('kdVorschau').getBoundingClientRect(),"
+        "l=document.querySelector('#kolonneDialog>.dialog-knoepfe').getBoundingClientRect();return v.bottom<=l.top+0.5})()]"), [True, True])
     await tab.bild("meine_zeiten_kolonne_nachtrag_vorschau_hell")
     await tab.warte_auf_neu_geladene_liste("document.getElementById('kdSpeichern').click()", "#tage")
     p.pruefe("Nachtrag für die Kolonne gebucht", [await tab.js("document.getElementById('ergebnis').textContent"),
