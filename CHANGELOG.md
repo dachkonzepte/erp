@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.84 – „Zeit nachtragen“ mit den Ecken der übrigen Knöpfe (Stufe 4, R4 Nachtrag 3)
+
+Der Knopf „Zeit nachtragen“ auf der Seite des Auftrags (ein Link als Knopf) war eckig, die übrigen Knöpfe der Seite tragen seit Stufe 2 die
+Ecke `--ds-ecke-feld` aus `ds-basis.css` (nur für `button`). Jetzt hat er dieselbe Ecke; `test_v505` und der Klicktest
+`klicktest_zeiten_abgeschlossen` vergleichen sie mit „+ Bericht“.
+
 ## 1.9.83 – Meldung im Dialog über den Knöpfen (Stufe 4, R4 Nachtrag 3)
 
 In den Dialogen des Monteursrahmens steht die Meldung jetzt in der festen Knopfleiste über den Knöpfen, über die ganze Breite -- wie die

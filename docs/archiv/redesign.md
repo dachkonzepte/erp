@@ -5463,3 +5463,26 @@ steht die Meldung als erstes Element in `.dialog-knoepfe`, mit `flex:1 0 100%` i
 Öffnen der Seite, außerhalb ±14 Tage), wählt ihn in „Meine Zeiten“ vor, die Auswahl zeigt aber nur die nackte ID: „1 (nicht in der Auswahl)“
 (`zeitDialogOeffnen()`, `fehlt` ohne Namen; seit 1.9.67, als die Seite des Auftrags nach „Meine Zeiten“ verlinkte). Vorschlag: „Meine Zeiten“
 liefert zur Vorwahl die Zeile des Auftrags mit (`auftrag_zeile()`, nur bei Zugang).
+
+### Nachtrag 3, C (1.9.84): Ecken von „Zeit nachtragen“
+
+`service_reports.html`: `.zeit-nachtragen` (ein `<a>`, die Grundregel `:where(.ds-seite button){border-radius:var(--ds-ecke-feld)}` greift nur
+für `button`) bekommt `border-radius:var(--ds-ecke-feld)` -- dieselbe Ecke wie „+ Bericht“ (10 px).
+
+**Festlegung 1.9.84 (Bitte bestätigen)**
+
+1. Die Ecke ist `--ds-ecke-feld` (10 px) wie bei den übrigen Knöpfen der Seite, nicht die Tablet-Ecke `--ds-ecke-tablet-feld` (12 px): die
+   Klasse `.ds-tablet`, an der die Tablet-Ecke für Knöpfe hängt (`ds-basis.css`), setzt keine Vorlage (siehe Befund).
+
+**Tests und Prüfung**
+
+- `tests/test_v505_auftragsseite_zeiten_gesperrt.py`: neu `test_zeit_nachtragen_hat_die_ecken_der_knoepfe`.
+- `klicktest_zeiten_abgeschlossen`: neu „„Zeit nachtragen“ mit den Ecken von „+ Bericht““ (berechnete Ecke gleich, nicht 0 px), Bild 3.
+- Keine angepassten Erwartungen.
+- **Gegenprobe**: ohne die Ecke -> `test_v505` 1 rot, Klicktest 1 rot.
+
+**Befund, gemeldet, nicht behoben**: `.ds-tablet` steht nur in `ds-basis.css` (Grundregel der Seite, Ecke der Knöpfe und Felder 12 px) und in
+`ds.css` (`.ds-tablet .ds-kopf-titel`), keine Vorlage setzt die Klasse -- der Monteursrahmen legt nur die Ecke der Karten um
+(`_mobile_header.html`), der Seitenkopf nimmt `ds-kopf-tablet`. Knöpfe und Felder im Monteursrahmen haben deshalb 10 statt der in Stufe 2
+beschlossenen 12 px. Zu entscheiden: die Klasse im Monteursrahmen setzen (alle Knöpfe und Felder dort 12 px, neue Bildgrundlage) oder die
+Regeln streichen.

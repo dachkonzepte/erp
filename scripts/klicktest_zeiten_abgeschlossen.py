@@ -8,7 +8,8 @@ Auftrag „buero“. Feste Uhr 10:00.
     Seite von Z         Karte „Zeiten“ ohne Text und ohne „Zeit nachtragen“, an ihrer Stelle „Der Auftrag ist abgeschlossen – Zeiten dafür
                         trägt das Büro ein.“ (hoch 800 × 1100, Bild 1); quer ebenso (Bild 1a)
     Seite von S         „Der Auftrag ist storniert – Zeiten dafür trägt das Büro ein.“
-    Seite von A         „Zeit nachtragen“ wie bisher (zu „Meine Zeiten“ mit A gewählt), kein Hinweis
+    Seite von A         „Zeit nachtragen“ wie bisher (zu „Meine Zeiten“ mit A gewählt), kein Hinweis; seit 1.9.84 mit denselben Ecken wie
+                        „+ Bericht“ (bis dahin eckig)
     veraltete Seite     Mia auf der Seite von A, das Büro schließt A ab; „Zeit nachtragen“ -> „Meine Zeiten“ mit A gewählt („nicht in der
                         Auswahl“), Von/Bis, „Nachtragen“ -> im Dialog die Meldung, der Dialog bleibt offen, nichts gebucht (Bild 2);
                         seit 1.9.83 steht die Meldung ganz im Bild in der festen Leiste über den Knöpfen, über deren ganze Breite, Ober-
@@ -143,6 +144,11 @@ async def pruefen(tab, seed, p):
     await _seite(tab, a)
     p.pruefe("Seite von A (offen): „Zeit nachtragen“ zu „Meine Zeiten“ mit A, kein Hinweis", await tab.js(ZEITEN_KARTE),
              [False, False, 48, True, "", f"/mobil/zeiten?order_id={a}"])
+    p.pruefe("„Zeit nachtragen“ mit den Ecken von „+ Bericht“ (seit 1.9.84)", await tab.js(
+        "(e=>[e(document.getElementById('zeitNachtragen'))===e(document.getElementById('neuerBericht')),"
+        "e(document.getElementById('zeitNachtragen'))!=='0px'])(x=>getComputedStyle(x).borderRadius)"), [True, True])
+    await tab.js("document.getElementById('zeitenKarte').scrollIntoView({block:'end'})")
+    await tab.bild("3_auftragsseite_offen_ecken_quer_hell")
     p.pruefe("Das Büro schließt A ab (PUT /api/orders/{id})", _als_buero(tab, seed["cookies"]["buero"], "PUT", f"/api/orders/{a}",
                                                                           {"status": "abgeschlossen"}), 200)
     await tab.js("document.getElementById('zeitNachtragen').click()")

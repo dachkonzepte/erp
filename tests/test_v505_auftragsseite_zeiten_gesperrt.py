@@ -5,7 +5,8 @@ Hinweis.
                (app/time_tracking.py::auftrag_zeiten_gesperrt(), dieselbe Regel), sonst null
     Seite      service_reports.html: zeitenKarteZeichnen() blendet Text und „Zeit nachtragen“ aus und zeigt die Meldung (#zeitenGesperrt);
                das Büro hat diese Karte nicht
-Die Bedienung im Browser prüft scripts/klicktest_zeiten_abgeschlossen.py (Bilder 1 und 2).
+    Ecken      seit 1.9.84 hat „Zeit nachtragen“ (ein Link als Knopf) die Ecken der übrigen Knöpfe (--ds-ecke-feld), bis dahin eckig
+Die Bedienung im Browser prüft scripts/klicktest_zeiten_abgeschlossen.py (Bilder 1 und 2, die Ecken an der Seite von A).
 """
 
 import re
@@ -59,3 +60,10 @@ def test_seite_zeigt_den_hinweis_statt_zeit_nachtragen():
                  "hinweis.textContent=gesperrt;", "hinweis.hidden=!gesperrt;"):
         assert teil in zeichnen, teil
     assert "    berichtKnopfZeichnen();\n    zeitenKarteZeichnen();\n" in text  # nach dem Laden des Auftrags
+
+
+def test_zeit_nachtragen_hat_die_ecken_der_knoepfe():
+    regel = re.search(r"\.zeit-nachtragen\{[^}]*\}", _text())[0]
+    assert "border-radius:var(--ds-ecke-feld)" in regel
+    basis = (vj.TEMPLATES.parent /"static" / "ds" / "ds-basis.css").read_text(encoding="utf-8")
+    assert re.search(r":where\(\.ds-seite button\) \{\s*border-radius: var\(--ds-ecke-feld\);", basis)  # dieselbe Ecke wie die Knöpfe
