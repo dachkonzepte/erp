@@ -1,10 +1,12 @@
-"""Seit 1.9.77 (Stufe 4, R4 Nachtrag 2, Punkt 2): „+ Bericht“ auf der Seite des Auftrags nur, wenn der Auftrag in der Liste der Monteurin ist.
+"""Seit 1.9.77 (Stufe 4, R4 Nachtrag 2, Punkt 2): „+ Bericht“ auf der Seite des Auftrags nur, wenn die Monteurin dort anlegen darf --
+1.9.77–1.9.78 bei Aufträgen ihrer Liste, seit 1.9.79 (Nachtrag 3, A) bei jedem nicht stornierten Auftrag.
 
-    Server     GET /api/orders/{id} meldet der Monteurin bericht_anlegen -- aus field_order_in_list(), derselben Regel wie POST …/service-reports
+    Server     GET /api/orders/{id} meldet der Monteurin bericht_anlegen -- aus derselben Regel wie POST …/service-reports
+               (seit 1.9.79 bericht_zum_auftrag_moeglich())
     Seite      service_reports.html zeichnet „+ Bericht“ für die Monteurin erst danach (vorher hidden) und zeigt sonst an seiner Stelle „Für diesen
                Auftrag legt das Büro Berichte an.“; ?neu=1 öffnet „Bericht anlegen“ nur, wenn sie darf (wartet dafür auf den Auftrag)
-Zugänglich, aber nicht in der Liste: ein außerhalb der 14 Tage datierter Auftrag, ein abgeschlossener mit eigenem Bericht. Die Seite im Browser
-prüft scripts/klicktest_bericht_ohne_einsatz.py.
+Zugänglich: ohne Datum zugeordnet, eigener Bericht, außerhalb der 14 Tage datiert, abgeschlossen mit eigenem Bericht -- seit 1.9.79 alle mit
+„+ Bericht“; storniert mit eigenem Bericht ohne. Die Seite im Browser prüft scripts/klicktest_bericht_ohne_einsatz.py.
 """
 
 import re
@@ -28,25 +30,26 @@ def welt(threaded_db_session, router_test_client, feste_uhr):
     db = threaded_db_session
     heute = berlin_time.berlin_today()
     mia = make_employee(db, "M-500", "Mia", "Monteurin")
-    namen = ("ohne_datum", "eigen", "alt", "abgeschlossen_eigen")
+    namen = ("ohne_datum", "eigen", "alt", "abgeschlossen_eigen", "storniert_eigen")
     auftraege = {n: beauftragen(db, make_quote(db, is_consumer=False, number=f"0500{i}")) for i, n in enumerate(namen)}
     w = {"db": db, "mia": mia, "team": make_team(db, "K-500", "Kolonne 500"), "auftraege": auftraege}
     prep = WorkPreparation(order_id=auftraege["ohne_datum"].id, status="offen")
     db.add(prep); db.flush()
     db.add(WorkPreparationEmployee(preparation_id=prep.id, employee_id=mia.id))
     _einsatz(w, auftraege["alt"], [(heute - timedelta(days=40), heute - timedelta(days=40))], [mia])
-    for n in ("eigen", "abgeschlossen_eigen"):
+    for n in ("eigen", "abgeschlossen_eigen", "storniert_eigen"):
         create_report(db, auftraege[n].id, "rapport", "Notdienst", created_by_employee_id=mia.id)
     auftraege["abgeschlossen_eigen"].status = "abgeschlossen"
+    auftraege["storniert_eigen"].status = "storniert"
     db.commit()
     w["als_mia"] = router_test_client(db, orders_router.router, service_reports_router.router, role="field", employee_id=mia.id)
     w["buero"] = router_test_client(db, orders_router.router, service_reports_router.router)
     return w
 
 
-def test_bericht_anlegen_folgt_der_liste_und_dem_anlegen(welt):
-    """Angriff: für jeden zugänglichen Auftrag meldet GET bericht_anlegen genau dann, wenn das Anlegen gelingt -- in der Liste (ohne Datum,
-    eigener Bericht) ja, zugänglich aber nicht in der Liste (vor 40 Tagen eingeplant, abgeschlossen mit eigenem Bericht) nein."""
+def test_bericht_anlegen_folgt_dem_anlegen(welt):
+    """Angriff: für jeden zugänglichen Auftrag meldet GET bericht_anlegen genau dann, wenn das Anlegen gelingt -- seit 1.9.79 bei jedem
+    nicht stornierten (1.9.77–1.9.78: „alt“ und „abgeschlossen_eigen“ nein), beim stornierten nein."""
     client = welt["als_mia"]
     gemeldet, angelegt = {}, {}
     for name, order in welt["auftraege"].items():
@@ -54,7 +57,7 @@ def test_bericht_anlegen_folgt_der_liste_und_dem_anlegen(welt):
         assert antwort.status_code == 200, (name, antwort.text)  # zugänglich (Zuordnung oder eigener Bericht)
         gemeldet[name] = antwort.json()["bericht_anlegen"]
         angelegt[name] = client.post(f"/api/orders/{order.id}/service-reports", json={"report_type": "rapport"}).status_code == 200
-    assert gemeldet == angelegt == {"ohne_datum": True, "eigen": True, "alt": False, "abgeschlossen_eigen": False}
+    assert gemeldet == angelegt == {"ohne_datum": True, "eigen": True, "alt": True, "abgeschlossen_eigen": True, "storniert_eigen": False}
 
 
 def test_buero_legt_weiter_an(welt):

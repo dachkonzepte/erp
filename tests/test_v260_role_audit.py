@@ -550,7 +550,8 @@ class TestObjectFilteringForFieldTeilB:
 
         assert field.get(f"/api/orders/{foreign.id}/service-reports").status_code == 403
         assert field.get(f"/api/orders/{foreign.id}/property").status_code == 403
-        assert field.post(f"/api/orders/{foreign.id}/service-reports", json={"report_type": "rapport"}).status_code == 403
+        # seit 1.9.79 legt sie zu jedem nicht stornierten Auftrag einen Bericht an (bis 1.9.78 hier 403); fremde Berichte bleiben gesperrt
+        assert field.post(f"/api/orders/{foreign.id}/service-reports", json={"report_type": "rapport"}).status_code == 200
         for suffix in ("inspection-items", "findings", "materials", "photos", "pdf"):
             assert field.get(f"/api/service-reports/{fid}/{suffix}").status_code == 403, suffix
         assert field.put(f"/api/service-reports/{fid}", json=update).status_code == 403

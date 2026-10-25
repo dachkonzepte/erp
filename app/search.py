@@ -114,6 +114,7 @@ from .tasks import list_tasks_for_user
 
 MIN_QUERY_LENGTH = 2
 SEARCH_RESULT_LIMIT = 10
+FIELD_ORDER_SEARCH_LIMIT = 20  # seit 1.9.79: Auftragssuche im Dialog „Für welchen Auftrag?“
 OFFICE_SEARCH_RESULT_LIMIT = 20
 
 # Seit der Aufteilung von "office" in buero_finanzen/buero_auftrag (CLAUDE.md "Rechtekonzept" ->
@@ -181,6 +182,28 @@ def search_properties_for_field(db: Session, query: str, *, limit: int = SEARCH_
     Angebot) mit Schicht 2 (Feldbegrenzung). Siehe Moduldocstring, warum künftiger Code diese
     Reduktion nicht selbst nachbauen darf."""
     return field_safe_property_search_results(search_properties(db, query, limit=limit))
+
+
+def search_orders_for_field(db: Session, query: str, *, limit: int = FIELD_ORDER_SEARCH_LIMIT) -> list[dict]:
+    """Seit 1.9.79 (Stufe 4, R4 Nachtrag 3): die Auftragssuche des Dialogs „Für welchen Auftrag?“ -- über alle nicht stornierten
+    Aufträge (wie app/service_reports.py::bericht_zum_auftrag_moeglich(), hier in SQL) nach Nummer, Titel, Objekt, Kunde und Adresse
+    (Schnappschüsse am Auftrag), ab MIN_QUERY_LENGTH Zeichen, höchstens `limit` Treffer, neueste Nummer zuerst. Liefert nur die
+    Anzeigefelder ihrer Liste (app/planning.py::auftrag_zeile()) -- keine Preise, keine Kundennummer, keine anderen IDs; damit legt sie
+    einen Bericht an, sonst nichts (kein Leserecht auf den Auftrag, das entsteht erst über den eigenen Bericht). % und _ im Suchbegriff
+    gelten wörtlich."""
+    from .planning import auftrag_zeile  # lokal: planning bindet viele Module, die Suche soll schlank bleiben
+    term = (query or "").strip()
+    if len(term) < MIN_QUERY_LENGTH:
+        return []
+    muster = "%" + term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+    felder = (Order.order_number, Order.title, Order.property_name, Order.customer_name, Order.property_address)
+    rows = db.scalars(
+        select(Order)
+        .where(func.lower(func.coalesce(Order.status, "")) != "storniert", or_(*(f.ilike(muster, escape="\\") for f in felder)))
+        .order_by(Order.order_number.desc())
+        .limit(limit)
+    ).all()
+    return [auftrag_zeile(o) for o in rows]
 
 
 # --------------------------------------------------------------------------------------------

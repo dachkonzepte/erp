@@ -31,11 +31,10 @@ from sqlalchemy.orm import Session
 
 from ..dateiauslieferung import datei_antwort
 from ..database import get_db
-from ..meldungen import BERICHT_NUR_EIGENE_AUFTRAEGE, KEIN_MITARBEITER
-from ..models import AppUser, InspectionItem, ServiceReportAsset, ServiceReportMaterial, ServiceReportPhoto
+from ..meldungen import BERICHT_STORNIERT, KEIN_MITARBEITER
+from ..models import AppUser, InspectionItem, Order, ServiceReportAsset, ServiceReportMaterial, ServiceReportPhoto
 from ..modules import is_module_enabled
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
-from ..planning import field_order_in_list
 from ..schemas import (
     InspectionItemCreate, InspectionItemOut, InspectionItemResultUpdate, InspectionItemsSyncResult,
     PropertyAccessOut, RoofAreaFieldOut, RoofAreaOut, ServiceReportAssetCreate, ServiceReportAssetOut, ServiceReportAssetUpdate,
@@ -46,7 +45,7 @@ from ..service_report_pdf import build_service_report_pdf
 from ..service_report_photos import MAX_UPLOAD_BYTES, photo_path
 from ..signature_image import signature_png_from_base64
 from ..service_reports import (
-    add_asset_usage, add_inspection_item, add_material, add_photo, create_report, delete_asset_usage,
+    add_asset_usage, add_inspection_item, add_material, add_photo, bericht_zum_auftrag_moeglich, create_report, delete_asset_usage,
     delete_inspection_item, delete_material, delete_photo, delete_report, get_property_context_for_order,
     get_report_row, list_assets_for_report, list_inspection_items, list_materials_for_invoicing,
     list_materials_for_report, list_photos, list_property_history, list_property_history_for_field, list_reports,
@@ -189,14 +188,17 @@ def get_property_service_report_history(order_id: int, db: Session = Depends(get
 @router.post("/api/orders/{order_id}/service-reports", response_model=ServiceReportOut)
 def post_service_report(order_id: int, payload: ServiceReportCreate, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
-    # seit 1.9.74 (Stufe 4, R4 Nachtrag): die Monteurin nur für einen Auftrag ihrer Liste (field_order_in_list(), dieselbe Liste wie
-    # „Zeit nachtragen“) -- bis dahin jeder Auftrag, auf den sie zugreifen darf (require_field_order_access(): AV-Zuordnung ohne Datum
-    # oder eigener Bericht), auch abgeschlossene; die Liste liegt darin
+    # seit 1.9.79 (Stufe 4, R4 Nachtrag 3, A): die Monteurin zu jedem Auftrag, eingeplant oder nicht, auch abgeschlossen -- nur nicht zu einem
+    # stornierten (bericht_zum_auftrag_moeglich(), 403). 1.9.74–1.9.78 nur zu einem Auftrag ihrer Liste, bis 1.9.73 zu jedem, auf den sie
+    # zugreifen darf. Leserechte entstehen erst über den eigenen Bericht (field_may_access_order(), Weg 2)
     if _role.role == ROLE_FIELD:
         if _role.employee_id is None:
             raise HTTPException(status_code=403, detail=KEIN_MITARBEITER)
-        if not field_order_in_list(db, _role.employee_id, order_id):
-            raise HTTPException(status_code=403, detail=BERICHT_NUR_EIGENE_AUFTRAEGE)
+        auftrag = db.get(Order, order_id)
+        if auftrag is None:
+            raise HTTPException(status_code=404, detail="Auftrag nicht gefunden.")
+        if not bericht_zum_auftrag_moeglich(auftrag):
+            raise HTTPException(status_code=403, detail=BERICHT_STORNIERT)
     employee_id = _employee_for_request(request, payload.created_by_employee_id)
     try:
         return create_report(

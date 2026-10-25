@@ -4,6 +4,17 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.79 – Bericht zu jedem Auftrag, Auftragssuche für die Monteurin (Stufe 4, R4 Nachtrag 3)
+
+Die Monteurin legt jetzt zu jedem Auftrag einen Einsatzbericht an -- eingeplant oder nicht, auch zu einem abgeschlossenen; nur zu einem
+stornierten nicht (403, „Der Auftrag ist storniert – dazu legst du keinen Bericht an.“). Eine Regel dafür
+(`app/service_reports.py::bericht_zum_auftrag_moeglich()`) für das Anlegen, das Kennzeichen `bericht_anlegen` an der Seite des Auftrags und
+die Daten zum Anlegen. Neu für den Dialog „Für welchen Auftrag?“: die Auftragssuche (`GET /api/field-view/auftraege-suche`, alle nicht
+stornierten Aufträge nach Nummer, Titel, Objekt, Kunde, Adresse, ab 2 Zeichen, höchstens 20 Treffer, nur die Anzeigefelder) und die Daten zum
+Anlegen (`GET /api/field-view/auftraege/{id}/bericht-anlegen`: Auftrag und Dachflächen mit Id und Name). Leserechte auf den Auftrag entstehen
+weiter erst über den eigenen Bericht. 1.9.74–1.9.78 legte sie nur zu Aufträgen ihrer Liste an; `test_v497` ist damit entfallen, neuer Test
+`test_v502`. Der Dialog selbst folgt.
+
 ## 1.9.78 – Jede Zeile der Auftragsliste nennt den Titel (Stufe 4, R4 Nachtrag 2)
 
 Zwei Aufträge am selben Objekt sahen in der Liste der Monteurin gleich aus (Nummer, Kunde, Adresse). Jetzt nennt jede Zeile den Titel des

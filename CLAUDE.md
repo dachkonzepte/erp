@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.78** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.79** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -1480,11 +1480,12 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   einen selbst angelegten Bericht (`ServiceReport.created_by_employee_id`) -- nie über
   Vertrauen in eine fortlaufende ID. `app/orders.py::field_may_access_order()` ist die eine
   Definition dafür, `require_field_report_ownership()` verschärft das für Schreibzugriffe auf
-  den eigenen Bericht. Einen Bericht legt sie seit 1.9.74 nur für einen Auftrag ihrer Liste an (`app/planning.py::field_order_in_list()`
-  über `list_field_bookable_orders()`, dieselbe Liste wie „Zeit nachtragen“), auch ohne heutigen Einsatz -- sonst 403
-  (`tests/test_v497_bericht_nur_aus_der_liste.py`); seit 1.9.76 steht darin auch ein Auftrag, dem sie an der Arbeitsvorbereitung ohne
-  Datum zugeordnet ist (`tests/test_v499_liste_ohne_datum.py`); „+ Bericht“ auf der Seite des Auftrags sieht sie seit 1.9.77 nur dafür
-  (`OrderFieldAccessOut.bericht_anlegen`, `tests/test_v500_auftragsseite_bericht_knopf.py`). Die Wartungshistorie in /mobil gilt seit 1.8.70 nur für Objekte dieser Aufträge
+  den eigenen Bericht. Einen Bericht legt sie seit 1.9.79 zu jedem nicht stornierten Auftrag an (`app/service_reports.py::
+  bericht_zum_auftrag_moeglich()`, sonst 403; Auftragssuche des Dialogs `app/search.py::search_orders_for_field()`, nur Anzeigefelder;
+  `tests/test_v502_bericht_zu_jedem_auftrag.py`) -- ein Leserecht entsteht erst über den eigenen Bericht; 1.9.74–1.9.78 nur für Aufträge
+  ihrer Liste. Ihre Liste (`list_field_bookable_orders()`, „Zeit nachtragen“) enthält seit 1.9.76 auch Aufträge ohne Datum
+  (`tests/test_v499_liste_ohne_datum.py`); „+ Bericht“ zeigt die Seite des Auftrags nach `OrderFieldAccessOut.bericht_anlegen`
+  (`tests/test_v500_auftragsseite_bericht_knopf.py`). Die Wartungshistorie in /mobil gilt seit 1.8.70 nur für Objekte dieser Aufträge
   (`field_accessible_property_ids()`); Objektansicht und Dokumente bleiben für jedes Objekt offen.
 - **Einsätze und Feierabend nur für die Rollen der Monteursansicht** (seit 1.9.33, `app/permissions.py::MOBIL_ROLLEN`, heute nur `field`):
   `GET /api/field-view/today` und `POST /api/field-view/feierabend` 403 für jede andere Rolle -- das Büro wird auf `/mobil` nicht abgemeldet.

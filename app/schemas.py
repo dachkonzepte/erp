@@ -1438,9 +1438,34 @@ class OrderFieldAccessOut(BaseModel):
     order_number: str
     customer_name: str
     items: list[OrderFieldAccessItemOut] = Field(default_factory=list)
-    # seit 1.9.77 (Stufe 4, R4 Nachtrag 2): ob sie hier einen Bericht anlegen darf -- der Auftrag steht in ihrer Liste
-    # (app/planning.py::field_order_in_list(), dieselbe Regel wie POST …/service-reports); die Seite zeigt danach „+ Bericht“ oder den Hinweis
+    # seit 1.9.77 (Stufe 4, R4 Nachtrag 2): ob sie hier einen Bericht anlegen darf -- seit 1.9.79 bei jedem nicht stornierten Auftrag
+    # (app/service_reports.py::bericht_zum_auftrag_moeglich(), dieselbe Regel wie POST …/service-reports; 1.9.77–1.9.78 nur in ihrer Liste)
     bericht_anlegen: bool = False
+
+
+class FieldOrderLineOut(BaseModel):
+    """Seit 1.9.79 (Stufe 4, R4 Nachtrag 3): ein Treffer der Auftragssuche der Monteurin (GET /api/field-view/auftraege-suche) -- genau die
+    Anzeigefelder ihrer Liste (app/planning.py::auftrag_zeile()), kappt strukturell, falls die Funktion je mehr liefert."""
+    id: int
+    order_number: str
+    title: str | None = None
+    property_name: str | None = None
+    customer_name: str | None = None
+    property_address: str | None = None
+
+
+class FieldRoofAreaPickOut(BaseModel):
+    """Seit 1.9.79: eine Dachfläche zur Auswahl beim Anlegen eines Berichts aus dem Dialog -- nur id und Name."""
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+
+
+class FieldReportCreateDataOut(BaseModel):
+    """Seit 1.9.79: was der Dialog „Für welchen Auftrag?“ zum Anlegen braucht (GET /api/field-view/auftraege/{id}/bericht-anlegen) --
+    der Auftrag als Zeile der Liste und seine Dachflächen (id, Name)."""
+    auftrag: FieldOrderLineOut
+    dachflaechen: list[FieldRoofAreaPickOut] = Field(default_factory=list)
 
 
 class OrderContractBasisUpdate(BaseModel):

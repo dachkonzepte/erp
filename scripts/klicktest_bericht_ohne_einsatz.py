@@ -1,16 +1,18 @@
 """Klicktest: Bericht anlegen ohne Einsatz (seit 1.9.75, Stufe 4, R4 Nachtrag) -- „Heute“, Dialog „Für welchen Auftrag?“, Seite des Auftrags.
 
 Befüllt: Objekt „Halle Nord“ (Hallenbau GmbH); Auftrag A „Notdienst Rinne“ gestern für Mia und Tom eingeplant, B „Attika“ in 5 Tagen für Mia,
-C „Wartung“ heute für Tom, F „Fremdauftrag“ für niemanden, G „Altauftrag“ vor 40 Tagen für Mia (zugänglich, nicht in ihrer Liste).
-Feste Uhr 10:00.
+C „Wartung“ heute für Tom, F „Fremdauftrag“ für niemanden, G „Altauftrag“ vor 40 Tagen für Mia (zugänglich, nicht in ihrer Liste), seit
+1.9.79 S „Stornoauftrag“ storniert mit einem Bericht von Mia. Feste Uhr 10:00.
 
     Mia (kein Einsatz)  Karte „Heute ist nichts eingeplant.“ mit „Bericht anlegen“ (grün, 56 px), kein „Bericht für einen anderen Auftrag“;
                         Klick -> Dialog „Für welchen Auftrag?“ mit genau der Liste von „Zeit nachtragen“ (B und A, nicht F), je Zeile
                         ≥ 56 px zur Seite des Auftrags mit ?neu=1; „Abbrechen“ schließt; Zeile A -> „Bericht anlegen“ gleich offen (Art,
                         Datum heute), die Adresse ohne ?neu; „Anlegen“ -> der neue Bericht (Auftrag A, Mia); quer hell (Bilder 1–3), hoch
-                        800 × 1100 mit Dialog; F direkt über die API -> 403 mit der Meldung; seit 1.9.77 Seite von G (auch mit ?neu=1):
-                        kein „+ Bericht“, an seiner Stelle „Für diesen Auftrag legt das Büro Berichte an.“, kein Editor (Bild 6, ganze
-                        Seite); Seite von A mit „+ Bericht“ ohne Hinweis; seit 1.9.78 Zeilen des Dialogs „Nummer · Titel“, darunter
+                        800 × 1100 mit Dialog; seit 1.9.79 über die API S (storniert) -> 403 mit der Meldung, F (nie zugeordnet) ->
+                        angelegt (1.9.74–1.9.78: F 403); Seite von G mit „+ Bericht“, ?neu=1 öffnet den Editor (1.9.77–1.9.78: Hinweis);
+                        Seite von S (auch mit ?neu=1): kein „+ Bericht“, an seiner Stelle „Für diesen Auftrag legt das Büro Berichte
+                        an.“, kein Editor (Bild 6, ganze Seite); Seite von A mit „+ Bericht“ ohne Hinweis; seit 1.9.78 Zeilen des
+                        Dialogs „Nummer · Titel“, darunter
                         „Objekt · Kunde · Adresse“ (A und B am selben Objekt unterscheidbar), Auswahl „Auftrag“ in „Zeit nachtragen“
                         einzeilig mit Titel, höchstens 60 Zeichen (Bild 7, als offene Liste)
     Tom (Einsatz C)     „Bericht anlegen“ in der Karte wie bisher (zur Seite von C), darunter „Bericht für einen anderen Auftrag“ (neutral,
@@ -40,12 +42,13 @@ def befuellen(db, k):
     from decimal import Decimal
 
     from app.berlin_time import berlin_today
-    from app.meldungen import BERICHT_NUR_EIGENE_AUFTRAEGE
+    from app.meldungen import BERICHT_STORNIERT
     from app.models import (
         AppUser, Customer, Employee, Order, OrderItem, PlanningSlot, Project, Property, Team, WorkPreparationTeamAssignment,
         WorkPreparationTeamEmployee,
     )
     from app.project_pipeline_columns import default_pipeline_column_id
+    from app.service_reports import create_report
     from app.work_preparation import ensure_preparation
 
     heute = berlin_today()
@@ -75,7 +78,7 @@ def befuellen(db, k):
         return o
 
     a, b, c, f = auftrag(1, "Notdienst Rinne"), auftrag(2, "Attika"), auftrag(3, "Wartung"), auftrag(4, "Fremdauftrag")
-    g = auftrag(5, "Altauftrag")
+    g, s = auftrag(5, "Altauftrag"), auftrag(6, "Stornoauftrag")
     team = Team(name="Kolonne Nord", active=True)
     db.add(team); db.flush()
     for o, wer, von, bis in ((a, ("mia", "tom"), heute - timedelta(days=1), heute - timedelta(days=1)),
@@ -89,7 +92,11 @@ def befuellen(db, k):
             db.add(WorkPreparationTeamEmployee(assignment_id=zuordnung.id, employee_id=leute[n].id, employee_name_snapshot=leute[n].first_name))
         db.add(PlanningSlot(preparation_id=prep.id, team_assignment_id=zuordnung.id, start_date=von, end_date=bis))
     db.commit()
-    return {"a": a.id, "b": b.id, "c": c.id, "f": f.id, "g": g.id, "heute": heute.isoformat(), "mia": leute["mia"].id, "meldung": BERICHT_NUR_EIGENE_AUFTRAEGE,
+    create_report(db, s.id, "rapport", "Vor dem Storno", created_by_employee_id=leute["mia"].id)  # ihr Zugang zur Seite von S
+    s.status = "storniert"
+    db.commit()
+    return {"a": a.id, "b": b.id, "c": c.id, "f": f.id, "g": g.id, "s": s.id, "heute": heute.isoformat(), "mia": leute["mia"].id,
+            "meldung": BERICHT_STORNIERT,
             "cookies": {n: k.cookies(u) for n, u in benutzer.items()}}
 
 
@@ -161,16 +168,20 @@ async def pruefen(tab, seed, p):
         [a, seed["mia"], "rapport", "Notdienst: Rinne abgedichtet.", "entwurf"])
     await tab.js("window.scrollTo(0,0)")
     await tab.bild("3_neuer_bericht_quer_hell")
-    p.pruefe("F direkt über die API: 403 mit der Meldung", await tab.js(
-        f"fetch('/api/orders/{f}/service-reports',{{method:'POST',headers:{{'Content-Type':'application/json'}},"
-        "body:JSON.stringify({report_type:'rapport'})}).then(async r=>[r.status,(await r.json()).detail])"), [403, seed["meldung"]])
+    # seit 1.9.79: zu jedem nicht stornierten Auftrag (1.9.74–1.9.78: F 403); zum stornierten 403
+    anlegen = ("fetch('/api/orders/{}/service-reports',{{method:'POST',headers:{{'Content-Type':'application/json'}},"
+               "body:JSON.stringify({{report_type:'rapport'}})}}).then(async r=>[r.status,(await r.json()).detail||null])")
+    p.pruefe("S (storniert) direkt über die API: 403 mit der Meldung", await tab.js(anlegen.format(seed["s"])), [403, seed["meldung"]])
 
-    # seit 1.9.77: Seite eines Auftrags, der nicht in ihrer Liste ist (G, vor 40 Tagen) -- statt „+ Bericht“ der Hinweis, auch ?neu=1
-    # öffnet keinen Editor; Seite von A mit „+ Bericht“
-    g = seed["g"]
-    await tab.oeffnen(f"/orders/{g}/service-reports?neu=1", AUFTRAG_GELADEN)
+    # seit 1.9.79: Seite von G (nicht in ihrer Liste) mit „+ Bericht“, ?neu=1 öffnet den Editor (1.9.77–1.9.78: der Hinweis); Seite von S
+    # (storniert) statt „+ Bericht“ der Hinweis, auch ?neu=1 öffnet keinen Editor; Seite von A mit „+ Bericht“
+    await tab.oeffnen(f"/orders/{seed['g']}/service-reports?neu=1", AUFTRAG_GELADEN)
     await tab.warte_auf_ruhe()
-    p.pruefe("Seite eines Auftrags außerhalb der Liste: kein „+ Bericht“, an seiner Stelle der Hinweis, ?neu=1 öffnet nichts",
+    p.pruefe("Seite eines Auftrags außerhalb der Liste (G): „+ Bericht“ da, ?neu=1 öffnet den Editor",
+             await tab.js(KNOPF_ODER_HINWEIS), [False, True, "Für diesen Auftrag legt das Büro Berichte an.", False])
+    await tab.oeffnen(f"/orders/{seed['s']}/service-reports?neu=1", AUFTRAG_GELADEN)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Seite eines stornierten Auftrags (S): kein „+ Bericht“, an seiner Stelle der Hinweis, ?neu=1 öffnet nichts",
              await tab.js(KNOPF_ODER_HINWEIS), [True, False, "Für diesen Auftrag legt das Büro Berichte an.", True])
     voll = await tab.js("Math.ceil(document.documentElement.scrollHeight)")
     await tab.fenster(1280, max(620, voll), mobil=True)
@@ -200,6 +211,8 @@ async def pruefen(tab, seed, p):
         [["AUF-2026-0102 · Attika", "AUF-2026-0101 · Notdienst Rinne"], True, True])
     await tab.js("(s=>{s.size=3;s.style.height='auto'})(document.getElementById('zdAuftrag'))")  # fürs Bild als offene Liste
     await tab.bild("7_zeit_nachtragen_auswahl_quer_hell")
+    # erst jetzt: mit dem eigenen Bericht steht F danach in ihrer Liste (die Prüfungen der Liste oben sähen ihn sonst mit)
+    p.pruefe("F (nie zugeordnet) direkt über die API: angelegt", (await tab.js(anlegen.format(f)))[0], 200)
     p.pruefe("Mia: keine JS-Fehler", tab.fehler, [])
 
     # --- Tom: Einsatz heute --------------------------------------------------------------------------------------------------------

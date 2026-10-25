@@ -869,9 +869,9 @@ def list_field_bookable_order_ids(db: Session, employee_id: int, *, window_days:
 
     Seit 1.9.76 (Stufe 4, R4 Nachtrag 2) dazu, ebenfalls ungefenstert: jeder Auftrag, dem er an der Arbeitsvorbereitung zugeordnet ist,
     deren Arbeitsvorbereitung gar kein Datum trägt (_undatiert_zugeordnete_order_ids()) -- bis 1.9.75 fehlte er ("kein Anhaltspunkt
-    für aktuell"), obwohl Buchen und Zugriff ihn zuließen. Seit 1.9.74 gilt diese Liste auch fürs Anlegen eines Berichts
-    (field_order_in_list()); außerhalb des Fensters datierte Aufträge bleiben draußen, abgeschlossene und stornierte filtert
-    list_field_bookable_orders()."""
+    für aktuell"), obwohl Buchen und Zugriff ihn zuließen. 1.9.74–1.9.78 galt diese Liste auch fürs Anlegen eines Berichts (seit
+    1.9.79 zu jedem nicht stornierten Auftrag); außerhalb des Fensters datierte Aufträge bleiben draußen, abgeschlossene und stornierte
+    filtert list_field_bookable_orders()."""
     today = today or berlin_today()
     relevant_prep_ids = _relevant_preparation_ids_for_employee(db, employee_id, window_days=window_days, today=today)
 
@@ -904,18 +904,16 @@ def list_field_bookable_orders(db: Session, employee_id: int) -> list[dict]:
         )
         .order_by(Order.order_number.desc())
     ).all()
-    return [
-        {"id": o.id, "order_number": o.order_number, "title": o.title, "property_name": o.property_name,
-         "customer_name": o.customer_name, "property_address": o.property_address}
-        for o in rows
-    ]
+    return [auftrag_zeile(o) for o in rows]
 
 
-def field_order_in_list(db: Session, employee_id: int, order_id: int) -> bool:
-    """Seit 1.9.74 (Stufe 4, R4 Nachtrag): ob ein Auftrag in der Auftragsliste der Monteurin steht -- list_field_bookable_orders(), dieselbe
-    Liste wie „Zeit nachtragen“ in „Meine Zeiten“ und „Für welchen Auftrag?“ auf „Heute“. Eine Regel für Liste und Prüfung: einen Bericht
-    legt die Monteurin nur für einen Auftrag dieser Liste an (POST /api/orders/{id}/service-reports), auch ohne heutigen Einsatz."""
-    return any(o["id"] == order_id for o in list_field_bookable_orders(db, employee_id))
+def auftrag_zeile(o: Order) -> dict:
+    """Seit 1.9.79: ein Auftrag, wie ihn die Monteurin in einer Liste sieht -- Nummer, Titel, Objekt, Kunde, Adresse (Schnappschüsse am
+    Auftrag), sonst nichts. Für ihre Liste (list_field_bookable_orders()), die Auftragssuche (app/search.py::search_orders_for_field()) und
+    die Daten zum Anlegen eines Berichts. Bis 1.9.78 hieß hier field_order_in_list(): seit 1.9.79 legt sie Berichte zu jedem nicht stornierten
+    Auftrag an (app/service_reports.py::bericht_zum_auftrag_moeglich()), nicht mehr nur zu denen ihrer Liste."""
+    return {"id": o.id, "order_number": o.order_number, "title": o.title, "property_name": o.property_name,
+            "customer_name": o.customer_name, "property_address": o.property_address}
 
 
 def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSettings) -> tuple[dict[int, list[dict]], dict[int, dict[date, dict]]]:

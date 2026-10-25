@@ -3,7 +3,8 @@ ihrer Liste -- für „Zeit nachtragen“, „Heute“ und das Anlegen eines Ber
 
     ohne Datum      zugeordnet (einzeln oder über die Kolonne), die Arbeitsvorbereitung ohne Abschnitt der Plantafel und ohne geplanten
                     Zeitraum -> in der Liste, Bericht und Nachtrag gehen (bis 1.9.75 nicht in der Liste, seit 1.9.74 kein Bericht)
-    draußen         nie zugeordnet (403 wie bisher), abgeschlossen oder storniert (auch ohne Datum), datiert außerhalb der 14 Tage
+    draußen         nie zugeordnet (Nachtrag 403), abgeschlossen oder storniert (auch ohne Datum), datiert außerhalb der 14 Tage -- einen
+                    Bericht legt sie seit 1.9.79 trotzdem zu jedem nicht stornierten an (test_v502)
     unverändert     „Wartungen an meinen Objekten“ (list_field_relevant_property_ids()) nimmt ein Objekt ohne Datum weiter nicht auf
 """
 
@@ -90,16 +91,17 @@ def test_ohne_datum_bericht_und_nachtrag_gehen(welt, name):
     assert nachtrag.status_code == 200, nachtrag.text
 
 
-def test_nie_zugeordnet_403_wie_bisher(welt):
-    """Gegenprobe: nie zugeordnet -> Bericht und Nachtrag 403."""
-    assert _bericht(welt, "fremd").status_code == 403
+def test_nie_zugeordnet_kein_nachtrag(welt):
+    """Gegenprobe: nie zugeordnet -> Nachtrag 403 wie bisher; einen Bericht legt sie seit 1.9.79 an (1.9.74–1.9.78: 403)."""
     assert _nachtrag(welt, "fremd").status_code == 403
+    assert _bericht(welt, "fremd").status_code == 200
 
 
 @pytest.mark.parametrize("name", ["abgeschlossen", "storniert", "alt"])
-def test_abgeschlossen_storniert_und_alt_nicht_in_der_liste_kein_bericht(welt, name):
+def test_abgeschlossen_storniert_und_alt_nicht_in_der_liste(welt, name):
+    """Nicht in der Liste; einen Bericht legt sie seit 1.9.79 trotzdem an -- außer zum stornierten (1.9.74–1.9.78: alle drei 403)."""
     assert welt["auftraege"][name].id not in {o["id"] for o in list_field_bookable_orders(welt["db"], welt["mia"].id)}
-    assert _bericht(welt, name).status_code == 403
+    assert _bericht(welt, name).status_code == (403 if name == "storniert" else 200)
 
 
 def test_wartungen_an_meinen_objekten_unveraendert(welt):

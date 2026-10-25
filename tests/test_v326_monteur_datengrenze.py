@@ -453,6 +453,7 @@ QUERY_WERTE = {"start": "2026-01-01", "end": "2026-12-31", "start_date": "2026-0
                "property_id": "@property_id", "context": "auftrag"}
 QUERY_JE_ROUTE = {
     "/api/field-view/properties/search": {"q": "Halle"},
+    "/api/field-view/auftraege-suche": {"q": "AU-2026"},  # Auftragssuche im Dialog „Für welchen Auftrag?“ (seit 1.9.79)
     "/api/checklists": {"order_id": "@order_id"},
     # Empfängerauswahl für "Zustellung nachtragen" (seit 1.8.41)
     "/api/email-dispatches/delivery-recipients": {"document_type": "auftrag", "document_id": "@order_id"},

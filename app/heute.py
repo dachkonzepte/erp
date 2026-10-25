@@ -24,7 +24,8 @@ reicht die Rolle nur als "ist_monteur" für die Sperre "Monat abgeschlossen" her
                  folgende Tage desselben Auftrags in einer Zeile.
     Aufträge     seit 1.9.75 (Stufe 4, R4 Nachtrag): die Auftragsliste der Monteurin (list_field_bookable_orders(), dieselbe wie „Zeit
                  nachtragen“) für den Dialog „Für welchen Auftrag?“ -- „Bericht anlegen“ ohne Einsatz und „Bericht für einen anderen
-                 Auftrag“; anlegen darf sie genau dafür (app/planning.py::field_order_in_list()).
+                 Auftrag“ (1.9.74–1.9.78 durfte sie genau dafür anlegen; seit 1.9.79 zu jedem nicht stornierten Auftrag, die übrigen
+                 findet die Suche im Dialog).
 """
 
 from datetime import date, datetime, timedelta

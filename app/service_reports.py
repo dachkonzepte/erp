@@ -614,6 +614,14 @@ def create_report(db: Session, order_id: int, report_type: str, description: str
     return report_to_dict(_load(db, report.id))
 
 
+def bericht_zum_auftrag_moeglich(order: Order) -> bool:
+    """Seit 1.9.79 (Stufe 4, R4 Nachtrag 3, Entscheidung A): zu einem Auftrag entsteht ein Bericht, solange er nicht storniert ist --
+    eingeplant oder nicht, offen oder abgeschlossen. Die Monteurin legt danach an (POST /api/orders/{id}/service-reports, sonst 403), die
+    Seite des Auftrags zeigt danach „+ Bericht“ (OrderFieldAccessOut.bericht_anlegen), die Suche des Dialogs „Für welchen Auftrag?“ lässt
+    stornierte weg (app/search.py::search_orders_for_field(), dieselbe Bedingung in SQL). Das Büro ist davon nicht berührt."""
+    return (order.status or "").strip().lower() != "storniert"
+
+
 def list_roof_areas_for_order(db: Session, order_id: int) -> list[dict]:
     """Löst wie list_property_history() order.project.property_id auf und liefert dessen
     Dachflächen -- für die Dachflächen-Auswahl beim Anlegen eines Wartungsberichts. Leere Liste

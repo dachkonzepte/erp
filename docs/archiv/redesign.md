@@ -5283,3 +5283,59 @@ ebenso dem Hinweis weichen?
   Bausteine dieser Liste ein; ohne ihn liefen `test_v450` (drei Tests zu „Meine Zeiten“) im ersten Lauf auf „auftragText is not defined“.
 - **Gegenproben**: Titel fehlt in der Liste -> `test_v501` 2 rot, Klicktest 2 rot; Auswahl ungekürzt -> `test_v501` 1 rot, Klicktest 1 rot;
   Dialog ohne Titel -> `test_v501` 1 rot, Klicktest 1 rot.
+
+## Stufe 4, R4 Nachtrag 3 (ab 1.9.79): Berichte zu jedem Auftrag, keine Zeiten auf abgeschlossene
+
+Vorgabe vom 25.10.2026 (Start HEAD ea0db21, live): Festlegungen des Nachtrags 2 bestätigt, außer 1.9.77 Nr. 1–3 (-> A). Entscheidungen von
+Tobias: A Berichte -- die Monteurin legt zu jedem Auftrag einen Bericht an, eingeplant oder nicht, auch abgeschlossen, nur stornierte nicht
+(403); Dialog „Für welchen Auftrag?“ mit Suchfeld (ab 2 Zeichen; Nummer, Titel, Objekt, Kunde, Adresse; alle nicht stornierten; höchstens 20
+Treffer) über „Deine Aufträge“; angelegt direkt aus dem Dialog, danach direkt in den Bericht; die Seite des Auftrags öffnet sich danach über
+„eigener Bericht“, sonst keine neuen Leserechte; die Suche liefert nur Anzeigefelder; „+ Bericht“ bei jedem nicht stornierten Auftrag.
+B Zeiten -- die Monteurin bucht nicht auf abgeschlossene oder stornierte Aufträge (Start, Nachtrag, Ändern, Kolonne, „Zeitart wechseln“;
+„Der Auftrag ist abgeschlossen – Zeiten dafür trägt das Büro ein.“), eine laufende Zeit lässt sich immer beenden, auf der Seite des Auftrags
+weicht „Zeit nachtragen“ dort dem Hinweis, das Büro bucht wie bisher. C „Zeit nachtragen“ auf der Seite des Auftrags mit den Ecken der übrigen
+Knöpfe.
+
+### Nachtrag 3, A Server (1.9.79): Bericht zu jedem nicht stornierten Auftrag, Suche, Daten zum Anlegen
+
+- `app/service_reports.py::bericht_zum_auftrag_moeglich(order)`: nicht storniert. `POST /api/orders/{id}/service-reports` fragt sie für die
+  Monteurin (unbekannt 404, storniert 403 `BERICHT_STORNIERT`, ohne Mitarbeiter 403 `KEIN_MITARBEITER`); `get_order()` setzt
+  `bericht_anlegen` daraus; `app/planning.py::field_order_in_list()` ist entfallen.
+- `app/planning.py::auftrag_zeile(o)`: die sechs Anzeigefelder (Nummer, Titel, Objekt, Kunde, Adresse, Id) -- für die Liste, die Suche und die
+  Daten zum Anlegen.
+- `app/search.py::search_orders_for_field(db, q)` und `GET /api/field-view/auftraege-suche` (`response_model=list[FieldOrderLineOut]`): alle
+  nicht stornierten Aufträge, Teilwort ohne Groß/Klein in Nummer, Titel, Objekt, Kunde, Adresse, `%` und `_` wörtlich, ab 2 Zeichen, höchstens
+  20 (`FIELD_ORDER_SEARCH_LIMIT`), neueste Nummer zuerst; nur mit dem Modul „Wartungen“.
+- `GET /api/field-view/auftraege/{id}/bericht-anlegen` (`FieldReportCreateDataOut`): der Auftrag als Zeile und seine Dachflächen (Id, Name) für
+  jeden nicht stornierten Auftrag (storniert 403, unbekannt 404).
+- Ersetzt 1.9.74–1.9.78 („nur Aufträge der Liste“) und damit 1.9.77 Festlegungen 1–3 (Hinweis statt „+ Bericht“ außerhalb der Liste) --
+  den Hinweis „Für diesen Auftrag legt das Büro Berichte an.“ gibt es nur noch beim stornierten Auftrag.
+
+**Festlegungen 1.9.79 (Bitte bestätigen)**
+
+1. Zum stornierten Auftrag kein Bericht von der Monteurin (403 „Der Auftrag ist storniert – dazu legst du keinen Bericht an.“); ein unbekannter
+   Auftrag antwortet 404 (bis 1.9.78 403 wie ein fremder -- die Suche zeigt ohnehin alle nicht stornierten).
+2. Die Suche: Teilwort ohne Groß/Klein in Nummer, Titel, Objekt, Kunde, Adresse (wie am Auftrag festgehalten), `%` und `_` wörtlich, ab 2
+   Zeichen, höchstens 20 Treffer, neueste Nummer zuerst, nur mit dem Modul „Wartungen“.
+3. Für das Anlegen aus dem Dialog liest die Monteurin von einem fremden Auftrag dessen Zeile und die Namen seiner Dachflächen (Id, Name) --
+   das einzige Lesen außerhalb ihrer Aufträge; ohne Flächen ließe sich kein Wartungsbericht anlegen.
+4. Das Büro bleibt unverändert (es legt auch zu einem stornierten Auftrag an).
+5. Der Hinweis „Für diesen Auftrag legt das Büro Berichte an.“ statt „+ Bericht“ bleibt für den stornierten Auftrag.
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v502_bericht_zu_jedem_auftrag.py` (17 Tests): Bericht zu nie zugeordnetem offenem und abgeschlossenem Auftrag angelegt, danach
+  Leserecht über den eigenen Bericht; storniert 403, nichts angelegt; unbekannt 404; keine neuen Leserechte auf einen anderen Auftrag;
+  `bericht_anlegen` wie das Anlegen; Büro unverändert; Suche nach Nummer, Titel, Objekt, Adresse findet den fremden, nie den stornierten; ab 2
+  Zeichen, höchstens 20, neueste zuerst; `%`/`_` wörtlich; nur Anzeigefelder ohne verbotene Schlüssel; Daten zum Anlegen (Zeile, Dachflächen
+  Id/Name, Schlüssel-Scan; storniert 403, unbekannt 404); eine Regel (AST).
+- Entfallen: `tests/test_v497_bericht_nur_aus_der_liste.py` (Regel „nur aus der Liste“, 1.9.74–1.9.78).
+- Angepasste Erwartungen: `test_v499` `test_nie_zugeordnet_403_wie_bisher` -> `test_nie_zugeordnet_kein_nachtrag` (Bericht 403 -> angelegt,
+  Nachtrag 403 bleibt); `test_abgeschlossen_storniert_und_alt_nicht_in_der_liste_kein_bericht` -> `…_nicht_in_der_liste` (Bericht 403 ->
+  angelegt, außer storniert); `test_v500` `test_bericht_anlegen_folgt_der_liste_und_dem_anlegen` -> `…_folgt_dem_anlegen` (`alt` und
+  `abgeschlossen_eigen` falsch -> wahr, neu `storniert_eigen` falsch); `test_v260` `test_report_and_finding_endpoints_follow_the_same_order_access`
+  (Anlegen zum fremden Auftrag 403 -> 200); `test_v326` Suchbegriff für den Rundgang (Aufbau); `klicktest_bericht_ohne_einsatz` -- F über die
+  API 403 -> angelegt (ans Ende von Mias Teil, sonst stünde F danach in ihrer Liste), Seite von G Hinweis -> „+ Bericht“ und Editor bei `?neu=1`,
+  neu S (storniert mit eigenem Bericht): Hinweis statt „+ Bericht“ (Bild 6 jetzt S).
+- **Gegenproben**: auch zum stornierten -> `test_v502` 2, `test_v500` 1, `test_v499` 1 rot; Suche mit stornierten -> `test_v502` 1 rot; Suche mit
+  Kundennummer -> `test_v502` 2 rot; Anlegen nur mit Zugriff -> `test_v502` 6, `test_v499` 1 rot.

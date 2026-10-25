@@ -2089,3 +2089,11 @@ Monteure“), auch ohne heutigen Einsatz; sonst 403. Bis 1.9.73 galt beim Anlege
 2). Lesen und Bearbeiten bleiben bei den Wegen oben. Seit 1.9.76 steht in der Liste auch ein Auftrag, dem sie an der Arbeitsvorbereitung
 ohne Datum zugeordnet ist (`_undatiert_zugeordnete_order_ids()`). Herleitung und Festlegungen: `docs/archiv/redesign.md`, „Stufe 4,
 R4 Nachtrag“ und „R4 Nachtrag 2“.
+
+## Nachtrag 1.9.79: Bericht zu jedem nicht stornierten Auftrag
+
+Seit 1.9.79 (Stufe 4, R4 Nachtrag 3, Entscheidung A) legt die Monteurin einen Bericht zu jedem Auftrag an, der nicht storniert ist
+(`app/service_reports.py::bericht_zum_auftrag_moeglich()`); finden kann sie ihn über die Auftragssuche des Dialogs (`search_orders_for_field()`,
+nur Anzeigefelder). Ein Leserecht auf den Auftrag entsteht weiter erst über den eigenen Bericht (Weg 2 oben); beim Anlegen liest sie nur die Zeile
+des Auftrags und die Namen seiner Dachflächen (`GET /api/field-view/auftraege/{id}/bericht-anlegen`). 1.9.74–1.9.78 nur für Aufträge ihrer
+Liste. Herleitung: `docs/archiv/redesign.md`, „Stufe 4, R4 Nachtrag 3“.

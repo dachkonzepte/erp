@@ -42,7 +42,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..berlin_time import berlin_now, berlin_today
-from ..meldungen import KEIN_MITARBEITER
+from ..meldungen import BERICHT_STORNIERT, KEIN_MITARBEITER
 from .. import sitzungen
 from ..auth import COOKIE_NAME
 from ..dateiauslieferung import datei_antwort
@@ -56,24 +56,26 @@ from ..maintenance_contracts import list_relevant_contracts_for_employee
 from ..meine_zeiten import meine_zeiten
 from ..mobile_manifest import build_icon_png, build_manifest
 from ..mobile_settings import load_mobile_settings, is_past_shift_end, mobile_settings_to_dict, update_mobile_settings
-from ..models import AppUser, DocumentCategory, Property
+from ..models import AppUser, DocumentCategory, Order, Property
 from ..modules import is_module_enabled
 from ..orders import field_accessible_property_ids
 from ..permissions import MOBIL_ROLLEN, NUR_MONTEURSANSICHT, ROLE_FIELD, require_min_role, require_role
-from ..planning import list_field_bookable_orders, list_todays_assignments_for_employee, list_upcoming_assignments_for_employee
+from ..planning import auftrag_zeile, list_field_bookable_orders, list_todays_assignments_for_employee, list_upcoming_assignments_for_employee
 from ..property_documents import (
     MAX_UPLOAD_BYTES, can_preview_type, create_property_document, is_image_type,
     list_merged_documents_for_property, resolve_property_document_for_field,
 )
 from ..schemas import (
-    FieldDocumentCategoryOut, FieldMaintenancePropertyGroupOut, MobileSettingsOut, MobileSettingsUpdate,
+    FieldDocumentCategoryOut, FieldMaintenancePropertyGroupOut, FieldOrderLineOut, FieldReportCreateDataOut, MobileSettingsOut,
+    MobileSettingsUpdate,
     PropertyAccessOut, PropertyDocumentListItemOut, PropertySearchHitOut, ServiceReportHistoryOut,
 )
-from ..search import search_properties_for_field
+from ..search import search_orders_for_field, search_properties_for_field
 from ..service_report_pdf import build_service_report_pdf_for_field
 from ..time_tracking import offene_zeit_info
 from ..service_reports import (
-    list_draft_reports_for_employee, list_maintenance_history_for_property_field,
+    bericht_zum_auftrag_moeglich, list_draft_reports_for_employee, list_maintenance_history_for_property_field,
+    list_roof_areas_for_order,
     resolve_property_history_report_for_field,
 )
 
@@ -271,6 +273,31 @@ def get_field_view_timesheet_pdf(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     filename = f"Stundenzettel_{year:04d}-{month:02d}.pdf"
     return Response(content=data, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@router.get("/api/field-view/auftraege-suche", response_model=list[FieldOrderLineOut])
+def get_field_view_auftraege_suche(q: str = "", db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+    """Seit 1.9.79 (Stufe 4, R4 Nachtrag 3, A): die Suche im Dialog „Für welchen Auftrag?“ -- alle nicht stornierten Aufträge nach Nummer,
+    Titel, Objekt, Kunde, Adresse, ab 2 Zeichen, höchstens 20 Treffer (app/search.py::search_orders_for_field()); nur die Anzeigefelder
+    der Liste, response_model kappt darauf. Nur für Berichte gebraucht -- deshalb nur mit dem Modul „Wartungen“ (sonst 403)."""
+    if not is_module_enabled(db, "wartungen"):
+        raise HTTPException(status_code=403, detail="Das Modul Wartungen & Reparaturen ist deaktiviert.")
+    return search_orders_for_field(db, q)
+
+
+@router.get("/api/field-view/auftraege/{order_id}/bericht-anlegen", response_model=FieldReportCreateDataOut)
+def get_field_view_bericht_anlegen(order_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+    """Seit 1.9.79: was der Dialog zum Anlegen eines Berichts braucht -- der Auftrag als Zeile der Liste und seine Dachflächen (id, Name),
+    für jeden Auftrag, zu dem ein Bericht entstehen darf (bericht_zum_auftrag_moeglich(): nicht storniert, sonst 403; unbekannt 404).
+    Sonst kein Leserecht auf den Auftrag -- das entsteht erst über den eigenen Bericht."""
+    if not is_module_enabled(db, "wartungen"):
+        raise HTTPException(status_code=403, detail="Das Modul Wartungen & Reparaturen ist deaktiviert.")
+    order = db.get(Order, order_id)
+    if order is None:
+        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden.")
+    if not bericht_zum_auftrag_moeglich(order):
+        raise HTTPException(status_code=403, detail=BERICHT_STORNIERT)
+    return {"auftrag": auftrag_zeile(order), "dachflaechen": list_roof_areas_for_order(db, order_id)}
 
 
 @router.get("/api/field-view/properties/search", response_model=list[PropertySearchHitOut])
