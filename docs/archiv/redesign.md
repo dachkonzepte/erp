@@ -5371,3 +5371,35 @@ Knöpfe.
   Titel (1.9.78) liest die Zeilen über `[data-auftrag]`; die Testdaten bekommen „Dachfläche Nord“.
 - **Gegenproben**: Suche nur in der eigenen Liste -> `test_v503` 1 rot, Klicktest 3 rot; Zeile ohne Anlegen im Dialog -> `test_v503` 1 rot,
   Klicktest 5 rot; Vorlage immer zur Wahl -> Klicktest 1 rot.
+
+### Nachtrag 3, B Server (1.9.81): keine Zeiten der Monteurin auf abgeschlossene Aufträge
+
+- `app/time_tracking.py::auftrag_zeiten_gesperrt(order)`: rollenlos, die Meldung bei Status „abgeschlossen“ bzw. „storniert“ (Groß- und
+  Kleinschreibung, Leerraum egal), sonst None; Meldungen `AUFTRAG_ABGESCHLOSSEN_ZEITEN`, `AUFTRAG_STORNIERT_ZEITEN` in `app/meldungen.py`.
+- `app/routers/time_tracking.py::_require_order_open_for_field(request, db, *order_ids)`: nur für die Rolle `field`, 403 mit der Meldung.
+  Aufgerufen in `_require_bookable_order()` nach der Zugangsprüfung -- damit für Start, Nachtrag, den Zielauftrag beim Ändern, Kolonne
+  (Nachtrag, Start, Ändern) und „Zeitart wechseln“ --, dazu für den bisherigen Auftrag beim Ändern einer Buchung und einer Kolonnenbuchung,
+  beim Löschen beider und für die Buchungen, die „Pausen neu rechnen“ ändern würde. Stopp, Gruppen-Stopp und „Ende nachtragen“ rufen sie
+  nicht auf; die Vorschauen lesen nur.
+
+**Festlegungen 1.9.81 (Bitte bestätigen)**
+
+1. Storniert sperrt wie abgeschlossen, mit „Der Auftrag ist storniert – Zeiten dafür trägt das Büro ein.“
+2. Gesperrt sind auch: eine Buchung von dort wegschieben, eine Buchung oder Kolonnenbuchung dort löschen, „Pausen neu rechnen“, wenn es eine
+   Buchung dort ändern würde -- alle drei ändern Zeiten des Auftrags.
+3. 403 wie beim abgeschlossenen Monat; geprüft nach dem Zugang (ein fremder oder unbekannter Auftrag bleibt 403 bzw. 404) und vor dem
+   Zeitraum; gilt für die Rolle `field` (auch die Kolonnenführerin), nicht für Büro und Admin.
+4. „Meine Zeiten“ und „Heute“ blenden nichts aus: „⋮ Ändern/Löschen“ an einer Buchung eines geschlossenen Auftrags und „Start“ an einem
+   Einsatz eines geschlossenen Auftrags bleiben, der Server lehnt mit der Meldung ab; ausgeblendet wird nur „Zeit nachtragen“ auf der Seite
+   des Auftrags (1.9.82).
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v504_keine_zeiten_auf_abgeschlossene.py` (10 Tests): Meldung je Status; Start und Nachtrag (abgeschlossen und storniert)
+  403, auf dem offenen Auftrag 200, Büro – Auftrag bucht für sich; Ändern dorthin, dort und weg 403, der Admin ändert; Löschen 403, der Admin
+  löscht; Kolonne (Nachtrag, Start, Ändern, Wegschieben, Löschen) 403, der Admin trägt nach; „Zeitart wechseln“ 403, der Stopp beendet;
+  „Ende nachtragen“ und Gruppen-Stopp auf geschlossenem Auftrag 200; „Pausen neu rechnen“ 403, der Admin rechnet.
+- Keine angepassten Erwartungen.
+- **Gegenproben** (je rot, FAILED): Buchungsweg ohne Status -> 5 rot; Ändern ohne den bisherigen Auftrag -> 1; Kolonne ändern ohne den
+  bisherigen Auftrag -> 1; Löschen ohne Status -> 1; Kolonne löschen ohne Status -> 1; „Pausen neu rechnen“ ohne Status -> 1; Beenden prüft
+  den Status (Stopp, Ende nachtragen, Gruppen-Stopp) -> 3; Sperre für alle Rollen -> 6.

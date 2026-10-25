@@ -28,13 +28,13 @@ from sqlalchemy.orm import Session
 from ..berlin_time import BERLIN, berlin_now, berlin_today
 from ..meldungen import KEIN_MITARBEITER, MONAT_ABGESCHLOSSEN, NUR_VON_BIS
 from ..database import get_db
-from ..models import AppUser, TimeEntry, TimeEntryGroup
+from ..models import AppUser, Order, TimeEntry, TimeEntryGroup
 from ..permissions import ROLE_FIELD, darf_zeit_fuer_andere_buchen, require_min_role, zeit_nur_mit_von_bis
 from .orders import require_field_order_access
 from ..schemas import CrewGroupSummaryOut, CrewOut, TimeEntryManualCreate, TimeEntryOut, TimeEntrySummaryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeGroupUpdate, TimeKolonneVorschauOut, TimeEndeNachtragen, TimeEndeVorschauOut, TimePausenNeuRechnen, TimePausenVorschauOut, TimeZeitartWechseln, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
 from ..heute import zeitarten
 from ..time_backoffice import load_time_settings, locked_until, time_settings_dict
-from ..time_tracking import MAX_LIST_LIMIT, active_group_for_employee, active_entry as active_time_entry, count_entries, create_group_manual_entry, create_manual_entry, crew_leader_team_ids, delete_entry as delete_time_entry_row, delete_group, ende_nachtragen, ende_vorschau, tag_stand, PausenVorschauVeraltet, pausen_neu_rechnen, pausen_vorschau, ZeitartInGruppe, zeitart_wechseln, entry_to_dict, field_time_tracking_context, laeuft_seit_frueher, load_entry, kolonne_vorschau, validate_group_members, nachtrag_nach_zeitregel, mindestpause_der_buchung, OffeneZeit, group_for_entry, group_member_ids, group_to_dict, list_crews_for_leader, list_entries as list_time_entries, list_groups_initiated_by, start_group_timer, start_timer, stop_group_timer, stop_timer, summarize_entries, time_tracking_context, update_entry as update_time_entry_row, update_group
+from ..time_tracking import MAX_LIST_LIMIT, active_group_for_employee, active_entry as active_time_entry, auftrag_zeiten_gesperrt, count_entries, create_group_manual_entry, create_manual_entry, crew_leader_team_ids, delete_entry as delete_time_entry_row, delete_group, ende_nachtragen, ende_vorschau, tag_stand, PausenVorschauVeraltet, pausen_neu_rechnen, pausen_vorschau, ZeitartInGruppe, zeitart_wechseln, entry_to_dict, field_time_tracking_context, laeuft_seit_frueher, load_entry, kolonne_vorschau, validate_group_members, nachtrag_nach_zeitregel, mindestpause_der_buchung, OffeneZeit, group_for_entry, group_member_ids, group_to_dict, list_crews_for_leader, list_entries as list_time_entries, list_groups_initiated_by, start_group_timer, start_timer, stop_group_timer, stop_timer, summarize_entries, time_tracking_context, update_entry as update_time_entry_row, update_group
 
 router = APIRouter()
 
@@ -81,6 +81,21 @@ def _require_bookable_order(request: Request, db: Session, order_id: int) -> Non
     user = getattr(request.state, "erp_user", None)
     if user is not None:
         require_field_order_access(db, user, order_id)
+    _require_order_open_for_field(request, db, order_id)
+
+
+def _require_order_open_for_field(request: Request, db: Session, *order_ids: int | None) -> None:
+    """Seit 1.9.81 (Stufe 4, R4 Nachtrag 3, B, Entscheidung Tobias): auf einen abgeschlossenen oder stornierten Auftrag bucht die
+    Monteurin nicht -- Start, Nachtrag, Ändern (eine Buchung dorthin verschieben, dort ändern oder von dort wegschieben), Löschen,
+    Kolonne, „Zeitart wechseln“, „Pausen neu rechnen“: 403 mit der Meldung aus auftrag_zeiten_gesperrt(). Eine laufende Zeit beendet sie
+    immer (Stopp, Gruppen-Stopp, Ende nachtragen prüfen das nicht). Büro und Admin unverändert."""
+    user = getattr(request.state, "erp_user", None)
+    if user is None or user.role != ROLE_FIELD:
+        return
+    for order_id in dict.fromkeys(i for i in order_ids if i is not None):
+        grund = auftrag_zeiten_gesperrt(db.get(Order, order_id))
+        if grund:
+            raise HTTPException(status_code=403, detail=grund)
 
 
 def _require_open_period(request: Request, db: Session, *work_dates: date) -> None:
@@ -284,6 +299,7 @@ def put_time_group(group_id:int,payload:TimeGroupUpdate,request:Request,db:Sessi
     group=db.get(TimeEntryGroup,group_id,with_for_update=True,populate_existing=True)
     if group is None: raise HTTPException(status_code=404,detail="Gruppenbuchung wurde nicht gefunden.")
     _require_group_owner(request,db,group)
+    _require_order_open_for_field(request,db,group.order_id)  # seit 1.9.81: auch dort ändern oder wegschieben
     changes=payload.model_dump(exclude_unset=True)
     values=_merge_time_changes(group,changes)
     _validate_time_rules(db,order_item_id=values["order_item_id"],activity=values["activity"],manual=True,group=True)
@@ -307,6 +323,7 @@ def remove_time_group(group_id:int,request:Request,db:Session=Depends(get_db, sc
     group=db.get(TimeEntryGroup,group_id)
     if group is None: raise HTTPException(status_code=404,detail="Gruppenbuchung wurde nicht gefunden.")
     _require_group_owner(request,db,group)
+    _require_order_open_for_field(request,db,group.order_id)  # seit 1.9.81
     _require_open_period(request,db,group.work_date)
     try:
         kept=delete_group(db,group_id)
@@ -501,6 +518,9 @@ def pausen_neu_rechnen_endpunkt(payload: TimePausenNeuRechnen, request: Request,
     ab, 409; im abgeschlossenen Zeitraum nur ein Admin (wie jede Änderung). Nie von selbst."""
     mitarbeiter = _time_entry_employee_for_request(request, payload.employee_id, db)
     _require_open_period(request, db, payload.work_date)
+    # seit 1.9.81: neu rechnen ändert Pause und Stunden der genannten Buchungen -- keine eines abgeschlossenen Auftrags (Monteurin)
+    buchungen = [db.get(TimeEntry, b.id) for b in payload.buchungen]
+    _require_order_open_for_field(request, db, *(e.order_id for e in buchungen if e is not None and e.employee_id == mitarbeiter))
     try:
         return pausen_neu_rechnen(db, mitarbeiter, payload.work_date, {b.id: b.pause for b in payload.buchungen})
     except PausenVorschauVeraltet as exc:
@@ -592,6 +612,7 @@ def put_time_entry(entry_id: int, payload: TimeEntryUpdate, request: Request, db
         raise HTTPException(status_code=404, detail="Zeitbuchung nicht gefunden.")
     if not _time_entry_can_edit(request, current):
         raise HTTPException(status_code=403, detail="Du darfst diese Zeitbuchung nicht ändern.")
+    _require_order_open_for_field(request, db, current.order_id)  # seit 1.9.81: auch dort ändern oder wegschieben
     changes = payload.model_dump(exclude_unset=True)
     values = _merge_time_changes(current, changes)
     _validate_time_rules(db, order_item_id=values["order_item_id"], activity=values["activity"])
@@ -622,6 +643,7 @@ def remove_time_entry(entry_id: int, request: Request, db: Session = Depends(get
         raise HTTPException(status_code=404, detail="Zeitbuchung nicht gefunden.")
     if not _time_entry_can_edit(request, current):
         raise HTTPException(status_code=403, detail="Du darfst diese Zeitbuchung nicht löschen.")
+    _require_order_open_for_field(request, db, current.order_id)  # seit 1.9.81
     _require_open_period(request, db, current.work_date)
     try:
         delete_time_entry_row(db, entry_id)

@@ -6,7 +6,7 @@ from sqlalchemy import and_, case, select, func, or_
 from sqlalchemy.orm import Session, selectinload
 
 from .berlin_time import berlin_now, berlin_today
-from .meldungen import KEIN_MITARBEITER
+from .meldungen import AUFTRAG_ABGESCHLOSSEN_ZEITEN, AUFTRAG_STORNIERT_ZEITEN, KEIN_MITARBEITER
 from .option_settings import get_option_group
 from .models import (
     Employee, Order, OrderItem, Project, TimeEntry, Team, TeamEmployee,
@@ -69,6 +69,14 @@ def laeuft_seit_frueher(row: TimeEntry | None, heute: date | None = None) -> boo
     jetzt auf den Starttag), nur „Ende nachtragen“ -- nichts schließt sie von selbst, kein Abschluss um Mitternacht, kein Hintergrundjob."""
     return bool(row is not None and row.status == "running" and row.started_at is not None
                 and row.started_at.date() < (heute or berlin_today()))
+
+
+def auftrag_zeiten_gesperrt(order) -> str | None:
+    """Seit 1.9.81 (Stufe 4, R4 Nachtrag 3, B): ist der Auftrag abgeschlossen oder storniert, die Meldung dazu, sonst None. Rollenlos --
+    gesperrt ist das Buchen dort nur für die Monteurin (app/routers/time_tracking.py::_require_order_open_for_field()), das Büro bucht
+    wie bisher; die Seite des Auftrags zeigt der Monteurin statt „Zeit nachtragen“ diese Meldung."""
+    status = ((order.status if order is not None else None) or "").strip().lower()
+    return {"abgeschlossen": AUFTRAG_ABGESCHLOSSEN_ZEITEN, "storniert": AUFTRAG_STORNIERT_ZEITEN}.get(status)
 
 
 def offene_zeit_von_frueher(db: Session, employee_id: int) -> TimeEntry | None:

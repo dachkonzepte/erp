@@ -18,3 +18,8 @@ NUR_VON_BIS = "Bitte Von und Bis angeben – eine reine Dauer trägt nur das Bü
 # Seit 1.9.79 (Stufe 4, R4 Nachtrag 3): einen Bericht legt die Monteurin zu jedem Auftrag an, nur nicht zu einem stornierten
 # (app/service_reports.py::bericht_zum_auftrag_moeglich()) -- 1.9.74–1.9.78 nur zu einem Auftrag ihrer Liste (BERICHT_NUR_EIGENE_AUFTRAEGE)
 BERICHT_STORNIERT = "Der Auftrag ist storniert – dazu legst du keinen Bericht an."
+
+# Seit 1.9.81 (Stufe 4, R4 Nachtrag 3, B, Entscheidung Tobias): auf einen abgeschlossenen oder stornierten Auftrag bucht die Monteurin keine
+# Zeiten -- das Büro trägt sie ein (app/time_tracking.py::auftrag_zeiten_gesperrt(), app/routers/time_tracking.py::_require_order_open_for_field())
+AUFTRAG_ABGESCHLOSSEN_ZEITEN = "Der Auftrag ist abgeschlossen – Zeiten dafür trägt das Büro ein."
+AUFTRAG_STORNIERT_ZEITEN = "Der Auftrag ist storniert – Zeiten dafür trägt das Büro ein."

@@ -2097,3 +2097,11 @@ Seit 1.9.79 (Stufe 4, R4 Nachtrag 3, Entscheidung A) legt die Monteurin einen Be
 nur Anzeigefelder). Ein Leserecht auf den Auftrag entsteht weiter erst über den eigenen Bericht (Weg 2 oben); beim Anlegen liest sie nur die Zeile
 des Auftrags und die Namen seiner Dachflächen (`GET /api/field-view/auftraege/{id}/bericht-anlegen`). 1.9.74–1.9.78 nur für Aufträge ihrer
 Liste. Herleitung: `docs/archiv/redesign.md`, „Stufe 4, R4 Nachtrag 3“.
+
+## Nachtrag 1.9.81: keine Zeiten der Monteurin auf abgeschlossene oder stornierte Aufträge
+
+Seit 1.9.81 (Stufe 4, R4 Nachtrag 3, Entscheidung B) hängt das Buchen der Monteurin nicht mehr nur am Zugang zum Auftrag (Wege 1 und 2
+oben), sondern auch an seinem Status: auf einen abgeschlossenen oder stornierten Auftrag startet, trägt nach, ändert, löscht sie keine Zeit,
+auch nicht für die Kolonne, und wechselt dort keine Zeitart (403, `app/routers/time_tracking.py::_require_order_open_for_field()`, Meldung aus
+`app/time_tracking.py::auftrag_zeiten_gesperrt()`). Eine laufende Zeit beendet sie immer (Stopp, Gruppen-Stopp, Ende nachtragen). Büro und
+Admin unverändert. Herleitung: `docs/archiv/redesign.md`, „Stufe 4, R4 Nachtrag 3“.
