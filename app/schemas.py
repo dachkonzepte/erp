@@ -1441,6 +1441,9 @@ class OrderFieldAccessOut(BaseModel):
     # seit 1.9.77 (Stufe 4, R4 Nachtrag 2): ob sie hier einen Bericht anlegen darf -- seit 1.9.79 bei jedem nicht stornierten Auftrag
     # (app/service_reports.py::bericht_zum_auftrag_moeglich(), dieselbe Regel wie POST …/service-reports; 1.9.77–1.9.78 nur in ihrer Liste)
     bericht_anlegen: bool = False
+    # seit 1.9.82 (Stufe 4, R4 Nachtrag 3, B): bucht sie hier keine Zeiten (abgeschlossen oder storniert), die Meldung dazu -- die Seite zeigt
+    # sie statt „Zeit nachtragen“ (app/time_tracking.py::auftrag_zeiten_gesperrt(), dieselbe Regel wie beim Buchen)
+    zeiten_gesperrt: str | None = None
 
 
 class FieldOrderLineOut(BaseModel):

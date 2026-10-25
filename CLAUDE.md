@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.81** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.82** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -1526,7 +1526,9 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
 - **Keine Zeiten der Monteurin auf abgeschlossene oder stornierte Aufträge** (seit 1.9.81): Start, Nachtrag, Ändern (dorthin, dort,
   weg), Löschen, Kolonne, „Zeitart wechseln“ und „Pausen neu rechnen“ an einer Buchung dort 403 mit der Meldung aus
   `app/time_tracking.py::auftrag_zeiten_gesperrt()` (`_require_order_open_for_field()` in `app/routers/time_tracking.py`); Stopp,
-  Gruppen-Stopp und Ende nachtragen bleiben frei, das Büro bucht wie bisher (`tests/test_v504_keine_zeiten_auf_abgeschlossene.py`).
+  Gruppen-Stopp und Ende nachtragen bleiben frei, das Büro bucht wie bisher (`tests/test_v504_keine_zeiten_auf_abgeschlossene.py`); seit
+  1.9.82 zeigt die Seite des Auftrags statt „Zeit nachtragen“ die Meldung (`OrderFieldAccessOut.zeiten_gesperrt`,
+  `tests/test_v505_auftragsseite_zeiten_gesperrt.py`, Klicktest `klicktest_zeiten_abgeschlossen.py`).
 - **Zeit für andere buchen nur nach `app/permissions.py::darf_zeit_fuer_andere_buchen()`** (seit 1.8.152, heute nur Admin): der Server
   prüft damit Buchen und Ändern fremder Zeiten, `/api/auth/status` meldet sie (`zeit_fuer_andere_buchen`), der Einsatzbericht zeigt
   die Auswahl „Mitarbeiter“ nur danach -- eine neue Stelle mit derselben Frage nimmt diese Funktion, keine eigene Rollenabfrage.

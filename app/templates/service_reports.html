@@ -47,6 +47,7 @@ tr:last-child td{border-bottom:none}
 .table-scroll{overflow-x:auto}
 .zeit-nachtragen{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 18px;border:1px solid var(--ds-aktion);background:var(--ds-aktion);color:var(--ds-auf-aktion);font-weight:650;text-decoration:none}
 .zeit-nachtragen:hover{color:var(--ds-auf-aktion)}
+.zeit-nachtragen[hidden]{display:none}
 @media(max-width:700px){.fields-2col{grid-template-columns:1fr}}
 @media(max-width:900px){
   .table-scroll table thead{display:none}
@@ -144,8 +145,10 @@ a{color:var(--ds-link)}
    vorgewählt; Starten und Stoppen stehen auf „Heute“. #}
 <div class="card" id="zeitenKarte">
   <h2>Zeiten</h2>
-  <p class="muted" style="margin:0 0 12px">Deine Zeiten zu diesem Auftrag trägst du unter „Meine Zeiten“ nach – der Auftrag ist dort schon gewählt.</p>
+  <p class="muted" id="zeitenText" style="margin:0 0 12px">Deine Zeiten zu diesem Auftrag trägst du unter „Meine Zeiten“ nach – der Auftrag ist dort schon gewählt.</p>
   <a class="zeit-nachtragen" id="zeitNachtragen" href="/mobil/zeiten">Zeit nachtragen</a>
+  {# seit 1.9.82: statt „Zeit nachtragen“ bei einem abgeschlossenen oder stornierten Auftrag (zeitenKarteZeichnen()) #}
+  <p class="muted" id="zeitenGesperrt" style="margin:0" hidden></p>
 </div>
 {% else %}
 <div class="card">
@@ -310,6 +313,17 @@ function berichtKnopfZeichnen(){
   document.getElementById('neuerBericht').hidden=!darf;
   document.getElementById('berichtNurBuero').hidden=darf||!orderData;
 }
+// Seit 1.9.82 (Stufe 4, R4 Nachtrag 3, B): auf einen abgeschlossenen oder stornierten Auftrag bucht die Monteurin nicht -- statt Text und
+// „Zeit nachtragen“ die Meldung des Servers (zeiten_gesperrt, dieselbe Regel wie beim Buchen)
+function zeitenKarteZeichnen(){
+  if(!monteursrahmen||!orderData)return;
+  const gesperrt=orderData.zeiten_gesperrt||'';
+  document.getElementById('zeitenText').hidden=!!gesperrt;
+  document.getElementById('zeitNachtragen').hidden=!!gesperrt;
+  const hinweis=document.getElementById('zeitenGesperrt');
+  hinweis.textContent=gesperrt;
+  hinweis.hidden=!gesperrt;
+}
 function kopfZeichnen(){
   const o=orderData;
   if(!o)return;
@@ -464,6 +478,7 @@ async function init(){
     orderData=o;
     kopfZeichnen();
     berichtKnopfZeichnen();
+    zeitenKarteZeichnen();
     refreshTimeEntryOrderItemOptions();
   }).catch(()=>{});
   await lesen('stammdaten',()=>api('/api/employees').catch(()=>[]),d=>{employees=d});

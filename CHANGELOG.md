@@ -4,6 +4,14 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.82 – Auftragsseite: Hinweis statt „Zeit nachtragen“ bei abgeschlossenem Auftrag (Stufe 4, R4 Nachtrag 3)
+
+Auf der Seite eines abgeschlossenen oder stornierten Auftrags zeigt die Karte „Zeiten“ der Monteurin statt Text und „Zeit nachtragen“ die
+Meldung „Der Auftrag ist abgeschlossen – Zeiten dafür trägt das Büro ein.“ (bzw. „… storniert …“). Der Server meldet sie mit dem Auftrag
+(`OrderFieldAccessOut.zeiten_gesperrt`, dieselbe Regel wie beim Buchen seit 1.9.81). Wird ein Auftrag abgeschlossen, während die Seite offen
+ist, lehnt „Meine Zeiten“ den Nachtrag mit derselben Meldung im Dialog ab. Neuer Test `test_v505`, neuer Klicktest
+`klicktest_zeiten_abgeschlossen` (Seite eines abgeschlossenen Auftrags, abgelehnter Nachtrag, abgelehntes Ändern).
+
 ## 1.9.81 – Keine Zeiten der Monteurin auf abgeschlossene Aufträge (Stufe 4, R4 Nachtrag 3)
 
 Auf einen abgeschlossenen oder stornierten Auftrag bucht die Monteurin keine Zeiten mehr: Start, Nachtrag, Ändern (eine Buchung dorthin

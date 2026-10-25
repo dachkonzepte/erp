@@ -5403,3 +5403,28 @@ Knöpfe.
 - **Gegenproben** (je rot, FAILED): Buchungsweg ohne Status -> 5 rot; Ändern ohne den bisherigen Auftrag -> 1; Kolonne ändern ohne den
   bisherigen Auftrag -> 1; Löschen ohne Status -> 1; Kolonne löschen ohne Status -> 1; „Pausen neu rechnen“ ohne Status -> 1; Beenden prüft
   den Status (Stopp, Ende nachtragen, Gruppen-Stopp) -> 3; Sperre für alle Rollen -> 6.
+
+### Nachtrag 3, B Oberfläche (1.9.82): Hinweis auf der Seite des Auftrags
+
+- `OrderFieldAccessOut.zeiten_gesperrt` (GET /api/orders/{id} für die Monteurin): `auftrag_zeiten_gesperrt(order)`, sonst null.
+- `service_reports.html`, Karte „Zeiten“ (nur im Monteursrahmen): `zeitenKarteZeichnen()` nach dem Laden des Auftrags blendet `#zeitenText` und
+  `#zeitNachtragen` aus und zeigt die Meldung in `#zeitenGesperrt`; `.zeit-nachtragen[hidden]{display:none}` (sonst gewänne `display:inline-flex`).
+
+**Festlegungen 1.9.82 (Bitte bestätigen)**
+
+1. Der Hinweis steht in der Karte „Zeiten“ an der Stelle von Text und Knopf, gedämpft wie „Für diesen Auftrag legt das Büro Berichte an.“; die
+   Überschrift „Zeiten“ bleibt.
+2. Bis der Auftrag geladen ist, steht „Zeit nachtragen“ da wie bisher (der Status kommt mit dem Auftrag).
+3. Wird der Auftrag abgeschlossen, während die Seite offen ist, zeigt sie den Hinweis erst nach dem Neuladen; „Meine Zeiten“ lehnt den Nachtrag
+   dann im Dialog mit der Meldung ab, der Dialog bleibt offen.
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v505_auftragsseite_zeiten_gesperrt.py` (2 Tests): `zeiten_gesperrt` folgt dem Buchen (beauftragt, abgeschlossen, storniert);
+  Karte, Stil und `zeitenKarteZeichnen()` nach dem Laden.
+- Neu `scripts/klicktest_zeiten_abgeschlossen.py`: Seite von Z (abgeschlossen) mit Meldung statt Knopf (Bilder 1 hoch, 1a quer), Seite von S
+  (storniert), Seite von A (offen) wie bisher; das Büro schließt A, während die Seite offen ist -- „Zeit nachtragen“ -> „Meine Zeiten“ mit A
+  „(nicht in der Auswahl)“, „Nachtragen“ -> Meldung im Dialog, nichts gebucht (Bild 2); Ändern der Buchung auf Z abgelehnt, sie bleibt; A neu
+  geladen mit Meldung.
+- Angepasste Erwartung: `test_v260` `test_field_gets_only_assigned_orders_and_no_prices` -- Schlüssel `{id, order_number, customer_name, items,
+  bericht_anlegen}` -> dazu `zeiten_gesperrt` (null am offenen Auftrag).

@@ -32,6 +32,7 @@ from ..order_pdf import build_order_pdf
 from ..orders import SyncBlockedError, add_order_addendum, create_order_revision, field_may_access_order, list_order_revisions, load_order, order_to_dict, remove_order_addendum, send_order_email, sync_order_from_source_quote, update_order_header, update_order_item, update_order_section, update_order_tax_key
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
 from ..service_reports import bericht_zum_auftrag_moeglich
+from ..time_tracking import auftrag_zeiten_gesperrt
 from ..schemas import OrderAddendumCreate, OrderContractBasisChangeOut, OrderContractBasisUpdate, OrderEmailSend, OrderFieldAccessOut, OrderItemUpdate, OrderListOut, OrderOut, OrderRevisionCreate, OrderRevisionOut, OrderSectionUpdate, OrderSyncRequest, OrderUpdate, TaxKeySelection
 
 router = APIRouter()
@@ -126,9 +127,11 @@ def get_order(order_id: int, db: Session = Depends(get_db, scope="function"), _r
     order = load_order(db, order_id)
     if order is None: raise HTTPException(status_code=404, detail="Auftrag nicht gefunden.")
     if _role.role == ROLE_FIELD:
-        # seit 1.9.77: bericht_anlegen aus derselben Regel wie das Anlegen (seit 1.9.79 bericht_zum_auftrag_moeglich())
+        # seit 1.9.77: bericht_anlegen aus derselben Regel wie das Anlegen (seit 1.9.79 bericht_zum_auftrag_moeglich()); seit 1.9.82
+        # zeiten_gesperrt aus derselben Regel wie das Buchen (auftrag_zeiten_gesperrt())
         return OrderFieldAccessOut.model_validate({**order_to_dict(order, db, include_sync_state=False),
-                                                   "bericht_anlegen": bericht_zum_auftrag_moeglich(order)})
+                                                   "bericht_anlegen": bericht_zum_auftrag_moeglich(order),
+                                                   "zeiten_gesperrt": auftrag_zeiten_gesperrt(order)})
     return OrderOut.model_validate(order_to_dict(order, db))
 
 
