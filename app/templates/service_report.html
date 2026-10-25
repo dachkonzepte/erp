@@ -177,6 +177,7 @@ select.feld-text{height:52px;padding:0 14px}
 .dialog-karte h2{margin:0;font-family:var(--ds-schrift-titel);font-weight:600;font-size:20px}
 .dialog-karte p{margin:0;font-size:16px;line-height:1.4;overflow-wrap:anywhere}
 .dialog-knoepfe{display:flex;justify-content:flex-end;gap:12px;flex-wrap:wrap}
+.dialog-knoepfe>.meldung{flex:1 0 100%}  /* seit 1.9.83: die Meldung in der festen Leiste über den Knöpfen -- darunter lag sie bei 1280 × 620 verdeckt */
 .dialog-karte>.dialog-knoepfe{position:sticky;bottom:-22px;z-index:1;margin:0 -24px -22px;padding:12px 24px 22px;background:var(--ds-flaeche);border-top:1px solid var(--ds-linie)}
 .dialog-knoepfe .knopf{min-width:120px}
 </style></head><body class="ds-seite">
@@ -235,15 +236,13 @@ select.feld-text{height:52px;padding:0 14px}
   <h2 id="datumTitel">Datum ändern</h2>
   <label class="feld-titel" for="datumFeld">Datum des Einsatzes</label><input class="feld-text" id="datumFeld" type="date">
   <p class="offen-satz">Die Zeiten im Bericht sind die dieses Tages.</p>
-  <p class="meldung" id="datumStatus" role="status"></p>
-  <div class="dialog-knoepfe"><button type="button" class="knopf knopf-neutral" id="datumAbbrechen" data-klick="dialog-zu" data-dialog="datumDialog">Abbrechen</button><button type="button" class="knopf knopf-aktion" id="datumSpeichern" data-klick="datum-speichern">Speichern</button></div>
+  <div class="dialog-knoepfe"><p class="meldung" id="datumStatus" role="status"></p><button type="button" class="knopf knopf-neutral" id="datumAbbrechen" data-klick="dialog-zu" data-dialog="datumDialog">Abbrechen</button><button type="button" class="knopf knopf-aktion" id="datumSpeichern" data-klick="datum-speichern">Speichern</button></div>
 </dialog>
 <dialog id="artDialog" class="dialog-karte" aria-labelledby="artTitel">
   <h2 id="artTitel">Art ändern</h2>
   <label class="feld-titel" for="artFeld">Art des Berichts</label><select class="feld-text" id="artFeld"><option value="rapport">Rapportbericht (Reparatur)</option><option value="wartung">Wartungsbericht</option></select>
   <p class="offen-satz" id="artHinweis">Die Art lässt sich nur ändern, solange der Bericht leer ist – Entwurf löschen und neu anlegen.</p>
-  <p class="meldung" id="artStatus" role="status"></p>
-  <div class="dialog-knoepfe"><button type="button" class="knopf knopf-neutral" id="artAbbrechen" data-klick="dialog-zu" data-dialog="artDialog">Abbrechen</button><button type="button" class="knopf knopf-aktion" id="artSpeichern" data-klick="art-speichern">Speichern</button></div>
+  <div class="dialog-knoepfe"><p class="meldung" id="artStatus" role="status"></p><button type="button" class="knopf knopf-neutral" id="artAbbrechen" data-klick="dialog-zu" data-dialog="artDialog">Abbrechen</button><button type="button" class="knopf knopf-aktion" id="artSpeichern" data-klick="art-speichern">Speichern</button></div>
 </dialog>
 {% else %}
 <div class="bericht-karte schritt-inhalt"><h2>Wartungen & Reparaturen</h2><p class="leer-text">Dieses Modul ist deaktiviert. Ein Administrator kann es in den {% if darf_buero_seiten %}<a href="/settings#modules">Einstellungen</a>{% else %}Einstellungen{% endif %} wieder aktivieren.</p></div>

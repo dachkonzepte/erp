@@ -83,6 +83,7 @@
     .mitglied{display:flex;align-items:center;gap:12px;min-height:48px;font-size:16px;font-weight:500;color:var(--ds-text);cursor:pointer}
     .mitglied input{width:22px;height:22px;margin:0;accent-color:var(--ds-aktion)}
     .dialog-knoepfe{display:flex;justify-content:flex-end;gap:12px;flex-wrap:wrap}
+    .dialog-knoepfe>.status{flex:1 0 100%}  /* seit 1.9.83: die Meldung in der festen Leiste über den Knöpfen -- darunter lag sie bei 1280 × 620 verdeckt */
     /* seit 1.9.65 (Stufe 4, R4 Punkt 6): die Knopfleiste bleibt unten im Bild, auch wenn der Dialog höher als das Fenster ist (Tablet
        quer 1280 × 620) -- der Inhalt läuft unter ihr durch, ein Strich trennt sie; was sich selbst ins Bild rückt, hält Abstand zu ihr */
     .dialog-karte>.dialog-knoepfe{position:sticky;bottom:-22px;z-index:1;margin:0 -24px -22px;padding:12px 24px 22px;background:var(--ds-flaeche);border-top:1px solid var(--ds-linie)}
@@ -196,8 +197,7 @@
     <label class="feld" for="startZeitart">Zeitart<select id="startZeitart"></select></label>
     <label class="feld" for="startTaetigkeit">Tätigkeit<select id="startTaetigkeit"></select></label>
   </div>
-  <div class="status" id="startDialogStatus" role="status"></div>
-  <div class="dialog-knoepfe"><button type="button" class="knopf knopf-neutral" id="startDialogAbbrechen">Abbrechen</button>
+  <div class="dialog-knoepfe"><div class="status" id="startDialogStatus" role="status"></div><button type="button" class="knopf knopf-neutral" id="startDialogAbbrechen">Abbrechen</button>
     <button type="button" class="knopf knopf-aktion" id="startDialogStarten">Starten</button></div>
 </dialog>
 {# seit 1.9.75: „Bericht anlegen“ ohne Einsatz und „Bericht für einen anderen Auftrag“ -- die Liste wie „Zeit nachtragen“, danach der
@@ -224,8 +224,7 @@
       <label class="feld breit" for="neuBeschreibung">Durchgeführte Arbeiten / Feststellungen<textarea id="neuBeschreibung"></textarea></label>
     </div>
   </div>
-  <div class="status" id="berichtStatus" role="status"></div>
-  <div class="dialog-knoepfe"><button type="button" class="knopf knopf-neutral" id="berichtDialogAbbrechen">Abbrechen</button>
+  <div class="dialog-knoepfe"><div class="status" id="berichtStatus" role="status"></div><button type="button" class="knopf knopf-neutral" id="berichtDialogAbbrechen">Abbrechen</button>
     <button type="button" class="knopf knopf-neutral" id="berichtZurueck" hidden>Anderer Auftrag</button>
     <button type="button" class="knopf knopf-aktion" id="berichtAnlegen" hidden>Anlegen</button></div>
 </dialog>

@@ -5428,3 +5428,38 @@ Knöpfe.
   geladen mit Meldung.
 - Angepasste Erwartung: `test_v260` `test_field_gets_only_assigned_orders_and_no_prices` -- Schlüssel `{id, order_number, customer_name, items,
   bericht_anlegen}` -> dazu `zeiten_gesperrt` (null am offenen Auftrag).
+
+- **Gegenproben 1.9.82** (nachgetragen mit 1.9.83, gelaufen nach dem Commit b35b0b4; je rot, FAILED): kein Kennzeichen vom Server -> `test_v505`
+  1 rot, Klicktest 3 rot; Seite zeichnet die Karte nicht -> `test_v505` 1, Klicktest 3; `hidden` ohne `display:none` -> `test_v505` 1, Klicktest 3
+  (der Knopf blieb mit `hidden` 48 px hoch sichtbar).
+
+### Nachtrag 3, Meldung im Dialog (1.9.83): über den Knöpfen in der festen Leiste
+
+Befund am Bild des abgelehnten Nachtrags (1.9.82, 1280 × 620): die Meldung stand am Ende des scrollenden Inhalts, die feste Knopfleiste
+(1.9.65) verdeckte ihre untere Hälfte. Gleich gebaut waren sieben Dialoge: `startDialog`, `berichtDialog` (`mobil.html`), `zeitDialog`,
+`kolonneDialog`, `loeschDialog`, `abwDialog` samt Ergebnis (`mobil_zeiten.html`), `datumDialog`, `artDialog` (`service_report.html`). Jetzt
+steht die Meldung als erstes Element in `.dialog-knoepfe`, mit `flex:1 0 100%` in einer eigenen Zeile über den Knöpfen; leer ohne Platz
+(`:empty`). Vorbild: `.abschluss-leiste .meldung` im Einsatzbericht (1.9.72).
+
+**Festlegungen 1.9.83 (Bitte bestätigen)**
+
+1. Jede Meldung eines Dialogs im Monteursrahmen (`role="status"`, auch das Ergebnis des Abwesenheitsantrags) steht in seiner festen
+   Knopfleiste über den Knöpfen, über deren ganze Breite.
+2. Die sieben Dialoge in einer Version, nicht nur „Zeit nachtragen“ -- alle hatten denselben Aufbau.
+
+**Tests und Prüfung**
+
+- `tests/test_v491_dialog_knopfleiste.py`: neu `test_jede_meldung_steht_in_der_knopfleiste` (keine Meldung vor der Leiste, eigene Zeile
+  per CSS, mindestens acht Meldungen in Leisten), Kopf ergänzt.
+- `klicktest_zeiten_abgeschlossen`: neu „Die Meldung ganz im Bild, über den Knöpfen und über die ganze Leiste, Ober- und Unterkante
+  unverdeckt“.
+- Keine angepassten Erwartungen.
+- **Gegenproben** (je rot, FAILED): Meldung wieder vor der Leiste -> `test_v491` 1 rot, Klicktest 1 rot (Unterkante verdeckt); Meldung ohne
+  eigene Zeile -> `test_v491` 1, Klicktest 1 (nicht über die ganze Leiste). Die erste Fassung der Klicktest-Prüfung tastete nur die Mitte der
+  Meldung ab und blieb in beiden Gegenproben grün (die Mitte lag gerade noch über der Leiste; eine lange Meldung bricht auch ohne eigene Zeile
+  um) -- verschärft auf Ober- und Unterkante und volle Breite.
+
+**Befund, gemeldet, nicht behoben**: „Zeit nachtragen“ von der Seite eines Auftrags, der nicht in ihrer Liste steht (abgeschlossen seit dem
+Öffnen der Seite, außerhalb ±14 Tage), wählt ihn in „Meine Zeiten“ vor, die Auswahl zeigt aber nur die nackte ID: „1 (nicht in der Auswahl)“
+(`zeitDialogOeffnen()`, `fehlt` ohne Namen; seit 1.9.67, als die Seite des Auftrags nach „Meine Zeiten“ verlinkte). Vorschlag: „Meine Zeiten“
+liefert zur Vorwahl die Zeile des Auftrags mit (`auftrag_zeile()`, nur bei Zugang).

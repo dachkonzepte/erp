@@ -111,6 +111,7 @@
     .vorschau-text .teil{white-space:nowrap}  /* ein Teil („Pause nach Zeitregel − 0:45 h“) bricht nicht in sich um */
     .vorschau-zahl{font-size:19px;font-weight:700;white-space:nowrap}
     .dialog-knoepfe{display:flex;justify-content:flex-end;gap:12px;flex-wrap:wrap}
+    .dialog-knoepfe>.status,.dialog-knoepfe>.ergebnis{flex:1 0 100%}  /* seit 1.9.83: die Meldung in der festen Leiste über den Knöpfen -- darunter lag sie bei 1280 × 620 verdeckt */
     /* seit 1.9.65 (Stufe 4, R4 Punkt 6): die Knopfleiste bleibt unten im Bild, auch wenn der Dialog höher als das Fenster ist (Tablet
        quer 1280 × 620) -- der Inhalt läuft unter ihr durch, ein Strich trennt sie; was sich selbst ins Bild rückt, hält Abstand zu ihr */
     .dialog-karte>.dialog-knoepfe{position:sticky;bottom:-22px;z-index:1;margin:0 -24px -22px;padding:12px 24px 22px;background:var(--ds-flaeche);border-top:1px solid var(--ds-linie)}
@@ -198,8 +199,7 @@
       <span class="klein">Dieselbe Pausenregel wie bei Start und Feierabend.</span></div>
     <span class="vorschau-zahl" id="zdVorschauZahl"></span>
   </div>
-  <div class="status" id="zdStatus" role="status"></div>
-  <div class="dialog-knoepfe"><button type="button" class="knopf knopf-neutral" id="zdAbbrechen">Abbrechen</button>
+  <div class="dialog-knoepfe"><div class="status" id="zdStatus" role="status"></div><button type="button" class="knopf knopf-neutral" id="zdAbbrechen">Abbrechen</button>
     <button type="button" class="knopf knopf-aktion" id="zdSpeichern">Nachtragen</button></div>
 </dialog>
 
@@ -229,8 +229,7 @@
     <div class="vorschau-text"><span id="kdVorschauZeile">Von und Bis eintragen – dann rechnet der Server je Person die Pause.</span>
       <span class="klein">Pause und Rundung je Person nach ihrem Tag. Wer anders gearbeitet hat: einzeln nachtragen.</span></div>
   </div>
-  <div class="status" id="kdStatus" role="status"></div>
-  <div class="dialog-knoepfe"><button type="button" class="knopf knopf-neutral" id="kdAbbrechen">Abbrechen</button>
+  <div class="dialog-knoepfe"><div class="status" id="kdStatus" role="status"></div><button type="button" class="knopf knopf-neutral" id="kdAbbrechen">Abbrechen</button>
     <button type="button" class="knopf knopf-aktion" id="kdSpeichern">Speichern</button></div>
 </dialog>
 
@@ -239,8 +238,7 @@
     <button type="button" class="knopf knopf-neutral knopf-symbol" id="ldZu" aria-label="Schließen"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
   <p class="dialog-text" id="ldText"></p>
   <p class="dialog-text" id="ldFolge"></p>
-  <div class="status" id="ldStatus" role="status"></div>
-  <div class="dialog-knoepfe"><button type="button" class="knopf knopf-neutral" id="ldAbbrechen">Abbrechen</button>
+  <div class="dialog-knoepfe"><div class="status" id="ldStatus" role="status"></div><button type="button" class="knopf knopf-neutral" id="ldAbbrechen">Abbrechen</button>
     <button type="button" class="knopf knopf-gefahr" id="ldLoeschen">Löschen</button></div>
 </dialog>
 
@@ -259,9 +257,7 @@
     <label class="feld" for="adBis">Bis<input id="adBis" type="date"></label>
     <label class="feld breit" for="adNotiz">Notiz / Grund<textarea id="adNotiz"></textarea></label>
   </div>
-  <div class="status" id="adStatus" role="status"></div>
-  <div class="ergebnis" id="adErgebnis" role="status"></div>
-  <div class="dialog-knoepfe"><button type="button" class="knopf knopf-neutral" id="adAbbrechen">Schließen</button>
+  <div class="dialog-knoepfe"><div class="status" id="adStatus" role="status"></div><div class="ergebnis" id="adErgebnis" role="status"></div><button type="button" class="knopf knopf-neutral" id="adAbbrechen">Schließen</button>
     <button type="button" class="knopf knopf-aktion" id="adSenden">Antrag senden</button></div>
   <h2 class="eb" style="margin:8px 0 0">Meine Anträge</h2>
   <div id="adAntraege"></div>

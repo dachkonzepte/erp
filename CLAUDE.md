@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.82** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.83** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -354,7 +354,8 @@ Behoben, drei Teile:
   Bis nach (`app/permissions.py::zeit_nur_mit_von_bis()`, Server 422 für eine reine Dauer), auch im Einsatzbericht; seit 1.9.63 auch der
   Kolonnenführer für die Kolonne (eine Von/Bis-Angabe, Pause und Rundung je Mitglied nach seinem Tag über
   `app/time_tracking.py::kolonne_rechnen()`, Vorschau je Mitglied, `tests/test_v489_kolonne_von_bis.py`). Seit 1.9.65 bleibt in den
-  Dialogen des Monteursrahmens die Knopfleiste unten im Bild (`position:sticky`, `tests/test_v491_dialog_knopfleiste.py`). **Seit 1.9.67** steht
+  Dialogen des Monteursrahmens die Knopfleiste unten im Bild (`position:sticky`, `tests/test_v491_dialog_knopfleiste.py`); seit 1.9.83 steht
+  die Meldung eines Dialogs darin über den Knöpfen (`flex:1 0 100%`). **Seit 1.9.67** steht
   der Einsatzbericht auf `/service-reports/{id}` (`service_report.html`, umgezogen) in fünf Schritten nach den Vorlagen `bericht-*`: Kopf mit
   „⋮“, Schritte mit Haken, „Noch offen“ rechts bzw. hoch als Leiste unten, Fokus bleibt nach dem Speichern (`teilErsetzen()`), Ziele ≥ 48 px;
   die Seite des Auftrags (`service_reports.html`, „Einsatzberichte“) listet die Berichte, legt an und zeigt der Monteurin statt der

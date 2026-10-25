@@ -4,6 +4,9 @@
                  lagen unter dem Rand (R3-Nachrunde: „Speichern“ erst nach Bildlauf im Dialog)
     jetzt        jede Seite im Monteursrahmen mit Dialogkarten hält deren Knopfleiste mit position:sticky unten fest; jede Dialogkarte
                  endet mit ihrer Knopfleiste (sonst klebt nichts unten). Gemessen im Klicktest meine_zeiten (1280 × 620)
+    Meldung      seit 1.9.83 steht jede Meldung eines Dialogs (role="status") in seiner Knopfleiste, über den Knöpfen -- bis dahin lag sie
+                 darüber im scrollenden Inhalt und bei 1280 × 620 unter der festen Leiste (abgelehnter Nachtrag, 1.9.82). Gemessen im
+                 Klicktest zeiten_abgeschlossen
 """
 
 import re
@@ -39,6 +42,22 @@ def test_eine_vorschau_im_dialog_haelt_abstand_zur_leiste():
             if re.search(r'<dialog[^>]*class="dialog-karte".*?class="vorschau"', text, flags=re.S)
             and ".dialog-karte .vorschau{scroll-margin-bottom:" not in text]
     assert ohne == []
+
+
+def test_jede_meldung_steht_in_der_knopfleiste():
+    falsch, gezaehlt = [], 0
+    for name, text in _monteursseiten_mit_dialogen():
+        in_leisten = 0
+        for m in re.finditer(r'<dialog id="(\w+)" class="dialog-karte"[^>]*>(.*?)</dialog>', text, flags=re.S):
+            vor, _, leiste = m.group(2).partition('<div class="dialog-knoepfe">')
+            in_leisten += leiste.count('role="status"')
+            if 'role="status"' in vor:
+                falsch.append(f"{name}#{m.group(1)}")
+        gezaehlt += in_leisten
+        if in_leisten and not re.search(r"\.dialog-knoepfe>\.(status|meldung)[,{]", text):
+            falsch.append(f"{name}: Meldung in der Leiste ohne eigene Zeile (flex:1 0 100%)")
+    assert falsch == []
+    assert gezaehlt >= 8  # Start, Bericht (Heute); Zeit, Kolonne, Löschen, Abwesenheit samt Ergebnis (Meine Zeiten); Datum, Art (Bericht)
 
 
 def test_jede_dialogkarte_endet_mit_ihrer_knopfleiste():

@@ -11,6 +11,8 @@ Auftrag „buero“. Feste Uhr 10:00.
     Seite von A         „Zeit nachtragen“ wie bisher (zu „Meine Zeiten“ mit A gewählt), kein Hinweis
     veraltete Seite     Mia auf der Seite von A, das Büro schließt A ab; „Zeit nachtragen“ -> „Meine Zeiten“ mit A gewählt („nicht in der
                         Auswahl“), Von/Bis, „Nachtragen“ -> im Dialog die Meldung, der Dialog bleibt offen, nichts gebucht (Bild 2);
+                        seit 1.9.83 steht die Meldung ganz im Bild in der festen Leiste über den Knöpfen, über deren ganze Breite, Ober-
+                        und Unterkante unverdeckt (1.9.82: die untere Hälfte unter der Leiste);
                         neu geladen: die Seite von A zeigt den Hinweis
     Ändern              „Meine Zeiten“: Mias Buchung auf Z ändern -> im Dialog die Meldung, die Buchung bleibt
     überall             keine JS-Fehler
@@ -161,6 +163,13 @@ async def pruefen(tab, seed, p):
     p.pruefe("Nachtragen abgelehnt: die Meldung im Dialog, der Dialog bleibt offen, der Knopf wieder frei", await tab.js(
         "[document.getElementById('zdStatus').textContent,document.getElementById('zeitDialog').open,document.getElementById('zdSpeichern').disabled]"),
         [seed["abgeschlossen"], True, False])
+    p.pruefe("Die Meldung ganz im Bild, über den Knöpfen und über die ganze Leiste, Ober- und Unterkante unverdeckt (seit 1.9.83)",
+             await tab.js(
+        "(()=>{const s=document.getElementById('zdStatus'),r=s.getBoundingClientRect(),"
+        "a=document.getElementById('zdAbbrechen').getBoundingClientRect(),k=document.getElementById('zdSpeichern').getBoundingClientRect(),"
+        "frei=y=>{const e=document.elementFromPoint(r.left+4,y);return !!e&&s.contains(e)};"
+        "return [r.height>0&&r.top>=0&&r.bottom<=innerHeight,r.bottom<=k.top,frei(r.top+2),frei(r.bottom-2),"
+        "r.left<=a.left+1&&r.right>=k.right-1]})()"), [True, True, True, True, True])
     await tab.bild("2_nachtrag_abgelehnt_quer_hell")
     await tab.oeffnen("/mobil/zeiten", ZEITEN_BEREIT)
     await tab.warte_auf_ruhe()

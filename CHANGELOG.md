@@ -4,6 +4,15 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.83 – Meldung im Dialog über den Knöpfen (Stufe 4, R4 Nachtrag 3)
+
+In den Dialogen des Monteursrahmens steht die Meldung jetzt in der festen Knopfleiste über den Knöpfen, über die ganze Breite -- wie die
+Abschlussleiste des Einsatzberichts seit 1.9.72. Bis 1.9.82 stand sie darüber im scrollenden Inhalt; war der Dialog höher als das Fenster
+(„Zeit nachtragen“ bei 1280 × 620), lag ihre untere Hälfte unter der festen Leiste (seit 1.9.65) -- aufgefallen am abgelehnten Nachtrag auf
+einem abgeschlossenen Auftrag (1.9.82). Betroffen waren sieben Dialoge: Start und „Bericht anlegen“ auf „Heute“, Zeit, Kolonne, Löschen und
+Abwesenheit in „Meine Zeiten“, Datum und Art im Einsatzbericht. `test_v491` prüft jetzt auch die Lage der Meldung, der Klicktest
+`klicktest_zeiten_abgeschlossen` misst sie.
+
 ## 1.9.82 – Auftragsseite: Hinweis statt „Zeit nachtragen“ bei abgeschlossenem Auftrag (Stufe 4, R4 Nachtrag 3)
 
 Auf der Seite eines abgeschlossenen oder stornierten Auftrags zeigt die Karte „Zeiten“ der Monteurin statt Text und „Zeit nachtragen“ die
