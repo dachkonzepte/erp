@@ -75,9 +75,11 @@ def test_heute_knoepfe_und_dialog():
     assert "el('berichtAndererAuftrag').addEventListener('click',berichtDialogOeffnen)" in text
     dialog = re.search(r'<dialog id="berichtDialog" class="dialog-karte".*?</dialog>', text, flags=re.S)[0]
     assert '<h2 id="berichtDialogTitel">Für welchen Auftrag?</h2>' in dialog
-    oeffnen = re.search(r"function berichtDialogOeffnen\(\)\{.*?\n  \}\n", text, flags=re.S)[0]
-    assert "var liste=(H&&H.auftraege)||[];" in oeffnen  # die Liste vom Server, keine zweite
-    assert "href=\"/orders/'+o.id+'/service-reports?neu=1\"" in oeffnen
+    # seit 1.9.80: „Deine Aufträge“ aus H.auftraege (die Liste vom Server, keine zweite), die Zeilen sind Knöpfe -- angelegt wird im Dialog
+    # (bis 1.9.79 Links zur Seite des Auftrags mit ?neu=1)
+    eigene = re.search(r"function eigeneAuftraegeZeigen\(\)\{.*?\n  \}\n", text, flags=re.S)[0]
+    assert "var liste=(H&&H.auftraege)||[];" in eigene
+    assert "'<button type=\"button\" class=\"zeile auftrag-zeile\" data-auftrag=\"'+o.id+'\">" in text
 
 
 def test_seite_des_auftrags_oeffnet_mit_neu_gleich_den_editor():

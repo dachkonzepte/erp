@@ -5339,3 +5339,35 @@ Knöpfe.
   neu S (storniert mit eigenem Bericht): Hinweis statt „+ Bericht“ (Bild 6 jetzt S).
 - **Gegenproben**: auch zum stornierten -> `test_v502` 2, `test_v500` 1, `test_v499` 1 rot; Suche mit stornierten -> `test_v502` 1 rot; Suche mit
   Kundennummer -> `test_v502` 2 rot; Anlegen nur mit Zugriff -> `test_v502` 6, `test_v499` 1 rot.
+
+### Nachtrag 3, A Oberfläche (1.9.80): Suche und Anlegen im Dialog
+
+- `mobil.html`, Dialog `#berichtDialog`: oben `#auftragSuche` (Hinweis „Ab 2 Zeichen über alle Aufträge.“), darunter `#berichtListeTitel`
+  („Deine Aufträge“, „Treffer“, „Keine Treffer“) und `#berichtAuftraege` (Zeilen als Knöpfe mit `data-auftrag`, „Nummer · Titel“ / „Objekt ·
+  Kunde · Adresse“); `sucheGeaendert()` liest 250 ms nach dem letzten Tastendruck über `lesen('auftragssuche', …)` und zeichnet eine Antwort
+  zu einem überholten Suchbegriff nicht. Zweiter Schritt `#berichtNeu` (`berichtNeuOeffnen()`: `GET /api/field-view/auftraege/{id}/
+  bericht-anlegen` und die Vorlagen): Berichtstyp, Datum (heute), Dachflächen als Häkchen, Vorlage nur bei genau einer Fläche (sonst der
+  Hinweis), Beschreibung; „Anlegen“ (`berichtAnlegen()`) über `speichern('bericht-neu', …)` an `POST /api/orders/{id}/service-reports`,
+  danach `/service-reports/{id}`.
+
+**Festlegungen 1.9.80 (Bitte bestätigen)**
+
+1. Ab 2 Zeichen ersetzen die Treffer „Deine Aufträge“ (Überschrift „Treffer“ bzw. „Keine Treffer“); darunter wieder „Deine Aufträge“. Gesucht
+   wird 250 ms nach dem letzten Tastendruck.
+2. Der zweite Schritt zeigt oben den gewählten Auftrag, dann Berichtstyp (Rapport vorgewählt), Datum (heute), Dachflächen (nur wenn das Objekt
+   welche hat), Vorlage (nur bei genau einer Fläche), Beschreibung (freiwillig) -- wie auf der Seite des Auftrags, ohne „Durchgeführt von“ (der
+   Server trägt die Monteurin ein).
+3. Knöpfe des zweiten Schritts: „Abbrechen“, „Anderer Auftrag“ (zurück zur Wahl, der Suchbegriff bleibt) und „Anlegen“ (grün).
+4. Die Seite des Auftrags behält „+ Bericht“ und `?neu=1`; der Dialog nimmt sie nicht mehr.
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v503_dialog_suche_und_anlegen.py` (3 Tests): Dialog mit Suche, Liste und zweitem Schritt, endet mit der Knopfleiste; Suche ab
+  2 Zeichen über den Server ohne überholte Antworten; zweiter Schritt und Anlegen über `speichern()`, danach zum Bericht.
+- Angepasste Erwartungen: `test_v498` `test_heute_knoepfe_und_dialog` (die Liste in `berichtDialogOeffnen()` mit Links `?neu=1` -> in
+  `eigeneAuftraegeZeigen()`, Zeilen als Knöpfe); `klicktest_bericht_ohne_einsatz` -- Zeilen `[Id, Link mit ?neu=1, ≥ 56 px]` -> `[Id, ≥ 56 px]`,
+  „Zeile A -> Seite von A mit offenem Editor, Adresse ohne ?neu“ -> „Zeile A -> im Dialog „Bericht anlegen“ (A, Rapport, heute, Dachfläche,
+  Vorlage erst bei einer Fläche)“, „F über die API angelegt“ -> „Suche „auftrag“: G und F, nicht S; aus dem Treffer F angelegt“, die Prüfung der
+  Titel (1.9.78) liest die Zeilen über `[data-auftrag]`; die Testdaten bekommen „Dachfläche Nord“.
+- **Gegenproben**: Suche nur in der eigenen Liste -> `test_v503` 1 rot, Klicktest 3 rot; Zeile ohne Anlegen im Dialog -> `test_v503` 1 rot,
+  Klicktest 5 rot; Vorlage immer zur Wahl -> Klicktest 1 rot.

@@ -139,6 +139,16 @@
     .auftrag-liste{display:flex;flex-direction:column}
     .auftrag-liste .zeile{min-height:64px;padding:8px 0}
     .auftrag-liste .zeile:hover{background:var(--ds-flaeche-2)}
+    /* seit 1.9.80: Zeilen als Knöpfe (angelegt wird im Dialog), Suchfeld, zweiter Schritt „Bericht anlegen“ */
+    .auftrag-liste button.zeile{width:100%;background:none;border:0;border-top:1px solid var(--ds-grund);text-align:left;font:inherit;color:inherit;cursor:pointer}
+    .feld input,.feld textarea{border:1px solid var(--ds-feld-rand);border-radius:var(--ds-ecke-tablet-feld);padding:0 14px;font-family:var(--ds-schrift-text);font-size:17px;color:var(--ds-text);background:var(--ds-flaeche)}
+    .feld input{height:56px}
+    .feld textarea{min-height:96px;padding:12px 14px;resize:vertical}
+    .auftrag-abschnitt{display:flex;flex-direction:column;gap:6px}
+    .gewaehlt{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border-radius:var(--ds-ecke-tablet-feld);background:var(--ds-flaeche-2)}
+    .gewaehlt .zeile-titel{font-size:17px;font-weight:600}
+    .flaechen{display:flex;flex-wrap:wrap;gap:4px 18px}
+    .hinweis-klein{font-size:14px;font-weight:400;color:var(--ds-text-2)}
     .concern-alert{margin:0 0 10px;padding:10px 14px;border:2px solid var(--ds-fehler);background:var(--ds-flaeche);color:var(--ds-fehler-text);font-weight:700;font-size:14px;line-height:1.35;overflow-wrap:anywhere;border-radius:var(--ds-ecke-karte)}
     .concern-alert a{display:flex;align-items:center;min-height:44px;color:var(--ds-fehler-text);font-weight:650;font-size:13.5px}
     /* Offen, Nächste Tage */
@@ -192,11 +202,32 @@
 </dialog>
 {# seit 1.9.75: „Bericht anlegen“ ohne Einsatz und „Bericht für einen anderen Auftrag“ -- die Liste wie „Zeit nachtragen“, danach der
    gewohnte Weg zum Anlegen auf der Seite des Auftrags (?neu=1 öffnet „Bericht anlegen“ dort gleich) #}
+{# seit 1.9.80 (Nachtrag 3, A): oben die Suche über alle nicht stornierten Aufträge (ab 2 Zeichen, höchstens 20 Treffer), darunter „Deine
+   Aufträge“; ein Tipp auf einen Auftrag führt zum zweiten Schritt „Bericht anlegen“ (Art, Datum, Dachflächen, Vorlage, Beschreibung wie auf
+   der Seite des Auftrags), „Anlegen“ öffnet den neuen Bericht #}
 <dialog id="berichtDialog" class="dialog-karte" aria-labelledby="berichtDialogTitel">
   <div class="dialog-kopf"><h2 id="berichtDialogTitel">Für welchen Auftrag?</h2>
     <button type="button" class="knopf knopf-neutral knopf-symbol" id="berichtDialogZu" aria-label="Schließen"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
-  <div class="auftrag-liste" id="berichtAuftraege"></div>
-  <div class="dialog-knoepfe"><button type="button" class="knopf knopf-neutral" id="berichtDialogAbbrechen">Abbrechen</button></div>
+  <div class="auftrag-abschnitt" id="berichtWahl">
+    <label class="feld" for="auftragSuche">Auftrag suchen<input id="auftragSuche" type="search" autocomplete="off" placeholder="Nummer, Titel, Objekt, Kunde oder Adresse"></label>
+    <span class="hinweis-klein" id="auftragSucheHinweis">Ab 2 Zeichen über alle Aufträge.</span>
+    <span class="eb" id="berichtListeTitel">Deine Aufträge</span>
+    <div class="auftrag-liste" id="berichtAuftraege"></div>
+  </div>
+  <div class="auftrag-abschnitt" id="berichtNeu" hidden>
+    <div class="gewaehlt" id="berichtGewaehlt"></div>
+    <div class="dialog-felder">
+      <label class="feld" for="neuArt">Berichtstyp<select id="neuArt"><option value="rapport" selected>Rapportbericht (Reparatur)</option><option value="wartung">Wartungsbericht</option></select></label>
+      <label class="feld" for="neuDatum">Datum des Einsatzes<input id="neuDatum" type="date"></label>
+      <div class="feld breit" id="neuFlaechenFeld">Dachflächen <span class="hinweis-klein">für Prüfpunkte, mehrere möglich</span><div class="flaechen" id="neuFlaechen"></div></div>
+      <label class="feld breit" id="neuVorlageFeld" for="neuVorlage">Vorlage<select id="neuVorlage"></select><span class="hinweis-klein" id="neuVorlageHinweis">Vorlage wird automatisch je Dachfläche nach Dachtyp bestimmt.</span></label>
+      <label class="feld breit" for="neuBeschreibung">Durchgeführte Arbeiten / Feststellungen<textarea id="neuBeschreibung"></textarea></label>
+    </div>
+  </div>
+  <div class="status" id="berichtStatus" role="status"></div>
+  <div class="dialog-knoepfe"><button type="button" class="knopf knopf-neutral" id="berichtDialogAbbrechen">Abbrechen</button>
+    <button type="button" class="knopf knopf-neutral" id="berichtZurueck" hidden>Anderer Auftrag</button>
+    <button type="button" class="knopf knopf-aktion" id="berichtAnlegen" hidden>Anlegen</button></div>
 </dialog>
 {% include "_berlin_date.html" %}
 {% include "_fehlertext.html" %}
@@ -382,6 +413,12 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
   el('startDialogAbbrechen').addEventListener('click',function(){el('startDialog').close()});
   el('berichtDialogZu').addEventListener('click',function(){el('berichtDialog').close()});
   el('berichtDialogAbbrechen').addEventListener('click',function(){el('berichtDialog').close()});
+  el('auftragSuche').addEventListener('input',sucheGeaendert);
+  el('berichtAuftraege').addEventListener('click',function(e){var z=e.target.closest('[data-auftrag]');if(z)berichtNeuOeffnen(Number(z.dataset.auftrag))});
+  el('neuFlaechen').addEventListener('change',vorlageZeigen);
+  el('neuArt').addEventListener('change',function(){el('neuVorlage').innerHTML=vorlagenOptionen();vorlageZeigen()});
+  el('berichtZurueck').addEventListener('click',function(){NEU=null;el('berichtStatus').textContent='';schrittWahl()});
+  el('berichtAnlegen').addEventListener('click',berichtAnlegen);
   el('startDialogStarten').addEventListener('click',startDialogStarten);
   el('startKolonne').addEventListener('change',startMitglieder);
   function signalKarte(z){
@@ -491,17 +528,94 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
       +'<div class="weitere-wege"><button type="button" class="knopf knopf-neutral knopf-klein" id="berichtAndererAuftrag">Bericht für einen anderen Auftrag</button></div>';
     el('berichtAndererAuftrag').addEventListener('click',berichtDialogOeffnen);
   }
-  // „Für welchen Auftrag?“: je Auftrag der Liste eine Zeile (64 px) zur Seite des Auftrags, dort öffnet ?neu=1 gleich „Bericht anlegen“;
-  // ohne Auftrag derselbe Hinweis wie in „Meine Zeiten“. Seit 1.9.78 „Nummer · Titel“, darunter „Objekt · Kunde · Adresse“
+  // „Für welchen Auftrag?“ (seit 1.9.80, Nachtrag 3, A): oben die Suche über alle nicht stornierten Aufträge (ab 2 Zeichen, höchstens 20
+  // Treffer, GET /api/field-view/auftraege-suche), ohne Suchbegriff „Deine Aufträge“ (H.auftraege, dieselbe Liste wie „Zeit nachtragen“);
+  // jede Zeile „Nummer · Titel“, darunter „Objekt · Kunde · Adresse“ (seit 1.9.78). Ein Tipp öffnet „Bericht anlegen“ im Dialog (Daten aus
+  // GET /api/field-view/auftraege/{id}/bericht-anlegen: Auftrag und Dachflächen), „Anlegen“ legt an und öffnet den neuen Bericht.
   var KEINE_AUFTRAEGE='Keine eigenen Aufträge im Zeitraum gefunden. Fehlt ein Einsatz, wende dich an das Büro.';
-  function berichtDialogOeffnen(){
-    var liste=(H&&H.auftraege)||[];
-    el('berichtAuftraege').innerHTML=liste.length?liste.map(function(o){
+  var NEU=null,VORLAGEN=null,SUCHE_UHR=null;
+  function auftragZeilen(liste){
+    return liste.map(function(o){
       var neben=auftragNeben(o);
-      return '<a class="zeile auftrag-zeile" href="/orders/'+o.id+'/service-reports?neu=1" data-auftrag="'+o.id+'"><div class="zeile-text">'
-        +'<span class="zeile-titel">'+esc(auftragTitel(o)||'Auftrag')+'</span>'+(neben?'<span class="zeile-sub">'+esc(neben)+'</span>':'')+'</div>'+PFEIL+'</a>';
-    }).join(''):'<p class="leer-text" style="margin:0">'+esc(KEINE_AUFTRAEGE)+'</p>';
+      return '<button type="button" class="zeile auftrag-zeile" data-auftrag="'+o.id+'"><div class="zeile-text">'
+        +'<span class="zeile-titel">'+esc(auftragTitel(o)||'Auftrag')+'</span>'+(neben?'<span class="zeile-sub">'+esc(neben)+'</span>':'')+'</div>'+PFEIL+'</button>';
+    }).join('');
+  }
+  function eigeneAuftraegeZeigen(){
+    var liste=(H&&H.auftraege)||[];
+    el('berichtListeTitel').textContent='Deine Aufträge';
+    el('berichtAuftraege').innerHTML=liste.length?auftragZeilen(liste):'<p class="leer-text" style="margin:0">'+esc(KEINE_AUFTRAEGE)+'</p>';
+  }
+  function berichtDialogOeffnen(){
+    NEU=null;clearTimeout(SUCHE_UHR);
+    el('auftragSuche').value='';el('berichtStatus').textContent='';
+    schrittWahl();eigeneAuftraegeZeigen();
     el('berichtDialog').showModal();
+  }
+  function schrittWahl(){
+    el('berichtDialogTitel').textContent='Für welchen Auftrag?';
+    el('berichtWahl').hidden=false;el('berichtNeu').hidden=true;
+    el('berichtZurueck').hidden=true;el('berichtAnlegen').hidden=true;
+  }
+  // Suche: kurz nach dem letzten Tastendruck; eine Antwort zu einem überholten Suchbegriff zeichnet nichts
+  function sucheGeaendert(){
+    clearTimeout(SUCHE_UHR);
+    var q=el('auftragSuche').value.trim();
+    if(q.length<2){eigeneAuftraegeZeigen();return}
+    SUCHE_UHR=setTimeout(function(){
+      lesen('auftragssuche',()=>api('/api/field-view/auftraege-suche?q='+encodeURIComponent(q)),function(treffer){
+        if(el('auftragSuche').value.trim()!==q)return;
+        el('berichtListeTitel').textContent=treffer.length?'Treffer':'Keine Treffer';
+        el('berichtAuftraege').innerHTML=auftragZeilen(treffer);
+      }).catch(function(e){el('berichtStatus').textContent=e.message});
+    },250);
+  }
+  // Zweiter Schritt: Art, Datum, Dachflächen (wenn das Objekt welche hat), Vorlage (bei genau einer Fläche, wie auf der Seite des Auftrags),
+  // Beschreibung
+  function vorlagenOptionen(){
+    var leer=el('neuArt').value==='wartung'?'— automatisch nach Dachtyp —':'— keine —';
+    return '<option value="">'+esc(leer)+'</option>'+(VORLAGEN||[]).filter(function(t){return !t.archived})
+      .map(function(t){return '<option value="'+t.id+'">'+esc(t.label)+'</option>'}).join('');
+  }
+  function gewaehlteFlaechen(){return [...document.querySelectorAll('#neuFlaechen input[type=checkbox]:checked')].map(i=>Number(i.value))}
+  function vorlageZeigen(){
+    var eine=gewaehlteFlaechen().length===1;
+    if(!eine)el('neuVorlage').value='';
+    el('neuVorlage').hidden=!eine;el('neuVorlageHinweis').hidden=eine;
+  }
+  function berichtNeuOeffnen(orderId){
+    el('berichtStatus').textContent='';
+    lesen('bericht-daten',()=>Promise.all([api('/api/field-view/auftraege/'+orderId+'/bericht-anlegen'),
+      VORLAGEN?Promise.resolve(VORLAGEN):api('/api/inspection-templates')]),function(r){
+      NEU=r[0];VORLAGEN=r[1];
+      var neben=auftragNeben(NEU.auftrag);
+      el('berichtGewaehlt').innerHTML='<span class="zeile-titel">'+esc(auftragTitel(NEU.auftrag)||'Auftrag')+'</span>'
+        +(neben?'<span class="zeile-sub">'+esc(neben)+'</span>':'');
+      el('neuArt').innerHTML='<option value="rapport" selected>Rapportbericht (Reparatur)</option><option value="wartung">Wartungsbericht</option>';
+      el('neuDatum').value=berlinToday();
+      el('neuBeschreibung').value='';
+      el('neuFlaechen').innerHTML=NEU.dachflaechen.map(function(a){
+        return '<label class="mitglied"><input type="checkbox" value="'+a.id+'"> '+esc(a.name)+'</label>'}).join('');
+      var mitFlaechen=NEU.dachflaechen.length>0;
+      el('neuFlaechenFeld').hidden=!mitFlaechen;el('neuVorlageFeld').hidden=!mitFlaechen;
+      el('neuVorlage').innerHTML=vorlagenOptionen();vorlageZeigen();
+      el('berichtDialogTitel').textContent='Bericht anlegen';
+      el('berichtWahl').hidden=true;el('berichtNeu').hidden=false;
+      el('berichtZurueck').hidden=false;el('berichtAnlegen').hidden=false;el('berichtAnlegen').disabled=false;
+    }).catch(function(e){el('berichtStatus').textContent=e.message});
+  }
+  async function berichtAnlegen(){
+    if(!NEU)return;
+    var st=el('berichtStatus'),flaechen=gewaehlteFlaechen(),vorlage=el('neuVorlage').value;
+    var payload={report_type:el('neuArt').value,performed_at:el('neuDatum').value||null,description:el('neuBeschreibung').value.trim()||null,
+      roof_area_ids:flaechen.length?flaechen:null,inspection_template_id:flaechen.length===1&&vorlage?Number(vorlage):null};
+    st.textContent='';el('berichtAnlegen').disabled=true;
+    var neu=null;
+    try{
+      await speichern('bericht-neu',()=>api('/api/orders/'+NEU.auftrag.id+'/service-reports',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(payload)}),{anwenden:function(r){neu=r}});
+    }catch(e){st.textContent=e.message;el('berichtAnlegen').disabled=false;return}
+    location.href='/service-reports/'+neu.id;
   }
 
   // --- Offen, Nächste Tage -------------------------------------------------------------------------------------------------------

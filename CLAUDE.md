@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.79** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.80** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -362,8 +362,9 @@ Behoben, drei Teile:
   `klicktest_bericht_schritte.py`. Seit 1.9.72 hat Schritt 5 unten eine feste Leiste („Zurück“, „Fehlt: …“, „Bericht abschließen“, bei
   1280 × 620 ohne Bildlauf), „⋮“ eines Prüfpunkts steht oben rechts in seiner Titelzeile; seit 1.9.73 zeigt „Einsatzberichte“ den Status
   über `statusKennzeichen()` (`tests/test_v496_berichtsliste_status.py`). Seit 1.9.75 legt die Monteurin auf „Heute“ auch ohne Einsatz einen
-  Bericht an („Bericht anlegen“ in der leeren Karte, mit Einsatz „Bericht für einen anderen Auftrag“; Dialog „Für welchen Auftrag?“ mit
-  `heute.auftraege`, danach `?neu=1` auf der Seite des Auftrags), Klicktest `klicktest_bericht_ohne_einsatz.py`. Wie ein Auftrag der Liste
+  Bericht an („Bericht anlegen“ in der leeren Karte, mit Einsatz „Bericht für einen anderen Auftrag“; Dialog „Für welchen Auftrag?“ seit
+  1.9.80 mit Suche über alle nicht stornierten Aufträge über „Deine Aufträge“ (`heute.auftraege`), angelegt wird im Dialog -- bis 1.9.79 über
+  `?neu=1` auf der Seite des Auftrags; `tests/test_v503_dialog_suche_und_anlegen.py`), Klicktest `klicktest_bericht_ohne_einsatz.py`. Wie ein Auftrag der Liste
   heißt (Nummer · Titel, Objekt · Kunde · Adresse; in der Auswahl einzeilig, gekürzt), steht seit 1.9.78 nur in `_auftrag_text.html`. Seit 1.9.69 heißen die freigegebenen Mängel der Abnahme auch für die Monteurin „Mangel“ („Mängel
   zur Beseitigung“), „Befund“ nur die Befunde aus Einsatzberichten (`tests/test_v493_mangel_und_befund.py`; 1.9.68 hieß auch der Mangel
   kurz „Befund“). Sie bleibt in `AUFGESCHOBEN` (die
