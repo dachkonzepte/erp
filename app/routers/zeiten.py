@@ -11,7 +11,9 @@ from sqlalchemy.orm import Session
 from ..absence_requests import list_requests, request_to_dict
 from ..berlin_time import berlin_today
 from ..database import get_db
-from ..models import AppUser, TimeEntry
+from ..meldungen import KEIN_MITARBEITER
+from ..models import AppUser, Employee
+from ..option_settings import get_option_group
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, darf_lohndaten, darf_zeit_buchen, darf_zeit_fuer_andere_buchen, require_lohndaten, require_min_role
 from ..time_backoffice import locked_until
 from ..zeiten import arbeitstage, buchungen, monat, monat_lesen, pruefen
@@ -82,6 +84,45 @@ def zeiten_buchungen(request: Request, monat_: str | None = Query(None, alias="m
         e["darf_schliessen"] = e["laeuft_seit_frueher"] and _darf_aendern(user, e["employee_id"], e["work_date"], lock)
     daten["rechte"] = _rechte(user)
     return daten
+
+
+NUR_EIGENE_ANTRAEGE = "Hier stehen nur deine eigenen Anträge – die Anträge anderer sieht und entscheidet ein Administrator."
+ANTRAG_STATUS = ("pending", "approved", "rejected", "cancelled")
+
+
+@router.get("/api/zeiten/abwesenheiten")
+def zeiten_abwesenheiten(status: str | None = Query(None, max_length=20), db: Session = Depends(get_db, scope="function"),
+                         user: AppUser = _buero_dep):
+    """Seit 1.9.97 (Stufe 4, R5b, Punkt 5): „Abwesenheiten“ wie bisher -- der Admin sieht und entscheidet alle Anträge, sonst nur die
+    eigenen (wie GET /api/absence-requests; ohne Mitarbeiter keine, mit Hinweis); je Antrag Arbeitstage, darf_entscheiden (Admin, offen),
+    darf_zurueckziehen (der eigene, offen -- die Anträge anderer entscheidet der Admin, er zieht sie nicht zurück). Beantragen: der Admin für jeden aktiven Mitarbeiter, sonst für sich (mit Mitarbeiter)."""
+    if status and status not in ANTRAG_STATUS:
+        raise HTTPException(status_code=422, detail="Unbekannter Status.")
+    admin = user.role == ROLE_ADMIN
+    if admin:
+        rows = list_requests(db, status=status or None)
+    elif user.employee_id is not None:
+        rows = list_requests(db, employee_id=user.employee_id, status=status or None)
+    else:
+        rows = []
+    arten = get_option_group(db, "absence_types")
+    # offene Anträge, die das Konto sieht -- dieselbe Zahl wie am Reiter (GET /api/zeiten/pruefen)
+    offen = len(list_requests(db, status="pending")) if admin else (
+        len(list_requests(db, employee_id=user.employee_id, status="pending")) if user.employee_id is not None else 0)
+    return {
+        "antraege": [{**request_to_dict(db, r), "arbeitstage": arbeitstage(r.start_date, r.end_date),
+                      "darf_entscheiden": admin and r.status == "pending",
+                      "darf_zurueckziehen": r.status == "pending" and user.employee_id is not None and r.employee_id == user.employee_id}
+                     for r in rows],
+        "hinweis": None if admin else (NUR_EIGENE_ANTRAEGE if user.employee_id is not None else KEIN_MITARBEITER),
+        "darf_beantragen": admin or user.employee_id is not None, "fuer_andere": admin, "eigener_mitarbeiter": user.employee_id,
+        "mitarbeiter": [{"id": e.id, "name": f"{e.first_name} {e.last_name}".strip(), "employee_number": e.employee_number}
+                        for e in db.query(Employee).filter(Employee.active == True).order_by(Employee.last_name, Employee.first_name)]  # noqa: E712
+        if admin else [],
+        "arten": [{"value": o.value, "label": o.label, "active": o.active} for o in sorted(arten.options if arten else [],
+                                                                                         key=lambda o: (o.sort_order, o.id))],
+        "offen": offen,
+    }
 
 
 @router.get("/api/zeiten/monat")

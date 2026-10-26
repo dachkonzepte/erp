@@ -129,6 +129,28 @@
     .vorschau-zahl{font-size:20px;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
     .dialog-knoepfe{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;border-top:1px solid var(--ds-flaeche-2);padding-top:14px}
     .dialog-knoepfe>.status{flex:1 0 100%}
+    /* Abwesenheiten: Anträge mit Status, Entscheiden, Zurückziehen */
+    .antrag-status{font-size:13px;font-weight:600;white-space:nowrap}
+    .zeile input.antrag-notiz{width:200px;height:40px;border:1px solid var(--ds-feld-rand);border-radius:var(--ds-ecke-feld);padding:0 12px;font-family:var(--ds-schrift-text);font-size:14px;color:var(--ds-text);background:var(--ds-flaeche)}
+    .rueckfrage{font-size:14px;font-weight:600;color:var(--ds-stark)}
+    /* Monat & Lohn wie zeiten-monat.html: drei Schritte nebeneinander, darunter die Tabelle */
+    .schritte{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;align-items:start}
+    @media (max-width:1100px){.schritte{grid-template-columns:minmax(0,1fr)}}
+    .schritt-kopf{display:flex;align-items:center;gap:10px}
+    .schritt-nr{width:26px;height:26px;border-radius:50%;background:var(--ds-flaeche-2);color:var(--ds-stark);font-size:13px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;flex:none}
+    .schritt-text{margin:0;font-size:14px;color:var(--ds-text-2)}
+    .schritt-liste li{align-items:center;min-height:32px}
+    .schritt-liste .text{flex:1}
+    .schritt-liste a{font-size:14px;font-weight:600}
+    .fehlt{margin:0;font-size:13px;color:var(--ds-signal-text)}
+    .fehlt:empty{display:none}
+    .links-buendig{justify-content:flex-start}
+    .tabelle-kopf{padding:0 10px 8px;display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+    .tabelle-kopf h2{margin:0;font-family:var(--ds-schrift-titel);font-weight:600;font-size:18px}
+    .zu-monat{font-size:14px;font-weight:600}
+    .mitglieder{display:flex;flex-wrap:wrap;column-gap:24px;row-gap:2px}
+    .mitglied{display:flex;align-items:center;gap:10px;min-height:36px;font-size:14px;font-weight:500;color:var(--ds-text);cursor:pointer}
+    .mitglied input{width:18px;height:18px;margin:0;accent-color:var(--ds-aktion)}
 </style>
 </head>
 <body class="ds-seite">
@@ -141,11 +163,13 @@
 {% from "teile/seitenkopf.html" import seitenkopf %}
 {% call(teil) seitenkopf("Zeiten", untertitel="Arbeitszeiten der Monteure prüfen, korrigieren und abrechnen", mit_aktion=zeit_buchen, mit_menue=true) %}
   {% if teil == "aktion" %}<button type="button" class="ds-knopf ds-knopf-aktion" id="neueBuchung"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Buchung</button>
-  {% elif teil == "menue" %}<a class="ds-menue-eintrag" href="/settings#time-rules">Zeitregeln und DATEV</a><a class="ds-menue-eintrag" href="/settings#time-entry-types">Zeit-Listen</a>{% endif %}
+  {% elif teil == "menue" %}{% if zeit_buchen %}<button type="button" class="ds-menue-eintrag" id="kolonneBuchen">Kolonne buchen</button>{% endif %}{% if admin %}<button type="button" class="ds-menue-eintrag" id="abschlussAufheben">Abschluss aufheben</button>{% endif %}<a class="ds-menue-eintrag" href="/settings#time-rules">Zeitregeln und DATEV</a><a class="ds-menue-eintrag" href="/settings#time-entry-types">Zeit-Listen</a>{% endif %}
 {% endcall %}
 <nav class="reiter" aria-label="Bereiche der Seite">
   <a href="#pruefen" data-reiter="pruefen" aria-current="page">Prüfen<span class="reiter-zahl" id="zahlPruefen" hidden></span></a>
   <a href="#buchungen" data-reiter="buchungen">Buchungen</a>
+  <a href="#abwesenheiten" data-reiter="abwesenheiten">Abwesenheiten<span class="reiter-zahl" id="zahlAbwesenheiten" hidden></span></a>
+  {% if lohndaten %}<a href="#monat" data-reiter="monat">Monat &amp; Lohn</a>{% endif %}
 </nav>
 <div class="ergebnis" id="ergebnis" role="status"></div>
 <div class="status" id="seitenStatus" role="status"></div>
@@ -177,6 +201,7 @@
     <section class="karte" aria-labelledby="abschlussTitel" style="gap:10px">
       <h2 id="abschlussTitel">Vor dem Abschluss</h2>
       <ul class="liste" id="abschlussListe"></ul>
+      {% if lohndaten %}<a href="#monat" class="zu-monat" data-reiter-link="monat">Zu „Monat &amp; Lohn“</a>{% endif %}
     </section>
   </div>
 </section>
@@ -197,6 +222,58 @@
     <p class="leer" id="buchungenLeer" hidden></p>
   </section>
 </section>
+
+<section id="reiter-abwesenheiten" aria-label="Abwesenheiten" hidden style="display:flex;flex-direction:column;gap:18px">
+  <div class="filter">
+    <label class="feld-zeile" for="abwStatus">Status<select id="abwStatus" style="width:160px"><option value="pending" selected>Offen</option><option value="">Alle</option><option value="approved">Genehmigt</option><option value="rejected">Abgelehnt</option><option value="cancelled">Zurückgezogen</option></select></label>
+    <span class="summe-auswahl" id="abwHinweis"></span>
+    <button type="button" class="knopf knopf-aktion" id="abwNeu" hidden>Abwesenheit beantragen</button>
+  </div>
+  <section class="karte" aria-labelledby="abwTitel">
+    <div class="karte-kopf"><h2 id="abwTitel">Anträge</h2><span class="karte-zahl" id="abwZahl"></span></div>
+    <div id="abwListe"></div>
+  </section>
+</section>
+
+{% if lohndaten %}
+<section id="reiter-monat" aria-label="Monat und Lohn" hidden style="display:flex;flex-direction:column;gap:18px">
+  <div class="filter">
+    <div class="monat-wahl"><button type="button" class="knopf knopf-neutral knopf-symbol" id="lohnZurueck" aria-label="Voriger Monat"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg></button><span id="lohnMonat"></span><button type="button" class="knopf knopf-neutral knopf-symbol" id="lohnVor" aria-label="Nächster Monat"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg></button></div>
+    <span class="chip" id="lohnStatus"></span>
+    <span class="mut" style="font-size:14px" id="lohnAbgeschlossen"></span>
+    <span class="mut" style="margin-left:auto;font-size:13px">Nur Admin und Büro – Finanzen</span>
+  </div>
+  <div class="schritte">
+    <section class="karte" aria-labelledby="schritt1" style="gap:10px">
+      <div class="schritt-kopf"><span class="schritt-nr">1</span><h2 id="schritt1">Prüfen</h2></div>
+      <ul class="liste schritt-liste" id="lohnPruefen"></ul>
+    </section>
+    <section class="karte" aria-labelledby="schritt2" style="gap:10px">
+      <div class="schritt-kopf"><span class="schritt-nr">2</span><h2 id="schritt2">Abschließen</h2></div>
+      <p class="schritt-text" id="lohnAbschlussText"></p>
+      <button type="button" class="knopf knopf-aktion" id="lohnAbschliessen" style="align-self:flex-start"></button>
+      <p class="fehlt" id="lohnFehlt"></p>
+      <ul class="liste" id="lohnAbgelehnt"></ul>
+    </section>
+    <section class="karte" aria-labelledby="schritt3" style="gap:10px">
+      <div class="schritt-kopf"><span class="schritt-nr">3</span><h2 id="schritt3">Ausgeben</h2></div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <a class="knopf knopf-neutral links-buendig" id="lohnPdf" href="#">Stundenzettel aller als PDF</a>
+        <a class="knopf knopf-neutral links-buendig" id="lohnCsv" href="#">Stundendaten als CSV</a>
+        <a class="knopf knopf-neutral links-buendig" id="lohnDatev" href="#" hidden>DATEV-Export</a>
+        <button type="button" class="knopf links-buendig" id="lohnDatevGesperrt" disabled>DATEV-Export</button>
+      </div>
+      <p class="schritt-text">Der DATEV-Export geht erst nach dem Abschluss. Fehlt eine Lohnart, entsteht kein Export – nie still ohne Stunden.</p>
+      <p class="fehlt" id="lohnDatevFehlt"></p>
+    </section>
+  </div>
+  <section class="tabelle-karte" aria-labelledby="lohnTabelleTitel">
+    <div class="tabelle-kopf"><h2 id="lohnTabelleTitel">Stunden je Mitarbeiter</h2><span class="mut" style="font-size:13px">wie im Stundenzettel und im DATEV-Export – eine Rechnung</span></div>
+    <table><thead id="lohnKopf"></thead><tbody id="lohnZeilen"></tbody></table>
+    <p class="leer" id="lohnLeer" hidden></p>
+  </section>
+</section>
+{% endif %}
 </main>
 </div>
 </div>
@@ -243,6 +320,61 @@
     <button type="button" class="knopf knopf-gefahr" id="ldLoeschen">Löschen</button></div>
 </dialog>
 
+<dialog id="kolonneDialog" class="dialog" aria-labelledby="kdTitel">
+  <div class="dialog-kopf"><div style="display:flex;flex-direction:column;gap:2px"><h2 id="kdTitel">Kolonne buchen</h2><span class="unter">Je Person eine eigene Buchung, Pause und Rundung nach ihrem Tag.</span></div>
+    <button type="button" class="knopf knopf-neutral knopf-symbol" id="kdZu" aria-label="Schließen"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+  <div class="dialog-felder">
+    <label class="feld breit" for="kdKolonne">Kolonne<select id="kdKolonne"></select></label>
+    <div class="feld breit" role="group" aria-labelledby="kdMitgliederTitel"><span id="kdMitgliederTitel">Wer ist dabei?</span><div class="mitglieder" id="kdMitglieder"></div></div>
+    <label class="feld" for="kdDatum">Datum<input id="kdDatum" type="date"></label>
+    <label class="feld" for="kdZeitart">Zeitart<select id="kdZeitart"></select></label>
+    <label class="feld breit" for="kdAuftrag">Auftrag<select id="kdAuftrag"></select></label>
+    <div class="feld breit">Erfassung
+      <div class="segment" role="group" aria-label="Erfassung"><button type="button" id="kdModusVonBis" aria-pressed="true">Von – Bis</button><button type="button" id="kdModusDauer" aria-pressed="false">Dauer</button></div></div>
+    <label class="feld" for="kdVon" id="kdVonFeld">Von<input class="num" id="kdVon" type="time"></label>
+    <label class="feld" for="kdBis" id="kdBisFeld">Bis<input class="num" id="kdBis" type="time"></label>
+    <label class="feld" for="kdStunden" id="kdStundenFeld" hidden>Stunden je Person (netto)<input class="num" id="kdStunden" type="text" inputmode="decimal" data-zahl data-min="0.01" data-max="24" data-feld="Stunden je Person"></label>
+    <label class="feld" for="kdPauseDauer" id="kdPauseDauerFeld" hidden>Pause (Min.)<input class="num" id="kdPauseDauer" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-max="720" data-feld="Pause"></label>
+  </div>
+  <p class="dialog-hinweis" id="kdDauerHinweis" hidden>Mit „Dauer“ entfallen Von und Bis – jede Person bekommt dieselben Stunden (netto), ohne Pausenregel.</p>
+  <button type="button" class="link-knopf" id="kdWeitere" aria-expanded="false" aria-controls="kdWeitereFelder" style="align-self:flex-start">Weitere Angaben · Tätigkeit, Notiz, Pause mindestens</button>
+  <div class="dialog-felder" id="kdWeitereFelder" hidden>
+    <label class="feld breit" for="kdPosition">LV-Position<select id="kdPosition"></select></label>
+    <label class="feld" for="kdTaetigkeit">Tätigkeit<select id="kdTaetigkeit"></select></label>
+    <label class="feld" for="kdPause" id="kdPauseFeld">Pause mindestens (Min.)<input class="num" id="kdPause" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-max="720" data-feld="Pause mindestens"></label>
+    <label class="feld breit" for="kdNotiz">Notiz<input id="kdNotiz" type="text" placeholder="optional"></label>
+  </div>
+  <div class="vorschau" aria-live="polite"><div class="vorschau-text"><span id="kdVorschauZeile">Von und Bis eintragen – dann rechnet der Server je Person die Pause.</span>
+    <span class="klein">Wer anders gearbeitet hat: einzeln buchen.</span></div></div>
+  <div class="dialog-knoepfe"><div class="status" id="kdStatus" role="status"></div><button type="button" class="knopf knopf-neutral" id="kdAbbrechen">Abbrechen</button>
+    <button type="button" class="knopf knopf-aktion" id="kdSpeichern">Speichern</button></div>
+</dialog>
+
+<dialog id="abwDialog" class="dialog" aria-labelledby="adTitel">
+  <div class="dialog-kopf"><h2 id="adTitel">Abwesenheit beantragen</h2>
+    <button type="button" class="knopf knopf-neutral knopf-symbol" id="adZu" aria-label="Schließen"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+  <div class="dialog-felder">
+    <label class="feld breit" for="adMitarbeiter" id="adMitarbeiterFeld">Mitarbeiter<select id="adMitarbeiter"></select></label>
+    <label class="feld" for="adKategorie">Kategorie<select id="adKategorie"><option value="urlaub">Urlaub</option><option value="krankheit">Krankheit</option><option value="fortbildung">Fortbildung</option><option value="unbezahlt">Unbezahlt</option></select></label>
+    <label class="feld" for="adArt">Art (genauer, optional)<select id="adArt"></select></label>
+    <label class="feld" for="adVon">Von<input id="adVon" type="date"></label>
+    <label class="feld" for="adBis">Bis<input id="adBis" type="date"></label>
+    <label class="feld breit" for="adNotiz">Notiz / Grund<input id="adNotiz" type="text" placeholder="optional"></label>
+  </div>
+  <div class="dialog-knoepfe"><div class="status" id="adStatus" role="status"></div><button type="button" class="knopf knopf-neutral" id="adAbbrechen">Abbrechen</button>
+    <button type="button" class="knopf knopf-aktion" id="adSenden">Antrag senden</button></div>
+</dialog>
+
+<dialog id="aufhebenDialog" class="dialog" aria-labelledby="ahTitel">
+  <div class="dialog-kopf"><h2 id="ahTitel">Abschluss aufheben</h2>
+    <button type="button" class="knopf knopf-neutral knopf-symbol" id="ahZu" aria-label="Schließen"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+  <p class="dialog-text" id="ahText" style="font-size:15px;color:var(--ds-text)"></p>
+  <div class="dialog-felder"><label class="feld breit" for="ahBis">Abgeschlossen bleibt bis<select id="ahBis"></select></label></div>
+  <p class="dialog-text">Was danach liegt, ist wieder offen: Monteure und Büro ändern dort wieder Buchungen. Bereits ausgegebene Exporte bleiben, wie sie sind.</p>
+  <div class="dialog-knoepfe"><div class="status" id="ahStatus" role="status"></div><button type="button" class="knopf knopf-neutral" id="ahAbbrechen">Abbrechen</button>
+    <button type="button" class="knopf knopf-gefahr" id="ahAufheben">Aufheben</button></div>
+</dialog>
+
 {% include "_seitenkopf.html" %}
 {% include "_berlin_date.html" %}
 {% include "_fehlertext.html" %}
@@ -269,7 +401,7 @@ var FELDER={von:'Von',bis:'Bis',work_date:'Datum',order_id:'Auftrag',order_item_
             pause_minuten:'Pause mindestens',employee_id:'Mitarbeiter',entry_type:'Zeitart',ende:'Ende'};
 async function api(url,opt){
   var r=await fetch(url,opt);var body=null;try{body=await r.json()}catch(e){}
-  if(!r.ok){var f=new Error(fehlerText(body,r.status,FELDER));f.status=r.status;throw f}
+  if(!r.ok){var f=new Error(fehlerText(body,r.status,FELDER));f.status=r.status;f.liste=body&&body.liste||null;throw f}
   return body;
 }
 function teileHtml(text){return String(text).split(' · ').map(function(t){return '<span class="teil">'+esc(t)+'</span>'}).join(' · ')}
@@ -277,10 +409,10 @@ function ergebnis(text){el('ergebnis').textContent=text||''}
 var PUNKTE='<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="12" cy="19" r="1.8"></circle></svg>';
 var HAKEN='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg>';
 
-var P=null,B=null,KONTEXT=null,TAETIGKEITEN=[],MONAT=null,FILTER={mitarbeiter:'',auftrag:'',zeitart:''},BD=null,LD=null,ZU={},ENDE={};
+var P=null,B=null,A=null,M=null,KONTEXT=null,TAETIGKEITEN=[],MONAT=null,LOHN_MONAT=null,FILTER={mitarbeiter:'',auftrag:'',zeitart:''},BD=null,LD=null,ZU={},ENDE={},ZURUECK=null;
 
 // --- Reiter ---------------------------------------------------------------------------------------------------------------------------
-var REITER=['pruefen','buchungen'];
+var REITER=['pruefen','buchungen','abwesenheiten'].concat(RECHTE.lohndaten?['monat']:[]);
 function reiterZeigen(name){
   if(REITER.indexOf(name)<0)name='pruefen';
   REITER.forEach(function(r){
@@ -290,6 +422,8 @@ function reiterZeigen(name){
   });
   if(location.hash!=='#'+name)history.replaceState(null,'','#'+name);
   if(name==='buchungen'&&!B)buchungenLaden();
+  if(name==='abwesenheiten'&&!A)abwesenheitenLaden();
+  if(name==='monat'&&!M)monatLaden();
 }
 function zahlSetzen(id,n){var z=el(id);z.hidden=!n;z.textContent=n?String(n):''}
 
@@ -301,6 +435,7 @@ function pruefenLaden(){
 function auftragKurz(z){return auftragTitel({order_number:z.order_number,title:z.title})}
 function pruefenZeichnen(d){
   zahlSetzen('zahlPruefen',d.zahlen.pruefen);
+  zahlSetzen('zahlAbwesenheiten',d.zahlen.abwesenheiten);
   // Zeiten von früher
   el('offenKarte').hidden=!d.offene_zeiten.length;
   el('offenZahl').textContent=d.offene_zeiten.length+(d.offene_zeiten.length===1?' Zeit':' Zeiten');
@@ -588,8 +723,237 @@ function loeschen(){
     .catch(function(err){el('ldStatus').textContent=err.message;knopf.disabled=false});
 }
 
-// nach jedem Schreiben beide Listen neu (die Zahl am Reiter „Prüfen“ hängt an beiden); „Buchungen“ nur, wenn schon geladen
-function alleNeuLaden(){return Promise.all([pruefenLaden(),B?buchungenLaden():Promise.resolve()])}
+// --- Abwesenheiten (wie bisher: Anträge, Entscheiden nur der Admin, eigene zurückziehen, beantragen) ----------------------------------
+var STATUS={pending:['offen','chip-info'],approved:['genehmigt','chip-ok'],rejected:['abgelehnt','chip-warn'],cancelled:['zurückgezogen','chip-neutral']};
+function abwesenheitenLaden(){
+  var status=el('abwStatus').value;
+  return lesen('abwesenheiten',()=>api('/api/zeiten/abwesenheiten'+(status?'?status='+encodeURIComponent(status):'')),function(d){A=d;abwesenheitenZeichnen(d)})
+    .catch(function(e){el('seitenStatus').textContent=e.message});
+}
+function abwesenheitenZeichnen(d){
+  el('abwHinweis').textContent=d.hinweis||'';
+  el('abwNeu').hidden=!d.darf_beantragen;
+  el('abwZahl').textContent=d.antraege.length+(d.antraege.length===1?' Antrag':' Anträge');
+  el('abwListe').innerHTML=d.antraege.length?d.antraege.map(abwesenheitHtml).join('')
+    :'<p class="leer" style="margin:0;padding:10px 0;font-size:14px;color:var(--ds-text-2)">Keine Anträge'+(el('abwStatus').value==='pending'?' offen':'')+'.</p>';
+}
+function abwesenheitHtml(a){
+  var art=KATEGORIE[a.absence_category]||a.absence_category,st=STATUS[a.status]||[a.status,'chip-neutral'];
+  var unter=tagLang(a.start_date).replace(/\.\d{4}$/,'.')+'–'+tagLang(a.end_date)+' · '+a.arbeitstage+(a.arbeitstage===1?' Arbeitstag':' Arbeitstage')
+    +(a.created_at?' · beantragt am '+berlinZeitpunkt(a.created_at,'datum').slice(0,6):'');
+  var knoepfe='';
+  if(a.darf_entscheiden)knoepfe+='<input class="antrag-notiz" type="text" id="notiz-'+a.id+'" placeholder="Notiz (optional)" aria-label="Notiz zur Entscheidung">'
+    +'<button type="button" class="knopf knopf-neutral" data-aktion="abw-entscheiden" data-entscheidung="rejected" data-id="'+a.id+'">Ablehnen</button>'
+    +'<button type="button" class="knopf knopf-aktion" data-aktion="abw-entscheiden" data-entscheidung="approved" data-id="'+a.id+'">Genehmigen</button>';
+  if(a.darf_zurueckziehen)knoepfe+=ZURUECK===String(a.id)
+    ?'<span class="rueckfrage">Antrag zurückziehen?</span><button type="button" class="knopf knopf-neutral" data-aktion="abw-nein" data-id="'+a.id+'">Abbrechen</button>'
+      +'<button type="button" class="knopf knopf-gefahr" data-aktion="abw-ja" data-id="'+a.id+'">Zurückziehen</button>'
+    :'<button type="button" class="knopf knopf-neutral" data-aktion="abw-fragen" data-id="'+a.id+'">Zurückziehen</button>';
+  return '<div class="zeile" data-abwesenheit="'+a.id+'"><div class="zeile-text"><span class="zeile-name">'+esc(a.employee_name+' · '+art+(a.absence_type&&a.absence_type!==art?' ('+a.absence_type+')':''))+'</span>'
+    +'<span class="zeile-unter">'+esc(unter)+'</span>'+(a.notes?'<span class="zeile-unter">'+esc(a.notes)+'</span>':'')
+    +(a.review_notes?'<span class="zeile-unter">Freigabe: '+esc(a.review_notes)+'</span>':'')+'</div>'
+    +'<span class="chip '+esc(st[1])+'">'+esc(st[0])+'</span>'+knoepfe+'</div>';
+}
+function abwesenheitEntscheiden(id,entscheidung,knopf){
+  var notiz=el('notiz-'+id),a=(A.antraege||[]).find(function(x){return String(x.id)===String(id)});
+  knopf.disabled=true;
+  return speichern('abwesenheiten',()=>api('/api/absence-requests/'+id+'/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({decision:entscheidung,review_notes:notiz&&notiz.value.trim()||null})}),{neuLaden:abwesenheitenUndPruefen})
+    .then(function(){ergebnis((entscheidung==='approved'?'Genehmigt: ':'Abgelehnt: ')+(a?a.employee_name+' · '+(KATEGORIE[a.absence_category]||''):''))})
+    .catch(function(e){el('seitenStatus').textContent=e.message;knopf.disabled=false});
+}
+function abwesenheitZurueckziehen(id,knopf){
+  knopf.disabled=true;
+  return speichern('abwesenheiten',()=>api('/api/absence-requests/'+id,{method:'DELETE'}),{neuLaden:abwesenheitenUndPruefen})
+    .then(function(){ZURUECK=null;ergebnis('Antrag zurückgezogen.')})
+    .catch(function(e){el('seitenStatus').textContent=e.message;knopf.disabled=false});
+}
+function abwesenheitenUndPruefen(){return Promise.all([abwesenheitenLaden(),pruefenLaden()])}
+function abwDialogOeffnen(){
+  var d=A;
+  el('adMitarbeiterFeld').hidden=!d.fuer_andere;
+  el('adMitarbeiter').innerHTML=auswahlOptionen(d.mitarbeiter,'',function(m){return (m.employee_number?m.employee_number+' · ':'')+m.name},{leer:'— Mitarbeiter wählen —'});
+  auswahlWert(el('adKategorie'),'urlaub');
+  el('adArt').innerHTML=auswahlOptionen(d.arten,'',function(x){return x.label},{wert:function(x){return x.value},leer:'— ohne —'});
+  el('adVon').value=berlinToday();el('adBis').value=berlinToday();el('adNotiz').value='';
+  el('adStatus').textContent='';el('adSenden').disabled=false;
+  el('abwDialog').showModal();
+}
+function abwSenden(){
+  var st=el('adStatus'),knopf=el('adSenden'),wer=A.fuer_andere?el('adMitarbeiter').value:A.eigener_mitarbeiter;
+  st.textContent='';
+  if(!wer){st.textContent='Bitte Mitarbeiter auswählen.';return}
+  var body={employee_id:wer,absence_category:el('adKategorie').value,absence_type:el('adArt').value||KATEGORIE[el('adKategorie').value],
+            start_date:el('adVon').value,end_date:el('adBis').value,notes:el('adNotiz').value.trim()||null};
+  knopf.disabled=true;
+  return speichern('abwesenheiten',()=>api('/api/absence-requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{neuLaden:abwesenheitenUndPruefen})
+    .then(function(r){el('abwDialog').close();ergebnis('Antrag gesendet: '+r.employee_name+', '+tagLang(r.start_date)+'–'+tagLang(r.end_date))})
+    .catch(function(e){st.textContent=e.message;knopf.disabled=false});
+}
+
+// --- Monat & Lohn (nur Admin und Büro – Finanzen) -------------------------------------------------------------------------------------
+function monatLaden(){
+  if(!LOHN_MONAT&&P)LOHN_MONAT=P.monat.monat;  // der erste noch offene Monat
+  return lesen('monat',()=>api('/api/zeiten/monat'+(LOHN_MONAT?'?monat='+encodeURIComponent(LOHN_MONAT):'')),function(d){M=d;LOHN_MONAT=d.monat;monatZeichnen(d)})
+    .catch(function(e){el('seitenStatus').textContent=e.message});
+}
+function zeitraum(d){return 'start_date='+encodeURIComponent(d.start)+'&end_date='+encodeURIComponent(d.ende)}
+function monatZeichnen(d){
+  el('lohnMonat').textContent=d.titel;
+  var st={offen:['offen','chip-info'],teilweise:['teilweise abgeschlossen','chip-warn'],abgeschlossen:['abgeschlossen','chip-ok']}[d.status]||[d.status,'chip-neutral'];
+  el('lohnStatus').textContent=st[0];el('lohnStatus').className='chip '+st[1];
+  el('lohnAbgeschlossen').textContent=d.abgeschlossen_bis?'Abgeschlossen bis '+tagLang(d.abgeschlossen_bis).slice(3):'Noch nichts abgeschlossen';
+  // 1 Prüfen: die Lücken der Zeiten als Zahl, was DATEV fehlt, offene Anträge
+  var laeuft=d.luecken.filter(function(x){return x.art==='laeuft'}).length,pause=d.luecken.filter(function(x){return x.art==='pause'}).length,z=[];
+  // je Eintrag: Art, Text, Text des Wegs, Ziel des Wegs (Reiter Prüfen, Reiter Abwesenheiten, Einstellungen → Zeitregeln und DATEV)
+  if(laeuft)z.push(['offen',laeuft+(laeuft===1?' Zeit läuft noch':' Zeiten laufen noch'),'Prüfen','pruefen']);
+  if(pause)z.push(['offen',pause+(pause===1?' Tag mit unpassender Pause':' Tage mit unpassender Pause'),'Prüfen','pruefen']);
+  d.datev_fehlt.forEach(function(x){z.push(['offen',x.text,x.art==='personalnummer'?'Personal':'Zeitregeln','einstellungen'])});
+  z.push(d.antraege_offen?['offen',d.antraege_offen+(d.antraege_offen===1?' Antrag offen':' Anträge offen'),'Abwesenheiten','abwesenheiten']:['ok','Anträge entschieden','','']);
+  el('lohnPruefen').innerHTML=z.map(function(x){
+    var weg=x[3]==='pruefen'?'<a href="#pruefen" data-reiter-link="pruefen">'+esc(x[2])+'</a>'
+      :x[3]==='abwesenheiten'?'<a href="#abwesenheiten" data-reiter-link="abwesenheiten">'+esc(x[2])+'</a>'
+      :x[3]==='einstellungen'?'<a href="/settings#time-rules">'+esc(x[2])+'</a>':'';
+    return '<li data-art="'+esc(x[0])+'">'+(x[0]==='ok'?'<span class="haken">'+HAKEN+'</span>':'<span class="punkt"></span>')+'<span class="text">'+esc(x[1])+'</span>'+weg+'</li>'}).join('');
+  // 2 Abschließen: nur die Lücken der Zeiten sperren (laufende Zeiten, Pausen)
+  var zu=d.status==='abgeschlossen',knopf=el('lohnAbschliessen');
+  el('lohnAbschlussText').textContent=zu?'Abgeschlossen bis '+tagLang(d.abgeschlossen_bis).slice(3)+'. Ändern geht nur noch für Admins.'
+    :'Danach ändern nur noch Admins Buchungen bis zum '+tagLang(d.ende).slice(3)+'. Monteure sehen ihre Zeiten weiter.';
+  knopf.hidden=zu;knopf.textContent=d.titel+' abschließen';knopf.disabled=!!d.luecken.length;
+  el('lohnFehlt').textContent=!zu&&d.luecken_text?'Fehlt: '+d.luecken_text:'';
+  el('lohnAbgelehnt').innerHTML='';
+  // 3 Ausgeben: Stundenzettel und CSV immer, DATEV erst abgeschlossen und vollständig
+  el('lohnPdf').setAttribute('href','/api/time-backoffice/timesheet.pdf?'+zeitraum(d));
+  el('lohnCsv').setAttribute('href','/api/time-backoffice/timesheet.csv?'+zeitraum(d));
+  var datev=zu&&!d.datev_fehlt.length;
+  el('lohnDatev').hidden=!datev;el('lohnDatevGesperrt').hidden=datev;
+  el('lohnDatev').setAttribute('href','/api/time-backoffice/datev-export?'+zeitraum(d));
+  el('lohnDatevFehlt').textContent=d.datev_text?'Fehlt: '+d.datev_text:'';
+  // Stunden je Mitarbeiter und Zeitart, mit Personalnummer
+  el('lohnKopf').innerHTML='<tr><th>Mitarbeiter</th><th>Personalnr.</th><th class="r">Tage</th>'+d.spalten.map(function(s){return '<th class="r">'+esc(s.label)+'</th>'}).join('')+'<th class="r">Zusammen</th></tr>';
+  el('lohnZeilen').innerHTML=d.zeilen.map(function(r){
+    var pnr=r.personalnummer?esc(r.personalnummer):r.lohnexport?'<span class="chip chip-signal">fehlt</span>':'<span class="mut">ohne Export</span>';
+    return '<tr data-mitarbeiter="'+r.employee_id+'"><td><a href="/api/time-backoffice/timesheet.pdf?'+zeitraum(d)+'&employee_id='+r.employee_id+'" title="Stundenzettel als PDF">'+esc(r.name)+'</a></td>'
+      +'<td class="num">'+pnr+'</td><td class="r num">'+esc(r.tage)+'</td>'
+      +d.spalten.map(function(s){return '<td class="r num">'+esc(zahlText(r.stunden[s.key],2))+'</td>'}).join('')
+      +'<td class="r num" style="font-weight:600">'+esc(zahlText(r.zusammen,2))+'</td></tr>'}).join('')
+    +(d.zeilen.length?'<tr><td class="summe">Zusammen</td><td class="summe"></td><td class="summe"></td>'+d.spalten.map(function(s){return '<td class="summe r num">'+esc(zahlText(d.summe.stunden[s.key],2))+'</td>'}).join('')
+      +'<td class="summe r num">'+esc(zahlText(d.summe.zusammen,2))+'</td></tr>':'');
+  el('lohnLeer').hidden=!!d.zeilen.length;el('lohnLeer').textContent='Keine gebuchten Zeiten im '+d.titel+'.';
+}
+// Abschließen ist eine abschließende Aktion (Regel 29): erst wenn jedes Speichern der Seite zurück ist; der Server prüft die Lücken
+// noch einmal -- abgelehnt (409) nennt er sie, die Seite zeigt die Liste
+function monatAbschliessen(){
+  var d=M,knopf=el('lohnAbschliessen');
+  knopf.disabled=true;el('lohnAbgelehnt').innerHTML='';
+  return abschliessen('monat',()=>api('/api/time-backoffice/lock',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({locked_until:d.ende})}),{neuLaden:alleNeuLaden})
+    .then(function(){ergebnis(d.titel+' abgeschlossen.')})
+    .catch(function(e){
+      el('lohnFehlt').textContent=e.message;
+      el('lohnAbgelehnt').innerHTML=(e.liste||[]).map(function(x){return '<li data-art="'+esc(x.art)+'"><span class="punkt"></span>'+esc(x.text)+'</li>'}).join('');
+      knopf.disabled=false;
+    });
+}
+function aufhebenOeffnen(){
+  var bis=(P&&P.monat.abgeschlossen_bis)||(M&&M.abgeschlossen_bis);
+  el('ahText').textContent=bis?'Abgeschlossen ist bis '+tagLang(bis).slice(3)+'.':'Es ist nichts abgeschlossen.';
+  // die Monatsenden vor dem jetzigen Abschluss (zwölf), dazu „nichts“
+  var optionen=[],m=bis?String(bis).slice(0,7):null;
+  for(var i=0;m&&i<12;i++){m=monatPlus(m,-1);var e=monatEnde(m);if(e<bis)optionen.push({value:e,label:tagLang(e).slice(3)})}
+  optionen.push({value:'',label:'nichts – Abschluss ganz aufheben'});
+  el('ahBis').innerHTML=auswahlOptionen(optionen,optionen[0].value||'',function(o){return o.label},{wert:function(o){return o.value}});
+  el('ahStatus').textContent='';el('ahAufheben').disabled=!bis;
+  el('aufhebenDialog').showModal();
+}
+function monatEnde(m){var p=m.split('-').map(Number);var t=new Date(Date.UTC(p[0],p[1],0)).getUTCDate();return m+'-'+pad2(t)}
+function aufheben(){
+  var knopf=el('ahAufheben'),bis=el('ahBis').value||null;
+  knopf.disabled=true;
+  return speichern('monat',()=>api('/api/time-backoffice/lock',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({locked_until:bis})}),{neuLaden:alleNeuLaden})
+    .then(function(){el('aufhebenDialog').close();ergebnis(bis?'Abschluss zurückgenommen: abgeschlossen bis '+tagLang(bis).slice(3)+'.':'Abschluss aufgehoben – nichts ist abgeschlossen.')})
+    .catch(function(e){el('ahStatus').textContent=e.message;knopf.disabled=false});
+}
+
+// --- Kolonne buchen (Von/Bis für alle angehakten, Pause und Rundung je Person; oder eine Dauer je Person) -----------------------------
+function kdModus(){return el('kdModusDauer').getAttribute('aria-pressed')==='true'?'dauer':'vonbis'}
+function kdModusSetzen(m){
+  var dauer=m==='dauer';
+  el('kdModusVonBis').setAttribute('aria-pressed',String(!dauer));el('kdModusDauer').setAttribute('aria-pressed',String(dauer));
+  el('kdVonFeld').hidden=dauer;el('kdBisFeld').hidden=dauer;el('kdPauseFeld').hidden=dauer;
+  el('kdStundenFeld').hidden=!dauer;el('kdPauseDauerFeld').hidden=!dauer;el('kdDauerHinweis').hidden=!dauer;
+  if(dauer){el('kdVon').value='';el('kdBis').value=''}
+  kdVorschauLaden();
+}
+function kdMitglieder(){
+  var t=(KONTEXT.teams||[]).find(function(x){return String(x.id)===el('kdKolonne').value})||{employees:[]};
+  el('kdMitglieder').innerHTML=t.employees.map(function(m){
+    return '<label class="mitglied"><input type="checkbox" class="kd-mitglied" value="'+m.id+'" checked>'+esc(m.name)+'</label>'}).join('')
+    ||'<span class="mut" style="font-size:14px;font-weight:400">Die Kolonne hat keine aktiven Mitglieder.</span>';
+}
+function kdMitgliederIds(){return Array.from(document.querySelectorAll('.kd-mitglied')).filter(function(x){return x.checked}).map(function(x){return x.value})}
+function kdPositionen(){
+  var o=auftragDesKontexts(el('kdAuftrag').value);
+  el('kdPosition').innerHTML=auswahlOptionen(o?o.items:[],'',function(i){return [i.oz,i.short_text].filter(Boolean).join(' · ')},{leer:'— ohne LV-Position —'});
+}
+function kolonneOeffnen(){
+  return kontextLaden().then(function(){
+    el('kdKolonne').innerHTML=auswahlOptionen(KONTEXT.teams,(KONTEXT.teams[0]||{}).id||'',function(t){return t.name},{leer:'— Kolonne wählen —'});
+    kdMitglieder();
+    el('kdDatum').value=berlinToday();
+    el('kdZeitart').innerHTML=auswahlOptionen(zeitarten(),'site',function(a){return a.label},{wert:function(a){return a.value}});
+    el('kdAuftrag').innerHTML=auswahlOptionen(KONTEXT.orders,FILTER.auftrag||'',auftragOptionText,{leer:'— Auftrag wählen —'});
+    kdPositionen();
+    el('kdTaetigkeit').innerHTML=auswahlOptionen(TAETIGKEITEN,'',function(t){return t.label},{wert:function(t){return t.value},leer:'— ohne Tätigkeit —'});
+    ['kdVon','kdBis','kdPause','kdStunden','kdPauseDauer','kdNotiz'].forEach(function(id){el(id).value='';el(id).removeAttribute('aria-invalid')});
+    el('kdWeitereFelder').hidden=true;el('kdWeitere').setAttribute('aria-expanded','false');
+    el('kdStatus').textContent='';el('kdSpeichern').disabled=false;
+    el('kdModusVonBis').setAttribute('aria-pressed','true');el('kdModusDauer').setAttribute('aria-pressed','false');
+    el('kdVonFeld').hidden=false;el('kdBisFeld').hidden=false;el('kdPauseFeld').hidden=false;
+    el('kdStundenFeld').hidden=true;el('kdPauseDauerFeld').hidden=true;el('kdDauerHinweis').hidden=true;
+    el('kolonneDialog').showModal();
+    return kdVorschauLaden();
+  }).catch(function(e){el('seitenStatus').textContent=e.message});
+}
+// „Mia Monteurin 5,50 h · Tom Monteur 5,00 h (Tag zusammen 6:15 h)“ -- je Person vom Server, wie „Nachtrag für die Kolonne“ (Meine Zeiten)
+function kdVorschauLaden(){
+  if(kdModus()==='dauer'){
+    var h=zahlVorschau('kdStunden'),n=kdMitgliederIds().length;
+    return lesen('kolonne-vorschau',()=>Promise.resolve(null),function(){
+      el('kdVorschauZeile').textContent=h!=null?'Je Person '+stunden(h)+' (netto, ohne Pausenregel) – '+n+(n===1?' Person':' Personen'):'Dauer: jede Person bekommt dieselben Stunden, ohne Pausenregel.';
+      el('kdSpeichern').textContent=h!=null&&n?'Für '+n+(n===1?' Person':' Personen')+' speichern':'Speichern'});
+  }
+  var datum=el('kdDatum').value,von=el('kdVon').value,bis=el('kdBis').value,pause,ids=kdMitgliederIds();
+  try{pause=zahlFeld('kdPause',{leer:0})}catch(err){el('kdVorschauZeile').textContent=err.message;return Promise.resolve()}
+  var url='/api/time-entry-groups/nachtrag-vorschau?work_date='+encodeURIComponent(datum)+'&von='+encodeURIComponent(von)+'&bis='+encodeURIComponent(bis)
+    +'&pause_minuten='+pause+'&team_id='+encodeURIComponent(el('kdKolonne').value)+ids.map(function(i){return '&employee_ids='+encodeURIComponent(i)}).join('');
+  return lesen('kolonne-vorschau',()=>datum&&von&&bis&&ids.length?api(url):Promise.resolve(null),function(v){
+    el('kdVorschauZeile').innerHTML=v?teileHtml(v.mitglieder.map(function(m){return m.name+' '+stunden(m.gebucht)+(m.tag_buchungen>1?' (Tag zusammen '+stundenUhr(Number(m.tag_zusammen)*60)+')':'')}).join(' · '))
+      :esc('Von und Bis eintragen – dann rechnet der Server je Person die Pause.');
+    el('kdSpeichern').textContent=v?'Für '+v.mitglieder.length+(v.mitglieder.length===1?' Person':' Personen')+' speichern':'Speichern';
+  }).catch(function(err){el('kdVorschauZeile').textContent=err.message});
+}
+function kolonneSpeichern(){
+  var st=el('kdStatus'),knopf=el('kdSpeichern'),ids=kdMitgliederIds();
+  st.textContent='';
+  if(!el('kdKolonne').value){st.textContent='Bitte Kolonne auswählen.';return}
+  if(!ids.length){st.textContent='Bitte mindestens eine Person anhaken.';return}
+  if(!el('kdAuftrag').value){st.textContent='Bitte Auftrag auswählen.';return}
+  var body={team_id:el('kdKolonne').value,employee_ids:ids,order_id:el('kdAuftrag').value,order_item_id:el('kdPosition').value||null,work_date:el('kdDatum').value,
+            entry_type:el('kdZeitart').value,activity:el('kdTaetigkeit').value||null,notes:el('kdNotiz').value.trim()||null};
+  try{
+    if(kdModus()==='dauer')Object.assign(body,{hours:zahlFeld('kdStunden',{pflicht:true}),break_minutes:zahlFeld('kdPauseDauer',{leer:0})});
+    else{
+      if(!el('kdVon').value||!el('kdBis').value){st.textContent='Bitte Von und Bis angeben.';return}
+      Object.assign(body,{von:el('kdVon').value,bis:el('kdBis').value,break_minutes:zahlFeld('kdPause',{leer:0})});
+    }
+  }catch(err){st.textContent=err.message;return}
+  knopf.disabled=true;
+  return speichern('buchungen',()=>api('/api/time-entry-groups',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{neuLaden:alleNeuLaden})
+    .then(function(r){el('kolonneDialog').close();ergebnis('Für die Kolonne gebucht: '+(r.member_entries||[]).map(function(m){return m.employee_name+' '+stunden(m.hours)}).join(' · '))})
+    .catch(function(err){st.textContent=err.message;knopf.disabled=false});
+}
+
+// nach jedem Schreiben neu, was schon geladen ist (die Zahlen an den Reitern hängen an Prüfen)
+function alleNeuLaden(){return Promise.all([pruefenLaden(),B?buchungenLaden():Promise.resolve(),A?abwesenheitenLaden():Promise.resolve(),M?monatLaden():Promise.resolve()])}
 
 // Ereignisse anmelden, Filter aus der Adresse -- erst hier (die node-Tests führen das Skript bis vor binden() aus)
 function binden(){
@@ -627,6 +991,42 @@ function binden(){
   el('bdSpeichern').addEventListener('click',buchungSpeichern);
   el('bdAbbrechen').addEventListener('click',function(){el('buchungDialog').close()});
   el('bdZu').addEventListener('click',function(){el('buchungDialog').close()});
+  document.querySelector('.zeiten-main').addEventListener('click',function(ev){
+    var a=ev.target.closest&&ev.target.closest('a[data-reiter-link]');if(!a)return;ev.preventDefault();ergebnis('');reiterZeigen(a.dataset.reiterLink);
+  });
+  el('abwStatus').addEventListener('change',function(){ZURUECK=null;abwesenheitenLaden()});
+  el('abwNeu').addEventListener('click',abwDialogOeffnen);
+  el('reiter-abwesenheiten').addEventListener('click',function(ev){
+    var b=ev.target.closest&&ev.target.closest('[data-aktion]');if(!b)return;
+    var a=b.dataset.aktion;
+    if(a==='abw-entscheiden')abwesenheitEntscheiden(b.dataset.id,b.dataset.entscheidung,b);
+    else if(a==='abw-fragen'){ZURUECK=b.dataset.id;abwesenheitenZeichnen(A)}
+    else if(a==='abw-nein'){ZURUECK=null;abwesenheitenZeichnen(A)}
+    else if(a==='abw-ja')abwesenheitZurueckziehen(b.dataset.id,b);
+  });
+  el('adSenden').addEventListener('click',abwSenden);
+  el('adAbbrechen').addEventListener('click',function(){el('abwDialog').close()});
+  el('adZu').addEventListener('click',function(){el('abwDialog').close()});
+  if(el('reiter-monat')){
+    el('lohnZurueck').addEventListener('click',function(){LOHN_MONAT=monatPlus(LOHN_MONAT,-1);ergebnis('');monatLaden()});
+    el('lohnVor').addEventListener('click',function(){LOHN_MONAT=monatPlus(LOHN_MONAT,1);ergebnis('');monatLaden()});
+    el('lohnAbschliessen').addEventListener('click',monatAbschliessen);
+  }
+  var aufh=el('abschlussAufheben');if(aufh)aufh.addEventListener('click',aufhebenOeffnen);
+  el('ahAufheben').addEventListener('click',aufheben);
+  el('ahAbbrechen').addEventListener('click',function(){el('aufhebenDialog').close()});
+  el('ahZu').addEventListener('click',function(){el('aufhebenDialog').close()});
+  var kol=el('kolonneBuchen');if(kol)kol.addEventListener('click',kolonneOeffnen);
+  el('kdKolonne').addEventListener('change',function(){kdMitglieder();kdVorschauLaden()});
+  el('kdMitglieder').addEventListener('change',kdVorschauLaden);
+  el('kdAuftrag').addEventListener('change',kdPositionen);
+  el('kdModusVonBis').addEventListener('click',function(){kdModusSetzen('vonbis')});
+  el('kdModusDauer').addEventListener('click',function(){kdModusSetzen('dauer')});
+  ['kdDatum','kdVon','kdBis','kdPause','kdStunden'].forEach(function(id){el(id).addEventListener('input',kdVorschauLaden);el(id).addEventListener('change',kdVorschauLaden)});
+  el('kdWeitere').addEventListener('click',function(){var f=el('kdWeitereFelder');f.hidden=!f.hidden;el('kdWeitere').setAttribute('aria-expanded',String(!f.hidden))});
+  el('kdSpeichern').addEventListener('click',kolonneSpeichern);
+  el('kdAbbrechen').addEventListener('click',function(){el('kolonneDialog').close()});
+  el('kdZu').addEventListener('click',function(){el('kolonneDialog').close()});
   el('ldLoeschen').addEventListener('click',loeschen);
   el('ldAbbrechen').addEventListener('click',function(){el('loeschDialog').close()});
   el('ldZu').addEventListener('click',function(){el('loeschDialog').close()});

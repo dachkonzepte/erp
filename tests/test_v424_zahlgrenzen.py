@@ -193,6 +193,11 @@ ABGLEICH = [
     Z("zeiten.html", "id=bdStunden", ("TimeEntryManualCreate.hours", "TimeEntryUpdate.hours"), lesen=("zahlFeld('bdStunden')",),
       code={"pflicht": True}, beleg=("app/schemas.py", "Bitte die Dauer oder Von und Bis angeben.")),
     Z("zeiten.html", "id=bdPauseDauer", ("TimeEntryManualCreate.break_minutes", "TimeEntryUpdate.break_minutes")),
+    # seit 1.9.97 „Kolonne buchen“: Pause mindestens (Von–Bis), Stunden je Person und Pause (Dauer)
+    Z("zeiten.html", "id=kdPause", ("TimeGroupManualCreate.break_minutes",)),
+    Z("zeiten.html", "id=kdStunden", ("TimeGroupManualCreate.hours",), lesen=("zahlFeld('kdStunden')",),
+      code={"pflicht": True}, beleg=("app/schemas.py", "Bitte die Dauer oder Von und Bis angeben.")),
+    Z("zeiten.html", "id=kdPauseDauer", ("TimeGroupManualCreate.break_minutes",)),
     # -- Arbeitsvorbereitung
     Z("work_preparation.html", "id=mqty-${x.id}", ("WorkPreparationMaterialUpdateV082.planned_quantity",)),
 ]

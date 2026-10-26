@@ -6052,3 +6052,58 @@ Angepasste Erwartungen:
 
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): „+ Buchung“ für Büro – Auftrag; „Dauer“ leert Von/Bis nicht; „⋮“ ohne Recht;
 „Ende um“ ohne Recht; Zeitart-Farbe ohne Token -> je 1 Test und 1 Prüfung von `klicktest_zeiten` rot.
+
+### R5b, Punkte 5, 6 und 3 (1.9.97): Abwesenheiten, Monat & Lohn, Kolonne buchen
+
+- Server: `GET /api/zeiten/abwesenheiten?status=` (ab Büro – Auftrag) -- Sichtbarkeit wie `GET /api/absence-requests` (Admin alle, sonst die
+  eigenen, ohne Mitarbeiter keine), je Antrag Arbeitstage, `darf_entscheiden`, `darf_zurueckziehen`; dazu Hinweis, `darf_beantragen`,
+  `fuer_andere`, Mitarbeiter (nur Admin), Arten (`absence_types`), offen. `app/routers/absence_requests.py::_antrag_fuer()`: ein Antrag für eine
+  andere Person nur vom Admin (403 „Du darfst nur eigene Abwesenheiten beantragen.“), ohne Mitarbeiter 403 -- bis 1.9.96 über
+  `_time_entry_employee_for_request()`, die seit 1.9.89 Büro – Finanzen für andere buchen lässt.
+- Abwesenheiten: Filter Status (Offen, Alle, Genehmigt, Abgelehnt, Zurückgezogen), Zeile Name · Kategorie (Art), Zeitraum · Arbeitstage ·
+  beantragt am, Notiz, Freigabe-Notiz, Status als Kennzeichen; Admin: Notiz, Ablehnen, Genehmigen; der eigene offene: Zurückziehen mit Rückfrage
+  in der Zeile; Dialog „Abwesenheit beantragen“ (Mitarbeiter nur für den Admin, Kategorie, Art, Von, Bis, Notiz).
+- Monat & Lohn (`{% if lohndaten %}` -- Reiter und Inhalt fehlen sonst, `GET /api/zeiten/monat` 403): Filterleiste mit Status und „Abgeschlossen
+  bis“, Schritte 1–3 wie die Vorlage, Tabelle mit den Spalten vom Server (Name -> Stundenzettel dieser Person als PDF). Abschließen über
+  `abschliessen()` (`ABSCHLIESSEND` in `tests/test_v399_abschliessen.py`), die Ablehnung (409) zeigt `liste` unter dem Knopf.
+- Kopf „⋮“: „Kolonne buchen“ (nur wer bucht) -- Kolonne, alle aktiven Mitglieder angehakt, Datum, Zeitart, Auftrag, Von–Bis mit Vorschau je Person
+  (`GET /api/time-entry-groups/nachtrag-vorschau`) oder Dauer je Person, LV-Position, Tätigkeit, Pause mindestens, Notiz; „Abschluss aufheben“
+  (nur Admin) -- Dialog mit dem Stand und „Abgeschlossen bleibt bis“ (die zwölf Monatsenden davor oder „nichts“), `PUT /api/time-backoffice/lock`.
+- Prüfen: „Zu „Monat & Lohn““ unter „Vor dem Abschluss“ (nur mit den Lohndaten); die Zahl am Reiter „Abwesenheiten“.
+
+#### Festlegungen 1.9.97 (Bitte bestätigen)
+
+1. „Abwesenheiten“ zeigt zuerst die offenen Anträge; „Alle“ und die übrigen Status über die Auswahl „Status“.
+2. Entscheiden (mit optionaler Notiz in der Zeile) nur der Admin, wie bisher; das Büro sieht nur die eigenen Anträge, wie bisher.
+3. Einen Antrag für eine andere Person stellt nur der Admin; das Büro für sich (mit Mitarbeiter), ohne Mitarbeiter kein „beantragen“.
+4. Zurückziehen mit Rückfrage in der Zeile (wie „Meine Zeiten“), nur der eigene offene Antrag -- auch der Admin zieht die Anträge anderer
+   nicht zurück, er entscheidet sie (der Server erlaubt ihm das Zurückziehen weiter, die Seite bietet es nicht an).
+5. „Monat & Lohn“ öffnet den ersten noch offenen Monat (wie „Prüfen“ rechts).
+6. Abgeschlossen wird monatsweise bis zum Monatsende („Oktober 2026 abschließen“); ein Abschluss mitten im Monat geht nicht mehr über die Seite.
+7. „Abschluss aufheben“ (Admin, „⋮“) setzt „Abgeschlossen bis“ auf ein früheres Monatsende -- vorgeschlagen das vor dem jetzigen, wählbar die
+   zwölf davor -- oder hebt ihn ganz auf; Rückfrage im Dialog.
+8. Die Wege im Schritt „Prüfen“: „Prüfen“ (Reiter Prüfen), „Personal“ und „Zeitregeln“ (Einstellungen → Zeitregeln und DATEV, dort Personalnummern,
+   Lohnarten, DATEV-Nummern), „Abwesenheiten“ (Reiter).
+9. Personalnr.: „fehlt“, wenn der Lohnexport an ist und keine Nummer gilt; „ohne Export“ ohne Lohnexport.
+10. Ein Name in „Stunden je Mitarbeiter“ öffnet den Stundenzettel dieser Person für den Monat als PDF.
+11. „Kolonne buchen“ hakt alle aktiven Mitglieder an; Von–Bis mit Vorschau je Person (Pause und Rundung nach ihrem Tag), „Dauer“ gibt jeder Person
+    dieselben Stunden (netto); der Knopf heißt „Für n Personen speichern“.
+12. „Abschließen“ ist eine abschließende Aktion (wartet auf jedes Speichern der Seite) -- im Backoffice lief es bis 1.9.96 über `speichern()`.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v519_zeiten_abwesenheiten_monat.py`: Abwesenheiten je Konto (Admin alle und entscheidet, Büro nur die eigenen, ohne Mitarbeiter
+Hinweis), Status und Rechte, Antrag für andere nur der Admin (Angriff Büro – Finanzen 403); Reiter und Menü je Rolle; „Monat & Lohn“ in node:
+„Fehlt“ nur die Lücken, DATEV getrennt, Abschließen gesperrt bzw. frei, DATEV erst abgeschlossen und vollständig, Tabelle mit Personalnummer,
+Abschließen über `abschliessen()` mit Liste; Anträge mit Knöpfen nach dem Server. `scripts/klicktest_zeiten.py` um Kolonne, Abwesenheiten, Monat
+& Lohn und „Abschluss aufheben“ erweitert (87 Prüfungen).
+
+Angepasste Erwartungen: keine geänderte -- `test_v399` `ABSCHLIESSEND` um „Monat der Zeiterfassung abschließen“ ergänzt, `test_v424` `ABGLEICH` um die
+drei Zahlenfelder von „Kolonne buchen“ ergänzt (im ersten Lauf rot, wie vorgesehen); `test_v517::test_monat_tabelle_eine_rechnung_mit_dem_datev_export`:
+nur der Aufbau -- `datev_target` „lohn_gehalt“ statt des ungültigen „lohn_und_gehalt“ (der Export las ihn als „nicht LODAS“, das Ergebnis bleibt).
+Im ersten Lauf rot und an der Seite behoben: `test_v407` (die Klasse des Status, der Weg im Schritt „Prüfen“ als fertiges HTML aus einer Variablen --
+jetzt fest in der Seite, Text in `esc()`).
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): Antrag für andere erlaubt -> 1 Test; Reiter „Monat & Lohn“ für Büro – Auftrag ->
+1 Test und 1 Prüfung von `klicktest_zeiten`; „Fehlt“ mit DATEV -> 1 Test und 1 Prüfung; DATEV-Link vor dem Abschluss -> 2 Tests und 2 Prüfungen;
+Abschließen über `speichern()` -> 2 Tests; Entscheiden ohne Admin -> 1 Test.

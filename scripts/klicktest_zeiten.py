@@ -19,6 +19,15 @@ dem abgeschlossenen Auftrag; Toms Antrag Urlaub 02.–06.11. offen.
                             für Mia 07:00–11:00 -> 4,00 h; Löschen mit Rückfrage auf der Seite (kein confirm())
     Büro – Auftrag          Prüfen und Buchungen ohne Knöpfe (kein „Ende um“, kein „So buchen“, kein „⋮“, kein „+ Buchung“) -- Bild
     dunkel                  Prüfen und Buchungen; Farbpunkte der Zeitarten aus den Tokens (hell und dunkel verschieden) -- Bilder
+    Kolonne (seit 1.9.97)   Büro – Finanzen über „⋮ Kolonne buchen“: Kolonne 1 mit Mia und Tom, 07:00–12:00 -> Vorschau je Person, „Für 2
+                            Personen speichern“, beide Buchungen in der Liste
+    Abwesenheiten           Admin genehmigt Toms Antrag mit Notiz (Zahl am Reiter weg); Büro – Auftrag beantragt für sich (ohne Feld
+                            Mitarbeiter), zieht mit Rückfrage zurück, kein Reiter „Monat & Lohn“ (API 403); Büro – Finanzen ohne Mitarbeiter:
+                            Hinweis, kein „beantragen“
+    Monat & Lohn            Büro – Finanzen: Lücke (Oles laufende Zeit) -> „Abschließen“ gesperrt, „Fehlt: 1 laufende Zeit“, was DATEV fehlt
+                            getrennt bei „DATEV-Export“, DATEV gesperrt -- Bild; Ole geschlossen -> „Abschließen“ frei; eine neue Lücke nach dem
+                            Laden -> abgelehnt (409), die Liste auf der Seite; ohne Lücke abgeschlossen; DATEV erst mit Lohnart und
+                            Personalnummer -> Datei; Admin hebt den Abschluss über „⋮“ auf (zurück auf 30.09.2026)
     412 px                  ohne waagrechte Scrollleiste der Seite
 
 Die Bilder (zeiten_*.png) liegen im Ordner der Screenshots.
@@ -43,7 +52,8 @@ def befuellen(db, k):
     from datetime import date, datetime, time
     from decimal import Decimal
 
-    from app.models import (AppUser, Customer, Employee, EmployeeAbsenceRequest, Order, OrderItem, Project, Property, TimeTrackingSettings)
+    from app.models import (AppUser, Customer, Employee, EmployeeAbsenceRequest, EmployeePayrollSettings, Order, OrderItem, Project, Property, Team,
+                            TeamEmployee, TimeTrackingSettings)
     from app.project_pipeline_columns import default_pipeline_column_id
     from app.time_tracking import create_manual_entry, delete_entry, start_timer, stop_timer
 
@@ -73,7 +83,18 @@ def befuellen(db, k):
         db.add(OrderItem(order_id=o.id, sort_order=10, position_number="1", short_text="Dacharbeiten", quantity=Decimal("1"), unit="psch",
                          unit_price=Decimal("1")))
         auftraege[titel] = o
-    db.get(TimeTrackingSettings, 1).locked_until = date(2026, 9, 30)
+    einstellungen = db.get(TimeTrackingSettings, 1)
+    einstellungen.locked_until = date(2026, 9, 30)
+    # DATEV: Lohnart für Baustelle und Fahrzeit, nicht für Werkstatt; Personalnummern für Mia und Tom, nicht für Ole; Berater und Mandant
+    einstellungen.datev_target = "lohn_gehalt"
+    einstellungen.datev_wage_type_site, einstellungen.datev_wage_type_travel = "100", "200"
+    einstellungen.datev_beraternummer, einstellungen.datev_mandantennummer = "12345", "678"
+    for wer, nummer in (("mia", "1001"), ("tom", "1002"), ("ole", None)):
+        db.add(EmployeePayrollSettings(employee_id=leute[wer].id, datev_personnel_number=nummer, payroll_export_enabled=True))
+    kolonne = Team(name="Kolonne 1", team_number="K-1", active=True)
+    db.add(kolonne); db.flush()
+    db.add_all([TeamEmployee(team_id=kolonne.id, employee_id=leute["mia"].id, is_crew_leader=True),
+                TeamEmployee(team_id=kolonne.id, employee_id=leute["tom"].id)])
     db.commit()
 
     def zeit(wer, tag, von, bis, auftrag, art="site"):
@@ -100,7 +121,8 @@ def befuellen(db, k):
     db.commit()
     return {"uhr_ms": k.uhr_ms(), "admin": k.cookies(admin), "fin": k.cookies(fin), "bea": k.cookies(bea), "tom": tom.id, "ole": ole.id,
             "pause_tag": pause_tag.id, "attika": attika.id, "dauer": dauer.id, "mia": leute["mia"].id, "tom_ma": leute["tom"].id,
-            "halle_nord": auftraege["Halle Nord"].id, "attika_auftrag": auftraege["Attika"].id}
+            "halle_nord": auftraege["Halle Nord"].id, "attika_auftrag": auftraege["Attika"].id, "ole_ma": leute["ole"].id,
+            "kolonne": kolonne.id}
 
 
 BEREIT = "!!window.P&&document.getElementById('monatTitel').textContent!==''"
@@ -284,6 +306,23 @@ async def pruefen(tab, seed, p):
              "Mia Monteurin · Baustellenzeit · Do 15.10. · 6,00 h")
     await tab.warte_auf_neu_geladene_liste("document.getElementById('ldLoeschen').click()", "#buchungenZeilen")
     p.pruefe("Fin: gelöscht", await tab.js(f"!document.querySelector('tr[data-buchung=\"{seed['dauer']}\"]')"), True)
+    # ---- Büro – Finanzen: Kolonne buchen (seit 1.9.97) ----------------------------------------------------------------------------
+    await tab.js("document.getElementById('seitenkopfMenueKnopf').click()")
+    await tab.js("document.getElementById('kolonneBuchen').click()")
+    p.pruefe("Fin: Kolonne buchen -- Dialog mit Kolonne 1, Mia und Tom angehakt", await tab.warten(
+        "document.getElementById('kolonneDialog').open&&document.querySelectorAll('.kd-mitglied:checked').length===2", 10), True)
+    await tab.js(f"document.getElementById('kdAuftrag').value='{seed['halle_nord']}'")
+    await _eingeben(tab, "kdDatum", "2026-10-23")
+    await _eingeben(tab, "kdVon", "07:00")
+    await _eingeben(tab, "kdBis", "12:00")
+    p.pruefe("Fin: Kolonne -- Vorschau je Person und Knopf", await tab.warten(
+        "document.getElementById('kdSpeichern').innerText==='Für 2 Personen speichern'", 10), True)
+    p.pruefe("Fin: Kolonne -- Vorschau", await tab.js("document.getElementById('kdVorschauZeile').innerText"),
+             "Mia Monteurin 5,00 h · Tom Monteur 5,00 h")
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('kdSpeichern').click()", "#buchungenZeilen")
+    p.pruefe("Fin: Kolonne gebucht -- beide in der Liste", await tab.js(_zeilen() + ".filter(z=>z[0]==='Fr 23.10.')"), [
+        ["Fr 23.10.", "Tom Monteur", "07:00–12:00", "Baustellenzeit", "AUF-2026-0001 · Halle Nord", "0:00", "5,00"],
+        ["Fr 23.10.", "Mia Monteurin", "07:00–12:00", "Baustellenzeit", "AUF-2026-0001 · Halle Nord", "0:00", "5,00"]])
     p.pruefe("Fin: keine JS-Fehler (auch kein alert/confirm)", tab.fehler, [])
 
     # ---- Büro – Auftrag: ohne Knöpfe ---------------------------------------------------------------------------------------------------
@@ -314,6 +353,121 @@ async def pruefen(tab, seed, p):
     await tab.bild("zeiten_buchungen_dunkel")
     p.pruefe("Farbpunkte aus den Tokens (hell, dunkel)", [hell, dunkel], [
         ["rgb(54, 115, 55)", "rgb(61, 106, 140)", "rgb(122, 90, 52)"], ["rgb(61, 130, 62)", "rgb(91, 141, 184)", "rgb(168, 128, 79)"]])
+    p.pruefe("Admin: keine JS-Fehler", tab.fehler, [])
+
+    # ---- Abwesenheiten (seit 1.9.97) ---------------------------------------------------------------------------------------------------
+    p.pruefe("Admin: Seite geladen", await _seite(tab, seed, "admin", hash="#abwesenheiten"), True)
+    p.pruefe("Admin: Abwesenheiten -- Toms Antrag, Zahl am Reiter", await tab.warten(
+        "!!window.A&&document.querySelectorAll('#abwListe .zeile').length===1", 10), True)
+    p.pruefe("Admin: Antrag mit Notiz, Ablehnen, Genehmigen; Zahl 1", await tab.js(
+        "[document.querySelector('#abwListe .zeile-name').innerText,!!document.querySelector('#abwListe input.antrag-notiz'),"
+        "[...document.querySelectorAll('#abwListe button')].map(b=>b.innerText),document.getElementById('zahlAbwesenheiten').innerText]"),
+        ["Tom Monteur · Urlaub", True, ["Ablehnen", "Genehmigen"], "1"])
+    await tab.bild("zeiten_abwesenheiten_hell")
+    await tab.js("document.querySelector('#abwListe input.antrag-notiz').value='passt'")
+    await tab.warte_auf_neu_geladene_liste("document.querySelector('#abwListe [data-entscheidung=approved]').click()", "#abwListe")
+    await tab.warte_auf_neu_geladene_liste("(()=>{const s=document.getElementById('abwStatus');s.value='';s.dispatchEvent(new Event('change'))})()",
+                                          "#abwListe")
+    p.pruefe("Admin: genehmigt mit Notiz, Zahl am Reiter weg", await tab.js(
+        "[document.querySelector('#abwListe .chip').innerText,document.querySelector('#abwListe').innerText.includes('Freigabe: passt'),"
+        "document.getElementById('zahlAbwesenheiten').hidden]"), ["genehmigt", True, True])
+
+    p.pruefe("Bea: Seite geladen", await _seite(tab, seed, "bea", hash="#abwesenheiten"), True)
+    await tab.warten("!!window.A", 10)
+    p.pruefe("Bea: Hinweis nur eigene, beantragen, kein Reiter Monat & Lohn, API 403", [
+        await tab.js("document.getElementById('abwHinweis').innerText"), await tab.js("document.getElementById('abwNeu').hidden"),
+        await tab.js("!!document.querySelector('[data-reiter=monat]')"), await tab.js("fetch('/api/zeiten/monat').then(r=>r.status)")],
+        ["Hier stehen nur deine eigenen Anträge – die Anträge anderer sieht und entscheidet ein Administrator.", False, False, 403])
+    await tab.js("document.getElementById('abwNeu').click()")
+    await tab.warten("document.getElementById('abwDialog').open", 5)
+    p.pruefe("Bea: Dialog ohne Feld Mitarbeiter", await tab.js("document.getElementById('adMitarbeiterFeld').hidden"), True)
+    await _eingeben(tab, "adVon", "2026-11-09")
+    await _eingeben(tab, "adBis", "2026-11-10")
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('adSenden').click()", "#abwListe")
+    p.pruefe("Bea: Antrag gestellt -- offen, mit „Zurückziehen“", await tab.js(
+        "[...document.querySelectorAll('#abwListe .zeile')].map(z=>[z.querySelector('.zeile-name').innerText,z.querySelector('.chip').innerText,"
+        "[...z.querySelectorAll('button')].map(b=>b.innerText)])"), [["Bea Büro · Urlaub", "offen", ["Zurückziehen"]]])
+    await tab.js("document.querySelector('#abwListe [data-aktion=abw-fragen]').click()")
+    p.pruefe("Bea: Rückfrage in der Zeile", await tab.js("document.querySelector('#abwListe .rueckfrage').innerText"), "Antrag zurückziehen?")
+    await tab.warte_auf_neu_geladene_liste("document.querySelector('#abwListe [data-aktion=abw-ja]').click()", "#abwListe")
+    p.pruefe("Bea: zurückgezogen -- keine offenen mehr", await tab.js("document.querySelectorAll('#abwListe .zeile').length"), 0)
+    p.pruefe("Bea: keine JS-Fehler", tab.fehler, [])
+
+    p.pruefe("Fin: Abwesenheiten ohne Mitarbeiter", await _seite(tab, seed, "fin", hash="#abwesenheiten"), True)
+    await tab.warten("!!window.A", 10)
+    p.pruefe("Fin: Hinweis und kein „beantragen“", await tab.js(
+        "[document.getElementById('abwHinweis').innerText,document.getElementById('abwNeu').hidden]"),
+        ["Dein Konto ist keinem Mitarbeiter zugeordnet. Ein Administrator kann das unter Einstellungen → Benutzer und Zugriff ändern.", True])
+
+    # ---- Monat & Lohn (seit 1.9.97) -------------------------------------------------------------------------------------------------
+    p.pruefe("Fin: Monat & Lohn geladen", await _seite(tab, seed, "fin", hash="#monat"), True)
+    p.pruefe("Fin: Oktober 2026", await tab.warten("!!window.M&&document.getElementById('lohnMonat').innerText==='Oktober 2026'", 10), True)
+    p.pruefe("Fin: Lücke -- Abschließen gesperrt, Fehlt nur die Zeiten, DATEV getrennt und gesperrt", await tab.js(
+        "[document.getElementById('lohnAbschliessen').disabled,document.getElementById('lohnFehlt').innerText,"
+        "document.getElementById('lohnDatevFehlt').innerText,document.getElementById('lohnDatev').hidden,"
+        "document.getElementById('lohnDatevGesperrt').disabled]"), [True, "Fehlt: 1 laufende Zeit", "Fehlt: 1 Lohnart", True, True])
+    p.pruefe("Fin: Schritt Prüfen", await tab.js("[...document.querySelectorAll('#lohnPruefen li')].map(l=>l.innerText.replace(/\s+/g,' ').trim())"),
+             ["1 Zeit läuft noch Prüfen", "Lohnart fehlt: Werkstattzeit Zeitregeln", "Anträge entschieden"])
+    p.pruefe("Fin: Tabelle mit Personalnummer", await tab.js(
+        "[...document.querySelectorAll('#lohnZeilen tr')].map(tr=>[...tr.cells].map(c=>c.innerText.trim()).join(' | '))"),
+        ["Mia Monteurin | 1001 | 4 | 18,25 | 0,00 | 3,50 | 0,00 | 21,75", "Tom Monteur | 1002 | 4 | 29,75 | 0,75 | 0,00 | 0,00 | 30,50",
+         "Zusammen |  |  | 48,00 | 0,75 | 3,50 | 0,00 | 52,25"])
+    await tab.bild("zeiten_monat_hell")
+    await tab.js("document.querySelector('#lohnPruefen a[data-reiter-link=pruefen]').click()")
+    await tab.warten(f"!document.getElementById('reiter-pruefen').hidden&&!!document.getElementById('ende-{seed['ole']}')", 10)
+    await _eingeben(tab, f"ende-{seed['ole']}", "18:00")
+    await tab.warten(f"!document.querySelector('[data-aktion=ende][data-id=\"{seed['ole']}\"]').disabled", 10)
+    await tab.js(f"document.querySelector('[data-aktion=ende][data-id=\"{seed['ole']}\"]').click()")
+    await tab.warten(f"!document.querySelector('[data-offen=\"{seed['ole']}\"]')", 10)
+    await tab.js("document.querySelector('.reiter a[data-reiter=monat]').click()")
+    p.pruefe("Fin: ohne Lücke -- Abschließen frei, DATEV nennt jetzt auch die Personalnummer", await tab.warten(
+        "!document.getElementById('lohnAbschliessen').disabled&&document.getElementById('lohnDatevFehlt').innerText==='Fehlt: 1 Personalnummer, 1 Lohnart'", 10),
+        True)
+    # eine neue Lücke nach dem Laden: Mias Zeit läuft seit heute 08:00 -- der Server lehnt den Abschluss ab, die Seite zeigt die Liste
+    neu = await tab.js(f"fetch('/api/time-entries/start',{{method:'POST',headers:{{'Content-Type':'application/json'}},"
+                       f"body:JSON.stringify({{employee_id:{seed['mia']},order_id:{seed['halle_nord']},started_at:'2026-10-26T08:00'}})}})"
+                       ".then(r=>r.json()).then(d=>d.id)")
+    await tab.js("document.getElementById('lohnAbschliessen').click()")
+    p.pruefe("Fin: abgelehnt -- die Liste auf der Seite", await tab.warten("document.querySelectorAll('#lohnAbgelehnt li').length===1", 10), True)
+    p.pruefe("Fin: Liste und Meldung", await tab.js(
+        "[document.querySelector('#lohnAbgelehnt li').innerText,document.getElementById('lohnFehlt').innerText.startsWith('Abschließen geht noch nicht: 1 Zeit läuft noch')]"),
+        ["Mia Monteurin: Zeit läuft seit 26.10.2026, 08:00", True])
+    p.pruefe("Fin: Mias Zeit gestoppt (09:00)", await tab.js(
+        f"fetch('/api/time-entries/{neu}/stop',{{method:'POST',headers:{{'Content-Type':'application/json'}},"
+        "body:JSON.stringify({ended_at:'2026-10-26T09:00'})}).then(r=>r.status)"), 200)
+    await tab.js("monatLaden()")
+    p.pruefe("Fin: wieder ohne Lücke -- Abschließen frei", await tab.js("document.getElementById('lohnAbschliessen').disabled"), False)
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('lohnAbschliessen').click()", "#lohnZeilen")
+    p.pruefe("Fin: abgeschlossen -- Status, kein Knopf, DATEV noch gesperrt (Lohnart, Personalnummer)", await tab.js(
+        "[document.getElementById('lohnStatus').innerText,document.getElementById('lohnAbschliessen').hidden,document.getElementById('lohnDatev').hidden,"
+        "document.getElementById('ergebnis').innerText]"), ["abgeschlossen", True, True, "Oktober 2026 abgeschlossen."])
+    # Lohnart Werkstatt und Oles Personalnummer nachtragen (die Zeitregeln speichert der PUT als Ganzes: erst lesen, dann ergänzen)
+    p.pruefe("Fin: Lohnart Werkstatt und Oles Personalnummer gespeichert", [
+        await tab.js("fetch('/api/time-backoffice/settings').then(r=>r.json()).then(s=>fetch('/api/time-backoffice/settings',{method:'PUT',"
+                     "headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign(s,{datev_wage_type_workshop:'300'}))}))"
+                     ".then(r=>r.status)"),
+        await tab.js(f"fetch('/api/time-backoffice/payroll-employees/{seed['ole_ma']}',{{method:'PUT',headers:{{'Content-Type':'application/json'}},"
+                     f"body:JSON.stringify({{datev_personnel_number:'1003',payroll_export_enabled:true}})}}).then(r=>r.status)")], [200, 200])
+    await tab.js("monatLaden()")
+    p.pruefe("Fin: vollständig -- DATEV-Export als Link", await tab.js(
+        "[document.getElementById('lohnDatev').hidden,document.getElementById('lohnDatevFehlt').innerText]"), [False, ""])
+    # r.text() liest ohne das BOM am Anfang der Datei
+    datei = await tab.js("fetch(document.getElementById('lohnDatev').href).then(r=>r.text().then(t=>[r.status,r.headers.get('content-disposition'),t.split(String.fromCharCode(13,10))[0]]))")
+    p.pruefe("Fin: DATEV-Datei", datei, [200, 'attachment; filename="DATEV_Lohndaten_2026-10.csv"', "Personalnummer;Name;Kalendertag;Stundenanzahl;Lohnart;Zeitart"])
+    p.pruefe("Fin: keine JS-Fehler", tab.fehler, [])
+
+    p.pruefe("Admin: Seite für „Abschluss aufheben“", await _seite(tab, seed, "admin"), True)
+    await tab.js("document.getElementById('seitenkopfMenueKnopf').click()")
+    await tab.js("document.getElementById('abschlussAufheben').click()")
+    p.pruefe("Admin: Dialog -- Stand und Vorschlag", await tab.warten("document.getElementById('aufhebenDialog').open", 5), True)
+    p.pruefe("Admin: Dialog -- Text und gewählt", await tab.js(
+        "[document.getElementById('ahText').innerText,document.getElementById('ahBis').value,"
+        "[...document.getElementById('ahBis').options].slice(-1)[0].text]"), ["Abgeschlossen ist bis 31.10.2026.", "2026-09-30",
+                                                                             "nichts – Abschluss ganz aufheben"])
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('ahAufheben').click()", "#monatZeilen")
+    p.pruefe("Admin: zurück auf 30.09.2026 -- Oktober offen", await tab.js(
+        "[document.getElementById('ergebnis').innerText,document.getElementById('monatTitel').innerText,document.getElementById('monatStatus').innerText]"),
+        ["Abschluss zurückgenommen: abgeschlossen bis 30.09.2026.", "Oktober 2026", "offen"])
     p.pruefe("Admin: keine JS-Fehler", tab.fehler, [])
 
     # ---- 412 px ------------------------------------------------------------------------------------------------------------------------

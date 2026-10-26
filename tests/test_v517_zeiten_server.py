@@ -284,7 +284,7 @@ def test_monat_tabelle_eine_rechnung_mit_dem_datev_export(welt):  # noqa: F811
     Stunden; eine Personalnummer, die fehlt, ist leer (die Seite zeigt „fehlt“)."""
     db, tag = welt["db"], welt["gestern"]
     s = db.get(TimeTrackingSettings, 1)
-    s.datev_target = "lohn_und_gehalt"
+    s.datev_target = "lohn_gehalt"
     s.datev_wage_type_site, s.datev_wage_type_travel, s.datev_wage_type_workshop = "100", "200", "300"
     s.datev_beraternummer, s.datev_mandantennummer = "1234", "56"
     db.add_all([EmployeePayrollSettings(employee_id=welt["mia"].id, datev_personnel_number="1001", payroll_export_enabled=True),

@@ -342,6 +342,7 @@ def test_the_email_dispatch_names_why_it_did_not_send(fall, erwartet):
 # Versand und Zustellung, Abnahme und Mangel (unveränderlich nach dem Speichern), Buchung, Storno, Verwerfen mit Begründung,
 # Beauftragen und Abgleich mit dem Angebot (übernehmen den Stand der Seite).
 ABSCHLIESSEND = {
+    ("zeiten.html", "monatAbschliessen"): "Monat der Zeiterfassung abschließen",  # seit 1.9.97 (Seite „Zeiten“, Monat & Lohn)
     ("_abnahme.html", "saveAcceptance"): "Abnahme erfassen",
     ("_abnahme.html", "runProtocolAcceptance"): "Abnahme aus dem Protokoll anlegen",
     ("_abnahme.html", "discardAcceptance"): "Abnahme verwerfen",

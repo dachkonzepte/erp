@@ -17,9 +17,23 @@ from ..models import AppUser, EmployeeAbsenceRequest
 from ..permissions import ROLE_FIELD, require_min_role
 from ..schemas import EmployeeAbsenceRequestCreate, EmployeeAbsenceRequestOut, EmployeeAbsenceRequestReview
 
-from .time_tracking import _time_entry_employee_for_request
-
 router = APIRouter()
+
+NUR_EIGENE_ABWESENHEIT = "Du darfst nur eigene Abwesenheiten beantragen."
+
+
+def _antrag_fuer(request: Request, employee_id: int) -> int:
+    """Seit 1.9.97 (Stufe 4, R5b, Punkt 5): für wen ein Antrag gestellt wird -- der Admin für jeden, sonst nur für sich (ohne Mitarbeiter
+    403). Bis 1.9.96 dieselbe Regel wie das Buchen von Zeiten (_time_entry_employee_for_request()): seit 1.9.89 stellte damit auch Büro –
+    Finanzen Anträge für andere, die es danach nicht sehen konnte (die Liste zeigt dem Büro nur die eigenen)."""
+    user = getattr(request.state, "erp_user", None)
+    if user is None or user.role == "admin":
+        return employee_id
+    if user.employee_id is None:
+        raise HTTPException(status_code=403, detail=KEIN_MITARBEITER)
+    if employee_id != user.employee_id:
+        raise HTTPException(status_code=403, detail=NUR_EIGENE_ABWESENHEIT)
+    return user.employee_id
 
 # Seit "Rechtekonzept" (siehe CLAUDE.md): Abwesenheitsanträge selbst (ansehen/stellen/
 # zurückziehen) sind Selbstbedienung für JEDE Rolle -- jeder Mitarbeiter, auch ein Monteur,
@@ -43,7 +57,7 @@ def get_absence_requests(request: Request, employee_id: int | None = None, statu
 
 @router.post("/api/absence-requests", response_model=EmployeeAbsenceRequestOut)
 def post_absence_request(payload: EmployeeAbsenceRequestCreate, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
-    employee_id=_time_entry_employee_for_request(request,payload.employee_id,db)
+    employee_id=_antrag_fuer(request,payload.employee_id)
     user=getattr(request.state,"erp_user",None)
     try:
         row=create_absence_request_row(db,employee_id=employee_id,absence_type=payload.absence_type,absence_category=payload.absence_category,start_date=payload.start_date,end_date=payload.end_date,notes=payload.notes,requested_by_user_id=getattr(user,"id",None))

@@ -4,6 +4,19 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.97 – „Zeiten“: Abwesenheiten, Monat & Lohn, Kolonne buchen (Stufe 4, R5b)
+
+Die Seite „Zeiten“ bekommt die übrigen Reiter. „Abwesenheiten“ wie bisher im neuen Rahmen: Anträge nach Status (offen zuerst), der Admin
+entscheidet mit optionaler Notiz, der eigene offene Antrag lässt sich mit Rückfrage in der Zeile zurückziehen, „Abwesenheit beantragen“ (der Admin
+für jeden, sonst für sich); die Daten kommen aus `GET /api/zeiten/abwesenheiten` mit den Arbeitstagen. Einen Antrag für eine andere Person stellt
+jetzt nur noch der Admin (`POST /api/absence-requests`, 403) -- seit 1.9.89 durfte das auch Büro – Finanzen, ohne den Antrag danach zu sehen.
+„Monat & Lohn“ (nur Admin und Büro – Finanzen) nach der Vorlage: Monat ‹ ›, Status und „Abgeschlossen bis“, drei Schritte -- Prüfen (Lücken der
+Zeiten, was DATEV fehlt, offene Anträge, je mit Weg), Abschließen (gesperrt, solange Zeiten laufen oder Pausen nicht passen; „Fehlt: …“ nennt nur
+diese; lehnt der Server ab, steht seine Liste auf der Seite), Ausgeben (Stundenzettel aller als PDF, Stundendaten als CSV, DATEV-Export erst
+abgeschlossen und vollständig, was fehlt steht dort) -- und die Stunden je Mitarbeiter und Zeitart mit Personalnummer. Im „⋮“ des Kopfs „Kolonne
+buchen“ (Von–Bis mit Vorschau je Person oder eine Dauer je Person) und für den Admin „Abschluss aufheben“ (auf ein früheres Monatsende oder ganz).
+Neue Tests `tests/test_v519_zeiten_abwesenheiten_monat.py`, `scripts/klicktest_zeiten.py` erweitert.
+
 ## 1.9.96 – Die Seite „Zeiten“: Prüfen und Buchungen (Stufe 4, R5b)
 
 Neu die Büroseite „Zeiten“ (`/zeiten`, `app/templates/zeiten.html`) nach den freigegebenen Vorlagen, Maße und Texte aus der Vorlage, Farben
