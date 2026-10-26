@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.84** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.85** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -1987,6 +1987,9 @@ jeder Klicktest nach höchstens 2 min ab (Rückgabecode 3, `klicktest_alle.py` f
 `_freier_port()` wählt außerhalb der kurzlebigen Ports des Betriebssystems -- im Bereich ab 49152 konnte sich `_warte_auf()` mit sich
 selbst verbinden, solange Chrome noch nicht lauschte (`BadStatusLine: GET /json/version`); ein neuer Port-Helfer nimmt `_freier_port()`.
 Seit 1.8.126 nimmt jeder Klicktest diesen einen Helfer (auch die SMTP-Empfänger), geprüft vor der Rückgabe auf 127.0.0.1 und 0.0.0.0.
+Seit 1.9.85 ist eine Instanz erst bereit, wenn sie sich ausweist (Kennung `ERP_INSTANZ` an `/health`, sonst neuer Port,
+`_mit_eigenem_port()`); Chrome wählt seinen Port selbst (`--remote-debugging-port=0`, `DevToolsActivePort`) --
+`tests/test_v506_port_wettlauf.py`.
 `--ausgabe` von `klicktest_alle.py` nie tief im Scratchpad: die Ablage der Instanz überschreitet sonst die 260 Zeichen von Windows.
 
 ### Bildgrundlage für das Redesign (seit 1.8.126)

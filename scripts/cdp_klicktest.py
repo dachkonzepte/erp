@@ -10,8 +10,8 @@ AUFRUF (aus dem Projektordner, in der Projekt-venv):
 
     .venv\\Scripts\\python.exe scripts\\klicktest_<name>.py [Optionen]
 
-    --app-port N        Port der ERP-Instanz (Vorgabe 0 = freien Port wählen)
-    --cdp-port N        Port für das DevTools-Protokoll (Vorgabe 0 = freien Port wählen)
+    --app-port N        Port der ERP-Instanz (Vorgabe 0 = freien Port wählen; seit 1.9.85 bei einem fremden Server dort ein neuer)
+    --cdp-port N        Port für das DevTools-Protokoll (Vorgabe 0 = Chrome wählt ihn selbst, seit 1.9.85)
     --arbeitsordner P   Ordner für Datenbank, Daten, Chrome-Profil, Logs und Screenshots
                         (Vorgabe: neuer Ordner unter %TEMP%\\erp-klicktest-*). Muss leer sein
                         oder fehlen.
@@ -64,7 +64,8 @@ WAS PASSIERT:
    Das legt über `app.main` alle Tabellen an (`create_all()`, ERP_ENV=development), ruft die
    `befuellen(db, k)`-Funktion des Skripts auf und schreibt deren Ergebnis nach `seed.json`.
 3. uvicorn startet auf `--app-port`, Chrome headless mit eigenem `--user-data-dir` im
-   Arbeitsordner auf `--cdp-port`.
+   Arbeitsordner auf `--cdp-port`. Seit 1.9.85 erst bereit, wenn sich beide als die eigenen
+   ausweisen (ERP: Kennung an /health; Chrome: DevToolsActivePort im eigenen Profil).
 4. Die `pruefen(tab, seed, p)`-Funktion des Skripts läuft. Screenshots landen unter
    `<arbeitsordner>\\shots`, Server-Logs unter `server.out.log`/`server.err.log`.
 5. Chrome und uvicorn werden über ihre eigene PID beendet (Regel 12: nie über den
@@ -1108,6 +1109,78 @@ def _warte_auf(url: str, timeout: float) -> bool:
     return False
 
 
+# Seit 1.9.85 (Befund vom 24.10.2026, Port-Wettlauf): zwischen _freier_port() und dem Start kann ein anderer Prozess -- meist ein
+# gleichzeitig startender Klicktest -- den Port nehmen. _warte_auf() nahm jede HTTP-Antwort als „bereit“, auch die eines fremden Servers.
+# Jetzt bekommt jede ERP-Instanz eine Kennung (Umgebung ERP_INSTANZ, /health nennt sie); bereit ist sie erst, wenn sie die nennt und
+# ihr eigener Prozess noch läuft -- sonst wird sie beendet und mit einem neuen Port gestartet (höchstens START_VERSUCHE-mal; mit fest
+# vorgegebenem --app-port kein neuer Versuch). Chrome wählt seinen Port selbst (--remote-debugging-port=0) und nennt ihn in der Datei
+# DevToolsActivePort seines eigenen Profils, sobald er lauscht -- dort gibt es keinen Wettlauf mehr (mit --cdp-port wie bisher).
+INSTANZ_ENV = "ERP_INSTANZ"
+START_VERSUCHE = 3
+_GRUENDE = {"beendet": "nicht gebunden (eigener Prozess beendet)", "zeitlimit": "ohne eigene Antwort (dort antwortet ein anderer)"}
+
+
+def _eigene_instanz_bereit(proc, url: str, kennung: str, timeout: float) -> str:
+    """"bereit", sobald unter url (/health) die eigene ERP-Instanz mit ihrer Kennung antwortet; "beendet", sobald der eigene Prozess
+    nicht mehr läuft (der Port war belegt, uvicorn beendet sich); sonst nach timeout "zeitlimit". Eine Antwort ohne die Kennung (ein
+    fremder Server unter demselben Port) zählt nicht."""
+    ende = time.monotonic() + timeout
+    while time.monotonic() < ende:
+        if proc.poll() is not None:
+            return "beendet"
+        try:
+            with urllib.request.urlopen(url, timeout=2) as antwort:
+                if json.loads(antwort.read().decode("utf-8") or "{}").get("instanz") == kennung:
+                    return "bereit"
+        except (urllib.error.URLError, ConnectionError, OSError, http.client.HTTPException, ValueError, AttributeError):
+            pass
+        time.sleep(0.3)
+    return "zeitlimit"
+
+
+def _chrome_port(proc, profil: Path, timeout: float) -> int | None:
+    """Der Port, den Chrome mit --remote-debugging-port=0 selbst gewählt hat: aus DevToolsActivePort im eigenen Profil (Port und Pfad
+    des Browsers, geschrieben, sobald er lauscht), bestätigt über /json/version (derselbe Pfad). None, wenn der eigene Prozess endet
+    oder nach timeout. Mit einem fest vorgegebenen Port schreibt Chrome die Datei nicht, und eine Kennung in der Startseite taugt
+    nicht (headless=new zeigt zuerst chrome://newtab/) -- beides nachgestellt am 26.10.2026."""
+    datei = profil / "DevToolsActivePort"
+    ende = time.monotonic() + timeout
+    while time.monotonic() < ende:
+        if proc.poll() is not None:
+            return None
+        try:
+            zeilen = datei.read_text(encoding="utf-8").split()
+            if len(zeilen) >= 2 and zeilen[0].isdigit():
+                with urllib.request.urlopen(f"http://127.0.0.1:{zeilen[0]}/json/version", timeout=2) as antwort:
+                    if str(json.loads(antwort.read().decode("utf-8") or "{}").get("webSocketDebuggerUrl", "")).endswith(zeilen[1]):
+                        return int(zeilen[0])
+        except (urllib.error.URLError, ConnectionError, OSError, http.client.HTTPException, ValueError, AttributeError):
+            pass
+        time.sleep(0.3)
+    return None
+
+
+def _mit_eigenem_port(starten, bereit, *, erster_port: int, fest: bool, name: str, versuche: int = START_VERSUCHE):
+    """Startet starten(port, kennung) und wartet mit bereit(proc, port, kennung); (proc, port) der ersten eigenen Antwort. Sonst wird
+    der Prozess über seine PID beendet (Regel 12) und auf einem neuen Port neu gestartet -- nicht mit fest vorgegebenem Port
+    (--app-port). None, wenn kein Versuch bereit wurde."""
+    port = erster_port
+    for versuch in range(1, versuche + 1):
+        kennung = secrets.token_hex(8)
+        proc = starten(port, kennung)
+        stand = bereit(proc, port, kennung)
+        if stand == "bereit":
+            return proc, port
+        beenden(proc.pid)
+        if fest or versuch == versuche:
+            print(f"{name}: Port {port} {_GRUENDE.get(stand, stand)} -- aufgegeben nach {versuch} Versuch(en).", flush=True)
+            return None
+        neu = _freier_port()
+        print(f"{name}: Port {port} {_GRUENDE.get(stand, stand)} -- neuer Versuch auf Port {neu}.", flush=True)
+        port = neu
+    return None
+
+
 TASKKILL_SEKUNDEN = 30  # seit 1.8.111
 
 
@@ -1326,14 +1399,14 @@ def _ablauf(befuellen, pruefen, args, uhr: str | None, wachhund: "Wachhund | Non
         (ordner / sub).mkdir(parents=True, exist_ok=True)
     (ordner / MARKER).write_text("Wegwerf-Instanz eines Klicktests, darf gelöscht werden.\n", encoding="utf-8")
     app_port = args.app_port or _freier_port()
-    cdp_port = args.cdp_port or _freier_port()
+    cdp_port = args.cdp_port  # seit 1.9.85 sonst von Chrome gewählt (_chrome_port())
     env = _isolierte_umgebung(ordner)
     env.update(umgebung or {})
     uhrzeit = uhr or args.wanduhr
     if uhrzeit:
         env[UHR_ENV] = _uhr_marke(uhrzeit)
     stehend = bool(uhrzeit) and " " in uhrzeit.strip()
-    print(f"Arbeitsordner {ordner}\nERP http://127.0.0.1:{app_port}  CDP {cdp_port}"
+    print(f"Arbeitsordner {ordner}\nERP http://127.0.0.1:{app_port}  CDP {cdp_port or 'wählt Chrome'}"
           + (f"\nUhr der Instanz: {'steht auf' if stehend else 'heute ab'} {uhrzeit} (Europe/Berlin)" if uhrzeit else ""),
           flush=True)
 
@@ -1352,29 +1425,45 @@ def _ablauf(befuellen, pruefen, args, uhr: str | None, wachhund: "Wachhund | Non
     log_config = ordner / "uvicorn-log.json"
     log_config.write_text(json.dumps(log_konfiguration(verbindungen), indent=1), encoding="utf-8")
     try:
-        with open(ordner / "server.out.log", "wb") as out, open(ordner / "server.err.log", "wb") as err:
-            # Seit 1.8.115 mit --log-level trace: Verbindungsprotokoll je Instanz in verbindungen.log (siehe oben).
-            befehl = ([sys.executable, str(Path(__file__).resolve()), "--server-mit-uhr", "127.0.0.1", str(app_port), str(log_config)]
+        def server_starten(port: int, kennung: str) -> subprocess.Popen:
+            # Seit 1.8.115 mit --log-level trace: Verbindungsprotokoll je Instanz in verbindungen.log (siehe oben). Seit 1.9.85 mit
+            # Kennung (/health), die Logs angehängt (ein zweiter Versuch schreibt hinter den ersten).
+            env[INSTANZ_ENV] = kennung
+            befehl = ([sys.executable, str(Path(__file__).resolve()), "--server-mit-uhr", "127.0.0.1", str(port), str(log_config)]
                       if uhrzeit else
-                      [sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", str(app_port),
+                      [sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", str(port),
                        "--log-config", str(log_config), "--log-level", "trace"])
-            server = subprocess.Popen(befehl, env=env, cwd=ROOT, stdout=out, stderr=err)
-        if wachhund:
-            wachhund.kinder.append(server)
-        if not _warte_auf(f"http://127.0.0.1:{app_port}/login", 60):
+            with open(ordner / "server.out.log", "ab") as out, open(ordner / "server.err.log", "ab") as err:
+                proc = subprocess.Popen(befehl, env=env, cwd=ROOT, stdout=out, stderr=err)
+            if wachhund:
+                wachhund.kinder.append(proc)
+            return proc
+
+        gestartet = _mit_eigenem_port(server_starten,
+                                      lambda proc, port, kennung: _eigene_instanz_bereit(proc, f"http://127.0.0.1:{port}/health", kennung, 60),
+                                      erster_port=app_port, fest=bool(args.app_port), name="ERP-Instanz")
+        if gestartet is None:
             print(f"ERP-Instanz antwortet nicht, siehe {ordner / 'server.err.log'}")
             return 2
-        chrome = subprocess.Popen([_chrome_pfad(args.chrome), "--headless=new", f"--remote-debugging-port={cdp_port}",
+        server, app_port = gestartet
+
+        # Seit 1.9.85: ohne --cdp-port wählt Chrome den Port selbst (0) und nennt ihn in DevToolsActivePort (_chrome_port())
+        chrome = subprocess.Popen([_chrome_pfad(args.chrome), "--headless=new", f"--remote-debugging-port={args.cdp_port or 0}",
                                    f"--user-data-dir={ordner / 'chrome-profile'}", "--no-first-run",
                                    "--no-default-browser-check", "--disable-extensions", *(chrome_argumente or []),
                                    "about:blank"],
                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if wachhund:
             wachhund.kinder.append(chrome)
-        (ordner / "pids.txt").write_text(f"server={server.pid} chrome={chrome.pid}\n", encoding="utf-8")
-        if not _warte_auf(f"http://127.0.0.1:{cdp_port}/json/version", 30):
+        if args.cdp_port:
+            cdp_port = args.cdp_port if _warte_auf(f"http://127.0.0.1:{args.cdp_port}/json/version", 30) and chrome.poll() is None else None
+        else:
+            cdp_port = _chrome_port(chrome, ordner / "chrome-profile", 30)
+        if cdp_port is None:
             print("Chrome antwortet nicht auf dem CDP-Port.")
             return 2
+        print(f"Chrome CDP {cdp_port}", flush=True)
+        (ordner / "pids.txt").write_text(f"server={server.pid} chrome={chrome.pid}\n", encoding="utf-8")
         ok = asyncio.run(_lauf(pruefen, seed, cdp_port, f"http://127.0.0.1:{app_port}", ordner / "shots", verbindungen, wachhund))
         if not ok:
             print(f"Verbindungsprotokoll des Servers (uvicorn trace): {verbindungen}", flush=True)

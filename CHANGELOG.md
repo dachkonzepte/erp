@@ -4,6 +4,16 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.85 – Klicktests: Port-Wettlauf behoben (Stufe 4, R5)
+
+Startet ein Klicktest, während ein anderer startet, konnte dieser den eben geprüften Port nehmen; `_warte_auf()` nahm jede HTTP-Antwort
+als „bereit“ und der Klicktest lief gegen einen fremden Server (Befund vom 24.10.2026, `klicktest_heute` rot ohne Prüfung). Jetzt
+bekommt jede ERP-Instanz eine Kennung (`ERP_INSTANZ`), `/health` nennt sie (nur mit `ERP_ENV=development` oder `test`); bereit ist die
+Instanz erst mit ihrer Kennung und solange ihr eigener Prozess läuft, sonst wird sie über ihre PID beendet und auf einem neuen Port neu
+gestartet (höchstens dreimal, mit `--app-port` gar nicht). Chrome wählt seinen DevTools-Port selbst (`--remote-debugging-port=0`) und
+nennt ihn in `DevToolsActivePort` seines eigenen Profils -- dort gibt es keinen Wettlauf mehr. Eine Kennung in der Startseite taugte
+nicht (headless zeigt zuerst `chrome://newtab/`), und mit fest vorgegebenem Port schreibt Chrome die Datei nicht. Neuer Test `test_v506`.
+
 ## 1.9.84 – „Zeit nachtragen“ mit den Ecken der übrigen Knöpfe (Stufe 4, R4 Nachtrag 3)
 
 Der Knopf „Zeit nachtragen“ auf der Seite des Auftrags (ein Link als Knopf) war eckig, die übrigen Knöpfe der Seite tragen seit Stufe 2 die

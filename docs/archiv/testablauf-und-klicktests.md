@@ -1265,7 +1265,7 @@ Ruhe -> 1 rot; Strich ohne Prüfung auf Tinte -> 1 rot. Die vier Klicktests lauf
   Warten steckt im Helfer, geprüft in `test_v490`).
 - Regel 15 bleibt: Suite und Klicktests werden nie mit „;“ verkettet (im Endlauf der R3-Nachrunde geschehen, dort benannt).
 
-## Befund 24.10.2026: Port-Wettlauf zweier gleichzeitig startender Klicktests (nicht behoben)
+## Befund 24.10.2026: Port-Wettlauf zweier gleichzeitig startender Klicktests (behoben in 1.9.85, siehe unten)
 
 Beim Lauf der berührten Klicktests vor dem Commit von 1.9.73 (`klicktest_alle.py --gleichzeitig 4`) war `klicktest_heute` rot, ohne eine
 Prüfung zu erreichen: der Server der Instanz konnte seinen Port nicht binden (`[Errno 10048] … ('127.0.0.1', 21198)` in `server.err.log`,
@@ -1281,3 +1281,34 @@ sofort grün (55/55).
 - Vorschlag (nicht gebaut): nach `_warte_auf()` prüfen, dass der eigene Serverprozess noch läuft (`poll() is None`), und `/health` mit
   einer Kennung der Instanz beantworten lassen (z. B. Wert aus der Umgebung des Kindprozesses), die `_warte_auf()` vergleicht; scheitert
   das, die Instanz mit einem neuen Port neu starten. Bitte bestätigen.
+
+## Umsetzung 1.9.85: Port-Wettlauf behoben (Stufe 4, R5, Teil 1 Punkt 4)
+
+Vorgabe vom 26.10.2026: „den Port-Wettlauf aus dem Befund vom 24.10. beheben (Vorschlag im Archiv)“.
+
+- ERP-Instanz (`scripts/cdp_klicktest.py::_ablauf()`): je Start eine Kennung (`secrets.token_hex(8)`) in der Umgebung `ERP_INSTANZ`;
+  `/health` nennt sie (`app/routers/pages.py::health()`, nur mit `ERP_ENV=development` oder `test`, im Betrieb nie gesetzt).
+  `_eigene_instanz_bereit()` fragt `/health`, bis die eigene Kennung kommt („bereit“), der eigene Prozess endet („beendet“, der Port war
+  belegt) oder 60 s um sind („zeitlimit“, dort antwortet ein anderer). `_mit_eigenem_port()` beendet einen nicht bereiten Prozess über
+  seine PID (Regel 12) und startet auf einem neuen Port aus `_freier_port()`, höchstens `START_VERSUCHE` = 3; mit `--app-port` kein
+  neuer Versuch. Die Logs der Versuche stehen hintereinander in `server.out.log`/`server.err.log`.
+- Chrome: der Vorschlag (Kennung vergleichen) ging nicht -- eine Kennung in der Startseite (`about:blank#<kennung>`) erscheint in
+  `/json/list` erst später (headless=new zeigt zuerst `chrome://newtab/`), und `DevToolsActivePort` schreibt Chrome nur ohne festen Port
+  (beides nachgestellt am 26.10.2026). Jetzt `--remote-debugging-port=0`: Chrome wählt den Port beim Lauschen selbst und nennt ihn samt
+  Pfad des Browsers in `DevToolsActivePort` seines eigenen Profils; `_chrome_port()` liest ihn und bestätigt den Pfad über
+  `/json/version`. Verbunden wird erst nach der Datei -- kein Selbstanschluss wie vor 1.8.125, obwohl der Port im kurzlebigen Bereich
+  liegen kann. Mit `--cdp-port` wie bisher (`_warte_auf()`), dazu die Prüfung, dass der eigene Prozess läuft.
+- Tests: neu `tests/test_v506_port_wettlauf.py` (8 Tests: `/health` nennt die Kennung nur in Entwicklung und Test; fremder Server unter
+  dem Port nie bereit, eigener Prozess beendet -> „beendet“; eigene Kennung bereit; neuer Versuch auf neuem Port mit neuer Kennung, der
+  alte über die PID beendet; fester Port ohne neuen Versuch, höchstens drei; Chrome-Port aus dem eigenen Profil, fremder Browser oder
+  beendeter Prozess nicht; Struktur von `_ablauf()`). Keine angepassten Erwartungen.
+- Gegenproben (je rot, FAILED): jede Antwort gilt -> 1; eigener Prozess nicht geprüft -> 1; kein neuer Versuch -> 2; Chrome ohne
+  Pfadvergleich -> 1; `/health` ohne Umgebungsprüfung -> 1.
+
+**Festlegungen 1.9.85 zu Werkzeug und Testablauf (Bitte bestätigen)**
+
+1. Die ERP-Instanz weist sich über die Kennung an `/health` aus; `/health` nennt sie nur mit `ERP_ENV=development`/`test` -- die einzige
+   Änderung an `app/` für das Werkzeug.
+2. Höchstens drei Startversuche mit neuem Port; mit fest vorgegebenem `--app-port` keiner.
+3. Chrome wählt seinen Port selbst (`--remote-debugging-port=0`, `DevToolsActivePort`) statt einer Kennung -- abweichend vom Vorschlag,
+   der für Chrome nicht ging.

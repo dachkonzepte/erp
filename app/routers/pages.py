@@ -6,6 +6,7 @@ uebernommen -- reine Verschiebung, keine Verhaltensaenderung.
 """
 
 import logging
+import os
 from urllib.parse import quote
 
 from fastapi import APIRouter
@@ -674,10 +675,21 @@ def address_import_page(
     return templates.TemplateResponse(request=request, name="address_import.html", context={})
 
 
+INSTANZ_ENV = "ERP_INSTANZ"  # seit 1.9.85, siehe health()
+
+
 @router.get("/health")
 @router.head("/health", include_in_schema=False)
 def health():
     """Ohne Anmeldung (app/anmeldeschranke.py::OEFFENTLICH). Seit 1.8.129 auch HEAD -- eine Überwachung, die nur die Kopfzeilen holt,
     bekam bis dahin 405 (FastAPI ergänzt bei einer GET-Route kein HEAD). Seit 1.8.130 als eigene HEAD-Route ohne Eintrag in der
-    Schnittstellenbeschreibung (eine Route mit GET und HEAD ergab dort zweimal dieselbe Operation-ID)."""
-    return {"status": "ok", "version": APP_VERSION}
+    Schnittstellenbeschreibung (eine Route mit GET und HEAD ergab dort zweimal dieselbe Operation-ID).
+
+    Seit 1.9.85: eine Klicktest-Instanz nennt ihre Kennung (ERP_INSTANZ, nur mit ERP_ENV=development oder test) -- scripts/cdp_klicktest.py
+    prüft damit, dass unter dem Port die eigene Instanz antwortet und kein gleichzeitig gestarteter fremder Server (Port-Wettlauf,
+    Befund vom 24.10.2026). Im Betrieb ist die Variable nie gesetzt."""
+    antwort = {"status": "ok", "version": APP_VERSION}
+    kennung = os.environ.get(INSTANZ_ENV)
+    if kennung and os.environ.get("ERP_ENV") in ("development", "test"):
+        antwort["instanz"] = kennung
+    return antwort
