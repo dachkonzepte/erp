@@ -120,6 +120,8 @@
     .einsatz-kopf h2{margin:0;font-family:var(--ds-schrift-titel);font-weight:700;font-size:24px;overflow-wrap:anywhere}
     .route{min-height:48px;display:inline-flex;align-items:center;gap:6px;font-size:16px;font-weight:600;flex:none}
     .einsatz-sub{font-size:15px;margin:0 0 10px}
+    /* seit 1.9.93: der Auftrag der Karte, „Nummer · Titel“ (_auftrag_text.html) */
+    .einsatz-auftrag{font-size:16px;font-weight:600;color:var(--ds-text);margin:2px 0 2px;overflow-wrap:anywhere}
     /* seit 1.9.87: Kennzeichen eines abgeschlossenen oder stornierten Auftrags in seiner Einsatzkarte */
     .einsatz-zu{display:inline-block;align-self:flex-start;margin:0 0 10px;padding:4px 12px;border:1px solid var(--ds-linie-stark);border-radius:var(--ds-ecke-rund);background:var(--ds-flaeche-2);color:var(--ds-text-2);font-size:14px;font-weight:600}
     .zeile{display:flex;align-items:center;gap:14px;text-decoration:none;color:var(--ds-text);border-top:1px solid var(--ds-grund);min-height:56px}
@@ -506,6 +508,8 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
     return '<section class="heute-karte einsatz" aria-labelledby="einsatz-'+k.order_id+'" data-einsatz="'+k.order_id+'">'
       +'<span class="eb">Heutiger Einsatz · '+esc(zeitraum(k.von,k.bis))+'</span>'
       +'<div class="einsatz-kopf"><h2 id="einsatz-'+k.order_id+'">'+esc(k.objekt)+'</h2>'+route+'</div>'
+      // seit 1.9.93 (Stufe 4, R5a, Punkt 6): der Auftrag mit „Nummer · Titel“ -- zwei Aufträge am selben Objekt unterscheidet der Titel
+      +'<p class="einsatz-auftrag">'+esc(auftragTitel(k))+'</p>'
       +'<p class="einsatz-sub">'+esc([k.kunde,k.adresse].filter(Boolean).join(' · '))+'</p>'
       // seit 1.9.87: abgeschlossen oder storniert -- das Kennzeichen; gestartet wird dort nicht (der Auftrag steht nicht in der Auswahl)
       +(k.auftrag_geschlossen?'<span class="einsatz-zu" data-geschlossen="'+esc(k.auftrag_geschlossen)+'">Auftrag '+esc(k.auftrag_geschlossen)+'</span>':'')

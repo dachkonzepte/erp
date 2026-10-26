@@ -4,6 +4,16 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.93 – Kleinigkeiten: Einsatzkarte mit Nummer · Titel, das Büro auf /mobil und in „Meine Zeiten“ (Stufe 4, R5a)
+
+Die Einsatzkarte auf „Heute“ nennt den Auftrag jetzt mit „Nummer · Titel“ (eine Zeile unter dem Objekt, über `auftragTitel()` aus
+`_auftrag_text.html`; `app/heute.py::einsaetze()` trägt den Titel) -- zwei Aufträge am selben Objekt unterscheidet der Titel. Ein Büro-Konto auf
+`/mobil` liest „„Heute“ gibt es nur in der Monteursansicht.“ statt „Die Einsätze …“ (der Reiter heißt seit 1.9.45 „Heute“). „Meine Zeiten“
+zeigt einem Büro-Konto nicht mehr die rote Zeile „Keine eigenen Aufträge … wende dich an das Büro.“ (die Antwort trägt `buero`), und Büro –
+Auftrag bekommt dort kein „+ Nachtragen“ und kein „⋮“ mehr (`nachtragen_erlaubt` nach `darf_zeit_buchen()` -- der Server lehnte das seit 1.9.89
+ab). In CLAUDE.md ist die überholte Zeile zu `AUFGESCHOBEN` nachgezogen („Heute“ und „Meine Zeiten“ -> 4). Neuer Test
+`tests/test_v515_kleinigkeiten_buero.py`.
+
 ## 1.9.92 – DATEV-Export nur abgeschlossen und vollständig, eine Summe, Berater- und Mandantennummer (Stufe 4, R5a)
 
 Der DATEV-Export geht nur noch für einen abgeschlossenen Zeitraum (Ende bis „Abgeschlossen bis“, sonst 409) und nur vollständig: fehlt eine Lohnart

@@ -195,14 +195,17 @@ def einsaetze(db: Session, employee_id: int, *, heute: date) -> list[dict]:
         else:
             karte["von"], karte["bis"] = min(karte["von"], a["start_date"]), max(karte["bis"], a["end_date"])
     order_ids = list(karten)
-    # seit 1.9.87: abgeschlossen/storniert je Auftrag -- die Karte zeigt „Auftrag abgeschlossen“ (auf ihn bucht die Monteurin nicht, 1.9.81)
-    status = dict(db.execute(select(Order.id, Order.status).where(Order.id.in_(order_ids))).all()) if order_ids else {}
+    # seit 1.9.87: abgeschlossen/storniert je Auftrag -- die Karte zeigt „Auftrag abgeschlossen“ (auf ihn bucht die Monteurin nicht, 1.9.81);
+    # seit 1.9.93 (Stufe 4, R5a, Punkt 6) dazu der Titel -- die Karte nennt den Auftrag mit „Nummer · Titel“
+    auftraege = {i: (s, t) for i, s, t in db.execute(select(Order.id, Order.status, Order.title).where(Order.id.in_(order_ids))).all()} if order_ids else {}
+    status = {i: s for i, (s, _) in auftraege.items()}
     berichte = _berichte(db, employee_id, order_ids, heute) if is_module_enabled(db, "wartungen") else {}
     mit_checklisten = is_module_enabled(db, "checklisten")
     checklisten = _checklisten(db, employee_id, order_ids, heute) if mit_checklisten else {}
     bedenken = open_concerns(db, sorted(order_ids)) if mit_checklisten else {}
-    return [{**k, "berichte": berichte.get(k["order_id"], []), "checklisten": checklisten.get(k["order_id"], []),
-             "open_concerns": bedenken.get(k["order_id"], []), "auftrag_geschlossen": auftrag_geschlossen(status.get(k["order_id"]))}
+    return [{**k, "title": auftraege.get(k["order_id"], (None, None))[1], "berichte": berichte.get(k["order_id"], []),
+             "checklisten": checklisten.get(k["order_id"], []), "open_concerns": bedenken.get(k["order_id"], []),
+             "auftrag_geschlossen": auftrag_geschlossen(status.get(k["order_id"]))}
             for k in karten.values()]
 
 

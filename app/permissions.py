@@ -105,7 +105,7 @@ def has_role(user: AppUser | None, *roles: str) -> bool:
 # /api/field-view/feierabend). Die Seite /mobil öffnet weiter jede Rolle -- das Büro wird dort aber nach Feierabend nicht mehr abgemeldet
 # (bis 1.9.32 meldete der GET jeder Rolle ab 19 Uhr "feierabend", /mobil beendete dann die Sitzung).
 MOBIL_ROLLEN = frozenset({ROLE_FIELD})
-NUR_MONTEURSANSICHT = "Die Einsätze gibt es nur in der Monteursansicht."
+NUR_MONTEURSANSICHT = "„Heute“ gibt es nur in der Monteursansicht."  # seit 1.9.93 (bis dahin „Die Einsätze …“, der Reiter heißt „Heute“)
 
 
 def hat_monteursansicht(user: AppUser | None) -> bool:

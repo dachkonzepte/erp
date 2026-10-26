@@ -226,10 +226,11 @@ async def pruefen(tab, seed, p):
         "[...document.querySelectorAll('#arbeitszeit .eb,#arbeitszeit .laeuft-pill,#arbeitszeit .zeit-titel,#arbeitszeit .zeit-sub,#zeitDauer')]"
         ".map(e=>e.textContent)"), [f"Arbeitszeit · {tag_kurz(seed['heute'])}", "läuft", "Baustellenzeit seit 06:45",
                                      "AUF-2026-0001 · Halle Nord", "3:15 h"])
-    p.pruefe("Einsatz: eine Karte für A mit Zeitraum, Objekt, Kunde · Adresse, Route", await tab.js(
+    # seit 1.9.93 (Stufe 4, R5a, Punkt 6) dazu der Auftrag mit „Nummer · Titel“
+    p.pruefe("Einsatz: eine Karte für A mit Zeitraum, Objekt, Nummer · Titel, Kunde · Adresse, Route", await tab.js(
         "[...document.querySelectorAll('[data-einsatz]')].map(k=>[k.querySelector('.eb').textContent,k.querySelector('h2').textContent,"
-        "k.querySelector('.einsatz-sub').textContent,k.querySelector('.route').href])"),
-        [[f"Heutiger Einsatz · {zeitraum(seed['gestern'], seed['uebermorgen'])}", "Halle Nord",
+        "k.querySelector('.einsatz-auftrag').textContent,k.querySelector('.einsatz-sub').textContent,k.querySelector('.route').href])"),
+        [[f"Heutiger Einsatz · {zeitraum(seed['gestern'], seed['uebermorgen'])}", "Halle Nord", "AUF-2026-0001 · Wartung",
           "Hallenbau GmbH · Werkstr. 5, 52531 Übach-Palenberg",
           "https://www.google.com/maps/search/?api=1&query=Werkstr.%205%2C%2052531%20%C3%9Cbach-Palenberg"]])
     p.pruefe("Einsatz: Bericht mit „noch 3 offen“ und „Weiter“, Checkliste mit „noch 1 offen“ und Pfeil", await tab.js(

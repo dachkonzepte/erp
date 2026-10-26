@@ -5871,3 +5871,34 @@ Gegenproben: (Marker `GEGENPROBE`, byte-genau zurück, je FAILED) Export auch of
 Rückfall auf „Sonstige“ für Baustelle/Fahrzeit/Werkstatt -> 3 Tests rot; Fehlendes nicht geprüft -> 6 Tests rot; LODAS ohne Kopf -> 1 Test
 rot; Nummern für jedes Büro -> 1 Test und 1 Prüfung von `klicktest_datev_nummern` rot; Beraternummer ungeprüft -> 4 Tests und 2 Prüfungen rot;
 Felder für das Büro bearbeitbar -> 1 Prüfung rot. Neuer Klicktest `klicktest_datev_nummern` (13 Prüfungen).
+
+### R5a, Punkt 6 (1.9.93): Kleinigkeiten
+
+- Einsatzkarte auf „Heute“: `einsaetze()` liefert `title`, die Karte zeigt unter dem Objekt `<p class="einsatz-auftrag">` mit
+  `auftragTitel(k)` („AUF-2026-0001 · Wartung“), dann Kunde · Adresse.
+- Büro auf `/mobil`: `NUR_MONTEURSANSICHT` = „„Heute“ gibt es nur in der Monteursansicht.“ (403 von `GET /api/field-view/today` für jede Rolle
+  außerhalb der Monteursansicht; bis 1.9.92 „Die Einsätze gibt es nur in der Monteursansicht.“).
+- „Meine Zeiten“ als Büro: `GET /api/field-view/meine-zeiten` trägt `buero` (nicht in den Rollen der Monteursansicht) -- die Seite zeigt dann nicht
+  „… wende dich an das Büro.“; `nachtragen_erlaubt` zusätzlich nach `darf_zeit_buchen()` (Büro – Auftrag ohne „+ Nachtragen“ und „⋮“).
+- CLAUDE.md: die Zeile „(Einsätze, Zeiterfassung der Monteure, Stundenzettel -> 4 …)“ heißt jetzt „(„Heute“ und „Meine Zeiten“ -> 4 -- „Meine
+  Zeiten“ ersetzt seit 1.9.59 Zeiterfassung der Monteure und Stundenzettel …)“, wie `AUFGESCHOBEN` in `tests/test_v441_rahmen_baustein.py`.
+
+#### Festlegungen 1.9.93 (Bitte bestätigen)
+
+1. „Nummer · Titel“ steht als eigene Zeile unter dem Objekt der Einsatzkarte (vor Kunde · Adresse), aus `auftragTitel()` wie im Dialog „Für
+   welchen Auftrag?“.
+2. „buero“ heißt: nicht in den Rollen der Monteursansicht (`hat_monteursansicht()`) -- auch der Admin bekommt die rote Zeile nicht.
+3. „Meine Zeiten“ bietet Nachtragen und Ändern nur, wer Zeiten bucht: Büro – Auftrag nicht, Büro – Finanzen (mit Mitarbeiter) weiter (der Server
+   erlaubt ihm die eigene Zeit, Festlegung 1.9.89 Nr. 2).
+
+#### Tests und Prüfung
+
+Neu `tests/test_v515_kleinigkeiten_buero.py`: Einsatz mit Titel; Karte über `auftragTitel(k)`; Büro auf `/mobil` 403 mit dem neuen Text;
+`buero` und `nachtragen_erlaubt` je Rolle (Monteurin, Büro – Auftrag, Büro – Finanzen, Admin); die rote Zeile nicht fürs Büro.
+
+Angepasste Erwartungen:
+- `klicktest_heute`, „Einsatz: eine Karte für A …“: [Zeitraum, Objekt, Kunde · Adresse, Route] -> [Zeitraum, Objekt, „AUF-2026-0001 · Wartung“,
+  Kunde · Adresse, Route].
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): Einsatz ohne Titel -> 1 Test und 1 Prüfung von `klicktest_heute` rot; Karte
+ohne die Zeile -> 1 Test und 2 Prüfungen rot; `buero` immer falsch -> 3 Tests rot; Nachtragen für jedes Büro -> 1 Test rot.

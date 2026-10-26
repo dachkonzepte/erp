@@ -327,7 +327,8 @@ function zeichnen(d){
   el('monatVor').disabled=d.monat>=String(d.heute).slice(0,7);
   el('nachtragenKnopf').hidden=!d.nachtragen_erlaubt;
   el('kolonneAnker').hidden=!(d.nachtragen_erlaubt&&d.kolonnen.length);
-  ladeHinweis(d.auftraege.length?'':'Keine eigenen Aufträge im Zeitraum gefunden. Fehlt ein Einsatz, wende dich an das Büro.');
+  // seit 1.9.93: dem Büro nicht (d.buero) -- „wende dich an das Büro“ an das Büro selbst
+  ladeHinweis(d.auftraege.length||d.buero?'':'Keine eigenen Aufträge im Zeitraum gefunden. Fehlt ein Einsatz, wende dich an das Büro.');
   el('monatTitel').textContent=d.monat_name;
   el('monatSumme').textContent=stunden(d.kacheln.monat)+' an '+d.monat_tage+(d.monat_tage===1?' Tag':' Tagen');
   el('monatAnteile').textContent='davon Fahrzeit '+stunden(d.monat_fahrzeit)+' · produktiv '+stunden(d.monat_produktiv);
