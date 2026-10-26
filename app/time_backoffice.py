@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from io import BytesIO, StringIO
 from html import escape
@@ -18,7 +18,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from .grunddaten import einzelzeile
 from .models import AppUser, Employee, EmployeePayrollSettings, TimeEntry, TimeTrackingSettings, WorkTimeModel
 from .rounding import round_hours
-from .time_tracking import list_entries, entry_to_dict
+from .time_tracking import employee_name, list_entries, entry_to_dict, pausen_vorschau
 from .settings import load_general_settings
 from .work_time_models import load_advanced_settings
 
@@ -60,6 +60,41 @@ def _locked_by_name(db: Session, row: TimeTrackingSettings) -> str | None:
 
 def locked_until(db: Session) -> date | None:
     return load_time_settings(db).locked_until
+
+
+def abschluss_hindernisse(db: Session, bis: date) -> list[dict]:
+    """Seit 1.9.91 (Stufe 4, R5a, Punkt 4): was den Abschluss bis einschließlich `bis` sperrt -- jede laufende Zeit mit Tag bis dahin (auch
+    eine seit früher offene) und jeder Tag mit unpassender Pause (pausen_vorschau(): neu rechnen würde etwas ändern) ab dem Tag nach dem
+    bisherigen Abschluss, ohne bisherigen Abschluss im Monat von `bis`. Je Eintrag art ("laeuft" | "pause"), Mitarbeiter, Tag und ein Text.
+    Personalnummer, Lohnart und DATEV-Nummern sperren den Abschluss nicht (sie sperren den DATEV-Export)."""
+    vorher = load_time_settings(db).locked_until
+    ab = vorher + timedelta(days=1) if vorher is not None else bis.replace(day=1)
+    liste: list[dict] = []
+    laufend = select(TimeEntry).where(TimeEntry.status == "running", TimeEntry.work_date <= bis).order_by(TimeEntry.work_date, TimeEntry.id)
+    for row in db.scalars(laufend).all():
+        name = employee_name(row.employee) or f"#{row.employee_id}"
+        seit = f"{row.started_at:%d.%m.%Y, %H:%M}" if row.started_at else f"{row.work_date:%d.%m.%Y}"
+        liste.append({"art": "laeuft", "employee_id": row.employee_id, "name": name, "tag": row.work_date, "entry_id": row.id,
+                      "text": f"{name}: Zeit läuft seit {seit}"})
+    tage = (select(TimeEntry.employee_id, TimeEntry.work_date)
+            .where(TimeEntry.status == "booked", TimeEntry.work_date >= ab, TimeEntry.work_date <= bis).distinct())
+    for employee_id, tag in sorted(db.execute(tage).all(), key=lambda x: (x[1], x[0])):
+        stand = pausen_vorschau(db, employee_id, tag)
+        if stand["passt"]:
+            continue
+        name = employee_name(db.get(Employee, employee_id)) or f"#{employee_id}"
+        liste.append({"art": "pause", "employee_id": employee_id, "name": name, "tag": tag, "entry_id": None,
+                      "text": f"{name}, {tag:%d.%m.%Y}: Pause abgezogen {stand['abgezogen']} min, nach Zeitregel {stand['nach_zeitregel']} min"})
+    return liste
+
+
+def abschluss_meldung(liste: list[dict]) -> str:
+    """Der Text der Ablehnung (409): wie viele laufen, wie viele Tage passen nicht, danach jeder Eintrag."""
+    laeuft = sum(1 for x in liste if x["art"] == "laeuft")
+    pause = len(liste) - laeuft
+    teile = ([f"{laeuft} {'Zeit läuft' if laeuft == 1 else 'Zeiten laufen'} noch"] if laeuft else []) + \
+            ([f"{pause} {'Tag' if pause == 1 else 'Tage'} mit unpassender Pause"] if pause else [])
+    return "Abschließen geht noch nicht: " + ", ".join(teile) + " – " + "; ".join(x["text"] for x in liste) + "."
 
 
 def set_time_lock(db: Session, new_locked_until: date | None, *, user_id: int | None) -> TimeTrackingSettings:

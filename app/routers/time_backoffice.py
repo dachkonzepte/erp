@@ -24,13 +24,14 @@ from datetime import date
 
 from fastapi import APIRouter, Depends
 from fastapi import HTTPException
-from fastapi.responses import Response
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, require_lohndaten, require_min_role
 from ..schemas import EmployeePayrollSettingsOut, EmployeePayrollSettingsUpdate, EmployeeWorkTimeModelBulkUpdate, EmployeeWorkTimeModelUpdate, TimeTrackingLockUpdate, TimeTrackingSettingsOut, TimeTrackingSettingsUpdate, WorkTimeModelUpsert
-from ..time_backoffice import backoffice_summary, build_datev_export, build_time_csv, build_timesheet_pdf, load_time_settings, payroll_rows, set_employee_payroll, set_time_lock, time_settings_dict, update_time_settings
+from ..time_backoffice import abschluss_hindernisse, abschluss_meldung, backoffice_summary, build_datev_export, build_time_csv, build_timesheet_pdf, load_time_settings, payroll_rows, set_employee_payroll, set_time_lock, time_settings_dict, update_time_settings
 from ..work_time_models import bulk_set_employee_model, delete_model as delete_work_time_model, employee_model_rows, list_models as list_work_time_models, save_model as save_work_time_model, set_employee_model
 
 router = APIRouter()
@@ -61,6 +62,12 @@ def put_time_lock(payload: TimeTrackingLockUpdate, db: Session = Depends(get_db,
     reopens = current is not None and (payload.locked_until is None or payload.locked_until < current)
     if reopens and _role.role != ROLE_ADMIN:
         raise HTTPException(status_code=403, detail="Einen abgeschlossenen Zeitraum wieder öffnen darf nur ein Administrator.")
+    # Seit 1.9.91 (Stufe 4, R5a, Punkt 4): vorrücken nur ohne laufende Zeiten und ohne Tage mit unpassender Pause bis zum Tag -- sonst 409
+    # mit der Liste (auch für den Admin); Personalnummer, Lohnart und DATEV-Nummern sperren nicht
+    if payload.locked_until is not None and (current is None or payload.locked_until > current):
+        liste = abschluss_hindernisse(db, payload.locked_until)
+        if liste:
+            return JSONResponse(status_code=409, content={"detail": abschluss_meldung(liste), "liste": jsonable_encoder(liste)})
     row = set_time_lock(db, payload.locked_until, user_id=_role.id)
     return TimeTrackingSettingsOut.model_validate(time_settings_dict(row, db))
 

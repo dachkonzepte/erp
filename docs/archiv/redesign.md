@@ -5776,3 +5776,30 @@ Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): Dauer leert Be
 die Stunden des Kopfs (der Stand bis 1.9.89) -> der Test „nur Notiz“ rot (der Befund); Kontext ohne geschlossene -> 2 Tests rot; Monteurin nur
 bei Stunden 422 -> 2 Tests rot; ein anderer Tag zählt nicht als Dauer -> 2 Tests rot; Buchung ohne `auftrag_geschlossen` -> 3 Tests rot;
 Backoffice ohne Kennzeichen für `geschlossen` -> 1 Test und 1 Prüfung von `klicktest_auswahl_restfaelle` rot.
+
+### R5a, Punkt 4 (1.9.91): Abschließen sperren
+
+`PUT /api/time-backoffice/lock` beim Vorrücken (neues Datum nach dem bisherigen oder erster Abschluss): `abschluss_hindernisse(db, bis)` --
+laufende Zeiten mit `work_date <= bis` und Tage (Mitarbeiter × Tag mit gebuchten Zeiten) mit `pausen_vorschau()["passt"] == False` ab dem Tag nach
+dem bisherigen Abschluss; nicht leer -> 409 `{"detail": "Abschließen geht noch nicht: …", "liste": [{art, employee_id, name, tag, entry_id, text}]}`
+(Muster der Unterschrift im Einsatzbericht, `noch offen`). Zurücknehmen und Aufheben (nur Admin) prüfen nichts.
+
+#### Festlegungen 1.9.91 (Bitte bestätigen)
+
+1. Die Pausen prüft der Abschluss ab dem Tag nach dem bisherigen Abschluss; ohne bisherigen Abschluss nur im Monat des Datums (ältere Tage können
+   aus der Zeit vor der Pausenregel je Tag stammen und sperrten den ersten Abschluss sonst dauerhaft).
+2. Laufende Zeiten sperren unabhängig vom bisherigen Abschluss -- jede mit Tag bis zum Datum.
+3. Die Sperre gilt auch für den Admin (er schließt wie das Büro erst nach dem Klären ab); Zurücknehmen und Aufheben prüfen nichts.
+4. Die Ablehnung kommt als 409 mit `detail` (lesbarer Text, die alte Seite zeigt ihn) und `liste` (für die Seite „Zeiten“ in R5b).
+
+#### Tests und Prüfung
+
+Neu `tests/test_v512_abschluss_pruefen.py`: laufende Zeit seit gestern -> 409 mit Liste, nichts gespeichert, auch für den Admin / nach „Ende
+nachtragen“ 200; heute laufende Zeit sperrt nur einen Abschluss bis heute; unpassende Pause -> 409 mit dem Tag / nach „Pausen neu rechnen“ 200;
+beides in einer Liste; Personalnummer, Lohnart, DATEV-Nummern sperren nicht; nur ab dem bisherigen Abschluss; ohne bisherigen Abschluss der Monat;
+Zurücknehmen ungeprüft.
+
+Angepasste Erwartungen: keine.
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): laufende Zeiten nicht gesucht -> 4 Tests rot; Pausen nicht geprüft -> 4
+Tests rot; das Vorrücken prüft nichts -> 7 Tests rot; Pausen über die ganze Zeit statt ab dem bisherigen Abschluss -> 2 Tests rot.
