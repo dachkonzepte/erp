@@ -5592,3 +5592,133 @@ welchen Auftrag?“.
 - Keine angepassten Erwartungen.
 - **Gegenproben** (je rot, FAILED): Konto ohne `ds-tablet` -> `test_v509` 2, Klicktest 6; Grundregel ohne Mindesthöhe -> `test_v509` 1,
   Klicktest 2; Knopf des Seitenkopfs ohne Tablet-Ecke -> `test_v509` 1, Klicktest 4; Segment in der Mitte mit Ecke -> `test_v509` 1, Klicktest 2.
+
+### R5, Punkt 2: neue Bildgrundlage (nach 1.9.88)
+
+Vor dem Umbau `bildgrundlage/cdf41a6` (314 Bilder), danach `bildgrundlage/8b68dda` (314 Bilder, sauberer Stand nach 1.9.88). Vergleich: 241 gleich,
+73 abweichend (Differenzbilder `bildgrundlage/vergleich_cdf41a6_8b68dda`):
+- 62 Bilder der Monteurin -- alle Seiten im Monteursrahmen (`.ds-tablet`: 12-px-Ecken, Ziele ≥ 48 px, Grundschrift 17 px).
+- 11 Bilder des Büros: „mobil_objekt“ 4 (die Objektseite steht für jede Rolle im Monteursrahmen), „bericht“ 4 (das mittlere Segment ohne Ecke, auch
+  in der Büroansicht), „angebot“ 2 und „kalender“ 1 -- Rauschen der Darstellung (die Beschriftung „+ Übernehmen“ um ein Pixel versetzt, die
+  Kantenglättung des Symbols in der Leiste); beide Seiten hat die Runde nicht berührt, die neue Regel in `ds.css` greift dort nicht.
+
+### R5, Teil 2: Befund der Büroseiten der Zeiterfassung (nichts gebaut)
+
+**Welche Seiten.** `AUFGESCHOBEN` (`tests/test_v441_rahmen_baustein.py`) führt für Stufe 4 seit 1.9.59 nur noch „Heute“ (`mobil.html`) und „Meine
+Zeiten“ (`mobil_zeiten.html`) -- die Liste „Einsätze, Zeiterfassung der Monteure, Stundenzettel -> 4“ in CLAUDE.md ist überholt: „Einsätze“ hieß
+`/mobil` bis 1.9.45 (heute „Heute“), Zeiterfassung und Stundenzettel der Monteurin ersetzt seit 1.9.59 „Meine Zeiten“ (die alten Adressen leiten
+weiter). Büroseiten der Zeiterfassung sind die „Zeiterfassung“ (`/time-tracking`, `time_tracking.html`, umgezogen seit 1.9.7) und das
+„Zeiterfassungs-Backoffice“ (`/time-backoffice`, `time_backoffice.html`, umgezogen seit 1.9.21); den Stundenzettel des Büros gibt es als Reiter
+„Stundenzettel“ im Backoffice. Ein Büro-Konto auf `/mobil` sieht nur „Die Einsätze gibt es nur in der Monteursansicht.“ in Fehlerfarbe (das
+Wort „Einsätze“ ist dort übrig geblieben, der Reiter heißt „Heute“), auf `/mobil/zeiten` mit verknüpftem Mitarbeiter „Meine Zeiten“ mit der
+roten Zeile „Keine eigenen Aufträge im Zeitraum gefunden. Fehlt ein Einsatz, wende dich an das Büro.“ -- an das Büro selbst (Bilder 7 und 8).
+Die Zeile in CLAUDE.md („Einsätze, Zeiterfassung der Monteure, Stundenzettel -> 4“) ist überholt und wird mit dem nächsten Code-Commit
+nachgezogen.
+
+#### Zeiterfassung (`/time-tracking`)
+
+Zweck: die eigenen Zeiten des Büro-Kontos erfassen (Uhr, Nachtrag), als Admin auch die anderer; Kolonne buchen; Abwesenheit beantragen; ein Tag
+zur Auswertung. Rollen: Büro – Auftrag, Büro – Finanzen, Admin (die Monteurin leitet die Seite zu „Meine Zeiten“ um); nur der Admin wählt einen
+Mitarbeiter, bucht für andere und entscheidet Anträge. Ohne verknüpften Mitarbeiter der Hinweis „Konto ohne Mitarbeiter“.
+
+Funktionen:
+- „Mitarbeiter“ (nur Admin): wessen Zeiten die Seite zeigt und bucht.
+- „Laufende Zeiterfassung“: Uhr, Auftrag, Zeitart; „■ Zeit stoppen“ mit zusätzlicher Pause; seit 1.9.35 bei einer Zeit von früher „Ende
+  nachtragen“ (Ende am Starttag).
+- „Schnell starten“: Auftrag (nur offene), LV-Position, Tätigkeit, Notiz, vier Knöpfe „▶ Baustelle / Fahrzeit / Werkstatt / Sonstige“; Link zum
+  Rapport des Auftrags.
+- „Heutige Buchungen“: Kacheln Produktiv, Fahrzeit, Gesamt; Liste mit „Ändern“ und „×“ (Löschen).
+- „+ Manuell buchen“: Dialog Mitarbeiter (Admin), Datum, Auftrag, LV-Position, Zeitart, Tätigkeit, Stunden (netto), Pause, Notiz -- eine Dauer,
+  kein Von/Bis; dasselbe Formular für „Ändern“.
+- „👥 Gruppe buchen“: Kolonne, Mitglieder, Auftrag, LV-Position, Zeitart, Tätigkeit, Datum, Stunden je Mitarbeiter, Pause; „Manuell buchen“
+  oder „▶ Gruppen-Timer starten“.
+- „📅 Abwesenheit“: Antrag (Kategorie, Art, Von, Bis, Notiz), Liste der Anträge, Admin genehmigt/lehnt ab, eigene zurückziehen; Hinweis auf
+  offene Anträge (Admin).
+- „Auswertung“: die Buchungen eines gewählten Tags.
+
+Was dort aus Stufe 4 fehlt oder nicht passt:
+- Offene Zeiten von früher: sichtbar nur die eigene (Admin: die des gewählten Mitarbeiters), keine Übersicht aller offenen Zeiten; schließen für
+  andere nur der Admin (`darf_zeit_fuer_andere_buchen()`).
+- „Pausen neu rechnen“: fehlt (nur in „Meine Zeiten“); für andere Personen nur der Admin über die Schnittstelle. „Meine Zeiten“ sagt seit 1.9.87
+  „Auftrag abgeschlossen – das Büro rechnet neu“ -- das Büro kann es nicht.
+- Abgeschlossene Aufträge: die Auswahl kommt aus `time_tracking_context()`, der nur offene Aufträge führt -- eine neue Buchung auf einen
+  abgeschlossenen oder stornierten Auftrag geht in der Oberfläche gar nicht, auch nicht für den Admin; Ändern behält ihn (nachgeladen,
+  gekennzeichnet). Die Meldung seit 1.9.81 „Zeiten dafür trägt das Büro ein“ läuft damit ins Leere; für eine andere Person bucht ohnehin nur der
+  Admin.
+- Monatsabschluss bei laufender Zeit: kein Hinweis; nach dem Abschluss schließt eine solche Zeit nur der Admin (Monteurin: „Monat abgeschlossen –
+  das Büro schließt die Zeit“, das Büro scheitert an `_require_open_period()`).
+- Büro ändert die Stunden mit Von/Bis (vorgemerkt): das Formular kennt nur Stunden und Pause; eine Buchung mit Von/Bis behält beim Ändern der
+  Stunden ihre alten Uhrzeiten (der Stundenzettel zeigt dann Von/Bis, die nicht zu den Stunden passen), die Pausenregel gilt nicht.
+- Zeitarten-Farben: `--travel-btn`, `--workshop-btn`, `--other-btn` als feste Werte (#3d6a8c, #7a5a34, #5c6660) ohne Dunkelvariante und ohne
+  `--ds-*`-Token.
+- Emojis und Zeichen als Symbole: 👥, 📅, ▶, ■ -- auf „Heute“ SVG.
+- Weiter: eigenes `api()` ohne `fehlerText()` (eine 422 erscheint als „[object Object]“); `alert()` bei Fehlern (Stoppen, Gruppe ohne Kolonne); die
+  Kolonne nur als Dauer (die Monteurin seit 1.9.63 mit Von/Bis); Zeitart-Knöpfe statt der Kacheln von „Heute“.
+
+#### Zeiterfassungs-Backoffice (`/time-backoffice`)
+
+Zweck: Kontrolle, Monatsauswertung, Stundenzettel, Abschluss und Lohnexport. Rollen: ab Büro – Auftrag (`require_min_role(buero_auftrag)`, Seite
+und Schnittstellen); nur der Admin ändert und löscht fremde Buchungen und jede im abgeschlossenen Zeitraum, entscheidet Anträge, öffnet einen
+abgeschlossenen Zeitraum wieder. Ohne verknüpften Mitarbeiter liest ein Büro-Konto den Buchungskontext nicht.
+
+Funktionen:
+- Filter „von“, „bis“, „Mitarbeiter“, „Aktualisieren“ (für Dashboard und Exporte).
+- „Dashboard“: Kacheln Buchungen, Mitarbeiter, Produktiv, Fahrzeit, Gesamt; „Stunden je Mitarbeiter“ (Tage, Produktiv, Fahrt, Gesamt); offene
+  Abwesenheitsanträge.
+- „Buchungen“: immer der laufende Kalendermonat, unabhängig vom Filter; Tabelle Datum, Mitarbeiter (gebucht von), Projekt / Auftrag, LV, Zeitart,
+  Tätigkeit, Pause, Stunden; „Bearbeiten“ und „Löschen“ (Büro nur eigene, offene), sonst „nur Admin“; Link „+ Buchung über Zeiterfassung“.
+- „Zeitbuchung bearbeiten“: Projekt, Auftrag (ein geschlossener nachgeladen und gekennzeichnet), LV-Position, Datum, Stunden, Zeitart,
+  Tätigkeit, Notiz -- keine Pause, kein Von/Bis.
+- „Abwesenheiten“: Anträge, Genehmigen/Ablehnen (Admin), dem Büro nur die eigenen.
+- „Stundenzettel“: „Stundenzettel PDF“, „Stundendaten CSV“ für Zeitraum und Mitarbeiter.
+- „DATEV / Lohn“: „Abgeschlossen bis einschließlich“ mit „Abschließen“ (vorrücken das Büro, zurück nur der Admin) und „Abschluss aufheben“
+  (Admin); „DATEV-Lohndaten exportieren“ mit Stand (Ziel, Personalnummern, gepflegte Lohnarten).
+- „Einrichtung“: Links zu Zeitregeln und DATEV sowie zu den Zeit-Listen in den Einstellungen.
+
+Was dort aus Stufe 4 fehlt oder nicht passt:
+- Offene Zeiten von früher: keine Liste; eine laufende Zeit steht in „Buchungen“ als gewöhnliche Zeile mit 0,00 h ohne „läuft“ und zählt bei
+  „Buchungen“ mit.
+- „Pausen neu rechnen“: fehlt; ob die Pause eines Tags noch passt, zeigt das Backoffice nicht.
+- Abgeschlossene Aufträge: Bearbeiten behält und kennzeichnet sie; anlegen nur über die Zeiterfassung -- dort nicht wählbar (oben).
+- Monatsabschluss bei laufender Zeit: „Abschließen“ prüft keine laufenden oder seit früher offenen Zeiten bis zum Datum; danach schließt sie nur
+  der Admin; der DATEV-Export enthält sie mit 0 h.
+- Von/Bis: „Bearbeiten“ nur mit Stunden (wie oben); die Spalte „Zeitart“ zeigt den rohen Wert („site“, „weather_winter“), nicht die Bezeichnung.
+- Rollen: Stundenzettel aller Mitarbeiter und DATEV-Lohnexport schon ab Büro – Auftrag -- zu entscheiden, ob der Lohnexport zu den
+  Finanzbereichen gehört (Büro – Auftrag ist „der fachliche Kern ohne die vier Finanzbereiche“).
+- Farben und Symbole: keine Emojis; die Untermenü-Knöpfe und die Monatsmarke („month-banner“ in `--accent`) mit eigenen Farben.
+- Weiter: eigenes `api()` ohne `fehlerText()`; „Buchungen“ unabhängig vom Filter oben (steht als Hinweis da, ist aber eine Falle).
+
+#### DATEV-Export (`app/time_backoffice.py::build_datev_export()`)
+
+- Stunden je Lohnart: jede Buchung des Zeitraums (auch laufende, mit 0 h) bekommt die Lohnart ihrer Zeitart aus den Einstellungen (Baustelle,
+  Fahrzeit, Werkstatt, Sonstige, Schlechtwetter Winter, Schlechtwetter Sommer); eine andere Zeitart nimmt „Sonstige“. Summiert je Mitarbeiter,
+  Kalendertag, Zeitart und Lohnart; vorher je Buchung `rounded_hours()` mit der Rundung der Zeitregeln -- Buchungen seit 1.9.39 sind beim Buchen
+  schon gerundet (zweimal gerundet, gleich, solange die Rundung gleich bleibt; ändert sie sich, weicht DATEV vom Stundenzettel ab), Buchungen vor
+  1.9.39 rundet nur der Export (auch dann weicht er ab).
+- Ausgabe: „Lohn und Gehalt“ als CSV (Personalnummer, Name, Kalendertag, Stundenanzahl, Lohnart, Zeitart) je Tag; „LODAS“ als `[Bewegungsdaten]`,
+  Tabelle 3 je Tag und Lohnart, Buchungszeitraum immer der Monatserste.
+- Pause: geht nur über die gebuchten Stunden ein (netto, `hours`), keine eigene Zeile. Entstanden ist sie beim Buchen: seit 1.9.48 je Tag
+  (Pflichtpause aus der Anwesenheit des Tags, auf die neue Buchung), gespeichert je Buchung; der Export summiert je Tag -- die Tagespause stimmt,
+  solange die Buchungen stimmen („Pausen neu rechnen“ nur auf Klick, nur die Monteurin selbst oder der Admin).
+- Schlechtwetter: eigene Lohnarten ohne Rückfall auf „Sonstige“ (Saison-Kurzarbeitergeld bzw. Ausfallgeld); fehlt die Lohnart, fällt die Zeit
+  mit Warnung aus dem Export.
+- Fahrzeit: eigene Lohnart, fehlt sie, still „Sonstige“; sonst keine Sonderbehandlung (nur die Kacheln zählen sie nicht als produktiv).
+- Warnungen (Personalnummer fehlt, Lohnart fehlt) stehen nur als Anzahl in der Kopfzeile `X-DATEV-Warnings` -- die Seite lädt den Export über
+  `location.href`, niemand sieht sie; die betroffenen Stunden fehlen still.
+- Abwesenheiten (Urlaub, Krankheit) gehen nicht in den Export; der Export prüft den Abschluss nicht (jeder Zeitraum, auch ein offener).
+
+#### Stundenzettel im Büro und bei der Monteurin
+
+- Monteurin („Meine Zeiten“ -> „Stundenzettel als PDF“, `app/field_timesheet_pdf.py`): ein Monat, Briefkopf über den gemeinsamen Rahmen
+  (`render_framed_pdf()`, DIN 5008), Spalten Datum, Auftrag, Zeitart, Tätigkeit, Stunden, je Tag „Tagessumme“ aus `tagessumme()` (nur gebuchte
+  Zeiten), „Monatssumme“ = Summe der Tagessummen; höchstens 2000 Buchungen je Monat.
+- Büro (Backoffice, `build_timesheet_pdf()`): beliebiger Zeitraum, je Mitarbeiter eine Seite, Querformat, eigener Aufbau ohne Briefkopf-Rahmen,
+  Spalten mit Von, Bis und Pause, „Summe“ über alle Zeilen, keine Tagessummen, Unterschriftszeilen; nicht `tagessumme()`.
+- Dieselbe Rechnung? Im Ergebnis ja: beide summieren die gebuchten Stunden (`hours`), eine laufende Zeit hat 0 h (`tagessumme()` lässt sie aus,
+  das Büro zählt 0), gerundet wird erst die Summe. Verschieden sind Darstellung (Tagessummen, Von/Bis/Pause, Rahmen, Zeitraum), die Grenze von
+  2000 Buchungen und die Bezeichnung der Zeitart (Büro mit Rückfall auf die eingebauten Namen, Monteurin ohne). Der DATEV-Export rechnet anders
+  (Rundung je Buchung, oben).
+
+Bilder (1440 × 900, hell, ganze Seite, Testdaten der Bildgrundlage, Büro – Finanzen): 1 Zeiterfassung, 2–6 Backoffice (Dashboard, Buchungen,
+Abwesenheiten, Stundenzettel, DATEV / Lohn), 7 „/mobil“ als Büro, 8 „Meine Zeiten“ als Büro -- im Bericht `bericht_stufe4_r5_8b68dda`.
+Nichts davon ist gebaut; Vorschläge und Entscheidungen bleiben Tobias.
