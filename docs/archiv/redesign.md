@@ -5934,3 +5934,57 @@ Neu `tests/test_v516_pruefabfrage_kolonne_mittel.py`: nur lesende Anweisungen; u
 Gruppe (zwei Zeilen: 3,50 und 4,25 h -> 3,875 h) und vier, die nicht erscheinen (Dauer mit geändertem Kopf, Änderung am 22.10. um 23:59 Berlin,
 nur ein Mitglied, vorher schon gleich). Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): Dauer nicht ausgenommen, ohne Stichtag,
 „vorher gleich“ zählt mit -> je der PostgreSQL-Test rot.
+
+### R5b, Punkte 1–3 und 6, Server (1.9.95): die Daten der Seite
+
+- `app/zeiten.py` (rollenlos) und `app/routers/zeiten.py` (Rechte je Zeile): `GET /api/zeiten/pruefen` und `GET /api/zeiten/buchungen` ab Büro –
+  Auftrag (`require_min_role(buero_auftrag)`), `GET /api/zeiten/monat` mit den Lohndaten (`require_lohndaten`). Nur lesen; geschrieben wird über
+  die bestehenden Endpunkte (Ende nachtragen und seine Vorschau, Pausen neu rechnen, Zeiten, Abschluss, Anträge), die ihre Rechte selbst prüfen.
+- Je Zeile, was das Konto darf: `darf_schliessen` (Zeit von früher), `darf_buchen` (Pause des Tags), `darf_aendern` (Buchung) -- buchen darf das
+  Konto (`darf_zeit_buchen()`), die Zeit ist die eigene oder es bucht für andere, im abgeschlossenen Zeitraum nur der Admin (dieselben Regeln wie
+  `_time_entry_can_edit()` und `_require_open_period()`); dazu je Antwort `rechte` (zeit_buchen, zeit_fuer_andere, lohndaten,
+  antraege_entscheiden, admin).
+- Prüfen: `offene_zeiten()` (jede Zeit mit `laeuft_seit_frueher()`, älteste zuerst, Zeitart mit Namen, Auftrag Nummer · Titel, `gruppe` bei
+  laufender Kolonne); `pausen_tage()` über `app/time_backoffice.py::unpassende_pausen()` (neu, eine Liste auch für `abschluss_hindernisse()`), je
+  Buchung Zeitart, Von–Bis, Pause und gebucht alt -> neu -- genau das, was „So buchen“ an `POST /api/time-entries/pausen-neu-rechnen` schickt;
+  Anträge wie `GET /api/absence-requests` mit Arbeitstagen; der Monat (`monat_stunden()`: Gebucht, Fahrzeit, je Mitarbeiter Tage und Stunden über
+  `tagessumme()`); „Vor dem Abschluss“ (`vor_dem_abschluss()`); `zahlen` an den Reitern.
+- Buchungen: `buchungen()` -- der Monat nach den Filtern (UND), je Zeile `entry_to_dict()` mit Zeitart, `vom_buero`, Kennzeichen des Auftrags,
+  „Summe der Auswahl“ über `tagessumme()`, `laufend` (Zahl), Auswahl der Filter.
+- Monat & Lohn: `monat()` -- Status (offen, teilweise, abgeschlossen), Lücken (`abschluss_hindernisse()` bis zum Monatsende, mit
+  `luecken_text`: „2 laufende Zeiten, 1 Pause“), was DATEV fehlt (`datev_fehlt()`, mit `datev_text`: „1 Personalnummer, 1 Lohnart,
+  DATEV-Nummern“), offene Anträge (Zahl), Tabelle je Mitarbeiter mit Personalnummer, Lohnexport, Tagen, Stunden je Spalte und zusammen.
+
+#### Festlegungen 1.9.95 (Bitte bestätigen)
+
+1. Der Monat rechts auf „Prüfen“ ist der erste noch nicht ganz abgeschlossene: der Monat nach „Abgeschlossen bis“, höchstens der von heute; ohne
+   Abschluss der von heute.
+2. „Pause passt nicht zum Tag“ prüft vom Tag nach „Abgeschlossen bis“ bis heute, ohne Abschluss ab dem Ersten des laufenden Monats -- dieselbe
+   Grenze wie das Abschließen.
+3. Die Zahl am Reiter „Prüfen“ = Zeiten von früher + Tage mit unpassender Pause; am Reiter „Abwesenheiten“ = offene Anträge, die das Konto sieht
+   (wie die Vorlage: 3 und 1, die Anträge stehen auch auf „Prüfen“).
+4. Anträge sieht das Büro wie bisher nur die eigenen, der Admin alle (`GET /api/absence-requests`) -- auch auf „Prüfen“.
+5. „5 Arbeitstage“ am Antrag zählt Montag bis Freitag im Zeitraum, ohne Feiertage.
+6. „Summe der Auswahl“ = die gebuchten Stunden genau der gefilterten Zeilen (`tagessumme()`); eine laufende Zeit steht in der Liste und zählt nicht
+   mit, auch wenn sie Stunden trüge.
+7. Auswahl der Filter: Mitarbeiter = jeder aktive und jeder, der im Monat gebucht hat; Aufträge = die des Monats und der gefilterte; Zeitarten =
+   die Liste der Zeitarten und jede im Monat gebuchte.
+8. „Stunden je Mitarbeiter“ auf „Monat & Lohn“: Spalten Baustelle, Fahrzeit, Werkstatt, Schlechtwetter (Winter und Sommer zusammen); „Sonstige“
+   (die Zeitart „Sonstige“ und jede ohne eigene Spalte) nur, wenn dort Stunden stehen.
+9. „Dauer · vom Büro“ heißt: ohne Uhrzeiten, gebucht von einem Konto außerhalb der Monteursansicht (`vom_buero`); ohne Uhrzeiten von der
+   Monteurin oder dem Kolonnenführer nur „Dauer“.
+10. „Vor dem Abschluss“ auf „Prüfen“ nennt die Lücken der Zeiten als Zahl („2 Zeiten laufen noch“, „1 Tag mit unpassender Pause“) und, was dem
+    DATEV-Export des Monats fehlt, einzeln (wie die Vorlage).
+
+#### Tests und Prüfung
+
+Neu `tests/test_v517_zeiten_server.py` (19 Tests): wer was liest (Monteurin nichts, Büro – Auftrag nicht „Monat & Lohn“); Rechte und Knöpfe je Rolle
+(Büro – Auftrag auch an der eigenen Zeit keine); im abgeschlossenen Zeitraum nur der Admin; Monat als JJJJ-MM; Zeiten von früher mit Ende eintragen
+= Vorschau; Pause passt nicht mit Vorschau, „So buchen“ = Vorschau; Pausen erst nach dem Abschluss; Anträge je Konto; Monat und „Vor dem
+Abschluss“ (dieselbe Summe wie die Übersicht); der erste offene Monat; Filter ändern Liste und Summe, laufende zählt nicht; Kennzeichen; Lücken und
+DATEV getrennt; Tabelle = DATEV-Export (eine Rechnung), „Sonstige“ nur mit Stunden. Keine angepassten Erwartungen (`test_v512` unverändert grün
+mit `unpassende_pausen()`).
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): „Monat & Lohn“ für Büro – Auftrag; Summe mit laufenden; Ändern ohne Abschluss;
+Pausen ohne Abschlussgrenze; offene Zeiten auch von heute; Anträge aller für das Büro; Knöpfe für Büro – Auftrag (zuerst grün -- der Test prüfte
+Büro – Auftrag nur ohne eigenen Mitarbeiter; nachgeschärft: das Konto ist Tom, Toms eigene laufende Zeit) -> je 1 Test rot.

@@ -4,6 +4,19 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.95 – Die Daten der Seite „Zeiten“ vom Server (Stufe 4, R5b)
+
+Neu `app/zeiten.py` mit drei lesenden Endpunkten (`app/routers/zeiten.py`) für die Büroseite „Zeiten“, die in den nächsten Versionen
+Zeiterfassung und Backoffice ersetzt -- der Server rechnet, die Seite zeigt nur. `GET /api/zeiten/pruefen` (ab Büro – Auftrag): Zeiten, die
+seit einem früheren Tag laufen (aller Personen), Tage mit unpassender Pause seit dem Abschluss samt der Vorschau von „Pausen neu rechnen“ je
+Buchung, offene Anträge (wer sie sieht wie bisher), der erste noch offene Monat mit Stunden je Mitarbeiter und „Vor dem Abschluss“, die Zahlen
+an den Reitern. `GET /api/zeiten/buchungen` (ab Büro – Auftrag): die Buchungen eines Monats nach Mitarbeiter, Auftrag und Zeitart mit der
+„Summe der Auswahl“ (eine laufende Zeit zählt nicht mit) und der Auswahl der Filter. `GET /api/zeiten/monat` (Admin und Büro – Finanzen):
+Abschluss, die Lücken der Zeiten (dieselbe Liste wie die Ablehnung des Abschlusses), was dem DATEV-Export fehlt, Stunden je Mitarbeiter und
+Zeitart mit Personalnummer. Was das Konto davon darf (Ende eintragen, So buchen, Ändern), steht je Zeile in der Antwort, nach denselben Regeln
+wie die schreibenden Endpunkte. Die Tage mit unpassender Pause kommen für Abschluss und Seite aus einer Funktion
+(`app/time_backoffice.py::unpassende_pausen()`). Neuer Test `tests/test_v517_zeiten_server.py`.
+
 ## 1.9.94 – Prüfabfrage: Kolonnenbuchungen mit dem Mittel aller Mitglieder (Stufe 4, R5b)
 
 Neu `scripts/pruefabfrage_kolonne_mittel.sql` (nur lesen: schreibgeschützte Transaktion, ROLLBACK): welche Kolonnenbuchung bekam seit dem

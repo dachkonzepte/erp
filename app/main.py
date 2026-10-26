@@ -25,7 +25,7 @@ from .routers import (
     dashboard, document_categories, document_email_templates, document_layout, email_settings, employees, field_defects, field_view, findings, imports, incoming_invoices, inquiries, inspection_templates, invoices, labor_rate, maintenance_contracts, materials, modules, notice_letters, operational_assets, orders,
     outlook_sync_settings, pages, payment_terms, payments, planning, project_documents, project_participants, project_pipeline_columns, projects, properties, property_documents, quick_service_orders, quotes, recurring_costs, reminders,
     resource_planning, roof_areas, search, service_reports, services, settings, task_columns, tasks, tax_keys, time_backoffice, time_tracking, users,
-    work_preparation,
+    work_preparation, zeiten,
 )
 from .version import APP_VERSION
 
@@ -138,6 +138,7 @@ app.include_router(planning.router)
 app.include_router(time_tracking.router)
 app.include_router(time_backoffice.router)
 app.include_router(absence_requests.router)
+app.include_router(zeiten.router)  # seit 1.9.95: Daten der Seite „Zeiten“
 app.include_router(audit.router)
 app.include_router(imports.router)
 app.include_router(catalogs.router)

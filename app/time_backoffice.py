@@ -77,16 +77,25 @@ def abschluss_hindernisse(db: Session, bis: date) -> list[dict]:
         seit = f"{row.started_at:%d.%m.%Y, %H:%M}" if row.started_at else f"{row.work_date:%d.%m.%Y}"
         liste.append({"art": "laeuft", "employee_id": row.employee_id, "name": name, "tag": row.work_date, "entry_id": row.id,
                       "text": f"{name}: Zeit läuft seit {seit}"})
-    tage = (select(TimeEntry.employee_id, TimeEntry.work_date)
-            .where(TimeEntry.status == "booked", TimeEntry.work_date >= ab, TimeEntry.work_date <= bis).distinct())
-    for employee_id, tag in sorted(db.execute(tage).all(), key=lambda x: (x[1], x[0])):
-        stand = pausen_vorschau(db, employee_id, tag)
-        if stand["passt"]:
-            continue
+    for employee_id, tag, stand in unpassende_pausen(db, ab, bis):
         name = employee_name(db.get(Employee, employee_id)) or f"#{employee_id}"
         liste.append({"art": "pause", "employee_id": employee_id, "name": name, "tag": tag, "entry_id": None,
                       "text": f"{name}, {tag:%d.%m.%Y}: Pause abgezogen {stand['abgezogen']} min, nach Zeitregel {stand['nach_zeitregel']} min"})
     return liste
+
+
+def unpassende_pausen(db: Session, ab: date, bis: date) -> list[tuple[int, date, dict]]:
+    """Seit 1.9.95 (Stufe 4, R5b): die Tage mit unpassender Pause zwischen ab und bis -- je (Mitarbeiter, Tag) mit gebuchten Zeiten der
+    Stand aus pausen_vorschau(), wenn neu rechnen etwas ändern würde; nach Tag, dann Mitarbeiter. Eine Liste für den Abschluss
+    (abschluss_hindernisse()) und „Prüfen“ der Seite „Zeiten“ (app/zeiten.py)."""
+    tage = (select(TimeEntry.employee_id, TimeEntry.work_date)
+            .where(TimeEntry.status == "booked", TimeEntry.work_date >= ab, TimeEntry.work_date <= bis).distinct())
+    ergebnis = []
+    for employee_id, tag in sorted(db.execute(tage).all(), key=lambda x: (x[1], x[0])):
+        stand = pausen_vorschau(db, employee_id, tag)
+        if not stand["passt"]:
+            ergebnis.append((employee_id, tag, stand))
+    return ergebnis
 
 
 def abschluss_meldung(liste: list[dict]) -> str:
