@@ -280,7 +280,7 @@ def test_meine_zeiten_month_change_the_last_chosen_month_wins():
     """„Meine Zeiten“ (seit 1.9.59, bis dahin der Stundenzettel): September gewählt (Antwort hängt), dann Oktober -- die späte Antwort
     für September überschreibt Oktober nicht."""
     log = _ausfuehren("mobil_zeiten.html", ["laden"], """
-        let D=null,MONAT=null;const KEIN_MITARBEITER='';
+        let D=null,MONAT=null,VORWAHL=null;const KEIN_MITARBEITER='';  // VORWAHL seit 1.9.86 (laden() schickt die Vorwahl mit)
         async function api(url){const r=await fetch(url);return r.json()}
         function ladeHinweis(){}
         function zeichnen(d){LOG.push('gezeichnet '+d.monat)}

@@ -10,8 +10,9 @@ Auftrag „buero“. Feste Uhr 10:00.
     Seite von S         „Der Auftrag ist storniert – Zeiten dafür trägt das Büro ein.“
     Seite von A         „Zeit nachtragen“ wie bisher (zu „Meine Zeiten“ mit A gewählt), kein Hinweis; seit 1.9.84 mit denselben Ecken wie
                         „+ Bericht“ (bis dahin eckig)
-    veraltete Seite     Mia auf der Seite von A, das Büro schließt A ab; „Zeit nachtragen“ -> „Meine Zeiten“ mit A gewählt („nicht in der
-                        Auswahl“), Von/Bis, „Nachtragen“ -> im Dialog die Meldung, der Dialog bleibt offen, nichts gebucht (Bild 2);
+    veraltete Seite     Mia auf der Seite von A, das Büro schließt A ab; „Zeit nachtragen“ -> „Meine Zeiten“ mit A gewählt, seit 1.9.86
+                        beim Namen „AUF-2026-0201 · Dachsanierung (Auftrag abgeschlossen)“ (bis 1.9.85 „1 (nicht in der Auswahl)“,
+                        Bild 2a), Von/Bis, „Nachtragen“ -> im Dialog die Meldung, der Dialog bleibt offen, nichts gebucht (Bild 2);
                         seit 1.9.83 steht die Meldung ganz im Bild in der festen Leiste über den Knöpfen, über deren ganze Breite, Ober-
                         und Unterkante unverdeckt (1.9.82: die untere Hälfte unter der Leiste);
                         neu geladen: die Seite von A zeigt den Hinweis
@@ -157,9 +158,10 @@ async def pruefen(tab, seed, p):
     await tab.warte_auf_ruhe()
     await tab.js("document.getElementById('nachtragenKnopf').click()")
     await tab.warten("document.getElementById('zeitDialog').open")
-    p.pruefe("„Zeit nachtragen“: A gewählt, als „nicht in der Auswahl“ gekennzeichnet", await tab.js(
-        "(()=>{const s=document.getElementById('zdAuftrag');return [s.value,s.options[s.selectedIndex].textContent.includes('(nicht in der Auswahl)')]})()"),
-        [str(a), True])
+    p.pruefe("„Zeit nachtragen“: A gewählt, beim Namen und als abgeschlossen gekennzeichnet (seit 1.9.86)", await tab.js(
+        "(()=>{const s=document.getElementById('zdAuftrag');return [s.value,s.options[s.selectedIndex].textContent,"
+        "s.scrollWidth<=s.clientWidth]})()"), [str(a), "AUF-2026-0201 · Dachsanierung (Auftrag abgeschlossen)", True])
+    await tab.bild("2a_vorwahl_meine_zeiten_quer_hell")
     for feld, wert in (("zdVon", "07:30"), ("zdBis", "09:00")):
         await tab.js(f"(f=>{{f.value='{wert}';f.dispatchEvent(new Event('input',{{bubbles:true}}))}})(document.getElementById('{feld}'))")
     await tab.warte_auf_ruhe()

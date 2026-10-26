@@ -301,11 +301,20 @@ var VORWAHL=null,D=null,MONAT=null,ANTRAEGE=[],ZD=null,KD=null,LD=null,PV={},ZUR
 // --- Laden und Zeichnen --------------------------------------------------------------------------------------------------------
 function ladeHinweis(text){var h=el('ladeHinweis');h.hidden=!text;h.textContent=text||''}
 function laden(){
-  var url='/api/field-view/meine-zeiten'+(MONAT?'?monat='+encodeURIComponent(MONAT):'');
+  // seit 1.9.86 mit der Vorwahl aus der Adresse: der Server nennt ihre Zeile (D.vorwahl), auch außerhalb der Liste
+  var teile=[];if(MONAT)teile.push('monat='+encodeURIComponent(MONAT));if(VORWAHL)teile.push('vorwahl='+encodeURIComponent(VORWAHL));
+  var url='/api/field-view/meine-zeiten'+(teile.length?'?'+teile.join('&'):'');
   return lesen('zeiten',()=>api(url),function(d){D=d;MONAT=d.monat;zeichnen(d)}).catch(function(e){
     var t=el('tage');t.className='laedt';t.textContent='';
     ladeHinweis(e.status===422?KEIN_MITARBEITER:e.message);
   });
+}
+// Seit 1.9.86 (Stufe 4, R5): die Vorwahl außerhalb der Liste beim Namen -- „AUF-… · Titel (Auftrag abgeschlossen)“ bzw.
+// „(nicht in der Auswahl)“; ohne Zeile vom Server (kein Zugang) wie bis 1.9.85 die Nummer
+function vorwahlText(w){
+  var v=D&&D.vorwahl;
+  if(!v||String(v.id)!==String(w))return w+' (nicht in der Auswahl)';
+  return auftragTitel(v)+' ('+(v.geschlossen?'Auftrag '+v.geschlossen:'nicht in der Auswahl')+')';  // Nummer · Titel: das Kennzeichen bleibt im Feld sichtbar
 }
 function zeichnen(d){
   el('kachelHeute').textContent=stunden(d.kacheln.heute);
@@ -408,7 +417,7 @@ function zeitDialogOeffnen(z){
     {wert:function(a){return a.value},fehlt:function(){return z.zeitart}});
   el('zdVon').value=aendern?(z.von||''):'';el('zdBis').value=aendern?(z.bis||''):'';
   el('zdAuftrag').innerHTML=auswahlOptionen(D.auftraege,aendern?z.order_id:VORWAHL,auftragText,{leer:'— Auftrag wählen —',
-    fehlt:function(w){return aendern?(z.order_number||'Auftrag')+(z.project_name?' · '+z.project_name:'')+' (nicht mehr in der Auswahl)':w+' (nicht in der Auswahl)'}});
+    fehlt:function(w){return aendern?(z.order_number||'Auftrag')+(z.project_name?' · '+z.project_name:'')+' (nicht mehr in der Auswahl)':vorwahlText(w)}});
   el('zdTaetigkeit').innerHTML=auswahlOptionen(D.taetigkeiten,aendern?z.activity:'',function(t){return t.label},
     {wert:function(t){return t.value},leer:'— ohne Tätigkeit —'});
   el('zdNotiz').value=aendern?(z.notes||''):'';
@@ -495,7 +504,7 @@ function kolonneDialogOeffnen(g){
   el('kdTaetigkeit').innerHTML=auswahlOptionen(D.taetigkeiten,aendern?g.activity:'',function(t){return t.label},
     {wert:function(t){return t.value},leer:'— ohne Tätigkeit —'});
   el('kdAuftrag').innerHTML=auswahlOptionen(D.auftraege,aendern?g.order_id:VORWAHL,auftragText,{leer:'— Auftrag wählen —',
-    fehlt:function(w){return aendern?(g.order_number||'Auftrag')+' (nicht mehr in der Auswahl)':w+' (nicht in der Auswahl)'}});
+    fehlt:function(w){return aendern?(g.order_number||'Auftrag')+' (nicht mehr in der Auswahl)':vorwahlText(w)}});
   el('kdNotiz').value=aendern?(g.notes||''):'';
   el('kdWeitereFelder').hidden=true;el('kdWeitere').setAttribute('aria-expanded','false');
   el('kdWeitere').textContent='Weitere Angaben'+(aendern?[g.activity,g.notes,g.mindestpause?'Pause mindestens '+stundenUhr(g.mindestpause):null]

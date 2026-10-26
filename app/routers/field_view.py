@@ -52,13 +52,14 @@ from ..deps import require_admin
 from ..document_categories import field_may_see_category
 from ..field_timesheet_pdf import build_field_timesheet_pdf
 from ..heute import heute_fuer
+from ..time_tracking import auftrag_geschlossen
 from ..maintenance_contracts import list_relevant_contracts_for_employee
 from ..meine_zeiten import meine_zeiten
 from ..mobile_manifest import build_icon_png, build_manifest
 from ..mobile_settings import load_mobile_settings, is_past_shift_end, mobile_settings_to_dict, update_mobile_settings
 from ..models import AppUser, DocumentCategory, Order, Property
 from ..modules import is_module_enabled
-from ..orders import field_accessible_property_ids
+from ..orders import field_accessible_property_ids, field_may_access_order
 from ..permissions import MOBIL_ROLLEN, NUR_MONTEURSANSICHT, ROLE_FIELD, require_min_role, require_role
 from ..planning import auftrag_zeile, list_field_bookable_orders, list_todays_assignments_for_employee, list_upcoming_assignments_for_employee
 from ..property_documents import (
@@ -185,16 +186,29 @@ def get_field_view_maintenance_contracts(request: Request, db: Session = Depends
 
 @router.get("/api/field-view/meine-zeiten")
 def get_field_view_meine_zeiten(request: Request, monat: str | None = Query(None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
+                                vorwahl: int | None = Query(None, ge=1),
                                 db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Seit 1.9.57 (Stufe 4, R3): alles für „Meine Zeiten“ (app/meine_zeiten.py) -- Kacheln, Buchungen des Monats je Tag mit Summe und
     Pausenprüfung, Monat. Immer die eigenen Zeiten (Mitarbeiter nur aus der Anmeldung, kein Parameter); monat = JJJJ-MM, sonst der
-    laufende Monat in Berlin. Liest nur."""
+    laufende Monat in Berlin. Liest nur.
+
+    Seit 1.9.86 (Stufe 4, R5, Teil 1 Punkt 1): vorwahl = der Auftrag aus der Adresse (?order_id= von der Seite des Auftrags) -- "vorwahl"
+    ist seine Zeile (auftrag_zeile(), dazu "geschlossen": abgeschlossen/storniert), damit die Auswahl ihn auch außerhalb der Liste
+    beim Namen nennt (bis 1.9.85 nur „1 (nicht in der Auswahl)“). Nur bei Zugang: die Monteurin wie überall
+    (field_may_access_order()), das Büro immer; ein fremder oder unbekannter Auftrag ergibt null, kein Fehler (nichts verrät, ob es ihn
+    gibt)."""
     user = getattr(request.state, "erp_user", None)
     if user is None or user.employee_id is None:
         raise HTTPException(status_code=422, detail=KEIN_MITARBEITER)
     heute = _now().date()
     erster = date(int(monat[:4]), int(monat[5:]), 1) if monat else heute.replace(day=1)
-    return meine_zeiten(db, user.employee_id, monat=erster, heute=heute)
+    daten = meine_zeiten(db, user.employee_id, monat=erster, heute=heute)
+    zeile = None
+    if vorwahl is not None:
+        order = db.get(Order, vorwahl)
+        if order is not None and (user.role != ROLE_FIELD or field_may_access_order(db, user.employee_id, order.id)):
+            zeile = {**auftrag_zeile(order), "geschlossen": auftrag_geschlossen(order.status)}
+    return {**daten, "vorwahl": zeile}
 
 
 @router.get("/api/field-view/offene-berichte")

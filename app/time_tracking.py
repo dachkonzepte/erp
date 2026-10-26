@@ -71,12 +71,19 @@ def laeuft_seit_frueher(row: TimeEntry | None, heute: date | None = None) -> boo
                 and row.started_at.date() < (heute or berlin_today()))
 
 
+def auftrag_geschlossen(status: str | None) -> str | None:
+    """Seit 1.9.86 (Stufe 4, R5): "abgeschlossen" oder "storniert" (Groß- und Kleinschreibung, Leerraum egal), sonst None -- das
+    Kennzeichen an Einsatz, Buchung und Vorwahl („Auftrag abgeschlossen“); dieselbe Regel wie auftrag_zeiten_gesperrt()."""
+    wert = (status or "").strip().lower()
+    return wert if wert in ("abgeschlossen", "storniert") else None
+
+
 def auftrag_zeiten_gesperrt(order) -> str | None:
     """Seit 1.9.81 (Stufe 4, R4 Nachtrag 3, B): ist der Auftrag abgeschlossen oder storniert, die Meldung dazu, sonst None. Rollenlos --
     gesperrt ist das Buchen dort nur für die Monteurin (app/routers/time_tracking.py::_require_order_open_for_field()), das Büro bucht
     wie bisher; die Seite des Auftrags zeigt der Monteurin statt „Zeit nachtragen“ diese Meldung."""
-    status = ((order.status if order is not None else None) or "").strip().lower()
-    return {"abgeschlossen": AUFTRAG_ABGESCHLOSSEN_ZEITEN, "storniert": AUFTRAG_STORNIERT_ZEITEN}.get(status)
+    zu = auftrag_geschlossen(order.status if order is not None else None)
+    return {"abgeschlossen": AUFTRAG_ABGESCHLOSSEN_ZEITEN, "storniert": AUFTRAG_STORNIERT_ZEITEN}.get(zu)
 
 
 def offene_zeit_von_frueher(db: Session, employee_id: int) -> TimeEntry | None:

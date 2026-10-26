@@ -5486,3 +5486,38 @@ für `button`) bekommt `border-radius:var(--ds-ecke-feld)` -- dieselbe Ecke wie 
 (`_mobile_header.html`), der Seitenkopf nimmt `ds-kopf-tablet`. Knöpfe und Felder im Monteursrahmen haben deshalb 10 statt der in Stufe 2
 beschlossenen 12 px. Zu entscheiden: die Klasse im Monteursrahmen setzen (alle Knöpfe und Felder dort 12 px, neue Bildgrundlage) oder die
 Regeln streichen.
+
+## Stufe 4, R5 (ab 1.9.85): Teil 1 bauen, Teil 2 nur Befund (Büroseiten)
+
+Vorgabe vom 26.10.2026 (Start HEAD cdf41a6, live): Festlegungen des Nachtrags 3 alle bestätigt; zu den drei Befunden entschieden.
+Teil 1 bauen: (1) „Meine Zeiten“ nennt die Vorwahl außerhalb der Liste mit ihrer Zeile (nur bei Zugang); (2) der Monteursrahmen setzt
+`.ds-tablet` (Knöpfe und Felder 12 px, Seitentitel 26 px; feste Leisten, Dialoge, Ziele ≥ 48 px mitprüfen; neue Bildgrundlage); (3) ein
+abgeschlossener oder stornierter Auftrag wird auf „Heute“ nicht vorbelegt, seine Einsatzkarte zeigt „Auftrag abgeschlossen“, in „Meine
+Zeiten“ kein „⋮“ an Buchungen dort; (4) Werkzeug: Port-Wettlauf beheben (1.9.85, `docs/archiv/testablauf-und-klicktests.md`, „Umsetzung
+1.9.85“). Teil 2: Befund der Büroseiten der Zeiterfassung, nichts bauen.
+
+### R5, Punkt 1 (1.9.86): die Vorwahl beim Namen
+
+- `GET /api/field-view/meine-zeiten?vorwahl=<id>` (`app/routers/field_view.py`): `"vorwahl"` = `auftrag_zeile()` samt `"geschlossen"`
+  (`app/time_tracking.py::auftrag_geschlossen()`, neu: abgeschlossen/storniert, dieselbe Regel wie `auftrag_zeiten_gesperrt()`), nur bei
+  Zugang -- die Monteurin über `field_may_access_order()`, das Büro immer; sonst null, ohne Fehler.
+- `mobil_zeiten.html`: `laden()` schickt die Vorwahl aus der Adresse mit; `vorwahlText()` für die Auswahl „Auftrag“ in „Zeit nachtragen“ und
+  „Nachtrag für die Kolonne“, wenn die Vorwahl nicht in der Liste steht.
+
+**Festlegungen 1.9.86 (Bitte bestätigen)**
+
+1. Die Vorwahl außerhalb der Liste heißt „Nummer · Titel (Auftrag abgeschlossen)“, „(Auftrag storniert)“ bzw. „(nicht in der Auswahl)“ --
+   nicht die ganze Zeile mit Objekt und Adresse: die schnitt das Feld bei 1280 × 620 vor dem Kennzeichen ab.
+2. Ohne Zugang (fremder oder unbekannter Auftrag) ist `vorwahl` null, die Auswahl zeigt wie bisher die Nummer; ein Fehler entsteht nicht.
+3. Das Büro (mit Mitarbeiter auf „Meine Zeiten“) bekommt jede Vorwahl.
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v507_vorwahl_zeile.py` (5 Tests): Kennzeichen als Wort; Vorwahl mit Zugang, auch abgeschlossen und außerhalb der Liste;
+  fremd oder unbekannt null, nichts über den Auftrag, 0 abgelehnt (422); Büro jede; die Seite fragt und nennt die Vorwahl.
+- Angepasste Erwartung: `klicktest_zeiten_abgeschlossen` „A gewählt, als „nicht in der Auswahl“ gekennzeichnet“ `[Id, true]` -> „A gewählt,
+  beim Namen und als abgeschlossen gekennzeichnet“ `[Id, „AUF-2026-0201 · Dachsanierung (Auftrag abgeschlossen)“, true]`; neu Bild 2a.
+  `test_v400` `test_meine_zeiten_month_change_the_last_chosen_month_wins`: der node-Aufbau legt `VORWAHL=null` an (nur Aufbau, `laden()`
+  liest sie jetzt).
+- **Gegenproben** (je rot, FAILED): Vorwahl ohne Zugangsprüfung -> `test_v507` 1; Seite fragt die Vorwahl nicht -> `test_v507` 1, Klicktest 1;
+  Vorwahl ohne Namen -> `test_v507` 1, Klicktest 1.

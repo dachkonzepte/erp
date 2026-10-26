@@ -4,6 +4,15 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.86 – „Meine Zeiten“: die Vorwahl beim Namen (Stufe 4, R5)
+
+Öffnet die Monteurin „Zeit nachtragen“ von der Seite eines Auftrags, der nicht in ihrer Liste steht (abgeschlossen seit dem Öffnen,
+außerhalb ±14 Tage), wählte „Meine Zeiten“ ihn vor, zeigte aber nur die nackte Id: „1 (nicht in der Auswahl)“ (seit 1.9.67). Jetzt
+liefert `GET /api/field-view/meine-zeiten?vorwahl=<id>` seine Zeile (`auftrag_zeile()`, dazu abgeschlossen/storniert) -- nur bei Zugang,
+die Monteurin wie überall, das Büro immer --, und die Auswahl nennt ihn „AUF-2026-0201 · Dachsanierung (Auftrag abgeschlossen)“ bzw.
+„(nicht in der Auswahl)“, in „Zeit nachtragen“ wie im Nachtrag für die Kolonne. Nummer und Titel statt der ganzen Zeile: sonst schnitt
+das Feld das Kennzeichen ab. Neuer Test `test_v507`.
+
 ## 1.9.85 – Klicktests: Port-Wettlauf behoben (Stufe 4, R5)
 
 Startet ein Klicktest, während ein anderer startet, konnte dieser den eben geprüften Port nehmen; `_warte_auf()` nahm jede HTTP-Antwort
