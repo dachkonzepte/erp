@@ -5902,3 +5902,35 @@ Angepasste Erwartungen:
 
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): Einsatz ohne Titel -> 1 Test und 1 Prüfung von `klicktest_heute` rot; Karte
 ohne die Zeile -> 1 Test und 2 Prüfungen rot; `buero` immer falsch -> 3 Tests rot; Nachtragen für jedes Büro -> 1 Test rot.
+
+## Stufe 4, R5b (ab 1.9.94): Büro -- die Seite „Zeiten“
+
+Vorgabe 26.10.2026: Festlegungen R5a alle bestätigt. Vorlage (von Tobias freigegeben): `bildgrundlage/entwurf-stufe4/zeiten-pruefen.html`,
+`zeiten-buchungen.html`, `zeiten-aendern.html`, `zeiten-monat.html` -- Maße und Texte gelten, Farben über Tokens, hell und dunkel, Seitenkopf über
+den Baustein. Eine Seite „Zeiten“ ersetzt Zeiterfassung (Büro) und Backoffice.
+
+### R5b, Punkt 0 (1.9.94): Vorweg
+
+- Bildgrundlage vom Stand `d54f7e4` (vor dem Umbau): `bildgrundlage/d54f7e4/`, 314 Bilder, 338 von 338 Prüfungen wie erwartet -- die Grundlage für
+  den Vergleich nach der Umstellung.
+- `scripts/pruefabfrage_kolonne_mittel.sql` (nur lesen): Kolonnenbuchungen seit dem 23.10.2026, deren Mitglieder durch ein Ändern ohne Von/Bis
+  dieselben Stunden bekamen (Fehler bis 1.9.89, siehe R5a Punkte 2 und 3, „Befund dabei“). Erkannt im Änderungsverlauf (`audit_logs`): Änderung der
+  Stunden (`hours`) einer Zeitbuchung über `PUT /api/time-entry-groups/{id}`, je Gruppe und Anfrage (Pfad und Minute) mindestens zwei Mitglieder,
+  nachher eine Zahl, vorher mehrere, und keine Änderung der Stunden des Kopfs („Gruppen-Zeitbuchung“) in derselben Anfrage. Ergebnis je Mitglied:
+  Gruppe, Tag, Auftrag (Nummer · Titel), Mitarbeiter, Stunden vorher/nachher, geändert am (Europe/Berlin), geändert von.
+
+#### Festlegungen 1.9.94 (Bitte bestätigen)
+
+1. „Seit dem 23.10.2026“ heißt ab 00:00 Uhr Europe/Berlin (22.10.2026 22:00 UTC, der Verlauf speichert UTC).
+2. Eine Anfrage = derselbe Pfad in derselben Minute (der Verlauf trägt keine Kennung der Anfrage).
+3. Eine bewusst eingetragene Dauer ändert die Stunden des Kopfs mit und erscheint nicht; eine Dauer, die genau die alten Stunden des Kopfs trifft,
+   erschiene -- im Zweifel am Verlauf der Gruppe prüfen (steht im Kopf der Datei).
+4. Aufruf auf dem Server mit `psql` und `PGOPTIONS='-c default_transaction_read_only=on'` (doppelt zum `BEGIN TRANSACTION READ ONLY`), die
+   Verbindung aus `.env` ohne `+psycopg`.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v516_pruefabfrage_kolonne_mittel.py`: nur lesende Anweisungen; unter PostgreSQL (Wegwerf-Schema) ein Bestand mit einer betroffenen
+Gruppe (zwei Zeilen: 3,50 und 4,25 h -> 3,875 h) und vier, die nicht erscheinen (Dauer mit geändertem Kopf, Änderung am 22.10. um 23:59 Berlin,
+nur ein Mitglied, vorher schon gleich). Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): Dauer nicht ausgenommen, ohne Stichtag,
+„vorher gleich“ zählt mit -> je der PostgreSQL-Test rot.

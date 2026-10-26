@@ -4,6 +4,17 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.94 – Prüfabfrage: Kolonnenbuchungen mit dem Mittel aller Mitglieder (Stufe 4, R5b)
+
+Neu `scripts/pruefabfrage_kolonne_mittel.sql` (nur lesen: schreibgeschützte Transaktion, ROLLBACK): welche Kolonnenbuchung bekam seit dem
+23.10.2026 durch ein Ändern ohne Von/Bis für alle Mitglieder dieselben Stunden -- der Fehler bis 1.9.89 (`update_group()` setzte jedem Mitglied
+Stunden und Pause des Kopfs, nach einem Kolonnen-Nachtrag mit Von/Bis das Mittel; behoben mit 1.9.90). Die Abfrage liest den Änderungsverlauf:
+Stunden der Mitglieder über `PUT /api/time-entry-groups/{id}`, in einer Anfrage mindestens zwei, nachher alle gleich, vorher verschieden, und die
+Stunden des Kopfs blieben unverändert (eine bewusst eingetragene Dauer ändert sie mit und erscheint nicht). Je Treffer Gruppe, Tag, Auftrag,
+Mitarbeiter mit Stunden vorher und nachher, wann (Europe/Berlin) und von wem; leer, wenn nichts betroffen ist. Der Aufruf auf dem Server steht
+im Kopf der Datei. Neuer Test `tests/test_v516_pruefabfrage_kolonne_mittel.py` (unter PostgreSQL mit einem Bestand: ein Treffer, vier Fälle, die
+nicht erscheinen dürfen).
+
 ## 1.9.93 – Kleinigkeiten: Einsatzkarte mit Nummer · Titel, das Büro auf /mobil und in „Meine Zeiten“ (Stufe 4, R5a)
 
 Die Einsatzkarte auf „Heute“ nennt den Auftrag jetzt mit „Nummer · Titel“ (eine Zeile unter dem Objekt, über `auftragTitel()` aus
