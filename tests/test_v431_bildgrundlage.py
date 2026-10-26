@@ -175,15 +175,16 @@ def test_zustaende_wie_vorgegeben():
 def test_dateinamen_eindeutig_und_die_bisherigen_zuerst():
     geplant = bg.geplante_bilder()
     namen = [b.datei for b in geplant]
-    # seit 1.9.67 314: dazu der Bericht in fünf Schritten (Büro 4, Monteurin 8) -- 248 in 412/1440 + 48 TerraPad + 18 Zustände
+    # seit 1.9.96 318: dazu die Seite „Zeiten“ (Büro 4) -- 252 in 412/1440 + 48 TerraPad + 18 Zustände
+    # 1.9.67–1.9.95 314: dazu der Bericht in fünf Schritten (Büro 4, Monteurin 8) -- 248 in 412/1440 + 48 TerraPad + 18 Zustände
     # 1.9.59–1.9.66 302: „Meine Zeiten“ (Büro 4, Monteurin 8) statt Stundenzettel (Büro 4, Monteurin 8) und Zeiterfassung der Monteurin (8)
     # -- 244 in 412/1440 + 40 TerraPad + 18 Zustände; 1.9.49–1.9.58 310: „Heute / Offen“ für Büro (4) und Monteurin (8) -- 248 + 44 + 18
     # (bis 1.9.48 298: 240 + 40 + 18; 1.8.162: 22 Zustände, bis 1.8.161: 24)
-    assert len(namen) == len(set(namen)) == 314
+    assert len(namen) == len(set(namen)) == 318
     assert all("__" not in b.aufnahme.name and (b.zustand is None or "__" not in b.zustand.name) for b in geplant)
     bisher = [b for b in geplant if b.breite in bg.BREITEN and b.zustand is None]
-    # seit 1.9.67 252 (dazu der Bericht), 1.9.59–1.9.66 244 (bis 1.9.58 248)
-    assert geplant[:len(bisher)] == bisher and len(bisher) == 252, "die bisherigen Bilder entstehen zuerst, in der bisherigen Reihenfolge"
+    # seit 1.9.96 256 (dazu „Zeiten“), 1.9.67–1.9.95 252 (dazu der Bericht), 1.9.59–1.9.66 244 (bis 1.9.58 248)
+    assert geplant[:len(bisher)] == bisher and len(bisher) == 256, "die bisherigen Bilder entstehen zuerst, in der bisherigen Reihenfolge"
     assert [b.datei for b in bisher[:2]] == ["buero__hell__412__start.png", "buero__hell__412__aufgaben.png"]
 
 

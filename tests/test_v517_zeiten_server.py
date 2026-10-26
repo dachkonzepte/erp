@@ -312,3 +312,14 @@ def test_monat_tabelle_eine_rechnung_mit_dem_datev_export(welt):  # noqa: F811
     m = _get(welt, "/api/zeiten/monat", monat=_monat(tag))
     assert [s["label"] for s in m["spalten"]][-1] == "Sonstige"
     assert D(m["summe"]["zusammen"]) == Decimal("6.75")
+
+
+def test_nur_laufende_zeit_ohne_zeile_im_monat(welt):  # noqa: F811
+    """Angriff: Tom hat im Monat nur eine laufende Zeit -- er steht weder rechts auf „Prüfen“ noch in „Stunden je Mitarbeiter“ (keine Zeile
+    „0 Tage, 0,00“, gefunden im Klicktest 1.9.96). Gegenprobe: Mia mit gebuchter Zeit steht in beiden."""
+    tag = welt["gestern"]
+    _abschluss(welt, tag.replace(day=1) - timedelta(days=1))
+    _zeit(welt, welt["mia"], time(7), time(9), tag)
+    start_timer(welt["db"], employee_id=welt["tom"].id, order_id=welt["order"].id, started_at=datetime.combine(tag, time(7)))
+    assert [x["name"] for x in _get(welt, "/api/zeiten/pruefen")["monat"]["mitarbeiter"]] == ["Mia Monteurin"]
+    assert [z["name"] for z in _get(welt, "/api/zeiten/monat", monat=_monat(tag))["zeilen"]] == ["Mia Monteurin"]

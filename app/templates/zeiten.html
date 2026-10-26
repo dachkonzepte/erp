@@ -1,0 +1,639 @@
+{% set bereich = "backoffice" -%}
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DACHKONZEPTE ERP – Zeiten</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+{# Seit 1.9.96 (Stufe 4, R5b): die Büroseite „Zeiten“ nach den Vorlagen bildgrundlage/entwurf-stufe4/zeiten-pruefen.html,
+   zeiten-buchungen.html, zeiten-aendern.html -- Maße und Texte aus der Vorlage, Farben nur über die Tokens (hell und dunkel), Seitenkopf über
+   das Makro. Die Daten rechnet der Server (app/zeiten.py: GET /api/zeiten/pruefen, /api/zeiten/buchungen); geschrieben wird über die
+   bestehenden Endpunkte (Ende nachtragen, Pausen neu rechnen, Zeiten, Anträge). Was das Konto darf, kommt vom Server (rechte, darf_…): wer
+   nur liest (Büro – Auftrag), sieht dieselben Listen ohne Knöpfe. #}
+{% include "_ds_kopf.html" %}
+<style>
+    :root{font-family:var(--ds-schrift-text);color-scheme:light;color:var(--ds-text);background:var(--ds-grund)}
+    :root[data-theme="dark"]{color-scheme:dark}
+    *{box-sizing:border-box}body{margin:0;background:var(--ds-grund)}
+    [hidden]{display:none!important}
+    a{color:var(--ds-link)}a:hover{color:var(--ds-link-hover)}
+    :focus-visible{outline:2px solid var(--ds-fokus);outline-offset:2px}
+    .zeiten-main{padding:24px 32px;display:flex;flex-direction:column;gap:18px;min-width:0}
+    @media (max-width:900px){.zeiten-main{padding:16px}}
+    /* Reiter unter dem Seitenkopf: 44 px hoch, 28 px Abstand, der aktive mit grünem Strich unten, Zahl für Wartendes */
+    .reiter{display:flex;gap:28px;border-bottom:1px solid var(--ds-linie);overflow-x:auto;margin-top:-4px}
+    .reiter a{height:44px;padding:0 4px;display:inline-flex;align-items:center;gap:8px;color:var(--ds-text-2);text-decoration:none;font-size:15px;font-weight:500;white-space:nowrap}
+    .reiter a:hover{color:var(--ds-text)}
+    .reiter a[aria-current="page"]{color:var(--ds-text);font-weight:600;box-shadow:inset 0 -3px 0 var(--ds-aktion)}
+    .reiter-zahl{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--ds-signal);color:var(--ds-auf-signal);font-size:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center}
+    .ergebnis{font-size:14px;font-weight:600;color:var(--ds-ok-text);overflow-wrap:anywhere}
+    .ergebnis:empty,.status:empty{display:none}
+    .status{font-size:14px;color:var(--ds-fehler-text);overflow-wrap:anywhere}
+    .mut{color:var(--ds-text-2)}
+    .num{font-variant-numeric:tabular-nums}
+    /* Karten: weiß mit Rahmen, Signalkarte „Wartet auf dich“ */
+    .karte{background:var(--ds-flaeche);border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-karte);padding:16px 20px;display:flex;flex-direction:column;gap:4px;min-width:0}
+    .karte-signal{background:var(--ds-signal-hell);border:1px solid var(--ds-signal-rand);border-radius:var(--ds-ecke-karte);padding:16px 20px;display:flex;flex-direction:column;gap:4px;min-width:0}
+    .karte-kopf{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .karte h2,.karte-signal h2{margin:0;font-family:var(--ds-schrift-titel);font-weight:600;font-size:18px}
+    .karte-zahl{font-size:13px;color:var(--ds-text-2)}
+    .eb{font-family:var(--ds-schrift-mono);font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--ds-text-3)}
+    .eb-signal{font-family:var(--ds-schrift-mono);font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--ds-signal-text);display:inline-flex;align-items:center;gap:8px}
+    .punkt{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block;background:var(--ds-signal)}
+    .chip{font-size:12px;font-weight:600;border-radius:999px;padding:3px 10px;white-space:nowrap}
+    .chip-signal{color:var(--ds-signal-text);background:var(--ds-signal-hell)}
+    .chip-neutral{color:var(--ds-text-2);background:var(--ds-flaeche-2)}
+    .chip-info{color:var(--ds-info-text);background:var(--ds-info-hell)}
+    .chip-ok{color:var(--ds-ok-text);background:var(--ds-ok-hell)}
+    .chip-warn{color:var(--ds-warn-text);background:var(--ds-warn-hell)}
+    /* Knöpfe und Felder wie die Vorlage: 40 px, Ecke 10 px */
+    .knopf{height:40px;padding:0 16px;border-radius:var(--ds-ecke-feld);font-family:var(--ds-schrift-text);font-size:14px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;text-decoration:none}
+    .knopf-aktion{border:0;background:var(--ds-aktion);color:var(--ds-auf-aktion)}
+    .knopf-aktion:hover{color:var(--ds-auf-aktion);filter:brightness(.92)}
+    .knopf-neutral{border:1px solid var(--ds-linie-stark);background:var(--ds-flaeche);color:var(--ds-stark);padding:0 14px}
+    .knopf-neutral:hover{background:var(--ds-flaeche-2);color:var(--ds-stark)}
+    .knopf-gefahr{border:0;background:var(--ds-fehler);color:var(--ds-auf-fehler)}
+    .knopf:disabled{cursor:default;border:1px solid var(--ds-linie);background:var(--ds-flaeche-2);color:var(--ds-text-3);filter:none}
+    .knopf-symbol{width:40px;padding:0;flex:none}
+    .feld-zeile{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--ds-stark)}
+    .feld-zeile select,.feld-zeile input,.feld select,.feld input{height:40px;border:1px solid var(--ds-feld-rand);border-radius:var(--ds-ecke-feld);padding:0 12px;font-family:var(--ds-schrift-text);font-size:14px;font-weight:400;color:var(--ds-text);background:var(--ds-flaeche);min-width:0}
+    .karte-signal .feld-zeile input{border-color:var(--ds-feld-rand-signal)}
+    .feld input[aria-invalid="true"]{border-color:var(--ds-fehler);outline:2px solid var(--ds-fehler)}
+    /* Prüfen: links die Listen, rechts 380 px der Monat */
+    .pruefen{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:18px;align-items:start}
+    @media (max-width:1100px){.pruefen{grid-template-columns:minmax(0,1fr)}}
+    .spalte{min-width:0;display:flex;flex-direction:column;gap:16px}
+    .zeile{display:flex;align-items:center;gap:16px;padding:10px 0;border-top:1px solid var(--ds-flaeche-2);flex-wrap:wrap}
+    .karte-signal .zeile{border-top-color:var(--ds-signal-rand)}
+    .zeile-text{flex:1;min-width:220px;display:flex;flex-direction:column;gap:2px}
+    .zeile-name{font-size:15px;font-weight:600}
+    .zeile-unter{font-size:13px;color:var(--ds-text-2);overflow-wrap:anywhere}
+    .zeile-vorschau{font-size:13px;color:var(--ds-stark)}
+    .zeile-vorschau .teil{white-space:nowrap}
+    .zeile-fehler{font-size:13px;color:var(--ds-fehler-text)}
+    .fuss{margin:2px 0 0;font-size:13px;color:var(--ds-text-2)}
+    .neu-rechnen{background:var(--ds-flaeche-2);border-radius:var(--ds-ecke-feld);padding:12px 14px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:6px}
+    .neu-rechnen-text{flex:1;min-width:240px;font-size:14px;line-height:1.5}
+    .alles-gut{font-size:15px;color:var(--ds-text-2)}
+    .zahlen{display:flex;gap:10px}
+    .zahlen div{flex:1;display:flex;flex-direction:column;gap:2px}
+    .gross{font-family:var(--ds-schrift-titel);font-weight:700;font-size:22px;font-variant-numeric:tabular-nums}
+    .liste{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px;font-size:14px}
+    .liste li{display:flex;gap:10px;align-items:baseline}
+    .liste .haken{color:var(--ds-ok);flex:none;align-self:center;display:inline-flex}
+    /* Tabellen wie die Vorlage: Kopf in Mono 11 px, Zeilen 48 px */
+    table{border-collapse:collapse;width:100%}
+    th{font-family:var(--ds-schrift-mono);font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--ds-text-3);text-align:left;padding:0 8px 8px;border-bottom:1px solid var(--ds-linie);white-space:nowrap}
+    td{font-size:14px;padding:0 8px;height:48px;border-bottom:1px solid var(--ds-flaeche-2);white-space:nowrap}
+    th.r,td.r{text-align:right}
+    td.summe{font-weight:600;border-bottom:0}
+    .tabelle-karte{background:var(--ds-flaeche);border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-karte);padding:14px 10px 0;min-width:0;overflow-x:auto}
+    .tabelle-karte .leer{padding:16px 10px 18px;font-size:14px;color:var(--ds-text-2)}
+    /* Buchungen: Filterleiste, Zeitart mit Farbpunkt */
+    .filter{background:var(--ds-flaeche);border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-karte);padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+    .monat-wahl{display:flex;align-items:center;gap:6px}
+    .monat-wahl span{min-width:120px;text-align:center;font-size:15px;font-weight:600}
+    .summe-auswahl{margin-left:auto;font-size:14px;color:var(--ds-text-2)}
+    .summe-auswahl b{color:var(--ds-text)}
+    .zeitart{display:inline-flex;align-items:center;gap:8px}
+    .zeitart-punkt{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block;background:var(--ds-zeitart-sonstige)}
+    .zeitart-punkt[data-art="site"]{background:var(--ds-zeitart-baustelle)}
+    .zeitart-punkt[data-art="travel"]{background:var(--ds-zeitart-fahrt)}
+    .zeitart-punkt[data-art="workshop"]{background:var(--ds-zeitart-werkstatt)}
+    .laeuft{display:inline-flex;align-items:center;gap:8px}
+    .aktionen{text-align:right;width:104px}
+    .link-knopf{border:0;background:transparent;padding:0;font-family:var(--ds-schrift-text);font-size:14px;font-weight:600;color:var(--ds-link);cursor:pointer;text-decoration:none}
+    .link-knopf:hover{color:var(--ds-link-hover);text-decoration:underline}
+    .menue-anker{position:relative;display:inline-flex}
+    /* Dialog wie zeiten-aendern.html: 640 px, Ecke 16 px, Schatten; Segment „Von – Bis | Dauer“ */
+    .dialog{width:min(640px,calc(100% - 32px));max-height:calc(100% - 32px);overflow:auto;border:0;border-radius:16px;padding:22px 24px 18px;background:var(--ds-flaeche);color:var(--ds-text);box-shadow:0 16px 48px rgba(23,28,31,.25)}
+    .dialog[open]{display:flex;flex-direction:column;gap:14px}
+    .dialog::backdrop{background:rgba(23,28,31,.45)}
+    .dialog-kopf{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .dialog-kopf h2{margin:0;font-family:var(--ds-schrift-titel);font-weight:700;font-size:22px}
+    .dialog-kopf .unter{font-size:13px;color:var(--ds-text-2)}
+    .dialog-felder{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
+    .dialog-felder .breit{grid-column:1/-1}
+    @media (max-width:560px){.dialog-felder{grid-template-columns:minmax(0,1fr)}}
+    .feld{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:var(--ds-stark);min-width:0}
+    .feld input,.feld select{width:100%}
+    .segment{display:flex}
+    .segment button{height:40px;padding:0 18px;border:1px solid var(--ds-linie-stark);background:var(--ds-flaeche);color:var(--ds-stark);font-family:var(--ds-schrift-text);font-size:14px;font-weight:600;cursor:pointer}
+    .segment button:first-child{border-radius:var(--ds-ecke-feld) 0 0 var(--ds-ecke-feld)}
+    .segment button:last-child{border-left:0;border-radius:0 var(--ds-ecke-feld) var(--ds-ecke-feld) 0}
+    .segment button[aria-pressed="true"]{border-color:var(--ds-aktion);background:var(--ds-aktion);color:var(--ds-auf-aktion)}
+    .dialog-hinweis{margin:0;font-size:13px;font-weight:600;color:var(--ds-signal-text)}
+    .dialog-text{margin:0;font-size:13px;color:var(--ds-text-2)}
+    .vorschau{background:var(--ds-flaeche-2);border-radius:var(--ds-ecke-feld);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+    .vorschau-text{display:flex;flex-direction:column;gap:2px;font-size:14px;color:var(--ds-stark);min-width:0}
+    .vorschau-text .klein{font-size:12px;color:var(--ds-text-2)}
+    .vorschau-text .teil{white-space:nowrap}
+    .vorschau-zahl{font-size:20px;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+    .dialog-knoepfe{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;border-top:1px solid var(--ds-flaeche-2);padding-top:14px}
+    .dialog-knoepfe>.status{flex:1 0 100%}
+</style>
+</head>
+<body class="ds-seite">
+{% set current_user = request.state.erp_user %}
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+{% include "_topbar.html" %}
+<main class="zeiten-main">
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{% call(teil) seitenkopf("Zeiten", untertitel="Arbeitszeiten der Monteure prüfen, korrigieren und abrechnen", mit_aktion=zeit_buchen, mit_menue=true) %}
+  {% if teil == "aktion" %}<button type="button" class="ds-knopf ds-knopf-aktion" id="neueBuchung"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Buchung</button>
+  {% elif teil == "menue" %}<a class="ds-menue-eintrag" href="/settings#time-rules">Zeitregeln und DATEV</a><a class="ds-menue-eintrag" href="/settings#time-entry-types">Zeit-Listen</a>{% endif %}
+{% endcall %}
+<nav class="reiter" aria-label="Bereiche der Seite">
+  <a href="#pruefen" data-reiter="pruefen" aria-current="page">Prüfen<span class="reiter-zahl" id="zahlPruefen" hidden></span></a>
+  <a href="#buchungen" data-reiter="buchungen">Buchungen</a>
+</nav>
+<div class="ergebnis" id="ergebnis" role="status"></div>
+<div class="status" id="seitenStatus" role="status"></div>
+
+<section id="reiter-pruefen" class="pruefen" aria-label="Prüfen">
+  <div class="spalte">
+    <section class="karte-signal" id="offenKarte" aria-labelledby="offenTitel" hidden>
+      <div class="karte-kopf"><span class="eb-signal"><span class="punkt"></span>Wartet auf dich</span><span class="karte-zahl" id="offenZahl"></span></div>
+      <h2 id="offenTitel" style="margin-bottom:6px">Zeiten von früher laufen noch</h2>
+      <div id="offenListe"></div>
+      <p class="fuss">Gebucht wird erst mit deinem Klick, dieselbe Pausenregel wie auf dem Tablet. Im Verlauf steht, wer das Ende eingetragen hat.</p>
+    </section>
+    <section class="karte" id="pauseKarte" aria-labelledby="pauseTitel" hidden>
+      <div class="karte-kopf"><h2 id="pauseTitel">Pause passt nicht zum Tag</h2><span class="karte-zahl" id="pauseZahl"></span></div>
+      <div id="pauseListe"></div>
+    </section>
+    <section class="karte" id="antragKarte" aria-labelledby="antragTitel" hidden>
+      <div class="karte-kopf"><h2 id="antragTitel">Anträge</h2><span class="karte-zahl" id="antragZahl"></span></div>
+      <div id="antragListe"></div>
+    </section>
+    <section class="karte" id="allesGut" hidden><p class="alles-gut" style="margin:0">Nichts zu prüfen: keine Zeit von früher läuft, die Pausen passen, keine Anträge offen.</p></section>
+  </div>
+  <div class="spalte">
+    <section class="karte" aria-labelledby="monatTitel" style="gap:10px">
+      <div class="karte-kopf"><h2 id="monatTitel"></h2><span class="chip" id="monatStatus"></span></div>
+      <div class="zahlen"><div><span class="eb">Gebucht</span><span class="gross" id="monatGebucht"></span></div><div><span class="eb">Fahrzeit</span><span class="gross" id="monatFahrzeit"></span></div></div>
+      <table aria-label="Stunden je Mitarbeiter"><thead><tr><th>Mitarbeiter</th><th class="r">Tage</th><th class="r">Stunden</th></tr></thead><tbody id="monatZeilen"></tbody></table>
+    </section>
+    <section class="karte" aria-labelledby="abschlussTitel" style="gap:10px">
+      <h2 id="abschlussTitel">Vor dem Abschluss</h2>
+      <ul class="liste" id="abschlussListe"></ul>
+    </section>
+  </div>
+</section>
+
+<section id="reiter-buchungen" aria-label="Buchungen" hidden style="display:flex;flex-direction:column;gap:18px">
+  <div class="filter">
+    <div class="monat-wahl"><button type="button" class="knopf knopf-neutral knopf-symbol" id="monatZurueck" aria-label="Voriger Monat"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg></button><span id="buchungenMonat"></span><button type="button" class="knopf knopf-neutral knopf-symbol" id="monatVor" aria-label="Nächster Monat"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg></button></div>
+    <label class="feld-zeile" for="filterMitarbeiter">Mitarbeiter<select id="filterMitarbeiter" style="width:150px"></select></label>
+    <label class="feld-zeile" for="filterAuftrag">Auftrag<select id="filterAuftrag" style="width:180px"></select></label>
+    <label class="feld-zeile" for="filterZeitart">Zeitart<select id="filterZeitart" style="width:120px"></select></label>
+    <span class="summe-auswahl num">Summe der Auswahl <b id="summeAuswahl"></b></span>
+  </div>
+  <section class="tabelle-karte" aria-label="Buchungen">
+    <table>
+      <thead><tr><th>Datum</th><th>Mitarbeiter</th><th>Von–Bis</th><th>Zeitart</th><th>Auftrag</th><th class="r">Pause</th><th class="r">Stunden</th><th></th></tr></thead>
+      <tbody id="buchungenZeilen"></tbody>
+    </table>
+    <p class="leer" id="buchungenLeer" hidden></p>
+  </section>
+</section>
+</main>
+</div>
+</div>
+
+<dialog id="buchungDialog" class="dialog" aria-labelledby="bdTitel">
+  <div class="dialog-kopf"><div style="display:flex;flex-direction:column;gap:2px"><h2 id="bdTitel">Buchung ändern</h2><span class="unter" id="bdUnter"></span></div>
+    <button type="button" class="knopf knopf-neutral knopf-symbol" id="bdZu" aria-label="Schließen"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+  <div class="dialog-felder">
+    <label class="feld breit" for="bdMitarbeiter" id="bdMitarbeiterFeld">Mitarbeiter<select id="bdMitarbeiter"></select></label>
+    <label class="feld" for="bdDatum">Datum<input id="bdDatum" type="date"></label>
+    <label class="feld" for="bdZeitart">Zeitart<select id="bdZeitart"></select></label>
+    <label class="feld breit" for="bdAuftrag">Auftrag<select id="bdAuftrag"></select></label>
+    <div class="feld breit">Erfassung
+      <div class="segment" role="group" aria-label="Erfassung"><button type="button" id="bdModusVonBis" aria-pressed="true">Von – Bis</button><button type="button" id="bdModusDauer" aria-pressed="false">Dauer</button></div></div>
+    <label class="feld" for="bdVon" id="bdVonFeld">Von<input class="num" id="bdVon" type="time"></label>
+    <label class="feld" for="bdBis" id="bdBisFeld">Bis<input class="num" id="bdBis" type="time"></label>
+    <label class="feld" for="bdStunden" id="bdStundenFeld" hidden>Stunden (netto)<input class="num" id="bdStunden" type="text" inputmode="decimal" data-zahl data-min="0.01" data-max="24" data-feld="Stunden"></label>
+    <label class="feld" for="bdPauseDauer" id="bdPauseDauerFeld" hidden>Pause (Min.)<input class="num" id="bdPauseDauer" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-max="720" data-feld="Pause"></label>
+  </div>
+  <p class="dialog-hinweis" id="bdDauerHinweis" hidden>Mit „Dauer“ entfallen Von und Bis – gespeichert wird nur die Dauer (netto), ohne Pausenregel.</p>
+  <button type="button" class="link-knopf" id="bdWeitere" aria-expanded="false" aria-controls="bdWeitereFelder" style="align-self:flex-start">Weitere Angaben · Tätigkeit, Notiz, Pause mindestens</button>
+  <div class="dialog-felder" id="bdWeitereFelder" hidden>
+    <label class="feld breit" for="bdPosition">LV-Position<select id="bdPosition"></select></label>
+    <label class="feld" for="bdTaetigkeit">Tätigkeit<select id="bdTaetigkeit"></select></label>
+    <label class="feld" for="bdPause" id="bdPauseFeld">Pause mindestens (Min.)<input class="num" id="bdPause" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-max="720" data-feld="Pause mindestens"></label>
+    <label class="feld breit" for="bdNotiz">Notiz<input id="bdNotiz" type="text" placeholder="optional"></label>
+  </div>
+  <div class="vorschau" id="bdVorschau" aria-live="polite">
+    <div class="vorschau-text"><span id="bdVorschauZeile">Von und Bis eintragen – dann rechnet der Server die Pause.</span>
+      <span class="klein" id="bdVorschauKlein">Dieselbe Regel wie auf dem Tablet. „Dauer“ bucht netto ohne Pausenregel – nur das Büro.</span></div>
+    <span class="vorschau-zahl" id="bdVorschauZahl"></span>
+  </div>
+  <p class="dialog-text">Andere Buchungen des Tages bleiben unverändert. Passt die Pause danach nicht mehr, erscheint der Tag unter „Prüfen“.</p>
+  <div class="dialog-knoepfe"><div class="status" id="bdStatus" role="status"></div><button type="button" class="knopf knopf-neutral" id="bdAbbrechen">Abbrechen</button>
+    <button type="button" class="knopf knopf-aktion" id="bdSpeichern">Speichern</button></div>
+</dialog>
+
+<dialog id="loeschDialog" class="dialog" aria-labelledby="ldTitel">
+  <div class="dialog-kopf"><h2 id="ldTitel">Buchung löschen?</h2>
+    <button type="button" class="knopf knopf-neutral knopf-symbol" id="ldZu" aria-label="Schließen"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+  <p class="dialog-text" id="ldText" style="font-size:15px;color:var(--ds-text)"></p>
+  <p class="dialog-text">Die übrigen Buchungen des Tages bleiben, wie sie sind. Passt ihre Pause danach nicht mehr, erscheint der Tag unter „Prüfen“.</p>
+  <div class="dialog-knoepfe"><div class="status" id="ldStatus" role="status"></div><button type="button" class="knopf knopf-neutral" id="ldAbbrechen">Abbrechen</button>
+    <button type="button" class="knopf knopf-gefahr" id="ldLoeschen">Löschen</button></div>
+</dialog>
+
+{% include "_seitenkopf.html" %}
+{% include "_berlin_date.html" %}
+{% include "_fehlertext.html" %}
+{% include "_auswahl.html" %}
+{% include "_zahl.html" %}
+{% include "_speichern.html" %}
+{% include "_auftrag_text.html" %}
+<script>
+var RECHTE={{ {"zeit_buchen": zeit_buchen, "zeit_fuer_andere": zeit_fuer_andere, "lohndaten": lohndaten, "admin": admin}|tojson }};
+function esc(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})}
+function el(id){return document.getElementById(id)}
+var WOCHENTAG=['So','Mo','Di','Mi','Do','Fr','Sa'];
+function pad2(n){return String(n).padStart(2,'0')}
+function teile(iso){var p=String(iso).slice(0,10).split('-').map(Number);return {j:p[0],m:p[1],t:p[2],wt:WOCHENTAG[new Date(Date.UTC(p[0],p[1]-1,p[2])).getUTCDay()]}}
+function tagKurz(iso){var x=teile(iso);return x.wt+' '+pad2(x.t)+'.'+pad2(x.m)+'.'}                    // „Mo 19.10.“
+function tagLang(iso){var x=teile(iso);return x.wt+' '+pad2(x.t)+'.'+pad2(x.m)+'.'+x.j}                // „Mo 02.11.2026“
+function uhr(ortszeit){return ortszeit?String(ortszeit).slice(11,16):''}                               // naive Ortszeit „…T06:45:00“ -> „06:45“
+function stundenUhr(minuten){var m=Math.max(0,Math.round(minuten));return Math.floor(m/60)+':'+pad2(m%60)+' h'}  // „0:45 h“
+function minutenUhr(minuten){var m=Math.max(0,Math.round(minuten));return Math.floor(m/60)+':'+pad2(m%60)}         // „0:45“ (Spalte Pause)
+function stunden(wert){return zahlText(wert,2)+' h'}
+function amText(utc){var s=berlinZeitpunkt(utc);return s.length>=16?s.slice(0,6)+', '+s.slice(11):s}                // gespeicherter Zeitpunkt -> „15.10., 16:31“
+function monatPlus(m,n){var p=m.split('-').map(Number),i=p[0]*12+(p[1]-1)+n;return Math.floor(i/12)+'-'+pad2(i%12+1)}
+var FELDER={von:'Von',bis:'Bis',work_date:'Datum',order_id:'Auftrag',order_item_id:'LV-Position',hours:'Stunden',break_minutes:'Pause',
+            pause_minuten:'Pause mindestens',employee_id:'Mitarbeiter',entry_type:'Zeitart',ende:'Ende'};
+async function api(url,opt){
+  var r=await fetch(url,opt);var body=null;try{body=await r.json()}catch(e){}
+  if(!r.ok){var f=new Error(fehlerText(body,r.status,FELDER));f.status=r.status;throw f}
+  return body;
+}
+function teileHtml(text){return String(text).split(' · ').map(function(t){return '<span class="teil">'+esc(t)+'</span>'}).join(' · ')}
+function ergebnis(text){el('ergebnis').textContent=text||''}
+var PUNKTE='<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="12" cy="19" r="1.8"></circle></svg>';
+var HAKEN='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg>';
+
+var P=null,B=null,KONTEXT=null,TAETIGKEITEN=[],MONAT=null,FILTER={mitarbeiter:'',auftrag:'',zeitart:''},BD=null,LD=null,ZU={},ENDE={};
+
+// --- Reiter ---------------------------------------------------------------------------------------------------------------------------
+var REITER=['pruefen','buchungen'];
+function reiterZeigen(name){
+  if(REITER.indexOf(name)<0)name='pruefen';
+  REITER.forEach(function(r){
+    el('reiter-'+r).hidden=r!==name;
+    var a=document.querySelector('.reiter a[data-reiter="'+r+'"]');
+    if(r===name)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');
+  });
+  if(location.hash!=='#'+name)history.replaceState(null,'','#'+name);
+  if(name==='buchungen'&&!B)buchungenLaden();
+}
+function zahlSetzen(id,n){var z=el(id);z.hidden=!n;z.textContent=n?String(n):''}
+
+// --- Prüfen ---------------------------------------------------------------------------------------------------------------------------
+function pruefenLaden(){
+  return lesen('pruefen',()=>api('/api/zeiten/pruefen'),function(d){P=d;pruefenZeichnen(d)})
+    .catch(function(e){el('seitenStatus').textContent=e.message});
+}
+function auftragKurz(z){return auftragTitel({order_number:z.order_number,title:z.title})}
+function pruefenZeichnen(d){
+  zahlSetzen('zahlPruefen',d.zahlen.pruefen);
+  // Zeiten von früher
+  el('offenKarte').hidden=!d.offene_zeiten.length;
+  el('offenZahl').textContent=d.offene_zeiten.length+(d.offene_zeiten.length===1?' Zeit':' Zeiten');
+  el('offenListe').innerHTML=d.offene_zeiten.map(offenHtml).join('');
+  ENDE={};
+  // Pause passt nicht zum Tag
+  el('pauseKarte').hidden=!d.pausen.length;
+  el('pauseZahl').textContent=d.pausen.length+(d.pausen.length===1?' Tag':' Tage');
+  el('pauseListe').innerHTML=d.pausen.map(pauseHtml).join('');
+  // Anträge
+  el('antragKarte').hidden=!d.antraege.length;
+  el('antragZahl').textContent=d.antraege.length+' offen';
+  el('antragListe').innerHTML=d.antraege.map(antragHtml).join('');
+  el('allesGut').hidden=!!(d.offene_zeiten.length||d.pausen.length||d.antraege.length);
+  // der Monat rechts
+  var m=d.monat;
+  el('monatTitel').textContent=m.titel;
+  var st={offen:['offen','chip-info'],teilweise:['abgeschlossen bis '+(m.abgeschlossen_bis?tagLang(m.abgeschlossen_bis).slice(3):''),'chip-warn'],
+          abgeschlossen:['abgeschlossen','chip-ok']}[m.status]||[m.status,'chip-neutral'];
+  el('monatStatus').textContent=st[0];el('monatStatus').className='chip '+st[1];
+  el('monatGebucht').textContent=stunden(m.gebucht);el('monatFahrzeit').textContent=stunden(m.fahrzeit);
+  el('monatZeilen').innerHTML=m.mitarbeiter.map(function(x){
+    return '<tr><td>'+esc(x.name)+'</td><td class="r num">'+esc(x.tage)+'</td><td class="r num">'+esc(zahlText(x.stunden,2))+'</td></tr>'}).join('')
+    +'<tr><td class="summe">Zusammen</td><td class="summe"></td><td class="summe r num">'+esc(zahlText(m.gebucht,2))+'</td></tr>';
+  el('abschlussListe').innerHTML=d.vor_dem_abschluss.length?d.vor_dem_abschluss.map(function(x){
+    return '<li data-art="'+esc(x.art)+'"><span class="punkt"></span>'+esc(x.text)+'</li>'}).join('')
+    :'<li><span class="haken">'+HAKEN+'</span>Nichts offen – der Monat lässt sich abschließen.</li>';
+}
+function offenHtml(z){
+  var unter=z.zeitart+' seit '+tagKurz(z.seit)+', '+uhr(z.seit)+' · '+auftragKurz(z)+(z.auftrag_geschlossen?' (Auftrag '+z.auftrag_geschlossen+')':'')
+    +(z.gruppe?' · Kolonne':'');
+  var bedienung=z.darf_schliessen
+    ?'<label class="feld-zeile" for="ende-'+z.id+'">Ende um<input class="num" type="time" id="ende-'+z.id+'" data-ende="'+z.id+'" style="width:112px"></label>'
+      +'<button type="button" class="knopf knopf-aktion" data-aktion="ende" data-id="'+z.id+'" disabled>Ende eintragen</button>'
+    :'';
+  return '<div class="zeile" data-offen="'+z.id+'"><div class="zeile-text"><span class="zeile-name">'+esc(z.name)+'</span>'
+    +'<span class="zeile-unter">'+esc(unter)+'</span><span class="zeile-vorschau" id="ende-vorschau-'+z.id+'"></span></div>'+bedienung+'</div>';
+}
+function pauseHtml(t,i){
+  var schluessel=t.employee_id+'/'+t.tag;
+  var neu=t.buchungen.map(function(b){
+    return '<span class="neu-zeile">'+esc((b.zeitart||'Buchung')+(b.von&&b.bis?' '+uhr(b.von)+'–'+uhr(b.bis):'')+' · Pause '+minutenUhr(b.pause_alt)+' → '+minutenUhr(b.pause_neu)
+      +' h · gebucht '+zahlText(b.gebucht_alt,2)+' → '+zahlText(b.gebucht_neu,2)+' h')+'</span>'}).join('<br>');
+  var zu=ZU[schluessel];
+  var knoepfe=t.darf_buchen?(zu?'<button type="button" class="knopf knopf-neutral" data-aktion="pause-zeigen" data-i="'+i+'">Neu rechnen</button>'
+      :'<button type="button" class="knopf knopf-neutral" data-aktion="pause-zu" data-i="'+i+'">Abbrechen</button>'
+       +'<button type="button" class="knopf knopf-aktion" data-aktion="pause-buchen" data-i="'+i+'">So buchen</button>'):'';
+  return '<div class="zeile" data-pause="'+esc(schluessel)+'"><div class="zeile-text"><span class="zeile-name">'+esc(t.name+' · '+tagKurz(t.tag))+'</span>'
+    +'<span class="zeile-unter">Pause abgezogen '+esc(stundenUhr(t.abgezogen))+' · nach Zeitregel '+esc(stundenUhr(t.nach_zeitregel))+'</span></div>'
+    +(zu&&t.darf_buchen?knoepfe:'')+'</div>'
+    +(zu&&t.darf_buchen?'':'<div class="neu-rechnen"><div class="neu-rechnen-text"><b>Neu rechnen:</b> '+neu+'</div>'+knoepfe+'</div>')
+    +'<div class="status" id="pause-status-'+i+'" role="status"></div>';
+}
+var KATEGORIE={urlaub:'Urlaub',krankheit:'Krankheit',fortbildung:'Fortbildung',unbezahlt:'Unbezahlt',unbekannt:'Unbekannt'};
+function antragHtml(a){
+  var art=a.absence_type||KATEGORIE[a.absence_category]||a.absence_category;
+  var unter=tagLang(a.start_date).replace(/\.\d{4}$/,'.')+'–'+tagLang(a.end_date)+' · '+a.arbeitstage+(a.arbeitstage===1?' Arbeitstag':' Arbeitstage')
+    +(a.created_at?' · beantragt am '+berlinZeitpunkt(a.created_at,'datum').slice(0,6):'');
+  var knoepfe=RECHTE.admin&&P&&P.rechte.antraege_entscheiden
+    ?'<button type="button" class="knopf knopf-neutral" data-aktion="antrag" data-entscheidung="rejected" data-id="'+a.id+'">Ablehnen</button>'
+     +'<button type="button" class="knopf knopf-aktion" data-aktion="antrag" data-entscheidung="approved" data-id="'+a.id+'">Genehmigen</button>':'';
+  return '<div class="zeile" data-antrag="'+a.id+'"><div class="zeile-text"><span class="zeile-name">'+esc(a.employee_name+' · '+art)+'</span>'
+    +'<span class="zeile-unter">'+esc(unter)+'</span>'+(a.notes?'<span class="zeile-unter">'+esc(a.notes)+'</span>':'')+'</div>'+knoepfe+'</div>';
+}
+function offeneZeit(id){return (P&&P.offene_zeiten||[]).find(function(z){return String(z.id)===String(id)})||null}
+// Vorschau vom Server bei jeder Eingabe in „Ende um“ -- ohne Uhrzeit ein Lesen ohne Anfrage (Regel 29)
+function endeVorschau(id){
+  var z=offeneZeit(id),feld=el('ende-'+id),knopf=document.querySelector('[data-aktion="ende"][data-id="'+id+'"]'),zeile=el('ende-vorschau-'+id);
+  if(!z||!feld)return Promise.resolve();
+  var wert=feld.value,ende=String(z.seit).slice(0,10)+'T'+wert;
+  knopf.disabled=true;
+  return lesen('ende-'+id,()=>wert?api('/api/time-entries/'+id+'/ende-vorschau?ende='+encodeURIComponent(ende)+'&pause_minuten=0'):Promise.resolve(null),function(v){
+    ENDE[id]=v?ende:null;
+    zeile.className='zeile-vorschau';
+    zeile.innerHTML=v?teileHtml('anwesend '+stundenUhr(Number(v.anwesend)*60)+' · Pause nach Zeitregel − '+stundenUhr(v.pause))+' · <b>gebucht '+esc(stunden(v.gebucht))+'</b>':'';
+    knopf.disabled=!v;
+  }).catch(function(e){ENDE[id]=null;zeile.className='zeile-fehler';zeile.textContent=e.message});
+}
+function endeEintragen(id,knopf){
+  var ende=ENDE[id],z=offeneZeit(id);
+  if(!ende||!z)return;
+  knopf.disabled=true;
+  return speichern('pruefen',()=>api('/api/time-entries/'+id+'/ende-nachtragen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ende:ende,pause_minuten:0})}),{neuLaden:alleNeuLaden})
+    .then(function(r){ergebnis('Ende eingetragen: '+z.name+', '+tagKurz(z.seit)+' '+uhr(z.seit)+'–'+uhr(r.ended_at)+' · gebucht '+stunden(r.hours))})
+    .catch(function(e){var s=el('ende-vorschau-'+id);if(s){s.className='zeile-fehler';s.textContent=e.message}knopf.disabled=false});
+}
+function pauseBuchen(i,knopf){
+  var t=P.pausen[i];
+  var body={work_date:t.tag,employee_id:t.employee_id,buchungen:t.buchungen.map(function(b){return {id:b.id,pause:b.pause_neu}})};
+  knopf.disabled=true;
+  return speichern('pruefen',()=>api('/api/time-entries/pausen-neu-rechnen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{neuLaden:alleNeuLaden})
+    .then(function(){ergebnis('Pausen neu gerechnet: '+t.name+', '+tagKurz(t.tag)+' – Pause '+stundenUhr(t.abgezogen)+' → '+stundenUhr(t.nach_zeitregel))})
+    .catch(function(e){var s=el('pause-status-'+i);if(s)s.textContent=e.message;knopf.disabled=false});
+}
+function antragEntscheiden(id,entscheidung,knopf){
+  var a=(P.antraege||[]).find(function(x){return String(x.id)===String(id)});
+  knopf.disabled=true;
+  return speichern('pruefen',()=>api('/api/absence-requests/'+id+'/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({decision:entscheidung,review_notes:null})}),{neuLaden:alleNeuLaden})
+    .then(function(){ergebnis((entscheidung==='approved'?'Genehmigt: ':'Abgelehnt: ')+(a?a.employee_name+' · '+(a.absence_type||''):''))})
+    .catch(function(e){el('seitenStatus').textContent=e.message;knopf.disabled=false});
+}
+
+// --- Buchungen -----------------------------------------------------------------------------------------------------------------------
+// ohne Monat (erstes Laden) der Monat von heute vom Server; die Filter mit UND
+function buchungenUrl(){
+  var q=[];
+  if(MONAT)q.push('monat='+encodeURIComponent(MONAT));
+  ['mitarbeiter','auftrag','zeitart'].forEach(function(k){if(FILTER[k])q.push(k+'='+encodeURIComponent(FILTER[k]))});
+  return '/api/zeiten/buchungen'+(q.length?'?'+q.join('&'):'');
+}
+function buchungenLaden(){
+  var url=buchungenUrl();
+  return lesen('buchungen',()=>api(url),function(d){B=d;MONAT=d.monat;buchungenZeichnen(d)})
+    .catch(function(e){el('seitenStatus').textContent=e.message});
+}
+function buchungenZeichnen(d){
+  el('buchungenMonat').textContent=d.titel;
+  el('filterMitarbeiter').innerHTML=auswahlOptionen(d.filter.mitarbeiter,FILTER.mitarbeiter,function(m){return m.name},{leer:'Alle'});
+  el('filterAuftrag').innerHTML=auswahlOptionen(d.filter.auftraege,FILTER.auftrag,function(o){return auftragKurz(o)},{leer:'Alle'});
+  el('filterZeitart').innerHTML=auswahlOptionen(d.filter.zeitarten,FILTER.zeitart,function(z){return z.label},{wert:function(z){return z.value},leer:'Alle'});
+  el('summeAuswahl').textContent=stunden(d.summe);
+  el('buchungenZeilen').innerHTML=d.eintraege.map(buchungHtml).join('');
+  el('buchungenLeer').hidden=!!d.eintraege.length;
+  el('buchungenLeer').textContent='Keine Buchungen im '+d.titel+(FILTER.mitarbeiter||FILTER.auftrag||FILTER.zeitart?' für diese Auswahl.':'.');
+  document.querySelectorAll('#buchungenZeilen .menue-anker').forEach(function(a){dsMenue(a.querySelector('button'),a.querySelector('.ds-menue'))});
+}
+function spanneHtml(e){
+  if(e.status==='running')return '<span class="laeuft">'+esc(uhr(e.started_at))+' – läuft'+(e.laeuft_seit_frueher?' <span class="chip chip-signal">von früher</span>':'')+'</span>';
+  if(e.started_at&&e.ended_at)return esc(uhr(e.started_at)+'–'+uhr(e.ended_at));
+  return '<span class="mut">'+(e.vom_buero?'Dauer · vom Büro':'Dauer')+'</span>';
+}
+function buchungHtml(e){
+  var laeuft=e.status==='running';
+  var auftrag=esc(auftragTitel({order_number:e.order_number,title:e.order_title}))+(e.auftrag_geschlossen?' <span class="chip chip-neutral" style="margin-left:6px">'+esc(e.auftrag_geschlossen)+'</span>':'');
+  var aktion='';
+  if(laeuft&&e.darf_schliessen)aktion='<button type="button" class="link-knopf" data-aktion="zu-ende" data-id="'+e.id+'">Ende eintragen</button>';
+  else if(!laeuft&&e.darf_aendern)aktion='<div class="menue-anker"><button type="button" class="knopf knopf-neutral knopf-symbol" aria-label="Weitere Aktionen">'+PUNKTE+'</button>'
+    +'<div class="ds-menue" id="menue-'+e.id+'" hidden><button type="button" class="ds-menue-eintrag" data-aktion="aendern" data-id="'+e.id+'">Ändern</button>'
+    +'<button type="button" class="ds-menue-eintrag ds-menue-eintrag-fehler" data-aktion="loeschen" data-id="'+e.id+'">Löschen</button></div></div>';
+  return '<tr data-buchung="'+e.id+'"><td class="num">'+esc(tagKurz(e.work_date))+'</td><td>'+esc(e.employee_name)+'</td><td class="num">'+spanneHtml(e)+'</td>'
+    +'<td><span class="zeitart"><span class="zeitart-punkt" data-art="'+esc(e.entry_type)+'"></span>'+esc(e.zeitart)+'</span></td><td>'+auftrag+'</td>'
+    +'<td class="r num">'+(laeuft?'—':esc(minutenUhr(e.break_minutes||0)))+'</td><td class="r num" style="font-weight:600">'+(laeuft?'—':esc(zahlText(e.hours,2)))+'</td>'
+    +'<td class="aktionen">'+aktion+'</td></tr>';
+}
+function buchung(id){return (B&&B.eintraege||[]).find(function(e){return String(e.id)===String(id)})||null}
+function filterSetzen(){
+  FILTER={mitarbeiter:el('filterMitarbeiter').value,auftrag:el('filterAuftrag').value,zeitart:el('filterZeitart').value};
+  return buchungenLaden();
+}
+
+// --- Buchung ändern / neu -------------------------------------------------------------------------------------------------------------
+function kontextLaden(){
+  if(KONTEXT)return Promise.resolve(KONTEXT);
+  return lesen('kontext',()=>Promise.all([api('/api/time-tracking/context'),api('/api/settings/option-groups/time_entry_activities').catch(function(){return {options:[]}})]),
+    function(r){KONTEXT=r[0];TAETIGKEITEN=(r[1].options||[]).map(function(o){return {value:o.value,label:o.label,active:o.active!==false}})})
+    .then(function(){return KONTEXT});
+}
+function zeitarten(){return (B&&B.filter.zeitarten)||[{value:'site',label:'Baustellenzeit'},{value:'travel',label:'Fahrzeit'},{value:'workshop',label:'Werkstattzeit'},{value:'other',label:'Sonstige'}]}
+function auftragDesKontexts(id){return (KONTEXT.orders||[]).find(function(o){return String(o.id)===String(id)})||null}
+function auftragOptionText(o){return auftragTitel(o)+(o.geschlossen?' (Auftrag '+o.geschlossen+')':'')}
+function positionenZeichnen(gespeichert){
+  var o=auftragDesKontexts(el('bdAuftrag').value);
+  el('bdPosition').innerHTML=auswahlOptionen(o?o.items:[],gespeichert,function(i){return [i.oz,i.short_text].filter(Boolean).join(' · ')},
+    {leer:'— ohne LV-Position —',fehlt:function(){return BD&&BD.order_item_oz?BD.order_item_oz+' (nicht mehr in der Auswahl)':'LV-Position (nicht mehr in der Auswahl)'}});
+}
+function modus(){return el('bdModusDauer').getAttribute('aria-pressed')==='true'?'dauer':'vonbis'}
+function modusSetzen(m){
+  var dauer=m==='dauer';
+  el('bdModusVonBis').setAttribute('aria-pressed',String(!dauer));el('bdModusDauer').setAttribute('aria-pressed',String(dauer));
+  el('bdVonFeld').hidden=dauer;el('bdBisFeld').hidden=dauer;el('bdPauseFeld').hidden=dauer;
+  el('bdStundenFeld').hidden=!dauer;el('bdPauseDauerFeld').hidden=!dauer;
+  // der Wechsel zu „Dauer“ sagt, dass Von und Bis entfallen (seit 1.9.90 leert das Speichern einer Dauer Beginn und Ende)
+  el('bdDauerHinweis').hidden=!dauer;
+  if(dauer){el('bdVon').value='';el('bdBis').value=''}
+  vorschauLaden();
+}
+function buchungDialogOeffnen(e){
+  return kontextLaden().then(function(){
+    BD=e;
+    var aendern=!!e;
+    el('bdTitel').textContent=aendern?'Buchung ändern':'Neue Buchung';
+    el('bdUnter').textContent=aendern?e.employee_name+(e.booked_by_name?' · gebucht von '+e.booked_by_name+(e.created_at?' am '+amText(e.created_at):''):''):'Für eine Person, mit Von und Bis oder als Dauer.';
+    el('bdMitarbeiterFeld').hidden=aendern;
+    el('bdMitarbeiter').innerHTML=auswahlOptionen(KONTEXT.employees,aendern?e.employee_id:(FILTER.mitarbeiter||''),
+      function(m){return (m.employee_number?m.employee_number+' · ':'')+m.name},{leer:'— Mitarbeiter wählen —'});
+    el('bdDatum').value=aendern?e.work_date:berlinToday();
+    el('bdZeitart').innerHTML=auswahlOptionen(zeitarten(),aendern?e.entry_type:'site',function(a){return a.label},
+      {wert:function(a){return a.value},fehlt:function(){return e?e.zeitart:''}});
+    el('bdAuftrag').innerHTML=auswahlOptionen(KONTEXT.orders,aendern?e.order_id:(FILTER.auftrag||''),auftragOptionText,{leer:'— Auftrag wählen —',
+      fehlt:function(){return aendern?auftragTitel({order_number:e.order_number,title:e.order_title})+' (nicht mehr in der Auswahl)':'Auftrag (nicht mehr in der Auswahl)'}});
+    positionenZeichnen(aendern?e.order_item_id:'');
+    el('bdTaetigkeit').innerHTML=auswahlOptionen(TAETIGKEITEN,aendern?e.activity:'',function(t){return t.label},{wert:function(t){return t.value},leer:'— ohne Tätigkeit —'});
+    el('bdNotiz').value=aendern?(e.notes||''):'';
+    el('bdVon').value=aendern?uhr(e.started_at):'';el('bdBis').value=aendern?uhr(e.ended_at):'';
+    el('bdPause').value=aendern?zahlText(e.min_break_minutes!=null?e.min_break_minutes:(e.break_minutes||0)):'';
+    el('bdStunden').value=aendern?zahlText(e.hours,2):'';
+    el('bdPauseDauer').value=aendern?zahlText(e.break_minutes||0):'';
+    ['bdPause','bdStunden','bdPauseDauer'].forEach(function(id){el(id).removeAttribute('aria-invalid')});
+    el('bdWeitereFelder').hidden=true;el('bdWeitere').setAttribute('aria-expanded','false');
+    el('bdStatus').textContent='';el('bdSpeichern').disabled=false;
+    // ohne Uhrzeiten (eine Dauer) öffnet „Dauer“, sonst „Von – Bis“
+    var dauer=aendern&&!(e.started_at&&e.ended_at);
+    el('bdModusVonBis').setAttribute('aria-pressed',String(!dauer));el('bdModusDauer').setAttribute('aria-pressed',String(dauer));
+    el('bdVonFeld').hidden=dauer;el('bdBisFeld').hidden=dauer;el('bdPauseFeld').hidden=dauer;
+    el('bdStundenFeld').hidden=!dauer;el('bdPauseDauerFeld').hidden=!dauer;el('bdDauerHinweis').hidden=true;
+    el('buchungDialog').showModal();
+    return vorschauLaden();
+  }).catch(function(e){el('seitenStatus').textContent=e.message});
+}
+function vorschauZeigen(v,fehler,dauerStunden){
+  var knopf=el('bdSpeichern');
+  if(modus()==='dauer'){
+    el('bdVorschauZeile').textContent=fehler||'Dauer: gebucht wird netto, ohne Pausenregel.';
+    el('bdVorschauZahl').textContent=dauerStunden!=null?stunden(dauerStunden):'';
+    knopf.textContent=dauerStunden!=null?stunden(dauerStunden)+' speichern':'Speichern';
+    return;
+  }
+  if(v){
+    el('bdVorschauZeile').innerHTML=teileHtml('Anwesend '+stundenUhr(Number(v.anwesend)*60)+(v.tag_buchungen>1?' · Tag zusammen '+stundenUhr(Number(v.tag_zusammen)*60):'')
+      +' · Pause nach Zeitregel − '+stundenUhr(v.pause));
+    el('bdVorschauZahl').textContent=stunden(v.gebucht);
+    knopf.textContent=stunden(v.gebucht)+' speichern';
+  }else{
+    el('bdVorschauZeile').textContent=fehler||'Von und Bis eintragen – dann rechnet der Server die Pause.';
+    el('bdVorschauZahl').textContent='';
+    knopf.textContent='Speichern';
+  }
+}
+// Vorschau vom Server bei jeder Änderung von Mitarbeiter, Datum, Von, Bis oder „Pause mindestens“; „Dauer“ ohne Anfrage (Regel 29)
+function vorschauLaden(){
+  if(modus()==='dauer'){
+    var h=null,fehler=null;
+    try{h=zahlVorschau('bdStunden')}catch(err){fehler=err.message}
+    return lesen('vorschau',()=>Promise.resolve(null),function(){vorschauZeigen(null,fehler,h)});
+  }
+  var mitarbeiter=BD?BD.employee_id:el('bdMitarbeiter').value,datum=el('bdDatum').value,von=el('bdVon').value,bis=el('bdBis').value,pause;
+  try{pause=zahlFeld('bdPause',{leer:0})}catch(err){vorschauZeigen(null,err.message);return Promise.resolve()}
+  var url='/api/time-entries/nachtrag-vorschau?work_date='+encodeURIComponent(datum)+'&von='+encodeURIComponent(von)+'&bis='+encodeURIComponent(bis)
+    +'&pause_minuten='+pause+'&employee_id='+encodeURIComponent(mitarbeiter)+(BD?'&entry_id='+BD.id:'');
+  return lesen('vorschau',()=>mitarbeiter&&datum&&von&&bis?api(url):Promise.resolve(null),function(v){vorschauZeigen(v,null)})
+    .catch(function(err){vorschauZeigen(null,err.message)});
+}
+function buchungSpeichern(){
+  var st=el('bdStatus'),knopf=el('bdSpeichern'),aendern=!!BD,dauer=modus()==='dauer';
+  st.textContent='';
+  var mitarbeiter=aendern?BD.employee_id:el('bdMitarbeiter').value,auftrag=el('bdAuftrag').value;
+  if(!mitarbeiter){st.textContent='Bitte Mitarbeiter auswählen.';return}
+  if(!auftrag){st.textContent='Bitte Auftrag auswählen.';return}
+  var felder={order_id:auftrag,order_item_id:el('bdPosition').value||null,work_date:el('bdDatum').value,entry_type:el('bdZeitart').value,
+              activity:el('bdTaetigkeit').value||null,notes:el('bdNotiz').value.trim()||null};
+  var body;
+  try{
+    if(dauer){
+      var h=zahlFeld('bdStunden',{pflicht:true}),p=zahlFeld('bdPauseDauer',{leer:0});
+      body=Object.assign(felder,{hours:h,break_minutes:p});
+    }else{
+      if(!el('bdVon').value||!el('bdBis').value){st.textContent='Bitte Von und Bis angeben.';return}
+      var pm=zahlFeld('bdPause',{leer:0});
+      body=Object.assign(felder,{von:el('bdVon').value,bis:el('bdBis').value},aendern?{pause_minuten:pm}:{break_minutes:pm});
+    }
+  }catch(err){st.textContent=err.message;return}
+  if(!aendern)body.employee_id=mitarbeiter;
+  var url=aendern?'/api/time-entries/'+BD.id:'/api/time-entries';
+  knopf.disabled=true;
+  return speichern('buchungen',()=>api(url,{method:aendern?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{neuLaden:alleNeuLaden})
+    .then(function(r){
+      el('buchungDialog').close();
+      ergebnis((aendern?'Geändert: ':'Gebucht: ')+r.employee_name+', '+tagKurz(r.work_date)+(r.started_at&&r.ended_at?' '+uhr(r.started_at)+'–'+uhr(r.ended_at):' · Dauer')+' · gebucht '+stunden(r.hours));
+    })
+    .catch(function(err){st.textContent=err.message;knopf.disabled=false});
+}
+
+// --- Löschen mit Rückfrage auf der Seite -------------------------------------------------------------------------------------------
+function loeschFragen(e){
+  LD=e;
+  el('ldText').textContent=e.employee_name+' · '+e.zeitart+' · '+tagKurz(e.work_date)+(e.started_at&&e.ended_at?' '+uhr(e.started_at)+'–'+uhr(e.ended_at):'')+' · '+stunden(e.hours);
+  el('ldStatus').textContent='';el('ldLoeschen').disabled=false;
+  el('loeschDialog').showModal();
+}
+function loeschen(){
+  var e=LD,knopf=el('ldLoeschen');
+  knopf.disabled=true;
+  return speichern('buchungen',()=>api('/api/time-entries/'+e.id,{method:'DELETE'}),{neuLaden:alleNeuLaden})
+    .then(function(){el('loeschDialog').close();ergebnis('Gelöscht: '+e.employee_name+', '+tagKurz(e.work_date)+' · '+stunden(e.hours))})
+    .catch(function(err){el('ldStatus').textContent=err.message;knopf.disabled=false});
+}
+
+// nach jedem Schreiben beide Listen neu (die Zahl am Reiter „Prüfen“ hängt an beiden); „Buchungen“ nur, wenn schon geladen
+function alleNeuLaden(){return Promise.all([pruefenLaden(),B?buchungenLaden():Promise.resolve()])}
+
+// Ereignisse anmelden, Filter aus der Adresse -- erst hier (die node-Tests führen das Skript bis vor binden() aus)
+function binden(){
+  var q=new URLSearchParams(location.search);
+  ['mitarbeiter','auftrag'].forEach(function(k){var v=q.get(k);if(v&&/^\d+$/.test(v))FILTER[k]=v});
+  if(/^\d{4}-\d{2}$/.test(q.get('monat')||''))MONAT=q.get('monat');
+  document.querySelector('.reiter').addEventListener('click',function(ev){
+    var a=ev.target.closest&&ev.target.closest('a[data-reiter]');if(!a)return;ev.preventDefault();ergebnis('');reiterZeigen(a.dataset.reiter);
+  });
+  el('reiter-pruefen').addEventListener('click',function(ev){
+    var b=ev.target.closest&&ev.target.closest('[data-aktion]');if(!b)return;
+    var a=b.dataset.aktion;
+    if(a==='ende')endeEintragen(b.dataset.id,b);
+    else if(a==='pause-buchen')pauseBuchen(Number(b.dataset.i),b);
+    else if(a==='pause-zu'||a==='pause-zeigen'){var t=P.pausen[Number(b.dataset.i)];ZU[t.employee_id+'/'+t.tag]=a==='pause-zu';pruefenZeichnen(P)}
+    else if(a==='antrag')antragEntscheiden(b.dataset.id,b.dataset.entscheidung,b);
+  });
+  el('reiter-pruefen').addEventListener('input',function(ev){var f=ev.target;if(f.dataset&&f.dataset.ende)endeVorschau(f.dataset.ende)});
+  el('reiter-buchungen').addEventListener('click',function(ev){
+    var b=ev.target.closest&&ev.target.closest('[data-aktion]');if(!b)return;
+    var a=b.dataset.aktion;
+    if(a==='aendern')buchungDialogOeffnen(buchung(b.dataset.id));
+    else if(a==='loeschen')loeschFragen(buchung(b.dataset.id));
+    else if(a==='zu-ende'){reiterZeigen('pruefen');var f=el('ende-'+b.dataset.id);if(f){f.scrollIntoView({block:'center'});f.focus()}}
+  });
+  el('monatZurueck').addEventListener('click',function(){MONAT=monatPlus(MONAT,-1);ergebnis('');buchungenLaden()});
+  el('monatVor').addEventListener('click',function(){MONAT=monatPlus(MONAT,1);ergebnis('');buchungenLaden()});
+  ['filterMitarbeiter','filterAuftrag','filterZeitart'].forEach(function(id){el(id).addEventListener('change',function(){ergebnis('');filterSetzen()})});
+  var neu=el('neueBuchung');if(neu)neu.addEventListener('click',function(){buchungDialogOeffnen(null)});
+  el('bdModusVonBis').addEventListener('click',function(){modusSetzen('vonbis')});
+  el('bdModusDauer').addEventListener('click',function(){modusSetzen('dauer')});
+  el('bdAuftrag').addEventListener('change',function(){positionenZeichnen('')});
+  ['bdMitarbeiter','bdDatum','bdVon','bdBis','bdPause','bdStunden'].forEach(function(id){el(id).addEventListener('input',vorschauLaden);el(id).addEventListener('change',vorschauLaden)});
+  el('bdWeitere').addEventListener('click',function(){var f=el('bdWeitereFelder');f.hidden=!f.hidden;el('bdWeitere').setAttribute('aria-expanded',String(!f.hidden))});
+  el('bdSpeichern').addEventListener('click',buchungSpeichern);
+  el('bdAbbrechen').addEventListener('click',function(){el('buchungDialog').close()});
+  el('bdZu').addEventListener('click',function(){el('buchungDialog').close()});
+  el('ldLoeschen').addEventListener('click',loeschen);
+  el('ldAbbrechen').addEventListener('click',function(){el('loeschDialog').close()});
+  el('ldZu').addEventListener('click',function(){el('loeschDialog').close()});
+  reiterZeigen((location.hash||'#pruefen').slice(1));
+}
+binden();
+pruefenLaden();
+</script>
+</body>
+</html>

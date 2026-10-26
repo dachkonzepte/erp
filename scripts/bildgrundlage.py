@@ -118,6 +118,7 @@ AUFNAHMEN = (
     A("betriebskosten", "recurring_costs.html", "/betriebskosten", (BUERO,)),
     A("zeiterfassung", "time_tracking.html", "/time-tracking", (BUERO,)),
     A("backoffice", "time_backoffice.html", "/time-backoffice", (BUERO,)),
+    A("zeiten", "zeiten.html", "/zeiten", (BUERO,)),  # seit 1.9.96 (Stufe 4, R5b)
     A("stammdaten", "master_data.html", "/master-data", (BUERO,)),
     A("stammdaten_mitarbeiter", "master_data_form.html", "/master-data/employees/{mitarbeiter}/edit", (BUERO,)),
     A("kunde", "customer.html", "/customers/{kunde}", (BUERO,)),

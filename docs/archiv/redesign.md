@@ -5988,3 +5988,67 @@ mit `unpassende_pausen()`).
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): „Monat & Lohn“ für Büro – Auftrag; Summe mit laufenden; Ändern ohne Abschluss;
 Pausen ohne Abschlussgrenze; offene Zeiten auch von heute; Anträge aller für das Büro; Knöpfe für Büro – Auftrag (zuerst grün -- der Test prüfte
 Büro – Auftrag nur ohne eigenen Mitarbeiter; nachgeschärft: das Konto ist Tom, Toms eigene laufende Zeit) -> je 1 Test rot.
+
+### R5b, Punkte 2–4 und 7 (1.9.96): die Seite mit Prüfen und Buchungen
+
+- Seite `/zeiten` (`app/routers/pages.py::zeiten_page()`, ab Büro – Auftrag; die Monteurin -> `/mobil/zeiten`), Vorlage `zeiten.html` in
+  `UMGEZOGEN` (`tests/test_v441_rahmen_baustein.py`), in der Bildgrundlage (`scripts/bildgrundlage.py`, Büro 4 Bilder). Bis zur Umstellung
+  (Punkt 1) markiert sie in der Leiste „Backoffice“ (`bereich`), die alten Seiten bleiben erreichbar.
+- Kopf über das Makro: Titel, Untertitel, „+ Buchung“ (nur mit `darf_zeit_buchen()`, sonst fehlt der Knopf), „⋮“ mit „Zeitregeln und DATEV“ und
+  „Zeit-Listen“. Darunter die Reiter (`nav.reiter`, 44 px, aktiver mit grünem Strich, Zahl in Signal), Adresse `#pruefen`/`#buchungen`.
+- Prüfen: Karte „Wartet auf dich“ (Signalfläche) nur mit Zeiten von früher -- „Ende um“ fragt bei jeder Eingabe `GET
+  /api/time-entries/{id}/ende-vorschau` (über `lesen()`), „Ende eintragen“ erst mit Vorschau, schickt genau dieses Ende an
+  `…/ende-nachtragen`; „Pause passt nicht zum Tag“ zeigt die Vorschau vom Server sofort, „Abbrechen“ klappt sie zu („Neu rechnen“ öffnet
+  wieder), „So buchen“ schickt sie an `pausen-neu-rechnen`; Anträge (Ablehnen/Genehmigen nur Admin, `POST …/review`); ohne alles „Nichts zu
+  prüfen“. Rechts der Monat (Status offen/teilweise/abgeschlossen, Gebucht, Fahrzeit, Tabelle) und „Vor dem Abschluss“ (sonst ein Haken).
+- Buchungen: Filterleiste wie die Vorlage (‹ Monat ›, Mitarbeiter 150 px, Auftrag 180 px, Zeitart 120 px, „Summe der Auswahl“), Auswahl über
+  `auswahlOptionen()`; Tabelle Datum, Mitarbeiter, Von–Bis („06:45 – läuft“ mit „von früher“, „Dauer · vom Büro“ bzw. „Dauer“), Zeitart mit
+  Farbpunkt, Auftrag (Nummer · Titel, Kennzeichen „abgeschlossen“), Pause (h:mm), Stunden; „Ende eintragen“ springt zu Prüfen und setzt den Fokus
+  ins Feld; „⋮“ (`dsMenue()`) mit Ändern und Löschen nur mit `darf_aendern`.
+- Dialog „Buchung ändern“ / „Neue Buchung“ (640 px, Ecke 16 px): Mitarbeiter (nur neu), Datum, Zeitart, Auftrag (aus dem Kontext der Zeiterfassung,
+  geschlossene gekennzeichnet), Erfassung „Von – Bis | Dauer“, unter „Weitere Angaben“ LV-Position, Tätigkeit, Pause mindestens, Notiz. Von–Bis:
+  Vorschau über `nachtrag-vorschau` (mit `employee_id`, beim Ändern `entry_id`), POST mit `break_minutes`, PUT mit `pause_minuten`; Dauer:
+  Stunden (Pflicht) und Pause, ohne Von/Bis -- der Server leert Beginn und Ende (seit 1.9.90). Löschen über einen eigenen Dialog.
+- Befund R5: `--ds-zeitart-baustelle/-fahrt/-werkstatt/-sonstige` in `ds.css` (hell aus der Vorlage, dunkel aufgehellt; vier Prüfpaare
+  „zeitart-*/flaeche“ ≥ 3 : 1); keine Emojis, ▶ oder ■; `fehlerText()` mit den Feldnamen der Seite; Rückfragen auf der Seite, kein `confirm()`.
+- Befund dabei: der Monat (rechts und „Stunden je Mitarbeiter“) zeigte eine Person mit nur einer laufenden Zeit als „0 Tage, 0,00“ -- jetzt
+  nur Mitarbeiter mit gebuchten Zeiten (`app/zeiten.py`, Test `test_nur_laufende_zeit_ohne_zeile_im_monat`).
+
+#### Festlegungen 1.9.96 (Bitte bestätigen)
+
+1. Bis zur Umstellung (Punkt 1) markiert „Zeiten“ in der Leiste den Eintrag „Backoffice“; erreichbar über die Adresse `/zeiten`.
+2. Im Seitenkopf steht „+ Buchung“ rechts, „⋮“ daneben -- die Reihenfolge des Makros (Hauptaktion, dann Menü); die Vorlage hat „⋮“ links.
+3. „Abbrechen“ an „Pause passt nicht zum Tag“ klappt die Vorschau zu; „Neu rechnen“ öffnet sie wieder (nichts wird gebucht).
+4. „Ende eintragen“ an einer laufenden Zeit in „Buchungen“ springt zu „Prüfen“ und setzt den Fokus in „Ende um“ dieser Zeit.
+5. Eine laufende Zeit von heute zeigt „läuft“ ohne Kennzeichen und ohne Knopf (die Monteurin beendet sie).
+6. Die Pause steht in der Liste als h:mm ohne „h“ (wie die Vorlage), die Stunden dezimal.
+7. Der Dialog öffnet bei einer Buchung ohne Uhrzeiten „Dauer“, sonst „Von – Bis“; beim Ändern ist der Mitarbeiter fest.
+8. „Weitere Angaben“ enthält zusätzlich die LV-Position (die Zeiterfassung und das Backoffice hatten sie, die Vorlage nennt sie nicht).
+9. Ein Timer (Schnell starten, Gruppen-Timer) wird im Büro nicht angeboten -- die Monteurin startet auf „Heute“, das Büro bucht nachträglich.
+10. Die Liste nennt den Auftrag mit „Nummer · Titel“ (`auftragTitel()`), wie die Vorlage.
+11. Der Grund in „Pause passt nicht zum Tag“ („nach Löschen einer Buchung“) entfällt -- der Server kennt ihn nicht.
+12. Nach jedem Speichern laden Prüfen und (wenn geladen) Buchungen neu; die Meldung steht unter den Reitern.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v518_zeiten_seite.py` (14 Tests): Seite je Rolle (+ Buchung, Rechte), Monteurin -> „Meine Zeiten“; Buchungszeile mit Von–Bis und
+„⋮“, ohne Recht ohne „⋮“, laufend von früher mit Weg, Dauer und abgeschlossener Auftrag, Werte in `esc()`; Pause passt nicht mit Vorschau und So
+buchen (ohne Recht ohne Knöpfe); Zeit von früher mit „Ende um“ (ohne Recht ohne); Anträge nur Admin; Wechsel zu Dauer; Befund R5. Neu
+`scripts/klicktest_zeiten.py` (50 Prüfungen): Admin Prüfen (Vorschau, Ende eintragen = Vorschau, So buchen = Vorschau), Büro – Finanzen Buchungen
+(Zeilen, Filter und Summe, Ändern mit Vorschau, Wechsel zu Dauer mit leeren Uhrzeiten, neue Buchung, Löschen mit Rückfrage), Büro – Auftrag ohne
+Knöpfe, hell/dunkel mit den Farbtokens, 412 px.
+
+Angepasste Erwartungen:
+- `test_v432::test_kontrast_der_pruefpaare_hell_und_dunkel`: 43 Prüfpaare -> 47 (die Farbpunkte der Zeitarten).
+- `test_v441::test_jede_seite_mit_leiste_nennt_ihren_bereich` und `test_jede_seite_markiert_ihren_bereich`: 45 Seiten mit Leiste -> 46.
+- `test_v431::test_dateinamen_eindeutig_und_die_bisherigen_zuerst`: 314 Bilder -> 318, davon in 412/1440 252 -> 256.
+- `test_v401::test_jede_weiterleitung_des_servers_hat_ein_festes_oder_geprueftes_ziel`: 7 Weiterleitungen -> 8 (`/zeiten` der Monteurin).
+- `test_v425::test_jede_umleitung_einer_seitenroute_steht_an_der_route`: fünf umleitende Seitenrouten -> sechs (`zeiten_page`, mit
+  `dk_ohne_seite`); im ersten vollen Lauf rot.
+- `test_v424`: `ABGLEICH` um die drei Zahlenfelder des Dialogs ergänzt (`bdPause`, `bdStunden`, `bdPauseDauer`); im ersten Lauf rot, weil die
+  Stunden zwei Nachkommastellen verlangten (strenger als der Server) -- `data-stellen` entfernt.
+- Im ersten Lauf rot und an der Seite behoben: `test_v398` (die Optionen mit `method` standen in einer Hilfsfunktion statt im Aufruf),
+  `test_v407` (die Tage ohne `esc()`).
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): „+ Buchung“ für Büro – Auftrag; „Dauer“ leert Von/Bis nicht; „⋮“ ohne Recht;
+„Ende um“ ohne Recht; Zeitart-Farbe ohne Token -> je 1 Test und 1 Prüfung von `klicktest_zeiten` rot.

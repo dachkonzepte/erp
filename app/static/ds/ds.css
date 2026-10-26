@@ -28,6 +28,7 @@
      feld-rand-signal/signal-hell feld-rand-signal/flaeche
      signal/flaeche stark/flaeche info/flaeche ok/flaeche fehler/flaeche
      aktion/flaeche aktion/grund aktion/flaeche-2
+     zeitart-baustelle/flaeche zeitart-fahrt/flaeche zeitart-werkstatt/flaeche zeitart-sonstige/flaeche
    ===================================================================== */
 
 :root {
@@ -84,6 +85,12 @@
   --ds-auf-fehler: #FFFFFF;
   --ds-fehler-hell: #FBE4E4;
   --ds-fehler-text: #8F1A1A;
+
+  /* Zeitarten (seit 1.9.96, Seite „Zeiten“): Farbpunkt je Zeitart -- Baustelle, Fahrzeit, Werkstatt, Sonstige (auch Schlechtwetter) */
+  --ds-zeitart-baustelle: #367337;
+  --ds-zeitart-fahrt: #3D6A8C;
+  --ds-zeitart-werkstatt: #7A5A34;
+  --ds-zeitart-sonstige: #5C6660;
 
   /* Links und Fokus */
   --ds-link: #1D5FA8;
@@ -175,6 +182,11 @@
   --ds-auf-fehler: #FFFFFF;
   --ds-fehler-hell: #3A1818;
   --ds-fehler-text: #F6AAA8;
+
+  --ds-zeitart-baustelle: #3D823E;
+  --ds-zeitart-fahrt: #5B8DB8;
+  --ds-zeitart-werkstatt: #A8804F;
+  --ds-zeitart-sonstige: #8A948E;
 
   --ds-link: #86B9F2;
   --ds-link-hover: #B5D3F7;

@@ -1,0 +1,326 @@
+"""Klicktest: die Büroseite „Zeiten“ (seit 1.9.96, Stufe 4, R5b) -- Prüfen, Buchungen, Buchung ändern/neu, Löschen.
+
+Befüllt (stehende Uhr Mo 26.10.2026, 10:00, Instanz und Browser; abgeschlossen bis 30.09.2026), Testdaten wie die Vorlagen
+bildgrundlage/entwurf-stufe4/zeiten-*.html: Aufträge AUF-2026-0001 „Halle Nord“, AUF-2026-0102 „Attika“, AUF-2026-0105 „Halle Süd“
+(abgeschlossen); Tom Monteur Baustelle seit Mo 19.10., 06:45 offen, Ole Offen Fahrzeit seit Fr 16.10., 15:30 offen; Mia Monteurin am
+Sa 10.10. ein Tag mit unpassender Pause (12:00–16:15, 45 min abgezogen, nach Zeitregel 0), am 19.10. 07:00–12:00 und 12:00–16:15, am
+15.10. eine Dauer von 6,00 h (vom Büro); Tom am 15.10. 06:15–07:00 Fahrzeit und 07:00–16:30 Baustelle (Attika), am 16.10. 07:00–15:45 auf
+dem abgeschlossenen Auftrag; Toms Antrag Urlaub 02.–06.11. offen.
+
+    Admin, hell 1440 × 900  Prüfen: Zahl am Reiter 3; „Zeiten von früher“ mit Tom und Ole; Ende um 16:00 -> Vorschau „anwesend 9:15 h ·
+                            Pause nach Zeitregel − 0:45 h · gebucht 8,50 h“, Ole ohne Uhrzeit „Ende eintragen“ gesperrt; „Pause passt
+                            nicht“ mit Vorschau; Anträge mit Genehmigen/Ablehnen; Monat Oktober 2026 und „Vor dem Abschluss“ -- Bild;
+                            „Ende eintragen“ = Vorschau (gebucht 8,50 h, 45 min); „So buchen“ = Vorschau (0 min, 4,25 h)
+    Büro – Finanzen         Buchungen: Spalten, „von früher“ mit „Ende eintragen“ (springt zu Prüfen, Fokus im Feld), abgeschlossener Auftrag
+                            gekennzeichnet, „Dauer · vom Büro“; Filter Mitarbeiter, Auftrag, Zeitart ändern Liste und „Summe der Auswahl“
+                            (= Summe der gezeigten gebuchten Zeilen, die laufende zählt nicht); Ändern mit Von–Bis: Vorschau „Anwesend 9:30
+                            h · Tag zusammen 10:15 h · Pause nach Zeitregel − 0:45 h“, Knopf „8,75 h speichern“ -- Bild; Bis 16:00 -> 8,25 h
+                            gespeichert; Wechsel zu „Dauer“: Von/Bis leer, Hinweis, 8,00 h gespeichert, Beginn und Ende leer (API); „+ Buchung“
+                            für Mia 07:00–11:00 -> 4,00 h; Löschen mit Rückfrage auf der Seite (kein confirm())
+    Büro – Auftrag          Prüfen und Buchungen ohne Knöpfe (kein „Ende um“, kein „So buchen“, kein „⋮“, kein „+ Buchung“) -- Bild
+    dunkel                  Prüfen und Buchungen; Farbpunkte der Zeitarten aus den Tokens (hell und dunkel verschieden) -- Bilder
+    412 px                  ohne waagrechte Scrollleiste der Seite
+
+Die Bilder (zeiten_*.png) liegen im Ordner der Screenshots.
+
+AUFRUF (aus dem Projektordner):
+
+    .venv\\Scripts\\python.exe scripts\\klicktest_zeiten.py [--app-port N] [--cdp-port N] [--arbeitsordner PFAD] [--chrome PFAD]
+        [--offen-lassen]
+
+Optionen, Ablauf, Rückgabecode und Regeln (isolierte Wegwerf-Datenbank, Prozesse nur über die eigene PID beenden): siehe
+scripts/cdp_klicktest.py. Dauer etwa eine Minute.
+"""
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from cdp_klicktest import klicktest_main  # noqa: E402
+
+
+def befuellen(db, k):
+    from datetime import date, datetime, time
+    from decimal import Decimal
+
+    from app.models import (AppUser, Customer, Employee, EmployeeAbsenceRequest, Order, OrderItem, Project, Property, TimeTrackingSettings)
+    from app.project_pipeline_columns import default_pipeline_column_id
+    from app.time_tracking import create_manual_entry, delete_entry, start_timer, stop_timer
+
+    leute = {}
+    for nr, (vor, nach, gruppe) in enumerate([("Mia", "Monteurin", "gewerblich"), ("Tom", "Monteur", "gewerblich"), ("Ole", "Offen", "gewerblich"),
+                                              ("Bea", "Büro", "angestellt")], 1):
+        leute[vor.lower()] = Employee(employee_number=f"100{nr}", first_name=vor, last_name=nach, employee_group=gruppe, active=True,
+                                      hourly_wage=Decimal("22.00"))
+    db.add_all(leute.values()); db.flush()
+    admin = AppUser(username="anna", display_name="Anna Admin", role="admin", password_hash=k.passwort())
+    fin = AppUser(username="fin", display_name="Fin Finanzen", role="buero_finanzen", password_hash=k.passwort())
+    bea = AppUser(username="bea", display_name="Bea Büro", role="buero_auftrag", employee_id=leute["bea"].id, password_hash=k.passwort())
+    db.add_all([admin, fin, bea]); db.flush()
+    kunde = Customer(name="Hallenbau GmbH", last_name="Hallenbau GmbH", is_consumer=False)
+    db.add(kunde); db.flush()
+    auftraege = {}
+    for nr, (nummer, titel, status) in enumerate([("AUF-2026-0001", "Halle Nord", "beauftragt"), ("AUF-2026-0102", "Attika", "beauftragt"),
+                                                  ("AUF-2026-0105", "Halle Süd", "abgeschlossen")], 1):
+        objekt = Property(customer_id=kunde.id, name=titel, street="Werkstr. 5", postal_code="52531", city="Übach-Palenberg")
+        db.add(objekt); db.flush()
+        projekt = Project(project_number=f"P-ZT-{nr}", name=titel, customer_id=kunde.id, property_id=objekt.id,
+                          pipeline_column_id=default_pipeline_column_id(db))
+        db.add(projekt); db.flush()
+        o = Order(order_number=nummer, project_id=projekt.id, source_quote_id=900 + nr, quote_number_snapshot=f"A-ZT-{nr}", title=titel,
+                  customer_name=kunde.name, property_name=titel, property_address="Werkstr. 5\n52531 Übach-Palenberg", status=status)
+        db.add(o); db.flush()
+        db.add(OrderItem(order_id=o.id, sort_order=10, position_number="1", short_text="Dacharbeiten", quantity=Decimal("1"), unit="psch",
+                         unit_price=Decimal("1")))
+        auftraege[titel] = o
+    db.get(TimeTrackingSettings, 1).locked_until = date(2026, 9, 30)
+    db.commit()
+
+    def zeit(wer, tag, von, bis, auftrag, art="site"):
+        row = start_timer(db, employee_id=leute[wer].id, order_id=auftraege[auftrag].id, entry_type=art, started_at=datetime.combine(tag, von))
+        return stop_timer(db, row.id, ended_at=datetime.combine(tag, bis))
+
+    # Mia, Sa 10.10.: 07:00–12:00 und 12:00–16:15 (45 min), die erste gelöscht -- abgezogen 45, nach Zeitregel 0
+    erste = zeit("mia", date(2026, 10, 10), time(7), time(12), "Halle Nord")
+    pause_tag = zeit("mia", date(2026, 10, 10), time(12), time(16, 15), "Halle Nord")
+    delete_entry(db, erste.id)
+    zeit("mia", date(2026, 10, 19), time(7), time(12), "Halle Nord")
+    zeit("mia", date(2026, 10, 19), time(12), time(16, 15), "Halle Nord", art="workshop")
+    dauer = create_manual_entry(db, employee_id=leute["mia"].id, order_id=auftraege["Attika"].id, work_date=date(2026, 10, 15), entry_type="site",
+                                hours=Decimal("6"), break_minutes=30, created_by_user_id=fin.id)
+    zeit("tom", date(2026, 10, 15), time(6, 15), time(7), "Attika", art="travel")
+    attika = zeit("tom", date(2026, 10, 15), time(7), time(16, 30), "Attika")
+    zeit("tom", date(2026, 10, 16), time(7), time(15, 45), "Halle Süd")
+    tom = start_timer(db, employee_id=leute["tom"].id, order_id=auftraege["Halle Nord"].id, entry_type="site",
+                      started_at=datetime(2026, 10, 19, 6, 45))
+    ole = start_timer(db, employee_id=leute["ole"].id, order_id=auftraege["Halle Süd"].id, entry_type="travel",
+                      started_at=datetime(2026, 10, 16, 15, 30))
+    db.add(EmployeeAbsenceRequest(employee_id=leute["tom"].id, absence_type="Urlaub", absence_category="urlaub", start_date=date(2026, 11, 2),
+                                  end_date=date(2026, 11, 6), status="pending", created_at=datetime(2026, 10, 20, 7, 0)))
+    db.commit()
+    return {"uhr_ms": k.uhr_ms(), "admin": k.cookies(admin), "fin": k.cookies(fin), "bea": k.cookies(bea), "tom": tom.id, "ole": ole.id,
+            "pause_tag": pause_tag.id, "attika": attika.id, "dauer": dauer.id, "mia": leute["mia"].id, "tom_ma": leute["tom"].id,
+            "halle_nord": auftraege["Halle Nord"].id, "attika_auftrag": auftraege["Attika"].id}
+
+
+BEREIT = "!!window.P&&document.getElementById('monatTitel').textContent!==''"
+BUCHUNGEN_BEREIT = "!!window.B&&!document.getElementById('reiter-buchungen').hidden"
+
+
+def _zeilen():
+    return ("[...document.querySelectorAll('#buchungenZeilen tr')].map(tr=>[...tr.cells].slice(0,7).map(c=>c.innerText.replace(/\\s+/g,' ').trim()))")
+
+
+async def _seite(tab, seed, wer, thema="light", breite=1440, hoehe=900, hash=""):
+    await tab.anmelden(seed[wer])
+    await tab.fenster(breite, hoehe)
+    await tab.browser_uhr_fest(seed["uhr_ms"])
+    await tab.oeffnen("/zeiten", BEREIT)
+    await tab.js(f"localStorage.setItem('erp_theme','{thema}')")
+    return await tab.oeffnen(f"/zeiten?neu=1{hash}", BEREIT)
+
+
+async def _buchungen(tab):
+    await tab.js("document.querySelector('.reiter a[data-reiter=buchungen]').click()")
+    return await tab.warten(BUCHUNGEN_BEREIT + "&&document.querySelectorAll('#buchungenZeilen tr').length>0", 10)
+
+
+async def _api(tab, url):
+    return await tab.js(f"fetch('{url}').then(r=>r.json())")
+
+
+async def _menue(tab, entry_id, aktion):
+    await tab.js(f"document.querySelector('#buchungenZeilen tr[data-buchung=\"{entry_id}\"] .menue-anker button').click()")
+    await tab.js(f"document.querySelector('[data-aktion=\"{aktion}\"][data-id=\"{entry_id}\"]').click()")
+
+
+async def _eingeben(tab, feld, wert):
+    await tab.js(f"(()=>{{const f=document.getElementById('{feld}');f.value='{wert}';f.dispatchEvent(new Event('input',{{bubbles:true}}));"
+                 f"f.dispatchEvent(new Event('change',{{bubbles:true}}))}})()")
+
+
+async def pruefen(tab, seed, p):
+    await tab.cmd("Page.addScriptToEvaluateOnNewDocument",
+                  source="window.alert=m=>console.error('alert(): '+m);window.confirm=m=>{console.error('confirm(): '+m);return false};")
+
+    # ---- Admin: Prüfen -----------------------------------------------------------------------------------------------------------
+    p.pruefe("Admin: Prüfen geladen", await _seite(tab, seed, "admin"), True)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Admin: Zahl am Reiter Prüfen", await tab.js("document.getElementById('zahlPruefen').innerText"), "3")
+    p.pruefe("Admin: Zeiten von früher (Name, Zeile)", await tab.js(
+        "[...document.querySelectorAll('#offenListe .zeile')].map(z=>[z.querySelector('.zeile-name').innerText,z.querySelector('.zeile-unter').innerText])"),
+        [["Ole Offen", "Fahrzeit seit Fr 16.10., 15:30 · AUF-2026-0105 · Halle Süd (Auftrag abgeschlossen)"],
+         ["Tom Monteur", "Baustellenzeit seit Mo 19.10., 06:45 · AUF-2026-0001 · Halle Nord"]])
+    await _eingeben(tab, f"ende-{seed['tom']}", "16:00")
+    p.pruefe("Admin: Vorschau Ende um 16:00", await tab.warten(
+        f"document.getElementById('ende-vorschau-{seed['tom']}').innerText.includes('gebucht')", 10), True)
+    p.pruefe("Admin: Vorschau-Zeile und Knöpfe (Tom frei, Ole ohne Uhrzeit gesperrt)", await tab.js(
+        f"[document.getElementById('ende-vorschau-{seed['tom']}').innerText,"
+        f"document.querySelector('[data-aktion=ende][data-id=\"{seed['tom']}\"]').disabled,"
+        f"document.querySelector('[data-aktion=ende][data-id=\"{seed['ole']}\"]').disabled]"),
+        ["anwesend 9:15 h · Pause nach Zeitregel − 0:45 h · gebucht 8,50 h", False, True])
+    p.pruefe("Admin: Pause passt nicht -- Zeile und Vorschau", await tab.js(
+        "[document.querySelector('#pauseListe .zeile-name').innerText,document.querySelector('#pauseListe .zeile-unter').innerText,"
+        "document.querySelector('#pauseListe .neu-rechnen-text').innerText.replace(/\\s+/g,' ')]"),
+        ["Mia Monteurin · Sa 10.10.", "Pause abgezogen 0:45 h · nach Zeitregel 0:00 h",
+         "Neu rechnen: Baustellenzeit 12:00–16:15 · Pause 0:45 → 0:00 h · gebucht 3,50 → 4,25 h"])
+    p.pruefe("Admin: Anträge mit Genehmigen und Ablehnen", await tab.js(
+        "[document.querySelector('#antragListe .zeile-name').innerText,document.querySelector('#antragListe .zeile-unter').innerText,"
+        "[...document.querySelectorAll('#antragListe button')].map(b=>b.innerText)]"),
+        ["Tom Monteur · Urlaub", "Mo 02.11.–Fr 06.11.2026 · 5 Arbeitstage · beantragt am 20.10.", ["Ablehnen", "Genehmigen"]])
+    p.pruefe("Admin: Monat rechts", await tab.js(
+        "[document.getElementById('monatTitel').innerText,document.getElementById('monatStatus').innerText,"
+        "[...document.querySelectorAll('#monatZeilen tr')].map(tr=>tr.innerText.replace(/\\s+/g,' ').trim())]"),
+        ["Oktober 2026", "offen", ["Mia Monteurin 3 18,00", "Tom Monteur 2 17,75", "Zusammen 35,75"]])  # Ole nur laufend: nicht in der Liste
+    p.pruefe("Admin: Vor dem Abschluss", await tab.js("[...document.querySelectorAll('#abschlussListe li')].slice(0,2).map(l=>l.innerText)"),
+             ["2 Zeiten laufen noch", "1 Tag mit unpassender Pause"])
+    p.pruefe("Admin: keine waagrechte Scrollleiste bei 1440", await tab.js("document.documentElement.scrollWidth<=window.innerWidth+1"), True)
+    await tab.bild("zeiten_pruefen_hell")
+
+    await tab.js(f"document.querySelector('[data-aktion=ende][data-id=\"{seed['tom']}\"]').click()")
+    p.pruefe("Admin: Ende eingetragen -- die Zeile ist weg", await tab.warten(f"!document.querySelector('[data-offen=\"{seed['tom']}\"]')", 10), True)
+    tom = await _api(tab, "/api/zeiten/buchungen?monat=2026-10&mitarbeiter=" + str(seed["tom_ma"]))
+    gebucht = [e for e in tom["eintraege"] if e["id"] == seed["tom"]][0]
+    p.pruefe("Admin: Ende eintragen = Vorschau (16:00, 45 min, 8,50 h)", [gebucht["ended_at"], gebucht["break_minutes"], float(gebucht["hours"])],
+             ["2026-10-19T16:00:00", 45, 8.5])
+    p.pruefe("Admin: Meldung", await tab.js("document.getElementById('ergebnis').innerText"),
+             "Ende eingetragen: Tom Monteur, Mo 19.10. 06:45–16:00 · gebucht 8,50 h")
+    await tab.js("document.querySelector('[data-aktion=pause-buchen]').click()")
+    p.pruefe("Admin: So buchen -- der Tag ist weg", await tab.warten("document.getElementById('pauseKarte').hidden", 10), True)
+    mia = await _api(tab, "/api/zeiten/buchungen?monat=2026-10&mitarbeiter=" + str(seed["mia"]))
+    tag = [e for e in mia["eintraege"] if e["id"] == seed["pause_tag"]][0]
+    p.pruefe("Admin: So buchen = Vorschau (0 min, 4,25 h)", [tag["break_minutes"], float(tag["hours"])], [0, 4.25])
+    p.pruefe("Admin: Zahl am Reiter jetzt 1", await tab.js("document.getElementById('zahlPruefen').innerText"), "1")
+    p.pruefe("Admin: keine JS-Fehler", tab.fehler, [])
+
+    # ---- Büro – Finanzen: Buchungen, Dialog --------------------------------------------------------------------------------------------
+    p.pruefe("Fin: Seite geladen", await _seite(tab, seed, "fin"), True)
+    p.pruefe("Fin: Buchungen geladen", await _buchungen(tab), True)
+    zeilen = await tab.js(_zeilen())
+    p.pruefe("Fin: Zeilen wie die Vorlage (Ausschnitt)", [z for z in zeilen if z[0] in ("Fr 16.10.", "Do 15.10.")], [
+        ["Fr 16.10.", "Ole Offen", "15:30 – läuft von früher", "Fahrzeit", "AUF-2026-0105 · Halle Süd abgeschlossen", "—", "—"],
+        ["Fr 16.10.", "Tom Monteur", "07:00–15:45", "Baustellenzeit", "AUF-2026-0105 · Halle Süd abgeschlossen", "0:30", "8,25"],
+        ["Do 15.10.", "Tom Monteur", "07:00–16:30", "Baustellenzeit", "AUF-2026-0102 · Attika", "0:45", "8,75"],
+        ["Do 15.10.", "Tom Monteur", "06:15–07:00", "Fahrzeit", "AUF-2026-0102 · Attika", "0:00", "0,75"],
+        ["Do 15.10.", "Mia Monteurin", "Dauer · vom Büro", "Baustellenzeit", "AUF-2026-0102 · Attika", "0:30", "6,00"]])
+
+    async def summe():
+        return await tab.js("[document.getElementById('summeAuswahl').innerText,"
+                            "[...document.querySelectorAll('#buchungenZeilen tr')].map(tr=>tr.cells[6].innerText).filter(t=>t!=='—')"
+                            ".reduce((s,t)=>s+Number(t.replace(',','.')),0).toFixed(2).replace('.',',')+' h',"
+                            "document.querySelectorAll('#buchungenZeilen tr').length]")
+    alle = await summe()
+    p.pruefe("Fin: Summe der Auswahl = gezeigte gebuchte Zeilen (die laufende zählt nicht)", [alle[0] == alle[1], alle[0], alle[2]],
+             [True, "45,00 h", 9])
+    await tab.warte_auf_neu_geladene_liste(f"(()=>{{const s=document.getElementById('filterMitarbeiter');s.value='{seed['tom_ma']}';"
+                                          "s.dispatchEvent(new Event('change',{bubbles:true}))})()", "#buchungenZeilen")
+    nur_tom = await summe()
+    p.pruefe("Fin: Filter Mitarbeiter Tom -- Liste und Summe", [nur_tom[0] == nur_tom[1], nur_tom[0], nur_tom[2],
+             await tab.js("[...document.querySelectorAll('#buchungenZeilen tr')].every(tr=>tr.cells[1].innerText==='Tom Monteur')")],
+             [True, "26,25 h", 4, True])
+    await tab.warte_auf_neu_geladene_liste("(()=>{const s=document.getElementById('filterZeitart');s.value='travel';"
+                                          "s.dispatchEvent(new Event('change',{bubbles:true}))})()", "#buchungenZeilen")
+    p.pruefe("Fin: Filter Mitarbeiter und Zeitart Fahrzeit", (await summe())[0::2], ["0,75 h", 1])
+    await tab.warte_auf_neu_geladene_liste(f"(()=>{{for(const [i,v] of [['filterMitarbeiter',''],['filterZeitart',''],['filterAuftrag','{seed['attika_auftrag']}']])"
+                                          "document.getElementById(i).value=v;document.getElementById('filterAuftrag').dispatchEvent(new Event('change',{bubbles:true}))})()",
+                                          "#buchungenZeilen")
+    p.pruefe("Fin: Filter Auftrag Attika", (await summe())[0::2], ["15,50 h", 3])
+    await tab.warte_auf_neu_geladene_liste("(()=>{document.getElementById('filterAuftrag').value='';"
+                                          "document.getElementById('filterAuftrag').dispatchEvent(new Event('change',{bubbles:true}))})()", "#buchungenZeilen")
+
+    await tab.js(f"document.querySelector('[data-aktion=zu-ende][data-id=\"{seed['ole']}\"]').click()")
+    p.pruefe("Fin: „Ende eintragen“ springt zu Prüfen, Fokus im Feld", await tab.warten(
+        f"!document.getElementById('reiter-pruefen').hidden&&document.activeElement===document.getElementById('ende-{seed['ole']}')", 5), True)
+    await _buchungen(tab)
+
+    await _menue(tab, seed["attika"], "aendern")
+    p.pruefe("Fin: Dialog Ändern offen, Vorschau vom Server", await tab.warten(
+        "document.getElementById('buchungDialog').open&&document.getElementById('bdVorschauZahl').innerText!==''", 10), True)
+    p.pruefe("Fin: Dialog -- Kopf, Von/Bis, Vorschau, Knopf", await tab.js(
+        "[document.getElementById('bdTitel').innerText,document.getElementById('bdVon').value,document.getElementById('bdBis').value,"
+        "document.getElementById('bdVorschauZeile').innerText,document.getElementById('bdSpeichern').innerText,"
+        "document.getElementById('bdModusVonBis').getAttribute('aria-pressed')]"),
+        ["Buchung ändern", "07:00", "16:30", "Anwesend 9:30 h · Tag zusammen 10:15 h · Pause nach Zeitregel − 0:45 h", "8,75 h speichern", "true"])
+    await tab.bild("zeiten_dialog_hell")
+    await _eingeben(tab, "bdBis", "16:00")
+    p.pruefe("Fin: Bis 16:00 -> 8,25 h", await tab.warten("document.getElementById('bdSpeichern').innerText==='8,25 h speichern'", 10), True)
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('bdSpeichern').click()", "#buchungenZeilen")
+    p.pruefe("Fin: gespeichert -- Zeile 07:00–16:00, 8,25", await tab.js(
+        f"[...document.querySelector('tr[data-buchung=\"{seed['attika']}\"]').cells].slice(2,7).map(c=>c.innerText)"),
+        ["07:00–16:00", "Baustellenzeit", "AUF-2026-0102 · Attika", "0:45", "8,25"])
+
+    await _menue(tab, seed["attika"], "aendern")
+    await tab.warten("document.getElementById('buchungDialog').open&&document.getElementById('bdVorschauZahl').innerText!==''", 10)
+    await tab.js("document.getElementById('bdModusDauer').click()")
+    p.pruefe("Fin: Wechsel zu „Dauer“ -- Von/Bis leer und weg, Hinweis, Stunden", await tab.js(
+        "[document.getElementById('bdVon').value,document.getElementById('bdBis').value,document.getElementById('bdVonFeld').hidden,"
+        "document.getElementById('bdDauerHinweis').hidden,document.getElementById('bdDauerHinweis').innerText,document.getElementById('bdStundenFeld').hidden]"),
+        ["", "", True, False, "Mit „Dauer“ entfallen Von und Bis – gespeichert wird nur die Dauer (netto), ohne Pausenregel.", False])
+    await _eingeben(tab, "bdStunden", "8")
+    p.pruefe("Fin: Dauer 8 -> Knopf", await tab.warten("document.getElementById('bdSpeichern').innerText==='8,00 h speichern'", 5), True)
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('bdSpeichern').click()", "#buchungenZeilen")
+    p.pruefe("Fin: als Dauer gespeichert -- Zeile", await tab.js(
+        f"[...document.querySelector('tr[data-buchung=\"{seed['attika']}\"]').cells].slice(2,7).map(c=>c.innerText)"),
+        ["Dauer", "Baustellenzeit", "AUF-2026-0102 · Attika", "0:45", "8,00"])  # „vom Büro“ nur, wenn ein Büro-Konto sie gebucht hat (Festlegung 1.9.95 Nr. 9)
+    gespeichert = [e for e in (await _api(tab, "/api/zeiten/buchungen?monat=2026-10"))["eintraege"] if e["id"] == seed["attika"]][0]
+    p.pruefe("Fin: Beginn und Ende leer (API)", [gespeichert["started_at"], gespeichert["ended_at"], float(gespeichert["hours"])], [None, None, 8.0])
+
+    await tab.js("document.getElementById('neueBuchung').click()")
+    await tab.warten("document.getElementById('buchungDialog').open&&document.getElementById('bdMitarbeiter').options.length>1", 10)
+    await tab.js(f"document.getElementById('bdMitarbeiter').value='{seed['mia']}';document.getElementById('bdAuftrag').value='{seed['halle_nord']}'")
+    await _eingeben(tab, "bdDatum", "2026-10-22")
+    await _eingeben(tab, "bdVon", "07:00")
+    await _eingeben(tab, "bdBis", "11:00")
+    p.pruefe("Fin: Neue Buchung -- Titel und Knopf", await tab.warten(
+        "document.getElementById('bdTitel').innerText==='Neue Buchung'&&document.getElementById('bdSpeichern').innerText==='4,00 h speichern'", 10), True)
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('bdSpeichern').click()", "#buchungenZeilen")
+    neu = await tab.js(_zeilen() + ".filter(z=>z[0]==='Do 22.10.')")
+    p.pruefe("Fin: neue Buchung in der Liste", neu, [["Do 22.10.", "Mia Monteurin", "07:00–11:00", "Baustellenzeit", "AUF-2026-0001 · Halle Nord", "0:00",
+                                                      "4,00"]])
+
+    await _menue(tab, seed["dauer"], "loeschen")
+    p.pruefe("Fin: Rückfrage auf der Seite", await tab.warten("document.getElementById('loeschDialog').open", 5), True)
+    p.pruefe("Fin: Rückfrage nennt die Buchung", await tab.js("document.getElementById('ldText').innerText"),
+             "Mia Monteurin · Baustellenzeit · Do 15.10. · 6,00 h")
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('ldLoeschen').click()", "#buchungenZeilen")
+    p.pruefe("Fin: gelöscht", await tab.js(f"!document.querySelector('tr[data-buchung=\"{seed['dauer']}\"]')"), True)
+    p.pruefe("Fin: keine JS-Fehler (auch kein alert/confirm)", tab.fehler, [])
+
+    # ---- Büro – Auftrag: ohne Knöpfe ---------------------------------------------------------------------------------------------------
+    p.pruefe("Bea: Seite geladen", await _seite(tab, seed, "bea"), True)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Bea: Prüfen ohne Knöpfe und ohne „+ Buchung“", await tab.js(
+        "[document.querySelectorAll('#reiter-pruefen button,#reiter-pruefen input').length,!!document.getElementById('neueBuchung'),"
+        "document.querySelectorAll('#offenListe .zeile').length]"), [0, False, 1])
+    await tab.bild("zeiten_pruefen_buero_auftrag")
+    p.pruefe("Bea: Buchungen geladen", await _buchungen(tab), True)
+    p.pruefe("Bea: Buchungen ohne „⋮“ und ohne „Ende eintragen“", await tab.js(
+        "document.querySelectorAll('#buchungenZeilen button').length"), 0)
+    await tab.bild("zeiten_buchungen_buero_auftrag")
+    p.pruefe("Bea: keine JS-Fehler", tab.fehler, [])
+
+    # ---- Admin hell und dunkel: Bilder, Farbpunkte -------------------------------------------------------------------------------------
+    p.pruefe("Admin hell: Buchungen", await _seite(tab, seed, "admin", hash="#buchungen"), True)
+    await tab.warten(BUCHUNGEN_BEREIT, 10)
+    await tab.warte_auf_ruhe()
+    hell = await tab.js("['site','travel','workshop'].map(a=>getComputedStyle(document.querySelector('.zeitart-punkt[data-art='+a+']')).backgroundColor)")
+    await tab.bild("zeiten_buchungen_hell")
+    p.pruefe("Admin dunkel: Prüfen", await _seite(tab, seed, "admin", thema="dark"), True)
+    await tab.warte_auf_ruhe()
+    await tab.bild("zeiten_pruefen_dunkel")
+    await _buchungen(tab)
+    await tab.warte_auf_ruhe()
+    dunkel = await tab.js("['site','travel','workshop'].map(a=>getComputedStyle(document.querySelector('.zeitart-punkt[data-art='+a+']')).backgroundColor)")
+    await tab.bild("zeiten_buchungen_dunkel")
+    p.pruefe("Farbpunkte aus den Tokens (hell, dunkel)", [hell, dunkel], [
+        ["rgb(54, 115, 55)", "rgb(61, 106, 140)", "rgb(122, 90, 52)"], ["rgb(61, 130, 62)", "rgb(91, 141, 184)", "rgb(168, 128, 79)"]])
+    p.pruefe("Admin: keine JS-Fehler", tab.fehler, [])
+
+    # ---- 412 px ------------------------------------------------------------------------------------------------------------------------
+    await tab.fenster(412, 900, mobil=True)
+    p.pruefe("412 px: geladen", await tab.oeffnen("/zeiten?neu=2", BEREIT), True)
+    p.pruefe("412 px: ohne waagrechte Scrollleiste der Seite", await tab.js("document.documentElement.scrollWidth<=window.innerWidth+1"), True)
+
+
+if __name__ == "__main__":
+    sys.exit(klicktest_main(befuellen, pruefen, beschreibung=__doc__, uhr="2026-10-26 10:00"))

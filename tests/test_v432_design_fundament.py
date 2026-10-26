@@ -666,8 +666,8 @@ def test_kontrast_der_pruefpaare_hell_und_dunkel():
     # seit 1.8.155 39 statt 34: Firmengrün als Hauptaktion -- Schrift auf dem Knopf und grüne Schrift mindestens 4,5, der Knopf
     # selbst auf Fläche und Grund mindestens 3; seit 1.8.157 40: der Knopf auch auf flaeche-2 (Hover, Infokasten); seit 1.9.1 41:
     # navi-text auf navi-hover (Hover in Leiste und Monteurskopf); seit 1.9.50 43: der Feldrahmen auf der Signalfläche
-    # (feld-rand-signal auf signal-hell und flaeche)
-    assert len(paare) == 43 and {g for g, _, _ in paare} == {4.5, 3.0}
+    # (feld-rand-signal auf signal-hell und flaeche); seit 1.9.96 47: die Farbpunkte der Zeitarten auf der Fläche (Seite „Zeiten“)
+    assert len(paare) == 47 and {g for g, _, _ in paare} == {4.5, 3.0}
     assert (4.5, "navi-text", "navi-hover") in paare
     assert {(4.5, "auf-aktion", "aktion"), (4.5, "aktion-text", "aktion-hell"), (4.5, "aktion-text", "flaeche"),
             (3.0, "aktion", "flaeche"), (3.0, "aktion", "grund"), (3.0, "aktion", "flaeche-2")} <= set(paare)

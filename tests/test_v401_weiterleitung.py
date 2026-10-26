@@ -292,7 +292,7 @@ def test_jede_weiterleitung_des_servers_hat_ein_festes_oder_geprueftes_ziel():
     assert funde == [], "Weiterleitung ohne festes Ziel und ohne sicheres_ziel() (app/weiterleitung.py): " + ", ".join(funde)
     # Die bekannten Weiterleitungen werden gefunden (sonst prüfte der Test nichts).
     assert {s.split(":")[0] for s in alle} == {"app/anmeldeschranke.py", "app/routers/pages.py"}
-    assert len(alle) == 7  # seit 1.9.59 dazu Stundenzettel und /time-tracking der Monteurin (auf „Meine Zeiten“), seit 1.9.67 ?report=
+    assert len(alle) == 8  # seit 1.9.96 die Seite „Zeiten“ der Monteurin (auf „Meine Zeiten“), seit 1.9.59 dazu Stundenzettel und /time-tracking der Monteurin (auf „Meine Zeiten“), seit 1.9.67 ?report=
 
 
 @pytest.mark.parametrize("code,erwartet", [

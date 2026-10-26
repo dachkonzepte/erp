@@ -188,6 +188,11 @@ ABGLEICH = [
     Z("mobil_zeiten.html", "id=zdPause", ("TimeEntryManualCreate.break_minutes", "TimeEntryUpdate.pause_minuten")),
     # seit 1.9.63 Von/Bis statt „Stunden je Person“, dazu „Pause mindestens“
     Z("mobil_zeiten.html", "id=kdPause", ("TimeGroupManualCreate.break_minutes", "TimeGroupUpdate.pause_minuten")),
+    # -- Zeiten (seit 1.9.96, Büro): Buchung ändern oder neu -- „Pause mindestens“ bei Von/Bis, Stunden und Pause bei „Dauer“
+    Z("zeiten.html", "id=bdPause", ("TimeEntryManualCreate.break_minutes", "TimeEntryUpdate.pause_minuten")),
+    Z("zeiten.html", "id=bdStunden", ("TimeEntryManualCreate.hours", "TimeEntryUpdate.hours"), lesen=("zahlFeld('bdStunden')",),
+      code={"pflicht": True}, beleg=("app/schemas.py", "Bitte die Dauer oder Von und Bis angeben.")),
+    Z("zeiten.html", "id=bdPauseDauer", ("TimeEntryManualCreate.break_minutes", "TimeEntryUpdate.break_minutes")),
     # -- Arbeitsvorbereitung
     Z("work_preparation.html", "id=mqty-${x.id}", ("WorkPreparationMaterialUpdateV082.planned_quantity",)),
 ]

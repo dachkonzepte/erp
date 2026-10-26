@@ -388,6 +388,21 @@ def time_tracking_page(request: Request, _role: AppUser = _any_role_dep):
 time_tracking_page.dk_ohne_seite = lambda user, request: user is not None and user.role == ROLE_FIELD  # seit 1.9.59, siehe login_page
 
 
+@router.get("/zeiten", response_class=HTMLResponse)
+def zeiten_page(request: Request, _role: AppUser = _any_role_dep):
+    """Seit 1.9.96 (Stufe 4, R5b): die Büroseite „Zeiten“ (Prüfen, Buchungen) -- die Daten aus app/zeiten.py. Was das Konto darf
+    (app/permissions.py), entscheidet hier, was die Seite zeigt: „+ Buchung“ nur, wer bucht; die Knöpfe je Zeile nach den Angaben des Servers.
+    Die Monteurin hat „Meine Zeiten“ (/mobil/zeiten)."""
+    if _role.role == ROLE_FIELD:
+        return RedirectResponse(url="/mobil/zeiten", status_code=302)
+    return templates.TemplateResponse(request=request, name="zeiten.html",
+                                      context={"zeit_buchen": darf_zeit_buchen(_role), "zeit_fuer_andere": darf_zeit_fuer_andere_buchen(_role),
+                                               "lohndaten": darf_lohndaten(_role), "admin": _role.role == "admin"})
+
+
+zeiten_page.dk_ohne_seite = lambda user, request: user is not None and user.role == ROLE_FIELD  # die Monteurin: Weiterleitung
+
+
 @router.get("/time-backoffice", response_class=HTMLResponse)
 def time_backoffice_page(request: Request, _role: AppUser = _role_dep):
     # seit 1.9.89 (Stufe 4, R5a): was das Konto an Zeiten und Lohndaten darf (app/permissions.py) -- die Seite bietet nur das an

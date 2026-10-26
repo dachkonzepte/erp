@@ -136,7 +136,7 @@ def arbeitstage(start: date, ende: date) -> int:
 
 def monat_stunden(db: Session, erster: date) -> dict:
     """Stunden je Mitarbeiter im Monat (Tage, Stunden) und die Summen Gebucht und Fahrzeit -- über tagessumme(), eine laufende Zeit zählt
-    nicht mit (wie Stundenzettel und DATEV-Export). Für „Prüfen“ (rechts) und „Monat & Lohn“."""
+    nicht mit (wie Stundenzettel und DATEV-Export); wer im Monat nur eine laufende Zeit hat, steht nicht in der Liste. Für „Prüfen“ (rechts)."""
     rows = list_entries(db, start_date=erster, end_date=monat_ende(erster), limit=None)
     je = defaultdict(list)
     for r in rows:
@@ -144,6 +144,8 @@ def monat_stunden(db: Session, erster: date) -> dict:
     mitarbeiter = []
     for employee_id, eigene in je.items():
         gebucht = [r for r in eigene if r.status == "booked"]
+        if not gebucht:
+            continue
         mitarbeiter.append({"employee_id": employee_id, "name": employee_name(eigene[0].employee) or f"#{employee_id}",
                             "tage": len({r.work_date for r in gebucht}), "stunden": round_hours(tagessumme(eigene))})
     mitarbeiter.sort(key=lambda x: x["name"].casefold())
@@ -250,6 +252,8 @@ def monat(db: Session, erster: date) -> dict:
     zeilen, summe = [], defaultdict(Decimal)
     sonstige = False
     for employee_id, eigene in je.items():
+        if not any(r.status == "booked" for r in eigene):
+            continue  # nur eine laufende Zeit -- keine Stunden im Monat
         emp = eigene[0].employee
         p = payroll.get(employee_id) or load_employee_payroll(db, employee_id)
         je_spalte = defaultdict(list)

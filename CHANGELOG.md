@@ -4,6 +4,21 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.96 – Die Seite „Zeiten“: Prüfen und Buchungen (Stufe 4, R5b)
+
+Neu die Büroseite „Zeiten“ (`/zeiten`, `app/templates/zeiten.html`) nach den freigegebenen Vorlagen, Maße und Texte aus der Vorlage, Farben
+über die Tokens (hell und dunkel), Seitenkopf über das Makro. Reiter „Prüfen“: Zeiten, die seit einem früheren Tag laufen, mit „Ende um“ und der
+Vorschau vom Server, gebucht erst mit „Ende eintragen“; „Pause passt nicht zum Tag“ mit der Vorschau je Buchung und „So buchen“; offene Anträge
+(Genehmigen und Ablehnen nur der Admin); rechts der erste noch offene Monat mit Stunden je Mitarbeiter und „Vor dem Abschluss“; die Zahl am
+Reiter nennt, was wartet. Reiter „Buchungen“: Monat ‹ ›, Filter Mitarbeiter, Auftrag und Zeitart für Liste und „Summe der Auswahl“, Spalten wie
+die Vorlage, laufende Zeiten von früher mit dem Weg zu „Ende eintragen“, abgeschlossene Aufträge gekennzeichnet, „⋮“ mit Ändern und Löschen
+(Rückfrage auf der Seite). „+ Buchung“ im Seitenkopf mit Feld Mitarbeiter; der Dialog bucht „Von – Bis“ (Pause je Tag, Vorschau vom Server) oder
+„Dauer“ (netto) -- der Wechsel zu „Dauer“ leert Von und Bis und sagt es; der Knopf nennt die Stunden („8,75 h speichern“). Büro – Auftrag sieht
+dieselben Listen ohne Knöpfe. Die Zeitarten haben Farbtokens mit Dunkelvariante (`--ds-zeitart-*`), keine Emojis und ▶/■, abgelehnte Antworten
+über `fehlerText()`, kein `alert()`/`confirm()`. Die alten Seiten bleiben, bis „Zeiten“ vollständig ist (Abwesenheiten, Monat & Lohn folgen).
+Der Monat zeigt nur Mitarbeiter mit gebuchten Zeiten (eine nur laufende Zeit ergab eine Zeile „0 Tage, 0,00“, gefunden im Klicktest). Neue Tests
+`tests/test_v518_zeiten_seite.py`, neuer Klicktest `scripts/klicktest_zeiten.py`.
+
 ## 1.9.95 – Die Daten der Seite „Zeiten“ vom Server (Stufe 4, R5b)
 
 Neu `app/zeiten.py` mit drei lesenden Endpunkten (`app/routers/zeiten.py`) für die Büroseite „Zeiten“, die in den nächsten Versionen
