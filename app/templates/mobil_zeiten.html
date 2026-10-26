@@ -86,6 +86,8 @@
     .zeile-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;padding:8px 0;font-size:16px;overflow-wrap:anywhere}
     .zeile-text .neben,.zeile-unter{color:var(--ds-text-2)}
     .zeile-unter{font-size:14px}
+    .zeile-zu{font-size:14px;font-weight:600;color:var(--ds-text-2)}  /* seit 1.9.87: „Auftrag abgeschlossen“ an der Buchung */
+    .pause-zu{font-size:14px;color:var(--ds-text-2)}
     .zeile-stunden{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
     .zeile .knopf-klein{align-self:flex-start;margin-top:4px}
     /* Dialoge wie die Vorlage: 620 px, Felder 52 px, Knöpfe 56 px, Schließen 48 px; Ecke der Karte (im Monteursrahmen 16 px) */
@@ -338,9 +340,12 @@ function zeichnen(d){
 function tagHtml(t){
   var p=t.pause,hinweis='';
   if(p&&!p.passt){
+    // seit 1.9.87: ändert neu rechnen eine Buchung auf einem abgeschlossenen Auftrag, rechnet das Büro (der Server lehnt ab, 1.9.81)
+    var zu=(p.buchungen||[]).some(function(b){return t.zeilen.some(function(r){return r.id===b.id&&r.auftrag_geschlossen})});
     hinweis='<div class="pause-hinweis" data-pause="'+esc(t.tag)+'"><span class="pause-text">Pause abgezogen '+esc(stundenUhr(p.abgezogen))
       +' · nach Zeitregel '+esc(stundenUhr(p.nach_zeitregel))+'</span>'
-      +(t.abgeschlossen?'':'<button type="button" class="knopf knopf-neutral knopf-klein" data-aktion="pausen" data-tag="'+esc(t.tag)+'">Pausen neu rechnen</button>')
+      +(zu&&!t.abgeschlossen?'<span class="pause-zu">Auftrag abgeschlossen – das Büro rechnet neu.</span>':'')
+      +(t.abgeschlossen||zu?'':'<button type="button" class="knopf knopf-neutral knopf-klein" data-aktion="pausen" data-tag="'+esc(t.tag)+'">Pausen neu rechnen</button>')
       +'</div><div class="pause-vorschau" id="pv-'+esc(t.tag)+'" hidden></div>';
   }
   return '<div class="tag-kopf" data-tag="'+esc(t.tag)+'"><span class="tag-name">'+esc(tagKurz(t.tag))+'</span>'
@@ -352,15 +357,17 @@ function zeileHtml(z,t){
   var spanne=z.von&&z.bis?z.von+'–'+z.bis:'';
   var titel=esc(z.zeitart)+' <span class="neben">· '+esc(z.order_number||'')+(z.laeuft?' · läuft seit '+esc(z.von):'')+'</span>';
   var unter=[z.activity,z.notes,z.gebucht_von?'gebucht von '+z.gebucht_von:null].filter(Boolean).join(' · ');
+  var zu=z.auftrag_geschlossen?'<span class="zeile-zu" data-geschlossen="'+esc(z.auftrag_geschlossen)+'">Auftrag '+esc(z.auftrag_geschlossen)+'</span>':'';  // seit 1.9.87
   var weg=z.laeuft_seit_frueher?'<a class="knopf knopf-aktion knopf-klein" href="/mobil">Feierabend auf „Heute“ eintragen</a>':'';
   return '<div class="zeile" data-zeile="'+z.id+'"><span class="zeile-spanne">'+esc(z.laeuft?'':spanne)+'</span>'
-    +'<span class="zeile-text"><span>'+titel+'</span>'+(unter?'<span class="zeile-unter">'+esc(unter)+'</span>':'')+weg+'</span>'
+    +'<span class="zeile-text"><span>'+titel+'</span>'+(unter?'<span class="zeile-unter">'+esc(unter)+'</span>':'')+zu+weg+'</span>'
     +'<span class="zeile-stunden">'+(z.laeuft?'':esc(stunden(z.gebucht)))+'</span>'+menueHtml(z,t)+'</div>';
 }
-// „⋮“ nur, wo etwas geht: nicht an einer laufenden Zeit, nicht im abgeschlossenen Monat; Ändern und Löschen nur mit „manuelle
+// „⋮“ nur, wo etwas geht: nicht an einer laufenden Zeit, nicht im abgeschlossenen Monat, seit 1.9.87 nicht auf einem abgeschlossenen oder
+// stornierten Auftrag (das Büro trägt dort ein, 1.9.81); Ändern und Löschen nur mit „manuelle
 // Buchungen erlaubt“ (Zeitregeln), für die Kolonne nur an der eigenen, noch änderbaren Gruppenbuchung des Kolonnenführers
 function menueHtml(z,t){
-  if(z.laeuft||z.abgeschlossen)return '<span class="platz"></span>';
+  if(z.laeuft||z.abgeschlossen||z.auftrag_geschlossen)return '<span class="platz"></span>';
   var e='';
   if(D.nachtragen_erlaubt)e+='<button type="button" class="ds-menue-eintrag" data-aktion="aendern" data-id="'+z.id+'">Ändern</button>'
     +'<button type="button" class="ds-menue-eintrag ds-menue-eintrag-fehler" data-aktion="loeschen" data-id="'+z.id+'">Löschen</button>';

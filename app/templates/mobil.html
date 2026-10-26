@@ -120,6 +120,8 @@
     .einsatz-kopf h2{margin:0;font-family:var(--ds-schrift-titel);font-weight:700;font-size:24px;overflow-wrap:anywhere}
     .route{min-height:48px;display:inline-flex;align-items:center;gap:6px;font-size:16px;font-weight:600;flex:none}
     .einsatz-sub{font-size:15px;margin:0 0 10px}
+    /* seit 1.9.87: Kennzeichen eines abgeschlossenen oder stornierten Auftrags in seiner Einsatzkarte */
+    .einsatz-zu{display:inline-block;align-self:flex-start;margin:0 0 10px;padding:4px 12px;border:1px solid var(--ds-linie-stark);border-radius:var(--ds-ecke-rund);background:var(--ds-flaeche-2);color:var(--ds-text-2);font-size:14px;font-weight:600}
     .zeile{display:flex;align-items:center;gap:14px;text-decoration:none;color:var(--ds-text);border-top:1px solid var(--ds-grund);min-height:56px}
     .zeile:hover{color:var(--ds-text)}
     .zeile-bericht{min-height:72px}
@@ -300,6 +302,8 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
     var g=z.gruppe,knoepfe;
     if(g&&g.kolonnenfuehrer)knoepfe='<div class="zeit-knoepfe"><button type="button" class="knopf knopf-stark" id="feierabendGruppe">'+STOPP+'Feierabend für die Gruppe</button></div>';
     else if(g)knoepfe='<div class="zeit-hinweis" id="stopptHinweis">Gruppenzeit · stoppt '+esc(g.stoppt)+'</div>';
+    // seit 1.9.87: auf einem abgeschlossenen oder stornierten Auftrag nur „Feierabend“ -- „Zeitart wechseln“ lehnt der Server ab (1.9.81)
+    else if(z.auftrag_geschlossen)knoepfe='<div class="zeit-knoepfe"><button type="button" class="knopf knopf-stark" id="feierabendKnopf">'+STOPP+'Feierabend</button></div>';
     else knoepfe='<div class="zeit-knoepfe"><button type="button" class="knopf knopf-stark" id="feierabendKnopf">'+STOPP+'Feierabend</button>'
       +'<button type="button" class="knopf knopf-neutral" id="wechselKnopf" aria-expanded="false" aria-controls="wechselKacheln">'+WECHSEL+'Zeitart wechseln</button></div>'
       +'<div id="wechselKacheln" class="kacheln" hidden>'+arten.filter(function(a){return a.value!==z.zeitart}).map(function(a){
@@ -307,7 +311,7 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
     return '<section class="heute-karte" aria-labelledby="zeitTitel"><div class="zeit-kopf"><span class="eb" id="zeitTitel">'+esc(kopf)+'</span>'
       +'<span class="laeuft-pill"><span class="punkt"></span>läuft</span></div>'
       +'<div class="zeit-mitte"><div class="zeit-text"><span class="zeit-titel">'+esc(z.zeitart_label)+' seit '+esc(z.beginn)+'</span>'
-      +'<span class="zeit-sub">'+esc([z.order_number,z.objekt].filter(Boolean).join(' · '))+'</span></div>'
+      +'<span class="zeit-sub">'+esc([z.order_number,z.objekt,z.auftrag_geschlossen?'Auftrag '+z.auftrag_geschlossen:null].filter(Boolean).join(' · '))+'</span></div>'
       +'<span class="zeit-dauer" id="zeitDauer">'+esc(stundenUhr(z.dauer_minuten))+'</span></div>'
       +knoepfe+'<div class="status" id="zeitStatus" role="status"></div></section>';
   }
@@ -503,10 +507,13 @@ var OPEN_CONCERNS_TEXT={{ open_concerns_text|tojson }};
       +'<span class="eb">Heutiger Einsatz · '+esc(zeitraum(k.von,k.bis))+'</span>'
       +'<div class="einsatz-kopf"><h2 id="einsatz-'+k.order_id+'">'+esc(k.objekt)+'</h2>'+route+'</div>'
       +'<p class="einsatz-sub">'+esc([k.kunde,k.adresse].filter(Boolean).join(' · '))+'</p>'
+      // seit 1.9.87: abgeschlossen oder storniert -- das Kennzeichen; gestartet wird dort nicht (der Auftrag steht nicht in der Auswahl)
+      +(k.auftrag_geschlossen?'<span class="einsatz-zu" data-geschlossen="'+esc(k.auftrag_geschlossen)+'">Auftrag '+esc(k.auftrag_geschlossen)+'</span>':'')
       +concernAlert(k)
       +k.berichte.map(function(r){return berichtZeile(k,r)}).join('')
       +k.checklisten.map(checklistenZeile).join('')
-      +'<div class="einsatz-wege"><a class="knopf knopf-neutral knopf-klein" href="/orders/'+k.order_id+'/service-reports">Bericht anlegen</a>'
+      // „Bericht anlegen“ nicht zum stornierten Auftrag (seit 1.9.79 lehnt der Server das ab)
+      +'<div class="einsatz-wege">'+(k.auftrag_geschlossen==='storniert'?'':'<a class="knopf knopf-neutral knopf-klein" href="/orders/'+k.order_id+'/service-reports">Bericht anlegen</a>')
       +(CHECKLISTS_ENABLED?'<a class="knopf knopf-neutral knopf-klein" href="/checklisten/auftrag/'+k.order_id+'">Checklisten zum Auftrag</a>':'')
       +'</div></section>';
   }

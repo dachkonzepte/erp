@@ -4,6 +4,15 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.87 – Abgeschlossene Aufträge auf „Heute“ und in „Meine Zeiten“ (Stufe 4, R5)
+
+Seit 1.9.81 bucht die Monteurin nicht auf abgeschlossene oder stornierte Aufträge -- die Seiten boten es trotzdem an. Jetzt trägt die
+Einsatzkarte auf „Heute“ das Kennzeichen „Auftrag abgeschlossen“ bzw. „Auftrag storniert“ (beim stornierten ohne „Bericht anlegen“);
+vorbelegt wird in „Arbeitszeit“ der einzige offene Einsatz, auch neben einem geschlossenen (bis 1.9.86 dann keiner); läuft die Zeit auf
+einem solchen Auftrag, gibt es nur „Feierabend“, kein „Zeitart wechseln“. In „Meine Zeiten“ trägt eine Buchung dort das Kennzeichen und
+kein „⋮“, und „Pausen neu rechnen“ weicht einem Hinweis, wenn es eine solche Buchung ändern würde. Server: `auftrag_geschlossen` an
+Einsatz, laufender Zeit und Buchung (`app/heute.py`, `app/meine_zeiten.py`). Neuer Test `test_v508`.
+
 ## 1.9.86 – „Meine Zeiten“: die Vorwahl beim Namen (Stufe 4, R5)
 
 Öffnet die Monteurin „Zeit nachtragen“ von der Seite eines Auftrags, der nicht in ihrer Liste steht (abgeschlossen seit dem Öffnen,

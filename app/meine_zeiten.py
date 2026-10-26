@@ -33,7 +33,7 @@ from .planning import list_field_bookable_orders
 from .rounding import round_hours
 from .time_backoffice import load_time_settings, locked_until
 from .time_tracking import (
-    _reihenfolge_am_tag, crew_leader_team_ids, entry_to_dict, list_crews_for_leader, list_entries,
+    _reihenfolge_am_tag, auftrag_geschlossen, crew_leader_team_ids, entry_to_dict, list_crews_for_leader, list_entries,
     list_groups_initiated_by, mindestpause_der_buchung, pausen_vorschau,
 )
 
@@ -89,6 +89,8 @@ def _zeile(row, gruppe, arten: list[dict], employee_id: int, kolonnen: set[int],
         # „gebucht von“ nur, wenn ein anderer gebucht hat (der Kolonnenführer)
         "gebucht_von": d["booked_by_name"] if d["booked_by_employee_id"] not in (None, employee_id) else None,
         "abgeschlossen": lock is not None and row.work_date <= lock,
+        # seit 1.9.87: der Auftrag ist abgeschlossen/storniert -- kein „⋮“ (Ändern, Löschen lehnt der Server ab, 1.9.81), ein Kennzeichen
+        "auftrag_geschlossen": auftrag_geschlossen(row.order.status if row.order else None),
         # die Buchung einer Gruppe, die diese Person angelegt hat und als Kolonnenführer noch ändern darf („⋮ Für die Kolonne …“)
         "gruppe_id": gruppe.id if gruppe is not None else None,
         "kolonne_aendern": bool(gruppe is not None and gruppe.status == "booked" and gruppe.initiated_by_employee_id == employee_id

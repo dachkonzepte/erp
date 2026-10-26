@@ -5521,3 +5521,39 @@ Zeiten“ kein „⋮“ an Buchungen dort; (4) Werkzeug: Port-Wettlauf beheben 
   liest sie jetzt).
 - **Gegenproben** (je rot, FAILED): Vorwahl ohne Zugangsprüfung -> `test_v507` 1; Seite fragt die Vorwahl nicht -> `test_v507` 1, Klicktest 1;
   Vorwahl ohne Namen -> `test_v507` 1, Klicktest 1.
+
+### R5, Punkt 3 (1.9.87): abgeschlossene Aufträge auf „Heute“ und in „Meine Zeiten“
+
+- `app/heute.py`: `einsaetze()` trägt je Karte `auftrag_geschlossen` (Status der Aufträge in einer Abfrage); `arbeitszeit()` im Zustand
+  „läuft“ ebenso; „nichts“: `vorbelegt` aus den Einsätzen, die in ihrer Liste stehen (`set(einsatz_auftraege) & buchbar`).
+- `app/meine_zeiten.py::_zeile()`: `auftrag_geschlossen` je Buchung.
+- `mobil.html`: Einsatzkarte mit `.einsatz-zu` („Auftrag abgeschlossen“) unter Kunde und Adresse, beim stornierten ohne „Bericht anlegen“;
+  `laeuftKarte()` auf einem geschlossenen Auftrag nur „Feierabend“, das Kennzeichen in der Unterzeile. `mobil_zeiten.html`: `menueHtml()`
+  ohne „⋮“, `zeileHtml()` mit `.zeile-zu`, der Pausenhinweis ohne „Pausen neu rechnen“, wenn die Vorschau eine solche Buchung ändern würde.
+
+**Festlegungen 1.9.87 (Bitte bestätigen)**
+
+1. Die Einsatzkarte hatte nie einen Start-Knopf -- gestartet wird in der Karte „Arbeitszeit“, und dort steht ein geschlossener Auftrag nicht
+   zur Wahl. „Statt Start“ heißt deshalb: das Kennzeichen „Auftrag abgeschlossen“ bzw. „Auftrag storniert“ in der Einsatzkarte unter Kunde und
+   Adresse, als Marke.
+2. Vorbelegt wird der einzige offene Einsatz, auch wenn daneben ein geschlossener steht (bis 1.9.86 dann keiner).
+3. Läuft die Zeit auf einem geschlossenen Auftrag: nur „Feierabend“ (kein „Zeitart wechseln“), das Kennzeichen in der Unterzeile.
+4. Beim stornierten Einsatz kein „Bericht anlegen“ (der Server lehnt seit 1.9.79 ab); „Checklisten zum Auftrag“ bleibt.
+5. „Meine Zeiten“: an der Buchung „Auftrag abgeschlossen“ unter dem Titel, kein „⋮“; würde „Pausen neu rechnen“ eine solche Buchung ändern,
+   steht statt des Knopfs „Auftrag abgeschlossen – das Büro rechnet neu.“
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v508_abgeschlossen_heute_und_zeiten.py` (6 Tests): Vorbelegung nur des offenen, Kennzeichen an der Karte (Gegenprobe beide
+  offen); nur ein geschlossener -> nichts vorbelegt; laufende Zeit mit Kennzeichen; Buchung mit Kennzeichen; Seiten „Heute“ und „Meine Zeiten“.
+- Angepasste Erwartungen: `klicktest_zeiten_abgeschlossen` -- Z heute statt gestern eingeplant (Aufbau, Einsatzkarte auf „Heute“); „Ändern der
+  Buchung auf Z abgelehnt: die Meldung im Dialog“ und „Die Buchung bleibt 06:00–07:00“ -> „Buchung auf Z: kein „⋮“, Kennzeichen „Auftrag
+  abgeschlossen““ `[false, „Auftrag abgeschlossen“]` (der Dialog ist dort nicht mehr erreichbar); neu „Heute: Karte von Z mit „Auftrag
+  abgeschlossen“, A ohne; A vorbelegt, Z nicht in der Auswahl“, Bild 0. `test_v460`: `einsatz-zu` unter den Kennzeichen (neue umrandete Fläche).
+- **Gegenproben** (je rot, FAILED): Vorbelegung zählt den geschlossenen mit -> `test_v508` 2; Einsatzkarte ohne Kennzeichen -> `test_v508` 2,
+  Klicktest 1; Buchung dort mit „⋮“ -> `test_v508` 1, Klicktest 1; laufende Zeit dort mit „Zeitart wechseln“ -> `test_v508` 1; Buchung ohne
+  Kennzeichen (Server) -> `test_v508` 1.
+
+**Befund, gemeldet, nicht behoben**: zwei Einsätze am selben Objekt sehen auf „Heute“ gleich aus -- die Karte nennt Objekt, Kunde und Adresse,
+nicht Nummer und Titel des Auftrags (im Bild 0 unterscheidet sie nur das Kennzeichen). Vorschlag: „Nummer · Titel“ in der Karte, wie in „Für
+welchen Auftrag?“.

@@ -99,7 +99,7 @@ NICHT_KARTEN = {
         "feld-text", "feld-zahl", "knopf-symbol", "schritt", "segment", "zeit-nachtragen")},  # seit 1.9.67 der Einsatzbericht
     **{k: "Kennzeichen" for k in (
         "addendum-badge", "badge", "cl-badge", "count", "def-badge", "delivery-tag", "dot", "entry-version", "pill", "psum-tag",
-        "status-pill")},
+        "status-pill", "einsatz-zu")},  # einsatz-zu seit 1.9.87: „Auftrag abgeschlossen“ in der Einsatzkarte auf „Heute“
     **{k: "Raster oder Tafelteil (Linien zwischen den Zellen, Plantafel, Zeitstrahl, Kopf der Positionen)" for k in (
         "month-grid", "rate-result", "timeline", "lv-columns", "slot")},
     **{k: "Skizze der Dachfläche" for k in ("sketch-wrap", "sketch-rect", "sketch-rect-preview", "sketch-marker", "sketch-marker-label")},

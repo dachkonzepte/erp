@@ -1,10 +1,12 @@
 """Klicktest: keine Zeiten der Monteurin auf abgeschlossene Aufträge (seit 1.9.82, Stufe 4, R4 Nachtrag 3, B) -- Seite des Auftrags und
 „Meine Zeiten“.
 
-Befüllt: Objekt „Halle Süd“ (Dachbau Süd GmbH); Auftrag A „Dachsanierung“ heute für Mia eingeplant (offen), Z „Flachdach Halle“ gestern für
-Mia eingeplant, abgeschlossen, mit Mias Buchung von heute 06:00–07:00 (heute: „Meine Zeiten“ zeigt den laufenden Monat), S „Stornoauftrag“ storniert mit einem Bericht von Mia. Büro –
+Befüllt: Objekt „Halle Süd“ (Dachbau Süd GmbH); Auftrag A „Dachsanierung“ heute für Mia eingeplant (offen), Z „Flachdach Halle“ heute für
+Mia eingeplant (bis 1.9.86 gestern), abgeschlossen, mit Mias Buchung von heute 06:00–07:00 (heute: „Meine Zeiten“ zeigt den laufenden Monat), S „Stornoauftrag“ storniert mit einem Bericht von Mia. Büro –
 Auftrag „buero“. Feste Uhr 10:00.
 
+    Heute               seit 1.9.87: zwei Einsätze, die Karte von Z mit „Auftrag abgeschlossen“, die von A ohne; in „Arbeitszeit“ A
+                        vorbelegt, Z nicht in der Auswahl (Bild 0)
     Seite von Z         Karte „Zeiten“ ohne Text und ohne „Zeit nachtragen“, an ihrer Stelle „Der Auftrag ist abgeschlossen – Zeiten dafür
                         trägt das Büro ein.“ (hoch 800 × 1100, Bild 1); quer ebenso (Bild 1a)
     Seite von S         „Der Auftrag ist storniert – Zeiten dafür trägt das Büro ein.“
@@ -16,7 +18,8 @@ Auftrag „buero“. Feste Uhr 10:00.
                         seit 1.9.83 steht die Meldung ganz im Bild in der festen Leiste über den Knöpfen, über deren ganze Breite, Ober-
                         und Unterkante unverdeckt (1.9.82: die untere Hälfte unter der Leiste);
                         neu geladen: die Seite von A zeigt den Hinweis
-    Ändern              „Meine Zeiten“: Mias Buchung auf Z ändern -> im Dialog die Meldung, die Buchung bleibt
+    Buchung auf Z       „Meine Zeiten“: seit 1.9.87 ohne „⋮“, mit „Auftrag abgeschlossen“ (1.9.82–1.9.86: Ändern über den Dialog -> die
+                        Meldung)
     überall             keine JS-Fehler
 
 Die Bilder liegen im Ordner der Screenshots.
@@ -80,7 +83,7 @@ def befuellen(db, k):
     a, z, s = auftrag(1, "Dachsanierung"), auftrag(2, "Flachdach Halle"), auftrag(3, "Stornoauftrag")
     team = Team(name="Kolonne Süd", active=True)
     db.add(team); db.flush()
-    for o, tag in ((a, heute), (z, gestern)):
+    for o, tag in ((a, heute), (z, heute)):  # seit 1.9.87 beide heute (Einsatzkarten auf „Heute“)
         prep = ensure_preparation(db, o.id)
         zuordnung = WorkPreparationTeamAssignment(preparation_id=prep.id, team_id=team.id, team_name_snapshot=team.name)
         db.add(zuordnung); db.flush()
@@ -127,6 +130,19 @@ async def pruefen(tab, seed, p):
     await tab.fenster(800, 1100, mobil=True)
     await tab.oeffnen("/mobil", "document.readyState==='complete'")
     await tab.js("localStorage.setItem('erp_theme','light')")
+
+    # --- seit 1.9.87: „Heute“ mit dem abgeschlossenen Einsatz Z neben dem offenen A ---------------------------------------------------
+    await tab.fenster(1280, 620, mobil=True)
+    await tab.oeffnen("/mobil", f"!!document.querySelector('[data-einsatz=\"{z}\"]')&&!!document.getElementById('startAuftrag')")
+    await tab.warte_auf_ruhe()
+    p.pruefe("Heute: Karte von Z mit „Auftrag abgeschlossen“, A ohne; A vorbelegt, Z nicht in der Auswahl", await tab.js(
+        f"(k=>[k('{z}'),k('{a}'),document.getElementById('startAuftrag').value,"
+        f"[...document.getElementById('startAuftrag').options].some(o=>o.value==='{z}')])"
+        "(id=>{const e=document.querySelector('[data-einsatz=\"'+id+'\"] .einsatz-zu');return e?e.textContent:null})"),
+        ["Auftrag abgeschlossen", None, str(a), False])
+    await tab.js(f"document.querySelector('[data-einsatz=\"{z}\"]').scrollIntoView({{block:'center'}})")
+    await tab.bild("0_heute_abgeschlossener_auftrag_quer_hell")
+    await tab.fenster(800, 1100, mobil=True)
 
     # --- Seite eines abgeschlossenen und eines stornierten Auftrags ------------------------------------------------------------------
     await _seite(tab, z)
@@ -184,21 +200,10 @@ async def pruefen(tab, seed, p):
     p.pruefe("Nichts gebucht: keine Zeile auf A", await tab.js(
         f"D.tage.flatMap(t=>t.zeilen).filter(z=>z.order_id==={a}).length"), 0)
 
-    # --- Ändern einer Buchung auf dem abgeschlossenen Auftrag -------------------------------------------------------------------------
-    await tab.js(f"zeitDialogOeffnen(zeileZu('{seed['buchung']}'))")
-    await tab.warten("document.getElementById('zeitDialog').open")
-    await tab.warte_auf_ruhe()
-    await tab.js("(f=>{f.value='07:15';f.dispatchEvent(new Event('input',{bubbles:true}))})(document.getElementById('zdBis'))")
-    await tab.warte_auf_ruhe()
-    await tab.js("document.getElementById('zdSpeichern').click()")
-    await tab.warten("document.getElementById('zdStatus').textContent!==''", 15)
-    await tab.warte_auf_ruhe()
-    p.pruefe("Ändern der Buchung auf Z abgelehnt: die Meldung im Dialog", await tab.js(
-        "[document.getElementById('zdStatus').textContent,document.getElementById('zeitDialog').open]"), [seed["abgeschlossen"], True])
-    await tab.oeffnen("/mobil/zeiten", ZEITEN_BEREIT)
-    await tab.warte_auf_ruhe()
-    p.pruefe("Die Buchung bleibt 06:00–07:00", await tab.js(
-        f"(z=>z&&[z.von,z.bis])(D.tage.flatMap(t=>t.zeilen).find(z=>z.id==={seed['buchung']}))"), ["06:00", "07:00"])
+    # --- seit 1.9.87: die Buchung auf dem abgeschlossenen Auftrag ohne „⋮“, mit Kennzeichen (bis 1.9.86 Ändern über den Dialog) --------
+    p.pruefe("Buchung auf Z: kein „⋮“, Kennzeichen „Auftrag abgeschlossen“", await tab.js(
+        f"(r=>r&&[!!r.querySelector('.zeile-menue'),(r.querySelector('.zeile-zu')||{{}}).textContent||null])"
+        f"(document.querySelector('[data-zeile=\"{seed['buchung']}\"]'))"), [False, "Auftrag abgeschlossen"])
 
     # --- neu geladen: die Seite von A zeigt jetzt den Hinweis -------------------------------------------------------------------------
     await _seite(tab, a)
@@ -208,4 +213,4 @@ async def pruefen(tab, seed, p):
 
 
 if __name__ == "__main__":
-    sys.exit(klicktest_main(befuellen, pruefen, beschreibung="Keine Zeiten auf abgeschlossene Aufträge (1.9.82)", uhr="10:00"))
+    sys.exit(klicktest_main(befuellen, pruefen, beschreibung="Keine Zeiten auf abgeschlossene Aufträge (1.9.82, 1.9.87)", uhr="10:00"))

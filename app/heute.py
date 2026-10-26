@@ -9,7 +9,8 @@ reicht die Rolle nur als "ist_monteur" für die Sperre "Monat abgeschlossen" her
                  Mitglied "stoppt" mit seinem Namen und keinen Knopf.
                  "frueher": die eigene Zeit läuft seit einem früheren Tag (vergessener Feierabend) -- Ende nachtragen nur, wer sie
                  selbst schließen darf (offene_zeit_info()), nicht im abgeschlossenen Monat (Monteurin).
-                 "nichts": Auftragsauswahl (list_field_bookable_orders()), vorbelegt bei genau einem Auftrag im heutigen Einsatz; seit
+                 "nichts": Auftragsauswahl (list_field_bookable_orders()), vorbelegt bei genau einem Auftrag im heutigen Einsatz, der in
+                 dieser Liste steht (seit 1.9.87 zählt ein abgeschlossener oder stornierter Einsatz dabei nicht mit); seit
                  1.9.58 (Stufe 4, R3) dazu die Tätigkeiten (taetigkeiten(), Pflicht nach den Zeitregeln) für „⋮ Mit Tätigkeit starten“
                  und die Kolonnen des Kolonnenführers (list_crews_for_leader(), nur mit Gruppenbuchungen) für „⋮ Für die Kolonne
                  starten“ -- bis dahin auf der Zeiterfassung der Monteurin, die „Meine Zeiten“ ersetzt (Starten nur noch auf „Heute“).
@@ -47,7 +48,8 @@ from .planning import list_field_bookable_orders, list_todays_assignments_for_em
 from .service_reports import REPORT_TYPE_LABELS, _report_roof_areas_to_dicts, list_draft_reports_for_employee, noch_offen
 from .time_backoffice import load_time_settings, locked_until
 from .time_tracking import (
-    ZEITART_NAMEN, active_entry, crew_leader_team_ids, employee_name, group_for_entry, laeuft_seit_frueher, list_crews_for_leader,
+    ZEITART_NAMEN, active_entry, auftrag_geschlossen, crew_leader_team_ids, employee_name, group_for_entry, laeuft_seit_frueher,
+    list_crews_for_leader,
 )
 
 NAECHSTE_TAGE = 14
@@ -111,14 +113,18 @@ def arbeitszeit(db: Session, employee_id: int, *, heute: date, jetzt: datetime, 
             "zeitart": row.entry_type, "zeitart_label": _zeitart_name(arten, row.entry_type),
             "order_id": row.order_id, "order_number": row.order.order_number if row.order else None, "objekt": _objekt(row.order),
             "gruppe": gruppe,
+            # seit 1.9.87: abgeschlossen/storniert -- die Seite bietet dann kein „Zeitart wechseln“ an (der Server lehnt es ab, 1.9.81)
+            "auftrag_geschlossen": auftrag_geschlossen(row.order.status if row.order else None),
         }
     if auftraege is None:
         auftraege = list_field_bookable_orders(db, employee_id)
     buchbar = {a["id"] for a in auftraege}
-    eindeutig = sorted(set(einsatz_auftraege))
+    # seit 1.9.87 nur die Einsätze, auf die sie bucht (abgeschlossene und stornierte stehen nicht in der Liste): ein offener neben einem
+    # abgeschlossenen ist vorbelegt -- bis 1.9.86 zählte der abgeschlossene mit, dann war keiner vorbelegt
+    eindeutig = sorted(set(einsatz_auftraege) & buchbar)
     regeln = load_time_settings(db)
     return {"zustand": "nichts", "auftraege": auftraege,
-            "vorbelegt": eindeutig[0] if len(eindeutig) == 1 and eindeutig[0] in buchbar else None,
+            "vorbelegt": eindeutig[0] if len(eindeutig) == 1 else None,
             # seit 1.9.58: „⋮ Mit Tätigkeit starten“ (verlangen die Zeitregeln eine Tätigkeit, öffnet auch eine Kachel den Dialog) und
             # „⋮ Für die Kolonne starten“ -- nur mit Gruppenbuchungen (der Server lehnte den Start sonst ab, 403)
             "taetigkeiten": taetigkeiten(db), "taetigkeit_pflicht": bool(regeln.require_activity),
@@ -189,12 +195,15 @@ def einsaetze(db: Session, employee_id: int, *, heute: date) -> list[dict]:
         else:
             karte["von"], karte["bis"] = min(karte["von"], a["start_date"]), max(karte["bis"], a["end_date"])
     order_ids = list(karten)
+    # seit 1.9.87: abgeschlossen/storniert je Auftrag -- die Karte zeigt „Auftrag abgeschlossen“ (auf ihn bucht die Monteurin nicht, 1.9.81)
+    status = dict(db.execute(select(Order.id, Order.status).where(Order.id.in_(order_ids))).all()) if order_ids else {}
     berichte = _berichte(db, employee_id, order_ids, heute) if is_module_enabled(db, "wartungen") else {}
     mit_checklisten = is_module_enabled(db, "checklisten")
     checklisten = _checklisten(db, employee_id, order_ids, heute) if mit_checklisten else {}
     bedenken = open_concerns(db, sorted(order_ids)) if mit_checklisten else {}
     return [{**k, "berichte": berichte.get(k["order_id"], []), "checklisten": checklisten.get(k["order_id"], []),
-             "open_concerns": bedenken.get(k["order_id"], [])} for k in karten.values()]
+             "open_concerns": bedenken.get(k["order_id"], []), "auftrag_geschlossen": auftrag_geschlossen(status.get(k["order_id"]))}
+            for k in karten.values()]
 
 
 def offen(db: Session, employee_id: int) -> dict:
