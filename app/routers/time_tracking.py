@@ -216,7 +216,9 @@ def get_time_tracking_context(request: Request, employee_id: int | None = None, 
         result = field_time_tracking_context(db, resolved)
     else:
         resolved = employee_id or (user.employee_id if user is not None else None)
-        result = time_tracking_context(db, employee_id=resolved, include_all_orders=True)
+        # seit 1.9.90: wer für andere bucht, auch auf abgeschlossenen und stornierten Aufträgen (gekennzeichnet)
+        result = time_tracking_context(db, employee_id=resolved, include_all_orders=True,
+                                       mit_geschlossenen=darf_zeit_fuer_andere_buchen(user))
         result["zeit_buchen"] = darf_zeit_buchen(user)
         result["zeit_fuer_andere"] = darf_zeit_fuer_andere_buchen(user)
     result["current_employee_id"] = resolved
@@ -321,13 +323,15 @@ def put_time_group(group_id:int,payload:TimeGroupUpdate,request:Request,db:Sessi
     _validate_time_rules(db,order_item_id=values["order_item_id"],activity=values["activity"],manual=True,group=True)
     _require_bookable_order(request,db,values["order_id"])
     _require_open_period(request,db,group.work_date,values["work_date"])
-    if "hours" in changes and zeit_nur_mit_von_bis(getattr(request.state,"erp_user",None)):
-        # seit 1.9.63: der Kolonnenführer ändert die Zeit der Kolonne nur über Von und Bis -- nach den Rechteprüfungen
+    als_dauer=_als_dauer(changes,values,group.work_date)
+    if als_dauer and zeit_nur_mit_von_bis(getattr(request.state,"erp_user",None)):
+        # seit 1.9.63: der Kolonnenführer ändert die Zeit der Kolonne nur über Von und Bis -- nach den Rechteprüfungen (seit 1.9.90 auch
+        # Pause oder Tag ohne Von und Bis, bis dahin nur die Stunden)
         raise HTTPException(status_code=422,detail=NUR_VON_BIS)
     # seit 1.9.63: ohne „pause_minuten“ gilt je Mitglied die gemerkte Mindestpause (Regel 22)
     von_bis={"von":changes.get("von"),"bis":changes.get("bis"),"mindestpause":(changes.get("pause_minuten") or 0) if "pause_minuten" in changes else None}
     try:
-        group,skipped=update_group(db,group_id,**values,**von_bis)
+        group,skipped=update_group(db,group_id,**values,**von_bis,als_dauer=als_dauer)
     except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
     out=_group_out(request,db,group)
     out.skipped_members=skipped
@@ -366,6 +370,13 @@ def stop_time_group(group_id:int,payload:TimeGroupTimerStop,request:Request,db:S
     if user is not None and user.employee_id in group_member_ids(db,group.id):  # seit 1.9.48: der eigene Tag dessen, der stoppt
         out=out.model_copy(update=tag_stand(db,user.employee_id,group.work_date))
     return out
+
+
+def _als_dauer(changes: dict, values: dict, gespeicherter_tag: date) -> bool:
+    """Seit 1.9.90 (Stufe 4, R5a, Punkt 3): wird die Buchung als Dauer gespeichert -- ohne Von/Bis Stunden oder Pause gesendet oder einen
+    anderen Tag? Dann leert das Speichern Beginn und Ende (nie stehen gebliebene Uhrzeiten); Auftrag, Position, Zeitart, Tätigkeit oder
+    Notiz allein ändern sie nicht."""
+    return changes.get("von") is None and ("hours" in changes or "break_minutes" in changes or values["work_date"] != gespeicherter_tag)
 
 
 def _visible_employee_id(request: Request, employee_id: int | None) -> int | None:
@@ -637,8 +648,10 @@ def put_time_entry(entry_id: int, payload: TimeEntryUpdate, request: Request, db
                    if "employee_id" in changes else current.employee_id)
     _require_bookable_order(request, db, values["order_id"])
     _require_open_period(request, db, current.work_date, values["work_date"])
-    if "hours" in changes and zeit_nur_mit_von_bis(getattr(request.state, "erp_user", None)):
-        # seit 1.9.60: die Monteurin ändert die Zeit nur über Von und Bis -- nach den Rechteprüfungen (403 bleibt 403)
+    als_dauer = _als_dauer(changes, values, current.work_date)
+    if als_dauer and zeit_nur_mit_von_bis(getattr(request.state, "erp_user", None)):
+        # seit 1.9.60: die Monteurin ändert die Zeit nur über Von und Bis -- nach den Rechteprüfungen (403 bleibt 403); seit 1.9.90 auch
+        # Pause oder Tag ohne Von und Bis (bis dahin nur die Stunden)
         raise HTTPException(status_code=422, detail=NUR_VON_BIS)
     # Seit 1.9.57 (Stufe 4, R3): mit Von und Bis wie ein Nachtrag -- Pause aus dem Tag ohne die alte Fassung, Rundung der Zeitregeln
     # Seit 1.9.62: ohne „pause_minuten“ gilt die eingetragene Mindestpause der Buchung weiter (Regel 22; eine Buchung von vor 1.9.62: die
@@ -647,7 +660,7 @@ def put_time_entry(entry_id: int, payload: TimeEntryUpdate, request: Request, db
     von_bis = {"von": changes.get("von"), "bis": changes.get("bis"), "mindestpause": mindest}
     merken = values["break_minutes"] if changes.keys() & {"hours", "break_minutes"} else None
     try:
-        row = update_time_entry_row(db, entry_id, employee_id=employee_id, **values, **von_bis, min_break_minutes=merken)
+        row = update_time_entry_row(db, entry_id, employee_id=employee_id, **values, **von_bis, min_break_minutes=merken, als_dauer=als_dauer)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _mit_tag(db, entry_to_dict(row))

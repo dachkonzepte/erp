@@ -192,7 +192,9 @@ def test_backoffice_korrektur_behaelt_den_abgeschlossenen_auftrag(threaded_db_se
 
     client = router_test_client(db, time_router, orders_router)
     kontext = client.get("/api/time-tracking/context").json()
-    assert [o["id"] for o in kontext["orders"]] == [offen.id]  # der Kontext liefert nur offene Aufträge
+    # bis 1.9.89 lieferte der Kontext nur offene Aufträge; seit 1.9.90 (Stufe 4, R5a, Punkt 2) bekommt, wer für andere bucht, auch die
+    # geschlossenen, nach den offenen und gekennzeichnet -- im Dialog bleibt der abgeschlossene so gekennzeichnet wie der nachgeladene
+    assert [(o["id"], o["geschlossen"]) for o in kontext["orders"]] == [(offen.id, None), (erledigt.id, "abgeschlossen")]
     buchungen = client.get(f"/api/time-entries?employee_id={entry.employee_id}").json()
     antworten = {f"/api/orders/{erledigt.id}": client.get(f"/api/orders/{erledigt.id}").json()}
 

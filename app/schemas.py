@@ -3382,6 +3382,8 @@ class TimeEntryOut(BaseModel):
     gebucht: Decimal | None = None
     # Seit 1.9.35: läuft seit einem früheren Tag -- dann „Ende nachtragen“ statt „Zeit stoppen“
     laeuft_seit_frueher: bool = False
+    # Seit 1.9.90 (Stufe 4, R5a, Punkt 2): "abgeschlossen" oder "storniert", wenn der Auftrag es ist -- das Kennzeichen der Buchung
+    auftrag_geschlossen: str | None = None
     # Seit 1.9.48 (Stufe 4, R2 Nachrunde), nur in der Antwort auf eine Buchung: „Tag zusammen“ und die Zahl der Buchungen des Tages --
     # seit 1.9.53 die Anwesenheit des Tages vor der Pause (bis 1.9.52 die gebuchten Stunden)
     tag_zusammen: Decimal | None = None

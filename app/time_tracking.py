@@ -519,12 +519,15 @@ def update_entry(
     hours: Decimal, entry_type: str, order_item_id: int | None = None,
     activity: str | None = None, notes: str | None = None, break_minutes: int = 0,
     von: time | None = None, bis: time | None = None, mindestpause: int = 0, min_break_minutes: int | None = None,
+    als_dauer: bool = False,
 ) -> TimeEntry:
     """Seit 1.9.57 (Stufe 4, R3) mit von/bis: dieselbe Rechnung wie ein Nachtrag (nachtrag_nach_zeitregel()) -- Pause aus dem Tag ohne
     die alte Fassung dieser Buchung, gebucht nach der Rundung der Zeitregeln, Beginn und Ende neu; hours und break_minutes zählen dann
-    nicht. Andere Buchungen werden nie angefasst. Ohne von/bis wie bisher: die Stunden zählen, die Zeitstempel bleiben Nachweis.
+    nicht. Andere Buchungen werden nie angefasst. Ohne von/bis: die Stunden zählen.
     Seit 1.9.62 die eingetragene Mindestpause: mit von/bis die dieses Ändern (mindestpause), sonst min_break_minutes, wenn angegeben (eine
-    Dauer mit neuer Pause, Büro); ohne beides bleibt sie."""
+    Dauer mit neuer Pause, Büro); ohne beides bleibt sie.
+    Seit 1.9.90 (Stufe 4, R5a, Punkt 3): als_dauer (die Buchung wird als Dauer gespeichert -- Stunden, Pause oder Tag ohne von/bis) leert
+    Beginn und Ende; bis 1.9.89 blieben sie als „Nachweis“ stehen und passten nicht mehr zu Stunden, Pause oder Tag."""
     row = db.get(TimeEntry, entry_id)
     if row is None:
         raise ValueError("Zeitbuchung wurde nicht gefunden.")
@@ -545,6 +548,8 @@ def update_entry(
     else:
         amount = _d(hours)
     if amount <= 0: raise ValueError("Die Stunden müssen größer als 0 sein.")
+    if von is None and als_dauer:
+        row.started_at = row.ended_at = None
     row.employee_id=employee_id; row.order_id=order_id; row.project_id=order.project_id
     row.order_item_id=order_item_id; row.work_date=work_date; row.hours=amount
     row.entry_type=entry_type; row.counts_as_productive=entry_type_is_productive(entry_type)
@@ -553,7 +558,6 @@ def update_entry(
         row.min_break_minutes = max(0, int(mindestpause or 0))
     elif min_break_minutes is not None:
         row.min_break_minutes = max(0, int(min_break_minutes))
-    # Bei manueller Korrektur zählt der Stundenwert als führend; alte Timer-Zeitstempel bleiben Nachweis.
     link = _group_link_for_entry(db, row.id)
     if link is not None:
         _mark_individual_change(link)
@@ -598,6 +602,8 @@ def entry_to_dict(row: TimeEntry) -> dict:
         # Ende, ohne beide (eine reine Dauer) gebucht + Pause; eine laufende Zeit hat noch keins
         **_anwesend_pause_gebucht(row),
         "laeuft_seit_frueher": laeuft_seit_frueher(row),  # seit 1.9.35: dann „Ende nachtragen“ statt „Zeit stoppen“
+        # seit 1.9.90 (Stufe 4, R5a, Punkt 2): das Kennzeichen, wenn der Auftrag abgeschlossen oder storniert ist (das Büro bucht dort)
+        "auftrag_geschlossen": auftrag_geschlossen(row.order.status) if row.order else None,
         "created_at": row.created_at,
         "booked_by_name": row.created_by.display_name if row.created_by else None,
         "booked_by_employee_id": row.created_by.employee_id if row.created_by else None,
@@ -726,7 +732,11 @@ def employee_assigned_order_ids(db: Session, employee_id: int) -> set[int]:
     return _canonical(db, employee_id)
 
 
-def time_tracking_context(db: Session, employee_id: int | None = None, include_all_orders: bool = False) -> dict:
+def time_tracking_context(db: Session, employee_id: int | None = None, include_all_orders: bool = False,
+                          mit_geschlossenen: bool = False) -> dict:
+    """Mitarbeiter, Teams und Aufträge für die Zeiterfassung im Büro. Seit 1.9.90 (Stufe 4, R5a, Punkt 2) mit mit_geschlossenen auch die
+    abgeschlossenen und stornierten Aufträge -- nach den offenen, gekennzeichnet (geschlossen, status): das Büro mit dem Recht, für andere
+    zu buchen, bucht und ändert auch dort (die Monteurin nicht, app/routers/time_tracking.py::_require_order_open_for_field())."""
     emp_stmt=select(Employee).where(Employee.active==True).order_by(Employee.last_name,Employee.first_name)
     employees=db.scalars(emp_stmt).all()
     # Bestandsauftraege aus aelteren Versionen koennen einen leeren/NULL-Status haben.
@@ -734,10 +744,11 @@ def time_tracking_context(db: Session, employee_id: int | None = None, include_a
     order_stmt=(
         select(Order)
         .options(selectinload(Order.project), selectinload(Order.items))
-        .where(or_(Order.status.is_(None), func.lower(func.coalesce(Order.status, "")).not_in(["abgeschlossen", "storniert"])))
         .order_by(Order.order_number.desc())
     )
-    orders=db.scalars(order_stmt).unique().all()
+    if not mit_geschlossenen:
+        order_stmt=order_stmt.where(or_(Order.status.is_(None), func.lower(func.coalesce(Order.status, "")).not_in(["abgeschlossen", "storniert"])))
+    orders=sorted(db.scalars(order_stmt).unique().all(), key=lambda o: auftrag_geschlossen(o.status) is not None)  # offene zuerst
     assigned_ids=employee_assigned_order_ids(db, employee_id) if employee_id else set()
     if employee_id and assigned_ids and not include_all_orders:
         orders=[o for o in orders if o.id in assigned_ids]
@@ -755,6 +766,7 @@ def time_tracking_context(db: Session, employee_id: int | None = None, include_a
             "id":o.id,"order_number":o.order_number,"project_id":o.project_id,
             "project_number":o.project.project_number if o.project else None,"project_name":o.project.name if o.project else None,
             "customer_name":o.customer_name,"property_address":o.property_address,"title":o.title,
+            "status":o.status,"geschlossen":auftrag_geschlossen(o.status),  # seit 1.9.90
             "items":[{"id":i.id,"oz":i.gaeb_oz or i.position_number,"short_text":i.short_text,"unit":i.unit} for i in o.items],
         } for o in orders],
     }
@@ -966,12 +978,15 @@ def _group_links(db: Session, group_id: int) -> list[TimeEntryGroupMember]:
 def update_group(db: Session, group_id: int, *, order_id: int, work_date: date, hours: Decimal, entry_type: str,
                  order_item_id: int | None = None, activity: str | None = None, notes: str | None = None,
                  break_minutes: int = 0, von: time | None = None, bis: time | None = None,
-                 mindestpause: int | None = None) -> tuple[TimeEntryGroup, list[str]]:
+                 mindestpause: int | None = None, als_dauer: bool = False) -> tuple[TimeEntryGroup, list[str]]:
     """Korrigiert eine abgeschlossene Gruppenbuchung und jede Mitgliedsbuchung, die seit der
     Gruppenbuchung NICHT einzeln geändert wurde (seit 1.7.13, lohnrelevant -- vorher überschrieb
     die Gruppenkorrektur auch eine Einzelkorrektur des Mitglieds). Gibt zusätzlich die Namen der
     unangetastet gebliebenen Mitglieder zurück. Seit 1.9.63 mit von/bis: je Mitglied wie ein Nachtrag (kolonne_rechnen(), sein Tag ohne
-    die alte Fassung), Mindestpause = mindestpause oder ohne Angabe die gemerkte des Mitglieds; hours und break_minutes zählen dann nicht."""
+    die alte Fassung), Mindestpause = mindestpause oder ohne Angabe die gemerkte des Mitglieds; hours und break_minutes zählen dann nicht.
+    Seit 1.9.90 (Stufe 4, R5a, Punkt 3): ohne von/bis setzt nur als_dauer (als Dauer gespeichert -- Stunden, Pause oder Tag) Stunden und
+    Pause aller Mitglieder und leert Beginn und Ende (auch im Kopf); sonst bleiben Stunden, Pause und Zeiten jedes Mitglieds -- bis 1.9.89
+    bekam jedes Mitglied bei jedem Ändern (auch nur der Notiz) die Stunden des Kopfs, nach einem Nachtrag mit Von/Bis deren Mittel."""
     group = db.get(TimeEntryGroup, group_id)
     if group is None: raise ValueError("Gruppenbuchung wurde nicht gefunden.")
     if group.status != "booked": raise ValueError("Eine laufende Gruppenbuchung zuerst stoppen.")
@@ -1002,10 +1017,13 @@ def update_group(db: Session, group_id: int, *, order_id: int, work_date: date, 
             skipped.append(employee_name(db.get(Employee, link.employee_id)) or f"#{link.employee_id}")
             continue
         entry.order_id = order.id; entry.project_id = order.project_id; entry.order_item_id = order_item_id
-        entry.work_date = work_date; entry.hours = amount; entry.entry_type = entry_type
+        entry.work_date = work_date; entry.entry_type = entry_type
         entry.counts_as_productive = entry_type_is_productive(entry_type)
-        entry.activity = activity or None; entry.notes = notes or None; entry.break_minutes = max(0, int(break_minutes or 0))
-        entry.min_break_minutes = entry.break_minutes  # seit 1.9.62: die eingetragene Pause der Kolonne
+        entry.activity = activity or None; entry.notes = notes or None
+        if von is None and als_dauer:  # seit 1.9.90: als Dauer -- Stunden und Pause der Kolonne, ohne Beginn und Ende
+            entry.hours = amount; entry.break_minutes = max(0, int(break_minutes or 0))
+            entry.min_break_minutes = entry.break_minutes  # seit 1.9.62: die eingetragene Pause der Kolonne
+            entry.started_at = entry.ended_at = None
         w = werte.get(entry.employee_id)
         if w is not None:  # seit 1.9.63: Von/Bis
             entry.started_at, entry.ended_at, entry.hours = w["beginn"], w["ende"], w["gebucht"]
@@ -1013,6 +1031,8 @@ def update_group(db: Session, group_id: int, *, order_id: int, work_date: date, 
     group.order_id = order.id; group.project_id = order.project_id; group.order_item_id = order_item_id
     group.work_date = work_date; group.hours = amount; group.entry_type = entry_type
     group.activity = activity or None; group.notes = notes or None; group.break_minutes = max(0, int(break_minutes or 0))
+    if von is None and als_dauer:
+        group.started_at = group.ended_at = None
     if von is not None:  # alle einzeln geändert: der Kopf behält Stunden und Pause
         _kolonne_kopf(group, werte, work_date, von, bis)
     db.commit()

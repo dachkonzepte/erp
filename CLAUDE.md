@@ -1509,7 +1509,10 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   `pausen_neu_rechnen()` bucht genau diese Vorschau, nur auf Klick (`tests/test_v483_meine_zeiten_server.py`). **Seit 1.9.62** merkt jede
   Buchung ihre eingetragene Mindestpause (`TimeEntry.min_break_minutes`, Migration `c4f2a8e61d35`; leer = vor 1.9.62, dann gilt die
   abgezogene Pause, `mindestpause_der_buchung()`): neu rechnen geht nie darunter, „passt nicht“ nur, wenn neu rechnen etwas ändern würde,
-  Ändern ohne „pause_minuten“ behält sie (`tests/test_v487_mindestpause_merken.py`). **Eine Rundung** (seit 1.9.39): jede neue Buchung --
+  Ändern ohne „pause_minuten“ behält sie (`tests/test_v487_mindestpause_merken.py`). **Seit 1.9.90** leert eine als Dauer gespeicherte Buchung
+  (ohne Von/Bis Stunden, Pause oder ein anderer Tag, `app/routers/time_tracking.py::_als_dauer()`) Beginn und Ende, auch je Mitglied und am Kopf
+  einer Kolonnenbuchung; ohne Von/Bis und ohne Dauer behält jedes Mitglied seine Stunden; die Monteurin ändert Stunden, Pause oder Tag nur mit
+  Von/Bis (422). **Eine Rundung** (seit 1.9.39): jede neue Buchung --
   auch je Mitglied einer Gruppe -- rundet nur `gebucht_nach_zeitregel()` nach den Zeitregeln (ohne Rundung bleibt der Wert); Wächter
   `tests/test_v466_rundung_gruppen.py`.
 - **Vergessener Feierabend** (seit 1.9.35): nichts schließt eine Zeit von selbst. Läuft sie seit einem früheren Tag
@@ -1531,7 +1534,9 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
 - **Keine Zeiten der Monteurin auf abgeschlossene oder stornierte Aufträge** (seit 1.9.81): Start, Nachtrag, Ändern (dorthin, dort,
   weg), Löschen, Kolonne, „Zeitart wechseln“ und „Pausen neu rechnen“ an einer Buchung dort 403 mit der Meldung aus
   `app/time_tracking.py::auftrag_zeiten_gesperrt()` (`_require_order_open_for_field()` in `app/routers/time_tracking.py`); Stopp,
-  Gruppen-Stopp und Ende nachtragen bleiben frei, das Büro bucht wie bisher (`tests/test_v504_keine_zeiten_auf_abgeschlossene.py`); seit
+  Gruppen-Stopp und Ende nachtragen bleiben frei, das Büro bucht wie bisher (`tests/test_v504_keine_zeiten_auf_abgeschlossene.py`; seit 1.9.90
+  bietet der Kontext dem, der für andere bucht, die geschlossenen Aufträge nach den offenen an, gekennzeichnet, jede Buchung trägt
+  `auftrag_geschlossen`, `tests/test_v511_buero_von_bis_und_geschlossen.py`); seit
   1.9.82 zeigt die Seite des Auftrags statt „Zeit nachtragen“ die Meldung (`OrderFieldAccessOut.zeiten_gesperrt`,
   `tests/test_v505_auftragsseite_zeiten_gesperrt.py`, Klicktest `klicktest_zeiten_abgeschlossen.py`); seit 1.9.87 kennzeichnen „Heute“
   (Einsatzkarte, keine Vorbelegung, kein „Zeitart wechseln“) und „Meine Zeiten“ (kein „⋮“) solche Aufträge

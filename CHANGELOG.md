@@ -4,6 +4,20 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.90 – Büro auf abgeschlossenen Aufträgen, Von/Bis wie die Monteurin, eine Dauer ohne Uhrzeiten (Stufe 4, R5a)
+
+Wer für andere bucht (Admin, Büro – Finanzen), bucht und ändert auch auf abgeschlossenen und stornierten Aufträgen: der Buchungskontext bietet
+sie nach den offenen an, gekennzeichnet (`geschlossen`, `status`), jede Buchung trägt `auftrag_geschlossen`; die Monteurin bleibt gesperrt (seit
+1.9.81). Nachtrag und Ändern des Büros mit Von/Bis laufen über dieselbe Rechnung wie bei der Monteurin (Pause je Tag, Rundung, Vorschau =
+Buchung), die Dauer bleibt dem Büro (netto, ohne Pausenregel). Neu: wird eine Von/Bis-Buchung als Dauer gespeichert -- ohne Von/Bis mit Stunden,
+Pause oder einem anderen Tag --, leert das Speichern Beginn und Ende, auch an jedem Mitglied und am Kopf einer Kolonnenbuchung; bis 1.9.89 blieben
+sie als „Nachweis“ stehen und passten nicht mehr zu Stunden, Pause oder Tag. Auftrag, Zeitart, Tätigkeit oder Notiz allein lassen sie stehen.
+
+Dabei gefunden: eine Kolonnenbuchung gab bei jedem Ändern ohne Von/Bis -- auch nur der Notiz -- jedem Mitglied die Stunden und die Pause des Kopfs,
+nach einem Kolonnen-Nachtrag mit Von/Bis also das Mittel aller Mitglieder (Mia 3,50 h und Tom 4,25 h wurden je 3,875 h). Jetzt setzt nur eine
+Dauer Stunden und Pause aller Mitglieder. Die Monteurin ändert Stunden, Pause oder Tag nur mit Von/Bis (422, bis 1.9.89 nur bei den Stunden).
+Neuer Test `tests/test_v511_buero_von_bis_und_geschlossen.py`.
+
 ## 1.9.89 – Rechte an den Zeiten: Büro – Finanzen bucht für andere, Büro – Auftrag liest (Stufe 4, R5a)
 
 Entscheidungen von Tobias für die Büroseite „Zeiten“: Zeiten anderer und Lohndaten haben Admin und Büro – Finanzen, das Büro erfasst keine

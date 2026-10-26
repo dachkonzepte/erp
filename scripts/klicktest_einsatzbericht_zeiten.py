@@ -160,8 +160,10 @@ async def pruefen(tab, seed, p):
     p.pruefe("Unterschriebener Bericht nachher: unverändert", await tab.js(_zeilen()), [f"Zeiten am {h}", zeilen])
     await tab.bild("11_bericht_unterschrieben_nachher_hell")
     await tab.oeffnen(f"/service-reports/{e}#unterschrift", BEREIT)
-    p.pruefe("Entwurf nachher: neue und geänderte Zeit", (await tab.js(_zeilen()) or [None, []])[1],
-             [[h, "Mia Monteurin · 06:45–12:00", "6,50 h"], [h, "Tom Monteur", "3,00 h"], [h, "Tom Monteur", "2,75 h"]])
+    # seit 1.9.90 (Stufe 4, R5a, Punkt 3): Mias Von/Bis-Buchung als Dauer gespeichert -- ohne Uhrzeiten (bis 1.9.89 blieb „06:45–12:00“
+    # neben den 6,50 h stehen)
+    p.pruefe("Entwurf nachher: neue und geänderte Zeit (die Dauer ohne Uhrzeiten)", (await tab.js(_zeilen()) or [None, []])[1],
+             [[h, "Mia Monteurin", "6,50 h"], [h, "Tom Monteur", "3,00 h"], [h, "Tom Monteur", "2,75 h"]])
     nachher = await _pdf(tab, s, "pdf_nachher.pdf")
     p.pruefe("PDF nachher: dieselben Zeilen wie vorher, nichts Neues", ["5,25" in nachher, "3,00" in nachher, "6,50" in nachher,
              "2,75" in nachher], [True, True, False, False])

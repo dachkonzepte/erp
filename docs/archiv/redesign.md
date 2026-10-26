@@ -5734,3 +5734,45 @@ DATEV-Export geht nur für abgeschlossene Zeiträume. R5a baut die Regeln auf de
 Je Recht eine Regel in `app/permissions.py` (`darf_zeit_fuer_andere_buchen()`, `darf_zeit_buchen()`, `darf_lohndaten()`), die alten Seiten blenden
 aus, was der Server ablehnt. Herleitung, Tabelle der Rechte, Festlegungen 1.9.89 (8), angepasste Erwartungen und Gegenproben:
 `docs/archiv/rechtekonzept.md`, „Nachtrag 1.9.89“.
+
+### R5a, Punkte 2 und 3 (1.9.90): abgeschlossene Aufträge, Von/Bis, Dauer ohne Uhrzeiten
+
+- Punkt 2: wer für andere bucht, bucht und ändert auch auf abgeschlossenen und stornierten Aufträgen -- der Server ließ das Büro schon seit 1.9.81
+  dort buchen (`_require_order_open_for_field()` sperrt nur die Monteurin); neu bietet der Kontext sie an (`time_tracking_context(…,
+  mit_geschlossenen=True)`, nach den offenen, `geschlossen`/`status`), und jede Buchung trägt `auftrag_geschlossen` (das Kennzeichen in Listen).
+  Büro – Auftrag (bucht nicht) bekommt weiter nur offene.
+- Punkt 3: Nachtrag und Ändern mit Von/Bis rechneten schon für jede Rolle über `nachtrag_nach_zeitregel()` bzw. `update_entry(von=…)`, die
+  Vorschau nimmt seit 1.9.89 für Büro – Finanzen jede Person -- belegt im Test. Neu `app/routers/time_tracking.py::_als_dauer()`: ohne Von/Bis
+  Stunden oder Pause gesendet oder einen anderen Tag -> `update_entry(…, als_dauer=True)` bzw. `update_group(…, als_dauer=True)` leeren Beginn
+  und Ende.
+- Befund dabei: `update_group()` ohne Von/Bis setzte jedem Mitglied immer Stunden und Pause des Kopfs -- nach einem Kolonnen-Nachtrag mit Von/Bis
+  das Mittel (der Kopf hält seit 1.9.63 das Mittel und die größte Pause). Jetzt nur bei einer Dauer.
+
+#### Festlegungen 1.9.90 (Bitte bestätigen)
+
+1. „Als Dauer gespeichert“ heißt: ohne Von/Bis Stunden oder Pause gesendet oder ein anderer Tag -- dann sind Beginn und Ende leer; Auftrag,
+   LV-Position, Zeitart, Tätigkeit, Notiz allein lassen sie stehen.
+2. Die Monteurin (und der Kolonnenführer) ändert Stunden, Pause oder Tag nur mit Von/Bis -- 422 auch für Pause oder Tag allein (bis 1.9.89 nur für
+   die Stunden); „Meine Zeiten“ schickt immer Von und Bis.
+3. Eine Kolonnenbuchung ohne Von/Bis und ohne Dauer behält Stunden, Pause und Zeiten jedes Mitglieds (Behebung des Befunds); mit Dauer bekommen alle
+   nicht einzeln geänderten Mitglieder Stunden und Pause der Kolonne ohne Uhrzeiten.
+4. Die geschlossenen Aufträge bekommt im Kontext nur, wer für andere bucht (nach den offenen); Büro – Auftrag nicht.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v511_buero_von_bis_und_geschlossen.py`: Monteurin auf dem geschlossenen Auftrag 403 / Büro – Finanzen bucht dort als Dauer und mit
+Von/Bis, ändert, löscht (je abgeschlossen und storniert), Buchung gekennzeichnet; Kontext für Büro – Finanzen mit dem geschlossenen Auftrag hinter
+dem offenen, für Büro – Auftrag ohne; Liste mit Kennzeichen; Nachtrag mit Von/Bis für Tom: 45 min aus dem Tag, Vorschau = Buchung; Dauer netto ohne
+Uhrzeiten; Ändern mit Von/Bis; als Dauer gespeichert (Stunden, Pause, Tag) leert Beginn und Ende / Notiz, Tätigkeit, Zeitart, Auftrag lassen sie
+stehen; Kolonne nur Notiz behält Mia 3,50 h und Tom 4,25 h; Kolonne als Dauer ohne Uhrzeiten auch am Kopf; Monteurin Pause oder Tag ohne Von/Bis 422.
+
+Angepasste Erwartungen:
+- `test_v334::test_backoffice_korrektur_behaelt_den_abgeschlossenen_auftrag`: der Kontext (Admin) liefert nur den offenen Auftrag -> den
+  offenen und danach den abgeschlossenen, gekennzeichnet; der Dialog zeigt ihn weiter „(abgeschlossen)“.
+- `klicktest_einsatzbericht_zeiten`, „Entwurf nachher“: Mias als Dauer gespeicherte Buchung „Mia Monteurin · 06:45–12:00“, 6,50 h -> „Mia
+  Monteurin“, 6,50 h (ohne die stehen gebliebenen Uhrzeiten; rot im ersten Lauf vor dem Commit, die alte Erwartung).
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): Dauer leert Beginn und Ende nicht -> 3 Tests rot; Kolonne ohne Dauer setzt
+die Stunden des Kopfs (der Stand bis 1.9.89) -> der Test „nur Notiz“ rot (der Befund); Kontext ohne geschlossene -> 2 Tests rot; Monteurin nur
+bei Stunden 422 -> 2 Tests rot; ein anderer Tag zählt nicht als Dauer -> 2 Tests rot; Buchung ohne `auftrag_geschlossen` -> 3 Tests rot;
+Backoffice ohne Kennzeichen für `geschlossen` -> 1 Test und 1 Prüfung von `klicktest_auswahl_restfaelle` rot.
