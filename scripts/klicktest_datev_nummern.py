@@ -66,7 +66,14 @@ async def pruefen(tab, seed, p):
     # eine eigene Query: dieselbe Adresse mit #hash lädt nicht neu
     p.pruefe("Ada: nach dem Neuladen", [await tab.oeffnen("/settings?neu=1#time-rules", BEREIT), await tab.js(WERTE)],
              [True, ["1234567", "12345"]])
-    await tab.js("document.getElementById('datevBerater').scrollIntoView({block:'center'})")
+    # seit 1.9.99 der grüne Hauptknopf wie „Zeitregeln und Lohnarten speichern“ (bis 1.9.98 „secondary“, ohne Fläche)
+    p.pruefe("Ada: „Berater- und Mandantennummer speichern“ grün wie die übrigen Speichern-Knöpfe", await tab.js(
+        "(()=>{const f=b=>{const s=getComputedStyle(b);return [s.backgroundColor,s.color]};"
+        "const z=[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Zeitregeln und Lohnarten speichern');"
+        "const d=document.getElementById('datevNummernSpeichern');const t=document.createElement('div');t.style.color='var(--ds-aktion)';"
+        "document.body.appendChild(t);const gruen=getComputedStyle(t).color;t.remove();"
+        "return [JSON.stringify(f(d))===JSON.stringify(f(z)),f(d)[0]===gruen,d.className]})()"), [True, True, ""])
+    await tab.js("document.getElementById('datevNummernSpeichern').scrollIntoView({block:'center'})")
     await tab.bild("einstellungen_datev_nummern")
     p.pruefe("Ada: keine JS-Fehler", tab.fehler, [])
 

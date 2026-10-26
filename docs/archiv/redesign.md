@@ -6213,3 +6213,20 @@ setzt keinen, wie überall. Nebenbei: eine ungültige Escape-Folge (`\s`) in `kl
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): Zahl mit `isdigit()` allein -> 7 Tests; Backoffice wieder in der Leiste -> 4 Tests
 und 3 Prüfungen von `klicktest_neue_ordnung`; Anker `#entries` ohne Zuordnung -> 1 Test und 6 Prüfungen von `klicktest_auswahl_restfaelle`;
 Weiterleitung ohne Filter -> 3 Tests und 1 Prüfung von `klicktest_monteurin_regeln`; Link „Zeit-Listen“ fehlt -> 1 Test.
+
+### R5b, Punkt 8 (1.9.99): „Berater- und Mandantennummer speichern“ als Hauptknopf
+
+- `settings.html`: der Knopf `datevNummernSpeichern` ohne die Klasse `secondary` -- grün (`--ds-aktion`) wie „Zeitregeln und Lohnarten speichern“.
+- Neu `tests/test_v521_datev_nummern_knopf.py`: derselbe Knopf wie „Zeitregeln und Lohnarten speichern“; kein Speichern-Knopf einer Karte (im
+  Markup, `onclick="save…()"`) mit `secondary`. `klicktest_datev_nummern`: Farbe und Schrift wie der Knopf der Zeitregeln, Fläche `--ds-aktion`;
+  das Bild zeigt den Knopf (bis 1.9.98 auf das Feld „Beraternummer“ gerollt -- nur der Aufbau).
+
+#### Festlegungen 1.9.99 (Bitte bestätigen)
+
+1. Jeder Speichern-Knopf einer Karte der Einstellungen ist der grüne Hauptknopf; die Knöpfe „Speichern“ je Zeile einer Liste (Basiszinssatz,
+   Lohndaten je Mitarbeiter) bleiben ohne Fläche.
+
+#### Tests und Prüfung
+
+Angepasste Erwartungen: keine. Gegenprobe (Marker `GEGENPROBE`, byte-genau zurück, FAILED): der Knopf wieder mit `secondary` -> 2 Tests und 1 Prüfung
+von `klicktest_datev_nummern`.

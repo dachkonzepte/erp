@@ -708,7 +708,7 @@
         <div class="field"><label for="datevBerater">Beraternummer</label><input id="datevBerater" inputmode="numeric" autocomplete="off" maxlength="7"{% if not ist_admin %} readonly{% endif %}></div>
         <div class="field"><label for="datevMandant">Mandantennummer</label><input id="datevMandant" inputmode="numeric" autocomplete="off" maxlength="5"{% if not ist_admin %} readonly{% endif %}></div>
       </div>
-      {% if ist_admin %}<div style="margin-top:10px"><button class="secondary" id="datevNummernSpeichern" onclick="saveDatevNummern()">Berater- und Mandantennummer speichern</button><span id="datevNummernStatus" class="status"></span></div>{% endif %}
+      {% if ist_admin %}<div style="margin-top:10px"><button id="datevNummernSpeichern" onclick="saveDatevNummern()">Berater- und Mandantennummer speichern</button><span id="datevNummernStatus" class="status"></span></div>{% endif %}
     </div>
     <div class="block">
       <div class="model-title"><div><h3 style="margin:0 0 4px;font-size:15px">Arbeitszeitmodelle</h3><div class="muted small">Sommer-, Winter- oder weitere Modelle mit automatischen Pausenregeln.</div></div><button onclick="newModel()">+ Modell</button></div>

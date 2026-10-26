@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.99 – „Berater- und Mandantennummer speichern“ als Hauptknopf (Stufe 4, R5b)
+
+In den Einstellungen unter „Zeitregeln und DATEV“ ist „Berater- und Mandantennummer speichern“ jetzt der grüne Hauptknopf wie die übrigen
+Speichern-Knöpfe der Karten (Wunsch von Tobias) -- seit 1.9.92 trug er die Klasse „secondary“ und stand ohne Fläche da. Ein Test hält fest, dass
+kein Speichern-Knopf einer Karte ohne Fläche ist (`tests/test_v521_datev_nummern_knopf.py`); die Knöpfe je Zeile einer Liste bleiben, wie sie sind.
+
 ## 1.9.98 – „Zeiten“ ersetzt Zeiterfassung und Backoffice (Stufe 4, R5b)
 
 Die Seite „Zeiten“ ersetzt die Zeiterfassung des Büros und das Zeiterfassungs-Backoffice: in der Leiste steht ein Eintrag „Zeiten“ an der Stelle
