@@ -55,17 +55,17 @@ def test_nachtrag_4_stunden_ohne_abzug(monteurin, router_test_client, werte):
     """Gegenprobe: 4 h -- als Dauer wie als Von/Bis unter der ersten Schwelle, kein Abzug. Seit 1.9.60 bucht die Dauer das Büro (die
     Monteurin nur mit Von und Bis, tests/test_v485_nur_von_bis.py)."""
     db, client, order, emp = monteurin
-    if "hours" in werte:
-        client = router_test_client(db, time_tracking_router.router, role="buero_auftrag", employee_id=emp.id)
+    if "hours" in werte:  # seit 1.9.89 Büro – Finanzen (Büro – Auftrag liest nur)
+        client = router_test_client(db, time_tracking_router.router, role="buero_finanzen", employee_id=emp.id)
     d = _nachtrag(client, order, emp, **werte).json()
     assert (Decimal(d["anwesend"]), d["pause"], Decimal(d["gebucht"])) == (Decimal("4"), 0, Decimal("4"))
 
 
 def test_eine_dauer_bleibt_gebuchte_arbeitszeit(monteurin, router_test_client):
     """9 h als Dauer sind gebuchte Arbeitszeit (netto) -- die Regel greift nur, wo die Anwesenheit eingegeben wird. Seit 1.9.60 als Büro
-    (eine reine Dauer trägt nur das Büro ein)."""
+    (eine reine Dauer trägt nur das Büro ein), seit 1.9.89 als Büro – Finanzen (Büro – Auftrag liest nur)."""
     db, _, order, emp = monteurin
-    client = router_test_client(db, time_tracking_router.router, role="buero_auftrag", employee_id=emp.id)
+    client = router_test_client(db, time_tracking_router.router, role="buero_finanzen", employee_id=emp.id)
     d = _nachtrag(client, order, emp, hours="9").json()
     assert (Decimal(d["gebucht"]), d["pause"], Decimal(d["anwesend"])) == (Decimal("9"), 0, Decimal("9"))
 

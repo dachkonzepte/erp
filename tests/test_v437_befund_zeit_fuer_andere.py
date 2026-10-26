@@ -298,7 +298,8 @@ def test_teamformular_fragt_vor_dem_entziehen_nach(threaded_db_session, router_t
 
 
 # --- Oberfläche: Einsatzbericht -- die Auswahl nur, wer laut Server für andere bucht -----------------------------------------
-# (seit 1.8.143 für Monteure, seit 1.8.152 für jede Rolle nach app/permissions.py::darf_zeit_fuer_andere_buchen(), heute nur Admin)
+# (seit 1.8.143 für Monteure, seit 1.8.152 für jede Rolle nach app/permissions.py::darf_zeit_fuer_andere_buchen(), seit 1.9.89 Admin und
+# Büro – Finanzen; Büro – Auftrag liest seit 1.9.89 nur, darf_zeit_buchen())
 
 ROLLEN = ("admin", "buero_finanzen", "buero_auftrag", "field")
 
@@ -364,11 +365,11 @@ def test_einsatzbericht_bietet_nur_an_was_der_server_annimmt(rolle):
       _element('teHours').value = '2';
       await saveReportTimeEntry();
       return {{...auswahl, gebucht: AUFRUFE.filter(a => a.methode === 'POST').map(a => a.body.employee_id)}};""")
-    if rolle == "admin":
+    if rolle in ("admin", "buero_finanzen"):  # seit 1.9.89 auch Büro – Finanzen
         assert fuer_max == 200
         # Auswahl aller aktiven, nichts vorgewählt -- ohne Wahl geht nichts hinaus („Bitte Mitarbeiter … angeben“)
         assert ergebnis == {"optionen": ["— nicht zugeordnet —", "Max Test", "Mia Test", "Otto Test"], "verborgen": False, "gebucht": []}
-    else:
+    else:  # Büro – Auftrag: der Server nimmt seit 1.9.89 gar keine Buchung an, die Karte zeigt die Felder nicht (nächster Test)
         assert fuer_max == 403
         assert ergebnis == {"optionen": ["Mia Test"], "verborgen": True, "gebucht": [ids["Mia"]]}
 
@@ -389,4 +390,8 @@ def test_einsatzbericht_mitarbeiterfeld_im_markup_nur_wer_fuer_andere_bucht(thre
         assert 'id="teEmployeeField"' not in antwort.text and 'id="zeitNachtragen"' in antwort.text
         return
     feld = re.search(r'<div class="field" id="teEmployeeField"[^>]*>', antwort.text).group(0)
-    assert feld.endswith(" hidden>") is (rolle != "admin"), feld
+    assert feld.endswith(" hidden>") is (rolle not in ("admin", "buero_finanzen")), feld  # seit 1.9.89 auch Büro – Finanzen
+    # seit 1.9.89: Büro – Auftrag liest nur -- die Felder zum Buchen verborgen, statt dessen der Hinweis
+    buchen = re.search(r'<div id="zeitBuchen"[^>]*>', antwort.text).group(0)
+    assert ('display:none' in buchen) is (rolle == "buero_auftrag"), buchen
+    assert ('id="zeitNurLesen"' in antwort.text) is (rolle == "buero_auftrag")

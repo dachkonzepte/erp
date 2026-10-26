@@ -15,8 +15,12 @@ beide Filter mit UND, siehe app/time_tracking.py; die Zeitbuchungen der Kollegen
 Auftrag bleiben also unsichtbar). Seit 1.3.56 gilt diese Lese-Eingrenzung nur noch fuer ROLE_FIELD, nicht mehr fuer
 jeden Nicht-Admin: das Buero sieht die Buchungen aller (es rechnet sie ab, order.html/
 project_folder.html lesen "alle Buchungen des Auftrags/Projekts"). Der Backoffice-Bereich
-(app/routers/time_backoffice.py) ist davon getrennt und bleibt wie bisher admin-only ueber
-require_admin().
+(app/routers/time_backoffice.py) ist davon getrennt.
+
+Seit 1.9.89 (Stufe 4, R5a): jeder schreibende Endpunkt (dazu die Vorschauen des Buchens) traegt require_zeit_buchen aus
+app/permissions.py -- Buero – Auftrag liest die Zeiten aller und aendert nichts, auch keine eigenen; fuer andere bucht nach
+darf_zeit_fuer_andere_buchen() Admin und Buero – Finanzen. Die lesenden (laufende Zeit, laufende Gruppe, Pause des Tags, Kontext)
+geben dem Buero jede Person.
 """
 
 from fastapi import APIRouter
@@ -29,7 +33,7 @@ from ..berlin_time import BERLIN, berlin_now, berlin_today
 from ..meldungen import KEIN_MITARBEITER, MONAT_ABGESCHLOSSEN, NUR_VON_BIS
 from ..database import get_db
 from ..models import AppUser, Order, TimeEntry, TimeEntryGroup
-from ..permissions import ROLE_FIELD, darf_zeit_fuer_andere_buchen, require_min_role, zeit_nur_mit_von_bis
+from ..permissions import ROLE_FIELD, darf_zeit_buchen, darf_zeit_fuer_andere_buchen, has_role, require_min_role, require_zeit_buchen, zeit_nur_mit_von_bis
 from .orders import require_field_order_access
 from ..schemas import CrewGroupSummaryOut, CrewOut, TimeEntryManualCreate, TimeEntryOut, TimeEntrySummaryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeGroupUpdate, TimeKolonneVorschauOut, TimeEndeNachtragen, TimeEndeVorschauOut, TimePausenNeuRechnen, TimePausenVorschauOut, TimeZeitartWechseln, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
 from ..heute import zeitarten
@@ -39,10 +43,15 @@ from ..time_tracking import MAX_LIST_LIMIT, active_group_for_employee, active_en
 router = APIRouter()
 
 _any_role_dep = Depends(require_min_role(ROLE_FIELD))
+# Seit 1.9.89 (Stufe 4, R5a): schreibende Endpunkte und die Vorschauen des Buchens -- Büro – Auftrag 403 (app/permissions.py)
+_buchen_dep = Depends(require_zeit_buchen)
 
-def _time_entry_employee_for_request(request: Request, requested_employee_id: int | None, db: Session) -> int:
+def _time_entry_employee_for_request(request: Request, requested_employee_id: int | None, db: Session, *, lesen: bool = False) -> int:
+    """Für wen die Anfrage gilt. Wer nicht für andere bucht, nur für sich (ohne Mitarbeiter 403). Seit 1.9.89 mit lesen=True (laufende
+    Zeit, laufende Gruppe, Pause des Tags): das Büro liest jede Person, wie _visible_employee_id() für Liste und Summen."""
     user = getattr(request.state, "erp_user", None)
-    if not darf_zeit_fuer_andere_buchen(user):  # seit 1.8.152 aus app/permissions.py, dieselbe Regel wie die Oberfläche
+    frei = darf_zeit_fuer_andere_buchen(user) or (lesen and user.role != ROLE_FIELD)
+    if not frei:  # seit 1.8.152 aus app/permissions.py, dieselbe Regel wie die Oberfläche
         if user.employee_id is None:
             raise HTTPException(status_code=403, detail=KEIN_MITARBEITER)
         if requested_employee_id is not None and requested_employee_id != user.employee_id:
@@ -145,10 +154,10 @@ def _require_crew_leader(request: Request, db: Session, team_id: int | None) -> 
 
 
 def _require_group_owner(request: Request, db: Session, group: TimeEntryGroup) -> None:
-    """Ändern/Löschen einer Gruppenbuchung: Admin, oder wer sie angelegt hat -- ein Monteur
-    zusätzlich nur, solange er im Team der Buchung noch Kolonnenführer ist."""
+    """Ändern/Löschen einer Gruppenbuchung: wer für andere bucht (seit 1.9.89 Admin und Büro – Finanzen), oder wer sie angelegt hat
+    -- ein Monteur zusätzlich nur, solange er im Team der Buchung noch Kolonnenführer ist."""
     user = getattr(request.state, "erp_user", None)
-    if user is None or user.role == "admin":
+    if darf_zeit_fuer_andere_buchen(user):
         return
     if user.employee_id is None or user.employee_id != group.initiated_by_employee_id:
         raise HTTPException(status_code=403, detail="Nur wer die Gruppenbuchung angelegt hat, darf sie ändern oder löschen.")
@@ -176,8 +185,10 @@ def _group_out(request: Request, db: Session, group: TimeEntryGroup) -> TimeGrou
 
 
 def _group_actor(request: Request) -> tuple[int | None, bool, int | None]:
+    """(buchender Mitarbeiter, darf für beliebige Mitglieder buchen, Konto). Seit 1.9.89 heißt das zweite: nach
+    darf_zeit_fuer_andere_buchen() (Admin und Büro – Finanzen), bis dahin nur der Admin."""
     user=getattr(request.state,"erp_user",None)
-    is_admin=bool(user is None or user.role=="admin")
+    is_admin=darf_zeit_fuer_andere_buchen(user)
     actor_employee_id=getattr(user,"employee_id",None) if user is not None else None
     if not is_admin and actor_employee_id is None:
         raise HTTPException(status_code=403,detail=KEIN_MITARBEITER)
@@ -192,25 +203,29 @@ def get_mobile_time_settings(db:Session=Depends(get_db, scope="function"), _role
 @router.get("/api/time-tracking/context")
 def get_time_tracking_context(request: Request, employee_id: int | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Seit 1.8.24 bekommt ein Monteur nur sich selbst, als Kolonnenführer seine Kolonne, und seine
-    buchbaren Aufträge -- ohne Personalnummern (field_time_tracking_context()). Büro unverändert."""
+    buchbaren Aufträge -- ohne Personalnummern (field_time_tracking_context()).
+
+    Seit 1.9.89 (Stufe 4, R5a) wie bis dahin nur der Admin: jedes Büro bekommt alle Mitarbeiter, alle offenen Aufträge und Teams, die
+    gewählte Person (sonst die eigene, ohne verknüpften Mitarbeiter keine) -- auch ohne eigenen Mitarbeiter (bis dahin 403). Dazu, was
+    das Konto darf: zeit_buchen (darf_zeit_buchen()), zeit_fuer_andere (darf_zeit_fuer_andere_buchen()). Der Monteur unverändert."""
     user = getattr(request.state, "erp_user", None)
-    resolved = employee_id
-    include_all = bool(user and user.role == "admin")
-    if user is not None and user.role != "admin":
+    if user is not None and user.role == ROLE_FIELD:
         if user.employee_id is None:
             raise HTTPException(status_code=403, detail=KEIN_MITARBEITER)
         resolved = user.employee_id
-    if user is not None and user.role == ROLE_FIELD:
         result = field_time_tracking_context(db, resolved)
     else:
-        result = time_tracking_context(db, employee_id=resolved, include_all_orders=include_all)
+        resolved = employee_id or (user.employee_id if user is not None else None)
+        result = time_tracking_context(db, employee_id=resolved, include_all_orders=True)
+        result["zeit_buchen"] = darf_zeit_buchen(user)
+        result["zeit_fuer_andere"] = darf_zeit_fuer_andere_buchen(user)
     result["current_employee_id"] = resolved
     result["is_admin"] = bool(user is None or user.role == "admin")
     return result
 
 
 @router.post("/api/time-entry-groups", response_model=TimeGroupOut)
-def create_time_group_manual(payload:TimeGroupManualCreate,request:Request,db:Session=Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def create_time_group_manual(payload:TimeGroupManualCreate,request:Request,db:Session=Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     _validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity,manual=True,group=True)
     actor,is_admin,user_id=_group_actor(request)
     _require_crew_leader(request,db,payload.team_id)
@@ -230,7 +245,7 @@ def create_time_group_manual(payload:TimeGroupManualCreate,request:Request,db:Se
 def kolonne_nachtrag_vorschau(request: Request, work_date: date, von: time, bis: time,
                               pause_minuten: int | None = Query(None, ge=0, le=720), team_id: int | None = None,
                               employee_ids: list[int] = Query(default=[]), group_id: int | None = None,
-                              db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+                              db: Session = Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     """Seit 1.9.63 (Stufe 4, R3 Nachrunde, Punkt 1): was „Nachtrag für die Kolonne“ (team_id, employee_ids) bzw. „Für die Kolonne
     ändern“ (group_id) mit diesen Zeiten je Mitglied buchen würde -- dieselbe Rechnung wie die Buchung (kolonne_rechnen()). Liest nur.
     Rechte wie beim Buchen: Kolonnenführer der Kolonne bzw. wer die Kolonnenbuchung angelegt hat."""
@@ -252,7 +267,7 @@ def kolonne_nachtrag_vorschau(request: Request, work_date: date, von: time, bis:
 
 
 @router.post("/api/time-entry-groups/start", response_model=TimeGroupOut)
-def start_time_group(payload:TimeGroupTimerStart,request:Request,db:Session=Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def start_time_group(payload:TimeGroupTimerStart,request:Request,db:Session=Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     _validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity,group=True)
     actor,is_admin,user_id=_group_actor(request)
     _require_crew_leader(request,db,payload.team_id)
@@ -267,9 +282,10 @@ def start_time_group(payload:TimeGroupTimerStart,request:Request,db:Session=Depe
 
 @router.get("/api/time-entry-groups/active", response_model=TimeGroupOut | None)
 def get_active_time_group(request:Request,employee_id:int|None=None,db:Session=Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
-    resolved=_time_entry_employee_for_request(request,employee_id,db)
+    resolved=_time_entry_employee_for_request(request,employee_id,db,lesen=True)
     user=getattr(request.state,"erp_user",None)
-    row=active_group_for_employee(db,resolved,initiated_only=bool(user is not None and user.role!="admin"))
+    # seit 1.9.89 liest das Büro jede laufende Gruppe der Person (bis dahin jeder außer dem Admin nur selbst gestartete)
+    row=active_group_for_employee(db,resolved,initiated_only=has_role(user,ROLE_FIELD))
     return _group_out(request,db,row) if row else None
 
 
@@ -293,7 +309,7 @@ def get_my_crews(request:Request,db:Session=Depends(get_db, scope="function"), _
 
 
 @router.put("/api/time-entry-groups/{group_id}", response_model=TimeGroupOut)
-def put_time_group(group_id:int,payload:TimeGroupUpdate,request:Request,db:Session=Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def put_time_group(group_id:int,payload:TimeGroupUpdate,request:Request,db:Session=Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     # Seit 1.8.99 gesperrt vor dem Zusammenführen (Festlegung 1.8.96 Nr. 19 korrigiert): eine LV-Position gehört zum Auftrag -- ein
     # gleichzeitiger Auftragswechsel ließ sonst eine Position des alten Auftrags stehen.
     group=db.get(TimeEntryGroup,group_id,with_for_update=True,populate_existing=True)
@@ -319,7 +335,7 @@ def put_time_group(group_id:int,payload:TimeGroupUpdate,request:Request,db:Sessi
 
 
 @router.delete("/api/time-entry-groups/{group_id}")
-def remove_time_group(group_id:int,request:Request,db:Session=Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def remove_time_group(group_id:int,request:Request,db:Session=Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     group=db.get(TimeEntryGroup,group_id)
     if group is None: raise HTTPException(status_code=404,detail="Gruppenbuchung wurde nicht gefunden.")
     _require_group_owner(request,db,group)
@@ -332,12 +348,12 @@ def remove_time_group(group_id:int,request:Request,db:Session=Depends(get_db, sc
 
 
 @router.post("/api/time-entry-groups/{group_id}/stop", response_model=TimeGroupOut)
-def stop_time_group(group_id:int,payload:TimeGroupTimerStop,request:Request,db:Session=Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def stop_time_group(group_id:int,payload:TimeGroupTimerStop,request:Request,db:Session=Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     group=db.get(TimeEntryGroup,group_id)
     if group is None: raise HTTPException(status_code=404,detail="Gruppenbuchung wurde nicht gefunden.")
     user=getattr(request.state,"erp_user",None)
-    if user is not None and user.role!="admin" and user.employee_id!=group.initiated_by_employee_id:
-        raise HTTPException(status_code=403,detail="Nur der Initiator der Gruppenbuchung oder ein Administrator darf die gesamte Gruppe stoppen.")
+    if not darf_zeit_fuer_andere_buchen(user) and user.employee_id!=group.initiated_by_employee_id:  # seit 1.9.89 auch Büro – Finanzen
+        raise HTTPException(status_code=403,detail="Die ganze Gruppe stoppt, wer sie gestartet hat – oder Admin und Büro – Finanzen.")
     if not _noch_kolonnenfuehrer(request,db,group):
         raise HTTPException(status_code=403,detail=CREW_LEADER_ONLY)
     _require_open_period(request,db,group.work_date)
@@ -385,13 +401,13 @@ def get_time_entries_summary(request: Request, employee_id: int | None = None, p
 
 @router.get("/api/time-entries/active", response_model=TimeEntryOut | None)
 def get_active_time_entry(request: Request, employee_id: int | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
-    resolved = _time_entry_employee_for_request(request, employee_id, db)
+    resolved = _time_entry_employee_for_request(request, employee_id, db, lesen=True)
     row = active_time_entry(db, resolved)
     return TimeEntryOut.model_validate(entry_to_dict(row)) if row else None
 
 
 @router.post("/api/time-entries", response_model=TimeEntryOut)
-def create_time_entry(payload: TimeEntryManualCreate, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def create_time_entry(payload: TimeEntryManualCreate, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     _validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity,manual=True)
     employee_id = _time_entry_employee_for_request(request, payload.employee_id, db)
     _require_bookable_order(request, db, payload.order_id)
@@ -416,7 +432,7 @@ def create_time_entry(payload: TimeEntryManualCreate, request: Request, db: Sess
 
 
 @router.post("/api/time-entries/start", response_model=TimeEntryOut)
-def start_time_entry(payload: TimeTimerStart, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def start_time_entry(payload: TimeTimerStart, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     _validate_time_rules(db,order_item_id=payload.order_item_id,activity=payload.activity)
     employee_id = _time_entry_employee_for_request(request, payload.employee_id, db)
     _require_bookable_order(request, db, payload.order_id)
@@ -432,7 +448,7 @@ def start_time_entry(payload: TimeTimerStart, request: Request, db: Session = De
 
 
 @router.post("/api/time-entries/{entry_id}/stop", response_model=TimeEntryOut)
-def stop_time_entry(entry_id: int, payload: TimeTimerStop, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def stop_time_entry(entry_id: int, payload: TimeTimerStop, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     current = db.get(TimeEntry, entry_id)
     if current is None:
         raise HTTPException(status_code=404, detail="Zeiterfassung nicht gefunden.")
@@ -445,7 +461,7 @@ def stop_time_entry(entry_id: int, payload: TimeTimerStop, request: Request, db:
         group = group_for_entry(db, entry_id)
         user = getattr(request.state, "erp_user", None)
         # Seit 1.8.144: ohne Kennzeichen stoppt die Initiatorin nur noch ihre eigene Zeit, wie ein Mitglied (die Gruppe läuft weiter).
-        if group is not None and group.status == "running" and (user is None or user.role == "admin" or user.employee_id == group.initiated_by_employee_id) and _noch_kolonnenfuehrer(request, db, group):
+        if group is not None and group.status == "running" and (darf_zeit_fuer_andere_buchen(user) or user.employee_id == group.initiated_by_employee_id) and _noch_kolonnenfuehrer(request, db, group):
             # seit 1.9.34 rechnet die Pause stop_group_timer()/stop_timer() selbst nach der einen Zeitregel (pause_nach_zeitregel())
             stop_group_timer(db, group.id, ended_at=payload.ended_at or berlin_now(), break_minutes=payload.break_minutes)
             row = db.get(TimeEntry, entry_id)
@@ -460,11 +476,12 @@ def stop_time_entry(entry_id: int, payload: TimeTimerStop, request: Request, db:
 
 
 @router.post("/api/time-entries/{entry_id}/ende-nachtragen", response_model=TimeEntryOut)
-def ende_nachtragen_endpunkt(entry_id: int, payload: TimeEndeNachtragen, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def ende_nachtragen_endpunkt(entry_id: int, payload: TimeEndeNachtragen, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     """Seit 1.9.35 (Stufe 4, R1, Punkt 2): das Ende einer Zeit nachtragen, die seit einem früheren Tag läuft (vergessener Feierabend).
-    Die eigene Zeit, oder die einer anderen Person nach darf_zeit_fuer_andere_buchen() (heute nur Admin; wer, steht im Verlauf). Ist der
-    Monat des Starttags abgeschlossen, schließt sie nur ein Admin (wie jede Änderung dort). Gehört sie zu einer laufenden Gruppe, schließt
-    sie nur der Kolonnenführer, der die Gruppe gestartet hat (oder ein Admin) -- für die ganze Gruppe, wie der Gruppen-Stopp."""
+    Die eigene Zeit, oder die einer anderen Person nach darf_zeit_fuer_andere_buchen() (seit 1.9.89 Admin und Büro – Finanzen; wer, steht
+    im Verlauf). Ist der Monat des Starttags abgeschlossen, schließt sie nur ein Admin (wie jede Änderung dort). Gehört sie zu einer
+    laufenden Gruppe, schließt sie nur der Kolonnenführer, der die Gruppe gestartet hat (oder wer für andere bucht) -- für die ganze
+    Gruppe, wie der Gruppen-Stopp."""
     current = _ende_nachtragen_pruefen(request, db, entry_id)
     ende = payload.ende
     if ende.tzinfo is not None:  # Beginn und Ende einer Zeitbuchung sind naive Ortszeit (Regel 20)
@@ -479,7 +496,7 @@ def ende_nachtragen_endpunkt(entry_id: int, payload: TimeEndeNachtragen, request
 @router.get("/api/time-entries/nachtrag-vorschau", response_model=TimeEndeVorschauOut)
 def nachtrag_vorschau(request: Request, work_date: date, von: time, bis: time, pause_minuten: int | None = Query(None, ge=0, le=720),
                       entry_id: int | None = None, employee_id: int | None = None,
-                      db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+                      db: Session = Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     """Seit 1.9.57 (Stufe 4, R3): was „Zeit nachtragen“ (bzw. mit entry_id „Ändern“) mit diesen Zeiten buchen würde -- dieselbe
     Rechnung wie die Buchung (nachtrag_nach_zeitregel(): Pause aus dem Tag, beim Ändern ohne die alte Fassung, Rundung der Zeitregeln,
     „Tag zusammen“). Liest nur. Mitarbeiter wie beim Buchen; die zu ändernde Buchung muss der Person gehören und änderbar sein."""
@@ -507,13 +524,13 @@ def nachtrag_vorschau(request: Request, work_date: date, von: time, bis: time, p
 def tagespause(request: Request, work_date: date, employee_id: int | None = None,
                db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     """Seit 1.9.57 (Stufe 4, R3, Punkt 5): passt die abgezogene Pause des Tags noch zur Zeitregel, und was würde „Pausen neu rechnen“
-    je Buchung ändern (time_tracking.pausen_vorschau())? Liest nur."""
-    return pausen_vorschau(db, _time_entry_employee_for_request(request, employee_id, db), work_date)
+    je Buchung ändern (time_tracking.pausen_vorschau())? Liest nur -- seit 1.9.89 für das Büro jede Person."""
+    return pausen_vorschau(db, _time_entry_employee_for_request(request, employee_id, db, lesen=True), work_date)
 
 
 @router.post("/api/time-entries/pausen-neu-rechnen", response_model=TimePausenVorschauOut)
 def pausen_neu_rechnen_endpunkt(payload: TimePausenNeuRechnen, request: Request, db: Session = Depends(get_db, scope="function"),
-                                _role: AppUser = _any_role_dep):
+                                _role: AppUser = _buchen_dep):
     """Seit 1.9.57 (Stufe 4, R3, Punkt 5): bucht genau die Vorschau der Seite (je Buchung die neue Pause) -- weicht die Rechnung jetzt
     ab, 409; im abgeschlossenen Zeitraum nur ein Admin (wie jede Änderung). Nie von selbst."""
     mitarbeiter = _time_entry_employee_for_request(request, payload.employee_id, db)
@@ -529,7 +546,7 @@ def pausen_neu_rechnen_endpunkt(payload: TimePausenNeuRechnen, request: Request,
 
 @router.get("/api/time-entries/{entry_id}/ende-vorschau", response_model=TimeEndeVorschauOut)
 def ende_vorschau_endpunkt(entry_id: int, ende: datetime, request: Request, pause_minuten: int = Query(0, ge=0, le=720),
-                          db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+                          db: Session = Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     """Seit 1.9.44 (Stufe 4, R2): was „Ende nachtragen“ mit diesem Ende buchen würde -- anwesend, Pause nach der Zeitregel,
     gebucht --, ohne zu buchen (ende_vorschau(), dieselbe Rechnung wie die Buchung). Dieselben Prüfungen wie das Nachtragen."""
     _ende_nachtragen_pruefen(request, db, entry_id)
@@ -569,7 +586,7 @@ def _ende_nachtragen_pruefen(request: Request, db: Session, entry_id: int) -> Ti
 
 @router.post("/api/time-entries/{entry_id}/zeitart-wechseln", response_model=TimeEntryOut)
 def zeitart_wechseln_endpunkt(entry_id: int, payload: TimeZeitartWechseln, request: Request,
-                             db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+                             db: Session = Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     """Seit 1.9.44 (Stufe 4, R2): die laufende Zeit endet jetzt nach der Zeitregel, im selben Augenblick beginnt eine neue mit der
     neuen Zeitart auf demselben Auftrag (zeitart_wechseln()). Nur die eigene Zeit (oder nach darf_zeit_fuer_andere_buchen()), nicht im
     abgeschlossenen Zeitraum, nicht für eine Zeit von früher und nicht für eine laufende Gruppenzeit (409); dieselben Regeln wie ein
@@ -604,7 +621,7 @@ def _mit_tag(db: Session, data: dict) -> TimeEntryOut:
 
 
 @router.put("/api/time-entries/{entry_id}", response_model=TimeEntryOut)
-def put_time_entry(entry_id: int, payload: TimeEntryUpdate, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def put_time_entry(entry_id: int, payload: TimeEntryUpdate, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     # Seit 1.8.99 gesperrt vor dem Zusammenführen (Festlegung 1.8.96 Nr. 19 korrigiert): Auftrag und LV-Position gehören zusammen, und
     # eine gleichzeitige Korrektur der Gruppenbuchung wartet auf diese (oder umgekehrt) -- siehe app/time_tracking.py::update_group().
     current = db.get(TimeEntry, entry_id, with_for_update=True, populate_existing=True)
@@ -637,7 +654,7 @@ def put_time_entry(entry_id: int, payload: TimeEntryUpdate, request: Request, db
 
 
 @router.delete("/api/time-entries/{entry_id}")
-def remove_time_entry(entry_id: int, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def remove_time_entry(entry_id: int, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     current = db.get(TimeEntry, entry_id)
     if current is None:
         raise HTTPException(status_code=404, detail="Zeitbuchung nicht gefunden.")

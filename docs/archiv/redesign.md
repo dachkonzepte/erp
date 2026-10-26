@@ -5722,3 +5722,15 @@ Was dort aus Stufe 4 fehlt oder nicht passt:
 Bilder (1440 × 900, hell, ganze Seite, Testdaten der Bildgrundlage, Büro – Finanzen): 1 Zeiterfassung, 2–6 Backoffice (Dashboard, Buchungen,
 Abwesenheiten, Stundenzettel, DATEV / Lohn), 7 „/mobil“ als Büro, 8 „Meine Zeiten“ als Büro -- im Bericht `bericht_stufe4_r5_8b68dda`.
 Nichts davon ist gebaut; Vorschläge und Entscheidungen bleiben Tobias.
+
+## Stufe 4, R5a (ab 1.9.89): Büro -- Regeln auf dem Server (Fundament für „Zeiten“)
+
+Vorgabe 26.10.2026: Festlegungen R5 Teil 1 bestätigt; Tobias hat den Entwurf der Büroseite freigegeben (`bildgrundlage/entwurf-stufe4/zeiten-*.html`,
+gebaut in R5b). Entscheidungen: das Büro erfasst keine eigene Zeit; Zeiten anderer und Lohndaten haben Admin und Büro – Finanzen; der
+DATEV-Export geht nur für abgeschlossene Zeiträume. R5a baut die Regeln auf dem Server, eine Version je Punkt.
+
+### R5a, Punkt 1 (1.9.89): Rechte
+
+Je Recht eine Regel in `app/permissions.py` (`darf_zeit_fuer_andere_buchen()`, `darf_zeit_buchen()`, `darf_lohndaten()`), die alten Seiten blenden
+aus, was der Server ablehnt. Herleitung, Tabelle der Rechte, Festlegungen 1.9.89 (8), angepasste Erwartungen und Gegenproben:
+`docs/archiv/rechtekonzept.md`, „Nachtrag 1.9.89“.

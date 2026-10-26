@@ -1536,9 +1536,13 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   `tests/test_v505_auftragsseite_zeiten_gesperrt.py`, Klicktest `klicktest_zeiten_abgeschlossen.py`); seit 1.9.87 kennzeichnen „Heute“
   (Einsatzkarte, keine Vorbelegung, kein „Zeitart wechseln“) und „Meine Zeiten“ (kein „⋮“) solche Aufträge
   (`app/time_tracking.py::auftrag_geschlossen()`, `tests/test_v508_abgeschlossen_heute_und_zeiten.py`).
-- **Zeit für andere buchen nur nach `app/permissions.py::darf_zeit_fuer_andere_buchen()`** (seit 1.8.152, heute nur Admin): der Server
-  prüft damit Buchen und Ändern fremder Zeiten, `/api/auth/status` meldet sie (`zeit_fuer_andere_buchen`), der Einsatzbericht zeigt
-  die Auswahl „Mitarbeiter“ nur danach -- eine neue Stelle mit derselben Frage nimmt diese Funktion, keine eigene Rollenabfrage.
+- **Zeit für andere buchen nur nach `app/permissions.py::darf_zeit_fuer_andere_buchen()`** (seit 1.8.152, seit 1.9.89 Admin und Büro –
+  Finanzen): der Server prüft damit Buchen und Ändern fremder Zeiten, `/api/auth/status` meldet sie (`zeit_fuer_andere_buchen`), der
+  Einsatzbericht zeigt die Auswahl „Mitarbeiter“ nur danach -- eine neue Stelle mit derselben Frage nimmt diese Funktion, keine eigene
+  Rollenabfrage. **Seit 1.9.89 je Recht eine Regel daneben:** `darf_zeit_buchen()` (Büro – Auftrag liest die Zeiten aller, ändert nichts --
+  `require_zeit_buchen` an jedem schreibenden Zeit-Endpunkt) und `darf_lohndaten()` (Stundenzettel, CSV, DATEV, Abschließen: Admin und Büro –
+  Finanzen, `require_lohndaten`); im abgeschlossenen Zeitraum, beim Aufheben des Abschlusses und bei Anträgen nur der Admin
+  (`tests/test_v510_rechte_zeiten.py`, `docs/archiv/rechtekonzept.md`, „Nachtrag 1.9.89“).
 - **Ausblenden statt ausgrauen**: eine für eine Rolle nicht gedachte Seite fehlt im Markup
   (`can()`-Jinja-Global, `_dk_roles`-Markierung), nicht nur deaktiviert -- ein 403 auf einer
   Seiten-Route zeigt `access_denied.html`, nie rohes JSON.

@@ -5,7 +5,11 @@ Bis 1.8.116 brach init() in time_backoffice.html für jede Rolle außer Admin ab
 alle Endpunkte seit 1.4.8 dem Büro offenstehen. Jetzt bekommt die Seite Rolle und Mitarbeiter des Kontos vom Server (ICH) und bietet nur an,
 was der Server dem Konto erlaubt. Hier: welche Regeln des Servers die Seite abbildet (fremde Buchungen, abgeschlossener Zeitraum, Anträge,
 Abschluss), jede Anfrage der Seite für das Büro erlaubt, die gerenderte Rolle. Das Verhalten im Browser prüft
-scripts/klicktest_backoffice_buero.py."""
+scripts/klicktest_backoffice_buero.py.
+
+Seit 1.9.89 (Stufe 4, R5a, Entscheidungen Tobias): Büro – Auftrag liest die Zeiten aller und ändert nichts (auch keine eigenen), Büro –
+Finanzen ändert die Buchungen aller außerhalb des abgeschlossenen Zeitraums und hat die Lohndaten (Stundenzettel, CSV, DATEV, Abschluss);
+die Seite bekommt das vom Server (ICH.buchen, ICH.andere, ICH.lohn) und zeigt Büro – Auftrag die Ausgabe nicht."""
 
 from __future__ import annotations
 
@@ -50,13 +54,14 @@ def welt(threaded_db_session):
 ROUTER = (time_backoffice.router, employees.router, time_tracking.router, absence_requests.router, settings_router.router, pages.router)
 
 # Jede Anfrage, die die Seite schickt (GET, für das Büro immer erlaubt) -- test_jede_anfrage_der_seite_ist_hier_geprueft hält die Liste
-# mit der Vorlage gleich.
+# mit der Vorlage gleich. Seit 1.9.89 getrennt: GET_NUR_LOHN fragt die Seite nur mit Lohndaten (ICH.lohn), der Server gibt die Ausgaben
+# nur Admin und Büro – Finanzen (die Personalnummern liest weiter jedes Büro).
 GET_DER_SEITE = ["/api/employees", f"/api/time-backoffice/summary?start_date={VON}&end_date={BIS}", "/api/time-backoffice/settings",
-                 "/api/time-backoffice/payroll-employees", "/api/settings/option-groups",
-                 f"/api/time-entries?start_date={VON}&end_date={BIS}&limit=2000",
-                 f"/api/time-backoffice/timesheet.pdf?start_date={VON}&end_date={BIS}",
-                 f"/api/time-backoffice/timesheet.csv?start_date={VON}&end_date={BIS}",
-                 f"/api/time-backoffice/datev-export?start_date={VON}&end_date={BIS}"]
+                 "/api/settings/option-groups", f"/api/time-entries?start_date={VON}&end_date={BIS}&limit=2000"]
+GET_NUR_LOHN = ["/api/time-backoffice/payroll-employees",
+                f"/api/time-backoffice/timesheet.pdf?start_date={VON}&end_date={BIS}",
+                f"/api/time-backoffice/timesheet.csv?start_date={VON}&end_date={BIS}",
+                f"/api/time-backoffice/datev-export?start_date={VON}&end_date={BIS}"]
 
 
 @pytest.mark.parametrize("rolle", ["buero_auftrag", "buero_finanzen"])
@@ -66,22 +71,37 @@ def test_jede_anfrage_der_seite_ist_dem_buero_erlaubt(welt, router_test_client, 
         client = router_test_client(db, *ROUTER, role=rolle, employee_id=mitarbeiter)
         status = {pfad: client.get(pfad).status_code for pfad in GET_DER_SEITE}
         assert set(status.values()) == {200}, status
-        # nur mit Mitarbeiter -- die Seite fragt ohne ihn nicht (ICH.mitarbeiter === null)
-        erwartet = 200 if mitarbeiter else 403
-        assert client.get("/api/time-tracking/context").status_code == erwartet
-        assert client.get("/api/absence-requests").status_code == erwartet
+        assert client.get(GET_NUR_LOHN[0]).status_code == 200
+        lohn = {pfad: client.get(pfad).status_code for pfad in GET_NUR_LOHN[1:]}
+        assert set(lohn.values()) == ({200} if rolle == "buero_finanzen" else {403}), lohn  # seit 1.9.89
+        # seit 1.9.89 liest jedes Büro den Kontext, auch ohne eigenen Mitarbeiter (bis dahin 403); die Seite fragt ihn, wer bucht
+        assert client.get("/api/time-tracking/context").status_code == 200
+        # Anträge nur mit Mitarbeiter -- die Seite fragt ohne ihn nicht (ICH.mitarbeiter === null)
+        assert client.get("/api/absence-requests").status_code == (200 if mitarbeiter else 403)
 
 
-def test_was_der_server_nur_dem_admin_erlaubt(welt, router_test_client):
-    """Die Regeln, die die Seite dem Büro nicht anbietet (darfBuchungAendern(), absCard(), saveLock(), kein "Abschluss aufheben")."""
+def test_was_der_server_dem_buero_auftrag_nicht_erlaubt(welt, router_test_client):
+    """Büro – Auftrag liest seit 1.9.89 nur: keine Buchung ändern, auch keine eigene (bis 1.9.88: eigene offene 200), nicht abschließen
+    (bis 1.9.88 vorrücken 200), keinen Antrag entscheiden."""
     db, bea, mia, order, ids = welt
     buero = router_test_client(db, *ROUTER, role="buero_auftrag", employee_id=bea.id)
     assert [x["employee_name"] for x in buero.get("/api/absence-requests").json()] == ["Bea Büro"]  # nur die eigenen
     antrag = db.query(EmployeeAbsenceRequest).filter_by(employee_id=bea.id).one()
     assert buero.post(f"/api/absence-requests/{antrag.id}/review", json={"decision": "approved"}).status_code == 403
-    assert buero.put(f"/api/time-entries/{ids['mia']}", json={"hours": 3}).status_code == 403          # fremd
+    for eintrag in ("mia", "bea_zu", "bea_offen"):
+        assert buero.put(f"/api/time-entries/{ids[eintrag]}", json={"hours": 3}).status_code == 403, eintrag
+    assert buero.put("/api/time-backoffice/lock", json={"locked_until": "2026-10-02"}).status_code == 403
+
+
+def test_was_der_server_dem_buero_finanzen_erlaubt(welt, router_test_client):
+    """Büro – Finanzen seit 1.9.89: fremde Buchungen außerhalb des abgeschlossenen Zeitraums ändern, vorrücken -- nicht im abgeschlossenen
+    Zeitraum, nicht wieder öffnen oder aufheben, keinen Antrag entscheiden (das bleibt dem Admin)."""
+    db, bea, mia, order, ids = welt
+    buero = router_test_client(db, *ROUTER, role="buero_finanzen", employee_id=bea.id)
+    antrag = db.query(EmployeeAbsenceRequest).filter_by(employee_id=bea.id).one()
+    assert buero.post(f"/api/absence-requests/{antrag.id}/review", json={"decision": "approved"}).status_code == 403
+    assert buero.put(f"/api/time-entries/{ids['mia']}", json={"hours": 3}).status_code == 200          # fremd, offen
     assert buero.put(f"/api/time-entries/{ids['bea_zu']}", json={"hours": 3}).status_code == 403       # abgeschlossen
-    assert buero.put(f"/api/time-entries/{ids['bea_offen']}", json={"hours": 3}).status_code == 200    # eigen, offen
     assert buero.put("/api/time-backoffice/lock", json={"locked_until": "2026-10-02"}).status_code == 200  # vorrücken
     assert buero.put("/api/time-backoffice/lock", json={"locked_until": "2026-10-01"}).status_code == 403  # wieder öffnen
     assert buero.put("/api/time-backoffice/lock", json={"locked_until": None}).status_code == 403          # aufheben
@@ -92,15 +112,18 @@ def _ich(html: str) -> str:
 
 
 @pytest.mark.parametrize("rolle, mitarbeiter, ich, aufheben", [
-    ("buero_auftrag", 7, "const ICH={admin:false,mitarbeiter:7};", False),
-    ("buero_finanzen", None, "const ICH={admin:false,mitarbeiter:null};", False),
-    ("admin", None, "const ICH={admin:true,mitarbeiter:null};", True),
+    ("buero_auftrag", 7, "const ICH={admin:false,buchen:false,andere:false,lohn:false,mitarbeiter:7};", False),
+    ("buero_finanzen", None, "const ICH={admin:false,buchen:true,andere:true,lohn:true,mitarbeiter:null};", False),
+    ("admin", None, "const ICH={admin:true,buchen:true,andere:true,lohn:true,mitarbeiter:null};", True),
 ])
 def test_die_seite_bekommt_rolle_und_mitarbeiter_vom_server(welt, router_test_client, rolle, mitarbeiter, ich, aufheben):
+    """Seit 1.9.89 dazu buchen, andere und lohn (app/permissions.py); ohne Lohndaten fehlen die Reiter der Ausgabe und ihr Inhalt."""
     db = welt[0]
     html = router_test_client(db, pages.router, role=rolle, employee_id=mitarbeiter).get("/time-backoffice").text
     assert _ich(html) == ich
-    assert ('onclick="clearLock()"' in html) is aufheben and ('id="nurAdminOeffnen"' in html) is not aufheben
+    lohn = rolle != "buero_auftrag"
+    assert ('onclick="clearLock()"' in html) is aufheben and ('id="nurAdminOeffnen"' in html) is (lohn and not aufheben)
+    assert ('data-tab="timesheets"' in html, 'data-tab="datev"' in html, 'id="lockDate"' in html) == (lohn, lohn, lohn)
 
 
 def test_keine_rollenpruefung_mehr_im_browser():
@@ -113,7 +136,7 @@ def test_jede_anfrage_der_seite_ist_hier_geprueft():
     quelle = VORLAGE.read_text(encoding="utf-8")
     pfade = {re.sub(r"\$\{[^}]*\}.*", "", p).split("?")[0].rstrip(".")
              for p in re.findall(r"(?:api\(|location\.href=)[`']((?:/api/)[^`']*)", quelle)}
-    geprueft = {p.split("?")[0] for p in GET_DER_SEITE} | {"/api/time-tracking/context", "/api/absence-requests",
+    geprueft = {p.split("?")[0] for p in GET_DER_SEITE + GET_NUR_LOHN} | {"/api/time-tracking/context", "/api/absence-requests",
                                                             "/api/absence-requests/", "/api/time-backoffice/lock",
                                                             "/api/time-entries/", "/api/orders/", "/api/time-backoffice/timesheet"}
     assert pfade <= geprueft, pfade - geprueft

@@ -981,9 +981,11 @@ def test_zeiterfassungs_kontext_monteur_nur_eigenes_buero_unveraendert(durchlauf
     neu_ctx = router_test_client(db, time_tracking_router, role=ROLE_FIELD, employee_id=neu.id).get("/api/time-tracking/context").json()
     assert (neu_ctx["employees"], neu_ctx["teams"], neu_ctx["orders"]) == ([{"id": neu.id, "name": "Nina Neu"}], [], [])
 
-    # Büro unverändert, mit Personalnummer und LV-Positionen.
+    # Büro mit Personalnummer und LV-Positionen -- seit 1.9.89 (Stufe 4, R5a) alle offenen Aufträge wie bis dahin nur der Admin und
+    # dazu, was das Konto darf (Büro – Auftrag liest nur).
     office = router_test_client(db, time_tracking_router, role=ROLE_OFFICE_AUFTRAG, employee_id=karl).get("/api/time-tracking/context").json()
-    assert office == {**time_tracking_context(db, employee_id=karl), "current_employee_id": karl, "is_admin": False}
+    assert office == {**time_tracking_context(db, employee_id=karl, include_all_orders=True), "current_employee_id": karl, "is_admin": False,
+                      "zeit_buchen": False, "zeit_fuer_andere": False}
     assert {"M-1", "M-2", "M-3"} <= {e["employee_number"] for e in office["employees"]}
     assert all("items" in o for o in office["orders"])
 

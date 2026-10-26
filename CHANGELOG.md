@@ -4,6 +4,24 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.89 – Rechte an den Zeiten: Büro – Finanzen bucht für andere, Büro – Auftrag liest (Stufe 4, R5a)
+
+Entscheidungen von Tobias für die Büroseite „Zeiten“: Zeiten anderer und Lohndaten haben Admin und Büro – Finanzen, das Büro erfasst keine
+eigene Zeit. Jetzt je Recht eine Regel in `app/permissions.py`: `darf_zeit_fuer_andere_buchen()` (für andere buchen, starten, stoppen, ändern,
+löschen, „Ende nachtragen“, „Pausen neu rechnen“, Kolonne -- bis 1.9.88 nur der Admin, jetzt auch Büro – Finanzen), `darf_zeit_buchen()` (wer
+überhaupt bucht: die Monteurin ihre eigenen und wer für andere bucht; Büro – Auftrag liest die Zeiten aller und ändert nichts, auch keine
+eigenen) und `darf_lohndaten()` (Stundenzettel, Stundendaten als CSV, DATEV-Export, Abschließen: Admin und Büro – Finanzen, bis 1.9.88 jedes
+Büro). Die Endpunkte prüfen über `require_zeit_buchen` und `require_lohndaten` (403 mit Meldung); im abgeschlossenen Zeitraum ändert weiter nur
+der Admin, einen Abschluss aufheben und Anträge entscheiden bleiben ihm. Zum Lesen bekommt jedes Büro den Buchungskontext (alle Mitarbeiter,
+alle offenen Aufträge) auch ohne eigenen Mitarbeiter (bis dahin 403) und die laufende Zeit, die laufende Gruppe und die Pause des Tags jeder
+Person.
+
+Die alten Seiten folgen den Regeln, bis „Zeiten“ sie in R5b ersetzt: Zeiterfassung und Einsatzberichte des Auftrags zeigen Büro – Auftrag nichts
+zum Buchen (statt dessen „Zeiten buchen und ändern Admin und Büro – Finanzen – du kannst sie lesen.“), das Backoffice ihm keine Reiter
+„Stundenzettel“ und „DATEV / Lohn“ und keine Knöpfe an Buchungen; Büro – Finanzen bekommt die Mitarbeiterauswahl und bearbeitet fremde
+Buchungen außerhalb des Abschlusses. Neuer Test `tests/test_v510_rechte_zeiten.py` (je Recht Angriff Büro – Auftrag und Gegenprobe Büro –
+Finanzen, dazu ein Rundgang über alle GET-Endpunkte: Büro – Auftrag bekommt keinen Lohnsatz); `klicktest_backoffice_buero` neu ausgerichtet.
+
 ## 1.9.88 – Der Monteursrahmen setzt .ds-tablet (Stufe 4, R5)
 
 Beschlossen in Stufe 2, nie gebaut: keine Vorlage setzte `.ds-tablet`, die Tablet-Regeln aus `ds-basis.css` und `ds.css` griffen nirgends --

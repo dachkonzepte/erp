@@ -186,11 +186,11 @@ def test_monteurin_schliesst_fremde_zeit_nicht(welt):
     assert (antwort.status_code, antwort.json()["detail"]) == (403, "Du darfst diese Zeit nicht schließen.")
 
 
-@pytest.mark.parametrize("rolle", ["buero_finanzen", "buero_auftrag"])
-def test_buero_schliesst_fremde_zeit_nicht(welt, rolle):
-    """darf_zeit_fuer_andere_buchen() ist heute nur Admin -- das Büro schließt keine fremde Zeit."""
+def test_buero_auftrag_schliesst_fremde_zeit_nicht(welt):
+    """Büro – Auftrag liest die Zeiten nur (seit 1.9.89, darf_zeit_buchen()) -- es schließt keine fremde Zeit. Bis 1.9.88 galt das auch
+    für Büro – Finanzen; seit 1.9.89 schließt es sie wie der Admin (tests/test_v510_rechte_zeiten.py)."""
     row = _gestern_gestartet(welt, welt["tom"])
-    assert _ende(_als(welt, rolle=rolle), row.id, welt["gestern"], "16:00").status_code == 403
+    assert _ende(_als(welt, rolle="buero_auftrag"), row.id, welt["gestern"], "16:00").status_code == 403
 
 
 def test_admin_schliesst_fremde_zeit_und_steht_im_verlauf(welt):

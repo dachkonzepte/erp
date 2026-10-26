@@ -46,10 +46,11 @@ def _abgelehnt(antwort, status):
 
 
 def _buero(w, emp=None):
-    """Das Büro: Büro – Auftrag mit eigenem Mitarbeiter (bucht für sich), ohne emp ein Admin (bucht auch für andere)."""
+    """Das Büro: Büro – Finanzen mit eigenem Mitarbeiter (bis 1.9.88 Büro – Auftrag, das seit 1.9.89 nur liest), ohne emp ein Admin
+    (bucht auch für andere)."""
     if emp is None:
         return w["client"](w["db"], time_tracking_router.router, role="admin")
-    return w["client"](w["db"], time_tracking_router.router, role="buero_auftrag", employee_id=emp.id)
+    return w["client"](w["db"], time_tracking_router.router, role="buero_finanzen", employee_id=emp.id)
 
 
 def _anzahl(w):

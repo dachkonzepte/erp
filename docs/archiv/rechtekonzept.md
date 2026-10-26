@@ -2105,3 +2105,79 @@ oben), sondern auch an seinem Status: auf einen abgeschlossenen oder stornierten
 auch nicht für die Kolonne, und wechselt dort keine Zeitart (403, `app/routers/time_tracking.py::_require_order_open_for_field()`, Meldung aus
 `app/time_tracking.py::auftrag_zeiten_gesperrt()`). Eine laufende Zeit beendet sie immer (Stopp, Gruppen-Stopp, Ende nachtragen). Büro und
 Admin unverändert. Herleitung: `docs/archiv/redesign.md`, „Stufe 4, R4 Nachtrag 3“.
+
+## Nachtrag 1.9.89: Rechte an den Zeiten (Stufe 4, R5a, Punkt 1)
+
+Entscheidungen von Tobias (26.10.2026) für die Büroseite „Zeiten“: das Büro erfasst keine eigene Zeit; Zeiten anderer und Lohndaten haben Admin
+und Büro – Finanzen; der DATEV-Export geht nur für abgeschlossene Zeiträume (R5a, Punkt 5). Umsetzung -- je Recht eine Regel in
+`app/permissions.py`, Server und Oberfläche fragen nur sie:
+
+| Recht | Wer | Regel, Abhängigkeit |
+|---|---|---|
+| Zeiten anderer buchen, starten, stoppen, ändern, löschen, „Ende nachtragen“, „Pausen neu rechnen“, Kolonne für beliebige Mitglieder | Admin, Büro – Finanzen (bis 1.9.88 nur Admin) | `darf_zeit_fuer_andere_buchen()` |
+| überhaupt Zeiten buchen oder ändern (auch die Vorschauen des Buchens) | die Monteurin (ihre eigenen) und wer für andere bucht -- **nicht Büro – Auftrag** | `darf_zeit_buchen()`, `require_zeit_buchen` (403 „Zeiten buchen und ändern Admin und Büro – Finanzen – du kannst sie lesen.“) |
+| Lohndaten: Stundenzettel, Stundendaten als CSV, DATEV-Export, Abschließen | Admin, Büro – Finanzen (bis 1.9.88 jedes Büro) | `darf_lohndaten()`, `require_lohndaten` (403 „Stundenzettel, Exporte und den Abschluss gibt es nur für Admin und Büro – Finanzen.“) |
+| im abgeschlossenen Zeitraum ändern, Abschluss zurücknehmen oder aufheben, Anträge entscheiden | nur Admin | unverändert (`_require_open_period()`, `put_time_lock()`, `require_admin`) |
+
+Lesen: jedes Büro liest die Zeiten aller -- Liste und Summen wie bisher, dazu jetzt die laufende Zeit, die laufende Gruppe (nicht mehr nur
+selbst gestartete) und die Pause des Tags jeder Person (`_time_entry_employee_for_request(…, lesen=True)`) und den Buchungskontext mit allen
+Mitarbeitern und allen offenen Aufträgen, auch ohne eigenen Mitarbeiter (bis 1.9.88 403) -- mit `zeit_buchen` und `zeit_fuer_andere`, damit die
+Seite weiß, was sie anbietet. Die Gruppenregeln (`_group_actor()`, `_require_group_owner()`, Gruppen-Stopp) behandeln Büro – Finanzen wie bis
+dahin den Admin.
+
+Die alten Seiten folgen, bis „Zeiten“ (R5b) sie ersetzt: Zeiterfassung (`time_tracking.html`, Seitenroute `zeit_buchen`) -- Büro – Auftrag ohne
+„Schnell starten“, Stopp, „+ Manuell buchen“, „Gruppe buchen“, Ändern und Löschen, mit Hinweis; Mitarbeiterauswahl für jedes Büro, im Dialog nach
+`zeit_fuer_andere`. Backoffice (`ICH.buchen`, `ICH.andere`, `ICH.lohn`) -- Büro – Auftrag ohne Reiter „Stundenzettel“ und „DATEV / Lohn“ (ihr
+Inhalt fehlt im Markup), Buchungen „nur lesen“; Büro – Finanzen bearbeitet und löscht jede Buchung außerhalb des Abschlusses. Einsatzberichte des
+Auftrags -- die Felder zum Buchen nur, wer bucht.
+
+### Festlegungen 1.9.89 (Bitte bestätigen)
+
+1. Büro – Auftrag bucht keine Zeit mehr, auch keine eigene (Start, Nachtrag, Ändern, Löschen, Kolonne, Ende nachtragen, Pausen neu rechnen,
+   Zeitart wechseln und die Vorschauen des Buchens: 403) -- „Zeiten aller lesen, nichts ändern“ zusammen mit „das Büro erfasst keine eigene Zeit“.
+2. Büro – Finanzen darf, mit Mitarbeiter verknüpft, auch für sich buchen -- der Server sperrt das nicht eigens; dass das Büro keine eigene Zeit
+   erfasst, setzt die Seite „Zeiten“ um (kein eigener Timer).
+3. Der Stundenzettel-Endpunkt des Backoffice gilt als Ganzes als Lohndaten, auch für eine einzelne Person (`employee_id`).
+4. Übersicht (Stunden je Mitarbeiter), Arbeitszeitmodelle, Personalnummern (`payroll-employees`) und Zeitregeln bleiben dem Büro (nicht in der
+   Liste der Lohndaten; Personalnummern speichert in den Einstellungen ohnehin nur der Admin).
+5. Den Buchungskontext liest jedes Büro für jede Person, auch ohne eigenen Mitarbeiter (bis 1.9.88 403); die Monteurin unverändert.
+6. Ändern, Löschen und Stoppen einer Kolonnenbuchung: Büro – Finanzen wie der Admin (auch ohne sie angelegt zu haben).
+7. Abwesenheitsanträge unverändert: stellen für sich darf jedes Konto mit Mitarbeiter, entscheiden der Admin.
+8. Die alten Seiten (Zeiterfassung, Backoffice, Einsatzberichte des Auftrags) blenden nur aus, was der Server ablehnt -- kein Umbau vor R5b.
+
+### Tests und Prüfung
+
+Neu `tests/test_v510_rechte_zeiten.py`: Regeln je Rolle; Büro – Finanzen bucht, ändert, löscht, startet und stoppt für Tom, bucht für die Kolonne
+ohne Mitglied zu sein, trägt ein Ende nach, rechnet Pausen neu -- Büro – Auftrag 403 mit der Meldung, nichts geändert (auch nicht für sich); im
+abgeschlossenen Zeitraum nur der Admin; Büro – Auftrag liest Liste, laufende Zeit und Kontext jeder Person; Lohndaten je Rolle (PDF, CSV, DATEV,
+Abschließen); Aufheben nur Admin; Rundgang über alle GET-Endpunkte (aus `test_v326`) als Büro – Auftrag ohne Lohnsatz, Gegenprobe als Büro –
+Finanzen findet `hourly_wage` an `/api/employees`.
+
+Angepasste Erwartungen:
+- `test_v463::test_buero_schliesst_fremde_zeit_nicht[buero_finanzen]`: 403 -> entfällt (Büro – Finanzen schließt, v510), umbenannt in
+  `test_buero_auftrag_schliesst_fremde_zeit_nicht`.
+- `test_v326::test_zeiterfassungs_kontext_monteur_nur_eigenes_buero_unveraendert`: Büro-Kontext `time_tracking_context(employee_id)` -> mit
+  `include_all_orders=True` und `zeit_buchen`, `zeit_fuer_andere`.
+- `test_v437::test_einsatzbericht_bietet_nur_an_was_der_server_annimmt[buero_finanzen]`: Buchung für Max 403, nur Mia -> 200, Auswahl aller.
+- `test_v437::test_einsatzbericht_mitarbeiterfeld_im_markup_nur_wer_fuer_andere_bucht[buero_finanzen]`: Feld verborgen -> sichtbar; neu: die
+  Felder zum Buchen für Büro – Auftrag verborgen, Hinweis da.
+- `test_v462` (zwei Tests), `test_v485::_buero` und `…ohne_buchungskarte`, `test_v504::_buero`: das Büro, das eine Dauer bucht, Büro – Auftrag ->
+  Büro – Finanzen (nur Aufbau).
+- `test_v300::test_backoffice_may_advance_but_only_admin_may_reopen_or_clear`: Büro – Auftrag rückt vor (200) -> Büro – Finanzen rückt vor,
+  Büro – Auftrag 403.
+- `test_v109::test_time_backoffice_router_fully_uses_shared_dependency`: `_role=_role_dep` mindestens 15 -> mindestens 11 und genau 4
+  `_role=_lohn_dep`.
+- `test_v422`: jede Anfrage der Seite -- Exporte für Büro – Auftrag 200 -> 403, Kontext ohne Mitarbeiter 403 -> 200; „was der Server nur dem Admin
+  erlaubt“ aufgeteilt -- Büro – Auftrag eigene offene Buchung 200 -> 403, vorrücken 200 -> 403; neu Büro – Finanzen fremde offene Buchung 200,
+  vorrücken 200; ICH `{admin, mitarbeiter}` -> mit `buchen`, `andere`, `lohn`; `nurAdminOeffnen` für Büro – Auftrag vorhanden -> fehlt (keine
+  Ausgabe).
+- `klicktest_backoffice_buero`: Bea (Büro – Auftrag) ändert die eigene Buchung, exportiert (200) und rückt vor -> liest nur („nur lesen“, kein
+  Kontext, keine Personalnummern, keine Ausgabe, Exporte 403); Fin (Büro – Finanzen) alle „nur Admin“, kein Kontext -> bearbeitet Mias Buchung,
+  exportiert (200), rückt vor, Zurücknehmen abgelehnt, 412 px; 28 Prüfungen.
+- `klicktest_monteur_dachflaechen`: Büro – Finanzen ohne Auswahl „Mitarbeiter“, bucht für sich -> mit Auswahl aller, bucht für Max; neu Büro –
+  Auftrag ohne Felder zum Buchen, mit Hinweis und der Zeit von Max; 13 -> 14 Prüfungen (rot im ersten Lauf vor dem Commit, die alte Erwartung).
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück): Büro – Finanzen nicht in `ZEIT_FUER_ANDERE_ROLLEN` -> 9 Tests und 6 Prüfungen des
+Klicktests rot; Büro – Auftrag in `ZEIT_BUCHEN_ROLLEN` -> 5 Tests rot; Büro – Auftrag in `LOHNDATEN_ROLLEN` -> 5 Tests und 3 Prüfungen rot;
+`EmployeeOut` ab Büro – Auftrag (`app/routers/employees.py`) -> der Schlüssel-Scan rot; Reiter der Ausgabe für jedes Büro -> 1 Test und 1 Prüfung
+rot -- je FAILED, nicht ERROR.

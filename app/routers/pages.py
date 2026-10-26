@@ -23,7 +23,7 @@ from ..concern_notices import OPEN_CONCERNS_TEXT
 from ..database import get_db
 from ..deps import require_admin
 from ..models import AppUser
-from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, darf_zeit_fuer_andere_buchen, default_home_page_for_role, has_min_role, has_role, require_min_role, zeit_nur_mit_von_bis
+from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, ZEITEN_NUR_LESEN, darf_lohndaten, darf_zeit_buchen, darf_zeit_fuer_andere_buchen, default_home_page_for_role, has_min_role, has_role, require_min_role, zeit_nur_mit_von_bis
 from .. import seitendaten
 from ..design_dateien import pruefsumme as ds_pruefsumme
 from ..version import APP_VERSION
@@ -380,7 +380,9 @@ def time_tracking_page(request: Request, _role: AppUser = _any_role_dep):
     if _role.role == ROLE_FIELD:
         auftrag = request.query_params.get("order_id") or ""
         return RedirectResponse(url=f"/mobil/zeiten?order_id={int(auftrag)}" if auftrag.isdigit() else "/mobil/zeiten", status_code=302)
-    return templates.TemplateResponse(request=request, name="time_tracking.html", context={})
+    # seit 1.9.89 (Stufe 4, R5a): wer nur liest (Büro – Auftrag), bekommt die Seite ohne Buchen und Ändern
+    return templates.TemplateResponse(request=request, name="time_tracking.html",
+                                      context={"zeit_buchen": darf_zeit_buchen(_role), "zeiten_nur_lesen": ZEITEN_NUR_LESEN})
 
 
 time_tracking_page.dk_ohne_seite = lambda user, request: user is not None and user.role == ROLE_FIELD  # seit 1.9.59, siehe login_page
@@ -388,7 +390,10 @@ time_tracking_page.dk_ohne_seite = lambda user, request: user is not None and us
 
 @router.get("/time-backoffice", response_class=HTMLResponse)
 def time_backoffice_page(request: Request, _role: AppUser = _role_dep):
-    return templates.TemplateResponse(request=request, name="time_backoffice.html", context={})
+    # seit 1.9.89 (Stufe 4, R5a): was das Konto an Zeiten und Lohndaten darf (app/permissions.py) -- die Seite bietet nur das an
+    return templates.TemplateResponse(request=request, name="time_backoffice.html",
+                                      context={"zeit_buchen": darf_zeit_buchen(_role), "zeit_fuer_andere": darf_zeit_fuer_andere_buchen(_role),
+                                               "lohndaten": darf_lohndaten(_role), "zeiten_nur_lesen": ZEITEN_NUR_LESEN})
 
 
 # Seit 1.8.135: Zurück-Links der Formularseiten mit echtem Ziel und Namen (bis dahin history.back(), nach direktem Aufruf ins Leere, und
@@ -566,7 +571,8 @@ def service_reports_page(request: Request, order_id: int, _role: AppUser = _any_
         return RedirectResponse(url=f"/service-reports/{bericht}", status_code=302)
     return templates.TemplateResponse(request=request, name="service_reports.html",
                                       context={"order_id": order_id, "zeit_fuer_andere_buchen": darf_zeit_fuer_andere_buchen(_role),
-                                               "zeit_nur_mit_von_bis": zeit_nur_mit_von_bis(_role)})  # seit 1.9.60
+                                               "zeit_nur_mit_von_bis": zeit_nur_mit_von_bis(_role),  # seit 1.9.60
+                                               "zeit_buchen": darf_zeit_buchen(_role), "zeiten_nur_lesen": ZEITEN_NUR_LESEN})  # seit 1.9.89
 
 
 service_reports_page.dk_ohne_seite = lambda user, request: _bericht_aus_adresse(request) is not None  # seit 1.9.67, siehe login_page

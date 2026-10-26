@@ -26,7 +26,8 @@ def _monteurin(w):
 
 
 def _buero(w):
-    return w["client"](w["db"], time_tracking_router.router, role="buero_auftrag", employee_id=w["tom"].id)
+    # seit 1.9.89 Büro – Finanzen: Büro – Auftrag liest die Zeiten nur (app/permissions.py::darf_zeit_buchen)
+    return w["client"](w["db"], time_tracking_router.router, role="buero_finanzen", employee_id=w["tom"].id)
 
 
 def _neu(emp, w, **mehr):
@@ -86,7 +87,7 @@ def test_einsatzbericht_monteurin_ohne_buchungskarte(welt):  # noqa: F811
     auf „Meine Zeiten“ (dort nur Von und Bis); das Büro bucht wie bisher eine Dauer. Bis 1.9.66 zeigte die Karte der Monteurin Von und Bis."""
     def seite(rolle):
         return welt["client"](welt["db"], pages_router.router, role=rolle).get(f"/orders/{welt['order'].id}/service-reports").text
-    monteurin, buero = seite("field"), seite("buero_auftrag")
+    monteurin, buero = seite("field"), seite("buero_finanzen")  # seit 1.9.89: Büro – Auftrag sieht die Felder zum Buchen nicht
     assert 'id="teHoursField"' not in monteurin and 'id="zeitNachtragen"' in monteurin
     assert {name: bool(re.search(rf'id="{name}"[^>]* hidden', buero)) for name in ("teHoursField", "teVonField", "teBisField")} == {
         "teHoursField": False, "teVonField": True, "teBisField": True}

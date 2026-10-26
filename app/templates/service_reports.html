@@ -154,9 +154,13 @@ a{color:var(--ds-link)}
 {% else %}
 <div class="card">
   <h2>Erfasste Zeiten zu diesem Auftrag</h2>
+  {# Seit 1.9.89 (Stufe 4, R5a): wer nur liest (app/permissions.py::darf_zeit_buchen, Büro – Auftrag), sieht die Zeiten ohne die Felder
+     zum Buchen -- das Skript erkennt den Monteursrahmen weiter an #teHours, die Felder bleiben deshalb im Markup #}
+  {% if not zeit_buchen %}<p class="muted" id="zeitNurLesen" style="margin:0 0 10px">{{ zeiten_nur_lesen }}</p>{% endif %}
+  <div id="zeitBuchen"{% if not zeit_buchen %} style="display:none"{% endif %}>
   <div class="fields-2col" style="margin-bottom:10px">
     {# Seit 1.8.143 Monteure, seit 1.8.152 jeder, der nicht für andere buchen darf (app/permissions.py::darf_zeit_fuer_andere_buchen,
-       heute nur Admin): keine Auswahl, gebucht wird für sich -- schon im Markup verborgen, das Skript setzt dasselbe #}
+       seit 1.9.89 Admin und Büro – Finanzen): keine Auswahl, gebucht wird für sich -- schon im Markup verborgen, das Skript setzt dasselbe #}
     <div class="field" id="teEmployeeField"{% if not zeit_fuer_andere_buchen %} hidden{% endif %}><label>Mitarbeiter</label><select id="teEmployee"></select></div>
     <div class="field"><label>Datum</label><input id="teDate" type="date"></div>
     <div class="field"><label>Zeitart</label><select id="teType"></select></div>
@@ -172,6 +176,7 @@ a{color:var(--ds-link)}
   <div class="editor-actions" style="margin-bottom:10px">
     <button type="button" data-klick="zeit-buchen">Zeit buchen</button>
     <span id="teStatus" class="status"></span>
+  </div>
   </div>
   <div id="timeEntriesTable"></div>
 </div>
@@ -202,7 +207,8 @@ let roofAreasForOrder=[],inspectionTemplates=[],orderData=null,timeEntryTypes=[]
 async function safeOptionGroup(key){try{return await api(`/api/settings/option-groups/${key}`)}catch(e){console.warn('Option group',key,e);return {options:[]}}}
 function optionsHtml(list,selected){return '<option value="">— keine Auswahl —</option>'+(list||[]).filter(o=>o.active!==false).map(o=>`<option value="${esc(o.value)}" ${o.value===selected?'selected':''}>${esc(o.label)}</option>`).join('')}
 
-// Für sich buchen (seit 1.8.143 Monteure, seit 1.8.152 jeder, der laut Server nicht für andere buchen darf -- heute alle außer Admin):
+// Für sich buchen (seit 1.8.143 Monteure, seit 1.8.152 jeder, der laut Server nicht für andere buchen darf -- seit 1.9.89 alle außer Admin
+// und Büro – Finanzen):
 // keine Auswahl "Mitarbeiter", fest die eigene Person. Die Regel kommt vom Server (/api/auth/status, zeit_fuer_andere_buchen aus
 // app/permissions.py::darf_zeit_fuer_andere_buchen()), dieselbe, nach der er eine Buchung für andere ablehnt.
 function nurFuerSichBuchen(){return !(authStatus&&authStatus.user&&authStatus.user.zeit_fuer_andere_buchen)}

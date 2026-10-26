@@ -113,11 +113,40 @@ def hat_monteursansicht(user: AppUser | None) -> bool:
     return has_role(user, *MOBIL_ROLLEN)
 
 
+# Seit 1.9.89 (Stufe 4, R5a, Entscheidungen Tobias): die Rechte an den Zeiten, je Recht eine Regel an dieser Stelle -- Server
+# (app/routers/time_tracking.py, app/routers/time_backoffice.py) und Oberfläche fragen nur diese Funktionen bzw. Abhängigkeiten.
+# - Zeiten anderer buchen, ändern, löschen, „Ende nachtragen“, „Pausen neu rechnen“: Admin und Büro – Finanzen (bis 1.9.88 nur Admin);
+#   im abgeschlossenen Zeitraum weiter nur der Admin (time_tracking._require_open_period()), Anträge entscheiden der Admin.
+# - Überhaupt Zeiten buchen oder ändern: die Monteurin (nur ihre eigenen) und wer für andere bucht. Büro – Auftrag liest die Zeiten
+#   aller und ändert nichts -- auch keine eigenen (Entscheidung: das Büro erfasst keine eigene Zeit).
+# - Lohndaten -- Stundenzettel aller, Stundendaten als CSV, DATEV-Export, Abschließen: Admin und Büro – Finanzen; einen Abschluss
+#   zurücknehmen oder aufheben nur der Admin.
+ZEIT_FUER_ANDERE_ROLLEN = frozenset({ROLE_ADMIN, ROLE_OFFICE_FINANZEN})
+ZEIT_BUCHEN_ROLLEN = ZEIT_FUER_ANDERE_ROLLEN | {ROLE_FIELD}
+LOHNDATEN_ROLLEN = frozenset({ROLE_ADMIN, ROLE_OFFICE_FINANZEN})
+ZEITEN_NUR_LESEN = "Zeiten buchen und ändern Admin und Büro – Finanzen – du kannst sie lesen."
+NUR_LOHNDATEN = "Stundenzettel, Exporte und den Abschluss gibt es nur für Admin und Büro – Finanzen."
+
+
 def darf_zeit_fuer_andere_buchen(user: AppUser | None) -> bool:
     """Seit 1.8.152: wer Zeit für andere bucht oder deren Buchungen ändert -- die eine Stelle für den Server
     (app/routers/time_tracking.py) und die Oberfläche (Auswahl "Mitarbeiter" im Einsatzbericht, über /api/auth/status und die
-    Seitenroute). Heute nur Admin; ohne Konto (Tests ohne Anmeldung) wie bisher ohne Einschränkung."""
-    return user is None or has_role(user, ROLE_ADMIN)
+    Seitenroute). Seit 1.9.89 Admin und Büro – Finanzen (bis dahin nur Admin); ohne Konto (Tests ohne Anmeldung) wie bisher ohne
+    Einschränkung."""
+    return user is None or has_role(user, *ZEIT_FUER_ANDERE_ROLLEN)
+
+
+def darf_zeit_buchen(user: AppUser | None) -> bool:
+    """Seit 1.9.89: wer überhaupt Zeiten bucht, startet, stoppt, ändert oder löscht -- die Monteurin ihre eigenen, nach
+    darf_zeit_fuer_andere_buchen() auch die anderer. Büro – Auftrag liest nur (bis 1.9.88 buchte es eigene Zeiten). Die Endpunkte prüfen
+    es über require_zeit_buchen, die Oberfläche blendet danach aus."""
+    return user is None or has_role(user, *ZEIT_BUCHEN_ROLLEN)
+
+
+def darf_lohndaten(user: AppUser | None) -> bool:
+    """Seit 1.9.89: Stundenzettel aller, Stundendaten als CSV, DATEV-Export und Abschließen -- Admin und Büro – Finanzen (bis 1.9.88
+    jedes Büro). Die Endpunkte prüfen es über require_lohndaten, die Oberfläche blendet danach aus."""
+    return user is None or has_role(user, *LOHNDATEN_ROLLEN)
 
 
 def zeit_nur_mit_von_bis(user: AppUser | None) -> bool:
@@ -194,6 +223,11 @@ def require_min_role(min_role: str, *, message: str = _DEFAULT_MESSAGE):
 
     _dependency._dk_roles = allowed
     return _dependency
+
+
+# Seit 1.9.89: die Abhängigkeiten zu darf_zeit_buchen() und darf_lohndaten() oben -- dieselben Rollenmengen, eine Stelle.
+require_zeit_buchen = require_role(*ZEIT_BUCHEN_ROLLEN, message=ZEITEN_NUR_LESEN)
+require_lohndaten = require_role(*LOHNDATEN_ROLLEN, message=NUR_LOHNDATEN)
 
 
 # Vollständigkeits-Ausnahmen für tests/test_v260_role_audit.py -- bewusst kurz und einzeln

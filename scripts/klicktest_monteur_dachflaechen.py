@@ -7,8 +7,9 @@ weiter funktioniert, so wie der Monteur sie sieht:
     Berichtsseite      die Dachfläche kommt ohne Notiz, Fremdfirma, Gewährleistung, Kunden-ID an
     Bericht anlegen    die Fläche steht in der Auswahl, ein Wartungsbericht mit ihr entsteht und
                        trägt sie (Prüfpunkte aus der Vorlage des Dachtyps)
-    Zeit buchen        seit 1.9.67 die Monteurin nicht mehr hier („Zeit nachtragen“ auf „Meine Zeiten“, bis 1.9.66 mit Von und Bis),
-                       das Büro mit Stunden für sich, der Admin mit Auswahl
+    Zeit buchen        seit 1.9.67 die Monteurin nicht mehr hier („Zeit nachtragen“ auf „Meine Zeiten“, bis 1.9.66 mit Von und Bis);
+                       seit 1.9.89 Büro – Finanzen wie der Admin mit Auswahl (bis 1.9.88 nur für sich), Büro – Auftrag liest nur (keine
+                       Felder zum Buchen, Hinweis)
 
 AUFRUF (aus dem Projektordner):
 
@@ -68,8 +69,10 @@ def befuellen(db, k):
     db.add(bea_m); db.flush()
     bea = AppUser(username="bea", display_name="Bea Büro", role="buero_finanzen", employee_id=bea_m.id, password_hash=k.passwort())
     ada = AppUser(username="ada", display_name="Ada Admin", role="admin", password_hash=k.passwort())
-    db.add_all([bea, ada]); db.commit()
-    return {"auftrag": auftrag.id, "cookies": {"monteur": k.cookies(monteur), "buero": k.cookies(bea), "admin": k.cookies(ada)}}
+    bert = AppUser(username="bert", display_name="Bert Auftrag", role="buero_auftrag", password_hash=k.passwort())  # seit 1.9.89
+    db.add_all([bea, ada, bert]); db.commit()
+    return {"auftrag": auftrag.id, "cookies": {"monteur": k.cookies(monteur), "buero": k.cookies(bea), "admin": k.cookies(ada),
+                                               "auftrag": k.cookies(bert)}}
 
 
 async def pruefen(tab, seed, p):
@@ -104,18 +107,29 @@ async def pruefen(tab, seed, p):
     p.pruefe("JS-Fehler", tab.fehler, [])
     await tab.bild("monteurin_ohne_buchungskarte")
 
-    # Seit 1.8.152: die Auswahl nur, wer laut Server für andere bucht (heute Admin); das Büro bucht für sich wie der Monteur
+    # Seit 1.8.152: die Auswahl nur, wer laut Server für andere bucht -- seit 1.9.89 Admin und Büro – Finanzen (bis dahin buchte Büro –
+    # Finanzen ohne Auswahl für sich)
     await tab.anmelden(seed["cookies"]["buero"])
-    await tab.oeffnen(f"/orders/{auftrag}/service-reports", "document.getElementById('teEmployee').options.length>0")
-    p.pruefe("Büro: Feld Mitarbeiter verborgen", await tab.js("getComputedStyle(document.getElementById('teEmployeeField')).display"), "none")
-    p.pruefe("Büro: nur die eigene Person",
-             await tab.js("[...document.getElementById('teEmployee').options].map(o=>o.textContent).join('|')"), "Bea Büro")
-    await tab.js("document.getElementById('teHours').value='1'")
+    await tab.oeffnen(f"/orders/{auftrag}/service-reports", "document.getElementById('teEmployee').options.length>1")
+    p.pruefe("Büro – Finanzen: Auswahl sichtbar", await tab.js("getComputedStyle(document.getElementById('teEmployeeField')).display")!="none", True)
+    p.pruefe("Büro – Finanzen: alle aktiven zur Wahl",
+             await tab.js("[...document.getElementById('teEmployee').options].map(o=>o.textContent).join('|')"),
+             "— nicht zugeordnet —|Bea Büro|Max Monteur")
+    await tab.js("(()=>{const s=document.getElementById('teEmployee');s.value=[...s.options].find(o=>o.textContent==='Max Monteur').value;"
+                 "document.getElementById('teHours').value='1'})()")
     await tab.warte_auf_neu_geladene_liste("document.querySelector('[data-klick=zeit-buchen]').click()",  # seit 1.9.67 data-klick
                                            "#timeEntriesTable")
-    p.pruefe("Büro: gebucht für sich", await tab.js(
+    p.pruefe("Büro – Finanzen: für Max gebucht", await tab.js(
         f"fetch('/api/time-entries?order_id={auftrag}').then(r=>r.json()).then(j=>j.map(e=>e.employee_name).sort().join('|'))"),
-        "Bea Büro")  # seit 1.9.67 bucht die Monteurin hier nicht mehr
+        "Max Monteur")  # seit 1.9.67 bucht die Monteurin hier nicht mehr
+    # Seit 1.9.89: Büro – Auftrag liest nur -- die Felder zum Buchen verborgen, statt dessen der Hinweis, die Zeiten stehen da
+    await tab.anmelden(seed["cookies"]["auftrag"])
+    await tab.oeffnen(f"/orders/{auftrag}/service-reports", "document.querySelector('#timeEntriesTable table')")
+    p.pruefe("Büro – Auftrag: keine Felder zum Buchen, Hinweis, die Zeit von Max", [
+        await tab.js("getComputedStyle(document.getElementById('zeitBuchen')).display"),
+        await tab.js("document.getElementById('zeitNurLesen').innerText"),
+        await tab.js("document.getElementById('timeEntriesTable').innerText.includes('Max Monteur')")],
+        ["none", "Zeiten buchen und ändern Admin und Büro – Finanzen – du kannst sie lesen.", True])
     await tab.anmelden(seed["cookies"]["admin"])
     await tab.oeffnen(f"/orders/{auftrag}/service-reports", "document.getElementById('teEmployee').options.length>1")
     p.pruefe("Admin: Auswahl sichtbar", await tab.js("getComputedStyle(document.getElementById('teEmployeeField')).display")!="none", True)

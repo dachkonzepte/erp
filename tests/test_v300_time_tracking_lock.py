@@ -33,9 +33,12 @@ def _entry(employee_id, order_id, work_date):
 
 
 def test_backoffice_may_advance_but_only_admin_may_reopen_or_clear(threaded_db_session, router_test_client):
+    """Seit 1.9.89 (Stufe 4, R5a) rückt Büro – Finanzen vor (bis dahin jedes Büro), Büro – Auftrag gar nicht."""
     db = threaded_db_session
-    office = router_test_client(db, backoffice_router, role="buero_auftrag")
+    office = router_test_client(db, backoffice_router, role="buero_finanzen")
     admin = router_test_client(db, backoffice_router, role="admin")
+    assert router_test_client(db, backoffice_router, role="buero_auftrag").put(
+        "/api/time-backoffice/lock", json={"locked_until": LOCK.isoformat()}).status_code == 403
 
     assert office.put("/api/time-backoffice/lock", json={"locked_until": LOCK.isoformat()}).status_code == 200
     later = (LOCK + timedelta(days=3)).isoformat()

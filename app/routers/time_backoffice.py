@@ -14,6 +14,10 @@ backoffice_summary()/build_timesheet_pdf()/build_time_csv() zeigen ausschließli
 build_datev_export()s "Lohnart" ist eine DATEV-Buchungskategorie (Zeitart-zu-Buchungscode-
 Zuordnung), kein €-Betrag. Kein einziges €-Vergütungsfeld in dieser Datei -- nichts zu
 verengen, die gesamte Datei hebt sich deshalb einheitlich auf buero_auftrag.
+
+Seit 1.9.89 (Stufe 4, R5a, Entscheidung Tobias): die Lohndaten -- Stundenzettel aller, Stundendaten als CSV, DATEV-Export,
+Abschließen -- nur für Admin und Büro – Finanzen (require_lohndaten, app/permissions.py); einen Abschluss zurücknehmen oder aufheben
+weiter nur der Admin. Die Übersicht (Stunden je Mitarbeiter), Zeitmodelle und Personalnummern bleiben dem Büro.
 """
 
 from datetime import date
@@ -24,7 +28,7 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, require_min_role
+from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, require_lohndaten, require_min_role
 from ..schemas import EmployeePayrollSettingsOut, EmployeePayrollSettingsUpdate, EmployeeWorkTimeModelBulkUpdate, EmployeeWorkTimeModelUpdate, TimeTrackingLockUpdate, TimeTrackingSettingsOut, TimeTrackingSettingsUpdate, WorkTimeModelUpsert
 from ..time_backoffice import backoffice_summary, build_datev_export, build_time_csv, build_timesheet_pdf, load_time_settings, payroll_rows, set_employee_payroll, set_time_lock, time_settings_dict, update_time_settings
 from ..work_time_models import bulk_set_employee_model, delete_model as delete_work_time_model, employee_model_rows, list_models as list_work_time_models, save_model as save_work_time_model, set_employee_model
@@ -32,6 +36,7 @@ from ..work_time_models import bulk_set_employee_model, delete_model as delete_w
 router = APIRouter()
 
 _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG, message="Das Zeiterfassungs-Backoffice ist nur für Büro und Administratoren verfügbar."))
+_lohn_dep = Depends(require_lohndaten)  # seit 1.9.89: Admin und Büro – Finanzen
 
 
 @router.get("/api/time-backoffice/settings", response_model=TimeTrackingSettingsOut)
@@ -49,10 +54,9 @@ def put_time_backoffice_settings(payload: TimeTrackingSettingsUpdate, db: Sessio
 
 
 @router.put("/api/time-backoffice/lock", response_model=TimeTrackingSettingsOut)
-def put_time_lock(payload: TimeTrackingLockUpdate, db: Session = Depends(get_db, scope="function"), _role=_role_dep):
-    """Abschluss der Zeiterfassung (seit 1.7.10). Vorrücken darf das Backoffice; zurücknehmen
-    oder aufheben öffnet bereits abgerechnete Zeiträume wieder und bleibt deshalb dem Admin
-    vorbehalten."""
+def put_time_lock(payload: TimeTrackingLockUpdate, db: Session = Depends(get_db, scope="function"), _role=_lohn_dep):
+    """Abschluss der Zeiterfassung (seit 1.7.10). Vorrücken darf seit 1.9.89 Admin und Büro – Finanzen (bis dahin jedes Büro);
+    zurücknehmen oder aufheben öffnet bereits abgerechnete Zeiträume wieder und bleibt deshalb dem Admin vorbehalten."""
     current = load_time_settings(db).locked_until
     reopens = current is not None and (payload.locked_until is None or payload.locked_until < current)
     if reopens and _role.role != ROLE_ADMIN:
@@ -124,21 +128,21 @@ def get_time_backoffice_summary(start_date: date, end_date: date, employee_id: i
 
 
 @router.get("/api/time-backoffice/timesheet.pdf")
-def export_time_sheet_pdf(start_date: date, end_date: date, employee_id: int | None = None, db: Session = Depends(get_db, scope="function"), _role=_role_dep):
+def export_time_sheet_pdf(start_date: date, end_date: date, employee_id: int | None = None, db: Session = Depends(get_db, scope="function"), _role=_lohn_dep):
     data=build_timesheet_pdf(db,start_date,end_date,employee_id)
     filename=f"Stundenzettel_{start_date.isoformat()}_{end_date.isoformat()}.pdf"
     return Response(content=data,media_type="application/pdf",headers={"Content-Disposition":f'attachment; filename="{filename}"'})
 
 
 @router.get("/api/time-backoffice/timesheet.csv")
-def export_time_sheet_csv(start_date: date, end_date: date, employee_id: int | None = None, db: Session = Depends(get_db, scope="function"), _role=_role_dep):
+def export_time_sheet_csv(start_date: date, end_date: date, employee_id: int | None = None, db: Session = Depends(get_db, scope="function"), _role=_lohn_dep):
     data=build_time_csv(db,start_date,end_date,employee_id)
     filename=f"Stunden_{start_date.isoformat()}_{end_date.isoformat()}.csv"
     return Response(content=data,media_type="text/csv; charset=utf-8",headers={"Content-Disposition":f'attachment; filename="{filename}"'})
 
 
 @router.get("/api/time-backoffice/datev-export")
-def export_datev_payroll(start_date: date, end_date: date, db: Session = Depends(get_db, scope="function"), _role=_role_dep):
+def export_datev_payroll(start_date: date, end_date: date, db: Session = Depends(get_db, scope="function"), _role=_lohn_dep):
     data,ext,warnings=build_datev_export(db,start_date,end_date)
     filename=f"DATEV_Lohndaten_{start_date.strftime('%Y-%m')}.{ext}"
     media="text/plain; charset=windows-1252" if ext=="txt" else "text/csv; charset=utf-8"
