@@ -9,7 +9,8 @@
      Dunkelmodus, unabhängig von hochgeladenen Logos -- bis dahin Logo der Leiste bzw. Firmenlogo aus sidebar_logo_url(), sonst ein Dach
      auf marke-hell), daneben „DACHKONZEPTE“ / „Rödchen GmbH · ERP“. Die einstellbare Höhe des Logos (sidebar_logo_height_px) wirkt hier
      nicht mehr: die Kachel ist fest.
-   - Vier Gruppen: Übersicht · Aufträge · Kaufmännisch (mit Zeiterfassung und Backoffice) · Verwaltung (Stammdaten, Einstellungen);
+   - Vier Gruppen: Übersicht · Aufträge · Kaufmännisch (mit „Zeiten“, seit 1.9.98 statt Zeiterfassung und Backoffice) · Verwaltung
+     (Stammdaten, Einstellungen);
      eine Überschrift nur, wo die Rolle etwas sieht. Zeilen 36 px, Schrift 14 px, Symbole 18 px; Befunde eingerückt unter Wartungen.
    - Aktiv ist der Eintrag des Bereichs der Seite (data-bereich == bereich), nicht mehr die genaue Adresse: navi-aktiv mit 3 px Strich
      links in marke-hell, aria-current="page"; Schrift normal 500, aktiv 600 (seit 1.8.166, bis dahin auch aktiv 500). Seit 1.8.169
@@ -125,9 +126,9 @@
     <a class="app-sidebar-link{{ ' active' if _bereich == 'betriebskosten' }}" data-bereich="betriebskosten" href="/betriebskosten"{% if _bereich == 'betriebskosten' %} aria-current="page"{% endif %}><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M17 5.5c0-1.8-2.2-2.8-5-2.8s-5 1.2-5 3c0 4 10 2 10 6.3 0 1.8-2.2 3-5 3s-5-1-5-2.8"/></svg></span><span class="app-sidebar-label">Betriebskosten</span></a>
     {% endif %}
     {% endif %}
-    <a class="app-sidebar-link{{ ' active' if _bereich == 'zeiterfassung' }}" data-bereich="zeiterfassung" href="/time-tracking"{% if _bereich == 'zeiterfassung' %} aria-current="page"{% endif %}><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.3"/><polyline points="12,7.3 12,12 15.3,14"/></svg></span><span class="app-sidebar-label">Zeiterfassung</span></a>
+    {# seit 1.9.98 (Stufe 4, R5b) ein Eintrag „Zeiten“ statt „Zeiterfassung“ und „Backoffice“ -- die alten Adressen leiten weiter #}
+    <a class="app-sidebar-link{{ ' active' if _bereich == 'zeiten' }}" data-bereich="zeiten" href="/zeiten"{% if _bereich == 'zeiten' %} aria-current="page"{% endif %}><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.3"/><polyline points="12,7.3 12,12 15.3,14"/></svg></span><span class="app-sidebar-label">Zeiten</span></a>
     {% if sb_buero %}
-    <a class="app-sidebar-link{{ ' active' if _bereich == 'backoffice' }}" data-bereich="backoffice" href="/time-backoffice"{% if _bereich == 'backoffice' %} aria-current="page"{% endif %}><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><rect x="5.5" y="3" width="13" height="18"/><line x1="8" y1="7.5" x2="16" y2="7.5"/><line x1="8" y1="11.5" x2="16" y2="11.5"/><line x1="8" y1="15.5" x2="13" y2="15.5"/></svg></span><span class="app-sidebar-label">Backoffice</span></a>
     <div class="app-sidebar-group">Verwaltung</div>
     <a class="app-sidebar-link{{ ' active' if _bereich == 'stammdaten' }}" data-bereich="stammdaten" href="/master-data"{% if _bereich == 'stammdaten' %} aria-current="page"{% endif %}><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6.3" rx="8" ry="2.8"/><path d="M4 6.3v5.7c0 1.55 3.58 2.8 8 2.8s8-1.25 8-2.8V6.3"/><path d="M4 12v5.7c0 1.55 3.58 2.8 8 2.8s8-1.25 8-2.8V12"/></svg></span><span class="app-sidebar-label">Stammdaten</span></a>
     <a class="app-sidebar-link{{ ' active' if _bereich == 'einstellungen' }}" data-bereich="einstellungen" href="/settings"{% if _bereich == 'einstellungen' %} aria-current="page"{% endif %}><span class="app-sidebar-icon"><svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><circle class="fdot" cx="9" cy="7" r="1.7"/><line x1="4" y1="12.5" x2="20" y2="12.5"/><circle class="fdot" cx="15" cy="12.5" r="1.7"/><line x1="4" y1="18" x2="20" y2="18"/><circle class="fdot" cx="7" cy="18" r="1.7"/></svg></span><span class="app-sidebar-label">Einstellungen</span></a>

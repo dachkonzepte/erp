@@ -2,8 +2,9 @@
 
 Geprüft über die echten Seiten als Admin:
 
-    Backoffice     Buchung der ausgeschiedenen Bernd auf einem abgeschlossenen Auftrag: der Auftrag bleibt
-                   vorgewählt ("(abgeschlossen)"), Speichern gelingt und behält ihn
+    Zeiten         Buchung der ausgeschiedenen Bernd auf einem abgeschlossenen Auftrag im Dialog „Buchung ändern“ (seit 1.9.98, bis
+                   dahin die Korrektur im Backoffice): der Auftrag bleibt vorgewählt ("(Auftrag abgeschlossen)"), Speichern gelingt
+                   und behält ihn
     Angebot        archivierter Steuerschlüssel vorgewählt "(inaktiv)"; leerer Schlusstext 2 bleibt leer, auch nach
                    dem Speichern des Kopfs; Position ohne Einheit zeigt "— keine Einheit —"
     Auftrag,       archivierter Steuerschlüssel vorgewählt "(inaktiv)"
@@ -107,24 +108,24 @@ async def pruefen(tab, seed, p):
     await tab.anmelden(seed["cookies"]["anna"])
     await tab.fenster(1400, 900)
 
-    # --- Backoffice-Korrektur ------------------------------------------------------------------
+    # --- Zeiten, Dialog „Buchung ändern“ (seit 1.9.98; bis 1.9.97 die Korrektur im Backoffice) ----------------------------
     b = seed["buchung"]
-    await tab.oeffnen("/time-backoffice#entries", f"entries.some(e=>e.id==={b})")
-    await tab.js(f"openEdit({b})")
-    p.pruefe("Backoffice: abgeschlossener Auftrag vorgewählt", await tab.js(_gewaehlt("editOrder")),
-             [str(seed["erledigt"]), "AU-KT-0002 · Gaube (abgeschlossen)"])
-    p.pruefe("Backoffice: LV-Position vorgewählt", await tab.js("document.getElementById('editOrderItem').value"),
-             str(seed["gaube"]))
-    await tab.bild("backoffice_abgeschlossener_auftrag")
-    await tab.js("document.getElementById('editHours').value='5';saveEntryEdit()")
-    await tab.warten("!document.getElementById('editDialog').open||document.getElementById('editStatus').textContent")
-    p.pruefe("Backoffice: Speichern gelingt (Bernd ist ausgeschieden)",
-             await tab.js("document.getElementById('editStatus').textContent"), "")
-    p.pruefe("Backoffice: Auftrag, Position und Person bleiben",
+    await tab.oeffnen("/time-backoffice#entries", f"!!window.B&&!!document.querySelector('[data-buchung=\"{b}\"]')")
+    await tab.js(f"document.querySelector('[data-aktion=\"aendern\"][data-id=\"{b}\"]').click()")
+    await tab.warten("document.getElementById('buchungDialog').open&&document.getElementById('bdAuftrag').value!==''", 10)
+    p.pruefe("Zeiten: abgeschlossener Auftrag vorgewählt", await tab.js(_gewaehlt("bdAuftrag")),
+             [str(seed["erledigt"]), "AU-KT-0002 · Gaube (Auftrag abgeschlossen)"])
+    p.pruefe("Zeiten: LV-Position vorgewählt", await tab.js("document.getElementById('bdPosition').value"), str(seed["gaube"]))
+    await tab.bild("zeiten_abgeschlossener_auftrag")
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('bdStunden').value='5';document.getElementById('bdSpeichern').click()",
+                                           "#buchungenZeilen")
+    p.pruefe("Zeiten: Speichern gelingt (Bernd ist ausgeschieden)", await tab.js(
+        "[document.getElementById('buchungDialog').open,document.getElementById('bdStatus').textContent]"), [False, ""])
+    p.pruefe("Zeiten: Auftrag, Position und Person bleiben",
              await tab.js(f"fetch('/api/time-entries?limit=2000').then(r=>r.json()).then(l=>l.find(e=>e.id==={b}))"
                           ".then(e=>[e.order_id,e.order_item_id,Number(e.hours),e.employee_name])"),
              [seed["erledigt"], seed["gaube"], 5, "Bernd Bau"])
-    p.pruefe("Backoffice: JS-Fehler", tab.fehler, [])
+    p.pruefe("Zeiten: JS-Fehler", tab.fehler, [])
 
     # --- Angebot -------------------------------------------------------------------------------
     a = seed["angebot"]

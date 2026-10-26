@@ -138,7 +138,7 @@ async function loadAndRenderTasks(empId,isAdmin){
   inquiries.filter(i=>!isInquiryClosed(i)&&i.follow_up_at&&new Date(i.follow_up_at)<=new Date())
     .filter(i=>!empIdNum||(nameNeedle&&(i.assigned_to||'').toLowerCase().includes(nameNeedle)))
     .forEach(i=>rows.push({type:'Wiedervorlage',cls:'inquiry',title:i.title,sub:i.customer_name||'',due:i.follow_up_at,urgent:true,href:`/inquiries?inquiry=${i.id}`}));
-  absences.forEach(a=>rows.push({type:'Freigabe',cls:'absence',title:`Abwesenheitsantrag ${a.employee_name}`,sub:`${a.absence_type} · ${fmtDate(a.start_date)}–${fmtDate(a.end_date)}`,due:null,urgent:false,href:`/time-backoffice?absence=${a.id}#absences`}));
+  absences.forEach(a=>rows.push({type:'Freigabe',cls:'absence',title:`Abwesenheitsantrag ${a.employee_name}`,sub:`${a.absence_type} · ${fmtDate(a.start_date)}–${fmtDate(a.end_date)}`,due:null,urgent:false,href:`/zeiten?absence=${a.id}#abwesenheiten`}));
   rows.sort((a,b)=>(a.due||'9999')<(b.due||'9999')?-1:1);
   area.className='';
   area.innerHTML=rows.length?`<div class="task-list">${rows.map(r=>`<a class="task-row ${r.urgent?'urgent':''}" href="${esc(sichererLink(r.href))}"><span class="task-type ${esc(r.cls)}">${esc(r.type)}</span><span class="task-main"><span class="task-title">${esc(r.title)}</span><span class="muted small">${esc(r.sub||'')}</span></span>${r.due?`<span class="task-due">${fmtDate(r.due)}</span>`:''}</a>`).join('')}</div>`:'<div class="status ok">Keine offenen Aufgaben.</div>';

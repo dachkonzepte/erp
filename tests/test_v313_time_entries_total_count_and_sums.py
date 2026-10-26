@@ -219,7 +219,8 @@ def test_every_page_listing_time_entries_reads_total_and_shows_truncation_notice
     pages = _seiten_mit_zeitliste()
     # seit 1.9.59 ohne die Zeiterfassung der Monteurin und den Stundenzettel: „Meine Zeiten“ holt den Monat vollständig über
     # GET /api/field-view/meine-zeiten (ohne Grenze, kein Hinweis „gekürzt“)
-    assert {"service_reports.html", "project_folder.html", "time_backoffice.html", "time_tracking.html"} <= set(pages)
+    # seit 1.9.98 ohne Zeiterfassung und Backoffice: „Zeiten“ holt einen Monat vollständig (GET /api/zeiten/buchungen, Summe vom Server)
+    assert {"service_reports.html", "project_folder.html"} <= set(pages) and "zeiten.html" not in pages
     assert "mobil_zeiten.html" not in pages
     for name, (unwrapped, eingebunden, hinweis) in pages.items():
         assert not unwrapped, (name, unwrapped)  # jede Liste über fetchTimeEntries() -> X-Total-Count

@@ -81,12 +81,12 @@ a{color:var(--ds-link)}
 {% if is_module_enabled('wartungen') %}
 {# Seit 1.9.10 (Stufe 2 „Rahmen“, Runde 5): gemeinsamer Seitenkopf -- Kennung = Auftragsnummer, Untertitel = Kunde, Status des Auftrags,
    Pfad fürs Büro Projekte / Kunde / [Wartungsvertrag] / Projekt / Auftrag, für die Monteurin Heute (/mobil): Auftrag, Kunde, Projekt
-   und Vertrag sind Büro-Seiten. „Zeiterfassung (Auftrag)“ im Menü „⋮“. #}
+   und Vertrag sind Büro-Seiten. „Zeiten (Auftrag)“ im Menü „⋮“ (seit 1.9.98, bis dahin „Zeiterfassung (Auftrag)“). #}
 {% from "teile/seitenkopf.html" import seitenkopf %}
 {# seit 1.9.25: im Monteursrahmen mit den Tablet-Maßen des Kopfs (tablet) #}
 {% call(teil) seitenkopf("Einsatzberichte", untertitel="Auftrag wird geladen …", mit_pfad=true, mit_menue=true, tablet=monteursrahmen) %}
   {% if teil == "pfad" %}{% if darf_buero_seiten %}<a class="ds-kopf-pfadglied" href="/projects">Projekte</a>{% else %}<a class="ds-kopf-pfadglied" href="/mobil">Heute</a>{% endif %}
-  {% elif teil == "menue" %}<a class="ds-menue-eintrag" id="timeLink" href="/time-tracking">Zeiterfassung (Auftrag)</a>{% endif %}
+  {% elif teil == "menue" %}<a class="ds-menue-eintrag" id="timeLink" href="/zeiten">Zeiten (Auftrag)</a>{% endif %}
 {% endcall %}
 {# Seit 1.8.45: offene Bedenkenanzeige am Auftrag -- vor dem Bericht sichtbar, für Büro und Monteur. #}
 {% if is_module_enabled('checklisten') %}<div id="concernAlert" class="concern-alert" role="alert" hidden></div>{% endif %}
@@ -479,7 +479,8 @@ async function init(){
     return;
   }
   if(window.offeneBedenkenZeigen)offeneBedenkenZeigen('concernAlert',orderId);  // seit 1.8.45, läuft nebenher
-  document.getElementById('timeLink').href='/time-tracking?order_id='+orderId;
+  // seit 1.9.98: das Büro auf „Zeiten“, Reiter Buchungen mit dem Auftrag; die Monteurin auf „Meine Zeiten“ mit dem Auftrag vorgewählt
+  document.getElementById('timeLink').href=monteursrahmen?'/mobil/zeiten?order_id='+orderId:'/zeiten?auftrag='+orderId+'#buchungen';
   if(monteursrahmen)document.getElementById('zeitNachtragen').href='/mobil/zeiten?order_id='+orderId;
   const auftragGeladen=lesen('auftrag',()=>api(`/api/orders/${orderId}`),o=>{
     orderData=o;

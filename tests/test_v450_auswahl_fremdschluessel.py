@@ -36,57 +36,51 @@ def _in_select(ausdruck: str) -> str:
     return f"_wirksam('<select id=\"t\">' + {ausdruck} + '</select>', 'id=\"t\"')"
 
 
-# --- Büro-Zeiterfassung ----------------------------------------------------------------------------------------------------------
+# --- Seite „Zeiten“, Dialog „Buchung ändern“ (seit 1.9.98; bis 1.9.97 die Büro-Zeiterfassung mit openManual()) ----------------------
 
-BUERO_KONTEXT = ("ctx = {orders: [{id: 1, order_number: 'AUF-1', project_number: 'P-1', project_name: 'Halle', property_address: null, "
-                 "items: ITEMS}], employees: [{id: 5, name: 'Max', employee_number: null}], teams: [], current_employee_id: 5, is_admin: true};"
-                 "allTypes = [{value: 'site', label: 'Baustelle', active: true}]; types = allTypes; allActivities = [];"
-                 "timeSettings = {allow_manual_entries: true}; globalThis.manualDialog = _element('manualDialog');")
-BUCHUNG = {"id": 9, "employee_id": 5, "work_date": "2026-10-20", "order_id": 2, "order_number": "AUF-2", "project_number": "P-2",
-           "project_name": "Lager", "order_item_id": 7, "order_item_oz": "01.01", "order_item_text": "Dach", "entry_type": "site",
-           "activity": None, "hours": "2.00", "break_minutes": 0, "notes": ""}
+ZEITEN_KONTEXT = ("KONTEXT = {orders: ORDERS, employees: [{id: 5, name: 'Max', employee_number: null}], teams: []}; TAETIGKEITEN = []; B = null;")
+OFFEN = {"id": 1, "order_number": "AUF-1", "title": "Halle", "geschlossen": None, "items": []}
+BUCHUNG = {"id": 9, "employee_id": 5, "employee_name": "Max", "work_date": "2026-10-20", "order_id": 2, "order_number": "AUF-2",
+           "order_title": "Lager", "order_item_id": 7, "order_item_oz": "01.01", "entry_type": "site", "zeitart": "Baustelle",
+           "activity": None, "hours": "2.00", "break_minutes": 0, "min_break_minutes": 0, "notes": "", "started_at": None, "ended_at": None,
+           "booked_by_name": None, "created_at": None}
 
 
-def _buero(buchung: dict, items: str, antworten: dict):
-    ablauf = (BUERO_KONTEXT.replace("ITEMS", items) + f"await openManual({json.dumps(buchung)});"
-              "return [_feld('manualOrder'), _feld('manualItem')];")
-    return _lauf("time_tracking.html", "init().catch(", ablauf, antworten)["ergebnis"]
+def _zeiten(auftraege: list, ablauf: str):
+    return _lauf("zeiten.html", "binden();", ZEITEN_KONTEXT.replace("ORDERS", json.dumps(auftraege)) + ablauf)
 
 
 @nur_mit_node
-@pytest.mark.parametrize("stand,vermerk", [("abgeschlossen", "abgeschlossen"), ("storniert", "storniert"),
-                                           ("beauftragt", "nicht in der Auswahl")])
-def test_buero_zeiterfassung_auftrag_ausserhalb_der_auswahl(stand, vermerk):
-    """Auftrag der Buchung abgeschlossen, storniert oder nicht zugeordnet (bis 1.9.15: leere Auswahl, Speichern 422 oder Umbuchen)."""
-    antworten = {"/api/orders/2": {"id": 2, "order_number": "AUF-2", "status": stand,
-                                   "items": [{"id": 7, "gaeb_oz": "01.01", "short_text": "Dach"}]}}
-    assert _buero(BUCHUNG, "[]", antworten) == [["2", f"AUF-2 · P-2 · Lager ({vermerk})"], ["7", "01.01 · Dach"]]
+def test_buero_zeiterfassung_auftrag_ausserhalb_der_auswahl():
+    """Auftrag der Buchung nicht im Kontext (bis 1.9.15 im Büro: leere Auswahl, Speichern 422 oder Umbuchen): gewählt und gekennzeichnet,
+    die LV-Position mit ihrer Ordnungszahl."""
+    lauf = _zeiten([OFFEN], f"await buchungDialogOeffnen({json.dumps(BUCHUNG)}); return [_feld('bdAuftrag'), _feld('bdPosition')];")
+    assert lauf["ergebnis"] == [["2", "AUF-2 · Lager (nicht mehr in der Auswahl)"], ["7", "01.01 (nicht mehr in der Auswahl)"]]
 
 
 @nur_mit_node
-def test_buero_zeiterfassung_lv_position_im_ausweichweg():
-    """Ausweichweg ohne Kontext (items: null): die Positionen werden nachgeladen, die LV-Position bleibt (bis 1.9.15 still null)."""
-    buchung = dict(BUCHUNG, order_id=1, order_number="AUF-1", project_number="P-1", project_name="Halle")
-    antworten = {"/api/orders/1": {"id": 1, "order_number": "AUF-1", "status": "beauftragt",
-                                   "items": [{"id": 7, "gaeb_oz": "01.01", "short_text": "Dach"}]}}
-    assert _buero(buchung, "null", antworten) == [["1", "AUF-1 · P-1 · Halle"], ["7", "01.01 · Dach"]]
+@pytest.mark.parametrize("stand", ["abgeschlossen", "storniert"])
+def test_buero_zeiterfassung_geschlossener_auftrag_gekennzeichnet(stand):
+    """Seit 1.9.90 bekommt, wer für andere bucht, die geschlossenen Aufträge im Kontext -- gewählt, mit Kennzeichen, die Position bleibt."""
+    zu = {"id": 2, "order_number": "AUF-2", "title": "Lager", "geschlossen": stand, "items": [{"id": 7, "oz": "01.01", "short_text": "Dach"}]}
+    lauf = _zeiten([OFFEN, zu], f"await buchungDialogOeffnen({json.dumps(BUCHUNG)}); return [_feld('bdAuftrag'), _feld('bdPosition')];")
+    assert lauf["ergebnis"] == [["2", f"AUF-2 · Lager (Auftrag {stand})"], ["7", "01.01 · Dach"]]
 
 
 @nur_mit_node
 def test_buero_zeiterfassung_speichern_behaelt_auftrag_und_position():
-    antworten = {"/api/orders/2": {"id": 2, "order_number": "AUF-2", "status": "abgeschlossen",
-                                   "items": [{"id": 7, "gaeb_oz": "01.01", "short_text": "Dach"}]}}
-    ablauf = (BUERO_KONTEXT.replace("ITEMS", "[]") + f"await openManual({json.dumps(BUCHUNG)}); await saveManual();"
-              "return AUFRUFE.filter(a => a.methode === 'PUT').map(a => [a.url, a.body.order_id, a.body.order_item_id]);")
-    lauf = _lauf("time_tracking.html", "init().catch(", ablauf, antworten)
-    assert lauf["ergebnis"] == [["/api/time-entries/9", 2, 7]]
+    # Von und Bis eingetragen (die Attrappe merkt sich aria-pressed nicht, der Dialog bleibt bei „Von – Bis“)
+    lauf = _zeiten([OFFEN], f"await buchungDialogOeffnen({json.dumps(BUCHUNG)}); _element('bdVon').value='07:00'; _element('bdBis').value='09:00';"
+                            "await buchungSpeichern();"
+                            "return AUFRUFE.filter(a => a.methode === 'PUT').map(a => [a.url, a.body.order_id, a.body.order_item_id, a.body.von]);")
+    assert lauf["ergebnis"] == [["/api/time-entries/9", "2", "7", "07:00"]]
 
 
 @nur_mit_node
 def test_buero_zeiterfassung_neue_buchung_wie_bisher():
-    """Vergleichsfall: neue Buchung ohne Vorgabe -- leere Auswahl, nur die Aufträge der Auswahl."""
-    ablauf = BUERO_KONTEXT.replace("ITEMS", "[]") + "await openManual(); return _feld('manualOrder');"
-    assert _lauf("time_tracking.html", "init().catch(", ablauf)["ergebnis"] == ["", "— Auftrag / Baustelle wählen —"]
+    """Vergleichsfall: neue Buchung ohne Vorgabe -- leere Auswahl, nur die Aufträge des Kontexts."""
+    lauf = _zeiten([OFFEN], "await buchungDialogOeffnen(null); return [_feld('bdAuftrag'), _element('bdAuftrag').options.map(o => o.value)];")
+    assert lauf["ergebnis"] == [["", "— Auftrag wählen —"], ["", "1"]]
 
 
 # --- Meine Zeiten (seit 1.9.59, bis dahin die Zeiterfassung der Monteurin) -----------------------------------------------------------

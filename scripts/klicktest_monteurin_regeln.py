@@ -10,8 +10,9 @@ Befüllt: Auftrag mit Einsatz (Plantafel heute ± 7 Tage) für Mia (Monteurin) u
                           „Heute“ eintragen“; auf „Heute“ Start gesperrt, Ende leer -> „Bitte die Uhrzeit des Feierabends angeben.“, 06:00
                           -> Meldung des Servers (vor dem Start), 16:00 -> „Feierabend gestern eingetragen: anwesend 9:15 h · Pause nach
                           Zeitregel − 0:45 h · gebucht 8,50 h“, danach startet sie über die Kachel neu.
-    Anna (1400 px, hell)  Zeiterfassung für Tom: dieselbe offene Anzeige, „Ende nachtragen“ 15:30 -> gebucht mit Pause; im Verlauf (API)
-                          steht Anna.
+    Anna (1400 px, hell)  Zeiten (seit 1.9.98 statt der Zeiterfassung für Tom; /time-tracking?employee_id= leitet auf „Zeiten“ mit dem
+                          Filter): unter „Prüfen“ Toms Zeit von gestern, „Ende um“ 15:30 mit Vorschau des Servers -> „Ende eintragen“ bucht
+                          die Vorschau (Pause nach Zeitregel); im Verlauf (API) steht Anna.
     Mia (412 px, dunkel)  Einsatzbericht (seit 1.9.36): der Rapportbericht zeigt „Prüfpunkte“; am Knopf „Unterschreiben“ die Liste „Noch
                           offen vor der Unterschrift“ mit den vier Pflichtpunkten; Pflichtpunkte mit „*“ und ohne „×“, freie mit „×“;
                           „Unterschreiben“ öffnet die Unterschrift nicht, solange etwas offen ist; Pflichtpunkt löschen 409; nach dem
@@ -110,17 +111,17 @@ def befuellen(db, k):
     return {"auftrag": auftrag.id, "auftragsnummer": auftrag.order_number, "tom": tom.id, "zeiten": zeiten,
             "bericht": bericht["id"], "flaeche": flaeche["id"],
             "gestern": gestern.isoformat(), "gestern_de": f"{gestern:%d.%m.%Y}",
+            "gestern_kurz": ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"][gestern.weekday()] + f" {gestern:%d.%m.}",
             "cookies": {name: k.cookies(u) for name, u in benutzer.items()}}
 
 
 MOBIL_BEREIT = "!document.getElementById('assignmentsList').textContent.includes('Lädt')"
 ZEITEN_BEREIT = "typeof D!=='undefined'&&D&&D.tage.length>0"
-BUERO_BEREIT = "document.getElementById('activeCard').style.display==='block'"
+BUERO_BEREIT = "!!window.P&&document.getElementById('monatTitel').textContent!==''"  # seit 1.9.98 „Zeiten“
 
 
 async def pruefen(tab, seed, p):
     await tab.cmd("Page.addScriptToEvaluateOnNewDocument", source="window.alert=m=>console.error('alert(): '+m)")
-    g = seed["gestern_de"]
 
     # --- Mia: /mobil --------------------------------------------------------------------------------------------------------------
     await tab.anmelden(seed["cookies"]["mia"])
@@ -172,22 +173,32 @@ async def pruefen(tab, seed, p):
         ["Baustellenzeit seit 10:00", True])
     p.pruefe("Mia: keine JS-Fehler", tab.fehler, [])
 
-    # --- Anna: Zeiterfassung für Tom -----------------------------------------------------------------------------------------------
+    # --- Anna: Toms Zeit auf „Zeiten“ schließen (seit 1.9.98; bis 1.9.97 die Zeiterfassung für Tom mit „Ende nachtragen“) ------------
     await tab.anmelden(seed["cookies"]["anna"])
     await tab.fenster(1400, 1000)
     await tab.js("localStorage.setItem('erp_theme','light')")
     await tab.oeffnen(f"/time-tracking?employee_id={seed['tom']}", BUERO_BEREIT)
-    p.pruefe("Büro: offene Anzeige für Tom", await tab.js(
-        "['offenBlock','endeBtn','stopBtn','activeTime'].map(id=>document.getElementById(id).style.display)"),
-        ["block", "block", "none", "none"])
-    p.pruefe("Büro: Hinweis", await tab.js("document.getElementById('offenHinweis').textContent"),
-             f"Die Zeit vom {g} läuft noch (seit 06:45 Uhr). Ende an diesem Tag nachtragen.")
+    p.pruefe("Büro: /time-tracking?employee_id= führt auf „Zeiten“ mit Tom im Filter", await tab.js("location.pathname+location.search+location.hash"),
+             f"/zeiten?mitarbeiter={seed['tom']}#buchungen")
+    await tab.js("document.querySelector('.reiter a[data-reiter=pruefen]').click()")
+    t = seed["zeiten"]["tom"]
+    p.pruefe("Büro: Toms Zeit von gestern unter „Prüfen“", await tab.js(
+        f"(z=>z?[z.querySelector('.zeile-name').innerText,z.querySelector('.zeile-unter').innerText.split(' · ')[0]]:null)"
+        f"(document.querySelector('[data-offen=\"{t}\"]'))"),
+        ["Tom Monteur", f"Baustellenzeit seit {seed['gestern_kurz']}, 06:45"])
+    await tab.js(f"(()=>{{const f=document.getElementById('ende-{t}');f.value='15:30';f.dispatchEvent(new Event('input',{{bubbles:true}}));"
+                 f"f.dispatchEvent(new Event('change',{{bubbles:true}}))}})()")
+    await tab.warten(f"document.getElementById('ende-vorschau-{t}').innerText.includes('gebucht')", 10)
+    p.pruefe("Büro: Vorschau des Servers", await tab.js(f"document.getElementById('ende-vorschau-{t}').innerText"),
+             "anwesend 8:45 h · Pause nach Zeitregel − 0:30 h · gebucht 8,25 h")
     await tab.bild("5_buero_offene_zeit_hell")
-    await tab.js("document.getElementById('endeZeit').value='15:30';document.getElementById('endeBtn').click()")
-    await tab.warten("document.getElementById('quickStatus').textContent.includes('Ende nachgetragen')")
-    p.pruefe("Büro: gebucht mit Pause nach der Zeitregel", await tab.js("document.getElementById('quickStatus').textContent"),
-             f"Ende nachgetragen ({g}): gebucht 8,25 h · anwesend 8,75 h · Pause 30 min")
-    p.pruefe("Büro: keine laufende Zeit mehr", await tab.js("document.getElementById('activeCard').style.display"), "none")
+    await tab.js(f"document.querySelector('[data-aktion=ende][data-id=\"{t}\"]').click()")
+    p.pruefe("Büro: Ende eingetragen -- die Zeile ist weg", await tab.warten(f"!document.querySelector('[data-offen=\"{t}\"]')", 10), True)
+    p.pruefe("Büro: Meldung mit dem gebuchten Wert der Vorschau", await tab.js("document.getElementById('ergebnis').innerText"),
+             f"Ende eingetragen: Tom Monteur, {seed['gestern_kurz']} 06:45–15:30 · gebucht 8,25 h")
+    p.pruefe("Büro: gebucht mit Pause nach der Zeitregel (API)", await tab.js(
+        f"fetch('/api/time-entries?limit=2000').then(r=>r.json()).then(l=>l.find(e=>e.id==={t})).then(e=>[e.status,e.break_minutes,Number(e.hours)])"),
+        ["booked", 30, 8.25])
     verlauf = await tab.js(
         f"fetch('/api/audit-logs?entity_id={seed['zeiten']['tom']}&actor=Anna&limit=50').then(r=>r.ok?r.json():null)")
     felder = sorted({e.get("field_name") for e in (verlauf or []) if e.get("actor_name") == "Anna Admin"})

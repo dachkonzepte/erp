@@ -10,7 +10,8 @@ Browsers auf UTC bzw. New York (Emulation.setTimezoneOverride) -- dort ist es no
 
 - Monteur, Meine Zeiten (412 px; seit 1.9.59 statt Zeiterfassung und Stundenzettel): die Buchung von heute steht in der Liste,
   „Zeit nachtragen“ schlägt den Berliner Tag vor, der Monat der Seite ist der Berliner;
-- Büro, Zeiterfassung: `today()`; Aufgaben: fällig gestern überfällig, fällig heute nicht;
+- Büro, Zeiten (seit 1.9.98 statt der Zeiterfassung mit `today()`): „Buchung“ schlägt den Berliner Tag vor; Aufgaben: fällig gestern
+  überfällig, fällig heute nicht;
 - Plantafel: Wochenbeginn und Markierung "heute" aus dem Berliner Tag; Kalender: Ausgangstag heute.
 
 AUFRUF (aus dem Projektordner):
@@ -107,8 +108,12 @@ async def pruefen(tab, seed, p):
         # --- Büro ------------------------------------------------------------------------------------------------------
         await tab.anmelden(seed["cookies"]["anna"])
         await tab.fenster(1400, 1000)
-        await tab.oeffnen("/time-tracking", "typeof today==='function'&&ctx.orders.length>=1")
-        p.pruefe(f"{zone}: Büro today()", await tab.js("today()"), seed["heute"])
+        # seit 1.9.98 „Zeiten“ (bis 1.9.97 die Zeiterfassung: today())
+        await tab.oeffnen("/zeiten", "!!window.P&&document.getElementById('monatTitel').textContent!==''")
+        await tab.js("document.getElementById('neueBuchung').click()")
+        await tab.warten("document.getElementById('buchungDialog').open&&document.getElementById('bdDatum').value!==''", 10)
+        p.pruefe(f"{zone}: Zeiten „Buchung“ mit dem Berliner Tag", await tab.js("document.getElementById('bdDatum').value"), seed["heute"])
+        await tab.js("document.getElementById('buchungDialog').close()")
         await tab.oeffnen("/tasks", "typeof isOverdue==='function'&&document.body.innerText.includes('Fällig heute')")
         p.pruefe(f"{zone}: Aufgabe von gestern überfällig, von heute nicht", await tab.js(
             f"[isOverdue({{due_date:'{(heute - timedelta(days=1)).isoformat()}',status_is_done:false}}),"

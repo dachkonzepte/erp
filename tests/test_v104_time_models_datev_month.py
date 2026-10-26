@@ -74,14 +74,14 @@ def test_backoffice_ui_has_separate_options_work_models_and_current_month_entrie
     """Seit 1.8.112 (neue Ordnung): Arbeitszeitmodelle, Zeit-Listen und DATEV-Personalnummern stehen in den Einstellungen
     (Personal -> Zeitregeln und DATEV, Listen -> Zeitarten/Tätigkeiten/Abwesenheitsarten), das Backoffice behält die Buchungen."""
     root = Path(__file__).parents[1]
-    html = (root / "app/templates/time_backoffice.html").read_text(encoding="utf-8")
+    html = (root / "app/templates/zeiten.html").read_text(encoding="utf-8")  # seit 1.9.98 „Zeiten“ statt des Backoffice
     settings = (root / "app/templates/settings.html").read_text(encoding="utf-8")
     assert 'data-settings-section="time-rules"' in settings and 'id="workModelCards"' in settings
     assert 'data-settings-section="time-entry-types"' in settings and 'data-settings-section="absence-types"' in settings
     assert "DATEV-Personalnummer entspricht der ERP-Mitarbeiternummer" in settings
     assert 'data-tab="workmodels"' not in html and 'data-tab="options"' not in html
-    assert "currentMonthQs()" in html
-    assert "loadEntries(){const [f,t]=currentMonthRange()" in html
+    # die Buchungen eines Monats mit ‹ › (bis 1.9.97 immer der laufende Monat, unabhängig vom Filter)
+    assert "MONAT=monatPlus(MONAT,-1)" in html and "q.push('monat='+encodeURIComponent(MONAT))" in html
     assert "Sommermodell" not in html and "Sommermodell" not in settings  # Modelle kommen aus der DB, nicht hart aus dem Frontend.
 
 

@@ -173,17 +173,7 @@ ABGLEICH = [
     Z("settings.html", "id=rl${x.id}Fee", ("ReminderLevelUpdate.fee_amount",)),
     Z("settings.html", "class=start", ("NumberSequenceUpdate.start_value",), lesen=("zahlFeld(row.querySelector('.start'))",)),
     Z("settings.html", "data-feld=Nächste Nummer", ("NumberSequenceUpdate.next_value",), lesen=("zahlFeld(row.querySelector('.next'))",)),
-    # -- Zeiterfassung
-    Z("time_backoffice.html", None, ("TimeEntryUpdate.hours",), lesen=("zahlFeld('editHours')",)),
-    Z("time_tracking.html", "id=stopBreak", ("TimeTimerStop.break_minutes", "TimeGroupTimerStop.break_minutes")),
-    # seit 1.9.34 sind die Stunden im Schema optional (ein Nachtrag mit Von/Bis braucht keine) -- ohne Von/Bis verlangt sie der Validator
-    Z("time_tracking.html", "id=manualHours", ("TimeEntryManualCreate.hours", "TimeEntryUpdate.hours"), lesen=("zahlFeld('manualHours')",),
-      code={"pflicht": True}, beleg=("app/schemas.py", "Bitte die Dauer oder Von und Bis angeben.")),
-    Z("time_tracking.html", "id=manualBreak", ("TimeEntryManualCreate.break_minutes", "TimeEntryUpdate.break_minutes")),
-    # seit 1.9.63 sind die Stunden der Kolonne im Schema optional (Von/Bis braucht keine) -- ohne Von/Bis verlangt sie der Validator
-    Z("time_tracking.html", "id=groupHours", ("TimeGroupManualCreate.hours", "TimeGroupUpdate.hours"), lesen=("zahlFeld('groupHours')",),
-      code={"pflicht": True}, beleg=("app/schemas.py", "Bitte die Dauer oder Von und Bis angeben.")),
-    Z("time_tracking.html", "id=groupBreak", ("TimeGroupManualCreate.break_minutes", "TimeGroupUpdate.break_minutes")),
+    # -- Zeiterfassung und Backoffice: seit 1.9.98 ersetzt durch die Seite „Zeiten“ (zeiten.html, unten)
     # -- Meine Zeiten (seit 1.9.59, statt der Zeiterfassung der Monteurin)
     Z("mobil_zeiten.html", "id=zdPause", ("TimeEntryManualCreate.break_minutes", "TimeEntryUpdate.pause_minuten")),
     # seit 1.9.63 Von/Bis statt „Stunden je Person“, dazu „Pause mindestens“

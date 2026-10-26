@@ -87,11 +87,11 @@ def test_time_tracking_context_contains_order_items_and_mobile_ui_exists():
     assert found["items"] and found["items"][0]["short_text"]
     root=Path(__file__).parents[1]
     main=(root/"app/main.py").read_text(encoding="utf-8") + "".join(p.read_text(encoding="utf-8") for p in sorted((root/"app/routers").glob("*.py")))
-    html=(root/"app/templates/time_tracking.html").read_text(encoding="utf-8")
+    html=(root/"app/templates/zeiten.html").read_text(encoding="utf-8")  # seit 1.9.98 „Zeiten“ statt der Zeiterfassung
     project_html=(root/"app/templates/project_folder.html").read_text(encoding="utf-8")
     options=(root/"app/option_settings.py").read_text(encoding="utf-8")
     assert '/time-tracking' in main and '/api/time-entries/start' in main
-    assert 'Schnell starten' in html and 'LV-Position' in html and 'Fahrzeit' in html
+    assert 'LV-Position' in html and 'id="bdPosition"' in html and "/api/time-tracking/context" in html  # bis 1.9.97 „Schnell starten“
     assert 'time_entry_types' in options and 'time_entry_activities' in options
     # Seit 1.3.74 (Umbau der Projekt-Detailseite): kein Sprungmarken-Link mehr,
     # sondern ein echter Reiter (siehe tests/test_v064_project_folders.py für
@@ -106,9 +106,8 @@ def test_version_1_0():
 
 def test_time_tracking_ui_loads_core_data_independently_and_auth_exposes_employee_id():
     root=Path(__file__).parents[1]
-    html=(root/"app/templates/time_tracking.html").read_text(encoding="utf-8")
+    html=(root/"app/templates/zeiten.html").read_text(encoding="utf-8")  # seit 1.9.98 „Zeiten“ (bis 1.9.97 Zeiterfassung mit Ausweichwegen)
     main=(root/"app/routers/auth.py").read_text(encoding="utf-8")
-    assert "safeOptionGroup" in html
-    assert "Mitarbeiter-Fallback" in html and "Auftrags-Fallback" in html
-    assert "{{ kein_mitarbeiter|tojson }}" in html  # seit 1.8.159 die gemeinsame Meldung (app/meldungen.py) statt eigenem Text
+    # die Tätigkeiten lädt die Seite getrennt -- fehlt die Liste, bleibt der Dialog benutzbar
+    assert "api('/api/settings/option-groups/time_entry_activities').catch(function(){return {options:[]}})" in html
     assert '"employee_id"' in main and "user.employee_id" in main  # exakte Formatierung ist beim Umbau auf 2FA (1.3.34) nicht mehr identisch

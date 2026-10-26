@@ -216,11 +216,15 @@ class TestFieldTimeTrackingPageRouting:
             assert weiter.headers["location"] == "/mobil/zeiten", unsinn  # nur eine Zahl geht mit
 
     def test_office_and_admin_still_get_the_full_sidebar_template_with_group_booking(self, router_test_client, threaded_db_session):
+        """Seit 1.9.98 leitet /time-tracking das Büro auf „Zeiten“ (bis 1.9.97 die Zeiterfassung mit groupDialog) -- dort die Leiste und
+        „Kolonne buchen“."""
         from app.routers.pages import router as pages_router
         db = threaded_db_session
         for role in ("buero_auftrag", "admin"):
             client = router_test_client(db, pages_router, role=role)
-            resp = client.get("/time-tracking")
+            resp = client.get("/time-tracking", follow_redirects=False)
+            assert (resp.status_code, resp.headers["location"]) == (302, "/zeiten"), role
+            resp = client.get("/zeiten")
             assert resp.status_code == 200, role
-            assert "groupDialog" in resp.text, role
+            assert "kolonneDialog" in resp.text, role
             assert "app-sidebar" in resp.text, role

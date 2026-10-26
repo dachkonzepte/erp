@@ -8,8 +8,10 @@ Hinweis "Liste gekürzt: X von Y" (Helfer `_time_entries_list.html`) und Summen 
              Projektmappe, Reiter Zeiten (Projekt P, 1001 Buchungen, Liste 1000, Kennzahlen)
              Auftragsseite ("Rechnung aus Aufwand" wird angeboten)
              Dashboard ("Meine Stunden (Monat)")
-    Admin    Backoffice, Reiter Zeitbuchungen (laufender Monat, über 2000 Buchungen)
-             Büro-Zeiterfassung (ein Tag mit 501 Buchungen; "Heute" ohne Hinweis)
+    Admin    Zeiten, Reiter Buchungen (seit 1.9.98 statt Backoffice und Büro-Zeiterfassung, die beide hierher leiten): der
+             laufende Monat mit über 2000 Buchungen vollständig, ohne Hinweis „gekürzt“, „Summe der Auswahl“ ohne die laufende Zeit;
+             über /time-tracking?employee_id= nur Anna (ein Tag mit 501 Buchungen) -- bis 1.9.97 Backoffice mit Liste 2000 und
+             Büro-Zeiterfassung mit Liste 500, je mit Hinweis
     Monteur  Meine Zeiten (seit 1.9.59 statt Zeiterfassung und Stundenzettel): der Vormonat mit über 2000 Buchungen vollständig,
              ohne Hinweis „gekürzt“, in Handybreite
 
@@ -109,6 +111,8 @@ def befuellen(db, k):
         "anna_tag": anna_tag.isoformat(), "vormonat": vormonat.strftime("%Y-%m"),
         "karl_monat_stunden": sum(x.hours for x in rows if x.employee_id == ma["karl"].id and monat <= x.work_date <= monatsende),
         "backoffice_monat": zaehle(lambda x: monat <= x.work_date <= monatsende),
+        "monat_gebucht": sum(x.hours for x in rows if monat <= x.work_date <= monatsende and x.status == "booked"),
+        "anna_monat": zaehle(lambda x: x.employee_id == ma["anna"].id and monat <= x.work_date <= monatsende),
         "monteurin_14_tage": zaehle(lambda x: x.employee_id == ma["mia"].id and heute - timedelta(days=14) <= x.work_date <= heute),
         "monteurin_vormonat": zaehle(lambda x: x.employee_id == ma["mia"].id and vormonat <= x.work_date < monat),
     }
@@ -161,24 +165,28 @@ async def pruefen(tab, seed, p):
     p.pruefe("Dashboard: JS-Fehler", tab.fehler, [])
     await tab.bild("dashboard")
 
+    # seit 1.9.98 „Zeiten“, Reiter Buchungen (bis 1.9.97 Backoffice mit Liste 2000 und Büro-Zeiterfassung mit Liste 500, je mit Hinweis):
+    # ein Monat kommt vollständig (GET /api/zeiten/buchungen ohne Grenze), die laufende Zeit steht in der Liste, nicht in der Summe
     await tab.anmelden(seed["cookies"]["anna"])
-    await tab.oeffnen("/time-backoffice", "document.querySelectorAll('#entryRows tr').length>1 || document.body.innerText.includes('Fehler')")
-    await tab.js("typeof showTab==='function'&&showTab('entries')")
-    await asyncio.sleep(0.3)
-    p.pruefe("Backoffice: Hinweis", await tab.js(NOTICE.format(sel="'#entriesTruncated'")),
-             _gekuerzt(2000, seed["backoffice_monat"], "Stundenübersicht, Stundenzettel und Exporte enthalten alle Buchungen."))
-    p.pruefe("Backoffice: Zeilen", await tab.js("document.querySelectorAll('#entryRows tr').length"), 2000)
-    p.pruefe("Backoffice: JS-Fehler", tab.fehler, [])
-    await tab.bild("backoffice")
+    zeilen = "!!window.B&&!document.getElementById('reiter-buchungen').hidden&&document.querySelectorAll('#buchungenZeilen tr').length>0"
+    await tab.oeffnen("/time-backoffice#entries", zeilen, timeout=60)
+    summe = f"{float(seed['monat_gebucht']):.2f}".replace(".", ",") + " h"  # zahlText(): ohne Tausenderpunkt
+    p.pruefe("Zeiten (über /time-backoffice#entries): Monat vollständig, ohne Hinweis, Summe ohne die laufende Zeit", await tab.js(
+        "[location.pathname,document.querySelectorAll('#buchungenZeilen tr').length,!!document.querySelector('.time-entries-truncated'),"
+        "document.getElementById('summeAuswahl').textContent,document.querySelectorAll('#buchungenZeilen .laeuft').length]"),
+        ["/zeiten", seed["backoffice_monat"], False, summe, 1])
+    p.pruefe("Zeiten: JS-Fehler", tab.fehler, [])
+    await tab.bild("zeiten_buchungen")
 
     anna = seed["employees"]["anna"]
-    await tab.oeffnen(f"/time-tracking?employee_id={anna}", f"document.getElementById('employee')?.value=='{anna}' && document.getElementById('historyEntries')?.children.length>0")
-    await tab.js(f"document.getElementById('historyDate').value='{seed['anna_tag']}'; loadEntries()")
-    await tab.warten(f"(document.querySelector('#historyEntries .time-entries-truncated')?.textContent||'').includes('501')", 10)
-    p.pruefe("Zeiterfassung Büro: Hinweis Tag", await tab.js(NOTICE.format(sel="'#historyEntries'")), _gekuerzt(500, 501))
-    p.pruefe("Zeiterfassung Büro: Hinweis heute (keiner)", await tab.js(NOTICE.format(sel="'#todayEntries'")), "")
-    p.pruefe("Zeiterfassung Büro: JS-Fehler", tab.fehler, [])
-    await tab.bild("zeiterfassung_buero")
+    await tab.oeffnen(f"/time-tracking?employee_id={anna}", zeilen, timeout=60)
+    p.pruefe("Zeiten (über /time-tracking?employee_id=): nur Anna, ihr Tag mit 501 Buchungen vollständig", await tab.js(
+        "[location.pathname+location.search+location.hash,document.getElementById('filterMitarbeiter').value,"
+        "document.querySelectorAll('#buchungenZeilen tr').length,document.getElementById('summeAuswahl').textContent,"
+        "!!document.querySelector('.time-entries-truncated')]"),
+        [f"/zeiten?mitarbeiter={anna}#buchungen", str(anna), seed["anna_monat"], "501,00 h", False])
+    p.pruefe("Zeiten (Anna): JS-Fehler", tab.fehler, [])
+    await tab.bild("zeiten_anna")
 
     await tab.anmelden(seed["cookies"]["mia"])
     await tab.fenster(390, 844, mobil=True)

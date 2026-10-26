@@ -158,5 +158,7 @@ def test_jede_umleitung_einer_seitenroute_steht_an_der_route():
     mit_merkmal = {name for name in dir(pages) if callable(getattr(pages, name)) and hasattr(getattr(pages, name), "dk_ohne_seite")}
     # seit 1.9.59 dazu der Stundenzettel (immer) und /time-tracking (für die Monteurin) -- beide auf „Meine Zeiten“; seit 1.9.67 die
     # Auftragsseite mit ?report= (zum Bericht); seit 1.9.96 „Zeiten“ (für die Monteurin auf „Meine Zeiten“)
-    assert umleitend == {"login_page", "dashboard_page", "field_timesheet_page", "time_tracking_page", "service_reports_page", "zeiten_page"}
+    # seit 1.9.98 das Backoffice (jede Rolle auf „Zeiten“ bzw. „Meine Zeiten“)
+    assert umleitend == {"login_page", "dashboard_page", "field_timesheet_page", "time_tracking_page", "service_reports_page", "zeiten_page",
+                         "time_backoffice_page"}
     assert umleitend <= mit_merkmal

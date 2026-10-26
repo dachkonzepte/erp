@@ -23,7 +23,7 @@ BUERO = (ROLE_ADMIN, ROLE_OFFICE_FINANZEN, ROLE_OFFICE_AUFTRAG)
 SEITENLEISTE = [
     ("Übersicht", ["Start", "Aufgaben", "Kalender"]),
     ("Aufträge", ["Anfragen", "Projekte", "Plantafel", "Checklisten", "Wartungen", "Befunde"]),
-    ("Kaufmännisch", ["Finanzen", "Mahnwesen", "Eingangsrechnungen", "Betriebskosten", "Zeiterfassung", "Backoffice"]),
+    ("Kaufmännisch", ["Finanzen", "Mahnwesen", "Eingangsrechnungen", "Betriebskosten", "Zeiten"]),  # seit 1.9.98 ein Eintrag „Zeiten“
     ("Verwaltung", ["Stammdaten", "Einstellungen"]),
 ]
 
@@ -152,11 +152,12 @@ def test_jeder_menuepunkt_hat_seinen_bereich_und_fruehere_adressen_gelten():
                          "time-entry-activities": "time-lists", "absence-types": "time-lists"}
 
 
-def test_backoffice_behaelt_pruefen_abschluss_und_export():
-    html = (ROOT / "app/templates/time_backoffice.html").read_text(encoding="utf-8")
-    reiter = re.findall(r'data-tab="([a-z]+)"', html)
-    assert reiter == ["dashboard", "entries", "absences", "timesheets", "datev"]
-    assert 'id="lockDate"' in html and "downloadDatev()" in html and "downloadTimesheet('pdf')" in html
+def test_zeiten_behalten_pruefen_abschluss_und_export():
+    """Seit 1.9.98 die Seite „Zeiten“ statt des Backoffice (bis 1.9.97: Reiter dashboard, entries, absences, timesheets, datev)."""
+    html = (ROOT / "app/templates/zeiten.html").read_text(encoding="utf-8")
+    reiter = re.findall(r'data-reiter="([a-z]+)"', html)
+    assert reiter == ["pruefen", "buchungen", "abwesenheiten", "monat"]
+    assert 'id="lohnAbschliessen"' in html and 'id="lohnDatev"' in html and 'id="lohnPdf"' in html
     for weg in ("saveCoreSettings", "saveModel", "saveOption", "savePayroll", "id=\"payrollRows\""):
         assert weg not in html, weg
     # Frühere Reiter führen in die Einstellungen.

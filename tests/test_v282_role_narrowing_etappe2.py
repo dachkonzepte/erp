@@ -325,11 +325,15 @@ def test_master_data_page_hides_compensation_from_buero_auftrag(threaded_db_sess
 
 
 def test_time_backoffice_page_is_reachable_for_buero_auftrag_not_field(threaded_db_session, router_test_client):
+    """Seit 1.9.98 leitet /time-backoffice weiter -- das Büro auf „Zeiten“ (ab Büro – Auftrag), die Monteurin auf „Meine Zeiten“ (bis
+    1.9.97: die Seite 200, die Monteurin 403)."""
     db = threaded_db_session
-    for role, expected in (("field", 403), ("buero_auftrag", 200), ("buero_finanzen", 200), ("admin", 200)):
+    for role, ziel, zeiten in (("field", "/mobil/zeiten", 302), ("buero_auftrag", "/zeiten", 200), ("buero_finanzen", "/zeiten", 200),
+                               ("admin", "/zeiten", 200)):
         client = router_test_client(db, pages_router, role=role)
-        resp = client.get("/time-backoffice")
-        assert resp.status_code == expected, (role, resp.status_code)
+        resp = client.get("/time-backoffice", follow_redirects=False)
+        assert (resp.status_code, resp.headers["location"]) == (302, ziel), role
+        assert client.get("/zeiten", follow_redirects=False).status_code == zeiten, role
 
 
 def test_master_data_employee_form_pages_stay_buero_finanzen_only(threaded_db_session, router_test_client):

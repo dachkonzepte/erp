@@ -205,15 +205,14 @@ def test_lv_editor_ein_weg_zum_auftrag(stand):
 
 def test_zeiterfassung_buero_ein_knopf_zum_manuellen_buchen(threaded_db_session, router_test_client):
     """Bis 1.8.136 öffneten „+ Manuell buchen“ (Kopf von „Heutige Buchungen“) und „+ Zeitbuchung anlegen“ (eigene Karte „Manuelle
-    Buchung“) denselben Dialog."""
+    Buchung“) denselben Dialog. Seit 1.9.98 die Seite „Zeiten“ (bis 1.9.97 die Zeiterfassung mit „+ Manuell buchen“): ein Knopf „+ Buchung“
+    im Seitenkopf."""
     from app.routers.pages import router as pages_router
 
-    antwort = router_test_client(threaded_db_session, pages_router, role="buero_finanzen").get("/time-tracking")
-    assert antwort.template.name == "time_tracking.html"
+    antwort = router_test_client(threaded_db_session, pages_router, role="buero_finanzen").get("/zeiten")
+    assert antwort.template.name == "zeiten.html"
     markup = re.sub(r"<script.*?</script>", "", antwort.text, flags=re.S | re.I)
-    knoepfe = re.findall(r'<button[^>]*onclick="openManual\(\)"[^>]*>(.*?)</button>', markup, flags=re.S)
-    assert knoepfe == ["+ Manuell buchen"]
-    assert "Zeitbuchung anlegen" not in markup and "<h3>Manuelle Buchung</h3>" not in markup
+    assert markup.count('id="neueBuchung"') == 1 and "Manuell buchen" not in markup
 
 
 # ---------------------------------------------------------------------------

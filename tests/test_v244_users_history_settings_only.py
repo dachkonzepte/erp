@@ -60,10 +60,10 @@ def test_master_data_employees_hash_link_restored_since_1_3_30():
     assert 'href="/employees"' not in html
 
 
-def test_time_backoffice_double_link_stays_untouched():
-    """Bewusst nicht angefasst: /time-backoffice sitzt in der täglichen Sidebar-Gruppe
-    (1.3.26), nicht in der System-Gruppe wie Benutzer/Historie -- kein Fall desselben Musters."""
+def test_zeiten_double_link_stays_untouched():
+    """Bewusst nicht angefasst: die Zeiten sitzen in der täglichen Sidebar-Gruppe (1.3.26), nicht in der System-Gruppe wie
+    Benutzer/Historie -- kein Fall desselben Musters. Seit 1.9.98 „/zeiten“ statt „/time-backoffice“ (Leiste und Hinweis der Einstellungen)."""
     sidebar = (TEMPLATES / "_sidebar.html").read_text(encoding="utf-8")
     settings = (TEMPLATES / "settings.html").read_text(encoding="utf-8")
-    assert 'href="/time-backoffice"' in sidebar
-    assert 'href="/time-backoffice"' in settings
+    assert 'href="/zeiten"' in sidebar
+    assert 'href="/zeiten"' in settings

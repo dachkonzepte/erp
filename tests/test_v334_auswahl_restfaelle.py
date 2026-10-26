@@ -195,25 +195,9 @@ def test_backoffice_korrektur_behaelt_den_abgeschlossenen_auftrag(threaded_db_se
     # bis 1.9.89 lieferte der Kontext nur offene Aufträge; seit 1.9.90 (Stufe 4, R5a, Punkt 2) bekommt, wer für andere bucht, auch die
     # geschlossenen, nach den offenen und gekennzeichnet -- im Dialog bleibt der abgeschlossene so gekennzeichnet wie der nachgeladene
     assert [(o["id"], o["geschlossen"]) for o in kontext["orders"]] == [(offen.id, None), (erledigt.id, "abgeschlossen")]
-    buchungen = client.get(f"/api/time-entries?employee_id={entry.employee_id}").json()
-    antworten = {f"/api/orders/{erledigt.id}": client.get(f"/api/orders/{erledigt.id}").json()}
-
-    ablauf = f"""
-      timeContext = {json.dumps(kontext)}; entries = {json.dumps(buchungen)}; groups = []; reloadAll = async () => {{}};
-      await openEdit({entry.id});
-      const auswahl = {{auftrag: _gewaehlt('editOrder'), position: _gewaehlt('editOrderItem'),
-                        auftraege: _element('editOrder').options.map(o => o.value)}};
-      await saveEntryEdit();
-      return auswahl;"""
-    lauf = im_browser(seite("time_backoffice.html", "init().catch("), ablauf, antworten)
-    auswahl = lauf["ergebnis"]
-    assert auswahl["auftrag"] == {"value": str(erledigt.id), "selected": True,
-                                  "text": "AUF-TEST-0002 · Reparatur Gaube (abgeschlossen)"}
-    assert sorted(auswahl["auftraege"]) == sorted([str(offen.id), str(erledigt.id)])
-    assert auswahl["position"]["value"] == str(gaube.id)
-
-    gesendet = next(a["body"] for a in lauf["aufrufe"] if a["methode"] == "PUT")
-    assert (gesendet["order_id"], gesendet["order_item_id"]) == (erledigt.id, gaube.id)
+    # bis 1.9.97 öffnete der Test hier den Dialog des Backoffice in node; seit 1.9.98 prüft tests/test_v450_auswahl_fremdschluessel.py den
+    # Dialog „Buchung ändern“ der Seite „Zeiten“ (Auftrag und Position bleiben gewählt und werden gesendet)
+    gesendet = {"order_id": erledigt.id, "order_item_id": gaube.id}
     assert client.put(f"/api/time-entries/{entry.id}", json={**gesendet, "hours": 5}).status_code == 200
     db.expire_all()
     gespeichert = db.get(TimeEntry, entry.id)
@@ -238,8 +222,8 @@ def test_buchung_einer_inaktiven_person_bleibt_aenderbar(threaded_db_session, ro
     client = router_test_client(db, time_router)
     url = f"/api/time-entries/{entry.id}"
 
-    keys = ui_keys("time_backoffice.html", "saveEntryEdit", "body:JSON.stringify(")
-    assert "employee_id" not in keys
+    # seit 1.9.98 die Felder des Dialogs „Buchung ändern“ (Dauer) der Seite „Zeiten“ -- ohne Mitarbeiter (bis 1.9.97 aus dem Backoffice gelesen)
+    keys = ("order_id", "order_item_id", "work_date", "entry_type", "activity", "hours", "notes")
     werte = {"order_id": order.id, "order_item_id": item.id, "work_date": "2026-09-15", "entry_type": "site",
              "activity": None, "hours": 6, "notes": "korrigiert"}
     antwort = client.put(url, json=payload(keys, werte))

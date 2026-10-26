@@ -22,7 +22,7 @@ import pytest
 from tests import vorlagen_js as vj
 from tests.test_v441_rahmen_baustein import UNTERMENUE_LINKS, ZURUECK_UND_KARTE
 
-ADRESSE = {"master_data.html": "/master-data", "settings.html": "/settings", "time_backoffice.html": "/time-backoffice",
+ADRESSE = {"master_data.html": "/master-data", "settings.html": "/settings",  # bis 1.9.97 dazu das Backoffice
            "account.html": "/account", "users.html": "/users", "history.html": "/history", "address_import.html": "/address-import",
            "index.html": "/leistungskatalog"}
 # je K6-Seite und Rolle (die schwächste, die sie öffnet; das Konto auch als Monteurin): Pfad-Links und das letzte Glied
@@ -88,9 +88,3 @@ def test_einstellungen_menue_ohne_eigene_ueberschrift():
     assert "<h2" not in menue and '{{ seitenkopf("Einstellungen") }}' in text
 
 
-def test_backoffice_kopf_ueberlebt_den_ladefehler():
-    text = (vj.TEMPLATES / "time_backoffice.html").read_text(encoding="utf-8")
-    assert text.index('{{ seitenkopf("Zeiterfassungs-Backoffice"') < text.index("</aside><main>")  # main = Inhalt rechts vom Untermenü
-    assert "document.querySelector('main').innerHTML=" in vj.eigene_skripte("time_backoffice.html").text
-    raster = re.search(r"\.layout\{[^}]*\}", text).group(0)
-    assert "min-height" not in raster

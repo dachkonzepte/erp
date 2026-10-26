@@ -6107,3 +6107,109 @@ jetzt fest in der Seite, Text in `esc()`).
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): Antrag für andere erlaubt -> 1 Test; Reiter „Monat & Lohn“ für Büro – Auftrag ->
 1 Test und 1 Prüfung von `klicktest_zeiten`; „Fehlt“ mit DATEV -> 1 Test und 1 Prüfung; DATEV-Link vor dem Abschluss -> 2 Tests und 2 Prüfungen;
 Abschließen über `speichern()` -> 2 Tests; Entscheiden ohne Admin -> 1 Test.
+
+### R5b, Punkt 1 (1.9.98): „Zeiten“ ersetzt Zeiterfassung und Backoffice
+
+- Leiste: ein Eintrag „Zeiten“ (`data-bereich="zeiten"`, `/zeiten`, Symbol der Zeiterfassung) an der Stelle der Zeiterfassung, für jede Rolle
+  sichtbar wie bisher die Zeiterfassung; „Backoffice“ entfällt. `zeiten.html` setzt `bereich = "zeiten"`.
+- Entfernt: `time_tracking.html`, `time_backoffice.html` (auch aus `UMGEZOGEN`, der Bildgrundlage und allen Ausnahmelisten der Strukturtests).
+- Weiterleitungen (`app/routers/pages.py`, beide mit `dk_ohne_seite`): `/time-tracking` -- die Monteurin auf `/mobil/zeiten` (mit `?order_id=`),
+  das Büro auf `/zeiten`, mit `?order_id=`/`?employee_id=` auf `/zeiten?auftrag=…&mitarbeiter=…#buchungen`; `/time-backoffice` -- die Monteurin auf
+  `/mobil/zeiten`, das Büro auf `/zeiten` (mit `?absence=`). Werte nur als Zahl (`_zahl()`).
+- Anker der früheren Reiter in `zeiten.html::binden()`: `#dashboard` -> Prüfen, `#entries` -> Buchungen, `#absences` -> Abwesenheiten,
+  `#timesheets`/`#datev` -> Monat & Lohn (ohne Lohndaten Prüfen), `#workmodels`/`#settings` -> `/settings#time-rules`, `#options` ->
+  `/settings#time-entry-types`. `?absence=` öffnet die Abwesenheiten mit Status „Alle“ und hebt den Antrag hervor (`antragHervorheben()`, Fläche
+  `--ds-signal-hell`, ins Bild geholt, einmal).
+- Links: Einsatzberichte und Arbeitsvorbereitung „Zeiten (Auftrag)“ -> `/zeiten?auftrag=<id>#buchungen` (die Monteurin auf den Einsatzberichten
+  weiter `/mobil/zeiten?order_id=`); Projektmappe „Zeiten öffnen“ -> `/zeiten#buchungen`; Dashboard „Freigabe“ -> `/zeiten?absence=<id>#abwesenheiten`;
+  Einstellungen (Hinweis bei Zeitregeln) „auf der Seite Zeiten“.
+- Nebenbefund: `_zahl()` (Zurück-Links seit 1.8.135), `_bericht_aus_adresse()` und die beiden Weiterleitungen prüften mit `isdigit()` allein --
+  „²“ und Zahlen über 4300 Stellen ergaben 500. Jetzt `_zahl()` für alle: nur ASCII-Ziffern, höchstens 9 Stellen.
+
+#### Jede Funktion der alten Seiten (Befund R5, „R5, Teil 2“)
+
+Zeiterfassung: Mitarbeiter wählen -> Filter „Mitarbeiter“ und Feld im Dialog; laufende Uhr und „Schnell starten“ -> entfallen (Entscheidung R5a);
+„Ende nachtragen“ -> Prüfen, „Zeiten von früher“; Kacheln des Tags -> Prüfen, „Monat“; Liste mit Ändern/Löschen -> Buchungen, „⋮“; „+ Manuell
+buchen“ -> „Buchung“ im Kopf (Von–Bis oder Dauer); „Gruppe buchen“ -> „⋮ Kolonne buchen“; Gruppen-Timer -> entfällt (Kolonnenführer auf „Heute“);
+Abwesenheit, Anträge, Hinweis -> Reiter Abwesenheiten, Zahl am Reiter; Auswertung eines Tags -> Buchungen (Monat, Filter, Tag je Zeile).
+Backoffice: Filter -> Monat ‹ › und Filter der Buchungen; Dashboard -> Prüfen (Monat, Anträge) und „Stunden je Mitarbeiter“ in Monat & Lohn;
+Buchungen, Bearbeiten -> Buchungen und Dialog; Abwesenheiten -> Reiter; Stundenzettel PDF/CSV, Abschließen, DATEV -> Monat & Lohn; Abschluss
+aufheben -> „⋮“ (Admin); Einrichtung -> „⋮“ (Zeitregeln und DATEV, Zeit-Listen). Festgehalten als Tabelle in `tests/test_v520_zeiten_umstellung.py`
+(`FUNKTIONEN`), geprüft gegen die gezeichnete Seite des Admins.
+
+#### Festlegungen 1.9.98 (Bitte bestätigen)
+
+1. Ein Eintrag „Zeiten“ in der Leiste an der Stelle der Zeiterfassung (Gruppe „Kaufmännisch“, Symbol der Zeiterfassung), für jede Rolle.
+2. `/time-tracking` mit `?order_id=`/`?employee_id=` öffnet „Zeiten“ auf „Buchungen“ mit gesetztem Filter; ohne Angabe „Prüfen“.
+3. `/time-backoffice` führt die Monteurin zu „Meine Zeiten“ (bis 1.9.97 ein 403), wie `/time-tracking`.
+4. Die Anker der früheren Reiter öffnen den passenden neuen; „Stundenzettel“ und „DATEV / Lohn“ ohne Lohndaten „Prüfen“.
+5. `?absence=` öffnet die Abwesenheiten mit Status „Alle“ und hebt den Antrag hervor, ohne Reiterwechsel danach.
+6. „Zeiten (Auftrag)“ auf Einsatzberichten und Arbeitsvorbereitung öffnet „Buchungen“ mit dem Auftrag im Filter.
+7. Projektmappe: „Zeiten öffnen“ (bis 1.9.97 „Zeiterfassung öffnen“) öffnet „Buchungen“ ohne Filter (einen Filter „Projekt“ gibt es nicht).
+8. Ohne Ersatz entfallen die eigene Uhr des Büros („Laufende Zeiterfassung“, „Schnell starten“) und der Gruppen-Timer.
+9. „Buchungen“ zeigt einen Monat vollständig -- die Grenzen der alten Listen (Backoffice 2000, Zeiterfassung 500 je Tag) und ihr Hinweis
+   „gekürzt“ entfallen.
+10. Eine Zahl aus der Adresse hat höchstens 9 Stellen aus 0–9, sonst gilt sie als nicht angegeben.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v520_zeiten_umstellung.py`: Weiterleitungen je Rolle mit Filtern, Angriff „nur eine Zahl“ (²,  ٣, 5000 Stellen, `//evil…`),
+Zurück-Links mit „²“, Anker der früheren Reiter in node, Leiste mit einem Eintrag, kein Link mehr auf die alten Adressen, jede Funktion des
+Befunds erreichbar (Tabelle, vollständig gegen die Spiegelstriche des Befunds), was eine Rolle nicht darf, fehlt im Markup. `test_v449` entfernt
+(prüfte den Dialog der Zeiterfassung, ersetzt durch den Dialog von „Zeiten“ in `test_v450`/`test_v518`).
+
+Angepasste Erwartungen (Tests):
+- `test_v100` (2): „Schnell starten“, Ausweichwege der Zeiterfassung -> LV-Position und Kontext im Dialog von „Zeiten“, Tätigkeiten mit Rückfall.
+- `test_v102`: „Gruppenbuchung“, „Abwesenheitsanträge“ -> „Kolonne buchen“, „Abwesenheit beantragen“.
+- `test_v103`: „Zeiterfassungs-Backoffice“, „DATEV / Lohn“, „Stundenzettel“ -> „Monat & Lohn“, „DATEV-Export“, „Stundenzettel aller als PDF“;
+  Einstellungen verlinken `/zeiten`.
+- `test_v104`: Buchungen „immer der laufende Monat“ (`currentMonthQs()`) -> ein Monat mit ‹ › (`MONAT`).
+- `test_v105`: `editProject`/`editOrder`/`editOrderItem` -> `bdAuftrag`/`bdPosition`.
+- `test_v203`: die Zeiterfassung verlinkt die Einsatzberichte -> die Einsatzberichte verlinken „Zeiten (Auftrag)“.
+- `test_v239` (2): Dashboard-Link `/time-backoffice?absence=…#absences` -> `/zeiten?absence=…#abwesenheiten`; Hervorheben ohne `showTab()` ->
+  ohne `reiterZeigen()`, mit `scrollIntoView`.
+- `test_v242`: Backoffice direkt nach der Zeiterfassung -> „Zeiten“ als letzter Eintrag von „Kaufmännisch“, keine alten Links.
+- `test_v244`: Doppellink `/time-backoffice` in Leiste und Einstellungen -> `/zeiten`.
+- `test_v253`, `test_v417` (Leiste): „zeiterfassung“, „backoffice“ -> „zeiten“.
+- `test_v417`: Reiter des Backoffice -> Reiter von „Zeiten“, Abschluss/Export/PDF über ihre neuen IDs.
+- `test_v264`: Büro auf `/time-tracking` 200 mit `groupDialog` -> 302 auf `/zeiten`, dort `kolonneDialog`.
+- `test_v282`: `/time-backoffice` Monteurin 403, Büro 200 -> 302 auf `/mobil/zeiten` bzw. `/zeiten`.
+- `test_v313`: Seiten mit Zeitbuchungslisten ohne Zeiterfassung und Backoffice, „Zeiten“ nicht darunter.
+- `test_v329`: Felder der Backoffice-Korrektur (`ui_keys`) -> `buchungSpeichern` ohne `employee_id` beim Ändern.
+- `test_v334`: Backoffice-Dialog in node entfällt (Dialog von „Zeiten“ in `test_v450`), der Server-Teil bleibt.
+- `test_v390`: `today()` der Zeiterfassung, `updateClock` in `ERLAUBT` -> Vorgabedatum `bdDatum`/`kdDatum` aus `berlinToday()`; Eintrag entfernt.
+- `test_v401`: 10 -> 11 Weiterleitungen mit f-String.
+- `test_v407`, `test_v424`, `test_v447`: Ausnahmen der beiden Seiten entfernt (3 Handler, Zahlenfelder der Zeiterfassung, 8 Auswahlfelder).
+- `test_v419`: `/time-backoffice` -> `/zeiten` unter den Seiten unter Last.
+- `test_v422`: Prüfungen der Seite (ICH, Rollenprüfung im Browser, Anfragen der Seite) entfallen, die Regeln des Servers bleiben.
+- `test_v425`: umleitende Seitenrouten + `time_backoffice_page`.
+- `test_v431`: 318 -> 310 Bilder, 256 -> 248 bisherige.
+- `test_v436`: „+ Manuell buchen“ einmal -> „Buchung“ (`neueBuchung`) einmal.
+- `test_v440`: Nutzer der Meldung „Konto ohne Mitarbeiter“ ohne die beiden Seiten; Adressen ohne `/time-tracking`, `/time-backoffice`.
+- `test_v441`: Bereiche „zeiterfassung“, „backoffice“ -> „zeiten“; 46 -> 44 Seiten mit Leiste (zweimal); Titelzeilen und Untermenü ohne die beiden.
+- `test_v450` (5): Dialog der Büro-Zeiterfassung (`openManual`) -> Dialog „Buchung ändern“ von „Zeiten“, Kennzeichen „(Auftrag abgeschlossen)“.
+- `test_v454`: Untermenü ohne Backoffice; `test_backoffice_kopf_ueberlebt_den_ladefehler` entfällt.
+- `test_v486`: Standardpause `manualBreak`/`groupBreak` -> `bdPause`/`kdPause` leer bzw. Mindestpause der Buchung.
+
+Angepasste Erwartungen (Klicktests):
+- `klicktest_rahmen`: Kopfgruppe „Zeiterfassung“ (ohne Aktion, ohne Menü) -> „Zeiten“ (Aktion „Buchung“, Menü Kolonne buchen, Zeitregeln und
+  DATEV, Zeit-Listen); aktiver Bereich zeiterfassung -> zeiten; Menü „Zeiterfassung (Auftrag)“ -> „Zeiten (Auftrag)“ (Einsatzberichte,
+  Arbeitsvorbereitung), Link `/time-tracking?order_id=` -> `/zeiten?auftrag=…#buchungen`; Untermenü ohne Backoffice.
+- `klicktest_neue_ordnung`: Leiste „Zeiterfassung“, „Backoffice“ -> „Zeiten“ (Monteurin „Zeiterfassung“ -> „Zeiten“); Reiter und Links des
+  Backoffice -> Reiter von „Zeiten“ und Links im „⋮“; `/time-backoffice#workmodels` usw. wie bisher in die Einstellungen.
+- `klicktest_zeitbuchungen_liste`: Backoffice „gekürzt: 2000 von N“ und 2000 Zeilen -> „Zeiten“ N Zeilen ohne Hinweis, Summe ohne die laufende;
+  Büro-Zeiterfassung „gekürzt: 500 von 501“ an Annas Tag -> „Zeiten“ mit Filter Anna, 501 Zeilen, 501,00 h.
+- `klicktest_browser_datum`: `today()` der Zeiterfassung -> Datum im Dialog „Buchung“.
+- `klicktest_auswahl_restfaelle`: Backoffice-Korrektur „(abgeschlossen)“ -> Dialog „Buchung ändern“ „(Auftrag abgeschlossen)“.
+- `klicktest_monteurin_regeln`: Zeiterfassung für Tom („Ende nachgetragen (…): gebucht 8,25 h · anwesend 8,75 h · Pause 30 min“) -> „Zeiten“,
+  Prüfen: Vorschau „anwesend 8:45 h · Pause nach Zeitregel − 0:30 h · gebucht 8,25 h“, Meldung „Ende eingetragen: …“, gebucht 8,25 h mit 30 min.
+- `klicktest_backoffice_buero` entfernt -- übernommen in `klicktest_zeiten`: Büro – Auftrag ohne Anfrage an Kontext und Personalnummern, Exporte
+  403; Büro – Finanzen im abgeschlossenen Monat ohne „⋮“, Stundenzettel 200, kein „Abschluss aufheben“, zurücknehmen 403. Entfallen: die Hinweise
+  und Spalten des Backoffice („nur lesen“, „nur Admin“), „Abgeschlossen bis“ auf einen Tag (seit 1.9.97 monatsweise).
+
+Im ersten Lauf rot und am Klicktest behoben: `klicktest_zeitbuchungen_liste` erwartete die Summe mit Tausenderpunkt („2.500,00 h“) -- `zahlText()`
+setzt keinen, wie überall. Nebenbei: eine ungültige Escape-Folge (`\s`) in `klicktest_zeiten.py` (SyntaxWarning seit 1.9.97).
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): Zahl mit `isdigit()` allein -> 7 Tests; Backoffice wieder in der Leiste -> 4 Tests
+und 3 Prüfungen von `klicktest_neue_ordnung`; Anker `#entries` ohne Zuordnung -> 1 Test und 6 Prüfungen von `klicktest_auswahl_restfaelle`;
+Weiterleitung ohne Filter -> 3 Tests und 1 Prüfung von `klicktest_monteurin_regeln`; Link „Zeit-Listen“ fehlt -> 1 Test.

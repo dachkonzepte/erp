@@ -95,8 +95,8 @@ def test_employee_cannot_group_book_for_outsider_or_without_self():
 
 def test_mobile_ui_contains_group_and_absence_request_workflows():
     root=Path(__file__).parents[1]
-    html=(root/"app/templates/time_tracking.html").read_text(encoding="utf-8")
+    html=(root/"app/templates/zeiten.html").read_text(encoding="utf-8")  # seit 1.9.98 „Zeiten“ (Kolonne buchen, Abwesenheiten)
     main=(root/"app/main.py").read_text(encoding="utf-8") + "".join(p.read_text(encoding="utf-8") for p in sorted((root/"app/routers").glob("*.py")))
-    assert "Gruppenbuchung" in html and "Abwesenheitsanträge" in html
+    assert "Kolonne buchen" in html and "Abwesenheit beantragen" in html
     assert "/api/time-entry-groups/start" in main and "/api/absence-requests" in main
     assert re.match(r"^\d+\.\d+\.\d+$", (root/"VERSION").read_text(encoding="utf-8").strip())

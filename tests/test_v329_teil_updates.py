@@ -41,6 +41,7 @@ from tests.test_v123_manual_services import make_service
 from tests.test_v133_invoices import make_order_with_item
 from tests.test_v264_field_time_tracking import _order
 from tests.test_v302_crew_leader import _as, world  # noqa: F401 -- world ist eine Fixture
+from tests import vorlagen_js as vj
 
 TEMPLATES = Path(__file__).resolve().parent.parent / "app" / "templates"
 HEUTE = date.today()
@@ -318,9 +319,13 @@ def test_auftragswechsel_ohne_neue_position_laesst_die_alte_fallen(lea_buchung):
 
 
 def test_backoffice_korrektur_schickt_weder_pause_noch_mitarbeiter(lea_buchung, router_test_client):
+    """Seit 1.9.98 der Dialog „Buchung ändern“ der Seite „Zeiten“ (bis 1.9.97 die Korrektur im Backoffice, deren Felder ui_keys() las):
+    beim Ändern nie der Mitarbeiter (nur eine neue Buchung nennt ihn); ohne Pause im Body bleibt die gespeicherte."""
     db, order = lea_buchung["db"], lea_buchung["order"]
-    keys = ui_keys("time_backoffice.html", "saveEntryEdit", "body:JSON.stringify(")
-    assert set(keys) == {"order_id", "order_item_id", "work_date", "entry_type", "activity", "hours", "notes"}
+    rumpf = vj.seitentext("zeiten.html")[0].split("function buchungSpeichern(", 1)[1].split("\nfunction ", 1)[0]
+    felder = rumpf.split("var felder={", 1)[1].split("};", 1)[0]
+    assert "if(!aendern)body.employee_id=mitarbeiter;" in rumpf and "employee_id" not in felder
+    keys = ("order_id", "order_item_id", "work_date", "entry_type", "activity", "hours", "notes")
     werte = {**ZEIT_WERTE, "order_id": order.id, "order_item_id": _position(db, order.id)}
     client = router_test_client(db, time_router)
     response = client.put(f"/api/time-entries/{lea_buchung['entry_id']}", json=payload(keys, werte))

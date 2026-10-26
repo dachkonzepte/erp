@@ -4,19 +4,21 @@
 Bis 1.8.116 brach init() in time_backoffice.html für jede Rolle außer Admin ab ("nur für Administratoren verfügbar"), obwohl die Seite und
 alle Endpunkte seit 1.4.8 dem Büro offenstehen. Jetzt bekommt die Seite Rolle und Mitarbeiter des Kontos vom Server (ICH) und bietet nur an,
 was der Server dem Konto erlaubt. Hier: welche Regeln des Servers die Seite abbildet (fremde Buchungen, abgeschlossener Zeitraum, Anträge,
-Abschluss), jede Anfrage der Seite für das Büro erlaubt, die gerenderte Rolle. Das Verhalten im Browser prüft
-scripts/klicktest_backoffice_buero.py.
+Abschluss), jede Anfrage der Seite für das Büro erlaubt, die gerenderte Rolle. Das Verhalten im Browser prüfte bis 1.9.97
+scripts/klicktest_backoffice_buero.py (seit 1.9.98 scripts/klicktest_zeiten.py).
 
 Seit 1.9.89 (Stufe 4, R5a, Entscheidungen Tobias): Büro – Auftrag liest die Zeiten aller und ändert nichts (auch keine eigenen), Büro –
 Finanzen ändert die Buchungen aller außerhalb des abgeschlossenen Zeitraums und hat die Lohndaten (Stundenzettel, CSV, DATEV, Abschluss);
-die Seite bekommt das vom Server (ICH.buchen, ICH.andere, ICH.lohn) und zeigt Büro – Auftrag die Ausgabe nicht."""
+die Seite bekommt das vom Server (ICH.buchen, ICH.andere, ICH.lohn) und zeigt Büro – Auftrag die Ausgabe nicht.
+
+Seit 1.9.98 (Stufe 4, R5b) gibt es das Backoffice nicht mehr -- die Seite „Zeiten“ ersetzt es (tests/test_v518_zeiten_seite.py,
+tests/test_v519_zeiten_abwesenheiten_monat.py, tests/test_v520_zeiten_umstellung.py). Hier bleiben die Regeln des Servers; die Prüfungen der
+Seite (ICH, keine Rollenprüfung im Browser, jede Anfrage der Seite) sind entfallen."""
 
 from __future__ import annotations
 
-import re
 from datetime import date, timedelta
 from decimal import Decimal
-from pathlib import Path
 
 import pytest
 
@@ -24,7 +26,6 @@ from app.models import Employee, EmployeeAbsenceRequest, TimeEntry, TimeTracking
 from app.routers import absence_requests, employees, pages, settings as settings_router, time_backoffice, time_tracking
 from tests.test_v133_invoices import make_order_with_item
 
-VORLAGE = Path(__file__).resolve().parent.parent / "app" / "templates" / "time_backoffice.html"
 HEUTE = date(2026, 10, 16)
 VON, BIS = "2026-10-01", "2026-10-31"
 
@@ -106,38 +107,3 @@ def test_was_der_server_dem_buero_finanzen_erlaubt(welt, router_test_client):
     assert buero.put("/api/time-backoffice/lock", json={"locked_until": "2026-10-02"}).status_code == 200  # vorrücken
     assert buero.put("/api/time-backoffice/lock", json={"locked_until": "2026-10-01"}).status_code == 403  # wieder öffnen
     assert buero.put("/api/time-backoffice/lock", json={"locked_until": None}).status_code == 403          # aufheben
-
-
-def _ich(html: str) -> str:
-    return re.search(r"const ICH=\{[^}]*\};", html).group(0)
-
-
-@pytest.mark.parametrize("rolle, mitarbeiter, ich, aufheben", [
-    ("buero_auftrag", 7, "const ICH={admin:false,buchen:false,andere:false,lohn:false,mitarbeiter:7};", False),
-    ("buero_finanzen", None, "const ICH={admin:false,buchen:true,andere:true,lohn:true,mitarbeiter:null};", False),
-    ("admin", None, "const ICH={admin:true,buchen:true,andere:true,lohn:true,mitarbeiter:null};", True),
-])
-def test_die_seite_bekommt_rolle_und_mitarbeiter_vom_server(welt, router_test_client, rolle, mitarbeiter, ich, aufheben):
-    """Seit 1.9.89 dazu buchen, andere und lohn (app/permissions.py); ohne Lohndaten fehlen die Reiter der Ausgabe und ihr Inhalt."""
-    db = welt[0]
-    html = router_test_client(db, pages.router, role=rolle, employee_id=mitarbeiter).get("/time-backoffice").text
-    assert _ich(html) == ich
-    lohn = rolle != "buero_auftrag"
-    assert ('onclick="clearLock()"' in html) is aufheben and ('id="nurAdminOeffnen"' in html) is (lohn and not aufheben)
-    assert ('data-tab="timesheets"' in html, 'data-tab="datev"' in html, 'id="lockDate"' in html) == (lohn, lohn, lohn)
-
-
-def test_keine_rollenpruefung_mehr_im_browser():
-    quelle = VORLAGE.read_text(encoding="utf-8")
-    assert "nur für Administratoren verfügbar" not in quelle and "/api/auth/status" not in quelle
-
-
-def test_jede_anfrage_der_seite_ist_hier_geprueft():
-    """Eine neue Anfrage der Seite braucht ihren Platz in GET_DER_SEITE oder in den Regeln oben."""
-    quelle = VORLAGE.read_text(encoding="utf-8")
-    pfade = {re.sub(r"\$\{[^}]*\}.*", "", p).split("?")[0].rstrip(".")
-             for p in re.findall(r"(?:api\(|location\.href=)[`']((?:/api/)[^`']*)", quelle)}
-    geprueft = {p.split("?")[0] for p in GET_DER_SEITE + GET_NUR_LOHN} | {"/api/time-tracking/context", "/api/absence-requests",
-                                                            "/api/absence-requests/", "/api/time-backoffice/lock",
-                                                            "/api/time-entries/", "/api/orders/", "/api/time-backoffice/timesheet"}
-    assert pfade <= geprueft, pfade - geprueft

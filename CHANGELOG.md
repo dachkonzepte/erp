@@ -4,6 +4,21 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.98 – „Zeiten“ ersetzt Zeiterfassung und Backoffice (Stufe 4, R5b)
+
+Die Seite „Zeiten“ ersetzt die Zeiterfassung des Büros und das Zeiterfassungs-Backoffice: in der Leiste steht ein Eintrag „Zeiten“ an der Stelle
+der Zeiterfassung, `time_tracking.html` und `time_backoffice.html` sind entfernt. Die alten Adressen leiten weiter -- das Büro auf „Zeiten“
+(`/time-tracking?order_id=` bzw. `?employee_id=` mit gesetztem Filter auf „Buchungen“, `/time-backoffice?absence=` auf die Abwesenheiten mit dem
+hervorgehobenen Antrag), die Monteurin auf „Meine Zeiten“ (vom Backoffice bis 1.9.97 ein 403); die Anker der früheren Reiter (`#entries`, `#absences`,
+`#datev` …) öffnen die neuen, `#workmodels`/`#settings`/`#options` die Einstellungen. Einsatzberichte, Arbeitsvorbereitung, Projektmappe und
+Dashboard verlinken „Zeiten“. Entfallen sind nur die eigene Uhr des Büros und der Gruppen-Timer (Entscheidung R5a: das Büro erfasst keine eigene
+Zeit; die Kolonne startet der Kolonnenführer auf „Heute“); jede andere Funktion der alten Seiten ist auf „Zeiten“ erreichbar
+(`tests/test_v520_zeiten_umstellung.py`). `klicktest_backoffice_buero` ist in `klicktest_zeiten` aufgegangen.
+
+Nebenbefund behoben: eine Zahl aus der Adresse prüften vier Stellen in `app/routers/pages.py` mit `isdigit()` allein -- das nimmt auch eine
+hochgestellte „²“ an, an der `int()` scheitert, ebenso eine Zahl mit über 4300 Stellen: `/projects/new?customer_id=²` oder
+`/orders/1/service-reports?report=²` antworteten mit 500. Jetzt eine Prüfung für alle (`_zahl()`: nur 0–9, höchstens 9 Stellen).
+
 ## 1.9.97 – „Zeiten“: Abwesenheiten, Monat & Lohn, Kolonne buchen (Stufe 4, R5b)
 
 Die Seite „Zeiten“ bekommt die übrigen Reiter. „Abwesenheiten“ wie bisher im neuen Rahmen: Anträge nach Status (offen zuerst), der Admin

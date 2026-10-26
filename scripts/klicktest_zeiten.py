@@ -17,7 +17,9 @@ dem abgeschlossenen Auftrag; Toms Antrag Urlaub 02.–06.11. offen.
                             h · Tag zusammen 10:15 h · Pause nach Zeitregel − 0:45 h“, Knopf „8,75 h speichern“ -- Bild; Bis 16:00 -> 8,25 h
                             gespeichert; Wechsel zu „Dauer“: Von/Bis leer, Hinweis, 8,00 h gespeichert, Beginn und Ende leer (API); „+ Buchung“
                             für Mia 07:00–11:00 -> 4,00 h; Löschen mit Rückfrage auf der Seite (kein confirm())
-    Büro – Auftrag          Prüfen und Buchungen ohne Knöpfe (kein „Ende um“, kein „So buchen“, kein „⋮“, kein „+ Buchung“) -- Bild
+    Büro – Auftrag          Prüfen und Buchungen ohne Knöpfe (kein „Ende um“, kein „So buchen“, kein „⋮“, kein „+ Buchung“) -- Bild; seit
+                            1.9.98 aus klicktest_backoffice_buero (das Backoffice gibt es nicht mehr): keine Anfrage an Buchungskontext und
+                            Personalnummern, Stundenzettel PDF, CSV und DATEV-Export vom Server 403
     dunkel                  Prüfen und Buchungen; Farbpunkte der Zeitarten aus den Tokens (hell und dunkel verschieden) -- Bilder
     Kolonne (seit 1.9.97)   Büro – Finanzen über „⋮ Kolonne buchen“: Kolonne 1 mit Mia und Tom, 07:00–12:00 -> Vorschau je Person, „Für 2
                             Personen speichern“, beide Buchungen in der Liste
@@ -27,7 +29,9 @@ dem abgeschlossenen Auftrag; Toms Antrag Urlaub 02.–06.11. offen.
     Monat & Lohn            Büro – Finanzen: Lücke (Oles laufende Zeit) -> „Abschließen“ gesperrt, „Fehlt: 1 laufende Zeit“, was DATEV fehlt
                             getrennt bei „DATEV-Export“, DATEV gesperrt -- Bild; Ole geschlossen -> „Abschließen“ frei; eine neue Lücke nach dem
                             Laden -> abgelehnt (409), die Liste auf der Seite; ohne Lücke abgeschlossen; DATEV erst mit Lohnart und
-                            Personalnummer -> Datei; Admin hebt den Abschluss über „⋮“ auf (zurück auf 30.09.2026)
+                            Personalnummer -> Datei; seit 1.9.98 (aus klicktest_backoffice_buero): im abgeschlossenen Oktober keine
+                            Buchung mit „⋮“, Stundenzettel PDF und CSV 200, im „⋮“ des Kopfs kein „Abschluss aufheben“, zurücknehmen vom
+                            Server 403; Admin hebt den Abschluss über „⋮“ auf (zurück auf 30.09.2026)
     412 px                  ohne waagrechte Scrollleiste der Seite
 
 Die Bilder (zeiten_*.png) liegen im Ordner der Screenshots.
@@ -145,6 +149,13 @@ async def _seite(tab, seed, wer, thema="light", breite=1440, hoehe=900, hash="")
 async def _buchungen(tab):
     await tab.js("document.querySelector('.reiter a[data-reiter=buchungen]').click()")
     return await tab.warten(BUCHUNGEN_BEREIT + "&&document.querySelectorAll('#buchungenZeilen tr').length>0", 10)
+
+
+async def _exporte(tab):
+    """Stundenzettel PDF und CSV und DATEV-Export für Oktober 2026 (seit 1.9.98 aus klicktest_backoffice_buero) -- den Körper lesen: sonst
+    hält Chrome die Anfrage offen."""
+    return await tab.js("Promise.all(['timesheet.pdf','timesheet.csv','datev-export'].map(x=>fetch('/api/time-backoffice/'+x+"
+                        "'?start_date=2026-10-01&end_date=2026-10-31').then(r=>r.arrayBuffer().then(()=>r.status))))")
 
 
 async def _api(tab, url):
@@ -326,6 +337,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Fin: keine JS-Fehler (auch kein alert/confirm)", tab.fehler, [])
 
     # ---- Büro – Auftrag: ohne Knöpfe ---------------------------------------------------------------------------------------------------
+    vorher = len(tab.netz.verlauf)
     p.pruefe("Bea: Seite geladen", await _seite(tab, seed, "bea"), True)
     await tab.warte_auf_ruhe()
     p.pruefe("Bea: Prüfen ohne Knöpfe und ohne „+ Buchung“", await tab.js(
@@ -336,6 +348,12 @@ async def pruefen(tab, seed, p):
     p.pruefe("Bea: Buchungen ohne „⋮“ und ohne „Ende eintragen“", await tab.js(
         "document.querySelectorAll('#buchungenZeilen button').length"), 0)
     await tab.bild("zeiten_buchungen_buero_auftrag")
+    # seit 1.9.98 aus klicktest_backoffice_buero (bis 1.9.97 im Backoffice geprüft)
+    await tab.nachlesen()
+    p.pruefe("Bea: keine Anfrage an Buchungskontext und Personalnummern", [
+        tab.netz.suche(r"/api/time-tracking/context", "GET", ab=vorher), tab.netz.suche(r"/api/time-backoffice/payroll-employees", "GET", ab=vorher)],
+        [[], []])
+    p.pruefe("Bea: Stundenzettel PDF, CSV und DATEV-Export vom Server abgelehnt", await _exporte(tab), [403, 403, 403])
     p.pruefe("Bea: keine JS-Fehler", tab.fehler, [])
 
     # ---- Admin hell und dunkel: Bilder, Farbpunkte -------------------------------------------------------------------------------------
@@ -406,7 +424,7 @@ async def pruefen(tab, seed, p):
         "[document.getElementById('lohnAbschliessen').disabled,document.getElementById('lohnFehlt').innerText,"
         "document.getElementById('lohnDatevFehlt').innerText,document.getElementById('lohnDatev').hidden,"
         "document.getElementById('lohnDatevGesperrt').disabled]"), [True, "Fehlt: 1 laufende Zeit", "Fehlt: 1 Lohnart", True, True])
-    p.pruefe("Fin: Schritt Prüfen", await tab.js("[...document.querySelectorAll('#lohnPruefen li')].map(l=>l.innerText.replace(/\s+/g,' ').trim())"),
+    p.pruefe("Fin: Schritt Prüfen", await tab.js("[...document.querySelectorAll('#lohnPruefen li')].map(l=>l.innerText.replace(/\\s+/g,' ').trim())"),
              ["1 Zeit läuft noch Prüfen", "Lohnart fehlt: Werkstattzeit Zeitregeln", "Anträge entschieden"])
     p.pruefe("Fin: Tabelle mit Personalnummer", await tab.js(
         "[...document.querySelectorAll('#lohnZeilen tr')].map(tr=>[...tr.cells].map(c=>c.innerText.trim()).join(' | '))"),
@@ -441,6 +459,18 @@ async def pruefen(tab, seed, p):
     p.pruefe("Fin: abgeschlossen -- Status, kein Knopf, DATEV noch gesperrt (Lohnart, Personalnummer)", await tab.js(
         "[document.getElementById('lohnStatus').innerText,document.getElementById('lohnAbschliessen').hidden,document.getElementById('lohnDatev').hidden,"
         "document.getElementById('ergebnis').innerText]"), ["abgeschlossen", True, True, "Oktober 2026 abgeschlossen."])
+    # seit 1.9.98 aus klicktest_backoffice_buero: abgeschlossen ändert nur der Admin, zurücknehmen auch
+    p.pruefe("Fin: Stundenzettel PDF und CSV 200 (DATEV folgt unten)", (await _exporte(tab))[:2], [200, 200])
+    p.pruefe("Fin: Buchungen des abgeschlossenen Oktobers ohne „⋮“", [await _buchungen(tab), await tab.js(
+        "[document.querySelectorAll('#buchungenZeilen tr').length>0,document.querySelectorAll('#buchungenZeilen button').length]")],
+        [True, [True, 0]])
+    p.pruefe("Fin: im „⋮“ des Kopfs kein „Abschluss aufheben“", await tab.js(
+        "[!!document.getElementById('abschlussAufheben'),[...document.querySelectorAll('#seitenkopfMenue .ds-menue-eintrag')].map(e=>e.textContent.trim())]"),
+        [False, ["Kolonne buchen", "Zeitregeln und DATEV", "Zeit-Listen"]])
+    p.pruefe("Fin: zurücknehmen vom Server abgelehnt (403)", await tab.js(
+        "fetch('/api/time-backoffice/lock',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({locked_until:'2026-09-30'})})"
+        ".then(r=>r.json().then(d=>[r.status,d.detail]))"), [403, "Einen abgeschlossenen Zeitraum wieder öffnen darf nur ein Administrator."])
+    await tab.js("document.querySelector('.reiter a[data-reiter=monat]').click()")
     # Lohnart Werkstatt und Oles Personalnummer nachtragen (die Zeitregeln speichert der PUT als Ganzes: erst lesen, dann ergänzen)
     p.pruefe("Fin: Lohnart Werkstatt und Oles Personalnummer gespeichert", [
         await tab.js("fetch('/api/time-backoffice/settings').then(r=>r.json()).then(s=>fetch('/api/time-backoffice/settings',{method:'PUT',"

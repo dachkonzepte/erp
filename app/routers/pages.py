@@ -361,31 +361,29 @@ def planning_page(request: Request, _role: AppUser = _role_dep):
     return templates.TemplateResponse(request=request, name="planning.html", context={})
 
 
+def _zeiten_abfrage(request: Request) -> str:
+    """Seit 1.9.98: was eine frühere Adresse an die Seite „Zeiten“ mitgibt -- nur Zahlen (Auftrag, Mitarbeiter, Antrag), sonst nichts."""
+    teile = []
+    for alt, neu in (("order_id", "auftrag"), ("employee_id", "mitarbeiter"), ("absence", "absence")):
+        wert = _zahl(request.query_params.get(alt))
+        if wert is not None:
+            teile.append(f"{neu}={wert}")
+    return "?" + "&".join(teile) if teile else ""
+
+
 @router.get("/time-tracking", response_class=HTMLResponse)
 def time_tracking_page(request: Request, _role: AppUser = _any_role_dep):
-    """Seit 1.3.60 rollenbewusst statt einer festen Vorlage (siehe CLAUDE.md „Zeiterfassung für
-    Monteure"): dieselbe URL rendert für `field` die reduzierte time_tracking_field.html
-    (Muster _mobile_header.html/mobil.html) statt der vollen, Sidebar-getragenen
-    time_tracking.html -- bewusst KEINE zweite Route (z. B. /mobil/zeit), damit die Weiche an
-    der Rolle hängt, nicht am Weg: _sidebar.html/_mobile_header.html/service_reports.html
-    verlinken alle unverändert auf /time-tracking, ein Büro-Konto, das testweise als `field`
-    unterwegs ist (oder umgekehrt), sieht bei JEDEM Aufruf -- Sidebar-Link, altes Lesezeichen,
-    eingetippte Adresse, ?order_id=-Link von service_reports.html -- exakt das, was die aktuelle
-    Sitzungsrolle vorsieht. `_role` ist das AppUser-Objekt aus require_role() (siehe
-    app/permissions.py), keine zweite Anfrage an request.state nötig.
-
-    Seit 1.9.59 (Stufe 4, R3): für `field` eine Weiterleitung auf „Meine Zeiten“ (/mobil/zeiten) statt time_tracking_field.html --
-    Starten und Stoppen stehen auf „Heute“, alles andere auf „Meine Zeiten“; ein ?order_id= (Link „Zeiterfassung (Auftrag)“ im
-    Einsatzbericht) geht als Zahl mit und wählt den Auftrag im Dialog „Zeit nachtragen“ vor."""
+    """Frühere Adresse der Zeiterfassung (bis 1.9.97). Seit 1.9.59 leitet sie die Monteurin auf „Meine Zeiten“ (mit ?order_id= als Zahl,
+    vorgewählt im Dialog „Zeit nachtragen“), seit 1.9.98 (Stufe 4, R5b) das Büro auf die Seite „Zeiten“ -- ?order_id= wird der Filter
+    Auftrag, ?employee_id= der Filter Mitarbeiter (Reiter Buchungen)."""
     if _role.role == ROLE_FIELD:
-        auftrag = request.query_params.get("order_id") or ""
-        return RedirectResponse(url=f"/mobil/zeiten?order_id={int(auftrag)}" if auftrag.isdigit() else "/mobil/zeiten", status_code=302)
-    # seit 1.9.89 (Stufe 4, R5a): wer nur liest (Büro – Auftrag), bekommt die Seite ohne Buchen und Ändern
-    return templates.TemplateResponse(request=request, name="time_tracking.html",
-                                      context={"zeit_buchen": darf_zeit_buchen(_role), "zeiten_nur_lesen": ZEITEN_NUR_LESEN})
+        auftrag = _zahl(request.query_params.get("order_id"))
+        return RedirectResponse(url=f"/mobil/zeiten?order_id={auftrag}" if auftrag is not None else "/mobil/zeiten", status_code=302)
+    abfrage = _zeiten_abfrage(request)
+    return RedirectResponse(url=f"/zeiten{abfrage}#buchungen" if abfrage else "/zeiten", status_code=302)
 
 
-time_tracking_page.dk_ohne_seite = lambda user, request: user is not None and user.role == ROLE_FIELD  # seit 1.9.59, siehe login_page
+time_tracking_page.dk_ohne_seite = lambda user, request: True  # seit 1.9.98 leitet sie jeden weiter
 
 
 @router.get("/zeiten", response_class=HTMLResponse)
@@ -404,17 +402,24 @@ zeiten_page.dk_ohne_seite = lambda user, request: user is not None and user.role
 
 
 @router.get("/time-backoffice", response_class=HTMLResponse)
-def time_backoffice_page(request: Request, _role: AppUser = _role_dep):
-    # seit 1.9.89 (Stufe 4, R5a): was das Konto an Zeiten und Lohndaten darf (app/permissions.py) -- die Seite bietet nur das an
-    return templates.TemplateResponse(request=request, name="time_backoffice.html",
-                                      context={"zeit_buchen": darf_zeit_buchen(_role), "zeit_fuer_andere": darf_zeit_fuer_andere_buchen(_role),
-                                               "lohndaten": darf_lohndaten(_role), "zeiten_nur_lesen": ZEITEN_NUR_LESEN})
+def time_backoffice_page(request: Request, _role: AppUser = _any_role_dep):
+    """Frühere Adresse des Zeiterfassungs-Backoffice (bis 1.9.97). Seit 1.9.98 (Stufe 4, R5b) eine Weiterleitung auf „Zeiten“ (die
+    Monteurin auf „Meine Zeiten“); den Anker der früheren Reiter (#entries, #absences, #datev …) nimmt der Browser mit, die Seite öffnet den
+    passenden Reiter; ?absence= (Freigabe auf dem Dashboard) öffnet die Abwesenheiten."""
+    if _role.role == ROLE_FIELD:
+        return RedirectResponse(url="/mobil/zeiten", status_code=302)
+    return RedirectResponse(url=f"/zeiten{_zeiten_abfrage(request)}", status_code=302)
+
+
+time_backoffice_page.dk_ohne_seite = lambda user, request: True  # seit 1.9.98 leitet sie jeden weiter
 
 
 # Seit 1.8.135: Zurück-Links der Formularseiten mit echtem Ziel und Namen (bis dahin history.back(), nach direktem Aufruf ins Leere, und
 # Namen wie „← Projekte & Belege“). Werte aus der Adresse nur als Zahl -- sonst das allgemeine Ziel.
 def _zahl(wert: str | None) -> int | None:
-    return int(wert) if wert and wert.isdigit() else None
+    """Eine Zahl aus der Adresse: nur 0–9, höchstens 9 Stellen, sonst None. Seit 1.9.98 nicht mehr isdigit() allein -- das nimmt auch
+    eine hochgestellte „²“ an, an der int() scheitert (500), und int() scheitert ebenso an über 4300 Stellen."""
+    return int(wert) if wert and len(wert) <= 9 and wert.isascii() and wert.isdigit() else None
 
 
 # Bereich der Stammdaten-Liste (Hash von /master-data) und sein Name je Datentyp des Formulars
@@ -573,8 +578,7 @@ def work_preparation_page(request: Request, order_id: int, _role: AppUser = _rol
 
 def _bericht_aus_adresse(request: Request) -> int | None:
     """?report=<id> auf der Auftragsseite (frühere Eingänge, Lesezeichen) -- nur eine Zahl, sonst None."""
-    wert = request.query_params.get("report") or ""
-    return int(wert) if wert.isdigit() else None
+    return _zahl(request.query_params.get("report"))  # seit 1.9.98 über _zahl() (bis dahin isdigit(): „²“ ergab 500)
 
 
 @router.get("/orders/{order_id}/service-reports", response_class=HTMLResponse)

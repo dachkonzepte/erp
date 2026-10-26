@@ -100,5 +100,8 @@ def test_fuenf_stunden_ohne_pause_ueber_feierabend_nachtrag_und_gruppe(welt):  #
 
 
 def test_buero_seite_belegt_keine_standardpause_vor():
-    text, _ = vj.seitentext("time_tracking.html")
-    assert "$('manualBreak').value=zahlText(row?.break_minutes??0);" in text and "$('groupBreak').value=zahlText(0);" in text
+    """Seit 1.9.98 die Seite „Zeiten“ (bis 1.9.97 die Zeiterfassung): eine neue Buchung und „Kolonne buchen“ beginnen mit leerer Pause,
+    eine Änderung mit der gemerkten Mindestpause der Buchung."""
+    text, _ = vj.seitentext("zeiten.html")
+    assert "el('bdPause').value=aendern?zahlText(e.min_break_minutes!=null?e.min_break_minutes:(e.break_minutes||0)):'';" in text
+    assert "['kdVon','kdBis','kdPause','kdStunden','kdPauseDauer','kdNotiz'].forEach(function(id){el(id).value=''" in text

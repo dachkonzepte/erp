@@ -116,8 +116,7 @@ AUFNAHMEN = (
     A("mahnwesen", "mahnwesen.html", "/mahnwesen", (BUERO,)),
     A("eingangsrechnungen", "incoming_invoices.html", "/eingangsrechnungen", (BUERO,)),
     A("betriebskosten", "recurring_costs.html", "/betriebskosten", (BUERO,)),
-    A("zeiterfassung", "time_tracking.html", "/time-tracking", (BUERO,)),
-    A("backoffice", "time_backoffice.html", "/time-backoffice", (BUERO,)),
+    # bis 1.9.97 hier Zeiterfassung und Backoffice -- seit 1.9.98 ersetzt durch „Zeiten“ (die Adressen leiten weiter)
     A("zeiten", "zeiten.html", "/zeiten", (BUERO,)),  # seit 1.9.96 (Stufe 4, R5b)
     A("stammdaten", "master_data.html", "/master-data", (BUERO,)),
     A("stammdaten_mitarbeiter", "master_data_form.html", "/master-data/employees/{mitarbeiter}/edit", (BUERO,)),

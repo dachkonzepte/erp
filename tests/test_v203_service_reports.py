@@ -256,5 +256,6 @@ def test_ui_wires_service_reports_page_and_time_tracking_link():
     pages_src = (root / "app/routers/pages.py").read_text(encoding="utf-8")
     assert '"/orders/{order_id}/service-reports"' in pages_src
     assert (root / "app/templates/service_reports.html").exists()
-    time_tracking_html = (root / "app/templates/time_tracking.html").read_text(encoding="utf-8")
-    assert "service-reports" in time_tracking_html
+    # seit 1.9.98: die Einsatzberichte verlinken „Zeiten (Auftrag)“ (bis 1.9.97 verlinkte die Zeiterfassung die Einsatzberichte)
+    service_html = (root / "app/templates/service_reports.html").read_text(encoding="utf-8")
+    assert "'/zeiten?auftrag='+orderId+'#buchungen'" in service_html

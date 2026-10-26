@@ -163,7 +163,7 @@ def test_vier_gruppen_in_reihenfolge():
     assert [g or b for g, b in folge] == [
         "Übersicht", "start", "aufgaben", "kalender",
         "Aufträge", "anfragen", "projekte", "plantafel", "checklisten", "wartungen", "befunde",
-        "Kaufmännisch", "finanzen", "mahnwesen", "eingangsrechnungen", "betriebskosten", "zeiterfassung", "backoffice",
+        "Kaufmännisch", "finanzen", "mahnwesen", "eingangsrechnungen", "betriebskosten", "zeiten",  # seit 1.9.98 statt Zeiterfassung, Backoffice
         "Verwaltung", "stammdaten", "einstellungen"]
     befunde = nav[nav.rindex("<a ", 0, nav.index('data-bereich="befunde"')):nav.index('data-bereich="befunde"')]
     assert "app-sidebar-sub" in befunde

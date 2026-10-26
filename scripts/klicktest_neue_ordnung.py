@@ -3,7 +3,7 @@
 Geprüft wird im echten Browser, je Rolle (Monteur, Büro – Auftrag, Büro – Finanzen, Admin):
 
     Seitenleiste      Gruppen mit Überschrift und ihre Einträge (seit 1.8.162 vier: Übersicht, Aufträge, Kaufmännisch mit
-                      Zeiterfassung und Backoffice, Verwaltung), "Plantafel" und "Befunde" statt "Planung" und "Mängel", kein
+                      „Zeiten“ -- bis 1.9.97 Zeiterfassung und Backoffice --, Verwaltung), "Plantafel" und "Befunde" statt "Planung" und "Mängel", kein
                       Versandprotokoll; jeder sichtbare Link
                       liefert als dieselbe Rolle weder 403 noch 404
     Einstellungen     Menü je Rolle (zehn Gruppen; nur für Admin: Anbindungen, Module, Benutzer und Zugriff, Wartungen,
@@ -16,8 +16,9 @@ Geprüft wird im echten Browser, je Rolle (Monteur, Büro – Auftrag, Büro –
                       (Büro – Finanzen),
                       Vorlaufzeit Betriebsmittel (Büro – Auftrag) und Wartungen (Admin) -- je nach dem Neuladen noch da
     Frühere Adressen  #recurring-costs, #incoming-invoices, #operational-assets öffnen "Fristen und Erinnerungen"; ein für die
-                      Rolle ausgeblendeter Bereich (#modules, #labor-rate) die Unternehmensdaten; im Backoffice führen
-                      #workmodels, #settings und #options in die Einstellungen, die Reiter dort sind weg
+                      Rolle ausgeblendeter Bereich (#modules, #labor-rate) die Unternehmensdaten; /time-backoffice mit
+                      #workmodels, #settings und #options führt (seit 1.9.98 über „Zeiten“) in die Einstellungen, „Zeiten“ hat
+                      keine Reiter dafür, verlinkt die Einrichtung im „⋮“
 
 AUFRUF (aus dem Projektordner):
 
@@ -40,14 +41,14 @@ ROLLEN = ("field", "buero_auftrag", "buero_finanzen", "admin")
 SEITENLEISTE_BUERO = [
     ["Übersicht", ["Start", "Aufgaben", "Kalender"]],
     ["Aufträge", ["Anfragen", "Projekte", "Plantafel", "Checklisten", "Wartungen", "Befunde"]],
-    ["Kaufmännisch", ["Finanzen", "Mahnwesen", "Eingangsrechnungen", "Betriebskosten", "Zeiterfassung", "Backoffice"]],
+    ["Kaufmännisch", ["Finanzen", "Mahnwesen", "Eingangsrechnungen", "Betriebskosten", "Zeiten"]],  # bis 1.9.97 Zeiterfassung, Backoffice
     ["Verwaltung", ["Stammdaten", "Einstellungen"]],
 ]  # seit 1.8.162 vier Gruppen (bis dahin dazu Personal, Stammdaten und System)
 
 
 def seitenleiste(rolle):
     if rolle == "field":
-        return [["Übersicht", ["Start"]], ["Kaufmännisch", ["Zeiterfassung"]]]
+        return [["Übersicht", ["Start"]], ["Kaufmännisch", ["Zeiten"]]]  # bis 1.9.97 „Zeiterfassung“; „Zeiten“ führt sie zu „Meine Zeiten“
     if rolle == "buero_auftrag":
         return [[g, [x for x in e if x not in ("Eingangsrechnungen", "Betriebskosten")]] for g, e in SEITENLEISTE_BUERO]
     return SEITENLEISTE_BUERO
@@ -267,19 +268,19 @@ async def pruefen(tab, seed, p):
             await einstellungen_oeffnen(tab, "#deadlines")
             p.pruefe(f"{rolle}: Vorlaufzeit Wartungen nach dem Neuladen",
                      await tab.js("document.getElementById('maintenanceLeadDays').value"), "45")
-            # Backoffice: frühere Reiter führen in die Einstellungen, die Reiter dort sind weg.
+            # Backoffice: frühere Reiter führen in die Einstellungen (seit 1.9.98 über die Seite „Zeiten“, die das Backoffice ersetzt).
             for alt, ziel in (("#workmodels", "#time-rules"), ("#settings", "#time-rules"), ("#options", "#time-entry-types")):
                 await tab.oeffnen(f"/time-backoffice{alt}", "location.pathname==='/settings'&&document.querySelector('.settings-menu')")
                 p.pruefe(f"{rolle}: /time-backoffice{alt} führt nach /settings{ziel}",
                          await tab.js("location.pathname+location.hash"), f"/settings{ziel}")
-            await tab.oeffnen("/time-backoffice", "document.getElementById('metrics')&&document.getElementById('metrics').children.length>0")
-            p.pruefe(f"{rolle}: Reiter des Backoffice", await tab.js(
-                "[...document.querySelectorAll('.layout aside button')].map(b=>b.textContent.trim())"),
-                ["Dashboard", "Buchungen", "Abwesenheiten", "Stundenzettel", "DATEV / Lohn"])
-            p.pruefe(f"{rolle}: Backoffice verlinkt die Einrichtung", await tab.js(
-                "[...document.querySelectorAll('.layout aside a')].map(a=>a.getAttribute('href'))"),
+            await tab.oeffnen("/time-backoffice", "!!window.P&&document.getElementById('monatTitel').textContent!==''")
+            p.pruefe(f"{rolle}: /time-backoffice führt auf „Zeiten“ mit ihren Reitern", await tab.js(
+                "[location.pathname,[...document.querySelectorAll('.reiter a')].map(a=>a.firstChild.textContent.trim())]"),
+                ["/zeiten", ["Prüfen", "Buchungen", "Abwesenheiten", "Monat & Lohn"]])
+            p.pruefe(f"{rolle}: „Zeiten“ verlinkt die Einrichtung im „⋮“", await tab.js(
+                "[...document.querySelectorAll('#seitenkopfMenue a.ds-menue-eintrag')].map(a=>a.getAttribute('href'))"),
                 ["/settings#time-rules", "/settings#time-entry-types"])
-            p.pruefe(f"{rolle} /time-backoffice: JS-Fehler", tab.fehler, [])
+            p.pruefe(f"{rolle} /zeiten: JS-Fehler", tab.fehler, [])
     # 412 px: das Menü bleibt bedienbar
     await tab.anmelden(seed["cookies"]["buero_auftrag"])
     await tab.fenster(412, 900, mobil=True)

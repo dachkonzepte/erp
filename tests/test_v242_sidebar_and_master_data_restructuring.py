@@ -61,16 +61,16 @@ def test_sidebar_has_labeled_verwaltung_group_with_stammdaten_and_settings():
 # Punkt 4: Backoffice bleibt bei Zeiterfassung
 # ---------------------------------------------------------------------------
 
-def test_backoffice_steht_direkt_nach_der_zeiterfassung_in_der_gruppe_kaufmaennisch():
+def test_zeiten_am_ende_der_gruppe_kaufmaennisch():
     """Bis 1.8.111 ein eingerückter Unterpunkt der Zeiterfassung. Seit 1.8.112 (neue Ordnung, Gruppen mit Überschrift): Zeiterfassung und Backoffice bilden die Gruppe "Personal" --
     Backoffice steht direkt nach der Zeiterfassung, als gleichrangiger Eintrag der Gruppe statt eingerückt. Seit 1.8.162 (vier Gruppen)
-    stehen beide am Ende der Gruppe "Kaufmännisch", vor "Verwaltung"."""
+    stehen beide am Ende der Gruppe "Kaufmännisch", vor "Verwaltung". Seit 1.9.98 ersetzt sie ein Eintrag „Zeiten“, an derselben Stelle."""
     html = (TEMPLATES / "_sidebar.html").read_text(encoding="utf-8")
     kaufmaennisch_group = html.index('class="app-sidebar-group">Kaufmännisch<')
-    time_tracking = html.index('href="/time-tracking"')
-    backoffice = html.index('href="/time-backoffice"')
+    zeiten = html.index('href="/zeiten"')
     verwaltung_group = html.index('class="app-sidebar-group">Verwaltung<')
-    assert kaufmaennisch_group < time_tracking < backoffice < verwaltung_group
-    assert 'href="/' not in html[time_tracking + 1:backoffice]  # nichts dazwischen
-    body = html[max(0, backoffice - 200):backoffice]
+    assert kaufmaennisch_group < zeiten < verwaltung_group
+    assert 'href="/' not in html[zeiten + 1:verwaltung_group]  # der letzte Eintrag der Gruppe
+    assert 'href="/time-tracking"' not in html and 'href="/time-backoffice"' not in html
+    body = html[max(0, zeiten - 200):zeiten]
     assert "app-sidebar-sub" not in body

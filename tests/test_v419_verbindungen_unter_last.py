@@ -51,7 +51,7 @@ pytestmark = [pytest.mark.skipif(not PG_URL, reason="ERP_TEST_POSTGRES_URL nicht
 DATEI_MB = 24
 RATE = 256 * 1024  # Bytes je Sekunde, die ein langsamer Download liest
 POOL = {"ERP_DB_POOL_SIZE": "2", "ERP_DB_MAX_OVERFLOW": "0", "ERP_DB_POOL_TIMEOUT": "3"}
-SEITEN = ("/", "/projects", "/settings", "/users", "/master-data", "/planning", "/time-backoffice", "/finanzen", "/kalender",
+SEITEN = ("/", "/projects", "/settings", "/users", "/master-data", "/planning", "/zeiten", "/finanzen", "/kalender",  # seit 1.9.98 „Zeiten“
           "/tasks")
 ERWARTET = {"/users": 403}  # seit 1.8.134 nur für Administratoren; das Konto der Tests ist Büro – Finanzen
 

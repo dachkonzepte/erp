@@ -24,7 +24,7 @@ def test_dashboard_links_to_specific_task_inquiry_and_absence():
     html = (Path(__file__).parents[1] / "app" / "templates" / "dashboard.html").read_text(encoding="utf-8")
     assert "/tasks?task=${t.id}" in html
     assert "/inquiries?inquiry=${i.id}" in html
-    assert "/time-backoffice?absence=${a.id}#absences" in html
+    assert "/zeiten?absence=${a.id}#abwesenheiten" in html  # seit 1.9.98 „Zeiten“
 
 
 def test_tasks_page_opens_specific_task_from_query_param():
@@ -40,14 +40,14 @@ def test_inquiries_page_opens_specific_inquiry_from_query_param():
 
 
 def test_time_backoffice_highlights_specific_absence_request_without_changing_hash_routing():
-    html = (Path(__file__).parents[1] / "app" / "templates" / "time_backoffice.html").read_text(encoding="utf-8")
-    assert "location.search).get('absence')" in html
-    assert 'data-abs-id="${r.id}"' in html
-    # Die bestehende Hash-basierte Tab-Auswahl (welcher Tab beim Laden aktiv ist) darf unveraendert
-    # bleiben -- die neue Zeile darf showTab() nicht selbst aufrufen.
-    body = html[html.index("const deepLinkAbsenceId"):]
+    """Seit 1.9.98 „Zeiten“ (bis 1.9.97 das Backoffice): ?absence= öffnet die Abwesenheiten mit allen Anträgen und hebt den Antrag hervor;
+    das Hervorheben selbst wechselt keinen Reiter."""
+    html = (Path(__file__).parents[1] / "app" / "templates" / "zeiten.html").read_text(encoding="utf-8")
+    assert "var antrag=q.get('absence');" in html
+    assert 'data-abwesenheit="\'+a.id+\'"' in html
+    body = html[html.index("function antragHervorheben("):]
     body = body[:body.index("\n}")]
-    assert "showTab(" not in body
+    assert "reiterZeigen(" not in body and "scrollIntoView" in body
 
 
 # ---------------------------------------------------------------------------

@@ -28,7 +28,8 @@ DS_BASIS = STATIC_DIR / "ds" / "ds-basis.css"
 
 # Die Bereiche der Seitenleiste (seit 1.8.162 je ein Eintrag) und "keiner" (Suche, Konto) -- eine Seite mit Seitenleiste nennt einen davon
 BEREICHE = {"start", "aufgaben", "kalender", "anfragen", "projekte", "plantafel", "checklisten", "wartungen", "befunde", "finanzen",
-            "mahnwesen", "eingangsrechnungen", "betriebskosten", "zeiterfassung", "backoffice", "stammdaten", "einstellungen", "keiner"}
+            "mahnwesen", "eingangsrechnungen", "betriebskosten", "zeiten", "stammdaten", "einstellungen", "keiner"}
+# seit 1.9.98 „zeiten“ statt „zeiterfassung“ und „backoffice“ (ein Eintrag „Zeiten“ in der Leiste)
 # Seiten, die auf das Design-System umgezogen sind (<body class="… ds-seite …">) -- wird mit jedem Umzug länger
 UMGEZOGEN: set[str] = {"inspection_templates.html"}  # seit 1.9.3 (Pilot)
 # seit 1.9.7 die Gruppe „Titelzeilen und Titelkarten“ (docs/archiv/befund-rahmen.md: K1 ohne Prüfvorlagen, K2)
@@ -36,8 +37,7 @@ TITELZEILEN_UND_TITELKARTEN = {
     "dashboard.html", "tasks.html", "checklists.html", "checklist_templates.html", "maintenance_contracts.html", "findings.html",
     "incoming_invoices.html", "recurring_costs.html",
     "projects.html", "finanzen.html", "mahnwesen.html", "email_dispatches.html", "changelog.html", "search_results.html",
-    "time_tracking.html",
-}
+}  # bis 1.9.97 dazu time_tracking.html (seit 1.9.98 ersetzt durch „Zeiten“)
 UMGEZOGEN |= TITELZEILEN_UND_TITELKARTEN
 # seit 1.9.10 die Gruppe „Datensatz mit Pfad“ (befund-rahmen.md: K3)
 DATENSATZ_MIT_PFAD = {
@@ -50,7 +50,7 @@ UMGEZOGEN |= DATENSATZ_MIT_PFAD
 BELEGKOPF = {"invoice_detail.html", "quote_editor.html"}  # Angebot seit 1.9.18
 UMGEZOGEN |= BELEGKOPF
 # seit 1.9.21 die Gruppen „Untermenü links“ (K5) und „Zurück-Link + Karte“ (K6)
-UNTERMENUE_LINKS = {"master_data.html", "settings.html", "time_backoffice.html"}
+UNTERMENUE_LINKS = {"master_data.html", "settings.html"}  # bis 1.9.97 dazu time_backoffice.html (seit 1.9.98 „Zeiten“)
 ZURUECK_UND_KARTE = {"account.html", "users.html", "history.html", "address_import.html", "index.html"}
 UMGEZOGEN |= UNTERMENUE_LINKS | ZURUECK_UND_KARTE
 # seit 1.9.22 die Formularseiten Stammdaten-Formular und Leistung im Rahmen (K7; Neues Projekt und Neues Angebot werden Dialoge)
@@ -451,7 +451,7 @@ def bereich_verstoesse(name: str, wurzel: Path = TEMPLATES) -> list[str]:
 
 def test_jede_seite_mit_leiste_nennt_ihren_bereich():
     mit_leiste = [name for name in vj.seiten() if vj.bindet_ein(name, "_sidebar.html")]
-    assert len(mit_leiste) == 46  # seit 1.9.96 mit der Seite „Zeiten“, seit 1.9.67 mit der Berichtsseite, seit 1.9.22 mit Stammdaten-Formular und Leistung (bis dahin 42)
+    assert len(mit_leiste) == 44  # seit 1.9.98 ohne Zeiterfassung und Backoffice, seit 1.9.96 mit der Seite „Zeiten“, seit 1.9.67 mit der Berichtsseite, seit 1.9.22 mit Stammdaten-Formular und Leistung (bis dahin 42)
     assert [f for name in mit_leiste for f in bereich_verstoesse(name)] == []
 
 
@@ -508,7 +508,7 @@ def test_jede_seite_markiert_ihren_bereich(threaded_db_session, router_test_clie
         aktiv = re.findall(r'<a class="app-sidebar-link[^"]*\bactive\b[^"]*" data-bereich="([a-z]+)"[^>]*aria-current="page"', nav)
         assert aktiv == ([] if bereich == "keiner" else [bereich]) and nav.count('aria-current="page"') == len(aktiv), (a.vorlage, aktiv)
         geprueft.add(a.vorlage)
-    assert len(geprueft) == 46  # seit 1.9.96 mit der Seite „Zeiten“, seit 1.9.67 mit der Berichtsseite, seit 1.9.22 mit Stammdaten-Formular und Leistung (bis dahin 42)
+    assert len(geprueft) == 44  # seit 1.9.98 ohne Zeiterfassung und Backoffice, seit 1.9.96 mit der Seite „Zeiten“, seit 1.9.67 mit der Berichtsseite, seit 1.9.22 mit Stammdaten-Formular und Leistung (bis dahin 42)
 
 
 def test_grundregeln_mit_gewicht_null():

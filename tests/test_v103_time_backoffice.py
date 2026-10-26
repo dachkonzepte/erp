@@ -46,10 +46,10 @@ def test_time_settings_default_and_backoffice_ui_structure():
     db=db_session();row=load_time_settings(db);d=time_settings_dict(row)
     assert d["allow_manual_entries"] is True and d["allow_group_bookings"] is True
     root=Path(__file__).parents[1]
-    html=(root/"app/templates/time_backoffice.html").read_text(encoding="utf-8")
+    html=(root/"app/templates/zeiten.html").read_text(encoding="utf-8")  # seit 1.9.98 „Zeiten“ statt des Backoffice
     settings_html=(root/"app/templates/settings.html").read_text(encoding="utf-8")
     main=(root/"app/main.py").read_text(encoding="utf-8") + "".join(p.read_text(encoding="utf-8") for p in sorted((root/"app/routers").glob("*.py")))
-    assert "Zeiterfassungs-Backoffice" in html and "DATEV / Lohn" in html and "Stundenzettel" in html
+    assert "Monat &amp; Lohn" in html and "DATEV-Export" in html and "Stundenzettel aller als PDF" in html
     assert "/api/time-backoffice/datev-export" in main and "Nur Administratoren" in main
-    assert "Zeiterfassungs-Backoffice" in settings_html
+    assert 'href="/zeiten"' in settings_html
     assert re.match(r"^\d+\.\d+\.\d+$", (root/"VERSION").read_text(encoding="utf-8").strip())

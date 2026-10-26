@@ -43,7 +43,6 @@ ERLAUBT = [
      "Wiedervorlage: Zeitpunktvergleich (follow_up_at ist ein Zeitpunkt)"),
     ("operational_asset.html", "qr-code.png?v=${Date.now()}", "Cache-Brecher für das Bild"),
     ("roof_area.html", "sketch?t=${Date.now()}", "Cache-Brecher für das Bild"),
-    ("time_tracking.html", "function updateClock()", "laufende Uhr des Timers: Sekunden seit dem Start"),
 ]
 
 
@@ -104,7 +103,9 @@ def test_templates_using_the_helpers_include_them():
 
 def test_today_of_the_time_tracking_pages_is_berlin():
     """Der Anlass: die Büro- und die Monteur-Zeiterfassung bilden "heute" für Liste, Summen und Vorgabedatum."""
-    assert "today=()=>berlinToday()" in (TEMPLATES / "time_tracking.html").read_text(encoding="utf-8")
+    # seit 1.9.98 die Seite „Zeiten“ (bis 1.9.97 today() der Zeiterfassung): Vorgabedatum von „Buchung“ und „Kolonne buchen“
+    zeiten_buero = (TEMPLATES / "zeiten.html").read_text(encoding="utf-8")
+    assert "el('bdDatum').value=aendern?e.work_date:berlinToday();" in zeiten_buero and "el('kdDatum').value=berlinToday();" in zeiten_buero
     # seit 1.9.59 „Meine Zeiten“: das Vorgabedatum von „Zeit nachtragen“ und der Kolonne (bis 1.9.58 today() der Zeiterfassung)
     zeiten = (TEMPLATES / "mobil_zeiten.html").read_text(encoding="utf-8")
     assert "el('zdDatum').value=aendern?z.work_date:berlinToday();" in zeiten

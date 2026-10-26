@@ -23,7 +23,7 @@ Geprüft wird im echten Browser auf den Testdaten der Bildgrundlage (scripts/bil
                    Hintergrund (4,5 : 1, großer Text 3 : 1) hell und dunkel, auch mit offenem Menü und offenem Editor
     Kopfgruppe     seit 1.9.7 die 15 Seiten der Gruppe „Titelzeilen und Titelkarten“ (Start, Aufgaben, Checklisten,
                    Checklisten-Vorlagen, Wartungen, Befunde, Eingangsrechnungen, Betriebskosten, Projekte, Finanzen, Mahnwesen,
-                   Versandprotokoll, Changelog, Suche, Zeiterfassung), hell und dunkel: .ds-seite, genau ein h1 (das des Seitenkopfs) mit
+                   Versandprotokoll, Changelog, Suche, Zeiten -- bis 1.9.97 Zeiterfassung), hell und dunkel: .ds-seite, genau ein h1 (das des Seitenkopfs) mit
                    dem Titel, höchstens eine grüne Hauptaktion (Schrift auf-aktion), das Menü „⋮“ mit seinen Einträgen (per Tastatur,
                    Umschalter wechseln ihren Text), jeder sichtbare Textlink im Inhalt in --ds-link, das erste Feld mit Fokus im Umriss
                    --ds-fokus, Kontrast jedes Texts; die Hauptaktion tut, was sie vorher tat (Editor offen, „+ Projekt“ nach
@@ -47,12 +47,12 @@ Geprüft wird im echten Browser auf den Testdaten der Bildgrundlage (scripts/bil
                    Link öffnet eine Seite), Netto/Optional/MwSt./Brutto, „PDF-Vorschau“ neutral und die grüne Hauptaktion, Menü „⋮“ mit
                    Angebotsdetails und OZ neu nummerieren per Tastatur, kein alter Kopf, Links, Fokus, Kontrast; „PDF-Vorschau“ öffnet
                    das PDF, „Angebotsdetails“ den Reiter, die Hauptaktion den Auftrag
-    Untermenü      seit 1.9.21 die Seiten mit Untermenü links (Stammdaten, Einstellungen, Backoffice) und mit Zurück-Link und Karte
+    Untermenü      seit 1.9.21 die Seiten mit Untermenü links (Stammdaten, Einstellungen; bis 1.9.97 Backoffice) und mit Zurück-Link und Karte
                    (Konto -- auch als Monteurin --, Benutzer, Änderungshistorie, Adressimport, Leistungskatalog) hell und dunkel:
                    .ds-seite, ein h1 mit dem Titel, Untertitel, Pfad statt „← …“ (jeder Link öffnet eine Seite; die Seiten mit Untermenü
                    ohne Pfad), kein .back, Hauptaktion nur „+ Hinzufügen“ der Stammdaten, kein Menü, Links, Fokus, Kontrast; Stammdaten:
                    Titel und Ziel von „+ Hinzufügen“ folgen dem Bereich, Büro – Auftrag ohne „+ Hinzufügen“ bei Mitarbeitern;
-                   Einstellungen behalten den Titel; „Aktualisieren“ im Backoffice lädt ohne Fehler
+                   Einstellungen behalten den Titel
     Formularseiten seit 1.9.22 Stammdaten-Formular (Mitarbeiter bearbeiten, Kunde anlegen, Kontakt aus der Projektmappe) und Leistung im
                    Rahmen, hell und dunkel: Leiste („Stammdaten“ aktiv) und Kopfzeile, ein h1, Pfad bis zur Seite (jeder Link öffnet eine
                    Seite), „Abbrechen“ neutral zum bisherigen Zurück-Ziel und „Speichern“ grün im Kopf, der Knopf unten bleibt, Links,
@@ -60,7 +60,7 @@ Geprüft wird im echten Browser auf den Testdaten der Bildgrundlage (scripts/bil
                    Bild, „Abbrechen“ führt zurück ohne zu speichern; seit 1.9.23 fragt es „Änderungen verwerfen?“ nur nach einer
                    Änderung (abgelehnt bleibt die Seite, die Materialsuche der Leistung zählt nicht)
     Anfragen, AV   seit 1.9.24 Anfragen (Titel über den Kennzahlen) und Arbeitsvorbereitung (Pfad Projekte / Kunde / Projekt / Auftrag /
-                   Arbeitsvorbereitung, Kennung, Status als Kennzeichen, Zeiterfassung im Menü) hell und dunkel: ein h1, Pfad (jeder Link
+                   Arbeitsvorbereitung, Kennung, Status als Kennzeichen, „Zeiten (Auftrag)“ im Menü) hell und dunkel: ein h1, Pfad (jeder Link
                    öffnet eine Seite), kein alter Kopf, keine Hauptaktion, Links, Fokus, Kontrast; der Status wechselt nach dem Speichern
     Monteursseiten seit 1.9.25 Checkliste, Checklisten zum Auftrag, Objekt, Betriebsmittel, Einsatzbericht und Konto als Monteurin bei
                    1280 × 620 hell und dunkel: Monteursrahmen mit Tablet-Maßen (Pfad 15 px, Titel 26 px, Knöpfe mindestens 48 px), Pfad
@@ -116,7 +116,7 @@ MONTEUR_SEITEN = {"mobil": "Heute", "mobil_objekt": "Heute", "meine_zeiten": "Me
                   "betriebsmittel_monteur": "Heute", "checkliste": "Heute",
                   "checklisten_auftrag": "Heute", "einsatzbericht": "Heute", "konto": None}
 AKTIV = [("projektmappe", "projekte"), ("rechnung", "projekte"), ("kunde", "stammdaten"), ("befunde", "befunde"),
-         ("einstellungen", "einstellungen"), ("zeiterfassung", "zeiterfassung"), ("suche", None), ("konto", None)]
+         ("einstellungen", "einstellungen"), ("zeiten", "zeiten"), ("suche", None), ("konto", None)]  # bis 1.9.97 zeiterfassung
 
 # Farbe eines --ds-Werts so, wie getComputedStyle sie meldet (rgb(...))
 FARBE = ("(v=>{const d=document.createElement('div');d.style.color='var('+v+')';document.body.appendChild(d);"
@@ -493,7 +493,8 @@ KOPFGRUPPE = (
     ("versandprotokoll", "Versandprotokoll", None, [], None),
     ("changelog", "Changelog", None, [], None),
     ("suche", "Suche", None, [], None),
-    ("zeiterfassung", "Zeiterfassung", None, [], None),
+    # seit 1.9.98 „Zeiten“ (bis 1.9.97 die Zeiterfassung ohne Hauptaktion und Menü)
+    ("zeiten", "Zeiten", "Buchung", ["Kolonne buchen", "Zeitregeln und DATEV", "Zeit-Listen"], None),
 )
 UMSCHALTER = {"Archivierte anzeigen": "Archivierte ausblenden", "Inaktive anzeigen": "Inaktive ausblenden"}
 KOPFGRUPPE_JS = """(()=>{const F=%s;const cs=e=>getComputedStyle(e);const k=document.getElementById('seitenkopf');
@@ -667,9 +668,9 @@ DATENSATZKOPF = (
     dict(seite="einsatzbericht", rolle=bg.BUERO, titel="Einsatzberichte", kennung="{auftragsnummer}", untertitel="Hallenbau GmbH",
          pfad=[["Projekte", "/projects"], ["Hallenbau GmbH", "/customers/{kunde}"], ["Dachsanierung Halle Nord", "/projects/{projekt}"],
                ["{auftragsnummer}", "/orders/{auftrag}"], ["Einsatzberichte", None]],
-         status=["Beauftragt", "info"], aktion=None, menue=["Zeiterfassung (Auftrag)"]),
+         status=["Beauftragt", "info"], aktion=None, menue=["Zeiten (Auftrag)"]),  # bis 1.9.97 „Zeiterfassung (Auftrag)“
     dict(seite="einsatzbericht", rolle=bg.MONTEUR, titel="Einsatzberichte", kennung="{auftragsnummer}", untertitel="Hallenbau GmbH",
-         pfad=[["Heute", "/mobil"], ["Einsatzberichte", None]], status=["", "neutral"], aktion=None, menue=["Zeiterfassung (Auftrag)"]),
+         pfad=[["Heute", "/mobil"], ["Einsatzberichte", None]], status=["", "neutral"], aktion=None, menue=["Zeiten (Auftrag)"]),
 )
 DATENSATZKOPF_JS = """(()=>{const F=%s;const cs=e=>getComputedStyle(e);const k=document.getElementById('seitenkopf');
 const st=document.getElementById('seitenkopfStatus');const eintraege=[...document.querySelectorAll('#seitenkopfMenue .ds-menue-eintrag')];
@@ -989,8 +990,7 @@ async def _angebotskopf(tab, seed, p):
 UNTERMENUE = (
     dict(seite="stammdaten", rolle=bg.BUERO, titel="Kunden", untertitel="2 Kundenstammsätze", pfad=[], aktion="+ Hinzufügen"),
     dict(seite="einstellungen", rolle=bg.BUERO, titel="Einstellungen", untertitel="", pfad=[], aktion=None),
-    dict(seite="backoffice", rolle=bg.BUERO, titel="Zeiterfassungs-Backoffice",
-         untertitel="Kontrolle, Monatsauswertung, Stundenzettel, Abschluss und Lohnexport.", pfad=[], aktion=None),
+    # bis 1.9.97 hier das Backoffice -- seit 1.9.98 die Seite „Zeiten“ (Kopfgruppe)
     dict(seite="konto", rolle=bg.BUERO, titel="Mein Konto", untertitel="", pfad=[["Start", "/"], ["Mein Konto", None]], aktion=None),
     dict(seite="konto", rolle=bg.MONTEUR, titel="Mein Konto", untertitel="", pfad=[["Heute", "/mobil"], ["Mein Konto", None]],
          aktion=None),
@@ -1008,12 +1008,12 @@ HINZUFUEGEN = ("(()=>{const a=document.getElementById('addLink');return [documen
 
 
 async def _untermenue(tab, seed, p):
-    """Seit 1.9.21: die 3 Seiten mit Untermenü links (Stammdaten, Einstellungen, Backoffice) und die 5 mit Zurück-Link und Karte (Konto
+    """Seit 1.9.21: die Seiten mit Untermenü links (Stammdaten, Einstellungen; bis 1.9.97 Backoffice) und die 5 mit Zurück-Link und Karte (Konto
     -- auch als Monteurin --, Benutzer, Änderungshistorie, Adressimport, Leistungskatalog) im gemeinsamen Seitenkopf, hell und dunkel:
     .ds-seite, genau ein h1 mit dem Titel, Untertitel, Pfad statt „← …“ (jeder Link öffnet eine Seite; ohne Pfad die Seiten mit
     Untermenü), kein .back mehr, Hauptaktion nur in den Stammdaten, kein Menü, Textlinks in --ds-link, Fokus in --ds-fokus, Kontrast.
     Dazu (hell): Stammdaten wechseln Titel und Ziel von „+ Hinzufügen“ mit dem Bereich, Büro – Auftrag sieht es bei Mitarbeitern nicht;
-    Einstellungen behalten den Titel beim Wechsel des Bereichs; „Aktualisieren“ im Backoffice lädt ohne Fehler."""
+    Einstellungen behalten den Titel beim Wechsel des Bereichs."""
     await tab.cmd("Emulation.setFocusEmulationEnabled", enabled=True)
     # Büro – Auftrag legt keine Mitarbeiter an: „+ Hinzufügen“ dort verborgen, in den übrigen Bereichen sichtbar (wie bisher)
     await tab.anmelden(seed["cookies"][bg.BUERO_AUFTRAG])
@@ -1065,11 +1065,6 @@ async def _untermenue(tab, seed, p):
                 r = await tab.js("[document.getElementById('seitenkopfTitel').textContent,location.hash,"
                                  "document.querySelector('.settings-section.active h2').textContent.trim()]")
                 p.pruefe(f"{wo}: Bereich Nummernkreise gewählt, Titel bleibt „Einstellungen“", r, ["Einstellungen", "#numbers", "Nummernkreise"])
-            if thema == "hell" and f["seite"] == "backoffice":
-                await tab.warte_auf_neu_geladene_liste("document.querySelector('.card.toolbar button').click()", "#metrics")
-                p.pruefe(f"{wo}: „Aktualisieren“ lädt die Kennzahlen neu, der Kopf bleibt",
-                         [await tab.js("document.querySelectorAll('#metrics .metric').length>0"),
-                          await tab.js("document.getElementById('seitenkopfTitel').textContent")], [True, f["titel"]])
             p.pruefe(f"{wo}: keine JS-Fehler", tab.fehler, [])
     await tab.bild("untermenue_zuletzt")
 
@@ -1213,13 +1208,13 @@ ANFRAGEN_AV = (
     dict(seite="arbeitsvorbereitung", titel="Arbeitsvorbereitung", kennung="{auftragsnummer}", untertitel="P-2026-0001 · Dachsanierung Halle Nord",
          pfad=[["Projekte", "/projects"], ["Hallenbau GmbH", "/customers/{kunde}"], ["Dachsanierung Halle Nord", "/projects/{projekt}#sec-orders"],
                ["{auftragsnummer}", "/orders/{auftrag}"], ["Arbeitsvorbereitung", None]],
-         status=["Offen", "signal"], menue=["Zeiterfassung (Auftrag)"]),
+         status=["Offen", "signal"], menue=["Zeiten (Auftrag)"]),  # bis 1.9.97 „Zeiterfassung (Auftrag)“
 )
 
 
 async def _anfragen_av(tab, seed, p):
     """Seit 1.9.24: Anfragen (Titel über den Kennzahlen, keine Hauptaktion) und Arbeitsvorbereitung (Pfad Projekte / Kunde / Projekt /
-    Auftrag / Arbeitsvorbereitung, Kennung = Auftragsnummer, Status der Arbeitsvorbereitung als Kennzeichen, „Zeiterfassung (Auftrag)“ im
+    Auftrag / Arbeitsvorbereitung, Kennung = Auftragsnummer, Status der Arbeitsvorbereitung als Kennzeichen, „Zeiten (Auftrag)“ im
     Menü, Kennzahlen unter dem Kopf), hell und dunkel: .ds-seite, ein h1, jeder Link im Pfad öffnet eine Seite, Links, Fokus, Kontrast; dazu
     (hell) der Status wechselt nach „Status“ + Speichern im Kopf mit (In Planung, info), die Kennzahlen der Anfragen stehen unter dem Kopf."""
     await tab.cmd("Emulation.setFocusEmulationEnabled", enabled=True)
@@ -1254,8 +1249,8 @@ async def _anfragen_av(tab, seed, p):
                     "(()=>{const k=document.getElementById('seitenkopf').getBoundingClientRect(),m=document.querySelector('.metric-grid').getBoundingClientRect();"
                     "return [m.top>=k.bottom,document.getElementById('metricOpen')!==null]})()"), [True, True])
             if thema == "dunkel" and f["seite"] == "arbeitsvorbereitung":  # zuletzt: das Speichern ändert den Status
-                p.pruefe(f"{wo}: Menü „Zeiterfassung (Auftrag)“ mit dem Auftrag", await tab.js(
-                    "document.getElementById('timeLink').getAttribute('href')"), f"/time-tracking?order_id={seed['auftrag']}")
+                p.pruefe(f"{wo}: Menü „Zeiten (Auftrag)“ mit dem Auftrag", await tab.js(  # bis 1.9.97 /time-tracking?order_id=
+                    "document.getElementById('timeLink').getAttribute('href')"), f"/zeiten?auftrag={seed['auftrag']}#buchungen")
                 await tab.warte_auf_neu_geladene_liste(
                     "document.getElementById('prepStatus').value='in_planung';saveHeader()", None)
                 p.pruefe(f"{wo}: Status „In Planung“ gespeichert -- der Kopf wechselt mit (info)", await tab.js(
