@@ -4,6 +4,16 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.88 – Der Monteursrahmen setzt .ds-tablet (Stufe 4, R5)
+
+Beschlossen in Stufe 2, nie gebaut: keine Vorlage setzte `.ds-tablet`, die Tablet-Regeln aus `ds-basis.css` und `ds.css` griffen nirgends --
+Knöpfe und Felder der Monteurin hatten 10 statt 12 px Ecke. Jetzt trägt jede Seite im Monteursrahmen die Klasse am `<body>`, unter derselben
+Bedingung wie der Monteurskopf (`tests/test_v509_ds_tablet.py`): Knöpfe und Felder 12 px, Seitentitel 26 px, Grundschrift 17 px, dazu der Knopf
+des Seitenkopfs und „Zeit nachtragen“ mit 12 px. Beim Messen aller Seiten der Monteurin (neuer Klicktest `klicktest_tablet`, 1280 × 620 und
+800 × 1100) lagen Ziele unter 48 px -- Konto 40 px, Objekt 44 px, Checkliste 44/47 px, Start einer Checkliste 44 px --: eine Grundregel hebt
+Knöpfe, Auswahlen und einzeilige Felder im Tablet auf 48 px, die Seiten mit eigenen 44 px ebenso. Die Segmentgruppe „OK / Nicht OK / Entfällt“ im
+Bericht hat innen keine Ecke mehr (der mittlere Knopf nahm bis dahin die 10 px der Grundregel).
+
 ## 1.9.87 – Abgeschlossene Aufträge auf „Heute“ und in „Meine Zeiten“ (Stufe 4, R5)
 
 Seit 1.9.81 bucht die Monteurin nicht auf abgeschlossene oder stornierte Aufträge -- die Seiten boten es trotzdem an. Jetzt trägt die

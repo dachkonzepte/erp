@@ -1,4 +1,5 @@
 {% set bereich = "keiner" -%}
+{% set monteursrahmen = can(request.state.erp_user, 'field') %}{# seit 1.9.88 hier oben: die Klasse ds-tablet am body braucht es schon, Jinja rendert der Reihe nach -#}
 <!doctype html>
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>DACHKONZEPTE ERP – Mein Konto</title>
@@ -28,10 +29,9 @@ button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-col
    Link ("Bitte zuerst anmelden.") hatte bislang keine eigene Regel und erschien deshalb als
    blau unterstrichener Browser-Standardlink statt im Design-System, siehe CLAUDE.md. Seit 1.9.21 in --ds-link. */
 a{color:var(--ds-link)}
-</style></head><body class="ds-seite">
+</style></head><body class="ds-seite{% if monteursrahmen %} ds-tablet{% endif %}">
 {# Seit 1.8.164 (Stufe 2 „Rahmen“): die Monteurin im Monteurskopf, das Büro mit Seitenleiste und Kopfzeile (ersetzt Festlegung 1.8.113
-   Nr. 6: „die Kontoseite zeigt dem Monteur die Seitenleiste“). #}
-{% set monteursrahmen = can(request.state.erp_user, 'field') %}
+   Nr. 6: „die Kontoseite zeigt dem Monteur die Seitenleiste“). Seit 1.9.88 steht das {% set monteursrahmen %} am Anfang. #}
 <div class="app-layout">
 {% if not monteursrahmen %}{% include "_sidebar.html" %}{% endif %}
 <div class="app-content">

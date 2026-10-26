@@ -5557,3 +5557,38 @@ Zeiten“ kein „⋮“ an Buchungen dort; (4) Werkzeug: Port-Wettlauf beheben 
 **Befund, gemeldet, nicht behoben**: zwei Einsätze am selben Objekt sehen auf „Heute“ gleich aus -- die Karte nennt Objekt, Kunde und Adresse,
 nicht Nummer und Titel des Auftrags (im Bild 0 unterscheidet sie nur das Kennzeichen). Vorschlag: „Nummer · Titel“ in der Karte, wie in „Für
 welchen Auftrag?“.
+
+### R5, Punkt 2 (1.9.88): der Monteursrahmen setzt .ds-tablet
+
+- `<body>` jeder Vorlage mit `_mobile_header.html`: immer (`mobil`, `mobil_zeiten`, `mobil_offen`, `mobil_objekt`,
+  `operational_asset_field`), nach `monteursrahmen` (`account`, `service_report`, `service_reports` -- dort steht das `{% set monteursrahmen %}`
+  jetzt am Anfang der Vorlage, Jinja rendert der Reihe nach) bzw. nach `is_field` (`checklist`, `checklist_order`).
+- `ds-basis.css`: neue Grundregel `min-height: 48px` für Knöpfe, Auswahlen und einzeilige Felder unter `.ds-seite.ds-tablet` (Gewicht null);
+  `ds.css`: `.ds-tablet .ds-knopf` mit `--ds-ecke-tablet-feld`; `service_reports.html`: `.ds-tablet .zeit-nachtragen` ebenso; `checklist.html`,
+  `_checklists_section.html`, `mobil_objekt.html`: ihre eigenen 44 px im Tablet bzw. immer 48 px; `service_report.html`: `.segment` ohne Ecke.
+- Gemessen vorher (Stand 7b4c1cf): 59 von 105 Prüfungen -- die Klasse fehlte überall; Ecken 10 px an Knöpfen und Feldern von Einsatzberichten,
+  Bericht (Kopfknopf, mittleres Segment), Checkliste, Checklisten zum Auftrag, Konto, Heute / Offen, Objekt; Ziele unter 48 px: Konto (Felder
+  und Knopf 40 px), Objekt („Hochladen“, Kategorie 44 px), Checkliste (Knöpfe 44 px, Felder 47 px), Checklisten zum Auftrag (Start 44 px).
+  Nachher 105 von 105.
+
+**Festlegungen 1.9.88 (Bitte bestätigen)**
+
+1. Die Klasse setzt der Server am `<body>`, unter derselben Bedingung wie die Einbindung des Monteurskopfs; „Heute“ und „Meine Zeiten“ tragen sie
+   auch (sie sind noch nicht umgezogen, die Grundregeln wirken dort nicht -- ihre Knöpfe haben die 12 px schon selbst).
+2. Mit der Klasse kommt die Grundschrift 17 px (`--ds-groesse-5`, in `ds-basis.css` seit 1.8.161 für das Tablet vorgesehen) auf die umgezogenen
+   Monteursseiten.
+3. Ziele im Tablet mindestens 48 px als Grundregel (Knöpfe, Auswahlen, einzeilige Felder; nicht Häkchen, nicht mehrzeilige Felder); wo eine
+   Seite selbst 44 px setzte, im Tablet 48 px.
+4. Der Knopf des Seitenkopfs (`.ds-knopf`) im Tablet 12 px; die Einträge der Menüs bleiben, wie sie sind.
+5. Die Segmentgruppe im Bericht innen ohne Ecke, außen 12 px.
+
+**Tests und Prüfung**
+
+- Neu `tests/test_v509_ds_tablet.py` (3 Tests): jede Monteursseite setzt die Klasse unter derselben Bedingung wie den Monteurskopf; die Büroansicht
+  derselben Vorlage ohne (gerendert als Monteurin und als Büro); die Regeln in `ds.css`, `ds-basis.css`, Einsatzberichte und Bericht.
+- Neu `scripts/klicktest_tablet.py` (105 Prüfungen, Testdaten und Seiten der Bildgrundlage): je Seite der Monteurin bei 1280 × 620 und 800 × 1100
+  Klasse, Seitentitel 26 px, Ecken 12 px (Segmentgruppen als Gruppe, rahmenlose Textknöpfe ohne), Ziele ≥ 48 px; Dialog „Zeit nachtragen“ samt
+  Knopfleiste im Bild.
+- Keine angepassten Erwartungen.
+- **Gegenproben** (je rot, FAILED): Konto ohne `ds-tablet` -> `test_v509` 2, Klicktest 6; Grundregel ohne Mindesthöhe -> `test_v509` 1,
+  Klicktest 2; Knopf des Seitenkopfs ohne Tablet-Ecke -> `test_v509` 1, Klicktest 4; Segment in der Mitte mit Ecke -> `test_v509` 1, Klicktest 2.

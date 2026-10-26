@@ -461,6 +461,12 @@
   font-size: var(--ds-groesse-9-tablet);
 }
 
+/* seit 1.9.88 setzt jede Seite im Monteursrahmen .ds-tablet (Beschluss Stufe 2): auch der Knopf des Seitenkopfs mit der Tablet-Ecke
+   wie die übrigen Knöpfe (ds-basis.css) */
+.ds-tablet .ds-knopf {
+  border-radius: var(--ds-ecke-tablet-feld);
+}
+
 .ds-kopf-untertitel {
   margin: var(--ds-abstand-1) 0 0;
   font-size: var(--ds-groesse-3);

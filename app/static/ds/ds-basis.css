@@ -5,7 +5,8 @@
    Schrift, Farben und Steuerelemente für Seiten, die auf das
    Design-System „Schiefer & Signal“ umgezogen sind. Jede Regel gilt nur
    unter .ds-seite (die Klasse setzt eine Seite beim Umzug an ihr <body>,
-   für das Tablet zusätzlich .ds-tablet) -- eine Seite ohne die Klasse
+   für das Tablet zusätzlich .ds-tablet -- seit 1.9.88 jede Seite im
+   Monteursrahmen, tests/test_v509_ds_tablet.py) -- eine Seite ohne die Klasse
    bleibt unverändert. Hier stehen keine --ds-*-Werte (die setzt nur
    ds.css), keine At-Regeln, kein !important (Wächter:
    tests/test_v441_rahmen_baustein.py). Regel 37 für ds.css bleibt.
@@ -57,6 +58,13 @@
 
 :where(.ds-seite.ds-tablet input, .ds-seite.ds-tablet select, .ds-seite.ds-tablet textarea, .ds-seite.ds-tablet button) {
   border-radius: var(--ds-ecke-tablet-feld);
+}
+
+/* Seit 1.9.88: Ziele im Tablet mindestens 48 px hoch (Stufe 4) -- Knöpfe, Auswahlen und einzeilige Felder; nicht Häkchen und
+   Optionsfelder, nicht mehrzeilige Felder. Bis dahin waren Konto (40 px), Objekt (44 px) und Checkliste (44/47 px) darunter. */
+:where(.ds-seite.ds-tablet button, .ds-seite.ds-tablet select,
+       .ds-seite.ds-tablet input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"])) {
+  min-height: 48px;
 }
 
 :where(.ds-seite a) {

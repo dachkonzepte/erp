@@ -7,7 +7,7 @@
    einbindenden Seite (--accent/--card/--ink/--muted/--line/--soft). Was ein Monteur sieht,
    entscheidet ausschließlich der Server (GET /api/checklists liefert für fremde Checklisten nur
    Titel/Datum/Ersteller, can_open steuert den Link) -- hier ist keine Rollenlogik. Bedienelemente
-   mindestens 44px hoch (Tablet, Handschuhe).
+   mindestens 44px hoch (Tablet, Handschuhe), seit 1.9.88 im Monteursrahmen (.ds-tablet) 48px.
 
    Seit 1.8.38 optional ein vierter Parameter {zweck:'behinderungsanzeige', zweckLabel:'…'}: ein
    hervorgehobener Kasten "<Zweck> anlegen" oben mit genau den Vorlagen dieses Zwecks und den schon
@@ -32,6 +32,7 @@ a.cl-row:hover{background:var(--soft)}
 .cl-focus .cl-start-title{color:var(--ink);font-size:14px;text-transform:none}
 .cl-focus .cl-open{font-size:13.5px;margin-top:8px}
 .cl-focus .cl-open a{color:var(--accent);font-weight:650}
+.ds-tablet .cl-row,.ds-tablet .cl-start-buttons button{min-height:48px}  /* seit 1.9.88 */
 </style>
 {% include "_speichern.html" %}
 <script>

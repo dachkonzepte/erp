@@ -24,7 +24,7 @@ body.field .cl-main{margin:0 auto}
 .card{background:var(--card);border:1px solid var(--line);padding:16px;margin-bottom:12px;border-radius:var(--ds-ecke-karte)}
 .muted{color:var(--muted)}
 </style></head>
-<body class="ds-seite {{ 'field' if is_field else 'office' }}">
+<body class="ds-seite {{ 'field ds-tablet' if is_field else 'office' }}">
 {% if is_field %}{% include "_mobile_header.html" %}{% else %}<div class="app-layout">{% include "_sidebar.html" %}<div class="app-content">{% include "_topbar.html" %}{% endif %}
 <main class="cl-main">
   {# Seit 1.9.25 (Stufe 2, Runde 9): gemeinsamer Seitenkopf (bis dahin „← zurück“ und eine Karte „Auftrag …“), für den Monteur im

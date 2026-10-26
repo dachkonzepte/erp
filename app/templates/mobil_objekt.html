@@ -38,9 +38,9 @@
     .doc-actions a{min-height:36px;display:flex;align-items:center;padding:0 10px;border:1px solid var(--line);text-decoration:none;font-size:12.5px;font-weight:650;color:var(--ink)}
     .field{margin-bottom:10px}
     .field label{display:block;font-size:12px;font-weight:650;color:var(--muted);margin-bottom:4px}
-    .field input,.field select,.field textarea{width:100%;padding:10px 11px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:14px;min-height:44px}
+    .field input,.field select,.field textarea{width:100%;padding:10px 11px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:14px;min-height:48px}  /* seit 1.9.88 48 px (Ziele im Tablet) */
     .field textarea{min-height:60px;resize:vertical}
-    button{border:1px solid var(--ds-aktion);background:var(--ds-aktion);color:#fff;padding:11px 14px;font-weight:650;font-size:14px;min-height:44px;width:100%}
+    button{border:1px solid var(--ds-aktion);background:var(--ds-aktion);color:#fff;padding:11px 14px;font-weight:650;font-size:14px;min-height:48px;width:100%}
     button:disabled{opacity:.6}
     .status{font-size:12.5px;margin-top:8px}
     .status.err{color:var(--danger)}
@@ -53,7 +53,7 @@
     .finding-row .sev{font-weight:700}
   </style>
 </head>
-<body class="ds-seite">
+<body class="ds-seite ds-tablet">
 {% include "_mobile_header.html" %}
 <main>
   {# Seit 1.9.25 (Stufe 2, Runde 9): gemeinsamer Seitenkopf mit Tablet-Maßen (die Seite steht für jede Rolle im Monteursrahmen): Pfad

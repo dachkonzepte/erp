@@ -1,4 +1,5 @@
 {% set bereich = "projekte" -%}
+{% set monteursrahmen = can(request.state.erp_user, 'field') %}{# seit 1.9.88 hier oben: die Klasse ds-tablet am body braucht es schon, Jinja rendert der Reihe nach -#}
 <!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP – Einsatzberichte</title>
 {# Seit 1.9.67 (Stufe 4, R4, Entscheidung D) die Seite des Auftrags: Objekt & Zugang, offene Bedenken, die Berichte des Auftrags mit
    „+ Bericht“, frühere Berichte zum Gebäude und die Zeiten (Büro: Liste und Buchen wie bisher; die Monteurin „Zeit nachtragen“ auf „Meine
@@ -48,6 +49,7 @@ tr:last-child td{border-bottom:none}
 .zeit-nachtragen{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 18px;border:1px solid var(--ds-aktion);background:var(--ds-aktion);color:var(--ds-auf-aktion);font-weight:650;text-decoration:none;border-radius:var(--ds-ecke-feld)}  /* seit 1.9.84: die Ecken der übrigen Knöpfe (ds-basis.css, :where(.ds-seite button)) */
 .zeit-nachtragen:hover{color:var(--ds-auf-aktion)}
 .zeit-nachtragen[hidden]{display:none}
+.ds-tablet .zeit-nachtragen{border-radius:var(--ds-ecke-tablet-feld)}  /* seit 1.9.88: im Monteursrahmen wie die Knöpfe (12 px) */
 @media(max-width:700px){.fields-2col{grid-template-columns:1fr}}
 @media(max-width:900px){
   .table-scroll table thead{display:none}
@@ -59,7 +61,7 @@ tr:last-child td{border-bottom:none}
   .table-scroll table td input,.table-scroll table td select{width:auto;max-width:60%;min-height:40px}
 }
 a{color:var(--ds-link)}
-</style></head><body class="ds-seite">
+</style></head><body class="ds-seite{% if monteursrahmen %} ds-tablet{% endif %}">
 {# current_user hier setzen, nicht nur in _sidebar.html/_topbar.html: ein {% set %} in einem
    {% include %} wirkt nicht in dieser Vorlage nach (siehe settings.html). Seit 1.8.27: Auftrag,
    Kunde und Einstellungen öffnet nur das Büro -- der Monteur bekommt keine Links dorthin
@@ -68,7 +70,6 @@ a{color:var(--ds-link)}
 {% set darf_buero_seiten = can(current_user, 'admin', 'buero_finanzen', 'buero_auftrag') %}
 {# Seit 1.8.164 (Stufe 2 „Rahmen“): die Monteurin im Monteurskopf -- Reiter, Lupe, Konto mit vollem Namen --, das Büro mit Seitenleiste
    und Kopfzeile; die Weiche hängt an der Rolle (Muster checklist.html). #}
-{% set monteursrahmen = can(current_user, 'field') %}
 <div class="app-layout">
 {% if not monteursrahmen %}{% include "_sidebar.html" %}{% endif %}
 {% if not monteursrahmen %}{% include "_time_entries_list.html" %}{% endif %}

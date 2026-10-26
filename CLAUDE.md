@@ -36,7 +36,7 @@ werden nur bei Bedarf gelesen, nicht automatisch geladen (keine `@`-Imports).
 
 ## Stand bei Übergabe
 
-- Version: **1.9.87** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
+- Version: **1.9.88** (siehe `CHANGELOG.md` für die vollständige Versionshistorie; diese Zeile stand
   bis Runde 0e noch auf 1.7.6 -- maßgeblich ist immer die Datei `VERSION`)
 - Stabiler Pfad: `C:\DACHKONZEPTE-ERP\1 Prototype\`
 - Das komplette visuelle Redesign (anpassbare Akzentfarbe, Hell-/Dunkel-Theme, eckige
@@ -374,6 +374,9 @@ Behoben, drei Teile:
   Listen (offene Berichte, Mängel, Checklisten, Wartungen) auf „Heute / Offen“ (`/mobil/offen`, `mobil_offen.html`, umgezogen: Monteursrahmen
   mit Seitenkopf); ein leerer Abschnitt fehlt, „Heute“ endet mit „Nächste Tage“, die Zeilen von „Offen“ springen dorthin; Wächter
   `tests/test_v476_heute_offen.py`. Seit 1.9.50 ein Feld auf der Signalfläche mit `--ds-feld-rand-signal` (≥ 3 : 1 zu signal-hell).
+  **Seit 1.9.88** setzt jede Seite im Monteursrahmen `.ds-tablet` am `<body>` (unter derselben Bedingung wie `_mobile_header.html`): Knöpfe
+  und Felder 12 px, Ziele ≥ 48 px (Grundregel in `ds-basis.css`), Seitentitel 26 px, Grundschrift 17 px; Wächter `tests/test_v509_ds_tablet.py`,
+  gemessen in `klicktest_tablet.py` (jede Seite der Monteurin, beide TerraPad-Fenster).
   Archiv: `docs/archiv/redesign.md`, „Stufe 4, R2“ und „R2 Nachrunde“.
 
 ## Kritische, nicht verhandelbare Regeln
