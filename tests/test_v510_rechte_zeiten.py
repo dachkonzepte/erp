@@ -185,8 +185,10 @@ def test_lohndaten_nur_admin_und_finanzen(welt, rolle):  # noqa: F811
         assert [(a.status_code, a.json()["detail"]) for a in antworten] == [(403, NUR_LOHNDATEN)] * 4
         assert client.get("/api/time-backoffice/settings").json()["locked_until"] is None
     else:
-        assert [a.status_code for a in antworten] == [200] * 4
+        # seit 1.9.92 lehnt der DATEV-Export den nicht abgeschlossenen Zeitraum ab (409, nicht 403 -- die Rolle darf)
+        assert [a.status_code for a in antworten] == [200, 200, 409, 200]
         assert antworten[0].content.startswith(b"%PDF")
+        assert "nur für abgeschlossene Zeiträume" in antworten[2].json()["detail"]
     assert client.get("/api/time-backoffice/summary", params=zeitraum).status_code == 200
 
 

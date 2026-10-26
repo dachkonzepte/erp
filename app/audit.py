@@ -163,6 +163,8 @@ FIELD_LABELS = {
     "customer_address": "Kundenanschrift",
     "customer_name": "Kundenname",
     "customer_number_at_supplier": "Kundennummer beim Lieferanten",
+    "datev_beraternummer": "DATEV-Beraternummer",  # seit 1.9.92
+    "datev_mandantennummer": "DATEV-Mandantennummer",  # seit 1.9.92
     "datev_target": "DATEV-Ziel",
     "datev_wage_type_other": "DATEV-Lohnart Sonstige",
     "datev_wage_type_site": "DATEV-Lohnart Baustelle",

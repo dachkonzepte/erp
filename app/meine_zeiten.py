@@ -34,19 +34,13 @@ from .rounding import round_hours
 from .time_backoffice import load_time_settings, locked_until
 from .time_tracking import (
     _reihenfolge_am_tag, auftrag_geschlossen, crew_leader_team_ids, entry_to_dict, list_crews_for_leader, list_entries,
-    list_groups_initiated_by, mindestpause_der_buchung, pausen_vorschau,
+    list_groups_initiated_by, mindestpause_der_buchung, pausen_vorschau, tagessumme,
 )
 
 MONATSNAMEN = {
     1: "Januar", 2: "Februar", 3: "März", 4: "April", 5: "Mai", 6: "Juni",
     7: "Juli", 8: "August", 9: "September", 10: "Oktober", 11: "November", 12: "Dezember",
 }
-
-
-def tagessumme(rows) -> Decimal:
-    """Die gebuchten Stunden mehrerer Zeiten -- eine laufende zählt nicht mit. Dieselbe Funktion für Kacheln, Tagessummen, Monat und den
-    Stundenzettel als PDF (app/field_timesheet_pdf.py); gerundet wird erst das Ergebnis (round_hours())."""
-    return sum((Decimal(str(r.hours or 0)) for r in rows if r.status == "booked"), Decimal("0"))
 
 
 def abwesenheitsarten(db: Session) -> list[dict]:

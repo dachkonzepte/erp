@@ -2681,6 +2681,11 @@ class TimeTrackingSettings(Base):
     # zurueck (siehe app/time_backoffice.py::_wage_type()), was fachlich falsch waere.
     datev_wage_type_weather_winter: Mapped[str | None] = mapped_column(String(30), nullable=True)
     datev_wage_type_weather_summer: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    # Seit 1.9.92 (Stufe 4, R5a, Punkt 5): DATEV-Beraternummer (4–7 Ziffern, ab 1001) und Mandantennummer (1–5 Ziffern, ab 1) für den Kopf
+    # des LODAS-Exports ([Allgemein] BeraterNr/MandantenNr); leer = nicht eingetragen, dann lehnt der Export ab. Nur der Admin trägt sie ein
+    # (PUT /api/time-backoffice/datev-nummern), nie über das allgemeine Formular der Zeitregeln.
+    datev_beraternummer: Mapped[str | None] = mapped_column(String(7), nullable=True)
+    datev_mandantennummer: Mapped[str | None] = mapped_column(String(5), nullable=True)
     # Seit 1.7.10: Abschluss der Zeiterfassung (z. B. nach der Lohnabrechnung). Buchungen mit
     # work_date <= locked_until darf nur noch ein Admin anlegen/ändern/löschen/stoppen, siehe
     # app/routers/time_tracking.py::_require_open_period(). Bewusst NICHT Teil des allgemeinen

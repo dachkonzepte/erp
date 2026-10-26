@@ -128,7 +128,8 @@ def test_alte_gruppenbuchungen_bleiben_unveraendert(welt):
 
 
 def test_waechter_eine_rundung():
-    """Unter app/ ruft nur gebucht_nach_zeitregel() die Rundung der Zeitregeln -- außer dem DATEV-Export (rundet beim Summieren)."""
+    """Unter app/ ruft nur gebucht_nach_zeitregel() die Rundung der Zeitregeln -- seit 1.9.92 auch nicht mehr der DATEV-Export (bis dahin
+    rundete er beim Summieren jede Buchung erneut, Stufe 4, R5a, Punkt 5)."""
     funde = []
     for pfad in sorted((ROOT / "app").rglob("*.py")):
         baum = ast.parse(pfad.read_text(encoding="utf-8"))
@@ -138,4 +139,4 @@ def test_waechter_eine_rundung():
             for knoten in ast.walk(fn):
                 if isinstance(knoten, ast.Call) and getattr(knoten.func, "id", getattr(knoten.func, "attr", None)) == "rounded_hours":
                     funde.append((pfad.relative_to(ROOT).as_posix(), fn.name))
-    assert sorted(set(funde)) == [("app/time_backoffice.py", "build_datev_export"), ("app/time_tracking.py", "gebucht_nach_zeitregel")]
+    assert sorted(set(funde)) == [("app/time_tracking.py", "gebucht_nach_zeitregel")]

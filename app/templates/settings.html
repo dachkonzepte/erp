@@ -700,6 +700,15 @@
         <div class="field"><label>Lohnart Schlechtwetter Sommer</label><input id="wageWeatherSummer"></div>
       </div>
       <div style="margin-top:14px"><button onclick="saveTimeRules()">Zeitregeln und Lohnarten speichern</button><span id="timeRulesStatus" class="status"></span></div>
+      {# Seit 1.9.92 (Stufe 4, R5a, Punkt 5): Berater- und Mandantennummer -- eigener Endpunkt nur für Admins (das Formular darüber speichert
+         jedes Büro), Format nach DATEV; ohne sie lehnt der DATEV-Export ab #}
+      <h3 style="margin:18px 0 8px;font-size:15px">DATEV-Berater und -Mandant</h3>
+      <div class="muted small" style="margin-bottom:8px" id="datevNummernHinweis">Beraternummer 4 bis 7 Ziffern (ab 1001), Mandantennummer 1 bis 5 Ziffern – sie stehen im Kopf des LODAS-Exports; ohne sie entsteht kein DATEV-Export.{% if not ist_admin %} Ändern kann sie nur ein Administrator.{% endif %}</div>
+      <div class="time-grid">
+        <div class="field"><label for="datevBerater">Beraternummer</label><input id="datevBerater" inputmode="numeric" autocomplete="off" maxlength="7"{% if not ist_admin %} readonly{% endif %}></div>
+        <div class="field"><label for="datevMandant">Mandantennummer</label><input id="datevMandant" inputmode="numeric" autocomplete="off" maxlength="5"{% if not ist_admin %} readonly{% endif %}></div>
+      </div>
+      {% if ist_admin %}<div style="margin-top:10px"><button class="secondary" id="datevNummernSpeichern" onclick="saveDatevNummern()">Berater- und Mandantennummer speichern</button><span id="datevNummernStatus" class="status"></span></div>{% endif %}
     </div>
     <div class="block">
       <div class="model-title"><div><h3 style="margin:0 0 4px;font-size:15px">Arbeitszeitmodelle</h3><div class="muted small">Sommer-, Winter- oder weitere Modelle mit automatischen Pausenregeln.</div></div><button onclick="newModel()">+ Modell</button></div>
@@ -1066,7 +1075,7 @@ function ctMove(key,i,dir){ctRebuild(key,list=>{const j=i+dir;if(j<0||j>=list.le
 async function saveContractTemplate(key){const st=document.querySelector(`[data-ct="${key}"] .ctStatus`);st.className='status ctStatus';try{const daten=ctRead(key);const d=await speichern('vertragsvorlagen',()=>api(`/api/settings/contract-templates/${key}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(daten)}),{anwenden:neu=>{contractTemplates=contractTemplates.map(t=>t.basis_key===key?neu:t);renderContractTemplates()}});const st2=document.querySelector(`[data-ct="${key}"] .ctStatus`);st2.classList.add('ok');st2.textContent=d.review_reset?'Gespeichert. Der Inhalt wurde geändert – die bisherige Prüfangabe gilt nicht mehr, bitte nach erneuter Prüfung neu eintragen.':'Gespeichert.'}catch(e){st.classList.add('err');st.textContent='Fehler: '+e.message}}
 // Seit 1.8.109 (Vorgabe "Vor dem Abnahmetest" Punkt 2): abgelehnte Antworten lesbar über _fehlertext.html -- ein 422 erschien bis
 // dahin als "[object Object]" (z. B. an den Zahlungsbedingungen).
-const FELDNAMEN={label:'Bezeichnung',days:'Tage bis Fälligkeit',skonto_percent:'Skonto %',skonto_days:'Skonto-Frist (Tage)',
+const FELDNAMEN={beraternummer:'Beraternummer',mandantennummer:'Mandantennummer',label:'Bezeichnung',days:'Tage bis Fälligkeit',skonto_percent:'Skonto %',skonto_days:'Skonto-Frist (Tage)',
   text_template:'Textvorlage',vat_rate:'MwSt.-Satz',name:'Name',sort_order:'Reihenfolge',fee_amount:'Mahngebühr',
   days_after_previous_step:'Zahlungsfrist',format_pattern:'Format',start_value:'Startnummer',next_value:'Nächste Nummer',
   port:'Port',rate_percent:'Basiszinssatz',half_year_start:'Halbjahr'};
@@ -2291,6 +2300,7 @@ function renderTimeRules(){
   setv('datevTarget',s.datev_target);setv('wageSite',s.datev_wage_type_site);setv('wageTravel',s.datev_wage_type_travel);
   setv('wageWorkshop',s.datev_wage_type_workshop);setv('wageOther',s.datev_wage_type_other);
   setv('wageWeatherWinter',s.datev_wage_type_weather_winter);setv('wageWeatherSummer',s.datev_wage_type_weather_summer);
+  setv('datevBerater',s.datev_beraternummer);setv('datevMandant',s.datev_mandantennummer);  // seit 1.9.92
   document.getElementById('datevSameErp').checked=!!s.datev_personnel_equals_erp_number;
   renderDefaultModelSelect();
 }
@@ -2305,6 +2315,17 @@ async function saveTimeRules(silent=false){
     if(!silent)document.getElementById('timeRulesStatus').textContent='Zeitregeln und Lohnarten gespeichert.';
     return true;
   }catch(e){st.textContent='Fehler: '+e.message;return false}
+}
+// Seit 1.9.92: Berater- und Mandantennummer über ihren eigenen Endpunkt (nur Admin, Format nach DATEV, sonst 422). Derselbe Bereich wie die
+// Zeitregeln (die Antwort ersetzt denselben Stand); gesetzt werden nur die beiden Felder -- ungespeicherte Zeitregeln bleiben stehen.
+async function saveDatevNummern(){
+  const st=document.getElementById('datevNummernStatus');st.textContent='';
+  try{
+    const body=JSON.stringify({beraternummer:v('datevBerater')||null,mandantennummer:v('datevMandant')||null});
+    await speichern('zeitregeln',()=>api('/api/time-backoffice/datev-nummern',{method:'PUT',headers:{'Content-Type':'application/json'},body}),
+      {anwenden:d=>{timeRules=d;setv('datevBerater',d.datev_beraternummer);setv('datevMandant',d.datev_mandantennummer)}});
+    st.textContent='Gespeichert.';
+  }catch(e){st.textContent='Fehler: '+e.message}
 }
 async function datevSameChanged(){if(await saveTimeRules(true)){try{await loadPayroll()}catch(e){document.getElementById('payrollStatus').textContent='Fehler: '+e.message}}}
 function ladeModelle(){return lesen('modelle',()=>api('/api/time-backoffice/work-time-models'),d=>{workModels=d;renderWorkModels()})}

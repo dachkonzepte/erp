@@ -30,8 +30,8 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, require_lohndaten, require_min_role
-from ..schemas import EmployeePayrollSettingsOut, EmployeePayrollSettingsUpdate, EmployeeWorkTimeModelBulkUpdate, EmployeeWorkTimeModelUpdate, TimeTrackingLockUpdate, TimeTrackingSettingsOut, TimeTrackingSettingsUpdate, WorkTimeModelUpsert
-from ..time_backoffice import abschluss_hindernisse, abschluss_meldung, backoffice_summary, build_datev_export, build_time_csv, build_timesheet_pdf, load_time_settings, payroll_rows, set_employee_payroll, set_time_lock, time_settings_dict, update_time_settings
+from ..schemas import DatevNummernUpdate, EmployeePayrollSettingsOut, EmployeePayrollSettingsUpdate, EmployeeWorkTimeModelBulkUpdate, EmployeeWorkTimeModelUpdate, TimeTrackingLockUpdate, TimeTrackingSettingsOut, TimeTrackingSettingsUpdate, WorkTimeModelUpsert
+from ..time_backoffice import DatevExportGesperrt, abschluss_hindernisse, abschluss_meldung, backoffice_summary, build_datev_export, set_datev_nummern, build_time_csv, build_timesheet_pdf, load_time_settings, payroll_rows, set_employee_payroll, set_time_lock, time_settings_dict, update_time_settings
 from ..work_time_models import bulk_set_employee_model, delete_model as delete_work_time_model, employee_model_rows, list_models as list_work_time_models, save_model as save_work_time_model, set_employee_model
 
 router = APIRouter()
@@ -52,6 +52,15 @@ def put_time_backoffice_settings(payload: TimeTrackingSettingsUpdate, db: Sessio
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return TimeTrackingSettingsOut.model_validate(time_settings_dict(row, db))
+
+
+@router.put("/api/time-backoffice/datev-nummern", response_model=TimeTrackingSettingsOut)
+def put_datev_nummern(payload: DatevNummernUpdate, db: Session = Depends(get_db, scope="function"),
+                      _role=Depends(require_min_role(ROLE_ADMIN, message="Berater- und Mandantennummer ändert nur ein Administrator."))):
+    """Seit 1.9.92 (Stufe 4, R5a, Punkt 5): Berater- und Mandantennummer für den DATEV-Export -- nur Admin, beide Felder Pflicht (leer =
+    nicht eingetragen), Format geprüft (422, schemas.DatevNummernUpdate). Bewusst nicht im allgemeinen Formular der Zeitregeln, das jedes
+    Büro speichert."""
+    return TimeTrackingSettingsOut.model_validate(time_settings_dict(set_datev_nummern(db, payload.beraternummer, payload.mandantennummer), db))
 
 
 @router.put("/api/time-backoffice/lock", response_model=TimeTrackingSettingsOut)
@@ -150,7 +159,12 @@ def export_time_sheet_csv(start_date: date, end_date: date, employee_id: int | N
 
 @router.get("/api/time-backoffice/datev-export")
 def export_datev_payroll(start_date: date, end_date: date, db: Session = Depends(get_db, scope="function"), _role=_lohn_dep):
-    data,ext,warnings=build_datev_export(db,start_date,end_date)
+    """Seit 1.9.92 (Stufe 4, R5a, Punkt 5): nur für einen abgeschlossenen Zeitraum und nur vollständig -- sonst 409 mit der Meldung und der
+    Liste dessen, was fehlt (keine Datei; bis 1.9.91 fehlten Stunden still, nur als Zahl in X-DATEV-Warnings)."""
+    try:
+        data,ext=build_datev_export(db,start_date,end_date)
+    except DatevExportGesperrt as exc:
+        return JSONResponse(status_code=409, content={"detail": str(exc), "liste": jsonable_encoder(exc.liste)})
     filename=f"DATEV_Lohndaten_{start_date.strftime('%Y-%m')}.{ext}"
     media="text/plain; charset=windows-1252" if ext=="txt" else "text/csv; charset=utf-8"
-    return Response(content=data,media_type=media,headers={"Content-Disposition":f'attachment; filename="{filename}"',"X-DATEV-Warnings":str(len(warnings))})
+    return Response(content=data,media_type=media,headers={"Content-Disposition":f'attachment; filename="{filename}"'})

@@ -5803,3 +5803,71 @@ Angepasste Erwartungen: keine.
 
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): laufende Zeiten nicht gesucht -> 4 Tests rot; Pausen nicht geprüft -> 4
 Tests rot; das Vorrücken prüft nichts -> 7 Tests rot; Pausen über die ganze Zeit statt ab dem bisherigen Abschluss -> 2 Tests rot.
+
+### R5a, Punkt 5 (1.9.92): DATEV-Export
+
+- Zeitraum: `build_datev_export()` nur mit `end_date <= locked_until`, sonst `DatevExportGesperrt` -> 409 („Der DATEV-Export geht nur für
+  abgeschlossene Zeiträume – abgeschlossen ist bis …“ bzw. „– noch ist nichts abgeschlossen“), Liste leer.
+- Vollständig: `datev_fehlt()` -- je Mitarbeiter mit Lohnexport und Buchungen die Personalnummer, je gebuchter Zeitart die Lohnart
+  (`_wage_type()`), Berater- und Mandantennummer; nicht leer -> 409 `{"detail": "Kein DATEV-Export: …", "liste": [{art, …, text}]}`, keine Datei.
+- Stunden: die gespeicherten, über `tagessumme()` (jetzt in `app/time_tracking.py`, `app/meine_zeiten.py` importiert sie) -- auch
+  `backoffice_summary()` (Kacheln, Stunden je Mitarbeiter) und der Stundenzettel des Büros; `rounded_hours()` rechnet der Export nicht mehr.
+- Berater- und Mandantennummer: `TimeTrackingSettings.datev_beraternummer` (String 7) und `datev_mandantennummer` (String 5), Migration `750d709a4863`;
+  `PUT /api/time-backoffice/datev-nummern` nur Admin, Schema `DatevNummernUpdate` (beide Pflicht, leer = nicht eingetragen); das allgemeine
+  Formular der Zeitregeln (jedes Büro) lässt sie stehen; Einstellungen → Zeitregeln und DATEV zeigt sie jedem Büro, speichern nur der Admin.
+- Format im Bericht: Beraternummer 4 bis 7 Ziffern, mindestens 1001; Mandantennummer 1 bis 5 Ziffern, mindestens 1 (die Bereiche des
+  DATEV-Datenkopfs, 1001–9999999 bzw. 1–99999).
+- LODAS: Kopf `[Allgemein]` (Ziel=LODAS, Version_SST=1.0, BeraterNr, MandantenNr, Datumsformat TT/MM/JJJJ, Feldtrennzeichen ;, Zahlenkomma ,),
+  `[Satzbeschreibung]` `3;u_lod_bwd_buchung_standard;abrechnung_zeitraum#bwd;bs_wert_butab#bwd;bs_nr#bwd;la_eigene#bwd;pnr#bwd;`, dann
+  `[Bewegungsdaten]` -- je Personalnummer, Monat und Lohnart eine Zeile (der Satz trägt nur den Abrechnungsmonat). Bestätigt ist der Kopf mit
+  BeraterNr/MandantenNr aus Importdateien anderer Anbieter (DATEV-Community); die Felder des Satzes stehen in der Schnittstellenbeschreibung von
+  LODAS (Hilfe-Dokument 1080789, `LODAS_SSH.pdf`) -- mit der Steuerkanzlei an einer Probedatei prüfen.
+- Lohn und Gehalt: die CSV (Personalnummer, Name, Kalendertag, Stundenanzahl, Lohnart, Zeitart) hat keinen Platz für die beiden Nummern, und ein
+  Vorlaufsatz mit ihnen ist nicht bestätigt -- importiert wird in den geöffneten Mandanten. Offen: mit der Steuerkanzlei klären, ob ihr Import
+  einen Kopf erwartet.
+
+#### Festlegungen 1.9.92 (Bitte bestätigen)
+
+1. Jede Zeitart mit eigener Einstellung braucht ihre Lohnart -- auch Baustelle, Fahrzeit und Werkstatt fallen nicht mehr still auf „Sonstige“;
+   nur eine Zeitart ohne eigene Einstellung (aus der Liste der Zeitarten) nimmt die Lohnart „Sonstige“.
+2. Ohne Berater- und Mandantennummer kein Export -- für beide Zielsysteme, auch Lohn und Gehalt (dessen Datei sie nicht trägt).
+3. Format: Beraternummer 4 bis 7 Ziffern ab 1001, Mandantennummer 1 bis 5 Ziffern ab 1; leer ist erlaubt (= nicht eingetragen).
+4. LODAS bekommt je Personalnummer, Monat und Lohnart eine Zeile (bis 1.9.91 je Tag und Zeitart, alle mit demselben Monat).
+5. Die Übersicht zählt wie Stundenzettel und DATEV nur gebuchte Zeiten (eine laufende nicht mehr mit; sie hat ohnehin keine Stunden).
+6. Ohne Lohnexport (am Mitarbeiter ausgeschaltet) braucht es keine Personalnummer; seine Stunden gehen nicht in die Datei.
+7. Die Nummern sieht jedes Büro in den Zeitregeln (nur lesbar), speichern kann nur der Admin; ein eigener Endpunkt, nicht das allgemeine Formular.
+8. `X-DATEV-Warnings` entfällt -- was fehlt, steht in der 409.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v513_datev_export.py`: offener Zeitraum 409 / abgeschlossen Datei ohne Warnkopf; DATEV-Summe je Mitarbeiter = Stundenzettel =
+Übersicht (9,92 / 8,08 h, keine zweite Rundung); laufende Zeit in keiner Summe; fehlende Lohnart 409 auch mit „Sonstige“; fehlende
+Personalnummer 409; ohne Lohnexport keine nötig; fehlende Berater-/Mandantennummer 409 (drei Fälle); alles Fehlende in einer Liste; LODAS-Datei
+Zeile für Zeile; Nummern nur Admin; falsches Format 422 (sieben Fälle); speichern und leeren, beide Pflicht; das Formular der Zeitregeln lässt sie
+stehen. `tests/test_v514_datev_nummern_migration.py`: Migration `750d709a4863` auf einem Bestand (SQLite und PostgreSQL-Wegwerf-Schema), Rückweg
+verweigert mit eingetragener Nummer.
+
+Angepasste Erwartungen:
+- `test_v103::test_backoffice_summary_pdf_csv_and_datev_export`: Export ohne Abschluss, drei Rückgabewerte, keine Warnungen -> mit Abschluss
+  und Berater-/Mandantennummer, zwei Rückgabewerte (nur Aufbau).
+- `test_v311::test_datev_export_contains_all_2001_hours`: ebenso (nur Aufbau; die Summe 2001 h bleibt).
+- `test_v387::test_die_lesewege_legen_nichts_an_und_zeigen_die_vorgaben`: alle Lesewege 200 -> der DATEV-Export 409 (abgeschlossen bis
+  31.12.2026, Liste „datev_nummern“), weiter nichts angelegt.
+- `test_v387::test_pg_gleichzeitige_lesewege_ohne_fehler_und_ohne_schreiben`: alle 200 -> der DATEV-Export 409, die übrigen 200, nichts
+  geschrieben.
+- `test_v422::test_jede_anfrage_der_seite_ist_dem_buero_erlaubt[buero_finanzen]`: DATEV 200 -> 409 (der laufende Monat ist offen).
+- `test_v510::test_lohndaten_nur_admin_und_finanzen[admin, buero_finanzen]`: DATEV 200 -> 409 mit „nur für abgeschlossene Zeiträume“.
+- `klicktest_backoffice_buero`: Fin, Exporte [200, 200, 200] -> [200, 200, 409].
+- `test_v315::test_datev_export_hours_half_hundredth_round_up` und `test_v104::test_datev_can_use_erp_employee_number`: Export ohne Abschluss,
+  drei Rückgabewerte, keine Warnungen -> mit Abschluss und Berater-/Mandantennummer, zwei Rückgabewerte (nur Aufbau; 1,13 bzw. „MA-0042“
+  bleiben).
+- `test_v466::test_waechter_eine_rundung`: die Rundung der Zeitregeln in `gebucht_nach_zeitregel()` und im DATEV-Export -> nur noch in
+  `gebucht_nach_zeitregel()` (keine zweite Rundung im Export).
+- `test_v436::test_jedes_protokollierte_feld_hat_einen_namen` und `test_v438::test_namen_der_historie_sind_lesbar` blieben, wie sie sind: die
+  beiden neuen Spalten bekamen ihre Namen im Änderungsverlauf (`app/audit.py`: „DATEV-Beraternummer“, „DATEV-Mandantennummer“) -- im ersten
+  Lauf rot, weil sie fehlten.
+
+Gegenproben: (Marker `GEGENPROBE`, byte-genau zurück, je FAILED) Export auch offen -> 1 Test rot; zweite Rundung im Export -> der Summentest rot;
+Rückfall auf „Sonstige“ für Baustelle/Fahrzeit/Werkstatt -> 3 Tests rot; Fehlendes nicht geprüft -> 6 Tests rot; LODAS ohne Kopf -> 1 Test
+rot; Nummern für jedes Büro -> 1 Test und 1 Prüfung von `klicktest_datev_nummern` rot; Beraternummer ungeprüft -> 4 Tests und 2 Prüfungen rot;
+Felder für das Büro bearbeitbar -> 1 Prüfung rot. Neuer Klicktest `klicktest_datev_nummern` (13 Prüfungen).

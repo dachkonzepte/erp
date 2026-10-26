@@ -18,7 +18,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from .grunddaten import einzelzeile
 from .models import AppUser, Employee, EmployeePayrollSettings, TimeEntry, TimeTrackingSettings, WorkTimeModel
 from .rounding import round_hours
-from .time_tracking import employee_name, list_entries, entry_to_dict, pausen_vorschau
+from .time_tracking import employee_name, list_entries, entry_to_dict, pausen_vorschau, tagessumme
 from .settings import load_general_settings
 from .work_time_models import load_advanced_settings
 
@@ -43,6 +43,7 @@ def time_settings_dict(row: TimeTrackingSettings, db: Session | None = None) -> 
         "datev_wage_type_other": row.datev_wage_type_other,
         "datev_wage_type_weather_winter": row.datev_wage_type_weather_winter,
         "datev_wage_type_weather_summer": row.datev_wage_type_weather_summer,
+        "datev_beraternummer": row.datev_beraternummer, "datev_mandantennummer": row.datev_mandantennummer,  # seit 1.9.92
         "datev_personnel_equals_erp_number": bool(advanced.datev_personnel_equals_erp_number) if advanced else False,
         "default_work_time_model_id": advanced.default_work_time_model_id if advanced else None,
         "locked_until": row.locked_until,
@@ -132,6 +133,15 @@ def update_time_settings(db: Session, payload) -> TimeTrackingSettings:
     return row
 
 
+def set_datev_nummern(db: Session, beraternummer: str | None, mandantennummer: str | None) -> TimeTrackingSettings:
+    """Seit 1.9.92: Berater- und Mandantennummer (geprüft im Schema DatevNummernUpdate, leer = nicht eingetragen). Wer darf, entscheidet
+    der Router (nur Admin)."""
+    row = load_time_settings(db)
+    row.datev_beraternummer, row.datev_mandantennummer = beraternummer, mandantennummer
+    db.commit(); db.refresh(row)
+    return row
+
+
 def get_employee_payroll(db: Session, employee_id: int) -> EmployeePayrollSettings:
     """Lohnstammdaten eines Mitarbeiters, fehlend angelegt -- seit 1.8.84 nur im Schreibweg (set_employee_payroll())."""
     row = db.scalar(select(EmployeePayrollSettings).where(EmployeePayrollSettings.employee_id == employee_id))
@@ -212,31 +222,26 @@ def rounded_hours(hours: Decimal, rounding_minutes: int) -> Decimal:
 
 
 def backoffice_summary(db: Session, start_date: date, end_date: date, employee_id: int | None = None) -> dict:
+    """Kennzahlen und Stunden je Mitarbeiter. Seit 1.9.92 (Stufe 4, R5a, Punkt 5) jede Summe über tagessumme() -- dieselbe wie Stundenzettel
+    und DATEV-Export, eine laufende Zeit zählt nicht mit (bis 1.9.91 eigene Summen über alle Zeilen)."""
     rows=list_entries(db, employee_id=employee_id, start_date=start_date, end_date=end_date, limit=None)
-    total=Decimal("0"); productive=Decimal("0"); travel=Decimal("0")
-    by_employee=defaultdict(lambda:{"hours":Decimal("0"),"productive":Decimal("0"),"travel":Decimal("0"),"days":set()})
-    by_type=defaultdict(Decimal)
+    by_employee=defaultdict(list); by_type=defaultdict(list)
     for r in rows:
-        h=Decimal(r.hours or 0); total+=h; by_type[r.entry_type]+=h
-        if r.counts_as_productive: productive+=h
-        if r.entry_type=="travel": travel+=h
-        b=by_employee[r.employee_id]; b["hours"]+=h; b["days"].add(r.work_date)
-        if r.counts_as_productive: b["productive"]+=h
-        if r.entry_type=="travel": b["travel"]+=h
+        by_employee[r.employee_id].append(r); by_type[r.entry_type].append(r)
     employees=[]
-    for emp_id,vals in by_employee.items():
+    for emp_id,eigene in by_employee.items():
         emp=db.get(Employee,emp_id)
         employees.append({
             "employee_id":emp_id,"employee_name":f"{emp.first_name} {emp.last_name}" if emp else str(emp_id),
-            "hours":round_hours(vals["hours"]),"productive_hours":round_hours(vals["productive"]),
-            "travel_hours":round_hours(vals["travel"]),"days":len(vals["days"]),
+            "hours":round_hours(tagessumme(eigene)),"productive_hours":round_hours(tagessumme([r for r in eigene if r.counts_as_productive])),
+            "travel_hours":round_hours(tagessumme([r for r in eigene if r.entry_type=="travel"])),"days":len({r.work_date for r in eigene}),
         })
     employees.sort(key=lambda x:x["employee_name"].casefold())
     return {
         "start_date":start_date,"end_date":end_date,"entry_count":len(rows),
-        "total_hours":round_hours(total),"productive_hours":round_hours(productive),
-        "travel_hours":round_hours(travel),"employee_count":len(by_employee),
-        "by_type":{k:round_hours(v) for k,v in by_type.items()},"employees":employees,
+        "total_hours":round_hours(tagessumme(rows)),"productive_hours":round_hours(tagessumme([r for r in rows if r.counts_as_productive])),
+        "travel_hours":round_hours(tagessumme([r for r in rows if r.entry_type=="travel"])),"employee_count":len(by_employee),
+        "by_type":{k:round_hours(tagessumme(v)) for k,v in by_type.items()},"employees":employees,
     }
 
 
@@ -261,9 +266,9 @@ def build_timesheet_pdf(db: Session, start_date: date, end_date: date, employee_
         story.append(Paragraph(f"<b>{escape(general.company_name)}</b> – Stundenzettel", styles["Heading2"]))
         story.append(Paragraph(f"Mitarbeiter: <b>{escape(name)}</b> &nbsp;&nbsp; Zeitraum: {start_date.strftime('%d.%m.%Y')}–{end_date.strftime('%d.%m.%Y')}",body)); story.append(Spacer(1,3*mm))
         data=[["Datum","Projekt / Auftrag","LV-Position","Zeitart","Tätigkeit","von","bis","Pause","Stunden"]]
-        total=Decimal("0")
+        total=tagessumme(entries)  # seit 1.9.92 dieselbe Summe wie Übersicht und DATEV-Export (eine laufende Zeit zählt nicht mit)
         for r in sorted(entries,key=lambda x:(x.work_date,x.started_at or x.created_at,x.id)):
-            d=entry_to_dict(r); total+=Decimal(r.hours or 0)
+            d=entry_to_dict(r)
             data.append([r.work_date.strftime("%d.%m.%Y"),Paragraph(escape(f"{d.get('project_number') or ''} / {d.get('order_number') or ''}"),small),Paragraph(escape((d.get('order_item_oz') or '')+' '+(d.get('order_item_text') or '')),small),type_labels.get(r.entry_type,r.entry_type),Paragraph(escape(r.activity or ''),small),r.started_at.strftime("%H:%M") if r.started_at else "",r.ended_at.strftime("%H:%M") if r.ended_at else "",str(r.break_minutes or 0),_fmt_h(r.hours)])
         data.append(["","","","","","","","Summe",_fmt_h(total)])
         t=Table(data,colWidths=[21*mm,42*mm,55*mm,24*mm,42*mm,17*mm,17*mm,17*mm,20*mm],repeatRows=1)
@@ -288,11 +293,13 @@ def _wage_type(settings: TimeTrackingSettings, entry_type: str) -> str | None:
     mapping={"site":settings.datev_wage_type_site,"travel":settings.datev_wage_type_travel,"workshop":settings.datev_wage_type_workshop,"other":settings.datev_wage_type_other,"weather_winter":settings.datev_wage_type_weather_winter,"weather_summer":settings.datev_wage_type_weather_summer}
     # Bewusst KEIN Rueckfall auf "other" fuer die beiden Schlechtwetter-Zeitarten: Saison-
     # Kurzarbeitergeld (Winter) und tarifliches Ausfallgeld (Sommer) sind eigene Lohnarten,
-    # eine stillschweigende Buchung unter "Sonstige Arbeitszeit" waere tariflich falsch --
-    # fehlt die Lohnart, soll build_datev_export() stattdessen warnen (siehe dort).
-    if entry_type in ("weather_winter", "weather_summer"):
-        return mapping.get(entry_type)
-    return mapping.get(entry_type) or settings.datev_wage_type_other
+    # eine stillschweigende Buchung unter "Sonstige Arbeitszeit" waere tariflich falsch.
+    # Seit 1.9.92 (Stufe 4, R5a, Punkt 5) ebenso fuer Baustelle, Fahrzeit und Werkstatt: jede Zeitart mit eigener Einstellung braucht ihre
+    # Lohnart, sonst lehnt build_datev_export() mit der Liste ab (bis 1.9.91 still unter "Sonstige"). Nur eine Zeitart ohne eigene
+    # Einstellung (aus der Liste der Zeitarten) nimmt weiter die Lohnart "Sonstige".
+    if entry_type in mapping:
+        return mapping[entry_type] or None
+    return settings.datev_wage_type_other or None
 
 
 _ENTRY_TYPE_FALLBACK_LABELS = {
@@ -315,33 +322,85 @@ def _entry_type_labels(db: Session) -> dict[str, str]:
     return {**_ENTRY_TYPE_FALLBACK_LABELS, **configured}
 
 
-def build_datev_export(db: Session, start_date: date, end_date: date) -> tuple[bytes,str,list[str]]:
-    settings=load_time_settings(db)
-    rows=list_entries(db,start_date=start_date,end_date=end_date,limit=None)
-    aggregated=defaultdict(Decimal); warnings=[]
-    payroll={x.employee_id:x for x in db.scalars(select(EmployeePayrollSettings)).all()}
+class DatevExportGesperrt(ValueError):
+    """Seit 1.9.92 (Stufe 4, R5a, Punkt 5): kein Export -- der Text für die Meldung, dazu die Liste dessen, was fehlt (leer: der Zeitraum
+    ist nicht abgeschlossen)."""
+
+    def __init__(self, meldung: str, liste: list[dict] | None = None):
+        super().__init__(meldung)
+        self.liste = liste or []
+
+
+def datev_fehlt(db: Session, start_date: date, end_date: date) -> list[dict]:
+    """Seit 1.9.92: was dem DATEV-Export für den Zeitraum fehlt -- je Mitarbeiter mit Lohnexport und Buchungen die Personalnummer, je
+    gebuchter Zeitart die Lohnart (_wage_type()), Berater- und Mandantennummer. Leer = vollständig. Je Eintrag art und ein Text."""
+    settings = load_time_settings(db)
+    rows = [r for r in list_entries(db, start_date=start_date, end_date=end_date, limit=None) if r.status == "booked"]
+    labels = _entry_type_labels(db)
+    payroll = {x.employee_id: x for x in db.scalars(select(EmployeePayrollSettings)).all()}
+    liste: list[dict] = []
+    gesehen: set = set()
+    for r in sorted(rows, key=lambda x: ((x.employee.last_name or "") if x.employee else "", x.employee_id)):
+        if r.employee_id in gesehen:
+            continue
+        gesehen.add(r.employee_id)
+        p = payroll.get(r.employee_id) or load_employee_payroll(db, r.employee_id)
+        if p.payroll_export_enabled and not effective_datev_personnel_number(db, r.employee, p):
+            name = employee_name(r.employee) or f"#{r.employee_id}"
+            liste.append({"art": "personalnummer", "employee_id": r.employee_id, "name": name, "text": f"Personalnummer fehlt: {name}"})
+    for typ in sorted({r.entry_type for r in rows if (payroll.get(r.employee_id) or load_employee_payroll(db, r.employee_id)).payroll_export_enabled}):
+        if not _wage_type(settings, typ):
+            liste.append({"art": "lohnart", "zeitart": typ, "text": f"Lohnart fehlt: {labels.get(typ, typ)}"})
+    fehlen = [n for n, wert in (("Beraternummer", settings.datev_beraternummer), ("Mandantennummer", settings.datev_mandantennummer)) if not wert]
+    if fehlen:
+        liste.append({"art": "datev_nummern", "text": (" und ".join(fehlen) + (" fehlen" if len(fehlen) > 1 else " fehlt"))})
+    return liste
+
+
+def _lodas_kopf(settings: TimeTrackingSettings) -> list[str]:
+    """Seit 1.9.92: der Kopf einer LODAS-Importdatei -- [Allgemein] mit Berater- und Mandantennummer, [Satzbeschreibung] der Buchungen."""
+    return ["[Allgemein]", "Ziel=LODAS", "Version_SST=1.0", f"BeraterNr={settings.datev_beraternummer}",
+            f"MandantenNr={settings.datev_mandantennummer}", "Datumsformat=TT/MM/JJJJ", "Feldtrennzeichen=;", "Zahlenkomma=,", "",
+            "[Satzbeschreibung]",
+            "3;u_lod_bwd_buchung_standard;abrechnung_zeitraum#bwd;bs_wert_butab#bwd;bs_nr#bwd;la_eigene#bwd;pnr#bwd;", ""]
+
+
+def build_datev_export(db: Session, start_date: date, end_date: date) -> tuple[bytes, str]:
+    """Die Lohndaten für DATEV. Seit 1.9.92 (Stufe 4, R5a, Punkt 5, Entscheidung Tobias): nur für einen abgeschlossenen Zeitraum (end_date
+    bis zum Abschluss), nur vollständig (datev_fehlt() leer) -- sonst DatevExportGesperrt, keine Datei; bis 1.9.91 fehlten Stunden ohne
+    Personalnummer oder Lohnart still (nur als Zahl in einer Kopfzeile). Stunden = die gespeicherten, summiert über tagessumme() wie
+    Stundenzettel und Übersicht -- keine zweite Rundung (bis 1.9.91 wurde jede Buchung nach den Zeitregeln erneut gerundet). LODAS: Kopf mit
+    Berater- und Mandantennummer, je Personalnummer, Monat und Lohnart eine Zeile (der Satz trägt nur den Monat); Lohn und Gehalt: je
+    Personalnummer, Tag, Zeitart und Lohnart."""
+    settings = load_time_settings(db)
+    lock = settings.locked_until
+    if lock is None or end_date > lock:
+        stand = f"abgeschlossen ist bis {lock:%d.%m.%Y}" if lock is not None else "noch ist nichts abgeschlossen"
+        raise DatevExportGesperrt(f"Der DATEV-Export geht nur für abgeschlossene Zeiträume – {stand}.")
+    fehlt = datev_fehlt(db, start_date, end_date)
+    if fehlt:
+        raise DatevExportGesperrt("Kein DATEV-Export: " + "; ".join(x["text"] for x in fehlt) + ".", fehlt)
+    rows = [r for r in list_entries(db, start_date=start_date, end_date=end_date, limit=None) if r.status == "booked"]
+    payroll = {x.employee_id: x for x in db.scalars(select(EmployeePayrollSettings)).all()}
+    gruppen: dict[tuple, list] = defaultdict(list)
+    lodas = settings.datev_target == "lodas"
     for r in rows:
-        p=payroll.get(r.employee_id) or load_employee_payroll(db,r.employee_id)
-        if not p.payroll_export_enabled: continue
-        pnr=effective_datev_personnel_number(db, r.employee, p)
-        if not pnr:
-            name=f"{r.employee.first_name} {r.employee.last_name}"; warnings.append(f"{name}: DATEV-Personalnummer fehlt")
+        p = payroll.get(r.employee_id) or load_employee_payroll(db, r.employee_id)
+        if not p.payroll_export_enabled:
             continue
-        wage=_wage_type(settings,r.entry_type)
-        if not wage:
-            warnings.append(f"Zeitart {r.entry_type}: DATEV-Lohnart fehlt")
-            continue
-        key=(r.employee_id,pnr,r.work_date,r.entry_type,wage)
-        aggregated[key]+=rounded_hours(Decimal(r.hours or 0),settings.rounding_minutes)
-    if settings.datev_target=="lodas":
-        lines=["[Bewegungsdaten]"]
-        for (emp_id,pnr,day,typ,wage),hours in sorted(aggregated.items(),key=lambda x:(x[0][2],x[0][1],x[0][3])):
-            # DATEV LODAS Standard-Buchungen: Tabelle 3; Buchungszeitraum; Wert; BS 01 Stunden; Lohnart; Personalnummer.
-            lines.append(";".join(["3",day.strftime("01/%m/%Y"),_fmt_h(hours),"01",str(wage),str(pnr)]))
-        return ("\r\n".join(lines)+"\r\n").encode("cp1252",errors="replace"),"txt",sorted(set(warnings))
-    out=StringIO(newline=""); w=csv.writer(out,delimiter=";",lineterminator="\r\n")
-    w.writerow(["Personalnummer","Name","Kalendertag","Stundenanzahl","Lohnart","Zeitart"])
-    for (emp_id,pnr,day,typ,wage),hours in sorted(aggregated.items(),key=lambda x:(x[0][2],x[0][1],x[0][3])):
-        emp=db.get(Employee,emp_id); name=f"{emp.first_name} {emp.last_name}" if emp else ""
-        w.writerow([pnr,name,day.strftime("%d.%m.%Y"),_fmt_h(hours),wage,typ])
-    return ("\ufeff"+out.getvalue()).encode("utf-8"),"csv",sorted(set(warnings))
+        pnr = effective_datev_personnel_number(db, r.employee, p)
+        tag = r.work_date.replace(day=1) if lodas else r.work_date
+        gruppen[(r.employee_id, pnr, tag, "" if lodas else r.entry_type, _wage_type(settings, r.entry_type))].append(r)
+    reihe = sorted(gruppen.items(), key=lambda x: (x[0][2], x[0][1], x[0][4], x[0][3]))
+    if lodas:
+        lines = _lodas_kopf(settings) + ["[Bewegungsdaten]"]
+        for (emp_id, pnr, monat, _, wage), eintraege in reihe:
+            # DATEV LODAS Standard-Buchungen: Tabelle 3; Abrechnungszeitraum; Wert; BS 01 Stunden; Lohnart; Personalnummer.
+            lines.append(";".join(["3", monat.strftime("01/%m/%Y"), _fmt_h(tagessumme(eintraege)), "01", str(wage), str(pnr)]))
+        return ("\r\n".join(lines) + "\r\n").encode("cp1252", errors="replace"), "txt"
+    out = StringIO(newline=""); w = csv.writer(out, delimiter=";", lineterminator="\r\n")
+    w.writerow(["Personalnummer", "Name", "Kalendertag", "Stundenanzahl", "Lohnart", "Zeitart"])
+    for (emp_id, pnr, day, typ, wage), eintraege in reihe:
+        emp = db.get(Employee, emp_id); name = f"{emp.first_name} {emp.last_name}" if emp else ""
+        w.writerow([pnr, name, day.strftime("%d.%m.%Y"), _fmt_h(tagessumme(eintraege)), wage, typ])
+    return ("\ufeff" + out.getvalue()).encode("utf-8"), "csv"

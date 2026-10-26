@@ -582,6 +582,14 @@ def delete_entry(db: Session, entry_id: int) -> None:
     db.delete(row); db.commit()
 
 
+def tagessumme(rows) -> Decimal:
+    """Die gebuchten Stunden mehrerer Zeiten -- eine laufende zählt nicht mit. Dieselbe Funktion für Kacheln, Tagessummen, Monat und den
+    Stundenzettel als PDF der Monteurin (app/meine_zeiten.py, app/field_timesheet_pdf.py), seit 1.9.92 (Stufe 4, R5a, Punkt 5) auch für die
+    Übersicht, den Stundenzettel und den DATEV-Export des Büros (app/time_backoffice.py) -- bis dahin in app/meine_zeiten.py; gerundet wird
+    erst das Ergebnis (round_hours()), keine zweite Rundung."""
+    return sum((Decimal(str(r.hours or 0)) for r in rows if r.status == "booked"), Decimal("0"))
+
+
 def entry_to_dict(row: TimeEntry) -> dict:
     item = row.order_item
     return {

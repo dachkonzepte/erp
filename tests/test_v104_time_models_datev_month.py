@@ -42,8 +42,12 @@ def test_datev_can_use_erp_employee_number():
     create_manual_entry(db, employee_id=emp.id, order_id=order.id, work_date=date(2026,9,1), hours=Decimal("8"), entry_type="site")
     rows = payroll_rows(db)
     assert rows[0]["datev_personnel_number"] == "MA-0042"
-    data, ext, warnings = build_datev_export(db, date(2026,9,1), date(2026,9,30))
-    assert ext == "csv" and "MA-0042;Max Dach" in data.decode("utf-8-sig") and not warnings
+    # seit 1.9.92: der Export nur abgeschlossen und mit Berater- und Mandantennummer (fehlt etwas: 409, keine Warnungen mehr)
+    current = load_time_settings(db)
+    current.locked_until, current.datev_beraternummer, current.datev_mandantennummer = date(2026,9,30), "1001", "1"
+    db.commit()
+    data, ext = build_datev_export(db, date(2026,9,1), date(2026,9,30))
+    assert ext == "csv" and "MA-0042;Max Dach" in data.decode("utf-8-sig")
 
 
 def test_work_time_models_and_automatic_break_on_timer():

@@ -72,8 +72,9 @@ def test_jede_anfrage_der_seite_ist_dem_buero_erlaubt(welt, router_test_client, 
         status = {pfad: client.get(pfad).status_code for pfad in GET_DER_SEITE}
         assert set(status.values()) == {200}, status
         assert client.get(GET_NUR_LOHN[0]).status_code == 200
-        lohn = {pfad: client.get(pfad).status_code for pfad in GET_NUR_LOHN[1:]}
-        assert set(lohn.values()) == ({200} if rolle == "buero_finanzen" else {403}), lohn  # seit 1.9.89
+        lohn = [client.get(pfad).status_code for pfad in GET_NUR_LOHN[1:]]
+        # seit 1.9.89 nur Finanzen; seit 1.9.92 lehnt DATEV den nicht abgeschlossenen Monat mit 409 ab (die Rolle darf, der Zeitraum nicht)
+        assert lohn == ([200, 200, 409] if rolle == "buero_finanzen" else [403, 403, 403]), lohn
         # seit 1.9.89 liest jedes Büro den Kontext, auch ohne eigenen Mitarbeiter (bis dahin 403); die Seite fragt ihn, wer bucht
         assert client.get("/api/time-tracking/context").status_code == 200
         # Anträge nur mit Mitarbeiter -- die Seite fragt ohne ihn nicht (ICH.mitarbeiter === null)

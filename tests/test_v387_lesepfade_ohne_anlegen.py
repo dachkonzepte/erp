@@ -100,6 +100,12 @@ GET_WEGE = [
 def test_die_lesewege_legen_nichts_an_und_zeigen_die_vorgaben(threaded_db_session, router_test_client):
     db = threaded_db_session
     welt = _welt_mit_luecken(db)
+    # seit 1.9.92 exportiert DATEV nur abgeschlossene Zeiträume und nur vollständig -- abgeschlossen, damit der Export bis zur Prüfung des
+    # Fehlenden kommt (409 mit der Liste, ohne eine Zeile anzulegen)
+    from datetime import date
+    from app.time_backoffice import load_time_settings
+    load_time_settings(db).locked_until = date(2026, 12, 31)
+    db.commit()
     vorher = _zaehlen(db)
     client = router_test_client(db, *_routers())
     gefunden, aus = _schreibt(db.get_bind())
@@ -107,7 +113,9 @@ def test_die_lesewege_legen_nichts_an_und_zeigen_die_vorgaben(threaded_db_sessio
         antworten = {pfad: client.get(pfad.format(**welt)) for pfad in GET_WEGE}
     finally:
         aus()
-    assert {p: r.status_code for p, r in antworten.items() if r.status_code != 200} == {}
+    datev = "/api/time-backoffice/datev-export?start_date=2026-01-01&end_date=2026-12-31"
+    assert {p: r.status_code for p, r in antworten.items() if r.status_code != 200} == {datev: 409}
+    assert [x["art"] for x in antworten[datev].json()["liste"]] == ["datev_nummern"]
     assert gefunden == []
     assert _zaehlen(db) == vorher
     # Was das Lesen zeigt -- die Vorgabe, die bis 1.8.83 angelegt worden wäre.
@@ -248,7 +256,8 @@ def test_pg_gleichzeitige_lesewege_ohne_fehler_und_ohne_schreiben():
                 t.join(timeout=120)
         finally:
             aus()
-        assert {k: v for k, v in ergebnisse.items() if v != 200} == {}
+        # seit 1.9.92 lehnt der DATEV-Export einen nicht abgeschlossenen Zeitraum mit 409 ab -- gelesen wird trotzdem, geschrieben nichts
+        assert {k: v for k, v in ergebnisse.items() if v != (409 if "datev-export" in k[0] else 200)} == {}
         assert len(ergebnisse) == 2 * len(GET_WEGE)
         assert gefunden == []
         db.expire_all()

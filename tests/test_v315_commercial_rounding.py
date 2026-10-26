@@ -270,10 +270,12 @@ def test_datev_export_hours_half_hundredth_round_up():
     get_employee_payroll(db, emp.id).datev_personnel_number = "14"
     settings = load_time_settings(db)
     settings.datev_target, settings.datev_wage_type_site, settings.rounding_minutes = "lohn_gehalt", "200", 0
+    # seit 1.9.92: der Export nur abgeschlossen und mit Berater- und Mandantennummer (fehlt etwas: 409, keine Warnungen mehr)
+    settings.locked_until, settings.datev_beraternummer, settings.datev_mandantennummer = date(2026, 9, 30), "1001", "1"
     db.commit()
-    data, _, warnings = build_datev_export(db, date(2026, 9, 1), date(2026, 9, 30))
+    data, _ = build_datev_export(db, date(2026, 9, 1), date(2026, 9, 30))
     text_ = data.decode("utf-8-sig")
-    assert not warnings and ";1,13;" in text_ and "1,12" not in text_, text_   # alt 1,12
+    assert ";1,13;" in text_ and "1,12" not in text_, text_   # alt 1,12
     settings.datev_target = "lodas"; db.commit()
     assert ";1,13;" in build_datev_export(db, date(2026, 9, 1), date(2026, 9, 30))[0].decode("utf-8-sig")
 

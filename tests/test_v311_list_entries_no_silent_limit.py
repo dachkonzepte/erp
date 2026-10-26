@@ -89,7 +89,11 @@ def test_time_csv_contains_all_2001_entries(bookings):
 
 
 def test_datev_export_contains_all_2001_hours(bookings):
-    content, fmt, warnings = build_datev_export(bookings.db, START, END)
+    # seit 1.9.92: der Export nur für einen abgeschlossenen Zeitraum und mit Berater- und Mandantennummer (fehlt etwas: 409, keine Warnungen)
+    einstellungen = load_time_settings(bookings.db)
+    einstellungen.locked_until, einstellungen.datev_beraternummer, einstellungen.datev_mandantennummer = END, "1001", "1"
+    bookings.db.commit()
+    content, fmt = build_datev_export(bookings.db, START, END)
     rows = list(csv.DictReader(io.StringIO(content.decode("utf-8-sig")), delimiter=";"))
-    assert fmt == "csv" and warnings == []
+    assert fmt == "csv"
     assert sum(Decimal(r["Stundenanzahl"].replace(",", ".")) for r in rows) == Decimal("2001")

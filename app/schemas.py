@@ -1,3 +1,4 @@
+import re
 from datetime import date, datetime, time
 from decimal import Decimal
 from typing import ClassVar, Literal
@@ -3471,6 +3472,29 @@ class CrewGroupSummaryOut(BaseModel):
     mindestpause: int | None = None
 
 
+class DatevNummernUpdate(BaseModel):
+    """Seit 1.9.92 (Stufe 4, R5a, Punkt 5): Berater- und Mandantennummer für den DATEV-Export, beide Pflicht (Regel 22), leer = nicht
+    eingetragen. Format nach DATEV: Beraternummer 4 bis 7 Ziffern, ab 1001; Mandantennummer 1 bis 5 Ziffern, ab 1 -- sonst 422."""
+    beraternummer: str | None = Field(max_length=20)
+    mandantennummer: str | None = Field(max_length=20)
+
+    @field_validator("beraternummer")
+    @classmethod
+    def _berater(cls, wert):
+        wert = (wert or "").strip() or None
+        if wert is not None and not (re.fullmatch(r"\d{4,7}", wert) and int(wert) >= 1001):
+            raise ValueError("4 bis 7 Ziffern, ab 1001 (DATEV)")
+        return wert
+
+    @field_validator("mandantennummer")
+    @classmethod
+    def _mandant(cls, wert):
+        wert = (wert or "").strip() or None
+        if wert is not None and not (re.fullmatch(r"\d{1,5}", wert) and int(wert) >= 1):
+            raise ValueError("1 bis 5 Ziffern, ab 1 (DATEV)")
+        return wert
+
+
 class TimeTrackingSettingsOut(BaseModel):
     rounding_minutes: int = 0
     # seit 1.9.61 ohne die Standardpause (entfallen; eine mitgeschickte wird nicht übernommen)
@@ -3485,6 +3509,9 @@ class TimeTrackingSettingsOut(BaseModel):
     datev_wage_type_other: str | None = None
     datev_wage_type_weather_winter: str | None = None
     datev_wage_type_weather_summer: str | None = None
+    # seit 1.9.92 nur lesend hier -- gesetzt ausschließlich über PUT /api/time-backoffice/datev-nummern (nur Admin)
+    datev_beraternummer: str | None = None
+    datev_mandantennummer: str | None = None
     datev_personnel_equals_erp_number: bool = False
     default_work_time_model_id: int | None = None
     # Seit 1.7.10 nur lesend hier -- gesetzt ausschließlich über PUT /api/time-backoffice/lock;

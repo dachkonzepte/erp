@@ -4,6 +4,21 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.92 – DATEV-Export nur abgeschlossen und vollständig, eine Summe, Berater- und Mandantennummer (Stufe 4, R5a)
+
+Der DATEV-Export geht nur noch für einen abgeschlossenen Zeitraum (Ende bis „Abgeschlossen bis“, sonst 409) und nur vollständig: fehlt eine Lohnart
+(je gebuchter Zeitart), eine Personalnummer (bei Lohnexport) oder Berater- bzw. Mandantennummer, lehnt er mit 409 und der Liste ab, ohne Datei --
+bis 1.9.91 fehlten solche Stunden still in der Datei, nur ihre Zahl stand in einer Kopfzeile (`X-DATEV-Warnings`, entfällt), und Baustelle,
+Fahrzeit und Werkstatt ohne eigene Lohnart liefen still unter „Sonstige“. Die Stunden sind die gespeicherten, keine zweite Rundung (bis 1.9.91
+wurde jede Buchung nach den Zeitregeln erneut gerundet: 2,33 + 0,42 + 7,17 h wurden 10,00 statt 9,92 h); Übersicht, Stundenzettel und DATEV
+summieren über dieselbe Funktion (`app/time_tracking.py::tagessumme()`, bis dahin in `app/meine_zeiten.py`), eine laufende Zeit zählt in keiner.
+
+Neu sind Beraternummer (4 bis 7 Ziffern, ab 1001) und Mandantennummer (1 bis 5 Ziffern, ab 1) unter Einstellungen → Zeitregeln und DATEV,
+gespeichert nur vom Admin über einen eigenen Endpunkt (Format nach DATEV, sonst 422; Migration `750d709a4863`). Sie stehen im Kopf des LODAS-Exports
+(`[Allgemein]` mit `BeraterNr`/`MandantenNr`, dazu `[Satzbeschreibung]` der Buchungen); LODAS bekommt je Personalnummer, Monat und Lohnart eine
+Zeile. Für Lohn und Gehalt bleibt die CSV, wie sie ist -- ein Platz für die beiden Nummern ist dort nicht bestätigt (mit der Steuerkanzlei
+klären). Neue Tests `tests/test_v513_datev_export.py`, `tests/test_v514_datev_nummern_migration.py`.
+
 ## 1.9.91 – Abschließen nur ohne laufende Zeiten und unpassende Pausen (Stufe 4, R5a)
 
 Bis 1.9.90 ließ „Abgeschlossen bis“ sich auf jeden Tag vorrücken -- auch über eine Zeit, die noch lief, oder einen Tag, dessen Pause nicht mehr

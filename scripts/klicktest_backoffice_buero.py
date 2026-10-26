@@ -166,7 +166,8 @@ async def pruefen(tab, seed, p):
     await tab.warte_auf_neu_geladene_liste("saveEntryEdit()", "#entryRows")
     p.pruefe("Fin: Mias Buchung gespeichert (2,50 Std.)", await tab.js(
         f"(()=>{{const tr={_zeile(seed['mia_offen'])};return tr?tr.cells[7].innerText.trim():null}})()"), "2,50")
-    p.pruefe("Fin: Stundenzettel PDF, CSV und DATEV-Export", await _exporte(tab), [200, 200, 200])
+    # seit 1.9.92: DATEV nur für einen abgeschlossenen Zeitraum -- der laufende Monat ist es nicht (409, nicht 403)
+    p.pruefe("Fin: Stundenzettel PDF und CSV, DATEV-Export für den offenen Monat abgelehnt", await _exporte(tab), [200, 200, 409])
 
     await tab.js("showTab('datev')")
     p.pruefe("Fin: kein Knopf 'Abschluss aufheben', stattdessen der Hinweis", await tab.js(
