@@ -195,7 +195,10 @@ def test_lohndaten_nur_admin_und_finanzen(welt, rolle):  # noqa: F811
 def test_abschluss_aufheben_nur_der_admin(welt):  # noqa: F811
     set_time_lock(welt["db"], welt["gestern"], user_id=None)
     assert _als(welt, "buero_finanzen").put("/api/time-backoffice/lock", json={"locked_until": None}).status_code == 403
-    assert _als(welt, "admin").put("/api/time-backoffice/lock", json={"locked_until": None}).status_code == 200
+    # seit 1.9.105 nur auf ein früheres Monatsende, nie ganz (bis 1.9.104: None -> 200)
+    assert _als(welt, "admin").put("/api/time-backoffice/lock", json={"locked_until": None}).status_code == 422
+    monatsende = welt["gestern"].replace(day=1) - timedelta(days=1)
+    assert _als(welt, "admin").put("/api/time-backoffice/lock", json={"locked_until": monatsende.isoformat()}).status_code == 200
 
 
 # --- Schlüssel: Büro – Auftrag bekommt keine Lohnsätze ---------------------------------------------------------------------------

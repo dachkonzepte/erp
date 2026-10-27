@@ -1562,6 +1562,7 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
 - **Abschließen nur geklärt** (seit 1.9.91): „Abgeschlossen bis“ rückt nur vor ohne laufende Zeiten bis zum Datum und ohne Tage mit unpassender
   Pause ab dem bisherigen Abschluss (ohne ihn im Monat des Datums) -- `app/time_backoffice.py::abschluss_hindernisse()`, sonst 409 mit `detail`
   und `liste`, auch für den Admin; Personalnummer, Lohnart, DATEV-Nummern sperren den Abschluss nicht (`tests/test_v512_abschluss_pruefen.py`).
+  Zurückgenommen wird seit 1.9.105 nur auf ein früheres Monatsende, nie ganz (422, auch für den Admin; `tests/test_v525_arbeitstage_und_aufheben.py`).
 - **DATEV-Export nur abgeschlossen und vollständig** (seit 1.9.92): Ende bis „Abgeschlossen bis“, sonst 409; fehlt eine Lohnart (je Zeitart,
   kein stiller Rückfall auf „Sonstige“), eine Personalnummer oder Berater-/Mandantennummer, 409 mit Liste, keine Datei
   (`app/time_backoffice.py::datev_fehlt()`); Stunden = die gespeicherten über `app/time_tracking.py::tagessumme()` -- dieselbe Summe in Übersicht,

@@ -131,8 +131,14 @@ def pausen_tage(db: Session, ab: date, bis: date) -> list[dict]:
 
 
 def arbeitstage(start: date, ende: date) -> int:
-    """Montag bis Freitag zwischen start und ende (ohne Feiertage) -- „5 Arbeitstage“ am Antrag."""
-    return sum(1 for i in range((ende - start).days + 1) if (start + timedelta(days=i)).weekday() < 5)
+    """Montag bis Freitag zwischen start und ende ohne die gesetzlichen Feiertage in Nordrhein-Westfalen -- „8 Arbeitstage“ am Antrag. Seit
+    1.9.105 (Nachrunde, Punkt 6) über die Feiertagsrechnung der Plantafel (app/planning.py::automatic_public_holidays(), fest „NW“, ohne
+    betriebsfreie Tage); bis 1.9.104 Montag bis Freitag ohne Feiertage. Nur Anzeige: die Zahl wird nirgends gespeichert oder verrechnet."""
+    from .planning import automatic_public_holidays  # lokal: planning lädt viel, „Zeiten“ braucht es nur hier
+
+    feiertage = automatic_public_holidays("NW", range(start.year, ende.year + 1))
+    tage = (start + timedelta(days=i) for i in range((ende - start).days + 1))
+    return sum(1 for tag in tage if tag.weekday() < 5 and tag not in feiertage)
 
 
 def monat_stunden(db: Session, erster: date) -> dict:

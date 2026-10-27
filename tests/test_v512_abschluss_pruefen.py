@@ -124,10 +124,12 @@ def test_ohne_bisherigen_abschluss_der_monat_des_datums(welt):  # noqa: F811
 
 
 def test_zuruecknehmen_wird_nicht_geprueft(welt):  # noqa: F811
-    """Der Admin nimmt einen Abschluss zurück -- auch mit laufender Zeit davor; geprüft wird nur das Vorrücken."""
+    """Der Admin nimmt einen Abschluss zurück -- auch mit laufender Zeit davor; geprüft wird nur das Vorrücken. Seit 1.9.105 nur auf ein
+    früheres Monatsende, nie ganz (bis 1.9.104 auf gestern − 5 Tage und ganz: je 200)."""
     welt["db"].get(TimeTrackingSettings, 1).locked_until = welt["gestern"]
     welt["db"].commit()
+    monatsende = welt["gestern"].replace(day=1) - timedelta(days=1)
     start_timer(welt["db"], employee_id=welt["tom"].id, order_id=welt["order"].id,
-                started_at=datetime.combine(welt["gestern"] - timedelta(days=2), time(7)))
-    assert _abschliessen(welt, welt["gestern"] - timedelta(days=5), "admin").status_code == 200
-    assert _abschliessen(welt, None, "admin").status_code == 200
+                started_at=datetime.combine(monatsende - timedelta(days=2), time(7)))
+    assert _abschliessen(welt, monatsende, "admin").status_code == 200
+    assert _abschliessen(welt, None, "admin").status_code == 422

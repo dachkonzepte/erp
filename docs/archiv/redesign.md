@@ -6486,3 +6486,50 @@ Büro“; angelegte Dauer nach dem Konto (Monteurin nein, Büro ja); ohne Konto 
 Angepasste Erwartungen:
 - `klicktest_zeiten` „Fin: als Dauer gespeichert -- Zeile“: „Dauer“ -> „Dauer · vom Büro“ (Festlegung 1.9.95 Nr. 9 ersetzt).
 - `test_v473`: `UTC_FELDER` um `gebucht_am`, `geaendert_am` ergänzt (der Wächter kennt die neuen Zeitpunkte).
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED mit Abweichung im Ergebnis): „vom Büro“ nur nach dem Anleger -> 2 Tests; „gebucht“ immer
+der Anleger beim Anlegen -> 1 Test; „geändert“ auch die Anfrage, die gebucht hat -> 1 Test; eine Notiz zählt als gesetzte Zeit -> 1 Test; Unterzeile
+ohne „geändert von“ -> 1 Test.
+
+### R5b Nachrunde, Punkt 6 (1.9.105): Arbeitstage ohne Feiertage NRW, „Abschluss aufheben“ nur auf ein Monatsende
+
+Festlegungen von Tobias (ersetzen 1.9.95 Nr. 5 und 1.9.97 Nr. 7; „Dauer · vom Büro“ steht in 1.9.104):
+
+- `app/zeiten.py::arbeitstage()`: Montag bis Freitag ohne die gesetzlichen Feiertage in NRW -- `app/planning.py::automatic_public_holidays("NW", …)`,
+  die Rechnung der Plantafel (Ostern nach Gauß, Fronleichnam und Allerheiligen für NW), fest „NW“, ohne die Einstellung „Bundesland“ der Plantafel und
+  ohne betriebsfreie Tage.
+- **Befund: wird die Zahl gespeichert oder verrechnet? Nein.** `arbeitstage()` rufen nur `GET /api/zeiten/pruefen` und `GET /api/zeiten/abwesenheiten`
+  für die Anzeige am Antrag auf (`app/routers/zeiten.py`); kein Modell hat eine Spalte dafür, kein Urlaubskonto zieht sie ab, die Genehmigung legt eine
+  Abwesenheit mit Von und Bis an (`EmployeeAbsence`), nicht mit Tagen. `ProductiveHoursSettings.vacation_days` (Produktivstunden-Rechner) ist eine
+  Annahme der Kalkulation und hat mit Anträgen nichts zu tun. „Meine Zeiten“ zeigt keine Arbeitstage.
+- `PUT /api/time-backoffice/lock` (`app/routers/time_backoffice.py`): zurücknehmen (ein Tag vor „Abgeschlossen bis“ oder leer) nur auf ein Monatsende
+  -- leer 422 `ABSCHLUSS_NICHT_GANZ`, ein anderer Tag 422 `NUR_AUF_MONATSENDE`, nach der Rollenprüfung (Büro – Finanzen bekommt weiter 403). Vorrücken
+  unverändert (auch auf einen Tag mitten im Monat über die API).
+- `zeiten.html`: „Abschluss aufheben“ bietet die zwölf Monatsenden vor dem Abschluss, ohne „nichts – Abschluss ganz aufheben“, und schickt nie leer.
+
+#### Festlegungen 1.9.105 (Bitte bestätigen)
+
+1. Feiertage fest für NRW (Vorgabe), aus der Rechnung der Plantafel; die Einstellung „Bundesland“ der Plantafel und betriebsfreie Tage zählen nicht.
+2. Auch ein Halbtag (24.12., 31.12.) ist ein Arbeitstag -- gesetzlich kein Feiertag.
+3. „Abschluss aufheben“ heißt weiter so (im „⋮“ des Seitenkopfs, nur Admin); zurückgenommen wird auf eines der zwölf Monatsenden davor.
+4. Der Server lehnt Zurücknehmen auf einen Tag mitten im Monat ab, Vorrücken auf einen solchen Tag nicht (die Seite rückt nur monatsweise vor,
+   Festlegung 1.9.97 Nr. 6; ein Abschluss mitten im Monat aus der Zeit davor lässt sich so weiter auf ein Monatsende zurücknehmen).
+
+#### Tests und Prüfung
+
+Neu `tests/test_v525_arbeitstage_und_aufheben.py`: Arbeitstage (Weihnachten 2026 = 8, Ostern 2027, Fronleichnam, Allerheiligen, Buß- und Bettag nicht in
+NRW, ohne Feiertag, Feiertag am Samstag), der Antrag über Weihnachten mit 8 auf Prüfen und Abwesenheiten; ganz aufheben 422, mitten im Monat 422, nichts
+geändert, Monatsende 200, Büro – Finanzen 403, vorrücken wie bisher; der Dialog ohne „ganz“. `klicktest_zeiten`: zwölf Monatsenden, ganz aufheben 422.
+
+Angepasste Erwartungen:
+- `test_v300::test_backoffice_may_advance_but_only_admin_may_reopen_or_clear`: Admin zurück auf LOCK (heute − 10 Tage) 200 und ganz aufheben 200 -> auf
+  LOCK 422 (außer LOCK ist ein Monatsende), auf das Monatsende davor 200, ganz 422.
+- `test_v510::test_abschluss_aufheben_nur_der_admin`: Admin ganz aufheben 200 -> 422, auf das Monatsende vor gestern 200.
+- `test_v512::test_zuruecknehmen_wird_nicht_geprueft`: zurück auf gestern − 5 Tage 200 und ganz 200 -> auf das Monatsende davor 200 (die laufende Zeit
+  zwei Tage davor), ganz 422.
+- `klicktest_zeiten` „Admin: Dialog -- Text und gewählt“: letzte Option „nichts – Abschluss ganz aufheben“ -> zwölf Optionen, letzte „31.10.2025“.
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED mit Abweichung im Ergebnis): Arbeitstage ohne Feiertage -> 5 Tests; ganz aufheben
+erlaubt -> 1 Test (200 statt 422); zurücknehmen auf jeden Tag -> 1 Test (200 statt 422); der Dialog wieder mit „nichts“ -> 1 Test. Die beiden
+Gegenproben am Abschluss liefen zuerst über einen KeyError (die Antwort 200 hat kein `detail`); der Test vergleicht jetzt Status und Meldung
+zusammen, dieselben Gegenproben scheitern seither an „200 != 422“.

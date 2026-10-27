@@ -45,9 +45,13 @@ def test_backoffice_may_advance_but_only_admin_may_reopen_or_clear(threaded_db_s
     assert office.put("/api/time-backoffice/lock", json={"locked_until": later}).status_code == 200
     assert office.put("/api/time-backoffice/lock", json={"locked_until": LOCK.isoformat()}).status_code == 403
     assert office.put("/api/time-backoffice/lock", json={"locked_until": None}).status_code == 403
-    assert admin.put("/api/time-backoffice/lock", json={"locked_until": LOCK.isoformat()}).status_code == 200
-    assert admin.get("/api/time-backoffice/settings").json()["locked_until"] == LOCK.isoformat()
-    assert admin.put("/api/time-backoffice/lock", json={"locked_until": None}).json()["locked_until"] is None
+    # seit 1.9.105 (Stufe 4, R5b Nachrunde, Punkt 6) nimmt der Admin nur auf ein früheres Monatsende zurück, nie ganz (bis 1.9.104 auf LOCK und
+    # ganz: None -> 200)
+    monatsende = LOCK.replace(day=1) - timedelta(days=1)
+    assert admin.put("/api/time-backoffice/lock", json={"locked_until": LOCK.isoformat()}).status_code == (200 if (LOCK + timedelta(days=1)).day == 1 else 422)
+    assert admin.put("/api/time-backoffice/lock", json={"locked_until": monatsende.isoformat()}).status_code == 200
+    assert admin.get("/api/time-backoffice/settings").json()["locked_until"] == monatsende.isoformat()
+    assert admin.put("/api/time-backoffice/lock", json={"locked_until": None}).status_code == 422
     assert router_test_client(db, backoffice_router, role="field").put("/api/time-backoffice/lock", json={"locked_until": LOCK.isoformat()}).status_code == 403
 
 

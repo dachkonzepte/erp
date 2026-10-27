@@ -20,7 +20,7 @@ Abschließen -- nur für Admin und Büro – Finanzen (require_lohndaten, app/pe
 weiter nur der Admin. Die Übersicht (Stunden je Mitarbeiter), Zeitmodelle und Personalnummern bleiben dem Büro.
 """
 
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends
 from fastapi import HTTPException
@@ -63,6 +63,10 @@ def put_datev_nummern(payload: DatevNummernUpdate, db: Session = Depends(get_db,
     return TimeTrackingSettingsOut.model_validate(time_settings_dict(set_datev_nummern(db, payload.beraternummer, payload.mandantennummer), db))
 
 
+ABSCHLUSS_NICHT_GANZ = "Ganz aufheben geht nicht – „Abschluss aufheben“ setzt „Abgeschlossen bis“ auf ein früheres Monatsende."
+NUR_AUF_MONATSENDE = "Zurückgenommen wird nur auf ein Monatsende."
+
+
 @router.put("/api/time-backoffice/lock", response_model=TimeTrackingSettingsOut)
 def put_time_lock(payload: TimeTrackingLockUpdate, db: Session = Depends(get_db, scope="function"), _role=_lohn_dep):
     """Abschluss der Zeiterfassung (seit 1.7.10). Vorrücken darf seit 1.9.89 Admin und Büro – Finanzen (bis dahin jedes Büro);
@@ -71,6 +75,12 @@ def put_time_lock(payload: TimeTrackingLockUpdate, db: Session = Depends(get_db,
     reopens = current is not None and (payload.locked_until is None or payload.locked_until < current)
     if reopens and _role.role != ROLE_ADMIN:
         raise HTTPException(status_code=403, detail="Einen abgeschlossenen Zeitraum wieder öffnen darf nur ein Administrator.")
+    # Seit 1.9.105 (Stufe 4, R5b Nachrunde, Punkt 6): zurückgenommen wird nur auf ein früheres Monatsende, nie ganz (bis 1.9.104 auch auf jeden Tag
+    # und ganz) -- auch für den Admin, nach der Rollenprüfung
+    if reopens and payload.locked_until is None:
+        raise HTTPException(status_code=422, detail=ABSCHLUSS_NICHT_GANZ)
+    if reopens and (payload.locked_until + timedelta(days=1)).day != 1:
+        raise HTTPException(status_code=422, detail=NUR_AUF_MONATSENDE)
     # Seit 1.9.91 (Stufe 4, R5a, Punkt 4): vorrücken nur ohne laufende Zeiten und ohne Tage mit unpassender Pause bis zum Tag -- sonst 409
     # mit der Liste (auch für den Admin); Personalnummer, Lohnart und DATEV-Nummern sperren nicht
     if payload.locked_until is not None and (current is None or payload.locked_until > current):

@@ -4,6 +4,14 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.105 – Arbeitstage ohne Feiertage NRW, „Abschluss aufheben“ nur auf ein Monatsende (Stufe 4, R5b Nachrunde)
+
+Zwei Festlegungen von Tobias zur Seite „Zeiten“: „n Arbeitstage“ an einem Abwesenheitsantrag zählt Montag bis Freitag ohne die gesetzlichen
+Feiertage in Nordrhein-Westfalen (über die vorhandene Feiertagsrechnung der Plantafel) -- Urlaub vom 21.12.2026 bis 01.01.2027 sind 8 Arbeitstage,
+bis 1.9.104 hieß es 10. Die Zahl wird nirgends gespeichert oder verrechnet, nur angezeigt. „Abschluss aufheben“ setzt „Abgeschlossen bis“ nur noch auf
+ein früheres Monatsende; „ganz aufheben“ bietet der Dialog nicht mehr an, und der Server lehnt es ab (422), ebenso das Zurücknehmen auf einen Tag
+mitten im Monat -- auch für den Admin. Vorrücken bleibt, wie es ist.
+
 ## 1.9.104 – „Buchung ändern“: gebucht und geändert von …; „Dauer · vom Büro“ nach dem, der sie setzte (Stufe 4, R5b Nachrunde)
 
 Der Dialog „Buchung ändern“ nennt unter dem Titel wie die Vorlage „Tom Monteur · gebucht von … am …“, nach einer Änderung dazu „· geändert von … am

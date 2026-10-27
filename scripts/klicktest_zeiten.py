@@ -33,7 +33,8 @@ dem abgeschlossenen Auftrag; Toms Antrag Urlaub 02.–06.11. offen.
                             Laden -> abgelehnt (409), die Liste auf der Seite; ohne Lücke abgeschlossen; DATEV erst mit Lohnart und
                             Personalnummer -> Datei; seit 1.9.98 (aus klicktest_backoffice_buero): im abgeschlossenen Oktober keine
                             Buchung mit „⋮“, Stundenzettel PDF und CSV 200, im „⋮“ des Kopfs kein „Abschluss aufheben“, zurücknehmen vom
-                            Server 403; Admin hebt den Abschluss über „⋮“ auf (zurück auf 30.09.2026)
+                            Server 403; Admin hebt den Abschluss über „⋮“ auf (zurück auf 30.09.2026; seit 1.9.105 nur Monatsenden, ganz
+                            aufheben vom Server 422)
     412 px                  ohne waagrechte Scrollleiste der Seite
 
 Die Bilder (zeiten_*.png) liegen im Ordner der Screenshots.
@@ -565,10 +566,15 @@ async def pruefen(tab, seed, p):
     await tab.js("document.getElementById('seitenkopfMenueKnopf').click()")
     await tab.js("document.getElementById('abschlussAufheben').click()")
     p.pruefe("Admin: Dialog -- Stand und Vorschlag", await tab.warten("document.getElementById('aufhebenDialog').open", 5), True)
-    p.pruefe("Admin: Dialog -- Text und gewählt", await tab.js(
-        "[document.getElementById('ahText').innerText,document.getElementById('ahBis').value,"
-        "[...document.getElementById('ahBis').options].slice(-1)[0].text]"), ["Abgeschlossen ist bis 31.10.2026.", "2026-09-30",
-                                                                             "nichts – Abschluss ganz aufheben"])
+    # seit 1.9.105 (Nachrunde, Punkt 6) nur die zwölf Monatsenden davor, nicht mehr „nichts – Abschluss ganz aufheben“; ganz aufheben lehnt der
+    # Server ab (bis 1.9.104 letzte Option „nichts – Abschluss ganz aufheben“)
+    p.pruefe("Admin: Dialog -- Text, gewählt, zwölf Monatsenden", await tab.js(
+        "[document.getElementById('ahText').innerText,document.getElementById('ahBis').value,document.getElementById('ahBis').options.length,"
+        "[...document.getElementById('ahBis').options].slice(-1)[0].text]"), ["Abgeschlossen ist bis 31.10.2026.", "2026-09-30", 12, "31.10.2025"])
+    p.pruefe("Admin: ganz aufheben vom Server abgelehnt (422)", await tab.js(
+        "fetch('/api/time-backoffice/lock',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({locked_until:null})})"
+        ".then(r=>r.json().then(d=>[r.status,d.detail]))"),
+        [422, "Ganz aufheben geht nicht – „Abschluss aufheben“ setzt „Abgeschlossen bis“ auf ein früheres Monatsende."])
     await tab.warte_auf_neu_geladene_liste("document.getElementById('ahAufheben').click()", "#monatZeilen")
     p.pruefe("Admin: zurück auf 30.09.2026 -- Oktober offen", await tab.js(
         "[document.getElementById('ergebnis').innerText,document.getElementById('monatTitel').innerText,document.getElementById('monatStatus').innerText]"),

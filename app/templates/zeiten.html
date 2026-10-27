@@ -895,20 +895,20 @@ function monatAbschliessen(){
 function aufhebenOeffnen(){
   var bis=(P&&P.monat.abgeschlossen_bis)||(M&&M.abgeschlossen_bis);
   el('ahText').textContent=bis?'Abgeschlossen ist bis '+tagLang(bis).slice(3)+'.':'Es ist nichts abgeschlossen.';
-  // die Monatsenden vor dem jetzigen Abschluss (zwölf), dazu „nichts“
+  // die zwölf Monatsenden vor dem jetzigen Abschluss -- seit 1.9.105 nur sie, nicht mehr „nichts – Abschluss ganz aufheben“ (der Server lehnt das ab)
   var optionen=[],m=bis?String(bis).slice(0,7):null;
   for(var i=0;m&&i<12;i++){m=monatPlus(m,-1);var e=monatEnde(m);if(e<bis)optionen.push({value:e,label:tagLang(e).slice(3)})}
-  optionen.push({value:'',label:'nichts – Abschluss ganz aufheben'});
-  el('ahBis').innerHTML=auswahlOptionen(optionen,optionen[0].value||'',function(o){return o.label},{wert:function(o){return o.value}});
-  el('ahStatus').textContent='';el('ahAufheben').disabled=!bis;
+  el('ahBis').innerHTML=auswahlOptionen(optionen,optionen.length?optionen[0].value:'',function(o){return o.label},{wert:function(o){return o.value}});
+  el('ahStatus').textContent='';el('ahAufheben').disabled=!bis||!optionen.length;
   el('aufhebenDialog').showModal();
 }
 function monatEnde(m){var p=m.split('-').map(Number);var t=new Date(Date.UTC(p[0],p[1],0)).getUTCDate();return m+'-'+pad2(t)}
 function aufheben(){
-  var knopf=el('ahAufheben'),bis=el('ahBis').value||null;
+  var knopf=el('ahAufheben'),bis=el('ahBis').value;
+  if(!bis)return;
   knopf.disabled=true;
   return speichern('monat',()=>api('/api/time-backoffice/lock',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({locked_until:bis})}),{neuLaden:alleNeuLaden})
-    .then(function(){el('aufhebenDialog').close();ergebnis(bis?'Abschluss zurückgenommen: abgeschlossen bis '+tagLang(bis).slice(3)+'.':'Abschluss aufgehoben – nichts ist abgeschlossen.')})
+    .then(function(){el('aufhebenDialog').close();ergebnis('Abschluss zurückgenommen: abgeschlossen bis '+tagLang(bis).slice(3)+'.')})
     .catch(function(e){el('ahStatus').textContent=e.message;knopf.disabled=false});
 }
 
