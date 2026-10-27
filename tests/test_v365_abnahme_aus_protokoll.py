@@ -206,9 +206,10 @@ def test_the_follow_up_goes_through_create_acceptance(protokoll, monkeypatch):
 
 
 def test_date_is_the_day_of_the_signature_in_berlin_not_of_the_follow_up(protokoll, ohne_folge, monkeypatch):
-    """Unterschrift um 22:30 UTC = 00:30 in Berlin am nächsten Tag; die Folge wird drei Tage später nachgeholt."""
+    """Unterschrift um 23:30 UTC = in Berlin am nächsten Tag (00:30 Winterzeit, 01:30 Sommerzeit); die Folge wird drei Tage später nachgeholt.
+    Bis 1.9.100 um 22:30 UTC -- in der Winterzeit 23:30 am selben Tag, der Test war seit dem 25.10.2026 jeden Tag rot."""
     p, db = protokoll, protokoll["db"]
-    spaet = datetime.combine(berlin_today() - timedelta(days=2), datetime.min.time()) + timedelta(hours=22, minutes=30)
+    spaet = datetime.combine(berlin_today() - timedelta(days=2), datetime.min.time()) + timedelta(hours=23, minutes=30)
 
     class Uhr(datetime):
         @classmethod

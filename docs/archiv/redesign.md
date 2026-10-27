@@ -6230,3 +6230,111 @@ Weiterleitung ohne Filter -> 3 Tests und 1 Prüfung von `klicktest_monteurin_reg
 
 Angepasste Erwartungen: keine. Gegenprobe (Marker `GEGENPROBE`, byte-genau zurück, FAILED): der Knopf wieder mit `secondary` -> 2 Tests und 1 Prüfung
 von `klicktest_datev_nummern`.
+
+## Stufe 4, R5b Nachrunde (ab 1.9.100)
+
+Vorgabe 27.10.2026: Festlegungen R5b bestätigt, außer 1.9.95 Nr. 5 und 9 und 1.9.97 Nr. 7 (ersetzt durch Punkt 6); 1.9.95 Nr. 4 und 1.9.97 Nr. 2–4
+ersetzt Punkt 1. Die Prüfabfrage von 1.9.94 ergab auf dem Server 0 Zeilen.
+
+### R5b Nachrunde, Punkt 0 (1.9.100): Prüfabfrage Kolonnenbuchungen, weit gefasst
+
+`scripts/pruefabfrage_kolonne_weit.sql` (nur lesen: `BEGIN TRANSACTION READ ONLY` … `ROLLBACK`, Aufruf wie 1.9.94 mit `PGOPTIONS` und `psql`), drei
+Teile, je mit Überschrift (`\echo`), ein Teil ohne Treffer zeigt „(0 Zeilen)“:
+
+- a) jede Änderung „hours“ einer Zeitbuchung im Verlauf mit `PUT /api/time-entry-groups/{id}`, ohne Änderung „hours“ des Kopfs (Gruppen-Zeitbuchung)
+  in derselben Anfrage -- ohne Datumsgrenze, ohne „mindestens zwei Mitglieder“, ohne „vorher verschieden“. Eine Anfrage: die Einträge eines Pfads,
+  zwischen denen höchstens 5 Sekunden liegen (Inseln über `lag()`), statt „dieselbe Minute“ -- eine Anfrage über eine Minutengrenze wurde bis
+  dahin zerteilt (eine bewusste Dauer, deren Kopf eine Sekunde später im Verlauf steht, erschiene dann als Fehler). Spalten: Gruppe, Tag, Auftrag,
+  Mitarbeiter, Buchung, Stunden vorher/nachher, wann (Europe/Berlin) und von wem, `uhrzeiten_geaendert` (in derselben Anfrage änderten sich Beginn
+  oder Ende des Mitglieds -- ein Ändern mit Von/Bis, bei dem das Mittel des Kopfs gleich blieb, kein Fehler). Gelöschte Buchungen oder Gruppen
+  erscheinen mit leerem Namen (LEFT JOIN, die Gruppe aus dem Pfad).
+- b) ohne Verlauf: jedes Mitglied einer Kolonnenbuchung (gebucht, mit Beginn und Ende), dessen Stunden nicht zu Von/Bis minus seiner Pause passen
+  -- Anwesenheit auf vier Stellen, minus Pause, mit der Rundung der Zeitregeln (`rounding_minutes`, sonst vier Stellen), wie
+  `nachtrag_nach_zeitregel()`/`ende_rechnen()`; Abweichungen unter 0,005 h zählen nicht (Stopp und Nachtrag runden an der vierten Stelle
+  verschieden). Findet auch Fälle ohne Verlauf (vor dessen Einführung) und den Fehler bis 1.9.89 an Mitgliedern mit Von/Bis (ihre Uhrzeiten blieben
+  stehen, die Stunden waren das Mittel). Gerechnet mit der Rundung von heute (Spalte `rundung_min`).
+- c) Kontrollzahlen je Monat (Europe/Berlin): Anfragen, Kolonnen, Einträge, Stundenänderungen der Mitglieder und des Kopfs, davon in a).
+
+**Probe: schrieb der fehlerhafte Weg (Code von 1.9.89) für die Mitglieder Einträge in `audit_logs`? Ja.** Arbeitskopie auf `9637819` (1.9.89),
+echte Anmeldeschranke (setzt Konto, Pfad und Methode für den Verlauf), als Admin über die API: Kolonne 07:00–12:30 für Mia (ohne Vorbuchung) und Tom
+(Fahrzeit 06:15–07:00 am Morgen) -> Mia 5,50 h ohne Pause, Tom 5,00 h mit 30 min, Kopf 5,25 h (Mittel); dann `PUT /api/time-entry-groups/1` mit nur
+`{"notes": "nur die Notiz"}`. Ergebnis: beide Mitglieder 5,25 h, Mia mit 30 min Pause; der Verlauf dieser Anfrage (alle mit „Anna Admin“, PUT,
+`/api/time-entry-groups/1`):
+
+    Zeitbuchung 2 (Mia)  break_minutes      0 -> 30
+    Zeitbuchung 2 (Mia)  min_break_minutes  0 -> 30
+    Zeitbuchung 2 (Mia)  hours              5.5000 -> 5.2500
+    Zeitbuchung 2 (Mia)  notes              -> nur die Notiz
+    Zeitbuchung 3 (Tom)  min_break_minutes  0 -> 30
+    Zeitbuchung 3 (Tom)  hours              5.0000 -> 5.2500
+    Zeitbuchung 3 (Tom)  notes              -> nur die Notiz
+    Gruppen-Zeitbuchung 1  notes            -> nur die Notiz
+
+Der Weg ändert die Mitglieder über das ORM (`update_group()`: `entry.hours = amount`), der Verlauf (`app/audit.py::collect_audit()`, vor jedem
+Flush) schreibt jede geänderte Spalte -- für ein Mitglied, dessen Stunden schon den Stunden des Kopfs glichen, keine Zeile „hours“ (nichts geändert).
+Der Kopf bekommt keine Zeile „hours“, er behält seine Stunden. Genau das sucht a). Gegenprobe auf dem heutigen Stand (1.9.99): dieselbe Anfrage
+lässt die Stunden stehen, im Verlauf nur die drei Zeilen „notes“. Dass die Prüfabfrage von 1.9.94 auf dem Server leer blieb, heißt also: seit dem
+23.10.2026 keine solche Anfrage mit mindestens zwei Mitgliedern mit verschiedenen Stunden -- was davor lag, prüft erst a).
+
+#### Festlegungen 1.9.100 (Bitte bestätigen)
+
+1. Eine Anfrage im Verlauf = die Einträge desselben Pfads mit höchstens 5 Sekunden Abstand zum vorigen (auch über eine Minutengrenze).
+2. a) zeigt auch Änderungen mit Von/Bis, bei denen das Mittel des Kopfs gleich blieb -- gekennzeichnet in `uhrzeiten_geaendert`, kein Fehler.
+3. b) rechnet mit der Rundung der Zeitregeln von heute; Abweichungen unter 0,005 h zählen nicht.
+4. c) zählt je Monat (Europe/Berlin) Anfragen, Kolonnen, Einträge, Stundenänderungen von Mitgliedern und Kopf und, wie viele davon a) zeigt.
+5. Die Prüfabfrage von 1.9.94 bleibt im Repo (die enge Fassung, Abgleich mit dem Ergebnis vom 27.10.2026).
+
+#### Tests und Prüfung
+
+Neu `tests/test_v522_pruefabfrage_kolonne_weit.py`: nur lesend mit drei Teilen; unter PostgreSQL (Wegwerf-Schema) ein Bestand -- gefunden: zwei
+Mitglieder vorher verschieden, nur ein Mitglied, alte Werte gleich, über die Minutengrenze (08:00:59,8 und 08:01:00,3), vor dem 23.10.2026, ein Ändern
+mit Von/Bis (mit `uhrzeiten_geaendert`), der Fehler 25 Sekunden vor einer bewussten Dauer derselben Gruppe; nicht gefunden: bewusste Dauer mit Kopf
+über die Minutengrenze, ein einzelnes Mitglied über `/api/time-entries/{id}`, eine Notiz; b) die Kolonne mit den Stunden des Fehlers (beide
+Mitglieder 5,25 statt 5,00) gefunden, eine richtige, eine mit Rundung auf 15 min und eine Einzelbuchung mit falschen Stunden nicht; c) je Monat. Die
+Datei läuft mit `psql` (Rückgabe 0, drei Überschriften, je „(0 Zeilen)“ auf leerem Schema).
+
+Angepasste Erwartungen (Nebenbefund im Lauf vor dem Commit): `test_v365::test_date_is_the_day_of_the_signature_in_berlin_not_of_the_follow_up` --
+nur der Aufbau: Unterschrift um 22:30 UTC von vorgestern -> 23:30 UTC. Der Test erwartete „in Berlin der nächste Tag“, das galt für 22:30 UTC nur in der
+Sommerzeit (UTC+2); seit dem 25.10.2026 (UTC+1) ist es 23:30 am selben Tag, der Test war jeden Tag rot (im ersten vollen Lauf dieser Runde
+aufgefallen). 23:30 UTC ist in beiden Zeiten nach Mitternacht; die anderen Tests mit 22:00/22:30 UTC nehmen feste Daten. Gegenproben (Marker
+`GEGENPROBE`, byte-genau zurück, je FAILED mit Abweichung im Ergebnis): eine Anfrage = dieselbe
+Minute (die bewusste Dauer erscheint) -> 1 Test; Datumsgrenze 23.10.2026 (die Gruppe vom 15.09. fehlt) -> 1 Test; Kopf irgendwann statt in derselben
+Anfrage geändert (der Fehler vor der Dauer fehlt) -> 1 Test; b) ohne Rundung (die Kolonne mit 15 min erscheint) -> 1 Test.
+
+### R5b Nachrunde, Punkt 3 (1.9.100): Befund -- die Pause einer Dauer (nichts geändert)
+
+Vorgabe: „Tom 15.10. war 07:00–16:30 mit 0:45, ist jetzt „Dauer“ 8,00 – die Zeile zeigt weiter Pause 0:45. Woher, und zählt diese Pause in „Tag
+zusammen“, „Pause passt nicht zum Tag“, Stundenzettel, CSV, DATEV? Was rechnet der Server für einen Tag mit einer Dauer?“ Nachgerechnet mit dem Code
+von 1.9.99 (Toms Tag wie in `klicktest_zeiten`: Fahrzeit 06:15–07:00, Baustelle 07:00–16:30, dann als Dauer 8,00 h gespeichert).
+
+**Woher.** Der Dialog „Buchung ändern“ belegt in „Dauer“ das Feld „Pause (Min.)“ mit der gespeicherten Pause vor (`bdPauseDauer` =
+`break_minutes`, 45) und schickt sie mit (`break_minutes`). Der Server speichert eine Dauer, wie sie kommt: Beginn und Ende leer (seit 1.9.90), Pause
+45 min, Mindestpause 45 (`min_break_minutes`, weil Stunden oder Pause gesendet wurden), 8,00 h. Er rechnet die Pause einer Dauer nie neu.
+
+**Was die Pause einer Dauer bewirkt.** Eine Dauer ist gebuchte Arbeitszeit (netto); ihre Anwesenheit ist Stunden + Pause
+(`_anwesend_der_buchung()`, `entry_to_dict()`): hier 8,00 + 0,75 = 8,75 h.
+
+| Stelle | zählt die Pause der Dauer? | Toms 15.10. |
+|---|---|---|
+| „Tag zusammen“ (`tag_stand()`, Vorschauen von Nachtrag, Ende, Ändern) | ja, über die Anwesenheit | 0,75 + 8,75 = 9:30 h (vorher 10:15 h) |
+| „Pause passt nicht zum Tag“ (`pausen_vorschau()`, auch der Abschluss) | ja: Dauern zählen zuerst, ihre Pause als schon abgezogene Pause des Tags; Buchungen mit Uhrzeiten bekommen nur, was dann noch fehlt | Pflichtpause für 9,5 h = 30 min, abgezogen 45 -> passt |
+| die Pause jeder neuen Buchung dieses Tags (`pause_nach_zeitregel()`) | ja, wie oben | -- |
+| Stundenzettel (PDF des Büros) | angezeigt in der Spalte „Pause“, Stunden unverändert | Pause 45, Stunden 8,00, von/bis leer |
+| Stundendaten als CSV | angezeigt (`Pause_Min`), Stunden unverändert | `;;;45;8,00;` |
+| DATEV-Export | nein, nur die gespeicherten Stunden (`tagessumme()`) | 8,00 + 0,75 |
+| „Meine Zeiten“ der Monteurin | angezeigt: anwesend 8:45, Pause 0:45, gebucht 8,00 | -- |
+
+Gegenprobe derselben Dauer mit Pause 0: „Tag zusammen“ 8:45 h; der Tag passt dann nicht mehr (Pflichtpause 30 min, abgezogen 0) -- „Prüfen“ schlüge
+vor, der Fahrzeit 06:15–07:00 30 min abzuziehen (0,75 -> 0,25 h), weil nur sie Uhrzeiten hat.
+
+**Was der Server für einen Tag mit einer Dauer rechnet:** die Dauer bleibt, wie eingetragen (Stunden und Pause); sie zählt mit Stunden + Pause zur
+Anwesenheit des Tags und mit ihrer Pause zur schon abgezogenen Pause, vor den Buchungen mit Uhrzeiten; die Pflichtpause, die dann noch fehlt, geht nur
+an Buchungen mit Uhrzeiten (höchstens ihre Anwesenheit). Die Pause einer Dauer ist also nicht „nur Anzeige“: sie entscheidet, ob der Tag passt.
+
+**Vorschlag (nicht gebaut).** Die Pause einer Dauer ist eine Angabe über den Tag, keine Rechnung -- der Dialog soll das zeigen statt sie still
+mitzunehmen: (1) beim Wechsel von „Von – Bis“ zu „Dauer“ bleibt „Pause (Min.)“ mit der bisherigen Pause vorbelegt (sie war die Pause dieses
+Abschnitts), heißt aber „Pause an diesem Tag (Min.)“ mit dem Satz „zählt zur Pause des Tags – ohne Pause muss der Tag sie anderswo haben“;
+(2) die Vorschau rechnet auch für „Dauer“ beim Server (wie für Von – Bis): „Anwesend 8:45 h · Tag zusammen 9:30 h · Pause des Tags passt“ bzw. „…
+passt danach nicht – der Tag erscheint unter „Prüfen““; (3) in der Liste steht die Pause einer Dauer wie bisher (sie zählt). Alternative, wenn
+eine Dauer nie eine Pause tragen soll: „Dauer“ ohne Pausenfeld, die Pause des Tags dann nur über Buchungen mit Uhrzeiten -- das ändert, was alte
+Dauern (Kolonnen-Nachträge mit Pause) bisher bewirken, und bräuchte eine Entscheidung zum Bestand.

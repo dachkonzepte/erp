@@ -4,6 +4,20 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.100 – Prüfabfrage Kolonnenbuchungen, weit gefasst (Stufe 4, R5b Nachrunde)
+
+Die Prüfabfrage von 1.9.94 fand auf dem Server nichts -- sie suchte eng (seit dem 23.10.2026, mindestens zwei Mitglieder, vorher verschieden, eine
+Anfrage = dieselbe Minute). Neu `scripts/pruefabfrage_kolonne_weit.sql` (nur lesen, drei Teile mit Überschrift): a) jede Änderung der Stunden eines
+Mitglieds über `PUT /api/time-entry-groups/{id}`, bei der sich die Stunden des Kopfs in derselben Anfrage nicht änderten -- ohne Datumsgrenze, auch
+ein einzelnes Mitglied und gleiche alte Werte, eine Anfrage = Einträge desselben Pfads mit höchstens 5 Sekunden Abstand; b) ohne Verlauf jedes
+Mitglied mit Von/Bis, dessen Stunden nicht zu Von/Bis minus Pause passen (gerechnet wie der Server); c) Kontrollzahlen je Monat. Eine Probe auf dem
+Code von 1.9.89 belegt, dass der fehlerhafte Weg für jedes Mitglied, dessen Stunden er änderte, eine Zeile im Verlauf schrieb (der Kopf keine) --
+a) findet ihn also, wenn es ihn gab. Dazu der Befund zur Pause einer Dauer (Punkt 3, nichts geändert).
+
+Nebenbefund behoben: `test_v365::test_date_is_the_day_of_the_signature_in_berlin_not_of_the_follow_up` setzte die Unterschrift auf 22:30 UTC von
+vorgestern und erwartete in Berlin den nächsten Tag -- das stimmt nur in der Sommerzeit; seit dem 25.10.2026 (Winterzeit) war der Test jeden Tag rot.
+Jetzt 23:30 UTC (in Berlin in beiden Zeiten nach Mitternacht); der Code war richtig.
+
 ## 1.9.99 – „Berater- und Mandantennummer speichern“ als Hauptknopf (Stufe 4, R5b)
 
 In den Einstellungen unter „Zeitregeln und DATEV“ ist „Berater- und Mandantennummer speichern“ jetzt der grüne Hauptknopf wie die übrigen
