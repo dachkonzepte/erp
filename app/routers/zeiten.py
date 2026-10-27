@@ -17,7 +17,7 @@ from ..option_settings import get_option_group
 from ..permissions import (ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, darf_abwesenheiten_aller, darf_antrag_zurueckziehen, darf_lohndaten, darf_zeit_buchen,
                            darf_zeit_fuer_andere_buchen, require_lohndaten, require_min_role)
 from ..time_backoffice import locked_until
-from ..zeiten import arbeitstage, buchungen, monat, monat_lesen, pruefen
+from ..zeiten import arbeitstage, buchungen, feiertage_bundesland, monat, monat_lesen, pruefen
 
 router = APIRouter()
 
@@ -58,8 +58,9 @@ def _sichtbare_antraege(db: Session, user: AppUser, status: str | None):
 
 
 def _antraege(db: Session, user: AppUser) -> list[dict]:
-    """Die offenen Anträge, die das Konto sieht (_sichtbare_antraege()), mit Arbeitstagen."""
-    return [{**request_to_dict(db, r), "arbeitstage": arbeitstage(r.start_date, r.end_date)} for r in _sichtbare_antraege(db, user, "pending")]
+    """Die offenen Anträge, die das Konto sieht (_sichtbare_antraege()), mit Arbeitstagen (Feiertage nach dem Bundesland der Plantafel)."""
+    land = feiertage_bundesland(db)
+    return [{**request_to_dict(db, r), "arbeitstage": arbeitstage(r.start_date, r.end_date, land)} for r in _sichtbare_antraege(db, user, "pending")]
 
 
 def _anzahl(n: int, eins: str, mehr: str) -> str:
@@ -119,11 +120,12 @@ def zeiten_abwesenheiten(status: str | None = Query(None, max_length=20), db: Se
     admin = user.role == ROLE_ADMIN
     aller = darf_abwesenheiten_aller(user)
     rows = _sichtbare_antraege(db, user, status or None)
+    land = feiertage_bundesland(db)
     arten = get_option_group(db, "absence_types")
     # offene Anträge, die das Konto sieht -- dieselbe Zahl wie am Reiter (GET /api/zeiten/pruefen)
     offen = len(_sichtbare_antraege(db, user, "pending"))
     return {
-        "antraege": [{**request_to_dict(db, r), "arbeitstage": arbeitstage(r.start_date, r.end_date),
+        "antraege": [{**request_to_dict(db, r), "arbeitstage": arbeitstage(r.start_date, r.end_date, land),
                       "darf_entscheiden": admin and r.status == "pending",
                       "darf_zurueckziehen": r.status == "pending" and darf_antrag_zurueckziehen(user, r)}
                      for r in rows],

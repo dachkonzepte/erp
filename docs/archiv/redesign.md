@@ -6651,3 +6651,28 @@ Vorschlag -> 1 Test; „Prüfen“ ohne den Weg zu „Ändern“ -> 1 Test; Dial
 ohne Vorschlag -> 2 Tests (v527, v508). Zwei Gegenproben griffen zuerst nicht: „So buchen“ auch ohne Vorschlag über die Knöpfe blieb grün (ohne Vorschlag
 werden die Knöpfe nie gezeichnet -- die Gegenprobe sitzt jetzt am Kasten), die Monteurin scheiterte über einen KeyError (der Test vergleicht jetzt Status
 und Meldung zusammen).
+
+### R5b Nachrunde 2, Punkt 2 (1.9.108): Arbeitstage nach dem Bundesland der Plantafel
+
+Vorgabe: „Arbeitstage: Feiertage nach der Einstellung „Bundesland“ der Plantafel (eine Quelle), ohne Einstellung NRW.“ Ersetzt Festlegung 1.9.105
+Nr. 1 (fest NRW).
+
+- `app/zeiten.py::feiertage_bundesland()`: das Bundesland aus `PlanningRegionSettings.federal_state_code` (dieselbe Zeile, die die Plantafel liest und
+  in ihren Einstellungen ändert), ohne Zeile oder ohne Wert „NW“; nur lesen. `arbeitstage(start, ende, bundesland="NW")` nimmt es als Argument.
+- `app/routers/zeiten.py`: „Prüfen“ und „Abwesenheiten“ lesen das Bundesland einmal je Anfrage und geben es an `arbeitstage()`.
+
+#### Festlegungen 1.9.108 (Bitte bestätigen)
+
+1. Quelle der Feiertage ist allein die Einstellung „Bundesland“ der Plantafel; geändert wird sie dort, „Zeiten“ hat keine eigene.
+2. „Feiertage automatisch“ der Plantafel aus ändert die Arbeitstage nicht -- gezählt werden die gesetzlichen Feiertage des Bundeslands; eigene Feiertage
+   und betriebsfreie Tage der Plantafel zählen nicht.
+3. Ohne Einstellungszeile oder ohne Wert gilt Nordrhein-Westfalen.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v528_arbeitstage_bundesland.py`: Mo 04.01.–Fr 08.01.2027 in NRW 5, in Bayern, Baden-Württemberg, Sachsen-Anhalt 4, in Niedersachsen 5;
+Toms Antrag auf „Abwesenheiten“ und „Prüfen“ mit Bayern 4, mit NRW 5 (umgestellt über die Funktion der Plantafel); Bayern auch mit „Feiertage
+automatisch“ aus; ohne Wert und ohne Zeile NRW. Angepasste Erwartungen: keine.
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED mit Abweichung im Ergebnis): fest NRW -> 2 Tests; „Abwesenheiten“ ohne das Bundesland
+-> 2 Tests; „Prüfen“ ohne das Bundesland -> 2 Tests; ohne Rückfall auf NRW -> 1 Test.

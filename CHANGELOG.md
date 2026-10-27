@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.108 – Arbeitstage nach dem Bundesland der Plantafel (Stufe 4, R5b Nachrunde 2)
+
+„n Arbeitstage“ an einem Abwesenheitsantrag zieht die gesetzlichen Feiertage des Bundeslands ab, das in der Plantafel eingestellt ist -- eine
+Quelle für Plantafel und Anträge; ohne Einstellung gilt Nordrhein-Westfalen. 1.9.105–1.9.107 war es fest NRW. Steht die Plantafel auf Bayern, hat
+Urlaub vom 04. bis 08.01.2027 vier Arbeitstage (Heilige Drei Könige), in NRW fünf. Die Zahl bleibt eine Anzeige, nirgends gespeichert.
+
 ## 1.9.107 – Die Pause einer Dauer gibt man an; ein Tag nur aus Dauern unter „Prüfen“ (Stufe 4, R5b Nachrunde 2)
 
 Entscheidung von Tobias: die Pause einer Dauer gibt man an. In „Buchung ändern“ und „Kolonne buchen“ steht in „Dauer“ das Feld „Pause an diesem Tag
