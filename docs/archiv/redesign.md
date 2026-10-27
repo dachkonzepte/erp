@@ -6338,3 +6338,57 @@ Abschnitts), heißt aber „Pause an diesem Tag (Min.)“ mit dem Satz „zählt
 passt danach nicht – der Tag erscheint unter „Prüfen““; (3) in der Liste steht die Pause einer Dauer wie bisher (sie zählt). Alternative, wenn
 eine Dauer nie eine Pause tragen soll: „Dauer“ ohne Pausenfeld, die Pause des Tags dann nur über Buchungen mit Uhrzeiten -- das ändert, was alte
 Dauern (Kolonnen-Nachträge mit Pause) bisher bewirken, und bräuchte eine Entscheidung zum Bestand.
+
+### R5b Nachrunde, Punkt 1 (1.9.101): Abwesenheiten -- Büro – Finanzen sieht alle
+
+Entscheidung von Tobias: Büro – Finanzen sieht alle Abwesenheiten und Anträge und stellt Anträge auch für andere; entscheiden nur der Admin;
+zurückziehen darf, wer den Antrag gestellt hat. Büro – Auftrag: nur eigene. Zahl am Reiter, „Anträge“ auf Prüfen und „Vor dem Abschluss“ folgen
+daraus; „✓ Anträge entschieden“ nur, wenn wirklich keiner offen ist. Ersetzt Festlegung 1.9.95 Nr. 4 und 1.9.97 Nr. 2–4.
+
+- `app/permissions.py`: `darf_abwesenheiten_aller()` (Admin, Büro – Finanzen) und `darf_antrag_zurueckziehen(user, antrag)` (wer ihn gestellt hat,
+  `requested_by_user_id`; ohne Angabe die Person, für die er gilt). Tabelle im Rechtekonzept-Archiv, „Nachtrag 1.9.101“.
+- `app/routers/absence_requests.py`: `GET` alle nach `darf_abwesenheiten_aller()`, sonst die eigenen; `POST` für andere ebenso; `DELETE` nur nach
+  `darf_antrag_zurueckziehen()` (403 `NUR_WER_GESTELLT`); jede Antwort mit `darf_zurueckziehen` (offen und von diesem Konto gestellt).
+  `app/absence_requests.py::request_to_dict()` mit `beantragt_von` (Anzeigename des Antragstellers, wenn er nicht die Person selbst ist).
+- `app/routers/zeiten.py`: `_sichtbare_antraege()` für Prüfen und Abwesenheiten; „Vor dem Abschluss“ bekommt „n Anträge offen“ (die das Konto
+  sieht) und `antraege_entschieden` (kein Antrag offen, auch keiner, den das Konto nicht sieht); der Hinweis für Büro – Auftrag heißt jetzt „Hier stehen
+  nur deine eigenen Anträge – die Anträge aller sehen Admin und Büro – Finanzen.“; Büro – Finanzen beantragt mit Feld „Mitarbeiter“, auch ohne
+  eigenen Mitarbeiter.
+- `zeiten.html`: `abschlussHtml()` -- offene Punkte, dazu „✓ Anträge entschieden“ nur mit `antraege_entschieden`; ohne offenen Punkt „✓ Nichts offen
+  – der Monat lässt sich abschließen.“ nur mit `antraege_entschieden`, sonst „✓ Der Monat lässt sich abschließen.“; Anträge mit „beantragt von …“;
+  der Dialog wählt den eigenen Mitarbeiter vor.
+- `mobil_zeiten.html` („Meine Zeiten“): „Zurückziehen“ nur nach `darf_zurueckziehen`, „beantragt von …“ unter dem Antrag.
+
+#### Festlegungen 1.9.101 (Bitte bestätigen)
+
+1. „Zurückziehen darf, wer den Antrag gestellt hat“ gilt auch für den Admin: Anträge anderer entscheidet er, er zieht sie nicht zurück (bis 1.9.100
+   erlaubte der Server es ihm).
+2. Ein Antrag ohne vermerkten Antragsteller (angelegt ohne Konto, z. B. aus Testdaten oder Altbestand) zieht die Person zurück, für die er gilt.
+3. Ein Antrag, den das Büro für Tom gestellt hat, sieht Tom in „Meine Zeiten“ mit „beantragt von …“, ohne „Zurückziehen“.
+4. „Abwesenheiten“ zeigt weiter die Anträge; die Abwesenheiten der Plantafel (direkt eingetragen) bleiben auf der Plantafel.
+5. „Vor dem Abschluss“ nennt die offenen Anträge, die das Konto sieht, als letzten Punkt („1 Antrag offen“); „Anträge entschieden“ steht dort (wie
+   in „Monat & Lohn“) nur neben anderen offenen Punkten, ohne offenen Punkt heißt es „Nichts offen – der Monat lässt sich abschließen.“ -- beides nur,
+   wenn kein Antrag offen ist; sieht das Konto offene Anträge nicht (Büro – Auftrag), steht „Der Monat lässt sich abschließen.“
+6. Büro – Finanzen ohne eigenen Mitarbeiter stellt Anträge nur für andere (Feld „Mitarbeiter“, ohne Vorwahl); mit eigenem Mitarbeiter ist er
+   vorgewählt.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v523_abwesenheiten_rechte.py`: Regel je Rolle; Büro – Finanzen sieht Toms Antrag (API und „Zeiten“, ohne eigenen Mitarbeiter),
+stellt „Krank“ für Tom, entscheidet nicht (403), zieht Toms Antrag nicht zurück (403), den eigenen schon; Büro – Auftrag für Tom 403, sieht nur
+eigene; Tom zieht den Antrag des Büros nicht zurück (403), seinen schon, „beantragt von“; der Admin zieht Toms Antrag nicht zurück (403), entscheidet
+ihn; ohne Antragsteller die Person; Zahl, Anträge und „Vor dem Abschluss“ je Konto; in node die Haken von „Vor dem Abschluss“, „beantragt von“ in der
+Zeile, „Meine Zeiten“ nur mit `darf_zurueckziehen`. `klicktest_zeiten`: Büro – Finanzen sieht alle, stellt „Krank“ für Tom (Bild), Entscheiden 403,
+zieht zurück; Büro – Auftrag für Tom 403.
+
+Angepasste Erwartungen:
+- `test_v519::test_abwesenheiten_buero_nur_die_eigenen` (Büro – Finanzen sieht nur die eigenen, Hinweis) -> `test_abwesenheiten_buero_auftrag_nur_die_eigenen`
+  (dasselbe für Büro – Auftrag).
+- `test_v519::test_antrag_fuer_andere_nur_der_admin`: Büro – Finanzen für Tom 403 (mit und ohne Mitarbeiter) -> 200, neu Büro – Auftrag für Tom 403;
+  umbenannt in `test_antrag_fuer_andere_admin_und_finanzen`.
+- `test_v517::test_pruefen_antraege_je_konto`: Büro – Finanzen keine Anträge, Zahl 0 -> Toms Antrag, Zahl 1; Büro – Auftrag keine, Zahl 0.
+- `test_v422::test_jede_anfrage_der_seite_ist_dem_buero_erlaubt`: `GET /api/absence-requests` ohne Mitarbeiter 403 -> für Büro – Finanzen 200.
+- `klicktest_zeiten`: „Fin: Hinweis und kein „beantragen““ (ohne Mitarbeiter) -> alle Anträge, kein Hinweis, beantragen für Tom; der Hinweis für Büro –
+  Auftrag mit dem neuen Text.
+- `test_v518::test_antraege_entscheidet_nur_der_admin` und `test_v519::test_antrag_knoepfe_nach_dem_server`: nur der Aufbau -- die neue Hilfsfunktion
+  `beantragtText` in der Liste der Funktionen, die der node-Lauf lädt (im ersten Lauf rot: ReferenceError).

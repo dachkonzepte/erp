@@ -2181,3 +2181,21 @@ Gegenproben (Marker `GEGENPROBE`, byte-genau zurück): Büro – Finanzen nicht 
 Klicktests rot; Büro – Auftrag in `ZEIT_BUCHEN_ROLLEN` -> 5 Tests rot; Büro – Auftrag in `LOHNDATEN_ROLLEN` -> 5 Tests und 3 Prüfungen rot;
 `EmployeeOut` ab Büro – Auftrag (`app/routers/employees.py`) -> der Schlüssel-Scan rot; Reiter der Ausgabe für jedes Büro -> 1 Test und 1 Prüfung
 rot -- je FAILED, nicht ERROR.
+
+## Nachtrag 1.9.101: Abwesenheiten und Anträge (Stufe 4, R5b Nachrunde, Punkt 1)
+
+Entscheidung von Tobias (27.10.2026): Büro – Finanzen sieht alle Abwesenheiten und Anträge und stellt Anträge auch für andere; entscheiden nur der
+Admin; zurückziehen darf, wer den Antrag gestellt hat. Büro – Auftrag: nur eigene. Ersetzt Festlegung 1.9.89 Nr. 7, 1.9.95 Nr. 4 und 1.9.97
+Nr. 2–4.
+
+| Recht | Wer | Regel |
+|---|---|---|
+| alle Anträge sehen (`GET /api/absence-requests`, „Zeiten“: Prüfen, Abwesenheiten, Zahl am Reiter, „Vor dem Abschluss“) | Admin, Büro – Finanzen (bis 1.9.100 nur Admin) | `darf_abwesenheiten_aller()` |
+| Antrag für eine andere Person stellen (`POST /api/absence-requests`) | Admin, Büro – Finanzen (1.9.97–1.9.100 nur Admin) | `darf_abwesenheiten_aller()`, sonst nur für sich (403) |
+| Antrag entscheiden (`POST …/review`) | nur Admin | unverändert `require_admin` |
+| Antrag zurückziehen (`DELETE …`) | wer ihn gestellt hat (`requested_by_user_id`), auch der Admin nur seine eigenen; ohne Angabe die Person selbst (bis 1.9.100: der Admin jeden, sonst jeder die für sich) | `darf_antrag_zurueckziehen()`, sonst 403 „Zurückziehen kann einen Antrag nur, wer ihn gestellt hat.“ |
+| eigene Anträge sehen und stellen | Büro – Auftrag, Monteurin (mit Mitarbeiter) | unverändert |
+
+`GET /api/absence-requests` meldet je Antrag `darf_zurueckziehen` und `beantragt_von` (wer ihn für die Person gestellt hat) -- „Meine Zeiten“ zeigt
+„Zurückziehen“ nur danach. Die Abwesenheiten der Plantafel (`EmployeeAbsence`, Krankheit für Büro – Auftrag nur „abwesend“, seit 1.5.4) bleiben, wie
+sie sind. Herleitung: `docs/archiv/redesign.md`, „R5b Nachrunde, Punkt 1“.

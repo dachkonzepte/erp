@@ -78,8 +78,8 @@ def test_jede_anfrage_der_seite_ist_dem_buero_erlaubt(welt, router_test_client, 
         assert lohn == ([200, 200, 409] if rolle == "buero_finanzen" else [403, 403, 403]), lohn
         # seit 1.9.89 liest jedes Büro den Kontext, auch ohne eigenen Mitarbeiter (bis dahin 403); die Seite fragt ihn, wer bucht
         assert client.get("/api/time-tracking/context").status_code == 200
-        # Anträge nur mit Mitarbeiter -- die Seite fragt ohne ihn nicht (ICH.mitarbeiter === null)
-        assert client.get("/api/absence-requests").status_code == (200 if mitarbeiter else 403)
+        # Anträge nur mit Mitarbeiter -- seit 1.9.101 sieht Büro – Finanzen alle, auch ohne Mitarbeiter (bis 1.9.100 403)
+        assert client.get("/api/absence-requests").status_code == (200 if mitarbeiter or rolle == "buero_finanzen" else 403)
 
 
 def test_was_der_server_dem_buero_auftrag_nicht_erlaubt(welt, router_test_client):

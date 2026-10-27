@@ -158,8 +158,8 @@ def test_pruefen_pausen_erst_nach_dem_abschluss(welt):  # noqa: F811
 
 
 def test_pruefen_antraege_je_konto(welt):  # noqa: F811
-    """Angriff: Büro – Finanzen sieht die Anträge anderer nicht (wie GET /api/absence-requests). Gegenprobe: der Admin alle offenen, mit
-    Arbeitstagen; Zahl am Reiter „Abwesenheiten“."""
+    """Angriff: Büro – Auftrag sieht die Anträge anderer nicht (wie GET /api/absence-requests). Gegenprobe: der Admin und seit 1.9.101 Büro –
+    Finanzen alle offenen, mit Arbeitstagen; Zahl am Reiter „Abwesenheiten“ (bis 1.9.100 sah Büro – Finanzen nur die eigenen)."""
     db = welt["db"]
     montag = welt["heute"] + timedelta(days=7 - welt["heute"].weekday())
     db.add(EmployeeAbsenceRequest(employee_id=welt["tom"].id, absence_type="Urlaub", absence_category="urlaub", start_date=montag,
@@ -171,7 +171,9 @@ def test_pruefen_antraege_je_konto(welt):  # noqa: F811
     assert [(a["employee_name"], a["arbeitstage"]) for a in admin["antraege"]] == [("Tom Monteur", 5)]
     assert admin["zahlen"]["abwesenheiten"] == 1
     fin = _als(welt, "buero_finanzen", employee_id=welt["mia"].id).get("/api/zeiten/pruefen").json()
-    assert fin["antraege"] == [] and fin["zahlen"]["abwesenheiten"] == 0
+    assert [a["employee_name"] for a in fin["antraege"]] == ["Tom Monteur"] and fin["zahlen"]["abwesenheiten"] == 1
+    bea = _als(welt, "buero_auftrag", employee_id=welt["mia"].id).get("/api/zeiten/pruefen").json()
+    assert bea["antraege"] == [] and bea["zahlen"]["abwesenheiten"] == 0
 
 
 def test_pruefen_monat_und_vor_dem_abschluss(welt):  # noqa: F811

@@ -14,7 +14,8 @@ from ..database import get_db
 from ..meldungen import KEIN_MITARBEITER
 from ..models import AppUser, Employee
 from ..option_settings import get_option_group
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, darf_lohndaten, darf_zeit_buchen, darf_zeit_fuer_andere_buchen, require_lohndaten, require_min_role
+from ..permissions import (ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, darf_abwesenheiten_aller, darf_antrag_zurueckziehen, darf_lohndaten, darf_zeit_buchen,
+                           darf_zeit_fuer_andere_buchen, require_lohndaten, require_min_role)
 from ..time_backoffice import locked_until
 from ..zeiten import arbeitstage, buchungen, monat, monat_lesen, pruefen
 
@@ -46,15 +47,23 @@ def _darf_aendern(user: AppUser, employee_id: int, work_date, lock) -> bool:
     return user.role == ROLE_ADMIN or lock is None or work_date > lock
 
 
+def _sichtbare_antraege(db: Session, user: AppUser, status: str | None):
+    """Die Anträge, die das Konto sieht -- wie GET /api/absence-requests: seit 1.9.101 Admin und Büro – Finanzen alle (darf_abwesenheiten_aller(),
+    bis 1.9.100 nur der Admin), sonst nur die eigenen, ohne Mitarbeiter keine."""
+    if darf_abwesenheiten_aller(user):
+        return list_requests(db, status=status)
+    if user.employee_id is not None:
+        return list_requests(db, employee_id=user.employee_id, status=status)
+    return []
+
+
 def _antraege(db: Session, user: AppUser) -> list[dict]:
-    """Die offenen Anträge, die das Konto sieht -- wie GET /api/absence-requests: der Admin alle, sonst nur die eigenen."""
-    if user.role == ROLE_ADMIN:
-        rows = list_requests(db, status="pending")
-    elif user.employee_id is not None:
-        rows = list_requests(db, employee_id=user.employee_id, status="pending")
-    else:
-        rows = []
-    return [{**request_to_dict(db, r), "arbeitstage": arbeitstage(r.start_date, r.end_date)} for r in rows]
+    """Die offenen Anträge, die das Konto sieht (_sichtbare_antraege()), mit Arbeitstagen."""
+    return [{**request_to_dict(db, r), "arbeitstage": arbeitstage(r.start_date, r.end_date)} for r in _sichtbare_antraege(db, user, "pending")]
+
+
+def _anzahl(n: int, eins: str, mehr: str) -> str:
+    return f"{n} {eins if n == 1 else mehr}"
 
 
 @router.get("/api/zeiten/pruefen")
@@ -68,6 +77,11 @@ def zeiten_pruefen(request: Request, db: Session = Depends(get_db, scope="functi
     for t in daten["pausen"]:
         t["darf_buchen"] = _darf_aendern(user, t["employee_id"], t["tag"], lock)
     daten["antraege"] = _antraege(db, user)
+    # seit 1.9.101: „Vor dem Abschluss“ nennt die offenen Anträge, die das Konto sieht; „Anträge entschieden“ nur, wenn keiner offen ist
+    # (auch keiner, den das Konto nicht sieht -- Büro – Auftrag sieht nur die eigenen)
+    if daten["antraege"]:
+        daten["vor_dem_abschluss"].append({"art": "antraege", "text": _anzahl(len(daten["antraege"]), "Antrag offen", "Anträge offen")})
+    daten["antraege_entschieden"] = not list_requests(db, status="pending")
     daten["rechte"] = _rechte(user)
     daten["zahlen"] = {"pruefen": len(daten["offene_zeiten"]) + len(daten["pausen"]), "abwesenheiten": len(daten["antraege"])}
     return daten
@@ -86,39 +100,35 @@ def zeiten_buchungen(request: Request, monat_: str | None = Query(None, alias="m
     return daten
 
 
-NUR_EIGENE_ANTRAEGE = "Hier stehen nur deine eigenen Anträge – die Anträge anderer sieht und entscheidet ein Administrator."
+NUR_EIGENE_ANTRAEGE = "Hier stehen nur deine eigenen Anträge – die Anträge aller sehen Admin und Büro – Finanzen."
 ANTRAG_STATUS = ("pending", "approved", "rejected", "cancelled")
 
 
 @router.get("/api/zeiten/abwesenheiten")
 def zeiten_abwesenheiten(status: str | None = Query(None, max_length=20), db: Session = Depends(get_db, scope="function"),
                          user: AppUser = _buero_dep):
-    """Seit 1.9.97 (Stufe 4, R5b, Punkt 5): „Abwesenheiten“ wie bisher -- der Admin sieht und entscheidet alle Anträge, sonst nur die
-    eigenen (wie GET /api/absence-requests; ohne Mitarbeiter keine, mit Hinweis); je Antrag Arbeitstage, darf_entscheiden (Admin, offen),
-    darf_zurueckziehen (der eigene, offen -- die Anträge anderer entscheidet der Admin, er zieht sie nicht zurück). Beantragen: der Admin für jeden aktiven Mitarbeiter, sonst für sich (mit Mitarbeiter)."""
+    """Seit 1.9.97 (Stufe 4, R5b, Punkt 5): „Abwesenheiten“ -- seit 1.9.101 (Nachrunde, Punkt 1) sehen Admin und Büro – Finanzen alle Anträge
+    und stellen sie auch für andere, Büro – Auftrag nur die eigenen (ohne Mitarbeiter keine, mit Hinweis); je Antrag Arbeitstage,
+    darf_entscheiden (nur der Admin, offen), darf_zurueckziehen (offen und von diesem Konto gestellt -- darf_antrag_zurueckziehen()).
+    1.9.97–1.9.100 sah und beantragte für andere nur der Admin."""
     if status and status not in ANTRAG_STATUS:
         raise HTTPException(status_code=422, detail="Unbekannter Status.")
     admin = user.role == ROLE_ADMIN
-    if admin:
-        rows = list_requests(db, status=status or None)
-    elif user.employee_id is not None:
-        rows = list_requests(db, employee_id=user.employee_id, status=status or None)
-    else:
-        rows = []
+    aller = darf_abwesenheiten_aller(user)
+    rows = _sichtbare_antraege(db, user, status or None)
     arten = get_option_group(db, "absence_types")
     # offene Anträge, die das Konto sieht -- dieselbe Zahl wie am Reiter (GET /api/zeiten/pruefen)
-    offen = len(list_requests(db, status="pending")) if admin else (
-        len(list_requests(db, employee_id=user.employee_id, status="pending")) if user.employee_id is not None else 0)
+    offen = len(_sichtbare_antraege(db, user, "pending"))
     return {
         "antraege": [{**request_to_dict(db, r), "arbeitstage": arbeitstage(r.start_date, r.end_date),
                       "darf_entscheiden": admin and r.status == "pending",
-                      "darf_zurueckziehen": r.status == "pending" and user.employee_id is not None and r.employee_id == user.employee_id}
+                      "darf_zurueckziehen": r.status == "pending" and darf_antrag_zurueckziehen(user, r)}
                      for r in rows],
-        "hinweis": None if admin else (NUR_EIGENE_ANTRAEGE if user.employee_id is not None else KEIN_MITARBEITER),
-        "darf_beantragen": admin or user.employee_id is not None, "fuer_andere": admin, "eigener_mitarbeiter": user.employee_id,
+        "hinweis": None if aller else (NUR_EIGENE_ANTRAEGE if user.employee_id is not None else KEIN_MITARBEITER),
+        "darf_beantragen": aller or user.employee_id is not None, "fuer_andere": aller, "eigener_mitarbeiter": user.employee_id,
         "mitarbeiter": [{"id": e.id, "name": f"{e.first_name} {e.last_name}".strip(), "employee_number": e.employee_number}
                         for e in db.query(Employee).filter(Employee.active == True).order_by(Employee.last_name, Employee.first_name)]  # noqa: E712
-        if admin else [],
+        if aller else [],
         "arten": [{"value": o.value, "label": o.label, "active": o.active} for o in sorted(arten.options if arten else [],
                                                                                          key=lambda o: (o.sort_order, o.id))],
         "offen": offen,

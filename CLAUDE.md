@@ -1555,6 +1555,10 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   `require_zeit_buchen` an jedem schreibenden Zeit-Endpunkt) und `darf_lohndaten()` (Stundenzettel, CSV, DATEV, Abschließen: Admin und Büro –
   Finanzen, `require_lohndaten`); im abgeschlossenen Zeitraum, beim Aufheben des Abschlusses und bei Anträgen nur der Admin
   (`tests/test_v510_rechte_zeiten.py`, `docs/archiv/rechtekonzept.md`, „Nachtrag 1.9.89“).
+- **Abwesenheiten und Anträge** (seit 1.9.101, Entscheidung Tobias): Admin und Büro – Finanzen sehen alle und stellen Anträge auch für andere
+  (`app/permissions.py::darf_abwesenheiten_aller()`), entscheiden nur der Admin, zurückziehen nur, wer den Antrag gestellt hat
+  (`darf_antrag_zurueckziehen()`, ohne vermerkten Antragsteller die Person selbst); Büro – Auftrag und die Monteurin nur die eigenen
+  (`tests/test_v523_abwesenheiten_rechte.py`).
 - **Abschließen nur geklärt** (seit 1.9.91): „Abgeschlossen bis“ rückt nur vor ohne laufende Zeiten bis zum Datum und ohne Tage mit unpassender
   Pause ab dem bisherigen Abschluss (ohne ihn im Monat des Datums) -- `app/time_backoffice.py::abschluss_hindernisse()`, sonst 409 mit `detail`
   und `liste`, auch für den Admin; Personalnummer, Lohnart, DATEV-Nummern sperren den Abschluss nicht (`tests/test_v512_abschluss_pruefen.py`).

@@ -36,6 +36,10 @@ def load_request(db: Session, request_id: int) -> EmployeeAbsenceRequest | None:
 
 def request_to_dict(db: Session, row: EmployeeAbsenceRequest) -> dict:
     reviewer = db.get(AppUser, row.reviewed_by_user_id) if row.reviewed_by_user_id else None
+    # seit 1.9.101: wer den Antrag für eine andere Person gestellt hat (Büro – Finanzen oder Admin) -- leer, wenn die Person ihn selbst stellte
+    # oder niemand vermerkt ist
+    antragsteller = db.get(AppUser, row.requested_by_user_id) if row.requested_by_user_id else None
+    fuer_andere = antragsteller is not None and antragsteller.employee_id != row.employee_id
     return {
         "id": row.id,
         "employee_id": row.employee_id,
@@ -47,6 +51,7 @@ def request_to_dict(db: Session, row: EmployeeAbsenceRequest) -> dict:
         "notes": row.notes,
         "status": row.status,
         "requested_by_user_id": row.requested_by_user_id,
+        "beantragt_von": (antragsteller.display_name or antragsteller.username) if fuer_andere else None,
         "reviewed_by_user_id": row.reviewed_by_user_id,
         "reviewed_by_name": (reviewer.display_name or reviewer.username) if reviewer else None,
         "reviewed_at": row.reviewed_at,

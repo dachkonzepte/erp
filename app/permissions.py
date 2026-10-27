@@ -149,6 +149,30 @@ def darf_lohndaten(user: AppUser | None) -> bool:
     return user is None or has_role(user, *LOHNDATEN_ROLLEN)
 
 
+# Seit 1.9.101 (Stufe 4, R5b Nachrunde, Punkt 1, Entscheidung Tobias): Abwesenheiten und Anträge -- Admin und Büro – Finanzen sehen alle und
+# stellen Anträge auch für andere; entscheiden nur der Admin (require_admin am Endpunkt); zurückziehen, wer den Antrag gestellt hat. Büro –
+# Auftrag und die Monteurin sehen und stellen nur ihre eigenen. Server (app/routers/absence_requests.py, app/routers/zeiten.py) und Oberfläche
+# fragen nur diese Funktionen.
+ABWESENHEITEN_ALLER_ROLLEN = frozenset({ROLE_ADMIN, ROLE_OFFICE_FINANZEN})
+
+
+def darf_abwesenheiten_aller(user: AppUser | None) -> bool:
+    """Seit 1.9.101: Abwesenheiten und Anträge aller sehen und Anträge für andere stellen -- Admin und Büro – Finanzen (bis 1.9.100 nur der
+    Admin); ohne Konto (Tests ohne Anmeldung) ohne Einschränkung."""
+    return user is None or has_role(user, *ABWESENHEITEN_ALLER_ROLLEN)
+
+
+def darf_antrag_zurueckziehen(user: AppUser | None, antrag) -> bool:
+    """Seit 1.9.101: einen Antrag zieht zurück, wer ihn gestellt hat (requested_by_user_id) -- auch der Admin nur seine eigenen, die der
+    anderen entscheidet er (bis 1.9.100 zog der Admin jeden zurück, sonst jeder seine eigenen). Ein Antrag ohne diese Angabe (angelegt ohne
+    Konto) zieht die Person zurück, für die er gilt. Ob er noch offen ist, prüft das Zurückziehen selbst."""
+    if user is None:
+        return True
+    if antrag.requested_by_user_id is not None:
+        return antrag.requested_by_user_id == user.id
+    return user.employee_id is not None and user.employee_id == antrag.employee_id
+
+
 def zeit_nur_mit_von_bis(user: AppUser | None) -> bool:
     """Seit 1.9.60 (Stufe 4, R3, Punkt 3): wer eine Zeit nur mit Von und Bis nachträgt oder ändert, nie als reine Dauer -- heute die
     Monteurin (field), damit die Pausenregel des Tages gilt; das Büro trägt weiter Dauern ein. Die eine Stelle für den Server

@@ -1,9 +1,10 @@
 """Version 1.9.97 (Stufe 4, R5b, Punkte 5, 6 und 3): „Abwesenheiten“, „Monat & Lohn“, „Kolonne buchen“ und „Abschluss aufheben“ auf der Seite
 „Zeiten“.
 
-    Abwesenheiten  GET /api/zeiten/abwesenheiten -- der Admin sieht und entscheidet alle, sonst nur die eigenen (ohne Mitarbeiter keine, mit
-                   Hinweis); beantragen der Admin für jeden, sonst nur für sich -- POST /api/absence-requests für eine andere Person 403
-                   (bis 1.9.96 durfte das seit 1.9.89 auch Büro – Finanzen, ohne den Antrag danach zu sehen)
+    Abwesenheiten  GET /api/zeiten/abwesenheiten -- der Admin sieht und entscheidet alle, seit 1.9.101 sieht Büro – Finanzen alle (ohne zu
+                   entscheiden), Büro – Auftrag nur die eigenen (ohne Mitarbeiter keine, mit Hinweis); beantragen Admin und seit 1.9.101 Büro –
+                   Finanzen für jeden, Büro – Auftrag nur für sich -- POST /api/absence-requests für eine andere Person 403 (1.9.97–1.9.100 auch
+                   für Büro – Finanzen; tests/test_v523_abwesenheiten_rechte.py)
     Monat & Lohn   nur Admin und Büro – Finanzen (Reiter fehlt sonst); „Fehlt: …“ unter „Abschließen“ nur die Lücken der Zeiten, was DATEV
                    fehlt bei „DATEV-Export“; Abschließen über abschliessen() -- abgelehnt (409) die Liste auf der Seite; DATEV erst
                    abgeschlossen und vollständig; Stunden je Mitarbeiter und Zeitart mit Personalnummer
@@ -52,14 +53,15 @@ def test_abwesenheiten_admin_alle_und_entscheidet(welt):  # noqa: F811
     assert d["offen"] == 2 and {"Mia Monteurin", "Tom Monteur"} <= {m["name"] for m in d["mitarbeiter"]}
 
 
-def test_abwesenheiten_buero_nur_die_eigenen(welt):  # noqa: F811
-    """Angriff: Büro – Finanzen (Konto = Mia) sieht Toms Antrag nicht und entscheidet nichts. Gegenprobe: den eigenen sieht es und zieht ihn
-    zurück; ohne Mitarbeiter keine Anträge, der Hinweis und kein „beantragen“."""
+def test_abwesenheiten_buero_auftrag_nur_die_eigenen(welt):  # noqa: F811
+    """Angriff: Büro – Auftrag (Konto = Mia) sieht Toms Antrag nicht und entscheidet nichts. Gegenprobe: den eigenen sieht es und zieht ihn
+    zurück (ohne vermerkten Antragsteller die Person selbst); ohne Mitarbeiter keine Anträge, der Hinweis und kein „beantragen“. Bis 1.9.100
+    galt das auch für Büro – Finanzen (seit 1.9.101 sieht es alle, tests/test_v523_abwesenheiten_rechte.py)."""
     _antraege(welt)
-    d = _als(welt, "buero_finanzen", welt["mia"].id).get("/api/zeiten/abwesenheiten").json()
+    d = _als(welt, "buero_auftrag", welt["mia"].id).get("/api/zeiten/abwesenheiten").json()
     assert [(a["employee_name"], a["darf_entscheiden"], a["darf_zurueckziehen"]) for a in d["antraege"]] == [("Mia Monteurin", False, True)]
     assert d["hinweis"] == zeiten_router.NUR_EIGENE_ANTRAEGE and d["mitarbeiter"] == [] and d["darf_beantragen"] is True and d["offen"] == 1
-    ohne = _als(welt, "buero_finanzen").get("/api/zeiten/abwesenheiten").json()
+    ohne = _als(welt, "buero_auftrag").get("/api/zeiten/abwesenheiten").json()
     assert (ohne["antraege"], ohne["darf_beantragen"], ohne["hinweis"]) == ([], False,
                                                                             "Dein Konto ist keinem Mitarbeiter zugeordnet. Ein Administrator kann das unter Einstellungen → Benutzer und Zugriff ändern.")
 
@@ -74,10 +76,11 @@ def test_abwesenheiten_status_und_rechte(welt):  # noqa: F811
 
 
 @pytest.mark.parametrize("rolle, eigen, fuer, erwartet", [
-    ("buero_finanzen", "mia", "tom", 403), ("buero_finanzen", "mia", "mia", 200), ("buero_auftrag", "mia", "mia", 200),
-    ("buero_finanzen", None, "tom", 403), ("admin", None, "tom", 200)])
-def test_antrag_fuer_andere_nur_der_admin(welt, rolle, eigen, fuer, erwartet):  # noqa: F811
-    """Angriff: Büro – Finanzen beantragt für Tom (bis 1.9.96 angenommen) -> 403. Gegenprobe: für sich 200, der Admin für Tom 200."""
+    ("buero_auftrag", "mia", "tom", 403), ("buero_finanzen", "mia", "mia", 200), ("buero_auftrag", "mia", "mia", 200),
+    ("buero_finanzen", "mia", "tom", 200), ("buero_finanzen", None, "tom", 200), ("admin", None, "tom", 200)])
+def test_antrag_fuer_andere_admin_und_finanzen(welt, rolle, eigen, fuer, erwartet):  # noqa: F811
+    """Angriff: Büro – Auftrag beantragt für Tom -> 403. Gegenprobe: für sich 200; Admin und seit 1.9.101 Büro – Finanzen für Tom 200 (1.9.97–
+    1.9.100 für Büro – Finanzen 403, bis 1.9.96 angenommen, ohne dass es den Antrag danach sah)."""
     client = _als(welt, rolle, welt[eigen].id if eigen else None)
     antwort = client.post("/api/absence-requests", json={"employee_id": welt[fuer].id, "absence_category": "urlaub", "absence_type": "Urlaub",
                                                          "start_date": welt["heute"].isoformat(), "end_date": welt["heute"].isoformat()})
@@ -187,7 +190,7 @@ def _abwesenheit(zurueck=None, **anders):
               f"var ZURUECK={json.dumps(zurueck)};")
     text = _skript()
     js = (re.search(r"var WOCHENTAG=.*?;\n", text)[0] + vorweg + "\n"
-          + "\n".join(_funktion(text, f) for f in ("esc", "pad2", "teile", "tagLang", "abwesenheitHtml"))
+          + "\n".join(_funktion(text, f) for f in ("esc", "pad2", "teile", "tagLang", "beantragtText", "abwesenheitHtml"))
           + f"\nprocess.stdout.write(JSON.stringify(abwesenheitHtml({json.dumps({**ANTRAG, **anders})})));")
     return node_ausfuehren(js)
 

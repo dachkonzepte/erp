@@ -3135,12 +3135,14 @@ class EmployeeAbsenceRequestOut(BaseModel):
     notes: str | None = None
     status: str
     requested_by_user_id: int | None = None
+    beantragt_von: str | None = None  # seit 1.9.101: wer ihn für die Person gestellt hat (leer: sie selbst)
     reviewed_by_user_id: int | None = None
     reviewed_by_name: str | None = None
     reviewed_at: datetime | None = None
     review_notes: str | None = None
     approved_absence_id: int | None = None
     created_at: datetime
+    darf_zurueckziehen: bool = False  # seit 1.9.101: offen und von diesem Konto gestellt (app/permissions.py::darf_antrag_zurueckziehen())
 
 
 class PlanningSuggestionRequest(BaseModel):

@@ -24,8 +24,9 @@ dem abgeschlossenen Auftrag; Toms Antrag Urlaub 02.–06.11. offen.
     Kolonne (seit 1.9.97)   Büro – Finanzen über „⋮ Kolonne buchen“: Kolonne 1 mit Mia und Tom, 07:00–12:00 -> Vorschau je Person, „Für 2
                             Personen speichern“, beide Buchungen in der Liste
     Abwesenheiten           Admin genehmigt Toms Antrag mit Notiz (Zahl am Reiter weg); Büro – Auftrag beantragt für sich (ohne Feld
-                            Mitarbeiter), zieht mit Rückfrage zurück, kein Reiter „Monat & Lohn“ (API 403); Büro – Finanzen ohne Mitarbeiter:
-                            Hinweis, kein „beantragen“
+                            Mitarbeiter), zieht mit Rückfrage zurück, kein Reiter „Monat & Lohn“ (API 403), für Tom vom Server 403; seit 1.9.101
+                            Büro – Finanzen ohne eigenen Mitarbeiter: alle Anträge, „Krank“ für Tom mit „beantragt von“ -- Bild --, entscheiden 403,
+                            zieht ihn zurück
     Monat & Lohn            Büro – Finanzen: Lücke (Oles laufende Zeit) -> „Abschließen“ gesperrt, „Fehlt: 1 laufende Zeit“, was DATEV fehlt
                             getrennt bei „DATEV-Export“, DATEV gesperrt -- Bild; Ole geschlossen -> „Abschließen“ frei; eine neue Lücke nach dem
                             Laden -> abgelehnt (409), die Liste auf der Seite; ohne Lücke abgeschlossen; DATEV erst mit Lohnart und
@@ -395,7 +396,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Bea: Hinweis nur eigene, beantragen, kein Reiter Monat & Lohn, API 403", [
         await tab.js("document.getElementById('abwHinweis').innerText"), await tab.js("document.getElementById('abwNeu').hidden"),
         await tab.js("!!document.querySelector('[data-reiter=monat]')"), await tab.js("fetch('/api/zeiten/monat').then(r=>r.status)")],
-        ["Hier stehen nur deine eigenen Anträge – die Anträge anderer sieht und entscheidet ein Administrator.", False, False, 403])
+        ["Hier stehen nur deine eigenen Anträge – die Anträge aller sehen Admin und Büro – Finanzen.", False, False, 403])
     await tab.js("document.getElementById('abwNeu').click()")
     await tab.warten("document.getElementById('abwDialog').open", 5)
     p.pruefe("Bea: Dialog ohne Feld Mitarbeiter", await tab.js("document.getElementById('adMitarbeiterFeld').hidden"), True)
@@ -409,13 +410,46 @@ async def pruefen(tab, seed, p):
     p.pruefe("Bea: Rückfrage in der Zeile", await tab.js("document.querySelector('#abwListe .rueckfrage').innerText"), "Antrag zurückziehen?")
     await tab.warte_auf_neu_geladene_liste("document.querySelector('#abwListe [data-aktion=abw-ja]').click()", "#abwListe")
     p.pruefe("Bea: zurückgezogen -- keine offenen mehr", await tab.js("document.querySelectorAll('#abwListe .zeile').length"), 0)
+    p.pruefe("Bea: Antrag für Tom vom Server abgelehnt (403)", await tab.js(
+        f"fetch('/api/absence-requests',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{employee_id:{seed['tom_ma']},"
+        "absence_category:'krankheit',absence_type:'Krankheit',start_date:'2026-11-16',end_date:'2026-11-16'})}).then(r=>r.status)"), 403)
     p.pruefe("Bea: keine JS-Fehler", tab.fehler, [])
 
-    p.pruefe("Fin: Abwesenheiten ohne Mitarbeiter", await _seite(tab, seed, "fin", hash="#abwesenheiten"), True)
+    # seit 1.9.101 (Nachrunde, Punkt 1): Büro – Finanzen sieht alle Anträge und stellt sie für andere, entscheidet nicht, zieht zurück, was es
+    # gestellt hat (bis 1.9.100 ohne eigenen Mitarbeiter: Hinweis, keine Anträge, kein „beantragen“)
+    p.pruefe("Fin: Abwesenheiten ohne eigenen Mitarbeiter", await _seite(tab, seed, "fin", hash="#abwesenheiten"), True)
     await tab.warten("!!window.A", 10)
-    p.pruefe("Fin: Hinweis und kein „beantragen“", await tab.js(
-        "[document.getElementById('abwHinweis').innerText,document.getElementById('abwNeu').hidden]"),
-        ["Dein Konto ist keinem Mitarbeiter zugeordnet. Ein Administrator kann das unter Einstellungen → Benutzer und Zugriff ändern.", True])
+    await tab.warte_auf_neu_geladene_liste("(()=>{const s=document.getElementById('abwStatus');s.value='';s.dispatchEvent(new Event('change'))})()",
+                                          "#abwListe")
+    p.pruefe("Fin: alle Anträge (auch Toms und Beas), kein Hinweis, „beantragen“", await tab.js(
+        "[[...document.querySelectorAll('#abwListe .zeile')].map(z=>z.querySelector('.zeile-name').innerText+' | '+z.querySelector('.chip').innerText).sort(),"
+        "document.getElementById('abwHinweis').innerText,document.getElementById('abwNeu').hidden,document.querySelectorAll('#abwListe button').length]"),
+        [["Bea Büro · Urlaub | zurückgezogen", "Tom Monteur · Urlaub | genehmigt"], "", False, 0])
+    await tab.js("document.getElementById('abwNeu').click()")
+    await tab.warten("document.getElementById('abwDialog').open", 5)
+    p.pruefe("Fin: Dialog mit Feld Mitarbeiter (ohne Vorwahl)", await tab.js(
+        "[document.getElementById('adMitarbeiterFeld').hidden,document.getElementById('adMitarbeiter').value]"), [False, ""])
+    await tab.js(f"document.getElementById('adMitarbeiter').value='{seed['tom_ma']}';auswahlWert(document.getElementById('adKategorie'),'krankheit')")
+    await _eingeben(tab, "adVon", "2026-10-27")
+    await _eingeben(tab, "adBis", "2026-10-28")
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('adSenden').click()", "#abwListe")
+    await tab.warte_auf_neu_geladene_liste("(()=>{const s=document.getElementById('abwStatus');s.value='pending';s.dispatchEvent(new Event('change'))})()",
+                                          "#abwListe")
+    p.pruefe("Fin: „Krank“ für Tom gestellt -- offen, „beantragt von“, nur „Zurückziehen“, Zahl am Reiter 1", await tab.js(
+        "[...document.querySelectorAll('#abwListe .zeile')].map(z=>[z.querySelector('.zeile-name').innerText,"
+        "z.querySelector('.zeile-unter').innerText.replace(/ am \\d\\d\\.\\d\\d\\.$/,' am …'),"
+        "[...z.querySelectorAll('button')].map(b=>b.innerText)]).concat([document.getElementById('zahlAbwesenheiten').innerText])"),
+        [["Tom Monteur · Krankheit", "Di 27.10.–Mi 28.10.2026 · 2 Arbeitstage · beantragt von Fin Finanzen am …", ["Zurückziehen"]], "1"])
+    await tab.bild("zeiten_abwesenheiten_finanzen")
+    krank = await tab.js("A.antraege[0].id")
+    p.pruefe("Fin: entscheiden vom Server abgelehnt (403)", await tab.js(
+        f"fetch('/api/absence-requests/{krank}/review',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{decision:'approved'}})}})"
+        ".then(r=>r.status)"), 403)
+    await tab.js("document.querySelector('#abwListe [data-aktion=abw-fragen]').click()")
+    await tab.warte_auf_neu_geladene_liste("document.querySelector('#abwListe [data-aktion=abw-ja]').click()", "#abwListe")
+    p.pruefe("Fin: zurückgezogen -- keine offenen, Zahl weg", await tab.js(
+        "[document.querySelectorAll('#abwListe .zeile').length,document.getElementById('zahlAbwesenheiten').hidden]"), [0, True])
+    p.pruefe("Fin: keine JS-Fehler", tab.fehler, [])
 
     # ---- Monat & Lohn (seit 1.9.97) -------------------------------------------------------------------------------------------------
     p.pruefe("Fin: Monat & Lohn geladen", await _seite(tab, seed, "fin", hash="#monat"), True)

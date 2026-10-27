@@ -461,9 +461,16 @@ function pruefenZeichnen(d){
   el('monatZeilen').innerHTML=m.mitarbeiter.map(function(x){
     return '<tr><td>'+esc(x.name)+'</td><td class="r num">'+esc(x.tage)+'</td><td class="r num">'+esc(zahlText(x.stunden,2))+'</td></tr>'}).join('')
     +'<tr><td class="summe">Zusammen</td><td class="summe"></td><td class="summe r num">'+esc(zahlText(m.gebucht,2))+'</td></tr>';
-  el('abschlussListe').innerHTML=d.vor_dem_abschluss.length?d.vor_dem_abschluss.map(function(x){
-    return '<li data-art="'+esc(x.art)+'"><span class="punkt"></span>'+esc(x.text)+'</li>'}).join('')
-    :'<li><span class="haken">'+HAKEN+'</span>Nichts offen – der Monat lässt sich abschließen.</li>';
+  el('abschlussListe').innerHTML=abschlussHtml(d);
+}
+// „Vor dem Abschluss“: was offen ist (Lücken, DATEV, seit 1.9.101 die offenen Anträge, die das Konto sieht), dazu „Anträge entschieden“ nur, wenn
+// wirklich keiner offen ist (antraege_entschieden vom Server -- auch keiner, den das Konto nicht sieht); „Nichts offen“ nur dann, sonst „Der Monat
+// lässt sich abschließen“ (offene Anträge sperren den Abschluss nicht)
+function abschlussHtml(d){
+  var ok=function(text){return '<li data-art="ok"><span class="haken">'+HAKEN+'</span>'+esc(text)+'</li>'};
+  return d.vor_dem_abschluss.map(function(x){return '<li data-art="'+esc(x.art)+'"><span class="punkt"></span>'+esc(x.text)+'</li>'}).join('')
+    +(d.vor_dem_abschluss.length?(d.antraege_entschieden?ok('Anträge entschieden'):'')
+      :ok(d.antraege_entschieden?'Nichts offen – der Monat lässt sich abschließen.':'Der Monat lässt sich abschließen.'));
 }
 function offenHtml(z){
   var unter=z.zeitart+' seit '+tagKurz(z.seit)+', '+uhr(z.seit)+' · '+auftragKurz(z)+(z.auftrag_geschlossen?' (Auftrag '+z.auftrag_geschlossen+')':'')
@@ -491,10 +498,12 @@ function pauseHtml(t,i){
     +'<div class="status" id="pause-status-'+i+'" role="status"></div>';
 }
 var KATEGORIE={urlaub:'Urlaub',krankheit:'Krankheit',fortbildung:'Fortbildung',unbezahlt:'Unbezahlt',unbekannt:'Unbekannt'};
+// „· beantragt am 20.10.“, für eine andere Person gestellt (seit 1.9.101) „· beantragt von Fin Finanzen am 20.10.“
+function beantragtText(a){return a.created_at||a.beantragt_von?' · beantragt'+(a.beantragt_von?' von '+a.beantragt_von:'')+(a.created_at?' am '+berlinZeitpunkt(a.created_at,'datum').slice(0,6):''):''}
 function antragHtml(a){
   var art=a.absence_type||KATEGORIE[a.absence_category]||a.absence_category;
   var unter=tagLang(a.start_date).replace(/\.\d{4}$/,'.')+'–'+tagLang(a.end_date)+' · '+a.arbeitstage+(a.arbeitstage===1?' Arbeitstag':' Arbeitstage')
-    +(a.created_at?' · beantragt am '+berlinZeitpunkt(a.created_at,'datum').slice(0,6):'');
+    +beantragtText(a);
   var knoepfe=RECHTE.admin&&P&&P.rechte.antraege_entscheiden
     ?'<button type="button" class="knopf knopf-neutral" data-aktion="antrag" data-entscheidung="rejected" data-id="'+a.id+'">Ablehnen</button>'
      +'<button type="button" class="knopf knopf-aktion" data-aktion="antrag" data-entscheidung="approved" data-id="'+a.id+'">Genehmigen</button>':'';
@@ -752,7 +761,7 @@ function antragHervorheben(){
 function abwesenheitHtml(a){
   var art=KATEGORIE[a.absence_category]||a.absence_category,st=STATUS[a.status]||[a.status,'chip-neutral'];
   var unter=tagLang(a.start_date).replace(/\.\d{4}$/,'.')+'–'+tagLang(a.end_date)+' · '+a.arbeitstage+(a.arbeitstage===1?' Arbeitstag':' Arbeitstage')
-    +(a.created_at?' · beantragt am '+berlinZeitpunkt(a.created_at,'datum').slice(0,6):'');
+    +beantragtText(a);
   var knoepfe='';
   if(a.darf_entscheiden)knoepfe+='<input class="antrag-notiz" type="text" id="notiz-'+a.id+'" placeholder="Notiz (optional)" aria-label="Notiz zur Entscheidung">'
     +'<button type="button" class="knopf knopf-neutral" data-aktion="abw-entscheiden" data-entscheidung="rejected" data-id="'+a.id+'">Ablehnen</button>'
@@ -783,7 +792,7 @@ function abwesenheitenUndPruefen(){return Promise.all([abwesenheitenLaden(),prue
 function abwDialogOeffnen(){
   var d=A;
   el('adMitarbeiterFeld').hidden=!d.fuer_andere;
-  el('adMitarbeiter').innerHTML=auswahlOptionen(d.mitarbeiter,'',function(m){return (m.employee_number?m.employee_number+' · ':'')+m.name},{leer:'— Mitarbeiter wählen —'});
+  el('adMitarbeiter').innerHTML=auswahlOptionen(d.mitarbeiter,d.eigener_mitarbeiter||'',function(m){return (m.employee_number?m.employee_number+' · ':'')+m.name},{leer:'— Mitarbeiter wählen —'});
   auswahlWert(el('adKategorie'),'urlaub');
   el('adArt').innerHTML=auswahlOptionen(d.arten,'',function(x){return x.label},{wert:function(x){return x.value},leer:'— ohne —'});
   el('adVon').value=berlinToday();el('adBis').value=berlinToday();el('adNotiz').value='';

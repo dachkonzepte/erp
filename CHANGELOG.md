@@ -4,6 +4,16 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.101 – Abwesenheiten: Büro – Finanzen sieht alle Anträge (Stufe 4, R5b Nachrunde)
+
+Entscheidung von Tobias: Büro – Finanzen sieht alle Abwesenheitsanträge und stellt Anträge auch für andere (bis 1.9.100 nur die eigenen);
+entscheiden bleibt beim Admin; zurückziehen darf, wer den Antrag gestellt hat -- auch der Admin nur seine eigenen (bis 1.9.100 zog er jeden zurück),
+ein Antrag ohne vermerkten Antragsteller die Person selbst. Büro – Auftrag sieht und stellt nur die eigenen. Zwei Regeln in `app/permissions.py`
+(`darf_abwesenheiten_aller()`, `darf_antrag_zurueckziehen()`), die `GET`/`POST`/`DELETE /api/absence-requests` und die Seite „Zeiten“ fragen. Daraus
+folgen die Zahl am Reiter „Abwesenheiten“, die Karte „Anträge“ auf „Prüfen“ und „Vor dem Abschluss“ (jetzt mit „n Anträge offen“); „Anträge
+entschieden“ und „Nichts offen“ stehen dort nur, wenn wirklich kein Antrag offen ist. Ein Antrag, den jemand für eine andere Person gestellt hat,
+nennt „beantragt von …“; „Meine Zeiten“ zeigt „Zurückziehen“ nur noch an Anträgen, die die Monteurin selbst gestellt hat.
+
 ## 1.9.100 – Prüfabfrage Kolonnenbuchungen, weit gefasst (Stufe 4, R5b Nachrunde)
 
 Die Prüfabfrage von 1.9.94 fand auf dem Server nichts -- sie suchte eng (seit dem 23.10.2026, mindestens zwei Mitglieder, vorher verschieden, eine

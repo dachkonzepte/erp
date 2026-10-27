@@ -617,12 +617,14 @@ function antraegeZeichnen(){
   el('abwText').textContent='Urlaub oder Krankheit beantragen. '+(offen?offen+(offen===1?' offener Antrag.':' offene Anträge.'):'Keine offenen Anträge.');
   el('adAntraege').innerHTML=ANTRAEGE.length?ANTRAEGE.map(function(r){
     var rueckfrage=ZURUECKZIEHEN===String(r.id);
-    var knoepfe=r.status!=='pending'?'':rueckfrage
+    // seit 1.9.101: Zurückziehen nur, wer den Antrag gestellt hat (darf_zurueckziehen vom Server) -- stellte ihn das Büro, steht „beantragt von …“
+    var knoepfe=!r.darf_zurueckziehen?'':rueckfrage
       ?'<span class="antrag-status">Antrag zurückziehen?</span><button type="button" class="knopf knopf-neutral knopf-klein" data-antrag="nein" data-id="'+r.id+'">Abbrechen</button>'
         +'<button type="button" class="knopf knopf-gefahr knopf-klein" data-antrag="ja" data-id="'+r.id+'">Zurückziehen</button>'
       :'<button type="button" class="knopf knopf-neutral knopf-klein" data-antrag="fragen" data-id="'+r.id+'">Zurückziehen</button>';
     return '<div class="antrag" data-antrag-zeile="'+r.id+'"><span class="antrag-text"><b>'+esc(KATEGORIE[r.absence_category]||r.absence_category)+'</b>'
       +'<span>'+esc(r.absence_type)+' · '+esc(tagLang(r.start_date))+'–'+esc(tagLang(r.end_date))+'</span>'
+      +(r.beantragt_von?'<span>beantragt von '+esc(r.beantragt_von)+'</span>':'')
       +(r.notes?'<span>'+esc(r.notes)+'</span>':'')+(r.review_notes?'<span>Freigabe: '+esc(r.review_notes)+'</span>':'')+'</span>'
       +'<span class="antrag-status">'+esc(STATUS[r.status]||r.status)+'</span>'+knoepfe+'</div>'}).join('')
     :'<p class="leer-text" style="margin:0">Keine Abwesenheitsanträge vorhanden.</p>';
