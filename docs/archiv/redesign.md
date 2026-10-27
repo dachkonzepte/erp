@@ -6448,3 +6448,41 @@ Angepasste Erwartungen (`klicktest_zeiten`):
 - „Fin: Kolonne gebucht -- beide in der Liste“: Fr 23.10. Tom, Mia -> Mia, Tom.
 
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): ohne Sortierung (die neuesten zuerst) -> 1 Test; Dauer vorn statt zuletzt -> 1 Test.
+
+### R5b Nachrunde, Punkte 5 und 6 (1.9.104): „gebucht/geändert von …“ und „Dauer · vom Büro“
+
+- `app/zeiten.py::_verlauf_der_buchungen()`: je Buchung der Liste aus dem Verlauf (`audit_logs`, Art „Zeitbuchung“, „geändert“, nur lesen, je 500
+  Buchungen eine Abfrage über den Index auf `entity_id`):
+  - `gebucht_von`/`gebucht_am`: wer die Zeit beendet hat (Status läuft -> gebucht: Stopp, Gruppen-Stopp, „Ende nachtragen“, „Zeitart wechseln“) und
+    wann; ohne solchen Eintrag (Nachtrag, Kolonnen-Nachtrag, Buchung des Büros) der Anleger (`created_by`) mit `created_at`; steht im Verlauf kein
+    Konto („System“: Testdaten, Skripte), der Anleger, ohne ihn kein Name.
+  - `geaendert_von`/`geaendert_am`: der letzte Eintrag nach dem Buchen, ohne die Anfrage, die gebucht hat (derselbe Pfad, höchstens 5 Sekunden).
+  - `vom_buero`: das Konto, das zuletzt Stunden, Beginn, Ende, Tag oder Pause geändert hat, arbeitet außerhalb der Monteursansicht
+    (`MOBIL_ROLLEN`); ohne solche Änderung mit Konto der Anleger. Eine Notiz danach zählt nicht.
+- `zeiten.html::unterzeile()`: „<Name> · gebucht von … am … · geändert von … am …“ (Zeitpunkte über `berlinZeitpunkt()`); fehlt der Name, „gebucht
+  am …“. `tests/test_v473_zeitpunkte_berlin.py`: `gebucht_am` und `geaendert_am` in `UTC_FELDER`.
+- `klicktest_zeiten`: Tom hat ein Konto (Monteursansicht); seine Zeit am 15.10. bucht er selbst, beendet um 16:31 Berlin -- der Verlauf wie in der
+  Anwendung (Konto und Pfad), sein Zeitpunkt im Befüllen auf den 15.10. gesetzt.
+
+#### Festlegungen 1.9.104 (Bitte bestätigen)
+
+1. „Gebucht von … am …“: bei einer gestoppten Zeit, wer sie beendet hat und wann (auch Admin oder Büro – Finanzen über „Ende eintragen“), sonst wer sie
+   angelegt hat und wann.
+2. „Geändert von … am …“: die letzte Änderung nach dem Buchen, jede Spalte (auch Notiz, Zeitart, Auftrag) und jeder Weg (Ändern, Kolonne, „Pausen neu
+   rechnen“); nicht die Anfrage, die gebucht hat.
+3. „Dauer · vom Büro“: wer zuletzt Stunden, Uhrzeiten, Tag oder Pause gesetzt hat, arbeitet außerhalb der Monteursansicht; eine Notiz oder Zeitart
+   der Monteurin danach ändert das nicht (ersetzt Festlegung 1.9.95 Nr. 9).
+4. Die Rolle eines Kontos zählt, wie sie heute ist (wie bisher beim Anleger), nicht wie sie beim Ändern war.
+5. Gelesen wird aus dem Verlauf, keine neue Spalte: das gilt rückwirkend auch für Buchungen, die vor 1.9.104 geändert wurden; ohne Konto im Verlauf
+   (Testdaten, Skripte, der Verlauf vor seiner Einführung) zählt der Anleger.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v524_buchung_verlauf.py` (Verlauf mit Konto und Pfad wie die Anmeldeschranke): gebucht von Tom beim Stoppen, ohne Änderung; Büro –
+Finanzen stellt Toms Buchung auf Dauer -> „geändert von Fin Finanzen“, `vom_buero`; Toms Notiz danach -> „geändert von Tom“, die Dauer bleibt „vom
+Büro“; angelegte Dauer nach dem Konto (Monteurin nein, Büro ja); ohne Konto im Verlauf der Anleger; in node die Unterzeile wie die Vorlage.
+`klicktest_zeiten`: Unterzeile „Tom Monteur · gebucht von Tom Monteur am 15.10., 16:31“, nach dem Speichern mit „· geändert von Fin Finanzen am …“.
+
+Angepasste Erwartungen:
+- `klicktest_zeiten` „Fin: als Dauer gespeichert -- Zeile“: „Dauer“ -> „Dauer · vom Büro“ (Festlegung 1.9.95 Nr. 9 ersetzt).
+- `test_v473`: `UTC_FELDER` um `gebucht_am`, `geaendert_am` ergänzt (der Wächter kennt die neuen Zeitpunkte).

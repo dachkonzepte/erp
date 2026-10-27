@@ -4,6 +4,15 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.104 – „Buchung ändern“: gebucht und geändert von …; „Dauer · vom Büro“ nach dem, der sie setzte (Stufe 4, R5b Nachrunde)
+
+Der Dialog „Buchung ändern“ nennt unter dem Titel wie die Vorlage „Tom Monteur · gebucht von … am …“, nach einer Änderung dazu „· geändert von … am
+…“. Gebucht hat, wer die Zeit beendet hat (bei einer gestoppten Zeit) bzw. wer sie angelegt hat -- bis 1.9.103 stand dort immer der Anleger mit dem
+Zeitpunkt des Anlegens (bei Toms Zeit von 07:00 also „am 15.10., 07:00“ statt der Vorlage „16:31“). „Dauer · vom Büro“ steht jetzt, wenn ein Konto
+außerhalb der Monteursansicht die Zeit zuletzt gesetzt hat -- auch wenn das Büro eine Buchung der Monteurin auf Dauer stellt (bis 1.9.103 nur, wenn
+das Büro sie angelegt hatte). Beides liest die Liste „Buchungen“ aus dem Verlauf (eine Abfrage je 500 Buchungen, keine neue Spalte), es gilt damit
+auch für Buchungen, die vor dieser Version geändert wurden.
+
 ## 1.9.103 – „Buchungen“ in der Reihenfolge der Vorlage (Stufe 4, R5b Nachrunde)
 
 Die Liste „Buchungen“ der Seite „Zeiten“ stand mit den neuesten Buchungen zuerst -- an einem Tag kam Mias 12:00–16:15 vor ihrem 07:00–12:00. Jetzt

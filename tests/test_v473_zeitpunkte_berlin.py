@@ -23,7 +23,8 @@ from tests.test_v467_zeiten_einsatzbericht import _bericht, _pdf, _unterschreibe
 # Felder der API, die einen gespeicherten Zeitpunkt in UTC tragen (Spalten mit datetime.utcnow) -- Bestand aus dem Inventar 1.9.46
 UTC_FELDER = ("uploaded_at", "created_at", "updated_at", "completed_at", "released_at", "signed_at", "installer_signed_at", "last_login_at",
               "changed_at", "occurred_at", "published_at", "locked_at", "executed_at", "email_sent_at", "discarded_at", "finished_at",
-              "resolved_at", "voided_at", "recorded_at", "reverted_at", "superseded_at", "archived_at", "finalized_at", "closed_at")
+              "resolved_at", "voided_at", "recorded_at", "reverted_at", "superseded_at", "archived_at", "finalized_at", "closed_at",
+              "gebucht_am", "geaendert_am")  # seit 1.9.104: Zeitpunkte aus dem Verlauf (Liste „Buchungen“ der Seite „Zeiten“)
 UTC_FELD = r"\b[\w.?]*\.(?:" + "|".join(UTC_FELDER) + r")\b"
 
 

@@ -639,7 +639,7 @@ function buchungDialogOeffnen(e){
     BD=e;
     var aendern=!!e;
     el('bdTitel').textContent=aendern?'Buchung ändern':'Neue Buchung';
-    el('bdUnter').textContent=aendern?e.employee_name+(e.booked_by_name?' · gebucht von '+e.booked_by_name+(e.created_at?' am '+amText(e.created_at):''):''):'Für eine Person, mit Von und Bis oder als Dauer.';
+    el('bdUnter').textContent=aendern?unterzeile(e):'Für eine Person, mit Von und Bis oder als Dauer.';
     el('bdMitarbeiterFeld').hidden=aendern;
     el('bdMitarbeiter').innerHTML=auswahlOptionen(KONTEXT.employees,aendern?e.employee_id:(FILTER.mitarbeiter||''),
       function(m){return (m.employee_number?m.employee_number+' · ':'')+m.name},{leer:'— Mitarbeiter wählen —'});
@@ -666,6 +666,12 @@ function buchungDialogOeffnen(e){
     el('buchungDialog').showModal();
     return vorschauLaden();
   }).catch(function(e){el('seitenStatus').textContent=e.message});
+}
+// „Tom Monteur · gebucht von Tom Monteur am 15.10., 16:31“, nach einer Änderung „· geändert von Fin Finanzen am 26.10., 09:12“ -- seit 1.9.104 aus dem
+// Verlauf (gebucht = wer die Zeit beendet bzw. angelegt hat; bis 1.9.103 der Anleger mit dem Zeitpunkt des Anlegens)
+function unterzeile(e){
+  var teil=function(wort,von,am){return von||am?' · '+wort+(von?' von '+von:'')+(am?' am '+amText(am):''):''};
+  return e.employee_name+teil('gebucht',e.gebucht_von,e.gebucht_am)+teil('geändert',e.geaendert_von,e.geaendert_am);
 }
 function vorschauZeigen(v,fehler,dauerStunden){
   var knopf=el('bdSpeichern');

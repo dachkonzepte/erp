@@ -12,7 +12,8 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from .models import Employee, EmployeePayrollSettings, Order, TimeEntry, TimeEntryGroup, TimeEntryGroupMember
+from .models import AppUser, AuditLog, Employee, EmployeePayrollSettings, Order, TimeEntry, TimeEntryGroup, TimeEntryGroupMember
+from .permissions import MOBIL_ROLLEN
 from .rounding import round_hours
 from .time_backoffice import (_entry_type_labels, abschluss_hindernisse, datev_fehlt, effective_datev_personnel_number, load_employee_payroll,
                               load_time_settings, unpassende_pausen)
@@ -198,6 +199,60 @@ def pruefen(db: Session, heute: date) -> dict:
             "vor_dem_abschluss": vor_dem_abschluss(db, erster)}
 
 
+# Seit 1.9.104 (Nachrunde, Punkte 5 und 6): was die Liste „Buchungen“ aus dem Verlauf (audit_logs) liest -- wer gebucht und wer zuletzt geändert
+# hat (Unterzeile des Dialogs) und wer die Zeit zuletzt gesetzt hat (Stunden, Uhrzeiten, Tag, Pause; für „Dauer · vom Büro“). Eine Anfrage: die
+# Einträge desselben Pfads mit höchstens 5 Sekunden Abstand (wie scripts/pruefabfrage_kolonne_weit.sql).
+ZEIT_FELDER = frozenset({"hours", "started_at", "ended_at", "work_date", "break_minutes"})
+GLEICHE_ANFRAGE = timedelta(seconds=5)
+
+
+def _verlauf_der_buchungen(db: Session, rows: list[TimeEntry]) -> dict[int, dict]:
+    """Je Buchung aus dem Verlauf (nur lesen, eine Abfrage je 500 Buchungen):
+    - gebucht_von/gebucht_am: wer sie gebucht hat und wann -- bei einer gestoppten Zeit, wer sie beendet hat (Status läuft -> gebucht), sonst wer
+      sie angelegt hat; ohne Konto im Verlauf (Testdaten, Skripte) der Anleger der Buchung, ohne ihn kein Name;
+    - geaendert_von/geaendert_am: die letzte Änderung danach, ohne die Anfrage, die gebucht hat;
+    - vom_buero: ob das Konto, das die Zeit zuletzt gesetzt hat (Stunden, Uhrzeiten, Tag, Pause), außerhalb der Monteursansicht arbeitet --
+      ohne solche Änderung (oder ohne Konto im Verlauf) der Anleger. „Dauer · vom Büro“ zeigt die Seite für Buchungen ohne Uhrzeiten danach."""
+    eintraege: dict[int, list] = defaultdict(list)
+    ids = [str(r.id) for r in rows]
+    for i in range(0, len(ids), 500):
+        abfrage = (select(AuditLog.entity_id, AuditLog.field_name, AuditLog.old_value, AuditLog.new_value, AuditLog.occurred_at,
+                          AuditLog.actor_name, AuditLog.actor_user_id, AuditLog.request_path, AuditLog.request_method)
+                   .where(AuditLog.entity_type == "Zeitbuchung", AuditLog.action == "geändert", AuditLog.entity_id.in_(ids[i:i + 500]))
+                   .order_by(AuditLog.occurred_at, AuditLog.id))
+        for z in db.execute(abfrage):
+            if z.entity_id.isdigit():
+                eintraege[int(z.entity_id)].append(z)
+    konten = {z.actor_user_id for zs in eintraege.values() for z in zs if z.actor_user_id} | {r.created_by_user_id for r in rows if r.created_by_user_id}
+    rollen = {u.id: u.role for u in db.scalars(select(AppUser).where(AppUser.id.in_(konten)))} if konten else {}
+
+    def ausserhalb(konto_id) -> bool:
+        return konto_id in rollen and rollen[konto_id] not in MOBIL_ROLLEN
+
+    out = {}
+    for r in rows:
+        zs = eintraege.get(r.id, [])
+        anleger = (r.created_by.display_name or r.created_by.username) if r.created_by else None
+        gebucht = next((z for z in zs if z.field_name == "status" and z.old_value == "running" and z.new_value == "booked"), None)
+        if gebucht is not None:
+            von, am = (gebucht.actor_name if gebucht.actor_user_id else anleger), gebucht.occurred_at
+        else:
+            von, am = anleger, r.created_at
+
+        def zur_buchung(z) -> bool:
+            return gebucht is not None and z.request_path == gebucht.request_path and z.request_method == gebucht.request_method \
+                and abs(z.occurred_at - gebucht.occurred_at) <= GLEICHE_ANFRAGE
+
+        danach = [z for z in zs if not zur_buchung(z) and (gebucht is None or z.occurred_at > gebucht.occurred_at)]
+        geaendert = danach[-1] if danach else None
+        gesetzt = [z for z in zs if z.field_name in ZEIT_FELDER and z.actor_user_id]
+        out[r.id] = {"gebucht_von": von, "gebucht_am": am,
+                     "geaendert_von": geaendert.actor_name if geaendert is not None else None,
+                     "geaendert_am": geaendert.occurred_at if geaendert is not None else None,
+                     "vom_buero": ausserhalb(gesetzt[-1].actor_user_id if gesetzt else r.created_by_user_id)}
+    return out
+
+
 def reihenfolge(r: TimeEntry) -> tuple:
     """Seit 1.9.103 (Nachrunde, Punkt 2) die Reihenfolge der Liste „Buchungen“ wie die Vorlage: Datum absteigend, im Tag nach Mitarbeiter (Name),
     dann Von aufsteigend, eine Dauer (ohne Von) zuletzt -- bis 1.9.102 die neuesten zuerst (12:00–16:15 vor 07:00–12:00)."""
@@ -215,12 +270,14 @@ def buchungen(db: Session, erster: date, *, employee_id: int | None = None, orde
     rows = sorted((r for r in alle if (employee_id is None or r.employee_id == employee_id) and (order_id is None or r.order_id == order_id)
                    and (entry_type is None or r.entry_type == entry_type)), key=reihenfolge)
     namen = _entry_type_labels(db)
+    verlauf = _verlauf_der_buchungen(db, rows)
     heute_zeilen = []
     for r in rows:
         d = entry_to_dict(r)
         d["zeitart"] = namen.get(r.entry_type, r.entry_type)
-        # „Dauer · vom Büro“: ohne Von/Bis und von einem Konto außerhalb der Monteursansicht gebucht
-        d["vom_buero"] = bool(r.created_by is not None and r.created_by.role != "field")
+        # seit 1.9.104 aus dem Verlauf: gebucht/geändert von … am … (Unterzeile des Dialogs) und vom_buero -- „Dauer · vom Büro“, wenn ein Konto
+        # außerhalb der Monteursansicht die Zeit zuletzt gesetzt hat, auch an einer Buchung der Monteurin (bis 1.9.103 nur, wer sie angelegt hatte)
+        d.update(verlauf[r.id])
         heute_zeilen.append(d)
     leute = {e.id: employee_name(e) for e in db.scalars(select(Employee).where(Employee.active == True)).all()}  # noqa: E712
     for r in alle:

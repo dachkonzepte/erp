@@ -72,7 +72,9 @@ def befuellen(db, k):
     admin = AppUser(username="anna", display_name="Anna Admin", role="admin", password_hash=k.passwort())
     fin = AppUser(username="fin", display_name="Fin Finanzen", role="buero_finanzen", password_hash=k.passwort())
     bea = AppUser(username="bea", display_name="Bea Büro", role="buero_auftrag", employee_id=leute["bea"].id, password_hash=k.passwort())
-    db.add_all([admin, fin, bea]); db.flush()
+    # seit 1.9.104: Toms Konto (Monteursansicht) -- seine Zeit am 15.10. bucht er selbst (Verlauf für die Unterzeile des Dialogs)
+    tom_konto = AppUser(username="tom", display_name="Tom Monteur", role="field", employee_id=leute["tom"].id, password_hash=k.passwort())
+    db.add_all([admin, fin, bea, tom_konto]); db.flush()
     kunde = Customer(name="Hallenbau GmbH", last_name="Hallenbau GmbH", is_consumer=False)
     db.add(kunde); db.flush()
     auftraege = {}
@@ -116,7 +118,27 @@ def befuellen(db, k):
     dauer = create_manual_entry(db, employee_id=leute["mia"].id, order_id=auftraege["Attika"].id, work_date=date(2026, 10, 15), entry_type="site",
                                 hours=Decimal("6"), break_minutes=30, created_by_user_id=fin.id)
     zeit("tom", date(2026, 10, 15), time(6, 15), time(7), "Attika", art="travel")
-    attika = zeit("tom", date(2026, 10, 15), time(7), time(16, 30), "Attika")
+    # Toms Baustelle am 15.10. bucht er selbst, beendet um 16:31 Berlin (14:31 UTC) wie die Vorlage zeiten-aendern.html: der Verlauf mit Konto
+    # und Pfad wie in der Anwendung, sein Zeitpunkt auf den 15.10. gesetzt (sonst der Zeitpunkt des Klicktests)
+    from types import SimpleNamespace
+
+    from sqlalchemy import update
+
+    from app.audit import reset_audit_context, set_audit_context
+    from app.models import AuditLog
+    marke = set_audit_context(user=tom_konto, request=SimpleNamespace(url=SimpleNamespace(path="/api/time-entries/start"), method="POST"))
+    try:
+        attika = start_timer(db, employee_id=leute["tom"].id, order_id=auftraege["Attika"].id, entry_type="site",
+                             started_at=datetime(2026, 10, 15, 7, 0), created_by_user_id=tom_konto.id)
+    finally:
+        reset_audit_context(marke)
+    marke = set_audit_context(user=tom_konto, request=SimpleNamespace(url=SimpleNamespace(path=f"/api/time-entries/{attika.id}/stop"), method="POST"))
+    try:
+        attika = stop_timer(db, attika.id, ended_at=datetime(2026, 10, 15, 16, 30))
+    finally:
+        reset_audit_context(marke)
+    db.execute(update(AuditLog).where(AuditLog.entity_type == "Zeitbuchung", AuditLog.entity_id == str(attika.id))
+               .values(occurred_at=datetime(2026, 10, 15, 14, 31)))
     zeit("tom", date(2026, 10, 16), time(7), time(15, 45), "Halle Süd")
     tom = start_timer(db, employee_id=leute["tom"].id, order_id=auftraege["Halle Nord"].id, entry_type="site",
                       started_at=datetime(2026, 10, 19, 6, 45))
@@ -283,6 +305,9 @@ async def pruefen(tab, seed, p):
         "document.getElementById('bdVorschauZeile').innerText,document.getElementById('bdSpeichern').innerText,"
         "document.getElementById('bdModusVonBis').getAttribute('aria-pressed')]"),
         ["Buchung ändern", "07:00", "16:30", "Anwesend 9:30 h · Tag zusammen 10:15 h · Pause nach Zeitregel − 0:45 h", "8,75 h speichern", "true"])
+    # seit 1.9.104 (Nachrunde, Punkt 5) die Unterzeile wie die Vorlage, aus dem Verlauf (bis 1.9.103 der Anleger mit dem Zeitpunkt des Anlegens)
+    p.pruefe("Fin: Dialog -- Unterzeile wie die Vorlage", await tab.js("document.getElementById('bdUnter').innerText"),
+             "Tom Monteur · gebucht von Tom Monteur am 15.10., 16:31")
     await tab.bild("zeiten_dialog_hell")
     await _eingeben(tab, "bdBis", "16:00")
     p.pruefe("Fin: Bis 16:00 -> 8,25 h", await tab.warten("document.getElementById('bdSpeichern').innerText==='8,25 h speichern'", 10), True)
@@ -293,6 +318,9 @@ async def pruefen(tab, seed, p):
 
     await _menue(tab, seed["attika"], "aendern")
     await tab.warten("document.getElementById('buchungDialog').open&&document.getElementById('bdVorschauZahl').innerText!==''", 10)
+    p.pruefe("Fin: nach der Änderung -- Unterzeile mit „geändert von“", await tab.js(
+        "document.getElementById('bdUnter').innerText.replace(/am \\d\\d\\.\\d\\d\\., \\d\\d:\\d\\d$/,'am …')"),
+        "Tom Monteur · gebucht von Tom Monteur am 15.10., 16:31 · geändert von Fin Finanzen am …")
     await tab.js("document.getElementById('bdModusDauer').click()")
     p.pruefe("Fin: Wechsel zu „Dauer“ -- Von/Bis leer und weg, Hinweis, Stunden", await tab.js(
         "[document.getElementById('bdVon').value,document.getElementById('bdBis').value,document.getElementById('bdVonFeld').hidden,"
@@ -303,7 +331,7 @@ async def pruefen(tab, seed, p):
     await tab.warte_auf_neu_geladene_liste("document.getElementById('bdSpeichern').click()", "#buchungenZeilen")
     p.pruefe("Fin: als Dauer gespeichert -- Zeile", await tab.js(
         f"[...document.querySelector('tr[data-buchung=\"{seed['attika']}\"]').cells].slice(2,7).map(c=>c.innerText)"),
-        ["Dauer", "Baustellenzeit", "AUF-2026-0102 · Attika", "0:45", "8,00"])  # „vom Büro“ nur, wenn ein Büro-Konto sie gebucht hat (Festlegung 1.9.95 Nr. 9)
+        ["Dauer · vom Büro", "Baustellenzeit", "AUF-2026-0102 · Attika", "0:45", "8,00"])  # seit 1.9.104: die Dauer setzte das Büro (bis 1.9.103 „Dauer“)
     gespeichert = [e for e in (await _api(tab, "/api/zeiten/buchungen?monat=2026-10"))["eintraege"] if e["id"] == seed["attika"]][0]
     p.pruefe("Fin: Beginn und Ende leer (API)", [gespeichert["started_at"], gespeichert["ended_at"], float(gespeichert["hours"])], [None, None, 8.0])
 
