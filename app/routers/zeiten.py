@@ -85,9 +85,11 @@ def zeiten_pruefen(request: Request, db: Session = Depends(get_db, scope="functi
     daten["antraege_entschieden"] = not list_requests(db, status="pending")
     daten["rechte"] = _rechte(user)
     # seit 1.9.102 (Nachrunde, Punkt 4): die Zahl am Reiter „Prüfen“ zählt nur, was auf dieses Konto wartet -- Zeiten von früher, deren Ende es
-    # eintragen darf, und Tage, deren Pause es buchen darf; Büro – Auftrag (liest nur) bekommt keine Zahl (bis 1.9.101 alle)
+    # eintragen darf, und Tage, deren Pause es buchen darf; Büro – Auftrag (liest nur) bekommt keine Zahl (bis 1.9.101 alle). Seit 1.9.109
+    # (Nachrunde 2, Punkt 3) ebenso „Abwesenheiten“: offene Anträge warten nur auf den Admin (er entscheidet sie), Büro – Finanzen und Büro – Auftrag
+    # bekommen keine Zahl (1.9.101–1.9.108 die offenen Anträge, die das Konto sieht); „Vor dem Abschluss“ nennt sie weiter (oben)
     daten["zahlen"] = {"pruefen": sum(1 for z in daten["offene_zeiten"] if z["darf_schliessen"]) + sum(1 for t in daten["pausen"] if t["darf_buchen"]),
-                       "abwesenheiten": len(daten["antraege"])}
+                       "abwesenheiten": len(daten["antraege"]) if daten["rechte"]["antraege_entscheiden"] else 0}
     return daten
 
 
@@ -122,7 +124,7 @@ def zeiten_abwesenheiten(status: str | None = Query(None, max_length=20), db: Se
     rows = _sichtbare_antraege(db, user, status or None)
     land = feiertage_bundesland(db)
     arten = get_option_group(db, "absence_types")
-    # offene Anträge, die das Konto sieht -- dieselbe Zahl wie am Reiter (GET /api/zeiten/pruefen)
+    # offene Anträge, die das Konto sieht (seit 1.9.109 nicht mehr die Zahl am Reiter -- die zählt nur beim Admin, GET /api/zeiten/pruefen)
     offen = len(_sichtbare_antraege(db, user, "pending"))
     return {
         "antraege": [{**request_to_dict(db, r), "arbeitstage": arbeitstage(r.start_date, r.end_date, land),

@@ -6676,3 +6676,38 @@ automatisch“ aus; ohne Wert und ohne Zeile NRW. Angepasste Erwartungen: keine.
 
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED mit Abweichung im Ergebnis): fest NRW -> 2 Tests; „Abwesenheiten“ ohne das Bundesland
 -> 2 Tests; „Prüfen“ ohne das Bundesland -> 2 Tests; ohne Rückfall auf NRW -> 1 Test.
+
+### R5b Nachrunde 2, Punkt 3 (1.9.109): Zahl am Reiter „Abwesenheiten“
+
+Vorgabe: „Zahl am Reiter „Abwesenheiten“ wie bei „Prüfen“: nur, was auf das Konto wartet – offene Anträge beim Admin; Büro – Finanzen und Büro –
+Auftrag ohne Zahl. „Vor dem Abschluss“ nennt offene Anträge weiter.“
+
+- `app/routers/zeiten.py::zeiten_pruefen()`: `zahlen.abwesenheiten` = offene Anträge nur, wenn das Konto sie entscheidet (`rechte.antraege_entscheiden`,
+  der Admin), sonst 0 -- die Seite zeigt dann keine Zahl (`zahlSetzen()`); 1.9.101–1.9.108 die offenen Anträge, die das Konto sieht. „Vor dem
+  Abschluss“ und die Karte „Anträge“ auf „Prüfen“ unverändert.
+- `offen` in `GET /api/zeiten/abwesenheiten` bleibt die Zahl der offenen Anträge, die das Konto sieht; der Kommentar „dieselbe Zahl wie am Reiter“
+  ist korrigiert (die Seite liest das Feld nicht).
+
+#### Festlegungen 1.9.109 (Bitte bestätigen)
+
+1. Die Zahl am Reiter „Abwesenheiten“ zählt beim Admin alle offenen Anträge; Büro – Finanzen und Büro – Auftrag sehen keine Zahl -- auch nicht für einen
+   eigenen offenen Antrag (er wartet auf den Admin).
+2. Für Büro – Finanzen bleibt der offene Antrag sichtbar: auf „Prüfen“ (Karte „Anträge“, ohne Knöpfe), auf „Abwesenheiten“ und unter „Vor dem
+   Abschluss“; nur die Zahl entfällt.
+3. `offen` in `GET /api/zeiten/abwesenheiten` bleibt „offene Anträge, die das Konto sieht“ -- nicht die Zahl am Reiter.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v529_zahl_abwesenheiten.py`: ein offener Antrag -- Admin Zahl 1, Büro – Finanzen 0 mit dem Antrag auf „Prüfen“ und unter „Vor dem
+Abschluss“, Büro – Auftrag 0 ohne ihn; ein eigener offener Antrag von Büro – Auftrag: 0, unter „Vor dem Abschluss“, beim Admin 1; ohne Antrag 0.
+`klicktest_zeiten`: Büro – Finanzen stellt „Krank“ für Tom -- keine Zahl am Reiter (Bild), „Vor dem Abschluss“ nennt „1 Antrag offen“; der Admin sieht
+„1“ (wie bisher, Bild).
+
+Angepasste Erwartungen:
+- `test_v517::test_pruefen_antraege_je_konto`: Büro – Finanzen `zahlen.abwesenheiten` 1 -> 0.
+- `test_v523::test_zahl_antraege_und_vor_dem_abschluss_je_konto`: Büro – Finanzen `zahlen.abwesenheiten` 1 -> 0.
+- `klicktest_zeiten` „Fin: „Krank“ für Tom gestellt -- …, Zahl am Reiter 1“ -> „…, keine Zahl am Reiter“ (die Zahl verborgen); neu „Fin: „Vor dem
+  Abschluss“ nennt den offenen Antrag“.
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED mit Abweichung im Ergebnis): die Zahl wie 1.9.101–1.9.108 -> 4 Tests (v529, v517, v523);
+die Zahl nie, auch nicht beim Admin -> 3 Tests (v529, v517).

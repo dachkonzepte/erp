@@ -171,7 +171,8 @@ def test_pruefen_antraege_je_konto(welt):  # noqa: F811
     assert [(a["employee_name"], a["arbeitstage"]) for a in admin["antraege"]] == [("Tom Monteur", 5)]
     assert admin["zahlen"]["abwesenheiten"] == 1
     fin = _als(welt, "buero_finanzen", employee_id=welt["mia"].id).get("/api/zeiten/pruefen").json()
-    assert [a["employee_name"] for a in fin["antraege"]] == ["Tom Monteur"] and fin["zahlen"]["abwesenheiten"] == 1
+    # seit 1.9.109: die Zahl am Reiter nur beim Admin (1.9.101–1.9.108 auch Büro – Finanzen 1)
+    assert [a["employee_name"] for a in fin["antraege"]] == ["Tom Monteur"] and fin["zahlen"]["abwesenheiten"] == 0
     bea = _als(welt, "buero_auftrag", employee_id=welt["mia"].id).get("/api/zeiten/pruefen").json()
     assert bea["antraege"] == [] and bea["zahlen"]["abwesenheiten"] == 0
 

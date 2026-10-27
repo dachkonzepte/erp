@@ -551,11 +551,15 @@ async def pruefen(tab, seed, p):
     await tab.warte_auf_neu_geladene_liste("document.getElementById('adSenden').click()", "#abwListe")
     await tab.warte_auf_neu_geladene_liste("(()=>{const s=document.getElementById('abwStatus');s.value='pending';s.dispatchEvent(new Event('change'))})()",
                                           "#abwListe")
-    p.pruefe("Fin: „Krank“ für Tom gestellt -- offen, „beantragt von“, nur „Zurückziehen“, Zahl am Reiter 1", await tab.js(
+    # seit 1.9.109 (Nachrunde 2, Punkt 3): keine Zahl am Reiter „Abwesenheiten“ für Büro – Finanzen -- der Antrag wartet auf den Admin (bis 1.9.108
+    # „1“); „Vor dem Abschluss“ nennt ihn
+    p.pruefe("Fin: „Krank“ für Tom gestellt -- offen, „beantragt von“, nur „Zurückziehen“, keine Zahl am Reiter", await tab.js(
         "[...document.querySelectorAll('#abwListe .zeile')].map(z=>[z.querySelector('.zeile-name').innerText,"
         "z.querySelector('.zeile-unter').innerText.replace(/ am \\d\\d\\.\\d\\d\\.$/,' am …'),"
-        "[...z.querySelectorAll('button')].map(b=>b.innerText)]).concat([document.getElementById('zahlAbwesenheiten').innerText])"),
-        [["Tom Monteur · Krankheit", "Di 27.10.–Mi 28.10.2026 · 2 Arbeitstage · beantragt von Fin Finanzen am …", ["Zurückziehen"]], "1"])
+        "[...z.querySelectorAll('button')].map(b=>b.innerText)]).concat([document.getElementById('zahlAbwesenheiten').hidden])"),
+        [["Tom Monteur · Krankheit", "Di 27.10.–Mi 28.10.2026 · 2 Arbeitstage · beantragt von Fin Finanzen am …", ["Zurückziehen"]], True])
+    p.pruefe("Fin: „Vor dem Abschluss“ nennt den offenen Antrag", await tab.js(
+        "[...document.querySelectorAll('#abschlussListe li')].map(l=>l.textContent.trim()).includes('1 Antrag offen')"), True)
     await tab.bild("zeiten_abwesenheiten_finanzen")
     krank = await tab.js("A.antraege[0].id")
     p.pruefe("Fin: entscheiden vom Server abgelehnt (403)", await tab.js(

@@ -137,7 +137,8 @@ def test_zahl_antraege_und_vor_dem_abschluss_je_konto(welt, konten):  # noqa: F8
     -- aber auch nicht „Anträge entschieden“ (es ist einer offen). Nach der Entscheidung bei beiden „entschieden“."""
     tom = _antrag(welt, "tom", von=konten["tom"])
     fin = _als(welt, konten["fin"]).get("/api/zeiten/pruefen").json()
-    assert ([a["id"] for a in fin["antraege"]], fin["zahlen"]["abwesenheiten"], fin["antraege_entschieden"]) == ([tom.id], 1, False)
+    # seit 1.9.109 keine Zahl am Reiter für Büro – Finanzen (1.9.101–1.9.108: 1), der Antrag steht weiter auf „Prüfen“
+    assert ([a["id"] for a in fin["antraege"]], fin["zahlen"]["abwesenheiten"], fin["antraege_entschieden"]) == ([tom.id], 0, False)
     assert {"art": "antraege", "text": "1 Antrag offen"} in fin["vor_dem_abschluss"]
     bea = _als(welt, konten["bea"]).get("/api/zeiten/pruefen").json()
     assert (bea["antraege"], bea["zahlen"]["abwesenheiten"], bea["antraege_entschieden"]) == ([], 0, False)
