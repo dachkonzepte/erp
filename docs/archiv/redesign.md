@@ -6711,3 +6711,46 @@ Angepasste Erwartungen:
 
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED mit Abweichung im Ergebnis): die Zahl wie 1.9.101–1.9.108 -> 4 Tests (v529, v517, v523);
 die Zahl nie, auch nicht beim Admin -> 3 Tests (v529, v517).
+
+### R5b Nachrunde 2, Punkt 4 (1.9.110): gesperrte Felder im Dunkeln
+
+Vorgabe: „Dunkel: gesperrte Felder erkennbar wie hell (heute #222A2F auf #1A2024 kaum zu sehen).“
+
+**Befund.** Seit 1.9.106 tragen gesperrte Felder der Einstellungen die Fläche `--soft` (= `--ds-flaeche-2`), ebenso schon vorher Checkliste,
+Checklisten-Vorlage, der Positionsdialog des Auftrags und die nur lesbaren Felder des Stammdaten-Formulars. Gemessen (CIELAB L*, Abstand der Feldfläche
+zur Fläche der Karte): hell 3,6 (#F3F5F6 auf #FFFFFF), dunkel 4,7 (#222A2F auf #1A2024) -- dunkel rechnerisch sogar mehr, auf dem Bildschirm aber kaum zu
+sehen; dazu ist dunkel auch der Unterschied der Schrift kleiner (text-2 #BAC3C9 statt text #E9EDEF).
+
+- `app/static/ds/ds.css`: neues Token `--ds-feld-gesperrt` -- hell #F3F5F6 (wie flaeche-2, hell bleibt alles, wie es war), dunkel #2B3339 (L*-Abstand
+  8,9); neues Prüfpaar `text-2/feld-gesperrt` (hell 6,97 : 1, dunkel 7,18 : 1).
+- `settings.html`, `checklist.html`, `checklist_template.html`, `order.html` (`#itemDialog`, `#taxKey`), `master_data_form.html` (`input[readonly]`): die
+  Fläche gesperrter bzw. nur lesbarer Felder `var(--ds-feld-gesperrt)` statt `var(--soft)`; die Schrift bleibt je Seite, wie sie war.
+
+#### Festlegungen 1.9.110 (Bitte bestätigen)
+
+1. Maß für „erkennbar wie hell“: dunkel mindestens doppelt so großer Helligkeitsabstand (CIELAB L*) zwischen Feldfläche und Karte wie hell -- gewählt
+   #2B3339 (8,9 gegen 3,6 hell; bis 1.9.109 4,7).
+2. Hell ändert sich nichts (`--ds-feld-gesperrt` hell = flaeche-2).
+3. Gilt für jede Seite, die gesperrte oder nur lesbare Felder mit eigener Fläche zeigt (fünf Seiten, Liste oben), nicht nur für die Einstellungen;
+   Wächter: keine Regel für gesperrte oder nur lesbare Felder mit `--soft` in einer Vorlage.
+4. Der Rahmen gesperrter Felder bleibt `feld-rand` (dunkel 2,92 : 1 auf der neuen Fläche; für gesperrte Felder verlangt WCAG keinen Kontrast).
+
+#### Tests und Prüfung
+
+Neu `tests/test_v530_gesperrte_felder_dunkel.py`: hell unverändert, dunkel doppelter L*-Abstand (Gegenprobe im Test: #222A2F erfüllt es nicht); die
+fünf Seiten nehmen das Token; Wächter über alle Vorlagen ohne `--soft` an gesperrten Feldern. `klicktest_datev_nummern`: Büro – Finanzen zuerst
+ausdrücklich hell (Fläche rgb(243, 245, 246)), dann dunkel (rgb(43, 51, 57), anders als die Karte und das bearbeitbare Feld, Bild).
+
+Angepasste Erwartungen:
+- `test_v432::test_kontrast_der_pruefpaare_hell_und_dunkel`: 47 -> 48 Prüfpaare, neu `text-2/feld-gesperrt`.
+- `test_v526::test_gesperrte_felder_der_einstellungen_grau`: Regel mit `background:var(--soft)` -> `background:var(--ds-feld-gesperrt)`.
+- `klicktest_datev_nummern` „Fin: erkennbar nur lesbar …“: Fläche wie `--soft` -> wie `--ds-feld-gesperrt`, dazu der Farbwert; der Teil läuft jetzt
+  ausdrücklich hell (bis 1.9.109 im Thema der Vorgabe, dunkel -- im ersten Lauf rot, weil dort schon die dunkle Fläche kam); neu der dunkle Teil. Das
+  Bild `einstellungen_datev_nummern_buero` ist dadurch hell, neu `…_buero_dunkel`.
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED mit Abweichung im Ergebnis): dunkel wieder #222A2F -> 1 Test; Einstellungen wieder
+`--soft` -> 3 Tests (v530, v526); Auftrag wieder `--soft` -> 2 Tests; Stammdaten-Formular wieder `--soft` -> 2 Tests.
+
+Offen (nicht untersucht): Seiten, die ein Eingabefeld sperren, ohne eine eigene Regel für gesperrte Felder zu haben, zeigen es je nach eigener
+Feldfläche wie ein bearbeitbares (so die Einstellungen bis 1.9.106). Eine grobe Suche nennt 23 Vorlagen mit gesperrten Elementen und eigener Feldfläche,
+überwiegend Knöpfe -- eine Durchsicht je Seite steht aus.

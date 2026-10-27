@@ -4,7 +4,8 @@
                     gespeichert; „1234567“ / „12345“ -> „Gespeichert.“, gespeichert; eine ungespeicherte Änderung der Rundung bleibt stehen;
                     nach dem Neuladen stehen die Nummern da; keine JS-Fehler
     Büro – Finanzen Fin: die Nummern sichtbar, gesperrt und grau (seit 1.9.106, vorher readonly ohne Unterschied zu einem bearbeitbaren Feld),
-                    kein Knopf, Hinweis „Ändern kann sie nur ein Administrator.“; derselbe PUT vom Server 403; keine JS-Fehler
+                    kein Knopf, Hinweis „Ändern kann sie nur ein Administrator.“; derselbe PUT vom Server 403; seit 1.9.110 auch dunkel
+                    erkennbar (Fläche --ds-feld-gesperrt, anders als Karte und bearbeitbares Feld) -- Bild; keine JS-Fehler
 
 AUFRUF (aus dem Projektordner):
 
@@ -25,6 +26,13 @@ BEREIT = "document.getElementById('datevBerater')&&typeof timeRules!=='undefined
 WERTE = "[document.getElementById('datevBerater').value,document.getElementById('datevMandant').value]"
 GESPEICHERT = ("fetch('/api/time-backoffice/settings').then(r=>r.json())"
                ".then(s=>[s.datev_beraternummer,s.datev_mandantennummer])")
+# Berater gesperrt: Fläche und Schrift anders als die Lohnart Baustelle (bearbeitbar), Fläche = --ds-feld-gesperrt, Schrift = --muted, Mauszeiger,
+# dazu die Fläche als Farbwert
+GESPERRT_WIE_SOLL = (
+    "(()=>{const s=id=>getComputedStyle(document.getElementById(id));const b=s('datevBerater'),l=s('wageSite');"
+    "const t=document.createElement('div');t.style.background='var(--ds-feld-gesperrt)';t.style.color='var(--muted)';document.body.appendChild(t);"
+    "const ts=getComputedStyle(t);const soll=[ts.backgroundColor,ts.color];t.remove();"
+    "return [b.backgroundColor!==l.backgroundColor,b.color!==l.color,b.backgroundColor===soll[0],b.color===soll[1],b.cursor,b.backgroundColor]})()")
 
 
 def befuellen(db, k):
@@ -80,6 +88,9 @@ async def pruefen(tab, seed, p):
     # ---- Büro – Finanzen: sieht, ändert nicht --------------------------------------------------------------------------------
     await tab.anmelden(seed["fin"])
     p.pruefe("Fin: Zeitregeln und DATEV geladen", await tab.oeffnen("/settings?als=fin#time-rules", BEREIT), True)
+    # seit 1.9.110 zuerst ausdrücklich hell (bis 1.9.109 im Thema der Vorgabe, dunkel), danach dunkel
+    await tab.js("localStorage.setItem('erp_theme','light')")
+    p.pruefe("Fin: hell geladen", await tab.oeffnen("/settings?als=fin&hell=1#time-rules", BEREIT), True)
     # seit 1.9.106 (Nachrunde, Punkt 7) gesperrt (disabled) und grau wie jedes gesperrte Feld der Einstellungen -- bis 1.9.105 readonly, sah
     # bearbeitbar aus
     p.pruefe("Fin: Nummern sichtbar, gesperrt, kein Knopf, Hinweis", await tab.js(
@@ -87,16 +98,24 @@ async def pruefen(tab, seed, p):
         "!!document.getElementById('datevNummernSpeichern'),"
         "document.getElementById('datevNummernHinweis').textContent.includes('Ändern kann sie nur ein Administrator.')]"),
         ["1234567", "12345", True, True, False, True])
+    # seit 1.9.110 (Nachrunde 2, Punkt 4) die Fläche --ds-feld-gesperrt (hell dieselbe Farbe wie bis dahin --soft)
     p.pruefe("Fin: erkennbar nur lesbar -- Fläche und Schrift anders als ein bearbeitbares Feld (Lohnart), Mauszeiger „nicht erlaubt“", await tab.js(
-        "(()=>{const s=id=>getComputedStyle(document.getElementById(id));const b=s('datevBerater'),l=s('wageSite');"
-        "const t=document.createElement('div');t.style.background='var(--soft)';t.style.color='var(--muted)';document.body.appendChild(t);"
-        "const ts=getComputedStyle(t);const soll=[ts.backgroundColor,ts.color];t.remove();"
-        "return [b.backgroundColor!==l.backgroundColor,b.color!==l.color,b.backgroundColor===soll[0],b.color===soll[1],b.cursor]})()"),
-        [True, True, True, True, "not-allowed"])
+        GESPERRT_WIE_SOLL), [True, True, True, True, "not-allowed", "rgb(243, 245, 246)"])
     p.pruefe("Fin: derselbe PUT vom Server abgelehnt", await tab.js(
         "fetch('/api/time-backoffice/datev-nummern',{method:'PUT',headers:{'Content-Type':'application/json'},"
         "body:JSON.stringify({beraternummer:'1001',mandantennummer:'1'})}).then(r=>r.status)"), 403)
     await tab.bild("einstellungen_datev_nummern_buero")
+    # seit 1.9.110: dunkel ebenso erkennbar -- bis 1.9.109 #222A2F auf der Karte #1A2024, kaum zu sehen
+    await tab.js("localStorage.setItem('erp_theme','dark')")
+    p.pruefe("Fin dunkel: geladen", await tab.oeffnen("/settings?dunkel=1#time-rules", BEREIT), True)
+    p.pruefe("Fin dunkel: Fläche --ds-feld-gesperrt, anders als ein bearbeitbares Feld, Mauszeiger „nicht erlaubt“", await tab.js(
+        GESPERRT_WIE_SOLL), [True, True, True, True, "not-allowed", "rgb(43, 51, 57)"])
+    p.pruefe("Fin dunkel: Fläche anders als die Karte darunter", await tab.js(
+        "getComputedStyle(document.getElementById('datevBerater')).backgroundColor!==getComputedStyle(document.getElementById('datevBerater')"
+        ".closest('.card')).backgroundColor"), True)
+    await tab.js("document.getElementById('datevBerater').scrollIntoView({block:'center'})")
+    await tab.bild("einstellungen_datev_nummern_buero_dunkel")
+    await tab.js("localStorage.setItem('erp_theme','light')")
     p.pruefe("Fin: keine JS-Fehler", tab.fehler, [])
 
 

@@ -14,7 +14,7 @@
    Prüfpaare für den Kontrasttest (je hell und dunkel):
    Text mindestens 4,5 : 1
      text/grund text/flaeche text/flaeche-2
-     text-2/grund text-2/flaeche text-2/flaeche-2
+     text-2/grund text-2/flaeche text-2/flaeche-2 text-2/feld-gesperrt
      text-3/grund text-3/flaeche text-3/flaeche-2
      navi-text/navi-grund navi-text/navi-aktiv navi-leise/navi-grund navi-text/navi-hover
      auf-stark/stark auf-signal/signal auf-fehler/fehler
@@ -40,6 +40,7 @@
   --ds-linie-stark: #C9CFD4;    /* Rahmen von Zweitknöpfen */
   --ds-feld-rand: #88929A;      /* Rahmen von Eingabefeldern */
   --ds-feld-rand-signal: #7A848C; /* seit 1.9.50: Rahmen eines Felds auf der Signalfläche (feld-rand dort nur 2,84 : 1) */
+  --ds-feld-gesperrt: #F3F5F6;  /* seit 1.9.110: Fläche eines gesperrten Felds (hell wie flaeche-2) */
 
   /* Schrift */
   --ds-text: #171C1F;           /* Fließtext, Titel, Beträge */
@@ -143,6 +144,8 @@
   --ds-linie-stark: #3E4951;
   --ds-feld-rand: #6E7A83;
   --ds-feld-rand-signal: #6E7A83;
+  --ds-feld-gesperrt: #2B3339;  /* seit 1.9.110: bis 1.9.109 flaeche-2 (#222A2F, auf flaeche kaum zu sehen) -- Helligkeitsabstand zur Fläche
+                                   mindestens doppelt so groß wie hell (L* 8,9 statt 4,7; hell 3,6) */
 
   --ds-text: #E9EDEF;
   --ds-text-2: #BAC3C9;

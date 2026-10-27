@@ -23,4 +23,5 @@ def test_nummern_fuer_das_buero_gesperrt(threaded_db_session, router_test_client
 
 def test_gesperrte_felder_der_einstellungen_grau(threaded_db_session, router_test_client):
     html = router_test_client(threaded_db_session, pages_router, role="admin").get("/settings").text
-    assert "input:disabled,select:disabled,textarea:disabled{background:var(--soft);color:var(--muted);cursor:not-allowed}" in html
+    # seit 1.9.110 die Fläche --ds-feld-gesperrt (dunkel deutlicher, test_v530), bis 1.9.109 --soft
+    assert "input:disabled,select:disabled,textarea:disabled{background:var(--ds-feld-gesperrt);color:var(--muted);cursor:not-allowed}" in html
