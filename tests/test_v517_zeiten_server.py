@@ -336,3 +336,21 @@ def test_zahl_am_reiter_pruefen_nur_was_auf_das_konto_wartet(welt, rolle, zahl):
     _pause_passt_nicht(welt, welt["mia"], welt["gestern"])
     p = _get(welt, "/api/zeiten/pruefen", rolle)
     assert (len(p["offene_zeiten"]), len(p["pausen"]), p["zahlen"]["pruefen"]) == (1, 1, zahl)
+
+
+def test_buchungen_reihenfolge_wie_die_vorlage(welt):  # noqa: F811
+    """Seit 1.9.103 (R5b Nachrunde, Punkt 2): Datum absteigend, im Tag nach Mitarbeiter, dann Von aufsteigend, eine Dauer zuletzt. Angriff (bis
+    1.9.102 die neuesten zuerst): Mia am Tag 07:00–12:00 und 12:00–16:15, angelegt in umgekehrter Folge -- 07:00 steht vor 12:00; Toms Dauer
+    nach seiner Zeit mit Uhrzeiten, Tom nach Mia; der Vortag danach."""
+    tag, vortag = welt["gestern"], welt["gestern"] - timedelta(days=1)
+    _zeit(welt, welt["tom"], time(9), time(10), vortag)
+    create_manual_entry(welt["db"], employee_id=welt["tom"].id, order_id=welt["order"].id, work_date=tag, hours=Decimal("2"))
+    _zeit(welt, welt["tom"], time(6), time(7), tag)
+    _zeit(welt, welt["mia"], time(12), time(16, 15), tag, art="workshop")
+    _zeit(welt, welt["mia"], time(7), time(12), tag)
+    zeilen = _get(welt, "/api/zeiten/buchungen", monat=_monat(tag))["eintraege"]
+    if vortag.month != tag.month:  # am Monatsersten liegt der Vortag im Vormonat
+        zeilen += _get(welt, "/api/zeiten/buchungen", monat=_monat(vortag))["eintraege"]
+    assert [(z["work_date"], z["employee_name"], (z["started_at"] or "Dauer")[-8:-3] if z["started_at"] else "Dauer") for z in zeilen] == [
+        (tag.isoformat(), "Mia Monteurin", "07:00"), (tag.isoformat(), "Mia Monteurin", "12:00"), (tag.isoformat(), "Tom Monteur", "06:00"),
+        (tag.isoformat(), "Tom Monteur", "Dauer"), (vortag.isoformat(), "Tom Monteur", "09:00")]

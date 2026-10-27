@@ -6,7 +6,7 @@ Abschluss sperrt), was den Abschluss sperrt über abschluss_hindernisse(), was d
 Geschäftslogik -- was das Konto darf (Knöpfe, „Ende eintragen“), entscheidet der Router (app/routers/zeiten.py)."""
 
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -198,14 +198,22 @@ def pruefen(db: Session, heute: date) -> dict:
             "vor_dem_abschluss": vor_dem_abschluss(db, erster)}
 
 
+def reihenfolge(r: TimeEntry) -> tuple:
+    """Seit 1.9.103 (Nachrunde, Punkt 2) die Reihenfolge der Liste „Buchungen“ wie die Vorlage: Datum absteigend, im Tag nach Mitarbeiter (Name),
+    dann Von aufsteigend, eine Dauer (ohne Von) zuletzt -- bis 1.9.102 die neuesten zuerst (12:00–16:15 vor 07:00–12:00)."""
+    return (-r.work_date.toordinal(), (employee_name(r.employee) or "").casefold(), r.employee_id, r.started_at is None,
+            r.started_at or datetime.min, r.id)
+
+
 def buchungen(db: Session, erster: date, *, employee_id: int | None = None, order_id: int | None = None, entry_type: str | None = None) -> dict:
-    """„Buchungen“: die Buchungen des Monats nach den Filtern (Mitarbeiter, Auftrag, Zeitart, mit UND verknüpft), die neuesten zuerst, und
-    die „Summe der Auswahl“ über genau diese Zeilen (tagessumme(): eine laufende Zeit zählt nicht mit). Dazu die Auswahl der Filter: jeder
-    aktive Mitarbeiter und jeder, der im Monat gebucht hat; jeder Auftrag des Monats (und der gefilterte); die Zeitarten."""
+    """„Buchungen“: die Buchungen des Monats nach den Filtern (Mitarbeiter, Auftrag, Zeitart, mit UND verknüpft) in der Reihenfolge der
+    Vorlage (reihenfolge()), und die „Summe der Auswahl“ über genau diese Zeilen (tagessumme(): eine laufende Zeit zählt nicht mit). Dazu die
+    Auswahl der Filter: jeder aktive Mitarbeiter und jeder, der im Monat gebucht hat; jeder Auftrag des Monats (und der gefilterte); die
+    Zeitarten."""
     ende = monat_ende(erster)
     alle = list_entries(db, start_date=erster, end_date=ende, limit=None)
-    rows = [r for r in alle if (employee_id is None or r.employee_id == employee_id) and (order_id is None or r.order_id == order_id)
-            and (entry_type is None or r.entry_type == entry_type)]
+    rows = sorted((r for r in alle if (employee_id is None or r.employee_id == employee_id) and (order_id is None or r.order_id == order_id)
+                   and (entry_type is None or r.entry_type == entry_type)), key=reihenfolge)
     namen = _entry_type_labels(db)
     heute_zeilen = []
     for r in rows:

@@ -234,12 +234,17 @@ async def pruefen(tab, seed, p):
     p.pruefe("Fin: Seite geladen", await _seite(tab, seed, "fin"), True)
     p.pruefe("Fin: Buchungen geladen", await _buchungen(tab), True)
     zeilen = await tab.js(_zeilen())
-    p.pruefe("Fin: Zeilen wie die Vorlage (Ausschnitt)", [z for z in zeilen if z[0] in ("Fr 16.10.", "Do 15.10.")], [
+    # seit 1.9.103 (Nachrunde, Punkt 2) die Reihenfolge der Vorlage: Datum absteigend, im Tag nach Mitarbeiter, Von aufsteigend, Dauer zuletzt
+    # (bis 1.9.102 die neuesten zuerst: am 15.10. Tom 07:00, Tom 06:15, Mia Dauer)
+    p.pruefe("Fin: Zeilen wie die Vorlage (Ausschnitt)", [z for z in zeilen if z[0] in ("Mo 19.10.", "Fr 16.10.", "Do 15.10.")], [
+        ["Mo 19.10.", "Mia Monteurin", "07:00–12:00", "Baustellenzeit", "AUF-2026-0001 · Halle Nord", "0:00", "5,00"],
+        ["Mo 19.10.", "Mia Monteurin", "12:00–16:15", "Werkstattzeit", "AUF-2026-0001 · Halle Nord", "0:45", "3,50"],
+        ["Mo 19.10.", "Tom Monteur", "06:45–16:00", "Baustellenzeit", "AUF-2026-0001 · Halle Nord", "0:45", "8,50"],
         ["Fr 16.10.", "Ole Offen", "15:30 – läuft von früher", "Fahrzeit", "AUF-2026-0105 · Halle Süd abgeschlossen", "—", "—"],
         ["Fr 16.10.", "Tom Monteur", "07:00–15:45", "Baustellenzeit", "AUF-2026-0105 · Halle Süd abgeschlossen", "0:30", "8,25"],
-        ["Do 15.10.", "Tom Monteur", "07:00–16:30", "Baustellenzeit", "AUF-2026-0102 · Attika", "0:45", "8,75"],
+        ["Do 15.10.", "Mia Monteurin", "Dauer · vom Büro", "Baustellenzeit", "AUF-2026-0102 · Attika", "0:30", "6,00"],
         ["Do 15.10.", "Tom Monteur", "06:15–07:00", "Fahrzeit", "AUF-2026-0102 · Attika", "0:00", "0,75"],
-        ["Do 15.10.", "Mia Monteurin", "Dauer · vom Büro", "Baustellenzeit", "AUF-2026-0102 · Attika", "0:30", "6,00"]])
+        ["Do 15.10.", "Tom Monteur", "07:00–16:30", "Baustellenzeit", "AUF-2026-0102 · Attika", "0:45", "8,75"]])
 
     async def summe():
         return await tab.js("[document.getElementById('summeAuswahl').innerText,"
@@ -336,8 +341,8 @@ async def pruefen(tab, seed, p):
              "Mia Monteurin 5,00 h · Tom Monteur 5,00 h")
     await tab.warte_auf_neu_geladene_liste("document.getElementById('kdSpeichern').click()", "#buchungenZeilen")
     p.pruefe("Fin: Kolonne gebucht -- beide in der Liste", await tab.js(_zeilen() + ".filter(z=>z[0]==='Fr 23.10.')"), [
-        ["Fr 23.10.", "Tom Monteur", "07:00–12:00", "Baustellenzeit", "AUF-2026-0001 · Halle Nord", "0:00", "5,00"],
-        ["Fr 23.10.", "Mia Monteurin", "07:00–12:00", "Baustellenzeit", "AUF-2026-0001 · Halle Nord", "0:00", "5,00"]])
+        ["Fr 23.10.", "Mia Monteurin", "07:00–12:00", "Baustellenzeit", "AUF-2026-0001 · Halle Nord", "0:00", "5,00"],
+        ["Fr 23.10.", "Tom Monteur", "07:00–12:00", "Baustellenzeit", "AUF-2026-0001 · Halle Nord", "0:00", "5,00"]])
     p.pruefe("Fin: keine JS-Fehler (auch kein alert/confirm)", tab.fehler, [])
 
     # ---- Büro – Auftrag: ohne Knöpfe ---------------------------------------------------------------------------------------------------

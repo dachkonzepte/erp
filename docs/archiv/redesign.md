@@ -6423,3 +6423,28 @@ Info“, den Satz, keinen Punkt, keine Zahl am Reiter „Prüfen“ (Bild); der 
 Angepasste Erwartungen: keine geänderte. Im ersten Klicktest-Lauf rot und am Klicktest behoben: die zwei neuen Prüfungen der Karte lasen die
 Augenbraue mit `innerText` -- die zeigt sie in Großbuchstaben („WARTET AUF DICH“, CSS `text-transform`); jetzt `textContent`. Gegenproben (Marker
 `GEGENPROBE`, byte-genau zurück, je FAILED): die Zahl zählt alles -> 1 Test; die Karte immer „Wartet auf dich“ -> 1 Test.
+
+### R5b Nachrunde, Punkt 2 (1.9.103): Reihenfolge der Buchungen
+
+- `app/zeiten.py::reihenfolge()`: Datum absteigend, im Tag nach dem Namen des Mitarbeiters (wie angezeigt, „Vorname Nachname“, ohne Groß-/Kleinschreibung),
+  dann Beginn aufsteigend, Buchungen ohne Beginn (Dauer) zuletzt, bei Gleichstand nach der Nummer der Buchung; `buchungen()` sortiert die gefilterten
+  Zeilen damit (bis 1.9.102 die Reihenfolge von `list_entries()`, die neuesten zuerst).
+
+#### Festlegungen 1.9.103 (Bitte bestätigen)
+
+1. „Nach Mitarbeiter“ heißt nach dem angezeigten Namen (Vorname Nachname), bei gleichem Namen nach der Nummer des Mitarbeiters.
+2. Eine laufende Zeit steht im Tag nach ihrem Beginn wie jede andere (auch „von früher“). Die Vorlage zeigt am 19.10. Toms laufende Zeit vor Mias
+   Zeiten -- nach der Regel steht Mia vorn; das ist die einzige Abweichung von der Vorlage (am 16.10. und 15.10. stimmt die Regel mit ihr überein).
+3. Gleicher Beginn derselben Person: nach der Nummer der Buchung (die zuerst angelegte zuerst).
+
+#### Tests und Prüfung
+
+Neu `test_v517::test_buchungen_reihenfolge_wie_die_vorlage` (Mia 07:00–12:00 vor 12:00–16:15, obwohl umgekehrt angelegt; Toms Dauer nach seiner Zeit mit
+Uhrzeiten; Tom nach Mia; der Vortag danach). `klicktest_zeiten`: Ausschnitt um den 19.10. erweitert.
+
+Angepasste Erwartungen (`klicktest_zeiten`):
+- „Fin: Zeilen wie die Vorlage (Ausschnitt)“: Do 15.10. Tom 07:00–16:30, Tom 06:15–07:00, Mia Dauer -> Mia Dauer, Tom 06:15–07:00, Tom 07:00–16:30;
+  neu dazu Mo 19.10. Mia 07:00–12:00, Mia 12:00–16:15, Tom 06:45–16:00.
+- „Fin: Kolonne gebucht -- beide in der Liste“: Fr 23.10. Tom, Mia -> Mia, Tom.
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): ohne Sortierung (die neuesten zuerst) -> 1 Test; Dauer vorn statt zuletzt -> 1 Test.
