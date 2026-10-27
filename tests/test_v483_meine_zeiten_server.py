@@ -182,12 +182,13 @@ def test_pausen_passen_bei_gleicher_summe(welt):  # noqa: F811
 
 
 def test_reine_dauer_behaelt_ihre_pause(welt):  # noqa: F811
-    """Seit 1.9.59 (Fund im Klicktest): eine reine Dauer ist gebuchte Arbeitszeit -- ein Kolonnen-Nachtrag von 8 h ohne Pause passt,
-    „Pausen neu rechnen“ bietet nichts an (bis dahin „nach Zeitregel 0:30 h“ und 7,50 h als Vorschlag)."""
+    """Seit 1.9.59 (Fund im Klicktest): eine reine Dauer ist gebuchte Arbeitszeit -- „Pausen neu rechnen“ bietet an einem Kolonnen-Nachtrag
+    von 8 h ohne Pause nichts an (bis dahin „nach Zeitregel 0:30 h“ und 7,50 h als Vorschlag), die Pause der Dauer bleibt. Seit 1.9.107
+    (Nachrunde 2, Punkt 1) passt der Tag trotzdem nicht: es fehlen 30 min, die nur die Pause der Dauer bringen kann (1.9.59–1.9.106 passte er)."""
     client = _monteurin(welt)
     create_manual_entry(welt["db"], employee_id=welt["mia"].id, order_id=welt["order"].id, work_date=welt["heute"], hours=Decimal("8"))
     t = client.get("/api/time-entries/tagespause", params={"work_date": welt["heute"].isoformat()}).json()
-    assert (t["abgezogen"], t["nach_zeitregel"], t["passt"], t["buchungen"]) == (0, 0, True, [])
+    assert (t["abgezogen"], t["nach_zeitregel"], t["passt"], t["buchungen"], t["fehlt"], t["noetig"]) == (0, 0, False, [], 30, 30)
 
 
 def test_dauer_zaehlt_vor_den_zeiten_zum_tag(welt):  # noqa: F811

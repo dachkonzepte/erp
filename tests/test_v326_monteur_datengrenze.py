@@ -134,6 +134,9 @@ ERLAUBT_JE_ROUTE = {
 OHNE_200 = {
     "/api/settings/general/logo": "Bilddatei statt JSON; ohne hochgeladenes Logo 404",
     "/api/settings/general/sidebar-logo": "Bilddatei statt JSON; ohne hochgeladenes Logo 404",
+    # seit 1.9.107: die Monteurin bucht nur mit Von und Bis (seit 1.9.60) -- die Vorschau einer Dauer lehnt ab wie das Speichern (422)
+    "/api/time-entries/dauer-vorschau": "422: nur mit Von und Bis, wie das Speichern einer Dauer",
+    "/api/time-entry-groups/dauer-vorschau": "422: nur mit Von und Bis, wie das Speichern einer Dauer",
 }
 # Für Monteure freigegeben, Antwort im Durchlauf leer -- jeweils mit Grund.
 LEER_ERLAUBT: dict[str, str] = {}
@@ -467,6 +470,9 @@ QUERY_JE_ROUTE = {
     # Vorschau des Kolonnen-Nachtrags mit Von/Bis (seit 1.9.63): der Monteur ist Kolonnenführer seines Teams
     "/api/time-entry-groups/nachtrag-vorschau": {"work_date": "@heute", "von": "13:00", "bis": "15:00", "team_id": "@team_id",
                                                "employee_ids": "@employee_id"},
+    # Vorschau einer Dauer, einzeln und für die Kolonne (seit 1.9.107)
+    "/api/time-entries/dauer-vorschau": {"work_date": "@heute", "hours": "2"},
+    "/api/time-entry-groups/dauer-vorschau": {"work_date": "@heute", "hours": "2", "team_id": "@team_id", "employee_ids": "@employee_id"},
 }
 
 

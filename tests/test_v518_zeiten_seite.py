@@ -125,17 +125,18 @@ def test_werte_in_esc():
 
 # --- Prüfen ------------------------------------------------------------------------------------------------------------------------------
 
-PAUSE = {"employee_id": 3, "name": "Mia Monteurin", "tag": "2026-10-10", "abgezogen": 15, "nach_zeitregel": 0, "darf_buchen": True,
+PAUSE = {"employee_id": 3, "name": "Mia Monteurin", "tag": "2026-10-10", "abgezogen": 15, "nach_zeitregel": 0, "fehlt": 0, "noetig": 0,
+         "dauern": [], "darf_buchen": True,
          "buchungen": [{"id": 9, "zeitart": "Baustellenzeit", "von": "2026-10-10T13:00:00", "bis": "2026-10-10T16:00:00", "pause_alt": 15,
                         "pause_neu": 0, "gebucht_alt": 2.75, "gebucht_neu": 3.0}]}
 
 
 def test_pause_passt_nicht_mit_vorschau_und_so_buchen():
-    html = _node(("pauseHtml",), f"return pauseHtml({json.dumps(PAUSE)},0)", vorweg="var ZU={};")
+    html = _node(("pauseHtml", "fehltHtml"), f"return pauseHtml({json.dumps(PAUSE)},0)", vorweg="var ZU={};")
     assert "Mia Monteurin · Sa 10.10." in _text(html) and "Pause abgezogen 0:15 h · nach Zeitregel 0:00 h" in _text(html)
     assert "Neu rechnen: Baustellenzeit 13:00–16:00 · Pause 0:15 → 0:00 h · gebucht 2,75 → 3,00 h" in _text(html)
     assert 'data-aktion="pause-buchen" data-i="0">So buchen<' in html and 'data-aktion="pause-zu"' in html
-    ohne = _node(("pauseHtml",), f"return pauseHtml({json.dumps({**PAUSE, 'darf_buchen': False})},0)", vorweg="var ZU={};")
+    ohne = _node(("pauseHtml", "fehltHtml"), f"return pauseHtml({json.dumps({**PAUSE, 'darf_buchen': False})},0)", vorweg="var ZU={};")
     assert "Neu rechnen: Baustellenzeit" in _text(ohne) and "data-aktion" not in ohne
 
 
@@ -170,7 +171,8 @@ def test_wechsel_zu_dauer_leert_von_bis_und_sagt_es():
     modus = _funktion(text, "modusSetzen")
     assert "el('bdDauerHinweis').hidden=!dauer;" in modus and "if(dauer){el('bdVon').value='';el('bdBis').value=''}" in modus
     html = (vj.TEMPLATES / VORLAGE).read_text(encoding="utf-8")
-    assert "Mit „Dauer“ entfallen Von und Bis – gespeichert wird nur die Dauer (netto), ohne Pausenregel." in html
+    # seit 1.9.107 (Nachrunde 2, Punkt 1): die Pause einer Dauer gibt man an -- bis 1.9.106 „gespeichert wird nur die Dauer (netto), ohne Pausenregel“
+    assert "Mit „Dauer“ entfallen Von und Bis – gespeichert werden die Stunden (netto) und die Pause, die du angibst." in html
     speichern = _funktion(text, "buchungSpeichern")
     # „Dauer“ schickt Stunden und Pause, nie Von/Bis -- der Server leert dann Beginn und Ende (seit 1.9.90, _als_dauer())
     assert "body=Object.assign(felder,{hours:h,break_minutes:p});" in speichern

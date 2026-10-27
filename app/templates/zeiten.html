@@ -72,6 +72,9 @@
     .fuss{margin:2px 0 0;font-size:13px;color:var(--ds-text-2)}
     .neu-rechnen{background:var(--ds-flaeche-2);border-radius:var(--ds-ecke-feld);padding:12px 14px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:6px}
     .neu-rechnen-text{flex:1;min-width:240px;font-size:14px;line-height:1.5}
+    /* seit 1.9.107: ein Tag, dem die Pause einer Dauer fehlt -- je Dauer eine Zeile mit „Ändern“ */
+    .dauer-zeilen{flex:1 0 100%;display:flex;flex-direction:column;gap:8px}
+    .dauer-zeile{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:14px}
     .alles-gut{font-size:15px;color:var(--ds-text-2)}
     .zahlen{display:flex;gap:10px}
     .zahlen div{flex:1;display:flex;flex-direction:column;gap:2px}
@@ -127,6 +130,8 @@
     .vorschau-text .klein{font-size:12px;color:var(--ds-text-2)}
     .vorschau-text .teil{white-space:nowrap}
     .vorschau-zahl{font-size:20px;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+    .vorschau-warn{color:var(--ds-warn-text);font-weight:600}
+    .feld-hinweis{font-size:12px;font-weight:400;color:var(--ds-text-2)}
     .dialog-knoepfe{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;border-top:1px solid var(--ds-flaeche-2);padding-top:14px}
     .dialog-knoepfe>.status{flex:1 0 100%}
     /* Abwesenheiten: Anträge mit Status, Entscheiden, Zurückziehen */
@@ -293,9 +298,9 @@
     <label class="feld" for="bdVon" id="bdVonFeld">Von<input class="num" id="bdVon" type="time"></label>
     <label class="feld" for="bdBis" id="bdBisFeld">Bis<input class="num" id="bdBis" type="time"></label>
     <label class="feld" for="bdStunden" id="bdStundenFeld" hidden>Stunden (netto)<input class="num" id="bdStunden" type="text" inputmode="decimal" data-zahl data-min="0.01" data-max="24" data-feld="Stunden"></label>
-    <label class="feld" for="bdPauseDauer" id="bdPauseDauerFeld" hidden>Pause (Min.)<input class="num" id="bdPauseDauer" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-max="720" data-feld="Pause"></label>
+    <label class="feld" for="bdPauseDauer" id="bdPauseDauerFeld" hidden>Pause an diesem Tag (Min.)<input class="num" id="bdPauseDauer" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-max="720" data-feld="Pause an diesem Tag"><span class="feld-hinweis">zählt zur Pause des Tags</span></label>
   </div>
-  <p class="dialog-hinweis" id="bdDauerHinweis" hidden>Mit „Dauer“ entfallen Von und Bis – gespeichert wird nur die Dauer (netto), ohne Pausenregel.</p>
+  <p class="dialog-hinweis" id="bdDauerHinweis" hidden>Mit „Dauer“ entfallen Von und Bis – gespeichert werden die Stunden (netto) und die Pause, die du angibst.</p>
   <button type="button" class="link-knopf" id="bdWeitere" aria-expanded="false" aria-controls="bdWeitereFelder" style="align-self:flex-start">Weitere Angaben · Tätigkeit, Notiz, Pause mindestens</button>
   <div class="dialog-felder" id="bdWeitereFelder" hidden>
     <label class="feld breit" for="bdPosition">LV-Position<select id="bdPosition"></select></label>
@@ -305,7 +310,7 @@
   </div>
   <div class="vorschau" id="bdVorschau" aria-live="polite">
     <div class="vorschau-text"><span id="bdVorschauZeile">Von und Bis eintragen – dann rechnet der Server die Pause.</span>
-      <span class="klein" id="bdVorschauKlein">Dieselbe Regel wie auf dem Tablet. „Dauer“ bucht netto ohne Pausenregel – nur das Büro.</span></div>
+      <span class="klein" id="bdVorschauKlein">Dieselbe Regel wie auf dem Tablet. „Dauer“ bucht die Stunden netto; die Pause gibst du an.</span></div>
     <span class="vorschau-zahl" id="bdVorschauZahl"></span>
   </div>
   <p class="dialog-text">Andere Buchungen des Tages bleiben unverändert. Passt die Pause danach nicht mehr, erscheint der Tag unter „Prüfen“.</p>
@@ -336,9 +341,9 @@
     <label class="feld" for="kdVon" id="kdVonFeld">Von<input class="num" id="kdVon" type="time"></label>
     <label class="feld" for="kdBis" id="kdBisFeld">Bis<input class="num" id="kdBis" type="time"></label>
     <label class="feld" for="kdStunden" id="kdStundenFeld" hidden>Stunden je Person (netto)<input class="num" id="kdStunden" type="text" inputmode="decimal" data-zahl data-min="0.01" data-max="24" data-feld="Stunden je Person"></label>
-    <label class="feld" for="kdPauseDauer" id="kdPauseDauerFeld" hidden>Pause (Min.)<input class="num" id="kdPauseDauer" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-max="720" data-feld="Pause"></label>
+    <label class="feld" for="kdPauseDauer" id="kdPauseDauerFeld" hidden>Pause an diesem Tag (Min.)<input class="num" id="kdPauseDauer" type="text" inputmode="numeric" data-zahl="ganz" data-min="0" data-max="720" data-feld="Pause an diesem Tag"><span class="feld-hinweis">zählt zur Pause des Tags</span></label>
   </div>
-  <p class="dialog-hinweis" id="kdDauerHinweis" hidden>Mit „Dauer“ entfallen Von und Bis – jede Person bekommt dieselben Stunden (netto), ohne Pausenregel.</p>
+  <p class="dialog-hinweis" id="kdDauerHinweis" hidden>Mit „Dauer“ entfallen Von und Bis – jede Person bekommt dieselben Stunden (netto) und die Pause, die du angibst.</p>
   <button type="button" class="link-knopf" id="kdWeitere" aria-expanded="false" aria-controls="kdWeitereFelder" style="align-self:flex-start">Weitere Angaben · Tätigkeit, Notiz, Pause mindestens</button>
   <div class="dialog-felder" id="kdWeitereFelder" hidden>
     <label class="feld breit" for="kdPosition">LV-Position<select id="kdPosition"></select></label>
@@ -495,19 +500,31 @@ function offenHtml(z){
     +'<span class="zeile-unter">'+esc(unter)+'</span><span class="zeile-vorschau" id="ende-vorschau-'+z.id+'"></span></div>'+bedienung+'</div>';
 }
 function pauseHtml(t,i){
-  var schluessel=t.employee_id+'/'+t.tag;
+  var schluessel=t.employee_id+'/'+t.tag,plan=t.buchungen.length>0;
   var neu=t.buchungen.map(function(b){
     return '<span class="neu-zeile">'+esc((b.zeitart||'Buchung')+(b.von&&b.bis?' '+uhr(b.von)+'–'+uhr(b.bis):'')+' · Pause '+minutenUhr(b.pause_alt)+' → '+minutenUhr(b.pause_neu)
       +' h · gebucht '+zahlText(b.gebucht_alt,2)+' → '+zahlText(b.gebucht_neu,2)+' h')+'</span>'}).join('<br>');
-  var zu=ZU[schluessel];
-  var knoepfe=t.darf_buchen?(zu?'<button type="button" class="knopf knopf-neutral" data-aktion="pause-zeigen" data-i="'+i+'">Neu rechnen</button>'
+  var zu=ZU[schluessel]&&plan;
+  var knoepfe=t.darf_buchen&&plan?(zu?'<button type="button" class="knopf knopf-neutral" data-aktion="pause-zeigen" data-i="'+i+'">Neu rechnen</button>'
       :'<button type="button" class="knopf knopf-neutral" data-aktion="pause-zu" data-i="'+i+'">Abbrechen</button>'
        +'<button type="button" class="knopf knopf-aktion" data-aktion="pause-buchen" data-i="'+i+'">So buchen</button>'):'';
   return '<div class="zeile" data-pause="'+esc(schluessel)+'"><div class="zeile-text"><span class="zeile-name">'+esc(t.name+' · '+tagKurz(t.tag))+'</span>'
-    +'<span class="zeile-unter">Pause abgezogen '+esc(stundenUhr(t.abgezogen))+' · nach Zeitregel '+esc(stundenUhr(t.nach_zeitregel))+'</span></div>'
+    +'<span class="zeile-unter">Pause abgezogen '+esc(stundenUhr(t.abgezogen))+' · nach Zeitregel '+esc(stundenUhr(t.noetig))+'</span></div>'
     +(zu&&t.darf_buchen?knoepfe:'')+'</div>'
-    +(zu&&t.darf_buchen?'':'<div class="neu-rechnen"><div class="neu-rechnen-text"><b>Neu rechnen:</b> '+neu+'</div>'+knoepfe+'</div>')
+    +(!plan||zu&&t.darf_buchen?'':'<div class="neu-rechnen"><div class="neu-rechnen-text"><b>Neu rechnen:</b> '+neu+'</div>'+knoepfe+'</div>')
+    +fehltHtml(t,i,plan)
     +'<div class="status" id="pause-status-'+i+'" role="status"></div>';
+}
+// Seit 1.9.107 (Nachrunde 2, Punkt 1): was neu rechnen nicht abziehen kann -- die Pause einer Dauer gibt man an. Statt „So buchen“ je Dauer des Tags
+// der Weg zu „Ändern“ (der Dialog mit „Pause an diesem Tag“), nur wer die Pause buchen darf
+function fehltHtml(t,i,plan){
+  if(!t.fehlt)return '';
+  return '<div class="neu-rechnen" data-fehlt="'+esc(t.employee_id+'/'+t.tag)+'"><div class="neu-rechnen-text"><b>Pause angeben:</b> '
+    +esc((plan?'Danach fehlen noch '+stundenUhr(t.fehlt)+' – ':'Hier lässt sich nichts abziehen – ')+'die Pause steht in der Dauer, trag sie unter „Ändern“ ein.')+'</div>'
+    +'<div class="dauer-zeilen">'+(t.dauern||[]).map(function(e){
+      return '<div class="dauer-zeile"><span>'+esc(e.zeitart+' · Dauer '+zahlText(e.hours,2)+' h · Pause '+minutenUhr(e.break_minutes||0))+'</span>'
+        +(t.darf_buchen?'<button type="button" class="knopf knopf-neutral" data-aktion="pause-aendern" data-i="'+i+'" data-id="'+e.id+'">Ändern</button>':'')+'</div>'}).join('')
+    +'</div></div>';
 }
 var KATEGORIE={urlaub:'Urlaub',krankheit:'Krankheit',fortbildung:'Fortbildung',unbezahlt:'Unbezahlt',unbekannt:'Unbekannt'};
 // „· beantragt am 20.10.“, für eine andere Person gestellt (seit 1.9.101) „· beantragt von Fin Finanzen am 20.10.“
@@ -673,12 +690,17 @@ function unterzeile(e){
   var teil=function(wort,von,am){return von||am?' · '+wort+(von?' von '+von:'')+(am?' am '+amText(am):''):''};
   return e.employee_name+teil('gebucht',e.gebucht_von,e.gebucht_am)+teil('geändert',e.geaendert_von,e.geaendert_am);
 }
-function vorschauZeigen(v,fehler,dauerStunden){
+// „Anwesend 8:45 h · Tag zusammen 9:30 h · Pause des Tags passt“ bzw. „… passt danach nicht – der Tag erscheint unter „Prüfen““ -- seit 1.9.107 vom
+// Server (GET /api/time-entries/dauer-vorschau, dieselbe Prüfung wie „Prüfen“); bis 1.9.106 zeigte „Dauer“ nur die Stunden, ohne Anfrage
+function dauerVorschauHtml(v){
+  return teileHtml('Anwesend '+stundenUhr(Number(v.anwesend)*60)+(v.tag_buchungen>1?' · Tag zusammen '+stundenUhr(Number(v.tag_zusammen)*60):''))+' · '
+    +(v.passt?'<span class="teil">Pause des Tags passt</span>':'<span class="vorschau-warn">Pause des Tags passt danach nicht – der Tag erscheint unter „Prüfen“</span>');
+}
+function vorschauZeigen(v,fehler){
   var knopf=el('bdSpeichern');
   if(modus()==='dauer'){
-    el('bdVorschauZeile').textContent=fehler||'Dauer: gebucht wird netto, ohne Pausenregel.';
-    el('bdVorschauZahl').textContent=dauerStunden!=null?stunden(dauerStunden):'';
-    knopf.textContent=dauerStunden!=null?stunden(dauerStunden)+' speichern':'Speichern';
+    if(v){el('bdVorschauZeile').innerHTML=dauerVorschauHtml(v);el('bdVorschauZahl').textContent=stunden(v.gebucht);knopf.textContent=stunden(v.gebucht)+' speichern'}
+    else{el('bdVorschauZeile').textContent=fehler||'Stunden eintragen – dann rechnet der Server den Tag.';el('bdVorschauZahl').textContent='';knopf.textContent='Speichern'}
     return;
   }
   if(v){
@@ -692,12 +714,16 @@ function vorschauZeigen(v,fehler,dauerStunden){
     knopf.textContent='Speichern';
   }
 }
-// Vorschau vom Server bei jeder Änderung von Mitarbeiter, Datum, Von, Bis oder „Pause mindestens“; „Dauer“ ohne Anfrage (Regel 29)
+// Vorschau vom Server bei jeder Änderung von Mitarbeiter, Datum, Von, Bis oder „Pause mindestens“, seit 1.9.107 auch für „Dauer“ (Stunden, „Pause an
+// diesem Tag“); ohne die nötigen Angaben ein Lesen ohne Anfrage (Regel 29)
 function vorschauLaden(){
   if(modus()==='dauer'){
-    var h=null,fehler=null;
-    try{h=zahlVorschau('bdStunden')}catch(err){fehler=err.message}
-    return lesen('vorschau',()=>Promise.resolve(null),function(){vorschauZeigen(null,fehler,h)});
+    var wer=BD?BD.employee_id:el('bdMitarbeiter').value,tag=el('bdDatum').value,h=zahlVorschau('bdStunden'),p;
+    try{p=zahlFeld('bdPauseDauer',{leer:0})}catch(err){vorschauZeigen(null,err.message);return Promise.resolve()}
+    var adresse='/api/time-entries/dauer-vorschau?work_date='+encodeURIComponent(tag)+'&hours='+encodeURIComponent(h)+'&break_minutes='+p
+      +'&employee_id='+encodeURIComponent(wer)+(BD?'&entry_id='+BD.id:'');
+    return lesen('vorschau',()=>wer&&tag&&h!=null?api(adresse):Promise.resolve(null),function(v){vorschauZeigen(v,null)})
+      .catch(function(err){vorschauZeigen(null,err.message)});
   }
   var mitarbeiter=BD?BD.employee_id:el('bdMitarbeiter').value,datum=el('bdDatum').value,von=el('bdVon').value,bis=el('bdBis').value,pause;
   try{pause=zahlFeld('bdPause',{leer:0})}catch(err){vorschauZeigen(null,err.message);return Promise.resolve()}
@@ -953,12 +979,24 @@ function kolonneOeffnen(){
   }).catch(function(e){el('seitenStatus').textContent=e.message});
 }
 // „Mia Monteurin 5,50 h · Tom Monteur 5,00 h (Tag zusammen 6:15 h)“ -- je Person vom Server, wie „Nachtrag für die Kolonne“ (Meine Zeiten)
+// seit 1.9.107 auch „Dauer“ je Person vom Server: „Mia Monteurin 8,00 h (Tag zusammen 9:30 h) – Pause passt“ (GET /api/time-entry-groups/dauer-vorschau)
+function kdDauerHtml(v){
+  var nicht=v.mitglieder.some(function(m){return !m.passt});
+  return v.mitglieder.map(function(m){
+    return '<span class="teil">'+esc(m.name+' '+stunden(m.gebucht)+(m.tag_buchungen>1?' (Tag zusammen '+stundenUhr(Number(m.tag_zusammen)*60)+')':''))+'</span> – '
+      +(m.passt?'<span class="teil">Pause passt</span>':'<span class="vorschau-warn">Pause passt danach nicht</span>')}).join(' · ')
+    +(nicht?'<br><span class="vorschau-warn">Passt die Pause eines Tags danach nicht, erscheint er unter „Prüfen“.</span>':'');
+}
 function kdVorschauLaden(){
   if(kdModus()==='dauer'){
-    var h=zahlVorschau('kdStunden'),n=kdMitgliederIds().length;
-    return lesen('kolonne-vorschau',()=>Promise.resolve(null),function(){
-      el('kdVorschauZeile').textContent=h!=null?'Je Person '+stunden(h)+' (netto, ohne Pausenregel) – '+n+(n===1?' Person':' Personen'):'Dauer: jede Person bekommt dieselben Stunden, ohne Pausenregel.';
-      el('kdSpeichern').textContent=h!=null&&n?'Für '+n+(n===1?' Person':' Personen')+' speichern':'Speichern'});
+    var h=zahlVorschau('kdStunden'),p,tag=el('kdDatum').value,wer=kdMitgliederIds();
+    try{p=zahlFeld('kdPauseDauer',{leer:0})}catch(err){el('kdVorschauZeile').textContent=err.message;return Promise.resolve()}
+    var adresse='/api/time-entry-groups/dauer-vorschau?work_date='+encodeURIComponent(tag)+'&hours='+encodeURIComponent(h)+'&break_minutes='+p
+      +'&team_id='+encodeURIComponent(el('kdKolonne').value)+wer.map(function(i){return '&employee_ids='+encodeURIComponent(i)}).join('');
+    return lesen('kolonne-vorschau',()=>tag&&h!=null&&wer.length?api(adresse):Promise.resolve(null),function(v){
+      el('kdVorschauZeile').innerHTML=v?kdDauerHtml(v):esc('Stunden eintragen – dann rechnet der Server je Person den Tag.');
+      el('kdSpeichern').textContent=v?'Für '+v.mitglieder.length+(v.mitglieder.length===1?' Person':' Personen')+' speichern':'Speichern';
+    }).catch(function(err){el('kdVorschauZeile').textContent=err.message});
   }
   var datum=el('kdDatum').value,von=el('kdVon').value,bis=el('kdBis').value,pause,ids=kdMitgliederIds();
   try{pause=zahlFeld('kdPause',{leer:0})}catch(err){el('kdVorschauZeile').textContent=err.message;return Promise.resolve()}
@@ -1008,6 +1046,7 @@ function binden(){
     if(a==='ende')endeEintragen(b.dataset.id,b);
     else if(a==='pause-buchen')pauseBuchen(Number(b.dataset.i),b);
     else if(a==='pause-zu'||a==='pause-zeigen'){var t=P.pausen[Number(b.dataset.i)];ZU[t.employee_id+'/'+t.tag]=a==='pause-zu';pruefenZeichnen(P)}
+    else if(a==='pause-aendern'){var d=(P.pausen[Number(b.dataset.i)].dauern||[]).find(function(e){return String(e.id)===b.dataset.id});if(d)buchungDialogOeffnen(d)}
     else if(a==='antrag')antragEntscheiden(b.dataset.id,b.dataset.entscheidung,b);
   });
   el('reiter-pruefen').addEventListener('input',function(ev){var f=ev.target;if(f.dataset&&f.dataset.ende)endeVorschau(f.dataset.ende)});
@@ -1025,7 +1064,7 @@ function binden(){
   el('bdModusVonBis').addEventListener('click',function(){modusSetzen('vonbis')});
   el('bdModusDauer').addEventListener('click',function(){modusSetzen('dauer')});
   el('bdAuftrag').addEventListener('change',function(){positionenZeichnen('')});
-  ['bdMitarbeiter','bdDatum','bdVon','bdBis','bdPause','bdStunden'].forEach(function(id){el(id).addEventListener('input',vorschauLaden);el(id).addEventListener('change',vorschauLaden)});
+  ['bdMitarbeiter','bdDatum','bdVon','bdBis','bdPause','bdStunden','bdPauseDauer'].forEach(function(id){el(id).addEventListener('input',vorschauLaden);el(id).addEventListener('change',vorschauLaden)});
   el('bdWeitere').addEventListener('click',function(){var f=el('bdWeitereFelder');f.hidden=!f.hidden;el('bdWeitere').setAttribute('aria-expanded',String(!f.hidden))});
   el('bdSpeichern').addEventListener('click',buchungSpeichern);
   el('bdAbbrechen').addEventListener('click',function(){el('buchungDialog').close()});
@@ -1061,7 +1100,7 @@ function binden(){
   el('kdAuftrag').addEventListener('change',kdPositionen);
   el('kdModusVonBis').addEventListener('click',function(){kdModusSetzen('vonbis')});
   el('kdModusDauer').addEventListener('click',function(){kdModusSetzen('dauer')});
-  ['kdDatum','kdVon','kdBis','kdPause','kdStunden'].forEach(function(id){el(id).addEventListener('input',kdVorschauLaden);el(id).addEventListener('change',kdVorschauLaden)});
+  ['kdDatum','kdVon','kdBis','kdPause','kdStunden','kdPauseDauer'].forEach(function(id){el(id).addEventListener('input',kdVorschauLaden);el(id).addEventListener('change',kdVorschauLaden)});
   el('kdWeitere').addEventListener('click',function(){var f=el('kdWeitereFelder');f.hidden=!f.hidden;el('kdWeitere').setAttribute('aria-expanded',String(!f.hidden))});
   el('kdSpeichern').addEventListener('click',kolonneSpeichern);
   el('kdAbbrechen').addEventListener('click',function(){el('kolonneDialog').close()});

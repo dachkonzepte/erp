@@ -3223,6 +3223,10 @@ class TimePausenVorschauOut(BaseModel):
     tag: date
     abgezogen: int
     nach_zeitregel: int
+    # seit 1.9.107: was neu rechnen nicht abziehen kann (der Tag hat eine Dauer, ihre Pause gibt die Person an) und die Pause, die der Tag
+    # nach der Zeitregel braucht (nach_zeitregel + fehlt -- angezeigt als „nach Zeitregel“)
+    fehlt: int = 0
+    noetig: int
     passt: bool
     buchungen: list[TimePausenAenderungOut]
 
@@ -3260,6 +3264,18 @@ class TimeEndeVorschauOut(BaseModel):
     gebucht: Decimal
     tag_zusammen: Decimal  # seit 1.9.53: Anwesenheit des Tages samt dieser, vor der Pause (1.9.48–1.9.52: gebuchte Stunden)
     tag_buchungen: int     # seit 1.9.48: Buchungen des Tages samt dieser
+
+class TimeDauerVorschauOut(BaseModel):
+    """Seit 1.9.107 (Stufe 4, R5b Nachrunde 2, Punkt 1): was eine Dauer mit der angegebenen Pause am Tag bewirkt
+    (time_tracking.dauer_vorschau()) -- anwesend = Stunden + Pause, „Tag zusammen“, ob die Pause des Tags danach passt."""
+    anwesend: Decimal
+    pause: int
+    gebucht: Decimal
+    tag_zusammen: Decimal
+    tag_buchungen: int
+    passt: bool
+    abgezogen: int
+    noetig: int
 
 class TimeEndeNachtragen(BaseModel):
     """Seit 1.9.35 (Stufe 4, R1): das Ende einer Zeit, die seit einem früheren Tag läuft -- am Starttag, nach dem Start; Pause nach der
@@ -3303,6 +3319,16 @@ class TimeKolonneVorschauMitglied(BaseModel):
     gebucht: Decimal
     tag_zusammen: Decimal
     tag_buchungen: int
+
+
+class TimeKolonneDauerMitglied(TimeDauerVorschauOut):
+    """Seit 1.9.107: was ein Kolonnen-Nachtrag als Dauer am Tag eines Mitglieds bewirkt -- Name und die Zahlen seines Tages."""
+    employee_id: int
+    name: str
+
+
+class TimeKolonneDauerVorschauOut(BaseModel):
+    mitglieder: list[TimeKolonneDauerMitglied] = Field(default_factory=list)
 
 
 class TimeKolonneVorschauOut(BaseModel):

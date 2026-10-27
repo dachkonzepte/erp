@@ -1519,7 +1519,10 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   Ändern ohne „pause_minuten“ behält sie (`tests/test_v487_mindestpause_merken.py`). **Seit 1.9.90** leert eine als Dauer gespeicherte Buchung
   (ohne Von/Bis Stunden, Pause oder ein anderer Tag, `app/routers/time_tracking.py::_als_dauer()`) Beginn und Ende, auch je Mitglied und am Kopf
   einer Kolonnenbuchung; ohne Von/Bis und ohne Dauer behält jedes Mitglied seine Stunden; die Monteurin ändert Stunden, Pause oder Tag nur mit
-  Von/Bis (422). **Eine Rundung** (seit 1.9.39): jede neue Buchung --
+  Von/Bis (422). **Seit 1.9.107** gibt das Büro die Pause einer Dauer an („Pause an diesem Tag“, Vorschau vom Server
+  `GET /api/time-entries/dauer-vorschau` bzw. `/api/time-entry-groups/dauer-vorschau`); hat ein Tag eine Dauer und bringt die Regel die Pflichtpause
+  nicht unter, fehlt der Rest (`pausen_vorschau()["fehlt"]`, über `pause_nach_zeitregel(deckel=False)`) -- der Tag passt nicht, „Prüfen“ zeigt je Dauer
+  „Ändern“ statt „So buchen“ (`tests/test_v527_pause_einer_dauer.py`). **Eine Rundung** (seit 1.9.39): jede neue Buchung --
   auch je Mitglied einer Gruppe -- rundet nur `gebucht_nach_zeitregel()` nach den Zeitregeln (ohne Rundung bleibt der Wert); Wächter
   `tests/test_v466_rundung_gruppen.py`.
 - **Vergessener Feierabend** (seit 1.9.35): nichts schließt eine Zeit von selbst. Läuft sie seit einem früheren Tag

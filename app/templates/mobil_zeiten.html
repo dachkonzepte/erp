@@ -343,10 +343,15 @@ function tagHtml(t){
   if(p&&!p.passt){
     // seit 1.9.87: ändert neu rechnen eine Buchung auf einem abgeschlossenen Auftrag, rechnet das Büro (der Server lehnt ab, 1.9.81)
     var zu=(p.buchungen||[]).some(function(b){return t.zeilen.some(function(r){return r.id===b.id&&r.auftrag_geschlossen})});
+    // seit 1.9.107: fehlt nur die Pause einer Buchung ohne Uhrzeiten (p.fehlt, nichts neu zu rechnen), kein „Pausen neu rechnen“ -- die Pause
+    // wird beim Ändern dieser Buchung eingetragen (die Monteurin über Von und Bis)
+    var plan=(p.buchungen||[]).length>0;
     hinweis='<div class="pause-hinweis" data-pause="'+esc(t.tag)+'"><span class="pause-text">Pause abgezogen '+esc(stundenUhr(p.abgezogen))
-      +' · nach Zeitregel '+esc(stundenUhr(p.nach_zeitregel))+'</span>'
+      +' · nach Zeitregel '+esc(stundenUhr(p.noetig))+'</span>'
       +(zu&&!t.abgeschlossen?'<span class="pause-zu">Auftrag abgeschlossen – das Büro rechnet neu.</span>':'')
-      +(t.abgeschlossen||zu?'':'<button type="button" class="knopf knopf-neutral knopf-klein" data-aktion="pausen" data-tag="'+esc(t.tag)+'">Pausen neu rechnen</button>')
+      +(p.fehlt&&!t.abgeschlossen?'<span class="pause-zu" data-fehlt="'+esc(t.tag)+'">'+esc((plan?'Danach fehlen noch '+stundenUhr(p.fehlt)+' – ':'')
+        +(D.nachtragen_erlaubt?'eine Buchung ohne Uhrzeiten: über „⋮ Ändern“ Von und Bis eintragen.':'eine Buchung ohne Uhrzeiten: die Pause trägt das Büro ein.'))+'</span>':'')
+      +(t.abgeschlossen||zu||!plan?'':'<button type="button" class="knopf knopf-neutral knopf-klein" data-aktion="pausen" data-tag="'+esc(t.tag)+'">Pausen neu rechnen</button>')
       +'</div><div class="pause-vorschau" id="pv-'+esc(t.tag)+'" hidden></div>';
   }
   return '<div class="tag-kopf" data-tag="'+esc(t.tag)+'"><span class="tag-name">'+esc(tagKurz(t.tag))+'</span>'
@@ -392,6 +397,7 @@ function pausenVorschau(tag){
   return lesen('pause-'+tag,()=>api('/api/time-entries/tagespause?work_date='+encodeURIComponent(tag)),function(v){
     PV[tag]=v;box.hidden=false;
     if(v.passt){box.innerHTML='<span class="pv-zeile">Die Pause passt inzwischen zur Zeitregel.</span>';return}
+    if(!v.buchungen.length){box.innerHTML='<span class="pv-zeile">Neu rechnen ändert an diesem Tag nichts – es fehlt die Pause einer Buchung ohne Uhrzeiten.</span>';return}
     box.innerHTML='<span class="pv-zeile"><b>Pausen neu rechnen</b> – nach der Zeitregel, in der Reihenfolge des Tags:</span>'
       +v.buchungen.map(function(b){
         var z=zeileZu(b.id)||{zeitart:'Buchung'};

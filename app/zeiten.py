@@ -115,10 +115,17 @@ def offene_zeiten(db: Session, heute: date) -> list[dict]:
 def pausen_tage(db: Session, ab: date, bis: date) -> list[dict]:
     """Die Tage mit unpassender Pause zwischen ab und bis (unpassende_pausen()) -- je Tag Person, abgezogen und nach Zeitregel (Minuten)
     und die Vorschau von „Pausen neu rechnen“ je Buchung, deren Pause sich ändert: Zeitart, Von–Bis, Pause und gebucht alt -> neu. „So
-    buchen“ schickt genau diese Vorschau (POST /api/time-entries/pausen-neu-rechnen)."""
+    buchen“ schickt genau diese Vorschau (POST /api/time-entries/pausen-neu-rechnen). Seit 1.9.107 (Nachrunde 2, Punkt 1) dazu fehlt (was
+    neu rechnen nicht abziehen kann, die Pause einer Dauer), noetig (nach Zeitregel samt fehlt) und, wenn etwas fehlt, die Dauern des Tags
+    als Zeilen wie in „Buchungen“ -- der Weg zu „Ändern“, wo die Pause eingetragen wird."""
     namen = _entry_type_labels(db)
     tage = []
     for employee_id, tag, stand in unpassende_pausen(db, ab, bis):
+        dauern = []
+        if stand["fehlt"]:
+            dauern = _listenzeilen(db, sorted((r for r in list_entries(db, employee_id=employee_id, start_date=tag, end_date=tag, limit=None)
+                                               if r.status == "booked" and not (r.started_at and r.ended_at and r.ended_at > r.started_at)),
+                                              key=reihenfolge), namen)
         zeilen = {r.id: r for r in db.scalars(select(TimeEntry).where(TimeEntry.id.in_([b["id"] for b in stand["buchungen"]]))).all()}
         buchungen = []
         for b in stand["buchungen"]:
@@ -126,7 +133,8 @@ def pausen_tage(db: Session, ab: date, bis: date) -> list[dict]:
             buchungen.append({**b, "entry_type": r.entry_type if r else None, "zeitart": namen.get(r.entry_type, r.entry_type) if r else None,
                               "von": r.started_at if r else None, "bis": r.ended_at if r else None})
         tage.append({"employee_id": employee_id, "name": employee_name(db.get(Employee, employee_id)) or f"#{employee_id}", "tag": tag,
-                     "abgezogen": stand["abgezogen"], "nach_zeitregel": stand["nach_zeitregel"], "buchungen": buchungen})
+                     "abgezogen": stand["abgezogen"], "nach_zeitregel": stand["nach_zeitregel"], "fehlt": stand["fehlt"],
+                     "noetig": stand["noetig"], "buchungen": buchungen, "dauern": dauern})
     return tage
 
 
@@ -266,6 +274,21 @@ def reihenfolge(r: TimeEntry) -> tuple:
             r.started_at or datetime.min, r.id)
 
 
+def _listenzeilen(db: Session, rows: list[TimeEntry], namen: dict) -> list[dict]:
+    """Die Zeilen der Liste „Buchungen“ (und seit 1.9.107 die Dauern eines Tags auf „Prüfen“, für „Ändern“): entry_to_dict() mit dem Namen
+    der Zeitart und dem Verlauf."""
+    verlauf = _verlauf_der_buchungen(db, rows)
+    zeilen = []
+    for r in rows:
+        d = entry_to_dict(r)
+        d["zeitart"] = namen.get(r.entry_type, r.entry_type)
+        # seit 1.9.104 aus dem Verlauf: gebucht/geändert von … am … (Unterzeile des Dialogs) und vom_buero -- „Dauer · vom Büro“, wenn ein Konto
+        # außerhalb der Monteursansicht die Zeit zuletzt gesetzt hat, auch an einer Buchung der Monteurin (bis 1.9.103 nur, wer sie angelegt hatte)
+        d.update(verlauf[r.id])
+        zeilen.append(d)
+    return zeilen
+
+
 def buchungen(db: Session, erster: date, *, employee_id: int | None = None, order_id: int | None = None, entry_type: str | None = None) -> dict:
     """„Buchungen“: die Buchungen des Monats nach den Filtern (Mitarbeiter, Auftrag, Zeitart, mit UND verknüpft) in der Reihenfolge der
     Vorlage (reihenfolge()), und die „Summe der Auswahl“ über genau diese Zeilen (tagessumme(): eine laufende Zeit zählt nicht mit). Dazu die
@@ -276,15 +299,7 @@ def buchungen(db: Session, erster: date, *, employee_id: int | None = None, orde
     rows = sorted((r for r in alle if (employee_id is None or r.employee_id == employee_id) and (order_id is None or r.order_id == order_id)
                    and (entry_type is None or r.entry_type == entry_type)), key=reihenfolge)
     namen = _entry_type_labels(db)
-    verlauf = _verlauf_der_buchungen(db, rows)
-    heute_zeilen = []
-    for r in rows:
-        d = entry_to_dict(r)
-        d["zeitart"] = namen.get(r.entry_type, r.entry_type)
-        # seit 1.9.104 aus dem Verlauf: gebucht/geändert von … am … (Unterzeile des Dialogs) und vom_buero -- „Dauer · vom Büro“, wenn ein Konto
-        # außerhalb der Monteursansicht die Zeit zuletzt gesetzt hat, auch an einer Buchung der Monteurin (bis 1.9.103 nur, wer sie angelegt hatte)
-        d.update(verlauf[r.id])
-        heute_zeilen.append(d)
+    heute_zeilen = _listenzeilen(db, rows, namen)
     leute = {e.id: employee_name(e) for e in db.scalars(select(Employee).where(Employee.active == True)).all()}  # noqa: E712
     for r in alle:
         leute.setdefault(r.employee_id, employee_name(r.employee) or f"#{r.employee_id}")

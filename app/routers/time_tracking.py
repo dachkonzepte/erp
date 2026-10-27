@@ -35,10 +35,10 @@ from ..database import get_db
 from ..models import AppUser, Order, TimeEntry, TimeEntryGroup
 from ..permissions import ROLE_FIELD, darf_zeit_buchen, darf_zeit_fuer_andere_buchen, has_role, require_min_role, require_zeit_buchen, zeit_nur_mit_von_bis
 from .orders import require_field_order_access
-from ..schemas import CrewGroupSummaryOut, CrewOut, TimeEntryManualCreate, TimeEntryOut, TimeEntrySummaryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeGroupUpdate, TimeKolonneVorschauOut, TimeEndeNachtragen, TimeEndeVorschauOut, TimePausenNeuRechnen, TimePausenVorschauOut, TimeZeitartWechseln, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
+from ..schemas import CrewGroupSummaryOut, CrewOut, TimeEntryManualCreate, TimeEntryOut, TimeEntrySummaryOut, TimeEntryUpdate, TimeGroupManualCreate, TimeGroupOut, TimeGroupTimerStart, TimeGroupTimerStop, TimeGroupUpdate, TimeKolonneDauerVorschauOut, TimeKolonneVorschauOut, TimeDauerVorschauOut, TimeEndeNachtragen, TimeEndeVorschauOut, TimePausenNeuRechnen, TimePausenVorschauOut, TimeZeitartWechseln, TimeTimerStart, TimeTimerStop, TimeTrackingSettingsOut
 from ..heute import zeitarten
 from ..time_backoffice import load_time_settings, locked_until, time_settings_dict
-from ..time_tracking import MAX_LIST_LIMIT, active_group_for_employee, active_entry as active_time_entry, auftrag_zeiten_gesperrt, count_entries, create_group_manual_entry, create_manual_entry, crew_leader_team_ids, delete_entry as delete_time_entry_row, delete_group, ende_nachtragen, ende_vorschau, tag_stand, PausenVorschauVeraltet, pausen_neu_rechnen, pausen_vorschau, ZeitartInGruppe, zeitart_wechseln, entry_to_dict, field_time_tracking_context, laeuft_seit_frueher, load_entry, kolonne_vorschau, validate_group_members, nachtrag_nach_zeitregel, mindestpause_der_buchung, OffeneZeit, group_for_entry, group_member_ids, group_to_dict, list_crews_for_leader, list_entries as list_time_entries, list_groups_initiated_by, start_group_timer, start_timer, stop_group_timer, stop_timer, summarize_entries, time_tracking_context, update_entry as update_time_entry_row, update_group
+from ..time_tracking import MAX_LIST_LIMIT, active_group_for_employee, active_entry as active_time_entry, auftrag_zeiten_gesperrt, count_entries, create_group_manual_entry, create_manual_entry, crew_leader_team_ids, delete_entry as delete_time_entry_row, delete_group, dauer_vorschau, ende_nachtragen, ende_vorschau, kolonne_dauer_vorschau, tag_stand, PausenVorschauVeraltet, pausen_neu_rechnen, pausen_vorschau, ZeitartInGruppe, zeitart_wechseln, entry_to_dict, field_time_tracking_context, laeuft_seit_frueher, load_entry, kolonne_vorschau, validate_group_members, nachtrag_nach_zeitregel, mindestpause_der_buchung, OffeneZeit, group_for_entry, group_member_ids, group_to_dict, list_crews_for_leader, list_entries as list_time_entries, list_groups_initiated_by, start_group_timer, start_timer, stop_group_timer, stop_timer, summarize_entries, time_tracking_context, update_entry as update_time_entry_row, update_group
 
 router = APIRouter()
 
@@ -266,6 +266,26 @@ def kolonne_nachtrag_vorschau(request: Request, work_date: date, von: time, bis:
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return TimeKolonneVorschauOut.model_validate(werte)
+
+
+@router.get("/api/time-entry-groups/dauer-vorschau", response_model=TimeKolonneDauerVorschauOut)
+def kolonne_dauer_vorschau_endpunkt(request: Request, work_date: date, hours: Decimal = Query(ge=Decimal("0.01"), le=24),
+                                    break_minutes: int = Query(0, ge=0, le=720), team_id: int | None = None,
+                                    employee_ids: list[int] = Query(default=[]), db: Session = Depends(get_db, scope="function"),
+                                    _role: AppUser = _buchen_dep):
+    """Seit 1.9.107 (Stufe 4, R5b Nachrunde 2, Punkt 1): was „Kolonne buchen“ als Dauer (Stunden netto und die Pause an diesem Tag, je Person
+    dieselben) am Tag jedes Mitglieds bewirkt -- „Tag zusammen“ und ob die Pause des Tags danach passt (kolonne_dauer_vorschau()). Liest nur.
+    Rechte wie beim Buchen; wer nur mit Von und Bis bucht (zeit_nur_mit_von_bis()), bekommt 422 wie beim Speichern."""
+    actor, is_admin, _ = _group_actor(request)
+    _require_crew_leader(request, db, team_id)
+    if zeit_nur_mit_von_bis(getattr(request.state, "erp_user", None)):
+        raise HTTPException(status_code=422, detail=NUR_VON_BIS)
+    try:
+        employees = validate_group_members(db, employee_ids, team_id=team_id, actor_employee_id=actor, is_admin=is_admin)
+        return TimeKolonneDauerVorschauOut.model_validate(kolonne_dauer_vorschau(db, employees=employees, work_date=work_date, hours=hours,
+                                                                                 break_minutes=break_minutes))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.post("/api/time-entry-groups/start", response_model=TimeGroupOut)
@@ -529,6 +549,32 @@ def nachtrag_vorschau(request: Request, work_date: date, von: time, bis: time, p
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return TimeEndeVorschauOut(anwesend=werte["anwesend"], pause=werte["pause"], gebucht=werte["gebucht"],
                                tag_zusammen=werte["tag_zusammen"], tag_buchungen=werte["tag_buchungen"])
+
+
+@router.get("/api/time-entries/dauer-vorschau", response_model=TimeDauerVorschauOut)
+def dauer_vorschau_endpunkt(request: Request, work_date: date, hours: Decimal = Query(ge=Decimal("0.01"), le=24),
+                            break_minutes: int = Query(0, ge=0, le=720), entry_id: int | None = None, employee_id: int | None = None,
+                            db: Session = Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
+    """Seit 1.9.107 (Stufe 4, R5b Nachrunde 2, Punkt 1): was eine Dauer (Stunden netto und die Pause an diesem Tag) am Tag bewirkt -- anwesend,
+    „Tag zusammen“ und ob die Pause des Tags danach passt (dauer_vorschau(), dieselbe Prüfung wie „Prüfen“). Liest nur. Mitarbeiter und die zu
+    ändernde Buchung wie bei nachtrag_vorschau(); wer nur mit Von und Bis bucht, bekommt 422 wie beim Speichern."""
+    mitarbeiter = _time_entry_employee_for_request(request, employee_id, db)
+    ohne_id = None
+    if entry_id is not None:
+        row = db.get(TimeEntry, entry_id)
+        if row is None or row.employee_id != mitarbeiter:
+            raise HTTPException(status_code=404, detail="Zeitbuchung nicht gefunden.")
+        if not _time_entry_can_edit(request, row):
+            raise HTTPException(status_code=403, detail="Du darfst diese Zeitbuchung nicht ändern.")
+        ohne_id = row.id
+    if zeit_nur_mit_von_bis(getattr(request.state, "erp_user", None)):
+        raise HTTPException(status_code=422, detail=NUR_VON_BIS)
+    try:
+        # eine neue Dauer rundet beim Speichern nach den Zeitregeln, eine geänderte bleibt, wie eingetragen (update_entry())
+        return TimeDauerVorschauOut.model_validate(dauer_vorschau(db, employee_id=mitarbeiter, work_date=work_date, hours=hours,
+                                                                  break_minutes=break_minutes, ohne_id=ohne_id, runden=ohne_id is None))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.get("/api/time-entries/tagespause", response_model=TimePausenVorschauOut)

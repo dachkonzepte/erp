@@ -6317,7 +6317,7 @@ von 1.9.99 (Toms Tag wie in `klicktest_zeiten`: Fahrzeit 06:15–07:00, Baustell
 | Stelle | zählt die Pause der Dauer? | Toms 15.10. |
 |---|---|---|
 | „Tag zusammen“ (`tag_stand()`, Vorschauen von Nachtrag, Ende, Ändern) | ja, über die Anwesenheit | 0,75 + 8,75 = 9:30 h (vorher 10:15 h) |
-| „Pause passt nicht zum Tag“ (`pausen_vorschau()`, auch der Abschluss) | ja: Dauern zählen zuerst, ihre Pause als schon abgezogene Pause des Tags; Buchungen mit Uhrzeiten bekommen nur, was dann noch fehlt | Pflichtpause für 9,5 h = 30 min, abgezogen 45 -> passt |
+| „Pause passt nicht zum Tag“ (`pausen_vorschau()`, auch der Abschluss) | ja: Dauern zählen zuerst, ihre Pause als schon abgezogene Pause des Tags; Buchungen mit Uhrzeiten bekommen nur, was dann noch fehlt | Pflichtpause für 9,5 h = 45 min (mehr als 9 h; korrigiert 1.9.107, hier stand 30 min), abgezogen 45 -> passt |
 | die Pause jeder neuen Buchung dieses Tags (`pause_nach_zeitregel()`) | ja, wie oben | -- |
 | Stundenzettel (PDF des Büros) | angezeigt in der Spalte „Pause“, Stunden unverändert | Pause 45, Stunden 8,00, von/bis leer |
 | Stundendaten als CSV | angezeigt (`Pause_Min`), Stunden unverändert | `;;;45;8,00;` |
@@ -6559,3 +6559,95 @@ Angepasste Erwartungen (`klicktest_datev_nummern`): „Ada: Felder leer, bearbei
 `disabled` statt `readOnly` (dasselbe Soll: Admin bearbeitbar, Büro nicht) -- nur der Aufbau.
 
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): wieder `readonly` -> 1 Test; ohne Regel für gesperrte Felder -> 1 Test.
+
+## Stufe 4, R5b Nachrunde 2 (ab 1.9.107)
+
+Vorgabe 27.10.2026, Start auf `ceae467`: Festlegungen 1.9.100–1.9.106 bestätigt, außer 1.9.105 Nr. 1 (ersetzt durch Punkt 2). Die Prüfabfrage
+`scripts/pruefabfrage_kolonne_weit.sql` ergab auf dem Server a), b) und c) je 0 Zeilen.
+
+### R5b Nachrunde 2, Punkt 1 (1.9.107): die Pause einer Dauer gibt man an
+
+Entscheidung von Tobias zum Befund 3 (1.9.100): „Pause angeben“ -- der Vorschlag von damals, gebaut. Korrektur zum Befund: dort stand für Toms Tag mit
+9,5 h Anwesenheit „Pflichtpause 30 min“; die Regeln des Arbeitszeitmodells sind „mehr als 6 h -> 30 min, mehr als 9 h -> 45 min“, für 9,5 h also 45 min
+(das Ergebnis „passt“ stimmte, die Dauer trägt 45 min; in der Tabelle oben korrigiert).
+
+**Befund: ein Tag nur aus Dauern.** `pausen_vorschau()` rechnete die Dauern eines Tags zuerst mit ihrer Pause und gab nur den Buchungen mit Uhrzeiten,
+was dem Tag noch fehlte; „passt“ hieß „neu rechnen ändert nichts“. Ohne Buchung mit Uhrzeiten ändert neu rechnen nie etwas -- ein Tag nur aus Dauern
+passte deshalb immer, auch 8 h ohne Pause; ebenso blieb unbemerkt, was eine zu kurze Buchung mit Uhrzeiten nicht aufnehmen konnte (höchstens ihre
+Anwesenheit). „Prüfen“ kann dort nichts abziehen: die Pause steht in der Dauer.
+
+**Lösung.**
+- `app/time_tracking.py::pausen_vorschau()` (Rechnung in `_pausen_stand()`): hat der Tag eine Dauer, rechnet `pause_nach_zeitregel(…, deckel=False)` (die
+  eine Pausenregel, ohne „höchstens ihre Anwesenheit“) am Ende, was dem ganzen Tag dann noch fehlt -- `fehlt` (Minuten); der Tag passt nur, wenn neu
+  rechnen nichts ändert und nichts fehlt. Dazu `noetig` = `nach_zeitregel` + `fehlt`, angezeigt als „nach Zeitregel“ (Prüfen, Meine Zeiten, Abschluss).
+  `nach_zeitregel` bleibt, was „So buchen“ ergibt. Ein Tag nur mit Uhrzeiten bleibt, wie er war (Festlegung Nr. 1).
+- `dauer_vorschau()` und `kolonne_dauer_vorschau()`: was eine Dauer mit der angegebenen Pause am Tag bewirkt -- anwesend (Stunden + Pause), „Tag
+  zusammen“, ob die Pause des Tags danach passt (`_pausen_stand()` mit der gedachten Buchung, nie in die Sitzung gegeben); beim Ändern ohne die alte
+  Fassung. Endpunkte `GET /api/time-entries/dauer-vorschau` und `GET /api/time-entry-groups/dauer-vorschau` (Rechte wie das Speichern, die Monteurin 422
+  `NUR_VON_BIS`).
+- `pausen_neu_rechnen()`: ändert neu rechnen an einem unpassenden Tag nichts, 409 `NICHTS_NEU_ZU_RECHNEN` (bis dahin 409 „inzwischen geändert“).
+- `app/zeiten.py::pausen_tage()`: je Tag `fehlt`, `noetig` und, wenn etwas fehlt, die Dauern des Tags als Zeilen wie in „Buchungen“ (`_listenzeilen()`,
+  von `buchungen()` mitbenutzt).
+- `zeiten.html`: in „Dauer“ beider Dialoge „Pause an diesem Tag (Min.)“ mit „zählt zur Pause des Tags“ (sichtbar, nicht unter „Weitere Angaben“),
+  vorbelegt wie bisher; die Vorschau vom Server bei jeder Eingabe (`dauerVorschauHtml()`, `kdDauerHtml()`); die Sätze: „„Dauer“ bucht die Stunden netto;
+  die Pause gibst du an.“ und „Mit „Dauer“ entfallen Von und Bis – gespeichert werden die Stunden (netto) und die Pause, die du angibst.“ (Kolonne: „jede
+  Person bekommt dieselben Stunden (netto) und die Pause, die du angibst.“). „Prüfen“: `fehltHtml()` -- „Pause angeben“ mit jeder Dauer des Tags und
+  „Ändern“ (öffnet „Buchung ändern“), statt „So buchen“; mit Vorschlag zuerst „So buchen“, darunter „Danach fehlen noch …“.
+- `mobil_zeiten.html` („Meine Zeiten“): fehlt nur die Pause einer Buchung ohne Uhrzeiten, kein Knopf „Pausen neu rechnen“, sondern der Weg („über „⋮
+  Ändern“ Von und Bis eintragen“ bzw. „die Pause trägt das Büro ein“).
+- Bestehende Dauern bleiben, wie sie sind: keine Migration, kein Lesen schreibt; was sich ändert, ist nur die Prüfung.
+
+#### Festlegungen 1.9.107 (Bitte bestätigen)
+
+1. „Fehlt“ gibt es nur an einem Tag mit mindestens einer Dauer: die Pflichtpause der Anwesenheit des Tags minus das, was die Regel den Buchungen mit
+   Uhrzeiten geben kann. Ein Tag nur mit Uhrzeiten passt wie bisher, wenn die Pausen der Regel entsprechen -- auch wenn eine letzte, kurze Zeit nicht die
+   ganze Pflichtpause aufnehmen konnte (sie wird dann ganz Pause, 0 h).
+2. Ein Tag, dem die Pause einer Dauer fehlt, ist ein „Tag mit unpassender Pause“ überall: Zahl am Reiter „Prüfen“, „Vor dem Abschluss“, „Monat & Lohn“,
+   und er sperrt „Abschließen“ (409). Nach dem Einspielen zeigt „Prüfen“ solche Tage ab dem Tag nach „Abgeschlossen bis“; der Bestand bleibt unverändert.
+3. „Prüfen“ zeigt an einem solchen Tag „Pause angeben“ mit jeder Dauer des Tags und „Ändern“ statt „So buchen“; kann neu rechnen einen Teil abziehen,
+   steht zuerst der Vorschlag mit „So buchen“, darunter „Danach fehlen noch …“. Büro – Auftrag sieht beides ohne Knöpfe.
+4. „Pause an diesem Tag“ ist bei „Ändern“ mit der gespeicherten Pause der Buchung vorbelegt (beim Wechsel von „Von – Bis“ die Pause dieses Abschnitts),
+   bei „+ Buchung“ und „Kolonne buchen“ leer (zählt als 0).
+5. Die Vorschau einer neuen Dauer rundet nach den Zeitregeln wie das Speichern, die einer geänderten nicht (wie das Speichern); „Tag zusammen“ steht nur bei
+   mehr als einer Buchung am Tag (wie bei „Von – Bis“).
+6. Die Vorschau einer Dauer lehnt für die Monteurin ab (422 „nur mit Von und Bis“) wie das Speichern; Büro – Auftrag bekommt 403.
+7. Neu rechnen an einem Tag, an dem es nichts ändert, lehnt der Server mit eigenem Text ab (409); „Meine Zeiten“ zeigt dort keinen Knopf, sondern wie die
+   Pause hineinkommt.
+8. Der Satz unter der Vorschau heißt „Dieselbe Regel wie auf dem Tablet. „Dauer“ bucht die Stunden netto; die Pause gibst du an.“ -- „– nur das Büro“
+   entfällt (die Seite ist nur fürs Büro).
+
+#### Tests und Prüfung
+
+Neu `tests/test_v527_pause_einer_dauer.py`: Toms 15.10. (Dauer 8,00 mit 0:45 neben der Fahrzeit -> „Tag zusammen 9:30 h“, passt; mit 0 -> passt danach
+nicht, gespeichert unter „Prüfen“ mit dem Vorschlag für die Fahrzeit; mit 0:45 gespeichert kein Eintrag); Rundung der neuen Dauer wie das Speichern;
+Rechte (Büro – Auftrag 403, Monteurin 422, fremde Buchung 404, 0 h 422); Tag nur aus Dauern (fehlt 30, ohne Vorschlag, die Dauer als Zeile, neu rechnen
+409 mit eigenem Text, über „Ändern“ 0:30 -> weg) und der Abschluss (409, „Vor dem Abschluss“); Fahrzeit zu kurz (erst „So buchen“, danach nur „Ändern“);
+ein Tag nur mit Uhrzeiten wie bisher; Kolonne mit Dauer je Person (ohne Pause beide nicht, mit 0:30 nur Mia, mit 0:45 beide, gebucht wie die Vorschau)
+und ihre Rechte; bestehende Dauern unverändert nach Prüfen, Buchungen, Monat & Lohn, beiden Vorschauen, „tagespause“ und einem abgelehnten Abschluss; in
+node die Vorschau des Dialogs, Feld und Sätze, „Prüfen“ (kein „So buchen“, „Ändern“ nur mit Recht, mit Vorschlag beides), die Kolonne und „Meine Zeiten“.
+`klicktest_zeiten`: Toms Dauer mit 0:45 („passt“, Bild) und 0 („passt danach nicht“, Bild), Feld und Sätze; „Kolonne buchen“ mit Dauer (ohne Pause /
+mit 30); Mia am 20.10. „Dauer“ 8,00 ohne Pause -> „Prüfen“ mit „Pause angeben“ und „Ändern“ (Bild) -> 0:30 -> weg, danach gelöscht.
+
+Angepasste Erwartungen:
+- `test_v483::test_reine_dauer_behaelt_ihre_pause`: Kolonnen-Nachtrag 8 h ohne Pause -- passt True -> passt False, `fehlt` 30, `noetig` 30 (der Vorschlag
+  bleibt leer, die Pause der Dauer unverändert).
+- `test_v518::test_wechsel_zu_dauer_leert_von_bis_und_sagt_es`: Hinweis „… gespeichert wird nur die Dauer (netto), ohne Pausenregel.“ -> „… gespeichert
+  werden die Stunden (netto) und die Pause, die du angibst.“
+- `test_v518::test_pause_passt_nicht_mit_vorschau_und_so_buchen`: nur der Aufbau -- die Testdaten des Tags um `fehlt`, `noetig`, `dauern` ergänzt (die
+  Seite zeigt „nach Zeitregel“ aus `noetig`), `fehltHtml` in der Liste der Funktionen des node-Laufs (im ersten Lauf rot: ReferenceError).
+- `test_v508::test_meine_zeiten_seite`: Bedingung des Knopfs „Pausen neu rechnen“ `(t.abgeschlossen||zu?''` -> `(t.abgeschlossen||zu||!plan?''`
+  (dasselbe Soll für abgeschlossene Aufträge, dazu ohne Vorschlag kein Knopf).
+- `test_v326`: `OHNE_200` und `QUERY_JE_ROUTE` um die beiden neuen Vorschauen ergänzt (die Monteurin bekommt 422 wie beim Speichern) -- neue Einträge,
+  keine geänderte Erwartung.
+- `klicktest_zeiten` „Fin: Wechsel zu „Dauer“ …“: Hinweis wie oben.
+
+Im ersten Lauf rot und am Code behoben: `test_v462::test_eine_pausenregel_keine_zweite_rechnung` (die Pflichtpause rechnete `_pausen_stand()` zuerst
+selbst über das Arbeitszeitmodell -- jetzt über `pause_nach_zeitregel(deckel=False)`, die eine Regel).
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED mit Abweichung im Ergebnis): kein „fehlt“ -> 6 Tests (v527, v483); Vorschau ohne die
+angegebene Pause -> 3 Tests; Vorschau beim Ändern mit der alten Fassung -> 2 Tests; neu rechnen ohne die Prüfung „nichts zu rechnen“ -> 1 Test (anderer
+Text); Vorschau der Dauer für die Monteurin -> 1 Test; Kolonnen-Vorschau für die Kolonnenführerin -> 1 Test; „Prüfen“ mit dem Vorschlag-Kasten auch ohne
+Vorschlag -> 1 Test; „Prüfen“ ohne den Weg zu „Ändern“ -> 1 Test; Dialog „Dauer“ ohne Anfrage -> 1 Test; „Meine Zeiten“ mit „Pausen neu rechnen“ auch
+ohne Vorschlag -> 2 Tests (v527, v508). Zwei Gegenproben griffen zuerst nicht: „So buchen“ auch ohne Vorschlag über die Knöpfe blieb grün (ohne Vorschlag
+werden die Knöpfe nie gezeichnet -- die Gegenprobe sitzt jetzt am Kasten), die Monteurin scheiterte über einen KeyError (der Test vergleicht jetzt Status
+und Meldung zusammen).

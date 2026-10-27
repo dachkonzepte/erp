@@ -15,15 +15,21 @@ dem abgeschlossenen Auftrag; Toms Antrag Urlaub 02.–06.11. offen.
                             gekennzeichnet, „Dauer · vom Büro“; Filter Mitarbeiter, Auftrag, Zeitart ändern Liste und „Summe der Auswahl“
                             (= Summe der gezeigten gebuchten Zeilen, die laufende zählt nicht); Ändern mit Von–Bis: Vorschau „Anwesend 9:30
                             h · Tag zusammen 10:15 h · Pause nach Zeitregel − 0:45 h“, Knopf „8,75 h speichern“ -- Bild; Bis 16:00 -> 8,25 h
-                            gespeichert; Wechsel zu „Dauer“: Von/Bis leer, Hinweis, 8,00 h gespeichert, Beginn und Ende leer (API); „+ Buchung“
-                            für Mia 07:00–11:00 -> 4,00 h; Löschen mit Rückfrage auf der Seite (kein confirm())
+                            gespeichert; Wechsel zu „Dauer“: Von/Bis leer, Hinweis, „Pause an diesem Tag“ mit 45 vorbelegt, Vorschau vom
+                            Server „Anwesend 8:45 h · Tag zusammen 9:30 h · Pause des Tags passt“, mit 0 „… passt danach nicht – der Tag
+                            erscheint unter „Prüfen““ -- Bilder (seit 1.9.107) --, 8,00 h mit 0:45 gespeichert, Beginn und Ende leer (API);
+                            „+ Buchung“ für Mia 07:00–11:00 -> 4,00 h; Löschen mit Rückfrage auf der Seite (kein confirm())
     Büro – Auftrag          Prüfen und Buchungen ohne Knöpfe (kein „Ende um“, kein „So buchen“, kein „⋮“, kein „+ Buchung“), seit 1.9.102
                             „Zur Info“ statt „Wartet auf dich“ mit dem Satz, wer das Ende einträgt, keine Zahl am Reiter „Prüfen“ -- Bild; seit
                             1.9.98 aus klicktest_backoffice_buero (das Backoffice gibt es nicht mehr): keine Anfrage an Buchungskontext und
                             Personalnummern, Stundenzettel PDF, CSV und DATEV-Export vom Server 403
     dunkel                  Prüfen und Buchungen; Farbpunkte der Zeitarten aus den Tokens (hell und dunkel verschieden) -- Bilder
-    Kolonne (seit 1.9.97)   Büro – Finanzen über „⋮ Kolonne buchen“: Kolonne 1 mit Mia und Tom, 07:00–12:00 -> Vorschau je Person, „Für 2
-                            Personen speichern“, beide Buchungen in der Liste
+    Kolonne (seit 1.9.97)   Büro – Finanzen über „⋮ Kolonne buchen“: Kolonne 1 mit Mia und Tom; seit 1.9.107 zuerst „Dauer“ 8,00: ohne Pause
+                            „passt danach nicht“ je Person, mit 30 „passt“; dann 07:00–12:00 -> Vorschau je Person, „Für 2 Personen
+                            speichern“, beide Buchungen in der Liste
+    Nur Dauern (1.9.107)    Büro – Finanzen bucht Mia am 20.10. „Dauer“ 8,00 ohne Pause (Vorschau „passt danach nicht“): unter „Prüfen“ statt
+                            „So buchen“ „Pause angeben“ mit der Dauer und „Ändern“ -- Bild --; „Ändern“ öffnet den Dialog in „Dauer“, 30 ->
+                            „passt“, gespeichert, der Tag ist weg; danach gelöscht (die Summen weiter unten bleiben)
     Abwesenheiten           Admin genehmigt Toms Antrag mit Notiz (Zahl am Reiter weg); Büro – Auftrag beantragt für sich (ohne Feld
                             Mitarbeiter), zieht mit Rückfrage zurück, kein Reiter „Monat & Lohn“ (API 403), für Tom vom Server 403; seit 1.9.101
                             Büro – Finanzen ohne eigenen Mitarbeiter: alle Anträge, „Krank“ für Tom mit „beantragt von“ -- Bild --, entscheiden 403,
@@ -323,12 +329,29 @@ async def pruefen(tab, seed, p):
         "document.getElementById('bdUnter').innerText.replace(/am \\d\\d\\.\\d\\d\\., \\d\\d:\\d\\d$/,'am …')"),
         "Tom Monteur · gebucht von Tom Monteur am 15.10., 16:31 · geändert von Fin Finanzen am …")
     await tab.js("document.getElementById('bdModusDauer').click()")
+    # seit 1.9.107 (Nachrunde 2, Punkt 1): der Hinweis nennt die Pause (bis 1.9.106 „gespeichert wird nur die Dauer (netto), ohne Pausenregel.“)
     p.pruefe("Fin: Wechsel zu „Dauer“ -- Von/Bis leer und weg, Hinweis, Stunden", await tab.js(
         "[document.getElementById('bdVon').value,document.getElementById('bdBis').value,document.getElementById('bdVonFeld').hidden,"
         "document.getElementById('bdDauerHinweis').hidden,document.getElementById('bdDauerHinweis').innerText,document.getElementById('bdStundenFeld').hidden]"),
-        ["", "", True, False, "Mit „Dauer“ entfallen Von und Bis – gespeichert wird nur die Dauer (netto), ohne Pausenregel.", False])
+        ["", "", True, False, "Mit „Dauer“ entfallen Von und Bis – gespeichert werden die Stunden (netto) und die Pause, die du angibst.", False])
+    p.pruefe("Fin: „Pause an diesem Tag“ sichtbar, vorbelegt, mit Satz; der Satz unter der Vorschau", await tab.js(
+        "[document.getElementById('bdPauseDauerFeld').hidden,document.getElementById('bdPauseDauerFeld').innerText.replace(/\\s+/g,' ').trim(),"
+        "document.getElementById('bdPauseDauer').value,document.getElementById('bdVorschauKlein').innerText,"
+        "document.getElementById('bdWeitereFelder').contains(document.getElementById('bdPauseDauer'))]"),
+        [False, "Pause an diesem Tag (Min.) zählt zur Pause des Tags", "45",
+         "Dieselbe Regel wie auf dem Tablet. „Dauer“ bucht die Stunden netto; die Pause gibst du an.", False])
     await _eingeben(tab, "bdStunden", "8")
     p.pruefe("Fin: Dauer 8 -> Knopf", await tab.warten("document.getElementById('bdSpeichern').innerText==='8,00 h speichern'", 5), True)
+    p.pruefe("Fin: Dauer 8,00 mit 0:45 -- Vorschau vom Server", await tab.warten(
+        "document.getElementById('bdVorschauZeile').innerText==='Anwesend 8:45 h · Tag zusammen 9:30 h · Pause des Tags passt'", 10), True)
+    await tab.bild("zeiten_dialog_dauer_passt")
+    await _eingeben(tab, "bdPauseDauer", "0")
+    p.pruefe("Fin: Pause 0 -- passt danach nicht", await tab.warten(
+        "document.getElementById('bdVorschauZeile').innerText==='Anwesend 8:00 h · Tag zusammen 8:45 h · Pause des Tags passt danach nicht – der Tag "
+        "erscheint unter „Prüfen“'", 10), True)
+    await tab.bild("zeiten_dialog_dauer_passt_nicht")
+    await _eingeben(tab, "bdPauseDauer", "45")
+    await tab.warten("document.getElementById('bdVorschauZeile').innerText.endsWith('Pause des Tags passt')", 10)
     await tab.warte_auf_neu_geladene_liste("document.getElementById('bdSpeichern').click()", "#buchungenZeilen")
     p.pruefe("Fin: als Dauer gespeichert -- Zeile", await tab.js(
         f"[...document.querySelector('tr[data-buchung=\"{seed['attika']}\"]').cells].slice(2,7).map(c=>c.innerText)"),
@@ -362,6 +385,16 @@ async def pruefen(tab, seed, p):
         "document.getElementById('kolonneDialog').open&&document.querySelectorAll('.kd-mitglied:checked').length===2", 10), True)
     await tab.js(f"document.getElementById('kdAuftrag').value='{seed['halle_nord']}'")
     await _eingeben(tab, "kdDatum", "2026-10-23")
+    # seit 1.9.107: „Dauer“ je Person vom Server
+    await tab.js("document.getElementById('kdModusDauer').click()")
+    await _eingeben(tab, "kdStunden", "8")
+    p.pruefe("Fin: Kolonne „Dauer“ 8,00 ohne Pause -- je Person „passt danach nicht“", await tab.warten(
+        "document.getElementById('kdVorschauZeile').innerText.replace(/\\s+/g,' ')==='Mia Monteurin 8,00 h – Pause passt danach nicht · Tom Monteur "
+        "8,00 h – Pause passt danach nicht Passt die Pause eines Tags danach nicht, erscheint er unter „Prüfen“.'", 10), True)
+    await _eingeben(tab, "kdPauseDauer", "30")
+    p.pruefe("Fin: Kolonne „Dauer“ mit 30 -- passt", await tab.warten(
+        "document.getElementById('kdVorschauZeile').innerText==='Mia Monteurin 8,00 h – Pause passt · Tom Monteur 8,00 h – Pause passt'", 10), True)
+    await tab.js("document.getElementById('kdModusVonBis').click()")
     await _eingeben(tab, "kdVon", "07:00")
     await _eingeben(tab, "kdBis", "12:00")
     p.pruefe("Fin: Kolonne -- Vorschau je Person und Knopf", await tab.warten(
@@ -372,6 +405,47 @@ async def pruefen(tab, seed, p):
     p.pruefe("Fin: Kolonne gebucht -- beide in der Liste", await tab.js(_zeilen() + ".filter(z=>z[0]==='Fr 23.10.')"), [
         ["Fr 23.10.", "Mia Monteurin", "07:00–12:00", "Baustellenzeit", "AUF-2026-0001 · Halle Nord", "0:00", "5,00"],
         ["Fr 23.10.", "Tom Monteur", "07:00–12:00", "Baustellenzeit", "AUF-2026-0001 · Halle Nord", "0:00", "5,00"]])
+
+    # ---- Büro – Finanzen: ein Tag nur aus Dauern (seit 1.9.107) -------------------------------------------------------------------------
+    await tab.js("document.getElementById('neueBuchung').click()")
+    await tab.warten("document.getElementById('buchungDialog').open&&document.getElementById('bdMitarbeiter').options.length>1", 10)
+    await tab.js(f"document.getElementById('bdMitarbeiter').value='{seed['mia']}';document.getElementById('bdAuftrag').value='{seed['halle_nord']}'")
+    await _eingeben(tab, "bdDatum", "2026-10-20")
+    await tab.js("document.getElementById('bdModusDauer').click()")
+    await _eingeben(tab, "bdStunden", "8")
+    p.pruefe("Fin: Mia 20.10. Dauer 8,00 ohne Pause -- passt danach nicht", await tab.warten(
+        "document.getElementById('bdVorschauZeile').innerText==='Anwesend 8:00 h · Pause des Tags passt danach nicht – der Tag erscheint unter „Prüfen“'",
+        10), True)
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('bdSpeichern').click()", "#buchungenZeilen")
+    await tab.js("document.querySelector('.reiter a[data-reiter=pruefen]').click()")
+    p.pruefe("Fin: Prüfen -- der Tag mit „Pause angeben“", await tab.warten("document.querySelectorAll('#pauseListe [data-fehlt]').length===1", 10), True)
+    p.pruefe("Fin: Prüfen -- Zeile, kein „So buchen“, die Dauer mit „Ändern“", await tab.js(
+        "[document.querySelector('#pauseListe .zeile-name').innerText,document.querySelector('#pauseListe .zeile-unter').innerText,"
+        "document.querySelector('#pauseListe [data-fehlt] .neu-rechnen-text').innerText,"
+        "[...document.querySelectorAll('#pauseListe .dauer-zeile')].map(z=>z.innerText.replace(/\\s+/g,' ').trim()),"
+        "document.querySelectorAll('#pauseListe [data-aktion=pause-buchen]').length,document.getElementById('zahlPruefen').innerText]"),
+        ["Mia Monteurin · Di 20.10.", "Pause abgezogen 0:00 h · nach Zeitregel 0:30 h",
+         "Pause angeben: Hier lässt sich nichts abziehen – die Pause steht in der Dauer, trag sie unter „Ändern“ ein.",
+         ["Baustellenzeit · Dauer 8,00 h · Pause 0:00 Ändern"], 0, "2"])
+    await tab.js("document.querySelector('#pauseListe [data-fehlt]').scrollIntoView({block:'center'})")
+    await tab.bild("zeiten_pruefen_nur_dauern")
+    await tab.js("document.querySelector('#pauseListe [data-aktion=pause-aendern]').click()")
+    p.pruefe("Fin: „Ändern“ öffnet den Dialog in „Dauer“ mit Pause 0", await tab.warten(
+        "document.getElementById('buchungDialog').open&&document.getElementById('bdModusDauer').getAttribute('aria-pressed')==='true'"
+        "&&document.getElementById('bdPauseDauer').value==='0'&&document.getElementById('bdVorschauZeile').innerText.includes('passt danach nicht')", 10), True)
+    await _eingeben(tab, "bdPauseDauer", "30")
+    p.pruefe("Fin: Pause 30 -- passt", await tab.warten(
+        "document.getElementById('bdVorschauZeile').innerText==='Anwesend 8:30 h · Pause des Tags passt'", 10), True)
+    await tab.js("document.getElementById('bdSpeichern').click()")
+    p.pruefe("Fin: gespeichert -- der Tag ist weg", await tab.warten(
+        "!document.getElementById('buchungDialog').open&&document.getElementById('pauseKarte').hidden", 10), True)
+    nur = [e for e in (await _api(tab, f"/api/zeiten/buchungen?monat=2026-10&mitarbeiter={seed['mia']}"))["eintraege"] if e["work_date"] == "2026-10-20"]
+    p.pruefe("Fin: Mia 20.10. -- Dauer 8,00 mit 0:30 (API)", [(float(e["hours"]), e["break_minutes"], e["started_at"]) for e in nur], [(8.0, 30, None)])
+    await _buchungen(tab)
+    await _menue(tab, nur[0]["id"], "loeschen")
+    await tab.warten("document.getElementById('loeschDialog').open", 5)
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('ldLoeschen').click()", "#buchungenZeilen")
+    p.pruefe("Fin: Mia 20.10. wieder gelöscht", await tab.js(f"!document.querySelector('tr[data-buchung=\"{nur[0]['id']}\"]')"), True)
     p.pruefe("Fin: keine JS-Fehler (auch kein alert/confirm)", tab.fehler, [])
 
     # ---- Büro – Auftrag: ohne Knöpfe ---------------------------------------------------------------------------------------------------

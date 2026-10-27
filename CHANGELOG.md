@@ -4,6 +4,20 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.107 – Die Pause einer Dauer gibt man an; ein Tag nur aus Dauern unter „Prüfen“ (Stufe 4, R5b Nachrunde 2)
+
+Entscheidung von Tobias: die Pause einer Dauer gibt man an. In „Buchung ändern“ und „Kolonne buchen“ steht in „Dauer“ das Feld „Pause an diesem Tag
+(Min.)“ sichtbar, darunter „zählt zur Pause des Tags“, und die Vorschau rechnet beim Server: „Anwesend 8:45 h · Tag zusammen 9:30 h · Pause des Tags
+passt“ bzw. „… passt danach nicht – der Tag erscheint unter „Prüfen““, für die Kolonne je Person. Bis 1.9.106 zeigte „Dauer“ nur die Stunden; die
+Pause lief still mit, obwohl sie entscheidet, ob der Tag passt. Der Satz unter der Vorschau heißt jetzt „„Dauer“ bucht die Stunden netto; die Pause
+gibst du an.“
+
+Ein Tag, dessen Pflichtpause die Regel nicht unterbringen kann, weil sie in einer Dauer stehen müsste (ein Tag nur aus Dauern, oder die Buchungen mit
+Uhrzeiten sind zu kurz), passt jetzt nicht: „Prüfen“ zeigt ihn mit „Pause angeben“ und je Dauer „Ändern“ statt „So buchen“, das dort nichts abziehen
+könnte, und der Abschluss wartet auf ihn. Bis 1.9.106 passte ein Tag nur aus Dauern immer, auch 8 h ohne Pause. Bestehende Dauern bleiben, wie sie sind.
+Dabei aufgefallen: im Befund 3 (1.9.100) stand für Toms Tag mit 9,5 h Anwesenheit „Pflichtpause 30 min“ -- richtig sind 45 min (mehr als 9 h); das
+Ergebnis „passt“ stimmte, weil die Dauer 45 min trägt.
+
 ## 1.9.106 – Einstellungen: Berater- und Mandantennummer für Büro – Finanzen erkennbar gesperrt (Stufe 4, R5b Nachrunde)
 
 In Einstellungen → Zeitregeln und DATEV sah Büro – Finanzen Berater- und Mandantennummer wie bearbeitbare Felder (sie waren nur `readonly`, ändern

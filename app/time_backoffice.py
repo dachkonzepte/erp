@@ -80,7 +80,7 @@ def abschluss_hindernisse(db: Session, bis: date) -> list[dict]:
     for employee_id, tag, stand in unpassende_pausen(db, ab, bis):
         name = employee_name(db.get(Employee, employee_id)) or f"#{employee_id}"
         liste.append({"art": "pause", "employee_id": employee_id, "name": name, "tag": tag, "entry_id": None,
-                      "text": f"{name}, {tag:%d.%m.%Y}: Pause abgezogen {stand['abgezogen']} min, nach Zeitregel {stand['nach_zeitregel']} min"})
+                      "text": f"{name}, {tag:%d.%m.%Y}: Pause abgezogen {stand['abgezogen']} min, nach Zeitregel {stand['noetig']} min"})
     return liste
 
 

@@ -99,5 +99,6 @@ def test_meine_zeiten_seite():
     zeile = _funktion(text, "zeileHtml")
     assert "'<span class=\"zeile-zu\" data-geschlossen=\"'+esc(z.auftrag_geschlossen)+'\">Auftrag '+esc(z.auftrag_geschlossen)+'</span>'" in zeile
     assert "+zu+weg+'</span>'" in zeile
-    assert "(t.abgeschlossen||zu?'':'<button type=\"button\" class=\"knopf knopf-neutral knopf-klein\" data-aktion=\"pausen\"" in text
+    # seit 1.9.107 auch ohne Vorschlag kein Knopf (es fehlt nur die Pause einer Buchung ohne Uhrzeiten, test_v527)
+    assert "(t.abgeschlossen||zu||!plan?'':'<button type=\"button\" class=\"knopf knopf-neutral knopf-klein\" data-aktion=\"pausen\"" in text
     assert "return t.zeilen.some(function(r){return r.id===b.id&&r.auftrag_geschlossen})" in text
