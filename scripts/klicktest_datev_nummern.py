@@ -3,8 +3,8 @@
     Admin           Ada: beide Felder leer und bearbeitbar, Knopf „Berater- und Mandantennummer speichern“; „123“ -> Meldung mit dem Format, nichts
                     gespeichert; „1234567“ / „12345“ -> „Gespeichert.“, gespeichert; eine ungespeicherte Änderung der Rundung bleibt stehen;
                     nach dem Neuladen stehen die Nummern da; keine JS-Fehler
-    Büro – Finanzen Fin: die Nummern sichtbar, nur lesbar, kein Knopf, Hinweis „Ändern kann sie nur ein Administrator.“; derselbe PUT vom
-                    Server 403; keine JS-Fehler
+    Büro – Finanzen Fin: die Nummern sichtbar, gesperrt und grau (seit 1.9.106, vorher readonly ohne Unterschied zu einem bearbeitbaren Feld),
+                    kein Knopf, Hinweis „Ändern kann sie nur ein Administrator.“; derselbe PUT vom Server 403; keine JS-Fehler
 
 AUFRUF (aus dem Projektordner):
 
@@ -53,7 +53,7 @@ async def pruefen(tab, seed, p):
     await tab.anmelden(seed["ada"])
     p.pruefe("Ada: Zeitregeln und DATEV geladen", await tab.oeffnen("/settings#time-rules", BEREIT), True)
     p.pruefe("Ada: Felder leer, bearbeitbar, Knopf da", await tab.js(
-        f"[...{WERTE},document.getElementById('datevBerater').readOnly,!!document.getElementById('datevNummernSpeichern')]"),
+        f"[...{WERTE},document.getElementById('datevBerater').disabled,!!document.getElementById('datevNummernSpeichern')]"),
         ["", "", False, True])
     # eine ungespeicherte Änderung der Zeitregeln -- das Speichern der Nummern lässt sie stehen
     await tab.js("document.getElementById('rounding').value='15'")
@@ -80,11 +80,19 @@ async def pruefen(tab, seed, p):
     # ---- Büro – Finanzen: sieht, ändert nicht --------------------------------------------------------------------------------
     await tab.anmelden(seed["fin"])
     p.pruefe("Fin: Zeitregeln und DATEV geladen", await tab.oeffnen("/settings?als=fin#time-rules", BEREIT), True)
-    p.pruefe("Fin: Nummern sichtbar, nur lesbar, kein Knopf, Hinweis", await tab.js(
-        f"[...{WERTE},document.getElementById('datevBerater').readOnly,document.getElementById('datevMandant').readOnly,"
+    # seit 1.9.106 (Nachrunde, Punkt 7) gesperrt (disabled) und grau wie jedes gesperrte Feld der Einstellungen -- bis 1.9.105 readonly, sah
+    # bearbeitbar aus
+    p.pruefe("Fin: Nummern sichtbar, gesperrt, kein Knopf, Hinweis", await tab.js(
+        f"[...{WERTE},document.getElementById('datevBerater').disabled,document.getElementById('datevMandant').disabled,"
         "!!document.getElementById('datevNummernSpeichern'),"
         "document.getElementById('datevNummernHinweis').textContent.includes('Ändern kann sie nur ein Administrator.')]"),
         ["1234567", "12345", True, True, False, True])
+    p.pruefe("Fin: erkennbar nur lesbar -- Fläche und Schrift anders als ein bearbeitbares Feld (Lohnart), Mauszeiger „nicht erlaubt“", await tab.js(
+        "(()=>{const s=id=>getComputedStyle(document.getElementById(id));const b=s('datevBerater'),l=s('wageSite');"
+        "const t=document.createElement('div');t.style.background='var(--soft)';t.style.color='var(--muted)';document.body.appendChild(t);"
+        "const ts=getComputedStyle(t);const soll=[ts.backgroundColor,ts.color];t.remove();"
+        "return [b.backgroundColor!==l.backgroundColor,b.color!==l.color,b.backgroundColor===soll[0],b.color===soll[1],b.cursor]})()"),
+        [True, True, True, True, "not-allowed"])
     p.pruefe("Fin: derselbe PUT vom Server abgelehnt", await tab.js(
         "fetch('/api/time-backoffice/datev-nummern',{method:'PUT',headers:{'Content-Type':'application/json'},"
         "body:JSON.stringify({beraternummer:'1001',mandantennummer:'1'})}).then(r=>r.status)"), 403)

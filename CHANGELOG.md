@@ -4,6 +4,13 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.106 – Einstellungen: Berater- und Mandantennummer für Büro – Finanzen erkennbar gesperrt (Stufe 4, R5b Nachrunde)
+
+In Einstellungen → Zeitregeln und DATEV sah Büro – Finanzen Berater- und Mandantennummer wie bearbeitbare Felder (sie waren nur `readonly`, ändern
+kann sie nur ein Administrator). Jetzt sind sie gesperrt (`disabled`) und grau, und jedes gesperrte Feld der Einstellungen hat diese Darstellung
+(graue Fläche, gedämpfte Schrift, Mauszeiger „nicht erlaubt“) -- bisher überschrieb die eigene Gestaltung der Felder das Grau des Browsers, gesperrte
+Felder (etwa Basiszinssatz und Rechtstexte für das Büro) sahen aus wie bearbeitbare.
+
 ## 1.9.105 – Arbeitstage ohne Feiertage NRW, „Abschluss aufheben“ nur auf ein Monatsende (Stufe 4, R5b Nachrunde)
 
 Zwei Festlegungen von Tobias zur Seite „Zeiten“: „n Arbeitstage“ an einem Abwesenheitsantrag zählt Montag bis Freitag ohne die gesetzlichen

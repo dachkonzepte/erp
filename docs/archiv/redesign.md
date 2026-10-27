@@ -6533,3 +6533,29 @@ Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED mit Abweichung i
 erlaubt -> 1 Test (200 statt 422); zurücknehmen auf jeden Tag -> 1 Test (200 statt 422); der Dialog wieder mit „nichts“ -> 1 Test. Die beiden
 Gegenproben am Abschluss liefen zuerst über einen KeyError (die Antwort 200 hat kein `detail`); der Test vergleicht jetzt Status und Meldung
 zusammen, dieselben Gegenproben scheitern seither an „200 != 422“.
+
+### R5b Nachrunde, Punkt 7 (1.9.106): Berater- und Mandantennummer für Büro – Finanzen erkennbar nur lesbar
+
+- `settings.html`: `datevBerater`/`datevMandant` für Nicht-Admins `disabled` statt `readonly`; neue Regel `input:disabled,select:disabled,
+  textarea:disabled{background:var(--soft);color:var(--muted);cursor:not-allowed}` -- wie die gesperrten Felder auf Auftrag und Checkliste. Bis
+  dahin gab die Seite allen Feldern `background:var(--card);color:var(--ink)`, das überdeckte das Grau des Browsers für gesperrte Felder: auch die
+  schon gesperrten Felder der Einstellungen (Basiszinssatz, Rechtstexte, Vertragsklauseln und -vorlagen für Nicht-Admins, der Schlüssel eines
+  Schichttyps, einer Bauteilart, einer Dokumentkategorie beim Bearbeiten) sahen bearbeitbar aus und sind jetzt ebenso grau.
+
+#### Festlegungen 1.9.106 (Bitte bestätigen)
+
+1. „Nur lesbar“ in den Einstellungen heißt gesperrt (`disabled`) -- wie die übrigen gesperrten Felder dort; der Hinweis „Ändern kann sie nur ein
+   Administrator.“ bleibt.
+2. Jedes gesperrte Feld der Einstellungen bekommt dieselbe Darstellung (graue Fläche `--soft`, Schrift `--muted`, Mauszeiger „nicht erlaubt“), nicht
+   nur die beiden Nummern.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v526_datev_nummern_gesperrt.py` (Büro – Finanzen gesperrt, Admin nicht, nie `readonly`; die Regel für gesperrte Felder).
+`klicktest_datev_nummern`: Fin -- gesperrt, Fläche und Schrift anders als ein bearbeitbares Feld (Lohnart Baustelle) und wie `--soft`/`--muted`,
+Mauszeiger „nicht-erlaubt“ (Bild).
+
+Angepasste Erwartungen (`klicktest_datev_nummern`): „Ada: Felder leer, bearbeitbar, Knopf da“ und „Fin: Nummern sichtbar, nur lesbar …“ prüfen
+`disabled` statt `readOnly` (dasselbe Soll: Admin bearbeitbar, Büro nicht) -- nur der Aufbau.
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): wieder `readonly` -> 1 Test; ohne Regel für gesperrte Felder -> 1 Test.
