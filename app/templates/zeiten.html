@@ -177,11 +177,12 @@
 
 <section id="reiter-pruefen" class="pruefen" aria-label="Prüfen">
   <div class="spalte">
+    {# seit 1.9.102: „Wartet auf dich“ (Signal), wenn das Konto das Ende eintragen darf -- sonst (Büro – Auftrag) „Zur Info“ als ruhige Karte #}
     <section class="karte-signal" id="offenKarte" aria-labelledby="offenTitel" hidden>
-      <div class="karte-kopf"><span class="eb-signal"><span class="punkt"></span>Wartet auf dich</span><span class="karte-zahl" id="offenZahl"></span></div>
+      <div class="karte-kopf"><span class="eb-signal" id="offenEb"><span class="punkt"></span><span id="offenEbText">Wartet auf dich</span></span><span class="karte-zahl" id="offenZahl"></span></div>
       <h2 id="offenTitel" style="margin-bottom:6px">Zeiten von früher laufen noch</h2>
       <div id="offenListe"></div>
-      <p class="fuss">Gebucht wird erst mit deinem Klick, dieselbe Pausenregel wie auf dem Tablet. Im Verlauf steht, wer das Ende eingetragen hat.</p>
+      <p class="fuss" id="offenFuss">Gebucht wird erst mit deinem Klick, dieselbe Pausenregel wie auf dem Tablet. Im Verlauf steht, wer das Ende eingetragen hat.</p>
     </section>
     <section class="karte" id="pauseKarte" aria-labelledby="pauseTitel" hidden>
       <div class="karte-kopf"><h2 id="pauseTitel">Pause passt nicht zum Tag</h2><span class="karte-zahl" id="pauseZahl"></span></div>
@@ -437,7 +438,10 @@ function auftragKurz(z){return auftragTitel({order_number:z.order_number,title:z
 function pruefenZeichnen(d){
   zahlSetzen('zahlPruefen',d.zahlen.pruefen);
   zahlSetzen('zahlAbwesenheiten',d.zahlen.abwesenheiten);
-  // Zeiten von früher
+  // Zeiten von früher -- „Wartet auf dich“ nur, wenn das Konto ein Ende eintragen darf (seit 1.9.102; sonst „Zur Info“ mit Hinweis, wer es tut)
+  var art=offenArt(d.offene_zeiten);
+  el('offenKarte').className=art.karte;el('offenEb').className=art.eb;el('offenEb').querySelector('.punkt').hidden=!art.punkt;
+  el('offenEbText').textContent=art.text;el('offenFuss').textContent=art.fuss;
   el('offenKarte').hidden=!d.offene_zeiten.length;
   el('offenZahl').textContent=d.offene_zeiten.length+(d.offene_zeiten.length===1?' Zeit':' Zeiten');
   el('offenListe').innerHTML=d.offene_zeiten.map(offenHtml).join('');
@@ -471,6 +475,14 @@ function abschlussHtml(d){
   return d.vor_dem_abschluss.map(function(x){return '<li data-art="'+esc(x.art)+'"><span class="punkt"></span>'+esc(x.text)+'</li>'}).join('')
     +(d.vor_dem_abschluss.length?(d.antraege_entschieden?ok('Anträge entschieden'):'')
       :ok(d.antraege_entschieden?'Nichts offen – der Monat lässt sich abschließen.':'Der Monat lässt sich abschließen.'));
+}
+// Seit 1.9.102 (Nachrunde, Punkt 4): die Karte „Zeiten von früher laufen noch“ wartet nur auf das Konto, wenn es an mindestens einer Zeit das Ende
+// eintragen darf (darf_schliessen) -- sonst (Büro – Auftrag) ruhig „Zur Info“, unten, wer das Ende einträgt
+function offenArt(zeiten){
+  var wartet=zeiten.some(function(z){return z.darf_schliessen});
+  return wartet?{karte:'karte-signal',eb:'eb-signal',punkt:true,text:'Wartet auf dich',
+                 fuss:'Gebucht wird erst mit deinem Klick, dieselbe Pausenregel wie auf dem Tablet. Im Verlauf steht, wer das Ende eingetragen hat.'}
+    :{karte:'karte',eb:'eb',punkt:false,text:'Zur Info',fuss:'Das Ende trägt der Admin oder Büro – Finanzen ein.'};
 }
 function offenHtml(z){
   var unter=z.zeitart+' seit '+tagKurz(z.seit)+', '+uhr(z.seit)+' · '+auftragKurz(z)+(z.auftrag_geschlossen?' (Auftrag '+z.auftrag_geschlossen+')':'')

@@ -83,7 +83,10 @@ def zeiten_pruefen(request: Request, db: Session = Depends(get_db, scope="functi
         daten["vor_dem_abschluss"].append({"art": "antraege", "text": _anzahl(len(daten["antraege"]), "Antrag offen", "Anträge offen")})
     daten["antraege_entschieden"] = not list_requests(db, status="pending")
     daten["rechte"] = _rechte(user)
-    daten["zahlen"] = {"pruefen": len(daten["offene_zeiten"]) + len(daten["pausen"]), "abwesenheiten": len(daten["antraege"])}
+    # seit 1.9.102 (Nachrunde, Punkt 4): die Zahl am Reiter „Prüfen“ zählt nur, was auf dieses Konto wartet -- Zeiten von früher, deren Ende es
+    # eintragen darf, und Tage, deren Pause es buchen darf; Büro – Auftrag (liest nur) bekommt keine Zahl (bis 1.9.101 alle)
+    daten["zahlen"] = {"pruefen": sum(1 for z in daten["offene_zeiten"] if z["darf_schliessen"]) + sum(1 for t in daten["pausen"] if t["darf_buchen"]),
+                       "abwesenheiten": len(daten["antraege"])}
     return daten
 
 

@@ -189,3 +189,17 @@ def test_befund_r5_farben_symbole_meldungen():
     assert not re.search("[\U0001F300-\U0001FAFF▶■]", html)
     assert "alert(" not in html and "confirm(" not in html and "prompt(" not in html
     assert "fehlerText(body,r.status,FELDER)" in _skript()
+
+
+# --- seit 1.9.102 (R5b Nachrunde, Punkt 4): „Prüfen“ für Büro – Auftrag ------------------------------------------------------------------
+
+def test_karte_zeiten_von_frueher_wartet_nur_auf_wer_das_ende_eintraegt():
+    """Darf das Konto an einer Zeit das Ende eintragen: Signalkarte „Wartet auf dich“ mit dem Satz zum Klick. Sonst (Büro – Auftrag) ruhige
+    Karte „Zur Info“ ohne Punkt und „Das Ende trägt der Admin oder Büro – Finanzen ein.“ (bis 1.9.101 immer „Wartet auf dich“)."""
+    wartet = _node(("offenArt",), f"return offenArt([{json.dumps({**OFFEN, 'darf_schliessen': False})},{json.dumps(OFFEN)}])")
+    assert (wartet["karte"], wartet["eb"], wartet["punkt"], wartet["text"]) == ("karte-signal", "eb-signal", True, "Wartet auf dich")
+    assert wartet["fuss"].startswith("Gebucht wird erst mit deinem Klick")
+    info = _node(("offenArt",), f"return offenArt([{json.dumps({**OFFEN, 'darf_schliessen': False})}])")
+    assert info == {"karte": "karte", "eb": "eb", "punkt": False, "text": "Zur Info", "fuss": "Das Ende trägt der Admin oder Büro – Finanzen ein."}
+    rumpf = _funktion(_skript(), "pruefenZeichnen")
+    assert "var art=offenArt(d.offene_zeiten);" in rumpf and "el('offenKarte').className=art.karte" in rumpf

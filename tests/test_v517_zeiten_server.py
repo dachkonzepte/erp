@@ -325,3 +325,14 @@ def test_nur_laufende_zeit_ohne_zeile_im_monat(welt):  # noqa: F811
     start_timer(welt["db"], employee_id=welt["tom"].id, order_id=welt["order"].id, started_at=datetime.combine(tag, time(7)))
     assert [x["name"] for x in _get(welt, "/api/zeiten/pruefen")["monat"]["mitarbeiter"]] == ["Mia Monteurin"]
     assert [z["name"] for z in _get(welt, "/api/zeiten/monat", monat=_monat(tag))["zeilen"]] == ["Mia Monteurin"]
+
+
+@pytest.mark.parametrize("rolle, zahl", [("buero_auftrag", 0), ("buero_finanzen", 2), ("admin", 2)])
+def test_zahl_am_reiter_pruefen_nur_was_auf_das_konto_wartet(welt, rolle, zahl):  # noqa: F811
+    """Seit 1.9.102 (R5b Nachrunde, Punkt 4): eine Zeit von früher und ein Tag mit unpassender Pause -- Büro – Auftrag (liest nur) bekommt keine
+    Zahl am Reiter „Prüfen“ (bis 1.9.101: 2), Büro – Finanzen und Admin 2; die Listen sieht jedes Büro."""
+    _abschluss(welt, welt["gestern"] - timedelta(days=1))
+    start_timer(welt["db"], employee_id=welt["tom"].id, order_id=welt["order"].id, started_at=datetime.combine(welt["gestern"], time(6, 45)))
+    _pause_passt_nicht(welt, welt["mia"], welt["gestern"])
+    p = _get(welt, "/api/zeiten/pruefen", rolle)
+    assert (len(p["offene_zeiten"]), len(p["pausen"]), p["zahlen"]["pruefen"]) == (1, 1, zahl)

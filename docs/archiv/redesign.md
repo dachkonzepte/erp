@@ -6392,3 +6392,34 @@ Angepasste Erwartungen:
   Auftrag mit dem neuen Text.
 - `test_v518::test_antraege_entscheidet_nur_der_admin` und `test_v519::test_antrag_knoepfe_nach_dem_server`: nur der Aufbau -- die neue Hilfsfunktion
   `beantragtText` in der Liste der Funktionen, die der node-Lauf lädt (im ersten Lauf rot: ReferenceError).
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED mit Abweichung im Ergebnis): alle Anträge nur der Admin -> 6 Tests (v523, v517, v519);
+zurückziehen die Person selbst statt wer gestellt hat -> 3 Tests; „Anträge entschieden“ ohne `antraege_entschieden` -> 1 Test; „Meine Zeiten“ mit
+„Zurückziehen“ an jedem offenen Antrag -> 1 Test; „Vor dem Abschluss“ ohne die offenen Anträge -> 1 Test.
+
+### R5b Nachrunde, Punkt 4 (1.9.102): „Prüfen“ für Büro – Auftrag
+
+- `app/routers/zeiten.py`: `zahlen.pruefen` = Zeiten von früher mit `darf_schliessen` + Tage mit `darf_buchen` (bis 1.9.101 alle) -- für Büro – Auftrag
+  0, die Seite zeigt dann keine Zahl.
+- `zeiten.html`: die Karte „Zeiten von früher laufen noch“ ist „Wartet auf dich“ (Signalkarte, Punkt) nur, wenn das Konto an mindestens einer Zeit das
+  Ende eintragen darf; sonst ruhige Karte mit „Zur Info“ (Augenbraue ohne Punkt) und unten „Das Ende trägt der Admin oder Büro – Finanzen ein.“
+  statt „Gebucht wird erst mit deinem Klick …“.
+
+#### Festlegungen 1.9.102 (Bitte bestätigen)
+
+1. „Wartet auf dich“ oder „Zur Info“ entscheidet die Karte an den Zeilen: darf das Konto an keiner Zeit das Ende eintragen, ist sie „Zur Info“ (heute
+   Büro – Auftrag; ebenso, wenn alle Zeiten im abgeschlossenen Zeitraum lägen und das Konto nicht Admin ist).
+2. „Zur Info“ ist eine ruhige Karte (weiß mit Rahmen, Augenbraue grau ohne Punkt) -- keine Signalfarbe für etwas, das nicht auf einen wartet.
+3. Die Zahl am Reiter „Prüfen“ zählt nur, was auf das Konto wartet (Ende eintragen, Pause buchen); „Pause passt nicht zum Tag“ bleibt für Büro –
+   Auftrag sichtbar, ohne Knöpfe, ohne eigenen Hinweis.
+
+#### Tests und Prüfung
+
+Neu: `test_v517::test_zahl_am_reiter_pruefen_nur_was_auf_das_konto_wartet` (eine Zeit von früher und ein Tag mit unpassender Pause: Büro – Auftrag 0,
+Büro – Finanzen und Admin 2, die Listen für alle); `test_v518::test_karte_zeiten_von_frueher_wartet_nur_auf_wer_das_ende_eintraegt` (in node: „Wartet
+auf dich“ mit Signal und dem Satz zum Klick, „Zur Info“ ruhig mit dem Satz, wer das Ende einträgt). `klicktest_zeiten`: Büro – Auftrag sieht „Zur
+Info“, den Satz, keinen Punkt, keine Zahl am Reiter „Prüfen“ (Bild); der Admin „Wartet auf dich“ als Signalkarte.
+
+Angepasste Erwartungen: keine geänderte. Im ersten Klicktest-Lauf rot und am Klicktest behoben: die zwei neuen Prüfungen der Karte lasen die
+Augenbraue mit `innerText` -- die zeigt sie in Großbuchstaben („WARTET AUF DICH“, CSS `text-transform`); jetzt `textContent`. Gegenproben (Marker
+`GEGENPROBE`, byte-genau zurück, je FAILED): die Zahl zählt alles -> 1 Test; die Karte immer „Wartet auf dich“ -> 1 Test.

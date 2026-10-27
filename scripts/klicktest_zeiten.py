@@ -17,7 +17,8 @@ dem abgeschlossenen Auftrag; Toms Antrag Urlaub 02.–06.11. offen.
                             h · Tag zusammen 10:15 h · Pause nach Zeitregel − 0:45 h“, Knopf „8,75 h speichern“ -- Bild; Bis 16:00 -> 8,25 h
                             gespeichert; Wechsel zu „Dauer“: Von/Bis leer, Hinweis, 8,00 h gespeichert, Beginn und Ende leer (API); „+ Buchung“
                             für Mia 07:00–11:00 -> 4,00 h; Löschen mit Rückfrage auf der Seite (kein confirm())
-    Büro – Auftrag          Prüfen und Buchungen ohne Knöpfe (kein „Ende um“, kein „So buchen“, kein „⋮“, kein „+ Buchung“) -- Bild; seit
+    Büro – Auftrag          Prüfen und Buchungen ohne Knöpfe (kein „Ende um“, kein „So buchen“, kein „⋮“, kein „+ Buchung“), seit 1.9.102
+                            „Zur Info“ statt „Wartet auf dich“ mit dem Satz, wer das Ende einträgt, keine Zahl am Reiter „Prüfen“ -- Bild; seit
                             1.9.98 aus klicktest_backoffice_buero (das Backoffice gibt es nicht mehr): keine Anfrage an Buchungskontext und
                             Personalnummern, Stundenzettel PDF, CSV und DATEV-Export vom Server 403
     dunkel                  Prüfen und Buchungen; Farbpunkte der Zeitarten aus den Tokens (hell und dunkel verschieden) -- Bilder
@@ -181,6 +182,8 @@ async def pruefen(tab, seed, p):
     p.pruefe("Admin: Prüfen geladen", await _seite(tab, seed, "admin"), True)
     await tab.warte_auf_ruhe()
     p.pruefe("Admin: Zahl am Reiter Prüfen", await tab.js("document.getElementById('zahlPruefen').innerText"), "3")
+    p.pruefe("Admin: „Wartet auf dich“ (Signalkarte)", await tab.js(
+        "[document.getElementById('offenKarte').className,document.getElementById('offenEbText').textContent]"), ["karte-signal", "Wartet auf dich"])
     p.pruefe("Admin: Zeiten von früher (Name, Zeile)", await tab.js(
         "[...document.querySelectorAll('#offenListe .zeile')].map(z=>[z.querySelector('.zeile-name').innerText,z.querySelector('.zeile-unter').innerText])"),
         [["Ole Offen", "Fahrzeit seit Fr 16.10., 15:30 · AUF-2026-0105 · Halle Süd (Auftrag abgeschlossen)"],
@@ -344,6 +347,11 @@ async def pruefen(tab, seed, p):
     p.pruefe("Bea: Prüfen ohne Knöpfe und ohne „+ Buchung“", await tab.js(
         "[document.querySelectorAll('#reiter-pruefen button,#reiter-pruefen input').length,!!document.getElementById('neueBuchung'),"
         "document.querySelectorAll('#offenListe .zeile').length]"), [0, False, 1])
+    # seit 1.9.102 (Nachrunde, Punkt 4): „Zur Info“ statt „Wartet auf dich“, wer das Ende einträgt, keine Zahl am Reiter „Prüfen“
+    p.pruefe("Bea: „Zur Info“ (ruhige Karte), wer das Ende einträgt, keine Zahl am Reiter Prüfen", await tab.js(
+        "[document.getElementById('offenKarte').className,document.getElementById('offenEbText').textContent,"
+        "document.querySelector('#offenEb .punkt').hidden,document.getElementById('offenFuss').innerText,document.getElementById('zahlPruefen').hidden]"),
+        ["karte", "Zur Info", True, "Das Ende trägt der Admin oder Büro – Finanzen ein.", True])
     await tab.bild("zeiten_pruefen_buero_auftrag")
     p.pruefe("Bea: Buchungen geladen", await _buchungen(tab), True)
     p.pruefe("Bea: Buchungen ohne „⋮“ und ohne „Ende eintragen“", await tab.js(
