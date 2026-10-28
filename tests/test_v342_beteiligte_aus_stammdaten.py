@@ -318,7 +318,7 @@ def test_verweis_zaehlt_als_verwendung_des_stammsatzes(router_test_client, threa
 # ---------------------------------------------------------------------------
 
 def test_oberflaeche_dialog_adressbuch_und_formular():
-    mappe = (TEMPLATES / "project_folder.html").read_text(encoding="utf-8")
+    mappe = (TEMPLATES / "akte.html").read_text(encoding="utf-8")
     assert "/participant-candidates" in mappe and "pm-group" in mappe
     assert "customer_id:pmChoice.customer_id" in mappe and "supplier_id:pmChoice.supplier_id" in mappe
     assert "c.source_label" in mappe and "Lieferant inaktiv" in mappe

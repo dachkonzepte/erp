@@ -6,10 +6,10 @@ Prüft die zwei geänderten Seiten so, wie ein Nutzer sie sieht:
                        verschieben ohne Verlust des Getippten, Warnung bei unbekanntem Platzhalter
                        und ungenutzten Fallfeldern, Prüfung eintragen, Textänderung setzt sie zurück;
                        Büro sieht alles gesperrt und ohne Knöpfe; 412 px ohne seitliches Scrollen
-    Auftragsseite      Ausführungszeitraum aus dem Angebot in den Auftragsdaten, Speichern lässt
-                       die übrigen Felder stehen; Karte "Vertrag" mit vorbelegtem Entwurf, Warnung
-                       bei ungeprüfter Vorlage, Fallfelder speichern, PDF; Entwurf von Hand anlegen
-                       (hell/dunkel)
+    Akte, Reiter       (seit 1.9.129 statt der Auftragsseite) Ausführungszeitraum aus dem Angebot in den
+    „Vertrag“          Auftragsdaten (lesend und im Dialog „Bearbeiten“), Speichern im Dialog lässt die übrigen
+                       Felder stehen; Karte "Vertrag" mit vorbelegtem Entwurf, Warnung bei ungeprüfter Vorlage,
+                       Fallfelder speichern, PDF; Entwurf von Hand anlegen (hell/dunkel)
 
 AUFRUF (aus dem Projektordner):
 
@@ -128,10 +128,17 @@ async def pruefen(tab, seed, p):
     await tab.js(f"{vob}.scrollIntoView()")
     await tab.bild("einstellungen_vorlage")
 
-    # --- Auftragsseite: Verbraucher-Auftrag mit Entwurf ------------------------------------------
-    bereit = "document.getElementById('cExecutionPeriod')!==null"
-    await tab.oeffnen(f"/orders/{seed['privat']}", bereit)
+    # --- Akte, Reiter „Vertrag“: Verbraucher-Auftrag mit Entwurf ----------------------------------
+    # Seit 1.9.129 (Akte): /orders/{id} leitet auf die Akte; die Auftragsdaten stehen lesend in #auftragsdatenListe und im Dialog
+    # #auftragsdatenDialog, dessen Felder erst „Bearbeiten“ füllt.
+    bereit = "order&&order.id&&document.getElementById('cExecutionPeriod')!==null"
+    await tab.oeffnen(f"/orders/{seed['privat']}#vertrag", bereit)
+    p.pruefe("Auftrag: Ausführungszeitraum aus dem Angebot (lesend)",
+             "KW 42–44, witterungsabhängig" in (await tab.js("document.getElementById('auftragsdatenListe').innerText") or ""), True)
+    await tab.js("document.querySelector('[data-klick=\"auftragsdaten-bearbeiten\"]').click(); true")
+    await tab.warten("document.getElementById('auftragsdatenDialog').open")
     p.pruefe("Auftrag: Ausführungszeitraum aus dem Angebot", await tab.js("document.getElementById('executionPeriod').value"), "KW 42–44, witterungsabhängig")
+    await tab.js("document.getElementById('auftragsdatenDialog').close(); true")
     p.pruefe("Vertrag: Zeitraum vorbelegt", await tab.js("document.getElementById('cExecutionPeriod').value"), "KW 42–44, witterungsabhängig")
     karte = "document.getElementById('contractCard').textContent"
     p.pruefe("Vertrag: Warnung ungeprüfte Vorlage", "nicht rechtlich geprüft" in (await tab.js(karte) or ""), True)
@@ -145,9 +152,12 @@ async def pruefen(tab, seed, p):
     p.pruefe("Vertrag: PDF", pdf, "200 application/pdf")
     p.pruefe("Vertrag: PDF-Knopf", "Entwurf als PDF" in (await tab.js(karte) or ""), True)
 
-    # Auftragsdaten speichern: Zeitraum ändern, die übrigen Felder bleiben.
+    # Auftragsdaten speichern: Zeitraum ändern, die übrigen Felder bleiben (seit 1.9.129 im Dialog „Bearbeiten“).
+    await tab.js("document.querySelector('[data-klick=\"auftragsdaten-bearbeiten\"]').click(); true")
+    await tab.warten("document.getElementById('auftragsdatenDialog').open")
     await tab.js("document.getElementById('executionPeriod').value='KW 45';saveOrder()")
     await tab.warten("document.getElementById('saveStatus').textContent==='Auftragsdaten gespeichert.'")
+    p.pruefe("Auftrag: Dialog nach dem Speichern zu", await tab.js("document.getElementById('auftragsdatenDialog').open"), False)
     auftrag = await tab.js(f"fetch('/api/orders/{seed['privat']}').then(r=>r.json()).then(o=>[o.execution_period,o.payment_terms,o.remarks].join('|'))")
     p.pruefe("Auftrag: Zeitraum gespeichert, Rest unverändert", auftrag, "KW 45|14 Tage netto|Bemerkung bleibt")
     p.pruefe("Vertrag: Entwurf behält seinen Zeitraum", await tab.js(f"{api}.then(c=>c.execution_period)"), "KW 42–44, witterungsabhängig")
@@ -155,13 +165,13 @@ async def pruefen(tab, seed, p):
     await tab.js("document.getElementById('contractCard').scrollIntoView()")
     await tab.bild("auftrag_vertrag_hell")
     await tab.js("localStorage.setItem('erp_theme','dark')")
-    await tab.oeffnen(f"/orders/{seed['privat']}?dunkel=1", bereit)
+    await tab.oeffnen(f"/orders/{seed['privat']}?dunkel=1#vertrag", bereit)
     await tab.js("document.getElementById('contractCard').scrollIntoView()")
     await tab.bild("auftrag_vertrag_dunkel")
     await tab.js("localStorage.setItem('erp_theme','light')")
 
     # --- Firmenauftrag: VOB/B-Vorlage gibt es inzwischen, Entwurf von Hand anlegen ---------------
-    await tab.oeffnen(f"/orders/{seed['firma']}", "document.getElementById('contractCard').textContent.includes('Vertragsentwurf anlegen')")
+    await tab.oeffnen(f"/orders/{seed['firma']}#vertrag", "document.getElementById('contractCard').textContent.includes('Vertragsentwurf anlegen')")
     p.pruefe("Firma: kein Entwurf beim Beauftragen", "Noch kein Vertragsentwurf" in (await tab.js(karte) or ""), True)
     await tab.js("createContract()")
     await tab.warten("document.getElementById('cExecutionPeriod')!==null")
@@ -180,7 +190,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("412 px: kein seitliches Scrollen", await tab.js("document.documentElement.scrollWidth<=window.innerWidth"), True)
     await tab.bild("einstellungen_vorlagen_412")
     await tab.fenster(1400, 1000)
-    await tab.oeffnen(f"/orders/{seed['firma']}?als=buero", "document.getElementById('cSpecialTerms')!==null")
+    await tab.oeffnen(f"/orders/{seed['firma']}?als=buero#vertrag", "document.getElementById('cSpecialTerms')!==null")
     await tab.js("document.getElementById('cSpecialTerms').value='Gerüst stellt der Kunde';saveContract()")
     await tab.warten("document.getElementById('contractStatus').textContent==='Vertragsentwurf gespeichert.'")
     p.pruefe("Büro: Fallfeld gespeichert", await tab.js(f"fetch('/api/orders/{seed['firma']}/contract').then(r=>r.json()).then(d=>d.contract.special_terms)"), "Gerüst stellt der Kunde")

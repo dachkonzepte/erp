@@ -287,6 +287,6 @@ def test_projects_page_has_duplicate_and_template_actions():
 
 
 def test_project_folder_page_has_duplicate_and_template_actions():
-    html = (Path(__file__).parents[1] / "app" / "templates" / "project_folder.html").read_text(encoding="utf-8")
+    html = (Path(__file__).parents[1] / "app" / "templates" / "akte.html").read_text(encoding="utf-8")
     assert "duplicateProjectHere" in html
     assert "Als Mustervorgang speichern" in html

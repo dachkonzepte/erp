@@ -291,8 +291,8 @@ def test_auftragsseite_ohne_statusauswahl():
     """Die Auftragsseite bietet keine Auswahl „Status“ mehr und schickt beim Speichern keinen Status; die Übergänge kommen aus dem Baustein."""
     from pathlib import Path
     from tests.vorlagen_js import bindet_ein
-    seite = (Path(__file__).resolve().parent.parent / "app" / "templates" / "order.html").read_text(encoding="utf-8")
+    seite = (Path(__file__).resolve().parent.parent / "app" / "templates" / "akte.html").read_text(encoding="utf-8")
     assert 'id="status"' not in seite and "status:document.getElementById('status')" not in seite
-    assert bindet_ein("order.html", "_auftragsstatus.html")
+    assert bindet_ein("akte.html", "_auftragsstatus.html")
     angebot = (Path(__file__).resolve().parent.parent / "app" / "templates" / "quote_editor.html").read_text(encoding="utf-8")
     assert 'id="oStatus"' not in angebot and "status:v('oStatus')" not in angebot

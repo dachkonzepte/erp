@@ -1,11 +1,13 @@
-"""Klicktest: der Verlauf lesbar (1.9.123, Stufe 5, R1 Nachrunde, Punkt 5, Merkliste 7b) -- /history und die Historie der Projektmappe.
+"""Klicktest: der Verlauf lesbar (1.9.123, Stufe 5, R1 Nachrunde, Punkt 5, Merkliste 7b) -- /history und der Verlauf der Akte.
 
 Testdaten der Bildgrundlage (scripts/bildgrundlage.py). Als Büro – Finanzen die Menge einer Auftragsposition um 1 erhöht (über die Schnittstelle
 aus der Seite), dann:
 
     /history       die Zeile „Auftragsposition · Menge“ zeigt „850 → 851 m²“ (Bild); in der ganzen Tabelle kein „.000000“, kein ISO-Tag
                    („2026-10-14“), kein Zeitartcode („site“), die Zeitbuchungen mit „Baustellenzeit“ und deutschen Stunden
-    Projektmappe   Reiter „Historie“: dieselbe Zeile, dieselben Prüfungen
+    Akte           Reiter „Verlauf“ (seit 1.9.129 statt des Reiters „Historie“ der Projektmappe; eine Zeile je Aktion, die Änderung in den
+                   aufgeklappten Einzelheiten): dieselbe Änderung „850 → 851 m²“, dieselben Prüfungen (ohne Zeitbuchungen -- der Verlauf
+                   der Akte führt keine); Bild
 
 AUFRUF (aus dem Projektordner):
 
@@ -47,16 +49,19 @@ async def pruefen(tab, seed, p):
     await tab.js("document.documentElement.setAttribute('data-theme','light')")
     await tab.bild("history_lesbar")
 
-    await tab.oeffnen(f"/projects/{seed['projekt']}", "typeof project!=='undefined'&&project&&project.id&&typeof historyRows!=='undefined'",
-                      timeout=45)
-    await tab.js("showTab('sec-history')")
-    await tab.warten("document.querySelectorAll('#historyRows tr').length>3", 15)
-    zeile = await tab.js("[...document.querySelectorAll('#historyRows tr')].map(t=>t.innerText.replace(/\\s+/g,' '))"
+    # seit 1.9.129: der Verlauf der Akte (Reiter „Verlauf“, #verlaufListe, eine .vl-zeile je Aktion) statt #historyRows der Projektmappe;
+    # die Werte stehen in den Einzelheiten (<details>), aufgeklappt, damit innerText sie liefert
+    await tab.oeffnen(f"/projects/{seed['projekt']}#verlauf",
+                      "typeof project!=='undefined'&&project&&project.id&&verlaufDaten&&!document.getElementById('reiter-verlauf').hidden"
+                      "&&document.querySelectorAll('#verlaufListe .vl-zeile').length>3", timeout=45)
+    await tab.js("document.querySelectorAll('#verlaufListe details').forEach(d=>d.open=true)")
+    zeile = await tab.js("[...document.querySelectorAll('#verlaufListe .vl-zeile')].map(t=>t.innerText.replace(/\\s+/g,' '))"
                          ".find(t=>t.includes('Auftragsposition')&&t.includes('Menge'))||''")
-    p.pruefe("Projektmappe, Historie: „850 → 851 m²“", "850 → 851 m²" in zeile, True)
-    p.pruefe("Projektmappe, Historie: kein „.000000“, kein ISO-Tag, kein „site“",
-             {k: v for k, v in (await tab.js(ROH.replace("SEL", "'#historyRows'"))).items() if k != "baustelle"},
+    p.pruefe("Akte, Verlauf: „850 → 851 m²“", "850 → 851 m²" in zeile, True)
+    p.pruefe("Akte, Verlauf: kein „.000000“, kein ISO-Tag, kein „site“",
+             {k: v for k, v in (await tab.js(ROH.replace("SEL", "'#verlaufListe'"))).items() if k != "baustelle"},
              {"nullen": False, "iso": False, "code": False})
+    await tab.bild("akte_verlauf_lesbar")
     p.pruefe("JS-Fehler", tab.fehler, [])
 
 

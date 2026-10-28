@@ -127,7 +127,7 @@ async function loadAcceptanceSection(){
   loadProtocolPending();
   if(typeof loadDefects==='function')loadDefects();
 }
-async function accNeuLaden(){await ladeAuftrag(renderSync);await loadAcceptanceSection()}
+async function accNeuLaden(){await ladeAuftrag(renderSync);await loadAcceptanceSection();if(typeof akteNachAenderung==='function')await akteNachAenderung()}  // seit 1.9.129 auch Phasen der Akte
 // Seit 1.8.63: Abnahmeprotokolle mit Unterschrift des Auftraggebers, aus der noch keine Abnahme entstanden ist.
 async function loadProtocolPending(){
   const box=document.getElementById('protocolPending');

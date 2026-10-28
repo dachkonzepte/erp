@@ -111,7 +111,7 @@ FORMULARSEITEN = ("project_form.html", "quote_form.html", "master_data_form.html
     ("/projects/new", "/projects", "Projekte"),
     ("/projects/new?customer_id=5", "/customers/5", "Kundenakte"),
     ("/quotes/new", "/projects", "Projekte"),
-    ("/quotes/new?project_id=7", "/projects/7", "Projektmappe"),
+    ("/quotes/new?project_id=7", "/projects/7", "Akte"),  # seit 1.9.129 (bis dahin „Projektmappe“)
     # seit 1.9.22 (Stufe 2, Runde 8) Stammdaten-Formular und Leistung im Rahmen: statt „← Name“ das letzte Glied des Pfads und
     # „Abbrechen“ im Seitenkopf, beide zum selben Ziel wie bisher (bis dahin „← Stammdaten: Mitarbeiter“ usw.)
     ("/master-data/employees/1/edit", "/master-data#employees", "Mitarbeiter"),
@@ -120,7 +120,7 @@ FORMULARSEITEN = ("project_form.html", "quote_form.html", "master_data_form.html
     ("/master-data/assets/new", "/master-data#assets", "Betriebsmittel"),
     ("/master-data/materials/new", "/master-data#materials", "Materialkataloge"),
     ("/master-data/properties/3/edit", "/properties/3", "Objekt"),
-    ("/master-data/contacts/new?projekt=7", "/projects/7#sec-participants", "Projektmappe"),
+    ("/master-data/contacts/new?projekt=7", "/projects/7#sec-participants", "Akte"),  # seit 1.9.129 (bis dahin „Projektmappe“)
     ("/services/1/edit", "/leistungskatalog", "Leistungskatalog"),
     ("/services/new", "/leistungskatalog", "Leistungskatalog"),
 ])

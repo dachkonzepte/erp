@@ -5,7 +5,8 @@ inaktiv, stand das Feld leer, und das nächste Speichern schrieb das (beim Sachb
 lehnte der Server außerdem ab). Geprüft wird über die echten Seiten als Admin, mit einer ausgeschiedenen
 Mitarbeiterin (Erika), einem inaktiven Lieferanten und einem archivierten Projekt:
 
-    Auftrag              Sachbearbeiter und Projektleiter zeigen "Erika ... (inaktiv)"; Speichern behält sie
+    Auftrag              Sachbearbeiter und Projektleiter zeigen "Erika ... (inaktiv)"; Speichern behält sie (seit 1.9.129 in der
+                         Akte, Dialog „Auftragsdaten bearbeiten“ im Reiter „Vertrag“)
     Aufgaben-Editor      Zuständige und archiviertes Projekt vorgewählt und gekennzeichnet; Speichern behält beide
     Arbeitsvorbereitung  Aufgabe mit Erika und Materialzeile mit inaktivem Lieferanten lassen sich speichern
 
@@ -83,13 +84,19 @@ async def pruefen(tab, seed, p):
     erika = str(seed["erika"])
 
     # --- Auftrag ---------------------------------------------------------------------------
-    await tab.oeffnen(f"/orders/{seed['auftrag']}", "order&&document.getElementById('caseworker').options.length>1")
+    # seit 1.9.129 in der Akte (Reiter „Vertrag“): die Felder stehen im Dialog „Auftragsdaten bearbeiten“, gefüllt erst beim Öffnen
+    await tab.oeffnen(f"/orders/{seed['auftrag']}#vertrag", "order&&order.id&&!document.getElementById('reiter-vertrag').hidden")
+    await tab.js("document.querySelector('[data-klick=\"auftragsdaten-bearbeiten\"]').click()")
+    await tab.warten("document.getElementById('auftragsdatenDialog').open&&document.getElementById('caseworker').options.length>1", 5)
     p.pruefe("Auftrag: Sachbearbeiter vorgewählt und gekennzeichnet", await tab.js(_gewaehlt("caseworker")),
              [erika, "Erika Ehemalig (inaktiv)"])
     p.pruefe("Auftrag: Projektleiter vorgewählt und gekennzeichnet", await tab.js(_gewaehlt("manager")),
              [erika, MIT_FUNKTION])
+    await tab.bild("auftragsdaten_inaktiv")
+    # seit 1.9.129: „Speichert …“ steht im Dialog (#auftragsdatenStatus), nach dem Erfolg schließt er und #saveStatus meldet es
     await tab.js("document.getElementById('remarks').value='Gerüst steht';saveOrder()")
-    await tab.warten("document.getElementById('saveStatus').textContent!=='Speichert …'")
+    await tab.warten("!document.getElementById('auftragsdatenDialog').open"
+                     "||document.getElementById('auftragsdatenStatus').textContent.startsWith('Fehler')")
     p.pruefe("Auftrag: Speichern gelingt", await tab.js("document.getElementById('saveStatus').textContent"),
              "Auftragsdaten gespeichert.")
     p.pruefe("Auftrag: Sachbearbeiter und Projektleiter bleiben",

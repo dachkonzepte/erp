@@ -81,8 +81,8 @@ def test_password_hash_and_signed_cookie():
 def test_history_ui_and_project_tab_exist():
     root = Path(__file__).parents[1]
     history = (root / "app/templates/history.html").read_text(encoding="utf-8")
-    folder = (root / "app/templates/project_folder.html").read_text(encoding="utf-8")
+    folder = (root / "app/templates/akte.html").read_text(encoding="utf-8")
     settings = (root / "app/templates/settings.html").read_text(encoding="utf-8")
     assert "Wer" in history and "Änderung" in history
-    assert "Änderungshistorie" in folder and "historyRows" in folder
+    assert 'id="reiter-verlauf"' in folder and "Ganze Änderungshistorie" in folder  # seit 1.9.129 die Akte (Projektmappe und Auftragsseite in einer Seite): Reiter „Verlauf“ (bis dahin „Historie“, historyRows)
     assert "/users" in settings and "/history" in settings

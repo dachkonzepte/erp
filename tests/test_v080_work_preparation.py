@@ -60,9 +60,9 @@ def test_work_preparation_ui_and_routes_exist():
     root=Path(__file__).parents[1]
     main=(root/'app/main.py').read_text(encoding='utf-8') + "".join(p.read_text(encoding="utf-8") for p in sorted((root/'app/routers').glob("*.py")))
     page=(root/'app/templates/work_preparation.html').read_text(encoding='utf-8')
-    order=(root/'app/templates/order.html').read_text(encoding='utf-8')
-    project=(root/'app/templates/project_folder.html').read_text(encoding='utf-8')
+    order=(root/'app/templates/akte.html').read_text(encoding='utf-8')
+    project=(root/'app/templates/akte.html').read_text(encoding='utf-8')
     assert '/orders/{order_id}/work-preparation' in main
     assert 'Soll-Stunden' in page and 'Materialbedarf' in page and 'Team / Kolonne' in page
-    assert 'workPrepLink' in order
+    assert 'id="avLink"' in order and 'id="menueAv"' in order  # seit 1.9.129 die Akte (Projektmappe und Auftragsseite in einer Seite): Reiter „Ausführung“ und Menü (bis dahin workPrepLink)
     assert 'Arbeitsvorbereitung' in project

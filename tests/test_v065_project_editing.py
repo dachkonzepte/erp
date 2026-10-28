@@ -73,10 +73,10 @@ def test_document_description_can_be_edited_after_upload(tmp_path):
 
 def test_project_folder_ui_has_editing_controls():
     root = Path(__file__).parents[1]
-    html = (root / "app/templates/project_folder.html").read_text(encoding="utf-8")
+    html = (root / "app/templates/akte.html").read_text(encoding="utf-8")
     project_form = (root / "app/templates/project_form.html").read_text(encoding="utf-8")
     projects = (root / "app/templates/projects.html").read_text(encoding="utf-8")
-    for text in ["Projektmappe bearbeiten", "Projektkategorie", "Dateiinformationen bearbeiten", "Beschreibung ergänzen"]:
+    for text in ["Projekt bearbeiten", "Projektkategorie", "Dateiinformationen bearbeiten", "Beschreibung ergänzen"]:  # seit 1.9.129 die Akte (Projektmappe und Auftragsseite in einer Seite) (bis dahin „Projektmappe bearbeiten“)
         assert text in html
     assert "project_categories" in project_form
     assert "Kategorie" in projects

@@ -2,7 +2,8 @@
 
     Angebots-Editor   Angebot eines Mustervorgangs: kein „Angebot beauftragen“, Hinweis mit dem Weg (Bild); ein Angebot eines gewöhnlichen
                       Projekts: „Angebot beauftragen“ wie bisher; Beauftragen aus der Seite (POST) beim Muster 409 mit dem Weg
-    Projektmappe      Mustervorgang mit Kennzeichen „Mustervorgang“ (Bild); „Löschen“ im Menü nur ohne Auftrag
+    Akte              Mustervorgang mit „Mustervorgang“ im Untertitel des Seitenkopfs (Bild mit offenem Menü „⋮“); „Löschen“ im Menü „⋮“
+                      nur ohne Auftrag (seit 1.9.129 die Akte unter /projects/{id} statt der Projektmappe)
     Projektliste      „Löschen“ im Menü einer Zeile nur ohne Auftrag; in „Nur Mustervorgänge“ beim Muster
 
 AUFRUF (aus dem Projektordner):
@@ -53,7 +54,8 @@ def befuellen(db, k):
 
 
 EDITOR = "typeof quote!=='undefined'&&quote&&quote.id&&document.getElementById('sumNet').textContent.length>0"
-MAPPE = "typeof project!=='undefined'&&project&&project.id&&document.getElementById('projectNumber').textContent.length>0"
+# seit 1.9.129: die Akte (Kopf über das Makro, Kennung = Projektnummer, gesetzt von kopfZeichnen() nach dem Laden des Projekts)
+MAPPE = "typeof project!=='undefined'&&project&&project.id&&document.getElementById('seitenkopfKennung').textContent.length>0"
 LISTE = "typeof projects!=='undefined'&&projects.length>0&&document.getElementById('content').innerHTML.length>0"
 BEAUFTRAGEN = ('{"order_date":"2026-10-28","execution_start":null,"execution_end":null,"caseworker_employee_id":null,'
                '"project_manager_employee_id":null,"payment_terms":null,"remarks":null}')
@@ -80,17 +82,26 @@ async def pruefen(tab, seed, p):
         "[document.getElementById('orderButton').hidden,document.getElementById('orderButton').textContent,"
         "document.getElementById('orderSyncBanner').classList.contains('hidden')]"), [False, "Angebot beauftragen", True])
 
+    # seit 1.9.129: statt des Kennzeichens #templateBadge der Projektmappe steht „Mustervorgang“ im Untertitel des Seitenkopfs der Akte;
+    # „Löschen“ steht im Menü „⋮“ des Kopfs -- geöffnet, damit es im Bild sichtbar ist
     await tab.oeffnen(f"/projects/{seed['muster']}", MAPPE)
-    p.pruefe("Projektmappe (Muster): Kennzeichen sichtbar, „Löschen“ im Menü", await tab.js(
-        "(()=>{const k=document.getElementById('templateBadge');return [!k.hidden&&k.offsetParent!==null,k.textContent,"
-        "!document.getElementById('deleteMenuItem').hidden]})()"), [True, "Mustervorgang", True])
+    await tab.js("document.getElementById('seitenkopfMenueKnopf').click()")
+    p.pruefe("Akte (Muster): „Mustervorgang“ im Untertitel sichtbar, „Löschen“ im Menü", await tab.js(
+        "(()=>{const u=document.getElementById('seitenkopfUntertitel'),l=document.getElementById('deleteMenuItem');"
+        "return [u.offsetParent!==null,u.textContent.split(' · ').includes('Mustervorgang'),!l.hidden&&l.offsetParent!==null,"
+        "l.textContent]})()"), [True, True, True, "Löschen"])
+    # seit 1.9.129: ein Mustervorgang hat keine Hauptaktion (er wird nicht beauftragt, seit 1.9.117) -- bis dahin bot die Akte „Beauftragen“
+    # an, der Dialog im Angebot scheiterte erst mit 409 (Fund der Umstellung auf die Akte)
+    p.pruefe("Akte (Muster): keine Hauptaktion", await tab.js("[document.getElementById('hauptaktion').hidden,akte.hauptaktion]"),
+             [True, None])
     await tab.js("document.documentElement.setAttribute('data-theme','light')")
-    await tab.bild("projektmappe_mustervorgang")
+    await tab.bild("akte_mustervorgang")
     await tab.oeffnen(f"/projects/{seed['mit_auftrag']}", MAPPE)
-    p.pruefe("Projektmappe mit Auftrag: kein Kennzeichen, kein „Löschen“", await tab.js(
-        "[document.getElementById('templateBadge').hidden,document.getElementById('deleteMenuItem').hidden]"), [True, True])
+    p.pruefe("Akte mit Auftrag: kein „Mustervorgang“, kein „Löschen“", await tab.js(
+        "[!document.getElementById('seitenkopfUntertitel').textContent.includes('Mustervorgang'),"
+        "document.getElementById('deleteMenuItem').hidden]"), [True, True])
     await tab.oeffnen(f"/projects/{seed['ohne_auftrag']}", MAPPE)
-    p.pruefe("Projektmappe ohne Auftrag: „Löschen“ im Menü", await tab.js("document.getElementById('deleteMenuItem').hidden"), False)
+    p.pruefe("Akte ohne Auftrag: „Löschen“ im Menü", await tab.js("document.getElementById('deleteMenuItem').hidden"), False)
 
     await tab.oeffnen("/projects", LISTE)
     p.pruefe("Projektliste: „Löschen“ nur ohne Auftrag", await tab.js(

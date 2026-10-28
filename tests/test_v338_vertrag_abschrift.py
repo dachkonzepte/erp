@@ -368,7 +368,7 @@ def test_service_report_signature_is_limited_to_2_mb(router_test_client, threade
 def _order_page_api_script() -> str:
     """fehlerText() aus _fehlertext.html und FELDNAMEN/api() genau so, wie sie in order.html stehen."""
     helper = "\n".join(re.findall(r"<script>(.*?)</script>", (TEMPLATES / "_fehlertext.html").read_text(encoding="utf-8"), flags=re.S))
-    page = (TEMPLATES / "order.html").read_text(encoding="utf-8")
+    page = (TEMPLATES / "akte.html").read_text(encoding="utf-8")
     lines = [re.search(rf"^{re.escape(start)}.*$", page, flags=re.M).group(0)
              for start in ("const FELDNAMEN=", "async function api(")]
     return helper + "\n" + "\n".join(lines)
@@ -428,8 +428,8 @@ def test_order_page_includes_the_shared_error_helper(world, router_test_client):
 
     from tests import vorlagen_js
 
-    source = (TEMPLATES / "order.html").read_text(encoding="utf-8")
-    assert vorlagen_js.bindet_ein("order.html", "_fehlertext.html", TEMPLATES)  # seit 1.8.125 auch im Basis-Template
+    source = (TEMPLATES / "akte.html").read_text(encoding="utf-8")
+    assert vorlagen_js.bindet_ein("akte.html", "_fehlertext.html", TEMPLATES)  # seit 1.8.125 auch im Basis-Template
     assert re.search(r"^async function api\(.*fehlerText\(", source, flags=re.M)
-    html = router_test_client(world, pages.router, role="buero_auftrag").get("/orders/1").text
+    html = router_test_client(world, pages.router, role="buero_auftrag").get("/projects/1").text  # seit 1.9.129 die Akte (Projektmappe und Auftragsseite in einer Seite) (/orders/1 leitet weiter)
     assert "function fehlerText(" in html and "const FELDNAMEN=" in html

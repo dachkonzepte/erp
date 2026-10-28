@@ -167,7 +167,9 @@ def test_auftragsseite_zeigt_den_inaktiven_sachbearbeiter_vorgewaehlt():
     db = db_session()
     _order, erika, otto, ina = _auftrag_mit_inaktivem_sachbearbeiter(db)
     alle = _personen(erika, otto, ina)
-    skript = seitenskript("order.html", "async function load(", {"const orderId={{ order_id }};": "const orderId=1;"})
+    # seit 1.9.129 in der Akte (Dialog „Auftragsdaten bearbeiten“): die beiden Funktionen der Seite mit _auswahl.html
+    skript = (_skripte("_auswahl.html") + "\n" + js_funktion("akte.html", "employeeOptions") + "\n"
+              + js_funktion("akte.html", "bisherigerMitarbeiter") + "\nlet employees=[],caseworkers=[];")
     skript += f"\nemployees={json.dumps(alle)};caseworkers={json.dumps(_personen(otto))};"
     # caseworkers liefert der Server nur aktive, freigegebene -- Erika fehlt dort
     sachbearbeiter = _js(skript, f"employeeOptions(caseworkers,{erika.id})")
@@ -183,7 +185,9 @@ def test_auftragsseite_zeigt_den_inaktiven_sachbearbeiter_vorgewaehlt():
 def test_auftrag_speichern_mit_unveraendertem_inaktivem_sachbearbeiter(threaded_db_session, router_test_client):
     db = threaded_db_session
     order, erika, otto, ina = _auftrag_mit_inaktivem_sachbearbeiter(db)
-    keys = ui_keys("order.html", "saveOrder", "body:JSON.stringify(")
+    # seit 1.9.129 (Akte, F2): saveOrder() schickt frei (Sachbearbeiter, Bemerkungen) und vor der Schlussrechnung die übrigen Felder
+    keys = ([k for k in ui_keys("akte.html", "saveOrder", "const body=order.order_lock?frei:") if not k.startswith("...")]
+            + ui_keys("akte.html", "saveOrder", "const frei="))
     assert {"caseworker_employee_id", "project_manager_employee_id"} <= set(keys)
     werte = {"title": "Dach neu", "status": order.status, "order_date": order.order_date.isoformat(),
              "execution_start": None, "execution_end": None, "execution_period": None, "caseworker_employee_id": erika.id,

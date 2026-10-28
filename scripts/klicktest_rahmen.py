@@ -4,8 +4,8 @@ Geprüft wird im echten Browser auf den Testdaten der Bildgrundlage (scripts/bil
 
     Seitenleiste   in jeder Rolle bei 1440 × 900 und 1280 × 800 ohne Bildlauf, die Version unten im Fenster; 232 px breit, Logo-Zeile
                    52 px mit Kachel 36 px, Zeilen 36 px, vier Gruppen; Grund in --ds-navi-grund (dunkel in beiden Modi); aktiv genau der
-                   Eintrag des Bereichs der Seite (Projektmappe -> Projekte, Rechnung -> Projekte, Kunde -> Stammdaten, Befunde, Suche
-                   und Konto keiner), mit aria-current, 3 px Strich in --ds-marke-hell auf --ds-navi-aktiv
+                   Eintrag des Bereichs der Seite (Akte -> Projekte -- bis 1.9.128 die Projektmappe --, Rechnung -> Projekte, Kunde ->
+                   Stammdaten, Befunde, Suche und Konto keiner), mit aria-current, 3 px Strich in --ds-marke-hell auf --ds-navi-aktiv
     Schrift        auf jeder Seite mit Leiste (Büro – Finanzen, seit 1.8.166): normale Einträge 500, der aktive 600 -- keine Seitenregel
                    greift hinein
     Menüknopf      klappt die Leiste ein (60 px) und wieder aus, aria-expanded folgt
@@ -46,14 +46,14 @@ Geprüft wird im echten Browser auf den Testdaten der Bildgrundlage (scripts/bil
                    Angebotsnummer als Kennzeichen neben dem Status „Beauftragt“ (ok), Pfad Projekte / Kunde / Projekt / Angebot (jeder
                    Link öffnet eine Seite), Netto/Optional/MwSt./Brutto, „PDF-Vorschau“ neutral und die grüne Hauptaktion, Menü „⋮“ mit
                    Angebotsdetails und OZ neu nummerieren per Tastatur, kein alter Kopf, Links, Fokus, Kontrast; „PDF-Vorschau“ öffnet
-                   das PDF, „Angebotsdetails“ den Reiter, die Hauptaktion den Auftrag
+                   das PDF, „Angebotsdetails“ den Reiter, die Hauptaktion den Auftrag (seit 1.9.129 in der Akte)
     Untermenü      seit 1.9.21 die Seiten mit Untermenü links (Stammdaten, Einstellungen; bis 1.9.97 Backoffice) und mit Zurück-Link und Karte
                    (Konto -- auch als Monteurin --, Benutzer, Änderungshistorie, Adressimport, Leistungskatalog) hell und dunkel:
                    .ds-seite, ein h1 mit dem Titel, Untertitel, Pfad statt „← …“ (jeder Link öffnet eine Seite; die Seiten mit Untermenü
                    ohne Pfad), kein .back, Hauptaktion nur „+ Hinzufügen“ der Stammdaten, kein Menü, Links, Fokus, Kontrast; Stammdaten:
                    Titel und Ziel von „+ Hinzufügen“ folgen dem Bereich, Büro – Auftrag ohne „+ Hinzufügen“ bei Mitarbeitern;
                    Einstellungen behalten den Titel
-    Formularseiten seit 1.9.22 Stammdaten-Formular (Mitarbeiter bearbeiten, Kunde anlegen, Kontakt aus der Projektmappe) und Leistung im
+    Formularseiten seit 1.9.22 Stammdaten-Formular (Mitarbeiter bearbeiten, Kunde anlegen, Kontakt aus der Akte) und Leistung im
                    Rahmen, hell und dunkel: Leiste („Stammdaten“ aktiv) und Kopfzeile, ein h1, Pfad bis zur Seite (jeder Link öffnet eine
                    Seite), „Abbrechen“ neutral zum bisherigen Zurück-Ziel und „Speichern“ grün im Kopf, der Knopf unten bleibt, Links,
                    Fokus, Kontrast; „Speichern“ oben speichert wie unten (Ziel wie bisher), eine abgelehnte Eingabe zeigt die Meldung im
@@ -115,8 +115,11 @@ SEITE_JE_ROLLE = {bg.BUERO: "start", bg.BUERO_AUFTRAG: "start", bg.ADMIN: "start
 MONTEUR_SEITEN = {"mobil": "Heute", "mobil_objekt": "Heute", "meine_zeiten": "Meine Zeiten",  # seit 1.9.59
                   "betriebsmittel_monteur": "Heute", "checkliste": "Heute",
                   "checklisten_auftrag": "Heute", "einsatzbericht": "Heute", "konto": None}
-AKTIV = [("projektmappe", "projekte"), ("rechnung", "projekte"), ("kunde", "stammdaten"), ("befunde", "befunde"),
+# seit 1.9.129 die Akte statt der Projektmappe (Aufnahme „akte“ in scripts/bildgrundlage.py; „projektmappe“ und „auftrag“ gibt es nicht mehr)
+AKTIV = [("akte", "projekte"), ("rechnung", "projekte"), ("kunde", "stammdaten"), ("befunde", "befunde"),
          ("einstellungen", "einstellungen"), ("zeiten", "zeiten"), ("suche", None), ("konto", None)]  # bis 1.9.97 zeiterfassung
+# Seite für Kopfzeile, Kontomenü und Vollname: seit 1.9.129 die Akte (bis 1.9.128 die Projektmappe)
+KOPF_SEITE = "akte"
 
 # Farbe eines --ds-Werts so, wie getComputedStyle sie meldet (rgb(...))
 FARBE = ("(v=>{const d=document.createElement('div');d.style.color='var('+v+')';document.body.appendChild(d);"
@@ -136,6 +139,8 @@ cs(a).borderTopLeftRadius,Math.round(r(a).left-r(s).left),Math.round(r(s).right-
 kachel_weiss:cs(s.querySelector('.app-sidebar-kachel')).backgroundColor==='rgb(255, 255, 255)',
 bildmarke:s.querySelectorAll('.app-sidebar-kachel svg polygon').length,bild:!!s.querySelector('.app-sidebar-kachel img')}})()""" % FARBE
 
+# „Knopf rechts“: Abstand zum rechten Rand des sichtbaren Inhalts (clientWidth, ohne Bildlaufleiste) -- seit 1.9.129 ist die Seite (die
+# Akte) höher als das Fenster, die senkrechte Leiste (15 px) zählte mit innerWidth als Abstand mit (bis dahin innerWidth)
 KOPF = """(()=>{const F=%s;const t=document.querySelector('.app-topbar');const r=e=>e?e.getBoundingClientRect():null;
 const such=document.querySelector('.app-topbar-search');const k=document.getElementById('appTopbarAccountBtn');
 const name=k&&k.querySelector('.app-konto-name');const ini=k&&k.querySelector('.app-konto-initialen');
@@ -143,7 +148,7 @@ const sichtbar=e=>!!e&&getComputedStyle(e).display!=='none'&&r(e).width>0;
 return {hoehe:Math.round(r(t).height),suche:such?Math.round(r(such).width):null,name:name?name.textContent:null,
 name_sichtbar:sichtbar(name),name_ganz:!!name&&name.scrollWidth<=name.clientWidth,initialen:ini?ini.textContent:null,
 kreis:ini?[Math.round(r(ini).width),Math.round(r(ini).height),getComputedStyle(ini).borderRadius,getComputedStyle(ini).backgroundColor===F('--ds-aktion')]:null,
-knopf_rechts:k?Math.round(innerWidth-r(k).right)<=24:null,knopf_in_zeile:k?r(k).top>=r(t).top&&r(k).bottom<=r(t).bottom:null,
+knopf_rechts:k?Math.round(document.documentElement.clientWidth-r(k).right)<=24:null,knopf_in_zeile:k?r(k).top>=r(t).top&&r(k).bottom<=r(t).bottom:null,
 breit_scroll:document.documentElement.scrollWidth>innerWidth+1}})()""" % FARBE
 
 MENUE = """(()=>{const k=document.getElementById('appTopbarAccountBtn');const m=document.getElementById('appTopbarAccountMenu');
@@ -281,7 +286,7 @@ async def _kopfzeile(tab, seed, p):
         await tab.anmelden(seed["cookies"][rolle])
         for thema in ("hell", "dunkel"):
             wo = f"Kopfzeile {rolle} {thema}"
-            p.pruefe(f"{wo}: geladen", await _laden(tab, seed, "projektmappe", thema, 1440, 900), True)
+            p.pruefe(f"{wo}: geladen", await _laden(tab, seed, KOPF_SEITE, thema, 1440, 900), True)
             m = await tab.js(KOPF)
             p.pruefe(f"{wo}: 64 px, Suche 480 px, Knopf rechts in der Zeile", [m["hoehe"], m["suche"], m["knopf_rechts"], m["knopf_in_zeile"]],
                      [64, 480, True, True])
@@ -291,7 +296,7 @@ async def _kopfzeile(tab, seed, p):
             if namen.get(rolle):
                 p.pruefe(f"{wo}: voller Name", m["name"], namen[rolle])
     await tab.anmelden(seed["cookies"][bg.BUERO])
-    p.pruefe("Kopfzeile 412 px: geladen", await _laden(tab, seed, "projektmappe", "hell", 412, 900), True)
+    p.pruefe("Kopfzeile 412 px: geladen", await _laden(tab, seed, KOPF_SEITE, "hell", 412, 900), True)
     m = await tab.js(KOPF)
     p.pruefe("Kopfzeile 412 px: 64 px, nur Initialen, kein waagrechter Bildlauf",
              [m["hoehe"], m["name_sichtbar"], bool(m["initialen"]), m["knopf_in_zeile"], m["breit_scroll"]], [64, False, True, True, False])
@@ -301,7 +306,7 @@ async def _kontomenue(tab, seed, p):
     await tab.anmelden(seed["cookies"][bg.BUERO])
     for thema in ("hell", "dunkel"):
         wo = f"Kontomenü {thema}"
-        p.pruefe(f"{wo}: geladen", await _laden(tab, seed, "projektmappe", thema, 1440, 900), True)
+        p.pruefe(f"{wo}: geladen", await _laden(tab, seed, KOPF_SEITE, thema, 1440, 900), True)
         a = await tab.js(ARIA)
         p.pruefe(f"{wo}: aria am Knopf und an den Einträgen",
                  [a["knopf"][0], a["knopf"][1], a["knopf"][2].startswith("Konto: "), a["rolle"], [e[:2] for e in a["eintraege"]]],
@@ -352,7 +357,7 @@ async def _vollname(tab, seed, p):
     await tab.anmelden(seed["cookies"][bg.BUERO])
     for breite, hoehe, gekuerzt in ((1440, 900, False), (412, 900, True)):
         wo = f"Vollname Büro {breite} px"
-        p.pruefe(f"{wo}: geladen", await _laden(tab, seed, "projektmappe", "hell", breite, hoehe), True)
+        p.pruefe(f"{wo}: geladen", await _laden(tab, seed, KOPF_SEITE, "hell", breite, hoehe), True)
         await tab.js("document.getElementById('appTopbarAccountBtn').focus()")
         await _taste(tab, "Enter")
         m = await tab.js(VOLLNAME)
@@ -664,10 +669,11 @@ DATENSATZKOPF = (
     dict(seite="pruefvorlage", rolle=bg.BUERO, titel="Flachdach-Wartung", kennung="", untertitel="Version {pruefvorlage_version}",
          pfad=[["Einstellungen", "/settings"], ["Prüfvorlagen", "/inspection-templates"], ["Flachdach-Wartung", None]],
          status=["", "neutral"], aktion=None, menue=["Vorlage kopieren …"], kopie="Flachdach-Wartung (Kopie)"),
-    # seit 1.9.67 heißt die Seite des Auftrags „Einsatzberichte“ (der Bericht selbst steht auf /service-reports/{id})
+    # seit 1.9.67 heißt die Seite des Auftrags „Einsatzberichte“ (der Bericht selbst steht auf /service-reports/{id}); seit 1.9.129 führt
+    # der Auftrag im Pfad in die Akte, Reiter „Ausführung“ (bis dahin /orders/{auftrag})
     dict(seite="einsatzbericht", rolle=bg.BUERO, titel="Einsatzberichte", kennung="{auftragsnummer}", untertitel="Hallenbau GmbH",
          pfad=[["Projekte", "/projects"], ["Hallenbau GmbH", "/customers/{kunde}"], ["Dachsanierung Halle Nord", "/projects/{projekt}"],
-               ["{auftragsnummer}", "/orders/{auftrag}"], ["Einsatzberichte", None]],
+               ["{auftragsnummer}", "/projects/{projekt}?auftrag={auftrag}#ausfuehrung"], ["Einsatzberichte", None]],
          status=["Läuft", "info"], aktion=None, menue=["Zeiten (Auftrag)"]),  # bis 1.9.97 „Zeiterfassung (Auftrag)“; Status bis 1.9.123 „Beauftragt“
     dict(seite="einsatzbericht", rolle=bg.MONTEUR, titel="Einsatzberichte", kennung="{auftragsnummer}", untertitel="Hallenbau GmbH",
          pfad=[["Heute", "/mobil"], ["Einsatzberichte", None]], status=["", "neutral"], aktion=None, menue=["Zeiten (Auftrag)"]),
@@ -692,9 +698,13 @@ return {ds:document.body.classList.contains('ds-seite'),h1:[...document.querySel
   verborgen_sichtbar:eintraege.filter(e=>e.hidden&&cs(e).display!=='none').map(e=>e.textContent.trim()),
   loeschen:eintraege.filter(e=>!e.hidden&&e.textContent.trim()==='Löschen').map(e=>e.classList.contains('ds-menue-eintrag-fehler')),
   links:links.length,falsch:links.filter(a=>cs(a).color!==F('--ds-link')).map(a=>a.textContent.trim().slice(0,30)+' '+cs(a).color)}})()""" % FARBE
-# jeder Link im Pfad: mit der Anmeldung der Seite geladen -- 200, ohne Umleitung (auf /login oder anderswohin), eine HTML-Seite
+# jeder Link im Pfad: mit der Anmeldung der Seite geladen -- 200, ohne Umleitung (auf /login oder anderswohin), eine HTML-Seite.
+# Seit 1.9.129 leitet /orders/<a> in die Akte (/projects/<p>?auftrag=<a>); genau diese Weiterleitung -- auf die Akte mit demselben
+# Auftrag -- zählt als geöffnete Seite (die Checkliste verlinkt den Auftrag so), jede andere meldet ihr Ziel statt true.
 PFAD_OEFFNEN = """(async()=>{const r=[];for(const a of document.querySelectorAll('#seitenkopfPfad a[href]')){const h=a.getAttribute('href');
-try{const x=await fetch(h,{credentials:'same-origin'});r.push([h,x.status,x.redirected,(x.headers.get('content-type')||'').split(';')[0]])}
+try{const x=await fetch(h,{credentials:'same-origin'});const z=new URL(x.url),m=h.match(/^\\/orders\\/(\\d+)(#.*)?$/);
+const akte=!!m&&/^\\/projects\\/\\d+$/.test(z.pathname)&&z.search==='?auftrag='+m[1];
+r.push([h,x.status,x.redirected&&!akte?z.pathname+z.search:false,(x.headers.get('content-type')||'').split(';')[0]])}
 catch(e){r.push([h,String(e)])}}return r})()"""
 
 
@@ -796,10 +806,13 @@ async def _datensatzkopf(tab, seed, p):
     m = await tab.js(DATENSATZKOPF_JS)
     g = m["pfad"]
     auftrag = await tab.js("R.order_id")
+    projekt_neu = await tab.js("AUFTRAG&&AUFTRAG.project_id")
+    # seit 1.9.129 führt der Auftrag im Pfad in die Akte des neuen Projekts, Reiter „Ausführung“ (bis dahin /orders/{auftrag})
     p.pruefe("Datensatzkopf Wartung durchführen: der neue Bericht, Pfad Projekte / Kunde / Wartungsvertrag / Projekt / Auftrag / "
              "Einsatzberichte / Wartungsbericht",
-             [da, [x[:2] for x in g[:3]], len(g), g[3][1].startswith("/projects/") if len(g) > 3 else None,
-              g[4][1] == f"/orders/{auftrag}" if len(g) > 4 else None, g[5][:2] if len(g) > 5 else None, g[-1][:2]],
+             [da, [x[:2] for x in g[:3]], len(g), g[3][1] == f"/projects/{projekt_neu}" if len(g) > 3 else None,
+              g[4][1] == f"/projects/{projekt_neu}?auftrag={auftrag}#ausfuehrung" if len(g) > 4 else None,
+              g[5][:2] if len(g) > 5 else None, g[-1][:2]],
              [True, [["Projekte", "/projects"], ["Hallenbau GmbH", f"/customers/{seed['kunde']}"],
                      ["Wartung Halle Nord", f"/maintenance-contracts/{seed['vertrag']}"]], 7, True, True,
               ["Einsatzberichte", f"/orders/{auftrag}/service-reports"], ["Wartungsbericht", None]])
@@ -852,9 +865,11 @@ async def _rechnungskopf(tab, seed, p):
                  [True, [["seitenkopfTitel", "Abschlagsrechnung (Pauschal)"]], "ohne Nummer", "Hallenbau GmbH · Halle Nord", []])
         p.pruefe(f"{wo}: Status „Entwurf“ (warn), Kennung als Kennzeichen daneben", [m["status"], m["kennzeichen"]],
                  [["Entwurf", "warn", True], [True, "solid", True, True]])
+        # seit 1.9.129 führt der Auftrag im Pfad in die Akte, Reiter „Rechnungen“ (bis dahin /orders/{auftrag})
         p.pruefe(f"{wo}: Pfad Projekte / Kunde / Projekt / Auftrag / Rechnung", m["pfad"],
                  [["Projekte", "/projects", None], ["Hallenbau GmbH", f"/customers/{seed['kunde']}", None],
-                  ["P-2026-0001", f"/projects/{seed['projekt']}", None], [auftragsnummer, f"/orders/{seed['auftrag']}", None],
+                  ["P-2026-0001", f"/projects/{seed['projekt']}", None],
+                  [auftragsnummer, f"/projects/{seed['projekt']}?auftrag={seed['auftrag']}#rechnungen", None],
                   ["Rechnung", None, "page"]])
         offen = await tab.js(PFAD_OEFFNEN)
         p.pruefe(f"{wo}: jeder Link im Pfad öffnet eine Seite ({len(offen)} Links)", [o for o in offen if o[1:] != [200, False, "text/html"]],
@@ -979,8 +994,10 @@ async def _angebotskopf(tab, seed, p):
             p.pruefe(f"{wo}: „Angebotsdetails“ im Menü öffnet den Reiter", reiter, [True, True])
             p.pruefe(f"{wo}: keine JS-Fehler", tab.fehler, [])
             await tab.js("document.getElementById('orderButton').click()")
-            ziel = await tab.warten(f"location.pathname==='/orders/{seed['auftrag']}'", 20)
-            p.pruefe(f"{wo}: Hauptaktion öffnet den Auftrag", ziel, True)
+            # seit 1.9.129 leitet /orders/{auftrag} in die Akte mit diesem Auftrag (bis dahin die Auftragsseite selbst)
+            ziel = await tab.warten(f"location.pathname==='/projects/{seed['projekt']}'&&location.search==='?auftrag={seed['auftrag']}'"
+                                    f"&&typeof order!=='undefined'&&!!order&&order.id==={seed['auftrag']}", 20)
+            p.pruefe(f"{wo}: Hauptaktion öffnet den Auftrag (in der Akte)", ziel, True)
         else:
             p.pruefe(f"{wo}: keine JS-Fehler", tab.fehler, [])
     await tab.bild("angebotskopf_zuletzt")
@@ -1079,8 +1096,9 @@ FORMULARSEITEN = (
                ["Leistung bearbeiten", None]], abbrechen="/leistungskatalog"),
     dict(seite="stammdaten_mitarbeiter", adresse="/master-data/customers/new", titel="Kunde anlegen",
          pfad=[["Stammdaten", "/master-data"], ["Kunden", "/master-data#customers"], ["Kunde anlegen", None]], abbrechen="/master-data#customers"),
+    # seit 1.9.129 heißt der Rückweg „Akte“ statt „Projektmappe“ (der Anker #sec-participants öffnet dort die Beteiligten)
     dict(seite="stammdaten_mitarbeiter", adresse="/master-data/contacts/new?projekt={projekt}", titel="Kontakt anlegen",
-         pfad=[["Projekte", "/projects"], ["Projektmappe", "/projects/{projekt}#sec-participants"], ["Kontakt anlegen", None]],
+         pfad=[["Projekte", "/projects"], ["Akte", "/projects/{projekt}#sec-participants"], ["Kontakt anlegen", None]],
          abbrechen="/projects/{projekt}#sec-participants"),
 )
 FORMULAR_JS = """(()=>{const F=%s;const cs=e=>getComputedStyle(e);const k=document.getElementById('seitenkopf');
@@ -1105,7 +1123,7 @@ async def _formular_laden(tab, seed, f, thema):
 
 
 async def _formularseiten(tab, seed, p):
-    """Seit 1.9.22: Stammdaten-Formular (Mitarbeiter bearbeiten, Kunde anlegen, Kontakt aus der Projektmappe) und Leistung im Rahmen,
+    """Seit 1.9.22: Stammdaten-Formular (Mitarbeiter bearbeiten, Kunde anlegen, Kontakt aus der Akte) und Leistung im Rahmen,
     hell und dunkel: Leiste mit „Stammdaten“ aktiv und Kopfzeile, .ds-seite, ein h1 mit dem Titel, Pfad bis zur Seite (jeder Link öffnet
     eine Seite), im Kopf „Abbrechen“ neutral zum bisherigen Zurück-Ziel und „Speichern“ grün, der Knopf unten bleibt; Links, Fokus,
     Kontrast. Dazu (hell): „Speichern“ im Kopf speichert wie der Knopf unten (Mitarbeiter -> Liste der Mitarbeiter, Leistung -> Katalog),
@@ -1205,9 +1223,11 @@ async def _formularseiten(tab, seed, p):
 ANFRAGEN_AV = (
     dict(seite="anfragen", titel="Anfragen", kennung="", untertitel="Vertriebsfälle von der Anfrage bis zum Projekt", pfad=[],
          status=["", "neutral"], menue=[]),
+    # seit 1.9.129 das Projekt in die Akte ohne Anker (bis dahin #sec-orders der Projektmappe), der Auftrag in die Akte, Reiter
+    # „Ausführung“ (bis dahin /orders/{auftrag})
     dict(seite="arbeitsvorbereitung", titel="Arbeitsvorbereitung", kennung="{auftragsnummer}", untertitel="P-2026-0001 · Dachsanierung Halle Nord",
-         pfad=[["Projekte", "/projects"], ["Hallenbau GmbH", "/customers/{kunde}"], ["Dachsanierung Halle Nord", "/projects/{projekt}#sec-orders"],
-               ["{auftragsnummer}", "/orders/{auftrag}"], ["Arbeitsvorbereitung", None]],
+         pfad=[["Projekte", "/projects"], ["Hallenbau GmbH", "/customers/{kunde}"], ["Dachsanierung Halle Nord", "/projects/{projekt}"],
+               ["{auftragsnummer}", "/projects/{projekt}?auftrag={auftrag}#ausfuehrung"], ["Arbeitsvorbereitung", None]],
          status=["Offen", "signal"], menue=["Zeiten (Auftrag)"]),  # bis 1.9.97 „Zeiterfassung (Auftrag)“
 )
 
@@ -1289,13 +1309,16 @@ async def _monteursseiten(tab, seed, p):
         cl, a, o = await _monteur_werte(tab, seed)
         monteur = rolle == bg.MONTEUR
         status_cl = {"entwurf": ["Entwurf", "warn"], "abgeschlossen": ["Abgeschlossen", "ok"], "gegenstandslos": ["Gegenstandslos", "neutral"]}
-        rueck_cl = f"/checklisten/auftrag/{cl['order_id']}" if monteur else f"/orders/{cl['order_id']}"
+        # seit 1.9.129 im Büro: die Checkliste verlinkt den Auftrag über /orders/<a>#ausfuehrung (leitet in die Akte, Reiter „Ausführung“),
+        # „Checklisten zum Auftrag“ direkt in die Akte (bis dahin beide /orders/<a>)
+        rueck_cl = f"/checklisten/auftrag/{cl['order_id']}" if monteur else f"/orders/{cl['order_id']}#ausfuehrung"
         anfang = ["Heute", "/mobil"] if monteur else ["Checklisten", "/checklisten"]
         seiten = [
             dict(seite="checkliste", titel=cl["template_label"], kennung="", status=status_cl[cl["status"]],
                  pfad=[anfang, [cl["context_label"], rueck_cl], [cl["template_label"], None]], pdf=cl["status"] != "entwurf"),
             dict(seite="checklisten_auftrag", titel="Checklisten zum Auftrag", kennung=o["order_number"], untertitel=o["customer_name"],
-                 status=["", "neutral"], pfad=[anfang] + ([] if monteur else [[o["order_number"], f"/orders/{seed['auftrag']}"]])
+                 status=["", "neutral"], pfad=[anfang] + ([] if monteur else [
+                     [o["order_number"], f"/projects/{o['project_id']}?auftrag={seed['auftrag']}#ausfuehrung"]])
                  + [["Checklisten zum Auftrag", None]]),
         ]
         if monteur:

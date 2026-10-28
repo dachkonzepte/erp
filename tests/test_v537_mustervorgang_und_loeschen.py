@@ -91,8 +91,8 @@ def test_projektliste_loeschen_nur_ohne_auftrag(nur_muster):
 
 
 def test_projektmappe_kennzeichnet_muster_und_loeschen_nur_ohne_auftrag():
-    text = (VORLAGEN / "project_folder.html").read_text(encoding="utf-8")
-    assert ("document.getElementById('templateBadge').hidden=!project.is_template;"
-            "document.getElementById('deleteMenuItem').hidden=(project.order_count||0)>0;") in text
-    assert 'id="templateBadge" class="badge" data-mustervorgang hidden>Mustervorgang</span>' in text
-    assert 'id="deleteMenuItem"' in text
+    text = (VORLAGEN / "akte.html").read_text(encoding="utf-8")
+    # seit 1.9.129 die Akte: „Mustervorgang“ im Untertitel des Seitenkopfs (bis dahin ein Kennzeichen templateBadge), Löschen im Menü
+    assert "project.is_template?'Mustervorgang':null" in text
+    assert "el('deleteMenuItem').hidden=(project.order_count||0)>0;" in text
+    assert 'id="deleteMenuItem" data-klick="projekt-loeschen" hidden>Löschen</button>' in text

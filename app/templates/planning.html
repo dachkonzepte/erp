@@ -93,5 +93,6 @@ function renderAbsences(){
 }
 async function saveAbsence(){const st=document.getElementById('absenceStatus');try{const body=JSON.stringify({employee_id:Number(document.getElementById('absenceEmployee').value),absence_category:document.getElementById('absenceCategory').value,absence_type:document.getElementById('absenceType').value,start_date:document.getElementById('absenceStart').value,end_date:document.getElementById('absenceEnd').value,notes:document.getElementById('absenceNotes').value.trim()||null});await speichern('tafel',()=>api('/api/planning/absences',{method:'POST',headers:{'Content-Type':'application/json'},body:body}),{neuLaden:loadBoard});renderAbsences();st.textContent='Abwesenheit gespeichert.'}catch(e){st.textContent='Fehler: '+e.message}}
 async function deleteAbsence(id){if(!confirm('Abwesenheit wirklich löschen?'))return;await speichern('tafel',()=>api(`/api/planning/absences/${id}`,{method:'DELETE'}),{neuLaden:loadBoard});renderAbsences()}
-loadBoard();
+// seit 1.9.129: ?auftrag=<id> (Hauptaktion „Einsatz planen“ der Akte) öffnet gleich „Neuer Einsatz“ mit dem Auftrag
+loadBoard().then(()=>{const a=new URLSearchParams(location.search).get('auftrag');if(a&&/^\d{1,9}$/.test(a))openCreate(Number(a))});
 </script></body></html>

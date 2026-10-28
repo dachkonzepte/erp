@@ -123,7 +123,7 @@ def _projekt(property_id, property_name):
                                                      "customer_id": 1}]}
     ablauf = (f"project = {json.dumps(projekt)}; customers = [{{id: 1, customer_number: 'K-1', name: 'Kunde'}}]; projectCategories = [];"
               "try { await openProjectEdit(); } catch (e) { if (!_gewaehlt('editProperty')) throw e; } return _feld('editProperty');")
-    return _lauf("project_folder.html", "load().catch(", ablauf, antworten)["ergebnis"]
+    return _lauf("akte.html", "akteStarten().catch(", ablauf, antworten)["ergebnis"]
 
 
 @nur_mit_node
@@ -143,7 +143,7 @@ def test_projektmappe_hauptadresse_nur_beim_kundenwechsel():
     antworten = {"/api/properties?customer_id=2": [{"id": 8, "name": "Hauptadresse", "postal_code": "1", "city": "X", "customer_id": 2}]}
     ablauf = ("project = {property_name: null}; _element('editCustomer').value = '2'; await loadEditProperties();"
               "return _feld('editProperty');")
-    assert _lauf("project_folder.html", "load().catch(", ablauf, antworten)["ergebnis"] == ["8", "Hauptadresse · 1 X"]
+    assert _lauf("akte.html", "akteStarten().catch(", ablauf, antworten)["ergebnis"] == ["8", "Hauptadresse · 1 X"]
 
 
 # --- Wartungsvertrag -----------------------------------------------------------------------------------------------------------------

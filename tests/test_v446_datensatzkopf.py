@@ -23,6 +23,8 @@ from tests import vorlagen_js as vj
 from tests.test_v441_rahmen_baustein import DATENSATZ_MIT_PFAD
 
 # je Seite: was der Pfad mindestens enthält (Muster wie die Routen, {x} = eingesetzte ID)
+# Seit 1.9.129 führt der Auftrag im Pfad in die Akte (/projects/<p>?auftrag=<a>#reiter; der Scanner liest „/projects/{x}“) -- bis 1.9.128
+# „/orders/{x}“, das heute auf die Akte weiterleitet.
 RUECKWEGE = {
     "property.html": {"/master-data", "/customers/{x}"},
     "roof_area.html": {"/master-data", "/customers/{x}", "/properties/{x}"},
@@ -30,16 +32,16 @@ RUECKWEGE = {
     "maintenance_contract.html": {"/maintenance-contracts", "/customers/{x}", "/properties/{x}"},
     "checklist_template.html": {"/checklisten", "/checklisten/vorlagen"},
     "inspection_template.html": {"/settings", "/inspection-templates"},
-    "service_reports.html": {"/projects", "/customers/{x}", "/projects/{x}", "/maintenance-contracts/{x}", "/orders/{x}", "/mobil"},
+    "service_reports.html": {"/projects", "/customers/{x}", "/projects/{x}", "/maintenance-contracts/{x}", "/mobil"},
     # seit 1.9.67 der Bericht: bis zur Seite des Auftrags (Einsatzberichte), für die Monteurin Heute / Auftrag
-    "service_report.html": {"/projects", "/customers/{x}", "/projects/{x}", "/maintenance-contracts/{x}", "/orders/{x}",
+    "service_report.html": {"/projects", "/customers/{x}", "/projects/{x}", "/maintenance-contracts/{x}",
                             "/orders/{x}/service-reports", "/mobil"},
     # seit 1.9.13 die Rechnung (ersetzt „← Auftrag“)
-    "invoice_detail.html": {"/projects", "/customers/{x}", "/projects/{x}", "/orders/{x}"},
+    "invoice_detail.html": {"/projects", "/customers/{x}", "/projects/{x}", "/projects/{x}?auftrag={x}#rechnungen"},
     # seit 1.9.18 das Angebot (ersetzt die Brotkrume Kunde · Projekt · Nummer)
     "quote_editor.html": {"/projects", "/customers/{x}", "/projects/{x}"},
     # seit 1.9.24 die Arbeitsvorbereitung (ersetzt „← Auftrag“ und „Projektmappe“)
-    "work_preparation.html": {"/projects", "/customers/{x}", "/projects/{x}", "/orders/{x}"},
+    "work_preparation.html": {"/projects", "/customers/{x}", "/projects/{x}"},
 }
 MIT_LOESCHEN = {"roof_area.html", "operational_asset.html", "maintenance_contract.html", "checklist_template.html",
                 "service_report.html"}  # seit 1.9.67, Rückfrage auf der Seite (48-px-Knöpfe) statt confirm()

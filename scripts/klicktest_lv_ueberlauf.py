@@ -1,5 +1,5 @@
-"""Klicktest: das Leistungsverzeichnis in LV-Editor und Auftrag läuft nicht rechts aus seiner Karte (1.8.133, Fehlerrunde vor Stufe 2,
-Punkt 2, Vorgabe vom 19.10.2026).
+"""Klicktest: das Leistungsverzeichnis in LV-Editor und Auftrag (seit 1.9.129 Reiter „Leistungen“ der Akte) läuft nicht rechts aus
+seiner Karte (1.8.133, Fehlerrunde vor Stufe 2, Punkt 2, Vorgabe vom 19.10.2026).
 
 Bis 1.8.132 hatten die Spalten des LV feste Breiten (LV-Editor rund 920 px, Auftrag rund 850 px), die linke Spalte des Seitenrasters war
 bei 1440 px aber nur rund 770 bzw. 760 px breit -- Gesamtpreis und EP standen rechts außerhalb der Karte, im LV-Editor unter dem Katalog.
@@ -8,6 +8,11 @@ Bei 1280 px war schon das zweispaltige Seitenraster breiter als der Inhaltsberei
     gemessen        je Seite (LV-Editor, Auftrag) und Breite (1440, 1280 px, Desktop) jede Zelle jeder LV-Zeile samt Kopf: rechte Kante
                     innerhalb der Karte, kein abgeschnittener Inhalt in den Preisspalten (scrollWidth <= clientWidth); die Seite selbst
                     ohne waagerechten Bildlauf; Preise mit großen Beträgen (12.345,678 m² zu 1.234,56 €)
+
+Seit 1.9.129 ist der Auftrag ein Reiter der Akte (/orders/{id} leitet auf /projects/{p}?auftrag={id}, Reiter „Leistungen“): die LV-Zeile
+zeigt Menge und EP als Text (Tabelle #lvTabelle, Zeilen #lv tr.lv-row), bearbeitet wird im Dialog der Position (#itemDialog, „✎“). Geprüft
+wird deshalb, dass der Text mit Tausenderpunkt in die Zelle passt und das Feld im Dialog ihn ganz zeigt; der Rundweg speichert den Dialog
+unverändert.
 
 AUFRUF (aus dem Projektordner):
 
@@ -24,8 +29,24 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from cdp_klicktest import klicktest_main  # noqa: E402
 
-# Zeilen und Zellen je Seite: Kopf und Positionen des LV
-ZEILEN = {"angebot": ".lv-columns, .lv-item", "auftrag": ".lv-head, .lv-row"}
+# Zeilen und Zellen je Seite: Kopf und Positionen des LV (seit 1.9.129 im Auftrag eine Tabelle im Reiter „Leistungen“ der Akte)
+ZEILEN = {"angebot": ".lv-columns, .lv-item", "auftrag": "#lvTabelle thead tr, #lv tr.lv-row"}
+
+# seit 1.9.129: Menge und EP der Position mit großen Beträgen als Text in der Zeile -- [Spalte, Text, passt in die Zelle]
+ZELLEN_TAUSENDER = r"""(()=>{
+const z=[...document.querySelectorAll('#lv tr.lv-row')].find(r=>r.cells[2]&&r.cells[2].textContent.includes('.'));if(!z)return [];
+return [['Menge',z.cells[2]],['Einheitspreis',z.cells[4]]].map(([n,c])=>[n,c.textContent.trim(),c.scrollWidth<=c.clientWidth]);
+})()"""
+
+# seit 1.9.129: dieselben Werte im Dialog der Position -- [Feld, Wert, passt ins Feld]
+DIALOG_TAUSENDER = r"""(()=>{
+const d=document.getElementById('itemDialog');if(!d.open)return null;
+return [['Menge','iQty'],['Einheitspreis','iPrice']].map(([n,id])=>{const f=document.getElementById(id);return [n,f.value,f.scrollWidth<=f.clientWidth]});
+})()"""
+
+# „✎“ der Position mit großen Beträgen anklicken (öffnet #itemDialog)
+DIALOG_OEFFNEN = ("[...document.querySelectorAll('#lv tr.lv-row')].find(r=>r.cells[2]&&r.cells[2].textContent.includes('.'))"
+                  ".querySelector('[data-klick=\"position-bearbeiten\"]').click()")
 
 MESSEN = r"""((auswahl)=>{
 const fehler=[];
@@ -76,8 +97,12 @@ def befuellen(db, k):
 
 async def pruefen(tab, seed, p):
     await tab.anmelden(seed["cookies"])
+    # seit 1.9.129: der Auftrag ist der Reiter „Leistungen“ der Akte -- ohne ihn wäre die Tabelle verborgen (Maße 0)
     seiten = {"angebot": (f"/quotes/{seed['angebot']}/edit", "document.querySelectorAll('.lv-item').length>=2"),
-              "auftrag": (f"/orders/{seed['auftrag']}", "document.querySelectorAll('.lv-row').length>=2")}
+              "auftrag": (f"/orders/{seed['auftrag']}#leistungen",
+                          "order&&order.id&&!document.getElementById('reiter-leistungen').hidden"
+                          "&&document.querySelectorAll('#lv tr.lv-row').length>=2")}
+    erwartet = [["Menge", "12.345,678", True], ["Einheitspreis", "1.234,56", True]]
     for breite in (1440, 1280):
         await tab.cmd("Emulation.setDeviceMetricsOverride", width=breite, height=900, deviceScaleFactor=1, mobile=False)
         for name, (pfad, bereit) in seiten.items():
@@ -87,18 +112,35 @@ async def pruefen(tab, seed, p):
             p.pruefe(f"{name} {breite}: LV-Zeilen gemessen", stand["zeilen"] >= 3, True)
             p.pruefe(f"{name} {breite}: kein Überlauf", stand["fehler"], [])
             await tab.bild(f"lv_{name}_{breite}")
-            if name == "auftrag":  # seit 1.8.148: Menge und EP mit Tausenderpunkt, der Text passt ins Feld
-                felder = await tab.js("[...document.querySelectorAll('.lv-row input[data-feld=\"Menge\"], .lv-row input[data-feld=\"Einheitspreis\"]')]"
-                                      ".filter(f=>f.value.includes('.')).map(f=>[f.dataset.feld,f.value,f.scrollWidth<=f.clientWidth])")
-                p.pruefe(f"auftrag {breite}: Tausenderpunkt, passt ins Feld", felder,
-                         [["Menge", "12.345,678", True], ["Einheitspreis", "1.234,56", True]])
-    # seit 1.8.151: Rundweg -- die angezeigten Werte unverändert verlassen (change), gespeichert ist derselbe Betrag
-    await tab.js("[...document.querySelectorAll('.lv-row input[data-feld]')].filter(f=>f.value.includes('.'))"
-                 ".forEach(f=>f.dispatchEvent(new Event('change')))")
+            if name == "auftrag":
+                # seit 1.8.148 Menge und EP mit Tausenderpunkt; seit 1.9.129 als Text in der Zeile (bis dahin ein Feld in der Zeile),
+                # der Text passt in die Zelle -- und das Feld im Dialog der Position zeigt ihn ganz
+                p.pruefe(f"auftrag {breite}: Tausenderpunkt, passt in die Zelle", await tab.js(ZELLEN_TAUSENDER), erwartet)
+                await tab.js(DIALOG_OEFFNEN)
+                await tab.warten("document.getElementById('itemDialog').open", 5)
+                p.pruefe(f"auftrag {breite}: Dialog der Position: Tausenderpunkt, passt ins Feld", await tab.js(DIALOG_TAUSENDER),
+                         erwartet)
+                await tab.bild(f"lv_auftrag_dialog_{breite}")
+                await tab.js("document.getElementById('itemDialog').close()")
+    # seit 1.8.151: Rundweg -- die angezeigten Werte unverändert verlassen, gespeichert ist derselbe Betrag; seit 1.9.129 über den Dialog
+    # der Position (unverändert speichern), bis dahin „change“ an den Feldern der Zeile
+    await tab.js(DIALOG_OEFFNEN)
+    await tab.warten("document.getElementById('itemDialog').open", 5)
+    await tab.js("saveItemDialog()")
+    p.pruefe("auftrag: Rundweg -- Dialog gespeichert und geschlossen", await tab.js(
+        "[document.getElementById('itemDialog').open,document.getElementById('itemStatus').textContent]"), [False, ""])
     await tab.warte_auf_ruhe()
     p.pruefe("auftrag: Rundweg speichert denselben Betrag", await tab.js(
         f"fetch('/api/orders/{seed['auftrag']}').then(r=>r.json()).then(o=>o.items.filter(i=>Number(i.quantity)>1000)"
         ".map(i=>[Number(i.quantity),Number(i.unit_price)]))"), [[12345.678, 1234.56]])
+    # seit 1.9.129: bei 412 px läuft der Reiter „Leistungen“ nicht über -- bis dahin hing der Vorlesetext „Aktionen“ im Kopf des LV
+    # (position:absolute) an der Seite statt am Bildlauf der Tabelle (Fund der Umstellung auf die Akte)
+    await tab.fenster(412, 900, mobil=True)
+    p.pruefe("auftrag 412: geladen", await tab.oeffnen(*seiten["auftrag"]), True)
+    await tab.warte_auf_ruhe()
+    p.pruefe("auftrag 412: kein waagrechter Bildlauf der Seite", await tab.js(
+        "document.documentElement.scrollWidth<=document.documentElement.clientWidth+1"), True)
+    await tab.bild("lv_auftrag_412")
     p.pruefe("keine JS-Fehler", tab.fehler, [])
 
 

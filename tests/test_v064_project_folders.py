@@ -1,4 +1,5 @@
 import io
+import re
 from pathlib import Path
 
 from sqlalchemy import create_engine
@@ -48,153 +49,102 @@ def test_project_file_upload_list_and_delete(tmp_path):
 
 
 def test_project_folder_ui_exists():
+    """Seit 1.9.129 ist die Projektmappe die Akte (akte.html, Stufe 5 R2) -- Übersicht, Dateien und Angebote bleiben, die Projektliste
+    nennt sie „Akte“ (bis 1.9.128 „Projektmappe“)."""
     root = Path(__file__).parents[1]
     main = (root / "app/main.py").read_text(encoding="utf-8") + "".join(p.read_text(encoding="utf-8") for p in sorted((root / "app/routers").glob("*.py")))
-    html = (root / "app/templates/project_folder.html").read_text(encoding="utf-8")
+    html = (root / "app/templates/akte.html").read_text(encoding="utf-8")
     projects = (root / "app/templates/projects.html").read_text(encoding="utf-8")
     assert '@router.get("/projects/{project_id}"' in main
     assert '@router.post("/api/projects/{project_id}/documents"' in main
-    # "Kennzahlen" ist seit 1.3.74 keine eigene Überschrift mehr, sondern ein
-    # überschriftsloser, immer sichtbarer Kennzahlen-Streifen (siehe
-    # test_project_folder_has_a_persistent_compact_kpi_strip) -- deshalb bewusst
-    # nicht mehr in dieser Liste.
     for label in ["Übersicht", "Dateien", "Angebote", "Dokumentdatum", "Notiz / Beschreibung"]:
         assert label in html
-    assert "Projektmappe" in projects
+    assert '<a href="/projects/${p.id}">Akte</a>' in projects
 
 
 def test_project_folder_uses_real_tabs_not_jump_anchors():
-    """Seit 1.3.74 (Umbau der Projekt-Detailseite): die frühere linke
-    Sprungmarken-Navigation ist einer echten, waagerechten Reiterleiste
-    gewichen -- nur der aktive Reiter ist sichtbar, der Rest ist per
-    JavaScript ausgeblendet (`.tab-pane{display:none}`), nicht per
-    Scroll-Sprungmarke (`:target`) erreichbar."""
+    """Seit 1.3.74 echte Reiter statt Sprungmarken -- seit 1.9.129 die Reiter der Akte (Vorlage akte-uebersicht.html): nur der gewählte
+    Abschnitt ist sichtbar (hidden), die Reiter des Auftrags nur mit Auftrag."""
     root = Path(__file__).parents[1]
-    html = (root / "app/templates/project_folder.html").read_text(encoding="utf-8")
-    assert "showTab" in html
-    assert "TAB_KEYS" in html
-    assert '.tab-pane{display:none}' in html.replace(" ", "")
-    assert '.tab-pane.active{display:block}' in html.replace(" ", "")
-    # Kein Sprungmarken-Highlight mehr (":target") und keine linke Seitenleiste.
-    assert ":target" not in html
-    assert 'class="side"' not in html
-    for section_id in ["sec-info", "sec-files", "sec-quotes", "sec-orders", "sec-invoices", "sec-workprep", "sec-times", "sec-history"]:
-        assert f'id="{section_id}"' in html
-        assert f"data-tab=\"{section_id}\"" in html
-        assert f"showTab('{section_id}')" in html
-    # "sec-kennzahlen" ist kein Reiter mehr -- die Kennzahlen sind ein eigener,
-    # immer sichtbarer Block oberhalb der Reiterleiste (siehe unten).
-    assert "sec-kennzahlen" not in html
+    html = (root / "app/templates/akte.html").read_text(encoding="utf-8")
+    assert "function reiterZeigen(" in html and "const REITER=[" in html
+    assert ":target" not in html and 'class="side"' not in html
+    for reiter in ["uebersicht", "angebote", "vertrag", "leistungen", "ausfuehrung", "abnahme", "rechnungen", "dateien", "verlauf"]:
+        assert f'id="reiter-{reiter}"' in html
+        assert f'data-reiter="{reiter}"' in html
+    for reiter in ["vertrag", "leistungen", "ausfuehrung", "abnahme", "rechnungen"]:
+        assert re.search(rf'data-reiter="{reiter}" data-auftrag hidden', html), reiter
 
 
 def test_project_folder_tab_selection_is_readable_from_the_url_hash():
-    """Punkt 3 des Bau-Auftrags: der aktive Reiter gehört in die Adresse,
-    damit ein Neuladen oder ein Lesezeichen denselben Reiter zeigt --
-    adaptiert aus dem bereits etablierten Muster in settings.html
-    (showSettingsSection()/history.replaceState/hashchange), nicht neu
-    erfunden. Die drei bestehenden externen Tiefenverweise (projects.html,
-    order.html, work_preparation.html) verlinken auf `#sec-quotes`/
-    `#sec-orders` -- die Reiter-Schlüssel sind deshalb bewusst identisch mit
-    den bisherigen Sprungmarken-IDs, damit keine der drei Dateien geändert
-    werden musste."""
+    """Der Reiter steht in der Adresse (Neuladen, Lesezeichen); die Anker der früheren Seiten (#sec-… der Projektmappe, #mangel-… der
+    Auftragsseite) öffnen den passenden Reiter (tests/test_v549_akte_seite.py prüft die Liste). Verweise von außen nehmen die neuen Anker."""
     root = Path(__file__).parents[1]
-    html = (root / "app/templates/project_folder.html").read_text(encoding="utf-8")
-    assert "tabFromHash" in html
+    html = (root / "app/templates/akte.html").read_text(encoding="utf-8")
+    assert "function reiterAusAnker()" in html
     assert "history.replaceState" in html
     assert "hashchange" in html
-    assert "showTab(tabFromHash(),false)" in html.replace(" ", "")
-    order_html = (root / "app/templates/order.html").read_text(encoding="utf-8")
+    assert "reiterZeigen(reiterAusAnker(),false)" in html.replace(" ", "")
     work_prep_html = (root / "app/templates/work_preparation.html").read_text(encoding="utf-8")
     projects_html = (root / "app/templates/projects.html").read_text(encoding="utf-8")
-    assert "#sec-orders" in order_html
-    assert "#sec-orders" in work_prep_html
-    assert "#sec-quotes" in projects_html
+    assert "#ausfuehrung" in work_prep_html and "#sec-orders" not in work_prep_html
+    assert "#angebote" in projects_html and "#sec-quotes" not in projects_html
 
 
 def test_project_folder_defaults_to_uebersicht_tab():
-    """Punkt 3: 'Übersicht' (sec-info) ist beim Öffnen ohne Hash aktiv --
-    sowohl im statischen Markup (active-Klasse) als auch im Rückfall von
-    tabFromHash(), falls die Adresse einen unbekannten/keinen Reiter nennt."""
+    """„Übersicht“ ist ohne Anker gewählt -- im Markup (aria-current) und als Rückfall von reiterZeigen() für einen unbekannten Reiter."""
     root = Path(__file__).parents[1]
-    html = (root / "app/templates/project_folder.html").read_text(encoding="utf-8")
-    assert 'id="sec-info" class="card tab-pane active"' in html
-    assert "key='sec-info'" in html.replace(" ", "")
+    html = (root / "app/templates/akte.html").read_text(encoding="utf-8")
+    assert '<a href="#uebersicht" data-reiter="uebersicht" aria-current="page">Übersicht</a>' in html
+    assert "if(!reiterErlaubt(name))name='uebersicht';" in html
 
 
 def test_project_folder_tab_counts_replace_the_old_sidebar_counts():
-    """Punkt 1: die Zählungen wandern von der linken Navigation (entfernt)
-    auf die Reiter -- exakt dieselben vier Zähler wie vorher (Dateien,
-    Angebote, Aufträge, Rechnungen), dazu Zeiten wie schon an der alten
-    Sprungmarken-Navigation. Arbeitsvorbereitung/Historie/Übersicht hatten
-    auch vorher keine Zahl und bekommen auch jetzt keine."""
+    """Zahlen stehen an den Reitern (Angebote, Leistungen, Rechnungen, Dateien) -- vom Server (GET /api/projects/{id}/akte, zaehler);
+    die früheren Zähler der Seitenleiste und des Kopfs gibt es nicht mehr."""
     root = Path(__file__).parents[1]
-    html = (root / "app/templates/project_folder.html").read_text(encoding="utf-8")
-    for element_id in ["tabCountFiles", "tabCountQuotes", "tabCountOrders", "tabCountInvoices", "tabCountTimes"]:
+    html = (root / "app/templates/akte.html").read_text(encoding="utf-8")
+    for element_id in ["zahlAngebote", "zahlLeistungen", "zahlRechnungen", "tabCountFiles"]:
         assert f'id="{element_id}"' in html
-    # Die alten, dreifach redundanten Zähler (Kopfbereich-Badges UND
-    # Kennzahlen-Dashboard UND Seitenleiste) sind auf genau eine Stelle
-    # (die Reiter) konsolidiert.
-    for removed_id in ["sideDocCount", "sideQuoteCount", "sideOrderCount", "sideInvoiceCount", "sideTimeCount", "docBadge", "quoteBadge", "orderBadge", "invoiceBadge", "kQuoteCount", "kOrderCount", "kInvoiceCount"]:
+    assert "akte.zaehler.angebote" in html and "akte.zaehler.rechnungen" in html
+    for removed_id in ["sideDocCount", "sideQuoteCount", "sideOrderCount", "sideInvoiceCount", "sideTimeCount", "docBadge", "quoteBadge", "orderBadge", "invoiceBadge", "kQuoteCount", "kOrderCount", "kInvoiceCount", "tabCountTimes"]:
         assert removed_id not in html
 
 
 def test_project_folder_header_has_one_primary_button_and_a_three_dot_menu():
-    """Punkt 4: nur eine Aktion bleibt permanent sichtbar. Die reale,
-    lokale Produktionsdatenbank zeigt, dass 6 von 8 Projekten bereits den
-    Status 'beauftragt' tragen (Angebotsphase damit für die meiste Zeit der
-    Projektlaufzeit abgeschlossen) -- 'Projektmappe bearbeiten' passt daher
-    besser zum überwiegenden Nachsehen-statt-Anlegen-Ablauf als '+ Angebot'
-    (bleibt als Aktion innerhalb der Reiter Übersicht/Angebote erhalten,
-    verschwindet also nicht, ist nur nicht mehr die permanent sichtbare
-    Kopfaktion). Der Rest wandert ins Drei-Punkte-Menü, wie in der
-    Projektliste (projects.html, 1.3.72/1.3.73: .menu/.menu-btn/toggleMenu/
-    positionMenu/closeAllMenus, position:fixed, Escape/Scroll/Resize
-    schließen das Menü)."""
+    """Seit 1.9.129 im Seitenkopf der Akte: genau eine Hauptaktion je Phase und Rolle (vom Server, GET /api/projects/{id}/akte), der Rest im
+    Menü „⋮“ (dsMenue() über das Makro) -- „Projekt bearbeiten“, Beteiligte, Auftragsbestätigung, Kopieren, Muster, Wartungsvertrag,
+    Archivieren, Löschen. „+ Angebot“ bleibt im Reiter „Angebote“."""
     root = Path(__file__).parents[1]
-    html = (root / "app/templates/project_folder.html").read_text(encoding="utf-8")
-    assert '<button class="btn primary" onclick="openProjectEdit()">Projektmappe bearbeiten</button>' in html
-    for fn in ["toggleMenu", "positionMenu", "closeAllMenus"]:
-        assert f"function {fn}" in html
-    assert "position:fixed" in html
+    html = (root / "app/templates/akte.html").read_text(encoding="utf-8")
+    assert '<button type="button" class="ds-knopf ds-knopf-aktion" id="hauptaktion" data-klick="hauptaktion" hidden></button>' in html
+    for klick in ["projekt-bearbeiten", "beteiligte-oeffnen", "ab-pdf", "projekt-kopieren", "als-muster", "wartungsvertrag", "archivieren",
+                  "projekt-loeschen"]:
+        assert f'data-klick="{klick}"' in html
     for action in ["duplicateProjectHere(false)", "duplicateProjectHere(true)", "toggleArchivedHere()", "deleteProjectHere()"]:
         assert action in html
-    # "+ Angebot" bleibt erhalten -- nur nicht mehr als permanente Kopfaktion.
     assert 'id="newQuote"' in html
-    assert 'id="newQuote2"' in html
 
 
 def test_project_folder_has_a_persistent_compact_kpi_strip():
-    """Punkt 2 des Bau-Auftrags: die Kennzahlen bleiben über allen Reitern
-    sichtbar (kein eigener Reiter), aber schlank -- die frühere, dritte
-    KPI-Gruppe 'Dokumente' (Angebote/Aufträge/Rechnungen-Zählung) entfällt
-    hier, weil dieselben Zahlen jetzt bereits an den Reitern stehen
-    (test_project_folder_tab_counts_replace_the_old_sidebar_counts) --
-    keine dritte, redundante Stelle für dieselbe Zahl. Übrig bleiben sechs
-    kompakte Kacheln (Finanzen: Projektwert/Abgerechnet/Noch offen; Stunden:
-    Soll/Ist/Abweichung), wiederverwendet über die bereits bestehenden
-    .metric/.grid-Klassen (dieselben, die auch die Zeiterfassungs-Sektion
-    nutzt) statt einer dritten, eigenen Kachel-Optik."""
+    """Seit 1.9.129 statt des Kennzahlen-Streifens die Karten „Abrechnung“ (Leistung netto, Zahlung brutto) und „Stunden“ der Übersicht
+    -- Zahlen vom Server (GET /api/orders/{id}/zahlen, app/akte.py::zahlen()), die Seite rechnet nichts nach."""
     root = Path(__file__).parents[1]
-    html = (root / "app/templates/project_folder.html").read_text(encoding="utf-8")
-    assert 'class="kpi-strip card"' in html
-    assert "kpi-groups" not in html
-    assert "kpi-group-label" not in html
-    for element_id in ["kValueNet", "kValueGross", "kInvoicedNet", "kInvoicedGross", "kOpenNet", "kOpenGross", "kPlannedHours", "kHours", "kHoursVariance"]:
+    html = (root / "app/templates/akte.html").read_text(encoding="utf-8")
+    assert 'class="kpi-strip card"' not in html
+    for element_id in ["uAbrechnung", "uLeistung", "uZahlung", "uStunden", "uSoll", "uGebucht", "uBw"]:
         assert f'id="{element_id}"' in html
-    assert "renderKennzahlen" in html
+    assert "function zahlenZeichnen()" in html and "/zahlen`" in html
 
 
 def test_kpi_redesign_does_not_affect_existing_metric_class_used_by_time_tracking():
-    """Wichtige Abgrenzung: .metric/.k/.v/.v2 werden auch von der
-    Zeiterfassungs-Sektion (renderTimes(), id="timeSummary") verwendet und
-    dürfen durch die Kennzahlen-Neugestaltung nicht verändert oder entfernt
-    werden -- die neue Gestaltung nutzt bewusst eigene, neue Klassennamen
-    (kpi-*) statt die bestehenden umzuwidmen."""
+    """Die Zeiten des Auftrags stehen seit 1.9.129 als Stand im Reiter „Ausführung“ (gebucht, Fahrzeit, Baustelle & Werkstatt); alle
+    Buchungen zeigt „Zeiten“ (Befund L3: alle Monate des Auftrags, nicht nur der laufende) -- die eigene Tabelle der Projektmappe
+    (renderTimes(), timeSummary) gibt es nicht mehr."""
     root = Path(__file__).parents[1]
-    html = (root / "app/templates/project_folder.html").read_text(encoding="utf-8")
-    assert ".metric{" in html
-    assert 'id="timeSummary" class="grid"' in html
-    assert "renderTimes" in html
+    html = (root / "app/templates/akte.html").read_text(encoding="utf-8")
+    assert 'id="zeitenStand"' in html and "renderTimes" not in html and 'id="timeSummary"' not in html
+    assert "'/zeiten?auftrag='+orderId+'&zeitraum=alle#buchungen'" in html
 
 
 def test_order_list_out_exposes_invoiced_amounts_for_project_kpi_aggregation():

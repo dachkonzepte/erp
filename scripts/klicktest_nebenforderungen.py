@@ -10,7 +10,8 @@ Pauschale (zuschaltbar), Verzugsbeginn.
                        Begründung -> offen 0 €, die Mahnung geht nicht mehr hinaus ("nennt Nebenforderungen")
     Mahnwesen          nie hinausgegangene, überholte 1. Mahnung: Zeile "zur Mahnung fällig" mit "(ersetzt …)"; Status
                        "Hinausgegangen" bzw. "Festgeschrieben, noch nicht hinaus"; Ersatz anlegen und festschreiben -> "Ersetzt"
-    Projektmappe       Kundenwechsel mit Auftrag: Begründungsfeld erscheint, ohne Begründung abgelehnt, mit Begründung gespeichert ->
+    Akte               (seit 1.9.129 statt Projektmappe) Kundenwechsel mit Auftrag über „Projekt bearbeiten“: Begründungsfeld
+                       erscheint, ohne Begründung abgelehnt, mit Begründung gespeichert ->
                        Auftrag mit neuem Kunden (Name im Schnappschuss)
     Monteurin          Nebenforderungen und Schalter 403
     412 px dunkel      Rechnungsseite (Karte), Mahnwesen
@@ -239,8 +240,9 @@ async def pruefen(tab, seed, p):
     await _bild(tab, "mahnwesen_412", "dueCard", dunkel=True)
     await tab.fenster(1280, 1000)
 
-    # --- Projektmappe: Kundenwechsel mit Auftrag nur mit Begründung ---
-    await tab.oeffnen(f"/projects/{seed['projekt_p']}", "typeof project!=='undefined'&&project&&customers.length>0")
+    # --- Akte (seit 1.9.129 statt Projektmappe): Kundenwechsel mit Auftrag nur mit Begründung ---
+    # Die Akte lädt die Kunden erst beim Öffnen von „Projekt bearbeiten“ (Menü „⋮“); bereit, sobald Projekt und Auftrag geladen sind.
+    await tab.oeffnen(f"/projects/{seed['projekt_p']}", "project&&project.id&&order&&order.id")
     await tab.js("openProjectEdit()")
     await tab.warten("document.getElementById('projectModal').classList.contains('open')||"
                      "getComputedStyle(document.getElementById('projectModal')).display!=='none'")

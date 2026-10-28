@@ -1,0 +1,82 @@
+{#- Eine Rechnungsliste für Akte und Finanzen (seit 1.9.128, Stufe 5, R2, Befund D2: bis 1.9.127 eigener Code auf Auftrag, Projektmappe und
+    Finanzen, mit drei Texten für denselben Stand). Die Zeilen kommen vom Server (app/invoices.py::invoice_overview_rows(): Zahlstand,
+    overview, art_text, Zeitraum, Netto); die Liste rechnet nichts, sie zeigt.
+
+    rechnungsZahlstand(r) -> {text, art}   Stand einer Zeile in Worten: Entwurf, storniert, Storno, „bezahlt 02.10.“, „überfällig seit 24.10.“,
+                                           „unbezahlt“ (D5: „offen“ heißt nur noch „unbezahlt“), teilweise bezahlt mit dem unbezahlten Betrag,
+                                           Einbehalt, Guthaben, enthalten in der Schlussrechnung
+    rechnungsTabelleHtml(rows, opt)        Tabelle mit den Spalten opt.spalten (rechnung, art, kunde, auftrag, datum, faellig, zeitraum, netto,
+                                           brutto, zahlstand, unbezahlt), opt.leer = Text ohne Zeilen
+    Mehrfach einbindbar (nur Funktionsdeklarationen). -#}
+{% include "_berlin_date.html" %}
+<style>
+.rl-r{text-align:right}.rl-num{font-variant-numeric:tabular-nums;white-space:nowrap}.rl-mut{color:var(--ds-text-2);font-size:12px}
+.rl-leer{margin:0;font-size:14px;color:var(--ds-text-2)}
+.rl-chip{font-size:12px;font-weight:600;border-radius:999px;padding:3px 10px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;background:var(--ds-flaeche-2);color:var(--ds-stark)}
+.rl-ok{color:var(--ds-ok-text);background:var(--ds-ok-hell)}.rl-fehler{color:var(--ds-signal-text);background:var(--ds-signal-hell)}
+.rl-info{color:var(--ds-info-text);background:var(--ds-info-hell)}.rl-warn{color:var(--ds-warn-text);background:var(--ds-warn-hell)}
+.rl-signal{color:var(--ds-signal-text);background:var(--ds-signal-hell)}
+.rl-punkt{width:8px;height:8px;border-radius:50%;background:var(--ds-signal);display:inline-block}
+.rl-tabelle{border-collapse:collapse;width:100%}
+</style>
+<script>
+function _rlEsc(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c])); }
+function _rlGeld(x) { return Number(x || 0).toLocaleString('de-DE', {style: 'currency', currency: 'EUR'}); }
+function _rlTag(d) {
+  const m = String(d || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return '';
+  return m[1] === berlinToday().slice(0, 4) ? `${m[3]}.${m[2]}.` : `${m[3]}.${m[2]}.${m[1]}`;
+}
+function rechnungsZahlstand(r) {
+  if (r.status === 'entwurf') return {text: 'Entwurf', art: 'warn'};
+  if (r.status === 'storniert') return {text: 'storniert', art: 'neutral'};
+  if (r.invoice_type === 'storno') return {text: 'Storno', art: 'neutral'};
+  const o = r.overview;
+  if (!o) return {text: 'festgeschrieben', art: 'info'};
+  if (o.state === 'enthalten') return {text: o.state_label.charAt(0).toUpperCase() + o.state_label.slice(1), art: 'neutral'};
+  if (o.state === 'guthaben') return {text: 'Guthaben ' + _rlGeld(o.credit), art: 'signal'};
+  if (o.state === 'bezahlt' || o.state === 'ausgeglichen') {
+    const am = r.payment && r.payment.paid_on ? ' ' + _rlTag(r.payment.paid_on) : '';
+    return {text: (o.state === 'bezahlt' ? 'bezahlt' : 'ausgeglichen') + am, art: 'ok'};
+  }
+  if (r.is_overdue) return {text: 'überfällig seit ' + _rlTag(r.due_date), art: 'fehler'};
+  if (o.state === 'einbehalt_offen') return {text: 'Einbehalt ' + _rlGeld(o.retained) + ' unbezahlt', art: 'info'};
+  if (o.state === 'zahlbetrag_offen') return {text: 'Zahlbetrag unbezahlt ' + _rlGeld(o.open), art: 'info'};
+  if (o.state === 'teilweise_bezahlt') return {text: 'teilweise bezahlt · unbezahlt ' + _rlGeld(o.open), art: 'info'};
+  return {text: 'unbezahlt', art: 'info'};
+}
+function _rlZelle(r, spalte) {
+  switch (spalte) {
+    case 'rechnung': return `<td><a href="/invoices/${Number(r.id)}">${_rlEsc(r.invoice_number || 'Entwurf')}</a></td>`;
+    case 'art': return `<td>${_rlEsc(r.art_text)}</td>`;
+    case 'kunde': return `<td>${_rlEsc(r.customer_name)}</td>`;
+    case 'auftrag': return `<td>${r.order_id ? `<a href="/projects/${Number(r.project_id)}?auftrag=${Number(r.order_id)}">${_rlEsc(r.order_number)}</a>${r.project_number ? ` <span class="rl-mut">(${_rlEsc(r.project_number)})</span>` : ''}` : '—'}</td>`;
+    case 'datum': return `<td class="rl-num">${_rlEsc(_rlTag(r.invoice_date))}</td>`;
+    case 'faellig': return `<td class="rl-num">${r.due_date ? _rlEsc(_rlTag(r.due_date)) : '—'}</td>`;
+    case 'zeitraum': return `<td class="rl-num">${r.service_period_start ? _rlEsc(_rlTag(r.service_period_start) + '–' + _rlTag(r.service_period_end)) : '—'}</td>`;
+    case 'netto': return `<td class="rl-r rl-num">${_rlGeld(r.net_total)}</td>`;
+    case 'brutto': return `<td class="rl-r rl-num">${_rlGeld(r.gross_total)}</td>`;
+    case 'unbezahlt': {
+      const o = r.overview;
+      const wert = !o || o.state === 'enthalten' ? '—' : Number(o.credit) > 0 ? 'Guthaben ' + _rlGeld(o.credit) : _rlGeld(o.open);
+      return `<td class="rl-r rl-num" data-offen-zeile>${_rlEsc(wert)}</td>`;
+    }
+    case 'zahlstand': {
+      const z = rechnungsZahlstand(r);
+      return `<td><span class="rl-chip rl-${_rlEsc(z.art)}" data-zahlstand="${_rlEsc(r.overview ? r.overview.state : r.status)}">${z.art === 'fehler' ? '<span class="rl-punkt"></span>' : ''}${_rlEsc(z.text)}</span></td>`;
+    }
+  }
+  return '<td></td>';
+}
+function rechnungSpalten() {
+  return {rechnung: 'Rechnung', art: 'Art', kunde: 'Kunde', auftrag: 'Auftrag', datum: 'Datum', faellig: 'Fällig', zeitraum: 'Zeitraum',
+    netto: 'Netto', brutto: 'Brutto', zahlstand: 'Zahlstand', unbezahlt: 'Unbezahlt'};
+}
+function rechnungsTabelleHtml(rows, opt = {}) {
+  const spalten = opt.spalten || ['rechnung', 'art', 'zeitraum', 'netto', 'brutto', 'zahlstand'];
+  if (!rows.length) return `<p class="rl-leer">${_rlEsc(opt.leer || 'Noch keine Rechnung.')}</p>`;
+  const rechts = new Set(['netto', 'brutto', 'unbezahlt']);
+  const kopf = spalten.map(s => `<th${rechts.has(s) ? ' class="rl-r"' : ''}>${_rlEsc(rechnungSpalten()[s] || s)}</th>`).join('');
+  return `<table class="rl-tabelle"><thead><tr>${kopf}</tr></thead><tbody>${rows.map(r => `<tr data-rechnung="${Number(r.id)}">${spalten.map(s => _rlZelle(r, s)).join('')}</tr>`).join('')}</tbody></table>`;
+}
+</script>

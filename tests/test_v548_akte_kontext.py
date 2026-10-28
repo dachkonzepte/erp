@@ -195,3 +195,17 @@ def test_alle_buchungen_des_auftrags_l3(welt):  # noqa: F811
     assert (alle["zeitraum"], alle["titel"], len(alle["eintraege"]), Decimal(str(alle["summe"]))) == ("alle", "alle Monate", 2, Decimal("5"))
     assert client.get("/api/zeiten/buchungen", params={"zeitraum": "alle"}).status_code == 422  # ohne Auftrag
     assert client.get("/api/zeiten/buchungen", params={"auftrag": w["order"].id, "zeitraum": "jahr"}).status_code == 422
+
+
+def test_mustervorgang_ohne_hauptaktion(welt):  # noqa: F811
+    """Ein Mustervorgang wird nicht beauftragt (seit 1.9.117) -- die Akte bietet ihm keine Hauptaktion an, auch mit Angebot (Fund der
+    Klicktests 1.9.129: bis dahin „Beauftragen“, der Dialog im Angebot öffnete sich und scheiterte erst mit 409)."""
+    from app.akte import hauptaktion
+
+    w = welt
+    muster = _projekt(w["db"], "548m", angebot=True)
+    muster.is_template = True
+    w["db"].commit()
+    a = w["client"](w["db"], *ROUTER).get(f"/api/projects/{muster.id}/akte").json()
+    assert (a["hauptaktion"], a["phasen"]["phase"]) == (None, "angebot")
+    assert hauptaktion("auftrag", hat_angebot=True, verweigert=False, geschlossen=False, geld=True, muster=True) is None

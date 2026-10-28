@@ -233,7 +233,7 @@ const timers={};          // Feld-ID -> ausstehender, verzögerter Speichervorga
 const inflight=new Set(); // laufende Speichervorgänge (Promise)
 
 function backLink(){
-  if(cl.context_type==='auftrag')return IS_FIELD?`/checklisten/auftrag/${cl.order_id}`:`/orders/${cl.order_id}`;
+  if(cl.context_type==='auftrag')return IS_FIELD?`/checklisten/auftrag/${cl.order_id}`:`/orders/${cl.order_id}#ausfuehrung`;
   if(cl.context_type==='objekt')return IS_FIELD?`/mobil/objekt/${cl.property_id}`:`/properties/${cl.property_id}`;
   if(cl.context_type==='betriebsmittel')return `/betriebsmittel/${cl.operational_asset_id}`;
   return '/checklisten';

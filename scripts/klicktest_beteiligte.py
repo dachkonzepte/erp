@@ -1,11 +1,14 @@
 """Klicktest: Beteiligte mit Adressbuch (1.8.37, Stufe 2b, Runde 2b-2).
 
-Prüft Adressbuch und Reiter "Beteiligte" so, wie das Büro sie benutzt:
+Prüft Adressbuch und Beteiligte so, wie das Büro sie benutzt:
 
     Adressbuch     Stammdaten -> Adressbuch: Liste zuerst, archivierte erst mit Häkchen, "Löschen" nur
                    ohne Projekt, Archivieren eines verwendeten Kontakts, Löschen eines unbenutzten
-    Projektmappe   Reiter "Beteiligte": Kunde als Auftraggeber oben; Hinzufügen sucht zuerst (Treffer
-                   filtern beim Tippen, archivierte fehlen), Rolle und "Kopie bei Anzeigen"; doppelte
+    Akte           Dialog "Beteiligte" (seit 1.9.129 statt des Reiters "Beteiligte" der Projektmappe;
+                   geöffnet über die Adresse #sec-participants oder "Bearbeiten" an der Karte "Beteiligte"
+                   der Übersicht): Kunde als Auftraggeber oben; Hinzufügen sucht zuerst (Treffer
+                   filtern beim Tippen, archivierte fehlen), Rolle und "Kopie bei Anzeigen", der neue
+                   Beteiligte auch auf der Karte der Übersicht; doppelte
                    Zuordnung mit lesbarer Meldung; nicht gefunden -> "Neuen Kontakt anlegen" mit dem
                    Suchtext vorbelegt, nach dem Speichern zurück in den Dialog mit dem neuen Kontakt;
                    Empfangsvollmacht mit Beleg (PDF), Häkchen weg lässt den Beleg stehen; Rolle über
@@ -97,12 +100,21 @@ async def pruefen(tab, seed, p):
     await tab.bild("adressbuch_liste")
     p.pruefe("Adressbuch: JS-Fehler", tab.fehler, [])
 
-    # --- Reiter Beteiligte -----------------------------------------------------------------------------------
-    bereit = "document.getElementById('participantClient')!==null"
-    await tab.oeffnen(f"/projects/{projekt}#sec-participants", bereit)
-    p.pruefe("Reiter aktiv über die Adresse", await tab.js("document.getElementById('sec-participants').classList.contains('active')"), True)
+    # --- Dialog Beteiligte (seit 1.9.129 in der Akte; bis dahin Reiter "Beteiligte" der Projektmappe) ---------
+    offen = "document.getElementById('beteiligteModal').classList.contains('open')"
+    bereit = f"document.getElementById('participantClient')!==null&&{offen}"
+    await tab.oeffnen(f"/projects/{projekt}#sec-participants", "document.getElementById('participantClient')!==null")
+    # seit 1.9.129: der alte Anker öffnet den Dialog "Beteiligte" (bis dahin: Reiter #sec-participants aktiv)
+    p.pruefe("Dialog „Beteiligte“ offen über die Adresse", await tab.warten(offen, 15), True)
     p.pruefe("Kunde als Auftraggeber oben", await tab.js("document.getElementById('participantClient').innerText.includes('Familie Klar')&&document.getElementById('participantClient').innerText.includes('Auftraggeber')"), True)
-    p.pruefe("Noch keine Beteiligten", await tab.js("document.getElementById('tabCountParticipants').textContent"), "0")
+    # seit 1.9.129 ohne Zähler am Reiter: keine Karte eines Beteiligten im Dialog, dafür der Hinweis
+    p.pruefe("Noch keine Beteiligten", await tab.js(
+        "[document.querySelectorAll('#participantsList [data-participant-id]').length,"
+        "document.getElementById('participantsList').innerText.includes('Noch keine Beteiligten eingetragen.')]"), [0, True])
+    # seit 1.9.129: auch "Bearbeiten" an der Karte "Beteiligte" der Übersicht öffnet den Dialog
+    await tab.js("closeModal('beteiligteModal')")
+    await tab.js("document.querySelector('#uBeteiligte [data-klick=\"beteiligte-oeffnen\"]').click()")
+    p.pruefe("Karte der Übersicht: „Bearbeiten“ öffnet den Dialog", await tab.warten(bereit, 5), True)
 
     treffer = "[...document.querySelectorAll('#pmResults .pm-hit b')].map(b=>b.textContent)"
     await tab.js("openParticipantModal()")
@@ -119,9 +131,13 @@ async def pruefen(tab, seed, p):
     await tab.js("saveParticipant()")
     await tab.warten("!document.getElementById('participantModal').classList.contains('open')")
     karte = "document.querySelector('[data-participant-id]')"
-    p.pruefe("Hinzugefügt: Rolle, Kopie bei Anzeigen, Zähler",
-             await tab.js(f"[{karte}.querySelector('.p-role').value,{karte}.querySelector('.p-copy').checked,{karte}.querySelector('.p-authorized').checked,document.getElementById('tabCountParticipants').textContent]"),
-             ["hausverwaltung", True, False, "1"])
+    # seit 1.9.129 statt des Zählers am Reiter: die Zahl der Karten im Dialog
+    p.pruefe("Hinzugefügt: Rolle, Kopie bei Anzeigen, Zahl der Karten",
+             await tab.js(f"[{karte}.querySelector('.p-role').value,{karte}.querySelector('.p-copy').checked,{karte}.querySelector('.p-authorized').checked,document.querySelectorAll('#participantsList [data-participant-id]').length]"),
+             ["hausverwaltung", True, False, 1])
+    # seit 1.9.129: die Karte "Beteiligte" der Übersicht nennt den neuen Beteiligten mit Rolle
+    p.pruefe("Hinzugefügt: auf der Karte der Übersicht", await tab.js(
+        "(()=>{const t=document.getElementById('uBeteiligteListe').textContent;return t.includes('Hausverwaltung Meyer GmbH')&&t.includes('Hausverwaltung')})()"), True)
 
     # doppelte Zuordnung
     await tab.js("openParticipantModal()")
@@ -151,10 +167,12 @@ async def pruefen(tab, seed, p):
                     document.getElementById('email').value='lot@example.org';save()""")
     tab.fehler = []
     zurueck = await _warten_ueber_seitenwechsel(tab, "location.pathname==='/projects/%d'&&document.getElementById('participantModal')?.classList.contains('open')&&document.getElementById('pmChosenStep').style.display===''" % projekt)
-    p.pruefe("Nach dem Speichern zurück in der Projektmappe", zurueck, True)
-    p.pruefe("Zurück in der Projektmappe: neuer Kontakt im Dialog gewählt",
+    p.pruefe("Nach dem Speichern zurück in der Akte", zurueck, True)
+    p.pruefe("Zurück in der Akte: neuer Kontakt im Dialog gewählt",
              (await tab.js("document.getElementById('pmChosenText').innerText") or "").startswith("Gerd Lot"), True)
-    p.pruefe("Adresse ohne ?kontakt=", await tab.js("location.search+location.hash"), "#sec-participants")
+    # seit 1.9.129 wird die Adresse danach …#uebersicht (der Reiter unter dem Dialog), bis dahin #sec-participants
+    p.pruefe("Adresse ohne ?kontakt=", await tab.js("location.search+location.hash"), "#uebersicht")
+    p.pruefe("Zurück in der Akte: Dialog „Beteiligte“ unter dem Hinzufügen offen", await tab.js(offen), True)
     await tab.js("document.getElementById('pmRole').value='sachverstaendiger';document.getElementById('pmAuthorized').checked=true;saveParticipant()")
     await tab.warten("document.querySelectorAll('[data-participant-id]').length===2")
     p.pruefe("Zwei Beteiligte, Reihenfolge der Rollen", await tab.js("[...document.querySelectorAll('[data-participant-id] .p-role')].map(s=>s.value)"), ["hausverwaltung", "sachverstaendiger"])
@@ -176,7 +194,7 @@ async def pruefen(tab, seed, p):
     # participants ist der Stand nach der Antwort des Servers (replaceParticipant), nicht der Wert der Auswahl
     await tab.warten("participants.some(b=>b.role==='eigentuemer')")
     p.pruefe("Rolle geändert und gespeichert", await tab.js(f"fetch('/api/projects/{projekt}/participants').then(r=>r.json()).then(l=>l.map(b=>b.role).sort().join())"), "eigentuemer,sachverstaendiger")
-    p.pruefe("Projektmappe: JS-Fehler", tab.fehler, [])
+    p.pruefe("Akte: JS-Fehler", tab.fehler, [])
     await tab.bild("beteiligte_hell")
 
     # --- Archivieren eines verwendeten Kontakts, Löschen eines unbenutzten -----------------------------------
@@ -191,7 +209,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Unbenutzter Kontakt gelöscht", await tab.js(f"fetch('/api/contacts/{seed['alt']}').then(r=>r.status)"), 404)
     p.pruefe("Adressbuch: JS-Fehler", tab.fehler, [])
     await tab.oeffnen(f"/projects/{projekt}?nach=archiv#sec-participants", bereit)
-    p.pruefe("Projektmappe: archivierter Kontakt gekennzeichnet", "archiviert" in (await tab.js(meyer_karte + ".innerText") or ""), True)
+    p.pruefe("Akte: archivierter Kontakt gekennzeichnet", "archiviert" in (await tab.js(meyer_karte + ".innerText") or ""), True)
     await tab.js("openParticipantModal()")
     await tab.warten("document.querySelectorAll('#pmResults .pm-hit').length>0")
     p.pruefe("Dialog: archivierter Kontakt nicht angeboten", await tab.js(treffer), ["Anna Architekt", "Gerd Lot"])

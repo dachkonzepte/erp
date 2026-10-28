@@ -12,7 +12,8 @@ Frist gestern, Foto und Beleg, freigegeben, Haltung bestritten), "Rinne lose" (n
                                 Hinweis (seit 1.8.54, höchstens 500 Zeichen, "nur fürs Büro") gesendet -> Meldung,
                                 Abschnitt leer; dieselbe Kennung noch einmal: dieselbe Antwort. Nicht freigegebener und
                                 fremder Mangel: Foto und Meldung 404; Büro-Wege 403.
-    Büro (1400 px, hell)        Auftrag: "beseitigt", Verlauf "gemeldet in der Monteursansicht" mit dem Foto, "Hinweis aus
+    Büro (1400 px, hell)        Akte des Auftrags, Reiter „Abnahme & Mängel“ (seit 1.9.129 statt der Auftragsseite):
+                                "beseitigt", Verlauf "gemeldet in der Monteursansicht" mit dem Foto, "Hinweis aus
                                 der Monteursansicht", "Aufgabe „Beseitigung abnehmen lassen“ angelegt", Aufgabenzeile mit
                                 Art und Link auf die Aufgabe; "Rinne lose" freigeben.
     Monteurin (412 px, hell)    "Rinne lose" erscheint; nach dem Zurücknehmen durch das Büro (API) verschwindet er. Das Büro
@@ -241,7 +242,8 @@ async def pruefen(tab, seed, p):
     await tab.anmelden(seed["cookies"]["buero"])
     await tab.fenster(1400, 1000)
     await tab.js("localStorage.setItem('erp_theme','light')")
-    await tab.oeffnen(f"/orders/{seed['auftrag']}", BUERO_BEREIT)
+    # Seit 1.9.129 (Akte): die Mängel stehen im Reiter „Abnahme & Mängel“ (#abnahme) -- offen, sonst liefert innerText keine Zeilen.
+    await tab.oeffnen(f"/orders/{seed['auftrag']}#abnahme", BUERO_BEREIT)
     karte = f"document.getElementById('mangel-{m['attika']}')"
     await tab.js(f"{karte}.querySelector('details').open=true;{karte}.scrollIntoView()")
     p.pruefe("Büro: Status beseitigt, Meldung aus der Monteursansicht mit Foto", await tab.js(
@@ -293,7 +295,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Monteurin hell: keine JS-Fehler", tab.fehler, [])
     await tab.anmelden(seed["cookies"]["buero"])
     await tab.fenster(1400, 1000)
-    await tab.oeffnen(f"/orders/{seed['auftrag']}", BUERO_BEREIT)
+    await tab.oeffnen(f"/orders/{seed['auftrag']}#abnahme", BUERO_BEREIT)
     p.pruefe("Büro: aktuelle Aufgabe 'Erneut beseitigen'", await tab.js(
         f"{karte}.innerText.includes('Aufgabe (Mangel beseitigen): Erneut beseitigen – Mangel aus Abnahme')"), True)
     await tab.js(f"{karte}.scrollIntoView()")

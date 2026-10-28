@@ -86,7 +86,7 @@ STEUERSCHLUESSEL = ("[{id: 1, label: 'Regelsteuersatz', vat_rate: '19.0000', arc
 
 
 @nur_mit_node
-@pytest.mark.parametrize("vorlage,start", [("invoice_detail.html", "load().catch("), ("order.html", "load().catch("),
+@pytest.mark.parametrize("vorlage,start", [("invoice_detail.html", "load().catch("), ("akte.html", "akteStarten().catch("),
                                            ("quote_editor.html", "load().catch(")])
 def test_steuerschluessel_in_der_auswahl(vorlage, start):
     """Auswahl Steuerschlüssel in Rechnung, Auftrag und Angebot: „Regelsteuersatz (19 %)“ (bis 1.9.16 „19,0000 %“)."""
@@ -120,8 +120,8 @@ def test_einstellungen_steuerschluessel_skonto_konten():
 @nur_mit_node
 @pytest.mark.parametrize("vorlage,start,aufruf,soll", [
     ("customer.html", "load().catch(", "fileSize(1536)", "1,5 KB"),
-    ("project_folder.html", "load().catch(", "size(1536)", "1,5 KB"),
-    ("order.html", "load().catch(", "fmtSize(1572864)", "1,5 MB"),
+    ("akte.html", "akteStarten().catch(", "size(1536)", "1,5 KB"),
+    ("akte.html", "akteStarten().catch(", "fmtSize(1572864)", "1,5 MB"),
 ])
 def test_dateigroessen(vorlage, start, aufruf, soll):
     """Dateigrößen (bis 1.9.16 in Kundenakte und Projektmappe „1.5 KB“ mit Punkt)."""

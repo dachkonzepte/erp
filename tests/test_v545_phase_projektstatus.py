@@ -220,9 +220,9 @@ def test_listen_und_dashboard_lesen_den_abgeleiteten():
     """Projektliste, Projektmappe und Dashboard zeigen den Namen vom Server und zählen nach den abgeleiteten Werten; keine Seite bietet
     den Status zur Auswahl an."""
     t = ROOT / "app" / "templates"
-    liste, mappe, form, dash = (t / n for n in ("projects.html", "project_folder.html", "project_form.html", "dashboard.html"))
+    liste, mappe, form, dash = (t / n for n in ("projects.html", "akte.html", "project_form.html", "dashboard.html"))
     assert "esc(p.status_label||p.status)" in liste.read_text(encoding="utf-8")
-    assert "project.status_label||project.status" in mappe.read_text(encoding="utf-8")
+    assert "statusKennzeichen('projekt',project.status)" in mappe.read_text(encoding="utf-8")  # seit 1.9.129 die Akte (Projektmappe und Auftragsseite in einer Seite): Status im Seitenkopf
     for seite in (mappe, form):
         text = seite.read_text(encoding="utf-8")
         assert "editProjectStatus" not in text and 'id="status"' not in text and "status:document.getElementById" not in text

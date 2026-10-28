@@ -392,5 +392,7 @@ def test_skripte_fragen_geld_vor_jedem_knopf():
                    "GELD&&!r.create_block&&r.next_level", "const emailAction = !GELD ?",
                    "GELD ? {} : {manual: false, outcomes: false}", "${GELD?`<button onclick=\"createReminder("):
         assert stelle in mahn, stelle
-    auftrag = (vorlagen / "order.html").read_text(encoding="utf-8")
-    assert "${GELD&&inv.status==='entwurf'?" in auftrag
+    auftrag = (vorlagen / "akte.html").read_text(encoding="utf-8")
+    # seit 1.9.129 die Akte: kein „Löschen“ eines Entwurfs in der Rechnungsliste mehr (Befund D17, auf der Rechnungsseite); „Mahnen“ nur mit GELD
+    assert "const knopf=a.geld&&!GELD?''" in auftrag
+    assert '{% if geld %}<div class="hinweis-zeile" id="uNaechste" hidden>' in auftrag

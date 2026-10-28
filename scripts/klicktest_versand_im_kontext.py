@@ -1,10 +1,13 @@
-"""Klicktest: Versandprotokoll in Projektmappe und Kundenakte, Mahnung als einzelne, "Mein Konto" mobil, Leistungsformular für
+"""Klicktest: Versandprotokoll in Akte und Kundenakte, Mahnung als einzelne, "Mein Konto" mobil, Leistungsformular für
 Büro – Auftrag (1.8.113, Vorgabe vom 16.10.2026 Punkte 4–6).
 
 Geprüft wird im echten Browser:
 
-    Projektmappe      Reiter "Versand": nur die Einträge zu Dokumenten dieses Projekts (Angebot, Auftrag, Rechnung, Mahnung),
-                      nicht die des anderen Projekts; "Im Versandprotokoll öffnen" -> /versandprotokoll?projekt=…, dort dieselben
+    Akte              (seit 1.9.129 statt des Reiters "Versand" der Projektmappe) der alte Anker #sec-dispatch öffnet den Reiter
+                      "Verlauf", Filter "Versand": nur die Einträge zu Dokumenten dieses Projekts (Angebot, Auftrag, Rechnung,
+                      Mahnung), nicht die des anderen Projekts; "⋮" mit "Zustellung nachtragen" nur an Angebot und Auftrag (Büro –
+                      Auftrag, Rechnung und Mahnung nur mit darf_geld()), öffnet den Versandverlauf des Dokuments mit dem Formular;
+                      "Versandprotokoll des Projekts" -> /versandprotokoll?projekt=…, dort dieselben
                       Einträge und der Hinweis "Nur die Dokumente eines Projekts"
     Kundenakte        Karte "Versand": die Einträge beider Projekte des Kunden, nicht die des anderen Kunden
     Mahnung           der Link der Mahnung im Versandprotokoll führt in ihre Rechnung, die Mahnung ist hervorgehoben
@@ -97,10 +100,15 @@ def befuellen(db, k):
     return {"cookies": {n: k.cookies(u) for n, u in nutzer.items()}, "p1": p1.id, "p2": p2.id, "kunde": kunde.id,
             "katalog": katalog.id, "leistung": leistung.id, "rechnung": rechnung.id, "mahnung": mahnung.id,
             "p1_nummern": sorted([q1.quote_number, o1.order_number, rechnung.invoice_number, mahnung.reminder_number]),
+            "p1_ohne_geld": sorted([q1.quote_number, o1.order_number]), "p1_auftrag": o1.order_number,
             "p2_nummer": o2.order_number, "p3_nummer": o3.order_number}
 
 
 _NUMMERN = "[...document.querySelectorAll('#{} .dh-doc')].map(x=>x.textContent.trim().split(' ').pop()).sort()"
+# seit 1.9.129: eine Versandzeile des Verlaufs der Akte, Überschrift „<Dokument> <Nummer> per <Weg> an …“ bzw. „… zugestellt (…)“
+_VERLAUF_ZEILEN = "[...document.querySelectorAll('#verlaufListe .vl-zeile')]"
+_VERLAUF_NUMMERN = (_VERLAUF_ZEILEN + ".map(z=>z.querySelector('.li-text>span').textContent.split(/ per | zugestellt /)[0]"
+                    ".split(' ').pop()).sort()")
 
 
 async def pruefen(tab, seed, p):
@@ -108,17 +116,38 @@ async def pruefen(tab, seed, p):
                   source="window.alert=m=>console.error('alert(): '+m);window.confirm=()=>true")
     await tab.fenster(1400, 900)
     await tab.anmelden(seed["cookies"]["buero"])
-    # --- Projektmappe: Reiter Versand ---
-    await tab.oeffnen(f"/projects/{seed['p1']}#sec-dispatch", "document.querySelector('#projectDispatches .dh-head')")
-    p.pruefe("Projektmappe: Reiter Versand aktiv", await tab.js("document.querySelector('.tab-btn.active').textContent.trim()"),
-             "Versand")
-    p.pruefe("Projektmappe: nur die Dokumente des Projekts", await tab.js(_NUMMERN.format("projectDispatches")), seed["p1_nummern"])
-    p.pruefe("Projektmappe: Link ins gefilterte Versandprotokoll",
-             await tab.js("document.querySelector('#projectDispatches .dh-head a').getAttribute('href')"),
+    # --- Akte: Reiter Verlauf, Filter Versand (seit 1.9.129; bis dahin Reiter "Versand" der Projektmappe, #projectDispatches) ---
+    await tab.oeffnen(f"/projects/{seed['p1']}#sec-dispatch",
+                      "typeof verlaufDaten!=='undefined'&&verlaufDaten&&!document.getElementById('reiter-verlauf').hidden")
+    p.pruefe("Akte: der alte Anker #sec-dispatch öffnet den Reiter Verlauf",
+             await tab.js("document.querySelector('.reiter a[aria-current=\"page\"]').textContent.trim()"), "Verlauf")
+    await tab.warte_auf_neu_geladene_liste("document.querySelector('#verlaufArten [data-art=\"versand\"]').click()", "#verlaufListe")
+    p.pruefe("Akte, Verlauf „Versand“: Filter gedrückt, nur Versandzeilen", await tab.js(
+        "[document.querySelector('#verlaufArten [data-art=\"versand\"]').getAttribute('aria-pressed'),"
+        f"[...new Set({_VERLAUF_ZEILEN}.map(z=>z.querySelector('.vl-art').textContent))]]"), ["true", ["Versand"]])
+    p.pruefe("Akte, Verlauf „Versand“: nur die Dokumente des Projekts", await tab.js(_VERLAUF_NUMMERN), seed["p1_nummern"])
+    # neu seit 1.9.129: „⋮“ einer Versandzeile mit „Zustellung nachtragen“ -- als Büro – Auftrag nur an Angebot und Auftrag
+    # (Rechnung und Mahnung nur nach darf_geld(), seit 1.9.111)
+    p.pruefe("Akte, Verlauf „Versand“: „⋮“ nur an Angebot und Auftrag (Büro – Auftrag)", await tab.js(
+        "[...document.querySelectorAll('#verlaufListe [data-klick=\"versand-menue\"]')].map(b=>b.dataset.nummer).sort()"),
+        seed["p1_ohne_geld"])
+    p.pruefe("Akte: Link ins gefilterte Versandprotokoll",
+             await tab.js("document.getElementById('versandprotokollLink').getAttribute('href')"),
              f"/versandprotokoll?projekt={seed['p1']}")
-    p.pruefe("Projektmappe: JS-Fehler", tab.fehler, [])
-    await tab.bild("projektmappe_versand")
-    await tab.js("document.querySelector('#projectDispatches .dh-head a').click()")
+    await tab.js("document.documentElement.setAttribute('data-theme','light')")
+    await tab.bild("akte_verlauf_versand")
+    await tab.js(f"document.querySelector('#verlaufListe [data-klick=\"versand-menue\"][data-nummer=\"{seed['p1_auftrag']}\"]').click()")
+    await tab.warten("document.getElementById('zustellungDialog').open&&(document.getElementById('zustellungVerlauf-form')||{style:{}})"
+                     ".style.display==='grid'")
+    p.pruefe("Akte: „⋮“ öffnet „Zustellung nachtragen“ mit dem Versandverlauf des Auftrags", await tab.js(
+        "(()=>{const d=document.getElementById('zustellungDialog'),v=document.getElementById('zustellungVerlauf');"
+        "return [d.open,document.getElementById('zustellungTitel').textContent,v.querySelectorAll('.dh-row').length>0,"
+        "v.textContent.includes('bauherr@example.com'),getComputedStyle(document.getElementById('zustellungVerlauf-form')).display]})()"),
+        [True, f"Zustellung nachtragen – {seed['p1_auftrag']}", True, True, "grid"])
+    await tab.bild("akte_zustellung_nachtragen")
+    await tab.js("document.querySelector('#zustellungDialog [data-klick=\"zustellung-schliessen\"]').click()")
+    p.pruefe("Akte: JS-Fehler", tab.fehler, [])
+    await tab.js("document.getElementById('versandprotokollLink').click()")
     await tab.warten("location.pathname==='/versandprotokoll'&&document.querySelectorAll('#rows tr td').length>1")
     await tab.warte_auf_neu_geladene_liste()
     nummern = await tab.js("[...document.querySelectorAll('#rows tr')].map(r=>r.children[1].textContent.trim().split(' ').pop()).sort()")

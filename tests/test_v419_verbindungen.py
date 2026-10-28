@@ -257,7 +257,7 @@ def test_jede_seite_braucht_eine_verbindung(welt):
     client = _client(app_mit_schranke(make_session, pages_router.router), wert)
     mit_eigener_sitzung = {r.path for r in pages_router.router.routes if isinstance(r, APIRoute)
                            and any(sub.call is get_db for sub in _abhaengigkeiten(r.dependant))}
-    assert mit_eigener_sitzung == set()
+    assert mit_eigener_sitzung == {"/orders/{order_id}"}  # seit 1.9.129: die Weiterleitung in die Akte liest das Projekt des Auftrags
     gezeigt, falsch = 0, []
     for r in pages_router.router.routes:
         if not isinstance(r, APIRoute) or "GET" not in r.methods or r.path == "/health":

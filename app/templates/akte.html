@@ -1,0 +1,1149 @@
+{% set bereich = "projekte" -%}
+{% set geld = geld if geld is defined else true -%}
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP – Akte</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+{# Seit 1.9.128 (Stufe 5, R2, Punkt 2): die Akte je Projekt nach den Vorlagen bildgrundlage/entwurf_stufe5/akte-uebersicht.html,
+   akte-leistungen.html, akte-verlauf.html und akte-zuordnung.html -- Maße und Texte aus der Vorlage, Farben nur über die Tokens (hell und
+   dunkel), Seitenkopf über das Makro. Projektmappe (project_folder.html) und Auftragsseite (order.html) sind hier aufgegangen; /orders/{id}
+   leitet auf /projects/{id}?auftrag={id}. Hat das Projekt mehrere Aufträge, wählt der Kopf den Auftrag (Adresse ?auftrag=); Projektweites
+   (Termine, Beteiligte, Dateien, Angebote, Verlauf) gilt für alle. Zahlen, Phasen, „Was ansteht“ und die Hauptaktion kommen vom Server
+   (GET /api/projects/{id}/akte, /api/orders/{id}/zahlen, /api/projects/{id}/verlauf); die Seite rechnet nichts nach. Element-IDs und
+   Funktionsnamen der beiden früheren Seiten bleiben, wo der Inhalt umgezogen ist (Bausteine _abnahme.html, _maengel.html,
+   _checklists_section.html und _email_dispatch.html greifen darauf zu). #}
+{% include "_ds_kopf.html" %}
+<style>
+:root{font-family:var(--ds-schrift-text);color-scheme:light;color:var(--ds-text);background:var(--ds-grund)}
+:root[data-theme="dark"]{color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;background:var(--ds-grund);color:var(--ds-text)}
+[hidden]{display:none!important}
+a{color:var(--ds-link)}a:hover{color:var(--ds-link-hover)}
+:focus-visible{outline:2px solid var(--ds-fokus);outline-offset:2px}
+.akte-main{padding:24px 32px;display:flex;flex-direction:column;gap:16px;min-width:0;max-width:1680px}
+@media (max-width:900px){.akte-main{padding:16px}}
+.mut{color:var(--ds-text-2)}.sml{font-size:13px}.num{font-variant-numeric:tabular-nums}.r{text-align:right}
+.eb{font-family:var(--ds-schrift-mono);font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--ds-text-3)}
+.eb-signal{font-family:var(--ds-schrift-mono);font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--ds-signal-text);display:inline-flex;align-items:center;gap:8px}
+.punkt{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block;background:var(--ds-signal)}
+.chip{font-size:12px;font-weight:600;border-radius:999px;padding:3px 10px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.chip-ok{color:var(--ds-ok-text);background:var(--ds-ok-hell)}.chip-signal{color:var(--ds-signal-text);background:var(--ds-signal-hell)}
+.chip-neutral{color:var(--ds-text-2);background:var(--ds-flaeche-2)}.chip-info{color:var(--ds-info-text);background:var(--ds-info-hell)}
+.chip-warn{color:var(--ds-warn-text);background:var(--ds-warn-hell)}.chip-fehler{color:var(--ds-fehler-text);background:var(--ds-fehler-hell)}
+.cnt{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--ds-flaeche-2);color:var(--ds-stark);font-size:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center}
+.gross{font-family:var(--ds-schrift-titel);font-weight:700;font-size:20px;font-variant-numeric:tabular-nums}
+.h2{margin:0;font-family:var(--ds-schrift-titel);font-weight:600;font-size:18px}
+.zeile-flex{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+/* Karten wie die Vorlage: weiß mit Rahmen, Ecke 12 px; Signalkarte „Wartet“ */
+.karte,.card{background:var(--ds-flaeche);border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-karte);padding:16px 20px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.card{gap:8px;padding:14px 18px}
+.card h3{margin:0;font-family:var(--ds-schrift-titel);font-weight:600;font-size:16px}
+.karte-signal{background:var(--ds-signal-hell);border:1px solid var(--ds-signal-rand);border-radius:var(--ds-ecke-karte);padding:16px 20px 10px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.karte-kopf{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.li{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-top:1px solid var(--ds-flaeche-2)}
+.karte-signal .li{border-top-color:var(--ds-signal-rand);align-items:center}
+.li-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;overflow-wrap:anywhere}
+.li-titel{font-size:14px;font-weight:600}.li-zeit{width:92px;flex:none;padding-top:1px}
+/* Auftrag und Phase */
+.auftragswahl{display:inline-flex;border:1px solid var(--ds-linie-stark);border-radius:var(--ds-ecke-feld);overflow:hidden;flex-wrap:wrap}
+.auftragswahl a{height:44px;padding:0 14px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;text-decoration:none;color:var(--ds-stark);font-size:14px;font-weight:500;background:var(--ds-flaeche);border-right:1px solid var(--ds-linie-stark)}
+.auftragswahl a:last-child{border-right:0}
+.auftragswahl a[aria-current="page"]{background:var(--ds-aktion-hell);color:var(--ds-aktion-text);font-weight:600}
+.phasen{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(5,1fr);gap:0}
+.phasen li{display:flex;flex-direction:column;gap:6px;min-width:0}
+.phase-linie{display:flex;align-items:center}
+.phase-kreis{width:24px;height:24px;flex:none;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;border:2px solid var(--ds-linie-stark);background:var(--ds-flaeche)}
+.phase-kreis.erreicht{background:var(--ds-aktion);border-color:var(--ds-aktion);color:var(--ds-auf-aktion)}
+.phase-kreis.jetzt{background:var(--ds-flaeche);border-color:var(--ds-aktion)}
+.phase-kreis.jetzt::after{content:"";width:10px;height:10px;border-radius:50%;background:var(--ds-aktion)}
+.phase-strich{flex:1;height:2px;margin:0 8px;background:var(--ds-linie)}.phase-strich.erreicht{background:var(--ds-aktion)}
+.phase-name{font-size:14px;font-weight:600;color:var(--ds-text-2)}.phase-name.erreicht{color:var(--ds-text)}.phase-name.jetzt{font-weight:700;color:var(--ds-aktion-text)}
+@media (max-width:760px){.phasen{grid-template-columns:1fr;gap:10px}.phase-strich{display:none}}
+.akte-status{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-top:1px solid var(--ds-flaeche-2);padding-top:10px}
+.akte-status .auftragsstatus{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.akte-status .auftragsstatus-knoepfe{margin-top:0!important}
+.akte-status .auftragsstatus-knoepfe button{height:32px;padding:0 12px;font-size:13px;border:1px solid var(--ds-linie-stark);background:var(--ds-flaeche);color:var(--ds-stark)}
+.akte-status .auftragsstatus-knoepfe button.danger{color:var(--ds-fehler-text)}
+.badge{font-size:12px;font-weight:600;border-radius:999px;padding:3px 10px;white-space:nowrap;background:var(--ds-flaeche-2);color:var(--ds-stark)}
+.badge[data-art="info"]{background:var(--ds-info-hell);color:var(--ds-info-text)}.badge[data-art="ok"]{background:var(--ds-ok-hell);color:var(--ds-ok-text)}
+.badge[data-art="warn"]{background:var(--ds-warn-hell);color:var(--ds-warn-text)}.badge[data-art="fehler"]{background:var(--ds-fehler-hell);color:var(--ds-fehler-text)}
+/* Reiter unter dem Kopf wie die Vorlage: 44 px, 26 px Abstand, aktiver mit grünem Strich */
+.reiter{display:flex;gap:26px;border-bottom:1px solid var(--ds-linie);overflow-x:auto}
+.reiter a{height:44px;padding:0 2px;display:inline-flex;align-items:center;gap:8px;color:var(--ds-text-2);text-decoration:none;font-size:15px;font-weight:500;white-space:nowrap}
+.reiter a:hover{color:var(--ds-text)}
+.reiter a[aria-current="page"]{color:var(--ds-text);font-weight:600;box-shadow:inset 0 -3px 0 var(--ds-aktion)}
+/* Übersicht: links die Zahlen, rechts 360 px */
+.spalten{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start}
+.spalten-gleich{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:1100px){.spalten,.spalten-gleich{grid-template-columns:minmax(0,1fr)}}
+.spalte{min-width:0;display:flex;flex-direction:column;gap:16px}
+.zahlen-zwei{display:grid;grid-template-columns:1fr 1fr;gap:28px}
+.zahlen-drei{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+@media (max-width:760px){.zahlen-zwei,.zahlen-drei{grid-template-columns:1fr}}
+.zahl-zeile{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--ds-flaeche-2)}
+.zahl-wert{display:flex;flex-direction:column;align-items:flex-end}.zahl-wert b{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+.zahl-wert b.stark{font-weight:700}.zahl-wert b.warn{color:var(--ds-signal-text)}
+.balken{display:flex;height:10px;border-radius:999px;overflow:hidden;background:var(--ds-flaeche-2)}
+.balken span{background:var(--ds-aktion)}.balken span.offen{background:var(--ds-signal)}
+.hinweis-zeile{background:var(--ds-flaeche-2);border-radius:var(--ds-ecke-feld);padding:12px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.hinweis-zeile>div{flex:1;min-width:220px;font-size:14px}
+/* Tabellen wie die Vorlage: Kopf Mono 11 px, Zeilen 46 px (die Rechnungsliste bringt ihre Klassen selbst mit, _rechnungsliste.html) */
+th.r,td.r{text-align:right}
+table{border-collapse:collapse;width:100%}
+th{font-family:var(--ds-schrift-mono);font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--ds-text-3);text-align:left;padding:0 8px 8px;border-bottom:1px solid var(--ds-linie);white-space:nowrap}
+td{font-size:14px;padding:0 8px;height:46px;border-bottom:1px solid var(--ds-flaeche-2)}
+.tabelle-wrap{overflow-x:auto;position:relative}
+/* Leistungsverzeichnis */
+.lv-kopf{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.lv-kopf>div{flex:1;min-width:240px;display:flex;flex-direction:column;gap:2px}
+.lv-titel td{background:var(--ds-flaeche-2);height:38px;font-weight:600}
+.lv-titel.kind td:first-child{padding-left:20px}
+.lv-row td.text{white-space:normal;max-width:340px}
+.lv-row.optional td{background:var(--ds-warn-hell)}
+.lv-sub{font-size:12px;color:var(--ds-text-2);margin-top:2px;max-height:36px;overflow:hidden}
+.stand{display:inline-flex;align-items:center;gap:8px}.stand b{min-width:42px;text-align:right;font-weight:500}.stand b.voll{color:var(--ds-aktion-text);font-weight:600}
+.stand-balken{display:inline-block;width:56px;height:6px;border-radius:999px;background:var(--ds-flaeche-2);overflow:hidden}
+.stand-balken span{display:block;height:6px;background:var(--ds-aktion)}
+.addendum-badge{display:inline-block;margin-left:6px;padding:1px 8px;font-size:11px;font-weight:600;border-radius:999px;background:var(--ds-info-hell);color:var(--ds-info-text)}
+.lv-fuss td{font-weight:600;border-bottom:0}
+/* Verlauf: Filter und Strom */
+.filter-leiste{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.filter-leiste button{height:36px;padding:0 14px;border:1px solid var(--ds-linie-stark);border-radius:999px;font-family:var(--ds-schrift-text);font-size:14px;font-weight:600;cursor:pointer;background:var(--ds-flaeche);color:var(--ds-stark)}
+.filter-leiste button[aria-pressed="true"]{background:var(--ds-aktion-hell);color:var(--ds-aktion-text);border-color:var(--ds-aktion-rand)}
+.vl-zeile{display:grid;grid-template-columns:92px 96px minmax(0,1fr) auto;gap:12px;align-items:start;padding:12px 0;border-top:1px solid var(--ds-flaeche-2)}
+@media (max-width:760px){.vl-zeile{grid-template-columns:1fr}}
+.vl-art{padding-top:1px}.vl-art .chip{padding:2px 9px}
+.vl-ende{display:flex;align-items:center;gap:8px}
+.vl-zeile details{margin-top:6px}.vl-zeile summary{cursor:pointer;font-size:13px;color:var(--ds-link);font-weight:600}
+.vl-einzel{font-size:13px;padding:4px 0 4px 10px;border-left:3px solid var(--ds-linie);margin-top:4px}
+.vl-einzel .old{text-decoration:line-through;color:var(--ds-text-2)}
+.menue-anker{position:relative;display:inline-flex}
+/* Felder, Knöpfe und Hinweise -- auch für die eingebundenen Bausteine (Abnahme, Mängel, Checklisten, Versand, Status) */
+button{height:40px;padding:0 16px;border:0;border-radius:var(--ds-ecke-feld);background:var(--ds-aktion);color:var(--ds-auf-aktion);font-family:var(--ds-schrift-text);font-size:14px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap}
+button:hover{filter:brightness(.92)}
+button.secondary,.knopf-neutral{border:1px solid var(--ds-linie-stark);background:var(--ds-flaeche);color:var(--ds-stark);filter:none}
+button.secondary:hover,.knopf-neutral:hover{background:var(--ds-flaeche-2)}
+button.danger{background:var(--ds-fehler);color:var(--ds-auf-fehler)}
+button:disabled{cursor:default;border:1px solid var(--ds-linie);background:var(--ds-flaeche-2);color:var(--ds-text-3);filter:none}
+.iconbtn{width:36px;height:36px;padding:0;border:1px solid var(--ds-linie-stark);background:var(--ds-flaeche);color:var(--ds-stark)}
+.knopf-link{border:0;background:transparent;padding:0;height:auto;font-size:14px;font-weight:600;color:var(--ds-link);cursor:pointer;text-decoration:none}
+.knopf-link:hover{color:var(--ds-link-hover);text-decoration:underline;filter:none}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.full,.wide{grid-column:1/-1}
+@media (max-width:640px){.fields{grid-template-columns:1fr}}
+.field label{display:block;font-size:13px;font-weight:600;color:var(--ds-stark);margin-bottom:6px}
+.field input,.field select,.field textarea,dialog input,dialog select,dialog textarea,.modal input,.modal select,.modal textarea{width:100%;min-height:40px;border:1px solid var(--ds-feld-rand);border-radius:var(--ds-ecke-feld);padding:8px 12px;font-family:var(--ds-schrift-text);font-size:14px;color:var(--ds-text);background:var(--ds-flaeche)}
+.field textarea,dialog textarea,.modal textarea{min-height:80px}
+input[type=checkbox],input[type=radio]{width:auto!important;min-height:0!important}
+.status{font-size:13px;color:var(--ds-text-2);overflow-wrap:anywhere}.status:empty{display:none}
+.small{font-size:13px}.muted{color:var(--ds-text-2)}
+.notice{background:var(--ds-flaeche-2);border-left:4px solid var(--ds-aktion);border-radius:var(--ds-ecke-feld);padding:10px 12px;font-size:13px;color:var(--ds-text)}
+.notice.warning{background:var(--ds-warn-hell);border-left-color:var(--ds-warn-text)}.notice.success{background:var(--ds-ok-hell);border-left-color:var(--ds-ok)}
+.notice a,.card a{color:var(--ds-link);font-weight:600}
+.revision{border-bottom:1px solid var(--ds-flaeche-2);padding:8px 0}.revision:last-child{border:0}
+.summary-line{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--ds-flaeche-2)}
+.daten-liste{display:grid;grid-template-columns:minmax(140px,max-content) minmax(0,1fr);gap:6px 16px;margin:0;font-size:14px}
+.daten-liste dt{color:var(--ds-text-2)}.daten-liste dd{margin:0;overflow-wrap:anywhere;white-space:pre-wrap}
+/* Vertrag (aus der Auftragsseite) */
+.contract-freeze,.contract-send,.contract-sign{margin-top:12px;border-top:1px solid var(--ds-flaeche-2);padding-top:10px;font-size:13px}
+.contract-choice{display:block;margin:6px 0;font-size:13px;cursor:pointer}.contract-choice input{margin-right:6px}
+.contract-ro{white-space:pre-wrap;font-size:13px;padding:6px 0}.contract-sha{font-family:var(--ds-schrift-mono);font-size:11.5px}
+.contract-send-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}.contract-send-row input{flex:1 1 160px;min-width:0;min-height:40px;padding:0 12px;border:1px solid var(--ds-feld-rand);border-radius:var(--ds-ecke-feld);font-family:inherit;font-size:14px;background:var(--ds-flaeche);color:var(--ds-text)}
+.contract-sign details{margin-top:10px}.contract-sign summary{cursor:pointer;font-weight:650}
+.paper-box{border-left:3px solid var(--ds-linie);padding:4px 0 4px 10px;margin:8px 0}.paper-box label{margin-right:16px;cursor:pointer}.paper-box .txt{white-space:pre-wrap;margin-bottom:4px}
+.sig-boxes .row{display:flex;gap:6px;align-items:flex-start;margin:4px 0}.withdrawal{margin-top:8px}
+.versand-zeile{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.versand-zeile input{min-height:40px;padding:0 12px;border:1px solid var(--ds-feld-rand);border-radius:var(--ds-ecke-feld);font-family:inherit;font-size:14px;background:var(--ds-flaeche);color:var(--ds-text);min-width:200px}
+/* Dateien (aus der Projektmappe) */
+.upload{border:2px dashed var(--ds-feld-rand);padding:16px;border-radius:var(--ds-ecke-karte)}.upload.drag{border-color:var(--ds-aktion);background:var(--ds-flaeche-2)}
+.upload-grid{display:grid;grid-template-columns:160px 160px 150px minmax(160px,1fr) auto;gap:10px;align-items:end}
+@media (max-width:1000px){.upload-grid{grid-template-columns:1fr}}
+.file-picker{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.category-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.cat{height:auto;padding:10px;border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-feld);background:var(--ds-flaeche);color:var(--ds-text);text-align:left;cursor:pointer;display:block;font-weight:500}
+.cat.active{background:var(--ds-aktion-hell);border-color:var(--ds-aktion-rand)}.cat b{display:block}
+.documents{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:1000px){.documents,.category-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:650px){.documents,.category-cards{grid-template-columns:1fr}}
+.doc{border:1px solid var(--ds-linie);overflow:hidden;background:var(--ds-flaeche);min-width:0;border-radius:var(--ds-ecke-karte)}
+.thumb{height:130px;background:var(--ds-flaeche-2);display:flex;align-items:center;justify-content:center;font-size:32px;color:var(--ds-text-2);overflow:hidden}.thumb img{width:100%;height:100%;object-fit:cover}
+.doc-body{padding:11px}.doc-name{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.doc-meta{font-size:12px;color:var(--ds-text-2);margin:5px 0 9px}
+.doc-description{font-size:13px;margin:0 0 9px;white-space:pre-wrap}.doc-actions{display:flex;gap:6px;flex-wrap:wrap}
+.doc-actions a,.doc-actions button{height:32px;font-size:13px;padding:0 10px;text-decoration:none;display:inline-flex;align-items:center;border-radius:var(--ds-ecke-feld);border:1px solid var(--ds-linie-stark);background:var(--ds-flaeche);color:var(--ds-stark);font-weight:600}
+.search-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.search-row input,.search-row select{min-height:40px;padding:0 12px;border:1px solid var(--ds-feld-rand);border-radius:var(--ds-ecke-feld);font:inherit;background:var(--ds-flaeche);color:var(--ds-text)}
+.search-row input{flex:1;min-width:200px}
+.empty{padding:28px;text-align:center;color:var(--ds-text-2);border:1px dashed var(--ds-linie);border-radius:var(--ds-ecke-karte)}
+/* Beteiligte (aus der Projektmappe) */
+.participant{border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-karte);padding:12px 14px;margin-bottom:10px}
+.p-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}.p-head .badge{margin-left:6px}
+.p-role{min-height:36px;padding:0 10px;border:1px solid var(--ds-feld-rand);border-radius:var(--ds-ecke-feld);background:var(--ds-flaeche);color:var(--ds-text);font:inherit;font-size:13px}
+.p-lines{margin-top:6px;font-size:13px;line-height:1.55}.p-flags{display:flex;gap:18px;flex-wrap:wrap;margin-top:9px;font-size:13px}
+.p-flags label{display:flex;gap:6px;align-items:center;cursor:pointer;font-weight:600}
+.p-poa{margin-top:9px;font-size:13px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.p-actions{display:flex;gap:12px;align-items:center;margin-top:9px;flex-wrap:wrap}
+.small-btn{height:32px;padding:0 10px;font-size:13px}.badge-warn{background:var(--ds-warn-hell);color:var(--ds-warn-text)}
+.pm-results{border:1px solid var(--ds-linie);max-height:300px;overflow:auto;margin-top:8px;border-radius:var(--ds-ecke-karte)}
+.pm-hit{display:block;width:100%;height:auto;text-align:left;background:var(--ds-flaeche);color:var(--ds-text);border:0;border-bottom:1px solid var(--ds-flaeche-2);border-radius:0;padding:9px 11px;font:inherit;cursor:pointer;font-weight:400}
+.pm-hit:hover,.pm-hit:focus{background:var(--ds-flaeche-2)}.pm-hit b{display:block}.pm-hit[disabled]{cursor:default;color:var(--ds-text-2)}
+.pm-group{position:sticky;top:0;background:var(--ds-flaeche-2);padding:6px 11px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ds-text-2)}
+.hint{font-size:12px;color:var(--ds-text-2);margin-top:4px}
+.info-block{border:1px solid var(--ds-linie);padding:12px;border-radius:var(--ds-ecke-karte)}
+/* Dialoge: alt (dialog .dialog) und Modal der Projektmappe -- beide wie die Vorlage, Ecke 16 px */
+dialog{border:0;padding:0;width:min(680px,calc(100% - 32px));max-height:calc(100% - 32px);overflow:auto;border-radius:var(--ds-ecke-karte);background:var(--ds-flaeche);color:var(--ds-text);box-shadow:0 16px 48px rgba(23,28,31,.25)}
+dialog::backdrop{background:rgba(23,28,31,.45)}
+.dialog{padding:22px 24px 18px;display:flex;flex-direction:column;gap:12px}
+.dialog-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.dialog-head h3{margin:0;font-family:var(--ds-schrift-titel);font-weight:700;font-size:20px}
+.dialog-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;border-top:1px solid var(--ds-flaeche-2);padding-top:14px}
+#signDialog{width:min(880px,96vw)}#signDialog .sign-intro{font-size:13px}#signDialog .sign-box{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--ds-linie);padding:10px;margin:8px 0;cursor:pointer;font-size:14px;border-radius:var(--ds-ecke-karte)}
+#signDialog .sign-box input{width:22px!important;height:22px;margin:1px 0 0;flex:none}#signDialog .sign-box .txt{white-space:pre-wrap}
+#signDialog .sign-party>label{display:block;font-size:13px;font-weight:600;color:var(--ds-stark);margin-bottom:4px}#signDialog canvas.dk-unterschrift{height:190px}
+#signDialog .sign-row{display:flex;gap:8px;margin-top:6px}#signDialog .sign-row input{flex:1;min-width:0}
+.modal-backdrop{display:none;position:fixed;inset:0;background:rgba(23,28,31,.45);z-index:1000;padding:30px;align-items:center;justify-content:center}.modal-backdrop.open{display:flex}
+.modal{background:var(--ds-flaeche);color:var(--ds-text);width:min(820px,100%);max-height:90vh;overflow:auto;box-shadow:0 16px 48px rgba(23,28,31,.25);padding:22px 24px;border-radius:var(--ds-ecke-karte)}
+.modal h2{margin:0 0 14px;font-family:var(--ds-schrift-titel);font-weight:700;font-size:20px}
+.modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}
+@media (max-width:650px){.modal-grid{grid-template-columns:1fr}.modal-backdrop{padding:10px}}
+.btn{height:40px;padding:0 16px;border-radius:var(--ds-ecke-feld);font:inherit;font-size:14px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center}
+.btn.primary{background:var(--ds-aktion);color:var(--ds-auf-aktion);border:0}.btn.secondary{background:var(--ds-flaeche);color:var(--ds-stark);border:1px solid var(--ds-linie-stark)}
+.btn.danger{background:var(--ds-fehler-hell);color:var(--ds-fehler-text);border:0}
+.link{color:var(--ds-link);font-weight:600;text-decoration:none}
+</style></head>
+<body class="ds-seite">
+<div class="app-layout">
+{% include "_sidebar.html" %}
+<div class="app-content">
+{% include "_topbar.html" %}
+<main class="akte-main">
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{% call(teil) seitenkopf("Akte wird geladen …", untertitel="", kennung="", mit_pfad=true, mit_aktion=true, mit_menue=true) %}
+  {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/projects">Projekte</a>
+  {% elif teil == "aktion" %}<button type="button" class="ds-knopf ds-knopf-aktion" id="hauptaktion" data-klick="hauptaktion" hidden></button>
+  {% elif teil == "menue" %}<button type="button" class="ds-menue-eintrag" data-klick="projekt-bearbeiten">Projekt bearbeiten</button><button type="button" class="ds-menue-eintrag" data-klick="beteiligte-oeffnen">Beteiligte</button><button type="button" class="ds-menue-eintrag" id="menueAbPdf" data-klick="ab-pdf" hidden>Auftragsbestätigung (PDF)</button><a class="ds-menue-eintrag" id="menueAv" href="/projects" hidden>Arbeitsvorbereitung</a>{% if is_module_enabled('wartungen') %}<a class="ds-menue-eintrag" id="menueBerichte" href="/projects" hidden>Einsatzberichte</a>{% endif %}<button type="button" class="ds-menue-eintrag" data-klick="projekt-kopieren">Kopieren</button><button type="button" class="ds-menue-eintrag" data-klick="als-muster">Als Mustervorgang speichern</button>{% if is_module_enabled('wartungen') %}<button type="button" class="ds-menue-eintrag" id="maintenanceContractMenuItem" data-klick="wartungsvertrag" hidden>Wartungsvertrag erstellen</button>{% endif %}<button type="button" class="ds-menue-eintrag" id="archiveMenuItem" data-klick="archivieren">Archivieren</button><button type="button" class="ds-menue-eintrag ds-menue-eintrag-fehler" id="deleteMenuItem" data-klick="projekt-loeschen" hidden>Löschen</button>{% endif %}
+{% endcall %}
+<div class="status" id="seitenStatus" role="status"></div>
+{% if is_module_enabled('checklisten') %}<div id="concernAlert" class="concern-alert" role="alert" hidden></div>{% endif %}
+<section class="karte" id="auftragPhase" aria-label="Auftrag und Phase">
+  <div class="zeile-flex"><span class="eb" id="auftragEb">Auftrag</span><nav class="auftragswahl" id="auftragswahl" aria-label="Auftrag wählen" hidden></nav><span id="auftragEinzeln" class="sml"></span><span class="mut sml" id="auftraegeSumme" style="margin-left:auto"></span></div>
+  <ol class="phasen" id="phasen" aria-label="Phasen des Auftrags"></ol>
+  <div class="akte-status" id="statusZeile" hidden><span class="eb">Status</span><div id="auftragsstatus"></div></div>
+</section>
+<nav class="reiter" aria-label="Bereiche der Akte">
+  <a href="#uebersicht" data-reiter="uebersicht" aria-current="page">Übersicht</a>
+  <a href="#angebote" data-reiter="angebote">Angebote<span class="cnt" id="zahlAngebote" hidden></span></a>
+  <a href="#vertrag" data-reiter="vertrag" data-auftrag hidden>Vertrag</a>
+  <a href="#leistungen" data-reiter="leistungen" data-auftrag hidden>Leistungen<span class="cnt" id="zahlLeistungen" hidden></span></a>
+  <a href="#ausfuehrung" data-reiter="ausfuehrung" data-auftrag hidden>Ausführung</a>
+  <a href="#abnahme" data-reiter="abnahme" data-auftrag hidden>Abnahme &amp; Mängel</a>
+  <a href="#rechnungen" data-reiter="rechnungen" data-auftrag hidden>Rechnungen<span class="cnt" id="zahlRechnungen" hidden></span></a>
+  <a href="#dateien" data-reiter="dateien">Dateien<span class="cnt" id="tabCountFiles" hidden></span></a>
+  <a href="#verlauf" data-reiter="verlauf">Verlauf</a>
+</nav>
+
+{# --- Übersicht: links Abrechnung, Stunden, Verlauf; rechts Was ansteht, Termine, Beteiligte (Vorlage akte-uebersicht.html) --- #}
+<section id="reiter-uebersicht" aria-label="Übersicht">
+<div class="spalten">
+  <div class="spalte">
+    <section class="karte" id="uAbrechnung" aria-labelledby="uAbrTitel" hidden>
+      <div class="karte-kopf"><h2 class="h2" id="uAbrTitel">Abrechnung</h2><span class="mut sml" id="uSteuer"></span></div>
+      <div class="zahlen-zwei">
+        <div style="display:flex;flex-direction:column;gap:8px"><span class="eb">Leistung · netto</span><div id="uLeistung"></div><div class="balken" aria-hidden="true"><span id="uLeistungBalken" style="width:0"></span></div></div>
+        <div style="display:flex;flex-direction:column;gap:8px"><span class="eb">Zahlung · brutto</span><div id="uZahlung"></div><div class="balken" aria-hidden="true"><span id="uZahlungBalken" style="width:0"></span><span class="offen" id="uZahlungOffen" style="width:0"></span></div></div>
+      </div>
+      <div class="tabelle-wrap" id="uRechnungen"></div>
+      {% if geld %}<div class="hinweis-zeile" id="uNaechste" hidden><div id="uNaechsteText"></div><button type="button" class="secondary" data-klick="naechste-rechnung">Entwurf anlegen</button></div>{% endif %}
+    </section>
+    <section class="karte" id="uStunden" aria-labelledby="uStdTitel" hidden>
+      <div class="karte-kopf"><h2 class="h2" id="uStdTitel">Stunden</h2><a class="sml" id="uZeitenLink" href="/zeiten" style="font-weight:600">Alle Buchungen in „Zeiten“</a></div>
+      <div class="zahlen-drei">
+        <div><span class="eb">Soll (Kalkulation)</span><div class="gross" id="uSoll">—</div></div>
+        <div><span class="eb">Gebucht</span><div class="gross" id="uGebucht">—</div><div class="mut sml" id="uFahrzeit"></div></div>
+        <div><span class="eb">Baustelle &amp; Werkstatt</span><div class="gross" id="uBw">—</div><div class="mut sml" id="uBwProzent"></div></div>
+      </div>
+      <div class="balken" aria-hidden="true"><span id="uStundenBalken" style="width:0"></span></div>
+      <div class="tabelle-wrap" id="uMitarbeiter"></div>
+      <p class="mut sml" style="margin:0">Eine Rechnung für alle Stellen: Soll aus der Kalkulation der Positionen „in Summe“; Nachträge ohne Kalkulation zählen im Soll nicht.</p>
+    </section>
+    <section class="karte" id="uAngebote" aria-labelledby="uAngTitel" hidden>
+      <div class="karte-kopf"><h2 class="h2" id="uAngTitel">Angebote</h2></div>
+      <div id="uAngeboteListe"></div>
+    </section>
+    <section class="karte" id="uVerlauf" aria-labelledby="uVlTitel" style="gap:2px">
+      <div class="karte-kopf" style="margin-bottom:6px"><h2 class="h2" id="uVlTitel">Verlauf</h2><a class="sml" href="#verlauf" style="font-weight:600">Ganzer Verlauf</a></div>
+      <div id="uVerlaufListe"><p class="mut sml" style="margin:0">Lädt …</p></div>
+    </section>
+  </div>
+  <div class="spalte">
+    <section class="karte-signal" id="uAnsteht" aria-labelledby="uWTitel" hidden>
+      <div class="karte-kopf"><span class="eb-signal"><span class="punkt"></span>Wartet</span><span class="mut sml" id="uAnstehtZahl"></span></div>
+      <h2 class="h2" id="uWTitel" style="margin-bottom:4px">Was ansteht</h2>
+      <div id="uAnstehtListe"></div>
+    </section>
+    <section class="karte" id="uTermine" aria-labelledby="uTTitel" style="gap:2px">
+      <div class="karte-kopf" style="margin-bottom:6px"><h2 class="h2" id="uTTitel">Termine</h2>{% if is_module_enabled('kalender') %}<a class="sml" id="newCalendarEvent" href="/kalender" style="font-weight:600">+ Termin</a>{% endif %}</div>
+      <div id="uTermineListe"></div>
+    </section>
+    <section class="karte" id="uBeteiligte" aria-labelledby="uBTitel" style="gap:2px">
+      <div class="karte-kopf" style="margin-bottom:6px"><h2 class="h2" id="uBTitel">Beteiligte</h2><button type="button" class="knopf-link" data-klick="beteiligte-oeffnen">Bearbeiten</button></div>
+      <div id="uBeteiligteListe"></div>
+    </section>
+  </div>
+</div>
+</section>
+
+{# --- Angebote (projektweit, D15: ein „+ Angebot“) --- #}
+<section id="reiter-angebote" class="karte" aria-label="Angebote" hidden>
+  <div class="karte-kopf"><h2 class="h2">Angebote im Projekt</h2><a id="newQuote" class="btn primary" href="/quotes/new">+ Angebot</a></div>
+  <div class="tabelle-wrap" id="quotes"></div>
+</section>
+
+{# --- Vertrag: Auftragsdaten (Dialog „Bearbeiten“), Auftragsbestätigung, Vertragsgrundlage, Vertrag, Gewährleistung --- #}
+<section id="reiter-vertrag" aria-label="Vertrag" hidden>
+<div class="spalten-gleich">
+  <div class="spalte" id="vertragLinks">
+    <div class="card" id="auftragsdatenKarte"><div class="karte-kopf"><h3>Auftragsdaten</h3><button type="button" class="secondary" data-klick="auftragsdaten-bearbeiten">Bearbeiten</button></div><dl class="daten-liste" id="auftragsdatenListe"></dl><div id="taxLockAnzeige" class="small muted" hidden></div><div id="saveStatus" class="status"></div></div>
+    <div id="orderEmailSection" class="card" style="display:none">
+      <h3>Auftragsbestätigung</h3>
+      <div class="versand-zeile"><button type="button" class="secondary" data-klick="ab-pdf">PDF öffnen</button></div>
+      <div class="versand-zeile">
+        <input id="orderEmailInput" type="text" inputmode="email" autocomplete="off" placeholder="An – mehrere mit Komma oder Semikolon" title="Empfänger, mehrere mit Komma oder Semikolon trennen">
+        <input id="orderCcInput" type="text" inputmode="email" autocomplete="off" placeholder="CC (optional)" title="CC, mehrere mit Komma oder Semikolon trennen">
+        <button onclick="sendOrderEmail(this)">Per E-Mail senden</button>
+        <span id="orderEmailStatus" class="small muted"></span>
+      </div>
+      <div id="orderDispatchHistory"></div>
+    </div>
+  </div>
+  <div class="spalte" id="vertragRechts">
+    <div class="card" id="contractBasisCard"><h3>Vertragsgrundlage</h3><div id="contractBasisCurrent"></div><div id="contractBasisWarning" class="notice warning" style="display:none"></div><div id="contractBasisLocked" class="notice" style="display:none"></div><div id="contractBasisEdit"><div class="fields"><div class="field full"><label for="contractBasisSelect">Ändern auf</label><select id="contractBasisSelect"></select></div><div class="field full"><label for="contractBasisReason">Begründung (Pflicht)</label><textarea id="contractBasisReason" maxlength="2000" placeholder="z. B. Kunde ist Unternehmer, VOB/B ausdrücklich vereinbart"></textarea></div></div><button class="secondary" onclick="changeContractBasis()">Vertragsgrundlage ändern</button></div><div id="contractBasisStatus" class="status"></div><div id="contractBasisHistory"></div></div>
+    <div class="card" id="contractCard"><h3>Vertrag</h3><div id="contractBody" class="small muted">Lädt …</div><div id="contractStatus" class="status"></div></div>
+  </div>
+</div>
+</section>
+
+{# --- Leistungen: LV mit Stand je Position und Std. Ist/Soll (Vorlage akte-leistungen.html), Nachträge, Quellangebot, Auftragsstände --- #}
+<section id="reiter-leistungen" aria-label="Leistungen" hidden style="display:flex;flex-direction:column;gap:16px">
+  <div class="lv-kopf"><div><span style="font-size:15px;font-weight:600" id="lvTitel">Leistungsverzeichnis</span><span class="mut sml" id="lvUnter"></span></div><span id="addendumBar"></span></div>
+  <div id="lvLock" class="notice warning" hidden></div>
+  <section class="karte" aria-label="Positionen" style="padding:14px 16px 6px">
+    <div class="tabelle-wrap"><table id="lvTabelle"><thead><tr><th>OZ</th><th>Leistung</th><th class="r">Menge</th><th>EH</th><th class="r">EP</th><th class="r">GP</th><th class="r">Abgerechnet</th><th>Stand</th><th class="r">Std. Ist / Soll</th><th><span class="eb" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Aktionen</span></th></tr></thead><tbody id="lv"></tbody></table></div>
+  </section>
+  <div class="spalten-gleich">
+    <div id="syncCard" class="card"></div>
+    <div class="card"><h3>Auftragsstände</h3><div class="small muted">Revisionen sichern definierte Vertrags- und Ausführungsstände; jede Einzeländerung steht zusätzlich im Verlauf.</div><div class="field full"><label for="revisionReason">Bezeichnung</label><input id="revisionReason" value="Auftragsstand manuell gesichert"></div><div><button class="secondary" onclick="saveRevision()">Aktuellen Stand als Revision sichern</button></div><div id="revisionStatus" class="status"></div><div id="revisions"></div></div>
+  </div>
+</section>
+
+{# --- Ausführung: Arbeitsvorbereitung, Einsätze, Berichte, Checklisten, Zeiten (die Seiten bleiben, die Akte führt hin) --- #}
+<section id="reiter-ausfuehrung" aria-label="Ausführung" hidden>
+<div class="spalten-gleich">
+  <div class="spalte">
+    <section class="karte"><div class="karte-kopf"><h2 class="h2">Arbeitsvorbereitung</h2><a class="sml" id="avLink" href="/projects" style="font-weight:600">Arbeitsvorbereitung öffnen</a></div><div id="avStand" class="sml"></div></section>
+    <section class="karte"><div class="karte-kopf"><h2 class="h2">Einsätze</h2><a class="sml" id="einsatzLink" href="/planning" style="font-weight:600">Einsatz planen</a></div><div id="einsatzListe"></div></section>
+    <section class="karte"><div class="karte-kopf"><h2 class="h2">Zeiten</h2><a class="sml" id="zeitenLink" href="/zeiten" style="font-weight:600">Alle Buchungen des Auftrags</a></div><div id="zeitenStand" class="sml"></div></section>
+  </div>
+  <div class="spalte">
+    {% if is_module_enabled('wartungen') %}<section class="karte"><div class="karte-kopf"><h2 class="h2">Einsatzberichte</h2><span class="zeile-flex"><a class="sml" id="berichtAnlegen" href="/projects" style="font-weight:600">Bericht anlegen</a><a class="sml" id="serviceReportsLink" href="/projects" style="font-weight:600">Alle Berichte</a></span></div><div id="berichtListe"></div></section>{% endif %}
+    {% if is_module_enabled('checklisten') %}<section class="karte"><h2 class="h2">Checklisten</h2><div id="checklistSection"></div></section>{% endif %}
+  </div>
+</div>
+</section>
+
+{# --- Abnahme & Mängel: Abnahme (aus _abnahme.html), Mängel (_maengel.html), Befunde der Berichte --- #}
+<section id="reiter-abnahme" aria-label="Abnahme und Mängel" hidden>
+<div class="spalten-gleich">
+  <div class="spalte" id="abnahmeLinks"></div>
+  <div class="spalte" id="abnahmeRechts"><section class="karte" id="befundKarte"><h2 class="h2">Befunde aus Einsatzberichten</h2><div id="befundListe" class="sml"></div></section></div>
+</div>
+</section>
+<div hidden id="bausteinAblage">
+{% include "_abnahme.html" %}
+{% include "_maengel.html" %}
+</div>
+
+{# --- Rechnungen des Auftrags (eine Liste, D2) und neue Rechnung --- #}
+<section id="reiter-rechnungen" class="karte" aria-label="Rechnungen" hidden>
+  <div class="karte-kopf"><h2 class="h2" id="rechnungenTitel">Rechnungen</h2><a class="sml" href="/finanzen" style="font-weight:600">Alle Rechnungen (Finanzen)</a></div>
+  <div class="tabelle-wrap" id="invoicesList"></div>
+  {% if geld %}<div style="border-top:1px solid var(--ds-flaeche-2);padding-top:12px;display:flex;flex-direction:column;gap:10px" id="neueRechnung"><div class="fields"><div class="field"><label for="newInvoiceType">Neue Rechnung</label><select id="newInvoiceType" onchange="toggleNewInvoiceFields()"><option value="abschlag_pauschal">Abschlagsrechnung (Pauschal)</option><option value="abschlag_leistungsstand">Abschlagsrechnung (nach Leistungsstand)</option><option value="schluss">Schlussrechnung</option></select></div><div></div><div id="pauschalFields" class="full fields"><div class="field"><label for="newLumpSum">Betrag netto (€)</label><input id="newLumpSum" type="text" inputmode="decimal" data-zahl placeholder="0,00"></div><div class="field"><label for="newProgressDesc">Bezeichnung</label><input id="newProgressDesc" placeholder="z. B. 1. Abschlag"></div></div></div><div id="newInvoiceBlock" class="notice warning" hidden></div><div><button id="newInvoiceButton" onclick="createNewInvoice()">Rechnung anlegen</button></div><div id="newInvoiceStatus" class="status"></div></div>{% else %}<div class="small muted" data-geld-nur-lesen style="border-top:1px solid var(--ds-flaeche-2);padding-top:12px">{{ geld_nur_lesen }}</div>{% endif %}
+</section>
+
+{# --- Dateien (projektweit) --- #}
+<section id="reiter-dateien" class="karte" aria-label="Dateien" hidden>
+  <div><h2 class="h2">Projektdateien</h2><div class="mut sml">Pläne, Fotos, Lieferscheine und weitere Unterlagen des Projekts.</div></div>
+  <div id="uploadZone" class="upload"><div class="upload-grid"><div class="field"><label for="category">Kategorie</label><select id="category"></select></div><div class="field"><label for="subfolder">Unterordner <span class="mut sml">(optional)</span></label><input id="subfolder" list="subfolderSuggestions" placeholder="z. B. Bauantrag"><datalist id="subfolderSuggestions"></datalist></div><div class="field"><label for="documentDate">Dokumentdatum</label><input id="documentDate" type="date"></div><div class="field"><label for="fileDescription">Notiz / Beschreibung</label><input id="fileDescription" placeholder="optional"></div><button type="button" onclick="document.getElementById('files').click()">+ Dateien auswählen</button></div><div class="file-picker"><input id="files" type="file" multiple onchange="showSelected()"><span id="selectedInfo" class="mut sml">Dateien auswählen oder hierher ziehen.</span><button id="uploadButton" class="secondary" style="display:none" onclick="uploadFiles()">Hochladen</button></div><div id="uploadStatus" class="status"></div></div>
+  <div id="categoryCards" class="category-cards"></div><div id="subfolderCards" class="category-cards" style="display:none"></div>
+  <div class="search-row"><input id="fileSearch" placeholder="Dateien suchen …" oninput="renderDocuments()"><select id="categoryFilter" onchange="filterCategory(this.value)"><option value="">Alle Kategorien</option></select></div>
+  <div id="documents" class="documents"></div>
+</section>
+
+{# --- Verlauf: ein Strom mit Filter und Auftragswahl (Vorlage akte-verlauf.html) --- #}
+<section id="reiter-verlauf" class="karte" aria-label="Verlauf" hidden>
+  <div class="zeile-flex" style="justify-content:space-between">
+  <div class="filter-leiste" id="verlaufArten" role="group" aria-label="Art">
+    <button type="button" data-klick="verlauf-art" data-art="" aria-pressed="true">Alles</button><button type="button" data-klick="verlauf-art" data-art="aenderung" aria-pressed="false">Änderungen</button><button type="button" data-klick="verlauf-art" data-art="versand" aria-pressed="false">Versand</button><button type="button" data-klick="verlauf-art" data-art="zahlung" aria-pressed="false">Zahlungen</button><button type="button" data-klick="verlauf-art" data-art="bericht" aria-pressed="false">Berichte</button><button type="button" data-klick="verlauf-art" data-art="status" aria-pressed="false">Status</button><button type="button" data-klick="verlauf-art" data-art="termin" aria-pressed="false">Termine</button>
+  </div>
+  <div class="zeile-flex" id="verlaufAuftragZeile" hidden><label class="sml" style="font-weight:600" for="verlaufAuftrag">Auftrag</label><select id="verlaufAuftrag" class="p-role" data-aenderung="verlauf-auftrag"></select></div>
+  </div>
+  <div id="verlaufListe"><p class="mut sml" style="margin:0">Lädt …</p></div>
+  <div><button type="button" class="secondary" id="verlaufWeiter" data-klick="verlauf-weiter" hidden>Ältere laden</button></div>
+  <div class="mut sml"><a href="/versandprotokoll" id="versandprotokollLink">Versandprotokoll des Projekts</a> · <a href="/history">Ganze Änderungshistorie</a></div>
+</section>
+{% if is_module_enabled('checklisten') %}{% include "_checklists_section.html" %}{% endif %}
+</main>
+
+<dialog id="auftragsdatenDialog"><div class="dialog"><div class="dialog-head"><h3>Auftragsdaten bearbeiten</h3><button type="button" class="secondary" onclick="document.getElementById('auftragsdatenDialog').close()" aria-label="Schließen">✕</button></div>
+<div id="auftragsdatenSperre" class="notice warning" hidden></div>
+<div class="fields"><div class="field full"><label for="title">Bezeichnung</label><input id="title" data-dokument></div><div class="field"><label for="orderDate">Auftragsdatum</label><input id="orderDate" type="date" data-dokument></div><div class="field"><label for="start">Ausführungsbeginn</label><input id="start" type="date" data-dokument></div><div class="field"><label for="end">Geplantes Ende</label><input id="end" type="date" data-dokument></div><div class="field full"><label for="executionPeriod">Ausführungszeitraum (Text)</label><input id="executionPeriod" maxlength="255" placeholder="z. B. KW 42–44, witterungsabhängig" data-dokument></div><div class="field"><label for="caseworker">Sachbearbeiter</label><select id="caseworker"></select></div><div class="field"><label for="manager">Projektleiter / Vorarbeiter</label><select id="manager" data-dokument></select></div><div class="field full"><label for="payment">Zahlungsbedingungen</label><select id="payment" data-dokument></select></div><div class="field full"><label for="taxKey">Steuerschlüssel</label><select id="taxKey" onchange="changeOrderTaxKey()"></select><div id="taxLock" class="small muted" hidden></div></div><div class="field full"><label for="introText">Vortext</label><select id="orderIntroTemplate" onchange="applyOrderTextTemplate('introText','orderIntroTemplate')" style="margin-bottom:6px" data-dokument></select><textarea id="introText" data-dokument></textarea></div><div class="field full"><label for="outroText">Schlusstext</label><select id="orderOutroTemplate" onchange="applyOrderTextTemplate('outroText','orderOutroTemplate')" style="margin-bottom:6px" data-dokument></select><textarea id="outroText" data-dokument></textarea></div><div class="field full"><label for="outroText2">Schlusstext 2 <span class="small muted">(optional, zweiter, unabhängiger Textblock)</span></label><select id="orderOutro2Template" onchange="applyOrderTextTemplate('outroText2','orderOutro2Template')" style="margin-bottom:6px" data-dokument></select><textarea id="outroText2" data-dokument></textarea></div><div class="field full"><label for="remarks">Bemerkungen</label><textarea id="remarks"></textarea></div></div>
+<div id="auftragsdatenStatus" class="status"></div>
+<div class="dialog-actions"><button type="button" class="secondary" onclick="document.getElementById('auftragsdatenDialog').close()">Abbrechen</button><button type="button" onclick="saveOrder()">Auftragsdaten speichern</button></div></div></dialog>
+<dialog id="itemDialog"><div class="dialog"><div class="dialog-head"><h3 id="itemDialogTitle">Auftragsposition bearbeiten</h3><button class="secondary" onclick="document.getElementById('itemDialog').close()" aria-label="Schließen">✕</button></div><div id="itemLock" class="notice warning" hidden></div><div class="fields"><div class="field full"><label for="iShort">Kurztext</label><input id="iShort"></div><div class="field full"><label for="iLong">Langtext</label><textarea id="iLong"></textarea></div><div class="field"><label for="iQty">Menge</label><input id="iQty" type="text" inputmode="decimal" data-zahl></div><div class="field"><label for="iUnit">Einheit</label><select id="iUnit"></select></div><div class="field"><label for="iPrice">Einheitspreis</label><input id="iPrice" type="text" inputmode="decimal" data-zahl></div><div class="field" id="iTypeField"><label for="iType">Positionstyp</label><select id="iType"><option value="normal">Normal</option><option value="zulage">Zulage</option><option value="bedarf">Bedarf</option><option value="alternativ">Alternative</option></select></div><div class="field" id="iOzField"><label for="iOz">OZ</label><input id="iOz"></div><div class="field" style="display:flex;align-items:end"><label><input id="iIncluded" type="checkbox"> In Auftragssumme berücksichtigen</label></div></div><div id="addendumLock" class="small muted" hidden></div><div class="dialog-actions"><button class="danger" id="iRemove" onclick="removeAddendum()" hidden>Nachtrag entfernen</button><button class="secondary" onclick="document.getElementById('itemDialog').close()">Abbrechen</button><button onclick="saveItemDialog()">Speichern</button></div><div id="itemStatus" class="status"></div></div></dialog>
+<dialog id="signDialog"><div class="dialog"><div class="dialog-head"><h3 id="signTitle">Vertrag unterschreiben</h3><button class="secondary" onclick="closeSignDialog()" aria-label="Schließen">✕</button></div><div id="signIntro" class="sign-intro"></div><div id="signBoxes"></div><div class="sign-party"><label for="signNameCustomer">Unterschrift Auftraggeber (Kunde)</label><canvas id="signPadCustomer" class="dk-unterschrift"></canvas><div class="sign-row"><input id="signNameCustomer" maxlength="160" autocomplete="off" placeholder="Name der Person, die für den Kunden unterschreibt"><button class="secondary" type="button" onclick="signPads.customer.leeren()">Leeren</button></div></div><div class="sign-party"><label for="signNameCompany">Unterschrift Auftragnehmer (Betrieb)</label><canvas id="signPadCompany" class="dk-unterschrift"></canvas><div class="sign-row"><input id="signNameCompany" maxlength="160" autocomplete="off" placeholder="Name der Person, die für den Betrieb unterschreibt" value="{{ request.state.erp_user.display_name or '' }}"><button class="secondary" type="button" onclick="signPads.company.leeren()">Leeren</button></div></div><div class="dialog-actions"><button class="secondary" onclick="closeSignDialog()">Abbrechen</button><button id="signSubmit" onclick="submitDeviceSignature(this)">Verbindlich unterschreiben</button></div><div id="signStatus" class="status"></div></div></dialog>
+<dialog id="sectionDialog"><div class="dialog"><div class="dialog-head"><h3>LV-Titel bearbeiten</h3><button class="secondary" onclick="document.getElementById('sectionDialog').close()" aria-label="Schließen">✕</button></div><div class="field"><label for="secTitle">Titel</label><input id="secTitle"></div><div class="field"><label for="secDesc">Beschreibung</label><textarea id="secDesc"></textarea></div><div class="dialog-actions"><button class="secondary" onclick="document.getElementById('sectionDialog').close()">Abbrechen</button><button onclick="saveSectionDialog()">Speichern</button></div><div id="secStatus" class="status"></div></div></dialog>
+<dialog id="zustellungDialog"><div class="dialog"><div class="dialog-head"><h3 id="zustellungTitel">Zustellung nachtragen</h3><button type="button" class="secondary" data-klick="zustellung-schliessen" aria-label="Schließen">✕</button></div><div id="zustellungVerlauf"></div></div></dialog>
+
+<div id="projectModal" class="modal-backdrop"><div class="modal" role="dialog" aria-labelledby="projectModalTitel"><h2 id="projectModalTitel">Projekt bearbeiten</h2><div class="modal-grid"><div class="field"><label for="editProjectNumber">Projektnummer</label><input id="editProjectNumber" disabled><div class="hint">Die Projektnummer bleibt als feste Referenz erhalten.</div></div><div class="field"><label for="editProjectCategory">Projektkategorie</label><select id="editProjectCategory"></select></div><div class="field"><label for="editCustomer">Kunde *</label><select id="editCustomer" onchange="loadEditProperties();renderCustomerChangeReason()"></select></div><div class="field"><label for="editProperty">Objekt / Baustelle</label><select id="editProperty"></select></div><div class="field wide"><label for="editProjectName">Projektbezeichnung *</label><input id="editProjectName"></div><div class="field wide"><label for="editProjectDescription">Beschreibung</label><textarea id="editProjectDescription" rows="5"></textarea></div><div class="field wide" id="customerChangeReasonField" style="display:none"><label for="editCustomerChangeReason">Begründung des Kundenwechsels *</label><div class="hint" data-kundenwechsel-hinweis>Am Projekt hängt ein Auftrag – der Kunde wechselt nur zusammen mit dessen Vertragspartner: Name und Anschrift im Auftrag und in Rechnungsentwürfen wechseln mit. Mit festgeschriebener Rechnung oder festgeschriebenem Vertrag geht es nicht mehr.</div><textarea id="editCustomerChangeReason" rows="2" placeholder="z. B. Auftraggeber ist die Eigentümergemeinschaft, nicht die Hausverwaltung"></textarea></div></div><div id="projectEditStatus" class="status"></div><div class="modal-actions"><button class="btn secondary" onclick="closeModal('projectModal')">Abbrechen</button><button class="btn primary" onclick="saveProject()">Änderungen speichern</button></div></div></div>
+<div id="documentModal" class="modal-backdrop"><div class="modal" style="width:min(650px,100%)"><h2>Dateiinformationen bearbeiten</h2><div class="field"><label for="editDocumentName">Datei</label><input id="editDocumentName" disabled></div><div class="modal-grid"><div class="field"><label for="editDocumentCategory">Kategorie</label><select id="editDocumentCategory"></select></div><div class="field"><label for="editDocumentSubfolder">Unterordner <span class="mut sml">(optional)</span></label><input id="editDocumentSubfolder" list="subfolderSuggestions"></div><div class="field"><label for="editDocumentDate">Dokumentdatum</label><input id="editDocumentDate" type="date"></div><div class="field wide"><label for="editDocumentDescription">Notiz / Beschreibung</label><textarea id="editDocumentDescription" rows="5" placeholder="Beschreibung ergänzen …"></textarea></div></div><div id="documentEditStatus" class="status"></div><div class="modal-actions"><button class="btn secondary" onclick="closeModal('documentModal')">Abbrechen</button><button class="btn primary" onclick="saveDocumentMeta()">Speichern</button></div></div></div>
+<div id="beteiligteModal" class="modal-backdrop"><div class="modal" style="width:min(860px,100%)"><div class="karte-kopf" style="margin-bottom:12px"><h2 style="margin:0">Beteiligte am Projekt</h2><div class="zeile-flex"><button class="btn primary" onclick="openParticipantModal()">+ Beteiligten hinzufügen</button><button class="btn secondary" onclick="closeModal('beteiligteModal')">Schließen</button></div></div><div class="mut sml" style="margin-bottom:10px">Architekt, Bauleitung, Hausverwaltung, Sachverständige … aus Adressbuch, Kunden und Lieferanten. Der Kunde ist Auftraggeber und wird nicht zusätzlich geführt.</div><div id="participantsList"></div></div></div>
+<div id="participantModal" class="modal-backdrop"><div class="modal" style="width:min(640px,100%)"><h2>Beteiligten hinzufügen</h2>
+<div id="pmSearchStep"><div class="field"><label for="pmSearch">Suchen</label><input id="pmSearch" placeholder="Name, Firma, Funktion, Ort …" autocomplete="off" oninput="pmSearchSoon()"></div><div id="pmSources" class="hint" style="margin-top:4px"></div><div id="pmResults" class="pm-results"></div><div class="hint">Nicht gefunden? <a class="link" id="pmNewContact" href="/master-data/contacts/new">Neuen Kontakt im Adressbuch anlegen</a> – danach geht es hierher zurück.</div></div>
+<div id="pmChosenStep" style="display:none"><div class="info-block"><div class="p-head"><div id="pmChosenText"></div><button type="button" class="btn secondary small-btn" onclick="pmChooseOther()">Anderen wählen</button></div></div></div>
+<div class="modal-grid" style="margin-top:12px"><div class="field"><label for="pmRole">Rolle *</label><select id="pmRole"></select></div><div></div><div class="wide p-flags"><label><input type="checkbox" id="pmCopy"> Kopie bei Anzeigen</label><label><input type="checkbox" id="pmAuthorized"> empfangsbevollmächtigt für den Auftraggeber</label><label><input type="checkbox" id="pmAcceptance"> Vollmacht zur Abnahme</label></div></div><div class="hint">Die Vollmachten lassen sich nach dem Hinzufügen als Beleg hochladen.</div>
+<div id="pmStatus" class="status"></div><div class="modal-actions"><button class="btn secondary" onclick="closeModal('participantModal')">Abbrechen</button><button class="btn primary" onclick="saveParticipant()">Hinzufügen</button></div></div></div>
+<div id="maintenanceContractModal" class="modal-backdrop"><div class="modal" style="width:min(520px,100%)"><h2>Wartungsvertrag aus diesem Projekt erstellen</h2><div class="mut sml" style="margin-bottom:10px">Legt einen neuen Mustervorgang aus diesem Projekt an und verknüpft ihn mit einem neuen Wartungsvertrag. Der bestehende Auftrag bleibt unverändert.</div><div class="modal-grid"><div class="field"><label for="mcIntervalMonths">Intervall (Monate)</label><input id="mcIntervalMonths" type="text" inputmode="numeric" data-zahl="ganz" data-min="1" data-max="24" list="mcIntervalMonthsOptions" value="12"><datalist id="mcIntervalMonthsOptions">{% for m in range(1, 25) %}<option value="{{ m }}">{{ m }} Monat{{ 'e' if m != 1 else '' }}</option>{% endfor %}</datalist></div><div class="field"><label for="mcNextDueDate">Nächste Fälligkeit</label><input id="mcNextDueDate" type="date"></div></div><div id="maintenanceContractStatus" class="status"></div><div class="modal-actions"><button class="btn secondary" onclick="closeModal('maintenanceContractModal')">Abbrechen</button><button class="btn primary" onclick="saveMaintenanceContractFromProject()">Wartungsvertrag erstellen</button></div></div></div>
+</div>
+</div>
+{% include "_email_dispatch.html" %}
+{% include "_fehlertext.html" %}
+{% include "_berlin_date.html" %}
+{% include "_verlauf.html" %}
+{% include "_speichern.html" %}
+{% include "_zahl.html" %}
+{% include "_links.html" %}
+{% include "_aktionen.html" %}
+{% include "_auswahl.html" %}
+{% include "_unterschrift.html" %}
+{% include "_seitenkopf.html" %}
+{% include "_auftragsstatus.html" %}
+{% if is_module_enabled('checklisten') %}{% include "_offene_bedenken.html" %}{% endif %}
+{% include "_rechnungsliste.html" %}
+<script>
+const projectId={{ project_id }};
+const AUFTRAG_WUNSCH={{ auftrag if auftrag is not none else 'null' }};  // ?auftrag= aus der Adresse (nur eine Zahl, app/routers/pages.py::_zahl())
+const GELD="{{ 'ja' if geld else 'nein' }}"!=="nein";  // seit 1.9.111: darf_geld() (Seitenroute); ungerendert gültiges JS (Node-Tests)
+const maintenanceModuleEnabled={{ 'true' if is_module_enabled('wartungen') else 'false' }};
+const calendarModuleEnabled={{ 'true' if is_module_enabled('kalender') else 'false' }};
+const TAUSENDER={tausender:true};
+let akte=null,orderId=null,order=null,zahlenDaten=null,verlaufDaten=null,verlaufVor=null,verlaufArt='',verlaufAuftrag=null;
+let project=null,documents=[],quotes=[],participants=[],participantRoles=[],categories=[],projectCategories=[],customers=null,activeCategory='',activeSubfolder='',editingDocumentId=null;
+let employees=[],caseworkers=[],paymentOptions=[],taxKeys=[],introTemplates=[],outroTemplates=[],units=[],revisions=[],invoices=[],timeTotals=null,orderMaterials=[],editItemId=null,editSectionId=null;
+const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+const money=x=>Number(x||0).toLocaleString('de-DE',{style:'currency',currency:'EUR'});
+const size=x=>x<1024?x+' B':x<1048576?zahlText(x/1024,1)+' KB':zahlText(x/1048576,1)+' MB';
+const fmtSize=n=>n>=1048576?zahlText(n/1048576,1)+' MB':Math.max(1,Math.round(n/1024))+' KB';
+const stunden=h=>zahlText(h,1)+' h';
+function tagKurz(d){const m=String(d||'').match(/^(\d{4})-(\d{2})-(\d{2})/);if(!m)return '';return m[1]===berlinToday().slice(0,4)?`${m[3]}.${m[2]}.`:`${m[3]}.${m[2]}.${m[1]}`}
+// Seit 1.8.35 über fehlerText() (_fehlertext.html): eine 422-Liste je Feld mit den Beschriftungen dieser Seite.
+const FELDNAMEN={title:'Bezeichnung',status:'Status',order_date:'Auftragsdatum',execution_start:'Ausführungsbeginn',execution_end:'Geplantes Ende',execution_period:'Ausführungszeitraum',caseworker_employee_id:'Sachbearbeiter',project_manager_employee_id:'Projektleiter / Vorarbeiter',payment_terms:'Zahlungsbedingungen',tax_key_id:'Steuerschlüssel',intro_text:'Vortext',outro_text:'Schlusstext',outro_text_2:'Schlusstext 2',remarks:'Bemerkungen',contract_basis:'Vertragsgrundlage',reason:'Begründung',description:'Bezeichnung',lump_sum_net:'Betrag netto',progress_description:'Bezeichnung',short_text:'Kurztext',long_text:'Langtext',quantity:'Menge',unit:'Einheit',unit_price:'Einheitspreis',position_type:'Positionstyp',gaeb_oz:'OZ',include_in_total:'In Summe enthalten',payment_plan:'Abschlagsplan',special_terms:'Besonderheiten',customer_name:'Name des Kunden',company_name:'Name für den Betrieb',signed_on:'Unterschrieben am',scan:'Scan',version_id:'Fassung',pdf_sha256:'PDF-Prüfsumme',checkboxes:'Ankreuzfelder',attachment:'Anlage',attachment_document_id:'Anlage',work_kind:'Leistungsart',warranty_months:'Monate',warranty_days:'Tage',kind:'Art der Abnahme',accepted_on:'Datum der Abnahme',scope:'Umfang',scope_description:'Teil',result:'Ergebnis',reservation_defects:'Vorbehalt Mängel',reservation_penalty:'Vorbehalt Vertragsstrafe',declared_by:'Erklärt durch',participant_id:'Beteiligter',conduct_reason:'Begründung',contractor_objections:'Einwendungen',roof_area_ids:'Dachflächen',role:'Rolle',contact_id:'Kontakt',supplier_id:'Lieferant',copy_on_notices:'Kopie bei Anzeigen',authorized_recipient:'empfangsbevollmächtigt',acceptance_authorized:'Vollmacht zur Abnahme',file:'Datei',name:'Projektbezeichnung',customer_id:'Kunde',category:'Kategorie',subfolder:'Unterordner',document_date:'Dokumentdatum',interval_months:'Intervall',next_due_date:'Nächste Fälligkeit'};
+async function api(u,o){const r=await fetch(u,o);if(!r.ok){let d=null;try{d=await r.json()}catch{}throw Error(fehlerText(d,r.status,FELDNAMEN))}return r.headers.get('content-type')?.includes('json')?r.json():r}
+function el(id){return document.getElementById(id)}
+function seitenStatus(text){el('seitenStatus').textContent=text||''}
+
+// --- Reiter ---------------------------------------------------------------------------------------------------------------------------
+const REITER=['uebersicht','angebote','vertrag','leistungen','ausfuehrung','abnahme','rechnungen','dateien','verlauf'];
+const AUFTRAG_REITER=['vertrag','leistungen','ausfuehrung','abnahme','rechnungen'];
+// Anker der früheren Seiten (Projektmappe #sec-…, Auftrag #mangel-…) öffnen den passenden Reiter
+const ALTE_ANKER={'sec-info':'uebersicht','sec-orders':'uebersicht','sec-workprep':'ausfuehrung','sec-times':'ausfuehrung','sec-quotes':'angebote','sec-files':'dateien','sec-invoices':'rechnungen','sec-calendar':'uebersicht','sec-participants':'uebersicht','sec-dispatch':'verlauf','sec-history':'verlauf'};
+function reiterAusAnker(){const h=location.hash.replace('#','');if(/^mangel-\d+$/.test(h))return 'abnahme';return ALTE_ANKER[h]||h}
+function reiterErlaubt(name){return REITER.includes(name)&&(orderId||!AUFTRAG_REITER.includes(name))}
+function reiterZeigen(name,anker=true){
+  if(!reiterErlaubt(name))name='uebersicht';
+  REITER.forEach(r=>{el('reiter-'+r).hidden=r!==name;const a=document.querySelector(`.reiter a[data-reiter="${r}"]`);if(r===name)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')});
+  if(anker&&location.hash!=='#'+name&&!/^#mangel-\d+$/.test(location.hash))history.replaceState(null,'',location.pathname+location.search+'#'+name);
+  if(name==='verlauf'&&!verlaufDaten)verlaufLaden();
+  auftragswahlZeichnen();
+}
+window.addEventListener('hashchange',()=>reiterZeigen(reiterAusAnker(),false));
+document.querySelectorAll('.reiter a').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();reiterZeigen(a.dataset.reiter)}));
+function zahlSetzen(id,n){const z=el(id);if(!z)return;z.hidden=!n;z.textContent=n?String(n):''}
+
+// --- Kopf, Auftrag und Phase ----------------------------------------------------------------------------------------------------------
+function kopfZeichnen(){
+  if(!project)return;
+  const pfad=[{text:'Projekte',href:'/projects'}];
+  if(project.customer_id)pfad.push({text:project.customer_name,href:'/customers/'+project.customer_id});
+  if(project.property_id)pfad.push({text:project.property_name||'Objekt',href:'/properties/'+project.property_id});
+  pfad.push({text:project.project_number});
+  const unter=[project.property_name?[project.property_street,[project.property_postal_code,project.property_city].filter(Boolean).join(' ')].filter(Boolean).join(', ')||project.property_name:null,order&&order.project_manager_name?'Bauleitung '+order.project_manager_name:null,project.archived?'archiviert':null,project.is_template?'Mustervorgang':null].filter(Boolean).join(' · ');
+  seitenkopf({titel:project.name,kennung:project.project_number,untertitel:unter,status:statusKennzeichen('projekt',project.status),pfad});
+  document.title='DACHKONZEPTE ERP – '+project.project_number+' · '+project.name;
+  el('archiveMenuItem').textContent=project.archived?'Entarchivieren':'Archivieren';
+  el('deleteMenuItem').hidden=(project.order_count||0)>0;  // seit 1.9.117 (F15): mit Auftrag nur archivieren
+  const mc=el('maintenanceContractMenuItem');if(mc)mc.hidden=!!project.is_template;
+  el('menueAbPdf').hidden=!orderId;el('menueAv').hidden=!orderId;
+  if(orderId)el('menueAv').href='/orders/'+orderId+'/work-preparation';
+  const mb=el('menueBerichte');if(mb){mb.hidden=!orderId;if(orderId)mb.href='/orders/'+orderId+'/service-reports'}
+  el('newQuote').href='/quotes/new?project_id='+projectId;
+  const cal=el('newCalendarEvent');if(cal)cal.href='/kalender?new_project='+projectId+'&new_project_label='+encodeURIComponent(project.name);
+  el('versandprotokollLink').href='/versandprotokoll?projekt='+projectId;
+  hauptaktionZeichnen();
+}
+function hauptaktionZeichnen(){
+  const k=el('hauptaktion'),h=akte&&akte.hauptaktion;k.hidden=!h;if(h)k.textContent=h.text;
+}
+aktion('hauptaktion',()=>{
+  const h=akte&&akte.hauptaktion;if(!h)return;
+  if(h.art==='angebot')location.href='/quotes/new?project_id='+projectId;
+  else if(h.art==='beauftragen'&&akte.angebot_id)location.href='/quotes/'+Number(akte.angebot_id)+'/edit?beauftragen=1';
+  else if(h.art==='einsatz')location.href='/planning?auftrag='+Number(orderId);
+  else if(h.art==='rechnung'||h.art==='schlussrechnung'){reiterZeigen('rechnungen');const s=el('newInvoiceType');if(s){auswahlWert(s,h.art==='schlussrechnung'?'schluss':'abschlag_leistungsstand');toggleNewInvoiceFields();s.focus()}}
+  else if(h.art==='abnahme'){reiterZeigen('abnahme');openAcceptanceDialog()}
+  else if(h.art==='maengel')reiterZeigen('abnahme');
+  else if(h.art==='abschliessen')statusDialogOeffnen('abgeschlossen');
+});
+function auftragswahlZeichnen(){
+  const nav=el('auftragswahl'),liste=(akte&&akte.auftraege)||[],reiter=(document.querySelector('.reiter a[aria-current="page"]')||{}).dataset?.reiter||'uebersicht';
+  nav.hidden=liste.length<2;
+  nav.innerHTML=liste.map(a=>{const k=statusKennzeichen('auftrag',a.status);const chip=a.status!=='laeuft'?`<span class="chip chip-${esc(k.art)}">${esc(k.text.toLowerCase())}</span>`:'';return `<a href="/projects/${projectId}?auftrag=${Number(a.id)}#${esc(reiter)}"${a.id===orderId?' aria-current="page"':''}>${esc(a.order_number)} · ${esc(a.title)} <span class="num${a.id===orderId?'':' mut'}">${money(a.net_total)}</span>${chip}</a>`}).join('');
+  const einzeln=el('auftragEinzeln');
+  einzeln.textContent=liste.length===1?`${liste[0].order_number} · ${liste[0].title} · ${money(liste[0].net_total)}`:(liste.length?'':'noch kein Auftrag');
+  el('auftragEb').textContent=liste.length?'Auftrag':'Phase';
+  el('auftraegeSumme').textContent=liste.length>1?`${liste.length} Aufträge · ${money(akte.summe_auftraege)}`:'';
+}
+function phasenZeichnen(){
+  const s=(akte&&akte.phasen&&akte.phasen.schritte)||[];
+  el('phasen').innerHTML=s.map((x,i)=>{const kreis=x.jetzt?'jetzt':x.erreicht?'erreicht':'';const strich=i<s.length-1?`<span class="phase-strich${x.erreicht&&s[i+1].erreicht?' erreicht':''}"></span>`:'';
+    return `<li${x.jetzt?' aria-current="step"':''}><div class="phase-linie"><span class="phase-kreis ${kreis}">${x.erreicht&&!x.jetzt?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg>':''}</span>${strich}</div><span class="phase-name${x.jetzt?' jetzt':x.erreicht?' erreicht':''}">${esc(x.name)}${x.jetzt?' <span class="chip chip-ok" style="padding:1px 8px">jetzt</span>':''}</span><span class="mut sml">${esc(x.text||'')}</span></li>`}).join('');
+}
+function akteZeichnen(){
+  zahlSetzen('zahlAngebote',akte.zaehler.angebote);zahlSetzen('zahlLeistungen',akte.zaehler.leistungen);zahlSetzen('zahlRechnungen',akte.zaehler.rechnungen);zahlSetzen('tabCountFiles',akte.zaehler.dateien);
+  document.querySelectorAll('.reiter a[data-auftrag]').forEach(a=>a.hidden=!orderId);
+  el('statusZeile').hidden=!orderId;
+  phasenZeichnen();auftragswahlZeichnen();anstehtZeichnen();termineZeichnen();ausfuehrungZeichnen();befundeZeichnen();kopfZeichnen();
+}
+async function akteLaden(){
+  const abfrage=AUFTRAG_WUNSCH!=null?`?auftrag=${Number(AUFTRAG_WUNSCH)}`:'';
+  await lesen('akte',()=>api(`/api/projects/${projectId}/akte${abfrage}`),d=>{akte=d;orderId=d.auftrag_id;akteZeichnen()});
+}
+
+// --- Übersicht ------------------------------------------------------------------------------------------------------------------------
+function zahlZeile(name,wert,unter,klasse=''){return `<div class="zahl-zeile"><span style="font-size:14px">${esc(name)}</span><span class="zahl-wert"><b class="${klasse}">${esc(wert)}</b>${unter?`<span class="mut sml">${esc(unter)}</span>`:''}</span></div>`}
+function zahlenZeichnen(){
+  const z=zahlenDaten;el('uAbrechnung').hidden=el('uStunden').hidden=!z;if(!z)return;
+  const l=z.leistung,p=z.zahlung,s=z.stunden,nr=order?order.order_number:'';
+  el('uAbrTitel').textContent='Abrechnung · '+nr;el('uStdTitel').textContent='Stunden · '+nr;
+  el('uSteuer').textContent=order&&order.vat_rate!=null?`Steuersatz ${zahlText(order.vat_rate,0)} %`:'';
+  el('uLeistung').innerHTML=zahlZeile('Auftragssumme',money(l.auftragssumme),Number(l.nachtraege)?'davon Nachträge '+money(l.nachtraege):'','stark')
+    +zahlZeile('Abgerechnet',money(l.abgerechnet),l.abgerechnet_prozent!=null?`${l.abgerechnet_prozent} % der Auftragssumme`:'')
+    +(l.vollstaendig?zahlZeile('Noch nicht abgerechnet',money(0),Number(l.unter_auftragssumme)?`vollständig abgerechnet · ${money(l.unter_auftragssumme)} weniger als beauftragt`:'vollständig abgerechnet')
+                    :zahlZeile('Noch nicht abgerechnet',money(l.noch_nicht_abgerechnet),''))
+    +(Number(l.ueber_auftragssumme)?zahlZeile('Mehr abgerechnet als beauftragt',money(l.ueber_auftragssumme),''):'');
+  el('uLeistungBalken').style.width=Math.min(100,l.abgerechnet_prozent||0)+'%';
+  el('uZahlung').innerHTML=zahlZeile('In Rechnung gestellt',money(p.in_rechnung),'','stark')
+    +zahlZeile('Bezahlt',money(p.bezahlt),[Number(p.skonto)?'Skonto '+money(p.skonto):'',Number(p.erstattet)?'abzüglich Erstattungen '+money(p.erstattet):''].filter(Boolean).join(' · '))
+    +zahlZeile('Unbezahlt',money(p.unbezahlt),[p.ueberfaellig_seit?'überfällig seit '+tagKurz(p.ueberfaellig_seit):'',Number(p.einbehalt)?'davon Einbehalt '+money(p.einbehalt):''].filter(Boolean).join(' · '),p.ueberfaellig_seit?'warn':'')
+    +(Number(p.guthaben)?zahlZeile('Guthaben des Kunden',money(p.guthaben),''):'');
+  const gesamt=Number(p.in_rechnung)||0;el('uZahlungBalken').style.width=(gesamt>0?Math.min(100,(p.bezahlt_prozent||0)):0)+'%';el('uZahlungOffen').style.width=(gesamt>0&&Number(p.unbezahlt)>0?Math.max(0,100-(p.bezahlt_prozent||0)):0)+'%';
+  el('uSoll').textContent=stunden(s.soll);el('uGebucht').textContent=stunden(s.gebucht);el('uFahrzeit').textContent=Number(s.fahrzeit)?'davon Fahrzeit '+stunden(s.fahrzeit):'';
+  el('uBw').textContent=stunden(s.baustelle_werkstatt);el('uBwProzent').textContent=s.prozent_vom_soll!=null?`${s.prozent_vom_soll} % vom Soll`:'';
+  el('uStundenBalken').style.width=Math.min(100,s.prozent_vom_soll||0)+'%';
+  el('uMitarbeiter').innerHTML=s.mitarbeiter.length?`<table aria-label="Stunden je Mitarbeiter"><thead><tr><th>Mitarbeiter</th><th class="r">Tage</th><th class="r">Fahrzeit</th><th class="r">Stunden</th></tr></thead><tbody>${s.mitarbeiter.map(m=>`<tr><td>${esc(m.name)}</td><td class="r num">${zahlText(m.tage,0)}</td><td class="r num">${stunden(m.fahrzeit)}</td><td class="r num">${stunden(m.stunden)}</td></tr>`).join('')}</tbody></table>`:'<p class="mut sml" style="margin:0">Noch keine Zeit gebucht.</p>';
+  el('uZeitenLink').href='/zeiten?auftrag='+Number(orderId)+'&zeitraum=alle#buchungen';
+  lvZeichnen();
+}
+async function zahlenLaden(){if(!orderId)return;await lesen('zahlen',()=>api(`/api/orders/${orderId}/zahlen`),d=>{zahlenDaten=d;zahlenZeichnen()})}
+function naechsteRechnungZeichnen(){
+  const box=el('uNaechste');if(!box||!order)return;
+  const blocks=order.invoice_create_blocks||{};let art=null;
+  if(!blocks.abschlag_leistungsstand)art='abschlag_leistungsstand';else if(!blocks.schluss)art='schluss';
+  box.hidden=!art;if(!art)return;
+  const n=invoices.filter(i=>['abschlag_pauschal','abschlag_leistungsstand'].includes(i.invoice_type)&&i.status!=='storniert').length+1;
+  el('uNaechsteText').innerHTML=art==='schluss'?'<b>Nächste Rechnung:</b> Schlussrechnung. Der Entwurf schlägt die Mengen des Auftrags vor – gebucht wird erst mit deinem Klick.':`<b>Nächste Rechnung:</b> ${n}. Abschlag nach Leistungsstand. Der Entwurf schlägt die Ist-Mengen vor – gebucht wird erst mit deinem Klick.`;
+  box.dataset.art=art;
+}
+aktion('naechste-rechnung',()=>{const s=el('newInvoiceType');auswahlWert(s,el('uNaechste').dataset.art);createNewInvoice()});
+function anstehtZeichnen(){
+  const liste=(akte&&akte.ansteht)||[];el('uAnsteht').hidden=!liste.length;el('uAnstehtZahl').textContent=liste.length?String(liste.length):'';
+  el('uAnstehtListe').innerHTML=liste.map(a=>{const knopf=a.geld&&!GELD?'':(a.art==='ueberfaellig'?`<a class="btn secondary" style="height:36px" href="${esc(sichererLink(a.href))}">${esc(a.knopf)}</a>`:`<a class="sml" style="font-weight:600" href="${esc(sichererLink(a.href))}">${esc(a.knopf)}</a>`);return `<div class="li"><div class="li-text"><span class="li-titel">${esc(a.titel)}</span><span class="mut sml">${esc(a.unter)}</span></div>${knopf}</div>`}).join('');
+}
+const WOCHENTAG=['So','Mo','Di','Mi','Do','Fr','Sa'];
+function termineZeichnen(){
+  const liste=(akte&&akte.termine)||[];
+  el('uTermineListe').innerHTML=liste.length?liste.map(t=>{const d=String(t.tag||'').match(/^(\d{4})-(\d{2})-(\d{2})/);const wt=d?WOCHENTAG[new Date(Number(d[1]),Number(d[2])-1,Number(d[3])).getDay()]:'';
+    return `<div class="li" style="align-items:center"><span style="width:44px;flex:none;display:flex;flex-direction:column;align-items:center;line-height:1.1"><span class="eb" style="font-size:10px">${esc(wt)}</span><span style="font-family:var(--ds-schrift-titel);font-weight:700;font-size:20px">${esc(d?d[3]:'')}</span></span><div class="li-text"><span class="li-titel">${esc(t.titel)}</span><span class="mut sml">${esc(t.unter)}</span></div></div>`}).join(''):'<p class="mut sml" style="margin:0">Keine anstehenden Termine.</p>';
+}
+function beteiligteZeichnen(){
+  if(!project)return;
+  const zeilen=[];
+  zeilen.push(`<div class="li" style="flex-direction:column;gap:2px"><span class="eb" style="font-size:10px">Auftraggeber</span><span style="font-size:14px"><a href="/customers/${Number(project.customer_id)}" style="font-weight:600">${esc(project.customer_name)}</a></span><span class="mut sml">${esc([project.customer_number,project.customer_phone,project.customer_email].filter(Boolean).join(' · '))}</span></div>`);
+  if(project.property_id)zeilen.push(`<div class="li" style="flex-direction:column;gap:2px"><span class="eb" style="font-size:10px">Objekt</span><span style="font-size:14px"><a href="/properties/${Number(project.property_id)}" style="font-weight:600">${esc(project.property_name||'Objekt')}</a></span><span class="mut sml">${esc([project.property_street,[project.property_postal_code,project.property_city].filter(Boolean).join(' ')].filter(Boolean).join(', '))}</span></div>`);
+  if(order&&(order.project_manager_name||order.caseworker_name))zeilen.push(`<div class="li" style="flex-direction:column;gap:2px"><span class="eb" style="font-size:10px">Team</span><span style="font-size:14px;font-weight:600">${esc(order.project_manager_name?'Bauleitung '+order.project_manager_name:'Bauleitung nicht zugeordnet')}</span><span class="mut sml">${esc(order.caseworker_name?'Sachbearbeitung '+order.caseworker_name:'')}</span></div>`);
+  participants.forEach(p=>zeilen.push(`<div class="li" style="flex-direction:column;gap:2px"><span class="eb" style="font-size:10px">${esc(p.role_label)}</span><span style="font-size:14px;font-weight:600">${esc(p.contact.display_name)}</span><span class="mut sml">${esc([p.contact.phone,p.contact.email].filter(Boolean).join(' · '))}</span></div>`));
+  if(project.description)zeilen.push(`<div class="li" style="flex-direction:column;gap:2px"><span class="eb" style="font-size:10px">Beschreibung</span><span class="sml" style="white-space:pre-wrap">${esc(project.description)}</span></div>`);
+  el('uBeteiligteListe').innerHTML=zeilen.join('');
+}
+function angeboteZeichnen(){
+  const tabelle=quotes.length?`<table><thead><tr><th>Angebot</th><th>Bezeichnung</th><th>Stand</th><th class="r">Netto</th><th class="r">Brutto</th><th></th></tr></thead><tbody>${quotes.map(q=>{const k=statusKennzeichen('angebot',q.status);return `<tr><td><a href="/quotes/${Number(q.id)}/edit"><b>${esc(q.quote_number)}</b></a></td><td>${esc(q.title)}</td><td><span class="badge" data-art="${esc(k.art)}">${esc(k.text)}</span></td><td class="r num">${money(q.net_total)}</td><td class="r num">${money(q.gross_total)}</td><td class="r"><a class="sml" href="/quotes/${Number(q.id)}/edit" style="font-weight:600">Öffnen</a></td></tr>`}).join('')}</tbody></table>`:'<div class="empty">Noch keine Angebote in diesem Projekt.</div>';
+  el('quotes').innerHTML=tabelle;
+  el('uAngebote').hidden=!!orderId;if(!orderId)el('uAngeboteListe').innerHTML=tabelle;  // D15: „+ Angebot“ nur im Reiter Angebote (ohne Angebot die Hauptaktion)
+}
+
+// --- Verlauf --------------------------------------------------------------------------------------------------------------------------
+// Seit 1.9.129 wie die Vorlage: Zeitpunkt kurz („28.10. 07:15“, im Vorjahr mit Jahr), die Art als Kennzeichen in den Farben der Tokens
+// (Termin wie Änderung neutral -- es gibt kein Violett), rechts das Ziel der Zeile vom Server („Öffnen“, „Ansehen“) oder „⋮“ beim Versand.
+const VL_ART={aenderung:'neutral',versand:'info',zahlung:'ok',bericht:'warn',status:'signal',termin:'neutral'};
+function zeitpunktKurz(wert){const voll=berlinZeitpunkt(wert);return voll?tagKurz(berlinZeitpunkt(wert,'tag'))+' '+voll.split(' ')[1]:''}
+function verlaufZeile(e,mitMenue=true){
+  const einzel=(e.einzelheiten||[]).length>1||((e.einzelheiten||[])[0]&&e.einzelheiten[0].field_name);
+  const details=einzel?`<details><summary>Einzelheiten (${zahlText(e.einzelheiten.length,0)})</summary>${e.einzelheiten.map(z=>`<div class="vl-einzel"><b>${esc(z.entity_type_label||z.entity_type)}</b> ${esc(z.entity_label||'')}${z.field_label?` · ${esc(z.field_label)}`:''}: ${verlaufAenderung(z)}</div>`).join('')}</details>`:'';
+  const auftraege=(e.auftraege||[]).map(a=>a.order_number).filter(Boolean).join(', ');
+  const v=e.versand,menue=mitMenue&&v&&v.zustellung_nachtragen?`<span class="menue-anker"><button type="button" class="iconbtn" aria-label="Versand ${esc(v.document_number||'')} – Aktionen" aria-haspopup="menu" data-klick="versand-menue" data-typ="${esc(v.document_type)}" data-id="${Number(v.document_id)}" data-nummer="${esc(v.document_number||'')}">⋮</button></span>`:'';
+  const zielLink=e.ziel?`<a class="sml" style="font-weight:600" href="${esc(sichererLink(e.ziel.href))}">${esc(e.ziel.text)}</a>`:'';
+  return `<div class="vl-zeile"><span class="mut sml num">${esc(zeitpunktKurz(e.zeitpunkt))}</span><span class="vl-art"><span class="chip chip-${esc(VL_ART[e.art]||'neutral')}">${esc(e.art_label)}</span></span><div class="li-text"><span style="font-size:14px">${esc(e.titel)}</span><span class="mut sml">${esc([e.unterzeile,auftraege].filter(Boolean).join(' · '))}</span>${details}</div><div class="vl-ende"><span class="mut sml">${esc(e.konto||'')}</span>${zielLink}${menue}</div></div>`;
+}
+function verlaufVorschauZeichnen(){
+  const liste=((verlaufDaten&&verlaufDaten.eintraege)||[]).slice(0,4);
+  el('uVerlaufListe').innerHTML=liste.length?liste.map(e=>`<div class="li"><span class="mut sml num li-zeit">${esc(zeitpunktKurz(e.zeitpunkt))}</span><div class="li-text"><span style="font-size:14px">${esc(e.titel)}</span><span class="mut sml">${esc(e.konto||'')}</span></div></div>`).join(''):'<p class="mut sml" style="margin:0">Noch nichts protokolliert.</p>';
+}
+function verlaufZeichnen(){
+  const liste=(verlaufDaten&&verlaufDaten.eintraege)||[];
+  el('verlaufListe').innerHTML=liste.length?liste.map(e=>verlaufZeile(e)).join(''):'<p class="mut sml" style="margin:0">Nichts in dieser Auswahl.</p>';
+  el('verlaufWeiter').hidden=!verlaufVor;
+  document.querySelectorAll('#verlaufArten button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.art===verlaufArt)));
+  const sel=el('verlaufAuftrag'),liste2=(akte&&akte.auftraege)||[];el('verlaufAuftragZeile').hidden=liste2.length<2;
+  sel.innerHTML=auswahlOptionen(liste2,verlaufAuftrag,a=>a.order_number+' · '+a.title,{leer:'alle Aufträge des Projekts'});  // Regel 22
+}
+function verlaufAbfrage(vor){const p=new URLSearchParams();if(verlaufArt)p.append('art',verlaufArt);if(verlaufAuftrag)p.append('auftrag',String(verlaufAuftrag));if(vor)p.append('vor',vor);const s=p.toString();return `/api/projects/${projectId}/verlauf${s?'?'+s:''}`}
+async function verlaufLaden(){await lesen('verlauf',()=>api(verlaufAbfrage(null)),d=>{verlaufDaten=d;verlaufVor=d.vor;verlaufZeichnen();if(!verlaufArt&&!verlaufAuftrag)verlaufVorschauZeichnen()})}
+aktion('verlauf-art',b=>{verlaufArt=b.dataset.art||'';verlaufDaten=null;verlaufLaden()});
+aktion('verlauf-auftrag',()=>{const wahl=el('verlaufAuftrag').value;verlaufAuftrag=wahl?Number(wahl):null;verlaufDaten=null;verlaufLaden()},'change');
+aktion('verlauf-weiter',async()=>{if(!verlaufVor)return;await lesen('verlauf',()=>api(verlaufAbfrage(verlaufVor)),d=>{verlaufDaten={eintraege:[...((verlaufDaten&&verlaufDaten.eintraege)||[]),...d.eintraege]};verlaufVor=d.vor;verlaufZeichnen()})});
+// „Zustellung nachtragen“ im „⋮“ einer Versandzeile: der Versandverlauf des Dokuments (_email_dispatch.html) im Dialog, das Formular offen
+aktion('versand-menue',b=>{
+  const typ=b.dataset.typ,id=Number(b.dataset.id);
+  el('zustellungTitel').textContent='Zustellung nachtragen – '+(b.dataset.nummer||'Dokument');
+  el('zustellungDialog').showModal();
+  renderDispatchHistory('zustellungVerlauf',typ,id,{onChange:()=>{renderDispatchHistory('zustellungVerlauf',typ,id);verlaufDaten=null;verlaufLaden()}}).then(()=>toggleManualDelivery('zustellungVerlauf'));
+});
+aktion('zustellung-schliessen',()=>el('zustellungDialog').close());
+// --- Ausführung und Befunde (Stand vom Server, GET /api/projects/{id}/akte) -------------------------------------------------------------
+function ausfuehrungZeichnen(){
+  const a=akte&&akte.ausfuehrung;if(!a||!orderId)return;
+  el('avLink').href='/orders/'+orderId+'/work-preparation';
+  const av=a.arbeitsvorbereitung;
+  el('avStand').innerHTML=av?`<div class="zeile-flex"><span class="badge" data-art="${esc(statusKennzeichen('arbeitsvorbereitung',av.status).art)}">${esc(statusKennzeichen('arbeitsvorbereitung',av.status).text)}</span><span class="mut">${av.planned_start?'geplant '+esc(tagKurz(av.planned_start))+(av.planned_end?'–'+esc(tagKurz(av.planned_end)):''):'ohne geplanten Zeitraum'}</span></div>`:'<span class="mut">Noch keine Arbeitsvorbereitung – sie entsteht beim ersten Speichern.</span>';
+  el('einsatzLink').href='/planning?auftrag='+orderId;
+  el('einsatzListe').innerHTML=a.einsaetze.length?a.einsaetze.map(s=>`<div class="li"><div class="li-text"><span class="li-titel">${esc(s.team)} · ${zahlText(s.personen,0)} ${s.personen===1?'Person':'Personen'}</span><span class="mut sml">${esc(tagKurz(s.start_date))}–${esc(tagKurz(s.end_date))}</span></div></div>`).join(''):'<p class="mut sml" style="margin:0">Noch kein Einsatz in der Plantafel.</p>';
+  const st=a.stunden;
+  el('zeitenStand').innerHTML=`<div class="zahlen-drei"><div><span class="eb">Gebucht</span><div class="gross">${stunden(st.gebucht)}</div></div><div><span class="eb">davon Fahrzeit</span><div class="gross">${stunden(st.fahrzeit)}</div></div><div><span class="eb">Baustelle &amp; Werkstatt</span><div class="gross">${stunden(st.baustelle_werkstatt)}</div></div></div>`;
+  el('zeitenLink').href='/zeiten?auftrag='+orderId+'&zeitraum=alle#buchungen';  // L3: alle Buchungen des Auftrags, nicht nur der laufende Monat
+  const bl=el('berichtListe');
+  if(bl){
+    el('serviceReportsLink').href='/orders/'+orderId+'/service-reports';
+    const anlegen=el('berichtAnlegen');anlegen.href='/orders/'+orderId+'/service-reports?neu=1';anlegen.hidden=!akte.bericht_anlegen;  // L2: öffnet gleich „Bericht anlegen“
+    bl.innerHTML=a.berichte.length?a.berichte.slice(0,6).map(b=>{const k=statusKennzeichen('einsatzbericht',b.status);return `<div class="li"><div class="li-text"><a class="li-titel" href="/service-reports/${Number(b.id)}">${esc(b.art)} vom ${esc(tagKurz(b.performed_at))}</a><span class="mut sml">${esc(b.von||'')}</span></div><span class="badge" data-art="${esc(k.art)}">${esc(k.text)}</span></div>`}).join('')+(a.berichte.length>6?`<p class="mut sml" style="margin:0">und ${zahlText(a.berichte.length-6,0)} weitere</p>`:''):'<p class="mut sml" style="margin:0">Noch kein Einsatzbericht.</p>';
+  }
+}
+function befundeZeichnen(){
+  const liste=(akte&&akte.befunde)||[];
+  el('befundListe').innerHTML=liste.length?liste.map(b=>`<div class="li"><div class="li-text"><span class="li-titel">${esc(b.titel)}</span><span class="mut sml">${esc(b.unter)}</span></div><a class="sml" style="font-weight:600" href="/service-reports/${Number(b.service_report_id)}">Ansehen</a></div>`).join(''):'<p class="mut sml" style="margin:0">Keine Befunde in den Einsatzberichten.</p>';
+}
+
+// --- Projekt: Kopf-Menü, Bearbeiten, Dateien, Beteiligte (aus der Projektmappe) ------------------------------------------------------
+aktion('projekt-bearbeiten',()=>openProjectEdit());
+aktion('beteiligte-oeffnen',()=>openBeteiligte());
+aktion('projekt-kopieren',()=>duplicateProjectHere(false));
+aktion('als-muster',()=>duplicateProjectHere(true));
+aktion('wartungsvertrag',()=>openMaintenanceContractModal());
+aktion('archivieren',()=>toggleArchivedHere());
+aktion('projekt-loeschen',()=>deleteProjectHere());
+aktion('ab-pdf',()=>{if(orderId)window.open('/api/orders/'+orderId+'/pdf','_blank')});
+function openBeteiligte(){renderParticipants();openModal('beteiligteModal')}
+async function duplicateProjectHere(asTemplate){
+  if(!confirm(asTemplate?'Dieses Projekt als Mustervorgang speichern? Angebot inkl. Positionen und Kalkulation wird dabei kopiert.':'Dieses Projekt kopieren? Ein neues Projekt mit Kopie des Angebots (Positionen, Kalkulation) wird angelegt.'))return;
+  try{const result=await speichern('projekt',()=>api(`/api/projects/${projectId}/duplicate`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({as_template:asTemplate})}));location.href='/projects/'+result.id}catch(e){alert('Fehler: '+e.message)}
+}
+async function toggleArchivedHere(){try{const url=`/api/projects/${projectId}/${project.archived?'unarchive':'archive'}`;await speichern('projekt',()=>api(url,{method:'POST'}),{anwenden:d=>{project=d;kopfZeichnen()}})}catch(e){alert('Fehler: '+e.message)}}
+function openMaintenanceContractModal(){el('mcIntervalMonths').value=zahlText(12);el('mcNextDueDate').value=berlinToday();el('maintenanceContractStatus').textContent='';openModal('maintenanceContractModal')}
+async function saveMaintenanceContractFromProject(){
+  const st=el('maintenanceContractStatus'),nextDueDate=el('mcNextDueDate').value;
+  if(!nextDueDate){st.textContent='Bitte eine nächste Fälligkeit angeben.';return}
+  try{const intervalMonths=zahlFeld('mcIntervalMonths',{leer:12});const created=await speichern('wartungsvertrag',()=>api(`/api/maintenance-contracts/from-project/${projectId}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({interval_months:intervalMonths,next_due_date:nextDueDate})}));location.href='/maintenance-contracts/'+created.id}catch(e){st.textContent='Fehler: '+e.message}
+}
+async function deleteProjectHere(){if(!confirm('Dieses Projekt endgültig löschen? Das kann nicht rückgängig gemacht werden.'))return;try{await speichern('projekt',()=>api(`/api/projects/${projectId}`,{method:'DELETE'}));location.href='/projects'}catch(e){alert('Fehler: '+e.message)}}
+function openModal(id){el(id).classList.add('open')}function closeModal(id){el(id).classList.remove('open')}
+document.querySelectorAll('.modal-backdrop').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
+// Seit 1.8.80: hängt am Projekt ein Auftrag, wechselt der Kunde nur mit dessen Vertragspartner und mit Begründung.
+function renderCustomerChangeReason(){const changed=Number(el('editCustomer').value)!==project.customer_id;el('customerChangeReasonField').style.display=changed&&project.order_count>0?'block':'none'}
+async function openProjectEdit(){
+  if(customers===null)await lesen('kunden',()=>api('/api/customers'),d=>{customers=d});
+  el('editCustomerChangeReason').value='';el('editProjectNumber').value=project.project_number;el('editProjectName').value=project.name;el('editProjectDescription').value=project.description||'';
+  el('editCustomer').innerHTML=customers.map(c=>`<option value="${c.id}">${esc(c.customer_number||'')} · ${esc(c.name)}</option>`).join('');el('editCustomer').value=project.customer_id;
+  el('editProjectCategory').innerHTML=auswahlOptionen(projectCategories,project.category,x=>x.label,{wert:x=>x.value,aktiv:x=>x.active,leer:'— keine Kategorie —'});
+  await loadEditProperties(project.property_id,true);renderCustomerChangeReason();el('projectEditStatus').textContent='';openModal('projectModal');
+}
+// Seit 1.9.16 (Regel 22): beim Öffnen bleibt das gespeicherte Objekt gewählt; die Hauptadresse als Vorschlag nur beim Wechsel des Kunden.
+async function loadEditProperties(selectedId=null,beimOeffnen=false){const cid=el('editCustomer').value;await lesen('objekte',()=>cid?api('/api/properties?customer_id='+cid):[],props=>{const g=beimOeffnen?(selectedId??''):(props.some(x=>x.id===Number(selectedId))?selectedId:(props.find(x=>x.name==='Hauptadresse')?.id??''));el('editProperty').innerHTML=auswahlOptionen(props,g,x=>`${x.name} · ${(x.postal_code||'')+' '+(x.city||'')}`,{leer:'— kein Objekt —',fehlt:()=>`${project.property_name||'Objekt'} (Objekt eines anderen Kunden)`})})}
+async function saveProject(){const st=el('projectEditStatus');try{st.textContent='Speichert …';await speichern('projekt',()=>api(`/api/projects/${projectId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_id:Number(el('editCustomer').value),property_id:el('editProperty').value?Number(el('editProperty').value):null,name:el('editProjectName').value.trim(),category:el('editProjectCategory').value||null,description:el('editProjectDescription').value.trim()||null,customer_change_reason:el('editCustomerChangeReason').value.trim()||null})}),{anwenden:d=>{project=d;kopfZeichnen();beteiligteZeichnen()},neuLaden:()=>{verlaufDaten=null;return verlaufLaden()}});closeModal('projectModal')}catch(e){st.textContent='Fehler: '+e.message}}
+
+// Dateien
+function renderCategories(){const allCats=[...new Set([...categories.map(x=>x.value),...documents.map(x=>x.category)])];el('category').innerHTML=categories.filter(x=>x.active).map(x=>`<option value="${esc(x.value)}" ${x.is_default?'selected':''}>${esc(x.label)}</option>`).join('');el('categoryFilter').innerHTML='<option value="">Alle Kategorien</option>'+allCats.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');el('categoryFilter').value=activeCategory;el('categoryCards').innerHTML=`<button class="cat ${!activeCategory?'active':''}" onclick="filterCategory('')"><b>Alle Dateien</b><span class="mut sml">${documents.length} Einträge</span></button>`+allCats.map(c=>`<button class="cat ${activeCategory===c?'active':''}" data-klick="dateikategorie" data-wert="${esc(c)}"><b>${esc(c)}</b><span class="mut sml">${documents.filter(d=>d.category===c).length} Dateien</span></button>`).join('');el('subfolderSuggestions').innerHTML=[...new Set(documents.map(d=>d.subfolder).filter(Boolean))].map(s=>`<option value="${esc(s)}">`).join('');renderSubfolders()}
+aktion('dateikategorie',b=>filterCategory(b.dataset.wert));
+aktion('dateiunterordner',b=>filterSubfolder(b.dataset.wert));
+function filterCategory(c){activeCategory=c;activeSubfolder='';renderCategories();renderDocuments()}
+function renderSubfolders(){const box=el('subfolderCards');if(!activeCategory){box.style.display='none';box.innerHTML='';return}const subs=[...new Set(documents.filter(d=>d.category===activeCategory).map(d=>d.subfolder).filter(Boolean))].sort();if(!subs.length){box.style.display='none';box.innerHTML='';return}box.style.display='';box.innerHTML=`<button class="cat ${!activeSubfolder?'active':''}" onclick="filterSubfolder('')"><b>Alle Unterordner</b><span class="mut sml">${documents.filter(d=>d.category===activeCategory).length} Dateien</span></button>`+subs.map(s=>`<button class="cat ${activeSubfolder===s?'active':''}" data-klick="dateiunterordner" data-wert="${esc(s)}"><b>${esc(s)}</b><span class="mut sml">${documents.filter(d=>d.category===activeCategory&&d.subfolder===s).length} Dateien</span></button>`).join('')}
+function filterSubfolder(s){activeSubfolder=s;renderSubfolders();renderDocuments()}
+function icon(d){if(d.is_image)return `<img loading="lazy" src="/api/project-documents/${d.id}/view" alt="">`;if(d.content_type==='application/pdf')return 'PDF';if((d.content_type||'').includes('spreadsheet')||(d.original_filename||'').match(/\.xlsx?$/i))return 'XLS';if((d.content_type||'').includes('word')||(d.original_filename||'').match(/\.docx?$/i))return 'DOC';return '📄'}
+function renderDocuments(){const q=el('fileSearch').value.trim().toLowerCase(),cat=el('categoryFilter').value||activeCategory;const list=documents.filter(d=>(!cat||d.category===cat)&&(!activeSubfolder||d.subfolder===activeSubfolder)&&(!q||[d.original_filename,d.category,d.subfolder,d.description].some(x=>String(x||'').toLowerCase().includes(q))));el('documents').innerHTML=list.map(d=>`<div class="doc"><div class="thumb">${icon(d)}</div><div class="doc-body"><div class="doc-name" title="${esc(d.original_filename)}">${esc(d.original_filename)}</div><div class="doc-meta">${esc(d.category)}${d.subfolder?' / '+esc(d.subfolder):''} · ${esc(size(d.file_size))}${d.document_date?' · '+esc(tagKurz(d.document_date)):''}<br>${esc(berlinZeitpunkt(d.uploaded_at))}</div>${d.description?`<div class="doc-description">${esc(d.description)}</div>`:'<div class="doc-description mut">Keine Beschreibung</div>'}<div class="doc-actions">${d.can_preview?`<a target="_blank" href="/api/project-documents/${d.id}/view">Öffnen</a>`:''}<a href="/api/project-documents/${d.id}/download">Download</a><button class="edit" onclick="editDocument(${d.id})">Bearbeiten</button><button class="danger" onclick="removeDocument(${d.id})">Löschen</button></div></div></div>`).join('')||'<div class="empty" style="grid-column:1/-1">Keine Dateien in dieser Auswahl.</div>'}
+function showSelected(){const n=el('files').files.length;el('selectedInfo').textContent=n?n+' Datei(en) ausgewählt.':'Dateien auswählen oder hierher ziehen.';el('uploadButton').style.display=n?'inline-flex':'none'}
+async function uploadFiles(){const input=el('files'),status=el('uploadStatus');if(!input.files.length)return;status.textContent='Upload läuft …';let done=0;try{for(const f of input.files){const fd=new FormData();fd.append('file',f);fd.append('category',el('category').value||'Sonstiges');fd.append('subfolder',el('subfolder').value.trim());fd.append('document_date',el('documentDate').value);fd.append('description',el('fileDescription').value);await speichern('dateien',()=>api(`/api/projects/${projectId}/documents`,{method:'POST',body:fd}));done++}input.value='';showSelected();el('fileDescription').value='';el('subfolder').value='';await reloadDocuments();status.textContent=done+' Datei(en) hochgeladen.'}catch(e){status.textContent='Fehler nach '+done+' Datei(en): '+e.message}}
+async function removeDocument(id){if(!confirm('Datei wirklich aus dem Projekt löschen?'))return;await speichern('dateien',()=>api('/api/project-documents/'+id,{method:'DELETE'}),{neuLaden:reloadDocuments})}
+async function reloadDocuments(){await lesen('dateien',()=>api(`/api/projects/${projectId}/documents`),d=>{documents=d;zahlSetzen('tabCountFiles',documents.length);renderCategories();renderDocuments()})}
+function editDocument(id){const d=documents.find(x=>x.id===id);if(!d)return;editingDocumentId=id;el('editDocumentName').value=d.original_filename;el('editDocumentSubfolder').value=d.subfolder||'';el('editDocumentDate').value=d.document_date||'';el('editDocumentDescription').value=d.description||'';const all=[...categories];if(d.category&&!all.some(x=>x.value===d.category))all.push({value:d.category,label:d.category,active:true});el('editDocumentCategory').innerHTML=auswahlOptionen(all,d.category,x=>x.label,{wert:x=>x.value,aktiv:x=>x.active});el('documentEditStatus').textContent='';openModal('documentModal')}
+async function saveDocumentMeta(){if(!editingDocumentId)return;const st=el('documentEditStatus');try{st.textContent='Speichert …';const url=`/api/project-documents/${editingDocumentId}`;await speichern('dateien',()=>api(url,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({category:el('editDocumentCategory').value,subfolder:el('editDocumentSubfolder').value.trim()||null,document_date:el('editDocumentDate').value||null,description:el('editDocumentDescription').value.trim()||null})}),{anwenden:updated=>{documents=documents.map(x=>x.id===updated.id?updated:x);renderCategories();renderDocuments()}});closeModal('documentModal')}catch(e){st.textContent='Fehler: '+e.message}}
+(function(){const zone=el('uploadZone');['dragenter','dragover'].forEach(e=>zone.addEventListener(e,x=>{x.preventDefault();zone.classList.add('drag')}));['dragleave','drop'].forEach(e=>zone.addEventListener(e,x=>{x.preventDefault();zone.classList.remove('drag')}));zone.addEventListener('drop',e=>{el('files').files=e.dataTransfer.files;showSelected()})})();
+
+// Beteiligte (seit 1.8.37; seit 1.9.128 im Dialog „Beteiligte“ der Akte, die Karte der Übersicht zeigt sie kurz)
+let pmChoice=null,pmGroups=[],pmTimer=null,pmSeq=0;
+function participantStatus(id,text){const x=el('pStatus'+id);if(x)x.textContent=text||''}
+function contactSummary(c){return [c.kind_label,c.function,c.kind==='person'?c.company_name:null,c.city].filter(Boolean).join(' · ')}
+function participantCard(p){
+  const c=p.contact,vm=p.power_of_attorney;
+  const kontakt=[c.function,c.kind==='person'?c.company_name:null].filter(Boolean).map(esc).join(' · ');
+  const wege=[c.phone?`Tel. ${esc(c.phone)}`:'',c.mobile?`Mobil ${esc(c.mobile)}`:'',c.email?`<a class="link" href="mailto:${esc(c.email)}">${esc(c.email)}</a>`:''].filter(Boolean).join(' · ');
+  const adresse=[c.street,[c.postal_code,c.city].filter(Boolean).join(' ')].filter(Boolean).map(esc).join(', ');
+  const rollen=participantRoles.map(r=>`<option value="${esc(r.key)}" ${r.key===p.role?'selected':''}>${esc(r.label)}</option>`).join('')+(participantRoles.some(r=>r.key===p.role)?'':`<option value="${esc(p.role)}" selected>${esc(p.role_label)}</option>`);
+  const beleg=vm?`<span>Empfangsvollmacht: <a class="link" target="_blank" href="/api/project-participants/${p.id}/power-of-attorney">${esc(vm.filename)}</a> <span class="mut sml">${esc(size(vm.size_bytes))} · ${esc(berlinZeitpunkt(vm.uploaded_at,'datum'))}${vm.uploaded_by_name?' · '+esc(vm.uploaded_by_name):''}</span></span><button type="button" class="btn secondary small-btn" onclick="removePowerOfAttorney(${p.id})">Beleg entfernen</button>`:'<span class="mut sml">Noch keine Empfangsvollmacht als Beleg hinterlegt.</span>';
+  const hochladen=p.authorized_recipient?`<label class="btn secondary small-btn">${vm?'Beleg ersetzen':'Empfangsvollmacht hochladen'}<input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden onchange="uploadPowerOfAttorney(${p.id},this)"></label>`:'<span class="mut sml">Empfangsvollmacht nicht gesetzt – der Beleg bleibt gespeichert, bis er entfernt wird.</span>';
+  const vollmacht=p.authorized_recipient||vm?`<div class="p-poa">${beleg}${hochladen}</div>`:'';
+  const av=p.acceptance_power_of_attorney,abnahmeBeleg=av?`<span>Vollmacht zur Abnahme: <a class="link" target="_blank" href="/api/project-participants/${p.id}/acceptance-power-of-attorney">${esc(av.filename)}</a> <span class="mut sml">${esc(size(av.size_bytes))} · ${esc(berlinZeitpunkt(av.uploaded_at,'datum'))}${av.uploaded_by_name?' · '+esc(av.uploaded_by_name):''}</span></span><button type="button" class="btn secondary small-btn" onclick="removePowerOfAttorney(${p.id},'acceptance-power-of-attorney')">Beleg entfernen</button>`:'<span class="mut sml">Noch keine Vollmacht zur Abnahme als Beleg hinterlegt.</span>';
+  const abnahmeHochladen=p.acceptance_authorized?`<label class="btn secondary small-btn">${av?'Beleg ersetzen':'Vollmacht zur Abnahme hochladen'}<input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden onchange="uploadPowerOfAttorney(${p.id},this,'acceptance-power-of-attorney')"></label>`:'<span class="mut sml">Vollmacht zur Abnahme nicht gesetzt – der Beleg bleibt gespeichert, bis er entfernt wird.</span>';
+  const abnahmeVollmacht=p.acceptance_authorized||av?`<div class="p-poa p-acceptance-poa">${abnahmeBeleg}${abnahmeHochladen}</div>`:'';
+  const herkunft=c.source?`<span class="badge p-source">${esc(c.source_label)}</span>${c.source_archived?'<span class="badge badge-warn">Lieferant inaktiv</span>':''}`:'';
+  const stammLink=c.source?`<a class="link sml" href="${esc(sichererLink(c.source_url))}">${c.source==='customer'?'Kunde öffnen':'Lieferant öffnen'}</a>`:'';
+  return `<div class="participant" data-participant-id="${p.id}"><div class="p-head"><div><b>${esc(c.display_name)}</b>${herkunft}${c.archived?'<span class="badge badge-warn">archiviert</span>':''}${kontakt?`<div class="mut sml">${kontakt}</div>`:''}</div><select class="p-role" aria-label="Rolle" onchange="changeParticipantRole(${p.id},this)">${rollen}</select></div>${wege||adresse?`<div class="p-lines">${wege?`<div>${wege}</div>`:''}${adresse?`<div class="mut">${adresse}</div>`:''}</div>`:''}<div class="p-flags"><label><input type="checkbox" class="p-copy" ${p.copy_on_notices?'checked':''} onchange="setParticipantFlag(${p.id},'copy_on_notices',this)"> Kopie bei Anzeigen</label><label><input type="checkbox" class="p-authorized" ${p.authorized_recipient?'checked':''} onchange="setParticipantFlag(${p.id},'authorized_recipient',this)"> empfangsbevollmächtigt für den Auftraggeber</label><label><input type="checkbox" class="p-acceptance" ${p.acceptance_authorized?'checked':''} onchange="setParticipantFlag(${p.id},'acceptance_authorized',this)"> Vollmacht zur Abnahme</label></div>${vollmacht}${abnahmeVollmacht}<div class="p-actions">${stammLink}<a class="link sml" href="/master-data/contacts/${c.id}/edit">${c.source?'Adressbuch-Eintrag':'Kontakt bearbeiten'}</a><button type="button" class="btn danger small-btn" onclick="removeParticipant(${p.id})">Aus dem Projekt entfernen</button></div><div class="status" id="pStatus${p.id}"></div></div>`;
+}
+function renderParticipants(){
+  const box=el('participantsList');if(!box||!project)return;
+  const kunde=`<div class="participant" id="participantClient"><div class="p-head"><div><b>${esc(project.customer_name)}</b><span class="badge">Auftraggeber</span><div class="mut sml">Kunde des Projekts – wird nicht zusätzlich als Beteiligter geführt.</div></div><a class="link sml" href="/customers/${project.customer_id}">Kunde öffnen</a></div></div>`;
+  box.innerHTML=kunde+(participants.length?participants.map(participantCard).join(''):'<div class="empty">Noch keine Beteiligten eingetragen.</div>');
+  beteiligteZeichnen();
+}
+function replaceParticipant(updated){participants=participants.map(x=>x.id===updated.id?updated:x);renderParticipants()}
+async function reloadParticipants(){await lesen('beteiligte',()=>api(`/api/projects/${projectId}/participants`),d=>{participants=d;renderParticipants()})}
+async function setParticipantFlag(id,key,box){participantStatus(id,'');try{await speichern('beteiligte',()=>api(`/api/project-participants/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({[key]:box.checked})}),{anwenden:replaceParticipant})}catch(e){box.checked=!box.checked;participantStatus(id,'Fehler: '+e.message)}}
+async function changeParticipantRole(id,sel){const vorher=participants.find(x=>x.id===id)?.role;participantStatus(id,'');try{await speichern('beteiligte',()=>api(`/api/project-participants/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({role:sel.value})}),{anwenden:replaceParticipant})}catch(e){if(vorher)sel.value=vorher;participantStatus(id,'Fehler: '+e.message)}}
+async function removeParticipant(id){if(!confirm('Beteiligten aus diesem Projekt entfernen? Der Kontakt bleibt im Adressbuch.'))return;try{await speichern('beteiligte',()=>api(`/api/project-participants/${id}`,{method:'DELETE'}),{neuLaden:reloadParticipants})}catch(e){participantStatus(id,'Fehler: '+e.message)}}
+async function uploadPowerOfAttorney(id,input,art='power-of-attorney'){const f=input.files[0];if(!f)return;participantStatus(id,'Lädt hoch …');const fd=new FormData();fd.append('file',f);try{await speichern('beteiligte',()=>api(`/api/project-participants/${id}/${art}`,{method:'POST',body:fd}),{anwenden:replaceParticipant})}catch(e){participantStatus(id,'Fehler: '+e.message)}finally{input.value=''}}
+async function removePowerOfAttorney(id,art='power-of-attorney'){if(!confirm(art==='power-of-attorney'?'Vollmacht-Beleg entfernen?':'Beleg der Vollmacht zur Abnahme entfernen?'))return;try{await speichern('beteiligte',()=>api(`/api/project-participants/${id}/${art}`,{method:'DELETE'}),{anwenden:replaceParticipant})}catch(e){participantStatus(id,'Fehler: '+e.message)}}
+function openParticipantModal(contact=null){
+  pmChoice=null;el('pmSearch').value='';
+  el('pmRole').innerHTML='<option value="">Bitte wählen …</option>'+participantRoles.map(r=>`<option value="${esc(r.key)}">${esc(r.label)}</option>`).join('');
+  el('pmCopy').checked=false;el('pmAuthorized').checked=false;el('pmAcceptance').checked=false;el('pmStatus').textContent='';
+  if(contact)pmChoose(choiceFromContact(contact));else{pmShowSearch();pmSearchNow()}
+  openModal('participantModal');if(!contact)setTimeout(()=>el('pmSearch').focus(),0);
+}
+function pmShowSearch(){el('pmSearchStep').style.display='';el('pmChosenStep').style.display='none';pmUpdateNewLink()}
+function pmUpdateNewLink(){const q=el('pmSearch').value.trim();el('pmNewContact').href=`/master-data/contacts/new?projekt=${projectId}`+(q?`&name=${encodeURIComponent(q)}`:'')}
+function pmSearchSoon(){pmUpdateNewLink();clearTimeout(pmTimer);pmTimer=setTimeout(pmSearchNow,250)}
+function choiceFromContact(c){return {contact_id:c.id,customer_id:null,supplier_id:null,title:c.display_name,subtitle:[contactSummary(c),c.source_label].filter(Boolean).join(' · ')}}
+function pmHitHtml(h,gi,hi){
+  const schon=h.contact_id?participants.filter(p=>p.contact_id===h.contact_id).map(p=>p.role_label):[];
+  const sub=[h.subtitle,h.source_archived?'Lieferant inaktiv':'',h.blocked||'',schon.length?`bereits als ${schon.join(', ')}`:''].filter(Boolean).map(esc).join(' · ');
+  return `<button type="button" class="pm-hit" ${h.blocked?'disabled':''} onclick="pmChooseHit(${gi},${hi})"><b>${esc(h.title)}</b><span class="mut sml">${sub}</span></button>`;
+}
+async function pmSearchNow(){
+  const q=el('pmSearch').value.trim(),seq=++pmSeq,box=el('pmResults');
+  try{
+    const res=await api(`/api/projects/${projectId}/participant-candidates${q?'?q='+encodeURIComponent(q):''}`);
+    if(seq!==pmSeq)return;
+    pmGroups=res.groups;
+    const andere=res.sources.filter(x=>x.key!=='contacts').map(x=>x.label);
+    el('pmSources').textContent=`Gesucht in: ${res.sources.map(x=>x.label).join(', ')}`+(andere.length&&q.length<2?` – ${andere.join(' und ')} ab zwei Zeichen`:'');
+    const html=pmGroups.map((g,gi)=>g.hits.length?`<div class="pm-group">${esc(g.label)}${g.total>g.hits.length?` · ${g.hits.length} von ${esc(g.total)} – bitte genauer suchen`:''}</div>`+g.hits.map((h,hi)=>pmHitHtml(h,gi,hi)).join(''):'').join('');
+    box.innerHTML=html||`<div class="empty" style="padding:16px">${q?'Kein Treffer.':'Das Adressbuch ist noch leer.'}</div>`;
+  }catch(e){if(seq===pmSeq)box.innerHTML=`<div class="empty" style="padding:16px">Fehler: ${esc(e.message)}</div>`}
+}
+function pmChooseHit(gi,hi){const h=pmGroups[gi]?.hits[hi];if(!h||h.blocked)return;const herkunft=h.customer_id?'aus Kundenstamm':h.supplier_id?'aus Lieferantenstamm':'';pmChoose({contact_id:h.contact_id,customer_id:h.customer_id,supplier_id:h.supplier_id,title:h.title,subtitle:[h.subtitle,herkunft,h.source_archived?'Lieferant inaktiv':''].filter(Boolean).join(' · ')})}
+function pmChoose(choice){pmChoice=choice;el('pmChosenText').innerHTML=`<b>${esc(choice.title)}</b><div class="mut sml">${esc(choice.subtitle||'')}</div>`;el('pmSearchStep').style.display='none';el('pmChosenStep').style.display='';el('pmStatus').textContent=''}
+function pmChooseOther(){pmChoice=null;pmShowSearch();pmSearchNow();el('pmSearch').focus()}
+async function saveParticipant(){
+  const st=el('pmStatus');if(!pmChoice){st.textContent='Bitte zuerst einen Treffer wählen.';return}
+  const role=el('pmRole').value;if(!role){st.textContent='Bitte eine Rolle wählen.';return}
+  try{st.textContent='Speichert …';await speichern('beteiligte',()=>api(`/api/projects/${projectId}/participants`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...(pmChoice.contact_id?{contact_id:pmChoice.contact_id}:pmChoice.customer_id?{customer_id:pmChoice.customer_id}:{supplier_id:pmChoice.supplier_id}),role,copy_on_notices:el('pmCopy').checked,authorized_recipient:el('pmAuthorized').checked,acceptance_authorized:el('pmAcceptance').checked})}),{neuLaden:reloadParticipants});closeModal('participantModal')}catch(e){st.textContent='Fehler: '+e.message}
+}
+async function openParticipantFromUrl(){
+  // Rückkehr von der Formularseite des Adressbuchs (?kontakt=<id>#sec-participants): der neue Kontakt ist im Dialog schon gewählt.
+  const params=new URLSearchParams(location.search),id=Number(params.get('kontakt'));
+  if(!id){if(location.hash==='#sec-participants')openBeteiligte();return}
+  params.delete('kontakt');history.replaceState(null,'',location.pathname+(params.toString()?'?'+params:'')+'#uebersicht');
+  try{await lesen('beteiligtendialog',()=>api('/api/contacts/'+id),c=>{openBeteiligte();openParticipantModal(c)})}catch(e){}
+}
+// --- Auftrag (aus der Auftragsseite order.html, seit 1.9.128 in der Akte) --------------------------------------------------------------
+// Seit 1.8.95 über den Baustein (_speichern.html): der Auftrag im Bereich 'auftrag', Vertrag, Vertragsgrundlage, Rechnungen, Abnahmen und
+// Mängel je in ihrem. ladeAuftrag(zeichnen): nur der Auftrag; ist die Antwort veraltet, steht der neuere schon in order.
+async function ladeAuftrag(zeichnen){if(!await lesen('auftrag',()=>api('/api/orders/'+orderId),d=>{order=d;zeichnen()}))zeichnen()}
+// Seit 1.8.30 über auswahlOptionen() (_auswahl.html): ein inaktiver Sachbearbeiter bzw. Projektleiter bleibt vorgewählt und gekennzeichnet.
+function employeeOptions(list,selected){return auswahlOptionen(list,selected,x=>x.first_name+' '+x.last_name+(x.function_name?' · '+x.function_name:''),{leer:'— nicht zugeordnet —',fehlt:bisherigerMitarbeiter})}
+function bisherigerMitarbeiter(id){const x=employees.find(e=>String(e.id)===id);return x?`${x.first_name} ${x.last_name} (${x.active?'nicht mehr als Sachbearbeiter freigegeben':'inaktiv'})`:'Bisheriger Mitarbeiter (nicht mehr verfügbar)'}
+function unitOptions(selected){return auswahlOptionen(units,selected,x=>x.value,{wert:x=>x.value,aktiv:x=>x.active,fehlt:w=>w})}
+// renderHeader(): was am Auftrag hängt und überall steht -- Status mit Übergängen, Kopf (Untertitel, Menü), Abrechnungshinweis, Versand der AB
+function renderHeader(){auftragsstatusZeigen(order);kopfZeichnen();beteiligteZeichnen();renderOrderEmailSection();auftragsdatenAnzeigen();naechsteRechnungZeichnen()}
+function renderOrderEmailSection(){
+  const section=el('orderEmailSection');
+  if(order.status==='storniert'){section.style.display='none';return}
+  section.style.display='flex';
+  const feld=el('orderEmailInput');if(!feld.dataset.vorbelegt){feld.value=order.recipient_email||'';feld.dataset.vorbelegt='1'}  // E1: nur einmal vorbelegt
+  if(!_dhOpts.orderDispatchHistory)renderDispatchHistory('orderDispatchHistory','auftrag',orderId,{});  // seit 1.8.20
+}
+async function sendOrderEmail(btn){
+  const toEmail=el('orderEmailInput').value.trim(),ccEmail=el('orderCcInput').value.trim();
+  if(!toEmail){alert('Bitte eine E-Mail-Adresse angeben.');return}
+  const st=el('orderEmailStatus');st.textContent='Wird gesendet …';
+  try{
+    await postEmailDispatch('auftrag-'+orderId,`/api/orders/${orderId}/send-email`,{to_email:toEmail,cc_email:ccEmail||null},btn);
+    el('orderCcInput').value='';
+    await ladeAuftrag(renderHeader);
+    st.textContent='Versendet.';
+    renderDispatchHistory('orderDispatchHistory','auftrag',orderId);
+  }catch(e){st.textContent='Fehler: '+e.message}
+}
+// Auftragsdaten: lesend auf dem Reiter „Vertrag“, bearbeitet im Dialog -- gefüllt nur beim Öffnen (E1: nichts überschreibt eine Eingabe)
+function auftragsdatenAnzeigen(){
+  const zeile=(k,v)=>`<dt>${esc(k)}</dt><dd>${v?esc(v):'<span class="mut">—</span>'}</dd>`;
+  const zeitraum=[order.execution_start?tagKurz(order.execution_start):'',order.execution_end?tagKurz(order.execution_end):''].filter(Boolean).join(' – ');
+  const tk=taxKeys.find(t=>t.id===order.tax_key_id);
+  el('auftragsdatenListe').innerHTML=zeile('Bezeichnung',order.title)+zeile('Auftragsdatum',tagKurz(order.order_date))+zeile('Ausführung',[zeitraum,order.execution_period].filter(Boolean).join(' · '))
+    +zeile('Sachbearbeiter',order.caseworker_name)+zeile('Projektleiter / Vorarbeiter',order.project_manager_name)+zeile('Zahlungsbedingungen',order.payment_terms)
+    +zeile('Steuerschlüssel',tk?tk.label:'')+zeile('Aus Angebot',order.quote_number_snapshot)+zeile('Bemerkungen',order.remarks);
+  const lk=el('taxLockAnzeige');lk.hidden=!order.tax_lock;lk.textContent=order.tax_lock||'';
+}
+aktion('auftragsdaten-bearbeiten',()=>{fill();el('auftragsdatenStatus').textContent='';el('auftragsdatenDialog').showModal()});
+// F2: nach der Schlussrechnung ist gesperrt, was aufs Dokument geht (data-dokument); Sachbearbeiter und Bemerkungen bleiben frei
+function fill(){
+  el('title').value=order.title;el('orderDate').value=order.order_date;el('start').value=order.execution_start||'';el('end').value=order.execution_end||'';el('executionPeriod').value=order.execution_period||'';el('remarks').value=order.remarks||'';
+  el('caseworker').innerHTML=employeeOptions(caseworkers,order.caseworker_employee_id);el('manager').innerHTML=employeeOptions(employees,order.project_manager_employee_id);
+  let html='<option value="">— keine —</option>'+paymentOptions.filter(x=>!x.archived).map(x=>`<option value="${esc(x.label)}">${esc(x.label)} (${esc(x.days)} Tage)</option>`).join('');
+  const paymentMatch=paymentOptions.find(x=>x.label.trim().toLowerCase()===String(order.payment_terms||'').trim().toLowerCase());
+  if(order.payment_terms&&!paymentMatch)html+=`<option value="${esc(order.payment_terms)}">${esc(order.payment_terms)} · bisher</option>`;
+  el('payment').innerHTML=html;el('payment').value=paymentMatch?paymentMatch.label:(order.payment_terms||'');
+  renderTaxKeySelect();el('introText').value=order.intro_text||'';el('outroText').value=order.outro_text||'';el('outroText2').value=order.outro_text_2||'';
+  renderOrderTextTemplateSelect('orderIntroTemplate',introTemplates);renderOrderTextTemplateSelect('orderOutroTemplate',outroTemplates);renderOrderTextTemplateSelect('orderOutro2Template',outroTemplates);
+  const sperre=order.order_lock||null;document.querySelectorAll('#auftragsdatenDialog [data-dokument]').forEach(f=>{f.disabled=!!sperre;if(sperre)f.title=sperre;else f.removeAttribute('title')});
+  const hinweis=el('auftragsdatenSperre');hinweis.hidden=!sperre;hinweis.textContent=sperre?sperre+' Sachbearbeiter und Bemerkungen bleiben änderbar.':'';
+}
+function renderOrderTextTemplateSelect(id,options){const sel=el(id);sel.innerHTML='<option value="">— Vorlage wählen zum Einfügen —</option>'+options.filter(o=>o.active).map(o=>`<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');sel.value=''}
+function applyOrderTextTemplate(targetId,selectId){const val=el(selectId).value;if(!val)return;el(targetId).value=val;el(selectId).value=''}
+async function saveOrder(){
+  const st=el('auftragsdatenStatus');
+  // seit 1.9.128 (F2): nach der Schlussrechnung gehen nur Sachbearbeiter und Bemerkungen (Teil-Update, Regel 22)
+  const frei={caseworker_employee_id:el('caseworker').value?Number(el('caseworker').value):null,remarks:el('remarks').value.trim()||null};
+  const body=order.order_lock?frei:{title:el('title').value.trim(),order_date:el('orderDate').value,execution_start:el('start').value||null,execution_end:el('end').value||null,execution_period:el('executionPeriod').value.trim()||null,project_manager_employee_id:el('manager').value?Number(el('manager').value):null,payment_terms:el('payment').value||null,intro_text:el('introText').value||null,outro_text:el('outroText').value||null,outro_text_2:el('outroText2').value||null,...frei};
+  try{st.textContent='Speichert …';await speichern('auftrag',()=>api('/api/orders/'+orderId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{anwenden:d=>{order=d;renderHeader();renderSync()}});el('auftragsdatenDialog').close();el('saveStatus').textContent='Auftragsdaten gespeichert.'}catch(e){st.textContent='Fehler: '+e.message}
+}
+// Seit 1.8.31 mit archivierten geladen: ein archivierter gespeicherter Steuerschlüssel bleibt sichtbar und vorgewählt.
+function renderTaxKeySelect(){const sel=el('taxKey');sel.innerHTML=steuerschluesselOptionen(taxKeys,order.tax_key_id);sel.disabled=!!order.tax_lock;const lk=el('taxLock');lk.hidden=!order.tax_lock;lk.textContent=order.tax_lock||''}
+async function changeOrderTaxKey(){const sel=el('taxKey'),id=sel.value;if(!id)return;const st=el('auftragsdatenStatus');try{await speichern('auftrag',()=>api(`/api/orders/${orderId}/tax-key`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({tax_key_id:Number(id)})}),{anwenden:d=>{order=d;renderHeader();lvZeichnen()}});st.textContent='Steuerschlüssel aktualisiert.'}catch(e){sel.innerHTML=steuerschluesselOptionen(taxKeys,order.tax_key_id);st.textContent='Fehler: '+e.message}}  // E1: gescheitert -> wieder der gespeicherte
+// --- Vertrag (wörtlich aus der Auftragsseite) ---
+// Seit 1.8.34: nach der Unterschrift unter dem Vertrag kein Übernehmen mehr (der Server lehnt es ab, 409).
+function contractSigned(){return !!(contractInfo&&contractInfo.contract&&contractInfo.contract.status==='unterschrieben')}
+// Seit 1.8.46 ebenso, solange eine nicht verworfene Abnahme besteht (has_active_acceptance, der Server lehnt mit 409 ab).
+function renderSync(){const c=document.getElementById('syncCard');if(order.source_quote_in_sync===false&&order.has_active_acceptance){c.innerHTML=`<h3>Quellangebot geändert</h3><div class="notice warning">Der aktuelle Auftragsstand weicht vom Quellangebot <b>${esc(order.quote_number_snapshot)}</b> ab. Zu diesem Auftrag ist eine Abnahme erfasst – der Abgleich mit dem Angebot ist gesperrt. Änderungen (z. B. Nachträge) direkt am Auftrag erfassen; eine falsch erfasste Abnahme lässt sich mit Begründung verwerfen.</div><a href="/quotes/${order.source_quote_id}/edit">Quellangebot öffnen</a>`}else if(order.source_quote_in_sync===false&&contractSigned()){c.innerHTML=`<h3>Quellangebot geändert</h3><div class="notice warning">Der aktuelle Auftragsstand weicht vom Quellangebot <b>${esc(order.quote_number_snapshot)}</b> ab. Der Vertrag ist unterschrieben – der Abgleich mit dem Angebot ist gesperrt. Änderungen (z. B. Nachträge) direkt am Auftrag erfassen; der unterschriebene Vertrag bleibt gültig.</div><a href="/quotes/${order.source_quote_id}/edit">Quellangebot öffnen</a>`}else if(order.source_quote_in_sync===false&&order.source_quote_sync_blocked){c.innerHTML=`<h3>Quellangebot geändert</h3><div class="notice warning">Der aktuelle Auftragsstand weicht vom Quellangebot <b>${esc(order.quote_number_snapshot)}</b> ab. ${esc(order.source_quote_sync_blocked)}</div><a href="/quotes/${order.source_quote_id}/edit">Quellangebot öffnen</a>`}else if(order.source_quote_in_sync===false){c.innerHTML=`<h3>Quellangebot geändert</h3><div class="notice warning">Der aktuelle Auftragsstand weicht vom Quellangebot <b>${esc(order.quote_number_snapshot)}</b> ab. Das kann durch Änderungen am Angebot oder direkte Änderungen im Auftrag entstanden sein.</div><div class="sync-actions"><button onclick="syncSource()">Quellangebot in Auftrag übernehmen</button><a class="secondary" style="padding:9px 12px;text-decoration:none" href="/quotes/${order.source_quote_id}/edit">Quellangebot prüfen</a></div>`}else{c.innerHTML=`<h3>Quellangebot</h3><div class="notice success">Auftrag und Quellangebot haben aktuell denselben LV-Stand.</div><a href="/quotes/${order.source_quote_id}/edit">Quellangebot öffnen</a>`}}
+let contractBases=[],contractBasisChanges=[];
+// Vertrag (seit 1.8.32: Entwurf; seit 1.8.33: Festschreiben, Fassungen, Versand). Der Entwurf entsteht beim
+// Beauftragen, wenn es für die Vertragsgrundlage eine Vorlage gibt (nicht beim Schnellauftrag); sonst hier von
+// Hand. Gespeichert werden nur die drei Fallfelder, die diese Karte bearbeitet. Festschreiben friert Inhalt und
+// PDF samt Anlage ein; die Anlage wählt das Büro bewusst, wenn der heutige Stand des Angebots von der zuletzt
+// versendeten Fassung abweicht oder es keine gibt (sichtbare Auswahl, kein Popup -- Regel 4). Festgeschrieben
+// sind die Fallfelder gesperrt; "Neue Fassung" macht wieder einen Entwurf daraus, die alten bleiben sichtbar.
+let contractInfo=null,contractAttachment=null;
+async function loadContract(){try{await lesen('vertrag',()=>api(`/api/orders/${orderId}/contract`),d=>{contractInfo=d;contractAttachment=null;renderContract();loadContractAttachment();renderSync();renderContractBasis()})}catch(e){document.getElementById('contractBody').textContent='Fehler: '+e.message}}
+async function loadContractAttachment(){
+  const c=contractInfo&&contractInfo.contract;
+  if(!c||c.status!=='entwurf'||!contractInfo.template_available)return;
+  try{await lesen('vertrag-anlage',()=>api(`/api/orders/${orderId}/contract/attachment-options`),d=>{contractAttachment=d})}catch(e){contractAttachment={error:e.message}}
+  if(contractAttachment)renderContractAttachment();
+}
+function contractNotes(ci,c){
+  const basis=esc(ci.basis_label||ci.basis_key),notes=[];
+  if(!ci.template_available)notes.push(`Für die Vertragsgrundlage „${basis}“ gibt es keine Vertragsvorlage mehr – das PDF lässt sich erst wieder erzeugen, wenn es eine gibt.`);
+  else if(!ci.template_reviewed)notes.push('Die Vertragsvorlage ist nicht rechtlich geprüft – jede Seite des PDFs trägt „Entwurf – Vertragstext nicht geprüft“, und festgeschrieben wird erst nach der Prüfung (Einstellungen → Vertragsvorlagen).');
+  if(ci.warranty_missing)notes.push('Die Vorlage nutzt {gewaehrleistung}, die Gewährleistungsdauer ist am Auftrag aber nicht festgelegt – festgeschrieben wird erst, wenn sie in der Karte „Gewährleistung“ festgelegt ist.');
+  if(ci.unused_case_fields.length)notes.push(`Die Vorlage verwendet ${ci.unused_case_fields.map(f=>esc(f.label)).join(', ')} nicht – ${ci.unused_case_fields.length>1?'diese Felder erscheinen':'dieses Feld erscheint'} nicht im Vertrag.`);
+  return notes;
+}
+function contractVersionsHtml(c){
+  if(!c.versions.length)return '';
+  return `<div class="contract-versions"><div class="small muted" style="margin:10px 0 4px">Fassungen</div>${c.versions.map(v=>`<div class="revision"><b>Fassung ${esc(v.version_no)}</b> <span class="small ${v.current?'':'muted'}">${v.current?(c.status==='unterschrieben'?'· gültig, unterschrieben':(c.status==='festgeschrieben'?'· gültig':'· zuletzt festgeschrieben')):'· abgelöst am '+_dhLocal(v.superseded_at_local)}</span>
+    <div class="small muted">Festgeschrieben ${_dhLocal(v.created_at_local)} von ${esc(v.created_by_name)} · ${esc(v.basis_label)} · ${fmtSize(v.document.size_bytes)}</div>
+    <div class="small muted">${esc(v.attachment_label)}</div>
+    <div class="small"><span class="contract-sha" title="SHA-256 des PDFs: ${esc(v.document.sha256)}">PDF-Prüfsumme ${esc(v.document.sha256.slice(0,12))}…</span> · <a href="/api/sent-documents/${v.document.id}/file" target="_blank" rel="noopener">PDF</a></div></div>`).join('')}</div>`;
+}
+function renderContract(){
+  const eingaben=vertragsEingabenMerken();
+  try{_renderContract()}finally{vertragsEingabenZurueck(eingaben)}
+}
+// Seit 1.9.128 (E1): ungespeicherte Eingaben im Entwurf bleiben, wenn die Karte neu gezeichnet wird -- der Stand vom Server gilt nur, wo nichts
+// geändert ist (Vergleich mit dem beim Zeichnen gespeicherten Wert).
+const VERTRAG_FELDER=['cExecutionPeriod','cPaymentPlan','cSpecialTerms'];
+function vertragsEingabenMerken(){const m={};VERTRAG_FELDER.forEach(id=>{const f=document.getElementById(id);if(f&&f.value!==f.defaultValue)m[id]=f.value});return m}
+function vertragsEingabenZurueck(m){VERTRAG_FELDER.forEach(id=>{const f=document.getElementById(id);if(f&&id in m)f.value=m[id]})}
+function _renderContract(){
+  const box=document.getElementById('contractBody'),ci=contractInfo,c=ci.contract,basis=esc(ci.basis_label||ci.basis_key);
+  if(!c){box.className='small muted';box.innerHTML=ci.template_available?`<div style="margin-bottom:8px">Noch kein Vertragsentwurf zu diesem Auftrag.</div><button class="secondary" onclick="createContract()">Vertragsentwurf anlegen</button>`:`Für die Vertragsgrundlage „${basis}“ gibt es keine Vertragsvorlage (Einstellungen → Vertragsvorlagen) – deshalb kein Vertragsentwurf.`;return}
+  box.className='';
+  if(c.status==='entwurf'){
+    const notes=contractNotes(ci,c);
+    if(order.source_quote_in_sync===false)notes.push(`Das Angebot ${esc(order.quote_number_snapshot)} wurde nach der Beauftragung geändert – beim Festschreiben wird die Anlage bewusst gewählt.`);
+    const next=(c.versions.length?c.versions[0].version_no:0)+1;
+    box.innerHTML=`<div class="small muted" style="margin-bottom:8px">${c.versions.length?`Entwurf für Fassung ${esc(next)}`:'Entwurf'} · Vertragsgrundlage ${basis} · Kunde ${ci.is_consumer?'ist Verbraucher (Verbraucher-Abschnitte erscheinen)':'ist kein Verbraucher'}</div>${notes.map(n=>`<div class="notice warning">${esc(n)}</div>`).join('')}
+      <div class="fields"><div class="field full"><label>Ausführungszeitraum</label><textarea id="cExecutionPeriod" rows="2">${esc(c.execution_period||'')}</textarea></div><div class="field full"><label>Abschlagsplan</label><textarea id="cPaymentPlan" rows="3" placeholder="z. B. 30 % bei Auftragserteilung, 40 % nach Eindeckung, Rest nach Abnahme">${esc(c.payment_plan||'')}</textarea></div><div class="field full"><label>Besonderheiten</label><textarea id="cSpecialTerms" rows="3">${esc(c.special_terms||'')}</textarea></div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button onclick="saveContract()">Entwurf speichern</button>${ci.template_available?`<button class="secondary" onclick="window.open('/api/orders/'+orderId+'/contract/pdf','_blank')">Entwurf als PDF</button>`:''}</div>
+      <div class="small muted" style="margin-top:8px">Angelegt von ${esc(c.created_by_name)}${c.updated_by_name?` · zuletzt gespeichert von ${esc(c.updated_by_name)}`:''}. Der Ausführungszeitraum ist beim Anlegen aus dem Auftrag vorbelegt.</div>
+      ${ci.template_available?`<div class="contract-freeze"><b>Festschreiben</b><div class="small muted" style="margin:4px 0 8px">Friert Vertragstext, Verbraucher-Merkmal, Fallfelder und Anlage als Fassung ${esc(next)} ein und legt das PDF mit Prüfsumme ab. Danach ist der Entwurf gesperrt; Änderungen nur als neue Fassung.</div><div id="contractAttachment" class="small muted">${ci.template_reviewed?'Anlage wird geprüft …':''}</div><button id="contractFreezeBtn" onclick="freezeContract(this,${next})" ${ci.template_reviewed&&!ci.warranty_missing?'':'disabled'}>Fassung ${esc(next)} festschreiben</button></div>`:''}
+      ${contractVersionsHtml(c)}${c.versions.length?'<div id="contractDispatchHistory"></div>':''}`;
+    if(contractAttachment)renderContractAttachment();
+    if(c.versions.length)renderDispatchHistory('contractDispatchHistory','vertrag',c.id,{manual:false});
+    return;
+  }
+  // festgeschrieben oder (seit 1.8.34) unterschrieben
+  const v=c.versions[0],cf=v.case_fields||{},sig=c.signature,signed=c.status==='unterschrieben';
+  const ro=(label,value)=>`<div class="field full"><label>${label}</label><div class="contract-ro">${value?esc(value):'<span class="muted">—</span>'}</div></div>`;
+  const diffList=`<ul style="margin:6px 0 6px 18px;padding:0">${c.differences.map(d=>`<li>${esc(d)}</li>`).join('')}</ul>`;
+  const diff=!c.differences.length?'':(signed?`<div class="notice warning"><b>Der Auftrag hat sich seit der Unterschrift geändert</b> (z. B. Nachtrag) – der unterschriebene Vertrag bleibt gültig, das ist nur ein Hinweis:${diffList}</div>`:`<div class="notice warning"><b>Fassung ${esc(v.version_no)} passt nicht mehr zum Auftrag:</b>${diffList}Versand, Zustellung und Unterschrift auf dem Gerät sind gesperrt, bis eine neue Fassung festgeschrieben ist.</div>`);
+  // Seit 1.8.35 geht nach der Unterschrift die unterschriebene Abschrift hinaus (Fassung + Unterschriftsblatt bzw. Scan).
+  const copy=signed?sig.copy_document:null,tooLarge=signed?sig.copy_too_large:v.too_large;
+  const large=tooLarge?`<div class="notice warning">${signed?'Die unterschriebene Abschrift':'Das PDF'} ist mit ${fmtSize((copy||v.document).size_bytes)} größer als die 3 MB, die per E-Mail hinausgehen – bitte auf anderem Weg zustellen und unten nachtragen.</div>`:'';
+  const sendable=signed||!c.differences.length;
+  box.innerHTML=`${signed?contractSignatureHtml(sig):''}<div class="notice success"><b>Fassung ${esc(v.version_no)} festgeschrieben</b> am ${_dhLocal(v.created_at_local)} von ${esc(v.created_by_name)}<div class="small">${esc(v.basis_label)} · Kunde ${v.is_consumer?'ist Verbraucher':'ist kein Verbraucher'} · ${esc(v.attachment_label)}</div><div class="small"><span class="contract-sha" title="SHA-256 des PDFs: ${esc(v.document.sha256)}">PDF-Prüfsumme ${esc(v.document.sha256.slice(0,12))}…</span> · ${fmtSize(v.document.size_bytes)} · <a href="/api/orders/${orderId}/contract/pdf" target="_blank" rel="noopener">PDF öffnen</a></div></div>${diff}${large}
+    <div class="fields">${ro('Ausführungszeitraum',cf.execution_period)}${ro('Abschlagsplan',cf.payment_plan)}${ro('Besonderheiten',cf.special_terms)}</div>
+    ${signed?'':contractSignHtml(c,v)}
+    ${sendable?`<div class="contract-send"><b>${signed?'Unterschriebene Abschrift (Fassung '+esc(v.version_no)+') per E-Mail senden':'Vertrag per E-Mail senden'}</b>${signed?'<div class="small muted" style="margin:2px 0 4px">Ein PDF aus der Fassung und dem '+(sig.method==='geraet'?'Unterschriftsblatt':'Scan')+' – auch für eine nachgetragene Zustellung.</div>':''}<div class="contract-send-row"><input id="contractEmailInput" type="text" inputmode="email" autocomplete="off" placeholder="An – mehrere mit Komma oder Semikolon" value="${esc(c.recipient_email||'')}"><input id="contractCcInput" type="text" inputmode="email" autocomplete="off" placeholder="CC (optional)"><button onclick="sendContractEmail(this)">✉️ ${signed?'Abschrift':'Fassung '+esc(v.version_no)} senden</button></div></div>`:''}
+    <div id="contractDispatchHistory"></div>
+    ${signed?'':`<div style="margin-top:10px"><button class="secondary" onclick="startNewContractVersion(${v.version_no})">Neue Fassung anlegen</button></div>`}
+    ${contractVersionsHtml(c)}`;
+  renderDispatchHistory('contractDispatchHistory','vertrag',c.id,{manual:sendable});
+}
+// Unterschrift (seit 1.8.34): auf diesem Gerät (Dialog, Kunde und Betrieb) oder als Scan des Papiers. Beide
+// binden die Fassung und ihre PDF-Prüfsumme; die Ankreuzfelder der Fassung setzt der Kunde beim Unterschreiben
+// bzw. überträgt das Büro vom Papier (sichtbare Auswahl ohne Vorauswahl, Regel 4).
+function boxText(b){return [b.heading?`<b>${esc(b.heading)}</b>`:'',b.text?esc(b.text):''].filter(Boolean).join(' – ')}
+function contractSignHtml(c,v){
+  const blocked=c.differences.length>0;
+  const boxes=v.checkboxes.map(b=>`<div class="paper-box" data-key="${esc(b.key)}"><div class="txt">${boxText(b)}</div><label><input type="radio" name="paper_${esc(b.key)}" value="1"> angekreuzt</label><label><input type="radio" name="paper_${esc(b.key)}" value="0"> nicht angekreuzt</label></div>`).join('');
+  return `<div class="contract-sign"><b>Unterschrift</b><div class="small muted" style="margin:4px 0 8px">Kunde und Betrieb unterschreiben genau Fassung ${esc(v.version_no)} (PDF-Prüfsumme ${esc(v.document.sha256.slice(0,12))}…).${v.checkboxes.length?' Die Ankreuzfelder setzt der Kunde beim Unterschreiben.':''} Danach gibt es keine neue Fassung mehr, Vertragsgrundlage und Abgleich mit dem Angebot sind gesperrt.</div>
+    <button id="contractSignBtn" onclick="openSignDialog()" ${blocked?'disabled':''}>Auf diesem Gerät unterschreiben</button>${blocked?'<div class="small muted" style="margin-top:4px">Gesperrt: die Fassung passt nicht mehr zum Auftrag.</div>':''}
+    <details id="paperDetails"><summary>Auf Papier unterschrieben – Scan erfassen</summary>
+      <div class="small muted" style="margin:6px 0">Für einen unterschriebenen Ausdruck genau dieser Fassung: Scan hochladen, Datum der Unterschrift eintragen und jedes Ankreuzfeld so übertragen, wie es auf dem Papier steht.</div>
+      <div class="fields"><div class="field"><label>Unterschrieben am</label><input id="paperDate" type="date" max="${esc(berlinTodayIso())}"></div><div class="field"><label>Scan (PDF oder Foto)</label><input id="paperScan" type="file" accept="application/pdf,image/jpeg,image/png,image/webp"></div></div>
+      ${boxes}
+      <button class="secondary" style="margin-top:8px" onclick="submitPaperSignature(this)">Papier-Unterschrift eintragen</button>
+    </details></div>`;
+}
+function contractSignatureHtml(sig){
+  const boxes=sig.checkboxes.length?`<div class="sig-boxes small">${sig.checkboxes.map(b=>`<div class="row"><span>${b.checked?'☒':'☐'}</span><span>${boxText(b)} – <b>${b.checked?'angekreuzt':'nicht angekreuzt'}</b></span></div>`).join('')}</div>`:'';
+  const who=sig.method==='geraet'?`Kunde: ${esc(sig.customer_signer_name)} · Betrieb: ${esc(sig.company_signer_name)}`:'Scan des unterschriebenen Papiers';
+  const copyBroken=sig.copy_check&&sig.copy_check.status!=='unveraendert';
+  const intact=sig.content_intact&&sig.document_check.status==='unveraendert'&&!copyBroken;
+  const check=intact?'':`<div class="notice warning" style="margin:6px 0 0">Prüfung: ${!sig.content_intact?'Der gespeicherte unterschriebene Inhalt passt nicht zu seiner Prüfsumme. ':''}${sig.document_check.status!=='unveraendert'?esc(sig.document_check.text)+' ':''}${copyBroken?'Abschrift: '+esc(sig.copy_check.text):''}</div>`;
+  // Unterschriebene Abschrift (seit 1.8.35): Fassung + Unterschriftsblatt bzw. Scan, eigene Prüfsumme.
+  const k=sig.copy_document;
+  const copy=k?`<div class="small">Unterschriebene Abschrift: <span class="contract-sha" title="SHA-256 der Abschrift: ${esc(k.sha256)}">Prüfsumme ${esc(k.sha256.slice(0,12))}…</span> · ${fmtSize(k.size_bytes)} · <a href="/api/sent-documents/${k.id}/file" target="_blank" rel="noopener">Abschrift öffnen</a></div>`:'<div class="small muted">Unterschriebene Abschrift: noch nicht erzeugt (vor Version 1.8.35 unterschrieben) – sie entsteht beim ersten Versand oder der ersten nachgetragenen Zustellung.</div>';
+  const w=sig.withdrawal;
+  const early=!w?'':(w.early_start===null?'Kein Ankreuzfeld der Vorlage ist als „Verlangen des vorzeitigen Beginns“ gekennzeichnet (Einstellungen → Vertragsvorlagen) – ob er verlangt wurde, steht hier nicht.':(w.early_start?`Vorzeitiger Beginn wurde verlangt („${esc(w.early_start_label)}“ angekreuzt).`:`Vorzeitiger Beginn wurde <b>nicht</b> verlangt („${esc(w.early_start_label)}“ nicht angekreuzt).`));
+  const withdrawal=!w?'':`<div class="notice ${w.running?'warning':''} withdrawal"><b>Widerrufsfrist (Verbrauchervertrag):</b> endet voraussichtlich am ${_dhLocal(w.deadline)}${w.shifted_from_weekend?' (Ende fiel aufs Wochenende, verschoben auf Montag)':''}${w.running?'':' – abgelaufen'}. ${early}<div class="small muted" style="margin-top:4px">14 Tage ab der Unterschrift am ${_dhLocal(w.signed_on)}; Feiertage sind nicht berücksichtigt. Gilt nur bei ordnungsgemäßer Widerrufsbelehrung.</div></div>`;
+  return `<div class="notice success"><b>Unterschrieben am ${_dhLocal(sig.signed_on)}</b> ${esc(sig.method_label)} · Fassung ${esc(sig.version_no)}<div class="small">${who}</div>${boxes}<div class="small"><span class="contract-sha" title="SHA-256 des unterschriebenen Inhalts: ${esc(sig.content_sha256)}">Prüfsumme ${esc(sig.content_sha256.slice(0,12))}…</span> · <a href="/api/sent-documents/${sig.document.id}/file" target="_blank" rel="noopener">${sig.method==='geraet'?'Unterschriftsblatt':'Scan'} öffnen</a> · erfasst ${_dhLocal(sig.recorded_at_local)} von ${esc(sig.recorded_by_name)}</div>${copy}${check}</div>${withdrawal}`;
+}
+let signPads=null;
+function openSignDialog(){
+  const c=contractInfo.contract,v=c.versions[0];
+  document.getElementById('signTitle').textContent=`Vertrag unterschreiben – Fassung ${v.version_no}`;
+  document.getElementById('signIntro').innerHTML=`Vertrag zu Auftrag <b>${esc(order.order_number)}</b>, Fassung ${esc(v.version_no)} vom ${_dhLocal(v.created_at_local)} (${esc(v.basis_label)}). Bitte vor dem Unterschreiben lesen: <a href="/api/orders/${orderId}/contract/pdf" target="_blank" rel="noopener">Vertrag als PDF öffnen</a>. <span class="contract-sha" title="SHA-256 des PDFs: ${esc(v.document.sha256)}">PDF-Prüfsumme ${esc(v.document.sha256.slice(0,12))}…</span>`;
+  document.getElementById('signBoxes').innerHTML=v.checkboxes.map(b=>`<label class="sign-box"><input type="checkbox" data-key="${esc(b.key)}"><span class="txt">${boxText(b)}</span></label>`).join('');
+  // Name für den Betrieb: vorbelegt mit dem angemeldeten Konto (value aus der Vorlage), änderbar.
+  const company=document.getElementById('signNameCompany');
+  document.getElementById('signNameCustomer').value='';company.value=company.defaultValue;
+  document.getElementById('signStatus').textContent='';document.getElementById('signSubmit').disabled=false;
+  document.getElementById('signDialog').showModal();
+  signPads={customer:unterschriftsfeld(document.getElementById('signPadCustomer')),company:unterschriftsfeld(document.getElementById('signPadCompany'))};
+}
+function closeSignDialog(){document.getElementById('signDialog').close();signPads=null}
+async function submitDeviceSignature(btn){
+  const st=document.getElementById('signStatus'),v=contractInfo.contract.versions[0];
+  const customer=document.getElementById('signNameCustomer').value.trim(),company=document.getElementById('signNameCompany').value.trim();
+  if(signPads.customer.leer()){st.textContent='Bitte zuerst den Kunden unterschreiben lassen.';return}
+  if(!customer){st.textContent='Bitte den Namen des Kunden eintragen.';document.getElementById('signNameCustomer').focus();return}
+  if(signPads.company.leer()){st.textContent='Bitte für den Betrieb unterschreiben.';return}
+  if(!company){st.textContent='Bitte den Namen für den Betrieb eintragen.';document.getElementById('signNameCompany').focus();return}
+  const checkboxes={},summary=[];
+  document.querySelectorAll('#signBoxes input[type=checkbox]').forEach(el=>{checkboxes[el.dataset.key]=el.checked;const b=v.checkboxes.find(x=>x.key===el.dataset.key);summary.push(`${b.heading||b.text}: ${el.checked?'angekreuzt':'nicht angekreuzt'}`)});
+  if(!confirm(`Fassung ${v.version_no} jetzt verbindlich unterschreiben?${summary.length?'\n\n'+summary.join('\n'):''}\n\nDanach gibt es keine neue Fassung mehr; Vertragsgrundlage und Abgleich mit dem Angebot sind gesperrt.`))return;
+  btn.disabled=true;st.textContent='Speichert …';
+  const body=JSON.stringify({version_id:v.id,pdf_sha256:v.document.sha256,checkboxes,customer_name:customer,customer_signature_png_base64:signPads.customer.alsDataUrl(),company_name:company,company_signature_png_base64:signPads.company.alsDataUrl()});
+  try{await abschliessen('vertrag',()=>api(`/api/orders/${orderId}/contract/sign`,{method:'POST',headers:{'Content-Type':'application/json'},body}),{anwenden:d=>{contractInfo=d;closeSignDialog();renderContract();renderSync();renderContractBasis()}});document.getElementById('contractStatus').textContent='Vertrag unterschrieben.'}
+  catch(e){st.textContent='Fehler: '+e.message;btn.disabled=false}
+}
+async function submitPaperSignature(btn){
+  const st=document.getElementById('contractStatus'),v=contractInfo.contract.versions[0];
+  const day=document.getElementById('paperDate').value,file=document.getElementById('paperScan').files[0];
+  if(!day){st.textContent='Bitte das Datum der Unterschrift eintragen.';return}
+  if(!file){st.textContent='Bitte den Scan auswählen.';return}
+  const checkboxes={},open=[];
+  for(const b of v.checkboxes){const picked=document.querySelector(`input[name="paper_${b.key}"]:checked`);if(!picked)open.push(b.heading||b.text);else checkboxes[b.key]=picked.value==='1'}
+  if(open.length){st.textContent='Bitte jedes Ankreuzfeld übertragen: '+open.join('; ');return}
+  if(!confirm(`Papier-Unterschrift unter Fassung ${v.version_no} vom ${_dhLocal(day)} eintragen?\n\nDanach gibt es keine neue Fassung mehr; Vertragsgrundlage und Abgleich mit dem Angebot sind gesperrt.`))return;
+  const form=new FormData();form.append('version_id',v.id);form.append('pdf_sha256',v.document.sha256);form.append('signed_on',day);form.append('checkboxes',JSON.stringify(checkboxes));form.append('scan',file);
+  btn.disabled=true;st.textContent='Speichert …';
+  try{await abschliessen('vertrag',()=>api(`/api/orders/${orderId}/contract/sign-paper`,{method:'POST',body:form}),{anwenden:d=>{contractInfo=d;renderContract();renderSync();renderContractBasis()}});st.textContent='Papier-Unterschrift eingetragen.'}
+  catch(e){st.textContent='Fehler: '+e.message;btn.disabled=false}
+}
+function renderContractAttachment(){
+  const el=document.getElementById('contractAttachment');
+  if(!el||!contractInfo.template_reviewed)return;
+  const a=contractAttachment,qn=esc(order.quote_number_snapshot);
+  if(a.error){el.innerHTML=`<div class="notice warning">Anlage nicht geprüft: ${esc(a.error)}</div>`;return}
+  const last=a.last_sent,sent=last?`am ${_dhLocal(last.sent_on)} (${esc(last.how)})`:'';
+  const viewSent=last&&last.intact?` · <a href="/api/sent-documents/${last.sent_document_id}/file" target="_blank" rel="noopener">ansehen</a>`:'';
+  const viewNow=a.quote_available?` · <a href="/api/quotes/${order.source_quote_id}/pdf" target="_blank" rel="noopener">ansehen</a>`:'';
+  if(!a.choice_required){el.className='';el.innerHTML=`<div class="notice success">Anlage: Angebot ${qn} in der ${sent} versendeten Fassung – sie entspricht dem heutigen Stand.${viewSent}</div>`;return}
+  let reason;
+  if(!last)reason=`Das Angebot ${qn} wurde nie versendet.`;
+  else if(!last.intact)reason=`Die ${sent} versendete Fassung ist in der Ablage nicht mehr unversehrt: ${esc(last.problem||'')}`;
+  else reason=`Der heutige Stand des Angebots ${qn} weicht von der ${sent} versendeten Fassung ab.`;
+  const options=[];
+  if(last&&last.intact)options.push(`<label class="contract-choice"><input type="radio" name="contractAttachment" value="versendet" data-document="${last.sent_document_id}"> Versendete Fassung ${sent}${viewSent}</label>`);
+  if(a.quote_available)options.push(`<label class="contract-choice"><input type="radio" name="contractAttachment" value="aktuell"> Heutiger Stand des Angebots${last?' (so nicht versendet)':''}${viewNow}</label>`);
+  el.className='';
+  el.innerHTML=`<div class="notice warning"><b>Anlage bitte bewusst wählen.</b> ${reason}</div>${options.join('')||'<div class="notice warning">Es gibt keine Fassung des Angebots, die angehängt werden könnte.</div>'}`;
+}
+async function freezeContract(btn,next){
+  const st=document.getElementById('contractStatus'),a=contractAttachment;
+  if(!a){st.textContent='Die Anlage wird noch geprüft – bitte einen Moment.';return}
+  if(a.error){st.textContent='Die Anlage konnte nicht geprüft werden: '+a.error;return}
+  let payload={};
+  if(a.choice_required){
+    const picked=document.querySelector('input[name="contractAttachment"]:checked');
+    if(!picked){st.textContent='Bitte die Anlage wählen.';return}
+    payload={attachment:picked.value,attachment_document_id:picked.dataset.document?Number(picked.dataset.document):null};
+  }
+  if(!confirm(`Fassung ${next} festschreiben?\n\nVertragstext, Fallfelder und Anlage werden eingefroren und mit Prüfsumme abgelegt. Danach ist der Entwurf gesperrt; Änderungen nur als neue Fassung.`))return;
+  btn.disabled=true;st.textContent='Schreibt fest …';
+  try{await abschliessen('vertrag',()=>api(`/api/orders/${orderId}/contract/freeze`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{anwenden:d=>{contractInfo=d;contractAttachment=null;renderContract()}});st.textContent=`Fassung ${next} festgeschrieben.`}
+  catch(e){st.textContent='Fehler: '+e.message;btn.disabled=false;loadContractAttachment()}
+}
+async function startNewContractVersion(current){
+  const st=document.getElementById('contractStatus');
+  if(!confirm(`Neue Fassung anlegen?\n\nDer Vertrag wird wieder zum Entwurf; Fassung ${current} bleibt abgelegt und gilt bis zum Festschreiben der neuen als zuletzt festgeschrieben. Versenden geht erst wieder nach dem Festschreiben.`))return;
+  try{await speichern('vertrag',()=>api(`/api/orders/${orderId}/contract/new-version`,{method:'POST'}),{anwenden:d=>{contractInfo=d;renderContract();loadContractAttachment()}});st.textContent='Neue Fassung als Entwurf angelegt.'}catch(e){st.textContent='Fehler: '+e.message}
+}
+async function sendContractEmail(btn){
+  const st=document.getElementById('contractStatus'),c=contractInfo.contract;
+  const to=document.getElementById('contractEmailInput').value.trim(),cc=document.getElementById('contractCcInput').value.trim();
+  if(!to){st.textContent='Bitte eine E-Mail-Adresse angeben.';return}
+  st.textContent='Wird gesendet …';
+  try{await postEmailDispatch('vertrag-'+c.id,`/api/orders/${orderId}/contract/send-email`,{to_email:to,cc_email:cc||null},btn);await loadContract();st.textContent='Versendet.'}
+  catch(e){st.textContent='Fehler: '+e.message}
+}
+async function saveContract(){const st=document.getElementById('contractStatus');st.textContent='Speichert …';try{await speichern('vertrag',()=>api(`/api/orders/${orderId}/contract`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({execution_period:document.getElementById('cExecutionPeriod').value.trim()||null,payment_plan:document.getElementById('cPaymentPlan').value.trim()||null,special_terms:document.getElementById('cSpecialTerms').value.trim()||null})}),{anwenden:d=>{contractInfo=d;renderContract();loadContractAttachment()}});st.textContent='Vertragsentwurf gespeichert.'}catch(e){st.textContent='Fehler: '+e.message}}
+async function createContract(){const st=document.getElementById('contractStatus');try{await speichern('vertrag',()=>api(`/api/orders/${orderId}/contract`,{method:'POST'}),{anwenden:d=>{contractInfo=d;renderContract();loadContractAttachment()}});st.textContent='Vertragsentwurf angelegt.'}catch(e){st.textContent='Fehler: '+e.message}}
+async function loadContractBasis(){await lesen('vertragsgrundlage',()=>Promise.all([api('/api/contract-bases').catch(()=>[]),api(`/api/orders/${orderId}/contract-basis-changes`).catch(()=>[])]),([b,c])=>{contractBases=b;contractBasisChanges=c;renderContractBasis()})}
+function renderContractBasis(){const src=order.contract_basis_manual?'am Auftrag geändert – der Abgleich mit dem Angebot überschreibt sie nicht':'aus dem Angebot übernommen – folgt dem Angebot beim Abgleich';document.getElementById('contractBasisCurrent').innerHTML=`<div><b>${esc(order.contract_basis_label||order.contract_basis)}</b></div><div class="small muted" style="margin-bottom:8px">${src}</div>`;const w=document.getElementById('contractBasisWarning');if(order.contract_basis_clause_reviewed===false){w.style.display='';w.textContent='Für diese Vertragsgrundlage ist keine rechtlich geprüfte Klausel hinterlegt (Einstellungen → Vertragsgrundlagen). Das PDF enthält deshalb keinen Text zur Vertragsgrundlage.'}else{w.style.display='none';w.textContent=''}const signed=contractSigned(),lockBox=document.getElementById('contractBasisLocked');document.getElementById('contractBasisEdit').style.display=signed?'none':'';lockBox.style.display=signed?'':'none';lockBox.textContent=signed?'Der Vertrag ist unterschrieben – die Vertragsgrundlage steht fest und lässt sich nicht mehr ändern.':'';document.getElementById('contractBasisSelect').innerHTML=contractBases.filter(b=>b.key!==order.contract_basis).map(b=>`<option value="${esc(b.key)}">${esc(b.label)}</option>`).join('');document.getElementById('contractBasisHistory').innerHTML=contractBasisChanges.length?'<div class="small muted" style="margin-top:10px">Historie</div>'+contractBasisChanges.map(c=>`<div class="revision"><b>${esc(c.old_label)} → ${esc(c.new_label)}</b><div class="small" style="white-space:pre-wrap">${esc(c.reason)}</div><div class="small muted">${esc(berlinZeitpunkt(c.changed_at))} · ${esc(c.changed_by_name)}</div></div>`).join(''):''}
+async function changeContractBasis(){const st=document.getElementById('contractBasisStatus'),reason=document.getElementById('contractBasisReason').value.trim(),key=document.getElementById('contractBasisSelect').value;if(!key){st.textContent='Bitte eine Vertragsgrundlage wählen.';return}if(!reason){st.textContent='Bitte eine Begründung angeben.';return}try{await speichern('auftrag',()=>api(`/api/orders/${orderId}/contract-basis`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({contract_basis:key,reason})}),{anwenden:d=>{order=d;renderHeader();renderSync()},neuLaden:async()=>{await loadContractBasis();await loadContract()}});document.getElementById('contractBasisReason').value='';st.textContent='Vertragsgrundlage geändert.'}catch(e){st.textContent='Fehler: '+e.message}}
+// --- Leistungen: LV nach akte-leistungen.html -- Menge, EP, GP, abgerechnet und Stand je Position, Std. Ist/Soll (GET /api/orders/{id}/zahlen) --
+// Seit 1.9.128 ohne Eingabe in der Zeile: „Bearbeiten“ öffnet den Dialog der Position (vorher Menge, Einheit und EP direkt in der Zeile).
+function _lvPosition(i){return zahlenDaten?(zahlenDaten.positionen.zeilen.find(z=>z.item_id===i.id)||null):null}
+function lvMenge(i){const pos=_lvPosition(i);return pos?`${zahlText(pos.abgerechnet_menge,null,TAUSENDER)} ${esc(i.unit)}`:''}
+function lvStand(i){
+  const pos=_lvPosition(i);if(!pos||pos.abgerechnet_prozent==null)return '';
+  const p=Number(pos.abgerechnet_prozent),breite=p>100?100:p<0?0:p;
+  return `<span class="stand"><b class="num${p>=100?' voll':''}">${zahlText(p,0)} %</b><span class="stand-balken" aria-hidden="true"><span style="width:${breite}%"></span></span></span>`;
+}
+function lvStd(i){const pos=_lvPosition(i);if(!pos)return '';return pos.stunden_soll==null?'–':`${zahlText(pos.stunden_ist,1)} / ${zahlText(pos.stunden_soll,1)} h`}
+function rowHtml(i){
+  const all=!!order.order_lock,tip=order.order_lock||i.price_lock||'';
+  const knopf=all?'':`<button type="button" class="iconbtn" data-klick="position-bearbeiten" data-id="${i.id}" aria-label="Position ${esc(i.gaeb_oz||i.position_number)} bearbeiten" title="Bearbeiten">✎</button>`;
+  return `<tr class="lv-row${i.include_in_total?'':' optional'}" data-item="${i.id}"><td class="num">${esc(i.gaeb_oz||i.position_number)}</td><td class="text">${esc(i.short_text)}${i.is_addendum?' <span class="addendum-badge">Nachtrag</span>':''}${i.long_text?`<div class="lv-sub">${esc(i.long_text)}</div>`:''}${!i.include_in_total?'<div class="lv-sub"><b>Optional / nicht enthalten</b></div>':''}${i.price_lock&&!all?`<div class="lv-sub price-lock" title="${esc(tip)}">Abgerechnet – Einheitspreis, Einheit und „in Summe“ gesperrt</div>`:''}</td><td class="r num">${zahlText(i.quantity,null,TAUSENDER)}</td><td>${esc(i.unit)}</td><td class="r num">${zahlText(i.unit_price,2,TAUSENDER)}</td><td class="r num" style="font-weight:600">${money(i.line_total)}</td><td class="r num">${lvMenge(i)}</td><td>${lvStand(i)}</td><td class="r num mut">${lvStd(i)}</td><td style="width:44px">${knopf}</td></tr>`;
+}
+function _lvTitel(sec,kind){const summe=(order.section_totals||{})[String(sec.id)];const knopf=order.order_lock?'':`<button type="button" class="iconbtn" data-klick="titel-bearbeiten" data-id="${sec.id}" aria-label="Titel ${esc(sec.section_number||'')} bearbeiten" title="Bearbeiten">✎</button>`;return `<tr class="lv-titel${kind?' kind':''}"><td>${esc(sec.section_number||'')}</td><td colspan="4">${esc(sec.title)}${sec.description?`<div class="lv-sub" style="font-weight:400">${esc(sec.description)}</div>`:''}</td><td class="r num">${summe!=null?money(summe):''}</td><td colspan="3"></td><td>${knopf}</td></tr>`}
+function renderLv(){
+  if(!order)return;
+  const lk=el('lvLock');lk.hidden=!order.order_lock;lk.textContent=order.order_lock||'';
+  const children={};order.sections.forEach(s=>(children[s.parent_id??'root']??=[]).push(s));Object.values(children).forEach(a=>a.sort((a,b)=>a.sort_order-b.sort_order));
+  const by={};order.items.forEach(i=>(by[i.is_addendum?'nachtrag':(i.section_id??'root')]??=[]).push(i));Object.values(by).forEach(a=>a.sort((a,b)=>a.sort_order-b.sort_order));
+  const rows=id=>(by[id??'root']||[]).map(rowHtml).join('');
+  let html=rows(null);
+  (children.root||[]).forEach(top=>{html+=_lvTitel(top,false)+rows(top.id);(children[top.id]||[]).forEach(ch=>{html+=_lvTitel(ch,true)+rows(ch.id)})});
+  if(by.nachtrag){const summe=(order.section_totals||{}).nachtraege;html+=`<tr class="lv-titel"><td>N</td><td colspan="4">Nachträge</td><td class="r num">${summe!=null?money(summe):''}</td><td colspan="4"></td></tr>`+by.nachtrag.map(rowHtml).join('')}
+  const z=zahlenDaten;
+  html+=`<tr class="lv-fuss"><td></td><td colspan="4">Auftragssumme netto</td><td class="r num">${money(order.net_total)}</td><td class="r num" colspan="2">${z?`abgerechnet ${money(z.leistung.abgerechnet)}${z.leistung.abgerechnet_prozent!=null?' · '+zahlText(z.leistung.abgerechnet_prozent,0)+' %':''}`:''}</td><td class="r num">${z?`${zahlText(z.stunden.baustelle_werkstatt,1)} / ${zahlText(z.stunden.soll,1)} h`:''}</td><td></td></tr>`;
+  if(z&&Number(z.stunden.ohne_position))html+=`<tr><td></td><td colspan="9" class="mut sml">Davon ohne Bezug auf eine Position gebucht: ${stunden(z.stunden.ohne_position)} (Baustelle &amp; Werkstatt).</td></tr>`;
+  el('lv').innerHTML=order.items.length?html:'<tr><td colspan="10" class="mut">Keine Positionen.</td></tr>';
+  const bar=el('addendumBar');
+  bar.innerHTML=order.addendum_create_block?(order.order_lock?'':`<span class="sml mut">${esc(order.addendum_create_block)}</span>`):'<button type="button" class="secondary" onclick="openAddendum()">+ Nachtrag</button>';
+  el('lvTitel').textContent='Leistungsverzeichnis '+order.order_number;
+  const q=z&&z.positionen.quelle;
+  el('lvUnter').textContent=[q?`Stand je Position aus der ${q.bezeichnung||'Rechnung'} ${q.invoice_number||''} (${tagKurz(q.invoice_date)})`.replace(/\s+\(/,' ('):'noch nichts nach Leistungsstand abgerechnet',order.current_revision_number?`Auftragsstand ${order.current_revision_number}`:'',order.source_quote_in_sync===false?`weicht vom Angebot ${order.quote_number_snapshot} ab`:`gleich wie Angebot ${order.quote_number_snapshot}`].filter(Boolean).join(' · ');
+}
+function lvZeichnen(){if(order)renderLv()}
+aktion('position-bearbeiten',b=>openItem(Number(b.dataset.id)));
+aktion('titel-bearbeiten',b=>openSection(Number(b.dataset.id)));
+function zeigeAuftragMitLv(d){order=d;renderHeader();renderSync();renderLv();zahlenLaden();akteNachAenderung()}
+// Seit 1.9.129: was an Kopf, Phasen, „Was ansteht“ und den Zählern der Reiter hängt, kommt vom Server -- nach einer Änderung am Auftrag neu
+function akteNachAenderung(){return akteLaden()}
+function itemDialogMode(neu,i){el('itemDialogTitle').textContent=neu?'Nachtrag anlegen':(i&&i.is_addendum?`Nachtrag ${i.position_number} bearbeiten`:'Auftragsposition bearbeiten');el('iTypeField').hidden=neu;el('iOzField').hidden=neu;const rm=!neu&&i&&i.is_addendum&&!i.addendum_lock&&!order.order_lock;el('iRemove').hidden=!rm;const al=el('addendumLock'),grund=!neu&&i&&i.is_addendum&&!order.order_lock?i.addendum_lock:null;al.hidden=!grund;al.textContent=grund||''}
+function openAddendum(){editItemId=null;itemDialogMode(true,null);['iShort','iLong','iPrice','iOz'].forEach(x=>el(x).value='');el('iQty').value=zahlText(1);el('iUnit').innerHTML=unitOptions('');el('iType').value='normal';el('iIncluded').checked=true;el('itemLock').hidden=true;['iPrice','iUnit','iIncluded'].forEach(x=>el(x).disabled=false);el('itemStatus').textContent='';el('itemDialog').showModal()}
+async function removeAddendum(){const i=order.items.find(x=>x.id===editItemId);if(!i||!confirm(`Nachtrag ${i.position_number} entfernen?`))return;const st=el('itemStatus');try{await speichern('auftrag',()=>api(`/api/orders/${orderId}/items/${i.id}`,{method:'DELETE'}),{anwenden:zeigeAuftragMitLv});el('itemDialog').close()}catch(e){st.textContent='Fehler: '+e.message}}
+function openItem(id){const i=order.items.find(x=>x.id===id);if(!i)return;editItemId=id;itemDialogMode(false,i);el('iShort').value=i.short_text;el('iLong').value=i.long_text||'';el('iQty').value=zahlText(i.quantity,null,TAUSENDER);el('iUnit').innerHTML=unitOptions(i.unit);el('iPrice').value=zahlText(i.unit_price,null,TAUSENDER);/* seit 1.9.12 über auswahlWert() (_auswahl.html) */auswahlWert(el('iType'),i.position_type);el('iOz').value=i.gaeb_oz||'';el('iIncluded').checked=i.include_in_total;/* seit 1.8.82: abgerechnet -> Preis, Einheit, "in Summe" gesperrt */const lk=el('itemLock');lk.hidden=!i.price_lock;lk.textContent=i.price_lock||'';['iPrice','iUnit','iIncluded'].forEach(x=>el(x).disabled=!!i.price_lock);el('itemStatus').textContent='';el('itemDialog').showModal()}
+async function saveItemDialog(){const st=el('itemStatus');/* seit 1.8.109 Menge und Einheitspreis über _zahl.html */if(editItemId===null){/* seit 1.8.83: Nachtrag */let menge,preis;try{menge=zahlFeld('iQty',{pflicht:true});preis=zahlFeld('iPrice')}catch(e){st.textContent='Fehler: '+e.message;return}const body={short_text:el('iShort').value.trim(),long_text:el('iLong').value,quantity:menge,unit:el('iUnit').value,unit_price:preis,include_in_total:el('iIncluded').checked};if(!body.short_text||!body.unit||preis===null){st.textContent='Bitte Kurztext, Einheit und Einheitspreis angeben.';return}try{await speichern('auftrag',()=>api(`/api/orders/${orderId}/items`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{anwenden:zeigeAuftragMitLv});el('itemDialog').close()}catch(e){st.textContent='Fehler: '+e.message}return}try{const menge=zahlFeld('iQty',{pflicht:true}),preis=zahlFeld('iPrice',{pflicht:true});const i=order.items.find(x=>x.id===editItemId),body={quantity:menge,short_text:el('iShort').value.trim(),long_text:el('iLong').value,position_type:el('iType').value,gaeb_oz:el('iOz').value||null};if(!i||!i.price_lock)Object.assign(body,{unit:el('iUnit').value,unit_price:preis,include_in_total:el('iIncluded').checked});await speichern('auftrag',()=>api(`/api/orders/${orderId}/items/${editItemId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{anwenden:zeigeAuftragMitLv});el('itemDialog').close()}catch(e){st.textContent='Fehler: '+e.message}}
+function openSection(id){const s=order.sections.find(x=>x.id===id);if(!s)return;editSectionId=id;el('secTitle').value=s.title;el('secDesc').value=s.description||'';el('secStatus').textContent='';el('sectionDialog').showModal()}
+async function saveSectionDialog(){try{await speichern('auftrag',()=>api(`/api/orders/${orderId}/sections/${editSectionId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:el('secTitle').value.trim(),description:el('secDesc').value||null})}),{anwenden:d=>{order=d;renderHeader();renderSync();renderLv()}});el('sectionDialog').close()}catch(e){el('secStatus').textContent='Fehler: '+e.message}}
+async function syncSource(){if(!confirm('Den aktuellen LV-Stand des Quellangebots in diesen Auftrag übernehmen? Der bisherige Auftragsstand bleibt als Revision erhalten.'))return;try{await abschliessen('auftrag',()=>api(`/api/orders/${orderId}/sync-source-quote`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason:'Quellangebot nach Kunden-/Projektänderung übernommen'})}),{neuLaden:reload})}catch(e){alert(e.message)}}
+function renderRevisions(){el('revisions').innerHTML=revisions.length?revisions.map(r=>`<div class="revision"><b>Revision ${esc(r.revision_number)}</b><div class="small">${esc(r.reason)}</div><div class="small muted">${esc(berlinZeitpunkt(r.created_at))} · ${esc(r.created_by_name)}</div></div>`).join(''):'<div class="small muted">Noch keine Revision gespeichert.</div>'}
+async function saveRevision(){const reason=el('revisionReason').value.trim();const st=el('revisionStatus');if(!reason){st.textContent='Bitte eine Bezeichnung angeben.';return}try{await speichern('auftrag',()=>api(`/api/orders/${orderId}/revisions`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})}),{neuLaden:reload});st.textContent='Revision gespeichert.'}catch(e){st.textContent='Fehler: '+e.message}}
+
+// --- Rechnungen des Auftrags: die eine Liste (_rechnungsliste.html), neue Rechnung nur nach darf_geld() --------------------------------
+function renderInvoices(){
+  const tabelle=rechnungsTabelleHtml(invoices,{spalten:['rechnung','art','datum','zeitraum','netto','brutto','zahlstand'],leer:'Noch keine Rechnung zu diesem Auftrag.'});
+  el('invoicesList').innerHTML=tabelle;
+  const gueltig=invoices.filter(i=>i.status!=='entwurf');
+  el('uRechnungen').innerHTML=gueltig.length?rechnungsTabelleHtml(gueltig,{spalten:['rechnung','art','zeitraum','netto','brutto','zahlstand']}):'';
+  el('rechnungenTitel').textContent='Rechnungen · '+(order?order.order_number:'');
+  toggleNewInvoiceFields();naechsteRechnungZeichnen();
+}
+async function loadInvoices(){try{await lesen('rechnungen',()=>api('/api/orders/'+orderId+'/invoices'),d=>{invoices=d;renderInvoices()})}catch(e){el('invoicesList').innerHTML=`<div class="small" style="color:var(--ds-fehler-text)">Rechnungen konnten nicht geladen werden: ${esc(e.message)}</div>`}}
+function toggleNewInvoiceFields(){if(!el('newInvoiceType'))return;/* seit 1.9.111 ohne darf_geld() nicht im Markup */el('pauschalFields').style.display=el('newInvoiceType').value==='abschlag_pauschal'?'grid':'none';const n=invoices.filter(i=>['abschlag_pauschal','abschlag_leistungsstand'].includes(i.invoice_type)&&i.status!=='storniert').length+1;el('newProgressDesc').placeholder=`${n}. Abschlagsrechnung (automatisch, falls leer gelassen)`;renderNewInvoiceBlock()}
+// Seit 1.8.72: ist die gewählte Rechnungsart am Auftrag gesperrt, steht der Grund vom Server da und der Knopf fehlt.
+function renderNewInvoiceBlock(){if(!el('newInvoiceType'))return;const reason=(order&&order.invoice_create_blocks||{})[el('newInvoiceType').value]||null;const box=el('newInvoiceBlock');box.hidden=!reason;box.textContent=reason||'';el('newInvoiceButton').hidden=!!reason}
+function renderInvoiceTypeOptions(){const sel=el('newInvoiceType');if(!sel)return;if((timeTotals?.booked_count>0||orderMaterials.length>0)&&!sel.querySelector('option[value="aufwand"]')){sel.insertAdjacentHTML('beforeend','<option value="aufwand">Rechnung aus Aufwand</option>')}}
+async function createNewInvoice(){const type=el('newInvoiceType').value;const st=el('newInvoiceStatus');st.textContent='Erstellt …';try{let url,body={};if(type==='abschlag_pauschal'){const lump=zahlFeld('newLumpSum');/* seit 1.8.109 über _zahl.html */if(lump===null){st.textContent='Bitte einen Betrag angeben.';return}url=`/api/orders/${orderId}/invoices/abschlag-pauschal`;body={lump_sum_net:lump,progress_description:el('newProgressDesc').value.trim()||null}}else if(type==='abschlag_leistungsstand'){url=`/api/orders/${orderId}/invoices/abschlag-leistungsstand`}else if(type==='aufwand'){url=`/api/orders/${orderId}/invoices/aus-zeitbuchungen`}else{url=`/api/orders/${orderId}/invoices/schlussrechnung`}const inv=await speichern('rechnungen',()=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}));if(inv.material_markup_hint)alert(inv.material_markup_hint);location.href='/invoices/'+inv.id}catch(e){st.textContent='Fehler: '+e.message}}
+// Seit 1.8.43: offene Bedenkenanzeige ohne Entscheidung des Auftraggebers -- deutlicher Hinweis oben; seit 1.9.129 über den Baustein.
+function loadOpenConcerns(){if(window.offeneBedenkenZeigen&&orderId)return offeneBedenkenZeigen('concernAlert',orderId)}  // Befund D17: der Baustein _offene_bedenken.html (wie Einsatzberichte und Checklisten)
+async function reload(){const zeichnen=()=>{renderHeader();renderSync();renderLv();renderRevisions()};if(!await lesen('auftrag',()=>Promise.all([api('/api/orders/'+orderId),api('/api/orders/'+orderId+'/revisions').catch(()=>[])]),([o,r])=>{order=o;revisions=r;zeichnen()}))zeichnen();loadContractBasis();loadContract();loadAcceptanceSection();zahlenLaden();await loadInvoices()}
+
+// --- Laden ----------------------------------------------------------------------------------------------------------------------------
+// Bausteine der Abnahme und der Mängel liegen in #bausteinAblage: die Karten ziehen in ihre Reiter, die Dialoge an den Körper der Seite
+// (ein Dialog in einem verborgenen Reiter ließe sich nicht öffnen).
+function bausteineVerteilen(){
+  const w=el('warrantyCard');if(w)el('vertragRechts').appendChild(w);
+  ['acceptanceCard','defectCard'].forEach(id=>{const k=el(id);if(k)el('abnahmeLinks').appendChild(k)});
+  document.querySelectorAll('#bausteinAblage dialog').forEach(d=>document.body.appendChild(d));
+}
+async function projektLaden(){
+  await lesen('projekt',async()=>{const erste=await Promise.all([api('/api/settings/option-groups/project_document_categories').catch(()=>({options:[]})),api('/api/settings/option-groups/project_categories').catch(()=>({options:[]}))]);const zweite=await Promise.all([api(`/api/projects/${projectId}`),api(`/api/projects/${projectId}/documents`),api(`/api/projects/${projectId}/quotes`),api(`/api/projects/${projectId}/participants`).catch(()=>[]),api('/api/project-participant-roles').catch(()=>[])]);return [erste,zweite]},
+    ([[docGroup,projectGroup],[p,docs,qs,parts,roles]])=>{categories=docGroup.options||[];projectCategories=projectGroup.options||[];project=p;documents=docs;quotes=qs;participants=parts;participantRoles=roles;kopfZeichnen();renderCategories();renderDocuments();angeboteZeichnen();renderParticipants()});
+}
+async function auftragLaden(){
+  if(!orderId)return;
+  await lesen('auftrag',async()=>{const erste=await Promise.all([api('/api/orders/'+orderId),api('/api/employees').catch(()=>[]),api('/api/employees/caseworkers').catch(()=>[]),api('/api/payment-terms').catch(()=>[]),api('/api/tax-keys?include_archived=true').catch(()=>[]),api('/api/settings/option-groups/quote_intro_texts').then(g=>g.options||[]).catch(()=>[]),api('/api/settings/option-groups/quote_outro_texts').then(g=>g.options||[]).catch(()=>[]),api('/api/settings/option-groups/units').catch(()=>({options:[]}))]);const r=await api('/api/orders/'+orderId+'/revisions').catch(()=>[]);const tt=await api('/api/time-entries/summary?order_id='+orderId).catch(()=>null);const m=await api('/api/orders/'+orderId+'/materials').catch(()=>[]);return [erste,r,tt,m]},
+    ([[o,e,c,p,tk,it,ot,u],r,tt,m])=>{order=o;employees=e;caseworkers=c;paymentOptions=p;taxKeys=tk;introTemplates=it;outroTemplates=ot;units=u.options||[];revisions=r;timeTotals=tt;orderMaterials=m;renderHeader();renderSync();renderLv();renderRevisions();renderInvoiceTypeOptions()});
+  loadContractBasis();loadContract();loadAcceptanceSection();loadOpenConcerns();zahlenLaden();await loadInvoices();
+  if(window.renderChecklistSection)renderChecklistSection('checklistSection','auftrag',orderId);
+}
+async function akteStarten(){
+  bausteineVerteilen();
+  await akteLaden();
+  reiterZeigen(reiterAusAnker(),false);
+  await projektLaden();
+  await auftragLaden();
+  await verlaufLaden();
+  openParticipantFromUrl();
+}
+auftragsstatusEinrichten(d=>{order=d;renderHeader();renderSync();renderLv();renderNewInvoiceBlock();akteLaden()});/* seit 1.9.124 */
+akteStarten().catch(e=>seitenStatus('Die Akte konnte nicht geladen werden: '+e.message));
+</script></body></html>

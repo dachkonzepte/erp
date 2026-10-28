@@ -7,8 +7,8 @@ Geprüft über die echten Seiten als Admin:
                    und behält ihn
     Angebot        archivierter Steuerschlüssel vorgewählt "(inaktiv)"; leerer Schlusstext 2 bleibt leer, auch nach
                    dem Speichern des Kopfs; Position ohne Einheit zeigt "— keine Einheit —"
-    Auftrag,       archivierter Steuerschlüssel vorgewählt "(inaktiv)"
-    Rechnung
+    Auftrag,       archivierter Steuerschlüssel vorgewählt "(inaktiv)" (Auftrag seit 1.9.129 in der Akte, Dialog „Auftragsdaten
+    Rechnung       bearbeiten“)
     Dachfläche     Schicht eines abgeschalteten Schichttyps in der Liste, gekennzeichnet, nicht unter "Passt nicht"
     Kunde          abgeschaltete Kategorie vorgewählt "(inaktiv)"
 
@@ -143,11 +143,19 @@ async def pruefen(tab, seed, p):
     p.pruefe("Angebot: JS-Fehler", tab.fehler, [])
 
     # --- Auftrag und Rechnung ------------------------------------------------------------------
-    for pfad, bereit, select_id, name in (
-            (f"/orders/{seed['auftrag']}", "order&&document.getElementById('taxKey').options.length>0", "taxKey", "Auftrag"),
-            (f"/invoices/{seed['rechnung']}", "invoice&&document.getElementById('iTaxKeySelect').options.length>0",
+    # seit 1.9.129 ist der Auftrag Teil der Akte: der Steuerschlüssel steht im Dialog „Auftragsdaten bearbeiten“ (Reiter „Vertrag“),
+    # gefüllt erst beim Öffnen
+    auftragsdaten = ("document.querySelector('[data-klick=\"auftragsdaten-bearbeiten\"]').click()",
+                     "document.getElementById('auftragsdatenDialog').open&&document.getElementById('taxKey').options.length>0")
+    for pfad, bereit, oeffnen, select_id, name in (
+            (f"/orders/{seed['auftrag']}#vertrag", "order&&order.id&&!document.getElementById('reiter-vertrag').hidden",
+             auftragsdaten, "taxKey", "Auftrag"),
+            (f"/invoices/{seed['rechnung']}", "invoice&&document.getElementById('iTaxKeySelect').options.length>0", None,
              "iTaxKeySelect", "Rechnung")):
         await tab.oeffnen(pfad, bereit)
+        if oeffnen:
+            await tab.js(oeffnen[0])
+            await tab.warten(oeffnen[1], 5)
         p.pruefe(f"{name}: archivierter Steuerschlüssel vorgewählt",
                  _archiviert_gewaehlt(await tab.js(_gewaehlt(select_id))), "Alt 16 … (inaktiv)")
         p.pruefe(f"{name}: JS-Fehler", tab.fehler, [])

@@ -465,14 +465,17 @@ def ausfuehrung(db: Session, order: Order) -> dict:
     }
 
 
-def hauptaktion(phase: str | None, *, hat_angebot: bool, verweigert: bool, geschlossen: bool, geld: bool) -> dict | None:
+def hauptaktion(phase: str | None, *, hat_angebot: bool, verweigert: bool, geschlossen: bool, geld: bool, muster: bool = False) -> dict | None:
     """Der eine Knopf im Kopf je Phase und Rolle (geld = darf_geld(), entscheidet der Router):
        ohne Auftrag      ohne Angebot „+ Angebot“, sonst „Beauftragen“ (im Angebot)
        Auftrag           „Einsatz planen“
        Ausführung        mit Geld „Rechnung erstellen“, sonst „Einsatz planen“; nach einer verweigerten Abnahme „Abnahme erfassen“
        Abnahme           mit Geld „Schlussrechnung erstellen“, sonst „Abnahme & Mängel“
        Schlussrechnung   „Auftrag abschließen“, solange er nicht geschlossen ist
+    Ein Mustervorgang hat keine (er wird nicht beauftragt, seit 1.9.117; „Kopieren“ steht im Menü).
     """
+    if muster:
+        return None
     if phase in (None, "angebot"):
         return {"art": "beauftragen", "text": "Beauftragen"} if hat_angebot else {"art": "angebot", "text": "Angebot"}
     if geschlossen:
@@ -562,5 +565,5 @@ def akte_kontext(db: Session, project: Project, gewuenscht: int | None, viewer_u
                     "dateien": db.scalar(select(func.count(ProjectDocument.id)).where(ProjectDocument.project_id == project.id)) or 0},
         "_haupt": {"phase": je[gewaehlt.id]["phase"] if gewaehlt else None, "hat_angebot": bool(quotes),
                    "verweigert": bool(gewaehlt and sig[gewaehlt.id].verweigert is not None),
-                   "geschlossen": bool(gewaehlt and status_wert(gewaehlt.status) in GESCHLOSSEN)},
+                   "geschlossen": bool(gewaehlt and status_wert(gewaehlt.status) in GESCHLOSSEN), "muster": bool(project.is_template)},
     }

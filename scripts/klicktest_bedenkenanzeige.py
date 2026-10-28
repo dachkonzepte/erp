@@ -7,7 +7,8 @@ der Migration 0816ece7159b, veröffentlicht wie vom Büro. Die Monteurin hat heu
                               Anzeige und Entscheidung "füllt das Büro aus"; Meldung ausfüllen und
                               unterschreiben; /mobil zeigt unter dem Einsatz "Offene Bedenken …" mit Link;
                               kein waagrechter Scrollbalken.
-    Büro (1400 px, dunkel)    Auftragsseite mit dem Hinweis oben (Text, Link, lesbar); Folge "Bedenkenanzeige
+    Büro (1400 px, dunkel)    Akte des Auftrags (seit 1.9.129 statt der Auftragsseite) mit dem Hinweis oben (#concernAlert
+                              über den Baustein _offene_bedenken.html: Text, Link, lesbar); Folge "Bedenkenanzeige
                               versenden"; Anzeige ausfüllen (zwei Bedenken gewählt, "Entscheidung erbeten
                               bis") und unterschreiben -- der Hinweis nennt das Datum; Entscheidung festhalten
                               und unterschreiben -- Hinweis auf dem Auftrag weg.
@@ -144,7 +145,7 @@ async def pruefen(tab, seed, p):
     await tab.bild("1_monteurin_mobil_hinweis")
     p.pruefe("Monteurin: keine JS-Fehler", tab.fehler, [])
 
-    # --- Büro: Auftragsseite, Anzeige, Entscheidung ----------------------------------------------
+    # --- Büro: Akte des Auftrags (seit 1.9.129), Anzeige, Entscheidung ----------------------------
     await tab.anmelden(seed["cookies"]["buero"])
     await tab.fenster(1400, 1000)
     hinweis = "!document.getElementById('concernAlert').hidden"
@@ -195,7 +196,9 @@ async def pruefen(tab, seed, p):
     await _eingeben(tab, f[K + "notiz"], "Schriftlich angeordnet, Beleg folgt.")
     await _unterschreiben(tab, f[K + "unterschrift_entscheidung"], "Olga Office")
     await tab.warten(f"document.querySelector('#q_{f[K + 'unterschrift_entscheidung']} .sig')")
-    await tab.oeffnen(f"/orders/{auftrag}", "document.getElementById('orderTitle').textContent.includes('AUF-KT-1')")
+    # Seit 1.9.129 (Akte): kein #orderTitle mehr -- die Auftragsnummer steht in der Auftragswahl (#auftragEinzeln, ein Auftrag).
+    await tab.oeffnen(f"/orders/{auftrag}", "order&&order.order_number==='AUF-KT-1'&&"
+                      "document.getElementById('auftragEinzeln').textContent.includes('AUF-KT-1')")
     await tab.warte_auf_neu_geladene_liste()  # loadOpenConcerns() läuft nach dem Auftrag; seit 1.8.94 statt 0,5 s Pause
     p.pruefe("Büro: Hinweis nach der Entscheidung weg", await tab.js(
         "[document.getElementById('concernAlert').hidden, document.getElementById('concernAlert').textContent]"), [True, ""])

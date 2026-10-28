@@ -244,7 +244,7 @@ def test_order_page_and_quote_editor_show_the_reason_instead_of_the_button():
     from pathlib import Path
 
     templates = Path(__file__).resolve().parent.parent / "app" / "templates"
-    order_html = (templates / "order.html").read_text(encoding="utf-8")
+    order_html = (templates / "akte.html").read_text(encoding="utf-8")
     assert "order.source_quote_in_sync===false&&order.source_quote_sync_blocked" in order_html
     assert "esc(order.source_quote_sync_blocked)" in order_html
     editor = (templates / "quote_editor.html").read_text(encoding="utf-8")

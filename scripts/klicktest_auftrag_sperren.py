@@ -7,6 +7,10 @@ docs/archiv/befund-vor-echtbetrieb.md, "Umsetzung 1.8.82":
                            Steuerschlüssel gesperrt mit Grund; die API antwortet 409. Hell, dunkel, 412 px
     Auftrag mit Schluss-   Hinweis "Nach der Schlussrechnung …" über dem LV, jede Eingabe gesperrt, kein Bearbeiten-Knopf an
     rechnung               Positionen und Titeln
+
+Seit 1.9.129 ist der Auftrag Teil der Akte (/orders/{id} leitet auf /projects/{p}?auftrag={id}): das LV steht im Reiter „Leistungen“, die
+Zeile zeigt Menge, Einheit und EP nur als Text, bearbeitet wird im Dialog der Position („✎“, #itemDialog) -- dort sind Preis und Einheit
+gesperrt und die Menge offen. Der Steuerschlüssel steht im Dialog „Auftragsdaten bearbeiten“ (gefüllt beim Öffnen).
     Rechnungsseite         das PDF kommt aus der Ablage (Kopfzeile X-DK-Ablage) und trägt den Briefkopf vom Festschreiben, auch
                            nachdem er geändert wurde; ein Entwurf wird neu erzeugt
 
@@ -89,37 +93,61 @@ async def pruefen(tab, seed, p):
     await tab.fenster(1280, 1000)
     await tab.anmelden(seed["cookies"]["buero"])
     a, s, nr = seed["abschlag_auftrag"], seed["schluss_auftrag"], seed["abschlag_nr"]
-    zeile = "document.querySelector('.lv-row[data-item=\"'+ID+'\"]')"
+    zeile = "document.querySelector('#lv tr.lv-row[data-item=\"'+ID+'\"]')"
+    lv_bereit = ("order&&!document.getElementById('reiter-leistungen').hidden"
+                 "&&document.querySelectorAll('#lv tr.lv-row').length===2")
 
-    # --- Auftrag mit festgeschriebenem Abschlag ---
-    await tab.oeffnen(f"/orders/{a}", "order&&document.querySelectorAll('.lv-row').length===2")
+    async def dialog_der_position(z):
+        """seit 1.9.129: „✎“ der Zeile anklicken -- der Dialog der Position ist der einzige Weg zum Bearbeiten."""
+        await tab.js(f"{z}.querySelector('[data-klick=\"position-bearbeiten\"]').click()")
+        return await tab.warten("document.getElementById('itemDialog').open", 5)
+
+    async def auftragsdaten_oeffnen():
+        """seit 1.9.129: Steuerschlüssel und Auftragsdaten stehen im Dialog „Auftragsdaten bearbeiten“, gefüllt beim Öffnen."""
+        await tab.js("document.querySelector('[data-klick=\"auftragsdaten-bearbeiten\"]').click()")
+        return await tab.warten("document.getElementById('auftragsdatenDialog').open"
+                                "&&document.getElementById('taxKey').options.length>0", 5)
+
+    # --- Auftrag mit festgeschriebenem Abschlag (seit 1.9.129 Reiter „Leistungen“ der Akte) ---
+    await tab.oeffnen(f"/orders/{a}#leistungen", lv_bereit)
     await tab.js("document.documentElement.setAttribute('data-theme','light')")
     ids =await tab.js("order.items.slice().sort((x,y)=>x.sort_order-y.sort_order).map(i=>i.id)")
     erste, zweite = ids
     eins, zwei = zeile.replace("ID", str(erste)), zeile.replace("ID", str(zweite))
-    p.pruefe("Abschlag: EP und Einheit der abgerechneten Position gesperrt",
-             await tab.js(f"[{eins}.querySelector('.ep input').disabled,{eins}.querySelector('select').disabled]"), [True, True])
-    p.pruefe("Abschlag: Grund im Tooltip", nr in (await tab.js(f"{eins}.querySelector('.ep input').title") or ""), True)
+    # seit 1.9.129: die Zeile hat keine Eingaben mehr (bis dahin Menge, Einheit und EP in der Zeile), jede Position ein „✎“
+    p.pruefe("Abschlag: keine Eingabe in der LV-Zeile, „✎“ an jeder Position", await tab.js(
+        "[document.querySelectorAll('#lv tr.lv-row input,#lv tr.lv-row select,#lv tr.lv-row textarea').length,"
+        "document.querySelectorAll('#lv tr.lv-row [data-klick=\"position-bearbeiten\"]').length]"), [0, 2])
+    # seit 1.9.129 am Hinweis der Zeile (bis dahin am Feld EP der Zeile)
+    p.pruefe("Abschlag: Grund im Tooltip", nr in (await tab.js(f"{eins}.querySelector('.price-lock')?.title") or ""), True)
     p.pruefe("Abschlag: Hinweis an der Position", await tab.js(f"{eins}.querySelector('.price-lock')?.textContent"),
              "Abgerechnet – Einheitspreis, Einheit und „in Summe“ gesperrt")
-    p.pruefe("Abschlag: Menge offen", await tab.js(f"{eins}.querySelector('input.num').disabled"), False)
-    p.pruefe("Abschlag: zweite Position (Ist 0) frei",
-             await tab.js(f"[{zwei}.querySelector('.ep input').disabled,!!{zwei}.querySelector('.price-lock')]"), [False, False])
-    p.pruefe("Abschlag: Steuerschlüssel gesperrt mit Grund",
-             await tab.js("[document.getElementById('taxKey').disabled,!document.getElementById('taxLock').hidden,"
-                          "document.getElementById('taxLock').textContent.includes('" + nr + "')]"), [True, True, True])
     p.pruefe("Abschlag: kein Hinweis über dem LV", await tab.js("document.getElementById('lvLock').hidden"), True)
     await tab.bild("abschlag_hell")
-    await tab.js(f"openItem({erste})")
+    # seit 1.9.129 im Dialog der Position (bis dahin EP-Feld und Einheit der Zeile)
+    await dialog_der_position(eins)
+    p.pruefe("Abschlag: EP und Einheit der abgerechneten Position gesperrt",
+             await tab.js("[document.getElementById('iPrice').disabled,document.getElementById('iUnit').disabled]"), [True, True])
+    p.pruefe("Abschlag: Menge offen", await tab.js("document.getElementById('iQty').disabled"), False)
     p.pruefe("Dialog: Grund und Sperren",
              await tab.js("[document.getElementById('itemLock').hidden,document.getElementById('itemLock').textContent.includes('"
                           + nr + "'),...['iPrice','iUnit','iIncluded','iQty','iShort'].map(x=>document.getElementById(x).disabled)]"),
              [False, True, True, True, True, False, False])
     await tab.bild("abschlag_dialog")
-    await tab.js("document.getElementById('itemDialog').close()")
-    await tab.js(f"quickItem({erste},'quantity','12')")
+    # seit 1.9.129 im Dialog gespeichert (bis dahin quickItem() aus dem Feld der Zeile)
+    await tab.js("document.getElementById('iQty').value='12';saveItemDialog()")
     p.pruefe("Abschlag: Menge gespeichert",
-             await tab.warten(f"order.items.find(i=>i.id==={erste}).quantity==12"), True)
+             await tab.warten(f"order.items.find(i=>i.id==={erste}).quantity==12&&!document.getElementById('itemDialog').open"), True)
+    await dialog_der_position(zwei)
+    p.pruefe("Abschlag: zweite Position (Ist 0) frei",
+             await tab.js(f"[document.getElementById('iPrice').disabled,!!{zwei}.querySelector('.price-lock')]"), [False, False])
+    await tab.js("document.getElementById('itemDialog').close()")
+    await auftragsdaten_oeffnen()
+    p.pruefe("Abschlag: Steuerschlüssel gesperrt mit Grund",
+             await tab.js("[document.getElementById('taxKey').disabled,!document.getElementById('taxLock').hidden,"
+                          "document.getElementById('taxLock').textContent.includes('" + nr + "')]"), [True, True, True])
+    await tab.bild("abschlag_auftragsdaten")
+    await tab.js("document.getElementById('auftragsdatenDialog').close()")
     api = await tab.js(f"(()=>{{const i=order.items.find(i=>i.id==={erste});return fetch('/api/orders/{a}/items/{erste}',"
                        "{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({quantity:Number(i.quantity),"
                        "unit:i.unit,unit_price:60,short_text:i.short_text,long_text:i.long_text||'',position_type:i.position_type,"
@@ -131,17 +159,23 @@ async def pruefen(tab, seed, p):
     await tab.js("document.documentElement.setAttribute('data-theme','light')")
 
     # --- Auftrag mit Schlussrechnung ---
-    await tab.oeffnen(f"/orders/{s}", "order&&document.querySelectorAll('.lv-row').length===2")
+    await tab.oeffnen(f"/orders/{s}#leistungen", lv_bereit)
     p.pruefe("Schluss: Hinweis über dem LV",
              (await tab.js("document.getElementById('lvLock').hidden?'':document.getElementById('lvLock').textContent") or "")
              .startswith(f"Nach der Schlussrechnung {seed['schluss_nr']} ist der Auftrag abgerechnet"), True)
-    p.pruefe("Schluss: jede Eingabe der Positionen gesperrt",
-             await tab.js("[...document.querySelectorAll('.lv-row input,.lv-row select')].every(e=>e.disabled)"), True)
+    # seit 1.9.129: die Zeile hat keine Eingaben mehr, der Weg in den Dialog der Position fehlt (bis dahin: jede Eingabe der Zeile gesperrt)
+    p.pruefe("Schluss: jede Eingabe der Positionen gesperrt", await tab.js(
+        "[document.querySelectorAll('#lv tr.lv-row input,#lv tr.lv-row select,#lv tr.lv-row textarea').length,"
+        "document.querySelectorAll('#lv [data-klick=\"position-bearbeiten\"]').length]"), [0, 0])
     p.pruefe("Schluss: keine Bearbeiten-Knöpfe", await tab.js("document.querySelectorAll('#lv .iconbtn').length"), 0)
-    p.pruefe("Schluss: Steuerschlüssel gesperrt", await tab.js("document.getElementById('taxKey').disabled"), True)
     await tab.bild("schluss_hell")
+    # seit 1.9.129 im Dialog „Auftragsdaten bearbeiten“
+    await auftragsdaten_oeffnen()
+    p.pruefe("Schluss: Steuerschlüssel gesperrt", await tab.js("document.getElementById('taxKey').disabled"), True)
+    await tab.bild("schluss_auftragsdaten")
+    await tab.js("document.getElementById('auftragsdatenDialog').close()")
     await tab.fenster(412, 900, mobil=True)
-    await tab.oeffnen(f"/orders/{s}", "order&&document.querySelectorAll('.lv-row').length===2")
+    await tab.oeffnen(f"/orders/{s}#leistungen", lv_bereit)
     await tab.js("document.documentElement.setAttribute('data-theme','dark');document.getElementById('lvLock').scrollIntoView();window.scrollBy(0,-140)")
     await tab.bild("schluss_412_dunkel")
     await tab.fenster(1280, 1000)

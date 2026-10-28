@@ -5,7 +5,9 @@ Befund „Vor dem Echtbetrieb“ Punkt 1 (docs/archiv/befund-vor-echtbetrieb.md,
     Auftragsseite      "Neue Rechnung": Schlussrechnung neben einem pauschalen Abschlag bis 1.8.84 gesperrt, seit 1.8.85 (R4b,
                        Endrechnung) frei -- kein Grund, Knopf da, API 200;
                        nach festgeschriebener Schlussrechnung Abschläge und eine zweite Schlussrechnung gesperrt; ein freier
-                       Auftrag zeigt den Knopf; Schlussrechnung als Entwurf -> gesperrt, Entwurf in der Liste löschen -> frei
+                       Auftrag zeigt den Knopf; Schlussrechnung als Entwurf -> gesperrt, Entwurf löschen -> frei. Seit 1.9.129
+                       Reiter „Rechnungen“ der Akte (/orders/{id}#rechnungen); die Liste hat kein „Löschen“ mehr (Befund D17) --
+                       gelöscht wird auf der Rechnungsseite („Entwurf löschen“ führt zurück in die Akte)
     Rechnungsseite     Abschlagsentwurf von vor der Schlussrechnung: Grund statt "Rechnung finalisieren", "Entwurf löschen"
                        bleibt; verrechneter Abschlag: Grund statt "Stornieren"; Stornorechnung: "lässt sich nicht stornieren"
                        (hell und dunkel)
@@ -109,7 +111,16 @@ def befuellen(db, k):
             "rechnung": rechnung.invoice_number, "cookies": {"buero": k.cookies(buero)}}
 
 
-ORDER_READY = "order&&order.invoice_create_blocks&&document.getElementById('newInvoiceType')"
+# seit 1.9.129: Reiter „Rechnungen“ der Akte -- ohne ihn liegen Auswahl und Hinweis verborgen (kein Bild)
+ORDER_READY = ("order&&order.invoice_create_blocks&&document.getElementById('newInvoiceType')"
+               "&&!document.getElementById('reiter-rechnungen').hidden")
+# seit 1.9.129 (Befund D17): Zeilen der Rechnungsliste und ob dort „Löschen“ steht
+LISTE_LOESCHEN = ("[document.querySelectorAll('#invoicesList tr[data-rechnung]').length,"
+                  "document.getElementById('invoicesList').textContent.includes('Löschen')]")
+# zurück in der Akte nach „Entwurf löschen“ auf der Rechnungsseite, Rechnungsliste neu geladen und leer
+NACH_DEM_LOESCHEN = ("location.pathname.startsWith('/projects/')&&" + ORDER_READY
+                     + "&&invoices.length===0&&!!document.querySelector('#invoicesList .rl-leer')"
+                     "&&!document.getElementById('newInvoiceButton').hidden")
 
 
 async def _art(tab, art):
@@ -122,6 +133,13 @@ async def _art(tab, art):
 async def _aktionen(tab):
     return await tab.js("(()=>{const el=document.getElementById('statusActions');return {knoepfe:[...el.querySelectorAll("
                         "'button')].map(b=>b.textContent.trim()),sperre:el.querySelector('[data-sperre]')?.textContent||null}})()")
+
+
+async def _entwurf_loeschen(tab, invoice_id):
+    """Seit 1.9.129 (Befund D17): einen Entwurf auf der Rechnungsseite löschen -- „Entwurf löschen“ führt zurück in die Akte
+    (/orders/{id}#rechnungen). Die Rückfrage beantwortet window.confirm (im Klicktest immer ja)."""
+    await tab.oeffnen(f"/invoices/{invoice_id}", "invoice&&document.getElementById('statusActions').innerHTML.length>0")
+    await tab.js("[...document.querySelectorAll('#statusActions button')].find(b=>b.textContent.trim()==='Entwurf löschen').click()")
 
 
 async def _bild(tab, name, element, dunkel=False):
@@ -142,7 +160,7 @@ async def pruefen(tab, seed, p):
     await tab.anmelden(seed["cookies"]["buero"])
 
     # --- Auftrag A: Schlussrechnung neben pauschalem Abschlag -- seit 1.8.85 (R4b, Endrechnung) frei ---
-    await tab.oeffnen(f"/orders/{seed['a']}", ORDER_READY)
+    await tab.oeffnen(f"/orders/{seed['a']}#rechnungen", ORDER_READY)
     p.pruefe("A Schluss neben pauschalem Abschlag: frei (seit 1.8.85)", await _art(tab, "schluss"), [False, "", True])
     p.pruefe("A Abschlag nach Leistungsstand: frei", await _art(tab, "abschlag_leistungsstand"), [False, "", True])
     api = await tab.js(f"fetch('/api/orders/{seed['a']}/invoices/schlussrechnung',{{method:'POST',headers:{{'Content-Type':"
@@ -152,7 +170,7 @@ async def pruefen(tab, seed, p):
     await _bild(tab, "auftrag_a_schluss_frei", "newInvoiceType")
 
     # --- Auftrag B: nach der Schlussrechnung ---
-    await tab.oeffnen(f"/orders/{seed['b']}", ORDER_READY)
+    await tab.oeffnen(f"/orders/{seed['b']}#rechnungen", ORDER_READY)
     for art in ("abschlag_pauschal", "abschlag_leistungsstand"):
         sichtbar, text, knopf = await _art(tab, art)
         p.pruefe(f"B {art}: gesperrt", [sichtbar, knopf, text],
@@ -186,24 +204,27 @@ async def pruefen(tab, seed, p):
              [False, "Eine Stornorechnung lässt sich nicht stornieren."])
 
     # --- Auftrag D: frei ---
-    await tab.oeffnen(f"/orders/{seed['d']}", ORDER_READY)
+    await tab.oeffnen(f"/orders/{seed['d']}#rechnungen", ORDER_READY)
     p.pruefe("D Schluss: frei", await _art(tab, "schluss"), [False, "", True])
 
     # --- Auftrag E: Schlussrechnung als Entwurf, löschen gibt frei ---
-    await tab.oeffnen(f"/orders/{seed['e']}", ORDER_READY)
+    await tab.oeffnen(f"/orders/{seed['e']}#rechnungen", ORDER_READY)
     sichtbar, text, knopf = await _art(tab, "schluss")
     p.pruefe("E Schluss neben Entwurf: gesperrt", [sichtbar, knopf, "(ein Entwurf)" in text], [True, False, True])
-    await tab.js(f"deleteDraftFromList(new Event('click'),{seed['e_entwurf']})")
-    p.pruefe("E nach dem Löschen: frei",
-             await tab.warten("invoices.length===0&&!document.getElementById('newInvoiceButton').hidden"), True)
-    p.pruefe("E nach dem Löschen: Hinweis weg", await tab.js("document.getElementById('newInvoiceBlock').hidden"), True)
+    # seit 1.9.129 (Befund D17): die Rechnungsliste hat kein „Löschen“ mehr (bis dahin deleteDraftFromList() an der Zeile) --
+    # gelöscht wird auf der Rechnungsseite, „Entwurf löschen“ führt zurück in die Akte, Reiter „Rechnungen“
+    p.pruefe("E Liste: Entwurf gelistet, kein „Löschen“", await tab.js(LISTE_LOESCHEN), [1, False])
+    await _entwurf_loeschen(tab, seed["e_entwurf"])
+    p.pruefe("E nach dem Löschen: frei", await tab.warten(NACH_DEM_LOESCHEN), True)
+    # seit 1.9.129 nach dem Neuladen der Akte die Auswahl „Schlussrechnung“ neu gewählt (bis dahin derselbe Stand der Seite)
+    p.pruefe("E nach dem Löschen: Hinweis weg", await _art(tab, "schluss"), [False, "", True])
 
     # --- Auftrag G: pauschaler Abschlag als Entwurf -- bis 1.8.84 Ausweg "Entwurf löschen", seit 1.8.85 frei ---
-    await tab.oeffnen(f"/orders/{seed['g']}", ORDER_READY)
+    await tab.oeffnen(f"/orders/{seed['g']}#rechnungen", ORDER_READY)
     p.pruefe("G Schluss neben pauschalem Entwurf: frei (seit 1.8.85)", await _art(tab, "schluss"), [False, "", True])
-    await tab.js(f"deleteDraftFromList(new Event('click'),{seed['g_pauschal']})")
-    p.pruefe("G nach dem Löschen: Schluss frei",
-             await tab.warten("invoices.length===0&&!document.getElementById('newInvoiceButton').hidden"), True)
+    await _entwurf_loeschen(tab, seed["g_pauschal"])  # seit 1.9.129 auf der Rechnungsseite (D17)
+    p.pruefe("G nach dem Löschen: Schluss frei", [await tab.warten(NACH_DEM_LOESCHEN), await _art(tab, "schluss")],
+             [True, [False, "", True]])
 
     # --- Mahnwesen: Entwurf zu bezahlter Rechnung ---
     await tab.oeffnen("/mahnwesen", "allReminders.length>0&&document.getElementById('allRows').innerHTML.length>0")

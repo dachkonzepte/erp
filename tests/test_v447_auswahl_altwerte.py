@@ -98,8 +98,8 @@ def test_auftrag_positionsart(gespeichert, soll):
     item = {"id": 7, "short_text": "Pos", "long_text": "", "quantity": "1", "unit": "Stk", "unit_price": "1.00", "position_type": gespeichert,
             "gaeb_oz": None, "include_in_total": True, "is_addendum": False, "position_number": "1"}
     order = dict(ORDER, items=[item])
-    ablauf = (statisch("order.html", "iType") + f"order = {json.dumps(order)}; units = []; openItem(7); return _feld('iType');")
-    assert lauf("order.html", "load().catch(e=>document.querySelector('main')", ablauf) == soll
+    ablauf = (statisch("akte.html", "iType") + f"order = {json.dumps(order)}; units = []; openItem(7); return _feld('iType');")
+    assert lauf("akte.html", "akteStarten().catch(", ablauf) == soll
 
 
 # Seit 1.9.124 (Stufe 5, R2, Punkt 1) entfallen: test_auftrag_status -- die Auswahl „Status“ der Auftragsseite gibt es nicht mehr; der Server
@@ -166,7 +166,7 @@ def test_plantafel_status():
     ablauf = (statisch("planning.html", "editStatus") + f"board = {{slots: [{json.dumps(slot)}], teams: [], employees: []}};"
               "globalThis.editDialog = _element('editDialog');"  # im Browser über die id als Name erreichbar
               "openEdit(1); return _feld('editStatus');")
-    assert lauf("planning.html", "\nloadBoard();", ablauf) == ["unterbrochen", "unterbrochen (nicht mehr verfügbar)"]
+    assert lauf("planning.html", "\nloadBoard().then(", ablauf) == ["unterbrochen", "unterbrochen (nicht mehr verfügbar)"]
 
 
 PREP = {"id": 1, "order_id": 1, "status": "storniert", "materials": [], "tasks": [], "delivery_notes": [], "teams": [], "employees": []}
@@ -273,14 +273,14 @@ KLASSEN = {
     ('master_data_form.html', 'P2', 'costAllocation'): ('server_fest', 'labor_rate/variable_overhead/excluded'),
     ('master_data_form.html', 'P2', 'customer'): ('vollstaendig', 'alle Kunden (GET /api/customers, Kunden kennen kein Archiv)'),
     ('master_data_form.html', 'P2', 'resourceType'): ('eigen', 'Optionen vorher über auswahlOptionen() mit demselben Wert gebaut'),
-    ('order.html', 'P2', 'payment'): ('eigen', 'Zahlungsbedingung: ein gespeicherter Text außerhalb der Liste erscheint als „· bisher“'),
+    ('akte.html', 'P2', 'payment'): ('eigen', 'Zahlungsbedingung: ein gespeicherter Text außerhalb der Liste erscheint als „· bisher“'),
     ('planning.html', 'P1', 'x.id===selected'): ('neu', 'Auftrag eines neuen Planungsabschnitts'),
     ('planning.html', 'P2', 'newOrder'): ('neu', 'neuer Einsatz'),
     ('planning.html', 'P2', 'newTeam'): ('neu', 'neuer Einsatz'),
-    ('project_folder.html', 'P1', 'r.key===p.role'): ('server_fest', 'project_participants.ROLES, eine fehlende Rolle wird ergänzt'),
-    ('project_folder.html', 'P1', 'x.is_default'): ('neu', 'Kategorie eines neuen Dokuments (Vorgabe)'),
-    ('project_folder.html', 'P2', 'categoryFilter'): ('neu', 'Filter'),
-    ('project_folder.html', 'P2', 'editCustomer'): ('vollstaendig', 'alle Kunden (GET /api/customers, Kunden kennen kein Archiv)'),
+    ('akte.html', 'P1', 'r.key===p.role'): ('server_fest', 'project_participants.ROLES, eine fehlende Rolle wird ergänzt'),
+    ('akte.html', 'P1', 'x.is_default'): ('neu', 'Kategorie eines neuen Dokuments (Vorgabe)'),
+    ('akte.html', 'P2', 'categoryFilter'): ('neu', 'Filter'),
+    ('akte.html', 'P2', 'editCustomer'): ('vollstaendig', 'alle Kunden (GET /api/customers, Kunden kennen kein Archiv)'),
     ('project_form.html', 'P1', 'x.is_default'): ('neu', 'Kategorie eines neuen Projekts (Vorgabe)'),
     ('project_form.html', 'P2', 'customer'): ('neu', 'neues Projekt'),
     ('project_form.html', 'P2', 'property'): ('neu', 'neues Projekt'),
@@ -409,7 +409,7 @@ def _konstante(vorlage: str, name: str) -> list[str]:
 
 
 @pytest.mark.parametrize("spalte,quelle", [
-    ("'order_items.position_type", lambda: _optionen_der_vorlage("order.html", "iType")),
+    ("'order_items.position_type", lambda: _optionen_der_vorlage("akte.html", "iType")),
     ("'quote_items.position_type", lambda: _optionen_der_vorlage("quote_editor.html", "iType")),
     ("'customer_extra_infos.info_type", lambda: _konstante("customer.html", "ZUSATZINFO_ARTEN")),
     ("'orders.status", lambda: list(AUFTRAGSSTATUS)),  # seit 1.9.124 vom Server (app/auftragsstatus.py), keine Auswahl mehr

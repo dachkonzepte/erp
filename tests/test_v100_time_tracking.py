@@ -89,7 +89,7 @@ def test_time_tracking_context_contains_order_items_and_mobile_ui_exists():
     root=Path(__file__).parents[1]
     main=(root/"app/main.py").read_text(encoding="utf-8") + "".join(p.read_text(encoding="utf-8") for p in sorted((root/"app/routers").glob("*.py")))
     html=(root/"app/templates/zeiten.html").read_text(encoding="utf-8")  # seit 1.9.98 „Zeiten“ statt der Zeiterfassung
-    project_html=(root/"app/templates/project_folder.html").read_text(encoding="utf-8")
+    project_html=(root/"app/templates/akte.html").read_text(encoding="utf-8")
     options=(root/"app/option_settings.py").read_text(encoding="utf-8")
     assert '/time-tracking' in main and '/api/time-entries/start' in main
     assert 'LV-Position' in html and 'id="bdPosition"' in html and "/api/time-tracking/context" in html  # bis 1.9.97 „Schnell starten“
@@ -97,7 +97,7 @@ def test_time_tracking_context_contains_order_items_and_mobile_ui_exists():
     # Seit 1.3.74 (Umbau der Projekt-Detailseite): kein Sprungmarken-Link mehr,
     # sondern ein echter Reiter (siehe tests/test_v064_project_folders.py für
     # die vollständige Prüfung der Reiterleiste).
-    assert 'Zeiterfassung im Projekt' in project_html and 'data-tab="sec-times"' in project_html
+    assert 'id="zeitenStand"' in project_html and 'data-reiter="ausfuehrung"' in project_html  # seit 1.9.129 die Akte (Projektmappe und Auftragsseite in einer Seite): Zeiten im Reiter „Ausführung“
 
 
 def test_version_1_0():

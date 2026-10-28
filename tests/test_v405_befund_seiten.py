@@ -344,7 +344,7 @@ def test_namen_im_planungsvorschlag_bleiben_text(threaded_db_session, router_tes
 
     vorspann = FAKE_DOM.replace("const antwort = methode === 'GET' ? ANTWORTEN[url] : {};", "const antwort = ANTWORTEN[url];")
     berlin = re.findall(r"<script>(.*?)</script>", (TEMPLATES / "_berlin_date.html").read_text(encoding="utf-8"), flags=re.S)[0]
-    skript = vorspann + berlin + seite("planning.html", "\nloadBoard();")[len(FAKE_DOM):]
+    skript = vorspann + berlin + seite("planning.html", "\nloadBoard().then(")[len(FAKE_DOM):]
     felder = (f"_element('newOrder').value='{order.id}'; _element('newTeam').value='{team.id}'; "
               "_element('newStart').value='2026-09-07'; _element('newTravelHours').value='0,5'; ")
     lauf = im_browser(skript, felder + "board={settings:{daily_work_hours:8}}; await calculateSuggestion(); "

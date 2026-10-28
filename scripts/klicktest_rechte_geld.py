@@ -8,7 +8,11 @@
                      an der Rechnung; Angriff aus der Seite: Finalisieren 403 -- und überall liest es alles
     Büro – Finanzen  dieselben Seiten mit allen Knöpfen (Gegenprobe), finalisiert den Entwurf
     Bilder           rechnung_buero_auftrag (ganze Seite), rechnung_entwurf_buero_auftrag, auftrag/kundenakte/mahnwesen_buero_auftrag,
-                     rechnung_buero_finanzen
+                     rechnung_buero_finanzen, auftrag_buero_finanzen (seit 1.9.129)
+
+Seit 1.9.129 ist der Auftrag Teil der Akte (/orders/{id} leitet auf /projects/{p}?auftrag={id}), geprüft im Reiter „Rechnungen“
+(/orders/{id}#rechnungen): die Liste ist eine Tabelle (#invoicesList tr[data-rechnung]) und hat für keine Rolle mehr „Löschen“ am
+Entwurf (Befund D17: gelöscht wird auf der Rechnungsseite, dort „Entwurf löschen“ nur mit darf_geld()).
 
 AUFRUF (aus dem Projektordner):
 
@@ -84,6 +88,11 @@ def befuellen(db, k):
 
 
 INVOICE_READY = "invoice&&document.getElementById('statusInfo').textContent.length>0"
+# seit 1.9.129: Reiter „Rechnungen“ der Akte, Liste geladen
+AUFTRAG_READY = ("order&&!document.getElementById('reiter-rechnungen').hidden"
+                 "&&!!document.querySelector('#invoicesList table,#invoicesList .rl-leer')")
+RECHNUNGSLISTE = ("[document.querySelectorAll('#invoicesList tr[data-rechnung]').length,"
+                  "document.getElementById('invoicesList').textContent.includes('Löschen')]")
 KNOEPFE = "[...document.querySelectorAll('{sel} button')].filter(b=>b.offsetParent!==null).map(b=>b.textContent.trim())"
 
 
@@ -107,13 +116,12 @@ async def pruefen(tab, seed, p):
 
     # ================= Büro – Auftrag: liest alles, kein Knopf =================
     await tab.anmelden(seed["cookies"]["bea"])
-    await tab.oeffnen(f"/orders/{seed['order']}", "order&&document.getElementById('invoicesList').innerHTML.length>0")
+    await tab.oeffnen(f"/orders/{seed['order']}#rechnungen", AUFTRAG_READY)
     p.pruefe("Auftrag: Hinweis statt „Neue Rechnung“", await tab.js(
         "[!!document.querySelector('[data-geld-nur-lesen]'),!!document.getElementById('newInvoiceButton'),"
         "!!document.getElementById('newInvoiceType')]"), [True, False, False])
-    p.pruefe("Auftrag: Rechnungen gelistet, kein „Löschen“", await tab.js(
-        "[document.querySelectorAll('#invoicesList .revision').length,document.getElementById('invoicesList').textContent.includes('Löschen')]"),
-        [3, False])
+    # seit 1.9.129: Zeilen tr[data-rechnung] der Tabelle (bis dahin .revision)
+    p.pruefe("Auftrag: Rechnungen gelistet, kein „Löschen“", await tab.js(RECHNUNGSLISTE), [3, False])
     await _ganze_seite(tab, "auftrag_buero_auftrag")
 
     await tab.oeffnen(f"/invoices/{seed['entwurf']}", INVOICE_READY)
@@ -164,10 +172,14 @@ async def pruefen(tab, seed, p):
 
     # ================= Büro – Finanzen: dieselben Seiten mit Knöpfen =================
     await tab.anmelden(seed["cookies"]["fin"])
-    await tab.oeffnen(f"/orders/{seed['order']}", "order&&document.getElementById('invoicesList').innerHTML.length>0")
+    await tab.oeffnen(f"/orders/{seed['order']}#rechnungen", AUFTRAG_READY)
+    # seit 1.9.129 (Befund D17): auch mit darf_geld() kein „Löschen“ mehr in der Liste (bis dahin: „Löschen“ am Entwurf) -- „Entwurf
+    # löschen“ steht auf der Rechnungsseite, geprüft unten in „Finanzen: Entwurf bearbeitbar“
     p.pruefe("Finanzen: „Neue Rechnung“, „Löschen“ am Entwurf", await tab.js(
         "[!!document.getElementById('newInvoiceButton'),!!document.querySelector('[data-geld-nur-lesen]'),"
-        "document.getElementById('invoicesList').textContent.includes('Löschen')]"), [True, False, True])
+        "document.getElementById('invoicesList').textContent.includes('Löschen'),"
+        "document.querySelectorAll('#invoicesList tr[data-rechnung]').length]"), [True, False, False, 3])
+    await _ganze_seite(tab, "auftrag_buero_finanzen")
     await tab.oeffnen(f"/invoices/{seed['fest']}", INVOICE_READY + "&&document.getElementById('reminderList').innerHTML.length>0"
                       "&&document.querySelector('#invoiceDispatchHistory .dh-row')")
     p.pruefe("Finanzen: Versand, Storno, Buchen, Gegenbuchen, Mahnung", await tab.js(

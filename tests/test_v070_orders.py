@@ -113,9 +113,10 @@ def test_order_ui_and_routes_exist():
     root = Path(__file__).parents[1]
     main = (root / "app/main.py").read_text(encoding="utf-8") + "".join(p.read_text(encoding="utf-8") for p in sorted((root / "app/routers").glob("*.py")))
     quote = (root / "app/templates/quote_editor.html").read_text(encoding="utf-8")
-    project = (root / "app/templates/project_folder.html").read_text(encoding="utf-8")
-    order = (root / "app/templates/order.html").read_text(encoding="utf-8")
+    project = (root / "app/templates/akte.html").read_text(encoding="utf-8")
+    order = (root / "app/templates/akte.html").read_text(encoding="utf-8")
     assert "convert-to-order" in main and "/api/orders/{order_id}/pdf" in main
     assert "Angebot beauftragen" in quote and "createOrder" in quote
-    assert "Aufträge im Projekt" in project
-    assert "Auftragsstand" in order and "PDF-Auftragsbestätigung" in order
+    # seit 1.9.129 die Akte (Projektmappe und Auftragsseite in einer Seite): Auftragswahl im Kopf (bis dahin Reiter „Aufträge im Projekt“), Auftragsbestätigung im Menü und im Reiter „Vertrag“
+    assert 'aria-label="Auftrag wählen"' in project
+    assert "Auftragsstand" in order and "Auftragsbestätigung (PDF)" in order

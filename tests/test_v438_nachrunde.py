@@ -97,15 +97,16 @@ def test_zahltext_mit_tausenderpunkt_und_zurueck():
 
 @nur_mit_node
 def test_auftrag_zeigt_menge_und_ep_mit_tausenderpunkt():
-    """Bis 1.8.147 standen Menge und Einheitspreis im LV des Auftrags ohne Tausenderpunkt („12345,678“, „1234,56“)."""
+    """Bis 1.8.147 standen Menge und Einheitspreis im LV des Auftrags ohne Tausenderpunkt („12345,678“, „1234,56“). Seit 1.9.129 (Akte)
+    stehen sie in der Zeile als Text (EP mit zwei Stellen), bearbeitet im Dialog der Position -- bis 1.9.128 Eingabefelder in der Zeile."""
     position = {"id": 4, "position_number": "1", "short_text": "Dach", "quantity": "12345.678", "unit": "m²", "unit_price": "1234.56",
                 "line_total": "15241480.23", "include_in_total": True}
-    lauf = im_browser(seite("order.html", "load().catch(e=>document.querySelector('main')"), f"""
-      order = {{order_lock: null, items: [{json.dumps(position)}]}}; units = [];
+    lauf = im_browser(seite("akte.html", "akteStarten().catch("), f"""
+      order = {{order_lock: null, items: [{json.dumps(position)}], section_totals: {{}}}}; units = [];
       const zeile = rowHtml({json.dumps(position)});
+      const m = /<td class="r num">([^<]*)<\/td><td>[^<]*<\/td><td class="r num">([^<]*)<\/td>/.exec(zeile);
       openItem(4);
-      return {{menge: /data-feld="Menge" value="([^"]*)"/.exec(zeile)[1], ep: /data-feld="Einheitspreis" value="([^"]*)"/.exec(zeile)[1],
-               dialogMenge: _element('iQty').value, dialogEp: _element('iPrice').value}};""")
+      return {{menge: m[1], ep: m[2], dialogMenge: _element('iQty').value, dialogEp: _element('iPrice').value}};""")
     assert lauf["ergebnis"] == {"menge": "12.345,678", "ep": "1.234,56", "dialogMenge": "12.345,678", "dialogEp": "1.234,56"}
 
 

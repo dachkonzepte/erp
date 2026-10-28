@@ -5,7 +5,11 @@ Hinweis "Liste gekürzt: X von Y" (Helfer `_time_entries_list.html`) und Summen 
 `/api/time-entries/summary` statt aus der gekürzten Liste.
 
     Büro     Einsatzbericht-Seite (Auftrag A, 501 Buchungen, Liste 500)
-             Projektmappe, Reiter Zeiten (Projekt P, 1001 Buchungen, Liste 1000, Kennzahlen)
+             Akte (seit 1.9.129 statt der Projektmappe mit Reiter Zeiten, Liste 1000, Hinweis „gekürzt“): Projekt P mit 1001
+             Buchungen auf zwei Aufträgen, keine Zeitbuchungstabelle mehr, sondern der Stand je Auftrag vom Server (Reiter
+             „Ausführung“, Phase, Übersicht „Stunden“ mit allen Buchungen samt der ältesten) und der Link „Alle Buchungen des
+             Auftrags“ nach „Zeiten“ mit zeitraum=alle -- dort alle 501 Buchungen von A über alle Monate, ohne Hinweis; Auftrag B
+             über die Auftragswahl mit seinen 500
              Auftragsseite ("Rechnung aus Aufwand" wird angeboten)
              Dashboard ("Meine Stunden (Monat)")
     Admin    Zeiten, Reiter Buchungen (seit 1.9.98 statt Backoffice und Büro-Zeiterfassung, die beide hierher leiten): der
@@ -106,7 +110,7 @@ def befuellen(db, k):
     monatsende = (monat + timedelta(days=32)).replace(day=1) - timedelta(days=1)
     zaehle = lambda bed: sum(1 for x in rows if bed(x))  # noqa: E731
     return {
-        "orders": {"A": a.id}, "projects": {"P": p.id}, "employees": {"anna": ma["anna"].id}, "uhr_versatz_ms": k.uhr_versatz_ms(),
+        "orders": {"A": a.id, "B": b.id}, "projects": {"P": p.id}, "employees": {"anna": ma["anna"].id}, "uhr_versatz_ms": k.uhr_versatz_ms(),
         "cookies": {name: k.cookies(u) for name, u in benutzer.items()},
         "anna_tag": anna_tag.isoformat(), "vormonat": vormonat.strftime("%Y-%m"),
         "karl_monat_stunden": sum(x.hours for x in rows if x.employee_id == ma["karl"].id and monat <= x.work_date <= monatsende),
@@ -126,8 +130,6 @@ def _gekuerzt(gezeigt: int, gesamt: int, zusatz: str = "") -> str:
 
 
 async def pruefen(tab, seed, p):
-    import asyncio
-
     a, pr = seed["orders"]["A"], seed["projects"]["P"]
     assert seed["backoffice_monat"] > 2000 and seed["monteurin_14_tage"] > 500 and seed["monteurin_vormonat"] > 2000, seed
     await tab.browser_uhr(seed["uhr_versatz_ms"])  # seit 1.8.111: der Browser sieht dieselbe Uhr wie die Instanz (00:30 Uhr)
@@ -142,18 +144,54 @@ async def pruefen(tab, seed, p):
     p.pruefe("Einsatzbericht: JS-Fehler", tab.fehler, [])
     await tab.bild("einsatzbericht")
 
-    await tab.oeffnen(f"/projects/{pr}", "document.getElementById('kHours')?.textContent.includes('h')")
-    await tab.js("document.querySelector('[data-tab=\"sec-times\"], [onclick*=\"sec-times\"]')?.click()")
-    await asyncio.sleep(0.3)
-    p.pruefe("Projektmappe: Hinweis", await tab.js(NOTICE.format(sel="'#timeTruncated'")),
-             _gekuerzt(1000, 1001, "Kennzahlen und Summen enthalten alle Buchungen."))
-    p.pruefe("Projektmappe: Kennzahlen", await tab.js("[...document.querySelectorAll('#timeSummary .metric .v')].map(x=>x.textContent)"),
-             ["999,00 h", "2,50 h", "1.001,50 h", "2"])
-    p.pruefe("Projektmappe: Ist-Stunden (Kopf)", await tab.js("document.getElementById('kHours').textContent"), "999,00 h")
-    p.pruefe("Projektmappe: Reiterzahl", await tab.js("document.getElementById('tabCountTimes').textContent"), "1001")
-    p.pruefe("Projektmappe: Tabellenzeilen", await tab.js("document.querySelectorAll('#timeRows tr').length"), 999)
-    p.pruefe("Projektmappe: JS-Fehler", tab.fehler, [])
-    await tab.bild("projektmappe")
+    # seit 1.9.129: die Akte statt der Projektmappe. Bis dahin zeigte der Reiter „Zeiten“ alle Buchungen des Projekts als Tabelle (Liste
+    # 1000 von 1001, Hinweis „gekürzt“, Kennzahlen 999,00 h / 2,50 h / 1.001,50 h / 2 Mitarbeiter, Ist-Stunden im Kopf, Reiterzahl 1001).
+    # Jetzt je Auftrag der Stand vom Server -- über alle Buchungen, auch die älteste (Mia, 2,5 h Fahrzeit im Vormonat), die an jeder
+    # Listengrenze zuerst fehlte -- und alle Buchungen über den Link nach „Zeiten“ (zeitraum=alle). A: 499 h Karl + 2,5 h Mia (+ laufend)
+    akte_bereit = ("akte&&orderId&&zahlenDaten&&!document.getElementById('reiter-ausfuehrung').hidden"
+                   "&&document.getElementById('zeitenStand').textContent.includes('h')")
+    await tab.oeffnen(f"/projects/{pr}#ausfuehrung", akte_bereit)
+    p.pruefe("Akte: gewählt ist Auftrag A, die Auftragswahl nennt beide Aufträge", await tab.js(
+        "[orderId,[...document.querySelectorAll('#auftragswahl a')].map(a=>a.textContent.split(' · ')[0])]"),
+        [a, ["AUF-KT-A", "AUF-KT-B"]])
+    p.pruefe("Akte (A), Ausführung: Stand der Zeiten (gebucht, Fahrzeit, Baustelle & Werkstatt)",
+             await tab.js("[...document.querySelectorAll('#zeitenStand .gross')].map(x=>x.textContent)"), ["501,5 h", "2,5 h", "499,0 h"])
+    p.pruefe("Akte (A), Phase Ausführung: gebuchte Stunden", await tab.js(
+        "[...document.querySelectorAll('#phasen li')].find(li=>li.querySelector('.phase-name').textContent.startsWith('Ausführung'))"
+        ".querySelector(':scope > .mut').textContent.endsWith('501,5 h gebucht')"), True)
+    p.pruefe("Akte (A), Übersicht „Stunden“: gebucht, Fahrzeit, Baustelle & Werkstatt, Mitarbeiter", await tab.js(
+        "[document.getElementById('uGebucht').textContent,document.getElementById('uFahrzeit').textContent,"
+        "document.getElementById('uBw').textContent,document.querySelectorAll('#uMitarbeiter tbody tr').length]"),
+        ["501,5 h", "davon Fahrzeit 2,5 h", "499,0 h", 2])
+    p.pruefe("Akte: keine Zeitbuchungstabelle, kein Hinweis „gekürzt“", await tab.js(
+        "[!document.getElementById('timeRows'),!document.querySelector('.time-entries-truncated')]"), [True, True])
+    zeiten_link = f"/zeiten?auftrag={a}&zeitraum=alle#buchungen"
+    p.pruefe("Akte: Links nach „Zeiten“ mit allen Monaten des Auftrags", await tab.js(
+        "[document.getElementById('zeitenLink').getAttribute('href'),document.getElementById('uZeitenLink').getAttribute('href')]"),
+        [zeiten_link, zeiten_link])
+    p.pruefe("Akte: JS-Fehler", tab.fehler, [])
+    await tab.bild("akte_ausfuehrung")
+    # der Link der Akte: „Zeiten“ zeigt alle Buchungen des Auftrags über alle Monate -- 499 von Karl, die laufende, Mias Fahrzeit im Vormonat
+    await tab.js("document.getElementById('zeitenLink').click()")
+    await tab.warten("location.pathname==='/zeiten'&&!!window.B&&B.zeitraum==='alle'&&!document.getElementById('reiter-buchungen').hidden"
+                     "&&document.querySelectorAll('#buchungenZeilen tr').length>0", 60)
+    p.pruefe("Zeiten (über den Link der Akte): alle 501 Buchungen von A, ohne Hinweis, Summe ohne die laufende, die älteste dabei", await tab.js(
+        "[location.pathname+location.search+location.hash,document.querySelectorAll('#buchungenZeilen tr').length,"
+        "!!document.querySelector('.time-entries-truncated'),document.getElementById('summeAuswahl').textContent,"
+        "document.querySelectorAll('#buchungenZeilen .laeuft').length,[...document.querySelectorAll('#buchungenZeilen tr')]"
+        ".some(t=>t.textContent.includes('Mia Monteurin')&&t.textContent.includes('Fahrzeit')&&t.textContent.includes('2,50'))]"),
+        [zeiten_link, 501, False, "501,50 h", 1, True])
+    p.pruefe("Zeiten (Auftrag A): JS-Fehler", tab.fehler, [])
+    await tab.bild("zeiten_auftrag_alle")
+    # Auftrag B über die Auftragswahl der Akte: 500 Buchungen -- zusammen die 1001 des Projekts
+    await tab.oeffnen(f"/projects/{pr}#ausfuehrung", akte_bereit)
+    await tab.js("[...document.querySelectorAll('#auftragswahl a')].find(x=>x.textContent.startsWith('AUF-KT-B')).click()")
+    await tab.warten(f"location.search==='?auftrag={seed['orders']['B']}'&&typeof orderId!=='undefined'&&orderId==={seed['orders']['B']}"
+                     f"&&{akte_bereit}", 30)
+    p.pruefe("Akte (B über die Auftragswahl): Stand der Zeiten", await tab.js(
+        "[location.hash,[...document.querySelectorAll('#zeitenStand .gross')].map(x=>x.textContent)]"),
+        ["#ausfuehrung", ["500,0 h", "0,0 h", "500,0 h"]])
+    p.pruefe("Akte (B): JS-Fehler", tab.fehler, [])
 
     # seit 1.9.111: Karl (Büro – Auftrag) legt keine Rechnung an -- statt „Neue Rechnung“ der Hinweis; „Rechnung aus Aufwand“ prüft Anna unten
     await tab.oeffnen(f"/orders/{a}", "order&&document.getElementById('invoicesList').innerHTML.length>0")

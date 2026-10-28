@@ -7,7 +7,8 @@
                        "außerhalb der Frist"; Überbuchung im Dialog: Warnung, "Buchung bestätigen" gesperrt; weitere
                        Rechnung des Kunden von Hand; Gegenbuchen nur mit Begründung -> Storno wieder möglich
     Kundenakte         Karte "Zahlungen": nicht zugeordneter Rest, Rest zuordnen, Zahlung zurücknehmen mit Begründung
-    Finanzen           offener Betrag statt Brutto, Filter "Einbehalt offen", nicht zugeordnete Zahlungen
+    Finanzen           offener Betrag statt Brutto (seit 1.9.129 Kachel "Unbezahlt"), Filter "Einbehalt offen" (Zeilen der einen
+                       Rechnungsliste `#rows tbody tr`), nicht zugeordnete Zahlungen
     API                Rechnung eines fremden Kunden 409; Monteurin 403
     412 px dunkel      Karte "Zahlungen" und Dialog
 
@@ -258,7 +259,8 @@ async def pruefen(tab, seed, p):
     p.pruefe("Offener Betrag ist nicht die Brutto-Summe", erwartet != await tab.js(
         "money(allInvoices.filter(i=>i.status==='versendet').reduce((s,i)=>s+Number(i.gross_total),0))"), True)
     await tab.js("setFilter('einbehalt_offen')")
-    p.pruefe("Filter Einbehalt offen", await tab.js("[...document.querySelectorAll('#rows tr')].length"), 1)
+    # seit 1.9.129 ist #rows der Behälter der einen Rechnungsliste (_rechnungsliste.html), die Zeilen stehen in tbody
+    p.pruefe("Filter Einbehalt offen", await tab.js("[...document.querySelectorAll('#rows tbody tr')].length"), 1)
     await _bild(tab, "finanzen", "metrics", dunkel=True)
 
     # --- API: fremde Rechnung; Monteurin ---

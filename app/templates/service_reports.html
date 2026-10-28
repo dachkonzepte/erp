@@ -323,7 +323,7 @@ function kopfZeichnen(){
     o.customer_id?{text:o.customer_name,href:'/customers/'+o.customer_id}:null,
     kopfVertrag?{text:kopfVertrag.title,href:'/maintenance-contracts/'+kopfVertrag.id}:null,
     o.project_id?{text:o.project_name||o.project_number,href:'/projects/'+o.project_id}:null,
-    {text:o.order_number,href:'/orders/'+orderId},
+    o.project_id?{text:o.order_number,href:'/projects/'+o.project_id+'?auftrag='+orderId+'#ausfuehrung'}:{text:o.order_number},  // seit 1.9.129 in die Akte, Reiter „Ausführung“
   ]:[{text:'Heute',href:'/mobil'}];
   pfad.push({text:'Einsatzberichte'});
   seitenkopf({kennung:o.order_number,untertitel:o.customer_name,status:statusKennzeichen('auftrag',o.status),pfad:pfad.filter(Boolean)});

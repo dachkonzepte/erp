@@ -315,37 +315,14 @@ def auftrag(threaded_db_session, router_test_client):
             "order_id": order.id, "item_id": item.id}
 
 
-@nur_mit_node
-def test_auftrag_inline_schickt_nur_das_bearbeitete_feld(auftrag):
-    """Menge und Einheitspreis kurz nacheinander geändert, beide aus dem Stand beim Laden; dazwischen hat jemand im Dialog Texte
-    und "in Summe" geändert. Bis 1.8.95 schrieb jede Anfrage den gemerkten Stand aller Felder zurück."""
-    db, client, oid, iid = auftrag["db"], auftrag["client"], auftrag["order_id"], auftrag["item_id"]
-    beim_laden = client.get(f"/api/orders/{oid}").json()
-    item = db.get(OrderItem, iid)
-    item.short_text, item.long_text, item.include_in_total = "Dacheindeckung neu", "mit Lattung", False
-    db.commit()
-    aufrufe = im_browser("order.html", ["quickItem"],
-                         f"var order = {js(beim_laden)}; var orderId = {oid}; function zeigeAuftragMitLv(d) {{}} "
-                         "async function reload() {} ANTWORT = () => order;",
-                         f"const a = quickItem({iid}, 'quantity', '120'); const b = quickItem({iid}, 'unit_price', '55'); "
-                         "await a; await b;")
-    url = f"/api/orders/{oid}/items/{iid}"
-    assert schreibende(aufrufe) == [("PUT", url, {"quantity": 120}), ("PUT", url, {"unit_price": 55})]
-    senden(client, aufrufe)
-    gespeichert = _zeile(db, OrderItem, iid)
-    assert (gespeichert["quantity"], gespeichert["unit_price"]) == (D("120"), D("55"))
-    assert (gespeichert["short_text"], gespeichert["long_text"], gespeichert["include_in_total"]) == (
-        "Dacheindeckung neu", "mit Lattung", False)
-
-
-@nur_mit_node
-def test_auftrag_inline_einheit(auftrag):
-    beim_laden = auftrag["client"].get(f"/api/orders/{auftrag['order_id']}").json()
-    aufrufe = im_browser("order.html", ["quickItem"],
-                         f"var order = {js(beim_laden)}; var orderId = {auftrag['order_id']}; "
-                         "function zeigeAuftragMitLv(d) {} async function reload() {}",
-                         f"await quickItem({auftrag['item_id']}, 'unit', 'm²');")
-    assert schreibende(aufrufe) == [("PUT", f"/api/orders/{auftrag['order_id']}/items/{auftrag['item_id']}", {"unit": "m²"})]
+def test_auftrag_lv_zeile_ohne_eingabe():
+    """Bis 1.9.128 standen Menge, Einheit und EP als Eingabe in der Zeile des LV (quickItem(): je Feld eine Anfrage mit genau diesem
+    Feld -- zwei Tests prüften das). Seit 1.9.129 (Akte, Vorlage akte-leistungen.html) stehen sie dort als Text; bearbeitet wird im
+    Dialog der Position (saveItemDialog(), ohne gesperrte Felder; den Rundweg prüft tests/test_v439_nachrunde_2.py)."""
+    text = (Path(__file__).resolve().parent.parent / "app" / "templates" / "akte.html").read_text(encoding="utf-8")
+    zeile = text[text.index("function rowHtml(i){"):text.index("\nfunction _lvTitel(")]
+    assert "<input" not in zeile and "<select" not in zeile and "onchange" not in zeile and "quickItem" not in text
+    assert 'data-klick="position-bearbeiten"' in zeile and "aktion('position-bearbeiten',b=>openItem(Number(b.dataset.id)));" in text
 
 
 def test_auftrag_abgerechnete_position_bleibt_per_teil_update_gesperrt(auftrag):

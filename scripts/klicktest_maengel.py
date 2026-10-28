@@ -4,7 +4,8 @@ Befüllt: Gewerbekunde (VOB/B), Objekt "Halle Nord" mit Nord, Süd, "Alt" (archi
 Auftrag mit Gewährleistung 48 Monate; drei Abnahmen (vor 20 Tagen mit Vorbehalt Mängel, vor 15 Tagen ohne Vorbehalt,
 vor 10 Tagen verweigert); Beteiligte: Architektin ohne Vollmacht, Bauleitung mit Vollmacht zur Abnahme.
 
-    Büro (1400 px, hell)    Karte "Abnahme": Warnung "ohne erfassten Mangel" und "+ Mangel erfassen" nur an der Abnahme
+    Büro (1400 px, hell)    Akte des Auftrags, Reiter „Abnahme & Mängel“ (seit 1.9.129 statt der Auftragsseite).
+                            Karte "Abnahme": Warnung "ohne erfassten Mangel" und "+ Mangel erfassen" nur an der Abnahme
                             mit Vorbehalt und der verweigerten, nicht an der ohne Vorbehalt. Dialog: keine Vorauswahl,
                             Dachflächen nur Nord/Süd, Beschreibung Pflicht, PDF als Foto abgelehnt (Dialog bleibt offen),
                             gespeichert mit Nord, Ort, Frist und Foto -> Sprung zum Mangel, Warnung weg, "Mängel: 1".
@@ -17,7 +18,7 @@ vor 10 Tagen verweigert); Beteiligte: Architektin ohne Vollmacht, Bauleitung mit
     Büro (1400 px, hell)    Seit 1.8.55: dritter Mangel ohne Frist, beseitigt, zurück auf offen -- Feld "Neue
                             Beseitigungsfrist" nur dort; mit Frist gespeichert -> am Mangel "(neu gesetzt; beim Erfassen:
                             keine)", im Verlauf, Aufgabe "Erneut beseitigen" fällig zur neuen Frist.
-    Büro (412 px, dunkel)  Auftrag: Karte lesbar, Dialog ohne waagrechten Scrollbalken.
+    Büro (412 px, dunkel)  Akte, Reiter „Abnahme & Mängel“: Karte lesbar, Dialog ohne waagrechten Scrollbalken.
     Monteurin               API der Mängel 403.
 
 Feste Uhr 10:00 (cdp_klicktest.py); die Daten liegen relativ zum heutigen Tag.
@@ -163,11 +164,13 @@ async def pruefen(tab, seed, p):
 
     auftrag, ab = seed["auftrag"], seed["abnahmen"]
     url = f"/orders/{auftrag}"
+    # Seit 1.9.129 (Akte): /orders/{id} leitet auf die Akte; Abnahmen und Mängel stehen im Reiter „Abnahme & Mängel“ (Anker #abnahme)
+    # -- vor innerText-Prüfungen, Messungen und Bildern offen (verborgen ohne Zeilenumbrüche und mit Maßen 0).
     await tab.anmelden(seed["cookies"]["buero"])
     await tab.fenster(1400, 1000)
     await tab.oeffnen(url, BEREIT)
     await tab.js("localStorage.setItem('erp_theme','light')")
-    await tab.oeffnen(url, BEREIT)
+    await tab.oeffnen(url + "#abnahme", BEREIT)
 
     # --- Abnahmen: Warnung und Knopf nur, wo Mängel hingehören ------------------------------------------------
     stand = ("[" + ",".join(f"[{ABNAHME}({ab[n]}).innerText.includes('ohne erfassten Mangel'), "
@@ -354,7 +357,7 @@ async def pruefen(tab, seed, p):
     dritter = await tab.js(
         f"(()=>{{const f=new FormData();f.append('data',JSON.stringify({{description:'Kehle Ost undicht'}}));"
         f"return fetch('/api/order-acceptances/{ab['vorbehalt']}/defects',{{method:'POST',body:f}}).then(r=>r.json()).then(j=>j.id)}})()")
-    await tab.oeffnen(url, BEREIT + f" && document.getElementById('mangel-{dritter}')")
+    await tab.oeffnen(url + "#abnahme", BEREIT + f" && document.getElementById('mangel-{dritter}')")
     m3 = f"document.getElementById('mangel-{dritter}')"
     await tab.js(f"defOpen({dritter},'status')")
     await tab.warten(f"document.getElementById('defPart{dritter}').options.length>1")
@@ -392,7 +395,7 @@ async def pruefen(tab, seed, p):
     # --- 412 px, dunkel ----------------------------------------------------------------------------------------------
     await tab.fenster(412, 900, mobil=True)
     await tab.js("localStorage.setItem('erp_theme','dark')")
-    await tab.oeffnen(url, BEREIT)
+    await tab.oeffnen(url + "#abnahme", BEREIT)
     p.pruefe("412 px dunkel: Thema", await tab.js("document.documentElement.dataset.theme"), "dark")
     await tab.js(f"openDefectDialog({ab['vorbehalt']})")
     await tab.warten("document.getElementById('defectDialog').open")

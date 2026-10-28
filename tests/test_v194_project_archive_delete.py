@@ -178,7 +178,7 @@ def test_projects_page_has_archive_and_delete_actions():
 
 
 def test_project_folder_page_has_archive_and_delete_actions():
-    html = (Path(__file__).parents[1] / "app" / "templates" / "project_folder.html").read_text(encoding="utf-8")
+    html = (Path(__file__).parents[1] / "app" / "templates" / "akte.html").read_text(encoding="utf-8")
     assert "toggleArchivedHere" in html
     assert "deleteProjectHere" in html
-    assert "archivedBadge" in html
+    assert "project.archived?'archiviert':null" in html  # seit 1.9.129 die Akte (Projektmappe und Auftragsseite in einer Seite): „archiviert“ im Untertitel des Kopfs (bis dahin archivedBadge)

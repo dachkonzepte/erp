@@ -187,7 +187,7 @@ def test_orders_router_has_send_email_endpoint():
 
 
 def test_order_page_has_send_email_action():
-    html = (Path(__file__).parents[1] / "app" / "templates" / "order.html").read_text(encoding="utf-8")
+    html = (Path(__file__).parents[1] / "app" / "templates" / "akte.html").read_text(encoding="utf-8")
     assert "sendOrderEmail" in html
     assert "/send-email" in html
 
@@ -196,7 +196,7 @@ def test_order_page_does_not_use_popup_for_email_input():
     """Dieselbe Klärung wie bei Rechnung/Mahnung/Angebot: kein prompt()
     zur E-Mail-Eingabe. Die einzige verbleibende prompt()-Stelle in dieser
     Datei (saveRevision) ist unverwandt und bleibt bewusst unverändert."""
-    html = (Path(__file__).parents[1] / "app" / "templates" / "order.html").read_text(encoding="utf-8")
+    html = (Path(__file__).parents[1] / "app" / "templates" / "akte.html").read_text(encoding="utf-8")
     assert "orderEmailInput" in html
     for line in html.splitlines():
         if "prompt(" in line:

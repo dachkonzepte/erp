@@ -4,7 +4,8 @@ Befüllt: Gewerbekunde (VOB/B), Objekt "Halle Nord" mit den Dachflächen Nord un
 ein fremdes Objekt mit "Fremd", Auftrag aus einem Angebot, das danach geändert wurde (Abgleich angeboten); Beteiligte:
 Architektin ohne Vollmacht, Hausverwaltung mit Vollmacht samt Beleg.
 
-    Büro (1400 px, hell)    Auftrag, Karte "Gewährleistung": "nicht festgelegt", Leistungsart wählen -> Vorschlag
+    Büro (1400 px, hell)    Akte des Auftrags (seit 1.9.129; Karte "Gewährleistung" im Reiter „Vertrag“, Karte "Abnahme"
+                            im Reiter „Abnahme & Mängel“), Karte "Gewährleistung": "nicht festgelegt", Leistungsart wählen -> Vorschlag
                             48 Monate mit Fundstelle, übernehmen; abweichend 60 Monate ohne Begründung abgelehnt, mit
                             Begründung festgelegt, Hinweis "weicht ab", Historie.
                             Karte "Abnahme": Dialog ohne jede Vorauswahl, Dachflächen nur Nord/Süd, Pflichtangaben
@@ -21,7 +22,7 @@ Architektin ohne Vollmacht, Hausverwaltung mit Vollmacht samt Beleg.
                             rot "⚠ Prüfung … – Ende nicht verlässlich" in Dachflächenliste und Karte des Objekts, auf
                             der Dachfläche und am Auftrag; verworfener Eintrag mit verändertem Siegel; Vorschau mit
                             Spalte "Prüfung", "✓ Prüfsumme stimmt" sonst.
-    Büro (412 px, dunkel)   Auftrag: Karten lesbar, Dialog ohne waagrechten Scrollbalken.
+    Büro (412 px, dunkel)   Akte, Reiter „Abnahme & Mängel“: Karten lesbar, Dialog ohne waagrechten Scrollbalken.
     Monteurin               API der Abnahme 403, Auftragsseite gesperrt.
 
 Feste Uhr 10:00 (cdp_klicktest.py).
@@ -190,11 +191,14 @@ async def pruefen(tab, seed, p):
 
     auftrag = seed["auftrag"]
     url = f"/orders/{auftrag}"
+    # Seit 1.9.129 (Akte): /orders/{id} leitet auf die Akte; die Karte "Gewährleistung" steht im Reiter „Vertrag“, die Karte "Abnahme"
+    # im Reiter „Abnahme & Mängel“ -- vor innerText-Prüfungen und Bildern den Reiter öffnen (verborgen ohne Zeilenumbrüche).
+    vertrag, abnahme = "reiterZeigen('vertrag'); true", "reiterZeigen('abnahme'); true"
     await tab.anmelden(seed["cookies"]["buero"])
     await tab.fenster(1400, 1000)
     await tab.oeffnen(url, BEREIT)
     await tab.js("localStorage.setItem('erp_theme','light')")
-    await tab.oeffnen(url, BEREIT)
+    await tab.oeffnen(url + "#vertrag", BEREIT)
 
     # --- Gewährleistung -------------------------------------------------------------------------------
     p.pruefe("Gewährleistung: nicht festgelegt, Leistungsart ohne Vorauswahl", await tab.js(
@@ -238,6 +242,7 @@ async def pruefen(tab, seed, p):
     await tab.bild("1_gewaehrleistung_hell")
 
     # --- Abnahme erfassen -----------------------------------------------------------------------------
+    await tab.js(abnahme)
     await _erfassen(tab, [])
     p.pruefe("Dialog: keine Vorauswahl", await tab.js(
         "[document.querySelectorAll('#acceptanceDialog input:checked').length, document.getElementById('accDate').value]"),
@@ -307,6 +312,7 @@ async def pruefen(tab, seed, p):
     await tab.bild("3_abnahme_gespeichert_hell")
 
     # --- Gewährleistung nach der Abnahme ändern: Vorschau der Verschiebung, Begründung Pflicht ----------------
+    await tab.js(vertrag)
     await tab.js("[...document.querySelectorAll('#warrantyProposal button')].find(b=>b.textContent==='Vorschlag übernehmen').click()")
     await tab.warten("!document.getElementById('warrantyConfirm').hidden")
     p.pruefe("Nach der Abnahme: Vorschau mit verschobenem Ende", await tab.js(
@@ -328,6 +334,7 @@ async def pruefen(tab, seed, p):
         "15.09.2026: 15.09.2031 → 15.09.2030')]"), [True, True])
 
     # --- Verwerfen -------------------------------------------------------------------------------------
+    await tab.js(abnahme)
     p.pruefe("Verwerfen: Begründungsfeld erst nach dem Klick sichtbar", await tab.js(
         f"getComputedStyle({LISTE}[0].querySelector('.acc-discard')).display"), "none")
     # Seit 1.8.49 trägt eine Abnahme mit Vorbehalt Mängel auch "+ Mangel erfassen" und warnt ohne Mangel.
@@ -421,7 +428,7 @@ async def pruefen(tab, seed, p):
     await tab.oeffnen(f"/roof-areas/{lager['dach']}", "!document.getElementById('acceptanceWarrantyList').textContent.includes('Lädt')")
     p.pruefe("Prüfstatus Dachfläche: rot", await tab.js(
         f"document.getElementById('acceptanceWarrantyList').innerText.includes('{rot}')"), True)
-    await tab.oeffnen(f"/orders/{lager['auftrag']}", BEREIT)
+    await tab.oeffnen(f"/orders/{lager['auftrag']}#abnahme", BEREIT)
     p.pruefe("Prüfstatus Auftrag: Ende rot, verworfener Eintrag mit abweichendem Siegel", await tab.js(
         f"[{LISTE}[0].innerText.includes('{rot}'), {LISTE}[0].innerText.includes('Gewährleistung regulär bis 20.09.2030'), "
         f"{LISTE}[1].innerText.includes('⚠ Verwerfen weicht von seiner Prüfsumme ab')]"), [True, True, True])
@@ -430,6 +437,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Prüfstatus: keine JS-Fehler", tab.fehler, [])
 
     # --- Projektmappe: Vollmacht zur Abnahme am Beteiligten -------------------------------------------------
+    # Seit 1.9.129 (Akte): #sec-participants öffnet den Dialog „Beteiligte“ (#beteiligteModal) mit denselben Karten.
     await tab.oeffnen(f"/projects/{seed['projekt']}#sec-participants",
                       "document.querySelectorAll('[data-participant-id]').length===3")
     karte = "(n=>[...document.querySelectorAll('[data-participant-id]')].find(k=>k.innerText.includes(n)))"
@@ -450,7 +458,7 @@ async def pruefen(tab, seed, p):
     # --- 412 px, dunkel ----------------------------------------------------------------------------------
     await tab.fenster(412, 900, mobil=True)
     await tab.js("localStorage.setItem('erp_theme','dark')")
-    await tab.oeffnen(url, BEREIT)
+    await tab.oeffnen(url + "#abnahme", BEREIT)
     p.pruefe("412 px dunkel: Thema", await tab.js("document.documentElement.dataset.theme"), "dark")
     await tab.js("openAcceptanceDialog()")
     await tab.warten("document.getElementById('acceptanceDialog').open")

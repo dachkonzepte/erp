@@ -36,21 +36,18 @@ def test_zahllesen_tabelle_seit_1_8_148():
 
 RUNDWEG = r"""
   renderOrderEmailSection = () => {};  // Versand-Karte (_email_dispatch.html, nicht in der Attrappe) -- hier ohne Belang
+  akteNachAenderung = () => {};  // seit 1.9.129: Kopf der Akte neu (GET /api/projects/{id}/akte) -- hier ohne Belang
   const puts = [];
   globalThis.fetch = async (url, opt = {}) => {
     if ((opt.method || 'GET') !== 'GET') puts.push({url, body: JSON.parse(opt.body)});
-    const antwort = /^\/api\/orders\/\d+(\/items\/\d+)?$/.test(url) ? ORDER : [];  // Auftrag; sonst (Module u. a. beim Neuzeichnen) leer
+    const antwort = /^\/api\/orders\/\d+(\/items\/\d+)?$/.test(url) ? ORDER : /\/zahlen$/.test(url) ? null : [];  // Auftrag; Zahlen keine; sonst leer
     return {ok: true, status: 200, statusText: 'OK', headers: {get: () => 'application/json'}, json: async () => antwort};
   };
-  order = JSON.parse(JSON.stringify(ORDER)); units = [];
+  order = JSON.parse(JSON.stringify(ORDER)); units = []; orderId = ORDER.id;
   const i = order.items[0];
-  const zeile = rowHtml(i);
-  const angezeigt = {menge: /data-feld="Menge" value="([^"]*)"/.exec(zeile)[1], ep: /data-feld="Einheitspreis" value="([^"]*)"/.exec(zeile)[1]};
-  // LV-Zeile: das Feld mit dem angezeigten Text, unverändert verlassen (onchange)
-  for (const [feld, wert] of [['quantity', angezeigt.menge], ['unit_price', angezeigt.ep]]) {
-    const el = _element('lv_' + feld); el.value = wert;
-    await quickItem(i.id, feld, el);
-  }
+  // seit 1.9.129 (Akte): die Zeile zeigt Menge und EP als Text (EP mit zwei Stellen), bearbeitet wird im Dialog
+  const m = /<td class="r num">([^<]*)<\/td><td>[^<]*<\/td><td class="r num">([^<]*)<\/td>/.exec(rowHtml(i));
+  const angezeigt = {menge: m[1], ep: m[2]};
   // Dialog der Position: geöffnet, unverändert gespeichert
   openItem(i.id);
   const dialog = {menge: _element('iQty').value, ep: _element('iPrice').value};
@@ -62,8 +59,9 @@ RUNDWEG = r"""
 @nur_mit_node
 @pytest.mark.parametrize("menge,ep", [("12345.678", "1234.56"), ("1234.5", "1000"), ("1000000", "0.5"), ("0.125", "12345678.9")])
 def test_auftrag_rundweg_menge_und_ep_mit_tausenderpunkt(threaded_db_session, router_test_client, menge, ep):
-    """Angezeigt mit Tausenderpunkt (1.8.148), unverändert gespeichert -- aus der LV-Zeile und aus dem Dialog -- ergibt in der Datenbank
-    denselben Betrag. Die Anfragen baut das echte Seitenskript (node), gesendet werden sie an den echten Dienst."""
+    """Angezeigt mit Tausenderpunkt (1.8.148), unverändert gespeichert ergibt in der Datenbank denselben Betrag. Die Anfragen baut das
+    echte Seitenskript (node), gesendet werden sie an den echten Dienst. Seit 1.9.129 (Akte) nur noch aus dem Dialog der Position -- bis
+    1.9.128 auch Menge und EP in der Zeile des LV (drei Anfragen)."""
     from app.models import OrderItem
     from app.routers.orders import router as orders_router
     from tests.test_v133_invoices import make_order_with_item
@@ -72,16 +70,16 @@ def test_auftrag_rundweg_menge_und_ep_mit_tausenderpunkt(threaded_db_session, ro
     order, item = make_order_with_item(db, quantity=Decimal(menge), unit_price=Decimal(ep))
     client = router_test_client(db, orders_router, role="buero_finanzen")
     auftrag = client.get(f"/api/orders/{order.id}").json()
-    lauf = im_browser(seite("order.html", "load().catch(e=>document.querySelector('main')"),
+    lauf = im_browser(seite("akte.html", "akteStarten().catch("),
                       f"const ORDER = {json.dumps(auftrag)};" + RUNDWEG)["ergebnis"]
-    assert len(lauf["puts"]) == 3, lauf["puts"]  # Menge, EP aus der Zeile, dann der Dialog
+    assert len(lauf["puts"]) == 1, lauf["puts"]  # der Dialog (bis 1.9.128 dazu Menge und EP aus der Zeile)
     for put in lauf["puts"]:
         antwort = client.put(f"/api/orders/{order.id}/items/{item.id}", json=put["body"])
         assert antwort.status_code == 200, antwort.text
         db.expire_all()
         gespeichert = db.get(OrderItem, item.id)
         assert (gespeichert.quantity, gespeichert.unit_price) == (Decimal(menge), Decimal(ep)), (put["body"], lauf["angezeigt"])
-    assert lauf["dialog"] == lauf["angezeigt"]
+    assert lauf["dialog"]["menge"] == lauf["angezeigt"]["menge"]  # EP: die Zeile mit zwei Stellen, der Dialog genau
     if Decimal(menge) >= 1000:
         assert "." in lauf["angezeigt"]["menge"]  # wirklich mit Tausenderpunkt angezeigt
 

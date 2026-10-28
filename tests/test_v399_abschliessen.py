@@ -375,10 +375,10 @@ ABSCHLIESSEND = {
     ("invoice_detail.html", "discardStart"): "Verzugsbeginn verwerfen",
     ("mahnwesen.html", "sendReminder"): "Mahnung festschreiben",
     ("mobil_offen.html", "sendReport"): "Mangel als beseitigt melden",  # seit 1.9.49 auf „Heute / Offen“ (bis dahin mobil.html)
-    ("order.html", "submitDeviceSignature"): "Vertrag auf dem Gerät unterschreiben",
-    ("order.html", "submitPaperSignature"): "Vertrag als Papier-Scan unterschreiben",
-    ("order.html", "freezeContract"): "Vertrag festschreiben",
-    ("order.html", "syncSource"): "Abgleich mit dem Angebot",
+    ("akte.html", "submitDeviceSignature"): "Vertrag auf dem Gerät unterschreiben",
+    ("akte.html", "submitPaperSignature"): "Vertrag als Papier-Scan unterschreiben",
+    ("akte.html", "freezeContract"): "Vertrag festschreiben",
+    ("akte.html", "syncSource"): "Abgleich mit dem Angebot",
     ("quote_editor.html", "createOrder"): "Beauftragen",
     ("quote_editor.html", "syncExistingOrder"): "Abgleich mit dem Auftrag",
     ("service_report.html", "berichtAbschliessen"): "Einsatzbericht unterschreiben",  # seit 1.9.67 (bis 1.9.66 confirmSignatureStep)

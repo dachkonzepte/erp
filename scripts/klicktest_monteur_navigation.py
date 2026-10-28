@@ -12,7 +12,8 @@ Büro/Admin. Geprüft wird im echten Browser, nach dem Laden der Seite:
 
 Seit 1.8.27 auch die Links im Seiteninhalt, die erst das JavaScript aus geladenen Daten baut
 (seit 1.9.10 der Pfad im Seitenkopf mit Kunde, Projekt und Auftragsnummer, bis dahin Breadcrumb und "← Auftrag"): kein 403,
-der Monteur sieht Kunde und Auftragsnummer als Text und im Pfad nur "Einsätze". Dazu die Einstellungen: "Adressimport
+der Monteur sieht Kunde und Auftragsnummer als Text und im Pfad nur "Heute". Seit 1.9.129 führt die Auftragsnummer im Pfad
+direkt in die Akte (`/projects/<p>?auftrag=<a>#ausfuehrung`, bis dahin `/orders/<a>`). Dazu die Einstellungen: "Adressimport
 (Altsystem)" nur für Admin.
 
 AUFRUF (aus dem Projektordner):
@@ -73,7 +74,8 @@ def befuellen(db, k):
     db.commit()
     db.add(WorkPreparationEmployee(preparation_id=ensure_preparation(db, auftrag.id).id, employee_id=max_m.id))
     db.commit()
-    return {"auftrag": auftrag.id, "cookies": {rolle: k.cookies(user) for rolle, user in users.items()}}
+    return {"auftrag": auftrag.id, "auftrag_nr": auftrag.order_number, "projekt": projekt.id,
+            "cookies": {rolle: k.cookies(user) for rolle, user in users.items()}}
 
 
 async def pruefen(tab, seed, p):
@@ -98,8 +100,12 @@ async def pruefen(tab, seed, p):
             p.pruefe(f"{rolle} {pfad}: Links im Seiteninhalt ohne 403 ({len(inhalt)} Links)",
                      sorted(h for h, s in inhalt.items() if s == 403), [])
             if pfad == berichtsseite:
-                p.pruefe(f"{rolle}: Auftragsnummer im Pfad des Seitenkopfs verlinkt",
-                         await tab.js("!!document.querySelector('#seitenkopfPfad a[href^=\"/orders/\"]')"), rolle != "field")
+                # seit 1.9.129 führt die Auftragsnummer im Pfad direkt in die Akte, Reiter „Ausführung“ (bis dahin /orders/<id>);
+                # die Monteurin hat dort keinen Link (Pfad nur „Heute“)
+                ziel = await tab.js("(()=>{const a=[...document.querySelectorAll('#seitenkopfPfad a')]"
+                                    f".find(x=>x.textContent.trim()==={seed['auftrag_nr']!r});return a?a.getAttribute('href'):null}})()")
+                p.pruefe(f"{rolle}: Auftragsnummer im Pfad des Seitenkopfs verlinkt", ziel,
+                         None if rolle == "field" else f"/projects/{seed['projekt']}?auftrag={seed['auftrag']}#ausfuehrung")
             beschriftung = await tab.js("[...document.querySelectorAll('#appSidebar .app-sidebar-link .app-sidebar-label')]"
                                         ".map(x=>x.textContent.trim())")
             if rolle == "field":

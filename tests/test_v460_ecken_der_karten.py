@@ -43,7 +43,8 @@ KARTEN_OHNE_NAMEN = {
     "pdef": "Mangel im Feld „Mängel“ der Checkliste",
     "doc": "Dokumentkachel",
     "section": "Abschnitt des Angebots",
-    "info-block": "Kasten in der Übersicht der Projektmappe",
+    "info-block": "Kasten in der Übersicht der Projektmappe (seit 1.9.129 im Dialog „Beteiligte“ der Akte)",
+    "participant": "Beteiligter im Dialog „Beteiligte“ der Akte (seit 1.9.129; bis dahin ohne Rand)",
     "cl-row": "Checkliste in der Liste je Auftrag oder Objekt",
     "cl-focus": "hervorgehobene Checkliste",
     "crew-member": "Mitglied der Kolonne (Zeiterfassung der Monteure)",
@@ -96,10 +97,11 @@ NICHT_KARTEN = {
         "add", "btn", "btnlink", "cat", "danger", "dh-btn", "filter", "ghost", "iconbtn", "menu-btn", "more-btn", "p-role", "perform-btn",
         "secondary", "tile", "view-toggle", "checklist-link",
         "knopf-neutral", "knopf-gesperrt",  # seit 1.9.45 die Knöpfe von „Heute“ (/mobil)
-        "feld-text", "feld-zahl", "knopf-symbol", "schritt", "segment", "zeit-nachtragen")},  # seit 1.9.67 der Einsatzbericht
+        "feld-text", "feld-zahl", "knopf-symbol", "schritt", "segment", "zeit-nachtragen",  # seit 1.9.67 der Einsatzbericht
+        "auftragswahl")},  # seit 1.9.129 die Auftragswahl im Kopf der Akte (Knopfgruppe)
     **{k: "Kennzeichen" for k in (
         "addendum-badge", "badge", "cl-badge", "count", "def-badge", "delivery-tag", "dot", "entry-version", "pill", "psum-tag",
-        "status-pill", "einsatz-zu")},  # einsatz-zu seit 1.9.87: „Auftrag abgeschlossen“ in der Einsatzkarte auf „Heute“
+        "status-pill", "einsatz-zu", "phase-kreis")},  # phase-kreis seit 1.9.129: Kreis einer Phase im Kopf der Akte  # einsatz-zu seit 1.9.87: „Auftrag abgeschlossen“ in der Einsatzkarte auf „Heute“
     **{k: "Raster oder Tafelteil (Linien zwischen den Zellen, Plantafel, Zeitstrahl, Kopf der Positionen)" for k in (
         "month-grid", "rate-result", "timeline", "lv-columns", "slot")},
     **{k: "Skizze der Dachfläche" for k in ("sketch-wrap", "sketch-rect", "sketch-rect-preview", "sketch-marker", "sketch-marker-label")},

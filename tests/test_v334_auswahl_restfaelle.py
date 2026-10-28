@@ -245,7 +245,7 @@ def test_buchung_einer_inaktiven_person_bleibt_aenderbar(threaded_db_session, ro
 # 3. Archivierter Steuerschlüssel, inaktive Schichttypen
 # ---------------------------------------------------------------------------
 
-STEUER_SEITEN = [("quote_editor.html", "quote", "load().catch("), ("order.html", "order", "load().catch("),
+STEUER_SEITEN = [("quote_editor.html", "quote", "load().catch("), ("akte.html", "order", "akteStarten().catch("),
                  ("invoice_detail.html", "invoice", "load().catch(")]
 
 

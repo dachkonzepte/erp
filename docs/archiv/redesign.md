@@ -7749,3 +7749,172 @@ L3 (zwei Monate, Summe, ohne Auftrag 422, unbekannter Zeitraum 422).
 
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v548`): Hauptaktion ohne Rolle -> 1; F2 ohne Sperre -> 1; Summe je Titel
 ohne Untertitel -> 1; „alle Monate“ ohne Wirkung -> 1.
+
+### R2, Punkte 2, 3, 5 und 6 (1.9.129): die Akte als Seite
+
+Befund (Stufe 5, Abschnitte „Projektmappe“ und „Auftrag“; D1, D2, D3, D5, D15, D17, L2, L3, B4, E1): zwei Seiten für einen Vorgang, Summen
+über alle Aufträge ohne Auswahl, Status roh, drei Rechnungslisten mit eigenem Code und eigenen Wörtern, „offen“ in zwei Bedeutungen, zwei
+„+ Angebot“, der Kasten „Offene Bedenken“ als eigene Fassung, Eingaben im Vertragsentwurf gingen beim Neuzeichnen verloren.
+
+- `app/templates/akte.html` (neu, ersetzt `project_folder.html` und `order.html`): Kopf über das Makro (Pfad Projekte / Kunde / Objekt /
+  Projektnummer, Titel = Projektname, Untertitel Anschrift · Bauleitung · archiviert · Mustervorgang, Status über `statusKennzeichen('projekt')`,
+  Hauptknopf aus GET /api/projects/{id}/akte, Menü „⋮“ mit Projekt bearbeiten, Beteiligte, Auftragsbestätigung (PDF), Arbeitsvorbereitung,
+  Einsatzberichte, Kopieren, Als Mustervorgang, Wartungsvertrag, Archivieren, Löschen); Karte Auftrag und Phase (Auftragswahl ab zwei
+  Aufträgen über `?auftrag=`, sonst der eine; fünf Phasen; Status mit Übergängen `_auftragsstatus.html`); Reiter mit Anker in der Adresse, die
+  Anker der früheren Seiten (`#sec-…`, `#mangel-…`) öffnen den passenden Reiter. Ein Seitenskript (die node-Tests führen das letzte aus).
+- Inhalte wie `akte-zuordnung.html`: Übersicht (Abrechnung und Stunden aus GET /api/orders/{id}/zahlen, nächste Rechnung als Entwurf nur mit
+  Geld, Was ansteht, Termine, Beteiligte kurz, Verlauf kurz); Angebote (Tabelle, ein „+ Angebot“); Vertrag (Auftragsdaten lesend mit Dialog,
+  Auftragsbestätigung mit Versand, Vertragsgrundlage, Vertrag wörtlich aus der Auftragsseite, Gewährleistung); Leistungen (LV mit Summe je Titel,
+  abgerechnet je Position mit Balken, Std. Ist/Soll, Nachträge, Quellangebot, Auftragsstände); Ausführung (Arbeitsvorbereitung, Einsätze,
+  Zeiten als Stand mit Link nach „Zeiten“, Einsatzberichte, Checklisten); Abnahme & Mängel (Bausteine `_abnahme.html`/`_maengel.html`,
+  Befunde der Berichte); Rechnungen (die eine Liste, neue Rechnung nur mit Geld); Dateien (wie die Projektmappe); Verlauf (GET
+  /api/projects/{id}/verlauf: Filter nach Art, Auftragswahl, „Ältere laden“, Einzelheiten aufklappbar, „⋮“ einer Versandzeile mit dem
+  Versandverlauf des Dokuments im Dialog -- Zustellung nachtragen, Empfang bestätigt/unzustellbar).
+- `app/templates/_rechnungsliste.html` (neu): `rechnungsZahlstand()` und `rechnungsTabelleHtml(rows, {spalten})` für Akte und Finanzen.
+- `app/routers/pages.py`: `/projects/{id}` zeichnet die Akte (`auftrag` nur als Zahl über `_zahl()`, `geld`); `/orders/{id}` leitet mit eigener
+  Sitzung auf das Projekt des Auftrags (unbekannt: `/projects`; die Monteurin bekommt wie bisher die Sperrseite, `dk_ohne_seite` nur ab Büro –
+  Auftrag); „Projektmappe“ heißt in den Pfaden „Akte“.
+- Rückwege: Pfad des Auftrags in Arbeitsvorbereitung, Einsatzberichten, Bericht, Rechnung und Checklisten zum Auftrag direkt in die Akte
+  (`/projects/<p>?auftrag=<a>#ausfuehrung` bzw. `#rechnungen`), die Checkliste über `/orders/<a>#ausfuehrung`; Angebot `?beauftragen=1` öffnet den
+  Dialog, Plantafel `?auftrag=<id>` „Neuer Einsatz“; Finanzen mit der einen Liste, „Unbezahlt“.
+
+#### Festlegungen 1.9.129 (Bitte bestätigen)
+
+1. `/projects/{id}` ist die Akte; `/orders/{id}` leitet auf `/projects/{p}?auftrag={id}` (Anker bleibt), ein unbekannter Auftrag auf die
+   Projektliste.
+2. Die Übersicht zeigt Abrechnung und Stunden des gewählten Auftrags; die Summe aller Aufträge steht nur in der Auftragswahl („n Aufträge · Summe“).
+3. Projektweites (Angebote, Termine, Beteiligte, Dateien, Verlauf) gilt bei jeder Auftragswahl; die Reiter Vertrag bis Rechnungen erscheinen nur
+   mit Auftrag.
+4. Eine Position des LV wird nur im Dialog bearbeitet (bis 1.9.128 Menge, Einheit und EP auch direkt in der Zeile); die Zeile zeigt EP mit zwei
+   Stellen.
+5. Auftragsdaten stehen lesend im Reiter „Vertrag“ und werden im Dialog bearbeitet, gefüllt beim Öffnen.
+6. Beteiligte sind ein Dialog (Menü und Karte der Übersicht); Versand und Historie stehen zusammen im Verlauf; die Zeiten des Auftrags stehen als
+   Stand im Reiter „Ausführung“, die Buchungen in „Zeiten“ (alle Monate des Auftrags).
+7. Ziele des Hauptknopfs: „Angebot“ -> neues Angebot, „Beauftragen“ -> Angebot mit offenem Dialog, „Einsatz planen“ -> Plantafel mit „Neuer
+   Einsatz“, „Rechnung erstellen“/„Schlussrechnung erstellen“ -> Reiter Rechnungen mit der Art vorgewählt, „Abnahme erfassen“ -> Dialog,
+   „Abnahme & Mängel“ -> Reiter, „Auftrag abschließen“ -> Übergang mit Rückfrage.
+8. Eine Rechnungsliste für Akte und Finanzen; Zahlstand in Worten (bezahlt mit Tag, überfällig seit, unbezahlt, teilweise bezahlt · unbezahlt,
+   Zahlbetrag unbezahlt, Einbehalt unbezahlt, Guthaben, Enthalten in Schlussrechnung); „offen“ heißt nur noch „unbezahlt“ bzw. „noch nicht
+   abgerechnet“.
+9. Einen Rechnungsentwurf löscht man auf seiner Rechnungsseite, nicht mehr aus der Liste (Befund D17).
+10. Der Auftrag im Pfad anderer Seiten führt direkt in die Akte auf den passenden Reiter; ein fester Link vor dem Laden entfällt, wo das Projekt
+    noch nicht bekannt ist (Checklisten zum Auftrag).
+11. „Projektmappe“ heißt in Pfaden, Menüs und Hinweisen „Akte“; „Neues Projekt“ (Stufe 7) behält seine Texte.
+12. Dialoge der Akte tragen die Ecke der Karte (12 px) -- die Regel der Karten (Wächter `test_v460`) geht der Vorlage (16 px) vor.
+13. „Offene Bedenken“ über den Baustein `_offene_bedenken.html` (D17, Datum „9.10.2026“ wie auf Einsatzberichten und Checklisten).
+14. Der Verlauf wie die Vorlage: Zeitpunkt kurz („28.10. 07:15“, außerhalb des laufenden Jahres mit Jahr), die Art als Kennzeichen in den
+    Farben der Tokens (Termin wie Änderung neutral -- die Tokens kennen kein Violett), rechts das Ziel vom Server: „Öffnen“ bei Bericht,
+    Rechnung, Angebot, Checkliste, „Ansehen“ beim Befund (sein Bericht), „⋮“ beim Versand.
+15. Die Übergänge des Status stehen als kleine neutrale Knöpfe neben dem Status („Stornieren …“ mit roter Schrift); die Vorlage zeigt nur das
+    Kennzeichen.
+16. Ein Mustervorgang hat keine Hauptaktion (er wird nicht beauftragt); `?beauftragen=1` öffnet am Muster keinen Dialog.
+17. Nach jeder Änderung am Auftrag in der Akte (Position, Nachtrag, Abnahme) lädt die Akte Kopf, Phasen, „Was ansteht“ und Zähler neu.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v549_akte_seite.py` (22 Tests), dazu `test_v547::test_ziel_einer_zeile` und `test_v548::test_mustervorgang_ohne_hauptaktion`: /orders/{id} -> Akte mit Auftrag (drei Büro-Rollen), unbekannt -> /projects; Monteurin 403 auf
+Akte und Weiterleitung; ?auftrag= nur als Zahl (fünf Angriffe); Tabelle FUNKTIONEN mit jeder Funktion der Projektmappe (21) und der
+Auftragsseite (26) samt Beleg im gezeichneten HTML, eine entfallen (Entwurf löschen, D17); Büro – Auftrag ohne Geld-Knöpfe, mit Hinweis;
+alte Anker; Rückwege der sechs Seiten; die beiden alten Vorlagen gibt es nicht mehr.
+
+Im Lauf aufgefallen und an der Seite behoben: die Reiterleiste lief bei 412 px nicht über, aber ein langer Titel in der Verlaufsvorschau (ohne
+Umbruchstelle) schob die Seite auf 650 px (`overflow-wrap:anywhere`, vier Klicktests mit 412 px); die Weiterleitung zeichnete für die
+Monteurin die Sperrseite, ohne Seitendaten (`dk_ohne_seite` nur ab Büro – Auftrag, `test_v425`); der Versandbaustein stand zwischen Kopfzeile
+und Inhalt (`test_v254`); drei Werte des LV ohne Nachweis von `esc()` (`test_v407`: eigene Funktionen `lvMenge()`, `lvStand()`, `lvStd()`);
+die Auswahl des Auftrags im Verlauf ohne `auswahlOptionen()` (`test_v447`); `Number()` an einer Auswahl (`test_v414`); `_rechnungsliste.html`
+band `_berlin_date.html` nicht ein (`test_v390`); Startpunkt des Angebots wieder `load().catch(` (`?beauftragen=1` danach); „Zahlbetrag offen“
+hieß in der Liste „teilweise bezahlt“ (jetzt „Zahlbetrag unbezahlt“).
+
+Angepasste Erwartungen (Test: altes Soll -> neues Soll):
+- 48 Testdateien: Vorlagenname „order.html“/„project_folder.html“ als Text -> „akte.html“ (Aufbau).
+- node-Tests (`test_v334`, `v438`, `v439`, `v447`, `v450`, `v451`): Startpunkt `load().catch(` der Auftragsseite/Projektmappe -> `akteStarten().catch(` (Aufbau).
+- `test_v405`, `test_v447`: Startpunkt der Plantafel `\nloadBoard();` -> `\nloadBoard().then(` (Aufbau; `?auftrag=` öffnet „Neuer Einsatz“).
+- `test_v441`: Projektmappe und Auftrag in AUFGESCHOBEN (Stufe 5) -> Akte in UMGEZOGEN; Seiten mit Leiste 44 -> 43 (zweimal).
+- `test_v431`: Bilder je Lauf 310 -> 306; bisherige Bilder zuerst 248 -> 244.
+- `test_v460`: neu eingeordnet `participant` (Karte), `auftragswahl` (Knopf), `phase-kreis` (Kennzeichen).
+- `test_v407`: Ausnahmen der Handler 7 Einträge von order.html/project_folder.html -> akte.html; 6 entfallen (rowHtml 4, secBtn 1, renderInvoices 1).
+- `test_v424`: Abgleich ohne `zahlLesen(value)`/`zahlFeld(value)` der LV-Zeile (entfallen).
+- `test_v400`: Ausnahme `loadOpenConcerns -> api` gestrichen (Baustein).
+- `test_v401`: Weiterleitungen 11 -> 13 (/orders/{id}: Projekt des Auftrags, sonst /projects).
+- `test_v419`: Seitenrouten mit eigener Sitzung {} -> {"/orders/{order_id}"}.
+- `test_v446`: Rückwege „/orders/{x}“ -> in die Akte („/projects/{x}“, Rechnung „/projects/{x}?auftrag={x}#rechnungen“).
+- `test_v457`: Checklisten zum Auftrag vor dem Laden [Checklisten, Auftrag] -> [Checklisten]; backLink der Checkliste mit `#ausfuehrung`.
+- `test_v436`, `test_v455`: Pfadtext „Projektmappe“ -> „Akte“.
+- `test_v163`, `v249`, `v253`, `v254`, `v255`, `v258`: „beliebige Seite“ project_folder.html -> projects.html (die Akte zeigt im Dialog den Namen des Kontos); `test_v254` sucht weiter `<main>` darin.
+- `test_v064`: acht Tests der Projektmappe (Reiter, Anker, Standardreiter, Zähler, Kopf mit einer Aktion, Kennzahlen-Streifen, Zeiten-Tabelle) -> dieselben Fragen an der Akte (Reiter `reiter-*`, `reiterAusAnker()`, `aria-current` auf Übersicht, Zähler vom Server, Hauptaktion und Menü, Karten Abrechnung/Stunden, Stand der Zeiten mit Link `zeitraum=alle`); „Projektmappe“ in projects.html -> „Akte“.
+- `test_v438`: Menge/EP der LV-Zeile als `value` der Eingabe -> als Text der Zelle (EP zwei Stellen); Dialog unverändert.
+- `test_v439`: Rundweg drei Anfragen (Zeile Menge, Zeile EP, Dialog) -> eine (Dialog); Zeile = Dialog nur noch für die Menge; die Attrappe stellt `akteNachAenderung()` still (Kopf der Akte, ohne Belang).
+- `test_v399_teil_updates_geld`: zwei Tests der Eingabe in der LV-Zeile (`quickItem()`) -> ein Test, dass die Zeile keine Eingabe hat und „✎“ den Dialog öffnet.
+- `test_v333`: `employeeOptions()` aus dem Seitenskript bis `load(` -> die beiden Funktionen der Akte; Schlüssel von `saveOrder()` aus `body` und `frei`.
+- `test_v535`: „Einzeländerungen bleiben zusätzlich im Änderungsprotokoll sichtbar“ -> „jede Einzeländerung steht zusätzlich im Verlauf“; `verlaufAenderung(x)` -> für die Akte `verlaufAenderung(z)`.
+- `test_v537`: Kennzeichen `templateBadge` -> „Mustervorgang“ im Untertitel; Löschen im Menü nur ohne Auftrag (unverändert).
+- `test_v531`: `${GELD&&inv.status==='entwurf'?` (Löschen am Entwurf) -> „Mahnen“ unter „Was ansteht“ nur mit GELD, „Entwurf anlegen“ nur mit `geld`.
+- `test_v418`: Reiter „Versand“ mit `renderDispatchList` -> Verlauf mit Filter „Versand“ und Link ins Versandprotokoll des Projekts.
+- `test_v394`: `invoiceStatusText` aus overview in Auftrag und Projektmappe -> die eine Liste liest overview, Akte und Finanzen nutzen sie.
+- `test_v545`: `project.status_label||project.status` -> `statusKennzeichen('projekt',project.status)`.
+- `test_v340`: Reiter „Beteiligte“ -> Dialog (`beteiligte-oeffnen`, `#sec-participants` öffnet ihn).
+- `test_v338`, `test_v337`: Seite `/orders/1` -> `/projects/1` (Weiterleitung).
+- `test_v313`: Projektmappe listet Zeitbuchungen -> die Akte nicht (Stand vom Server, Link nach „Zeiten“).
+- `test_v238`: Brotkrume `#breadcrumb` des Auftrags -> Pfad des Seitenkopfs der Akte; Rechnung -> Pfad in die Akte.
+- `test_v194`: `archivedBadge` -> „archiviert“ im Untertitel.
+- `test_v080`: `workPrepLink` -> `#avLink`/`#menueAv`.
+- `test_v070`: „Aufträge im Projekt“ -> Auftragswahl; „PDF-Auftragsbestätigung“ -> „Auftragsbestätigung (PDF)“.
+- `test_v066`: „Änderungshistorie“/`historyRows` -> Reiter „Verlauf“ und Link „Ganze Änderungshistorie“.
+- `test_v065`: „Projektmappe bearbeiten“ -> „Projekt bearbeiten“.
+- `test_v100`: Reiter „Zeiterfassung im Projekt“ -> Stand der Zeiten im Reiter „Ausführung“.
+
+Klicktests (25 rot nach dem Umbau, in vier Gruppen umgestellt; je Gruppe grün im eigenen Lauf). Gefunden und an der Seite behoben: nach dem
+Speichern oder Verwerfen einer Abnahme blieben Phasen, „Was ansteht“ und Hauptaktion alt (`accNeuLaden()` ruft jetzt `akteNachAenderung()`,
+ebenso das Speichern einer Position); ein Mustervorgang bot „Beauftragen“ an (Festlegung 16); der Reiter „Leistungen“ lief bei 412 px über (der
+Vorlesetext „Aktionen“ im Kopf des LV hing an der Seite -- `.tabelle-wrap` ist jetzt sein Rahmen). Neu geprüft: `klicktest_lv_ueberlauf` „auftrag
+412: kein waagrechter Bildlauf der Seite“, `klicktest_mustervorgang` „Akte (Muster): keine Hauptaktion“. Offen gemeldet (außerhalb der Akte): der
+Kopf der Rechnungsseite sagt weiter „Zahlbetrag offen“ (`app/final_dunning.py::OVERVIEW_LABELS`).
+
+Angepasste Erwartungen der Klicktests (Prüfung: altes Soll -> neues Soll, „Aufbau“ = nur Adresse, Reiter, Selektor oder Dialog):
+- klicktest_vertrag_abschrift „422 Auftragsdatum: lesbar“: Aufbau (Dialog „Auftragsdaten bearbeiten“, Meldung in #auftragsdatenStatus statt #saveStatus), Soll gleich.
+- klicktest_vertrag_abschrift „Abschlag 1.25: lesbar“: Aufbau (Dialog zu, Reiter Rechnungen); Bild fehler_422 zeigt den Dialog, neu Bild fehler_abschlag.
+- klicktest_vertrag_abschrift Klara/Lena/Paul/Otto: Aufbau (Anker #vertrag; „412 px ohne seitliches Scrollen“ misst mit sichtbarem Reiter).
+- klicktest_vertragsvorlagen „Ausführungszeitraum aus dem Angebot“: Aufbau (Dialog öffnen), Soll gleich; neu „… (lesend)“ (#auftragsdatenListe enthält den Zeitraum, True).
+- klicktest_vertragsvorlagen „Zeitraum gespeichert, Rest unverändert“: Aufbau (Dialog, saveOrder()), Soll gleich; neu „Dialog nach dem Speichern zu“ (False).
+- klicktest_abnahme Gewährleistung (3 Prüfungen), „Abnahme: Kopf und Ergebnis“, „Büro Auftrag: keine JS-Fehler“: Aufbau (Reiter #vertrag bzw. #abnahme; der JS-Fehler kam aus der Prüfung, .split auf innerText ohne Zeilen).
+- klicktest_maengel „Mangel: Kopf …“, „Verlauf: sechs Einträge“: Aufbau (#abnahme); „Sprung zum neuen Eintrag (sichtbar)“ prüfte im verborgenen Reiter nichts (Maße 0), jetzt wirklich.
+- klicktest_maengel_monteur Büro-Prüfungen: Aufbau (#abnahme; JS-Fehler kam aus der Prüfung, .startsWith).
+- klicktest_bedenkenanzeige Bereitschaft: #orderTitle -> order.order_number und #auftragEinzeln.
+- klicktest_objekt_anderer_kunde „Schnellauftrag: zum Auftrag gewechselt“: Soll Pfad beginnt mit /orders/ -> /projects/<zahl>?auftrag=<zahl> (Auftrags-ID aus ?auftrag=).
+- klicktest_verlauf_lesbar „Projektmappe, Historie: 850 → 851 m²“ -> „Akte, Verlauf: …“: Aufbau (#verlauf, .vl-zeile mit Einzelheiten statt #historyRows), Soll gleich; „kein .000000 …“ Aufbau.
+- klicktest_mustervorgang „Projektmappe (Muster): Kennzeichen sichtbar, Löschen im Menü“: [True, 'Mustervorgang', True] (#templateBadge) -> [True, True, True, 'Löschen'] (Untertitel mit „Mustervorgang“, „Löschen“ im offenen Menü).
+- klicktest_mustervorgang „… mit Auftrag: kein Kennzeichen, kein Löschen“: Aufbau (Untertitel), Soll gleich; „ohne Auftrag“: Bereitschaft #seitenkopfKennung.
+- klicktest_beteiligte „Reiter aktiv über die Adresse“ -> „Dialog „Beteiligte“ offen über die Adresse“ (#sec-participants.active -> #beteiligteModal.open, True).
+- klicktest_beteiligte „Noch keine Beteiligten“: '0' (#tabCountParticipants) -> [0, True] (keine Karte, Hinweis).
+- klicktest_beteiligte „Hinzugefügt: Rolle, Kopie, Zähler“: […, '1'] -> […, 1] (Zahl der Karten).
+- klicktest_beteiligte „Adresse ohne ?kontakt=“: '#sec-participants' -> '#uebersicht'; neu drei Prüfungen (Karte der Übersicht öffnet den Dialog, Hinzugefügt auf der Karte, zurück mit offenem Dialog).
+- klicktest_versand_im_kontext „Projektmappe: Reiter Versand aktiv“ -> „Akte: #sec-dispatch öffnet den Reiter Verlauf“ ('Versand' -> 'Verlauf'); „nur die Dokumente des Projekts“: Aufbau (Filter Versand, .vl-zeile), Soll gleich; Link: Aufbau (#versandprotokollLink); neu drei Prüfungen (Filter, „⋮“ nur an Angebot und Auftrag für Büro – Auftrag, „⋮“ öffnet Zustellung nachtragen).
+- klicktest_versandprotokoll: Bereitschaft display 'block' -> 'flex' (#vertrag); „Auftrag: Link ins Protokoll“: Aufbau (#orderDispatchHistory .dh-head a), Soll gleich; Wartebedingung beim Klären (seit 1.8.41 veraltet, lief 15 s ab) auf #resolveNote<id>.
+- klicktest_zeitbuchungen_liste „Projektmappe: Hinweis“ (gekürzt 1.000 von 1.001) -> „Akte: keine Zeitbuchungstabelle, kein Hinweis“ [True, True].
+- klicktest_zeitbuchungen_liste „Projektmappe: Kennzahlen“ ['999,00 h', '2,50 h', '1.001,50 h', '2'] (Projekt) -> je Auftrag: Ausführung A ['501,5 h', '2,5 h', '499,0 h'], Übersicht A ['501,5 h', 'davon Fahrzeit 2,5 h', '499,0 h', 2], B über die Auftragswahl ['#ausfuehrung', ['500,0 h', '0,0 h', '500,0 h']].
+- klicktest_zeitbuchungen_liste „Ist-Stunden (Kopf)“ '999,00 h' -> „Phase Ausführung: gebuchte Stunden“ (endet auf „501,5 h gebucht“, True).
+- klicktest_zeitbuchungen_liste „Reiterzahl“ '1001' -> Auftragswahl [A, ['AUF-KT-A', 'AUF-KT-B']] und Links nach „Zeiten“ mit zeitraum=alle.
+- klicktest_zeitbuchungen_liste „Tabellenzeilen“ 999 -> „Zeiten (über den Link der Akte): alle 501 Buchungen von A …“ [Link, 501, False, '501,50 h', 1, True]; neu JS-Fehler „Zeiten (Auftrag A)“, „Akte (B)“.
+- klicktest_lv_ueberlauf „geladen“, „LV-Zeilen gemessen“, „kein Überlauf“: Aufbau (#leistungen; Zeilen #lvTabelle thead tr, #lv tr.lv-row).
+- klicktest_lv_ueberlauf „Tausenderpunkt, passt ins Feld“ -> „… passt in die Zelle“: dieselben Werte als Text der Zelle statt im Feld der Zeile; neu „Dialog der Position: Tausenderpunkt, passt ins Feld“, „Rundweg -- Dialog gespeichert und geschlossen“ [False, ""]; „Rundweg speichert denselben Betrag“: Aufbau (Dialog), Soll gleich.
+- klicktest_auftrag_sperren: neu „keine Eingabe in der LV-Zeile, „✎“ an jeder Position“ [0, 2]; „EP und Einheit gesperrt“, „Menge offen“, „zweite Position frei“: Aufbau (Dialog der Position), Soll gleich; „Grund im Tooltip“: Aufbau (title von .price-lock); „Menge gespeichert“: Aufbau (saveItemDialog(), Dialog zu); Steuerschlüssel (2): Aufbau (Dialog Auftragsdaten).
+- klicktest_auftrag_sperren „Schluss: jede Eingabe der Positionen gesperrt“: True -> [0, 0] (keine Eingabe, kein „✎“).
+- klicktest_nachtrag „Kennzeichen unter „Nachträge“ hinter dem Titel“: Aufbau (#lv tr.lv-titel), Soll gleich.
+- klicktest_rechnungen_sperren: neu „E Liste: Entwurf gelistet, kein „Löschen““ [1, False]; „E nach dem Löschen: frei“: Aufbau (Löschen auf der Rechnungsseite), Soll gleich.
+- klicktest_rechnungen_sperren „E nach dem Löschen: Hinweis weg“: True -> [False, "", True]; „G nach dem Löschen: Schluss frei“: True -> [True, [False, "", True]].
+- klicktest_rechte_geld „Auftrag: Rechnungen gelistet, kein „Löschen““: Aufbau (tr[data-rechnung], #rechnungen), Soll gleich.
+- klicktest_rechte_geld „Finanzen: „Neue Rechnung“, „Löschen“ am Entwurf“ (Rolle Büro – Finanzen auf dem Auftrag): [True, False, True] -> [True, False, False, 3] (kein „Löschen“ in der Liste, D17).
+- klicktest_auswahl_inaktiv (4 Auftrags-Prüfungen), klicktest_auswahl_restfaelle „archivierter Steuerschlüssel“: Aufbau (#vertrag, Dialog Auftragsdaten), Soll gleich.
+- klicktest_finanzen_zahlbetrag „Schlussrechnung A Zahlbetrag offen 495 €“ -> „… unbezahlt …“: ["Zahlbetrag offen", "495,00 €"] -> ["Zahlbetrag unbezahlt 495,00 €", "495,00 €"].
+- klicktest_finanzen_zahlbetrag „Schlussrechnung B Guthaben 24 €“: ["Guthaben", "Guthaben 24,00 €"] -> ["Guthaben 24,00 €", "Guthaben 24,00 €"].
+- klicktest_finanzen_zahlbetrag Filter „In Schlussrechnung“, „Guthaben“, „Offen“ -> „Unbezahlt“: Aufbau (#rows tbody tr), Soll gleich; neu „Filter „Unbezahlt“: Beschriftung“, „Kacheln „Unbezahlte Rechnungen“ und „Unbezahlt““.
+- klicktest_finanzen_zahlbetrag „Auftrag A: … Zahlbetrag offen“ -> „Akte A: … Zahlbetrag unbezahlt“: Text „Zahlbetrag offen (offen 495,00“ -> „Zahlbetrag unbezahlt 495,00“ (#rechnungen).
+- klicktest_finanzen_zahlbetrag „Projektmappe B: …“ -> „Akte B: …“: Aufbau (#rechnungen, #invoicesList), Soll gleich.
+- klicktest_zahlungen „Filter Einbehalt offen“: Aufbau (#rows tbody tr), Soll gleich.
+- klicktest_nebenforderungen Kundenwechsel: Bereitschaft project&&customers.length>0 -> project&&order (Kunden lädt openProjectEdit()), Prüfungen gleich.
+- klicktest_monteur_navigation „Auftragsnummer im Pfad verlinkt“: a[href^="/orders/"] true/false -> Ziel /projects/<p>?auftrag=<a>#ausfuehrung (Büro) bzw. None (Monteurin).
+- klicktest_rahmen: Aufnahme „projektmappe“ -> „akte“ (Aufbau); Kopfzeile „Knopf rechts“ innerWidth -> clientWidth (ohne Bildlaufleiste; die Akte ist höher als das Fenster); Pfade der Seiten des Auftrags /orders/{a} -> /projects/{p}?auftrag={a}#ausfuehrung bzw. #rechnungen, Arbeitsvorbereitung Projekt ohne #sec-orders; Wartung durchführen Projekt == neues Projekt, Auftrag in der Akte; Angebotskopf „Hauptaktion öffnet den Auftrag“: /orders/{a} -> /projects/{p}?auftrag={a} mit geladenem order; Formular Kontakt: „Projektmappe“ -> „Akte“; Checkliste /orders/<a> -> /orders/<a>#ausfuehrung, Checklisten zum Auftrag -> Akte; „jeder Link im Pfad öffnet eine Seite“: die eine Weiterleitung /orders/<a> -> /projects/<p>?auftrag=<a> (Link der Checkliste) zählt als ohne Umleitung.
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): Weiterleitung ohne `?auftrag=` -> 3 (`test_v549`); „Entwurf anlegen“ ohne
+`geld` -> 1; alter Anker `#sec-files` auf die Übersicht -> 1; Mustervorgang mit Hauptaktion -> 1 (`test_v548`); Befund ohne seinen Bericht -> 1
+(`test_v547`).

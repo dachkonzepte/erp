@@ -907,7 +907,8 @@ function kopfZeichnen(){
   var pfad=DARF_BUERO?[{text:'Projekte',href:'/projects'},o.customer_id?{text:o.customer_name,href:'/customers/'+o.customer_id}:null,
     KOPF_VERTRAG?{text:KOPF_VERTRAG.title,href:'/maintenance-contracts/'+KOPF_VERTRAG.id}:null,
     o.project_id?{text:o.project_name||o.project_number,href:'/projects/'+o.project_id}:null,
-    {text:R.order_number||o.order_number||'Auftrag',href:'/orders/'+R.order_id},{text:'Einsatzberichte',href:`/orders/${R.order_id}/service-reports`}]
+    o.project_id?{text:R.order_number||o.order_number||'Auftrag',href:'/projects/'+o.project_id+'?auftrag='+R.order_id+'#ausfuehrung'}:{text:R.order_number||'Auftrag'},  // seit 1.9.129 in die Akte
+    {text:'Einsatzberichte',href:`/orders/${R.order_id}/service-reports`}]
     :[{text:'Heute',href:'/mobil'},{text:R.order_number||'Auftrag',href:`/orders/${R.order_id}/service-reports`}];
   pfad.push({text:art});
   var flaechen=(R.roof_areas||[]).map(function(a){return a.roof_area_name}).filter(Boolean);

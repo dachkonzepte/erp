@@ -227,6 +227,8 @@ def test_finanzen_and_dashboard_sum_the_overview_not_the_payment_state():
         assert teil in finanzen, teil
     for teil in ("Number(i.overview.open", "data-guthaben"):
         assert teil in dashboard, teil
-    for name in ("order.html", "project_folder.html"):
-        text = (TEMPLATES / name).read_text(encoding="utf-8")
-        assert "const invoiceStatusText=i=>i.overview?" in text, name
+    # seit 1.9.129 eine Rechnungsliste für Akte und Finanzen (Befund D2) -- bis 1.9.128 je eine invoiceStatusText() in Auftrag und Projektmappe
+    liste = (TEMPLATES / "_rechnungsliste.html").read_text(encoding="utf-8")
+    assert "const o = r.overview;" in liste and "o.state === 'enthalten'" in liste
+    for name in ("akte.html", "finanzen.html"):
+        assert "rechnungsTabelleHtml(" in (TEMPLATES / name).read_text(encoding="utf-8"), name

@@ -4,10 +4,12 @@ Zwei Aufträge zu je 10 m² × 50 € (595 € brutto):
     A  Abschlag 4 m² (238 €), davon 100 € bezahlt (offen 138 €); Schlussrechnung 10 m² über 357 € -> Zahlbetrag 495 €
     B  Abschlag 10 m² (595 €), davon 500 € bezahlt (offen 95 €); Schlussrechnung 8 m² über −119 € -> Guthaben 24 €
 
-    Finanzen         Offene Rechnungen 1, Offener Betrag 495 €, Guthaben 24 €; Abschläge "Enthalten in Schlussrechnung …" ohne
-                     offenen Betrag, A "Zahlbetrag offen" 495 €, B "Guthaben" 24 €; Filter "In Schlussrechnung" und "Guthaben"
+    Finanzen         Unbezahlte Rechnungen 1, Unbezahlt 495 €, Guthaben 24 €; Abschläge "Enthalten in Schlussrechnung …" ohne
+                     unbezahlten Betrag, A "Zahlbetrag unbezahlt 495 €", B "Guthaben 24 €"; Filter "In Schlussrechnung", "Guthaben"
+                     und "Unbezahlt" (seit 1.9.129 dieselbe Rechnungsliste wie die Akte, _rechnungsliste.html: Zeilen
+                     `#rows tbody tr`, „Unbezahlt“ statt „Offen“)
     Dashboard        Kennzahlen wie Finanzen
-    Auftrag/Mappe    Status der Rechnungen nach demselben Stand
+    Akte             Reiter Rechnungen der Akte (seit 1.9.129 statt Auftragsseite und Projektmappe): Zahlstand nach demselben Stand
     Rechnungsseite   Abschlag A: Kennzeichen "Enthalten in Schlussrechnung …", Karte Zahlungen weiter "teilweise bezahlt"
     412 px dunkel    Finanzen
     Monteurin        /api/invoices 403
@@ -88,9 +90,13 @@ FINANZEN_READY = "allInvoices.length>0&&document.getElementById('metrics').inner
 
 
 def _zeile(nr: str) -> str:
-    """Text der Zeile mit dieser Rechnungsnummer in der Tabelle von Finanzen."""
-    return (f"(()=>{{const r=[...document.querySelectorAll('#rows tr')].find(x=>x.cells[0]&&x.cells[0].textContent==={nr!r});"
+    """Text der Zeile mit dieser Rechnungsnummer in der Tabelle von Finanzen (seit 1.9.129 `#rows tbody tr`, die Kopfzeile in thead)."""
+    return (f"(()=>{{const r=[...document.querySelectorAll('#rows tbody tr')].find(x=>x.cells[0]&&x.cells[0].textContent==={nr!r});"
             "return r?[r.querySelector('[data-zahlstand]').textContent,r.querySelector('[data-offen-zeile]').textContent]:null})()")
+
+
+# Rechnungsnummern der sichtbaren Zeilen von Finanzen (seit 1.9.129 ohne die Kopfzeile, die in thead steht)
+FINANZEN_NUMMERN = "[...document.querySelectorAll('#rows tbody tr')].map(r=>r.cells[0].textContent)"
 
 
 async def _js(tab, expr):
@@ -114,25 +120,33 @@ async def pruefen(tab, seed, p):
 
     # --- Finanzen ---
     await tab.oeffnen("/finanzen", FINANZEN_READY)
-    p.pruefe("Finanzen: offene Rechnungen 1, offener Betrag 495 €, Guthaben 24 €", await _js(tab, 
+    p.pruefe("Finanzen: offene Rechnungen 1, offener Betrag 495 €, Guthaben 24 €", await _js(tab,
         "[document.querySelector('[data-offen-anzahl]').textContent,document.querySelector('[data-offen-betrag]').textContent,"
         "document.querySelector('#metrics [data-guthaben]')?.textContent]"), ["1", "495,00 €", "24,00 €"])
+    # seit 1.9.129 heißen die Kacheln „Unbezahlte Rechnungen“ und „Unbezahlt“ statt „Offene Rechnungen“ und „Offener Betrag“
+    p.pruefe("Finanzen: Kacheln „Unbezahlte Rechnungen“ und „Unbezahlt“", await _js(tab,
+        "['[data-offen-anzahl]','[data-offen-betrag]'].map(s=>document.querySelector(s).parentElement.querySelector('small').textContent)"),
+        ["Unbezahlte Rechnungen", "Unbezahlt"])
     p.pruefe("Finanzen: Abschlag A enthalten, ohne offenen Betrag", await _js(tab, _zeile(abschlag_a)),
              [f"Enthalten in Schlussrechnung {a['schluss_nr']}", "—"])
     p.pruefe("Finanzen: Abschlag B enthalten", await _js(tab, _zeile(abschlag_b)),
              [f"Enthalten in Schlussrechnung {b['schluss_nr']}", "—"])
-    p.pruefe("Finanzen: Schlussrechnung A Zahlbetrag offen 495 €", await _js(tab, _zeile(a["schluss_nr"])),
-             ["Zahlbetrag offen", "495,00 €"])
-    p.pruefe("Finanzen: Schlussrechnung B Guthaben 24 €", await _js(tab, _zeile(b["schluss_nr"])), ["Guthaben", "Guthaben 24,00 €"])
+    # seit 1.9.129 Zahlstand aus der einen Rechnungsliste (_rechnungsliste.html): „Zahlbetrag unbezahlt <Betrag>“ statt „Zahlbetrag
+    # offen“, das Guthaben mit Betrag
+    p.pruefe("Finanzen: Schlussrechnung A Zahlbetrag unbezahlt 495 €", await _js(tab, _zeile(a["schluss_nr"])),
+             ["Zahlbetrag unbezahlt 495,00 €", "495,00 €"])
+    p.pruefe("Finanzen: Schlussrechnung B Guthaben 24 €", await _js(tab, _zeile(b["schluss_nr"])),
+             ["Guthaben 24,00 €", "Guthaben 24,00 €"])
     await _js(tab, "setFilter('enthalten')")
-    p.pruefe("Filter „In Schlussrechnung“: die beiden Abschläge", await _js(tab, 
-        "[...document.querySelectorAll('#rows tr')].map(r=>r.cells[0].textContent).sort()"), sorted([abschlag_a, abschlag_b]))
+    p.pruefe("Filter „In Schlussrechnung“: die beiden Abschläge", await _js(tab, FINANZEN_NUMMERN + ".sort()"),
+             sorted([abschlag_a, abschlag_b]))
     await _js(tab, "setFilter('guthaben')")
-    p.pruefe("Filter „Guthaben“: Schlussrechnung B", await _js(tab, 
-        "[...document.querySelectorAll('#rows tr')].map(r=>r.cells[0].textContent)"), [b["schluss_nr"]])
+    p.pruefe("Filter „Guthaben“: Schlussrechnung B", await _js(tab, FINANZEN_NUMMERN), [b["schluss_nr"]])
+    # seit 1.9.129 heißt der Filter „Unbezahlt“ statt „Offen“ (Wert weiter 'offen')
+    p.pruefe("Filter „Unbezahlt“: Beschriftung", await _js(tab,
+        "document.querySelector('#filters [data-wert=\"offen\"]').textContent"), "Unbezahlt")
     await _js(tab, "setFilter('offen')")
-    p.pruefe("Filter „Offen“: Schlussrechnung A", await _js(tab, 
-        "[...document.querySelectorAll('#rows tr')].map(r=>r.cells[0].textContent)"), [a["schluss_nr"]])
+    p.pruefe("Filter „Unbezahlt“: Schlussrechnung A", await _js(tab, FINANZEN_NUMMERN), [a["schluss_nr"]])
     await _js(tab, "setFilter('')")
     await tab.bild("finanzen_zahlbetrag")
 
@@ -144,16 +158,19 @@ async def pruefen(tab, seed, p):
         ["1", "495,00 €", "24,00 €"])
     await tab.bild("dashboard_zahlbetrag")
 
-    # --- Auftrag und Projektmappe ---
-    await tab.oeffnen(f"/orders/{a['order']}", "invoices.length>0&&document.getElementById('invoicesList').textContent")
-    _passt(p, "Auftrag A: Abschlag enthalten, Schlussrechnung Zahlbetrag offen", await _js(tab, 
+    # --- Akte (seit 1.9.129 statt Auftragsseite und Projektmappe): Reiter Rechnungen, dieselbe Rechnungsliste ---
+    # /orders/<id> leitet in die Akte des Projekts mit diesem Auftrag; Zahlstand „Zahlbetrag unbezahlt <Betrag>“ statt „Zahlbetrag offen
+    # (offen …)“, „teilweise bezahlt“ klein geschrieben
+    akte_bereit = "order&&order.id&&invoices.length>0&&document.querySelector('#invoicesList tbody tr[data-rechnung]')"
+    await tab.oeffnen(f"/orders/{a['order']}#rechnungen", akte_bereit)
+    _passt(p, "Akte A: Abschlag enthalten, Schlussrechnung Zahlbetrag unbezahlt", await _js(tab,
         "document.getElementById('invoicesList').textContent"),
-        lambda v: f"Enthalten in Schlussrechnung {a['schluss_nr']}" in v and "Zahlbetrag offen (offen 495,00" in v
-        and "Teilweise bezahlt" not in v)
-    await tab.oeffnen(f"/projects/{b['project']}", "projectInvoices.length>0")
-    _passt(p, "Projektmappe B: Abschlag enthalten, Schlussrechnung Guthaben", await _js(tab, 
-        "renderInvoicesTab();document.getElementById('invoicesTab').textContent"),
-        lambda v: f"Enthalten in Schlussrechnung {b['schluss_nr']}" in v and "Guthaben 24,00" in v)
+        lambda v: v and f"Enthalten in Schlussrechnung {a['schluss_nr']}" in v and "Zahlbetrag unbezahlt 495,00" in v
+        and "teilweise bezahlt" not in v.lower())
+    await tab.oeffnen(f"/projects/{b['project']}#rechnungen", akte_bereit)
+    _passt(p, "Akte B: Abschlag enthalten, Schlussrechnung Guthaben", await _js(tab,
+        "document.getElementById('invoicesList').textContent"),
+        lambda v: v and f"Enthalten in Schlussrechnung {b['schluss_nr']}" in v and "Guthaben 24,00" in v)
 
     # --- Rechnungsseite ---
     await tab.oeffnen(f"/invoices/{a['abschlag']}", "invoice&&invoice.id&&document.getElementById('seitenkopfStatus').textContent")

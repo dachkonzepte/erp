@@ -15,6 +15,6 @@ def test_quote_editor_keeps_core_masterdata_independent_from_optional_employee_l
     assert "api('/api/employees').catch(()=>[])" in html
 
 def test_order_editor_employee_lists_are_resilient():
-    html = (ROOT / "app" / "templates" / "order.html").read_text(encoding="utf-8")
+    html = (ROOT / "app" / "templates" / "akte.html").read_text(encoding="utf-8")
     assert "api('/api/employees').catch(()=>[])" in html
     assert "api('/api/employees/caseworkers').catch(()=>[])" in html

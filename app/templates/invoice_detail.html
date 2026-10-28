@@ -119,7 +119,7 @@ const positionEntfernbar=i=>positionBearbeitbar()&&!(invoice.invoice_type==='sch
 // und „← Auftrag“.
 function renderBreadcrumb(){
   seitenkopf({pfad:[{text:'Projekte',href:'/projects'},{text:invoice.customer_name,href:`/customers/${invoice.customer_id}`},
-    {text:invoice.project_number,href:`/projects/${invoice.project_id}`},{text:invoice.order_number,href:`/orders/${invoice.order_id}`},
+    {text:invoice.project_number,href:`/projects/${invoice.project_id}`},{text:invoice.order_number,href:`/projects/${invoice.project_id}?auftrag=${invoice.order_id}#rechnungen`},
     {text:'Rechnung'}]});
 }
 function render(){
@@ -405,7 +405,7 @@ async function confirmPayment(){
   }catch(e){st.textContent='Fehler: '+e.message}
 }
 async function stornoInvoice(){if(!confirm('Stornorechnung anlegen? Sie wird zunächst als Entwurf angelegt und muss anschließend selbst versendet werden.'))return;try{const storno=await abschliessen('rechnung',()=>api(`/api/invoices/${invoiceId}/storno`,{method:'POST'}));location.href='/invoices/'+storno.id}catch(e){document.getElementById('statusActionMsg').textContent='Fehler: '+e.message}}
-async function deleteInvoiceDraft(){if(!confirm('Diesen Rechnungsentwurf unwiderruflich löschen? Das kann nicht rückgängig gemacht werden.'))return;const orderId=invoice.order_id;try{await speichern('rechnung',()=>api(`/api/invoices/${invoiceId}`,{method:'DELETE'}));location.href='/orders/'+orderId}catch(e){document.getElementById('statusActionMsg').textContent='Fehler: '+e.message}}
+async function deleteInvoiceDraft(){if(!confirm('Diesen Rechnungsentwurf unwiderruflich löschen? Das kann nicht rückgängig gemacht werden.'))return;const orderId=invoice.order_id;try{await speichern('rechnung',()=>api(`/api/invoices/${invoiceId}`,{method:'DELETE'}));location.href='/orders/'+orderId+'#rechnungen'}catch(e){document.getElementById('statusActionMsg').textContent='Fehler: '+e.message}}
 
 const REMINDER_LEVEL_LABELS={1:'1. Mahnung',2:'2. Mahnung',3:'3. Mahnung'};
 let currentReminders=[];

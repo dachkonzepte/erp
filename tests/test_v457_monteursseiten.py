@@ -23,7 +23,8 @@ FAELLE = [
     ("/checklisten/1", "field", True, [("/mobil", "Heute")]),
     ("/checklisten/1", "buero_auftrag", False, [("/checklisten", "Checklisten")]),
     ("/checklisten/auftrag/1", "field", True, [("/mobil", "Heute")]),
-    ("/checklisten/auftrag/1", "buero_auftrag", False, [("/checklisten", "Checklisten"), ("/orders/1", "Auftrag")]),
+    # seit 1.9.129 vor dem Laden ohne den Auftrag (er führt in die Akte, dafür fehlt dort das Projekt; bis 1.9.128 fest „/orders/1“)
+    ("/checklisten/auftrag/1", "buero_auftrag", False, [("/checklisten", "Checklisten")]),
     ("/mobil/objekt/1", "field", True, [("/mobil", "Heute")]),
     ("/mobil/objekt/1", "buero_auftrag", True, [("/mobil", "Heute")]),  # die Seite steht für jede Rolle im Monteursrahmen
     ("/mobil/offen", "field", True, [("/mobil", "Heute")]),  # seit 1.9.49 „Heute / Offen“
@@ -88,4 +89,4 @@ def test_checkliste_pfad_nach_dem_laden_ueber_den_bisherigen_rueckweg():
     assert "{text:cl.context_label,href:zurueck}" in kopf and "const zurueck=backLink();" in kopf
     assert "status:statusKennzeichen('checkliste',cl.status)" in kopf
     rueck = skript[skript.index("function backLink()"):skript.index("function answerOf(")]
-    assert "IS_FIELD?`/checklisten/auftrag/${cl.order_id}`:`/orders/${cl.order_id}`" in rueck
+    assert "IS_FIELD?`/checklisten/auftrag/${cl.order_id}`:`/orders/${cl.order_id}#ausfuehrung`" in rueck  # seit 1.9.129 auf den Reiter der Akte

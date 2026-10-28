@@ -435,7 +435,7 @@ def test_order_and_invoice_name_the_reasons_for_the_page(threaded_db_session, ro
 def test_pages_show_the_reason_instead_of_the_button():
     """Die Seiten nehmen den Grund vom Server (Klicktest: scripts/klicktest_rechnungen_sperren.py)."""
     templates = Path(__file__).resolve().parent.parent / "app" / "templates"
-    order_html = (templates / "order.html").read_text(encoding="utf-8")
+    order_html = (templates / "akte.html").read_text(encoding="utf-8")
     assert "order.invoice_create_blocks" in order_html and "newInvoiceButton').hidden=!!reason" in order_html
     detail = (templates / "invoice_detail.html").read_text(encoding="utf-8")
     assert "invoice.finalize_block?blockNoticeHtml(invoice.finalize_block)" in detail

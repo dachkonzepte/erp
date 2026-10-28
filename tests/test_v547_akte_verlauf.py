@@ -181,3 +181,24 @@ def test_rollen(router_test_client, threaded_db_session):
     assert router_test_client(db, projects_router.router, role="field").get(f"/api/projects/{pid}/verlauf").status_code == 403
     assert router_test_client(db, projects_router.router).get("/api/projects/999999/verlauf").status_code == 404
     assert router_test_client(db, projects_router.router).get(f"/api/projects/{pid}/verlauf", params={"art": "unsinn"}).status_code == 422
+
+
+def test_ziel_einer_zeile():
+    """Seit 1.9.129 (Vorlage akte-verlauf.html): eine Zeile führt zur Seite ihres Datensatzes -- „Öffnen“ beim Bericht, der Rechnung, dem
+    Angebot, der Checkliste, „Ansehen“ beim Befund (der Bericht, in dem er steht); keine beim Versand, bei Gelöschtem und anderen Arten."""
+    from types import SimpleNamespace
+
+    from app.akte_verlauf import Gruppe, ziel
+
+    def gruppe(typ, kennung, aktion="angelegt", versand=None):
+        return Gruppe(zeilen=[SimpleNamespace(entity_type=typ, entity_id=str(kennung), action=aktion)], versand=versand)
+
+    assert ziel(gruppe("Einsatzbericht", 7), {}) == {"href": "/service-reports/7", "text": "Öffnen"}
+    assert ziel(gruppe("Rechnung", 3), {}) == {"href": "/invoices/3", "text": "Öffnen"}
+    assert ziel(gruppe("Angebot", 2), {}) == {"href": "/quotes/2/edit", "text": "Öffnen"}
+    assert ziel(gruppe("Checkliste", 5), {}) == {"href": "/checklisten/5", "text": "Öffnen"}
+    assert ziel(gruppe("Befund", 9), {9: 7}) == {"href": "/service-reports/7", "text": "Ansehen"}
+    assert ziel(gruppe("Befund", 9), {}) is None
+    assert ziel(gruppe("Einsatzbericht", 7, "gelöscht"), {}) is None
+    assert ziel(gruppe("Auftragsposition", 4), {}) is None
+    assert ziel(gruppe("Rechnung", 3, versand={"created_at": None}), {}) is None

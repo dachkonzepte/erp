@@ -58,7 +58,7 @@ def _render(logo_url=None, height=64):
     # auch das nur ein Stub, echtes Verhalten wird in tests/test_v254_topbar.py getestet.
     env.globals["account_display"] = lambda current_user: {"full_name": "", "initials": ""}
     env.globals["can"] = lambda current_user, *roles: current_user is not None and current_user.role in roles
-    tmpl = env.get_template("project_folder.html")  # eine beliebige Seite, die _sidebar.html einbindet
+    tmpl = env.get_template("projects.html")  # seit 1.9.129 (bis dahin die Projektmappe, heute Akte) eine beliebige Seite, die _sidebar.html einbindet
     return tmpl.render(request=_FakeRequest("/x", _FakeUser()), app_version="1.0.0", project_id=1)
 
 
@@ -170,7 +170,7 @@ def test_vier_gruppen_in_reihenfolge():
 
 
 def test_aktiv_ist_der_bereich_der_seite():
-    """project_folder.html nennt bereich "projekte" -- genau dieser Eintrag ist aktiv, mit aria-current."""
+    """projects.html (bis 1.9.128 project_folder.html) nennt bereich "projekte" -- genau dieser Eintrag ist aktiv, mit aria-current."""
     html = _render(None)
     nav = html[html.index('<nav class="app-sidebar-nav">'):html.index("</nav>")]
     assert nav.count(" active") == 1 and nav.count('aria-current="page"') == 1

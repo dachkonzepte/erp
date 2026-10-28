@@ -5,6 +5,7 @@ Befund „Vor dem Echtbetrieb“ Punkt 2 (docs/archiv/befund-vor-echtbetrieb.md,
     Schnellauftrag     Objekt-Auswahl zeigt nur Objekte des Kunden; "Objekte anderer Kunden anzeigen" ergänzt die übrigen,
                        ein fremdes Objekt zeigt den Hinweis mit Häkchen -- ohne Häkchen geht nichts hinaus (und die API
                        antwortet 409), mit Häkchen entsteht der Auftrag für den Kunden am Objekt der Hausverwaltung
+                       (seit 1.9.129 weiter in die Akte des Auftrags, /projects/{projekt}?auftrag={id})
     Vertrag anlegen    dasselbe im Editor "Wartungsvertrag anlegen"
     Vertragsseite      das gespeicherte fremde Objekt bleibt vorgewählt ("bestätigt"), unverändert speichern geht ohne
                        Rückfrage; zurück zum eigenen Objekt und wieder zum fremden verlangt die Bestätigung erneut
@@ -109,8 +110,11 @@ async def pruefen(tab, seed, p):
     p.pruefe("Schnellauftrag: nichts angelegt", await tab.js("fetch('/api/projects').then(r=>r.json()).then(j=>j.length)"),
              projekte_vorher)
     await tab.js("document.getElementById('qsoConfirmProperty').checked=true;saveQuickServiceOrder()")
-    p.pruefe("Schnellauftrag: zum Auftrag gewechselt", await tab.warten("location.pathname.startsWith('/orders/')"), True)
-    order_id = await tab.js("Number(location.pathname.split('/')[2])")
+    # Seit 1.9.129 (Akte): /orders/{id} leitet auf /projects/{projekt}?auftrag={id} -- „zum Auftrag gewechselt“ heißt jetzt: die Akte
+    # mit dem Auftrag in ?auftrag= (bis 1.9.128 location.pathname '/orders/{id}').
+    p.pruefe("Schnellauftrag: zum Auftrag gewechselt", await tab.warten(
+        "/^\\/projects\\/\\d+$/.test(location.pathname)&&/^\\d+$/.test(new URLSearchParams(location.search).get('auftrag')||'')"), True)
+    order_id = await tab.js("Number(new URLSearchParams(location.search).get('auftrag'))")
     projekt = await tab.js(f"fetch('/api/orders/{order_id}').then(r=>r.json()).then(o=>fetch('/api/projects/'+o.project_id)).then(r=>r.json())")
     p.pruefe("Schnellauftrag: Kunde und Objekt", [projekt.get("customer_id"), projekt.get("property_id")] if projekt else None,
              [kunde, hof])

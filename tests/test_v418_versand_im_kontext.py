@@ -111,15 +111,16 @@ def test_api_filtert_und_lehnt_beides_zugleich_ab(welt, router_test_client):
 
 
 def test_projektmappe_und_kundenakte_zeigen_ihren_versand():
-    mappe = (TEMPLATES / "project_folder.html").read_text(encoding="utf-8")
+    mappe = (TEMPLATES / "akte.html").read_text(encoding="utf-8")
     akte = (TEMPLATES / "customer.html").read_text(encoding="utf-8")
     baustein = (TEMPLATES / "_email_dispatch.html").read_text(encoding="utf-8")
     protokoll = (TEMPLATES / "email_dispatches.html").read_text(encoding="utf-8")
-    assert 'data-tab="sec-dispatch"' in mappe and "renderDispatchList('projectDispatches',{project_id:projectId})" in mappe
+    # seit 1.9.129 die Akte: Versand im Verlauf (Filter „Versand“, ein Strom mit den Änderungen) statt Reiter „Versand“ der Projektmappe
+    assert 'data-art="versand"' in mappe and "el('versandprotokollLink').href='/versandprotokoll?projekt='+projectId;" in mappe
     assert "renderDispatchList('customerDispatches',{customer_id:customerId})" in akte
     from tests import vorlagen_js
 
-    assert all(vorlagen_js.bindet_ein(n, "_email_dispatch.html", TEMPLATES) for n in ("project_folder.html", "customer.html"))
+    assert all(vorlagen_js.bindet_ein(n, "_email_dispatch.html", TEMPLATES) for n in ("akte.html", "customer.html"))
     assert "`/api/email-dispatches?${anfrage}&limit=100`" in baustein
     # Die Mahnung führt in ihre Rechnung zur Mahnung -- im Versandprotokoll und in den neuen Listen derselbe Link.
     assert "mahnung: d.invoice_id ? `/invoices/${Number(d.invoice_id)}?mahnung=${id}` : '/mahnwesen'" in baustein

@@ -156,9 +156,10 @@ def test_wartungsvertrag_dachflaeche_und_termin(db):
 
 
 def test_auftragsstaende_versprechen_stimmt(db):
-    """Die Karte „Auftragsstände“ sagt seit jeher „Einzeländerungen bleiben zusätzlich im Änderungsprotokoll sichtbar“ -- seit 1.9.115 stimmt es."""
-    text = (VORLAGEN / "order.html").read_text(encoding="utf-8")
-    assert "Einzeländerungen bleiben zusätzlich im Änderungsprotokoll sichtbar" in text
+    """Die Karte „Auftragsstände“ sagt seit jeher „Einzeländerungen bleiben zusätzlich im Änderungsprotokoll sichtbar“ -- seit 1.9.115 stimmt es.
+    Seit 1.9.129 in der Akte: „jede Einzeländerung steht zusätzlich im Verlauf“ (dem Strom der Akte, app/akte_verlauf.py)."""
+    text = (VORLAGEN / "akte.html").read_text(encoding="utf-8")
+    assert "jede Einzeländerung steht zusätzlich im Verlauf" in text
     from app.audit import AUDITED_TYPES
     from app.models import Invoice, InvoiceItem, OrderItem, Reminder
     assert {OrderItem, OrderSection, Invoice, InvoiceItem, Reminder, ServiceReport, MaintenanceContract, RoofArea, CalendarEvent} <= set(AUDITED_TYPES)
@@ -183,9 +184,10 @@ def test_verlauf_aenderung_zeigt_verworfen_und_pausen():
     ]
 
 
-@pytest.mark.parametrize("vorlage", ["history.html", "project_folder.html"])
+@pytest.mark.parametrize("vorlage", ["history.html", "akte.html"])
 def test_history_und_projektmappe_nehmen_verlauf_aenderung(vorlage):
     from tests import vorlagen_js
     text = (VORLAGEN / vorlage).read_text(encoding="utf-8")
-    assert "${verlaufAenderung(x)}" in text and "Datensatz gelöscht" not in text
+    # seit 1.9.129 die Akte (Einzelheiten einer Zeile des Verlaufs, Variable z) statt der Projektmappe
+    assert ("${verlaufAenderung(x)}" if vorlage == "history.html" else "${verlaufAenderung(z)}") in text and "Datensatz gelöscht" not in text
     assert vorlagen_js.bindet_ein(vorlage, "_verlauf.html", wurzel=VORLAGEN)

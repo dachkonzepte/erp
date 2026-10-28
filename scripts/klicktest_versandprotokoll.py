@@ -211,12 +211,16 @@ async def _pruefen(tab, seed, p):
     await tab.bild("rechnung_versand")
 
     # --- Auftrag, Angebot, Mahnung
-    await tab.oeffnen(f"/orders/{seed['auftrag']}", "document.getElementById('orderEmailSection').style.display==='block'")
+    # seit 1.9.129: /orders/{id} leitet in die Akte, die Auftragsbestätigung steht im Reiter „Vertrag“ (Karte mit display 'flex',
+    # bis dahin 'block'); der Link ins Protokoll steht im Kopf des Versandverlaufs (bis dahin eigener Link #orderDispatchLink)
+    await tab.oeffnen(f"/orders/{seed['auftrag']}#vertrag",
+                      "document.getElementById('orderEmailSection').style.display==='flex'&&!document.getElementById('reiter-vertrag').hidden"
+                      "&&!!document.querySelector('#orderDispatchHistory .dh-head a')")
     await tab.js("document.getElementById('orderCcInput').value='chef@klicktest.example';"
                  "document.querySelector('button[onclick^=\"sendOrderEmail\"]').click(); true")
     await tab.warten("document.getElementById('orderEmailStatus').textContent==='Versendet.'")
     p.pruefe("Auftrag: versendet", await tab.js("document.getElementById('orderEmailStatus').textContent"), "Versendet.")
-    p.pruefe("Auftrag: Link ins Protokoll", await tab.js("document.getElementById('orderDispatchLink').getAttribute('href')"),
+    p.pruefe("Auftrag: Link ins Protokoll", await tab.js("document.querySelector('#orderDispatchHistory .dh-head a').getAttribute('href')"),
              f"/versandprotokoll?typ=auftrag&id={seed['auftrag']}")
     p.pruefe("Auftrag: JS-Fehler", tab.fehler, [])
 
@@ -277,7 +281,9 @@ async def _pruefen(tab, seed, p):
     p.pruefe("Klären ohne Notiz: nichts gespeichert", await tab.js(
         "fetch('/api/email-dispatches?stuck=true').then(r=>r.json()).then(d=>d.stuck_count)"), 1)
     await tab.js(f"document.getElementById('resolveNote{hid}').value='In Gesendete Elemente gefunden, 14:02';" + klick_gesendet)
-    await tab.warten("!document.querySelector('#rows textarea') && document.getElementById('rows').textContent.includes('Von Hand geklärt')")
+    # das Notizfeld des Klärens ist weg (nicht jedes Textfeld der Liste: seit 1.8.41 trägt jede gesendete Zeile das Formular
+    # „Empfang bestätigt / unzustellbar“ mit eigener Notiz -- die Bedingung lief bis 1.9.129 immer 15 s ab)
+    await tab.warten(f"!document.getElementById('resolveNote{hid}') && document.getElementById('rows').textContent.includes('Von Hand geklärt')")
     zeilen = await tab.js("document.getElementById('rows').textContent") or ""
     p.pruefe("Klären: Notiz und Name in der Zeile", "In Gesendete Elemente gefunden, 14:02" in zeilen and "Bea Büro" in zeilen, True)
     p.pruefe("Klären: Warnkarte weg", await tab.js("getComputedStyle(document.getElementById('stuckCard')).display"), "none")

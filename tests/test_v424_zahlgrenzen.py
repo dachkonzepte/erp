@@ -88,7 +88,7 @@ ABGLEICH = [
     Z("maintenance_contract.html", "id=editInterval", ("MaintenanceContractUpdate.interval_months",)),
     Z("maintenance_contract.html", "id=itemDuration", ("MaintenanceContractItemCreate.duration_minutes",)),
     Z("maintenance_contracts.html", "id=editInterval", ("MaintenanceContractCreate.interval_months",)),
-    Z("project_folder.html", "id=mcIntervalMonths", ("MaintenanceContractFromProjectCreate.interval_months",)),
+    Z("akte.html", "id=mcIntervalMonths", ("MaintenanceContractFromProjectCreate.interval_months",)),
     # -- Stammdaten
     Z("master_data_form.html", None, ("EmployeeCreate.weekly_hours", "EmployeeUpdate.weekly_hours"), lesen=("zahlFeld('weeklyHours')",)),
     Z("master_data_form.html", None, ("MaterialCatalogCreate.purchase_price", "MaterialCatalogUpdate.purchase_price"),
@@ -97,10 +97,10 @@ ABGLEICH = [
     Z("operational_asset.html", "id=editAcqCost", ("OperationalAssetCreate.acquisition_cost", "OperationalAssetUpdate.acquisition_cost")),
     Z("operational_asset.html", "id=editRecurringCost", ("OperationalAssetRecurringCostUpdate.net_amount",)),
     Z("operational_asset.html", "id=inspInterval", ("OperationalAssetInspectionCreate.interval_months", "OperationalAssetInspectionUpdate.interval_months")),
-    # -- Auftrag
-    Z("order.html", None, ("OrderAddendumCreate.quantity", "OrderItemUpdate.quantity"), lesen=("zahlFeld('iQty')",)),
-    Z("order.html", None, ("OrderAddendumCreate.unit_price", "OrderItemUpdate.unit_price"), lesen=("zahlFeld('iPrice')",)),
-    Z("order.html", None, ("OrderItemUpdate.quantity", "OrderItemUpdate.unit_price"), lesen=("zahlLesen(value)", "zahlFeld(value)")),
+    # -- Auftrag (seit 1.9.129 in der Akte; Menge und EP nur noch im Dialog der Position -- bis 1.9.128 auch in der Zeile des LV,
+    #    zahlLesen(value)/zahlFeld(value) aus quickItem())
+    Z("akte.html", None, ("OrderAddendumCreate.quantity", "OrderItemUpdate.quantity"), lesen=("zahlFeld('iQty')",)),
+    Z("akte.html", None, ("OrderAddendumCreate.unit_price", "OrderItemUpdate.unit_price"), lesen=("zahlFeld('iPrice')",)),
     # -- Plantafel
     Z("planning.html", "id=newPlannedHours", ("PlanningSlotCreate.planned_hours",)),
     Z("planning.html", "id=newTravelHours", ("PlanningSuggestionRequest.travel_hours_per_employee_day", "PlanningSlotCreate.travel_hours_per_employee_day")),

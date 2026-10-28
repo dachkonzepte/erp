@@ -37,10 +37,12 @@ a.link{color:var(--ds-link);font-weight:700;text-decoration:none}
 <div class="card" id="reminderCard" style="display:none"><h2 style="margin:0 0 4px">Mahnwesen</h2><div class="muted small" id="reminderSummaryText" style="margin-bottom:8px"></div><a class="link" href="/mahnwesen">Zum Mahnwesen →</a></div>
 <div class="card">
   <div class="filters" id="filters"></div>
-  <div style="overflow:auto"><table><thead><tr><th>Rechnung</th><th>Typ</th><th>Kunde</th><th>Auftrag</th><th>Datum</th><th>Fällig</th><th>Status</th><th class="number">Brutto</th><th class="number">Offen</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+  <div style="overflow:auto" id="rows"></div>
 </div>
 </main>
 {% include "_seitenkopf.html" %}
+{% include "_berlin_date.html" %}
+{% include "_rechnungsliste.html" %}
 </div>
 </div>
 <script>
@@ -56,7 +58,7 @@ const STATUS_LABELS={entwurf:'Entwurf',versendet:'Finalisiert',storniert:'Storni
 // offenem Betrag zählen nicht mehr einzeln ("enthalten in Schlussrechnung …").
 const ov=i=>i.overview;
 const statusText=i=>ov(i)?ov(i).state_label.charAt(0).toUpperCase()+ov(i).state_label.slice(1):(i.invoice_type==='storno'&&i.status==='versendet'?'Storno':(STATUS_LABELS[i.status]||i.status));
-const FILTERS=[['','Alle',()=>true],['entwurf','Entwurf',i=>i.status==='entwurf'],['offen','Offen',i=>ov(i)&&['offen','teilweise_bezahlt','zahlbetrag_offen'].includes(ov(i).state)],['einbehalt_offen','Einbehalt offen',i=>ov(i)&&ov(i).state==='einbehalt_offen'],['bezahlt','Bezahlt',i=>ov(i)&&['bezahlt','ausgeglichen'].includes(ov(i).state)],['guthaben','Guthaben',i=>ov(i)&&ov(i).state==='guthaben'],['enthalten','In Schlussrechnung',i=>ov(i)&&ov(i).state==='enthalten'],['storniert','Storniert / Storno',i=>i.status==='storniert'||(i.invoice_type==='storno'&&i.status!=='entwurf')]];
+const FILTERS=[['','Alle',()=>true],['entwurf','Entwurf',i=>i.status==='entwurf'],['offen','Unbezahlt',i=>ov(i)&&['offen','teilweise_bezahlt','zahlbetrag_offen'].includes(ov(i).state)],['einbehalt_offen','Einbehalt offen',i=>ov(i)&&ov(i).state==='einbehalt_offen'],['bezahlt','Bezahlt',i=>ov(i)&&['bezahlt','ausgeglichen'].includes(ov(i).state)],['guthaben','Guthaben',i=>ov(i)&&ov(i).state==='guthaben'],['enthalten','In Schlussrechnung',i=>ov(i)&&ov(i).state==='enthalten'],['storniert','Storniert / Storno',i=>i.status==='storniert'||(i.invoice_type==='storno'&&i.status!=='entwurf')]];
 let unallocated=[];  // seit 1.8.93: Guthaben der Kunden (/api/payments/customer-balances) {rest, credit, total}
 async function api(u){const r=await fetch(u);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
 
@@ -73,8 +75,8 @@ function renderMetrics(){
   const paidTotal=allInvoices.filter(i=>i.payment).reduce((s,i)=>s+Number(i.payment.paid),0)-refundedTotal;
   const unallocatedSum=unallocated.reduce((s,r)=>s+Number(r.rest),0);
   document.getElementById('metrics').innerHTML=`
-    <div class="metric"><small>Offene Rechnungen</small><b data-offen-anzahl>${open.length}</b></div>
-    <div class="metric"><small>Offener Betrag</small><b data-offen-betrag>${money(openSum)}</b></div>
+    <div class="metric"><small>Unbezahlte Rechnungen</small><b data-offen-anzahl>${open.length}</b></div>
+    <div class="metric"><small>Unbezahlt</small><b data-offen-betrag>${money(openSum)}</b></div>
     ${retained?`<div class="metric"><small>davon Einbehalt</small><b>${money(retained)}</b></div>`:''}
     <div class="metric"><small>Überfällig</small><b style="${overdue.length?'color:var(--danger)':''}">${overdue.length}</b></div>
     <div class="metric"><small>Bezahlt (gesamt)</small><b data-bezahlt>${money(paidTotal)}</b>${refundedTotal?`<div class="muted small" data-erstattet>abzüglich Erstattungen ${money(refundedTotal)}</div>`:''}</div>
@@ -103,7 +105,8 @@ function renderReminderOverview(rows){
 function renderRows(){
   const test=(FILTERS.find(f=>f[0]===statusFilter)||FILTERS[0])[2];
   const rows=allInvoices.filter(test);
-  document.getElementById('rows').innerHTML=rows.length?rows.map(i=>`<tr><td><b>${esc(i.invoice_number||'Entwurf')}</b></td><td>${esc(TYPE_LABELS[i.invoice_type]||i.invoice_type)}</td><td>${esc(i.customer_name)}</td><td>${i.order_number?`<a class="link" href="/orders/${i.order_id}">${esc(i.order_number)}</a>${i.project_number?` <span class="muted small">(${esc(i.project_number)})</span>`:''}`:'—'}</td><td>${new Date(i.invoice_date+'T00:00:00').toLocaleDateString('de-DE')}</td><td>${i.due_date?new Date(i.due_date+'T00:00:00').toLocaleDateString('de-DE'):'—'}</td><td><span class="pill ${i.is_overdue?'overdue':''} ${ov(i)&&['bezahlt','ausgeglichen','guthaben'].includes(ov(i).state)?'bezahlt':''}" data-zahlstand="${esc(ov(i)?ov(i).state:'')}">${esc(statusText(i))}${i.is_overdue?' · überfällig':''}</span></td><td class="number">${money(i.gross_total)}</td><td class="number" data-offen-zeile>${!ov(i)||ov(i).state==='enthalten'?'—':Number(ov(i).credit)>0?`Guthaben ${money(ov(i).credit)}`:money(ov(i).open)}</td><td><a class="link" href="/invoices/${i.id}">Öffnen</a></td></tr>`).join(''):'<tr><td colspan="10" class="empty">Keine Rechnungen'+(statusFilter?' mit diesem Status':'')+'.</td></tr>';
+  // seit 1.9.128 die eine Rechnungsliste von Akte und Finanzen (_rechnungsliste.html, Befund D2)
+  document.getElementById('rows').innerHTML=rechnungsTabelleHtml(rows,{spalten:['rechnung','art','kunde','auftrag','datum','faellig','zahlstand','brutto','unbezahlt'],leer:'Keine Rechnungen'+(statusFilter?' mit diesem Stand':'')+'.'});
 }
 
 async function load(){

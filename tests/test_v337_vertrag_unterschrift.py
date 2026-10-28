@@ -402,12 +402,12 @@ def test_checklist_service_report_and_order_pages_use_the_shared_pad(world, rout
     assert "background:#fff" in shared and "strokeStyle='#111'" in shared and "devicePixelRatio" in shared
     from tests import vorlagen_js
 
-    for name in ("checklist.html", "service_report.html", "order.html"):  # seit 1.9.67 der Bericht auf eigener Seite
+    for name in ("checklist.html", "service_report.html", "akte.html"):  # seit 1.9.67 der Bericht auf eigener Seite
         source = (root / name).read_text(encoding="utf-8")
         assert vorlagen_js.bindet_ein(name, "_unterschrift.html", root), name  # seit 1.8.124 auch im Basis-Template
         assert "getContext('2d')" not in source and "setPointerCapture" not in source, f"{name}: eigene Zeichenlogik"
     client = router_test_client(world, pages.router, role="buero_auftrag")
-    for path in ("/service-reports/1", "/checklisten/1", "/orders/1"):
+    for path in ("/service-reports/1", "/checklisten/1", "/projects/1"):  # seit 1.9.129 die Akte (Projektmappe und Auftragsseite in einer Seite) (/orders/1 leitet weiter)
         html = client.get(path).text
         assert "function unterschriftsfeld(" in html and "dk-unterschrift" in html, path
 

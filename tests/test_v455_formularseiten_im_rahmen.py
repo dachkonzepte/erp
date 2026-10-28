@@ -27,7 +27,7 @@ FAELLE = [
     ("/master-data/materials/new", [("/master-data", "Stammdaten"), ("/master-data#materials", "Materialkataloge")]),
     ("/master-data/teams/2/edit", [("/master-data", "Stammdaten"), ("/master-data#teams", "Kolonnen / Teams")]),
     ("/master-data/properties/3/edit", [("/master-data", "Stammdaten"), ("/properties/3", "Objekt")]),
-    ("/master-data/contacts/new?projekt=7", [("/projects", "Projekte"), ("/projects/7#sec-participants", "Projektmappe")]),
+    ("/master-data/contacts/new?projekt=7", [("/projects", "Projekte"), ("/projects/7#sec-participants", "Akte")]),  # bis 1.9.128 „Projektmappe“
     ("/services/1/edit", [("/master-data", "Stammdaten"), ("/master-data#catalogs", "Leistungskataloge"), ("/leistungskatalog", "Leistungskatalog")]),
     ("/services/new", [("/master-data", "Stammdaten"), ("/master-data#catalogs", "Leistungskataloge"), ("/leistungskatalog", "Leistungskatalog")]),
 ]

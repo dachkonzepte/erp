@@ -215,7 +215,7 @@ def test_customer_html_has_document_section():
 
 
 def test_project_folder_html_has_subfolder_support():
-    html = (Path(__file__).parents[1] / "app" / "templates" / "project_folder.html").read_text(encoding="utf-8")
+    html = (Path(__file__).parents[1] / "app" / "templates" / "akte.html").read_text(encoding="utf-8")
     for marker in ["subfolder", "subfolderCards", "renderSubfolders", "filterSubfolder", "activeSubfolder"]:
         assert marker in html, f"fehlt: {marker}"
 

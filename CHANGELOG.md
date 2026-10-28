@@ -4,6 +4,26 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.129 – Die Akte je Projekt: Projektmappe und Auftrag in einer Seite (Stufe 5, R2, Punkte 2, 3, 5 und 6)
+
+Wer an einem Auftrag arbeitete, wechselte zwischen zwei Seiten: der Projektmappe (Dateien, Angebote, Beteiligte, Historie, Summen über alle
+Aufträge) und der Auftragsseite (LV, Auftragsdaten, Vertrag, Abnahme, Rechnungen). Jetzt ist `/projects/{id}` die Akte nach den Vorlagen
+`akte-*.html` (`app/templates/akte.html`): im Kopf Pfad, Hauptknopf je Phase und Rolle und das Menü „⋮“, darunter die Auftragswahl (ab zwei
+Aufträgen) mit den fünf Phasen und dem Status, dann die Reiter Übersicht · Angebote · Vertrag · Leistungen · Ausführung · Abnahme & Mängel ·
+Rechnungen · Dateien · Verlauf. Die Übersicht zeigt Abrechnung (Leistung netto, Zahlung brutto) und Stunden des gewählten Auftrags vom Server,
+was ansteht, Termine, Beteiligte und die letzten Einträge des Verlaufs. Das LV zeigt je Position, was abgerechnet ist (Menge, Prozent) und
+Stunden Ist/Soll; bearbeitet wird eine Position im Dialog. `/orders/{id}` leitet auf `/projects/{id}?auftrag={id}`; Arbeitsvorbereitung,
+Einsatzberichte, Bericht, Rechnung und Checklisten führen auf den passenden Reiter zurück. Jede Funktion der beiden früheren Seiten steht in der
+Akte (`tests/test_v549_akte_seite.py`, Tabelle aus dem Befund).
+
+Aus dem Befund: eine Rechnungsliste für Akte und Finanzen (`_rechnungsliste.html`, D2), „offen“ heißt nur noch „unbezahlt“ oder „noch nicht
+abgerechnet“ (D5), ein „+ Angebot“ (D15), der Status nie roh (B4), die Auftragsliste nur einmal (D3), „Offene Bedenken“ über den gemeinsamen
+Baustein (D17), Eingaben im Vertragsentwurf bleiben beim Neuzeichnen stehen (E1), „Bericht anlegen“ öffnet gleich den Dialog (L2). Büro – Auftrag
+sieht die Zahlen ohne Geld-Knöpfe; die Monteurin bekommt keine Akte (403). „Projektmappe“ heißt in Pfaden und Menüs „Akte“. Der Verlauf
+zeigt je Zeile Zeitpunkt, Art als Kennzeichen und, wo es einen gibt, den Weg zum Datensatz („Öffnen“, beim Befund „Ansehen“). Beim Umstellen
+der Klicktests aufgefallen und behoben: nach einer Abnahme blieben Phasen und Hauptknopf alt, ein Mustervorgang bot „Beauftragen“ an, und der
+Reiter „Leistungen“ lief bei 412 px über.
+
 ## 1.9.128 – Kopf und Übersicht der Akte: Auftragswahl, Hauptaktion, was ansteht (Stufe 5, R2, Punkt 2, Server)
 
 Die Akte je Projekt braucht beim Laden mehr, als die Seite selbst rechnen soll: welcher Auftrag gewählt ist, seine Phasen, den einen Knopf im

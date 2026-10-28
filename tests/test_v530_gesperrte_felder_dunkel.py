@@ -13,7 +13,7 @@ import pytest
 from tests import vorlagen_js as vj
 from tests.test_v432_design_fundament import DS_CSS
 
-SEITEN = ("settings.html", "checklist.html", "checklist_template.html", "order.html", "master_data_form.html")
+SEITEN = ("settings.html", "checklist.html", "checklist_template.html", "akte.html", "master_data_form.html")
 
 
 def _token(text: str, name: str, dunkel: bool) -> str:

@@ -15,6 +15,7 @@ from fastapi import Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from jinja2 import pass_context
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..checklist_purposes import DEFAULT_PURPOSE, PURPOSES
@@ -22,7 +23,7 @@ from ..meldungen import KEIN_MITARBEITER
 from ..concern_notices import OPEN_CONCERNS_TEXT
 from ..database import get_db
 from ..deps import require_admin
-from ..models import AppUser
+from ..models import AppUser, Order
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, ZEITEN_NUR_LESEN, GELD_NUR_LESEN, EINSTELLUNGEN_GELD_NUR_LESEN, darf_geld, darf_lohndaten, darf_zeit_buchen, darf_zeit_fuer_andere_buchen, default_home_page_for_role, has_min_role, has_role, require_min_role, zeit_nur_mit_von_bis
 from .. import seitendaten
 from ..design_dateien import pruefsumme as ds_pruefsumme
@@ -437,7 +438,7 @@ STAMMDATEN_BEREICHE = {
 
 def zurueck_stammdaten(data_type: str, record_id: int | None = None, projekt: int | None = None) -> dict:
     if data_type == "contacts" and projekt:
-        return {"href": f"/projects/{projekt}#sec-participants", "text": "Projektmappe"}
+        return {"href": f"/projects/{projekt}#sec-participants", "text": "Akte"}  # seit 1.9.129 die Akte (der Anker öffnet „Beteiligte“)
     if data_type == "properties" and record_id:
         return {"href": f"/properties/{record_id}", "text": "Objekt"}
     bereich, name = STAMMDATEN_BEREICHE[data_type]
@@ -446,9 +447,9 @@ def zurueck_stammdaten(data_type: str, record_id: int | None = None, projekt: in
 
 def pfad_stammdaten(data_type: str, record_id: int | None = None, projekt: int | None = None) -> list[dict]:
     """Seit 1.9.22 (Stufe 2, Runde 8): die Glieder des Pfads im Stammdaten-Formular vor der Seite selbst -- der Bereich der Leiste (aus der
-    Projektmappe kommend: Projekte), dann der bisherige Rückweg (dasselbe Ziel wie zurueck_stammdaten(), das „Abbrechen“ nimmt)."""
+    Akte kommend: Projekte), dann der bisherige Rückweg (dasselbe Ziel wie zurueck_stammdaten(), das „Abbrechen“ nimmt)."""
     if data_type == "contacts" and projekt:
-        return [{"href": "/projects", "text": "Projekte"}, {"href": f"/projects/{projekt}#sec-participants", "text": "Projektmappe"}]
+        return [{"href": "/projects", "text": "Projekte"}, {"href": f"/projects/{projekt}#sec-participants", "text": "Akte"}]
     if data_type == "properties" and record_id:
         return [{"href": "/master-data", "text": "Stammdaten"}, {"href": f"/properties/{record_id}", "text": "Objekt"}]
     bereich, name = STAMMDATEN_BEREICHE[data_type]
@@ -464,13 +465,18 @@ def project_create_page(request: Request, customer_id: str | None = None, _role:
 
 @router.get("/projects/{project_id}", response_class=HTMLResponse)
 def project_folder_page(request: Request, project_id: int, _role: AppUser = _role_dep):
-    return templates.TemplateResponse(request=request, name="project_folder.html", context={"project_id": project_id})
+    """Seit 1.9.129 (Stufe 5, R2, Punkt 2): die Akte je Projekt (akte.html) -- Projektmappe und Auftragsseite in einer Seite. ?auftrag=<id>
+    wählt den Auftrag (nur eine Zahl, _zahl()); welcher es ohne Angabe ist und ob er zum Projekt gehört, sagt GET /api/projects/{id}/akte.
+    „geld“ = darf_geld(): Rechnung anlegen, Mahnen und Entwurf anlegen nur danach, sonst der Hinweis."""
+    return templates.TemplateResponse(request=request, name="akte.html", context={
+        "project_id": project_id, "auftrag": _zahl(request.query_params.get("auftrag")), "geld": darf_geld(_role),
+        "geld_nur_lesen": GELD_NUR_LESEN})
 
 
 @router.get("/quotes/new", response_class=HTMLResponse)
 def quote_create_page(request: Request, project_id: str | None = None, _role: AppUser = _role_dep):
     projekt = _zahl(project_id)
-    zurueck = {"href": f"/projects/{projekt}", "text": "Projektmappe"} if projekt else {"href": "/projects", "text": "Projekte"}
+    zurueck = {"href": f"/projects/{projekt}", "text": "Akte"} if projekt else {"href": "/projects", "text": "Projekte"}
     return templates.TemplateResponse(request=request, name="quote_form.html", context={"zurueck": zurueck})
 
 
@@ -531,10 +537,18 @@ def quote_editor_page(request: Request, quote_id: int, _role: AppUser = _role_de
 
 
 @router.get("/orders/{order_id}", response_class=HTMLResponse)
-def order_page(request: Request, order_id: int, _role: AppUser = _role_dep):
-    # Seit 1.9.111 (Stufe 5, R1): „geld“ = darf_geld() -- Rechnung anlegen und Entwurf löschen nur danach, sonst der Hinweis.
-    return templates.TemplateResponse(request=request, name="order.html",
-                                      context={"order_id": order_id, "geld": darf_geld(_role), "geld_nur_lesen": GELD_NUR_LESEN})
+def order_page(request: Request, order_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.9.129 (Stufe 5, R2, Punkt 3): die Auftragsseite ist in der Akte aufgegangen -- /orders/{id} leitet auf /projects/{id}?auftrag={id}
+    (Lesezeichen und Links bleiben gültig, der Anker -- z. B. #mangel-12, #rechnungen -- bleibt beim Browser). Die einzige Seitenroute mit eigener
+    Sitzung (sie zeichnet nichts, dk_ohne_seite); ein unbekannter Auftrag führt auf die Projektliste."""
+    project_id = db.scalar(select(Order.project_id).where(Order.id == order_id))
+    if project_id is None:
+        return RedirectResponse(url="/projects", status_code=302)
+    return RedirectResponse(url=f"/projects/{int(project_id)}?auftrag={int(order_id)}", status_code=302)
+
+
+# seit 1.9.129: leitet weiter, siehe login_page -- nur die Monteurin bekommt die Sperrseite der Rollenprüfung (gezeichnet)
+order_page.dk_ohne_seite = lambda user, request: user is not None and has_min_role(user, ROLE_OFFICE_AUFTRAG)
 
 
 @router.get("/invoices/{invoice_id}", response_class=HTMLResponse)

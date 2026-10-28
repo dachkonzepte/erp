@@ -269,7 +269,28 @@ def ueberschrift(g: Gruppe) -> tuple[str, str]:
     return titel, (f"und {weitere} weitere Einzelheit{'en' if weitere != 1 else ''}" if weitere > 0 else "")
 
 
-def gruppe_dict(g: Gruppe, auftrag_nummern: dict[int, str]) -> dict:
+# Seit 1.9.129 (Vorlage akte-verlauf.html): wohin eine Zeile führt -- je Art der Hauptzeile die Seite des Datensatzes
+ZIEL_JE_TYP = {"Einsatzbericht": ("/service-reports/{}", "Öffnen"), "Rechnung": ("/invoices/{}", "Öffnen"),
+               "Angebot": ("/quotes/{}/edit", "Öffnen"), "Checkliste": ("/checklisten/{}", "Öffnen")}
+
+
+def ziel(g: Gruppe, befund_berichte: dict[int, int]) -> dict | None:
+    """Link der Zeile („Öffnen“, beim Befund „Ansehen“ -- der Bericht, in dem er steht); keiner bei Versand (dort „⋮“), Gelöschtem oder
+    einer unbekannten Kennung."""
+    if g.versand is not None or not g.zeilen:
+        return None
+    h = _hauptzeile(g)
+    if h.action == "gelöscht" or not str(h.entity_id or "").isdigit():
+        return None
+    kennung = int(h.entity_id)
+    if h.entity_type == "Befund":
+        bericht = befund_berichte.get(kennung)
+        return {"href": f"/service-reports/{bericht}", "text": "Ansehen"} if bericht else None
+    vorlage = ZIEL_JE_TYP.get(h.entity_type)
+    return {"href": vorlage[0].format(kennung), "text": vorlage[1]} if vorlage else None
+
+
+def gruppe_dict(g: Gruppe, auftrag_nummern: dict[int, str], befund_berichte: dict[int, int] | None = None) -> dict:
     titel, unter = ueberschrift(g)
     a = art(g)
     erste = g.zeilen[0] if g.zeilen else None
@@ -279,6 +300,7 @@ def gruppe_dict(g: Gruppe, auftrag_nummern: dict[int, str]) -> dict:
         "auftraege": [{"order_id": o, "order_number": auftrag_nummern.get(o)} for o in sorted(g.auftraege)],
         "einzelheiten": [z.model_dump() for z in g.zeilen],
         "versand": g.versand,
+        "ziel": ziel(g, befund_berichte or {}),
     }
 
 
@@ -300,4 +322,8 @@ def strom(db: Session, project_id: int, zeilen, versand: list[dict], *, auftrag:
         gruppen = [g for g in gruppen if not g.auftraege or auftrag in g.auftraege]
     if arten:
         gruppen = [g for g in gruppen if art(g) in arten]
-    return {"eintraege": [gruppe_dict(g, nummern) for g in gruppen], "vor": vor}
+    befunde = {int(h.entity_id) for g in gruppen if g.zeilen and (h := _hauptzeile(g)).entity_type == "Befund"
+               and str(h.entity_id or "").isdigit()}
+    from .models import Finding
+    befund_berichte = _paare(db, select(Finding.id, Finding.service_report_id).where(Finding.id.in_(befunde))) if befunde else {}
+    return {"eintraege": [gruppe_dict(g, nummern, befund_berichte) for g in gruppen], "vor": vor}

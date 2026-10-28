@@ -8,6 +8,9 @@ docs/archiv/befund-vor-echtbetrieb.md, "Umsetzung 1.8.83":
     Rechnungsseite    Schlussrechnung: kein "+ Position hinzufügen", stattdessen der Hinweis auf den Nachtrag, der Nachtrag als
                       Position N1; Rechnung aus Aufwand: Knopf da; Abschlag mit negativem Betrag: Grund statt "Finalisieren"
 
+Seit 1.9.129 ist die Auftragsseite Teil der Akte (/orders/{id} leitet auf /projects/{p}?auftrag={id}): das LV steht im Reiter
+„Leistungen“ als Tabelle (#lv), Titel als Zeilen tr.lv-titel (zweite Zelle = Titel), die Nachträge unter der Titelzeile „Nachträge“.
+
 AUFRUF (aus dem Projektordner):
 
     .venv\\Scripts\\python.exe scripts\\klicktest_nachtrag.py [--app-port N] [--cdp-port N]
@@ -84,8 +87,9 @@ async def pruefen(tab, seed, p):
     await tab.anmelden(seed["cookies"]["buero"])
     a = seed["auftrag"]
 
-    # --- Auftragsseite: Nachtrag anlegen ---
-    await tab.oeffnen(f"/orders/{a}", "order&&document.querySelectorAll('.lv-row').length===1")
+    # --- Auftragsseite (seit 1.9.129 Reiter „Leistungen“ der Akte): Nachtrag anlegen ---
+    lv = "order&&!document.getElementById('reiter-leistungen').hidden"
+    await tab.oeffnen(f"/orders/{a}#leistungen", lv + "&&document.querySelectorAll('#lv tr.lv-row').length===1")
     await tab.js("document.documentElement.setAttribute('data-theme','light')")
     p.pruefe("Knopf + Nachtrag", await tab.js("document.querySelector('#addendumBar button')?.textContent"), "+ Nachtrag")
     vorher = await tab.js("Number(order.net_total)")
@@ -101,10 +105,13 @@ async def pruefen(tab, seed, p):
     p.pruefe("Nachtrag gespeichert", await tab.warten("order.items.some(i=>i.is_addendum)"), True)
     p.pruefe("Nachtrag: Nummer N1 und Summe",
              await tab.js("[order.items.find(i=>i.is_addendum).position_number,Number(order.net_total)]"), ["N1", vorher + 1000])
+    # seit 1.9.129: Titel sind Tabellenzeilen tr.lv-titel (Titel in der zweiten Zelle, ohne Beschreibung), das Kennzeichen steht in einer
+    # Zeile nach der Titelzeile „Nachträge“ (bis dahin .section-head span und .section)
     p.pruefe("Nachtrag: Kennzeichen unter „Nachträge“ hinter dem Titel",
-             await tab.js("(()=>{const t=[...document.querySelectorAll('#lv .section-head span')].map(s=>s.textContent.trim());"
-                          "const z=document.querySelector('#lv .addendum-badge');return [t,!!z,"
-                          "z?.closest('.section')?.querySelector('.section-head span').textContent]})()"),
+             await tab.js("(()=>{const titel=r=>r.cells[1].childNodes[0].textContent.trim();"
+                          "const t=[...document.querySelectorAll('#lv tr.lv-titel')].map(titel);"
+                          "const z=document.querySelector('#lv .addendum-badge');let r=z?.closest('tr');"
+                          "while(r&&!r.classList.contains('lv-titel'))r=r.previousElementSibling;return [t,!!z,r?titel(r):null]})()"),
              [["Steildach", "Nachträge"], True, "Nachträge"])
     await tab.bild("nachtrag_hell")
     nid = await tab.js("order.items.find(i=>i.is_addendum).id")
@@ -120,7 +127,7 @@ async def pruefen(tab, seed, p):
                  "body:JSON.stringify({short_text:'Kaminverblechung',long_text:'',quantity:10,unit:'m',unit_price:100})})")
     schluss = await tab.js(f"fetch('/api/orders/{a}/invoices/schlussrechnung',{{method:'POST',headers:{{'Content-Type':"
                            "'application/json'},body:'{}'}).then(r=>r.json()).then(j=>j.id)")
-    await tab.oeffnen(f"/orders/{a}", "order&&order.items.some(i=>i.is_addendum)")
+    await tab.oeffnen(f"/orders/{a}#leistungen", lv + "&&order.items.some(i=>i.is_addendum)")
     nid = await tab.js("order.items.find(i=>i.is_addendum).id")
     await tab.js(f"openItem({nid})")
     p.pruefe("Dialog: mit Rechnungsentwurf kein Entfernen, Grund",
@@ -130,7 +137,7 @@ async def pruefen(tab, seed, p):
     await tab.js("document.documentElement.setAttribute('data-theme','dark')")
     await tab.bild("nachtrag_dunkel")
     await tab.fenster(412, 900, mobil=True)
-    await tab.oeffnen(f"/orders/{a}", "order&&order.items.some(i=>i.is_addendum)")
+    await tab.oeffnen(f"/orders/{a}#leistungen", lv + "&&order.items.some(i=>i.is_addendum)")
     await tab.js("document.documentElement.setAttribute('data-theme','dark');document.getElementById('lv').scrollIntoView();"
                  "window.scrollBy(0,-140)")
     await tab.bild("nachtrag_412_dunkel")

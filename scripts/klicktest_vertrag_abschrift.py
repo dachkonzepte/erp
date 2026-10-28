@@ -167,7 +167,7 @@ async def _pruefen(tab, seed, p):
     # --- Klara: Abschrift aus Fassung und Unterschriftsblatt --------------------------------------------
     await tab.oeffnen(f"/orders/{klara}", "document.readyState==='complete'")
     await tab.js("localStorage.setItem('erp_theme','light'); true")
-    await tab.oeffnen(f"/orders/{klara}", f"({KARTE}||'').includes('Unterschriebene Abschrift:')")
+    await tab.oeffnen(f"/orders/{klara}#vertrag", f"({KARTE}||'').includes('Unterschriebene Abschrift:')")
     vertrag = await tab.js(_vertrag(klara))
     kopie, fassung = vertrag["signature"]["copy_document"], vertrag["versions"][0]["document"]
     karte = await tab.js(KARTE) or ""
@@ -196,7 +196,7 @@ async def _pruefen(tab, seed, p):
     p.pruefe("Klara: JS-Fehler", tab.fehler, [])
 
     # --- Lena: Unterschrift von vor 1.8.35 ------------------------------------------------------------
-    await tab.oeffnen(f"/orders/{lena}", f"({KARTE}||'').includes('Unterschriebene Abschrift:')")
+    await tab.oeffnen(f"/orders/{lena}#vertrag", f"({KARTE}||'').includes('Unterschriebene Abschrift:')")
     p.pruefe("Lena: Abschrift noch nicht erzeugt", "noch nicht erzeugt" in (await tab.js(KARTE) or ""), True)
     await tab.js(f"{SENDEN}.click(); true")
     await tab.warten(f"{STATUS}==='Versendet.'", timeout=30)
@@ -210,7 +210,7 @@ async def _pruefen(tab, seed, p):
     # --- Paul: Foto des Papiers, dunkel, 412 px --------------------------------------------------------
     await tab.js("localStorage.setItem('erp_theme','dark'); true")
     await tab.fenster(412, 900, mobil=True)
-    await tab.oeffnen(f"/orders/{paul}", f"({KARTE}||'').includes('Unterschriebene Abschrift:')")
+    await tab.oeffnen(f"/orders/{paul}#vertrag", f"({KARTE}||'').includes('Unterschriebene Abschrift:')")
     p.pruefe("Paul: dunkel", await tab.js("document.documentElement.getAttribute('data-theme')"), "dark")
     vertrag = await tab.js(_vertrag(paul))
     kopie = vertrag["signature"]["copy_document"]
@@ -227,11 +227,18 @@ async def _pruefen(tab, seed, p):
     await tab.js("localStorage.setItem('erp_theme','light'); true")
 
     # --- Fehlermeldungen: 422 -------------------------------------------------------------------------
-    await tab.oeffnen(f"/orders/{klara}", "!!document.getElementById('orderDate').value")
-    await tab.js("document.getElementById('orderDate').value=''; document.querySelector('[onclick=\"saveOrder()\"]').click(); true")
-    await tab.warten("document.getElementById('saveStatus').textContent.startsWith('Fehler')")
-    p.pruefe("422 Auftragsdatum: lesbar", await tab.js("document.getElementById('saveStatus').textContent"),
+    # Seit 1.9.129 (Akte): die Auftragsdaten stehen im Dialog #auftragsdatenDialog, gefüllt erst beim Öffnen über „Bearbeiten“
+    # (Reiter „Vertrag“); die Meldung steht im Dialog (#auftragsdatenStatus), nicht mehr in #saveStatus.
+    await tab.oeffnen(f"/orders/{klara}#vertrag", "order&&order.id&&document.querySelector('[data-klick=\"auftragsdaten-bearbeiten\"]')")
+    await tab.js("document.querySelector('[data-klick=\"auftragsdaten-bearbeiten\"]').click(); true")
+    await tab.warten("document.getElementById('auftragsdatenDialog').open&&!!document.getElementById('orderDate').value")
+    await tab.js("document.getElementById('orderDate').value=''; document.querySelector('#auftragsdatenDialog [onclick=\"saveOrder()\"]').click(); true")
+    await tab.warten("document.getElementById('auftragsdatenStatus').textContent.startsWith('Fehler')")
+    p.pruefe("422 Auftragsdatum: lesbar", await tab.js("document.getElementById('auftragsdatenStatus').textContent"),
              "Fehler: Bitte die Eingabe prüfen – Auftragsdatum ist kein gültiges Datum.")
+    await tab.js("document.getElementById('auftragsdatenStatus').scrollIntoView({block:'center'}); true")
+    await tab.bild("fehler_422")
+    await tab.js("document.getElementById('auftragsdatenDialog').close(); reiterZeigen('rechnungen'); true")
     await tab.js("document.getElementById('newInvoiceType').value='abschlag_pauschal';toggleNewInvoiceFields();"
                  "document.getElementById('newLumpSum').value='1.25';"
                  "document.querySelector('[onclick=\"createNewInvoice()\"]').click(); true")
@@ -241,12 +248,12 @@ async def _pruefen(tab, seed, p):
     p.pruefe("Abschlag 1.25: lesbar", await tab.js("document.getElementById('newInvoiceStatus').textContent"),
              "Fehler: Betrag netto (€): „1.25“ ist nicht eindeutig – Dezimalstellen bitte mit Komma (z. B. 1,25), Tausender mit "
              "Punkt vor je drei Ziffern (z. B. 1.250).")
-    await tab.js("document.getElementById('saveStatus').scrollIntoView({block:'center'}); true")
-    await tab.bild("fehler_422")
+    await tab.js("document.getElementById('newInvoiceStatus').scrollIntoView({block:'center'}); true")
+    await tab.bild("fehler_abschlag")
     p.pruefe("422: JS-Fehler", tab.fehler, [])
 
     # --- Fehlermeldungen: 409 (Seite veraltet) ----------------------------------------------------------
-    await tab.oeffnen(f"/orders/{otto}", "!!document.querySelector('[onclick^=\"startNewContractVersion\"]')")
+    await tab.oeffnen(f"/orders/{otto}#vertrag", "!!document.querySelector('[onclick^=\"startNewContractVersion\"]')")
     unterschrieben = await tab.js(
         f"(async()=>{{const c=await {_vertrag(otto)};const v=c.versions[0];"
         f"const r=await fetch('/api/orders/{otto}/contract/sign',{{method:'POST',headers:{{'Content-Type':'application/json'}},"

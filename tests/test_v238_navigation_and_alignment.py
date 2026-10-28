@@ -70,11 +70,11 @@ def test_quote_editor_has_breadcrumb_with_customer_and_project_links():
 
 
 def test_order_page_has_breadcrumb_with_customer_and_project_links():
-    html = (Path(__file__).parents[1] / "app" / "templates" / "order.html").read_text(encoding="utf-8")
-    assert 'id="breadcrumb"' in html
-    assert "function renderBreadcrumb()" in html
-    assert "/customers/${order.customer_id}" in html
-    assert "/projects/${order.project_id}" in html
+    html = (Path(__file__).parents[1] / "app" / "templates" / "akte.html").read_text(encoding="utf-8")
+    # seit 1.9.129 die Akte (Projektmappe und Auftragsseite in einer Seite): der Pfad im gemeinsamen Seitenkopf -- Projekte, Kunde, Objekt, Projekt (bis dahin die Brotkrume #breadcrumb des Auftrags)
+    assert "mit_pfad=true" in html and "seitenkopf({titel:project.name" in html
+    assert "pfad.push({text:project.customer_name,href:'/customers/'+project.customer_id});" in html
+    assert "pfad.push({text:project.property_name||'Objekt',href:'/properties/'+project.property_id});" in html
 
 
 def test_invoice_detail_has_breadcrumb_with_customer_project_and_order_links():
@@ -84,7 +84,7 @@ def test_invoice_detail_has_breadcrumb_with_customer_project_and_order_links():
     assert "function renderBreadcrumb()" in html
     assert "/customers/${invoice.customer_id}" in html
     assert "/projects/${invoice.project_id}" in html
-    assert "/orders/${invoice.order_id}" in html
+    assert "/projects/${invoice.project_id}?auftrag=${invoice.order_id}#rechnungen" in html  # seit 1.9.129 der Auftrag in der Akte
 
 
 # ---------------------------------------------------------------------------

@@ -94,10 +94,9 @@ AUFNAHMEN = (
     A("anfragen", "inquiries.html", "/inquiries", (BUERO,)),
     A("projekte", "projects.html", "/projects", (BUERO,)),
     A("projekt_neu", "project_form.html", "/projects/new", (BUERO,)),
-    A("projektmappe", "project_folder.html", "/projects/{projekt}", (BUERO,)),
+    A("akte", "akte.html", "/projects/{projekt}", (BUERO,)),  # seit 1.9.129 die Akte (bis 1.9.128 „projektmappe“ und „auftrag“)
     A("angebot_neu", "quote_form.html", "/quotes/new", (BUERO,)),
     A("angebot", "quote_editor.html", "/quotes/{angebot}/edit", (BUERO,)),
-    A("auftrag", "order.html", "/orders/{auftrag}", (BUERO,)),
     A("arbeitsvorbereitung", "work_preparation.html", "/orders/{auftrag}/work-preparation", (BUERO,)),
     A("einsatzbericht", "service_reports.html", "/orders/{auftrag}/service-reports", (BUERO, MONTEUR)),
     A("rechnung", "invoice_detail.html", "/invoices/{rechnung}", (BUERO,)),

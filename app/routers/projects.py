@@ -226,7 +226,7 @@ def get_project_akte(project_id: int, auftrag: int | None = None, db: Session = 
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     haupt = kontext.pop("_haupt")
     kontext["hauptaktion"] = hauptaktion(haupt["phase"], hat_angebot=haupt["hat_angebot"], verweigert=haupt["verweigert"],
-                                         geschlossen=haupt["geschlossen"], geld=darf_geld(_role))
+                                         geschlossen=haupt["geschlossen"], geld=darf_geld(_role), muster=haupt["muster"])
     return kontext
 
 
