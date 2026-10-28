@@ -5,13 +5,16 @@ siehe README). Enthaelt 9 Endpunkt(e) und 1 interne Hilfsfunktion(en), unveraend
 uebernommen -- reine Verschiebung, keine Verhaltensaenderung.
 """
 
+from datetime import datetime
+
 from fastapi import APIRouter
 from pathlib import Path
-from fastapi import Depends, File, Form, HTTPException, UploadFile
+from fastapi import Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session, object_session, selectinload
 
 from ..akte import PROJEKTSTATUS_NAMEN, projekt_status, projekt_status_alle, soll_stunden
+from .. import akte_verlauf
 from ..dateiauslieferung import gespeicherter_typ
 from ..database import get_db
 from ..document_categories import resolve_category_id
@@ -19,7 +22,7 @@ from ..invoices import invoice_overview_rows, invoice_summary_for_order, list_in
 from ..models import AppUser, Customer, Order, Project, ProjectDocument, ProjectPipelineColumn, ProjectProfile, Property, Quote
 from ..option_settings import default_option_value
 from ..orders import change_orders_customer, load_order, order_to_dict
-from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
+from ..permissions import GELD_DOKUMENTE, ROLE_OFFICE_AUFTRAG, darf_geld, require_min_role
 from ..project_documents import MAX_UPLOAD_BYTES, make_stored_filename, project_directory
 from ..project_participants import ClientChangeConflict, check_client_change
 from ..project_pipeline_columns import default_pipeline_column_id
@@ -207,6 +210,39 @@ def update_project(project_id: int, payload: ProjectUpdate, db: Session = Depend
     _ensure_project_profile(db, project.id, payload.category)
     db.commit()
     return get_project_detail(project_id, db)
+
+
+@router.get("/api/projects/{project_id}/verlauf")
+def get_project_verlauf(project_id: int, auftrag: int | None = None, art: list[str] = Query(default=[]), vor: datetime | None = None,
+                        db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.9.127 (Stufe 5, R2, Punkt 4): der Verlauf der Akte -- ein Strom aus Änderungs- und Versandprotokoll mit Filter nach Art und Auftrag,
+    eine Zeile je Aktion (app/akte_verlauf.py). Geschwärzt wie /api/audit-logs; „Zustellung nachtragen“ an Rechnung und Mahnung nach darf_geld()."""
+    from ..email_dispatch import list_dispatches
+    from ..models import AuditLog
+    from .audit import sichtbar
+
+    if db.get(Project, project_id) is None:
+        raise HTTPException(status_code=404, detail="Projekt nicht gefunden.")
+    unbekannt = [a for a in art if a not in akte_verlauf.ARTEN]
+    if unbekannt:
+        raise HTTPException(status_code=422, detail=f"Unbekannte Art: {', '.join(unbekannt)}.")
+    if auftrag is not None and db.scalar(select(Order.project_id).where(Order.id == auftrag)) != project_id:
+        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden.")
+    stmt = select(AuditLog).where(AuditLog.project_id == project_id, AuditLog.entity_type.not_in(akte_verlauf.NICHT_IM_STROM))
+    if vor is not None:
+        stmt = stmt.where(AuditLog.occurred_at < vor)
+    grenze = akte_verlauf.ZEILEN_JE_ABRUF
+    zeilen = db.scalars(stmt.order_by(AuditLog.occurred_at.desc(), AuditLog.id.desc()).limit(grenze + 1)).all()
+    weitere = len(zeilen) > grenze
+    zeilen = zeilen[:grenze]
+    versand = list_dispatches(db, project_id=project_id, limit=1000)["items"]
+    versand = [e for e in versand if (vor is None or e["created_at"] < vor) and (not weitere or e["created_at"] >= zeilen[-1].occurred_at)]
+    for e in versand:  # wie GET /api/email-dispatches (seit 1.9.111): Rechnung und Mahnung nur nach darf_geld()
+        geld = e["document_type"] not in GELD_DOKUMENTE or darf_geld(_role)
+        e["can_record_outcome"] = e["can_record_outcome"] and geld
+        e["zustellung_nachtragen"] = geld and e["document_id"] is not None
+    return akte_verlauf.strom(db, project_id, sichtbar(db, zeilen, _role), versand, auftrag=auftrag, arten=set(art) or None,
+                              weitere=weitere)
 
 
 @router.get("/api/projects/{project_id}", response_model=ProjectDetailOut)

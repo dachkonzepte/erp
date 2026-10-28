@@ -41,7 +41,11 @@ def list_audit_logs(response: Response, project_id: int | None = None, entity_ty
     limit = min(max(limit, 1), 1000)
     rows = audit_rows(db, project_id=project_id, entity_type=entity_type, entity_id=entity_id, actor=actor, limit=limit + 1, offset=offset)
     response.headers["X-DK-Weitere"] = "1" if len(rows) > limit else "0"
-    rows = rows[:limit]
+    return sichtbar(db, rows[:limit], _role)
+
+
+def sichtbar(db: Session, rows, _role: AppUser) -> list[AuditLogOut]:
+    """Die Zeilen, die das Konto sehen darf, lesbar (seit 1.9.127 als eigene Funktion: auch der Verlauf der Akte, app/akte_verlauf.py)."""
     if has_role(_role, ROLE_ADMIN):
         return lesbar_alle(db, [AuditLogOut.model_validate(row) for row in rows])  # seit 1.9.123 mit einem Kontext je Antwort
     # Aufgaben (seit 1.8.18, "Übernehmen"): der Eintrag nennt den Titel, und eine zugewiesene

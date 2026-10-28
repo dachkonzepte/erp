@@ -7656,3 +7656,51 @@ Angepasste Erwartungen:
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v546`): Soll auch aus Positionen außerhalb der Summe -> 2; „Sonstige“ zählt
 zu Baustelle & Werkstatt -> 2; Stand je Position auch aus dem Storno -> 1. Die Erstattung an der Schlussrechnung ist in den Testdaten nicht
 vorhanden (die Rechnung „bezahlt“ übernimmt die Formel von Finanzen, `test_v394`), dafür keine eigene Gegenprobe.
+
+### R2, Punkt 4 (1.9.127): Verlauf der Akte, Server
+
+Befund (Stufe 5, D8, F14, 7b): Historie der Projektmappe Zeile für Zeile (eine Aktion als viele Zeilen, ohne Bezug auf den Auftrag), Versand
+getrennt im Reiter „Versand“ und im Versandprotokoll, „Zustellung nachtragen“ nur am Dokument; Befunde gar nicht im Änderungsprotokoll.
+
+- `app/akte_verlauf.py` (neu): `auftraege_je_zeile()` (je Art eine Abfrage: Auftrag, Position, LV-Titel, Revision, Status, Rechnung,
+  Rechnungsposition, Mahnung, Nebenforderung, Verzugsbeginn, Abnahme, Mangel, Einsatzbericht, Befund, Checkliste samt Unterschrift und Foto,
+  Arbeitsvorbereitung samt AV-Zeilen, Plantafel-Einsatz und -Kapazität, Angebot über `Order.source_quote_id`, Zahlung über ihre Zuordnungen -- auch
+  mehrere Aufträge), `auftraege_je_versand()`, `gruppieren()` (gleiches Konto, gleiche Methode und gleicher Pfad, höchstens `GRUPPE_SEKUNDEN` = 5 zur
+  ersten Zeile; ohne Pfad jede Zeile für sich), `versand_zuordnen()` (zu einer Gruppe desselben Kontos innerhalb von 5 s -- zuerst der, die dasselbe Dokument betrifft, `VERSAND_ART`, sonst der nächsten --, sonst eigene Zeile),
+  `ueberschrift()` (Hauptzeile nach `VORRANG`, „angelegt“ vor „geändert“; Status mit Begründung, Versand mit Weg und Empfängern), `strom()` (Filter,
+  Seiten über `vor`).
+- `GET /api/projects/{id}/verlauf?auftrag=&art=&vor=` (ab Büro – Auftrag): höchstens `ZEILEN_JE_ABRUF` = 600 Protokollzeilen je Abruf, ohne
+  Zeitbuchungen schon in der Abfrage; gibt es ältere, fällt die letzte Gruppe weg und `vor` zeigt auf sie (nichts doppelt, nichts verloren);
+  unbekannte Art 422, Auftrag eines anderen Projekts 404. Die Schwärzung ist jetzt `app/routers/audit.py::sichtbar()` -- dieselbe für
+  /api/audit-logs und den Verlauf. Je Versand `zustellung_nachtragen` und `can_record_outcome` nach `darf_geld()` wie GET /api/email-dispatches.
+- `app/audit.py`: `Finding` („Befund“) protokolliert, Bezeichnung „Beschreibung · Auftrag“, Projekt über den Bericht; `app/verlauf_namen.py` liest
+  Schwere, Maßnahme und Stand lesbar. `dispatch_to_dict()` trägt `created_by_user_id` (Zuordnung zur Aktion).
+
+#### Festlegungen 1.9.127 (Bitte bestätigen)
+
+1. Eine Aktion = dasselbe Konto, dieselbe Anfrage (Methode und Pfad) und höchstens 5 Sekunden zur ersten Zeile; Einträge ohne Anfrage (Skripte,
+   Grunddaten) stehen einzeln.
+2. Ein Versand gehört in die Zeile der Aktion desselben Kontos, die höchstens 5 Sekunden daneben liegt -- zuerst in die, die dasselbe Dokument
+   betrifft, sonst in die nächste; die Zeile heißt dann „Versand“.
+3. Mit gewähltem Auftrag zeigt der Strom dessen Zeilen und die projektweiten (Projekt, Dateien, Beteiligte, Termine, Angebot ohne Auftrag); eine
+   Zahlung auf Rechnungen mehrerer Aufträge steht bei jedem.
+4. Zeitbuchungen stehen nicht im Verlauf der Akte (sie stehen unter „Zeiten“); Arbeitsvorbereitung, Einsätze und Termine schon.
+5. Arten: Status = Statuswechsel des Auftrags; Zahlung = Zahlungseingang, Nebenforderung, Verzugsbeginn; Bericht = Einsatzbericht, Befund,
+   Checkliste; Termin = Termin, Plantafel-Einsatz; alles andere Änderung.
+6. Befunde kommen ins Änderungsprotokoll (bis 1.9.126 gar nicht) -- die Monteurin sieht das Protokoll nicht, das Büro auch auf /history.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v547_akte_verlauf.py` (8 Tests): zwei Änderungen einer Anfrage als eine Zeile mit beiden Einzelheiten und dem Auftrag; Status mit
+Begründung, Filter nach Art; Filter nach Auftrag (projektweite Zeile bei beiden, die Pause des zweiten nur bei ihm); keine Zeitbuchung; Versand in der
+Zeile der Rechnung, Zahlung mit Auftrag; Gruppenregel (Konto, Pfad, Zeit); Seiten mit kleiner Grenze ergeben genau den ganzen Strom; Rollen (Büro –
+Auftrag 200, Monteurin 403, unbekanntes Projekt 404, unbekannte Art 422).
+
+Im ersten Lauf der neuen Tests aufgefallen und behoben: ein Versand ging an die zeitlich nächste Aktion desselben Kontos (eine Zahlung 0,1 s danach)
+statt an die Rechnung, die er versendet -- seitdem zählt zuerst dasselbe Dokument (Festlegung 2); die Begründung eines Statuswechsels steht im
+Schnappschuss des Anlegens (`details`), nicht in einer eigenen Zeile. Im vollen Lauf aufgefallen: zwölf Felder des Befunds hatten keinen Namen
+für die Historie (`test_v436`, `test_v438`: in der Historie stand der Spaltenname) -- seitdem in `FIELD_LABELS` mit den Wörtern der Berichtsseite
+(Schwere, Maßnahme, Wiedervorlage, Folgeauftrag …).
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v547`): Zeitbuchungen im Strom -> 1; Gruppe ohne Prüfung von Pfad und Zeit
+-> 5; Filter nach Auftrag ausgeschaltet -> 1; `vor` auf die älteste statt die jüngste Zeile der weggelassenen Gruppe -> 1.

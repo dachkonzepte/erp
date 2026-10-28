@@ -4,6 +4,21 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.127 – Verlauf der Akte: ein Strom je Projekt (Stufe 5, R2, Punkt 4)
+
+Was an einem Projekt geschah, stand an drei Stellen: die Historie der Projektmappe (jede Zeile des Änderungsprotokolls einzeln, eine Aktion oft als
+zehn Zeilen), der Reiter „Versand“ und das Versandprotokoll. Jetzt liefert GET /api/projects/{id}/verlauf einen Strom (`app/akte_verlauf.py`):
+Änderungen, Versand, Zahlungen, Berichte, Status und Termine, neueste zuerst, mit Filter nach Art und nach Auftrag. Einträge einer Aktion -- dasselbe
+Konto, dieselbe Anfrage, höchstens fünf Sekunden auseinander -- stehen als eine Zeile mit der Hauptsache vorn („Auftragsposition 1 Dacheindeckung:
+Menge 100 → 120 m²“, „AUF-… · läuft → pausiert“ mit der Begründung, „Rechnung RE-… per E-Mail an …“) und allen Einzelheiten zum Aufklappen; der
+Versand gehört in die Zeile der Aktion, die ihn ausgelöst hat. Welchen Auftrag eine Zeile betrifft, ergibt sich aus der Kennung des Datensatzes
+(Position, Rechnung, Mahnung, Bericht, Befund, Abnahme, Mangel, Zahlung, Einsatz, Angebot des Auftrags); Projektweites (Projekt, Dateien, Beteiligte,
+Termine) bleibt bei jeder Auftragswahl. Zeitbuchungen stehen nicht im Strom (dafür gibt es „Zeiten“).
+
+Geschwärzt wird wie im Änderungsprotokoll (Büro – Auftrag ohne Lohnfelder und Abwesenheiten, Aufgaben nur für den Admin); „Zustellung
+nachtragen“ an Rechnung und Mahnung nur nach `darf_geld()`. Befunde aus Einsatzberichten stehen jetzt im Änderungsprotokoll (bis 1.9.126 gar nicht),
+mit lesbarer Schwere, Maßnahme und Stand.
+
 ## 1.9.126 – Zahlen der Akte: Leistung, Zahlung, Stunden, je Position (Stufe 5, R2, Punkt 1)
 
 Die Zahlen eines Auftrags standen an vielen Stellen mit eigener Rechnung: die Auftragsseite zeigte die Summen dreimal, die Projektmappe rechnete

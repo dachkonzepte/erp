@@ -66,6 +66,8 @@ _STATUS = {
     "unterschrieben": "Unterschrieben", "aktiv": "Aktiv", "pausiert": "Pausiert", "beendet": "Beendet", "bezahlt": "Bezahlt",
     # seit 1.9.124: Status des Auftrags (app/auftragsstatus.py); die alten Werte bis 1.9.123 bleiben für ältere Einträge lesbar
     "laeuft": "Läuft", "arbeitsvorbereitung": "Arbeitsvorbereitung", "in_ausfuehrung": "In Ausführung",
+    # seit 1.9.127: Befund (app/findings.py::STATUS_LABELS)
+    "in_bearbeitung": "In Bearbeitung", "zurueckgestellt": "Zurückgestellt",
 }
 # Seit 1.9.123 die Namen der Auswahlliste „Zeitarten“ (app/option_settings.py, bis 1.9.122 „Baustelle“, „Werkstatt“, „Sonstige“); in einer
 # Antwort gilt die Auswahlliste der Datenbank (lesbar_alle()), diese Tabelle nur ohne sie.
@@ -86,6 +88,7 @@ def _werte() -> dict[str, dict[str, str]]:
     from .defects import EVENT_KINDS, RELEASES, SOURCES as MANGEL_QUELLEN, STANCES, STATUSES as MANGEL_STATUS
     from .dunning_charges import BASIS_LABELS, KIND_LABELS as NEBENFORDERUNGEN
     from .dunning_texts import LEGAL_TEXT_LABELS
+    from .findings import ACTION_LABELS as BEFUND_MASSNAHMEN, SEVERITY_LABELS as BEFUND_SCHWERE
     from .option_settings import DEFAULT_OPTION_GROUPS
     from .payments import KIND_LABELS as ZAHLUNGSARTEN
     from .permissions import ROLE_LABELS
@@ -147,6 +150,8 @@ def _werte() -> dict[str, dict[str, str]]:
         "rounding_rule": {"half_up": "Kaufmännisch (ab 1.8.11)"},
         "external_source": {"erp": "Im ERP angelegt", "outlook": "Aus Outlook"},
         "unit": {"pschl.": "Pauschal (pschl.)"},
+        # seit 1.9.127: Befund (nur am Befund eine Spalte dieses Namens)
+        "severity": BEFUND_SCHWERE, "action": BEFUND_MASSNAHMEN,
     }
 
 

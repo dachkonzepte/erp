@@ -864,6 +864,7 @@ def dispatch_to_dict(dispatch: EmailDispatch, now: datetime | None = None, autho
         "document_id": dispatch.document_id, "document_number": dispatch.document_number,
         "to_recipients": dispatch.to_recipients, "cc_recipients": dispatch.cc_recipients,
         "subject": dispatch.subject, "created_at": dispatch.created_at,
+        "created_by_user_id": dispatch.created_by_user_id,  # seit 1.9.127: der Verlauf der Akte ordnet den Versand der Aktion des Kontos zu
         "created_at_local": to_berlin(dispatch.created_at), "finished_at": dispatch.finished_at,
         "finished_at_local": to_berlin(dispatch.finished_at), "created_by_name": dispatch.created_by_name,
         "error_class": dispatch.error_class, "error_code": dispatch.error_code,

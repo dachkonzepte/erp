@@ -16,7 +16,7 @@ from .models import (
     Checklist, ChecklistAttachment, ChecklistAssetRelease, OperationalAsset, Contact, ProjectParticipant,
     OrderAcceptance, Defect, DefectEvent, Invoice, Payment, PaymentAllocation,
     InvoiceCharge, InvoiceDefaultStart, OrderCustomerChange, BaseInterestRate, DunningLegalText,
-    OrderStatusChange, InvoiceItem, Reminder, ServiceReport, MaintenanceContract, RoofArea, CalendarEvent,
+    OrderStatusChange, InvoiceItem, Reminder, ServiceReport, MaintenanceContract, RoofArea, CalendarEvent, Finding,
 )
 
 _actor_id = contextvars.ContextVar("audit_actor_id", default=None)
@@ -56,6 +56,7 @@ TYPE_LABELS = {
     Invoice: "Rechnung", InvoiceItem: "Rechnungsposition", Reminder: "Mahnung", ServiceReport: "Einsatzbericht",
     MaintenanceContract: "Wartungsvertrag", RoofArea: "Dachfläche", CalendarEvent: "Termin",
     OrderStatusChange: "Auftragsstatus",  # seit 1.9.124
+    Finding: "Befund",  # seit 1.9.127 (Verlauf der Akte)
 }
 
 EXTENSION_TYPES = (CustomerProfile, ProjectProfile, EmployeeProfile, EmployeeRoleSettings, EmployeeCompensationSettings, EmployeeCostAllocationSettings, QuoteDocumentMeta, QuoteItemLayout, QuoteEmployeeAssignment)
@@ -95,6 +96,8 @@ AUDITED_TYPES = (
     # Seit 1.9.124 (Stufe 5, R2, Punkt 1): jeder Statuswechsel am Auftrag mit Begründung (unveränderlich, ORM-Sperre); daneben die Zeile
     # „Auftrag · Status“ alt -> neu aus derselben Anfrage.
     OrderStatusChange,
+    # Seit 1.9.127 (Stufe 5, R2, Punkt 4): Befunde aus Einsatzberichten -- der Verlauf der Akte nennt sie („Befund … erfasst“).
+    Finding,
 )
 
 # Seit 1.9.115: Felder, die je Art nicht als Änderung protokolliert werden (der Schnappschuss beim Anlegen enthält sie).
@@ -400,6 +403,11 @@ FIELD_LABELS = {
     "start_at": "Beginn", "end_at": "Ende", "all_day": "Ganztägig", "owner_user_id": "Besitzer (Konto)", "is_private": "Privat",
     "outlook_event_id": "Outlook-Termin", "external_source": "Herkunft", "outlook_synced_at": "Mit Outlook abgeglichen am",
     "outlook_etag": "Outlook-Stand",
+    # seit 1.9.127: der Befund steht im Verlauf der Akte -- seine Felder mit den Namen der Berichtsseite
+    "service_report_id": "Einsatzbericht", "inspection_item_id": "Prüfpunkt", "roof_component_id": "Bauteil",
+    "roof_component_name_snapshot": "Bauteil (Name)", "severity": "Schwere", "action": "Maßnahme", "follow_up_order_id": "Folgeauftrag",
+    "follow_up_project_id": "Folgeprojekt", "follow_up_task_id": "Folgeaufgabe", "resubmission_date": "Wiedervorlage",
+    "closed_at": "Geschlossen am", "closed_by_employee_id": "Geschlossen von",
 }
 
 
@@ -629,6 +637,11 @@ def _normalize(session, obj):
         art = REPORT_TYPE_LABELS.get(obj.report_type, "Einsatzbericht")
         tag = obj.performed_at.strftime("%d.%m.%Y") if obj.performed_at else ""
         return "Einsatzbericht", str(obj.id), f"{art} vom {tag} · {o.order_number if o else ''}".strip(" ·")[:255], o.project_id if o else None
+    if isinstance(obj, Finding):  # seit 1.9.127
+        bericht = session.get(ServiceReport, obj.service_report_id)
+        o = session.get(Order, bericht.order_id) if bericht else None
+        text = (obj.description or "").strip().splitlines()[0][:80] if (obj.description or "").strip() else f"#{obj.id}"
+        return "Befund", str(obj.id), f"„{text}“{' · ' + o.order_number if o else ''}"[:255], o.project_id if o else None
     if isinstance(obj, MaintenanceContract):
         c = session.get(Customer, obj.customer_id)
         return "Wartungsvertrag", str(obj.id), f"{obj.title}{' · ' + c.name if c else ''}"[:255], None

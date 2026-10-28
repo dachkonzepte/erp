@@ -389,7 +389,10 @@ Behoben, drei Teile:
   `bildgrundlage/e13058e/`. 1.9.124 Auftragsstatus (vier Werte, Übergänge mit Begründung, siehe `Order` unter „Fachbegriffe“); 1.9.125 Phase und
   abgeleiteter Projektstatus (`app/akte.py`); 1.9.126 Zahlen der Akte je Auftrag (`app/akte.py::zahlen()`, `GET /api/orders/{id}/zahlen`: Leistung
   netto, Zahlung brutto wie Finanzen, Stunden mit Soll nur „in Summe“ und Ist = Baustelle & Werkstatt, je Position) -- dieselben Zahlen in
-  Arbeitsvorbereitung, Plantafel und Auftragslisten (`planned_hours()` = `soll_stunden()`, `tests/test_v546_akte_zahlen.py`). Archiv:
+  Arbeitsvorbereitung, Plantafel und Auftragslisten (`planned_hours()` = `soll_stunden()`, `tests/test_v546_akte_zahlen.py`); 1.9.127 Verlauf der
+  Akte (`app/akte_verlauf.py`, `GET /api/projects/{id}/verlauf`: ein Strom aus Änderungs- und Versandprotokoll, eine Zeile je Aktion -- Konto, Anfrage,
+  5 s --, Filter nach Art und Auftrag über die Kennung des Datensatzes, ohne Zeitbuchungen, geschwärzt wie `/api/audit-logs` über
+  `app/routers/audit.py::sichtbar()`; Befunde stehen seitdem im Änderungsprotokoll; `tests/test_v547_akte_verlauf.py`). Archiv:
   `docs/archiv/redesign.md`, „Stufe 5, R2“.
 
 ## Kritische, nicht verhandelbare Regeln
