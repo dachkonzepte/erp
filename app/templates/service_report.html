@@ -353,6 +353,7 @@ function nochOffenLaden(){
 
 // --- Inhalt je Schritt ---------------------------------------------------------------------------------------------------------------
 function inhaltZeichnen(){
+  unterschriftMerken();
   var box=el('schrittInhalt');
   el('raster').classList.toggle('ohne-offen',SCHRITT==='unterschrift');box.classList.toggle('ohne-karte',SCHRITT==='unterschrift');
   if(SCHRITT==='pruefpunkte')box.innerHTML=pruefpunkteHtml()+beschreibungHtml(false);
@@ -499,12 +500,12 @@ var STATUS_BEFUND=[['offen','Offen'],['in_bearbeitung','In Bearbeitung'],['erled
 function befundFormHtml(schluessel,punktId){
   var stand=BEFUND_FORM[schluessel]||{schwere:'mittel',massnahme:'sofort_behoben'};
   return '<div class="befund-form" id="befund-form-'+schluessel+'"><label class="feld-titel" for="befund-text-'+schluessel+'">Befund'+(punktId?'':' ohne Prüfpunkt')+'</label>'
-    +'<textarea class="feld-text" id="befund-text-'+schluessel+'" placeholder="Was ist festgestellt?">'+esc(stand.text||'')+'</textarea>'
+    +'<textarea class="feld-text" id="befund-text-'+schluessel+'" placeholder="Was ist festgestellt?" data-eingabe="befund-text" data-form="'+schluessel+'">'+esc(stand.text||'')+'</textarea>'
     +'<div class="segmente breit" role="group" aria-label="Schwere">'+SCHWEREN.map(function(s){
       return '<button type="button" class="segment'+(s[0]==='dringend'||s[0]==='akute_gefahr'?' negativ':'')+'" id="schwere-'+schluessel+'-'+esc(s[0])+'" aria-pressed="'+(stand.schwere===s[0])+'" data-klick="befund-schwere" data-form="'+schluessel+'" data-wert="'+esc(s[0])+'">'+esc(s[1])+'</button>'}).join('')+'</div>'
     +'<div class="form-zeile"><select class="feld-text" id="befund-massnahme-'+schluessel+'" aria-label="Maßnahme" data-aenderung="befund-massnahme" data-form="'+schluessel+'">'
     +auswahlOptionen(MASSNAHMEN,stand.massnahme,function(m){return m[1]},{wert:function(m){return m[0]}})+'</select>'
-    +'<input class="feld-text" type="date" id="befund-wiedervorlage-'+schluessel+'" aria-label="Wiedervorlage"'+(stand.massnahme==='zurueckgestellt'?'':' hidden')+'></div>'
+    +'<input class="feld-text" type="date" id="befund-wiedervorlage-'+schluessel+'" aria-label="Wiedervorlage" value="'+esc(stand.wiedervorlage||'')+'" data-aenderung="befund-wiedervorlage" data-form="'+schluessel+'"'+(stand.massnahme==='zurueckgestellt'?'':' hidden')+'></div>'
     +'<div class="form-zeile"><button type="button" class="knopf knopf-aktion knopf-gross" data-klick="befund-anlegen" data-form="'+schluessel+'"'+(punktId?' data-punkt="'+punktId+'"':'')+'>Befund anlegen</button></div></div>';
 }
 function neuerPunktHtml(flaechen){
@@ -585,6 +586,10 @@ aktion('befund-massnahme',function(f){
   var s=f.dataset.form;BEFUND_FORM[s]=Object.assign(BEFUND_FORM[s]||{schwere:'mittel',massnahme:'sofort_behoben'},{massnahme:f.value});
   el('befund-wiedervorlage-'+s).hidden=f.value!=='zurueckgestellt';
 },'change');
+// Seit 1.9.116 (Stufe 5, R1, Punkt 6, E4): auch Text und Wiedervorlage eines angefangenen Befunds stehen im Merker der Form -- bis 1.9.115 nur
+// Schwere und Maßnahme, der Text war nach dem Neuzeichnen des Schritts (inhaltZeichnen()) weg.
+aktion('befund-text',function(f){var s=f.dataset.form;BEFUND_FORM[s]=Object.assign(BEFUND_FORM[s]||{schwere:'mittel',massnahme:'sofort_behoben'},{text:f.value})},'input');
+aktion('befund-wiedervorlage',function(f){var s=f.dataset.form;BEFUND_FORM[s]=Object.assign(BEFUND_FORM[s]||{schwere:'mittel',massnahme:'sofort_behoben'},{wiedervorlage:f.value})},'change');
 aktion('befund-anlegen',function(k){
   var s=k.dataset.form,stand=BEFUND_FORM[s]||{schwere:'mittel',massnahme:'sofort_behoben'};
   var text=el('befund-text-'+s).value.trim();if(!text){meldung('Bitte den Befund beschreiben.');return}
@@ -839,9 +844,18 @@ function unterschriftHtml(){
   }
   return '<div class="unterschrift-raster">'+links+rechts+'</div>';
 }
+// Seit 1.9.116 (Stufe 5, R1, Punkt 6, E4): Namen und gezeichnete Unterschriften von Schritt 5 bleiben über einen Schrittwechsel und jedes Neuzeichnen
+// stehen (SIGN_STAND, die Striche aus unterschriftsfeld().stand()) -- bis 1.9.115 begann Schritt 5 nach jedem Wechsel leer. Abgeschlossen: verworfen.
+var SIGN_STAND=null;
+function unterschriftMerken(){
+  if(!PAD_MONTEUR||!el('padMonteur'))return;
+  SIGN_STAND={monteurName:el('signMonteurName').value,kundeName:el('signKundeName').value,monteur:PAD_MONTEUR.stand(),kunde:PAD_KUNDE.stand()};
+}
 function unterschriftEinrichten(){
-  if(R.status!=='entwurf'){PAD_MONTEUR=PAD_KUNDE=null;return}
+  if(R.status!=='entwurf'){PAD_MONTEUR=PAD_KUNDE=null;SIGN_STAND=null;return}
   PAD_MONTEUR=unterschriftsfeld(el('padMonteur'));PAD_KUNDE=unterschriftsfeld(el('padKunde'));
+  if(SIGN_STAND){el('signMonteurName').value=SIGN_STAND.monteurName;el('signKundeName').value=SIGN_STAND.kundeName;
+    PAD_MONTEUR.setzen(SIGN_STAND.monteur);PAD_KUNDE.setzen(SIGN_STAND.kunde)}
   ['padMonteur','padKunde'].forEach(function(id){el(id).addEventListener('pointerup',abschlussZeichnen);el(id).addEventListener('pointercancel',abschlussZeichnen)});
   abschlussZeichnen();
 }

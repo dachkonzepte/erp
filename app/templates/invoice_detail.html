@@ -104,6 +104,13 @@ async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText
 function zeigeRechnung(d){invoice=d;render()}
 // Seit 1.9.111 (Stufe 5, R1): bearbeiten nur, wer mit Geld arbeitet (darf_geld(), Seitenroute) -- sonst liest die Seite nur.
 const bearbeitbar=()=>GELD&&invoice.is_editable;
+// Seit 1.9.116 (Stufe 5, R1, Punkt 6, E2): jede Antwort im Bereich 'rechnung' zeichnet die Seite neu -- getippte, noch nicht gespeicherte Werte
+// (Einleitung, Schlusstexte, Pauschalbetrag, An/CC des Versands) stehen in EINGABEN und gehen dabei nicht verloren; erst ihr Speichern (bzw. der
+// Versand) nimmt sie heraus, und nur, wenn das Feld seither nicht weiter geändert wurde. Bis 1.9.115 setzte render() den Stand vom Server.
+const EINGABEN={},MERKFELDER=['iIntro','iOutro','iOutro2','pDesc','pAmount','invoiceEmailInput','invoiceCcInput'];
+if(typeof document!=='undefined'&&document.addEventListener)document.addEventListener('input',e=>{if(e.target&&MERKFELDER.includes(e.target.id))EINGABEN[e.target.id]=e.target.value});
+function feldWert(id,server){return id in EINGABEN?EINGABEN[id]:server}
+function eingabenGespeichert(gesendet){for(const [id,wert] of Object.entries(gesendet))if(EINGABEN[id]===wert)delete EINGABEN[id]}
 // Seit 1.9.114 (F8/F9): eine Position des Stornos nie (er spiegelt seine Rechnung), eine Position des Auftrags in der Schlussrechnung nicht entfernen.
 const positionBearbeitbar=()=>bearbeitbar()&&invoice.invoice_type!=='storno';
 const positionEntfernbar=i=>positionBearbeitbar()&&!(invoice.invoice_type==='schluss'&&i.source_order_item_id!=null);
@@ -136,10 +143,10 @@ function render(){
   const isPauschal=invoice.invoice_type==='abschlag_pauschal';
   document.getElementById('pauschalCard').style.display=isPauschal?'block':'none';
   document.getElementById('itemsCard').style.display=isPauschal?'none':'block';
-  if(isPauschal){document.getElementById('pDesc').value=invoice.progress_description||'';document.getElementById('pAmount').value=zahlText(invoice.lump_sum_net);document.getElementById('pDesc').disabled=!bearbeitbar();document.getElementById('pAmount').disabled=!bearbeitbar();document.querySelector('#pauschalCard button').style.display=bearbeitbar()?'inline-block':'none'}
+  if(isPauschal){document.getElementById('pDesc').value=feldWert('pDesc',invoice.progress_description||'');document.getElementById('pAmount').value=feldWert('pAmount',zahlText(invoice.lump_sum_net));document.getElementById('pDesc').disabled=!bearbeitbar();document.getElementById('pAmount').disabled=!bearbeitbar();document.querySelector('#pauschalCard button').style.display=bearbeitbar()?'inline-block':'none'}
   else{renderItems()}
 
-  document.getElementById('iDate').value=invoice.invoice_date;document.getElementById('iDue').value=invoice.due_date||'';document.getElementById('iIntro').value=invoice.intro_text||'';document.getElementById('iOutro').value=invoice.outro_text||'';document.getElementById('iOutro2').value=invoice.outro_text_2||'';renderRefundOutroNote();
+  document.getElementById('iDate').value=invoice.invoice_date;document.getElementById('iDue').value=invoice.due_date||'';document.getElementById('iIntro').value=feldWert('iIntro',invoice.intro_text||'');document.getElementById('iOutro').value=feldWert('iOutro',invoice.outro_text||'');document.getElementById('iOutro2').value=feldWert('iOutro2',invoice.outro_text_2||'');renderRefundOutroNote();
   document.getElementById('paymentTermsSentence').textContent=invoice.payment_terms_sentence||'—';
   renderPaymentTermSelect();renderTaxKeySelect();renderTextTemplateSelect('iIntroTemplate',introTemplates);renderTextTemplateSelect('iOutroTemplate',outroTemplates);renderTextTemplateSelect('iOutro2Template',outroTemplates);
   [...document.querySelectorAll('#iIntro,#iPayment,#iOutro,#iOutro2,#iPaymentTermSelect,#iTaxKeySelect,#iIntroTemplate,#iOutroTemplate,#iOutro2Template')].forEach(el=>el.disabled=!bearbeitbar());
@@ -168,7 +175,7 @@ function renderPaymentTermSelect(){const sel=document.getElementById('iPaymentTe
 // Seit 1.8.31 mit archivierten geladen, siehe steuerschluesselOptionen() in _auswahl.html.
 function renderTaxKeySelect(){document.getElementById('iTaxKeySelect').innerHTML=steuerschluesselOptionen(taxKeys,invoice.tax_key_id)}
 function renderTextTemplateSelect(selectId,templates){const sel=document.getElementById(selectId);sel.innerHTML='<option value="">— Vorlage wählen … —</option>'+templates.map(t=>`<option value="${esc(t.value)}">${esc(t.label)}</option>`).join('')}
-function applyTextTemplate(textareaId,selectId){const val=document.getElementById(selectId).value;if(val)document.getElementById(textareaId).value=val}
+function applyTextTemplate(textareaId,selectId){const val=document.getElementById(selectId).value;if(val){document.getElementById(textareaId).value=val;EINGABEN[textareaId]=val}}
 async function changePaymentTerm(){const id=document.getElementById('iPaymentTermSelect').value;if(!id)return;const st=document.getElementById('headerStatus');try{await speichern('rechnung',()=>api(`/api/invoices/${invoiceId}/payment-term`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({payment_term_id:Number(id)})}),{anwenden:zeigeRechnung});st.textContent='Zahlungsbedingung aktualisiert.'}catch(e){st.textContent='Fehler: '+e.message}}
 async function changeTaxKey(){const id=document.getElementById('iTaxKeySelect').value;if(!id)return;const st=document.getElementById('headerStatus');try{await speichern('rechnung',()=>api(`/api/invoices/${invoiceId}/tax-key`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({tax_key_id:Number(id)})}),{anwenden:zeigeRechnung});st.textContent='Steuerschlüssel aktualisiert.'}catch(e){st.textContent='Fehler: '+e.message}}
 
@@ -235,7 +242,7 @@ async function refreshFromOrder(){const st=document.getElementById('statusAction
 async function removeItem(itemId){if(!confirm('Position wirklich entfernen?'))return;try{await speichern('rechnung',()=>api(`/api/invoices/${invoiceId}/items/${itemId}`,{method:'DELETE'}),{anwenden:zeigeRechnung})}catch(e){alert('Fehler: '+e.message)}}
 
 // Seit 1.8.109 der Betrag über _zahl.html, Pflicht (leer lehnte bisher der Server ab).
-async function savePauschal(){const st=document.getElementById('pauschalStatus');try{const betrag=zahlFeld('pAmount',{pflicht:true});await speichern('rechnung',()=>api(`/api/invoices/${invoiceId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({progress_description:document.getElementById('pDesc').value.trim()||null,lump_sum_net:betrag})}),{anwenden:zeigeRechnung});st.textContent='Gespeichert.'}catch(e){st.textContent='Fehler: '+e.message}}
+async function savePauschal(){const st=document.getElementById('pauschalStatus');try{const betrag=zahlFeld('pAmount',{pflicht:true});const gesendet={pDesc:document.getElementById('pDesc').value,pAmount:EINGABEN.pAmount}/* der Betrag als getippter Text nur aus dem Merker (Regel 34) */;await speichern('rechnung',()=>api(`/api/invoices/${invoiceId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({progress_description:gesendet.pDesc.trim()||null,lump_sum_net:betrag})}),{anwenden:d=>{eingabenGespeichert(gesendet);zeigeRechnung(d)}});st.textContent='Gespeichert.'}catch(e){st.textContent='Fehler: '+e.message}}
 
 // Seit 1.8.92 (Nacharbeit R4c Punkt 2): im Entwurf einer Schlussrechnung mit Erstattungsbetrag druckt die Rechnung statt des
 // Schlusstexts (Zahlungsaufforderung) den Text für die Erstattung aus den Einstellungen; beim Finalisieren wird er der Schlusstext.
@@ -245,7 +252,7 @@ function renderRefundOutroNote(){
   if(invoice.nothing_due_outro){el.innerHTML=`<div class="notice" data-nichts-zu-zahlen style="margin:0 0 6px">Der Zahlbetrag ist 0 € – auf der Rechnung steht kein Schlusstext (keine Zahlungsaufforderung) und statt der Zahlungsbedingungen: <b>„${esc(invoice.payment_terms_sentence||'')}“</b> Beim Finalisieren wird der Schlusstext geleert. Der Schlusstext unten gilt nur, solange der Zahlbetrag nicht 0 € ist.</div>`;return}
   el.innerHTML=t==null?'':`<div class="notice" data-erstattung-schlusstext style="margin:0 0 6px">Der Zahlbetrag ist negativ (Erstattung) – auf der Rechnung steht statt dieses Schlusstexts der Text für die Erstattung aus den Einstellungen (Auswahllisten → „Rechnungs-Schlusstexte bei Erstattung“), beim Finalisieren übernommen: ${t?`<b>„${esc(t)}“</b>`:'<b>dort ist kein Eintrag aktiv – die Rechnung erscheint ohne Schlusstext.</b>'} Der Schlusstext unten gilt nur, solange der Zahlbetrag nicht negativ ist.</div>`;
 }
-async function saveHeader(){const st=document.getElementById('headerStatus');try{await speichern('rechnung',()=>api(`/api/invoices/${invoiceId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({intro_text:document.getElementById('iIntro').value||null,outro_text:document.getElementById('iOutro').value||null,outro_text_2:document.getElementById('iOutro2').value||null})}),{anwenden:zeigeRechnung});st.textContent='Gespeichert.'}catch(e){st.textContent='Fehler: '+e.message}}
+async function saveHeader(){const st=document.getElementById('headerStatus');const gesendet={iIntro:document.getElementById('iIntro').value,iOutro:document.getElementById('iOutro').value,iOutro2:document.getElementById('iOutro2').value};try{await speichern('rechnung',()=>api(`/api/invoices/${invoiceId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({intro_text:gesendet.iIntro||null,outro_text:gesendet.iOutro||null,outro_text_2:gesendet.iOutro2||null})}),{anwenden:d=>{eingabenGespeichert(gesendet);zeigeRechnung(d)}});st.textContent='Gespeichert.'}catch(e){st.textContent='Fehler: '+e.message}}
 
 // Seit 1.8.86 (R4b Punkt 6): Rechnung aus Aufwand an einem Auftrag nach Aufwand als abschließend kennzeichnen.
 function renderClosing(){const box=document.getElementById('closingBox');if(invoice.invoice_type!=='aufwand'){box.style.display='none';return}box.style.display='block';if(invoice.status!=='entwurf'){box.innerHTML=invoice.closes_order?'<div class="notice" data-abschliessend style="margin:0">Abschließende Rechnung – der Auftrag ist damit vollständig abgerechnet.</div>':'';return}const frei=!invoice.closing_block;box.innerHTML=`<label class="small" style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" id="closesOrder" ${invoice.closes_order?'checked':''} ${GELD&&(frei||invoice.closes_order)?'':'disabled'} onchange="saveClosing(this.checked)"><span><b>Abschließende Rechnung</b> – der Auftrag nach Aufwand ist damit vollständig abgerechnet (statt einer Schlussrechnung über 0 €).</span></label>${frei?'':`<div class="small muted" data-abschliessend-grund style="margin-top:4px">${esc(invoice.closing_block)}</div>`}`}
@@ -276,7 +283,7 @@ function blockNoticeHtml(text){return `<div class="notice warning" data-sperre s
 function stornoActionHtml(){return invoice.storno_block?blockNoticeHtml(invoice.storno_block):'<button class="danger" onclick="stornoInvoice()">Stornieren</button>'}
 
 function emailSendControlsHtml(){
-  return `<span style="display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap"><input id="invoiceEmailInput" type="text" inputmode="email" autocomplete="off" value="${esc(invoice.recipient_email||'')}" placeholder="An – mehrere mit Komma oder Semikolon" title="Empfänger, mehrere mit Komma oder Semikolon trennen" style="padding:7px 10px;border:1px solid var(--field-border);font-family:inherit;font-size:13px;background:var(--card);color:var(--ink);min-width:220px"><input id="invoiceCcInput" type="text" inputmode="email" autocomplete="off" placeholder="CC (optional)" title="CC, mehrere mit Komma oder Semikolon trennen" style="padding:7px 10px;border:1px solid var(--field-border);font-family:inherit;font-size:13px;background:var(--card);color:var(--ink);min-width:170px"><button onclick="sendInvoiceEmail(this)">✉️ Per E-Mail senden</button><a class="small" href="/versandprotokoll?typ=rechnung&id=${invoiceId}">Versandprotokoll</a></span>`;
+  return `<span style="display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap"><input id="invoiceEmailInput" type="text" inputmode="email" autocomplete="off" value="${esc(feldWert('invoiceEmailInput',invoice.recipient_email||''))}" placeholder="An – mehrere mit Komma oder Semikolon" title="Empfänger, mehrere mit Komma oder Semikolon trennen" style="padding:7px 10px;border:1px solid var(--field-border);font-family:inherit;font-size:13px;background:var(--card);color:var(--ink);min-width:220px"><input id="invoiceCcInput" type="text" inputmode="email" autocomplete="off" value="${esc(feldWert('invoiceCcInput',''))}" placeholder="CC (optional)" title="CC, mehrere mit Komma oder Semikolon trennen" style="padding:7px 10px;border:1px solid var(--field-border);font-family:inherit;font-size:13px;background:var(--card);color:var(--ink);min-width:170px"><button onclick="sendInvoiceEmail(this)">✉️ Per E-Mail senden</button><a class="small" href="/versandprotokoll?typ=rechnung&id=${invoiceId}">Versandprotokoll</a></span>`;
 }
 
 async function sendInvoiceEmail(btn){
@@ -287,6 +294,7 @@ async function sendInvoiceEmail(btn){
   st.textContent='Wird gesendet …';
   try{
     await postEmailDispatch('rechnung-'+invoiceId,`/api/invoices/${invoiceId}/send-email`,{to_email:toEmail,cc_email:ccEmail||null},btn);
+    delete EINGABEN.invoiceEmailInput;delete EINGABEN.invoiceCcInput;  // seit 1.9.116: versendet -- wieder der Stand vom Server
     await reload();  // seit 1.8.95 neu geladen statt aus der Antwort des Versands übernommen
     document.getElementById('statusActionMsg').textContent='Per E-Mail versendet.';
     renderDispatchHistory('invoiceDispatchHistory','rechnung',invoiceId);

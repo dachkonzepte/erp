@@ -7044,3 +7044,47 @@ Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v535`):
 protokolliert -> 2; privater Termin ohne Maske -> 1; Beschreibung des Berichts im Entwurf nicht still -> 1; „verworfen“ ohne Begründung -> 1. Ein erster
 Lauf der beiden ersten hatte den Marker als Kommentar mitten in der Zeile (der Rest der Liste fiel mit weg, 4 statt 2 rot) -- wiederholt mit der ganzen
 Zeile.
+
+### R1, Punkt 6 (1.9.116): keine Eingabe geht beim Neuzeichnen verloren
+
+Befund E2: jede Antwort im Bereich „rechnung“ zeichnet die Rechnung über `render()` neu und setzte Einleitung, Schlusstext, Schlusstext 2,
+Pauschalbetrag (Bezeichnung, Betrag) und An/CC des Versands auf den Stand vom Server. E4: ein Schrittwechsel im Einsatzbericht zeichnet Schritt 5 neu --
+gezeichnete Unterschriften und Namen weg; ein angefangener Befund verlor nach `inhaltZeichnen()` seinen Text (`BEFUND_FORM` merkte nur Schwere und
+Maßnahme).
+
+- `invoice_detail.html`: `EINGABEN` merkt getippte Werte der Felder `MERKFELDER` (ein `input`-Lauscher am Dokument); `render()` und die Versandknöpfe setzen
+  `feldWert(id, server)` -- getippt vor Server. Speichern (`saveHeader()`, `savePauschal()`) nimmt die gesendeten Werte heraus, wenn das Feld seither
+  nicht weiter geändert wurde (`eingabenGespeichert()`); eine Vorlage aus der Auswahl zählt wie getippt; nach dem Versand gelten An/CC wieder vom Server.
+- `_unterschrift.html`: `stand()` (Striche in Punkten der Basisgröße, Basis, „hat Inhalt“) und `setzen(stand)` (zeichnet sie auf der neuen Fläche,
+  skaliert wie beim Drehen) -- die eine Zeichenfläche bleibt die einzige.
+- `service_report.html`: `unterschriftMerken()` vor jedem `inhaltZeichnen()` (Namen und Striche aus Schritt 5), `unterschriftEinrichten()` setzt sie
+  wieder; mit dem Abschluss verworfen. Der Befund merkt Text (`befund-text`, bei jeder Eingabe) und Wiedervorlage (`befund-wiedervorlage`) in
+  `BEFUND_FORM` wie Schwere und Maßnahme.
+
+#### Festlegungen 1.9.116 (Bitte bestätigen)
+
+1. Getippte, nicht gespeicherte Werte bleiben, solange die Seite offen ist -- nicht über ein Neuladen der Seite hinweg (kein Zwischenspeicher im Browser).
+2. Auf der Rechnung gilt ein getippter Wert vor einem neuen Stand vom Server, auch wenn jemand anders das Feld inzwischen gespeichert hat; mit dem eigenen
+   Speichern gewinnt der eigene Wert (wie bisher).
+3. Die Unterschriften im Einsatzbericht bleiben über Schrittwechsel und jedes Neuzeichnen stehen; „Leeren“ leert wie bisher.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v536_eingaben_bleiben.py` (6 Tests): in node mit der Rechnungsseite -- getippt gilt vor dem Stand vom Server, bis gespeichert; ein nach
+dem Senden weiter geändertes Feld bleibt; ein Feld außerhalb von `MERKFELDER` wird nicht gemerkt; An/CC stehen im neu gezeichneten Versand; eine Vorlage aus
+der Auswahl zählt wie getippt; jedes Merkfeld wird über `feldWert()` gefüllt, beide Speicherwege nehmen nur das Gesendete heraus. Zeichenfläche in node
+(Canvas-Attrappe): Striche auf 300 × 150 gezeichnet, auf einer Fläche 600 × 300 gesetzt -- nicht leer, derselbe Strich, Maßstab 2; `setzen(null)` lässt
+stehen; „Leeren“ leert. Bericht: `inhaltZeichnen()` merkt zuerst, `unterschriftEinrichten()` setzt (abgeschlossen: verworfen), Text und Wiedervorlage des
+Befunds mit Aktion.
+Neu `scripts/klicktest_eingaben_bleiben.py` (12 Prüfungen): Rechnung (Entwurf, pauschaler Abschlag) -- Einleitung, Schlusstexte, Bezeichnung und Betrag
+getippt, Leistungszeitraum und Zahlungsbedingung geändert (neu gezeichnet), alles steht noch (Bild), „Kopfdaten speichern“ und „Pauschale speichern“
+speichern es; festgeschriebene Rechnung: An/CC über `reload()`; Einsatzbericht als Monteurin: angefangener Befund mit Text, „zurückgestellt“ und
+Wiedervorlage über einen Schrittwechsel; Namen und beide Unterschriften gezeichnet, Schritt „Arbeiten“ und zurück -- noch da, „Bericht abschließen“ frei
+(Bild).
+
+Im ersten Lauf rot und behoben: `test_v414` (Regel 34) -- `savePauschal()` las den Rohtext des Betragsfelds für den Vergleich mit dem Merker; jetzt aus dem
+Merker selbst (`EINGABEN.pAmount`, er hält den zuletzt getippten Text).
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück): `setzen()` tut nichts -> 1 Test (v536); `eingabenGespeichert()` tut nichts -> 1; der Lauscher merkt
+nichts -> 2; `inhaltZeichnen()` ohne `unterschriftMerken()` -> Klicktest 11/12 („Namen und Unterschriften noch da“: Kunde leer, beide Flächen leer); der
+Befund merkt den Text nicht -> Klicktest 11/12 (Text leer, Maßnahme und Wiedervorlage noch da).

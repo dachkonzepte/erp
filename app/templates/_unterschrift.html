@@ -7,7 +7,8 @@ canvas.dk-unterschrift{display:block;width:100%;height:170px;background:#fff;bor
 </style>
 <script>
 /* unterschriftsfeld(canvas) macht aus einem <canvas class="dk-unterschrift"> eine Zeichenfläche und liefert
-   {leer(), leeren(), alsBlob(), alsDataUrl(), vermessen()}. Zeichnen über Zeigerereignisse (Finger, Stift, Maus) mit
+   {leer(), leeren(), alsBlob(), alsDataUrl(), vermessen(), stand(), setzen(stand)} -- seit 1.9.116 stand()/setzen(): die Striche (in Punkten der
+   Basisgröße) zum Mitnehmen über ein Neuzeichnen der Seite (Einsatzbericht, Schrittwechsel); setzen() zeichnet sie auf der neuen Fläche skaliert. Zeichnen über Zeigerereignisse (Finger, Stift, Maus) mit
    setPointerCapture, in der Auflösung des Geräts (devicePixelRatio), Strich #111. Das PNG hat einen
    durchsichtigen Hintergrund wie bisher in Checkliste und Einsatzbericht -- auf dem PDF liegt es über dem
    Briefpapier, nicht als weißer Kasten darauf. Erneut aufgerufen (z. B. nach dem Neuzeichnen der Seite),
@@ -77,6 +78,8 @@ function unterschriftsfeld(canvas){
     alsBlob:()=>new Promise(res=>canvas.toBlob(res,'image/png')),
     alsDataUrl:()=>canvas.toDataURL('image/png'),
     vermessen,
+    stand:()=>({striche:striche.map(s=>s.map(p=>({x:p.x,y:p.y}))),basis:basis?{w:basis.w,h:basis.h}:null,inhalt}),
+    setzen:s=>{if(!s)return;striche=s.striche.map(z=>z.map(p=>({x:p.x,y:p.y})));basis=s.basis?{w:s.basis.w,h:s.basis.h}:null;inhalt=!!s.inhalt;aktuell=null;neuZeichnen()},
   };
 }
 </script>

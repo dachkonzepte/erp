@@ -4,6 +4,16 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.116 – Keine Eingabe geht beim Neuzeichnen verloren: Rechnung und Einsatzbericht (Stufe 5, R1)
+
+Die Rechnung zeichnet sich nach jeder Antwort neu -- nach dem Ändern von Zahlungsbedingung, Leistungszeitraum oder einer Ist-Menge waren getippte, noch
+nicht gespeicherte Einleitung, Schlusstexte, Pauschalbetrag und An/CC des Versands weg. Jetzt merkt sich die Seite angefasste Felder, bis sie gespeichert
+sind (bzw. die Mail hinausging), und zeichnet sie mit dem getippten Wert neu.
+
+Im Einsatzbericht begann Schritt 5 nach jedem Schrittwechsel leer: Namen und gezeichnete Unterschriften waren weg. Jetzt bleiben sie stehen, bis der
+Bericht abgeschlossen ist (die Zeichenfläche gibt ihre Striche mit, `unterschriftsfeld().stand()`/`setzen()`). Ebenso behält ein angefangener „Befund
+ohne Prüfpunkt“ (und der Befund zu einem Prüfpunkt) seinen Text und die Wiedervorlage -- bis 1.9.115 nur Schwere und Maßnahme.
+
 ## 1.9.115 – Änderungsprotokoll für Aufträge, Rechnungen, Mahnungen, Berichte (Stufe 5, R1)
 
 Das Änderungsprotokoll kannte Auftragspositionen und LV-Titel des Auftrags, Rechnungen, Mahnungen, Einsatzberichte, Wartungsverträge, Dachflächen und
