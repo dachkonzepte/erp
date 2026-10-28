@@ -54,10 +54,11 @@ async def pruefen(tab, seed, p):
     await tab.anmelden({})
     p.pruefe("Anmeldeseite ohne Anmeldung", await tab.oeffnen("/login", "document.readyState==='complete'&&!!document.getElementById('u')"),
              True)
-    # seit 1.8.161 bindet _ds_kopf.html nach ds.css auch ds-basis.css ein (bis dahin nur ds.css), seit 1.9.5 ds-alte-namen.css
-    p.pruefe("ds.css, ds-basis.css und ds-alte-namen.css eingebunden", await tab.js(
+    # seit 1.8.161 bindet _ds_kopf.html nach ds.css auch ds-basis.css ein (bis dahin nur ds.css), seit 1.9.5 ds-alte-namen.css, seit 1.9.122
+    # ds-gesperrt.css (gesperrte Felder, eine Regel für jede Seite)
+    p.pruefe("ds.css, ds-basis.css, ds-alte-namen.css und ds-gesperrt.css eingebunden", await tab.js(
         "[...document.querySelectorAll('link[rel=stylesheet]')].map(l=>new URL(l.href).pathname)"),
-        ["/static/ds/ds.css", "/static/ds/ds-basis.css", "/static/ds/ds-alte-namen.css"])
+        ["/static/ds/ds.css", "/static/ds/ds-basis.css", "/static/ds/ds-alte-namen.css", "/static/ds/ds-gesperrt.css"])
     token = "getComputedStyle(document.documentElement).getPropertyValue('{}').trim()"
     # das Thema ausdrücklich -- ohne gespeicherte Wahl folgt die Seite dem Farbschema des Systems (headless auch dunkel)
     await tab.js("document.documentElement.setAttribute('data-theme','light')")
@@ -93,6 +94,8 @@ async def pruefen(tab, seed, p):
     p.pruefe("ds-basis.css: Kopfzeilen", await tab.js(kopf.format("/static/ds/ds-basis.css?v=x")),
              [200, "text/css; charset=utf-8", DAUERHAFT, "nosniff"])
     p.pruefe("ds-alte-namen.css: Kopfzeilen", await tab.js(kopf.format("/static/ds/ds-alte-namen.css?v=x")),
+             [200, "text/css; charset=utf-8", DAUERHAFT, "nosniff"])
+    p.pruefe("ds-gesperrt.css: Kopfzeilen", await tab.js(kopf.format("/static/ds/ds-gesperrt.css?v=x")),  # seit 1.9.122
              [200, "text/css; charset=utf-8", DAUERHAFT, "nosniff"])
 
     await tab.js("document.documentElement.setAttribute('data-theme','dark')")

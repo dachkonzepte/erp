@@ -246,7 +246,7 @@ def test_no_further_database_backed_jinja_globals_exist_unguarded():
 
     Seit 1.9.2 als NEUNTES und ZEHNTES ds_css_pruefsumme und ds_basis_pruefsumme -- feste Zeichenketten aus dem Inhalt von ds.css und
     ds-basis.css, beim Start gebildet (app/design_dateien.py::pruefsumme()), ohne Datenbank, deshalb ohne Absicherung. Seit 1.9.5 als
-    ELFTES ds_alte_namen_pruefsumme (ds-alte-namen.css), ebenso."""
+    ELFTES ds_alte_namen_pruefsumme (ds-alte-namen.css), ebenso; seit 1.9.122 als ZWÖLFTES ds_gesperrt_pruefsumme (ds-gesperrt.css)."""
     root = Path(__file__).parents[1]
     matches = []
     for py_file in (root / "app").rglob("*.py"):
@@ -257,11 +257,12 @@ def test_no_further_database_backed_jinja_globals_exist_unguarded():
 
     src = (root / "app" / "routers" / "pages.py").read_text(encoding="utf-8")
     assigned = [line.strip() for line in src.splitlines() if line.strip().startswith("templates.env.globals[")]
-    assert len(assigned) == 11  # app_version + die fünf abgesicherten, DB-gestützten Globals + can() + kein_mitarbeiter + 3 Prüfsummen
+    assert len(assigned) == 12  # app_version + die fünf abgesicherten, DB-gestützten Globals + can() + kein_mitarbeiter + 4 Prüfsummen
     assert [a for a in assigned if "pruefsumme" in a] == [
         'templates.env.globals["ds_css_pruefsumme"] = ds_pruefsumme("ds.css")',
         'templates.env.globals["ds_basis_pruefsumme"] = ds_pruefsumme("ds-basis.css")',
-        'templates.env.globals["ds_alte_namen_pruefsumme"] = ds_pruefsumme("ds-alte-namen.css")']
+        'templates.env.globals["ds_alte_namen_pruefsumme"] = ds_pruefsumme("ds-alte-namen.css")',
+        'templates.env.globals["ds_gesperrt_pruefsumme"] = ds_pruefsumme("ds-gesperrt.css")']
     assert 'templates.env.globals["can"] = _can' in assigned
     assert [a for a in assigned if a.startswith('templates.env.globals["kein_mitarbeiter"]')] == [
         'templates.env.globals["kein_mitarbeiter"] = KEIN_MITARBEITER  # seit 1.8.159: eine Meldung für Server und Vorlagen']

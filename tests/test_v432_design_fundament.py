@@ -542,11 +542,13 @@ def test_jede_seite_bindet_den_ds_kopf_vor_ihrem_stil_ein():
 def test_ds_kopf_bindet_ds_css_und_ds_basis_mit_pruefsumme_ein():
     """Seit 1.8.161 dazu ds-basis.css (Grundregeln nur unter .ds-seite, tests/test_v441_rahmen_baustein.py) -- nach ds.css. Seit 1.9.2
     mit der Prüfsumme des Inhalts statt der Version (bis dahin ?v={{ app_version }}). Seit 1.9.5 dazu ds-alte-namen.css (die alten
-    Farbnamen der Seiten zentral, tests/test_v442_alte_farbnamen.py)."""
+    Farbnamen der Seiten zentral, tests/test_v442_alte_farbnamen.py). Seit 1.9.122 dazu ds-gesperrt.css."""
     text = _ohne_jinja_kommentare((ROOT / "app" / "templates" / "_ds_kopf.html").read_text(encoding="utf-8")).strip()
     assert text.splitlines() == ['<link rel="stylesheet" href="/static/ds/ds.css?v={{ ds_css_pruefsumme }}">',
                                  '<link rel="stylesheet" href="/static/ds/ds-basis.css?v={{ ds_basis_pruefsumme }}">',
-                                 '<link rel="stylesheet" href="/static/ds/ds-alte-namen.css?v={{ ds_alte_namen_pruefsumme }}">']
+                                 '<link rel="stylesheet" href="/static/ds/ds-alte-namen.css?v={{ ds_alte_namen_pruefsumme }}">',
+                                 # seit 1.9.122: gesperrte Felder, eine Regel für jede Seite (tests/test_v542_gesperrte_felder.py)
+                                 '<link rel="stylesheet" href="/static/ds/ds-gesperrt.css?v={{ ds_gesperrt_pruefsumme }}">']
 
 
 def test_pruefsumme_folgt_dem_inhalt(tmp_path):

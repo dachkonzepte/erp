@@ -4,7 +4,9 @@
     (app/design_dateien.py::pruefsumme(), bis dahin die Version). Seit 1.8.161 dazu ds-basis.css: die Grundregeln für Schrift und
     Steuerelemente, nur unter .ds-seite -- sie wirken erst, wenn eine Seite beim Umzug die Klasse an ihr <body> setzt. Seit 1.9.5
     ds-alte-namen.css: die alten Farbnamen der Seiten (--bg, --card, --ink, --accent …) zeigen dort zentral auf die --ds-*-Werte, die
-    Seiten tragen keine Kopie der alten Palette mehr. -#}
+    Seiten tragen keine Kopie der alten Palette mehr. Seit 1.9.122 ds-gesperrt.css: eine Regel für gesperrte und nur lesbare Felder
+    auf jeder Seite (Fläche --ds-feld-gesperrt, gedämpfte Schrift, Mauszeiger „nicht erlaubt“) statt Regeln je Seite. -#}
 <link rel="stylesheet" href="/static/ds/ds.css?v={{ ds_css_pruefsumme }}">
 <link rel="stylesheet" href="/static/ds/ds-basis.css?v={{ ds_basis_pruefsumme }}">
 <link rel="stylesheet" href="/static/ds/ds-alte-namen.css?v={{ ds_alte_namen_pruefsumme }}">
+<link rel="stylesheet" href="/static/ds/ds-gesperrt.css?v={{ ds_gesperrt_pruefsumme }}">

@@ -4,6 +4,15 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.122 – Gesperrte Felder hell erkennbar: eine Regel für jede Seite (Stufe 5, R1 Nachrunde)
+
+Gesperrte und nur lesbare Felder sahen hell auf den meisten Seiten aus wie offene -- nur fünf Seiten (Einstellungen, Checkliste,
+Checklisten-Vorlage, Stammdaten-Formular, Auftrag) hatten eine eigene Regel, alle anderen keine; die Rechnung als Büro – Auftrag zeigte jedes Feld
+weiß. Jetzt gilt eine Regel für jede Seite (`app/static/ds/ds-gesperrt.css`, über `_ds_kopf.html` eingebunden): ein gesperrtes oder nur lesbares
+`input`, `textarea` oder `select` trägt die Fläche `--ds-feld-gesperrt`, gedämpfte Schrift und den Mauszeiger „nicht erlaubt“, hell wie dunkel.
+Die fünf Seitenregeln sind entfallen, auch die durchsichtigen gesperrten Felder in den LV-Zeilen des Auftrags folgen der Regel. Eine Ausnahme
+bräuchte am Feld `data-gesperrt-eigen` und einen Grund im Wächter; heute gibt es keine.
+
 ## 1.9.121 – „Durchgeführt von“ nach der Regel der Zeiten (Stufe 5, R1 Nachrunde)
 
 „Durchgeführt von“ eines Einsatzberichts durfte seit 1.3.0 nur der Admin auf eine andere Person setzen (seit 1.9.112 sichtbar über

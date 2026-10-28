@@ -1,0 +1,31 @@
+/* =====================================================================
+   DACHKONZEPTE ERP – gesperrte und nur lesbare Felder
+   app/static/ds/ds-gesperrt.css (seit 1.9.122, Stufe 5, R1 Nachrunde, Punkt 4)
+
+   Eine Regel für jede Seite -- umgezogen oder nicht, jede bindet sie über
+   _ds_kopf.html ein: ein gesperrtes (disabled) oder nur lesbares (readonly)
+   Feld -- input mit Fläche, textarea, select -- trägt die Fläche
+   --ds-feld-gesperrt, gedämpfte Schrift (--ds-text-2, Prüfpaar
+   text-2/feld-gesperrt in ds.css) und den Mauszeiger „nicht erlaubt“. Bis
+   1.9.121 hatten fünf Seiten je eine eigene Regel und alle anderen keine:
+   hell sah ein gesperrtes Feld dort aus wie ein offenes (Rechnung als
+   Büro – Auftrag, Einstellungen mit Geld).
+
+   !important ist hier gewollt und nur hier (Wächter
+   tests/test_v542_gesperrte_felder.py): der Zustand „gesperrt“ geht jeder
+   Gestaltung einer Seite vor -- ohne gewänne jede Feldregel einer Seite mit
+   gleichem oder höherem Gewicht (.field input, #dialog input) und das Feld
+   sähe wieder offen aus. Keine Seite trägt eine eigene Regel für gesperrte
+   Felder; eine begründete Ausnahme trägt am Feld data-gesperrt-eigen und
+   steht mit Grund in AUSNAHMEN des Wächters. Kästchen, Optionsfelder, Knöpfe
+   und Dateiauswahl haben keine Fläche und bleiben, wie der Browser sie
+   zeigt.
+   ===================================================================== */
+
+input:is(:disabled, [readonly]):not([type="checkbox"], [type="radio"], [type="button"], [type="submit"], [type="reset"], [type="hidden"], [type="file"], [type="image"], [type="range"], [type="color"], [data-gesperrt-eigen]),
+textarea:is(:disabled, [readonly]):not([data-gesperrt-eigen]),
+select:disabled:not([data-gesperrt-eigen]) {
+  background: var(--ds-feld-gesperrt) !important;
+  color: var(--ds-text-2) !important;
+  cursor: not-allowed !important;
+}

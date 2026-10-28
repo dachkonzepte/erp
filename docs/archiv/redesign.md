@@ -7270,3 +7270,58 @@ Angepasste Erwartungen:
 
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): der Server wieder nur der Admin -> 3 Tests (v541, v532); die Seite wieder nur der
 Admin -> 1 Test (v532).
+
+### Nachrunde, Punkt 4 (1.9.122): gesperrte Felder hell erkennbar -- eine Regel
+
+Befund: das Token `--ds-feld-gesperrt` (1.9.110) nahmen nur fünf Seiten mit je eigener Regel (Einstellungen, Checkliste, Checklisten-Vorlage,
+Stammdaten-Formular `input[readonly]`, Auftrag `#itemDialog`/`#taxKey`; die LV-Zeilen des Auftrags zeigten gesperrte Felder durchsichtig); jede andere
+Seite zeigte ein gesperrtes Feld wie ein offenes -- gemessen (Gegenprobe 4 unten): die Rechnung als Büro – Auftrag mit 14 gesperrten Feldern, hell je
+`rgb(255, 255, 255)`, Schrift `rgb(23, 28, 31)`, Mauszeiger `default`.
+
+- Neu `app/static/ds/ds-gesperrt.css`, eingebunden über `_ds_kopf.html` nach `ds-alte-namen.css` (Zusatz `?v=` aus der Prüfsumme,
+  `ds_gesperrt_pruefsumme`): eine Regel -- `input` mit Fläche (nicht Kästchen, Optionsfeld, Knopf, Datei, Farbe, Schieber, verborgen), `textarea` je
+  `:disabled` oder `[readonly]`, `select` `:disabled`, jeweils ohne `data-gesperrt-eigen` -- mit `background: var(--ds-feld-gesperrt)`,
+  `color: var(--ds-text-2)`, `cursor: not-allowed`, je `!important`.
+- Warum eine eigene Datei und nicht `ds-basis.css`: dort gilt jede Regel nur unter `.ds-seite` (die aufgeschobenen Seiten -- Projektmappe, Auftrag,
+  Kundenakte, Kalender, Plantafel, Heute, Meine Zeiten, Neues Projekt, Neues Angebot -- hätte sie nicht erreicht) und mit dem Gewicht null (jede
+  Feldregel einer Seite, schon `input{background:…}`, hätte sie überstimmt).
+- Warum `!important`: die Regel wiegt ohne (0,2,1) und schlägt damit `.field input` (0,1,1) -- die Gegenprobe ohne `!important` änderte auf den
+  gemessenen Seiten nichts (Gegenprobe 3). Feldregeln mit gleichem oder höherem Gewicht gibt es aber, z. B. `#signDialog .sign-row input` (1,1,1) und
+  `.contract-sign input[type=date]` (0,2,1) im Auftrag, `.zeile input.antrag-notiz` (0,2,1) in „Zeiten“, `.app-topbar .app-topbar-search input`
+  (0,2,1); gesperrt sähen sie ohne `!important` wieder offen aus. `!important` gibt es unter `app/static/` nur in dieser Datei (Wächter).
+- Entfallen: die Regeln in `settings.html`, `checklist.html` (dort bisher Schrift `--ink`), `checklist_template.html`, `master_data_form.html` (bisher
+  Mauszeiger `default`; die Regel für den Rahmen beim Überfahren bleibt) und `order.html` (`#itemDialog`, `#taxKey`, `.lv-row`) -- an ihrer Stelle
+  ein Kommentar.
+
+#### Festlegungen 1.9.122 (Bitte bestätigen)
+
+1. Schrift gesperrter Felder überall `--ds-text-2` -- auch in der unterschriebenen Checkliste (bisher `--ink`): 6,97 : 1 hell, 7,18 : 1 dunkel.
+2. Auch in den LV-Zeilen des Auftrags tragen gesperrte Felder die Fläche (bisher durchsichtig, ohne Rahmen) -- keine Ausnahme ohne Begründung.
+3. Hell bleibt die Fläche `#F3F5F6` (Festlegung 1.9.110 Nr. 2); erkennbar macht sie zusammen mit der gedämpften Schrift und dem Mauszeiger.
+4. `readonly` zählt wie `disabled` (beide nicht bearbeitbar); Kästchen und Optionsfelder bleiben, wie der Browser sie gesperrt zeigt.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v542_gesperrte_felder.py` (12 Tests): genau eine Regel mit den drei Eigenschaften und den Ausnahmen der Feldarten; `!important` nur
+hier; eine Design-Datei, auf jeder Seite aus `seiten()` genau einmal nach `ds-alte-namen.css`; keine Vorlage mit eigener Regel für Fläche, Schrift
+oder Mauszeiger gesperrter oder nur lesbarer Felder (Knöpfe ausgenommen, `#id` über das Element der Vorlage) mit Angriffen und Durchlässen für den
+Wächter; `data-gesperrt-eigen` nur mit Grund (`AUSNAHMEN`, leer); hell und dunkel ist die Fläche anders als die eines offenen Felds (`--card` zeigt
+auf `--ds-flaeche`), die Schrift darauf mindestens 4,5 : 1.
+Neu `scripts/klicktest_gesperrte_felder.py` (12 Prüfungen, Testdaten der Bildgrundlage): Rechnung als Büro – Auftrag (jedes Feld gesperrt) und als Büro
+– Finanzen, Einstellungen als Büro – Auftrag (Nummernkreise, Mahnwesen) und als Büro – Finanzen (DATEV) -- je hell und dunkel jedes sichtbare
+gesperrte Feld mit Fläche, Schrift und Mauszeiger der Regel, die Fläche anders als die eines offenen Felds, kein offenes Feld mit der Fläche der Regel
+(Bilder hell und dunkel).
+
+Angepasste Erwartungen:
+- `test_v530::test_gesperrte_felder_nehmen_das_token[5 Seiten]`: jede der fünf Seiten hat eine eigene Regel mit dem Token -> keine eigene Regel, die
+  Regel in `ds-gesperrt.css` nimmt das Token.
+- `test_v526::test_gesperrte_felder_der_einstellungen_grau`: die Regel der Seite im HTML -> keine Regel der Seite, `ds-gesperrt.css` eingebunden.
+- `test_v432::test_ds_kopf_bindet_ds_css_und_ds_basis_mit_pruefsumme_ein`: drei Zeilen -> vier (dazu `ds-gesperrt.css`).
+- `test_v252` (Globals der Vorlagen): 11 -> 12, dazu `ds_gesperrt_pruefsumme`.
+- `klicktest_ds_schriften` „ds.css, ds-basis.css und ds-alte-namen.css eingebunden“: drei Dateien -> vier (dazu `ds-gesperrt.css`); neu: ihre
+  Kopfzeilen (200, CSS, langer Cache, nosniff) -- 30 -> 31 Prüfungen (im ersten Gesamtlauf der Klicktests rot, die Erwartung war mit 1.9.122 veraltet).
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück): die Regel nicht eingebunden -> 1 Test (v542) und der Klicktest 2/12 (jedes gesperrte Feld der
+gemessenen Seiten hell weiß, dunkel `rgb(26, 32, 36)` wie ein offenes, Mauszeiger `default` -- der Zustand bis 1.9.121); eine Seite mit eigener Regel ->
+1 Test; die Fläche ohne `!important` -> Klicktest unverändert 12/12 (siehe oben: auf den gemessenen Seiten gewinnt die Regel durch ihr Gewicht, nötig ist
+`!important` gegen schwerere Feldregeln).

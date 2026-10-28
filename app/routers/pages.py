@@ -41,6 +41,8 @@ templates.env.globals["ds_css_pruefsumme"] = ds_pruefsumme("ds.css")
 templates.env.globals["ds_basis_pruefsumme"] = ds_pruefsumme("ds-basis.css")
 # seit 1.9.5: die alten Farbnamen der Seiten (--bg, --card, --accent …) zeigen zentral auf --ds-*
 templates.env.globals["ds_alte_namen_pruefsumme"] = ds_pruefsumme("ds-alte-namen.css")
+# seit 1.9.122: gesperrte und nur lesbare Felder, eine Regel für jede Seite
+templates.env.globals["ds_gesperrt_pruefsumme"] = ds_pruefsumme("ds-gesperrt.css")
 templates.env.globals["kein_mitarbeiter"] = KEIN_MITARBEITER  # seit 1.8.159: eine Meldung für Server und Vorlagen
 
 # Die fuenf Jinja-Globals unten laufen bei JEDER Seitenanfrage (jede Seite bindet _sidebar.html

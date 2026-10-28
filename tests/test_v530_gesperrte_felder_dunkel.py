@@ -47,12 +47,15 @@ def test_hell_unveraendert_dunkel_doppelt_so_deutlich():
 
 @pytest.mark.parametrize("seite", SEITEN)
 def test_gesperrte_felder_nehmen_das_token(seite):
-    """Jede Regel für gesperrte (:disabled) oder nur lesbare ([readonly]) Felder mit eigener Fläche nimmt --ds-feld-gesperrt."""
+    """Seit 1.9.122: die fünf Seiten tragen keine eigene Regel mehr für gesperrte oder nur lesbare Felder -- die eine Regel steht in
+    app/static/ds/ds-gesperrt.css und nimmt --ds-feld-gesperrt (tests/test_v542_gesperrte_felder.py). 1.9.110–1.9.121 trug jede der fünf
+    Seiten eine eigene Regel mit dem Token."""
     css = "\n".join(re.findall(r"<style>(.*?)</style>", (vj.TEMPLATES / seite).read_text(encoding="utf-8"), flags=re.S))
     regeln = [r for r in re.findall(r"([^{}]*(?::disabled|\[readonly\])[^{}]*)\{([^}]*)\}", css) if "background" in r[1]
-              and "transparent" not in r[1] and "button" not in r[0] and ".knopf" not in r[0] and "btn" not in r[0] and "#pyConfirm" not in r[0]]
-    assert regeln, seite
-    assert all("background:var(--ds-feld-gesperrt)" in r[1] for r in regeln), regeln
+              and "button" not in r[0] and ".knopf" not in r[0] and "btn" not in r[0] and "#pyConfirm" not in r[0]]
+    assert regeln == [], seite
+    zentral = (DS_CSS.parent / "ds-gesperrt.css").read_text(encoding="utf-8")
+    assert "background: var(--ds-feld-gesperrt) !important;" in zentral
 
 
 def test_keine_seite_graut_mit_soft():
