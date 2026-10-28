@@ -7088,3 +7088,34 @@ Merker selbst (`EINGABEN.pAmount`, er hält den zuletzt getippten Text).
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück): `setzen()` tut nichts -> 1 Test (v536); `eingabenGespeichert()` tut nichts -> 1; der Lauscher merkt
 nichts -> 2; `inhaltZeichnen()` ohne `unterschriftMerken()` -> Klicktest 11/12 („Namen und Unterschriften noch da“: Kunde leer, beide Flächen leer); der
 Befund merkt den Text nicht -> Klicktest 11/12 (Text leer, Maßnahme und Wiedervorlage noch da).
+
+### R1, Punkt 7 (1.9.117): Mustervorgang nicht beauftragbar, „Projekt löschen“ nur ohne Auftrag
+
+Befund F6: weder Editor noch Server prüften `Project.is_template`; `delete_project()` und `duplicate_project()` nehmen an, ein Mustervorgang habe nie einen
+Auftrag. F15: „Löschen“ stand auch bei Projekten mit Auftrag und endete mit 400.
+
+- `app/orders.py::create_order_from_quote()`: ist das Projekt ein Mustervorgang, `MustervorgangNichtBeauftragbar` (`MUSTERVORGANG_TEXT` mit dem Weg),
+  bevor etwas geschrieben wird; `app/routers/quotes.py` antwortet 409. Jeder andere Aufrufer (Schnellauftrag) legt ein eigenes Projekt an.
+- `quote_to_dict()` meldet `project_is_template`; der Angebots-Editor blendet „Angebot beauftragen“ aus und zeigt den Hinweis im Kasten über dem LV.
+- Projektmappe: Kennzeichen „Mustervorgang“ im Kopf (`templateBadge`), „Löschen“ im Menü nur ohne Auftrag (`deleteMenuItem`, nach `order_count`);
+  Projektliste: „Löschen“ im Menü einer Zeile nur ohne Auftrag. Der Server lehnt wie bisher ab (400).
+
+#### Festlegungen 1.9.117 (Bitte bestätigen)
+
+1. Ein Mustervorgang wird nie beauftragt, auch nicht vom Admin; der Weg ist „Neuen Vorgang erstellen“.
+2. Ohne „Löschen“ bleibt bei einem Projekt mit Auftrag „Archivieren“ -- kein zusätzlicher Hinweis im Menü.
+3. Bestehende Aufträge an Mustervorgängen (falls es welche gibt) bleiben, wie sie sind; nichts wird umgestellt.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v537_mustervorgang_und_loeschen.py` (8 Tests): Beauftragen des Angebots eines Mustervorgangs als Büro – Auftrag 409 mit dem Weg, kein
+Auftrag, `project_is_template` am Angebot; Gegenprobe: dasselbe Angebot nach „Neuen Vorgang erstellen“ (`duplicate_project()`) lässt sich beauftragen;
+die Fachfunktion wirft auch ohne Router; der Editor in node (der Teil von `renderAll()` bis zum Seitenkopf) -- Muster: Knopf verborgen, Hinweis mit dem
+Weg; gewöhnlich: „Angebot beauftragen“; die Projektliste in node (`menuItemsFor()`): „Löschen“ nur ohne Auftrag, auch in „Nur Mustervorgänge“; die
+Projektmappe: Kennzeichen und „Löschen“ nach `order_count`.
+Neu `scripts/klicktest_mustervorgang.py` (9 Prüfungen): Editor des Musters ohne „Angebot beauftragen“ mit Hinweis (Bild), POST aus der Seite 409; Editor
+eines gewöhnlichen Angebots wie bisher; Projektmappe des Musters mit Kennzeichen (Bild), mit Auftrag ohne „Löschen“, ohne Auftrag mit; Projektliste und
+„Nur Mustervorgänge“.
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v537`): der Server prüft den Mustervorgang nicht -> 2 Tests (409, Fachfunktion); der
+Editor ohne Hinweis -> 1; Projektliste mit „Löschen“ auch mit Auftrag -> 1; Projektmappe ebenso -> 1.

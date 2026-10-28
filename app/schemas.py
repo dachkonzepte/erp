@@ -747,6 +747,7 @@ class QuoteOut(BaseModel):
     project_id: int
     project_number: str
     project_name: str
+    project_is_template: bool = False  # seit 1.9.117: Angebot eines Mustervorgangs -- nicht beauftragbar
     customer_id: int
     customer_name: str
     property_name: str | None

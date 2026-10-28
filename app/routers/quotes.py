@@ -15,7 +15,7 @@ from ..contract_basis import validate_contract_basis
 from ..database import get_db
 from ..email_dispatch import DispatchConflict
 from ..models import AppUser, Employee, EmployeeRoleSettings, Order, Project, Quote, QuoteEmployeeAssignment, QuoteItem, QuoteItemCalculation, QuoteItemLayout
-from ..orders import create_order_from_quote, load_order, order_to_dict
+from ..orders import MustervorgangNichtBeauftragbar, create_order_from_quote, load_order, order_to_dict
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..projects import add_service_to_quote, auto_number_quote, build_quote_item_calculation, create_free_quote_item, create_quote_section, delete_quote_section, duplicate_quote_item, ensure_quote_item_calculation, load_quote, move_quote_item_before, quote_item_calculation_preview, quote_to_dict, reorder_quote, send_quote_email, set_item_layout, update_quote_section, update_quote_tax_key
 from ..quote_framed_pdf import build_quote_framed_pdf
@@ -43,7 +43,7 @@ def convert_quote_to_order(quote_id: int, payload: OrderCreateFromQuote, request
     try:
         order = create_order_from_quote(db, quote_id, actor_name=actor_name, **payload.model_dump())
     except ValueError as exc:
-        message=str(exc); code=409 if "bereits Auftrag" in message else 422
+        message=str(exc); code=409 if isinstance(exc, MustervorgangNichtBeauftragbar) or "bereits Auftrag" in message else 422  # seit 1.9.117 Muster 409
         raise HTTPException(status_code=code, detail=message) from exc
     return OrderOut.model_validate(order_to_dict(order, db))
 

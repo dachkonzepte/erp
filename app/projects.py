@@ -656,6 +656,7 @@ def quote_to_dict(quote: Quote) -> dict:
     return {
         "id": quote.id, "quote_number": quote.quote_number, "project_id": quote.project_id,
         "project_number": quote.project.project_number, "project_name": quote.project.name,
+        "project_is_template": bool(quote.project.is_template),  # seit 1.9.117: der Editor bietet dann kein „Beauftragen“
         "customer_id": quote.project.customer_id, "customer_name": quote.project.customer.name,
         "property_name": quote.project.property.name if quote.project.property else None,
         "title": quote.title, "status": quote.status, "vat_rate": Decimal(quote.vat_rate),

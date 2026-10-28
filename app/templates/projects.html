@@ -128,7 +128,7 @@ function menuItemsFor(p){
     return `<a href="/projects/${p.id}">Projektmappe</a>`
       +`<a href="#" onclick="closeAllMenus();duplicateProject(${p.id},false);return false">Neuen Vorgang erstellen</a>`
       +`<a href="#" onclick="closeAllMenus();toggleArchived(${p.id},${!p.archived});return false">${p.archived?'Entarchivieren':'Archivieren'}</a>`
-      +`<a href="#" onclick="closeAllMenus();deleteProjectRow(${p.id});return false">Löschen</a>`;
+      +(p.order_count?'':`<a href="#" onclick="closeAllMenus();deleteProjectRow(${p.id});return false">Löschen</a>`);  // seit 1.9.117 nur ohne Auftrag
   }
   return `<a href="/projects/${p.id}">Projektmappe</a>`
     +`<a href="/quotes/new?project_id=${p.id}">+ Angebot</a>`
@@ -136,7 +136,7 @@ function menuItemsFor(p){
     +`<a href="#" onclick="closeAllMenus();duplicateProject(${p.id},false);return false">Kopieren</a>`
     +`<a href="#" onclick="closeAllMenus();duplicateProject(${p.id},true);return false">Als Mustervorgang speichern</a>`
     +`<a href="#" onclick="closeAllMenus();toggleArchived(${p.id},${!p.archived});return false">${p.archived?'Entarchivieren':'Archivieren'}</a>`
-    +`<a href="#" onclick="closeAllMenus();deleteProjectRow(${p.id});return false">Löschen</a>`;
+    +(p.order_count?'':`<a href="#" onclick="closeAllMenus();deleteProjectRow(${p.id});return false">Löschen</a>`);  // seit 1.9.117 nur ohne Auftrag
 }
 
 function renderList(rows){

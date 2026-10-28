@@ -788,6 +788,14 @@ def _copy_quote_scope_to_order(db: Session, order: Order, quote) -> None:
                 ))
 
 
+MUSTERVORGANG_TEXT = ("Ein Angebot eines Mustervorgangs wird nicht beauftragt – in der Projektliste unter „Nur Mustervorgänge“ über "
+                      "„⋮ → Neuen Vorgang erstellen“ ein Projekt daraus anlegen und dort beauftragen.")
+
+
+class MustervorgangNichtBeauftragbar(ValueError):
+    """Seit 1.9.117 (Stufe 5, R1, Punkt 7, F6): das Angebot gehört zu einem Mustervorgang (Project.is_template) -- 409."""
+
+
 def create_order_from_quote(
     db: Session, quote_id: int, *, order_date: date, execution_start: date | None,
     execution_end: date | None, caseworker_employee_id: int | None,
@@ -805,6 +813,10 @@ def create_order_from_quote(
         raise ValueError("Angebot nicht gefunden.")
     if not quote.items:
         raise ValueError("Das Angebot enthält keine Positionen und kann nicht beauftragt werden.")
+    # Seit 1.9.117 (F6): ein Mustervorgang ist eine Vorlage -- sein Angebot wird nicht beauftragt (bis 1.9.116 ging das; delete_project() und
+    # duplicate_project() nehmen an, ein Mustervorgang habe nie einen Auftrag). Vor dem ersten Schreiben.
+    if quote.project.is_template:
+        raise MustervorgangNichtBeauftragbar(MUSTERVORGANG_TEXT)
     meta, _, _ = ensure_quote_structure(db, quote)
     project = quote.project
     # Seit 1.8.80: Sperre der Projektzeile -- ein gleichzeitiger Kundenwechsel am Projekt (check_client_change()) nimmt sie
