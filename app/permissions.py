@@ -192,13 +192,10 @@ def darf_geld(user: AppUser | None) -> bool:
     return user is None or has_role(user, *GELD_ROLLEN)
 
 
-# Seit 1.9.112 (Stufe 5, R1, Punkt 2): wer einen Bericht, ein Foto, Material oder einen Befund einer anderen Person zuschreibt -- nur der Admin
-# (die Regel von 1.3.0, bis 1.9.111 nur in app/routers/service_reports.py::_employee_for_request()). Jedes andere Konto schreibt sich selbst zu
-# oder niemanden; die Seite „Einsatzberichte“ bietet unter „Durchgeführt von“ nur das an. Einen Befund schreibt seit 1.9.112 niemand mehr
-# einer anderen Person zu: „erfasst von“ ist immer das anlegende Konto (app/routers/findings.py::post_finding()).
-def darf_fuer_andere_erfassen(user: AppUser | None) -> bool:
-    """Seit 1.9.112: „Durchgeführt von“ bzw. „erstellt von“ eine andere Person -- nur Admin; ohne Konto (Tests) ohne Einschränkung."""
-    return user is None or has_role(user, ROLE_ADMIN)
+# „Durchgeführt von“ bzw. „erstellt von“ eine andere Person (Bericht, Foto, Material, Betriebsmittel, Wartungseinsatz) -- seit 1.9.121 (Stufe 5,
+# R1 Nachrunde, Punkt 3) dieselbe Regel wie für Zeiten: darf_zeit_fuer_andere_buchen() oben (Admin und Büro – Finanzen). 1.9.112–1.9.120 stand
+# hier darf_fuer_andere_erfassen() (nur der Admin, die Regel von 1.3.0). Einen Befund schreibt niemand einer anderen Person zu: „erfasst von“ ist
+# immer das anlegende Konto (app/routers/findings.py::post_finding()).
 
 
 def zeit_nur_mit_von_bis(user: AppUser | None) -> bool:

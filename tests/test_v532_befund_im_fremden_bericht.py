@@ -5,8 +5,8 @@
              anlegende Konto (created_by_user_id, created_by_name) und dessen Mitarbeiter -- nie still die Monteurin (der Admin schrieb den Befund
              bis 1.9.111 ihr zu). Wer „erfasst von“ mitschickt, bekommt 422, auch der Admin.
     Altbestand  Ein Befund von vor 1.9.112 (ohne Konto) nennt seinen Mitarbeiter.
-    „Durchgeführt von“  bietet nur an, was der Server annimmt: der Admin jede Person, jedes andere Konto sich selbst oder niemanden
-             (app/permissions.py::darf_fuer_andere_erfassen()); der Server wie bisher (Büro – Finanzen mit fremder Person 403, Admin 200).
+    „Durchgeführt von“  bietet nur an, was der Server annimmt: seit 1.9.121 Admin und Büro – Finanzen jede Person, jedes andere Konto sich
+             selbst oder niemanden (app/permissions.py::darf_zeit_fuer_andere_buchen(); 1.9.112–1.9.120 nur der Admin, darf_fuer_andere_erfassen()).
 """
 
 import re
@@ -15,7 +15,7 @@ import pytest
 from sqlalchemy import select
 
 from app.models import AppUser, Finding, ServiceReport
-from app.permissions import darf_fuer_andere_erfassen
+from app.permissions import darf_zeit_fuer_andere_buchen
 from app.routers.findings import router as findings_router
 from app.routers.service_reports import router as reports_router
 from app.service_reports import create_report
@@ -89,11 +89,12 @@ def test_altbestand_nennt_den_mitarbeiter(threaded_db_session, router_test_clien
     assert befund["created_by_name"] == "Mia Monteurin"
 
 
-@pytest.mark.parametrize("rolle, darf", [("admin", True), ("buero_finanzen", False), ("buero_auftrag", False), ("field", False)])
+# seit 1.9.121 Büro – Finanzen True (bis 1.9.120 False: nur der Admin)
+@pytest.mark.parametrize("rolle, darf", [("admin", True), ("buero_finanzen", True), ("buero_auftrag", False), ("field", False)])
 def test_durchgefuehrt_von_regel_und_server(threaded_db_session, router_test_client, rolle, darf):
     db = threaded_db_session
     order, mia, bea, _ = _welt(db)
-    assert darf_fuer_andere_erfassen(AppUser(username="x", role=rolle)) is darf
+    assert darf_zeit_fuer_andere_buchen(AppUser(username="x", role=rolle)) is darf
     eigen = mia if rolle == "field" else bea
     fremd = bea if rolle == "field" else mia
     client = router_test_client(db, reports_router, role=rolle, employee_id=eigen.id)
@@ -107,8 +108,9 @@ def test_durchgefuehrt_von_regel_und_server(threaded_db_session, router_test_cli
 @nur_mit_node
 @pytest.mark.parametrize("rolle", ["admin", "buero_finanzen", "buero_auftrag"])
 def test_einsatzberichte_seite_bietet_nur_an_was_der_server_annimmt(threaded_db_session, router_test_client, rolle):
-    """„Durchgeführt von“ in node auf der vom Server gezeichneten Seite: der Admin bekommt alle Mitarbeiter (eigener vorgewählt), jedes andere
-    Konto „— nicht zugeordnet —“ und sich selbst (vorgewählt) -- genau das, was der Server annimmt (test_durchgefuehrt_von_regel_und_server)."""
+    """„Durchgeführt von“ in node auf der vom Server gezeichneten Seite: Admin und (seit 1.9.121) Büro – Finanzen bekommen alle Mitarbeiter
+    (eigener vorgewählt), Büro – Auftrag „— nicht zugeordnet —“ und sich selbst (vorgewählt) -- genau das, was der Server annimmt
+    (test_durchgefuehrt_von_regel_und_server)."""
     from app.routers.pages import router as pages_router
     from tests.gerenderte_seite import gerenderte_seite
     from tests.test_v334_auswahl_restfaelle import im_browser
@@ -119,7 +121,7 @@ def test_einsatzberichte_seite_bietet_nur_an_was_der_server_annimmt(threaded_db_
               f"{{id:{bea.id},first_name:'Bea',last_name:'Büro',active:true}}];"
               r'const h=durchgefuehrtVonOptionen();return [...h.matchAll(/<option value="(\d*)"([^>]*)>([^<]*)</g)].map(m=>[m[1],m[3],/selected/.test(m[2])]);')
     optionen = im_browser(gerenderte_seite(html, "\ninit();"), ablauf)["ergebnis"]
-    if rolle == "admin":
+    if rolle in ("admin", "buero_finanzen"):  # seit 1.9.121 auch Büro – Finanzen (bis 1.9.120 nur der Admin)
         assert [o[1] for o in optionen] == ["— nicht zugeordnet —", "Mia Monteurin", "Bea Büro"]
     else:
         assert [o[1] for o in optionen] == ["— nicht zugeordnet —", "Bea Büro"]

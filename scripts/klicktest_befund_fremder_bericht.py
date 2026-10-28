@@ -5,7 +5,8 @@
                                               Bernd Büro“; der Server hält Konto und Mitarbeiter Bernd fest, nicht Mia (Bild)
     Admin (ohne Mitarbeiter)                  legt einen zweiten an -- „erfasst von Ada Admin“, kein Mitarbeiter
     Monteurin                                 sieht beide mit „erfasst von …“
-    Einsatzberichte                           „Durchgeführt von“: Bernd sieht „— nicht zugeordnet —“ und sich selbst, die Admin alle
+    Einsatzberichte                           „Durchgeführt von“: Bernd (Büro – Finanzen) und die Admin sehen alle (seit 1.9.121; bis 1.9.120
+                                              Bernd nur sich selbst), Bernd legt einen Bericht „durchgeführt von“ Mia an
 
 AUFRUF (aus dem Projektordner):
 
@@ -90,9 +91,17 @@ async def pruefen(tab, seed, p):
     p.pruefe("JS-Fehler (Büro – Finanzen)", tab.fehler, [])
     await tab.oeffnen(f"/orders/{seed['order']}/service-reports", "document.getElementById('editEmployee')&&typeof durchgefuehrtVonOptionen==='function'"
                       "&&employees.length>0")
-    p.pruefe("„Durchgeführt von“ (Büro – Finanzen): nur sie selbst", await tab.js(
-        "(()=>{const s=document.createElement('select');s.innerHTML=durchgefuehrtVonOptionen();return [...s.options].map(o=>o.text)})()"),
-        ["— nicht zugeordnet —", "Bernd Büro"])
+    p.pruefe("„Durchgeführt von“ (Büro – Finanzen): alle", await tab.js(
+        "(()=>{const s=document.createElement('select');s.innerHTML=durchgefuehrtVonOptionen();return [...s.options].map(o=>o.text).sort()})()"),
+        ["Bernd Büro", "Mia Monteurin", "— nicht zugeordnet —"])
+    # seit 1.9.121: Bernd legt über die Seite einen Bericht „durchgeführt von“ Mia an (bis 1.9.120 403)
+    await tab.js(f"document.getElementById('editEmployee').innerHTML=durchgefuehrtVonOptionen();"
+                 f"document.getElementById('editEmployee').value='{seed['mia']}'")
+    antwort = await tab.js(
+        f"fetch('/api/orders/{seed['order']}/service-reports',{{method:'POST',headers:{{'Content-Type':'application/json'}},"
+        f"body:JSON.stringify({{report_type:'rapport',description:'Rinne gereinigt',created_by_employee_id:Number(document.getElementById('editEmployee').value)}})}})"
+        ".then(async r=>[r.status,(await r.json()).created_by_employee_id])")
+    p.pruefe("Büro – Finanzen: Bericht „durchgeführt von“ Mia angelegt", antwort, [200, seed["mia"]])
 
     await tab.anmelden(seed["cookies"]["ada"])
     await tab.oeffnen(f"/service-reports/{seed['bericht']}#befunde", BEREIT + "&&SCHRITT==='befunde'")

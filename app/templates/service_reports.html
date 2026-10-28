@@ -195,9 +195,10 @@ let roofAreasForOrder=[],inspectionTemplates=[],orderData=null,kopfVertrag=null;
 function employeeOptionsHtml(selected,name=null){
   return auswahlOptionen(employees,selected??'',e=>e.first_name+' '+e.last_name,{leer:'— nicht zugeordnet —',fehlt:()=>`${name||'Mitarbeiter'} (nicht mehr verfügbar)`});
 }
-// Seit 1.9.112 (Stufe 5, R1, Punkt 2): „Durchgeführt von“ bietet nur an, was der Server annimmt (app/permissions.py::darf_fuer_andere_erfassen(),
-// Seitenroute) -- der Admin jede Person, jedes andere Konto sich selbst oder niemanden; bis 1.9.111 jedem alle (403 bei einer fremden Person).
-const FUER_ANDERE_ERFASSEN="{{ 'ja' if fuer_andere_erfassen else 'nein' }}"!=="nein";
+// Seit 1.9.112 (Stufe 5, R1, Punkt 2): „Durchgeführt von“ bietet nur an, was der Server annimmt -- seit 1.9.121 nach der Regel der Zeiten
+// (app/permissions.py::darf_zeit_fuer_andere_buchen(), Seitenroute): Admin und Büro – Finanzen jede Person, jedes andere Konto sich selbst oder
+// niemanden (1.9.112–1.9.120 nur der Admin jede Person; bis 1.9.111 jedem alle, 403 bei einer fremden Person).
+const FUER_ANDERE_ERFASSEN="{{ 'ja' if zeit_fuer_andere_buchen else 'nein' }}"!=="nein";
 function durchgefuehrtVonOptionen(){
   const eigen=authStatus&&authStatus.user?authStatus.user.employee_id:null;
   if(FUER_ANDERE_ERFASSEN)return employeeOptionsHtml(eigen);

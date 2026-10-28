@@ -7240,3 +7240,33 @@ Angepasste Erwartungen:
 
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): Büro – Auftrag in `require_geld_einstellung` -> 14 Tests (v540, v531); der
 Nummernkreis wieder ab Büro – Auftrag -> 2; die Liste bietet „Bearbeiten“ ohne `GELD` -> 1; die Mahnstufe unter E-Mail-Vorlagen offen -> 1.
+
+### Nachrunde, Punkt 3 (1.9.121): „Durchgeführt von“ nach der Regel der Zeiten
+
+Festlegung 1.9.112 Nr. 3 (Büro – Finanzen wählt dort nur sich selbst) nicht bestätigt; Vorgabe: nach `darf_zeit_fuer_andere_buchen()`.
+
+- `app/routers/service_reports.py::_employee_for_request()` (Bericht anlegen, Foto, Material, Betriebsmittel, Wartungseinsatz) fragt
+  `darf_zeit_fuer_andere_buchen()` -- Admin und Büro – Finanzen frei, sonst nur die eigene Person oder keine (403 wie bisher);
+  `darf_fuer_andere_erfassen()` (nur Admin) ist aus `app/permissions.py` entfernt.
+- Seite „Einsatzberichte“: `durchgefuehrtVonOptionen()` nach `zeit_fuer_andere_buchen` der Seitenroute (der Wert stand dort schon), der eigene
+  Wert `fuer_andere_erfassen` entfällt.
+- Bisher schickt nur „Durchgeführt von“ eine Person mit; Foto, Material und Betriebsmittel setzt die Seite ohne Angabe (der Server nimmt das Konto).
+
+Keine neuen Festlegungen.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v541_durchgefuehrt_von.py` (4 Tests): Bericht „durchgeführt von“ Mia als Büro – Finanzen 200 (Mia im Bericht), als Admin 200, als
+Büro – Auftrag 403 mit der Meldung; eine Regel -- `darf_fuer_andere_erfassen` gibt es nicht mehr, `_employee_for_request()` ruft
+`darf_zeit_fuer_andere_buchen()`.
+
+Angepasste Erwartungen:
+- `test_v532::test_durchgefuehrt_von_regel_und_server[buero_finanzen]`: Regel False, fremde Person 403 -> Regel True (`darf_zeit_fuer_andere_buchen()`),
+  fremde Person 200.
+- `test_v532::test_einsatzberichte_seite_bietet_nur_an_was_der_server_annimmt[buero_finanzen]`: „— nicht zugeordnet —“ und sich selbst -> alle
+  Mitarbeiter (eigener vorgewählt).
+- `klicktest_befund_fremder_bericht` „„Durchgeführt von“ (Büro – Finanzen): nur sie selbst“ -> „… alle“; neu: Bernd legt über die Seite einen
+  Bericht „durchgeführt von“ Mia an (200) (10 -> 11 Prüfungen).
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): der Server wieder nur der Admin -> 3 Tests (v541, v532); die Seite wieder nur der
+Admin -> 1 Test (v532).

@@ -34,7 +34,7 @@ from ..database import get_db
 from ..meldungen import BERICHT_STORNIERT, KEIN_MITARBEITER
 from ..models import AppUser, InspectionItem, Order, ServiceReportAsset, ServiceReportMaterial, ServiceReportPhoto
 from ..modules import is_module_enabled
-from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, darf_fuer_andere_erfassen, require_min_role
+from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, darf_zeit_fuer_andere_buchen, require_min_role
 from ..schemas import (
     InspectionItemCreate, InspectionItemOut, InspectionItemResultUpdate, InspectionItemsSyncResult,
     PropertyAccessOut, RoofAreaFieldOut, RoofAreaOut, ServiceReportAssetCreate, ServiceReportAssetOut, ServiceReportAssetUpdate,
@@ -85,12 +85,12 @@ def _employee_for_request(request: Request, requested_employee_id: int | None) -
     """Seit 1.3.0: gleiche Sperre wie _time_entry_employee_for_request() in
     app/routers/time_tracking.py, aber ohne dessen 422-Zweig -- created_by_employee_id bleibt an
     allen vier Stellen (ServiceReport, ServiceReportPhoto, ServiceReportMaterial, Finding)
-    nullable, anders als TimeEntry.employee_id. Ein Nicht-Admin darf nur die eigene employee_id
-    setzen oder keine; ein Admin ist frei. Gilt für JEDEN Aufrufer, auch Schreibtisch-Nutzer --
+    nullable, anders als TimeEntry.employee_id. Wer nicht für andere bucht, darf nur die eigene employee_id
+    setzen oder keine; Admin und Büro – Finanzen sind frei (seit 1.9.121 darf_zeit_fuer_andere_buchen(), bis 1.9.120 nur der Admin). Gilt für JEDEN Aufrufer, auch Schreibtisch-Nutzer --
     ein Mangel ist die Feststellung, aus der ggf. ein Folgeauftrag entsteht, ein Bericht kann
     versehentlich unter fremdem Namen unterschrieben werden, wenn das nicht durchgesetzt wird."""
     user = getattr(request.state, "erp_user", None)
-    if not darf_fuer_andere_erfassen(user):  # seit 1.9.112 die Regel aus app/permissions.py (dieselbe wie bisher: nur der Admin)
+    if not darf_zeit_fuer_andere_buchen(user):  # seit 1.9.121 die Regel der Zeiten (Admin, Büro – Finanzen), 1.9.112–1.9.120 nur der Admin
         if requested_employee_id is not None and requested_employee_id != user.employee_id:
             raise HTTPException(status_code=403, detail="Du darfst nur dich selbst als Mitarbeiter angeben.")
         return user.employee_id

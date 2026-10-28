@@ -2214,3 +2214,10 @@ Festlegung 1.9.111 Nr. 1 und 5 nicht bestätigt (Tobias, 28.10.2026): Mahnstufen
 Nummernkreise speichern höchstens Admin und Büro – Finanzen -- bis 1.9.119 jedes Büro. `require_geld_einstellung` (`app/permissions.py`, dieselben Rollen
 wie `darf_geld()`, Meldung `EINSTELLUNGEN_GELD_NUR_LESEN`) an den 12 Endpunkten; Büro – Auftrag liest die Bereiche gesperrt mit Hinweis. Tabelle vorher
 und nachher, Festlegungen und Tests: `docs/archiv/redesign.md`, „Nachrunde, Punkt 2“.
+
+## Nachtrag 1.9.121: „Durchgeführt von“ nach der Regel der Zeiten (Stufe 5, R1 Nachrunde, Punkt 3)
+
+Festlegung 1.9.112 Nr. 3 nicht bestätigt (Tobias, 28.10.2026): wer einen Bericht (auch Foto, Material, Betriebsmittel, Wartungseinsatz) einer anderen
+Person zuschreibt, folgt `app/permissions.py::darf_zeit_fuer_andere_buchen()` -- Admin und Büro – Finanzen, wie beim Buchen von Zeiten; Büro – Auftrag und
+die Monteurin nur sich selbst oder niemanden (sonst 403). `darf_fuer_andere_erfassen()` (1.9.112–1.9.120, nur Admin) ist entfallen -- eine Regel.
+Details: `docs/archiv/redesign.md`, „Nachrunde, Punkt 3“.

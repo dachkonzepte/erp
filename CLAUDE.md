@@ -1567,8 +1567,9 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   Buchung“ mit dem Auftrag (`/zeiten?auftrag=<id>&buchung=neu#buchungen`, Pause des Tags und Vorschau); eine neue Stelle, an der das Büro bucht, führt
   ebenso dorthin (`tests/test_v533_einsatzberichte_zeit_ueber_zeiten.py`).
 - **„Erfasst von“ eines Befunds ist das anlegende Konto** (seit 1.9.112): der Server setzt Konto, Name und Mitarbeiter aus der Anmeldung
-  (`findings.created_by_user_id`/`created_by_name`), mitgeschickt 422; „Durchgeführt von“ eines Berichts eine andere Person nur nach
-  `app/permissions.py::darf_fuer_andere_erfassen()` (Admin), die Seite bietet nur das an (`tests/test_v532_befund_im_fremden_bericht.py`).
+  (`findings.created_by_user_id`/`created_by_name`), mitgeschickt 422; „Durchgeführt von“ eines Berichts eine andere Person seit 1.9.121 nach
+  der Regel der Zeiten `app/permissions.py::darf_zeit_fuer_andere_buchen()` (Admin, Büro – Finanzen; 1.9.112–1.9.120 nur der Admin), die Seite
+  bietet nur das an (`tests/test_v532_befund_im_fremden_bericht.py`, `tests/test_v541_durchgefuehrt_von.py`).
 - **Mit Geld arbeiten nur nach `app/permissions.py::darf_geld()`** (seit 1.9.111, Admin und Büro – Finanzen): jeder schreibende Endpunkt an
   Rechnungen, Zahlungen, Mahnungen und Nebenforderungen trägt `require_geld`, an Rechnung und Mahnung auch Zustellung nachtragen, Versandergebnis und
   Klären (`GELD_DOKUMENTE`); Büro – Auftrag liest alles, die Seiten bekommen `geld` von der Seitenroute und zeigen ohne den Hinweis statt der Knöpfe.
