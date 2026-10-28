@@ -4,6 +4,14 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.114 – Storno-Entwurf und Schlussrechnung: Positionen gesperrt (Stufe 5, R1)
+
+Ein Storno-Entwurf ließ seine Positionen ändern: `PUT` nahm eine neue Ist-Menge an (200) und rechnete die Position neu -- im Test lautete der Storno
+eines Abschlags über 2.000,00 € netto danach −1.650,00 € statt −2.000,00 €, er hob seine Rechnung nicht mehr auf. Jetzt lehnt der Server Ändern,
+Entfernen und Hinzufügen einer Position am Storno mit 409 ab („Ein Storno spiegelt die stornierte Rechnung …“), und die Seite zeigt dort kein Ist-Feld,
+kein „✎“ und kein „✕“ mehr. In der Schlussrechnung lässt sich eine Position des Auftrags nicht mehr entfernen (409, ohne „✕“) -- bis 1.9.113 ging das,
+und danach sperrte „es fehlen Positionen des Auftrags“ das Finalisieren. Die Ist-Menge bleibt änderbar.
+
 ## 1.9.113 – „Einsatzberichte“ bucht über den Dialog von „Zeiten“ (Stufe 5, R1)
 
 Die Seite „Einsatzberichte“ eines Auftrags hatte ein eigenes Formular, das für das Büro eine Dauer ohne Pause und ohne Vorschau buchte -- die dritte

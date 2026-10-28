@@ -6944,3 +6944,47 @@ neu“); der Schalter hieß zuerst ebenfalls `?neu=1` und öffnete dort den Dial
 
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): „Zeit buchen“ auch für Büro – Auftrag -> 2 Tests (v533, v437); `binden()` öffnet den
 Dialog auch ohne „+ Buchung“ -> 1 Test.
+
+### R1, Punkt 4 (1.9.114): Storno-Entwurf und Schlussrechnung -- Positionen gesperrt
+
+Vorgabe: „erst mit einem Test zeigen, dann sperren“. Der Test `tests/test_v534_storno_und_schluss_positionen.py` lief zuerst ohne die Sperre (auf dem
+Code von 1.9.110 für Rechnungen, 28.10.2026) und war rot (4 von 5) -- der Beleg:
+- Storno-Entwurf eines Abschlags nach Leistungsstand (40 m² × 50 € = 2.000,00 € netto): `PUT …/items/{id}` mit Ist 7 -> 200, die Position rechnete
+  danach −33 m² und −1.650,00 €, der Storno lautete netto −1.650,00 € statt −2.000,00 € (er hebt seine Rechnung nicht mehr auf -- der Test brach dort
+  ab, Kurztext und Entfernen wurden nicht mehr versucht); `add_invoice_item()` legte am Storno eine weitere Position an.
+- Schlussrechnung: `DELETE` einer Position des Auftrags -> 200; danach `finalize_block` „Der Entwurf weicht vom Auftrag ab: es fehlen Positionen des
+  Auftrags (1). …“ -- bis „Aus dem Auftrag aktualisieren“ sie wieder einfügte.
+
+Sperre (unter der Sperre der Auftragszeile wie jeder Schreibweg einer Rechnung, `_lock_draft()`):
+- `app/invoices.py`: `add_invoice_item()`, `update_invoice_item()`, `remove_invoice_item()` lehnen am Storno mit `InvoiceBlocked(STORNO_POSITION_TEXT)`
+  ab (409, nichts geändert); `remove_invoice_item()` an der Schlussrechnung eine Position mit Auftragsbezug mit `SCHLUSS_POSITION_TEXT` (409). „Aus dem
+  Auftrag aktualisieren“ am Storno war schon gesperrt (seit 1.8.85).
+- `invoice_detail.html`: `positionBearbeitbar()` (bearbeitbar und kein Storno) für Ist-Feld und „✎“, `positionEntfernbar(i)` zusätzlich nicht an einer
+  Position des Auftrags in der Schlussrechnung für „✕“ -- in der Liste und im Mengenvergleich der Schlussrechnung.
+
+#### Festlegungen 1.9.114 (Bitte bestätigen)
+
+1. Am Storno-Entwurf bleiben Kopf (Einleitung, Schlusstexte), Leistungszeitraum, Finalisieren und „Entwurf löschen“ -- gesperrt sind nur die Positionen;
+   wer eine andere Storno-Fassung braucht, löscht den Entwurf und legt ihn neu an.
+2. In der Schlussrechnung bleibt eine Position des Auftrags drin; „nicht abrechnen“ heißt Ist-Menge 0. Eine Position ohne Auftragsbezug gibt es dort ohnehin
+   nicht (seit 1.8.83).
+3. Abschläge nach Leistungsstand behalten „✕“ (eine Position des Auftrags darf dort fehlen -- der Abschlag rechnet nur, was drinsteht).
+
+#### Tests und Prüfung
+
+Neu `tests/test_v534_storno_und_schluss_positionen.py` (vor der Sperre 4 von 5 rot, siehe oben): Storno-Position ändern (Ist, Kurztext) und entfernen ->
+409 mit „Storno“, Positionen und Summe unverändert, Summe = Gegenbetrag der Rechnung; Position am Storno hinzufügen -> `InvoiceBlocked`; Schlussrechnung:
+Position des Auftrags entfernen -> 409, Ist 0 weiter 200; Gegenprobe Abschlag nach Leistungsstand (Ist ändern und entfernen 200); die Seite fragt
+`positionBearbeitbar()`/`positionEntfernbar(i)`.
+Neu `scripts/klicktest_storno_positionen.py` (8 Prüfungen): Storno-Entwurf ohne Ist-Feld, „✎“ und „✕“, mit Finalisieren und „Entwurf löschen“, Angriff
+aus der Seite 409, Summe bleibt −2.000,00 € (Bild); Schlussrechnung mit Ist-Feld und „✎“, ohne „✕“, `DELETE` 409; Abschlag mit „✕“.
+
+Angepasste Erwartungen:
+- `test_v378::test_editing_a_draft_still_works[position_entfernen]`: an der Schlussrechnung -> am Abschlag nach Leistungsstand; ebenso das Szenario
+  `DELETE …/items/{item_id}` im Rundgang von `test_v378` (und damit in `test_v531`): Entwurf einer Schlussrechnung -> eines Abschlags nach Leistungsstand.
+- `test_v133::test_remove_invoice_item`: Schlussrechnung -> Abschlag nach Leistungsstand.
+- `test_v386::test_a_free_position_is_rejected_outside_time_based_invoices[storno]`: Grund `FREE_ITEM_TEXT` -> `STORNO_POSITION_TEXT` (der Storno lehnt
+  jede Position ab).
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): Storno-Sperre beim Ändern aus -> 1 Test; Sperre der Schlussrechnung beim Entfernen aus
+-> 1 Test; `positionBearbeitbar()` ohne Storno -> 1 Test (der Klicktest prüft dasselbe im Browser).

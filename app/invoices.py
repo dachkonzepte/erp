@@ -1107,6 +1107,13 @@ TAX_FROM_ORDER_TEXT = ("Der Steuerschlüssel einer Rechnung kommt aus dem Auftra
                        "Rechnung), dann „Aus dem Auftrag aktualisieren“.")
 
 
+# Seit 1.9.114 (Stufe 5, R1, Punkt 4, Befund F8/F9).
+STORNO_POSITION_TEXT = ("Ein Storno spiegelt die stornierte Rechnung -- seine Positionen lassen sich nicht ändern, entfernen oder ergänzen. "
+                        "Stimmt etwas nicht, den Storno-Entwurf löschen und neu anlegen.")
+SCHLUSS_POSITION_TEXT = ("In der Schlussrechnung stehen alle Positionen des Auftrags -- eine Position des Auftrags lässt sich nicht entfernen. "
+                         "Eine Ist-Menge 0 rechnet sie mit 0 ab.")
+
+
 def add_invoice_item(
     db: Session, invoice: Invoice, *, short_text: str, long_text: str, unit: str,
     unit_price: Decimal, ist_quantity: Decimal, source_order_item_id: int | None = None,
@@ -1123,6 +1130,8 @@ def add_invoice_item(
     als gekennzeichnete Position an den Auftrag (app/orders.py::add_order_addendum());
     vorher stand er nur in der einen Rechnung, keine spätere übernahm oder zog ihn ab."""
     _lock_draft(db, invoice)
+    if invoice.invoice_type == "storno":  # seit 1.9.114 (F8)
+        raise _reject(db, InvoiceBlocked(STORNO_POSITION_TEXT))
     if source_order_item_id is not None:
         source = db.get(OrderItem, source_order_item_id)
         if source is None or source.order_id != invoice.order_id:
@@ -1162,6 +1171,8 @@ def update_invoice_item(
     """Seit 1.8.75 unter der Sperre (_lock_draft()); die Position wird danach frisch geladen -- gerechnet wird mit dem Stand
     nach einer gleichzeitigen Änderung, nicht mit dem vorher geladenen."""
     _lock_draft(db, invoice)
+    if invoice.invoice_type == "storno":  # seit 1.9.114 (F8): bis dahin rechnete PUT die Position des Stornos neu
+        raise _reject(db, InvoiceBlocked(STORNO_POSITION_TEXT))
     if invoice.invoice_type == "abschlag_pauschal":
         raise _reject(db, ValueError(
             "Die Position einer pauschalen Abschlagsrechnung ist eine reine Projektion von "
@@ -1197,14 +1208,19 @@ def update_invoice_item(
 
 
 def remove_invoice_item(db: Session, invoice: Invoice, item_id: int) -> bool:
-    """Seit 1.8.75 unter der Sperre (_lock_draft())."""
+    """Seit 1.8.75 unter der Sperre (_lock_draft()). Seit 1.9.114 nie eine Position eines Stornos (F8) und nie eine Position des Auftrags aus der
+    Schlussrechnung (F9, InvoiceBlocked, 409)."""
     _lock_draft(db, invoice)
+    if invoice.invoice_type == "storno":
+        raise _reject(db, InvoiceBlocked(STORNO_POSITION_TEXT))
     if invoice.invoice_type == "abschlag_pauschal":
         raise _reject(db, ValueError("Die Position einer pauschalen Abschlagsrechnung kann nicht einzeln entfernt werden."))
     item = next((i for i in invoice.items if i.id == item_id), None)
     if item is None:
         db.rollback()  # gibt die Sperre frei
         return False
+    if invoice.invoice_type == "schluss" and item.source_order_item_id is not None:
+        raise _reject(db, InvoiceBlocked(SCHLUSS_POSITION_TEXT))
     # Aus der Collection entfernen, nicht db.delete(item) direkt -- siehe
     # ausführlicher Kommentar bei remove_material_from_service in services.py,
     # derselbe delete-orphan-Cascade-Konflikt gilt hier für Invoice.items.

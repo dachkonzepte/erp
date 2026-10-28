@@ -133,7 +133,9 @@ def test_a_free_position_is_rejected_outside_time_based_invoices(art):
     with pytest.raises(InvoiceBlocked) as exc:
         add_invoice_item(db, invoice, short_text="Frei", long_text="", unit="Stk", unit_price=Decimal("10"),
                          ist_quantity=Decimal("1"))
-    assert str(exc.value) == FREE_ITEM_TEXT
+    # seit 1.9.114 lehnt der Storno jede Position ab, auch eine freie -- mit seinem Grund (bis 1.9.113 FREE_ITEM_TEXT)
+    from app.invoices import STORNO_POSITION_TEXT
+    assert str(exc.value) == (STORNO_POSITION_TEXT if art == "storno" else FREE_ITEM_TEXT)
     db.expire_all()
     assert len(db.get(Invoice, invoice.id).items) == vorher
 

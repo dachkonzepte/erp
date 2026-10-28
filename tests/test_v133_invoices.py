@@ -280,9 +280,11 @@ def test_freie_position_nur_in_rechnung_aus_aufwand_und_voll_abgerechnet():
 
 
 def test_remove_invoice_item():
+    """Seit 1.9.114 am Abschlag nach Leistungsstand (bis dahin an der Schlussrechnung -- die entfernt keine Position des Auftrags mehr, 409)."""
+    from app.invoices import create_abschlag_leistungsstand
     db = db_session()
     order, _ = make_order_with_item(db)
-    invoice = create_schlussrechnung(db, order)
+    invoice = create_abschlag_leistungsstand(db, order)
     item_id = invoice.items[0].id
     assert remove_invoice_item(db, invoice, item_id) is True
     assert len(invoice.items) == 0

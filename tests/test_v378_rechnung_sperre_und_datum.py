@@ -33,6 +33,7 @@ from app.invoice_pdf import build_invoice_pdf
 from app.invoices import (
     InvoiceBlocked,
     add_invoice_item,
+    create_abschlag_leistungsstand,
     create_abschlag_pauschal,
     create_invoice_from_time_entries,
     create_schlussrechnung,
@@ -238,7 +239,9 @@ def test_editing_a_finalized_invoice_is_rejected_with_its_number(edit):
 def test_editing_a_draft_still_works(edit):
     db = db_session()
     order, _ = make_order_with_item(db)
-    invoice = mit_zeitraum(db, create_schlussrechnung(db, order))
+    # seit 1.9.114 (Stufe 5, R1, Punkt 4, F9) entfernt die Schlussrechnung keine Position des Auftrags -- Entfernen am Abschlag nach Leistungsstand
+    entwurf = create_abschlag_leistungsstand(db, order) if edit == "position_entfernen" else create_schlussrechnung(db, order)
+    invoice = mit_zeitraum(db, entwurf)
     vorher = _stand(invoice)
     EDITS[edit](db, invoice)
     db.expire_all()
@@ -539,10 +542,11 @@ def _erste_position(c, invoice_id):
     return c.get(f"/api/invoices/{invoice_id}").json()["items"][0]["id"]
 
 
-def _sz_entwurf(aktion):
-    """Szenario an einem Entwurf: aktion(client, invoice_id, db)."""
+def _sz_entwurf(aktion, art="schlussrechnung"):
+    """Szenario an einem Entwurf: aktion(client, invoice_id, db). art seit 1.9.114 (eine Position entfernen: am Abschlag nach Leistungsstand --
+    die Schlussrechnung entfernt keine Position des Auftrags)."""
     def vorbereiten(c, order_id, db):
-        invoice_id = _entwurf(c, order_id)
+        invoice_id = _entwurf(c, order_id, art)
         return lambda: aktion(c, invoice_id, db)
     return vorbereiten
 
@@ -593,7 +597,7 @@ SZENARIEN = {
     ("PUT", "/api/invoices/{invoice_id}/items/{item_id}"): _sz_entwurf(
         lambda c, i, db: c.put(f"/api/invoices/{i}/items/{_erste_position(c, i)}", json={"ist_quantity": "7"})),
     ("DELETE", "/api/invoices/{invoice_id}/items/{item_id}"): _sz_entwurf(
-        lambda c, i, db: c.delete(f"/api/invoices/{i}/items/{_erste_position(c, i)}")),
+        lambda c, i, db: c.delete(f"/api/invoices/{i}/items/{_erste_position(c, i)}"), "abschlag-leistungsstand"),
     ("POST", "/api/invoices/{invoice_id}/send"): _sz_entwurf(lambda c, i, db: c.post(f"/api/invoices/{i}/send")),
     ("POST", "/api/invoices/{invoice_id}/send-email"): _sz_fest(lambda c, i, db: c.post(
         f"/api/invoices/{i}/send-email", json={"dispatch_key": "rundgang-rechnung-1"})),
