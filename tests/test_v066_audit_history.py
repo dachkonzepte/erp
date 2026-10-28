@@ -32,7 +32,7 @@ def test_project_change_logs_actor_old_and_new_value():
         customer = create_customer(CustomerCreate(last_name="Audit Kunde"), db)
         project = create_project(ProjectCreate(customer_id=customer.id, name="Altes Projekt", category="Steildach"), db)
         update_project(project.id, ProjectUpdate(
-            customer_id=customer.id, property_id=None, name="Neues Projekt", status="planung",
+            customer_id=customer.id, property_id=None, name="Neues Projekt",  # seit 1.9.125 ohne Status (abgeleitet)
             category="Flachdach", description="Neue Beschreibung"
         ), db)
     finally:

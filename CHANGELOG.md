@@ -4,6 +4,21 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.125 – Phase je Auftrag und abgeleiteter Projektstatus (Stufe 5, R2, Punkt 1)
+
+Die Phasen der künftigen Akte (Angebot, Auftrag, Ausführung, Abnahme, Schlussrechnung) standen in keinem Feld, und der Projektstatus war eine freie
+Auswahl mit zwei verschiedenen Listen (Neues Projekt, Projektmappe), die jede Beauftragung auf „beauftragt“ setzte -- auch aus „abgeschlossen“ (Befund
+Stufe 5, 3.2, 3.9, F7). Jetzt ergibt sich beides aus den Daten (`app/akte.py`): die Phase eines Auftrags ist die letzte erreichte -- Ausführung ab der
+ersten Zeitbuchung, dem ersten begonnenen Einsatz oder dem ersten Bericht, Abnahme mit einer gültigen, abgenommenen Abnahme, Schlussrechnung mit der
+gültigen Schlussrechnung bzw. abschließenden Rechnung aus Aufwand --, jeder Schritt mit einem kurzen Text wie in der Vorlage („seit 15.09. · 186,0 h
+gebucht“). Der Projektstatus ist ohne Angebot „Anfrage“, mit Angebot „Angebot“, sonst die früheste Phase der laufenden und pausierten Aufträge, und
+„Abgeschlossen“ bzw. „Storniert“, wenn alle Aufträge es sind. Für Listen wird er je Art mit einer Abfrage für alle Projekte bestimmt.
+
+Den Status setzt niemand mehr von Hand: „Neues Projekt“ und die Projektmappe bieten ihn nicht mehr an, der Server lehnt ihn mit 422 ab; Beauftragen
+und die Umwandlung einer Anfrage schreiben ihn nicht mehr. Projektliste, Projektmappe, Kanban und Dashboard („Aktive Projekte“ = ein Auftrag läuft
+oder ist pausiert) zeigen den abgeleiteten Wert mit Namen (`status_label`). Die Spalte `projects.status` bleibt stehen, liest aber niemand mehr; welche
+gespeicherten Werte nicht zur Ableitung passen (etwa „beauftragt“ ohne Auftrag), nennt das neue, nur lesende `scripts/pruefe_projektstatus.py`.
+
 ## 1.9.124 – Auftragsstatus: vier Werte, Übergänge mit Begründung (Stufe 5, R2, Punkt 1)
 
 Der Auftragsstatus war freier Text: die Auftragsseite bot sechs Werte zur freien Auswahl an, der Server prüfte gegen keine Liste, und nur „abgeschlossen“

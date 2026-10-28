@@ -9,8 +9,9 @@ from fastapi import APIRouter
 from pathlib import Path
 from fastapi import Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy import select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, object_session, selectinload
 
+from ..akte import PROJEKTSTATUS_NAMEN, projekt_status, projekt_status_alle
 from ..dateiauslieferung import gespeicherter_typ
 from ..database import get_db
 from ..document_categories import resolve_category_id
@@ -47,12 +48,15 @@ def _ensure_project_profile(db: Session, project_id: int, category: str | None =
     return profile
 
 
-def _project_to_list_out(p: Project) -> "ProjectListOut":
+def _project_to_list_out(p: Project, status: str | None = None) -> "ProjectListOut":
     """Gemeinsamer Baustein für archive/unarchive/duplicate -- dieselbe
     Feldbefüllung wie _list_projects(), aber für ein einzelnes, bereits
-    geladenes Projekt statt eine ganze Liste."""
+    geladenes Projekt statt eine ganze Liste. Seit 1.9.125 der Status abgeleitet (app/akte.py): die Liste gibt ihn gesammelt mit, sonst
+    wird er hier für das eine Projekt bestimmt."""
+    if status is None:
+        status = projekt_status(object_session(p), p)
     return ProjectListOut(
-        id=p.id, project_number=p.project_number, name=p.name, status=p.status,
+        id=p.id, project_number=p.project_number, name=p.name, status=status, status_label=PROJEKTSTATUS_NAMEN.get(status, status),
         customer_id=p.customer_id, customer_name=p.customer.name, property_id=p.property_id,
         property_name=p.property.name if p.property else None,
         category=p.profile.category if p.profile else None,
@@ -74,7 +78,8 @@ def _list_projects(db: Session, *, is_template: bool, include_archived: bool = F
     if not include_archived:
         query = query.where(Project.archived == False)  # noqa: E712 -- SQLAlchemy-Vergleich, kein Python-Bool-Vergleich
     projects = db.scalars(query.order_by(Project.id.desc())).all()
-    return [_project_to_list_out(p) for p in projects]
+    status = projekt_status_alle(db, [p.id for p in projects])  # seit 1.9.125 je Art eine Abfrage für alle Projekte
+    return [_project_to_list_out(p, status[p.id]) for p in projects]
 
 
 @router.get("/api/projects", response_model=list[ProjectListOut])
@@ -144,7 +149,7 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db, scope="
         property_obj = db.get(Property, payload.property_id)
         if property_obj is None or property_obj.customer_id != payload.customer_id:
             raise HTTPException(status_code=422, detail="Objekt gehört nicht zum ausgewählten Kunden.")
-    data = payload.model_dump(exclude={"category"})
+    data = payload.model_dump(exclude={"category", "status"})
     project = Project(project_number=next_project_number(db), pipeline_column_id=default_pipeline_column_id(db), **data)
     db.add(project)
     db.flush()
@@ -155,7 +160,8 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db, scope="
         selectinload(Project.documents), selectinload(Project.profile),
     ).where(Project.id == project.id))
     return ProjectListOut(
-        id=project.id, project_number=project.project_number, name=project.name, status=project.status,
+        id=project.id, project_number=project.project_number, name=project.name, status="anfrage",
+        status_label=PROJEKTSTATUS_NAMEN["anfrage"],  # seit 1.9.125: ein neues Projekt hat weder Angebot noch Auftrag
         customer_id=project.customer_id, customer_name=project.customer.name,
         property_id=project.property_id, property_name=project.property.name if project.property else None,
         category=project.profile.category if project.profile else None,
@@ -198,8 +204,7 @@ def update_project(project_id: int, payload: ProjectUpdate, db: Session = Depend
     project.customer_id = payload.customer_id
     project.property_id = payload.property_id
     project.name = payload.name
-    project.status = payload.status
-    project.description = payload.description
+    project.description = payload.description  # seit 1.9.125 ohne Status (abgeleitet, app/akte.py)
     _ensure_project_profile(db, project.id, payload.category)
     db.commit()
     return get_project_detail(project_id, db)
@@ -217,15 +222,17 @@ def get_project_detail(project_id: int, db: Session = Depends(get_db, scope="fun
     if project is None:
         raise HTTPException(status_code=404, detail="Projekt nicht gefunden.")
     prop = project.property
+    status = projekt_status(db, project)  # seit 1.9.125 abgeleitet
     return ProjectDetailOut(
-        id=project.id, project_number=project.project_number, name=project.name, status=project.status,
+        id=project.id, project_number=project.project_number, name=project.name, archived=project.archived, status=status,
+        status_label=PROJEKTSTATUS_NAMEN.get(status, status),
         customer_id=project.customer_id, customer_name=project.customer.name, customer_number=project.customer.customer_number,
         customer_phone=project.customer.phone, customer_email=project.customer.email,
         property_id=project.property_id, property_name=prop.name if prop else None,
         property_street=prop.street if prop else None, property_postal_code=prop.postal_code if prop else None, property_city=prop.city if prop else None,
         pipeline_column_id=project.pipeline_column_id,
         quote_count=len(project.quotes), order_count=len(project.orders), document_count=len(project.documents), description=project.description,
-        category=project.profile.category if project.profile else None, archived=project.archived, is_template=project.is_template,
+        category=project.profile.category if project.profile else None, is_template=project.is_template,
     )
 
 
@@ -299,7 +306,8 @@ def list_project_orders(project_id: int, db: Session = Depends(get_db, scope="fu
     for row in orders:
         loaded=load_order(db,row.id); values=order_to_dict(loaded, db)
         invoice_count, fully_invoiced = invoice_summary_for_order(db, loaded.id)
-        result.append(OrderListOut(id=loaded.id,order_number=loaded.order_number,project_id=loaded.project_id,project_number=loaded.project.project_number,project_name=loaded.project.name,customer_name=loaded.customer_name,title=loaded.title,status=loaded.status,order_date=loaded.order_date,net_total=values["net_total"],gross_total=values["gross_total"],invoice_count=invoice_count,fully_invoiced=fully_invoiced,invoiced_net=values["invoiced_net"],invoiced_gross=values["invoiced_gross"],planned_hours=planned_hours(loaded),service_report_count=count_reports_for_order(db, loaded.id)))
+        result.append(OrderListOut(id=loaded.id,order_number=loaded.order_number,project_id=loaded.project_id,project_number=loaded.project.project_number,project_name=loaded.project.name,customer_name=loaded.customer_name,title=loaded.title,status=loaded.status,order_date=loaded.order_date,net_total=values["net_total"],gross_total=values["gross_total"],invoice_count=invoice_count,fully_invoiced=fully_invoiced,invoiced_net=values["invoiced_net"],invoiced_gross=values["invoiced_gross"],planned_hours=planned_hours(loaded),service_report_count=count_reports_for_order(db, loaded.id),
+                                  status_label=values["status_label"],phase=values["phase"],phase_label=values["phase_label"]))
     return result
 
 

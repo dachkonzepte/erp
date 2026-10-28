@@ -334,22 +334,37 @@ class PropertyUpdate(PartialUpdate):
     site_contact_phone: str | None = None
 
 
+PROJEKTSTATUS_ABGELEITET = ("Der Projektstatus ergibt sich aus Angebot und Auftrag (Anfrage, Angebot, Phase des Auftrags) und wird nicht von Hand "
+                            "gesetzt.")
+
+
 class ProjectCreate(BaseModel):
     customer_id: int
     property_id: int | None = None
     name: str = Field(min_length=1, max_length=255)
-    status: str = "anfrage"
+    # Seit 1.9.125 (Stufe 5, R2, Punkt 1): der Status ergibt sich aus den Daten (app/akte.py) -- mitgeschickt 422, statt still gespeichert.
+    status: str | None = Field(default=None, max_length=50)
     category: str | None = Field(default=None, max_length=100)
     description: str | None = None
+
+    @field_validator("status")
+    @classmethod
+    def _kein_status(cls, value):
+        raise ValueError(PROJEKTSTATUS_ABGELEITET)
 
 
 class ProjectUpdate(BaseModel):
     customer_id: int
     property_id: int | None = None
     name: str = Field(min_length=1, max_length=255)
-    status: str = Field(default="anfrage", max_length=50)
+    status: str | None = Field(default=None, max_length=50)  # seit 1.9.125 abgeleitet, mitgeschickt 422 (wie ProjectCreate)
     category: str | None = Field(default=None, max_length=100)
     description: str | None = None
+
+    @field_validator("status")
+    @classmethod
+    def _kein_status(cls, value):
+        raise ValueError(PROJEKTSTATUS_ABGELEITET)
     # Seit 1.8.80 (Vorgabe Z2b "Vorweg" 1): Begründung, wenn der Kunde wechselt und am Projekt ein Auftrag hängt -- der wechselt
     # dann mit (Vertragspartner). Wird nur für den Wechsel gebraucht, nicht gespeichert am Projekt (Historie am Auftrag).
     customer_change_reason: str | None = Field(default=None, max_length=2000)
@@ -359,7 +374,8 @@ class ProjectListOut(BaseModel):
     id: int
     project_number: str
     name: str
-    status: str
+    status: str  # seit 1.9.125 abgeleitet (app/akte.py::PROJEKTSTATUS), nicht mehr Project.status
+    status_label: str | None = None
     customer_id: int
     customer_name: str
     property_id: int | None
@@ -1463,6 +1479,10 @@ class OrderOut(BaseModel):
     # letzte Wechsel mit Begründung (app/auftragsstatus.py::status_info()).
     status_label: str | None = None
     status_info: dict | None = None
+    # Seit 1.9.125 (Stufe 5, R2, Punkt 1): die Phase aus den Daten (app/akte.py::phasen()) mit den fünf Schritten.
+    phase: str | None = None
+    phase_label: str | None = None
+    phasen: dict | None = None
 
 
 class OrderFieldAccessItemOut(BaseModel):
@@ -2782,6 +2802,9 @@ class OrderListOut(BaseModel):
     invoiced_gross: Decimal = Decimal("0")
     planned_hours: Decimal = Decimal("0")
     service_report_count: int = 0
+    status_label: str | None = None  # seit 1.9.124
+    phase: str | None = None  # seit 1.9.125 (app/akte.py)
+    phase_label: str | None = None
 
 
 class WorkPreparationUpdate(BaseModel):

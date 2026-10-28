@@ -22,6 +22,16 @@ function statusTabelle() {
     auftrag: {
       laeuft: ['Läuft', 'laeuft'], pausiert: ['Pausiert', 'ruht'], abgeschlossen: ['Abgeschlossen', 'erledigt'], storniert: ['Storniert', 'ruht'],
     },
+    // seit 1.9.125 (Stufe 5, R2, Punkt 1): der abgeleitete Projektstatus (app/akte.py::PROJEKTSTATUS) und die Phase eines Auftrags (PHASEN)
+    projekt: {
+      anfrage: ['Anfrage', 'entwurf'], angebot: ['Angebot', 'laeuft'], auftrag: ['Auftrag', 'laeuft'], ausfuehrung: ['Ausführung', 'laeuft'],
+      abnahme: ['Abnahme', 'laeuft'], schlussrechnung: ['Schlussrechnung', 'laeuft'], abgeschlossen: ['Abgeschlossen', 'erledigt'],
+      storniert: ['Storniert', 'ruht'],
+    },
+    phase: {
+      angebot: ['Angebot', 'laeuft'], auftrag: ['Auftrag', 'laeuft'], ausfuehrung: ['Ausführung', 'laeuft'], abnahme: ['Abnahme', 'laeuft'],
+      schlussrechnung: ['Schlussrechnung', 'erledigt'],
+    },
     // seit 1.9.18: Stand eines Angebots (Auswahl „Status“ im LV-Editor, quotes.status)
     angebot: {
       entwurf: ['Entwurf', 'entwurf'], versendet: ['Versendet', 'laeuft'], in_pruefung: ['In Prüfung', 'laeuft'],

@@ -225,7 +225,7 @@ async def pruefen(tab, seed, p):
     wechsel = await tab.js(
         f"fetch('/api/projects/{seed['projekt_a']}').then(r=>r.json()).then(pr=>fetch('/api/projects/{seed['projekt_a']}',"
         f"{{method:'PUT',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{customer_id:{seed['anderer']},"
-        "property_id:pr.property_id,name:pr.name,status:pr.status})}).then(async r=>[r.status,(await r.json()).detail]))")
+        "property_id:pr.property_id,name:pr.name})}).then(async r=>[r.status,(await r.json()).detail]))")  # seit 1.9.125 ohne Status (abgeleitet, mitgeschickt 422)
     p.pruefe("API: Kundenwechsel mit festgeschriebener Rechnung 409",
              [wechsel[0], f"ist die Rechnung {seed['a_nr']} festgeschrieben" in wechsel[1]], [409, True])
 

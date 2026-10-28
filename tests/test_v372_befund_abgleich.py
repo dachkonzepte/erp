@@ -222,6 +222,8 @@ def test_postgresql_sync_does_not_break_on_foreign_keys(pg, fall):
 def test_today_postgresql_sync_without_titles_invoices_or_time_entries_works(pg):
     """Grün, Gegenprobe: ohne verschachtelte Titel, Rechnungen und Zeitbuchungen gelingt der Abgleich auch unter PostgreSQL."""
     order_id = _pg_vorbereiten(pg, "ohne")
+    vorher = pg.scalar(select(Project.status).where(Project.id == load_order(pg, order_id).project_id))
     assert _abgleich(pg, order_id)
     assert [i.position_number for i in load_order(pg, order_id).items] == ["1", "2"]
-    assert pg.scalar(select(Project.status).where(Project.id == load_order(pg, order_id).project_id)) == "beauftragt"
+    # seit 1.9.125 schreibt auch das Beauftragen den gespeicherten Status nicht mehr (bis 1.9.124 „beauftragt“): der Abgleich lässt ihn stehen
+    assert pg.scalar(select(Project.status).where(Project.id == load_order(pg, order_id).project_id)) == vorher

@@ -85,7 +85,7 @@ def test_move_pipeline_column_changes_only_the_column_never_status(threaded_db_s
     assert resp.status_code == 200
     body = resp.json()
     assert body["pipeline_column_id"] == target["id"]
-    assert body["status"] == original_status
+    assert body["status"] == "anfrage"  # seit 1.9.125 abgeleitet (ohne Angebot); bis 1.9.124 der gespeicherte Wert
 
     db.refresh(project)
     assert project.pipeline_column_id == target["id"]

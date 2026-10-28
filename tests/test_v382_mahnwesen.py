@@ -156,7 +156,7 @@ def test_client_change_with_drafts_only_is_allowed(threaded_db_session, router_t
     other = Customer(name="Anderer", last_name="Anderer")
     db.add(other)
     db.commit()
-    payload = {"customer_id": other.id, "property_id": None, "name": project.name, "status": project.status}
+    payload = {"customer_id": other.id, "property_id": None, "name": project.name}  # seit 1.9.125 ohne Status
     response = client.put(f"/api/projects/{project.id}", json=payload)
     assert response.status_code == 409 and "festgeschrieben" in response.json()["detail"], response.text
     db.expire_all()

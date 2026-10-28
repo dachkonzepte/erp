@@ -124,7 +124,7 @@ def test_client_change_with_an_order_needs_a_reason_and_changes_order_and_drafts
     db.add(other)
     db.commit()
     client = router_test_client(db, projects_router, user_id=7, display_name="Büro Test")
-    payload = {"customer_id": other.id, "property_id": None, "name": order.project.name, "status": order.project.status}
+    payload = {"customer_id": other.id, "property_id": None, "name": order.project.name}  # seit 1.9.125 ohne Status
     response = client.put(f"/api/projects/{order.project_id}", json=payload)
     assert response.status_code == 409 and "Begründung" in response.json()["detail"] and order.order_number in \
         response.json()["detail"], response.text
@@ -175,7 +175,7 @@ def test_project_without_order_changes_without_a_reason(threaded_db_session, rou
     db.commit()
     client = router_test_client(db, projects_router)
     response = client.put(f"/api/projects/{project.id}", json={"customer_id": other.id, "property_id": None,
-                                                              "name": project.name, "status": project.status})
+                                                              "name": project.name})  # seit 1.9.125 ohne Status
     assert response.status_code == 200, response.text
 
 
@@ -689,7 +689,7 @@ def _projektwechsel(c, db, invoice):
     db.add(other)
     db.commit()
     return c.put(f"/api/projects/{order.project_id}", json={"customer_id": other.id, "property_id": None, "name": "P",
-                                                           "status": "beauftragt", "customer_change_reason": "falsch"})
+                                                           "customer_change_reason": "falsch"})  # seit 1.9.125 ohne Status
 
 
 RUNDGANG = {

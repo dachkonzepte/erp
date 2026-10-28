@@ -15,7 +15,8 @@ def test_create_quick_service_order_reparatur_creates_full_chain():
     )
     project = db.get(Project, result["project_id"])
     assert project.name == "Dachrinne verstopft"
-    assert project.status == "beauftragt"
+    from app.akte import projekt_status
+    assert projekt_status(db, project) == "auftrag"  # seit 1.9.125 abgeleitet; bis 1.9.124 der gespeicherte „beauftragt“
 
     order = db.get(Order, result["order_id"])
     assert order.order_number == result["order_number"]

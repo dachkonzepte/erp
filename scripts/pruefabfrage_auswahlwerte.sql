@@ -40,8 +40,8 @@ WITH gruppe AS (
          position_type IN ('normal', 'zulage', 'bedarf', 'alternativ') FROM quote_items
   UNION ALL SELECT 'customer_extra_infos.info_type (Kunde, Zusatzinfo)', info_type,
          info_type IN ('phone', 'email', 'birthday', 'info') FROM customer_extra_infos
-  UNION ALL SELECT 'projects.status (Projektmappe)', status,
-         status IN ('anfrage', 'angebot', 'planung', 'beauftragt', 'ausfuehrung', 'abgeschlossen') FROM projects
+  -- projects.status seit 1.9.125 nicht mehr hier: der Status ist abgeleitet (app/akte.py), die Spalte liest niemand mehr --
+  -- scripts/pruefe_projektstatus.py vergleicht sie mit der Ableitung
   UNION ALL SELECT 'orders.status (Auftrag, seit 1.9.124 vier Werte, am Server erzwungen)', status,
          status IN ('laeuft', 'pausiert', 'abgeschlossen', 'storniert') FROM orders
   UNION ALL SELECT 'quotes.status (Angebot)', status,

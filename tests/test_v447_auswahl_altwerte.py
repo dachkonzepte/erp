@@ -123,15 +123,8 @@ def test_stammdatenformular_legt_zusatzinfos_mit_den_schluesseln_der_kundenakte_
     assert re.findall(r'value="([^"]*)"', auswahl) == ["phone", "email", "birthday", "info"]
 
 
-@nur_mit_node
-@pytest.mark.parametrize("gespeichert,soll", [("angebot", ["angebot", "Angebot"]),  # schreibt die Umwandlung einer Anfrage
-                                              ("ruht", ["ruht", "ruht (nicht mehr verfügbar)"])])
-def test_projekt_status(gespeichert, soll):
-    project = {"id": 2, "project_number": "P-1", "name": "N", "status": gespeichert, "description": "", "customer_id": None,
-               "property_id": None, "category": None}
-    ablauf = (statisch("project_folder.html", "editProjectStatus") + f"project = {json.dumps(project)};"
-              "try { await openProjectEdit(); } catch (e) {} return _feld('editProjectStatus');")
-    assert lauf("project_folder.html", "load().catch(e=>document.querySelector('main')", ablauf) == soll
+# Seit 1.9.125 (Stufe 5, R2, Punkt 1) entfallen: test_projekt_status -- die Auswahl „Status“ der Projektmappe gibt es nicht mehr; der
+# Projektstatus ist abgeleitet (app/akte.py, tests/test_v545_phase_projektstatus.py).
 
 
 VERSION = {"fields": [{"field_key": "farbe", "field_type": "auswahl", "label": "Farbe", "options": [{"option_key": "rot", "label": "Rot"}]}]}
@@ -419,7 +412,6 @@ def _konstante(vorlage: str, name: str) -> list[str]:
     ("'order_items.position_type", lambda: _optionen_der_vorlage("order.html", "iType")),
     ("'quote_items.position_type", lambda: _optionen_der_vorlage("quote_editor.html", "iType")),
     ("'customer_extra_infos.info_type", lambda: _konstante("customer.html", "ZUSATZINFO_ARTEN")),
-    ("'projects.status", lambda: _optionen_der_vorlage("project_folder.html", "editProjectStatus")),
     ("'orders.status", lambda: list(AUFTRAGSSTATUS)),  # seit 1.9.124 vom Server (app/auftragsstatus.py), keine Auswahl mehr
     ("'quotes.status", lambda: _optionen_der_vorlage("quote_editor.html", "hStatus")),
     ("'planning_slots.status", lambda: _optionen_der_vorlage("planning.html", "editStatus")),

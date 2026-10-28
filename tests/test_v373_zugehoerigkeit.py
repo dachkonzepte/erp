@@ -498,7 +498,7 @@ def test_perform_maintenance_at_a_confirmed_property_of_another_customer(welt):
 def test_project_with_confirmed_foreign_property_can_be_saved_unchanged(welt, echte_angebots_ids):
     ok = _schnellauftrag(welt, welt["fremd"].id, True).json()
     c = welt["client"]("buero_auftrag", None)
-    body = {"customer_id": welt["kunde"].id, "property_id": welt["fremd"].id, "name": "GU-Reparatur", "status": "anfrage"}
+    body = {"customer_id": welt["kunde"].id, "property_id": welt["fremd"].id, "name": "GU-Reparatur"}  # seit 1.9.125 ohne Status
     r = c.put(f"/api/projects/{ok['project_id']}", json=body)
     assert r.status_code == 200, r.text
     # Ein neu gewählter Kunde muss das Objekt besitzen -- wie bisher 422.

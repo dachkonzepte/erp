@@ -514,6 +514,10 @@ def order_to_dict(order: Order, db: Session | None = None, include_sync_state: b
             result["addendum_create_block"] = addendum_create_reason(order, invoices)
             # Seit 1.9.124 (Stufe 5, R2, Punkt 1): Übergänge des Status, was Abschließen verlangt, der letzte Wechsel.
             result["status_info"] = status_info(db, order)
+            # Seit 1.9.125: die Phase aus den Daten (app/akte.py) -- lokal importiert, app/akte.py liest Rechnungen.
+            from .akte import phasen, signale
+            result["phasen"] = phasen(order, signale(db, [order.id])[order.id])
+            result["phase"], result["phase_label"] = result["phasen"]["phase"], result["phasen"]["phase_label"]
     result["status_label"] = status_name(order.status)
     return result
 
@@ -875,7 +879,7 @@ def create_order_from_quote(
         create_contract_draft_if_template(db, order, actor_name=actor_name)
 
     quote.status = "beauftragt"
-    project.status = "beauftragt"
+    # Seit 1.9.125 ergibt sich der Projektstatus aus den Daten (app/akte.py) -- bis 1.9.124 setzte jede Beauftragung ihn auf „beauftragt“.
     create_order_revision(db, order, reason="Erstbeauftragung aus Angebot", source="quote", actor_name=actor_name)
     db.commit()  # seit 1.8.110 Auftrag und Revision 1 in einem Commit
     return load_order(db, order.id)

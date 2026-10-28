@@ -8,8 +8,9 @@ uebernommen -- reine Verschiebung, keine Verhaltensaenderung.
 from fastapi import APIRouter
 from fastapi import Depends, HTTPException
 from sqlalchemy import select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, object_session, selectinload
 
+from ..akte import PROJEKTSTATUS_NAMEN, projekt_status
 from ..database import get_db
 from ..inquiries import inquiry_to_dict, load_inquiry, next_inquiry_number
 from ..models import AppUser, Customer, Inquiry, Project, Property, Quote
@@ -52,8 +53,10 @@ def _validate_inquiry_customer_property(db: Session, customer_id: int, property_
 
 
 def _project_list_out(project: Project) -> ProjectListOut:
+    status = projekt_status(object_session(project), project)  # seit 1.9.125 abgeleitet
     return ProjectListOut(
-        id=project.id, project_number=project.project_number, name=project.name, status=project.status,
+        id=project.id, project_number=project.project_number, name=project.name, status=status,
+        status_label=PROJEKTSTATUS_NAMEN.get(status, status),
         customer_id=project.customer_id, customer_name=project.customer.name,
         property_id=project.property_id, property_name=project.property.name if project.property else None,
         pipeline_column_id=project.pipeline_column_id,
@@ -127,8 +130,7 @@ def convert_inquiry(inquiry_id: int, payload: InquiryConvertRequest, db: Session
         customer_id=inquiry.customer_id,
         property_id=inquiry.property_id,
         name=(payload.project_name or inquiry.title).strip(),
-        status="angebot",
-        description=inquiry.description,
+        description=inquiry.description,  # seit 1.9.125 ohne Status (abgeleitet; bis 1.9.124 „angebot“)
         pipeline_column_id=default_pipeline_column_id(db),
     )
     db.add(project)

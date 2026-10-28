@@ -333,7 +333,7 @@ def test_client_change_locked_once_an_order_has_a_frozen_contract(threaded_db_se
     db.commit()
     client = router_test_client(db, projects_router, role="buero_auftrag")
     # Seit 1.8.80 (Z2b "Vorweg" 1) mit Auftrag nur mit Begründung -- der Auftrag wechselt mit.
-    body = {"customer_id": other.id, "property_id": None, "name": project.name, "status": project.status,
+    body = {"customer_id": other.id, "property_id": None, "name": project.name,  # seit 1.9.125 ohne Status
             "description": project.description, "customer_change_reason": "Bauherr gewechselt"}
     old_customer = project.customer_id
     # Nur ein Entwurf: der Wechsel geht (und zurück).

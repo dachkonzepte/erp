@@ -38,18 +38,17 @@ def test_project_categories_are_configurable_and_saved():
 def test_project_masterdata_can_be_updated():
     db = new_db()
     customer = create_customer(CustomerCreate(last_name="Kunde Alt", street="Alt 1", postal_code="52000", city="Aachen"), db)
-    project = create_project(ProjectCreate(customer_id=customer.id, name="Altprojekt", status="anfrage", category="Steildach"), db)
+    project = create_project(ProjectCreate(customer_id=customer.id, name="Altprojekt", category="Steildach"), db)  # seit 1.9.125 ohne Status
     updated = update_project(project.id, ProjectUpdate(
         customer_id=customer.id,
         property_id=None,
         name="Projekt Neu",
-        status="planung",
         category="Reparatur / Wartung",
         description="Neue Projektbeschreibung",
     ), db)
     assert updated.project_number == project.project_number
     assert updated.name == "Projekt Neu"
-    assert updated.status == "planung"
+    assert updated.status == "anfrage"  # seit 1.9.125 abgeleitet (kein Angebot); bis 1.9.124 der gesendete „planung“
     assert updated.category == "Reparatur / Wartung"
     assert updated.description == "Neue Projektbeschreibung"
     detail = get_project_detail(project.id, db)

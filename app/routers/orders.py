@@ -113,6 +113,7 @@ def list_all_orders(db: Session = Depends(get_db, scope="function"), _role: AppU
             customer_name=loaded.customer_name, title=loaded.title, status=loaded.status,
             order_date=loaded.order_date, net_total=values["net_total"], gross_total=values["gross_total"],
             invoice_count=invoice_count, fully_invoiced=fully_invoiced,
+            status_label=values["status_label"], phase=values["phase"], phase_label=values["phase_label"],  # seit 1.9.124/1.9.125
         ))
     return result
 

@@ -125,8 +125,10 @@ async def pruefen(tab, seed, p):
     await tab.js("syncSource()")
     p.pruefe("Auftrag frei: abgeglichen", await tab.warten("order&&order.source_quote_in_sync===true&&order.items.length===2"),
              True)
+    # Seit 1.9.125 ist der Projektstatus abgeleitet (app/akte.py): ein Auftrag ohne Buchung, Einsatz oder Bericht steht in der Phase „Auftrag“ --
+    # der Abgleich ändert daran nichts (bis 1.9.124: der gespeicherte Status „ausfuehrung“ blieb stehen).
     p.pruefe("Auftrag frei: Projektstatus bleibt",
-             await tab.js(f"fetch('/api/projects/{seed['projekt_b']}').then(r=>r.json()).then(j=>j.status)"), "ausfuehrung")
+             await tab.js(f"fetch('/api/projects/{seed['projekt_b']}').then(r=>r.json()).then(j=>j.status)"), "auftrag")
 
     # --- Angebots-Editor ---
     await tab.oeffnen(f"/quotes/{seed['quote_a']}/edit", "quote&&existingOrder&&document.getElementById('orderButton').textContent")

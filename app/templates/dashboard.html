@@ -77,7 +77,8 @@ const money=x=>Number(x||0).toLocaleString('de-DE',{style:'currency',currency:'E
 function fmtDate(s){if(!s)return'';return new Date(s.length>10?s:s+'T00:00:00').toLocaleDateString('de-DE')}
 async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
 
-const PROJECT_STATUS_LABELS={anfrage:'Anfrage',planung:'Planung',beauftragt:'Beauftragt',ausfuehrung:'Ausführung',abgeschlossen:'Abgeschlossen'};
+/* seit 1.9.125: der Projektstatus kommt abgeleitet mit Namen vom Server (status_label, app/akte.py) -- „aktiv“ = ein Auftrag läuft oder ist pausiert */
+const PROJEKT_AKTIV=['auftrag','ausfuehrung','abnahme','schlussrechnung'],PROJEKT_ERLEDIGT=['abgeschlossen','storniert'];
 const DEFAULT_LAYOUT=[{widget_key:'my_tasks',sort_order:10,visible:true},{widget_key:'open_office_tasks',sort_order:15,visible:true},{widget_key:'kpis',sort_order:20,visible:true},{widget_key:'active_projects',sort_order:30,visible:true}];
 
 let authStatus=null,layout=[],employees=[],selectedTaskEmployeeId='';
@@ -154,7 +155,7 @@ async function renderKpisWidget(container){
   const openSum=open.reduce((s,i)=>s+Number(i.overview.open||0),0);
   // Seit 1.8.93 wie Finanzen: Guthaben der Kunden = nicht zugeordnete Reste + Überzahlungen aus Schlussrechnungen.
   const creditSum=balances.reduce((s,r)=>s+Number(r.total),0);
-  const active=projects.filter(p=>!p.archived&&['planung','beauftragt','ausfuehrung'].includes(p.status));
+  const active=projects.filter(p=>!p.archived&&PROJEKT_AKTIV.includes(p.status));
   let hoursHtml='';
   if(authStatus.user.employee_id){
     // Monatsgrenzen seit 1.8.10 in Europe/Berlin (_berlin_date.html) -- vorher über toISOString()
@@ -178,8 +179,8 @@ async function renderKpisWidget(container){
 async function renderActiveProjectsWidget(container){
   if(!authStatus.authenticated){container.innerHTML='<div class="status err">Bitte zuerst als ERP-Benutzer anmelden.</div>';return}
   const projects=await api('/api/projects');
-  const active=projects.filter(p=>!p.archived&&p.status!=='abgeschlossen');
-  container.innerHTML=active.length?`<div style="overflow:auto"><table><thead><tr><th>Projekt</th><th>Kunde</th><th>Status</th><th class="number">Angebote</th><th class="number">Aufträge</th><th></th></tr></thead><tbody>${active.map(p=>`<tr><td><b>${esc(p.project_number)}</b><div class="muted small">${esc(p.name)}</div></td><td>${esc(p.customer_name)}</td><td>${esc(PROJECT_STATUS_LABELS[p.status]||p.status)}</td><td class="number">${esc(p.quote_count)}</td><td class="number">${esc(p.order_count)}</td><td><a class="link" href="/projects/${p.id}">Öffnen</a></td></tr>`).join('')}</tbody></table></div>`:'<div class="status ok">Keine laufenden Projekte.</div>';
+  const active=projects.filter(p=>!p.archived&&!PROJEKT_ERLEDIGT.includes(p.status));
+  container.innerHTML=active.length?`<div style="overflow:auto"><table><thead><tr><th>Projekt</th><th>Kunde</th><th>Status</th><th class="number">Angebote</th><th class="number">Aufträge</th><th></th></tr></thead><tbody>${active.map(p=>`<tr><td><b>${esc(p.project_number)}</b><div class="muted small">${esc(p.name)}</div></td><td>${esc(p.customer_name)}</td><td>${esc(p.status_label||p.status)}</td><td class="number">${esc(p.quote_count)}</td><td class="number">${esc(p.order_count)}</td><td><a class="link" href="/projects/${p.id}">Öffnen</a></td></tr>`).join('')}</tbody></table></div>`:'<div class="status ok">Keine laufenden Projekte.</div>';
 }
 
 async function renderDueMaintenanceWidget(container){

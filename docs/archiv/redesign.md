@@ -7531,3 +7531,73 @@ nicht ein (jetzt auch `_zahl.html` und `_berlin_date.html`).
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v544`): die Liste nur im Schema weg -> grün (der Server lehnt in
 `status_aendern()` ein zweites Mal ab, 422); an beiden Stellen weg -> 6 Tests; Abschließen ohne Begründung erlaubt -> 1; `einsatz_gesperrt()` aus ->
 2; `bericht_gesperrt()` aus -> 1 (die Route prüft vorher selbst); Route und `bericht_gesperrt()` aus -> 2; Buchung der Monteurin wieder 403 -> 2.
+
+### R2, Punkt 1b (1.9.125): Phase je Auftrag, abgeleiteter Projektstatus
+
+Befund (Stufe 5, 3.2, 3.9, F7): die Phasen standen in keinem Feld; `Project.status` war frei wählbar (Neues Projekt ohne „Angebot“, Projektmappe mit,
+Dashboard-Labels ohne „angebot“), die Umwandlung einer Anfrage setzte „angebot“, jede Beauftragung „beauftragt“ -- auch aus „abgeschlossen“; das Dashboard
+zählte feste Wörter (planung, beauftragt, ausfuehrung).
+
+- `app/akte.py` (neu): `signale()` -- je Auftrag erste Buchung und gebuchte Stunden, erster begonnener und nächster geplanter Einsatz, erster Bericht,
+  früheste gültige abgenommene bzw. jüngste verweigerte Abnahme, abschließende Rechnung (`closing_invoices()`), Stand des Vertrags; je Art eine Abfrage
+  für alle Aufträge. `phasen()` -- fünf Schritte mit „erreicht“, „jetzt“ (die letzte erreichte) und Text wie in `akte-uebersicht.html` („A-… ·
+  angenommen 26.08.“, „26.08. · VOB/B · Vertrag unterschrieben“, „seit 15.09. · 186,0 h gebucht“ bzw. „geplant ab …“/„noch nicht begonnen“, „abgenommen …“
+  bzw. „verweigert …“/„noch nicht erfasst“, Nummer und Tag der Schlussrechnung bzw. „nach der Abnahme“; Tage im laufenden Jahr ohne Jahr).
+  `phasen_ohne_auftrag()` -- vor dem ersten Auftrag die Phase des Angebots (das jüngste nicht abgelehnte, mit Stand). `projekt_status_alle()` -- ohne
+  Angebot `anfrage`, mit Angebot ohne Auftrag `angebot`, sonst die früheste Phase der laufenden und pausierten Aufträge; alle geschlossen: `abgeschlossen`
+  (mindestens einer) bzw. `storniert`.
+- `OrderOut` trägt `phase`, `phase_label`, `phasen`; `OrderListOut` (beide Listen) `status_label`, `phase`, `phase_label`. `ProjectListOut` und
+  `ProjectDetailOut` tragen den abgeleiteten `status` mit `status_label` (Liste, Anlegen, Archivieren, Kopieren, Pipeline-Spalte, Detail, Anfrage).
+- `ProjectCreate`/`ProjectUpdate`: ein Status ergibt 422 (`PROJEKTSTATUS_ABGELEITET`); `update_project()` schreibt keinen mehr; `create_order_from_quote()`
+  und `convert_inquiry` ebenso nicht (Vorgabe der Spalte beim Anlegen bleibt „anfrage“). Die Spalte bleibt -- niemand liest sie.
+- Seiten: „Neues Projekt“ und der Dialog „Projektmappe bearbeiten“ ohne Auswahl „Status“; Projektliste (Tabelle, Kanban, Suche) und Kopf der Projektmappe
+  zeigen `status_label` (B4); Dashboard: „Aktive Projekte“ = Status auftrag, ausfuehrung, abnahme, schlussrechnung, das Widget alle außer abgeschlossen und
+  storniert, Spalte „Status“ mit `status_label`. `_statuskennzeichen.html`: Gruppen `projekt` und `phase`.
+- `scripts/pruefe_projektstatus.py` (neu, nur lesend wie `pruefe_stornos.py`): je Projekt (ohne Mustervorgänge) gespeicherter gegen abgeleiteten Status
+  nach einer Tabelle „passt“ (anfrage -> Anfrage; angebot -> Angebot; planung -> Angebot, Auftrag; beauftragt -> Auftrag bis Schlussrechnung; ausfuehrung
+  -> Ausführung, Abnahme; abgeschlossen -> Schlussrechnung, Abgeschlossen, Storniert); Treffer mit Nummer, Bezeichnung, beiden Werten, Zahl der Angebote und
+  Aufträge, archiviert. Aufruf auf dem Server wie bei den Stornos. Die Prüfabfrage `pruefabfrage_auswahlwerte.sql` prüft `projects.status` nicht mehr.
+
+#### Festlegungen 1.9.125 (Bitte bestätigen)
+
+1. Ein Einsatz zählt für die Ausführung erst ab seinem Beginn (bis heute); ein geplanter in der Zukunft zeigt „geplant ab …“, die Phase bleibt „Auftrag“.
+2. Eine verweigerte Abnahme erreicht die Phase „Abnahme“ nicht (der Schritt zeigt „verweigert …“); eine verworfene zählt gar nicht.
+3. Der Projektstatus mit mehreren Aufträgen ist die früheste Phase der laufenden und pausierten -- ein Projekt ist erst fertig, wenn jeder Auftrag es ist;
+   stornierte zählen dabei nicht, sind alle geschlossen, „Abgeschlossen“ (mindestens einer abgeschlossen) bzw. „Storniert“.
+4. Vor dem ersten Auftrag zeigt die Phase das jüngste nicht abgelehnte Angebot mit seinem Stand; ohne Angebot ist kein Schritt erreicht (Status „Anfrage“).
+5. Die Spalte `projects.status` bleibt bis zu einer Aufräumrunde stehen (kein Schema-Rückweg nötig); geschrieben wird nur noch ihre Vorgabe beim Anlegen.
+6. „Aktive Projekte“ im Dashboard sind Projekte mit einem laufenden oder pausierten Auftrag (bis 1.9.124: planung, beauftragt, ausfuehrung).
+7. Das Kennzeichen „Anfrage“ trägt die Farbe eines Entwurfs, die Phasen die von „läuft“, „Abgeschlossen“ die von „erledigt“, „Storniert“ ruht.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v545_phase_projektstatus.py` (14 Tests): Phase ohne Auftrag (ohne und mit Angebot); Auftrag ohne Ausführung (alle fünf Texte); Ausführung
+ab der ersten Buchung mit den gebuchten Stunden; Einsatz in der Zukunft nur „geplant ab“, begonnener zählt; ein Bericht beginnt die Ausführung; Abnahme
+nur gültig und abgenommen (verweigert und verworfen nicht); Schlussrechnung erst festgeschrieben (der Entwurf zählt nicht); Phase in der Antwort des
+Auftrags; Projektstatus Anfrage, Angebot, Auftrag (gespeichert „beauftragt“ zählt nicht); früheste Phase bei zwei Aufträgen (pausiert, storniert,
+abgeschlossen, nur storniert); Status beim Anlegen und Ändern 422, ohne 200, Liste mit dem abgeleiteten Wert und Namen; Beauftragen schreibt den gespeicherten
+Status nicht mehr; Projektliste, Projektmappe, Neues Projekt und Dashboard lesen den abgeleiteten (Struktur); das Prüfskript (ohne Treffer 0, „beauftragt“
+ohne Auftrag als Treffer mit der genauen Zeile, 1).
+
+Angepasste Erwartungen:
+- `test_v065::test_project_masterdata_can_be_updated`: nach dem Ändern Status „planung“ (gesendet) -> „anfrage“ (abgeleitet, kein Angebot); Anlegen und
+  Ändern ohne Status.
+- `test_v209::test_create_quick_service_order_reparatur_creates_full_chain`: `project.status == "beauftragt"` -> `projekt_status() == "auftrag"`.
+- `test_v275::test_move_pipeline_column_changes_only_the_column_never_status`: Status der Antwort = gespeicherter („in_arbeit“) -> abgeleitet („anfrage“);
+  der gespeicherte bleibt unverändert (wie bisher geprüft).
+- `test_v372::test_today_postgresql_sync_without_titles_invoices_or_time_entries_works`: Projektstatus nach dem Abgleich „beauftragt“ -> unverändert gegenüber
+  vor dem Abgleich (das Beauftragen schreibt ihn nicht mehr).
+- `test_v447::test_projekt_status` entfällt (die Auswahl „Status“ der Projektmappe gibt es nicht mehr); `test_v447::test_feste_listen…['projects.status]`
+  entfällt mit der Zeile der Prüfabfrage.
+- Nur Aufbau, Projekt ändern ohne Status: `test_v066::test_project_change_logs_actor_old_and_new_value`, `test_v382::test_client_change_with_drafts_only_is_allowed`,
+  `test_v383` (drei Tests zum Kundenwechsel), `test_v373::test_project_with_confirmed_foreign_property_can_be_saved_unchanged`,
+  `test_v344::test_client_change_refused_while_the_new_client_is_a_participant`, `test_v347::test_client_change_locked_once_an_order_has_a_frozen_contract`.
+
+Im ersten Suitenlauf rot und behoben (17 Tests): die eben genannten; dazu `test_v315` (eine Rundung mit `quantize()` ohne Rundungsart in `app/akte.py`,
+jetzt `round_half_up()`), `test_v109` (ein lokaler Import einer Konstante in `app/routers/inquiries.py`, jetzt auf Modulebene) und `test_v194` (der Test
+liest die ersten 1500 Zeichen von `get_project_detail()` -- `archived` steht jetzt vorn im Aufruf).
+
+Klicktests (Endlauf 97 von 99, beide roten aus demselben Grund, danach 2 von 2): `klicktest_mahnwesen` „API: Kundenwechsel mit festgeschriebener Rechnung 409“ schickte den Status mit -> jetzt ohne (sonst 422); `klicktest_abgleich_sperre` „Auftrag frei: Projektstatus bleibt“: alt „ausfuehrung“ (gespeichert), neu „auftrag“ (abgeleitet, kein Einsatz, keine Buchung).
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v545`): späteste statt früheste Phase -> 1; ein geplanter Einsatz zählt -> 1; eine
+verweigerte Abnahme zählt -> 1; der Status in `ProjectUpdate` ohne Ablehnung -> 1.

@@ -514,7 +514,7 @@ def test_client_change_refused_while_the_new_client_is_a_participant(nworld, rou
     manager = _new_customer(db)
     participant = add_participant(db, project, linked_contact(db, customer=manager), role="hausverwaltung")
     client = router_test_client(db, projects_router, role="buero_auftrag")
-    body = {"customer_id": manager.id, "property_id": None, "name": project.name, "status": project.status,
+    body = {"customer_id": manager.id, "property_id": None, "name": project.name,  # seit 1.9.125 ohne Status
             "description": project.description}
     res = client.put(f"/api/projects/{project.id}", json=body)
     assert res.status_code == 409, res.text

@@ -81,7 +81,7 @@ async function api(u,opts){const r=await fetch(u,opts);if(!r.ok)throw Error((awa
 
 function currentDataset(){return onlyTemplates?templates:projects}
 function visible(p){return document.getElementById('showArchived').checked||!p.archived}
-function match(p){const q=document.getElementById('search').value.trim().toLowerCase();if(!q)return true;return [p.project_number,p.name,p.customer_name,p.property_name,p.category,p.status].some(x=>String(x??'').toLowerCase().includes(q))}
+function match(p){const q=document.getElementById('search').value.trim().toLowerCase();if(!q)return true;return [p.project_number,p.name,p.customer_name,p.property_name,p.category,p.status_label].some(x=>String(x??'').toLowerCase().includes(q))}
 function matchesCategory(p){const c=document.getElementById('categoryFilter').value;return !c||p.category===c}
 function projectQuoteInfo(id){
   const qs=quotes.filter(q=>q.project_id===id);
@@ -146,7 +146,7 @@ function renderList(rows){
     +`<td>${esc(p.customer_name)}</td>`
     +`<td>${esc(p.property_name||'—')}</td>`
     +`<td>${esc(p.category||'—')}</td>`
-    +`<td><span class="pill">${esc(p.status)}</span></td>`
+    +`<td><span class="pill">${esc(p.status_label||p.status)}</span></td>`/* seit 1.9.125 abgeleitet, lesbar (B4) */
     +`<td class="number">${esc(p.quote_count)}</td>`
     +`<td class="number">${esc(p.document_count||0)}</td>`
     +`<td class="menu-cell" onclick="event.stopPropagation()"><button class="menu-btn" onclick="toggleMenu(event,${p.id})" aria-label="Aktionen">⋮</button><div class="menu" id="menu-${p.id}" hidden>${menuItemsFor(p)}</div></td>`
@@ -159,7 +159,7 @@ function cardHtml(p){
     +`<div class="kanban-card-number">${esc(p.project_number)}${p.archived?' <span class="pill">Archiviert</span>':''}</div>`
     +`<div class="kanban-card-title">${esc(p.name)}</div>`
     +`<div class="muted small">${esc(p.customer_name)}${p.property_name?' · '+esc(p.property_name):''}</div>`
-    +`<div class="pill" style="margin-top:6px">${esc(p.status)}</div>`
+    +`<div class="pill" style="margin-top:6px">${esc(p.status_label||p.status)}</div>`
     +`</div>`;
 }
 function renderKanban(rows){

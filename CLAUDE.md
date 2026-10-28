@@ -98,7 +98,7 @@ Stand, den `git log` nicht erklären kann), nicht nur ein theoretisches.
 | Dienst | `erp.service`, `gunicorn -w 2 --timeout 120` |
 | Sicherung | `/home/tobias/backup.sh`, täglich 2 Uhr UTC, 14 Tage Aufbewahrung; sichert `erp-data` vollständig (Betreiberangabe 05.10.2026) |
 | Einspielen | ausschließlich `/home/tobias/update.sh` (auf dem Server, nicht im Repo; probt eine Migration selbst gegen `spielwiese`), nie einzelne `alembic`-Befehle -- auch nicht für die Probe |
-| Notfallskripte | `scripts/reset_admin_2fa.py`, `scripts/migrate_sqlite_to_postgres.py`; erstes Konto (seit 1.8.130): `scripts/erstes_konto.py`; nur lesend (seit 1.9.119): `scripts/pruefe_stornos.py` (hebt jeder Storno sein Original genau auf?) |
+| Notfallskripte | `scripts/reset_admin_2fa.py`, `scripts/migrate_sqlite_to_postgres.py`; erstes Konto (seit 1.8.130): `scripts/erstes_konto.py`; nur lesend (seit 1.9.119): `scripts/pruefe_stornos.py` (hebt jeder Storno sein Original genau auf?), seit 1.9.125 `scripts/pruefe_projektstatus.py` (passt der gespeicherte Projektstatus zur Ableitung?) |
 | Zeitzone | `Etc/UTC` (`timedatectl`) -- Datum und Uhrzeit deshalb nur über `app/berlin_time.py`, Regel 20 |
 
 **Korrigiert (KI-Fundament-Runde, seit 1.6.2)**: diese Datei behauptete hier bisher fälschlich
@@ -386,7 +386,8 @@ Behoben, drei Teile:
   (`tests/test_v520_zeiten_umstellung.py`), entfallen sind nur die eigene Uhr des Büros und der Gruppen-Timer. Eine Zahl aus der Adresse nur über
   `app/routers/pages.py::_zahl()` (0–9, höchstens 9 Stellen). Klicktest `klicktest_zeiten.py`. Archiv: `docs/archiv/redesign.md`, „R5b“.
 - **Stufe 5, R2 „Akte je Projekt“ (seit 1.9.124):** Vorlagen `bildgrundlage/entwurf_stufe5/akte-*.html`; Bildgrundlage vor dem Umbau
-  `bildgrundlage/e13058e/`. 1.9.124 Auftragsstatus (vier Werte, Übergänge mit Begründung, siehe `Order` unter „Fachbegriffe“). Archiv:
+  `bildgrundlage/e13058e/`. 1.9.124 Auftragsstatus (vier Werte, Übergänge mit Begründung, siehe `Order` unter „Fachbegriffe“); 1.9.125 Phase und
+  abgeleiteter Projektstatus (`app/akte.py`). Archiv:
   `docs/archiv/redesign.md`, „Stufe 5, R2“.
 
 ## Kritische, nicht verhandelbare Regeln
@@ -921,6 +922,11 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   geklärt, da der Begriff auf mehrere Dinge hätte zeigen können.
 - Kette: `Customer` → `Project` → `Quote` (Angebot) → `Order` (Auftrag) → `Invoice` (Rechnung) →
   `Reminder` (Mahnung).
+- **Phase und Projektstatus aus den Daten** (seit 1.9.125, `app/akte.py`): je Auftrag Angebot · Auftrag · Ausführung (erste Buchung, begonnener Einsatz
+  oder Bericht) · Abnahme (gültig, abgenommen) · Schlussrechnung (gültig bzw. abschließend aus Aufwand), die letzte erreichte ist die Phase
+  (`phasen()`); der Projektstatus ist Anfrage (kein Angebot), Angebot (kein Auftrag) oder die früheste Phase der laufenden und pausierten Aufträge,
+  sonst Abgeschlossen/Storniert (`projekt_status_alle()`, je Art eine Abfrage). Kein Feld von Hand: Status beim Anlegen oder Ändern eines Projekts 422;
+  `projects.status` liest niemand mehr (`scripts/pruefe_projektstatus.py` nennt Abweichungen). Listen und Dashboard nehmen `status`/`status_label`.
 - `Quote`: frei bearbeitbar, Status u. a. `entwurf`/`versendet`/`beauftragt`. Kann `is_template=True`
   sein (Mustervorgang) und/oder `archived=True`.
 - `Order`: entsteht ausschließlich durch Beauftragung eines Angebots, ist ein **unveränderlicher
