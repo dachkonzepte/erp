@@ -48,8 +48,9 @@ from tests.test_v393_ueberzahlung import _ueberzahlt
 D = Decimal
 HEUTE = berlin_today()
 ROUTER = (invoices_router, payments_router, reminders_router, charges_router, dispatches_router)
-# Schreiben, aber nicht mit Geld: die Mahnstufen in den Einstellungen (Fristen, Gebühren, Texte) -- Festlegung 1.9.111 Nr. 2.
-KEIN_GELD = {("PUT", "/api/reminder-levels/{level_id}")}
+# Seit 1.9.120 leer: die Mahnstufen in den Einstellungen (Fristen, Gebühren, Texte) gehören zum Geld (Festlegung 1.9.111 Nr. 1 nicht
+# bestätigt, tests/test_v540_einstellungen_mit_geld.py) -- bis 1.9.119 stand hier PUT /api/reminder-levels/{level_id}.
+KEIN_GELD: set = set()
 STAND = (Invoice, InvoiceItem, InvoiceDeduction, Payment, PaymentAllocation, PaymentRefundSource, Reminder, InvoiceCharge,
          InvoiceDefaultStart, EmailDispatch, DispatchOutcome, DispatchAuthorization, DispatchCopy, SentDocument)
 
@@ -102,7 +103,7 @@ def _rollen_der_route(route):
 
 def test_jede_schreibende_geld_route_nimmt_nur_admin_und_finanzen():
     """Struktur: jede Route der vier Geld-Router mit einer anderen Methode als GET -- auch eine künftige -- lässt Büro – Auftrag nicht
-    durch (Rollen der Abhängigkeit höchstens Admin und Büro – Finanzen). Die Mahnstufen stehen in KEIN_GELD."""
+    durch (Rollen der Abhängigkeit höchstens Admin und Büro – Finanzen). Seit 1.9.120 ohne Ausnahme (bis 1.9.119 die Mahnstufen)."""
     funde, gesehen = [], set()
     for router in (invoices_router, payments_router, reminders_router, charges_router):
         for route in router.routes:
@@ -258,6 +259,7 @@ def test_rundgang_deckt_jede_schreibende_geld_route():
     routen = {(m, r.path) for router in (invoices_router, payments_router, reminders_router, charges_router)
               for r in router.routes for m in r.methods - {"GET", "HEAD"}}
     routen -= KEIN_GELD
+    routen -= {("PUT", "/api/reminder-levels/{level_id}")}  # seit 1.9.120 Einstellung mit Geld -- Rundgang in tests/test_v540
     routen -= {("PUT", "/api/dunning-settings"), ("POST", "/api/base-interest-rates"), ("PUT", "/api/base-interest-rates/{rate_id}"),
                ("DELETE", "/api/base-interest-rates/{rate_id}"), ("PUT", "/api/dunning-legal-texts/{text_key}")}  # nur Admin
     assert sorted(routen - set(SZENARIEN)) == []

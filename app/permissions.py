@@ -180,6 +180,9 @@ def darf_antrag_zurueckziehen(user: AppUser | None, antrag) -> bool:
 # email_dispatches.py) und Oberfläche (Seitenrouten: Auftrag, Rechnung, Kundenakte, Mahnwesen) fragen nur diese Regel.
 GELD_ROLLEN = frozenset({ROLE_ADMIN, ROLE_OFFICE_FINANZEN})
 GELD_NUR_LESEN = "Rechnungen, Zahlungen und Mahnungen bearbeiten Admin und Büro – Finanzen – du kannst sie lesen."
+# Seit 1.9.120 (Stufe 5, R1 Nachrunde, Punkt 2): auch die Einstellungen mit Geld -- dieselbe Regel, eigene Meldung.
+EINSTELLUNGEN_GELD_NUR_LESEN = ("Mahnstufen, Zahlungsbedingungen, Steuerschlüssel und Nummernkreise ändern Admin und Büro – Finanzen – "
+                                "du kannst sie lesen.")
 GELD_DOKUMENTE = frozenset({"rechnung", "mahnung"})  # Dokumentarten des Versandprotokolls, deren Versand zum Geld gehört
 
 
@@ -278,6 +281,8 @@ def require_min_role(min_role: str, *, message: str = _DEFAULT_MESSAGE):
 require_zeit_buchen = require_role(*ZEIT_BUCHEN_ROLLEN, message=ZEITEN_NUR_LESEN)
 require_lohndaten = require_role(*LOHNDATEN_ROLLEN, message=NUR_LOHNDATEN)
 require_geld = require_role(*GELD_ROLLEN, message=GELD_NUR_LESEN)  # seit 1.9.111, zu darf_geld() oben
+# Seit 1.9.120: Mahnstufen, Zahlungsbedingungen, Steuerschlüssel, Nummernkreise speichern -- darf_geld(), bis 1.9.119 jedes Büro.
+require_geld_einstellung = require_role(*GELD_ROLLEN, message=EINSTELLUNGEN_GELD_NUR_LESEN)
 
 
 # Vollständigkeits-Ausnahmen für tests/test_v260_role_audit.py -- bewusst kurz und einzeln

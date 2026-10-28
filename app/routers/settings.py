@@ -28,7 +28,7 @@ from ..database import get_db
 from ..employees import load_employee_functions
 from ..models import AppUser, Employee, EmployeeFunction, EmployeeProfile, SettingOption
 from ..option_settings import get_option_group, load_option_groups, option_group_to_dict
-from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, require_min_role
+from ..permissions import ROLE_ADMIN, ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, require_geld_einstellung, require_min_role
 from ..schemas import AppearanceSettingsOut, AppearanceSettingsUpdate, CalculationSettingsOut, CalculationSettingsUpdate, EmployeeFunctionCreate, EmployeeFunctionOut, EmployeeFunctionUpdate, GeneralSettingsOut, GeneralSettingsUpdate, NumberPreviewOut, NumberSequenceOut, NumberSequenceUpdate, SettingOptionCreate, SettingOptionGroupOut, SettingOptionOut, SettingOptionUpdate
 from ..settings import (
     SequenceConflict, effective_next_value, get_accent_color, load_general_settings, load_sequences, preview_number,
@@ -48,6 +48,9 @@ router = APIRouter()
 # (nicht hochladen/entfernen) -- keine sensiblen Daten, wird von jeder Seite mit Sidebar
 # unabhängig von der Rolle geladen.
 _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG, message="Nur für Büro und Administratoren verfügbar."))
+# Seit 1.9.120 (Stufe 5, R1 Nachrunde, Punkt 2): schreiben nur Admin und Büro – Finanzen (darf_geld()), bis 1.9.119 jedes Büro;
+# lesen weiter jedes Büro.
+_geld_einstellung_dep = Depends(require_geld_einstellung)
 _any_role_dep = Depends(require_min_role(ROLE_FIELD))
 # Rechtekonzept "Vier Rollen" Etappe 2 (seit 1.4.8, siehe CLAUDE.md): Kalkulationsgrundlagen --
 # hier stehen die BESTANDTEILE des Stundenverrechnungssatzes (material_markup_pct/overhead_pct/
@@ -338,7 +341,7 @@ def list_number_sequences(db: Session = Depends(get_db, scope="function"), _role
 
 
 @router.put("/api/settings/number-sequences/{sequence_key}", response_model=NumberSequenceOut)
-def put_number_sequence(sequence_key: str, payload: NumberSequenceUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def put_number_sequence(sequence_key: str, payload: NumberSequenceUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _geld_einstellung_dep):
     try:
         sequence = update_sequence(
             db, sequence_key, format_pattern=payload.format_pattern,

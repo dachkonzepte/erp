@@ -1572,8 +1572,10 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
 - **Mit Geld arbeiten nur nach `app/permissions.py::darf_geld()`** (seit 1.9.111, Admin und Büro – Finanzen): jeder schreibende Endpunkt an
   Rechnungen, Zahlungen, Mahnungen und Nebenforderungen trägt `require_geld`, an Rechnung und Mahnung auch Zustellung nachtragen, Versandergebnis und
   Klären (`GELD_DOKUMENTE`); Büro – Auftrag liest alles, die Seiten bekommen `geld` von der Seitenroute und zeigen ohne den Hinweis statt der Knöpfe.
-  Ein neuer Geld-Endpunkt nimmt `require_geld` (`tests/test_v531_rechte_geld.py` prüft jede Route der vier Router); die Mahnstufen in den
-  Einstellungen sind ausgenommen (Festlegung 1.9.111 Nr. 1). Archiv: `docs/archiv/redesign.md`, „Stufe 5, R1“.
+  Ein neuer Geld-Endpunkt nimmt `require_geld` (`tests/test_v531_rechte_geld.py` prüft jede Route der vier Router). **Seit 1.9.120 auch die
+  Einstellungen mit Geld** -- Mahnstufen (samt Texten), Zahlungsbedingungen, Steuerschlüssel, alle Nummernkreise -- über
+  `require_geld_einstellung` (dieselben Rollen, eigene Meldung); Büro – Auftrag liest sie gesperrt mit Hinweis (`tests/test_v540_einstellungen_mit_geld.py`).
+  Archiv: `docs/archiv/redesign.md`, „Stufe 5, R1“ und „R1 Nachrunde“.
 - **Abschließen nur geklärt** (seit 1.9.91): „Abgeschlossen bis“ rückt nur vor ohne laufende Zeiten bis zum Datum und ohne Tage mit unpassender
   Pause ab dem bisherigen Abschluss (ohne ihn im Monat des Datums) -- `app/time_backoffice.py::abschluss_hindernisse()`, sonst 409 mit `detail`
   und `liste`, auch für den Admin; Personalnummer, Lohnart, DATEV-Nummern sperren den Abschluss nicht (`tests/test_v512_abschluss_pruefen.py`).

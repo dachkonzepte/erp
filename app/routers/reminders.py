@@ -16,7 +16,7 @@ from ..email_dispatch import DispatchConflict
 from .email_dispatches import document_pdf_response
 from ..invoices import InvoiceBlocked, get_invoice
 from ..models import AppUser, Reminder, ReminderLevel
-from ..permissions import ROLE_OFFICE_AUFTRAG, require_geld, require_min_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_geld, require_geld_einstellung, require_min_role
 from ..reminder_pdf import build_reminder_pdf
 from ..reminders import (
     compute_reminder_status, create_reminder, create_reminders, delete_reminder_draft, finalize_and_send_reminder,
@@ -37,6 +37,9 @@ _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG, message="Mahnwesen ist
 
 # Seit 1.9.111 (Stufe 5, R1): schreiben nur Admin und Büro – Finanzen (app/permissions.py::darf_geld()), lesen jedes Büro.
 _geld_dep = Depends(require_geld)
+# Seit 1.9.120 (Stufe 5, R1 Nachrunde, Punkt 2): schreiben nur Admin und Büro – Finanzen (darf_geld()), bis 1.9.119 jedes Büro;
+# lesen weiter jedes Büro.
+_geld_einstellung_dep = Depends(require_geld_einstellung)
 
 
 def _get_invoice_or_404(db: Session, invoice_id: int):
@@ -59,7 +62,7 @@ def get_reminder_levels(db: Session = Depends(get_db, scope="function"), _role: 
 
 
 @router.put("/api/reminder-levels/{level_id}", response_model=ReminderLevelOut)
-def put_reminder_level(level_id: int, payload: ReminderLevelUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def put_reminder_level(level_id: int, payload: ReminderLevelUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _geld_einstellung_dep):
     level_row = db.get(ReminderLevel, level_id)
     if level_row is None:
         raise HTTPException(status_code=404, detail="Mahnstufe nicht gefunden.")

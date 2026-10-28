@@ -23,7 +23,7 @@ from ..concern_notices import OPEN_CONCERNS_TEXT
 from ..database import get_db
 from ..deps import require_admin
 from ..models import AppUser
-from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, ZEITEN_NUR_LESEN, GELD_NUR_LESEN, darf_fuer_andere_erfassen, darf_geld, darf_lohndaten, darf_zeit_buchen, darf_zeit_fuer_andere_buchen, default_home_page_for_role, has_min_role, has_role, require_min_role, zeit_nur_mit_von_bis
+from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, ZEITEN_NUR_LESEN, GELD_NUR_LESEN, EINSTELLUNGEN_GELD_NUR_LESEN, darf_fuer_andere_erfassen, darf_geld, darf_lohndaten, darf_zeit_buchen, darf_zeit_fuer_andere_buchen, default_home_page_for_role, has_min_role, has_role, require_min_role, zeit_nur_mit_von_bis
 from .. import seitendaten
 from ..design_dateien import pruefsumme as ds_pruefsumme
 from ..version import APP_VERSION
@@ -699,7 +699,10 @@ def customer_record_page(request: Request, customer_id: int, _role: AppUser = _r
 
 @router.get("/settings", response_class=HTMLResponse)
 def settings_page(request: Request, _role: AppUser = _role_dep):
-    return templates.TemplateResponse(request=request, name="settings.html", context={})
+    # Seit 1.9.120 (Stufe 5, R1 Nachrunde, Punkt 2): „geld“ = darf_geld() -- Mahnstufen, Zahlungsbedingungen, Steuerschlüssel und
+    # Nummernkreise speichern nur Admin und Büro – Finanzen, sonst liest die Seite sie.
+    return templates.TemplateResponse(request=request, name="settings.html",
+                                      context={"geld": darf_geld(_role), "geld_nur_lesen": EINSTELLUNGEN_GELD_NUR_LESEN})
 
 
 @router.get("/address-import", response_class=HTMLResponse)

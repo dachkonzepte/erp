@@ -224,6 +224,7 @@ def test_email_templates_the_last_chosen_type_wins():
     log = _ausfuehren("settings.html", ["loadEmailTemplate"], """
         const setv=(id,x)=>document.getElementById(id).value=x??'';
         const EMAIL_TEMPLATE_PLACEHOLDER_HINTS={};
+        const GELD=true;  // seit 1.9.120 fragt loadEmailTemplate(), ob die Texte einer Mahnstufe gespeichert werden dürfen
         let reminderLevels=[{id:1,level:1,email_subject_template:'gemerkt',email_body_template:'gemerkt'}];
     """, """
         document.getElementById('emailTemplateType').value='invoice'; const a=loadEmailTemplate(); await ruhe();

@@ -4,6 +4,15 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.120 – Einstellungen mit Geld nur für Admin und Büro – Finanzen (Stufe 5, R1 Nachrunde)
+
+Mahnstufen (Fristen, Gebühren, Texte), Zahlungsbedingungen, Steuerschlüssel und Nummernkreise speicherte bis 1.9.119 jedes Büro, auch Büro –
+Auftrag. Jetzt gilt dafür dieselbe Regel wie für Rechnungen, Zahlungen und Mahnungen (`darf_geld()`): nur Admin und Büro – Finanzen; der
+Server lehnt jeden anderen mit 403 ab („Mahnstufen, Zahlungsbedingungen, Steuerschlüssel und Nummernkreise ändern Admin und Büro – Finanzen –
+du kannst sie lesen.“). Büro – Auftrag sieht die vier Bereiche weiter, mit diesem Hinweis, jedes Feld gesperrt und ohne Speichern;
+Zahlungsbedingung und Steuerschlüssel öffnet es über „Ansehen“. Auch unter „E-Mail-Vorlagen“ sind Betreff und Text einer Mahnstufe für Büro –
+Auftrag gesperrt, die Vorlagen der übrigen Dokumente nicht.
+
 ## 1.9.119 – Prüfung: hebt jeder Storno sein Original genau auf? (Stufe 5, R1 Nachrunde)
 
 Bis 1.9.113 ließen sich die Positionen eines Storno-Entwurfs ändern, ergänzen und entfernen (seit 1.9.114 gesperrt). Live steht ein Storno

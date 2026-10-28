@@ -13,7 +13,7 @@ from ..payment_terms import (
     create_payment_term, list_payment_terms,
     set_default_payment_term, set_payment_term_archived, update_payment_term,
 )
-from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_geld_einstellung, require_min_role
 from ..schemas import PaymentTermCreate, PaymentTermOut, PaymentTermUpdate
 
 router = APIRouter()
@@ -21,6 +21,9 @@ router = APIRouter()
 # Seit "Rechtekonzept" (siehe CLAUDE.md): Zahlungsbedingungen sind Büro-/Admin-Konfiguration,
 # nur von quote_editor.html (Angebotseditor, kein Monteurs-Werkzeug) genutzt.
 _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
+# Seit 1.9.120 (Stufe 5, R1 Nachrunde, Punkt 2): schreiben nur Admin und Büro – Finanzen (darf_geld()), bis 1.9.119 jedes Büro;
+# lesen weiter jedes Büro.
+_geld_einstellung_dep = Depends(require_geld_einstellung)
 
 
 @router.get("/api/payment-terms", response_model=list[PaymentTermOut])
@@ -29,7 +32,7 @@ def get_payment_terms(include_archived: bool = False, db: Session = Depends(get_
 
 
 @router.post("/api/payment-terms", response_model=PaymentTermOut)
-def post_payment_term(payload: PaymentTermCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def post_payment_term(payload: PaymentTermCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _geld_einstellung_dep):
     try:
         return create_payment_term(db, payload.label, payload.days, payload.skonto_percent, payload.skonto_days, payload.text_template)
     except ValueError as e:
@@ -37,7 +40,7 @@ def post_payment_term(payload: PaymentTermCreate, db: Session = Depends(get_db, 
 
 
 @router.put("/api/payment-terms/{term_id}", response_model=PaymentTermOut)
-def put_payment_term(term_id: int, payload: PaymentTermUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def put_payment_term(term_id: int, payload: PaymentTermUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _geld_einstellung_dep):
     try:
         term = update_payment_term(db, term_id, payload.label, payload.days, payload.skonto_percent, payload.skonto_days, payload.text_template)
     except ValueError as e:
@@ -48,7 +51,7 @@ def put_payment_term(term_id: int, payload: PaymentTermUpdate, db: Session = Dep
 
 
 @router.post("/api/payment-terms/{term_id}/set-default", response_model=PaymentTermOut)
-def post_set_default_payment_term(term_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def post_set_default_payment_term(term_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _geld_einstellung_dep):
     term = set_default_payment_term(db, term_id)
     if term is None:
         raise HTTPException(status_code=404, detail="Zahlungsbedingung nicht gefunden.")
@@ -56,7 +59,7 @@ def post_set_default_payment_term(term_id: int, db: Session = Depends(get_db, sc
 
 
 @router.post("/api/payment-terms/{term_id}/archive", response_model=PaymentTermOut)
-def post_archive_payment_term(term_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def post_archive_payment_term(term_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _geld_einstellung_dep):
     try:
         term = set_payment_term_archived(db, term_id, True)
     except ValueError as e:
@@ -67,7 +70,7 @@ def post_archive_payment_term(term_id: int, db: Session = Depends(get_db, scope=
 
 
 @router.post("/api/payment-terms/{term_id}/unarchive", response_model=PaymentTermOut)
-def post_unarchive_payment_term(term_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def post_unarchive_payment_term(term_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _geld_einstellung_dep):
     term = set_payment_term_archived(db, term_id, False)
     if term is None:
         raise HTTPException(status_code=404, detail="Zahlungsbedingung nicht gefunden.")

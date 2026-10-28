@@ -7185,3 +7185,58 @@ gibt -- unter PostgreSQL ein Fremdschlüsselfehler) -> Auftrag über Angebot und
 
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v539`): Summen nicht verglichen -> 3 Tests; Positionen nicht verglichen
 -> 2; SQLite ohne Schreibschutz -> 1; PostgreSQL ohne Schreibschutz -> 1.
+
+### Nachrunde, Punkt 2 (1.9.120): Einstellungen mit Geld
+
+Festlegung 1.9.111 Nr. 1 (Mahnstufen speichert jedes Büro) und Nr. 5 (Zahlungsbedingungen, Steuerschlüssel, Nummernkreise unverändert) nicht
+bestätigt; Vorgabe: höchstens Admin und Büro – Finanzen.
+
+Wer darf das -- bis 1.9.119 und seit 1.9.120:
+
+| Bereich | bis 1.9.119 speichern | seit 1.9.120 speichern | lesen |
+|---|---|---|---|
+| Mahnstufen: Bezeichnung, Zahlungsfrist, Gebühr, aktiv, Mahntext, E-Mail-Betreff und -Text (`PUT /api/reminder-levels/{id}`, auch über E-Mail-Vorlagen) | Admin, Büro – Finanzen, Büro – Auftrag | Admin, Büro – Finanzen | jedes Büro |
+| Schalter Mahngebühren, Basiszinssatz, Mahn-Rechtstexte | Admin | Admin (unverändert) | jedes Büro |
+| Zahlungsbedingungen: anlegen, ändern, als Standard, archivieren, wiederherstellen (5 Endpunkte) | Admin, Büro – Finanzen, Büro – Auftrag | Admin, Büro – Finanzen | jedes Büro |
+| Steuerschlüssel: ebenso (5 Endpunkte) | Admin, Büro – Finanzen, Büro – Auftrag | Admin, Büro – Finanzen | jedes Büro |
+| Nummernkreise, alle sieben: Format, Start, nächste Nummer, Jahreswechsel (`PUT /api/settings/number-sequences/{key}`) | Admin, Büro – Finanzen, Büro – Auftrag | Admin, Büro – Finanzen | jedes Büro |
+
+Die Monteurin erreicht keinen dieser Endpunkte (unverändert).
+
+- `app/permissions.py`: `require_geld_einstellung` -- dieselben Rollen wie `darf_geld()`/`require_geld` (`GELD_ROLLEN`), eigene Meldung
+  `EINSTELLUNGEN_GELD_NUR_LESEN` („Mahnstufen, Zahlungsbedingungen, Steuerschlüssel und Nummernkreise ändern Admin und Büro – Finanzen – du kannst
+  sie lesen.“); an den 12 Endpunkten (`app/routers/payment_terms.py`, `tax_keys.py`, `reminders.py`, `settings.py`).
+- Seite: die Seitenroute der Einstellungen gibt `geld` und `geld_nur_lesen` mit; ohne `geld` zeigen Nummernkreise, Zahlungsbedingungen, Steuer und
+  Mahnwesen den Hinweis (`data-geld-nur-lesen`), sperren jedes Feld und blenden jedes Speichern aus (`geldNurLesen()`, Knöpfe mit
+  `data-geld-knopf`); „+ Zahlungsbedingung“ und „+ Steuerschlüssel“ fehlen im Markup, die Zeile bietet „Ansehen“ (Formular gesperrt, „Schließen“)
+  statt „Bearbeiten“, „Als Standard“, „Archivieren“, „Wiederherstellen“. Unter E-Mail-Vorlagen sind Betreff und Text einer Mahnstufe gesperrt, mit
+  dem Hinweis; die übrigen Dokumente bleiben offen.
+
+#### Festlegungen 1.9.120 (Bitte bestätigen)
+
+1. Die ganze Mahnstufe zählt dazu -- auch Bezeichnung, Mahntext und die E-Mail-Texte (auch unter E-Mail-Vorlagen), nicht nur Frist und Gebühr;
+   die E-Mail-Vorlagen der übrigen Dokumente (auch der Rechnung) speichert weiter jedes Büro.
+2. Alle sieben Nummernkreise, auch Kunden, Anfragen, Projekte, Angebote und Aufträge -- nicht nur Rechnung und Mahnung.
+3. Büro – Auftrag sieht die vier Bereiche gesperrt mit Hinweis (liest alles), statt dass sie aus dem Menü verschwinden.
+4. Die Zahlungsbedingung am Kunden (Kundenvorgabe in den Stammdaten) bleibt eine Angabe des Kunden -- jedes Büro wählt sie wie bisher.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v540_einstellungen_mit_geld.py` (46 Tests): Struktur -- die 12 schreibenden Routen nehmen nur Admin und Büro – Finanzen, das Lesen
+der Zahlungsbedingungen und Steuerschlüssel bleibt jedem Büro; der Rundgang deckt jede der 12 Routen; als Büro – Auftrag je 403 mit der Meldung
+und jede Zeile der vier Tabellen unverändert; als Büro – Finanzen und Admin je 200 und geschrieben; Büro – Auftrag liest alle vier; die Seite als
+Büro – Auftrag mit dem Hinweis in allen vier Bereichen und ohne „+ …“, als Büro – Finanzen ohne; in node auf der vom Server gezeichneten Seite die
+Knöpfe der Listen je Rolle und die Mahnstufe unter E-Mail-Vorlagen gesperrt bzw. offen, das Angebot offen.
+Neu `scripts/klicktest_einstellungen_geld.py` (14 Prüfungen): Büro – Auftrag -- die vier Bereiche mit Hinweis, kein offenes Feld, kein Speichern;
+„Ansehen“ zeigt die Zahlungsbedingung gesperrt mit ihrem Text und „Schließen“ (Bild); E-Mail-Vorlagen: Mahnstufe gesperrt, Angebot offen; Angriff
+aus der Seite (Mahnstufe, Zahlungsbedingung) 403; Büro – Finanzen: Felder offen, Nummernkreis und Zahlungsbedingung gespeichert.
+
+Angepasste Erwartungen:
+- `test_v531::test_jede_schreibende_geld_route_nimmt_nur_admin_und_finanzen`: `KEIN_GELD` = {PUT Mahnstufe} -> leer (keine Ausnahme mehr).
+- `test_v531::test_rundgang_deckt_jede_schreibende_geld_route`: die Mahnstufe fiel über `KEIN_GELD` heraus -> ausdrücklich ausgenommen, ihr Rundgang
+  steht in `test_v540` (nur Aufbau).
+- `test_v400::test_email_templates_the_last_chosen_type_wins`: die Vorbereitung um `const GELD=true` ergänzt (nur Aufbau; im ersten Lauf rot:
+  „GELD is not defined“).
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): Büro – Auftrag in `require_geld_einstellung` -> 14 Tests (v540, v531); der
+Nummernkreis wieder ab Büro – Auftrag -> 2; die Liste bietet „Bearbeiten“ ohne `GELD` -> 1; die Mahnstufe unter E-Mail-Vorlagen offen -> 1.

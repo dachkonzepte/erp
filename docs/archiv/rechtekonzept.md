@@ -2207,3 +2207,10 @@ Entscheidung von Tobias (28.10.2026): mit Geld arbeiten nur Admin und Büro – 
 von Rechnungen, Zahlungen, Mahnungen und Nebenforderungen; an Rechnung und Mahnung auch „Zustellung nachtragen“, Versandergebnis und Klären
 (`app/routers/email_dispatches.py::_require_geld_for()`). Büro – Auftrag liest alles, die Seiten Auftrag, Rechnung, Kundenakte und Mahnwesen zeigen ihm
 den Hinweis statt der Knöpfe (`geld` aus der Seitenroute). Tabelle, Festlegungen und Tests: `docs/archiv/redesign.md`, „Stufe 5, R1, Punkt 1“.
+
+## Nachtrag 1.9.120: Einstellungen mit Geld (Stufe 5, R1 Nachrunde, Punkt 2)
+
+Festlegung 1.9.111 Nr. 1 und 5 nicht bestätigt (Tobias, 28.10.2026): Mahnstufen (Fristen, Gebühren, Texte), Zahlungsbedingungen, Steuerschlüssel und
+Nummernkreise speichern höchstens Admin und Büro – Finanzen -- bis 1.9.119 jedes Büro. `require_geld_einstellung` (`app/permissions.py`, dieselben Rollen
+wie `darf_geld()`, Meldung `EINSTELLUNGEN_GELD_NUR_LESEN`) an den 12 Endpunkten; Büro – Auftrag liest die Bereiche gesperrt mit Hinweis. Tabelle vorher
+und nachher, Festlegungen und Tests: `docs/archiv/redesign.md`, „Nachrunde, Punkt 2“.
