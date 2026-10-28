@@ -1116,7 +1116,13 @@ function binden(){
   if(h==='monat'&&!RECHTE.lohndaten)h='pruefen';
   var antrag=q.get('absence');
   if(antrag&&/^\d+$/.test(antrag)){h='abwesenheiten';auswahlWert(el('abwStatus'),'');ANTRAG_HERVOR=antrag}
+  // seit 1.9.113: ?buchung=neu („Zeit buchen“ auf „Einsatzberichte“, mit ?auftrag=) öffnet „Neue Buchung“ mit dem Auftrag -- nur, wer bucht;
+  // der Schalter geht aus der Adresse (Neuladen öffnet nicht noch einmal)
+  var neuBuchen=q.get('buchung')==='neu'&&!!el('neueBuchung');
+  if(q.has('buchung')){try{q.delete('buchung');history.replaceState(null,'',location.pathname+(q.toString()?'?'+q:'')+location.hash)}catch(e){}}
+  if(neuBuchen)h='buchungen';
   reiterZeigen(h);
+  if(neuBuchen)buchungDialogOeffnen(null);
 }
 binden();
 pruefenLaden();

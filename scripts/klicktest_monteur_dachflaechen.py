@@ -8,8 +8,8 @@ weiter funktioniert, so wie der Monteur sie sieht:
     Bericht anlegen    die Fläche steht in der Auswahl, ein Wartungsbericht mit ihr entsteht und
                        trägt sie (Prüfpunkte aus der Vorlage des Dachtyps)
     Zeit buchen        seit 1.9.67 die Monteurin nicht mehr hier („Zeit nachtragen“ auf „Meine Zeiten“, bis 1.9.66 mit Von und Bis);
-                       seit 1.9.89 Büro – Finanzen wie der Admin mit Auswahl (bis 1.9.88 nur für sich), Büro – Auftrag liest nur (keine
-                       Felder zum Buchen, Hinweis)
+                       seit 1.9.113 auch das Büro nicht: Büro – Finanzen und Admin „Zeit buchen“ (Dialog von „Zeiten“, bis 1.9.112 die Felder
+                       mit Auswahl „Mitarbeiter“), Büro – Auftrag liest nur (Hinweis)
 
 AUFRUF (aus dem Projektordner):
 
@@ -107,35 +107,28 @@ async def pruefen(tab, seed, p):
     p.pruefe("JS-Fehler", tab.fehler, [])
     await tab.bild("monteurin_ohne_buchungskarte")
 
-    # Seit 1.8.152: die Auswahl nur, wer laut Server für andere bucht -- seit 1.9.89 Admin und Büro – Finanzen (bis dahin buchte Büro –
-    # Finanzen ohne Auswahl für sich)
+    # Seit 1.9.113 (Stufe 5, R1, Punkt 3): keine Felder zum Buchen mehr auf der Seite des Auftrags -- „Zeit buchen“ öffnet den Dialog von „Zeiten“
+    # (bis 1.9.112 Auswahl „Mitarbeiter“ für Admin und Büro – Finanzen, seit 1.8.152); gebucht wird hier über die Schnittstelle
+    link = f"/zeiten?auftrag={auftrag}&buchung=neu#buchungen"
     await tab.anmelden(seed["cookies"]["buero"])
-    await tab.oeffnen(f"/orders/{auftrag}/service-reports", "document.getElementById('teEmployee').options.length>1")
-    p.pruefe("Büro – Finanzen: Auswahl sichtbar", await tab.js("getComputedStyle(document.getElementById('teEmployeeField')).display")!="none", True)
-    p.pruefe("Büro – Finanzen: alle aktiven zur Wahl",
-             await tab.js("[...document.getElementById('teEmployee').options].map(o=>o.textContent).join('|')"),
-             "— nicht zugeordnet —|Bea Büro|Max Monteur")
-    await tab.js("(()=>{const s=document.getElementById('teEmployee');s.value=[...s.options].find(o=>o.textContent==='Max Monteur').value;"
-                 "document.getElementById('teHours').value='1'})()")
-    await tab.warte_auf_neu_geladene_liste("document.querySelector('[data-klick=zeit-buchen]').click()",  # seit 1.9.67 data-klick
-                                           "#timeEntriesTable")
-    p.pruefe("Büro – Finanzen: für Max gebucht", await tab.js(
-        f"fetch('/api/time-entries?order_id={auftrag}').then(r=>r.json()).then(j=>j.map(e=>e.employee_name).sort().join('|'))"),
-        "Max Monteur")  # seit 1.9.67 bucht die Monteurin hier nicht mehr
-    # Seit 1.9.89: Büro – Auftrag liest nur -- die Felder zum Buchen verborgen, statt dessen der Hinweis, die Zeiten stehen da
+    await tab.oeffnen(f"/orders/{auftrag}/service-reports", "document.getElementById('timeEntriesTable').innerHTML.length>0")
+    p.pruefe("Büro – Finanzen: „Zeit buchen“ statt der Felder", await tab.js(
+        "[!!document.getElementById('teEmployee'),document.getElementById('zeitBuchenLink')?.getAttribute('href')]"), [False, link])
+    max_id = await tab.js("fetch('/api/employees').then(r=>r.json()).then(l=>l.find(e=>e.first_name==='Max').id)")
+    status = await tab.js(f"fetch('/api/time-entries',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify("
+                          f"{{employee_id:{max_id},order_id:{auftrag},work_date:berlinToday(),hours:'1'}})}}).then(r=>r.status)")
+    p.pruefe("Büro – Finanzen: für Max gebucht (Schnittstelle)", status, 200)
+    # Seit 1.9.89: Büro – Auftrag liest nur -- Hinweis, die Zeiten stehen da
     await tab.anmelden(seed["cookies"]["auftrag"])
     await tab.oeffnen(f"/orders/{auftrag}/service-reports", "document.querySelector('#timeEntriesTable table')")
-    p.pruefe("Büro – Auftrag: keine Felder zum Buchen, Hinweis, die Zeit von Max", [
-        await tab.js("getComputedStyle(document.getElementById('zeitBuchen')).display"),
+    p.pruefe("Büro – Auftrag: kein „Zeit buchen“, Hinweis, die Zeit von Max", [
+        await tab.js("!!document.getElementById('zeitBuchenLink')"),
         await tab.js("document.getElementById('zeitNurLesen').innerText"),
         await tab.js("document.getElementById('timeEntriesTable').innerText.includes('Max Monteur')")],
-        ["none", "Zeiten buchen und ändern Admin und Büro – Finanzen – du kannst sie lesen.", True])
+        [False, "Zeiten buchen und ändern Admin und Büro – Finanzen – du kannst sie lesen.", True])
     await tab.anmelden(seed["cookies"]["admin"])
-    await tab.oeffnen(f"/orders/{auftrag}/service-reports", "document.getElementById('teEmployee').options.length>1")
-    p.pruefe("Admin: Auswahl sichtbar", await tab.js("getComputedStyle(document.getElementById('teEmployeeField')).display")!="none", True)
-    p.pruefe("Admin: alle aktiven zur Wahl",
-             await tab.js("[...document.getElementById('teEmployee').options].map(o=>o.textContent).join('|')"),
-             "— nicht zugeordnet —|Bea Büro|Max Monteur")
+    await tab.oeffnen(f"/orders/{auftrag}/service-reports", "document.getElementById('timeEntriesTable').innerHTML.length>0")
+    p.pruefe("Admin: „Zeit buchen“", await tab.js("document.getElementById('zeitBuchenLink')?.getAttribute('href')"), link)
     p.pruefe("JS-Fehler (Büro, Admin)", tab.fehler, [])
 
 

@@ -84,11 +84,12 @@ def test_aendern_mit_stunden_als_buero_wie_bisher(welt):  # noqa: F811
 
 def test_einsatzbericht_monteurin_ohne_buchungskarte(welt):  # noqa: F811
     """Seit 1.9.67 (Stufe 4, R4, Punkt 5) bucht die Monteurin auf der Seite des Auftrags nicht mehr: keine Buchungskarte, „Zeit nachtragen“
-    auf „Meine Zeiten“ (dort nur Von und Bis); das Büro bucht wie bisher eine Dauer. Bis 1.9.66 zeigte die Karte der Monteurin Von und Bis."""
+    auf „Meine Zeiten“ (dort nur Von und Bis). Bis 1.9.66 zeigte die Karte der Monteurin Von und Bis. Seit 1.9.113 bucht auch das Büro hier keine
+    Dauer mehr: „Zeit buchen“ öffnet den Dialog von „Zeiten“ (bis 1.9.112 die Felder Stunden bzw. Von/Bis)."""
     def seite(rolle):
         return welt["client"](welt["db"], pages_router.router, role=rolle).get(f"/orders/{welt['order'].id}/service-reports").text
     monteurin, buero = seite("field"), seite("buero_finanzen")  # seit 1.9.89: Büro – Auftrag sieht die Felder zum Buchen nicht
     assert 'id="teHoursField"' not in monteurin and 'id="zeitNachtragen"' in monteurin
-    assert {name: bool(re.search(rf'id="{name}"[^>]* hidden', buero)) for name in ("teHoursField", "teVonField", "teBisField")} == {
-        "teHoursField": False, "teVonField": True, "teBisField": True}
+    assert not any(f'id="{name}"' in buero for name in ("teHoursField", "teVonField", "teBisField"))
+    assert f'href="/zeiten?auftrag={welt["order"].id}&amp;buchung=neu#buchungen"' in buero
     assert 'id="zeitNachtragen"' not in buero

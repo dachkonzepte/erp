@@ -4,6 +4,15 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.113 – „Einsatzberichte“ bucht über den Dialog von „Zeiten“ (Stufe 5, R1)
+
+Die Seite „Einsatzberichte“ eines Auftrags hatte ein eigenes Formular, das für das Büro eine Dauer ohne Pause und ohne Vorschau buchte -- die dritte
+Zeitbuchung neben „Zeiten“ und „Meine Zeiten“, an der Pausenregel des Tages vorbei: eine dort gebuchte Dauer konnte einen Tag unter „Prüfen“ auf „passt
+nicht“ setzen, ohne dass die Seite es zeigte. Das Formular ist weg. Die Karte zeigt weiter alle Zeiten des Auftrags und für Admin und Büro – Finanzen
+den Knopf „Zeit buchen“: er öffnet auf „Zeiten“ den Dialog „Neue Buchung“ mit dem Auftrag vorbelegt -- mit „Pause an diesem Tag“ und der Vorschau vom
+Server (8 h ohne Pause: „Pause des Tags passt danach nicht“). Büro – Auftrag liest wie bisher nur, die Monteurin trägt weiter unter „Meine Zeiten“
+nach.
+
 ## 1.9.112 – Befund im Bericht jeder Person, „erfasst von“ ist das Konto (Stufe 5, R1)
 
 Das Büro bekam im Einsatzbericht der Monteurin beim Anlegen eines Befunds 403 („Du darfst nur dich selbst als Mitarbeiter angeben.“): die Seite

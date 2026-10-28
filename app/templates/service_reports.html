@@ -154,30 +154,13 @@ a{color:var(--ds-link)}
 {% else %}
 <div class="card">
   <h2>Erfasste Zeiten zu diesem Auftrag</h2>
-  {# Seit 1.9.89 (Stufe 4, R5a): wer nur liest (app/permissions.py::darf_zeit_buchen, Büro – Auftrag), sieht die Zeiten ohne die Felder
-     zum Buchen -- das Skript erkennt den Monteursrahmen weiter an #teHours, die Felder bleiben deshalb im Markup #}
-  {% if not zeit_buchen %}<p class="muted" id="zeitNurLesen" style="margin:0 0 10px">{{ zeiten_nur_lesen }}</p>{% endif %}
-  <div id="zeitBuchen"{% if not zeit_buchen %} style="display:none"{% endif %}>
-  <div class="fields-2col" style="margin-bottom:10px">
-    {# Seit 1.8.143 Monteure, seit 1.8.152 jeder, der nicht für andere buchen darf (app/permissions.py::darf_zeit_fuer_andere_buchen,
-       seit 1.9.89 Admin und Büro – Finanzen): keine Auswahl, gebucht wird für sich -- schon im Markup verborgen, das Skript setzt dasselbe #}
-    <div class="field" id="teEmployeeField"{% if not zeit_fuer_andere_buchen %} hidden{% endif %}><label>Mitarbeiter</label><select id="teEmployee"></select></div>
-    <div class="field"><label>Datum</label><input id="teDate" type="date"></div>
-    <div class="field"><label>Zeitart</label><select id="teType"></select></div>
-    <div class="field"><label>Tätigkeit</label><select id="teActivity"></select></div>
-    <div class="field"><label>LV-Position <span class="muted small">(optional)</span></label><select id="teOrderItem"></select></div>
-    {# Seit 1.9.60 (Stufe 4, R3): wer nur mit Von und Bis bucht (app/permissions.py::zeit_nur_mit_von_bis), bucht mit Von und Bis
-       (Pausenregel des Tages), das Büro weiter eine Dauer -- schon im Markup verborgen, das Skript liest, welches Feld sichtbar ist #}
-    <div class="field" id="teHoursField"{% if zeit_nur_mit_von_bis %} hidden{% endif %}><label>Stunden</label><input id="teHours" type="text" inputmode="decimal" data-zahl data-min="0"></div>
-    <div class="field" id="teVonField"{% if not zeit_nur_mit_von_bis %} hidden{% endif %}><label>Von</label><input id="teVon" type="time"></div>
-    <div class="field" id="teBisField"{% if not zeit_nur_mit_von_bis %} hidden{% endif %}><label>Bis</label><input id="teBis" type="time"></div>
-    <div class="field full"><label>Notizen <span class="muted small">(optional)</span></label><input id="teNotes"></div>
-  </div>
-  <div class="editor-actions" style="margin-bottom:10px">
-    <button type="button" data-klick="zeit-buchen">Zeit buchen</button>
-    <span id="teStatus" class="status"></span>
-  </div>
-  </div>
+  {# Seit 1.9.113 (Stufe 5, R1, Punkt 3, F3/D14): hier wird nicht mehr gebucht -- „Zeit buchen“ öffnet auf „Zeiten“ den Dialog „Neue Buchung“
+     mit diesem Auftrag (Pause des Tags, Vorschau vom Server, dieselbe Regel wie überall). Bis 1.9.112 buchte die Karte eine Dauer ohne Pause und
+     ohne Vorschau; wer nur liest (app/permissions.py::darf_zeit_buchen, Büro – Auftrag), sieht wie bisher nur die Zeiten. #}
+  {% if zeit_buchen %}<div class="editor-actions" id="zeitBuchen" style="margin-bottom:10px;align-items:center;gap:12px">
+    <a class="zeit-nachtragen" id="zeitBuchenLink" href="/zeiten?auftrag={{ order_id }}&amp;buchung=neu#buchungen">Zeit buchen</a>
+    <span class="muted small">auf „Zeiten“ – mit der Pause des Tags und der Vorschau; der Auftrag ist dort schon gewählt.</span></div>
+  {% else %}<p class="muted" id="zeitNurLesen" style="margin:0 0 10px">{{ zeiten_nur_lesen }}</p>{% endif %}
   <div id="timeEntriesTable"></div>
 </div>
 {% endif %}
@@ -197,26 +180,14 @@ const orderId={{ order_id }};
 // Seit 1.8.27: Auftrag, Kunde, Folgeauftrag sind Büro-Seiten -- für den Monteur Text statt Link.
 const darfBueroSeiten={{ 'true' if darf_buero_seiten else 'false' }};
 // die Monteurin hat seit 1.9.67 keine Buchungskarte (statt dessen „Zeit nachtragen“) -- daran erkennt das Skript den Monteursrahmen
-const monteursrahmen=!document.getElementById('teHours');
+const monteursrahmen=!!document.getElementById('zeitenKarte');  // seit 1.9.113 an der Karte „Zeiten“ der Monteurin (bis 1.9.112 an #teHours)
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 function fmtDate(s){if(!s)return'';const t=String(s).slice(0,10).split('-');return t.length===3?t[2]+'.'+t[1]+'.'+t[0]:String(s)}
 async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
 
 let authStatus=null,employees=[],reports=[];
-let roofAreasForOrder=[],inspectionTemplates=[],orderData=null,timeEntryTypes=[],timeEntryActivities=[],kopfVertrag=null;
-async function safeOptionGroup(key){try{return await api(`/api/settings/option-groups/${key}`)}catch(e){console.warn('Option group',key,e);return {options:[]}}}
-function optionsHtml(list,selected){return '<option value="">— keine Auswahl —</option>'+(list||[]).filter(o=>o.active!==false).map(o=>`<option value="${esc(o.value)}" ${o.value===selected?'selected':''}>${esc(o.label)}</option>`).join('')}
+let roofAreasForOrder=[],inspectionTemplates=[],orderData=null,kopfVertrag=null;
 
-// Für sich buchen (seit 1.8.143 Monteure, seit 1.8.152 jeder, der laut Server nicht für andere buchen darf -- seit 1.9.89 alle außer Admin
-// und Büro – Finanzen):
-// keine Auswahl "Mitarbeiter", fest die eigene Person. Die Regel kommt vom Server (/api/auth/status, zeit_fuer_andere_buchen aus
-// app/permissions.py::darf_zeit_fuer_andere_buchen()), dieselbe, nach der er eine Buchung für andere ablehnt.
-function nurFuerSichBuchen(){return !(authStatus&&authStatus.user&&authStatus.user.zeit_fuer_andere_buchen)}
-function zeitMitarbeiterOptionen(){
-  if(!nurFuerSichBuchen())return employeeOptionsHtml(null);
-  const eigen=employees.find(e=>e.id===authStatus.user.employee_id);
-  return eigen?`<option value="${eigen.id}" selected>${esc(eigen.first_name+' '+eigen.last_name)}</option>`:'';
-}
 // Seit 1.9.16 über auswahlOptionen(): ein inaktiver Mitarbeiter bleibt gewählt („(inaktiv)“), neu angeboten nur aktive.
 function employeeOptionsHtml(selected,name=null){
   return auswahlOptionen(employees,selected??'',e=>e.first_name+' '+e.last_name,{leer:'— nicht zugeordnet —',fehlt:()=>`${name||'Mitarbeiter'} (nicht mehr verfügbar)`});
@@ -427,13 +398,6 @@ async function loadTimeEntries(){
   }catch(e){document.getElementById('timeEntriesTable').innerHTML=`<div class="status err">Fehler: ${esc(e.message)}</div>`}
 }
 
-function refreshTimeEntryOrderItemOptions(){
-  if(monteursrahmen)return;
-  const items=(orderData&&orderData.items)||[];
-  document.getElementById('teOrderItem').innerHTML='<option value="">— ohne LV-Position —</option>'
-    +items.map(i=>`<option value="${i.id}">${esc(i.position_number||'')} ${esc(i.short_text||'')}</option>`).join('');
-}
-
 function renderPropertyCard(p){
   const card=document.getElementById('propertyCard');
   if(!p){card.classList.add('hidden');return}
@@ -448,36 +412,6 @@ function renderPropertyCard(p){
   document.getElementById('propContactField').classList.toggle('hidden',!contactLine);
   document.getElementById('propContact').textContent=contactLine;
 }
-
-async function saveReportTimeEntry(){
-  const st=document.getElementById('teStatus');
-  const employeeId=document.getElementById('teEmployee').value;
-  const workDate=document.getElementById('teDate').value;
-  try{
-  // Seit 1.8.109 im try: die Stunden über _zahl.html, eine abgelehnte Zahl erscheint als Fehler. Seit 1.9.60 für die Monteurin Von und Bis
-  // statt der Stunden (welches Feld sichtbar ist, legt der Server fest) -- die Pause rechnet der Server nach der Regel des Tages.
-  const vonBis=document.getElementById('teVonField').hidden===false,von=document.getElementById('teVon').value,bis=document.getElementById('teBis').value;
-  const hours=vonBis?null:zahlFeld('teHours');
-  if(!employeeId&&nurFuerSichBuchen()){st.className='status err';st.textContent={{ kein_mitarbeiter|tojson }};return}
-  if(vonBis&&(!workDate||!von||!bis)){st.className='status err';st.textContent='Bitte Datum, Von und Bis angeben.';return}
-  if(!vonBis&&(!employeeId||!workDate||hours===null)){st.className='status err';st.textContent='Bitte Mitarbeiter, Datum und Stunden angeben.';return}
-  const payload={
-    employee_id:Number(employeeId), order_id:orderId, work_date:workDate,
-    order_item_id:document.getElementById('teOrderItem').value?Number(document.getElementById('teOrderItem').value):null,
-    entry_type:document.getElementById('teType').value||'site',
-    activity:document.getElementById('teActivity').value||null,
-    hours:hours, notes:document.getElementById('teNotes').value.trim()||null,
-  };
-  if(vonBis){delete payload.hours;payload.von=von;payload.bis=bis}
-    await speichern('zeiten',()=>api('/api/time-entries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));
-    document.getElementById('teHours').value='';
-    document.getElementById('teVon').value='';document.getElementById('teBis').value='';
-    document.getElementById('teNotes').value='';
-    await loadTimeEntries();
-    st.textContent='Gebucht.';
-  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
-}
-aktion('zeit-buchen',()=>saveReportTimeEntry());
 
 // Seit 1.8.97 lädt init() über lesen() (_speichern.html): Anmeldestatus, Auftrag, Objekt und Stammdaten je in einem eigenen Bereich.
 async function init(){
@@ -496,24 +430,11 @@ async function init(){
     kopfZeichnen();
     berichtKnopfZeichnen();
     zeitenKarteZeichnen();
-    refreshTimeEntryOrderItemOptions();
   }).catch(()=>{});
   await lesen('stammdaten',()=>api('/api/employees').catch(()=>[]),d=>{employees=d});
   await lesen('stammdaten',()=>api(`/api/orders/${orderId}/roof-areas`).catch(()=>[]),d=>{roofAreasForOrder=d});
   await lesen('objekt',()=>api(`/api/orders/${orderId}/property`).catch(()=>null),p=>renderPropertyCard(p));
   await lesen('stammdaten',()=>api('/api/inspection-templates').catch(()=>[]),d=>{inspectionTemplates=d});
-  if(!monteursrahmen)await lesen('stammdaten',()=>Promise.all([
-    safeOptionGroup('time_entry_types'), safeOptionGroup('time_entry_activities'),
-  ]),([typesGroup,activitiesGroup])=>{
-  timeEntryTypes=typesGroup.options||[];
-  timeEntryActivities=activitiesGroup.options||[];
-  document.getElementById('teEmployee').innerHTML=zeitMitarbeiterOptionen();
-  document.getElementById('teEmployeeField').hidden=nurFuerSichBuchen();
-  document.getElementById('teType').innerHTML=optionsHtml(timeEntryTypes,'site');
-  document.getElementById('teType').value='site';
-  document.getElementById('teActivity').innerHTML=optionsHtml(timeEntryActivities,null);
-  document.getElementById('teDate').value=berlinToday();
-  });
   await loadReports();
   // seit 1.9.75: ?neu=1 (von „Heute“: „Bericht anlegen“ ohne Einsatz, „Bericht für einen anderen Auftrag“) öffnet gleich „Bericht anlegen“
   if(new URLSearchParams(location.search).get('neu')==='1'){

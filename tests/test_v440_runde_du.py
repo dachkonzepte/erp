@@ -51,8 +51,9 @@ def test_keine_eigene_fassung_der_meldung():
     assert KEIN_MITARBEITER == ("Dein Konto ist keinem Mitarbeiter zugeordnet. Ein Administrator kann das unter Einstellungen → "
                                 "Benutzer und Zugriff ändern.")
     nutzer = {name for name in alle_vorlagen() if "{{ kein_mitarbeiter|tojson }}" in (TEMPLATES / name).read_text(encoding="utf-8")}
-    # bis 1.9.97 dazu Zeiterfassung und Backoffice; „Zeiten“ nennt die Meldung über den Server (GET /api/zeiten/abwesenheiten)
-    assert nutzer == {"dashboard.html", "mobil_zeiten.html", "service_reports.html"}
+    # bis 1.9.97 dazu Zeiterfassung und Backoffice; „Zeiten“ nennt die Meldung über den Server (GET /api/zeiten/abwesenheiten); bis 1.9.112
+    # dazu „Einsatzberichte“ (Buchung ohne Mitarbeiter -- seit 1.9.113 bucht die Seite nicht mehr)
+    assert nutzer == {"dashboard.html", "mobil_zeiten.html"}
 
 
 @pytest.mark.parametrize("adresse,rolle", [("/mobil/zeiten", "field"), ("/", "buero_auftrag")])  # bis 1.9.97 dazu /time-tracking, /time-backoffice

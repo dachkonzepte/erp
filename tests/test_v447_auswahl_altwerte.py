@@ -305,7 +305,6 @@ KLASSEN = {
     ('recurring_costs.html', 'P2', 'editInterval'): ('server_fest', 'Abrechnungsintervall'),
     ('recurring_costs.html', 'P2', 'editTaxRate'): ('server_fest', 'Steuersatz 19/7/0'),
     ('service_reports.html', 'P1', 'Number(selected)===t.id'): ('neu', 'Prüfvorlage eines neuen Berichts'),
-    ('service_reports.html', 'P1', 'o.value===selected'): ('neu', 'Zeitart und Tätigkeit einer neuen Buchung'),
     ('settings.html', 'P1', '!s.reset_yearly'): ('ja_nein', 'Ja/Nein'),
     ('settings.html', 'P1', 's.reset_yearly'): ('ja_nein', 'Ja/Nein'),
     ('settings.html', 'P2', 'acTaxRate'): ('server_fest', 'Steuersatz des Kontos'),

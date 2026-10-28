@@ -120,8 +120,7 @@ ABGLEICH = [
     Z("roof_area.html", "id=editComponentYear", ("RoofComponentCreate.year_built", "RoofComponentUpdate.year_built")),
     Z("roof_area.html", "id=editComponentSort", ("RoofComponentCreate.sort_order", "RoofComponentUpdate.sort_order")),
     Z("roof_area.html", "data-feld=${esc(type.label)} – Dicke (mm)", ("RoofLayerUpsert.thickness_mm",)),
-    # -- Einsatzbericht
-    Z("service_reports.html", "id=teHours", ("TimeEntryManualCreate.hours",)),
+    # -- Einsatzbericht (seit 1.9.113 ohne eigenes Buchungsformular auf „Einsatzberichte“ -- bis dahin id=teHours)
     # seit 1.9.67 auf der Berichtsseite (bis 1.9.66 je Bericht auf der Seite des Auftrags)
     Z("service_report.html", "id=mat-menge-'+m.id+'", ("ServiceReportMaterialUpdate.quantity",),
       code={"pflicht": True}, beleg=("app/service_reports.py", "Bitte eine Menge größer als 0 angeben.")),

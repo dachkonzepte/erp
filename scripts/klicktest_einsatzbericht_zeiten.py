@@ -148,11 +148,11 @@ async def pruefen(tab, seed, p):
              [f"Zeiten am {h}" in vorher, "Mia Monteurin" in vorher, "Tom Monteur" in vorher, "06:45" in vorher, "12:00" in vorher,
               "5,25" in vorher, "3,00" in vorher, "2,00" in vorher, "Vortag" in vorher], [True] * 7 + [False, False])
 
-    # nachträglich: eine Zeit heute buchen (Formular der Seite des Auftrags) und Mias Zeit ändern (Schnittstelle)
-    await tab.js(f"document.getElementById('teEmployee').value='{seed['tom']}';document.getElementById('teDate').value='{seed['heute']}';"
-                 "document.getElementById('teHours').value='2,75'")
-    await tab.warte_auf_neu_geladene_liste("saveReportTimeEntry()", "#timeEntriesTable")
-    p.pruefe("Zeit gebucht", await tab.js("document.getElementById('teStatus').textContent"), "Gebucht.")
+    # nachträglich: eine Zeit heute buchen und Mias Zeit ändern (Schnittstelle) -- seit 1.9.113 bucht die Seite des Auftrags nicht mehr selbst
+    # („Zeit buchen“ öffnet den Dialog von „Zeiten“, bis 1.9.112 das Formular der Seite)
+    status = await tab.js(f"fetch('/api/time-entries',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify("
+                          f"{{employee_id:{seed['tom']},order_id:{seed['auftrag']},work_date:'{seed['heute']}',hours:'2.75'}})}}).then(r=>r.status)")
+    p.pruefe("Zeit gebucht", status, 200)
     status = await tab.js(f"fetch('/api/time-entries/{seed['mia_zeit']}',{{method:'PUT',headers:{{'Content-Type':'application/json'}},"
                           "body:JSON.stringify({hours:'6.5'})}).then(r=>r.status)")
     p.pruefe("Mias Zeit geändert (6,5 h)", status, 200)

@@ -6890,3 +6890,57 @@ Angepasste Erwartungen:
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): „erfasst von“ wieder der Ersteller des Berichts -> 3 Tests; das Schema nimmt
 `created_by_employee_id` wieder an -> 4 Tests (v532, v373); „Durchgeführt von“ allen alle -> 2 Tests (die beiden Büro-Rollen). Eine erste Gegenprobe griff
 aus dem falschen Grund (Name im Router nicht importiert, 500) -- wiederholt mit dem Import im Ausdruck.
+
+### R1, Punkt 3 (1.9.113): „Einsatzberichte“ bucht über den Dialog von „Zeiten“
+
+Befund F3/D14: drei Buchungsformulare mit verschiedenen Regeln -- „Einsatzberichte“ (Büro, eine Dauer ohne Pause und ohne Vorschau), „Zeiten“ (Pause des
+Tags und Vorschau seit 1.9.107), „Meine Zeiten“ (nur Von/Bis). Vorgabe: „Einsatzberichte“ bucht keine eigene Dauer mehr, der Knopf öffnet den Dialog von
+„Zeiten“ mit dem Auftrag vorbelegt.
+
+- `service_reports.html`: die Felder zum Buchen (Mitarbeiter, Datum, Zeitart, Tätigkeit, LV-Position, Stunden bzw. Von/Bis, Notiz) und ihr Skript
+  (`saveReportTimeEntry()`, `zeitMitarbeiterOptionen()`, `refreshTimeEntryOrderItemOptions()`, das Laden von Zeitarten und Tätigkeiten) sind weg; die
+  Karte „Erfasste Zeiten“ zeigt die Zeiten wie bisher, wer bucht (`darf_zeit_buchen()`, Admin und Büro – Finanzen), dazu „Zeit buchen“ -- ein Link auf
+  `/zeiten?auftrag=<id>&buchung=neu#buchungen`; Büro – Auftrag der Hinweis wie seit 1.9.89. Der Monteursrahmen erkennt die Seite jetzt an der Karte „Zeiten“
+  der Monteurin (`#zeitenKarte`, bis 1.9.112 an `#teHours`).
+- `zeiten.html::binden()`: `?buchung=neu` öffnet „Neue Buchung“ -- nur, wenn es „+ Buchung“ gibt (wer bucht) --, auf dem Reiter „Buchungen“; der Auftrag
+  kommt aus `?auftrag=` (`FILTER.auftrag`, wie bisher die Vorwahl des Dialogs); `buchung` wird aus der Adresse gestrichen (Neuladen öffnet nicht noch einmal).
+- Server unverändert: gebucht wird über `POST /api/time-entries` mit der Pausenregel des Tags, die Vorschau über `GET /api/time-entries/dauer-vorschau`.
+
+#### Festlegungen 1.9.113 (Bitte bestätigen)
+
+1. „Zeit buchen“ ist ein Link auf „Zeiten“ (die Seite wechselt), kein Dialog auf „Einsatzberichte“ -- ein Dialog an einer Stelle; nach dem Speichern bleibt
+   man auf „Zeiten“ (Reiter „Buchungen“, gefiltert auf den Auftrag), zurück über den Pfad bzw. den Browser.
+2. Der Dialog öffnet für einen neuen Eintrag mit dem Datum heute und ohne Mitarbeiter (wie „+ Buchung“); die Mitarbeiterwahl bleibt dem Dialog.
+3. `?buchung=neu` ohne Recht zum Buchen (Büro – Auftrag) öffnet nichts und meldet nichts.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v533_einsatzberichte_zeit_ueber_zeiten.py`: die Karte je Rolle (Admin und Büro – Finanzen „Zeit buchen“ mit dem Link, keine Felder zum
+Buchen; Büro – Auftrag der Hinweis; Monteurin „Zeit nachtragen“); `binden()` öffnet „Neue Buchung“ nur mit `?buchung=neu` und „+ Buchung“, der Auftrag
+aus `?auftrag=`; die Vorschau des Dialogs vom Server: 8 h Dauer ohne Pause -> passt nicht, mit 30 min -> passt.
+Neu `scripts/klicktest_zeit_aus_einsatzberichte.py` (11 Prüfungen): Büro – Finanzen klickt „Zeit buchen“ -> „Neue Buchung“ auf „Zeiten“ mit dem
+Auftrag, `?buchung=neu` gestrichen; Mia, „Dauer“ 8,00 ohne Pause -> „Pause des Tags passt danach nicht“ (Bild), mit 30 -> passt, gespeichert, auf
+„Einsatzberichte“ 8,00 h; Büro – Auftrag ohne „Zeit buchen“, `?buchung=neu` öffnet nichts.
+
+Angepasste Erwartungen:
+- `test_v424` (`ABGLEICH`): der Eintrag `service_reports.html id=teHours` entfällt (das Feld gibt es nicht mehr).
+- `test_v485::test_einsatzbericht_monteurin_ohne_buchungskarte`: Büro – Finanzen sieht „Stunden“, Von/Bis verborgen -> keine Felder zum Buchen, der Link
+  „Zeit buchen“.
+- `test_v437::test_einsatzbericht_bietet_nur_an_was_der_server_annimmt[admin|buero_finanzen|buero_auftrag]`: Auswahl „Mitarbeiter“ und Buchung über die
+  Seite -> die Seite bucht nicht (keine Funktion, kein POST); der Server unverändert (Buchung für Max: Admin und Büro – Finanzen 200, Büro – Auftrag 403).
+- `test_v437::test_einsatzbericht_mitarbeiterfeld_im_markup_nur_wer_fuer_andere_bucht[4 Rollen]` -> umbenannt in
+  `test_einsatzbericht_zeit_buchen_im_markup_nur_wer_bucht`: Feld „Mitarbeiter“ verborgen/sichtbar -> „Zeit buchen“ nur Admin und Büro – Finanzen,
+  Hinweis für Büro – Auftrag, „Zeit nachtragen“ für die Monteurin.
+- `klicktest_bericht_schritte` „Büro: Buchungskarte unverändert“ -> „Büro: „Zeit buchen“ statt Buchungskarte“.
+- `klicktest_einsatzbericht_zeiten` „Zeit gebucht“: über das Formular der Seite („Gebucht.“) -> über die Schnittstelle (200), der Rest unverändert.
+- `klicktest_monteur_dachflaechen`: Büro – Finanzen und Admin mit Auswahl „Mitarbeiter“, gebucht über das Formular -> „Zeit buchen“ (Link), für Max
+  über die Schnittstelle gebucht; Büro – Auftrag ohne Link statt verborgener Felder (14 -> 12 Prüfungen).
+- `test_v447` (`KLASSEN`): der Eintrag `service_reports.html P1 o.value===selected` (Zeitart und Tätigkeit der Buchung) entfällt; `test_v440::
+  test_keine_eigene_fassung_der_meldung`: die Seiten mit der Meldung „Konto ohne Mitarbeiter“ ohne `service_reports.html` (im ersten Lauf der Suite rot,
+  beide Listen dürfen nur kürzer werden).
+
+Im ersten Lauf rot und behoben: `klicktest_zeiten` (104/118) -- der Klicktest lädt `/zeiten?neu=1#…` neu (Trick gegen „gleiche Adresse lädt nicht
+neu“); der Schalter hieß zuerst ebenfalls `?neu=1` und öffnete dort den Dialog. Seitdem `?buchung=neu`.
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): „Zeit buchen“ auch für Büro – Auftrag -> 2 Tests (v533, v437); `binden()` öffnet den
+Dialog auch ohne „+ Buchung“ -> 1 Test.

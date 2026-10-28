@@ -349,34 +349,25 @@ def _einsatzbericht(status, mitarbeiter, ablauf):
     return im_browser(skript, ablauf, antworten)["ergebnis"]
 
 
-AUSWAHL = "{optionen: _element('teEmployee').options.map(o => o.text), verborgen: !!_element('teEmployeeField').hidden}"
-
-
 @nur_mit_node
 @pytest.mark.parametrize("rolle", ROLLEN[:3])  # seit 1.9.67 hat die Monteurin keine Buchungskarte (nächster Test)
 def test_einsatzbericht_bietet_nur_an_was_der_server_annimmt(rolle):
-    """Bis 1.8.142 (dort xfail) sah die Monteurin alle aktiven Mitarbeiter, seit 1.8.143 nur sich. Bis 1.8.151 sahen Büro – Finanzen
-    und Büro – Auftrag weiter alle -- der Server nahm ihnen eine Buchung für einen Kollegen aber ebenso nicht an (403). Seit 1.8.152
-    die Auswahl genau für die Rollen, denen der Server sie annimmt; alle anderen buchen ohne Auswahl für sich."""
+    """Bis 1.8.142 (dort xfail) sah die Monteurin alle aktiven Mitarbeiter, seit 1.8.143 nur sich; seit 1.8.152 die Auswahl genau für die Rollen,
+    denen der Server sie annimmt. Seit 1.9.113 (Stufe 5, R1, Punkt 3) bucht „Einsatzberichte“ gar nicht mehr selbst -- „Zeit buchen“ führt zum
+    Dialog von „Zeiten“ (Pause des Tags, Vorschau); die Seite schickt keine Buchung, der Server nimmt wie bisher nur Admin und Büro – Finanzen
+    eine Buchung für Max an."""
     status, mitarbeiter, fuer_max, ids = _server_stand(rolle)
-    ergebnis = _einsatzbericht(status, mitarbeiter, f"""
+    ergebnis = _einsatzbericht(status, mitarbeiter, """
       await init();
-      const auswahl = {AUSWAHL};
-      _element('teHours').value = '2';
-      await saveReportTimeEntry();
-      return {{...auswahl, gebucht: AUFRUFE.filter(a => a.methode === 'POST').map(a => a.body.employee_id)}};""")
-    if rolle in ("admin", "buero_finanzen"):  # seit 1.9.89 auch Büro – Finanzen
-        assert fuer_max == 200
-        # Auswahl aller aktiven, nichts vorgewählt -- ohne Wahl geht nichts hinaus („Bitte Mitarbeiter … angeben“)
-        assert ergebnis == {"optionen": ["— nicht zugeordnet —", "Max Test", "Mia Test", "Otto Test"], "verborgen": False, "gebucht": []}
-    else:  # Büro – Auftrag: der Server nimmt seit 1.9.89 gar keine Buchung an, die Karte zeigt die Felder nicht (nächster Test)
-        assert fuer_max == 403
-        assert ergebnis == {"optionen": ["Mia Test"], "verborgen": True, "gebucht": [ids["Mia"]]}
+      return {eigenesBuchen: typeof saveReportTimeEntry !== 'undefined', posts: AUFRUFE.filter(a => a.methode === 'POST').length};""")
+    assert ergebnis == {"eigenesBuchen": False, "posts": 0}
+    assert fuer_max == (200 if rolle in ("admin", "buero_finanzen") else 403)  # seit 1.9.89 auch Büro – Finanzen
 
 
 @pytest.mark.parametrize("rolle", ROLLEN)
-def test_einsatzbericht_mitarbeiterfeld_im_markup_nur_wer_fuer_andere_bucht(threaded_db_session, router_test_client, rolle):
-    """Schon das gezeichnete Markup verbirgt das Feld (kein Aufblitzen, bevor das Skript läuft) -- bis 1.8.151 nur für Monteure."""
+def test_einsatzbericht_zeit_buchen_im_markup_nur_wer_bucht(threaded_db_session, router_test_client, rolle):
+    """Schon das gezeichnete Markup: „Zeit buchen“ (Link auf den Dialog von „Zeiten“, seit 1.9.113) nur, wer bucht -- Admin und Büro – Finanzen;
+    Büro – Auftrag der Hinweis, die Monteurin „Zeit nachtragen“. Bis 1.9.112 prüfte der Test das Feld „Mitarbeiter“ des eigenen Formulars."""
     from app.routers.pages import router as pages_router
     from tests.test_v264_field_time_tracking import _employee as mitarbeiter
 
@@ -386,12 +377,11 @@ def test_einsatzbericht_mitarbeiterfeld_im_markup_nur_wer_fuer_andere_bucht(thre
     _assign_via_team(db, order, mia)
     antwort = router_test_client(db, pages_router, role=rolle, employee_id=mia.id).get(f"/orders/{order.id}/service-reports")
     assert antwort.status_code == 200, antwort.status_code
+    assert 'id="teEmployeeField"' not in antwort.text
     if rolle == "field":  # seit 1.9.67 ohne Buchungskarte, „Zeit nachtragen“ auf „Meine Zeiten“
-        assert 'id="teEmployeeField"' not in antwort.text and 'id="zeitNachtragen"' in antwort.text
+        assert 'id="zeitNachtragen"' in antwort.text
         return
-    feld = re.search(r'<div class="field" id="teEmployeeField"[^>]*>', antwort.text).group(0)
-    assert feld.endswith(" hidden>") is (rolle not in ("admin", "buero_finanzen")), feld  # seit 1.9.89 auch Büro – Finanzen
-    # seit 1.9.89: Büro – Auftrag liest nur -- die Felder zum Buchen verborgen, statt dessen der Hinweis
-    buchen = re.search(r'<div id="zeitBuchen"[^>]*>', antwort.text).group(0)
-    assert ('display:none' in buchen) is (rolle == "buero_auftrag"), buchen
+    assert ('id="zeitBuchenLink"' in antwort.text) is (rolle in ("admin", "buero_finanzen"))
     assert ('id="zeitNurLesen"' in antwort.text) is (rolle == "buero_auftrag")
+
+

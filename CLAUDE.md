@@ -1563,6 +1563,9 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   (`darf_antrag_zurueckziehen()`, ohne vermerkten Antragsteller die Person selbst); Büro – Auftrag und die Monteurin nur die eigenen
   (`tests/test_v523_abwesenheiten_rechte.py`). Die Zahl am Reiter „Abwesenheiten“ zählt seit 1.9.109 wie „Prüfen“ nur, was auf das Konto
   wartet -- offene Anträge beim Admin (`tests/test_v529_zahl_abwesenheiten.py`).
+- **Eine Zeitbuchung fürs Büro** (seit 1.9.113): „Einsatzberichte“ bucht nicht selbst -- „Zeit buchen“ öffnet auf „Zeiten“ den Dialog „Neue
+  Buchung“ mit dem Auftrag (`/zeiten?auftrag=<id>&buchung=neu#buchungen`, Pause des Tags und Vorschau); eine neue Stelle, an der das Büro bucht, führt
+  ebenso dorthin (`tests/test_v533_einsatzberichte_zeit_ueber_zeiten.py`).
 - **„Erfasst von“ eines Befunds ist das anlegende Konto** (seit 1.9.112): der Server setzt Konto, Name und Mitarbeiter aus der Anmeldung
   (`findings.created_by_user_id`/`created_by_name`), mitgeschickt 422; „Durchgeführt von“ eines Berichts eine andere Person nur nach
   `app/permissions.py::darf_fuer_andere_erfassen()` (Admin), die Seite bietet nur das an (`tests/test_v532_befund_im_fremden_bericht.py`).

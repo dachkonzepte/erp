@@ -502,7 +502,10 @@ async def pruefen(tab, seed, p):
     await tab.anmelden(seed["cookies"]["anna"])
     await tab.fenster(1440, 900)
     await tab.oeffnen(f"/orders/{a}/service-reports", "document.querySelectorAll('#reportList .bericht-zeile').length>=2")
-    p.pruefe("Büro: Buchungskarte unverändert", await tab.js("['teDate','teType','teHours'].map(i=>!!document.getElementById(i))"), [True] * 3)
+    # seit 1.9.113 (Stufe 5, R1, Punkt 3): keine Buchungskarte mehr, „Zeit buchen“ öffnet den Dialog von „Zeiten“ (bis 1.9.112 Datum, Zeitart, Stunden)
+    p.pruefe("Büro: „Zeit buchen“ statt Buchungskarte", await tab.js(
+        "[['teDate','teType','teHours'].some(i=>!!document.getElementById(i)),document.getElementById('zeitBuchenLink')?.getAttribute('href')]"),
+        [False, f"/zeiten?auftrag={a}&buchung=neu#buchungen"])
     await tab.oeffnen(f"/service-reports/{w}", BEREIT)
     p.pruefe("Büro: Pfad ab Projekte bis Einsatzberichte",
              await tab.js("[...document.querySelectorAll('#seitenkopfPfad a')].map(x=>x.textContent)"),
