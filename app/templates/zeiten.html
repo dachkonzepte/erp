@@ -416,7 +416,7 @@ function ergebnis(text){el('ergebnis').textContent=text||''}
 var PUNKTE='<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="12" cy="19" r="1.8"></circle></svg>';
 var HAKEN='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg>';
 
-var ANTRAG_HERVOR=null,P=null,B=null,A=null,M=null,KONTEXT=null,TAETIGKEITEN=[],MONAT=null,LOHN_MONAT=null,FILTER={mitarbeiter:'',auftrag:'',zeitart:''},BD=null,LD=null,ZU={},ENDE={},ZURUECK=null;
+var ANTRAG_HERVOR=null,P=null,B=null,A=null,M=null,KONTEXT=null,TAETIGKEITEN=[],MONAT=null,ALLE_MONATE=false,LOHN_MONAT=null,FILTER={mitarbeiter:'',auftrag:'',zeitart:''},BD=null,LD=null,ZU={},ENDE={},ZURUECK=null;
 
 // --- Reiter ---------------------------------------------------------------------------------------------------------------------------
 var REITER=['pruefen','buchungen','abwesenheiten'].concat(RECHTE.lohndaten?['monat']:[]);
@@ -583,6 +583,7 @@ function buchungenUrl(){
   var q=[];
   if(MONAT)q.push('monat='+encodeURIComponent(MONAT));
   ['mitarbeiter','auftrag','zeitart'].forEach(function(k){if(FILTER[k])q.push(k+'='+encodeURIComponent(FILTER[k]))});
+  if(ALLE_MONATE&&FILTER.auftrag)q.push('zeitraum=alle');  // seit 1.9.128 (L3): alle Monate eines Auftrags, aus der Akte
   return '/api/zeiten/buchungen'+(q.length?'?'+q.join('&'):'');
 }
 function buchungenLaden(){
@@ -598,7 +599,8 @@ function buchungenZeichnen(d){
   el('summeAuswahl').textContent=stunden(d.summe);
   el('buchungenZeilen').innerHTML=d.eintraege.map(buchungHtml).join('');
   el('buchungenLeer').hidden=!!d.eintraege.length;
-  el('buchungenLeer').textContent='Keine Buchungen im '+d.titel+(FILTER.mitarbeiter||FILTER.auftrag||FILTER.zeitart?' für diese Auswahl.':'.');
+  el('buchungenLeer').textContent=d.zeitraum==='alle'?'Keine Buchungen zu diesem Auftrag'+(FILTER.mitarbeiter||FILTER.zeitart?' für diese Auswahl.':'.')
+    :'Keine Buchungen im '+d.titel+(FILTER.mitarbeiter||FILTER.auftrag||FILTER.zeitart?' für diese Auswahl.':'.');
   document.querySelectorAll('#buchungenZeilen .menue-anker').forEach(function(a){dsMenue(a.querySelector('button'),a.querySelector('.ds-menue'))});
 }
 function spanneHtml(e){
@@ -622,6 +624,7 @@ function buchungHtml(e){
 function buchung(id){return (B&&B.eintraege||[]).find(function(e){return String(e.id)===String(id)})||null}
 function filterSetzen(){
   FILTER={mitarbeiter:el('filterMitarbeiter').value,auftrag:el('filterAuftrag').value,zeitart:el('filterZeitart').value};
+  if(!FILTER.auftrag)ALLE_MONATE=false;  // alle Monate nur für einen Auftrag
   return buchungenLaden();
 }
 
@@ -1037,6 +1040,7 @@ function binden(){
   var q=new URLSearchParams(location.search);
   ['mitarbeiter','auftrag'].forEach(function(k){var v=q.get(k);if(v&&/^\d+$/.test(v))FILTER[k]=v});
   if(/^\d{4}-\d{2}$/.test(q.get('monat')||''))MONAT=q.get('monat');
+  ALLE_MONATE=q.get('zeitraum')==='alle'&&!!FILTER.auftrag;  // seit 1.9.128 (L3): ?auftrag=…&zeitraum=alle aus der Akte
   document.querySelector('.reiter').addEventListener('click',function(ev){
     var a=ev.target.closest&&ev.target.closest('a[data-reiter]');if(!a)return;ev.preventDefault();ergebnis('');reiterZeigen(a.dataset.reiter);
   });
@@ -1057,8 +1061,9 @@ function binden(){
     else if(a==='loeschen')loeschFragen(buchung(b.dataset.id));
     else if(a==='zu-ende'){reiterZeigen('pruefen');var f=el('ende-'+b.dataset.id);if(f){f.scrollIntoView({block:'center'});f.focus()}}
   });
-  el('monatZurueck').addEventListener('click',function(){MONAT=monatPlus(MONAT,-1);ergebnis('');buchungenLaden()});
-  el('monatVor').addEventListener('click',function(){MONAT=monatPlus(MONAT,1);ergebnis('');buchungenLaden()});
+  // aus „alle Monate“ führen die Pfeile in den Monat von heute zurück (MONAT steht dort)
+  el('monatZurueck').addEventListener('click',function(){if(ALLE_MONATE)ALLE_MONATE=false;else MONAT=monatPlus(MONAT,-1);ergebnis('');buchungenLaden()});
+  el('monatVor').addEventListener('click',function(){if(ALLE_MONATE)ALLE_MONATE=false;else MONAT=monatPlus(MONAT,1);ergebnis('');buchungenLaden()});
   ['filterMitarbeiter','filterAuftrag','filterZeitart'].forEach(function(id){el(id).addEventListener('change',function(){ergebnis('');filterSetzen()})});
   var neu=el('neueBuchung');if(neu)neu.addEventListener('click',function(){buchungDialogOeffnen(null)});
   el('bdModusVonBis').addEventListener('click',function(){modusSetzen('vonbis')});

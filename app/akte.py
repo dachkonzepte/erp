@@ -1,5 +1,6 @@
 """Phase je Auftrag und abgeleiteter Projektstatus (seit 1.9.125, Stufe 5, R2, Punkt 1; Vorlage bildgrundlage/entwurf_stufe5/akte-zuordnung.html),
-seit 1.9.126 die Zahlen der Akte je Auftrag (Leistung, Zahlung, Stunden, je Position; unten bei zahlen()).
+seit 1.9.126 die Zahlen der Akte je Auftrag (Leistung, Zahlung, Stunden, je Position; unten bei zahlen()), seit 1.9.128 Kopf und Übersicht der
+Akte (akte_kontext(): Auftragswahl, Phasen, was ansteht, Termine, Ausführung, Befunde, Zähler; hauptaktion() je Phase und Rolle).
 
 Die Phase steht in keinem Feld -- sie ergibt sich aus den Daten, eine Funktion für Akte, Listen und Dashboard. Sie zeigt, wo der Auftrag steht, und
 sperrt nichts (gesperrt wird über den Status, app/auftragsstatus.py).
@@ -22,7 +23,7 @@ Für Listen gesammelt (projekt_status_alle(), signale()): je Art eine Abfrage f�
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime, time
 from decimal import Decimal
 
 from sqlalchemy import case, func, select
@@ -32,7 +33,7 @@ from .auftragsstatus import ABGESCHLOSSEN, GESCHLOSSEN, wert as status_wert
 from .berlin_time import berlin_today
 from .contract_basis import contract_basis_label
 from .models import (
-    Invoice, Order, OrderAcceptance, OrderContract, PlanningSlot, Project, Quote, ServiceReport, TimeEntry, WorkPreparation,
+    Checklist, Invoice, Order, OrderAcceptance, OrderContract, PlanningSlot, Project, Quote, ServiceReport, TimeEntry, WorkPreparation,
 )
 from .rounding import round_half_up, round_hours, round_money
 
@@ -370,3 +371,196 @@ def zahlen(db: Session, order: Order) -> dict:
     """Alle Zahlen der Akte zu einem Auftrag (GET /api/orders/{id}/zahlen)."""
     return {"order_id": order.id, "leistung": leistung(db, order), "zahlung": zahlung(db, order), "stunden": stunden(db, order),
             "positionen": positionen(db, order)}
+
+
+# --- Kopf und Übersicht der Akte (seit 1.9.128, Stufe 5, R2, Punkt 2; Vorlage akte-uebersicht.html) --------------------------------------
+# Was die Seite /projects/{id} beim Laden braucht und nicht selbst rechnen soll: die Aufträge zur Auswahl, der gewählte, seine Phasen, was
+# ansteht, Termine, der Stand der Ausführung und die Zahlen an den Reitern. Die Hauptaktion je Phase und Rolle entscheidet der Router (geld).
+
+def auftrag_waehlen(orders: list[Order], gewuenscht: int | None) -> Order | None:
+    """Der gewählte Auftrag: der gewünschte, sonst der älteste laufende oder pausierte, sonst der jüngste."""
+    if gewuenscht is not None:
+        return next((o for o in orders if o.id == gewuenscht), None)
+    offen = [o for o in orders if status_wert(o.status) not in GESCHLOSSEN]
+    if offen:
+        return min(offen, key=lambda o: o.id)
+    return max(orders, key=lambda o: o.id) if orders else None
+
+
+def _rechnungsname(inv: Invoice) -> str:
+    from .invoices import rechnungsart_text  # lokal wie in signale()
+    return rechnungsart_text(inv)
+
+
+def ansteht(db: Session, order: Order, heute: date | None = None) -> list[dict]:
+    """Was zu diesem Auftrag wartet: überfällige Rechnungen, Befunde zur Prüfung, Checklisten im Entwurf. Je Eintrag Text, Ziel und ob der
+    Knopf zum Geld gehört (die Seite zeigt ihn nur nach darf_geld())."""
+    from .invoices import VALID_STATUSES, _eur, invoice_overview_rows, list_invoices_for_order
+    from .models import Finding
+    from .modules import is_module_enabled
+
+    heute = heute or berlin_today()
+    out = []
+    rechnungen = [i for i in list_invoices_for_order(db, order.id) if i.status in VALID_STATUSES and i.invoice_type != "storno"]
+    je_id = {i.id: i for i in rechnungen}
+    for z in invoice_overview_rows(db, rechnungen):
+        if z["is_overdue"]:
+            inv = je_id[z["id"]]
+            offen = (z["dunning"] or {}).get("dunnable")
+            out.append({"art": "ueberfaellig", "titel": f"{_rechnungsname(inv)} überfällig",
+                        "unter": " · ".join(t for t in (inv.invoice_number, _eur(offen) if offen is not None else None,
+                                                        f"fällig war {tag(inv.due_date, heute)}" if inv.due_date else None) if t),
+                        "href": "/mahnwesen", "knopf": "Mahnen", "geld": True})
+    for befund, bericht in db.execute(select(Finding, ServiceReport).join(ServiceReport, Finding.service_report_id == ServiceReport.id)
+                                      .where(ServiceReport.order_id == order.id, Finding.status == "offen")
+                                      .order_by(ServiceReport.performed_at, Finding.id)):
+        text = (befund.description or "").strip().splitlines()[0][:80] if (befund.description or "").strip() else "ohne Beschreibung"
+        out.append({"art": "befund", "titel": f"Befund prüfen: {text}",
+                    "unter": " · ".join(t for t in (f"Einsatzbericht {tag(bericht.performed_at, heute)}", befund.created_by_name) if t),
+                    "href": f"/service-reports/{bericht.id}", "knopf": "Ansehen", "geld": False})
+    if is_module_enabled(db, "checklisten"):
+        from .berlin_time import to_berlin
+        for c in db.scalars(select(Checklist).where(Checklist.order_id == order.id, Checklist.status == "entwurf").order_by(Checklist.id)):
+            seit = to_berlin(c.created_at).date() if c.created_at else None
+            out.append({"art": "checkliste", "titel": f"Checkliste „{c.template_label_snapshot}“",
+                        "unter": f"im Entwurf seit {tag(seit, heute)}" if seit else "im Entwurf", "href": f"/checklisten/{c.id}",
+                        "knopf": "Öffnen", "geld": False})
+    return out
+
+
+def einsaetze(db: Session, order_id: int) -> list[dict]:
+    """Die Einsätze der Plantafel zu einem Auftrag, nach Beginn."""
+    from .models import WorkPreparationTeamAssignment
+
+    rows = db.execute(select(PlanningSlot, WorkPreparationTeamAssignment).join(WorkPreparation, PlanningSlot.preparation_id == WorkPreparation.id)
+                      .join(WorkPreparationTeamAssignment, PlanningSlot.team_assignment_id == WorkPreparationTeamAssignment.id)
+                      .where(WorkPreparation.order_id == order_id).order_by(PlanningSlot.start_date, PlanningSlot.id)).all()
+    return [{"id": s.id, "start_date": s.start_date, "end_date": s.end_date, "status": s.status, "team": a.team_name_snapshot,
+             "personen": len(a.employees)} for s, a in rows]
+
+
+def ausfuehrung(db: Session, order: Order) -> dict:
+    """Stand der Ausführung: Arbeitsvorbereitung, Einsätze, Berichte, Checklisten, Stunden -- die Seiten dafür bleiben, die Akte führt hin."""
+    from .models import Employee
+    from .modules import is_module_enabled
+    from .service_reports import REPORT_TYPE_LABELS
+
+    av = db.scalar(select(WorkPreparation).where(WorkPreparation.order_id == order.id))
+    berichte = db.scalars(select(ServiceReport).where(ServiceReport.order_id == order.id)
+                          .order_by(ServiceReport.performed_at.desc(), ServiceReport.id.desc())).all()
+    namen = {e.id: f"{e.first_name} {e.last_name}".strip() for e in db.scalars(select(Employee).where(
+        Employee.id.in_([b.created_by_employee_id for b in berichte if b.created_by_employee_id] or [-1])))}
+    checklisten = None
+    if is_module_enabled(db, "checklisten"):
+        checklisten = {s: n for s, n in db.execute(select(Checklist.status, func.count(Checklist.id)).where(Checklist.order_id == order.id)
+                                                    .group_by(Checklist.status))}
+    return {
+        "arbeitsvorbereitung": ({"id": av.id, "status": av.status, "planned_start": av.planned_start, "planned_end": av.planned_end}
+                                if av else None),
+        "einsaetze": einsaetze(db, order.id),
+        "berichte": [{"id": b.id, "performed_at": b.performed_at, "art": REPORT_TYPE_LABELS.get(b.report_type, b.report_type),
+                      "status": b.status, "von": namen.get(b.created_by_employee_id)} for b in berichte],
+        "checklisten": checklisten,
+        "stunden": stunden(db, order),
+    }
+
+
+def hauptaktion(phase: str | None, *, hat_angebot: bool, verweigert: bool, geschlossen: bool, geld: bool) -> dict | None:
+    """Der eine Knopf im Kopf je Phase und Rolle (geld = darf_geld(), entscheidet der Router):
+       ohne Auftrag      ohne Angebot „+ Angebot“, sonst „Beauftragen“ (im Angebot)
+       Auftrag           „Einsatz planen“
+       Ausführung        mit Geld „Rechnung erstellen“, sonst „Einsatz planen“; nach einer verweigerten Abnahme „Abnahme erfassen“
+       Abnahme           mit Geld „Schlussrechnung erstellen“, sonst „Abnahme & Mängel“
+       Schlussrechnung   „Auftrag abschließen“, solange er nicht geschlossen ist
+    """
+    if phase in (None, "angebot"):
+        return {"art": "beauftragen", "text": "Beauftragen"} if hat_angebot else {"art": "angebot", "text": "Angebot"}
+    if geschlossen:
+        return None
+    if phase == "auftrag":
+        return {"art": "einsatz", "text": "Einsatz planen"}
+    if phase == "ausfuehrung":
+        if verweigert:
+            return {"art": "abnahme", "text": "Abnahme erfassen"}
+        return {"art": "rechnung", "text": "Rechnung erstellen"} if geld else {"art": "einsatz", "text": "Einsatz planen"}
+    if phase == "abnahme":
+        return {"art": "schlussrechnung", "text": "Schlussrechnung erstellen"} if geld else {"art": "maengel", "text": "Abnahme & Mängel"}
+    return {"art": "abschliessen", "text": "Auftrag abschließen"}
+
+
+def befunde(db: Session, order: Order) -> list[dict]:
+    """Die Befunde aus den Einsatzberichten des Auftrags (Reiter „Abnahme & Mängel“), neueste zuerst."""
+    from .findings import ACTION_LABELS, SEVERITY_LABELS, STATUS_LABELS
+    from .models import Finding
+
+    out = []
+    for f, b in db.execute(select(Finding, ServiceReport).join(ServiceReport, Finding.service_report_id == ServiceReport.id)
+                           .where(ServiceReport.order_id == order.id).order_by(ServiceReport.performed_at.desc(), Finding.id.desc())):
+        text = (f.description or "").strip().splitlines()[0][:120] if (f.description or "").strip() else "ohne Beschreibung"
+        out.append({"id": f.id, "service_report_id": b.id, "titel": text,
+                    "unter": " · ".join(t for t in (SEVERITY_LABELS.get(f.severity, f.severity), "Maßnahme: " + ACTION_LABELS.get(f.action, f.action),
+                                                    STATUS_LABELS.get(f.status, f.status), f"Einsatzbericht {tag(b.performed_at)}") if t)})
+    return out
+
+
+def termine(db: Session, project: Project, order: Order | None, viewer_user_id: int | None, heute: date | None = None) -> list[dict]:
+    """Was ab heute ansteht: Termine des Projekts (Kalender, privat fremder als „Belegt“) und Einsätze des gewählten Auftrags, nach Tag."""
+    from .calendar_events import event_to_dict, is_redacted_for_viewer, redact_for_busy
+    from .models import CalendarEvent
+    from .modules import is_module_enabled
+
+    heute = heute or berlin_today()
+    out = []
+    if is_module_enabled(db, "kalender"):
+        for ev in db.scalars(select(CalendarEvent).where(CalendarEvent.project_id == project.id, CalendarEvent.end_at >= datetime.combine(heute, time.min))
+                             .order_by(CalendarEvent.start_at).limit(8)):
+            d = event_to_dict(db, ev)
+            if is_redacted_for_viewer(d, viewer_user_id):
+                d = redact_for_busy(d)
+            zeit = "ganztägig" if d["all_day"] else d["start_at"].strftime("%H:%M")
+            out.append({"tag": d["start_at"].date(), "titel": d["title"], "unter": " · ".join(t for t in (zeit, d.get("location"), "Termin") if t),
+                        "quelle": "termin"})
+    if order is not None:
+        for s in einsaetze(db, order.id):
+            if s["end_date"] >= heute:
+                out.append({"tag": s["start_date"], "titel": f"Einsatz {s['team']} · {s['personen']} {'Person' if s['personen'] == 1 else 'Personen'}",
+                            "unter": f"{tag(s['start_date'], heute)}–{tag(s['end_date'], heute)} · Plantafel", "quelle": "einsatz"})
+    out.sort(key=lambda t: t["tag"])
+    return out[:8]
+
+
+def akte_kontext(db: Session, project: Project, gewuenscht: int | None, viewer_user_id: int | None) -> dict:
+    """Was die Akte beim Laden braucht (GET /api/projects/{id}/akte). LookupError: der gewünschte Auftrag gehört nicht zum Projekt."""
+    from .invoices import list_invoices_for_order, order_sum
+    from .models import ProjectDocument
+    from .service_reports import bericht_zum_auftrag_moeglich
+
+    orders = sorted(db.scalars(select(Order).where(Order.project_id == project.id)), key=lambda o: o.id)
+    gewaehlt = auftrag_waehlen(orders, gewuenscht)
+    if gewuenscht is not None and gewaehlt is None:
+        raise LookupError("Auftrag nicht gefunden.")
+    sig = signale(db, [o.id for o in orders])
+    je = {o.id: phasen(o, sig[o.id]) for o in orders}
+    quotes = list(db.scalars(select(Quote).where(Quote.project_id == project.id).order_by(Quote.id)))
+    offen = [q for q in quotes if q.status != "abgelehnt"] or quotes
+    from .auftragsstatus import NAMEN
+    return {
+        "auftraege": [{"id": o.id, "order_number": o.order_number, "title": o.title, "net_total": order_sum(o), "status": status_wert(o.status),
+                       "status_label": NAMEN.get(status_wert(o.status), o.status), "phase": je[o.id]["phase"], "phase_label": je[o.id]["phase_label"]}
+                      for o in orders],
+        "summe_auftraege": sum((order_sum(o) for o in orders), NULL),
+        "auftrag_id": gewaehlt.id if gewaehlt else None,
+        "phasen": je[gewaehlt.id] if gewaehlt else phasen_ohne_auftrag(quotes),
+        "angebot_id": max(offen, key=lambda q: q.id).id if offen else None,
+        "ansteht": ansteht(db, gewaehlt) if gewaehlt else [],
+        "termine": termine(db, project, gewaehlt, viewer_user_id),
+        "ausfuehrung": ausfuehrung(db, gewaehlt) if gewaehlt else None,
+        "befunde": befunde(db, gewaehlt) if gewaehlt else [],
+        "bericht_anlegen": bericht_zum_auftrag_moeglich(gewaehlt) if gewaehlt else False,
+        "zaehler": {"angebote": len(quotes), "leistungen": len(gewaehlt.items) if gewaehlt else 0,
+                    "rechnungen": len(list_invoices_for_order(db, gewaehlt.id)) if gewaehlt else 0,
+                    "dateien": db.scalar(select(func.count(ProjectDocument.id)).where(ProjectDocument.project_id == project.id)) or 0},
+        "_haupt": {"phase": je[gewaehlt.id]["phase"] if gewaehlt else None, "hat_angebot": bool(quotes),
+                   "verweigert": bool(gewaehlt and sig[gewaehlt.id].verweigert is not None),
+                   "geschlossen": bool(gewaehlt and status_wert(gewaehlt.status) in GESCHLOSSEN)},
+    }

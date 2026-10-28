@@ -13,7 +13,7 @@ from fastapi import Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session, object_session, selectinload
 
-from ..akte import PROJEKTSTATUS_NAMEN, projekt_status, projekt_status_alle, soll_stunden
+from ..akte import PROJEKTSTATUS_NAMEN, akte_kontext, hauptaktion, projekt_status, projekt_status_alle, soll_stunden
 from .. import akte_verlauf
 from ..dateiauslieferung import gespeicherter_typ
 from ..database import get_db
@@ -210,6 +210,24 @@ def update_project(project_id: int, payload: ProjectUpdate, db: Session = Depend
     _ensure_project_profile(db, project.id, payload.category)
     db.commit()
     return get_project_detail(project_id, db)
+
+
+@router.get("/api/projects/{project_id}/akte")
+def get_project_akte(project_id: int, auftrag: int | None = None, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.9.128 (Stufe 5, R2, Punkt 2): was die Akte /projects/{id} beim Laden braucht -- Auftragswahl, Phasen, was ansteht, Termine, Stand der
+    Ausführung, Befunde, Zähler der Reiter (app/akte.py::akte_kontext()) und die Hauptaktion je Phase und Rolle (hier: darf_geld()). Ein Auftrag
+    eines anderen Projekts 404."""
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Projekt nicht gefunden.")
+    try:
+        kontext = akte_kontext(db, project, auftrag, _role.id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    haupt = kontext.pop("_haupt")
+    kontext["hauptaktion"] = hauptaktion(haupt["phase"], hat_angebot=haupt["hat_angebot"], verweigert=haupt["verweigert"],
+                                         geschlossen=haupt["geschlossen"], geld=darf_geld(_role))
+    return kontext
 
 
 @router.get("/api/projects/{project_id}/verlauf")

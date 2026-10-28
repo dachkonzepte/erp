@@ -1514,6 +1514,7 @@ class OrderOut(BaseModel):
     project_manager_employee_id: int | None
     project_manager_name: str | None
     sections: list[OrderSectionOut] = Field(default_factory=list)
+    section_totals: dict[str, Decimal] = Field(default_factory=dict)  # seit 1.9.128: Summe je LV-Titel und der Nachträge (nur Büro)
     items: list[OrderItemOut] = Field(default_factory=list)
     net_total: Decimal
     optional_total: Decimal = Decimal("0")
@@ -2644,6 +2645,13 @@ class InvoiceListOut(BaseModel):
     gross_total: Decimal
     payment: PaymentStateOut | None = None  # seit 1.8.78
     overview: dict | None = None  # seit 1.8.91 (app/final_dunning.py::overview())
+    # seit 1.9.128 (D2): dieselben Felder wie die Zeilen der einen Rechnungsliste
+    art_text: str | None = None
+    order_id: int | None = None
+    project_id: int | None = None
+    service_period_start: date | None = None
+    service_period_end: date | None = None
+    dunning: dict | None = None
 
 
 class InvoiceOverviewOut(BaseModel):
@@ -2662,6 +2670,13 @@ class InvoiceOverviewOut(BaseModel):
     payment: PaymentStateOut | None = None  # seit 1.8.78
     not_payable_reason: str | None = None
     overview: dict | None = None  # seit 1.8.91 (app/final_dunning.py::overview())
+    # seit 1.9.128 (Befund D2): eine Rechnungsliste für Akte und Finanzen
+    project_id: int | None = None
+    net_total: Decimal | None = None
+    art_text: str | None = None
+    service_period_start: date | None = None
+    service_period_end: date | None = None
+    dunning: dict | None = None  # überfällig: der angemahnte Betrag (app/final_dunning.py)
 
 
 class InvoiceCreateAbschlagPauschal(BaseModel):

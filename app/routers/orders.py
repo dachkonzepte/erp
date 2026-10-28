@@ -157,6 +157,8 @@ def put_order(order_id: int, payload: OrderUpdate, db: Session = Depends(get_db,
     try:
         # Seit 1.8.32 Teil-Update (Regel 22): nur gesendete Felder.
         order=update_order_header(db,order,**payload.model_dump(exclude_unset=True))
+    except OrderLocked as exc:  # seit 1.9.128 (F2): nach der Schlussrechnung nur Sachbearbeiter und Bemerkungen
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return OrderOut.model_validate(order_to_dict(order, db))

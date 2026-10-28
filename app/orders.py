@@ -405,6 +405,17 @@ def order_to_dict(order: Order, db: Session | None = None, include_sync_state: b
         })
     net = money_q(net)
     optional = money_q(optional)
+    # Seit 1.9.128: Summe je LV-Titel (Positionen „in Summe“, ein Titel samt seiner Untertitel) und der Nachträge -- die Akte zeichnet sie, rechnet nicht
+    direkt: dict[str, Decimal] = {}
+    for row in item_rows:
+        if row["include_in_total"]:
+            key = "nachtraege" if row["is_addendum"] else (str(row["section_id"]) if row["section_id"] is not None else None)
+            if key is not None:
+                direkt[key] = direkt.get(key, Decimal("0")) + row["line_total"]
+    section_totals = {"nachtraege": direkt["nachtraege"]} if "nachtraege" in direkt else {}
+    for s in sections:
+        summe = direkt.get(str(s.id), Decimal("0")) + sum((direkt.get(str(c.id), Decimal("0")) for c in sections if c.parent_id == s.id), Decimal("0"))
+        section_totals[str(s.id)] = money_q(summe)
     vat = money_q(net * Decimal(order.vat_rate or 0) / Decimal("100"))
     gross = money_q(net + vat)
     revisions = sorted(getattr(order, "revisions", []) or [], key=lambda r: r.revision_number)
@@ -453,6 +464,7 @@ def order_to_dict(order: Order, db: Session | None = None, include_sync_state: b
             "section_number": s.section_number,
         } for s in sections],
         "items": item_rows,
+        "section_totals": section_totals,  # seit 1.9.128
         "net_total": net,
         "optional_total": optional,
         "vat_total": vat,
@@ -1007,9 +1019,19 @@ def sync_order_from_source_quote(db: Session, order: Order, *, actor_name: str =
     return load_order(db, order.id)
 
 
+# Seit 1.9.128 (Befund F2): nach der Schlussrechnung bleibt an den Auftragsdaten nur frei, was nicht aufs Dokument geht.
+FREI_NACH_SCHLUSS = frozenset({"caseworker_employee_id", "remarks"})
+
+
 def update_order_header(db: Session, order: Order, **values) -> Order:
+    """Teil-Update der Auftragsdaten. Seit 1.9.128 (F2) unter der Sperre der Auftragszeile: nach der Schlussrechnung (bzw. der abschließenden
+    Rechnung aus Aufwand) ist gesperrt, was auf ein Dokument geht (OrderLocked, 409) -- Sachbearbeiter und Bemerkungen bleiben frei."""
     if "status" in values:  # seit 1.9.124 nur über app/auftragsstatus.py::status_aendern() (das Schema lehnt ihn schon ab, 422)
         raise ValueError("Der Status eines Auftrags ändert sich nur über Pausieren, Fortsetzen, Abschließen und Stornieren.")
+    if set(values) - FREI_NACH_SCHLUSS:
+        reason = final_lock_reason(lock_order_invoices(db, order.id))
+        if reason:
+            raise OrderLocked(reason + " Sachbearbeiter und Bemerkungen bleiben änderbar.")
     _validate_employees(db, values.get("caseworker_employee_id"), values.get("project_manager_employee_id"), bisher=order)
     for key, value in values.items():
         setattr(order, key, value)

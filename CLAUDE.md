@@ -392,8 +392,11 @@ Behoben, drei Teile:
   Arbeitsvorbereitung, Plantafel und Auftragslisten (`planned_hours()` = `soll_stunden()`, `tests/test_v546_akte_zahlen.py`); 1.9.127 Verlauf der
   Akte (`app/akte_verlauf.py`, `GET /api/projects/{id}/verlauf`: ein Strom aus Änderungs- und Versandprotokoll, eine Zeile je Aktion -- Konto, Anfrage,
   5 s --, Filter nach Art und Auftrag über die Kennung des Datensatzes, ohne Zeitbuchungen, geschwärzt wie `/api/audit-logs` über
-  `app/routers/audit.py::sichtbar()`; Befunde stehen seitdem im Änderungsprotokoll; `tests/test_v547_akte_verlauf.py`). Archiv:
-  `docs/archiv/redesign.md`, „Stufe 5, R2“.
+  `app/routers/audit.py::sichtbar()`; Befunde stehen seitdem im Änderungsprotokoll; `tests/test_v547_akte_verlauf.py`); 1.9.128 Kopf und Übersicht
+  der Akte (`app/akte.py::akte_kontext()`, `GET /api/projects/{id}/akte`: Auftragswahl, Phasen, was ansteht, Termine, Ausführung, Zähler, Hauptaktion
+  je Phase und Rolle über `hauptaktion()`), Art einer Rechnung in Worten (`app/invoices.py::rechnungsart_text()`), Summe je LV-Titel
+  (`section_totals`), nach der Schlussrechnung Auftragsdaten gesperrt außer Sachbearbeiter und Bemerkungen (`FREI_NACH_SCHLUSS`, 409), „Zeiten“ mit
+  `zeitraum=alle` für einen Auftrag (`tests/test_v548_akte_kontext.py`). Archiv: `docs/archiv/redesign.md`, „Stufe 5, R2“.
 
 ## Kritische, nicht verhandelbare Regeln
 

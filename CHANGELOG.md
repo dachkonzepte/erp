@@ -4,6 +4,23 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.128 – Kopf und Übersicht der Akte: Auftragswahl, Hauptaktion, was ansteht (Stufe 5, R2, Punkt 2, Server)
+
+Die Akte je Projekt braucht beim Laden mehr, als die Seite selbst rechnen soll: welcher Auftrag gewählt ist, seine Phasen, den einen Knopf im
+Kopf, was ansteht, die nächsten Termine, den Stand der Ausführung und die Zahlen an den Reitern. Das liefert jetzt GET /api/projects/{id}/akte
+(`app/akte.py::akte_kontext()`): ohne Angabe ist der älteste laufende oder pausierte Auftrag gewählt, ein Auftrag eines anderen Projekts ergibt 404.
+Die Hauptaktion folgt der Phase und der Rolle (`hauptaktion()`): ohne Auftrag „Angebot“ bzw. „Beauftragen“, dann „Einsatz planen“, in der Ausführung
+„Rechnung erstellen“ (Büro – Auftrag: „Einsatz planen“; nach einer verweigerten Abnahme „Abnahme erfassen“), nach der Abnahme „Schlussrechnung
+erstellen“ (Büro – Auftrag: „Abnahme & Mängel“), nach der Schlussrechnung „Auftrag abschließen“. „Was ansteht“ nennt überfällige Rechnungen, offene
+Befunde und Checklisten im Entwurf; die Termine kommen aus dem Kalender des Projekts (fremde private als „Belegt“) und der Plantafel.
+
+Dazu, was die Akte vom Auftrag braucht: Summen je LV-Titel und der Nachträge (`section_totals`, nur Büro), die Art einer Rechnung in Worten
+(`app/invoices.py::rechnungsart_text()`: „2. Abschlag nach Leistungsstand“, „Schlussrechnung“ …) mit Leistungszeitraum und Netto an jeder Zeile
+der Rechnungslisten -- die Grundlage einer Liste für Akte und Finanzen (Befund D2). Befund F2: nach der Schlussrechnung ließen sich Bezeichnung,
+Termine, Zahlungsbedingungen und Texte des Auftrags weiter ändern, obwohl sie auf Auftragsbestätigung und Rechnung stehen -- jetzt 409 mit Grund;
+Sachbearbeiter und Bemerkungen bleiben frei. Befund L3: „Alle Buchungen“ führte in „Zeiten“ nur auf den laufenden Monat -- `zeitraum=alle` zeigt
+mit einem Auftrag jede Buchung, gleich aus welchem Monat.
+
 ## 1.9.127 – Verlauf der Akte: ein Strom je Projekt (Stufe 5, R2, Punkt 4)
 
 Was an einem Projekt geschah, stand an drei Stellen: die Historie der Projektmappe (jede Zeile des Änderungsprotokolls einzeln, eine Aktion oft als

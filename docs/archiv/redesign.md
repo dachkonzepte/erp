@@ -7704,3 +7704,48 @@ für die Historie (`test_v436`, `test_v438`: in der Historie stand der Spaltenna
 
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v547`): Zeitbuchungen im Strom -> 1; Gruppe ohne Prüfung von Pfad und Zeit
 -> 5; Filter nach Auftrag ausgeschaltet -> 1; `vor` auf die älteste statt die jüngste Zeile der weggelassenen Gruppe -> 1.
+
+### R2, Punkt 2 (1.9.128): Kopf und Übersicht der Akte, Server
+
+Befund (Stufe 5, D1, D3, F2, L3, 7a): die Projektmappe zeigte Summen über alle Aufträge ohne Auswahl, kein „was jetzt“, keine Termine des Auftrags;
+Auftragsdaten nach der Schlussrechnung frei änderbar; „Zeiten“ aus Mappe und Auftrag nur im laufenden Monat.
+
+- `app/akte.py`: `auftrag_waehlen()`, `ansteht()`, `einsaetze()`, `ausfuehrung()`, `befunde()`, `termine()`, `hauptaktion()`, `akte_kontext()`;
+  `GET /api/projects/{id}/akte?auftrag=` (ab Büro – Auftrag, Monteurin 403): Aufträge mit Summe, Status und Phase, gewählter Auftrag, Phasen (ohne
+  Auftrag die des Angebots), jüngstes nicht abgelehntes Angebot, was ansteht, Termine, Ausführung (Arbeitsvorbereitung, Einsätze, Berichte,
+  Checklisten je Stand, Stunden aus `stunden()`), Befunde, „Bericht anlegen“ nach `bericht_zum_auftrag_moeglich()`, Zähler der Reiter, Hauptaktion
+  (der Router entscheidet mit `darf_geld()`).
+- `app/invoices.py::rechnungsart_text()`; `invoice_overview_row()` und `invoice_to_dict()` mit `art_text`, `project_id`, `net_total`, Leistungszeitraum
+  (Schemas `InvoiceOverviewOut`, `InvoiceListOut`).
+- `app/orders.py::order_to_dict()` mit `section_totals` (Summe je LV-Titel samt Untertiteln, Positionen „in Summe“; Nachträge eigens); `OrderOut`
+  trägt sie, das reduzierte Schema der Monteurin nicht.
+- F2: `update_order_header()` unter der Sperre der Auftragszeile -- nach der Schlussrechnung (bzw. der abschließenden Rechnung aus Aufwand,
+  `final_lock_reason()`) 409 `OrderLocked` für jedes Feld außer `FREI_NACH_SCHLUSS` (Sachbearbeiter, Bemerkungen).
+- L3: `app/zeiten.py::buchungen(alle_monate=True)` und `GET /api/zeiten/buchungen?zeitraum=alle` (nur mit `auftrag`, sonst 422; ein anderer Wert
+  422); `zeiten.html` übernimmt `?zeitraum=alle` mit Auftrag, die Monatspfeile führen zurück in den Monat.
+
+#### Festlegungen 1.9.128 (Bitte bestätigen)
+
+1. Gewählter Auftrag ohne Angabe: der älteste laufende oder pausierte, sonst der jüngste; ein Auftrag eines anderen Projekts 404.
+2. Hauptaktion: ohne Auftrag „Angebot“ (ohne Angebot) bzw. „Beauftragen“; Phase Auftrag „Einsatz planen“; Ausführung „Rechnung erstellen“, für Büro
+   – Auftrag „Einsatz planen“, nach verweigerter Abnahme „Abnahme erfassen“; Abnahme „Schlussrechnung erstellen“ bzw. „Abnahme & Mängel“;
+   Schlussrechnung „Auftrag abschließen“; abgeschlossen oder storniert keine.
+3. Was ansteht: überfällige Rechnung (Knopf „Mahnen“ ins Mahnwesen, nur mit `darf_geld()`), offener Befund (zum Bericht), Checkliste im Entwurf.
+4. Termine: ab heute höchstens acht -- Kalender des Projekts (ohne Modul keine; fremde private als „Belegt“) und Einsätze des gewählten Auftrags.
+5. F2: nach der Schlussrechnung ist jedes Feld der Auftragsdaten gesperrt, das auf ein Dokument geht; frei bleiben Sachbearbeiter und Bemerkungen.
+6. Art einer Rechnung in Worten: „n. Abschlag nach Leistungsstand“, pauschal die Bezeichnung (aus „n. Abschlagsrechnung“ wird „n. Abschlag“),
+   „Schlussrechnung“, „Rechnung aus Aufwand“ bzw. „Abschließende Rechnung aus Aufwand“, „Storno“.
+7. Summe je LV-Titel = Positionen „in Summe“ des Titels und seiner Untertitel; Nachträge eine eigene Summe.
+8. L3: „alle Monate“ nur mit einem Auftrag; aus „alle Monate“ führen die Monatspfeile in den Monat von heute.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v548_akte_kontext.py` (13 Tests): Hauptaktion je Phase und Rolle (Auftrag, Ausführung mit und ohne Geld, verweigerte Abnahme,
+Abnahme, Schlussrechnung, abgeschlossen); ohne Auftrag „Angebot“ bzw. „Beauftragen“ mit der Phase des Angebots; zwei Aufträge (der älteste
+laufende, nach Storno der andere, gewählt bleibt gewählt, Auftrag eines anderen Projekts 404); was ansteht, Termine (fremder privater als
+„Belegt“, vergangene nicht), Zähler, Befunde, Berichte; F2 (vier Felder 409 mit Grund, Bemerkungen und Sachbearbeiter 200); Summen je Titel samt
+Untertitel und Nachträge, nicht für die Monteurin, `art_text` in beiden Rechnungslisten; Art einer Rechnung in Worten (5 Fälle); Monteurin 403;
+L3 (zwei Monate, Summe, ohne Auftrag 422, unbekannter Zeitraum 422).
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v548`): Hauptaktion ohne Rolle -> 1; F2 ohne Sperre -> 1; Summe je Titel
+ohne Untertitel -> 1; „alle Monate“ ohne Wirkung -> 1.

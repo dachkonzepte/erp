@@ -95,9 +95,16 @@ def zeiten_pruefen(request: Request, db: Session = Depends(get_db, scope="functi
 
 @router.get("/api/zeiten/buchungen")
 def zeiten_buchungen(request: Request, monat_: str | None = Query(None, alias="monat"), mitarbeiter: int | None = None, auftrag: int | None = None,
-                     zeitart: str | None = Query(None, max_length=40), db: Session = Depends(get_db, scope="function"), user: AppUser = _buero_dep):
-    """„Buchungen“ eines Monats nach den Filtern, mit der „Summe der Auswahl“; je Buchung darf_aendern (Ändern und Löschen)."""
-    daten = buchungen(db, _monat(monat_), employee_id=mitarbeiter, order_id=auftrag, entry_type=zeitart or None)
+                     zeitart: str | None = Query(None, max_length=40), zeitraum: str | None = Query(None, max_length=10),
+                     db: Session = Depends(get_db, scope="function"), user: AppUser = _buero_dep):
+    """„Buchungen“ eines Monats nach den Filtern, mit der „Summe der Auswahl“; je Buchung darf_aendern (Ändern und Löschen). Seit 1.9.128
+    (Befund L3) zeitraum=alle: alle Monate eines Auftrags (ohne Auftrag 422)."""
+    if zeitraum not in (None, "", "monat", "alle"):
+        raise HTTPException(status_code=422, detail="Unbekannter Zeitraum.")
+    try:
+        daten = buchungen(db, _monat(monat_), employee_id=mitarbeiter, order_id=auftrag, entry_type=zeitart or None, alle_monate=zeitraum == "alle")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     lock = locked_until(db)
     for e in daten["eintraege"]:
         e["darf_aendern"] = e["status"] == "booked" and _darf_aendern(user, e["employee_id"], e["work_date"], lock)

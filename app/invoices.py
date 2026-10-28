@@ -1807,6 +1807,7 @@ def invoice_to_dict(invoice: Invoice) -> dict:
         "project_number": invoice.order.project.project_number,
         "customer_id": invoice_customer_id(invoice),  # seit 1.8.79 der festgehaltene Kunde
         "invoice_type": invoice.invoice_type,
+        "art_text": rechnungsart_text(invoice),  # seit 1.9.128 (D2)
         "status": invoice.status,
         "invoice_date": invoice.invoice_date,
         "due_date": invoice.due_date,
@@ -1932,6 +1933,22 @@ def list_invoices_for_project(db: Session, project_id: int) -> list[Invoice]:
     ).all()
 
 
+def rechnungsart_text(invoice: Invoice) -> str:
+    """Art einer Rechnung für Listen und die Akte (seit 1.9.128): „2. Abschlag nach Leistungsstand“, die Bezeichnung eines pauschalen Abschlags,
+    „Schlussrechnung“, „Rechnung aus Aufwand“ (abschließend), „Storno“."""
+    import re
+
+    if invoice.invoice_type == "abschlag_leistungsstand":
+        m = re.match(r"\s*(\d+)\.", invoice.progress_description or "")
+        return f"{m.group(1)}. Abschlag nach Leistungsstand" if m else "Abschlag nach Leistungsstand"
+    if invoice.invoice_type == "abschlag_pauschal":
+        text = (invoice.progress_description or "").strip()
+        m = re.match(r"\s*(\d+)\.\s*Abschlagsrechnung\s*$", text)
+        return f"{m.group(1)}. Abschlag" if m else (text or "Abschlag")
+    return {"schluss": "Schlussrechnung", "storno": "Storno",
+            "aufwand": "Abschließende Rechnung aus Aufwand" if invoice.closes_order else "Rechnung aus Aufwand"}.get(invoice.invoice_type, "Rechnung")
+
+
 def invoice_overview_rows(db: Session, invoices: list[Invoice]) -> list[dict]:
     """Zeilen für Finanzen und Projektmappe, der Zahlstand aller Rechnungen in einer Abfrage (seit 1.8.78); seit 1.8.89 auch, was zu
     jeder gemahnt werden kann (app/final_dunning.py, für "überfällig")."""
@@ -1961,7 +1978,11 @@ def invoice_overview_row(invoice: Invoice, state=None, dunning=None) -> dict:
         "order_id": invoice.order_id,
         "order_number": invoice.order.order_number if invoice.order else None,
         "project_number": invoice.order.project.project_number if invoice.order and invoice.order.project else None,
+        "project_id": invoice.order.project_id if invoice.order else None,  # seit 1.9.128: Link in die Akte
         "gross_total": totals["gross_total"],
+        # seit 1.9.128 (Befund D2): die eine Rechnungsliste von Akte und Finanzen zeigt Art, Zeitraum und Netto
+        "net_total": totals["net_total"], "art_text": rechnungsart_text(invoice),
+        "service_period_start": invoice.service_period_start, "service_period_end": invoice.service_period_end,
     }
 
 

@@ -299,13 +299,18 @@ def _listenzeilen(db: Session, rows: list[TimeEntry], namen: dict) -> list[dict]
     return zeilen
 
 
-def buchungen(db: Session, erster: date, *, employee_id: int | None = None, order_id: int | None = None, entry_type: str | None = None) -> dict:
+def buchungen(db: Session, erster: date, *, employee_id: int | None = None, order_id: int | None = None, entry_type: str | None = None,
+              alle_monate: bool = False) -> dict:
     """„Buchungen“: die Buchungen des Monats nach den Filtern (Mitarbeiter, Auftrag, Zeitart, mit UND verknüpft) in der Reihenfolge der
     Vorlage (reihenfolge()), und die „Summe der Auswahl“ über genau diese Zeilen (tagessumme(): eine laufende Zeit zählt nicht mit). Dazu die
     Auswahl der Filter: jeder aktive Mitarbeiter und jeder, der im Monat gebucht hat; jeder Auftrag des Monats (und der gefilterte); die
-    Zeitarten."""
+    Zeitarten. Seit 1.9.128 (Befund L3) alle_monate: alle Buchungen eines Auftrags, gleich aus welchem Monat (nur mit order_id; „Alle Buchungen
+    des Auftrags“ aus der Akte) -- zeitraum „alle“, Titel „alle Monate“."""
+    if alle_monate and order_id is None:
+        raise ValueError("Alle Monate gibt es nur für einen Auftrag.")
     ende = monat_ende(erster)
-    alle = list_entries(db, start_date=erster, end_date=ende, limit=None)
+    alle = (list_entries(db, order_id=order_id, limit=None) if alle_monate
+            else list_entries(db, start_date=erster, end_date=ende, limit=None))
     rows = sorted((r for r in alle if (employee_id is None or r.employee_id == employee_id) and (order_id is None or r.order_id == order_id)
                    and (entry_type is None or r.entry_type == entry_type)), key=reihenfolge)
     namen = _entry_type_labels(db)
@@ -321,7 +326,10 @@ def buchungen(db: Session, erster: date, *, employee_id: int | None = None, orde
     zeitarten = dict(namen)
     for r in alle:
         zeitarten.setdefault(r.entry_type, r.entry_type)
-    return {**_monat_kopf(erster), "status": _status(erster, load_time_settings(db).locked_until),
+    kopf = {**_monat_kopf(erster), "zeitraum": "monat"}
+    if alle_monate:
+        kopf.update(titel="alle Monate", zeitraum="alle")
+    return {**kopf, "status": _status(erster, load_time_settings(db).locked_until),
             "eintraege": heute_zeilen, "summe": round_hours(tagessumme(rows)), "laufend": sum(1 for r in rows if r.status == "running"),
             "filter": {
                 "mitarbeiter": sorted(({"id": i, "name": n} for i, n in leute.items()), key=lambda x: (x["name"] or "").casefold()),
