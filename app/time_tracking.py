@@ -731,8 +731,8 @@ def summarize_entries(
 ) -> dict:
     """Seit 1.8.9: Summen über ALLE Treffer von list_entries() mit denselben Filtern, per SUM in
     der Datenbank -- vorher bildeten Einsatzbericht-Seite und Projektmappe sie in der Oberfläche
-    aus einer auf 500 bzw. 1000 Zeilen gekürzten Liste. Stunden wie order_actual_hours() nur aus
-    gebuchten Zeiten (ein laufender Timer trägt 0 Stunden)."""
+    aus einer auf 500 bzw. 1000 Zeilen gekürzten Liste. Stunden wie app/akte.py::stunden() nur aus
+    gebuchten Zeiten (ein laufender Timer trägt 0 Stunden); total_hours ist dort „gebucht“."""
     filters = _entry_filters(employee_id=employee_id, project_id=project_id, order_id=order_id, start_date=start_date, end_date=end_date)
     booked = TimeEntry.status=="booked"
 
@@ -754,28 +754,8 @@ def summarize_entries(
     }
 
 
-def order_actual_hours(db: Session, order_id: int) -> dict:
-    rows = db.execute(
-        select(TimeEntry.counts_as_productive, TimeEntry.entry_type, func.coalesce(func.sum(TimeEntry.hours), 0))
-        .where(TimeEntry.order_id==order_id, TimeEntry.status=="booked")
-        .group_by(TimeEntry.counts_as_productive, TimeEntry.entry_type)
-    ).all()
-    productive=Decimal("0"); travel=Decimal("0"); total=Decimal("0")
-    by_type={}
-    for productive_flag, entry_type, hours in rows:
-        h=_d(hours); total+=h; by_type[entry_type]=round_hours(h)
-        if productive_flag: productive+=h
-        if entry_type=="travel": travel+=h
-    return {"productive_hours":round_hours(productive),"travel_hours":round_hours(travel),"total_hours":round_hours(total),"by_type":by_type}
-
-
-def order_item_actual_hours(db: Session, order_id: int) -> dict[int, Decimal]:
-    rows=db.execute(
-        select(TimeEntry.order_item_id, func.coalesce(func.sum(TimeEntry.hours),0))
-        .where(TimeEntry.order_id==order_id, TimeEntry.status=="booked", TimeEntry.counts_as_productive==True, TimeEntry.order_item_id.is_not(None))
-        .group_by(TimeEntry.order_item_id)
-    ).all()
-    return {int(item_id):round_hours(_d(hours)) for item_id,hours in rows}
+# Seit 1.9.126: die Stunden eines Auftrags (gebucht, Fahrzeit, Baustelle & Werkstatt, je Position) rechnet nur app/akte.py::stunden() bzw.
+# ist_je_position() -- bis 1.9.125 standen hier order_actual_hours() („produktiv“) und order_item_actual_hours() (Befund F19).
 
 
 def employee_assigned_order_ids(db: Session, employee_id: int) -> set[int]:

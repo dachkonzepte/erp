@@ -4,6 +4,20 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.126 – Zahlen der Akte: Leistung, Zahlung, Stunden, je Position (Stufe 5, R2, Punkt 1)
+
+Die Zahlen eines Auftrags standen an vielen Stellen mit eigener Rechnung: die Auftragsseite zeigte die Summen dreimal, die Projektmappe rechnete
+„Noch offen“ im Browser, die Arbeitsvorbereitung verglich „Ist produktiv“ mit Planstunden, die auch Positionen außerhalb der Summe zählten (Befund
+F18), die Berichtsliste zeigte „Gesamt“ mit Fahrzeit (F19), und GET /api/orders lieferte Abrechnung und Planstunden gar nicht (F21). Jetzt rechnet
+`app/akte.py` jede Zahl einmal, und GET /api/orders/{id}/zahlen liefert sie für die Akte: Leistung netto (Auftragssumme mit Nachträgen,
+abgerechnet, noch nicht abgerechnet -- nach der abschließenden Rechnung nichts mehr, weniger oder mehr als die Auftragssumme steht daneben),
+Zahlung brutto (in Rechnung gestellt, bezahlt abzüglich Erstattungen, Skonto, unbezahlt wie in Finanzen, Einbehalt, Guthaben, überfällig mit dem
+Tag der ältesten Fälligkeit), Stunden (Soll nur aus Positionen „in Summe“, gebucht, Fahrzeit, Baustelle & Werkstatt, je Mitarbeiter mit Tagen)
+und je Position die abgerechnete Menge aus der zuletzt festgeschriebenen Rechnung mit Prozent und Std. Ist/Soll.
+
+Dieselben Zahlen nutzen jetzt Arbeitsvorbereitung (Soll, Gebucht, davon Fahrzeit, Baustelle & Werkstatt, Abweichung), Plantafel (Planstunden),
+GET /api/orders und GET /api/projects/{id}/orders. `order_actual_hours()` und `order_item_actual_hours()` entfallen.
+
 ## 1.9.125 – Phase je Auftrag und abgeleiteter Projektstatus (Stufe 5, R2, Punkt 1)
 
 Die Phasen der künftigen Akte (Angebot, Auftrag, Ausführung, Abnahme, Schlussrechnung) standen in keinem Feld, und der Projektstatus war eine freie

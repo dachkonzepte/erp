@@ -11,12 +11,11 @@ from fastapi import Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session, object_session, selectinload
 
-from ..akte import PROJEKTSTATUS_NAMEN, projekt_status, projekt_status_alle
+from ..akte import PROJEKTSTATUS_NAMEN, projekt_status, projekt_status_alle, soll_stunden
 from ..dateiauslieferung import gespeicherter_typ
 from ..database import get_db
 from ..document_categories import resolve_category_id
 from ..invoices import invoice_overview_rows, invoice_summary_for_order, list_invoices_for_project
-from ..work_preparation import planned_hours
 from ..models import AppUser, Customer, Order, Project, ProjectDocument, ProjectPipelineColumn, ProjectProfile, Property, Quote
 from ..option_settings import default_option_value
 from ..orders import change_orders_customer, load_order, order_to_dict
@@ -306,7 +305,7 @@ def list_project_orders(project_id: int, db: Session = Depends(get_db, scope="fu
     for row in orders:
         loaded=load_order(db,row.id); values=order_to_dict(loaded, db)
         invoice_count, fully_invoiced = invoice_summary_for_order(db, loaded.id)
-        result.append(OrderListOut(id=loaded.id,order_number=loaded.order_number,project_id=loaded.project_id,project_number=loaded.project.project_number,project_name=loaded.project.name,customer_name=loaded.customer_name,title=loaded.title,status=loaded.status,order_date=loaded.order_date,net_total=values["net_total"],gross_total=values["gross_total"],invoice_count=invoice_count,fully_invoiced=fully_invoiced,invoiced_net=values["invoiced_net"],invoiced_gross=values["invoiced_gross"],planned_hours=planned_hours(loaded),service_report_count=count_reports_for_order(db, loaded.id),
+        result.append(OrderListOut(id=loaded.id,order_number=loaded.order_number,project_id=loaded.project_id,project_number=loaded.project.project_number,project_name=loaded.project.name,customer_name=loaded.customer_name,title=loaded.title,status=loaded.status,order_date=loaded.order_date,net_total=values["net_total"],gross_total=values["gross_total"],invoice_count=invoice_count,fully_invoiced=fully_invoiced,invoiced_net=values["invoiced_net"],invoiced_gross=values["invoiced_gross"],planned_hours=soll_stunden(loaded),service_report_count=count_reports_for_order(db, loaded.id),
                                   status_label=values["status_label"],phase=values["phase"],phase_label=values["phase_label"]))
     return result
 

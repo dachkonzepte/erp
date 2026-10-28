@@ -387,7 +387,9 @@ Behoben, drei Teile:
   `app/routers/pages.py::_zahl()` (0–9, höchstens 9 Stellen). Klicktest `klicktest_zeiten.py`. Archiv: `docs/archiv/redesign.md`, „R5b“.
 - **Stufe 5, R2 „Akte je Projekt“ (seit 1.9.124):** Vorlagen `bildgrundlage/entwurf_stufe5/akte-*.html`; Bildgrundlage vor dem Umbau
   `bildgrundlage/e13058e/`. 1.9.124 Auftragsstatus (vier Werte, Übergänge mit Begründung, siehe `Order` unter „Fachbegriffe“); 1.9.125 Phase und
-  abgeleiteter Projektstatus (`app/akte.py`). Archiv:
+  abgeleiteter Projektstatus (`app/akte.py`); 1.9.126 Zahlen der Akte je Auftrag (`app/akte.py::zahlen()`, `GET /api/orders/{id}/zahlen`: Leistung
+  netto, Zahlung brutto wie Finanzen, Stunden mit Soll nur „in Summe“ und Ist = Baustelle & Werkstatt, je Position) -- dieselben Zahlen in
+  Arbeitsvorbereitung, Plantafel und Auftragslisten (`planned_hours()` = `soll_stunden()`, `tests/test_v546_akte_zahlen.py`). Archiv:
   `docs/archiv/redesign.md`, „Stufe 5, R2“.
 
 ## Kritische, nicht verhandelbare Regeln

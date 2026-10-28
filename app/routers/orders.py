@@ -22,6 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..acceptances import AcceptanceExistsError
+from ..akte import soll_stunden, zahlen
 from ..auftragsstatus import BegruendungFehlt, StatusKonflikt, status_aendern, wechsel, wechsel_dict
 from ..contract_basis import ContractSignedError, change_order_contract_basis, list_order_contract_basis_changes
 from ..database import get_db
@@ -34,7 +35,7 @@ from ..orders import SyncBlockedError, add_order_addendum, create_order_revision
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
 from ..service_reports import bericht_zum_auftrag_moeglich
 from ..time_tracking import auftrag_zeiten_gesperrt
-from ..schemas import OrderAddendumCreate, OrderContractBasisChangeOut, OrderContractBasisUpdate, OrderEmailSend, OrderFieldAccessOut, OrderItemUpdate, OrderListOut, OrderOut, OrderRevisionCreate, OrderRevisionOut, OrderSectionUpdate, OrderStatusChangeOut, OrderStatusChangeRequest, OrderSyncRequest, OrderUpdate, TaxKeySelection
+from ..schemas import OrderAddendumCreate, OrderContractBasisChangeOut, OrderContractBasisUpdate, OrderEmailSend, OrderFieldAccessOut, OrderItemUpdate, OrderListOut, OrderOut, OrderRevisionCreate, OrderRevisionOut, OrderSectionUpdate, OrderStatusChangeOut, OrderStatusChangeRequest, OrderSyncRequest, OrderUpdate, TaxKeySelection, AkteZahlenOut
 
 router = APIRouter()
 
@@ -113,9 +114,21 @@ def list_all_orders(db: Session = Depends(get_db, scope="function"), _role: AppU
             customer_name=loaded.customer_name, title=loaded.title, status=loaded.status,
             order_date=loaded.order_date, net_total=values["net_total"], gross_total=values["gross_total"],
             invoice_count=invoice_count, fully_invoiced=fully_invoiced,
+            # seit 1.9.126 wie GET /api/projects/{id}/orders (Befund F21: bis 1.9.125 hier immer 0)
+            invoiced_net=values["invoiced_net"], invoiced_gross=values["invoiced_gross"], planned_hours=soll_stunden(loaded),
             status_label=values["status_label"], phase=values["phase"], phase_label=values["phase_label"],  # seit 1.9.124/1.9.125
         ))
     return result
+
+
+@router.get("/api/orders/{order_id}/zahlen", response_model=AkteZahlenOut)
+def get_order_zahlen(order_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.9.126 (Stufe 5, R2): die Zahlen der Akte je Auftrag -- Leistung, Zahlung, Stunden, je Position (app/akte.py::zahlen()).
+    Nur Büro (Büro – Auftrag liest das Geld, die Knöpfe zeigt die Seite nach darf_geld()); die Monteurin bekommt keine Akte."""
+    order = load_order(db, order_id)
+    if order is None:
+        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden.")
+    return zahlen(db, order)
 
 
 @router.get("/api/orders/{order_id}", response_model=OrderOut | OrderFieldAccessOut)

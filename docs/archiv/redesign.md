@@ -7601,3 +7601,58 @@ Klicktests (Endlauf 97 von 99, beide roten aus demselben Grund, danach 2 von 2):
 
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v545`): späteste statt früheste Phase -> 1; ein geplanter Einsatz zählt -> 1; eine
 verweigerte Abnahme zählt -> 1; der Status in `ProjectUpdate` ohne Ablehnung -> 1.
+
+### R2, Punkt 1c (1.9.126): Zahlen der Akte
+
+Befund (Stufe 5, D1, D5, F18, F19, F21): Summen des Auftrags dreimal auf der Auftragsseite, „Noch offen“ = noch nicht abgerechnet neben „Offen“ =
+unbezahlt; `planned_hours()` zählte jede Position mit Kalkulation, auch außerhalb der Summe; die AV verglich „produktiv“ (ohne Fahrzeit und
+Schlechtwetter, mit „Sonstige“) mit dem Soll, die Berichtsliste zeigte „Gesamt“; GET /api/orders lieferte `invoiced_net`, `invoiced_gross`,
+`planned_hours` nur mit der Vorgabe 0.
+
+- `app/akte.py` (Teil „Zahlen der Akte“): `soll_stunden()` (Kalkulation × Menge, nur „in Summe“), `leistung()` (Auftragssumme aus
+  `app/invoices.py::order_sum()`, Nachträge, abgerechnet aus `compute_order_billing_progress()`, `vollstaendig` aus der abschließenden Rechnung,
+  `noch_nicht_abgerechnet`, `unter_auftragssumme`, `ueber_auftragssumme`), `zahlung()` (je festgeschriebener Rechnung ohne Storno die Zeile aus
+  `invoice_overview_rows()`: Brutto, bezahlt, Skonto, `overview.open/retained/credit/refunded`, überfällig = mahnfähiger Betrag nach der Fälligkeit),
+  `stunden()` (gebucht, Fahrzeit, Baustelle & Werkstatt, ohne Position, Abweichung, je Zeitart, je Mitarbeiter mit Tagen), `ist_je_position()`,
+  `positionen()` (Stand der zuletzt festgeschriebenen Abschlagsrechnung nach Leistungsstand bzw. Schlussrechnung wie
+  `get_previous_cumulative_ist()`, Quelle des Stands), `zahlen()`.
+- `GET /api/orders/{id}/zahlen` (`AkteZahlenOut`, ab Büro – Auftrag; die Monteurin 403).
+- `app/work_preparation.py`: `planned_hours()` = `soll_stunden()`; die Stundenfelder der AV aus `stunden()` (`_stunden_felder()`), auch in der
+  Vorschau ohne AV. Die Seite benennt sie wie die Akte: „Soll (Kalkulation)“, „Gebucht (alle Zeitarten)“, „davon Fahrzeit“, „Baustelle & Werkstatt“,
+  „Abweichung Baustelle & Werkstatt − Soll“.
+- GET /api/orders: `invoiced_net`, `invoiced_gross`, `planned_hours` wie GET /api/projects/{id}/orders (F21).
+- `app/time_tracking.py`: `order_actual_hours()` und `order_item_actual_hours()` entfallen (keine zweite Rechnung).
+
+#### Festlegungen 1.9.126 (Bitte bestätigen)
+
+1. Ist gegen Soll = gebuchte Stunden Baustelle und Werkstatt (die Zeitarten der Kalkulation); „Sonstige Arbeitszeit“ und Schlechtwetter zählen im
+   Gebuchten, nicht im Vergleich (bis 1.9.125 verglich die AV „produktiv“, also mit „Sonstige“).
+2. Std. Ist je Position: Baustelle und Werkstatt mit Bezug auf die Position; was ohne Position gebucht ist, steht als „ohne Position“ daneben, die
+   Fußzeile nimmt die Summe der Stunden (dieselbe Zahl wie in der Übersicht).
+3. Nach der abschließenden Rechnung ist nichts mehr „noch nicht abgerechnet“; liegt die Endrechnung unter der Auftragssumme, steht der Rest als
+   „weniger abgerechnet als beauftragt“, über der Auftragssumme als „mehr abgerechnet“.
+4. „Bezahlt“ ist wie „Bezahlt (gesamt)“ in Finanzen: Zahlungen auf die Rechnungen abzüglich der Erstattungen an der Schlussrechnung; Skonto steht
+   getrennt, so dass in Rechnung gestellt = bezahlt + Skonto + unbezahlt.
+5. „Überfällig“ ist der mahnfähige Betrag der Rechnungen nach ihrer Fälligkeit (ohne Einbehalt), mit dem Tag der ältesten Fälligkeit.
+6. Abgerechnet je Position ist die kumulierte Ist-Menge der zuletzt festgeschriebenen Abschlagsrechnung nach Leistungsstand bzw. Schlussrechnung
+   (wie der Vorschlag der nächsten Rechnung); ein Storno nimmt den Stand zurück, ein Entwurf zählt nicht, ein pauschaler Abschlag hat keinen Stand.
+7. Prozent ganzzahlig, kaufmännisch gerundet; ohne Bezugsgröße (Auftragssumme, Menge, Soll 0) keine Angabe.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v546_akte_zahlen.py` (8 Tests), jede Zahl aus den Rechnungen bzw. Buchungen nachgerechnet: Auftrag mit drei Positionen, einer
+Bedarfsposition außerhalb der Summe und einem Nachtrag ohne Kalkulation; zwei festgeschriebene Abschläge (bezahlt; teilweise bezahlt und überfällig),
+ein dritter storniert, ein vierter im Entwurf; Buchungen zweier Mitarbeiter in allen Zeitarten mit und ohne Position, ein laufender Timer. Leistung
+(Summe der Netto der gültigen Rechnungen), Zahlung (Summe Brutto, bezahlt, offen wie Finanzen, überfällig mit Tag), Stunden (Summe der gebuchten,
+Soll ohne die Bedarfsposition, je Mitarbeiter), je Position (Stand aus dem 2. Abschlag, nicht aus dem stornierten; Ist und Soll), nach der
+Schlussrechnung nichts mehr offen, ohne Rechnung und Buchung alles 0; dieselben Zahlen in AV, GET /api/orders und GET /api/projects/{id}/orders;
+der Endpunkt für die drei Büro-Rollen 200, für die Monteurin 403, unbekannter Auftrag 404.
+
+Angepasste Erwartungen:
+- `test_v100::test_manual_productive_and_travel_hours_are_separated`: `order_actual_hours()` -> `app/akte.py::stunden()`, „produktiv“ 7,50 ->
+  „Baustelle & Werkstatt“ 7,50, Fahrzeit und gebucht unverändert; je Position über `ist_je_position()` (gleicher Wert).
+- `test_v440::DRITTE_PERSON`: der Eintrag „Sie entsprechen automatisch“ (Hinweis der AV) entfällt -- der Satz ist neu gefasst, ohne „Sie“.
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v546`): Soll auch aus Positionen außerhalb der Summe -> 2; „Sonstige“ zählt
+zu Baustelle & Werkstatt -> 2; Stand je Position auch aus dem Storno -> 1. Die Erstattung an der Schlussrechnung ist in den Testdaten nicht
+vorhanden (die Rechnung „bezahlt“ übernimmt die Formel von Finanzen, `test_v394`), dafür keine eigene Gegenprobe.

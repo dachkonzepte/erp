@@ -119,7 +119,7 @@ DRITTE_PERSON = {
     ("app/templates/checklist.html", "Sie bleibt als Beleg"): "die Anzeige",
     ("app/templates/checklist.html", "Sie bleibt mit der Begründung"): "die Anzeige",
     ("app/templates/invoice_detail.html", "Sie wird zunächst als Entwurf angelegt"): "die Stornorechnung",
-    ("app/templates/work_preparation.html", "Sie entsprechen automatisch"): "die Planstunden",
+    # seit 1.9.126 entfallen: ("app/templates/work_preparation.html", "Sie entsprechen automatisch") -- der Hinweis der AV ist neu gefasst
     ("app/checklists.py", "Sie bleiben samt ihren Fotos"): "die verworfenen Unterschriften",
     ("app/invoices.py", "Sie muss über 0 € liegen"): "die Rechnung (zwei Stellen in amount_block_reason)",
 }

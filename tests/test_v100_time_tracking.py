@@ -14,8 +14,7 @@ from app.orders import create_order_from_quote
 from app.schemas import CustomerCreate, ProjectCreate, QuoteCreate, QuoteItemCreate
 from app.service import persist_project
 from app.time_tracking import (
-    create_manual_entry, start_timer, stop_timer, order_actual_hours,
-    order_item_actual_hours, time_tracking_context,
+    create_manual_entry, start_timer, stop_timer, time_tracking_context,
 )
 from app.work_preparation import ensure_preparation, preparation_to_dict
 
@@ -46,11 +45,13 @@ def test_manual_productive_and_travel_hours_are_separated():
     db=db_session();order=setup_order(db);emp=add_employee(db);item=order.items[0]
     create_manual_entry(db,employee_id=emp.id,order_id=order.id,order_item_id=item.id,work_date=date(2026,9,7),hours=Decimal("7.5"),entry_type="site")
     create_manual_entry(db,employee_id=emp.id,order_id=order.id,work_date=date(2026,9,7),hours=Decimal("1"),entry_type="travel")
-    result=order_actual_hours(db,order.id)
-    assert result["productive_hours"]==Decimal("7.50")
-    assert result["travel_hours"]==Decimal("1.00")
-    assert result["total_hours"]==Decimal("8.50")
-    by_item=order_item_actual_hours(db,order.id)
+    # seit 1.9.126 rechnet app/akte.py die Stunden (bis 1.9.125 order_actual_hours(): „produktiv“ statt Baustelle & Werkstatt)
+    from app.akte import ist_je_position, stunden
+    result=stunden(db,order)
+    assert result["baustelle_werkstatt"]==Decimal("7.50")
+    assert result["fahrzeit"]==Decimal("1.00")
+    assert result["gebucht"]==Decimal("8.50")
+    by_item=ist_je_position(db,order.id)
     assert by_item[item.id]==Decimal("7.50")
 
 

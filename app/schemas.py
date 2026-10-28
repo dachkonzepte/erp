@@ -1284,6 +1284,81 @@ class OrderStatusChangeRequest(BaseModel):
         return self
 
 
+# Seit 1.9.126 (Stufe 5, R2, Punkt 1): die Zahlen der Akte je Auftrag (app/akte.py::zahlen()).
+class AkteLeistungOut(BaseModel):
+    auftragssumme: Decimal
+    nachtraege: Decimal
+    abgerechnet: Decimal
+    abgerechnet_prozent: int | None = None
+    vollstaendig: bool
+    noch_nicht_abgerechnet: Decimal
+    unter_auftragssumme: Decimal
+    ueber_auftragssumme: Decimal
+
+
+class AkteZahlungOut(BaseModel):
+    rechnungen: int
+    in_rechnung: Decimal
+    bezahlt: Decimal
+    bezahlt_prozent: int | None = None
+    erstattet: Decimal
+    skonto: Decimal
+    unbezahlt: Decimal
+    einbehalt: Decimal
+    guthaben: Decimal
+    ueberfaellig: Decimal
+    ueberfaellig_seit: date | None = None
+
+
+class AkteMitarbeiterStundenOut(BaseModel):
+    employee_id: int
+    name: str
+    tage: int
+    fahrzeit: Decimal
+    stunden: Decimal
+
+
+class AkteStundenOut(BaseModel):
+    soll: Decimal
+    gebucht: Decimal
+    fahrzeit: Decimal
+    baustelle_werkstatt: Decimal
+    ohne_position: Decimal
+    abweichung: Decimal
+    prozent_vom_soll: int | None = None
+    je_zeitart: dict[str, Decimal] = Field(default_factory=dict)
+    mitarbeiter: list[AkteMitarbeiterStundenOut]
+
+
+class AktePositionOut(BaseModel):
+    item_id: int
+    abgerechnet_menge: Decimal
+    abgerechnet_prozent: int | None = None
+    stunden_ist: Decimal
+    stunden_soll: Decimal | None = None
+
+
+class AkteStandQuelleOut(BaseModel):
+    invoice_id: int
+    invoice_number: str | None = None
+    invoice_date: date | None = None
+    invoice_type: str
+    bezeichnung: str | None = None
+
+
+class AktePositionenOut(BaseModel):
+    zeilen: list[AktePositionOut]
+    quelle: AkteStandQuelleOut | None = None
+
+
+class AkteZahlenOut(BaseModel):
+    order_id: int
+    leistung: AkteLeistungOut
+    zahlung: AkteZahlungOut
+    stunden: AkteStundenOut
+    positionen: AktePositionenOut
+
+
 class OrderStatusChangeOut(BaseModel):
     id: int
     order_id: int

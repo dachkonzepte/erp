@@ -9,8 +9,8 @@ from .models import (
     WorkPreparationTeamEmployee, WorkPreparationTeamResource, WorkPreparationDeliveryNote,
     WorkPreparationMaterialDeliveryNote,
 )
+from .akte import ist_je_position, soll_stunden, stunden as akte_stunden
 from .rounding import round_hours
-from .time_tracking import order_actual_hours, order_item_actual_hours
 
 QTY = Decimal("0.001")
 
@@ -108,12 +108,20 @@ def ensure_preparation(db: Session, order_id: int) -> WorkPreparation:
 
 
 def planned_hours(order: Order) -> Decimal:
-    total = Decimal("0")
-    for item in order.items:
-        calc = item.calculation_snapshot
-        if calc:
-            total += ((_d(calc.site_time_minutes) + _d(calc.workshop_time_minutes)) / Decimal("60")) * _d(item.quantity)
-    return round_hours(total)
+    """Planstunden = Soll aus der Kalkulation, nur Positionen „in Summe“ -- seit 1.9.126 die Rechnung der Akte (app/akte.py::soll_stunden(),
+    Befund F18; bis 1.9.125 zählten auch Positionen außerhalb der Summe). Arbeitsvorbereitung, Plantafel und Auftragslisten nutzen sie."""
+    return soll_stunden(order)
+
+
+def _stunden_felder(db: Session, order: Order) -> dict:
+    """Die Stunden der Arbeitsvorbereitung -- seit 1.9.126 dieselben Zahlen wie in der Akte (app/akte.py::stunden(), Befund F19): Ist =
+    Baustelle & Werkstatt (bis 1.9.125 „produktiv“, auch „Sonstige“), gebucht = alle Zeitarten wie die Summe der Berichtsliste."""
+    st = akte_stunden(db, order)
+    return {
+        "planned_total_hours": st["soll"], "actual_total_hours": st["baustelle_werkstatt"], "actual_travel_hours": st["fahrzeit"],
+        "actual_all_hours": st["gebucht"], "hours_variance": st["abweichung"], "time_by_type": st["je_zeitart"],
+        "order_item_actual_hours": {str(k): v for k, v in ist_je_position(db, order.id).items()},
+    }
 
 
 def preparation_to_dict(db: Session, prep: WorkPreparation) -> dict:
@@ -122,7 +130,6 @@ def preparation_to_dict(db: Session, prep: WorkPreparation) -> dict:
     if prep.id is None:
         return _preview_to_dict(db, prep)
     order = _load_order_full(db, prep.order_id)
-    hours = planned_hours(order)
     employee_hours = round_hours(sum((_d(x.planned_hours) for x in prep.employees), Decimal("0")))
     open_tasks = sum(1 for t in prep.tasks if t.status != "erledigt")
     supplier_links = {x.material_id: x for x in db.scalars(
@@ -207,10 +214,6 @@ def preparation_to_dict(db: Session, prep: WorkPreparation) -> dict:
             "delivery_note_number": x.delivery_note_number,
             "document_date": x.document_date, "notes": x.notes, "created_at": x.created_at,
         })
-    actual = order_actual_hours(db, order.id)
-    item_actual = order_item_actual_hours(db, order.id)
-    planned = hours
-    productive_actual = actual["productive_hours"]
     return {
         "id": prep.id,
         "order_id": order.id,
@@ -223,13 +226,7 @@ def preparation_to_dict(db: Session, prep: WorkPreparation) -> dict:
         "planned_end": prep.planned_end,
         "site_notes": prep.site_notes,
         "material_notes": prep.material_notes,
-        "planned_total_hours": planned,
-        "actual_total_hours": productive_actual,
-        "actual_travel_hours": actual["travel_hours"],
-        "actual_all_hours": actual["total_hours"],
-        "hours_variance": round_hours(productive_actual - planned),
-        "time_by_type": actual["by_type"],
-        "order_item_actual_hours": {str(k): v for k, v in item_actual.items()},
+        **_stunden_felder(db, order),  # seit 1.9.126 aus der Akte
         "assigned_planned_hours": employee_hours,
         "open_task_count": open_tasks,
         "material_count": len(material_rows),
@@ -253,9 +250,6 @@ def _preview_to_dict(db: Session, prep: WorkPreparation) -> dict:
     """Die Vorschau (seit 1.8.84): was das Anlegen ergäbe -- Kopf aus dem Auftrag, Materialbedarf aus der Kalkulation,
     Ist-Stunden aus der Zeiterfassung; ohne IDs, Zuordnungen, Teams, Aufgaben und Lieferscheine."""
     order = _load_order_full(db, prep.order_id)
-    planned = planned_hours(order)
-    actual = order_actual_hours(db, order.id)
-    item_actual = order_item_actual_hours(db, order.id)
     items = {item.id: item for item in order.items}
     materials = [{
         "id": None, "article_number": m.article_number, "name": m.name, "unit": m.unit,
@@ -270,10 +264,7 @@ def _preview_to_dict(db: Session, prep: WorkPreparation) -> dict:
         "id": None, "order_id": order.id, "order_number": order.order_number, "project_id": order.project_id,
         "project_number": order.project.project_number, "project_name": order.project.name, "status": prep.status,
         "planned_start": prep.planned_start, "planned_end": prep.planned_end, "site_notes": None, "material_notes": None,
-        "planned_total_hours": planned, "actual_total_hours": actual["productive_hours"],
-        "actual_travel_hours": actual["travel_hours"], "actual_all_hours": actual["total_hours"],
-        "hours_variance": round_hours(actual["productive_hours"] - planned), "time_by_type": actual["by_type"],
-        "order_item_actual_hours": {str(k): v for k, v in item_actual.items()},
+        **_stunden_felder(db, order),  # seit 1.9.126 aus der Akte
         "assigned_planned_hours": Decimal("0"), "open_task_count": 0, "material_count": len(materials),
         "employees": [], "teams": [], "tasks": [], "materials": materials, "delivery_notes": [],
     }

@@ -1,4 +1,5 @@
-"""Phase je Auftrag und abgeleiteter Projektstatus (seit 1.9.125, Stufe 5, R2, Punkt 1; Vorlage bildgrundlage/entwurf_stufe5/akte-zuordnung.html).
+"""Phase je Auftrag und abgeleiteter Projektstatus (seit 1.9.125, Stufe 5, R2, Punkt 1; Vorlage bildgrundlage/entwurf_stufe5/akte-zuordnung.html),
+seit 1.9.126 die Zahlen der Akte je Auftrag (Leistung, Zahlung, Stunden, je Position; unten bei zahlen()).
 
 Die Phase steht in keinem Feld -- sie ergibt sich aus den Daten, eine Funktion für Akte, Listen und Dashboard. Sie zeigt, wo der Auftrag steht, und
 sperrt nichts (gesperrt wird über den Status, app/auftragsstatus.py).
@@ -33,7 +34,7 @@ from .contract_basis import contract_basis_label
 from .models import (
     Invoice, Order, OrderAcceptance, OrderContract, PlanningSlot, Project, Quote, ServiceReport, TimeEntry, WorkPreparation,
 )
-from .rounding import round_half_up, round_hours
+from .rounding import round_half_up, round_hours, round_money
 
 PHASEN = ("angebot", "auftrag", "ausfuehrung", "abnahme", "schlussrechnung")
 PHASE_NAMEN = {"angebot": "Angebot", "auftrag": "Auftrag", "ausfuehrung": "Ausführung", "abnahme": "Abnahme",
@@ -202,3 +203,170 @@ def projekt_status_alle(db: Session, project_ids, heute: date | None = None) -> 
 
 def projekt_status(db: Session, project: Project) -> str:
     return projekt_status_alle(db, [project.id])[project.id]
+
+
+# --- Zahlen der Akte (seit 1.9.126, Stufe 5, R2, Punkt 1; Befund F18, F19, F21) -------------------------------------------------------------
+# Je Zahl eine Rechnung, die Akte, Arbeitsvorbereitung, Plantafel und die Auftragslisten gemeinsam benutzen (Vorlage akte-uebersicht.html,
+# akte-leistungen.html):
+#   Leistung netto   Auftragssumme (Positionen „in Summe“, Nachträge eingeschlossen, app/invoices.py::order_sum()), abgerechnet (festgeschriebene
+#                    Rechnungen ohne Stornos und stornierte, app/invoices.py::compute_order_billing_progress()), noch nicht abgerechnet; nach der
+#                    abschließenden Rechnung ist nichts mehr „noch nicht abgerechnet“ -- weniger bzw. mehr als die Auftragssumme steht daneben
+#   Zahlung brutto   in Rechnung gestellt (Brutto derselben Rechnungen), bezahlt (abzüglich Erstattungen, wie „Bezahlt (gesamt)“ in Finanzen),
+#                    Skonto, unbezahlt (wie Finanzen und Dashboard: nach der gültigen Endrechnung ihr Zahlbetrag, app/final_dunning.py::overview()),
+#                    davon Einbehalt, Guthaben, überfällig (der mahnfähige Betrag nach der Fälligkeit) mit dem Tag der ältesten Fälligkeit
+#   Stunden          Soll aus der Kalkulation der Positionen „in Summe“ (Nachträge ohne Kalkulation tragen nichts), gebucht (alle Zeitarten, nur
+#                    gebuchte -- ein laufender Timer trägt nichts), Fahrzeit, Baustelle & Werkstatt (die Zeitarten der Kalkulation) gegen das Soll
+#   je Position      abgerechnet (kumulierte Ist-Menge der zuletzt festgeschriebenen Abschlagsrechnung nach Leistungsstand bzw. Schlussrechnung,
+#                    wie app/invoices.py::get_previous_cumulative_ist(), Prozent der Menge) und Std. Ist/Soll (Baustelle & Werkstatt mit Bezug auf
+#                    die Position gegen Kalkulation × Menge)
+
+BAUSTELLE_WERKSTATT = ("site", "workshop")
+FAHRZEIT = "travel"
+NULL = Decimal("0")
+
+
+def _d(x) -> Decimal:
+    return Decimal(str(x)) if x is not None else NULL
+
+
+def _prozent(teil: Decimal, ganz: Decimal) -> int | None:
+    """Ganze Prozent, kaufmännisch gerundet; ohne Bezugsgröße keine Angabe."""
+    return int(round_half_up(_d(teil) / _d(ganz) * 100, Decimal("1"))) if ganz else None
+
+
+def soll_je_position(item) -> Decimal:
+    """Planstunden einer Position: (Baustelle + Werkstatt) Minuten der Kalkulation / 60 × Menge; ohne Kalkulation 0 (ungerundet)."""
+    calc = item.calculation_snapshot
+    if calc is None:
+        return NULL
+    return (_d(calc.site_time_minutes) + _d(calc.workshop_time_minutes)) / Decimal("60") * _d(item.quantity)
+
+
+def soll_stunden(order: Order) -> Decimal:
+    """Soll aus der Kalkulation, nur Positionen „in Summe“ -- die eine Rechnung für Akte, Arbeitsvorbereitung und Plantafel
+    (app/work_preparation.py::planned_hours()). Bis 1.9.125 zählte planned_hours() auch Positionen außerhalb der Summe (Befund F18)."""
+    return round_hours(sum((soll_je_position(i) for i in order.items if i.include_in_total), NULL))
+
+
+def leistung(db: Session, order: Order) -> dict:
+    from .invoices import compute_order_billing_progress, invoice_summary_for_order, order_sum  # lokal wie in signale()
+
+    summe = order_sum(order)
+    nachtraege = order_sum_nachtraege(order)
+    abgerechnet = compute_order_billing_progress(db, order.id)["invoiced_net"]
+    vollstaendig = invoice_summary_for_order(db, order.id)[1]
+    return {
+        "auftragssumme": summe, "nachtraege": nachtraege, "abgerechnet": abgerechnet, "abgerechnet_prozent": _prozent(abgerechnet, summe),
+        "vollstaendig": vollstaendig,
+        "noch_nicht_abgerechnet": NULL if vollstaendig else max(summe - abgerechnet, NULL),
+        "unter_auftragssumme": max(summe - abgerechnet, NULL) if vollstaendig else NULL,
+        "ueber_auftragssumme": max(abgerechnet - summe, NULL),
+    }
+
+
+def order_sum_nachtraege(order: Order) -> Decimal:
+    """Der Anteil der Nachträge an der Auftragssumme (seit 1.8.83 Auftragspositionen mit is_addendum)."""
+    return sum((round_money(_d(i.quantity) * _d(i.unit_price)) for i in order.items if i.include_in_total and i.is_addendum), NULL)
+
+
+def zahlung(db: Session, order: Order) -> dict:
+    """Brutto über die festgeschriebenen Rechnungen des Auftrags (ohne Stornos und stornierte) -- je Rechnung dieselbe Zeile wie in Finanzen
+    und den Rechnungslisten (app/invoices.py::invoice_overview_rows())."""
+    from .invoices import VALID_STATUSES, invoice_overview_rows, list_invoices_for_order  # lokal wie in signale()
+
+    gezaehlt = [i for i in list_invoices_for_order(db, order.id) if i.status in VALID_STATUSES and i.invoice_type != "storno"]
+    w = {"rechnungen": len(gezaehlt), "in_rechnung": NULL, "bezahlt": NULL, "erstattet": NULL, "skonto": NULL, "unbezahlt": NULL,
+         "einbehalt": NULL, "guthaben": NULL, "ueberfaellig": NULL, "ueberfaellig_seit": None}
+    for zeile in invoice_overview_rows(db, gezaehlt):
+        w["in_rechnung"] += _d(zeile["gross_total"])
+        stand = zeile["payment"] or {}
+        w["bezahlt"] += _d(stand.get("paid"))
+        w["skonto"] += _d(stand.get("skonto"))
+        ueber = zeile["overview"] or {}
+        w["erstattet"] += _d(ueber.get("refunded"))
+        w["unbezahlt"] += max(_d(ueber.get("open")), NULL)
+        w["einbehalt"] += _d(ueber.get("retained"))
+        w["guthaben"] += _d(ueber.get("credit"))
+        if zeile["is_overdue"]:
+            w["ueberfaellig"] += _d((zeile["dunning"] or {}).get("dunnable"))
+            if w["ueberfaellig_seit"] is None or zeile["due_date"] < w["ueberfaellig_seit"]:
+                w["ueberfaellig_seit"] = zeile["due_date"]
+    w["bezahlt"] -= w["erstattet"]
+    w["bezahlt_prozent"] = _prozent(w["bezahlt"], w["in_rechnung"]) if w["in_rechnung"] > 0 else None
+    return w
+
+
+def stunden(db: Session, order: Order) -> dict:
+    """Gebuchte Stunden je Zeitart und je Mitarbeiter, dazu das Soll; ohne_position = Baustelle & Werkstatt ohne Bezug auf eine Position."""
+    from .models import Employee
+
+    gebucht = fahrzeit = bw = ohne_position = NULL
+    je: dict[int, dict] = {}
+    je_zeitart: dict[str, Decimal] = {}
+    for emp_id, art, tag_, position, h in db.execute(
+            select(TimeEntry.employee_id, TimeEntry.entry_type, TimeEntry.work_date, TimeEntry.order_item_id, TimeEntry.hours)
+            .where(TimeEntry.order_id == order.id, TimeEntry.status == "booked")):
+        h = _d(h)
+        gebucht += h
+        je_zeitart[art] = je_zeitart.get(art, NULL) + h
+        zeile = je.setdefault(emp_id, {"tage": set(), "fahrzeit": NULL, "stunden": NULL})
+        zeile["tage"].add(tag_)
+        zeile["stunden"] += h
+        if art == FAHRZEIT:
+            fahrzeit += h
+            zeile["fahrzeit"] += h
+        if art in BAUSTELLE_WERKSTATT:
+            bw += h
+            if position is None:
+                ohne_position += h
+    namen = ({e.id: f"{e.first_name} {e.last_name}".strip() for e in db.scalars(select(Employee).where(Employee.id.in_(list(je))))}
+             if je else {})
+    soll = soll_stunden(order)
+    mitarbeiter = [{"employee_id": k, "name": namen.get(k, f"Nr. {k}"), "tage": len(v["tage"]), "fahrzeit": round_hours(v["fahrzeit"]),
+                    "stunden": round_hours(v["stunden"])} for k, v in je.items()]
+    mitarbeiter.sort(key=lambda x: (-x["stunden"], x["name"]))
+    return {"soll": soll, "gebucht": round_hours(gebucht), "fahrzeit": round_hours(fahrzeit), "baustelle_werkstatt": round_hours(bw),
+            "ohne_position": round_hours(ohne_position), "abweichung": round_hours(bw - soll), "prozent_vom_soll": _prozent(bw, soll),
+            "je_zeitart": {k: round_hours(v) for k, v in je_zeitart.items()}, "mitarbeiter": mitarbeiter}
+
+
+def ist_je_position(db: Session, order_id: int) -> dict[int, Decimal]:
+    """Std. Ist je Position: gebuchte Baustelle & Werkstatt mit Bezug auf die Position (Akte und Arbeitsvorbereitung)."""
+    return {int(k): round_hours(_d(v)) for k, v in db.execute(
+        select(TimeEntry.order_item_id, func.coalesce(func.sum(TimeEntry.hours), 0))
+        .where(TimeEntry.order_id == order_id, TimeEntry.status == "booked", TimeEntry.order_item_id.is_not(None),
+               TimeEntry.entry_type.in_(BAUSTELLE_WERKSTATT))
+        .group_by(TimeEntry.order_item_id))}
+
+
+def positionen(db: Session, order: Order) -> dict:
+    """Stand je Position: abgerechnete Menge (letzter festgeschriebener Stand) mit Prozent, Std. Ist/Soll; dazu die Rechnung des Stands."""
+    from .invoices import VALID_STATUSES  # lokal wie in signale()
+    from .models import InvoiceItem
+
+    stand: dict[int, Decimal] = {}
+    quelle = None
+    for item_id, ist, inv_id, nummer, am, art, bezeichnung in db.execute(
+            select(InvoiceItem.source_order_item_id, InvoiceItem.ist_quantity, Invoice.id, Invoice.invoice_number, Invoice.invoice_date,
+                   Invoice.invoice_type, Invoice.progress_description)
+            .join(Invoice, InvoiceItem.invoice_id == Invoice.id)
+            .where(Invoice.order_id == order.id, Invoice.status.in_(VALID_STATUSES),
+                   Invoice.invoice_type.in_(("abschlag_leistungsstand", "schluss")), InvoiceItem.source_order_item_id.is_not(None))
+            .order_by(Invoice.finalized_at.is_(None), Invoice.finalized_at.desc(), Invoice.invoice_date.desc(), Invoice.id.desc())):
+        if quelle is None:
+            quelle = {"invoice_id": inv_id, "invoice_number": nummer, "invoice_date": am, "invoice_type": art, "bezeichnung": bezeichnung}
+        stand.setdefault(item_id, _d(ist))
+    ist_h = ist_je_position(db, order.id)
+    zeilen = []
+    for item in sorted(order.items, key=lambda x: (x.sort_order, x.id)):
+        menge = stand.get(item.id, NULL)
+        zeilen.append({"item_id": item.id, "abgerechnet_menge": menge, "abgerechnet_prozent": _prozent(menge, _d(item.quantity)),
+                       "stunden_ist": ist_h.get(item.id, round_hours(NULL)),
+                       "stunden_soll": round_hours(soll_je_position(item)) if item.calculation_snapshot is not None else None})
+    return {"zeilen": zeilen, "quelle": quelle}
+
+
+def zahlen(db: Session, order: Order) -> dict:
+    """Alle Zahlen der Akte zu einem Auftrag (GET /api/orders/{id}/zahlen)."""
+    return {"order_id": order.id, "leistung": leistung(db, order), "zahlung": zahlung(db, order), "stunden": stunden(db, order),
+            "positionen": positionen(db, order)}
