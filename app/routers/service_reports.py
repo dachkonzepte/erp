@@ -34,7 +34,7 @@ from ..database import get_db
 from ..meldungen import BERICHT_STORNIERT, KEIN_MITARBEITER
 from ..models import AppUser, InspectionItem, Order, ServiceReportAsset, ServiceReportMaterial, ServiceReportPhoto
 from ..modules import is_module_enabled
-from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
+from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, darf_fuer_andere_erfassen, require_min_role
 from ..schemas import (
     InspectionItemCreate, InspectionItemOut, InspectionItemResultUpdate, InspectionItemsSyncResult,
     PropertyAccessOut, RoofAreaFieldOut, RoofAreaOut, ServiceReportAssetCreate, ServiceReportAssetOut, ServiceReportAssetUpdate,
@@ -90,7 +90,7 @@ def _employee_for_request(request: Request, requested_employee_id: int | None) -
     ein Mangel ist die Feststellung, aus der ggf. ein Folgeauftrag entsteht, ein Bericht kann
     versehentlich unter fremdem Namen unterschrieben werden, wenn das nicht durchgesetzt wird."""
     user = getattr(request.state, "erp_user", None)
-    if user is not None and user.role != "admin":
+    if not darf_fuer_andere_erfassen(user):  # seit 1.9.112 die Regel aus app/permissions.py (dieselbe wie bisher: nur der Admin)
         if requested_employee_id is not None and requested_employee_id != user.employee_id:
             raise HTTPException(status_code=403, detail="Du darfst nur dich selbst als Mitarbeiter angeben.")
         return user.employee_id

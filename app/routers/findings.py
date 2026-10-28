@@ -4,7 +4,7 @@ deaktiviertem Modul, gleiches Muster wie bei service_reports.py/inspection_templ
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -18,7 +18,6 @@ from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import FindingCreate, FindingFollowupUpdate, FindingOut
 from ..zugehoerigkeit import NotInOrderProperty
 from .orders import require_field_report_ownership
-from .service_reports import _employee_for_request
 from .tasks import _require_module_enabled as _require_tasks_module_enabled, _require_visible_task
 
 router = APIRouter()
@@ -86,16 +85,19 @@ def get_report_findings(report_id: int, db: Session = Depends(get_db, scope="fun
 
 
 @router.post("/api/service-reports/{report_id}/findings", response_model=FindingOut)
-def post_finding(report_id: int, payload: FindingCreate, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+def post_finding(report_id: int, payload: FindingCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
     _require_module_enabled(db)
     require_field_report_ownership(db, _role, report_id)
-    employee_id = _employee_for_request(request, payload.created_by_employee_id)
+    # Seit 1.9.112 (Stufe 5, R1, Punkt 2, F1): „erfasst von“ ist das anlegende Konto -- Konto, Name und dessen Mitarbeiter aus der Anmeldung,
+    # für jede Rolle. Bis 1.9.111 nahm der Endpunkt den mitgeschickten Mitarbeiter (die Seite schickte den Ersteller des Berichts): das Büro
+    # bekam im Bericht der Monteurin 403, der Admin schrieb den Befund still ihr zu.
     try:
         return create_finding(
             db, report_id, payload.description, payload.severity, payload.action,
             inspection_item_id=payload.inspection_item_id, roof_component_id=payload.roof_component_id,
-            resubmission_date=payload.resubmission_date, created_by_employee_id=employee_id,
-            closed_by_employee_id=_role.employee_id,
+            resubmission_date=payload.resubmission_date, created_by_employee_id=_role.employee_id,
+            closed_by_employee_id=_role.employee_id, created_by_user_id=_role.id,
+            created_by_name=_role.display_name or _role.username,
         )
     except NotInOrderProperty as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

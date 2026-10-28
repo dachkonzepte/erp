@@ -4,6 +4,16 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.112 – Befund im Bericht jeder Person, „erfasst von“ ist das Konto (Stufe 5, R1)
+
+Das Büro bekam im Einsatzbericht der Monteurin beim Anlegen eines Befunds 403 („Du darfst nur dich selbst als Mitarbeiter angeben.“): die Seite
+schickte als „erfasst von“ den Ersteller des Berichts mit, und der Admin schrieb den Befund so still der Monteurin zu. Jetzt setzt der Server „erfasst
+von“ aus der Anmeldung -- das anlegende Konto mit seinem Namen und seinem Mitarbeiter (Migration `3e9b7c41d2a8`: `findings.created_by_user_id` und
+`created_by_name`, beide leer erlaubt); wer es mitschickt, bekommt 422. Der Befund zeigt „erfasst von …“; ältere Befunde nennen ihren Mitarbeiter.
+
+„Durchgeführt von“ beim Anlegen eines Berichts bietet nur noch an, was der Server annimmt: der Admin jede Person, jedes andere Konto sich selbst oder
+niemanden -- bis 1.9.111 allen alle (403 bei einer fremden Person). Die Regel steht jetzt in `app/permissions.py::darf_fuer_andere_erfassen()`.
+
 ## 1.9.111 – Mit Geld arbeiten nur Admin und Büro – Finanzen (Stufe 5, R1)
 
 Entscheidung von Tobias: Rechnungen anlegen, ändern, festschreiben, versenden, stornieren und Entwürfe löschen, Zahlungen buchen, zuordnen,

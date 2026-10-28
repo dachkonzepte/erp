@@ -377,6 +377,9 @@ def test_non_admin_cannot_set_foreign_employee_id_on_add_material():
 
 
 def test_non_admin_cannot_set_foreign_employee_id_on_create_finding():
+    """Seit 1.9.112 setzt der Server „erfasst von“ aus der Anmeldung (Stufe 5, R1, Punkt 2): eine fremde Person lehnt schon das Schema ab
+    (über die API 422, bis 1.9.111 403 im Endpunkt), ohne Angabe ist es das eigene Konto mit seinem Mitarbeiter."""
+    from pydantic import ValidationError
     db = db_session()
     order, _ = make_order_with_item(db)
     report = create_report(db, order.id, "rapport")
@@ -384,14 +387,12 @@ def test_non_admin_cannot_set_foreign_employee_id_on_create_finding():
     emp2 = make_employee(db, "M-2", "Otto", "Zwei")
     user = make_non_admin(db, emp1.id, "sb4")
     try:
-        post_finding(
-            report["id"],
-            FindingCreate(description="Mangel", severity="mittel", action="sofort_behoben", created_by_employee_id=emp2.id),
-            request_with_user(user), db=db, _role=user,
-        )
-        assert False, "sollte HTTPException auslösen"
-    except Exception as exc:
-        assert getattr(exc, "status_code", None) == 403
+        FindingCreate(description="Mangel", severity="mittel", action="sofort_behoben", created_by_employee_id=emp2.id)
+        assert False, "sollte die Angabe ablehnen"
+    except ValidationError as exc:
+        assert "Erfasst von" in str(exc)
+    befund = post_finding(report["id"], FindingCreate(description="Mangel", severity="mittel", action="sofort_behoben"), db=db, _role=user)
+    assert befund["created_by_employee_id"] == emp1.id
 
 
 # --- Zwei-Unterschriften-PDF ------------------------------------------------------------------

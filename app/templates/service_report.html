@@ -590,8 +590,8 @@ aktion('befund-anlegen',function(k){
   var text=el('befund-text-'+s).value.trim();if(!text){meldung('Bitte den Befund beschreiben.');return}
   var massnahme=el('befund-massnahme-'+s).value,wiedervorlage=el('befund-wiedervorlage-'+s).value||null;
   if(massnahme==='zurueckgestellt'&&!wiedervorlage){meldung('Bitte ein Wiedervorlagedatum angeben.');return}
-  var body={description:text,severity:stand.schwere,action:massnahme,inspection_item_id:k.dataset.punkt?Number(k.dataset.punkt):null,resubmission_date:wiedervorlage,
-    created_by_employee_id:R.created_by_employee_id||null};
+  // seit 1.9.112 ohne Mitarbeiter: „erfasst von“ setzt der Server aus der Anmeldung (bis 1.9.111 ging der Ersteller des Berichts mit -- 403 fürs Büro)
+  var body={description:text,severity:stand.schwere,action:massnahme,inspection_item_id:k.dataset.punkt?Number(k.dataset.punkt):null,resubmission_date:wiedervorlage};
   speichern('befunde',()=>api('/api/service-reports/'+REPORT_ID+'/findings',{method:'POST',headers:JSON_KOPF,body:JSON.stringify(body)}),{neuLaden:befundeLaden})
     .then(function(){delete BEFUND_FORM[s];
       if(body.inspection_item_id)punktNeuZeichnen(body.inspection_item_id);else inhaltZeichnen();
@@ -612,6 +612,7 @@ function befundKarteHtml(f){
     +(punkt?'<span class="eintrag-neben">zu „'+esc(punkt.text)+'“</span>':'')+(f.roof_component_name?'<span class="eintrag-neben">'+esc(f.roof_component_name)+'</span>':'')+'</div>'
     +'<div class="eintrag-text">'+esc(f.description)+'</div>'
     +'<div class="eintrag-neben">Maßnahme: '+esc(f.action_label)+(f.resubmission_date?' · Wiedervorlage '+esc(fmtDatum(f.resubmission_date)):'')
+    +(f.created_by_name?'<span data-erfasst-von> · erfasst von '+esc(f.created_by_name)+'</span>':'')
     +(f.follow_up_order_id&&DARF_BUERO?' · <a href="/orders/'+f.follow_up_order_id+'">Folgeauftrag ansehen</a>':'')+'</div>'
     +'<div class="fotos" id="befund-fotos-'+f.id+'">'+fotos.map(fotoHtml).join('')+(entwurf()?fotoKnoepfeHtml('karte-foto-'+f.id,'data-befund="'+f.id+'"'):'')
     +(!fotos.length?'<span class="befund-stand" style="color:var(--ds-signal-text)">Foto fehlt</span>':'')+'</div>'

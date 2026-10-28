@@ -221,6 +221,15 @@ function zeitMitarbeiterOptionen(){
 function employeeOptionsHtml(selected,name=null){
   return auswahlOptionen(employees,selected??'',e=>e.first_name+' '+e.last_name,{leer:'— nicht zugeordnet —',fehlt:()=>`${name||'Mitarbeiter'} (nicht mehr verfügbar)`});
 }
+// Seit 1.9.112 (Stufe 5, R1, Punkt 2): „Durchgeführt von“ bietet nur an, was der Server annimmt (app/permissions.py::darf_fuer_andere_erfassen(),
+// Seitenroute) -- der Admin jede Person, jedes andere Konto sich selbst oder niemanden; bis 1.9.111 jedem alle (403 bei einer fremden Person).
+const FUER_ANDERE_ERFASSEN="{{ 'ja' if fuer_andere_erfassen else 'nein' }}"!=="nein";
+function durchgefuehrtVonOptionen(){
+  const eigen=authStatus&&authStatus.user?authStatus.user.employee_id:null;
+  if(FUER_ANDERE_ERFASSEN)return employeeOptionsHtml(eigen);
+  const ich=employees.find(e=>e.id===eigen);
+  return '<option value="">— nicht zugeordnet —</option>'+(ich?`<option value="${ich.id}" selected>${esc(ich.first_name+' '+ich.last_name)}</option>`:'');
+}
 function editRoofAreaChecksHtml(selectedIds){
   return roofAreasForOrder.map(a=>`<label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:400;min-height:48px">
     <input type="checkbox" value="${a.id}" style="width:22px;height:22px" ${selectedIds.includes(a.id)?'checked':''} data-aenderung="flaeche-gewaehlt"> ${esc(a.name)}
@@ -254,7 +263,7 @@ aktion('art-gewaehlt',()=>{document.getElementById('editInspectionTemplate').inn
 function openCreateEditor(){
   document.getElementById('editType').value='rapport';
   document.getElementById('editPerformedAt').value=berlinToday();
-  document.getElementById('editEmployee').innerHTML=employeeOptionsHtml(authStatus.user?authStatus.user.employee_id:null);
+  document.getElementById('editEmployee').innerHTML=durchgefuehrtVonOptionen();
   document.getElementById('editRoofAreaChecks').innerHTML=editRoofAreaChecksHtml([]);
   document.getElementById('editInspectionTemplate').innerHTML=inspectionTemplateOptionsHtml(null,'rapport');
   onEditRoofAreaChange();

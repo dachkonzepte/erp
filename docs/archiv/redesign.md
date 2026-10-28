@@ -6842,3 +6842,51 @@ war ungerendert kein gültiges JS -- seitdem `"{{ … }}"!=="nein"`).
 
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, Prüfsumme verglichen, je FAILED): Büro – Auftrag in `GELD_ROLLEN` -> 37 Tests rot (34 Szenarien,
 Regel, Liste, Seiten); „Zustellung nachtragen“ ohne `_require_geld_for()` -> 1 Test rot.
+
+### R1, Punkt 2 (1.9.112): Befund im Bericht jeder Person, „Durchgeführt von“
+
+Befund F1: die Berichtsseite schickte beim Anlegen eines Befunds `created_by_employee_id` = Ersteller des Berichts mit; der Server
+(`_employee_for_request()`) ließ eine fremde Person nur dem Admin -- Büro – Finanzen und Büro – Auftrag bekamen 403, der Admin schrieb den Befund still
+der Monteurin zu. Ebenso bot „Durchgeführt von“ beim Anlegen eines Berichts allen Rollen alle Mitarbeiter an (403 bei einer fremden Person).
+
+- „Erfasst von“ ist das anlegende Konto: `app/routers/findings.py::post_finding()` setzt `created_by_user_id`, `created_by_name` (Anzeigename) und
+  `created_by_employee_id` (Mitarbeiter des Kontos, sonst leer) aus der Anmeldung, für jede Rolle; „geschlossen von“ bei „sofort behoben“ wie seit
+  1.8.70 das Konto. `FindingCreate` lehnt `created_by_employee_id` mit 422 ab (wie `FindingFollowupUpdate` „geschlossen von“). Migration
+  `3e9b7c41d2a8`: zwei leere Spalten an `findings` (ohne Fremdschlüssel wie `email_dispatches.created_by_user_id`); `downgrade()` verweigert, solange
+  ein Befund ein Konto trägt.
+- Ausgabe `created_by_name`: das Konto, bei Befunden von vor 1.9.112 der Name des Mitarbeiters. Die Befundkarte im Einsatzbericht zeigt
+  „· erfasst von …“.
+- „Durchgeführt von“: die Regel steht jetzt in `app/permissions.py::darf_fuer_andere_erfassen()` (nur Admin, dieselbe wie seit 1.3.0, bis dahin in
+  `_employee_for_request()`); die Seitenroute von „Einsatzberichte“ gibt sie mit, `durchgefuehrtVonOptionen()` bietet dem Admin jede Person, jedem
+  anderen Konto „— nicht zugeordnet —“ und sich selbst (vorgewählt).
+
+#### Festlegungen 1.9.112 (Bitte bestätigen)
+
+1. „Erfasst von“ eines Befunds ist für jede Rolle das anlegende Konto -- auch der Admin schreibt einen Befund keiner anderen Person mehr zu; ein Konto
+   ohne Mitarbeiter hinterlässt Name und Konto, keinen Mitarbeiter.
+2. Wer „erfasst von“ beim Anlegen mitschickt, bekommt 422 (auch der Admin), statt dass der Wert still verworfen wird.
+3. „Durchgeführt von“ eines Berichts bleibt eine Mitarbeiterwahl (nicht das Konto); Büro – Finanzen darf dort -- anders als bei den Zeiten -- weiter nur
+   sich selbst wählen (die Regel von 1.3.0 unverändert, nur sichtbar gemacht).
+4. Bestehende Befunde bleiben, wie sie sind (keine Datenübernahme in die neuen Spalten); sie nennen ihren Mitarbeiter.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v532_befund_im_fremden_bericht.py`: Büro – Finanzen und Büro – Auftrag (mit Mitarbeiter) legen im Bericht der Monteurin einen Befund
+an (200, Konto, Name und Mitarbeiter des Büros, nicht Mia); der Admin ohne Mitarbeiter („Ada Admin“, kein Mitarbeiter); die Monteurin im eigenen Bericht
+(sie selbst, „sofort behoben“ von ihr geschlossen); „erfasst von“ mitgeschickt 422 für Admin, Büro und Monteurin, nichts angelegt; ein Befund von vor
+1.9.112 nennt seinen Mitarbeiter; „Durchgeführt von“ Regel und Server je Rolle (fremde Person nur Admin 200, sonst 403; eigene 200); in node auf der
+vom Server gezeichneten Seite die Optionen je Rolle; die Berichtsseite schickt kein „erfasst von“ und zeigt es.
+Neu `tests/test_v532_befund_erfasst_von_migration.py`: Migration `3e9b7c41d2a8` auf einem Bestand mit Befund (SQLite und PostgreSQL im
+Wegwerf-Schema): hoch -- Befund unverändert, Spalten leer; runter -- exakt wie vorher; mit Konto -- Rückweg verweigert, nichts geändert.
+Neu `scripts/klicktest_befund_fremder_bericht.py` (10 Prüfungen): Bernd (Büro – Finanzen) legt im Bericht von Mia einen Befund an, Karte „erfasst von
+Bernd Büro“, Server Konto und Mitarbeiter Bernd (Bild); Admin „Ada Admin“ ohne Mitarbeiter; Mia sieht beide; „Durchgeführt von“ je Rolle.
+
+Angepasste Erwartungen:
+- `test_v373::test_closed_by_is_set_from_the_login` -- der Admin legte einen Befund mit `created_by_employee_id` des Kollegen an (200, Ersteller der
+  Kollege) -> mitgeschickt 422, ohne Angabe 200 mit „erfasst von“ = Admin (kein Mitarbeiter), „geschlossen von“ wie bisher.
+- `test_v224::test_non_admin_cannot_set_foreign_employee_id_on_create_finding` -- fremde Person: 403 im Endpunkt -> das Schema lehnt ab (über die API
+  422), ohne Angabe der eigene Mitarbeiter; `post_finding()` ohne `request` (im ersten Lauf rot).
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): „erfasst von“ wieder der Ersteller des Berichts -> 3 Tests; das Schema nimmt
+`created_by_employee_id` wieder an -> 4 Tests (v532, v373); „Durchgeführt von“ allen alle -> 2 Tests (die beiden Büro-Rollen). Eine erste Gegenprobe griff
+aus dem falschen Grund (Name im Router nicht importiert, 500) -- wiederholt mit dem Import im Ausdruck.

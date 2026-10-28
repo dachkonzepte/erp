@@ -4251,6 +4251,11 @@ class Finding(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     created_by_employee_id: Mapped[int | None] = mapped_column(ForeignKey("employees.id"), nullable=True)
+    # Seit 1.9.112 (Migration 3e9b7c41d2a8): „erfasst von“ -- das Konto, das den Befund angelegt hat, und sein Name beim Anlegen; gesetzt vom
+    # Server aus der Anmeldung (app/routers/findings.py). Leer bei Befunden von vor 1.9.112. Ohne Fremdschlüssel wie
+    # EmailDispatch.created_by_user_id (ein Konto bleibt löschbar).
+    created_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    created_by_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
     client_uuid: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
 
     service_report: Mapped["ServiceReport"] = relationship(back_populates="findings")

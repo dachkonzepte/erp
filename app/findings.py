@@ -87,6 +87,8 @@ def finding_to_dict(finding: Finding) -> dict:
         "created_at": finding.created_at,
         "updated_at": finding.updated_at,
         "created_by_employee_id": finding.created_by_employee_id,
+        # seit 1.9.112 das anlegende Konto; ein Befund von vor 1.9.112 nennt seinen Mitarbeiter, falls einer da ist
+        "created_by_name": finding.created_by_name or _employee_name(finding.created_by_employee),
         "client_uuid": finding.client_uuid,
         "photo_count": len(finding.photos),
     }
@@ -266,7 +268,8 @@ def create_finding(
     db: Session, service_report_id: int, description: str, severity: str, action: str,
     inspection_item_id: int | None = None, roof_component_id: int | None = None,
     resubmission_date: date | None = None, created_by_employee_id: int | None = None,
-    closed_by_employee_id: "int | None | object" = _AS_CREATOR,
+    closed_by_employee_id: "int | None | object" = _AS_CREATOR, created_by_user_id: int | None = None,
+    created_by_name: str | None = None,
 ) -> dict:
     """closed_by_employee_id (seit 1.8.70): wer bei "sofort behoben" als "geschlossen von" gilt -- der Router setzt es aus
     der Anmeldung (None: Konto ohne Mitarbeiter); ohne Angabe (Aufrufe im Prozess) der Ersteller wie bisher."""
@@ -308,6 +311,7 @@ def create_finding(
         roof_component_id=roof_component_id, roof_component_name_snapshot=roof_component_name_snapshot,
         description=description, severity=severity,
         action=action, created_by_employee_id=created_by_employee_id,
+        created_by_user_id=created_by_user_id, created_by_name=(created_by_name or None),  # seit 1.9.112: „erfasst von“
     )
     db.add(finding)
     db.flush()

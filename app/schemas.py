@@ -4659,18 +4659,29 @@ class FindingOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     created_by_employee_id: int | None = None
+    created_by_name: str | None = None  # seit 1.9.112: „erfasst von“ (Konto), vor 1.9.112 der Name des Mitarbeiters
     client_uuid: str | None = None
     photo_count: int
 
 
 class FindingCreate(BaseModel):
+    """Seit 1.9.112 ohne created_by_employee_id: „erfasst von“ setzt der Server aus der Anmeldung (Konto und dessen Mitarbeiter) -- wer es
+    mitschickt, bekommt 422, auch als Admin. Bis 1.9.111 schickte die Berichtsseite den Ersteller des Berichts mit (Büro: 403, Admin: der Befund
+    stand still unter der Monteurin)."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _erfasst_von_setzt_der_server(cls, data):
+        if isinstance(data, dict) and "created_by_employee_id" in data:
+            raise ValueError("„Erfasst von“ setzt der Server aus der Anmeldung.")
+        return data
+
     description: str = Field(min_length=1)
     severity: str
     action: str
     inspection_item_id: int | None = None
     roof_component_id: int | None = None
     resubmission_date: date | None = None
-    created_by_employee_id: int | None = None
 
 
 class FindingFollowupUpdate(BaseModel):

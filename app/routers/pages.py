@@ -23,7 +23,7 @@ from ..concern_notices import OPEN_CONCERNS_TEXT
 from ..database import get_db
 from ..deps import require_admin
 from ..models import AppUser
-from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, ZEITEN_NUR_LESEN, GELD_NUR_LESEN, darf_geld, darf_lohndaten, darf_zeit_buchen, darf_zeit_fuer_andere_buchen, default_home_page_for_role, has_min_role, has_role, require_min_role, zeit_nur_mit_von_bis
+from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, ZEITEN_NUR_LESEN, GELD_NUR_LESEN, darf_fuer_andere_erfassen, darf_geld, darf_lohndaten, darf_zeit_buchen, darf_zeit_fuer_andere_buchen, default_home_page_for_role, has_min_role, has_role, require_min_role, zeit_nur_mit_von_bis
 from .. import seitendaten
 from ..design_dateien import pruefsumme as ds_pruefsumme
 from ..version import APP_VERSION
@@ -597,7 +597,8 @@ def service_reports_page(request: Request, order_id: int, _role: AppUser = _any_
     return templates.TemplateResponse(request=request, name="service_reports.html",
                                       context={"order_id": order_id, "zeit_fuer_andere_buchen": darf_zeit_fuer_andere_buchen(_role),
                                                "zeit_nur_mit_von_bis": zeit_nur_mit_von_bis(_role),  # seit 1.9.60
-                                               "zeit_buchen": darf_zeit_buchen(_role), "zeiten_nur_lesen": ZEITEN_NUR_LESEN})  # seit 1.9.89
+                                               "zeit_buchen": darf_zeit_buchen(_role), "zeiten_nur_lesen": ZEITEN_NUR_LESEN,  # seit 1.9.89
+                                               "fuer_andere_erfassen": darf_fuer_andere_erfassen(_role)})  # seit 1.9.112
 
 
 service_reports_page.dk_ohne_seite = lambda user, request: _bericht_aus_adresse(request) is not None  # seit 1.9.67, siehe login_page

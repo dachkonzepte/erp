@@ -304,14 +304,16 @@ def test_closed_by_is_set_from_the_login(welt):
     mangel = _mangel(welt)
     r = welt["client"]().put(f"/api/findings/{mangel['id']}/followup", json={"status": "erledigt"})
     assert r.status_code == 200 and r.json()["closed_by_employee_id"] == welt["monteurin"].id
-    # "sofort behoben" beim Anlegen: geschlossen von der Anmeldung, auch wenn ein Admin einen anderen als Ersteller einträgt.
+    # "sofort behoben" beim Anlegen: geschlossen von der Anmeldung. Seit 1.9.112 setzt der Server auch "erfasst von" aus der Anmeldung --
+    # ein Admin trägt keinen anderen mehr als Ersteller ein (mitgeschickt 422; bis 1.9.111 200 mit dem Kollegen als Ersteller).
     admin = welt["client"]("admin", None)
     report_id = _eigener_bericht(welt, [])
-    r = admin.post(f"/api/service-reports/{report_id}/findings", json={
-        "description": "Laub entfernt", "severity": "gering", "action": "sofort_behoben",
-        "created_by_employee_id": welt["kollege"].id})
+    befund = {"description": "Laub entfernt", "severity": "gering", "action": "sofort_behoben"}
+    r = admin.post(f"/api/service-reports/{report_id}/findings", json={**befund, "created_by_employee_id": welt["kollege"].id})
+    assert r.status_code == 422 and "Erfasst von" in r.text
+    r = admin.post(f"/api/service-reports/{report_id}/findings", json=befund)
     assert r.status_code == 200
-    assert r.json()["created_by_employee_id"] == welt["kollege"].id and r.json()["closed_by_employee_id"] is None
+    assert r.json()["created_by_employee_id"] is None and r.json()["closed_by_employee_id"] is None
     mona = _mangel(welt, "sofort_behoben")
     assert mona["closed_by_employee_id"] == welt["monteurin"].id
 
