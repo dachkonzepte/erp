@@ -4,6 +4,15 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.119 – Prüfung: hebt jeder Storno sein Original genau auf? (Stufe 5, R1 Nachrunde)
+
+Bis 1.9.113 ließen sich die Positionen eines Storno-Entwurfs ändern, ergänzen und entfernen (seit 1.9.114 gesperrt). Live steht ein Storno
+von vorher. `scripts/pruefe_stornos.py` vergleicht je festgeschriebenem Storno Netto, USt und Brutto (gerechnet mit
+`compute_invoice_totals()`, wie Rechnungsseite, PDF und Zahlungen) und jede Position (Menge, Einzelpreis, Betrag) mit dem Original und nennt
+jede Abweichung als Soll und Ist; ohne Treffer „Alle n Stornos heben ihr Original genau auf.“ Das Skript liest nur: eigene Sitzung mit
+Schreibschutz (PostgreSQL `READ ONLY`, SQLite `query_only`), am Ende zurückgerollt, keine Zeile im Änderungsprotokoll. Der Aufruf auf dem
+Server steht im Kopf der Datei.
+
 ## 1.9.118 – Lesbare Fehler auch in „Einsatzberichte“ und Objekt (mobil) (Stufe 5, R1)
 
 Die Seite „Einsatzberichte“ eines Auftrags und das Objekt in der Monteursansicht reichten eine Ablehnung des Servers unverändert weiter -- eine Liste der

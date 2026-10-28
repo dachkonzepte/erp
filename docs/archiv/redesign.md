@@ -6792,7 +6792,7 @@ setzt `const GELD="ja"|"nein"!=="nein"` (auch ungerendert gültiges JS -- die no
 - Versandprotokoll: ein hängender Eintrag an Rechnung oder Mahnung ohne Klären-Formular („klären können Admin und Büro – Finanzen“).
 Projektmappe und Finanzen hatten keine Geld-Knöpfe -- unverändert.
 
-#### Festlegungen 1.9.111 (Bitte bestätigen)
+#### Festlegungen 1.9.111 (Nr. 2–4 und 6 bestätigt am 28.10.2026; Nr. 1 und 5 ersetzt durch die Nachrunde, Punkt 2 -- 1.9.120)
 
 1. Die Mahnstufen in den Einstellungen (Bezeichnung, Zahlungsfrist, Gebühr, Text, Mahn-E-Mail-Vorlagen; `PUT /api/reminder-levels/{id}`) speichert
    weiter jedes Büro -- keine Mahnung, keine Buchung. Schalter Mahngebühren, Basiszinssatz und Rechtstexte bleiben nur Admin.
@@ -6860,7 +6860,7 @@ der Monteurin zu. Ebenso bot „Durchgeführt von“ beim Anlegen eines Berichts
   `_employee_for_request()`); die Seitenroute von „Einsatzberichte“ gibt sie mit, `durchgefuehrtVonOptionen()` bietet dem Admin jede Person, jedem
   anderen Konto „— nicht zugeordnet —“ und sich selbst (vorgewählt).
 
-#### Festlegungen 1.9.112 (Bitte bestätigen)
+#### Festlegungen 1.9.112 (Nr. 1, 2 und 4 bestätigt am 28.10.2026; Nr. 3 ersetzt durch die Nachrunde, Punkt 3 -- 1.9.121)
 
 1. „Erfasst von“ eines Befunds ist für jede Rolle das anlegende Konto -- auch der Admin schreibt einen Befund keiner anderen Person mehr zu; ein Konto
    ohne Mitarbeiter hinterlässt Name und Konto, keinen Mitarbeiter.
@@ -6906,7 +6906,7 @@ Tags und Vorschau seit 1.9.107), „Meine Zeiten“ (nur Von/Bis). Vorgabe: „E
   kommt aus `?auftrag=` (`FILTER.auftrag`, wie bisher die Vorwahl des Dialogs); `buchung` wird aus der Adresse gestrichen (Neuladen öffnet nicht noch einmal).
 - Server unverändert: gebucht wird über `POST /api/time-entries` mit der Pausenregel des Tags, die Vorschau über `GET /api/time-entries/dauer-vorschau`.
 
-#### Festlegungen 1.9.113 (Bitte bestätigen)
+#### Festlegungen 1.9.113 (bestätigt am 28.10.2026)
 
 1. „Zeit buchen“ ist ein Link auf „Zeiten“ (die Seite wechselt), kein Dialog auf „Einsatzberichte“ -- ein Dialog an einer Stelle; nach dem Speichern bleibt
    man auf „Zeiten“ (Reiter „Buchungen“, gefiltert auf den Auftrag), zurück über den Pfad bzw. den Browser.
@@ -6962,7 +6962,7 @@ Sperre (unter der Sperre der Auftragszeile wie jeder Schreibweg einer Rechnung, 
 - `invoice_detail.html`: `positionBearbeitbar()` (bearbeitbar und kein Storno) für Ist-Feld und „✎“, `positionEntfernbar(i)` zusätzlich nicht an einer
   Position des Auftrags in der Schlussrechnung für „✕“ -- in der Liste und im Mengenvergleich der Schlussrechnung.
 
-#### Festlegungen 1.9.114 (Bitte bestätigen)
+#### Festlegungen 1.9.114 (bestätigt am 28.10.2026)
 
 1. Am Storno-Entwurf bleiben Kopf (Einleitung, Schlusstexte), Leistungszeitraum, Finalisieren und „Entwurf löschen“ -- gesperrt sind nur die Positionen;
    wer eine andere Storno-Fassung braucht, löscht den Entwurf und legt ihn neu an.
@@ -7012,7 +7012,7 @@ im Änderungsprotokoll sichtbar“. F14: /history zeigte jede Aktion außer „g
   „Pausiert“, „Beendet“, „Bezahlt“ (Rechnungen vor 1.8.78), `rounding_rule` „Kaufmännisch (ab 1.8.11)“, `external_source` „Im ERP angelegt“/„Aus Outlook“,
   Einheit `pschl.` „Pauschal (pschl.)“ -- `test_v436::test_feste_werte_der_historie_sind_lesbar` verlangt das für jede protokollierte Spalte.
 
-#### Festlegungen 1.9.115 (Bitte bestätigen)
+#### Festlegungen 1.9.115 (bestätigt am 28.10.2026)
 
 1. Eine Rechnung wird wie jede andere Art je Feld protokolliert -- beim Festschreiben stehen deshalb mehrere Zeilen (Status, Nummer, Datum, Fälligkeit,
    feste Fassung, Kunde); die Neuberechnung beim Festschreiben erscheint an den Positionen (abgerechnete Menge, Betrag).
@@ -7061,7 +7061,7 @@ Maßnahme).
   wieder; mit dem Abschluss verworfen. Der Befund merkt Text (`befund-text`, bei jeder Eingabe) und Wiedervorlage (`befund-wiedervorlage`) in
   `BEFUND_FORM` wie Schwere und Maßnahme.
 
-#### Festlegungen 1.9.116 (Bitte bestätigen)
+#### Festlegungen 1.9.116 (bestätigt am 28.10.2026)
 
 1. Getippte, nicht gespeicherte Werte bleiben, solange die Seite offen ist -- nicht über ein Neuladen der Seite hinweg (kein Zwischenspeicher im Browser).
 2. Auf der Rechnung gilt ein getippter Wert vor einem neuen Stand vom Server, auch wenn jemand anders das Feld inzwischen gespeichert hat; mit dem eigenen
@@ -7100,7 +7100,7 @@ Auftrag. F15: „Löschen“ stand auch bei Projekten mit Auftrag und endete mit
 - Projektmappe: Kennzeichen „Mustervorgang“ im Kopf (`templateBadge`), „Löschen“ im Menü nur ohne Auftrag (`deleteMenuItem`, nach `order_count`);
   Projektliste: „Löschen“ im Menü einer Zeile nur ohne Auftrag. Der Server lehnt wie bisher ab (400).
 
-#### Festlegungen 1.9.117 (Bitte bestätigen)
+#### Festlegungen 1.9.117 (bestätigt am 28.10.2026)
 
 1. Ein Mustervorgang wird nie beauftragt, auch nicht vom Admin; der Weg ist „Neuen Vorgang erstellen“.
 2. Ohne „Löschen“ bleibt bei einem Projekt mit Auftrag „Archivieren“ -- kein zusätzlicher Hinweis im Menü.
@@ -7136,3 +7136,52 @@ auslösen (die Felder geben keinen ungültigen Wert her); die Klicktests beider 
 
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v538`): `api()` der Berichtsliste wieder roh -> 1 Test; `api()` des Objekts wieder roh
 -> 1; die Feldnamen der Berichtsliste fehlen -> 1.
+
+## Stufe 5, R1 Nachrunde (ab 1.9.119)
+
+Vorgabe 28.10.2026, Start auf `1eda18a` (1.9.118, live). Festlegungen R1 bestätigt, außer 1.9.111 Nr. 1 und Nr. 5 (Einstellungen mit Geld,
+Punkt 2) und 1.9.112 Nr. 3 („Durchgeführt von“, Punkt 3) -- die Überschriften oben tragen das. Live: 6 Rechnungen, darunter 1 Storno,
+angelegt vor 1.9.114. Punkte: 1 Prüfung der Stornos, 2 Einstellungen mit Geld, 3 „Durchgeführt von“ nach der Regel der Zeiten, 4 gesperrte
+Felder hell erkennbar, 5 Verlauf lesbar (Merkliste 7b).
+
+### Nachrunde, Punkt 1 (1.9.119): hebt jeder Storno sein Original genau auf?
+
+Anlass: bis 1.9.113 ließen sich die Positionen eines Storno-Entwurfs ändern, ergänzen und entfernen (Befund F8, Beleg unter „R1, Punkt 4“);
+der Storno von vor 1.9.114 auf dem Server kann deshalb von seinem Original abweichen.
+
+`scripts/pruefe_stornos.py`:
+- je festgeschriebenem Storno (Art `storno`, nicht Entwurf) Netto, USt und Brutto aus `compute_invoice_totals()` gegen das Gegenteil des
+  Originals; jede Position -- gepaart nach Sortierung und Positionsnummer, so verschiebt eine ergänzte oder entfernte Position die übrigen
+  nicht -- mit Menge, Einzelpreis und Betrag (`invoice_line_total()`, nach der Rundungsregel der Rechnung). Ein pauschaler Abschlag ohne
+  Position (vor 1.3.24) hat als Soll die eine Position, die sein Storno seit 1.8.83 bekommt.
+- Ausgabe je Treffer „Storno R-… (ID n) zu R-… (ID m):“ und je Abweichung eine Zeile „Netto: Soll −2.000,00 €, Ist −1.650,00 €“ bzw.
+  „Position 1 Dacheindeckung: Menge Soll −40, Ist −33; Betrag …“, „… fehlt im Storno“, „… nur im Storno“; ungerundete Beträge (vor
+  1.8.11) mit ihrer ganzen Genauigkeit. Ohne Treffer „Alle n Stornos heben ihr Original genau auf.“, ohne Storno „Kein festgeschriebener
+  Storno -- nichts zu prüfen.“ Rückgabe 0 / 1 (Treffer) / 2 (Umgebung fehlt).
+- Nur lesen: eigene Engine aus `DATABASE_URL` (Pflicht, wie bei alembic), jede Verbindung schreibgeschützt, bevor die erste Anfrage läuft
+  (PostgreSQL `SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY`, SQLite `PRAGMA query_only`), am Ende zurückgerollt; `app.main` wird
+  nicht geladen (keine Grunddaten, kein `create_all`). Aufruf auf dem Server im Kopf der Datei:
+  `cd /home/tobias/erp`, `set -a; source .env; set +a`, `.venv/bin/python scripts/pruefe_stornos.py`.
+
+#### Festlegungen 1.9.119 (Bitte bestätigen)
+
+1. Geprüft werden nur festgeschriebene Stornos; ein Entwurf zählt nicht (er lässt sich seit 1.9.114 nicht mehr an den Positionen ändern und
+   löschen und neu anlegen).
+2. Ein Treffer korrigiert nichts -- das Skript berichtet nur. Was mit einem abweichenden Storno geschieht (ein zweiter Storno ist nicht
+   möglich, GoBD), entscheidet der Betreiber.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v539_pruefe_stornos.py` (10 Tests): genauer Storno eines Abschlags nach Leistungsstand -> kein Treffer, „Alle 1 Stornos heben ihr
+Original genau auf.“, Rückgabe 0; derselbe mit Ist 7 am Storno (−33 m², −1.650,00 €, direkt in der Datenbank wie vor 1.9.114) -> Treffer mit
+Netto, USt, Brutto und der Position Soll/Ist, Rückgabe 1; ergänzte und entfernte Position; ein Entwurf zählt nicht; pauschaler Abschlag mit und
+ohne Position; Rechnung vor 1.8.11 mit krummem Preis (ungerundet) genau -- und um 0,0042 € daneben sichtbar; Schlussrechnung mit Abzug; ohne
+`DATABASE_URL` Rückgabe 2; die eigene Sitzung schreibt nicht, gegen eine SQLite-Datei und gegen PostgreSQL (Wegwerf-Schema, URL über
+`pg_url_pruefen()`): Lauf über `DATABASE_URL` gibt Rückgabe 0, ein `UPDATE` scheitert, Änderungsprotokoll und Status unverändert.
+
+Im ersten Lauf rot und am Test behoben: der Bestand für PostgreSQL über `make_order_with_item()` (verweist auf ein Angebot 1, das es nicht
+gibt -- unter PostgreSQL ein Fremdschlüsselfehler) -> Auftrag über Angebot und Beauftragen; der krumme Preis im Entwurf statt im Auftrag
+(seit 1.8.85 Abweichung vom Auftrag, 409) -> im Auftrag; `test_v384` (Regel 27) -> die URL geht über `pg_url_pruefen()`.
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v539`): Summen nicht verglichen -> 3 Tests; Positionen nicht verglichen
+-> 2; SQLite ohne Schreibschutz -> 1; PostgreSQL ohne Schreibschutz -> 1.

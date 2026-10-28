@@ -98,7 +98,7 @@ Stand, den `git log` nicht erklären kann), nicht nur ein theoretisches.
 | Dienst | `erp.service`, `gunicorn -w 2 --timeout 120` |
 | Sicherung | `/home/tobias/backup.sh`, täglich 2 Uhr UTC, 14 Tage Aufbewahrung; sichert `erp-data` vollständig (Betreiberangabe 05.10.2026) |
 | Einspielen | ausschließlich `/home/tobias/update.sh` (auf dem Server, nicht im Repo; probt eine Migration selbst gegen `spielwiese`), nie einzelne `alembic`-Befehle -- auch nicht für die Probe |
-| Notfallskripte | `scripts/reset_admin_2fa.py`, `scripts/migrate_sqlite_to_postgres.py`; erstes Konto (seit 1.8.130): `scripts/erstes_konto.py` |
+| Notfallskripte | `scripts/reset_admin_2fa.py`, `scripts/migrate_sqlite_to_postgres.py`; erstes Konto (seit 1.8.130): `scripts/erstes_konto.py`; nur lesend (seit 1.9.119): `scripts/pruefe_stornos.py` (hebt jeder Storno sein Original genau auf?) |
 | Zeitzone | `Etc/UTC` (`timedatectl`) -- Datum und Uhrzeit deshalb nur über `app/berlin_time.py`, Regel 20 |
 
 **Korrigiert (KI-Fundament-Runde, seit 1.6.2)**: diese Datei behauptete hier bisher fälschlich
