@@ -7119,3 +7119,20 @@ eines gewöhnlichen Angebots wie bisher; Projektmappe des Musters mit Kennzeiche
 
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v537`): der Server prüft den Mustervorgang nicht -> 2 Tests (409, Fachfunktion); der
 Editor ohne Hinweis -> 1; Projektliste mit „Löschen“ auch mit Auftrag -> 1; Projektmappe ebenso -> 1.
+
+### R1, Punkt 8 (1.9.118): fehlerText() in Berichtsliste und Objekt (mobil)
+
+Befund B12: `service_reports.html` (`api()`) und `mobil_objekt.html` (`api()`, das Hochladen eines Dokuments und -- beim Umbau gefunden -- das Laden der
+Wartungshistorie) gaben `detail` roh an `Error()` -- eine
+422-Liste erschien als „[object Object]“. Beide binden `_fehlertext.html` ein und nehmen `fehlerText(body, status, FELDNAMEN)` (Feldnamen der Seite:
+Berichtstyp, Datum des Einsatzes, Durchgeführt von, Dachflächen, Vorlage, Beschreibung bzw. Kategorie, Beschreibung, Datei). Keine Festlegungen.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v538_fehlertext_berichtsliste_objekt.py` (5 Tests): beide Seiten binden `_fehlertext.html` ein und reichen `detail` nicht roh an `Error()`;
+in node die `api()` der Seite mit einer 422-Liste -- „Bitte die Eingabe prüfen – Berichtstyp fehlt; Datum des Einsatzes ist kein gültiges Datum.“ bzw.
+„… – Kategorie muss eine ganze Zahl sein; Datei fehlt.“; ein Text (409) bleibt wörtlich. Kein Klicktest: über die Oberfläche lässt sich keine 422-Liste
+auslösen (die Felder geben keinen ungültigen Wert her); die Klicktests beider Seiten liefen unverändert grün.
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v538`): `api()` der Berichtsliste wieder roh -> 1 Test; `api()` des Objekts wieder roh
+-> 1; die Feldnamen der Berichtsliste fehlen -> 1.

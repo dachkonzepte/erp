@@ -98,6 +98,7 @@
 </main>
 {% include "_berlin_date.html" %}
 {% include "_speichern.html" %}
+{% include "_fehlertext.html" %}
 {% include "_seitenkopf.html" %}
 <script>
 (function(){
@@ -109,11 +110,12 @@
     if(isNaN(d))return s;
     return d.toLocaleDateString('de-DE');
   }
+  var FELDNAMEN={category_id:'Kategorie',description:'Beschreibung',file:'Datei'};
   async function api(u,o){
     var r=await fetch(u,o);
-    if(!r.ok){
-      var d=await r.json().catch(function(){return {}});
-      throw new Error(d.detail||r.statusText);
+    if(!r.ok){  // seit 1.9.118 über fehlerText() (_fehlertext.html, B12): eine 422-Liste lesbar statt „[object Object]“
+      var d=await r.json().catch(function(){return null});
+      throw new Error(fehlerText(d,r.status,FELDNAMEN));
     }
     if(r.status===204)return null;
     return r.json();
@@ -232,7 +234,7 @@
       el.className='empty';
       el.textContent=d.detail||'Keine Wartungshistorie für dieses Objekt.';
     });
-    if(!r.ok)return r.json().catch(function(){return {}}).then(function(d){throw new Error(d.detail||r.statusText)});
+    if(!r.ok)return r.json().catch(function(){return null}).then(function(d){throw new Error(fehlerText(d,r.status,FELDNAMEN))});  // seit 1.9.118
     return r.json().then(renderHistory);
   }).catch(function(err){
     document.getElementById('historyList').className='error';
@@ -252,7 +254,7 @@
     var status=document.getElementById('uploadStatus');
     btn.disabled=true;btn.textContent='Wird hochgeladen…';status.className='status';status.textContent='';
     speichern('dokumente',()=>fetch('/api/field-view/properties/'+propertyId+'/documents',{method:'POST',body:fd}),{neuLaden:reloadDocuments}).then(function(r){
-      if(!r.ok)return r.json().catch(function(){return {}}).then(function(d){throw new Error(d.detail||'Fehler beim Hochladen.')});
+      if(!r.ok)return r.json().catch(function(){return null}).then(function(d){throw new Error(fehlerText(d,r.status,FELDNAMEN))});
       return r.json();
     }).then(function(){
       status.className='status ok';status.textContent='Hochgeladen.';

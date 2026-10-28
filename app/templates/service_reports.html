@@ -172,6 +172,7 @@ a{color:var(--ds-link)}
 </div>
 </div>
 {% include "_speichern.html" %}
+{% include "_fehlertext.html" %}
 {% include "_auswahl.html" %}
 {% include "_zahl.html" %}
 {% include "_aktionen.html" %}
@@ -183,7 +184,9 @@ const darfBueroSeiten={{ 'true' if darf_buero_seiten else 'false' }};
 const monteursrahmen=!!document.getElementById('zeitenKarte');  // seit 1.9.113 an der Karte „Zeiten“ der Monteurin (bis 1.9.112 an #teHours)
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 function fmtDate(s){if(!s)return'';const t=String(s).slice(0,10).split('-');return t.length===3?t[2]+'.'+t[1]+'.'+t[0]:String(s)}
-async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error((await r.json().catch(()=>({detail:r.statusText}))).detail||r.statusText);return r.json()}
+// Seit 1.9.118 über fehlerText() (_fehlertext.html, B12): eine 422-Liste erscheint lesbar statt als „[object Object]“.
+const FELDNAMEN={report_type:'Berichtstyp',performed_at:'Datum des Einsatzes',created_by_employee_id:'Durchgeführt von',roof_area_ids:'Dachflächen',inspection_template_id:'Vorlage',description:'Durchgeführte Arbeiten / Feststellungen'};
+async function api(u,o){const r=await fetch(u,o);if(!r.ok)throw Error(fehlerText(await r.json().catch(()=>null),r.status,FELDNAMEN));return r.json()}
 
 let authStatus=null,employees=[],reports=[];
 let roofAreasForOrder=[],inspectionTemplates=[],orderData=null,kopfVertrag=null;
