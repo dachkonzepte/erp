@@ -6988,3 +6988,59 @@ Angepasste Erwartungen:
 
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): Storno-Sperre beim Ändern aus -> 1 Test; Sperre der Schlussrechnung beim Entfernen aus
 -> 1 Test; `positionBearbeitbar()` ohne Storno -> 1 Test (der Klicktest prüft dasselbe im Browser).
+
+### R1, Punkt 5 (1.9.115): Änderungsprotokoll -- neue Arten, „verworfen“ und „Pausen neu gerechnet“
+
+Befund F13: nicht in `AUDITED_TYPES` waren Auftragspositionen und -titel, Rechnungen, Mahnungen, Einsatzberichte, Wartungsverträge, Dachflächen, Termine
+(die Zweige für `OrderItem`/`OrderSection` in `_normalize()` liefen nie); die Karte „Auftragsstände“ sagte trotzdem „Einzeländerungen bleiben zusätzlich
+im Änderungsprotokoll sichtbar“. F14: /history zeigte jede Aktion außer „geändert“ und „angelegt“ als „Datensatz gelöscht“.
+
+- `app/audit.py`: `AUDITED_TYPES` um `OrderItem`, `OrderSection`, `Invoice`, `InvoiceItem`, `Reminder`, `ServiceReport`, `MaintenanceContract`,
+  `RoofArea`, `CalendarEvent`; Namen in `TYPE_LABELS`, jedes neue Feld in `FIELD_LABELS`; `_normalize()` je Art mit Bezeichnung und Projekt (über den
+  Auftrag bzw. die Rechnung, beim Termin sein Projekt) -- Rechnung „R-2026-0001 · Schlussrechnung“ bzw. „Entwurf · …“, Rechnungsposition mit ihrer
+  Rechnung, Mahnung „M-… · 1. Mahnung zu R-…“, Bericht „Rapportbericht vom 20.10.2026 · AUF-…“, Dachfläche mit Objekt, Wartungsvertrag mit Kunde.
+- Still (`STILL_JE_ART`, `_still()`): Outlook-Abgleich (`outlook_synced_at`, `outlook_etag`, `outlook_event_id`), der Stempel gegen doppeltes Erinnern am
+  Wartungsvertrag, die eingefrorenen Aufstellungen (`Reminder.amounts_json`, `ServiceReport.time_rows_json`) und die Beschreibung eines Berichts, solange
+  er Entwurf ist -- der Schnappschuss beim Anlegen enthält sie.
+- Privater Termin: Titel, Ort und Notiz nie in der Historie -- im Schnappschuss und als alt/neu „(privat)“, Bezeichnung „Privater Termin · Datum“
+  (`_privat()`, `PRIVATE_TERMINFELDER`); /history liest jedes Büro.
+- `app/templates/_verlauf.html` (neu): `verlaufAenderung(zeile)` -- „angelegt“/„gelöscht“ als Satz, „verworfen“ mit „Begründung: …“, „geändert“ und jede
+  andere Aktion mit Werten (z. B. „Pausen neu gerechnet“: Pause des Tages alt -> neu) als alt -> neu; eingebunden in `history.html` und
+  `project_folder.html` (Verlauf der Projektmappe zeigte bis dahin nur den Namen der Aktion).
+- `app/verlauf_namen.py`: Bezeichnungen der neuen Festwerte -- `invoice_type` (aus `app/audit.py::RECHNUNGSARTEN`, dieselben Wörter wie in der Bezeichnung
+  der Rechnung), `report_type` (`app/service_reports.py::REPORT_TYPE_LABELS`, auch für die Bezeichnung des Berichts), Status „Unterschrieben“, „Aktiv“,
+  „Pausiert“, „Beendet“, „Bezahlt“ (Rechnungen vor 1.8.78), `rounding_rule` „Kaufmännisch (ab 1.8.11)“, `external_source` „Im ERP angelegt“/„Aus Outlook“,
+  Einheit `pschl.` „Pauschal (pschl.)“ -- `test_v436::test_feste_werte_der_historie_sind_lesbar` verlangt das für jede protokollierte Spalte.
+
+#### Festlegungen 1.9.115 (Bitte bestätigen)
+
+1. Eine Rechnung wird wie jede andere Art je Feld protokolliert -- beim Festschreiben stehen deshalb mehrere Zeilen (Status, Nummer, Datum, Fälligkeit,
+   feste Fassung, Kunde); die Neuberechnung beim Festschreiben erscheint an den Positionen (abgerechnete Menge, Betrag).
+2. Die Beschreibung eines Einsatzberichts im Entwurf erscheint nicht je Speichern (wie die Antworten einer Checkliste, Entscheidung 1.8.13); sie steht im
+   Schnappschuss beim Anlegen und ist nach der Unterschrift unveränderlich.
+3. Ein privater Termin erscheint nur mit „Privater Termin · Datum“ und ohne Inhalte; Beginn, Ende, Besitzer und „Privat“ stehen da. Ein Termin, der von
+   privat auf öffentlich wechselt, zeigt seinen Titel erst ab dann.
+4. Termine aus dem Outlook-Abgleich erscheinen mit dem Auslöser „System“, wie jede Änderung ohne Anfrage.
+5. Bestehende Einträge bleiben, wie sie sind; nichts wird nachgetragen.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v535_aenderungsprotokoll.py` (9 Tests): Menge einer Auftragsposition und Titel eines LV-Titels mit alt und neu, unter dem Projekt und dem
+Konto; Rechnung: Ist-Menge einer Position („Entwurf · Abschlag (Leistungsstand) · 1 …“), Festschreiben mit Status entwurf -> versendet und Nummer, Anlegen
+des Stornos; Mahnung: Anlegen („Entwurf · 1. Mahnung zu …“), Festschreiben, keine Zeile für die Aufstellung; Einsatzbericht: Anlegen, Datum geändert, die
+Beschreibung im Entwurf still, Bezeichnung „Rapportbericht vom 20.10.2026 · …“; Wartungsvertrag (Stempel still), Dachfläche („Nordseite · Halle“), Termin
+mit alt und neu und Projekt, privater Termin nur „(privat)“ (Schnappschuss und Änderung, kein Titel in Bezeichnung oder Schnappschuss), Outlook-Stand
+still; die Karte „Auftragsstände“ und `AUDITED_TYPES`; `verlaufAenderung()` in node („verworfen“ mit Begründung, „Pausen neu gerechnet“ alt -> neu,
+„angelegt“, „gelöscht“, Werte maskiert); `history.html` und `project_folder.html` binden `_verlauf.html` ein und nehmen `verlaufAenderung(x)`.
+
+Angepasst (keine Erwartung geändert): `tests/test_v334_auswahl_restfaelle.py::BAUSTEINE` um `_verlauf.html` -- die Attrappe einer Seite bindet die
+Bausteine ein, die die Seite einbindet (Regel 36); ohne den Eintrag scheiterte `test_v436::test_verlaufsseite_laedt_seitenweise` an
+„verlaufAenderung is not defined“.
+Angepasst (nur der Aufbau): `tests/test_v381_zahlungen_migration.py::_rechnung()` legt die Rechnungsposition des Altbestands als Core-Insert an (bis
+1.9.114 über das ORM) -- die Bezeichnung der neuen Historienzeile lädt die Rechnung über das heutige Modell, mit `invoices.customer_id`, die es auf dem Stand
+vor der Migration noch nicht gibt (beide Proben, SQLite und PostgreSQL, im ersten Suitenlauf rot).
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v535`): `OrderItem` nicht protokolliert -> 2 Tests; `Invoice`/`InvoiceItem` nicht
+protokolliert -> 2; privater Termin ohne Maske -> 1; Beschreibung des Berichts im Entwurf nicht still -> 1; „verworfen“ ohne Begründung -> 1. Ein erster
+Lauf der beiden ersten hatte den Marker als Kommentar mitten in der Zeile (der Rest der Liste fiel mit weg, 4 statt 2 rot) -- wiederholt mit der ganzen
+Zeile.

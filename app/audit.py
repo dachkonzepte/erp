@@ -16,6 +16,7 @@ from .models import (
     Checklist, ChecklistAttachment, ChecklistAssetRelease, OperationalAsset, Contact, ProjectParticipant,
     OrderAcceptance, Defect, DefectEvent, Invoice, Payment, PaymentAllocation,
     InvoiceCharge, InvoiceDefaultStart, OrderCustomerChange, BaseInterestRate, DunningLegalText,
+    InvoiceItem, Reminder, ServiceReport, MaintenanceContract, RoofArea, CalendarEvent,
 )
 
 _actor_id = contextvars.ContextVar("audit_actor_id", default=None)
@@ -51,6 +52,9 @@ TYPE_LABELS = {
     WorkPreparationMaterialSupplier: "AV-Materiallieferant", EmployeeCompensationSettings: "Mitarbeiter",
     EmployeeProfile: "Mitarbeiter", EmployeeRoleSettings: "Mitarbeiter", EmployeePlanningSettings: "Mitarbeiter",
     SettingOptionGroup: "Auswahlliste", ChecklistAttachment: "Checklisten-Unterschrift",
+    # seit 1.9.115 (Stufe 5, R1, Punkt 5)
+    Invoice: "Rechnung", InvoiceItem: "Rechnungsposition", Reminder: "Mahnung", ServiceReport: "Einsatzbericht",
+    MaintenanceContract: "Wartungsvertrag", RoofArea: "Dachfläche", CalendarEvent: "Termin",
 }
 
 EXTENSION_TYPES = (CustomerProfile, ProjectProfile, EmployeeProfile, EmployeeRoleSettings, EmployeeCompensationSettings, EmployeeCostAllocationSettings, QuoteDocumentMeta, QuoteItemLayout, QuoteEmployeeAssignment)
@@ -82,7 +86,36 @@ AUDITED_TYPES = (
     InvoiceCharge, InvoiceDefaultStart, OrderCustomerChange,
     # Seit 1.8.81 (Z2b Punkte 7 und 9): Basiszinssatz je Halbjahr und Rechtstexte -- jede Änderung samt Prüfangabe.
     BaseInterestRate, DunningLegalText,
+    # Seit 1.9.115 (Stufe 5, R1, Punkt 5, Befund F13): Auftragspositionen und LV-Titel des Auftrags, Rechnungen mit Positionen und Statuswechseln,
+    # Mahnungen, Einsatzberichte, Wartungsverträge, Dachflächen, Termine -- bis 1.9.114 gar nicht, obwohl die Karte „Auftragsstände“ es sagte.
+    # Ausgenommen (STILL_JE_ART): reine Buchhaltung des Kalender-Abgleichs, die Eingefrorenen Aufstellungen (Mahnung, Zeiten des Berichts) und die
+    # Beschreibung eines Berichts im Entwurf (speichert beim Tippen wie die Antworten einer Checkliste; mit der Unterschrift steht sie fest).
+    OrderItem, OrderSection, Invoice, InvoiceItem, Reminder, ServiceReport, MaintenanceContract, RoofArea, CalendarEvent,
 )
+
+# Seit 1.9.115: Felder, die je Art nicht als Änderung protokolliert werden (der Schnappschuss beim Anlegen enthält sie).
+STILL_JE_ART = {
+    CalendarEvent: {"outlook_synced_at", "outlook_etag", "outlook_event_id"},  # Abgleich mit Outlook (eigene Diagnose, Regel 18)
+    MaintenanceContract: {"last_reminder_due_date"},  # Stempel gegen doppeltes Erinnern
+    Reminder: {"amounts_json"},  # eingefrorene Aufstellung, steht an der Mahnung
+    ServiceReport: {"time_rows_json"},  # eingefrorene Zeiten, stehen am Bericht
+}
+# Seit 1.9.115: Inhalte eines privaten Termins nie in der Historie (sie liest jedes Büro) -- nur, dass sich etwas geändert hat.
+PRIVATE_TERMINFELDER = {"title", "location", "notes"}
+PRIVAT = "(privat)"
+
+
+def _still(obj, key, state=None) -> bool:
+    if key in STILL_JE_ART.get(type(obj), ()):
+        return True
+    if isinstance(obj, ServiceReport) and key == "description":
+        alt = state.attrs["status"].history.deleted if state is not None else ()
+        return obj.status == "entwurf" and (not alt or alt[0] == "entwurf")
+    return False
+
+
+def _privat(obj) -> bool:
+    return isinstance(obj, CalendarEvent) and bool(obj.is_private)
 
 FIELD_LABELS = {
     "name":"Bezeichnung / Name","status":"Status","description":"Beschreibung","category":"Kategorie",
@@ -333,6 +366,34 @@ FIELD_LABELS = {
     "website": "Website",
     "wednesday": "Mittwoch",
     "weeks_per_year": "Wochen pro Jahr",
+    # seit 1.9.115: Auftragspositionen, Rechnungen, Mahnungen, Einsatzberichte, Wartungsverträge, Dachflächen, Termine
+    "source_quote_item_id": "Angebotsposition (Herkunft)", "is_addendum": "Nachtrag", "source_quote_section_id": "Angebots-LV-Titel (Herkunft)",
+    "invoice_number": "Rechnungsnummer", "invoice_type": "Rechnungsart", "invoice_date": "Rechnungsdatum", "paid_date": "Bezahlt am (bis 1.8.77)",
+    "service_period_start": "Leistungszeitraum Beginn", "service_period_end": "Leistungszeitraum Ende",
+    "billed_work_from": "Abgerechnete Arbeit ab", "billed_work_to": "Abgerechnete Arbeit bis", "storno_of_invoice_id": "Storno zu Rechnung",
+    "tax_notice_text": "Steuerhinweis", "lump_sum_net": "Pauschalbetrag netto", "progress_description": "Bezeichnung des Abschlags",
+    "rounding_rule": "Rundungsregel", "skonto_percent": "Skonto (%)", "skonto_days": "Skontotage",
+    "payment_terms_text_template": "Text der Zahlungsbedingung", "pdf_document_id": "Feste Fassung (PDF)", "finalized_at": "Festgeschrieben am",
+    "closes_order": "Abschließende Rechnung",
+    "soll_quantity": "Soll-Menge", "ist_quantity": "Ist-Menge (gesamt)", "billed_quantity": "Abgerechnete Menge", "billed_total": "Betrag",
+    "reminder_number": "Mahnungsnummer", "level": "Mahnstufe", "reminder_date": "Mahndatum", "new_due_date": "Neue Frist",
+    "outstanding_amount": "Angemahnter Betrag", "fee_amount": "Mahngebühr", "text": "Text", "amounts_json": "Aufstellung",
+    "replaced_by_id": "Ersetzt durch Mahnung", "replaced_at": "Ersetzt am", "fee_accepted": "Mahngebühr übernommen",
+    "flat_fee_accepted": "Pauschale übernommen",
+    "report_type": "Berichtstyp", "performed_at": "Datum des Einsatzes", "signature_path": "Unterschrift Kunde (Datei)",
+    "signature_name": "Unterschrieben von (Kunde)", "signed_at": "Unterschrieben am", "installer_signature_path": "Unterschrift Monteur (Datei)",
+    "installer_signature_name": "Unterschrieben von (Monteur)", "installer_signed_at": "Monteur unterschrieben am",
+    "maintenance_contract_id": "Wartungsvertrag", "maintenance_contract_item_id": "Leistung des Wartungsvertrags",
+    "inspection_template_id": "Prüfvorlage", "inspection_template_version": "Fassung der Prüfvorlage",
+    "advance_due_date_on_sign": "Nächste Fälligkeit mit der Unterschrift", "time_rows_json": "Zeiten des Berichts",
+    "interval_months": "Intervall (Monate)", "next_due_date": "Nächste Fälligkeit", "last_reminder_due_date": "Zuletzt erinnert für",
+    "template_project_id": "Vorlage-Projekt", "responsible_employee_id": "Zuständig",
+    "roof_type": "Dachtyp", "covering": "Eindeckung", "pitch_degrees": "Dachneigung (°)", "area_sqm": "Fläche (m²)", "build_up": "Aufbau",
+    "insulation": "Dämmung", "last_renovation": "Letzte Sanierung", "contractor": "Ausführende Firma",
+    "third_party_guarantee_until": "Garantie Dritter bis", "sketch_path": "Skizze (Datei)",
+    "start_at": "Beginn", "end_at": "Ende", "all_day": "Ganztägig", "owner_user_id": "Besitzer (Konto)", "is_private": "Privat",
+    "outlook_event_id": "Outlook-Termin", "external_source": "Herkunft", "outlook_synced_at": "Mit Outlook abgeglichen am",
+    "outlook_etag": "Outlook-Stand",
 }
 
 
@@ -391,7 +452,10 @@ def _columns(obj):
 
 
 def _snapshot(obj):
-    return {k: _text(getattr(obj, k, None)) for k in _columns(obj) if getattr(obj, k, None) not in (None, "")}
+    werte = {k: _text(getattr(obj, k, None)) for k in _columns(obj) if getattr(obj, k, None) not in (None, "")}
+    if _privat(obj):  # seit 1.9.115: Inhalt eines privaten Termins nie im Schnappschuss
+        werte = {k: (PRIVAT if k in PRIVATE_TERMINFELDER else v) for k, v in werte.items()}
+    return werte
 
 
 def _normalize(session, obj):
@@ -537,6 +601,33 @@ def _normalize(session, obj):
         o = session.get(Order, obj.order_id)
         label = f"Kundenwechsel {obj.old_customer_name} → {obj.new_customer_name} · {_entity_label(o) or ''}".strip(" ·")
         return "Auftrag", str(obj.order_id), label[:255], o.project_id if o else None
+    if isinstance(obj, Invoice):
+        o = session.get(Order, obj.order_id)
+        return "Rechnung", str(obj.id), _invoice_label(obj), o.project_id if o else None
+    if isinstance(obj, InvoiceItem):
+        inv = session.get(Invoice, obj.invoice_id); o = session.get(Order, inv.order_id) if inv else None
+        position = f"{obj.gaeb_oz or obj.position_number or ''} {obj.short_text or ''}".strip()
+        return "Rechnungsposition", str(obj.id), f"{_invoice_label(inv) if inv else 'Rechnung'} · {position}"[:255], o.project_id if o else None
+    if isinstance(obj, Reminder):
+        inv = session.get(Invoice, obj.invoice_id); o = session.get(Order, inv.order_id) if inv else None
+        label = f"{obj.reminder_number or 'Entwurf'} · {obj.level}. Mahnung zu {inv.invoice_number if inv and inv.invoice_number else 'Rechnung'}"
+        return "Mahnung", str(obj.id), label[:255], o.project_id if o else None
+    if isinstance(obj, ServiceReport):
+        o = session.get(Order, obj.order_id)
+        from .service_reports import REPORT_TYPE_LABELS  # lokal: nur hier gebraucht
+        art = REPORT_TYPE_LABELS.get(obj.report_type, "Einsatzbericht")
+        tag = obj.performed_at.strftime("%d.%m.%Y") if obj.performed_at else ""
+        return "Einsatzbericht", str(obj.id), f"{art} vom {tag} · {o.order_number if o else ''}".strip(" ·")[:255], o.project_id if o else None
+    if isinstance(obj, MaintenanceContract):
+        c = session.get(Customer, obj.customer_id)
+        return "Wartungsvertrag", str(obj.id), f"{obj.title}{' · ' + c.name if c else ''}"[:255], None
+    if isinstance(obj, RoofArea):
+        p = session.get(Property, obj.property_id)
+        return "Dachfläche", str(obj.id), f"{obj.name}{' · ' + p.name if p else ''}"[:255], None
+    if isinstance(obj, CalendarEvent):
+        tag = obj.start_at.strftime("%d.%m.%Y") if obj.start_at else ""
+        titel = "Privater Termin" if _privat(obj) else (obj.title or "Termin")
+        return "Termin", str(obj.id), f"{titel} · {tag}".strip(" ·")[:255], obj.project_id
     if isinstance(obj, OrderRevision):
         o = session.get(Order, obj.order_id); return "Auftragsrevision", str(obj.id), f"Revision {obj.revision_number} · {_entity_label(o) or ''}".strip(), o.project_id if o else None
     if isinstance(obj, OrderSection):
@@ -552,6 +643,16 @@ def _normalize(session, obj):
     elif isinstance(obj, Quote): pid = obj.project_id
     elif isinstance(obj, QuoteItem): pid = _project_for_quote_item(session, obj)
     return et, eid, _entity_label(obj), pid
+
+
+# Rechnungsart in der Historie (Bezeichnung der Rechnung, Wert von invoice_type -- app/verlauf_namen.py)
+RECHNUNGSARTEN = {"abschlag_pauschal": "Abschlag (Pauschal)", "abschlag_leistungsstand": "Abschlag (Leistungsstand)",
+                   "schluss": "Schlussrechnung", "aufwand": "Rechnung aus Aufwand", "storno": "Stornorechnung"}
+
+
+def _invoice_label(invoice) -> str:
+    """Seit 1.9.115: „R-2026-0001 · Schlussrechnung“, im Entwurf „Entwurf · Schlussrechnung“."""
+    return f"{invoice.invoice_number or 'Entwurf'} · {RECHNUNGSARTEN.get(invoice.invoice_type, invoice.invoice_type)}"
 
 
 def _checklist_label(checklist, checklist_id):
@@ -622,12 +723,15 @@ def collect_audit(session, flush_context, instances):
         state = inspect(obj)
         for attr in state.mapper.column_attrs:
             key = attr.key
-            if key in EXCLUDED_FIELDS or key == "id": continue
+            if key in EXCLUDED_FIELDS or key == "id" or _still(obj, key, state): continue
             hist = state.attrs[key].history
             if not hist.has_changes(): continue
             old = hist.deleted[0] if hist.deleted else None
             new = hist.added[0] if hist.added else getattr(obj, key, None)
             if _text(old) == _text(new): continue
+            if key in PRIVATE_TERMINFELDER and (_privat(obj) or (isinstance(obj, CalendarEvent) and state.attrs["is_private"].history.deleted
+                                                                  and state.attrs["is_private"].history.deleted[0])):
+                old, new = PRIVAT, PRIVAT  # seit 1.9.115: privater Termin -- nur, dass sich der Inhalt änderte
             if isinstance(obj, ProjectParticipant) and key == "role":
                 # Rolle als Beschriftung ("Hausverwaltung → Eigentümer"), nicht als Schlüssel (seit 1.8.37)
                 from .project_participants import role_label

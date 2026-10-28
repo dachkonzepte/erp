@@ -93,9 +93,11 @@ def _rechnung(db, order, *, status, invoice_type="abschlag_leistungsstand", net=
         lump_sum_net=D(net) if invoice_type == "abschlag_pauschal" else None,
         invoice_number=f"R-ALT-{uuid.uuid4().hex[:6]}", rounding_rule=rule,
     )).inserted_primary_key[0]
-    db.add(InvoiceItem(invoice_id=invoice_id, source_order_item_id=None, sort_order=10, position_number="1",
-                       short_text="Dach", unit="m2", unit_price=D(net), soll_quantity=D("1"), ist_quantity=D("1"),
-                       billed_quantity=D(sign), billed_total=D(net) * sign))
+    # Seit 1.9.115 auch die Position als Core-Insert: Rechnungspositionen stehen im Änderungsprotokoll, und dessen Bezeichnung lädt die Rechnung
+    # über das ORM -- mit invoices.customer_id, die es auf diesem Stand noch nicht gibt.
+    db.execute(insert(InvoiceItem.__table__).values(
+        invoice_id=invoice_id, source_order_item_id=None, sort_order=10, position_number="1", short_text="Dach", long_text="", unit="m2",
+        unit_price=D(net), soll_quantity=D("1"), ist_quantity=D("1"), billed_quantity=D(sign), billed_total=D(net) * sign))
     db.commit()
     return invoice_id
 

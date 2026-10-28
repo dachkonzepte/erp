@@ -4,6 +4,19 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.115 – Änderungsprotokoll für Aufträge, Rechnungen, Mahnungen, Berichte (Stufe 5, R1)
+
+Das Änderungsprotokoll kannte Auftragspositionen und LV-Titel des Auftrags, Rechnungen, Mahnungen, Einsatzberichte, Wartungsverträge, Dachflächen und
+Termine gar nicht -- die Karte „Auftragsstände“ versprach trotzdem, Einzeländerungen blieben dort sichtbar. Jetzt steht jede dieser Arten mit Anlegen,
+jeder Änderung (alt → neu) und Löschen in der Historie, in der Projektmappe unter ihrem Projekt: eine geänderte Menge einer Auftragsposition, die
+Ist-Menge einer Rechnungsposition, Festschreiben einer Rechnung (Status, Nummer), Mahnungen, Datum und Art eines Berichts. Still bleiben nur die
+Buchhaltung des Outlook-Abgleichs, eingefrorene Aufstellungen und die Beschreibung eines Berichts im Entwurf (sie speichert beim Tippen); ein privater
+Termin erscheint ohne Titel, Ort und Notiz („(privat)“).
+
+/history und der Verlauf der Projektmappe zeigen „verworfen“ jetzt mit der Begründung und „Pausen neu gerechnet“ mit der Pause des Tages alt → neu -- bis
+1.9.114 stand dort „Datensatz gelöscht“ bzw. nur der Name der Aktion (`_verlauf.html`, eine Darstellung für beide). Die Werte der neuen Arten stehen lesbar da (Rechnungsart, Berichtstyp, Status „Unterschrieben“, „Aktiv“/„Pausiert“/„Beendet“,
+Rundungsregel, Herkunft eines Termins).
+
 ## 1.9.114 – Storno-Entwurf und Schlussrechnung: Positionen gesperrt (Stufe 5, R1)
 
 Ein Storno-Entwurf ließ seine Positionen ändern: `PUT` nahm eine neue Ist-Menge an (200) und rechnete die Position neu -- im Test lautete der Storno

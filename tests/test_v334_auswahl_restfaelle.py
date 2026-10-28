@@ -104,7 +104,8 @@ BAUSTEINE = ("_auswahl.html", "_speichern.html", "_aktionen.html", "_weiterleitu
              "_menue.html", "_statuskennzeichen.html", "_seitenkopf.html", "_berlin_date.html",  # _berlin_date.html seit 1.9.12
              "_objekt_anderer_kunde.html", "_time_entries_list.html",  # seit 1.9.16 (Wartungsvertrag, Zeiterfassung)
              "_abbrechen.html",  # seit 1.9.23 (Formularseiten: „Abbrechen“ fragt bei ungespeicherten Änderungen)
-             "_auftrag_text.html")  # seit 1.9.78 (wie ein Auftrag der Liste heißt: „Heute“, „Meine Zeiten“)
+             "_auftrag_text.html",  # seit 1.9.78 (wie ein Auftrag der Liste heißt: „Heute“, „Meine Zeiten“)
+             "_verlauf.html")  # seit 1.9.115 (eine Darstellung der Änderung: /history und Verlauf der Projektmappe)
 
 
 def eingebunden(vorlage: str) -> list[str]:

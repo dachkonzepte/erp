@@ -13,7 +13,7 @@ Kleinschreibung einer protokollierten Spalte (Katalog von tests/test_v364_feste_
 
 from functools import lru_cache
 
-from .audit import FIELD_LABELS, TYPE_LABELS
+from .audit import FIELD_LABELS, RECHNUNGSARTEN, TYPE_LABELS
 
 
 @lru_cache(maxsize=1)
@@ -48,6 +48,8 @@ _STATUS = {
     # Anfrage
     "neu": "Neu", "termin_offen": "Termin offen", "termin_geplant": "Termin geplant", "aufmass_erfolgt": "Aufmaß erfolgt",
     "projekt_erstellt": "Projekt erstellt", "gewonnen": "Gewonnen", "verloren": "Verloren",
+    # seit 1.9.115: Einsatzbericht, Wartungsvertrag (app/maintenance_contracts.py::STATUSES), Rechnung vor 1.8.78
+    "unterschrieben": "Unterschrieben", "aktiv": "Aktiv", "pausiert": "Pausiert", "beendet": "Beendet", "bezahlt": "Bezahlt",
 }
 _ZEITARTEN = {"site": "Baustelle", "workshop": "Werkstatt", "travel": "Fahrzeit", "other": "Sonstige",
               "weather_winter": "Schlechtwetter Winter", "weather_summer": "Schlechtwetter Sommer"}
@@ -70,6 +72,7 @@ def _werte() -> dict[str, dict[str, str]]:
     from .payments import KIND_LABELS as ZAHLUNGSARTEN
     from .permissions import ROLE_LABELS
     from .project_participants import ROLES as BETEILIGTEN_ROLLEN
+    from .service_reports import REPORT_TYPE_LABELS
     from .warranty import WORK_KINDS
 
     def gross(tabelle: dict) -> dict:
@@ -119,6 +122,12 @@ def _werte() -> dict[str, dict[str, str]]:
         "group_key": gruppen,
         "mode": _VON_HAND,
         "datev_target": {"lodas": "LODAS", "lohn_gehalt": "Lohn und Gehalt"},
+        # seit 1.9.115: Rechnungen, Einsatzberichte, Termine
+        "invoice_type": RECHNUNGSARTEN,
+        "report_type": REPORT_TYPE_LABELS,
+        "rounding_rule": {"half_up": "Kaufmännisch (ab 1.8.11)"},
+        "external_source": {"erp": "Im ERP angelegt", "outlook": "Aus Outlook"},
+        "unit": {"pschl.": "Pauschal (pschl.)"},
     }
 
 

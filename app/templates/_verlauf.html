@@ -1,0 +1,15 @@
+<script>
+/* Seit 1.9.115 (Stufe 5, R1, Punkt 5, Befund F14): eine Darstellung der Änderung einer Historienzeile für /history und den Verlauf der Projektmappe.
+   „geändert“ und jede andere Aktion mit Werten (z. B. „Pausen neu gerechnet“: Pause des Tages alt -> neu) als alt -> neu, „verworfen“ mit der Begründung,
+   „angelegt“ / „gelöscht“ als Satz. Bis 1.9.114 zeigte /history jede andere Aktion als „Datensatz gelöscht“ und die Projektmappe nur ihren Namen.
+   verlaufAenderung(zeile) -> HTML (Werte über die eigene Maskierung). */
+const _verlaufEsc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function verlaufAenderung(x){
+  const altNeu=()=>`<span class="old">${_verlaufEsc(x.old_value??'—')}</span> → <span class="new">${_verlaufEsc(x.new_value??'—')}</span>`;
+  if(x.action==='angelegt')return 'Datensatz angelegt';
+  if(x.action==='gelöscht')return 'Datensatz gelöscht';
+  if(x.action==='verworfen')return 'Verworfen'+(x.new_value?' – Begründung: '+_verlaufEsc(x.new_value):'');
+  if(x.action==='geändert'||x.old_value!=null||x.new_value!=null)return altNeu();
+  return _verlaufEsc(x.action);
+}
+</script>
