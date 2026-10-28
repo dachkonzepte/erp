@@ -23,7 +23,7 @@ from ..concern_notices import OPEN_CONCERNS_TEXT
 from ..database import get_db
 from ..deps import require_admin
 from ..models import AppUser
-from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, ZEITEN_NUR_LESEN, darf_lohndaten, darf_zeit_buchen, darf_zeit_fuer_andere_buchen, default_home_page_for_role, has_min_role, has_role, require_min_role, zeit_nur_mit_von_bis
+from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, ZEITEN_NUR_LESEN, GELD_NUR_LESEN, darf_geld, darf_lohndaten, darf_zeit_buchen, darf_zeit_fuer_andere_buchen, default_home_page_for_role, has_min_role, has_role, require_min_role, zeit_nur_mit_von_bis
 from .. import seitendaten
 from ..design_dateien import pruefsumme as ds_pruefsumme
 from ..version import APP_VERSION
@@ -530,12 +530,16 @@ def quote_editor_page(request: Request, quote_id: int, _role: AppUser = _role_de
 
 @router.get("/orders/{order_id}", response_class=HTMLResponse)
 def order_page(request: Request, order_id: int, _role: AppUser = _role_dep):
-    return templates.TemplateResponse(request=request, name="order.html", context={"order_id": order_id})
+    # Seit 1.9.111 (Stufe 5, R1): „geld“ = darf_geld() -- Rechnung anlegen und Entwurf löschen nur danach, sonst der Hinweis.
+    return templates.TemplateResponse(request=request, name="order.html",
+                                      context={"order_id": order_id, "geld": darf_geld(_role), "geld_nur_lesen": GELD_NUR_LESEN})
 
 
 @router.get("/invoices/{invoice_id}", response_class=HTMLResponse)
 def invoice_page(request: Request, invoice_id: int, _role: AppUser = _role_dep):
-    return templates.TemplateResponse(request=request, name="invoice_detail.html", context={"invoice_id": invoice_id})
+    # Seit 1.9.111 (Stufe 5, R1): ohne darf_geld() liest die Seite nur -- kein Feld, kein Knopf, der Hinweis oben.
+    return templates.TemplateResponse(request=request, name="invoice_detail.html",
+                                      context={"invoice_id": invoice_id, "geld": darf_geld(_role), "geld_nur_lesen": GELD_NUR_LESEN})
 
 
 @router.get("/finanzen", response_class=HTMLResponse)
@@ -557,7 +561,9 @@ def office_search_page(request: Request, _role: AppUser = _role_dep):
 
 @router.get("/mahnwesen", response_class=HTMLResponse)
 def mahnwesen_page(request: Request, _role: AppUser = _role_dep):
-    return templates.TemplateResponse(request=request, name="mahnwesen.html", context={})
+    # Seit 1.9.111 (Stufe 5, R1): ohne darf_geld() nur die Listen, keine Entwürfe, kein Festschreiben, kein Versand.
+    return templates.TemplateResponse(request=request, name="mahnwesen.html",
+                                      context={"geld": darf_geld(_role), "geld_nur_lesen": GELD_NUR_LESEN})
 
 
 @router.get("/versandprotokoll", response_class=HTMLResponse)
@@ -683,8 +689,10 @@ def inquiries_page(request: Request, _role: AppUser = _role_dep):
 
 @router.get("/customers/{customer_id}", response_class=HTMLResponse)
 def customer_record_page(request: Request, customer_id: int, _role: AppUser = _role_dep):
+    # Seit 1.9.111 (Stufe 5, R1): Zahlungen (zuordnen, erstatten, zurücknehmen) nur nach darf_geld(), sonst lesen.
     return templates.TemplateResponse(
-        request=request, name="customer.html", context={"customer_id": customer_id}
+        request=request, name="customer.html",
+        context={"customer_id": customer_id, "geld": darf_geld(_role), "geld_nur_lesen": GELD_NUR_LESEN},
     )
 
 

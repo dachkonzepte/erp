@@ -20,7 +20,7 @@ from ..payments import (
     customer_payments, open_invoices_of_customer, payment_to_dict, proposal, reverse_allocation, reverse_payment,
     unallocated_by_customer,
 )
-from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
+from ..permissions import ROLE_OFFICE_AUFTRAG, require_geld, require_min_role
 from ..schemas import (
     CustomerBalanceOut, CustomerPaymentsOut, CustomerRefundCreate, OpenInvoiceOut, PaymentAllocate, PaymentCreate, PaymentOut,
     PaymentProposalOut, PaymentReverse, RefundCreate, UnallocatedPaymentsOut,
@@ -30,6 +30,9 @@ from ..zugehoerigkeit import IdNichtGefunden
 router = APIRouter()
 
 _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG, message="Zahlungen sind nur für Büro und Administratoren verfügbar."))
+
+# Seit 1.9.111 (Stufe 5, R1): schreiben nur Admin und Büro – Finanzen (app/permissions.py::darf_geld()), lesen jedes Büro.
+_geld_dep = Depends(require_geld)
 
 
 def _lines(payload_lines) -> list[Line]:
@@ -86,7 +89,7 @@ def get_customer_balances(db: Session = Depends(get_db, scope="function"), _role
 
 @router.post("/api/customers/{customer_id}/refunds", response_model=PaymentOut)
 def post_customer_refund(customer_id: int, payload: CustomerRefundCreate, db: Session = Depends(get_db, scope="function"),
-                         user: AppUser = _role_dep):
+                         user: AppUser = _geld_dep):
     """Seit 1.8.93: Erstattung des Guthabens des Kunden als ein Zahlungsausgang -- aus Resten seiner Zahlungen und aus Guthaben von
     Endrechnungen (app/payments.py::book_customer_refund())."""
     _customer_or_404(db, customer_id)
@@ -116,7 +119,7 @@ def get_payment_proposal(invoice_id: int, amount: Decimal = Query(gt=0), receive
 
 
 @router.post("/api/payments", response_model=PaymentOut)
-def post_payment(payload: PaymentCreate, db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep):
+def post_payment(payload: PaymentCreate, db: Session = Depends(get_db, scope="function"), user: AppUser = _geld_dep):
     user_id, user_name = actor_of(user)
     try:
         payment = book_payment(db, customer_id=payload.customer_id, received_on=payload.received_on, amount=payload.amount,
@@ -128,7 +131,7 @@ def post_payment(payload: PaymentCreate, db: Session = Depends(get_db, scope="fu
 
 @router.post("/api/payments/{payment_id}/allocations", response_model=PaymentOut)
 def post_payment_allocations(payment_id: int, payload: PaymentAllocate, db: Session = Depends(get_db, scope="function"),
-                             user: AppUser = _role_dep):
+                             user: AppUser = _geld_dep):
     payment = _payment_or_404(db, payment_id)
     user_id, user_name = actor_of(user)
     try:
@@ -140,7 +143,7 @@ def post_payment_allocations(payment_id: int, payload: PaymentAllocate, db: Sess
 
 @router.post("/api/payments/{payment_id}/reverse", response_model=PaymentOut)
 def post_payment_reverse(payment_id: int, payload: PaymentReverse, db: Session = Depends(get_db, scope="function"),
-                         user: AppUser = _role_dep):
+                         user: AppUser = _geld_dep):
     payment = _payment_or_404(db, payment_id)
     user_id, user_name = actor_of(user)
     try:
@@ -151,7 +154,7 @@ def post_payment_reverse(payment_id: int, payload: PaymentReverse, db: Session =
 
 
 @router.post("/api/invoices/{invoice_id}/refunds", response_model=PaymentOut)
-def post_refund(invoice_id: int, payload: RefundCreate, db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep):
+def post_refund(invoice_id: int, payload: RefundCreate, db: Session = Depends(get_db, scope="function"), user: AppUser = _geld_dep):
     """Seit 1.8.90 (R4c Punkt 6): Erstattung eines Guthabens als Zahlungsausgang (app/payments.py::book_refund())."""
     invoice = db.get(Invoice, invoice_id)
     if invoice is None:
@@ -167,7 +170,7 @@ def post_refund(invoice_id: int, payload: RefundCreate, db: Session = Depends(ge
 
 @router.post("/api/payment-allocations/{allocation_id}/reverse", response_model=PaymentOut)
 def post_allocation_reverse(allocation_id: int, payload: PaymentReverse, db: Session = Depends(get_db, scope="function"),
-                            user: AppUser = _role_dep):
+                            user: AppUser = _geld_dep):
     allocation = db.get(PaymentAllocation, allocation_id)
     if allocation is None:
         raise HTTPException(status_code=404, detail="Zuordnung nicht gefunden.")

@@ -173,6 +173,22 @@ def darf_antrag_zurueckziehen(user: AppUser | None, antrag) -> bool:
     return user.employee_id is not None and user.employee_id == antrag.employee_id
 
 
+# Seit 1.9.111 (Stufe 5, R1, Punkt 1, Entscheidung Tobias): mit Geld arbeiten nur Admin und Büro – Finanzen -- Rechnungen anlegen, ändern,
+# festschreiben, versenden, stornieren, Entwurf löschen; Zahlungen buchen, zuordnen, erstatten, zurücknehmen; Mahnungen und Nebenforderungen
+# (Verzugsbeginn, Gegenbuchung); „Zustellung nachtragen“, Versandergebnis und Klären an Rechnung und Mahnung. Büro – Auftrag liest alles
+# und bekommt keinen Knopf (wie bei „Zeiten“). Server (app/routers/invoices.py, payments.py, reminders.py, dunning_charges.py,
+# email_dispatches.py) und Oberfläche (Seitenrouten: Auftrag, Rechnung, Kundenakte, Mahnwesen) fragen nur diese Regel.
+GELD_ROLLEN = frozenset({ROLE_ADMIN, ROLE_OFFICE_FINANZEN})
+GELD_NUR_LESEN = "Rechnungen, Zahlungen und Mahnungen bearbeiten Admin und Büro – Finanzen – du kannst sie lesen."
+GELD_DOKUMENTE = frozenset({"rechnung", "mahnung"})  # Dokumentarten des Versandprotokolls, deren Versand zum Geld gehört
+
+
+def darf_geld(user: AppUser | None) -> bool:
+    """Seit 1.9.111: wer mit Geld arbeitet (Rechnungen, Zahlungen, Mahnungen, Nebenforderungen) -- Admin und Büro – Finanzen (bis 1.9.110
+    jedes Büro); ohne Konto (Tests ohne Anmeldung) ohne Einschränkung. Lesen bleibt jedem Büro."""
+    return user is None or has_role(user, *GELD_ROLLEN)
+
+
 def zeit_nur_mit_von_bis(user: AppUser | None) -> bool:
     """Seit 1.9.60 (Stufe 4, R3, Punkt 3): wer eine Zeit nur mit Von und Bis nachträgt oder ändert, nie als reine Dauer -- heute die
     Monteurin (field), damit die Pausenregel des Tages gilt; das Büro trägt weiter Dauern ein. Die eine Stelle für den Server
@@ -252,6 +268,7 @@ def require_min_role(min_role: str, *, message: str = _DEFAULT_MESSAGE):
 # Seit 1.9.89: die Abhängigkeiten zu darf_zeit_buchen() und darf_lohndaten() oben -- dieselben Rollenmengen, eine Stelle.
 require_zeit_buchen = require_role(*ZEIT_BUCHEN_ROLLEN, message=ZEITEN_NUR_LESEN)
 require_lohndaten = require_role(*LOHNDATEN_ROLLEN, message=NUR_LOHNDATEN)
+require_geld = require_role(*GELD_ROLLEN, message=GELD_NUR_LESEN)  # seit 1.9.111, zu darf_geld() oben
 
 
 # Vollständigkeits-Ausnahmen für tests/test_v260_role_audit.py -- bewusst kurz und einzeln

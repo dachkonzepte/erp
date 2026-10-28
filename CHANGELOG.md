@@ -4,6 +4,20 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.111 – Mit Geld arbeiten nur Admin und Büro – Finanzen (Stufe 5, R1)
+
+Entscheidung von Tobias: Rechnungen anlegen, ändern, festschreiben, versenden, stornieren und Entwürfe löschen, Zahlungen buchen, zuordnen,
+erstatten und zurücknehmen, Mahnungen und Nebenforderungen (Verzugsbeginn, Gegenbuchung) gibt es nur noch für Admin und Büro – Finanzen -- eine Regel
+in `app/permissions.py` (`darf_geld()`, `require_geld`). Dazu gehören an Rechnung und Mahnung auch „Zustellung nachtragen“, „Empfang bestätigt /
+unzustellbar“ und das Klären eines hängenden Versands. Büro – Auftrag liest weiter alles und bekommt 403 mit dem Satz „Rechnungen, Zahlungen und
+Mahnungen bearbeiten Admin und Büro – Finanzen – du kannst sie lesen.“ -- bis 1.9.110 durfte jedes Büro alles.
+
+Die Seiten folgen der Regel wie bei „Zeiten“: Auftrag, Rechnung, Kundenakte und Mahnwesen zeigen Büro – Auftrag den Hinweis und keinen Knopf (keine
+„Neue Rechnung“, kein Finalisieren, Versenden, Stornieren, kein „Zahlungseingang buchen“, Gegenbuchen, Zuordnen, Zurücknehmen, Erstatten, keine
+Mahnung anlegen, festschreiben oder bearbeiten, kein Verzugsbeginn); die Felder einer Rechnung sind gesperrt. Der Versandverlauf von Rechnung und
+Mahnung und das Versandprotokoll bieten Nachtragen, Ergebnis und Klären nur noch, wer darf. Die Mahnstufen in den Einstellungen bleiben, wie sie sind.
+Neuer Klicktest `klicktest_rechte_geld.py`.
+
 ## 1.9.110 – Gesperrte Felder im Dunkeln erkennbar (Stufe 4, R5b Nachrunde 2)
 
 Gesperrte Felder hatten im Dunkeln die Fläche #222A2F auf der Karte #1A2024 und sahen fast aus wie bearbeitbare. Neu ist das Token

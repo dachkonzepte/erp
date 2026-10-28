@@ -2199,3 +2199,11 @@ Nr. 2–4.
 `GET /api/absence-requests` meldet je Antrag `darf_zurueckziehen` und `beantragt_von` (wer ihn für die Person gestellt hat) -- „Meine Zeiten“ zeigt
 „Zurückziehen“ nur danach. Die Abwesenheiten der Plantafel (`EmployeeAbsence`, Krankheit für Büro – Auftrag nur „abwesend“, seit 1.5.4) bleiben, wie
 sie sind. Herleitung: `docs/archiv/redesign.md`, „R5b Nachrunde, Punkt 1“.
+
+## Nachtrag 1.9.111: Rechte am Geld (Stufe 5, R1, Punkt 1)
+
+Entscheidung von Tobias (28.10.2026): mit Geld arbeiten nur Admin und Büro – Finanzen. Eine Regel in `app/permissions.py`: `darf_geld()` und
+`require_geld` (403 „Rechnungen, Zahlungen und Mahnungen bearbeiten Admin und Büro – Finanzen – du kannst sie lesen.“) an jedem schreibenden Endpunkt
+von Rechnungen, Zahlungen, Mahnungen und Nebenforderungen; an Rechnung und Mahnung auch „Zustellung nachtragen“, Versandergebnis und Klären
+(`app/routers/email_dispatches.py::_require_geld_for()`). Büro – Auftrag liest alles, die Seiten Auftrag, Rechnung, Kundenakte und Mahnwesen zeigen ihm
+den Hinweis statt der Knöpfe (`geld` aus der Seitenroute). Tabelle, Festlegungen und Tests: `docs/archiv/redesign.md`, „Stufe 5, R1, Punkt 1“.

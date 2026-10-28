@@ -333,6 +333,7 @@ def _zahlungskarte(payment: dict, offene: list) -> str:
     html = (TEMPLATES / "customer.html").read_text(encoding="utf-8")
     script = "\n".join([
         _skripte_von("_zahlung_gruppen.html"), _zeile(html, "esc"), _zeile(html, "money"), _skripte_von("_zahl.html"), _zeile(html, "dt"),
+        _zeile(html, "GELD"),  # seit 1.9.111: Knöpfe nur mit darf_geld() -- ungerendert gilt die Vorlage wie mit Geld
         f"let customerOpenInvoices={json.dumps(offene)};",
         js_funktion("customer.html", "paymentCardHtml"),
         f"process.stdout.write(JSON.stringify(paymentCardHtml({json.dumps(payment)})));",

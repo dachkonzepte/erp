@@ -155,8 +155,10 @@ async def pruefen(tab, seed, p):
     p.pruefe("Projektmappe: JS-Fehler", tab.fehler, [])
     await tab.bild("projektmappe")
 
-    await tab.oeffnen(f"/orders/{a}", "document.querySelector('#newInvoiceType option')")
-    p.pruefe("Auftrag: Rechnung aus Aufwand", await tab.js("!!document.querySelector('#newInvoiceType option[value=\"aufwand\"]')"), True)
+    # seit 1.9.111: Karl (Büro – Auftrag) legt keine Rechnung an -- statt „Neue Rechnung“ der Hinweis; „Rechnung aus Aufwand“ prüft Anna unten
+    await tab.oeffnen(f"/orders/{a}", "order&&document.getElementById('invoicesList').innerHTML.length>0")
+    p.pruefe("Auftrag (Büro – Auftrag): Hinweis statt „Neue Rechnung“", await tab.js(
+        "[!!document.querySelector('[data-geld-nur-lesen]'),!!document.getElementById('newInvoiceType')]"), [True, False])
     p.pruefe("Auftrag: JS-Fehler", tab.fehler, [])
 
     await tab.oeffnen("/", "[...document.querySelectorAll('.metric small')].some(x=>x.textContent.includes('Meine Stunden'))")
@@ -168,6 +170,8 @@ async def pruefen(tab, seed, p):
     # seit 1.9.98 „Zeiten“, Reiter Buchungen (bis 1.9.97 Backoffice mit Liste 2000 und Büro-Zeiterfassung mit Liste 500, je mit Hinweis):
     # ein Monat kommt vollständig (GET /api/zeiten/buchungen ohne Grenze), die laufende Zeit steht in der Liste, nicht in der Summe
     await tab.anmelden(seed["cookies"]["anna"])
+    await tab.oeffnen(f"/orders/{a}", "document.querySelector('#newInvoiceType option')")
+    p.pruefe("Auftrag (Admin): Rechnung aus Aufwand", await tab.js("!!document.querySelector('#newInvoiceType option[value=\"aufwand\"]')"), True)
     zeilen = "!!window.B&&!document.getElementById('reiter-buchungen').hidden&&document.querySelectorAll('#buchungenZeilen tr').length>0"
     await tab.oeffnen("/time-backoffice#entries", zeilen, timeout=60)
     summe = f"{float(seed['monat_gebucht']):.2f}".replace(".", ",") + " h"  # zahlText(): ohne Tausenderpunkt

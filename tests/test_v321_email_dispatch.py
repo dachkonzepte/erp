@@ -454,7 +454,7 @@ def test_same_key_is_never_sent_twice(db_session, smtp):
 def test_same_key_twice_through_the_api(sent_invoice, router_test_client):
     from app.routers.invoices import router as invoices_router
     db, invoice, _row = sent_invoice
-    client = router_test_client(db, invoices_router, role="buero_auftrag")
+    client = router_test_client(db, invoices_router, role="buero_finanzen")  # seit 1.9.111: Geld nur Admin und Büro – Finanzen
     body = {"to_email": "kunde@example.com", "dispatch_key": "rechnung-api-0001"}
     assert client.post(f"/api/invoices/{invoice.id}/send-email", json=body).status_code == 200
     assert client.post(f"/api/invoices/{invoice.id}/send-email", json=body).status_code == 200

@@ -161,7 +161,7 @@ def test_a_manual_delivery_refers_to_the_fixed_pdf(router_test_client, threaded_
     db = threaded_db_session
     order, _ = make_order_with_item(db)
     invoice = festschreiben(db, create_schlussrechnung(db, order))
-    office = router_test_client(db, dispatches_router, role="buero_auftrag")
+    office = router_test_client(db, dispatches_router, role="buero_finanzen")  # seit 1.9.111: Geld nur Admin und Büro – Finanzen
     response = _manual(office, "rechnung", invoice.id, key="fassung-manuell-0001")
     assert response.status_code == 200, response.text
     [row] = db.scalars(select(EmailDispatch)).all()
@@ -241,7 +241,7 @@ def test_the_finalize_route_answers_400_without_a_fixed_pdf(router_test_client, 
     order, _ = make_order_with_item(db)
     entwurf = mit_zeitraum(db, create_schlussrechnung(db, order))
     monkeypatch.setattr(invoice_pdf_module, "build_invoice_pdf", _scheitert)
-    client = router_test_client(db, invoices_router, role="buero_auftrag")
+    client = router_test_client(db, invoices_router, role="buero_finanzen")  # seit 1.9.111: Geld nur Admin und Büro – Finanzen
     response = client.post(f"/api/invoices/{entwurf.id}/send")
     assert response.status_code == 400 and "nicht festgeschrieben" in response.json()["detail"]
     assert db.scalar(select(func.count()).select_from(Invoice).where(Invoice.status != "entwurf")) == 0

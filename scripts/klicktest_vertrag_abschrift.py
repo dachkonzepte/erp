@@ -75,7 +75,8 @@ def befuellen(db, k):
     smtp_port = _freier_port()  # seit 1.8.126 der Port-Helfer von cdp_klicktest
     update_smtp_settings(db, host="127.0.0.1", port=smtp_port, username="buero", encryption="none",
                          sender_email="buero@klicktest.example", sender_name="Klicktest GmbH", password="pw")
-    bert = AppUser(username="bert", display_name="Bert Büro", role="buero_auftrag", password_hash=k.passwort())
+    # seit 1.9.111: Geld nur Admin und Büro – Finanzen (app/permissions.py::darf_geld()) -- bis dahin Büro – Auftrag
+    bert = AppUser(username="bert", display_name="Bert Büro", role="buero_finanzen", password_hash=k.passwort())
     max_ = AppUser(username="max", display_name="Max Monteur", role="field", password_hash=k.passwort())
     db.add_all([bert, max_]); db.flush()
     save_template(db, "bgb_vob_c_4_5", title="Bauvertrag {auftragsnummer}", sections=[

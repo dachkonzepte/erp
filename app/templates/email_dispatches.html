@@ -74,6 +74,8 @@ const docType=params.get('typ')||'', docId=params.get('id')||'';
 const projektId=Number(params.get('projekt'))||null, kundeId=Number(params.get('kunde'))||null;
 function statusCell(d){
   // Hängengeblieben (seit 1.8.19): klären statt nur anzeigen -- sichtbares Notizfeld, kein prompt() (Regel 4).
+  // Seit 1.9.111: klären nur, wer darf (can_resolve vom Server; Rechnung und Mahnung nach darf_geld()).
+  if(d.stuck&&d.can_resolve===false) return `<span class="pill haengt">Hängt</span><div class="small muted">seit ${fmtLocal(d.created_at_local)} in Arbeit – Ausgang unklar; klären können Admin und Büro – Finanzen</div>`;
   if(d.stuck) return `<span class="pill haengt">Hängt</span><div class="small muted">seit ${fmtLocal(d.created_at_local)} in Arbeit – Ausgang unklar</div>
     <div class="resolve"><label class="small muted" for="resolveNote${d.id}">Nach Blick in den Postausgang klären (Notiz Pflicht)</label>
       <textarea id="resolveNote${d.id}" rows="2" maxlength="1000" placeholder="z. B. „In Gesendete Elemente gefunden, 14:02 Uhr“"></textarea>

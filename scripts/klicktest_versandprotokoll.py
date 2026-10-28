@@ -78,7 +78,9 @@ def befuellen(db, k):
     ensure_default_reminder_levels(db)
     mahnung = finalize_and_send_reminder(db, create_reminder(db, rechnung, compute_reminder_status(db, rechnung)["next_level"]))
 
-    buero = AppUser(username="bea", display_name="Bea Büro", role="buero_auftrag", password_hash=k.passwort())
+    # seit 1.9.111: Geld nur Admin und Büro – Finanzen (app/permissions.py::darf_geld()) -- bis dahin Büro – Auftrag
+
+    buero = AppUser(username="bea", display_name="Bea Büro", role="buero_finanzen", password_hash=k.passwort())
     monteur = AppUser(username="max", display_name="Max Monteur", role="field", password_hash=k.passwort())
     db.add_all([buero, monteur]); db.flush()
     haengt = EmailDispatch(

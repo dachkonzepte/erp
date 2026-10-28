@@ -385,7 +385,7 @@ def test_invoice_item_only_from_the_order_of_the_invoice(welt):
     rechnung = create_schlussrechnung(db, welt["order"])
     fremde = db.scalar(select(OrderItem.id).where(OrderItem.order_id == welt["fremder_auftrag"].id))
     eigene = db.scalar(select(OrderItem.id).where(OrderItem.order_id == welt["order"].id))
-    c = welt["client"]("buero_auftrag", None)
+    c = welt["client"]("buero_finanzen", None)  # seit 1.9.111: Geld nur Admin und Büro – Finanzen
     body = {"short_text": "Nachtrag", "unit": "m²", "unit_price": "50", "ist_quantity": "1"}
     for falsch in (fremde, welt["unbekannt"]):
         r = c.post(f"/api/invoices/{rechnung.id}/items", json={**body, "source_order_item_id": falsch})

@@ -46,7 +46,9 @@ def befuellen(db, k):
     from app.orders import create_order_from_quote, load_order
     from app.project_pipeline_columns import default_pipeline_column_id
 
-    buero = AppUser(username="buero", display_name="Bea Büro", role="buero_auftrag", password_hash=k.passwort())
+    # seit 1.9.111: Geld nur Admin und Büro – Finanzen (app/permissions.py::darf_geld()) -- bis dahin Büro – Auftrag
+
+    buero = AppUser(username="buero", display_name="Bea Büro", role="buero_finanzen", password_hash=k.passwort())
     kunde = Customer(name="Bauherr Klar", last_name="Klar", street="Dachweg 1", postal_code="52531", city="Uebach")
     db.add_all([buero, kunde]); db.flush()
 

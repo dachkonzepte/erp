@@ -101,7 +101,8 @@ def befuellen(db, k):
 
     max_ma = Employee(first_name="Max", last_name="Monteur", employee_group="angestellt", hourly_wage="30", weekly_hours="40", active=True)
     db.add(max_ma); db.flush()
-    buero = AppUser(username="bea", display_name="Bea Büro", role="buero_auftrag", password_hash=k.passwort())
+    # seit 1.9.111: Geld nur Admin und Büro – Finanzen (app/permissions.py::darf_geld()) -- bis dahin Büro – Auftrag
+    buero = AppUser(username="bea", display_name="Bea Büro", role="buero_finanzen", password_hash=k.passwort())
     monteur = AppUser(username="max", display_name="Max Monteur", role="field", employee_id=max_ma.id, password_hash=k.passwort())
     db.add_all([buero, monteur]); db.commit()
 

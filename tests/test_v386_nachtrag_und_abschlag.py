@@ -224,7 +224,7 @@ def test_the_order_pdf_shows_the_addenda_behind_all_titles():
 def test_the_routes_for_addenda(router_test_client, threaded_db_session):
     db = threaded_db_session
     order, item = make_order_with_item(db)
-    client = router_test_client(db, orders_router, invoices_router, role="buero_auftrag")
+    client = router_test_client(db, orders_router, invoices_router, role="buero_finanzen")  # seit 1.9.111: Geld nur Admin und Büro – Finanzen
     body = {"short_text": "Kaminverblechung", "long_text": "", "quantity": "10", "unit": "m", "unit_price": "100"}
     antwort = client.post(f"/api/orders/{order.id}/items", json=body)
     assert antwort.status_code == 200, antwort.text
@@ -284,7 +284,7 @@ def test_the_finalize_route_answers_409_for_a_negative_progress_invoice(router_t
     order, _ = make_order_with_item(db)
     festschreiben(db, _leistungsstand(db, order, "40"))
     zurueck = mit_zeitraum(db, _leistungsstand(db, order, "30"))
-    client = router_test_client(db, invoices_router, role="buero_auftrag")
+    client = router_test_client(db, invoices_router, role="buero_finanzen")  # seit 1.9.111: Geld nur Admin und Büro – Finanzen
     antwort = client.post(f"/api/invoices/{zurueck.id}/send")
     assert antwort.status_code == 409 and antwort.json()["detail"].startswith("Der Abschlag lautet über -595,00 €")
 

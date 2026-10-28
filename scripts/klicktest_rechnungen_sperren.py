@@ -52,7 +52,9 @@ def befuellen(db, k):
             update_invoice_header(db, inv, service_period_start=date(2026, 9, 1), service_period_end=date(2026, 9, 30))
         return finalize_and_send_invoice(db, inv)
 
-    buero = AppUser(username="buero", display_name="Bea Büro", role="buero_auftrag", password_hash=k.passwort())
+    # seit 1.9.111: Geld nur Admin und Büro – Finanzen (app/permissions.py::darf_geld()) -- bis dahin Büro – Auftrag
+
+    buero = AppUser(username="buero", display_name="Bea Büro", role="buero_finanzen", password_hash=k.passwort())
     kunde = Customer(name="Bauherr Klar", last_name="Klar", street="Dachweg 1", postal_code="52531", city="Uebach",
                      email="klar@example.com")
     db.add_all([buero, kunde]); db.flush()

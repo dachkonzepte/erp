@@ -12,7 +12,8 @@ Admin, für alle anderen gibt es sie nicht -- 404), und eine Zustellung auf ande
 (seit 1.8.20; Einschreiben, persönliche Übergabe, Bote, Fax mit Datum, Notiz, optional Beleg; seit
 1.8.41 mit Empfängerauswahl aus Auftraggeber und Beteiligten). Seit 1.8.41 dazu das Versandergebnis
 ("Empfang bestätigt am", "unzustellbar") je gesendetem Eintrag eines Dokuments, ebenfalls ab
-buero_auftrag. Gesendet, geändert oder gelöscht wird dabei nichts.
+buero_auftrag. Gesendet, geändert oder gelöscht wird dabei nichts. Seit 1.9.111 an Rechnung und Mahnung nur Admin und Büro – Finanzen
+(app/permissions.py::darf_geld()).
 """
 
 from datetime import date
@@ -31,7 +32,7 @@ from ..email_dispatch import (
 from ..invoices import InvoiceBlocked
 from ..modules import is_module_enabled
 from ..models import AppUser, EmailDispatch, SentDocument
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, has_role, require_min_role
+from ..permissions import GELD_DOKUMENTE, GELD_NUR_LESEN, ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, darf_geld, has_role, require_min_role
 from ..schemas import EmailDispatchResolve
 from ..sent_documents import (
     ArchiveFileError, frozen_or_fresh_pdf, read_sent_document, sent_document_to_dict, verify_sent_document,
@@ -50,6 +51,13 @@ CHECKLIST_DOCUMENT_TYPES = ("checkliste", "behinderungsanzeige", "wiederaufnahme
 def _require_module_for(db: Session, document_type: str) -> None:
     if document_type in CHECKLIST_DOCUMENT_TYPES and not is_module_enabled(db, "checklisten"):
         raise HTTPException(status_code=403, detail="Das Modul Checklisten & Formulare ist deaktiviert.")
+
+
+def _require_geld_for(user: AppUser, document_type: str | None) -> None:
+    """Seit 1.9.111 (Stufe 5, R1, Punkt 1): Zustellung nachtragen, Versandergebnis und Klären an Rechnung und Mahnung gehören zum Geld
+    (app/permissions.py::darf_geld()) -- Büro – Auftrag 403, an jedem anderen Dokument unverändert."""
+    if document_type in GELD_DOKUMENTE and not darf_geld(user):
+        raise HTTPException(status_code=403, detail=GELD_NUR_LESEN)
 
 
 def _archive_http_error(e: ArchiveFileError) -> HTTPException:
@@ -91,10 +99,16 @@ def get_email_dispatches(
         raise HTTPException(status_code=400, detail="Unbekannte Versandart.")
     if project_id is not None and customer_id is not None:
         raise HTTPException(status_code=400, detail="Bitte nur Projekt oder Kunde angeben.")
-    return list_dispatches(
+    result = list_dispatches(
         db, status=status, document_type=document_type, document_id=document_id, stuck_only=stuck,
         include_task_mails=has_role(user, ROLE_ADMIN), limit=limit, project_id=project_id, customer_id=customer_id,
     )
+    # Seit 1.9.111: je Eintrag, ob das Konto ihn klären und sein Ergebnis vermerken darf (Rechnung und Mahnung nur nach darf_geld()).
+    for item in result["items"]:
+        geld = item["document_type"] not in GELD_DOKUMENTE or darf_geld(user)
+        item["can_resolve"] = geld
+        item["can_record_outcome"] = item["can_record_outcome"] and geld
+    return result
 
 
 @router.post("/api/email-dispatches/{dispatch_id}/resolve")
@@ -105,6 +119,7 @@ def post_resolve_email_dispatch(dispatch_id: int, payload: EmailDispatchResolve,
     dispatch = db.get(EmailDispatch, dispatch_id)
     if dispatch is None or (dispatch.document_type == "aufgabe" and not has_role(user, ROLE_ADMIN)):
         raise HTTPException(status_code=404, detail="Protokolleintrag nicht gefunden.")
+    _require_geld_for(user, dispatch.document_type)
     user_id, user_name = actor_of(user)
     try:
         resolved = resolve_stuck_dispatch(db, dispatch_id, outcome=payload.outcome, note=payload.note,
@@ -142,6 +157,7 @@ def post_manual_delivery(
     Empfängerauswahl: to_client (Auftraggeber) und participant_ids (Beteiligte des Projekts, mehrfach)."""
     if document_type == "checkliste" and not is_module_enabled(db, "checklisten"):
         raise HTTPException(status_code=403, detail="Das Modul Checklisten & Formulare ist deaktiviert.")
+    _require_geld_for(user, document_type)
     receipt_bytes = None
     if receipt is not None and receipt.filename:
         receipt_bytes = receipt.file.read(MAX_RECEIPT_BYTES + 1)
@@ -174,6 +190,7 @@ def post_dispatch_outcome(
     if dispatch is None or dispatch.document_type == "aufgabe":
         raise HTTPException(status_code=404, detail="Protokolleintrag nicht gefunden.")
     _require_module_for(db, dispatch.document_type)
+    _require_geld_for(user, dispatch.document_type)
     receipt_bytes = None
     if receipt is not None and receipt.filename:
         receipt_bytes = receipt.file.read(MAX_RECEIPT_BYTES + 1)

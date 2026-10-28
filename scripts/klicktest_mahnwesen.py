@@ -45,7 +45,8 @@ def befuellen(db, k):
     bea = Employee(employee_number="E-1", first_name="Bea", last_name="Büro", employee_group="angestellt", active=True,
                    hourly_wage=Decimal("22.00"))
     db.add(bea); db.flush()
-    buero = AppUser(username="buero", display_name="Bea Büro", role="buero_auftrag", employee_id=bea.id,
+    # seit 1.9.111: Geld nur Admin und Büro – Finanzen (app/permissions.py::darf_geld()) -- bis dahin Büro – Auftrag
+    buero = AppUser(username="buero", display_name="Bea Büro", role="buero_finanzen", employee_id=bea.id,
                     password_hash=k.passwort())
     monteurin = AppUser(username="monteurin", display_name="Mia Monteurin", role="field", password_hash=k.passwort())
     kunde = Customer(name="Bauherr Mahn", last_name="Mahn", street="Dachweg 1", postal_code="52531", city="Uebach",

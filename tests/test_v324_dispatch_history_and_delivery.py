@@ -214,7 +214,7 @@ def _manual(client, document_type, document_id, *, key, channel="einschreiben", 
 
 def test_manual_delivery_lands_in_log_and_archive(invoice_world, router_test_client):
     db, invoice = invoice_world
-    office = router_test_client(db, dispatches_router, invoices_router, role="buero_auftrag")
+    office = router_test_client(db, dispatches_router, invoices_router, role="buero_finanzen")
     receipt = _jpeg_receipt()
     response = _manual(office, "rechnung", invoice.id, key="manuell-rechnung-0001", delivered_on=berlin_today() - timedelta(days=2),
                        receipt=("C:\\fakepath\\Einlieferungsbeleg.jpg", receipt, "image/jpeg"))
@@ -244,7 +244,7 @@ def test_manual_delivery_uses_the_archived_version_once_there_is_one(invoice_wor
     db, invoice = invoice_world
     send_invoice_email(db, invoice, to_email="kunde@example.com", dispatch_key="rechnung-zuerst-0001")
     [sent] = _dispatches(db)
-    office = router_test_client(db, dispatches_router, role="buero_auftrag")
+    office = router_test_client(db, dispatches_router, role="buero_finanzen")
     assert _manual(office, "rechnung", invoice.id, key="manuell-rechnung-0002", channel="fax", recipient="0421 12345").status_code == 200
     _sent, manual = _dispatches(db)
     assert manual.sent_document_id == sent.sent_document_id and manual.receipt_document_id is None
@@ -260,7 +260,7 @@ def test_manual_delivery_uses_the_archived_version_once_there_is_one(invoice_wor
 ])
 def test_invalid_manual_delivery_writes_nothing(invoice_world, router_test_client, change, status, text):
     db, invoice = invoice_world
-    office = router_test_client(db, dispatches_router, role="buero_auftrag")
+    office = router_test_client(db, dispatches_router, role="buero_finanzen")
     kwargs = {"key": "manuell-falsch-0001", **change}
     if "delivered_on" in change and change["delivered_on"] <= berlin_today():
         pytest.skip("Datum liegt nicht in der Zukunft (Zeitzone)")
@@ -276,7 +276,7 @@ def test_too_large_receipt_is_rejected(invoice_world, router_test_client, monkey
     db, invoice = invoice_world
     monkeypatch.setattr(dispatch_module, "MAX_RECEIPT_BYTES", 1000)
     monkeypatch.setattr(router_module, "MAX_RECEIPT_BYTES", 1000)
-    office = router_test_client(db, dispatches_router, role="buero_auftrag")
+    office = router_test_client(db, dispatches_router, role="buero_finanzen")
     response = _manual(office, "rechnung", invoice.id, key="manuell-gross-0001", receipt=("b.jpg", _jpeg_receipt(), "image/jpeg"))
     assert response.status_code == 400 and _dispatches(db) == []
 
@@ -285,7 +285,9 @@ def test_manual_delivery_rights_and_documents(invoice_world, router_test_client)
     db, invoice = invoice_world
     field = router_test_client(db, dispatches_router, role="field")
     assert _manual(field, "rechnung", invoice.id, key="manuell-monteur-0001").status_code == 403
-    office = router_test_client(db, dispatches_router, role="buero_auftrag")
+    auftrag_buero = router_test_client(db, dispatches_router, role="buero_auftrag")
+    assert _manual(auftrag_buero, "rechnung", invoice.id, key="manuell-buero-0001").status_code == 403  # seit 1.9.111: Geld nur Admin und Büro – Finanzen
+    office = router_test_client(db, dispatches_router, role="buero_finanzen")
     assert _manual(office, "rechnung", 999999, key="manuell-fehlt-00001").status_code == 404
     assert _manual(office, "aufgabe", 1, key="manuell-aufgabe-0001").status_code == 404
     # Ein Entwurf zu diesem Auftrag: seit 1.8.72 ein Storno-Entwurf -- eine zweite Schlussrechnung neben der festgeschriebenen
@@ -300,7 +302,7 @@ def test_manual_delivery_rights_and_documents(invoice_world, router_test_client)
 
 def test_manual_entry_is_unchangeable(invoice_world, router_test_client):
     db, invoice = invoice_world
-    office = router_test_client(db, dispatches_router, role="buero_auftrag")
+    office = router_test_client(db, dispatches_router, role="buero_finanzen")
     assert _manual(office, "rechnung", invoice.id, key="manuell-fest-00001").status_code == 200
     [row] = _dispatches(db)
     row.delivery_note = "nachträglich anders"
@@ -335,7 +337,7 @@ def test_manual_delivery_of_a_checklist_archives_the_full_pdf(photo_checklist, r
 def test_history_of_a_document_shows_email_and_manual_deliveries(invoice_world, router_test_client):
     db, invoice = invoice_world
     send_invoice_email(db, invoice, to_email="kunde@example.com", cc_email="chef@example.com", dispatch_key="rechnung-verlauf-0001")
-    office = router_test_client(db, dispatches_router, role="buero_auftrag")
+    office = router_test_client(db, dispatches_router, role="buero_finanzen")
     assert _manual(office, "rechnung", invoice.id, key="manuell-verlauf-0001", channel="bote", recipient="",
                    receipt=("scan.pdf", b"%PDF-1.4 Botenquittung", "application/pdf")).status_code == 200
     other = make_sent_overdue_invoice(db, suffix="0002")

@@ -1,4 +1,5 @@
 {% set bereich = "stammdaten" -%}
+{% set geld = geld if geld is defined else true -%}
 <!doctype html>
 <html lang="de">
 <head>
@@ -126,6 +127,7 @@
 
   <section class="card" id="zahlungen" style="display:none">
     <div class="section-title"><div><h2 style="margin-bottom:4px">Zahlungen</h2><div class="muted small">Zahlungseingänge dieses Kunden. Gebucht wird an der Rechnung; ein nicht zugeordneter Rest bleibt hier stehen und lässt sich einer offenen Rechnung zuordnen. Rest und Überzahlungen aus Schlussrechnungen stehen zusammen als Guthaben des Kunden – erstattet wird beides mit einem Zahlungsausgang.</div></div><span class="badge" id="paymentRestBadge"></span></div>
+    {% if not geld %}<div class="notice" data-geld-nur-lesen style="margin:0 0 10px">{{ geld_nur_lesen }}</div>{% endif %}
     <div id="customerCredits"></div>
     <div id="customerPayments"></div>
     <div id="customerPaymentsStatus" class="muted small" style="margin-top:8px"></div>
@@ -146,6 +148,7 @@
 {% include "_email_dispatch.html" %}
 <script>
 const customerId={{ customer_id }};
+const GELD="{{ 'ja' if geld else 'nein' }}"!=="nein";  // seit 1.9.111: darf_geld() (Seitenroute); ungerendert gültiges JS (Node-Tests)
 let customer=null, properties=[], inquiries=[], projects=[], projectQuotes=new Map(), customerCategoryGroup={options:[]}, customerSalutationGroup={options:[]}, paymentTerms=[], roofAreas=new Map();
 let customerDocuments=[], docCategoryGroup={options:[]}, activeDocCategory='', activeDocSubfolder='', editingDocId=null;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -344,7 +347,7 @@ function renderPayments(){
   // "Guthaben des Kunden", je Zahlung bzw. Schlussrechnung eine Zeile; ein Zahlungsausgang erstattet beides (book_customer_refund()).
   const b=d.balance||{total:0,rest:0,credit:0,lines:[]};
   document.getElementById('paymentRestBadge').textContent=Number(b.total)?`Guthaben des Kunden: ${money(b.total)}`:'Kein Guthaben';
-  document.getElementById('customerCredits').innerHTML=Number(b.total)?`<div class="project-card" data-guthaben style="border-left:4px solid var(--ds-aktion);font-size:13px"><b>Guthaben des Kunden: <span data-guthaben-summe>${money(b.total)}</span></b><table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:13px" data-guthaben-zeilen>${b.lines.map((l,i)=>`<tr data-guthaben-zeile="${esc(l.kind)}"><td style="padding:4px 0">${l.kind==='rest'?`Nicht zugeordnet aus Zahlung Nr. ${l.payment_id} vom ${dt(l.date)}`:`Überzahlung aus Schlussrechnung <a href="/invoices/${l.invoice_id}">${esc(l.invoice_number||'')}</a> vom ${dt(l.date)}`}</td><td style="text-align:right;white-space:nowrap;padding:4px 8px">${money(l.amount)}</td><td style="width:120px"><input id="refundLine-${i}" inputmode="decimal" data-zahl data-stellen="2" data-feld="Erstattungsbetrag" value="${zahlText(l.amount,2)}" aria-label="davon erstatten" style="width:100%"></td></tr>`).join('')}</table><div class="pay-actions" style="margin-top:8px" data-erstattung><span><label class="small muted" for="custRefundDate">Ausgezahlt am</label> <input id="custRefundDate" type="date" value="${berlinToday()}"></span><span><input id="custRefundNote" placeholder="Notiz (optional), z. B. Überweisung an IBAN …"></span><button onclick="bookCustomerRefund()">Erstattung buchen</button></div><div class="small muted" style="margin-top:4px">Erstattet werden die eingetragenen Beträge mit einem Zahlungsausgang; einen nicht zugeordneten Rest kann man stattdessen auch einer Rechnung zuordnen (unten an der Zahlung).</div></div>`:'';
+  document.getElementById('customerCredits').innerHTML=Number(b.total)?`<div class="project-card" data-guthaben style="border-left:4px solid var(--ds-aktion);font-size:13px"><b>Guthaben des Kunden: <span data-guthaben-summe>${money(b.total)}</span></b><table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:13px" data-guthaben-zeilen>${b.lines.map((l,i)=>`<tr data-guthaben-zeile="${esc(l.kind)}"><td style="padding:4px 0">${l.kind==='rest'?`Nicht zugeordnet aus Zahlung Nr. ${l.payment_id} vom ${dt(l.date)}`:`Überzahlung aus Schlussrechnung <a href="/invoices/${l.invoice_id}">${esc(l.invoice_number||'')}</a> vom ${dt(l.date)}`}</td><td style="text-align:right;white-space:nowrap;padding:4px 8px">${money(l.amount)}</td>${GELD?`<td style="width:120px"><input id="refundLine-${i}" inputmode="decimal" data-zahl data-stellen="2" data-feld="Erstattungsbetrag" value="${zahlText(l.amount,2)}" aria-label="davon erstatten" style="width:100%"></td>`:''}</tr>`).join('')}</table>${GELD?`<div class="pay-actions" style="margin-top:8px" data-erstattung><span><label class="small muted" for="custRefundDate">Ausgezahlt am</label> <input id="custRefundDate" type="date" value="${berlinToday()}"></span><span><input id="custRefundNote" placeholder="Notiz (optional), z. B. Überweisung an IBAN …"></span><button onclick="bookCustomerRefund()">Erstattung buchen</button></div><div class="small muted" style="margin-top:4px">Erstattet werden die eingetragenen Beträge mit einem Zahlungsausgang; einen nicht zugeordneten Rest kann man stattdessen auch einer Rechnung zuordnen (unten an der Zahlung).</div>`:''}</div>`:'';
   document.getElementById('customerPayments').innerHTML=d.payments.length?d.payments.map(paymentCardHtml).join(''):'<div class="muted small">Noch keine Zahlung gebucht.</div>';
   if(location.hash==='#zahlungen')card.scrollIntoView();
 }
@@ -356,7 +359,7 @@ function paymentCardHtml(p){
   const sources=(p.refund_sources||[]).map(s=>`<div class="small ${p.reversed?'pay-reversed':''}" data-erstattet-aus="${s.payment_id}">Erstattung aus dem Rest der Zahlung Nr. ${s.payment_id} vom ${dt(s.received_on)}: ${money(-s.amount)}</div>`).join('')
     +(p.refunded_from_rest||[]).map(s=>`<div class="small" data-erstattet-mit="${s.refund_payment_id}">aus dem Rest erstattet mit Zahlungsausgang Nr. ${s.refund_payment_id} vom ${dt(s.paid_on)}: ${money(s.amount)}</div>`).join('');
   let actions='';
-  if(!p.reversed){
+  if(!p.reversed&&GELD){  // seit 1.9.111 nur mit darf_geld()
     // Seit 1.8.81 kommen auch Rechnungen mit nur offenen Nebenforderungen -- deren Zuordnung läuft über die Rechnungsseite (§ 367 BGB).
     // Seit 1.8.94: "Zahlung zurücknehmen" nur, wenn es geht -- sonst der Grund vom Server (app/payments.py::reverse_block_reason()).
     // Seit 1.8.94: enthaltene Rechnungen gruppiert unter ihrer Schlussrechnung (_zahlung_gruppen.html).

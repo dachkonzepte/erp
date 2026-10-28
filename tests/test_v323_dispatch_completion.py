@@ -346,16 +346,16 @@ def stuck_invoice(threaded_db_session, monkeypatch):
 @pytest.mark.parametrize("outcome", ["gesendet", "fehlgeschlagen"])
 def test_office_resolves_stuck_entry_with_note_and_history(stuck_invoice, router_test_client, outcome):
     db, invoice, row = stuck_invoice
-    response = _office(db, router_test_client).post(
+    response = _office(db, router_test_client, role="buero_finanzen").post(  # seit 1.9.111: Rechnung nur mit darf_geld()
         f"/api/email-dispatches/{row.id}/resolve", json={"outcome": outcome, "note": "  In Gesendete Elemente geprüft, 14:02  "})
     assert response.status_code == 200, response.text
     body = response.json()
     assert (body["status"], body["resolved"], body["stuck"]) == (outcome, True, False)
-    assert (body["resolved_by_name"], body["resolution_note"]) == ("Buero_auftrag", "In Gesendete Elemente geprüft, 14:02")
+    assert (body["resolved_by_name"], body["resolution_note"]) == ("Buero_finanzen", "In Gesendete Elemente geprüft, 14:02")
     db.expire_all()
     assert (row.status, row.lock_key, row.finished_at) == (outcome, None, None)
     [audit] = db.scalars(select(AuditLog).where(AuditLog.entity_type == "Versand")).all()
-    assert (audit.entity_id, audit.actor_name, audit.project_id) == (str(row.id), "Buero_auftrag", invoice.order.project_id)
+    assert (audit.entity_id, audit.actor_name, audit.project_id) == (str(row.id), "Buero_finanzen", invoice.order.project_id)
     assert audit.new_value.endswith("Notiz: In Gesendete Elemente geprüft, 14:02") and audit.old_value.startswith("Hängengeblieben")
     assert row.message_ref in audit.entity_label and "kunde@example.com" not in audit.entity_label
     assert FakeSMTP.sent == [], "beim Klären wird nichts gesendet"
@@ -363,13 +363,14 @@ def test_office_resolves_stuck_entry_with_note_and_history(stuck_invoice, router
 
 def test_resolution_is_refused_where_it_does_not_belong(stuck_invoice, router_test_client):
     db, invoice, row = stuck_invoice
-    office = _office(db, router_test_client)
+    office = _office(db, router_test_client, role="buero_finanzen")
     url = f"/api/email-dispatches/{row.id}/resolve"
     assert office.post(url, json={"outcome": "gesendet", "note": "   "}).status_code == 400
     assert office.post(url, json={"outcome": "gesendet"}).status_code == 422
     assert office.post(url, json={"outcome": "vielleicht", "note": "x"}).status_code == 422
     assert office.post("/api/email-dispatches/999999/resolve", json={"outcome": "gesendet", "note": "geprüft"}).status_code == 404
     assert _office(db, router_test_client, role="field").post(url, json={"outcome": "gesendet", "note": "geprüft"}).status_code == 403
+    assert _office(db, router_test_client).post(url, json={"outcome": "gesendet", "note": "geprüft"}).status_code == 403  # seit 1.9.111: Geld nur Admin und Büro – Finanzen
     fresh = _stuck_entry(db, "rechnung", invoice.id + 1000, key="rechnung-laeuft-0100", minutes_ago=2)
     running = office.post(f"/api/email-dispatches/{fresh.id}/resolve", json={"outcome": "gesendet", "note": "geprüft"})
     assert running.status_code == 409 and "läuft womöglich noch" in running.json()["detail"]

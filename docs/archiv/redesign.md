@@ -6754,3 +6754,91 @@ Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED mit Abweichung i
 Offen (nicht untersucht): Seiten, die ein Eingabefeld sperren, ohne eine eigene Regel für gesperrte Felder zu haben, zeigen es je nach eigener
 Feldfläche wie ein bearbeitbares (so die Einstellungen bis 1.9.106). Eine grobe Suche nennt 23 Vorlagen mit gesperrten Elementen und eigener Feldfläche,
 überwiegend Knöpfe -- eine Durchsicht je Seite steht aus.
+
+## Stufe 5, R1 (ab 1.9.111): Fundament (ohne neues Aussehen)
+
+Vorgabe 28.10.2026, Start auf `47e3d17` (1.9.110): Befund Stufe 5 (Auftragsakte, `bildgrundlage/bericht_stufe5_befund_auftragsakte_47e3d17.txt`)
+gelesen. Entscheidungen Tobias: eine Akte je Projekt -- Projektmappe und Auftrag werden eine Seite (R2); mit Geld arbeiten nur Admin und Büro –
+Finanzen. R1 legt das Fundament ohne neues Aussehen: Rechte am Geld, Befund im fremden Bericht, eine Zeitbuchung statt drei, Sperren an Storno und
+Schlussrechnung, Änderungsprotokoll, keine verlorenen Eingaben, Mustervorgang und Projekt löschen, lesbare Fehler. Die Kürzel F…, D…, E…, B… sind die
+Nummern des Befunds (Abschnitt 6).
+
+### R1, Punkt 1 (1.9.111): Rechte am Geld
+
+Eine Regel in `app/permissions.py`: `darf_geld()` (Admin, Büro – Finanzen; ohne Konto wie die anderen Regeln ohne Einschränkung), dazu `require_geld`
+(403 `GELD_NUR_LESEN`: „Rechnungen, Zahlungen und Mahnungen bearbeiten Admin und Büro – Finanzen – du kannst sie lesen.“).
+
+| Recht | Wer | Wo |
+|---|---|---|
+| Rechnung anlegen (alle vier Arten), Kopf, Zahlungsbedingung, Steuerschlüssel, Positionen, „Aus dem Auftrag aktualisieren“, Finalisieren, E-Mail, Storno, Entwurf löschen | Admin, Büro – Finanzen (bis 1.9.110 jedes Büro) | `app/routers/invoices.py`, 15 Endpunkte, `_geld_dep` |
+| Zahlung buchen, Rest zuordnen, Zahlung und Zuordnung zurücknehmen, Erstattung (Rechnung, Kunde) | dieselben | `app/routers/payments.py`, 6 Endpunkte |
+| Mahnung anlegen (einzeln, Auswahl), bearbeiten, Nebenforderungen übernehmen, festschreiben, E-Mail, löschen | dieselben | `app/routers/reminders.py`, 7 Endpunkte |
+| Verzugsbeginn bestätigen und verwerfen, Nebenforderung gegenbuchen | dieselben | `app/routers/dunning_charges.py`, 3 Endpunkte |
+| Zustellung nachtragen, Empfang bestätigt/unzustellbar, hängenden Versand klären -- an Rechnung und Mahnung (`GELD_DOKUMENTE`) | dieselben; an jedem anderen Dokument unverändert ab Büro – Auftrag | `app/routers/email_dispatches.py::_require_geld_for()`; die Liste meldet je Eintrag `can_resolve`, `can_record_outcome` |
+| alles lesen (Rechnungen, Zahlungen, Mahnungen, Nebenforderungen, Versand, PDF) | jedes Büro | unverändert |
+| Mahnstufen in den Einstellungen | unverändert ab Büro – Auftrag | Festlegung Nr. 1 |
+
+Oberfläche: die Seitenrouten von Auftrag, Rechnung, Kundenakte und Mahnwesen geben `geld` (= `darf_geld()`) und `geld_nur_lesen` mit; die Seite
+setzt `const GELD="ja"|"nein"!=="nein"` (auch ungerendert gültiges JS -- die node-Tests lesen die Vorlage roh) und zeichnet ohne Geld den Hinweis
+(`data-geld-nur-lesen`) statt der Knöpfe:
+- Auftrag: statt „Neue Rechnung“ der Hinweis (nicht im Markup), kein „Löschen“ am Rechnungsentwurf.
+- Rechnung: `bearbeitbar()` = `GELD && invoice.is_editable` für jedes Feld und jeden Knopf (Pauschalbetrag, Kopf, Leistungszeitraum samt
+  „Übernehmen“, Positionen, „+ Position“, Mengenvergleich der Schlussrechnung); Karte „Status“ ohne Knöpfe (die Info bleibt), Versandverlauf ohne
+  Nachtragen und Ergebnis; Zahlungen ohne „Zahlungseingang buchen“, Erstattung, Gegenbuchen; Nebenforderungen ohne Bestätigen/Verwerfen/Gegenbuchen
+  (der Vorschlag des Verzugsbeginns als Text); Mahnungen ohne Anlegen, Festschreiben, Bearbeiten, Löschen (PDF bleibt).
+- Kundenakte: Guthaben ohne Eingabe „davon erstatten“ und ohne „Erstattung buchen“, Zahlungen ohne Zuordnen und Zurücknehmen, Hinweis in der Karte.
+- Mahnwesen: ohne Auswahl und „Entwürfe für Auswahl anlegen“ (nicht im Markup), ohne „als Entwurf anlegen“, „Durch neue ersetzen“, Festschreiben,
+  Bearbeiten, Löschen, E-Mail; Verlauf ohne Nachtragen.
+- Versandprotokoll: ein hängender Eintrag an Rechnung oder Mahnung ohne Klären-Formular („klären können Admin und Büro – Finanzen“).
+Projektmappe und Finanzen hatten keine Geld-Knöpfe -- unverändert.
+
+#### Festlegungen 1.9.111 (Bitte bestätigen)
+
+1. Die Mahnstufen in den Einstellungen (Bezeichnung, Zahlungsfrist, Gebühr, Text, Mahn-E-Mail-Vorlagen; `PUT /api/reminder-levels/{id}`) speichert
+   weiter jedes Büro -- keine Mahnung, keine Buchung. Schalter Mahngebühren, Basiszinssatz und Rechtstexte bleiben nur Admin.
+2. Zum Versenden gehören an Rechnung und Mahnung auch „Zustellung nachtragen“, „Empfang bestätigt / unzustellbar“ und das Klären eines hängenden
+   Versands; an allen anderen Dokumenten (Angebot, Auftrag, Vertrag, Checkliste, Briefe) bleiben sie ab Büro – Auftrag.
+3. Büro – Auftrag sieht an einem Mahnungsentwurf weiter das PDF und den Grund einer Sperre; Rechnungs- und Mahnungs-PDF bleiben lesbar.
+4. Lesende Vorschauen bleiben jedem Büro: Zahlungsvorschlag (`GET …/payment-proposal`), Empfängerauswahl der Zustellung, „zur Mahnung fällig“.
+5. Zahlungsbedingungen, Steuerschlüssel und Nummernkreise in den Einstellungen unverändert (keine Aktion an einem Beleg).
+6. Der Kundenwechsel am Projekt mit Auftrag (stellt Rechnungsentwürfe mit um, mit Begründung) bleibt eine Aktion der Projektmappe ab Büro – Auftrag.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v531_rechte_geld.py`: Regel je Rolle; Struktur über jede Route der vier Geld-Router mit einer anderen Methode als GET (Rollen höchstens
+Admin und Büro – Finanzen, nur die Mahnstufen ausgenommen); Rundgang über alle 34 schreibenden Geld-Aktionen (die 15 Rechnungs-Szenarien aus
+`test_v378`, 6 Zahlungen, 7 Mahnwesen, 3 Nebenforderungen, 3 Versandprotokoll) -- vorbereitet als Admin, dann als Büro – Auftrag je 403 mit
+`GELD_NUR_LESEN` und jede Zeile aller Geld-Tabellen unverändert, als Büro – Finanzen und Admin je 200 und geschrieben; Zustellung eines Auftrags
+als Büro – Auftrag weiter 200 (Grenze der Regel); Büro – Auftrag liest 13 Lese-Endpunkte, die Liste des Versandprotokolls meldet je Eintrag
+`can_resolve`/`can_record_outcome`; die Seitenrouten zeichnen `GELD` und Hinweis je Rolle, ohne Geld kein „Neue Rechnung“, keine Auswahl im
+Mahnwesen; jede Stelle der Skripte, die eine Geld-Aktion anbietet, fragt `GELD` bzw. `bearbeitbar()`.
+Neu `scripts/klicktest_rechte_geld.py` (23 Prüfungen): Büro – Auftrag auf Auftrag, Rechnung (Entwurf und festgeschrieben), Kundenakte, Mahnwesen,
+Versandprotokoll ohne Knöpfe, mit allem Gelesenen, Angriff aus der Seite 403; Büro – Finanzen mit allen Knöpfen, finalisiert.
+
+Angepasste Erwartungen (Büro – Auftrag -> Büro – Finanzen, wo der Test Geld bewegt; wo nicht anders gesagt nur der Aufbau):
+- `test_v323::test_office_resolves_stuck_entry_with_note_and_history[gesendet|fehlgeschlagen]`: klärt als Büro – Auftrag („Buero_auftrag“) -> als
+  Büro – Finanzen („Buero_finanzen“).
+- `test_v323::test_resolution_is_refused_where_it_does_not_belong`: Prüfungen als Büro – Finanzen; neu: Büro – Auftrag 403 an der Rechnung.
+- `test_v321::test_same_key_twice_through_the_api`, `test_v373::test_invoice_item_only_from_the_order_of_the_invoice`,
+  `test_v386::test_the_routes_for_addenda`, `test_v386::test_the_finalize_route_answers_409_for_a_negative_progress_invoice`,
+  `test_v385::test_a_manual_delivery_refers_to_the_fixed_pdf`, `test_v385::test_the_finalize_route_answers_400_without_a_fixed_pdf`: Büro – Auftrag
+  -> Büro – Finanzen.
+- `test_v324`: die sieben Tests der Zustellung an einer Rechnung (`test_manual_delivery_lands_in_log_and_archive`, `…_uses_the_archived_version…`,
+  `test_invalid_manual_delivery_writes_nothing[5]`, `test_too_large_receipt_is_rejected`, `test_manual_entry_is_unchangeable`,
+  `test_history_of_a_document_shows_email_and_manual_deliveries`, `test_manual_delivery_rights_and_documents`) -> Büro – Finanzen; im letzten neu:
+  Büro – Auftrag 403.
+- `test_v397::test_customer_page_shows_the_reason_instead_of_the_button`: die Zeile `GELD` der Seite in den node-Lauf aufgenommen (im ersten Lauf
+  rot: ReferenceError).
+- Klicktests, Büro-Konto Büro – Auftrag -> Büro – Finanzen: `klicktest_endrechnung`, `klicktest_mahnen_endrechnung`, `klicktest_mahnwesen`,
+  `klicktest_nachtrag`, `klicktest_nebenforderungen`, `klicktest_rechnungen_sperren`, `klicktest_ueberzahlung`, `klicktest_versandprotokoll`,
+  `klicktest_versandverlauf`, `klicktest_vertrag_abschrift`, `klicktest_verzugszinsen`, `klicktest_zahlungen`, `klicktest_zahlungen_kleinkram`
+  (im ersten Lauf rot, alle an einer Geld-Aktion).
+- `klicktest_zeitbuchungen_liste` „Auftrag: Rechnung aus Aufwand“ als Karl (Büro – Auftrag) -> als Anna (Admin); neu: Karl sieht den Hinweis statt
+  „Neue Rechnung“ (20 -> 21 Prüfungen).
+
+Im ersten Lauf rot und an der Seite behoben: `test_v407::test_keine_werte_in_on_attributen` (zwei zusätzliche onclick-Stellen für das PDF einer
+Mahnung im Mahnwesen -- jetzt eine Stelle wie bisher, die anderen Knöpfe nur mit `GELD`), `test_v333::test_auftragsseite_…` (die Zeile `GELD`
+war ungerendert kein gültiges JS -- seitdem `"{{ … }}"!=="nein"`).
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, Prüfsumme verglichen, je FAILED): Büro – Auftrag in `GELD_ROLLEN` -> 37 Tests rot (34 Szenarien,
+Regel, Liste, Seiten); „Zustellung nachtragen“ ohne `_require_geld_for()` -> 1 Test rot.

@@ -22,7 +22,7 @@ from ..dunning_texts import LEGAL_TEXT_KEYS, list_texts, update_text
 from ..email_dispatch import actor_of
 from ..invoices import get_invoice
 from ..models import AppUser, BaseInterestRate, InvoiceCharge, InvoiceDefaultStart
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, require_min_role
+from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, require_geld, require_min_role
 from ..schemas import (
     BaseInterestRateCreate, BaseInterestRateOut, BaseInterestRateUpdate, DunningLegalTextOut, DunningLegalTextUpdate,
     DunningSettingsOut, DunningSettingsUpdate, InvoiceChargesOut, InvoiceDefaultStartCreate, InvoiceDefaultStartOut, ReasonIn,
@@ -31,6 +31,10 @@ from ..schemas import (
 router = APIRouter()
 
 _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG, message="Mahnwesen ist nur für Büro und Administratoren verfügbar."))
+
+# Seit 1.9.111 (Stufe 5, R1): schreiben nur Admin und Büro – Finanzen (app/permissions.py::darf_geld()), lesen jedes Büro.
+_geld_dep = Depends(require_geld)
+
 _admin_dep = Depends(require_min_role(ROLE_ADMIN, message="Mahngebühren und Verzugszinsen schaltet nur ein Administrator."))
 _rates_admin_dep = Depends(require_min_role(ROLE_ADMIN, message="Basiszinssatz und Rechtstexte pflegen nur Administratoren."))
 
@@ -65,7 +69,7 @@ def get_invoice_charges(invoice_id: int, db: Session = Depends(get_db, scope="fu
 
 @router.post("/api/invoices/{invoice_id}/default-start", response_model=InvoiceDefaultStartOut)
 def post_default_start(invoice_id: int, payload: InvoiceDefaultStartCreate, db: Session = Depends(get_db, scope="function"),
-                       user: AppUser = _role_dep):
+                       user: AppUser = _geld_dep):
     """Verzugsbeginn bestätigen: der Vorschlag oder ein anderer Tag mit Begründung."""
     invoice = _invoice_or_404(db, invoice_id)
     user_id, user_name = actor_of(user)
@@ -78,7 +82,7 @@ def post_default_start(invoice_id: int, payload: InvoiceDefaultStartCreate, db: 
 
 
 @router.post("/api/invoice-default-starts/{start_id}/discard", response_model=InvoiceDefaultStartOut)
-def post_discard_default_start(start_id: int, payload: ReasonIn, db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep):
+def post_discard_default_start(start_id: int, payload: ReasonIn, db: Session = Depends(get_db, scope="function"), user: AppUser = _geld_dep):
     row = db.get(InvoiceDefaultStart, start_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Verzugsbeginn nicht gefunden.")
@@ -91,7 +95,7 @@ def post_discard_default_start(start_id: int, payload: ReasonIn, db: Session = D
 
 
 @router.post("/api/invoice-charges/{charge_id}/reverse", response_model=InvoiceChargesOut)
-def post_reverse_charge(charge_id: int, payload: ReasonIn, db: Session = Depends(get_db, scope="function"), user: AppUser = _role_dep):
+def post_reverse_charge(charge_id: int, payload: ReasonIn, db: Session = Depends(get_db, scope="function"), user: AppUser = _geld_dep):
     """Gegenbuchung einer Nebenforderung (Korrektur oder Erlass) mit Begründung -- Antwort: die Karte der Rechnung."""
     charge = db.get(InvoiceCharge, charge_id)
     if charge is None:

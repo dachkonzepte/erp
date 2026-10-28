@@ -1,4 +1,5 @@
 {% set bereich = "mahnwesen" -%}
+{% set geld = geld if geld is defined else true -%}
 <!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP – Mahnwesen</title>
 <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
 {% include "_ds_kopf.html" %}
@@ -77,12 +78,13 @@ button.danger:hover{background:color-mix(in srgb,var(--ds-fehler) 20%,transparen
     </div>
   </div>
 </div>
+{% if not geld %}<div class="notice" data-geld-nur-lesen>{{ geld_nur_lesen }}</div>{% endif %}
 <div class="card" id="dueCard">
   <h2>Zur Mahnung fällig</h2>
   <div class="muted small" style="margin-bottom:10px">Überfällige Rechnungen, deren nächste Mahnstufe jetzt möglich ist (Stufe 1 ab dem Tag nach der Fälligkeit, jede weitere nach Ablauf der Frist der vorigen). Erreicht ist eine Stufe erst, wenn ihre Mahnung versendet oder zugestellt wurde. Die Liste legt nichts an – Entwürfe entstehen per Klick, einzeln oder für die ausgewählten.</div>
-  <div class="row-actions" style="margin-bottom:8px"><button class="primary" id="bulkCreateBtn" onclick="createSelectedReminders(this)" disabled>Entwürfe für Auswahl anlegen</button><span class="status-msg" id="bulkStatus"></span></div>
+  {% if geld %}<div class="row-actions" style="margin-bottom:8px"><button class="primary" id="bulkCreateBtn" onclick="createSelectedReminders(this)" disabled>Entwürfe für Auswahl anlegen</button><span class="status-msg" id="bulkStatus"></span></div>{% endif %}
   <div id="bulkResult"></div>
-  <div style="overflow:auto"><table><thead><tr><th style="width:28px"><input type="checkbox" id="dueSelectAll" onchange="toggleAllDue(this.checked)" title="Alle auswählen" aria-label="Alle auswählen"></th><th>Rechnung</th><th>Kunde</th><th>Fällig seit</th><th class="number">Mahnfähig</th><th>Stufe</th><th></th></tr></thead><tbody id="dueRows"></tbody></table></div>
+  <div style="overflow:auto"><table><thead><tr><th style="width:28px">{% if geld %}<input type="checkbox" id="dueSelectAll" onchange="toggleAllDue(this.checked)" title="Alle auswählen" aria-label="Alle auswählen">{% endif %}</th><th>Rechnung</th><th>Kunde</th><th>Fällig seit</th><th class="number">Mahnfähig</th><th>Stufe</th><th></th></tr></thead><tbody id="dueRows"></tbody></table></div>
 </div>
 <div class="card">
   <h2>Weitere überfällige Rechnungen</h2>
@@ -102,6 +104,7 @@ button.danger:hover{background:color-mix(in srgb,var(--ds-fehler) 20%,transparen
 {% include "_zahl.html" %}
 <script>
 let levelLabels={},attentionRows=[],allReminders=[];
+const GELD="{{ 'ja' if geld else 'nein' }}"!=="nein";  // seit 1.9.111: darf_geld() (Seitenroute) -- ohne nur die Listen
 // Seit 1.8.79 (Z2a Nr. 1): "zur Mahnung fällig" = nächste Stufe jetzt möglich und kein Grund dagegen; seit 1.8.80 vom Server
 // (due_for_reminder): nicht, solange eine festgeschriebene Mahnung noch hinausgehen kann.
 const isDue=r=>r.due_for_reminder;
@@ -136,14 +139,15 @@ function stufeText(r){
 // Seit 1.8.79: die Liste legt nichts an -- je Zeile ein Knopf, dazu Auswahl für mehrere (POST /api/reminders/bulk).
 function renderDueRows(){
   const rows=attentionRows.filter(isDue);
-  document.getElementById('dueRows').innerHTML=rows.length?rows.map(r=>`<tr data-faellig="${r.invoice_id}"><td><input type="checkbox" class="due-select" value="${r.invoice_id}" onchange="updateBulkButton()" aria-label="${esc(r.invoice_number||'Rechnung')} auswählen"></td><td><b>${esc(r.invoice_number||'—')}</b> <a class="link small" href="/invoices/${r.invoice_id}">öffnen</a></td><td>${esc(r.customer_name)}</td><td>${fmtDate(r.due_date)}</td><td class="number">${money(r.outstanding_amount)}${zahlbetragText(r)}</td><td>${stufeText(r)}</td><td><button onclick="createReminder(${r.invoice_id},${r.next_level},this)">${esc(levelLabel(r.next_level))} als Entwurf anlegen${r.pending&&r.pending.level===r.next_level?` (ersetzt ${esc(r.pending.reminder_number||'')})`:''}</button>${r.pending?`<div class="small muted" data-ersetzt-grund style="max-width:320px">${esc(r.pending.reminder_number||'')} ging nie hinaus: ${esc(r.pending.dispatch_block||'')}${pendingChargesText(r.pending)}</div>`:''}</td></tr>`).join(''):'<tr><td colspan="7" class="empty">Nichts zur Mahnung fällig.</td></tr>';
-  document.getElementById('dueSelectAll').checked=false;
+  document.getElementById('dueRows').innerHTML=rows.length?rows.map(r=>`<tr data-faellig="${r.invoice_id}"><td>${GELD?`<input type="checkbox" class="due-select" value="${r.invoice_id}" onchange="updateBulkButton()" aria-label="${esc(r.invoice_number||'Rechnung')} auswählen">`:''}</td><td><b>${esc(r.invoice_number||'—')}</b> <a class="link small" href="/invoices/${r.invoice_id}">öffnen</a></td><td>${esc(r.customer_name)}</td><td>${fmtDate(r.due_date)}</td><td class="number">${money(r.outstanding_amount)}${zahlbetragText(r)}</td><td>${stufeText(r)}</td><td>${GELD?`<button onclick="createReminder(${r.invoice_id},${r.next_level},this)">${esc(levelLabel(r.next_level))} als Entwurf anlegen${r.pending&&r.pending.level===r.next_level?` (ersetzt ${esc(r.pending.reminder_number||'')})`:''}</button>`:''}${r.pending?`<div class="small muted" data-ersetzt-grund style="max-width:320px">${esc(r.pending.reminder_number||'')} ging nie hinaus: ${esc(r.pending.dispatch_block||'')}${pendingChargesText(r.pending)}</div>`:''}</td></tr>`).join(''):'<tr><td colspan="7" class="empty">Nichts zur Mahnung fällig.</td></tr>';
+  const alle=document.getElementById('dueSelectAll');if(alle)alle.checked=false;
   updateBulkButton();
 }
 function selectedDueIds(){return [...document.querySelectorAll('.due-select:checked')].map(x=>Number(x.value))}
 function updateBulkButton(){
   const n=selectedDueIds().length;
   const btn=document.getElementById('bulkCreateBtn');
+  if(!btn)return;  // seit 1.9.111 ohne darf_geld() nicht im Markup
   btn.disabled=!n;
   btn.textContent=n?`Entwürfe für Auswahl anlegen (${n})`:'Entwürfe für Auswahl anlegen';
 }
@@ -158,13 +162,13 @@ function renderAttentionRows(){
       // wenn der Entwurf so nicht festgeschrieben würde.
       const blocked=r.draft.send_block?`<div class="small" data-sperre style="color:var(--danger);max-width:320px">${esc(r.draft.send_block)}</div>`:'';
       actions=`<div class="row-actions"><span class="pill entwurf">${esc(levelLabel(r.draft.level))} · Entwurf</span>
-        ${blocked||`<button class="primary" onclick="sendReminder(${r.draft.id})">Festschreiben</button>`}
-        <button onclick="editReminder(${r.draft.id})">Bearbeiten</button>
+        ${!GELD?blocked:blocked||`<button class="primary" onclick="sendReminder(${r.draft.id})">Festschreiben</button>`}
+        ${GELD?`<button onclick="editReminder(${r.draft.id})">Bearbeiten</button>`:''}
         <button onclick="window.open('/api/reminders/${r.draft.id}/pdf','_blank')">PDF</button>
-        <button class="danger" onclick="deleteReminder(${r.draft.id})">Löschen</button></div>`;
+        ${GELD?`<button class="danger" onclick="deleteReminder(${r.draft.id})">Löschen</button>`:''}</div>`;  // seit 1.9.111 nur mit darf_geld()
     } else if(r.pending&&!r.pending.dispatch_block){
       // Seit 1.8.80: festgeschrieben, aber noch nicht versendet oder zugestellt -- erst dann gilt die Stufe als erreicht.
-      actions=`<div class="small" data-noch-nicht-hinaus style="color:var(--warning);max-width:320px">${esc(r.pending.label)} ${esc(r.pending.reminder_number||'')} ist festgeschrieben, ging aber noch nicht hinaus – bitte versenden oder die Zustellung nachtragen.${pendingChargesText(r.pending)}</div>${!r.create_block&&r.next_level?`<button style="margin-top:4px" onclick="createReminder(${r.invoice_id},${r.next_level},this)">Durch neue ersetzen</button>`:''}`;
+      actions=`<div class="small" data-noch-nicht-hinaus style="color:var(--warning);max-width:320px">${esc(r.pending.label)} ${esc(r.pending.reminder_number||'')} ist festgeschrieben, ging aber noch nicht hinaus – bitte versenden oder die Zustellung nachtragen.${pendingChargesText(r.pending)}</div>${GELD&&!r.create_block&&r.next_level?`<button style="margin-top:4px" onclick="createReminder(${r.invoice_id},${r.next_level},this)">Durch neue ersetzen</button>`:''}`;
     } else {
       actions=r.create_block?`<div class="small muted" data-grund style="max-width:320px">${esc(r.create_block)}</div>`:'<span class="small muted">—</span>';
     }
@@ -184,17 +188,17 @@ function renderAllRows(){
   document.getElementById('allRows').innerHTML=allReminders.length?allReminders.map(r=>{
     // Seit 1.8.72: Rechnung storniert oder bezahlt -- der Grund vom Server statt Festschreiben bzw. E-Mail.
     const blocked = r.send_block ? `<div class="small" data-sperre style="color:var(--danger);max-width:260px">${esc(r.send_block)}</div>` : '';
-    const emailAction = r.status==='versendet' && blocked ? blocked : r.status==='versendet' ? `<div style="display:flex;gap:5px;align-items:center"><div style="display:flex;flex-direction:column;gap:4px"><input id="reminderEmailInput${r.id}" type="text" inputmode="email" autocomplete="off" value="${esc(r.recipient_email||'')}" placeholder="An – mehrere mit Komma oder Semikolon" title="Empfänger, mehrere mit Komma oder Semikolon trennen" style="padding:5px 7px;border:1px solid var(--field-border);font-family:inherit;font-size:12px;width:170px;background:var(--card);color:var(--ink)"><input id="reminderCcInput${r.id}" type="text" inputmode="email" autocomplete="off" placeholder="CC (optional)" title="CC, mehrere mit Komma oder Semikolon trennen" style="padding:5px 7px;border:1px solid var(--field-border);font-family:inherit;font-size:12px;width:170px;background:var(--card);color:var(--ink)"></div><button onclick="sendReminderEmail(${r.id},this)" title="Per E-Mail senden">✉️</button></div><div style="margin-top:3px">${emailStatusLabel(r)}</div>` : '<span class="small muted">erst nach dem Festschreiben</span>';
+    const emailAction = !GELD ? (r.status==='versendet' ? emailStatusLabel(r) : '<span class="small muted">erst nach dem Festschreiben</span>') : r.status==='versendet' && blocked ? blocked : r.status==='versendet' ? `<div style="display:flex;gap:5px;align-items:center"><div style="display:flex;flex-direction:column;gap:4px"><input id="reminderEmailInput${r.id}" type="text" inputmode="email" autocomplete="off" value="${esc(r.recipient_email||'')}" placeholder="An – mehrere mit Komma oder Semikolon" title="Empfänger, mehrere mit Komma oder Semikolon trennen" style="padding:5px 7px;border:1px solid var(--field-border);font-family:inherit;font-size:12px;width:170px;background:var(--card);color:var(--ink)"><input id="reminderCcInput${r.id}" type="text" inputmode="email" autocomplete="off" placeholder="CC (optional)" title="CC, mehrere mit Komma oder Semikolon trennen" style="padding:5px 7px;border:1px solid var(--field-border);font-family:inherit;font-size:12px;width:170px;background:var(--card);color:var(--ink)"></div><button onclick="sendReminderEmail(${r.id},this)" title="Per E-Mail senden">✉️</button></div><div style="margin-top:3px">${emailStatusLabel(r)}</div>` : '<span class="small muted">erst nach dem Festschreiben</span>';
     // Entwürfe sind hier -- anders als in "Benötigt Aufmerksamkeit" -- oft die einzige Stelle, an
     // der ein Betreiber die Mahnungshistorie insgesamt durchsieht; Festschreiben/Löschen fehlten hier
     // bisher komplett, obwohl ein Entwurf gerade in dieser Tabelle als solcher erkennbar ist.
     const repl = r.status==='entwurf'&&replaceNotice(r) ? `<div class="small" data-ersatz-hinweis style="color:var(--warning);max-width:300px;margin-bottom:4px">${esc(replaceNotice(r))}</div>` : '';
     const warnings = (r.legal_text_warnings||[]).map(w=>`<div class="small" data-rechtstext-warnung style="color:var(--warning);max-width:300px;margin-bottom:4px">${esc(w)}</div>`).join('');
     const actions = r.status==='entwurf'
-      ? `${repl}${warnings}<div class="row-actions">${blocked||`<button class="primary" onclick="sendReminder(${r.id})">Festschreiben</button>`}
-        <button onclick="editReminder(${r.id})">Bearbeiten</button>
+      ? `${repl}${warnings}<div class="row-actions">${!GELD?blocked:blocked||`<button class="primary" onclick="sendReminder(${r.id})">Festschreiben</button>`}
+        ${GELD?`<button onclick="editReminder(${r.id})">Bearbeiten</button>`:''}
         <button onclick="window.open('/api/reminders/${r.id}/pdf','_blank')">PDF</button>
-        <button class="danger" onclick="deleteReminder(${r.id})">Löschen</button></div>`
+        ${GELD?`<button class="danger" onclick="deleteReminder(${r.id})">Löschen</button>`:''}</div>`
       : `<div class="row-actions"><button onclick="window.open('/api/reminders/${r.id}/pdf','_blank')">PDF</button>
         <button onclick="toggleReminderHistory(${r.id})">Verlauf</button></div>`;
     // Versandverlauf (seit 1.8.20) in einer eigenen, zunächst verborgenen Zeile darunter.
@@ -214,7 +218,7 @@ function toggleReminderHistory(id){
   const row = document.getElementById('dhRow'+id);
   const open = row.style.display === 'none';
   row.style.display = open ? '' : 'none';
-  if(open) renderDispatchHistory('dh'+id, 'mahnung', id, {});
+  if(open) renderDispatchHistory('dh'+id, 'mahnung', id, GELD ? {} : {manual: false, outcomes: false});
 }
 async function sendReminderEmail(id, btn){
   const input = document.getElementById('reminderEmailInput'+id);
