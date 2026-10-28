@@ -7163,7 +7163,7 @@ der Storno von vor 1.9.114 auf dem Server kann deshalb von seinem Original abwei
   nicht geladen (keine Grunddaten, kein `create_all`). Aufruf auf dem Server im Kopf der Datei:
   `cd /home/tobias/erp`, `set -a; source .env; set +a`, `.venv/bin/python scripts/pruefe_stornos.py`.
 
-#### Festlegungen 1.9.119 (Bitte bestätigen)
+#### Festlegungen 1.9.119 (bestätigt am 28.10.2026)
 
 1. Geprüft werden nur festgeschriebene Stornos; ein Entwurf zählt nicht (er lässt sich seit 1.9.114 nicht mehr an den Positionen ändern und
    löschen und neu anlegen).
@@ -7212,7 +7212,7 @@ Die Monteurin erreicht keinen dieser Endpunkte (unverändert).
   statt „Bearbeiten“, „Als Standard“, „Archivieren“, „Wiederherstellen“. Unter E-Mail-Vorlagen sind Betreff und Text einer Mahnstufe gesperrt, mit
   dem Hinweis; die übrigen Dokumente bleiben offen.
 
-#### Festlegungen 1.9.120 (Bitte bestätigen)
+#### Festlegungen 1.9.120 (bestätigt am 28.10.2026)
 
 1. Die ganze Mahnstufe zählt dazu -- auch Bezeichnung, Mahntext und die E-Mail-Texte (auch unter E-Mail-Vorlagen), nicht nur Frist und Gebühr;
    die E-Mail-Vorlagen der übrigen Dokumente (auch der Rechnung) speichert weiter jedes Büro.
@@ -7293,7 +7293,7 @@ Seite zeigte ein gesperrtes Feld wie ein offenes -- gemessen (Gegenprobe 4 unten
   Mauszeiger `default`; die Regel für den Rahmen beim Überfahren bleibt) und `order.html` (`#itemDialog`, `#taxKey`, `.lv-row`) -- an ihrer Stelle
   ein Kommentar.
 
-#### Festlegungen 1.9.122 (Bitte bestätigen)
+#### Festlegungen 1.9.122 (bestätigt am 28.10.2026)
 
 1. Schrift gesperrter Felder überall `--ds-text-2` -- auch in der unterschriebenen Checkliste (bisher `--ink`): 6,97 : 1 hell, 7,18 : 1 dunkel.
 2. Auch in den LV-Zeilen des Auftrags tragen gesperrte Felder die Fläche (bisher durchsichtig, ohne Rahmen) -- keine Ausnahme ohne Begründung.
@@ -7350,7 +7350,7 @@ Tage und Zeitpunkte als ISO-Text (naive UTC wie naive Ortszeit, im Browser nicht
   „Gruppe #7“ als „Gruppenbuchung Nr. 7“.
 - `_verlauf.html::verlaufAenderung()`: die Einheit hinter dem neuen Wert -- „850 → 851 m²“.
 
-#### Festlegungen 1.9.123 (Bitte bestätigen)
+#### Festlegungen 1.9.123 (bestätigt am 28.10.2026)
 
 1. Übersetzt wird beim Lesen, gespeichert bleibt jeder Wert roh -- auch Einträge von vor 1.9.123 erscheinen lesbar.
 2. Die Einheit steht einmal, hinter dem neuen Wert („850 → 851 m²“, „19 → 7 %“).
@@ -7380,3 +7380,154 @@ Keine angepassten Erwartungen.
 
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v543`): IDs nicht aufgelöst -> 2; keine Einheit -> 2; Zahlen roh -> 4; UTC nicht
 umgerechnet -> 1; Name des Datensatzes roh -> 2 und der Klicktest 4/6 (ISO-Tage und „site“ in /history und Projektmappe); die Einheit nicht angezeigt -> 1.
+
+## Stufe 5, R2 (ab 1.9.124): die Akte je Projekt
+
+Vorgabe 28.10.2026 (übernommen wie gegeben): „Stufe 5 · R2 – die Akte je Projekt. Start: HEAD e13058e (live), Arbeitskopie sauber. Version ab 1.9.124.
+Nicht pushen. Festlegungen R1 Nachrunde: alle bestätigt. Vorlage (freigegeben): bildgrundlage/entwurf-stufe5/akte-uebersicht.html,
+akte-leistungen.html, akte-verlauf.html, akte-zuordnung.html. Maße und Texte gelten, Zahlen sind Beispiel; Farben über Tokens, hell und dunkel;
+Seitenkopf über den Baustein. 0. Vorweg: neue Bildgrundlage vom Stand e13058e (1.9.122 änderte jede Seite mit gesperrten Feldern). 1. Server zuerst:
+Auftragsstatus nur noch läuft, pausiert, abgeschlossen, storniert – Liste am Server (sonst 422). Übergänge als eigene Aktionen mit Rückfrage: Pausieren
+und Stornieren mit Pflichtbegründung; Abschließen nach Schlussrechnung oder mit Begründung „ohne Rechnung“; Fortsetzen. Begründung im Verlauf. Wirkung:
+pausiert sperrt nichts. abgeschlossen: Monteure buchen nicht (Büro weiter, R5a); nicht mehr in der Plantafel, keine neuen Einsätze (F5). storniert: dazu
+keine neuen Berichte; Rechnungen bleiben möglich (Teilleistung). Migration: beauftragt, arbeitsvorbereitung, in_ausfuehrung → läuft; die übrigen
+bleiben; Rückweg mit Daten verweigert. Live sind alle 8 Aufträge „beauftragt“. Phase je Auftrag aus den Daten, eine Funktion, wie akte-zuordnung.html.
+Der Projektstatus wird abgeleitet (Anfrage → Angebot → Phase des Auftrags), kein Feld mehr von Hand; Archivieren bleibt. Dashboard und Listen lesen die
+abgeleiteten Werte. Im Bericht: Projekte, deren gespeicherter Status nicht zur Ableitung passt (live mindestens eines: „beauftragt“ ohne Auftrag). Zahlen
+der Akte vom Server, je eine Rechnung, die AV und Projektmappe mitbenutzen (F18, F19, F21): Leistung netto (Auftragssumme mit Nachträgen, abgerechnet,
+noch nicht abgerechnet), Zahlung brutto (in Rechnung gestellt, bezahlt, unbezahlt, überfällig), Stunden (Soll aus der Kalkulation nur „in Summe“,
+gebucht, Fahrzeit, Baustelle und Werkstatt), je Position abgerechnet (Menge, %) und Std. Ist/Soll. 2. /projects/{id} wird die Akte wie die Vorlage: Kopf
+mit Auftragswahl (nur bei mehreren Aufträgen) und Phasen; Reiter Übersicht · Angebote · Vertrag · Leistungen · Ausführung · Abnahme & Mängel · Rechnungen ·
+Dateien · Verlauf. Inhalte von Projektmappe und Auftragsseite ziehen um wie akte-zuordnung.html; jede Funktion bleibt erreichbar (Liste aus dem Befund
+Stufe 5 als Tabelle im Test, wie test_v520). Hauptknopf je Phase und Rolle. 3. /orders/{id} leitet auf /projects/{id}?auftrag={id}; Arbeitsvorbereitung,
+Einsatzberichte, Rechnung und Checklisten führen in die Akte zurück. 4. Verlauf der Akte: ein Strom (Änderungen, Versand, Zahlungen, Berichte, Status,
+Termine) mit Filter und Auftragswahl; Einträge einer Aktion (gleiches Konto, gleicher Pfad, wenige Sekunden) als eine Zeile mit aufklappbaren
+Einzelheiten; „Zustellung nachtragen“ im „⋮“ der Zeile. 5. Rollen: Büro – Auftrag sieht Geld ohne Knöpfe; die Monteurin bekommt keine Akte (403 wie
+heute). 6. Aus dem Befund, soweit die Akte sie berührt: D1, D2 (eine Rechnungsliste), D3, D5 („offen“ nur noch als „unbezahlt“ oder „noch nicht
+abgerechnet“), D15, L2, L3, B4 (Status nie roh), E1 (Eingaben bleiben), F2 (nach der Schlussrechnung ist gesperrt, was aufs Dokument geht; Sachbearbeiter
+und Bemerkungen bleiben frei). In Etappen committen, Server und Migration zuerst, je mit vollem Lauf. Tests (Angriff / Gegenprobe), u. a.: Status
+außerhalb der Liste → 422; Stornieren ohne Begründung → 422; Abschließen ohne Schlussrechnung und ohne Begründung → 409; storniert: Einsatz planen,
+Bericht anlegen, Buchung der Monteurin → 409 / Rechnung anlegen, Buchung des Büros → 200; Migration: jeder alte Wert landet richtig; Rückweg mit Daten
+verweigert; Phase je Fall: kein Auftrag, Angebot, Zeit gebucht, Abnahme, Schlussrechnung; Zahlen der Übersicht = Summe der Rechnungen bzw. Buchungen,
+im Test nachgerechnet; /orders/{id} → Akte mit gewähltem Auftrag; jede Funktion aus dem Befund erreichbar; Büro – Auftrag: kein Geld-Knopf in der Akte;
+Monteurin 403. Ende: Bericht als .txt; ZIP: jeder Reiter neben der Vorlage (1440, hell), Übersicht dunkel, Büro – Auftrag, Projekt mit zwei Aufträgen,
+Projekt ohne Auftrag (Phase Angebot).“
+
+Die Vorlagen liegen unter `bildgrundlage/entwurf_stufe5/` (mit Unterstrich; die Vorgabe schreibt `entwurf-stufe5`). Festlegungen der R1 Nachrunde
+(1.9.119–1.9.123) bestätigt am 28.10.2026, die Überschriften oben tragen das.
+
+Vorweg (Punkt 0): neue Bildgrundlage vom Stand `e13058e` in einer Arbeitskopie auf genau diesem Commit (`git worktree add --detach … e13058e`, sauber;
+Ziel `bildgrundlage/e13058e/`) -- 310 Bilder, 334 von 334 Prüfungen wie erwartet, Chrome/155.0.8059.40, 411 s. Grundlage für den Vergleich nach dem
+Umbau der Akte.
+
+Etappen (je eine Version mit vollem Lauf): 1.9.124 Auftragsstatus; 1.9.125 Phase und abgeleiteter Projektstatus; 1.9.126 Zahlen der Akte; danach der
+Verlauf als Strom, die Akte selbst, die Weiterleitung von /orders/{id} und die Befundpunkte.
+
+### R2, Punkt 1a (1.9.124): Auftragsstatus -- vier Werte, Übergänge mit Begründung
+
+Befund (Stufe 5, 3.1, F2, F4, F5, F20): `Order.status` war freier Text, die Auftragsseite bot sechs Werte an (beauftragt, arbeitsvorbereitung,
+in_ausfuehrung, pausiert, abgeschlossen, storniert), der Server prüfte gegen keine Liste, gesetzt über `PUT /api/orders/{id}` ohne Rückfrage; Wirkung
+hatten nur „abgeschlossen“ und „storniert“, und das nur für die Monteurin; die Plantafel bot beide zum Einplanen an (F5); die Prüfungen verglichen teils
+exakt, teils ohne Groß-/Kleinschreibung (F20).
+
+- `app/auftragsstatus.py` (neu): `STATUS` = laeuft, pausiert, abgeschlossen, storniert mit Namen; `status_aendern()` als einziger Weg -- unter der Sperre
+  der Auftragszeile (`lock_order_invoices()`), Übergänge `UEBERGAENGE` (pausieren aus läuft; fortsetzen aus pausiert oder abgeschlossen; abschließen und
+  stornieren aus läuft oder pausiert; aus storniert nichts), Begründung Pflicht beim Pausieren, Stornieren und Fortsetzen aus „abgeschlossen“
+  (`BegruendungFehlt`, 422), Abschließen ohne gültige Schlussrechnung bzw. abschließende Rechnung aus Aufwand nur ohne jede Rechnung (sonst
+  `RECHNUNG_DA_TEXT`, 409) und mit Begründung „ohne Rechnung“ (sonst `OHNE_RECHNUNG_TEXT`, 409); `status_info()` (Übergänge mit Pflicht, was
+  Abschließen verlangt samt gebuchter Stunden, letzter Wechsel); `wert()` liest jeden Status klein und ohne Leerraum (F20) -- `einsatz_gesperrt()`,
+  `bericht_gesperrt()`, `geschlossen()`, `storniert()`, `pause_begruendung()`.
+- `OrderStatusChange` (neu, `order_status_changes`): alter und neuer Status, Begründung, „ohne Rechnung“, Zeitpunkt, Konto und Name; unveränderlich und nie
+  gelöscht (ORM-Sperre); im Änderungsprotokoll als Art „Auftragsstatus“ („AUF-… · läuft → pausiert“) unter dem Projekt, daneben die Zeile „Auftrag ·
+  Status“ alt -> neu.
+- Routen: `POST /api/orders/{id}/status` (`OrderStatusChangeRequest`: `Literal` der vier Werte, Pausieren und Stornieren ohne Begründung 422; 409 bei
+  Konflikt, 404) und `GET /api/orders/{id}/status-changes`, je ab Büro – Auftrag. `OrderUpdate` und `OrderCreateFromQuote` lehnen einen Status mit 422
+  ab (`STATUS_NUR_UEBER_AKTIONEN`), `update_order_header()` ebenso; ein neuer Auftrag beginnt immer mit „läuft“. `OrderOut` trägt `status_label` und
+  `status_info`.
+- Wirkung: „abgeschlossen“ und „storniert“ -- `create_slot()` lehnt ab (`AuftragGeschlossen`, 409; ein bestehender Einsatz lässt sich weiter verschieben
+  und löschen), die Plantafel nimmt sie nicht mehr unter „Nicht eingeplant“ und nicht mehr in die Auswahl beim Einplanen (`planning.html`); die
+  Monteurin bucht nicht (seit 1.9.81, jetzt 409 statt 403). „storniert“ dazu: kein neuer Bericht für jede Rolle (`create_report()` und die Route, 409;
+  bis 1.9.123 nur die Monteurin, 403; der Dialog der Monteurin `GET /api/field-view/auftraege/{id}/bericht-anlegen` ebenso 409). Rechnungen und
+  Buchungen des Büros unverändert. „pausiert“ sperrt nichts: Einsatz und Rückstand der Plantafel tragen `order_status` und `order_status_reason`
+  („Auftrag pausiert · <Begründung>“).
+- Migration `8d3f6a2c91e7`: Tabelle `order_status_changes`; beauftragt, arbeitsvorbereitung, in_ausfuehrung, leer und jeder unbekannte Wert -> laeuft;
+  pausiert, abgeschlossen, storniert bleiben (Schreibweise vereinheitlicht). `downgrade()` verweigert, solange ein Auftrag „läuft“ oder ein
+  Statuswechsel festgehalten ist; sonst entfernt es die Tabelle.
+- Oberfläche: `_auftragsstatus.html` (neu) -- Kennzeichen mit Begründung, die Knöpfe der Übergänge, der Dialog mit Wirkung, Begründung (Pflicht
+  gekennzeichnet) und bei „Abschließen“ dem Stand der Rechnungen bzw. den Stunden, die ohne Rechnung nicht abgerechnet werden; abschließende Aktion über
+  `abschliessen()`. Auftragsseite: Karte „Status“ statt der Auswahl in „Auftragsdaten“, der Kopf zeigt den Status lesbar (B4, bis zur Akte);
+  `_statuskennzeichen.html` Gruppe `auftrag` mit den vier Werten. „Angebot beauftragen“ ohne Auswahl „Status“. Prüfabfrage
+  `scripts/pruefabfrage_auswahlwerte.sql`: `orders.status` gegen die vier Werte.
+
+#### Festlegungen 1.9.124 (Bitte bestätigen)
+
+1. Fortsetzen geht aus „pausiert“ ohne und aus „abgeschlossen“ mit Begründung; ein stornierter Auftrag bleibt storniert (kein Weg zurück).
+2. Stornieren geht aus „läuft“ und „pausiert“, nicht aus „abgeschlossen“ (erst fortsetzen).
+3. „Ohne Rechnung“ abschließen nur, solange am Auftrag keine Rechnung besteht -- auch kein Entwurf; stornierte Rechnungen und ihre Stornos zählen nicht
+   (nach dem „Parkplatz vor dem Echtbetrieb“, 13.10.2026). Mit Abschlägen schließt die Schlussrechnung ab. Mit Schlussrechnung ist die Begründung
+   freiwillig.
+4. Den Status ändert jedes Büro (ab Büro – Auftrag) -- es ist keine Aktion mit Geld.
+5. Was am Stand des Auftrags scheitert, antwortet 409: neuer Einsatz, neuer Bericht, Buchung der Monteurin (bis 1.9.123 403), auch der Dialog
+   „Bericht anlegen“ der Monteurin.
+6. Ein leerer oder unbekannter Status wird bei der Migration „läuft“; andere Schreibweisen der drei bleibenden werden vereinheitlicht.
+7. Bestehende Einsätze eines abgeschlossenen oder stornierten Auftrags bleiben in der Plantafel und lassen sich verschieben und löschen; gesperrt ist
+   nur ein neuer.
+8. Die Begründung einer Pause steht in der Plantafel am Einsatz und im Rückstand.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v544_auftragsstatus.py` (26 Tests): neuer Auftrag „läuft“ mit Übergängen und Abschluss-Info; ein Status außerhalb der Liste (sechs Werte,
+darunter die alten und „LAEUFT“) 422 ohne Änderung und Historie; Pausieren und Stornieren ohne Begründung (leer, nur Leerzeichen) 422; PUT und
+Beauftragen mit Status 422, ohne Status 200 bzw. „läuft“; Pausieren und Fortsetzen mit Historie, Person und Änderungsprotokoll („Auftragsstatus“ und
+„Auftrag · Status“); Übergänge aus „storniert“ und derselbe Status 409; Abschließen ohne Schlussrechnung und ohne Begründung 409 mit dem Weg, mit
+Begründung „ohne Rechnung“ festgehalten; mit Abschlag (Entwurf, dann festgeschrieben) 409 mit der Nummer, nach der Schlussrechnung ohne Begründung;
+Fortsetzen aus „abgeschlossen“ nur mit Begründung; Historie unveränderlich; pausiert sperrt nichts (Buchung, Bericht, Einsatz mit Begründung in der
+Antwort); abgeschlossen: Einsatz 409, nicht im Rückstand (ein offener Auftrag bleibt), Monteurin 409 ohne Buchung, Büro bucht, Bericht geht;
+storniert: Einsatz, Bericht (Büro und Monteurin) und Buchung der Monteurin 409, Rechnung (Büro – Finanzen) und Buchung des Büros 200; `create_report()`
+ohne Route gesperrt; Statusregeln ohne Groß-/Kleinschreibung; Auftragsseite und Angebot ohne Auswahl „Status“, der Baustein eingebunden.
+Neu `tests/test_v544_auftragsstatus_migration.py` (3 Tests): die Regel je Wert (zehn Werte samt Schreibweisen und unbekannter); Probe auf SQLite und
+PostgreSQL (Wegwerf-Schema): hoch -- jeder alte Wert richtig, alles andere am Auftrag unverändert, Tabelle da; runter mit „läuft“ verweigert, nichts
+geändert; mit einem Statuswechsel (ohne „läuft“) ebenso verweigert; ohne beides zurück auf `3e9b7c41d2a8`, Tabelle weg.
+
+Angepasste Erwartungen:
+- `test_v504_keine_zeiten_auf_abgeschlossene.py` (7 Tests über `_abgelehnt()`): Buchung der Monteurin am abgeschlossenen bzw. stornierten Auftrag 403 ->
+  409 (Meldung unverändert).
+- `test_v511::test_buero_bucht_auf_geschlossenem_auftrag_monteurin_nicht[abgeschlossen|storniert]`: Monteurin 403 -> 409.
+- `test_v499::test_abgeschlossen_storniert_und_alt_nicht_in_der_liste[storniert]`: Bericht der Monteurin zum stornierten 403 -> 409.
+- `test_v505::test_zeiten_gesperrt_folgt_dem_buchen`: Nachtrag der Monteurin 403 -> 409.
+- `test_v502::test_storniert_403_und_nichts_angelegt` -> `test_storniert_409_und_nichts_angelegt`: 403 -> 409.
+- `test_v502::test_buero_unveraendert` (Büro legt zum stornierten an, 200) -> `test_buero_zum_stornierten_ebenso_409`: 409 mit `BERICHT_STORNIERT`, zum
+  abgeschlossenen 200.
+- `test_v502::test_daten_zum_anlegen_storniert_403_unbekannt_404` -> `…_409_…`: 403 -> 409.
+- `test_v445::test_jeder_wert_des_servers_steht_in_der_tabelle`: `FESTE_LITERALE["orders.status"]` und die Auswahl der Auftragsseite in der Tabelle ->
+  `app/auftragsstatus.py::STATUS` gleich der Tabelle (die Auswahl gibt es nicht mehr).
+- `test_v445::test_kennzeichen_lesbar_und_in_der_farbe_der_bedeutung`: Beispiele `auftrag/beauftragt` („Beauftragt“, info) -> `auftrag/laeuft` („Läuft“,
+  info); `auftrag/in_ausfuehrung` („In Ausführung“, info) -> `auftrag/pausiert` („Pausiert“, neutral).
+- `test_v447::test_auftrag_status` entfällt (hielt einen unbekannten Status in der Auswahl der Auftragsseite gewählt -- Auswahl und unbekannte Werte gibt es
+  nicht mehr); `test_v447::test_feste_listen_der_pruefabfrage_wie_auf_den_seiten['orders.status]`: Quelle Auswahl der Auftragsseite -> `STATUS` des
+  Servers, die Prüfabfrage mit den vier Werten.
+- `test_v364`: `orders.status` aus `FESTE_LITERALE` ("beauftragt", "storniert", "abgeschlossen") nach `FESTE_WERTE` (`app/auftragsstatus.py::STATUS`), dazu
+  `order_status_changes.old_status`/`new_status`.
+- `test_v070::test_order_changes_are_audited_with_project`: Statuswechsel über `update_order_header(status="arbeitsvorbereitung")`, alt „beauftragt“ ->
+  über `status_aendern(…, "pausiert", …)`, alt „laeuft“ neu „pausiert“; `create_order()` ohne `status` (nur Aufbau, 4 Tests).
+- `test_v381_zahlungen_migration.py` (beide Proben): hoch bis `head` -> bis `3e9b7c41d2a8` (`BIS`) -- der Rückweg über `8d3f6a2c91e7` verweigert jeden
+  Bestand mit Auftrag (nur Aufbau).
+- `test_v334::BAUSTEINE` um `_auftragsstatus.html` (nur Aufbau, Regel 36: die Attrappe bindet ein, was die Seite einbindet; ohne den Eintrag scheiterten
+  die node-Tests der Auftragsseite in v334, v438, v439, v447, v451 an „auftragsstatusEinrichten is not defined“).
+- `test_v399::ABSCHLIESSEND` um `_auftragsstatus.html::statusDialogSenden` (neue abschließende Aktion).
+- `klicktest_bericht_ohne_einsatz` „S (storniert) direkt über die API: 403 mit der Meldung“ -> 409 mit der Meldung.
+- `klicktest_zeiten`: Testdaten der zwei offenen Aufträge mit Status „laeuft“ statt „beauftragt“ (nur Aufbau).
+- `klicktest_rahmen` „Datensatzkopf einsatzbericht (buero) hell/dunkel: Status“: „Beauftragt“ (info) -> „Läuft“ (info) -- im ersten Lauf der Klicktests
+  rot, die Erwartung war mit 1.9.124 veraltet.
+- `klicktest_zeiten_abgeschlossen` „Das Büro schließt A ab“: `PUT /api/orders/{id}` mit Status -> `POST /api/orders/{id}/status` mit Begründung „ohne
+  Rechnung“ (200) -- im ersten Lauf rot (422 im Ablauf, der alte Weg ist gesperrt).
+
+Klicktests vor dem Commit: alle 99 (die Auftragsseite und der Status berühren fast jede): 97 wie erwartet, die zwei oben rot -- angepasst, danach beide
+grün (13/13, 1436/1436).
+
+Im ersten Suitenlauf rot und behoben: die eben genannten (37 Tests); dazu `test_v398` -- der Baustein nutzt `abschliessen()` und band `_speichern.html`
+nicht ein (jetzt auch `_zahl.html` und `_berlin_date.html`).
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v544`): die Liste nur im Schema weg -> grün (der Server lehnt in
+`status_aendern()` ein zweites Mal ab, 422); an beiden Stellen weg -> 6 Tests; Abschließen ohne Begründung erlaubt -> 1; `einsatz_gesperrt()` aus ->
+2; `bericht_gesperrt()` aus -> 1 (die Route prüft vorher selbst); Route und `bericht_gesperrt()` aus -> 2; Buchung der Monteurin wieder 403 -> 2.

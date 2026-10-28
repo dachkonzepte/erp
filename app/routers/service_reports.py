@@ -29,6 +29,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Resp
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
+from ..auftragsstatus import AuftragGeschlossen
 from ..dateiauslieferung import datei_antwort
 from ..database import get_db
 from ..meldungen import BERICHT_STORNIERT, KEIN_MITARBEITER
@@ -191,14 +192,14 @@ def post_service_report(order_id: int, payload: ServiceReportCreate, request: Re
     # seit 1.9.79 (Stufe 4, R4 Nachtrag 3, A): die Monteurin zu jedem Auftrag, eingeplant oder nicht, auch abgeschlossen -- nur nicht zu einem
     # stornierten (bericht_zum_auftrag_moeglich(), 403). 1.9.74–1.9.78 nur zu einem Auftrag ihrer Liste, bis 1.9.73 zu jedem, auf den sie
     # zugreifen darf. Leserechte entstehen erst über den eigenen Bericht (field_may_access_order(), Weg 2)
-    if _role.role == ROLE_FIELD:
-        if _role.employee_id is None:
-            raise HTTPException(status_code=403, detail=KEIN_MITARBEITER)
-        auftrag = db.get(Order, order_id)
-        if auftrag is None:
-            raise HTTPException(status_code=404, detail="Auftrag nicht gefunden.")
-        if not bericht_zum_auftrag_moeglich(auftrag):
-            raise HTTPException(status_code=403, detail=BERICHT_STORNIERT)
+    if _role.role == ROLE_FIELD and _role.employee_id is None:
+        raise HTTPException(status_code=403, detail=KEIN_MITARBEITER)
+    auftrag = db.get(Order, order_id)
+    if auftrag is None:
+        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden.")
+    # seit 1.9.124 (Stufe 5, R2, Punkt 1) für jede Rolle und 409 (bis 1.9.123 nur die Monteurin, 403) -- ein Konflikt mit dem Stand des Auftrags
+    if not bericht_zum_auftrag_moeglich(auftrag):
+        raise HTTPException(status_code=409, detail=BERICHT_STORNIERT)
     employee_id = _employee_for_request(request, payload.created_by_employee_id)
     try:
         return create_report(
@@ -208,6 +209,8 @@ def post_service_report(order_id: int, payload: ServiceReportCreate, request: Re
         )
     except NotInOrderProperty as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except AuftragGeschlossen as exc:  # seit 1.9.124: storniert (dieselbe Regel, unter dem Laden geprüft)
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

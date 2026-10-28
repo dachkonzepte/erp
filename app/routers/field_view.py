@@ -313,7 +313,7 @@ def get_field_view_bericht_anlegen(order_id: int, db: Session = Depends(get_db, 
     if order is None:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden.")
     if not bericht_zum_auftrag_moeglich(order):
-        raise HTTPException(status_code=403, detail=BERICHT_STORNIERT)
+        raise HTTPException(status_code=409, detail=BERICHT_STORNIERT)  # seit 1.9.124 409 wie das Anlegen (bis 1.9.123 403)
     return {"auftrag": auftrag_zeile(order), "dachflaechen": list_roof_areas_for_order(db, order_id)}
 
 

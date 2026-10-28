@@ -85,7 +85,7 @@ def befuellen(db, k):
     kunde = Customer(name="Hallenbau GmbH", last_name="Hallenbau GmbH", is_consumer=False)
     db.add(kunde); db.flush()
     auftraege = {}
-    for nr, (nummer, titel, status) in enumerate([("AUF-2026-0001", "Halle Nord", "beauftragt"), ("AUF-2026-0102", "Attika", "beauftragt"),
+    for nr, (nummer, titel, status) in enumerate([("AUF-2026-0001", "Halle Nord", "laeuft"), ("AUF-2026-0102", "Attika", "laeuft"),
                                                   ("AUF-2026-0105", "Halle Süd", "abgeschlossen")], 1):
         objekt = Property(customer_id=kunde.id, name=titel, street="Werkstr. 5", postal_code="52531", city="Übach-Palenberg")
         db.add(objekt); db.flush()

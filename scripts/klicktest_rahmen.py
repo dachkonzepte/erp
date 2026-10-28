@@ -668,7 +668,7 @@ DATENSATZKOPF = (
     dict(seite="einsatzbericht", rolle=bg.BUERO, titel="Einsatzberichte", kennung="{auftragsnummer}", untertitel="Hallenbau GmbH",
          pfad=[["Projekte", "/projects"], ["Hallenbau GmbH", "/customers/{kunde}"], ["Dachsanierung Halle Nord", "/projects/{projekt}"],
                ["{auftragsnummer}", "/orders/{auftrag}"], ["Einsatzberichte", None]],
-         status=["Beauftragt", "info"], aktion=None, menue=["Zeiten (Auftrag)"]),  # bis 1.9.97 „Zeiterfassung (Auftrag)“
+         status=["Läuft", "info"], aktion=None, menue=["Zeiten (Auftrag)"]),  # bis 1.9.97 „Zeiterfassung (Auftrag)“; Status bis 1.9.123 „Beauftragt“
     dict(seite="einsatzbericht", rolle=bg.MONTEUR, titel="Einsatzberichte", kennung="{auftragsnummer}", untertitel="Hallenbau GmbH",
          pfad=[["Heute", "/mobil"], ["Einsatzberichte", None]], status=["", "neutral"], aktion=None, menue=["Zeiten (Auftrag)"]),
 )

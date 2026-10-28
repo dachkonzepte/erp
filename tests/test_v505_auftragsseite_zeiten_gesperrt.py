@@ -38,7 +38,7 @@ def test_zeiten_gesperrt_folgt_dem_buchen(welt):  # noqa: F811
         if gemeldet is None:
             assert nachtrag.status_code == 200, (status, nachtrag.text)
         else:
-            assert (nachtrag.status_code, nachtrag.json()["detail"]) == (403, gemeldet), status
+            assert (nachtrag.status_code, nachtrag.json()["detail"]) == (409, gemeldet), status  # seit 1.9.124 409 (bis dahin 403)
     assert client.get(f"/api/orders/{welt['order'].id}").json()["zeiten_gesperrt"] is None
 
 

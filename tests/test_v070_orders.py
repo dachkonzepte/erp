@@ -10,6 +10,7 @@ from app.database import Base
 from app.importers.leistungen_dach import parse_leistungen_dach_xml
 from app.main import create_customer, create_project, create_quote, add_quote_item, update_quote_item
 from app.models import Service, AuditLog
+from app.auftragsstatus import status_aendern
 from app.orders import create_order_from_quote, load_order, order_to_dict, update_order_header
 from app.order_pdf import build_order_pdf
 from app.projects import load_quote
@@ -41,7 +42,6 @@ def create_order(db, quote_id):
         db, quote_id, order_date=date(2026, 9, 1), execution_start=date(2026, 9, 15),
         execution_end=date(2026, 10, 15), caseworker_employee_id=None,
         project_manager_employee_id=None, payment_terms="14 Tage netto", remarks="Testauftrag",
-        status="beauftragt",
     )
 
 
@@ -93,7 +93,9 @@ def test_order_changes_are_audited_with_project():
     tokens = set_audit_context(User(), None)
     try:
         order = create_order(db, quote.id)
-        update_order_header(db, order, title="Geänderter Auftrag", status="arbeitsvorbereitung", order_date=order.order_date,
+        # seit 1.9.124 der Status nur über status_aendern() (bis 1.9.123 über update_order_header(status=…) auf „arbeitsvorbereitung“)
+        status_aendern(db, order.id, "pausiert", "Gerüst fehlt")
+        update_order_header(db, order, title="Geänderter Auftrag", order_date=order.order_date,
                             execution_start=order.execution_start, execution_end=order.execution_end,
                             caseworker_employee_id=None, project_manager_employee_id=None,
                             payment_terms=order.payment_terms, remarks="Neue Bemerkung")
@@ -103,8 +105,8 @@ def test_order_changes_are_audited_with_project():
     assert row is not None
     assert row.actor_name == "Tobias Rödchen"
     assert row.project_id == order.project_id
-    assert row.old_value == "beauftragt"
-    assert row.new_value == "arbeitsvorbereitung"
+    assert row.old_value == "laeuft"
+    assert row.new_value == "pausiert"
 
 
 def test_order_ui_and_routes_exist():

@@ -16,7 +16,7 @@ from .models import (
     Checklist, ChecklistAttachment, ChecklistAssetRelease, OperationalAsset, Contact, ProjectParticipant,
     OrderAcceptance, Defect, DefectEvent, Invoice, Payment, PaymentAllocation,
     InvoiceCharge, InvoiceDefaultStart, OrderCustomerChange, BaseInterestRate, DunningLegalText,
-    InvoiceItem, Reminder, ServiceReport, MaintenanceContract, RoofArea, CalendarEvent,
+    OrderStatusChange, InvoiceItem, Reminder, ServiceReport, MaintenanceContract, RoofArea, CalendarEvent,
 )
 
 _actor_id = contextvars.ContextVar("audit_actor_id", default=None)
@@ -55,6 +55,7 @@ TYPE_LABELS = {
     # seit 1.9.115 (Stufe 5, R1, Punkt 5)
     Invoice: "Rechnung", InvoiceItem: "Rechnungsposition", Reminder: "Mahnung", ServiceReport: "Einsatzbericht",
     MaintenanceContract: "Wartungsvertrag", RoofArea: "Dachfläche", CalendarEvent: "Termin",
+    OrderStatusChange: "Auftragsstatus",  # seit 1.9.124
 }
 
 EXTENSION_TYPES = (CustomerProfile, ProjectProfile, EmployeeProfile, EmployeeRoleSettings, EmployeeCompensationSettings, EmployeeCostAllocationSettings, QuoteDocumentMeta, QuoteItemLayout, QuoteEmployeeAssignment)
@@ -91,6 +92,9 @@ AUDITED_TYPES = (
     # Ausgenommen (STILL_JE_ART): reine Buchhaltung des Kalender-Abgleichs, die Eingefrorenen Aufstellungen (Mahnung, Zeiten des Berichts) und die
     # Beschreibung eines Berichts im Entwurf (speichert beim Tippen wie die Antworten einer Checkliste; mit der Unterschrift steht sie fest).
     OrderItem, OrderSection, Invoice, InvoiceItem, Reminder, ServiceReport, MaintenanceContract, RoofArea, CalendarEvent,
+    # Seit 1.9.124 (Stufe 5, R2, Punkt 1): jeder Statuswechsel am Auftrag mit Begründung (unveränderlich, ORM-Sperre); daneben die Zeile
+    # „Auftrag · Status“ alt -> neu aus derselben Anfrage.
+    OrderStatusChange,
 )
 
 # Seit 1.9.115: Felder, die je Art nicht als Änderung protokolliert werden (der Schnappschuss beim Anlegen enthält sie).
@@ -160,6 +164,8 @@ FIELD_LABELS = {
     "source_text":"Vorschlag (Quelle)","proposal_on":"Vorschlag","old_customer_id":"Kunde bisher","new_customer_id":"Kunde neu",
     "old_customer_name":"Kunde bisher (Name)","new_customer_name":"Kunde neu (Name)","changed_by_name":"Geändert von",
     "changed_by_user_id":"Geändert von (Konto)","dunning_charges_enabled":"Mahngebühren und Verzugszinsen",
+    # seit 1.9.124: Statuswechsel am Auftrag
+    "old_status":"Status bisher","new_status":"Status neu","without_invoice":"Ohne Rechnung abgeschlossen",
     # seit 1.8.81: Basiszinssatz, Rechtstexte, Verzugszinsen, Zahlung auf Nebenforderung
     "half_year_start":"Halbjahr ab","rate_percent":"Basiszinssatz (%)","reviewed_on":"Geprüft am","reviewed_by":"Geprüft durch",
     "text_key":"Rechtstext","body":"Text","period_start":"Zinsen ab","period_end":"Zinsen bis",
@@ -597,6 +603,11 @@ def _normalize(session, obj):
     if isinstance(obj, DunningLegalText):
         from .dunning_texts import LEGAL_TEXT_LABELS  # lokal: nur hier gebraucht
         return "Rechtstext Mahnwesen", obj.text_key, f"Rechtstext {LEGAL_TEXT_LABELS.get(obj.text_key, obj.text_key)}"[:255], None
+    if isinstance(obj, OrderStatusChange):
+        from .auftragsstatus import name as status_name  # lokal: nur hier gebraucht
+        o = session.get(Order, obj.order_id)
+        label = f"{o.order_number if o else 'Auftrag'} · {status_name(obj.old_status)} → {status_name(obj.new_status)}"
+        return "Auftragsstatus", str(obj.id), label[:255], o.project_id if o else None
     if isinstance(obj, OrderCustomerChange):
         o = session.get(Order, obj.order_id)
         label = f"Kundenwechsel {obj.old_customer_name} → {obj.new_customer_name} · {_entity_label(o) or ''}".strip(" ·")

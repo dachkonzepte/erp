@@ -17,9 +17,10 @@ function statusBedeutungen() {
 }
 function statusTabelle() {
   return {
+    // seit 1.9.124 (Stufe 5, R2, Punkt 1): nur noch vier Status (app/auftragsstatus.py) -- beauftragt, arbeitsvorbereitung und in_ausfuehrung
+    // gingen in „läuft“ auf (Migration 8d3f6a2c91e7)
     auftrag: {
-      beauftragt: ['Beauftragt', 'laeuft'], arbeitsvorbereitung: ['Arbeitsvorbereitung', 'laeuft'], in_ausfuehrung: ['In Ausführung', 'laeuft'],
-      pausiert: ['Pausiert', 'ruht'], abgeschlossen: ['Abgeschlossen', 'erledigt'], storniert: ['Storniert', 'ruht'],
+      laeuft: ['Läuft', 'laeuft'], pausiert: ['Pausiert', 'ruht'], abgeschlossen: ['Abgeschlossen', 'erledigt'], storniert: ['Storniert', 'ruht'],
     },
     // seit 1.9.18: Stand eines Angebots (Auswahl „Status“ im LV-Editor, quotes.status)
     angebot: {

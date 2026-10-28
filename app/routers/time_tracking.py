@@ -96,7 +96,8 @@ def _require_bookable_order(request: Request, db: Session, order_id: int) -> Non
 def _require_order_open_for_field(request: Request, db: Session, *order_ids: int | None) -> None:
     """Seit 1.9.81 (Stufe 4, R4 Nachtrag 3, B, Entscheidung Tobias): auf einen abgeschlossenen oder stornierten Auftrag bucht die
     Monteurin nicht -- Start, Nachtrag, Ändern (eine Buchung dorthin verschieben, dort ändern oder von dort wegschieben), Löschen,
-    Kolonne, „Zeitart wechseln“, „Pausen neu rechnen“: 403 mit der Meldung aus auftrag_zeiten_gesperrt(). Eine laufende Zeit beendet sie
+    Kolonne, „Zeitart wechseln“, „Pausen neu rechnen“: 409 mit der Meldung aus auftrag_zeiten_gesperrt() (bis 1.9.123 403 -- seit 1.9.124,
+    Stufe 5, R2, Punkt 1, ein Konflikt mit dem Stand des Auftrags wie Einsatz und Bericht, keine Frage des Rechts). Eine laufende Zeit beendet sie
     immer (Stopp, Gruppen-Stopp, Ende nachtragen prüfen das nicht). Büro und Admin unverändert."""
     user = getattr(request.state, "erp_user", None)
     if user is None or user.role != ROLE_FIELD:
@@ -104,7 +105,7 @@ def _require_order_open_for_field(request: Request, db: Session, *order_ids: int
     for order_id in dict.fromkeys(i for i in order_ids if i is not None):
         grund = auftrag_zeiten_gesperrt(db.get(Order, order_id))
         if grund:
-            raise HTTPException(status_code=403, detail=grund)
+            raise HTTPException(status_code=409, detail=grund)
 
 
 def _require_open_period(request: Request, db: Session, *work_dates: date) -> None:

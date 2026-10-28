@@ -64,6 +64,8 @@ _STATUS = {
     "projekt_erstellt": "Projekt erstellt", "gewonnen": "Gewonnen", "verloren": "Verloren",
     # seit 1.9.115: Einsatzbericht, Wartungsvertrag (app/maintenance_contracts.py::STATUSES), Rechnung vor 1.8.78
     "unterschrieben": "Unterschrieben", "aktiv": "Aktiv", "pausiert": "Pausiert", "beendet": "Beendet", "bezahlt": "Bezahlt",
+    # seit 1.9.124: Status des Auftrags (app/auftragsstatus.py); die alten Werte bis 1.9.123 bleiben für ältere Einträge lesbar
+    "laeuft": "Läuft", "arbeitsvorbereitung": "Arbeitsvorbereitung", "in_ausfuehrung": "In Ausführung",
 }
 # Seit 1.9.123 die Namen der Auswahlliste „Zeitarten“ (app/option_settings.py, bis 1.9.122 „Baustelle“, „Werkstatt“, „Sonstige“); in einer
 # Antwort gilt die Auswahlliste der Datenbank (lesbar_alle()), diese Tabelle nur ohne sie.
@@ -105,6 +107,7 @@ def _werte() -> dict[str, dict[str, str]]:
     })
     return {
         "status": _STATUS,
+        "old_status": _STATUS, "new_status": _STATUS,  # seit 1.9.124: Statuswechsel am Auftrag
         "role": {**ROLE_LABELS, **beteiligte},
         "entry_type": _ZEITARTEN,
         "absence_category": gross(ABSENCE_CATEGORY_LABELS),

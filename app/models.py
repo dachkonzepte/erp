@@ -1014,7 +1014,10 @@ class Order(Base):
     source_quote_id: Mapped[int] = mapped_column(ForeignKey("quotes.id"), index=True)
     quote_number_snapshot: Mapped[str] = mapped_column(String(50))
     title: Mapped[str] = mapped_column(String(255))
-    status: Mapped[str] = mapped_column(String(50), default="beauftragt", index=True)
+    # Seit 1.9.124 (Stufe 5, R2, Punkt 1): nur noch laeuft, pausiert, abgeschlossen, storniert (app/auftragsstatus.py::STATUS), gesetzt nur über
+    # die Übergänge in app/auftragsstatus.py::status_aendern() (mit Begründung, Historie in OrderStatusChange). Bis 1.9.123 freier Text mit sechs
+    # Werten der Oberfläche (beauftragt, arbeitsvorbereitung, in_ausfuehrung gingen in „läuft“ auf -- Migration 8d3f6a2c91e7).
+    status: Mapped[str] = mapped_column(String(50), default="laeuft", index=True)
     vat_rate: Mapped[Decimal] = mapped_column(Numeric(9, 4), default=Decimal("19.00"))
     tax_key_id: Mapped[int | None] = mapped_column(
         ForeignKey("tax_keys.id", name="fk_orders_tax_key_id"), nullable=True, index=True
@@ -1381,6 +1384,25 @@ class OrderCustomerChange(Base):
     old_customer_name: Mapped[str] = mapped_column(String(255))
     new_customer_name: Mapped[str] = mapped_column(String(255))
     reason: Mapped[str] = mapped_column(Text)
+    changed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    changed_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    changed_by_name: Mapped[str] = mapped_column(String(160), default="System")
+
+
+class OrderStatusChange(Base):
+    """Statuswechsel am Auftrag (seit 1.9.124, Stufe 5, R2, Punkt 1): je Übergang (pausieren, fortsetzen, abschließen, stornieren) eine Zeile mit
+    altem und neuem Status, der Begründung (Pflicht beim Pausieren und Stornieren, beim Abschließen ohne Schlussrechnung, beim Fortsetzen eines
+    abgeschlossenen Auftrags) und ob ohne Rechnung abgeschlossen wurde. Geschrieben nur von app/auftragsstatus.py::status_aendern(), unter der
+    Sperre der Auftragszeile, im selben Commit wie der Status. Unveränderlich und nie gelöscht (ORM-Sperre am Ende der Datei)."""
+
+    __tablename__ = "order_status_changes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), index=True)
+    old_status: Mapped[str] = mapped_column(String(50))
+    new_status: Mapped[str] = mapped_column(String(50))
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    without_invoice: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     changed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     changed_by_user_id: Mapped[int | None] = mapped_column(nullable=True)
     changed_by_name: Mapped[str] = mapped_column(String(160), default="System")
@@ -6159,6 +6181,18 @@ def _charge_no_update(mapper, connection, target):
 @event.listens_for(OrderCustomerChange, "before_delete")
 def _charge_no_delete(mapper, connection, target):
     raise ArchiveImmutableError("Eine Nebenforderung bzw. ein festgehaltener Kundenwechsel wird nie gelöscht.")
+
+
+# Statuswechsel am Auftrag (seit 1.9.124): Historie mit Begründung -- unveränderlich und nie gelöscht.
+@event.listens_for(OrderStatusChange, "before_update")
+def _status_change_no_update(mapper, connection, target):
+    if any(attr.history.has_changes() for attr in inspect(target).attrs):
+        raise ArchiveImmutableError("Ein Statuswechsel am Auftrag ist unveränderlich.")
+
+
+@event.listens_for(OrderStatusChange, "before_delete")
+def _status_change_no_delete(mapper, connection, target):
+    raise ArchiveImmutableError("Ein Statuswechsel am Auftrag wird nie gelöscht.")
 
 
 # Verzugsbeginn (seit 1.8.80): nach dem Bestätigen unveränderlich bis auf das Verwerfen mit Begründung, nie gelöscht.

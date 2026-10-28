@@ -4,6 +4,24 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.124 – Auftragsstatus: vier Werte, Übergänge mit Begründung (Stufe 5, R2, Punkt 1)
+
+Der Auftragsstatus war freier Text: die Auftragsseite bot sechs Werte zur freien Auswahl an, der Server prüfte gegen keine Liste, und nur „abgeschlossen“
+und „storniert“ hatten eine Wirkung (Befund Stufe 5, F2, F4, F5, F20). Jetzt gibt es nur noch vier Status -- läuft, pausiert, abgeschlossen, storniert
+(`app/auftragsstatus.py`) -- und sie ändern sich nur über eigene Aktionen mit Rückfrage (`POST /api/orders/{id}/status`): Pausieren und Stornieren mit
+Pflichtbegründung, Abschließen nach der Schlussrechnung oder mit der Begründung „ohne Rechnung“ (nur solange keine Rechnung besteht, mit den gebuchten
+Stunden, die dann nicht abgerechnet werden), Fortsetzen aus „pausiert“ und -- mit Begründung -- aus „abgeschlossen“. Jeder Wechsel steht mit Begründung
+und Person in der neuen, unveränderlichen Tabelle `order_status_changes` und im Änderungsprotokoll. Ein Status außerhalb der Liste ergibt 422, ebenso
+ein Status in `PUT /api/orders/{id}` oder beim Beauftragen (jeder neue Auftrag beginnt mit „läuft“).
+
+Wirkung: „pausiert“ sperrt nichts (Hinweis mit Begründung in der Plantafel). „abgeschlossen“: die Monteurin bucht nicht mehr (das Büro weiter), kein
+neuer Einsatz, nicht mehr unter „Nicht eingeplant“ -- bis 1.9.123 bot die Plantafel auch abgeschlossene und stornierte Aufträge zum Einplanen an (F5).
+„storniert“: dazu kein neuer Einsatzbericht, für keine Rolle (bis 1.9.123 nur die Monteurin); Rechnungen und Buchungen des Büros bleiben möglich. Was
+am Stand des Auftrags scheitert, antwortet einheitlich mit 409 (Buchung der Monteurin bis 1.9.123 403). Migration `8d3f6a2c91e7`: beauftragt,
+arbeitsvorbereitung, in_ausfuehrung (und jeder unbekannte Wert) werden „läuft“, die übrigen bleiben; der Rückweg wird verweigert, solange ein Auftrag
+„läuft“ oder ein Statuswechsel festgehalten ist. Auf der Auftragsseite ersetzt eine Karte „Status“ mit den Knöpfen die Auswahl in „Auftragsdaten“,
+der Kopf zeigt den Status lesbar; der Dialog „Angebot beauftragen“ fragt keinen Status mehr ab.
+
 ## 1.9.123 – Verlauf lesbar: Zahlen, Zeitpunkte, Codes, Namen (Stufe 5, R1 Nachrunde)
 
 Die Änderungshistorie (/history und der Verlauf der Projektmappe) zeigte die Werte roh: „850.000000 → 851.00“, ISO-Tage und -Zeitpunkte (teils

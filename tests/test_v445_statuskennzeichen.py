@@ -31,7 +31,7 @@ def tabellen():
     dom = "const document = { readyState: 'complete', getElementById() { return null; }, addEventListener() {} };"
     skript = dom + "\n" + _baustein_js("_seitenkopf.html") + r"""
     console.log(JSON.stringify({ arten: seitenkopfArten(), bedeutungen: statusBedeutungen(), tabelle: statusTabelle(),
-      beispiele: [statusKennzeichen('auftrag', 'beauftragt'), statusKennzeichen('auftrag', 'abgeschlossen'),
+      beispiele: [statusKennzeichen('auftrag', 'laeuft'), statusKennzeichen('auftrag', 'abgeschlossen'),
                   statusKennzeichen('betriebsmittel', 'pruefung_faellig'), statusKennzeichen('betriebsmittel', 'pruefung_ueberfaellig'),
                   statusKennzeichen('checklistenvorlage', 'entwurf'), statusKennzeichen('wartungsvertrag', 'pausiert'),
                   statusKennzeichen('auftrag', 'in_pruefung'), statusKennzeichen('gibt_es_nicht', 'x'),
@@ -41,7 +41,7 @@ def tabellen():
                   statusKennzeichen('rechnung', 'guthaben', { zusatz: '119,00 €' }),
                   statusKennzeichen('rechnung', 'enthalten', { zusatz: 'R-2026-0003' }),
                   statusKennzeichen('rechnung', 'entwurf'), statusKennzeichen('rechnung', 'versendet'),
-                  statusKennzeichen('auftrag', 'in_ausfuehrung')] }));
+                  statusKennzeichen('auftrag', 'pausiert')] }));
     """
     return node_ausfuehren(skript)
 
@@ -64,16 +64,15 @@ def test_jeder_wert_des_servers_steht_in_der_tabelle(tabellen):
     from app.maintenance_contracts import STATUSES
 
     t = tabellen["tabelle"]
-    assert set(FESTE_LITERALE["orders.status"]) <= set(t["auftrag"])
+    from app.auftragsstatus import STATUS as AUFTRAGSSTATUS  # seit 1.9.124 vier Werte am Server (bis 1.9.123 FESTE_LITERALE)
+
+    assert set(AUFTRAGSSTATUS) == set(t["auftrag"])
     assert set(STATUSES) | {"archiviert"} <= set(t["wartungsvertrag"])
     fassungen = set(FESTE_LITERALE["checklist_template_versions.status"]) - {"abgeloest"}
     assert fassungen | {"archiviert"} <= set(t["checklistenvorlage"])
-    # seit 1.9.13: jeder Status, den die Auftragsseite anbietet (der Server nimmt ihn vom Client), und jeder Stand einer Rechnung
+    # seit 1.9.13 jeder Stand einer Rechnung (bis 1.9.123 auch jeder Status der Auswahl der Auftragsseite -- die gibt es seit 1.9.124 nicht mehr)
     from app.final_dunning import OVERVIEW_LABELS
     from app.payments import STATES
-
-    auswahl = re.search(r'<select id="status">(.*?)</select>', (vj.TEMPLATES / "order.html").read_text(encoding="utf-8"), flags=re.S)
-    assert set(re.findall(r'value="([^"]*)"', auswahl.group(1))) <= set(t["auftrag"])
     # seit 1.9.18: jeder Status, den der LV-Editor anbietet (der Server nimmt ihn vom Client), und jeder, den er selbst schreibt
     angebot = re.search(r'<select id="hStatus">(.*?)</select>', (vj.TEMPLATES / "quote_editor.html").read_text(encoding="utf-8"), flags=re.S)
     assert set(re.findall(r'value="([^"]*)"', angebot.group(1))) | set(FESTE_LITERALE["quotes.status"]) <= set(t["angebot"])
@@ -90,7 +89,7 @@ def test_jeder_wert_des_servers_steht_in_der_tabelle(tabellen):
 
 def test_kennzeichen_lesbar_und_in_der_farbe_der_bedeutung(tabellen):
     assert tabellen["beispiele"] == [
-        {"text": "Beauftragt", "art": "info"}, {"text": "Abgeschlossen", "art": "ok"},
+        {"text": "Läuft", "art": "info"}, {"text": "Abgeschlossen", "art": "ok"},
         {"text": "Prüfung fällig", "art": "signal"}, {"text": "Prüfung überfällig", "art": "fehler"},
         {"text": "Entwurf", "art": "warn"}, {"text": "Pausiert", "art": "neutral"},
         {"text": "In pruefung", "art": "neutral"}, {"text": "X", "art": "neutral"},
@@ -98,7 +97,7 @@ def test_kennzeichen_lesbar_und_in_der_farbe_der_bedeutung(tabellen):
         # seit 1.9.13 mit Zusatz und überfällig -- dieselben Texte wie bis 1.9.12 im Kennzeichen der Rechnungsseite
         {"text": "Zahlbetrag offen 495,00 €", "art": "info"}, {"text": "Zahlbetrag offen 495,00 € · überfällig", "art": "fehler"},
         {"text": "Guthaben 119,00 €", "art": "signal"}, {"text": "Enthalten in Schlussrechnung R-2026-0003", "art": "neutral"},
-        {"text": "Entwurf", "art": "warn"}, {"text": "Finalisiert", "art": "info"}, {"text": "In Ausführung", "art": "info"},
+        {"text": "Entwurf", "art": "warn"}, {"text": "Finalisiert", "art": "info"}, {"text": "Pausiert", "art": "neutral"},
     ]
 
 

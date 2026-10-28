@@ -32,6 +32,7 @@ from typing import Callable
 
 from sqlalchemy.orm import Session
 
+from .auftragsstatus import storniert
 from .models import Checklist, EmailDispatch, Invoice, Order, OrderContract, Quote, Reminder
 from .sent_documents import DOCUMENT_TYPES, DocumentPdf, frozen_or_fresh_pdf
 
@@ -66,7 +67,7 @@ def _quote(db: Session, quote: Quote) -> DispatchDocument:
 def _order(db: Session, order: Order) -> DispatchDocument:
     from .order_pdf import build_order_pdf
 
-    if order.status == "storniert":
+    if storniert(order):  # seit 1.9.124 über app/auftragsstatus.py (F20)
         raise ValueError("Ein stornierter Auftrag wird nicht zugestellt.")
     return DispatchDocument("auftrag", order.id, order.order_number, f"Auftrag {order.order_number}", order.project_id,
                             _fresh(lambda: build_order_pdf(db, order), f"{order.order_number}.pdf"))

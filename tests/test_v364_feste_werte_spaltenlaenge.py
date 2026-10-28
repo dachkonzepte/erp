@@ -63,6 +63,11 @@ _MANGELWERTE = ("app.defects", "list(mod.STANCES) + list(mod.STATUSES) + list(mo
 
 FESTE_WERTE = {
     "ai_settings.provider": [("app.ai_types", "mod.AI_PROVIDERS")],
+    # seit 1.9.124 (Stufe 5, R2, Punkt 1): vier Status, am Server erzwungen; bis 1.9.123 in FESTE_LITERALE ("beauftragt", "storniert",
+    # "abgeschlossen", sonst vom Client)
+    "orders.status": [("app.auftragsstatus", "mod.STATUS")],
+    "order_status_changes.old_status": [("app.auftragsstatus", "mod.STATUS")],
+    "order_status_changes.new_status": [("app.auftragsstatus", "mod.STATUS")],
     "app_users.role": [("app.permissions", "mod.ROLES")],
     "audit_logs.entity_type": [
         ("app.audit", "list(mod.TYPE_LABELS.values()) + [t.__name__ for t in mod.AUDITED_TYPES] + [mod.TASK_ENTITY_TYPE]"),
@@ -218,7 +223,6 @@ FESTE_LITERALE = {
     "order_contracts.status": ("entwurf", "festgeschrieben", "unterschrieben"),
     "order_items.position_type": ("normal",),  # sonst vom Client, Schema max_length=30
     "order_revisions.source": ("manual", "quote", "quote_sync", "migration"),
-    "orders.status": ("beauftragt", "storniert", "abgeschlossen"),  # sonst vom Client, Schema max_length=50
     "planning_school_holidays.source": ("ferien-api.de",),
     "planning_slots.status": ("geplant",),  # sonst vom Client, Schema max_length=40
     "projects.status": ("anfrage", "angebot", "beauftragt"),  # sonst vom Client, Schema max_length=50

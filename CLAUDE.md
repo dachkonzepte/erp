@@ -385,6 +385,9 @@ Behoben, drei Teile:
   Zeiten“), die Anker der früheren Reiter öffnen die neuen; jede Funktion der alten Seiten steht in `FUNKTIONEN`
   (`tests/test_v520_zeiten_umstellung.py`), entfallen sind nur die eigene Uhr des Büros und der Gruppen-Timer. Eine Zahl aus der Adresse nur über
   `app/routers/pages.py::_zahl()` (0–9, höchstens 9 Stellen). Klicktest `klicktest_zeiten.py`. Archiv: `docs/archiv/redesign.md`, „R5b“.
+- **Stufe 5, R2 „Akte je Projekt“ (seit 1.9.124):** Vorlagen `bildgrundlage/entwurf_stufe5/akte-*.html`; Bildgrundlage vor dem Umbau
+  `bildgrundlage/e13058e/`. 1.9.124 Auftragsstatus (vier Werte, Übergänge mit Begründung, siehe `Order` unter „Fachbegriffe“). Archiv:
+  `docs/archiv/redesign.md`, „Stufe 5, R2“.
 
 ## Kritische, nicht verhandelbare Regeln
 
@@ -921,7 +924,13 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
 - `Quote`: frei bearbeitbar, Status u. a. `entwurf`/`versendet`/`beauftragt`. Kann `is_template=True`
   sein (Mustervorgang) und/oder `archived=True`.
 - `Order`: entsteht ausschließlich durch Beauftragung eines Angebots, ist ein **unveränderlicher
-  LV-Snapshot**. Kein Entwurfsstatus – startet direkt bei `beauftragt`. Seine Revisionen (`OrderRevision`) entstehen seit 1.8.110
+  LV-Snapshot**. Kein Entwurfsstatus – startet direkt bei „läuft“. **Seit 1.9.124 nur vier Status** (`app/auftragsstatus.py`: läuft, pausiert,
+  abgeschlossen, storniert; bis 1.9.123 freier Text, beauftragt/arbeitsvorbereitung/in_ausfuehrung gingen in „läuft“ auf, Migration `8d3f6a2c91e7`),
+  geändert nur über `status_aendern()` (`POST /api/orders/{id}/status`, unter der Sperre der Auftragszeile, Historie `OrderStatusChange`): Pausieren und
+  Stornieren mit Begründung, Abschließen nach der Schlussrechnung oder „ohne Rechnung“ mit Begründung (nur ohne jede Rechnung), Fortsetzen; ein Status in
+  PUT oder beim Beauftragen 422. Wirkung: pausiert keine Sperre; abgeschlossen und storniert kein neuer Einsatz, nicht in der Plantafel, die Monteurin
+  bucht nicht; storniert dazu kein neuer Bericht (jede Rolle) -- je 409; Rechnungen und Buchungen des Büros bleiben (`tests/test_v544_auftragsstatus.py`).
+  Seine Revisionen (`OrderRevision`) entstehen seit 1.8.110
   unter der Sperre der Auftragszeile in der Transaktion der Änderung, die sie sichern: `create_order_revision()` committet nie
   selbst, der Aufrufer committet beides zusammen.
 - `Invoice`: `entwurf` bis zur Finalisierung (vergibt Nummer aus Nummernkreis), danach
@@ -1542,7 +1551,7 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   zeigen dieselben Zeilen (`zeiten_des_berichts()`), mit der Unterschrift in `ServiceReport.time_rows_json` gespeichert und danach
   unverändert; vor 1.9.42 unterschrieben (ohne Stand) wie vor 1.9.37 alle Zeiten des Auftrags. `tests/test_v467_zeiten_einsatzbericht.py`.
 - **Keine Zeiten der Monteurin auf abgeschlossene oder stornierte Aufträge** (seit 1.9.81): Start, Nachtrag, Ändern (dorthin, dort,
-  weg), Löschen, Kolonne, „Zeitart wechseln“ und „Pausen neu rechnen“ an einer Buchung dort 403 mit der Meldung aus
+  weg), Löschen, Kolonne, „Zeitart wechseln“ und „Pausen neu rechnen“ an einer Buchung dort 409 (bis 1.9.123 403) mit der Meldung aus
   `app/time_tracking.py::auftrag_zeiten_gesperrt()` (`_require_order_open_for_field()` in `app/routers/time_tracking.py`); Stopp,
   Gruppen-Stopp und Ende nachtragen bleiben frei, das Büro bucht wie bisher (`tests/test_v504_keine_zeiten_auf_abgeschlossene.py`; seit 1.9.90
   bietet der Kontext dem, der für andere bucht, die geschlossenen Aufträge nach den offenen an, gekennzeichnet, jede Buchung trägt

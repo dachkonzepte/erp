@@ -1,0 +1,83 @@
+{#- Status des Auftrags (seit 1.9.124, Stufe 5, R2, Punkt 1): Kennzeichen mit Begründung, die Knöpfe der Übergänge und der Dialog mit Rückfrage.
+    Vier Status (app/auftragsstatus.py): läuft, pausiert, abgeschlossen, storniert -- ein Wechsel nur über diesen Dialog (POST /api/orders/{id}/status,
+    abschließende Aktion über abschliessen()). Pausieren und Stornieren verlangen eine Begründung, Abschließen ohne Schlussrechnung die Begründung
+    „ohne Rechnung“ (nur solange keine Rechnung besteht, mit den gebuchten Stunden, die dann nicht abgerechnet werden), Fortsetzen eines
+    abgeschlossenen Auftrags ebenso. Die Seite stellt api() und esc(); die Bausteine bindet dieser selbst ein. Sie ruft
+    auftragsstatusEinrichten(anwenden) einmal und auftragsstatusZeigen(order) nach jedem Laden (order = Antwort von GET /api/orders/{id}).
+    Der Dialog nutzt die Klassen dialog, dialog-head, field, dialog-actions der Seite. -#}
+{% include "_aktionen.html" %}
+{% include "_statuskennzeichen.html" %}
+{% include "_speichern.html" %}
+{% include "_zahl.html" %}
+{% include "_berlin_date.html" %}
+<dialog id="statusDialog"><div class="dialog"><div class="dialog-head"><h3 id="statusDialogTitel">Status ändern</h3><button type="button" class="secondary" data-klick="statusAbbrechen" aria-label="Schließen">✕</button></div>
+<p id="statusDialogText" class="small"></p><div id="statusDialogHinweis" class="notice" hidden></div>
+<div class="field"><label for="statusBegruendung" id="statusBegruendungLabel">Begründung</label><textarea id="statusBegruendung" maxlength="2000" rows="3"></textarea></div>
+<div id="statusDialogMeldung" class="status"></div>
+<div class="dialog-actions"><button type="button" class="secondary" data-klick="statusAbbrechen">Abbrechen</button><button type="button" id="statusDialogKnopf" data-klick="statusSenden">Übernehmen</button></div></div></dialog>
+<script>
+const AUFTRAGSSTATUS_WIRKUNG = {
+  pausiert: 'Pausiert sperrt nichts: Akte und Plantafel zeigen den Hinweis mit deiner Begründung, Monteure buchen weiter.',
+  laeuft: 'Der Auftrag läuft wieder – ohne Sperre.',
+  abgeschlossen: 'Danach buchen Monteure nicht mehr auf den Auftrag (das Büro weiter), er steht nicht mehr in der Plantafel, und es gibt keine neuen Einsätze.',
+  storniert: 'Danach gibt es keine neuen Einsätze, Einsatzberichte und Buchungen der Monteure. Rechnungen bleiben möglich (Teilleistung). Ein Storno lässt sich nicht zurücknehmen.',
+};
+let _auftragsstatusOrder = null, _auftragsstatusZiel = null, _auftragsstatusAnwenden = null;
+function auftragsstatusEinrichten(anwenden) {
+  _auftragsstatusAnwenden = anwenden;
+  aktion('statusAktion', el => statusDialogOeffnen(el.dataset.ziel));
+  aktion('statusSenden', () => statusDialogSenden());
+  aktion('statusAbbrechen', () => document.getElementById('statusDialog').close());
+}
+function auftragsstatusKennzeichen(order) {
+  return statusKennzeichen('auftrag', order ? order.status : '');
+}
+function auftragsstatusHtml(order) {
+  const info = order.status_info || {aktionen: []}, letzter = info.letzter_wechsel, k = auftragsstatusKennzeichen(order);
+  const grund = letzter && letzter.new_status === order.status && letzter.reason
+    ? `<div class="small muted">${esc(letzter.new_status_label)} seit ${esc(berlinZeitpunkt(letzter.changed_at, 'datum'))} · ${esc(letzter.changed_by_name)} · Begründung: ${esc(letzter.reason)}</div>` : '';
+  const knoepfe = info.aktionen.map(a => `<button type="button" class="${a.ziel === 'storniert' ? 'danger' : 'secondary'}" data-klick="statusAktion" data-ziel="${esc(a.ziel)}">${esc(a.name)} …</button>`).join(' ');
+  return `<div class="auftragsstatus"><span class="badge" data-art="${esc(k.art)}">${esc(k.text)}</span>${grund}<div class="auftragsstatus-knoepfe" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">${knoepfe}</div></div>`;
+}
+function auftragsstatusZeigen(order) {
+  _auftragsstatusOrder = order;
+  const ziel = document.getElementById('auftragsstatus');
+  if (ziel) ziel.innerHTML = auftragsstatusHtml(order);
+}
+function statusDialogOeffnen(ziel) {
+  const order = _auftragsstatusOrder, info = (order && order.status_info) || {aktionen: []};
+  const aktionInfo = info.aktionen.find(a => a.ziel === ziel);
+  if (!aktionInfo) return;
+  _auftragsstatusZiel = ziel;
+  document.getElementById('statusDialogTitel').textContent = `${aktionInfo.name} – ${order.order_number}`;
+  document.getElementById('statusDialogText').textContent = AUFTRAGSSTATUS_WIRKUNG[ziel] || '';
+  const hinweis = document.getElementById('statusDialogHinweis'), knopf = document.getElementById('statusDialogKnopf');
+  const label = document.getElementById('statusBegruendungLabel'), feld = document.getElementById('statusBegruendung');
+  let pflicht = aktionInfo.begruendung_pflicht, gesperrt = false, text = '';
+  if (ziel === 'abgeschlossen' && info.abschluss) {
+    const a = info.abschluss;
+    if (a.schlussrechnung) text = 'Die Schlussrechnung ist festgeschrieben.';
+    else if (a.grund) { text = a.grund; gesperrt = true; }
+    else if (a.ohne_rechnung) {
+      pflicht = true;
+      text = `Ohne Rechnung abschließen: ${Number(a.stunden_gebucht) ? `am Auftrag stehen ${zahlText(a.stunden_gebucht, 2)} h gebucht, die damit nicht abgerechnet werden` : 'am Auftrag ist keine Zeit gebucht'}.`;
+    }
+  }
+  hinweis.hidden = !text; hinweis.textContent = text;
+  label.textContent = ziel === 'abgeschlossen' && pflicht ? 'Begründung „ohne Rechnung“ *' : (pflicht ? 'Begründung *' : 'Begründung (freiwillig)');
+  feld.value = ''; feld.required = pflicht; feld.disabled = gesperrt;
+  knopf.textContent = aktionInfo.name; knopf.disabled = gesperrt; knopf.className = ziel === 'storniert' ? 'danger' : '';
+  document.getElementById('statusDialogMeldung').textContent = '';
+  document.getElementById('statusDialog').showModal();
+}
+async function statusDialogSenden() {
+  const order = _auftragsstatusOrder, ziel = _auftragsstatusZiel, meldung = document.getElementById('statusDialogMeldung');
+  const feld = document.getElementById('statusBegruendung'), begruendung = feld.value.trim();
+  if (feld.required && !begruendung) { meldung.textContent = 'Bitte eine Begründung angeben.'; feld.focus(); return; }
+  try {
+    meldung.textContent = 'Speichert …';
+    await abschliessen('auftragsstatus', () => api(`/api/orders/${order.id}/status`, {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({status: ziel, reason: begruendung || null})}), {anwenden: d => { document.getElementById('statusDialog').close(); if (_auftragsstatusAnwenden) _auftragsstatusAnwenden(d); }});
+  } catch (e) { meldung.textContent = 'Fehler: ' + e.message; }
+}
+</script>

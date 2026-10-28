@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from app.auftragsstatus import STATUS as AUFTRAGSSTATUS
+
 from tests.test_v334_auswahl_restfaelle import im_browser, nur_mit_node, seite
 
 TEMPLATES = Path(__file__).resolve().parent.parent / "app" / "templates"
@@ -100,12 +102,8 @@ def test_auftrag_positionsart(gespeichert, soll):
     assert lauf("order.html", "load().catch(e=>document.querySelector('main')", ablauf) == soll
 
 
-@nur_mit_node
-def test_auftrag_status():
-    ablauf = (statisch("order.html", "status") + f"order = {json.dumps(dict(ORDER, status='unterbrochen'))};"
-              "try { fill(); } catch (e) { if (!_gewaehlt('status')) throw e; } return _feld('status');")
-    assert lauf("order.html", "load().catch(e=>document.querySelector('main')", ablauf) == ["unterbrochen",
-                                                                                           "unterbrochen (nicht mehr verfügbar)"]
+# Seit 1.9.124 (Stufe 5, R2, Punkt 1) entfallen: test_auftrag_status -- die Auswahl „Status“ der Auftragsseite gibt es nicht mehr; der Server
+# erzwingt vier Werte (app/auftragsstatus.py, tests/test_v544_auftragsstatus.py), ein Wert außerhalb kommt nicht mehr vor (Migration 8d3f6a2c91e7).
 
 
 @nur_mit_node
@@ -422,7 +420,7 @@ def _konstante(vorlage: str, name: str) -> list[str]:
     ("'quote_items.position_type", lambda: _optionen_der_vorlage("quote_editor.html", "iType")),
     ("'customer_extra_infos.info_type", lambda: _konstante("customer.html", "ZUSATZINFO_ARTEN")),
     ("'projects.status", lambda: _optionen_der_vorlage("project_folder.html", "editProjectStatus")),
-    ("'orders.status", lambda: _optionen_der_vorlage("order.html", "status")),
+    ("'orders.status", lambda: list(AUFTRAGSSTATUS)),  # seit 1.9.124 vom Server (app/auftragsstatus.py), keine Auswahl mehr
     ("'quotes.status", lambda: _optionen_der_vorlage("quote_editor.html", "hStatus")),
     ("'planning_slots.status", lambda: _optionen_der_vorlage("planning.html", "editStatus")),
     ("'work_preparations.status", lambda: _optionen_der_vorlage("work_preparation.html", "prepStatus")),

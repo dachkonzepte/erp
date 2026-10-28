@@ -2,7 +2,7 @@
 
     geschlossen   Büro – Finanzen (wer für andere bucht) bucht, ändert und löscht auch auf abgeschlossenen und stornierten Aufträgen; der
                   Kontext bietet sie nach den offenen an, gekennzeichnet (geschlossen, status), jede Buchung trägt auftrag_geschlossen; die
-                  Monteurin bleibt gesperrt (403, seit 1.9.81)
+                  Monteurin bleibt gesperrt (seit 1.9.81; seit 1.9.124 409, bis dahin 403)
     Von/Bis       Nachtrag und Ändern des Büros mit Von/Bis über dieselbe Rechnung wie bei der Monteurin (Pause je Tag, Rundung, Vorschau =
                   Buchung); „Dauer“ bleibt dem Büro (netto, ohne Pausenregel)
     Dauer         wird eine Von/Bis-Buchung als Dauer gespeichert (Stunden, Pause oder ein anderer Tag ohne Von/Bis), sind Beginn und Ende leer
@@ -54,7 +54,7 @@ def test_buero_bucht_auf_geschlossenem_auftrag_monteurin_nicht(welt, status):  #
     welt["db"].commit()
     monteurin = _als(welt, welt["mia"]).post("/api/time-entries", json={"employee_id": welt["mia"].id, "order_id": welt["order"].id,
                                                                         "work_date": welt["heute"].isoformat(), "von": "07:00", "bis": "09:00"})
-    assert (monteurin.status_code, monteurin.json()["detail"]) == (403, MELDUNG[status])
+    assert (monteurin.status_code, monteurin.json()["detail"]) == (409, MELDUNG[status])  # seit 1.9.124 409 (bis dahin 403)
     buero = _buero(welt)
     dauer = buero.post("/api/time-entries", json={"employee_id": welt["tom"].id, "order_id": welt["order"].id,
                                                   "work_date": welt["heute"].isoformat(), "hours": "2"})

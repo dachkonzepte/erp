@@ -11,6 +11,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
+from .auftragsstatus import AuftragGeschlossen, einsatz_gesperrt, geschlossen, name as status_name, pause_begruendung, wert as status_wert
 from .grunddaten import einzelzeile
 from .berlin_time import berlin_today
 from .models import (
@@ -453,6 +454,11 @@ def create_slot(
     order = db.get(Order, order_id)
     if order is None:
         raise ValueError("Auftrag wurde nicht gefunden.")
+    # Seit 1.9.124 (Stufe 5, R2, Punkt 1, Befund F5): kein neuer Einsatz für einen abgeschlossenen oder stornierten Auftrag (409); ein
+    # bestehender lässt sich weiter verschieben und löschen.
+    gesperrt = einsatz_gesperrt(order)
+    if gesperrt:
+        raise AuftragGeschlossen(gesperrt)
     prep = ensure_preparation(db, order_id)
     assignment = ensure_team_assignment(db, prep, team_id)
     settings = load_planning_settings(db)
@@ -590,6 +596,9 @@ def slot_to_dict(slot: PlanningSlot, conflicts: list[dict] | None = None, db: Se
     return {
         "id": slot.id, "preparation_id": slot.preparation_id, "order_id": order.id,
         "order_number": order.order_number, "project_id": project.id,
+        # seit 1.9.124: Status des Auftrags -- die Plantafel zeigt „pausiert“ mit Begründung als Hinweis
+        "order_status": status_wert(order.status), "order_status_label": status_name(order.status),
+        "order_status_reason": pause_begruendung(db, order) if db is not None else None,
         "project_number": project.project_number, "project_name": project.name,
         "customer_name": order.customer_name, "property_name": prop.name if prop else order.property_name,
         "property_address": address, "team_assignment_id": slot.team_assignment_id,
@@ -1110,10 +1119,11 @@ def planning_board(db: Session, start_date: date, end_date: date) -> dict:
     for order in orders:
         prep=work_preps.get(order.id)
         if prep and prep.id in planned_prep_ids: continue
+        if geschlossen(order): continue  # seit 1.9.124 (F5): abgeschlossen und storniert nicht mehr unter „Nicht eingeplant“
         loaded_order=load_order(db,order.id); prop=order.project.property; address=""
         if prop: address=", ".join(x for x in [prop.street,f"{prop.postal_code or ''} {prop.city or ''}".strip()] if x)
         elif order.property_address: address=order.property_address.replace("\n",", ")
-        backlog.append({"order_id":order.id,"order_number":order.order_number,"project_id":order.project_id,"project_number":order.project.project_number,"project_name":order.project.name,"customer_name":order.customer_name,"property_address":address,"planned_hours":planned_hours(loaded_order) if loaded_order else Decimal("0"),"suggested_start":prep.planned_start if prep else order.execution_start,"suggested_end":prep.planned_end if prep else order.execution_end})
+        backlog.append({"order_id":order.id,"order_number":order.order_number,"project_id":order.project_id,"project_number":order.project.project_number,"project_name":order.project.name,"customer_name":order.customer_name,"property_address":address,"planned_hours":planned_hours(loaded_order) if loaded_order else Decimal("0"),"suggested_start":prep.planned_start if prep else order.execution_start,"suggested_end":prep.planned_end if prep else order.execution_end,"order_status":status_wert(order.status),"order_status_label":status_name(order.status),"order_status_reason":pause_begruendung(db,order)})
 
     return {"start_date":start_date,"end_date":end_date,"settings":planning_settings_dict(settings,db),"holidays":holiday_meta,"school_holidays":school_holidays,"school_holiday_warnings":school_warnings,
         "absences":[{"id":x.id,"employee_id":x.employee_id,"employee_name":_employee_name(x.employee),"absence_type":x.absence_type,"start_date":x.start_date,"end_date":x.end_date,"notes":x.notes} for x in absence_rows],

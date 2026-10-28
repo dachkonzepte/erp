@@ -23,6 +23,7 @@ from pathlib import Path
 from sqlalchemy import event, func, select
 from sqlalchemy.orm import Session, selectinload
 
+from .auftragsstatus import AuftragGeschlossen, bericht_gesperrt, storniert
 from .berlin_time import berlin_today
 from .date_utils import add_months
 from .document_storage import make_stored_filename
@@ -549,6 +550,10 @@ def create_report(db: Session, order_id: int, report_type: str, description: str
     order = db.get(Order, order_id)
     if order is None:
         raise ValueError("Auftrag nicht gefunden.")
+    # Seit 1.9.124 (Stufe 5, R2, Punkt 1): zu einem stornierten Auftrag entsteht kein Bericht mehr, für keine Rolle (409).
+    gesperrt = bericht_gesperrt(order)
+    if gesperrt:
+        raise AuftragGeschlossen(gesperrt)
     # Seit 1.8.70 (Befund 2a): nur Dachflächen aus dem Objekt des Auftrags -- vorher übersprang die Schleife unten eine
     # unbekannte ID still und nahm eine fremde an (Namens-Schnappschuss, Prüfpunkte aus deren Bauteilen).
     if roof_area_ids is not None:
@@ -618,8 +623,9 @@ def bericht_zum_auftrag_moeglich(order: Order) -> bool:
     """Seit 1.9.79 (Stufe 4, R4 Nachtrag 3, Entscheidung A): zu einem Auftrag entsteht ein Bericht, solange er nicht storniert ist --
     eingeplant oder nicht, offen oder abgeschlossen. Die Monteurin legt danach an (POST /api/orders/{id}/service-reports, sonst 403), die
     Seite des Auftrags zeigt danach „+ Bericht“ (OrderFieldAccessOut.bericht_anlegen), die Suche des Dialogs „Für welchen Auftrag?“ lässt
-    stornierte weg (app/search.py::search_orders_for_field(), dieselbe Bedingung in SQL). Das Büro ist davon nicht berührt."""
-    return (order.status or "").strip().lower() != "storniert"
+    stornierte weg (app/search.py::search_orders_for_field(), dieselbe Bedingung in SQL). Seit 1.9.124 (Stufe 5, R2, Punkt 1) gilt das für jede
+    Rolle (create_report() lehnt ab, 409), über app/auftragsstatus.py."""
+    return not storniert(order)
 
 
 def list_roof_areas_for_order(db: Session, order_id: int) -> list[dict]:

@@ -1,5 +1,5 @@
 """Seit 1.9.79 (Stufe 4, R4 Nachtrag 3, Entscheidung A): die Monteurin legt zu jedem Auftrag einen Bericht an -- eingeplant oder nicht, auch
-abgeschlossen; nur zu einem stornierten nicht (403).
+abgeschlossen; nur zu einem stornierten nicht (seit 1.9.124 409 für jede Rolle, bis dahin 403 und nur für die Monteurin).
 
     Regel      app/service_reports.py::bericht_zum_auftrag_moeglich() -- POST /api/orders/{id}/service-reports, bericht_anlegen an
                GET /api/orders/{id}, GET /api/field-view/auftraege/{id}/bericht-anlegen; die Suche lässt stornierte in SQL weg
@@ -77,10 +77,10 @@ def test_bericht_zu_nicht_eingeplantem_offenem_und_abgeschlossenem(welt, name):
     assert client.get(f"/api/orders/{order.id}").status_code == 200  # Weg 2: eigener Bericht
 
 
-def test_storniert_403_und_nichts_angelegt(welt):
+def test_storniert_409_und_nichts_angelegt(welt):
     order = welt["auftraege"]["storniert"]
     antwort = _anlegen(welt["als_mia"], order)
-    assert antwort.status_code == 403 and antwort.json()["detail"] == BERICHT_STORNIERT
+    assert antwort.status_code == 409 and antwort.json()["detail"] == BERICHT_STORNIERT  # seit 1.9.124 409 (bis dahin 403)
     assert _berichte(welt, order) == 0
 
 
@@ -105,9 +105,12 @@ def test_bericht_anlegen_kennzeichen_wie_das_anlegen(welt):
         assert client.get(f"/api/orders/{order.id}").json()["bericht_anlegen"] is True, name
 
 
-def test_buero_unveraendert(welt):
-    """Das Büro legt wie bisher an, auch zum stornierten (die Regel gilt nur für die Monteurin)."""
-    assert _anlegen(welt["buero"], welt["auftraege"]["storniert"]).status_code == 200
+def test_buero_zum_stornierten_ebenso_409(welt):
+    """Seit 1.9.124 (Stufe 5, R2, Punkt 1): zum stornierten Auftrag legt auch das Büro keinen Bericht mehr an (bis 1.9.123 200, die Regel galt
+    nur für die Monteurin); zu jedem anderen wie bisher."""
+    antwort = _anlegen(welt["buero"], welt["auftraege"]["storniert"])
+    assert antwort.status_code == 409 and antwort.json()["detail"] == BERICHT_STORNIERT
+    assert _anlegen(welt["buero"], welt["auftraege"]["abgeschlossen"]).status_code == 200
 
 
 # --- Suche ---------------------------------------------------------------------------------------------------------------------------
@@ -160,9 +163,9 @@ def test_daten_zum_anlegen_auftrag_und_dachflaechen(welt):
     assert [f"{p}.{k}" for p, k in _schluessel(daten) if _verboten(k) or _privatadresse(route, p, k)] == []
 
 
-def test_daten_zum_anlegen_storniert_403_unbekannt_404(welt):
+def test_daten_zum_anlegen_storniert_409_unbekannt_404(welt):
     client = welt["als_mia"]
-    assert client.get(f"/api/field-view/auftraege/{welt['auftraege']['storniert'].id}/bericht-anlegen").status_code == 403
+    assert client.get(f"/api/field-view/auftraege/{welt['auftraege']['storniert'].id}/bericht-anlegen").status_code == 409  # bis 1.9.123 403
     assert client.get("/api/field-view/auftraege/999999/bericht-anlegen").status_code == 404
 
 

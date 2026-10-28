@@ -1,7 +1,7 @@
 """Seit 1.9.81 (Stufe 4, R4 Nachtrag 3, B, Entscheidung Tobias): die Monteurin bucht nicht auf abgeschlossene oder stornierte Aufträge.
 
     gesperrt   Start, Nachtrag, Ändern (eine Buchung dorthin verschieben, dort ändern, von dort wegschieben), Löschen, Kolonne (Nachtrag,
-               Start, Ändern, Löschen), „Zeitart wechseln“, „Pausen neu rechnen“ an einer Buchung dort -- 403 mit „Der Auftrag ist
+               Start, Ändern, Löschen), „Zeitart wechseln“, „Pausen neu rechnen“ an einer Buchung dort -- 409 (bis 1.9.123 403) mit „Der Auftrag ist
                abgeschlossen – Zeiten dafür trägt das Büro ein.“ (storniert: „Der Auftrag ist storniert – …“), nichts gebucht
     frei       eine laufende Zeit beendet sie immer (Stopp, Gruppen-Stopp, Ende nachtragen), auch wenn der Auftrag inzwischen abgeschlossen ist;
                das Büro bucht wie bisher
@@ -41,7 +41,7 @@ def _zeit(w, emp, von, bis, tag, order=None):
 
 
 def _abgelehnt(antwort, status):
-    assert antwort.status_code == 403, antwort.text
+    assert antwort.status_code == 409, antwort.text  # seit 1.9.124 (Stufe 5, R2, Punkt 1) 409, bis 1.9.123 403
     assert antwort.json()["detail"] == MELDUNG[status]
 
 
@@ -70,7 +70,7 @@ def test_meldung_je_status():
 
 @pytest.mark.parametrize("status", ["abgeschlossen", "storniert"])
 def test_start_und_nachtrag_abgelehnt_buero_bucht(welt, status):  # noqa: F811
-    """Angriff: Start und Nachtrag (Von/Bis) der Monteurin auf den geschlossenen Auftrag -> 403 mit der Meldung, nichts gebucht. Gegenprobe:
+    """Angriff: Start und Nachtrag (Von/Bis) der Monteurin auf den geschlossenen Auftrag -> 409 mit der Meldung, nichts gebucht. Gegenprobe:
     derselbe Nachtrag auf den offenen Auftrag geht; das Büro (Büro – Auftrag für sich) startet und trägt auf den geschlossenen nach."""
     mia = _vorbereiten(welt)
     _schliessen(welt, status)
@@ -92,7 +92,7 @@ def test_start_und_nachtrag_abgelehnt_buero_bucht(welt, status):  # noqa: F811
 
 
 def test_aendern_dorthin_dort_und_weg_abgelehnt_buero_aendert(welt):  # noqa: F811
-    """Angriff: eine Buchung auf dem offenen Auftrag dorthin verschieben, eine Buchung dort ändern, von dort wegschieben -> 403, nichts
+    """Angriff: eine Buchung auf dem offenen Auftrag dorthin verschieben, eine Buchung dort ändern, von dort wegschieben -> 409, nichts
     geändert. Gegenprobe: dieselbe Buchung auf dem offenen Auftrag ändern geht; der Admin ändert die Buchung dort."""
     mia = _vorbereiten(welt)
     gestern = welt["gestern"]
@@ -113,7 +113,7 @@ def test_aendern_dorthin_dort_und_weg_abgelehnt_buero_aendert(welt):  # noqa: F8
 
 
 def test_loeschen_abgelehnt_buero_loescht(welt):  # noqa: F811
-    """Angriff: eine eigene Buchung des geschlossenen Auftrags löschen -> 403, sie bleibt; der Admin löscht sie."""
+    """Angriff: eine eigene Buchung des geschlossenen Auftrags löschen -> 409, sie bleibt; der Admin löscht sie."""
     mia = _vorbereiten(welt)
     dort = _zeit(welt, welt["mia"], time(7), time(12), welt["gestern"])
     _schliessen(welt, "storniert")
@@ -125,7 +125,7 @@ def test_loeschen_abgelehnt_buero_loescht(welt):  # noqa: F811
 
 def test_kolonne_abgelehnt_buero_bucht(welt):  # noqa: F811
     """Angriff: die Kolonnenführerin trägt für die Kolonne nach, startet sie, ändert und löscht eine Kolonnenbuchung des geschlossenen
-    Auftrags -> 403, nichts gebucht oder geändert. Gegenprobe: der Admin trägt für die Kolonne nach."""
+    Auftrags -> 409, nichts gebucht oder geändert. Gegenprobe: der Admin trägt für die Kolonne nach."""
     mia = _vorbereiten(welt)
     g = welt["gestern"]
     gruppe = create_group_manual_entry(welt["db"], employee_ids=[welt["mia"].id, welt["tom"].id], team_id=welt["team"].id,
@@ -147,7 +147,7 @@ def test_kolonne_abgelehnt_buero_bucht(welt):  # noqa: F811
 
 
 def test_zeitart_wechseln_abgelehnt_beenden_geht(welt):  # noqa: F811
-    """Angriff: die laufende Zeit, Auftrag inzwischen abgeschlossen -> „Zeitart wechseln“ 403 (die neue Zeit wäre dort), sie läuft weiter.
+    """Angriff: die laufende Zeit, Auftrag inzwischen abgeschlossen -> „Zeitart wechseln“ 409 (die neue Zeit wäre dort), sie läuft weiter.
     Gegenprobe: „Feierabend“ (Stopp) beendet sie."""
     mia = _vorbereiten(welt)
     laeuft = start_timer(welt["db"], employee_id=welt["mia"].id, order_id=welt["order"].id, started_at=datetime.combine(welt["heute"], time(7)))
@@ -185,7 +185,7 @@ def test_gruppenzeit_stoppen_geht_auf_abgeschlossenem(welt):  # noqa: F811
 
 def test_pausen_neu_rechnen_an_buchung_dort_abgelehnt_buero_rechnet(welt):  # noqa: F811
     """Angriff: 07:00–12:00 und 12:00–16:15 (45 min) am geschlossenen Auftrag, die erste vorher gelöscht -> „Pausen neu rechnen“ würde die
-    zweite ändern: 403, sie behält 45 min. Gegenprobe: der Admin rechnet für Mia genau diese Vorschau."""
+    zweite ändern: 409, sie behält 45 min. Gegenprobe: der Admin rechnet für Mia genau diese Vorschau."""
     mia = _vorbereiten(welt)
     tag = welt["heute"]
     erste = _zeit(welt, welt["mia"], time(7), time(12), tag)

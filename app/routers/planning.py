@@ -15,6 +15,7 @@ from ..berlin_time import berlin_today
 from ..database import get_db
 from ..models import AppUser, Employee, EmployeeAbsence, PlanningHoliday
 from ..permissions import ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, has_min_role, require_min_role
+from ..auftragsstatus import AuftragGeschlossen
 from ..planning import GERMAN_STATES, create_slot, delete_slot, load_planning_settings, load_region_settings, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
 from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeAbsencePlanningOut, EmployeeAbsenceUpdate, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest
 
@@ -198,6 +199,8 @@ def get_planning_board(start: date, end: date, db: Session = Depends(get_db, sco
 def create_planning_slot(payload: PlanningSlotCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         slot = create_slot(db, **payload.model_dump())
+    except AuftragGeschlossen as exc:  # seit 1.9.124: abgeschlossen oder storniert -- kein neuer Einsatz (409)
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return slot_to_dict(slot, db=db)

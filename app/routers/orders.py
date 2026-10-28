@@ -22,6 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..acceptances import AcceptanceExistsError
+from ..auftragsstatus import BegruendungFehlt, StatusKonflikt, status_aendern, wechsel, wechsel_dict
 from ..contract_basis import ContractSignedError, change_order_contract_basis, list_order_contract_basis_changes
 from ..database import get_db
 from ..email_dispatch import DispatchConflict
@@ -33,7 +34,7 @@ from ..orders import SyncBlockedError, add_order_addendum, create_order_revision
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
 from ..service_reports import bericht_zum_auftrag_moeglich
 from ..time_tracking import auftrag_zeiten_gesperrt
-from ..schemas import OrderAddendumCreate, OrderContractBasisChangeOut, OrderContractBasisUpdate, OrderEmailSend, OrderFieldAccessOut, OrderItemUpdate, OrderListOut, OrderOut, OrderRevisionCreate, OrderRevisionOut, OrderSectionUpdate, OrderSyncRequest, OrderUpdate, TaxKeySelection
+from ..schemas import OrderAddendumCreate, OrderContractBasisChangeOut, OrderContractBasisUpdate, OrderEmailSend, OrderFieldAccessOut, OrderItemUpdate, OrderListOut, OrderOut, OrderRevisionCreate, OrderRevisionOut, OrderSectionUpdate, OrderStatusChangeOut, OrderStatusChangeRequest, OrderSyncRequest, OrderUpdate, TaxKeySelection
 
 router = APIRouter()
 
@@ -145,6 +146,32 @@ def put_order(order_id: int, payload: OrderUpdate, db: Session = Depends(get_db,
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return OrderOut.model_validate(order_to_dict(order, db))
+
+
+@router.post("/api/orders/{order_id}/status", response_model=OrderOut)
+def post_order_status(order_id: int, payload: OrderStatusChangeRequest, db: Session = Depends(get_db, scope="function"),
+                      user: AppUser = _role_dep):
+    """Seit 1.9.124 (Stufe 5, R2, Punkt 1): Pausieren, Fortsetzen, Abschließen, Stornieren -- der einzige Weg, den Status zu ändern
+    (app/auftragsstatus.py::status_aendern()). 422 Status außerhalb der Liste oder fehlende Begründung, 409 Übergang von hier nicht möglich oder
+    Abschließen ohne Schlussrechnung und ohne Begründung, 404."""
+    try:
+        status_aendern(db, order_id, payload.status, payload.reason, user_id=user.id,
+                       user_name=user.display_name or user.username)
+    except StatusKonflikt as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except BegruendungFehlt as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return OrderOut.model_validate(order_to_dict(load_order(db, order_id), db))
+
+
+@router.get("/api/orders/{order_id}/status-changes", response_model=list[OrderStatusChangeOut])
+def get_order_status_changes(order_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.9.124: die Statuswechsel des Auftrags mit Begründung, die ältesten zuerst."""
+    if db.get(Order, order_id) is None:
+        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden.")
+    return [OrderStatusChangeOut.model_validate(wechsel_dict(row)) for row in wechsel(db, order_id)]
 
 
 @router.put("/api/orders/{order_id}/tax-key", response_model=OrderOut)

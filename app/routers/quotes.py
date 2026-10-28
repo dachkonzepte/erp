@@ -41,7 +41,7 @@ def convert_quote_to_order(quote_id: int, payload: OrderCreateFromQuote, request
     actor = getattr(request.state, "erp_user", None)
     actor_name = getattr(actor, "display_name", None) or getattr(actor, "username", None) or "System"
     try:
-        order = create_order_from_quote(db, quote_id, actor_name=actor_name, **payload.model_dump())
+        order = create_order_from_quote(db, quote_id, actor_name=actor_name, **payload.model_dump(exclude={"status"}))
     except ValueError as exc:
         message=str(exc); code=409 if isinstance(exc, MustervorgangNichtBeauftragbar) or "bereits Auftrag" in message else 422  # seit 1.9.117 Muster 409
         raise HTTPException(status_code=code, detail=message) from exc

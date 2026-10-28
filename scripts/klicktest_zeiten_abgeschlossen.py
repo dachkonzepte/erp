@@ -166,8 +166,9 @@ async def pruefen(tab, seed, p):
         "e(document.getElementById('zeitNachtragen'))!=='0px'])(x=>getComputedStyle(x).borderRadius)"), [True, True])
     await tab.js("document.getElementById('zeitenKarte').scrollIntoView({block:'end'})")
     await tab.bild("3_auftragsseite_offen_ecken_quer_hell")
-    p.pruefe("Das Büro schließt A ab (PUT /api/orders/{id})", _als_buero(tab, seed["cookies"]["buero"], "PUT", f"/api/orders/{a}",
-                                                                          {"status": "abgeschlossen"}), 200)
+    # seit 1.9.124 über den Übergang (bis 1.9.123 PUT /api/orders/{id} mit status, heute 422)
+    p.pruefe("Das Büro schließt A ab (POST /api/orders/{id}/status)", _als_buero(tab, seed["cookies"]["buero"], "POST", f"/api/orders/{a}/status",
+             {"status": "abgeschlossen", "reason": "ohne Rechnung (Klicktest)"}), 200)
     await tab.js("document.getElementById('zeitNachtragen').click()")
     await tab.warten(f"location.pathname==='/mobil/zeiten'&&location.search==='?order_id={a}'", 15)
     await tab.warten(ZEITEN_BEREIT, 15)

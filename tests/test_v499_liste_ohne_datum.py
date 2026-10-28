@@ -101,7 +101,7 @@ def test_nie_zugeordnet_kein_nachtrag(welt):
 def test_abgeschlossen_storniert_und_alt_nicht_in_der_liste(welt, name):
     """Nicht in der Liste; einen Bericht legt sie seit 1.9.79 trotzdem an -- außer zum stornierten (1.9.74–1.9.78: alle drei 403)."""
     assert welt["auftraege"][name].id not in {o["id"] for o in list_field_bookable_orders(welt["db"], welt["mia"].id)}
-    assert _bericht(welt, name).status_code == (403 if name == "storniert" else 200)
+    assert _bericht(welt, name).status_code == (409 if name == "storniert" else 200)  # seit 1.9.124 409 (bis dahin 403)
 
 
 def test_wartungen_an_meinen_objekten_unveraendert(welt):

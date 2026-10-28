@@ -14,6 +14,7 @@ from .models import (
     WorkPreparationTeamEmployee,
 )
 from .acceptances import ensure_no_active_acceptance, has_active_acceptance, lock_order
+from .auftragsstatus import LAEUFT, STORNIERT, name as status_name, status_info, storniert, wert as status_wert
 from .contract_basis import clause_is_reviewed, contract_basis_label, ensure_contract_not_signed
 from .invoices import (
     closing_invoices, compute_order_billing_progress, create_block_reason, list_invoices_for_order, lock_order_invoices,
@@ -511,6 +512,9 @@ def order_to_dict(order: Order, db: Session | None = None, include_sync_state: b
                     row["addendum_lock"] = addendum_lock_reason(db, by_id[row["id"]], invoices)
             # Seit 1.8.83 (R4a Punkt 3): warum kein Nachtrag mehr angelegt werden kann (Schlussrechnung, storniert).
             result["addendum_create_block"] = addendum_create_reason(order, invoices)
+            # Seit 1.9.124 (Stufe 5, R2, Punkt 1): Übergänge des Status, was Abschließen verlangt, der letzte Wechsel.
+            result["status_info"] = status_info(db, order)
+    result["status_label"] = status_name(order.status)
     return result
 
 
@@ -599,7 +603,7 @@ def send_order_email(
     from .email_dispatch import actor_of, dispatch_email, mark_document_sent, new_dispatch_key
     from .order_pdf import build_order_pdf
 
-    if order.status == "storniert":
+    if storniert(order):
         raise ValueError("Ein stornierter Auftrag kann nicht per E-Mail versendet werden.")
 
     recipient = (to_email or "").strip() or get_order_recipient_email(order)
@@ -800,11 +804,12 @@ def create_order_from_quote(
     db: Session, quote_id: int, *, order_date: date, execution_start: date | None,
     execution_end: date | None, caseworker_employee_id: int | None,
     project_manager_employee_id: int | None, payment_terms: str | None,
-    remarks: str | None, status: str = "beauftragt", actor_name: str = "System",
+    remarks: str | None, actor_name: str = "System",
     contract_draft: bool = True,
 ) -> Order:
     """contract_draft (seit 1.8.33): False beim Schnellauftrag (app/quick_service_orders.py) -- dort
-    entsteht kein automatischer Vertragsentwurf; von Hand bleibt er auf der Auftragsseite möglich."""
+    entsteht kein automatischer Vertragsentwurf; von Hand bleibt er auf der Auftragsseite möglich. Seit 1.9.124 beginnt jeder Auftrag mit
+    „läuft“ (bis 1.9.123 konnte der Aufrufer einen Startwert schicken, der Dialog des Angebots bot „Arbeitsvorbereitung“ an)."""
     existing = db.scalar(select(Order).where(Order.source_quote_id == quote_id))
     if existing is not None:
         raise ValueError(f"Aus diesem Angebot existiert bereits Auftrag {existing.order_number}. Änderungen können in diesen Auftrag übernommen werden.")
@@ -836,7 +841,7 @@ def create_order_from_quote(
         source_quote_id=quote.id,
         quote_number_snapshot=quote.quote_number,
         title=quote.title,
-        status=status or "beauftragt",
+        status=LAEUFT,
         vat_rate=quote.vat_rate,
         tax_key_id=quote.tax_key_id,
         intro_text=quote.intro_text,
@@ -892,8 +897,8 @@ def sync_block_reasons(db: Session, order: Order) -> list[str]:
     der Kalkulation der Positionen, mit Disposition). Vertrag und Abnahme sperren getrennt (ContractSignedError,
     AcceptanceExistsError)."""
     reasons = []
-    if order.status in SYNC_BLOCKED_STATUSES:
-        reasons.append(SYNC_BLOCKED_STATUSES[order.status])
+    if status_wert(order.status) in SYNC_BLOCKED_STATUSES:  # seit 1.9.124 wie jede Statusregel ohne Groß-/Kleinschreibung (F20)
+        reasons.append(SYNC_BLOCKED_STATUSES[status_wert(order.status)])
     item_ids = select(OrderItem.id).where(OrderItem.order_id == order.id)
     reasons += [f"an den Positionen {verb} {what}" for verb, what in _attached(db, item_ids)]
     # Seit 1.8.83 (R4a Punkt 3): Nachträge stehen nicht im Angebot -- der Abgleich ersetzte alle Positionen und löschte sie.
@@ -999,6 +1004,8 @@ def sync_order_from_source_quote(db: Session, order: Order, *, actor_name: str =
 
 
 def update_order_header(db: Session, order: Order, **values) -> Order:
+    if "status" in values:  # seit 1.9.124 nur über app/auftragsstatus.py::status_aendern() (das Schema lehnt ihn schon ab, 422)
+        raise ValueError("Der Status eines Auftrags ändert sich nur über Pausieren, Fortsetzen, Abschließen und Stornieren.")
     _validate_employees(db, values.get("caseworker_employee_id"), values.get("project_manager_employee_id"), bisher=order)
     for key, value in values.items():
         setattr(order, key, value)
@@ -1038,7 +1045,7 @@ ADDENDUM_PREFIX = "N"
 
 def addendum_create_reason(order: Order, invoices: list[Invoice]) -> str | None:
     """Warum kein Nachtrag mehr angelegt werden kann (seit 1.8.83) -- nach der Schlussrechnung, am stornierten Auftrag."""
-    if order.status == "storniert":
+    if storniert(order):
         return "Der Auftrag ist storniert – ein Nachtrag ist nicht mehr möglich."
     return final_lock_reason(invoices)
 

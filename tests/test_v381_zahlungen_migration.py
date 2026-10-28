@@ -31,6 +31,7 @@ from tests.test_v380_nummern_eindeutig import _alembic, _ok
 ROOT = Path(__file__).resolve().parent.parent
 MIGRATION = "c7d41e9a2b63"
 VORHER = "f3a8c2d6b190"
+BIS = "3e9b7c41d2a8"  # seit 1.9.124: die jüngste Migration, über die der Rückweg mit Aufträgen im Bestand geht (vor 8d3f6a2c91e7)
 PG_URL = os.getenv("ERP_TEST_POSTGRES_URL")
 D = Decimal
 
@@ -133,8 +134,10 @@ def _migrationsprobe(url: str, engine, Session) -> None:
 
         _ok(_alembic(url, "upgrade", MIGRATION))
         assert MIGRATION in _ok(_alembic(url, "current")).stdout
-        # Seit 1.8.79 folgen weitere Migrationen; das ORM liest den heutigen Stand (invoices.customer_id) -- also bis head.
-        _ok(_alembic(url, "upgrade", "head"))
+        # Seit 1.8.79 folgen weitere Migrationen; das ORM liest den heutigen Stand (invoices.customer_id) -- also bis zur jüngsten, über die
+        # der Rückweg mit diesem Bestand geht: seit 1.9.124 verweigert 8d3f6a2c91e7 ihn für jeden Bestand mit Auftrag („läuft“), bis 1.9.123
+        # ging die Probe bis head.
+        _ok(_alembic(url, "upgrade", BIS))
         db = Session()
         payments = {p.id: p for p in db.scalars(select(Payment))}
         allocations = list(db.scalars(select(PaymentAllocation).order_by(PaymentAllocation.invoice_id)))
@@ -167,7 +170,7 @@ def _migrationsprobe(url: str, engine, Session) -> None:
         db.close()
 
         # Wieder hoch, eine Zahlung erfassen -> der Rückweg verweigert und ändert nichts.
-        _ok(_alembic(url, "upgrade", "head"))
+        _ok(_alembic(url, "upgrade", BIS))
         engine.dispose()
         db = Session()
         offen = db.get(Invoice, ids["offen"])

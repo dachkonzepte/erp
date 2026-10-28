@@ -9,7 +9,7 @@ C „Wartung“ heute für Tom, F „Fremdauftrag“ für niemanden, G „Altauf
                         je Zeile ≥ 56 px; „Abbrechen“ schließt; seit 1.9.80 Zeile A -> im Dialog „Bericht anlegen“ (A gewählt, Rapport,
                         Datum heute, Dachfläche zur Wahl, Vorlage erst bei einer Fläche), „Anlegen“ -> der neue Bericht (Auftrag A, Mia;
                         bis 1.9.79 über die Seite des Auftrags mit ?neu=1); quer hell (Bilder 1–3), hoch
-                        800 × 1100 mit Dialog; seit 1.9.79 über die API S (storniert) -> 403 mit der Meldung, F (nie zugeordnet) ->
+                        800 × 1100 mit Dialog; seit 1.9.79 über die API S (storniert) -> 409 (bis 1.9.123 403) mit der Meldung, F (nie zugeordnet) ->
                         angelegt (1.9.74–1.9.78: F 403); Seite von G mit „+ Bericht“, ?neu=1 öffnet den Editor (1.9.77–1.9.78: Hinweis);
                         Seite von S (auch mit ?neu=1): kein „+ Bericht“, an seiner Stelle „Für diesen Auftrag legt das Büro Berichte
                         an.“, kein Editor (Bild 6, ganze Seite); Seite von A mit „+ Bericht“ ohne Hinweis; seit 1.9.78 Zeilen des
@@ -183,10 +183,10 @@ async def pruefen(tab, seed, p):
         [a, seed["mia"], "rapport", "Notdienst: Rinne abgedichtet.", "entwurf"])
     await tab.js("window.scrollTo(0,0)")
     await tab.bild("3_neuer_bericht_quer_hell")
-    # seit 1.9.79: zu jedem nicht stornierten Auftrag (1.9.74–1.9.78: F 403); zum stornierten 403
+    # seit 1.9.79: zu jedem nicht stornierten Auftrag (1.9.74–1.9.78: F 403); zum stornierten seit 1.9.124 409 (bis dahin 403)
     anlegen = ("fetch('/api/orders/{}/service-reports',{{method:'POST',headers:{{'Content-Type':'application/json'}},"
                "body:JSON.stringify({{report_type:'rapport'}})}}).then(async r=>[r.status,(await r.json()).detail||null])")
-    p.pruefe("S (storniert) direkt über die API: 403 mit der Meldung", await tab.js(anlegen.format(seed["s"])), [403, seed["meldung"]])
+    p.pruefe("S (storniert) direkt über die API: 409 mit der Meldung", await tab.js(anlegen.format(seed["s"])), [409, seed["meldung"]])
 
     # seit 1.9.79: Seite von G (nicht in ihrer Liste) mit „+ Bericht“, ?neu=1 öffnet den Editor (1.9.77–1.9.78: der Hinweis); Seite von S
     # (storniert) statt „+ Bericht“ der Hinweis, auch ?neu=1 öffnet keinen Editor; Seite von A mit „+ Bericht“

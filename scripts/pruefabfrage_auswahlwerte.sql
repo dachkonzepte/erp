@@ -42,8 +42,8 @@ WITH gruppe AS (
          info_type IN ('phone', 'email', 'birthday', 'info') FROM customer_extra_infos
   UNION ALL SELECT 'projects.status (Projektmappe)', status,
          status IN ('anfrage', 'angebot', 'planung', 'beauftragt', 'ausfuehrung', 'abgeschlossen') FROM projects
-  UNION ALL SELECT 'orders.status (Auftrag)', status,
-         status IN ('beauftragt', 'arbeitsvorbereitung', 'in_ausfuehrung', 'pausiert', 'abgeschlossen', 'storniert') FROM orders
+  UNION ALL SELECT 'orders.status (Auftrag, seit 1.9.124 vier Werte, am Server erzwungen)', status,
+         status IN ('laeuft', 'pausiert', 'abgeschlossen', 'storniert') FROM orders
   UNION ALL SELECT 'quotes.status (Angebot)', status,
          status IN ('entwurf', 'versendet', 'in_pruefung', 'beauftragt', 'abgelehnt') FROM quotes
   UNION ALL SELECT 'planning_slots.status (Plantafel)', status,

@@ -1240,13 +1240,53 @@ class OrderCreateFromQuote(BaseModel):
     project_manager_employee_id: int | None = None
     payment_terms: str | None = None
     remarks: str | None = None
-    status: str = Field(default="beauftragt", max_length=50)
+    # Seit 1.9.124 (Stufe 5, R2, Punkt 1): ein neuer Auftrag beginnt immer mit „läuft“ -- ein mitgeschickter Status (bis 1.9.123 „beauftragt“ oder
+    # „arbeitsvorbereitung“ aus dem Dialog des Angebots) wird mit 422 abgelehnt, statt still verworfen.
+    status: str | None = Field(default=None, max_length=50)
+
+    @field_validator("status")
+    @classmethod
+    def _kein_status(cls, value):
+        raise ValueError(STATUS_NUR_UEBER_AKTIONEN)
+
+
+STATUS_NUR_UEBER_AKTIONEN = ("Der Status eines Auftrags ändert sich nur über Pausieren, Fortsetzen, Abschließen und Stornieren "
+                             "(POST /api/orders/{id}/status).")
+
+
+class OrderStatusChangeRequest(BaseModel):
+    """Seit 1.9.124 (Stufe 5, R2, Punkt 1): ein Übergang des Auftragsstatus (app/auftragsstatus.py::status_aendern()). Ein Status außerhalb der
+    vier Werte und Pausieren oder Stornieren ohne Begründung ergeben 422; was vom Stand abhängt (Ausgangsstatus, Abschließen ohne
+    Schlussrechnung), prüft der Server unter der Sperre (409)."""
+    status: Literal["laeuft", "pausiert", "abgeschlossen", "storniert"]
+    reason: str | None = Field(default=None, max_length=2000)
+
+    @model_validator(mode="after")
+    def _begruendung(self):
+        if self.status in ("pausiert", "storniert") and not (self.reason or "").strip():
+            raise ValueError("Pausieren und Stornieren brauchen eine Begründung.")
+        return self
+
+
+class OrderStatusChangeOut(BaseModel):
+    id: int
+    order_id: int
+    old_status: str
+    new_status: str
+    old_status_label: str
+    new_status_label: str
+    action: str | None = None
+    reason: str | None = None
+    without_invoice: bool = False
+    changed_at: datetime
+    changed_by_name: str
 
 
 class OrderUpdate(PartialUpdate):
     """Teil-Update seit 1.8.32 (Regel 22): mit dem neuen Feld execution_period hätte jeder Aufrufer,
-    der es nicht kennt, den Ausführungszeitraum beim Speichern geleert."""
-    NOT_NULL = frozenset({"title", "status", "order_date"})
+    der es nicht kennt, den Ausführungszeitraum beim Speichern geleert. Seit 1.9.124 ohne Status: ein mitgeschickter Status ergibt 422
+    (Übergänge nur über POST /api/orders/{id}/status)."""
+    NOT_NULL = frozenset({"title", "order_date"})
     title: str | None = Field(default=None, min_length=1, max_length=255)
     status: str | None = Field(default=None, max_length=50)
     order_date: date | None = None
@@ -1260,6 +1300,11 @@ class OrderUpdate(PartialUpdate):
     intro_text: str | None = None
     outro_text: str | None = None
     outro_text_2: str | None = None
+
+    @field_validator("status")
+    @classmethod
+    def _kein_status(cls, value):
+        raise ValueError(STATUS_NUR_UEBER_AKTIONEN)
 
 
 class OrderSectionOut(BaseModel):
@@ -1414,6 +1459,10 @@ class OrderOut(BaseModel):
     order_lock: str | None = None
     tax_lock: str | None = None
     addendum_create_block: str | None = None  # seit 1.8.83: warum kein Nachtrag mehr angelegt werden kann
+    # Seit 1.9.124 (Stufe 5, R2, Punkt 1): lesbarer Status, die möglichen Übergänge mit Pflicht zur Begründung, was „Abschließen“ verlangt, der
+    # letzte Wechsel mit Begründung (app/auftragsstatus.py::status_info()).
+    status_label: str | None = None
+    status_info: dict | None = None
 
 
 class OrderFieldAccessItemOut(BaseModel):
