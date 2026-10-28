@@ -7325,3 +7325,58 @@ Gegenproben (Marker `GEGENPROBE`, byte-genau zurück): die Regel nicht eingebund
 gemessenen Seiten hell weiß, dunkel `rgb(26, 32, 36)` wie ein offenes, Mauszeiger `default` -- der Zustand bis 1.9.121); eine Seite mit eigener Regel ->
 1 Test; die Fläche ohne `!important` -> Klicktest unverändert 12/12 (siehe oben: auf den gemessenen Seiten gewinnt die Regel durch ihr Gewicht, nötig ist
 `!important` gegen schwerere Feldregeln).
+
+### Nachrunde, Punkt 5 (1.9.123): Verlauf lesbar (Merkliste 7b)
+
+Befund (Merkliste 7b des Befunds Stufe 5): Fremdschlüssel als Zahl, Dezimalzahlen mit Punkt und allen Stellen („850.000000“, „19.0000“, „7.5000“),
+Tage und Zeitpunkte als ISO-Text (naive UTC wie naive Ortszeit, im Browser nicht unterscheidbar), JSON roh, Codes im Namen des Datensatzes
+(„… · 2026-10-28 · site · 7.5000 h“, „Mitarbeiter #12“, „Gruppe #7“), „value“ jeder Art über die Tabelle des Mangels.
+
+- `app/verlauf_namen.py`: `lesbar_alle(db, zeilen)` je Antwort von `GET /api/audit-logs` (`app/routers/audit.py`, nach der Schwärzung, für jede
+  Rolle) mit einem `Kontext`: Namen zu den IDs je Zielklasse in einer Abfrage, die Einheiten der Positionen, die Zeitarten der Auswahlliste
+  „Zeitarten“. Je Wert nach der Spalte der Art (`_spalte()`, aus `TYPE_LABELS` und dem Modell):
+  * Fremdschlüssel (auch `…_user_id` und die Herkunft einer Angebotsposition ohne Fremdschlüssel im Modell) -> Name des Datensatzes von heute
+    (`_name()`, wie `app/audit.py::_entity_label()`), unbekannt „Nr. n (nicht mehr vorhanden)“; `task_id` bleibt eine Nummer (Titel nur für Admin und
+    Zuständige).
+  * Zahl -> deutsch: Geld mit zwei Stellen (kaufmännisch, `round_money()`), sonst ohne Nullen am Ende; Einheit je Feld (`EINHEITEN`: €, %, h, min,
+    m², °, px, Monate, Tage), Mengen mit der Einheit ihrer Position; Dateigrößen als Byte/KB/MB. Neues Feld `einheit` an `AuditLogOut`.
+  * Tag -> „TT.MM.JJJJ“; Zeitpunkt -> „TT.MM.JJJJ HH:MM“ in Europe/Berlin -- naive UTC über `to_berlin()`, naive Ortszeit (`ORTSZEIT`: `started_at`,
+    `ended_at`, `start_at`, `end_at`, `visit_at`, `follow_up_at`) unverändert.
+  * JSON -> „Daten (n Angaben)“ bzw. „n Einträge“.
+  * Code -> Bezeichnung wie bisher (`wert_lesbar()`), Zeitarten nach der Auswahlliste (statische Namen seit 1.9.123 wie dort: „Baustellenzeit“,
+    „Werkstattzeit“, „Sonstige Arbeitszeit“; bis 1.9.122 „Baustelle“, „Werkstatt“, „Sonstige“); „value“/„previous_value“ nur am Mangel.
+  * Eine Art ohne Modell (z. B. „Vertrag“, „Aufgabe“): nur, was der Wert selbst zeigt (ISO-Zeit, ISO-Tag, Dezimalzahl).
+- Name des Datensatzes (`name_lesbar()`): ISO-Tage deutsch, Zeitarten zwischen „ · “ übersetzt, Stunden deutsch, „Mitarbeiter #12“ als Name,
+  „Gruppe #7“ als „Gruppenbuchung Nr. 7“.
+- `_verlauf.html::verlaufAenderung()`: die Einheit hinter dem neuen Wert -- „850 → 851 m²“.
+
+#### Festlegungen 1.9.123 (Bitte bestätigen)
+
+1. Übersetzt wird beim Lesen, gespeichert bleibt jeder Wert roh -- auch Einträge von vor 1.9.123 erscheinen lesbar.
+2. Die Einheit steht einmal, hinter dem neuen Wert („850 → 851 m²“, „19 → 7 %“).
+3. Geld mit zwei Nachkommastellen, jede andere Zahl ohne Nullen am Ende; ganze Zahlen ohne Einheit (Sortierung, Nummern, Jahr, Stufe) ohne
+   Tausenderpunkt.
+4. Zeitarten heißen wie in der Auswahlliste der Datenbank (wie die Oberfläche): „site“ -> „Baustellenzeit“.
+5. Eine ID erscheint mit dem Namen des Datensatzes von heute (ein umbenannter Kunde mit dem heutigen Namen), ein gelöschter als „Nr. n (nicht mehr
+   vorhanden)“; die Aufgabe bleibt eine Nummer.
+6. JSON erscheint als „Daten (n Angaben)“ bzw. „n Einträge“ -- der Inhalt bleibt im Eintrag, angezeigt wird er nicht.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v543_verlauf_lesbar.py` (9 Tests) über `GET /api/audit-logs`: Menge einer Auftragsposition 850 -> 851 mit „m²“ aus der Position; MwSt.
+„19“ -> „7“ mit „%“, Einheitspreis „50,00“ -> „1.250,50“ mit „€“, Stunden „7,5“ -> „8“ mit „h“; ein UTC-Zeitpunkt in Berlin („01.07.2026 12:00“ aus 10:00),
+der Beginn einer Zeitbuchung unverändert, ein Tag deutsch; die Zeitbuchung im Namen „E-1 Mia Monteurin · 14.10.2026 · Baustellenzeit · 3,25 h“ und die
+Zeitart als Wert; Sachbearbeiter und Kunde als Name, ein gelöschter Kunde „Nr. 999 (nicht mehr vorhanden)“, die Aufgabe als Nummer; die Pipeline-Spalte
+als Name; JSON „Daten (2 Angaben)“, „value“ eines Kundenwissens unverändert, am Mangel „Offen“; eine ganze Antwort ohne „.000000“, ohne ISO-Tag, ohne
+„site“; in node `verlaufAenderung()` mit der Einheit (maskiert).
+Neu `scripts/klicktest_verlauf_lesbar.py` (6 Prüfungen, Testdaten der Bildgrundlage): Menge einer Auftragsposition um 1 erhöht -- /history mit
+„850 → 851 m²“ (Bild), ohne „.000000“, ISO-Tag und „site“, die Zeitbuchungen mit „Baustellenzeit“; dieselben Prüfungen in der Historie der Projektmappe.
+
+Im ersten Lauf rot und behoben: `_spalte()` mit einer Zeile ohne Feld („angelegt“) -- die Spaltensammlung lehnt `None` ab; jetzt vorher abgefangen.
+Im ersten Suitenlauf rot und behoben: `test_v486::test_waechter_niemand_liest_die_standardpause` -- die Einheitenliste nannte die Standardpause
+(seit 1.9.61 liest sie niemand); jetzt ohne sie, ein alter Eintrag dazu erscheint ohne Einheit.
+
+Keine angepassten Erwartungen.
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v543`): IDs nicht aufgelöst -> 2; keine Einheit -> 2; Zahlen roh -> 4; UTC nicht
+umgerechnet -> 1; Name des Datensatzes roh -> 2 und der Klicktest 4/6 (ISO-Tage und „site“ in /history und Projektmappe); die Einheit nicht angezeigt -> 1.

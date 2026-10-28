@@ -2287,8 +2287,8 @@ vollständig aufgelöst: `_search_tasks()` (`app/search.py`) nutzt seither `list
   `onupdate`) neu durchdenken, nicht nur `datetime.utcnow()` durch `datetime.now(UTC)` ersetzen.
   Bewusst NICHT jetzt umgebaut -- eigene, spätere, sorgfältig zu planende Runde, kein Teil der
   CLAUDE.md-Aufräumung.
-- ~~Zeitstempel im Browser noch aus UTC gelesen~~ -- seit 1.9.46 erledigt (`berlinZeitpunkt()`, Regel 20; offen nur alter/neuer Wert im
-  Änderungsprotokoll, `docs/archiv/zeiterfassung-und-abwesenheit.md`, "Angezeigte Zeitpunkte in Europe/Berlin"). Bis dahin: ("heute" seit 1.8.87 überall aus Berlin, Server seit 1.8.12, Regel
+- ~~Zeitstempel im Browser noch aus UTC gelesen~~ -- seit 1.9.46 erledigt (`berlinZeitpunkt()`, Regel 20; alter/neuer Wert im
+  Änderungsprotokoll seit 1.9.123 lesbar in Berlin über `app/verlauf_namen.py`, `docs/archiv/zeiterfassung-und-abwesenheit.md`, "Angezeigte Zeitpunkte in Europe/Berlin"). Bis dahin: ("heute" seit 1.8.87 überall aus Berlin, Server seit 1.8.12, Regel
   20): naive UTC-Zeitstempel ohne `'Z'` an `new Date()` (u. a. E-Mail-Versandzeit bei Rechnung, Auftrag, Angebot) und
   `slice(0,10)` eines Zeitstempels (u. a. Mahnwesen "versendet …"). Liste mit Zeilen:
   `docs/archiv/zeiterfassung-und-abwesenheit.md`, "Kalenderdatum in Europe/Berlin statt UTC".

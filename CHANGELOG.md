@@ -4,6 +4,16 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.123 – Verlauf lesbar: Zahlen, Zeitpunkte, Codes, Namen (Stufe 5, R1 Nachrunde)
+
+Die Änderungshistorie (/history und der Verlauf der Projektmappe) zeigte die Werte roh: „850.000000 → 851.00“, ISO-Tage und -Zeitpunkte (teils
+UTC), Zeitartcodes („site“, auch im Namen einer Zeitbuchung), IDs als Zahl und JSON. Jetzt übersetzt `app/verlauf_namen.py` jede Antwort beim
+Lesen: Zahlen deutsch mit Einheit hinter dem neuen Wert („850 → 851 m²“, Geld „2.000,00 €“, „19 %“, „7,5 h“), Tage und Zeitpunkte deutsch in
+Europe/Berlin (gespeichertes UTC umgerechnet, Ortszeit unverändert), Zeitarten nach der Auswahlliste („Baustellenzeit“), eine ID als Name des
+Datensatzes (Kunde, Sachbearbeiter, Pipeline-Spalte, Konto …; je Tabelle eine Abfrage), JSON als „Daten (n Angaben)“, und dieselben Werte im Namen
+des Datensatzes („E-1 Mia Monteurin · 14.10.2026 · Baustellenzeit · 3,25 h“). Gespeichert bleibt alles roh -- auch ältere Einträge erscheinen so.
+Dabei behoben: „value“ wurde für jede Art über die Tabelle des Mangels übersetzt (ein Kundenwissen „offen“ erschien als „Offen“).
+
 ## 1.9.122 – Gesperrte Felder hell erkennbar: eine Regel für jede Seite (Stufe 5, R1 Nachrunde)
 
 Gesperrte und nur lesbare Felder sahen hell auf den meisten Seiten aus wie offene -- nur fünf Seiten (Einstellungen, Checkliste,

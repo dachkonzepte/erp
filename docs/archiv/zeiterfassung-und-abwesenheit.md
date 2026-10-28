@@ -502,8 +502,11 @@ noch aus UTC gelesen“ (oben, „Weiter offen“; die dortige Liste vom 29.09.2
   Vertragsgrundlage geändert, `project_folder.html` Vollmachten (2), `time_backoffice.html` Abschluss.
 - **Unverändert, schon richtig**: `*_local` aus dem Server (Versandverlauf, Abnahmen, Mängel, Vertragsfassungen, Anhänge der Checkliste);
   naive Ortszeit (Kalender, Termine in Projektmappe und Angebot, Anfragen, Dashboard, Zeiterfassung, „Heute“).
-- **Offen (nicht geändert)**: im Änderungsprotokoll (`history.html`, Projektmappe) stehen alter und neuer Wert als roher ISO-Text aus
-  `app/audit.py::_text()` -- je nach Spalte UTC oder Ortszeit, im Browser nicht unterscheidbar; das bräuchte die Spalte auf dem Server.
+- ~~**Offen (nicht geändert)**: im Änderungsprotokoll (`history.html`, Projektmappe) stehen alter und neuer Wert als roher ISO-Text aus
+  `app/audit.py::_text()` -- je nach Spalte UTC oder Ortszeit, im Browser nicht unterscheidbar; das bräuchte die Spalte auf dem Server.~~ Seit 1.9.123
+  erledigt: `app/verlauf_namen.py` kennt beim Lesen die Spalte -- naive UTC in Europe/Berlin, naive Ortszeit (`ORTSZEIT`: Beginn/Ende einer
+  Zeitbuchung und eines Termins, Besuch und Wiedervorlage einer Anfrage) unverändert, beides „TT.MM.JJJJ HH:MM“ (`docs/archiv/redesign.md`,
+  „Nachrunde, Punkt 5“).
   ~~Ebenso auf dem Server: `app/findings.py` filtert `Finding.created_at` (UTC) mit Mitternacht eines Kalendertags (Grenzen um 1–2 Std.
   verschoben)~~ -- seit 1.9.52 behoben: `app/berlin_time.py::berlin_tag_beginn_utc()` (Mitternacht in Europe/Berlin als naive UTC), siehe
   „Tagesgrenzen gespeicherter Zeitstempel (seit 1.9.52)“.

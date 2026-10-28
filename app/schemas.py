@@ -1228,6 +1228,7 @@ class AuditLogOut(BaseModel):
     request_path: str | None = None
     details: str | None = None
     entity_type_label: str | None = None  # seit 1.8.138: lesbare Art (app/verlauf_namen.py); entity_type bleibt roh (Filter)
+    einheit: str | None = None  # seit 1.9.123: Einheit der Werte („m²“, „€“, „h“ …), angezeigt hinter dem neuen Wert
 
 
 class OrderCreateFromQuote(BaseModel):

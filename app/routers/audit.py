@@ -14,7 +14,7 @@ from ..database import get_db
 from ..models import AppUser
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, has_min_role, has_role, require_min_role
 from ..schemas import AuditLogOut
-from ..verlauf_namen import lesbar
+from ..verlauf_namen import lesbar_alle
 
 router = APIRouter()
 
@@ -43,13 +43,13 @@ def list_audit_logs(response: Response, project_id: int | None = None, entity_ty
     response.headers["X-DK-Weitere"] = "1" if len(rows) > limit else "0"
     rows = rows[:limit]
     if has_role(_role, ROLE_ADMIN):
-        return [lesbar(AuditLogOut.model_validate(row)) for row in rows]
+        return lesbar_alle(db, [AuditLogOut.model_validate(row) for row in rows])  # seit 1.9.123 mit einem Kontext je Antwort
     # Aufgaben (seit 1.8.18, "Übernehmen"): der Eintrag nennt den Titel, und eine zugewiesene
     # Aufgabe sieht außer dem Zuständigen nur Admin; eine finanz-gebundene nie buero_auftrag.
     # Deshalb nur für Admin -- dieselbe Grenze wie beim Versandprotokoll (Aufgaben-Mails, 1.8.17).
     rows = [row for row in rows if row.entity_type != TASK_ENTITY_TYPE]
     if has_min_role(_role, ROLE_OFFICE_FINANZEN):
-        return [lesbar(AuditLogOut.model_validate(row)) for row in rows]
+        return lesbar_alle(db, [AuditLogOut.model_validate(row) for row in rows])
     # Rechtekonzept "Vier Rollen" Etappe 2 (seit 1.4.8): buero_auftrag sieht denselben Endpunkt,
     # aber ohne Vergütung ("jede Auswertung, die Löhne zeigt") -- geänderte Lohnfelder entfallen
     # ganz (nie old/new_value zeigen), angelegt/gelöscht-Schnappschüsse werden bereinigt.
@@ -65,5 +65,5 @@ def list_audit_logs(response: Response, project_id: int | None = None, entity_ty
         out = AuditLogOut.model_validate(row)
         out.details = redact_wage_snapshot(out.details)
         out.details = redact_absence_snapshot(row.entity_type, out.details)
-        result.append(lesbar(out))
-    return result
+        result.append(out)
+    return lesbar_alle(db, result)

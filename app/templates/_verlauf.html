@@ -2,10 +2,12 @@
 /* Seit 1.9.115 (Stufe 5, R1, Punkt 5, Befund F14): eine Darstellung der Änderung einer Historienzeile für /history und den Verlauf der Projektmappe.
    „geändert“ und jede andere Aktion mit Werten (z. B. „Pausen neu gerechnet“: Pause des Tages alt -> neu) als alt -> neu, „verworfen“ mit der Begründung,
    „angelegt“ / „gelöscht“ als Satz. Bis 1.9.114 zeigte /history jede andere Aktion als „Datensatz gelöscht“ und die Projektmappe nur ihren Namen.
+   Seit 1.9.123 kommen die Werte lesbar vom Server (app/verlauf_namen.py) und eine Einheit (x.einheit) steht hinter dem neuen: „850 → 851 m²“.
    verlaufAenderung(zeile) -> HTML (Werte über die eigene Maskierung). */
 const _verlaufEsc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function verlaufAenderung(x){
-  const altNeu=()=>`<span class="old">${_verlaufEsc(x.old_value??'—')}</span> → <span class="new">${_verlaufEsc(x.new_value??'—')}</span>`;
+  const einheit=x.einheit?' '+_verlaufEsc(x.einheit):'';
+  const altNeu=()=>`<span class="old">${_verlaufEsc(x.old_value??'—')}</span> → <span class="new">${_verlaufEsc(x.new_value??'—')}</span>${einheit}`;
   if(x.action==='angelegt')return 'Datensatz angelegt';
   if(x.action==='gelöscht')return 'Datensatz gelöscht';
   if(x.action==='verworfen')return 'Verworfen'+(x.new_value?' – Begründung: '+_verlaufEsc(x.new_value):'');
