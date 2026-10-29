@@ -8230,3 +8230,55 @@ erstattet; Vorschlag „zuordnen“ auf die Schlussrechnung, beim Kunden ohne un
 
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v555`): ohne Kundenfilter an den Rechnungen -> 4; Mustervorgänge mitgezählt
 -> 4; zurückgenommene Zahlung mitgezählt -> 1; Vorschlag „erstatten“ trotz unbezahlter Rechnung -> 1; Bedarfsposition in der Angebotssumme -> 1.
+
+### R3, Punkt 1b (1.9.136): Verlauf des Kunden, Stammdaten als Teil-Update
+
+- `app/kunde_verlauf.py` (neu): `kennungen()` je Art im Änderungsprotokoll die Kennungen des Kunden -- „Kunde“ (auch das Profil), „Kundenwissen“,
+  „Objekt“, „Anfrage“, „Zahlungseingang“ über die Spalte `customer_id` heute und über den Schnappschuss beim Anlegen oder Löschen (`details`,
+  `"customer_id": "<id>"`), „Dachfläche“ über die Objekte (heute) bzw. `"property_id"` im Schnappschuss; `_fenster()`: eine Kennung, die irgendwann
+  gelöscht wurde, gilt nur vom Anlegen beim Kunden bis zum Löschen (ein Datensatz von heute ohne Ende) -- die übrigen in einem `IN`;
+  `zeilen_bedingung()`; `strom()` mit `gruppieren()`/`gruppe_dict()` aus `app/akte_verlauf.py`, ein Versand als eigene Gruppe.
+- `GET /api/customers/{customer_id}/verlauf` (`app/routers/customers.py`, ab Büro – Auftrag): Filter `art` (aenderung, versand, zahlung; sonst
+  422), Seiten über `vor`, geschwärzt über `app/routers/audit.py::sichtbar()`, „Zustellung nachtragen“ an Rechnung und Mahnung nach `darf_geld()`.
+- `app/akte_verlauf.py`: `zeilen_seite()` (beide Verläufe) -- reicht eine Aktion über `ZEILEN_JE_ABRUF`, wächst die Seite (×4) bis
+  `GRENZE_HOECHSTENS` (10.000); bleibt danach eine einzige Gruppe, steht sie da und `vor` geht zu älteren Zeilen. `ZIEL_JE_TYP` um Objekt
+  (`/properties/{id}`) und Dachfläche (`/roof-areas/{id}`).
+- `app/schemas.py::CustomerUpdate` ist ein `PartialUpdate` (`NOT_NULL` last_name, category, country, is_consumer); der Handler übernimmt
+  `model_dump(exclude_unset=True)`, die Zahlungsbedingung nur, wenn gesendet (`set_payment_term`). `BEKANNT` in
+  `tests/test_v329_update_handler_struktur.py` ohne `PUT /api/customers/{customer_id}` (61 -> 60).
+
+Funde beim Bau (behoben): (1) unter SQLite bekam ein neuer Eintrag von Kunde B die Kennung eines gelöschten von Kunde A -- seine Zeilen erschienen im
+Verlauf von A; behoben über das Zeitfenster. (2) Verlauf der Akte und des Kunden: eine Aktion mit mehr Zeilen als eine Seite fasst -- die Seite warf
+ihre einzige Gruppe weg, `vor` zeigte immer wieder auf dieselbe Stelle; behoben über `zeilen_seite()` und den Rückfall in `strom()`. (3) Ein Versand
+hing im Strom des Kunden an der nächsten Aktion desselben Kontos (der Zahlungsbuchung) und machte sie zur Versandzeile -- im Kunden fehlt die Zeile
+des Dokuments selbst; ein Versand ist dort eine eigene Zeile.
+
+#### Festlegungen 1.9.136 (Bitte bestätigen)
+
+1. Der Verlauf des Kunden zeigt Kunde (samt Profil), Kundenwissen, Objekte mit Dachflächen, Anfragen, Zahlungen und den Versand seiner Dokumente;
+   Projekte, Angebote, Aufträge und Rechnungen stehen im Verlauf ihrer Akte, nicht hier. Kundendokumente fehlen (sie stehen nicht im
+   Änderungsprotokoll).
+2. Arten im Verlauf des Kunden: Änderung, Versand, Zahlung.
+3. Ein Versand ist im Verlauf des Kunden immer eine eigene Zeile (in der Akte gehört er weiter zur Aktion an seinem Dokument).
+4. Eine Seite des Verlaufs (Akte und Kunde) wächst, bis eine Aktion ganz darauf steht, höchstens auf 10.000 Zeilen; darüber geht es mit älteren
+   Zeilen weiter, Zeilen derselben Aktion mit genau demselben Zeitpunkt können dann fehlen.
+5. Die Stammdaten speichern nur Gesendetes; Name, Kategorie, Land und „Verbraucher“ ausdrücklich leer 422; die Zahlungsbedingung leer =
+   „Systemstandard verwenden“.
+6. Eine Zeile zu einem Objekt bzw. einer Dachfläche führt mit „Öffnen“ auf deren Seite -- in beiden Verläufen.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v556_kunde_verlauf_und_stammdaten.py` (16 Tests): Strom des Kunden mit Kunde und Profil in einer Zeile, Kundenwissen (auch der
+gelöschte Eintrag), Objekt und Dachfläche mit Ziel, Zahlung, Versand als eigene Zeile, nichts von einem anderen Kunden (über die Protokollzeilen,
+auch bei neu vergebener Kennung); Filter nach Art, unbekannte Art 422; Seiten mit kleiner Grenze ohne Doppelte und Lücken (je Protokollzeile und
+Versand); eine Aktion mit fünf Zeilen gleichen Zeitpunkts über der Grenze kommt ganz; an der Höchstgrenze endet das Blättern; dasselbe im Verlauf der
+Akte; Rollen (Büro 200, Monteurin 403, unbekannt 404); Stammdaten: nur das Telefon gesendet -> nur das Telefon geändert und protokolliert,
+Zahlungsbedingung ausdrücklich leer, vier Pflichtfelder leer 422.
+
+Angepasste Erwartungen:
+- `tests/test_v329_update_handler_struktur.py`, `BEKANNT` -- alt mit `PUT /api/customers/{customer_id}` (volles Formular), neu ohne (61 -> 60
+  Einträge; die Liste darf nur kürzer werden).
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v556`): gelöschte Einträge nicht über den Schnappschuss -> 2; Kennungen
+aller Kunden -> 1; Seite wächst nicht -> 1; alle Felder statt der gesendeten -> 2; Versand an die nächste Aktion gehängt -> 1; ohne Zeitfenster -> 1;
+ohne Rückfall an der Höchstgrenze -> 1.

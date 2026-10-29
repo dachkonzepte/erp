@@ -12,7 +12,9 @@ in projects.py -- siehe dort für die Begründung der einzelnen Schritte.
 from pathlib import Path
 
 from fastapi import APIRouter
-from fastapi import Depends, File, Form, HTTPException, UploadFile
+from datetime import datetime
+
+from fastapi import Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -20,10 +22,11 @@ from ..crm import compose_customer_name, ensure_customer_profile
 from ..customer_documents import MAX_UPLOAD_BYTES, customer_directory, make_stored_filename
 from ..dateiauslieferung import gespeicherter_typ
 from ..database import get_db
+from .. import akte_verlauf, kunde_verlauf
 from ..kundenakte import kunde_kontext
 from ..document_categories import resolve_category_id
 from ..models import AppUser, Customer, CustomerDocument, CustomerExtraInfo, Property
-from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
+from ..permissions import GELD_DOKUMENTE, ROLE_OFFICE_AUFTRAG, darf_geld, require_min_role
 from .customer_documents import _customer_document_out
 from ..schemas import (
     CustomerCreate, CustomerDocumentOut, CustomerExtraInfoCreate, CustomerExtraInfoOut,
@@ -74,6 +77,34 @@ def get_customer_akte(customer_id: int, db: Session = Depends(get_db, scope="fun
     return kunde_kontext(db, customer)
 
 
+@router.get("/api/customers/{customer_id}/verlauf")
+def get_customer_verlauf(customer_id: int, art: list[str] = Query(default=[]), vor: datetime | None = None,
+                         db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.9.136 (Stufe 5, R3, Punkt 1): der Verlauf der Kundenakte -- Änderungen am Kunden, Kundenwissen, Objekten (samt Dachflächen),
+    Anfragen, seine Zahlungen und der Versand seiner Dokumente, eine Zeile je Aktion (app/kunde_verlauf.py), Filter nach Art, Seiten über `vor`.
+    Geschwärzt wie /api/audit-logs; „Zustellung nachtragen“ an Rechnung und Mahnung nach darf_geld() (wie der Verlauf der Akte)."""
+    from ..email_dispatch import list_dispatches
+    from ..models import AuditLog
+    from .audit import sichtbar
+
+    if db.get(Customer, customer_id) is None:
+        raise HTTPException(status_code=404, detail="Kunde nicht gefunden.")
+    unbekannt = [a for a in art if a not in kunde_verlauf.ARTEN]
+    if unbekannt:
+        raise HTTPException(status_code=422, detail=f"Unbekannte Art: {', '.join(unbekannt)}.")
+    stmt = select(AuditLog).where(kunde_verlauf.zeilen_bedingung(db, customer_id))
+    if vor is not None:
+        stmt = stmt.where(AuditLog.occurred_at < vor)
+    zeilen, weitere = akte_verlauf.zeilen_seite(db, stmt.order_by(AuditLog.occurred_at.desc(), AuditLog.id.desc()))
+    versand = list_dispatches(db, customer_id=customer_id, limit=1000)["items"]
+    versand = [e for e in versand if (vor is None or e["created_at"] < vor) and (not weitere or e["created_at"] >= zeilen[-1].occurred_at)]
+    for e in versand:  # wie GET /api/email-dispatches (seit 1.9.111): Rechnung und Mahnung nur nach darf_geld()
+        geld = e["document_type"] not in GELD_DOKUMENTE or darf_geld(_role)
+        e["can_record_outcome"] = e["can_record_outcome"] and geld
+        e["zustellung_nachtragen"] = geld and e["document_id"] is not None
+    return kunde_verlauf.strom(sichtbar(db, zeilen, _role), versand, arten=set(art) or None, weitere=weitere)
+
+
 @router.put("/api/customers/{customer_id}", response_model=CustomerOut)
 def update_customer(customer_id: int, payload: CustomerUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     customer = db.scalar(
@@ -84,15 +115,17 @@ def update_customer(customer_id: int, payload: CustomerUpdate, db: Session = Dep
     if customer is None:
         raise HTTPException(status_code=404, detail="Kunde nicht gefunden.")
 
-    for key, value in payload.model_dump(exclude={"category", "customer_number", "default_payment_term_id", "is_consumer"}).items():
-        setattr(customer, key, value)
-    if payload.is_consumer is not None:
-        customer.is_consumer = payload.is_consumer
+    # Seit 1.9.136 (Stufe 5, R3, Punkt 1) ein Teil-Update (Regel 22): nur gesendete Felder -- die Kundenakte schickt aus dem Dialog
+    # „Stammdaten bearbeiten“ nur, was geändert ist; bis 1.9.135 übernahm der Handler jedes Feld (Vorgabe „Privatkunde“, „Deutschland“).
+    werte = payload.model_dump(exclude_unset=True)
+    for key, value in werte.items():
+        if key not in ("category", "customer_number", "default_payment_term_id"):
+            setattr(customer, key, value)
     customer.name = compose_customer_name(customer.salutation, customer.title, customer.first_name, customer.last_name)
     try:
         ensure_customer_profile(
-            db, customer, payload.category, payload.customer_number,
-            default_payment_term_id=payload.default_payment_term_id, set_payment_term=True,
+            db, customer, werte.get("category"), werte.get("customer_number"),
+            default_payment_term_id=werte.get("default_payment_term_id"), set_payment_term="default_payment_term_id" in werte,
         )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc

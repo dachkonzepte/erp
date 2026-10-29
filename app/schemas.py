@@ -249,16 +249,19 @@ class CustomerOut(CustomerCreate):
     extra_infos: list[CustomerExtraInfoOut] = Field(default_factory=list)
 
 
-class CustomerUpdate(BaseModel):
+class CustomerUpdate(PartialUpdate):
+    """Seit 1.9.136 ein Teil-Update (Regel 22): jedes Feld darf fehlen und bleibt dann stehen; Name, Kategorie, Land und „Verbraucher“ dürfen
+    nicht ausdrücklich leer sein. Bis 1.9.135 Pflicht last_name und Vorgaben „Privatkunde“/„Deutschland“ für weggelassene Felder."""
+    NOT_NULL = frozenset({"last_name", "category", "country", "is_consumer"})
     customer_number: str | None = Field(default=None, max_length=50)
     salutation: str | None = Field(default=None, max_length=50)
     title: str | None = Field(default=None, max_length=80)
     first_name: str | None = Field(default=None, max_length=120)
-    last_name: str = Field(min_length=1, max_length=255)
-    category: str = Field(default="Privatkunde", min_length=1, max_length=80)
+    last_name: str | None = Field(default=None, min_length=1, max_length=255)
+    category: str | None = Field(default=None, min_length=1, max_length=80)
     contact_person: str | None = None
     street: str | None = None
-    country: str = Field(default="Deutschland", max_length=120)
+    country: str | None = Field(default=None, max_length=120)
     postal_code: str | None = None
     city: str | None = None
     email: str | None = None
@@ -268,8 +271,7 @@ class CustomerUpdate(BaseModel):
     fax: str | None = None
     notes: str | None = None
     default_payment_term_id: int | None = None
-    # None = unverändert (seit 1.8.21) -- ein Aufrufer, der das Feld nicht kennt, setzt es nicht zurück.
-    is_consumer: bool | None = None
+    is_consumer: bool | None = None  # weggelassen = unverändert (seit 1.8.21), ausdrücklich null 422 (seit 1.9.136)
 
 
 class CustomerExtraInfoUpdate(CustomerExtraInfoCreate):

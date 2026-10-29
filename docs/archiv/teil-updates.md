@@ -210,3 +210,10 @@ deshalb jetzt `OrderUpdate(PartialUpdate)` mit `NOT_NULL = {title, status, order
 festgehalten (darf nie wieder einen Fund haben). Die Auftragsseite schickt weiter alle Felder ihres
 Formulars, jetzt einschließlich des Zeitraums. Test: `tests/test_v335_vertragsvorlagen.py::
 test_order_put_without_execution_period_keeps_it`.
+
+## Stammdaten des Kunden als Teil-Update (seit 1.9.136)
+
+`PUT /api/customers/{customer_id}` übernimmt nur gesendete Felder (`CustomerUpdate` von `PartialUpdate`, `NOT_NULL` last_name, category, country,
+is_consumer; Handler `model_dump(exclude_unset=True)`, Zahlungsbedingung nur, wenn gesendet). Anlass: die Kundenakte (Stufe 5, R3) bearbeitet die
+Stammdaten im Dialog und schickt nur, was geändert ist. Bis 1.9.135 ein Eintrag in `BEKANNT` (volles Formular) -- die Liste hat jetzt 60.
+`tests/test_v556_kunde_verlauf_und_stammdaten.py`; Herleitung `docs/archiv/redesign.md`, „R3, Punkt 1b“.

@@ -249,10 +249,8 @@ def get_project_verlauf(project_id: int, auftrag: int | None = None, art: list[s
     stmt = select(AuditLog).where(AuditLog.project_id == project_id, AuditLog.entity_type.not_in(akte_verlauf.NICHT_IM_STROM))
     if vor is not None:
         stmt = stmt.where(AuditLog.occurred_at < vor)
-    grenze = akte_verlauf.ZEILEN_JE_ABRUF
-    zeilen = db.scalars(stmt.order_by(AuditLog.occurred_at.desc(), AuditLog.id.desc()).limit(grenze + 1)).all()
-    weitere = len(zeilen) > grenze
-    zeilen = zeilen[:grenze]
+    # seit 1.9.136 über zeilen_seite(): eine Aktion, die über die Grenze reicht, macht die Seite größer statt sie leer zu lassen
+    zeilen, weitere = akte_verlauf.zeilen_seite(db, stmt.order_by(AuditLog.occurred_at.desc(), AuditLog.id.desc()))
     versand = list_dispatches(db, project_id=project_id, limit=1000)["items"]
     versand = [e for e in versand if (vor is None or e["created_at"] < vor) and (not weitere or e["created_at"] >= zeilen[-1].occurred_at)]
     for e in versand:  # wie GET /api/email-dispatches (seit 1.9.111): Rechnung und Mahnung nur nach darf_geld()

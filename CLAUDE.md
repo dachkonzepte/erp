@@ -413,7 +413,10 @@ Behoben, drei Teile:
   unter `/api/` der Seite steht darin). Am Kunden gibt es kein Archivieren (Punkt 4, nicht gebaut). 1.9.135 Zahlen vom Server
   (`app/kundenakte.py::kunde_kontext()`, `GET /api/customers/{id}/akte`): je Projekt Status und Zahlen wie die Akte (`akte.leistung()`/`zahlung()` je
   Auftrag, ohne Mustervorgänge), Geld über `Invoice.customer_id` und die Zahlungen (unbezahlt, überfällig, Guthaben, je Jahr abgerechnet und bezahlt),
-  Vorschläge für einen Rest (`tests/test_v555_kundenakte_zahlen.py`). Archiv: `docs/archiv/redesign.md`, „Stufe 5, R3“.
+  Vorschläge für einen Rest (`tests/test_v555_kundenakte_zahlen.py`); 1.9.136 Verlauf des Kunden (`app/kunde_verlauf.py`,
+  `GET /api/customers/{id}/verlauf`: Kunde, Kundenwissen, Objekte mit Dachflächen, Anfragen, Zahlungen, Versand; Zuordnung über die Kennung, gelöschte
+  über den Schnappschuss, eine gelöschte Kennung nur im Zeitfenster ihres Datensatzes), Seiten beider Verläufe über `akte_verlauf.zeilen_seite()`,
+  `PUT /api/customers/{id}` als Teil-Update (`tests/test_v556_kunde_verlauf_und_stammdaten.py`). Archiv: `docs/archiv/redesign.md`, „Stufe 5, R3“.
 
 ## Kritische, nicht verhandelbare Regeln
 
@@ -732,7 +735,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Datensatz), nie still umgestellt; nie `auswahlOptionen()` über eine vorher gefilterte Liste (Wächter P3); `KLASSEN` kennt dafür nur
     `vollstaendig` (Liste enthält jede speicherbare ID), `neu` oder `eigen` (`tests/test_v450_auswahl_fremdschluessel.py`).
     `tests/test_v329_update_handler_struktur.py` prüft jeden
-    PUT/PATCH-Handler per AST; die 61 Altfälle (seit 1.9.66, vorher 62, bis 1.8.95 70) stehen dort als Liste, die nur kürzer werden darf.
+    PUT/PATCH-Handler per AST; die 60 Altfälle (seit 1.9.136, vorher 61, bis 1.9.65 62, bis 1.8.95 70) stehen dort als Liste, die nur kürzer werden darf.
     Details: `docs/archiv/teil-updates.md`.
 
 23. **Grunddaten legt der Start an, nie ein Lesepfad -- kein GET schreibt, seit 1.8.42.** Einstellungen
@@ -2170,7 +2173,7 @@ zufällig (`app/audit.py`, `session.dirty`), deshalb setzt `befuellen()` den Pro
 - ~~Kolonnenführer-Rolle für Gruppenbuchungen~~ -- seit 1.7.12 gelöst über das Kennzeichen
   `TeamEmployee.is_crew_leader` (keine eigene Rolle), siehe `docs/archiv/rechtekonzept.md`,
   "Zeiterfassung für Monteure" -> "Nachtrag (seit 1.7.12)".
-- **61 Update-Handler stehen noch in `BEKANNT`** (seit 1.9.66; die sechs mit Datenverlust seit 1.8.25 behoben, die drei der
+- **60 Update-Handler stehen noch in `BEKANNT`** (seit 1.9.136, die Stammdaten des Kunden; die sechs mit Datenverlust seit 1.8.25 behoben, die drei der
   Arbeitsvorbereitung seit 1.8.29, der Auftragskopf seit 1.8.32, die Dachfläche seit 1.8.46, acht mit gemerkten Werten seit 1.8.96, der
   Einsatzbericht seit 1.9.66, Regel 22;
   darunter die acht, die keine Verstöße sind): jede Oberfläche schickt dort heute alle Felder, kein akuter Datenverlust.

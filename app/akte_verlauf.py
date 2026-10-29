@@ -31,6 +31,7 @@ from .models import (
 
 GRUPPE_SEKUNDEN = 5
 ZEILEN_JE_ABRUF = 600
+GRENZE_HOECHSTENS = 10_000  # seit 1.9.136: so weit wächst eine Seite, wenn eine einzige Aktion über ZEILEN_JE_ABRUF reicht (zeilen_seite())
 ARTEN = ("aenderung", "versand", "zahlung", "bericht", "status", "termin")
 ART_NAMEN = {"aenderung": "Änderung", "versand": "Versand", "zahlung": "Zahlung", "bericht": "Bericht", "status": "Status", "termin": "Termin"}
 ART_JE_TYP = {
@@ -165,6 +166,21 @@ def auftraege_je_versand(db: Session, eintraege: list[dict]) -> dict[int, set[in
 
 # --- Gruppen ------------------------------------------------------------------------------------------------------------------------------
 
+def zeilen_seite(db: Session, stmt, grenze: int | None = None) -> tuple[list, bool]:
+    """Die neuesten Protokollzeilen (stmt: neueste zuerst) bis zur Grenze und ob ältere folgen. Reicht eine einzige Aktion über die Grenze, wächst
+    die Grenze (×4), bis die Seite mehr als eine Gruppe hat, nichts mehr folgt oder GRENZE_HOECHSTENS erreicht ist -- seit 1.9.136 (Fund beim
+    Verlauf des Kunden): bis dahin warf strom() die einzige, vielleicht unvollständige Gruppe weg, und `vor` zeigte immer wieder auf dieselbe
+    Stelle („Ältere laden“ brachte nichts mehr)."""
+    grenze = grenze or ZEILEN_JE_ABRUF
+    while True:
+        zeilen = db.scalars(stmt.limit(grenze + 1)).all()
+        weitere = len(zeilen) > grenze
+        zeilen = zeilen[:grenze]
+        if not weitere or grenze >= GRENZE_HOECHSTENS or len(gruppieren(zeilen, {})) > 1:
+            return zeilen, weitere
+        grenze = min(grenze * 4, GRENZE_HOECHSTENS)
+
+
 def _gleiche_aktion(a, b) -> bool:
     return (a.request_path is not None and a.request_path == b.request_path and a.request_method == b.request_method
             and (a.actor_user_id, a.actor_name) == (b.actor_user_id, b.actor_name)
@@ -271,7 +287,9 @@ def ueberschrift(g: Gruppe) -> tuple[str, str]:
 
 # Seit 1.9.129 (Vorlage akte-verlauf.html): wohin eine Zeile führt -- je Art der Hauptzeile die Seite des Datensatzes
 ZIEL_JE_TYP = {"Einsatzbericht": ("/service-reports/{}", "Öffnen"), "Rechnung": ("/invoices/{}", "Öffnen"),
-               "Angebot": ("/quotes/{}/edit", "Öffnen"), "Checkliste": ("/checklisten/{}", "Öffnen")}
+               "Angebot": ("/quotes/{}/edit", "Öffnen"), "Checkliste": ("/checklisten/{}", "Öffnen"),
+               # seit 1.9.136 (Verlauf des Kunden, app/kunde_verlauf.py)
+               "Objekt": ("/properties/{}", "Öffnen"), "Dachfläche": ("/roof-areas/{}", "Öffnen")}
 
 
 def ziel(g: Gruppe, befund_berichte: dict[int, int]) -> dict | None:
@@ -312,7 +330,10 @@ def strom(db: Session, project_id: int, zeilen, versand: list[dict], *, auftrag:
     je_zeile = auftraege_je_zeile(db, zeilen)
     gruppen = gruppieren(zeilen, je_zeile)
     vor = None
-    if weitere and gruppen:
+    if weitere and len(gruppen) == 1:  # seit 1.9.136: nur nach GRENZE_HOECHSTENS -- die Gruppe bleibt, weiter mit älteren Zeilen
+        vor = min(z.occurred_at for z in gruppen[0].zeilen)
+        versand = [e for e in versand if e["created_at"] >= vor]
+    elif weitere and gruppen:
         letzte = gruppen.pop()
         vor = max(z.occurred_at for z in letzte.zeilen) + timedelta(microseconds=1)  # der nächste Abruf beginnt mit ihr
         versand = [e for e in versand if e["created_at"] >= vor]

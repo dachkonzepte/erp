@@ -197,7 +197,6 @@ BEKANNT = {
     "PUT /api/checklist-templates/{template_id}": _VOLLES_FORMULAR,
     "PUT /api/checklists/{checklist_id}/answers/{field_id}": _LEEREN_GEWOLLT,
     "PUT /api/customer-documents/{document_id}": _VOLLES_FORMULAR,
-    "PUT /api/customers/{customer_id}": _VOLLES_FORMULAR,
     "PUT /api/customers/{customer_id}/extra-infos/{info_id}": _VOLLES_FORMULAR,
     "PUT /api/dashboard/widgets": _LEEREN_GEWOLLT,
     "PUT /api/document-categories/{category_id}": _VOLLES_FORMULAR,
