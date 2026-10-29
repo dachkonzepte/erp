@@ -147,7 +147,8 @@ async def pruefen(tab, seed, p):
     # seit 1.9.129: die Akte statt der Projektmappe. Bis dahin zeigte der Reiter „Zeiten“ alle Buchungen des Projekts als Tabelle (Liste
     # 1000 von 1001, Hinweis „gekürzt“, Kennzahlen 999,00 h / 2,50 h / 1.001,50 h / 2 Mitarbeiter, Ist-Stunden im Kopf, Reiterzahl 1001).
     # Jetzt je Auftrag der Stand vom Server -- über alle Buchungen, auch die älteste (Mia, 2,5 h Fahrzeit im Vormonat), die an jeder
-    # Listengrenze zuerst fehlte -- und alle Buchungen über den Link nach „Zeiten“ (zeitraum=alle). A: 499 h Karl + 2,5 h Mia (+ laufend)
+    # Listengrenze zuerst fehlte -- und alle Buchungen über den Link nach „Zeiten“ (zeitraum=alle). A: 499 h Karl + 2,5 h Mia (+ laufend).
+    # Seit 1.9.132 (R2 Nachrunde, Punkt 3) Stunden in der Akte mit zwei Stellen wie in „Zeiten“ (bis 1.9.131 „501,5 h“ neben „501,50 h“)
     akte_bereit = ("akte&&orderId&&zahlenDaten&&!document.getElementById('reiter-ausfuehrung').hidden"
                    "&&document.getElementById('zeitenStand').textContent.includes('h')")
     await tab.oeffnen(f"/projects/{pr}#ausfuehrung", akte_bereit)
@@ -155,14 +156,14 @@ async def pruefen(tab, seed, p):
         "[orderId,[...document.querySelectorAll('#auftragswahl a')].map(a=>a.textContent.split(' · ')[0])]"),
         [a, ["AUF-KT-A", "AUF-KT-B"]])
     p.pruefe("Akte (A), Ausführung: Stand der Zeiten (gebucht, Fahrzeit, Baustelle & Werkstatt)",
-             await tab.js("[...document.querySelectorAll('#zeitenStand .gross')].map(x=>x.textContent)"), ["501,5 h", "2,5 h", "499,0 h"])
+             await tab.js("[...document.querySelectorAll('#zeitenStand .gross')].map(x=>x.textContent)"), ["501,50 h", "2,50 h", "499,00 h"])
     p.pruefe("Akte (A), Phase Ausführung: gebuchte Stunden", await tab.js(
         "[...document.querySelectorAll('#phasen li')].find(li=>li.querySelector('.phase-name').textContent.startsWith('Ausführung'))"
-        ".querySelector(':scope > .mut').textContent.endsWith('501,5 h gebucht')"), True)
+        ".querySelector(':scope > .mut').textContent.endsWith('501,50 h gebucht')"), True)
     p.pruefe("Akte (A), Übersicht „Stunden“: gebucht, Fahrzeit, Baustelle & Werkstatt, Mitarbeiter", await tab.js(
         "[document.getElementById('uGebucht').textContent,document.getElementById('uFahrzeit').textContent,"
         "document.getElementById('uBw').textContent,document.querySelectorAll('#uMitarbeiter tbody tr').length]"),
-        ["501,5 h", "davon Fahrzeit 2,5 h", "499,0 h", 2])
+        ["501,50 h", "davon Fahrzeit 2,50 h", "499,00 h", 2])
     p.pruefe("Akte: keine Zeitbuchungstabelle, kein Hinweis „gekürzt“", await tab.js(
         "[!document.getElementById('timeRows'),!document.querySelector('.time-entries-truncated')]"), [True, True])
     zeiten_link = f"/zeiten?auftrag={a}&zeitraum=alle#buchungen"
@@ -190,7 +191,7 @@ async def pruefen(tab, seed, p):
                      f"&&{akte_bereit}", 30)
     p.pruefe("Akte (B über die Auftragswahl): Stand der Zeiten", await tab.js(
         "[location.hash,[...document.querySelectorAll('#zeitenStand .gross')].map(x=>x.textContent)]"),
-        ["#ausfuehrung", ["500,0 h", "0,0 h", "500,0 h"]])
+        ["#ausfuehrung", ["500,00 h", "0,00 h", "500,00 h"]])
     p.pruefe("Akte (B): JS-Fehler", tab.fehler, [])
 
     # seit 1.9.111: Karl (Büro – Auftrag) legt keine Rechnung an -- statt „Neue Rechnung“ der Hinweis; „Rechnung aus Aufwand“ prüft Anna unten

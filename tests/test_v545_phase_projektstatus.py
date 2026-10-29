@@ -98,7 +98,7 @@ def test_phase_ausfuehrung_ab_der_ersten_buchung(welt):
     _buchung(welt, welt["heute"] - timedelta(days=1), "2")
     phase, s = _schritte(welt)
     assert phase == "ausfuehrung" and s["ausfuehrung"][:2] == (True, True)
-    assert s["ausfuehrung"][2].startswith("seit ") and s["ausfuehrung"][2].endswith("9,5 h gebucht")
+    assert s["ausfuehrung"][2].startswith("seit ") and s["ausfuehrung"][2].endswith("9,50 h gebucht")  # seit 1.9.132 zwei Stellen
 
 
 def test_einsatz_in_der_zukunft_nur_geplant_begonnener_zaehlt(welt):

@@ -54,8 +54,9 @@ def tag(d: date | None, heute: date | None = None) -> str:
 
 
 def stunden_text(h: Decimal | None) -> str:
-    wert = round_half_up(Decimal(h or 0), Decimal("0.1"))
-    return f"{wert:.1f}".replace(".", ",") + " h"
+    """„10,75 h“ -- seit 1.9.132 (R2 Nachrunde, Punkt 3) mit zwei Stellen wie „Zeiten“ (bis 1.9.131 eine, „10,8 h“, wie die Vorlage)."""
+    wert = round_hours(Decimal(h or 0))
+    return f"{wert:.2f}".replace(".", ",") + " h"
 
 
 @dataclass

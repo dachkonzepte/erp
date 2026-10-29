@@ -243,7 +243,7 @@ dialog::backdrop{background:rgba(23,28,31,.45)}
         <div style="display:flex;flex-direction:column;gap:8px"><span class="eb">Zahlung · brutto</span><div id="uZahlung"></div><div class="balken" aria-hidden="true"><span id="uZahlungBalken" style="width:0"></span><span class="offen" id="uZahlungOffen" style="width:0"></span></div></div>
       </div>
       <div class="tabelle-wrap" id="uRechnungen"></div>
-      {% if geld %}<div class="hinweis-zeile" id="uNaechste" hidden><div id="uNaechsteText"></div><button type="button" class="secondary" data-klick="naechste-rechnung">Entwurf anlegen</button></div>{% endif %}
+      {% if geld %}<div class="hinweis-zeile" id="uNaechste" hidden><div id="uNaechsteText"></div><button type="button" class="secondary" id="uNaechsteKnopf" data-klick="naechste-rechnung">Entwurf anlegen</button><a class="btn secondary" id="uNaechsteLink" href="/projects" hidden>Entwurf öffnen</a></div>{% endif %}
     </section>
     <section class="karte" id="uStunden" aria-labelledby="uStdTitel" hidden>
       <div class="karte-kopf"><h2 class="h2" id="uStdTitel">Stunden</h2><a class="sml" id="uZeitenLink" href="/zeiten" style="font-weight:600">Alle Buchungen in „Zeiten“</a></div>
@@ -433,8 +433,11 @@ const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const money=x=>Number(x||0).toLocaleString('de-DE',{style:'currency',currency:'EUR'});
 const size=x=>x<1024?x+' B':x<1048576?zahlText(x/1024,1)+' KB':zahlText(x/1048576,1)+' MB';
 const fmtSize=n=>n>=1048576?zahlText(n/1048576,1)+' MB':Math.max(1,Math.round(n/1024))+' KB';
-const stunden=h=>zahlText(h,1)+' h';
+const stunden=h=>zahlText(h,2)+' h';  // seit 1.9.132 (R2 Nachrunde, Punkt 3): zwei Stellen wie „Zeiten“ (10,75 h; bis 1.9.131 eine)
 function tagKurz(d){const m=String(d||'').match(/^(\d{4})-(\d{2})-(\d{2})/);if(!m)return '';return m[1]===berlinToday().slice(0,4)?`${m[3]}.${m[2]}.`:`${m[3]}.${m[2]}.${m[1]}`}
+// seit 1.9.132 (R2 Nachrunde, Punkt 5): ein Datum, das für sich steht (Auftragsdaten, geplanter Zeitraum, Stand des LV, überfällig seit), immer mit
+// Jahr -- kurz (tagKurz) nur in Phasen und Listen
+function tagLang(d){const m=String(d||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${m[3]}.${m[2]}.${m[1]}`:''}
 // Seit 1.8.35 über fehlerText() (_fehlertext.html): eine 422-Liste je Feld mit den Beschriftungen dieser Seite.
 const FELDNAMEN={title:'Bezeichnung',status:'Status',order_date:'Auftragsdatum',execution_start:'Ausführungsbeginn',execution_end:'Geplantes Ende',execution_period:'Ausführungszeitraum',caseworker_employee_id:'Sachbearbeiter',project_manager_employee_id:'Projektleiter / Vorarbeiter',payment_terms:'Zahlungsbedingungen',tax_key_id:'Steuerschlüssel',intro_text:'Vortext',outro_text:'Schlusstext',outro_text_2:'Schlusstext 2',remarks:'Bemerkungen',contract_basis:'Vertragsgrundlage',reason:'Begründung',description:'Bezeichnung',lump_sum_net:'Betrag netto',progress_description:'Bezeichnung',short_text:'Kurztext',long_text:'Langtext',quantity:'Menge',unit:'Einheit',unit_price:'Einheitspreis',position_type:'Positionstyp',gaeb_oz:'OZ',include_in_total:'In Summe enthalten',payment_plan:'Abschlagsplan',special_terms:'Besonderheiten',customer_name:'Name des Kunden',company_name:'Name für den Betrieb',signed_on:'Unterschrieben am',scan:'Scan',version_id:'Fassung',pdf_sha256:'PDF-Prüfsumme',checkboxes:'Ankreuzfelder',attachment:'Anlage',attachment_document_id:'Anlage',work_kind:'Leistungsart',warranty_months:'Monate',warranty_days:'Tage',kind:'Art der Abnahme',accepted_on:'Datum der Abnahme',scope:'Umfang',scope_description:'Teil',result:'Ergebnis',reservation_defects:'Vorbehalt Mängel',reservation_penalty:'Vorbehalt Vertragsstrafe',declared_by:'Erklärt durch',participant_id:'Beteiligter',conduct_reason:'Begründung',contractor_objections:'Einwendungen',roof_area_ids:'Dachflächen',role:'Rolle',contact_id:'Kontakt',supplier_id:'Lieferant',copy_on_notices:'Kopie bei Anzeigen',authorized_recipient:'empfangsbevollmächtigt',acceptance_authorized:'Vollmacht zur Abnahme',file:'Datei',name:'Projektbezeichnung',customer_id:'Kunde',category:'Kategorie',subfolder:'Unterordner',document_date:'Dokumentdatum',interval_months:'Intervall',next_due_date:'Nächste Fälligkeit'};
 async function api(u,o){const r=await fetch(u,o);if(!r.ok){let d=null;try{d=await r.json()}catch{}throw Error(fehlerText(d,r.status,FELDNAMEN))}return r.headers.get('content-type')?.includes('json')?r.json():r}
@@ -534,7 +537,7 @@ function zahlenZeichnen(){
   el('uLeistungBalken').style.width=Math.min(100,l.abgerechnet_prozent||0)+'%';
   el('uZahlung').innerHTML=zahlZeile('In Rechnung gestellt',money(p.in_rechnung),'','stark')
     +zahlZeile('Bezahlt',money(p.bezahlt),[Number(p.skonto)?'Skonto '+money(p.skonto):'',Number(p.erstattet)?'abzüglich Erstattungen '+money(p.erstattet):''].filter(Boolean).join(' · '))
-    +zahlZeile('Unbezahlt',money(p.unbezahlt),[p.ueberfaellig_seit?'überfällig seit '+tagKurz(p.ueberfaellig_seit):'',Number(p.einbehalt)?'davon Einbehalt '+money(p.einbehalt):''].filter(Boolean).join(' · '),p.ueberfaellig_seit?'warn':'')
+    +zahlZeile('Unbezahlt',money(p.unbezahlt),[p.ueberfaellig_seit?'überfällig seit '+tagLang(p.ueberfaellig_seit):'',Number(p.einbehalt)?'davon Einbehalt '+money(p.einbehalt):''].filter(Boolean).join(' · '),p.ueberfaellig_seit?'warn':'')
     +(Number(p.guthaben)?zahlZeile('Guthaben des Kunden',money(p.guthaben),''):'');
   const gesamt=Number(p.in_rechnung)||0;el('uZahlungBalken').style.width=(gesamt>0?Math.min(100,(p.bezahlt_prozent||0)):0)+'%';el('uZahlungOffen').style.width=(gesamt>0&&Number(p.unbezahlt)>0?Math.max(0,100-(p.bezahlt_prozent||0)):0)+'%';
   el('uSoll').textContent=stunden(s.soll);el('uGebucht').textContent=stunden(s.gebucht);el('uFahrzeit').textContent=Number(s.fahrzeit)?'davon Fahrzeit '+stunden(s.fahrzeit):'';
@@ -547,6 +550,16 @@ function zahlenZeichnen(){
 async function zahlenLaden(){if(!orderId)return;await lesen('zahlen',()=>api(`/api/orders/${orderId}/zahlen`),d=>{zahlenDaten=d;zahlenZeichnen()})}
 function naechsteRechnungZeichnen(){
   const box=el('uNaechste');if(!box||!order)return;
+  // seit 1.9.132 (R2 Nachrunde, Punkt 4): liegt schon ein Entwurf vor (ohne Storno), führt „Entwurf öffnen“ auf ihn -- bei mehreren auf den ältesten;
+  // bis 1.9.131 bot die Karte dann „Entwurf anlegen“ für einen weiteren an (ein Entwurf sperrt keinen neuen Abschlag)
+  const entwuerfe=invoices.filter(i=>i.status==='entwurf'&&i.invoice_type!=='storno').sort((x,y)=>x.id-y.id);
+  el('uNaechsteKnopf').hidden=entwuerfe.length>0;el('uNaechsteLink').hidden=!entwuerfe.length;
+  if(entwuerfe.length){
+    const e=entwuerfe[0],weitere=entwuerfe.length-1;
+    el('uNaechsteLink').href='/invoices/'+Number(e.id);box.hidden=false;box.dataset.art='';
+    el('uNaechsteText').innerHTML=`<b>Nächste Rechnung:</b> ${esc(e.art_text||'Rechnung')} liegt als Entwurf vor${Number(e.net_total)?` (netto ${esc(money(e.net_total))})`:''}${weitere?` – dazu ${weitere} weitere${weitere===1?'r':''} Entwurf${weitere===1?'':'e'}`:''}. Festgeschrieben wird erst auf der Rechnung.`;
+    return;
+  }
   const blocks=order.invoice_create_blocks||{};let art=null;
   if(!blocks.abschlag_leistungsstand)art='abschlag_leistungsstand';else if(!blocks.schluss)art='schluss';
   box.hidden=!art;if(!art)return;
@@ -624,7 +637,7 @@ function ausfuehrungZeichnen(){
   const a=akte&&akte.ausfuehrung;if(!a||!orderId)return;
   el('avLink').href='/orders/'+orderId+'/work-preparation';
   const av=a.arbeitsvorbereitung;
-  el('avStand').innerHTML=av?`<div class="zeile-flex"><span class="badge" data-art="${esc(statusKennzeichen('arbeitsvorbereitung',av.status).art)}">${esc(statusKennzeichen('arbeitsvorbereitung',av.status).text)}</span><span class="mut">${av.planned_start?'geplant '+esc(tagKurz(av.planned_start))+(av.planned_end?'–'+esc(tagKurz(av.planned_end)):''):'ohne geplanten Zeitraum'}</span></div>`:'<span class="mut">Noch keine Arbeitsvorbereitung – sie entsteht beim ersten Speichern.</span>';
+  el('avStand').innerHTML=av?`<div class="zeile-flex"><span class="badge" data-art="${esc(statusKennzeichen('arbeitsvorbereitung',av.status).art)}">${esc(statusKennzeichen('arbeitsvorbereitung',av.status).text)}</span><span class="mut">${av.planned_start?'geplant '+esc(tagLang(av.planned_start))+(av.planned_end?' – '+esc(tagLang(av.planned_end)):''):'ohne geplanten Zeitraum'}</span></div>`:'<span class="mut">Noch keine Arbeitsvorbereitung – sie entsteht beim ersten Speichern.</span>';
   el('einsatzLink').href='/planning?auftrag='+orderId;
   el('einsatzListe').innerHTML=a.einsaetze.length?a.einsaetze.map(s=>`<div class="li"><div class="li-text"><span class="li-titel">${esc(s.team)} · ${zahlText(s.personen,0)} ${s.personen===1?'Person':'Personen'}</span><span class="mut sml">${esc(tagKurz(s.start_date))}–${esc(tagKurz(s.end_date))}</span></div></div>`).join(''):'<p class="mut sml" style="margin:0">Noch kein Einsatz in der Plantafel.</p>';
   const st=a.stunden;
@@ -804,9 +817,9 @@ async function sendOrderEmail(btn){
 // Auftragsdaten: lesend auf dem Reiter „Vertrag“, bearbeitet im Dialog -- gefüllt nur beim Öffnen (E1: nichts überschreibt eine Eingabe)
 function auftragsdatenAnzeigen(){
   const zeile=(k,v)=>`<dt>${esc(k)}</dt><dd>${v?esc(v):'<span class="mut">—</span>'}</dd>`;
-  const zeitraum=[order.execution_start?tagKurz(order.execution_start):'',order.execution_end?tagKurz(order.execution_end):''].filter(Boolean).join(' – ');
+  const zeitraum=[order.execution_start?tagLang(order.execution_start):'',order.execution_end?tagLang(order.execution_end):''].filter(Boolean).join(' – ');
   const tk=taxKeys.find(t=>t.id===order.tax_key_id);
-  el('auftragsdatenListe').innerHTML=zeile('Bezeichnung',order.title)+zeile('Auftragsdatum',tagKurz(order.order_date))+zeile('Ausführung',[zeitraum,order.execution_period].filter(Boolean).join(' · '))
+  el('auftragsdatenListe').innerHTML=zeile('Bezeichnung',order.title)+zeile('Auftragsdatum',tagLang(order.order_date))+zeile('Ausführung',[zeitraum,order.execution_period].filter(Boolean).join(' · '))
     +zeile('Sachbearbeiter',order.caseworker_name)+zeile('Projektleiter / Vorarbeiter',order.project_manager_name)+zeile('Zahlungsbedingungen',order.payment_terms)
     +zeile('Steuerschlüssel',tk?tk.label:'')+zeile('Aus Angebot',order.quote_number_snapshot)+zeile('Bemerkungen',order.remarks);
   const lk=el('taxLockAnzeige');lk.hidden=!order.tax_lock;lk.textContent=order.tax_lock||'';
@@ -1051,7 +1064,7 @@ function lvStand(i){
   const p=Number(pos.abgerechnet_prozent),breite=p>100?100:p<0?0:p;
   return `<span class="stand"><b class="num${p>=100?' voll':''}">${zahlText(p,0)} %</b><span class="stand-balken" aria-hidden="true"><span style="width:${breite}%"></span></span></span>`;
 }
-function lvStd(i){const pos=_lvPosition(i);if(!pos)return '';return pos.stunden_soll==null?'–':`${zahlText(pos.stunden_ist,1)} / ${zahlText(pos.stunden_soll,1)} h`}
+function lvStd(i){const pos=_lvPosition(i);if(!pos)return '';return pos.stunden_soll==null?'–':`${zahlText(pos.stunden_ist,2)} / ${zahlText(pos.stunden_soll,2)} h`}
 function rowHtml(i){
   const all=!!order.order_lock,tip=order.order_lock||i.price_lock||'';
   const knopf=all?'':`<button type="button" class="iconbtn" data-klick="position-bearbeiten" data-id="${i.id}" aria-label="Position ${esc(i.gaeb_oz||i.position_number)} bearbeiten" title="Bearbeiten">✎</button>`;
@@ -1075,7 +1088,7 @@ function renderLv(){
   bar.innerHTML=order.addendum_create_block?(order.order_lock?'':`<span class="sml mut">${esc(order.addendum_create_block)}</span>`):'<button type="button" class="secondary" onclick="openAddendum()">+ Nachtrag</button>';
   el('lvTitel').textContent='Leistungsverzeichnis '+order.order_number;
   const q=z&&z.positionen.quelle;
-  el('lvUnter').textContent=[q?`Stand je Position aus der ${q.bezeichnung||'Rechnung'} ${q.invoice_number||''} (${tagKurz(q.invoice_date)})`.replace(/\s+\(/,' ('):'noch nichts nach Leistungsstand abgerechnet',order.current_revision_number?`Auftragsstand ${order.current_revision_number}`:'',order.source_quote_in_sync===false?`weicht vom Angebot ${order.quote_number_snapshot} ab`:`gleich wie Angebot ${order.quote_number_snapshot}`].filter(Boolean).join(' · ');
+  el('lvUnter').textContent=[q?`Stand je Position aus der ${q.bezeichnung||'Rechnung'} ${q.invoice_number||''} (${tagLang(q.invoice_date)})`.replace(/\s+\(/,' ('):'noch nichts nach Leistungsstand abgerechnet',order.current_revision_number?`Auftragsstand ${order.current_revision_number}`:'',order.source_quote_in_sync===false?`weicht vom Angebot ${order.quote_number_snapshot} ab`:`gleich wie Angebot ${order.quote_number_snapshot}`].filter(Boolean).join(' · ');
 }
 function lvZeichnen(){if(order)renderLv()}
 aktion('position-bearbeiten',b=>openItem(Number(b.dataset.id)));

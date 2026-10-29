@@ -4,6 +4,17 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.132 – Akte: Stunden mit zwei Stellen, „Entwurf öffnen“, Daten mit Jahr (Stufe 5, R2 Nachrunde, Punkte 3–5)
+
+Die Akte zeigte Stunden mit einer Stelle wie die Vorlage („10,8 h“), „Zeiten“ mit zwei („10,75 h“) – dieselbe Summe sah an zwei Stellen
+verschieden aus. Jetzt hat die Akte überall zwei Stellen: Übersicht „Stunden“, die Phase „Ausführung“ (Text vom Server,
+`app/akte.py::stunden_text()`), Std. Ist/Soll je Position in „Leistungen“ und der Stand der Zeiten in „Ausführung“. „Nächste Rechnung“ in
+der Übersicht bot einen weiteren Entwurf an, auch wenn schon einer vorlag (ein Entwurf sperrt keinen neuen Abschlag); jetzt nennt sie den
+vorhandenen Entwurf und führt mit „Entwurf öffnen“ auf seine Rechnungsseite (bei mehreren auf den ältesten). Ein Datum, das für sich steht,
+trägt das Jahr: in den Auftragsdaten Auftragsdatum und Ausführung, dazu der geplante Zeitraum der Arbeitsvorbereitung, der Stand des LV und
+„überfällig seit“; kurz bleiben Phasen und Listen. Neu `tests/test_v552_akte_stunden_daten_entwurf.py` und der Klicktest
+`klicktest_akte_stunden_entwurf.py`.
+
 ## 1.9.131 – Storno zurücknehmen: nur Admin, mit Begründung, zurück auf „läuft“ (Stufe 5, R2 Nachrunde, Punkt 2)
 
 Ein stornierter Auftrag blieb bis jetzt storniert – ein versehentlicher Storno sperrte Auftrag und Angebot für immer (keine Einsätze, keine

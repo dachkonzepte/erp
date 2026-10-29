@@ -8040,3 +8040,53 @@ Begründung.
 
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v551`): Endpunkt mit der Rolle des Büros -> 2; ohne Pflicht der Begründung
 (Schema und Funktion) -> 4; ohne Prüfung „storniert“ -> 1; Eintrag für jede Rolle im Markup -> 2; Eintrag immer sichtbar -> 1.
+
+### Nachrunde, Punkte 3–5 (1.9.132): Stunden mit zwei Stellen, „Entwurf öffnen“, Daten mit Jahr
+
+Punkt 3: die Akte zeigte Stunden mit einer Stelle (Vorlage, „10,8 h“), „Zeiten“ mit zwei („10,75 h“) -- `klicktest_zeitbuchungen_liste` hielt
+beides nebeneinander fest („501,5 h“ in der Akte, „501,50 h“ in „Zeiten“). Punkt 4: „Nächste Rechnung“ bot „Entwurf anlegen“ auch mit einem
+vorhandenen Entwurf an (`create_block_reason()` sperrt einen weiteren Abschlag nicht). Punkt 5: Auftragsdaten zeigten Daten im laufenden Jahr
+ohne Jahr (`tagKurz()`).
+
+- Stunden: `app/akte.py::stunden_text()` mit zwei Stellen über `round_hours()` (Phase „Ausführung“: „seit 24.10. · 10,75 h gebucht“);
+  `app/templates/akte.html`: `stunden()` = `zahlText(h, 2)` wie `stunden()` in `zeiten.html` (Übersicht „Stunden“ samt je Mitarbeiter,
+  Ausführung „Stand der Zeiten“, „Davon ohne Bezug auf eine Position“), `lvStd()` „10,75 / 12,00 h“.
+- „Nächste Rechnung“: `naechsteRechnungZeichnen()` sucht zuerst Entwürfe des Auftrags (ohne Storno-Entwürfe), der älteste zuerst: Text „<Art in
+  Worten> liegt als Entwurf vor (netto …)“ (ohne Betrag bei 0 €), bei mehreren „dazu n weitere Entwürfe“, Link „Entwurf öffnen“ auf
+  `/invoices/{id}` statt des Knopfs „Entwurf anlegen“. Ohne Entwurf wie bisher. Nur mit `darf_geld()` (die Karte steht nur dann im Markup).
+- Daten: `tagLang()` neben `tagKurz()` -- mit Jahr in den Auftragsdaten (Auftragsdatum, Ausführung von – bis), im geplanten Zeitraum der
+  Arbeitsvorbereitung (Reiter Ausführung), im Stand des LV („aus der Rechnung … (01.10.2026)“) und bei „überfällig seit“ in der Übersicht. Kurz
+  bleiben die Phasen (Text vom Server) und die Listen (Einsätze, Berichte, Termine, Was ansteht, Verlauf, Rechnungen).
+
+#### Festlegungen 1.9.132 (Bitte bestätigen)
+
+1. Stunden haben in der Akte überall zwei Stellen, auch Soll und Fahrzeit und „0,00 h“ -- wie „Zeiten“.
+2. „Entwurf öffnen“ gilt für jeden Entwurf des Auftrags außer einem Storno-Entwurf (Abschlag, Schlussrechnung, Rechnung aus Aufwand); bei mehreren
+   führt der Link auf den ältesten, der Text nennt die Zahl der weiteren.
+3. Die Karte nennt den Betrag des Entwurfs netto, bei 0 € (frischer Abschlag nach Leistungsstand) keinen.
+4. „Für sich stehend“ heißt: Auftragsdaten (Auftragsdatum, Ausführung), geplanter Zeitraum der Arbeitsvorbereitung, Stand des LV, „überfällig
+   seit“ -- mit Jahr; Phasen und Listen kurz („24.10.“, außerhalb des laufenden Jahres mit Jahr).
+5. Zwischen zwei Daten eines Zeitraums steht „ – “ mit Leerzeichen (geplanter Zeitraum, bis 1.9.131 „13.10.–20.10.“), wie in der Ausführung.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v552_akte_stunden_daten_entwurf.py` (11 Tests): 8 h + 2,75 h -- Zahlen der Akte, „Zeiten“ mit allen Monaten und die Phase je
+10,75 h; `stunden_text()` (10,75 · 9,50 · 0,00 · 0,13 h); die Helfer der Akte und von „Zeiten“ in node gleich („10,75 h“, „10,75 / 12,00 h“);
+„Nächste Rechnung“ in node: mit Entwurf „Entwurf öffnen“ auf ihn (Storno-Entwurf zählt nicht, der älteste, „dazu 1 weiterer Entwurf“, ohne
+Betrag bei 0 €), ohne Entwurf „Entwurf anlegen“, gesperrt keine Karte; Knopf und Link im Markup; `tagLang()`/`tagKurz()` in node; die Stellen
+mit Jahr.
+
+Angepasste Erwartungen:
+- `tests/test_v545_phase_projektstatus.py::test_phase_ausfuehrung_ab_der_ersten_buchung` -- alt „… 9,5 h gebucht“, neu „… 9,50 h gebucht“.
+- `scripts/klicktest_zeitbuchungen_liste.py`, Akte (A), Ausführung -- alt „501,5 h“, „2,5 h“, „499,0 h“, neu „501,50 h“, „2,50 h“, „499,00 h“.
+- dort Phase „Ausführung“ -- alt endet auf „501,5 h gebucht“, neu „501,50 h gebucht“.
+- dort Übersicht „Stunden“ -- alt „501,5 h“, „davon Fahrzeit 2,5 h“, „499,0 h“, neu „501,50 h“, „davon Fahrzeit 2,50 h“, „499,00 h“.
+- dort Akte (B) -- alt „500,0 h“, „0,0 h“, „500,0 h“, neu „500,00 h“, „0,00 h“, „500,00 h“.
+
+Neuer Klicktest `scripts/klicktest_akte_stunden_entwurf.py` (Büro – Finanzen, 1440 px): 8 h + 2,75 h auf Position 1 (Soll 12 h) -- Übersicht
+12,00/10,75/10,75 h, Phase „10,75 h gebucht“, Leistungen „10,75 / 12,00 h“, Ausführung 10,75/0,00/10,75 h, „Zeiten“ über den Link der Akte 10,75 h;
+Abschlag im Entwurf: „Entwurf öffnen“ mit dem Link auf die Rechnung (Bild `uebersicht_mit_entwurf`), Klick führt dorthin; ohne Entwurf „Entwurf
+anlegen“; Auftragsdaten mit Jahr.
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v552`): Server mit einer Stelle -> 5; Akte mit einer Stelle -> 1; Entwurf
+nie gefunden -> 1; Storno-Entwurf zählt mit -> 1; Auftragsdatum kurz -> 1.

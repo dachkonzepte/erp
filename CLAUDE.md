@@ -404,7 +404,9 @@ Behoben, drei Teile:
   nur das Kennzeichen des Auftrags, die Übergänge im „⋮“ -- nur die, die `status_info()` gerade erlaubt (kein „Abschließen“ mit einer Rechnung ohne
   Schlussrechnung; `tests/test_v550_status_im_menue.py`), nach jeder Änderung am Auftrag auch der Verlauf neu; 1.9.131 Storno zurücknehmen nur
   der Admin (`app/auftragsstatus.py::storno_zuruecknehmen()`, `POST /api/orders/{id}/storno-zuruecknehmen`, `darf_storno_zuruecknehmen()`), mit
-  Begründung, zurück auf „läuft“ (`tests/test_v551_storno_zuruecknehmen.py`). Archiv: `docs/archiv/redesign.md`, „Stufe 5, R2“ und „R2 Nachrunde“.
+  Begründung, zurück auf „läuft“ (`tests/test_v551_storno_zuruecknehmen.py`); 1.9.132 Stunden in der Akte mit zwei Stellen wie „Zeiten“
+  (`stunden_text()`, `stunden()`), „Entwurf öffnen“ statt „Entwurf anlegen“, wenn schon ein Entwurf vorliegt, ein Datum, das für sich steht, mit Jahr
+  (`tagLang()`, kurz nur in Phasen und Listen; `tests/test_v552_akte_stunden_daten_entwurf.py`). Archiv: `docs/archiv/redesign.md`, „Stufe 5, R2“ und „R2 Nachrunde“.
 
 ## Kritische, nicht verhandelbare Regeln
 
