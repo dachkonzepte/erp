@@ -674,6 +674,7 @@
 .ds-menue-eintrag {
   display: flex;
   align-items: center;
+  justify-content: flex-start; /* seit 1.9.130: die Seiten zentrieren button (justify-content:center) -- ein Knopf im Menü stand sonst mittig */
   gap: var(--ds-abstand-2);
   box-sizing: border-box;
   width: 100%;

@@ -4,6 +4,18 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.130 – Status wie die Vorlage: Kennzeichen im Kopf, Übergänge im „⋮“ (Stufe 5, R2 Nachrunde, Punkt 1)
+
+Die Akte zeigte den Status des Auftrags unter den Phasen in einer eigenen Zeile mit kleinen Knöpfen für jeden Übergang, den der Status zuließ –
+auch „Abschließen …“, wenn ein Rechnungsentwurf vorlag und noch keine Schlussrechnung, was der Server dann ablehnte. Jetzt wie die Vorlage: im
+Seitenkopf steht nur das Kennzeichen des gewählten Auftrags (läuft, pausiert, abgeschlossen, storniert; ohne Auftrag der Projektstatus), und
+Fortsetzen, Pausieren, Abschließen und Stornieren sind Einträge im Menü „⋮“ – nur die, die der Server gerade erlaubt
+(`app/auftragsstatus.py::status_info()` lässt „Abschließen“ weg, solange eine Rechnung ohne Schlussrechnung besteht; über die API bleibt der
+Übergang 409). Unter den Phasen steht nur noch, solange der Auftrag nicht läuft, seit wann, von wem und mit welcher Begründung. Beim neuen Klicktest
+`klicktest_status_im_menue.py` aufgefallen und behoben: nach einem Statuswechsel (wie nach jeder anderen Änderung am Auftrag in der Akte) blieb
+der Verlauf alt, bis man die Seite neu lud; und Knöpfe im Menü „⋮“ standen mittig, Links links (`ds.css`: ein Menüeintrag steht immer links).
+Neu `tests/test_v550_status_im_menue.py`.
+
 ## 1.9.129 – Die Akte je Projekt: Projektmappe und Auftrag in einer Seite (Stufe 5, R2, Punkte 2, 3, 5 und 6)
 
 Wer an einem Auftrag arbeitete, wechselte zwischen zwei Seiten: der Projektmappe (Dateien, Angebote, Beteiligte, Historie, Summen über alle

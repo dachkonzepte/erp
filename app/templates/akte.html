@@ -58,10 +58,6 @@ a{color:var(--ds-link)}a:hover{color:var(--ds-link-hover)}
 .phase-name{font-size:14px;font-weight:600;color:var(--ds-text-2)}.phase-name.erreicht{color:var(--ds-text)}.phase-name.jetzt{font-weight:700;color:var(--ds-aktion-text)}
 @media (max-width:760px){.phasen{grid-template-columns:1fr;gap:10px}.phase-strich{display:none}}
 .akte-status{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-top:1px solid var(--ds-flaeche-2);padding-top:10px}
-.akte-status .auftragsstatus{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.akte-status .auftragsstatus-knoepfe{margin-top:0!important}
-.akte-status .auftragsstatus-knoepfe button{height:32px;padding:0 12px;font-size:13px;border:1px solid var(--ds-linie-stark);background:var(--ds-flaeche);color:var(--ds-stark)}
-.akte-status .auftragsstatus-knoepfe button.danger{color:var(--ds-fehler-text)}
 .badge{font-size:12px;font-weight:600;border-radius:999px;padding:3px 10px;white-space:nowrap;background:var(--ds-flaeche-2);color:var(--ds-stark)}
 .badge[data-art="info"]{background:var(--ds-info-hell);color:var(--ds-info-text)}.badge[data-art="ok"]{background:var(--ds-ok-hell);color:var(--ds-ok-text)}
 .badge[data-art="warn"]{background:var(--ds-warn-hell);color:var(--ds-warn-text)}.badge[data-art="fehler"]{background:var(--ds-fehler-hell);color:var(--ds-fehler-text)}
@@ -215,14 +211,14 @@ dialog::backdrop{background:rgba(23,28,31,.45)}
 {% call(teil) seitenkopf("Akte wird geladen …", untertitel="", kennung="", mit_pfad=true, mit_aktion=true, mit_menue=true) %}
   {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/projects">Projekte</a>
   {% elif teil == "aktion" %}<button type="button" class="ds-knopf ds-knopf-aktion" id="hauptaktion" data-klick="hauptaktion" hidden></button>
-  {% elif teil == "menue" %}<button type="button" class="ds-menue-eintrag" data-klick="projekt-bearbeiten">Projekt bearbeiten</button><button type="button" class="ds-menue-eintrag" data-klick="beteiligte-oeffnen">Beteiligte</button><button type="button" class="ds-menue-eintrag" id="menueAbPdf" data-klick="ab-pdf" hidden>Auftragsbestätigung (PDF)</button><a class="ds-menue-eintrag" id="menueAv" href="/projects" hidden>Arbeitsvorbereitung</a>{% if is_module_enabled('wartungen') %}<a class="ds-menue-eintrag" id="menueBerichte" href="/projects" hidden>Einsatzberichte</a>{% endif %}<button type="button" class="ds-menue-eintrag" data-klick="projekt-kopieren">Kopieren</button><button type="button" class="ds-menue-eintrag" data-klick="als-muster">Als Mustervorgang speichern</button>{% if is_module_enabled('wartungen') %}<button type="button" class="ds-menue-eintrag" id="maintenanceContractMenuItem" data-klick="wartungsvertrag" hidden>Wartungsvertrag erstellen</button>{% endif %}<button type="button" class="ds-menue-eintrag" id="archiveMenuItem" data-klick="archivieren">Archivieren</button><button type="button" class="ds-menue-eintrag ds-menue-eintrag-fehler" id="deleteMenuItem" data-klick="projekt-loeschen" hidden>Löschen</button>{% endif %}
+  {% elif teil == "menue" %}<button type="button" class="ds-menue-eintrag" data-klick="statusAktion" data-ziel="laeuft" hidden>Fortsetzen …</button><button type="button" class="ds-menue-eintrag" data-klick="statusAktion" data-ziel="pausiert" hidden>Pausieren …</button><button type="button" class="ds-menue-eintrag" data-klick="statusAktion" data-ziel="abgeschlossen" hidden>Abschließen …</button><button type="button" class="ds-menue-eintrag" data-klick="projekt-bearbeiten">Projekt bearbeiten</button><button type="button" class="ds-menue-eintrag" data-klick="beteiligte-oeffnen">Beteiligte</button><button type="button" class="ds-menue-eintrag" id="menueAbPdf" data-klick="ab-pdf" hidden>Auftragsbestätigung (PDF)</button><a class="ds-menue-eintrag" id="menueAv" href="/projects" hidden>Arbeitsvorbereitung</a>{% if is_module_enabled('wartungen') %}<a class="ds-menue-eintrag" id="menueBerichte" href="/projects" hidden>Einsatzberichte</a>{% endif %}<button type="button" class="ds-menue-eintrag" data-klick="projekt-kopieren">Kopieren</button><button type="button" class="ds-menue-eintrag" data-klick="als-muster">Als Mustervorgang speichern</button>{% if is_module_enabled('wartungen') %}<button type="button" class="ds-menue-eintrag" id="maintenanceContractMenuItem" data-klick="wartungsvertrag" hidden>Wartungsvertrag erstellen</button>{% endif %}<button type="button" class="ds-menue-eintrag" id="archiveMenuItem" data-klick="archivieren">Archivieren</button><button type="button" class="ds-menue-eintrag ds-menue-eintrag-fehler" data-klick="statusAktion" data-ziel="storniert" hidden>Stornieren …</button><button type="button" class="ds-menue-eintrag ds-menue-eintrag-fehler" id="deleteMenuItem" data-klick="projekt-loeschen" hidden>Löschen</button>{% endif %}
 {% endcall %}
 <div class="status" id="seitenStatus" role="status"></div>
 {% if is_module_enabled('checklisten') %}<div id="concernAlert" class="concern-alert" role="alert" hidden></div>{% endif %}
 <section class="karte" id="auftragPhase" aria-label="Auftrag und Phase">
   <div class="zeile-flex"><span class="eb" id="auftragEb">Auftrag</span><nav class="auftragswahl" id="auftragswahl" aria-label="Auftrag wählen" hidden></nav><span id="auftragEinzeln" class="sml"></span><span class="mut sml" id="auftraegeSumme" style="margin-left:auto"></span></div>
   <ol class="phasen" id="phasen" aria-label="Phasen des Auftrags"></ol>
-  <div class="akte-status" id="statusZeile" hidden><span class="eb">Status</span><div id="auftragsstatus"></div></div>
+  <div class="akte-status" id="statusZeile" hidden><div id="auftragsstatus" class="zeile-flex"></div></div>
 </section>
 <nav class="reiter" aria-label="Bereiche der Akte">
   <a href="#uebersicht" data-reiter="uebersicht" aria-current="page">Übersicht</a>
@@ -471,7 +467,9 @@ function kopfZeichnen(){
   if(project.property_id)pfad.push({text:project.property_name||'Objekt',href:'/properties/'+project.property_id});
   pfad.push({text:project.project_number});
   const unter=[project.property_name?[project.property_street,[project.property_postal_code,project.property_city].filter(Boolean).join(' ')].filter(Boolean).join(', ')||project.property_name:null,order&&order.project_manager_name?'Bauleitung '+order.project_manager_name:null,project.archived?'archiviert':null,project.is_template?'Mustervorgang':null].filter(Boolean).join(' · ');
-  seitenkopf({titel:project.name,kennung:project.project_number,untertitel:unter,status:statusKennzeichen('projekt',project.status),pfad});
+  // seit 1.9.130 (R2 Nachrunde, Punkt 1): im Kopf das Kennzeichen des gewählten Auftrags (läuft, pausiert …), ohne Auftrag der Projektstatus
+  seitenkopf({titel:project.name,kennung:project.project_number,untertitel:unter,pfad});
+  if(orderId&&order)seitenkopf({status:statusKennzeichen('auftrag',order.status)});else seitenkopf({status:statusKennzeichen('projekt',project.status)});
   document.title='DACHKONZEPTE ERP – '+project.project_number+' · '+project.name;
   el('archiveMenuItem').textContent=project.archived?'Entarchivieren':'Archivieren';
   el('deleteMenuItem').hidden=(project.order_count||0)>0;  // seit 1.9.117 (F15): mit Auftrag nur archivieren
@@ -514,7 +512,6 @@ function phasenZeichnen(){
 function akteZeichnen(){
   zahlSetzen('zahlAngebote',akte.zaehler.angebote);zahlSetzen('zahlLeistungen',akte.zaehler.leistungen);zahlSetzen('zahlRechnungen',akte.zaehler.rechnungen);zahlSetzen('tabCountFiles',akte.zaehler.dateien);
   document.querySelectorAll('.reiter a[data-auftrag]').forEach(a=>a.hidden=!orderId);
-  el('statusZeile').hidden=!orderId;
   phasenZeichnen();auftragswahlZeichnen();anstehtZeichnen();termineZeichnen();ausfuehrungZeichnen();befundeZeichnen();kopfZeichnen();
 }
 async function akteLaden(){
@@ -1085,7 +1082,8 @@ aktion('position-bearbeiten',b=>openItem(Number(b.dataset.id)));
 aktion('titel-bearbeiten',b=>openSection(Number(b.dataset.id)));
 function zeigeAuftragMitLv(d){order=d;renderHeader();renderSync();renderLv();zahlenLaden();akteNachAenderung()}
 // Seit 1.9.129: was an Kopf, Phasen, „Was ansteht“ und den Zählern der Reiter hängt, kommt vom Server -- nach einer Änderung am Auftrag neu
-function akteNachAenderung(){return akteLaden()}
+// seit 1.9.130 auch der Verlauf (Reiter und Vorschau der Übersicht): bis dahin erschien ein Statuswechsel dort erst nach dem Neuladen der Seite
+async function akteNachAenderung(){await akteLaden();verlaufDaten=null;await verlaufLaden()}
 function itemDialogMode(neu,i){el('itemDialogTitle').textContent=neu?'Nachtrag anlegen':(i&&i.is_addendum?`Nachtrag ${i.position_number} bearbeiten`:'Auftragsposition bearbeiten');el('iTypeField').hidden=neu;el('iOzField').hidden=neu;const rm=!neu&&i&&i.is_addendum&&!i.addendum_lock&&!order.order_lock;el('iRemove').hidden=!rm;const al=el('addendumLock'),grund=!neu&&i&&i.is_addendum&&!order.order_lock?i.addendum_lock:null;al.hidden=!grund;al.textContent=grund||''}
 function openAddendum(){editItemId=null;itemDialogMode(true,null);['iShort','iLong','iPrice','iOz'].forEach(x=>el(x).value='');el('iQty').value=zahlText(1);el('iUnit').innerHTML=unitOptions('');el('iType').value='normal';el('iIncluded').checked=true;el('itemLock').hidden=true;['iPrice','iUnit','iIncluded'].forEach(x=>el(x).disabled=false);el('itemStatus').textContent='';el('itemDialog').showModal()}
 async function removeAddendum(){const i=order.items.find(x=>x.id===editItemId);if(!i||!confirm(`Nachtrag ${i.position_number} entfernen?`))return;const st=el('itemStatus');try{await speichern('auftrag',()=>api(`/api/orders/${orderId}/items/${i.id}`,{method:'DELETE'}),{anwenden:zeigeAuftragMitLv});el('itemDialog').close()}catch(e){st.textContent='Fehler: '+e.message}}
@@ -1144,6 +1142,6 @@ async function akteStarten(){
   await verlaufLaden();
   openParticipantFromUrl();
 }
-auftragsstatusEinrichten(d=>{order=d;renderHeader();renderSync();renderLv();renderNewInvoiceBlock();akteLaden()});/* seit 1.9.124 */
+auftragsstatusEinrichten(d=>{order=d;renderHeader();renderSync();renderLv();renderNewInvoiceBlock();akteNachAenderung()});/* seit 1.9.124, seit 1.9.130 mit dem Verlauf */
 akteStarten().catch(e=>seitenStatus('Die Akte konnte nicht geladen werden: '+e.message));
 </script></body></html>

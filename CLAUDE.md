@@ -400,7 +400,9 @@ Behoben, drei Teile:
   `project_folder.html` und `order.html` (`/orders/{id}` leitet auf `/projects/{p}?auftrag={id}`, die Seiten des Auftrags führen im Pfad direkt
   auf den Reiter der Akte), Reiter mit Anker, LV ohne Eingaben in der Zeile (Dialog der Position), eine Rechnungsliste für Akte und Finanzen
   (`_rechnungsliste.html`), Verlauf mit Ziel je Zeile, kein Hauptknopf am Mustervorgang; jede Funktion der früheren Seiten steht in `FUNKTIONEN`
-  (`tests/test_v549_akte_seite.py`) -- eine neue Funktion an Projekt oder Auftrag kommt dort hinein. Archiv: `docs/archiv/redesign.md`, „Stufe 5, R2“.
+  (`tests/test_v549_akte_seite.py`) -- eine neue Funktion an Projekt oder Auftrag kommt dort hinein. **R2 Nachrunde:** 1.9.130 im Kopf der Akte
+  nur das Kennzeichen des Auftrags, die Übergänge im „⋮“ -- nur die, die `status_info()` gerade erlaubt (kein „Abschließen“ mit einer Rechnung ohne
+  Schlussrechnung; `tests/test_v550_status_im_menue.py`). Archiv: `docs/archiv/redesign.md`, „Stufe 5, R2“ und „R2 Nachrunde“.
 
 ## Kritische, nicht verhandelbare Regeln
 

@@ -7459,7 +7459,7 @@ exakt, teils ohne Groß-/Kleinschreibung (F20).
   `_statuskennzeichen.html` Gruppe `auftrag` mit den vier Werten. „Angebot beauftragen“ ohne Auswahl „Status“. Prüfabfrage
   `scripts/pruefabfrage_auswahlwerte.sql`: `orders.status` gegen die vier Werte.
 
-#### Festlegungen 1.9.124 (Bitte bestätigen)
+#### Festlegungen 1.9.124 (Nr. 2–8 bestätigt am 29.10.2026; Nr. 1 ersetzt durch die Nachrunde, Punkt 2 -- 1.9.131)
 
 1. Fortsetzen geht aus „pausiert“ ohne und aus „abgeschlossen“ mit Begründung; ein stornierter Auftrag bleibt storniert (kein Weg zurück).
 2. Stornieren geht aus „läuft“ und „pausiert“, nicht aus „abgeschlossen“ (erst fortsetzen).
@@ -7558,7 +7558,7 @@ zählte feste Wörter (planung, beauftragt, ausfuehrung).
   -> Ausführung, Abnahme; abgeschlossen -> Schlussrechnung, Abgeschlossen, Storniert); Treffer mit Nummer, Bezeichnung, beiden Werten, Zahl der Angebote und
   Aufträge, archiviert. Aufruf auf dem Server wie bei den Stornos. Die Prüfabfrage `pruefabfrage_auswahlwerte.sql` prüft `projects.status` nicht mehr.
 
-#### Festlegungen 1.9.125 (Bitte bestätigen)
+#### Festlegungen 1.9.125 (bestätigt am 29.10.2026)
 
 1. Ein Einsatz zählt für die Ausführung erst ab seinem Beginn (bis heute); ein geplanter in der Zukunft zeigt „geplant ab …“, die Phase bleibt „Auftrag“.
 2. Eine verweigerte Abnahme erreicht die Phase „Abnahme“ nicht (der Schritt zeigt „verweigert …“); eine verworfene zählt gar nicht.
@@ -7623,7 +7623,7 @@ Schlechtwetter, mit „Sonstige“) mit dem Soll, die Berichtsliste zeigte „Ge
 - GET /api/orders: `invoiced_net`, `invoiced_gross`, `planned_hours` wie GET /api/projects/{id}/orders (F21).
 - `app/time_tracking.py`: `order_actual_hours()` und `order_item_actual_hours()` entfallen (keine zweite Rechnung).
 
-#### Festlegungen 1.9.126 (Bitte bestätigen)
+#### Festlegungen 1.9.126 (bestätigt am 29.10.2026)
 
 1. Ist gegen Soll = gebuchte Stunden Baustelle und Werkstatt (die Zeitarten der Kalkulation); „Sonstige Arbeitszeit“ und Schlechtwetter zählen im
    Gebuchten, nicht im Vergleich (bis 1.9.125 verglich die AV „produktiv“, also mit „Sonstige“).
@@ -7676,7 +7676,7 @@ getrennt im Reiter „Versand“ und im Versandprotokoll, „Zustellung nachtrag
 - `app/audit.py`: `Finding` („Befund“) protokolliert, Bezeichnung „Beschreibung · Auftrag“, Projekt über den Bericht; `app/verlauf_namen.py` liest
   Schwere, Maßnahme und Stand lesbar. `dispatch_to_dict()` trägt `created_by_user_id` (Zuordnung zur Aktion).
 
-#### Festlegungen 1.9.127 (Bitte bestätigen)
+#### Festlegungen 1.9.127 (bestätigt am 29.10.2026)
 
 1. Eine Aktion = dasselbe Konto, dieselbe Anfrage (Methode und Pfad) und höchstens 5 Sekunden zur ersten Zeile; Einträge ohne Anfrage (Skripte,
    Grunddaten) stehen einzeln.
@@ -7724,7 +7724,7 @@ Auftragsdaten nach der Schlussrechnung frei änderbar; „Zeiten“ aus Mappe un
 - L3: `app/zeiten.py::buchungen(alle_monate=True)` und `GET /api/zeiten/buchungen?zeitraum=alle` (nur mit `auftrag`, sonst 422; ein anderer Wert
   422); `zeiten.html` übernimmt `?zeitraum=alle` mit Auftrag, die Monatspfeile führen zurück in den Monat.
 
-#### Festlegungen 1.9.128 (Bitte bestätigen)
+#### Festlegungen 1.9.128 (bestätigt am 29.10.2026)
 
 1. Gewählter Auftrag ohne Angabe: der älteste laufende oder pausierte, sonst der jüngste; ein Auftrag eines anderen Projekts 404.
 2. Hauptaktion: ohne Auftrag „Angebot“ (ohne Angebot) bzw. „Beauftragen“; Phase Auftrag „Einsatz planen“; Ausführung „Rechnung erstellen“, für Büro
@@ -7778,7 +7778,7 @@ Befund (Stufe 5, Abschnitte „Projektmappe“ und „Auftrag“; D1, D2, D3, D5
   (`/projects/<p>?auftrag=<a>#ausfuehrung` bzw. `#rechnungen`), die Checkliste über `/orders/<a>#ausfuehrung`; Angebot `?beauftragen=1` öffnet den
   Dialog, Plantafel `?auftrag=<id>` „Neuer Einsatz“; Finanzen mit der einen Liste, „Unbezahlt“.
 
-#### Festlegungen 1.9.129 (Bitte bestätigen)
+#### Festlegungen 1.9.129 (Nr. 1–14, 16 und 17 bestätigt am 29.10.2026; Nr. 15 ersetzt durch die Nachrunde, Punkt 1 -- 1.9.130)
 
 1. `/projects/{id}` ist die Akte; `/orders/{id}` leitet auf `/projects/{p}?auftrag={id}` (Anker bleibt), ein unbekannter Auftrag auf die
    Projektliste.
@@ -7918,3 +7918,69 @@ Angepasste Erwartungen der Klicktests (Prüfung: altes Soll -> neues Soll, „Au
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED): Weiterleitung ohne `?auftrag=` -> 3 (`test_v549`); „Entwurf anlegen“ ohne
 `geld` -> 1; alter Anker `#sec-files` auf die Übersicht -> 1; Mustervorgang mit Hauptaktion -> 1 (`test_v548`); Befund ohne seinen Bericht -> 1
 (`test_v547`).
+
+## Stufe 5, R2 Nachrunde (ab 1.9.130)
+
+Vorgabe 29.10.2026 (übernommen wie gegeben): „Stufe 5 · R2 Nachrunde. Start: HEAD 23b74bf (live), Arbeitskopie sauber. Version ab 1.9.130. Nicht
+pushen. Festlegungen R2: bestätigt, außer 1.9.124 Nr. 1 (Punkt 2) und 1.9.129 Nr. 15 (Punkt 1). 1. Status wie die Vorlage: im Kopf nur das
+Kennzeichen; Pausieren, Fortsetzen, Abschließen, Stornieren im „⋮“ – nur die Übergänge, die der Server gerade erlaubt (z. B. kein „Abschließen …“
+mit Rechnungsentwurf und ohne Schlussrechnung). 2. Storno zurücknehmen: nur Admin, mit Pflichtbegründung, zurück auf „läuft“, im Verlauf (ein
+versehentlicher Storno sperrt sonst Auftrag und Angebot für immer). 3. Stunden in der Akte mit zwei Stellen wie in „Zeiten“ (10,75 h statt 10,8 h) –
+Übersicht, Phase, Leistungen, Ausführung. Die Vorlage zeigte eine Stelle; das war falsch. 4. „Nächste Rechnung“: liegt schon ein Entwurf vor,
+„Entwurf öffnen“ (führt auf ihn) statt „Entwurf anlegen“. 5. Daten mit Jahr, wo sie für sich stehen (Auftragsdaten: Auftragsdatum, Ausführung); kurz
+nur in Phasen und Listen. 6. Rechnungsseite: „Zahlbetrag offen“ → „Zahlbetrag unbezahlt“ (OVERVIEW_LABELS), wie die Listen. Tests (Angriff /
+Gegenprobe), u. a.: „⋮“ zeigt nur erlaubte Übergänge; ein nicht erlaubter über die API weiter 409; Storno zurücknehmen: Büro 403, Admin ohne
+Begründung 422, mit Begründung 200 und Eintrag im Verlauf; dieselben Stunden in Akte und „Zeiten“ (z. B. 10,75 h); mit Entwurf „Entwurf öffnen“,
+ohne „Entwurf anlegen“. Ende: Bericht als .txt; ZIP: Kopf mit offenem „⋮“, Übersicht mit Entwurf.“
+
+Festlegungen R2 (1.9.124–1.9.129) bestätigt am 29.10.2026, außer 1.9.124 Nr. 1 (ersetzt durch Punkt 2, 1.9.131) und 1.9.129 Nr. 15 (ersetzt
+durch Punkt 1, 1.9.130) -- die Überschriften oben tragen das. Etappen: 1.9.130 Punkt 1, 1.9.131 Punkt 2, 1.9.132 Punkte 3–5, 1.9.133 Punkt 6.
+
+### Nachrunde, Punkt 1 (1.9.130): Status wie die Vorlage
+
+Bis 1.9.129 stand der Status des Auftrags unter den Phasen in einer Zeile „Status“ mit kleinen Knöpfen je Übergang aus dem Status
+(Festlegung 1.9.129 Nr. 15, nicht bestätigt) -- auch „Abschließen …“ mit Rechnungsentwurf und ohne Schlussrechnung, das der Server mit 409 ablehnte.
+Die Vorlage `akte-uebersicht.html` zeigt im Kopf nur das Kennzeichen.
+
+- `app/auftragsstatus.py::status_info()`: „Abschließen“ fehlt in `aktionen`, solange `abschluss_info()` einen Grund nennt (eine Rechnung ohne
+  Schlussrechnung, auch ein Entwurf); der Grund bleibt in `abschluss.grund`. `status_aendern()` prüft unverändert unter der Sperre (409).
+- `app/templates/akte.html`: im Seitenkopf `statusKennzeichen('auftrag', order.status)` des gewählten Auftrags, ohne Auftrag der Projektstatus.
+  Im Menü „⋮“ vorn „Fortsetzen …“, „Pausieren …“, „Abschließen …“, vor „Löschen“ „Stornieren …“ (rot) -- je ein Eintrag mit
+  `data-klick="statusAktion"` und `data-ziel`, `hidden`. Die Zeile unter den Phasen zeigt nur den Hinweis, solange der Auftrag nicht läuft.
+- `app/templates/_auftragsstatus.html`: `auftragsstatusZeigen()` setzt `hidden` je Eintrag nach `status_info.aktionen` und schreibt
+  `auftragsstatusHinweis()` („Pausiert seit 28.10.2026 · Olga Office · Begründung: …“, ohne Knöpfe; leer, wenn er läuft). Dialog, Rückfrage und
+  `abschliessen('auftragsstatus', …)` unverändert.
+- Der Status im Kopf geht je Fall über `statusKennzeichen('auftrag', …)` bzw. `statusKennzeichen('projekt', …)` in einem eigenen
+  `seitenkopf({status})` -- ein `?:` um die beiden Aufrufe erkennt der Wächter `test_v445` nicht (im ersten Suite-Lauf rot, behoben).
+- Fund des neuen Klicktests: nach einem Statuswechsel blieb der Verlauf (Reiter und Vorschau der Übersicht) alt, bis die Seite neu geladen
+  wurde. `akteNachAenderung()` lädt seitdem nach dem Kopf auch den Verlauf (Filter bleiben), der Statuswechsel ruft sie statt `akteLaden()`
+  -- damit auch nach Position, Nachtrag und Abnahme.
+- Fund im Bild „Kopf mit offenem ⋮“: die Seiten setzen `button{justify-content:center}`, `.ds-menue-eintrag` setzte das nicht zurück -- Knöpfe
+  im Menü standen mittig, Links links. `app/static/ds/ds.css`: `.ds-menue-eintrag` mit `justify-content: flex-start` (gilt für jedes Menü).
+
+#### Festlegungen 1.9.130 (Bitte bestätigen)
+
+1. Das Kennzeichen im Kopf der Akte ist der Status des gewählten Auftrags (Läuft, Pausiert, Abgeschlossen, Storniert); ohne Auftrag der Projektstatus.
+   Die Phase des Auftrags steht in den Phasen darunter.
+2. Im Menü „⋮“ stehen die Übergänge vorn (Fortsetzen, Pausieren, Abschließen -- in dieser Reihenfolge), „Stornieren …“ rot vor „Löschen“; ein
+   Eintrag, den der Server gerade nicht erlaubt, fehlt (`hidden`), statt ausgegraut zu sein.
+3. „Abschließen …“ fehlt, solange am Auftrag eine Rechnung ohne Schlussrechnung besteht (auch ein Entwurf); ohne jede Rechnung erscheint es („ohne
+   Rechnung“ mit Begründung), nach der Schlussrechnung ebenso.
+4. Unter den Phasen steht, solange der Auftrag nicht läuft, „<Status> seit <Datum> · <Konto> · Begründung: …“ ohne Knöpfe; läuft er, entfällt die Zeile.
+5. Nach jeder Änderung am Auftrag in der Akte (Status, Position, Nachtrag, Abnahme) lädt die Akte auch den Verlauf neu, mit dem gewählten Filter
+   (ergänzt Festlegung 1.9.129 Nr. 17).
+6. Ein Eintrag eines Menüs „⋮“ steht links, ob Knopf oder Link -- in `ds.css` für alle Seiten, nicht je Seite.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v550_status_im_menue.py` (3 Tests): ohne Rechnung pausiert/abgeschlossen/storniert; mit Abschlag im Entwurf ohne „abgeschlossen“,
+Grund in `abschluss.grund`, POST „abgeschlossen“ 409; nach dem Festschreiben des Abschlags weiter ohne, nach der Schlussrechnung wieder mit;
+pausiert mit „laeuft“; die vier Menüeinträge mit Ziel, Text, `hidden`, nur „Stornieren“ rot, kein Knopf im Hinweis, Kennzeichen des Auftrags im
+Kopf; `auftragsstatusZeigen()` in node: sichtbar genau die erlaubten, Hinweis nur außerhalb von „läuft“, Begründung mit `esc()`.
+Neuer Klicktest `scripts/klicktest_status_im_menue.py` (Büro – Finanzen, 1440 px): Kennzeichen „Läuft“, keine Zeile unter den Phasen; „⋮“ mit
+Pausieren, Abschließen, Stornieren (Bild `kopf_mit_offenem_menue`); mit Rechnungsentwurf ohne „Abschließen …“; Pausieren und Stornieren über den
+Dialog, Hinweis mit Begründung, „⋮“ je Status; der Verlauf zeigt den Wechsel ohne Neuladen.
+Angepasste Erwartungen: keine.
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v550`): Filter in `status_info()` ausgebaut -> 1; `hidden` je Eintrag
+nicht nach `aktionen` -> 1.

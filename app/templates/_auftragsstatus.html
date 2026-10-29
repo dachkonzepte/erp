@@ -1,4 +1,7 @@
-{#- Status des Auftrags (seit 1.9.124, Stufe 5, R2, Punkt 1): Kennzeichen mit Begründung, die Knöpfe der Übergänge und der Dialog mit Rückfrage.
+{#- Status des Auftrags (seit 1.9.124, Stufe 5, R2, Punkt 1): Hinweis mit Begründung, die Übergänge im Menü „⋮“ der Seite und der Dialog mit
+    Rückfrage. Seit 1.9.130 (R2 Nachrunde, Punkt 1) wie die Vorlage: das Kennzeichen steht im Seitenkopf (die Seite setzt es), die Übergänge sind
+    Einträge im Menü mit data-klick="statusAktion" und data-ziel (die Seite legt sie an, je Status einer, hidden) -- auftragsstatusZeigen() zeigt nur
+    die, die der Server gerade erlaubt (status_info.aktionen); bis 1.9.129 Knöpfe in einer Zeile „Status“.
     Vier Status (app/auftragsstatus.py): läuft, pausiert, abgeschlossen, storniert -- ein Wechsel nur über diesen Dialog (POST /api/orders/{id}/status,
     abschließende Aktion über abschliessen()). Pausieren und Stornieren verlangen eine Begründung, Abschließen ohne Schlussrechnung die Begründung
     „ohne Rechnung“ (nur solange keine Rechnung besteht, mit den gebuchten Stunden, die dann nicht abgerechnet werden), Fortsetzen eines
@@ -32,17 +35,22 @@ function auftragsstatusEinrichten(anwenden) {
 function auftragsstatusKennzeichen(order) {
   return statusKennzeichen('auftrag', order ? order.status : '');
 }
-function auftragsstatusHtml(order) {
-  const info = order.status_info || {aktionen: []}, letzter = info.letzter_wechsel, k = auftragsstatusKennzeichen(order);
-  const grund = letzter && letzter.new_status === order.status && letzter.reason
-    ? `<div class="small muted">${esc(letzter.new_status_label)} seit ${esc(berlinZeitpunkt(letzter.changed_at, 'datum'))} · ${esc(letzter.changed_by_name)} · Begründung: ${esc(letzter.reason)}</div>` : '';
-  const knoepfe = info.aktionen.map(a => `<button type="button" class="${a.ziel === 'storniert' ? 'danger' : 'secondary'}" data-klick="statusAktion" data-ziel="${esc(a.ziel)}">${esc(a.name)} …</button>`).join(' ');
-  return `<div class="auftragsstatus"><span class="badge" data-art="${esc(k.art)}">${esc(k.text)}</span>${grund}<div class="auftragsstatus-knoepfe" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">${knoepfe}</div></div>`;
+// Hinweis unter den Phasen, solange der Auftrag nicht läuft: „Pausiert seit 28.10.2026 · Olga Office · Begründung: …“ (leer, wenn er läuft)
+function auftragsstatusHinweis(order) {
+  if (!order || order.status === 'laeuft') return '';
+  const info = order.status_info || {}, letzter = info.letzter_wechsel, k = auftragsstatusKennzeichen(order);
+  const seit = letzter && letzter.new_status === order.status
+    ? ` seit ${esc(berlinZeitpunkt(letzter.changed_at, 'datum'))} · ${esc(letzter.changed_by_name)}${letzter.reason ? ` · Begründung: ${esc(letzter.reason)}` : ''}` : '';
+  return `<span class="small"><b>${esc(k.text)}</b>${seit}</span>`;
 }
 function auftragsstatusZeigen(order) {
   _auftragsstatusOrder = order;
-  const ziel = document.getElementById('auftragsstatus');
-  if (ziel) ziel.innerHTML = auftragsstatusHtml(order);
+  const erlaubt = new Set(((order && order.status_info && order.status_info.aktionen) || []).map(a => a.ziel));
+  document.querySelectorAll('[data-klick="statusAktion"]').forEach(eintrag => { eintrag.hidden = !erlaubt.has(eintrag.dataset.ziel); });
+  const ziel = document.getElementById('auftragsstatus'), zeile = document.getElementById('statusZeile');
+  const html = auftragsstatusHinweis(order);
+  if (ziel) ziel.innerHTML = html;
+  if (zeile) zeile.hidden = !html;
 }
 function statusDialogOeffnen(ziel) {
   const order = _auftragsstatusOrder, info = (order && order.status_info) || {aktionen: []};

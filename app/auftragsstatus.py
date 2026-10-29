@@ -159,13 +159,18 @@ def abschluss_info(db: Session, order: Order) -> dict:
 
 
 def status_info(db: Session, order: Order) -> dict:
-    """Für Akte und Auftragsseite: Status mit Namen, die möglichen Übergänge (mit Pflicht zur Begründung) und der letzte Wechsel."""
+    """Für die Akte: Status mit Namen, die Übergänge, die der Server gerade erlaubt (mit Pflicht zur Begründung), und der letzte Wechsel.
+    Seit 1.9.130 (R2 Nachrunde, Punkt 1) fehlt „Abschließen“, solange eine Rechnung ohne Schlussrechnung besteht (auch ein Entwurf) -- der Grund
+    steht in `abschluss.grund`; über die API bleibt der Übergang 409 (status_aendern() prüft unter der Sperre)."""
     letzter = letzter_wechsel(db, order.id)
     ziele = naechste(order)
+    abschluss = abschluss_info(db, order) if ABGESCHLOSSEN in ziele else None
+    if abschluss is not None and abschluss["grund"]:
+        ziele = [z for z in ziele if z != ABGESCHLOSSEN]
     return {
         "status": wert(order.status), "status_label": name(order.status),
         "aktionen": [{"ziel": z, "name": AKTIONEN[z], "begruendung_pflicht": begruendung_pflicht(order, z)} for z in ziele],
-        "abschluss": abschluss_info(db, order) if ABGESCHLOSSEN in ziele else None,
+        "abschluss": abschluss,
         "letzter_wechsel": wechsel_dict(letzter) if letzter is not None else None,
     }
 
