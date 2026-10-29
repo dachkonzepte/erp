@@ -7958,7 +7958,7 @@ Die Vorlage `akte-uebersicht.html` zeigt im Kopf nur das Kennzeichen.
 - Fund im Bild „Kopf mit offenem ⋮“: die Seiten setzen `button{justify-content:center}`, `.ds-menue-eintrag` setzte das nicht zurück -- Knöpfe
   im Menü standen mittig, Links links. `app/static/ds/ds.css`: `.ds-menue-eintrag` mit `justify-content: flex-start` (gilt für jedes Menü).
 
-#### Festlegungen 1.9.130 (Bitte bestätigen)
+#### Festlegungen 1.9.130 (bestätigt am 29.10.2026)
 
 1. Das Kennzeichen im Kopf der Akte ist der Status des gewählten Auftrags (Läuft, Pausiert, Abgeschlossen, Storniert); ohne Auftrag der Projektstatus.
    Die Phase des Auftrags steht in den Phasen darunter.
@@ -8006,7 +8006,7 @@ und Angebot für immer -- keine Einsätze, Berichte und Buchungen der Monteure, 
 - Verlauf: die Zeile „<Auftragsnummer> · storniert → läuft“ mit „Begründung: …“ (Änderungsprotokoll, wie jeder Statuswechsel); nach dem
   Zurücknehmen lädt die Akte Kopf, Phasen und Verlauf neu (1.9.130).
 
-#### Festlegungen 1.9.131 (Bitte bestätigen)
+#### Festlegungen 1.9.131 (bestätigt am 29.10.2026)
 
 1. Storno zurücknehmen ist ein eigener Weg (`POST /api/orders/{id}/storno-zuruecknehmen`), nicht ein weiteres Ziel von `POST /api/orders/{id}/status`;
    dort bleibt „storniert“ eine Sackgasse (409 mit dem Hinweis).
@@ -8058,7 +8058,7 @@ ohne Jahr (`tagKurz()`).
   Arbeitsvorbereitung (Reiter Ausführung), im Stand des LV („aus der Rechnung … (01.10.2026)“) und bei „überfällig seit“ in der Übersicht. Kurz
   bleiben die Phasen (Text vom Server) und die Listen (Einsätze, Berichte, Termine, Was ansteht, Verlauf, Rechnungen).
 
-#### Festlegungen 1.9.132 (Bitte bestätigen)
+#### Festlegungen 1.9.132 (bestätigt am 29.10.2026)
 
 1. Stunden haben in der Akte überall zwei Stellen, auch Soll und Fahrzeit und „0,00 h“ -- wie „Zeiten“.
 2. „Entwurf öffnen“ gilt für jeden Entwurf des Auftrags außer einem Storno-Entwurf (Abschlag, Schlussrechnung, Rechnung aus Aufwand); bei mehreren
@@ -8100,7 +8100,7 @@ Im Bericht zu R2 als offen gemeldet: der Kopf der Rechnungsseite sagte „Zahlbe
   Endrechnung, u. a. in Finanzen); `app/templates/_statuskennzeichen.html`, Gruppe `rechnung`: `zahlbetrag_offen` -> „Zahlbetrag unbezahlt“ (Kopf der
   Rechnungsseite). Der Schlüssel `zahlbetrag_offen` bleibt (Filter „Unbezahlt“ in Finanzen, Kennzeichen, Tests).
 
-#### Festlegungen 1.9.133 (Bitte bestätigen)
+#### Festlegungen 1.9.133 (bestätigt am 29.10.2026)
 
 1. Nur der angezeigte Name wechselt; der Schlüssel `zahlbetrag_offen` bleibt in Daten, Filtern und Kennzeichen (kein Umbenennen im Code).
 
@@ -8117,3 +8117,76 @@ Angepasste Erwartungen:
   unbezahlt 495,00“.
 
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v553`): Name am Server alt -> 1; Kennzeichen alt -> 1.
+
+## Stufe 5, R3 (ab 1.9.134): die Kundenakte
+
+Vorgabe 29.10.2026 (übernommen wie gegeben): „Stufe 5 · R3 – die Kundenakte. Start: HEAD 4c5dd4e (live), Arbeitskopie sauber. Version ab 1.9.134.
+Nicht pushen. Festlegungen R2 Nachrunde: alle bestätigt. Vorlage (freigegeben): bildgrundlage/entwurf-stufe5/kunde-uebersicht.html,
+kunde-zahlungen.html, kunde-zuordnung.html. Maße und Texte gelten, Zahlen sind Beispiel; Aufbau, Bausteine und Regeln wie die Akte je Projekt
+(akte.html). 0. Vorweg: jede Funktion der heutigen Kundenakte (customer.html) als Liste (Knopf, Link, Endpunkt, Rolle) – als Tabelle im Test wie
+test_v549. 1. Server, eine Rechnung mit den Funktionen der Akte: je Projekt Phase und Zahlen; Unbezahlt, überfällig, Guthaben, abgerechnet und
+bezahlt je Jahr. Verlauf des Kunden (wie app/akte_verlauf.py): Änderungen am Kunden, Kontakte, Objekte, Versand, Zahlungen. 2. /customers/{id} wird
+die Kundenakte wie die Vorlage: Pfad, Kopf (Name, Kundennummer, Kategorie, Anschrift, Telefon und E-Mail als Link), „+ Projekt“, „⋮“; Reiter
+Übersicht · Projekte · Objekte · Anfragen · Zahlungen · Dokumente · Kontakte · Verlauf. Stammdaten lesend mit Dialog „Stammdaten bearbeiten“
+(Eingaben bleiben). Jede Funktion aus Punkt 0 bleibt erreichbar; alte Anker (z. B. #zahlungen) öffnen den passenden Reiter. 3. Zahlungen:
+unbezahlte Rechnungen, Zahlungseingänge mit Zuordnung und Rest; ein Rest als Vorschlag „Auf RE-… zuordnen“ (älteste unbezahlte) bzw. „Erstattung
+buchen“, gebucht erst mit Klick; „⋮“ je Eingang: Zuordnen, Erstatten, Zurücknehmen (mit Begründung). Geld nur Admin und Büro – Finanzen, Büro –
+Auftrag liest. Kein Zahlungseingang ohne Rechnung (Entscheidung Tobias: Zahlungen nur zu Abschlagsrechnungen). 4. „Kunde archivieren“ im „⋮“ nur
+ohne laufendes Projekt – gibt es Archivieren am Kunden heute nicht, im Bericht sagen, nicht bauen. 5. Aus R2 übernehmen: Stunden mit zwei Stellen,
+Daten mit Jahr, wo sie für sich stehen, „unbezahlt“ bzw. „noch nicht abgerechnet“. Dazu das „⋮“ der Akte und der Kundenakte mit Trennlinien zwischen
+Status, Projekt bzw. Kunde und Wegen. Tests (Angriff / Gegenprobe), u. a.: jede Funktion aus Punkt 0 erreichbar; #zahlungen öffnet den Reiter
+Zahlungen; Zahlen der Kundenakte = Summe seiner Akten bzw. seiner Rechnungen und Zahlungen (im Test nachgerechnet); Rest zuordnen: Büro – Auftrag
+403 und kein Knopf / Finanzen 200, Rest danach 0; Stammdaten im Dialog: Eingaben bleiben beim Neuzeichnen; Speichern ändert nur Geändertes;
+Monteurin 403. Ende: Bericht als .txt; ZIP: jeder Reiter neben der Vorlage (1440, hell), Übersicht dunkel, Zahlungen als Büro – Auftrag, Kunde ohne
+Projekt.“
+
+Die Vorlagen liegen unter `bildgrundlage/entwurf_stufe5_kunde/` (die Vorgabe schreibt `entwurf-stufe5`). Festlegungen der R2 Nachrunde
+(1.9.130–1.9.133) bestätigt am 29.10.2026, die Überschriften oben tragen das. Aus `kunde-zuordnung.html` (Tobias, 29.10.2026): ein Zahlungseingang
+ohne offene Rechnung (Vorauszahlung, Befund L7) ist nicht nötig -- Zahlungen gibt es nur zu Rechnungen, es bleibt wie heute; „Kunde archivieren“
+im „⋮“ nur ohne laufendes Projekt (Vorschlag).
+
+Punkt 4: am Kunden gibt es heute kein Archivieren -- `Customer` und `CustomerProfile` haben kein Feld dafür, kein Endpunkt archiviert oder löscht
+einen Kunden (geprüft `app/models.py`, `app/routers/customers.py`). Nach der Vorgabe nicht gebaut, im Bericht genannt.
+
+Etappen (je eine Version mit vollem Lauf): 1.9.134 Punkt 0; 1.9.135 Punkt 1 Zahlen und Kontext; 1.9.136 Punkt 1 Verlauf, dazu das Speichern der
+Stammdaten als Teil-Update; danach die Seite (Punkte 2, 3, 5).
+
+### R3, Punkt 0 (1.9.134): jede Funktion der heutigen Kundenakte
+
+`tests/test_v554_kundenakte_funktionen.py`, Tabelle `FUNKTIONEN` (31 Zeilen): Funktion, Art (Knopf, Link, Feld, Anzeige, Anker), Endpunkte mit
+Methode, Rolle der Funktion laut Route, Reiter der neuen Kundenakte (nach `kunde-zuordnung.html`), Belege im gezeichneten HTML. Nach Bereich:
+
+| Bereich | Funktionen | Endpunkte | Rolle |
+|---|---|---|---|
+| Kopf, Kennzahlen | Name, Nummer, Kategorie; fünf Kacheln (Objekte, Anfragen, Projekte, Angebote, Angebotssumme) | GET Kunde, Objekte, Anfragen, Projekte, Angebote je Projekt | Au |
+| Stammdaten | 18 Felder, „Stammdaten speichern“ | GET Optionsgruppen, Zahlungsbedingungen; PUT /api/customers/{id} | Au |
+| Kontakte & Kundenwissen | anzeigen, anlegen, speichern, löschen | POST/PUT/DELETE /api/customers/{id}/extra-infos | Au |
+| Objekte | Liste mit Hauptadresse, anlegen, bearbeiten, Dachflächen, „+ Dachfläche“ | GET/POST/PUT /api/properties, GET/POST /api/roof-areas | Au |
+| Anfragen | Liste, „Pipeline öffnen“, „Neue Anfrage“ | GET /api/inquiries | Au |
+| Dokumente | hochladen, Kacheln, Suche, öffnen, Download, bearbeiten, löschen | /api/customers/{id}/documents, /api/customer-documents/{id} | Au |
+| Projekte & Angebote | Projekte mit Angeboten, „Projekt öffnen“, „Projekt anlegen“ | GET /api/projects, /api/projects/{id}/quotes | Au |
+| Zahlungen | Guthaben, Erstattung buchen, Zahlungen mit Zuordnungen, Rest zuordnen, zurücknehmen, Hinweis, Anker #zahlungen | GET payments, open-invoices; POST refunds, allocations, reverse | lesen Au, buchen Geld |
+| Versand | Versand des Kunden (Projekte und Objekte), Empfang bestätigt / unzustellbar | GET /api/email-dispatches?customer_id= | Au |
+
+Beim Erfassen aufgefallen (für den Umbau, nicht einzeln behoben):
+- „Projekt öffnen“ führt auf `/projects?project_id=…` -- die Projektliste wertet `project_id` nicht aus, man landet in der ungefilterten Liste.
+- Projektstatus (`Status ${p.status}`) und Angebotsstatus (Kennzeichen mit dem Wert) stehen roh da (Befund B4).
+- „Kontakte & Kundenwissen“ bearbeitet in Zeilen: jedes Neuladen des Kunden (z. B. nach dem Speichern eines anderen Eintrags) zeichnet alle Zeilen
+  neu, eine angefangene Eingabe in einer anderen Zeile ist weg (wie E1 in der Akte); Fehler erscheinen als `alert()`.
+- Die Stammdaten speichert `PUT /api/customers/{id}` als volles Formular (in `BEKANNT` von `tests/test_v329_update_handler_struktur.py`).
+- Am Kunden gibt es weder Archivieren noch Löschen (Punkt 4).
+
+#### Festlegungen 1.9.134 (Bitte bestätigen)
+
+1. Die Rolle einer Funktion gilt für ihre schreibenden Endpunkte; jeder lesende muss für Büro – Auftrag offen sein (die Zahlungen liest es ganz).
+2. Die Ziel-Reiter folgen `kunde-zuordnung.html`; „Projekt anlegen“ wird „+ Projekt“ im Kopf, die fünf Kacheln werden die Zähler an den Reitern
+   (Geld steht in der Karte „Geld“), der Versand steht im Verlauf (Filter „Versand“).
+
+#### Tests und Prüfung
+
+Neu `tests/test_v554_kundenakte_funktionen.py` (8 Tests): Liste vollständig (≥ 30, jeder Reiter bekommt etwas); jede Funktion steht in der Seite;
+jeder Endpunkt ist eine Route mit der Rolle der Funktion; jeder Pfad unter `/api/`, den die Seite aufruft (22), steht in der Liste; Monteurin 403,
+jedes Büro 200. Angepasste Erwartungen: keine.
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v554`): „Stammdaten speichern“ ohne Aufruf -> 1; neuer, nicht gelisteter
+Aufruf unter `/api/` -> 1.

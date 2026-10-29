@@ -408,6 +408,9 @@ Behoben, drei Teile:
   (`stunden_text()`, `stunden()`), „Entwurf öffnen“ statt „Entwurf anlegen“, wenn schon ein Entwurf vorliegt, ein Datum, das für sich steht, mit Jahr
   (`tagLang()`, kurz nur in Phasen und Listen; `tests/test_v552_akte_stunden_daten_entwurf.py`); 1.9.133 „Zahlbetrag unbezahlt“ auch auf der
   Rechnungsseite (`OVERVIEW_LABELS`, Kennzeichen; Schlüssel `zahlbetrag_offen` bleibt). Archiv: `docs/archiv/redesign.md`, „Stufe 5, R2“ und „R2 Nachrunde“.
+- **Stufe 5, R3 „Kundenakte“ (seit 1.9.134):** Vorlagen `bildgrundlage/entwurf_stufe5_kunde/kunde-*.html`. 1.9.134 jede Funktion der heutigen
+  Kundenakte als Tabelle `FUNKTIONEN` (`tests/test_v554_kundenakte_funktionen.py`: Art, Endpunkt, Rolle laut Route, Ziel-Reiter, Belege; jeder Aufruf
+  unter `/api/` der Seite steht darin). Am Kunden gibt es kein Archivieren (Punkt 4, nicht gebaut). Archiv: `docs/archiv/redesign.md`, „Stufe 5, R3“.
 
 ## Kritische, nicht verhandelbare Regeln
 

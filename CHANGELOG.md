@@ -4,6 +4,15 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.134 – Kundenakte: jede heutige Funktion als Liste (Stufe 5, R3, Punkt 0)
+
+Bevor die Kundenakte nach den Vorlagen `kunde-*.html` umgebaut wird, steht jede Funktion der heutigen Seite (`customer.html`) als Tabelle im
+Test (`tests/test_v554_kundenakte_funktionen.py`, wie die Funktionsliste der Akte je Projekt): 31 Funktionen mit Art (Knopf, Link, Feld, Anzeige,
+Anker), Endpunkt, Rolle laut Route und dem Reiter, in den sie in der neuen Kundenakte wandert. Der Test prüft, dass jede Funktion auf der Seite steht,
+jeder Endpunkt als Route mit genau dieser Rolle besteht und jeder Aufruf unter `/api/`, den die Seite macht, in der Liste steht. Beim Erfassen
+aufgefallen: „Projekt öffnen“ führt nur auf die Projektliste (sie wertet `project_id` nicht aus), Projekt- und Angebotsstatus stehen roh da, und
+am Kunden gibt es weder Archivieren noch Löschen.
+
 ## 1.9.133 – Rechnungsseite: „Zahlbetrag unbezahlt“ statt „Zahlbetrag offen“ (Stufe 5, R2 Nachrunde, Punkt 6)
 
 Die Rechnungslisten (Akte, Finanzen) sagen seit 1.9.129 „Zahlbetrag unbezahlt“, der Kopf der Rechnungsseite und der Name, den der Server
