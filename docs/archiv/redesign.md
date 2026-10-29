@@ -8190,3 +8190,43 @@ jedes Büro 200. Angepasste Erwartungen: keine.
 
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v554`): „Stammdaten speichern“ ohne Aufruf -> 1; neuer, nicht gelisteter
 Aufruf unter `/api/` -> 1.
+
+### R3, Punkt 1a (1.9.135): Zahlen der Kundenakte
+
+- `app/kundenakte.py` (neu, rollenlos): `projekte()` je Projekt des Kunden ohne Mustervorgänge -- Status aus `app/akte.py::projekt_status_alle()`,
+  Aufträge mit Status, Bauleitung, seit, Zahlen; `_zahlen_je_auftrag()` rechnet je Auftrag wie `akte.leistung()` (Auftragssumme über `order_sum()`,
+  abgerechnet = Netto der festgeschriebenen Rechnungen ohne Stornos und stornierte, nach der abschließenden Rechnung nichts mehr „noch nicht
+  abgerechnet“) und `akte.zahlung()` (unbezahlt über `invoice_overview_rows()`), die Rechnungen aller Aufträge in einer Abfrage;
+  `angebot_summen()` netto/brutto je Angebot wie `quote_to_dict()` (Layout „in Summe“, je Position gerundet) in zwei Abfragen. `geld()` über die
+  Rechnungen mit `Invoice.customer_id` und die Zahlungen des Kunden; `guthaben()` wie `customer_payments()["balance"]`; `vorschlaege()`;
+  `zaehler()` (Projekte ohne Muster, Objekte, Anfragen, Dokumente, Kontakte); `kunde_kontext()`.
+- `GET /api/customers/{customer_id}/akte` (`app/routers/customers.py`, ab Büro – Auftrag, Monteurin 403, unbekannt 404).
+
+#### Festlegungen 1.9.135 (Bitte bestätigen)
+
+1. Die Kundenakte zählt keine Mustervorgänge. „Laufend“ heißt: nicht abgeschlossen, nicht storniert, nicht archiviert; laufende stehen zuerst, je
+   Gruppe die jüngsten zuerst.
+2. Die Zahlen eines Projekts sind die Summe seiner Aufträge nach `akte.leistung()`/`akte.zahlung()` (Rechnungen des Auftrags); das Geld des Kunden
+   rechnet über die Rechnungen, die er beim Festschreiben festhielt (`Invoice.customer_id`) -- wie Zahlungen, offene Rechnungen und Finanzen.
+3. „seit“ eines Projekts ist das Datum seines ersten Auftrags; „Bauleitung“ der Projektleiter / Vorarbeiter des ersten Auftrags, der einen hat.
+4. Ohne Auftrag zeigt ein Projekt das jüngste nicht abgelehnte Angebot mit Stand, netto und dem Tag des E-Mail-Versands (Berlin).
+5. Abgerechnet je Jahr = Netto der festgeschriebenen Rechnungen (ohne Stornos und stornierte) nach Rechnungsdatum; bezahlt je Jahr = Eingänge minus
+   Zahlungsausgänge nach Eingangstag, ohne zurückgenommene, dazu die Zahl der Eingänge und der erstattete Betrag. Laufendes Jahr und Vorjahr stehen
+   immer da (auch mit 0 €).
+6. Vorschlag je Rest einer Zahlung: die älteste unbezahlte Rechnung des Kunden (Rechnungsdatum, dann Kennung), höchstens ihr unbezahlter Betrag; ohne
+   unbezahlte Rechnung „Erstattung buchen“; die Überzahlung einer Schlussrechnung immer „Erstattung buchen“. Eine Rechnung, an der nur
+   Nebenforderungen offen sind, zählt dafür nicht (Zahlungen darauf laufen über die Rechnungsseite, § 367 BGB).
+7. Büro – Auftrag liest die ganze Kundenakte, auch das Geld; die Monteurin bekommt sie nicht (403).
+
+#### Tests und Prüfung
+
+Neu `tests/test_v555_kundenakte_zahlen.py` (9 Tests) mit einer Welt aus Vorjahr und laufendem Jahr (Abschlag im Vorjahr festgeschrieben und
+bezahlt, Schlussrechnung vor 60 Tagen -- überfällig, pauschaler Abschlag mit Rest, Erstattung, zurückgenommene Zahlung, Projekt nur mit Angebot samt
+Bedarfsposition, stornierter Auftrag, Mustervorgang, zwei weitere Kunden): je Projekt Status und Zahlen = Summe der Akten seiner Aufträge (dazu
+exakt 5.000 / 5.000 / 0 / 3.570 €); Angebot und Summen wie der Editor; unbezahlt = Summe der Akten (3.570 €), überfällig seit der Fälligkeit der
+Schlussrechnung, Guthaben = Rest (310 €), je Jahr abgerechnet = Netto der Rechnungen, bezahlt = Zahlungen ohne zurückgenommene, Zahl der Eingänge,
+erstattet; Vorschlag „zuordnen“ auf die Schlussrechnung, beim Kunden ohne unbezahlte Rechnung „erstatten“; Zähler ohne Muster; Endpunkt für jedes Büro
+200, Monteurin 403, unbekannt 404. Angepasste Erwartungen: keine.
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v555`): ohne Kundenfilter an den Rechnungen -> 4; Mustervorgänge mitgezählt
+-> 4; zurückgenommene Zahlung mitgezählt -> 1; Vorschlag „erstatten“ trotz unbezahlter Rechnung -> 1; Bedarfsposition in der Angebotssumme -> 1.

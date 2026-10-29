@@ -20,6 +20,7 @@ from ..crm import compose_customer_name, ensure_customer_profile
 from ..customer_documents import MAX_UPLOAD_BYTES, customer_directory, make_stored_filename
 from ..dateiauslieferung import gespeicherter_typ
 from ..database import get_db
+from ..kundenakte import kunde_kontext
 from ..document_categories import resolve_category_id
 from ..models import AppUser, Customer, CustomerDocument, CustomerExtraInfo, Property
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
@@ -60,6 +61,17 @@ def get_customer(customer_id: int, db: Session = Depends(get_db, scope="function
     if customer is None:
         raise HTTPException(status_code=404, detail="Kunde nicht gefunden.")
     return customer  # seit 1.8.76 ohne Anlegen eines fehlenden Profils, siehe list_customers()
+
+
+@router.get("/api/customers/{customer_id}/akte")
+def get_customer_akte(customer_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.9.135 (Stufe 5, R3, Punkt 1): was die Kundenakte /customers/{id} beim Laden braucht -- Zähler der Reiter, je Projekt Status und
+    Zahlen, Geld (unbezahlt, überfällig, Guthaben, je Jahr abgerechnet und bezahlt) und die Vorschläge für das Guthaben
+    (app/kundenakte.py::kunde_kontext()). Büro – Auftrag liest alles, gebucht wird über die Wege mit require_geld."""
+    customer = db.get(Customer, customer_id)
+    if customer is None:
+        raise HTTPException(status_code=404, detail="Kunde nicht gefunden.")
+    return kunde_kontext(db, customer)
 
 
 @router.put("/api/customers/{customer_id}", response_model=CustomerOut)

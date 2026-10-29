@@ -410,7 +410,10 @@ Behoben, drei Teile:
   Rechnungsseite (`OVERVIEW_LABELS`, Kennzeichen; Schlüssel `zahlbetrag_offen` bleibt). Archiv: `docs/archiv/redesign.md`, „Stufe 5, R2“ und „R2 Nachrunde“.
 - **Stufe 5, R3 „Kundenakte“ (seit 1.9.134):** Vorlagen `bildgrundlage/entwurf_stufe5_kunde/kunde-*.html`. 1.9.134 jede Funktion der heutigen
   Kundenakte als Tabelle `FUNKTIONEN` (`tests/test_v554_kundenakte_funktionen.py`: Art, Endpunkt, Rolle laut Route, Ziel-Reiter, Belege; jeder Aufruf
-  unter `/api/` der Seite steht darin). Am Kunden gibt es kein Archivieren (Punkt 4, nicht gebaut). Archiv: `docs/archiv/redesign.md`, „Stufe 5, R3“.
+  unter `/api/` der Seite steht darin). Am Kunden gibt es kein Archivieren (Punkt 4, nicht gebaut). 1.9.135 Zahlen vom Server
+  (`app/kundenakte.py::kunde_kontext()`, `GET /api/customers/{id}/akte`): je Projekt Status und Zahlen wie die Akte (`akte.leistung()`/`zahlung()` je
+  Auftrag, ohne Mustervorgänge), Geld über `Invoice.customer_id` und die Zahlungen (unbezahlt, überfällig, Guthaben, je Jahr abgerechnet und bezahlt),
+  Vorschläge für einen Rest (`tests/test_v555_kundenakte_zahlen.py`). Archiv: `docs/archiv/redesign.md`, „Stufe 5, R3“.
 
 ## Kritische, nicht verhandelbare Regeln
 
