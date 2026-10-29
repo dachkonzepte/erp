@@ -178,8 +178,9 @@ async def pruefen(tab, seed, p):
         "[document.getElementById('seitenkopfStatus').textContent,document.querySelector('[data-zahlstand]')?.textContent||'']"),
         [f"Enthalten in Schlussrechnung {a['schluss_nr']}", "Zahlstand: teilweise bezahlt"])
     await tab.oeffnen(f"/invoices/{a['schluss']}", "invoice&&invoice.id&&document.getElementById('seitenkopfStatus').textContent")
-    p.pruefe("Rechnungsseite Schlussrechnung A: Zahlbetrag offen 495 €",
-             await _js(tab, "document.getElementById('seitenkopfStatus').textContent"), "Zahlbetrag offen 495,00 €")
+    # seit 1.9.133 (R2 Nachrunde, Punkt 6) „Zahlbetrag unbezahlt“ wie die Listen (bis 1.9.132 „Zahlbetrag offen“)
+    p.pruefe("Rechnungsseite Schlussrechnung A: Zahlbetrag unbezahlt 495 €",
+             await _js(tab, "document.getElementById('seitenkopfStatus').textContent"), "Zahlbetrag unbezahlt 495,00 €")
     p.pruefe("JS-Fehler Büro", tab.fehler, [])
 
     # --- 412 px dunkel ---

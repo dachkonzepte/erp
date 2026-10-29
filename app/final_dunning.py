@@ -198,7 +198,9 @@ def nothing_to_dun_reason(db: Session, invoice: Invoice, state: DunningState) ->
     return dunning_block_reason(db, invoice, state.own) or f"Die Rechnung {number} hat keinen mahnfähigen Betrag."
 
 
-OVERVIEW_LABELS = {"zahlbetrag_offen": "Zahlbetrag offen", "guthaben": "Guthaben", "ausgeglichen": "ausgeglichen"}
+# seit 1.9.133 (Stufe 5, R2 Nachrunde, Punkt 6) „Zahlbetrag unbezahlt“ wie die Rechnungslisten (D5: „offen“ nur noch als „unbezahlt“ oder „noch nicht
+# abgerechnet“) -- bis 1.9.132 „Zahlbetrag offen“; der Schlüssel zahlbetrag_offen bleibt
+OVERVIEW_LABELS = {"zahlbetrag_offen": "Zahlbetrag unbezahlt", "guthaben": "Guthaben", "ausgeglichen": "ausgeglichen"}
 
 
 def overview(state, dunning: DunningState | None) -> dict | None:

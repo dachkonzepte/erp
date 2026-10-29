@@ -135,8 +135,8 @@ async def pruefen(tab, seed, p):
     _passt(p, "Schlussrechnung: „Gemahnt wird der Zahlbetrag …“", await tab.js(
         "document.getElementById('reminderStatusInfo').textContent"),
         lambda v: v.startswith("Gemahnt wird der Zahlbetrag 495,00 €") and seed["pauschal_nr"] in v and seed["abschlag_nr"] in v)
-    p.pruefe("Schlussrechnung: überfällig, Zahlbetrag offen", await tab.js(
-        "[invoice.is_overdue,document.getElementById('seitenkopfStatus').textContent.includes('Zahlbetrag offen 495,00')]"), [True, True])
+    p.pruefe("Schlussrechnung: überfällig, Zahlbetrag unbezahlt", await tab.js(  # seit 1.9.133 (bis 1.9.132 „Zahlbetrag offen“)
+        "[invoice.is_overdue,document.getElementById('seitenkopfStatus').textContent.includes('Zahlbetrag unbezahlt 495,00')]"), [True, True])
     await tab.js("document.querySelector('#reminderActions button').click()")
     p.pruefe("Entwurf angelegt", await tab.warten("currentReminders.length===1"), True)
     _passt(p, "Aufstellung je Rechnung mit Nummer", await tab.js(

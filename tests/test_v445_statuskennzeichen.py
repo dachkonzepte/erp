@@ -95,7 +95,7 @@ def test_kennzeichen_lesbar_und_in_der_farbe_der_bedeutung(tabellen):
         {"text": "In pruefung", "art": "neutral"}, {"text": "X", "art": "neutral"},
         {"text": "", "art": "neutral"}, {"text": "", "art": "neutral"}, {"text": "<b>neu</b>", "art": "neutral"},  # Text, kein HTML
         # seit 1.9.13 mit Zusatz und überfällig -- dieselben Texte wie bis 1.9.12 im Kennzeichen der Rechnungsseite
-        {"text": "Zahlbetrag offen 495,00 €", "art": "info"}, {"text": "Zahlbetrag offen 495,00 € · überfällig", "art": "fehler"},
+        {"text": "Zahlbetrag unbezahlt 495,00 €", "art": "info"}, {"text": "Zahlbetrag unbezahlt 495,00 € · überfällig", "art": "fehler"},  # seit 1.9.133
         {"text": "Guthaben 119,00 €", "art": "signal"}, {"text": "Enthalten in Schlussrechnung R-2026-0003", "art": "neutral"},
         {"text": "Entwurf", "art": "warn"}, {"text": "Finalisiert", "art": "info"}, {"text": "Pausiert", "art": "neutral"},
     ]

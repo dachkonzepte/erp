@@ -406,7 +406,8 @@ Behoben, drei Teile:
   der Admin (`app/auftragsstatus.py::storno_zuruecknehmen()`, `POST /api/orders/{id}/storno-zuruecknehmen`, `darf_storno_zuruecknehmen()`), mit
   Begründung, zurück auf „läuft“ (`tests/test_v551_storno_zuruecknehmen.py`); 1.9.132 Stunden in der Akte mit zwei Stellen wie „Zeiten“
   (`stunden_text()`, `stunden()`), „Entwurf öffnen“ statt „Entwurf anlegen“, wenn schon ein Entwurf vorliegt, ein Datum, das für sich steht, mit Jahr
-  (`tagLang()`, kurz nur in Phasen und Listen; `tests/test_v552_akte_stunden_daten_entwurf.py`). Archiv: `docs/archiv/redesign.md`, „Stufe 5, R2“ und „R2 Nachrunde“.
+  (`tagLang()`, kurz nur in Phasen und Listen; `tests/test_v552_akte_stunden_daten_entwurf.py`); 1.9.133 „Zahlbetrag unbezahlt“ auch auf der
+  Rechnungsseite (`OVERVIEW_LABELS`, Kennzeichen; Schlüssel `zahlbetrag_offen` bleibt). Archiv: `docs/archiv/redesign.md`, „Stufe 5, R2“ und „R2 Nachrunde“.
 
 ## Kritische, nicht verhandelbare Regeln
 

@@ -42,7 +42,8 @@ function statusTabelle() {
     rechnung: {
       entwurf: ['Entwurf', 'entwurf'], versendet: ['Finalisiert', 'laeuft'], storniert: ['Storniert', 'ruht'], bezahlt: ['Bezahlt', 'erledigt'],
       offen: ['Offen', 'laeuft'], teilweise_bezahlt: ['Teilweise bezahlt', 'laeuft'], einbehalt_offen: ['Einbehalt offen', 'laeuft'],
-      zahlbetrag_offen: ['Zahlbetrag offen', 'laeuft'], guthaben: ['Guthaben', 'wartet'], ausgeglichen: ['Ausgeglichen', 'erledigt'],
+      // zahlbetrag_offen seit 1.9.133 „Zahlbetrag unbezahlt“ wie die Listen (bis 1.9.132 „Zahlbetrag offen“)
+      zahlbetrag_offen: ['Zahlbetrag unbezahlt', 'laeuft'], guthaben: ['Guthaben', 'wartet'], ausgeglichen: ['Ausgeglichen', 'erledigt'],
       enthalten: ['Enthalten in Schlussrechnung', 'ruht'],
     },
     wartungsvertrag: {

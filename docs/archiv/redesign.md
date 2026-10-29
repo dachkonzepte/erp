@@ -8090,3 +8090,30 @@ anlegen“; Auftragsdaten mit Jahr.
 
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v552`): Server mit einer Stelle -> 5; Akte mit einer Stelle -> 1; Entwurf
 nie gefunden -> 1; Storno-Entwurf zählt mit -> 1; Auftragsdatum kurz -> 1.
+
+### Nachrunde, Punkt 6 (1.9.133): „Zahlbetrag unbezahlt“ auf der Rechnungsseite
+
+Im Bericht zu R2 als offen gemeldet: der Kopf der Rechnungsseite sagte „Zahlbetrag offen“ (Text vom Server bzw. das Kennzeichen), die Listen
+„Zahlbetrag unbezahlt“ (D5).
+
+- `app/final_dunning.py::OVERVIEW_LABELS["zahlbetrag_offen"]` = „Zahlbetrag unbezahlt“ (der `state_label` jeder Rechnungszeile nach einer gültigen
+  Endrechnung, u. a. in Finanzen); `app/templates/_statuskennzeichen.html`, Gruppe `rechnung`: `zahlbetrag_offen` -> „Zahlbetrag unbezahlt“ (Kopf der
+  Rechnungsseite). Der Schlüssel `zahlbetrag_offen` bleibt (Filter „Unbezahlt“ in Finanzen, Kennzeichen, Tests).
+
+#### Festlegungen 1.9.133 (Bitte bestätigen)
+
+1. Nur der angezeigte Name wechselt; der Schlüssel `zahlbetrag_offen` bleibt in Daten, Filtern und Kennzeichen (kein Umbenennen im Code).
+
+#### Tests und Prüfung
+
+Neu `tests/test_v553_zahlbetrag_unbezahlt.py` (2 Tests): `state_label` der Schlussrechnung mit enthaltenem Abschlag; Kennzeichen im Kopf und Zahlstand der
+Liste in node gleich („Zahlbetrag unbezahlt 495,00 €“).
+
+Angepasste Erwartungen:
+- `tests/test_v445_statuskennzeichen.py` (Tabelle der Kennzeichen) -- alt „Zahlbetrag offen 495,00 €“ (und „… · überfällig“), neu „Zahlbetrag unbezahlt
+  495,00 €“ (und „… · überfällig“).
+- `scripts/klicktest_finanzen_zahlbetrag.py`, „Rechnungsseite Schlussrechnung A“ -- alt „Zahlbetrag offen 495,00 €“, neu „Zahlbetrag unbezahlt 495,00 €“.
+- `scripts/klicktest_mahnen_endrechnung.py`, „Schlussrechnung: überfällig, Zahlbetrag …“ -- alt enthält „Zahlbetrag offen 495,00“, neu „Zahlbetrag
+  unbezahlt 495,00“.
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v553`): Name am Server alt -> 1; Kennzeichen alt -> 1.
