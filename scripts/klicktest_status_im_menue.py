@@ -1,9 +1,11 @@
-"""Klicktest: Status des Auftrags im Kopf der Akte, Übergänge im „⋮“ (1.9.130, Stufe 5, R2 Nachrunde, Punkt 1).
+"""Klicktest: Status des Auftrags im Kopf der Akte, Übergänge im „⋮“, Storno zurücknehmen (1.9.130/1.9.131, Stufe 5, R2 Nachrunde, Punkte 1 und 2).
 
     Büro – Finanzen   Kopf mit dem Kennzeichen „Läuft“, keine Zeile unter den Phasen; „⋮“ mit Pausieren, Abschließen, Stornieren (Bild);
                       Auftrag mit Rechnungsentwurf ohne Schlussrechnung: kein „Abschließen …“; Pausieren über den Dialog -> „Pausiert“ mit
-                      Hinweis und Begründung, im „⋮“ Fortsetzen statt Pausieren; Stornieren -> „Storniert“, kein Übergang mehr; der Verlauf
-                      zeigt den Wechsel gleich (ohne Neuladen der Seite)
+                      Hinweis und Begründung, im „⋮“ Fortsetzen statt Pausieren; Stornieren -> „Storniert“, kein Übergang mehr, kein „Storno
+                      zurücknehmen“ für das Büro; der Verlauf zeigt den Wechsel gleich (ohne Neuladen der Seite)
+    Admin             „Storno zurücknehmen …“ im „⋮“; ohne Begründung abgelehnt, mit Begründung -> „Läuft“, im Verlauf „storniert → läuft“ mit
+                      der Begründung
 
 AUFRUF (aus dem Projektordner):
 
@@ -31,8 +33,9 @@ def befuellen(db, k):
     from app.project_pipeline_columns import default_pipeline_column_id
 
     fiona = AppUser(username="fiona", display_name="Fiona Finanzen", role="buero_finanzen", password_hash=k.passwort())
+    anna = AppUser(username="anna", display_name="Anna Admin", role="admin", password_hash=k.passwort())
     kunde = Customer(name="Bauherr Status", last_name="Status", city="Uebach")
-    db.add_all([fiona, kunde]); db.flush()
+    db.add_all([fiona, anna, kunde]); db.flush()
 
     def auftrag(nummer):
         p = Project(project_number=f"P-{nummer}", name=f"Dach {nummer}", customer_id=kunde.id, status="angebot",
@@ -49,12 +52,12 @@ def befuellen(db, k):
     frei, _ = auftrag("S-1")
     mit_entwurf, order_entwurf = auftrag("S-2")
     create_abschlag_pauschal(db, order_entwurf, lump_sum_net=Decimal("100"))
-    return {"frei": frei.id, "mit_entwurf": mit_entwurf.id, "cookies": {"fiona": k.cookies(fiona)}}
+    return {"frei": frei.id, "mit_entwurf": mit_entwurf.id, "cookies": {"fiona": k.cookies(fiona), "anna": k.cookies(anna)}}
 
 
 AKTE = "typeof order!=='undefined'&&order&&order.id&&document.getElementById('seitenkopfStatus').textContent.length>0"
-MENUE = ("(()=>{const m=document.getElementById('seitenkopfMenue');return [...m.querySelectorAll('[data-klick=\"statusAktion\"]')]"
-         ".filter(e=>!e.hidden&&e.offsetParent!==null).map(e=>e.textContent)})()")
+MENUE = ("(()=>{const m=document.getElementById('seitenkopfMenue');return [...m.querySelectorAll('[data-klick=\"statusAktion\"],"
+         "[data-klick=\"stornoZuruecknehmen\"]')].filter(e=>!e.hidden&&e.offsetParent!==null).map(e=>e.textContent)})()")
 KOPF = "[document.getElementById('seitenkopfStatus').textContent,document.getElementById('statusZeile').hidden]"
 
 
@@ -76,6 +79,8 @@ async def pruefen(tab, seed, p):
     p.pruefe("Büro: Kennzeichen „Läuft“ im Kopf, keine Zeile unter den Phasen", await tab.js(KOPF), ["Läuft", True])
     await tab.js("document.getElementById('seitenkopfMenueKnopf').click()")
     p.pruefe("Büro: „⋮“ mit den erlaubten Übergängen", await tab.js(MENUE), ["Pausieren …", "Abschließen …", "Stornieren …"])
+    p.pruefe("Büro: kein „Storno zurücknehmen“ im Markup",
+             await tab.js("document.querySelector('[data-klick=\"stornoZuruecknehmen\"]')===null"), True)
     await tab.js("document.documentElement.setAttribute('data-theme','light')")
     await tab.bild("kopf_mit_offenem_menue")
     await tab.js("document.getElementById('seitenkopfMenueKnopf').click()")
@@ -103,6 +108,27 @@ async def pruefen(tab, seed, p):
         "document.getElementById('reiter-verlauf').textContent.includes('pausiert → storniert')&&"
         "document.getElementById('reiter-verlauf').textContent.includes('Begründung: Kunde hat abgesagt')"), True)
 
+    await tab.anmelden(seed["cookies"]["anna"])
+    await tab.oeffnen(f"/projects/{seed['frei']}", AKTE)
+    await tab.js("document.getElementById('seitenkopfMenueKnopf').click()")
+    p.pruefe("Admin: „Storno zurücknehmen …“ im „⋮“", await tab.js(MENUE), ["Storno zurücknehmen …"])
+    await tab.js("document.documentElement.setAttribute('data-theme','light')")
+    await tab.bild("storniert_admin_menue")
+    await tab.js("document.querySelector('[data-klick=\"stornoZuruecknehmen\"]').click()")
+    await tab.warten("document.getElementById('statusDialog').open")
+    await tab.js("document.getElementById('statusBegruendung').value='';document.getElementById('statusDialogKnopf').click()")
+    titel = "Storno zurücknehmen – " + await tab.js("order.order_number")
+    p.pruefe("Admin: Dialog „Storno zurücknehmen“, ohne Begründung abgelehnt", await tab.js(
+        "[document.getElementById('statusDialogTitel').textContent,document.getElementById('statusDialogMeldung').textContent,"
+        "document.getElementById('statusDialog').open,document.getElementById('seitenkopfStatus').textContent]"),
+        [titel, "Bitte eine Begründung angeben.", True, "Storniert"])
+    await tab.js("document.getElementById('statusBegruendung').value='Versehentlich storniert';document.getElementById('statusDialogKnopf').click()")
+    p.pruefe("Admin: mit Begründung -> „Läuft“", await tab.warten(
+        "!document.getElementById('statusDialog').open&&document.getElementById('seitenkopfStatus').textContent==='Läuft'"), True)
+    await tab.js("reiterZeigen('verlauf')")
+    await tab.warten("document.getElementById('reiter-verlauf').textContent.includes('storniert → läuft')")
+    p.pruefe("Verlauf: „storniert → läuft“ mit Begründung", await tab.js(
+        "document.getElementById('reiter-verlauf').textContent.includes('Begründung: Versehentlich storniert')"), True)
     p.pruefe("JS-Fehler", tab.fehler, [])
 
 

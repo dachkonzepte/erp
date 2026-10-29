@@ -1284,6 +1284,18 @@ class OrderStatusChangeRequest(BaseModel):
         return self
 
 
+class OrderStornoZurueckRequest(BaseModel):
+    """Seit 1.9.131 (Stufe 5, R2 Nachrunde, Punkt 2): Storno zurücknehmen (app/auftragsstatus.py::storno_zuruecknehmen()) -- die Begründung ist
+    Pflicht (leer 422)."""
+    reason: str = Field(max_length=2000)
+
+    @model_validator(mode="after")
+    def _begruendung(self):
+        if not self.reason.strip():
+            raise ValueError("Storno zurücknehmen braucht eine Begründung.")
+        return self
+
+
 # Seit 1.9.126 (Stufe 5, R2, Punkt 1): die Zahlen der Akte je Auftrag (app/akte.py::zahlen()).
 class AkteLeistungOut(BaseModel):
     auftragssumme: Decimal

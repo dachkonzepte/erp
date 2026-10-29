@@ -344,7 +344,7 @@ def test_the_email_dispatch_names_why_it_did_not_send(fall, erwartet):
 ABSCHLIESSEND = {
     ("zeiten.html", "monatAbschliessen"): "Monat der Zeiterfassung abschließen",  # seit 1.9.97 (Seite „Zeiten“, Monat & Lohn)
     ("_abnahme.html", "saveAcceptance"): "Abnahme erfassen",
-    ("_auftragsstatus.html", "statusDialogSenden"): "Status des Auftrags ändern (pausieren, fortsetzen, abschließen, stornieren)",  # 1.9.124
+    ("_auftragsstatus.html", "statusDialogSenden"): "Status des Auftrags ändern (pausieren, fortsetzen, abschließen, stornieren; seit 1.9.131 Storno zurücknehmen)",  # 1.9.124
     ("_abnahme.html", "runProtocolAcceptance"): "Abnahme aus dem Protokoll anlegen",
     ("_abnahme.html", "discardAcceptance"): "Abnahme verwerfen",
     ("_email_dispatch.html", "postEmailDispatch"): "E-Mail-Versand (alle Dokumente)",

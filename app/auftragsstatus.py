@@ -11,8 +11,10 @@ Prüfung; beauftragt, arbeitsvorbereitung und in_ausfuehrung gehen in „läuft�
     storniert      mit Begründung; dazu keine neuen Berichte -- Rechnungen bleiben möglich (Teilleistung), das Büro bucht weiter
 
 Übergänge nur über status_aendern() (POST /api/orders/{id}/status): pausieren und stornieren aus „läuft“ oder „pausiert“, abschließen aus „läuft“
-oder „pausiert“, fortsetzen aus „pausiert“ (ohne Begründung) oder „abgeschlossen“ (mit Begründung). Ein stornierter Auftrag bleibt storniert.
-Unter der Sperre der Auftragszeile (wie Rechnungen, Abnahme, Abgleich), Historie in OrderStatusChange im selben Commit.
+oder „pausiert“, fortsetzen aus „pausiert“ (ohne Begründung) oder „abgeschlossen“ (mit Begründung). Aus „storniert“ führt nur
+storno_zuruecknehmen() (seit 1.9.131, R2 Nachrunde, Punkt 2): zurück auf „läuft“, immer mit Begründung -- wer es darf (nur der Admin), entscheidet
+der Router; bis 1.9.130 blieb ein stornierter Auftrag storniert. Unter der Sperre der Auftragszeile (wie Rechnungen, Abnahme, Abgleich), Historie
+in OrderStatusChange im selben Commit.
 
 Die Abfragen hier sind rollenlos (Architekturentscheidung „Rollenlose Business-Logik“): wer die Sperre trifft (nur die Monteurin beim Buchen),
 entscheidet der Router.
@@ -42,6 +44,7 @@ UEBERGAENGE = {
 }
 # Name der Aktion je Ziel (Knopf, Rückfrage, Verlauf)
 AKTIONEN = {PAUSIERT: "Pausieren", LAEUFT: "Fortsetzen", ABGESCHLOSSEN: "Abschließen", STORNIERT: "Stornieren"}
+STORNO_ZURUECK = "Storno zurücknehmen"  # seit 1.9.131: storniert -> läuft, nur über storno_zuruecknehmen()
 
 OHNE_RECHNUNG_TEXT = ("Abschließen geht nach der Schlussrechnung (bzw. der abschließenden Rechnung aus Aufwand) – ohne Rechnung nur mit "
                       "Begründung „ohne Rechnung“.")
@@ -57,11 +60,13 @@ BERICHT_GESPERRT = "Der Auftrag ist storniert – neue Einsatzberichte gibt es d
 
 
 class StatusKonflikt(ValueError):
-    """Der Übergang geht von hier nicht (falscher Ausgangsstatus, Abschließen ohne Schlussrechnung und ohne Begründung) -- 409."""
+    """Der Übergang geht von hier nicht (falscher Ausgangsstatus, Abschließen ohne Schlussrechnung und ohne Begründung, Storno zurücknehmen an
+    einem Auftrag, der nicht storniert ist) -- 409."""
 
 
 class BegruendungFehlt(ValueError):
-    """Für diesen Übergang fehlt die Begründung (Fortsetzen eines abgeschlossenen Auftrags) -- 422 wie die Pflicht im Schema."""
+    """Für diesen Übergang fehlt die Begründung (Fortsetzen eines abgeschlossenen Auftrags, Storno zurücknehmen) -- 422 wie die Pflicht im
+    Schema."""
 
 
 class AuftragGeschlossen(ValueError):
@@ -134,7 +139,8 @@ def wechsel(db: Session, order_id: int) -> list[OrderStatusChange]:
 def wechsel_dict(row: OrderStatusChange) -> dict:
     return {
         "id": row.id, "order_id": row.order_id, "old_status": row.old_status, "new_status": row.new_status,
-        "old_status_label": name(row.old_status), "new_status_label": name(row.new_status), "action": AKTIONEN.get(row.new_status),
+        "old_status_label": name(row.old_status), "new_status_label": name(row.new_status),
+        "action": STORNO_ZURUECK if row.old_status == STORNIERT else AKTIONEN.get(row.new_status),
         "reason": row.reason, "without_invoice": bool(row.without_invoice), "changed_at": row.changed_at,
         "changed_by_name": row.changed_by_name,
     }
@@ -171,6 +177,8 @@ def status_info(db: Session, order: Order) -> dict:
         "status": wert(order.status), "status_label": name(order.status),
         "aktionen": [{"ziel": z, "name": AKTIONEN[z], "begruendung_pflicht": begruendung_pflicht(order, z)} for z in ziele],
         "abschluss": abschluss,
+        # seit 1.9.131: ob sich der Storno zurücknehmen lässt (der Auftrag ist storniert) -- rollenlos; den Eintrag zeigt die Seite nur dem Admin
+        "storno_zuruecknehmen": wert(order.status) == STORNIERT,
         "letzter_wechsel": wechsel_dict(letzter) if letzter is not None else None,
     }
 
@@ -179,7 +187,6 @@ def status_aendern(db: Session, order_id: int, ziel: str, begruendung: str | Non
                    user_name: str | None = None) -> Order:
     """Der eine Weg, den Status eines Auftrags zu ändern. Unter der Sperre der Auftragszeile (frisch gelesen), prüft Übergang und Begründung,
     schreibt Status und OrderStatusChange in einem Commit. StatusKonflikt (409), BegruendungFehlt (422), ValueError „nicht gefunden“ (404)."""
-    from .audit import current_actor  # lokal: app/audit.py lädt viele Modelle
     from .invoices import closing_invoices, lock_order_invoices  # lokal: app/invoices.py hängt an vielen Modulen
 
     if ziel not in STATUS:
@@ -197,7 +204,7 @@ def status_aendern(db: Session, order_id: int, ziel: str, begruendung: str | Non
     if jetzt not in UEBERGAENGE[ziel]:
         db.rollback()
         if jetzt == STORNIERT:
-            raise StatusKonflikt("Der Auftrag ist storniert – das lässt sich nicht mehr ändern.")
+            raise StatusKonflikt("Der Auftrag ist storniert – zurück geht es nur über „Storno zurücknehmen“ (Admin, mit Begründung).")
         raise StatusKonflikt(f"{AKTIONEN[ziel]} geht aus „{name(jetzt)}“ nicht.")
     if begruendung_pflicht(order, ziel) and text is None:
         db.rollback()
@@ -212,6 +219,38 @@ def status_aendern(db: Session, order_id: int, ziel: str, begruendung: str | Non
             db.rollback()
             raise StatusKonflikt(OHNE_RECHNUNG_TEXT)
         ohne_rechnung = True
+    return _wechsel_schreiben(db, order, jetzt, ziel, text, ohne_rechnung, user_id=user_id, user_name=user_name)
+
+
+def storno_zuruecknehmen(db: Session, order_id: int, begruendung: str | None, *, user_id: int | None = None,
+                         user_name: str | None = None) -> Order:
+    """Seit 1.9.131 (R2 Nachrunde, Punkt 2): einen versehentlichen Storno zurücknehmen -- der Auftrag läuft danach wieder (Einsätze, Berichte,
+    Buchungen der Monteurin wie vorher). Nur aus „storniert“, immer mit Begründung; unter der Sperre der Auftragszeile, Historie in
+    OrderStatusChange (storniert -> läuft) im selben Commit, im Verlauf mit der Begründung. Wer es darf (nur der Admin), entscheidet der Router.
+    StatusKonflikt (409), BegruendungFehlt (422), ValueError „nicht gefunden“ (404)."""
+    from .invoices import lock_order_invoices  # lokal, siehe status_aendern()
+
+    text = (begruendung or "").strip() or None
+    lock_order_invoices(db, order_id)
+    order = db.get(Order, order_id)
+    if order is None:
+        db.rollback()
+        raise ValueError("Auftrag nicht gefunden.")
+    jetzt = wert(order.status)
+    if jetzt != STORNIERT:
+        db.rollback()
+        raise StatusKonflikt(f"Der Auftrag ist nicht storniert, sondern {name(jetzt)} – da gibt es keinen Storno zurückzunehmen.")
+    if text is None:
+        db.rollback()
+        raise BegruendungFehlt(f"{STORNO_ZURUECK} braucht eine Begründung.")
+    return _wechsel_schreiben(db, order, jetzt, LAEUFT, text, False, user_id=user_id, user_name=user_name)
+
+
+def _wechsel_schreiben(db: Session, order: Order, jetzt: str, ziel: str, text: str | None, ohne_rechnung: bool, *, user_id: int | None,
+                       user_name: str | None) -> Order:
+    """Status und OrderStatusChange in einem Commit (der Aufrufer hält die Sperre der Auftragszeile und hat geprüft)."""
+    from .audit import current_actor  # lokal: app/audit.py lädt viele Modelle
+
     akteur_id, akteur_name = current_actor()
     db.add(OrderStatusChange(
         order_id=order.id, old_status=jetzt, new_status=ziel, reason=text, without_invoice=ohne_rechnung,

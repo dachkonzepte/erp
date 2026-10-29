@@ -24,7 +24,7 @@ from ..concern_notices import OPEN_CONCERNS_TEXT
 from ..database import get_db
 from ..deps import require_admin
 from ..models import AppUser, Order
-from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, ZEITEN_NUR_LESEN, GELD_NUR_LESEN, EINSTELLUNGEN_GELD_NUR_LESEN, darf_geld, darf_lohndaten, darf_zeit_buchen, darf_zeit_fuer_andere_buchen, default_home_page_for_role, has_min_role, has_role, require_min_role, zeit_nur_mit_von_bis
+from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, ZEITEN_NUR_LESEN, GELD_NUR_LESEN, EINSTELLUNGEN_GELD_NUR_LESEN, darf_geld, darf_lohndaten, darf_storno_zuruecknehmen, darf_zeit_buchen, darf_zeit_fuer_andere_buchen, default_home_page_for_role, has_min_role, has_role, require_min_role, zeit_nur_mit_von_bis
 from .. import seitendaten
 from ..design_dateien import pruefsumme as ds_pruefsumme
 from ..version import APP_VERSION
@@ -467,10 +467,11 @@ def project_create_page(request: Request, customer_id: str | None = None, _role:
 def project_folder_page(request: Request, project_id: int, _role: AppUser = _role_dep):
     """Seit 1.9.129 (Stufe 5, R2, Punkt 2): die Akte je Projekt (akte.html) -- Projektmappe und Auftragsseite in einer Seite. ?auftrag=<id>
     wählt den Auftrag (nur eine Zahl, _zahl()); welcher es ohne Angabe ist und ob er zum Projekt gehört, sagt GET /api/projects/{id}/akte.
-    „geld“ = darf_geld(): Rechnung anlegen, Mahnen und Entwurf anlegen nur danach, sonst der Hinweis."""
+    „geld“ = darf_geld(): Rechnung anlegen, Mahnen und Entwurf anlegen nur danach, sonst der Hinweis. „storno_zuruecknehmen“ (seit 1.9.131) =
+    darf_storno_zuruecknehmen(): nur dann steht „Storno zurücknehmen …“ im Menü."""
     return templates.TemplateResponse(request=request, name="akte.html", context={
         "project_id": project_id, "auftrag": _zahl(request.query_params.get("auftrag")), "geld": darf_geld(_role),
-        "geld_nur_lesen": GELD_NUR_LESEN})
+        "geld_nur_lesen": GELD_NUR_LESEN, "storno_zuruecknehmen": darf_storno_zuruecknehmen(_role)})
 
 
 @router.get("/quotes/new", response_class=HTMLResponse)

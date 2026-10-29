@@ -1392,7 +1392,8 @@ class OrderCustomerChange(Base):
 class OrderStatusChange(Base):
     """Statuswechsel am Auftrag (seit 1.9.124, Stufe 5, R2, Punkt 1): je Übergang (pausieren, fortsetzen, abschließen, stornieren) eine Zeile mit
     altem und neuem Status, der Begründung (Pflicht beim Pausieren und Stornieren, beim Abschließen ohne Schlussrechnung, beim Fortsetzen eines
-    abgeschlossenen Auftrags) und ob ohne Rechnung abgeschlossen wurde. Geschrieben nur von app/auftragsstatus.py::status_aendern(), unter der
+    abgeschlossenen Auftrags, seit 1.9.131 beim Zurücknehmen eines Stornos) und ob ohne Rechnung abgeschlossen wurde. Geschrieben nur von
+    app/auftragsstatus.py::status_aendern() und storno_zuruecknehmen(), unter der
     Sperre der Auftragszeile, im selben Commit wie der Status. Unveränderlich und nie gelöscht (ORM-Sperre am Ende der Datei)."""
 
     __tablename__ = "order_status_changes"

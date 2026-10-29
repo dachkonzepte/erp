@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..acceptances import AcceptanceExistsError
 from ..akte import soll_stunden, zahlen
-from ..auftragsstatus import BegruendungFehlt, StatusKonflikt, status_aendern, wechsel, wechsel_dict
+from ..auftragsstatus import BegruendungFehlt, StatusKonflikt, status_aendern, storno_zuruecknehmen, wechsel, wechsel_dict
 from ..contract_basis import ContractSignedError, change_order_contract_basis, list_order_contract_basis_changes
 from ..database import get_db
 from ..email_dispatch import DispatchConflict
@@ -32,10 +32,10 @@ from ..models import AppUser, Order, ServiceReport
 from ..order_locks import OrderLocked
 from ..order_pdf import build_order_pdf
 from ..orders import SyncBlockedError, add_order_addendum, create_order_revision, field_may_access_order, list_order_revisions, load_order, order_to_dict, remove_order_addendum, send_order_email, sync_order_from_source_quote, update_order_header, update_order_item, update_order_section, update_order_tax_key
-from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
+from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, STORNO_ZURUECK_NUR_ADMIN, STORNO_ZURUECK_ROLLEN, require_min_role, require_role
 from ..service_reports import bericht_zum_auftrag_moeglich
 from ..time_tracking import auftrag_zeiten_gesperrt
-from ..schemas import OrderAddendumCreate, OrderContractBasisChangeOut, OrderContractBasisUpdate, OrderEmailSend, OrderFieldAccessOut, OrderItemUpdate, OrderListOut, OrderOut, OrderRevisionCreate, OrderRevisionOut, OrderSectionUpdate, OrderStatusChangeOut, OrderStatusChangeRequest, OrderSyncRequest, OrderUpdate, TaxKeySelection, AkteZahlenOut
+from ..schemas import OrderAddendumCreate, OrderContractBasisChangeOut, OrderContractBasisUpdate, OrderEmailSend, OrderFieldAccessOut, OrderItemUpdate, OrderListOut, OrderOut, OrderRevisionCreate, OrderRevisionOut, OrderSectionUpdate, OrderStatusChangeOut, OrderStatusChangeRequest, OrderStornoZurueckRequest, OrderSyncRequest, OrderUpdate, TaxKeySelection, AkteZahlenOut
 
 router = APIRouter()
 
@@ -173,6 +173,22 @@ def post_order_status(order_id: int, payload: OrderStatusChangeRequest, db: Sess
     try:
         status_aendern(db, order_id, payload.status, payload.reason, user_id=user.id,
                        user_name=user.display_name or user.username)
+    except StatusKonflikt as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except BegruendungFehlt as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return OrderOut.model_validate(order_to_dict(load_order(db, order_id), db))
+
+
+@router.post("/api/orders/{order_id}/storno-zuruecknehmen", response_model=OrderOut)
+def post_order_storno_zuruecknehmen(order_id: int, payload: OrderStornoZurueckRequest, db: Session = Depends(get_db, scope="function"),
+                                    user: AppUser = Depends(require_role(*STORNO_ZURUECK_ROLLEN, message=STORNO_ZURUECK_NUR_ADMIN))):
+    """Seit 1.9.131 (Stufe 5, R2 Nachrunde, Punkt 2): einen Storno zurücknehmen -- nur der Admin (app/permissions.py::darf_storno_zuruecknehmen(),
+    sonst 403), mit Begründung (422), nur an einem stornierten Auftrag (409); der Auftrag läuft danach wieder, der Wechsel steht im Verlauf."""
+    try:
+        storno_zuruecknehmen(db, order_id, payload.reason, user_id=user.id, user_name=user.display_name or user.username)
     except StatusKonflikt as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except BegruendungFehlt as exc:

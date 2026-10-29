@@ -192,6 +192,18 @@ def darf_geld(user: AppUser | None) -> bool:
     return user is None or has_role(user, *GELD_ROLLEN)
 
 
+# Seit 1.9.131 (Stufe 5, R2 Nachrunde, Punkt 2, Vorgabe Tobias): einen Storno des Auftrags nimmt nur der Admin zurück (zurück auf „läuft“, mit
+# Begründung) -- ein versehentlicher Storno sperrte bis dahin Auftrag und Angebot für immer. Server (POST /api/orders/{id}/storno-zuruecknehmen)
+# und Oberfläche (Seitenroute der Akte) fragen nur diese Regel.
+STORNO_ZURUECK_ROLLEN = frozenset({ROLE_ADMIN})
+STORNO_ZURUECK_NUR_ADMIN = "Einen Storno nimmt nur der Admin zurück."
+
+
+def darf_storno_zuruecknehmen(user: AppUser | None) -> bool:
+    """Seit 1.9.131: einen stornierten Auftrag zurück auf „läuft“ setzen -- nur der Admin; ohne Konto (Tests ohne Anmeldung) ohne Einschränkung."""
+    return user is None or has_role(user, *STORNO_ZURUECK_ROLLEN)
+
+
 # „Durchgeführt von“ bzw. „erstellt von“ eine andere Person (Bericht, Foto, Material, Betriebsmittel, Wartungseinsatz) -- seit 1.9.121 (Stufe 5,
 # R1 Nachrunde, Punkt 3) dieselbe Regel wie für Zeiten: darf_zeit_fuer_andere_buchen() oben (Admin und Büro – Finanzen). 1.9.112–1.9.120 stand
 # hier darf_fuer_andere_erfassen() (nur der Admin, die Regel von 1.3.0). Einen Befund schreibt niemand einer anderen Person zu: „erfasst von“ ist

@@ -7984,3 +7984,59 @@ Angepasste Erwartungen: keine.
 
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v550`): Filter in `status_info()` ausgebaut -> 1; `hidden` je Eintrag
 nicht nach `aktionen` -> 1.
+
+### Nachrunde, Punkt 2 (1.9.131): Storno zurücknehmen
+
+Bis 1.9.130 blieb ein stornierter Auftrag storniert (Festlegung 1.9.124 Nr. 1, nicht bestätigt): ein versehentlicher Storno sperrte Auftrag
+und Angebot für immer -- keine Einsätze, Berichte und Buchungen der Monteure, und aus dem Angebot entsteht kein zweiter Auftrag.
+
+- `app/auftragsstatus.py::storno_zuruecknehmen(db, order_id, begruendung, *, user_id, user_name)`: unter der Sperre der Auftragszeile
+  (`lock_order_invoices()` wie `status_aendern()`), nur aus „storniert“ (sonst `StatusKonflikt`, 409), Begründung Pflicht (`BegruendungFehlt`,
+  422), setzt „läuft“ und schreibt `OrderStatusChange` (storniert -> läuft, mit Begründung) im selben Commit -- gemeinsam mit `status_aendern()`
+  über `_wechsel_schreiben()`. Rollenlos; `status_info()` meldet `storno_zuruecknehmen` (der Auftrag ist storniert), `wechsel_dict()` nennt die
+  Aktion „Storno zurücknehmen“. Der allgemeine Weg (`POST /api/orders/{id}/status`) lehnt aus „storniert“ weiter ab (409), jetzt mit dem Hinweis
+  auf „Storno zurücknehmen“.
+- `app/permissions.py::darf_storno_zuruecknehmen()` (nur Admin, `STORNO_ZURUECK_ROLLEN`): `POST /api/orders/{id}/storno-zuruecknehmen`
+  (`require_role`, Büro 403 mit „Einen Storno nimmt nur der Admin zurück.“, Schema `OrderStornoZurueckRequest`: Begründung Pflicht, leer 422) und
+  die Seitenroute der Akte (`storno_zuruecknehmen` im Kontext).
+- `app/templates/akte.html`: im „⋮“ nach den Übergängen „Storno zurücknehmen …“ (`data-klick="stornoZuruecknehmen"`, `hidden`), nur für den
+  Admin im Markup. `_auftragsstatus.html`: sichtbar, solange `status_info.storno_zuruecknehmen` gilt; derselbe Dialog (Titel „Storno
+  zurücknehmen – <Nummer>“, Wirkung, Begründung *, Knopf „Storno zurücknehmen“) über `abschliessen('auftragsstatus', …)`. Der Hinweis beim
+  Stornieren sagt „Zurücknehmen kann den Storno nur der Admin, mit Begründung.“ statt „Ein Storno lässt sich nicht zurücknehmen.“
+- Verlauf: die Zeile „<Auftragsnummer> · storniert → läuft“ mit „Begründung: …“ (Änderungsprotokoll, wie jeder Statuswechsel); nach dem
+  Zurücknehmen lädt die Akte Kopf, Phasen und Verlauf neu (1.9.130).
+
+#### Festlegungen 1.9.131 (Bitte bestätigen)
+
+1. Storno zurücknehmen ist ein eigener Weg (`POST /api/orders/{id}/storno-zuruecknehmen`), nicht ein weiteres Ziel von `POST /api/orders/{id}/status`;
+   dort bleibt „storniert“ eine Sackgasse (409 mit dem Hinweis).
+2. Zurück geht es immer auf „läuft“, auch wenn der Auftrag vor dem Storno pausiert war (wieder pausieren ist ein eigener Schritt mit Begründung).
+3. Zurückgenommen wird nur der Status: was während des Stornos geschah (Rechnungen, Buchungen des Büros), bleibt; ein Einsatz, der beim Storno
+   bestand, bestand weiter.
+4. Die Begründung ist Pflicht (leer oder nur Leerzeichen 422) und steht im Verlauf und im Statusverlauf (Aktion „Storno zurücknehmen“).
+5. „Storno zurücknehmen …“ steht im „⋮“ nach den Übergängen, vor „Projekt bearbeiten“; für Büro – Finanzen und Büro – Auftrag fehlt der Eintrag
+   im Markup ganz (nicht nur verborgen), für den Admin ist er sichtbar, solange der Auftrag storniert ist.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v551_storno_zuruecknehmen.py` (12 Tests): Büro – Auftrag und Büro – Finanzen 403 (Status bleibt storniert); Admin ohne
+Begründung (fehlt, null, leer, Leerzeichen) 422; mit Begründung 200: „läuft“, Übergänge wieder da, letzter Wechsel storniert -> läuft mit Aktion
+„Storno zurücknehmen“ und gekürzter Begründung, Zeile in `order_status_changes`, Statusverlauf „Stornieren“, „Storno zurücknehmen“, im Verlauf
+„… storniert → läuft“ mit „Begründung: …“, ein neuer Bericht geht wieder (vorher 409); nicht storniert (läuft, pausiert) 409, der allgemeine Weg
+aus „storniert“ 409 mit dem Hinweis, unbekannter Auftrag 404; der Eintrag im Markup nur für den Admin; `auftragsstatusZeigen()` in node: sichtbar
+genau, solange storniert.
+
+Angepasste Erwartungen:
+- `tests/test_v399_abschliessen.py`, `ABSCHLIESSEND[("_auftragsstatus.html", "statusDialogSenden")]` -- Soll unverändert (über `abschliessen()`),
+  nur die Beschreibung um „Storno zurücknehmen“ ergänzt (Aufbau; dieselbe Funktion sendet beide Wege).
+- `scripts/klicktest_zeitbuchungen_liste.py`, „Auftrag (Admin): Rechnung aus Aufwand“ -- Soll unverändert, nur die Bereitschaft (Aufbau): alt
+  `#newInvoiceType option` (schon von den Optionen im Markup erfüllt, bevor die Akte den Auftrag geladen hat), neu
+  `timeTotals&&#newInvoiceType option` -- die Option „aufwand“ entsteht erst mit den Zeiten des Auftrags. Im Lauf von 1.9.131 einmal rot (zu früh
+  geprüft, zwei Anfragen der Akte noch offen), in den Läufen davor grün; ein Rennen seit 1.9.129 (Akte statt Auftragsseite), kein Fehler der Seite.
+
+Klicktest `scripts/klicktest_status_im_menue.py` erweitert (der Admin-Teil): kein „Storno zurücknehmen“ im Markup für das Büro; als Admin
+„Storno zurücknehmen …“ im „⋮“, Dialog mit Titel, ohne Begründung abgelehnt, mit Begründung „Läuft“, im Verlauf „storniert → läuft“ mit der
+Begründung.
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v551`): Endpunkt mit der Rolle des Büros -> 2; ohne Pflicht der Begründung
+(Schema und Funktion) -> 4; ohne Prüfung „storniert“ -> 1; Eintrag für jede Rolle im Markup -> 2; Eintrag immer sichtbar -> 1.

@@ -208,7 +208,9 @@ async def pruefen(tab, seed, p):
     # seit 1.9.98 „Zeiten“, Reiter Buchungen (bis 1.9.97 Backoffice mit Liste 2000 und Büro-Zeiterfassung mit Liste 500, je mit Hinweis):
     # ein Monat kommt vollständig (GET /api/zeiten/buchungen ohne Grenze), die laufende Zeit steht in der Liste, nicht in der Summe
     await tab.anmelden(seed["cookies"]["anna"])
-    await tab.oeffnen(f"/orders/{a}", "document.querySelector('#newInvoiceType option')")
+    # seit 1.9.131: bereit erst mit den Zeiten des Auftrags (timeTotals) -- die Option „aufwand“ entsteht danach; die Optionen im Markup
+    # erfüllten die frühere Bedingung schon vor dem Laden (im Lauf von 1.9.131 einmal zu früh geprüft)
+    await tab.oeffnen(f"/orders/{a}", "timeTotals&&document.querySelector('#newInvoiceType option')")
     p.pruefe("Auftrag (Admin): Rechnung aus Aufwand", await tab.js("!!document.querySelector('#newInvoiceType option[value=\"aufwand\"]')"), True)
     zeilen = "!!window.B&&!document.getElementById('reiter-buchungen').hidden&&document.querySelectorAll('#buchungenZeilen tr').length>0"
     await tab.oeffnen("/time-backoffice#entries", zeilen, timeout=60)

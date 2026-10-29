@@ -402,7 +402,9 @@ Behoben, drei Teile:
   (`_rechnungsliste.html`), Verlauf mit Ziel je Zeile, kein Hauptknopf am Mustervorgang; jede Funktion der früheren Seiten steht in `FUNKTIONEN`
   (`tests/test_v549_akte_seite.py`) -- eine neue Funktion an Projekt oder Auftrag kommt dort hinein. **R2 Nachrunde:** 1.9.130 im Kopf der Akte
   nur das Kennzeichen des Auftrags, die Übergänge im „⋮“ -- nur die, die `status_info()` gerade erlaubt (kein „Abschließen“ mit einer Rechnung ohne
-  Schlussrechnung; `tests/test_v550_status_im_menue.py`). Archiv: `docs/archiv/redesign.md`, „Stufe 5, R2“ und „R2 Nachrunde“.
+  Schlussrechnung; `tests/test_v550_status_im_menue.py`), nach jeder Änderung am Auftrag auch der Verlauf neu; 1.9.131 Storno zurücknehmen nur
+  der Admin (`app/auftragsstatus.py::storno_zuruecknehmen()`, `POST /api/orders/{id}/storno-zuruecknehmen`, `darf_storno_zuruecknehmen()`), mit
+  Begründung, zurück auf „läuft“ (`tests/test_v551_storno_zuruecknehmen.py`). Archiv: `docs/archiv/redesign.md`, „Stufe 5, R2“ und „R2 Nachrunde“.
 
 ## Kritische, nicht verhandelbare Regeln
 
@@ -948,7 +950,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   abgeschlossen, storniert; bis 1.9.123 freier Text, beauftragt/arbeitsvorbereitung/in_ausfuehrung gingen in „läuft“ auf, Migration `8d3f6a2c91e7`),
   geändert nur über `status_aendern()` (`POST /api/orders/{id}/status`, unter der Sperre der Auftragszeile, Historie `OrderStatusChange`): Pausieren und
   Stornieren mit Begründung, Abschließen nach der Schlussrechnung oder „ohne Rechnung“ mit Begründung (nur ohne jede Rechnung), Fortsetzen; ein Status in
-  PUT oder beim Beauftragen 422. Wirkung: pausiert keine Sperre; abgeschlossen und storniert kein neuer Einsatz, nicht in der Plantafel, die Monteurin
+  PUT oder beim Beauftragen 422; seit 1.9.131 nimmt nur der Admin einen Storno zurück (`storno_zuruecknehmen()`, mit Begründung, zurück auf
+  „läuft“). Wirkung: pausiert keine Sperre; abgeschlossen und storniert kein neuer Einsatz, nicht in der Plantafel, die Monteurin
   bucht nicht; storniert dazu kein neuer Bericht (jede Rolle) -- je 409; Rechnungen und Buchungen des Büros bleiben (`tests/test_v544_auftragsstatus.py`).
   Seine Revisionen (`OrderRevision`) entstehen seit 1.8.110
   unter der Sperre der Auftragszeile in der Transaktion der Änderung, die sie sichern: `create_order_revision()` committet nie

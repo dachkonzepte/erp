@@ -1,7 +1,9 @@
 {#- Status des Auftrags (seit 1.9.124, Stufe 5, R2, Punkt 1): Hinweis mit Begründung, die Übergänge im Menü „⋮“ der Seite und der Dialog mit
     Rückfrage. Seit 1.9.130 (R2 Nachrunde, Punkt 1) wie die Vorlage: das Kennzeichen steht im Seitenkopf (die Seite setzt es), die Übergänge sind
     Einträge im Menü mit data-klick="statusAktion" und data-ziel (die Seite legt sie an, je Status einer, hidden) -- auftragsstatusZeigen() zeigt nur
-    die, die der Server gerade erlaubt (status_info.aktionen); bis 1.9.129 Knöpfe in einer Zeile „Status“.
+    die, die der Server gerade erlaubt (status_info.aktionen); bis 1.9.129 Knöpfe in einer Zeile „Status“. Seit 1.9.131 (Punkt 2) dazu der Eintrag
+    data-klick="stornoZuruecknehmen" (die Seite legt ihn nur für den Admin an): sichtbar, solange der Auftrag storniert ist
+    (status_info.storno_zuruecknehmen), derselbe Dialog mit Pflichtbegründung, POST /api/orders/{id}/storno-zuruecknehmen.
     Vier Status (app/auftragsstatus.py): läuft, pausiert, abgeschlossen, storniert -- ein Wechsel nur über diesen Dialog (POST /api/orders/{id}/status,
     abschließende Aktion über abschliessen()). Pausieren und Stornieren verlangen eine Begründung, Abschließen ohne Schlussrechnung die Begründung
     „ohne Rechnung“ (nur solange keine Rechnung besteht, mit den gebuchten Stunden, die dann nicht abgerechnet werden), Fortsetzen eines
@@ -23,12 +25,15 @@ const AUFTRAGSSTATUS_WIRKUNG = {
   pausiert: 'Pausiert sperrt nichts: Akte und Plantafel zeigen den Hinweis mit deiner Begründung, Monteure buchen weiter.',
   laeuft: 'Der Auftrag läuft wieder – ohne Sperre.',
   abgeschlossen: 'Danach buchen Monteure nicht mehr auf den Auftrag (das Büro weiter), er steht nicht mehr in der Plantafel, und es gibt keine neuen Einsätze.',
-  storniert: 'Danach gibt es keine neuen Einsätze, Einsatzberichte und Buchungen der Monteure. Rechnungen bleiben möglich (Teilleistung). Ein Storno lässt sich nicht zurücknehmen.',
+  storniert: 'Danach gibt es keine neuen Einsätze, Einsatzberichte und Buchungen der Monteure. Rechnungen bleiben möglich (Teilleistung). Zurücknehmen kann den Storno nur der Admin, mit Begründung.',
+  zurueck: 'Der Auftrag läuft danach wieder: Einsätze, Einsatzberichte und Buchungen der Monteure gehen wie vor dem Storno. Die Begründung steht im Verlauf.',
 };
+const STORNO_ZURUECK_AKTION = {ziel: 'zurueck', name: 'Storno zurücknehmen', begruendung_pflicht: true};
 let _auftragsstatusOrder = null, _auftragsstatusZiel = null, _auftragsstatusAnwenden = null;
 function auftragsstatusEinrichten(anwenden) {
   _auftragsstatusAnwenden = anwenden;
   aktion('statusAktion', el => statusDialogOeffnen(el.dataset.ziel));
+  aktion('stornoZuruecknehmen', () => statusDialogOeffnen('zurueck'));
   aktion('statusSenden', () => statusDialogSenden());
   aktion('statusAbbrechen', () => document.getElementById('statusDialog').close());
 }
@@ -47,6 +52,8 @@ function auftragsstatusZeigen(order) {
   _auftragsstatusOrder = order;
   const erlaubt = new Set(((order && order.status_info && order.status_info.aktionen) || []).map(a => a.ziel));
   document.querySelectorAll('[data-klick="statusAktion"]').forEach(eintrag => { eintrag.hidden = !erlaubt.has(eintrag.dataset.ziel); });
+  const zurueck = !!(order && order.status_info && order.status_info.storno_zuruecknehmen);
+  document.querySelectorAll('[data-klick="stornoZuruecknehmen"]').forEach(eintrag => { eintrag.hidden = !zurueck; });
   const ziel = document.getElementById('auftragsstatus'), zeile = document.getElementById('statusZeile');
   const html = auftragsstatusHinweis(order);
   if (ziel) ziel.innerHTML = html;
@@ -54,7 +61,7 @@ function auftragsstatusZeigen(order) {
 }
 function statusDialogOeffnen(ziel) {
   const order = _auftragsstatusOrder, info = (order && order.status_info) || {aktionen: []};
-  const aktionInfo = info.aktionen.find(a => a.ziel === ziel);
+  const aktionInfo = ziel === 'zurueck' ? (info.storno_zuruecknehmen ? STORNO_ZURUECK_AKTION : null) : info.aktionen.find(a => a.ziel === ziel);
   if (!aktionInfo) return;
   _auftragsstatusZiel = ziel;
   document.getElementById('statusDialogTitel').textContent = `${aktionInfo.name} – ${order.order_number}`;
@@ -84,8 +91,14 @@ async function statusDialogSenden() {
   if (feld.required && !begruendung) { meldung.textContent = 'Bitte eine Begründung angeben.'; feld.focus(); return; }
   try {
     meldung.textContent = 'Speichert …';
+    const anwenden = d => { document.getElementById('statusDialog').close(); if (_auftragsstatusAnwenden) _auftragsstatusAnwenden(d); };
+    if (ziel === 'zurueck') {
+      await abschliessen('auftragsstatus', () => api(`/api/orders/${order.id}/storno-zuruecknehmen`, {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({reason: begruendung})}), {anwenden});
+      return;
+    }
     await abschliessen('auftragsstatus', () => api(`/api/orders/${order.id}/status`, {method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({status: ziel, reason: begruendung || null})}), {anwenden: d => { document.getElementById('statusDialog').close(); if (_auftragsstatusAnwenden) _auftragsstatusAnwenden(d); }});
+      body: JSON.stringify({status: ziel, reason: begruendung || null})}), {anwenden});
   } catch (e) { meldung.textContent = 'Fehler: ' + e.message; }
 }
 </script>
