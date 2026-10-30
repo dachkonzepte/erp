@@ -8429,7 +8429,7 @@ Festlegungen zu Werkzeug und Testablauf: 5, in `docs/archiv/testablauf-und-klick
 
 `_einzelheit(z)` ersetzt in `einzelheiten` die lange Bezeichnung durch `kurz` (`entity_label` = null); `verlaufEinzelheit(z)` (`_verlauf.html`) zeichnet die Zeile für Akte und Kundenakte. Eine Zeile ohne lesbaren Schnappschuss fällt auf den allgemeinen Satz zurück, ohne die Art davor („Zahlungseingang Zahlung …“ gibt es nicht mehr).
 
-#### Festlegungen 1.9.139 (Bitte bestätigen)
+#### Festlegungen 1.9.139 (bestätigt am 30.10.2026)
 
 1. Die Sätze entstehen beim Lesen aus dem Schnappschuss, nicht aus einer geänderten Bezeichnung: so gelten sie auch für ältere Zeilen, und das Protokoll (`/history`, unveränderlich) bleibt, wie es ist.
 2. In der Akte steht weiter nur die Zuordnung, nicht der Eingang: die Zahlung gehört zum Kunden, nicht zum Projekt (`Payment` trägt kein Projekt). Ein Eingang über 3.000 € mit 144 € auf dieses Projekt zeigt in der Akte „144,00 € auf R-… zugeordnet“.
@@ -8453,7 +8453,7 @@ Eine Zeile je Aktion wie überall: zwei Dateien in einer Anfrage derselben Aktio
 
 **Fund:** `category` und `category_id` ändern sich zusammen und ergaben zwei gleiche Zeilen („Kategorie Sonstiges → Rechnungen / Belege“), der Verlauf schrieb „und 1 weitere Einzelheit“. Jetzt `STILL_JE_ART` für beide Dateiarten (auch die Projektdatei in der Akte, dieselbe Doppelung).
 
-#### Festlegungen 1.9.140 (Bitte bestätigen)
+#### Festlegungen 1.9.140 (bestätigt am 30.10.2026, außer Nr. 2: Dateien heißen im Verlauf „hochgeladen“, geändert mit 1.9.149)
 
 1. Überholt Festlegung 1.9.136 Nr. 1: Kundendokumente stehen jetzt im Verlauf des Kunden.
 2. Im Verlauf steht „Kundendokument vertrag.pdf angelegt“ wie an der Projektdatei, nicht „hochgeladen“: ein Satzbau für alle Arten.
@@ -8472,7 +8472,7 @@ Gegenproben (je FAILED, byte-genau zurück), rote Tests in Klammern: nicht im Pr
 
 `app/templates/customer.html`: `projektZeile()` mit `.projekt-kopf` (`flex-wrap:nowrap`, `min-width:0`, das Kennzeichen `flex:none`) und `.projekt-name` (`min-width:0`, `white-space:nowrap`, `overflow:hidden`, `text-overflow:ellipsis`), `title` = Nummer · Name wie der Text, maskiert (Regel 32). Beide Stellen (Übersicht, Reiter Projekte) nutzen dieselbe Funktion.
 
-#### Festlegungen 1.9.141 (Bitte bestätigen)
+#### Festlegungen 1.9.141 (bestätigt am 30.10.2026)
 
 1. Gekürzt wird nur, wenn der Platz fehlt; die Zahlen rechts behalten ihre Breite (`.li-rechts`, `flex:none`). In der Übersicht bei 1440 px endet deshalb auch ein mittellanger Name mit „…“, wenn rechts „abgerechnet … · unbezahlt …“ steht (Beispiel im Klicktest: „P-2026-0118 · Dachsanierung Am Wassertur…“).
 2. „archiviert“ steht wie das Kennzeichen daneben und wird ebenfalls nicht schmaler; bei sehr schmaler Breite bleibt für den Namen entsprechend weniger.
@@ -8484,3 +8484,25 @@ Neu `tests/test_v561_projektzeile.py` (die Regeln; langer Name mit Sonderzeichen
 Angepasste Erwartungen: keine (`klicktest_kundenakte`: nur neuer Name von Projekt B in den Testdaten, keine Prüfung nannte den alten).
 
 Gegenproben (je FAILED bzw. Klicktest rot, byte-genau zurück): bricht um (Test 1, Klicktest 3 Prüfungen); Kennzeichen schrumpft (1); ohne „…“ (Test 1, Klicktest 3); ohne title (Test 2, Klicktest 3); title ohne Maskierung (1).
+
+## Stufe 6, R1: Fundament (ohne neues Aussehen), ab 1.9.142
+
+Befund und Entscheidungen: Bericht `bildgrundlage/bericht_stufe6_befund_kalender_plantafel_d9d7d06.txt`. Entscheidungen Tobias: Kolonne mit Besetzung je Einsatz anpassbar; Konflikte warnen, trotzdem planbar; Kran je Einsatz, Kranvermietung als eigene Einsätze; Outlook ist im Einsatz. Das Modell (Besetzung, Geräte, Vermietung) kommt erst mit der Zeichnung.
+
+Die Punkte 0–6 stehen im Archiv ihres Themas: Outlook und Plantafel in `docs/archiv/modul-kalender-und-outlook-sync.md` (1.9.142–1.9.145, 1.9.148), Abwesenheiten in `docs/archiv/zeiterfassung-und-abwesenheit.md` (1.9.146), Rechte in `docs/archiv/rechtekonzept.md` (1.9.146, 1.9.147).
+
+### Umsetzung 1.9.149: Punkt 7, aus Stufe 5
+
+- Dateien: `app/akte_verlauf.py::DATEI_ARTEN` (Kundendokument, Projektdatei), `_aktion_satz()` für die Überschrift, `_einzelheit()` setzt denselben Satz für „Einzelheiten“. Das Änderungsprotokoll und `/history` bleiben „angelegt“.
+- Projektzeile: `projektAbrechnung()` steht in der linken Spalte direkt unter dem Namen, `projektZahlen()` rechts nur noch mit der Summe. Bei 412 px bleibt die Zeile, wie sie war (die rechte Spalte rutscht darunter).
+- Einzelheiten: `_verlauf.html::verlaufMehrEinzelheiten()`: mehr als eine Zeile, oder eine Zeile neben einem Versand (die Überschrift nennt dann den Versand). Bis 1.9.148 stand bei einer einzigen Änderung „Einzelheiten (1)“ mit demselben Text wie die Zeile.
+
+#### Festlegungen 1.9.149 (Bitte bestätigen)
+
+1. „hochgeladen“ gilt für Kundendokument und Projektdatei im Verlauf; Dokumente am Objekt stehen in keinem der beiden Verläufe als Datei.
+2. Die Reihenfolge in der Projektzeile: Name, „abgerechnet … · unbezahlt …“, dann die bisherige Zeile zu Angebot und Rechnung.
+3. Steht weder Angebot noch Auftrag am Projekt, sagt die Zeile unter dem Namen „noch kein Angebot“; rechts steht dann nichts.
+
+#### Tests und Prüfung
+
+Angepasste Erwartungen (Regel 28): `test_v560::test_…` (zwei Stellen), altes Soll „Kundendokument … angelegt“, neues Soll „… hochgeladen“. `klicktest_kundenakte`: dieselbe Prüfung, neuer Name „Verlauf: Kundendokument hochgeladen und gelöscht, nebeneinander“; neu „abgerechnet … unter dem Namen“ (1440 und 412 px) und „übliche Namen ungekürzt“ (1440 px).

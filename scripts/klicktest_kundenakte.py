@@ -41,9 +41,9 @@ from klicktest_anmelden import DIALOGE, _klick, _tippen  # noqa: E402
 
 LANGER_NAME = "Flachdach Garage Lindenweg 7 mit Erneuerung der Dachentwässerung und aller Anschlüsse an die Hauswand"
 # Seit 1.9.141: Name und Kennzeichen einer Projektzeile stehen in einer Zeile (Mitte auf gleicher Höhe), das Kennzeichen ragt nicht aus der Zeile
-PROJEKTZEILEN = """(ort=>[...document.querySelectorAll(ort+' .li-projekt')].filter(z=>z.offsetParent).map(z=>{const a=z.querySelector('.projekt-name'),c=z.querySelector('.chip'),
+PROJEKTZEILEN = """(ort=>[...document.querySelectorAll(ort+' .li-projekt')].filter(z=>z.offsetParent).map(z=>{const a=z.querySelector('.projekt-name'),c=z.querySelector('.chip'),b=z.querySelector('.projekt-abrechnung'),
 ra=a.getBoundingClientRect(),rc=c.getBoundingClientRect(),rz=z.getBoundingClientRect();return {title:a.title,gekuerzt:a.scrollWidth>a.clientWidth,
-gleicheZeile:Math.abs((ra.top+ra.bottom)/2-(rc.top+rc.bottom)/2)<=3,inDerZeile:rc.right<=rz.right+0.5}}))"""
+gleicheZeile:Math.abs((ra.top+ra.bottom)/2-(rc.top+rc.bottom)/2)<=3,inDerZeile:rc.right<=rz.right+0.5,abrechnungDarunter:!!b&&b.getBoundingClientRect().top>=ra.bottom-1}}))"""
 REITER = ["uebersicht", "projekte", "objekte", "anfragen", "zahlungen", "dokumente", "kontakte", "verlauf"]
 # schreibende Anfragen der Seite mitschneiden (Körper), um „nur Geändertes“ zu prüfen
 MITSCHNITT = ("try{localStorage.setItem('erp_theme','light')}catch(e){}"  # Bilder hell (headless meldet sonst ein dunkles Schema)
@@ -151,8 +151,11 @@ def befuellen(db, k):
 async def _projektzeilen(tab, p, name, ort):
     zeilen = await tab.js(f"({PROJEKTZEILEN})({ort!r})")
     p.pruefe(f"{name}: Projektzeilen -- Kennzeichen neben dem Name, in der Zeile", [len(zeilen) >= 2, *((z["gleicheZeile"], z["inDerZeile"]) for z in zeilen)], [True, *[(True, True)] * len(zeilen)])
+    p.pruefe(f"{name}: „abgerechnet …“ unter dem Namen", [z["abrechnungDarunter"] for z in zeilen], [True] * len(zeilen))  # seit 1.9.149
     lang = next((z for z in zeilen if LANGER_NAME in z["title"]), {})
     p.pruefe(f"{name}: langer Name gekürzt, voll im title", [lang.get("gekuerzt"), lang.get("title")], [True, f"P-2026-0131 · {LANGER_NAME}"])
+    if name.startswith("1440"):  # seit 1.9.149: ein Name gekürzt nur bei echtem Platzmangel
+        p.pruefe(f"{name}: übliche Namen ungekürzt", [z["title"] for z in zeilen if z["gekuerzt"] and LANGER_NAME not in z["title"]], [])
 
 
 async def _reiter(tab, name):
@@ -378,7 +381,7 @@ const weg=await fetch('/api/customer-documents/'+d.id,{{method:'DELETE'}});retur
     await _klick(tab, '#verlaufArten button[data-art="aenderung"]')
     await tab.warte_auf_ruhe()
     zeilen = await tab.js("[...document.querySelectorAll('#verlaufListe .vl-zeile .li-text')].map(z=>z.children[0].textContent)")
-    p.pruefe("Verlauf: Kundendokument angelegt und gelöscht, nebeneinander", zeilen[:2], ["Kundendokument beleg.pdf gelöscht", "Kundendokument beleg.pdf angelegt"])
+    p.pruefe("Verlauf: Kundendokument hochgeladen und gelöscht, nebeneinander", zeilen[:2], ["Kundendokument beleg.pdf gelöscht", "Kundendokument beleg.pdf hochgeladen"])
     await tab.bild_ganz("verlauf_kundendokument")
 
     # --- Kunde ohne Projekt ---

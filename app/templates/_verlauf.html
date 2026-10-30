@@ -4,7 +4,8 @@
    „angelegt“ / „gelöscht“ als Satz. Bis 1.9.114 zeigte /history jede andere Aktion als „Datensatz gelöscht“ und die Projektmappe nur ihren Namen.
    Seit 1.9.123 kommen die Werte lesbar vom Server (app/verlauf_namen.py) und eine Einheit (x.einheit) steht hinter dem neuen: „850 → 851 m²“.
    verlaufAenderung(zeile) -> HTML (Werte über die eigene Maskierung).
-   Seit 1.9.139 verlaufEinzelheit(zeile) -> eine Zeile unter „Einzelheiten“ für Akte und Kundenakte: der kurze Satz vom Server (Zahlungen) oder Art, Name und Änderung. */
+   Seit 1.9.139 verlaufEinzelheit(zeile) -> eine Zeile unter „Einzelheiten“ für Akte und Kundenakte: der kurze Satz vom Server (Zahlungen) oder Art, Name und Änderung.
+   Seit 1.9.149 verlaufMehrEinzelheiten(eintrag) -> ob „Einzelheiten“ mehr zeigen als die Zeile: bei einer einzigen Änderung steht schon alles in der Überschrift. */
 const _verlaufEsc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function verlaufAenderung(x){
   const einheit=x.einheit?' '+_verlaufEsc(x.einheit):'';
@@ -14,6 +15,10 @@ function verlaufAenderung(x){
   if(x.action==='verworfen')return 'Verworfen'+(x.new_value?' – Begründung: '+_verlaufEsc(x.new_value):'');
   if(x.action==='geändert'||x.old_value!=null||x.new_value!=null)return altNeu();
   return _verlaufEsc(x.action);
+}
+function verlaufMehrEinzelheiten(e){
+  const n=(e.einzelheiten||[]).length;
+  return n>1||(n===1&&!!e.versand);
 }
 function verlaufEinzelheit(z){
   if(z.kurz)return _verlaufEsc(z.kurz);

@@ -530,18 +530,21 @@ function projektUnter(p){
   if(p.angebot)return `Angebot ${p.angebot.quote_number||''}`+(p.angebot.versendet_am?' · per E-Mail am '+tagLang(p.angebot.versendet_am):' · '+p.angebot.status_label);
   return p.objekt||'noch kein Angebot';
 }
+// Seit 1.9.149 (Stufe 6, R1, Punkt 7): rechts nur die Summe, „abgerechnet … · unbezahlt …“ unter dem Namen -- rechts nahm die Zeile dem Namen den Platz, er wurde gekürzt, obwohl die Karte breit genug war.
 function projektZahlen(p){
   const z=p.zahlen;
-  if(p.auftraege.length){
-    const abg=Number(z.abgerechnet)?`abgerechnet ${esc(money(z.abgerechnet))} · <span class="${Number(z.unbezahlt)?'unbezahlt':''}">unbezahlt ${esc(money(z.unbezahlt))}</span>`:'noch nicht abgerechnet';
-    return `<span class="num" style="font-size:15px;font-weight:600">${esc(money(z.auftragssumme))} netto</span><span class="num sml mut">${abg}</span>`;
-  }
-  if(p.angebot)return `<span class="num" style="font-size:15px;font-weight:600">${esc(money(p.angebot.net_total))} netto</span><span class="sml mut">noch nicht beauftragt</span>`;
-  return '<span class="sml mut">noch kein Angebot</span>';
+  if(p.auftraege.length)return `<span class="num" style="font-size:15px;font-weight:600">${esc(money(z.auftragssumme))} netto</span>`;
+  if(p.angebot)return `<span class="num" style="font-size:15px;font-weight:600">${esc(money(p.angebot.net_total))} netto</span>`;
+  return '';
+}
+function projektAbrechnung(p){
+  const z=p.zahlen;
+  if(p.auftraege.length)return Number(z.abgerechnet)?`abgerechnet ${esc(money(z.abgerechnet))} · <span class="${Number(z.unbezahlt)?'unbezahlt':''}">unbezahlt ${esc(money(z.unbezahlt))}</span>`:'noch nicht abgerechnet';
+  return p.angebot?'noch nicht beauftragt':'noch kein Angebot';
 }
 function projektZeile(p,oben=false){
   const k=statusKennzeichen('projekt',p.status);
-  return `<div class="li li-projekt" style="align-items:center;padding:${oben?'0 0 4px;border-top:0':'12px 0'}" data-projekt="${p.id}"><div class="li-text" style="gap:3px"><span class="zeile-flex projekt-kopf"><a class="projekt-name" href="/projects/${p.id}" title="${esc(p.project_number)} · ${esc(p.name)}">${esc(p.project_number)} · ${esc(p.name)}</a><span class="chip chip-${esc(phaseArt(p.status))}">${esc(k.text)}</span>${p.archived?'<span class="chip chip-neutral">archiviert</span>':''}</span><span class="mut sml">${esc(projektUnter(p))}</span></div><div class="li-rechts">${projektZahlen(p)}</div></div>`;
+  return `<div class="li li-projekt" style="align-items:center;padding:${oben?'0 0 4px;border-top:0':'12px 0'}" data-projekt="${p.id}"><div class="li-text" style="gap:3px"><span class="zeile-flex projekt-kopf"><a class="projekt-name" href="/projects/${p.id}" title="${esc(p.project_number)} · ${esc(p.name)}">${esc(p.project_number)} · ${esc(p.name)}</a><span class="chip chip-${esc(phaseArt(p.status))}">${esc(k.text)}</span>${p.archived?'<span class="chip chip-neutral">archiviert</span>':''}</span><span class="num sml mut projekt-abrechnung">${projektAbrechnung(p)}</span><span class="mut sml">${esc(projektUnter(p))}</span></div><div class="li-rechts">${projektZahlen(p)}</div></div>`;
 }
 function uebersichtProjekte(){
   const alle=akte.projekte,laufend=alle.filter(p=>p.laufend),fertig=alle.filter(p=>!p.laufend);
@@ -822,8 +825,7 @@ docZone.addEventListener('drop',e=>{document.getElementById('docFiles').files=e.
 const VL_ART={aenderung:'neutral',versand:'info',zahlung:'ok'};
 function zeitpunktKurz(wert){const voll=berlinZeitpunkt(wert);return voll?tagKurz(berlinZeitpunkt(wert,'tag'))+' '+voll.split(' ')[1]:''}
 function verlaufZeile(e){
-  const einzel=(e.einzelheiten||[]).length>1||((e.einzelheiten||[])[0]&&e.einzelheiten[0].field_name);
-  const details=einzel?`<details><summary>Einzelheiten (${zahlText(e.einzelheiten.length,0)})</summary>${e.einzelheiten.map(z=>`<div class="vl-einzel">${verlaufEinzelheit(z)}</div>`).join('')}</details>`:'';
+  const details=verlaufMehrEinzelheiten(e)?`<details><summary>Einzelheiten (${zahlText(e.einzelheiten.length,0)})</summary>${e.einzelheiten.map(z=>`<div class="vl-einzel">${verlaufEinzelheit(z)}</div>`).join('')}</details>`:'';
   const vs=e.versand,menue=vs&&vs.zustellung_nachtragen?`<span class="menue-anker"><button type="button" class="iconbtn" aria-label="Versand ${esc(vs.document_number||'')} – Aktionen" aria-haspopup="menu" data-klick="versand-menue" data-typ="${esc(vs.document_type)}" data-id="${Number(vs.document_id)}" data-nummer="${esc(vs.document_number||'')}">⋮</button></span>`:'';
   const zielLink=e.ziel?`<a class="sml" style="font-weight:600" href="${esc(sichererLink(e.ziel.href))}">${esc(e.ziel.text)}</a>`:'';
   return `<div class="vl-zeile"><span class="mut sml num">${esc(zeitpunktKurz(e.zeitpunkt))}</span><span class="vl-art"><span class="chip chip-${esc(VL_ART[e.art]||'neutral')}">${esc(e.art_label)}</span></span><div class="li-text"><span style="font-size:14px">${esc(e.titel)}</span><span class="mut sml">${esc(e.unterzeile||'')}</span>${details}</div><div class="vl-ende"><span class="mut sml">${esc(e.konto||'')}</span>${zielLink}${menue}</div></div>`;

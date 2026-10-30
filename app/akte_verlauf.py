@@ -50,6 +50,11 @@ VORRANG = ("Auftragsstatus", "Auftrag", "Rechnung", "Mahnung", "Zahlungseingang"
            "Einsatzbericht", "Befund", "Checkliste", "Checklisten-Unterschrift", "Angebot", "Arbeitsvorbereitung", "Plantafel-Einsatz", "Termin",
            "Projekt", "Projektbeteiligter", "Projektdatei", "Auftragsposition", "Auftrags-LV-Titel", "Rechnungsposition", "Angebotsposition")
 AKTION_SATZ = {"angelegt": "angelegt", "gelöscht": "gelöscht", "verworfen": "verworfen"}
+DATEI_ARTEN = frozenset({"Kundendokument", "Projektdatei"})  # seit 1.9.149: eine Datei wird hochgeladen, nicht angelegt (nur im Verlauf; das Protokoll bleibt)
+
+
+def _aktion_satz(z) -> str:
+    return "hochgeladen" if z.action == "angelegt" and z.entity_type in DATEI_ARTEN else AKTION_SATZ[z.action]
 
 
 @dataclass
@@ -376,7 +381,7 @@ def ueberschrift(g: Gruppe) -> tuple[str, str]:
             grund = None
         return titel, f"Begründung: {grund}" if grund else ""
     if h.action in AKTION_SATZ:
-        titel = f"{typ} {name} {AKTION_SATZ[h.action]}".replace("  ", " ").strip()
+        titel = f"{typ} {name} {_aktion_satz(h)}".replace("  ", " ").strip()
         if h.action == "verworfen" and h.new_value:
             return titel, f"Begründung: {h.new_value}"
     else:
@@ -416,6 +421,8 @@ def _einzelheit(z) -> dict:
     kurz = zahlung_text(z)
     if kurz:
         zeile.update(kurz=kurz, entity_label=None)
+    elif z.action == "angelegt" and z.entity_type in DATEI_ARTEN:  # seit 1.9.149, wie die Überschrift
+        zeile.update(kurz=f"{z.entity_type_label or z.entity_type} {z.entity_label or ''} hochgeladen".strip())
     return zeile
 
 

@@ -61,7 +61,7 @@ def test_hochladen_und_loeschen_sind_zwei_zeilen(welt):
     doc = _hochladen(welt, welt["kessler"])
     _loeschen(welt, doc["id"])
     zeilen = _dokument_zeilen(_strom(welt, welt["kessler"]))
-    assert [e["titel"] for e in zeilen] == ["Kundendokument vertrag.pdf gelöscht", "Kundendokument vertrag.pdf angelegt"]
+    assert [e["titel"] for e in zeilen] == ["Kundendokument vertrag.pdf gelöscht", "Kundendokument vertrag.pdf hochgeladen"]
     assert {e["art"] for e in zeilen} == {"aenderung"} and {e["konto"] for e in zeilen} == {"Olga Office"}
     # beide im Protokoll selbst, unter der Kennung des Dokuments
     db = welt["db"]
@@ -92,7 +92,7 @@ def test_angaben_aendern_ist_eine_zeile(welt):
 def test_nichts_beim_anderen_kunden(welt):
     doc = _hochladen(welt, welt["lorenz"], name="fremd.pdf")
     assert not _dokument_zeilen(_strom(welt, welt["kessler"]))
-    assert [e["titel"] for e in _dokument_zeilen(_strom(welt, welt["lorenz"]))] == ["Kundendokument fremd.pdf angelegt"]
+    assert [e["titel"] for e in _dokument_zeilen(_strom(welt, welt["lorenz"]))] == ["Kundendokument fremd.pdf hochgeladen"]
     _loeschen(welt, doc["id"])
     assert not _dokument_zeilen(_strom(welt, welt["kessler"]))  # auch der Schnappschuss des Löschens gehört Lorenz
 

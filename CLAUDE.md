@@ -424,7 +424,7 @@ Behoben, drei Teile:
 - **Stufe 5, R4 „Abschluss“ (seit 1.9.138):** 1.9.138 Klicktests messen bei 412 px gegen die Gerätebreite (`tab.ueberlauf()`), keine Seite lief über; 1.9.139 Verlaufstexte der
   Zahlungen: ein Satz je Buchung, gleich in Akte und Kunde (`app/akte_verlauf.py::zahlung_text()`, aus dem Schnappschuss, das Protokoll bleibt), Einzelheiten über `verlaufEinzelheit()`
   aus `_verlauf.html` (`tests/test_v559_verlauf_zahlungen.py`); 1.9.140 Kundendokumente im Änderungsprotokoll und im Verlauf des Kunden (`tests/test_v560_kundendokumente_verlauf.py`); 1.9.141 Projektzeile der Kundenakte: Name und
-  Kennzeichen auf einer Zeile, langer Name mit „…“ und vollem Namen als title (`tests/test_v561_projektzeile.py`). **Stufe 5 ist damit fertig**, Bildgrundlage des Endstands unter `bildgrundlage/<commit>/`.
+  Kennzeichen auf einer Zeile, langer Name mit „…“ und vollem Namen als title (`tests/test_v561_projektzeile.py`). **Stufe 5 ist damit fertig**, Bildgrundlage des Endstands unter `bildgrundlage/<commit>/`. Nacharbeit 1.9.149 (mit Stufe 6, R1): Dateien im Verlauf „hochgeladen“ (`DATEI_ARTEN`), Projektzeile mit „abgerechnet …“ unter dem Namen, „Einzelheiten“ nur nach `verlaufMehrEinzelheiten()`.
   Archiv: `docs/archiv/redesign.md`, „Stufe 5, R4“.
 
 ## Kritische, nicht verhandelbare Regeln

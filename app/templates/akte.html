@@ -602,8 +602,7 @@ function angeboteZeichnen(){
 const VL_ART={aenderung:'neutral',versand:'info',zahlung:'ok',bericht:'warn',status:'signal',termin:'neutral'};
 function zeitpunktKurz(wert){const voll=berlinZeitpunkt(wert);return voll?tagKurz(berlinZeitpunkt(wert,'tag'))+' '+voll.split(' ')[1]:''}
 function verlaufZeile(e,mitMenue=true){
-  const einzel=(e.einzelheiten||[]).length>1||((e.einzelheiten||[])[0]&&e.einzelheiten[0].field_name);
-  const details=einzel?`<details><summary>Einzelheiten (${zahlText(e.einzelheiten.length,0)})</summary>${e.einzelheiten.map(z=>`<div class="vl-einzel">${verlaufEinzelheit(z)}</div>`).join('')}</details>`:'';
+  const details=verlaufMehrEinzelheiten(e)?`<details><summary>Einzelheiten (${zahlText(e.einzelheiten.length,0)})</summary>${e.einzelheiten.map(z=>`<div class="vl-einzel">${verlaufEinzelheit(z)}</div>`).join('')}</details>`:'';
   const auftraege=(e.auftraege||[]).map(a=>a.order_number).filter(Boolean).join(', ');
   const v=e.versand,menue=mitMenue&&v&&v.zustellung_nachtragen?`<span class="menue-anker"><button type="button" class="iconbtn" aria-label="Versand ${esc(v.document_number||'')} – Aktionen" aria-haspopup="menu" data-klick="versand-menue" data-typ="${esc(v.document_type)}" data-id="${Number(v.document_id)}" data-nummer="${esc(v.document_number||'')}">⋮</button></span>`:'';
   const zielLink=e.ziel?`<a class="sml" style="font-weight:600" href="${esc(sichererLink(e.ziel.href))}">${esc(e.ziel.text)}</a>`:'';
