@@ -28,6 +28,9 @@ a{color:var(--ds-link)}a:hover{color:var(--ds-link-hover)}
 .gross.warn{color:var(--ds-signal-text)}
 .h2{margin:0;font-family:var(--ds-schrift-titel);font-weight:600;font-size:18px}
 .zeile-flex{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+/* Seit 1.9.141: Name und Kennzeichen einer Projektzeile bleiben auf einer Zeile, ein langer Name endet mit „…“ (voller Name als title) */
+.projekt-kopf{gap:10px;flex-wrap:nowrap;min-width:0}.projekt-kopf .chip{flex:none}
+.projekt-name{min-width:0;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* Karten wie die Vorlage: weiß mit Rahmen, Ecke 12 px; Signalkarte „Unbezahlt“ im Reiter Zahlungen */
 .karte{background:var(--ds-flaeche);border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-karte);padding:16px 20px;display:flex;flex-direction:column;gap:12px;min-width:0}
 .karte-signal{background:var(--ds-signal-hell);border:1px solid var(--ds-signal-rand);border-radius:var(--ds-ecke-karte);padding:14px 18px;display:flex;flex-direction:column;gap:2px;min-width:0}
@@ -538,7 +541,7 @@ function projektZahlen(p){
 }
 function projektZeile(p,oben=false){
   const k=statusKennzeichen('projekt',p.status);
-  return `<div class="li li-projekt" style="align-items:center;padding:${oben?'0 0 4px;border-top:0':'12px 0'}" data-projekt="${p.id}"><div class="li-text" style="gap:3px"><span class="zeile-flex" style="gap:10px"><a href="/projects/${p.id}" style="font-size:15px;font-weight:600">${esc(p.project_number)} · ${esc(p.name)}</a><span class="chip chip-${esc(phaseArt(p.status))}">${esc(k.text)}</span>${p.archived?'<span class="chip chip-neutral">archiviert</span>':''}</span><span class="mut sml">${esc(projektUnter(p))}</span></div><div class="li-rechts">${projektZahlen(p)}</div></div>`;
+  return `<div class="li li-projekt" style="align-items:center;padding:${oben?'0 0 4px;border-top:0':'12px 0'}" data-projekt="${p.id}"><div class="li-text" style="gap:3px"><span class="zeile-flex projekt-kopf"><a class="projekt-name" href="/projects/${p.id}" title="${esc(p.project_number)} · ${esc(p.name)}">${esc(p.project_number)} · ${esc(p.name)}</a><span class="chip chip-${esc(phaseArt(p.status))}">${esc(k.text)}</span>${p.archived?'<span class="chip chip-neutral">archiviert</span>':''}</span><span class="mut sml">${esc(projektUnter(p))}</span></div><div class="li-rechts">${projektZahlen(p)}</div></div>`;
 }
 function uebersichtProjekte(){
   const alle=akte.projekte,laufend=alle.filter(p=>p.laufend),fertig=alle.filter(p=>!p.laufend);

@@ -423,7 +423,9 @@ Behoben, drei Teile:
   `tests/test_v557_kundenakte_seite.py`, Klicktest `klicktest_kundenakte.py`. Archiv: `docs/archiv/redesign.md`, „Stufe 5, R3“.
 - **Stufe 5, R4 „Abschluss“ (seit 1.9.138):** 1.9.138 Klicktests messen bei 412 px gegen die Gerätebreite (`tab.ueberlauf()`), keine Seite lief über; 1.9.139 Verlaufstexte der
   Zahlungen: ein Satz je Buchung, gleich in Akte und Kunde (`app/akte_verlauf.py::zahlung_text()`, aus dem Schnappschuss, das Protokoll bleibt), Einzelheiten über `verlaufEinzelheit()`
-  aus `_verlauf.html` (`tests/test_v559_verlauf_zahlungen.py`); 1.9.140 Kundendokumente im Änderungsprotokoll und im Verlauf des Kunden (`tests/test_v560_kundendokumente_verlauf.py`). Archiv: `docs/archiv/redesign.md`, „Stufe 5, R4“.
+  aus `_verlauf.html` (`tests/test_v559_verlauf_zahlungen.py`); 1.9.140 Kundendokumente im Änderungsprotokoll und im Verlauf des Kunden (`tests/test_v560_kundendokumente_verlauf.py`); 1.9.141 Projektzeile der Kundenakte: Name und
+  Kennzeichen auf einer Zeile, langer Name mit „…“ und vollem Namen als title (`tests/test_v561_projektzeile.py`). **Stufe 5 ist damit fertig**, Bildgrundlage des Endstands unter `bildgrundlage/<commit>/`.
+  Archiv: `docs/archiv/redesign.md`, „Stufe 5, R4“.
 
 ## Kritische, nicht verhandelbare Regeln
 

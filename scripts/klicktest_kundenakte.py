@@ -4,7 +4,7 @@ Kunde „Wohnbau Kessler GmbH“ (Gewerbekunde, K-10042) mit
     Projekt A   Dachsanierung Am Wasserturm 4: Auftrag 300 m² × 100 €; pauschaler Abschlag 2.400 € netto im Vorjahr, bezahlt mit 3.000 €
                 (Rest 144 € am Kunden); Abschlag 10.000 € netto vor 40 Tagen, unbezahlt und überfällig; Abschlag 5.000 € netto vor 20 Tagen,
                 bezahlt
-    Projekt B   Flachdach Garage Lindenweg 7: nur ein Angebot (8.950 € netto), per E-Mail vor 17 Tagen
+    Projekt B   Flachdach Garage Lindenweg 7 (langer Name): nur ein Angebot (8.950 € netto), per E-Mail vor 17 Tagen
     Projekt C   Sturmschaden Lindenweg 7: Auftrag storniert („Abgeschlossen: …“)
     dazu        zwei Objekte mit Dachflächen, Kontakte & Kundenwissen, eine Anfrage
 und Kunde „Hausverwaltung Maus“ ohne Projekt.
@@ -39,6 +39,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from cdp_klicktest import klicktest_main  # noqa: E402
 from klicktest_anmelden import DIALOGE, _klick, _tippen  # noqa: E402
 
+LANGER_NAME = "Flachdach Garage Lindenweg 7 mit Erneuerung der Dachentwässerung und aller Anschlüsse an die Hauswand"
+# Seit 1.9.141: Name und Kennzeichen einer Projektzeile stehen in einer Zeile (Mitte auf gleicher Höhe), das Kennzeichen ragt nicht aus der Zeile
+PROJEKTZEILEN = """(ort=>[...document.querySelectorAll(ort+' .li-projekt')].filter(z=>z.offsetParent).map(z=>{const a=z.querySelector('.projekt-name'),c=z.querySelector('.chip'),
+ra=a.getBoundingClientRect(),rc=c.getBoundingClientRect(),rz=z.getBoundingClientRect();return {title:a.title,gekuerzt:a.scrollWidth>a.clientWidth,
+gleicheZeile:Math.abs((ra.top+ra.bottom)/2-(rc.top+rc.bottom)/2)<=3,inDerZeile:rc.right<=rz.right+0.5}}))"""
 REITER = ["uebersicht", "projekte", "objekte", "anfragen", "zahlungen", "dokumente", "kontakte", "verlauf"]
 # schreibende Anfragen der Seite mitschneiden (Körper), um „nur Geändertes“ zu prüfen
 MITSCHNITT = ("try{localStorage.setItem('erp_theme','light')}catch(e){}"  # Bilder hell (headless meldet sonst ein dunkles Schema)
@@ -128,7 +133,7 @@ def befuellen(db, k):
     a2 = abschlag(auftrag_a, "10000", heute - timedelta(days=40))
     a3 = abschlag(auftrag_a, "5000", heute - timedelta(days=20))
     zahlen("5950", heute - timedelta(days=15), a3)
-    b, qb = projekt("P-2026-0131", "Flachdach Garage Lindenweg 7", linde, "179", "50")
+    b, qb = projekt("P-2026-0131", LANGER_NAME, linde, "179", "50")
     qb.status = "versendet"
     qb.email_sent_at = datetime.combine(heute - timedelta(days=17), time(12, 10))
     db.commit()
@@ -141,6 +146,13 @@ def befuellen(db, k):
     return {"kunde": kunde.id, "maus": maus.id, "a": a.id, "a2": a2.id, "a2_nr": a2.invoice_number, "rest": rest.id, "objekte": objekte,
             "rest_tag": (vorjahr + timedelta(days=17)).strftime("%d.%m.%Y"), "faellig_a2": a2.due_date.strftime("%d.%m.%Y"),
             "cookies": {"fin": k.cookies(fin), "olga": k.cookies(olga), "mia": k.cookies(mia)}}
+
+
+async def _projektzeilen(tab, p, name, ort):
+    zeilen = await tab.js(f"({PROJEKTZEILEN})({ort!r})")
+    p.pruefe(f"{name}: Projektzeilen -- Kennzeichen neben dem Name, in der Zeile", [len(zeilen) >= 2, *((z["gleicheZeile"], z["inDerZeile"]) for z in zeilen)], [True, *[(True, True)] * len(zeilen)])
+    lang = next((z for z in zeilen if LANGER_NAME in z["title"]), {})
+    p.pruefe(f"{name}: langer Name gekürzt, voll im title", [lang.get("gekuerzt"), lang.get("title")], [True, f"P-2026-0131 · {LANGER_NAME}"])
 
 
 async def _reiter(tab, name):
@@ -203,6 +215,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Übersicht: Projekt A mit abgerechnet und unbezahlt", ["P-2026-0118 · Dachsanierung Am Wasserturm 4" in projekte,
              "abgerechnet 17.400,00 € · unbezahlt 11.900,00 €" in projekte], [True, True])
     p.pruefe("Übersicht: Projekt B als Angebot", ["8.950,00 € netto" in projekte, "noch nicht beauftragt" in projekte], [True, True])
+    await _projektzeilen(tab, p, "1440 Übersicht", "#uProjekteListe")
     p.pruefe("Übersicht: Abgeschlossen", await tab.js(_text("document.getElementById('uAbgeschlossen').textContent")),
              "Abgeschlossen: P-2025-0064 Sturmschaden Lindenweg 7")
     geld = await tab.js(_text("document.getElementById('uGeld').innerText"))
@@ -300,6 +313,11 @@ async def pruefen(tab, seed, p):
     for name in REITER:
         await _reiter(tab, name)
         p.pruefe(f"412 px {name}: nichts ragt über den Bildschirm", await tab.ueberlauf(), [])
+        if name == "uebersicht":
+            await _projektzeilen(tab, p, "412 Übersicht", "#uProjekteListe")
+            await tab.bild_ganz("projektzeile_412")
+        if name == "projekte":
+            await _projektzeilen(tab, p, "412 Projekte", "#projects")
     await _reiter(tab, "zahlungen")
     await tab.bild_ganz("zahlungen_412")
     await tab.fenster(1440, 1240)

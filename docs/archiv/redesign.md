@@ -8467,3 +8467,20 @@ Neu `tests/test_v560_kundendokumente_verlauf.py`: Hochladen und Löschen über d
 Angepasste Erwartungen: keine.
 
 Gegenproben (je FAILED, byte-genau zurück), rote Tests in Klammern: nicht im Protokoll (7); nicht im Verlauf (7); zwei Zeilen „Kategorie“ (2); ohne Dateiname (5); gelöschtes Dokument nicht mehr dem Kunden zugeordnet (2).
+
+### Umsetzung 1.9.141: Punkt 4
+
+`app/templates/customer.html`: `projektZeile()` mit `.projekt-kopf` (`flex-wrap:nowrap`, `min-width:0`, das Kennzeichen `flex:none`) und `.projekt-name` (`min-width:0`, `white-space:nowrap`, `overflow:hidden`, `text-overflow:ellipsis`), `title` = Nummer · Name wie der Text, maskiert (Regel 32). Beide Stellen (Übersicht, Reiter Projekte) nutzen dieselbe Funktion.
+
+#### Festlegungen 1.9.141 (Bitte bestätigen)
+
+1. Gekürzt wird nur, wenn der Platz fehlt; die Zahlen rechts behalten ihre Breite (`.li-rechts`, `flex:none`). In der Übersicht bei 1440 px endet deshalb auch ein mittellanger Name mit „…“, wenn rechts „abgerechnet … · unbezahlt …“ steht (Beispiel im Klicktest: „P-2026-0118 · Dachsanierung Am Wassertur…“).
+2. „archiviert“ steht wie das Kennzeichen daneben und wird ebenfalls nicht schmaler; bei sehr schmaler Breite bleibt für den Namen entsprechend weniger.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v561_projektzeile.py` (die Regeln; langer Name mit Sonderzeichen im title, maskiert; jede Zeile trägt ihn). `klicktest_kundenakte`, Testdaten Projekt B mit langem Namen: bei 1440 px Übersicht, bei 412 px Übersicht und Reiter Projekte -- Name und Kennzeichen auf gleicher Höhe, Kennzeichen in der Zeile, langer Name gekürzt und voll im title; Bild `projektzeile_412`.
+
+Angepasste Erwartungen: keine (`klicktest_kundenakte`: nur neuer Name von Projekt B in den Testdaten, keine Prüfung nannte den alten).
+
+Gegenproben (je FAILED bzw. Klicktest rot, byte-genau zurück): bricht um (Test 1, Klicktest 3 Prüfungen); Kennzeichen schrumpft (1); ohne „…“ (Test 1, Klicktest 3); ohne title (Test 2, Klicktest 3); title ohne Maskierung (1).
