@@ -82,7 +82,7 @@ async def pruefen(tab, seed, p):
     await tab.anmelden(seed["cookies"])
 
     # --- Kundenakte ---------------------------------------------------------------------------------------------------
-    await tab.oeffnen(f"/customers/{seed['kunde']}", "document.getElementById('lastName')?.value==='Kunde XSS'"
+    await tab.oeffnen(f"/customers/{seed['kunde']}#dokumente", "typeof customer!=='undefined'&&!!customer&&customer.last_name==='Kunde XSS'"
                       "&&document.querySelectorAll('#customerDocuments .doc').length===2")
     await tab.warte_auf_neu_geladene_liste()
     p.pruefe("Kundenakte: Name als Text im Titel", await tab.js(f"document.body.innerText.includes({json.dumps(KUNDE)})"), True)

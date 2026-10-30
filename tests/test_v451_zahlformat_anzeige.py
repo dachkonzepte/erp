@@ -119,7 +119,7 @@ def test_einstellungen_steuerschluessel_skonto_konten():
 
 @nur_mit_node
 @pytest.mark.parametrize("vorlage,start,aufruf,soll", [
-    ("customer.html", "load().catch(", "fileSize(1536)", "1,5 KB"),
+    ("customer.html", "kundenakteStarten().catch(", "fileSize(1536)", "1,5 KB"),  # seit 1.9.137 (bis 1.9.136 load().catch()
     ("akte.html", "akteStarten().catch(", "size(1536)", "1,5 KB"),
     ("akte.html", "akteStarten().catch(", "fmtSize(1572864)", "1,5 MB"),
 ])

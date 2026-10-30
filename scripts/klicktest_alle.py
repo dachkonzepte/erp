@@ -50,7 +50,7 @@ CODE_ZEITLIMIT = 3  # wie cdp_klicktest.CODE_ZEITLIMIT
 KLICKTEST_DAUERN: dict[str, float] = {
     "klicktest_abgleich_sperre": 11, "klicktest_abnahme": 17, "klicktest_abnahme_aus_protokoll": 15,
     "klicktest_abnahmeprotokoll": 13, "klicktest_abschliessen": 20, "klicktest_angebot_interne_notiz": 8,
-    "klicktest_anmelden": 42, "klicktest_anmeldung_abgelaufen": 9, "klicktest_arbeitsvorbereitung": 8,
+    "klicktest_anmelden": 42, "klicktest_anmeldung_abgelaufen": 9, "klicktest_arbeitsvorbereitung": 8, "klicktest_kundenakte": 16,
     "klicktest_aufgaben_ohne_zustaendigkeit": 10, "klicktest_auftrag_sperren": 10, "klicktest_auswahl_inaktiv": 9,
     "klicktest_auswahl_restfaelle": 11, "klicktest_bedenkenanzeige": 17, "klicktest_bedenkenanzeige_versand": 12,
     "klicktest_behinderungsanzeige": 14, "klicktest_behinderungsanzeige_abschluss": 32, "klicktest_behinderungsanzeige_versand": 16,

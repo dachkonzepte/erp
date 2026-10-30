@@ -164,16 +164,20 @@ async def pruefen(tab, seed, p):
              [str(seed["mahnung"])])
     p.pruefe("Rechnung: JS-Fehler", tab.fehler, [])
     await tab.bild("rechnung_mahnung_markiert")
-    # --- Kundenakte: Karte Versand ---
-    await tab.oeffnen(f"/customers/{seed['kunde']}", "document.querySelector('#customerDispatches .dh-head')")
-    akte = await tab.js(_NUMMERN.format("customerDispatches"))
+    # --- Kundenakte: seit 1.9.137 Reiter Verlauf, Filter Versand (bis 1.9.136 Karte „Versand“, #customerDispatches); der alte Anker #versand führt hin ---
+    await tab.oeffnen(f"/customers/{seed['kunde']}#versand",
+                      "typeof verlaufDaten!=='undefined'&&!!verlaufDaten&&!document.getElementById('reiter-verlauf').hidden")
+    await tab.warte_auf_neu_geladene_liste()
+    p.pruefe("Kundenakte: der alte Anker #versand öffnet den Verlauf mit „Versand“", await tab.js(
+        "[document.querySelector('.reiter a[aria-current=\"page\"]').textContent.trim(),"
+        "document.querySelector('#verlaufArten [data-art=\"versand\"]').getAttribute('aria-pressed'),"
+        f"[...new Set({_VERLAUF_ZEILEN}.map(z=>z.querySelector('.vl-art').textContent))]]"), ["Verlauf", "true", ["Versand"]])
     p.pruefe("Kundenakte: beide Projekte des Kunden, nicht der andere Kunde",
-             akte, sorted(seed["p1_nummern"] + [seed["p2_nummer"]]))
+             await tab.js(_VERLAUF_NUMMERN), sorted(seed["p1_nummern"] + [seed["p2_nummer"]]))
     p.pruefe("Kundenakte: Link ins gefilterte Versandprotokoll",
-             await tab.js("document.querySelector('#customerDispatches .dh-head a').getAttribute('href')"),
+             await tab.js("document.getElementById('versandprotokollLink').getAttribute('href')"),
              f"/versandprotokoll?kunde={seed['kunde']}")
     p.pruefe("Kundenakte: JS-Fehler", tab.fehler, [])
-    await tab.js("document.getElementById('versand').scrollIntoView()")
     await tab.bild("kundenakte_versand")
     # --- Leistungsformular als Büro – Auftrag ---
     await tab.oeffnen(f"/services/{seed['leistung']}/edit",

@@ -110,9 +110,10 @@ def test_auftrag_positionsart(gespeichert, soll):
 @pytest.mark.parametrize("gespeichert,soll", [("Telefon", ["Telefon", "Telefon (nicht mehr verfügbar)"]),  # aus dem Stammdatenformular
                                               ("email", ["email", "E-Mail"])])
 def test_kunde_zusatzinfo_art(gespeichert, soll):
+    # seit 1.9.137 (Stufe 5, R3): die Art wählt der Dialog „Eintrag bearbeiten“ (bis 1.9.136 eine Auswahl je Zeile)
     ablauf = (f"customer = {{extra_infos: [{{id: 1, info_type: {json.dumps(gespeichert)}, label: null, value: '0241 1'}}]}};"
-              "renderExtras(); return _wirksam(_element('extras').innerHTML, 'class=\"xt\"');")
-    assert lauf("customer.html", "load().catch(", ablauf) == soll
+              "editExtra(1); return _feld('extraTyp');")
+    assert lauf("customer.html", "kundenakteStarten().catch(", ablauf) == soll
 
 
 def test_stammdatenformular_legt_zusatzinfos_mit_den_schluesseln_der_kundenakte_an():

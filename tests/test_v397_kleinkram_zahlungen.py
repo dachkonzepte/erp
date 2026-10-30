@@ -329,16 +329,16 @@ def test_route_carries_the_reason_and_still_refuses(threaded_db_session, router_
     assert response.status_code == 409 and response.json()["detail"] == rows[rest.id]["reverse_block_reason"]
 
 
-def _zahlungskarte(payment: dict, offene: list) -> str:
-    html = (TEMPLATES / "customer.html").read_text(encoding="utf-8")
-    script = "\n".join([
-        _skripte_von("_zahlung_gruppen.html"), _zeile(html, "esc"), _zeile(html, "money"), _skripte_von("_zahl.html"), _zeile(html, "dt"),
-        _zeile(html, "GELD"),  # seit 1.9.111: Knöpfe nur mit darf_geld() -- ungerendert gilt die Vorlage wie mit Geld
-        f"let customerOpenInvoices={json.dumps(offene)};",
-        js_funktion("customer.html", "paymentCardHtml"),
-        f"process.stdout.write(JSON.stringify(paymentCardHtml({json.dumps(payment)})));",
-    ])
-    return _node(script, "Europe/Berlin")
+def _zahlungskarte(payment: dict, offene: list) -> dict:
+    """Seit 1.9.137 (Stufe 5, R3): die Zeile des Eingangs und der Dialog „Zahlung zurücknehmen“ der Kundenakte -- bis 1.9.136 die Karte je
+    Zahlung (paymentCardHtml) mit dem Knopf „Zahlung zurücknehmen“ oder dem Grund."""
+    from tests.test_v334_auswahl_restfaelle import im_browser, seite
+
+    ablauf = (f"customerOpenInvoices = {json.dumps(offene)}; customerPaymentsData = {{payments: [{json.dumps(payment)}], balance: {{lines: []}}}};"
+              f"const zeile = zahlungZeile(customerPaymentsData.payments[0]); zuruecknehmenOeffnen({int(payment['id'])});"
+              "return {zeile, gesperrt: _element('zuruecknehmenGesperrt').hidden ? null : _element('zuruecknehmenGesperrt').textContent,"
+              "knopf: !_element('zuruecknehmenKnopf').hidden};")
+    return im_browser(seite("customer.html", "kundenakteStarten().catch("), ablauf)["ergebnis"]
 
 
 def _skripte_von(vorlage: str) -> str:
@@ -352,11 +352,12 @@ def test_customer_page_shows_the_reason_instead_of_the_button(threaded_db_sessio
     client = router_test_client(db, payments_router)
     rows = {p["id"]: p for p in client.get(f"/api/customers/{kunde}/payments").json()["payments"]}
     offene = client.get(f"/api/customers/{kunde}/open-invoices").json()
+    # seit 1.9.137: „Zurücknehmen …“ im „⋮“ der Zeile; der Dialog zeigt den Grund statt des Knopfs (bis 1.9.136 die Karte je Zahlung)
     gesperrt = _zahlungskarte(rows[rest.id], offene)
-    assert "Zahlung zurücknehmen" not in gesperrt and "data-zuruecknehmen-gesperrt" in gesperrt
-    assert "erst den Zahlungsausgang zurücknehmen" in gesperrt
+    assert 'data-klick="zahlung-zuruecknehmen"' in gesperrt["zeile"]
+    assert not gesperrt["knopf"] and "erst den Zahlungsausgang zurücknehmen" in gesperrt["gesperrt"]
     frei = _zahlungskarte(rows[refund.id], offene)
-    assert "Zahlung zurücknehmen</button>" in frei and "data-zuruecknehmen-gesperrt" not in frei
+    assert frei["knopf"] and frei["gesperrt"] is None
 
 
 # ---------------------------------------------------------------------------
@@ -515,7 +516,7 @@ def test_templates_build_the_lists_with_the_helper():
     assert "innerHTML=payLines.length?head+zahlungsGruppen(payLines).map(" in detail
     assert "'<option value=\"\">— Rechnung wählen … —</option>'+zahlungsOptionen(more," in detail
     assert "settled_in:o.settled_in||null" in detail
-    assert "const opts=zahlungsOptionen(customerOpenInvoices.filter(" in kunde
+    assert "zahlungsOptionen(unbezahlteZumZuordnen()," in kunde  # seit 1.9.137 im Dialog „Rest zuordnen“
 
 
 def test_field_gets_none_of_it(threaded_db_session, router_test_client):

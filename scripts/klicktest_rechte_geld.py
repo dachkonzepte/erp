@@ -153,10 +153,10 @@ async def pruefen(tab, seed, p):
     p.pruefe("JS-Fehler (Büro – Auftrag)", tab.fehler, [])
     await _ganze_seite(tab, "rechnung_buero_auftrag")
 
-    await tab.oeffnen(f"/customers/{seed['kunde']}", "customerPaymentsData&&document.getElementById('customerPayments').innerHTML.length>0")
+    await tab.oeffnen(f"/customers/{seed['kunde']}#zahlungen", "typeof akte!=='undefined'&&!!akte&&!!customerPaymentsData&&!!document.querySelector('#customerPayments tr[data-zahlung]')")
     p.pruefe("Kundenakte: Zahlungen gelesen, kein Knopf", await tab.js(
-        "[document.querySelectorAll('[data-zahlung]').length,[...document.querySelectorAll('#zahlungen button')].length,"
-        "!!document.querySelector('[data-erstattung]'),!!document.querySelector('#zahlungen [data-geld-nur-lesen]')]"), [2, 0, False, True])
+        "[document.querySelectorAll('tr[data-zahlung]').length,[...document.querySelectorAll('#reiter-zahlungen button')].length,"
+        "!!document.getElementById('erstattenDialog'),!!document.querySelector('#reiter-zahlungen [data-geld-nur-lesen]')]"), [2, 0, False, True])
     await _ganze_seite(tab, "kundenakte_buero_auftrag")
 
     await tab.oeffnen("/mahnwesen", "allReminders.length>0&&attentionRows.length>0")
@@ -198,10 +198,11 @@ async def pruefen(tab, seed, p):
         [False, False, ["Rechnung finalisieren", "Entwurf löschen"]])
     await tab.js("sendInvoice()")
     p.pruefe("Finanzen finalisiert", await tab.warten("invoice.status==='versendet'&&!!invoice.invoice_number"), True)
-    await tab.oeffnen(f"/customers/{seed['kunde']}", "customerPaymentsData&&document.getElementById('customerPayments').innerHTML.length>0")
+    await tab.oeffnen(f"/customers/{seed['kunde']}#zahlungen", "typeof akte!=='undefined'&&!!akte&&!!customerPaymentsData&&!!document.querySelector('#customerPayments tr[data-zahlung]')")
+    # seit 1.9.137 im „⋮“ je Eingang (bis 1.9.136 Knöpfe „Zuordnen“ und „Zahlung zurücknehmen“ an der Karte)
     p.pruefe("Finanzen: Kundenakte mit Zuordnen und Zurücknehmen", await tab.js(
-        "[...document.querySelectorAll('#zahlungen button')].map(b=>b.textContent.trim()).filter(t=>['Zuordnen','Zahlung zurücknehmen'].includes(t)).sort()"),
-        ["Zahlung zurücknehmen", "Zahlung zurücknehmen", "Zuordnen"])
+        "[...document.querySelectorAll('#customerPayments .ds-menue-eintrag')].filter(b=>!b.hidden).map(b=>b.textContent.trim()).filter(t=>['Zuordnen …','Zurücknehmen …'].includes(t)).sort()"),
+        ["Zuordnen …", "Zurücknehmen …", "Zurücknehmen …"])
     await tab.oeffnen("/mahnwesen", "allReminders.length>0&&attentionRows.length>0")
     p.pruefe("Finanzen: Mahnwesen mit Auswahl und Knöpfen", await tab.js(
         "[!!document.getElementById('bulkCreateBtn'),document.querySelectorAll('.due-select').length>0,"

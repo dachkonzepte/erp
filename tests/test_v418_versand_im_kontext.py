@@ -117,7 +117,8 @@ def test_projektmappe_und_kundenakte_zeigen_ihren_versand():
     protokoll = (TEMPLATES / "email_dispatches.html").read_text(encoding="utf-8")
     # seit 1.9.129 die Akte: Versand im Verlauf (Filter „Versand“, ein Strom mit den Änderungen) statt Reiter „Versand“ der Projektmappe
     assert 'data-art="versand"' in mappe and "el('versandprotokollLink').href='/versandprotokoll?projekt='+projectId;" in mappe
-    assert "renderDispatchList('customerDispatches',{customer_id:customerId})" in akte
+    # seit 1.9.137 die Kundenakte wie die Akte: Versand im Verlauf (Filter „Versand“) statt der Karte „Versand“ (renderDispatchList)
+    assert 'data-art="versand"' in akte and "el('versandprotokollLink').href='/versandprotokoll?kunde='+customerId;" in akte
     from tests import vorlagen_js
 
     assert all(vorlagen_js.bindet_ein(n, "_email_dispatch.html", TEMPLATES) for n in ("akte.html", "customer.html"))

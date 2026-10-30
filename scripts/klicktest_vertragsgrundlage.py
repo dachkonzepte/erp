@@ -86,14 +86,16 @@ async def pruefen(tab, seed, p):
     p.pruefe("Neuer Kunde: JS-Fehler", tab.fehler, [])
 
     # Kundenseite: gespeicherter Wert, umschalten, speichern
-    bereit = "document.getElementById('lastName')?.value==='Firma Bau GmbH'"
+    bereit = "typeof customer!=='undefined'&&!!customer&&customer.last_name==='Firma Bau GmbH'"
     await tab.oeffnen(f"/customers/{seed['firma']}", bereit)
+    await tab.js("stammdatenOeffnen()")  # seit 1.9.137 im Dialog „Stammdaten bearbeiten“
     p.pruefe("Firma: Häkchen aus", await tab.js("document.getElementById('isConsumer').checked"), False)
     await tab.js("document.getElementById('isConsumer').checked=true;saveCustomer()")
-    await tab.warten("document.getElementById('customerStatus').textContent==='Gespeichert.'")
+    await tab.warten("document.getElementById('seitenStatus').textContent==='Stammdaten gespeichert.'")
     p.pruefe("Firma: nach Speichern Verbraucher", await tab.js(f"fetch('/api/customers/{seed['firma']}').then(r=>r.json()).then(j=>j.is_consumer)"), True)
-    await tab.js("document.getElementById('isConsumer').checked=false;saveCustomer()")
-    await tab.warten("document.getElementById('customerStatus').textContent==='Gespeichert.'")
+    p.pruefe("Firma: die Karte nennt die Vertragsgrundlage", await tab.js("document.getElementById('stammdatenListe').textContent.includes('ja – neue Angebote nach BGB')"), True)
+    await tab.js("stammdatenOeffnen();document.getElementById('isConsumer').checked=false;saveCustomer()")
+    await tab.warten("!document.getElementById('stammdatenDialog').open")
     p.pruefe("Firma: zurückgestellt", await tab.js(f"fetch('/api/customers/{seed['firma']}').then(r=>r.json()).then(j=>j.is_consumer)"), False)
     p.pruefe("Kundenseite: JS-Fehler", tab.fehler, [])
     await tab.bild("kunde_verbraucher")

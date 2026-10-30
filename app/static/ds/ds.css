@@ -709,3 +709,15 @@
 .ds-menue-eintrag-fehler:hover {
   color: var(--ds-fehler-text);
 }
+
+/* seit 1.9.137 (Stufe 5, R3, Punkt 5): Trennlinie zwischen Gruppen im Menü (Status · Projekt bzw. Kunde · Wege), _menue.html blendet sie aus,
+   wo eine Gruppe leer ist */
+.ds-menue-trenner {
+  height: 1px;
+  margin: var(--ds-abstand-1) var(--ds-abstand-2);
+  background: var(--ds-linie);
+}
+
+.ds-menue-trenner[hidden] {
+  display: none;
+}

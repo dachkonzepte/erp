@@ -112,7 +112,7 @@ def befuellen(db, k):
 
 
 INVOICE_READY = "invoice&&invoice.id&&document.getElementById('finalBody').innerHTML"
-CUSTOMER_READY = "customerPaymentsData&&document.getElementById('zahlungen').style.display==='block'"
+CUSTOMER_READY = "typeof akte!=='undefined'&&!!akte&&!!customerPaymentsData&&!!document.querySelector('#customerPayments tr[data-zahlung]')"
 
 
 def _passt(p, name, ist, bedingung):
@@ -148,29 +148,30 @@ async def pruefen(tab, seed, p):
     # --- 3. und 4. Kundenakte ---
     await tab.oeffnen(f"/customers/{seed['kunde']}#zahlungen", CUSTOMER_READY)
     rest, aus_rest = seed["rest"], seed["aus_rest"]
-    karte = f"document.querySelector('[data-zahlung=\"{rest}\"]')"
+    # seit 1.9.137 im Dialog „Zurücknehmen“ aus dem „⋮“ (bis 1.9.136 Grund bzw. Knopf an der Karte)
     p.pruefe("Kundenakte: Zahlung mit Erstattung aus dem Rest -- Grund statt Knopf", await tab.js(
-        f"[{karte}.querySelector('[data-zuruecknehmen-gesperrt]')?.textContent,"
-        f"[...{karte}.querySelectorAll('button')].some(b=>b.textContent==='Zahlung zurücknehmen')]"),
+        f"(()=>{{zuruecknehmenOeffnen({rest});const e=[document.getElementById('zuruecknehmenGesperrt').textContent,"
+        "!document.getElementById('zuruecknehmenKnopf').hidden];document.getElementById('zuruecknehmenDialog').close();return e})()"),
         [f"Aus dem Rest dieser Zahlung ist erstattet (20,00 €, Zahlungsausgang Nr. {aus_rest}) -- erst den Zahlungsausgang "
          "zurücknehmen.", False])
     p.pruefe("Kundenakte: Zahlungsausgang mit Knopf", await tab.js(
-        f"[...document.querySelector('[data-zahlung=\"{aus_rest}\"]').querySelectorAll('button')]"
-        ".some(b=>b.textContent==='Zahlung zurücknehmen')"), True)
+        f"(()=>{{zuruecknehmenOeffnen({aus_rest});const e=!document.getElementById('zuruecknehmenKnopf').hidden;"
+        "document.getElementById('zuruecknehmenDialog').close();return e})()"), True)
     a1_nr = await tab.js(f"customerOpenInvoices.find(o=>o.invoice_id==={seed['a1']}).invoice_number")
     a2_nr = await tab.js(f"customerOpenInvoices.find(o=>o.invoice_id==={seed['a2']}).invoice_number")
+    await tab.js(f"zuordnenOeffnen({rest},null)")  # seit 1.9.137 im Dialog „Rest zuordnen“, „unbezahlt“ statt „offen“
     p.pruefe("Rest zuordnen: Abschlag 1 einzeln, Gruppe der Schlussrechnung mit dem enthaltenen Abschlag", await tab.js(
-        _auswahl(f"#restInvoice-{rest}")),
-        [[None, f"{a1_nr} · offen 119,00 €"], [gruppe, f"{s2_nr} · offen 119,00 €"],
-         [gruppe, f"{a2_nr} · offen 295,00 € · enthalten in Schlussrechnung {s2_nr}"]])
-    await tab.js(f"(()=>{{const s=document.getElementById('restInvoice-{rest}');s.value='{seed['a2']}';"
-                 "s.dispatchEvent(new Event('change'))})()")
-    p.pruefe("Rest zuordnen: Betrag = Rest", await tab.js(f"document.getElementById('restAmount-{rest}').value"), "30,00")
-    await tab.warte_auf_neu_geladene_liste(f"allocateRest({rest})", "#customerPayments")
+        _auswahl("#restInvoice")),
+        [[None, f"{a1_nr} · unbezahlt 119,00 €"], [gruppe, f"{s2_nr} · unbezahlt 119,00 €"],
+         [gruppe, f"{a2_nr} · unbezahlt 295,00 € · enthalten in Schlussrechnung {s2_nr}"]])
+    await tab.js(f"(()=>{{const s=document.getElementById('restInvoice');s.value='{seed['a2']}';"
+                 "s.dispatchEvent(new Event('change',{bubbles:true}))})()")
+    p.pruefe("Rest zuordnen: Betrag = Rest", await tab.js("document.getElementById('restAmount').value"), "30,00")
+    await tab.warte_auf_neu_geladene_liste("allocateRest()", "#customerPayments")
     p.pruefe("Rest auf den enthaltenen Abschlag zugeordnet", [
         await tab.js("document.getElementById('customerPaymentsStatus').textContent"), await _offen(tab, seed["a2"])],
         ["Zugeordnet.", "265.00"])
-    await tab.js("document.getElementById('zahlungen').scrollIntoView()")
+    await tab.js("document.getElementById('reiter-zahlungen').scrollIntoView()")
     await tab.bild("kundenakte_zahlungen")
     p.pruefe("Kundenakte: JS-Fehler", tab.fehler, [])
 
@@ -234,9 +235,9 @@ async def pruefen(tab, seed, p):
     # --- Kundenakte 412 px dunkel ---
     await tab.fenster(412, 900, mobil=True)
     await tab.oeffnen(f"/customers/{seed['kunde']}#zahlungen", CUSTOMER_READY)
-    await tab.js("document.documentElement.setAttribute('data-theme','dark');document.getElementById('zahlungen').scrollIntoView()")
+    await tab.js("document.documentElement.setAttribute('data-theme','dark');document.getElementById('reiter-zahlungen').scrollIntoView()")
     _passt(p, "Kundenakte 412 px: ohne waagrechtes Scrollen", await tab.js(
-        "document.documentElement.scrollWidth<=innerWidth+1"), lambda v: v is True)
+        "document.documentElement.scrollWidth<=412"), lambda v: v is True)
     await tab.bild("kundenakte_412_dunkel")
     await tab.fenster(1400, 1100)
 

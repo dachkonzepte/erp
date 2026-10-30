@@ -130,14 +130,16 @@ async def pruefen(tab, seed, p):
         server.shutdown()
         server.server_close()
 
-    await tab.oeffnen(f"/customers/{kunde}", "document.getElementById('lastName').value==='Muster'")
+    await tab.oeffnen(f"/customers/{kunde}", "typeof customer!=='undefined'&&!!customer&&customer.last_name==='Muster'")
     p.pruefe("weiter angemeldet", await tab.js("fetch('/api/auth/status').then(r=>r.json()).then(d=>d.authenticated)"), True)
     p.pruefe("kein Dokument von der fremden Seite",
              await tab.js(f"fetch('/api/customers/{kunde}/documents').then(r=>r.json()).then(d=>d.length)"), 0)
+    await _klick(tab, '#uStammdaten [data-klick="stammdaten-bearbeiten"]')  # seit 1.9.137 im Dialog
+    await tab.warten("document.getElementById('stammdatenDialog').open")
     await _tippen(tab, "#notes", "Von der eigenen Seite")
-    await _klick(tab, "button[onclick='saveCustomer()']")
+    await _klick(tab, '[data-klick="stammdaten-speichern"]')
     p.pruefe("eigene Seite speichert", await tab.warten(
-        "document.getElementById('customerStatus').textContent==='Gespeichert.'"), True)
+        "document.getElementById('seitenStatus').textContent==='Stammdaten gespeichert.'"), True)
     hochgeladen = await tab.js(
         f"(async()=>{{const fd=new FormData();fd.append('file',new Blob(['%PDF-1.4 eigen'],{{type:'application/pdf'}}),'eigen.pdf');"
         f"const r=await fetch('/api/customers/{kunde}/documents',{{method:'POST',body:fd}});return r.status}})()")

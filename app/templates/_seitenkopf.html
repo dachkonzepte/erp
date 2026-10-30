@@ -4,7 +4,8 @@
     merkt sich den Knopf).
 
     seitenkopf({kennung, titel, untertitel, status: {text, art}, pfad: [{text, href}]}) -- nur die genannten Teile ändern sich. Text immer
-    über textContent (kein HTML aus Daten), Links über sichererLink() (Regel 32), die Art des Status nur aus seitenkopfArten() (sonst
+    über textContent (kein HTML aus Daten), Links über sichererLink() (Regel 32); seit 1.9.137 darf der Untertitel eine Liste sein (Text oder
+    {text, href}, getrennt durch „ · “ -- Kundenakte: Anschrift, Telefon und E-Mail als Link), die Art des Status nur aus seitenkopfArten() (sonst
     "neutral"); das letzte Glied des Pfads ohne href ist die Seite selbst (aria-current="page"). Den Status bringt seit 1.9.9
     statusKennzeichen() aus _statuskennzeichen.html (Text und Farbe an einer Stelle): seitenkopf({status: statusKennzeichen('auftrag', o.status)}).
 
@@ -26,7 +27,22 @@ function seitenkopf(daten) {
   };
   if ('kennung' in d) text('seitenkopfKennung', d.kennung);
   if ('titel' in d) text('seitenkopfTitel', d.titel);
-  if ('untertitel' in d) text('seitenkopfUntertitel', d.untertitel);
+  if ('untertitel' in d && Array.isArray(d.untertitel)) {
+    const el = document.getElementById('seitenkopfUntertitel');
+    if (el) {
+      const teile = [];
+      d.untertitel.filter((t) => t && (typeof t !== 'object' || t.text)).forEach((t, i) => {
+        if (i) teile.push(document.createTextNode(' · '));
+        if (typeof t === 'object' && t.href) {
+          const a = document.createElement('a');
+          a.setAttribute('href', sichererLink(t.href));
+          a.textContent = String(t.text);
+          teile.push(a);
+        } else teile.push(document.createTextNode(String(typeof t === 'object' ? t.text : t)));
+      });
+      el.replaceChildren(...teile);
+    }
+  } else if ('untertitel' in d) text('seitenkopfUntertitel', d.untertitel);
   if ('status' in d) {
     const el = document.getElementById('seitenkopfStatus');
     if (el) {

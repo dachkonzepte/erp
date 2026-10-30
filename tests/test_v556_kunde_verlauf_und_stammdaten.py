@@ -245,3 +245,25 @@ def test_hoechstgrenze_erreicht_trotzdem_fortschritt(welt, monkeypatch):
     monkeypatch.setattr(akte_verlauf, "GRENZE_HOECHSTENS", 2)
     _, seiten = _alle_seiten(welt["client"](), welt["kessler"].id, leere_letzte=True)
     assert seiten > 1
+
+
+def test_kundenwissen_heisst_nach_seiner_bezeichnung(threaded_db_session, router_test_client):
+    """Seit 1.9.137: „Kundenwissen Sabine Kessler angelegt“, ohne Bezeichnung nur „Kundenwissen angelegt“ -- nicht „Kundenwissen Kundenwissen angelegt“
+    (so auch ältere Zeilen, deren Name nur die Art ist)."""
+    from app.akte_verlauf import Gruppe, ueberschrift
+    from app.audit import _entity_label
+    from app.models import CustomerExtraInfo
+
+    assert _entity_label(CustomerExtraInfo(info_type="phone", label="Sabine Kessler", value="1")) == "Sabine Kessler"
+    assert _entity_label(CustomerExtraInfo(info_type="phone", label=None, value="1")) == "Kundenwissen"
+
+    class Zeile:
+        entity_type = "Kundenwissen"
+        entity_type_label = "Kundenwissen"
+        action = "angelegt"
+        entity_label = "Kundenwissen"
+        new_value = None
+
+    assert ueberschrift(Gruppe(zeilen=[Zeile()]))[0] == "Kundenwissen angelegt"
+    Zeile.entity_label = "Sabine Kessler"
+    assert ueberschrift(Gruppe(zeilen=[Zeile()]))[0] == "Kundenwissen Sabine Kessler angelegt"

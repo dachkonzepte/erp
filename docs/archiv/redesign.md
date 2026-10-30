@@ -8282,3 +8282,84 @@ Angepasste Erwartungen:
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v556`): gelöschte Einträge nicht über den Schnappschuss -> 2; Kennungen
 aller Kunden -> 1; Seite wächst nicht -> 1; alle Felder statt der gesendeten -> 2; Versand an die nächste Aktion gehängt -> 1; ohne Zeitfenster -> 1;
 ohne Rückfall an der Höchstgrenze -> 1.
+
+### R3, Punkte 2, 3, 5 (1.9.137): die Kundenakte als Seite
+
+- `app/templates/customer.html` neu nach den Vorlagen, Aufbau und CSS wie `akte.html`: Pfad, Kopf über das Makro (`.ds-seite`, steht seit dieser Version in
+  `UMGEZOGEN`), „+ Projekt“, „⋮“; Reiter mit Anker (`reiterZeigen()`, `ALTE_ANKER={versand:'verlauf'}`, `#zahlungen` ist selbst ein Reiter). Bereiche des Lesens:
+  `kunde` (Kunde, Objekte mit Dachflächen, Anfragen, Auswahllisten), `akte` (`GET /api/customers/{id}/akte`), `dokumente`, `zahlungen`, `verlauf`; `render()`
+  fasst keinen Dialog an, die Felder füllt erst das Öffnen. Stammdaten: `stammdatenOeffnen()` merkt den Stand (`stammdatenStand`), `saveCustomer()` schickt nur
+  die Abweichung, ohne Abweichung keine Anfrage. Dialoge: Stammdaten, Eintrag, Objekt, Dachfläche, Dokument; mit `{% if geld %}` Zuordnen, Erstatten,
+  Zurücknehmen. Alle Knöpfe über `data-klick`/`aktion()` (zwölf Handler mit IDs weniger, `AUSNAHMEN_HANDLER` jetzt 260 statt 272; die Zahl 285 in dieser Datei
+  und in CLAUDE.md stand seit dem Umbau der Akte zu hoch).
+- `app/kundenakte.py`: `geld()["unbezahlte"]` (Zeilen aus `invoice_overview_rows()`, älteste Fälligkeit zuerst), `projekte()` mit `property_id`.
+- Bausteine: `_statuskennzeichen.html::statusFreieGruppen()` (Gruppe `kundenkategorie`: freier Wert aus den Stammdaten, Text unverändert, eine Bedeutung);
+  `_seitenkopf.html`: Untertitel darf eine Liste aus Text und `{text, href}` sein (Link über `sichererLink()`); `_menue.html::dsMenueTrennerOrdnen()` und
+  `.ds-menue-trenner` in `ds.css`; `_rechnungsliste.html`: Spalte `projekt`, `opt.kopf`, `opt.mitJahr`.
+- `akte.html`: „⋮“ in drei Gruppen -- Status (Fortsetzen, Pausieren, Abschließen, Storno zurücknehmen, Stornieren), Projekt (bearbeiten, Beteiligte, Kopieren, Muster,
+  Wartungsvertrag, Archivieren, Löschen), Wege (Auftragsbestätigung, Arbeitsvorbereitung, Einsatzberichte).
+- `app/audit.py::_entity_label()`: ein Eintrag des Kundenwissens heißt im Protokoll nach seiner Bezeichnung; `akte_verlauf.ueberschrift()` nennt Art und Name nicht doppelt,
+  wenn der Name nur die Art ist (ältere Zeilen: „Kundenwissen Kundenwissen angelegt“).
+
+Punkt 4: „Kunde archivieren“ nicht gebaut (am Kunden gibt es kein Archivieren). Punkt 5: Stunden zeigt die Kundenakte keine; Daten, die für sich stehen, mit Jahr
+(`tagLang`), kurz nur im Stand der Rechnungsliste („überfällig seit 03.10.“, wie die Vorlage) und im Verlauf; „unbezahlt“ und „noch nicht abgerechnet“ durchgängig,
+auch in der Auswahl „Rest zuordnen“ (bis 1.9.136 „offen“).
+
+Fund beim Bau (behoben): auf 412 px ragte die Tabelle der Zahlungseingänge über die Karte (sie darf nicht rollen, sonst schneidet sie das „⋮“ ab). Die Prüfung
+`document.documentElement.scrollWidth<=innerWidth+1` sah das nicht: `innerWidth` wächst in der Mobil-Emulation mit dem Inhalt. Schmal steht je Eingang ein Block; der
+Klicktest misst je Reiter gegen die Gerätebreite 412. Dieselbe schwache Prüfung steht noch in 15 älteren Klicktests (`grep scrollWidth scripts/`) -- nur in
+`klicktest_zahlungen_kleinkram` geändert, weil er die Kundenakte betrifft; die übrigen sind offen und im Bericht genannt.
+
+#### Festlegungen 1.9.137 (Bitte bestätigen)
+
+1. Die Kategorie steht im Kopf an der Stelle des Status, blau wie die Vorlage; sie ist kein Status (freie Gruppe `kundenkategorie`, Wert unverändert).
+2. „Rechnungen an“ in der Karte Stammdaten ist die primäre E-Mail des Kunden -- an sie geht die Rechnung (`get_invoice_recipient_email()`); ein eigenes Feld gibt es nicht. Im Dialog heißt das Feld „Primäre E-Mail (Rechnungen an)“.
+3. Die Spalte „Art“ der Zahlungseingänge nennt Zahlung, Erstattung (Zahlungsausgang) oder übernommen aus „bezahlt“ -- „Überweisung“ der Vorlage gibt es nicht als Feld und ist nicht erfunden.
+4. „Zugeordnet“ nennt Rechnung und Betrag, die Art nur bei Skonto und Einbehalt; „· bezahlt“ der Vorlage steht nicht dort (das ist der Stand der Rechnung, nicht der Zuordnung).
+5. Kennzeichen der Phase in den Projektzeilen: Anfrage und Angebot blau, ab dem Auftrag grün, abgeschlossen und storniert grau.
+6. „Abgeschlossen: …“ nennt abgeschlossene, stornierte und archivierte Projekte, höchstens fünf, danach „und n weitere“ auf den Reiter Projekte.
+7. Die Objektzeile der Übersicht nennt Dachflächen und Projekte; „Wartungsvertrag · nächste Wartung“ der Vorlage fehlt -- die Daten des Kunden liefern das nicht, der Reiter Objekte führt zum Objekt.
+8. Die Karte „Versand“ entfällt: Filter „Versand“ im Verlauf, `#versand` führt dorthin; „Zustellung nachtragen“, „Empfang bestätigt“ und „unzustellbar“ im Dialog am „⋮“ der Versandzeile, Rechnung und Mahnung nur mit `darf_geld()` -- wie in der Akte.
+9. „⋮“ je Eingang: Zuordnen nur mit Rest und unbezahlter Rechnung, Erstatten nur mit Rest; Zurücknehmen immer -- geht es nicht, nennt der Dialog den Grund und zeigt keinen Knopf.
+10. Vorschläge: im Reiter Zahlungen je Posten des Guthabens einer, in der Übersicht nur der erste.
+11. Der Dialog „Erstattung buchen“ zeigt alle Posten des Guthabens, vorbelegt nur den gewählten; weitere Beträge lassen sich eintragen -- ein Zahlungsausgang für alle.
+12. Stammdaten ohne Änderung: der Dialog schließt ohne Anfrage.
+13. Die Karte Stammdaten nennt neben den Zeilen der Vorlage nur gefüllte Felder: Ansprechpartner, zweite E-Mail, Mobil (wenn der Kopf das Telefon zeigt), Fax.
+14. „⋮“ der Akte: „Stornieren …“ steht in der Gruppe Status (bis 1.9.136 vor „Löschen“), die Wege am Ende.
+15. Schmal (bis 760 px) stehen die Zahlungseingänge als Blöcke statt als Tabelle.
+16. Ein Eintrag des Kundenwissens heißt im Verlauf nach seiner Bezeichnung („Kundenwissen Sabine Kessler, Geschäftsführung angelegt“), ohne Bezeichnung nur „Kundenwissen angelegt“; der Text der Vorlage „Kontakt „…“ ergänzt“ ist nicht übernommen (ein Satz für alle Arten wie in der Akte).
+
+#### Tests und Prüfung
+
+Neu `tests/test_v557_kundenakte_seite.py` (15 Tests, das Skript der Seite in node mit den Antworten der echten Endpunkte): `#zahlungen` öffnet den Reiter mit den Zahlen des
+Servers, `#versand` den Verlauf mit „Versand“, ohne Anker die Übersicht; Büro – Auftrag ohne Knöpfe und Dialoge, Zuordnen 403, Finanzen 200, Rest danach 0; Stammdaten: Eingabe
+bleibt nach `render()` und `load()`, gesendet nur das Geänderte, ohne Änderung nichts; Kunde ohne Projekt; Zeilen `unbezahlte`; Trennlinien; Untertitel mit Links (fremder Link
+`#`); „⋮“ von Akte und Kundenakte; Rechnungsliste. `tests/test_v554_kundenakte_funktionen.py`: die Tabelle jetzt mit den Belegen der neuen Seite (38 Funktionen). Neu
+`scripts/klicktest_kundenakte.py` (Kopf, jeder Reiter, „⋮“, Dialoge, Zuordnen über den Vorschlag, Stammdaten, Verlauf, dunkel, 412 px gegen die Gerätebreite, Akte-Menü, Kunde
+ohne Projekt, Monteurin 403; nimmt die Bilder der Übergabe auf).
+
+Angepasste Erwartungen, Tests:
+- `tests/test_v554_kundenakte_funktionen.py`, `FUNKTIONEN` -- alt Belege der früheren Seite (`onclick="saveCustomer()"`, `id="metricNet"`, `id="customerDispatches"` …), neu die der Kundenakte; Testname `…auf_der_heutigen_seite` -> `…auf_der_kundenakte`; Pfade aus Kommentaren („/api/customers/{id}/akte“) zählen mit.
+- `tests/test_v441_rahmen_baustein.py` -- alt `customer.html` in `AUFGESCHOBEN` (Stufe 5), neu in `UMGEZOGEN`.
+- `tests/test_v407_daten_im_html.py`, `AUSNAHMEN_HANDLER` -- alt fünf Einträge zu `customer.html` (zwölf Handler), neu keine.
+- `tests/test_v424_zahlgrenzen.py`, `ABGLEICH` -- alt `id=restAmount-${p.id}`, neu `id=restAmount`.
+- `tests/test_v451_zahlformat_anzeige.py`, `tests/test_v334_auswahl_restfaelle.py` -- alt Start `load().catch(`, neu `kundenakteStarten().catch(`; Soll gleich.
+- `tests/test_v447_auswahl_altwerte.py::test_kunde_zusatzinfo_art` -- alt Auswahl `.xt` je Zeile über `renderExtras()`, neu Dialog `editExtra(1)`, Feld `extraTyp`; Soll gleich.
+- `tests/test_v445_statuskennzeichen.py` -- alt jede Gruppe muss in der Tabelle stehen, neu auch eine freie Gruppe (`statusFreieGruppen()`); neuer Test `test_freie_gruppen`.
+- `tests/test_v397_kleinkram_zahlungen.py` -- alt `paymentCardHtml()` mit Knopf „Zahlung zurücknehmen“ bzw. Grund, neu `zahlungZeile()` mit „Zurücknehmen …“ im „⋮“ und der Dialog mit Knopf bzw. Grund; alt `const opts=zahlungsOptionen(customerOpenInvoices.filter(`, neu `zahlungsOptionen(unbezahlteZumZuordnen(),`.
+- `tests/test_v418_versand_im_kontext.py` -- alt `renderDispatchList('customerDispatches',…)`, neu Filter „Versand“ und Link `/versandprotokoll?kunde=`.
+- `tests/test_v531_rechte_geld.py` -- alt `if(!p.reversed&&GELD){` und Karte `data-erstattung`, neu `if(GELD&&!p.reversed){`, Knöpfe der Vorschläge nur mit `GELD`, Dialoge unter `{% if geld %}`.
+
+Angepasste Erwartungen, Klicktests (Bereit-Bedingung alt `lastName`-Feld, neu der geladene Kunde; das Feld steht erst im Dialog):
+- `klicktest_anmelden` -- nur die Bereit-Bedingung.
+- `klicktest_anmeldung_abgelaufen`, `klicktest_fremde_seite` -- Dialog öffnen; alt `customerStatus` „Gespeichert.“, neu `seitenStatus` „Stammdaten gespeichert.“ und Dialog zu.
+- `klicktest_auswahl_restfaelle`, `klicktest_vertragsgrundlage` -- Felder im Dialog; `klicktest_vertragsgrundlage` neu: die Karte nennt die Vertragsgrundlage.
+- `klicktest_dateien_nie_aktiv`, `klicktest_daten_im_html`, `klicktest_hochladen` -- Reiter `#dokumente` (Vorschaubilder laden erst sichtbar), Bereit-Bedingung.
+- `klicktest_rechte_geld` -- alt `#zahlungen button`, `[data-erstattung]`, Knöpfe „Zuordnen“, „Zahlung zurücknehmen“; neu `#reiter-zahlungen button`, `#erstattenDialog`, Menüeinträge „Zuordnen …“, „Zurücknehmen …“.
+- `klicktest_ueberzahlung` -- alt Karte mit `data-guthaben-summe` und Kennzeichen „Guthaben des Kunden: 69,00 €“, neu Kennzahl „69,00 €“, Posten `rest`, `guthaben`, zwei Vorschläge; alt „Zahlungsausgang Nr.“, „Erstattung aus dem Rest der Zahlung“, „aus dem Rest erstattet“; neu „Erstattung (Zahlungsausgang)“, „aus dem Rest des Eingangs“, „erstattet am“; Grund im Dialog.
+- `klicktest_versand_im_kontext` -- alt Karte `#customerDispatches`, neu Reiter Verlauf über `#versand`, gleiche Nummern, Link `#versandprotokollLink`.
+- `klicktest_zahlungen` -- alt Kennzeichen `paymentRestBadge`, Felder `restInvoice-<id>`, neu Kennzahl und Dialog.
+- `klicktest_zahlungen_kleinkram` -- wie `klicktest_zahlungen`; alt Auswahl „· offen …“, neu „· unbezahlt …“; alt `scrollWidth<=innerWidth+1`, neu `scrollWidth<=412`.
+
+Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v557`): Anker nicht ausgewertet -> 3; alle Felder gesendet -> 2; Neuzeichnen füllt den Dialog -> 1; „⋮“ je Eingang ohne `GELD` -> 1; Knöpfe der Vorschläge ohne
+`GELD` -> 1; alle Rechnungen als unbezahlt -> 1; Trennlinie immer -> 1; Link im Untertitel ungeprüft -> 1; Kategorie neutral -> 1; Daten ohne Jahr -> 2; Dialoge des Gelds für alle -> 1.

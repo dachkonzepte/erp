@@ -704,6 +704,7 @@ def _entity_label(obj):
     if obj is None: return None
     if isinstance(obj, Customer): return f"{obj.customer_number or ''} {obj.name}".strip()
     if isinstance(obj, Property): return obj.name
+    if isinstance(obj, CustomerExtraInfo) and obj.label: return obj.label  # seit 1.9.137: im Verlauf des Kunden nach seiner Bezeichnung
     if isinstance(obj, Project): return f"{obj.project_number} · {obj.name}"
     if isinstance(obj, ProjectDocument): return obj.original_filename
     if isinstance(obj, Quote): return f"{obj.quote_number} · {obj.title}"

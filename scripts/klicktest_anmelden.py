@@ -176,7 +176,7 @@ async def _formular(tab, seed, p):
     await _tippen(tab, "#p", PASSWORT["bea"])
     await _klick(tab, "button")
     p.pruefe("Formular: richtiges Passwort -> Weiterleitung auf next, Kundenakte geladen", await tab.warten(
-        f"location.pathname==='/customers/{kid}'&&document.getElementById('lastName')?.value==='Geheim'", 15), True)
+        f"location.pathname==='/customers/{kid}'&&typeof customer!=='undefined'&&!!customer&&customer.last_name==='Geheim'", 15), True)
     p.pruefe("Formular: Anmelde-Cookie httpOnly, SameSite=Lax", await _cookies(tab, details=True), [["dk_erp_auth", True, "Lax"]])
     p.pruefe("Formular: JS-Fehler", tab.fehler, [])
     await tab.bild("formular_angemeldet")
@@ -199,7 +199,7 @@ async def _doppelklick(tab, seed, p):
              [(gesendet(e), e["angehalten"]) for e in waehrend], [(False, True)])
     p.pruefe("Doppelklick: fortgesetzt", await tab.im_netz_fortsetzen(), 1)
     p.pruefe("Doppelklick: angemeldet auf next", await tab.warten(
-        f"location.pathname==='/customers/{kid}'&&document.getElementById('lastName')?.value==='Geheim'", 15), True)
+        f"location.pathname==='/customers/{kid}'&&typeof customer!=='undefined'&&!!customer&&customer.last_name==='Geheim'", 15), True)
     await tab.nachlesen()
     alle = tab.netz.suche(r"/api/auth/login$", "POST", ab=marke)
     p.pruefe("Doppelklick: insgesamt eine Anmeldung (die zweite, gleiche nicht gesendet)", len(alle), 1)
@@ -290,8 +290,9 @@ async def _zurueck(tab, p, wo: str, daten: str, bereit_seite: str):
 async def _abmelden_buero(tab, seed, p):
     kid = seed["kunde"]
     seite = f"/customers/{kid}"
-    kunde_da = "document.getElementById('lastName')?.value==='Geheim'"
-    daten = "document.body.innerText.includes('Geheimstadt')||document.getElementById('lastName')?.value==='Geheim'"
+    # seit 1.9.137 steht der Name erst im Dialog „Stammdaten bearbeiten“ in einem Feld -- geprüft wird der geladene Kunde
+    kunde_da = "typeof customer!=='undefined'&&!!customer&&customer.last_name==='Geheim'"
+    daten = "document.body.innerText.includes('Geheimstadt')||(typeof customer!=='undefined'&&!!customer&&customer.last_name==='Geheim')"
     knoepfe = ["#appTopbarAccountBtn", "#appTopbarLogout"]
     await tab.anmelden(seed["cookies"]["bea_abmelden"])
     await tab.fenster(1400, 1000)
@@ -343,7 +344,7 @@ async def _seitenleiste(tab, seed, p):
     await _tippen(tab, "#appSidebarPassword", PASSWORT["bea"])
     await _enter(tab)  # im Formular: Enter schickt ab
     p.pruefe("Seitenleiste: richtiges Passwort -> Seite neu geladen, Kundenakte mit Daten", await tab.warten(
-        f"window.__vorAnmeldung===undefined&&location.pathname==='/customers/{kid}'&&document.getElementById('lastName')?.value==='Geheim'",
+        f"window.__vorAnmeldung===undefined&&location.pathname==='/customers/{kid}'&&typeof customer!=='undefined'&&!!customer&&customer.last_name==='Geheim'",
         15), True)
     await tab.warte_auf_neu_geladene_liste()
     await tab.nachlesen()

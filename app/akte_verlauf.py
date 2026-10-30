@@ -266,6 +266,8 @@ def ueberschrift(g: Gruppe) -> tuple[str, str]:
     h = _hauptzeile(g)
     typ = h.entity_type_label or h.entity_type
     name = h.entity_label or ""
+    if name == typ:  # seit 1.9.137: ohne eigenen Namen steht in der Zeile nur die Art („Kundenwissen Kundenwissen angelegt“)
+        name = ""
     if h.entity_type == "Auftragsstatus":
         titel = name or typ
         try:  # die Begründung steht im Schnappschuss des Anlegens (details)

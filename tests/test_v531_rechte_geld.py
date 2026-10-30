@@ -385,7 +385,9 @@ def test_skripte_fragen_geld_vor_jedem_knopf():
                    "GELD?{}:{manual:false,outcomes:false}", "${GELD&&(frei||invoice.closes_order)?'':'disabled'}"):
         assert stelle in rechnung, stelle
     kunde = (vorlagen / "customer.html").read_text(encoding="utf-8")
-    assert "if(!p.reversed&&GELD){" in kunde and "${GELD?`<div class=\"pay-actions\" style=\"margin-top:8px\" data-erstattung>" in kunde
+    # seit 1.9.137 (Stufe 5, R3): „⋮“ je Eingang, Knöpfe der Vorschläge und die Dialoge nur mit Geld (bis 1.9.136 Karte je Zahlung)
+    assert "if(GELD&&!p.reversed){" in kunde and "let knoepfe='';\n  if(GELD){" in kunde
+    assert '{% if geld %}\n<dialog id="zuordnenDialog"' in kunde
     mahn = (vorlagen / "mahnwesen.html").read_text(encoding="utf-8")
     for stelle in ("${!GELD?blocked:blocked||`<button class=\"primary\" onclick=\"sendReminder(${r.draft.id})\">",
                    "${GELD?`<button onclick=\"editReminder(${r.draft.id})\">", "${GELD?`<button class=\"danger\" onclick=\"deleteReminder(${r.id})\">",

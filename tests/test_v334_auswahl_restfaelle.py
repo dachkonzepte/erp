@@ -445,7 +445,7 @@ def test_kunden_kategorie_ohne_still_vorgewaehlte_vorgabe(threaded_db_session, r
         ablauf = (f"customerCategoryGroup = {json.dumps(gruppe)}; customer = {json.dumps(kunde_json)};"
                   f"{aufruf} const auswahl = _gewaehlt('category'); await saveCustomer();"
                   "return {auswahl, meldung: _element('customerStatus').textContent};")
-        return im_browser(seite("customer.html", "load().catch("), ablauf)
+        return im_browser(seite("customer.html", "kundenakteStarten().catch("), ablauf)  # seit 1.9.137 (bis 1.9.136 load().catch()
 
     assert seite_laden(gespeichert)["ergebnis"]["auswahl"] == {"value": "Gewerbekunde", "selected": True,
                                                                "text": "Gewerbekunde (inaktiv)"}

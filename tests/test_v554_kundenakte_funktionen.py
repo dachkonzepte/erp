@@ -1,10 +1,12 @@
-"""Version 1.9.134 (Stufe 5, R3, Punkt 0) -- jede Funktion der heutigen Kundenakte (customer.html) als Liste: Knopf bzw. Link, Endpunkt, Rolle.
+"""Version 1.9.134 (Stufe 5, R3, Punkt 0) -- jede Funktion der Kundenakte (customer.html) als Liste: Knopf bzw. Link, Endpunkt, Rolle; seit
+1.9.137 (Punkt 2) gemessen an der neuen Kundenakte nach den Vorlagen (bildgrundlage/entwurf_stufe5_kunde/kunde-*.html).
 
-Die Tabelle FUNKTIONEN ist die Liste, an der der Umbau zur Kundenakte nach den Vorlagen (bildgrundlage/entwurf_stufe5_kunde/kunde-*.html) gemessen
-wird -- wie FUNKTIONEN in tests/test_v549_akte_seite.py für die Akte je Projekt: je Funktion die Art (Knopf, Link, Feld, Anzeige, Anker), die
-Endpunkte mit Methode, die Rolle der Funktion laut Route (Au = ab Büro – Auftrag, Geld = darf_geld(): Admin und Büro – Finanzen; sie gilt für die
-schreibenden Endpunkte, ein lesender muss für Büro – Auftrag offen sein -- Au oder auch für die Monteurin), der
-Reiter der neuen Kundenakte (laut kunde-zuordnung.html) und die Belege im gezeichneten HTML der heutigen Seite.
+Die Tabelle FUNKTIONEN ist die Liste, an der der Umbau gemessen wird -- wie FUNKTIONEN in tests/test_v549_akte_seite.py für die Akte je Projekt:
+je Funktion die Art (Knopf, Link, Feld, Anzeige, Anker), die Endpunkte mit Methode, die Rolle der Funktion laut Route (Au = ab Büro – Auftrag,
+Geld = darf_geld(): Admin und Büro – Finanzen; sie gilt für die schreibenden Endpunkte, ein lesender muss für Büro – Auftrag offen sein -- Au oder
+auch für die Monteurin), der Reiter der Kundenakte (laut kunde-zuordnung.html) und die Belege im gezeichneten HTML bzw. in der Vorlage. Bis 1.9.136
+standen hier die Belege der früheren Seite (Formular immer offen, Karten untereinander); jede Funktion von damals steht hier wieder -- die Kennzahlen
+als Zähler an den Reitern und Karte „Geld“, die Karte „Versand“ als Verlauf mit „Versand“ und „Zustellung nachtragen“ im Dialog.
 
 Geprüft wird: jeder Beleg steht in der Seite; jeder Endpunkt ist eine Route mit genau der genannten Rolle; jeder Pfad unter /api/, den die Seite
 aufruft, steht in der Tabelle (keine Funktion fehlt); die Monteurin bekommt die Seite nicht (403).
@@ -24,53 +26,73 @@ GELD = frozenset({"buero_finanzen", "admin"})
 MO = frozenset({"field", "buero_auftrag", "buero_finanzen", "admin"})
 ROLLEN = {"Au": AU, "Geld": GELD, "Mo": MO}
 REITER = ("kopf", "uebersicht", "projekte", "objekte", "anfragen", "zahlungen", "dokumente", "kontakte", "verlauf")
+AKTE = ("GET", "/api/customers/{customer_id}/akte")
 
 # (Funktion, Art, Endpunkte [(Methode, Pfad)], Rolle, Reiter der Kundenakte, Belege in customer.html)
 FUNKTIONEN = [
-    # Kopf und Kennzahlen
-    ("Kopf: Name, Kundennummer, Kategorie, Ansprechpartner, Ort", "Anzeige", [("GET", "/api/customers/{customer_id}")], "Au", "kopf",
-     ['id="pageTitle"', 'id="pageSub"', 'id="customerIdBadge"']),
-    ("Kennzahlen Objekte, Anfragen, Projekte, Angebote, Angebotssumme netto", "Anzeige",
-     [("GET", "/api/properties"), ("GET", "/api/inquiries"), ("GET", "/api/projects"), ("GET", "/api/projects/{project_id}/quotes")], "Au",
-     "kopf", ['id="metricProperties"', 'id="metricInquiries"', 'id="metricProjects"', 'id="metricQuotes"', 'id="metricNet"']),
-    # Stammdaten
-    ("Stammdaten: Kundennummer, Kategorie, Verbraucher, Zahlungsbedingung, Anrede, Titel, Name, Ansprechpartner, Anschrift, E-Mails, "
-     "Telefon, Mobil, Fax, interne Notizen", "Feld",
+    # Kopf
+    ("Kopf: Name, Kundennummer, Kategorie, Anschrift, Telefon und E-Mail als Link; Pfad Stammdaten / Kunden", "Anzeige",
+     [("GET", "/api/customers/{customer_id}")], "Au", "kopf",
+     ["seitenkopf({titel:customer.name,kennung:customer.customer_number", "statusKennzeichen('kundenkategorie',customer.category)",
+      "href:'tel:'", "href:'mailto:'", "{text:'Kunden',href:'/master-data#customers'}"]),
+    ("Zähler an den Reitern (bis 1.9.136 Kennzahlen Objekte, Anfragen, Projekte, Angebote, Angebotssumme)", "Anzeige",
+     [AKTE, ("GET", "/api/properties"), ("GET", "/api/inquiries")], "Au", "kopf",
+     ['id="zahlProjekte"', 'id="zahlObjekte"', 'id="zahlAnfragen"', 'id="zahlDokumente"', 'id="zahlKontakte"',
+      "api(`/api/customers/${customerId}/akte`)"]),
+    ("„+ Projekt“ als Hauptaktion (bis 1.9.136 „Projekt anlegen“)", "Link", [], "Au", "kopf",
+     ['id="newProjectLink"', "`/projects/new?customer_id=${customerId}`"]),
+    ("„⋮“ in zwei Gruppen: Stammdaten bearbeiten, + Objekt, + Eintrag, Neue Anfrage · Versandprotokoll des Kunden, Ganze Änderungshistorie",
+     "Knopf", [], "Au", "kopf",
+     ['class="ds-menue-trenner"', "'/versandprotokoll?kunde='+customerId", 'href="/history"', 'id="newInquiryLink"']),
+    # Übersicht
+    ("Laufende Projekte mit Phase und Zahlen, „Abgeschlossen: …“, „Alle … Projekte“", "Anzeige", [AKTE], "Au", "uebersicht",
+     ['id="uProjekteListe"', 'id="uAbgeschlossen"', 'id="uAlleProjekte"']),
+    ("Geld: unbezahlt, Guthaben, abgerechnet und bezahlt im Jahr, Vorschlag zum Guthaben", "Anzeige", [AKTE], "Au", "uebersicht",
+     ['id="uGeldZahlen"', 'id="uGeldHinweis"', "vorschlagHtml(akte.vorschlaege[0],true)"]),
+    ("Verlauf: die letzten vier Einträge, „Ganzer Verlauf“", "Anzeige", [("GET", "/api/customers/{customer_id}/verlauf")], "Au", "uebersicht",
+     ['id="uVerlaufListe"', 'href="#verlauf"']),
+    ("Stammdaten lesend: Kundennummer, Kategorie, Verbraucher, Zahlungsbedingung, Rechnungen an, Interne Notiz", "Anzeige",
+     [("GET", "/api/customers/{customer_id}"), ("GET", "/api/payment-terms")], "Au", "uebersicht",
+     ['id="stammdatenListe"', "'Rechnungen an'", "'Verbraucher'"]),
+    ("Dialog „Stammdaten bearbeiten“: Kundennummer, Kategorie, Verbraucher, Zahlungsbedingung, Anrede, Titel, Name, Ansprechpartner, Anschrift, "
+     "E-Mails, Telefon, Mobil, Fax, interne Notizen", "Feld",
      [("GET", "/api/settings/option-groups/{group_key}"), ("GET", "/api/payment-terms")], "Au", "uebersicht",
-     ['id="customerNumber"', 'id="category"', 'id="isConsumer"', 'id="defaultPaymentTerm"', 'id="salutation"', 'id="title"', 'id="firstName"',
-      'id="lastName"', 'id="contact"', 'id="street"', 'id="country"', 'id="zip"', 'id="city"', 'id="email"', 'id="email2"', 'id="phone"',
-      'id="mobile"', 'id="fax"', 'id="notes"', "/api/settings/option-groups/customer_categories",
-      "/api/settings/option-groups/customer_salutations", "/api/payment-terms?include_archived=true"]),
-    ("„Stammdaten speichern“", "Knopf", [("PUT", "/api/customers/{customer_id}")], "Au", "uebersicht",
-     ['onclick="saveCustomer()"', "api(`/api/customers/${customerId}`,{method:'PUT'"]),
+     ['id="stammdatenDialog"', 'data-klick="stammdaten-bearbeiten"', 'id="customerNumber"', 'id="category"', 'id="isConsumer"',
+      'id="defaultPaymentTerm"', 'id="salutation"', 'id="title"', 'id="firstName"', 'id="lastName"', 'id="contact"', 'id="street"',
+      'id="country"', 'id="zip"', 'id="city"', 'id="email"', 'id="email2"', 'id="phone"', 'id="mobile"', 'id="fax"', 'id="notes"',
+      "/api/settings/option-groups/customer_categories", "/api/settings/option-groups/customer_salutations",
+      "/api/payment-terms?include_archived=true"]),
+    ("„Stammdaten speichern“ -- nur, was im Dialog geändert ist", "Knopf", [("PUT", "/api/customers/{customer_id}")], "Au", "uebersicht",
+     ['data-klick="stammdaten-speichern"', "api(`/api/customers/${customerId}`,{method:'PUT'",
+      "if(jetzt[k]!==stand[k])geaendert[k]=jetzt[k]"]),
     # Kontakte & Kundenwissen
-    ("Kundenwissen: Einträge (Telefon, E-Mail, Geburtstag, Information) anzeigen", "Anzeige", [("GET", "/api/customers/{customer_id}")], "Au",
-     "kontakte", ['id="extras"', "renderExtras()"]),
-    ("„+“ Eintrag anlegen", "Knopf", [("POST", "/api/customers/{customer_id}/extra-infos")], "Au", "kontakte",
-     ['onclick="newExtra()"', "/extra-infos`,{method:'POST'"]),
-    ("Eintrag „Speichern“", "Knopf", [("PUT", "/api/customers/{customer_id}/extra-infos/{info_id}")], "Au", "kontakte",
-     ['onclick="saveExtra(', "/extra-infos/${id}`,{method:'PUT'"]),
-    ("Eintrag löschen („×“)", "Knopf", [("DELETE", "/api/customers/{customer_id}/extra-infos/{info_id}")], "Au", "kontakte",
-     ['onclick="deleteExtra(', "/extra-infos/${id}`,{method:'DELETE'"]),
+    ("Kundenwissen: Einträge (Telefon, E-Mail, Geburtstag, Information) anzeigen, Telefon und E-Mail als Link", "Anzeige",
+     [("GET", "/api/customers/{customer_id}")], "Au", "kontakte", ['id="extras"', 'id="uKontakteListe"', "renderExtras()"]),
+    ("„+ Eintrag“ im Dialog", "Knopf", [("POST", "/api/customers/{customer_id}/extra-infos")], "Au", "kontakte",
+     ['data-klick="eintrag-neu"', 'id="extraDialog"', "/extra-infos`,{method:'POST'"]),
+    ("Eintrag „Bearbeiten“ im Dialog, „Speichern“", "Knopf", [("PUT", "/api/customers/{customer_id}/extra-infos/{info_id}")], "Au", "kontakte",
+     ['data-klick="eintrag-bearbeiten"', 'data-klick="eintrag-speichern"', "/extra-infos/${id}`,{method:'PUT'"]),
+    ("Eintrag „Löschen“", "Knopf", [("DELETE", "/api/customers/{customer_id}/extra-infos/{info_id}")], "Au", "kontakte",
+     ['data-klick="eintrag-loeschen"', "/extra-infos/${id}`,{method:'DELETE'"]),
     # Objekte
-    ("Objekte mit Hauptadresse und Notiz, „Öffnen“", "Link", [("GET", "/api/properties")], "Au", "objekte",
-     ['id="properties"', 'href="/properties/${p.id}"', "/api/properties?customer_id=${customerId}"]),
-    ("„+“ Objekt anlegen", "Knopf", [("POST", "/api/properties")], "Au", "objekte",
-     ['onclick="newProperty()"', "api('/api/properties',{method:'POST'"]),
-    ("Objekt „Bearbeiten“ (nicht die Hauptadresse)", "Knopf", [("PUT", "/api/properties/{property_id}")], "Au", "objekte",
-     ['onclick="editProperty(', "api(`/api/properties/${id}`,{method:'PUT'"]),
+    ("Objekte mit Hauptadresse, Notiz, Projekten, „Öffnen“; Kurzliste in der Übersicht", "Link", [("GET", "/api/properties")], "Au", "objekte",
+     ['id="properties"', 'id="uObjekteListe"', 'href="/properties/${p.id}"', "/api/properties?customer_id=${customerId}"]),
+    ("„+ Objekt“ im Dialog", "Knopf", [("POST", "/api/properties")], "Au", "objekte",
+     ['data-klick="objekt-neu"', 'id="propertyDialog"', "api('/api/properties',{method:'POST'"]),
+    ("Objekt „Bearbeiten“ im Dialog (nicht die Hauptadresse)", "Knopf", [("PUT", "/api/properties/{property_id}")], "Au", "objekte",
+     ['data-klick="objekt-bearbeiten"', "api(`/api/properties/${id}`,{method:'PUT'"]),
     ("Dachflächen je Objekt, „Öffnen“", "Link", [("GET", "/api/roof-areas")], "Au", "objekte",
      ["/api/roof-areas?property_id=${p.id}", 'href="/roof-areas/${r.id}"']),
-    ("„+ Dachfläche“ anlegen, danach zur Dachfläche", "Knopf", [("POST", "/api/roof-areas")], "Au", "objekte",
-     ['onclick="toggleNewRoofArea(', "api('/api/roof-areas',{method:'POST'", "location.href='/roof-areas/'+result.id"]),
+    ("„+ Dachfläche“ im Dialog, danach zur Dachfläche", "Knopf", [("POST", "/api/roof-areas")], "Au", "objekte",
+     ['data-klick="dachflaeche-neu"', "api('/api/roof-areas',{method:'POST'", "location.href='/roof-areas/'+result.id"]),
     # Anfragen
     ("Anfragen mit Objekt, Status, Wiedervorlage; „Pipeline öffnen“", "Link", [("GET", "/api/inquiries")], "Au", "anfragen",
      ['id="inquiries"', "/api/inquiries?customer_id=${customerId}", 'href="/inquiries"']),
-    ("„Neue Anfrage“", "Link", [], "Au", "anfragen", ['id="newInquiryLink"', "`/inquiries?customer_id=${customerId}`"]),
+    ("„Neue Anfrage“", "Link", [], "Au", "anfragen", ['id="newInquiryLink2"', "`/inquiries?customer_id=${customerId}`"]),
     # Dokumente
     ("Dokumente hochladen: Kategorie, Unterordner, Datum, Notiz, Dateien wählen oder hineinziehen", "Knopf",
      [("POST", "/api/customers/{customer_id}/documents")], "Au", "dokumente",
-     ['id="docUploadZone"', 'id="docCategory"', 'id="docSubfolder"', 'id="docDate"', 'id="docDescription"', 'onclick="uploadDocuments()"',
+     ['id="docUploadZone"', 'id="docCategory"', 'id="docSubfolder"', 'id="docDate"', 'id="docDescription"', 'data-klick="hochladen"',
       "/documents`,{method:'POST',body:fd}", "/api/settings/option-groups/project_document_categories"]),
     ("Dokumente: Kacheln je Kategorie und Unterordner, Suche", "Anzeige", [("GET", "/api/customers/{customer_id}/documents")], "Au",
      "dokumente", ['id="docCategoryCards"', 'id="docSubfolderCards"', 'id="docSearch"', "api(`/api/customers/${customerId}/documents`)"]),
@@ -78,35 +100,39 @@ FUNKTIONEN = [
      ["/api/customer-documents/${d.id}/view"]),
     ("Dokument „Download“", "Link", [("GET", "/api/customer-documents/{document_id}/download")], "Au", "dokumente",
      ["/api/customer-documents/${d.id}/download"]),
-    ("Dokument „Bearbeiten“: Kategorie, Unterordner, Datum, Notiz", "Knopf", [("PUT", "/api/customer-documents/{document_id}")], "Au",
-     "dokumente", ['onclick="editDocRow(', 'id="docEditor"', "`/api/customer-documents/${editingDocId}`"]),
+    ("Dokument „Bearbeiten“ im Dialog: Kategorie, Unterordner, Datum, Notiz", "Knopf", [("PUT", "/api/customer-documents/{document_id}")], "Au",
+     "dokumente", ['data-klick="dokument-bearbeiten"', 'id="docEditor"', "`/api/customer-documents/${editingDocId}`"]),
     ("Dokument „Löschen“", "Knopf", [("DELETE", "/api/customer-documents/{document_id}")], "Au", "dokumente",
-     ['onclick="removeDocRow(', "api(`/api/customer-documents/${id}`,{method:'DELETE'})"]),
+     ['data-klick="dokument-loeschen"', "api(`/api/customer-documents/${id}`,{method:'DELETE'})"]),
     # Projekte & Angebote
-    ("Projekte mit Objekt und Status, je Projekt die Angebote (Nummer, Titel, Status, netto, brutto); „Projekt öffnen“", "Link",
-     [("GET", "/api/projects"), ("GET", "/api/projects/{project_id}/quotes")], "Au", "projekte",
-     ['id="projects"', "api(`/api/projects/${p.id}/quotes`)", 'href="/projects?project_id=${p.id}"']),
-    ("„Projekt anlegen“", "Link", [], "Au", "kopf", ['id="newProjectLink"', "`/projects/new?customer_id=${customerId}`"]),
+    ("Projekte mit Phase und Zahlen, je Projekt Aufträge und Angebote (Nummer, Titel, Stand, netto, brutto); Link in die Akte (bis 1.9.136 "
+     "/projects?project_id=, das die Liste nicht auswertete)", "Link", [AKTE], "Au", "projekte",
+     ['id="projects"', 'href="/projects/${p.id}"', 'href="/quotes/${q.id}/edit"', 'href="/projects/${p.id}?auftrag=${o.id}"']),
     # Zahlungen
-    ("Guthaben des Kunden: Rest je Zahlung, Überzahlung je Schlussrechnung", "Anzeige", [("GET", "/api/customers/{customer_id}/payments")],
-     "Au", "zahlungen", ['id="customerCredits"', 'id="paymentRestBadge"', "data-guthaben-zeile"]),
-    ("„Erstattung buchen“: Beträge je Zeile, ausgezahlt am, Notiz", "Knopf", [("POST", "/api/customers/{customer_id}/refunds")], "Geld",
-     "zahlungen", ['onclick="bookCustomerRefund()"', "/refunds`,{method:'POST'"]),
-    ("Zahlungen mit Zuordnungen (Link zur Rechnung), Rest, Zahlungsausgänge", "Anzeige",
+    ("Kennzahlen unbezahlt, Guthaben, bezahlt in diesem und im vorigen Jahr; unbezahlte Rechnungen", "Anzeige", [AKTE], "Au", "zahlungen",
+     ['id="zKacheln"', 'id="zUnbezahlt"', "rechnungsTabelleHtml(g.unbezahlte"]),
+    ("Guthaben des Kunden: Rest je Zahlung, Überzahlung je Schlussrechnung; Vorschlag „Auf RE-… zuordnen“ bzw. „Erstattung buchen“", "Anzeige",
+     [("GET", "/api/customers/{customer_id}/payments"), AKTE], "Au", "zahlungen",
+     ['id="zVorschlaege"', "data-vorschlag=", "data-guthaben-zeile", 'data-klick="vorschlag-zuordnen"', 'data-klick="vorschlag-erstatten"']),
+    ("„Erstattung buchen“ im Dialog: Beträge je Zeile, ausgezahlt am, Notiz", "Knopf", [("POST", "/api/customers/{customer_id}/refunds")], "Geld",
+     "zahlungen", ['data-klick="zahlung-erstatten"', 'data-klick="erstatten"', "/refunds`,{method:'POST'"]),
+    ("Zahlungseingänge mit Zuordnung (Link zur Rechnung), Rest, Zahlungsausgänge", "Anzeige",
      [("GET", "/api/customers/{customer_id}/payments")], "Au", "zahlungen",
-     ['id="customerPayments"', 'href="/invoices/${a.invoice_id}"', "data-zahlungsausgang"]),
-    ("Rest zuordnen: Rechnung wählen, Betrag, „Zuordnen“", "Knopf",
+     ['id="customerPayments"', 'href="/invoices/${a.invoice_id}"', "data-zahlungsausgang", "data-rest"]),
+    ("Rest zuordnen im Dialog: Rechnung wählen, Betrag, „Zuordnen“", "Knopf",
      [("GET", "/api/customers/{customer_id}/open-invoices"), ("POST", "/api/payments/{payment_id}/allocations")], "Geld", "zahlungen",
-     ['onclick="allocateRest(', "/open-invoices`", "/allocations`,{method:'POST'"]),
-    ("„Zahlung zurücknehmen“ mit Begründung (oder der Grund, warum nicht)", "Knopf", [("POST", "/api/payments/{payment_id}/reverse")], "Geld",
-     "zahlungen", ['onclick="showPaymentReverse(', 'onclick="reversePayment(', "data-zuruecknehmen-gesperrt"]),
+     ['data-klick="zahlung-zuordnen"', 'data-klick="zuordnen"', "/open-invoices`", "/allocations`,{method:'POST'"]),
+    ("„Zurücknehmen“ mit Begründung (oder der Grund, warum nicht)", "Knopf", [("POST", "/api/payments/{payment_id}/reverse")], "Geld",
+     "zahlungen", ['data-klick="zahlung-zuruecknehmen"', 'data-klick="zuruecknehmen"', "data-zuruecknehmen-gesperrt"]),
     ("Hinweis „nur lesen“ für Büro – Auftrag", "Anzeige", [], "Au", "zahlungen", ["{{ geld_nur_lesen }}"]),
-    ("Anker #zahlungen (aus Rechnung und Finanzen)", "Anker", [], "Au", "zahlungen",
-     ['id="zahlungen"', "location.hash==='#zahlungen'"]),
-    # Versand
-    ("Versand des Kunden: Einträge aus seinen Projekten und Objekten, Empfang bestätigt / unzustellbar, „Im Versandprotokoll öffnen“",
-     "Anzeige", [("GET", "/api/email-dispatches")], "Au", "verlauf",
-     ['id="customerDispatches"', "renderDispatchList('customerDispatches',{customer_id:customerId})"]),
+    ("Anker #zahlungen (aus Rechnung und Finanzen) öffnet den Reiter", "Anker", [], "Au", "zahlungen",
+     ['href="#zahlungen" data-reiter="zahlungen"', "reiterZeigen(reiterAusAnker()"]),
+    # Verlauf
+    ("Verlauf des Kunden: Filter nach Art, „Ältere laden“, Ziel je Zeile", "Anzeige", [("GET", "/api/customers/{customer_id}/verlauf")], "Au",
+     "verlauf", ['id="verlaufListe"', 'data-klick="verlauf-art"', 'data-klick="verlauf-weiter"', "`/api/customers/${customerId}/verlauf`"]),
+    ("Versand des Kunden (bis 1.9.136 Karte „Versand“): Filter „Versand“, „Zustellung nachtragen“ samt Empfang bestätigt / unzustellbar im "
+     "Dialog, „Versandprotokoll des Kunden“, Anker #versand", "Anzeige", [("GET", "/api/email-dispatches")], "Au", "verlauf",
+     ['data-art="versand"', "renderDispatchHistory('zustellungVerlauf'", 'id="versandprotokollLink"', "ALTE_ANKER={versand:'verlauf'}"]),
 ]
 
 
@@ -117,14 +143,14 @@ def _seite(client):
 
 
 def test_liste_vollstaendig_und_reiter_bekannt():
-    assert len(FUNKTIONEN) >= 30
+    assert len(FUNKTIONEN) >= 31  # bis 1.9.136 die 31 der früheren Seite
     assert {f[4] for f in FUNKTIONEN} <= set(REITER)
     assert {f[3] for f in FUNKTIONEN} <= set(ROLLEN)
     # jede Seite der Vorlage hat Funktionen: alle Reiter außer der Übersicht (dort lesend die Stammdaten) bekommen etwas
     assert {f[4] for f in FUNKTIONEN} == set(REITER)
 
 
-def test_jede_funktion_steht_auf_der_heutigen_seite(threaded_db_session, router_test_client):
+def test_jede_funktion_steht_auf_der_kundenakte(threaded_db_session, router_test_client):
     text = _seite(router_test_client(threaded_db_session, pages_router, role="buero_finanzen"))
     vorlage = (vj.TEMPLATES / "customer.html").read_text(encoding="utf-8")
     fehlt = [(f[0], b) for f in FUNKTIONEN for b in f[5] if b not in text and b not in vorlage]
@@ -170,12 +196,14 @@ def _normal(pfad):
 def test_jeder_api_aufruf_der_seite_steht_in_der_liste():
     seite = vj.zusammensetzen("customer.html")[0]
     aufrufe = _api_pfade(vj.TEMPLATES.joinpath("customer.html").read_text(encoding="utf-8"))
-    # die Versandliste kommt aus dem Baustein _email_dispatch.html (renderDispatchList)
-    assert "renderDispatchList(" in seite
+    # der Versandverlauf eines Dokuments kommt aus dem Baustein _email_dispatch.html (renderDispatchHistory, seit 1.9.137; bis 1.9.136 die
+    # Versandliste renderDispatchList)
+    assert "renderDispatchHistory(" in seite
     aufrufe.add("/api/email-dispatches")
     gelistet = {_normal(p) for f in FUNKTIONEN for _, p in f[2]}
     # feste Pfade mit Schlüssel in der Seite (Optionsgruppen) gelten als der Pfad mit Platzhalter
     aufrufe = {re.sub(r"^/api/settings/option-groups/[a-z_]+$", "/api/settings/option-groups/{}", p) for p in aufrufe}
+    aufrufe = {_normal(p) for p in aufrufe}  # seit 1.9.137: auch Pfade aus Kommentaren („GET /api/customers/{id}/akte“)
     assert sorted(a for a in aufrufe if a not in gelistet) == []
 
 

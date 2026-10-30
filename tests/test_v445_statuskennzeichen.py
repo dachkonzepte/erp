@@ -30,7 +30,8 @@ def _baustein_js(*namen: str) -> str:
 def tabellen():
     dom = "const document = { readyState: 'complete', getElementById() { return null; }, addEventListener() {} };"
     skript = dom + "\n" + _baustein_js("_seitenkopf.html") + r"""
-    console.log(JSON.stringify({ arten: seitenkopfArten(), bedeutungen: statusBedeutungen(), tabelle: statusTabelle(),
+    console.log(JSON.stringify({ arten: seitenkopfArten(), bedeutungen: statusBedeutungen(), tabelle: statusTabelle(), freie: statusFreieGruppen(),
+      kategorie: statusKennzeichen('kundenkategorie', 'Gewerbekunde_x'),
       beispiele: [statusKennzeichen('auftrag', 'laeuft'), statusKennzeichen('auftrag', 'abgeschlossen'),
                   statusKennzeichen('betriebsmittel', 'pruefung_faellig'), statusKennzeichen('betriebsmittel', 'pruefung_ueberfaellig'),
                   statusKennzeichen('checklistenvorlage', 'entwurf'), statusKennzeichen('wartungsvertrag', 'pausiert'),
@@ -101,6 +102,15 @@ def test_kennzeichen_lesbar_und_in_der_farbe_der_bedeutung(tabellen):
     ]
 
 
+def test_freie_gruppen(tabellen):
+    """Seit 1.9.137: eine Gruppe mit freien Werten aus den Stammdaten (Kundenkategorie) zeigt den Wert unverändert in der Farbe ihrer Bedeutung --
+    keine Gruppe ist zugleich frei und in der Tabelle."""
+    assert tabellen["freie"] == {"kundenkategorie": "laeuft"}
+    assert not set(tabellen["freie"]) & set(tabellen["tabelle"])
+    assert set(tabellen["freie"].values()) <= set(tabellen["bedeutungen"])
+    assert tabellen["kategorie"] == {"text": "Gewerbekunde_x", "art": "info"}
+
+
 def test_seitenkopf_bindet_den_baustein_ein():
     assert vj.bindet_ein("_seitenkopf.html", BAUSTEIN, nur_selbst=True)
 
@@ -133,6 +143,8 @@ def test_status_im_seitenkopf_nur_ueber_statuskennzeichen(tabellen):
             continue
         for stelle, eintrag in status_in_seitenkopf(name):
             gruppe, _, wert = eintrag.partition("=")
+            if gruppe in tabellen["freie"] and not wert:  # seit 1.9.137: freie Werte aus den Stammdaten
+                continue
             if not gruppe or gruppe not in tabellen["tabelle"] or (wert and wert not in tabellen["tabelle"][gruppe]):
                 verstoesse.append(f"{stelle}: {eintrag or 'Status nicht über statusKennzeichen()'}")
         text = (vj.TEMPLATES / name).read_text(encoding="utf-8")

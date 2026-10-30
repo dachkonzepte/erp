@@ -70,7 +70,9 @@ async def pruefen(tab, seed, p):
     await tab.cmd("Page.addScriptToEvaluateOnNewDocument", source=DIALOGE)
     pfad = f"/customers/{seed['kunde']}"
     await tab.anmelden(seed["cookies_bea"])
-    await tab.oeffnen(pfad, "document.getElementById('lastName').value==='Muster'")
+    await tab.oeffnen(pfad, "typeof customer!=='undefined'&&!!customer&&customer.last_name==='Muster'")
+    await _klick(tab, '#uStammdaten [data-klick="stammdaten-bearbeiten"]')  # seit 1.9.137 im Dialog
+    await tab.warten("document.getElementById('stammdatenDialog').open")
     await _tippen(tab, "#lastName", "Muster-Neu")
     await _tippen(tab, "#notes", "Notiz nach dem Ablauf")
 
@@ -78,7 +80,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Admin beendet alle Sitzungen von Bea", (status, daten.get("sitzungen_beendet")), (200, 1))
 
     marke = len(tab.netz.suche(r"/api/customers/\d+$", "PUT"))
-    await _klick(tab, "button[onclick='saveCustomer()']")
+    await _klick(tab, '[data-klick="stammdaten-speichern"]')
     await tab.warten("document.getElementById('customerStatus').textContent.includes('Anmeldung abgelaufen')")
     put = tab.netz.suche(r"/api/customers/\d+$", "PUT", ab=marke)
     p.pruefe("PUT 401", [e.get("status") for e in put], [401])
@@ -102,9 +104,9 @@ async def pruefen(tab, seed, p):
         await _klick(neu, "button[onclick='login()']")
         p.pruefe("im neuen Tab angemeldet", await neu.warten("location.pathname!=='/login'"), True)
 
-    await _klick(tab, "button[onclick='saveCustomer()']")
-    p.pruefe("derselbe Klick speichert", await tab.warten(
-        "document.getElementById('customerStatus').textContent==='Gespeichert.'"), True)
+    await _klick(tab, '[data-klick="stammdaten-speichern"]')
+    p.pruefe("derselbe Klick speichert, der Dialog geht zu", await tab.warten(
+        "document.getElementById('seitenStatus').textContent==='Stammdaten gespeichert.'&&!document.getElementById('stammdatenDialog').open"), True)
     p.pruefe("Hinweis weg", await tab.js(f"!document.querySelector('{HINWEIS}')"), True)
     _, _, kunde = _anfrage(tab.base, f"/api/customers/{seed['kunde']}", seed["cookies_anna"])
     p.pruefe("auf dem Server gespeichert", [kunde.get("last_name"), (kunde.get("profile") or {}).get("notes", kunde.get("notes"))],

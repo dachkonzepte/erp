@@ -59,7 +59,7 @@ async def pruefen(tab, seed, p):
     klein.write_bytes(b"kleine Datei")
     skript = (await tab.cmd("Page.addScriptToEvaluateOnNewDocument", source=ZEITLIMIT))["identifier"]
     await tab.anmelden(seed["cookies"])
-    await tab.oeffnen(f"/customers/{kid}", "document.getElementById('lastName')?.value==='Hochladen'")
+    await tab.oeffnen(f"/customers/{kid}#dokumente", "typeof customer!=='undefined'&&!!customer&&customer.last_name==='Hochladen'")
     await tab.warte_auf_neu_geladene_liste()
     p.pruefe("Zeitlimit für den Test 2 s", await tab.js("window.__dkZeitlimit"), 2000)
 

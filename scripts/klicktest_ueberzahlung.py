@@ -94,7 +94,7 @@ def _passt(p, name, ist, bedingung):
 READY = "invoice&&invoice.id&&document.getElementById('finalBody').innerHTML"
 ERSTATTUNG_TEXT = ("Vielen Dank für Ihren Auftrag. Sollte sich Ihre Bankverbindung geändert haben, teilen Sie uns diese bitte für die "
                    "Erstattung mit.")  # Vorgabe der Auswahlliste (app/option_settings.py, seit 1.8.92)
-CUSTOMER_READY = "customerPaymentsData&&document.getElementById('zahlungen').style.display==='block'"
+CUSTOMER_READY = "typeof akte!=='undefined'&&!!akte&&!!customerPaymentsData&&!!document.querySelector('#customerPayments tr[data-zahlung]')"
 
 
 async def pruefen(tab, seed, p):
@@ -149,22 +149,21 @@ async def pruefen(tab, seed, p):
     await tab.bild("ueberzahlung_erstattung")
 
     # --- Kundenakte ---
-    await tab.oeffnen(f"/customers/{seed['kunde']}", CUSTOMER_READY)
+    await tab.oeffnen(f"/customers/{seed['kunde']}#zahlungen", CUSTOMER_READY)
     # Seit 1.8.93: Rest und Überzahlung zusammen als "Guthaben des Kunden" (Erwartung geändert, bis 1.8.92 nur "19,00").
+    # seit 1.9.137: Kennzahl „Guthaben“, je Posten ein Vorschlag; die Zeilen stehen im Dialog „Erstattung buchen“ (bis 1.9.136 Karte mit Zeilen)
     p.pruefe("Kundenakte: Guthaben des Kunden 69 € aus Rest und Überzahlung", await tab.js(
-        "[document.querySelector('[data-guthaben-summe]')?.textContent.replace(/\\u00a0/g,' '),"
-        "[...document.querySelectorAll('[data-guthaben-zeile]')].map(r=>r.dataset.guthabenZeile),"
-        "document.getElementById('paymentRestBadge').textContent.replace(/\\u00a0/g,' ')]"),
-        ["69,00 €", ["rest", "guthaben"], "Guthaben des Kunden: 69,00 €"])
+        "[document.querySelectorAll('#zKacheln .gross')[1].textContent.replace(/\\u00a0/g,' '),"
+        "customerPaymentsData.balance.lines.map(l=>l.kind),document.querySelectorAll('#zVorschlaege [data-vorschlag]').length]"),
+        ["69,00 €", ["rest", "guthaben"], 2])
     _passt(p, "Kundenakte: Zahlungsausgang ohne „nicht zugeordnet“", await tab.js(
-        "(()=>{const c=[...document.querySelectorAll('[data-zahlung]')].find(x=>x.querySelector('[data-zahlungsausgang]'));"
-        "return c?c.textContent:''})()"), lambda v: "-100,00" in v and "nicht zugeordnet" not in v and "Zahlungsausgang Nr." in v)
+        "(()=>{const c=document.querySelector('tr[data-zahlungsausgang]');return c?c.textContent:''})()"),
+        lambda v: "-100,00" in v and "Rest " not in v and "Erstattung (Zahlungsausgang)" in v)
     pid = await tab.js("customerPaymentsData.payments.find(x=>x.is_refund).id")
-    await tab.js(f"showPaymentReverse({pid});document.getElementById('payRevReason-{pid}').value='Überweisung kam zurück';"
-                 f"reversePayment({pid})")
+    await tab.js(f"zuruecknehmenOeffnen({pid});document.getElementById('payRevReason').value='Überweisung kam zurück';reversePayment()")
     p.pruefe("zurückgenommen: Guthaben wieder 119 €, des Kunden 169 €", await tab.warten(
         "Number(customerPaymentsData.credit_total)===119&&Number(customerPaymentsData.balance.total)===169"), True)
-    await tab.js("document.getElementById('zahlungen').scrollIntoView()")
+    await tab.js("document.getElementById('reiter-zahlungen').scrollIntoView()")
     await tab.bild("kundenakte_guthaben")
 
     # --- Finanzen: Guthaben der Kunden (seit 1.8.93) ---
@@ -178,31 +177,31 @@ async def pruefen(tab, seed, p):
         lambda v: "169,00 €" in v and "nicht zugeordnet 50,00 €" in v and "Überzahlung 119,00 €" in v)
 
     # --- Kundenakte: eine Erstattung für Rest und Überzahlung (seit 1.8.93) ---
-    await tab.oeffnen(f"/customers/{seed['kunde']}", CUSTOMER_READY)
-    await tab.js("document.getElementById('custRefundNote').value='Überweisung an den Kunden';bookCustomerRefund()")
+    await tab.oeffnen(f"/customers/{seed['kunde']}#zahlungen", CUSTOMER_READY)
+    await tab.js("erstattenOeffnen();document.getElementById('custRefundNote').value='Überweisung an den Kunden';bookCustomerRefund()")
     p.pruefe("Erstattung gebucht: kein Guthaben mehr", await tab.warten(
-        "Number(customerPaymentsData.balance.total)===0&&document.getElementById('paymentRestBadge').textContent==='Kein Guthaben'"),
+        "Number(customerPaymentsData.balance.total)===0&&document.getElementById('zKacheln').textContent.includes('kein Guthaben')"),
         True)
     _passt(p, "Zahlungsausgang −169 € mit Quelle, Zahlung mit „aus dem Rest erstattet“", await tab.js(
         f"(()=>{{const a=customerPaymentsData.payments.find(x=>x.is_refund&&!x.reversed);"
-        f"const q=document.querySelector('[data-zahlung=\"'+a.id+'\"] [data-erstattet-aus=\"{seed['rest']}\"]');"
-        f"const z=document.querySelector('[data-zahlung=\"{seed['rest']}\"] [data-erstattet-mit]');"
+        f"const q=document.querySelector('tr[data-zahlung=\"'+a.id+'\"] [data-erstattet-aus=\"{seed['rest']}\"]');"
+        f"const z=document.querySelector('tr[data-zahlung=\"{seed['rest']}\"] [data-erstattet-mit]');"
         "return [a.amount,q?q.textContent:'',z?z.textContent:'']})()"),
-        lambda v: v[0] == "-169.00" and "Erstattung aus dem Rest der Zahlung" in v[1] and "aus dem Rest erstattet" in v[2])
+        lambda v: v[0] == "-169.00" and "aus dem Rest des Eingangs" in v[1] and "erstattet am" in v[2])
     rest = seed["rest"]
     # Seit 1.8.94: statt des Knopfs steht an der Zahlung der Grund (bis 1.8.93 kam die Ablehnung erst nach "Zurücknahme
     # bestätigen" -- Erwartung geändert seit 1.8.94); die API lehnt weiter ab.
-    karte = f"document.querySelector('[data-zahlung=\"{rest}\"]')"
-    p.pruefe("Zahlung mit erstattetem Rest: Grund statt „Zahlung zurücknehmen“", await tab.js(
-        f"(async()=>[({karte}.querySelector('[data-zuruecknehmen-gesperrt]')?.textContent||'').includes('erst den Zahlungsausgang "
-        f"zurücknehmen'),[...{karte}.querySelectorAll('button')].some(b=>b.textContent==='Zahlung zurücknehmen'),"
+    # seit 1.9.137 im Dialog „Zurücknehmen“: der Grund statt Feld und Knopf
+    p.pruefe("Zahlung mit erstattetem Rest: Grund statt „Zurücknahme bestätigen“", await tab.js(
+        f"(async()=>{{zuruecknehmenOeffnen({rest});const e=[document.getElementById('zuruecknehmenGesperrt').textContent.includes('erst den Zahlungsausgang "
+        f"zurücknehmen'),!document.getElementById('zuruecknehmenKnopf').hidden,"
         f"await fetch('/api/payments/{rest}/reverse',{{method:'POST',headers:{{'Content-Type':'application/json'}},"
-        "body:JSON.stringify({reason:'falsch erfasst'})}).then(r=>r.status)])()"), [True, False, 409])
+        "body:JSON.stringify({reason:'falsch erfasst'})}).then(r=>r.status)];document.getElementById('zuruecknehmenDialog').close();return e})()"), [True, False, 409])
     zuviel = await tab.js(f"fetch('/api/customers/{seed['kunde']}/refunds',{{method:'POST',headers:{{'Content-Type':"
                           f"'application/json'}},body:JSON.stringify({{paid_on:berlinToday(),lines:[{{payment_id:{rest},"
                           "amount:'1.00'}]})}).then(r=>r.status)")
     p.pruefe("API: Rest schon erstattet 409", zuviel, 409)
-    await tab.js("document.getElementById('zahlungen').scrollIntoView()")
+    await tab.js("document.getElementById('reiter-zahlungen').scrollIntoView()")
     await tab.bild("kundenakte_erstattung_rest")
     # --- Einstellungen (seit 1.8.92) ---
     await tab.oeffnen("/settings", "optionGroups.length>0")
@@ -216,8 +215,8 @@ async def pruefen(tab, seed, p):
     await tab.oeffnen(f"/invoices/{s}", READY)
     await tab.js("document.documentElement.setAttribute('data-theme','dark');document.getElementById('paymentsCard').scrollIntoView()")
     await tab.bild("ueberzahlung_412_dunkel")
-    await tab.oeffnen(f"/customers/{seed['kunde']}", CUSTOMER_READY)  # seit 1.8.93: Kundenakte mit Zahlungsausgang
-    await tab.js("document.documentElement.setAttribute('data-theme','dark');document.getElementById('zahlungen').scrollIntoView()")
+    await tab.oeffnen(f"/customers/{seed['kunde']}#zahlungen", CUSTOMER_READY)  # seit 1.8.93: Kundenakte mit Zahlungsausgang
+    await tab.js("document.documentElement.setAttribute('data-theme','dark');document.getElementById('reiter-zahlungen').scrollIntoView()")
     await tab.bild("kundenakte_412_dunkel")
     await tab.fenster(1400, 1100)
 

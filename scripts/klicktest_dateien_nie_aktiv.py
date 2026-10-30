@@ -178,7 +178,7 @@ async def pruefen(tab, seed, p):
 
     # --- Kundenakte ---------------------------------------------------------------------------------------------------
     kid = seed["kunde"]
-    bereit_kunde = "document.getElementById('lastName')?.value==='Dateien'"
+    bereit_kunde = "typeof customer!=='undefined'&&!!customer&&customer.last_name==='Dateien'"
     await tab.oeffnen(f"/customers/{kid}", bereit_kunde)
     await tab.js("localStorage.removeItem('dkXss'); true")
     neu = await _hochladen(tab, f"/api/customers/{kid}/documents", {"category": "Sonstiges"}, "kunde")
@@ -186,7 +186,9 @@ async def pruefen(tab, seed, p):
              {"plan.svg": ["application/octet-stream", False], "plan.html": ["application/octet-stream", False],
               "foto.jpg": ["image/jpeg", True], "scan.pdf": ["application/pdf", True]})
     eintraege = {n: d["id"] for n, d in neu.items()}
-    await _ablage_pruefen(tab, p, "Kundenakte", f"/customers/{kid}",
+    await tab.oeffnen("/master-data", "document.readyState==='complete'")  # seit 1.9.137: neu laden -- ein Anker allein lädt nicht neu
+    # seit 1.9.137 auf dem Reiter Dokumente (Vorschaubilder laden erst, wenn sie zu sehen sind)
+    await _ablage_pruefen(tab, p, "Kundenakte", f"/customers/{kid}#dokumente",
                           bereit_kunde + "&&document.querySelectorAll('#customerDocuments .doc').length===6", eintraege, "kunde",
                           lambda i: f"/api/customer-documents/{i}/view", download, vorschau=True)
     await tab.bild("kundenakte")

@@ -61,7 +61,7 @@ ABGLEICH = [
       code={"min": _g(0), "max": _g(365)}, beleg=("app/checklist_templates.py", "0 <= due_in_days <= 365")),
     # -- Kundenakte
     Z("customer.html", "id=refundLine-${i}", ("CustomerRefundLineIn.amount",)),
-    Z("customer.html", "id=restAmount-${p.id}", ("PaymentLineIn.zahlung",)),
+    Z("customer.html", "id=restAmount", ("PaymentLineIn.zahlung",)),  # seit 1.9.137 im Dialog „Rest zuordnen“ (bis 1.9.136 je Zahlung)
     # -- Eingangsrechnungen
     Z("incoming_invoices.html", "id=editNetAmount", ("IncomingInvoiceCreate.net_amount", "IncomingInvoiceUpdate.net_amount"),
       lesen=("zahlFeld('editNetAmount')",)),

@@ -228,26 +228,26 @@ async def pruefen(tab, seed, p):
     await _bild(tab, "gegenbuchung", "paymentsCard", dunkel=True)
 
     # --- Kundenakte: Rest zuordnen, Zahlung zurücknehmen ---
-    await tab.oeffnen(f"/customers/{seed['kunde']}#zahlungen", "customerPaymentsData")
+    await tab.oeffnen(f"/customers/{seed['kunde']}#zahlungen", "typeof akte!=='undefined'&&!!akte&&!!customerPaymentsData&&!!document.querySelector('#customerPayments tr[data-zahlung]')")
     # Seit 1.8.93 (Nacharbeit R4c Punkt 3) zeigt das Kennzeichen das Guthaben des Kunden (Rest und Überzahlung zusammen); bis 1.8.92
     # "Nicht zugeordnet: …" bzw. "Nichts offen zuzuordnen".
-    p.pruefe("Kunde: Rest sichtbar (Guthaben des Kunden)", await tab.js("document.getElementById('paymentRestBadge').textContent"),
-             "Guthaben des Kunden: 200,00\xa0€")
+    # seit 1.9.137 die Kennzahl „Guthaben“ im Reiter Zahlungen (bis 1.9.136 das Kennzeichen an der Karte)
+    p.pruefe("Kunde: Rest sichtbar (Guthaben des Kunden)", await tab.js("document.querySelectorAll('#zKacheln .gross')[1].textContent"),
+             "200,00\xa0€")
     z = seed["zahlung"]
-    await tab.js(f"(()=>{{const s=document.getElementById('restInvoice-{z}');s.value='{seed['andere']}';"
-                 f"s.dispatchEvent(new Event('change'))}})()")
-    p.pruefe("Betrag = kleiner von Rest und offen", await tab.js(f"document.getElementById('restAmount-{z}').value"), "200,00")
-    await tab.js(f"allocateRest({z})")
+    await tab.js(f"(()=>{{zuordnenOeffnen({z},null);const s=document.getElementById('restInvoice');s.value='{seed['andere']}';"
+                 f"s.dispatchEvent(new Event('change',{{bubbles:true}}))}})()")
+    p.pruefe("Betrag = kleiner von Rest und offen", await tab.js("document.getElementById('restAmount').value"), "200,00")
+    await tab.js("allocateRest()")
     p.pruefe("Rest zugeordnet", await tab.warten(
         "document.getElementById('customerPaymentsStatus').textContent==='Zugeordnet.'"), True)
-    p.pruefe("Kunde: nichts mehr offen", await tab.js("document.getElementById('paymentRestBadge').textContent"),
-             "Kein Guthaben")
-    await _bild(tab, "kunde_zahlungen", "zahlungen", dunkel=True)
-    await tab.js(f"showPaymentReverse({z});document.getElementById('payRevReason-{z}').value='nie eingegangen';reversePayment({z})")
+    p.pruefe("Kunde: nichts mehr offen", await tab.js("document.getElementById('zKacheln').textContent.includes('kein Guthaben')"), True)
+    await _bild(tab, "kunde_zahlungen", "reiter-zahlungen", dunkel=True)
+    await tab.js(f"zuruecknehmenOeffnen({z});document.getElementById('payRevReason').value='nie eingegangen';reversePayment()")
     p.pruefe("Zahlung zurückgenommen", await tab.warten(
         "document.getElementById('customerPaymentsStatus').textContent==='Zahlung zurückgenommen.'"), True)
     p.pruefe("zurückgenommen sichtbar", await tab.js(
-        f"document.querySelector('[data-zahlung=\"{z}\"]').textContent.includes('zurückgenommen von Bea Büro: nie eingegangen')"),
+        f"document.querySelector('tr[data-zahlung=\"{z}\"]').textContent.includes('zurückgenommen von Bea Büro: nie eingegangen')"),
              True)
     andere = await tab.js(f"fetch('/api/invoices/{seed['andere']}').then(r=>r.json()).then(d=>d.payment.open)")
     p.pruefe("andere Rechnung wieder offen", andere, "357.00")

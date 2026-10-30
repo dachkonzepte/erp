@@ -1,162 +1,455 @@
 {% set bereich = "stammdaten" -%}
 {% set geld = geld if geld is defined else true -%}
-<!doctype html>
-<html lang="de">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>DACHKONZEPTE ERP – Kundenakte</title>
-  <script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
-  
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DACHKONZEPTE ERP – Kundenakte</title>
+<script>(function(){try{var t=localStorage.getItem('erp_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}})();</script>
+{# Seit 1.9.137 (Stufe 5, R3, Punkte 2, 3, 5): die Kundenakte nach den Vorlagen bildgrundlage/entwurf_stufe5_kunde/kunde-uebersicht.html,
+   kunde-zahlungen.html und kunde-zuordnung.html -- Aufbau, Bausteine und Regeln wie die Akte je Projekt (akte.html): Pfad, Kopf über das Makro,
+   Reiter mit Anker, lesende Karten, Bearbeiten im Dialog, ein Verlauf. Zahlen, Projekte mit Phase, Geld und Vorschläge kommen vom Server
+   (GET /api/customers/{id}/akte, app/kundenakte.py), der Verlauf aus GET /api/customers/{id}/verlauf (app/kunde_verlauf.py); die Seite rechnet
+   nichts nach. Jede Funktion der früheren Seite steht in tests/test_v554_kundenakte_funktionen.py (FUNKTIONEN) mit ihrem Reiter. #}
 {% include "_ds_kopf.html" %}
 <style>
-    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:light;color:var(--ink);background:var(--bg)}
-    :root[data-theme="dark"]{color-scheme:dark}
-    *{box-sizing:border-box}body{margin:0}
-    main{max-width:1450px;margin:0;padding:22px}.card{background:var(--card);border:1px solid var(--line);padding:18px;margin-bottom:18px;border-radius:var(--ds-ecke-karte)}.card h2,.card h3{margin-top:0;color:var(--ink)}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.field{margin-bottom:10px}label{font-size:12.5px;font-weight:650;color:var(--muted);display:block;margin-bottom:5px}input,textarea,select{width:100%;padding:9px 11px;border:1px solid var(--field-border);background:var(--card);color:var(--ink);font:inherit;font-size:13.5px}input:hover,textarea:hover,select:hover{border-color:var(--field-border-hover)}input:focus,textarea:focus,select:focus{outline:2px solid var(--ds-aktion);outline-offset:-1px;border-color:var(--ds-aktion)}textarea{resize:vertical}button{background:var(--ds-aktion);color:#fff;border:1px solid var(--ds-aktion);padding:10px 16px;cursor:pointer;font-weight:650;font-size:13.5px}button:hover{background:color-mix(in srgb,var(--ds-aktion) 85%,black);border-color:color-mix(in srgb,var(--ds-aktion) 85%,black)}button.secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}button.secondary:hover{background:var(--soft)}button.danger{background:var(--danger-soft);color:var(--danger);border:1px solid transparent}button.danger:hover{background:color-mix(in srgb,var(--ds-fehler) 20%,transparent)}.plus{width:32px;height:32px;padding:0;font-size:20px;line-height:1}.muted{color:var(--muted)}.small{font-size:12px}.status{margin-left:8px;font-size:12.5px;color:var(--muted);font-weight:600}.status.err{color:var(--danger)}.status.ok{color:var(--success)}.section-title{display:flex;justify-content:space-between;gap:12px;align-items:center}.badge{display:inline-block;padding:2px 8px;background:var(--soft);border:1px solid var(--line);font-size:10.5px}.extra-row{display:grid;grid-template-columns:140px 170px minmax(220px,1fr) auto auto;gap:8px;align-items:end;background:var(--soft);border:1px solid var(--line);padding:8px;margin-bottom:8px;border-radius:var(--ds-ecke-karte)}.extra-row .field{margin:0}.object-card{border:1px solid var(--line);padding:12px;margin-bottom:10px;border-radius:var(--ds-ecke-karte)}.object-card.main{border-color:var(--ds-aktion);background:var(--soft)}.project-card{border:1px solid var(--line);padding:12px;margin-bottom:10px;border-radius:var(--ds-ecke-karte)}.quote{display:grid;grid-template-columns:120px 1fr 110px 110px;gap:8px;padding:7px 0;border-top:1px solid var(--line);font-size:13px}.number{text-align:right}.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:18px}.metric{background:var(--card);border:1px solid var(--line);padding:13px;border-radius:var(--ds-ecke-karte)}.metric .k{font-size:11px;color:var(--muted)}.metric .v{font-size:20px;font-weight:800;margin-top:3px;color:var(--ink)}.hidden{display:none!important}
-    .roof-table-wrap{overflow-x:auto}.roof-table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:4px}.roof-table th,.roof-table td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}.roof-table th{color:var(--muted);font-size:10.5px;text-transform:uppercase;font-weight:650}.roof-table a{color:var(--accent);font-weight:650;text-decoration:none}
-    .upload{border:2px dashed var(--field-border);padding:16px;background:var(--card);margin-bottom:14px;border-radius:var(--ds-ecke-karte)}.upload.drag{border-color:var(--ds-aktion);background:var(--soft)}.upload-grid{display:grid;grid-template-columns:150px 150px 140px minmax(160px,1fr) auto;gap:9px;align-items:end}.file-picker{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}.file-picker input{max-width:420px}.category-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-bottom:14px}.cat{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:10px;text-align:left;cursor:pointer}.cat.active{background:var(--soft);border-color:var(--ds-aktion)}.cat b{display:block}.documents{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}.doc{border:1px solid var(--line);overflow:hidden;background:var(--card);min-width:0;border-radius:var(--ds-ecke-karte)}.thumb{height:120px;background:var(--soft);display:flex;align-items:center;justify-content:center;font-size:34px;color:var(--muted);overflow:hidden}.thumb img{width:100%;height:100%;object-fit:cover}.doc-body{padding:11px}.doc-name{font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.doc-meta{font-size:11px;color:var(--muted);margin:5px 0 9px}.doc-description{font-size:12px;margin:0 0 9px;white-space:pre-wrap}.doc-actions{display:flex;gap:6px;flex-wrap:wrap}.doc-actions a,.doc-actions button{font-size:11px;padding:6px 8px;border:0;text-decoration:none;cursor:pointer;font-weight:750}.doc-actions a,.doc-actions .edit{background:var(--soft);color:var(--accent)}.search-row{display:flex;gap:9px;align-items:center;margin-bottom:12px}
-    @media(max-width:900px){.grid,.fields,.summary{grid-template-columns:1fr}.extra-row{grid-template-columns:1fr}.quote{grid-template-columns:1fr}.number{text-align:left}main{padding:12px}.upload-grid,.documents,.category-cards{grid-template-columns:1fr}}
-    .pay-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px}.pay-actions>span,.pay-actions span[id]{display:inline-flex;gap:6px;flex-wrap:wrap;align-items:center}.pay-actions input,.pay-actions select{border:1px solid var(--field-border);padding:7px 9px;background:var(--card);color:var(--ink);font:inherit;font-size:13px}.pay-actions input{min-width:110px}.pay-reversed{text-decoration:line-through;color:var(--muted)}[data-zahlung] a{color:var(--accent);font-weight:650;text-decoration:none}
-  </style>
-</head>
-<body>
+:root{font-family:var(--ds-schrift-text);color-scheme:light;color:var(--ds-text);background:var(--ds-grund)}
+:root[data-theme="dark"]{color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;background:var(--ds-grund);color:var(--ds-text)}
+[hidden]{display:none!important}
+a{color:var(--ds-link)}a:hover{color:var(--ds-link-hover)}
+:focus-visible{outline:2px solid var(--ds-fokus);outline-offset:2px}
+.akte-main{padding:24px 32px;display:flex;flex-direction:column;gap:16px;min-width:0;max-width:1680px}
+@media (max-width:900px){.akte-main{padding:16px}}
+.mut{color:var(--ds-text-2)}.sml{font-size:13px}.num{font-variant-numeric:tabular-nums}.r{text-align:right}
+.eb{font-family:var(--ds-schrift-mono);font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--ds-text-3)}
+.chip{font-size:12px;font-weight:600;border-radius:999px;padding:3px 10px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.chip-ok{color:var(--ds-ok-text);background:var(--ds-ok-hell)}.chip-signal{color:var(--ds-signal-text);background:var(--ds-signal-hell)}
+.chip-neutral{color:var(--ds-text-2);background:var(--ds-flaeche-2)}.chip-info{color:var(--ds-info-text);background:var(--ds-info-hell)}
+.chip-warn{color:var(--ds-warn-text);background:var(--ds-warn-hell)}.chip-fehler{color:var(--ds-fehler-text);background:var(--ds-fehler-hell)}
+.cnt{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--ds-flaeche-2);color:var(--ds-stark);font-size:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center}
+.gross{font-family:var(--ds-schrift-titel);font-weight:700;font-size:20px;font-variant-numeric:tabular-nums}
+.gross.warn{color:var(--ds-signal-text)}
+.h2{margin:0;font-family:var(--ds-schrift-titel);font-weight:600;font-size:18px}
+.zeile-flex{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+/* Karten wie die Vorlage: weiß mit Rahmen, Ecke 12 px; Signalkarte „Unbezahlt“ im Reiter Zahlungen */
+.karte{background:var(--ds-flaeche);border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-karte);padding:16px 20px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.karte-signal{background:var(--ds-signal-hell);border:1px solid var(--ds-signal-rand);border-radius:var(--ds-ecke-karte);padding:14px 18px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.kachel{padding:14px 18px;gap:2px}
+.karte-kopf{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.li{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-top:1px solid var(--ds-flaeche-2)}
+.li-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;overflow-wrap:anywhere}
+.li-titel{font-size:14px;font-weight:600}.li-zeit{width:92px;flex:none;padding-top:1px}
+.li-rechts{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex:none;text-align:right}
+.unbezahlt{color:var(--ds-signal-text);font-weight:600}
+/* Reiter unter dem Kopf wie die Vorlage: 44 px, 26 px Abstand, aktiver mit grünem Strich */
+.reiter{display:flex;gap:26px;border-bottom:1px solid var(--ds-linie);overflow-x:auto}
+.reiter a{height:44px;padding:0 2px;display:inline-flex;align-items:center;gap:8px;color:var(--ds-text-2);text-decoration:none;font-size:15px;font-weight:500;white-space:nowrap}
+.reiter a:hover{color:var(--ds-text)}
+.reiter a[aria-current="page"]{color:var(--ds-text);font-weight:600;box-shadow:inset 0 -3px 0 var(--ds-aktion)}
+/* Übersicht: links Projekte, Geld, Verlauf; rechts 380 px Stammdaten, Kontakte, Objekte */
+.spalten{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;align-items:start}
+@media (max-width:1100px){.spalten{grid-template-columns:minmax(0,1fr)}}
+.spalte{min-width:0;display:flex;flex-direction:column;gap:16px}
+.zahlen-vier{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+@media (max-width:900px){.zahlen-vier{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:520px){.zahlen-vier{grid-template-columns:minmax(0,1fr)}}
+.zahl{display:flex;flex-direction:column;gap:2px;min-width:0}
+.hinweis-zeile{background:var(--ds-flaeche-2);border-radius:var(--ds-ecke-feld);padding:12px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.hinweis-zeile>div{flex:1;min-width:220px;font-size:14px}
+.daten-liste{display:grid;grid-template-columns:132px minmax(0,1fr);margin:0;font-size:14px}
+.daten-liste dt,.daten-liste dd{padding:6px 0;border-top:1px solid var(--ds-flaeche-2)}
+.daten-liste dt{color:var(--ds-text-2);font-size:13px;padding-right:10px}.daten-liste dd{margin:0;overflow-wrap:anywhere;white-space:pre-wrap}
+/* Tabellen wie die Vorlage: Kopf Mono 11 px, Zeilen 46 px (die Rechnungsliste bringt ihre Klassen selbst mit, _rechnungsliste.html) */
+th.r,td.r{text-align:right}
+table{border-collapse:collapse;width:100%}
+th{font-family:var(--ds-schrift-mono);font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--ds-text-3);text-align:left;padding:0 8px 8px;border-bottom:1px solid var(--ds-linie);white-space:nowrap}
+td{font-size:14px;padding:0 8px;height:46px;border-bottom:1px solid var(--ds-flaeche-2)}
+td.umbruch{white-space:normal;padding-top:8px;padding-bottom:8px;height:auto}
+.tabelle-wrap{overflow-x:auto;position:relative}
+#customerPayments{overflow:visible}  /* das „⋮“ je Eingang klappt über den Rand der Tabelle */
+/* schmal: je Eingang ein Block statt der sechs Spalten -- die Tabelle darf hier nicht rollen (das Menü würde abgeschnitten) und nicht über die Karte ragen */
+@media (max-width:760px){
+#customerPayments thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+#customerPayments table,#customerPayments tbody{display:block}
+#customerPayments tr{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px 12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--ds-flaeche-2)}
+#customerPayments td{display:block;height:auto;padding:0;border:0;min-width:0;text-align:left}
+#customerPayments td:nth-child(1){grid-area:1/1}#customerPayments td:nth-child(2){grid-area:1/2}#customerPayments td:nth-child(6){grid-area:1/3;width:auto!important}
+#customerPayments td:nth-child(3),#customerPayments td:nth-child(4),#customerPayments td:nth-child(5){grid-column:1/-1}
+.li-projekt{flex-wrap:wrap}.li-projekt .li-rechts{align-items:flex-start;text-align:left;flex:1 1 100%}
+}
+.pay-reversed{text-decoration:line-through;color:var(--ds-text-2)}
+tr.zurueck td{color:var(--ds-text-2)}
+/* Verlauf: Filter und Strom (wie die Akte) */
+.filter-leiste{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.filter-leiste button{height:36px;padding:0 14px;border:1px solid var(--ds-linie-stark);border-radius:999px;font-family:var(--ds-schrift-text);font-size:14px;font-weight:600;cursor:pointer;background:var(--ds-flaeche);color:var(--ds-stark)}
+.filter-leiste button[aria-pressed="true"]{background:var(--ds-aktion-hell);color:var(--ds-aktion-text);border-color:var(--ds-aktion-rand)}
+.vl-zeile{display:grid;grid-template-columns:92px 96px minmax(0,1fr) auto;gap:12px;align-items:start;padding:12px 0;border-top:1px solid var(--ds-flaeche-2)}
+@media (max-width:760px){.vl-zeile{grid-template-columns:1fr}}
+.vl-art{padding-top:1px}.vl-art .chip{padding:2px 9px}
+.vl-ende{display:flex;align-items:center;gap:8px}
+.vl-zeile details{margin-top:6px}.vl-zeile summary{cursor:pointer;font-size:13px;color:var(--ds-link);font-weight:600}
+.vl-einzel{font-size:13px;padding:4px 0 4px 10px;border-left:3px solid var(--ds-linie);margin-top:4px}
+.vl-einzel .old{text-decoration:line-through;color:var(--ds-text-2)}
+.menue-anker{position:relative;display:inline-flex}
+/* Felder, Knöpfe und Hinweise -- auch für den eingebundenen Versandverlauf (_email_dispatch.html) */
+button{height:40px;padding:0 16px;border:0;border-radius:var(--ds-ecke-feld);background:var(--ds-aktion);color:var(--ds-auf-aktion);font-family:var(--ds-schrift-text);font-size:14px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap}
+button:hover{filter:brightness(.92)}
+button.secondary{border:1px solid var(--ds-linie-stark);background:var(--ds-flaeche);color:var(--ds-stark);filter:none}
+button.secondary:hover{background:var(--ds-flaeche-2)}
+button.danger{background:var(--ds-fehler);color:var(--ds-auf-fehler)}
+button:disabled{cursor:default;border:1px solid var(--ds-linie);background:var(--ds-flaeche-2);color:var(--ds-text-3);filter:none}
+.iconbtn{width:36px;height:36px;padding:0;border:1px solid var(--ds-linie-stark);background:var(--ds-flaeche);color:var(--ds-stark)}
+.knopf-link{border:0;background:transparent;padding:0;height:auto;font-size:14px;font-weight:600;color:var(--ds-link);cursor:pointer;text-decoration:none}
+.knopf-link:hover{color:var(--ds-link-hover);text-decoration:underline;filter:none}
+.knopf-link.fehler{color:var(--ds-fehler-text)}
+.klein{height:36px}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.full{grid-column:1/-1}
+@media (max-width:640px){.fields{grid-template-columns:1fr}}
+.field label{display:block;font-size:13px;font-weight:600;color:var(--ds-stark);margin-bottom:6px}
+.field input,.field select,.field textarea,dialog input,dialog select,dialog textarea{width:100%;min-height:40px;border:1px solid var(--ds-feld-rand);border-radius:var(--ds-ecke-feld);padding:8px 12px;font-family:var(--ds-schrift-text);font-size:14px;color:var(--ds-text);background:var(--ds-flaeche)}
+.field textarea,dialog textarea{min-height:80px}
+input[type=checkbox],input[type=radio]{width:auto!important;min-height:0!important}
+.check{display:flex!important;gap:8px;align-items:center;cursor:pointer}
+.hint{font-size:12px;color:var(--ds-text-2);margin-top:4px}
+.status{font-size:13px;color:var(--ds-text-2);overflow-wrap:anywhere}.status:empty{display:none}
+.small{font-size:13px}.muted{color:var(--ds-text-2)}
+.notice{background:var(--ds-flaeche-2);border-left:4px solid var(--ds-aktion);border-radius:var(--ds-ecke-feld);padding:10px 12px;font-size:13px;color:var(--ds-text)}
+.notice.warning{background:var(--ds-warn-hell);border-left-color:var(--ds-warn-text)}
+.empty{padding:28px;text-align:center;color:var(--ds-text-2);border:1px dashed var(--ds-linie);border-radius:var(--ds-ecke-karte)}
+.btn{height:40px;padding:0 16px;border-radius:var(--ds-ecke-feld);font:inherit;font-size:14px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center}
+.btn.secondary{background:var(--ds-flaeche);color:var(--ds-stark);border:1px solid var(--ds-linie-stark)}
+/* Objekte */
+.objekt-haupt{border-color:var(--ds-aktion-rand)}
+/* Dokumente (wie die Dateien der Akte) */
+.upload{border:2px dashed var(--ds-feld-rand);padding:16px;border-radius:var(--ds-ecke-karte)}.upload.drag{border-color:var(--ds-aktion);background:var(--ds-flaeche-2)}
+.upload-grid{display:grid;grid-template-columns:160px 160px 150px minmax(160px,1fr) auto;gap:10px;align-items:end}
+@media (max-width:1000px){.upload-grid{grid-template-columns:1fr}}
+.file-picker{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.category-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.cat{height:auto;padding:10px;border:1px solid var(--ds-linie);border-radius:var(--ds-ecke-feld);background:var(--ds-flaeche);color:var(--ds-text);text-align:left;cursor:pointer;display:block;font-weight:500}
+.cat.active{background:var(--ds-aktion-hell);border-color:var(--ds-aktion-rand)}.cat b{display:block}
+.documents{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:1000px){.documents,.category-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:650px){.documents,.category-cards{grid-template-columns:1fr}}
+.doc{border:1px solid var(--ds-linie);overflow:hidden;background:var(--ds-flaeche);min-width:0;border-radius:var(--ds-ecke-karte)}
+.thumb{height:130px;background:var(--ds-flaeche-2);display:flex;align-items:center;justify-content:center;font-size:32px;color:var(--ds-text-2);overflow:hidden}.thumb img{width:100%;height:100%;object-fit:cover}
+.doc-body{padding:11px}.doc-name{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.doc-meta{font-size:12px;color:var(--ds-text-2);margin:5px 0 9px}
+.doc-description{font-size:13px;margin:0 0 9px;white-space:pre-wrap}.doc-actions{display:flex;gap:6px;flex-wrap:wrap}
+.doc-actions a,.doc-actions button{height:32px;font-size:13px;padding:0 10px;text-decoration:none;display:inline-flex;align-items:center;border-radius:var(--ds-ecke-feld);border:1px solid var(--ds-linie-stark);background:var(--ds-flaeche);color:var(--ds-stark);font-weight:600}
+.search-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.search-row input{flex:1;min-width:200px;min-height:40px;padding:0 12px;border:1px solid var(--ds-feld-rand);border-radius:var(--ds-ecke-feld);font:inherit;background:var(--ds-flaeche);color:var(--ds-text)}
+/* Dialoge wie die Akte */
+dialog{border:0;padding:0;width:min(680px,calc(100% - 32px));max-height:calc(100% - 32px);overflow:auto;border-radius:var(--ds-ecke-karte);background:var(--ds-flaeche);color:var(--ds-text);box-shadow:0 16px 48px rgba(23,28,31,.25)}
+dialog::backdrop{background:rgba(23,28,31,.45)}
+#stammdatenDialog{width:min(820px,calc(100% - 32px))}
+.dialog{padding:22px 24px 18px;display:flex;flex-direction:column;gap:12px}
+.dialog-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.dialog-head h3{margin:0;font-family:var(--ds-schrift-titel);font-weight:700;font-size:20px}
+.dialog-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;border-top:1px solid var(--ds-flaeche-2);padding-top:14px}
+</style></head>
+<body class="ds-seite">
 <div class="app-layout">
 {% include "_sidebar.html" %}
 <div class="app-content">
 {% include "_topbar.html" %}
-{% include "_auswahl.html" %}
+<main class="akte-main">
+{% from "teile/seitenkopf.html" import seitenkopf %}
+{% call(teil) seitenkopf("Kundenakte wird geladen …", untertitel="", kennung="", mit_pfad=true, mit_aktion=true, mit_menue=true) %}
+  {% if teil == "pfad" %}<a class="ds-kopf-pfadglied" href="/master-data">Stammdaten</a>
+  {% elif teil == "aktion" %}<button type="button" class="ds-knopf ds-knopf-aktion" id="newProjectLink" data-klick="neues-projekt">+ Projekt</button>
+  {#- „⋮“ in zwei Gruppen mit Trennlinie (Punkt 5): Kunde · Wege. „Kunde archivieren“ gibt es nicht -- am Kunden gibt es heute kein Archivieren (Punkt 4) #}
+  {% elif teil == "menue" %}<button type="button" class="ds-menue-eintrag" data-klick="stammdaten-bearbeiten">Stammdaten bearbeiten</button><button type="button" class="ds-menue-eintrag" data-klick="objekt-neu">+ Objekt</button><button type="button" class="ds-menue-eintrag" data-klick="eintrag-neu">+ Eintrag in „Kontakte &amp; Kundenwissen“</button><a class="ds-menue-eintrag" id="newInquiryLink" href="/inquiries">Neue Anfrage</a><div class="ds-menue-trenner" role="separator"></div><a class="ds-menue-eintrag" id="menueVersandprotokoll" href="/versandprotokoll">Versandprotokoll des Kunden</a><a class="ds-menue-eintrag" href="/history">Ganze Änderungshistorie</a>{% endif %}
+{% endcall %}
+<div class="status" id="seitenStatus" role="status"></div>
+<nav class="reiter" aria-label="Bereiche der Kundenakte">
+  <a href="#uebersicht" data-reiter="uebersicht" aria-current="page">Übersicht</a>
+  <a href="#projekte" data-reiter="projekte">Projekte<span class="cnt" id="zahlProjekte" hidden></span></a>
+  <a href="#objekte" data-reiter="objekte">Objekte<span class="cnt" id="zahlObjekte" hidden></span></a>
+  <a href="#anfragen" data-reiter="anfragen">Anfragen<span class="cnt" id="zahlAnfragen" hidden></span></a>
+  <a href="#zahlungen" data-reiter="zahlungen">Zahlungen</a>
+  <a href="#dokumente" data-reiter="dokumente">Dokumente<span class="cnt" id="zahlDokumente" hidden></span></a>
+  <a href="#kontakte" data-reiter="kontakte">Kontakte<span class="cnt" id="zahlKontakte" hidden></span></a>
+  <a href="#verlauf" data-reiter="verlauf">Verlauf</a>
+</nav>
+
+{# --- Übersicht (Vorlage kunde-uebersicht.html): links laufende Projekte, Geld, Verlauf; rechts Stammdaten, Kontakte, Objekte --- #}
+<section id="reiter-uebersicht" aria-label="Übersicht">
+<div class="spalten">
+  <div class="spalte">
+    <section class="karte" id="uProjekte" aria-labelledby="uPrTitel" style="gap:2px">
+      <div class="karte-kopf" style="margin-bottom:4px"><h2 class="h2" id="uPrTitel">Laufende Projekte</h2><a class="sml" href="#projekte" id="uAlleProjekte" style="font-weight:600">Alle Projekte</a></div>
+      <div id="uProjekteListe"><p class="mut sml" style="margin:0">Lädt …</p></div>
+      <p class="mut sml" id="uAbgeschlossen" style="margin:6px 0 0" hidden></p>
+    </section>
+    <section class="karte" id="uGeld" aria-labelledby="uGeldTitel" style="gap:14px">
+      <div class="karte-kopf"><h2 class="h2" id="uGeldTitel">Geld</h2><a class="sml" href="#zahlungen" style="font-weight:600">Zu „Zahlungen“</a></div>
+      <div class="zahlen-vier" id="uGeldZahlen"></div>
+      <div id="uGeldHinweis"></div>
+    </section>
+    <section class="karte" id="uVerlauf" aria-labelledby="uVlTitel" style="gap:2px">
+      <div class="karte-kopf" style="margin-bottom:6px"><h2 class="h2" id="uVlTitel">Verlauf</h2><a class="sml" href="#verlauf" style="font-weight:600">Ganzer Verlauf</a></div>
+      <div id="uVerlaufListe"><p class="mut sml" style="margin:0">Lädt …</p></div>
+    </section>
+  </div>
+  <div class="spalte">
+    <section class="karte" id="uStammdaten" aria-labelledby="uStTitel" style="gap:8px">
+      <div class="karte-kopf"><h2 class="h2" id="uStTitel">Stammdaten</h2><button type="button" class="secondary klein" data-klick="stammdaten-bearbeiten">Bearbeiten</button></div>
+      <dl class="daten-liste" id="stammdatenListe"></dl>
+    </section>
+    <section class="karte" id="uKontakte" aria-labelledby="uKoTitel" style="gap:2px">
+      <div class="karte-kopf" style="margin-bottom:6px"><h2 class="h2" id="uKoTitel">Kontakte &amp; Kundenwissen</h2><button type="button" class="knopf-link sml" data-klick="eintrag-neu">+ Eintrag</button></div>
+      <div id="uKontakteListe"></div>
+    </section>
+    <section class="karte" id="uObjekte" aria-labelledby="uObTitel" style="gap:2px">
+      <div class="karte-kopf" style="margin-bottom:6px"><h2 class="h2" id="uObTitel">Objekte</h2><button type="button" class="knopf-link sml" data-klick="objekt-neu">+ Objekt</button></div>
+      <div id="uObjekteListe"></div>
+    </section>
+  </div>
+</div>
+</section>
+
+{# --- Projekte: je Projekt Phase und Zahlen aus der Akte, Aufträge und Angebote --- #}
+<section id="reiter-projekte" aria-label="Projekte" hidden style="display:flex;flex-direction:column;gap:16px">
+  <div id="projects" style="display:flex;flex-direction:column;gap:16px"></div>
+</section>
+
+{# --- Objekte mit Dachflächen --- #}
+<section id="reiter-objekte" aria-label="Objekte" hidden style="display:flex;flex-direction:column;gap:16px">
+  <div class="karte-kopf"><div class="mut sml">Die Hauptadresse wird automatisch aus den Kundenstammdaten geführt.</div><button type="button" class="secondary" data-klick="objekt-neu">+ Objekt</button></div>
+  <div id="properties" style="display:flex;flex-direction:column;gap:16px"></div>
+</section>
+
+{# --- Anfragen --- #}
+<section id="reiter-anfragen" class="karte" aria-label="Anfragen" hidden style="gap:2px">
+  <div class="karte-kopf" style="margin-bottom:6px"><div><h2 class="h2">Anfragen</h2><div class="mut sml">Vertriebshistorie vor der eigentlichen Projektanlage.</div></div><a class="btn secondary" id="newInquiryLink2" href="/inquiries">Neue Anfrage</a></div>
+  <div id="inquiries"></div>
+</section>
+
+{# --- Zahlungen (Vorlage kunde-zahlungen.html): Kennzahlen, unbezahlte Rechnungen, Zahlungseingänge mit Rest und „⋮“ --- #}
+<section id="reiter-zahlungen" aria-label="Zahlungen" hidden style="display:flex;flex-direction:column;gap:16px">
+  {% if not geld %}<div class="notice" data-geld-nur-lesen>{{ geld_nur_lesen }}</div>{% endif %}
+  <div class="zahlen-vier" id="zKacheln"></div>
+  <section class="karte" aria-labelledby="zOffTitel" style="padding:16px 20px 8px">
+    <div class="karte-kopf"><h2 class="h2" id="zOffTitel">Unbezahlte Rechnungen</h2><span class="mut sml" id="zUnbezahltZahl"></span></div>
+    <div class="tabelle-wrap" id="zUnbezahlt"></div>
+  </section>
+  <section class="karte" aria-labelledby="zEinTitel" style="padding:16px 20px 8px">
+    <div class="karte-kopf"><h2 class="h2" id="zEinTitel">Zahlungseingänge</h2><span class="mut sml">gebucht wird an der Rechnung – ein Rest bleibt hier stehen</span></div>
+    <div class="tabelle-wrap" id="customerPayments"><p class="mut sml" style="margin:0">Lädt …</p></div>
+    <div id="zVorschlaege" style="display:flex;flex-direction:column;gap:10px;margin:4px 0 10px"></div>
+    <div id="customerPaymentsStatus" class="status" role="status"></div>
+  </section>
+  <p class="mut sml" style="margin:0">„⋮“ je Eingang: Zuordnen, Erstatten, Zurücknehmen (mit Begründung). Büro – Auftrag sieht alles ohne Knöpfe. Zahlungseingänge bucht man an der Rechnung.</p>
+</section>
+
+{# --- Dokumente (Hochladen, Kategorien, Suche wie bisher; Bearbeiten im Dialog) --- #}
+<section id="reiter-dokumente" class="karte" aria-label="Dokumente" hidden>
+  <div><h2 class="h2">Dokumente</h2><div class="mut sml">Verträge, Schriftverkehr und weitere Unterlagen direkt in der Kundenmappe.</div></div>
+  <div id="docUploadZone" class="upload">
+    <div class="upload-grid">
+      <div class="field"><label for="docCategory">Kategorie</label><select id="docCategory"></select></div>
+      <div class="field"><label for="docSubfolder">Unterordner <span class="mut sml">(optional)</span></label><input id="docSubfolder" list="docSubfolderSuggestions"><datalist id="docSubfolderSuggestions"></datalist></div>
+      <div class="field"><label for="docDate">Dokumentdatum</label><input id="docDate" type="date"></div>
+      <div class="field"><label for="docDescription">Notiz / Beschreibung</label><input id="docDescription" placeholder="optional"></div>
+      <button type="button" data-klick="dateien-waehlen">+ Dateien auswählen</button>
+    </div>
+    <div class="file-picker"><input id="docFiles" type="file" multiple data-aenderung="dateien-gewaehlt"><span id="docSelectedInfo" class="mut sml">Dateien auswählen oder hierher ziehen.</span><button id="docUploadButton" type="button" class="secondary" style="display:none" data-klick="hochladen">Hochladen</button></div>
+    <div id="docUploadStatus" class="status"></div>
+  </div>
+  <div id="docCategoryCards" class="category-cards"></div>
+  <div id="docSubfolderCards" class="category-cards" style="display:none"></div>
+  <div class="search-row"><input id="docSearch" placeholder="Dateien suchen …" data-eingabe="dokumente-suchen" aria-label="Dateien suchen"></div>
+  <div id="customerDocuments" class="documents"></div>
+  <div id="docEmpty" class="empty" hidden>Noch keine Dokumente vorhanden.</div>
+</section>
+
+{# --- Kontakte & Kundenwissen --- #}
+<section id="reiter-kontakte" class="karte" aria-label="Kontakte" hidden>
+  <div class="karte-kopf"><div><h2 class="h2">Kontakte &amp; Kundenwissen</h2><div class="mut sml">Beliebig viele Telefonnummern, E-Mails, Geburtstage und freie Informationen.</div></div><button type="button" data-klick="eintrag-neu">+ Eintrag</button></div>
+  <div class="tabelle-wrap" id="extras"></div>
+</section>
+
+{# --- Verlauf (wie die Akte): Änderungen am Kunden, Kontakte, Objekte, Anfragen, Zahlungen, Versand --- #}
+<section id="reiter-verlauf" class="karte" aria-label="Verlauf" hidden>
+  <div class="filter-leiste" id="verlaufArten" role="group" aria-label="Art">
+    <button type="button" data-klick="verlauf-art" data-art="" aria-pressed="true">Alles</button><button type="button" data-klick="verlauf-art" data-art="aenderung" aria-pressed="false">Änderungen</button><button type="button" data-klick="verlauf-art" data-art="versand" aria-pressed="false">Versand</button><button type="button" data-klick="verlauf-art" data-art="zahlung" aria-pressed="false">Zahlungen</button>
+  </div>
+  <div id="verlaufListe"><p class="mut sml" style="margin:0">Lädt …</p></div>
+  <div><button type="button" class="secondary" id="verlaufWeiter" data-klick="verlauf-weiter" hidden>Ältere laden</button></div>
+  <div class="mut sml"><a href="/versandprotokoll" id="versandprotokollLink">Versandprotokoll des Kunden</a> · <a href="/history">Ganze Änderungshistorie</a></div>
+</section>
+</main>
+
+{# --- Dialoge --- #}
+<dialog id="stammdatenDialog" aria-labelledby="stammdatenTitel"><div class="dialog"><div class="dialog-head"><h3 id="stammdatenTitel">Stammdaten bearbeiten</h3><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="stammdatenDialog" aria-label="Schließen">✕</button></div>
+<div class="fields">
+  <div class="field"><label for="customerNumber">Kundennummer</label><input id="customerNumber"><div class="hint">Änderbar, z. B. zur Übernahme aus einem Altsystem. Muss eindeutig sein.</div></div>
+  <div class="field"><label for="category">Kundenkategorie</label><select id="category"></select></div>
+  <div class="field"><label class="check" for="isConsumer"><input id="isConsumer" type="checkbox"> Verbraucher (§ 13 BGB)</label><div class="hint">Steuert die Vertragsgrundlage neuer Angebote: Verbraucher → BGB mit VOB/C Abschnitt 4 und 5, sonst VOB/B. Bestehende Angebote bleiben unverändert.</div></div>
+  <div class="field"><label for="defaultPaymentTerm">Zahlungsbedingung (Standard für Rechnungen)</label><select id="defaultPaymentTerm"></select></div>
+  <div class="field"><label for="salutation">Anrede</label><select id="salutation"></select></div>
+  <div class="field"><label for="title">Titel</label><input id="title"></div>
+  <div class="field"><label for="firstName">Vorname</label><input id="firstName"></div>
+  <div class="field"><label for="lastName">Nachname / Firma *</label><input id="lastName"></div>
+  <div class="field"><label for="contact">Ansprechpartner</label><input id="contact"></div>
+  <div class="field"><label for="street">Straße</label><input id="street"></div>
+  <div class="field"><label for="zip">PLZ / Ort</label><div style="display:grid;grid-template-columns:100px 1fr;gap:8px"><input id="zip" aria-label="PLZ"><input id="city" aria-label="Ort"></div></div>
+  <div class="field"><label for="country">Land</label><input id="country"></div>
+  <div class="field"><label for="email">Primäre E-Mail (Rechnungen an)</label><input id="email" type="email"></div>
+  <div class="field"><label for="email2">Zweite E-Mail-Adresse</label><input id="email2" type="email"></div>
+  <div class="field"><label for="phone">Primäre Rufnummer</label><input id="phone" type="tel"></div>
+  <div class="field"><label for="mobile">Mobil</label><input id="mobile" type="tel"></div>
+  <div class="field"><label for="fax">Fax</label><input id="fax" type="tel"></div>
+  <div class="field full"><label for="notes">Interne Kundennotizen</label><textarea id="notes" rows="4" placeholder="z. B. bevorzugte Erreichbarkeit, Besonderheiten, Kundenwünsche …"></textarea></div>
+</div>
+<div id="customerStatus" class="status"></div>
+<div class="dialog-actions"><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="stammdatenDialog">Abbrechen</button><button type="button" data-klick="stammdaten-speichern">Stammdaten speichern</button></div></div></dialog>
+
+<dialog id="extraDialog" aria-labelledby="extraTitel"><div class="dialog"><div class="dialog-head"><h3 id="extraTitel">Eintrag</h3><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="extraDialog" aria-label="Schließen">✕</button></div>
+<div class="fields"><div class="field"><label for="extraTyp">Typ</label><select id="extraTyp" data-aenderung="eintrag-typ"></select></div><div class="field"><label for="extraLabel">Bezeichnung</label><input id="extraLabel" placeholder="z. B. Mobil, Geschäftsführung"></div><div class="field full"><label for="extraWert">Wert</label><input id="extraWert" type="tel"></div></div>
+<div id="extraStatus" class="status"></div>
+<div class="dialog-actions"><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="extraDialog">Abbrechen</button><button type="button" data-klick="eintrag-speichern">Speichern</button></div></div></dialog>
+
+<dialog id="propertyDialog" aria-labelledby="propertyEditorTitle"><div class="dialog"><div class="dialog-head"><h3 id="propertyEditorTitle">Objekt</h3><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="propertyDialog" aria-label="Schließen">✕</button></div>
+<input id="propertyId" type="hidden">
+<div class="fields"><div class="field full"><label for="propertyName">Bezeichnung *</label><input id="propertyName"></div><div class="field"><label for="propertyStreet">Straße</label><input id="propertyStreet"></div><div class="field"><label for="propertyZip">PLZ / Ort</label><div style="display:grid;grid-template-columns:100px 1fr;gap:8px"><input id="propertyZip" aria-label="PLZ"><input id="propertyCity" aria-label="Ort"></div></div><div class="field full"><label for="propertyNotes">Notizen zum Objekt</label><textarea id="propertyNotes" rows="3"></textarea></div></div>
+<div id="propertyStatus" class="status"></div>
+<div class="dialog-actions"><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="propertyDialog">Abbrechen</button><button type="button" data-klick="objekt-speichern">Objekt speichern</button></div></div></dialog>
+
+<dialog id="roofAreaDialog" aria-labelledby="roofAreaTitel"><div class="dialog"><div class="dialog-head"><h3 id="roofAreaTitel">Neue Dachfläche</h3><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="roofAreaDialog" aria-label="Schließen">✕</button></div>
+<div class="mut sml" id="roofAreaObjekt"></div>
+<div class="field"><label for="newRoofAreaName">Bezeichnung der Dachfläche</label><input id="newRoofAreaName" placeholder="z. B. Hauptdach Süd"></div>
+<div id="newRoofAreaStatus" class="status"></div>
+<div class="dialog-actions"><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="roofAreaDialog">Abbrechen</button><button type="button" data-klick="dachflaeche-anlegen">Anlegen und öffnen</button></div></div></dialog>
+
+<dialog id="docEditor" aria-labelledby="docEditTitel"><div class="dialog"><div class="dialog-head"><h3 id="docEditTitel">Dateiinformationen bearbeiten</h3><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="docEditor" aria-label="Schließen">✕</button></div>
+<div class="field"><label for="docEditName">Datei</label><input id="docEditName" disabled></div>
+<div class="fields"><div class="field"><label for="docEditCategory">Kategorie</label><select id="docEditCategory"></select></div><div class="field"><label for="docEditSubfolder">Unterordner</label><input id="docEditSubfolder" list="docSubfolderSuggestions"></div><div class="field"><label for="docEditDate">Dokumentdatum</label><input id="docEditDate" type="date"></div><div class="field full"><label for="docEditDescription">Notiz / Beschreibung</label><textarea id="docEditDescription" rows="3"></textarea></div></div>
+<div id="docEditStatus" class="status"></div>
+<div class="dialog-actions"><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="docEditor">Abbrechen</button><button type="button" data-klick="dokument-speichern">Speichern</button></div></div></dialog>
+
+{% if geld %}
+<dialog id="zuordnenDialog" aria-labelledby="zuordnenTitel"><div class="dialog"><div class="dialog-head"><h3 id="zuordnenTitel">Rest zuordnen</h3><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="zuordnenDialog" aria-label="Schließen">✕</button></div>
+<div class="sml" id="zuordnenText"></div>
+<div class="fields"><div class="field full"><label for="restInvoice">Auf die Rechnung</label><select id="restInvoice" data-aenderung="rest-rechnung"></select></div><div class="field"><label for="restAmount">Betrag</label><input id="restAmount" inputmode="decimal" data-zahl data-stellen="2" data-feld="Betrag" placeholder="0,00"></div></div>
+<div class="hint">Gebucht wird erst mit „Zuordnen“. Rechnungen mit nur offenen Mahngebühren oder Zinsen ordnet man auf der Rechnung zu (§ 367 BGB).</div>
+<div id="zuordnenStatus" class="status"></div>
+<div class="dialog-actions"><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="zuordnenDialog">Abbrechen</button><button type="button" id="zuordnenKnopf" data-klick="zuordnen">Zuordnen</button></div></div></dialog>
+
+<dialog id="erstattenDialog" aria-labelledby="erstattenTitel"><div class="dialog"><div class="dialog-head"><h3 id="erstattenTitel">Erstattung buchen</h3><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="erstattenDialog" aria-label="Schließen">✕</button></div>
+<div class="sml">Erstattet werden die eingetragenen Beträge aus dem Guthaben des Kunden mit einem Zahlungsausgang – ein Rest einer Zahlung und Überzahlungen aus Schlussrechnungen gleichermaßen.</div>
+<div class="tabelle-wrap"><table data-guthaben-zeilen><thead><tr><th>Guthaben</th><th class="r">Betrag</th><th class="r">davon erstatten</th></tr></thead><tbody id="erstattenZeilen"></tbody></table></div>
+<div class="fields"><div class="field"><label for="custRefundDate">Ausgezahlt am</label><input id="custRefundDate" type="date"></div><div class="field"><label for="custRefundNote">Notiz</label><input id="custRefundNote" placeholder="optional, z. B. Überweisung an IBAN …"></div></div>
+<div id="erstattenStatus" class="status"></div>
+<div class="dialog-actions"><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="erstattenDialog">Abbrechen</button><button type="button" id="erstattenKnopf" data-klick="erstatten">Erstattung buchen</button></div></div></dialog>
+
+<dialog id="zuruecknehmenDialog" aria-labelledby="zuruecknehmenTitel"><div class="dialog"><div class="dialog-head"><h3 id="zuruecknehmenTitel">Zahlung zurücknehmen</h3><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="zuruecknehmenDialog" aria-label="Schließen">✕</button></div>
+<div class="sml" id="zuruecknehmenText"></div>
+<div class="notice warning" id="zuruecknehmenGesperrt" data-zuruecknehmen-gesperrt hidden></div>
+<div class="field" id="zuruecknehmenFeld"><label for="payRevReason">Begründung (Pflicht)</label><textarea id="payRevReason" maxlength="2000" placeholder="z. B. Zahlung doppelt erfasst"></textarea></div>
+<div id="zuruecknehmenStatus" class="status"></div>
+<div class="dialog-actions"><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="zuruecknehmenDialog">Abbrechen</button><button type="button" class="danger" id="zuruecknehmenKnopf" data-klick="zuruecknehmen">Zurücknahme bestätigen</button></div></div></dialog>
+{% endif %}
+<dialog id="zustellungDialog"><div class="dialog"><div class="dialog-head"><h3 id="zustellungTitel">Zustellung nachtragen</h3><button type="button" class="secondary" data-klick="dialog-zu" data-dialog="zustellungDialog" aria-label="Schließen">✕</button></div><div id="zustellungVerlauf"></div></div></dialog>
+</div>
+</div>
+{% include "_email_dispatch.html" %}
 {% include "_fehlertext.html" %}
 {% include "_berlin_date.html" %}
-{% include "_zahlung_gruppen.html" %}
-<main>
-  <div class="section-title" style="margin-bottom:14px"><div><h1 id="pageTitle" style="margin:0 0 3px">Kundenakte</h1><div id="pageSub" class="muted"></div></div><span id="customerIdBadge" class="badge"></span></div>
-  <div class="summary"><div class="metric"><div class="k">Objekte</div><div id="metricProperties" class="v">–</div></div><div class="metric"><div class="k">Anfragen</div><div id="metricInquiries" class="v">–</div></div><div class="metric"><div class="k">Projekte</div><div id="metricProjects" class="v">–</div></div><div class="metric"><div class="k">Angebote</div><div id="metricQuotes" class="v">–</div></div><div class="metric"><div class="k">Angebotssumme netto</div><div id="metricNet" class="v">–</div></div></div>
-
-  <div class="grid">
-    <section class="card">
-      <div class="section-title"><h2>Stammdaten</h2><span class="badge">Hauptadresse synchron</span></div>
-      <div class="fields">
-        <div class="field"><label>Kundennummer</label><input id="customerNumber"><div class="muted small">Änderbar, z. B. zur Übernahme aus einem Altsystem. Muss eindeutig sein.</div></div>
-        <div class="field"><label>Kundenkategorie</label><select id="category"></select></div>
-        <div class="field"><label style="display:flex;gap:8px;align-items:center"><input id="isConsumer" type="checkbox" style="width:auto"> Verbraucher (§ 13 BGB)</label><div class="muted small">Steuert die Vertragsgrundlage neuer Angebote: Verbraucher → BGB mit VOB/C Abschnitt 4 und 5, sonst VOB/B. Bestehende Angebote bleiben unverändert.</div></div>
-        <div class="field"><label>Zahlungsbedingung (Standard für Rechnungen)</label><select id="defaultPaymentTerm"></select></div>
-        <div class="field"><label>Anrede</label><select id="salutation"></select></div>
-        <div class="field"><label>Titel</label><input id="title"></div>
-        <div class="field"><label>Vorname</label><input id="firstName"></div>
-        <div class="field"><label>Nachname / Firma *</label><input id="lastName"></div>
-        <div class="field"><label>Ansprechpartner</label><input id="contact"></div>
-        <div class="field"><label>Straße</label><input id="street"></div>
-        <div class="field"><label>Land</label><input id="country"></div>
-        <div class="field"><label>PLZ / Ort</label><div style="display:grid;grid-template-columns:100px 1fr;gap:8px"><input id="zip"><input id="city"></div></div>
-        <div class="field"><label>Primäre E-Mail</label><input id="email" type="email"></div>
-        <div class="field"><label>Zweite E-Mail-Adresse</label><input id="email2" type="email"></div>
-        <div class="field"><label>Primäre Rufnummer</label><input id="phone" type="tel"></div>
-        <div class="field"><label>Mobil</label><input id="mobile" type="tel"></div>
-        <div class="field"><label>Fax</label><input id="fax" type="tel"></div>
-      </div>
-      <div class="field"><label>Interne Kundennotizen</label><textarea id="notes" rows="4" placeholder="z. B. bevorzugte Erreichbarkeit, Besonderheiten, Kundenwünsche …"></textarea></div>
-      <button onclick="saveCustomer()">Stammdaten speichern</button><span id="customerStatus" class="status"></span>
-    </section>
-
-    <section class="card">
-      <div class="section-title"><div><h2 style="margin-bottom:4px">Kontakte & Kundenwissen</h2><div class="muted small">Beliebig viele Telefonnummern, E-Mails, Geburtstage und freie Informationen.</div></div><button class="plus" onclick="newExtra()" title="Information hinzufügen">+</button></div>
-      <div id="extras"></div>
-      <div id="extraEmpty" class="muted small">Noch keine zusätzlichen Informationen vorhanden.</div>
-    </section>
-  </div>
-
-  <div class="grid">
-    <section class="card">
-      <div class="section-title"><div><h2 style="margin-bottom:4px">Objekte</h2><div class="muted small">Die Hauptadresse wird automatisch aus den Kundenstammdaten geführt.</div></div><button class="plus" onclick="newProperty()" title="Objekt hinzufügen">+</button></div>
-      <div id="properties"></div>
-      <div id="propertyEditor" class="object-card hidden">
-        <h3 id="propertyEditorTitle">Objekt</h3>
-        <input id="propertyId" type="hidden">
-        <div class="field"><label>Bezeichnung *</label><input id="propertyName"></div>
-        <div class="fields"><div class="field"><label>Straße</label><input id="propertyStreet"></div><div class="field"><label>PLZ / Ort</label><div style="display:grid;grid-template-columns:100px 1fr;gap:8px"><input id="propertyZip"><input id="propertyCity"></div></div></div>
-        <div class="field"><label>Notizen zum Objekt</label><textarea id="propertyNotes" rows="3"></textarea></div>
-        <div class="toolbar"><button onclick="saveProperty()">Objekt speichern</button><button class="secondary" onclick="closePropertyEditor()">Abbrechen</button><span id="propertyStatus" class="status"></span></div>
-      </div>
-    </section>
-
-    <section class="card">
-      <div class="section-title"><div><h2 style="margin-bottom:4px">Anfragen</h2><div class="muted small">Vertriebshistorie vor der eigentlichen Projektanlage.</div></div><a id="newInquiryLink" href="/inquiries" style="text-decoration:none"><button>Neue Anfrage</button></a></div>
-      <div id="inquiries"></div>
-      <div id="inquiriesEmpty" class="muted small">Noch keine Anfrage vorhanden.</div>
-    </section>
-  </div>
-
-  <section class="card">
-    <div class="section-title"><div><h2 style="margin-bottom:4px">Dokumente</h2><div class="muted small">Verträge, Schriftverkehr und weitere Unterlagen direkt in der Kundenmappe.</div></div></div>
-    <div id="docUploadZone" class="upload">
-      <div class="upload-grid">
-        <div class="field"><label>Kategorie</label><select id="docCategory"></select></div>
-        <div class="field"><label>Unterordner <span class="muted small">(optional)</span></label><input id="docSubfolder" list="docSubfolderSuggestions"><datalist id="docSubfolderSuggestions"></datalist></div>
-        <div class="field"><label>Dokumentdatum</label><input id="docDate" type="date"></div>
-        <div class="field"><label>Notiz / Beschreibung</label><input id="docDescription" placeholder="optional"></div>
-        <button onclick="document.getElementById('docFiles').click()">+ Dateien auswählen</button>
-      </div>
-      <div class="file-picker"><input id="docFiles" type="file" multiple onchange="showSelectedDocs()"><span id="docSelectedInfo" class="muted small">Dateien auswählen oder hierher ziehen.</span><button id="docUploadButton" class="secondary" style="display:none" onclick="uploadDocuments()">Hochladen</button></div>
-      <div id="docUploadStatus" class="status"></div>
-    </div>
-    <div id="docCategoryCards" class="category-cards"></div>
-    <div id="docSubfolderCards" class="category-cards" style="display:none"></div>
-    <div class="search-row"><input id="docSearch" placeholder="Dateien suchen …" oninput="renderCustomerDocuments()"></div>
-    <div id="customerDocuments" class="documents"></div>
-    <div id="docEmpty" class="muted small">Noch keine Dokumente vorhanden.</div>
-    <div id="docEditor" class="object-card hidden" style="margin-top:12px">
-      <h3>Dateiinformationen bearbeiten</h3>
-      <input id="docEditId" type="hidden">
-      <div class="field"><label>Datei</label><input id="docEditName" disabled></div>
-      <div class="fields">
-        <div class="field"><label>Kategorie</label><select id="docEditCategory"></select></div>
-        <div class="field"><label>Unterordner</label><input id="docEditSubfolder" list="docSubfolderSuggestions"></div>
-        <div class="field"><label>Dokumentdatum</label><input id="docEditDate" type="date"></div>
-      </div>
-      <div class="field"><label>Notiz / Beschreibung</label><textarea id="docEditDescription" rows="3"></textarea></div>
-      <div class="toolbar"><button onclick="saveDocEdit()">Speichern</button><button class="secondary" onclick="closeDocEditor()">Abbrechen</button><span id="docEditStatus" class="status"></span></div>
-    </div>
-  </section>
-
-  <section class="card">
-    <div class="section-title"><div><h2 style="margin-bottom:4px">Projekte & Angebote</h2><div class="muted small">Vollständige Projekt- und Angebotshistorie dieses Kunden.</div></div><a id="newProjectLink" href="/projects/new" style="text-decoration:none"><button>Projekt anlegen</button></a></div>
-    <div id="projects"></div>
-    <div id="projectsEmpty" class="muted small">Noch keine Projekte vorhanden.</div>
-  </section>
-
-  <section class="card" id="zahlungen" style="display:none">
-    <div class="section-title"><div><h2 style="margin-bottom:4px">Zahlungen</h2><div class="muted small">Zahlungseingänge dieses Kunden. Gebucht wird an der Rechnung; ein nicht zugeordneter Rest bleibt hier stehen und lässt sich einer offenen Rechnung zuordnen. Rest und Überzahlungen aus Schlussrechnungen stehen zusammen als Guthaben des Kunden – erstattet wird beides mit einem Zahlungsausgang.</div></div><span class="badge" id="paymentRestBadge"></span></div>
-    {% if not geld %}<div class="notice" data-geld-nur-lesen style="margin:0 0 10px">{{ geld_nur_lesen }}</div>{% endif %}
-    <div id="customerCredits"></div>
-    <div id="customerPayments"></div>
-    <div id="customerPaymentsStatus" class="muted small" style="margin-top:8px"></div>
-  </section>
-
-  {# Seit 1.8.113: das Versandprotokoll dieses Kunden (Vorgabe vom 16.10.2026 Punkt 4; aus der Seitenleiste gefallen) -- die
-     Dokumente seiner Projekte und die Checklisten an seinen Objekten, renderDispatchList() aus _email_dispatch.html. #}
-  <section class="card" id="versand">
-    <div class="section-title"><div><h2 style="margin-bottom:4px">Versand</h2><div class="muted small">Jeder Versand und jede nachgetragene Zustellung der Dokumente dieses Kunden – aus seinen Projekten und an seinen Objekten.</div></div></div>
-    <div id="customerDispatches"><div class="muted small">Lädt …</div></div>
-  </section>
-</main>
-</div>
-</div>
+{% include "_verlauf.html" %}
 {% include "_speichern.html" %}
 {% include "_zahl.html" %}
+{% include "_links.html" %}
 {% include "_aktionen.html" %}
-{% include "_email_dispatch.html" %}
+{% include "_auswahl.html" %}
+{% include "_seitenkopf.html" %}
+{% include "_zahlung_gruppen.html" %}
+{% include "_rechnungsliste.html" %}
 <script>
 const customerId={{ customer_id }};
 const GELD="{{ 'ja' if geld else 'nein' }}"!=="nein";  // seit 1.9.111: darf_geld() (Seitenroute); ungerendert gültiges JS (Node-Tests)
-let customer=null, properties=[], inquiries=[], projects=[], projectQuotes=new Map(), customerCategoryGroup={options:[]}, customerSalutationGroup={options:[]}, paymentTerms=[], roofAreas=new Map();
-let customerDocuments=[], docCategoryGroup={options:[]}, activeDocCategory='', activeDocSubfolder='', editingDocId=null;
+let customer=null,akte=null,properties=[],inquiries=[],customerCategoryGroup={options:[]},customerSalutationGroup={options:[]},paymentTerms=[],roofAreas=new Map();
+let customerDocuments=[],docCategoryGroup={options:[]},activeDocCategory='',activeDocSubfolder='',editingDocId=null;
+let customerPaymentsData=null,customerOpenInvoices=[],verlaufDaten=null,verlaufVor=null,verlaufArt='';
+let stammdatenStand=null,editExtraId=null,roofAreaPropertyId=null,zahlungId=null;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const v=id=>document.getElementById(id).value; const nv=id=>v(id).trim()||null; const setv=(id,x)=>document.getElementById(id).value=x??'';
 const money=x=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(Number(x||0));
+const TAUSENDER={tausender:true};
+function el(id){return document.getElementById(id)}
+function seitenStatus(text){el('seitenStatus').textContent=text||''}
+function tagKurz(d){const m=String(d||'').match(/^(\d{4})-(\d{2})-(\d{2})/);if(!m)return '';return m[1]===berlinToday().slice(0,4)?`${m[3]}.${m[2]}.`:`${m[3]}.${m[2]}.${m[1]}`}
+// wie die Akte (seit 1.9.132): ein Datum, das für sich steht, immer mit Jahr -- kurz (tagKurz) nur in Listen und im Verlauf
+function tagLang(d){const m=String(d||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${m[3]}.${m[2]}.${m[1]}`:''}
 // Seit 1.8.46 über fehlerText() (_fehlertext.html): eine 422-Liste erschien vorher als "[object Object]".
-const FELDNAMEN={name:'Name',first_name:'Vorname',last_name:'Nachname',company_name:'Firma',street:'Straße',postal_code:'PLZ',city:'Ort',email:'E-Mail',phone:'Telefon',mobile:'Mobil',customer_number:'Kundennummer',notes:'Notizen',is_consumer:'Verbraucher',access_notes:'Zugang',site_contact_name:'Ansprechpartner vor Ort',site_contact_phone:'Telefon vor Ort'};
+const FELDNAMEN={name:'Name',first_name:'Vorname',last_name:'Nachname',company_name:'Firma',street:'Straße',postal_code:'PLZ',city:'Ort',country:'Land',email:'E-Mail',phone:'Telefon',mobile:'Mobil',customer_number:'Kundennummer',category:'Kundenkategorie',notes:'Notizen',is_consumer:'Verbraucher',info_type:'Typ',label:'Bezeichnung',value:'Wert',reason:'Begründung',lines:'Beträge',paid_on:'Ausgezahlt am',zahlung:'Betrag',amount:'Betrag'};
 async function api(url,opt={}){const r=await fetch(url,opt);if(!r.ok)throw new Error(fehlerText(await r.json().catch(()=>null),r.status,FELDNAMEN));if(r.status===204)return null;return r.json()}
+
+// --- Reiter ---------------------------------------------------------------------------------------------------------------------------
+const REITER=['uebersicht','projekte','objekte','anfragen','zahlungen','dokumente','kontakte','verlauf'];
+// Anker der früheren Seite: #zahlungen (aus Rechnung und Finanzen) ist ein Reiter, #versand öffnet den Verlauf mit „Versand“
+const ALTE_ANKER={versand:'verlauf'};
+function reiterAusAnker(){const h=location.hash.replace('#','');return ALTE_ANKER[h]||h}
+function reiterZeigen(name,anker=true){
+  if(!REITER.includes(name))name='uebersicht';
+  REITER.forEach(r=>{el('reiter-'+r).hidden=r!==name;const a=document.querySelector(`.reiter a[data-reiter="${r}"]`);if(r===name)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')});
+  if(anker&&location.hash!=='#'+name)history.replaceState(null,'',location.pathname+location.search+'#'+name);
+}
+window.addEventListener('hashchange',()=>reiterZeigen(reiterAusAnker(),false));
+document.querySelectorAll('.reiter a').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();reiterZeigen(a.dataset.reiter)}));
+function zahlSetzen(id,n){const z=el(id);if(!z)return;z.hidden=!n;z.textContent=n?String(n):''}
+aktion('dialog-zu',b=>el(b.dataset.dialog).close());
+
+// --- Laden ----------------------------------------------------------------------------------------------------------------------------
+// Seit 1.8.95 über lesen() (_speichern.html), je Bereich: 'kunde' (Kunde, Objekte, Anfragen, Auswahllisten), 'akte' (Zahlen vom Server),
+// 'dokumente', 'zahlungen', 'verlauf' -- kein Bereich setzt den Stand eines anderen.
+async function load(){
+  await Promise.all([lesen('kunde',async()=>{
+    const daten=await Promise.all([api(`/api/customers/${customerId}`),api(`/api/properties?customer_id=${customerId}`),api(`/api/inquiries?customer_id=${customerId}`),api('/api/settings/option-groups/customer_categories'),api('/api/settings/option-groups/customer_salutations'),api('/api/payment-terms?include_archived=true'),api('/api/settings/option-groups/project_document_categories').catch(()=>({options:[]}))]);
+    const flaechen=new Map();
+    await Promise.all(daten[1].map(async p=>{flaechen.set(p.id,await api(`/api/roof-areas?property_id=${p.id}`).catch(()=>[]))}));
+    return [daten,flaechen];
+  },([daten,flaechen])=>{
+    [customer,properties,inquiries,customerCategoryGroup,customerSalutationGroup,paymentTerms,docCategoryGroup]=daten;
+    roofAreas=flaechen;
+    render();
+  }),akteLaden(),loadDocuments(),loadPayments(),verlaufLaden()]);
+}
+async function akteLaden(){await lesen('akte',()=>api(`/api/customers/${customerId}/akte`),d=>{akte=d;akteZeichnen()})}
+// Nach einer Buchung: Zahlungen, Zahlen und Verlauf neu (jeder in seinem Bereich)
+function zahlungenNeu(){verlaufDaten=null;return Promise.all([loadPayments(),akteLaden(),verlaufLaden()])}
+// Das Neuzeichnen fasst die Dialoge nicht an: die Felder füllt erst das Öffnen (Eingaben bleiben, Punkt 2)
+function render(){
+  kopfZeichnen();stammdatenZeichnen();renderExtras();renderProperties();renderInquiries();renderDocCategories();
+  zahlSetzen('zahlObjekte',properties.length);zahlSetzen('zahlAnfragen',inquiries.length);zahlSetzen('zahlKontakte',(customer.extra_infos||[]).length);
+}
+function akteZeichnen(){
+  zahlSetzen('zahlProjekte',akte.zaehler.projekte);zahlSetzen('zahlDokumente',akte.zaehler.dokumente);
+  uebersichtProjekte();renderProjects();geldZeichnen();if(customer)renderProperties();if(customerPaymentsData)renderPayments();
+}
+
+// --- Kopf -----------------------------------------------------------------------------------------------------------------------------
+function anschrift(x){return [x.street,[x.postal_code,x.city].filter(Boolean).join(' ')].filter(Boolean).join(', ')}
+function kopfZeichnen(){
+  const tel=customer.phone||customer.mobile;
+  seitenkopf({titel:customer.name,kennung:customer.customer_number,pfad:[{text:'Stammdaten',href:'/master-data'},{text:'Kunden',href:'/master-data#customers'},{text:customer.name}],
+    untertitel:[anschrift(customer),tel?{text:tel,href:'tel:'+tel.replace(/[^\d+]/g,'')}:null,customer.email?{text:customer.email,href:'mailto:'+customer.email}:null]});
+  seitenkopf({status:statusKennzeichen('kundenkategorie',customer.category)});
+  document.title='DACHKONZEPTE ERP – '+customer.name;
+  el('newInquiryLink').href=`/inquiries?customer_id=${customerId}`;el('newInquiryLink2').href=`/inquiries?customer_id=${customerId}`;
+  el('versandprotokollLink').href='/versandprotokoll?kunde='+customerId;el('menueVersandprotokoll').href='/versandprotokoll?kunde='+customerId;
+}
+aktion('neues-projekt',()=>{location.href=`/projects/new?customer_id=${customerId}`});
+
+// --- Stammdaten: lesend in der Karte, Bearbeiten im Dialog ---------------------------------------------------------------------------
+function zahlungsbedingungText(){
+  const t=paymentTerms.find(x=>x.id===customer.default_payment_term_id);
+  if(t)return `${t.label} (${t.days} Tage)${t.archived?' · archiviert':''}`;
+  return customer.default_payment_term_id?'—':'Systemstandard';
+}
+function stammdatenZeichnen(){
+  const zeilen=[['Kundennummer',customer.customer_number],['Kategorie',customer.category||'—'],
+    ['Verbraucher',customer.is_consumer!==false?'ja – neue Angebote nach BGB mit VOB/C Abschnitt 4 und 5':'nein – neue Angebote nach VOB/B'],
+    ['Zahlungsbedingung',zahlungsbedingungText()],['Rechnungen an',customer.email||'—'],['Ansprechpartner',customer.contact_person],
+    ['Zweite E-Mail',customer.email_2],['Mobil',customer.phone&&customer.mobile?customer.mobile:null],['Fax',customer.fax],['Interne Notiz',customer.notes||'—']].filter(([,w])=>w);
+  el('stammdatenListe').innerHTML=zeilen.map(([k,w])=>`<dt>${esc(k)}</dt><dd>${esc(w)}</dd>`).join('');
+}
 // Seit 1.8.31 über auswahlOptionen(): der gespeicherte Wert bleibt vorgewählt, ein abgeschalteter mit "(inaktiv)". Ein leerer
 // Wert (nur durch eine direkte Datenbankänderung möglich, der Server setzt sonst "Privatkunde") bleibt leer, statt still die
 // Vorgabe vorzuwählen -- Speichern verlangt dann eine Wahl. Die Vorgabe gilt nur beim Anlegen (master_data_form.html).
@@ -165,79 +458,266 @@ function renderCategorySelect(current){document.getElementById('category').inner
 // gekennzeichnet -- vorher fehlte sie, und das nächste Speichern setzte den Kunden auf den Systemstandard.
 function renderPaymentTermSelect(current){document.getElementById('defaultPaymentTerm').innerHTML=auswahlOptionen(paymentTerms,current,t=>`${t.label} (${t.days} Tage)`,{leer:'— Systemstandard verwenden —',aktiv:t=>!t.archived})}
 function renderSalutationSelect(current){const rows=(customerSalutationGroup.options||[]).filter(o=>o.active).sort((a,b)=>a.sort_order-b.sort_order),sel=document.getElementById('salutation');let html='<option value="">—</option>'+rows.map(o=>`<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');if(current&&!rows.some(o=>o.value===current))html+=`<option value="${esc(current)}">${esc(current)} · bisher</option>`;sel.innerHTML=html;sel.value=current||''}
-// Seit 1.8.95 über lesen() (_speichern.html): übernommen wird erst, wenn alles da ist, und nie eine ältere Antwort über eine neuere
-// (ebenso loadDocuments() und loadPayments()). Seit 1.8.97 lädt load() die Dokumente nicht mehr selbst, sondern über loadDocuments()
-// im Bereich 'dokumente' -- vorher setzten beide Bereiche customerDocuments, und ein spätes Laden des Kunden (z. B. nach dem Speichern
-// einer Zusatzinfo) konnte eine neuere Dokumentliste überschreiben (Nebenbefund 6 aus 1.8.95).
-async function load(){
-  await Promise.all([lesen('kunde',async()=>{
-    const daten=await Promise.all([api(`/api/customers/${customerId}`),api(`/api/properties?customer_id=${customerId}`),api(`/api/inquiries?customer_id=${customerId}`),api('/api/projects'),api('/api/settings/option-groups/customer_categories'),api('/api/settings/option-groups/customer_salutations'),api('/api/payment-terms?include_archived=true'),api('/api/settings/option-groups/project_document_categories').catch(()=>({options:[]}))]);
-    const projekte=daten[3].filter(p=>p.customer_id===customerId),angebote=new Map(),flaechen=new Map();
-    await Promise.all(projekte.map(async p=>{angebote.set(p.id,await api(`/api/projects/${p.id}/quotes`))}));
-    await Promise.all(daten[1].map(async p=>{flaechen.set(p.id,await api(`/api/roof-areas?property_id=${p.id}`).catch(()=>[]))}));
-    return [daten,projekte,angebote,flaechen];
-  },([daten,projekte,angebote,flaechen])=>{
-    [customer,properties,inquiries,allProjects,customerCategoryGroup,customerSalutationGroup,paymentTerms,docCategoryGroup]=daten;
-    projects=projekte;
-    projectQuotes=angebote;
-    roofAreas=flaechen;
-    render();
-  }),loadDocuments()]);
-  loadPayments();
-  renderDispatchList('customerDispatches',{customer_id:customerId});  // seit 1.8.113
-}
-function render(){
-  document.getElementById('pageTitle').textContent=customer.name;document.getElementById('pageSub').textContent=[customer.customer_number,customer.category,customer.contact_person,customer.city].filter(Boolean).join(' · ');document.getElementById('customerIdBadge').textContent=customer.customer_number;
+function stammdatenWerte(){return {customer_number:v('customerNumber'),category:v('category'),salutation:nv('salutation'),title:nv('title'),first_name:nv('firstName'),last_name:v('lastName'),contact_person:nv('contact'),street:nv('street'),country:v('country')||'Deutschland',postal_code:nv('zip'),city:nv('city'),email:nv('email'),email_2:nv('email2'),phone:nv('phone'),mobile:nv('mobile'),fax:nv('fax'),notes:nv('notes'),default_payment_term_id:v('defaultPaymentTerm')?Number(v('defaultPaymentTerm')):null,is_consumer:document.getElementById('isConsumer').checked}}
+function stammdatenOeffnen(){
   setv('customerNumber',customer.customer_number);renderCategorySelect(customer.category);renderSalutationSelect(customer.salutation);renderPaymentTermSelect(customer.default_payment_term_id);document.getElementById('isConsumer').checked=customer.is_consumer!==false;setv('title',customer.title);setv('firstName',customer.first_name);setv('lastName',customer.last_name);setv('contact',customer.contact_person);setv('street',customer.street);setv('country',customer.country);setv('zip',customer.postal_code);setv('city',customer.city);setv('email',customer.email);setv('email2',customer.email_2);setv('phone',customer.phone);setv('mobile',customer.mobile);setv('fax',customer.fax);setv('notes',customer.notes);
-  renderExtras();renderProperties();renderInquiries();renderProjects();renderDocCategories();
-  const quoteList=[...projectQuotes.values()].flat();const net=quoteList.reduce((a,q)=>a+Number(q.net_total||0),0);
-  document.getElementById('metricProperties').textContent=properties.length;document.getElementById('metricInquiries').textContent=inquiries.length;document.getElementById('metricProjects').textContent=projects.length;document.getElementById('metricQuotes').textContent=quoteList.length;document.getElementById('metricNet').textContent=money(net);
-  document.getElementById('newProjectLink').href=`/projects/new?customer_id=${customerId}`;document.getElementById('newInquiryLink').href=`/inquiries?customer_id=${customerId}`;
+  stammdatenStand=stammdatenWerte();el('customerStatus').textContent='';el('stammdatenDialog').showModal();
 }
-async function saveCustomer(){const s=document.getElementById('customerStatus');try{if(!v('category'))throw Error('Bitte eine Kundenkategorie wählen.');const body=JSON.stringify({customer_number:v('customerNumber'),category:v('category'),salutation:nv('salutation'),title:nv('title'),first_name:nv('firstName'),last_name:v('lastName'),contact_person:nv('contact'),street:nv('street'),country:v('country')||'Deutschland',postal_code:nv('zip'),city:nv('city'),email:nv('email'),email_2:nv('email2'),phone:nv('phone'),mobile:nv('mobile'),fax:nv('fax'),notes:nv('notes'),default_payment_term_id:v('defaultPaymentTerm')?Number(v('defaultPaymentTerm')):null,is_consumer:document.getElementById('isConsumer').checked});await speichern('kunde',()=>api(`/api/customers/${customerId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:body}),{anwenden:d=>{customer=d},neuLaden:load});s.textContent='Gespeichert.'}catch(e){s.textContent='Fehler: '+e.message}}
+aktion('stammdaten-bearbeiten',()=>stammdatenOeffnen());
+// Seit 1.9.137 (Regel 22, PUT als Teil-Update seit 1.9.136): gesendet wird nur, was im Dialog geändert ist -- verglichen mit dem Stand beim Öffnen
+async function saveCustomer(){
+  const s=el('customerStatus');
+  try{
+    if(!v('category'))throw Error('Bitte eine Kundenkategorie wählen.');
+    if(!v('lastName').trim())throw Error('Bitte Nachname bzw. Firma angeben.');
+    const jetzt=stammdatenWerte(),stand=stammdatenStand||{},geaendert={};  // ohne Stand (Dialog nie geöffnet) alles
+    Object.keys(jetzt).forEach(k=>{if(jetzt[k]!==stand[k])geaendert[k]=jetzt[k]});
+    if(!Object.keys(geaendert).length){el('stammdatenDialog').close();return}
+    const body=JSON.stringify(geaendert);
+    await speichern('kunde',()=>api(`/api/customers/${customerId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:body}),{neuLaden:load});
+    el('stammdatenDialog').close();seitenStatus('Stammdaten gespeichert.');
+  }catch(e){s.textContent='Fehler: '+e.message}
+}
+aktion('stammdaten-speichern',()=>saveCustomer());
+
+// --- Kontakte & Kundenwissen ----------------------------------------------------------------------------------------------------------
 /* seit 1.9.12 über auswahlOptionen(): eine gespeicherte Art außerhalb der Liste (bis 1.9.11 legte „Kunde anlegen“ „Telefon“, „E-Mail“ …
    an) bleibt gewählt und erhalten -- vorher stand „Telefon“ (phone) da, und Speichern schrieb phone */
 const ZUSATZINFO_ARTEN=[['phone','Telefon'],['email','E-Mail'],['birthday','Geburtstag'],['info','Information']];
 function typeOptions(type){return auswahlOptionen(ZUSATZINFO_ARTEN,type,([,l])=>l,{wert:([x])=>x})}
 function extraInputType(type){return type==='email'?'email':type==='birthday'?'date':type==='phone'?'tel':'text'}
-function renderExtras(){const h=document.getElementById('extras');h.innerHTML=customer.extra_infos.map(i=>`<div class="extra-row" data-id="${i.id}"><div class="field"><label>Typ</label><select class="xt" onchange="this.closest('.extra-row').querySelector('.xv').type=extraInputType(this.value)">${typeOptions(i.info_type)}</select></div><div class="field"><label>Bezeichnung</label><input class="xl" value="${esc(i.label||'')}"></div><div class="field"><label>Wert</label><input class="xv" type="${extraInputType(i.info_type)}" value="${esc(i.value)}"></div><button onclick="saveExtra(${i.id})">Speichern</button><button class="danger" onclick="deleteExtra(${i.id})">×</button></div>`).join('');document.getElementById('extraEmpty').classList.toggle('hidden',customer.extra_infos.length>0)}
-function newExtra(){const h=document.getElementById('extras');const d=document.createElement('div');d.className='extra-row';d.dataset.id='new';d.innerHTML=`<div class="field"><label>Typ</label><select class="xt" onchange="this.closest('.extra-row').querySelector('.xv').type=extraInputType(this.value)">${typeOptions('phone')}</select></div><div class="field"><label>Bezeichnung</label><input class="xl" placeholder="z. B. Mobil"></div><div class="field"><label>Wert</label><input class="xv" type="tel"></div><button onclick="createExtra(this)">Speichern</button><button class="secondary" onclick="this.closest('.extra-row').remove()">×</button>`;h.prepend(d);document.getElementById('extraEmpty').classList.add('hidden')}
-function extraPayload(row){return{info_type:row.querySelector('.xt').value,label:row.querySelector('.xl').value.trim()||null,value:row.querySelector('.xv').value.trim()}}
-async function createExtra(btn){const row=btn.closest('.extra-row');try{if(!extraPayload(row).value)throw new Error('Bitte einen Wert eingeben.');const body=JSON.stringify(extraPayload(row));await speichern('kunde',()=>api(`/api/customers/${customerId}/extra-infos`,{method:'POST',headers:{'Content-Type':'application/json'},body:body}),{neuLaden:load})}catch(e){alert(e.message)}}
-async function saveExtra(id){const row=document.querySelector(`.extra-row[data-id="${id}"]`);try{const body=JSON.stringify(extraPayload(row));await speichern('kunde',()=>api(`/api/customers/${customerId}/extra-infos/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:body}),{neuLaden:load})}catch(e){alert(e.message)}}
-async function deleteExtra(id){if(!confirm('Diesen Eintrag löschen?'))return;try{await speichern('kunde',()=>api(`/api/customers/${customerId}/extra-infos/${id}`,{method:'DELETE'}),{neuLaden:load})}catch(e){alert(e.message)}}
+function extraArt(t){const a=ZUSATZINFO_ARTEN.find(([x])=>x===t);return a?a[1]:String(t||'')}
+function extraWertHtml(i){
+  if(i.info_type==='phone')return `<a href="tel:${esc(String(i.value||'').replace(/[^\d+]/g,''))}">${esc(i.value)}</a>`;
+  if(i.info_type==='email')return `<a href="mailto:${esc(i.value)}">${esc(i.value)}</a>`;
+  if(i.info_type==='birthday')return esc(tagLang(i.value)||i.value);
+  return esc(i.value);
+}
+function renderExtras(){
+  const liste=customer.extra_infos||[];
+  el('extras').innerHTML=liste.length?`<table><thead><tr><th>Art</th><th>Bezeichnung</th><th>Wert</th><th><span class="eb" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Aktionen</span></th></tr></thead><tbody>${liste.map(i=>`<tr data-id="${i.id}"><td>${esc(extraArt(i.info_type))}</td><td>${esc(i.label||'')}</td><td class="umbruch">${extraWertHtml(i)}</td><td class="r"><span class="zeile-flex" style="justify-content:flex-end"><button type="button" class="knopf-link" data-klick="eintrag-bearbeiten" data-id="${i.id}">Bearbeiten</button><button type="button" class="knopf-link fehler" data-klick="eintrag-loeschen" data-id="${i.id}">Löschen</button></span></td></tr>`).join('')}</tbody></table>`:'<div class="empty">Noch keine zusätzlichen Informationen vorhanden.</div>';
+  // Übersicht: Personen und Wissen, wie die Vorlage (fett die Bezeichnung, darunter der Wert)
+  el('uKontakteListe').innerHTML=liste.length?liste.slice(0,5).map(i=>i.info_type==='info'?`<div class="li" style="flex-direction:column;gap:2px"><span class="eb" style="font-size:10px">${esc(i.label||'Wissen')}</span><span style="font-size:14px;white-space:pre-wrap">${esc(i.value)}</span></div>`:`<div class="li" style="flex-direction:column;gap:2px"><span style="font-size:14px;font-weight:600">${esc(i.label||extraArt(i.info_type))}</span><span class="mut sml">${i.label?esc(extraArt(i.info_type))+' · ':''}${extraWertHtml(i)}</span></div>`).join('')+(liste.length>5?`<p class="sml" style="margin:8px 0 0"><a href="#kontakte" style="font-weight:600">Alle ${zahlText(liste.length,0)} Einträge</a></p>`:''):'<p class="mut sml" style="margin:0">Noch keine Einträge.</p>';
+}
+function newExtra(){editExtraId=null;el('extraTitel').textContent='Neuer Eintrag';el('extraTyp').innerHTML=typeOptions('phone');el('extraLabel').value='';el('extraWert').value='';el('extraWert').type='tel';el('extraStatus').textContent='';el('extraDialog').showModal()}
+function editExtra(id){const i=(customer.extra_infos||[]).find(x=>x.id===id);if(!i)return;editExtraId=id;el('extraTitel').textContent='Eintrag bearbeiten';el('extraTyp').innerHTML=typeOptions(i.info_type);el('extraLabel').value=i.label||'';el('extraWert').type=extraInputType(i.info_type);el('extraWert').value=i.value||'';el('extraStatus').textContent='';el('extraDialog').showModal()}
+function extraPayload(){return{info_type:el('extraTyp').value,label:el('extraLabel').value.trim()||null,value:el('extraWert').value.trim()}}
+async function saveExtra(){
+  const st=el('extraStatus');
+  try{
+    const p=extraPayload();if(!p.value)throw new Error('Bitte einen Wert eingeben.');
+    const body=JSON.stringify(p),id=editExtraId;
+    if(id===null)await speichern('kunde',()=>api(`/api/customers/${customerId}/extra-infos`,{method:'POST',headers:{'Content-Type':'application/json'},body:body}),{neuLaden:load});
+    else await speichern('kunde',()=>api(`/api/customers/${customerId}/extra-infos/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:body}),{neuLaden:load});
+    el('extraDialog').close();
+  }catch(e){st.textContent='Fehler: '+e.message}
+}
+async function deleteExtra(id){if(!confirm('Diesen Eintrag löschen?'))return;try{await speichern('kunde',()=>api(`/api/customers/${customerId}/extra-infos/${id}`,{method:'DELETE'}),{neuLaden:load})}catch(e){seitenStatus('Fehler: '+e.message)}}
+aktion('eintrag-neu',()=>newExtra());
+aktion('eintrag-bearbeiten',b=>editExtra(Number(b.dataset.id)));
+aktion('eintrag-loeschen',b=>deleteExtra(Number(b.dataset.id)));
+aktion('eintrag-speichern',()=>saveExtra());
+aktion('eintrag-typ',()=>{el('extraWert').type=extraInputType(el('extraTyp').value)},'change');
+
+// --- Projekte (Phase und Zahlen vom Server, app/kundenakte.py::projekte()) ------------------------------------------------------------
+// Kennzeichen der Phase wie die Vorlage: Anfrage und Angebot blau, ab dem Auftrag grün, abgeschlossen und storniert grau
+function phaseArt(s){return ['anfrage','angebot'].includes(s)?'info':['abgeschlossen','storniert'].includes(s)?'neutral':'ok'}
+function projektUnter(p){
+  if(p.auftraege.length)return [`${zahlText(p.auftraege.length,0)} ${p.auftraege.length===1?'Auftrag':'Aufträge'}`,p.bauleitung?'Bauleitung '+p.bauleitung:null,p.seit?'seit '+tagLang(p.seit):null].filter(Boolean).join(' · ');
+  if(p.angebot)return `Angebot ${p.angebot.quote_number||''}`+(p.angebot.versendet_am?' · per E-Mail am '+tagLang(p.angebot.versendet_am):' · '+p.angebot.status_label);
+  return p.objekt||'noch kein Angebot';
+}
+function projektZahlen(p){
+  const z=p.zahlen;
+  if(p.auftraege.length){
+    const abg=Number(z.abgerechnet)?`abgerechnet ${esc(money(z.abgerechnet))} · <span class="${Number(z.unbezahlt)?'unbezahlt':''}">unbezahlt ${esc(money(z.unbezahlt))}</span>`:'noch nicht abgerechnet';
+    return `<span class="num" style="font-size:15px;font-weight:600">${esc(money(z.auftragssumme))} netto</span><span class="num sml mut">${abg}</span>`;
+  }
+  if(p.angebot)return `<span class="num" style="font-size:15px;font-weight:600">${esc(money(p.angebot.net_total))} netto</span><span class="sml mut">noch nicht beauftragt</span>`;
+  return '<span class="sml mut">noch kein Angebot</span>';
+}
+function projektZeile(p,oben=false){
+  const k=statusKennzeichen('projekt',p.status);
+  return `<div class="li li-projekt" style="align-items:center;padding:${oben?'0 0 4px;border-top:0':'12px 0'}" data-projekt="${p.id}"><div class="li-text" style="gap:3px"><span class="zeile-flex" style="gap:10px"><a href="/projects/${p.id}" style="font-size:15px;font-weight:600">${esc(p.project_number)} · ${esc(p.name)}</a><span class="chip chip-${esc(phaseArt(p.status))}">${esc(k.text)}</span>${p.archived?'<span class="chip chip-neutral">archiviert</span>':''}</span><span class="mut sml">${esc(projektUnter(p))}</span></div><div class="li-rechts">${projektZahlen(p)}</div></div>`;
+}
+function uebersichtProjekte(){
+  const alle=akte.projekte,laufend=alle.filter(p=>p.laufend),fertig=alle.filter(p=>!p.laufend);
+  el('uAlleProjekte').textContent=alle.length?`Alle ${zahlText(alle.length,0)} Projekte`:'Projekte';
+  el('uProjekteListe').innerHTML=laufend.length?laufend.map(projektZeile).join(''):`<p class="mut sml" style="margin:0">${alle.length?'Kein laufendes Projekt.':'Noch kein Projekt – „+ Projekt“ legt eines an.'}</p>`;
+  const ab=el('uAbgeschlossen');ab.hidden=!fertig.length;
+  ab.innerHTML=fertig.length?'Abgeschlossen: '+fertig.slice(0,5).map(p=>`<a href="/projects/${p.id}">${esc(p.project_number)}</a> ${esc(p.name)}`).join(' · ')+(fertig.length>5?` · <a href="#projekte">und ${zahlText(fertig.length-5,0)} weitere</a>`:''):'';
+}
+function renderProjects(){
+  el('projects').innerHTML=akte.projekte.length?akte.projekte.map(p=>{
+    const auftraege=p.auftraege.length?`<div class="tabelle-wrap"><table aria-label="Aufträge"><thead><tr><th>Auftrag</th><th>Status</th><th class="r">Auftragssumme</th><th class="r">Abgerechnet</th><th class="r">Noch nicht abgerechnet</th><th class="r">Unbezahlt</th></tr></thead><tbody>${p.auftraege.map(o=>`<tr><td><a href="/projects/${p.id}?auftrag=${o.id}">${esc(o.order_number)}</a></td><td><span class="chip chip-${esc(statusKennzeichen('auftrag',o.status).art)}">${esc(o.status_label)}</span></td><td class="r num">${esc(money(o.auftragssumme))}</td><td class="r num">${esc(money(o.abgerechnet))}</td><td class="r num">${esc(money(o.noch_nicht_abgerechnet))}</td><td class="r num${Number(o.unbezahlt)?' unbezahlt':''}">${esc(money(o.unbezahlt))}</td></tr>`).join('')}</tbody></table></div>`:'';
+    const angebote=p.angebote.length?`<div class="tabelle-wrap"><table aria-label="Angebote"><thead><tr><th>Angebot</th><th>Bezeichnung</th><th>Stand</th><th class="r">Netto</th><th class="r">Brutto</th></tr></thead><tbody>${p.angebote.map(q=>`<tr><td><a href="/quotes/${q.id}/edit"><b>${esc(q.quote_number)}</b></a></td><td>${esc(q.title)}</td><td><span class="chip chip-${esc(statusKennzeichen('angebot',q.status).art)}">${esc(q.status_label)}</span></td><td class="r num">${esc(money(q.net_total))}</td><td class="r num">${esc(money(q.gross_total))}</td></tr>`).join('')}</tbody></table></div>`:'<p class="mut sml" style="margin:0">Noch kein Angebot.</p>';
+    return `<section class="karte" data-projekt-karte="${p.id}" style="gap:8px">${projektZeile(p,true)}${p.objekt?`<span class="mut sml">Objekt: ${esc(p.objekt)}</span>`:''}${auftraege}${angebote}</section>`;
+  }).join(''):'<div class="empty">Noch keine Projekte vorhanden.</div>';
+}
+
+// --- Geld (Übersicht) und Zahlungen ---------------------------------------------------------------------------------------------------
+function jahrWerte(j){return (akte.geld.je_jahr||[]).find(w=>w.jahr===j)||{abgerechnet:0,bezahlt:0,zahlungen:0,rechnungen:0}}
+function zahlHtml(name,wert,unter,warn){return `<div class="zahl"><span class="eb">${esc(name)}</span><span class="gross${warn?' warn':''}">${esc(wert)}</span><span class="mut sml">${esc(unter||'')}</span></div>`}
+function anzahl(n,eins,mehr){return `${zahlText(n,0)} ${n===1?eins:mehr}`}
+function guthabenUnter(b){
+  if(!Number(b.total))return 'kein Guthaben';
+  if(b.lines.length===1)return b.lines[0].kind==='rest'?'Rest einer Zahlung vom '+tagLang(b.lines[0].date):'Überzahlung aus '+(b.lines[0].invoice_number||'Schlussrechnung');
+  return anzahl(b.lines.length,'Posten','Posten');
+}
+// Vorschlag zum Guthaben (app/kundenakte.py::vorschlaege()): Text und Knöpfe -- gebucht wird erst mit dem Klick im Dialog
+function vorschlagHtml(x,kurz){
+  const rest=esc(money(x.rest)),eingang=esc(tagLang(x.eingang));
+  let text;
+  if(x.art==='zuordnen')text=kurz?`<b>Guthaben und unbezahlte Rechnung:</b> Die ${esc(money(x.betrag))} lassen sich auf ${esc(x.invoice_number||'')} zuordnen – gebucht wird erst mit deinem Klick.`:`<b>Rest ${rest} aus dem Eingang vom ${eingang}.</b> Auf die unbezahlte ${esc(x.invoice_number||'')} zuordnen oder an den Kunden erstatten – gebucht wird erst mit deinem Klick.`;
+  else if(x.payment_id)text=kurz?`<b>Guthaben:</b> Die ${rest} lassen sich an den Kunden erstatten – es gibt keine unbezahlte Rechnung.`:`<b>Rest ${rest} aus dem Eingang vom ${eingang}.</b> Keine unbezahlte Rechnung – an den Kunden erstatten oder stehen lassen; gebucht wird erst mit deinem Klick.`;
+  else text=`<b>Guthaben ${rest} aus der Schlussrechnung ${esc(x.invoice_number||'')}.</b> An den Kunden erstatten – gebucht wird erst mit deinem Klick.`;
+  let knoepfe='';
+  if(GELD){
+    const erst=`<button type="button" class="secondary" data-klick="vorschlag-erstatten" data-zahlung="${Number(x.payment_id||0)}" data-rechnung="${Number(x.invoice_id||0)}">Erstattung buchen …</button>`;
+    knoepfe=x.art==='zuordnen'?(kurz?`<button type="button" class="secondary" data-klick="vorschlag-zuordnen" data-zahlung="${Number(x.payment_id)}" data-rechnung="${Number(x.invoice_id)}">Zuordnen …</button>`:erst+`<button type="button" data-klick="vorschlag-zuordnen" data-zahlung="${Number(x.payment_id)}" data-rechnung="${Number(x.invoice_id)}">Auf ${esc(x.invoice_number||'')} zuordnen …</button>`):erst;
+  }
+  return `<div class="hinweis-zeile" data-vorschlag="${esc(x.art)}"><div>${text}</div>${knoepfe}</div>`;
+}
+function geldZeichnen(){
+  const g=akte.geld,b=g.guthaben,j=jahrWerte(g.jahr),vj=jahrWerte(g.jahr-1);
+  const unbUnter=g.unbezahlte_rechnungen?[anzahl(g.unbezahlte_rechnungen,'Rechnung','Rechnungen'),g.ueberfaellig_seit?'überfällig seit '+tagLang(g.ueberfaellig_seit):null].filter(Boolean).join(', '):'keine unbezahlte Rechnung';
+  el('uGeldZahlen').innerHTML=zahlHtml('Unbezahlt · brutto',money(g.unbezahlt),unbUnter,Number(g.unbezahlt)>0)+zahlHtml('Guthaben',money(b.total),guthabenUnter(b))
+    +zahlHtml('Abgerechnet '+g.jahr,money(j.abgerechnet),`netto · ${g.jahr-1}: ${money(vj.abgerechnet)}`)+zahlHtml('Bezahlt '+g.jahr,money(j.bezahlt),'brutto');
+  el('uGeldHinweis').innerHTML=akte.vorschlaege.length?vorschlagHtml(akte.vorschlaege[0],true):'';
+  // Reiter Zahlungen: vier Kennzahlen (Unbezahlt als Signalkarte), unbezahlte Rechnungen, Vorschläge
+  const kachel=(inhalt,signal)=>`<section class="${signal?'karte-signal':'karte kachel'}">${inhalt}</section>`;
+  el('zKacheln').innerHTML=kachel(zahlHtml('Unbezahlt · brutto',money(g.unbezahlt),g.ueberfaellig_seit?'überfällig seit '+tagLang(g.ueberfaellig_seit):(g.unbezahlte_rechnungen?anzahl(g.unbezahlte_rechnungen,'Rechnung','Rechnungen'):'keine unbezahlte Rechnung'),Number(g.unbezahlt)>0),Number(g.unbezahlt)>0)
+    +kachel(zahlHtml('Guthaben',money(b.total),Number(b.total)?'zuordnen oder erstatten':'kein Guthaben'))
+    +kachel(zahlHtml('Bezahlt '+g.jahr,money(j.bezahlt),anzahl(j.zahlungen,'Zahlung','Zahlungen')))+kachel(zahlHtml('Bezahlt '+(g.jahr-1),money(vj.bezahlt),anzahl(vj.zahlungen,'Zahlung','Zahlungen')));
+  el('zUnbezahltZahl').textContent=g.unbezahlte.length?zahlText(g.unbezahlte.length,0):'';
+  el('zUnbezahlt').innerHTML=rechnungsTabelleHtml(g.unbezahlte,{spalten:['rechnung','projekt','faellig','brutto','unbezahlt','zahlstand'],kopf:{zahlstand:'Stand'},mitJahr:true,leer:'Keine unbezahlte Rechnung.'});
+  el('zVorschlaege').innerHTML=akte.vorschlaege.map(x=>vorschlagHtml(x,false)).join('');
+}
+// Seit 1.8.78: Zahlungen des Kunden (app/payments.py); seit 1.9.137 als Tabelle der Zahlungseingänge, je Eingang „⋮“ (nur darf_geld()).
+// Beträge über _zahl.html -- gefüllt mit zahlText(…, 2), gelesen mit zahlFeld().
+async function loadPayments(){
+  let neu;
+  try{neu=await lesen('zahlungen',()=>Promise.all([api(`/api/customers/${customerId}/payments`),api(`/api/customers/${customerId}/open-invoices`)]),([d,o])=>{customerPaymentsData=d;customerOpenInvoices=o})}catch(e){el('customerPayments').innerHTML=`<p class="mut sml" style="margin:0">${esc(e.message)}</p>`;return}
+  if(neu)renderPayments();
+}
+function unbezahlteZumZuordnen(){return customerOpenInvoices.filter(o=>Number(o.payment.open)>0)}
+function zahlungZeile(p){
+  const art=p.is_refund?'Erstattung (Zahlungsausgang)':p.origin==='uebernommen'?'übernommen aus „bezahlt“':'Zahlung';
+  const zug=p.allocations.map(a=>`<div class="${a.reversed?'pay-reversed':''}"><a href="/invoices/${a.invoice_id}">${esc(a.invoice_number||'Rechnung')}</a> ${esc(money(a.amount))}${a.kind!=='zahlung'?' · '+esc(a.kind_label):''}${a.reversed?` – gegengebucht: ${esc(a.reversal.reason)}`:''}</div>`)
+    .concat((p.refund_sources||[]).map(s=>`<div data-erstattet-aus="${s.payment_id}">aus dem Rest des Eingangs vom ${esc(tagLang(s.received_on))}: ${esc(money(-s.amount))}</div>`))
+    .concat((p.refunded_from_rest||[]).map(s=>`<div data-erstattet-mit="${s.refund_payment_id}">erstattet am ${esc(tagLang(s.paid_on))}: ${esc(money(s.amount))}</div>`)).join('');
+  const rest=p.reversed?'<span class="chip chip-neutral">zurückgenommen</span>':(!p.is_refund&&Number(p.rest)>0?`<span class="chip chip-info" data-rest>Rest ${esc(money(p.rest))}</span>`:'<span class="mut">—</span>');
+  let menue='';
+  if(GELD&&!p.reversed){  // seit 1.9.111 nur mit darf_geld()
+    const mitRest=!p.is_refund&&Number(p.rest)>0;
+    menue=`<span class="menue-anker"><button type="button" class="iconbtn" aria-label="Zahlung vom ${esc(tagLang(p.received_on))} – Aktionen" aria-haspopup="menu">⋮</button><div class="ds-menue" role="menu" hidden><button type="button" class="ds-menue-eintrag" data-klick="zahlung-zuordnen" data-zahlung="${p.id}"${mitRest&&unbezahlteZumZuordnen().length?'':' hidden'}>Zuordnen …</button><button type="button" class="ds-menue-eintrag" data-klick="zahlung-erstatten" data-zahlung="${p.id}"${mitRest?'':' hidden'}>Erstatten …</button><div class="ds-menue-trenner" role="separator"></div><button type="button" class="ds-menue-eintrag ds-menue-eintrag-fehler" data-klick="zahlung-zuruecknehmen" data-zahlung="${p.id}">Zurücknehmen …</button></div></span>`;
+  }
+  return `<tr data-zahlung="${p.id}"${p.reversed?' class="zurueck"':''}${p.is_refund?' data-zahlungsausgang':''}><td class="num${p.reversed?' pay-reversed':''}">${esc(tagLang(p.received_on))}</td><td class="r num${p.reversed?' pay-reversed':''}" style="font-weight:600">${esc(money(p.amount))}</td><td class="umbruch">${esc(art)}${p.note?`<div class="mut sml">${esc(p.note)}</div>`:''}<div class="mut sml">Nr. ${p.id} · erfasst von ${esc(p.created_by_name)}</div></td><td class="umbruch">${zug||'<span class="mut">noch nichts zugeordnet</span>'}${p.reversed?`<div class="mut sml">zurückgenommen von ${esc(p.reversal.created_by_name)}: ${esc(p.reversal.reason)}</div>`:''}</td><td>${rest}</td><td style="width:44px">${menue}</td></tr>`;
+}
+function renderPayments(){
+  const d=customerPaymentsData;
+  el('customerPayments').innerHTML=d.payments.length?`<table aria-label="Zahlungseingänge"><thead><tr><th>Eingang</th><th class="r">Betrag</th><th>Art</th><th>Zugeordnet</th><th>Rest</th><th><span class="eb" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Aktionen</span></th></tr></thead><tbody>${d.payments.map(zahlungZeile).join('')}</tbody></table>`:'<p class="mut sml" style="margin:0">Noch keine Zahlung gebucht. Zahlungseingänge bucht man an der Rechnung.</p>';
+  document.querySelectorAll('#customerPayments .menue-anker').forEach(a=>dsMenue(a.querySelector('button'),a.querySelector('.ds-menue')));
+}
+function zahlung(pid){return ((customerPaymentsData&&customerPaymentsData.payments)||[]).find(x=>x.id===pid)}
+// Zuordnen: Rest einer Zahlung auf eine unbezahlte Rechnung (POST /api/payments/{id}/allocations)
+function zuordnenOeffnen(pid,invoiceId){
+  const p=zahlung(pid);if(!p)return;zahlungId=pid;
+  el('zuordnenText').textContent=`Rest ${money(p.rest)} aus dem Eingang vom ${tagLang(p.received_on)} (Nr. ${p.id}).`;
+  // Seit 1.8.94: enthaltene Rechnungen gruppiert unter ihrer Schlussrechnung (_zahlung_gruppen.html)
+  el('restInvoice').innerHTML='<option value="">Rechnung wählen …</option>'+zahlungsOptionen(unbezahlteZumZuordnen(),o=>`${o.invoice_number||''} · unbezahlt ${money(o.payment.open)}`);
+  if(invoiceId)auswahlWert(el('restInvoice'),String(invoiceId));
+  restInvoiceChanged();el('zuordnenStatus').textContent='';el('zuordnenDialog').showModal();
+}
+function restInvoiceChanged(){const p=zahlung(zahlungId),o=customerOpenInvoices.find(x=>String(x.invoice_id)===el('restInvoice').value);el('restAmount').value=p?zahlText(o?Math.min(Number(p.rest),Number(o.payment.open)):Number(p.rest),2):''}
+async function allocateRest(){
+  const st=el('zuordnenStatus'),pid=zahlungId,invoiceId=Number(el('restInvoice').value);
+  if(!invoiceId){st.textContent='Bitte eine Rechnung wählen.';return}
+  try{const amount=zahlFeld('restAmount',{leer:0});if(!(amount>0)){st.textContent='Bitte einen Betrag angeben.';return}const body=JSON.stringify({lines:[{invoice_id:invoiceId,zahlung:amount.toFixed(2)}]});await abschliessen('zahlungen',()=>api(`/api/payments/${pid}/allocations`,{method:'POST',headers:{'Content-Type':'application/json'},body:body}),{neuLaden:zahlungenNeu});el('zuordnenDialog').close();el('customerPaymentsStatus').textContent='Zugeordnet.'}catch(e){st.textContent='Fehler: '+e.message}
+}
+// Erstatten: Rest und Überzahlungen mit einem Zahlungsausgang (POST /api/customers/{id}/refunds); vorbelegt nur die gewählte Zeile
+function erstattenOeffnen(wahl){
+  const b=customerPaymentsData.balance;
+  el('erstattenZeilen').innerHTML=b.lines.map((l,i)=>{const gewaehlt=!wahl||(l.kind==='rest'?wahl.payment_id===l.payment_id:wahl.invoice_id===l.invoice_id);return `<tr data-guthaben-zeile="${esc(l.kind)}"><td class="umbruch">${l.kind==='rest'?`Rest des Eingangs vom ${esc(tagLang(l.date))} (Nr. ${l.payment_id})`:`Überzahlung aus Schlussrechnung <a href="/invoices/${l.invoice_id}">${esc(l.invoice_number||'')}</a> vom ${esc(tagLang(l.date))}`}</td><td class="r num">${esc(money(l.amount))}</td><td style="width:150px"><input id="refundLine-${i}" inputmode="decimal" data-zahl data-stellen="2" data-feld="Erstattungsbetrag" value="${gewaehlt?zahlText(l.amount,2):''}" aria-label="davon erstatten"></td></tr>`}).join('');
+  el('custRefundDate').value=berlinToday();el('custRefundNote').value='';el('erstattenStatus').textContent='';el('erstattenDialog').showModal();
+}
+async function bookCustomerRefund(){
+  const st=el('erstattenStatus'),b=customerPaymentsData.balance,lines=[];
+  try{
+  for(const [i,l] of b.lines.entries()){const amount=zahlFeld('refundLine-'+i,{leer:0});if(amount>0)lines.push(l.kind==='rest'?{payment_id:l.payment_id,amount:amount.toFixed(2)}:{invoice_id:l.invoice_id,amount:amount.toFixed(2)})}
+  if(!lines.length){st.textContent='Bitte mindestens einen Betrag zum Erstatten eintragen.';return}
+  const body=JSON.stringify({paid_on:el('custRefundDate').value,note:el('custRefundNote').value.trim()||null,lines});await abschliessen('zahlungen',()=>api(`/api/customers/${customerId}/refunds`,{method:'POST',headers:{'Content-Type':'application/json'},body:body}),{neuLaden:zahlungenNeu});el('erstattenDialog').close();el('customerPaymentsStatus').textContent='Erstattung gebucht.'}catch(e){st.textContent='Fehler: '+e.message}
+}
+// Zurücknehmen mit Begründung (POST /api/payments/{id}/reverse); seit 1.8.94 nur, wenn es geht -- sonst der Grund vom Server
+function zuruecknehmenOeffnen(pid){
+  const p=zahlung(pid);if(!p)return;zahlungId=pid;
+  el('zuruecknehmenTitel').textContent=p.is_refund?'Zahlungsausgang zurücknehmen':'Zahlung zurücknehmen';
+  el('zuruecknehmenText').textContent=`${p.is_refund?'Zahlungsausgang':'Eingang'} vom ${tagLang(p.received_on)} über ${money(p.amount)} (Nr. ${p.id}).`;
+  const grund=p.reverse_block_reason||'';el('zuruecknehmenGesperrt').hidden=!grund;el('zuruecknehmenGesperrt').textContent=grund;
+  el('zuruecknehmenFeld').hidden=!!grund;el('zuruecknehmenKnopf').hidden=!!grund;
+  el('payRevReason').value='';el('zuruecknehmenStatus').textContent='';el('zuruecknehmenDialog').showModal();
+}
+async function reversePayment(){
+  const st=el('zuruecknehmenStatus'),pid=zahlungId,reason=el('payRevReason').value.trim();
+  if(!reason){st.textContent='Bitte eine Begründung angeben.';return}
+  try{await abschliessen('zahlungen',()=>api(`/api/payments/${pid}/reverse`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})}),{neuLaden:zahlungenNeu});el('zuruecknehmenDialog').close();el('customerPaymentsStatus').textContent='Zahlung zurückgenommen.'}catch(e){st.textContent='Fehler: '+e.message}
+}
+aktion('zahlung-zuordnen',b=>zuordnenOeffnen(Number(b.dataset.zahlung),null));
+aktion('zahlung-erstatten',b=>erstattenOeffnen({payment_id:Number(b.dataset.zahlung)}));
+aktion('zahlung-zuruecknehmen',b=>zuruecknehmenOeffnen(Number(b.dataset.zahlung)));
+aktion('vorschlag-zuordnen',b=>zuordnenOeffnen(Number(b.dataset.zahlung),Number(b.dataset.rechnung)));
+aktion('vorschlag-erstatten',b=>erstattenOeffnen(Number(b.dataset.zahlung)?{payment_id:Number(b.dataset.zahlung)}:{invoice_id:Number(b.dataset.rechnung)}));
+aktion('rest-rechnung',()=>restInvoiceChanged(),'change');
+aktion('zuordnen',()=>allocateRest());
+aktion('erstatten',()=>bookCustomerRefund());
+aktion('zuruecknehmen',()=>reversePayment());
+
+// --- Objekte und Dachflächen ----------------------------------------------------------------------------------------------------------
+function projekteAmObjekt(pid){return ((akte&&akte.projekte)||[]).filter(x=>x.property_id===pid)}
 function roofAreaRows(propertyId){
   const list=(roofAreas.get(propertyId)||[]).filter(r=>!r.archived);
-  if(!list.length)return '<div class="muted small">Noch keine Dachflächen angelegt.</div>';
-  return `<div class="roof-table-wrap"><table class="roof-table"><thead><tr><th>Name</th><th>Fläche</th><th>Eindeckung</th><th>Garantie Dritter bis</th><th></th></tr></thead><tbody>${list.map(r=>`<tr><td>${esc(r.name)}</td><td>${r.area_sqm?Number(r.area_sqm).toLocaleString('de-DE')+' m²':'—'}</td><td>${esc(r.covering||'—')}</td><td>${r.third_party_guarantee_until?new Date(r.third_party_guarantee_until+'T00:00:00').toLocaleDateString('de-DE'):'—'}</td><td><a href="/roof-areas/${r.id}">Öffnen</a></td></tr>`).join('')}</tbody></table></div>`;
+  if(!list.length)return '<p class="mut sml" style="margin:0">Noch keine Dachflächen angelegt.</p>';
+  return `<div class="tabelle-wrap"><table aria-label="Dachflächen"><thead><tr><th>Dachfläche</th><th class="r">Fläche</th><th>Eindeckung</th><th>Garantie Dritter bis</th><th></th></tr></thead><tbody>${list.map(r=>`<tr><td>${esc(r.name)}</td><td class="r num">${r.area_sqm?esc(zahlText(r.area_sqm,null,TAUSENDER))+' m²':'—'}</td><td>${esc(r.covering||'—')}</td><td class="num">${r.third_party_guarantee_until?esc(tagLang(r.third_party_guarantee_until)):'—'}</td><td class="r"><a class="sml" style="font-weight:600" href="/roof-areas/${r.id}">Öffnen</a></td></tr>`).join('')}</tbody></table></div>`;
 }
-function renderProperties(){document.getElementById('properties').innerHTML=properties.map(p=>`<div class="object-card ${p.is_primary_address?'main':''}"><div class="section-title"><div><b>${esc(p.name)}</b>${p.is_primary_address?' <span class="badge">Hauptadresse</span>':''}<div class="muted small">${esc([p.street,[p.postal_code,p.city].filter(Boolean).join(' ')].filter(Boolean).join(', ')||'Keine Adresse hinterlegt')}</div>${p.notes?`<div class="small" style="margin-top:5px">${esc(p.notes)}</div>`:''}</div><div style="display:flex;gap:6px"><a href="/properties/${p.id}"><button class="secondary">Öffnen</button></a>${p.is_primary_address?'':`<button class="secondary" onclick="editProperty(${p.id})">Bearbeiten</button>`}</div></div><div style="margin-top:10px"><div class="section-title" style="margin-bottom:6px"><b class="small" style="color:var(--muted)">Dachflächen</b><button class="secondary" style="padding:5px 10px;font-size:12px" onclick="toggleNewRoofArea(${p.id})">+ Dachfläche</button></div>${roofAreaRows(p.id)}<div id="newRoofAreaForm-${p.id}" class="hidden" style="margin-top:8px;display:flex;gap:8px;align-items:end"><div class="field" style="flex:1;margin:0"><label>Bezeichnung neue Dachfläche</label><input id="newRoofAreaName-${p.id}" placeholder="z. B. Hauptdach Süd"></div><button onclick="createRoofArea(${p.id})">Anlegen</button><button class="secondary" onclick="toggleNewRoofArea(${p.id})">Abbrechen</button></div><div id="newRoofAreaStatus-${p.id}" class="status"></div></div></div>`).join('')}
-function toggleNewRoofArea(propertyId){const el=document.getElementById('newRoofAreaForm-'+propertyId);el.classList.toggle('hidden');if(!el.classList.contains('hidden'))document.getElementById('newRoofAreaName-'+propertyId).focus()}
-async function createRoofArea(propertyId){
-  const name=document.getElementById('newRoofAreaName-'+propertyId).value.trim();
-  const st=document.getElementById('newRoofAreaStatus-'+propertyId);
-  if(!name){st.className='status err';st.textContent='Bitte eine Bezeichnung angeben.';return}
+function objektUnter(p){
+  const n=(roofAreas.get(p.id)||[]).filter(r=>!r.archived).length,pr=projekteAmObjekt(p.id);
+  return [n?anzahl(n,'Dachfläche','Dachflächen'):'keine Dachfläche',pr.length?(pr.length===1?'Projekt '+pr[0].project_number:anzahl(pr.length,'Projekt','Projekte')):null].filter(Boolean).join(' · ');
+}
+function renderProperties(){
+  el('properties').innerHTML=properties.length?properties.map(p=>{const pr=projekteAmObjekt(p.id);return `<section class="karte${p.is_primary_address?' objekt-haupt':''}" data-objekt="${p.id}"><div class="karte-kopf"><div class="li-text"><span class="zeile-flex" style="gap:10px"><a class="li-titel" href="/properties/${p.id}" style="font-size:15px">${esc(p.name)}</a>${p.is_primary_address?'<span class="chip chip-ok">Hauptadresse</span>':''}</span><span class="mut sml">${esc(anschrift(p)||'Keine Adresse hinterlegt')}</span>${p.notes?`<span class="sml" style="white-space:pre-wrap">${esc(p.notes)}</span>`:''}</div><span class="zeile-flex"><a class="btn secondary" href="/properties/${p.id}">Öffnen</a>${p.is_primary_address?'':`<button type="button" class="secondary" data-klick="objekt-bearbeiten" data-id="${p.id}">Bearbeiten</button>`}<button type="button" class="secondary" data-klick="dachflaeche-neu" data-id="${p.id}">+ Dachfläche</button></span></div>${roofAreaRows(p.id)}${pr.length?`<p class="mut sml" style="margin:0">Projekte: ${pr.map(x=>`<a href="/projects/${x.id}">${esc(x.project_number)}</a> ${esc(x.name)}`).join(' · ')}</p>`:''}</section>`}).join(''):'<div class="empty">Noch kein Objekt.</div>';
+  el('uObjekteListe').innerHTML=properties.length?properties.slice(0,5).map(p=>`<div class="li" style="align-items:center"><div class="li-text"><a href="/properties/${p.id}" style="font-size:14px;font-weight:600">${esc(anschrift(p)||p.name)}</a><span class="mut sml">${esc(objektUnter(p))}</span></div></div>`).join('')+(properties.length>5?`<p class="sml" style="margin:8px 0 0"><a href="#objekte" style="font-weight:600">Alle ${zahlText(properties.length,0)} Objekte</a></p>`:''):'<p class="mut sml" style="margin:0">Noch kein Objekt.</p>';
+}
+function newProperty(){setv('propertyId','');setv('propertyName','');setv('propertyStreet','');setv('propertyZip','');setv('propertyCity','');setv('propertyNotes','');el('propertyEditorTitle').textContent='Neues Objekt';el('propertyStatus').textContent='';el('propertyDialog').showModal()}
+function editProperty(id){const p=properties.find(x=>x.id===id);if(!p)return;setv('propertyId',p.id);setv('propertyName',p.name);setv('propertyStreet',p.street);setv('propertyZip',p.postal_code);setv('propertyCity',p.city);setv('propertyNotes',p.notes);el('propertyEditorTitle').textContent='Objekt bearbeiten';el('propertyStatus').textContent='';el('propertyDialog').showModal()}
+function closePropertyEditor(){el('propertyDialog').close()}
+async function saveProperty(){const id=v('propertyId');const payload={name:v('propertyName'),street:nv('propertyStreet'),postal_code:nv('propertyZip'),city:nv('propertyCity'),notes:nv('propertyNotes')};const s=el('propertyStatus');try{if(!payload.name.trim())throw Error('Bitte eine Bezeichnung angeben.');if(id)await speichern('kunde',()=>api(`/api/properties/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{neuLaden:load});else await speichern('kunde',()=>api('/api/properties',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_id:customerId,...payload})}),{neuLaden:load});closePropertyEditor();seitenStatus('Objekt gespeichert.')}catch(e){s.textContent='Fehler: '+e.message}}
+function newRoofArea(propertyId){const p=properties.find(x=>x.id===propertyId);roofAreaPropertyId=propertyId;el('roofAreaObjekt').textContent=p?'Objekt: '+p.name:'';el('newRoofAreaName').value='';el('newRoofAreaStatus').textContent='';el('roofAreaDialog').showModal()}
+async function createRoofArea(){
+  const propertyId=roofAreaPropertyId,name=el('newRoofAreaName').value.trim(),st=el('newRoofAreaStatus');
+  if(!name){st.textContent='Bitte eine Bezeichnung angeben.';return}
   try{
     const result=await speichern('dachflaechen',()=>api('/api/roof-areas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({property_id:propertyId,name})}));
     location.href='/roof-areas/'+result.id;
-  }catch(e){st.className='status err';st.textContent='Fehler: '+e.message}
+  }catch(e){st.textContent='Fehler: '+e.message}
 }
-function newProperty(){setv('propertyId','');setv('propertyName','');setv('propertyStreet','');setv('propertyZip','');setv('propertyCity','');setv('propertyNotes','');document.getElementById('propertyEditorTitle').textContent='Neues Objekt';document.getElementById('propertyEditor').classList.remove('hidden')}
-function editProperty(id){const p=properties.find(x=>x.id===id);if(!p)return;setv('propertyId',p.id);setv('propertyName',p.name);setv('propertyStreet',p.street);setv('propertyZip',p.postal_code);setv('propertyCity',p.city);setv('propertyNotes',p.notes);document.getElementById('propertyEditorTitle').textContent='Objekt bearbeiten';document.getElementById('propertyEditor').classList.remove('hidden')}
-function closePropertyEditor(){document.getElementById('propertyEditor').classList.add('hidden')}
-async function saveProperty(){const id=v('propertyId');const payload={name:v('propertyName'),street:nv('propertyStreet'),postal_code:nv('propertyZip'),city:nv('propertyCity'),notes:nv('propertyNotes')};const s=document.getElementById('propertyStatus');try{if(id)await speichern('kunde',()=>api(`/api/properties/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),{neuLaden:load});else await speichern('kunde',()=>api('/api/properties',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer_id:customerId,...payload})}),{neuLaden:load});s.textContent='Gespeichert.';closePropertyEditor()}catch(e){s.textContent='Fehler: '+e.message}}
-function inquiryStatus(x){return({neu:'Neu',termin_offen:'Termin abstimmen',termin_geplant:'Termin geplant',aufmass_erfolgt:'Aufmaß erfolgt',projekt_erstellt:'Projekt / Angebot',gewonnen:'Gewonnen',verloren:'Verloren'}[x]||x)}
-function renderInquiries(){document.getElementById('inquiries').innerHTML=inquiries.map(i=>`<div class="project-card"><div class="section-title"><div><b>${esc(i.inquiry_number)} · ${esc(i.title)}</b><div class="muted small">${esc(i.property_name||'Kein Objekt')} · ${esc(inquiryStatus(i.status))}</div>${i.follow_up_at?`<div class="small" style="margin-top:5px">Wiedervorlage: ${esc(new Date(i.follow_up_at).toLocaleString('de-DE'))}</div>`:''}</div><a href="/inquiries"><button class="secondary">Pipeline öffnen</button></a></div></div>`).join('');document.getElementById('inquiriesEmpty').classList.toggle('hidden',inquiries.length>0)}
-function renderProjects(){const h=document.getElementById('projects');h.innerHTML=projects.map(p=>{const qs=projectQuotes.get(p.id)||[];return`<div class="project-card"><div class="section-title"><div><b>${esc(p.project_number)} · ${esc(p.name)}</b><div class="muted small">${esc(p.property_name||'Kein Objekt')} · Status ${esc(p.status)}</div></div><a href="/projects?project_id=${p.id}"><button class="secondary">Projekt öffnen</button></a></div><div style="margin-top:8px">${qs.length?qs.map(q=>`<div class="quote"><div><b>${esc(q.quote_number)}</b></div><div>${esc(q.title)} <span class="badge">${esc(q.status)}</span></div><div class="number">${money(q.net_total)} netto</div><div class="number">${money(q.gross_total)} brutto</div></div>`).join(''):'<div class="muted small">Noch kein Angebot.</div>'}</div></div>`}).join('');document.getElementById('projectsEmpty').classList.toggle('hidden',projects.length>0)}
+aktion('objekt-neu',()=>newProperty());
+aktion('objekt-bearbeiten',b=>editProperty(Number(b.dataset.id)));
+aktion('objekt-speichern',()=>saveProperty());
+aktion('dachflaeche-neu',b=>newRoofArea(Number(b.dataset.id)));
+aktion('dachflaeche-anlegen',()=>createRoofArea());
 
+// --- Anfragen -------------------------------------------------------------------------------------------------------------------------
+function inquiryStatus(x){return({neu:'Neu',termin_offen:'Termin abstimmen',termin_geplant:'Termin geplant',aufmass_erfolgt:'Aufmaß erfolgt',projekt_erstellt:'Projekt / Angebot',gewonnen:'Gewonnen',verloren:'Verloren'}[x]||x)}
+function renderInquiries(){el('inquiries').innerHTML=inquiries.length?inquiries.map(i=>`<div class="li" style="align-items:center"><div class="li-text"><span class="li-titel">${esc(i.inquiry_number)} · ${esc(i.title)}</span><span class="mut sml">${esc(i.property_name||'Kein Objekt')} · ${esc(inquiryStatus(i.status))}${i.follow_up_at?' · Wiedervorlage '+esc(new Date(i.follow_up_at).toLocaleString('de-DE')):''}</span></div><a class="sml" style="font-weight:600" href="/inquiries">Pipeline öffnen</a></div>`).join(''):'<div class="empty">Noch keine Anfrage vorhanden.</div>'}
+
+// --- Dokumente ------------------------------------------------------------------------------------------------------------------------
 function docIcon(d){if(d.is_image)return `<img loading="lazy" src="/api/customer-documents/${d.id}/view" alt="">`;if(d.content_type==='application/pdf')return 'PDF';if((d.content_type||'').includes('spreadsheet')||(d.original_filename||'').match(/\.xlsx?$/i))return 'XLS';if((d.content_type||'').includes('word')||(d.original_filename||'').match(/\.docx?$/i))return 'DOC';return '📄'}
 function fileSize(x){return x<1024?x+' B':x<1048576?zahlText(x/1024,1)+' KB':zahlText(x/1048576,1)+' MB'}  // seit 1.9.17 über zahlText() (bis dahin „1.5 KB“)
-
 function renderDocCategories(){
   const cats=docCategoryGroup.options||[];
   const allCats=[...new Set([...cats.map(x=>x.value),...customerDocuments.map(x=>x.category)])];
   document.getElementById('docCategory').innerHTML=cats.filter(x=>x.active).map(x=>`<option value="${esc(x.value)}" ${x.is_default?'selected':''}>${esc(x.label)}</option>`).join('');
-  document.getElementById('docCategoryCards').innerHTML=`<button class="cat ${!activeDocCategory?'active':''}" onclick="filterDocCategory('')"><b>Alle Dateien</b><span class="muted small">${customerDocuments.length} Einträge</span></button>`+allCats.map(c=>`<button class="cat ${activeDocCategory===c?'active':''}" data-klick="dokumentkategorie" data-wert="${esc(c)}"><b>${esc(c)}</b><span class="muted small">${customerDocuments.filter(d=>d.category===c).length} Dateien</span></button>`).join('');
+  document.getElementById('docCategoryCards').innerHTML=`<button type="button" class="cat ${!activeDocCategory?'active':''}" data-klick="dokumentkategorie" data-wert=""><b>Alle Dateien</b><span class="mut sml">${customerDocuments.length} Einträge</span></button>`+allCats.map(c=>`<button type="button" class="cat ${activeDocCategory===c?'active':''}" data-klick="dokumentkategorie" data-wert="${esc(c)}"><b>${esc(c)}</b><span class="mut sml">${customerDocuments.filter(d=>d.category===c).length} Dateien</span></button>`).join('');
   document.getElementById('docSubfolderSuggestions').innerHTML=[...new Set(customerDocuments.map(d=>d.subfolder).filter(Boolean))].map(s=>`<option value="${esc(s)}">`).join('');
   renderDocSubfolders();
   renderCustomerDocuments();
@@ -248,26 +728,24 @@ aktion('dokumentkategorie',el=>filterDocCategory(el.dataset.wert));
 aktion('dokumentunterordner',el=>filterDocSubfolder(el.dataset.wert));
 function filterDocCategory(c){activeDocCategory=c;activeDocSubfolder='';renderDocCategories()}
 function renderDocSubfolders(){
-  const el=document.getElementById('docSubfolderCards');
-  if(!activeDocCategory){el.style.display='none';el.innerHTML='';return}
+  const box=document.getElementById('docSubfolderCards');
+  if(!activeDocCategory){box.style.display='none';box.innerHTML='';return}
   const subs=[...new Set(customerDocuments.filter(d=>d.category===activeDocCategory).map(d=>d.subfolder).filter(Boolean))].sort();
-  if(!subs.length){el.style.display='none';el.innerHTML='';return}
-  el.style.display='';
-  el.innerHTML=`<button class="cat ${!activeDocSubfolder?'active':''}" onclick="filterDocSubfolder('')"><b>Alle Unterordner</b><span class="muted small">${customerDocuments.filter(d=>d.category===activeDocCategory).length} Dateien</span></button>`+subs.map(s=>`<button class="cat ${activeDocSubfolder===s?'active':''}" data-klick="dokumentunterordner" data-wert="${esc(s)}"><b>${esc(s)}</b><span class="muted small">${customerDocuments.filter(d=>d.category===activeDocCategory&&d.subfolder===s).length} Dateien</span></button>`).join('');
+  if(!subs.length){box.style.display='none';box.innerHTML='';return}
+  box.style.display='';
+  box.innerHTML=`<button type="button" class="cat ${!activeDocSubfolder?'active':''}" data-klick="dokumentunterordner" data-wert=""><b>Alle Unterordner</b><span class="mut sml">${customerDocuments.filter(d=>d.category===activeDocCategory).length} Dateien</span></button>`+subs.map(s=>`<button type="button" class="cat ${activeDocSubfolder===s?'active':''}" data-klick="dokumentunterordner" data-wert="${esc(s)}"><b>${esc(s)}</b><span class="mut sml">${customerDocuments.filter(d=>d.category===activeDocCategory&&d.subfolder===s).length} Dateien</span></button>`).join('');
 }
 function filterDocSubfolder(s){activeDocSubfolder=s;renderDocSubfolders();renderCustomerDocuments()}
-
 function renderCustomerDocuments(){
   const q=document.getElementById('docSearch').value.trim().toLowerCase();
   const list=customerDocuments.filter(d=>(!activeDocCategory||d.category===activeDocCategory)&&(!activeDocSubfolder||d.subfolder===activeDocSubfolder)&&(!q||[d.original_filename,d.category,d.subfolder,d.description].some(x=>String(x||'').toLowerCase().includes(q))));
-  document.getElementById('customerDocuments').innerHTML=list.map(d=>`<div class="doc"><div class="thumb">${docIcon(d)}</div><div class="doc-body"><div class="doc-name" title="${esc(d.original_filename)}">${esc(d.original_filename)}</div><div class="doc-meta">${esc(d.category)}${d.subfolder?' / '+esc(d.subfolder):''} · ${esc(fileSize(d.file_size))}${d.document_date?' · '+new Date(d.document_date+'T00:00:00').toLocaleDateString('de-DE'):''}<br>${esc(berlinZeitpunkt(d.uploaded_at))}</div>${d.description?`<div class="doc-description">${esc(d.description)}</div>`:'<div class="doc-description muted">Keine Beschreibung</div>'}<div class="doc-actions">${d.can_preview?`<a target="_blank" href="/api/customer-documents/${d.id}/view">Öffnen</a>`:''}<a href="/api/customer-documents/${d.id}/download">Download</a><button class="edit" onclick="editDocRow(${d.id})">Bearbeiten</button><button class="danger" onclick="removeDocRow(${d.id})">Löschen</button></div></div></div>`).join('');
-  document.getElementById('docEmpty').classList.toggle('hidden',list.length>0);
+  document.getElementById('customerDocuments').innerHTML=list.map(d=>`<div class="doc"><div class="thumb">${docIcon(d)}</div><div class="doc-body"><div class="doc-name" title="${esc(d.original_filename)}">${esc(d.original_filename)}</div><div class="doc-meta">${esc(d.category)}${d.subfolder?' / '+esc(d.subfolder):''} · ${esc(fileSize(d.file_size))}${d.document_date?' · '+esc(tagLang(d.document_date)):''}<br>${esc(berlinZeitpunkt(d.uploaded_at))}</div>${d.description?`<div class="doc-description">${esc(d.description)}</div>`:'<div class="doc-description mut">Keine Beschreibung</div>'}<div class="doc-actions">${d.can_preview?`<a target="_blank" href="/api/customer-documents/${d.id}/view">Öffnen</a>`:''}<a href="/api/customer-documents/${d.id}/download">Download</a><button type="button" data-klick="dokument-bearbeiten" data-id="${d.id}">Bearbeiten</button><button type="button" data-klick="dokument-loeschen" data-id="${d.id}">Löschen</button></div></div></div>`).join('');
+  document.getElementById('docEmpty').hidden=list.length>0;
 }
-
 function showSelectedDocs(){
   const fs=document.getElementById('docFiles').files,n=fs.length;
   document.getElementById('docSelectedInfo').textContent=n?n+' Datei(en) ausgewählt.':'Dateien auswählen oder hierher ziehen.';
-  document.getElementById('docUploadButton').style.display=n?'inline-block':'none';
+  document.getElementById('docUploadButton').style.display=n?'inline-flex':'none';
 }
 async function uploadDocuments(){
   const input=document.getElementById('docFiles'),status=document.getElementById('docUploadStatus');
@@ -290,7 +768,6 @@ async function uploadDocuments(){
     document.getElementById('docDescription').value='';document.getElementById('docSubfolder').value='';
   }catch(e){status.textContent='Fehler nach '+done+' Datei(en): '+e.message}
 }
-
 function editDocRow(id){
   const d=customerDocuments.find(x=>x.id===id);if(!d)return;
   editingDocId=id;
@@ -303,9 +780,9 @@ function editDocRow(id){
   document.getElementById('docEditCategory').innerHTML=auswahlOptionen(all,d.category,x=>x.label,{wert:x=>x.value,aktiv:x=>x.active});
   document.getElementById('docEditCategory').value=d.category;
   document.getElementById('docEditStatus').textContent='';
-  document.getElementById('docEditor').classList.remove('hidden');
+  document.getElementById('docEditor').showModal();
 }
-function closeDocEditor(){document.getElementById('docEditor').classList.add('hidden')}
+function closeDocEditor(){document.getElementById('docEditor').close()}
 async function saveDocEdit(){
   if(!editingDocId)return;
   const st=document.getElementById('docEditStatus');
@@ -323,71 +800,61 @@ async function saveDocEdit(){
 }
 async function removeDocRow(id){
   if(!confirm('Datei wirklich aus der Kundenmappe löschen?'))return;
-  await speichern('dokumente',()=>api(`/api/customer-documents/${id}`,{method:'DELETE'}),{neuLaden:loadDocuments});
+  try{await speichern('dokumente',()=>api(`/api/customer-documents/${id}`,{method:'DELETE'}),{neuLaden:loadDocuments})}catch(e){seitenStatus('Fehler: '+e.message)}
 }
-async function loadDocuments(){await lesen('dokumente',()=>api(`/api/customers/${customerId}/documents`),d=>{customerDocuments=d;renderDocCategories()})}
+async function loadDocuments(){await lesen('dokumente',()=>api(`/api/customers/${customerId}/documents`),d=>{customerDocuments=d;zahlSetzen('zahlDokumente',d.length);renderDocCategories()})}
+aktion('dateien-waehlen',()=>document.getElementById('docFiles').click());
+aktion('dateien-gewaehlt',()=>showSelectedDocs(),'change');
+aktion('hochladen',()=>uploadDocuments());
+aktion('dokumente-suchen',()=>renderCustomerDocuments(),'input');
+aktion('dokument-bearbeiten',b=>editDocRow(Number(b.dataset.id)));
+aktion('dokument-loeschen',b=>removeDocRow(Number(b.dataset.id)));
+aktion('dokument-speichern',()=>saveDocEdit());
 const docZone=document.getElementById('docUploadZone');
 ['dragenter','dragover'].forEach(e=>docZone.addEventListener(e,x=>{x.preventDefault();docZone.classList.add('drag')}));
 ['dragleave','drop'].forEach(e=>docZone.addEventListener(e,x=>{x.preventDefault();docZone.classList.remove('drag')}));
 docZone.addEventListener('drop',e=>{document.getElementById('docFiles').files=e.dataTransfer.files;showSelectedDocs()});
 
-// Seit 1.8.78: Zahlungen des Kunden (app/payments.py) -- Rest zuordnen und Zahlung zurücknehmen, beides ohne Popup (Regel 4).
-let customerPaymentsData=null,customerOpenInvoices=[];
-// Seit 1.8.109: Beträge über _zahl.html -- gefüllt mit zahlText(…, 2), gelesen mit zahlFeld() (vorher eigene fmt()/num(); num()
-// las "1.250" ohne Komma als 1,25).
-const dt=d=>new Date(d+'T00:00:00').toLocaleDateString('de-DE');
-async function loadPayments(){
-  let neu;
-  try{neu=await lesen('zahlungen',()=>Promise.all([api(`/api/customers/${customerId}/payments`),api(`/api/customers/${customerId}/open-invoices`)]),([d,o])=>{customerPaymentsData=d;customerOpenInvoices=o})}catch(e){return}  // Rolle ohne Zahlungen: Karte bleibt verborgen
-  if(neu)renderPayments();
+// --- Verlauf (wie die Akte; GET /api/customers/{id}/verlauf) ---------------------------------------------------------------------------
+const VL_ART={aenderung:'neutral',versand:'info',zahlung:'ok'};
+function zeitpunktKurz(wert){const voll=berlinZeitpunkt(wert);return voll?tagKurz(berlinZeitpunkt(wert,'tag'))+' '+voll.split(' ')[1]:''}
+function verlaufZeile(e){
+  const einzel=(e.einzelheiten||[]).length>1||((e.einzelheiten||[])[0]&&e.einzelheiten[0].field_name);
+  const details=einzel?`<details><summary>Einzelheiten (${zahlText(e.einzelheiten.length,0)})</summary>${e.einzelheiten.map(z=>`<div class="vl-einzel"><b>${esc(z.entity_type_label||z.entity_type)}</b> ${esc(z.entity_label||'')}${z.field_label?` · ${esc(z.field_label)}`:''}: ${verlaufAenderung(z)}</div>`).join('')}</details>`:'';
+  const vs=e.versand,menue=vs&&vs.zustellung_nachtragen?`<span class="menue-anker"><button type="button" class="iconbtn" aria-label="Versand ${esc(vs.document_number||'')} – Aktionen" aria-haspopup="menu" data-klick="versand-menue" data-typ="${esc(vs.document_type)}" data-id="${Number(vs.document_id)}" data-nummer="${esc(vs.document_number||'')}">⋮</button></span>`:'';
+  const zielLink=e.ziel?`<a class="sml" style="font-weight:600" href="${esc(sichererLink(e.ziel.href))}">${esc(e.ziel.text)}</a>`:'';
+  return `<div class="vl-zeile"><span class="mut sml num">${esc(zeitpunktKurz(e.zeitpunkt))}</span><span class="vl-art"><span class="chip chip-${esc(VL_ART[e.art]||'neutral')}">${esc(e.art_label)}</span></span><div class="li-text"><span style="font-size:14px">${esc(e.titel)}</span><span class="mut sml">${esc(e.unterzeile||'')}</span>${details}</div><div class="vl-ende"><span class="mut sml">${esc(e.konto||'')}</span>${zielLink}${menue}</div></div>`;
 }
-function renderPayments(){
-  const d=customerPaymentsData,card=document.getElementById('zahlungen');card.style.display='block';
-  // Seit 1.8.93 (Nacharbeit R4c Punkt 3): nicht zugeordneter Rest und Guthaben aus Schlussrechnungen (seit 1.8.90) zusammen als
-  // "Guthaben des Kunden", je Zahlung bzw. Schlussrechnung eine Zeile; ein Zahlungsausgang erstattet beides (book_customer_refund()).
-  const b=d.balance||{total:0,rest:0,credit:0,lines:[]};
-  document.getElementById('paymentRestBadge').textContent=Number(b.total)?`Guthaben des Kunden: ${money(b.total)}`:'Kein Guthaben';
-  document.getElementById('customerCredits').innerHTML=Number(b.total)?`<div class="project-card" data-guthaben style="border-left:4px solid var(--ds-aktion);font-size:13px"><b>Guthaben des Kunden: <span data-guthaben-summe>${money(b.total)}</span></b><table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:13px" data-guthaben-zeilen>${b.lines.map((l,i)=>`<tr data-guthaben-zeile="${esc(l.kind)}"><td style="padding:4px 0">${l.kind==='rest'?`Nicht zugeordnet aus Zahlung Nr. ${l.payment_id} vom ${dt(l.date)}`:`Überzahlung aus Schlussrechnung <a href="/invoices/${l.invoice_id}">${esc(l.invoice_number||'')}</a> vom ${dt(l.date)}`}</td><td style="text-align:right;white-space:nowrap;padding:4px 8px">${money(l.amount)}</td>${GELD?`<td style="width:120px"><input id="refundLine-${i}" inputmode="decimal" data-zahl data-stellen="2" data-feld="Erstattungsbetrag" value="${zahlText(l.amount,2)}" aria-label="davon erstatten" style="width:100%"></td>`:''}</tr>`).join('')}</table>${GELD?`<div class="pay-actions" style="margin-top:8px" data-erstattung><span><label class="small muted" for="custRefundDate">Ausgezahlt am</label> <input id="custRefundDate" type="date" value="${berlinToday()}"></span><span><input id="custRefundNote" placeholder="Notiz (optional), z. B. Überweisung an IBAN …"></span><button onclick="bookCustomerRefund()">Erstattung buchen</button></div><div class="small muted" style="margin-top:4px">Erstattet werden die eingetragenen Beträge mit einem Zahlungsausgang; einen nicht zugeordneten Rest kann man stattdessen auch einer Rechnung zuordnen (unten an der Zahlung).</div>`:''}</div>`:'';
-  document.getElementById('customerPayments').innerHTML=d.payments.length?d.payments.map(paymentCardHtml).join(''):'<div class="muted small">Noch keine Zahlung gebucht.</div>';
-  if(location.hash==='#zahlungen')card.scrollIntoView();
+function verlaufVorschauZeichnen(){
+  const liste=((verlaufDaten&&verlaufDaten.eintraege)||[]).slice(0,4);
+  el('uVerlaufListe').innerHTML=liste.length?liste.map(e=>`<div class="li"><span class="mut sml num li-zeit">${esc(zeitpunktKurz(e.zeitpunkt))}</span><div class="li-text"><span style="font-size:14px">${esc(e.titel)}</span><span class="mut sml">${esc(e.konto||'')}</span></div></div>`).join(''):'<p class="mut sml" style="margin:0">Noch nichts protokolliert.</p>';
 }
-function paymentCardHtml(p){
-  const allocs=p.allocations.map(a=>`<div class="small ${a.reversed?'pay-reversed':''}">${esc(a.kind_label)} ${money(a.amount)} an <a href="/invoices/${a.invoice_id}">${esc(a.invoice_number||'Rechnung')}</a>${a.reversed?` – gegengebucht: ${esc(a.reversal.reason)}`:''}</div>`).join('')||((p.refund_sources||[]).length||(p.refunded_from_rest||[]).length?'':'<div class="small muted">Noch nichts zugeordnet.</div>');
-  const head=`<b class="${p.reversed?'pay-reversed':''}">${dt(p.received_on)} · ${money(p.amount)}</b>${p.is_refund?' <span class="badge" data-zahlungsausgang>Zahlungsausgang (Erstattung)</span>':''}${p.note?' · '+esc(p.note):''}${p.origin==='uebernommen'?' <span class="badge">übernommen aus „bezahlt“</span>':''}`;
-  const sub=`<div class="muted small">${p.is_refund?'Zahlungsausgang':'Zahlung'} Nr. ${p.id} · erfasst von ${esc(p.created_by_name)}${p.reversed?` · <b>zurückgenommen</b> von ${esc(p.reversal.created_by_name)}: ${esc(p.reversal.reason)}`:p.is_refund?'':` · nicht zugeordnet: <b data-rest>${money(p.rest)}</b>`}</div>`;
-  // Seit 1.8.93: Erstattung aus dem Rest einer Zahlung -- am Zahlungsausgang die Quelle, an der Zahlung der Zahlungsausgang.
-  const sources=(p.refund_sources||[]).map(s=>`<div class="small ${p.reversed?'pay-reversed':''}" data-erstattet-aus="${s.payment_id}">Erstattung aus dem Rest der Zahlung Nr. ${s.payment_id} vom ${dt(s.received_on)}: ${money(-s.amount)}</div>`).join('')
-    +(p.refunded_from_rest||[]).map(s=>`<div class="small" data-erstattet-mit="${s.refund_payment_id}">aus dem Rest erstattet mit Zahlungsausgang Nr. ${s.refund_payment_id} vom ${dt(s.paid_on)}: ${money(s.amount)}</div>`).join('');
-  let actions='';
-  if(!p.reversed&&GELD){  // seit 1.9.111 nur mit darf_geld()
-    // Seit 1.8.81 kommen auch Rechnungen mit nur offenen Nebenforderungen -- deren Zuordnung läuft über die Rechnungsseite (§ 367 BGB).
-    // Seit 1.8.94: "Zahlung zurücknehmen" nur, wenn es geht -- sonst der Grund vom Server (app/payments.py::reverse_block_reason()).
-    // Seit 1.8.94: enthaltene Rechnungen gruppiert unter ihrer Schlussrechnung (_zahlung_gruppen.html).
-    const opts=zahlungsOptionen(customerOpenInvoices.filter(o=>Number(o.payment.open)>0),o=>`${o.invoice_number||''} · offen ${money(o.payment.open)}`);
-    actions='<div class="pay-actions">'+(Number(p.rest)>0&&opts?`<span><select id="restInvoice-${p.id}" onchange="restInvoiceChanged(${p.id})"><option value="">Rest zuordnen auf …</option>${opts}</select><input id="restAmount-${p.id}" inputmode="decimal" data-zahl data-stellen="2" data-feld="Betrag" placeholder="Betrag" value="${zahlText(p.rest,2)}"><button class="secondary" onclick="allocateRest(${p.id})">Zuordnen</button></span>`:'')+(p.reverse_block_reason?`<span class="small muted" data-zuruecknehmen-gesperrt>${esc(p.reverse_block_reason)}</span>`:`<span><button class="secondary" onclick="showPaymentReverse(${p.id})">Zahlung zurücknehmen</button><span id="payRev-${p.id}" style="display:none"><input id="payRevReason-${p.id}" placeholder="Begründung (Pflicht)"><button class="danger" onclick="reversePayment(${p.id})">Zurücknahme bestätigen</button></span></span>`)+'</div>';
-  }
-  return `<div class="project-card" data-zahlung="${p.id}">${head}${sub}<div style="margin-top:6px">${allocs}${sources}</div>${actions}</div>`;
+function verlaufZeichnen(){
+  const liste=(verlaufDaten&&verlaufDaten.eintraege)||[];
+  el('verlaufListe').innerHTML=liste.length?liste.map(verlaufZeile).join(''):'<p class="mut sml" style="margin:0">Nichts in dieser Auswahl.</p>';
+  el('verlaufWeiter').hidden=!verlaufVor;
+  document.querySelectorAll('#verlaufArten button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.art===verlaufArt)));
 }
-function restInvoiceChanged(pid){const p=customerPaymentsData.payments.find(x=>x.id===pid),o=customerOpenInvoices.find(x=>String(x.invoice_id)===document.getElementById('restInvoice-'+pid).value);if(p&&o)document.getElementById('restAmount-'+pid).value=zahlText(Math.min(Number(p.rest),Number(o.payment.open)),2)}
-function showPaymentReverse(pid){document.getElementById('payRev-'+pid).style.display='inline-flex';document.getElementById('payRevReason-'+pid).focus()}
-async function allocateRest(pid){
-  const st=document.getElementById('customerPaymentsStatus'),invoiceId=Number(document.getElementById('restInvoice-'+pid).value);
-  if(!invoiceId){st.textContent='Bitte eine Rechnung wählen.';return}
-  try{const amount=zahlFeld('restAmount-'+pid,{leer:0});if(!(amount>0)){st.textContent='Bitte einen Betrag angeben.';return}const body=JSON.stringify({lines:[{invoice_id:invoiceId,zahlung:amount.toFixed(2)}]});await abschliessen('zahlungen',()=>api(`/api/payments/${pid}/allocations`,{method:'POST',headers:{'Content-Type':'application/json'},body:body}),{neuLaden:loadPayments});document.getElementById('customerPaymentsStatus').textContent='Zugeordnet.'}catch(e){st.textContent='Fehler: '+e.message}
+function verlaufAbfrage(vor){const p=new URLSearchParams();if(verlaufArt)p.append('art',verlaufArt);if(vor)p.append('vor',vor);const s=p.toString(),basis=`/api/customers/${customerId}/verlauf`;return s?basis+'?'+s:basis}
+async function verlaufLaden(){await lesen('verlauf',()=>api(verlaufAbfrage(null)),d=>{verlaufDaten=d;verlaufVor=d.vor;verlaufZeichnen();if(!verlaufArt)verlaufVorschauZeichnen()})}
+aktion('verlauf-art',b=>{verlaufArt=b.dataset.art||'';verlaufDaten=null;verlaufLaden()});
+aktion('verlauf-weiter',async()=>{if(!verlaufVor)return;await lesen('verlauf',()=>api(verlaufAbfrage(verlaufVor)),d=>{verlaufDaten={eintraege:[...((verlaufDaten&&verlaufDaten.eintraege)||[]),...d.eintraege]};verlaufVor=d.vor;verlaufZeichnen()})});
+// „Zustellung nachtragen“ im „⋮“ einer Versandzeile: der Versandverlauf des Dokuments (_email_dispatch.html) im Dialog, das Formular offen --
+// dort auch „Empfang bestätigt“ und „unzustellbar“ (bis 1.9.136 in der Karte „Versand“ der Kundenakte)
+aktion('versand-menue',b=>{
+  const typ=b.dataset.typ,id=Number(b.dataset.id);
+  el('zustellungTitel').textContent='Zustellung nachtragen – '+(b.dataset.nummer||'Dokument');
+  el('zustellungDialog').showModal();
+  renderDispatchHistory('zustellungVerlauf',typ,id,{onChange:()=>{renderDispatchHistory('zustellungVerlauf',typ,id);verlaufDaten=null;verlaufLaden()}}).then(()=>toggleManualDelivery('zustellungVerlauf'));
+});
+
+// --- Start ----------------------------------------------------------------------------------------------------------------------------
+async function kundenakteStarten(){
+  if(location.hash==='#versand')verlaufArt='versand';  // Anker der früheren Karte „Versand“
+  reiterZeigen(reiterAusAnker(),location.hash!=='');
+  await load();
 }
-async function bookCustomerRefund(){
-  const st=document.getElementById('customerPaymentsStatus'),b=customerPaymentsData.balance,lines=[];
-  try{
-  for(const [i,l] of b.lines.entries()){const amount=zahlFeld('refundLine-'+i,{leer:0});if(amount>0)lines.push(l.kind==='rest'?{payment_id:l.payment_id,amount:amount.toFixed(2)}:{invoice_id:l.invoice_id,amount:amount.toFixed(2)})}
-  if(!lines.length){st.textContent='Bitte mindestens einen Betrag zum Erstatten eintragen.';return}
-  const body=JSON.stringify({paid_on:document.getElementById('custRefundDate').value,note:document.getElementById('custRefundNote').value.trim()||null,lines});await abschliessen('zahlungen',()=>api(`/api/customers/${customerId}/refunds`,{method:'POST',headers:{'Content-Type':'application/json'},body:body}),{neuLaden:loadPayments});document.getElementById('customerPaymentsStatus').textContent='Erstattung gebucht.'}catch(e){st.textContent='Fehler: '+e.message}
-}
-async function reversePayment(pid){
-  const st=document.getElementById('customerPaymentsStatus'),reason=document.getElementById('payRevReason-'+pid).value.trim();
-  if(!reason){st.textContent='Bitte eine Begründung angeben.';return}
-  try{await abschliessen('zahlungen',()=>api(`/api/payments/${pid}/reverse`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})}),{neuLaden:loadPayments});document.getElementById('customerPaymentsStatus').textContent='Zahlung zurückgenommen.'}catch(e){st.textContent='Fehler: '+e.message}
-}
-load().catch(e=>{document.getElementById('pageTitle').textContent='Kundenakte konnte nicht geladen werden';document.getElementById('pageSub').textContent=e.message});
+kundenakteStarten().catch(e=>{seitenkopf({titel:'Kundenakte konnte nicht geladen werden'});seitenStatus(e.message)});
 </script>
 </body>
 </html>

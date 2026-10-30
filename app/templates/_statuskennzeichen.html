@@ -4,9 +4,11 @@
     statusBedeutungen()  Bedeutung -> Art des Seitenkopfs: läuft = info, erledigt/bezahlt = ok, wartet auf dich = signal, überfällig/Fehler
                          = fehler, Entwurf = warn, ruht (pausiert, storniert, archiviert, inaktiv) = neutral
     statusTabelle()      je Gruppe jeder Wert mit Text und Bedeutung -- ein neuer Status oder eine neue Seite mit Status kommt hier hinein
+    statusFreieGruppen() seit 1.9.137: Gruppen mit freien Werten aus den Stammdaten (Kundenkategorie) -> eine Bedeutung für jeden Wert; der
+                         Wert erscheint unverändert (kein fester Text je Wert)
     statusKennzeichen(gruppe, wert, opt) -> {text, art} für seitenkopf({status: …}); ein Wert, den die Tabelle nicht kennt, erscheint
-                         lesbar (erster Buchstabe groß, _ als Leerzeichen) und neutral, ein leerer gar nicht (ds.css blendet das leere
-                         Kennzeichen aus). Seit 1.9.13 opt.zusatz (Text dahinter, z. B. ein Betrag oder eine Nummer) und opt.ueberfaellig
+                         lesbar (erster Buchstabe groß, _ als Leerzeichen) und neutral -- in einer freien Gruppe unverändert in ihrer
+                         Bedeutung --, ein leerer gar nicht (ds.css blendet das leere Kennzeichen aus). Seit 1.9.13 opt.zusatz (Text dahinter, z. B. ein Betrag oder eine Nummer) und opt.ueberfaellig
                          (" · überfällig" dahinter, Farbe der Bedeutung fehler).
 
     tests/test_v445_statuskennzeichen.py prüft beide Tabellen, dass jeder Wert, den der Server schreibt, eingetragen ist, und dass jeder
@@ -66,8 +68,14 @@ function statusTabelle() {
     },
   };
 }
+function statusFreieGruppen() {
+  // seit 1.9.137 (Stufe 5, R3): die Kategorie des Kunden im Kopf der Kundenakte (Auswahlliste customer_categories) -- blau wie die Vorlage
+  return { kundenkategorie: 'laeuft' };
+}
 function statusKennzeichen(gruppe, wert, opt = {}) {
   if (wert == null || wert === '') return { text: '', art: 'neutral' };
+  const frei = statusFreieGruppen()[gruppe];
+  if (frei) return { text: String(wert), art: statusBedeutungen()[frei] || 'neutral' };
   const eintrag = (statusTabelle()[gruppe] || {})[wert];
   const lesbar = String(wert).replace(/_/g, ' ');
   let text = eintrag ? eintrag[0] : lesbar.charAt(0).toUpperCase() + lesbar.slice(1);

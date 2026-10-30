@@ -6,8 +6,25 @@
     öffnen und setzen den Fokus auf den ersten Eintrag, Pfeil hoch/runter (auch am Knopf), Pos1/Ende wandern, Escape schließt und gibt
     den Fokus an den Knopf zurück, Tab und ein Klick daneben schließen. Ein Klick auf einen Eintrag schließt das Menü, die Aktion des
     Eintrags meldet die Seite selbst an. Gibt {oeffnen, schliessen} zurück; ein zweiter Aufruf am selben Knopf tut nichts.
+    Seit 1.9.137 (Stufe 5, R3, Punkt 5): eine Trennlinie (.ds-menue-trenner, role="separator") steht zwischen zwei Gruppen von Einträgen; beim
+    Öffnen blendet dsMenueTrennerOrdnen() jede aus, die nicht zwischen zwei sichtbaren Einträgen steht (leere Gruppe, Anfang, Ende).
     tests/test_v441_rahmen_baustein.py prüft das in node. -#}
 <script>
+function dsMenueTrennerOrdnen(liste) {
+  let davor = false;
+  let offen = null;
+  for (const k of Array.from(liste.children || [])) {
+    if (k.classList && k.classList.contains('ds-menue-trenner')) {
+      k.hidden = true;
+      if (davor) offen = k;
+      davor = false;
+    } else if (k.classList && k.classList.contains('ds-menue-eintrag') && !k.hidden) {
+      if (offen) offen.hidden = false;
+      offen = null;
+      davor = true;
+    }
+  }
+}
 function dsMenue(knopf, liste) {
   if (!knopf || !liste || knopf.getAttribute('data-ds-menue') === 'an') return null;
   knopf.setAttribute('data-ds-menue', 'an');
@@ -28,6 +45,7 @@ function dsMenue(knopf, liste) {
     if (fokusZurueck) knopf.focus();
   };
   const oeffnen = (wohin) => {
+    dsMenueTrennerOrdnen(liste);
     liste.hidden = false;
     knopf.setAttribute('aria-expanded', 'true');
     const es = eintraege();

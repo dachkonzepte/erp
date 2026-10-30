@@ -8,8 +8,8 @@ dieselbe Zahl in Akte und Kundenakte gleich heißt und gleich lautet:
                    unbezahlt (brutto, wie akte.zahlung()); für alle Aufträge des Kunden je Art eine Abfrage, kein Nachladen je Auftrag. Ohne
                    Auftrag das jüngste nicht abgelehnte Angebot; je Projekt alle Angebote mit Stand und Summen.
     geld()         über die Rechnungen, die der Kunde beim Festschreiben festhielt (Invoice.customer_id), und seine Zahlungen: unbezahlt (wie
-                   Finanzen: nach der gültigen Endrechnung ihr Zahlbetrag), Zahl der unbezahlten Rechnungen, überfällig (mahnfähig nach der
-                   Fälligkeit) seit der ältesten Fälligkeit, Guthaben (Rest und Überzahlung, app/payments.py::customer_balance()), je Jahr
+                   Finanzen: nach der gültigen Endrechnung ihr Zahlbetrag), Zahl der unbezahlten Rechnungen und seit 1.9.137 ihre Zeilen
+                   (invoice_overview_rows(), älteste Fälligkeit zuerst), überfällig (mahnfähig nach der Fälligkeit) seit der ältesten Fälligkeit, Guthaben (Rest und Überzahlung, app/payments.py::customer_balance()), je Jahr
                    abgerechnet (netto, Rechnungsdatum) und bezahlt (Eingänge minus Ausgänge, Eingangstag; ohne zurückgenommene).
     vorschlaege()  je Rest einer Zahlung „Auf <älteste unbezahlte Rechnung> zuordnen“ (höchstens ihr unbezahlter Betrag), ohne unbezahlte
                    Rechnung „Erstattung buchen“; je Guthaben aus einer Schlussrechnung „Erstattung buchen“ -- nur Vorschläge, gebucht wird über
@@ -122,6 +122,7 @@ def projekte(db: Session, customer_id: int, heute: date | None = None) -> list[d
         prop = p.property
         out.append({
             "id": p.id, "project_number": p.project_number, "name": p.name, "archived": bool(p.archived),
+            "property_id": p.property_id,  # seit 1.9.137: Objekte der Kundenakte nennen ihre Projekte
             "status": s, "status_label": PROJEKTSTATUS_NAMEN[s],
             "laufend": s not in GESCHLOSSENE_STATUS and not p.archived,
             "objekt": (", ".join(t for t in (prop.street, " ".join(x for x in (prop.postal_code, prop.city) if x)) if t) or prop.name)
@@ -162,7 +163,7 @@ def geld(db: Session, customer_id: int, heute: date | None = None) -> dict:
     rechnungen = list(db.scalars(select(Invoice).where(Invoice.customer_id == customer_id, Invoice.status.in_(VALID_STATUSES),
                                                        Invoice.invoice_type != "storno").order_by(Invoice.id)))
     unbezahlt = ueberfaellig = NULL
-    unbezahlte = 0
+    unbezahlte: list[dict] = []
     seit = None
     jahre: dict[int, dict] = {}
 
@@ -173,7 +174,7 @@ def geld(db: Session, customer_id: int, heute: date | None = None) -> dict:
         offen = _d((z["overview"] or {}).get("open"))
         if offen > 0:
             unbezahlt += offen
-            unbezahlte += 1
+            unbezahlte.append(z)
         if z["is_overdue"]:
             ueberfaellig += _d((z["dunning"] or {}).get("dunnable"))
             seit = z["due_date"] if seit is None or (z["due_date"] and z["due_date"] < seit) else seit
@@ -191,7 +192,9 @@ def geld(db: Session, customer_id: int, heute: date | None = None) -> dict:
     jahr(heute.year)
     jahr(heute.year - 1)
     return {
-        "unbezahlt": unbezahlt, "unbezahlte_rechnungen": unbezahlte, "ueberfaellig": ueberfaellig, "ueberfaellig_seit": seit,
+        "unbezahlt": unbezahlt, "unbezahlte_rechnungen": len(unbezahlte), "ueberfaellig": ueberfaellig, "ueberfaellig_seit": seit,
+        # seit 1.9.137: die Zeilen für „Unbezahlte Rechnungen“ (Reiter Zahlungen), wie die Rechnungsliste der Akte
+        "unbezahlte": sorted(unbezahlte, key=lambda z: (z["due_date"] is None, z["due_date"] or heute, z["id"])),
         "guthaben": guthaben(db, customer_id), "jahr": heute.year,
         "je_jahr": sorted(jahre.values(), key=lambda w: -w["jahr"]),
     }

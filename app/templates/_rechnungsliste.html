@@ -5,8 +5,10 @@
     rechnungsZahlstand(r) -> {text, art}   Stand einer Zeile in Worten: Entwurf, storniert, Storno, „bezahlt 02.10.“, „überfällig seit 24.10.“,
                                            „unbezahlt“ (D5: „offen“ heißt nur noch „unbezahlt“), teilweise bezahlt mit dem unbezahlten Betrag,
                                            Einbehalt, Guthaben, enthalten in der Schlussrechnung
-    rechnungsTabelleHtml(rows, opt)        Tabelle mit den Spalten opt.spalten (rechnung, art, kunde, auftrag, datum, faellig, zeitraum, netto,
-                                           brutto, zahlstand, unbezahlt), opt.leer = Text ohne Zeilen
+    rechnungsTabelleHtml(rows, opt)        Tabelle mit den Spalten opt.spalten (rechnung, art, kunde, auftrag, projekt, datum, faellig, zeitraum,
+                                           netto, brutto, zahlstand, unbezahlt), opt.leer = Text ohne Zeilen; seit 1.9.137 (Kundenakte) opt.kopf =
+                                           andere Überschriften je Spalte, opt.mitJahr = Datum, Fälligkeit und Zeitraum immer mit Jahr, Spalte
+                                           projekt = Projektnummer (Link in die Akte) · Art der Rechnung
     Mehrfach einbindbar (nur Funktionsdeklarationen). -#}
 {% include "_berlin_date.html" %}
 <style>
@@ -45,15 +47,21 @@ function rechnungsZahlstand(r) {
   if (o.state === 'teilweise_bezahlt') return {text: 'teilweise bezahlt · unbezahlt ' + _rlGeld(o.open), art: 'info'};
   return {text: 'unbezahlt', art: 'info'};
 }
-function _rlZelle(r, spalte) {
+function _rlTagLang(d) {
+  const m = String(d || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : '';
+}
+function _rlZelle(r, spalte, opt = {}) {
+  const tag = opt.mitJahr ? _rlTagLang : _rlTag;
   switch (spalte) {
     case 'rechnung': return `<td><a href="/invoices/${Number(r.id)}">${_rlEsc(r.invoice_number || 'Entwurf')}</a></td>`;
     case 'art': return `<td>${_rlEsc(r.art_text)}</td>`;
     case 'kunde': return `<td>${_rlEsc(r.customer_name)}</td>`;
     case 'auftrag': return `<td>${r.order_id ? `<a href="/projects/${Number(r.project_id)}?auftrag=${Number(r.order_id)}">${_rlEsc(r.order_number)}</a>${r.project_number ? ` <span class="rl-mut">(${_rlEsc(r.project_number)})</span>` : ''}` : '—'}</td>`;
-    case 'datum': return `<td class="rl-num">${_rlEsc(_rlTag(r.invoice_date))}</td>`;
-    case 'faellig': return `<td class="rl-num">${r.due_date ? _rlEsc(_rlTag(r.due_date)) : '—'}</td>`;
-    case 'zeitraum': return `<td class="rl-num">${r.service_period_start ? _rlEsc(_rlTag(r.service_period_start) + '–' + _rlTag(r.service_period_end)) : '—'}</td>`;
+    case 'projekt': return `<td>${r.project_id ? `<a href="/projects/${Number(r.project_id)}${r.order_id ? `?auftrag=${Number(r.order_id)}` : ''}">${_rlEsc(r.project_number)}</a> · ` : ''}${_rlEsc(r.art_text)}</td>`;
+    case 'datum': return `<td class="rl-num">${_rlEsc(tag(r.invoice_date))}</td>`;
+    case 'faellig': return `<td class="rl-num">${r.due_date ? _rlEsc(tag(r.due_date)) : '—'}</td>`;
+    case 'zeitraum': return `<td class="rl-num">${r.service_period_start ? _rlEsc(tag(r.service_period_start) + '–' + tag(r.service_period_end)) : '—'}</td>`;
     case 'netto': return `<td class="rl-r rl-num">${_rlGeld(r.net_total)}</td>`;
     case 'brutto': return `<td class="rl-r rl-num">${_rlGeld(r.gross_total)}</td>`;
     case 'unbezahlt': {
@@ -69,14 +77,14 @@ function _rlZelle(r, spalte) {
   return '<td></td>';
 }
 function rechnungSpalten() {
-  return {rechnung: 'Rechnung', art: 'Art', kunde: 'Kunde', auftrag: 'Auftrag', datum: 'Datum', faellig: 'Fällig', zeitraum: 'Zeitraum',
+  return {rechnung: 'Rechnung', art: 'Art', kunde: 'Kunde', auftrag: 'Auftrag', projekt: 'Projekt', datum: 'Datum', faellig: 'Fällig', zeitraum: 'Zeitraum',
     netto: 'Netto', brutto: 'Brutto', zahlstand: 'Zahlstand', unbezahlt: 'Unbezahlt'};
 }
 function rechnungsTabelleHtml(rows, opt = {}) {
   const spalten = opt.spalten || ['rechnung', 'art', 'zeitraum', 'netto', 'brutto', 'zahlstand'];
   if (!rows.length) return `<p class="rl-leer">${_rlEsc(opt.leer || 'Noch keine Rechnung.')}</p>`;
   const rechts = new Set(['netto', 'brutto', 'unbezahlt']);
-  const kopf = spalten.map(s => `<th${rechts.has(s) ? ' class="rl-r"' : ''}>${_rlEsc(rechnungSpalten()[s] || s)}</th>`).join('');
-  return `<table class="rl-tabelle"><thead><tr>${kopf}</tr></thead><tbody>${rows.map(r => `<tr data-rechnung="${Number(r.id)}">${spalten.map(s => _rlZelle(r, s)).join('')}</tr>`).join('')}</tbody></table>`;
+  const kopf = spalten.map(s => `<th${rechts.has(s) ? ' class="rl-r"' : ''}>${_rlEsc((opt.kopf || {})[s] || rechnungSpalten()[s] || s)}</th>`).join('');
+  return `<table class="rl-tabelle"><thead><tr>${kopf}</tr></thead><tbody>${rows.map(r => `<tr data-rechnung="${Number(r.id)}">${spalten.map(s => _rlZelle(r, s, opt)).join('')}</tr>`).join('')}</tbody></table>`;
 }
 </script>

@@ -170,7 +170,9 @@ async def pruefen(tab, seed, p):
     await tab.bild("dachflaeche_inaktiver_schichttyp")
 
     # --- Kunde ---------------------------------------------------------------------------------
-    await tab.oeffnen(f"/customers/{seed['kunde']}", "customer&&document.getElementById('category').options.length>0")
+    await tab.oeffnen(f"/customers/{seed['kunde']}", "typeof customer!=='undefined'&&!!customer")
+    await tab.js("stammdatenOeffnen()")  # seit 1.9.137: die Auswahl steht im Dialog „Stammdaten bearbeiten“
+    await tab.warten("document.getElementById('category').options.length>0")
     p.pruefe("Kunde: abgeschaltete Kategorie vorgewählt", await tab.js(_gewaehlt("category")),
              ["Gewerbekunde", "Gewerbekunde (inaktiv)"])
     p.pruefe("Kunde: JS-Fehler", tab.fehler, [])
