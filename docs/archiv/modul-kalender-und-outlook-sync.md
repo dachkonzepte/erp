@@ -872,3 +872,7 @@ zusätzlich 6 weitere Tests** für den Nachtrag "schaukelnder Termin" oben (`cha
 beim Push, inkl. des Randfalls ohne Antwort-Body; exakte Echo-Erkennung trotz einer scheinbar
 neueren Zeitstempel-Heuristik; die beiden Sieben-Läufe-Regressionstests gegen `FakeGraphServer`).
 Volle Suite: **1835 Tests grün.**
+
+## Umsetzung 1.9.142: Stand des Abgleichs prüfen (Stufe 6, R1, Punkt 0)
+
+Befund Stufe 6 (5.2, L9): keine Oberfläche zeigt Stand oder Fehler des Abgleichs. Solange es keine gibt, liest `scripts/pruefe_outlook.py` den Stand auf dem Server (Aufruf im Kopf der Datei): je Postfach letzter Lauf, letzter Fehler, Alter des Delta-Links, Pfad des Links ohne Token; Termine, die auf Senden warten (`_needs_push()`, nur Konten mit Postfach), doppelte Outlook-Kennungen, ganztägige Termine aus dem ERP. Das Alter des Delta-Links ist die Zeit seit dem letzten erfolgreichen Lauf, denn nur der schreibt den Link. Nennt der Pfad das Postfach nicht, sagt das Skript das nur als Achtung: Microsoft kann die Adresse durch eine Kennung ersetzen. Test: `tests/test_v562_pruefe_outlook.py`.

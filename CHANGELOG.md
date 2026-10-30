@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.142 – scripts/pruefe_outlook.py: wie steht der Outlook-Abgleich? (Stufe 6, R1, Punkt 0)
+
+Keine Seite zeigt den Stand des Abgleichs, Fehler bleiben im Betrieb unsichtbar (Befund Stufe 6, 5.2). Das neue Skript liest nur (wie `pruefe_stornos.py`, schreibgeschützte Sitzung, keine Anfrage an Microsoft) und nennt je Postfach letzten Lauf, letzten Fehler (nur die Art), Alter und Pfad des Delta-Links ohne Token, dazu Termine, die auf Senden warten (dieselbe Prüfung wie der Abgleich, `_needs_push()`), doppelte Outlook-Kennungen und ganztägige Termine aus dem ERP. Kein Inhalt eines Termins in der Ausgabe (Regel 18). Rückgabe 0 nichts gefunden, 1 etwas gefunden, 2 Umgebung fehlt. Aufruf im Kopf der Datei.
+
 ## 1.9.141 – Projektzeile der Kundenakte: das Kennzeichen bricht nicht um (Stufe 5, R4, Punkt 4)
 
 Bei einem langen Projektnamen rutschte das Kennzeichen der Phase in die nächste Zeile. Name und Kennzeichen stehen jetzt in einer Zeile, die nicht umbricht: ein langer Name endet mit „…“, der volle Name steht im title; das Kennzeichen wird nie schmaler. So in der Übersicht und im Reiter Projekte, bei 1440 und 412 px. Stufe 5 ist damit abgeschlossen.
