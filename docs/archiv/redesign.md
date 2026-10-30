@@ -8257,7 +8257,7 @@ des Dokuments selbst; ein Versand ist dort eine eigene Zeile.
 
 1. Der Verlauf des Kunden zeigt Kunde (samt Profil), Kundenwissen, Objekte mit Dachflächen, Anfragen, Zahlungen und den Versand seiner Dokumente;
    Projekte, Angebote, Aufträge und Rechnungen stehen im Verlauf ihrer Akte, nicht hier. Kundendokumente fehlen (sie stehen nicht im
-   Änderungsprotokoll).
+   Änderungsprotokoll). Überholt seit 1.9.140: Kundendokumente stehen im Protokoll und im Verlauf des Kunden.
 2. Arten im Verlauf des Kunden: Änderung, Versand, Zahlung.
 3. Ein Versand ist im Verlauf des Kunden immer eine eigene Zeile (in der Akte gehört er weiter zur Aktion an seinem Dokument).
 4. Eine Seite des Verlaufs (Akte und Kunde) wächst, bis eine Aktion ganz darauf steht, höchstens auf 10.000 Zeilen; darüber geht es mit älteren
@@ -8444,3 +8444,26 @@ Neu `tests/test_v559_verlauf_zahlungen.py` (Sätze aller Buchungen über die ech
 Angepasste Erwartungen: `tests/test_v535_aenderungsprotokoll.py::test_history_und_projektmappe_nehmen_verlauf_aenderung[akte.html]`: altes Soll `${verlaufAenderung(z)}` steht in `akte.html`, neues Soll `verlaufEinzelheit(z)` in `akte.html` und `${verlaufAenderung(z)}` im Baustein `_verlauf.html`. Sonst keine; die bestehenden Prüfungen nennen die alten Sätze nicht.
 
 Gegenproben (je FAILED, byte-genau zurück), rote Tests in Klammern: lange Bezeichnung in den Einzelheiten (1); kein kurzer Satz in der Überschrift (7); Art davor beim Rückfall (1); Kopf nicht die Zahlung (2); Erstattung wie Eingang (1); Zurücknahme ohne Begründung (3); alle Zuordnungen darunter (1); Seite ohne `kurz` (1); `kurz` ohne Maskierung (1); Rechnungsnummer fehlt (5). „Art davor“ blieb zuerst grün: der Test machte nur eine von zwei Zeilen unlesbar und erreichte den Rückfall nicht; jetzt beide, mit genauer Erwartung.
+
+### Umsetzung 1.9.140: Punkt 3
+
+`app/audit.py`: `CustomerDocument` in `AUDITED_TYPES` und `TYPE_LABELS` („Kundendokument“), Bezeichnung = `original_filename` wie an der Projektdatei. `app/kunde_verlauf.py`: Art „Kundendokument“ in `TYPEN`, Zuordnung zum Kunden wie die übrigen Arten (heute über die Spalte, gelöscht über den Schnappschuss, Zeitfenster bei einer wiederverwendeten Kennung). Die Endpunkte bleiben unverändert: die Protokollzeilen entstehen beim Flush.
+
+Eine Zeile je Aktion wie überall: zwei Dateien in einer Anfrage derselben Aktion wären eine Zeile mit zwei Einzelheiten; die Seite lädt je Datei einzeln hoch, innerhalb von 5 s (`GRUPPE_SEKUNDEN`) stehen mehrere in einer Zeile.
+
+**Fund:** `category` und `category_id` ändern sich zusammen und ergaben zwei gleiche Zeilen („Kategorie Sonstiges → Rechnungen / Belege“), der Verlauf schrieb „und 1 weitere Einzelheit“. Jetzt `STILL_JE_ART` für beide Dateiarten (auch die Projektdatei in der Akte, dieselbe Doppelung).
+
+#### Festlegungen 1.9.140 (Bitte bestätigen)
+
+1. Überholt Festlegung 1.9.136 Nr. 1: Kundendokumente stehen jetzt im Verlauf des Kunden.
+2. Im Verlauf steht „Kundendokument vertrag.pdf angelegt“ wie an der Projektdatei, nicht „hochgeladen“: ein Satzbau für alle Arten.
+3. Protokolliert wird der Name der Kategorie, nicht zusätzlich ihre Kennung -- auch an der Projektdatei, über die Vorgabe hinaus, weil es dieselbe Doppelung ist.
+4. Keine Zeile führt zur Datei („Öffnen“): nach dem Löschen gäbe es sie nicht mehr, und die Vorgabe verlangt es nicht.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v560_kundendokumente_verlauf.py`: Hochladen und Löschen über die echten Endpunkte ergeben zwei Zeilen im Verlauf und im Protokoll; gelöschtes Dokument bleibt sichtbar; Angaben ändern ist eine Zeile mit den geänderten Feldern; nichts beim anderen Kunden, auch nicht nach dem Löschen; Filter; Ablagename nicht in der Zeile; Kategorie einmal und lesbar. `klicktest_kundenakte`: Hochladen und Löschen, beide Zeilen nebeneinander im Verlauf, Bild `verlauf_kundendokument`.
+
+Angepasste Erwartungen: keine.
+
+Gegenproben (je FAILED, byte-genau zurück), rote Tests in Klammern: nicht im Protokoll (7); nicht im Verlauf (7); zwei Zeilen „Kategorie“ (2); ohne Dateiname (5); gelöschtes Dokument nicht mehr dem Kunden zugeordnet (2).

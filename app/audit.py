@@ -7,7 +7,7 @@ from sqlalchemy import event, inspect, select
 from sqlalchemy.orm import Session
 
 from .models import (
-    AuditLog, Customer, CustomerProfile, CustomerExtraInfo, Property, Inquiry,
+    AuditLog, Customer, CustomerDocument, CustomerProfile, CustomerExtraInfo, Property, Inquiry,
     Project, ProjectProfile, ProjectDocument, Supplier, OperationalResource, Team, TeamEmployee, TeamResource, Quote, QuoteItem, QuoteItemCalculation,
     QuoteItemMaterialCalculation, QuoteDocumentMeta, QuoteSection, QuoteItemLayout,
     QuoteEmployeeAssignment, Order, OrderRevision, OrderSection, OrderItem, WorkPreparation, WorkPreparationEmployee, WorkPreparationTask, WorkPreparationMaterial, WorkPreparationTeamAssignment, WorkPreparationTeamEmployee, WorkPreparationTeamResource, WorkPreparationMaterialSupplier, WorkPreparationDeliveryNote, WorkPreparationMaterialDeliveryNote, PlanningSlot, PlanningSettings, PlanningRegionSettings, PlanningHoliday, EmployeeAbsence, EmployeeAbsenceRequest, PlanningSlotCapacity, TimeEntry, TimeEntryGroup, TimeEntryGroupMember, TimeTrackingSettings, EmployeePayrollSettings, TimeBackofficeAdvancedSettings, WorkTimeModel, WorkTimeBreakRule, EmployeeWorkTimeModel, Employee, EmployeeCompensationSettings, EmployeeCostAllocationSettings, EmployeeProfile, EmployeeRoleSettings, EmployeePlanningSettings,
@@ -46,7 +46,7 @@ TYPE_LABELS = {
     BaseInterestRate: "Basiszinssatz", DunningLegalText: "Rechtstext Mahnwesen",
     # seit 1.8.138 jede protokollierte Art (bis dahin stand für diese 16 der Klassenname in der Historie); die Erweiterungs-
     # tabellen fasst _normalize() ohnehin unter ihrem Hauptdatensatz zusammen
-    CustomerProfile: "Kunde", CustomerExtraInfo: "Kundenwissen", ProjectProfile: "Projekt", TeamEmployee: "Teammitglied",
+    CustomerProfile: "Kunde", CustomerExtraInfo: "Kundenwissen", CustomerDocument: "Kundendokument", ProjectProfile: "Projekt", TeamEmployee: "Teammitglied",
     TeamResource: "Team-Ressource", QuoteItemLayout: "Angebotsposition", QuoteEmployeeAssignment: "Angebot – Mitarbeiter",
     WorkPreparationTeamEmployee: "AV-Teammitglied", WorkPreparationTeamResource: "AV-Team-Ressource",
     WorkPreparationMaterialSupplier: "AV-Materiallieferant", EmployeeCompensationSettings: "Mitarbeiter",
@@ -62,7 +62,7 @@ TYPE_LABELS = {
 EXTENSION_TYPES = (CustomerProfile, ProjectProfile, EmployeeProfile, EmployeeRoleSettings, EmployeeCompensationSettings, EmployeeCostAllocationSettings, QuoteDocumentMeta, QuoteItemLayout, QuoteEmployeeAssignment)
 
 AUDITED_TYPES = (
-    Customer, CustomerProfile, CustomerExtraInfo, Property, Inquiry, Project, ProjectProfile, ProjectDocument, Supplier, OperationalResource, Team, TeamEmployee, TeamResource,
+    Customer, CustomerProfile, CustomerExtraInfo, CustomerDocument, Property, Inquiry, Project, ProjectProfile, ProjectDocument, Supplier, OperationalResource, Team, TeamEmployee, TeamResource,
     Quote, QuoteItem, QuoteItemCalculation, QuoteItemMaterialCalculation, QuoteDocumentMeta, QuoteSection,
     QuoteItemLayout, QuoteEmployeeAssignment, Order, OrderRevision, WorkPreparation, WorkPreparationEmployee, WorkPreparationTask, WorkPreparationMaterial, WorkPreparationTeamAssignment, WorkPreparationTeamEmployee, WorkPreparationTeamResource, WorkPreparationMaterialSupplier, WorkPreparationDeliveryNote, WorkPreparationMaterialDeliveryNote, PlanningSlot, PlanningSettings, PlanningRegionSettings, PlanningHoliday, EmployeeAbsence, EmployeeAbsenceRequest, PlanningSlotCapacity, TimeEntry, TimeEntryGroup, TimeEntryGroupMember, TimeTrackingSettings, EmployeePayrollSettings, TimeBackofficeAdvancedSettings, WorkTimeModel, WorkTimeBreakRule, EmployeeWorkTimeModel, Employee, EmployeeCompensationSettings, EmployeeCostAllocationSettings, EmployeeProfile, EmployeeRoleSettings, EmployeePlanningSettings, EmployeeFunction,
     GeneralSettings, CalculationSettings, LaborRateSettings, LaborRateOverheadSettings, NumberSequence, SettingOptionGroup, SettingOption,
@@ -106,6 +106,8 @@ STILL_JE_ART = {
     MaintenanceContract: {"last_reminder_due_date"},  # Stempel gegen doppeltes Erinnern
     Reminder: {"amounts_json"},  # eingefrorene Aufstellung, steht an der Mahnung
     ServiceReport: {"time_rows_json"},  # eingefrorene Zeiten, stehen am Bericht
+    # Seit 1.9.140: die Kennung läuft mit dem Namen (category) mit, sonst stehen zwei gleiche Zeilen „Kategorie“ im Verlauf
+    ProjectDocument: {"category_id"}, CustomerDocument: {"category_id"},
 }
 # Seit 1.9.115: Inhalte eines privaten Termins nie in der Historie (sie liest jedes Büro) -- nur, dass sich etwas geändert hat.
 PRIVATE_TERMINFELDER = {"title", "location", "notes"}
@@ -706,7 +708,7 @@ def _entity_label(obj):
     if isinstance(obj, Property): return obj.name
     if isinstance(obj, CustomerExtraInfo) and obj.label: return obj.label  # seit 1.9.137: im Verlauf des Kunden nach seiner Bezeichnung
     if isinstance(obj, Project): return f"{obj.project_number} · {obj.name}"
-    if isinstance(obj, ProjectDocument): return obj.original_filename
+    if isinstance(obj, (ProjectDocument, CustomerDocument)): return obj.original_filename  # Kundendokument seit 1.9.140
     if isinstance(obj, Quote): return f"{obj.quote_number} · {obj.title}"
     if isinstance(obj, Order): return f"{obj.order_number} · {obj.title}"
     if isinstance(obj, OrderItem): return f"{obj.gaeb_oz or obj.position_number or ''} {obj.short_text}".strip()[:255]

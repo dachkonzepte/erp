@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.140 – Kundendokumente im Änderungsprotokoll und im Verlauf des Kunden (Stufe 5, R4, Punkt 3)
+
+Hochladen, Angaben ändern und Löschen eines Kundendokuments stehen jetzt im Änderungsprotokoll („Kundendokument“, mit dem Dateinamen als Bezeichnung) und im Verlauf des Kunden, auch nach dem Löschen und nie bei einem anderen Kunden. Das überholt Festlegung 1.9.136 Nr. 1.
+
+Dabei gefunden: Name und Kennung einer Dokumentkategorie ändern sich zusammen, im Protokoll standen dafür zwei gleiche Zeilen „Kategorie“, und der Verlauf sprach von einer weiteren Einzelheit, die es nicht gab. Protokolliert wird jetzt nur der Name, an Kundendokumenten wie an Projektdateien (`STILL_JE_ART`, die Kennung bleibt im Schnappschuss).
+
 ## 1.9.139 – Verlaufstexte der Zahlungen kürzer, ein Satzbau für Akte und Kunde (Stufe 5, R4, Punkt 2)
 
 Im Verlauf stand bisher der lange Satz des Protokolls, z. B. „Zahlungseingang Zahlung 3.000,00 € vom 18.08.2025 · Kessler · Zahlung 144,00 € an R-2026-0001 angelegt“. Jetzt ein kurzer Satz je Buchung, in Akte und Kundenakte derselbe (`app/akte_verlauf.py::zahlung_text()`): „Zahlungseingang 3.000,00 € vom 18.08.2025“, „144,00 € auf R-2026-0001 zugeordnet“, „Skonto 5,00 € auf R-…“, „Erstattung 144,00 € gebucht“, „Zuordnung zurückgenommen – Begründung: …“, „Zahlungseingang zurückgenommen – Begründung: …“. Darunter die Buchungen derselben Aktion (höchstens zwei, dann „und n weitere Einzelheiten“), bei einer Zurücknahme der Betrag. Die Sätze kommen aus dem Schnappschuss des Anlegens und gelten deshalb auch für ältere Zeilen; im Protokoll selbst (`/history`) bleibt die Bezeichnung wie bisher. Die Einzelheiten bleiben aufklappbar und tragen denselben Satz (`verlaufEinzelheit()` in `_verlauf.html`, von beiden Seiten genutzt statt zwei Kopien derselben Zeile).

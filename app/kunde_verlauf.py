@@ -2,7 +2,7 @@
 
 Ein Strom je Kunde aus dem Änderungsprotokoll (AuditLog) und dem Versandprotokoll (EmailDispatch): Änderungen am Kunden (Stammdaten samt
 Kundennummer, Kategorie, Zahlungsbedingung -- CustomerProfile steht als „Kunde“ im Protokoll), an „Kontakte & Kundenwissen“ (CustomerExtraInfo), an
-seinen Objekten und deren Dachflächen, an seinen Anfragen; seine Zahlungen (Eingang, Zuordnung, Erstattung, Zurücknahme); der Versand seiner
+seinen Objekten und deren Dachflächen, an seinen Anfragen, an seinen Dokumenten (seit 1.9.140: Hochladen, Angaben ändern, Löschen); seine Zahlungen (Eingang, Zuordnung, Erstattung, Zurücknahme); der Versand seiner
 Dokumente (aus seinen Projekten und an seinen Objekten, wie /versandprotokoll?kunde=). Eine Zeile je Aktion, Überschrift, Einzelheiten und Seiten
 wie in der Akte -- dieselben Funktionen (zeilen_seite(), gruppieren(), gruppe_dict()). Anders als in der Akte steht ein Versand immer als eigene
 Zeile: die Zeilen des Dokuments selbst (Rechnung, Angebot …) gehören nicht zum Strom des Kunden, und die nächste Aktion desselben Kontos (etwa eine
@@ -12,8 +12,7 @@ Das Änderungsprotokoll trägt keinen Kunden je Zeile. Eine Zeile gehört zum Ku
 gehören, und gelöschte, deren Schnappschuss beim Anlegen oder Löschen (details) seine Kennung trägt („customer_id“ bzw. bei Dachflächen
 „property_id“ eines seiner Objekte). Wurde eine Kennung einmal gelöscht, gilt sie nur im Zeitfenster des Datensatzes beim Kunden (vom Anlegen bis
 zum Löschen): SQLite vergibt die höchste Kennung nach dem Löschen neu -- sonst stünde die Zeile eines anderen Kunden mit derselben Kennung hier (Fund
-beim Bau 1.9.136; PostgreSQL vergibt Kennungen nicht neu). Kundendokumente stehen nicht im Änderungsprotokoll (app/audit.py zeichnet sie nicht
-auf) und fehlen deshalb.
+beim Bau 1.9.136; PostgreSQL vergibt Kennungen nicht neu).
 """
 
 from __future__ import annotations
@@ -25,12 +24,12 @@ from sqlalchemy.orm import Session
 
 from . import akte_verlauf
 from .akte_verlauf import Gruppe
-from .models import AuditLog, CustomerExtraInfo, Inquiry, Payment, Property, RoofArea
+from .models import AuditLog, CustomerDocument, CustomerExtraInfo, Inquiry, Payment, Property, RoofArea
 
 ARTEN = ("aenderung", "versand", "zahlung")
 # Art im Änderungsprotokoll -> (Modell, Spalte mit dem Kunden)
-TYPEN = {"Kundenwissen": (CustomerExtraInfo, "customer_id"), "Objekt": (Property, "customer_id"), "Anfrage": (Inquiry, "customer_id"),
-         "Zahlungseingang": (Payment, "customer_id")}
+TYPEN = {"Kundenwissen": (CustomerExtraInfo, "customer_id"), "Kundendokument": (CustomerDocument, "customer_id"), "Objekt": (Property, "customer_id"),
+         "Anfrage": (Inquiry, "customer_id"), "Zahlungseingang": (Payment, "customer_id")}
 
 
 def _aus_schnappschuss(db: Session, typ: str, spalte: str, werte) -> dict[str, dict]:

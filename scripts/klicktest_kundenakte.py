@@ -351,6 +351,18 @@ return [await post('/api/payments',{{customer_id:{k},received_on:heute,amount:'5
         sorted(z for z in akte_zeilen if z not in kunde_saetze and not z.endswith(" zugeordnet"))], [True, True, True, []])
     await tab.bild_ganz("verlauf_zahlungen_akte")
 
+    # --- Kundendokument hochladen und löschen: zwei Zeilen im Verlauf des Kunden (seit 1.9.140) ---
+    antwort = await tab.js(f"""(async()=>{{const f=new FormData();f.append('file',new File(['%PDF-1.4'],'beleg.pdf',{{type:'application/pdf'}}));f.append('category','Sonstiges');
+const r=await fetch('/api/customers/{k}/documents',{{method:'POST',body:f}});const d=await r.json();
+const weg=await fetch('/api/customer-documents/'+d.id,{{method:'DELETE'}});return [r.status,weg.status]}})()""")
+    p.pruefe("Kundendokument: hochgeladen und gelöscht", antwort, [200, 200])
+    await tab.oeffnen(f"/customers/{k}#verlauf", "akte&&customer&&verlaufDaten")
+    await _klick(tab, '#verlaufArten button[data-art="aenderung"]')
+    await tab.warte_auf_ruhe()
+    zeilen = await tab.js("[...document.querySelectorAll('#verlaufListe .vl-zeile .li-text')].map(z=>z.children[0].textContent)")
+    p.pruefe("Verlauf: Kundendokument angelegt und gelöscht, nebeneinander", zeilen[:2], ["Kundendokument beleg.pdf gelöscht", "Kundendokument beleg.pdf angelegt"])
+    await tab.bild_ganz("verlauf_kundendokument")
+
     # --- Kunde ohne Projekt ---
     await tab.oeffnen(f"/customers/{seed['maus']}", "akte&&customer&&verlaufDaten")
     await tab.warte_auf_neu_geladene_liste()

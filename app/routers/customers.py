@@ -80,8 +80,8 @@ def get_customer_akte(customer_id: int, db: Session = Depends(get_db, scope="fun
 @router.get("/api/customers/{customer_id}/verlauf")
 def get_customer_verlauf(customer_id: int, art: list[str] = Query(default=[]), vor: datetime | None = None,
                          db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
-    """Seit 1.9.136 (Stufe 5, R3, Punkt 1): der Verlauf der Kundenakte -- Änderungen am Kunden, Kundenwissen, Objekten (samt Dachflächen),
-    Anfragen, seine Zahlungen und der Versand seiner Dokumente, eine Zeile je Aktion (app/kunde_verlauf.py), Filter nach Art, Seiten über `vor`.
+    """Seit 1.9.136 (Stufe 5, R3, Punkt 1): der Verlauf der Kundenakte -- Änderungen am Kunden, Kundenwissen, Kundendokumenten (seit 1.9.140), Objekten (samt
+    Dachflächen), Anfragen, seine Zahlungen und der Versand seiner Dokumente, eine Zeile je Aktion (app/kunde_verlauf.py), Filter nach Art, Seiten über `vor`.
     Geschwärzt wie /api/audit-logs; „Zustellung nachtragen“ an Rechnung und Mahnung nach darf_geld() (wie der Verlauf der Akte)."""
     from ..email_dispatch import list_dispatches
     from ..models import AuditLog
