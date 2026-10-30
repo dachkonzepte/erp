@@ -162,6 +162,16 @@ def darf_abwesenheiten_aller(user: AppUser | None) -> bool:
     return user is None or has_role(user, *ABWESENHEITEN_ALLER_ROLLEN)
 
 
+# Seit 1.9.147 (Stufe 6, R1, Punkt 5, P10): die Planungsgrundlagen -- Bundesland, Arbeitstage, Arbeitszeit, betriebsfreie Tage, Ferien -- ändern Admin und Büro – Finanzen, Büro – Auftrag
+# liest sie. Das Bundesland steuert auch die Arbeitstage unter „Zeiten“, wo Büro – Auftrag nur liest.
+PLANUNGSGRUNDLAGEN_ROLLEN = frozenset({ROLE_ADMIN, ROLE_OFFICE_FINANZEN})
+PLANUNGSGRUNDLAGEN_NUR_LESEN = "Bundesland, Arbeitstage und betriebsfreie Tage ändern Admin und Büro – Finanzen – du kannst sie lesen."
+
+
+def darf_planungsgrundlagen(user: AppUser | None) -> bool:
+    return user is None or has_role(user, *PLANUNGSGRUNDLAGEN_ROLLEN)
+
+
 # Seit 1.9.146 (Stufe 6, R1, Punkt 4): eine genehmigte Abwesenheit löscht nur, wer Anträge entscheidet -- der Admin.
 ABWESENHEIT_LOESCHEN_ROLLEN = frozenset({ROLE_ADMIN})
 ABWESENHEIT_LOESCHEN_NUR_ADMIN = "Eine genehmigte Abwesenheit löscht nur der Admin."
@@ -301,6 +311,7 @@ require_lohndaten = require_role(*LOHNDATEN_ROLLEN, message=NUR_LOHNDATEN)
 require_geld = require_role(*GELD_ROLLEN, message=GELD_NUR_LESEN)  # seit 1.9.111, zu darf_geld() oben
 # Seit 1.9.120: Mahnstufen, Zahlungsbedingungen, Steuerschlüssel, Nummernkreise speichern -- darf_geld(), bis 1.9.119 jedes Büro.
 require_geld_einstellung = require_role(*GELD_ROLLEN, message=EINSTELLUNGEN_GELD_NUR_LESEN)
+require_planungsgrundlagen = require_role(*PLANUNGSGRUNDLAGEN_ROLLEN, message=PLANUNGSGRUNDLAGEN_NUR_LESEN)  # seit 1.9.147, zu darf_planungsgrundlagen() oben
 
 
 # Vollständigkeits-Ausnahmen für tests/test_v260_role_audit.py -- bewusst kurz und einzeln

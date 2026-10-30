@@ -1650,6 +1650,7 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   nicht an Rückstand, Einsätzen im Bild und alten Einsätzen (`tests/test_v564_plantafel_leistung.py`).
 - **Der Zeitraum der Arbeitsvorbereitung** (seit 1.9.145, F12): kein Einsatz schreibt in `planned_start`/`planned_end`, das sind nur die Eingaben von Hand. Mit Einsätzen gilt deren Zeitraum (`app/work_preparation.py::einsatz_zeitraum()`, gelesen,
   `zeitraum_aus_einsaetzen`), von Hand dann 409 (`zeitraum_ohne_einsatz_pruefen()`); wer den geplanten Zeitraum anzeigt, nimmt diese Rechnung (`tests/test_v565_av_zeitraum.py`).
+- **Planungsgrundlagen ändern nur nach `app/permissions.py::darf_planungsgrundlagen()`** (seit 1.9.147, Admin und Büro – Finanzen): `require_planungsgrundlagen` an `PUT /api/planning/settings`, Feiertagen und Ferien-Abgleich; Büro – Auftrag liest gesperrt mit Hinweis (`tests/test_v567_planungsgrundlagen_rechte.py`).
 - **Ausblenden statt ausgrauen**: eine für eine Rolle nicht gedachte Seite fehlt im Markup
   (`can()`-Jinja-Global, `_dk_roles`-Markierung), nicht nur deaktiviert -- ein 403 auf einer
   Seiten-Route zeigt `access_denied.html`, nie rohes JSON.

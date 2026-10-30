@@ -19,7 +19,7 @@ from ..absence_requests import abwesenheit_loeschen, eintragen
 from ..meldungen import KEIN_MITARBEITER
 from ..models import AppUser, Employee, EmployeeAbsence, PlanningHoliday
 from ..permissions import (ABWESENHEIT_LOESCHEN_NUR_ADMIN, ABWESENHEIT_LOESCHEN_ROLLEN, ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, darf_abwesenheit_loeschen,
-                           darf_abwesenheiten_aller, has_min_role, require_min_role, require_role)
+                           darf_abwesenheiten_aller, has_min_role, require_min_role, require_planungsgrundlagen, require_role)
 from .absence_requests import antrag_fuer
 from ..auftragsstatus import AuftragGeschlossen
 from ..planning import GERMAN_STATES, PlanungsWarnung, create_slot, delete_slot, einsatz_konflikte, load_planning_settings, load_region_settings, offene_auftraege, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
@@ -33,6 +33,7 @@ router = APIRouter()
 # unabhängigen, bereits ausgenommenen GET /api/field-view/today).
 _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
 _abwesenheit_loeschen_dep = Depends(require_role(*ABWESENHEIT_LOESCHEN_ROLLEN, message=ABWESENHEIT_LOESCHEN_NUR_ADMIN))
+_grundlagen_dep = Depends(require_planungsgrundlagen)  # seit 1.9.147 (P10): Lesen bleibt _role_dep
 
 # Krankheitssichtbarkeit (siehe CLAUDE.md): buero_auftrag sieht bei jeder Abwesenheit --
 # egal wer/wann sie angelegt hat, auch die eigene soeben erstellte -- ausschließlich "abwesend"
@@ -120,13 +121,13 @@ def get_planning_capacity_settings(db: Session = Depends(get_db, scope="function
 
 
 @router.put("/api/planning/settings", response_model=PlanningSettingsOut)
-def put_planning_capacity_settings(payload: PlanningSettingsUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def put_planning_capacity_settings(payload: PlanningSettingsUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _grundlagen_dep):
     row = update_planning_settings(db, **payload.model_dump())
     return planning_settings_dict(row, db)
 
 
 @router.post("/api/planning/school-holidays/sync")
-def sync_planning_school_holidays(start_year: int | None = None, years: int = 3, force: bool = False, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def sync_planning_school_holidays(start_year: int | None = None, years: int = 3, force: bool = False, db: Session = Depends(get_db, scope="function"), _role: AppUser = _grundlagen_dep):
     region = load_region_settings(db)
     start_year = start_year or berlin_today().year
     years = max(1, min(int(years), 6))
@@ -140,14 +141,14 @@ def list_planning_holidays(db: Session = Depends(get_db, scope="function"), _rol
 
 
 @router.post("/api/planning/holidays", response_model=PlanningHolidayOut)
-def create_planning_holiday(payload: PlanningHolidayCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+def create_planning_holiday(payload: PlanningHolidayCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _grundlagen_dep):
     if db.scalar(select(PlanningHoliday).where(PlanningHoliday.holiday_date == payload.holiday_date)):
         raise HTTPException(status_code=409, detail="Für dieses Datum ist bereits ein Feiertag / betriebsfreier Tag hinterlegt.")
     row=PlanningHoliday(**payload.model_dump()); db.add(row); db.commit(); db.refresh(row); return row
 
 
 @router.put("/api/planning/holidays/{holiday_id}", response_model=PlanningHolidayOut)
-def update_planning_holiday(holiday_id:int, payload:PlanningHolidayCreate, db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
+def update_planning_holiday(holiday_id:int, payload:PlanningHolidayCreate, db:Session=Depends(get_db, scope="function"),_role:AppUser=_grundlagen_dep):
     row=db.get(PlanningHoliday,holiday_id)
     if row is None: raise HTTPException(status_code=404,detail="Feiertag / betriebsfreier Tag nicht gefunden.")
     duplicate=db.scalar(select(PlanningHoliday).where(PlanningHoliday.holiday_date==payload.holiday_date, PlanningHoliday.id!=holiday_id))
@@ -157,7 +158,7 @@ def update_planning_holiday(holiday_id:int, payload:PlanningHolidayCreate, db:Se
 
 
 @router.delete("/api/planning/holidays/{holiday_id}")
-def delete_planning_holiday(holiday_id:int, db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
+def delete_planning_holiday(holiday_id:int, db:Session=Depends(get_db, scope="function"),_role:AppUser=_grundlagen_dep):
     row=db.get(PlanningHoliday,holiday_id)
     if row is None: raise HTTPException(status_code=404,detail="Feiertag / betriebsfreier Tag nicht gefunden.")
     db.delete(row); db.commit(); return {"deleted":True}

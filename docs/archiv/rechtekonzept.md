@@ -2225,3 +2225,11 @@ Details: `docs/archiv/redesign.md`, „Nachrunde, Punkt 3“.
 ## Nachtrag 1.9.146: Abwesenheiten auf der Plantafel
 
 „Abwesenheit eintragen“ auf der Tafel folgt seit 1.9.146 den Regeln von „Zeiten“ (Nachtrag 1.9.101): Admin gleich genehmigt, Büro – Finanzen auch für andere (offen), Büro – Auftrag nur für sich. Bis 1.9.145 trug jedes Büro für jede Person jede Art ein und löschte jede. Löschen einer genehmigten Abwesenheit: nur der Admin (`darf_abwesenheit_loeschen()`). Herleitung: `docs/archiv/zeiterfassung-und-abwesenheit.md`, „Umsetzung 1.9.146“.
+
+## Nachtrag 1.9.147: Planungsgrundlagen
+
+Bundesland, Arbeitstage, betriebsfreie Tage (P10): nur Admin und Büro – Finanzen speichern, Büro – Auftrag liest (`darf_planungsgrundlagen()`, Muster `darf_geld()` und `require_geld_einstellung`; Seite: Hinweis, `grundlagenNurLesen()`).
+
+### Festlegungen 1.9.147 (Bitte bestätigen)
+
+1. Gesperrt ist der ganze Abschnitt „Arbeitszeit und Kalender“: auch tägliche Arbeitszeit, Anfahrt und die Schalter, denn alle gehen über denselben `PUT /api/planning/settings`; dazu „Ferien jetzt aktualisieren“ (schreibt die Ferientabelle des Bundeslands).

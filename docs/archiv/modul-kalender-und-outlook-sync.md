@@ -944,3 +944,5 @@ Beleg im Befund Stufe 6, 3.4 (V1–V7). `sync_preparation_dates()` ist weg. `pla
 ### Tests und Prüfung
 
 Angepasste Erwartungen (Regel 28): `test_v090::test_planning_slot_updates_work_preparation_dates_and_can_switch_team` und `::test_multiple_slots_define_overall_work_preparation_period`, altes Soll: die Spalten der Arbeitsvorbereitung folgen dem Einsatz, neues Soll: `einsatz_zeitraum()` folgt ihm. `test_v329`: Eintrag `PUT /api/orders/{order_id}/work-preparation` aus `BEKANNT` gestrichen. `test_v399::test_postgresql_planeinsatz_beginn_und_ende_gleichzeitig`, altes Soll: die Spalten folgen dem Einsatz, neues Soll: `einsatz_zeitraum()`. `test_v399::test_postgresql_planeinsatz_entfernen_und_verschieben_ohne_deadlock`, Aufbau: angehalten wird nach dem Flush des DELETE statt in `sync_preparation_dates()`, die Erwartung (404, kein Deadlock) bleibt.
+
+Nachtrag 1.9.147: `tests/test_v563_konflikte_pg.py` prüft die Warnliste unter PostgreSQL im Wegwerf-Schema: nichts bleibt zurück, die Sperre der Arbeitsvorbereitung ist nach dem Ablehnen frei, Tafel und Auswahl laufen.

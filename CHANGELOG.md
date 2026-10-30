@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.147 – Bundesland, Arbeitstage, betriebsfreie Tage ändern Admin und Büro – Finanzen (Stufe 6, R1, Punkt 5)
+
+Büro – Auftrag durfte Bundesland, Arbeitstage und betriebsfreie Tage ändern, obwohl das Bundesland auch die Arbeitstage unter „Zeiten“ steuert, wo dieselbe Rolle nur liest (Befund Stufe 6, P10). Jetzt speichern nur Admin und Büro – Finanzen (`require_planungsgrundlagen`, 403 mit Grund), Büro – Auftrag liest: Felder gesperrt, Knöpfe weg, ein Hinweis. Test `tests/test_v567_planungsgrundlagen_rechte.py`.
+
 ## 1.9.146 – Abwesenheiten, ein Weg wie unter „Zeiten“ (Stufe 6, R1, Punkt 4)
 
 Bis hierher gab es zwei Wege: direkt auf der Tafel und als Antrag unter „Zeiten“, und „Zeiten“ zeigte die direkt eingetragenen nicht (Befund Stufe 6, D2, P9). Jetzt legt „Abwesenheit eintragen“ auf der Tafel einen Antrag an, mit denselben Rechten wie unter „Zeiten“: vom Admin gleich genehmigt, Büro – Finanzen auch für andere, Büro – Auftrag nur für sich (für andere 403). Die Migration `b2c7f4e19a06` legt je Abwesenheit ohne Antrag einen genehmigten an, mit Vermerk; „Zeiten → Abwesenheiten“ zeigt damit alle und öffnet mit dem Filter „Alle“.

@@ -5,6 +5,7 @@
                      E-Mail-Vorlagen: eine Mahnstufe gesperrt mit Hinweis, das Angebot offen; Angriff aus der Seite (PUT Mahnstufe,
                      POST Zahlungsbedingung) 403
     Büro – Finanzen  Felder offen, Nummernkreis und Zahlungsbedingung gespeichert
+    Seit 1.9.147     „Arbeitszeit und Kalender“ (Bundesland, Arbeitstage, betriebsfreie Tage): Büro – Auftrag Hinweis, gesperrt, keine Knöpfe, PUT 403; Büro – Finanzen offen, gespeichert
 
 AUFRUF (aus dem Projektordner):
 
@@ -62,6 +63,14 @@ async def pruefen(tab, seed, p):
     p.pruefe("Büro – Auftrag: Mahnwesen gesperrt", await _bereich(
         tab, "reminder-levels", "document.querySelector('#reminderLevelRows input')"), leer)
 
+    await tab.js("document.querySelector('[data-settings-section=\"planning\"]').click()")
+    p.pruefe("Büro – Auftrag: Arbeitszeit und Kalender gesperrt", await tab.js(
+        "(()=>{const b=document.getElementById('settings-planning');return [!!b.querySelector('[data-grundlagen-nur-lesen]'),"
+        "[...b.querySelectorAll('input,select')].every(f=>f.disabled),[...b.querySelectorAll('[data-grundlagen-knopf]')].every(k=>k.hidden)]})()"), [True, True, True])
+    p.pruefe("Büro – Auftrag: Bundesland ändern 403", await tab.js(
+        "fetch('/api/planning/settings').then(r=>r.json()).then(s=>fetch('/api/planning/settings',{method:'PUT',headers:{'Content-Type':'application/json'},"
+        "body:JSON.stringify({...s,federal_state_code:'BY'})})).then(r=>r.status)"), 403)
+
     await tab.js("document.querySelector('[data-settings-section=\"payment-terms\"]').click()")
     p.pruefe("Zeile der Zahlungsbedingung: nur „Ansehen“", await tab.js(
         "[...document.querySelectorAll('#paymentTermRows tr')].find(t=>t.textContent.includes('30 Tage netto'))"
@@ -109,6 +118,13 @@ async def pruefen(tab, seed, p):
     await tab.warte_auf_neu_geladene_liste("savePaymentTerm()", "#paymentTermRows")
     p.pruefe("Büro – Finanzen: Zahlungsbedingung gespeichert", await tab.js(
         "fetch('/api/payment-terms').then(r=>r.json()).then(l=>l.some(t=>t.label==='30 Tage rein netto'))"), True)
+    await tab.js("document.querySelector('[data-settings-section=\"planning\"]').click()")
+    p.pruefe("Büro – Finanzen: Arbeitszeit und Kalender offen", await tab.js(
+        "(()=>{const b=document.getElementById('settings-planning');return [!!b.querySelector('[data-grundlagen-nur-lesen]'),document.getElementById('planningState').disabled,"
+        "[...b.querySelectorAll('[data-grundlagen-knopf]')].some(k=>k.hidden)]})()"), [False, False, False])
+    await tab.js("document.getElementById('planningState').value='BY';void savePlanningSettings()")
+    await tab.warte_auf_ruhe()
+    p.pruefe("Büro – Finanzen: Bundesland gespeichert", await tab.js("fetch('/api/planning/settings').then(r=>r.json()).then(s=>s.federal_state_code)"), "BY")
     p.pruefe("JS-Fehler (Büro – Finanzen)", tab.fehler, [])
 
 
