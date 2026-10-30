@@ -236,8 +236,7 @@ async def pruefen(tab, seed, p):
     await tab.fenster(412, 900, mobil=True)
     await tab.oeffnen(f"/customers/{seed['kunde']}#zahlungen", CUSTOMER_READY)
     await tab.js("document.documentElement.setAttribute('data-theme','dark');document.getElementById('reiter-zahlungen').scrollIntoView()")
-    _passt(p, "Kundenakte 412 px: ohne waagrechtes Scrollen", await tab.js(
-        "document.documentElement.scrollWidth<=412"), lambda v: v is True)
+    p.pruefe("Kundenakte 412 px: nichts ragt über den Bildschirm", await tab.ueberlauf(), [])
     await tab.bild("kundenakte_412_dunkel")
     await tab.fenster(1400, 1100)
 

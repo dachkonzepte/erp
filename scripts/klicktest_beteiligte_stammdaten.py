@@ -196,7 +196,8 @@ async def pruefen(tab, seed, p):
     await tab.oeffnen(f"/projects/{projekt}?schmal=1#sec-participants", bereit)
     await tab.js("openParticipantModal()")
     await _dialog(tab, "Gerüst", "document.querySelectorAll('#pmResults .pm-hit').length===2")
-    p.pruefe("412 px: kein seitliches Scrollen", await tab.js("document.documentElement.scrollWidth<=window.innerWidth"), True)
+    p.pruefe("412 px: nichts ragt über den Bildschirm", await tab.ueberlauf(), [])
+    await tab.bild_ganz("breite_dialog_beteiligter")
     await tab.bild("dialog_412")
     await tab.fenster(1400, 1000)
 

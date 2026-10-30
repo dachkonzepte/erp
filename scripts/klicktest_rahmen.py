@@ -149,7 +149,7 @@ return {hoehe:Math.round(r(t).height),suche:such?Math.round(r(such).width):null,
 name_sichtbar:sichtbar(name),name_ganz:!!name&&name.scrollWidth<=name.clientWidth,initialen:ini?ini.textContent:null,
 kreis:ini?[Math.round(r(ini).width),Math.round(r(ini).height),getComputedStyle(ini).borderRadius,getComputedStyle(ini).backgroundColor===F('--ds-aktion')]:null,
 knopf_rechts:k?Math.round(document.documentElement.clientWidth-r(k).right)<=24:null,knopf_in_zeile:k?r(k).top>=r(t).top&&r(k).bottom<=r(t).bottom:null,
-breit_scroll:document.documentElement.scrollWidth>innerWidth+1}})()""" % FARBE
+}})()""" % FARBE
 
 MENUE = """(()=>{const k=document.getElementById('appTopbarAccountBtn');const m=document.getElementById('appTopbarAccountMenu');
 const a=document.activeElement;
@@ -175,7 +175,7 @@ aktiv:aktiv.map(a=>[a.textContent.trim(),a.getAttribute('aria-current'),cs(a).bo
 cs(a).backgroundColor===F('--ds-navi-aktiv'),cs(a).borderTopLeftRadius,cs(a).color,cs(a).fontWeight]),
 lupe:lupe?[Math.round(r(lupe).width),Math.round(r(lupe).height)]:null,grund_navi:h?cs(h).backgroundColor===F('--ds-navi-grund'):null,
 kachel:h?(k=>[Math.round(r(k).width),cs(k).backgroundColor,k.querySelectorAll('svg polygon').length,!!k.querySelector('img')])(h.querySelector('.mobile-header-kachel')):null,
-breit_scroll:document.documentElement.scrollWidth>innerWidth+1}})()""" % FARBE
+}})()""" % FARBE
 
 TASTEN = {"Enter": 13, "Escape": 27, "ArrowDown": 40, "ArrowUp": 38, "Home": 36, "End": 35, "Tab": 9}
 
@@ -195,6 +195,7 @@ async def _maus(tab, art, selektor, knopf="none"):
 
 async def _laden(tab, seed, name, thema, breite, hoehe):
     await tab.cmd("Emulation.setEmulatedMedia", features=[{"name": "prefers-color-scheme", "value": "dark" if thema == "dunkel" else "light"}])
+    tab.geraet_breite = breite  # für tab.ueberlauf()
     await tab.cmd("Emulation.setDeviceMetricsOverride", width=breite, height=hoehe, deviceScaleFactor=1, mobile=breite in bg.GERAETE)
     ok = await tab.oeffnen(bg.AUFNAHME[name].pfad.format(**seed), bg.BEREIT, timeout=45)
     await tab.js(bg.RUHE)
@@ -299,7 +300,8 @@ async def _kopfzeile(tab, seed, p):
     p.pruefe("Kopfzeile 412 px: geladen", await _laden(tab, seed, KOPF_SEITE, "hell", 412, 900), True)
     m = await tab.js(KOPF)
     p.pruefe("Kopfzeile 412 px: 64 px, nur Initialen, kein waagrechter Bildlauf",
-             [m["hoehe"], m["name_sichtbar"], bool(m["initialen"]), m["knopf_in_zeile"], m["breit_scroll"]], [64, False, True, True, False])
+             [m["hoehe"], m["name_sichtbar"], bool(m["initialen"]), m["knopf_in_zeile"], await tab.ueberlauf()], [64, False, True, True, []])
+    await tab.bild_ganz("breite_kopfzeile")
 
 
 async def _kontomenue(tab, seed, p):
@@ -466,7 +468,8 @@ async def _pruefvorlagen(tab, seed, p):
     p.pruefe("Prüfvorlagen 412 px: geladen", await _laden(tab, seed, "pruefvorlagen", "hell", 412, 900), True)
     k = await tab.js(KONTRAST)
     p.pruefe(f"Prüfvorlagen 412 px: Kontrast (kleinster {k['min']} : 1), kein waagrechter Bildlauf",
-             [k["schwach"], await tab.js("document.documentElement.scrollWidth<=innerWidth+1")], [[], True])
+             [k["schwach"], await tab.ueberlauf()], [[], []])
+    await tab.bild_ganz("breite_pruefvorlagen")
     # seit 1.9.6: der Editor einer Prüfvorlage mit Altwert behält ihn -- vorgewählt als „… (nicht mehr verfügbar)“, Speichern ändert nichts
     adresse = f"/inspection-templates/{seed['pruefvorlage_altwert']}"
     bereit = "document.getElementById('editRoofType')&&document.getElementById('editRoofType').options.length>1"
@@ -601,8 +604,8 @@ async def _monteurskopf(tab, seed, p):
             p.pruefe(f"{wo}: geladen", await _laden(tab, seed, name, thema, breite, hoehe), True)
             m = await tab.js(MKOPF)
             p.pruefe(f"{wo}: 64 px, einzeilig, ohne Leiste und Kopfzeile des Büros, Grund navi",
-                     [m["hoehe"], m["wrap"], m["einzeilig"], m["leiste"], m["topbar"], m["grund_navi"], m["breit_scroll"]],
-                     [64, 64, True, False, False, True, False])
+                     [m["hoehe"], m["wrap"], m["einzeilig"], m["leiste"], m["topbar"], m["grund_navi"], await tab.ueberlauf()],
+                     [64, 64, True, False, False, True, []])
             p.pruefe(f"{wo}: Name ganz zu sehen", [m["name"], m["name_ganz"]], ["Mia Monteurin", True])
             p.pruefe(f"{wo}: Reiter 48 px mit 16 px, Lupe 48 × 48", [m["reiter"], m["lupe"]],
                      [[["Heute", 48, "16px"], ["Meine Zeiten", 48, "16px"]], [48, 48]])  # seit 1.9.59
@@ -623,7 +626,8 @@ async def _monteurskopf(tab, seed, p):
     p.pruefe("Monteurskopf 412 px: geladen", await _laden(tab, seed, "einsatzbericht", "hell", 412, 900), True)
     m = await tab.js(MKOPF)
     p.pruefe("Monteurskopf 412 px: zwei Zeilen (112 px), Name ganz, kein waagrechter Bildlauf",
-             [m["hoehe"], m["name"], m["name_ganz"], m["breit_scroll"]], [112, "Mia Monteurin", True, False])
+             [m["hoehe"], m["name"], m["name_ganz"], await tab.ueberlauf()], [112, "Mia Monteurin", True, []])
+    await tab.bild_ganz("breite_monteurskopf")
     # Lupe und Kontomenü per Tastatur
     p.pruefe("Monteurskopf Lupe: geladen", await _laden(tab, seed, "einsatzbericht", "hell", 1280, 620), True)
     suche = ("(()=>{const l=document.getElementById('mobileSearchToggle'),s=document.getElementById('mobileSearchPanel');"
@@ -1379,7 +1383,7 @@ return {ds:document.body.classList.contains('ds-seite'),h1:[...document.querySel
  marke:m?[m.querySelector('.marke-name').textContent,m.querySelector('.marke-zusatz').textContent,!!ka.querySelector('svg'),
    Math.round(r(ka).width),Math.round(r(ka).height),cs(ka).backgroundColor,erste(cs(m.querySelector('.marke-name')).fontFamily)]:null,
  vorKopf:!!(m&&k&&(m.compareDocumentPosition(k)&Node.DOCUMENT_POSITION_FOLLOWING)),schrift:erste(cs(document.body).fontFamily),
- grund:cs(document.body).backgroundColor===F('--ds-grund'),ohneBildlauf:document.documentElement.scrollWidth<=window.innerWidth,
+ grund:cs(document.body).backgroundColor===F('--ds-grund'),
  alt:document.querySelectorAll('.muted,.button').length}})()"""
 # Farben und Maß eines Elements gegen --ds-Werte: [Höhe, Grund = --ds-aktion, Schrift = --ds-auf-aktion]
 GRUENER_KNOPF = """(e=>{const F=%s;const cs=getComputedStyle(e);return [Math.round(e.getBoundingClientRect().height),
@@ -1409,8 +1413,10 @@ async def _anmeldung(tab, seed, p):
                 m = await tab.js(ANMELDUNG_JS % FARBE)
                 p.pruefe(f"{wo}: .ds-seite, Grund --ds-grund, ein h1 „{titel}“ in Archivo 30 px, Untertitel, Text in IBM Plex Sans, "
                          f"kein alter Kopf, kein waagrechter Bildlauf",
-                         [m["ds"], m["grund"], m["h1"], m["titel"], m["untertitel"], m["schrift"], m["alt"], m["ohneBildlauf"]],
-                         [True, True, [titel], ["30px", "Archivo"], untertitel, "IBM Plex Sans", 0, True])
+                         [m["ds"], m["grund"], m["h1"], m["titel"], m["untertitel"], m["schrift"], m["alt"], await tab.ueberlauf()],
+                         [True, True, [titel], ["30px", "Archivo"], untertitel, "IBM Plex Sans", 0, []])
+                if breite == 412:
+                    await tab.bild_ganz(f"breite_{seite}_{thema}")
                 p.pruefe(f"{wo}: Bildmarke mit Schriftzug in weißer Kachel 44 px über dem Seitenkopf", [m["marke"], m["vorKopf"]],
                          [MARKE, True])
                 if seite == "anmeldung":

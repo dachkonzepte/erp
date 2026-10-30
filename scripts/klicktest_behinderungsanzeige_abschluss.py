@@ -238,7 +238,8 @@ async def _pruefen(tab, seed, p):
     await tab.fenster(412, 900, mobil=True)
     await tab.js("localStorage.setItem('erp_theme','dark')")
     await tab.oeffnen(f"/checklisten/{cid}", bereit)
-    p.pruefe("Dunkel 412 px: kein waagrechter Scrollbalken", await tab.js("document.documentElement.scrollWidth<=window.innerWidth"), True)
+    p.pruefe("Dunkel 412 px: nichts ragt über den Bildschirm", await tab.ueberlauf(), [])
+    await tab.bild_ganz("breite_checkliste_buero_dunkel")
     p.pruefe("412 px: Zeitstrahl untereinander", await tab.js(
         f"(()=>{{const t={schritte}.map(s=>s.getBoundingClientRect().top);return t[0]<t[1]&&t[1]<t[2]}})()"), True)
     await tab.js("document.getElementById('noticeTimeline').scrollIntoView({block:'start'})")

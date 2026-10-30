@@ -170,15 +170,15 @@ async def pruefen(tab, seed, p):
         "!!(document.getElementById('concernAlert').compareDocumentPosition(document.getElementById('reportList'))"
         "&Node.DOCUMENT_POSITION_FOLLOWING)"), True)
     p.pruefe("Monteurin Einsatzbericht: deutlich (Rahmen in Warnfarbe, Text lesbar)", await tab.js(LESBAR), True)
-    p.pruefe("Monteurin Einsatzbericht: kein waagrechter Scrollbalken", await tab.js(
-        "document.documentElement.scrollWidth<=window.innerWidth"), True)
+    p.pruefe("Monteurin Einsatzbericht: nichts ragt über 412 px", await tab.ueberlauf(), [])
+    await tab.bild_ganz("breite_einsatzberichte_monteurin")
     await tab.bild("1_monteurin_einsatzbericht_hell")
     await _thema(tab, f"/checklisten/auftrag/{auftrag}", HINWEIS_DA, "dark", p, "Monteurin Checklisten-Seite")
     p.pruefe("Monteurin Checklisten-Seite: dieselben Einträge", await tab.js(EINTRAEGE),
              [eigener_eintrag, ["SPAN", bueros_eintrag, None]])
     p.pruefe("Monteurin Checklisten-Seite: lesbar im Dunkelmodus", await tab.js(LESBAR), True)
-    p.pruefe("Monteurin Checklisten-Seite: kein waagrechter Scrollbalken", await tab.js(
-        "document.documentElement.scrollWidth<=window.innerWidth"), True)
+    p.pruefe("Monteurin Checklisten-Seite: nichts ragt über 412 px", await tab.ueberlauf(), [])
+    await tab.bild_ganz("breite_checklisten_auftrag_monteurin")
     await tab.bild("2_monteurin_checklisten_seite_dunkel")
     p.pruefe("Monteurin: keine JS-Fehler", tab.fehler, [])
 

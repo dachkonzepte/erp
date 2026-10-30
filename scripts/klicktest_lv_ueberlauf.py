@@ -61,8 +61,6 @@ for(const z of zeilen){
       fehler.push(`Zelle ${i+1} „${(zelle.innerText||'').trim().slice(0,20)}“ abgeschnitten (${zelle.scrollWidth} > ${zelle.clientWidth})`);
   });
 }
-const seite=document.documentElement.scrollWidth-window.innerWidth;
-if(seite>0)fehler.push(`Seite ${seite} px breiter als das Fenster`);
 return {zeilen:zeilen.length,fehler};
 })"""
 
@@ -138,9 +136,17 @@ async def pruefen(tab, seed, p):
     await tab.fenster(412, 900, mobil=True)
     p.pruefe("auftrag 412: geladen", await tab.oeffnen(*seiten["auftrag"]), True)
     await tab.warte_auf_ruhe()
-    p.pruefe("auftrag 412: kein waagrechter Bildlauf der Seite", await tab.js(
-        "document.documentElement.scrollWidth<=document.documentElement.clientWidth+1"), True)
+    p.pruefe("auftrag 412: nichts ragt über den Bildschirm", await tab.ueberlauf(), [])
     await tab.bild("lv_auftrag_412")
+    # seit 1.9.138 jeder Reiter der Akte, wie klicktest_kundenakte
+    reiter = await tab.js("[...document.querySelectorAll('.reiter a[data-reiter]')].filter(a=>!a.hidden).map(a=>a.dataset.reiter)")
+    p.pruefe("auftrag 412: alle Reiter sichtbar", reiter, ["uebersicht", "angebote", "vertrag", "leistungen", "ausfuehrung", "abnahme", "rechnungen", "dateien", "verlauf"])
+    for name in reiter:
+        await tab.js(f"""document.querySelector('.reiter a[data-reiter="{name}"]').click()""")
+        await tab.warten(f"document.getElementById('reiter-{name}').hidden===false")
+        await tab.warte_auf_ruhe()
+        p.pruefe(f"akte 412 {name}: nichts ragt über den Bildschirm", await tab.ueberlauf(), [])
+        await tab.bild_ganz(f"breite_akte_{name}")
     p.pruefe("keine JS-Fehler", tab.fehler, [])
 
 

@@ -4939,6 +4939,9 @@ angebotenen Auftrag oder wird gar nicht gebucht.
 
 Festgehalten, nicht gebaut; vor dem Echtbetrieb zu entscheiden bzw. zu bauen.
 
+- **Kunde archivieren** (30.10.2026, Vorgabe zu Stufe 5, R3, Punkt 4; Merkliste, nicht bauen): `Customer` und `CustomerProfile` haben kein Feld dafür, kein
+  Endpunkt archiviert oder löscht einen Kunden, das „⋮“ der Kundenakte hat keinen solchen Eintrag. Es bräuchte eine Spalte mit Migration und die Entscheidung, wo ein
+  archivierter Kunde noch auftaucht (Auswahllisten, Suche, Stammdaten).
 - **`content` der Layout-Bausteine entfernen** (14.10.2026, Vorgabe ab 1.8.105, zum Befund 99-13 unter "Umsetzung 1.8.103"): die Spalte
   `document_layout_blocks.content` wird nirgends eingegeben (nur über `PUT /api/document-layout/blocks/{id}`) und nirgends gezeigt (kein
   PDF, keine Vorlage) -- mit den übrigen ungenutzten Spalten entfernen (Migration, Antwortschema `DocumentLayoutBlockOut`, PUT-Schema `DocumentLayoutBlockUpdate`).

@@ -141,7 +141,8 @@ async def pruefen(tab, seed, p):
         "t.style.color='var(--ds-fehler)';const f=getComputedStyle(t).color;t.style.color='var(--ds-fehler-text)';const ft=getComputedStyle(t).color;"
         "t.remove();return [s.borderTopColor===f,s.borderLeftColor===f,s.color===ft]})()"),
         [True, True, True])
-    p.pruefe("Monteurin: kein waagrechter Scrollbalken", await tab.js("document.documentElement.scrollWidth<=window.innerWidth"), True)
+    p.pruefe("Monteurin: nichts ragt über 412 px", await tab.ueberlauf(), [])
+    await tab.bild_ganz("breite_checkliste_monteurin")
     await tab.bild("1_monteurin_mobil_hinweis")
     p.pruefe("Monteurin: keine JS-Fehler", tab.fehler, [])
 

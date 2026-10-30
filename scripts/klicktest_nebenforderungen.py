@@ -210,8 +210,8 @@ async def pruefen(tab, seed, p):
     await tab.js("document.documentElement.setAttribute('data-theme','dark')")
     await tab.js("document.getElementById('chargesCard').scrollIntoView({block:'start'})")
     await tab.bild("rechnung_nebenforderungen_412_dunkel")
-    p.pruefe("412 px: kein waagerechtes Scrollen", await tab.js(
-        "document.documentElement.scrollWidth<=window.innerWidth+1"), True)
+    p.pruefe("412 px: nichts ragt über den Bildschirm", await tab.ueberlauf(), [])
+    await tab.bild_ganz("breite_rechnung_nebenforderungen")
     await tab.js("document.documentElement.setAttribute('data-theme','light')")
     await tab.fenster(1280, 1000)
 

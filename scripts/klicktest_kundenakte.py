@@ -31,7 +31,6 @@ Optionen, Ablauf, Rückgabecode und Regeln (isolierte Wegwerf-Datenbank, Prozess
 scripts/cdp_klicktest.py. Feste Uhr 10:00.
 """
 
-import base64
 import json
 import sys
 from pathlib import Path
@@ -144,16 +143,6 @@ def befuellen(db, k):
             "cookies": {"fin": k.cookies(fin), "olga": k.cookies(olga), "mia": k.cookies(mia)}}
 
 
-async def _bild_ganz(tab, name: str):
-    """Die ganze Seite als PNG (über das Fenster hinaus)."""
-    m = await tab.cmd("Page.getLayoutMetrics")
-    groesse = m.get("cssContentSize") or m["contentSize"]
-    breite, hoehe = int(groesse["width"]), int(min(groesse["height"], 6000))
-    data = (await tab.cmd("Page.captureScreenshot", format="png", captureBeyondViewport=True,
-                          clip={"x": 0, "y": 0, "width": breite, "height": hoehe, "scale": 1}))["data"]
-    (tab.shots / f"{name}.png").write_bytes(base64.b64decode(data))
-
-
 async def _reiter(tab, name):
     await _klick(tab, f'.reiter a[data-reiter="{name}"]')
     await tab.warten(f"document.getElementById('reiter-{name}').hidden===false")
@@ -190,7 +179,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Büro – Auftrag: Zuordnen über die API 403", await tab.js(
         f"fetch('/api/payments/{seed['rest']}/allocations',{{method:'POST',headers:{{'Content-Type':'application/json'}},"
         f"body:JSON.stringify({{lines:[{{invoice_id:{seed['a2']},zahlung:'144.00'}}]}})}}).then(r=>r.status)"), 403)
-    await _bild_ganz(tab, "zahlungen_buero_auftrag")
+    await tab.bild_ganz("zahlungen_buero_auftrag")
     p.pruefe("Büro – Auftrag: JS-Fehler", tab.fehler, [])
 
     # --- Büro – Finanzen: Kopf und Übersicht ---
@@ -222,7 +211,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Übersicht: Stammdaten lesend", await tab.js(_text(
         "[...document.querySelectorAll('#stammdatenListe dt')].map(e=>e.textContent).join(', ')")),
         "Kundennummer, Kategorie, Verbraucher, Zahlungsbedingung, Rechnungen an, Interne Notiz")
-    await _bild_ganz(tab, "reiter_uebersicht")
+    await tab.bild_ganz("reiter_uebersicht")
 
     # --- jeder Reiter per Klick ---
     for name in REITER[1:]:
@@ -230,18 +219,18 @@ async def pruefen(tab, seed, p):
         p.pruefe(f"Reiter {name} sichtbar, Anker", await tab.js(
             f"[REITER.filter(r=>!document.getElementById('reiter-'+r).hidden),location.hash]"), [[name], f"#{name}"])
         if name not in ("zahlungen", "verlauf"):
-            await _bild_ganz(tab, f"reiter_{name}")
+            await tab.bild_ganz(f"reiter_{name}")
 
     # --- Zahlungen: „⋮“ eines Eingangs, Erstatten, Zurücknehmen, Zuordnen über den Vorschlag ---
     await _reiter(tab, "zahlungen")
     zeile = f'tr[data-zahlung="{seed["rest"]}"]'
     p.pruefe("Eingang mit Rest", await tab.js(_text(f"document.querySelector('{zeile} [data-rest]').textContent")), "Rest 144,00 €")
-    await _bild_ganz(tab, "reiter_zahlungen")  # mit Rest und Vorschlag, neben der Vorlage
+    await tab.bild_ganz("reiter_zahlungen")  # mit Rest und Vorschlag, neben der Vorlage
     await _klick(tab, f"{zeile} .menue-anker button")
     p.pruefe("„⋮“: Einträge und Trennlinie", await tab.js(
         f"(()=>{{const m=document.querySelector('{zeile} .ds-menue');return [m.hidden,[...m.children].filter(e=>!e.hidden).map(e=>e.classList.contains('ds-menue-trenner')?'—':e.textContent)]}})()"),
         [False, ["Zuordnen …", "Erstatten …", "—", "Zurücknehmen …"]])
-    await _bild_ganz(tab, "zahlungen_menue")
+    await tab.bild_ganz("zahlungen_menue")
     await _klick(tab, f'{zeile} [data-klick="zahlung-erstatten"]')
     await tab.warten("document.getElementById('erstattenDialog').open")
     p.pruefe("Dialog Erstatten: Zeile des Rests vorbelegt", await tab.js(
@@ -257,14 +246,14 @@ async def pruefen(tab, seed, p):
     await tab.warten("document.getElementById('zuordnenDialog').open")
     p.pruefe("Dialog Zuordnen: Rechnung und Betrag vorbelegt", await tab.js(
         "[Number(document.getElementById('restInvoice').value),document.getElementById('restAmount').value]"), [seed["a2"], "144,00"])
-    await _bild_ganz(tab, "dialog_zuordnen")
+    await tab.bild_ganz("dialog_zuordnen")
     await tab.warte_auf_neu_geladene_liste("document.getElementById('zuordnenKnopf').click()", "#customerPayments")
     await tab.warten("!document.getElementById('zuordnenDialog').open&&akte.vorschlaege.length===0")
     p.pruefe("Zugeordnet: Rest weg, Vorschlag weg, unbezahlt kleiner", _nb(await tab.js(
         f"[document.getElementById('customerPaymentsStatus').textContent,!!document.querySelector('{zeile} [data-rest]'),"
         "document.getElementById('zVorschlaege').children.length,document.getElementById('zKacheln').innerText.includes('11.756,00')]")),
         ["Zugeordnet.", False, 0, True])
-    await _bild_ganz(tab, "zahlungen_zugeordnet")
+    await tab.bild_ganz("zahlungen_zugeordnet")
 
     # --- Stammdaten im Dialog ---
     await _reiter(tab, "uebersicht")
@@ -273,7 +262,7 @@ async def pruefen(tab, seed, p):
     await _tippen(tab, "#phone", "02451 55 01 99")
     await tab.js("render()")
     p.pruefe("Dialog: Eingabe bleibt beim Neuzeichnen", await tab.js("document.getElementById('phone').value"), "02451 55 01 99")
-    await _bild_ganz(tab, "dialog_stammdaten")
+    await tab.bild_ganz("dialog_stammdaten")
     vorher = await tab.js("window.__schreiben.length")
     await tab.warte_auf_neu_geladene_liste("document.querySelector('[data-klick=\"stammdaten-speichern\"]').click()", "#stammdatenListe")
     await tab.warten("!document.getElementById('stammdatenDialog').open")
@@ -287,7 +276,7 @@ async def pruefen(tab, seed, p):
     await tab.warte_auf_neu_geladene_liste()
     verlauf = await tab.js(_text("document.getElementById('verlaufListe').innerText"))
     p.pruefe("Verlauf: Stammdaten und Zahlung", ["Fin Finanzen" in verlauf, "Zahlung" in verlauf, "Kunde" in verlauf], [True, True, True])
-    await _bild_ganz(tab, "reiter_verlauf")
+    await tab.bild_ganz("reiter_verlauf")
 
     # --- „⋮“ des Kopfs: Kunde · Wege ---
     await _reiter(tab, "uebersicht")
@@ -296,12 +285,12 @@ async def pruefen(tab, seed, p):
         "[...document.getElementById('seitenkopfMenue').children].filter(e=>!e.hidden).map(e=>e.classList.contains('ds-menue-trenner')?'—':e.textContent)"),
         ["Stammdaten bearbeiten", "+ Objekt", "+ Eintrag in „Kontakte & Kundenwissen“", "Neue Anfrage", "—", "Versandprotokoll des Kunden",
          "Ganze Änderungshistorie"])
-    await _bild_ganz(tab, "kopf_menue")
+    await tab.bild_ganz("kopf_menue")
     await _klick(tab, "#seitenkopfMenueKnopf")
 
     # --- dunkel ---
     await tab.js("document.documentElement.setAttribute('data-theme','dark')")
-    await _bild_ganz(tab, "uebersicht_dunkel")
+    await tab.bild_ganz("uebersicht_dunkel")
     await tab.js("document.documentElement.setAttribute('data-theme','light')")
 
     # --- 412 px ---
@@ -310,12 +299,9 @@ async def pruefen(tab, seed, p):
     await tab.oeffnen(f"/customers/{k}", BEREIT)
     for name in REITER:
         await _reiter(tab, name)
-        # gegen die Breite des Geräts gemessen: innerWidth wächst in der Mobil-Emulation mit dem Inhalt mit
-        p.pruefe(f"412 px {name}: nichts ragt über den Bildschirm", await tab.js(
-            "[document.documentElement.scrollWidth<=412,[...document.querySelectorAll('main .menue-anker,main .karte')]"
-            ".filter(e=>e.offsetParent!==null&&e.getBoundingClientRect().right>412).length]"), [True, 0])
+        p.pruefe(f"412 px {name}: nichts ragt über den Bildschirm", await tab.ueberlauf(), [])
     await _reiter(tab, "zahlungen")
-    await _bild_ganz(tab, "zahlungen_412")
+    await tab.bild_ganz("zahlungen_412")
     await tab.fenster(1440, 1240)
 
     # --- „⋮“ der Akte: Status · Projekt · Wege ---
@@ -326,7 +312,7 @@ async def pruefen(tab, seed, p):
         "if(e.classList.contains('ds-menue-trenner'))g.push([]);else g[g.length-1].push(e.textContent)}return g})()")
     p.pruefe("„⋮“ der Akte: drei Gruppen", [len(gruppen), "Stornieren …" in gruppen[0], "Projekt bearbeiten" in gruppen[1],
                                           "Arbeitsvorbereitung" in gruppen[-1]], [3, True, True, True])
-    await _bild_ganz(tab, "akte_menue")
+    await tab.bild_ganz("akte_menue")
 
     # --- Kunde ohne Projekt ---
     await tab.oeffnen(f"/customers/{seed['maus']}", "akte&&customer&&verlaufDaten")
@@ -334,7 +320,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Kunde ohne Projekt", _nb(await tab.js(
         "[document.getElementById('uProjekteListe').textContent,document.getElementById('zahlProjekte').hidden,document.getElementById('uGeldHinweis').children.length]")),
         ["Noch kein Projekt – „+ Projekt“ legt eines an.", True, 0])
-    await _bild_ganz(tab, "kunde_ohne_projekt")
+    await tab.bild_ganz("kunde_ohne_projekt")
     p.pruefe("Büro – Finanzen: JS-Fehler", tab.fehler, [])
 
     # --- Monteurin ---

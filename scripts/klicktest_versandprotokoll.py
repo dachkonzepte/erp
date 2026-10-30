@@ -298,7 +298,8 @@ async def _pruefen(tab, seed, p):
 
     await tab.fenster(412, 900, mobil=True)
     await tab.oeffnen("/versandprotokoll", FERTIG)
-    p.pruefe("412 px: kein seitliches Scrollen der Seite", await tab.js("document.documentElement.scrollWidth<=window.innerWidth"), True)
+    p.pruefe("412 px: nichts ragt über den Bildschirm", await tab.ueberlauf(), [])
+    await tab.bild_ganz("breite_versandprotokoll")
     await tab.bild("protokoll_412")
     await tab.fenster(1280, 900)
 

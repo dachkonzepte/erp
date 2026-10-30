@@ -287,7 +287,8 @@ async def _pruefen(tab, seed, p):
     await tab.js("localStorage.setItem('erp_theme','dark')")
     await tab.oeffnen(f"/checklisten/{cid}", f"{BEH} && {BEH}.querySelector('.badge')")
     p.pruefe("Dunkel: aktiv", await tab.js("document.documentElement.dataset.theme"), "dark")
-    p.pruefe("412 px: kein waagrechter Scrollbalken", await tab.js("document.documentElement.scrollWidth<=window.innerWidth"), True)
+    p.pruefe("412 px: nichts ragt über den Bildschirm", await tab.ueberlauf(), [])
+    await tab.bild_ganz("breite_checkliste_buero_dunkel")
     farben = await tab.js(f"(()=>{{const s=getComputedStyle({BEH}.querySelector('[data-notice-to]'));return [s.color,s.backgroundColor]}})()")
     p.pruefe("Dunkel: Feld 'An' lesbar (Text und Fläche verschieden)", farben[0] != farben[1], True)
     # seit 1.9.25 (Seitenkopf der Checkliste): der Link der Seite in --ds-link, der im Versandverlauf in der Farbe des Bausteins

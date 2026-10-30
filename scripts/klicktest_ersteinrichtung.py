@@ -63,9 +63,10 @@ async def pruefen(tab, seed, p):
                      "dark" if thema == "dark" else None)
             p.pruefe(f"{thema} {breite}: Hintergrund aus ds.css", await tab.js(
                 "getComputedStyle(document.body).backgroundColor"), "rgb(18, 22, 25)" if thema == "dark" else "rgb(238, 240, 241)")
-            p.pruefe(f"{thema} {breite}: passt ins Fenster (kein Bildlauf)", await tab.js(
-                "[document.documentElement.scrollWidth<=window.innerWidth,document.documentElement.scrollHeight<=window.innerHeight]"),
-                [True, True])
+            p.pruefe(f"{thema} {breite}: nichts ragt über die Gerätebreite", await tab.ueberlauf(breite), [])
+            await tab.bild_ganz(f"breite_ersteinrichtung_{thema}_{breite}")
+            p.pruefe(f"{thema} {breite}: passt in der Höhe ins Fenster", await tab.js(
+                "document.documentElement.scrollHeight<=window.innerHeight"), True)
             await tab.js("document.fonts.ready")
             p.pruefe(f"{thema} {breite}: Titel in Archivo", await tab.js(
                 "document.fonts.check('700 16px \"Archivo\"','Ersteinrichtung')&&getComputedStyle(document.querySelector('h1'))"

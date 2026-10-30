@@ -1312,3 +1312,15 @@ Vorgabe vom 26.10.2026: „den Port-Wettlauf aus dem Befund vom 24.10. beheben (
 2. Höchstens drei Startversuche mit neuem Port; mit fest vorgegebenem `--app-port` keiner.
 3. Chrome wählt seinen Port selbst (`--remote-debugging-port=0`, `DevToolsActivePort`) statt einer Kennung -- abweichend vom Vorschlag,
    der für Chrome nicht ging.
+
+## Breitenprüfung gegen das Gerät (1.9.138, Stufe 5, R4, Punkt 1)
+
+`tab.ueberlauf()` statt `scrollWidth<=innerWidth`: in der Mobil-Emulation wächst `innerWidth` mit dem Inhalt. Herleitung, Ergebnis je Seite und Gegenproben: `docs/archiv/redesign.md`, „Stufe 5, R4“.
+
+**Festlegungen 1.9.138 zu Werkzeug und Testablauf (Bitte bestätigen)**
+
+1. Ein Element in einem Behälter mit `overflow-x` ungleich `visible` zählt nicht als Überlauf: eine Tabelle, die im eigenen Rahmen rollt, ist gewollt; das Protokoll nennt sie („rollt im Rahmen“), rot wird sie nicht.
+2. Über die 15 Klicktests aus dem Bericht R3 hinaus auch `klicktest_lv_ueberlauf` und `klicktest_zahlungen_kleinkram` umgestellt (dieselbe Schwäche), `klicktest_kundenakte` auf denselben Helfer.
+3. „Zeiten“ und die Akte messen bei 412 px jeden Reiter, wie `klicktest_kundenakte`; die Akte in `klicktest_lv_ueberlauf`, weil dort ein Auftrag mit allen Reitern vorliegt.
+4. Die Klicktests mit `scrollWidth<=documentElement.clientWidth+1` bleiben: `clientWidth` ist in der Emulation fest, die Gegenprobe macht sie rot.
+5. Die Gegenprobe läuft über `_ds_kopf.html`, weil jede Seite ihn einbindet; die Hinweisseite ohne Konto eigens über `_ersteinrichtung_seite()`.

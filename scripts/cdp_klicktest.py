@@ -700,6 +700,30 @@ def verbindungsprotokoll_lesen(datei: Path) -> tuple[list[dict], dict[str, float
     return list(aufgaben.values()), verloren
 
 
+# Seit 1.9.138 (Stufe 5, R4, Punkt 1): was über die Breite des Geräts ragt -- die Seite selbst und jedes sichtbare Element, das nicht in einem
+# rollenden oder abschneidenden Behälter steht. Gegen die feste Breite gemessen: innerWidth wächst in der Mobil-Emulation mit dem Inhalt, die Prüfung
+# scrollWidth<=innerWidth war dort immer wahr (Fund 1.9.137). Jede Zeile nennt das Element, damit ein roter Lauf sagt, was zu beheben ist.
+UEBERLAUF = r"""(b=>{
+const aus=[];
+const sw=document.documentElement.scrollWidth;
+if(sw>b)aus.push(`Seite ${sw} px breit`);
+const gefasst=e=>{for(let a=e.parentElement;a&&a!==document.body&&a!==document.documentElement;a=a.parentElement)if(getComputedStyle(a).overflowX!=='visible')return true;return false};
+const name=e=>e.tagName.toLowerCase()+(e.id?'#'+e.id:'')+(typeof e.className==='string'&&e.className.trim()?'.'+e.className.trim().split(/\s+/)[0]:'');
+for(const e of document.querySelectorAll('body *')){
+  const s=getComputedStyle(e);
+  if(s.display==='none'||s.visibility==='hidden')continue;
+  const r=e.getBoundingClientRect();
+  if(r.width===0||r.height===0||r.right+scrollX<=b+0.5||gefasst(e))continue;
+  aus.push(`${name(e)} bis ${Math.round(r.right+scrollX)} px`);
+  if(aus.length>=6)break;
+}
+return aus})"""
+# Was gewollt rollt, ragt nicht über den Bildschirm, ist aber nicht ganz zu sehen -- nennt das Protokoll (kein Fehler, Bericht R4).
+ROLLT_IM_RAHMEN = r"""[...document.querySelectorAll('body *')].filter(e=>{const s=getComputedStyle(e);
+return s.display!=='none'&&s.visibility!=='hidden'&&['auto','scroll'].includes(s.overflowX)&&e.clientWidth>0&&e.scrollWidth>e.clientWidth+1})
+.map(e=>`${e.tagName.toLowerCase()}${e.id?'#'+e.id:''}${typeof e.className==='string'&&e.className.trim()?'.'+e.className.trim().split(/\s+/)[0]:''} ${e.clientWidth} von ${e.scrollWidth} px`)"""
+
+
 class Tab:
     """Eine Browser-Seite. fehler sammelt JS-Ausnahmen und console.error seit dem letzten oeffnen(); netz (seit 1.8.97) zeichnet
     die Netzwerk-Ereignisse auf (Netzprotokoll); downloads (seit 1.8.101) die Downloads, die der Tab beginnt (Page.downloadWillBegin --
@@ -715,6 +739,7 @@ class Tab:
         self.netz = Netzprotokoll(base_url, verbindungen)
         self.downloads: list[dict] = []  # seit 1.8.101: jeder Download, den der Tab beginnt ({"url", "name"})
         self.wachhund: "Wachhund | None" = None  # seit 1.8.126 (klicktest_main(..., zeitlimit_je_schritt=True))
+        self.geraet_breite: int | None = None  # seit 1.9.138: die Breite aus fenster(), für ueberlauf()
 
     async def cmd(self, method: str, **params):
         self.n += 1
@@ -796,8 +821,29 @@ class Tab:
         await self.cmd("Page.addScriptToEvaluateOnNewDocument", source=BROWSER_UHR_FEST % int(zeitpunkt_ms))
 
     async def fenster(self, breite: int, hoehe: int, mobil: bool = False) -> None:
+        self.geraet_breite = breite
         await self.cmd("Emulation.setDeviceMetricsOverride", width=breite, height=hoehe,
                        deviceScaleFactor=2 if mobil else 1, mobile=mobil)
+
+    async def ueberlauf(self, breite: int | None = None) -> list[str]:
+        """Seit 1.9.138: was über die Gerätebreite ragt (leer = passt); ohne Angabe die Breite aus fenster()."""
+        b = breite or self.geraet_breite
+        if not b:
+            raise ValueError("ueberlauf(): erst tab.fenster() oder die Breite angeben")
+        rollt = await self.js(ROLLT_IM_RAHMEN)
+        if rollt:
+            print(f"    rollt im Rahmen: {rollt}")
+        return await self.js(f"({UEBERLAUF})({int(b)})")
+
+    async def bild_ganz(self, name: str, *, hoechstens: int = 6000) -> Path:
+        """Seit 1.9.138: die ganze Seite als PNG, über das Fenster hinaus."""
+        m = await self.cmd("Page.getLayoutMetrics")
+        groesse = m.get("cssContentSize") or m["contentSize"]
+        data = (await self.cmd("Page.captureScreenshot", format="png", captureBeyondViewport=True,
+                               clip={"x": 0, "y": 0, "width": int(groesse["width"]), "height": int(min(groesse["height"], hoechstens)), "scale": 1}))["data"]
+        ziel = self.shots / f"{name}.png"
+        ziel.write_bytes(base64.b64decode(data))
+        return ziel
 
     async def oeffnen(self, pfad: str, bereit: str, timeout: float = 30) -> bool:
         """Lädt pfad und wartet, bis der JS-Ausdruck bereit wahr ist (Seiten laden ihre Daten per

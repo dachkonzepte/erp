@@ -240,7 +240,7 @@ async def pruefen(tab, seed, p):
         ["Oktober 2026", "offen", ["Mia Monteurin 3 18,00", "Tom Monteur 2 17,75", "Zusammen 35,75"]])  # Ole nur laufend: nicht in der Liste
     p.pruefe("Admin: Vor dem Abschluss", await tab.js("[...document.querySelectorAll('#abschlussListe li')].slice(0,2).map(l=>l.innerText)"),
              ["2 Zeiten laufen noch", "1 Tag mit unpassender Pause"])
-    p.pruefe("Admin: keine waagrechte Scrollleiste bei 1440", await tab.js("document.documentElement.scrollWidth<=window.innerWidth+1"), True)
+    p.pruefe("Admin: nichts ragt über 1440 px", await tab.ueberlauf(), [])
     await tab.bild("zeiten_pruefen_hell")
 
     await tab.js(f"document.querySelector('[data-aktion=ende][data-id=\"{seed['tom']}\"]').click()")
@@ -662,7 +662,12 @@ async def pruefen(tab, seed, p):
     # ---- 412 px ------------------------------------------------------------------------------------------------------------------------
     await tab.fenster(412, 900, mobil=True)
     p.pruefe("412 px: geladen", await tab.oeffnen("/zeiten?neu=2", BEREIT), True)
-    p.pruefe("412 px: ohne waagrechte Scrollleiste der Seite", await tab.js("document.documentElement.scrollWidth<=window.innerWidth+1"), True)
+    for reiter in ("pruefen", "buchungen", "abwesenheiten", "monat"):  # seit 1.9.138 jeder Reiter, wie klicktest_kundenakte
+        await tab.js(f"""document.querySelector('.reiter a[data-reiter="{reiter}"]').click()""")
+        await tab.warten(f"document.getElementById('reiter-{reiter}').hidden===false")
+        await tab.warte_auf_ruhe()
+        p.pruefe(f"412 px {reiter}: nichts ragt über den Bildschirm", await tab.ueberlauf(), [])
+        await tab.bild_ganz(f"breite_zeiten_{reiter}")
 
 
 if __name__ == "__main__":

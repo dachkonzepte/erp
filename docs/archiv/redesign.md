@@ -8176,7 +8176,7 @@ Beim Erfassen aufgefallen (für den Umbau, nicht einzeln behoben):
 - Die Stammdaten speichert `PUT /api/customers/{id}` als volles Formular (in `BEKANNT` von `tests/test_v329_update_handler_struktur.py`).
 - Am Kunden gibt es weder Archivieren noch Löschen (Punkt 4).
 
-#### Festlegungen 1.9.134 (Bitte bestätigen)
+#### Festlegungen 1.9.134 (bestätigt am 30.10.2026)
 
 1. Die Rolle einer Funktion gilt für ihre schreibenden Endpunkte; jeder lesende muss für Büro – Auftrag offen sein (die Zahlungen liest es ganz).
 2. Die Ziel-Reiter folgen `kunde-zuordnung.html`; „Projekt anlegen“ wird „+ Projekt“ im Kopf, die fünf Kacheln werden die Zähler an den Reitern
@@ -8202,7 +8202,7 @@ Aufruf unter `/api/` -> 1.
   `zaehler()` (Projekte ohne Muster, Objekte, Anfragen, Dokumente, Kontakte); `kunde_kontext()`.
 - `GET /api/customers/{customer_id}/akte` (`app/routers/customers.py`, ab Büro – Auftrag, Monteurin 403, unbekannt 404).
 
-#### Festlegungen 1.9.135 (Bitte bestätigen)
+#### Festlegungen 1.9.135 (bestätigt am 30.10.2026)
 
 1. Die Kundenakte zählt keine Mustervorgänge. „Laufend“ heißt: nicht abgeschlossen, nicht storniert, nicht archiviert; laufende stehen zuerst, je
    Gruppe die jüngsten zuerst.
@@ -8253,7 +8253,7 @@ ihre einzige Gruppe weg, `vor` zeigte immer wieder auf dieselbe Stelle; behoben 
 hing im Strom des Kunden an der nächsten Aktion desselben Kontos (der Zahlungsbuchung) und machte sie zur Versandzeile -- im Kunden fehlt die Zeile
 des Dokuments selbst; ein Versand ist dort eine eigene Zeile.
 
-#### Festlegungen 1.9.136 (Bitte bestätigen)
+#### Festlegungen 1.9.136 (bestätigt am 30.10.2026)
 
 1. Der Verlauf des Kunden zeigt Kunde (samt Profil), Kundenwissen, Objekte mit Dachflächen, Anfragen, Zahlungen und den Versand seiner Dokumente;
    Projekte, Angebote, Aufträge und Rechnungen stehen im Verlauf ihrer Akte, nicht hier. Kundendokumente fehlen (sie stehen nicht im
@@ -8310,7 +8310,7 @@ Fund beim Bau (behoben): auf 412 px ragte die Tabelle der Zahlungseingänge übe
 Klicktest misst je Reiter gegen die Gerätebreite 412. Dieselbe schwache Prüfung steht noch in 15 älteren Klicktests (`grep scrollWidth scripts/`) -- nur in
 `klicktest_zahlungen_kleinkram` geändert, weil er die Kundenakte betrifft; die übrigen sind offen und im Bericht genannt.
 
-#### Festlegungen 1.9.137 (Bitte bestätigen)
+#### Festlegungen 1.9.137 (bestätigt am 30.10.2026)
 
 1. Die Kategorie steht im Kopf an der Stelle des Status, blau wie die Vorlage; sie ist kein Status (freie Gruppe `kundenkategorie`, Wert unverändert).
 2. „Rechnungen an“ in der Karte Stammdaten ist die primäre E-Mail des Kunden -- an sie geht die Rechnung (`get_invoice_recipient_email()`); ein eigenes Feld gibt es nicht. Im Dialog heißt das Feld „Primäre E-Mail (Rechnungen an)“.
@@ -8363,3 +8363,51 @@ Angepasste Erwartungen, Klicktests (Bereit-Bedingung alt `lastName`-Feld, neu de
 
 Gegenproben (Marker `GEGENPROBE`, byte-genau zurück, je FAILED in `test_v557`): Anker nicht ausgewertet -> 3; alle Felder gesendet -> 2; Neuzeichnen füllt den Dialog -> 1; „⋮“ je Eingang ohne `GELD` -> 1; Knöpfe der Vorschläge ohne
 `GELD` -> 1; alle Rechnungen als unbezahlt -> 1; Trennlinie immer -> 1; Link im Untertitel ungeprüft -> 1; Kategorie neutral -> 1; Daten ohne Jahr -> 2; Dialoge des Gelds für alle -> 1.
+
+## Stufe 5, R4 (ab 1.9.138): Abschluss
+
+Auftrag vom 30.10.2026 (Start HEAD 20aa620; Festlegungen R3 alle bestätigt; Kunde archivieren nicht bauen, steht auf der Merkliste im Parkplatz, `docs/archiv/befund-vor-echtbetrieb.md`):
+
+1. Die 15 Klicktests mit der schwachen Breitenprüfung messen bei 412 px gegen die Gerätebreite wie `klicktest_kundenakte`; was dann überläuft, beheben; je Seite im Bericht: lief über ja/nein, was behoben.
+2. Verlaufstexte der Zahlungen kürzer, ein Satzbau für Akte und Kunde: „Zahlungseingang 3.000,00 € vom 18.08.2025“, „144,00 € auf R-… zugeordnet“, „Erstattung 144,00 € gebucht“, „Zuordnung zurückgenommen – Begründung: …“; Einzelheiten weiter aufklappbar.
+3. Kundendokumente ins Änderungsprotokoll (hochladen, Angaben ändern, löschen) und in den Verlauf des Kunden.
+4. Projektzeile der Kundenakte: das Kennzeichen der Phase bricht nicht um (langer Name mit „…“ und vollem Namen als title).
+5. Am Ende eine neue Bildgrundlage vom Endstand (Stufe 5 fertig).
+
+### Umsetzung 1.9.138: Punkt 1
+
+`scripts/cdp_klicktest.py`: `UEBERLAUF` (JS) und `Tab.ueberlauf(breite=None)` -- die Seite (`documentElement.scrollWidth`) und jedes sichtbare Element mit rechter Kante über der Breite, außer in einem Behälter mit `overflow-x` ungleich `visible` (eine Tabelle in ihrem rollenden Rahmen ist gewollt); höchstens sechs Zeilen je Messung, leer = passt. Ohne Angabe die Breite aus `tab.fenster()`. `Tab.bild_ganz()` nimmt die ganze Seite auf. `ROLLT_IM_RAHMEN` schreibt ins Protokoll, was im eigenen Rahmen rollt (kein Fehler).
+
+Ergebnis je Seite, gemessen auf 20aa620 (lief über: nein bei allen; behoben: nichts):
+
+| Klicktest | Seite | lief über | rollt im eigenen Rahmen |
+|---|---|---|---|
+| bedenkenanzeige, behinderungsanzeige | Checkliste, Monteurin | nein | -- |
+| bedenkenanzeige_versand, behinderungsanzeige_abschluss, behinderungsanzeige_versand, versandverlauf | Checkliste, Büro | nein | -- |
+| beleg_und_hinweis | Einsatzberichte, Checklisten zum Auftrag (Monteurin) | nein | -- |
+| beteiligte | Akte mit Dialog „Beteiligte“ | nein | Reiterleiste |
+| beteiligte_stammdaten | Dialog „Beteiligten hinzufügen“ | nein | Reiterleiste |
+| ersteinrichtung | Hinweisseite ohne Konto | nein | -- |
+| nebenforderungen | Rechnung | nein | -- |
+| rahmen | Kopfzeile, Monteurskopf, Prüfvorlagen, Anmeldung, Sperrseite | nein | Tabelle „Vorlagen“ der Prüfvorlagen |
+| versandprotokoll | Versandprotokoll | nein | Tabelle |
+| vertragsvorlagen | Einstellungen | nein | -- |
+| zeiten | Prüfen, Buchungen, Abwesenheiten, Monat & Lohn | nein | Reiterleiste; Tabellen in Buchungen und Monat & Lohn |
+
+Dazu dieselbe Umstellung in `klicktest_lv_ueberlauf` (seit dieser Version auch jeder Reiter der Akte: nichts ragt hinaus, Reiterleiste und Tabellen rollen) und `klicktest_zahlungen_kleinkram`; `klicktest_kundenakte` nimmt `tab.ueberlauf()` statt der eigenen Messung.
+
+Die Bilder bei 412 px sind von Hand durchgesehen (Kontaktbogen aller 23): nichts abgeschnitten außer in den genannten Rahmen.
+
+**Zur Prüfung gegen `clientWidth`:** rund 15 Klicktests (u. a. abnahme_aus_protokoll, feste_fassung, maengel_monteur, neue_ordnung, vertrag_unterschrift) messen `scrollWidth<=documentElement.clientWidth+1`. `clientWidth` bleibt in der Emulation fest; `feste_fassung` und `maengel_monteur` wurden in der Gegenprobe rot. Sie sind deshalb nicht umgestellt.
+
+#### Tests und Prüfung
+
+Neu `tests/test_v558_klicktest_breite.py`: Wächter (kein Klicktest misst `scrollWidth` gegen `innerWidth`, ohne Kommentare; das Muster erkennt die alte Schreibweise), jeder umgestellte Klicktest nutzt `.ueberlauf(`, `UEBERLAUF` in node an einer Attrappe (zu breite Seite, zu breites Element bei passender Seite, Element im rollenden Behälter, verstecktes und leeres Element, Rand ±0,5 px), ohne Breite ein Fehler.
+
+Gegenproben:
+- A, alle Seiten breiter (`_ds_kopf.html` und `_ersteinrichtung_seite()`, Marker GEGENPROBE: `body{min-width}` 700 px bis 500 px Fensterbreite, sonst 1500 px): alle 15 Klicktests rot an der Breitenprüfung mit „Seite 700 px breit“ und den Elementen (`rahmen`: Kopfzeile, Monteurskopf bei 412/800/1280, Prüfvorlagen, Anmeldung und Sperrseite hell und dunkel, bei 412 und 1440); ebenso `kundenakte`, `lv_ueberlauf`, `zahlungen_kleinkram` und die beiden Klicktests mit `clientWidth`. Grün blieb nur `zeiten_abgeschlossen`, das bei 412 px nichts misst. Vorher und nachher byte-genau gleich (Prüfsumme), danach grün.
+- B, nur ein Element ragt hinaus und die Seite schneidet (`html,body{overflow-x:hidden}`, `h1{min-width:700px}`): vier Klicktests rot mit `h1#seitenkopfTitel.ds-kopf-titel bis 718 px` -- die Elementprüfung trägt allein.
+
+Angepasste Erwartungen (Regel 28), alle mit gleichem Soll „nichts ragt hinaus“ und strengerer Messung: altes Soll `document.documentElement.scrollWidth<=innerWidth` wahr, neues Soll `tab.ueberlauf()` leer: bedenkenanzeige, bedenkenanzeige_versand, behinderungsanzeige, behinderungsanzeige_abschluss, behinderungsanzeige_versand, beleg_und_hinweis (2), beteiligte, beteiligte_stammdaten, ersteinrichtung, nebenforderungen, rahmen (Kopfzeile, Monteurskopf, Prüfvorlagen, Anmeldung, Sperrseite; der Listenwert `breit_scroll` entfällt, dort steht die Liste aus `ueberlauf()`), versandprotokoll, versandverlauf, vertragsvorlagen, zeiten (1440 und 412), lv_ueberlauf, zahlungen_kleinkram. `zeiten`: eine Prüfung bei 412 px wird zu vier (je Reiter); `lv_ueberlauf`: zehn neue (alle Reiter sichtbar, je Reiter der Akte).
+
+Festlegungen zu Werkzeug und Testablauf: 5, in `docs/archiv/testablauf-und-klicktests.md`.

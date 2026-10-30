@@ -233,7 +233,8 @@ async def pruefen(tab, seed, p):
     await tab.js("localStorage.setItem('erp_theme','light')")
     await tab.fenster(412, 900, mobil=True)
     await tab.oeffnen(f"/projects/{projekt}?schmal=1#sec-participants", bereit)
-    p.pruefe("412 px: kein seitliches Scrollen", await tab.js("document.documentElement.scrollWidth<=window.innerWidth"), True)
+    p.pruefe("412 px: nichts ragt über den Bildschirm", await tab.ueberlauf(), [])
+    await tab.bild_ganz("breite_akte_beteiligte")
     await tab.bild("beteiligte_412")
     await tab.fenster(1400, 1000)
 

@@ -166,8 +166,8 @@ async def pruefen(tab, seed, p):
     p.pruefe("Rückfrage vor dem Unterschreiben", await tab.js("window.__confirms.length>=1"), True)
     p.pruefe("Monteurin: Meldung danach gesperrt", await tab.js(
         f"[!!document.querySelector('#q_{f[B + 'beschreibung']} .value-ro'), !!document.getElementById('lockCard')]"), [True, True])
-    p.pruefe("Monteurin: kein waagrechter Scrollbalken", await tab.js(
-        "document.documentElement.scrollWidth<=window.innerWidth"), True)
+    p.pruefe("Monteurin: nichts ragt über 412 px", await tab.ueberlauf(), [])
+    await tab.bild_ganz("breite_checkliste_monteurin")
     p.pruefe("Monteurin: kein Optionstext ragt aus seiner Kachel", await tab.js(
         "[...document.querySelectorAll('.tile')].filter(b=>b.scrollWidth>b.clientWidth).map(b=>b.textContent)"), [])
     p.pruefe("Monteurin: Folgen-Endpunkt 403", await tab.js(
