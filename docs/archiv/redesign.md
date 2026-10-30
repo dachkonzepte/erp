@@ -8385,18 +8385,18 @@ Ergebnis je Seite, gemessen auf 20aa620 (lief über: nein bei allen; behoben: ni
 | bedenkenanzeige, behinderungsanzeige | Checkliste, Monteurin | nein | -- |
 | bedenkenanzeige_versand, behinderungsanzeige_abschluss, behinderungsanzeige_versand, versandverlauf | Checkliste, Büro | nein | -- |
 | beleg_und_hinweis | Einsatzberichte, Checklisten zum Auftrag (Monteurin) | nein | -- |
-| beteiligte | Akte mit Dialog „Beteiligte“ | nein | Reiterleiste |
-| beteiligte_stammdaten | Dialog „Beteiligten hinzufügen“ | nein | Reiterleiste |
+| beteiligte | Akte mit Dialog „Beteiligte“ | nein | -- |
+| beteiligte_stammdaten | Dialog „Beteiligten hinzufügen“ | nein | -- |
 | ersteinrichtung | Hinweisseite ohne Konto | nein | -- |
 | nebenforderungen | Rechnung | nein | -- |
-| rahmen | Kopfzeile, Monteurskopf, Prüfvorlagen, Anmeldung, Sperrseite | nein | Tabelle „Vorlagen“ der Prüfvorlagen |
-| versandprotokoll | Versandprotokoll | nein | Tabelle |
+| rahmen | Kopfzeile, Monteurskopf, Prüfvorlagen, Anmeldung, Sperrseite | nein | Tabelle „Vorlagen“ der Prüfvorlagen (378 von 634 px), Reiterleiste der Akte unter der Kopfzeile (380 von 988 px) |
+| versandprotokoll | Versandprotokoll | nein | Tabelle (342 von 776 px) |
 | vertragsvorlagen | Einstellungen | nein | -- |
-| zeiten | Prüfen, Buchungen, Abwesenheiten, Monat & Lohn | nein | Reiterleiste; Tabellen in Buchungen und Monat & Lohn |
+| zeiten | Prüfen, Buchungen, Abwesenheiten, Monat & Lohn | nein | Reiterleiste (380 von 441 px); Tabellen in Buchungen (378 von 933 px) und Monat & Lohn (378 von 709 px) |
 
 Dazu dieselbe Umstellung in `klicktest_lv_ueberlauf` (seit dieser Version auch jeder Reiter der Akte: nichts ragt hinaus, Reiterleiste und Tabellen rollen) und `klicktest_zahlungen_kleinkram`; `klicktest_kundenakte` nimmt `tab.ueberlauf()` statt der eigenen Messung.
 
-Die Bilder bei 412 px sind von Hand durchgesehen (Kontaktbogen aller 23): nichts abgeschnitten außer in den genannten Rahmen.
+Die Spalte „rollt“ steht so in den Protokollen des Laufs (`rollt im Rahmen`, Nachtrag: die erste Fassung dieser Tabelle nannte für die beiden Beteiligten-Zeilen eine Reiterleiste, die dort nicht gemessen wird). Die Bilder bei 412 px sind von Hand durchgesehen (Kontaktbogen aller 23): nichts abgeschnitten außer in den genannten Rahmen.
 
 **Zur Prüfung gegen `clientWidth`:** rund 15 Klicktests (u. a. abnahme_aus_protokoll, feste_fassung, maengel_monteur, neue_ordnung, vertrag_unterschrift) messen `scrollWidth<=documentElement.clientWidth+1`. `clientWidth` bleibt in der Emulation fest; `feste_fassung` und `maengel_monteur` wurden in der Gegenprobe rot. Sie sind deshalb nicht umgestellt.
 
