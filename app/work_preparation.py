@@ -1,9 +1,9 @@
 from decimal import Decimal, ROUND_HALF_UP
-from sqlalchemy import select, case
+from sqlalchemy import func, select, case
 from sqlalchemy.orm import Session, selectinload
 
 from .models import (
-    Employee, Order, OrderItem, OrderItemCalculationSnapshot, WorkPreparation,
+    Employee, Order, OrderItem, OrderItemCalculationSnapshot, PlanningSlot, WorkPreparation,
     WorkPreparationEmployee, WorkPreparationTask, WorkPreparationMaterial,
     WorkPreparationMaterialSupplier, WorkPreparationTeamAssignment,
     WorkPreparationTeamEmployee, WorkPreparationTeamResource, WorkPreparationDeliveryNote,
@@ -13,6 +13,7 @@ from .akte import ist_je_position, soll_stunden, stunden as akte_stunden
 from .rounding import round_hours
 
 QTY = Decimal("0.001")
+ZEITRAUM_AUS_EINSAETZEN = "Der geplante Zeitraum ergibt sich aus den Einsätzen der Plantafel – ändern lässt er sich dort."
 
 
 def _d(v):
@@ -21,6 +22,23 @@ def _d(v):
 
 def employee_name(e: Employee | None):
     return f"{e.first_name} {e.last_name}".strip() if e else None
+
+
+def einsatz_zeitraum(db: Session, prep_id: int) -> tuple:
+    """Erster Beginn und letztes Ende der Einsätze einer Arbeitsvorbereitung, (None, None) ohne Einsatz. Seit 1.9.145 (F12): hat sie Einsätze, ist das ihr
+    geplanter Zeitraum -- gelesen, nie gespeichert. planned_start/planned_end sind nur noch die Eingabe von Hand und gelten, solange es keinen Einsatz gibt; bis
+    1.9.144 überschrieb jedes Speichern eines Einsatzes sie (auch eine geänderte Notiz), und der letzte gelöschte Einsatz leerte sie."""
+    von, bis = db.execute(select(func.min(PlanningSlot.start_date), func.max(PlanningSlot.end_date)).where(PlanningSlot.preparation_id == prep_id)).one()
+    return von, bis
+
+
+def zeitraum_ohne_einsatz_pruefen(db: Session, prep: WorkPreparation, felder: dict) -> None:
+    """Von Hand nur ohne Einsatz: ValueError, wenn die Felder den Zeitraum einer Arbeitsvorbereitung mit Einsätzen ändern wollen; derselbe Wert stört nicht."""
+    von, bis = einsatz_zeitraum(db, prep.id)
+    if von is None:
+        return
+    if felder.get("planned_start", von) != von or felder.get("planned_end", bis) != bis:
+        raise ValueError(ZEITRAUM_AUS_EINSAETZEN)
 
 
 def load_preparation(db: Session, order_id: int) -> WorkPreparation | None:
@@ -134,6 +152,7 @@ def preparation_to_dict(db: Session, prep: WorkPreparation) -> dict:
     if prep.id is None:
         return _preview_to_dict(db, prep)
     order = _load_order_full(db, prep.order_id)
+    von, bis = einsatz_zeitraum(db, prep.id)
     employee_hours = round_hours(sum((_d(x.planned_hours) for x in prep.employees), Decimal("0")))
     open_tasks = sum(1 for t in prep.tasks if t.status != "erledigt")
     supplier_links = {x.material_id: x for x in db.scalars(
@@ -226,8 +245,9 @@ def preparation_to_dict(db: Session, prep: WorkPreparation) -> dict:
         "project_number": order.project.project_number,
         "project_name": order.project.name,
         "status": prep.status,
-        "planned_start": prep.planned_start,
-        "planned_end": prep.planned_end,
+        "planned_start": von if von is not None else prep.planned_start,
+        "planned_end": bis if von is not None else prep.planned_end,
+        "zeitraum_aus_einsaetzen": von is not None,  # seit 1.9.145 (F12)
         "site_notes": prep.site_notes,
         "material_notes": prep.material_notes,
         **_stunden_felder(db, order),  # seit 1.9.126 aus der Akte

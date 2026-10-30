@@ -15,6 +15,7 @@ from decimal import Decimal
 
 import pytest
 from fastapi import HTTPException
+from sqlalchemy import event
 
 from app.document_layout import load_layout, update_layout_block
 from app.models import DocumentLayoutBlock, Order, PlanningSlot, PlanningSlotCapacity, RecurringCost, ReminderLevel, Team
@@ -25,6 +26,7 @@ from app.routers.planning import put_planning_slot, router as planning_router
 from app.routers.recurring_costs import put_recurring_cost, router as costs_router
 from app.routers.reminders import router as reminders_router
 from app.schemas import PlanningSlotUpdate, RecurringCostUpdate
+from app.work_preparation import einsatz_zeitraum
 from tests.test_v133_invoices import make_order_with_item
 from tests.test_v375_rechnungen_sperren import _run, _vorbereiten, pg  # noqa: F401  (pg ist eine Fixture)
 from tests.test_v399_teil_updates_geld import _zeile, im_browser, js, nur_mit_node, schreibende, senden
@@ -277,16 +279,16 @@ def test_postgresql_planeinsatz_beginn_und_ende_gleichzeitig(pg):
     assert isinstance(zweite, HTTPException) and zweite.status_code == 422, zweite
     gespeichert = _vorbereiten(Session, lambda s: (lambda x: (x.start_date, x.end_date))(s.get(PlanningSlot, slot_id)))
     assert gespeichert == (date(2026, 10, 15), date(2026, 10, 16))
-    vorbereitung = _vorbereiten(Session, lambda s: (lambda o: (o.planned_start, o.planned_end))(
-        s.get(PlanningSlot, slot_id).preparation))
-    assert vorbereitung == (date(2026, 10, 15), date(2026, 10, 16))
+    # seit 1.9.145 (F12) gelesen statt in die Arbeitsvorbereitung geschrieben
+    assert _vorbereiten(Session, lambda s: einsatz_zeitraum(s, s.get(PlanningSlot, slot_id).preparation_id)) == (date(2026, 10, 15), date(2026, 10, 16))
 
 
 def test_postgresql_planeinsatz_entfernen_und_verschieben_ohne_deadlock(pg, monkeypatch):
     """Seit 1.8.96 sperrt update_slot() zuerst die Arbeitsvorbereitung, dann den Einsatz; delete_slot() sperrte (implizit) erst
     den Einsatz (DELETE), dann die Vorbereitung (Beginn/Ende abgleichen). Läuft das Verschieben genau zwischen diese beiden
     Schritte, warteten beide aufeinander. Hier deterministisch: das Entfernen hält nach dem DELETE an, das Verschieben startet --
-    seit delete_slot() die Vorbereitung zuerst sperrt, wartet das Verschieben und findet den Einsatz danach nicht mehr (404)."""
+    seit delete_slot() die Vorbereitung zuerst sperrt, wartet das Verschieben und findet den Einsatz danach nicht mehr (404).
+    Seit 1.9.145 gibt es den Abgleich nicht mehr (F12); die Reihenfolge der Sperren bleibt, angehalten wird nach dem Flush des DELETE."""
     import threading
     import time
 
@@ -295,15 +297,13 @@ def test_postgresql_planeinsatz_entfernen_und_verschieben_ohne_deadlock(pg, monk
     Session, order_id = pg
     slot_id, _, _ = _vorbereiten(Session, lambda s: _einsatz(s, order_id))
     prep_id = _vorbereiten(Session, lambda s: s.get(PlanningSlot, slot_id).preparation_id)
-    echt = planning.sync_preparation_dates
     geloescht, weiter = threading.Event(), threading.Event()
 
-    def angehalten(db, preparation_id):
+    @event.listens_for(Session, "after_flush")
+    def angehalten(_sitzung, _kontext):
         if threading.current_thread().name == "entfernen":
             geloescht.set()
             weiter.wait(timeout=30)
-        return echt(db, preparation_id)
-    monkeypatch.setattr(planning, "sync_preparation_dates", angehalten)
     ergebnis = {}
 
     def laufen(name, aktion):
@@ -325,6 +325,7 @@ def test_postgresql_planeinsatz_entfernen_und_verschieben_ohne_deadlock(pg, monk
     weiter.set()
     entfernen.join(timeout=30)
     verschieben.join(timeout=30)
+    event.remove(Session, "after_flush", angehalten)
     assert ergebnis["entfernen"] == prep_id, ergebnis
     assert isinstance(ergebnis["verschieben"], HTTPException) and ergebnis["verschieben"].status_code == 404, ergebnis
     assert _vorbereiten(Session, lambda s: s.get(PlanningSlot, slot_id)) is None

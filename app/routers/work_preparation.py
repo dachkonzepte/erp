@@ -19,7 +19,7 @@ from ..models import AppUser, Employee, Order, PlanningSlot, ProjectDocument, Su
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, require_min_role
 from ..project_documents import MAX_UPLOAD_BYTES, document_path, make_stored_filename, project_directory
 from ..schemas import WorkPreparationEmployeeCreate, WorkPreparationEmployeeUpdate, WorkPreparationMaterialBulkAssign, WorkPreparationMaterialUpdateV082, WorkPreparationOut, WorkPreparationTaskCreate, WorkPreparationTaskUpdate, WorkPreparationTeamAssign, WorkPreparationUpdate
-from ..work_preparation import ensure_preparation, list_open_tasks, load_preparation, preparation_preview, preparation_to_dict
+from ..work_preparation import ensure_preparation, list_open_tasks, load_preparation, preparation_preview, preparation_to_dict, zeitraum_ohne_einsatz_pruefen
 
 router = APIRouter()
 
@@ -72,7 +72,14 @@ def update_work_preparation(order_id: int, payload: WorkPreparationUpdate, db: S
         prep = ensure_preparation(db, order_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
-    for key, value in payload.model_dump().items():
+    # Seit 1.9.145 Teil-Update (Regel 22; bis 1.9.144 setzte ein PUT nur mit Beginn den Status auf „offen“ und leerte Ende und Hinweise) und F12: mit Einsätzen
+    # ergibt sich der Zeitraum aus ihnen, von Hand nur ohne Einsatz (409).
+    felder = payload.model_dump(exclude_unset=True)
+    try:
+        zeitraum_ohne_einsatz_pruefen(db, prep, felder)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    for key, value in felder.items():
         setattr(prep, key, value)
     db.commit()
     return preparation_to_dict(db, load_preparation(db, order_id))

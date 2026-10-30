@@ -90,6 +90,7 @@ async def _neu(tab, order, team, von, bis):
 
 async def pruefen(tab, seed, p):
     await tab.fenster(1440, 1000)
+    await tab.cmd("Page.addScriptToEvaluateOnNewDocument", source="try{localStorage.setItem('erp_theme','light')}catch(e){}")  # Bilder hell
     await tab.browser_uhr_fest(UHR_MS)
     await tab.anmelden(seed["anna"])
     await tab.oeffnen("/planning", BEREIT)

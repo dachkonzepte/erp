@@ -925,3 +925,22 @@ Speicherspitze eines Aufrufs bei 4000 Aufträgen (Python-Objekte): /api/planning
 
 1. Die Auswahl im Dialog wird bei jedem Öffnen neu geladen (eine Abfrage), kein Zwischenspeichern in der Seite: ein gerade abgeschlossener Auftrag steht sonst noch drin.
 2. Die Konflikte eines Einsatzes am Rand des Zeitraums rechnen auch gegen Einsätze außerhalb, solange sie in die Spanne der sichtbaren fallen; ein sehr langer Einsatz weitet die Spanne entsprechend.
+
+## Umsetzung 1.9.145: F12, der geplante Zeitraum der Arbeitsvorbereitung (Stufe 6, R1, Punkt 3)
+
+Beleg im Befund Stufe 6, 3.4 (V1–V7). `sync_preparation_dates()` ist weg. `planned_start`/`planned_end` sind nur noch, was jemand von Hand eingegeben hat (oder beim Anlegen aus dem Auftrag kam).
+
+- Lesen: `preparation_to_dict()` und `app/akte.py::ausfuehrung()` liefern mit Einsätzen deren Zeitraum (`einsatz_zeitraum()`: Minimum, Maximum, eine Abfrage); ohne Einsatz die Eingabe.
+- Schreiben: mit Einsätzen lehnt `zeitraum_ohne_einsatz_pruefen()` einen anderen Zeitraum ab (409), derselbe stört nicht; alles andere geht weiter. Die Seite sperrt die Felder und schickt sie nicht mit.
+- Einsatz löschen: die Eingabe gilt wieder (bis 1.9.144 stand die Arbeitsvorbereitung leer da).
+- Nicht angefasst: wer die Spalten ohne Einsatz liest (`_relevant_preparation_ids_for_employee()`, Rückstand) -- dort gab es keinen Einsatz, die Eingabe ist richtig.
+
+### Festlegungen 1.9.145 (Bitte bestätigen)
+
+1. Stand von vor 1.9.145: was ein Einsatz in die Spalten geschrieben hat, bleibt dort stehen und gilt als Eingabe, sobald der letzte Einsatz weg ist. Keine Migration, die alte Eingabe ist nicht mehr bekannt.
+2. Derselbe Zeitraum von Hand gesendet (mit Einsätzen) ergibt 200, ein anderer 409.
+3. Der Hinweis auf der Seite verlinkt die Plantafel ohne Datum; dass sie auf den Zeitraum springt, gehört zum Bruch B1 und kommt mit der Zeichnung.
+
+### Tests und Prüfung
+
+Angepasste Erwartungen (Regel 28): `test_v090::test_planning_slot_updates_work_preparation_dates_and_can_switch_team` und `::test_multiple_slots_define_overall_work_preparation_period`, altes Soll: die Spalten der Arbeitsvorbereitung folgen dem Einsatz, neues Soll: `einsatz_zeitraum()` folgt ihm. `test_v329`: Eintrag `PUT /api/orders/{order_id}/work-preparation` aus `BEKANNT` gestrichen. `test_v399::test_postgresql_planeinsatz_beginn_und_ende_gleichzeitig`, altes Soll: die Spalten folgen dem Einsatz, neues Soll: `einsatz_zeitraum()`. `test_v399::test_postgresql_planeinsatz_entfernen_und_verschieben_ohne_deadlock`, Aufbau: angehalten wird nach dem Flush des DELETE statt in `sync_preparation_dates()`, die Erwartung (404, kein Deadlock) bleibt.

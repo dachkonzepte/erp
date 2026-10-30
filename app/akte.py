@@ -455,10 +455,14 @@ def ausfuehrung(db: Session, order: Order) -> dict:
     if is_module_enabled(db, "checklisten"):
         checklisten = {s: n for s, n in db.execute(select(Checklist.status, func.count(Checklist.id)).where(Checklist.order_id == order.id)
                                                     .group_by(Checklist.status))}
+    einsatz_zeilen = einsaetze(db, order.id)
     return {
-        "arbeitsvorbereitung": ({"id": av.id, "status": av.status, "planned_start": av.planned_start, "planned_end": av.planned_end}
+        # seit 1.9.145 (F12): mit Einsätzen ist ihr Zeitraum der geplante -- wie app/work_preparation.py::einsatz_zeitraum()
+        "arbeitsvorbereitung": ({"id": av.id, "status": av.status,
+                                 "planned_start": min(e["start_date"] for e in einsatz_zeilen) if einsatz_zeilen else av.planned_start,
+                                 "planned_end": max(e["end_date"] for e in einsatz_zeilen) if einsatz_zeilen else av.planned_end}
                                 if av else None),
-        "einsaetze": einsaetze(db, order.id),
+        "einsaetze": einsatz_zeilen,
         "berichte": [{"id": b.id, "performed_at": b.performed_at, "art": REPORT_TYPE_LABELS.get(b.report_type, b.report_type),
                       "status": b.status, "von": namen.get(b.created_by_employee_id)} for b in berichte],
         "checklisten": checklisten,

@@ -217,3 +217,5 @@ test_order_put_without_execution_period_keeps_it`.
 is_consumer; Handler `model_dump(exclude_unset=True)`, Zahlungsbedingung nur, wenn gesendet). Anlass: die Kundenakte (Stufe 5, R3) bearbeitet die
 Stammdaten im Dialog und schickt nur, was geändert ist. Bis 1.9.135 ein Eintrag in `BEKANNT` (volles Formular) -- die Liste hat jetzt 60.
 `tests/test_v556_kunde_verlauf_und_stammdaten.py`; Herleitung `docs/archiv/redesign.md`, „R3, Punkt 1b“.
+
+`PUT /api/orders/{order_id}/work-preparation` übernimmt seit 1.9.145 nur gesendete Felder (`WorkPreparationUpdate` von `PartialUpdate`, `NOT_NULL` status). Anlass: F12, die Seite schickt den Zeitraum nur noch ohne Einsatz. Die Liste `BEKANNT` hat jetzt 59. Bis 1.9.144 setzte ein PUT nur mit Beginn den Status auf „offen“ und leerte Ende und Hinweise. `tests/test_v565_av_zeitraum.py`.

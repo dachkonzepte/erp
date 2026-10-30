@@ -2911,8 +2911,10 @@ class OrderListOut(BaseModel):
     phase_label: str | None = None
 
 
-class WorkPreparationUpdate(BaseModel):
-    status: str = Field(default="offen", max_length=50)
+class WorkPreparationUpdate(PartialUpdate):
+    """Seit 1.9.145 Teil-Update (Regel 22): die Seite schickt den Zeitraum nur, solange die Arbeitsvorbereitung keinen Einsatz hat (F12)."""
+    NOT_NULL = frozenset({"status"})
+    status: str | None = Field(default=None, max_length=50)
     planned_start: date | None = None
     planned_end: date | None = None
     site_notes: str | None = None
@@ -3011,6 +3013,7 @@ class WorkPreparationOut(BaseModel):
     status: str
     planned_start: date | None
     planned_end: date | None
+    zeitraum_aus_einsaetzen: bool = False  # seit 1.9.145: der Zeitraum ergibt sich aus den Einsätzen (lesend)
     site_notes: str | None
     material_notes: str | None
     planned_total_hours: Decimal

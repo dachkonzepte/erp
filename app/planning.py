@@ -417,19 +417,6 @@ def _load_slot(db: Session, slot_id: int, *, frisch: bool = False) -> PlanningSl
     )
 
 
-def sync_preparation_dates(db: Session, preparation_id: int) -> None:
-    prep = db.get(WorkPreparation, preparation_id)
-    if prep is None:
-        return
-    slots = db.scalars(select(PlanningSlot).where(PlanningSlot.preparation_id == preparation_id)).all()
-    if slots:
-        prep.planned_start = min(x.start_date for x in slots)
-        prep.planned_end = max(x.end_date for x in slots)
-    else:
-        prep.planned_start = None
-        prep.planned_end = None
-
-
 def _stored_slot_hours(slot: PlanningSlot) -> Decimal | None:
     return _d(slot.capacity.planned_hours) if slot.capacity is not None else None
 
@@ -492,7 +479,6 @@ def create_slot(
     hours = _remaining_order_hours(db, prep) if planned_hours is None else _d(planned_hours)
     db.add(PlanningSlotCapacity(slot_id=slot.id, planned_hours=hours, travel_hours_per_employee_day=travel))
     db.flush()
-    sync_preparation_dates(db, prep.id)
     if not trotzdem_planen:
         _warnungen_pruefen(db, slot.id)
     db.commit()
@@ -506,8 +492,8 @@ _SLOT_FIELDS = frozenset({"team_id", "start_date", "end_date", "status", "notes"
 def update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, **changes) -> PlanningSlot:
     """Seit 1.8.96 Teil-Update (Regel 22): ändert nur die übergebenen Felder (Verschieben auf der Plantafel übergibt Team, Beginn
     und Ende). Ende vor Beginn, Anfahrtszeit und Team prüft sie vor jeder Änderung auf gespeichertem Stand + übergebenen Werten,
-    unter der Sperre der Arbeitsvorbereitung: sync_preparation_dates() liest alle Einsätze und schreibt Beginn und Ende der
-    Vorbereitung, und zwei gleichzeitige Änderungen (Beginn hier, Ende dort) prüften sonst je gegen den Stand vor der anderen.
+    unter der Sperre der Arbeitsvorbereitung: zwei gleichzeitige Änderungen (Beginn hier, Ende dort) prüften sonst je gegen den Stand vor der anderen.
+    Seit 1.9.145 schreibt ein Einsatz nicht mehr in die Arbeitsvorbereitung (F12, app/work_preparation.py::einsatz_zeitraum()).
     team_id, planned_hours, travel_hours_per_employee_day: None heißt wie bisher unverändert (die API lehnt null ab).
     Seit 1.9.143: ändert sich Kolonne oder Zeitraum, fragen Warnungen zurück (PlanungsWarnung, nichts gespeichert), bis trotzdem_planen kommt; wer
     nur Notiz, Status oder Stunden ändert, wird nicht erneut gefragt -- die Konflikte stehen in der Antwort."""
@@ -550,7 +536,6 @@ def update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, **c
     elif capacity.travel_hours_per_employee_day is None:
         capacity.travel_hours_per_employee_day = settings.default_travel_hours_per_employee_day
     db.flush()
-    sync_preparation_dates(db, slot.preparation_id)
     if not trotzdem_planen and (team_id if team_id is not None else vorher[0], start_date, end_date) != vorher:
         _warnungen_pruefen(db, slot.id)
     db.commit()
@@ -567,8 +552,6 @@ def delete_slot(db: Session, slot_id: int) -> int:
     # blockieren (Deadlock unter PostgreSQL).
     db.execute(select(WorkPreparation.id).where(WorkPreparation.id == prep_id).with_for_update())
     db.delete(slot)
-    db.flush()
-    sync_preparation_dates(db, prep_id)
     db.commit()
     return prep_id
 
