@@ -11,7 +11,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from .auftragsstatus import AuftragGeschlossen, einsatz_gesperrt, geschlossen, name as status_name, pause_begruendung, wert as status_wert
+from .auftragsstatus import AuftragGeschlossen, einsatz_gesperrt, geschlossen, name as status_name, pause_begruendung, storniert, wert as status_wert
 from .grunddaten import einzelzeile
 from .berlin_time import berlin_today
 from .models import (
@@ -25,6 +25,22 @@ from .service_reports import count_reports_for_order
 from .work_preparation import ensure_preparation, planned_hours
 from .version import APP_VERSION
 from .rounding import round_half_up, round_hours
+
+
+# Seit 1.9.143 (Stufe 6, R1, Punkt 1): was beim Speichern eines Einsatzes rückfragt (409 mit Liste, bis „trotzdem planen“ mitkommt) und was nur in der
+# Antwort steht. Der Betrieb darf alles planen -- Tobias: „Konflikte warnen, trotzdem planbar“.
+WARNUNG_ARTEN = frozenset({"team", "employee", "resource", "absence"})  # Kolonne, Person, Gerät doppelt; Person abwesend
+HINWEIS_ARTEN = frozenset({"holiday", "wochenende", "capacity"})  # Feiertag, betriebsfreier Tag, Wochenende, Kapazität
+WARNUNG_TEXT = "Der Einsatz überschneidet sich – bitte prüfen oder trotzdem planen."
+
+
+class PlanungsWarnung(Exception):
+    """Der Einsatz hat Warnungen und „trotzdem planen“ fehlt -- nichts gespeichert (409). Die Listen sind reine Daten, kein ORM-Objekt."""
+
+    def __init__(self, warnungen: list[dict], hinweise: list[dict]):
+        super().__init__(WARNUNG_TEXT)
+        self.warnungen = warnungen
+        self.hinweise = hinweise
 
 
 GERMAN_STATES = {
@@ -447,8 +463,10 @@ def _remaining_order_hours(db: Session, prep: WorkPreparation) -> Decimal:
 def create_slot(
     db: Session, *, order_id: int, team_id: int, start_date: date, end_date: date,
     status: str = "geplant", notes: str | None = None, planned_hours: Decimal | None = None,
-    travel_hours_per_employee_day: Decimal | None = None,
+    travel_hours_per_employee_day: Decimal | None = None, trotzdem_planen: bool = False,
 ) -> PlanningSlot:
+    """Seit 1.9.143: mit Warnungen (einsatz_konflikte()) nur mit trotzdem_planen, sonst PlanungsWarnung -- dann bleibt nichts zurück, auch keine neu
+    angelegte Arbeitsvorbereitung oder Kolonnen-Zuweisung."""
     if end_date < start_date:
         raise ValueError("Enddatum darf nicht vor dem Startdatum liegen.")
     order = db.get(Order, order_id)
@@ -459,7 +477,7 @@ def create_slot(
     gesperrt = einsatz_gesperrt(order)
     if gesperrt:
         raise AuftragGeschlossen(gesperrt)
-    prep = ensure_preparation(db, order_id)
+    prep = ensure_preparation(db, order_id, festschreiben=False)
     assignment = ensure_team_assignment(db, prep, team_id)
     settings = load_planning_settings(db)
     travel = _d(travel_hours_per_employee_day if travel_hours_per_employee_day is not None else settings.default_travel_hours_per_employee_day)
@@ -475,6 +493,8 @@ def create_slot(
     db.add(PlanningSlotCapacity(slot_id=slot.id, planned_hours=hours, travel_hours_per_employee_day=travel))
     db.flush()
     sync_preparation_dates(db, prep.id)
+    if not trotzdem_planen:
+        _warnungen_pruefen(db, slot.id)
     db.commit()
     return _load_slot(db, slot.id)
 
@@ -483,12 +503,14 @@ _SLOT_FIELDS = frozenset({"team_id", "start_date", "end_date", "status", "notes"
                           "travel_hours_per_employee_day"})
 
 
-def update_slot(db: Session, slot_id: int, **changes) -> PlanningSlot:
+def update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, **changes) -> PlanningSlot:
     """Seit 1.8.96 Teil-Update (Regel 22): ändert nur die übergebenen Felder (Verschieben auf der Plantafel übergibt Team, Beginn
     und Ende). Ende vor Beginn, Anfahrtszeit und Team prüft sie vor jeder Änderung auf gespeichertem Stand + übergebenen Werten,
     unter der Sperre der Arbeitsvorbereitung: sync_preparation_dates() liest alle Einsätze und schreibt Beginn und Ende der
     Vorbereitung, und zwei gleichzeitige Änderungen (Beginn hier, Ende dort) prüften sonst je gegen den Stand vor der anderen.
-    team_id, planned_hours, travel_hours_per_employee_day: None heißt wie bisher unverändert (die API lehnt null ab)."""
+    team_id, planned_hours, travel_hours_per_employee_day: None heißt wie bisher unverändert (die API lehnt null ab).
+    Seit 1.9.143: ändert sich Kolonne oder Zeitraum, fragen Warnungen zurück (PlanungsWarnung, nichts gespeichert), bis trotzdem_planen kommt; wer
+    nur Notiz, Status oder Stunden ändert, wird nicht erneut gefragt -- die Konflikte stehen in der Antwort."""
     unbekannt = set(changes) - _SLOT_FIELDS
     if unbekannt:
         raise TypeError("Unbekannte Felder: " + ", ".join(sorted(unbekannt)))
@@ -499,6 +521,7 @@ def update_slot(db: Session, slot_id: int, **changes) -> PlanningSlot:
     slot = _load_slot(db, slot_id, frisch=True)  # nach der Sperre: der Stand nach einer gleichzeitigen Änderung
     if slot is None:
         raise ValueError("Planeinsatz wurde nicht gefunden.")
+    vorher = (slot.team_assignment.team_id, slot.start_date, slot.end_date)
     start_date = changes.get("start_date", slot.start_date)
     end_date = changes.get("end_date", slot.end_date)
     if end_date < start_date:
@@ -528,6 +551,8 @@ def update_slot(db: Session, slot_id: int, **changes) -> PlanningSlot:
         capacity.travel_hours_per_employee_day = settings.default_travel_hours_per_employee_day
     db.flush()
     sync_preparation_dates(db, slot.preparation_id)
+    if not trotzdem_planen and (team_id if team_id is not None else vorher[0], start_date, end_date) != vorher:
+        _warnungen_pruefen(db, slot.id)
     db.commit()
     return _load_slot(db, slot.id)
 
@@ -926,8 +951,11 @@ def auftrag_zeile(o: Order) -> dict:
 
 
 def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSettings) -> tuple[dict[int, list[dict]], dict[int, dict[date, dict]]]:
+    """Seit 1.9.143 (P8): Einsätze stornierter Aufträge zählen nicht -- weder als Konflikt noch in der Kapazität. Jeder Konflikt trägt seine Stufe
+    („warnung“ fragt beim Speichern zurück, „hinweis“ steht nur in der Antwort)."""
     result: dict[int, list[dict]] = defaultdict(list)
     distributions: dict[int, dict[date, dict]] = {}
+    slots = [s for s in slots if not storniert(s.preparation.order)]
     if not slots:
         return result, distributions
     start = min(s.start_date for s in slots); end = max(s.end_date for s in slots)
@@ -974,7 +1002,49 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
                     result[slot.id].append({"type":"absence", "label":f"{member.employee_name_snapshot} · {absence.absence_type}", "label_redacted":f"{member.employee_name_snapshot} · abwesend", "date":day, "other_slot_id":None, "other_project":None, "other_project_name":None})
         if shortfall > 0:
             result[slot.id].append({"type":"capacity", "label":f"Kapazität reicht um {shortfall} h nicht aus", "shortfall_hours":shortfall, "other_slot_id":None, "other_project":None, "other_project_name":None})
+    for liste in result.values():
+        for konflikt in liste:
+            konflikt["stufe"] = "warnung" if konflikt["type"] in WARNUNG_ARTEN else "hinweis"
     return result, distributions
+
+
+def _wochenend_hinweise(slot: PlanningSlot, settings: PlanningSettings, feiertage: dict[date, str]) -> list[dict]:
+    """Tage des Einsatzes, die kein Arbeitstag sind -- nur für die Antwort auf das Speichern; auf der Tafel färben sie den Balken nicht (ein Einsatz
+    über ein Wochenende ist der Normalfall). Ein Feiertag hat seinen eigenen Hinweis."""
+    arbeitstage = _working_weekdays(settings)
+    return [{"type": "wochenende", "stufe": "hinweis", "label": "Wochenende" if tag.weekday() >= 5 else "Kein Arbeitstag", "date": tag,
+             "other_slot_id": None, "other_project": None, "other_project_name": None}
+            for tag in _date_range(slot.start_date, slot.end_date) if tag.weekday() not in arbeitstage and tag not in feiertage]
+
+
+def einsatz_konflikte(db: Session, slot: PlanningSlot) -> dict:
+    """Warnungen und Hinweise eines Einsatzes (seit 1.9.143) -- dieselbe Rechnung wie die Tafel (_conflicts()), gegen die Einsätze, die seinen Zeitraum
+    berühren. Liest nur, sieht den Stand der offenen Transaktion. Ein Einsatz eines stornierten Auftrags hat keine (P8)."""
+    if storniert(slot.preparation.order):
+        return {"warnungen": [], "hinweise": []}
+    settings = load_planning_settings(db)
+    andere = db.scalars(
+        select(PlanningSlot)
+        .options(
+            selectinload(PlanningSlot.capacity),
+            selectinload(PlanningSlot.preparation).selectinload(WorkPreparation.order).selectinload(Order.project),
+            selectinload(PlanningSlot.team_assignment).selectinload(WorkPreparationTeamAssignment.employees).selectinload(WorkPreparationTeamEmployee.employee),
+            selectinload(PlanningSlot.team_assignment).selectinload(WorkPreparationTeamAssignment.resources).selectinload(WorkPreparationTeamResource.resource),
+        )
+        .where(PlanningSlot.id != slot.id, PlanningSlot.start_date <= slot.end_date, PlanningSlot.end_date >= slot.start_date)
+    ).all()
+    konflikte, _ = _conflicts(db, [slot, *andere], settings)
+    feiertage, _ = _combined_holiday_map(db, slot.start_date, slot.end_date)
+    liste = list(konflikte.get(slot.id, [])) + _wochenend_hinweise(slot, settings, feiertage)
+    return {"warnungen": [k for k in liste if k["stufe"] == "warnung"], "hinweise": [k for k in liste if k["stufe"] == "hinweis"]}
+
+
+def _warnungen_pruefen(db: Session, slot_id: int) -> None:
+    """Nach dem Flush, vor dem Commit: mit Warnungen alles zurück (auch die Sperre) und PlanungsWarnung."""
+    konflikte = einsatz_konflikte(db, _load_slot(db, slot_id, frisch=True))
+    if konflikte["warnungen"]:
+        db.rollback()
+        raise PlanungsWarnung(konflikte["warnungen"], konflikte["hinweise"])
 
 
 def planning_suggestion(

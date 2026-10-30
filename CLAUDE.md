@@ -1639,6 +1639,10 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   (`app/time_backoffice.py::datev_fehlt()`); Stunden = die gespeicherten über `app/time_tracking.py::tagessumme()` -- dieselbe Summe in Übersicht,
   Stundenzettel und DATEV. Berater- und Mandantennummer (`TimeTrackingSettings`, Migration `750d709a4863`) speichert nur der Admin
   (`PUT /api/time-backoffice/datev-nummern`), im LODAS-Kopf `[Allgemein]` (`tests/test_v513_datev_export.py`).
+- **Einsätze: Konflikte beim Speichern** (seit 1.9.143, Entscheidung Tobias „warnen, trotzdem planbar“): `app/planning.py::einsatz_konflikte()` rechnet wie die Tafel
+  (`_conflicts()`). Warnungen (`WARNUNG_ARTEN`: Person, Kolonne, Gerät doppelt; abwesend) -> `PlanungsWarnung`, 409 mit `warnungen` und `hinweise`, nichts gespeichert (auch keine neue
+  Arbeitsvorbereitung), bis `trotzdem_planen` mitkommt; Hinweise (`HINWEIS_ARTEN`: Feiertag, betriebsfrei, Wochenende, Kapazität) nur in der Antwort; Ändern fragt nur, wenn sich Kolonne oder
+  Zeitraum ändern. Einsätze stornierter Aufträge zählen nicht (`tests/test_v563_konflikte_beim_speichern.py`, Klicktest `klicktest_plantafel_konflikte.py`).
 - **Ausblenden statt ausgrauen**: eine für eine Rolle nicht gedachte Seite fehlt im Markup
   (`can()`-Jinja-Global, `_dk_roles`-Markierung), nicht nur deaktiviert -- ein 403 auf einer
   Seiten-Route zeigt `access_denied.html`, nie rohes JSON.

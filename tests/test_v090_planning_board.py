@@ -51,7 +51,7 @@ def setup_shared_teams(db):
 def test_planning_board_detects_team_employee_and_resource_conflicts():
     db = db_session(); order1 = setup_order(db, "1"); order2 = setup_order(db, "2"); emp, res, team1, team2 = setup_shared_teams(db)
     s1 = create_slot(db, order_id=order1.id, team_id=team1.id, start_date=date(2026,9,7), end_date=date(2026,9,11))
-    s2 = create_slot(db, order_id=order2.id, team_id=team2.id, start_date=date(2026,9,9), end_date=date(2026,9,12))
+    s2 = create_slot(db, order_id=order2.id, team_id=team2.id, start_date=date(2026,9,9), end_date=date(2026,9,12), trotzdem_planen=True)
     data = planning_board(db, date(2026,9,7), date(2026,9,20))
     by_id = {x["id"]: x for x in data["slots"]}
     kinds1 = {x["type"] for x in by_id[s1.id]["conflicts"]}
@@ -68,7 +68,7 @@ def test_same_team_overlap_is_conflict_and_unplanned_backlog_disappears_after_pl
     before = planning_board(db, date(2026,9,1), date(2026,9,20))
     assert {x["order_id"] for x in before["backlog"]} >= {order1.id, order2.id}
     s1 = create_slot(db, order_id=order1.id, team_id=team1.id, start_date=date(2026,9,7), end_date=date(2026,9,10))
-    create_slot(db, order_id=order2.id, team_id=team1.id, start_date=date(2026,9,10), end_date=date(2026,9,12))
+    create_slot(db, order_id=order2.id, team_id=team1.id, start_date=date(2026,9,10), end_date=date(2026,9,12), trotzdem_planen=True)
     after = planning_board(db, date(2026,9,1), date(2026,9,20))
     assert order1.id not in {x["order_id"] for x in after["backlog"]}
     row = next(x for x in after["slots"] if x["id"] == s1.id)

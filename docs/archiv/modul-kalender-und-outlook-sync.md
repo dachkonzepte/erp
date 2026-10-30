@@ -876,3 +876,18 @@ Volle Suite: **1835 Tests grün.**
 ## Umsetzung 1.9.142: Stand des Abgleichs prüfen (Stufe 6, R1, Punkt 0)
 
 Befund Stufe 6 (5.2, L9): keine Oberfläche zeigt Stand oder Fehler des Abgleichs. Solange es keine gibt, liest `scripts/pruefe_outlook.py` den Stand auf dem Server (Aufruf im Kopf der Datei): je Postfach letzter Lauf, letzter Fehler, Alter des Delta-Links, Pfad des Links ohne Token; Termine, die auf Senden warten (`_needs_push()`, nur Konten mit Postfach), doppelte Outlook-Kennungen, ganztägige Termine aus dem ERP. Das Alter des Delta-Links ist die Zeit seit dem letzten erfolgreichen Lauf, denn nur der schreibt den Link. Nennt der Pfad das Postfach nicht, sagt das Skript das nur als Achtung: Microsoft kann die Adresse durch eine Kennung ersetzen. Test: `tests/test_v562_pruefe_outlook.py`.
+
+## Umsetzung 1.9.143: Konflikte beim Speichern eines Einsatzes (Stufe 6, R1, Punkt 1)
+
+Die Plantafel gehört seit dem Befund Stufe 6 mit dem Kalender zu einer Planung; ihre Regeln stehen deshalb ab hier mit in dieser Datei. Entscheidung Tobias: Konflikte warnen, trotzdem planbar.
+
+- `einsatz_konflikte()` rechnet den einen Einsatz gegen die Einsätze, die seinen Zeitraum berühren, mit `_conflicts()` -- dieselbe Rechnung wie die Tafel, deshalb können Speichern und Tafel nicht auseinanderlaufen. Die Stufe steht an jedem Konflikt (`stufe`: `warnung` oder `hinweis`).
+- Gerechnet wird nach dem Flush und vor dem Commit; mit Warnungen rollt `_warnungen_pruefen()` alles zurück. `ensure_preparation(..., festschreiben=False)`, sonst bliebe nach einem 409 eine neue Arbeitsvorbereitung samt Materialbedarf zurück, und die sperrt den Abgleich mit dem Angebot.
+- Der Hinweis „Wochenende“ steht nur in der Antwort auf das Speichern, nicht in den Konflikten der Tafel: ein Einsatz über ein Wochenende ist der Normalfall, sein Balken bleibt, wie er war.
+- Einsätze stornierter Aufträge fallen ganz aus der Rechnung, auch aus der Kapazität. Abgeschlossene Aufträge und Einsätze auf „abgeschlossen“ zählen weiter; vorgegeben war nur „storniert“.
+
+### Festlegungen 1.9.143 (Bitte bestätigen)
+
+1. Nur Notiz, Status oder Stunden ändern fragt nicht erneut; die Konflikte stehen in der Antwort. Die Rückfrage kommt, wenn sich Kolonne oder Zeitraum ändern.
+2. „Wochenende“ färbt den Balken nicht (nur Hinweis beim Speichern); Feiertag und Kapazität färben ihn weiter rot wie bisher -- die Abstufung auf der Tafel kommt mit der Zeichnung.
+3. Der Balken eines stornierten Auftrags bleibt auf der Tafel und sagt „Auftrag storniert“.

@@ -8,6 +8,8 @@ uebernommen -- reine Verschiebung, keine Verhaltensaenderung.
 from fastapi import APIRouter
 from datetime import date
 from fastapi import Depends, HTTPException
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -16,7 +18,7 @@ from ..database import get_db
 from ..models import AppUser, Employee, EmployeeAbsence, PlanningHoliday
 from ..permissions import ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, has_min_role, require_min_role
 from ..auftragsstatus import AuftragGeschlossen
-from ..planning import GERMAN_STATES, create_slot, delete_slot, load_planning_settings, load_region_settings, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
+from ..planning import GERMAN_STATES, PlanungsWarnung, create_slot, delete_slot, einsatz_konflikte, load_planning_settings, load_region_settings, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
 from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeAbsencePlanningOut, EmployeeAbsenceUpdate, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest
 
 router = APIRouter()
@@ -42,6 +44,28 @@ def _absence_out_for_role(role: AppUser, data: dict):
     return EmployeeAbsencePlanningOut.model_validate(data)
 
 
+def _konflikte_fuer_rolle(konflikte: list[dict], role: AppUser) -> list[dict]:
+    """Die Art einer Abwesenheit im Text eines Konflikts nur für buero_finanzen/admin (Krankheitssichtbarkeit); label_redacted verlässt den Server nie."""
+    for konflikt in konflikte:
+        if konflikt.get("type") == "absence" and not has_min_role(role, ROLE_OFFICE_FINANZEN):
+            konflikt["label"] = konflikt.get("label_redacted", konflikt["label"])
+        konflikt.pop("label_redacted", None)
+    return konflikte
+
+
+def _einsatz_antwort(db: Session, slot, role: AppUser) -> dict:
+    """Seit 1.9.143: der gespeicherte Einsatz mit seinen Warnungen und Hinweisen (Feiertag, Wochenende, Kapazität speichern ohne Rückfrage und stehen hier)."""
+    konflikte = einsatz_konflikte(db, slot)
+    warnungen, hinweise = _konflikte_fuer_rolle(konflikte["warnungen"], role), _konflikte_fuer_rolle(konflikte["hinweise"], role)
+    return {**slot_to_dict(slot, warnungen + hinweise, db=db), "warnungen": warnungen, "hinweise": hinweise}
+
+
+def _warnung_antwort(fehler: PlanungsWarnung, role: AppUser) -> JSONResponse:
+    """409 mit der Liste -- nichts ist gespeichert, „trotzdem_planen“ im selben Aufruf speichert."""
+    return JSONResponse(status_code=409, content={"detail": str(fehler), "warnungen": jsonable_encoder(_konflikte_fuer_rolle(fehler.warnungen, role)),
+                                                  "hinweise": jsonable_encoder(_konflikte_fuer_rolle(fehler.hinweise, role))})
+
+
 def _redact_board_absences(board: dict, role: AppUser) -> dict:
     """Entfernt Art/Grund aus JEDER Stelle, an der GET /api/planning Abwesenheiten einbettet --
     Konflikt-Labels je Slot, Team-/Mitarbeiter-Tageskapazität, die Backoffice-Abwesenheitsliste
@@ -49,13 +73,7 @@ def _redact_board_absences(board: dict, role: AppUser) -> dict:
     Für buero_finanzen/admin unverändert, nur die internen label_redacted-Hilfsfelder werden
     aufgeräumt, damit sie nicht versehentlich in der Antwort auftauchen."""
     for slot in board.get("slots", []):
-        for conflict in slot.get("conflicts", []):
-            if has_min_role(role, ROLE_OFFICE_FINANZEN):
-                conflict.pop("label_redacted", None)
-            elif conflict.get("type") == "absence":
-                conflict["label"] = conflict.pop("label_redacted", conflict["label"])
-            else:
-                conflict.pop("label_redacted", None)
+        _konflikte_fuer_rolle(slot.get("conflicts", []), role)
     if has_min_role(role, ROLE_OFFICE_FINANZEN):
         return board
     for team_rows in board.get("team_capacity", {}).values():
@@ -199,21 +217,25 @@ def get_planning_board(start: date, end: date, db: Session = Depends(get_db, sco
 def create_planning_slot(payload: PlanningSlotCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         slot = create_slot(db, **payload.model_dump())
+    except PlanungsWarnung as exc:  # seit 1.9.143: Warnungen -- nichts gespeichert, bis „trotzdem_planen“ mitkommt
+        return _warnung_antwort(exc, _role)
     except AuftragGeschlossen as exc:  # seit 1.9.124: abgeschlossen oder storniert -- kein neuer Einsatz (409)
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return slot_to_dict(slot, db=db)
+    return _einsatz_antwort(db, slot, _role)
 
 
 @router.put("/api/planning/slots/{slot_id}")
 def put_planning_slot(slot_id: int, payload: PlanningSlotUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
         slot = update_slot(db, slot_id, **payload.model_dump(exclude_unset=True))  # seit 1.8.96 Teil-Update (Regel 22)
+    except PlanungsWarnung as exc:  # seit 1.9.143, wie beim Anlegen
+        return _warnung_antwort(exc, _role)
     except ValueError as exc:
         code = 404 if "nicht gefunden" in str(exc) else 422
         raise HTTPException(status_code=code, detail=str(exc)) from exc
-    return slot_to_dict(slot, db=db)
+    return _einsatz_antwort(db, slot, _role)
 
 
 @router.delete("/api/planning/slots/{slot_id}")

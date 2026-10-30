@@ -155,7 +155,7 @@ def test_plantafel_verschieben_schickt_nur_team_und_zeitraum(tafel):
     neu = {"status": "bestaetigt", "notes": "Gerüst steht", "planned_hours": "30", "travel_hours_per_employee_day": "1"}
     assert client.put(tafel["url"], json=neu).status_code == 200
     aufrufe = im_browser(
-        "planning.html", ["dropSlot", "findSlot", "iso", "addDays"],
+        "planning.html", ["dropSlot", "findSlot", "iso", "addDays", "einsatzHinweise", "konfliktZeile", "konfliktFrage", "fmt"],
         f"var board = {js(beim_laden)}; var dragData = {{id: {tafel['id']}, days: 5}}; var view = 'teams'; const DAY_W = 120; "
         "var periodStart = new Date('2026-10-12T12:00:00'); async function loadBoard() {} "
         "function localDateIso(d) { const p = n => String(n).padStart(2, '0'); "

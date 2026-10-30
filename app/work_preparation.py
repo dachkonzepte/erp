@@ -94,8 +94,9 @@ def preparation_preview(db: Session, order_id: int) -> WorkPreparation:
     return _new_preparation(order)
 
 
-def ensure_preparation(db: Session, order_id: int) -> WorkPreparation:
-    """Legt die Arbeitsvorbereitung an, wenn sie fehlt -- seit 1.8.84 nur in Schreibwegen (siehe preparation_preview())."""
+def ensure_preparation(db: Session, order_id: int, *, festschreiben: bool = True) -> WorkPreparation:
+    """Legt die Arbeitsvorbereitung an, wenn sie fehlt -- seit 1.8.84 nur in Schreibwegen (siehe preparation_preview()). festschreiben=False
+    (seit 1.9.143): ohne Commit, der Aufrufer committet -- ein abgelehnter Einsatz (409) hinterlässt keine Arbeitsvorbereitung."""
     prep = load_preparation(db, order_id)
     if prep is not None:
         return prep
@@ -103,7 +104,10 @@ def ensure_preparation(db: Session, order_id: int) -> WorkPreparation:
     if order is None:
         raise ValueError("Auftrag nicht gefunden.")
     db.add(_new_preparation(order))
-    db.commit()
+    if festschreiben:
+        db.commit()
+    else:
+        db.flush()
     return load_preparation(db, order_id)
 
 

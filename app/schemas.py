@@ -3147,6 +3147,7 @@ class PlanningSlotCreate(BaseModel):
     notes: str | None = None
     planned_hours: Decimal | None = Field(default=None, ge=0)
     travel_hours_per_employee_day: Decimal | None = Field(default=None, ge=0, lt=24)
+    trotzdem_planen: bool = False  # seit 1.9.143: Warnungen sind gelesen, der Einsatz wird trotzdem gespeichert
 
     @model_validator(mode="after")
     def validate_dates(self):
@@ -3160,7 +3161,7 @@ class PlanningSlotUpdate(PartialUpdate):
     Status, Notiz, Planstunden und Anfahrt mit dem beim Laden gemerkten Stand mit. Ende vor Beginn prüft app/planning.py::
     update_slot() auf gespeichertem Stand + gesendeten Werten; hier nur, wenn beide gesendet sind. team_id, Planstunden und
     Anfahrt: null hieß bis 1.8.95 "unverändert", seither 422 (weglassen heißt unverändert)."""
-    NOT_NULL = frozenset({"team_id", "start_date", "end_date", "status", "planned_hours", "travel_hours_per_employee_day"})
+    NOT_NULL = frozenset({"team_id", "start_date", "end_date", "status", "planned_hours", "travel_hours_per_employee_day", "trotzdem_planen"})
     team_id: int | None = None
     start_date: date | None = None
     end_date: date | None = None
@@ -3168,6 +3169,7 @@ class PlanningSlotUpdate(PartialUpdate):
     notes: str | None = None
     planned_hours: Decimal | None = Field(default=None, ge=0)
     travel_hours_per_employee_day: Decimal | None = Field(default=None, ge=0, lt=24)
+    trotzdem_planen: bool | None = None  # seit 1.9.143, wie PlanningSlotCreate
 
     @model_validator(mode="after")
     def validate_dates(self):
