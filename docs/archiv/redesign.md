@@ -8411,3 +8411,36 @@ Gegenproben:
 Angepasste Erwartungen (Regel 28), alle mit gleichem Soll „nichts ragt hinaus“ und strengerer Messung: altes Soll `document.documentElement.scrollWidth<=innerWidth` wahr, neues Soll `tab.ueberlauf()` leer: bedenkenanzeige, bedenkenanzeige_versand, behinderungsanzeige, behinderungsanzeige_abschluss, behinderungsanzeige_versand, beleg_und_hinweis (2), beteiligte, beteiligte_stammdaten, ersteinrichtung, nebenforderungen, rahmen (Kopfzeile, Monteurskopf, Prüfvorlagen, Anmeldung, Sperrseite; der Listenwert `breit_scroll` entfällt, dort steht die Liste aus `ueberlauf()`), versandprotokoll, versandverlauf, vertragsvorlagen, zeiten (1440 und 412), lv_ueberlauf, zahlungen_kleinkram. `zeiten`: eine Prüfung bei 412 px wird zu vier (je Reiter); `lv_ueberlauf`: zehn neue (alle Reiter sichtbar, je Reiter der Akte).
 
 Festlegungen zu Werkzeug und Testablauf: 5, in `docs/archiv/testablauf-und-klicktests.md`.
+
+### Umsetzung 1.9.139: Punkt 2
+
+`app/akte_verlauf.py`: `_zahlung_teile(z)` liefert je Protokollzeile `(Satz, Zusatz)` aus dem Schnappschuss des Anlegens (`details`), `zahlung_text(z)` den Satz für sich (`Satz · Zusatz`, für „Einzelheiten“), `_zahlung_ueberschrift(g)` Überschrift und Zeile darunter einer Gruppe. Art der Zeile: Schlüssel `kind` = Zuordnung, `received_on` = Zahlung (beide stehen im Protokoll unter „Zahlungseingang“). Die Rechnungsnummer steht nur in der Bezeichnung (`… an R-…`, `_rechnung_aus_bezeichnung()`), der Schnappschuss kennt nur die Kennung; fehlt sie, „Rechnung“.
+
+| Buchung | Satz | darunter |
+|---|---|---|
+| Zahlungseingang | Zahlungseingang 3.000,00 € vom 18.08.2025 | die Zuordnungen derselben Aktion |
+| Zuordnung | 144,00 € auf R-… zugeordnet | |
+| Skonto, Einbehalt | Skonto 5,00 € auf R-… | |
+| auf eine Nebenforderung | 5,00 € auf Nebenforderung von R-… zugeordnet | |
+| Erstattung (Zahlungsausgang) | Erstattung 144,00 € gebucht | aus R-… (bei einer Endrechnung) |
+| Zuordnung zurückgenommen | Zuordnung zurückgenommen – Begründung: … | 144,00 € auf R-… |
+| Zahlung zurückgenommen | Zahlungseingang zurückgenommen – Begründung: … | 3.000,00 € vom 18.08.2025 |
+| Erstattung zurückgenommen | Erstattung zurückgenommen – Begründung: … | 144,00 € |
+
+`_einzelheit(z)` ersetzt in `einzelheiten` die lange Bezeichnung durch `kurz` (`entity_label` = null); `verlaufEinzelheit(z)` (`_verlauf.html`) zeichnet die Zeile für Akte und Kundenakte. Eine Zeile ohne lesbaren Schnappschuss fällt auf den allgemeinen Satz zurück, ohne die Art davor („Zahlungseingang Zahlung …“ gibt es nicht mehr).
+
+#### Festlegungen 1.9.139 (Bitte bestätigen)
+
+1. Die Sätze entstehen beim Lesen aus dem Schnappschuss, nicht aus einer geänderten Bezeichnung: so gelten sie auch für ältere Zeilen, und das Protokoll (`/history`, unveränderlich) bleibt, wie es ist.
+2. In der Akte steht weiter nur die Zuordnung, nicht der Eingang: die Zahlung gehört zum Kunden, nicht zum Projekt (`Payment` trägt kein Projekt). Ein Eingang über 3.000 € mit 144 € auf dieses Projekt zeigt in der Akte „144,00 € auf R-… zugeordnet“.
+3. Unter einer Überschrift höchstens zwei weitere Buchungen, dann „und n weitere Einzelheiten“.
+4. Unter einer Zurücknahme steht der Betrag, was mit ihr zurückgeht, steht unter „Einzelheiten“.
+5. Skonto, Einbehalt und die Erstattung aus einer Endrechnung sind in der Vorgabe nicht genannt: gleicher Satzbau („Skonto 5,00 € auf R-…“, „Erstattung 144,00 € gebucht“ / „aus R-…“).
+
+#### Tests und Prüfung
+
+Neu `tests/test_v559_verlauf_zahlungen.py` (Sätze aller Buchungen über die echten Endpunkte beider Verläufe; jede Zeile, die in beiden Strömen steht, trägt denselben Satz; kein `Zahlung.*Zahlung` in Überschrift, Unterzeile und Einzelheiten; Protokoll unverändert; Zeile ohne Schnappschuss; Baustein der Seite in node). `klicktest_kundenakte`: Zahlungseingang, Zurücknahme und Erstattung über die API, Verlauf beider Seiten im Browser, Einzelheiten aufklappbar, Bilder `verlauf_zahlungen_kunde` und `verlauf_zahlungen_akte`.
+
+Angepasste Erwartungen: `tests/test_v535_aenderungsprotokoll.py::test_history_und_projektmappe_nehmen_verlauf_aenderung[akte.html]`: altes Soll `${verlaufAenderung(z)}` steht in `akte.html`, neues Soll `verlaufEinzelheit(z)` in `akte.html` und `${verlaufAenderung(z)}` im Baustein `_verlauf.html`. Sonst keine; die bestehenden Prüfungen nennen die alten Sätze nicht.
+
+Gegenproben (je FAILED, byte-genau zurück), rote Tests in Klammern: lange Bezeichnung in den Einzelheiten (1); kein kurzer Satz in der Überschrift (7); Art davor beim Rückfall (1); Kopf nicht die Zahlung (2); Erstattung wie Eingang (1); Zurücknahme ohne Begründung (3); alle Zuordnungen darunter (1); Seite ohne `kurz` (1); `kurz` ohne Maskierung (1); Rechnungsnummer fehlt (5). „Art davor“ blieb zuerst grün: der Test machte nur eine von zwei Zeilen unlesbar und erreichte den Rückfall nicht; jetzt beide, mit genauer Erwartung.

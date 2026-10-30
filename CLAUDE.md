@@ -421,6 +421,9 @@ Behoben, drei Teile:
   (Felder füllt erst das Öffnen, gesendet nur die Abweichung), Zahlungen mit Vorschlägen und „⋮“ je Eingang, Geld nur `darf_geld()`; „⋮“ von Akte und Kundenakte mit Trennlinien
   (`.ds-menue-trenner`, `dsMenueTrennerOrdnen()`) -- jede Funktion in `FUNKTIONEN` (`tests/test_v554_kundenakte_funktionen.py`, eine neue Funktion am Kunden kommt dort hinein),
   `tests/test_v557_kundenakte_seite.py`, Klicktest `klicktest_kundenakte.py`. Archiv: `docs/archiv/redesign.md`, „Stufe 5, R3“.
+- **Stufe 5, R4 „Abschluss“ (seit 1.9.138):** 1.9.138 Klicktests messen bei 412 px gegen die Gerätebreite (`tab.ueberlauf()`), keine Seite lief über; 1.9.139 Verlaufstexte der
+  Zahlungen: ein Satz je Buchung, gleich in Akte und Kunde (`app/akte_verlauf.py::zahlung_text()`, aus dem Schnappschuss, das Protokoll bleibt), Einzelheiten über `verlaufEinzelheit()`
+  aus `_verlauf.html` (`tests/test_v559_verlauf_zahlungen.py`). Archiv: `docs/archiv/redesign.md`, „Stufe 5, R4“.
 
 ## Kritische, nicht verhandelbare Regeln
 

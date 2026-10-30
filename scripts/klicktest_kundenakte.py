@@ -314,6 +314,43 @@ async def pruefen(tab, seed, p):
                                           "Arbeitsvorbereitung" in gruppen[-1]], [3, True, True, True])
     await tab.bild_ganz("akte_menue")
 
+    # --- Verlauf der Zahlungen: ein Satzbau in Kundenakte und Akte (seit 1.9.139) ---
+    antwort = await tab.js(f"""(async()=>{{const h={{'Content-Type':'application/json'}},post=(u,b)=>fetch(u,{{method:'POST',headers:h,body:JSON.stringify(b)}}).then(r=>r.status);
+const liste=await fetch('/api/customers/{k}/payments').then(r=>r.json());
+const zuordnung=liste.payments.find(z=>z.id==={seed['rest']}).allocations.find(a=>Number(a.amount)===144&&!a.reversal);
+const heute=berlinToday();
+return [await post('/api/payments',{{customer_id:{k},received_on:heute,amount:'500.00',lines:[{{invoice_id:{seed['a2']},zahlung:'500.00'}}]}}),
+  await post('/api/payment-allocations/'+zuordnung.id+'/reverse',{{reason:'falsch zugeordnet'}}),
+  await post('/api/customers/{k}/refunds',{{paid_on:heute,lines:[{{payment_id:{seed['rest']},amount:'144.00'}}]}})]}})()""")
+    p.pruefe("Verlauf der Zahlungen: gebucht, zurückgenommen, erstattet", antwort, [200, 200, 200])
+    nr = seed["a2_nr"]
+    tag = await tab.js("berlinToday().split('-').reverse().join('.')")
+    await tab.oeffnen(f"/customers/{k}#verlauf", "akte&&customer&&verlaufDaten")
+    await _klick(tab, '#verlaufArten button[data-art="zahlung"]')
+    await tab.warte_auf_ruhe()
+    zeilen = await tab.js("[...document.querySelectorAll('#verlaufListe .vl-zeile .li-text')].map(z=>z.children[0].textContent+' | '+z.children[1].textContent)")
+    p.pruefe("Verlauf der Kundenakte: die neuen Sätze", [
+        "Erstattung 144,00 € gebucht | " in zeilen,
+        f"Zuordnung zurückgenommen – Begründung: falsch zugeordnet | 144,00 € auf {nr}" in zeilen,
+        f"Zahlungseingang 500,00 € vom {tag} | 500,00 € auf {nr} zugeordnet" in zeilen,
+        f"144,00 € auf {nr} zugeordnet | " in zeilen,
+        f"Zahlungseingang 3.000,00 € vom {seed['rest_tag']} | " in zeilen], [True] * 5)
+    p.pruefe("Verlauf der Kundenakte: kein „Zahlung … Zahlung“", [z for z in zeilen if "Zahlung" in z.replace("Zahlungseingang", "", 1)], [])
+    einzel = await tab.js("[...document.querySelectorAll('#verlaufListe details')].flatMap(d=>[...d.querySelectorAll('.vl-einzel')].map(e=>e.textContent))")
+    p.pruefe("Einzelheiten aufklappbar, derselbe Satz", [f"Zahlungseingang 500,00 € vom {tag}" in einzel, f"500,00 € auf {nr} zugeordnet" in einzel], [True, True])
+    await tab.js("document.querySelector('#verlaufListe details').open=true")
+    await tab.bild_ganz("verlauf_zahlungen_kunde")
+    kunde_saetze = {z.split(" | ")[0] for z in zeilen}
+    await tab.oeffnen(f"/projects/{seed['a']}#verlauf", "akte&&project&&order")
+    await _klick(tab, '#verlaufArten button[data-art="zahlung"]')
+    await tab.warte_auf_ruhe()
+    akte_zeilen = await tab.js("[...document.querySelectorAll('#verlaufListe .vl-zeile .li-text')].map(z=>z.children[0].textContent)")
+    p.pruefe("Verlauf der Akte: dieselben Sätze wie beim Kunden", [
+        f"500,00 € auf {nr} zugeordnet" in akte_zeilen, f"144,00 € auf {nr} zugeordnet" in akte_zeilen,
+        "Zuordnung zurückgenommen – Begründung: falsch zugeordnet" in akte_zeilen,
+        sorted(z for z in akte_zeilen if z not in kunde_saetze and not z.endswith(" zugeordnet"))], [True, True, True, []])
+    await tab.bild_ganz("verlauf_zahlungen_akte")
+
     # --- Kunde ohne Projekt ---
     await tab.oeffnen(f"/customers/{seed['maus']}", "akte&&customer&&verlaufDaten")
     await tab.warte_auf_neu_geladene_liste()

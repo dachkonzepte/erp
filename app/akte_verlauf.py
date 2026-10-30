@@ -10,6 +10,8 @@ Versand, Zahlungen, Berichte, Status, Termine -- mit Filter nach Art und nach Au
   Gruppen und die projektweiten (Projekt, Dateien, Beteiligte, Termine, Angebot ohne Auftrag).
 - Nicht im Strom: Zeitbuchungen (eigene Seite „Zeiten“, sie würden den Verlauf füllen) -- NICHT_IM_STROM.
 - Seiten: neueste zuerst, `vor` = Zeitpunkt der ältesten gezeigten Gruppe; je Abruf höchstens ZEILEN_JE_ABRUF Protokollzeilen.
+- Zahlungen (seit 1.9.139): ein kurzer Satz je Zeile aus dem Schnappschuss des Anlegens (zahlung_text()), derselbe für Akte und Kunde und auch für
+  ältere Zeilen -- im Protokoll selbst (/history) bleibt die Bezeichnung wie bisher.
 
 Die Schwärzung nach Rolle (Löhne, Abwesenheiten, Aufgaben) macht der Router vorher, wie für /api/audit-logs (app/routers/audit.py::sichtbar()).
 """
@@ -18,7 +20,8 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
+from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -28,6 +31,7 @@ from .models import (
     OrderRevision, OrderSection, OrderStatusChange, PaymentAllocation, PlanningSlot, Quote, Reminder, ServiceReport, WorkPreparation,
     WorkPreparationDeliveryNote, WorkPreparationEmployee, WorkPreparationMaterial, WorkPreparationTask, WorkPreparationTeamAssignment,
 )
+from .payments import money
 
 GRUPPE_SEKUNDEN = 5
 ZEILEN_JE_ABRUF = 600
@@ -247,6 +251,96 @@ def _wert(v) -> str:
     return v if v not in (None, "") else "—"
 
 
+# --- Zahlungen: ein Satzbau für Akte und Kunde (seit 1.9.139) -------------------------------------------------------------------------------
+
+BEGRUENDUNG = " – Begründung: "
+TEILE_MIT_ART = {"skonto": "Skonto", "einbehalt": "Einbehalt"}
+
+
+def _schnappschuss(z) -> dict:
+    try:
+        d = json.loads(z.details or "{}")
+    except ValueError:
+        return {}
+    return d if isinstance(d, dict) else {}
+
+
+def _rechnung_aus_bezeichnung(z) -> str:
+    """Die Nummer aus der Bezeichnung einer Zuordnung („… an R-2026-0001“, app/audit.py); der Schnappschuss kennt nur die Kennung."""
+    teile = (z.entity_label or "").rsplit(" an ", 1)
+    nummer = teile[1].strip() if len(teile) == 2 else ""
+    return nummer if nummer and "·" not in nummer else "Rechnung"
+
+
+def _zurueckgenommen(was: str, d: dict) -> str:
+    return f"{was} zurückgenommen" + (f"{BEGRUENDUNG}{d['reason']}" if d.get("reason") else "")
+
+
+def _zahlung_teile(z) -> tuple[str, str] | None:
+    """(Satz, Zusatz) einer Protokollzeile zu Zahlungen, sonst None. Der Zusatz steht in der Zeile darunter, wenn der Satz die Aktion anführt."""
+    if z.entity_type != "Zahlungseingang" or z.action != "angelegt":
+        return None
+    d = _schnappschuss(z)
+    try:
+        betrag = Decimal(d["amount"])
+    except (KeyError, TypeError, InvalidOperation):
+        return None
+    geld = money(abs(betrag))
+    if "kind" in d:  # Zuordnung
+        rechnung = _rechnung_aus_bezeichnung(z)
+        kind = d["kind"]
+        if d.get("reverses_allocation_id"):
+            return _zurueckgenommen("Zuordnung", d), f"{geld} {'aus' if kind == 'erstattung' else 'auf'} {rechnung}"
+        if kind in TEILE_MIT_ART:
+            return f"{TEILE_MIT_ART[kind]} {geld} auf {rechnung}", ""
+        if kind == "nebenforderung":
+            return f"{geld} auf Nebenforderung von {rechnung} zugeordnet", ""
+        if kind == "erstattung":
+            return f"Erstattung {geld} gebucht", f"aus {rechnung}"
+        return f"{geld} auf {rechnung} zugeordnet", ""
+    if "received_on" in d:  # Zahlung
+        try:
+            tag = date.fromisoformat(d["received_on"]).strftime("%d.%m.%Y")
+        except (TypeError, ValueError):
+            return None
+        if d.get("reverses_payment_id"):  # die Gegenbuchung hat den umgekehrten Betrag: positiv nimmt einen Zahlungsausgang zurück
+            if betrag > 0:
+                return _zurueckgenommen("Erstattung", d), geld
+            return _zurueckgenommen("Zahlungseingang", d), f"{geld} vom {tag}"
+        if betrag < 0:
+            return f"Erstattung {geld} gebucht", ""
+        return f"Zahlungseingang {geld} vom {tag}", ""
+    return None
+
+
+def zahlung_text(z) -> str | None:
+    """Der kurze Satz einer Protokollzeile zu Zahlungen, wie er unter „Einzelheiten“ für sich steht; None bei jeder anderen Zeile."""
+    teile = _zahlung_teile(z)
+    return " · ".join(t for t in teile if t) if teile else None
+
+
+def _weitere_text(weitere: int) -> str:
+    return f"und {weitere} weitere Einzelheit{'en' if weitere != 1 else ''}" if weitere > 0 else ""
+
+
+def _zahlung_ueberschrift(g: Gruppe) -> tuple[str, str] | None:
+    """Überschrift einer Gruppe, deren Hauptsache eine Zahlung ist: die Zahlung selbst, sonst die erste Buchung (in der Akte steht nur, was das Projekt
+    betrifft: die Zuordnungen). Darunter ihr Zusatz, sonst die übrigen Buchungen (höchstens zwei), danach „und n weitere“."""
+    zeilen = sorted((z for z in g.zeilen if _zahlung_teile(z)), key=lambda z: z.id)
+    if not zeilen:
+        return None
+    kopf = next((z for z in zeilen if "received_on" in _schnappschuss(z)), zeilen[0])
+    titel, zusatz = _zahlung_teile(kopf)
+    if zusatz:
+        return titel, " · ".join(t for t in (zusatz, _weitere_text(len(g.zeilen) - 1)) if t)
+    darunter = []
+    for z in zeilen:
+        if z is not kopf and len(darunter) < 2:
+            satz, z_zusatz = _zahlung_teile(z)
+            darunter.append(z_zusatz if satz == titel and z_zusatz else satz)  # die Erstattung: die Zahlung nennt schon den Betrag, die Zuordnung die Rechnung
+    return titel, " · ".join(t for t in (*darunter, _weitere_text(len(g.zeilen) - 1 - len(darunter))) if t)
+
+
 def ueberschrift(g: Gruppe) -> tuple[str, str]:
     """(Überschrift, Zeile darunter) einer Gruppe."""
     if g.versand is not None:
@@ -264,10 +358,16 @@ def ueberschrift(g: Gruppe) -> tuple[str, str]:
             unter.append("1 Anhang (PDF)")
         return titel, " · ".join(unter)
     h = _hauptzeile(g)
+    if h.entity_type == "Zahlungseingang":
+        kurz = _zahlung_ueberschrift(g)
+        if kurz:
+            return kurz
     typ = h.entity_type_label or h.entity_type
     name = h.entity_label or ""
     if name == typ:  # seit 1.9.137: ohne eigenen Namen steht in der Zeile nur die Art („Kundenwissen Kundenwissen angelegt“)
         name = ""
+    if h.entity_type == "Zahlungseingang":  # seit 1.9.139: die Bezeichnung nennt die Zahlung schon („Zahlungseingang Zahlung …“)
+        typ = ""
     if h.entity_type == "Auftragsstatus":
         titel = name or typ
         try:  # die Begründung steht im Schnappschuss des Anlegens (details)
@@ -310,6 +410,15 @@ def ziel(g: Gruppe, befund_berichte: dict[int, int]) -> dict | None:
     return {"href": vorlage[0].format(kennung), "text": vorlage[1]} if vorlage else None
 
 
+def _einzelheit(z) -> dict:
+    """Eine Zeile unter „Einzelheiten“. Seit 1.9.139 trägt eine Zeile zu Zahlungen ihren kurzen Satz (`kurz`) statt der langen Bezeichnung."""
+    zeile = z.model_dump()
+    kurz = zahlung_text(z)
+    if kurz:
+        zeile.update(kurz=kurz, entity_label=None)
+    return zeile
+
+
 def gruppe_dict(g: Gruppe, auftrag_nummern: dict[int, str], befund_berichte: dict[int, int] | None = None) -> dict:
     titel, unter = ueberschrift(g)
     a = art(g)
@@ -318,7 +427,7 @@ def gruppe_dict(g: Gruppe, auftrag_nummern: dict[int, str], befund_berichte: dic
         "zeitpunkt": g.zeitpunkt, "art": a, "art_label": ART_NAMEN[a], "titel": titel, "unterzeile": unter,
         "konto": (erste.actor_name if erste is not None else g.versand.get("created_by_name")),
         "auftraege": [{"order_id": o, "order_number": auftrag_nummern.get(o)} for o in sorted(g.auftraege)],
-        "einzelheiten": [z.model_dump() for z in g.zeilen],
+        "einzelheiten": [_einzelheit(z) for z in g.zeilen],
         "versand": g.versand,
         "ziel": ziel(g, befund_berichte or {}),
     }

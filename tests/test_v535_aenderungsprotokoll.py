@@ -188,6 +188,7 @@ def test_verlauf_aenderung_zeigt_verworfen_und_pausen():
 def test_history_und_projektmappe_nehmen_verlauf_aenderung(vorlage):
     from tests import vorlagen_js
     text = (VORLAGEN / vorlage).read_text(encoding="utf-8")
-    # seit 1.9.129 die Akte (Einzelheiten einer Zeile des Verlaufs, Variable z) statt der Projektmappe
-    assert ("${verlaufAenderung(x)}" if vorlage == "history.html" else "${verlaufAenderung(z)}") in text and "Datensatz gelöscht" not in text
+    # seit 1.9.129 die Akte statt der Projektmappe; seit 1.9.139 steht die Zeile der Einzelheiten im Baustein (verlaufEinzelheit(z), auch für die Kundenakte)
+    assert ("${verlaufAenderung(x)}" if vorlage == "history.html" else "verlaufEinzelheit(z)") in text and "Datensatz gelöscht" not in text
+    assert "${verlaufAenderung(z)}" in (VORLAGEN / "_verlauf.html").read_text(encoding="utf-8")
     assert vorlagen_js.bindet_ein(vorlage, "_verlauf.html", wurzel=VORLAGEN)
