@@ -11,11 +11,11 @@ from decimal import Decimal, ROUND_HALF_UP
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from .auftragsstatus import AuftragGeschlossen, einsatz_gesperrt, geschlossen, name as status_name, pause_begruendung, storniert, wert as status_wert
+from .auftragsstatus import AuftragGeschlossen, einsatz_gesperrt, name as status_name, offen_bedingung, pause_begruendung, pause_begruendungen, storniert, wert as status_wert
 from .grunddaten import einzelzeile
 from .berlin_time import berlin_today
 from .models import (
-    Employee, EmployeeAbsence, EmployeePlanningSettings, EmployeeProfile, OperationalResource, Order, PlanningHoliday,
+    Employee, EmployeeAbsence, EmployeePlanningSettings, EmployeeProfile, OperationalResource, Order, OrderItem, PlanningHoliday,
     PlanningSettings, PlanningRegionSettings, PlanningSchoolHoliday, PlanningSchoolHolidaySync, PlanningSlot, PlanningSlotCapacity, Project, Property, ServiceReport, Team, TeamEmployee,
     TeamResource, WorkPreparation, WorkPreparationEmployee, WorkPreparationTeamAssignment,
     WorkPreparationTeamEmployee, WorkPreparationTeamResource,
@@ -605,7 +605,8 @@ def _slot_distribution(
     return distribution, round_hours(max(Decimal("0"), remaining))
 
 
-def slot_to_dict(slot: PlanningSlot, conflicts: list[dict] | None = None, db: Session | None = None) -> dict:
+def slot_to_dict(slot: PlanningSlot, conflicts: list[dict] | None = None, db: Session | None = None, *, tafel: dict | None = None) -> dict:
+    """tafel (seit 1.9.144, planning_board()): Einstellungen, sichtbare Mitarbeiter und Pausen schon geladen -- ohne Abfrage je Einsatz."""
     order = slot.preparation.order
     project = order.project
     prop = project.property
@@ -614,16 +615,20 @@ def slot_to_dict(slot: PlanningSlot, conflicts: list[dict] | None = None, db: Se
         address = ", ".join(x for x in [prop.street, f"{prop.postal_code or ''} {prop.city or ''}".strip()] if x)
     elif order.property_address:
         address = order.property_address.replace("\n", ", ")
-    settings = load_planning_settings(db) if db is not None else None
+    if tafel is not None:
+        settings, visible_ids, pause = tafel["settings"], tafel["sichtbar"], tafel["pausen"].get(order.id)
+    else:
+        settings = load_planning_settings(db) if db is not None else None
+        visible_ids = planning_visible_employee_ids(db) if db is not None else None
+        pause = pause_begruendung(db, order) if db is not None else None
     travel = _slot_travel(slot, settings) if settings is not None else (_d(slot.capacity.travel_hours_per_employee_day) if slot.capacity else Decimal("0"))
     hours = _infer_slot_hours(db, slot) if db is not None else (_stored_slot_hours(slot) or Decimal("0"))
-    visible_ids = planning_visible_employee_ids(db) if db is not None else None
     return {
         "id": slot.id, "preparation_id": slot.preparation_id, "order_id": order.id,
         "order_number": order.order_number, "project_id": project.id,
         # seit 1.9.124: Status des Auftrags -- die Plantafel zeigt „pausiert“ mit Begründung als Hinweis
         "order_status": status_wert(order.status), "order_status_label": status_name(order.status),
-        "order_status_reason": pause_begruendung(db, order) if db is not None else None,
+        "order_status_reason": pause,
         "project_number": project.project_number, "project_name": project.name,
         "customer_name": order.customer_name, "property_name": prop.name if prop else order.property_name,
         "property_address": address, "team_assignment_id": slot.team_assignment_id,
@@ -950,25 +955,42 @@ def auftrag_zeile(o: Order) -> dict:
             "customer_name": o.customer_name, "property_address": o.property_address}
 
 
-def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSettings) -> tuple[dict[int, list[dict]], dict[int, dict[date, dict]]]:
+def _einsatz_abfrage():
+    """Ein Einsatz mit allem, was Konflikte, Kapazität und slot_to_dict() lesen -- ohne Abfrage je Einsatz (seit 1.9.144). Nach Beginn sortiert."""
+    return (
+        select(PlanningSlot)
+        .options(
+            selectinload(PlanningSlot.capacity),
+            selectinload(PlanningSlot.preparation).selectinload(WorkPreparation.order).selectinload(Order.project).selectinload(Project.property),
+            selectinload(PlanningSlot.team_assignment).selectinload(WorkPreparationTeamAssignment.employees).selectinload(WorkPreparationTeamEmployee.employee),
+            selectinload(PlanningSlot.team_assignment).selectinload(WorkPreparationTeamAssignment.resources).selectinload(WorkPreparationTeamResource.resource),
+        )
+        .order_by(PlanningSlot.start_date, PlanningSlot.id)
+    )
+
+
+def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSettings, *, visible_employee_ids: set[int] | None = None) -> tuple[dict[int, list[dict]], dict[int, dict[date, dict]]]:
     """Seit 1.9.143 (P8): Einsätze stornierter Aufträge zählen nicht -- weder als Konflikt noch in der Kapazität. Jeder Konflikt trägt seine Stufe
-    („warnung“ fragt beim Speichern zurück, „hinweis“ steht nur in der Antwort)."""
+    („warnung“ fragt beim Speichern zurück, „hinweis“ steht nur in der Antwort). Seit 1.9.144 bekommt sie nur noch die Einsätze, um die es geht (nach
+    Beginn sortiert, ein Paar ohne Überschneidung beendet die Runde), nicht mehr alle Einsätze aller Jahre."""
     result: dict[int, list[dict]] = defaultdict(list)
     distributions: dict[int, dict[date, dict]] = {}
-    slots = [s for s in slots if not storniert(s.preparation.order)]
+    slots = sorted((s for s in slots if not storniert(s.preparation.order)), key=lambda s: (s.start_date, s.id))
     if not slots:
         return result, distributions
     start = min(s.start_date for s in slots); end = max(s.end_date for s in slots)
     holiday_names, _holiday_meta = _combined_holiday_map(db, start, end); holiday_dates = set(holiday_names)
-    visible_employee_ids = planning_visible_employee_ids(db)
+    if visible_employee_ids is None:
+        visible_employee_ids = planning_visible_employee_ids(db)
     employee_ids = {x.employee_id for s in slots for x in s.team_assignment.employees if x.employee_id in visible_employee_ids}
     absence_rows = _absence_rows(db, start, end, employee_ids); absences = _absence_map(absence_rows)
 
     for i, a in enumerate(slots):
         a_emps, a_res = _slot_members(a, visible_employee_ids)
-        for b in slots[i + 1:]:
-            if not _ranges_overlap(a.start_date, a.end_date, b.start_date, b.end_date):
-                continue
+        for j in range(i + 1, len(slots)):
+            b = slots[j]
+            if b.start_date > a.end_date:
+                break
             b_emps, b_res = _slot_members(b, visible_employee_ids)
             issues = []
             if a.team_assignment.team_id == b.team_assignment.team_id:
@@ -1023,16 +1045,7 @@ def einsatz_konflikte(db: Session, slot: PlanningSlot) -> dict:
     if storniert(slot.preparation.order):
         return {"warnungen": [], "hinweise": []}
     settings = load_planning_settings(db)
-    andere = db.scalars(
-        select(PlanningSlot)
-        .options(
-            selectinload(PlanningSlot.capacity),
-            selectinload(PlanningSlot.preparation).selectinload(WorkPreparation.order).selectinload(Order.project),
-            selectinload(PlanningSlot.team_assignment).selectinload(WorkPreparationTeamAssignment.employees).selectinload(WorkPreparationTeamEmployee.employee),
-            selectinload(PlanningSlot.team_assignment).selectinload(WorkPreparationTeamAssignment.resources).selectinload(WorkPreparationTeamResource.resource),
-        )
-        .where(PlanningSlot.id != slot.id, PlanningSlot.start_date <= slot.end_date, PlanningSlot.end_date >= slot.start_date)
-    ).all()
+    andere = db.scalars(_einsatz_abfrage().where(PlanningSlot.id != slot.id, PlanningSlot.start_date <= slot.end_date, PlanningSlot.end_date >= slot.start_date)).all()
     konflikte, _ = _conflicts(db, [slot, *andere], settings)
     feiertage, _ = _combined_holiday_map(db, slot.start_date, slot.end_date)
     liste = list(konflikte.get(slot.id, [])) + _wochenend_hinweise(slot, settings, feiertage)
@@ -1113,26 +1126,62 @@ def planning_suggestion(
     }
 
 
+def offene_auftraege(db: Session) -> list[dict]:
+    """Die Auswahl im Dialog „Einsatz planen“ (seit 1.9.144, GET /api/planning/auftraege): nur offene Aufträge, nur was die Auswahl zeigt, eine Abfrage.
+    Bis 1.9.143 lud die Tafel dafür bei jedem Laden GET /api/orders -- rund 39 Abfragen je Auftrag, 53 s bei 4000 Aufträgen (Befund Stufe 6, 7.3)."""
+    return [{"id": i, "order_number": nummer, "project_number": projekt, "project_name": name}
+            for i, nummer, projekt, name in db.execute(
+                select(Order.id, Order.order_number, Project.project_number, Project.name)
+                .join(Project, Order.project_id == Project.id).where(offen_bedingung()).order_by(Order.id.desc()))]
+
+
+def rueckstand(db: Session) -> list[dict]:
+    """„Nicht eingeplant“: offene Aufträge ohne Einsatz (seit 1.9.144 im SQL gefiltert und auf einmal geladen; bis 1.9.143 alle Aufträge und load_order() je Auftrag)."""
+    mit_einsatz = select(WorkPreparation.order_id).join(PlanningSlot, PlanningSlot.preparation_id == WorkPreparation.id)
+    orders = db.scalars(
+        select(Order)
+        .options(selectinload(Order.project).selectinload(Project.property), selectinload(Order.items).selectinload(OrderItem.calculation_snapshot))
+        .where(offen_bedingung(), Order.id.not_in(mit_einsatz))
+        .order_by(Order.order_date.desc(), Order.id.desc())
+    ).all()
+    if not orders:
+        return []
+    vorbereitungen = {x.order_id: x for x in db.scalars(select(WorkPreparation).where(WorkPreparation.order_id.in_([o.id for o in orders])))}
+    pausen = pause_begruendungen(db, orders)
+    zeilen = []
+    for order in orders:
+        prep = vorbereitungen.get(order.id)
+        prop = order.project.property
+        address = ""
+        if prop:
+            address = ", ".join(x for x in [prop.street, f"{prop.postal_code or ''} {prop.city or ''}".strip()] if x)
+        elif order.property_address:
+            address = order.property_address.replace("\n", ", ")
+        zeilen.append({"order_id": order.id, "order_number": order.order_number, "project_id": order.project_id, "project_number": order.project.project_number,
+                       "project_name": order.project.name, "customer_name": order.customer_name, "property_address": address, "planned_hours": planned_hours(order),
+                       "suggested_start": prep.planned_start if prep else order.execution_start, "suggested_end": prep.planned_end if prep else order.execution_end,
+                       "order_status": status_wert(order.status), "order_status_label": status_name(order.status), "order_status_reason": pausen.get(order.id)})
+    return zeilen
+
+
 def planning_board(db: Session, start_date: date, end_date: date) -> dict:
     if end_date < start_date:
         raise ValueError("Enddatum darf nicht vor dem Startdatum liegen.")
     if (end_date - start_date).days > 62:
         raise ValueError("Die Plantafel kann maximal 63 Tage gleichzeitig anzeigen.")
     settings = load_planning_settings(db)
-    all_slots = db.scalars(
-        select(PlanningSlot)
-        .options(
-            selectinload(PlanningSlot.capacity),
-            selectinload(PlanningSlot.preparation).selectinload(WorkPreparation.order).selectinload(Order.project),
-            selectinload(PlanningSlot.team_assignment).selectinload(WorkPreparationTeamAssignment.employees).selectinload(WorkPreparationTeamEmployee.employee),
-            selectinload(PlanningSlot.team_assignment).selectinload(WorkPreparationTeamAssignment.resources).selectinload(WorkPreparationTeamResource.resource),
-        ).order_by(PlanningSlot.start_date, PlanningSlot.id)
-    ).all()
-    visible = [x for x in all_slots if _ranges_overlap(x.start_date, x.end_date, start_date, end_date)]
-    conflict_map, distributions = _conflicts(db, all_slots, settings)
+    visible = db.scalars(_einsatz_abfrage().where(PlanningSlot.start_date <= end_date, PlanningSlot.end_date >= start_date)).all()
+    # Seit 1.9.144: Konflikte nur für Einsätze, die den Zeitraum berühren -- und gegen die, die mit ihnen über den Rand hinaus zusammenfallen. Ein alter
+    # Einsatz kostet nichts mehr (bis 1.9.143 paarweise über alle Einsätze aller Jahre: 15 s bei 7.600 Einsätzen, Befund Stufe 6, 7.3).
+    relevant = visible
+    if visible:
+        rand_start, rand_ende = min(x.start_date for x in visible), max(x.end_date for x in visible)
+        if rand_start < start_date or rand_ende > end_date:
+            relevant = db.scalars(_einsatz_abfrage().where(PlanningSlot.start_date <= rand_ende, PlanningSlot.end_date >= rand_start)).all()
+    visible_employee_ids = planning_visible_employee_ids(db)
+    conflict_map, distributions = _conflicts(db, relevant, settings, visible_employee_ids=visible_employee_ids)
 
     teams = db.scalars(select(Team).options(selectinload(Team.employees).selectinload(TeamEmployee.employee),selectinload(Team.resources).selectinload(TeamResource.resource)).order_by(Team.name)).all()
-    visible_employee_ids=planning_visible_employee_ids(db)
     used_team_ids = {x.team_assignment.team_id for x in visible}
     team_rows=[]
     for team in teams:
@@ -1180,25 +1229,15 @@ def planning_board(db: Session, start_date: date, end_date: date) -> dict:
             rows[day.isoformat()]={"capacity_hours":round_hours(cap),"planned_hours":round_hours(planned),"utilization_pct":util,"absence":a.absence_type if a else None,"holiday":holiday_names.get(day),"school_holidays":school_by_day.get(day,[])}
         employee_capacity[str(emp.id)]=rows
     resource_load={}
+    zaehlend=[slot for slot in visible if not storniert(slot.preparation.order)]  # seit 1.9.143 (P8)
     for res in resources:
-        resource_load[str(res.id)]={day.isoformat():sum(1 for slot in visible if any(x.resource_id==res.id for x in slot.team_assignment.resources) and slot.start_date<=day<=slot.end_date) for day in dates}
-
-    planned_prep_ids={x.preparation_id for x in all_slots}
-    orders=db.scalars(select(Order).options(selectinload(Order.project)).order_by(Order.order_date.desc(),Order.id.desc())).all()
-    work_preps={x.order_id:x for x in db.scalars(select(WorkPreparation)).all()}; backlog=[]
-    for order in orders:
-        prep=work_preps.get(order.id)
-        if prep and prep.id in planned_prep_ids: continue
-        if geschlossen(order): continue  # seit 1.9.124 (F5): abgeschlossen und storniert nicht mehr unter „Nicht eingeplant“
-        loaded_order=load_order(db,order.id); prop=order.project.property; address=""
-        if prop: address=", ".join(x for x in [prop.street,f"{prop.postal_code or ''} {prop.city or ''}".strip()] if x)
-        elif order.property_address: address=order.property_address.replace("\n",", ")
-        backlog.append({"order_id":order.id,"order_number":order.order_number,"project_id":order.project_id,"project_number":order.project.project_number,"project_name":order.project.name,"customer_name":order.customer_name,"property_address":address,"planned_hours":planned_hours(loaded_order) if loaded_order else Decimal("0"),"suggested_start":prep.planned_start if prep else order.execution_start,"suggested_end":prep.planned_end if prep else order.execution_end,"order_status":status_wert(order.status),"order_status_label":status_name(order.status),"order_status_reason":pause_begruendung(db,order)})
+        resource_load[str(res.id)]={day.isoformat():sum(1 for slot in zaehlend if any(x.resource_id==res.id for x in slot.team_assignment.resources) and slot.start_date<=day<=slot.end_date) for day in dates}
+    tafel={"settings":settings,"sichtbar":visible_employee_ids,"pausen":pause_begruendungen(db,[slot.preparation.order for slot in visible])}
 
     return {"start_date":start_date,"end_date":end_date,"settings":planning_settings_dict(settings,db),"holidays":holiday_meta,"school_holidays":school_holidays,"school_holiday_warnings":school_warnings,
         "absences":[{"id":x.id,"employee_id":x.employee_id,"employee_name":_employee_name(x.employee),"absence_type":x.absence_type,"start_date":x.start_date,"end_date":x.end_date,"notes":x.notes} for x in absence_rows],
         "teams":team_rows,
         "employees":[{"id":x.id,"employee_number":x.employee_number,"name":_employee_name(x),"function":x.profile.function.name if x.profile and x.profile.function else x.job_title} for x in employees],
         "resources":[{"id":x.id,"resource_number":x.resource_number,"name":x.name,"type":x.resource_type,"identifier":x.identifier} for x in resources],
-        "slots":[slot_to_dict(x,conflict_map.get(x.id,[]),db) for x in visible],"backlog":backlog,"conflict_count":sum(1 for x in visible if conflict_map.get(x.id)),
+        "slots":[slot_to_dict(x,conflict_map.get(x.id,[]),db,tafel=tafel) for x in visible],"backlog":rueckstand(db),"conflict_count":sum(1 for x in visible if conflict_map.get(x.id)),
         "team_capacity":team_capacity,"employee_capacity":employee_capacity,"resource_load":resource_load}

@@ -22,7 +22,7 @@ entscheidet der Router.
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .models import Order, OrderStatusChange
@@ -87,6 +87,11 @@ def geschlossen(order: Order | None) -> bool:
     return order is not None and wert(order.status) in GESCHLOSSEN
 
 
+def offen_bedingung():
+    """„nicht geschlossen()“ als Bedingung einer Abfrage (seit 1.9.144): die Plantafel filtert im SQL statt jeden Auftrag zu laden."""
+    return func.lower(func.trim(func.coalesce(Order.status, ""))).not_in(GESCHLOSSEN)
+
+
 def storniert(order: Order | None) -> bool:
     return order is not None and wert(order.status) == STORNIERT
 
@@ -129,6 +134,18 @@ def pause_begruendung(db: Session, order: Order) -> str | None:
         return None
     letzter = letzter_wechsel(db, order.id)
     return letzter.reason if letzter is not None and letzter.new_status == PAUSIERT else None
+
+
+def pause_begruendungen(db: Session, orders) -> dict[int, str | None]:
+    """pause_begruendung() für viele Aufträge in einer Abfrage (seit 1.9.144, Plantafel) -- je Auftrag zählt der letzte Wechsel."""
+    ids = [o.id for o in orders if wert(o.status) == PAUSIERT]
+    if not ids:
+        return {}
+    letzte: dict[int, OrderStatusChange] = {}
+    for zeile in db.scalars(select(OrderStatusChange).where(OrderStatusChange.order_id.in_(ids))
+                            .order_by(OrderStatusChange.changed_at, OrderStatusChange.id)):
+        letzte[zeile.order_id] = zeile
+    return {i: letzte[i].reason if i in letzte and letzte[i].new_status == PAUSIERT else None for i in ids}
 
 
 def wechsel(db: Session, order_id: int) -> list[OrderStatusChange]:

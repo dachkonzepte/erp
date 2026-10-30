@@ -18,7 +18,7 @@ from ..database import get_db
 from ..models import AppUser, Employee, EmployeeAbsence, PlanningHoliday
 from ..permissions import ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, has_min_role, require_min_role
 from ..auftragsstatus import AuftragGeschlossen
-from ..planning import GERMAN_STATES, PlanungsWarnung, create_slot, delete_slot, einsatz_konflikte, load_planning_settings, load_region_settings, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
+from ..planning import GERMAN_STATES, PlanungsWarnung, create_slot, delete_slot, einsatz_konflikte, load_planning_settings, load_region_settings, offene_auftraege, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
 from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeAbsencePlanningOut, EmployeeAbsenceUpdate, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest
 
 router = APIRouter()
@@ -211,6 +211,12 @@ def get_planning_board(start: date, end: date, db: Session = Depends(get_db, sco
         return _redact_board_absences(planning_board(db, start, end), _role)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("/api/planning/auftraege")
+def get_planning_orders(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.9.144: die Auswahl im Dialog „Einsatz planen“, erst beim Öffnen des Dialogs -- nur offene Aufträge, nur Nummer und Projekt."""
+    return offene_auftraege(db)
 
 
 @router.post("/api/planning/slots")

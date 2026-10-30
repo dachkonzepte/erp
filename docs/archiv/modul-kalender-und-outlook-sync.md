@@ -891,3 +891,37 @@ Die Plantafel gehört seit dem Befund Stufe 6 mit dem Kalender zu einer Planung;
 1. Nur Notiz, Status oder Stunden ändern fragt nicht erneut; die Konflikte stehen in der Antwort. Die Rückfrage kommt, wenn sich Kolonne oder Zeitraum ändern.
 2. „Wochenende“ färbt den Balken nicht (nur Hinweis beim Speichern); Feiertag und Kapazität färben ihn weiter rot wie bisher -- die Abstufung auf der Tafel kommt mit der Zeichnung.
 3. Der Balken eines stornierten Auftrags bleibt auf der Tafel und sagt „Auftrag storniert“.
+
+## Umsetzung 1.9.144: die Plantafel lädt, was sie zeigt (Stufe 6, R1, Punkt 2)
+
+Woher die Zeit kam, steht im Befund Stufe 6, 7.3. Geändert:
+
+- Die Seite lädt `GET /api/planning`, die Auswahl im Dialog erst beim Öffnen über `GET /api/planning/auftraege` (`offene_auftraege()`: eine Abfrage, Nummer und Projekt, nur offene über `auftragsstatus.offen_bedingung()`).
+- `planning_board()`: Einsätze nur, die den Zeitraum berühren; läuft einer über den Rand, zusätzlich alle, die in die Spanne dieser Einsätze fallen -- ein Einsatz am Rand meldet seinen Konflikt weiter. `_conflicts()` bekommt nur noch diese, nach Beginn sortiert, und bricht je Einsatz beim ersten ab, der später beginnt.
+- `rueckstand()`: offene Aufträge ohne Einsatz im SQL gefiltert, Positionen und Kalkulation auf einmal (`selectinload`), Begründungen der Pause in einer Abfrage (`pause_begruendungen()`).
+- `slot_to_dict(tafel=…)`: Einstellungen, sichtbare Mitarbeiter und Pausen einmal für die ganze Tafel; das Objekt über `_einsatz_abfrage()`.
+
+### Messung (wie Befund 7.1: echte Router, lokale PostgreSQL 17 im Wegwerf-Schema, dieser Entwicklungsrechner, Median aus 3 Läufen, dieselbe Welt; bis die Tafel steht = die längere Anfrage)
+
+Vorher (d9d7d06), GET /api/planning und GET /api/orders zugleich:
+
+    Aufträge  Einsätze  Rückstand | GET /api/planning 14 T        | GET /api/orders                | bis die Tafel steht
+         200       380         11 |  0,25 s     294 SQL   167 KB  |  2,67 s    8.000 SQL    91 KB  |   2,7 s
+        1000     1.900         51 |  1,49 s     665 SQL   180 KB  | 13,39 s   39.284 SQL   458 KB  |  13,4 s
+        4000     7.600        201 | 15,35 s   2.069 SQL   228 KB  | 53,47 s  156.596 SQL 1.849 KB  |  53,5 s
+
+Nachher, nur GET /api/planning; die Auswahl erst beim Öffnen des Dialogs:
+
+    Aufträge  Einsätze  Rückstand | GET /api/planning 14 T        | Auswahl im Dialog              | bis die Tafel steht
+         200       380         11 |  0,07 s      51 SQL   171 KB  | 0,004 s  1 SQL    7,5 KB       |   0,07 s
+        1000     1.900         51 |  0,08 s      51 SQL   184 KB  | 0,004 s  1 SQL   11,3 KB       |   0,08 s
+        4000     7.600        201 |  0,13 s      54 SQL   233 KB  | 0,007 s  1 SQL   25,6 KB       |   0,13 s
+
+Speicherspitze eines Aufrufs bei 4000 Aufträgen (Python-Objekte): /api/planning 10 MB statt 124 MB, Auswahl 0,3 MB statt /api/orders 263 MB. Ziel „1000 Aufträge unter 1 s“ erreicht. Der VPS ist langsamer, den Faktor habe ich weiter nicht gemessen. Die Mengenannahmen stehen im Befund (10 Aufträge je Woche, 5 % offen ohne Einsatz).
+
+`GET /api/orders` selbst blieb, wie es war: die Projektliste nutzt es weiter (`projects.html`). Einen Umbau dort hat dieser Punkt nicht verlangt.
+
+### Festlegungen 1.9.144 (Bitte bestätigen)
+
+1. Die Auswahl im Dialog wird bei jedem Öffnen neu geladen (eine Abfrage), kein Zwischenspeichern in der Seite: ein gerade abgeschlossener Auftrag steht sonst noch drin.
+2. Die Konflikte eines Einsatzes am Rand des Zeitraums rechnen auch gegen Einsätze außerhalb, solange sie in die Spanne der sichtbaren fallen; ein sehr langer Einsatz weitet die Spanne entsprechend.

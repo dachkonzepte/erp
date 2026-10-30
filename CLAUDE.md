@@ -1643,6 +1643,9 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   (`_conflicts()`). Warnungen (`WARNUNG_ARTEN`: Person, Kolonne, Gerät doppelt; abwesend) -> `PlanungsWarnung`, 409 mit `warnungen` und `hinweise`, nichts gespeichert (auch keine neue
   Arbeitsvorbereitung), bis `trotzdem_planen` mitkommt; Hinweise (`HINWEIS_ARTEN`: Feiertag, betriebsfrei, Wochenende, Kapazität) nur in der Antwort; Ändern fragt nur, wenn sich Kolonne oder
   Zeitraum ändern. Einsätze stornierter Aufträge zählen nicht (`tests/test_v563_konflikte_beim_speichern.py`, Klicktest `klicktest_plantafel_konflikte.py`).
+- **Die Plantafel lädt, was sie zeigt** (seit 1.9.144): `GET /api/planning` ohne Abfrage je Auftrag oder Einsatz (`_einsatz_abfrage()`, `rueckstand()`, `slot_to_dict(tafel=…)`), Konflikte nur für
+  Einsätze, die den Zeitraum berühren; die Auswahl im Dialog „Einsatz planen“ erst beim Öffnen über `GET /api/planning/auftraege` (`offene_auftraege()`, nur offene). Wächter: die Zahl der Abfragen hängt
+  nicht an Rückstand, Einsätzen im Bild und alten Einsätzen (`tests/test_v564_plantafel_leistung.py`).
 - **Ausblenden statt ausgrauen**: eine für eine Rolle nicht gedachte Seite fehlt im Markup
   (`can()`-Jinja-Global, `_dk_roles`-Markierung), nicht nur deaktiviert -- ein 403 auf einer
   Seiten-Route zeigt `access_denied.html`, nie rohes JSON.
