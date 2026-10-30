@@ -23,11 +23,11 @@ NUR_EIGENE_ABWESENHEIT = "Du darfst nur eigene Abwesenheiten beantragen."
 NUR_WER_GESTELLT = "Zurückziehen kann einen Antrag nur, wer ihn gestellt hat."
 
 
-def _antrag_fuer(request: Request, employee_id: int) -> int:
+def antrag_fuer(user: AppUser | None, employee_id: int) -> int:
     """Seit 1.9.97 (Stufe 4, R5b, Punkt 5): für wen ein Antrag gestellt wird -- seit 1.9.101 Admin und Büro – Finanzen für jeden
     (darf_abwesenheiten_aller(); 1.9.97–1.9.100 nur der Admin), sonst nur für sich (ohne Mitarbeiter 403). Bis 1.9.96 dieselbe Regel wie das
-    Buchen von Zeiten: Büro – Finanzen stellte Anträge für andere, die es danach nicht sehen konnte -- seit 1.9.101 sieht es alle."""
-    user = getattr(request.state, "erp_user", None)
+    Buchen von Zeiten: Büro – Finanzen stellte Anträge für andere, die es danach nicht sehen konnte -- seit 1.9.101 sieht es alle. Seit 1.9.146 auch für „Abwesenheit
+    eintragen“ auf der Plantafel."""
     if darf_abwesenheiten_aller(user):
         return employee_id
     if user.employee_id is None:
@@ -65,8 +65,8 @@ def get_absence_requests(request: Request, employee_id: int | None = None, statu
 
 @router.post("/api/absence-requests", response_model=EmployeeAbsenceRequestOut)
 def post_absence_request(payload: EmployeeAbsenceRequestCreate, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
-    employee_id=_antrag_fuer(request,payload.employee_id)
     user=getattr(request.state,"erp_user",None)
+    employee_id=antrag_fuer(user,payload.employee_id)
     try:
         row=create_absence_request_row(db,employee_id=employee_id,absence_type=payload.absence_type,absence_category=payload.absence_category,start_date=payload.start_date,end_date=payload.end_date,notes=payload.notes,requested_by_user_id=getattr(user,"id",None))
     except ValueError as exc:

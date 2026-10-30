@@ -15,11 +15,15 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..berlin_time import berlin_today
 from ..database import get_db
+from ..absence_requests import abwesenheit_loeschen, eintragen
+from ..meldungen import KEIN_MITARBEITER
 from ..models import AppUser, Employee, EmployeeAbsence, PlanningHoliday
-from ..permissions import ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, has_min_role, require_min_role
+from ..permissions import (ABWESENHEIT_LOESCHEN_NUR_ADMIN, ABWESENHEIT_LOESCHEN_ROLLEN, ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, darf_abwesenheit_loeschen,
+                           darf_abwesenheiten_aller, has_min_role, require_min_role, require_role)
+from .absence_requests import antrag_fuer
 from ..auftragsstatus import AuftragGeschlossen
 from ..planning import GERMAN_STATES, PlanungsWarnung, create_slot, delete_slot, einsatz_konflikte, load_planning_settings, load_region_settings, offene_auftraege, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
-from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeAbsencePlanningOut, EmployeeAbsenceUpdate, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest
+from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeAbsencePlanningOut, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest
 
 router = APIRouter()
 
@@ -28,6 +32,7 @@ router = APIRouter()
 # einer Monteur-Vorlage aufgerufen (die Monteursansicht liest ihre eigenen Einsätze über den
 # unabhängigen, bereits ausgenommenen GET /api/field-view/today).
 _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG))
+_abwesenheit_loeschen_dep = Depends(require_role(*ABWESENHEIT_LOESCHEN_ROLLEN, message=ABWESENHEIT_LOESCHEN_NUR_ADMIN))
 
 # Krankheitssichtbarkeit (siehe CLAUDE.md): buero_auftrag sieht bei jeder Abwesenheit --
 # egal wer/wann sie angelegt hat, auch die eigene soeben erstellte -- ausschließlich "abwesend"
@@ -90,6 +95,15 @@ def _redact_board_absences(board: dict, role: AppUser) -> dict:
         for a in board.get("absences", [])
     ]
     return board
+
+
+def _tafel_rechte(db: Session, role: AppUser) -> dict:
+    """Seit 1.9.146: was die Seite im Dialog „Abwesenheiten“ anbietet -- dieselben Regeln wie die Endpunkte, keine eigene Rollenabfrage in der Vorlage."""
+    eigener = db.get(Employee, role.employee_id) if role.employee_id else None
+    aller = darf_abwesenheiten_aller(role)
+    return {"abwesenheit_fuer_andere": aller, "abwesenheit_loeschen": darf_abwesenheit_loeschen(role),
+            "eigener_mitarbeiter": {"id": eigener.id, "name": f"{eigener.first_name} {eigener.last_name}".strip()} if eigener else None,
+            "hinweis": None if aller or eigener else KEIN_MITARBEITER}
 
 
 def _redact_suggestion_absences(suggestion: dict, role: AppUser) -> dict:
@@ -162,41 +176,29 @@ def list_employee_absences(start:date|None=None,end:date|None=None,employee_id:i
 
 @router.post("/api/planning/absences", response_model=EmployeeAbsenceOut | EmployeeAbsencePlanningOut)
 def create_employee_absence(payload:EmployeeAbsenceCreate,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
-    emp=db.get(Employee,payload.employee_id)
-    if emp is None: raise HTTPException(status_code=404,detail="Mitarbeiter nicht gefunden.")
-    row=EmployeeAbsence(**payload.model_dump()); db.add(row); db.commit(); db.refresh(row)
+    """„Abwesenheit eintragen“ -- seit 1.9.146 (Stufe 6, R1, Punkt 4) ein Antrag wie unter „Zeiten“: Admin gleich genehmigt, Büro – Finanzen auch für andere, Büro – Auftrag nur für
+    sich (403). Bis 1.9.145 trug hier jedes Büro für jede Person jede Art ein, ohne Antrag und ohne Entscheidung (P9)."""
+    employee_id=antrag_fuer(_role,payload.employee_id)
+    try:
+        antrag=eintragen(db,gleich_genehmigt=_role.role==ROLE_ADMIN,employee_id=employee_id,absence_type=payload.absence_type,absence_category=payload.absence_category,start_date=payload.start_date,end_date=payload.end_date,notes=payload.notes,requested_by_user_id=_role.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422,detail=str(exc)) from exc
     # "Einmal eintragen, nie wieder lesen" (siehe CLAUDE.md "Krankheitssichtbarkeit"): buero_auftrag
     # darf Art/Grund hier weiterhin eintippen (payload bleibt ungefiltert), bekommt die soeben
     # selbst angelegte Zeile in der ANTWORT aber bereits redigiert zurück -- keine Ausnahme "aber
     # ich habe es doch gerade selbst getippt".
-    return _absence_out_for_role(_role, {"id":row.id,"employee_id":row.employee_id,"employee_name":f"{emp.first_name} {emp.last_name}".strip(),"absence_type":row.absence_type,"absence_category":row.absence_category,"start_date":row.start_date,"end_date":row.end_date,"notes":row.notes})
-
-
-@router.put("/api/planning/absences/{absence_id}", response_model=EmployeeAbsenceOut | EmployeeAbsencePlanningOut)
-def update_employee_absence(absence_id:int,payload:EmployeeAbsenceUpdate,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
-    row=db.get(EmployeeAbsence,absence_id)
-    if row is None: raise HTTPException(status_code=404,detail="Abwesenheit nicht gefunden.")
-    fields=payload.model_dump(exclude_unset=True)
-    if "employee_id" in fields:
-        emp=db.get(Employee,fields["employee_id"])
-        if emp is None: raise HTTPException(status_code=404,detail="Mitarbeiter nicht gefunden.")
-    # Echtes Teil-Update (nur tatsächlich mitgesendete Felder) -- buero_auftrag sendet
-    # absence_type/absence_category/notes gar nicht erst mit (das Formular zeigt sie nicht mehr
-    # an, siehe planning.html), ein Blanket-Overwrite hätte sie sonst stillschweigend auf einen
-    # Leerwert zurückgesetzt (dieselbe Gefahrenklasse wie bei upsert_roof_layer() vor 1.2.19).
-    new_start=fields.get("start_date",row.start_date); new_end=fields.get("end_date",row.end_date)
-    if new_end<new_start: raise HTTPException(status_code=422,detail="Enddatum darf nicht vor dem Startdatum liegen.")
-    for k,v in fields.items(): setattr(row,k,v)
-    db.commit(); db.refresh(row)
-    emp=row.employee
-    return _absence_out_for_role(_role, {"id":row.id,"employee_id":row.employee_id,"employee_name":f"{emp.first_name} {emp.last_name}".strip() if emp else None,"absence_type":row.absence_type,"absence_category":row.absence_category,"start_date":row.start_date,"end_date":row.end_date,"notes":row.notes})
+    emp=antrag.employee
+    return _absence_out_for_role(_role, {"id":antrag.approved_absence_id,"antrag_id":antrag.id,"status":antrag.status,"employee_id":antrag.employee_id,"employee_name":f"{emp.first_name} {emp.last_name}".strip(),"absence_type":antrag.absence_type,"absence_category":antrag.absence_category,"start_date":antrag.start_date,"end_date":antrag.end_date,"notes":antrag.notes})
 
 
 @router.delete("/api/planning/absences/{absence_id}")
-def delete_employee_absence(absence_id:int,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
-    row=db.get(EmployeeAbsence,absence_id)
-    if row is None: raise HTTPException(status_code=404,detail="Abwesenheit nicht gefunden.")
-    db.delete(row); db.commit(); return {"deleted":True}
+def delete_employee_absence(absence_id:int,db:Session=Depends(get_db, scope="function"),_role:AppUser=_abwesenheit_loeschen_dep):
+    """Seit 1.9.146 (P1): der Antrag folgt, nie ein 500; nur der Admin (er entscheidet auch die Anträge)."""
+    try:
+        abwesenheit_loeschen(db,absence_id,geloescht_von_user_id=_role.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404,detail=str(exc)) from exc
+    return {"deleted":True}
 
 
 @router.post("/api/planning/suggestion")
@@ -208,7 +210,7 @@ def get_planning_suggestion(payload:PlanningSuggestionRequest,db:Session=Depends
 @router.get("/api/planning")
 def get_planning_board(start: date, end: date, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     try:
-        return _redact_board_absences(planning_board(db, start, end), _role)
+        return {**_redact_board_absences(planning_board(db, start, end), _role), "rechte": _tafel_rechte(db, _role)}
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

@@ -525,7 +525,9 @@ async def pruefen(tab, seed, p):
     await tab.js("document.querySelector('#abwListe [data-aktion=abw-fragen]').click()")
     p.pruefe("Bea: Rückfrage in der Zeile", await tab.js("document.querySelector('#abwListe .rueckfrage').innerText"), "Antrag zurückziehen?")
     await tab.warte_auf_neu_geladene_liste("document.querySelector('#abwListe [data-aktion=abw-ja]').click()", "#abwListe")
-    p.pruefe("Bea: zurückgezogen -- keine offenen mehr", await tab.js("document.querySelectorAll('#abwListe .zeile').length"), 0)
+    # seit 1.9.146 öffnet die Liste mit „Alle“ (bis 1.9.145 „Offen“, dort war die Zeile danach weg)
+    p.pruefe("Bea: zurückgezogen -- die Zeile bleibt ohne Knopf", await tab.js(
+        "[...document.querySelectorAll('#abwListe .zeile')].map(z=>[z.querySelector('.chip').innerText,z.querySelectorAll('button').length])"), [["zurückgezogen", 0]])
     p.pruefe("Bea: Antrag für Tom vom Server abgelehnt (403)", await tab.js(
         f"fetch('/api/absence-requests',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{employee_id:{seed['tom_ma']},"
         "absence_category:'krankheit',absence_type:'Krankheit',start_date:'2026-11-16',end_date:'2026-11-16'})}).then(r=>r.status)"), 403)

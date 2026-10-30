@@ -1218,7 +1218,7 @@ def planning_board(db: Session, start_date: date, end_date: date) -> dict:
     tafel={"settings":settings,"sichtbar":visible_employee_ids,"pausen":pause_begruendungen(db,[slot.preparation.order for slot in visible])}
 
     return {"start_date":start_date,"end_date":end_date,"settings":planning_settings_dict(settings,db),"holidays":holiday_meta,"school_holidays":school_holidays,"school_holiday_warnings":school_warnings,
-        "absences":[{"id":x.id,"employee_id":x.employee_id,"employee_name":_employee_name(x.employee),"absence_type":x.absence_type,"start_date":x.start_date,"end_date":x.end_date,"notes":x.notes} for x in absence_rows],
+        "absences":[{"id":x.id,"employee_id":x.employee_id,"employee_name":_employee_name(x.employee),"absence_type":x.absence_type,"absence_category":x.absence_category,"start_date":x.start_date,"end_date":x.end_date,"notes":x.notes} for x in absence_rows],
         "teams":team_rows,
         "employees":[{"id":x.id,"employee_number":x.employee_number,"name":_employee_name(x),"function":x.profile.function.name if x.profile and x.profile.function else x.job_title} for x in employees],
         "resources":[{"id":x.id,"resource_number":x.resource_number,"name":x.name,"type":x.resource_type,"identifier":x.identifier} for x in resources],

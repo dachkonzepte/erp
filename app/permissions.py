@@ -162,6 +162,15 @@ def darf_abwesenheiten_aller(user: AppUser | None) -> bool:
     return user is None or has_role(user, *ABWESENHEITEN_ALLER_ROLLEN)
 
 
+# Seit 1.9.146 (Stufe 6, R1, Punkt 4): eine genehmigte Abwesenheit löscht nur, wer Anträge entscheidet -- der Admin.
+ABWESENHEIT_LOESCHEN_ROLLEN = frozenset({ROLE_ADMIN})
+ABWESENHEIT_LOESCHEN_NUR_ADMIN = "Eine genehmigte Abwesenheit löscht nur der Admin."
+
+
+def darf_abwesenheit_loeschen(user: AppUser | None) -> bool:
+    return user is None or has_role(user, *ABWESENHEIT_LOESCHEN_ROLLEN)
+
+
 def darf_antrag_zurueckziehen(user: AppUser | None, antrag) -> bool:
     """Seit 1.9.101: einen Antrag zieht zurück, wer ihn gestellt hat (requested_by_user_id) -- auch der Admin nur seine eigenen, die der
     anderen entscheidet er (bis 1.9.100 zog der Admin jeden zurück, sonst jeder seine eigenen). Ein Antrag ohne diese Angabe (angelegt ohne

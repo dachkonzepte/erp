@@ -2221,3 +2221,7 @@ Festlegung 1.9.112 Nr. 3 nicht bestätigt (Tobias, 28.10.2026): wer einen Berich
 Person zuschreibt, folgt `app/permissions.py::darf_zeit_fuer_andere_buchen()` -- Admin und Büro – Finanzen, wie beim Buchen von Zeiten; Büro – Auftrag und
 die Monteurin nur sich selbst oder niemanden (sonst 403). `darf_fuer_andere_erfassen()` (1.9.112–1.9.120, nur Admin) ist entfallen -- eine Regel.
 Details: `docs/archiv/redesign.md`, „Nachrunde, Punkt 3“.
+
+## Nachtrag 1.9.146: Abwesenheiten auf der Plantafel
+
+„Abwesenheit eintragen“ auf der Tafel folgt seit 1.9.146 den Regeln von „Zeiten“ (Nachtrag 1.9.101): Admin gleich genehmigt, Büro – Finanzen auch für andere (offen), Büro – Auftrag nur für sich. Bis 1.9.145 trug jedes Büro für jede Person jede Art ein und löschte jede. Löschen einer genehmigten Abwesenheit: nur der Admin (`darf_abwesenheit_loeschen()`). Herleitung: `docs/archiv/zeiterfassung-und-abwesenheit.md`, „Umsetzung 1.9.146“.

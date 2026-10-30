@@ -1611,6 +1611,8 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   `require_zeit_buchen` an jedem schreibenden Zeit-Endpunkt) und `darf_lohndaten()` (Stundenzettel, CSV, DATEV, Abschließen: Admin und Büro –
   Finanzen, `require_lohndaten`); im abgeschlossenen Zeitraum, beim Aufheben des Abschlusses und bei Anträgen nur der Admin
   (`tests/test_v510_rechte_zeiten.py`, `docs/archiv/rechtekonzept.md`, „Nachtrag 1.9.89“).
+- **Ein Weg für Abwesenheiten** (seit 1.9.146): eine `EmployeeAbsence` entsteht nur in `app/absence_requests.py` (Wächter `tests/test_v566_abwesenheiten_ein_weg.py`). „Abwesenheit eintragen“ auf der Tafel (`POST /api/planning/absences`) ist ein Antrag: `eintragen()`, Admin gleich genehmigt, sonst offen,
+  Rechte wie unter „Zeiten“ (`antrag_fuer()`). Löschen einer genehmigten nur der Admin (`darf_abwesenheit_loeschen()`), `abwesenheit_loeschen()`: der Antrag folgt (zurückgezogen, Vermerk). Migration `b2c7f4e19a06`: Abwesenheiten ohne Antrag bekamen einen.
 - **Abwesenheiten und Anträge** (seit 1.9.101, Entscheidung Tobias): Admin und Büro – Finanzen sehen alle und stellen Anträge auch für andere
   (`app/permissions.py::darf_abwesenheiten_aller()`), entscheiden nur der Admin, zurückziehen nur, wer den Antrag gestellt hat
   (`darf_antrag_zurueckziehen()`, ohne vermerkten Antragsteller die Person selbst); Büro – Auftrag und die Monteurin nur die eigenen

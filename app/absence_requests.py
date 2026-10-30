@@ -74,10 +74,11 @@ def list_requests(db: Session, *, employee_id: int | None = None, status: str | 
     return db.scalars(stmt).all()
 
 
-def create_request(
+def _antrag_anlegen(
     db: Session, *, employee_id: int, absence_type: str, absence_category: str, start_date, end_date,
     notes: str | None = None, requested_by_user_id: int | None = None,
 ) -> EmployeeAbsenceRequest:
+    """Prüft und legt an, ohne Commit."""
     emp = db.get(Employee, employee_id)
     if emp is None or not emp.active:
         raise ValueError("Mitarbeiter wurde nicht gefunden oder ist inaktiv.")
@@ -101,7 +102,27 @@ def create_request(
         start_date=start_date, end_date=end_date, notes=notes or None,
         status="pending", requested_by_user_id=requested_by_user_id,
     )
-    db.add(row); db.commit()
+    db.add(row); db.flush()
+    return row
+
+
+def create_request(db: Session, **werte) -> EmployeeAbsenceRequest:
+    row = _antrag_anlegen(db, **werte)
+    db.commit()
+    return load_request(db, row.id)
+
+
+def eintragen(db: Session, *, gleich_genehmigt: bool, **werte) -> EmployeeAbsenceRequest:
+    """„Abwesenheit eintragen“ auf der Plantafel (seit 1.9.146, Stufe 6, R1, Punkt 4): derselbe Weg wie unter „Zeiten“ -- ein Antrag; vom Admin gleich genehmigt, in einem
+    Commit. Scheitert das Genehmigen (schon eine Abwesenheit im Zeitraum), bleibt auch kein Antrag zurück."""
+    try:
+        row = _antrag_anlegen(db, **werte)
+        if gleich_genehmigt:
+            _entscheiden(db, row, decision="approved", reviewed_by_user_id=werte.get("requested_by_user_id"))
+    except ValueError:
+        db.rollback()
+        raise
+    db.commit()
     return load_request(db, row.id)
 
 
@@ -112,6 +133,13 @@ def review_request(
     row = db.get(EmployeeAbsenceRequest, request_id)
     if row is None:
         raise ValueError("Abwesenheitsantrag wurde nicht gefunden.")
+    _entscheiden(db, row, decision=decision, reviewed_by_user_id=reviewed_by_user_id, review_notes=review_notes)
+    db.commit()
+    return load_request(db, row.id)
+
+
+def _entscheiden(db: Session, row: EmployeeAbsenceRequest, *, decision: str, reviewed_by_user_id: int | None, review_notes: str | None = None) -> None:
+    """Die Entscheidung, ohne Commit."""
     if row.status != "pending":
         raise ValueError("Dieser Abwesenheitsantrag wurde bereits bearbeitet.")
     if decision not in {"approved", "rejected"}:
@@ -137,8 +165,27 @@ def review_request(
     row.reviewed_by_user_id = reviewed_by_user_id
     row.reviewed_at = datetime.utcnow()
     row.review_notes = review_notes or None
+    db.flush()
+
+
+ABWESENHEIT_GELOESCHT = "Die genehmigte Abwesenheit wurde gelöscht."
+
+
+def abwesenheit_loeschen(db: Session, absence_id: int, *, geloescht_von_user_id: int | None = None) -> None:
+    """Eine genehmigte Abwesenheit löschen (seit 1.9.146, P1): der Antrag folgt -- er ist danach zurückgezogen, mit Vermerk, und zeigt auf nichts mehr. Bis 1.9.145 scheiterte
+    das Löschen unter PostgreSQL am Fremdschlüssel (500), unter SQLite blieb der Antrag „genehmigt“ und zeigte ins Leere."""
+    row = db.get(EmployeeAbsence, absence_id)
+    if row is None:
+        raise ValueError("Abwesenheit nicht gefunden.")
+    for antrag in db.scalars(select(EmployeeAbsenceRequest).where(EmployeeAbsenceRequest.approved_absence_id == absence_id)):
+        antrag.approved_absence_id = None
+        antrag.status = "cancelled"
+        antrag.reviewed_by_user_id = geloescht_von_user_id
+        antrag.reviewed_at = datetime.utcnow()
+        antrag.review_notes = ABWESENHEIT_GELOESCHT
+    db.flush()
+    db.delete(row)
     db.commit()
-    return load_request(db, row.id)
 
 
 def cancel_request(db: Session, request_id: int) -> None:

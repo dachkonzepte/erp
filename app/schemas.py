@@ -3252,22 +3252,10 @@ class EmployeeAbsenceCreate(BaseModel):
 
 class EmployeeAbsenceOut(EmployeeAbsenceCreate):
     model_config = ConfigDict(from_attributes=True)
-    id: int
+    id: int | None  # seit 1.9.146 leer: der Antrag wartet noch auf die Entscheidung, eine Abwesenheit gibt es noch nicht
     employee_name: str | None = None
-
-
-class EmployeeAbsenceUpdate(BaseModel):
-    """Echtes Teil-Update (exclude_unset, siehe app/routers/planning.py::update_employee_absence())
-    -- ein Feld, das buero_auftrag nicht mitsendet (absence_type/absence_category/notes, siehe
-    "Krankheitssichtbarkeit" in CLAUDE.md), bleibt unangetastet, statt vom bisherigen
-    Blanket-Overwrite auf einen Leerwert zurückgesetzt zu werden. Alle Felder deshalb optional,
-    keine erzwungene Kategorie wie bei EmployeeAbsenceCreate."""
-    employee_id: int | None = None
-    absence_type: str | None = Field(default=None, min_length=1, max_length=80)
-    absence_category: str | None = Field(default=None, pattern="^(urlaub|krankheit|fortbildung|unbezahlt)$")
-    start_date: date | None = None
-    end_date: date | None = None
-    notes: str | None = None
+    antrag_id: int | None = None  # seit 1.9.146: POST /api/planning/absences legt einen Antrag an
+    status: str | None = None
 
 
 class EmployeeAbsencePlanningOut(BaseModel):
@@ -3279,7 +3267,9 @@ class EmployeeAbsencePlanningOut(BaseModel):
     selbst -- wer die Art gerade erst eingetragen hat, sieht sie im Ergebnis trotzdem nicht mehr,
     "einmal eintragen, nie wieder lesen"."""
     model_config = ConfigDict(from_attributes=True)
-    id: int
+    id: int | None  # seit 1.9.146, wie EmployeeAbsenceOut
+    antrag_id: int | None = None
+    status: str | None = None
     employee_id: int
     employee_name: str | None = None
     start_date: date
@@ -5539,8 +5529,7 @@ class CalendarEventCreate(BaseModel):
 
 
 class CalendarEventUpdate(BaseModel):
-    """Alle Felder optional -- echtes Teil-Update (exclude_unset auf Router-Seite, Muster
-    EmployeeAbsenceUpdate), ein nicht mitgeschicktes Feld bleibt unverändert."""
+    """Alle Felder optional -- echtes Teil-Update (exclude_unset auf Router-Seite), ein nicht mitgeschicktes Feld bleibt unverändert."""
     title: str | None = Field(default=None, min_length=1, max_length=255)
     start_at: datetime | None = None
     end_at: datetime | None = None

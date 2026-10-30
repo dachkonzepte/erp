@@ -73,7 +73,7 @@ def make_team_with_employee(db, emp, *, second_employee=False):
 def test_buero_auftrag_create_response_hides_category_type_and_notes(threaded_db_session, router_test_client):
     db = threaded_db_session
     emp = make_employee(db)
-    client = router_test_client(db, planning_router, role="buero_auftrag")
+    client = router_test_client(db, planning_router, role="buero_auftrag", employee_id=emp.id)  # seit 1.9.146 nur für sich
     resp = client.post("/api/planning/absences", json={
         "employee_id": emp.id, "absence_type": "Krankheit", "absence_category": "krankheit",
         "start_date": "2026-09-01", "end_date": "2026-09-03", "notes": "Grippe",
@@ -104,7 +104,8 @@ def test_buero_auftrag_list_hides_a_colleague_entry_created_by_finanzen(threaded
     db = threaded_db_session
     emp = make_employee(db)
     finanzen_client = router_test_client(db, planning_router, role="buero_finanzen")
-    created = finanzen_client.post("/api/planning/absences", json={
+    # seit 1.9.146: von Büro – Finanzen ein offener Antrag, eine Abwesenheit entsteht erst mit der Entscheidung -- der Admin trägt gleich genehmigt ein
+    created = router_test_client(db, planning_router, role="admin").post("/api/planning/absences", json={
         "employee_id": emp.id, "absence_type": "Krankheit", "absence_category": "krankheit",
         "start_date": "2026-09-01", "end_date": "2026-09-03", "notes": "Grippe",
     }).json()
@@ -121,46 +122,6 @@ def test_buero_auftrag_list_hides_a_colleague_entry_created_by_finanzen(threaded
     finanzen_resp = finanzen_client.get("/api/planning/absences")
     finanzen_rows = finanzen_resp.json()
     assert finanzen_rows[0]["absence_category"] == "krankheit"
-
-
-# --- PUT: exclude_unset schuetzt vor Blanket-Overwrite ---
-
-def test_partial_update_by_buero_auftrag_leaves_category_and_notes_untouched(threaded_db_session, router_test_client):
-    db = threaded_db_session
-    emp = make_employee(db)
-    finanzen_client = router_test_client(db, planning_router, role="buero_finanzen")
-    created = finanzen_client.post("/api/planning/absences", json={
-        "employee_id": emp.id, "absence_type": "Krankheit", "absence_category": "krankheit",
-        "start_date": "2026-09-01", "end_date": "2026-09-03", "notes": "Grippe",
-    }).json()
-
-    # buero_auftrag verschiebt nur das Enddatum -- sendet weder absence_category, absence_type
-    # noch notes mit (das Formular zeigt sie ihm nicht an).
-    auftrag_client = router_test_client(db, planning_router, role="buero_auftrag")
-    resp = auftrag_client.put(f"/api/planning/absences/{created['id']}", json={"end_date": "2026-09-05"})
-    assert resp.status_code == 200, resp.text
-    assert not (_recursive_keys(resp.json()) & SENSITIVE_KEYS)
-
-    finanzen_check = finanzen_client.get("/api/planning/absences").json()[0]
-    assert finanzen_check["end_date"] == "2026-09-05"
-    assert finanzen_check["absence_category"] == "krankheit"
-    assert finanzen_check["absence_type"] == "Krankheit"
-    assert finanzen_check["notes"] == "Grippe"
-
-
-def test_partial_update_rejects_end_before_start_against_stored_value(threaded_db_session, router_test_client):
-    db = threaded_db_session
-    emp = make_employee(db)
-    client = router_test_client(db, planning_router, role="buero_finanzen")
-    created = client.post("/api/planning/absences", json={
-        "employee_id": emp.id, "absence_type": "Urlaub", "absence_category": "urlaub",
-        "start_date": "2026-09-10", "end_date": "2026-09-12",
-    }).json()
-    # Nur start_date wird gesendet, aber auf einen Wert NACH dem (unveraendert bleibenden)
-    # end_date verschoben -- muss gegen den TATSAECHLICH gespeicherten end_date geprueft werden,
-    # nicht nur gegen die im Request enthaltenen Felder.
-    resp = client.put(f"/api/planning/absences/{created['id']}", json={"start_date": "2026-09-15"})
-    assert resp.status_code == 422
 
 
 def test_field_role_cannot_reach_any_absence_endpoint(threaded_db_session, router_test_client):
@@ -182,8 +143,7 @@ def test_board_absences_and_capacity_redacted_only_for_buero_auftrag(threaded_db
     db = threaded_db_session
     emp = make_employee(db)
     make_team_with_employee(db, emp)
-    finanzen_client = router_test_client(db, planning_router, role="buero_finanzen")
-    finanzen_client.post("/api/planning/absences", json={
+    router_test_client(db, planning_router, role="admin").post("/api/planning/absences", json={
         "employee_id": emp.id, "absence_type": "Krankheit", "absence_category": "krankheit",
         "start_date": "2026-09-07", "end_date": "2026-09-09", "notes": "Grippe",
     })
@@ -234,7 +194,7 @@ def test_planning_suggestion_hides_absence_type_for_buero_auftrag(threaded_db_se
     db.commit()
 
     finanzen_client = router_test_client(db, planning_router, role="buero_finanzen")
-    finanzen_client.post("/api/planning/absences", json={
+    router_test_client(db, planning_router, role="admin").post("/api/planning/absences", json={
         "employee_id": emp.id, "absence_type": "Krankheit", "absence_category": "krankheit",
         "start_date": "2026-09-07", "end_date": "2026-09-07",
     })
@@ -256,7 +216,7 @@ def test_planning_suggestion_hides_absence_type_for_buero_auftrag(threaded_db_se
 def test_audit_log_label_never_contains_absence_type_for_anyone(threaded_db_session, router_test_client):
     db = threaded_db_session
     emp = make_employee(db)
-    router_test_client(db, planning_router, role="buero_finanzen").post("/api/planning/absences", json={
+    router_test_client(db, planning_router, role="admin").post("/api/planning/absences", json={
         "employee_id": emp.id, "absence_type": "Krankheit", "absence_category": "krankheit",
         "start_date": "2026-09-01", "end_date": "2026-09-02",
     })
@@ -272,7 +232,7 @@ def test_audit_log_label_never_contains_absence_type_for_anyone(threaded_db_sess
 def test_audit_log_details_snapshot_redacted_for_buero_auftrag_not_for_finanzen(threaded_db_session, router_test_client):
     db = threaded_db_session
     emp = make_employee(db)
-    router_test_client(db, planning_router, role="buero_finanzen").post("/api/planning/absences", json={
+    router_test_client(db, planning_router, role="admin").post("/api/planning/absences", json={
         "employee_id": emp.id, "absence_type": "Krankheit", "absence_category": "krankheit",
         "start_date": "2026-09-01", "end_date": "2026-09-02", "notes": "Grippe",
     })

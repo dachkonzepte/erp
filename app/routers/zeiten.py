@@ -14,7 +14,7 @@ from ..database import get_db
 from ..meldungen import KEIN_MITARBEITER
 from ..models import AppUser, Employee
 from ..option_settings import get_option_group
-from ..permissions import (ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, darf_abwesenheiten_aller, darf_antrag_zurueckziehen, darf_lohndaten, darf_zeit_buchen,
+from ..permissions import (ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, darf_abwesenheit_loeschen, darf_abwesenheiten_aller, darf_antrag_zurueckziehen, darf_lohndaten, darf_zeit_buchen,
                            darf_zeit_fuer_andere_buchen, require_lohndaten, require_min_role)
 from ..time_backoffice import locked_until
 from ..zeiten import arbeitstage, buchungen, feiertage_bundesland, monat, monat_lesen, pruefen
@@ -136,7 +136,8 @@ def zeiten_abwesenheiten(status: str | None = Query(None, max_length=20), db: Se
     return {
         "antraege": [{**request_to_dict(db, r), "arbeitstage": arbeitstage(r.start_date, r.end_date, land),
                       "darf_entscheiden": admin and r.status == "pending",
-                      "darf_zurueckziehen": r.status == "pending" and darf_antrag_zurueckziehen(user, r)}
+                      "darf_zurueckziehen": r.status == "pending" and darf_antrag_zurueckziehen(user, r),
+                      "darf_loeschen": r.status == "approved" and r.approved_absence_id is not None and darf_abwesenheit_loeschen(user)}  # seit 1.9.146
                      for r in rows],
         "hinweis": None if aller else (NUR_EIGENE_ANTRAEGE if user.employee_id is not None else KEIN_MITARBEITER),
         "darf_beantragen": aller or user.employee_id is not None, "fuer_andere": aller, "eigener_mitarbeiter": user.employee_id,

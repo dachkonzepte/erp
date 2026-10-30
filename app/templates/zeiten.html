@@ -232,7 +232,7 @@
 
 <section id="reiter-abwesenheiten" aria-label="Abwesenheiten" hidden style="display:flex;flex-direction:column;gap:18px">
   <div class="filter">
-    <label class="feld-zeile" for="abwStatus">Status<select id="abwStatus" style="width:160px"><option value="pending" selected>Offen</option><option value="">Alle</option><option value="approved">Genehmigt</option><option value="rejected">Abgelehnt</option><option value="cancelled">Zurückgezogen</option></select></label>
+    <label class="feld-zeile" for="abwStatus">Status<select id="abwStatus" style="width:160px"><option value="" selected>Alle</option><option value="pending">Offen</option><option value="approved">Genehmigt</option><option value="rejected">Abgelehnt</option><option value="cancelled">Zurückgezogen</option></select></label>
     <span class="summe-auswahl" id="abwHinweis"></span>
     <button type="button" class="knopf knopf-aktion" id="abwNeu" hidden>Abwesenheit beantragen</button>
   </div>
@@ -416,7 +416,7 @@ function ergebnis(text){el('ergebnis').textContent=text||''}
 var PUNKTE='<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="12" cy="19" r="1.8"></circle></svg>';
 var HAKEN='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg>';
 
-var ANTRAG_HERVOR=null,P=null,B=null,A=null,M=null,KONTEXT=null,TAETIGKEITEN=[],MONAT=null,ALLE_MONATE=false,LOHN_MONAT=null,FILTER={mitarbeiter:'',auftrag:'',zeitart:''},BD=null,LD=null,ZU={},ENDE={},ZURUECK=null;
+var ANTRAG_HERVOR=null,P=null,B=null,A=null,M=null,KONTEXT=null,TAETIGKEITEN=[],MONAT=null,ALLE_MONATE=false,LOHN_MONAT=null,FILTER={mitarbeiter:'',auftrag:'',zeitart:''},BD=null,LD=null,ZU={},ENDE={},ZURUECK=null,LOESCHEN=null;
 
 // --- Reiter ---------------------------------------------------------------------------------------------------------------------------
 var REITER=['pruefen','buchungen','abwesenheiten'].concat(RECHTE.lohndaten?['monat']:[]);
@@ -817,6 +817,11 @@ function abwesenheitHtml(a){
     ?'<span class="rueckfrage">Antrag zurückziehen?</span><button type="button" class="knopf knopf-neutral" data-aktion="abw-nein" data-id="'+a.id+'">Abbrechen</button>'
       +'<button type="button" class="knopf knopf-gefahr" data-aktion="abw-ja" data-id="'+a.id+'">Zurückziehen</button>'
     :'<button type="button" class="knopf knopf-neutral" data-aktion="abw-fragen" data-id="'+a.id+'">Zurückziehen</button>';
+  // seit 1.9.146: genehmigte Abwesenheit löschen (nur der Admin, Server 403); der Antrag folgt
+  if(a.darf_loeschen)knoepfe+=LOESCHEN===String(a.id)
+    ?'<span class="rueckfrage">Abwesenheit löschen?</span><button type="button" class="knopf knopf-neutral" data-aktion="abwl-nein" data-id="'+a.id+'">Abbrechen</button>'
+      +'<button type="button" class="knopf knopf-gefahr" data-aktion="abwl-ja" data-id="'+a.approved_absence_id+'">Löschen</button>'
+    :'<button type="button" class="knopf knopf-neutral" data-aktion="abwl-fragen" data-id="'+a.id+'">Löschen</button>';
   return '<div class="zeile" data-abwesenheit="'+a.id+'"><div class="zeile-text"><span class="zeile-name">'+esc(a.employee_name+' · '+art+(a.absence_type&&a.absence_type!==art?' ('+a.absence_type+')':''))+'</span>'
     +'<span class="zeile-unter">'+esc(unter)+'</span>'+(a.notes?'<span class="zeile-unter">'+esc(a.notes)+'</span>':'')
     +(a.review_notes?'<span class="zeile-unter">Freigabe: '+esc(a.review_notes)+'</span>':'')+'</div>'
@@ -833,6 +838,12 @@ function abwesenheitZurueckziehen(id,knopf){
   knopf.disabled=true;
   return speichern('abwesenheiten',()=>api('/api/absence-requests/'+id,{method:'DELETE'}),{neuLaden:abwesenheitenUndPruefen})
     .then(function(){ZURUECK=null;ergebnis('Antrag zurückgezogen.')})
+    .catch(function(e){el('seitenStatus').textContent=e.message;knopf.disabled=false});
+}
+function abwesenheitLoeschen(absenceId,knopf){
+  knopf.disabled=true;
+  return speichern('abwesenheiten',()=>api('/api/planning/absences/'+absenceId,{method:'DELETE'}),{neuLaden:abwesenheitenUndPruefen})
+    .then(function(){LOESCHEN=null;ergebnis('Abwesenheit gelöscht.')})
     .catch(function(e){el('seitenStatus').textContent=e.message;knopf.disabled=false});
 }
 function abwesenheitenUndPruefen(){return Promise.all([abwesenheitenLaden(),pruefenLaden()])}
@@ -1077,7 +1088,7 @@ function binden(){
   document.querySelector('.zeiten-main').addEventListener('click',function(ev){
     var a=ev.target.closest&&ev.target.closest('a[data-reiter-link]');if(!a)return;ev.preventDefault();ergebnis('');reiterZeigen(a.dataset.reiterLink);
   });
-  el('abwStatus').addEventListener('change',function(){ZURUECK=null;abwesenheitenLaden()});
+  el('abwStatus').addEventListener('change',function(){ZURUECK=null;LOESCHEN=null;abwesenheitenLaden()});
   el('abwNeu').addEventListener('click',abwDialogOeffnen);
   el('reiter-abwesenheiten').addEventListener('click',function(ev){
     var b=ev.target.closest&&ev.target.closest('[data-aktion]');if(!b)return;
@@ -1086,6 +1097,9 @@ function binden(){
     else if(a==='abw-fragen'){ZURUECK=b.dataset.id;abwesenheitenZeichnen(A)}
     else if(a==='abw-nein'){ZURUECK=null;abwesenheitenZeichnen(A)}
     else if(a==='abw-ja')abwesenheitZurueckziehen(b.dataset.id,b);
+    else if(a==='abwl-fragen'){LOESCHEN=b.dataset.id;abwesenheitenZeichnen(A)}
+    else if(a==='abwl-nein'){LOESCHEN=null;abwesenheitenZeichnen(A)}
+    else if(a==='abwl-ja')abwesenheitLoeschen(b.dataset.id,b);
   });
   el('adSenden').addEventListener('click',abwSenden);
   el('adAbbrechen').addEventListener('click',function(){el('abwDialog').close()});

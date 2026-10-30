@@ -278,6 +278,7 @@ KLASSEN = {
     ('planning.html', 'P1', 'x.id===selected'): ('neu', 'Auftrag eines neuen Planungsabschnitts'),
     ('planning.html', 'P2', 'newOrder'): ('neu', 'neuer Einsatz'),
     ('planning.html', 'P2', 'newTeam'): ('neu', 'neuer Einsatz'),
+    ('planning.html', 'P2', 'absenceEmployee'): ('neu', 'neue Abwesenheit: vorgewählt ist die eigene Person (seit 1.9.146)'),
     ('akte.html', 'P1', 'r.key===p.role'): ('server_fest', 'project_participants.ROLES, eine fehlende Rolle wird ergänzt'),
     ('akte.html', 'P1', 'x.is_default'): ('neu', 'Kategorie eines neuen Dokuments (Vorgabe)'),
     ('akte.html', 'P2', 'categoryFilter'): ('neu', 'Filter'),

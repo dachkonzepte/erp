@@ -126,8 +126,7 @@ def create_event(db: Session, *, title: str, start_at: datetime, end_at: datetim
 
 
 def update_event(db: Session, event_id: int, fields: dict) -> dict | None:
-    """Echtes Teil-Update (nur tatsächlich mitgesendete Felder, exclude_unset auf Router-Seite,
-    Muster EmployeeAbsenceUpdate) -- ein nicht mitgeschicktes Feld bleibt unverändert."""
+    """Echtes Teil-Update (nur tatsächlich mitgesendete Felder, exclude_unset auf Router-Seite) -- ein nicht mitgeschicktes Feld bleibt unverändert."""
     event = db.get(CalendarEvent, event_id)
     if event is None:
         return None

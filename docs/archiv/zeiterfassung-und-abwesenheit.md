@@ -560,3 +560,27 @@ alte Fassung, Rundung der Zeitregeln, Beginn und Ende neu; andere Buchungen nie 
 eines Tags nicht mehr zur Zeitregel passen: `pausen_vorschau()` sagt das (Summe abgezogen gegen die Summe, die die Regel den Buchungen in der
 Reihenfolge des Tags gäbe) und zeigt je Buchung alt -> neu; `pausen_neu_rechnen()` bucht genau diese Vorschau (sonst 409), nur auf Klick, mit
 einer Zeile „Pausen neu gerechnet“ im Verlauf. Festlegungen: `docs/archiv/redesign.md`, „R3, Server (1.9.57)“.
+
+## Umsetzung 1.9.146: Abwesenheiten, ein Weg (Stufe 6, R1, Punkt 4)
+
+Befund Stufe 6: D2 (zwei Wege), P1 (genehmigte löschen: PostgreSQL 500, keine Meldung), P2 (Dialog zeigt allen „Abwesend“), P9 (Büro – Auftrag trägt für jede Person jede Art ein), L3 (PUT ohne Oberfläche).
+
+- `POST /api/planning/absences` ruft `eintragen()`: Antrag über `_antrag_anlegen()`, beim Admin gleich `_entscheiden()`, ein Commit. Scheitert das Genehmigen (schon eine Abwesenheit im Zeitraum, 422), bleibt auch kein Antrag.
+- Rechte aus `routers/absence_requests.py::antrag_fuer()`, wie `POST /api/absence-requests`. `GET /api/planning` nennt sie der Seite (`rechte`), die Vorlage fragt keine Rolle ab.
+- `DELETE /api/planning/absences/{id}`: `abwesenheit_loeschen()` löst zuerst den Verweis im Antrag (`approved_absence_id` hat kein ON DELETE). Status „cancelled“, Vermerk `ABWESENHEIT_GELOESCHT`.
+- Die Antwort bleibt für Büro – Auftrag ohne Art und Notiz („Einmal eintragen, nie wieder lesen“, Abschnitt unten), dazu `antrag_id` und `status`.
+- Migration `b2c7f4e19a06`: `INSERT … SELECT` je Abwesenheit ohne Antrag, Vermerk `MERKER`, ohne Antragsteller und Entscheider, Zeitpunkt = Anlegen der Abwesenheit. Zweimal laufen ändert nichts; `downgrade()` entfernt genau diese Zeilen. Geprobt auf einem Bestand gegen SQLite und PostgreSQL im Wegwerf-Schema.
+
+### Festlegungen 1.9.146 (Bitte bestätigen)
+
+1. Eine genehmigte Abwesenheit löscht nur der Admin, er entscheidet auch die Anträge; Büro – Finanzen und Büro – Auftrag sehen den Knopf nicht (403).
+2. Der Antrag folgt mit dem vorhandenen Status „zurückgezogen“ und dem Vermerk „Die genehmigte Abwesenheit wurde gelöscht.“; kein neuer Status.
+3. `PUT /api/planning/absences/{id}` entfällt (405), `EmployeeAbsenceUpdate` ist weg. `GET` bleibt.
+4. Der Admin bekommt beim Überlappen 422 statt einer zweiten Abwesenheit (bis 1.9.145 ging das direkt, die zuletzt gelesene galt).
+5. Ein offener Antrag zählt auf der Tafel weiter nicht: keine Warnung, keine Kapazität. Zu sehen ist er unter „Zeiten“.
+6. „Zeiten → Abwesenheiten“ öffnet mit „Alle“ statt „Offen“; was wartet, steht weiter unter „Prüfen“ und in der Zahl am Reiter.
+7. Der Antrag aus der Migration trägt den Vermerk „Auf der Plantafel eingetragen (vor 1.9.146)“; „Zeiten“ zeigt ihn wie jeden Vermerk als „Freigabe: …“.
+
+### Tests und Prüfung
+
+Angepasste Erwartungen (Regel 28): `test_v287::test_buero_auftrag_create_response_hides_category_type_and_notes`, Aufbau: Büro – Auftrag trägt für sich ein. `test_v287` (fünf weitere Tests) und `test_v286::test_planning_absences_list_returns_category_and_supports_filter`, Aufbau: die Abwesenheit legt der Admin an, von Büro – Finanzen wäre sie ein offener Antrag. `test_v287::test_partial_update_by_buero_auftrag_leaves_category_and_notes_untouched` und `::test_partial_update_rejects_end_before_start_against_stored_value` entfallen, altes Soll: PUT ändert, neues Soll: 405 (`test_v566::test_put_entfaellt`). Migrationsprobe: `test_v566::test_migration_sqlite`, `::test_migration_und_loeschen_unter_postgresql`. `klicktest_zeiten`, Prüfung „Bea: zurückgezogen“, altes Soll: keine Zeile mehr (Filter „Offen“), neues Soll: die Zeile bleibt als „zurückgezogen“ ohne Knopf (Filter „Alle“). `test_v447`: `planning.html` `absenceEmployee` neu in `KLASSEN` als „neu“.

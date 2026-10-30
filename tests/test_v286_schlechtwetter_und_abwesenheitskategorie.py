@@ -230,7 +230,7 @@ def test_planning_absences_list_returns_category_and_supports_filter(threaded_db
     db = threaded_db_session
     emp = make_employee(db)
     client = router_test_client(db, planning_router, role="buero_finanzen")
-    resp = client.post("/api/planning/absences", json={
+    resp = router_test_client(db, planning_router, role="admin").post("/api/planning/absences", json={  # seit 1.9.146: vom Admin gleich genehmigt
         "employee_id": emp.id, "absence_type": "Urlaub", "absence_category": "urlaub",
         "start_date": "2026-09-01", "end_date": "2026-09-02",
     })
