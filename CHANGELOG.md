@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.148 – Plantafel und Kalender: P3, P4, P6, P13 (Stufe 6, R1, Punkt 6)
+
+Vier Fehler aus dem Befund Stufe 6. Der Kalender schickte seinen Zeitraum als UTC, die Spalten sind Berliner Wandzeit: ein Termin ab 23 Uhr im Winter und ab 22 Uhr im Sommer fehlte in der Tagesansicht und am letzten Tag der Woche (P6). Jetzt geht der Zeitraum als Wandzeit hinaus, und eine Grenze mit Zeitzone rechnet der Server um (`zeitraum_berlin()`), auch für Serienvorkommen. Leere Stunden beim neuen Einsatz sind die Reststunden des Auftrags, die Seite schickte 0 (P4); beim Bearbeiten heißt leer unverändert. Der Planungsvorschlag zeigt Büro – Auftrag den Namen ohne „(undefined)“ (P3). Kapazitätsmeldung und Formel stehen deutsch da, „24,50 h“ statt „24.50 h“ (P13). Klicktest `klicktest_kalender_spaet.py`, Test `tests/test_v568_plantafel_kleinkram.py`.
+
 ## 1.9.147 – Bundesland, Arbeitstage, betriebsfreie Tage ändern Admin und Büro – Finanzen (Stufe 6, R1, Punkt 5)
 
 Büro – Auftrag durfte Bundesland, Arbeitstage und betriebsfreie Tage ändern, obwohl das Bundesland auch die Arbeitstage unter „Zeiten“ steuert, wo dieselbe Rolle nur liest (Befund Stufe 6, P10). Jetzt speichern nur Admin und Büro – Finanzen (`require_planungsgrundlagen`, 403 mit Grund), Büro – Auftrag liest: Felder gesperrt, Knöpfe weg, ein Hinweis. Test `tests/test_v567_planungsgrundlagen_rechte.py`.

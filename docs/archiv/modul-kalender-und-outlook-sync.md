@@ -946,3 +946,19 @@ Beleg im Befund Stufe 6, 3.4 (V1–V7). `sync_preparation_dates()` ist weg. `pla
 Angepasste Erwartungen (Regel 28): `test_v090::test_planning_slot_updates_work_preparation_dates_and_can_switch_team` und `::test_multiple_slots_define_overall_work_preparation_period`, altes Soll: die Spalten der Arbeitsvorbereitung folgen dem Einsatz, neues Soll: `einsatz_zeitraum()` folgt ihm. `test_v329`: Eintrag `PUT /api/orders/{order_id}/work-preparation` aus `BEKANNT` gestrichen. `test_v399::test_postgresql_planeinsatz_beginn_und_ende_gleichzeitig`, altes Soll: die Spalten folgen dem Einsatz, neues Soll: `einsatz_zeitraum()`. `test_v399::test_postgresql_planeinsatz_entfernen_und_verschieben_ohne_deadlock`, Aufbau: angehalten wird nach dem Flush des DELETE statt in `sync_preparation_dates()`, die Erwartung (404, kein Deadlock) bleibt.
 
 Nachtrag 1.9.147: `tests/test_v563_konflikte_pg.py` prüft die Warnliste unter PostgreSQL im Wegwerf-Schema: nichts bleibt zurück, die Sperre der Arbeitsvorbereitung ist nach dem Ablehnen frei, Tafel und Auswahl laufen.
+
+## Umsetzung 1.9.148: P3, P4, P6, P13 (Stufe 6, R1, Punkt 6)
+
+- P6: `calendar.html::loadEvents()` schickt die Tage als Wandzeit (`toLocalIso(toDateStr(…))`). `app/calendar_events.py::zeitraum_berlin()`: eine Grenze ohne Zeitzone gilt schon als Wandzeit, eine mit Zeitzone wird umgerechnet -- so entscheidet nicht mehr die Zeitzone der Datenbanksitzung. Dieselbe Funktion in `list_series_occurrences()`. Geprüft in Tag, Woche und Monat, Winter und Sommer, im Browser in Berlin und in UTC.
+- P4: `saveNew()` schickt leer als null, der Server rechnet die Reststunden (`_remaining_order_hours()`); der Dialog nennt das im Feld. `saveEdit()` schickt leer gar nicht.
+- P3: `a.type?a.name+' ('+a.type+')':a.name`.
+- P13: `stunden_text()` aus `app/akte.py` in Kapazitätsmeldung und Formel.
+
+### Festlegungen 1.9.148 (Bitte bestätigen)
+
+1. Beim Bearbeiten eines Einsatzes heißt leeres Stundenfeld „unverändert“, nicht „Reststunden“ (bis 1.9.147: 0 h). Der Server bleibt dabei: `planned_hours: null` beim PUT ist 422.
+2. Die Formel zeigt Stunden mit zwei Stellen wie „Zeiten“: „24,00 h / (4 MA × (8,00 h − 0,00 h)) = 0,75 Teamtage“.
+
+### Tests und Prüfung
+
+Angepasste Erwartung (Regel 28): `test_v390`, Eintrag `calendar.html` „start:start.toISOString(),end:end.toISOString()“ aus `ERLAUBT` gestrichen: die Stelle gibt es nicht mehr.

@@ -20,6 +20,7 @@ from .models import (
     TeamResource, WorkPreparation, WorkPreparationEmployee, WorkPreparationTeamAssignment,
     WorkPreparationTeamEmployee, WorkPreparationTeamResource,
 )
+from .akte import stunden_text
 from .orders import employee_assigned_order_ids, load_order
 from .service_reports import count_reports_for_order
 from .work_preparation import ensure_preparation, planned_hours
@@ -1006,7 +1007,7 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
                     # rollenblind.
                     result[slot.id].append({"type":"absence", "label":f"{member.employee_name_snapshot} · {absence.absence_type}", "label_redacted":f"{member.employee_name_snapshot} · abwesend", "date":day, "other_slot_id":None, "other_project":None, "other_project_name":None})
         if shortfall > 0:
-            result[slot.id].append({"type":"capacity", "label":f"Kapazität reicht um {shortfall} h nicht aus", "shortfall_hours":shortfall, "other_slot_id":None, "other_project":None, "other_project_name":None})
+            result[slot.id].append({"type":"capacity", "label":f"Kapazität reicht um {stunden_text(shortfall)} nicht aus", "shortfall_hours":shortfall, "other_slot_id":None, "other_project":None, "other_project_name":None})
     for liste in result.values():
         for konflikt in liste:
             konflikt["stufe"] = "warnung" if konflikt["type"] in WARNUNG_ARTEN else "hinweis"
@@ -1105,7 +1106,8 @@ def planning_suggestion(
         "full_team_daily_capacity":full_capacity,"required_team_days_decimal":equivalent_days,
         "calendar_workdays_needed":workdays_used,"suggested_start":start_date,"suggested_end":last,
         "last_day_clock_hours_per_employee":last_clock,"days":day_rows,
-        "formula":f"{target} h / ({len(employees)} MA × ({daily} h − {travel} h)) = {equivalent_days} Teamtage",
+        # seit 1.9.148 (P13) deutsch, zwei Stellen wie „Zeiten“ (bis 1.9.147 „24.00 h / (4 MA × (8.00 h − 0 h)) = 0.75 Teamtage“)
+        "formula":f"{stunden_text(target)} / ({len(employees)} MA × ({stunden_text(daily)} − {stunden_text(travel)})) = {str(equivalent_days).replace('.', ',')} Teamtage",
     }
 
 

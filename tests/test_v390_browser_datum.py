@@ -33,8 +33,6 @@ HELFER = re.compile(r"\b(berlinToday|berlinTodayDate|berlinMonth|berlinMonthRang
 ERLAUBT = [
     ("_email_dispatch.html", "timeZone: 'Europe/Berlin'",
      "berlinTodayIso(): Berliner Tag über Intl mit Europe/Berlin (Vorlage ohne _berlin_date.html)"),
-    ("calendar.html", "start:start.toISOString(),end:end.toISOString()",
-     "Zeitraum der Kalenderabfrage als Zeitpunkte (Ortsmitternacht des Kalenders), die API rechnet mit Zeitpunkten"),
     ("checklist.html", "client_recorded_at:new Date().toISOString()",
      "Zeitpunkt der Erfassung auf dem Gerät (Offline-Fähigkeit), kein Kalendertag"),
     ("dashboard.html", "new Date(i.follow_up_at)<=new Date()",

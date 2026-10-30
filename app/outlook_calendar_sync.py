@@ -321,6 +321,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select, update as sa_update
 from sqlalchemy.orm import Session
 
+from .calendar_events import zeitraum_berlin
 from .grunddaten import einzelzeile
 from .auth import resolve_account_display
 from .email_sending import get_graph_access_token, load_smtp_settings
@@ -1013,6 +1014,7 @@ def sync_series_occurrences(db: Session, user: AppUser, token: str, counters: di
 def list_series_occurrences(db: Session, *, start: datetime | None = None, end: datetime | None = None) -> list[dict]:
     """Reine Datenbeschaffung wie app/calendar_events.py::list_events() -- die
     Privatsphäre-Redaktion entscheidet der Router je Zeile mit denselben Funktionen."""
+    start, end = zeitraum_berlin(start), zeitraum_berlin(end)  # seit 1.9.148 (P6)
     stmt = select(OutlookSeriesOccurrence).order_by(OutlookSeriesOccurrence.start_at)
     if start is not None:
         stmt = stmt.where(OutlookSeriesOccurrence.end_at >= start)

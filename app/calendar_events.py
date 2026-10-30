@@ -20,6 +20,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from .auth import resolve_account_display
+from .berlin_time import to_berlin
 from .models import AppUser, CalendarEvent, Project, Quote
 
 MODULE_KEY = "kalender"
@@ -165,7 +166,17 @@ def get_event(db: Session, event_id: int) -> dict | None:
     return event_to_dict(db, event) if event is not None else None
 
 
+def zeitraum_berlin(wert: datetime | None) -> datetime | None:
+    """Grenze einer Abfrage als naive Berliner Zeit, wie start_at/end_at gespeichert sind (seit 1.9.148, P6). Ohne Zeitzone gilt sie schon als Berliner Wandzeit; mit Zeitzone (ein Aufrufer
+    mit „…Z“) wird sie umgerechnet. Bis 1.9.147 schickte die Seite UTC („22:00Z“ für Mitternacht im Sommer), und die Datenbank verglich das mit der Wandzeit: ein Termin ab 22 bzw. 23 Uhr fehlte
+    in der Tagesansicht und am letzten Tag der Woche."""
+    if wert is None or wert.tzinfo is None:
+        return wert
+    return to_berlin(wert)
+
+
 def _events_query(*, start: datetime | None, end: datetime | None, project_id: int | None, quote_id: int | None):
+    start, end = zeitraum_berlin(start), zeitraum_berlin(end)
     stmt = select(CalendarEvent).order_by(CalendarEvent.start_at)
     if start is not None:
         stmt = stmt.where(CalendarEvent.end_at >= start)
