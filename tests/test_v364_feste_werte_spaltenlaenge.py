@@ -310,6 +310,7 @@ OHNE_FESTE_WERTE = {
     "order_item_material_snapshots.unit": "Einheit (Kopie aus dem Material)",
     "order_items.unit": "Einheit (Kopie aus der Angebotsposition)",
     "outlook_calendar_sync_state.last_error_type": "Klassenname einer Ausnahme",
+    "outlook_delete_orders.last_error_type": "Klassenname einer Ausnahme",
     "outlook_series_occurrences.occurrence_type": "Wert aus Microsoft Graph",
     "project_documents.category": "Dokumentkategorie aus den Einstellungen",
     "project_documents.content_type": "MIME-Typ",

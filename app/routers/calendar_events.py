@@ -32,7 +32,7 @@ from ..database import get_db
 from ..modules import is_module_enabled
 from ..models import AppUser, CalendarEvent
 from ..outlook_calendar_sync import (
-    list_series_occurrences, push_event_best_effort, sync_user_calendar, try_delete_remote_event,
+    besitzer_gewechselt, list_series_occurrences, loeschauftraege_best_effort, push_event_best_effort, sync_user_calendar, try_delete_remote_event,
 )
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, require_min_role
 from ..schemas import CalendarEventCreate, CalendarEventUpdate, CalendarOwnerOut, OutlookSyncResultOut
@@ -132,13 +132,19 @@ def post_calendar_event(payload: CalendarEventCreate, db: Session = Depends(get_
 @router.put("/api/calendar-events/{event_id}")
 def put_calendar_event(event_id: int, payload: CalendarEventUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
+    vorher = db.get(CalendarEvent, event_id)
+    alter_besitzer, alte_lage = (vorher.owner, vorher.outlook_postfach) if vorher is not None else (None, None)
+    alter_besitzer_id = vorher.owner_user_id if vorher is not None else None
     try:
         data = update_event(db, event_id, payload.model_dump(exclude_unset=True))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if data is None:
         raise HTTPException(status_code=404, detail="Termin nicht gefunden.")
+    if data["owner_user_id"] != alter_besitzer_id:
+        besitzer_gewechselt(db, data["id"], alter_besitzer=alter_besitzer, alte_lage=alte_lage)
     push_event_best_effort(db, data["id"])
+    loeschauftraege_best_effort(db)
     return _out(data, _role.id)
 
 

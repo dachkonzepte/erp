@@ -51,7 +51,7 @@ from sqlalchemy import select  # noqa: E402
 from app.database import SessionLocal  # noqa: E402
 from app.logging_config import configure_logging  # noqa: E402
 from app.models import AppUser  # noqa: E402
-from app.outlook_calendar_sync import is_outlook_sync_available, sync_user_calendar  # noqa: E402
+from app.outlook_calendar_sync import is_outlook_sync_available, loeschauftraege_best_effort, sync_user_calendar  # noqa: E402
 
 logger = logging.getLogger("scripts.sync_outlook_calendars")
 
@@ -69,6 +69,7 @@ def main() -> int:
         ).all()
         if not candidates:
             logger.info("Kein aktives Konto mit hinterlegtem Outlook-Postfach -- nichts zu tun.")
+            loeschauftraege_best_effort(db)
             return 0
 
         for user in candidates:
@@ -86,6 +87,7 @@ def main() -> int:
                 result["skipped_recurring"], result["pushed_created"], result["pushed_updated"],
                 result["series_created"], result["series_updated"], result["series_deleted"], result["series_failed"], result["delta_reset"],
             )
+        loeschauftraege_best_effort(db)  # auch für Postfächer, die keinem Konto mehr gehören
         return 0
     finally:
         db.close()

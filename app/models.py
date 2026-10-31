@@ -5003,6 +5003,21 @@ class OutlookSeriesOccurrence(Base):
     owner: Mapped["AppUser"] = relationship()
 
 
+class OutlookDeleteOrder(Base):
+    """Ein Termin, der aus einem Postfach noch gelöscht werden muss (seit 1.9.160): im ERP ist er schon weg oder umgezogen, und das Netz kann gerade scheitern. Solange die Zeile steht, nimmt der
+    Abruf diese Kennung nicht wieder auf -- bis 1.9.159 kam ein Termin nach einem gescheiterten Fernlöschen beim nächsten Lauf als neu zurück. Trägt keinen Inhalt (Regel 18)."""
+
+    __tablename__ = "outlook_delete_orders"
+    __table_args__ = (UniqueConstraint("postfach", "outlook_event_id", name="uq_outlook_delete_order"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    postfach: Mapped[str] = mapped_column(String(255))
+    outlook_event_id: Mapped[str] = mapped_column(String(255))
+    last_error_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    last_error_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class OutlookSyncSettings(Base):
     """Gesamtschalter für die Outlook-Kalendersynchronisation (Kalender-Modul, Stufe 2, seit
     1.7.1) -- Singleton wie AISettings/SmtpSettings (immer genau eine Zeile mit id=1). Nur für

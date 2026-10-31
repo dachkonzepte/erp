@@ -1072,3 +1072,24 @@ Die Kennung gilt nur in ihrem Postfach, deshalb sucht der Abruf einen Termin üb
 ### Tests und Prüfung
 
 Angepasster Aufbau (Regel 28): `test_v297`, `test_v562`, `test_v568`, `test_v576`: `get_or_create_sync_state()` und `OutlookCalendarSyncState` nehmen die Adresse statt des Kontos, `OutlookSeriesOccurrence` braucht `outlook_postfach`; die Erwartungen bleiben.
+
+## Umsetzung 1.9.160: Besitzer- und Postfachwechsel (Stufe 6, R2, Punkt 4)
+
+Beide Wechsel sehen am Termin gleich aus (`outlook_postfach` ungleich dem Postfach des Besitzers) und brauchen doch Verschiedenes: wer im Dialog einen Besitzer wählt, will den Termin dort haben; wer eine Adresse ändert, hat vielleicht nur einen Irrtum berichtigt, und das alte Postfach gehört jemand anderem. Deshalb löst der Besitzerwechsel die Verbindung sofort, im Router, ohne Netz. Was danach noch woanders liegt, kommt aus einem Postfachwechsel.
+
+Der Eintrag „Resurrection-Risiko“ unter „Bekannte, bewusst offene Punkte“ ist damit erledigt.
+
+### Festlegungen 1.9.160 (Bitte bestätigen)
+
+1. Besitzer wechseln: die Kopie im alten Postfach wird gelöscht, auch wenn der Termin aus Outlook stammt. Der Termin geht als neuer ins neue Postfach (neue Kennung). Teilnehmer und Anhänge des alten Termins kennt das ERP nicht, sie gehen nicht mit.
+2. Neuer Besitzer ohne Postfach: der Termin verliert die Verbindung und bleibt nur im ERP.
+3. Postfach am Konto wechseln: aus dem alten Postfach löscht das ERP nur, was es selbst dort angelegt hat (`external_source` „erp“). Was aus Outlook stammt, bleibt dort und fällt im ERP weg, außer es hängt an einem Projekt oder Angebot: dann bleibt es, wird Termin des ERP und geht als Kopie ins neue. Dort liegt es dann zweimal, im alten unverändert.
+4. Postfach entfernen: Einzeltermine bleiben im ERP mit ihrer Kennung, werden aber nicht mehr abgeglichen; eine Änderung im ERP erreicht das Postfach nicht mehr, Löschen schon. Serienvorkommen fallen weg.
+5. Wer ein Postfach neu bekommt, liest es ganz, auch wenn dafür noch ein Stand da ist. Liegt dort schon ein Termin eines anderen Kontos, geht er auf das neue Konto über.
+6. Löschauftrag: 404 (schon weg) und 403 (nicht freigegeben) geben auf, 403 steht im Protokoll, die Kopie bleibt dann in dem Postfach. Andere Fehler bleiben offen und werden bei jedem Lauf und jedem Speichern wieder versucht.
+7. PATCH mit 404: der Termin wird neu angelegt. Wurde er genau in dem Moment in Outlook gelöscht, zwischen Abruf und Senden, kommt er wieder.
+8. Beim Abruf des ganzen Kalenders gilt eine Kennung, die das Postfach einzeln mit 404 beantwortet, als in Outlook gelöscht: der Termin fällt im ERP weg, auch mit Projekt oder Angebot, wie bei einem @removed. Das trifft auch eine Zeile von vor 1.9.159, die in Wahrheit in einem anderen Postfach lag (Befund XB6: Besitzer gewechselt): ihre Kopie dort kommt über das andere Postfach herein, der Bezug zum Projekt geht verloren.
+
+### Tests und Prüfung
+
+Angepasste Erwartungen: keine; das Befundverhalten XB1–XB6, XC1 und XP1 stand in keinem Test. Neue Spalte im Wächter `test_v364::OHNE_FESTE_WERTE`: `outlook_delete_orders.last_error_type`.

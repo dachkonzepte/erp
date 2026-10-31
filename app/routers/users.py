@@ -21,7 +21,7 @@ from ..auth import hash_password
 from ..database import get_db
 from ..deps import require_admin
 from ..models import AppUser, Employee
-from ..outlook_calendar_sync import PostfachVergeben, postfach_pruefen
+from ..outlook_calendar_sync import PostfachVergeben, postfach_gewechselt, postfach_pruefen
 from ..schemas import AppUserCreate, AppUserOut, AppUserUpdate
 
 router = APIRouter()
@@ -82,6 +82,7 @@ def update_app_user(user_id: int, payload: AppUserUpdate, db: Session = Depends(
     user.employee_id = payload.employee_id
     user.role = payload.role
     user.active = payload.active
+    postfach_gewechselt(db, konto_id=user.id, alt=user.outlook_mailbox, neu=postfach)
     user.outlook_mailbox = postfach
     if payload.new_password:
         user.password_hash = hash_password(payload.new_password)
