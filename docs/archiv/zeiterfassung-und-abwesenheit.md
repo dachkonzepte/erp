@@ -591,7 +591,7 @@ Nachtrag 1.9.147: `tests/test_v566_abwesenheiten_migration.py` probt die Migrati
 
 Entscheidung Tobias, löst die Festlegung 1.9.146 Nr. 5 ab („zählt auf der Tafel nicht: keine Warnung, keine Kapazität, zu sehen unter ‚Zeiten‘“). `app/planning.py::_conflicts()` hängt je Person der Kolonne mit offenem Antrag im Zeitraum des Einsatzes einen Hinweis `antrag_offen` an (`_offene_antraege()`: eine Abfrage). Die Kapazität liest weiter nur `EmployeeAbsence`, also nur Genehmigtes. `_konflikte_fuer_rolle()` wählt die Fassung ohne Art für alles, was `label_redacted` trägt, nicht mehr nach der Art des Konflikts: ein neuer Konflikt mit Art kann das Schwärzen so nicht vergessen.
 
-### Festlegungen 1.9.152 (Bitte bestätigen)
+### Festlegungen 1.9.152 (bestätigt am 31.10.2026)
 
 1. „Antrag offen“ färbt den Balken nicht und zählt nicht in `conflict_count` (`FAERBT_NICHT`); Feiertag und Kapazität färben weiter rot, bis die Zeichnung kommt (dort grauer Punkt für alle Hinweise). Sonst stünde die halbe Tafel rot, sobald viele Urlaub beantragen.
 2. Der Hinweis nennt den ersten Tag des Antrags im Einsatz, nicht den ganzen Zeitraum des Antrags.
@@ -615,7 +615,7 @@ Gehört jede Art zu einer Kategorie? **Nicht jede.** Grundeinstellung: Urlaub ->
 
 `ART_KATEGORIEN`, `art_kategorien()`, `ist_widerspruch()`, `arten_fuer_auswahl()` in `app/absence_requests.py`; `_antrag_anlegen()` -- der eine Weg, Regel „Ein Weg für Abwesenheiten“ -- lehnt ab (422) und trägt ohne Art den Namen der Kategorie ein. `_abwesenheit.html` füllt die Auswahl auf allen drei Seiten aus der Liste vom Server (`GET /api/absence-requests/arten`, `arten` von „Zeiten“, `abwesenheitsarten` von „Meine Zeiten“). Keine Migration, kein Bestand geändert. `scripts/pruefe_abwesenheiten.py` nur lesend.
 
-### Festlegungen 1.9.153 (Bitte bestätigen)
+### Festlegungen 1.9.153 (Nr. 2–7 bestätigt am 31.10.2026; Nr. 1 entfällt: Freizeitausgleich wird eine eigene Kategorie, siehe „Lohn L0“)
 
 1. Freizeitausgleich gehört zu „Urlaub“ (bezahlte Freistellung). Eine eigene Kategorie wäre eine eigene Entscheidung, zählen tut sie heute nirgends.
 2. „Sonstiges“ und jede selbst angelegte Art passen zu jeder Kategorie: das Programm kennt ihre Bedeutung nicht. Eine selbst angelegte Art einer Kategorie zuordnen ginge nur mit einem neuen Feld an der Auswahlliste.
@@ -635,7 +635,7 @@ Entscheidung Tobias, löst den zweiten Halbsatz der Festlegung 1.9.146 Nr. 7 ab 
 
 Das Datum: die Migration `b2c7f4e19a06` schreibt `created_at` des Antrags aus `employee_absences.created_at`, also den Tag, an dem die Abwesenheit eingetragen wurde -- ein Datum der Migration steht nirgends. In den Bildern der vorigen Runde sah es danach aus, weil die Testdaten am selben Tag entstanden (`created_at` ist die echte Uhr, die Seite stand auf dem 14.10.); der Klicktest legt Kais Abwesenheit jetzt ausdrücklich am 02.09.2026 an. `employee_absences.created_at` ist seit dem Baseline-Schema Pflicht und beim Umzug auf PostgreSQL mitgekommen (`scripts/migrate_sqlite_to_postgres.py` kopiert jede Spalte); die Regel „sonst weglassen“ greift also nur, falls es doch einmal fehlte.
 
-### Festlegungen 1.9.154 (Bitte bestätigen)
+### Festlegungen 1.9.154 (bestätigt am 31.10.2026)
 
 1. Der Antrag aus der Migration heißt „eingetragen am <Tag>“, nicht nur „am <Tag>“ und nicht ohne Datum: das Wort „beantragt“ stimmte nie.
 2. Wird die Abwesenheit gelöscht, steht im Antrag „Auf der Plantafel eingetragen (vor 1.9.146). Die genehmigte Abwesenheit wurde gelöscht.“ -- die Herkunft bleibt lesbar, und `scripts/pruefe_abwesenheiten.py` zählt ihn weiter. `downgrade()` lässt so einen Antrag stehen, wie bisher alles, was jemand angefasst hat.
@@ -652,7 +652,7 @@ Angepasste Erwartungen (Regel 28): `test_v519::test_antrag_knoepfe_nach_dem_serv
 
 `review_notes` ist nur noch die Notiz des Admins, `vermerk` das, was das Programm schreibt (`MIGRATION_VERMERK`, `ABWESENHEIT_GELOESCHT`). `vom_programm` ist damit weg.
 
-### Festlegungen 1.9.165 (Bitte bestätigen)
+### Festlegungen 1.9.165 (bestätigt am 31.10.2026)
 
 1. Eine Notiz, die das Löschen vor 1.9.165 schon überschrieben hat, kommt nicht von selbst zurück; sie steht im Änderungsprotokoll.
 2. `reviewed_by_user_id` und `reviewed_at` zeigen nach dem Löschen weiter, wer gelöscht hat (seit 1.9.146); keine Seite zeigt sie an. Wer freigegeben hat, steht im Änderungsprotokoll.
@@ -660,3 +660,50 @@ Angepasste Erwartungen (Regel 28): `test_v519::test_antrag_knoepfe_nach_dem_serv
 ### Tests und Prüfung
 
 Angepasste Erwartungen (Regel 28): `test_v566::test_…` (Vermerk statt `review_notes`), `test_v571::_antrag` (Aufbau: `vermerk`), `test_v572` (`vom_programm` -> `vermerk`, die Seiten zeigen beides nebeneinander, Testaufbau `_aus_migration()` wendet die neue Migration an), `test_v326::ERLAUBT_JE_ROUTE` um `$[].vermerk` an `/api/absence-requests`.
+
+## Lohn L0: Befund zur Ablösung von Time 4 (Stand 01.11.2026, nichts gebaut)
+
+Vollständiger Bericht: `bildgrundlage/bericht_lohn_l0_*.txt`. Die Muster von Time 4 (erfundene Nummern) liegen nur lokal unter `bildgrundlage/lohn/`, nicht in Git. Berater- und Mandantennummer nie in Code oder Tests mit echten Werten.
+
+### Ziel und Entscheidungen Tobias (31.10.2026)
+
+Das ERP löst Time 4 ab, voraussichtlich ab dem Lohn Januar 2027; Dezember 2026 Probemonat mit beiden Systemen. Der DATEV-Export liefert genau das Format, das das Lohnbüro aus Time 4 importiert.
+
+- Pause: gesetzliche Pause immer abziehen, auch ohne eingetragene Pause, höchstens bis auf 6,00 bzw. 9,00 h (07:15–13:30 ohne Pause = 6,00). Ersetzt „mehr als 6 h = 30 min“.
+- Sollzeit Mo–Fr: KW 18–48 8,00 h, KW 49–17 7,50 h (Tarif Dachdecker, ISO-Kalenderwoche); Sa/So 0; Teilzeit je Person eigene Werte.
+- Alle mit Stunden in den Export, auch Azubis (Arbeit und Feiertage). DATEV-Personalnummer je Person.
+- Zuordnung Art -> Kennzeichen und Lohnart in den Einstellungen (Admin, Büro – Finanzen); leer = nicht exportieren.
+- Urlaubskonto im ERP (Anspruch, Übertrag, Stand), Start 01.01.2027.
+- Arbeitszeitkonto: maßgeblich bleibt DATEV; im ERP eine Übersicht, Startwert vom Lohnbüro.
+- Freizeitausgleich baut das Arbeitszeitkonto ab, keine Urlaubskategorie (1.9.153 Nr. 1 entfällt).
+- Schlechtwetter muss erfassbar sein (Ausfalltag für Person oder Kolonne).
+- `test_v419` vorerst so lassen, bei erneutem Rot melden.
+
+### Format laut den vier Mustern (per Skript geprüft, 535 Zeilen)
+
+ASCII, CRLF auch in der letzten Zeile. Kopf `Berater;Mandant;MM/JJJJ`. Jede Zeile 11 Felder. Tageszeile `Personalnummer;Tag;Kennzeichen;Lohnart;Stunden;;;;;;` (Tag ohne führende Null, Komma, zwei Stellen). Paare: 1/1000 Arbeit (alle Zeitarten, auch Samstag), U/8000, K/1650, F/1012; U, K, F tragen die Sollzeit. Saison-Kurzarbeitergeld: `Personalnummer;;;8110;;;Stunden;;;;` als letzte Zeile der Person, Stunden = Soll × volle Ausfalltage, an diesen Tagen keine Tageszeile (5 von 5 Personen im Januar; ein Teilausfall zählt nicht). Eigenheit von Time 4: Samstage ohne eingetragene Pause ohne Abzug.
+
+Offen laut Muster: F bekommt nicht jede Person (91012, 91013 nur U und K; 91011 ohne; 9005 keins vor der ersten Zeile; 91006 nur am Donnerstag, sieht nach Soll an Di–Do aus). Nie zwei Arten an einem Tag, also unbekannt: Arbeit und Krank, Arbeit am Feiertag. 2 von 426 Arbeitswerten nicht auf der Viertelstunde (9,10 und 0,15). Reihenfolge der Personen nur teils nach Nummer. Der Wechsel der Sollzeit an KW 17/18 und 48/49 ist durch die Muster nicht belegt. Eine DATEV-Satzbeschreibung liegt nicht vor (Community-Seite 403), das Muster ist die einzige Quelle.
+
+### Befund
+
+- Export (`app/time_backoffice.py::build_datev_export()`): passt in keinem Punkt, neu bauen. Keine Abwesenheit, kein Feiertag, keine Sollzeit, kein Kennzeichen, keine Monatszeile; `datev_fehlt()` prüft nur Personen mit Buchungen. „Leer = nicht exportieren“ dreht Festlegung 1.9.92 Nr. 1 um; „Monat & Lohn“ soll zeigen, was nicht in der Datei steht.
+- Pause: eine Stelle, `app/work_time_models.py::automatic_break_minutes_for_duration()`. Vorschlag Lesart A: je Regel `min(Pause, Minuten über der Schwelle)`, davon das Maximum (6:15 -> 15 min, 6:30 -> 30, 9:15 -> 30 = 8,75 h, 9:30 -> 30 = 9,00 h, 9:45 -> 45). Wörtliche Lesart B gäbe zwischen 9:01 und 9:29 immer 9,00 h: eine Minute mehr bringt eine halbe Stunde mehr, und das Ergebnis hängt an der Aufteilung des Tages. Noch nicht entschieden (E1).
+- Letzte Buchung kürzer als die fehlende Pause: heute unbemerkt (6:00 + 0:10: 10 statt 30 min, „passt“). Unter A unmöglich, solange alle Buchungen des Tags nach der neuen Regel laufen, die Pflichtpause wächst nie schneller als die Anwesenheit; die letzte Buchung kann mit 0,00 h stehen bleiben. Bleibt: eine Dauer davor (meldet „Prüfen“, seit 1.9.107) und Buchungen nach der alten Regel.
+- Alte Buchungen: 6:15 mit 30 min (seit 1.9.62, Mindestpause 0) heißt unter der neuen Regel „passt nicht“ und sperrt den Abschluss. Vorschlag Stichtag 01.12.2026 (E2). Viele Tests rechnen relativ zu heute und kippten am Stichtag von selbst: feste Tage auf beiden Seiten nehmen.
+- Falle Dauer: 6,25 h ohne Pause sagt „nach Zeitregel 15 min“, mit 15 eingetragen „30 min“. Richtig sind 30.
+- Sollzeit: `WorkTimeModel.daily_target_hours` rechnet niemand; Grundwerte KW 13–43 und 44–12, beide 8,00. Keine Wochentage, kein Eintritt und Austritt (nirgends ein Datum). `Employee.weekly_hours` nur Kapazität und Kalkulation.
+- Feiertage: `automatic_public_holidays("NW")` stimmt mit den Mustern. `_combined_holiday_map()` mischt von Hand eingetragene betriebsfreie Tage dazu, ohne Art: für F zählt nur der gesetzliche.
+- Schlechtwetter: nur Zeitarten `weather_*` als Buchung auf einen Auftrag. Kein Ausfalltag. Muss in L1, sonst keine Zeile 8110 im Dezember.
+- Nicht vorhanden: Urlaubsanspruch je Person (nur `ProductiveHoursSettings.vacation_days`), Arbeitszeitkonto. Stundenzettel-PDFs (Büro, Monteurin) nur Buchungen. Arbeit an einem Abwesenheitstag wird nicht geprüft.
+- Rechte: Lohnarten, Personalnummern, Modelle und Pausenregeln ändert heute jedes Büro ab Büro – Auftrag.
+
+Probelauf nur mit der Formel A (Wegwerf-Arbeitskopie auf d0ca6d5, nicht committet): 27 von 8225 Tests rot in 14 Dateien, 4 von 106 Klicktests mit 20 roten Prüfungen; bis auf eine alle mit den alten Zahlen. Die eine: `klicktest_monteurin_regeln` ist am 1. eines Monats auch ohne Änderung rot (am 01.11.2026 auf d0ca6d5 nachgestellt): die Zeit von gestern liegt im Vormonat, `/mobil/zeiten` zeigt den neuen Monat ohne Tage. Nicht behoben.
+
+### Vorschlag
+
+L1, je Punkt eine Version: 1 Pause (keine Migration), 2 Sollzeit (Modelle umstellen, nur wenn noch Grundwerte; Tabelle eigene Werte je Person mit „gültig ab“; Eintritt und Austritt), 3 Personalnummer (UNIQUE, nur Ziffern) und Export-Umfang je Person (alles, nur Abwesenheiten, nichts), 4 Zuordnung (Tabelle, vorbelegt über `app/grunddaten.py`; Art vor Kategorie) und Kategorie Freizeitausgleich mit Migration, 5 Ausfalltag (Kategorie schlechtwetter über `app/absence_requests.py`, gleich genehmigt, Person oder Kolonne, `weather_*` aus der Auswahl), 6 Export (ein Monat, ablegen, „Nicht im Export“, offene Anträge als Hindernis), 7 Prüfskript `scripts/pruefe_lohndatei.py ERP.txt TIME4.txt` (Form, Kopf, über Person und Tag, 8110, Summen; erklärt: Samstag, Deckel, nur im ERP; zu klären: alles andere). Vor dem 01.12.2026 unbedingt: was beim Buchen wirkt (1, 5, Freizeitausgleich) und die Stammdaten (2, 3); Export und Skript möglichst Mitte November für eine Vorprobe mit einer echten Time-4-Datei.
+
+L2, kein harter Termin (leitet sich aus Buchungen und Abwesenheiten ab, es braucht nur Startwerte): Urlaubskonto, Arbeitszeitkonto als Übersicht, Stundenzettel mit U, K, F und Soll.
+
+Zur Entscheidung vorgelegt (E1–E10 im Bericht): Lesart der Pause, Stichtag, wer F bekommt, Soll je Wochentag, Ausfalltag und wer ihn einträgt, Rundung 15 Minuten, Zuordnung vorbelegen, alte Formate entfallen, Sammeleintrag für Betriebsruhe, Rechte. Fragen ans Lohnbüro (L1–L10 im Bericht): Berufsschule, unbezahlt, Freizeitausgleich; Reihenfolge und Programm; mehrere Arten an einem Tag; F für wen und am Samstag; 8110 bei Teilausfall und im Sommer; Azubis; Startwerte; Viertelstunde; Korrekturen; Testimport.

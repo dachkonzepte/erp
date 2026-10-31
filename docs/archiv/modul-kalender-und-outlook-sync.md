@@ -967,7 +967,7 @@ Angepasste Erwartung (Regel 28): `test_v390`, Eintrag `calendar.html` „start:s
 
 Vorgabe Tobias: ein Einsatz über ein Wochenende meldet nichts, das Wochenende ist nur kein Arbeitstag (Zeichnung `bildgrundlage/entwurf-stufe6/plantafel-regeln.html`, „Zeitraum“). `_wochenend_hinweise()` ist weg, `HINWEIS_ARTEN` kennt nur noch Feiertag/betriebsfreien Tag und Kapazität. Damit ist die Festlegung 1.9.143 Nr. 2 in ihrem ersten Halbsatz überholt („Wochenende“ gibt es nicht mehr); dass Feiertag und Kapazität den Balken rot färben, bleibt bis zur Zeichnung.
 
-### Festlegungen 1.9.150 (Bitte bestätigen)
+### Festlegungen 1.9.150 (bestätigt am 31.10.2026)
 
 1. Auch „Kein Arbeitstag“ für einen Wochentag, an dem der Betrieb laut Einstellungen nicht arbeitet, meldet nichts: dieselbe Regel, dieselbe Funktion war weg.
 2. Ein Feiertag oder betriebsfreier Tag an einem Tag, der ohnehin kein Arbeitstag ist, meldet nichts (weder beim Speichern noch auf der Tafel). Sonst meldete ein Einsatz über ein Wochenende doch etwas, sobald ein Feiertag darauf fällt.
@@ -980,7 +980,7 @@ Angepasste Erwartungen (Regel 28): `test_v563::test_wochenende_200_mit_hinweis_u
 
 Entscheidung Tobias, löst den zweiten Satz der Festlegung 1.9.143 Nr. 3 ab („Abgeschlossene Aufträge zählen weiter als Konflikt“). `_conflicts()`, `einsatz_konflikte()` und die Belegung der Geräte fragen `auftragsstatus.geschlossen()` statt `storniert()`. Weil `_conflicts()` die Einsätze vorne filtert, fehlen sie auch in den Verteilungen -- damit in den Stunden von Kolonne und Person. `create_slot()` lehnt einen neuen Einsatz an einem geschlossenen Auftrag weiter ab (409), ein bestehender lässt sich weiter verschieben und fragt dabei nichts.
 
-### Festlegungen 1.9.151 (Bitte bestätigen)
+### Festlegungen 1.9.151 (bestätigt am 31.10.2026)
 
 1. Der Balken bleibt auf der Tafel und sagt „Auftrag abgeschlossen“, wie der stornierte „Auftrag storniert“. Keine eigene Farbe: das Aussehen kommt mit der Zeichnung.
 2. Wird der Auftrag fortgesetzt („Fortsetzen“, mit Begründung), zählen seine Einsätze sofort wieder, auch rückwirkend für Einsätze, die inzwischen daneben geplant wurden: dann steht beides rot auf der Tafel, ohne Rückfrage.
@@ -993,7 +993,7 @@ Angepasste Erwartung (Regel 28): `test_v563::test_abgeschlossener_auftrag_zaehlt
 
 Befund Stufe 6, L6. `app/akte.py::ausfuehrung()` liefert `einsatz_gesperrt` (`auftragsstatus.einsatz_gesperrt()`, derselbe Text wie die 409 beim Speichern); die Akte versteckt danach den Link und nennt den Grund. `GET /api/planning/auftraege/{id}` sagt für `?auftrag=<id>`, warum ein Auftrag nicht in der Auswahl steht; `openCreate()` fragt ihn nur, wenn der Auftrag dort fehlt.
 
-### Festlegungen 1.9.155 (Bitte bestätigen)
+### Festlegungen 1.9.155 (bestätigt am 31.10.2026)
 
 1. Ein pausierter Auftrag behält „Einsatz planen“: „pausiert“ sperrt nichts (seit 1.9.124).
 2. Die Karte „Einsätze“ eines geschlossenen Auftrags zeigt seine Einsätze weiter, darunter den Grund.
@@ -1011,7 +1011,7 @@ Bestätigt: alle Festlegungen 1.9.143 bis 1.9.149, ausdrücklich 1.9.146 Nr. 1 (
 
 `.slot` ist 56 px hoch mit `overflow:hidden`, es passen drei Zeilen. Status des Auftrags und offene Anträge standen als vierte. `slotHinweis()` fasst sie in einer Zeile zusammen, die an die Stelle der Adresse tritt; `title` trägt sie vollständig. Klicktests dürfen bei abschneidenden Flächen nicht nur `textContent` lesen: `klicktest_plantafel_konflikte::_zeile_im_balken()` vergleicht die Lage der Zeile mit der des Balkens.
 
-### Festlegungen 1.9.156 (Bitte bestätigen)
+### Festlegungen 1.9.156 (bestätigt am 31.10.2026)
 
 1. Hat ein Balken einen Status oder einen offenen Antrag, steht das statt der Adresse in der dritten Zeile; die Adresse steht weiter im Dialog des Einsatzes. Ein höherer Balken hätte die ganze Tafel verschoben, das Maß kommt mit der Zeichnung.
 2. Alles in einer Zeile, getrennt mit „ · “, gekürzt mit „…“, vollständig im Tooltip.
@@ -1026,7 +1026,7 @@ Quellen: Microsoft, „event resource type“: „isAllDay … start, and endtim
 
 Im ERP steht ein ganztägiger Termin auf Mitternacht, `end_at` ist der letzte Tag selbst (so schickt ihn der Dialog, so liest ihn `eventsForDay()`). Das Ende bei Microsoft ist der Tag danach: die Umrechnung sitzt nur in `_zeiten_an_graph()` und `_zeiten_aus_graph()`.
 
-### Festlegungen 1.9.157 (Bitte bestätigen)
+### Festlegungen 1.9.157 (bestätigt am 31.10.2026)
 
 1. Zeitzone ganztägiger Termine nach Outlook ist fest Europe/Berlin, unabhängig von der Einstellung des Postfachs.
 2. Die Migration ändert nur Zeilen mit einer Uhrzeit. Ein ganztägiger Termin auf Mitternacht bleibt, auch wenn er aus Outlook stammt; einen, den jemand vor 1.9.157 im Dialog auf zwei Tage gespeichert hat, erkennt sie nicht.
@@ -1042,7 +1042,7 @@ Quelle: Microsoft, „Use delta query“: „Synchronization reset“ (410 Gone 
 
 `_delta_abgelaufen()`: 410 immer; sonst nur 40X mit einem der Codes in `_DELTA_ABGELAUFEN_CODES`, auch verschachtelt (`innerError`). 403, 401, 429, 500 und 404 ohne den Code setzen nichts zurück.
 
-### Festlegungen 1.9.158 (Bitte bestätigen)
+### Festlegungen 1.9.158 (bestätigt am 31.10.2026)
 
 1. Nach jedem Abruf des ganzen Kalenders (Rückstellung oder kein Link) fragt der Lauf jeden lokalen Termin einzeln nach, der im Abruf fehlt; gelöscht wird nur bei 404. Eine andere Antwort lässt ihn stehen, ohne Fehler am Postfach.
 2. Die Rückstellung steht nur im Protokoll und in der Antwort (`delta_reset`), nicht als letzter Fehler: der Lauf ist gelungen.
@@ -1059,7 +1059,7 @@ Das Fernlöschen läuft ohne Sperre: es legt nichts an.
 
 Die Kennung gilt nur in ihrem Postfach, deshalb sucht der Abruf einen Termin über (Postfach, Kennung). Findet er ihn dort nicht, aber am selben Konto unter derselben Kennung, liegt er hier: die Adresse wurde umbenannt oder die Zeile stammt von vor 1.9.159.
 
-### Festlegungen 1.9.159 (Bitte bestätigen)
+### Festlegungen 1.9.159 (bestätigt am 31.10.2026)
 
 1. Die Belegung gilt zehn Minuten (`SPERRE_GILT`), ein lebender Lauf erneuert sie höchstens einmal je Minute. Ein gestorbener Prozess hält das Postfach also bis zu zehn Minuten; in der Zeit meldet der Abgleich „busy“ und Speichern sendet nicht.
 2. Speichern während eines Laufs sendet nicht und wartet nicht: der Termin geht mit dem nächsten Lauf (Öffnen von `/kalender` oder Cron).
@@ -1079,7 +1079,7 @@ Beide Wechsel sehen am Termin gleich aus (`outlook_postfach` ungleich dem Postfa
 
 Der Eintrag „Resurrection-Risiko“ unter „Bekannte, bewusst offene Punkte“ ist damit erledigt.
 
-### Festlegungen 1.9.160 (Bitte bestätigen)
+### Festlegungen 1.9.160 (bestätigt am 31.10.2026)
 
 1. Besitzer wechseln: die Kopie im alten Postfach wird gelöscht, auch wenn der Termin aus Outlook stammt. Der Termin geht als neuer ins neue Postfach (neue Kennung). Teilnehmer und Anhänge des alten Termins kennt das ERP nicht, sie gehen nicht mit.
 2. Neuer Besitzer ohne Postfach: der Termin verliert die Verbindung und bleibt nur im ERP.
@@ -1100,7 +1100,7 @@ Entscheidung Tobias: Postfächer sind Tobias und neu ein eigenes Kran-Postfach, 
 
 `Postfach` (Adresse plus Konto oder Gerät) ersetzt im Abgleich den Parameter `user`. `sync_user_calendar()` bleibt für das Öffnen von `/kalender`, `sync_postfach()` ist der Lauf für beides.
 
-### Festlegungen 1.9.161 (Bitte bestätigen)
+### Festlegungen 1.9.161 (bestätigt am 31.10.2026)
 
 1. Das Kran-Postfach läuft nur mit dem Cron (alle 15 Minuten), nicht beim Öffnen des Kalenders: ein Eintrag in Outlook warnt frühestens nach dem nächsten Lauf. Was im ERP entsteht, geht sofort hinaus.
 2. Die Warnung steht nur beim Speichern eines Einsatzes. Die Tafel zeichnet Kran-Termine erst mit R4; ein trotzdem geplanter Einsatz ist bis dahin dort nicht rot.
@@ -1119,7 +1119,7 @@ Angepasster Aufbau (Regel 28): `test_v577::test_treffen_sich_zwei_laeufe_…` ü
 
 `postfach_uebersicht()` liest nur und fragt Microsoft nicht, sonst dauerte das Öffnen der Einstellungen je Postfach einen Netzaufruf. Einen Knopf „Verbindung testen“ oder „Neu einlesen“ gibt es weiter nicht (Befund L9), verlangt war der Stand.
 
-### Festlegungen 1.9.162 (Bitte bestätigen)
+### Festlegungen 1.9.162 (bestätigt am 31.10.2026)
 
 1. Auch inaktive Konten und Geräte mit Postfach stehen in der Liste, gekennzeichnet; sie gleichen nicht ab.
 2. „Wartet auf Senden“ zählt auch Termine, die nach einem Postfachwechsel noch im alten liegen, „wartet auf Löschen“ steht nur da, wenn etwas offen ist.
@@ -1135,7 +1135,7 @@ Angepasste Erwartung (Regel 28): `test_v473::UTC_FELDER` um `letzter_lauf`, `feh
 
 `app/planning.py::termine_der_geraete()` liefert die Überschneidungen ohne Text; die Warnung beim Speichern und das Skript nehmen dieselbe Rechnung.
 
-### Festlegungen 1.9.163 (Bitte bestätigen)
+### Festlegungen 1.9.163 (bestätigt am 31.10.2026)
 
 1. Eine laufende Sperre ist kein Fund, eine abgelaufene schon (Rückgabe 1), auch wenn der nächste Lauf sie übernimmt: sie zeigt, dass ein Prozess gestorben ist.
 2. „Gerät doppelt“ zählt Einsätze, die heute oder später enden, auf offenen Aufträgen; ein Fund ist auch, was jemand mit „Trotzdem planen“ bewusst gespeichert hat.
