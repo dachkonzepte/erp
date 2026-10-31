@@ -7,7 +7,8 @@ Prüfung; beauftragt, arbeitsvorbereitung und in_ausfuehrung gehen in „läuft�
     laeuft         Vorgabe, keine Sperre
     pausiert       mit Begründung; sperrt nichts -- Hinweis in Akte und Plantafel, Monteure buchen weiter
     abgeschlossen  nach der Schlussrechnung (bzw. abschließenden Rechnung aus Aufwand) oder mit Begründung „ohne Rechnung“; die Monteurin bucht
-                   nicht mehr (das Büro weiter), keine neuen Einsätze, nicht mehr in der Plantafel
+                   nicht mehr (das Büro weiter), keine neuen Einsätze, nicht mehr im Rückstand und in der Auswahl der Plantafel; seine Einsätze bleiben
+                   auf der Tafel und zählen dort nicht mehr (seit 1.9.151, wie stornierte)
     storniert      mit Begründung; dazu keine neuen Berichte -- Rechnungen bleiben möglich (Teilleistung), das Büro bucht weiter
 
 Übergänge nur über status_aendern() (POST /api/orders/{id}/status): pausieren und stornieren aus „läuft“ oder „pausiert“, abschließen aus „läuft“

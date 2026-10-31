@@ -4,7 +4,7 @@
                  Kolonnen-Zuweisung); mit „trotzdem_planen“ 200 und die Warnungen in der Antwort
     Hinweis      Feiertag, betriebsfreier Tag, Kapazität -> 200 ohne Rückfrage, in der Antwort; seit 1.9.150 meldet ein Wochenende nichts, es ist nur kein Arbeitstag
     Ändern       Kolonne oder Zeitraum geändert -> wie Anlegen; nur Notiz, Status oder Stunden -> keine Rückfrage, Konflikte in der Antwort
-    P8           Einsätze stornierter Aufträge zählen nicht, weder als Warnung noch in der Kapazität der Tafel
+    P8           Einsätze stornierter Aufträge zählen nicht, weder als Warnung noch in der Kapazität der Tafel; seit 1.9.151 ebenso abgeschlossene
     Rollen       die Art einer Abwesenheit im 409 nur für Admin und Büro – Finanzen (Krankheitssichtbarkeit)
     Seite        der Dialog zeigt die Liste, „Trotzdem planen“ schickt das Häkchen mit
 """
@@ -239,14 +239,15 @@ def test_null_als_trotzdem_planen_422(tafel):
     assert client.put(f"/api/planning/slots/{slot['id']}", json={"trotzdem_planen": None}).status_code == 422
 
 
-def test_einsatz_eines_stornierten_auftrags_zaehlt_nicht(tafel):
-    """P8: bis 1.9.142 färbte er andere Einsätze rot."""
+@pytest.mark.parametrize("status, begruendung", [("storniert", "Kunde abgesprungen"), ("abgeschlossen", "ohne Rechnung")])
+def test_einsatz_eines_geschlossenen_auftrags_zaehlt_nicht(tafel, status, begruendung):
+    """P8: bis 1.9.142 färbte ein stornierter andere Einsätze rot, ein abgeschlossener bis 1.9.150."""
     db, client = tafel
     tom = _person(db, "M-1", "Tom")
     a, b = _kolonne(db, "A", [tom]), _kolonne(db, "B", [tom])
     storno, normal = setup_order(db, "1"), setup_order(db, "2")
     alt = client.post("/api/planning/slots", json=_body(storno, a, planned_hours="16")).json()
-    status_aendern(db, storno.id, "storniert", "Kunde abgesprungen")
+    status_aendern(db, storno.id, status, begruendung)
     db.commit()
 
     antwort = client.post("/api/planning/slots", json=_body(normal, b))
@@ -256,15 +257,49 @@ def test_einsatz_eines_stornierten_auftrags_zaehlt_nicht(tafel):
     daten = planning_board(db, MONTAG, MONTAG + timedelta(days=13))
     je_id = {s["id"]: s for s in daten["slots"]}
     assert je_id[alt["id"]]["conflicts"] == []  # bleibt auf der Tafel, mit dem Status des Auftrags
-    assert je_id[alt["id"]]["order_status"] == "storniert"
+    assert je_id[alt["id"]]["order_status"] == status
     assert je_id[antwort.json()["id"]]["conflicts"] == []
     assert daten["conflict_count"] == 0
-    # die Stunden des stornierten zählen nicht in der Kapazität der Kolonne
+    # die Stunden des geschlossenen zählen nicht in der Kapazität der Kolonne und der Person
     assert daten["team_capacity"][str(a.id)][MONTAG.isoformat()]["planned_hours"] == 0
+    assert daten["employee_capacity"][str(tom.id)][MONTAG.isoformat()]["planned_hours"] == Decimal("1.00")  # nur der neue, offene Einsatz
 
 
-def test_abgeschlossener_auftrag_zaehlt_weiter(tafel):
-    """Nur storniert ist vorgegeben; ein abgeschlossener Auftrag hat tatsächlich gearbeitet."""
+@pytest.mark.parametrize("status, begruendung", [("storniert", "Kunde abgesprungen"), ("abgeschlossen", "ohne Rechnung")])
+def test_geraet_eines_geschlossenen_auftrags_zaehlt_nicht(tafel, status, begruendung):
+    """Der Kran des geschlossenen Auftrags ist frei: keine Warnung, keine Belegung in der Ansicht „Geräte“."""
+    db, client = tafel
+    kran = _kran(db)
+    a, b = _kolonne(db, "A", [_person(db, "M-1", "Tom")], [kran]), _kolonne(db, "B", [_person(db, "M-2", "Mia")], [kran])
+    fertig = setup_order(db, "1")
+    assert client.post("/api/planning/slots", json=_body(fertig, a)).status_code == 200
+    status_aendern(db, fertig.id, status, begruendung)
+    db.commit()
+    tafel_daten = planning_board(db, MONTAG, MONTAG + timedelta(days=13))
+    assert tafel_daten["resource_load"][str(kran.id)][MONTAG.isoformat()] == 0
+    antwort = client.post("/api/planning/slots", json=_body(setup_order(db, "2"), b))
+    assert antwort.status_code == 200 and antwort.json()["warnungen"] == []
+    tafel_daten = planning_board(db, MONTAG, MONTAG + timedelta(days=13))
+    assert tafel_daten["resource_load"][str(kran.id)][MONTAG.isoformat()] == 1
+
+
+def test_einsatz_eines_abgeschlossenen_auftrags_verschieben_fragt_nicht(tafel):
+    """Ein bestehender Einsatz lässt sich weiter verschieben (seit 1.9.124) -- er zählt nicht, also fragt auch das Verschieben nicht."""
+    db, client = tafel
+    tom = _person(db, "M-1", "Tom")
+    a, b = _kolonne(db, "A", [tom]), _kolonne(db, "B", [tom])
+    assert client.post("/api/planning/slots", json=_body(setup_order(db, "1"), a)).status_code == 200
+    fertig = setup_order(db, "2")
+    alt = client.post("/api/planning/slots", json=_body(fertig, b, start=MONTAG + timedelta(days=7))).json()
+    status_aendern(db, fertig.id, "abgeschlossen", "ohne Rechnung")
+    db.commit()
+    antwort = client.put(f"/api/planning/slots/{alt['id']}", json={"start_date": MONTAG.isoformat(), "end_date": MONTAG.isoformat()})
+    assert antwort.status_code == 200, antwort.text
+    assert antwort.json()["warnungen"] == [] and antwort.json()["hinweise"] == []
+
+
+def test_fortgesetzter_auftrag_zaehlt_wieder(tafel):
+    """Wird ein abgeschlossener Auftrag fortgesetzt, zählen seine Einsätze wieder."""
     db, client = tafel
     tom = _person(db, "M-1", "Tom")
     a, b = _kolonne(db, "A", [tom]), _kolonne(db, "B", [tom])
@@ -272,7 +307,11 @@ def test_abgeschlossener_auftrag_zaehlt_weiter(tafel):
     client.post("/api/planning/slots", json=_body(fertig, a))
     status_aendern(db, fertig.id, "abgeschlossen", "ohne Rechnung")
     db.commit()
-    assert client.post("/api/planning/slots", json=_body(setup_order(db, "2"), b)).status_code == 409
+    zweiter = setup_order(db, "2")
+    assert client.post("/api/planning/slots", json=_body(zweiter, b)).status_code == 200
+    status_aendern(db, fertig.id, "laeuft", "Nacharbeit")
+    db.commit()
+    assert planning_board(db, MONTAG, MONTAG + timedelta(days=13))["conflict_count"] == 2
 
 
 def test_geschaeftsfunktion_fragt_ohne_router_genauso(tafel):

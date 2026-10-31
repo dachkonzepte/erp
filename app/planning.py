@@ -11,7 +11,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from .auftragsstatus import AuftragGeschlossen, einsatz_gesperrt, name as status_name, offen_bedingung, pause_begruendung, pause_begruendungen, storniert, wert as status_wert
+from .auftragsstatus import AuftragGeschlossen, einsatz_gesperrt, geschlossen, name as status_name, offen_bedingung, pause_begruendung, pause_begruendungen, wert as status_wert
 from .grunddaten import einzelzeile
 from .berlin_time import berlin_today
 from .models import (
@@ -954,12 +954,13 @@ def _einsatz_abfrage():
 
 
 def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSettings, *, visible_employee_ids: set[int] | None = None) -> tuple[dict[int, list[dict]], dict[int, dict[date, dict]]]:
-    """Seit 1.9.143 (P8): Einsätze stornierter Aufträge zählen nicht -- weder als Konflikt noch in der Kapazität. Jeder Konflikt trägt seine Stufe
+    """Seit 1.9.143 (P8): Einsätze stornierter Aufträge zählen nicht -- weder als Konflikt noch in der Kapazität, seit 1.9.151 ebenso die abgeschlossener
+    Aufträge (Vorgabe Tobias, Zeichnung „zählt nicht“). Jeder Konflikt trägt seine Stufe
     („warnung“ fragt beim Speichern zurück, „hinweis“ steht nur in der Antwort). Seit 1.9.144 bekommt sie nur noch die Einsätze, um die es geht (nach
     Beginn sortiert, ein Paar ohne Überschneidung beendet die Runde), nicht mehr alle Einsätze aller Jahre."""
     result: dict[int, list[dict]] = defaultdict(list)
     distributions: dict[int, dict[date, dict]] = {}
-    slots = sorted((s for s in slots if not storniert(s.preparation.order)), key=lambda s: (s.start_date, s.id))
+    slots = sorted((s for s in slots if not geschlossen(s.preparation.order)), key=lambda s: (s.start_date, s.id))
     if not slots:
         return result, distributions
     start = min(s.start_date for s in slots); end = max(s.end_date for s in slots)
@@ -1017,8 +1018,8 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
 
 def einsatz_konflikte(db: Session, slot: PlanningSlot) -> dict:
     """Warnungen und Hinweise eines Einsatzes (seit 1.9.143) -- dieselbe Rechnung wie die Tafel (_conflicts()), gegen die Einsätze, die seinen Zeitraum
-    berühren. Liest nur, sieht den Stand der offenen Transaktion. Ein Einsatz eines stornierten Auftrags hat keine (P8)."""
-    if storniert(slot.preparation.order):
+    berühren. Liest nur, sieht den Stand der offenen Transaktion. Ein Einsatz eines stornierten (P8) oder abgeschlossenen Auftrags (seit 1.9.151) hat keine."""
+    if geschlossen(slot.preparation.order):
         return {"warnungen": [], "hinweise": []}
     settings = load_planning_settings(db)
     andere = db.scalars(_einsatz_abfrage().where(PlanningSlot.id != slot.id, PlanningSlot.start_date <= slot.end_date, PlanningSlot.end_date >= slot.start_date)).all()
@@ -1205,7 +1206,7 @@ def planning_board(db: Session, start_date: date, end_date: date) -> dict:
             rows[day.isoformat()]={"capacity_hours":round_hours(cap),"planned_hours":round_hours(planned),"utilization_pct":util,"absence":a.absence_type if a else None,"holiday":holiday_names.get(day),"school_holidays":school_by_day.get(day,[])}
         employee_capacity[str(emp.id)]=rows
     resource_load={}
-    zaehlend=[slot for slot in visible if not storniert(slot.preparation.order)]  # seit 1.9.143 (P8)
+    zaehlend=[slot for slot in visible if not geschlossen(slot.preparation.order)]  # seit 1.9.143 (P8), seit 1.9.151 auch abgeschlossene
     for res in resources:
         resource_load[str(res.id)]={day.isoformat():sum(1 for slot in zaehlend if any(x.resource_id==res.id for x in slot.team_assignment.resources) and slot.start_date<=day<=slot.end_date) for day in dates}
     tafel={"settings":settings,"sichtbar":visible_employee_ids,"pausen":pause_begruendungen(db,[slot.preparation.order for slot in visible])}

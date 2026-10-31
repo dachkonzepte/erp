@@ -8,6 +8,7 @@ Stehende Uhr 14.10.2026 10:00. Befüllt: Kolonnen Nord (Tom, Kran) und Süd (Tom
     Hinweis     Auftrag E auf Ost über einen betriebsfreien Tag -> kein Dialog, Hinweis über der Tafel
     Bearbeiten  Einsatz B auf West schieben im Dialog -> Warnliste; nur die Notiz ändern -> keine Warnliste
     Ziehen      Einsatz C mit „dropSlot“ auf Nord -> Warnliste, nichts verschoben; „Trotzdem planen“ -> verschoben
+    Abgeschlossen  Einsatz eines abgeschlossenen Auftrags auf Ost: ein neuer Einsatz daneben fragt nicht, nichts ist rot, der Balken sagt „Auftrag abgeschlossen“ (seit 1.9.151)
     Büro–Auftrag die Warnliste nennt bei einer Abwesenheit nur „abwesend“
 
 AUFRUF (aus dem Projektordner):
@@ -34,6 +35,7 @@ def befuellen(db, k):
     from datetime import date
     from decimal import Decimal
 
+    from app.auftragsstatus import status_aendern
     from app.models import AppUser, Customer, Employee, EmployeeAbsence, OperationalResource, PlanningHoliday, Project, Quote, QuoteItem, Team, TeamEmployee, TeamResource
     from app.orders import create_order_from_quote, load_order
     from app.planning import create_slot
@@ -71,12 +73,14 @@ def befuellen(db, k):
         return load_order(db, order.id)
 
     nord, sued, west, ost = kolonne("Nord", tom, geraet=kran), kolonne("Süd", tom, geraet=kran), kolonne("West", sol), kolonne("Ost", mia)
-    a, b, c, d, e = auftrag("A"), auftrag("B"), auftrag("C"), auftrag("D"), auftrag("E")
+    a, b, c, d, e, f, g = auftrag("A"), auftrag("B"), auftrag("C"), auftrag("D"), auftrag("E"), auftrag("F"), auftrag("G")
+    create_slot(db, order_id=f.id, team_id=ost.id, start_date=date(2026, 11, 3), end_date=date(2026, 11, 4))
+    status_aendern(db, f.id, "abgeschlossen", "ohne Rechnung")
     db.add(PlanningHoliday(holiday_date=date(2026, 10, 28), name="Betriebsausflug", active=True))
     create_slot(db, order_id=a.id, team_id=nord.id, start_date=date(2026, 10, 19), end_date=date(2026, 10, 21))
     db.add(EmployeeAbsence(employee_id=mia.id, absence_type="Krankheit", absence_category="krankheit", start_date=date(2026, 10, 19), end_date=date(2026, 10, 19)))
     db.commit()
-    return {"b": b.id, "c": c.id, "d": d.id, "e": e.id, "nord": nord.id, "sued": sued.id, "west": west.id, "ost": ost.id,
+    return {"b": b.id, "c": c.id, "d": d.id, "e": e.id, "f": f.id, "g": g.id, "nord": nord.id, "sued": sued.id, "west": west.id, "ost": ost.id,
             "anna": k.cookies(anna), "berta": k.cookies(berta)}
 
 
@@ -151,6 +155,16 @@ async def pruefen(tab, seed, p):
     p.pruefe("Ziehen: nichts verschoben", await tab.js(f"board.slots.find(s=>s.id==={einsatz_c}).team_id"), seed["west"])
     await tab.js("document.getElementById('konfliktTrotzdem').click()")
     p.pruefe("Ziehen: Trotzdem planen verschiebt", await tab.warten(f"!document.getElementById('konfliktDialog').open&&board.slots.find(s=>s.id==={einsatz_c}).team_id==={seed['nord']}"), True)
+
+    # --- Einsatz eines abgeschlossenen Auftrags: zählt nicht, bleibt sichtbar (seit 1.9.151) ---
+    await tab.js("movePeriod(14)")
+    await tab.warten(BEREIT + "&&board.slots.length===1")
+    p.pruefe("Abgeschlossen: Balken sagt es", "Auftrag abgeschlossen" in await tab.js("document.querySelector('.slot').textContent"), True)
+    await _neu(tab, seed["g"], seed["ost"], "2026-11-03", "2026-11-04")
+    p.pruefe("Abgeschlossen: gespeichert ohne Rückfrage", await tab.warten("board.slots.length===2&&!document.getElementById('createDialog').open"), True)
+    p.pruefe("Abgeschlossen: kein Warn-Dialog", await tab.js("document.getElementById('konfliktDialog').open"), False)
+    p.pruefe("Abgeschlossen: nichts rot", await tab.js("document.querySelectorAll('.slot.conflict').length"), 0)
+    await tab.bild("abgeschlossen_zaehlt_nicht")
     p.pruefe("Admin: JS-Fehler", tab.fehler, [])
 
     # --- Büro – Auftrag: Art der Abwesenheit nicht in der Liste ---

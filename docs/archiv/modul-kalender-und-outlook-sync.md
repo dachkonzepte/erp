@@ -975,3 +975,16 @@ Vorgabe Tobias: ein Einsatz über ein Wochenende meldet nichts, das Wochenende i
 ### Tests und Prüfung
 
 Angepasste Erwartungen (Regel 28): `test_v563::test_wochenende_200_mit_hinweis_und_faerbt_die_tafel_nicht` hieß so und erwartete zwei Hinweise „Wochenende“; neu `test_wochenende_meldet_nichts`, keine Hinweise. `klicktest_plantafel_konflikte`: „Hinweis: steht über der Tafel“ prüfte „Wochenende · 24.10.“; neu ein eigener Einsatz über einen betriebsfreien Tag („Feiertag: Betriebsausflug · 28.10.“), Bild `hinweis_betriebsfrei` statt `hinweis_wochenende`, dazu vier Prüfungen „Wochenende: …“ (gespeichert, kein Dialog, kein Hinweis, nicht rot); Büro – Auftrag sieht vier statt drei Einsätze, weil einer dazukam. Neu: `test_kein_arbeitstag_unter_der_woche_meldet_nichts`, `test_feiertag_am_wochenende_meldet_nichts`.
+
+## Umsetzung 1.9.151: Einsätze abgeschlossener Aufträge zählen nicht (Stufe 6, R1 Nachrunde, Punkt 2)
+
+Entscheidung Tobias, löst den zweiten Satz der Festlegung 1.9.143 Nr. 3 ab („Abgeschlossene Aufträge zählen weiter als Konflikt“). `_conflicts()`, `einsatz_konflikte()` und die Belegung der Geräte fragen `auftragsstatus.geschlossen()` statt `storniert()`. Weil `_conflicts()` die Einsätze vorne filtert, fehlen sie auch in den Verteilungen -- damit in den Stunden von Kolonne und Person. `create_slot()` lehnt einen neuen Einsatz an einem geschlossenen Auftrag weiter ab (409), ein bestehender lässt sich weiter verschieben und fragt dabei nichts.
+
+### Festlegungen 1.9.151 (Bitte bestätigen)
+
+1. Der Balken bleibt auf der Tafel und sagt „Auftrag abgeschlossen“, wie der stornierte „Auftrag storniert“. Keine eigene Farbe: das Aussehen kommt mit der Zeichnung.
+2. Wird der Auftrag fortgesetzt („Fortsetzen“, mit Begründung), zählen seine Einsätze sofort wieder, auch rückwirkend für Einsätze, die inzwischen daneben geplant wurden: dann steht beides rot auf der Tafel, ohne Rückfrage.
+
+### Tests und Prüfung
+
+Angepasste Erwartung (Regel 28): `test_v563::test_abgeschlossener_auftrag_zaehlt_weiter` erwartete 409 beim zweiten Einsatz neben einem abgeschlossenen; der Test ist weg, neu `test_einsatz_eines_geschlossenen_auftrags_zaehlt_nicht` (bisher nur storniert, jetzt beide Status, Soll 200 ohne Warnung und null Stunden). Neu: `test_geraet_eines_geschlossenen_auftrags_zaehlt_nicht`, `test_einsatz_eines_abgeschlossenen_auftrags_verschieben_fragt_nicht`, `test_fortgesetzter_auftrag_zaehlt_wieder`. `klicktest_plantafel_konflikte`: vier Prüfungen „Abgeschlossen: …“, Bild `abgeschlossen_zaehlt_nicht`.
