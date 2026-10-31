@@ -1324,3 +1324,7 @@ Vorgabe vom 26.10.2026: „den Port-Wettlauf aus dem Befund vom 24.10. beheben (
 3. „Zeiten“ und die Akte messen bei 412 px jeden Reiter, wie `klicktest_kundenakte`; die Akte in `klicktest_lv_ueberlauf`, weil dort ein Auftrag mit allen Reitern vorliegt.
 4. Die Klicktests mit `scrollWidth<=documentElement.clientWidth+1` bleiben: `clientWidth` ist in der Emulation fest, die Gegenprobe macht sie rot.
 5. Die Gegenprobe läuft über `_ds_kopf.html`, weil jede Seite ihn einbindet; die Hinweisseite ohne Konto eigens über `_ersteinrichtung_seite()`.
+
+## Offen: `test_v419_verbindungen_unter_last::test_viele_gleichzeitige_seiten_und_abfragen` (R2 Outlook, 31.10.2026)
+
+Rot in 2 von 23 vollen Läufen (Lauf für 1.9.163, erster Endlauf auf 72cc155): 503 nach rund 8 s (Pool 2, 3 s Wartezeit, 70 Anfragen zugleich). Gemessen: längste Anfrage des Schubs 3–4 s ohne Last, 5–6 s unter 40 Rechenprozessen. Grün auf dem Stand vor R2 und dem Endstand, einzeln (8 von 8), unter Rechenlast (8 von 8), neben Migrationsketten auf derselben PostgreSQL (16 von 16). Der Test hat wenig Luft; den Auslöser in der vollen Suite konnte ich nicht nachstellen, ein Zusammenhang mit 1.9.163 ist nicht belegt und nicht ausgeschlossen. Test nicht geändert, damit ein möglicher echter Befund nicht abgeschaltet wird. Tritt er auf: einzeln wiederholen, dann die Suite; bleibt er in der Suite rot, ist es ein Befund.

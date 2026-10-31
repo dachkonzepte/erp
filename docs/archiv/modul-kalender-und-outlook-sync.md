@@ -1143,3 +1143,18 @@ Angepasste Erwartung (Regel 28): `test_v473::UTC_FELDER` um `letzter_lauf`, `feh
 ### Tests und Prüfung
 
 Angepasste Erwartungen: keine. `test_v562::test_ohne_postfach_und_termin_nichts_gefunden` prüft zusätzlich die neuen Zeilen.
+
+## Befund und Einrichtung: ein Postfach, das keinem Konto gehört (Stufe 6, R2, Punkt 0)
+
+Anbindung: eine App-Registrierung für E-Mail und Kalender, Client-Credentials-Flow, Token mit Scope `.default`, dasselbe für jedes Postfach; niemand meldet sich an einem Postfach an. Rechte nur über Exchange „RBAC for Applications“ (Regel 17): Rollen `Application Mail.Send` und `Application Calendars.ReadWrite`, Scope `ERP-Zugriff`. Graph spricht jedes Postfach über `/users/<adresse>` an, ob Person, freigegeben oder Gerät; der Code unterscheidet das nicht.
+
+Einrichtung, Vorschlag freigegebenes Postfach (Quellen: Microsoft, „About shared mailboxes“: bis 50 GB ohne eigene Lizenz, wer zugreift, braucht ein lizenziertes Postfach, höchstens 25 Personen, Anmeldung sperren; „Role Based Access Control for Applications“: nur direkte Gruppenmitgliedschaft zählt, Änderungen wirken nach 30 Minuten bis 2 Stunden, `Test-ServicePrincipalAuthorization` umgeht den Zwischenspeicher):
+
+    New-Mailbox -Shared -Name "Kran" -PrimarySmtpAddress kran@dachkonzepte.gmbh
+    Add-MailboxPermission -Identity kran@dachkonzepte.gmbh -User <person> -AccessRights FullAccess
+    Add-DistributionGroupMember -Identity ERP-Zugriff@dachkonzepte.gmbh -Member kran@dachkonzepte.gmbh
+    Test-ServicePrincipalAuthorization -Identity <AppId> -Resource kran@dachkonzepte.gmbh
+
+Nichts in Entra, kein neues Secret, keine neue Rollenzuweisung. Danach im ERP Einstellungen → Outlook-Kalender → „Postfach für ein Gerät“. Für das Gerät ist der Cron (`scripts/sync_outlook_calendars.py`) der einzige Weg aus Outlook ins ERP.
+
+Stand 31.10.2026: nichts davon am echten Mandanten ausgeführt oder geprüft. Offen, ob ein freigegebenes Postfach ohne Lizenz über Graph mit App-Rechten antwortet (Microsoft nennt keine Pflicht, ein Forenbeitrag das Gegenteil); der erste Lauf zeigt es in den Einstellungen.
