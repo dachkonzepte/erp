@@ -5,8 +5,7 @@ Keine Seite zeigt den Stand des Abgleichs (Befund Stufe 6, 5.2 und L9). Das Skri
     je Postfach     letzter Lauf, letzter Fehler (nur die Art, wie im Protokoll), Alter des Delta-Links, wohin der Link zeigt
     warten          Termine, die auf Senden warten (dieselbe Prüfung wie der Abgleich: app/outlook_calendar_sync.py::_needs_push())
     doppelt         Outlook-Kennungen, die mehrere Termine tragen
-    ganztägig       ganztägige Termine aus dem ERP -- nach der Doku von Microsoft braucht „isAllDay“ Beginn und Ende um Mitternacht der Zeitzone
-                    der Anfrage; das ERP schickt UTC (Befund Stufe 6, 5.4)
+    ganztägig       ganztägige Termine mit einer Uhrzeit -- seit 1.9.157 steht ein ganztägiger Termin auf Mitternacht, end_at ist der letzte Tag
 
 Das Alter des Delta-Links ist die Zeit seit dem letzten erfolgreichen Lauf: nur der schreibt den Link (sync_user_calendar()). Der Pfad des
 Links zeigt nach einem Wechsel des Postfachs auf das alte (Befund, XC1); Microsoft kann die Adresse darin durch eine Kennung ersetzen, das
@@ -103,7 +102,7 @@ def pruefen(db, *, jetzt: datetime | None = None) -> dict:
                            "grund": "noch nie gesendet" if t.outlook_event_id is None else "im ERP geändert"})
         if t.outlook_event_id:
             kennungen[t.outlook_event_id].append(t)
-        if t.all_day and (t.external_source or "erp") == "erp":
+        if t.all_day and (t.start_at.time() != datetime.min.time() or t.end_at.time() != datetime.min.time()):
             ganztaegig.append({"id": t.id, "besitzer": _besitzer(user), "tag": t.start_at.date(), "bis": t.end_at.date(),
                                "gesendet": bool(t.outlook_event_id)})
     doppelt = [{"kennung": k[:24] + ("…" if len(k) > 24 else ""), "termine": [t.id for t in zeilen],
@@ -141,7 +140,7 @@ def ausgeben(stand: dict, ausgabe=print) -> None:
     ausgabe(f"Doppelte Outlook-Kennungen: {len(stand['doppelt'])}")
     for d in stand["doppelt"]:
         ausgabe(f"  {d['kennung']} · Termine {', '.join(str(i) for i in d['termine'])} · {'; '.join(d['besitzer'])}")
-    ausgabe(f"Ganztägige Termine aus dem ERP: {len(stand['ganztaegig'])}")
+    ausgabe(f"Ganztägige Termine mit Uhrzeit: {len(stand['ganztaegig'])}")
     for g in stand["ganztaegig"]:
         ausgabe(f"  Termin {g['id']} · {g['besitzer']} · {g['tag']:%d.%m.%Y}–{g['bis']:%d.%m.%Y} · "
                 + ("in Outlook angelegt" if g["gesendet"] else "nicht in Outlook"))

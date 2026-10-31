@@ -201,10 +201,21 @@ def _graph_dt(value: datetime) -> dict:
     return {"dateTime": value.strftime("%Y-%m-%dT%H:%M:%S") + ".0000000", "timeZone": "UTC"}
 
 
+def _ganztag_wie_microsoft(payload: dict) -> tuple[dict, dict]:
+    """Seit 1.9.157 wie Microsoft („isAllDay“): Beginn und Ende auf Mitternacht in derselben Zeitzone, das Ende danach -- sonst 400. Bis dahin nahm die Attrappe alles an, der Fehler (23:00 UTC,
+    Beginn gleich Ende) fiel nicht auf. Zurück kommt der Kalendertag als Mitternacht „UTC“, auch für einen Termin aus Berlin (so die Berichte zu Graph; die Doku sagt es nicht)."""
+    start, end = payload["start"], payload["end"]
+    beginn, ende = (datetime.fromisoformat(x["dateTime"][:19]) for x in (start, end))
+    if start["timeZone"] != end["timeZone"] or beginn.time() != datetime.min.time() or ende.time() != datetime.min.time() or ende <= beginn:
+        raise _http_error(400, "Your request can't be completed. isAllDay needs midnight start and end.")
+    return ({"dateTime": x.strftime("%Y-%m-%dT00:00:00.0000000"), "timeZone": "UTC"} for x in (beginn, ende))
+
+
 def _fields_from_payload(payload: dict) -> dict:
+    start, end = _ganztag_wie_microsoft(payload) if payload["isAllDay"] else (payload["start"], payload["end"])
     return {
         "subject": payload["subject"], "isAllDay": payload["isAllDay"],
-        "start": payload["start"], "end": payload["end"], "location": payload["location"],
+        "start": start, "end": end, "location": payload["location"],
         "body": {"contentType": "text", "content": payload["body"]["content"]},
         "sensitivity": payload.get("sensitivity", "normal"),
     }

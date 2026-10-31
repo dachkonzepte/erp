@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.157 – Ganztägige Termine: ein Tag bleibt ein Tag (Stufe 6, R2 Outlook, Punkt 1)
+
+Nach Outlook gingen ganztägige Termine in UTC: Beginn und Ende auf 23:00 des Vortags. Microsoft verlangt für „isAllDay“ Mitternacht in derselben Zeitzone, und das Ende ist der Tag nach dem letzten. `_zeiten_an_graph()` schickt das jetzt in Europe/Berlin. Aus Outlook kam ein ganztägiger Termin als 10.11. 01:00 bis 11.11. 01:00 an und stand im Kalender an zwei Tagen: `_zeiten_aus_graph()` nimmt den Kalendertag (Datumsteil, Mitternacht „UTC“ ist kein Zeitpunkt), `end_at` ist der letzte Tag, wie im Dialog; das gilt auch für Serien und mehrtägige Termine und über die Zeitumstellung.
+
+Die Migration `4f7a1c9e2b60` setzt ganztägige Zeilen mit einer Uhrzeit auf diese Form, `updated_at` bleibt. `scripts/pruefe_outlook.py` sucht seither die falsche Form statt der Herkunft. Die Attrappe in `tests/test_v297` lehnt nun wie Microsoft ab, was nicht auf Mitternacht steht; sie hatte den Fehler bisher durchgelassen. Tests: `tests/test_v575_ganztaegig_outlook.py`.
+
 ## 1.9.156 – Was der Balken sagt, passt hinein (Stufe 6, R1 Nachrunde, Nachtrag zu den Punkten 2 und 3)
 
 Der Balken auf der Tafel ist 56 px hoch und schneidet ab, es passen drei Zeilen. „Auftrag abgeschlossen“ (1.9.151) und „Antrag offen“ (1.9.152) standen als vierte Zeile: im Dokument da, auf dem Bildschirm nur halb zu sehen. Aufgefallen beim Durchsehen der Bilder für den Bericht, die Prüfung las nur den Text. Betroffen waren auch „Auftrag storniert“ (1.9.143) und „Auftrag pausiert“ (1.9.124) -- beide habe ich früher als sichtbar berichtet, das stimmte so nicht. Jetzt stehen Status und offene Anträge in der dritten Zeile, statt der Adresse, gekürzt mit „…“ und vollständig im Tooltip. Der Klicktest misst, dass die Zeile im Balken liegt.

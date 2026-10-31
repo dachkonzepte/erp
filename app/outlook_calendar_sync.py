@@ -337,6 +337,7 @@ BERLIN = ZoneInfo("Europe/Berlin")
 
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 GRAPH_TIMEOUT = 30
+GANZTAG_ZEITZONE = "Europe/Berlin"  # steht in Microsofts Liste (dateTimeTimeZone, „Additional time zones“)
 
 # changeKey war bis 1.7.5 Teil dieser Liste -- $select wird von Graph für Kalender-Delta-Abfragen
 # nachweislich ignoriert (siehe Moduldocstring "Nachtrag seit 1.7.5"), changeKey kam über diesen
@@ -515,13 +516,41 @@ def _mailbox_events_url(mailbox: str) -> str:
     return f"{GRAPH_BASE}/users/{urllib.parse.quote(mailbox)}/events"
 
 
+def _zeiten_an_graph(event: CalendarEvent) -> dict:
+    """Beginn und Ende für Graph. Ganztägig (seit 1.9.157): Microsoft verlangt Mitternacht in derselben Zeitzone („isAllDay“), und das Ende ist der Tag NACH dem letzten; im ERP ist
+    end_at der letzte Tag selbst. Bis 1.9.156 ging auch das in UTC hinaus: 23:00 des Vortags, Beginn gleich Ende."""
+    if not event.all_day:
+        return {"start": {"dateTime": to_utc(event.start_at).isoformat(), "timeZone": "UTC"},
+                "end": {"dateTime": to_utc(event.end_at).isoformat(), "timeZone": "UTC"}}
+    erster = event.start_at.date()
+    letzter = max(erster, event.end_at.date())
+    return {"start": {"dateTime": f"{erster.isoformat()}T00:00:00", "timeZone": GANZTAG_ZEITZONE},
+            "end": {"dateTime": f"{(letzter + timedelta(days=1)).isoformat()}T00:00:00", "timeZone": GANZTAG_ZEITZONE}}
+
+
+def _ganztag_tag(wert: dict) -> date:
+    """Der Tag aus einem Beginn oder Ende eines ganztägigen Termins. Graph liefert Mitternacht und nennt dazu „UTC“, auch für einen Termin, der in Berlin angelegt wurde: das ist ein Kalendertag,
+    kein Zeitpunkt, der Datumsteil gilt. Kommt doch eine andere Uhrzeit (23:00 des Vortags), war es Mitternacht in Berlin."""
+    zeit = _parse_graph_datetime(wert["dateTime"])
+    return zeit.date() if zeit.time() == datetime.min.time() else to_berlin(zeit).date()
+
+
+def _zeiten_aus_graph(item: dict) -> tuple[datetime, datetime]:
+    """start_at und end_at aus einer Graph-Zeile, beide Wege (Delta, Serien). Ganztägig (seit 1.9.157): je Mitternacht, end_at der letzte Tag -- wie der Dialog im Kalender. Bis 1.9.156 wurde
+    auch das umgerechnet: der 10.11. kam als 10.11. 01:00 bis 11.11. 01:00 an und stand an zwei Tagen."""
+    if not item.get("isAllDay"):
+        return to_berlin(_parse_graph_datetime(item["start"]["dateTime"])), to_berlin(_parse_graph_datetime(item["end"]["dateTime"]))
+    erster = _ganztag_tag(item["start"])
+    letzter = max(erster, _ganztag_tag(item["end"]) - timedelta(days=1))
+    return datetime.combine(erster, datetime.min.time()), datetime.combine(letzter, datetime.min.time())
+
+
 def _event_payload(event: CalendarEvent) -> dict:
     body_text = event.notes or ""
     return {
         "subject": event.title,
         "isAllDay": event.all_day,
-        "start": {"dateTime": to_utc(event.start_at).isoformat(), "timeZone": "UTC"},
-        "end": {"dateTime": to_utc(event.end_at).isoformat(), "timeZone": "UTC"},
+        **_zeiten_an_graph(event),
         "location": {"displayName": event.location or ""},
         "body": {"contentType": "Text", "content": body_text},
         "sensitivity": _outgoing_sensitivity(event.is_private),
@@ -795,10 +824,11 @@ def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) 
         log("ungültig übersprungen (start/end fehlt)")
         return None
 
+    beginn, ende = _zeiten_aus_graph(item)
     incoming_fields = {
         "title": item.get("subject") or "(ohne Titel)",
-        "start_at": to_berlin(_parse_graph_datetime(start["dateTime"])),
-        "end_at": to_berlin(_parse_graph_datetime(end["dateTime"])),
+        "start_at": beginn,
+        "end_at": ende,
         "all_day": bool(item.get("isAllDay")),
         "location": (item.get("location") or {}).get("displayName") or None,
         "notes": _plain_text_body(item),
@@ -907,10 +937,11 @@ def series_window(now_utc: datetime | None = None) -> tuple[datetime, datetime]:
 
 
 def _series_fields(item: dict) -> dict:
+    beginn, ende = _zeiten_aus_graph(item)
     return {
         "title": item.get("subject") or "(ohne Titel)",
-        "start_at": to_berlin(_parse_graph_datetime(item["start"]["dateTime"])),
-        "end_at": to_berlin(_parse_graph_datetime(item["end"]["dateTime"])),
+        "start_at": beginn,
+        "end_at": ende,
         "all_day": bool(item.get("isAllDay")),
         "location": (item.get("location") or {}).get("displayName") or None,
         "notes": _plain_text_body(item),

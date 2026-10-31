@@ -1019,3 +1019,19 @@ Bestätigt: alle Festlegungen 1.9.143 bis 1.9.149, ausdrücklich 1.9.146 Nr. 1 (
 ### Tests und Prüfung
 
 `tests/test_v574_balken_lesbar.py`; `klicktest_plantafel_konflikte`: drei Prüfungen „… Zeile im Balken zu sehen“. Angepasste Erwartungen: keine.
+
+## Umsetzung 1.9.157: ganztägige Termine (Stufe 6, R2, Punkt 1)
+
+Quellen: Microsoft, „event resource type“: „isAllDay … start, and endtime must be set to midnight and be in the same time zone“; „dateTimeTimeZone“ führt Europe/Berlin unter den zusätzlichen Zeitzonen. Dass Graph einen ganztägigen Termin als Mitternacht mit „UTC“ zurückgibt, auch mit „Prefer: outlook.timezone“, steht nicht in der Doku, nur in Berichten auf Microsoft Q&A; `_ganztag_tag()` nimmt deshalb den Datumsteil und fängt die andere denkbare Form (23:00 des Vortags) mit ab. Am echten Mandanten nicht geprüft.
+
+Im ERP steht ein ganztägiger Termin auf Mitternacht, `end_at` ist der letzte Tag selbst (so schickt ihn der Dialog, so liest ihn `eventsForDay()`). Das Ende bei Microsoft ist der Tag danach: die Umrechnung sitzt nur in `_zeiten_an_graph()` und `_zeiten_aus_graph()`.
+
+### Festlegungen 1.9.157 (Bitte bestätigen)
+
+1. Zeitzone ganztägiger Termine nach Outlook ist fest Europe/Berlin, unabhängig von der Einstellung des Postfachs.
+2. Die Migration ändert nur Zeilen mit einer Uhrzeit. Ein ganztägiger Termin auf Mitternacht bleibt, auch wenn er aus Outlook stammt; einen, den jemand vor 1.9.157 im Dialog auf zwei Tage gespeichert hat, erkennt sie nicht.
+3. `downgrade()` stellt die falsche Form nicht wieder her: der Vorzustand war der Fehler, die alte Fassung liest die neue Form.
+
+### Tests und Prüfung
+
+Angepasste Erwartungen (Regel 28): `test_v562::test_ganztaegige_termine_aus_dem_erp_nicht_aus_outlook` hieß so und erwartete jeden ganztägigen Termin aus dem ERP als Fund; neu `test_ganztaegige_termine_mit_uhrzeit_nicht_auf_mitternacht`, Fund ist die Uhrzeit, unabhängig von der Herkunft. `FakeGraphServer` (test_v297): `_fields_from_payload()` lehnt einen ganztägigen Termin ohne Mitternacht mit 400 ab und liefert ihn als Mitternacht „UTC“ zurück.

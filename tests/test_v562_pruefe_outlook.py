@@ -1,7 +1,7 @@
 """Version 1.9.142 (Stufe 6, R1, Punkt 0): scripts/pruefe_outlook.py -- wie steht der Outlook-Abgleich?
 
     Stand        je Postfach letzter Lauf, letzter Fehler (nur die Art), Alter des Delta-Links, Pfad ohne Token; ohne Fund Rückgabe 0
-    Funde        Termin wartet auf Senden (wie _needs_push()), doppelte Kennung, ganztägig aus dem ERP -- je Rückgabe 1
+    Funde        Termin wartet auf Senden (wie _needs_push()), doppelte Kennung, ganztägig mit Uhrzeit (seit 1.9.157) -- je Rückgabe 1
     Datenschutz  kein Titel, kein Ort, keine Notiz, kein Token in der Ausgabe (Regel 18)
     nur lesen    die eigene Sitzung schreibt nicht; ohne DATABASE_URL Rückgabe 2
 """
@@ -143,11 +143,13 @@ def test_doppelte_outlook_kennung():
     assert _lauf(db)[0] == 1
 
 
-def test_ganztaegige_termine_aus_dem_erp_nicht_aus_outlook():
+def test_ganztaegige_termine_mit_uhrzeit_nicht_auf_mitternacht():
+    """Seit 1.9.157 (Regel 28): gesucht wird die falsche Form, nicht die Herkunft -- ein ganztägiger Termin aus dem ERP auf Mitternacht ist richtig."""
     db = db_session()
     user = _konto(db)
-    erp = _gesendet(db, user, kennung="G1", all_day=True, external_source="erp")
-    _gesendet(db, user, kennung="G2", all_day=True, external_source="outlook")
+    mitternacht = datetime(2026, 11, 10)
+    erp = _gesendet(db, user, kennung="G1", all_day=True, external_source="outlook", start_at=mitternacht + timedelta(hours=1), end_at=mitternacht + timedelta(days=1, hours=1))
+    _gesendet(db, user, kennung="G2", all_day=True, external_source="erp", start_at=mitternacht, end_at=mitternacht)
     _gesendet(db, user, kennung="G3", all_day=False, external_source="erp")
     stand = _skript().pruefen(db, jetzt=JETZT)
     assert [g["id"] for g in stand["ganztaegig"]] == [erp.id]
