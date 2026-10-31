@@ -51,10 +51,10 @@ def _absence_out_for_role(role: AppUser, data: dict):
 
 
 def _konflikte_fuer_rolle(konflikte: list[dict], role: AppUser) -> list[dict]:
-    """Die Art einer Abwesenheit im Text eines Konflikts nur für buero_finanzen/admin (Krankheitssichtbarkeit); label_redacted verlässt den Server nie."""
+    """Die Art einer Abwesenheit (seit 1.9.152 auch eines offenen Antrags) im Text eines Konflikts nur für buero_finanzen/admin (Krankheitssichtbarkeit); label_redacted verlässt den Server nie."""
     for konflikt in konflikte:
-        if konflikt.get("type") == "absence" and not has_min_role(role, ROLE_OFFICE_FINANZEN):
-            konflikt["label"] = konflikt.get("label_redacted", konflikt["label"])
+        if "label_redacted" in konflikt and not has_min_role(role, ROLE_OFFICE_FINANZEN):
+            konflikt["label"] = konflikt["label_redacted"]
         konflikt.pop("label_redacted", None)
     return konflikte
 

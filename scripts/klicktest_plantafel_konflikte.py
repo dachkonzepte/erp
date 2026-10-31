@@ -9,6 +9,7 @@ Stehende Uhr 14.10.2026 10:00. Befüllt: Kolonnen Nord (Tom, Kran) und Süd (Tom
     Bearbeiten  Einsatz B auf West schieben im Dialog -> Warnliste; nur die Notiz ändern -> keine Warnliste
     Ziehen      Einsatz C mit „dropSlot“ auf Nord -> Warnliste, nichts verschoben; „Trotzdem planen“ -> verschoben
     Abgeschlossen  Einsatz eines abgeschlossenen Auftrags auf Ost: ein neuer Einsatz daneben fragt nicht, nichts ist rot, der Balken sagt „Auftrag abgeschlossen“ (seit 1.9.151)
+    Antrag offen  Sol hat einen offenen Antrag: ein Einsatz auf West meldet „Antrag offen“ ohne Rückfrage, der Balken ist nicht rot und nennt ihn; Büro – Auftrag sieht die Art nicht (seit 1.9.152)
     Büro–Auftrag die Warnliste nennt bei einer Abwesenheit nur „abwesend“
 
 AUFRUF (aus dem Projektordner):
@@ -35,6 +36,7 @@ def befuellen(db, k):
     from datetime import date
     from decimal import Decimal
 
+    from app.absence_requests import create_request
     from app.auftragsstatus import status_aendern
     from app.models import AppUser, Customer, Employee, EmployeeAbsence, OperationalResource, PlanningHoliday, Project, Quote, QuoteItem, Team, TeamEmployee, TeamResource
     from app.orders import create_order_from_quote, load_order
@@ -74,13 +76,15 @@ def befuellen(db, k):
 
     nord, sued, west, ost = kolonne("Nord", tom, geraet=kran), kolonne("Süd", tom, geraet=kran), kolonne("West", sol), kolonne("Ost", mia)
     a, b, c, d, e, f, g = auftrag("A"), auftrag("B"), auftrag("C"), auftrag("D"), auftrag("E"), auftrag("F"), auftrag("G")
+    h = auftrag("H")
+    create_request(db, employee_id=sol.id, absence_type="Krankheit", absence_category="krankheit", start_date=date(2026, 11, 10), end_date=date(2026, 11, 10))
     create_slot(db, order_id=f.id, team_id=ost.id, start_date=date(2026, 11, 3), end_date=date(2026, 11, 4))
     status_aendern(db, f.id, "abgeschlossen", "ohne Rechnung")
     db.add(PlanningHoliday(holiday_date=date(2026, 10, 28), name="Betriebsausflug", active=True))
     create_slot(db, order_id=a.id, team_id=nord.id, start_date=date(2026, 10, 19), end_date=date(2026, 10, 21))
     db.add(EmployeeAbsence(employee_id=mia.id, absence_type="Krankheit", absence_category="krankheit", start_date=date(2026, 10, 19), end_date=date(2026, 10, 19)))
     db.commit()
-    return {"b": b.id, "c": c.id, "d": d.id, "e": e.id, "f": f.id, "g": g.id, "nord": nord.id, "sued": sued.id, "west": west.id, "ost": ost.id,
+    return {"b": b.id, "c": c.id, "d": d.id, "e": e.id, "f": f.id, "g": g.id, "h": h.id, "nord": nord.id, "sued": sued.id, "west": west.id, "ost": ost.id,
             "anna": k.cookies(anna), "berta": k.cookies(berta)}
 
 
@@ -165,6 +169,17 @@ async def pruefen(tab, seed, p):
     p.pruefe("Abgeschlossen: kein Warn-Dialog", await tab.js("document.getElementById('konfliktDialog').open"), False)
     p.pruefe("Abgeschlossen: nichts rot", await tab.js("document.querySelectorAll('.slot.conflict').length"), 0)
     await tab.bild("abgeschlossen_zaehlt_nicht")
+
+    # --- Offener Antrag: Hinweis, keine Rückfrage, nicht rot (seit 1.9.152) ---
+    await _neu(tab, seed["h"], seed["west"], "2026-11-09", "2026-11-11")
+    p.pruefe("Antrag offen: gespeichert ohne Rückfrage", await tab.warten("board.slots.length===3&&!document.getElementById('createDialog').open"), True)
+    p.pruefe("Antrag offen: kein Warn-Dialog", await tab.js("document.getElementById('konfliktDialog').open"), False)
+    hinweis = await tab.js("document.getElementById('einsatzHinweis').textContent")
+    p.pruefe("Antrag offen: steht über der Tafel, mit Art", "Antrag offen: Sol Test · Krankheit · 10.11." in hinweis, True)
+    p.pruefe("Antrag offen: Balken nicht rot", await tab.js("document.querySelectorAll('.slot.conflict').length"), 0)
+    p.pruefe("Antrag offen: Balken nennt ihn", "Antrag offen: Sol Test · Krankheit" in await tab.js("document.body.textContent"), True)
+    p.pruefe("Antrag offen: zählt nicht als Konflikt", await tab.js("board.conflict_count"), 0)
+    await tab.bild("antrag_offen_admin")
     p.pruefe("Admin: JS-Fehler", tab.fehler, [])
 
     # --- Büro – Auftrag: Art der Abwesenheit nicht in der Liste ---
@@ -177,6 +192,12 @@ async def pruefen(tab, seed, p):
     text = await tab.js("document.getElementById('konfliktWarnungen').textContent")
     p.pruefe("Büro – Auftrag: nur „abwesend“", "Mia Test · abwesend" in text and "Krankheit" not in text, True)
     await tab.bild("warnliste_buero_auftrag")
+    await tab.js("konfliktDialog.close();createDialog.close();movePeriod(21)")
+    await tab.warten(BEREIT + "&&board.slots.some(s=>s.order_id===" + str(seed["h"]) + ")")
+    p.pruefe("Büro – Auftrag: Antrag offen ohne Art", await tab.js(f"board.slots.find(s=>s.order_id==={seed['h']}).conflicts.map(c=>c.label).join()"), "Sol Test")
+    p.pruefe("Büro – Auftrag: Art nicht auf dem Balken", "Krankheit" in await tab.js("[...document.querySelectorAll('.slot')].map(x=>x.textContent).join(' ')"), False)
+    p.pruefe("Büro – Auftrag: Balken nennt die Person", "Antrag offen: Sol Test" in await tab.js("[...document.querySelectorAll('.slot')].map(x=>x.textContent).join(' ')"), True)
+    await tab.bild("antrag_offen_buero_auftrag")
     p.pruefe("Büro – Auftrag: JS-Fehler", tab.fehler, [])
 
 

@@ -15,7 +15,7 @@ from .auftragsstatus import AuftragGeschlossen, einsatz_gesperrt, geschlossen, n
 from .grunddaten import einzelzeile
 from .berlin_time import berlin_today
 from .models import (
-    Employee, EmployeeAbsence, EmployeePlanningSettings, EmployeeProfile, OperationalResource, Order, OrderItem, PlanningHoliday,
+    Employee, EmployeeAbsence, EmployeeAbsenceRequest, EmployeePlanningSettings, EmployeeProfile, OperationalResource, Order, OrderItem, PlanningHoliday,
     PlanningSettings, PlanningRegionSettings, PlanningSchoolHoliday, PlanningSchoolHolidaySync, PlanningSlot, PlanningSlotCapacity, Project, Property, ServiceReport, Team, TeamEmployee,
     TeamResource, WorkPreparation, WorkPreparationEmployee, WorkPreparationTeamAssignment,
     WorkPreparationTeamEmployee, WorkPreparationTeamResource,
@@ -31,7 +31,8 @@ from .rounding import round_half_up, round_hours
 # Seit 1.9.143 (Stufe 6, R1, Punkt 1): was beim Speichern eines Einsatzes rückfragt (409 mit Liste, bis „trotzdem planen“ mitkommt) und was nur in der
 # Antwort steht. Der Betrieb darf alles planen -- Tobias: „Konflikte warnen, trotzdem planbar“.
 WARNUNG_ARTEN = frozenset({"team", "employee", "resource", "absence"})  # Kolonne, Person, Gerät doppelt; Person abwesend
-HINWEIS_ARTEN = frozenset({"holiday", "capacity"})  # Feiertag, betriebsfreier Tag, Kapazität. Seit 1.9.150 kein Wochenende: es ist nur kein Arbeitstag, ein Einsatz darüber meldet nichts
+HINWEIS_ARTEN = frozenset({"holiday", "capacity", "antrag_offen"})  # Feiertag, betriebsfreier Tag, Kapazität, offener Antrag. Seit 1.9.150 kein Wochenende: es ist nur kein Arbeitstag, ein Einsatz darüber meldet nichts
+FAERBT_NICHT = frozenset({"antrag_offen"})  # seit 1.9.152: steht beim Einsatz, macht ihn aber nicht zum Konflikt -- kein rot, nicht in conflict_count
 WARNUNG_TEXT = "Der Einsatz überschneidet sich – bitte prüfen oder trotzdem planen."
 
 
@@ -287,6 +288,18 @@ def _absence_rows(db: Session, start: date, end: date, employee_ids: set[int] | 
     if employee_ids:
         stmt = stmt.where(EmployeeAbsence.employee_id.in_(employee_ids))
     return db.scalars(stmt).all()
+
+
+def _offene_antraege(db: Session, start: date, end: date, employee_ids: set[int]) -> dict[int, list[EmployeeAbsenceRequest]]:
+    """Seit 1.9.152: offene Anträge je Mitarbeiter im Zeitraum, eine Abfrage. Sie zählen in keiner Kapazität -- dafür gibt es nur die genehmigte Abwesenheit (_absence_rows())."""
+    if not employee_ids:
+        return {}
+    je_person: dict[int, list[EmployeeAbsenceRequest]] = defaultdict(list)
+    for antrag in db.scalars(select(EmployeeAbsenceRequest).where(
+            EmployeeAbsenceRequest.status == "pending", EmployeeAbsenceRequest.start_date <= end, EmployeeAbsenceRequest.end_date >= start,
+            EmployeeAbsenceRequest.employee_id.in_(employee_ids)).order_by(EmployeeAbsenceRequest.start_date, EmployeeAbsenceRequest.id)):
+        je_person[antrag.employee_id].append(antrag)
+    return je_person
 
 
 def _absence_map(rows: list[EmployeeAbsence]) -> dict[tuple[int, date], EmployeeAbsence]:
@@ -969,6 +982,7 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
         visible_employee_ids = planning_visible_employee_ids(db)
     employee_ids = {x.employee_id for s in slots for x in s.team_assignment.employees if x.employee_id in visible_employee_ids}
     absence_rows = _absence_rows(db, start, end, employee_ids); absences = _absence_map(absence_rows)
+    offene_antraege = _offene_antraege(db, start, end, employee_ids)
     arbeitstage = _working_weekdays(settings)
 
     for i, a in enumerate(slots):
@@ -1008,6 +1022,13 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
                     # der beiden Label-Varianten in der Antwort landet, diese Funktion bleibt
                     # rollenblind.
                     result[slot.id].append({"type":"absence", "label":f"{member.employee_name_snapshot} · {absence.absence_type}", "label_redacted":f"{member.employee_name_snapshot} · abwesend", "date":day, "other_slot_id":None, "other_project":None, "other_project_name":None})
+        # Seit 1.9.152 (R1 Nachrunde, Punkt 3): ein offener Antrag ist ein Hinweis -- keine Rückfrage, keine Kapazität. Die Art wie bei der Abwesenheit nur für
+        # Admin und Büro – Finanzen, der Router wählt die Fassung (label_redacted).
+        for member in slot.team_assignment.employees:
+            if member.employee_id not in visible_employee_ids: continue
+            for antrag in offene_antraege.get(member.employee_id, ()):
+                if _ranges_overlap(antrag.start_date, antrag.end_date, slot.start_date, slot.end_date):
+                    result[slot.id].append({"type":"antrag_offen", "label":f"{member.employee_name_snapshot} · {antrag.absence_type}", "label_redacted":member.employee_name_snapshot, "date":max(antrag.start_date, slot.start_date), "other_slot_id":None, "other_project":None, "other_project_name":None})
         if shortfall > 0:
             result[slot.id].append({"type":"capacity", "label":f"Kapazität reicht um {stunden_text(shortfall)} nicht aus", "shortfall_hours":shortfall, "other_slot_id":None, "other_project":None, "other_project_name":None})
     for liste in result.values():
@@ -1216,5 +1237,5 @@ def planning_board(db: Session, start_date: date, end_date: date) -> dict:
         "teams":team_rows,
         "employees":[{"id":x.id,"employee_number":x.employee_number,"name":_employee_name(x),"function":x.profile.function.name if x.profile and x.profile.function else x.job_title} for x in employees],
         "resources":[{"id":x.id,"resource_number":x.resource_number,"name":x.name,"type":x.resource_type,"identifier":x.identifier} for x in resources],
-        "slots":[slot_to_dict(x,conflict_map.get(x.id,[]),db,tafel=tafel) for x in visible],"backlog":rueckstand(db),"conflict_count":sum(1 for x in visible if conflict_map.get(x.id)),
+        "slots":[slot_to_dict(x,conflict_map.get(x.id,[]),db,tafel=tafel) for x in visible],"backlog":rueckstand(db),"conflict_count":sum(1 for x in visible if any(k["type"] not in FAERBT_NICHT for k in conflict_map.get(x.id,[]))),
         "team_capacity":team_capacity,"employee_capacity":employee_capacity,"resource_load":resource_load}

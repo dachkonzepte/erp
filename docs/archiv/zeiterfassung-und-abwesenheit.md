@@ -586,3 +586,17 @@ Befund Stufe 6: D2 (zwei Wege), P1 (genehmigte löschen: PostgreSQL 500, keine M
 Angepasste Erwartungen (Regel 28): `test_v287::test_buero_auftrag_create_response_hides_category_type_and_notes`, Aufbau: Büro – Auftrag trägt für sich ein. `test_v287` (fünf weitere Tests) und `test_v286::test_planning_absences_list_returns_category_and_supports_filter`, Aufbau: die Abwesenheit legt der Admin an, von Büro – Finanzen wäre sie ein offener Antrag. `test_v287::test_partial_update_by_buero_auftrag_leaves_category_and_notes_untouched` und `::test_partial_update_rejects_end_before_start_against_stored_value` entfallen, altes Soll: PUT ändert, neues Soll: 405 (`test_v566::test_put_entfaellt`). Migrationsprobe: `test_v566::test_migration_sqlite`, `::test_migration_und_loeschen_unter_postgresql`. `klicktest_zeiten`, Prüfung „Bea: zurückgezogen“, altes Soll: keine Zeile mehr (Filter „Offen“), neues Soll: die Zeile bleibt als „zurückgezogen“ ohne Knopf (Filter „Alle“). `test_v447`: `planning.html` `absenceEmployee` neu in `KLASSEN` als „neu“.
 
 Nachtrag 1.9.147: `tests/test_v566_abwesenheiten_migration.py` probt die Migration `b2c7f4e19a06` über die ganze Kette mit alembic auf einem Bestand (hoch, runter, wieder hoch), gegen SQLite und PostgreSQL im Wegwerf-Schema.
+
+## Umsetzung 1.9.152: ein offener Antrag ist ein Hinweis (Stufe 6, R1 Nachrunde, Punkt 3)
+
+Entscheidung Tobias, löst die Festlegung 1.9.146 Nr. 5 ab („zählt auf der Tafel nicht: keine Warnung, keine Kapazität, zu sehen unter ‚Zeiten‘“). `app/planning.py::_conflicts()` hängt je Person der Kolonne mit offenem Antrag im Zeitraum des Einsatzes einen Hinweis `antrag_offen` an (`_offene_antraege()`: eine Abfrage). Die Kapazität liest weiter nur `EmployeeAbsence`, also nur Genehmigtes. `_konflikte_fuer_rolle()` wählt die Fassung ohne Art für alles, was `label_redacted` trägt, nicht mehr nach der Art des Konflikts: ein neuer Konflikt mit Art kann das Schwärzen so nicht vergessen.
+
+### Festlegungen 1.9.152 (Bitte bestätigen)
+
+1. „Antrag offen“ färbt den Balken nicht und zählt nicht in `conflict_count` (`FAERBT_NICHT`); Feiertag und Kapazität färben weiter rot, bis die Zeichnung kommt (dort grauer Punkt für alle Hinweise). Sonst stünde die halbe Tafel rot, sobald viele Urlaub beantragen.
+2. Der Hinweis nennt den ersten Tag des Antrags im Einsatz, nicht den ganzen Zeitraum des Antrags.
+3. Der Balken zeigt eine eigene Zeile „Antrag offen: <Person>“, im Vorgriff auf die Zeichnung; ohne sie sähe man den Antrag nur, wenn man den Einsatz öffnet.
+
+### Tests und Prüfung
+
+`tests/test_v570_antrag_offen_hinweis.py`; `klicktest_plantafel_konflikte`: sechs Prüfungen „Antrag offen: …“ als Admin, zwei als Büro – Auftrag, Bilder `antrag_offen_admin`, `antrag_offen_buero_auftrag`. Angepasste Erwartungen: keine.
