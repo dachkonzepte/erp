@@ -3235,7 +3235,8 @@ class PlanningHolidayOut(PlanningHolidayCreate):
 
 class EmployeeAbsenceCreate(BaseModel):
     employee_id: int
-    absence_type: str = Field(default="Urlaub", min_length=1, max_length=80)
+    # Seit 1.9.153 optional: leer = keine genauere Angabe, der Server trägt den Namen der Kategorie ein (bis 1.9.152 Vorgabe „Urlaub“, app/absence_requests.py::_antrag_anlegen())
+    absence_type: str | None = Field(default=None, max_length=80)
     # Feste Kategorie (urlaub/krankheit/fortbildung/unbezahlt) -- "unbekannt" ist beim
     # Neuanlegen/Ändern bewusst NICHT erlaubt, siehe app/absence_requests.py::ABSENCE_CATEGORIES.
     absence_category: str = Field(pattern="^(urlaub|krankheit|fortbildung|unbezahlt)$")
@@ -3279,7 +3280,7 @@ class EmployeeAbsencePlanningOut(BaseModel):
 # --- Version 1.0.2: Abwesenheitsanträge ---
 class EmployeeAbsenceRequestCreate(BaseModel):
     employee_id: int
-    absence_type: str = Field(default="Urlaub", min_length=1, max_length=80)
+    absence_type: str | None = Field(default=None, max_length=80)  # seit 1.9.153 optional, wie EmployeeAbsenceCreate
     absence_category: str = Field(pattern="^(urlaub|krankheit|fortbildung|unbezahlt)$")
     start_date: date
     end_date: date

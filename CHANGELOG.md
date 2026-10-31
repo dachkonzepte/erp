@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.153 – Kategorie und Art passen zusammen (Stufe 6, R1 Nachrunde, Punkt 4, Befund D2)
+
+Bisher ließ sich „Krankheit“ mit der Art „Urlaub“ eintragen: im Dialog der Plantafel stand die Art schon auf „Urlaub“ und wechselte nicht mit, und der Server setzte ohne Art ebenfalls „Urlaub“. Das sah man in „Zeiten“ als „Krankheit (Urlaub)“. Der Befund dazu: gezählt wird nur die Kategorie, und nur an einer Stelle (Krankheitstage in den Produktivstunden); die Art ist reine Anzeige auf der Tafel. **„Monat & Lohn“ und der Lohnexport lesen gar keine Abwesenheit -- auch nicht die Kategorie: sie zählen nur gebuchte Zeiten.** Urlaub und Krankheit stehen also in keiner Lohndatei.
+
+Jetzt ist die Art leer vorbelegt, und angeboten werden nur Arten, die zur Kategorie passen -- auf der Plantafel, unter „Zeiten“ und in „Meine Zeiten“ aus derselben Liste vom Server. Leer heißt: keine genauere Angabe, der Server trägt den Namen der Kategorie ein. Einen Widerspruch lehnt er ab (422). Was schon dasteht, bleibt unverändert; das neue, nur lesende `scripts/pruefe_abwesenheiten.py` zählt je Kategorie × Art und nennt Widersprüche mit ID und Zeitraum, ohne Namen.
+
 ## 1.9.152 – Ein offener Antrag ist ein Hinweis (Stufe 6, R1 Nachrunde, Punkt 3)
 
 Bis hierher sah die Plantafel einen offenen Antrag gar nicht (Festlegung 1.9.146 Nr. 5, von Tobias anders entschieden). Jetzt steht beim Einsatz „Antrag offen: <Person>“: in der Antwort auf das Speichern, im Dialog des Einsatzes und auf dem Balken. Keine Rückfrage, keine Kapazität -- die Stunden bleiben, wie sie sind, bis der Admin entscheidet. Der Balken wird davon nicht rot und zählt nicht in „Planeinsätze mit Konflikten“. Die Art sehen wie bei einer Abwesenheit nur Admin und Büro – Finanzen, Büro – Auftrag sieht nur die Person. Die Tafel braucht dafür eine Abfrage, nicht eine je Einsatz.

@@ -410,6 +410,10 @@ async def pruefen(tab, seed, p):
     await tab.js("document.getElementById('antragKnopf').click()")
     await tab.js(setze("adVon", "2026-12-21") + ";" + setze("adBis", "2026-12-23"))
     await tab.warten("document.getElementById('adArt').options.length>0")
+    p.pruefe("Antrag: Art leer vorbelegt", await tab.js("document.getElementById('adArt').value"), "")
+    await tab.js("{const k=document.getElementById('adKategorie');auswahlWert(k,'krankheit');k.dispatchEvent(new Event('change'))}")
+    p.pruefe("Antrag: zu Krankheit nur passende Arten", await tab.js("[...document.getElementById('adArt').options].map(o=>o.textContent)"), ["— ohne —", "Krankheit", "Sonstiges"])
+    await tab.js("{const k=document.getElementById('adKategorie');auswahlWert(k,'urlaub');k.dispatchEvent(new Event('change'))}")
     await tab.warte_auf_neu_geladene_liste("document.getElementById('adSenden').click()", "#adAntraege")
     p.pruefe("Antrag gesendet", await tab.js(
         "[document.getElementById('adErgebnis').textContent,document.getElementById('abwText').textContent,"

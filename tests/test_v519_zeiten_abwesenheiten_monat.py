@@ -189,7 +189,7 @@ def _abwesenheit(zurueck=None, **anders):
     vorweg = ("var KATEGORIE={urlaub:'Urlaub'};var STATUS={pending:['offen','chip-info']};function berlinZeitpunkt(w,a){return '20.10.2026'};"
               f"var ZURUECK={json.dumps(zurueck)};")
     text = _skript()
-    js = (re.search(r"var WOCHENTAG=.*?;\n", text)[0] + vorweg + "\n"
+    js = (_baustein("_abwesenheit.html") + "\n" + re.search(r"var WOCHENTAG=.*?;\n", text)[0] + vorweg + "\n"
           + "\n".join(_funktion(text, f) for f in ("esc", "pad2", "teile", "tagLang", "beantragtText", "abwesenheitHtml"))
           + f"\nprocess.stdout.write(JSON.stringify(abwesenheitHtml({json.dumps({**ANTRAG, **anders})})));")
     return node_ausfuehren(js)

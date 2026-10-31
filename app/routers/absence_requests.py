@@ -9,7 +9,7 @@ from fastapi import APIRouter
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from ..absence_requests import request_to_dict as absence_request_to_dict, cancel_request as cancel_absence_request_row, create_request as create_absence_request_row, list_requests as list_absence_request_rows, review_request as review_absence_request_row
+from ..absence_requests import arten_fuer_auswahl, request_to_dict as absence_request_to_dict, cancel_request as cancel_absence_request_row, create_request as create_absence_request_row, list_requests as list_absence_request_rows, review_request as review_absence_request_row
 from ..meldungen import KEIN_MITARBEITER
 from ..database import get_db
 from ..deps import require_admin
@@ -50,6 +50,12 @@ def _antrag_out(db: Session, row, user) -> EmployeeAbsenceRequestOut:
 # admin-only, wie schon bisher über ihre eigene require_admin()-Prüfung. Seit 1.9.101 sehen Admin und Büro – Finanzen alle Anträge und
 # stellen sie auch für andere (darf_abwesenheiten_aller()); zurückziehen darf, wer den Antrag gestellt hat (darf_antrag_zurueckziehen()).
 _any_role_dep = Depends(require_min_role(ROLE_FIELD))
+
+
+@router.get("/api/absence-requests/arten")
+def get_absence_types(db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+    """Seit 1.9.153: die aktiven Arten mit den Kategorien, zu denen sie passen (Auswahl „Art“ im Dialog der Plantafel)."""
+    return arten_fuer_auswahl(db, nur_aktive=True)
 
 
 @router.get("/api/absence-requests", response_model=list[EmployeeAbsenceRequestOut])

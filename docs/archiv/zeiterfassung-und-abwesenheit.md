@@ -600,3 +600,31 @@ Entscheidung Tobias, löst die Festlegung 1.9.146 Nr. 5 ab („zählt auf der Ta
 ### Tests und Prüfung
 
 `tests/test_v570_antrag_offen_hinweis.py`; `klicktest_plantafel_konflikte`: sechs Prüfungen „Antrag offen: …“ als Admin, zwei als Büro – Auftrag, Bilder `antrag_offen_admin`, `antrag_offen_buero_auftrag`. Angepasste Erwartungen: keine.
+
+## Befund und Umsetzung 1.9.153: Kategorie und Art (Stufe 6, R1 Nachrunde, Punkt 4, Befund D2)
+
+### Befund
+
+Welches Feld zählen „Monat & Lohn“ und der Lohnexport? **Keines.** `app/zeiten.py::monat()`, `build_datev_export()`, `build_time_csv()`, `build_timesheet_pdf()` und `backoffice_summary()` lesen nur `TimeEntry`; `monat()` zählt dazu nur die offenen Anträge (`antraege_offen`). `EmployeeAbsence` kommt in keiner dieser Funktionen vor, und `TimeEntry.entry_type` kennt weder Urlaub noch Krankheit (site, travel, workshop, other, weather_winter, weather_summer). Urlaub und Krankheit stehen also in keiner Lohndatei; `tests/test_v571_kategorie_und_art.py` belegt das (dieselbe Datei und dieselben Zeilen mit und ohne Abwesenheit).
+
+Wer liest was: die **Kategorie** zählt nur `app/productive_hours.py::sick_days_actual()` (`== "krankheit"`, Ist-Wert Krankheitstage, rein zur Orientierung), dazu der Filter von `GET /api/planning/absences`. Die **Art** ist nur Anzeige: Text der Warnung „Person abwesend“, Zelle der Tafel, Planungsvorschlag. Die Kapazität zählt jede Abwesenheit gleich, ohne auf eines der Felder zu sehen. Ein Widerspruch wirkte also so: „Krankheit“ + „Urlaub“ zählt als Krankheitstag und steht auf der Tafel als Urlaub; „Urlaub“ + „Krankheit“ umgekehrt.
+
+Gehört jede Art zu einer Kategorie? **Nicht jede.** Grundeinstellung: Urlaub -> Urlaub; Krankheit -> Krankheit; Weiterbildung und Berufsschule -> Fortbildung. Freizeitausgleich hat keine passende Kategorie (bezahlte Freistellung, weder Urlaub noch unbezahlt). Sonstiges passt zu allen. Die Kategorie „Unbezahlt“ hat keine eigene Art. Die Liste lässt sich unter Einstellungen frei erweitern, dort angelegte Arten kennt das Programm nicht.
+
+### Umsetzung
+
+`ART_KATEGORIEN`, `art_kategorien()`, `ist_widerspruch()`, `arten_fuer_auswahl()` in `app/absence_requests.py`; `_antrag_anlegen()` -- der eine Weg, Regel „Ein Weg für Abwesenheiten“ -- lehnt ab (422) und trägt ohne Art den Namen der Kategorie ein. `_abwesenheit.html` füllt die Auswahl auf allen drei Seiten aus der Liste vom Server (`GET /api/absence-requests/arten`, `arten` von „Zeiten“, `abwesenheitsarten` von „Meine Zeiten“). Keine Migration, kein Bestand geändert. `scripts/pruefe_abwesenheiten.py` nur lesend.
+
+### Festlegungen 1.9.153 (Bitte bestätigen)
+
+1. Freizeitausgleich gehört zu „Urlaub“ (bezahlte Freistellung). Eine eigene Kategorie wäre eine eigene Entscheidung, zählen tut sie heute nirgends.
+2. „Sonstiges“ und jede selbst angelegte Art passen zu jeder Kategorie: das Programm kennt ihre Bedeutung nicht. Eine selbst angelegte Art einer Kategorie zuordnen ginge nur mit einem neuen Feld an der Auswahlliste.
+3. Die Art bleibt optional: ohne genauere Angabe trägt der Server den Namen der Kategorie ein („Fortbildung“, „Unbezahlt“), kein Pflichtfeld. Nur so lässt sich „Unbezahlt“ ohne „Sonstiges“ eintragen.
+4. Was vor 1.9.153 da war, bleibt: der Admin kann einen älteren offenen Antrag mit Widerspruch genehmigen, auch die daraus entstehende Abwesenheit trägt ihn. `scripts/pruefe_abwesenheiten.py` nennt solche Einträge.
+5. Das Skript nennt als Widerspruch Abwesenheiten und offene Anträge. Genehmigte Anträge tragen dieselben Werte wie ihre Abwesenheit, abgelehnte und zurückgezogene wirken nicht; gezählt werden sie.
+6. „unbekannt“ (Altbestand ohne Kategorie) ist kein Widerspruch, sondern wird nur gezählt.
+7. Im Dialog der Plantafel steht wie unter „Zeiten“ „Krankheit“ oder „Fortbildung (Berufsschule)“ statt „Krankheit · Krankheit“ (`abwArtText()`).
+
+### Tests und Prüfung
+
+Angepasste Erwartungen (Regel 28): `klicktest_abwesenheit_ein_weg` „P2: Art und Notiz sichtbar“, altes Soll „Urlaub · Urlaub“, neues Soll „Urlaub“ (dieselbe Prüfung, die Zeile heißt jetzt anders). `test_v102::test_rejected_absence_request_creates_no_absence`: legte „Freizeitausgleich“ in der Kategorie „Unbezahlt“ an, das ist jetzt ein Widerspruch; neue Daten „Urlaub“, geprüft wird weiter das Ablehnen. Nur der Aufbau: `test_v518::_node` und `test_v519::_abwesenheit` binden `_abwesenheit.html` ein. Neu: `tests/test_v571_kategorie_und_art.py`, `tests/test_v571_pruefe_abwesenheiten.py`.

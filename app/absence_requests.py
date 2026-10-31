@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from .models import AppUser, Employee, EmployeeAbsence, EmployeeAbsenceRequest
+from .option_settings import get_option_group
 
 # Feste Abwesenheitskategorie (Schlechtwetter/Krankheit-Trennung) -- kein Optionsgruppen-Wert,
 # da eine spaetere Ist-Wert-Auswertung (Produktivstunden-Rechner) auf genau diese Werte prueft.
@@ -20,6 +21,37 @@ ABSENCE_CATEGORY_LABELS = {
     "unbezahlt": "Unbezahlt",
     ABSENCE_CATEGORY_UNKNOWN: "Unbekannt (Altbestand)",
 }
+
+# Seit 1.9.153 (Stufe 6, R1 Nachrunde, Punkt 4, Befund D2): welche Art zu welcher Kategorie gehört. Gezählt wird nur die Kategorie (app/productive_hours.py::sick_days_actual()),
+# die Art ist nur Anzeige (Tafel, Vorschlag) -- „Krankheit (Urlaub)“ zählte als Krankheit und stand als Urlaub auf der Tafel. Hier stehen die Arten der Grundeinstellung mit klarer
+# Bedeutung und die Namen der Kategorien (so heißt eine Abwesenheit ohne genauere Art). „Sonstiges“ und jede in den Einstellungen selbst angelegte Art passen zu jeder Kategorie:
+# ihre Bedeutung kennt das Programm nicht. Klein geschrieben (art_kategorien() vergleicht ohne Groß- und Kleinschreibung).
+ART_KATEGORIEN = {
+    "urlaub": ("urlaub",), "freizeitausgleich": ("urlaub",),
+    "krankheit": ("krankheit",),
+    "fortbildung": ("fortbildung",), "weiterbildung": ("fortbildung",), "berufsschule": ("fortbildung",),
+    "unbezahlt": ("unbezahlt",),
+}
+# So kennzeichnet die Migration b2c7f4e19a06 einen Antrag, den es nur gibt, weil die Abwesenheit vor 1.9.146 direkt auf der Tafel entstand (dort heißt er MERKER).
+MIGRATION_VERMERK = "Auf der Plantafel eingetragen (vor 1.9.146)"
+
+
+def art_kategorien(art: str | None) -> tuple[str, ...]:
+    """Die Kategorien, zu denen eine Art passt."""
+    return ART_KATEGORIEN.get((art or "").strip().casefold(), ABSENCE_CATEGORIES)
+
+
+def ist_widerspruch(kategorie: str | None, art: str | None) -> bool:
+    """Kategorie und Art passen nicht zusammen. Altbestand ohne Kategorie („unbekannt“) kann nicht widersprechen."""
+    return kategorie in ABSENCE_CATEGORIES and kategorie not in art_kategorien(art)
+
+
+def arten_fuer_auswahl(db: Session, *, nur_aktive: bool = False) -> list[dict]:
+    """Die Arten der Abwesenheit (Optionsgruppe absence_types) für die Auswahl „Art“, je Art die Kategorien, zu denen sie passt -- die Seiten bieten nur die passenden an
+    (_abwesenheit.html), keine Seite kennt die Zuordnung selbst."""
+    gruppe = get_option_group(db, "absence_types")
+    optionen = sorted(gruppe.options if gruppe is not None else [], key=lambda o: (o.sort_order, o.id))
+    return [{"value": o.value, "label": o.label, "active": o.active, "kategorien": list(art_kategorien(o.value))} for o in optionen if o.active or not nur_aktive]
 
 
 def _employee_name(emp: Employee | None) -> str | None:
@@ -75,15 +107,19 @@ def list_requests(db: Session, *, employee_id: int | None = None, status: str | 
 
 
 def _antrag_anlegen(
-    db: Session, *, employee_id: int, absence_type: str, absence_category: str, start_date, end_date,
+    db: Session, *, employee_id: int, absence_type: str | None = None, absence_category: str, start_date, end_date,
     notes: str | None = None, requested_by_user_id: int | None = None,
 ) -> EmployeeAbsenceRequest:
-    """Prüft und legt an, ohne Commit."""
+    """Prüft und legt an, ohne Commit. Seit 1.9.153: ohne Art trägt sie den Namen der Kategorie (bis 1.9.152 fest „Urlaub“, das ergab „Krankheit (Urlaub)“); eine Art, die der
+    Kategorie widerspricht, lehnt sie ab. Das gilt nur fürs Anlegen: was schon dasteht, bleibt -- auch beim Entscheiden eines älteren Antrags (scripts/pruefe_abwesenheiten.py nennt es)."""
     emp = db.get(Employee, employee_id)
     if emp is None or not emp.active:
         raise ValueError("Mitarbeiter wurde nicht gefunden oder ist inaktiv.")
     if absence_category not in ABSENCE_CATEGORIES:
         raise ValueError(f"Unbekannte Abwesenheitskategorie: {absence_category}")
+    art = (absence_type or "").strip() or ABSENCE_CATEGORY_LABELS[absence_category]
+    if ist_widerspruch(absence_category, art):
+        raise ValueError(f"Die Art „{art}“ passt nicht zur Kategorie „{ABSENCE_CATEGORY_LABELS[absence_category]}“.")
     if end_date < start_date:
         raise ValueError("Enddatum darf nicht vor dem Startdatum liegen.")
     overlap_pending = db.scalar(
@@ -97,7 +133,7 @@ def _antrag_anlegen(
     if overlap_pending:
         raise ValueError("Für diesen Zeitraum existiert bereits ein offener Abwesenheitsantrag.")
     row = EmployeeAbsenceRequest(
-        employee_id=employee_id, absence_type=absence_type.strip() or "Urlaub",
+        employee_id=employee_id, absence_type=art,
         absence_category=absence_category,
         start_date=start_date, end_date=end_date, notes=notes or None,
         status="pending", requested_by_user_id=requested_by_user_id,

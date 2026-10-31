@@ -1,0 +1,16 @@
+{% include "_auswahl.html" %}
+<script>
+/* Abwesenheit auf den drei Seiten, die sie anlegen und zeigen: Plantafel, „Zeiten“, „Meine Zeiten“ (seit 1.9.153, Stufe 6, R1 Nachrunde, Punkt 4).
+   abwArtenFuellen(feld, arten, kategorie, behalten)  die Auswahl „Art“: nur die Arten, die zur Kategorie passen (je Art `kategorien` vom Server,
+                                                      app/absence_requests.py::arten_fuer_auswahl()), vorbelegt leer. Leer heißt „keine genauere Angabe“, der Server trägt
+                                                      dann den Namen der Kategorie ein. behalten: beim Wechsel der Kategorie bleibt die gewählte Art, solange sie passt.
+   abwArtText(kategorie, art)                         „Krankheit“ oder „Fortbildung (Berufsschule)“ -- kategorie ist der Name der Kategorie, die Art nur, wenn sie mehr sagt. */
+function abwArtenFuellen(feld, arten, kategorie, behalten) {
+  const bisher = behalten ? feld.value : '';
+  const passend = (arten || []).filter(a => (a.kategorien || []).includes(kategorie));
+  feld.innerHTML = auswahlOptionen(passend, passend.some(a => a.value === bisher) ? bisher : '', a => a.label, {wert: a => a.value, leer: '— ohne —'});
+}
+function abwArtText(kategorie, art) {
+  return art && art !== kategorie ? kategorie + ' (' + art + ')' : (kategorie || art || '');
+}
+</script>

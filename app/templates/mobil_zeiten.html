@@ -268,6 +268,7 @@
 {% include "_berlin_date.html" %}
 {% include "_fehlertext.html" %}
 {% include "_auswahl.html" %}
+{% include "_abwesenheit.html" %}
 {% include "_zahl.html" %}
 {% include "_speichern.html" %}
 {% include "_menue.html" %}
@@ -684,14 +685,15 @@ function binden(){
   });
   el('antragKnopf').addEventListener('click',function(){
     auswahlWert(el('adKategorie'),'urlaub');
-    el('adArt').innerHTML=auswahlOptionen(D?D.abwesenheitsarten:[],'',function(a){return a.label},{wert:function(a){return a.value}});
+    abwArtenFuellen(el('adArt'),D?D.abwesenheitsarten:[],'urlaub');
     el('adVon').value=berlinToday();el('adBis').value=berlinToday();el('adNotiz').value='';
     el('adStatus').textContent='';el('adErgebnis').textContent='';ZURUECKZIEHEN=null;antraegeZeichnen();
     el('abwDialog').showModal();
   });
+  el('adKategorie').addEventListener('change',function(){abwArtenFuellen(el('adArt'),D?D.abwesenheitsarten:[],el('adKategorie').value,true)});
   el('adSenden').addEventListener('click',function(){
     var knopf=el('adSenden');
-    var body={employee_id:D.mitarbeiter_id,absence_category:el('adKategorie').value,absence_type:el('adArt').value,start_date:el('adVon').value,
+    var body={employee_id:D.mitarbeiter_id,absence_category:el('adKategorie').value,absence_type:el('adArt').value||null,start_date:el('adVon').value,
               end_date:el('adBis').value,notes:el('adNotiz').value.trim()||null};
     el('adStatus').textContent='';el('adErgebnis').textContent='';knopf.disabled=true;
     speichern('antraege',()=>api('/api/absence-requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{neuLaden:antraegeLaden})

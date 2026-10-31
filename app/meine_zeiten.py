@@ -26,9 +26,9 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .absence_requests import arten_fuer_auswahl
 from .heute import taetigkeiten, zeitarten
 from .models import TimeEntryGroup, TimeEntryGroupMember
-from .option_settings import get_option_group
 from .planning import list_field_bookable_orders
 from .rounding import round_hours
 from .time_backoffice import load_time_settings, locked_until
@@ -44,11 +44,8 @@ MONATSNAMEN = {
 
 
 def abwesenheitsarten(db: Session) -> list[dict]:
-    """Die aktiven Arten der Abwesenheit (Optionsgruppe absence_types) für „+ Antrag“ (seit 1.9.59, bis dahin las die Zeiterfassung sie
-    selbst)."""
-    gruppe = get_option_group(db, "absence_types")
-    optionen = sorted((o for o in (gruppe.options if gruppe is not None else []) if o.active), key=lambda o: (o.sort_order, o.id))
-    return [{"value": o.value, "label": o.label} for o in optionen]
+    """Die aktiven Arten der Abwesenheit für „+ Antrag“ (seit 1.9.59, bis dahin las die Zeiterfassung sie selbst; seit 1.9.153 mit den Kategorien, zu denen sie passen)."""
+    return arten_fuer_auswahl(db, nur_aktive=True)
 
 
 def monatsgrenzen(monat: date) -> tuple[date, date]:

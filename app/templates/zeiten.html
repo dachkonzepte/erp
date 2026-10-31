@@ -386,6 +386,7 @@
 {% include "_berlin_date.html" %}
 {% include "_fehlertext.html" %}
 {% include "_auswahl.html" %}
+{% include "_abwesenheit.html" %}
 {% include "_zahl.html" %}
 {% include "_speichern.html" %}
 {% include "_auftrag_text.html" %}
@@ -822,7 +823,7 @@ function abwesenheitHtml(a){
     ?'<span class="rueckfrage">Abwesenheit löschen?</span><button type="button" class="knopf knopf-neutral" data-aktion="abwl-nein" data-id="'+a.id+'">Abbrechen</button>'
       +'<button type="button" class="knopf knopf-gefahr" data-aktion="abwl-ja" data-id="'+a.approved_absence_id+'">Löschen</button>'
     :'<button type="button" class="knopf knopf-neutral" data-aktion="abwl-fragen" data-id="'+a.id+'">Löschen</button>';
-  return '<div class="zeile" data-abwesenheit="'+a.id+'"><div class="zeile-text"><span class="zeile-name">'+esc(a.employee_name+' · '+art+(a.absence_type&&a.absence_type!==art?' ('+a.absence_type+')':''))+'</span>'
+  return '<div class="zeile" data-abwesenheit="'+a.id+'"><div class="zeile-text"><span class="zeile-name">'+esc(a.employee_name+' · '+abwArtText(art,a.absence_type))+'</span>'
     +'<span class="zeile-unter">'+esc(unter)+'</span>'+(a.notes?'<span class="zeile-unter">'+esc(a.notes)+'</span>':'')
     +(a.review_notes?'<span class="zeile-unter">Freigabe: '+esc(a.review_notes)+'</span>':'')+'</div>'
     +'<span class="chip '+esc(st[1])+'">'+esc(st[0])+'</span>'+knoepfe+'</div>';
@@ -852,7 +853,7 @@ function abwDialogOeffnen(){
   el('adMitarbeiterFeld').hidden=!d.fuer_andere;
   el('adMitarbeiter').innerHTML=auswahlOptionen(d.mitarbeiter,d.eigener_mitarbeiter||'',function(m){return (m.employee_number?m.employee_number+' · ':'')+m.name},{leer:'— Mitarbeiter wählen —'});
   auswahlWert(el('adKategorie'),'urlaub');
-  el('adArt').innerHTML=auswahlOptionen(d.arten,'',function(x){return x.label},{wert:function(x){return x.value},leer:'— ohne —'});
+  abwArtenFuellen(el('adArt'),d.arten,'urlaub');
   el('adVon').value=berlinToday();el('adBis').value=berlinToday();el('adNotiz').value='';
   el('adStatus').textContent='';el('adSenden').disabled=false;
   el('abwDialog').showModal();
@@ -861,7 +862,7 @@ function abwSenden(){
   var st=el('adStatus'),knopf=el('adSenden'),wer=A.fuer_andere?el('adMitarbeiter').value:A.eigener_mitarbeiter;
   st.textContent='';
   if(!wer){st.textContent='Bitte Mitarbeiter auswählen.';return}
-  var body={employee_id:wer,absence_category:el('adKategorie').value,absence_type:el('adArt').value||KATEGORIE[el('adKategorie').value],
+  var body={employee_id:wer,absence_category:el('adKategorie').value,absence_type:el('adArt').value||null,
             start_date:el('adVon').value,end_date:el('adBis').value,notes:el('adNotiz').value.trim()||null};
   knopf.disabled=true;
   return speichern('abwesenheiten',()=>api('/api/absence-requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{neuLaden:abwesenheitenUndPruefen})
@@ -1101,6 +1102,7 @@ function binden(){
     else if(a==='abwl-nein'){LOESCHEN=null;abwesenheitenZeichnen(A)}
     else if(a==='abwl-ja')abwesenheitLoeschen(b.dataset.id,b);
   });
+  el('adKategorie').addEventListener('change',function(){abwArtenFuellen(el('adArt'),A.arten,el('adKategorie').value,true)});
   el('adSenden').addEventListener('click',abwSenden);
   el('adAbbrechen').addEventListener('click',function(){el('abwDialog').close()});
   el('adZu').addEventListener('click',function(){el('abwDialog').close()});

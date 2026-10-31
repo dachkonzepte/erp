@@ -45,7 +45,7 @@ def _baustein(name: str) -> str:
 def _node(funktionen: tuple, ablauf: str, vorweg: str = ""):
     text = _skript()
     kopf = re.search(r"var WOCHENTAG=.*?;\n", text)[0] + re.search(r"var PUNKTE='.*?';\n", text)[0]
-    js = (_baustein("_zahl.html") + "\n" + _baustein("_auftrag_text.html") + "\n" + kopf + vorweg + "\n"
+    js = (_baustein("_zahl.html") + "\n" + _baustein("_auftrag_text.html") + "\n" + _baustein("_abwesenheit.html") + "\n" + kopf + vorweg + "\n"
           + "\n".join(_funktion(text, f) for f in ("esc", "pad2", "teile", "tagKurz", "tagLang", "uhr", "stundenUhr", "minutenUhr", "stunden")
                       + funktionen)
           + f"\nconst ergebnis=(()=>{{{ablauf}}})();process.stdout.write(JSON.stringify(ergebnis));")

@@ -59,7 +59,7 @@ def test_absence_request_only_affects_planning_after_approval():
 
 def test_rejected_absence_request_creates_no_absence():
     db=db_session();emps,_,_=employees_and_team(db);emp=emps[0]
-    req=create_request(db,employee_id=emp.id,absence_type="Freizeitausgleich",absence_category="unbezahlt",start_date=date(2026,9,21),end_date=date(2026,9,21))
+    req=create_request(db,employee_id=emp.id,absence_type="Freizeitausgleich",absence_category="urlaub",start_date=date(2026,9,21),end_date=date(2026,9,21))
     result=review_request(db,req.id,decision="rejected",reviewed_by_user_id=None,review_notes="Baustelle")
     assert result.status=="rejected"
     assert db.scalar(select(EmployeeAbsence).where(EmployeeAbsence.employee_id==emp.id)) is None

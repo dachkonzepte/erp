@@ -8,12 +8,11 @@ Regeln wie dort (app/permissions.py), die Seite bietet nur das an."""
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
-from ..absence_requests import list_requests, request_to_dict
+from ..absence_requests import arten_fuer_auswahl, list_requests, request_to_dict
 from ..berlin_time import berlin_today
 from ..database import get_db
 from ..meldungen import KEIN_MITARBEITER
 from ..models import AppUser, Employee
-from ..option_settings import get_option_group
 from ..permissions import (ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, darf_abwesenheit_loeschen, darf_abwesenheiten_aller, darf_antrag_zurueckziehen, darf_lohndaten, darf_zeit_buchen,
                            darf_zeit_fuer_andere_buchen, require_lohndaten, require_min_role)
 from ..time_backoffice import locked_until
@@ -130,7 +129,6 @@ def zeiten_abwesenheiten(status: str | None = Query(None, max_length=20), db: Se
     aller = darf_abwesenheiten_aller(user)
     rows = _sichtbare_antraege(db, user, status or None)
     land = feiertage_bundesland(db)
-    arten = get_option_group(db, "absence_types")
     # offene Anträge, die das Konto sieht (seit 1.9.109 nicht mehr die Zahl am Reiter -- die zählt nur beim Admin, GET /api/zeiten/pruefen)
     offen = len(_sichtbare_antraege(db, user, "pending"))
     return {
@@ -144,8 +142,7 @@ def zeiten_abwesenheiten(status: str | None = Query(None, max_length=20), db: Se
         "mitarbeiter": [{"id": e.id, "name": f"{e.first_name} {e.last_name}".strip(), "employee_number": e.employee_number}
                         for e in db.query(Employee).filter(Employee.active == True).order_by(Employee.last_name, Employee.first_name)]  # noqa: E712
         if aller else [],
-        "arten": [{"value": o.value, "label": o.label, "active": o.active} for o in sorted(arten.options if arten else [],
-                                                                                         key=lambda o: (o.sort_order, o.id))],
+        "arten": arten_fuer_auswahl(db),
         "offen": offen,
     }
 
