@@ -71,6 +71,7 @@ def test_ohne_postfach_und_termin_nichts_gefunden():
     assert rc == 0
     assert "Postfächer: keins hinterlegt." in zeilen
     assert "Warten auf Senden: 0" in zeilen
+    assert "Warten auf Löschen in Outlook: 0" in zeilen and "Termine in einem Postfach ohne Besitzer: 0" in zeilen
 
 
 def test_stand_je_postfach_mit_alter_und_pfad_ohne_token():

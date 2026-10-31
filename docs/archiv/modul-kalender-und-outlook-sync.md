@@ -1130,3 +1130,16 @@ Angepasster Aufbau (Regel 28): `test_v577::test_treffen_sich_zwei_laeufe_…` ü
 ### Tests und Prüfung
 
 Angepasste Erwartung (Regel 28): `test_v473::UTC_FELDER` um `letzter_lauf`, `fehler_am`, `laeuft_seit` erweitert. Klicktest `klicktest_outlook_postfaecher` neu.
+
+## Umsetzung 1.9.163: `scripts/pruefe_outlook.py` (Stufe 6, R2, Punkt 7)
+
+`app/planning.py::termine_der_geraete()` liefert die Überschneidungen ohne Text; die Warnung beim Speichern und das Skript nehmen dieselbe Rechnung.
+
+### Festlegungen 1.9.163 (Bitte bestätigen)
+
+1. Eine laufende Sperre ist kein Fund, eine abgelaufene schon (Rückgabe 1), auch wenn der nächste Lauf sie übernimmt: sie zeigt, dass ein Prozess gestorben ist.
+2. „Gerät doppelt“ zählt Einsätze, die heute oder später enden, auf offenen Aufträgen; ein Fund ist auch, was jemand mit „Trotzdem planen“ bewusst gespeichert hat.
+
+### Tests und Prüfung
+
+Angepasste Erwartungen: keine. `test_v562::test_ohne_postfach_und_termin_nichts_gefunden` prüft zusätzlich die neuen Zeilen.

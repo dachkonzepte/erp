@@ -1039,10 +1039,10 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
     return result, distributions
 
 
-def _termine_der_geraete(db: Session, slot: PlanningSlot, settings: PlanningSettings) -> list[dict]:
-    """Einträge im Kalender eines Geräts, die seine Arbeitstage berühren (seit 1.9.161, Kran-Kalender): „Gerät doppelt“ beim Speichern. Ein Einsatz belegt ganze Tage, deshalb zählt jeder Termin an
-    einem dieser Tage, auch einer von zwei Stunden. Tage, an denen nicht gearbeitet wird, belegen das Gerät nicht (1.9.150); hat der Einsatz gar keinen Arbeitstag, zählen alle seine Tage. Serienvorkommen
-    zählen wie Einzeltermine, der Titel eines privaten steht als „Belegt“ da."""
+def termine_der_geraete(db: Session, slot: PlanningSlot, settings: PlanningSettings) -> list[tuple[str, CalendarEvent | OutlookSeriesOccurrence, date]]:
+    """Einträge im Kalender eines Geräts, die die Arbeitstage eines Einsatzes berühren (seit 1.9.161, Kran-Kalender): je Eintrag Name des Geräts, Zeile und erster betroffener Tag. Ein Einsatz belegt
+    ganze Tage, deshalb zählt jeder Termin an einem dieser Tage, auch einer von zwei Stunden. Tage, an denen nicht gearbeitet wird, belegen das Gerät nicht (1.9.150); hat der Einsatz gar keinen
+    Arbeitstag, zählen alle seine Tage. Serienvorkommen zählen wie Einzeltermine."""
     geraete = {x.resource_id: x.resource_name_snapshot for x in slot.team_assignment.resources}
     if not geraete:
         return []
@@ -1055,9 +1055,14 @@ def _termine_der_geraete(db: Session, slot: PlanningSlot, settings: PlanningSett
         for zeile in db.scalars(select(modell).where(modell.resource_id.in_(geraete), modell.start_at <= bis, modell.end_at >= von).order_by(modell.start_at)):
             tag = next((t for t in tage if zeile.start_at.date() <= t <= zeile.end_at.date()), None)
             if tag is not None:
-                titel = BUSY_PLACEHOLDER_TITLE if zeile.is_private else zeile.title
-                out.append({"type": "resource", "label": f"{geraete[zeile.resource_id]} · Termin: {titel}", "date": tag, "stufe": "warnung", "other_slot_id": None, "other_project": None, "other_project_name": None})
+                out.append((geraete[zeile.resource_id], zeile, tag))
     return out
+
+
+def _termine_der_geraete(db: Session, slot: PlanningSlot, settings: PlanningSettings) -> list[dict]:
+    """Dasselbe als Warnung „Gerät doppelt“ beim Speichern; der Titel eines privaten Termins steht als „Belegt“ da."""
+    return [{"type": "resource", "label": f"{name} · Termin: {BUSY_PLACEHOLDER_TITLE if zeile.is_private else zeile.title}", "date": tag, "stufe": "warnung",
+             "other_slot_id": None, "other_project": None, "other_project_name": None} for name, zeile, tag in termine_der_geraete(db, slot, settings)]
 
 
 def einsatz_konflikte(db: Session, slot: PlanningSlot) -> dict:
