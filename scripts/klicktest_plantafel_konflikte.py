@@ -11,6 +11,7 @@ Stehende Uhr 14.10.2026 10:00. Befüllt: Kolonnen Nord (Tom, Kran) und Süd (Tom
     Abgeschlossen  Einsatz eines abgeschlossenen Auftrags auf Ost: ein neuer Einsatz daneben fragt nicht, nichts ist rot, der Balken sagt „Auftrag abgeschlossen“ (seit 1.9.151)
     Antrag offen  Sol hat einen offenen Antrag: ein Einsatz auf West meldet „Antrag offen“ ohne Rückfrage, der Balken ist nicht rot und nennt ihn; Büro – Auftrag sieht die Art nicht (seit 1.9.152)
     L6          /planning?auftrag=<abgeschlossen> und <storniert>: kein Dialog, der Grund; unbekannt: Meldung; Akte des geschlossenen Auftrags ohne „Einsatz planen“, mit dem Grund, der laufende mit (seit 1.9.155)
+    Balken      „Auftrag abgeschlossen“, „Auftrag pausiert“, „Antrag offen“ stehen sichtbar im Balken, gemessen, nicht nur im Text (seit 1.9.156)
     Büro–Auftrag die Warnliste nennt bei einer Abwesenheit nur „abwesend“
 
 AUFRUF (aus dem Projektordner):
@@ -77,7 +78,9 @@ def befuellen(db, k):
 
     nord, sued, west, ost = kolonne("Nord", tom, geraet=kran), kolonne("Süd", tom, geraet=kran), kolonne("West", sol), kolonne("Ost", mia)
     a, b, c, d, e, f, g = auftrag("A"), auftrag("B"), auftrag("C"), auftrag("D"), auftrag("E"), auftrag("F"), auftrag("G")
-    h, s = auftrag("H"), auftrag("S")
+    h, s, pa = auftrag("H"), auftrag("S"), auftrag("P")
+    create_slot(db, order_id=pa.id, team_id=nord.id, start_date=date(2026, 11, 17), end_date=date(2026, 11, 18))
+    status_aendern(db, pa.id, "pausiert", "Gerüst fehlt")
     status_aendern(db, s.id, "storniert", "Kunde abgesprungen")
     create_request(db, employee_id=sol.id, absence_type="Krankheit", absence_category="krankheit", start_date=date(2026, 11, 10), end_date=date(2026, 11, 10))
     create_slot(db, order_id=f.id, team_id=ost.id, start_date=date(2026, 11, 3), end_date=date(2026, 11, 4))
@@ -91,6 +94,12 @@ def befuellen(db, k):
 
 
 BEREIT = "typeof board!=='undefined'&&board&&board.teams&&board.teams.length>0&&typeof orders!=='undefined'"
+
+
+async def _zeile_im_balken(tab, text):
+    """Die Zeile steht ganz im Balken. Der Balken schneidet ab (overflow:hidden): textContent findet auch, was niemand sieht -- so blieb die vierte Zeile unbemerkt (1.9.156)."""
+    return await tab.js("(()=>{const m=[...document.querySelectorAll('.slot .slot-meta')].find(x=>x.textContent.includes(" + repr(text) + "));if(!m)return 'fehlt';"
+                        "const a=m.getBoundingClientRect(),b=m.closest('.slot').getBoundingClientRect();return a.bottom<=b.bottom&&a.top>=b.top})()")
 
 
 async def _neu(tab, order, team, von, bis):
@@ -166,6 +175,7 @@ async def pruefen(tab, seed, p):
     await tab.js("movePeriod(14)")
     await tab.warten(BEREIT + "&&board.slots.length===1")
     p.pruefe("Abgeschlossen: Balken sagt es", "Auftrag abgeschlossen" in await tab.js("document.querySelector('.slot').textContent"), True)
+    p.pruefe("Abgeschlossen: Zeile im Balken zu sehen", await _zeile_im_balken(tab, "Auftrag abgeschlossen"), True)
     await _neu(tab, seed["g"], seed["ost"], "2026-11-03", "2026-11-04")
     p.pruefe("Abgeschlossen: gespeichert ohne Rückfrage", await tab.warten("board.slots.length===2&&!document.getElementById('createDialog').open"), True)
     p.pruefe("Abgeschlossen: kein Warn-Dialog", await tab.js("document.getElementById('konfliktDialog').open"), False)
@@ -180,8 +190,14 @@ async def pruefen(tab, seed, p):
     p.pruefe("Antrag offen: steht über der Tafel, mit Art", "Antrag offen: Sol Test · Krankheit · 10.11." in hinweis, True)
     p.pruefe("Antrag offen: Balken nicht rot", await tab.js("document.querySelectorAll('.slot.conflict').length"), 0)
     p.pruefe("Antrag offen: Balken nennt ihn", "Antrag offen: Sol Test · Krankheit" in await tab.js("document.body.textContent"), True)
+    p.pruefe("Antrag offen: Zeile im Balken zu sehen", await _zeile_im_balken(tab, "Antrag offen: Sol Test"), True)
     p.pruefe("Antrag offen: zählt nicht als Konflikt", await tab.js("board.conflict_count"), 0)
     await tab.bild("antrag_offen_admin")
+
+    # --- Pausiert: dieselbe Zeile, schon seit 1.9.124 abgeschnitten (seit 1.9.156 zu sehen) ---
+    await tab.js("movePeriod(14)")
+    await tab.warten(BEREIT + "&&board.slots.length===1")
+    p.pruefe("Pausiert: Zeile im Balken zu sehen", await _zeile_im_balken(tab, "Auftrag pausiert · Gerüst fehlt"), True)
 
     # --- L6: kein „Einsatz planen“, das ins Leere führt (seit 1.9.155) ---
     for name, order, projekt, grund in (("abgeschlossen", seed["f"], seed["projekt_f"], "Der Auftrag ist abgeschlossen"), ("storniert", seed["s"], seed["projekt_s"], "Der Auftrag ist storniert")):

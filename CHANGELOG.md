@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.156 – Was der Balken sagt, passt hinein (Stufe 6, R1 Nachrunde, Nachtrag zu den Punkten 2 und 3)
+
+Der Balken auf der Tafel ist 56 px hoch und schneidet ab, es passen drei Zeilen. „Auftrag abgeschlossen“ (1.9.151) und „Antrag offen“ (1.9.152) standen als vierte Zeile: im Dokument da, auf dem Bildschirm nur halb zu sehen. Aufgefallen beim Durchsehen der Bilder für den Bericht, die Prüfung las nur den Text. Betroffen waren auch „Auftrag storniert“ (1.9.143) und „Auftrag pausiert“ (1.9.124) -- beide habe ich früher als sichtbar berichtet, das stimmte so nicht. Jetzt stehen Status und offene Anträge in der dritten Zeile, statt der Adresse, gekürzt mit „…“ und vollständig im Tooltip. Der Klicktest misst, dass die Zeile im Balken liegt.
+
 ## 1.9.155 – Kein „Einsatz planen“, das ins Leere führt (Stufe 6, R1 Nachrunde, Punkt 6, Befund L6)
 
 Am abgeschlossenen oder stornierten Auftrag zeigte die Karte „Einsätze“ der Akte weiter „Einsatz planen“. Der Link führte auf die Plantafel, der Dialog kannte den Auftrag nicht, und Speichern meldete „Auftrag wurde nicht gefunden.“. Jetzt fehlt der Link dort, die Karte nennt den Grund („Der Auftrag ist abgeschlossen – neue Einsätze gibt es dafür nicht mehr.“). Wer die Adresse `/planning?auftrag=<id>` noch aufruft (Lesezeichen, alter Tab), bekommt denselben Grund über der Tafel und keinen Dialog. Speichern ohne gewählten Auftrag meldet das, bevor etwas gesendet wird. Die Hauptaktion im Kopf der Akte nannte es am geschlossenen Auftrag schon vorher nicht.

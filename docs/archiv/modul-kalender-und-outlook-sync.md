@@ -1006,3 +1006,16 @@ Befund Stufe 6, L6. `app/akte.py::ausfuehrung()` liefert `einsatz_gesperrt` (`au
 ## Stand der Festlegungen von Stufe 6, R1 (Tobias, 31.10.2026)
 
 Bestätigt: alle Festlegungen 1.9.143 bis 1.9.149, ausdrücklich 1.9.146 Nr. 1 (eine genehmigte Abwesenheit löscht nur der Admin) und Nr. 6 („Zeiten → Abwesenheiten“ öffnet mit „Alle“). Anders entschieden, in der Nachrunde umgesetzt: 1.9.143 Nr. 3 in ihrem Zusatz (abgeschlossene zählen nicht, 1.9.151), 1.9.146 Nr. 5 (offener Antrag als Hinweis, 1.9.152), 1.9.146 Nr. 7 („Vermerk:“ statt „Freigabe:“, 1.9.154). Die Zeichnung `bildgrundlage/entwurf-stufe6/` ist freigegeben, gebaut wird sie in einer eigenen Runde.
+
+## Umsetzung 1.9.156: was der Balken sagt, passt hinein (Stufe 6, R1 Nachrunde, Nachtrag)
+
+`.slot` ist 56 px hoch mit `overflow:hidden`, es passen drei Zeilen. Status des Auftrags und offene Anträge standen als vierte. `slotHinweis()` fasst sie in einer Zeile zusammen, die an die Stelle der Adresse tritt; `title` trägt sie vollständig. Klicktests dürfen bei abschneidenden Flächen nicht nur `textContent` lesen: `klicktest_plantafel_konflikte::_zeile_im_balken()` vergleicht die Lage der Zeile mit der des Balkens.
+
+### Festlegungen 1.9.156 (Bitte bestätigen)
+
+1. Hat ein Balken einen Status oder einen offenen Antrag, steht das statt der Adresse in der dritten Zeile; die Adresse steht weiter im Dialog des Einsatzes. Ein höherer Balken hätte die ganze Tafel verschoben, das Maß kommt mit der Zeichnung.
+2. Alles in einer Zeile, getrennt mit „ · “, gekürzt mit „…“, vollständig im Tooltip.
+
+### Tests und Prüfung
+
+`tests/test_v574_balken_lesbar.py`; `klicktest_plantafel_konflikte`: drei Prüfungen „… Zeile im Balken zu sehen“. Angepasste Erwartungen: keine.
