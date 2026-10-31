@@ -1114,3 +1114,19 @@ Entscheidung Tobias: Postfächer sind Tobias und neu ein eigenes Kran-Postfach, 
 ### Tests und Prüfung
 
 Angepasster Aufbau (Regel 28): `test_v577::test_treffen_sich_zwei_laeufe_…` übergibt das Postfach statt des Kontos, die Erwartung bleibt.
+
+## Umsetzung 1.9.162: Stand je Postfach in den Einstellungen (Stufe 6, R2, Punkt 6)
+
+`postfach_uebersicht()` liest nur und fragt Microsoft nicht, sonst dauerte das Öffnen der Einstellungen je Postfach einen Netzaufruf. Einen Knopf „Verbindung testen“ oder „Neu einlesen“ gibt es weiter nicht (Befund L9), verlangt war der Stand.
+
+### Festlegungen 1.9.162 (Bitte bestätigen)
+
+1. Auch inaktive Konten und Geräte mit Postfach stehen in der Liste, gekennzeichnet; sie gleichen nicht ab.
+2. „Wartet auf Senden“ zählt auch Termine, die nach einem Postfachwechsel noch im alten liegen, „wartet auf Löschen“ steht nur da, wenn etwas offen ist.
+3. Das Postfach eines Kontos ändert man weiter auf der Benutzerseite, die Zeile verlinkt dorthin; das eines Geräts in diesem Abschnitt, weil es nur der Admin ändert und die Stammdaten der Geräte ab Büro – Auftrag offen sind.
+4. Die Auswahl „Gerät“ bietet nur aktive Geräte ohne Postfach an: ein Wechsel geht über Entfernen und neu zuordnen. Entfernen fragt mit `confirm()` nach (Regel 4).
+5. Ein Fehler von vor 1.9.162 hat keinen Status und steht als „Microsoft hat nicht geantwortet“, bis der nächste Lauf ihn ersetzt oder löscht.
+
+### Tests und Prüfung
+
+Angepasste Erwartung (Regel 28): `test_v473::UTC_FELDER` um `letzter_lauf`, `fehler_am`, `laeuft_seit` erweitert. Klicktest `klicktest_outlook_postfaecher` neu.

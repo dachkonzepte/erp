@@ -323,7 +323,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import delete as sa_delete, or_, select, update as sa_update
+from sqlalchemy import and_, delete as sa_delete, func, or_, select, update as sa_update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -543,11 +543,13 @@ def postfach_des_geraets(geraet: OperationalResource) -> Postfach | None:
     return Postfach(adresse, geraet=geraet) if adresse else None
 
 
-def alle_postfaecher(db: Session) -> list[Postfach]:
-    """Was der Cron abgleicht: aktive Konten und aktive Geräte mit einem Postfach."""
-    konten = db.scalars(select(AppUser).where(AppUser.active.is_(True), AppUser.outlook_mailbox.is_not(None)).order_by(AppUser.id)).all()
-    geraete = db.scalars(select(OperationalResource).where(OperationalResource.active.is_(True), OperationalResource.outlook_mailbox.is_not(None)).order_by(OperationalResource.id)).all()
-    return [p for p in [*map(postfach_des_kontos, konten), *map(postfach_des_geraets, geraete)] if p is not None]
+def alle_postfaecher(db: Session, *, nur_aktive: bool = True) -> list[Postfach]:
+    """Was der Cron abgleicht: aktive Konten und aktive Geräte mit einem Postfach. Die Übersicht in den Einstellungen nennt auch die inaktiven."""
+    konten = select(AppUser).where(AppUser.outlook_mailbox.is_not(None)).order_by(AppUser.id)
+    geraete = select(OperationalResource).where(OperationalResource.outlook_mailbox.is_not(None)).order_by(OperationalResource.id)
+    if nur_aktive:
+        konten, geraete = konten.where(AppUser.active.is_(True)), geraete.where(OperationalResource.active.is_(True))
+    return [p for p in [*map(postfach_des_kontos, db.scalars(konten).all()), *map(postfach_des_geraets, db.scalars(geraete).all())] if p is not None]
 
 
 def ziel_postfach(event: CalendarEvent) -> str | None:
@@ -794,6 +796,47 @@ def _write_sync_bookkeeping(db: Session, row: CalendarEvent, *, outlook_synced_a
     ))
     db.commit()
     db.refresh(row)
+
+
+def fehler_text(art: str | None, status: int | None) -> str | None:
+    """Was der letzte Fehler eines Postfachs bedeutet und was zu tun ist (seit 1.9.162). Nur aus Art und Status: den Text von Microsoft zeigt nichts an, er kann Inhalte tragen (Regel 18). 403 heißt
+    bei uns „nicht in der Gruppe“, nicht „Zugangsdaten falsch“ (Regel 17). Anmelden scheitert in app/email_sending.py::get_graph_access_token() mit ValueError."""
+    if not art:
+        return None
+    if status == 403:
+        return "Postfach nicht freigegeben: in Microsoft 365 in die Gruppe ERP-Zugriff aufnehmen. Eine Änderung dort wirkt nach bis zu zwei Stunden."
+    if status == 401 or art == "ValueError":
+        return "Microsoft lehnt die Anmeldung ab: Zugangsdaten unter „E-Mail und Microsoft 365“ prüfen."
+    if status == 404:
+        return "Microsoft kennt dieses Postfach nicht: Adresse prüfen."
+    if art == "OutlookSyncError":
+        return f"Microsoft hat nicht geantwortet{f' (Status {status})' if status else ''}. Der nächste Lauf versucht es wieder."
+    return f"Der Abgleich ist gescheitert ({art}). Der nächste Lauf versucht es wieder."
+
+
+def postfach_uebersicht(db: Session) -> list[dict]:
+    """Der Stand je Postfach für die Einstellungen (seit 1.9.162, nur Admin). Liest nur, fragt Microsoft nicht. „wartet“ zählt, was der nächste Lauf sendet, dieselbe Bedingung wie _needs_push(), dazu
+    Termine, die nach einem Wechsel noch im alten Postfach liegen. Eine je Postfach: es sind wenige."""
+    jetzt = datetime.utcnow()
+    staende = {s.postfach: s for s in db.scalars(select(OutlookCalendarSyncState))}
+    zeilen = []
+    for postfach in alle_postfaecher(db, nur_aktive=False):
+        stand = staende.get(postfach.adresse)
+        wartet = db.scalar(select(func.count()).select_from(CalendarEvent).where(postfach.gehoert(CalendarEvent), or_(
+            CalendarEvent.outlook_event_id.is_(None), CalendarEvent.outlook_synced_at.is_(None), CalendarEvent.updated_at > CalendarEvent.outlook_synced_at,
+            and_(CalendarEvent.outlook_postfach.is_not(None), CalendarEvent.outlook_postfach != postfach.adresse))))
+        loeschen = db.scalar(select(func.count()).select_from(OutlookDeleteOrder).where(OutlookDeleteOrder.postfach == postfach.adresse))
+        besitzer = postfach.konto or postfach.geraet
+        zeilen.append({
+            "adresse": postfach.adresse, "art": "konto" if postfach.konto else "geraet", "besitzer_id": besitzer.id,
+            "name": resolve_account_display(db, postfach.konto)["full_name"] if postfach.konto else postfach.geraet.name, "aktiv": bool(besitzer.active),
+            "letzter_lauf": stand.last_synced_at if stand else None,
+            "letzter_fehler": fehler_text(stand.last_error_type, stand.last_error_status) if stand else None,
+            "fehler_am": stand.last_error_at if stand else None,
+            "laeuft_seit": stand.lauf_seit if stand and stand.lauf_seit and stand.lauf_seit >= jetzt - SPERRE_GILT else None,
+            "wartet": wartet, "loeschen_offen": loeschen,
+        })
+    return zeilen
 
 
 def _termin_senden(token: str, adresse: str, event: CalendarEvent) -> tuple[dict | None, dict, bool]:
@@ -1537,6 +1580,7 @@ def _postfach_abgleichen(db: Session, postfach: Postfach, sperre: _Sperre, count
         state.last_synced_at = datetime.utcnow()
         state.last_error_type = None
         state.last_error_at = None
+        state.last_error_status = None
         db.commit()
 
         # Eigener Fehlerbereich: ein fehlschlagender Serien-Abgleich darf den bereits
@@ -1559,6 +1603,7 @@ def _postfach_abgleichen(db: Session, postfach: Postfach, sperre: _Sperre, count
         state = get_or_create_sync_state(db, adresse)
         state.last_error_type = type(exc).__name__
         state.last_error_at = datetime.utcnow()
+        state.last_error_status = getattr(exc, "status", None)
         db.commit()
         logger.warning("Outlook-Kalendersynchronisation fehlgeschlagen (%s, Fehlerart=%s).", postfach.im_protokoll, type(exc).__name__)
         return {"error": True, "error_type": type(exc).__name__, **counters}

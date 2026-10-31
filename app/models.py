@@ -5083,6 +5083,7 @@ class OutlookCalendarSyncState(Base):
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_error_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
     last_error_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_error_status: Mapped[int | None] = mapped_column(nullable=True)  # seit 1.9.162: HTTP-Status der Antwort von Microsoft, sagt der Anzeige, was zu tun ist (kein Inhalt)
     lauf_kennung: Mapped[str | None] = mapped_column(String(36), nullable=True)
     lauf_seit: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 

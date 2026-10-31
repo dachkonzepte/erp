@@ -7,13 +7,14 @@ dieser Router trägt nur den Ein-/Ausschalter plus eine reine Anzeige, ob diese 
 überhaupt vollständig hinterlegt sind."""
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..deps import require_admin
 from ..email_sending import load_smtp_settings
 from ..models import OperationalResource
-from ..outlook_calendar_sync import PostfachVergeben, load_outlook_sync_settings, postfach_gewechselt, postfach_pruefen, update_outlook_sync_settings
+from ..outlook_calendar_sync import PostfachVergeben, load_outlook_sync_settings, postfach_gewechselt, postfach_pruefen, postfach_uebersicht, update_outlook_sync_settings
 from ..schemas import GeraetPostfachUpdate, OutlookSyncSettingsOut, OutlookSyncSettingsUpdate
 
 router = APIRouter()
@@ -37,6 +38,18 @@ def get_outlook_sync_settings_endpoint(db: Session = Depends(get_db, scope="func
 def put_outlook_sync_settings(payload: OutlookSyncSettingsUpdate, db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     update_outlook_sync_settings(db, enabled=payload.enabled)
     return _to_out(db)
+
+
+@router.get("/api/outlook-sync-settings/postfaecher")
+def get_postfaecher(db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+    """Seit 1.9.162: je Postfach letzter Lauf, letzter Fehler, wartet auf Senden."""
+    return postfach_uebersicht(db)
+
+
+@router.get("/api/outlook-sync-settings/geraete")
+def get_geraete(db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+    """Seit 1.9.162: was ein Postfach bekommen kann -- aktive Geräte ohne Postfach; eines mit Postfach steht schon in der Übersicht."""
+    return [{"id": g.id, "name": g.name} for g in db.scalars(select(OperationalResource).where(OperationalResource.active.is_(True), OperationalResource.outlook_mailbox.is_(None)).order_by(OperationalResource.name))]
 
 
 @router.put("/api/outlook-sync-settings/geraete/{resource_id}")
