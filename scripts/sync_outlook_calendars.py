@@ -81,10 +81,10 @@ def main() -> int:
             logger.info(
                 "Postfach app_user_id=%s: %s neu, %s geändert, %s gelöscht, %s Serien-Master übersprungen, "
                 "%s nach Outlook neu angelegt, %s nach Outlook aktualisiert; Serienvorkommen: %s neu, "
-                "%s geändert, %s entfernt, Abgleich fehlgeschlagen=%s.",
+                "%s geändert, %s entfernt, Abgleich fehlgeschlagen=%s, neu eingelesen=%s.",
                 user.id, result["created"], result["updated"], result["deleted"],
                 result["skipped_recurring"], result["pushed_created"], result["pushed_updated"],
-                result["series_created"], result["series_updated"], result["series_deleted"], result["series_failed"],
+                result["series_created"], result["series_updated"], result["series_deleted"], result["series_failed"], result["delta_reset"],
             )
         return 0
     finally:

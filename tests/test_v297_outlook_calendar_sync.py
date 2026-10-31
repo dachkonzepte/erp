@@ -228,7 +228,8 @@ class FakeGraphServer:
     echten datetime.utcnow() aus create_event()) lägen und die "wer ist neuer"-Prüfung aus einem
     trivialen Grund (Uhr in der Vergangenheit) unrealistisch entschärft würde."""
 
-    def __init__(self):
+    def __init__(self, kennung: str = "graph"):
+        self.kennung = kennung  # seit 1.9.158: Präfix der Termin-IDs, bei Microsoft sind sie je Postfach verschieden
         self.events: dict[str, dict] = {}
         self._next_id = 1
         self._seq = 0
@@ -246,7 +247,7 @@ class FakeGraphServer:
         return self._clock.isoformat() + "Z", f"ckey-{self._seq}", f'W/"etag-{self._seq}"'
 
     def create(self, payload: dict) -> dict:
-        new_id = f"graph-{self._next_id}"
+        new_id = f"{self.kennung}-{self._next_id}"
         self._next_id += 1
         last_modified, change_key, etag = self._advance()
         self.events[new_id] = {

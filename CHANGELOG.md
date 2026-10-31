@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.158 – Abgelaufener Delta-Link: der Abgleich setzt sich selbst zurück (Stufe 6, R2 Outlook, Punkt 2)
+
+Microsoft lässt Delta-Links bei Outlook ohne feste Frist ablaufen (410 oder ein 40X mit `syncStateNotFound`). Bis 1.9.157 endete ab da jeder Lauf mit demselben Fehler: nichts kam mehr aus Outlook, und auch das Senden in der Schleife dahinter lief nicht mehr; der Ausweg ging nur von Hand in der Datenbank. `_delta_holen()` liest den Kalender jetzt im selben Lauf von vorn ein (`delta_reset` im Ergebnis, ein Satz im Protokoll). Doppelte entstehen nicht, jede Zeile findet ihren Termin über die Kennung wieder, ein Projektbezug bleibt.
+
+Was in der Lücke in Outlook gelöscht wurde, meldet Microsoft nie mehr („Resources that were deleted before the initial delta query aren't returned“): nach jedem Abruf des ganzen Kalenders fragt `_weggefallene_entfernen()` die fehlenden Termine einzeln nach und löscht nur bei 404. Tests: `tests/test_v576_delta_abgelaufen.py`; neue Attrappe `tests/outlook_attrappe.py` mit mehreren Postfächern, Löschen, Ablauf und Sperre.
+
 ## 1.9.157 – Ganztägige Termine: ein Tag bleibt ein Tag (Stufe 6, R2 Outlook, Punkt 1)
 
 Nach Outlook gingen ganztägige Termine in UTC: Beginn und Ende auf 23:00 des Vortags. Microsoft verlangt für „isAllDay“ Mitternacht in derselben Zeitzone, und das Ende ist der Tag nach dem letzten. `_zeiten_an_graph()` schickt das jetzt in Europe/Berlin. Aus Outlook kam ein ganztägiger Termin als 10.11. 01:00 bis 11.11. 01:00 an und stand im Kalender an zwei Tagen: `_zeiten_aus_graph()` nimmt den Kalendertag (Datumsteil, Mitternacht „UTC“ ist kein Zeitpunkt), `end_at` ist der letzte Tag, wie im Dialog; das gilt auch für Serien und mehrtägige Termine und über die Zeitumstellung.

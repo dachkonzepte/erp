@@ -1035,3 +1035,18 @@ Im ERP steht ein ganztägiger Termin auf Mitternacht, `end_at` ist der letzte Ta
 ### Tests und Prüfung
 
 Angepasste Erwartungen (Regel 28): `test_v562::test_ganztaegige_termine_aus_dem_erp_nicht_aus_outlook` hieß so und erwartete jeden ganztägigen Termin aus dem ERP als Fund; neu `test_ganztaegige_termine_mit_uhrzeit_nicht_auf_mitternacht`, Fund ist die Uhrzeit, unabhängig von der Herkunft. `FakeGraphServer` (test_v297): `_fields_from_payload()` lehnt einen ganztägigen Termin ohne Mitternacht mit 400 ab und liefert ihn als Mitternacht „UTC“ zurück.
+
+## Umsetzung 1.9.158: abgelaufener Delta-Link (Stufe 6, R2, Punkt 2)
+
+Quelle: Microsoft, „Use delta query“: „Synchronization reset“ (410 Gone mit Location-Kopfzeile), „Token duration“ (bei Outlook „the upper limit isn't fixed“, „a 40X-series error with error codes such as syncStateNotFound“). Am echten Mandanten nicht ausgelöst. Die Location-Kopfzeile wird nicht gebraucht: der Abruf beginnt mit derselben Adresse wie beim ersten Mal.
+
+`_delta_abgelaufen()`: 410 immer; sonst nur 40X mit einem der Codes in `_DELTA_ABGELAUFEN_CODES`, auch verschachtelt (`innerError`). 403, 401, 429, 500 und 404 ohne den Code setzen nichts zurück.
+
+### Festlegungen 1.9.158 (Bitte bestätigen)
+
+1. Nach jedem Abruf des ganzen Kalenders (Rückstellung oder kein Link) fragt der Lauf jeden lokalen Termin einzeln nach, der im Abruf fehlt; gelöscht wird nur bei 404. Eine andere Antwort lässt ihn stehen, ohne Fehler am Postfach.
+2. Die Rückstellung steht nur im Protokoll und in der Antwort (`delta_reset`), nicht als letzter Fehler: der Lauf ist gelungen.
+
+### Tests und Prüfung
+
+Angepasste Erwartungen: keine. `FakeGraphServer` nimmt einen Präfix für die Termin-IDs (Vorgabe wie bisher „graph“).

@@ -2450,6 +2450,7 @@ class OutlookSyncResultOut(BaseModel):
     series_updated: int = 0
     series_deleted: int = 0
     series_failed: int = 0
+    delta_reset: int = 0  # seit 1.9.158: der Delta-Link war abgelaufen, der Kalender wurde neu eingelesen
 
 
 class ReminderEmailSend(BaseModel):

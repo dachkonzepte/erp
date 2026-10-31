@@ -390,7 +390,38 @@ def _outgoing_sensitivity(is_private: bool) -> str:
 
 class OutlookSyncError(Exception):
     """Wird von den low-level Graph-Aufrufen unten geworfen -- str(exc) kann Teile der Anfrage
-    enthalten (siehe Punkt 6) und darf deshalb NIE geloggt werden, nur type(exc).__name__."""
+    enthalten (siehe Punkt 6) und darf deshalb NIE geloggt werden, nur type(exc).__name__.
+    status und codes (seit 1.9.158) sagen dem Aufrufer, was geschehen ist: HTTP-Status und Graphs Fehlercodes, klein geschrieben, ohne Inhalt."""
+
+    def __init__(self, nachricht: str, *, status: int | None = None, codes: frozenset[str] = frozenset()):
+        super().__init__(nachricht)
+        self.status = status
+        self.codes = codes
+
+
+# Seit 1.9.158: laut Microsoft („Token duration“, „Synchronization reset“) laufen Delta-Links bei Outlook ohne feste Frist ab, sobald der Zwischenspeicher voll ist: 410 oder „a 40X-series error with
+# error codes such as syncStateNotFound“. Dann gehört alles von vorn eingelesen.
+_DELTA_ABGELAUFEN_CODES = frozenset({"syncstatenotfound", "syncstateinvalid", "resyncrequired", "errorinvalidsyncstatedata"})
+
+
+def _delta_abgelaufen(exc: OutlookSyncError) -> bool:
+    if exc.status == 410:
+        return True
+    return exc.status is not None and 400 <= exc.status < 500 and bool(exc.codes & _DELTA_ABGELAUFEN_CODES)
+
+
+def _fehlercodes(antwort: str) -> frozenset[str]:
+    """Alle Fehlercodes einer Graph-Antwort, auch die verschachtelten („innerError“): Microsoft nennt den genauesten oft dort."""
+    try:
+        fehler = json.loads(antwort).get("error")
+    except (ValueError, AttributeError):
+        return frozenset()
+    codes = set()
+    while isinstance(fehler, dict):
+        if isinstance(fehler.get("code"), str):
+            codes.add(fehler["code"].lower())
+        fehler = fehler.get("innerError") or fehler.get("innererror")
+    return frozenset(codes)
 
 
 # ---------------------------------------------------------------------------
@@ -507,7 +538,7 @@ def _graph_call(token: str, url: str, *, method: str = "GET", payload: dict | No
     except urllib.error.HTTPError as e:
         detail = e.read().decode("utf-8", errors="replace")
         hint = " Häufigste Ursache: das Postfach ist der Anwendung nicht über eine Exchange-RBAC-Zugriffsrichtlinie freigegeben -- das Postfach in die Gruppe ERP-Zugriff aufnehmen." if e.code == 403 else ""
-        raise OutlookSyncError(f"Microsoft-Graph-Aufruf fehlgeschlagen ({e.code}): {detail}{hint}") from e
+        raise OutlookSyncError(f"Microsoft-Graph-Aufruf fehlgeschlagen ({e.code}): {detail}{hint}", status=e.code, codes=_fehlercodes(detail)) from e
     except (urllib.error.URLError, TimeoutError, OSError) as e:
         raise OutlookSyncError(f"Verbindung zu Microsoft Graph fehlgeschlagen: {e}") from e
 
@@ -749,6 +780,46 @@ def _fetch_delta_pages(token: str, start_url: str) -> tuple[list[dict], str]:
             # deltaLink) -- Verteidigung in der Tiefe statt einer Endlosschleife.
             raise OutlookSyncError("Graph-Delta-Antwort ohne @odata.nextLink/@odata.deltaLink.")
         url = next_link
+
+
+def _delta_holen(db: Session, state: OutlookCalendarSyncState, token: str, basis_url: str, counters: dict) -> tuple[list[dict], str, bool]:
+    """Der Abruf eines Laufs -- gibt Zeilen, neuen Link und „das war der ganze Kalender“ zurück. Seit 1.9.158 setzt er sich selbst zurück, wenn der gespeicherte Link abgelaufen ist; bis dahin endete
+    jeder weitere Lauf mit demselben Fehler und nichts kam mehr aus Outlook. Läuft auch der neue Abruf ab, bleibt es ein Fehler dieses Laufs, der Link ist schon weg."""
+    voll = state.delta_link is None
+    try:
+        items, link = _fetch_delta_pages(token, state.delta_link or basis_url)
+        return items, link, voll
+    except OutlookSyncError as exc:
+        if not _delta_abgelaufen(exc):
+            raise
+    state.delta_link = None
+    db.commit()
+    counters["delta_reset"] = 1
+    logger.warning("Delta-Link abgelaufen, der Kalender wird neu eingelesen (app_user_id=%s).", state.app_user_id)
+    if diagnostics_enabled():
+        diag_logger.info("delta app_user_id=%s entscheidung=Link abgelaufen -> neu einlesen", state.app_user_id)
+    items, link = _fetch_delta_pages(token, basis_url)
+    return items, link, True
+
+
+def _weggefallene_entfernen(db: Session, user: AppUser, token: str, items: list[dict], counters: dict) -> None:
+    """Nach einem Abruf des ganzen Kalenders (seit 1.9.158): was dort fehlt, kann in der Zwischenzeit gelöscht worden sein -- „Resources that were deleted before the initial delta query aren't
+    returned“, ein @removed kommt dafür nie. Gelöscht wird nur, was Graph einzeln mit 404 beantwortet: der Abruf selbst beweist nichts, events/delta ist für v1.0 nicht dokumentiert."""
+    gesehen = {item.get("id") for item in items}
+    zeilen = db.scalars(select(CalendarEvent).where(CalendarEvent.owner_user_id == user.id, CalendarEvent.outlook_event_id.is_not(None))).all()
+    for zeile in zeilen:
+        if zeile.outlook_event_id in gesehen:
+            continue
+        kennung = zeile.id
+        try:
+            _graph_call(token, f"{_mailbox_events_url(user.outlook_mailbox)}/{zeile.outlook_event_id}", method="GET")
+        except OutlookSyncError as exc:
+            if exc.status == 404:
+                db.delete(zeile)
+                db.commit()
+                counters["deleted"] += 1
+            else:
+                logger.warning("Prüfen eines fehlenden Termins fehlgeschlagen (event_id=%s, Fehlerart=%s).", kennung, type(exc).__name__)
 
 
 def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) -> int | None:
@@ -1072,7 +1143,7 @@ def sync_user_calendar(db: Session, user: AppUser, *, now_utc: datetime | None =
     entscheidet, wie er das protokolliert/anzeigt. now_utc nur für Tests (wanderndes Fenster)."""
     counters = {"created": 0, "updated": 0, "deleted": 0, "skipped_recurring": 0, "skipped_invalid": 0,
                 "pushed_created": 0, "pushed_updated": 0, "push_failed": 0,
-                "series_created": 0, "series_updated": 0, "series_deleted": 0, "series_failed": 0}
+                "series_created": 0, "series_updated": 0, "series_deleted": 0, "series_failed": 0, "delta_reset": 0}
     if not is_outlook_sync_available(db, user):
         return {"skipped": True, **counters}
 
@@ -1083,14 +1154,14 @@ def sync_user_calendar(db: Session, user: AppUser, *, now_utc: datetime | None =
 
     try:
         token = get_graph_access_token(smtp)
-        start_url = state.delta_link or (
-            f"{_mailbox_events_url(user.outlook_mailbox)}/delta?$select={_EVENT_SELECT}"
-        )
-        items, new_delta_link = _fetch_delta_pages(token, start_url)
+        basis_url = f"{_mailbox_events_url(user.outlook_mailbox)}/delta?$select={_EVENT_SELECT}"
+        items, new_delta_link, ganzer_kalender = _delta_holen(db, state, token, basis_url, counters)
         for item in items:
             changed_id = _apply_delta_change(db, user, item, counters)
             if changed_id is not None:
                 just_synced_ids.add(changed_id)
+        if ganzer_kalender:
+            _weggefallene_entfernen(db, user, token, items, counters)
 
         # Nachtrag (seit 1.7.2): Push-Fälligkeit über _needs_push() (pro Termin,
         # CalendarEvent.outlook_synced_at) statt eines einzelnen, postfachweiten Zeitstempels --

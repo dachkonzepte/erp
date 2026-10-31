@@ -8,7 +8,6 @@
 
 import json
 import os
-import re
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -110,12 +109,6 @@ def test_was_aus_outlook_kommt(start, ende, beginn_erwartet, ende_erwartet):
 def test_termin_mit_uhrzeit_wird_weiter_umgerechnet():
     item = {"isAllDay": False, "start": {"dateTime": "2026-11-10T08:00:00.0000000", "timeZone": "UTC"}, "end": {"dateTime": "2026-11-10T09:00:00.0000000", "timeZone": "UTC"}}
     assert _zeiten_aus_graph(item) == (TAG + timedelta(hours=9), TAG + timedelta(hours=10))
-
-
-def _antwort(item):
-    server = FakeGraphServer()
-    laufend = make_realistic_urlopen(server)
-    return server, laufend, item
 
 
 def test_ganztaegig_aus_outlook_kommt_als_ein_tag_an():
