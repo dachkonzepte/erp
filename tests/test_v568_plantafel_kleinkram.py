@@ -129,7 +129,7 @@ def _kalender(db):
     db.flush()
     for wann, titel in ((WINTER, "Winter spät"), (SOMMER, "Sommer spät")):
         db.add(CalendarEvent(title=titel, start_at=wann, end_at=wann.replace(minute=45), owner_user_id=konto.id))
-        db.add(OutlookSeriesOccurrence(owner_user_id=konto.id, outlook_event_id=f"S-{titel}", occurrence_type="occurrence", title=f"Serie {titel}", start_at=wann, end_at=wann.replace(minute=45)))
+        db.add(OutlookSeriesOccurrence(owner_user_id=konto.id, outlook_postfach="k@x.de", outlook_event_id=f"S-{titel}", occurrence_type="occurrence", title=f"Serie {titel}", start_at=wann, end_at=wann.replace(minute=45)))
     db.commit()
     return konto
 

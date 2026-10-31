@@ -71,17 +71,17 @@ def _besitzer(user) -> str:
 def pruefen(db, *, jetzt: datetime | None = None) -> dict:
     """Der Stand des Abgleichs -- liest nur, fragt Microsoft nicht."""
     from app.models import AppUser, CalendarEvent, OutlookCalendarSyncState, OutlookSyncSettings
-    from app.outlook_calendar_sync import _needs_push
+    from app.outlook_calendar_sync import _needs_push, postfach_normal
 
     jetzt = jetzt or datetime.utcnow()
     einstellung = db.get(OutlookSyncSettings, 1)
     konten = {u.id: u for u in db.scalars(select(AppUser))}
-    staende = {s.app_user_id: s for s in db.scalars(select(OutlookCalendarSyncState))}
+    staende = {s.postfach: s for s in db.scalars(select(OutlookCalendarSyncState))}
     termine = list(db.scalars(select(CalendarEvent).order_by(CalendarEvent.id)))
 
     postfaecher = []
     for user in sorted((u for u in konten.values() if u.outlook_mailbox), key=lambda u: u.username):
-        stand = staende.get(user.id)
+        stand = staende.get(postfach_normal(user.outlook_mailbox))
         pfad = _delta_pfad(stand.delta_link if stand else None)
         postfaecher.append({
             "konto": user.username, "postfach": user.outlook_mailbox, "aktiv": bool(user.active),

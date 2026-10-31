@@ -312,13 +312,16 @@ import json
 import logging
 import os
 import re
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select, update as sa_update
+from sqlalchemy import or_, select, update as sa_update
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from .calendar_events import zeitraum_berlin
@@ -502,14 +505,102 @@ def is_outlook_sync_available(db: Session, user: AppUser | None = None) -> bool:
     return True
 
 
-def get_or_create_sync_state(db: Session, user: AppUser) -> OutlookCalendarSyncState:
-    state = db.scalar(select(OutlookCalendarSyncState).where(OutlookCalendarSyncState.app_user_id == user.id))
-    if state is None:
-        state = OutlookCalendarSyncState(app_user_id=user.id)
-        db.add(state)
-        db.commit()
-        db.refresh(state)
+def postfach_normal(adresse: str | None) -> str | None:
+    """Eine Adresse, wie sie in der Datenbank steht (seit 1.9.159): klein, ohne Leerzeichen, leer ist keine. Microsoft unterscheidet Groß und Klein hier nicht, ein eindeutiger Index schon."""
+    return (adresse or "").strip().lower() or None
+
+
+class PostfachVergeben(ValueError):
+    """Ein Postfach gehört höchstens einem Konto (seit 1.9.159); der Text nennt das andere."""
+
+
+def postfach_pruefen(db: Session, adresse: str | None, *, konto_id: int | None = None) -> str | None:
+    """Die Adresse für ein Konto, vor dem Speichern -- wirft PostfachVergeben, wenn sie schon einem anderen gehört. Zwei Konten am selben Postfach legten sonst jeden Termin zweimal an."""
+    adresse = postfach_normal(adresse)
+    if adresse is None:
+        return None
+    anderes = db.scalar(select(AppUser).where(AppUser.outlook_mailbox == adresse, AppUser.id != konto_id) if konto_id is not None else select(AppUser).where(AppUser.outlook_mailbox == adresse))
+    if anderes is not None:
+        raise PostfachVergeben(f"Dieses Postfach gehört schon dem Konto „{anderes.username}“.")
+    return adresse
+
+
+def get_or_create_sync_state(db: Session, postfach: str) -> OutlookCalendarSyncState:
+    """Der Stand eines Postfachs. Zwei Prozesse können ihn zugleich anlegen: der zweite läuft in den eindeutigen Schlüssel und nimmt die Zeile des ersten."""
+    postfach = postfach_normal(postfach)
+    state = db.scalar(select(OutlookCalendarSyncState).where(OutlookCalendarSyncState.postfach == postfach))
+    if state is not None:
+        return state
+    try:
+        with db.begin_nested():
+            state = OutlookCalendarSyncState(postfach=postfach)
+            db.add(state)
+            db.flush()
+    except IntegrityError:
+        state = db.scalar(select(OutlookCalendarSyncState).where(OutlookCalendarSyncState.postfach == postfach))
+    db.commit()
     return state
+
+
+# ---------------------------------------------------------------------------
+# Sperre je Postfach (seit 1.9.159)
+# ---------------------------------------------------------------------------
+#
+# Cron, das Öffnen von /kalender und das Senden beim Speichern laufen in verschiedenen Prozessen (zwei gunicorn-Arbeitsprozesse, ein Cron-Prozess). Zwei gleichzeitig konnten denselben Termin
+# zweimal nach Outlook legen (zwei POST, die zweite Kennung überschreibt die erste, der Termin der ersten kommt beim nächsten Abruf als neu zurück) und einen neuen Outlook-Termin zweimal im ERP
+# anlegen. Eine Zeilensperre scheidet aus: sie hielte über Minuten eine Datenbankverbindung und eine Transaktion, und der Lauf committet je Termin (Regel 35). Deshalb eine Belegung in der Zeile
+# des Postfachs: ein bedingtes UPDATE entscheidet, unter PostgreSQL wie unter SQLite, über Prozesse hinweg. Stirbt ein Prozess, läuft sie nach SPERRE_GILT ab; ein lebender Lauf erneuert sie.
+# Fernlöschen braucht sie nicht: es legt nichts an.
+
+SPERRE_GILT = timedelta(minutes=10)
+_SPERRE_ERNEUERN_ALLE = 60  # Sekunden
+
+
+class SperreVerloren(OutlookSyncError):
+    """Der Lauf stand länger als SPERRE_GILT still, ein anderer hat das Postfach übernommen -- dieser hört auf."""
+
+
+class _Sperre:
+    def __init__(self, db: Session, state_id: int, kennung: str):
+        self.db, self.state_id, self.kennung = db, state_id, kennung
+        self._zuletzt = time.monotonic()
+
+    def _bedingung(self):
+        return (OutlookCalendarSyncState.id == self.state_id, OutlookCalendarSyncState.lauf_kennung == self.kennung)
+
+    def halten(self) -> None:
+        """Vor jedem Netzaufruf eines Laufs; schreibt höchstens einmal je Minute. Nie mit offenen Änderungen aufrufen (committet)."""
+        if time.monotonic() - self._zuletzt < _SPERRE_ERNEUERN_ALLE:
+            return
+        treffer = self.db.execute(sa_update(OutlookCalendarSyncState).where(*self._bedingung()).values(lauf_seit=datetime.utcnow())).rowcount
+        self.db.commit()
+        self._zuletzt = time.monotonic()
+        if treffer != 1:
+            raise SperreVerloren("Ein anderer Lauf hat dieses Postfach übernommen.")
+
+    def freigeben(self) -> None:
+        """Nur die eigene Belegung. Was ein Fehler offen ließ, geht vorher zurück; eine Freigabe, die scheitert, läuft nach SPERRE_GILT von selbst ab."""
+        try:
+            self.db.rollback()
+            self.db.execute(sa_update(OutlookCalendarSyncState).where(*self._bedingung()).values(lauf_kennung=None, lauf_seit=None))
+            self.db.commit()
+        except SQLAlchemyError as exc:
+            self.db.rollback()
+            logger.warning("Sperre des Postfachs nicht freigegeben (Stand %s, Fehlerart=%s).", self.state_id, type(exc).__name__)
+
+
+def _sperre_nehmen(db: Session, postfach: str) -> _Sperre | None:
+    """Die Belegung des Postfachs -- None, solange ein anderer Lauf sie hält."""
+    state = get_or_create_sync_state(db, postfach)
+    state_id = state.id
+    jetzt = datetime.utcnow()
+    kennung = uuid.uuid4().hex
+    treffer = db.execute(sa_update(OutlookCalendarSyncState).where(
+        OutlookCalendarSyncState.id == state_id,
+        or_(OutlookCalendarSyncState.lauf_seit.is_(None), OutlookCalendarSyncState.lauf_seit < jetzt - SPERRE_GILT),
+    ).values(lauf_kennung=kennung, lauf_seit=jetzt)).rowcount
+    db.commit()
+    return _Sperre(db, state_id, kennung) if treffer == 1 else None
 
 
 # ---------------------------------------------------------------------------
@@ -688,6 +779,14 @@ def push_event_best_effort(db: Session, event_id: int) -> None:
         return
     diag = diagnostics_enabled()
     old_etag = event.outlook_etag  # vor jeder Mutation erfasst, für die Diagnosezeile
+    adresse = postfach_normal(user.outlook_mailbox)
+    # Seit 1.9.159: läuft gerade ein Abgleich dieses Postfachs, bleibt der Termin wartend und geht mit dem nächsten Lauf -- zwei gleichzeitige POST ergäben ihn zweimal.
+    sperre = _sperre_nehmen(db, adresse)
+    if sperre is None:
+        if diag:
+            _diag(event_id, updated_at=None, outlook_synced_at=None, graph_last_modified_raw=None, graph_last_modified_parsed=None,
+                  etag_gespeichert=old_etag, etag_eingehend=None, entscheidung="push übersprungen (Postfach belegt, geht mit dem nächsten Lauf)")
+        return
     try:
         smtp = load_smtp_settings(db)
         token = get_graph_access_token(smtp)
@@ -702,11 +801,11 @@ def push_event_best_effort(db: Session, event_id: int) -> None:
                   graph_last_modified_raw=None, graph_last_modified_parsed=None,
                   etag_gespeichert=old_etag, etag_eingehend=None,
                   entscheidung="push versucht (best effort, nach create_event()/update_event())")
-        bookkeeping: dict = {}
+        bookkeeping: dict = {"outlook_postfach": adresse}
         if event.outlook_event_id:
-            response = _graph_call(token, f"{_mailbox_events_url(user.outlook_mailbox)}/{event.outlook_event_id}", method="PATCH", payload=_event_payload(event))
+            response = _graph_call(token, f"{_mailbox_events_url(adresse)}/{event.outlook_event_id}", method="PATCH", payload=_event_payload(event))
         else:
-            response = _graph_call(token, _mailbox_events_url(user.outlook_mailbox), method="POST", payload=_event_payload(event))
+            response = _graph_call(token, _mailbox_events_url(adresse), method="POST", payload=_event_payload(event))
             bookkeeping["outlook_event_id"] = response["id"]
         # Seit 1.7.5 (siehe Moduldocstring "Nachtrag") -- @odata.etag statt changeKey: Graph liefert
         # es bei JEDER erfolgreichen Schreiboperation mit zurück, anders als changeKey ist es
@@ -733,6 +832,8 @@ def push_event_best_effort(db: Session, event_id: int) -> None:
             _diag(event_id, updated_at=None, outlook_synced_at=None, graph_last_modified_raw=None,
                   graph_last_modified_parsed=None, etag_gespeichert=old_etag, etag_eingehend=None,
                   entscheidung=f"push fehlgeschlagen ({type(exc).__name__})")
+    finally:
+        sperre.freigeben()
 
 
 def try_delete_remote_event(db: Session, event: CalendarEvent) -> bool:
@@ -763,12 +864,14 @@ def try_delete_remote_event(db: Session, event: CalendarEvent) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _fetch_delta_pages(token: str, start_url: str) -> tuple[list[dict], str]:
+def _fetch_delta_pages(token: str, start_url: str, sperre: _Sperre | None = None) -> tuple[list[dict], str]:
     """Folgt @odata.nextLink, bis @odata.deltaLink kommt -- gibt alle gesammelten Zeilen plus
     den neuen deltaLink zurück (zum Speichern in OutlookCalendarSyncState.delta_link)."""
     items: list[dict] = []
     url = start_url
     while True:
+        if sperre is not None:
+            sperre.halten()
         page = _graph_call(token, url, method="GET")
         items.extend(page.get("value", []))
         next_link = page.get("@odata.nextLink")
@@ -782,12 +885,12 @@ def _fetch_delta_pages(token: str, start_url: str) -> tuple[list[dict], str]:
         url = next_link
 
 
-def _delta_holen(db: Session, state: OutlookCalendarSyncState, token: str, basis_url: str, counters: dict) -> tuple[list[dict], str, bool]:
+def _delta_holen(db: Session, state: OutlookCalendarSyncState, token: str, basis_url: str, counters: dict, sperre: _Sperre) -> tuple[list[dict], str, bool]:
     """Der Abruf eines Laufs -- gibt Zeilen, neuen Link und „das war der ganze Kalender“ zurück. Seit 1.9.158 setzt er sich selbst zurück, wenn der gespeicherte Link abgelaufen ist; bis dahin endete
     jeder weitere Lauf mit demselben Fehler und nichts kam mehr aus Outlook. Läuft auch der neue Abruf ab, bleibt es ein Fehler dieses Laufs, der Link ist schon weg."""
     voll = state.delta_link is None
     try:
-        items, link = _fetch_delta_pages(token, state.delta_link or basis_url)
+        items, link = _fetch_delta_pages(token, state.delta_link or basis_url, sperre)
         return items, link, voll
     except OutlookSyncError as exc:
         if not _delta_abgelaufen(exc):
@@ -795,14 +898,14 @@ def _delta_holen(db: Session, state: OutlookCalendarSyncState, token: str, basis
     state.delta_link = None
     db.commit()
     counters["delta_reset"] = 1
-    logger.warning("Delta-Link abgelaufen, der Kalender wird neu eingelesen (app_user_id=%s).", state.app_user_id)
+    logger.warning("Delta-Link abgelaufen, der Kalender wird neu eingelesen (Stand %s).", state.id)
     if diagnostics_enabled():
-        diag_logger.info("delta app_user_id=%s entscheidung=Link abgelaufen -> neu einlesen", state.app_user_id)
-    items, link = _fetch_delta_pages(token, basis_url)
+        diag_logger.info("delta stand=%s entscheidung=Link abgelaufen -> neu einlesen", state.id)
+    items, link = _fetch_delta_pages(token, basis_url, sperre)
     return items, link, True
 
 
-def _weggefallene_entfernen(db: Session, user: AppUser, token: str, items: list[dict], counters: dict) -> None:
+def _weggefallene_entfernen(db: Session, user: AppUser, adresse: str, token: str, items: list[dict], counters: dict, sperre: _Sperre) -> None:
     """Nach einem Abruf des ganzen Kalenders (seit 1.9.158): was dort fehlt, kann in der Zwischenzeit gelöscht worden sein -- „Resources that were deleted before the initial delta query aren't
     returned“, ein @removed kommt dafür nie. Gelöscht wird nur, was Graph einzeln mit 404 beantwortet: der Abruf selbst beweist nichts, events/delta ist für v1.0 nicht dokumentiert."""
     gesehen = {item.get("id") for item in items}
@@ -811,8 +914,9 @@ def _weggefallene_entfernen(db: Session, user: AppUser, token: str, items: list[
         if zeile.outlook_event_id in gesehen:
             continue
         kennung = zeile.id
+        sperre.halten()
         try:
-            _graph_call(token, f"{_mailbox_events_url(user.outlook_mailbox)}/{zeile.outlook_event_id}", method="GET")
+            _graph_call(token, f"{_mailbox_events_url(adresse)}/{zeile.outlook_event_id}", method="GET")
         except OutlookSyncError as exc:
             if exc.status == 404:
                 db.delete(zeile)
@@ -820,6 +924,18 @@ def _weggefallene_entfernen(db: Session, user: AppUser, token: str, items: list[
                 counters["deleted"] += 1
             else:
                 logger.warning("Prüfen eines fehlenden Termins fehlgeschlagen (event_id=%s, Fehlerart=%s).", kennung, type(exc).__name__)
+
+
+def _termin_im_postfach(db: Session, adresse: str, user: AppUser, kennung: str) -> CalendarEvent | None:
+    """Der Termin zu einer Outlook-Kennung: die Kennung gilt nur in ihrem Postfach. Ersatzweise einer dieses Kontos, der noch anderswo vermerkt ist (Adresse umbenannt, Stand von vor 1.9.159):
+    Microsoft kennt ihn hier, also liegt er hier."""
+    zeile = db.scalar(select(CalendarEvent).where(CalendarEvent.outlook_postfach == adresse, CalendarEvent.outlook_event_id == kennung))
+    if zeile is not None:
+        return zeile
+    zeile = db.scalar(select(CalendarEvent).where(CalendarEvent.owner_user_id == user.id, CalendarEvent.outlook_event_id == kennung))
+    if zeile is not None:
+        _write_sync_bookkeeping(db, zeile, outlook_synced_at=zeile.outlook_synced_at, outlook_postfach=adresse)
+    return zeile
 
 
 def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) -> int | None:
@@ -836,7 +952,8 @@ def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) 
     # Vorab, für die Diagnosezeile jeder Entscheidung nutzbar -- existiert die Zeile noch nicht
     # (Neuanlage) ODER handelt es sich um @removed/Serientermin/ungültig, bleibt sie None bzw.
     # wird gleich (Neuanlage-Zweig) ergänzt.
-    existing = db.scalar(select(CalendarEvent).where(CalendarEvent.outlook_event_id == item["id"], CalendarEvent.owner_user_id == user.id))
+    adresse = postfach_normal(user.outlook_mailbox)
+    existing = _termin_im_postfach(db, adresse, user, item["id"])
     # Fallstrick, beim Bauen selbst gefunden: NIE Attribute eines ORM-Objekts NACH einem
     # db.delete()+db.commit() lesen (expire_on_commit löst dann einen Reload eines nicht mehr
     # existierenden Datensatzes aus -> ObjectDeletedError). Deshalb werden die Werte HIER, VOR
@@ -911,13 +1028,21 @@ def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) 
     if existing is None:
         now = datetime.utcnow()
         row = CalendarEvent(
-            owner_user_id=user.id, outlook_event_id=item["id"], external_source="outlook",
+            owner_user_id=user.id, outlook_event_id=item["id"], outlook_postfach=adresse, external_source="outlook",
             outlook_etag=incoming_etag,
             project_id=None, quote_id=None,
             created_at=now, updated_at=now, outlook_synced_at=now,
             **incoming_fields,
         )
-        db.add(row)
+        # Seit 1.9.159: der Index schließt Doppelte aus, auch wenn eine Sperre abgelaufen ist und zwei Läufe sich treffen -- dann gilt die Zeile des ersten.
+        try:
+            with db.begin_nested():
+                db.add(row)
+                db.flush()
+        except IntegrityError:
+            db.commit()
+            log("schon angelegt (ein anderer Lauf war schneller)")
+            return None
         db.commit()
         db.refresh(row)
         counters["created"] += 1
@@ -1045,6 +1170,7 @@ def sync_series_occurrences(db: Session, user: AppUser, token: str, counters: di
     siehe Abschnittskommentar oben. Wirft bei einem Abruffehler, BEVOR irgendetwas geschrieben
     wurde; der Aufrufer rollt zurück."""
     diag = diagnostics_enabled()
+    adresse = postfach_normal(user.outlook_mailbox)
     window_start, window_end = series_window(now_utc)
     query = urllib.parse.urlencode({
         "startDateTime": window_start.isoformat() + "Z",
@@ -1052,7 +1178,7 @@ def sync_series_occurrences(db: Session, user: AppUser, token: str, counters: di
         "$select": _SERIES_SELECT,
         "$top": _SERIES_PAGE_SIZE,
     }, safe="$,:")
-    url = f"{GRAPH_BASE}/users/{urllib.parse.quote(user.outlook_mailbox)}/calendarView?{query}"
+    url = f"{GRAPH_BASE}/users/{urllib.parse.quote(adresse)}/calendarView?{query}"
     items = _fetch_all_pages(token, url, {"Prefer": 'outlook.body-content-type="text"'})
 
     existing = {
@@ -1085,7 +1211,7 @@ def sync_series_occurrences(db: Session, user: AppUser, token: str, counters: di
         seen.add(outlook_id)
         fields = _series_fields(item)
         if row is None:
-            new_row = OutlookSeriesOccurrence(owner_user_id=user.id, outlook_event_id=outlook_id,
+            new_row = OutlookSeriesOccurrence(owner_user_id=user.id, outlook_postfach=adresse, outlook_event_id=outlook_id,
                                               outlook_etag=incoming_etag, **fields)
             db.add(new_row)
             db.flush()
@@ -1146,22 +1272,34 @@ def sync_user_calendar(db: Session, user: AppUser, *, now_utc: datetime | None =
                 "series_created": 0, "series_updated": 0, "series_deleted": 0, "series_failed": 0, "delta_reset": 0}
     if not is_outlook_sync_available(db, user):
         return {"skipped": True, **counters}
+    adresse = postfach_normal(user.outlook_mailbox)
+    sperre = _sperre_nehmen(db, adresse)
+    if sperre is None:
+        logger.info("Abgleich übersprungen: das Postfach wird gerade abgeglichen (app_user_id=%s).", user.id)
+        return {"skipped": True, "busy": True, **counters}
+    try:
+        return _postfach_abgleichen(db, user, adresse, sperre, counters, now_utc)
+    finally:
+        sperre.freigeben()
 
-    state = get_or_create_sync_state(db, user)
+
+def _postfach_abgleichen(db: Session, user: AppUser, adresse: str, sperre: _Sperre, counters: dict, now_utc: datetime | None) -> dict:
+    """Ein Lauf unter der Sperre des Postfachs."""
+    state = get_or_create_sync_state(db, adresse)
     smtp = load_smtp_settings(db)
     just_synced_ids: set[int] = set()
     diag = diagnostics_enabled()
 
     try:
         token = get_graph_access_token(smtp)
-        basis_url = f"{_mailbox_events_url(user.outlook_mailbox)}/delta?$select={_EVENT_SELECT}"
-        items, new_delta_link, ganzer_kalender = _delta_holen(db, state, token, basis_url, counters)
+        basis_url = f"{_mailbox_events_url(adresse)}/delta?$select={_EVENT_SELECT}"
+        items, new_delta_link, ganzer_kalender = _delta_holen(db, state, token, basis_url, counters, sperre)
         for item in items:
             changed_id = _apply_delta_change(db, user, item, counters)
             if changed_id is not None:
                 just_synced_ids.add(changed_id)
         if ganzer_kalender:
-            _weggefallene_entfernen(db, user, token, items, counters)
+            _weggefallene_entfernen(db, user, adresse, token, items, counters, sperre)
 
         # Nachtrag (seit 1.7.2): Push-Fälligkeit über _needs_push() (pro Termin,
         # CalendarEvent.outlook_synced_at) statt eines einzelnen, postfachweiten Zeitstempels --
@@ -1173,6 +1311,7 @@ def sync_user_calendar(db: Session, user: AppUser, *, now_utc: datetime | None =
         for row in local_rows:
             if row.id in just_synced_ids or not _needs_push(row):
                 continue
+            sperre.halten()
             old_etag = row.outlook_etag  # vor jeder Mutation erfasst
             if row.outlook_event_id is None:
                 push_reason = "outlook_event_id fehlt (Neuanlage)"
@@ -1191,13 +1330,13 @@ def sync_user_calendar(db: Session, user: AppUser, *, now_utc: datetime | None =
                 # outlook_event_id/outlook_etag werden NICHT mehr per setattr() vorab gesetzt,
                 # sondern als Teil DERSELBEN Buchhaltungs-Anweisung übergeben.
                 version_to_sync = row.updated_at
-                bookkeeping: dict = {}
+                bookkeeping: dict = {"outlook_postfach": adresse}
                 if row.outlook_event_id is None:
-                    response = _graph_call(token, _mailbox_events_url(user.outlook_mailbox), method="POST", payload=_event_payload(row))
+                    response = _graph_call(token, _mailbox_events_url(adresse), method="POST", payload=_event_payload(row))
                     bookkeeping["outlook_event_id"] = response["id"]
                     counters["pushed_created"] += 1
                 else:
-                    response = _graph_call(token, f"{_mailbox_events_url(user.outlook_mailbox)}/{row.outlook_event_id}", method="PATCH", payload=_event_payload(row))
+                    response = _graph_call(token, f"{_mailbox_events_url(adresse)}/{row.outlook_event_id}", method="PATCH", payload=_event_payload(row))
                     counters["pushed_updated"] += 1
                 # Seit 1.7.5 (siehe push_event_best_effort() für dieselbe Begründung) -- @odata.etag
                 # statt changeKey, das in einer späteren Delta-Zeile nachweislich nie ankommt.
@@ -1231,6 +1370,7 @@ def sync_user_calendar(db: Session, user: AppUser, *, now_utc: datetime | None =
         # Eigener Fehlerbereich: ein fehlschlagender Serien-Abgleich darf den bereits
         # abgeschlossenen Einzeltermin-Sync (inkl. delta_link) nicht zurückrollen.
         try:
+            sperre.halten()
             sync_series_occurrences(db, user, token, counters, now_utc=now_utc)
         except Exception as exc:  # noqa: BLE001
             db.rollback()
@@ -1244,7 +1384,7 @@ def sync_user_calendar(db: Session, user: AppUser, *, now_utc: datetime | None =
         return counters
     except Exception as exc:  # noqa: BLE001 -- ein fehlschlagendes Postfach darf den Cron-Lauf für andere nicht abbrechen
         db.rollback()
-        state = get_or_create_sync_state(db, user)
+        state = get_or_create_sync_state(db, adresse)
         state.last_error_type = type(exc).__name__
         state.last_error_at = datetime.utcnow()
         db.commit()

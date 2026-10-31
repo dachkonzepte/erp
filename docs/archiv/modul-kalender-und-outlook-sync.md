@@ -1050,3 +1050,25 @@ Quelle: Microsoft, „Use delta query“: „Synchronization reset“ (410 Gone 
 ### Tests und Prüfung
 
 Angepasste Erwartungen: keine. `FakeGraphServer` nimmt einen Präfix für die Termin-IDs (Vorgabe wie bisher „graph“).
+
+## Umsetzung 1.9.159: Sperre je Postfach, eindeutige Kennung (Stufe 6, R2, Punkt 3)
+
+Keine Zeilensperre: sie hielte über Minuten eine Datenbankverbindung samt Transaktion (Regel 35), und der Lauf committet je Termin. Kein Advisory-Lock: unter SQLite gibt es keinen. Stattdessen eine Belegung in der Zeile des Postfachs (`lauf_kennung`, `lauf_seit`), gesetzt mit einem bedingten UPDATE: unter PostgreSQL wartet das zweite UPDATE auf die Zeile und prüft die Bedingung danach neu, unter SQLite gibt es nur einen Schreiber.
+
+Das Fernlöschen läuft ohne Sperre: es legt nichts an.
+
+Die Kennung gilt nur in ihrem Postfach, deshalb sucht der Abruf einen Termin über (Postfach, Kennung). Findet er ihn dort nicht, aber am selben Konto unter derselben Kennung, liegt er hier: die Adresse wurde umbenannt oder die Zeile stammt von vor 1.9.159.
+
+### Festlegungen 1.9.159 (Bitte bestätigen)
+
+1. Die Belegung gilt zehn Minuten (`SPERRE_GILT`), ein lebender Lauf erneuert sie höchstens einmal je Minute. Ein gestorbener Prozess hält das Postfach also bis zu zehn Minuten; in der Zeit meldet der Abgleich „busy“ und Speichern sendet nicht.
+2. Speichern während eines Laufs sendet nicht und wartet nicht: der Termin geht mit dem nächsten Lauf (Öffnen von `/kalender` oder Cron).
+3. Adressen stehen klein geschrieben in der Datenbank, auch auf der Benutzerseite.
+4. Migration, zwei Konten am selben Postfach: das aktive behält es, sonst das ältere; das andere wird leer, ohne Rückfrage.
+5. Migration, doppelte Termine: es bleibt die Zeile mit Projekt oder Angebot, sonst die älteste. Eine weitere mit eigenem Bezug bleibt ohne Verbindung und geht beim nächsten Lauf als neuer Termin nach Outlook; eine ohne eigenen Bezug fällt weg.
+6. Migration, Delta-Link auf eine andere Adresse: wird geleert, der nächste Lauf liest den ganzen Kalender. Nennt der Pfad keine Adresse, bleibt er.
+7. `downgrade()` bringt weder die alte Schreibweise der Adressen noch die als doppelt entfernten Zeilen zurück.
+
+### Tests und Prüfung
+
+Angepasster Aufbau (Regel 28): `test_v297`, `test_v562`, `test_v568`, `test_v576`: `get_or_create_sync_state()` und `OutlookCalendarSyncState` nehmen die Adresse statt des Kontos, `OutlookSeriesOccurrence` braucht `outlook_postfach`; die Erwartungen bleiben.

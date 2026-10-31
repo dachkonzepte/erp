@@ -58,14 +58,14 @@ def _anzahl(db, kennung=None):
 def test_abgelaufener_link_setzt_sich_im_selben_lauf_zurueck(status, code, inner):
     db, konto, ms = _welt()
     _lauf(db, konto, ms)
-    alt = get_or_create_sync_state(db, konto).delta_link
+    alt = get_or_create_sync_state(db, ANNA).delta_link
     ms.ablaufen(ANNA, status, code, inner)
 
     ergebnis = _lauf(db, konto, ms)
 
     assert not ergebnis.get("error"), ergebnis
     assert ergebnis["delta_reset"] == 1
-    stand = get_or_create_sync_state(db, konto)
+    stand = get_or_create_sync_state(db, ANNA)
     assert stand.delta_link and "$deltatoken" in stand.delta_link
     assert stand.last_error_type is None and stand.last_error_at is None
     assert alt  # es gab einen Link, der ablief
@@ -77,13 +77,13 @@ def test_abgelaufener_link_setzt_sich_im_selben_lauf_zurueck(status, code, inner
 def test_andere_fehler_setzen_nichts_zurueck(status, code):
     db, konto, ms = _welt()
     _lauf(db, konto, ms)
-    alt = get_or_create_sync_state(db, konto).delta_link
+    alt = get_or_create_sync_state(db, ANNA).delta_link
     ms.ablaufen(ANNA, status, code)
 
     ergebnis = _lauf(db, konto, ms)
 
     assert ergebnis["error"] is True and ergebnis["delta_reset"] == 0
-    stand = get_or_create_sync_state(db, konto)
+    stand = get_or_create_sync_state(db, ANNA)
     assert stand.delta_link == alt
     assert stand.last_error_type == "OutlookSyncError"
 
@@ -206,13 +206,13 @@ def test_laeuft_auch_der_neue_abruf_ab_bleibt_es_ein_fehler_und_der_naechste_lau
     ergebnis = _lauf(db, konto, ms)
 
     assert ergebnis["error"] is True and ergebnis["delta_reset"] == 1
-    stand = get_or_create_sync_state(db, konto)
+    stand = get_or_create_sync_state(db, ANNA)
     assert stand.delta_link is None and stand.last_error_type == "OutlookSyncError"
 
     ergebnis = _lauf(db, konto, ms)
 
     assert not ergebnis.get("error")
-    stand = get_or_create_sync_state(db, konto)
+    stand = get_or_create_sync_state(db, ANNA)
     assert stand.delta_link and stand.last_error_type is None
 
 
@@ -222,7 +222,7 @@ def test_ein_erster_abruf_ohne_link_gilt_als_ganzer_kalender():
     postfach = ms.postfach(ANNA)
     weg = postfach.anlegen("Weg", _beginn(), _beginn() + timedelta(hours=1))
     _lauf(db, konto, ms)
-    get_or_create_sync_state(db, konto).delta_link = None
+    get_or_create_sync_state(db, ANNA).delta_link = None
     db.commit()
     postfach.loeschen(weg)
 

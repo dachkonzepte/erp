@@ -76,7 +76,7 @@ def test_ohne_postfach_und_termin_nichts_gefunden():
 def test_stand_je_postfach_mit_alter_und_pfad_ohne_token():
     db = db_session()
     user = _konto(db)
-    db.add(OutlookCalendarSyncState(app_user_id=user.id, last_synced_at=JETZT - timedelta(days=9),
+    db.add(OutlookCalendarSyncState(postfach=user.outlook_mailbox, last_synced_at=JETZT - timedelta(days=9),
                                     delta_link=f"https://graph.microsoft.com/v1.0/users/{user.outlook_mailbox}/events/delta?$deltatoken={TOKEN}"))
     db.commit()
     rc, zeilen = _lauf(db)
@@ -92,7 +92,7 @@ def test_stand_je_postfach_mit_alter_und_pfad_ohne_token():
 def test_delta_link_eines_anderen_postfachs_faellt_auf():
     db = db_session()
     user = _konto(db, postfach="neu@dachkonzepte.gmbh")
-    db.add(OutlookCalendarSyncState(app_user_id=user.id, last_synced_at=JETZT,
+    db.add(OutlookCalendarSyncState(postfach=user.outlook_mailbox, last_synced_at=JETZT,
                                     delta_link="https://graph.microsoft.com/v1.0/users/alt@dachkonzepte.gmbh/events/delta?$deltatoken=x"))
     db.commit()
     stand = _skript().pruefen(db, jetzt=JETZT)
@@ -104,7 +104,7 @@ def test_delta_link_eines_anderen_postfachs_faellt_auf():
 def test_letzter_fehler_ist_ein_fund_und_nennt_nur_die_art():
     db = db_session()
     user = _konto(db)
-    db.add(OutlookCalendarSyncState(app_user_id=user.id, last_error_type="OutlookSyncError", last_error_at=JETZT - timedelta(hours=3)))
+    db.add(OutlookCalendarSyncState(postfach=user.outlook_mailbox, last_error_type="OutlookSyncError", last_error_at=JETZT - timedelta(hours=3)))
     db.commit()
     rc, zeilen = _lauf(db)
     assert rc == 1

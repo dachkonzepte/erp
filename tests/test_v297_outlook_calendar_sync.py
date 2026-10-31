@@ -112,7 +112,7 @@ def _cleanup_pg_test_data(db, *usernames: str) -> None:
         return
     db.execute(delete(CalendarEvent).where(CalendarEvent.owner_user_id.in_(user_ids)))
     db.execute(delete(OutlookSeriesOccurrence).where(OutlookSeriesOccurrence.owner_user_id.in_(user_ids)))
-    db.execute(delete(OutlookCalendarSyncState).where(OutlookCalendarSyncState.app_user_id.in_(user_ids)))
+    db.execute(delete(OutlookCalendarSyncState))
     db.execute(delete(AppUser).where(AppUser.id.in_(user_ids)))
     db.commit()
 
@@ -877,7 +877,7 @@ def test_sync_creates_local_event_from_outlook_without_project_or_quote_link():
     assert row.start_at == to_berlin(datetime(2026, 6, 1, 8, 0))
     assert row.is_private is False  # keine sensitivity im Item -> nicht privat
 
-    state = get_or_create_sync_state(db, owner)
+    state = get_or_create_sync_state(db, owner.outlook_mailbox)
     assert state.delta_link == "https://graph.microsoft.com/deltaFinal1"
     assert state.last_error_type is None
 
@@ -1211,7 +1211,7 @@ def test_delta_pagination_follows_next_link_until_delta_link():
 
     assert result["created"] == 1
     assert page2_url in requested_urls
-    state = get_or_create_sync_state(db, owner)
+    state = get_or_create_sync_state(db, owner.outlook_mailbox)
     assert state.delta_link == "https://graph.microsoft.com/deltaFinal6"
 
 
@@ -1264,7 +1264,7 @@ def test_sync_failure_is_recorded_on_state_without_raising():
 
     assert result["error"] is True
     assert result["error_type"] == "OutlookSyncError"
-    state = get_or_create_sync_state(db, owner)
+    state = get_or_create_sync_state(db, owner.outlook_mailbox)
     assert state.last_error_type == "OutlookSyncError"
     assert state.last_error_at is not None
 
@@ -1337,7 +1337,7 @@ def test_a_single_stuck_row_is_still_retried_after_a_later_successful_run_advanc
     assert result_1["push_failed"] == 1
     assert result_1["pushed_created"] == 1
     db.refresh(stuck)
-    state = get_or_create_sync_state(db, owner)
+    state = get_or_create_sync_state(db, owner.outlook_mailbox)
     # Die eigentliche Falle: last_synced_at ist jetzt NEUER als stuck.updated_at.
     assert state.last_synced_at > stuck.updated_at
     # ... trotzdem bleibt _needs_push() für "stuck" wahr, weil es pro Termin, nicht postfachweit
@@ -1796,7 +1796,7 @@ def test_calendar_event_api_and_push_cannot_address_a_series_occurrence(threaded
     db = threaded_db_session
     owner = _make_user(db)
     _enable_sync(db)
-    occ = OutlookSeriesOccurrence(owner_user_id=owner.id, outlook_event_id="series-1-occ-x", series_master_id="series-1",
+    occ = OutlookSeriesOccurrence(owner_user_id=owner.id, outlook_postfach=owner.outlook_mailbox, outlook_event_id="series-1-occ-x", series_master_id="series-1",
                                   occurrence_type="occurrence", title="Jour Fixe",
                                   start_at=datetime(2026, 10, 1, 10), end_at=datetime(2026, 10, 1, 11))
     db.add(occ)
@@ -2010,7 +2010,7 @@ def test_series_endpoint_redacts_private_occurrences_and_is_role_and_module_gate
     db = threaded_db_session
     owner = _make_user(db)
     for idx, private in enumerate((True, False)):
-        db.add(OutlookSeriesOccurrence(owner_user_id=owner.id, outlook_event_id=f"occ-{idx}", series_master_id="m",
+        db.add(OutlookSeriesOccurrence(owner_user_id=owner.id, outlook_postfach=owner.outlook_mailbox, outlook_event_id=f"occ-{idx}", series_master_id="m",
                                        occurrence_type="occurrence", title="Geheim" if private else "Offen",
                                        location="Ort", notes="Notiz", is_private=private,
                                        start_at=datetime(2026, 10, 1 + idx, 10), end_at=datetime(2026, 10, 1 + idx, 11)))

@@ -102,7 +102,7 @@ AUDITED_TYPES = (
 
 # Seit 1.9.115: Felder, die je Art nicht als Änderung protokolliert werden (der Schnappschuss beim Anlegen enthält sie).
 STILL_JE_ART = {
-    CalendarEvent: {"outlook_synced_at", "outlook_etag", "outlook_event_id"},  # Abgleich mit Outlook (eigene Diagnose, Regel 18)
+    CalendarEvent: {"outlook_synced_at", "outlook_etag", "outlook_event_id", "outlook_postfach"},  # Abgleich mit Outlook (eigene Diagnose, Regel 18)
     MaintenanceContract: {"last_reminder_due_date"},  # Stempel gegen doppeltes Erinnern
     Reminder: {"amounts_json"},  # eingefrorene Aufstellung, steht an der Mahnung
     ServiceReport: {"time_rows_json"},  # eingefrorene Zeiten, stehen am Bericht
@@ -404,7 +404,7 @@ FIELD_LABELS = {
     "third_party_guarantee_until": "Garantie Dritter bis", "sketch_path": "Skizze (Datei)",
     "start_at": "Beginn", "end_at": "Ende", "all_day": "Ganztägig", "owner_user_id": "Besitzer (Konto)", "is_private": "Privat",
     "outlook_event_id": "Outlook-Termin", "external_source": "Herkunft", "outlook_synced_at": "Mit Outlook abgeglichen am",
-    "outlook_etag": "Outlook-Stand",
+    "outlook_etag": "Outlook-Stand", "outlook_postfach": "Outlook-Postfach des Termins",
     # seit 1.9.127: der Befund steht im Verlauf der Akte -- seine Felder mit den Namen der Berichtsseite
     "service_report_id": "Einsatzbericht", "inspection_item_id": "Prüfpunkt", "roof_component_id": "Bauteil",
     "roof_component_name_snapshot": "Bauteil (Name)", "severity": "Schwere", "action": "Maßnahme", "follow_up_order_id": "Folgeauftrag",

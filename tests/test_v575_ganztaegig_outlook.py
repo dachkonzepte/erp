@@ -128,7 +128,7 @@ def test_ganztaegiges_vorkommen_einer_serie():
     from app.outlook_calendar_sync import _series_fields
     felder = _series_fields(_ganztag("2026-11-10T00:00:00.0000000", "2026-11-11T00:00:00.0000000", type="occurrence", subject="Jour fixe"))
     assert (felder["start_at"], felder["end_at"], felder["all_day"]) == (TAG, TAG, True)
-    assert OutlookSeriesOccurrence(**{k: v for k, v in felder.items()}).end_at == TAG
+    assert OutlookSeriesOccurrence(**felder).end_at == TAG
 
 
 # --- Kalender ------------------------------------------------------------------------------------------

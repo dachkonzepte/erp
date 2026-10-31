@@ -1,6 +1,6 @@
 from datetime import date, datetime, time as dt_time
 from decimal import Decimal
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Numeric, String, Text, Time, UniqueConstraint, event, inspect
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Numeric, String, Text, Time, UniqueConstraint, event, inspect
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .berlin_time import berlin_today
 from .database import Base
@@ -3245,8 +3245,9 @@ class AppUser(Base):
     # CalendarEvent-Zeilen dieser Person abgleicht. NULL bedeutet "kein Sync für dieses Konto"
     # -- weder Pull noch Push laufen dann, unabhängig vom globalen OutlookSyncSettings.enabled.
     # Nur von einem Administrator pflegbar (app/routers/users.py), kein Format-Zwang (Muster
-    # Customer.email -- auch dort keine strikte E-Mail-Validierung).
-    outlook_mailbox: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Customer.email -- auch dort keine strikte E-Mail-Validierung). Seit 1.9.159 eindeutig und klein geschrieben
+    # (app/outlook_calendar_sync.py::postfach_normal()): ein Postfach gehört einem Konto.
+    outlook_mailbox: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True, index=True)
 
     # Zwei-Faktor-Authentifizierung (TOTP, seit 1.3.34, siehe CLAUDE.md
     # "Zwei-Faktor-Authentifizierung für Administratoren") -- verschlüsselt
@@ -3261,7 +3262,6 @@ class AppUser(Base):
     recovery_codes: Mapped[list["TwoFactorRecoveryCode"]] = relationship(cascade="all, delete-orphan")
     trusted_devices: Mapped[list["TrustedDevice"]] = relationship(cascade="all, delete-orphan")
     sessions: Mapped[list["UserSession"]] = relationship(cascade="all, delete-orphan")
-    outlook_sync_state: Mapped["OutlookCalendarSyncState | None"] = relationship(cascade="all, delete-orphan", uselist=False, back_populates="owner")
 
     @property
     def two_factor_configured(self) -> bool:
@@ -4919,6 +4919,7 @@ class CalendarEvent(Base):
     zusätzliche statt ersetzende Absicherung neben der Zeitstempel-Heuristik) ist unverändert."""
 
     __tablename__ = "calendar_events"
+    __table_args__ = (Index("uq_calendar_events_postfach_kennung", "outlook_postfach", "outlook_event_id", unique=True),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(255))
@@ -4934,6 +4935,8 @@ class CalendarEvent(Base):
 
     # Stufe 2 (Outlook-Sync, seit 1.7.1) -- siehe Klassendocstring.
     outlook_event_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    # Seit 1.9.159: das Postfach, in dem dieser Termin unter outlook_event_id liegt -- die Kennung gilt nur dort. Mit ihr zusammen eindeutig; zwei Läufe können denselben Outlook-Termin nicht doppelt anlegen.
+    outlook_postfach: Mapped[str | None] = mapped_column(String(255), nullable=True)
     external_source: Mapped[str] = mapped_column(String(20), default="erp", server_default="erp")
     # Seit 1.7.2 (siehe Klassendocstring "Korrektur") -- der PRO-TERMIN-Zeitpunkt, zu dem dieser
     # Termin zuletzt nachweislich mit Outlook übereinstimmte. Seit 1.7.6 (siehe app/
@@ -4975,13 +4978,14 @@ class OutlookSeriesOccurrence(Base):
 
     Gepflegt ausschließlich von app/outlook_calendar_sync.py::sync_series_occurrences() als
     vollständiger Abgleich gegen einen calendarView-Schnappschuss des aktuellen Fensters (30 Tage
-    zurück, 12 Monate voraus) -- der UNIQUE-Constraint verhindert Dubletten auch strukturell."""
+    zurück, 12 Monate voraus) -- der eindeutige Index verhindert Dubletten auch strukturell (seit 1.9.159 je Postfach statt je Konto)."""
 
     __tablename__ = "outlook_series_occurrences"
-    __table_args__ = (UniqueConstraint("owner_user_id", "outlook_event_id", name="uq_outlook_series_occurrence_owner_event"),)
+    __table_args__ = (Index("uq_outlook_series_postfach_kennung", "outlook_postfach", "outlook_event_id", unique=True),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     owner_user_id: Mapped[int] = mapped_column(ForeignKey("app_users.id"), index=True)
+    outlook_postfach: Mapped[str] = mapped_column(String(255))
     outlook_event_id: Mapped[str] = mapped_column(String(255))
     series_master_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     occurrence_type: Mapped[str] = mapped_column(String(20))
@@ -5028,9 +5032,11 @@ class OutlookSyncSettings(Base):
 
 
 class OutlookCalendarSyncState(Base):
-    """Pro-Mitarbeiter-Fortschritt der Outlook-Kalendersynchronisation (Kalender-Modul, Stufe 2)
-    -- app/outlook_calendar_sync.py::sync_user_calendar() ist die einzige Stelle, die hier
-    schreibt, für genau EIN AppUser-Konto (das eigene Postfach, nicht das der Kollegen).
+    """Fortschritt der Outlook-Kalendersynchronisation je Postfach (Kalender-Modul, Stufe 2)
+    -- app/outlook_calendar_sync.py ist die einzige Stelle, die hier schreibt.
+
+    Seit 1.9.159 an der Adresse statt am Konto: der Link gilt nur für dieses Postfach. Bis dahin las ein Konto nach einem Wechsel des Postfachs über den alten Link weiter das alte (Befund
+    Stufe 6, XP1). lauf_kennung und lauf_seit sind die Sperre je Postfach (app/outlook_calendar_sync.py::_sperre_nehmen()), über alle Prozesse hinweg.
 
     delta_link ist Microsoft Graphs eigener Fortschritts-Zeiger (siehe Graph-Dokumentation zu
     "delta query" auf /events) -- ein gespeicherter Link erspart bei jedem weiteren Lauf die
@@ -5044,16 +5050,16 @@ class OutlookCalendarSyncState(Base):
     "kein Termininhalt in Protokollen"). Dieselbe Zurückhaltung gilt für jedes Log dieses Moduls."""
 
     __tablename__ = "outlook_calendar_sync_state"
-    __table_args__ = (UniqueConstraint("app_user_id", name="uq_outlook_sync_state_app_user_id"),)
+    __table_args__ = (UniqueConstraint("postfach", name="uq_outlook_sync_state_postfach"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    app_user_id: Mapped[int] = mapped_column(ForeignKey("app_users.id"), index=True)
+    postfach: Mapped[str] = mapped_column(String(255))
     delta_link: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_error_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
     last_error_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-
-    owner: Mapped["AppUser"] = relationship(back_populates="outlook_sync_state")
+    lauf_kennung: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    lauf_seit: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class IncomingInvoice(Base):

@@ -21,6 +21,7 @@ from ..auth import hash_password
 from ..database import get_db
 from ..deps import require_admin
 from ..models import AppUser, Employee
+from ..outlook_calendar_sync import PostfachVergeben, postfach_pruefen
 from ..schemas import AppUserCreate, AppUserOut, AppUserUpdate
 
 router = APIRouter()
@@ -33,6 +34,13 @@ def list_app_users(db: Session = Depends(get_db, scope="function"), current: App
         update={"active_sessions": sitzungen.anzahl(db, u), "trusted_device_count": device_trust.anzahl(db, u)}) for u in users]
 
 
+def _postfach(db: Session, adresse: str | None, *, konto_id: int | None = None) -> str | None:
+    try:
+        return postfach_pruefen(db, adresse, konto_id=konto_id)
+    except PostfachVergeben as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
 @router.post("/api/users", response_model=AppUserOut)
 def create_app_user(payload: AppUserCreate, db: Session = Depends(get_db, scope="function"),
                     _admin: AppUser = Depends(require_admin("Nur Administratoren dürfen ERP-Benutzer anlegen."))):
@@ -42,7 +50,7 @@ def create_app_user(payload: AppUserCreate, db: Session = Depends(get_db, scope=
         raise HTTPException(status_code=409, detail="Benutzername ist bereits vergeben.")
     if payload.employee_id is not None and db.get(Employee, payload.employee_id) is None:
         raise HTTPException(status_code=422, detail="Mitarbeiter wurde nicht gefunden.")
-    user = AppUser(username=payload.username.strip(), password_hash=hash_password(payload.password), display_name=payload.display_name.strip(), employee_id=payload.employee_id, role=payload.role, active=payload.active, outlook_mailbox=(payload.outlook_mailbox or None))
+    user = AppUser(username=payload.username.strip(), password_hash=hash_password(payload.password), display_name=payload.display_name.strip(), employee_id=payload.employee_id, role=payload.role, active=payload.active, outlook_mailbox=_postfach(db, payload.outlook_mailbox))
     db.add(user); db.commit(); db.refresh(user)
     return user
 
@@ -68,12 +76,13 @@ def update_app_user(user_id: int, payload: AppUserUpdate, db: Session = Depends(
         raise HTTPException(status_code=409, detail="Das aktuell angemeldete Administratorkonto kann sich nicht selbst deaktivieren oder herabstufen.")
 
     deaktiviert = user.active and not payload.active
+    postfach = _postfach(db, payload.outlook_mailbox, konto_id=user.id)
     user.username = username
     user.display_name = payload.display_name.strip()
     user.employee_id = payload.employee_id
     user.role = payload.role
     user.active = payload.active
-    user.outlook_mailbox = payload.outlook_mailbox or None
+    user.outlook_mailbox = postfach
     if payload.new_password:
         user.password_hash = hash_password(payload.new_password)
     if payload.new_password or deaktiviert:

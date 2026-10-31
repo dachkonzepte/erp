@@ -2437,6 +2437,7 @@ class OutlookSyncResultOut(BaseModel):
     """Rückgabe von POST /api/calendar-events/sync-outlook -- reine Zähler, nie Termininhalt
     (siehe app/outlook_calendar_sync.py Punkt 6)."""
     skipped: bool = False
+    busy: bool = False  # seit 1.9.159: das Postfach wird gerade von einem anderen Lauf abgeglichen
     error: bool = False
     error_type: str | None = None
     created: int = 0
