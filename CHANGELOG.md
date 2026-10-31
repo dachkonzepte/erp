@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.164 – Startseite: ein Tag ist ein Tag (Stufe 6, R2 Outlook, Punkt 7)
+
+Der Abwesenheitsantrag auf der Startseite stand bei einem einzelnen Tag als Spanne von diesem Tag bis zu demselben. Er nimmt jetzt `abwZeitraum()` wie „Zeiten → Abwesenheiten“: „Mi 21.10.2026“, mehrere Tage „Mo 19.10.–Mi 21.10.2026“. Tests: `tests/test_v582_startseite_abwesenheit.py`.
+
 ## 1.9.163 – `scripts/pruefe_outlook.py` ohne Warnung, mit den neuen Fällen (Stufe 6, R2 Outlook, Punkt 7)
 
 Das Skript schrieb bei jedem Aufruf eine Warnung zu `datetime.utcnow()` mit in die Ausgabe; das ist weg. Neu darin: Geräte unter den Postfächern, eine hängende Sperre, Termine, die nach einem Wechsel noch im alten Postfach liegen, Termine in einem Postfach ohne Besitzer, offene Löschaufträge und „Gerät doppelt“: ein Termin am Kran neben einem Einsatz ab heute. Das Speichern eines Einsatzes warnt, ein Eintrag in Outlook kann aber danach kommen; bis die Tafel es mit R4 zeigt, sieht man es hier. Weiter ohne Inhalt der Termine (Regel 18). Tests: `tests/test_v581_pruefe_outlook_neu.py`.

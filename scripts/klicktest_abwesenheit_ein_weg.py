@@ -142,7 +142,16 @@ async def pruefen(tab, seed, p):
     p.pruefe("Zeiten: gelöscht als Vermerk", "Vermerk: Die genehmigte Abwesenheit wurde gelöscht." in liste, True)
     # Notiz des Admins zur Entscheidung: nur sie heißt „Freigabe:“
     await tab.js(f"fetch('/api/absence-requests',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{employee_id:{seed['ole']},absence_category:'urlaub',start_date:'2026-12-01',end_date:'2026-12-01'}})}}).then(r=>r.json())")
-    await tab.js("void abwesenheitenLaden()")
+    # Startseite (seit 1.9.164): ein Tag steht als ein Tag da, nicht als Spanne von diesem Tag bis zu demselben
+    zeile_start = "[...document.querySelectorAll('.task-row')].find(z=>z.textContent.includes('Abwesenheitsantrag'))"
+    await tab.oeffnen("/", f"!!{zeile_start}")
+    await tab.warte_auf_ruhe()
+    start = await tab.js(f"{zeile_start}.textContent")
+    p.pruefe("Startseite: ein Tag mit Wochentag und Jahr", "Di 01.12.2026" in start, True)
+    p.pruefe("Startseite: keine Spanne", "–" in start, False)
+    p.pruefe("Startseite: Zeile zu sehen", await tab.js(f"{zeile_start}.getBoundingClientRect().height>20"), True)
+    await tab.bild("startseite_ein_tag")
+    await tab.oeffnen("/zeiten#abwesenheiten", "typeof A!=='undefined'&&A&&A.antraege")
     await tab.warten("A.antraege.some(a=>a.status==='pending')")
     await tab.warte_auf_ruhe()
     offen = await tab.js("A.antraege.find(a=>a.status==='pending').id")
