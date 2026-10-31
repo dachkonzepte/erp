@@ -6,14 +6,15 @@ weiterhin unter Einstellungen -> E-Mail-Versand gepflegt (app/routers/email_sett
 dieser Router trägt nur den Ein-/Ausschalter plus eine reine Anzeige, ob diese Zugangsdaten
 überhaupt vollständig hinterlegt sind."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..deps import require_admin
 from ..email_sending import load_smtp_settings
-from ..outlook_calendar_sync import load_outlook_sync_settings, update_outlook_sync_settings
-from ..schemas import OutlookSyncSettingsOut, OutlookSyncSettingsUpdate
+from ..models import OperationalResource
+from ..outlook_calendar_sync import PostfachVergeben, load_outlook_sync_settings, postfach_gewechselt, postfach_pruefen, update_outlook_sync_settings
+from ..schemas import GeraetPostfachUpdate, OutlookSyncSettingsOut, OutlookSyncSettingsUpdate
 
 router = APIRouter()
 
@@ -36,3 +37,19 @@ def get_outlook_sync_settings_endpoint(db: Session = Depends(get_db, scope="func
 def put_outlook_sync_settings(payload: OutlookSyncSettingsUpdate, db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
     update_outlook_sync_settings(db, enabled=payload.enabled)
     return _to_out(db)
+
+
+@router.put("/api/outlook-sync-settings/geraete/{resource_id}")
+def put_geraet_postfach(resource_id: int, payload: GeraetPostfachUpdate, db: Session = Depends(get_db, scope="function"), _admin=Depends(require_admin(_ADMIN_MESSAGE))):
+    """Seit 1.9.161: das Postfach eines Geräts (Kran-Kalender); leer nimmt es weg. Wie am Konto: eine Adresse gehört genau einem, 409 mit dem Namen."""
+    geraet = db.get(OperationalResource, resource_id)
+    if geraet is None:
+        raise HTTPException(status_code=404, detail="Gerät nicht gefunden.")
+    try:
+        adresse = postfach_pruefen(db, payload.outlook_mailbox, geraet_id=resource_id)
+    except PostfachVergeben as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    postfach_gewechselt(db, geraet_id=resource_id, alt=geraet.outlook_mailbox, neu=adresse)
+    geraet.outlook_mailbox = adresse
+    db.commit()
+    return {"id": geraet.id, "outlook_mailbox": geraet.outlook_mailbox}

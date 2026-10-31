@@ -1,6 +1,6 @@
 from datetime import date, datetime, time as dt_time
 from decimal import Decimal
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Numeric, String, Text, Time, UniqueConstraint, event, inspect
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Numeric, String, Text, Time, UniqueConstraint, event, inspect
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .berlin_time import berlin_today
 from .database import Base
@@ -2377,6 +2377,9 @@ class OperationalResource(Base):
     identifier: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    # Seit 1.9.161: das Postfach dieses Geräts (Kran-Kalender), Pflege nur Admin (Einstellungen -> Outlook-Kalender). Einträge dort hängen am Gerät und belegen es. Eindeutig und klein geschrieben;
+    # dass keine Adresse zugleich an einem Konto steht, prüft app/outlook_calendar_sync.py::postfach_pruefen().
+    outlook_mailbox: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -4919,7 +4922,8 @@ class CalendarEvent(Base):
     zusätzliche statt ersetzende Absicherung neben der Zeitstempel-Heuristik) ist unverändert."""
 
     __tablename__ = "calendar_events"
-    __table_args__ = (Index("uq_calendar_events_postfach_kennung", "outlook_postfach", "outlook_event_id", unique=True),)
+    __table_args__ = (Index("uq_calendar_events_postfach_kennung", "outlook_postfach", "outlook_event_id", unique=True),
+                      CheckConstraint("(owner_user_id IS NULL) <> (resource_id IS NULL)", name="ck_calendar_events_besitzer"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(255))
@@ -4928,7 +4932,9 @@ class CalendarEvent(Base):
     all_day: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     location: Mapped[str | None] = mapped_column(String(255), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    owner_user_id: Mapped[int] = mapped_column(ForeignKey("app_users.id"), index=True)
+    # Seit 1.9.161 gehört ein Termin einem Konto oder einem Gerät (Kran-Kalender), genau einem von beiden.
+    owner_user_id: Mapped[int | None] = mapped_column(ForeignKey("app_users.id"), nullable=True, index=True)
+    resource_id: Mapped[int | None] = mapped_column(ForeignKey("operational_resources.id"), nullable=True, index=True)
     project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id"), nullable=True, index=True)
     quote_id: Mapped[int | None] = mapped_column(ForeignKey("quotes.id"), nullable=True, index=True)
     is_private: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
@@ -4963,7 +4969,8 @@ class CalendarEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    owner: Mapped["AppUser"] = relationship()
+    owner: Mapped["AppUser | None"] = relationship()
+    resource: Mapped["OperationalResource | None"] = relationship()
     project: Mapped["Project | None"] = relationship()
     quote: Mapped["Quote | None"] = relationship()
 
@@ -4981,10 +4988,12 @@ class OutlookSeriesOccurrence(Base):
     zurück, 12 Monate voraus) -- der eindeutige Index verhindert Dubletten auch strukturell (seit 1.9.159 je Postfach statt je Konto)."""
 
     __tablename__ = "outlook_series_occurrences"
-    __table_args__ = (Index("uq_outlook_series_postfach_kennung", "outlook_postfach", "outlook_event_id", unique=True),)
+    __table_args__ = (Index("uq_outlook_series_postfach_kennung", "outlook_postfach", "outlook_event_id", unique=True),
+                      CheckConstraint("(owner_user_id IS NULL) <> (resource_id IS NULL)", name="ck_outlook_series_besitzer"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    owner_user_id: Mapped[int] = mapped_column(ForeignKey("app_users.id"), index=True)
+    owner_user_id: Mapped[int | None] = mapped_column(ForeignKey("app_users.id"), nullable=True, index=True)
+    resource_id: Mapped[int | None] = mapped_column(ForeignKey("operational_resources.id"), nullable=True, index=True)  # seit 1.9.161, wie am Termin
     outlook_postfach: Mapped[str] = mapped_column(String(255))
     outlook_event_id: Mapped[str] = mapped_column(String(255))
     series_master_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -5000,7 +5009,8 @@ class OutlookSeriesOccurrence(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    owner: Mapped["AppUser"] = relationship()
+    owner: Mapped["AppUser | None"] = relationship()
+    resource: Mapped["OperationalResource | None"] = relationship()
 
 
 class OutlookDeleteOrder(Base):

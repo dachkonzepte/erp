@@ -13,7 +13,9 @@ untereinander (keine Zirkel-Import-Gefahr, siehe CLAUDE.md Regel 3).
 **Punkt 1 -- Zuordnung ERP-Nutzer zu Postfach:** AppUser.outlook_mailbox (app/models.py),
 admin-gepflegt über /users. Jede Synchronisation läuft ausschließlich für das EIGENE Postfach
 des jeweiligen AppUser -- nie für das eines Kollegen, auch wenn die Kalenderansicht selbst
-Kollegentermine anzeigt (Stufe 1).
+Kollegentermine anzeigt (Stufe 1). Seit 1.9.161 kann ein Postfach auch einem Gerät gehören
+(OperationalResource.outlook_mailbox, Kran-Kalender, siehe Postfach unten): dessen Termine hängen
+am Gerät, sie gleichen in beiden Richtungen ab und laufen nur mit dem Cron.
 
 **Punkt 2 -- Projekt-/Angebotsbezug nie durch Outlook-Änderung überschreiben:**
 _apply_delta_change() unten baut das Update-Dict für eine eingehende Änderung IMMER nur aus den
@@ -317,6 +319,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -328,7 +331,7 @@ from .calendar_events import zeitraum_berlin
 from .grunddaten import einzelzeile
 from .auth import resolve_account_display
 from .email_sending import get_graph_access_token, load_smtp_settings
-from .models import AppUser, CalendarEvent, OutlookCalendarSyncState, OutlookDeleteOrder, OutlookSeriesOccurrence, OutlookSyncSettings
+from .models import AppUser, CalendarEvent, OperationalResource, OutlookCalendarSyncState, OutlookDeleteOrder, OutlookSeriesOccurrence, OutlookSyncSettings
 
 logger = logging.getLogger("app.outlook_calendar_sync")
 # Eigener Logger-Name für die abschaltbare Diagnosezeile (seit 1.7.4) -- getrennt vom
@@ -510,29 +513,76 @@ def postfach_normal(adresse: str | None) -> str | None:
     return (adresse or "").strip().lower() or None
 
 
+@dataclass(frozen=True)
+class Postfach:
+    """Ein Postfach und wem es gehört: einem Konto oder einem Gerät, genau einem von beiden (seit 1.9.161). Was ein Lauf an einer Zeile setzt und wonach er Zeilen sucht, kommt nur von hier."""
+    adresse: str
+    konto: AppUser | None = None
+    geraet: OperationalResource | None = None
+
+    @property
+    def besitzer(self) -> dict:
+        return {"owner_user_id": self.konto.id if self.konto else None, "resource_id": self.geraet.id if self.geraet else None}
+
+    @property
+    def im_protokoll(self) -> str:
+        return f"app_user_id={self.konto.id}" if self.konto else f"resource_id={self.geraet.id}"
+
+    def gehoert(self, modell):
+        """Bedingung auf CalendarEvent oder OutlookSeriesOccurrence."""
+        return modell.owner_user_id == self.konto.id if self.konto else modell.resource_id == self.geraet.id
+
+
+def postfach_des_kontos(konto: AppUser) -> Postfach | None:
+    adresse = postfach_normal(konto.outlook_mailbox)
+    return Postfach(adresse, konto=konto) if adresse else None
+
+
+def postfach_des_geraets(geraet: OperationalResource) -> Postfach | None:
+    adresse = postfach_normal(geraet.outlook_mailbox)
+    return Postfach(adresse, geraet=geraet) if adresse else None
+
+
+def alle_postfaecher(db: Session) -> list[Postfach]:
+    """Was der Cron abgleicht: aktive Konten und aktive Geräte mit einem Postfach."""
+    konten = db.scalars(select(AppUser).where(AppUser.active.is_(True), AppUser.outlook_mailbox.is_not(None)).order_by(AppUser.id)).all()
+    geraete = db.scalars(select(OperationalResource).where(OperationalResource.active.is_(True), OperationalResource.outlook_mailbox.is_not(None)).order_by(OperationalResource.id)).all()
+    return [p for p in [*map(postfach_des_kontos, konten), *map(postfach_des_geraets, geraete)] if p is not None]
+
+
+def ziel_postfach(event: CalendarEvent) -> str | None:
+    """Wohin ein Termin gehört: ins Postfach seines Besitzers, Konto oder Gerät."""
+    besitzer = event.owner or event.resource
+    return postfach_normal(besitzer.outlook_mailbox) if besitzer is not None else None
+
+
 class PostfachVergeben(ValueError):
-    """Ein Postfach gehört höchstens einem Konto (seit 1.9.159); der Text nennt das andere."""
+    """Ein Postfach gehört einem Konto oder einem Gerät (seit 1.9.159, Gerät seit 1.9.161); der Text nennt, wem."""
 
 
-def postfach_pruefen(db: Session, adresse: str | None, *, konto_id: int | None = None) -> str | None:
-    """Die Adresse für ein Konto, vor dem Speichern -- wirft PostfachVergeben, wenn sie schon einem anderen gehört. Zwei Konten am selben Postfach legten sonst jeden Termin zweimal an."""
+def postfach_pruefen(db: Session, adresse: str | None, *, konto_id: int | None = None, geraet_id: int | None = None) -> str | None:
+    """Die Adresse für ein Konto oder Gerät, vor dem Speichern -- wirft PostfachVergeben, wenn sie schon jemand anderem gehört. Zwei am selben Postfach legten sonst jeden Termin zweimal an. Die
+    eindeutigen Spalten sichern je Tabelle ab, die Prüfung über beide Tabellen steht nur hier."""
     adresse = postfach_normal(adresse)
     if adresse is None:
         return None
-    anderes = db.scalar(select(AppUser).where(AppUser.outlook_mailbox == adresse, AppUser.id != konto_id) if konto_id is not None else select(AppUser).where(AppUser.outlook_mailbox == adresse))
-    if anderes is not None:
-        raise PostfachVergeben(f"Dieses Postfach gehört schon dem Konto „{anderes.username}“.")
+    konto = db.scalar(select(AppUser).where(AppUser.outlook_mailbox == adresse))
+    if konto is not None and konto.id != konto_id:
+        raise PostfachVergeben(f"Dieses Postfach gehört schon dem Konto „{konto.username}“.")
+    geraet = db.scalar(select(OperationalResource).where(OperationalResource.outlook_mailbox == adresse))
+    if geraet is not None and geraet.id != geraet_id:
+        raise PostfachVergeben(f"Dieses Postfach gehört schon dem Gerät „{geraet.name}“.")
     return adresse
 
 
-def postfach_gewechselt(db: Session, *, konto_id: int, alt: str | None, neu: str | None) -> None:
-    """Ein Konto bekommt ein anderes oder kein Postfach (seit 1.9.160), im selben Commit wie die Änderung, ohne Netz. Wer ein Postfach neu bekommt, liest es ganz: Termine, die schon im ERP stehen,
+def postfach_gewechselt(db: Session, *, konto_id: int | None = None, geraet_id: int | None = None, alt: str | None, neu: str | None) -> None:
+    """Ein Konto oder Gerät bekommt ein anderes oder kein Postfach (seit 1.9.160), im selben Commit wie die Änderung, ohne Netz. Wer ein Postfach neu bekommt, liest es ganz: Termine, die schon im ERP stehen,
     gehören ihm erst, wenn der Abruf sie sieht. Ohne Postfach fallen die Serienvorkommen weg, sie sind ein Schnappschuss, den niemand mehr nachzieht. Die Einzeltermine bleiben im ERP und behalten
     ihre Kennung: kommt dasselbe Postfach zurück, finden sie sich wieder, und Löschen erreicht es weiter."""
     if alt == neu:
         return
     if neu is None:
-        db.execute(sa_delete(OutlookSeriesOccurrence).where(OutlookSeriesOccurrence.owner_user_id == konto_id))
+        db.execute(sa_delete(OutlookSeriesOccurrence).where(OutlookSeriesOccurrence.owner_user_id == konto_id if konto_id is not None else OutlookSeriesOccurrence.resource_id == geraet_id))
         return
     db.execute(sa_update(OutlookCalendarSyncState).where(OutlookCalendarSyncState.postfach == neu).values(delta_link=None))
 
@@ -800,12 +850,11 @@ def push_event_best_effort(db: Session, event_id: int) -> None:
     event = db.get(CalendarEvent, event_id)
     if event is None:
         return
-    user = event.owner
-    if not is_outlook_sync_available(db, user):
+    adresse = ziel_postfach(event)
+    if adresse is None or not is_outlook_sync_available(db):
         return
     diag = diagnostics_enabled()
     old_etag = event.outlook_etag  # vor jeder Mutation erfasst, für die Diagnosezeile
-    adresse = postfach_normal(user.outlook_mailbox)
     if event.outlook_event_id and event.outlook_postfach and event.outlook_postfach != adresse:
         return  # das Postfach des Kontos wurde gewechselt: das klärt der nächste Lauf (_postfach_wechsel_aufloesen())
     # Seit 1.9.159: läuft gerade ein Abgleich dieses Postfachs, bleibt der Termin wartend und geht mit dem nächsten Lauf -- zwei gleichzeitige POST ergäben ihn zweimal.
@@ -909,20 +958,19 @@ def loeschauftraege_best_effort(db: Session) -> bool:
         return False
 
 
-def _wo_er_liegt(event: CalendarEvent, besitzer: AppUser | None) -> str | None:
+def wo_er_liegt(event: CalendarEvent) -> str | None:
     """Das Postfach eines Termins mit Kennung: vermerkt, sonst (Stand von vor 1.9.159) das seines Besitzers."""
-    return event.outlook_postfach or (postfach_normal(besitzer.outlook_mailbox) if besitzer is not None else None)
+    return event.outlook_postfach or ziel_postfach(event)
 
 
-def besitzer_gewechselt(db: Session, event_id: int, *, alter_besitzer: AppUser | None, alte_lage: str | None) -> None:
+def besitzer_gewechselt(db: Session, event_id: int, *, alte_lage: str | None) -> None:
     """Der Termin hat einen anderen Besitzer (seit 1.9.160): er zieht um. Die Kopie im alten Postfach kommt als Auftrag weg, der Termin verliert seine Kennung und geht als neuer in das Postfach des
     neuen Besitzers; hat der keins, liegt er danach nur im ERP. Ohne Netz, auch bei ausgeschaltetem Abgleich. Bis 1.9.159 ging das PATCH mit der alten Kennung ans neue Postfach: 404, ohne Ende."""
     event = db.get(CalendarEvent, event_id)
     if event is None or event.outlook_event_id is None:
         return
-    ort = alte_lage or (postfach_normal(alter_besitzer.outlook_mailbox) if alter_besitzer is not None else None)
-    if ort is not None:
-        _loeschauftrag(db, ort, event.outlook_event_id)
+    if alte_lage is not None:
+        _loeschauftrag(db, alte_lage, event.outlook_event_id)
         db.flush()
     _write_sync_bookkeeping(db, event, outlook_synced_at=None, outlook_event_id=None, outlook_postfach=None, outlook_etag=None)
 
@@ -934,7 +982,7 @@ def try_delete_remote_event(db: Session, event: CalendarEvent) -> bool:
     gelöscht (Nutzerabsicht hat Vorrang). Seit 1.9.160 bleibt dafür der Auftrag stehen, siehe oben."""
     if not event.outlook_event_id:
         return True
-    ort = _wo_er_liegt(event, event.owner)
+    ort = wo_er_liegt(event)
     if ort is None:
         return True  # liegt nirgends, wo das ERP hinkommt
     _loeschauftrag(db, ort, event.outlook_event_id)
@@ -988,19 +1036,19 @@ def _delta_holen(db: Session, state: OutlookCalendarSyncState, token: str, basis
     return items, link, True
 
 
-def _weggefallene_entfernen(db: Session, user: AppUser, adresse: str, token: str, items: list[dict], counters: dict, sperre: _Sperre) -> None:
+def _weggefallene_entfernen(db: Session, postfach: Postfach, token: str, items: list[dict], counters: dict, sperre: _Sperre) -> None:
     """Nach einem Abruf des ganzen Kalenders (seit 1.9.158): was dort fehlt, kann in der Zwischenzeit gelöscht worden sein -- „Resources that were deleted before the initial delta query aren't
     returned“, ein @removed kommt dafür nie. Gelöscht wird nur, was Graph einzeln mit 404 beantwortet: der Abruf selbst beweist nichts, events/delta ist für v1.0 nicht dokumentiert."""
     gesehen = {item.get("id") for item in items}
-    zeilen = db.scalars(select(CalendarEvent).where(CalendarEvent.owner_user_id == user.id, CalendarEvent.outlook_event_id.is_not(None),
-                                                    or_(CalendarEvent.outlook_postfach == adresse, CalendarEvent.outlook_postfach.is_(None)))).all()
+    zeilen = db.scalars(select(CalendarEvent).where(postfach.gehoert(CalendarEvent), CalendarEvent.outlook_event_id.is_not(None),
+                                                    or_(CalendarEvent.outlook_postfach == postfach.adresse, CalendarEvent.outlook_postfach.is_(None)))).all()
     for zeile in zeilen:
         if zeile.outlook_event_id in gesehen:
             continue
         kennung = zeile.id
         sperre.halten()
         try:
-            _graph_call(token, f"{_mailbox_events_url(adresse)}/{zeile.outlook_event_id}", method="GET")
+            _graph_call(token, f"{_mailbox_events_url(postfach.adresse)}/{zeile.outlook_event_id}", method="GET")
         except OutlookSyncError as exc:
             if exc.status == 404:
                 db.delete(zeile)
@@ -1010,16 +1058,16 @@ def _weggefallene_entfernen(db: Session, user: AppUser, adresse: str, token: str
                 logger.warning("Prüfen eines fehlenden Termins fehlgeschlagen (event_id=%s, Fehlerart=%s).", kennung, type(exc).__name__)
 
 
-def _liegt_woanders(db: Session, user: AppUser, adresse: str) -> list[CalendarEvent]:
-    return db.scalars(select(CalendarEvent).where(CalendarEvent.owner_user_id == user.id, CalendarEvent.outlook_event_id.is_not(None), CalendarEvent.outlook_postfach.is_not(None),
-                                                  CalendarEvent.outlook_postfach != adresse)).all()
+def _liegt_woanders(db: Session, postfach: Postfach) -> list[CalendarEvent]:
+    return db.scalars(select(CalendarEvent).where(postfach.gehoert(CalendarEvent), CalendarEvent.outlook_event_id.is_not(None), CalendarEvent.outlook_postfach.is_not(None),
+                                                  CalendarEvent.outlook_postfach != postfach.adresse)).all()
 
 
-def _postfach_wechsel_aufloesen(db: Session, user: AppUser, adresse: str, counters: dict) -> None:
+def _postfach_wechsel_aufloesen(db: Session, postfach: Postfach, counters: dict) -> None:
     """Termine dieses Kontos, die nach dem Abruf des ganzen neuen Postfachs noch im alten liegen (seit 1.9.160). Was das ERP angelegt hat, zieht um. Was aus dem alten Postfach stammt, gehört dorthin:
     im ERP fällt es weg, dort bleibt es -- hängt es an einem Projekt oder Angebot, bleibt es auch im ERP und geht als Termin des ERP ins neue Postfach. Aus dem alten Postfach gelöscht wird nur, was
     das ERP selbst dort angelegt hat: das alte kann längst jemand anderem gehören, oder die Adresse war ein Irrtum."""
-    for zeile in _liegt_woanders(db, user, adresse):
+    for zeile in _liegt_woanders(db, postfach):
         aus_outlook = zeile.external_source == "outlook"
         if aus_outlook and zeile.project_id is None and zeile.quote_id is None:
             db.delete(zeile)
@@ -1032,19 +1080,19 @@ def _postfach_wechsel_aufloesen(db: Session, user: AppUser, adresse: str, counte
         _write_sync_bookkeeping(db, zeile, outlook_synced_at=None, outlook_event_id=None, outlook_postfach=None, outlook_etag=None, external_source="erp")
 
 
-def _termin_im_postfach(db: Session, adresse: str, user: AppUser, kennung: str) -> CalendarEvent | None:
-    """Der Termin zu einer Outlook-Kennung: die Kennung gilt nur in ihrem Postfach. Ersatzweise einer dieses Kontos, der noch anderswo vermerkt ist (Adresse umbenannt, Stand von vor 1.9.159):
+def _termin_im_postfach(db: Session, postfach: Postfach, kennung: str) -> CalendarEvent | None:
+    """Der Termin zu einer Outlook-Kennung: die Kennung gilt nur in ihrem Postfach. Ersatzweise einer desselben Besitzers, der noch anderswo vermerkt ist (Adresse umbenannt, Stand von vor 1.9.159):
     Microsoft kennt ihn hier, also liegt er hier."""
-    zeile = db.scalar(select(CalendarEvent).where(CalendarEvent.outlook_postfach == adresse, CalendarEvent.outlook_event_id == kennung))
+    zeile = db.scalar(select(CalendarEvent).where(CalendarEvent.outlook_postfach == postfach.adresse, CalendarEvent.outlook_event_id == kennung))
     if zeile is not None:
         return zeile
-    zeile = db.scalar(select(CalendarEvent).where(CalendarEvent.owner_user_id == user.id, CalendarEvent.outlook_event_id == kennung))
+    zeile = db.scalar(select(CalendarEvent).where(postfach.gehoert(CalendarEvent), CalendarEvent.outlook_event_id == kennung))
     if zeile is not None:
-        _write_sync_bookkeeping(db, zeile, outlook_synced_at=zeile.outlook_synced_at, outlook_postfach=adresse)
+        _write_sync_bookkeeping(db, zeile, outlook_synced_at=zeile.outlook_synced_at, outlook_postfach=postfach.adresse)
     return zeile
 
 
-def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) -> int | None:
+def _apply_delta_change(db: Session, postfach: Postfach, item: dict, counters: dict) -> int | None:
     """Verarbeitet EINE Delta-Zeile -- gibt die lokale CalendarEvent.id zurück, wenn eine
     Änderung angewendet wurde (damit die Push-Phase diese Zeile im selben Lauf nicht erneut
     anfasst), sonst None."""
@@ -1058,18 +1106,17 @@ def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) 
     # Vorab, für die Diagnosezeile jeder Entscheidung nutzbar -- existiert die Zeile noch nicht
     # (Neuanlage) ODER handelt es sich um @removed/Serientermin/ungültig, bleibt sie None bzw.
     # wird gleich (Neuanlage-Zweig) ergänzt.
-    adresse = postfach_normal(user.outlook_mailbox)
-    auftrag = db.scalar(select(OutlookDeleteOrder).where(OutlookDeleteOrder.postfach == adresse, OutlookDeleteOrder.outlook_event_id == item["id"]))
+    auftrag = db.scalar(select(OutlookDeleteOrder).where(OutlookDeleteOrder.postfach == postfach.adresse, OutlookDeleteOrder.outlook_event_id == item["id"]))
     if auftrag is not None:
         # Seit 1.9.160: im ERP schon gelöscht oder umgezogen, das Löschen in Outlook steht noch aus -- die Kennung kommt nicht wieder herein.
         if "@removed" in item:
             db.delete(auftrag)
             db.commit()
         return None
-    existing = _termin_im_postfach(db, adresse, user, item["id"])
-    if existing is not None and existing.owner_user_id != user.id:
-        # Seit 1.9.160: das Postfach gehört inzwischen diesem Konto, ein Besitzerwechsel im Dialog hätte die Kennung gelöst.
-        _write_sync_bookkeeping(db, existing, outlook_synced_at=existing.outlook_synced_at, owner_user_id=user.id)
+    existing = _termin_im_postfach(db, postfach, item["id"])
+    if existing is not None and (existing.owner_user_id, existing.resource_id) != (postfach.besitzer["owner_user_id"], postfach.besitzer["resource_id"]):
+        # Seit 1.9.160: das Postfach gehört inzwischen jemand anderem, ein Besitzerwechsel im Dialog hätte die Kennung gelöst.
+        _write_sync_bookkeeping(db, existing, outlook_synced_at=existing.outlook_synced_at, **postfach.besitzer)
     # Fallstrick, beim Bauen selbst gefunden: NIE Attribute eines ORM-Objekts NACH einem
     # db.delete()+db.commit() lesen (expire_on_commit löst dann einen Reload eines nicht mehr
     # existierenden Datensatzes aus -> ObjectDeletedError). Deshalb werden die Werte HIER, VOR
@@ -1144,7 +1191,7 @@ def _apply_delta_change(db: Session, user: AppUser, item: dict, counters: dict) 
     if existing is None:
         now = datetime.utcnow()
         row = CalendarEvent(
-            owner_user_id=user.id, outlook_event_id=item["id"], outlook_postfach=adresse, external_source="outlook",
+            **postfach.besitzer, outlook_event_id=item["id"], outlook_postfach=postfach.adresse, external_source="outlook",
             outlook_etag=incoming_etag,
             project_id=None, quote_id=None,
             created_at=now, updated_at=now, outlook_synced_at=now,
@@ -1280,13 +1327,13 @@ def _fetch_all_pages(token: str, url: str, extra_headers: dict) -> list[dict]:
     return items
 
 
-def sync_series_occurrences(db: Session, user: AppUser, token: str, counters: dict, *,
+def sync_series_occurrences(db: Session, postfach: Postfach, token: str, counters: dict, *,
                             now_utc: datetime | None = None) -> None:
     """Vollständiger Abgleich der Serienvorkommen EINES Postfachs gegen das aktuelle Fenster,
     siehe Abschnittskommentar oben. Wirft bei einem Abruffehler, BEVOR irgendetwas geschrieben
     wurde; der Aufrufer rollt zurück."""
     diag = diagnostics_enabled()
-    adresse = postfach_normal(user.outlook_mailbox)
+    adresse = postfach.adresse
     window_start, window_end = series_window(now_utc)
     query = urllib.parse.urlencode({
         "startDateTime": window_start.isoformat() + "Z",
@@ -1299,7 +1346,7 @@ def sync_series_occurrences(db: Session, user: AppUser, token: str, counters: di
 
     existing = {
         row.outlook_event_id: row
-        for row in db.scalars(select(OutlookSeriesOccurrence).where(OutlookSeriesOccurrence.owner_user_id == user.id)).all()
+        for row in db.scalars(select(OutlookSeriesOccurrence).where(or_(postfach.gehoert(OutlookSeriesOccurrence), OutlookSeriesOccurrence.outlook_postfach == adresse))).all()
     }
     seen: set[str] = set()
     for item in items:
@@ -1327,16 +1374,15 @@ def sync_series_occurrences(db: Session, user: AppUser, token: str, counters: di
         seen.add(outlook_id)
         fields = _series_fields(item)
         if row is None:
-            new_row = OutlookSeriesOccurrence(owner_user_id=user.id, outlook_postfach=adresse, outlook_event_id=outlook_id,
+            new_row = OutlookSeriesOccurrence(**postfach.besitzer, outlook_postfach=adresse, outlook_event_id=outlook_id,
                                               outlook_etag=incoming_etag, **fields)
             db.add(new_row)
             db.flush()
             counters["series_created"] += 1
             log("neu übernommen", occurrence_id=new_row.id)
-        elif any(getattr(row, key) != value for key, value in fields.items()) or row.outlook_postfach != adresse:
-            for key, value in fields.items():
+        elif any(getattr(row, key) != value for key, value in {**fields, **postfach.besitzer, "outlook_postfach": adresse}.items()):
+            for key, value in {**fields, **postfach.besitzer, "outlook_postfach": adresse}.items():
                 setattr(row, key, value)
-            row.outlook_postfach = adresse
             row.outlook_etag = incoming_etag
             counters["series_updated"] += 1
             log("aktualisiert (in Outlook geändert)")
@@ -1374,9 +1420,14 @@ def list_series_occurrences(db: Session, *, start: datetime | None = None, end: 
             "id": row.id, "title": row.title, "start_at": row.start_at, "end_at": row.end_at,
             "all_day": row.all_day, "location": row.location, "notes": row.notes,
             "owner_user_id": row.owner_user_id, "owner_name": owner_names[row.owner_user_id],
+            "resource_id": row.resource_id, "resource_name": row.resource.name if row.resource else None,
             "is_private": row.is_private, "occurrence_type": row.occurrence_type,
         })
     return result
+
+
+_ZAEHLER = ("created", "updated", "deleted", "skipped_recurring", "skipped_invalid", "pushed_created", "pushed_updated", "push_failed",
+            "series_created", "series_updated", "series_deleted", "series_failed", "delta_reset")
 
 
 def sync_user_calendar(db: Session, user: AppUser, *, now_utc: datetime | None = None) -> dict:
@@ -1384,43 +1435,47 @@ def sync_user_calendar(db: Session, user: AppUser, *, now_utc: datetime | None =
     AppUser), danach der Serien-Abgleich (seit 1.7.8). Gibt ein reines Zähler-Dict zurück (nie
     Termininhalt, Punkt 6) -- der Aufrufer (Router bzw. scripts/sync_outlook_calendars.py)
     entscheidet, wie er das protokolliert/anzeigt. now_utc nur für Tests (wanderndes Fenster)."""
-    counters = {"created": 0, "updated": 0, "deleted": 0, "skipped_recurring": 0, "skipped_invalid": 0,
-                "pushed_created": 0, "pushed_updated": 0, "push_failed": 0,
-                "series_created": 0, "series_updated": 0, "series_deleted": 0, "series_failed": 0, "delta_reset": 0}
+    counters = dict.fromkeys(_ZAEHLER, 0)
     if not is_outlook_sync_available(db, user):
         return {"skipped": True, **counters}
-    adresse = postfach_normal(user.outlook_mailbox)
-    sperre = _sperre_nehmen(db, adresse)
+    return sync_postfach(db, postfach_des_kontos(user), now_utc=now_utc, counters=counters)
+
+
+def sync_postfach(db: Session, postfach: Postfach, *, now_utc: datetime | None = None, counters: dict | None = None) -> dict:
+    """Ein Postfach, Konto oder Gerät (seit 1.9.161): Belegen, abgleichen, freigeben."""
+    counters = counters if counters is not None else dict.fromkeys(_ZAEHLER, 0)
+    sperre = _sperre_nehmen(db, postfach.adresse)
     if sperre is None:
-        logger.info("Abgleich übersprungen: das Postfach wird gerade abgeglichen (app_user_id=%s).", user.id)
+        logger.info("Abgleich übersprungen: das Postfach wird gerade abgeglichen (%s).", postfach.im_protokoll)
         return {"skipped": True, "busy": True, **counters}
     try:
-        return _postfach_abgleichen(db, user, adresse, sperre, counters, now_utc)
+        return _postfach_abgleichen(db, postfach, sperre, counters, now_utc)
     finally:
         sperre.freigeben()
 
 
-def _postfach_abgleichen(db: Session, user: AppUser, adresse: str, sperre: _Sperre, counters: dict, now_utc: datetime | None) -> dict:
+def _postfach_abgleichen(db: Session, postfach: Postfach, sperre: _Sperre, counters: dict, now_utc: datetime | None) -> dict:
     """Ein Lauf unter der Sperre des Postfachs."""
+    adresse = postfach.adresse
     state = get_or_create_sync_state(db, adresse)
     smtp = load_smtp_settings(db)
     just_synced_ids: set[int] = set()
     diag = diagnostics_enabled()
 
     try:
-        if _liegt_woanders(db, user, adresse):
+        if _liegt_woanders(db, postfach):
             state.delta_link = None  # seit 1.9.160: erst der ganze Kalender sagt, was davon hier liegt (eine umbenannte Adresse) und was wirklich woanders
             db.commit()
         token = get_graph_access_token(smtp)
         basis_url = f"{_mailbox_events_url(adresse)}/delta?$select={_EVENT_SELECT}"
         items, new_delta_link, ganzer_kalender = _delta_holen(db, state, token, basis_url, counters, sperre)
         for item in items:
-            changed_id = _apply_delta_change(db, user, item, counters)
+            changed_id = _apply_delta_change(db, postfach, item, counters)
             if changed_id is not None:
                 just_synced_ids.add(changed_id)
         if ganzer_kalender:
-            _postfach_wechsel_aufloesen(db, user, adresse, counters)
-            _weggefallene_entfernen(db, user, adresse, token, items, counters, sperre)
+            _postfach_wechsel_aufloesen(db, postfach, counters)
+            _weggefallene_entfernen(db, postfach, token, items, counters, sperre)
 
         # Nachtrag (seit 1.7.2): Push-Fälligkeit über _needs_push() (pro Termin,
         # CalendarEvent.outlook_synced_at) statt eines einzelnen, postfachweiten Zeitstempels --
@@ -1428,7 +1483,7 @@ def _postfach_abgleichen(db: Session, user: AppUser, adresse: str, sperre: _Sper
         # SOFORT nach einem erfolgreichen Push UND wird bei einem Fehlschlag EINZELN abgefangen
         # (eigenes try/except je Zeile) -- ein kaputter Termin blockiert weder die übrigen Termine
         # in dieser Schleife noch das Fortschreiben von delta_link/last_synced_at am Ende.
-        local_rows = db.scalars(select(CalendarEvent).where(CalendarEvent.owner_user_id == user.id)).all()
+        local_rows = db.scalars(select(CalendarEvent).where(postfach.gehoert(CalendarEvent))).all()
         for row in local_rows:
             if row.id in just_synced_ids or not _needs_push(row):
                 continue
@@ -1488,13 +1543,13 @@ def _postfach_abgleichen(db: Session, user: AppUser, adresse: str, sperre: _Sper
         # abgeschlossenen Einzeltermin-Sync (inkl. delta_link) nicht zurückrollen.
         try:
             sperre.halten()
-            sync_series_occurrences(db, user, token, counters, now_utc=now_utc)
+            sync_series_occurrences(db, postfach, token, counters, now_utc=now_utc)
         except Exception as exc:  # noqa: BLE001
             db.rollback()
             for key in ("series_created", "series_updated", "series_deleted"):
                 counters[key] = 0
             counters["series_failed"] = 1
-            logger.warning("Serien-Abgleich fehlgeschlagen (app_user_id=%s, Fehlerart=%s).", user.id, type(exc).__name__)
+            logger.warning("Serien-Abgleich fehlgeschlagen (%s, Fehlerart=%s).", postfach.im_protokoll, type(exc).__name__)
             if diagnostics_enabled():
                 _diag_series(None, typ=None, etag_gespeichert=None, etag_eingehend=None,
                              entscheidung=f"Serien-Abgleich fehlgeschlagen ({type(exc).__name__}) -> nichts verändert")
@@ -1505,5 +1560,5 @@ def _postfach_abgleichen(db: Session, user: AppUser, adresse: str, sperre: _Sper
         state.last_error_type = type(exc).__name__
         state.last_error_at = datetime.utcnow()
         db.commit()
-        logger.warning("Outlook-Kalendersynchronisation fehlgeschlagen (app_user_id=%s, Fehlerart=%s).", user.id, type(exc).__name__)
+        logger.warning("Outlook-Kalendersynchronisation fehlgeschlagen (%s, Fehlerart=%s).", postfach.im_protokoll, type(exc).__name__)
         return {"error": True, "error_type": type(exc).__name__, **counters}

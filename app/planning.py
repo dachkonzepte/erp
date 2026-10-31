@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date, timedelta, datetime, timezone
+from datetime import date, time, timedelta, datetime, timezone
 import json
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
@@ -14,7 +14,9 @@ from sqlalchemy.orm import Session, selectinload
 from .auftragsstatus import AuftragGeschlossen, einsatz_gesperrt, geschlossen, name as status_name, offen_bedingung, pause_begruendung, pause_begruendungen, wert as status_wert
 from .grunddaten import einzelzeile
 from .berlin_time import berlin_today
+from .calendar_events import BUSY_PLACEHOLDER_TITLE
 from .models import (
+    CalendarEvent, OutlookSeriesOccurrence,
     Employee, EmployeeAbsence, EmployeeAbsenceRequest, EmployeePlanningSettings, EmployeeProfile, OperationalResource, Order, OrderItem, PlanningHoliday,
     PlanningSettings, PlanningRegionSettings, PlanningSchoolHoliday, PlanningSchoolHolidaySync, PlanningSlot, PlanningSlotCapacity, Project, Property, ServiceReport, Team, TeamEmployee,
     TeamResource, WorkPreparation, WorkPreparationEmployee, WorkPreparationTeamAssignment,
@@ -1037,6 +1039,27 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
     return result, distributions
 
 
+def _termine_der_geraete(db: Session, slot: PlanningSlot, settings: PlanningSettings) -> list[dict]:
+    """Einträge im Kalender eines Geräts, die seine Arbeitstage berühren (seit 1.9.161, Kran-Kalender): „Gerät doppelt“ beim Speichern. Ein Einsatz belegt ganze Tage, deshalb zählt jeder Termin an
+    einem dieser Tage, auch einer von zwei Stunden. Tage, an denen nicht gearbeitet wird, belegen das Gerät nicht (1.9.150); hat der Einsatz gar keinen Arbeitstag, zählen alle seine Tage. Serienvorkommen
+    zählen wie Einzeltermine, der Titel eines privaten steht als „Belegt“ da."""
+    geraete = {x.resource_id: x.resource_name_snapshot for x in slot.team_assignment.resources}
+    if not geraete:
+        return []
+    feiertage = set(_combined_holiday_map(db, slot.start_date, slot.end_date)[0])
+    alle_tage = list(_date_range(slot.start_date, slot.end_date))
+    tage = [t for t in alle_tage if _is_workday(t, settings, feiertage)] or alle_tage
+    von, bis = datetime.combine(slot.start_date, time.min), datetime.combine(slot.end_date, time.max)
+    out = []
+    for modell in (CalendarEvent, OutlookSeriesOccurrence):
+        for zeile in db.scalars(select(modell).where(modell.resource_id.in_(geraete), modell.start_at <= bis, modell.end_at >= von).order_by(modell.start_at)):
+            tag = next((t for t in tage if zeile.start_at.date() <= t <= zeile.end_at.date()), None)
+            if tag is not None:
+                titel = BUSY_PLACEHOLDER_TITLE if zeile.is_private else zeile.title
+                out.append({"type": "resource", "label": f"{geraete[zeile.resource_id]} · Termin: {titel}", "date": tag, "stufe": "warnung", "other_slot_id": None, "other_project": None, "other_project_name": None})
+    return out
+
+
 def einsatz_konflikte(db: Session, slot: PlanningSlot) -> dict:
     """Warnungen und Hinweise eines Einsatzes (seit 1.9.143) -- dieselbe Rechnung wie die Tafel (_conflicts()), gegen die Einsätze, die seinen Zeitraum
     berühren. Liest nur, sieht den Stand der offenen Transaktion. Ein Einsatz eines stornierten (P8) oder abgeschlossenen Auftrags (seit 1.9.151) hat keine."""
@@ -1045,7 +1068,7 @@ def einsatz_konflikte(db: Session, slot: PlanningSlot) -> dict:
     settings = load_planning_settings(db)
     andere = db.scalars(_einsatz_abfrage().where(PlanningSlot.id != slot.id, PlanningSlot.start_date <= slot.end_date, PlanningSlot.end_date >= slot.start_date)).all()
     konflikte, _ = _conflicts(db, [slot, *andere], settings)
-    liste = konflikte.get(slot.id, [])
+    liste = konflikte.get(slot.id, []) + _termine_der_geraete(db, slot, settings)
     return {"warnungen": [k for k in liste if k["stufe"] == "warnung"], "hinweise": [k for k in liste if k["stufe"] == "hinweis"]}
 
 

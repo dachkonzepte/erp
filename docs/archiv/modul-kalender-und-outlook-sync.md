@@ -1093,3 +1093,24 @@ Der Eintrag „Resurrection-Risiko“ unter „Bekannte, bewusst offene Punkte�
 ### Tests und Prüfung
 
 Angepasste Erwartungen: keine; das Befundverhalten XB1–XB6, XC1 und XP1 stand in keinem Test. Neue Spalte im Wächter `test_v364::OHNE_FESTE_WERTE`: `outlook_delete_orders.last_error_type`.
+
+## Umsetzung 1.9.161: mehrere Postfächer, Konto oder Gerät (Stufe 6, R2, Punkt 5)
+
+Entscheidung Tobias: Postfächer sind Tobias und neu ein eigenes Kran-Postfach, Kran-Kalender in beiden Richtungen, Termine entstehen dort auch direkt in Outlook. Regel aus der Zeichnung: Einträge im Kran-Kalender belegen den Kran und warnen bei Doppelbelegung; für Einsätze ist später die Plantafel führend.
+
+`Postfach` (Adresse plus Konto oder Gerät) ersetzt im Abgleich den Parameter `user`. `sync_user_calendar()` bleibt für das Öffnen von `/kalender`, `sync_postfach()` ist der Lauf für beides.
+
+### Festlegungen 1.9.161 (Bitte bestätigen)
+
+1. Das Kran-Postfach läuft nur mit dem Cron (alle 15 Minuten), nicht beim Öffnen des Kalenders: ein Eintrag in Outlook warnt frühestens nach dem nächsten Lauf. Was im ERP entsteht, geht sofort hinaus.
+2. Die Warnung steht nur beim Speichern eines Einsatzes. Die Tafel zeichnet Kran-Termine erst mit R4; ein trotzdem geplanter Einsatz ist bis dahin dort nicht rot.
+3. Der Einsatz belegt ganze Tage: jeder Termin an einem Arbeitstag des Einsatzes warnt, auch einer von zwei Stunden. Ein Termin nur an einem freien Tag (Einsatz Freitag bis Montag, Termin am Samstag) warnt nicht. Hat der Einsatz gar keinen Arbeitstag, zählen alle seine Tage.
+4. Es warnt nur das Speichern eines Einsatzes. Ein Kran-Termin, der im ERP-Kalender oder in Outlook neben einem Einsatz entsteht, warnt nicht; `scripts/pruefe_outlook.py` nennt solche Überschneidungen (1.9.163).
+5. Ein privater Termin am Kran ist für alle „Belegt“, auch für die Person, die ihn angelegt hat: ein Gerät hat keinen Besitzer, der ihn lesen dürfte.
+6. Im Dialog steht das Gerät in derselben Auswahl wie die Konten („Kran 30 m (Gerät)“), zu sehen sind nur aktive Geräte mit Postfach.
+7. Ein Gerät mit Terminen wird beim Löschen nur deaktiviert, wie eines an einer Kolonne. Ein deaktiviertes Gerät gleicht nicht mehr ab.
+8. Gesehen wird der Standardkalender des Postfachs. Ein Termin mit „frei“ (`showAs`) belegt den Kran wie jeder andere.
+
+### Tests und Prüfung
+
+Angepasster Aufbau (Regel 28): `test_v577::test_treffen_sich_zwei_laeufe_…` übergibt das Postfach statt des Kontos, die Erwartung bleibt.

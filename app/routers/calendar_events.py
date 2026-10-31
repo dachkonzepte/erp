@@ -22,6 +22,7 @@ effort -- siehe dortige Docstrings für die jeweilige Begründung."""
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..calendar_events import (
@@ -30,9 +31,9 @@ from ..calendar_events import (
 )
 from ..database import get_db
 from ..modules import is_module_enabled
-from ..models import AppUser, CalendarEvent
+from ..models import AppUser, CalendarEvent, OperationalResource
 from ..outlook_calendar_sync import (
-    besitzer_gewechselt, list_series_occurrences, loeschauftraege_best_effort, push_event_best_effort, sync_user_calendar, try_delete_remote_event,
+    besitzer_gewechselt, list_series_occurrences, loeschauftraege_best_effort, push_event_best_effort, sync_user_calendar, try_delete_remote_event, wo_er_liegt,
 )
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, require_min_role
 from ..schemas import CalendarEventCreate, CalendarEventUpdate, CalendarOwnerOut, OutlookSyncResultOut
@@ -59,6 +60,14 @@ def _out(data: dict, viewer_user_id: int | None) -> dict:
 def get_calendar_owners(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     return list_owners(db, role_keys=_OWNER_ROLES)
+
+
+@router.get("/api/calendar-events/geraete")
+def get_calendar_geraete(db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.9.161: Geräte mit eigenem Kalender (Postfach) -- neben den Konten wählbar als Besitzer eines Termins."""
+    _require_module_enabled(db)
+    zeilen = db.scalars(select(OperationalResource).where(OperationalResource.active.is_(True), OperationalResource.outlook_mailbox.is_not(None)).order_by(OperationalResource.name)).all()
+    return [{"id": g.id, "name": g.name} for g in zeilen]
 
 
 @router.post("/api/calendar-events/sync-outlook", response_model=OutlookSyncResultOut)
@@ -120,7 +129,7 @@ def post_calendar_event(payload: CalendarEventCreate, db: Session = Depends(get_
         data = create_event(
             db, title=payload.title, start_at=payload.start_at, end_at=payload.end_at,
             all_day=payload.all_day, location=payload.location, notes=payload.notes,
-            owner_user_id=payload.owner_user_id or _role.id,
+            owner_user_id=payload.owner_user_id or (None if payload.resource_id else _role.id), resource_id=payload.resource_id,
             project_id=payload.project_id, quote_id=payload.quote_id, is_private=payload.is_private,
         )
     except ValueError as exc:
@@ -133,16 +142,16 @@ def post_calendar_event(payload: CalendarEventCreate, db: Session = Depends(get_
 def put_calendar_event(event_id: int, payload: CalendarEventUpdate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
     _require_module_enabled(db)
     vorher = db.get(CalendarEvent, event_id)
-    alter_besitzer, alte_lage = (vorher.owner, vorher.outlook_postfach) if vorher is not None else (None, None)
-    alter_besitzer_id = vorher.owner_user_id if vorher is not None else None
+    alte_lage = wo_er_liegt(vorher) if vorher is not None else None
+    alter_besitzer = (vorher.owner_user_id, vorher.resource_id) if vorher is not None else None
     try:
         data = update_event(db, event_id, payload.model_dump(exclude_unset=True))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if data is None:
         raise HTTPException(status_code=404, detail="Termin nicht gefunden.")
-    if data["owner_user_id"] != alter_besitzer_id:
-        besitzer_gewechselt(db, data["id"], alter_besitzer=alter_besitzer, alte_lage=alte_lage)
+    if (data["owner_user_id"], data["resource_id"]) != alter_besitzer:
+        besitzer_gewechselt(db, data["id"], alte_lage=alte_lage)
     push_event_best_effort(db, data["id"])
     loeschauftraege_best_effort(db)
     return _out(data, _role.id)

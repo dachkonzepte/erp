@@ -153,6 +153,7 @@ async function api(u,o){const r=await fetch(u,o);if(!r.ok){let d={};try{d=await 
 let view=localStorage.getItem('erp_calendar_view')||'month';
 let anchor=berlinTodayDate();  // seit 1.8.87 der Berliner Tag
 let owners=[];
+let geraete=[];  // seit 1.9.161: Geräte mit eigenem Kalender (Kran)
 let events=[];
 let selectedLink=null; // {type:'project'|'quote', id, label}
 
@@ -194,7 +195,7 @@ function periodLabelText(){
 }
 
 // Seit 1.8.97 über lesen() (_speichern.html): die Besitzer füllen die Auswahl im Termin-Dialog.
-async function loadOwners(){await lesen('besitzer',()=>api('/api/calendar-events/owners'),d=>{owners=d})}
+async function loadOwners(){await lesen('besitzer',()=>Promise.all([api('/api/calendar-events/owners'),api('/api/calendar-events/geraete')]),([o,g])=>{owners=o;geraete=g})}
 
 // Seit 1.8.95 über lesen() (_speichern.html): eine spät ankommende, ältere Terminliste (z. B. nach schnellem Blättern oder
 // nach dem Outlook-Abgleich) überschreibt nie eine neuere.
@@ -220,12 +221,13 @@ function timeRangeLabel(e){
   return `${f(e.start_at)} – ${f(e.end_at)}`;
 }
 
+function besitzerName(e){return e.owner_name||e.resource_name||''}
 function eventChipHtml(e,dense){
   const busy=e.title==='Belegt'&&e.is_private;
   const cls=dense?'event-chip':'event-row';
   const busyCls=busy?(dense?' private-busy':' private-busy'):'';
-  if(busy)return `<div class="${cls}${busyCls}" onclick="event.stopPropagation()" title="Privater Termin von ${esc(e.owner_name||'?')}">🔒 ${dense?'':'<span class=\"time\">'+timeRangeLabel(e)+'</span>'}Belegt <span class="owner-tag">(${esc(e.owner_name||'')})</span></div>`;
-  const owner=e.owner_name?` <span class="owner-tag">· ${esc(e.owner_name)}</span>`:'';
+  if(busy)return `<div class="${cls}${busyCls}" onclick="event.stopPropagation()" title="Privater Termin von ${esc(besitzerName(e)||'?')}">🔒 ${dense?'':'<span class=\"time\">'+timeRangeLabel(e)+'</span>'}Belegt <span class="owner-tag">(${esc(besitzerName(e))})</span></div>`;
+  const owner=besitzerName(e)?` <span class="owner-tag">· ${esc(besitzerName(e))}</span>`:'';
   const click=e.series?`openSeries(${e.id})`:`openEdit(${e.id})`;
   const seriesCls=e.series?' series':'';
   const mark=e.series?'<span class="series-mark" title="Serientermin aus Outlook (nur lesen)">↻</span>':'';
@@ -291,8 +293,12 @@ function renderDay(){
 
 // Seit 1.8.30 über auswahlOptionen() (_auswahl.html): die Besitzerliste enthält nur aktive Büro-Konten. Gehört ein
 // Termin einem inzwischen deaktivierten Konto, bleibt es vorgewählt -- vorher wurde still das erste Konto Besitzer.
-function ownerOptionsHtml(selectedId,ownerName){
-  return auswahlOptionen(owners,selectedId,o=>o.display_name,{fehlt:()=>`${ownerName||'Bisheriges Konto'} (nicht mehr verfügbar)`});
+// Seit 1.9.161 auch Geräte mit eigenem Kalender; der Wert sagt, was gemeint ist (k12 ein Konto, g3 ein Gerät).
+function parseId(s){return /^\d+$/.test(s)?Number(s):null}
+function besitzerWert(e){return e.resource_id?`g${e.resource_id}`:e.owner_user_id?`k${e.owner_user_id}`:null}
+function ownerOptionsHtml(gespeichert,ownerName){
+  const liste=owners.map(o=>({wert:`k${o.id}`,text:o.display_name})).concat(geraete.map(g=>({wert:`g${g.id}`,text:`${g.name} (Gerät)`})));
+  return auswahlOptionen(liste,gespeichert,x=>x.text,{wert:x=>x.wert,fehlt:()=>`${ownerName||'Bisheriges Konto'} (nicht mehr verfügbar)`});
 }
 
 function toggleAllDayInputs(){
@@ -377,7 +383,7 @@ function openSeries(id){
   const when=e.all_day?new Date(e.start_at).toLocaleDateString('de-DE')+' (ganztägig)'
     :`${new Date(e.start_at).toLocaleDateString('de-DE')} ${timeRangeLabel(e)}`;
   document.getElementById('seriesDetails').innerHTML=
-    row('Titel',e.title)+row('Wann',when)+row('Ort',e.location)+row('Besitzer',e.owner_name)
+    row('Titel',e.title)+row('Wann',when)+row('Ort',e.location)+row('Besitzer',besitzerName(e))
     +row('Art',e.occurrence_type==='exception'?'Einzeln verschobenes Vorkommen':'Vorkommen der Serie')
     +row('Notiz',e.notes)+(e.is_private?'<dt>Privat</dt><dd>Ja (für Kollegen nur „Belegt“)</dd>':'');
   document.getElementById('seriesModal').classList.add('open');
@@ -401,7 +407,7 @@ function openEdit(id){
   document.getElementById('eLocation').value=e.location||'';
   document.getElementById('eNotes').value=e.notes||'';
   document.getElementById('ePrivate').checked=e.is_private;
-  document.getElementById('eOwner').innerHTML=ownerOptionsHtml(e.owner_user_id,e.owner_name);
+  document.getElementById('eOwner').innerHTML=ownerOptionsHtml(besitzerWert(e),besitzerName(e));
   if(e.project_id){selectedLink={type:'project',id:e.project_id,label:e.project_name||('Projekt #'+e.project_id)};document.getElementById('eLinkSearch').value=selectedLink.label;showLinkTag()}
   else if(e.quote_id){selectedLink={type:'quote',id:e.quote_id,label:e.quote_number||('Angebot #'+e.quote_id)};document.getElementById('eLinkSearch').value=selectedLink.label;showLinkTag()}
   document.getElementById('deleteBtn').style.display='inline-block';
@@ -418,12 +424,14 @@ async function saveEvent(){
   if(!sDate||!eDate){document.getElementById('modalStatus').textContent='Bitte Beginn und Ende angeben.';return}
   const sTime=allDay?'00:00':document.getElementById('eStartTime').value||'00:00';
   const eTime=allDay?'00:00':document.getElementById('eEndTime').value||'00:00';
+  const besitzer=document.getElementById('eOwner').value,besitzerId=parseId(besitzer.slice(1));
   const body={
     title, all_day:allDay,
     start_at:toLocalIso(sDate,sTime), end_at:toLocalIso(eDate,eTime),
     location:document.getElementById('eLocation').value.trim()||null,
     notes:document.getElementById('eNotes').value.trim()||null,
-    owner_user_id:Number(document.getElementById('eOwner').value)||null,
+    owner_user_id:besitzer[0]==='k'?besitzerId:null,
+    resource_id:besitzer[0]==='g'?besitzerId:null,
     is_private:document.getElementById('ePrivate').checked,
     project_id:selectedLink&&selectedLink.type==='project'?selectedLink.id:null,
     quote_id:selectedLink&&selectedLink.type==='quote'?selectedLink.id:null,

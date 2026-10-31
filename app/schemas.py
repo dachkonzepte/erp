@@ -2433,6 +2433,11 @@ class OutlookSyncSettingsUpdate(BaseModel):
     enabled: bool
 
 
+class GeraetPostfachUpdate(BaseModel):
+    """Seit 1.9.161: das Postfach eines Geräts, leer = keins. Pflichtfeld (Regel 22)."""
+    outlook_mailbox: str | None = Field(max_length=255)
+
+
 class OutlookSyncResultOut(BaseModel):
     """Rückgabe von POST /api/calendar-events/sync-outlook -- reine Zähler, nie Termininhalt
     (siehe app/outlook_calendar_sync.py Punkt 6)."""
@@ -5527,6 +5532,7 @@ class CalendarEventCreate(BaseModel):
     # None beim Anlegen bedeutet "der eigene Account" -- der Router füllt das über den
     # angemeldeten Benutzer, siehe app/routers/calendar_events.py::post_calendar_event().
     owner_user_id: int | None = None
+    resource_id: int | None = None  # seit 1.9.161: der Termin gehört einem Gerät (Kran-Kalender) statt einem Konto
     # app/calendar_events.py::_validate_single_assignment() -- höchstens eines der beiden.
     project_id: int | None = None
     quote_id: int | None = None
@@ -5542,6 +5548,7 @@ class CalendarEventUpdate(BaseModel):
     location: str | None = Field(default=None, max_length=255)
     notes: str | None = None
     owner_user_id: int | None = None
+    resource_id: int | None = None
     project_id: int | None = None
     quote_id: int | None = None
     is_private: bool | None = None
@@ -5557,8 +5564,10 @@ class CalendarEventOut(BaseModel):
     all_day: bool
     location: str | None = None
     notes: str | None = None
-    owner_user_id: int
+    owner_user_id: int | None = None
     owner_name: str | None = None
+    resource_id: int | None = None
+    resource_name: str | None = None
     project_id: int | None = None
     project_name: str | None = None
     quote_id: int | None = None
@@ -5578,8 +5587,10 @@ class CalendarEventBusyOut(BaseModel):
     start_at: datetime
     end_at: datetime
     all_day: bool
-    owner_user_id: int
+    owner_user_id: int | None = None
     owner_name: str | None = None
+    resource_id: int | None = None
+    resource_name: str | None = None
     is_private: bool = True
     title: str = "Belegt"
 

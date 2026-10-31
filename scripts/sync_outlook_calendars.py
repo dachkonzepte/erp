@@ -1,4 +1,5 @@
-"""Gleicht ALLE Postfächer mit hinterlegtem Outlook-Sync (AppUser.outlook_mailbox, aktive Konten)
+"""Gleicht ALLE Postfächer mit hinterlegtem Outlook-Sync (AppUser.outlook_mailbox, aktive Konten; seit 1.9.161
+auch OperationalResource.outlook_mailbox, aktive Geräte -- für die Kran-Termine ist dieser Lauf der einzige Weg aus Outlook ins ERP)
 gegen Microsoft Graph ab -- der ALLE-Postfächer-Gegenstück zu POST /api/calendar-events/sync-outlook
 (das nur das eigene Postfach beim Öffnen von /kalender synchronisiert), siehe CLAUDE.md
 "Kalender" -> "Stufe 2" Punkt 5.
@@ -46,12 +47,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sqlalchemy import select  # noqa: E402
-
 from app.database import SessionLocal  # noqa: E402
 from app.logging_config import configure_logging  # noqa: E402
-from app.models import AppUser  # noqa: E402
-from app.outlook_calendar_sync import is_outlook_sync_available, loeschauftraege_best_effort, sync_user_calendar  # noqa: E402
+from app.outlook_calendar_sync import alle_postfaecher, is_outlook_sync_available, loeschauftraege_best_effort, sync_postfach  # noqa: E402
 
 logger = logging.getLogger("scripts.sync_outlook_calendars")
 
@@ -64,26 +62,24 @@ def main() -> int:
             logger.info("Outlook-Kalendersynchronisation ist deaktiviert oder nicht konfiguriert -- nichts zu tun.")
             return 0
 
-        candidates = db.scalars(
-            select(AppUser).where(AppUser.active == True, AppUser.outlook_mailbox.is_not(None))  # noqa: E712
-        ).all()
+        candidates = alle_postfaecher(db)
         if not candidates:
-            logger.info("Kein aktives Konto mit hinterlegtem Outlook-Postfach -- nichts zu tun.")
+            logger.info("Kein aktives Konto und kein aktives Gerät mit hinterlegtem Outlook-Postfach -- nichts zu tun.")
             loeschauftraege_best_effort(db)
             return 0
 
-        for user in candidates:
-            result = sync_user_calendar(db, user)
+        for postfach in candidates:
+            result = sync_postfach(db, postfach)
             if result.get("skipped"):
                 continue
             if result.get("error"):
-                logger.warning("Postfach app_user_id=%s: Fehler (%s).", user.id, result.get("error_type"))
+                logger.warning("Postfach %s: Fehler (%s).", postfach.im_protokoll, result.get("error_type"))
                 continue
             logger.info(
-                "Postfach app_user_id=%s: %s neu, %s geändert, %s gelöscht, %s Serien-Master übersprungen, "
+                "Postfach %s: %s neu, %s geändert, %s gelöscht, %s Serien-Master übersprungen, "
                 "%s nach Outlook neu angelegt, %s nach Outlook aktualisiert; Serienvorkommen: %s neu, "
                 "%s geändert, %s entfernt, Abgleich fehlgeschlagen=%s, neu eingelesen=%s.",
-                user.id, result["created"], result["updated"], result["deleted"],
+                postfach.im_protokoll, result["created"], result["updated"], result["deleted"],
                 result["skipped_recurring"], result["pushed_created"], result["pushed_updated"],
                 result["series_created"], result["series_updated"], result["series_deleted"], result["series_failed"], result["delta_reset"],
             )

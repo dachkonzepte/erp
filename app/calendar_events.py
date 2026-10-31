@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from .auth import resolve_account_display
 from .berlin_time import to_berlin
-from .models import AppUser, CalendarEvent, Project, Quote
+from .models import AppUser, CalendarEvent, OperationalResource, Project, Quote
 
 MODULE_KEY = "kalender"
 
@@ -53,6 +53,8 @@ def event_to_dict(db: Session, event: CalendarEvent) -> dict:
         "notes": event.notes,
         "owner_user_id": event.owner_user_id,
         "owner_name": _owner_name(db, event.owner),
+        "resource_id": event.resource_id,
+        "resource_name": event.resource.name if event.resource is not None else None,
         "project_id": event.project_id,
         "project_name": event.project.name if event.project is not None else None,
         "quote_id": event.quote_id,
@@ -70,8 +72,8 @@ def is_redacted_for_viewer(data: dict, viewer_user_id: int | None) -> bool:
     muss -- genutzt vom Router, um zwischen CalendarEventOut/CalendarEventBusyOut zu wählen.
     Ein Termin wird reduziert, wenn er privat ist UND der Betrachter nicht der Besitzer ist --
     unabhängig von der Rolle (buero_finanzen sieht ein fremdes privates buero_auftrag-Termin
-    genauso reduziert wie umgekehrt)."""
-    return bool(data["is_private"]) and data["owner_user_id"] != viewer_user_id
+    genauso reduziert wie umgekehrt). Seit 1.9.161: am Gerät gibt es keinen Besitzer, der ihn lesen dürfte."""
+    return bool(data["is_private"]) and (data["owner_user_id"] is None or data["owner_user_id"] != viewer_user_id)
 
 
 def redact_for_busy(data: dict) -> dict:
@@ -85,6 +87,8 @@ def redact_for_busy(data: dict) -> dict:
         "all_day": data["all_day"],
         "owner_user_id": data["owner_user_id"],
         "owner_name": data["owner_name"],
+        "resource_id": data["resource_id"],
+        "resource_name": data["resource_name"],
         "is_private": True,
         "title": BUSY_PLACEHOLDER_TITLE,
     }
@@ -95,9 +99,16 @@ def _validate_single_assignment(project_id: int | None, quote_id: int | None) ->
         raise ValueError("Ein Termin kann nur einem Projekt oder einem Angebot zugeordnet werden, nicht beiden.")
 
 
-def _validate_referenced_entities(db: Session, *, owner_user_id: int, project_id: int | None, quote_id: int | None) -> None:
-    if db.get(AppUser, owner_user_id) is None:
+def _validate_single_owner(owner_user_id: int | None, resource_id: int | None) -> None:
+    if (owner_user_id is None) == (resource_id is None):
+        raise ValueError("Ein Termin gehört einem Konto oder einem Gerät, genau einem von beiden.")
+
+
+def _validate_referenced_entities(db: Session, *, owner_user_id: int | None, resource_id: int | None = None, project_id: int | None, quote_id: int | None) -> None:
+    if owner_user_id is not None and db.get(AppUser, owner_user_id) is None:
         raise ValueError(f"Benutzer #{owner_user_id} wurde nicht gefunden.")
+    if resource_id is not None and db.get(OperationalResource, resource_id) is None:
+        raise ValueError(f"Gerät #{resource_id} wurde nicht gefunden.")
     if project_id is not None and db.get(Project, project_id) is None:
         raise ValueError(f"Projekt #{project_id} wurde nicht gefunden.")
     if quote_id is not None and db.get(Quote, quote_id) is None:
@@ -110,14 +121,15 @@ def _validate_time_range(start_at: datetime, end_at: datetime) -> None:
 
 
 def create_event(db: Session, *, title: str, start_at: datetime, end_at: datetime, all_day: bool,
-                  location: str | None, notes: str | None, owner_user_id: int,
-                  project_id: int | None, quote_id: int | None, is_private: bool) -> dict:
+                  location: str | None, notes: str | None, owner_user_id: int | None,
+                  project_id: int | None, quote_id: int | None, is_private: bool, resource_id: int | None = None) -> dict:
     _validate_time_range(start_at, end_at)
     _validate_single_assignment(project_id, quote_id)
-    _validate_referenced_entities(db, owner_user_id=owner_user_id, project_id=project_id, quote_id=quote_id)
+    _validate_single_owner(owner_user_id, resource_id)
+    _validate_referenced_entities(db, owner_user_id=owner_user_id, resource_id=resource_id, project_id=project_id, quote_id=quote_id)
     event = CalendarEvent(
         title=title.strip(), start_at=start_at, end_at=end_at, all_day=all_day,
-        location=(location or None), notes=(notes or None), owner_user_id=owner_user_id,
+        location=(location or None), notes=(notes or None), owner_user_id=owner_user_id, resource_id=resource_id,
         project_id=project_id, quote_id=quote_id, is_private=is_private,
     )
     db.add(event)
@@ -137,8 +149,16 @@ def update_event(db: Session, event_id: int, fields: dict) -> dict | None:
     new_project_id = fields.get("project_id", event.project_id)
     new_quote_id = fields.get("quote_id", event.quote_id)
     _validate_single_assignment(new_project_id, new_quote_id)
+    # Seit 1.9.161: wer nur das eine von beiden schickt, wechselt dorthin; das andere wird leer.
+    fields = dict(fields)
+    if fields.get("owner_user_id") is not None and "resource_id" not in fields:
+        fields["resource_id"] = None
+    elif fields.get("resource_id") is not None and "owner_user_id" not in fields:
+        fields["owner_user_id"] = None
+    new_owner_id, new_resource_id = fields.get("owner_user_id", event.owner_user_id), fields.get("resource_id", event.resource_id)
+    _validate_single_owner(new_owner_id, new_resource_id)
     _validate_referenced_entities(
-        db, owner_user_id=fields.get("owner_user_id", event.owner_user_id),
+        db, owner_user_id=new_owner_id, resource_id=new_resource_id,
         project_id=new_project_id, quote_id=new_quote_id,
     )
     for key, value in fields.items():

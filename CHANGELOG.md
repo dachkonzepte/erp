@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.161 – Mehrere Postfächer: ein Postfach gehört einem Konto oder einem Gerät (Stufe 6, R2 Outlook, Punkt 5)
+
+Ein Postfach hängt jetzt an einem Konto oder an einem Gerät (`OperationalResource.outlook_mailbox`, Kran-Kalender). Einen Termin hat entweder ein Konto oder ein Gerät, die Datenbank prüft das. Termine des Kran-Postfachs hängen am Kran und gleichen in beiden Richtungen ab: was in Outlook entsteht, steht danach am Kran, was im ERP entsteht, geht ins Kran-Postfach; Serien kommen wie bei Konten schreibgeschützt herein. Im Kalender ist der Kran neben den Konten wählbar, ein Wechsel zwischen Konto und Gerät zieht den Termin um. Der Cron gleicht Konten und Geräte ab; das Öffnen von `/kalender` weiter nur das eigene Postfach.
+
+Beim Speichern eines Einsatzes zählt ein Termin am Kran an einem Arbeitstag des Einsatzes als „Gerät doppelt“ (`_termine_der_geraete()`): Rückfrage, trotzdem planbar. Ein privater Termin steht dort als „Belegt“. Auf der Tafel erscheint das erst mit R4, die Richtung Plantafel → Kran-Kalender kommt mit R3. Tests: `tests/test_v579_geraete_postfach.py`.
+
 ## 1.9.160 – Besitzer- und Postfachwechsel: kein dauerhaft falscher Zustand (Stufe 6, R2 Outlook, Punkt 4)
 
 Besitzer im Dialog ändern: das PATCH ging mit der alten Kennung ans neue Postfach, 404, ohne Ende, und das alte Postfach legte beim nächsten Lauf einen zweiten Termin im ERP an. Jetzt zieht der Termin um (`besitzer_gewechselt()`): raus aus dem alten Postfach, als neuer Termin ins Postfach des neuen Besitzers; hat der keins, liegt er nur noch im ERP. Gelöscht wird über einen Auftrag (`OutlookDeleteOrder`): er überlebt ein gescheitertes Netz, der nächste Lauf versucht es wieder, und solange er steht, nimmt der Abruf die Kennung nicht wieder auf. Das schließt auch das „Resurrection-Risiko“ aus dem Archiv. Das Fernlöschen geht an das Postfach, in dem der Termin liegt, nicht an das des Besitzers.

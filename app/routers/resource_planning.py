@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db
-from ..models import AppUser, Contact, Employee, OperationalResource, Supplier, Team, TeamEmployee, TeamResource, TimeEntryGroup, WorkPreparationDeliveryNote, WorkPreparationMaterialSupplier, WorkPreparationTeamAssignment, WorkPreparationTeamResource
+from ..models import AppUser, CalendarEvent, Contact, Employee, OperationalResource, OutlookSeriesOccurrence, Supplier, Team, TeamEmployee, TeamResource, TimeEntryGroup, WorkPreparationDeliveryNote, WorkPreparationMaterialSupplier, WorkPreparationTeamAssignment, WorkPreparationTeamResource
 from ..permissions import ROLE_OFFICE_AUFTRAG, require_min_role
 from ..schemas import OperationalResourceCreate, OperationalResourceOut, OperationalResourceUpdate, SupplierCreate, SupplierOut, SupplierUpdate, TeamCreate, TeamOut, TeamUpdate
 
@@ -174,7 +174,8 @@ def update_resource(resource_id:int,payload:OperationalResourceUpdate,db:Session
 def delete_resource(resource_id:int,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     x=db.get(OperationalResource,resource_id)
     if x is None: raise HTTPException(status_code=404,detail="Ressource nicht gefunden.")
-    used=db.scalar(select(TeamResource).where(TeamResource.resource_id==resource_id)) or db.scalar(select(WorkPreparationTeamResource).where(WorkPreparationTeamResource.resource_id==resource_id))
+    used=db.scalar(select(TeamResource).where(TeamResource.resource_id==resource_id)) or db.scalar(select(WorkPreparationTeamResource).where(WorkPreparationTeamResource.resource_id==resource_id)) \
+        or db.scalar(select(CalendarEvent).where(CalendarEvent.resource_id==resource_id)) or db.scalar(select(OutlookSeriesOccurrence).where(OutlookSeriesOccurrence.resource_id==resource_id))  # seit 1.9.161: Kran-Kalender
     if used:
         x.active=False; db.commit(); return {"deleted":False,"deactivated":True}
     db.delete(x); db.commit(); return {"deleted":True}

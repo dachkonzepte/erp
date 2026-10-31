@@ -26,7 +26,7 @@ from app.auth import hash_password
 from app.database import Base
 from app.models import AppUser, CalendarEvent, OutlookCalendarSyncState, OutlookSeriesOccurrence
 from app.outlook_calendar_sync import (
-    SPERRE_GILT, SperreVerloren, _apply_delta_change, _sperre_nehmen, get_or_create_sync_state, postfach_normal, push_event_best_effort, sync_user_calendar,
+    SPERRE_GILT, SperreVerloren, _apply_delta_change, _sperre_nehmen, get_or_create_sync_state, postfach_des_kontos, postfach_normal, push_event_best_effort, sync_user_calendar,
 )
 from app.routers.users import router as users_router
 from tests.bestand_alt import auftrag
@@ -362,7 +362,7 @@ def test_treffen_sich_zwei_laeufe_doch_gilt_die_zeile_des_ersten():
     item = {"id": "K1", "subject": "Termin", "isAllDay": False, "start": {"dateTime": "2026-11-10T08:00:00"}, "end": {"dateTime": "2026-11-10T09:00:00"},
             "lastModifiedDateTime": "2026-11-01T00:00:00Z", "location": {}, "body": {"content": ""}}
     with patch("app.outlook_calendar_sync._termin_im_postfach", return_value=None):
-        assert _apply_delta_change(db, konto, item, zaehler) is None
+        assert _apply_delta_change(db, postfach_des_kontos(konto), item, zaehler) is None
     assert zaehler["created"] == 0
     assert db.scalar(select(func.count()).select_from(CalendarEvent)) == 1
 

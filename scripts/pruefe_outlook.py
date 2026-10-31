@@ -65,17 +65,19 @@ def _delta_pfad(link: str | None) -> str:
 def _besitzer(user) -> str:
     if user is None:
         return "unbekanntes Konto"
-    return user.username + (f" ({user.outlook_mailbox})" if user.outlook_mailbox else " (kein Postfach)")
+    name = getattr(user, "username", None) or f"{user.name} (Gerät)"
+    return name + (f" ({user.outlook_mailbox})" if user.outlook_mailbox else " (kein Postfach)")
 
 
 def pruefen(db, *, jetzt: datetime | None = None) -> dict:
     """Der Stand des Abgleichs -- liest nur, fragt Microsoft nicht."""
-    from app.models import AppUser, CalendarEvent, OutlookCalendarSyncState, OutlookSyncSettings
+    from app.models import AppUser, CalendarEvent, OperationalResource, OutlookCalendarSyncState, OutlookSyncSettings
     from app.outlook_calendar_sync import _needs_push, postfach_normal
 
     jetzt = jetzt or datetime.utcnow()
     einstellung = db.get(OutlookSyncSettings, 1)
     konten = {u.id: u for u in db.scalars(select(AppUser))}
+    geraete = {g.id: g for g in db.scalars(select(OperationalResource))}
     staende = {s.postfach: s for s in db.scalars(select(OutlookCalendarSyncState))}
     termine = list(db.scalars(select(CalendarEvent).order_by(CalendarEvent.id)))
 
@@ -96,7 +98,7 @@ def pruefen(db, *, jetzt: datetime | None = None) -> dict:
     warten, ganztaegig = [], []
     kennungen = defaultdict(list)
     for t in termine:
-        user = konten.get(t.owner_user_id)
+        user = konten.get(t.owner_user_id) or geraete.get(t.resource_id)
         if user is not None and user.outlook_mailbox and _needs_push(t):
             warten.append({"id": t.id, "besitzer": _besitzer(user), "tag": t.start_at.date(),
                            "grund": "noch nie gesendet" if t.outlook_event_id is None else "im ERP geändert"})
@@ -106,7 +108,7 @@ def pruefen(db, *, jetzt: datetime | None = None) -> dict:
             ganztaegig.append({"id": t.id, "besitzer": _besitzer(user), "tag": t.start_at.date(), "bis": t.end_at.date(),
                                "gesendet": bool(t.outlook_event_id)})
     doppelt = [{"kennung": k[:24] + ("…" if len(k) > 24 else ""), "termine": [t.id for t in zeilen],
-                "besitzer": sorted({_besitzer(konten.get(t.owner_user_id)) for t in zeilen})}
+                "besitzer": sorted({_besitzer(konten.get(t.owner_user_id) or geraete.get(t.resource_id)) for t in zeilen})}
                for k, zeilen in kennungen.items() if len(zeilen) > 1]
     return {"eingeschaltet": bool(einstellung and einstellung.enabled), "postfaecher": postfaecher, "warten": warten,
             "doppelt": doppelt, "ganztaegig": ganztaegig}
