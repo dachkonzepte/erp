@@ -17,7 +17,8 @@ from ..berlin_time import berlin_today
 from ..database import get_db
 from ..absence_requests import abwesenheit_loeschen, eintragen
 from ..meldungen import KEIN_MITARBEITER
-from ..models import AppUser, Employee, EmployeeAbsence, PlanningHoliday
+from ..auftragsstatus import einsatz_gesperrt
+from ..models import AppUser, Employee, EmployeeAbsence, Order, PlanningHoliday
 from ..permissions import (ABWESENHEIT_LOESCHEN_NUR_ADMIN, ABWESENHEIT_LOESCHEN_ROLLEN, ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, darf_abwesenheit_loeschen,
                            darf_abwesenheiten_aller, has_min_role, require_min_role, require_planungsgrundlagen, require_role)
 from .absence_requests import antrag_fuer
@@ -206,6 +207,15 @@ def delete_employee_absence(absence_id:int,db:Session=Depends(get_db, scope="fun
 def get_planning_suggestion(payload:PlanningSuggestionRequest,db:Session=Depends(get_db, scope="function"),_role:AppUser=_role_dep):
     try: return _redact_suggestion_absences(planning_suggestion(db,**payload.model_dump()), _role)
     except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
+
+
+@router.get("/api/planning/auftraege/{order_id}")
+def get_planning_order_state(order_id: int, db: Session = Depends(get_db, scope="function"), _role: AppUser = _role_dep):
+    """Seit 1.9.155 (L6): warum es für einen Auftrag keinen neuen Einsatz gibt -- für ?auftrag=<id> an einem Auftrag, der nicht mehr in der Auswahl steht."""
+    order = db.get(Order, order_id)
+    if order is None:
+        raise HTTPException(status_code=404, detail="Auftrag wurde nicht gefunden.")
+    return {"id": order.id, "order_number": order.order_number, "gesperrt": einsatz_gesperrt(order)}
 
 
 @router.get("/api/planning")

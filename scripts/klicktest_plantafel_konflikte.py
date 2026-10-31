@@ -10,6 +10,7 @@ Stehende Uhr 14.10.2026 10:00. Befüllt: Kolonnen Nord (Tom, Kran) und Süd (Tom
     Ziehen      Einsatz C mit „dropSlot“ auf Nord -> Warnliste, nichts verschoben; „Trotzdem planen“ -> verschoben
     Abgeschlossen  Einsatz eines abgeschlossenen Auftrags auf Ost: ein neuer Einsatz daneben fragt nicht, nichts ist rot, der Balken sagt „Auftrag abgeschlossen“ (seit 1.9.151)
     Antrag offen  Sol hat einen offenen Antrag: ein Einsatz auf West meldet „Antrag offen“ ohne Rückfrage, der Balken ist nicht rot und nennt ihn; Büro – Auftrag sieht die Art nicht (seit 1.9.152)
+    L6          /planning?auftrag=<abgeschlossen> und <storniert>: kein Dialog, der Grund; unbekannt: Meldung; Akte des geschlossenen Auftrags ohne „Einsatz planen“, mit dem Grund, der laufende mit (seit 1.9.155)
     Büro–Auftrag die Warnliste nennt bei einer Abwesenheit nur „abwesend“
 
 AUFRUF (aus dem Projektordner):
@@ -76,7 +77,8 @@ def befuellen(db, k):
 
     nord, sued, west, ost = kolonne("Nord", tom, geraet=kran), kolonne("Süd", tom, geraet=kran), kolonne("West", sol), kolonne("Ost", mia)
     a, b, c, d, e, f, g = auftrag("A"), auftrag("B"), auftrag("C"), auftrag("D"), auftrag("E"), auftrag("F"), auftrag("G")
-    h = auftrag("H")
+    h, s = auftrag("H"), auftrag("S")
+    status_aendern(db, s.id, "storniert", "Kunde abgesprungen")
     create_request(db, employee_id=sol.id, absence_type="Krankheit", absence_category="krankheit", start_date=date(2026, 11, 10), end_date=date(2026, 11, 10))
     create_slot(db, order_id=f.id, team_id=ost.id, start_date=date(2026, 11, 3), end_date=date(2026, 11, 4))
     status_aendern(db, f.id, "abgeschlossen", "ohne Rechnung")
@@ -84,7 +86,7 @@ def befuellen(db, k):
     create_slot(db, order_id=a.id, team_id=nord.id, start_date=date(2026, 10, 19), end_date=date(2026, 10, 21))
     db.add(EmployeeAbsence(employee_id=mia.id, absence_type="Krankheit", absence_category="krankheit", start_date=date(2026, 10, 19), end_date=date(2026, 10, 19)))
     db.commit()
-    return {"b": b.id, "c": c.id, "d": d.id, "e": e.id, "f": f.id, "g": g.id, "h": h.id, "nord": nord.id, "sued": sued.id, "west": west.id, "ost": ost.id,
+    return {"b": b.id, "c": c.id, "d": d.id, "e": e.id, "f": f.id, "g": g.id, "h": h.id, "s": s.id, "projekt_f": f.project_id, "projekt_s": s.project_id, "projekt_b": b.project_id, "nord": nord.id, "sued": sued.id, "west": west.id, "ost": ost.id,
             "anna": k.cookies(anna), "berta": k.cookies(berta)}
 
 
@@ -180,6 +182,29 @@ async def pruefen(tab, seed, p):
     p.pruefe("Antrag offen: Balken nennt ihn", "Antrag offen: Sol Test · Krankheit" in await tab.js("document.body.textContent"), True)
     p.pruefe("Antrag offen: zählt nicht als Konflikt", await tab.js("board.conflict_count"), 0)
     await tab.bild("antrag_offen_admin")
+
+    # --- L6: kein „Einsatz planen“, das ins Leere führt (seit 1.9.155) ---
+    for name, order, projekt, grund in (("abgeschlossen", seed["f"], seed["projekt_f"], "Der Auftrag ist abgeschlossen"), ("storniert", seed["s"], seed["projekt_s"], "Der Auftrag ist storniert")):
+        await tab.oeffnen(f"/planning?auftrag={order}", BEREIT)
+        p.pruefe(f"L6 {name}: der Grund über der Tafel", await tab.warten(f"document.getElementById('einsatzHinweis').textContent.includes('{grund}')"), True)
+        p.pruefe(f"L6 {name}: kein Dialog", await tab.js("document.getElementById('createDialog').open"), False)
+        await tab.bild(f"l6_tafel_{name}")
+        await tab.oeffnen(f"/projects/{projekt}?auftrag={order}#ausfuehrung", "typeof akte!=='undefined'&&akte&&akte.ausfuehrung")
+        await tab.warte_auf_ruhe()
+        await tab.bild_ganz(f"l6_akte_{name}")
+        p.pruefe(f"L6 {name}: Akte ohne „Einsatz planen“", await tab.js("getComputedStyle(document.getElementById('einsatzLink')).display"), "none")
+        p.pruefe(f"L6 {name}: Akte nennt den Grund", grund in await tab.js("document.getElementById('einsatzGesperrt').textContent"), True)
+        p.pruefe(f"L6 {name}: keine Hauptaktion „Einsatz planen“", await tab.js("!!(akte.hauptaktion&&akte.hauptaktion.art==='einsatz')"), False)
+    await tab.oeffnen("/planning?auftrag=99999", BEREIT)
+    p.pruefe("L6 unbekannt: Meldung", await tab.warten("document.getElementById('einsatzHinweis').textContent.includes('Auftrag wurde nicht gefunden.')"), True)
+    p.pruefe("L6 unbekannt: kein Dialog", await tab.js("document.getElementById('createDialog').open"), False)
+    await tab.oeffnen(f"/projects/{seed['projekt_b']}?auftrag={seed['b']}", "typeof akte!=='undefined'&&akte&&akte.ausfuehrung")
+    await tab.warte_auf_ruhe()
+    p.pruefe("L6 laufend: Akte mit „Einsatz planen“", await tab.js("document.getElementById('einsatzLink').hidden"), False)
+    p.pruefe("L6 laufend: kein Grund", await tab.js("document.getElementById('einsatzGesperrt').hidden"), True)
+    await tab.oeffnen(f"/planning?auftrag={seed['b']}", BEREIT + "&&document.getElementById('createDialog').open")
+    p.pruefe("L6 laufend: der Dialog öffnet", await tab.js("document.getElementById('newOrder').value"), str(seed["b"]))
+    await tab.js("createDialog.close()")
     p.pruefe("Admin: JS-Fehler", tab.fehler, [])
 
     # --- Büro – Auftrag: Art der Abwesenheit nicht in der Liste ---

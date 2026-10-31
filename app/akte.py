@@ -29,7 +29,7 @@ from decimal import Decimal
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
-from .auftragsstatus import ABGESCHLOSSEN, GESCHLOSSEN, wert as status_wert
+from .auftragsstatus import ABGESCHLOSSEN, GESCHLOSSEN, einsatz_gesperrt, wert as status_wert
 from .berlin_time import berlin_today
 from .contract_basis import contract_basis_label
 from .models import (
@@ -463,6 +463,7 @@ def ausfuehrung(db: Session, order: Order) -> dict:
                                  "planned_end": max(e["end_date"] for e in einsatz_zeilen) if einsatz_zeilen else av.planned_end}
                                 if av else None),
         "einsaetze": einsatz_zeilen,
+        "einsatz_gesperrt": einsatz_gesperrt(order),  # seit 1.9.155 (L6): abgeschlossen oder storniert -- kein „Einsatz planen“, der Grund steht in der Karte
         "berichte": [{"id": b.id, "performed_at": b.performed_at, "art": REPORT_TYPE_LABELS.get(b.report_type, b.report_type),
                       "status": b.status, "von": namen.get(b.created_by_employee_id)} for b in berichte],
         "checklisten": checklisten,

@@ -988,3 +988,21 @@ Entscheidung Tobias, löst den zweiten Satz der Festlegung 1.9.143 Nr. 3 ab („
 ### Tests und Prüfung
 
 Angepasste Erwartung (Regel 28): `test_v563::test_abgeschlossener_auftrag_zaehlt_weiter` erwartete 409 beim zweiten Einsatz neben einem abgeschlossenen; der Test ist weg, neu `test_einsatz_eines_geschlossenen_auftrags_zaehlt_nicht` (bisher nur storniert, jetzt beide Status, Soll 200 ohne Warnung und null Stunden). Neu: `test_geraet_eines_geschlossenen_auftrags_zaehlt_nicht`, `test_einsatz_eines_abgeschlossenen_auftrags_verschieben_fragt_nicht`, `test_fortgesetzter_auftrag_zaehlt_wieder`. `klicktest_plantafel_konflikte`: vier Prüfungen „Abgeschlossen: …“, Bild `abgeschlossen_zaehlt_nicht`.
+
+## Umsetzung 1.9.155: L6, kein „Einsatz planen“ ins Leere (Stufe 6, R1 Nachrunde, Punkt 6)
+
+Befund Stufe 6, L6. `app/akte.py::ausfuehrung()` liefert `einsatz_gesperrt` (`auftragsstatus.einsatz_gesperrt()`, derselbe Text wie die 409 beim Speichern); die Akte versteckt danach den Link und nennt den Grund. `GET /api/planning/auftraege/{id}` sagt für `?auftrag=<id>`, warum ein Auftrag nicht in der Auswahl steht; `openCreate()` fragt ihn nur, wenn der Auftrag dort fehlt.
+
+### Festlegungen 1.9.155 (Bitte bestätigen)
+
+1. Ein pausierter Auftrag behält „Einsatz planen“: „pausiert“ sperrt nichts (seit 1.9.124).
+2. Die Karte „Einsätze“ eines geschlossenen Auftrags zeigt seine Einsätze weiter, darunter den Grund.
+3. Der Grund über der Tafel bleibt stehen, bis der nächste Dialog „Einsatz planen“ öffnet oder der nächste Einsatz gespeichert wird.
+
+### Tests und Prüfung
+
+`tests/test_v573_einsatz_planen_geschlossen.py`; `klicktest_plantafel_konflikte`: Prüfungen „L6 …“. Angepasste Erwartungen: keine.
+
+## Stand der Festlegungen von Stufe 6, R1 (Tobias, 31.10.2026)
+
+Bestätigt: alle Festlegungen 1.9.143 bis 1.9.149, ausdrücklich 1.9.146 Nr. 1 (eine genehmigte Abwesenheit löscht nur der Admin) und Nr. 6 („Zeiten → Abwesenheiten“ öffnet mit „Alle“). Anders entschieden, in der Nachrunde umgesetzt: 1.9.143 Nr. 3 in ihrem Zusatz (abgeschlossene zählen nicht, 1.9.151), 1.9.146 Nr. 5 (offener Antrag als Hinweis, 1.9.152), 1.9.146 Nr. 7 („Vermerk:“ statt „Freigabe:“, 1.9.154). Die Zeichnung `bildgrundlage/entwurf-stufe6/` ist freigegeben, gebaut wird sie in einer eigenen Runde.

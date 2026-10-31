@@ -333,7 +333,7 @@ dialog::backdrop{background:rgba(23,28,31,.45)}
 <div class="spalten-gleich">
   <div class="spalte">
     <section class="karte"><div class="karte-kopf"><h2 class="h2">Arbeitsvorbereitung</h2><a class="sml" id="avLink" href="/projects" style="font-weight:600">Arbeitsvorbereitung öffnen</a></div><div id="avStand" class="sml"></div></section>
-    <section class="karte"><div class="karte-kopf"><h2 class="h2">Einsätze</h2><a class="sml" id="einsatzLink" href="/planning" style="font-weight:600">Einsatz planen</a></div><div id="einsatzListe"></div></section>
+    <section class="karte"><div class="karte-kopf"><h2 class="h2">Einsätze</h2><a class="sml" id="einsatzLink" href="/planning" style="font-weight:600">Einsatz planen</a></div><div id="einsatzListe"></div><p class="mut sml" id="einsatzGesperrt" hidden></p></section>
     <section class="karte"><div class="karte-kopf"><h2 class="h2">Zeiten</h2><a class="sml" id="zeitenLink" href="/zeiten" style="font-weight:600">Alle Buchungen des Auftrags</a></div><div id="zeitenStand" class="sml"></div></section>
   </div>
   <div class="spalte">
@@ -640,6 +640,8 @@ function ausfuehrungZeichnen(){
   const av=a.arbeitsvorbereitung;
   el('avStand').innerHTML=av?`<div class="zeile-flex"><span class="badge" data-art="${esc(statusKennzeichen('arbeitsvorbereitung',av.status).art)}">${esc(statusKennzeichen('arbeitsvorbereitung',av.status).text)}</span><span class="mut">${av.planned_start?'geplant '+esc(tagLang(av.planned_start))+(av.planned_end?' – '+esc(tagLang(av.planned_end)):''):'ohne geplanten Zeitraum'}</span></div>`:'<span class="mut">Noch keine Arbeitsvorbereitung – sie entsteht beim ersten Speichern.</span>';
   el('einsatzLink').href='/planning?auftrag='+orderId;
+  el('einsatzLink').hidden=!!a.einsatz_gesperrt;  // seit 1.9.155 (L6): abgeschlossen oder storniert -- kein Weg, der ins Leere führt, sondern der Grund
+  el('einsatzGesperrt').textContent=a.einsatz_gesperrt||'';el('einsatzGesperrt').hidden=!a.einsatz_gesperrt;
   el('einsatzListe').innerHTML=a.einsaetze.length?a.einsaetze.map(s=>`<div class="li"><div class="li-text"><span class="li-titel">${esc(s.team)} · ${zahlText(s.personen,0)} ${s.personen===1?'Person':'Personen'}</span><span class="mut sml">${esc(tagKurz(s.start_date))}–${esc(tagKurz(s.end_date))}</span></div></div>`).join(''):'<p class="mut sml" style="margin:0">Noch kein Einsatz in der Plantafel.</p>';
   const st=a.stunden;
   el('zeitenStand').innerHTML=`<div class="zahlen-drei"><div><span class="eb">Gebucht</span><div class="gross">${stunden(st.gebucht)}</div></div><div><span class="eb">davon Fahrzeit</span><div class="gross">${stunden(st.fahrzeit)}</div></div><div><span class="eb">Baustelle &amp; Werkstatt</span><div class="gross">${stunden(st.baustelle_werkstatt)}</div></div></div>`;
