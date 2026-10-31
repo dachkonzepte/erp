@@ -158,7 +158,7 @@ def test_antraege_entscheidet_nur_der_admin():
     vorweg = ("var KATEGORIE={urlaub:'Urlaub'};function berlinZeitpunkt(w,a){return '20.10.2026'};var P={rechte:{antraege_entscheiden:%s}};"
               "var RECHTE={admin:%s};")
     admin = _node(("beantragtText", "antragHtml"), f"return antragHtml({json.dumps(antrag)})", vorweg=vorweg % ("true", "true"))
-    assert "Tom Monteur · Urlaub Mo 02.11.–Fr 06.11.2026 · 5 Arbeitstage · beantragt am 20.10." in _text(admin)
+    assert "Tom Monteur · Urlaub Mo 02.11.–Fr 06.11.2026 · 5 Arbeitstage · beantragt am 20.10.2026" in _text(admin)
     assert 'data-entscheidung="approved"' in admin and 'data-entscheidung="rejected"' in admin
     buero = _node(("beantragtText", "antragHtml"), f"return antragHtml({json.dumps(antrag)})", vorweg=vorweg % ("false", "false"))
     assert "data-aktion" not in buero

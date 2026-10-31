@@ -233,7 +233,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Admin: Anträge mit Genehmigen und Ablehnen", await tab.js(
         "[document.querySelector('#antragListe .zeile-name').innerText,document.querySelector('#antragListe .zeile-unter').innerText,"
         "[...document.querySelectorAll('#antragListe button')].map(b=>b.innerText)]"),
-        ["Tom Monteur · Urlaub", "Mo 02.11.–Fr 06.11.2026 · 5 Arbeitstage · beantragt am 20.10.", ["Ablehnen", "Genehmigen"]])
+        ["Tom Monteur · Urlaub", "Mo 02.11.–Fr 06.11.2026 · 5 Arbeitstage · beantragt am 20.10.2026", ["Ablehnen", "Genehmigen"]])
     p.pruefe("Admin: Monat rechts", await tab.js(
         "[document.getElementById('monatTitel').innerText,document.getElementById('monatStatus').innerText,"
         "[...document.querySelectorAll('#monatZeilen tr')].map(tr=>tr.innerText.replace(/\\s+/g,' ').trim())]"),
@@ -557,7 +557,7 @@ async def pruefen(tab, seed, p):
     # „1“); „Vor dem Abschluss“ nennt ihn
     p.pruefe("Fin: „Krank“ für Tom gestellt -- offen, „beantragt von“, nur „Zurückziehen“, keine Zahl am Reiter", await tab.js(
         "[...document.querySelectorAll('#abwListe .zeile')].map(z=>[z.querySelector('.zeile-name').innerText,"
-        "z.querySelector('.zeile-unter').innerText.replace(/ am \\d\\d\\.\\d\\d\\.$/,' am …'),"
+        "z.querySelector('.zeile-unter').innerText.replace(/ am \\d\\d\\.\\d\\d\\.\\d{4}$/,' am …'),"
         "[...z.querySelectorAll('button')].map(b=>b.innerText)]).concat([document.getElementById('zahlAbwesenheiten').hidden])"),
         [["Tom Monteur · Krankheit", "Di 27.10.–Mi 28.10.2026 · 2 Arbeitstage · beantragt von Fin Finanzen am …", ["Zurückziehen"]], True])
     p.pruefe("Fin: „Vor dem Abschluss“ nennt den offenen Antrag", await tab.js(

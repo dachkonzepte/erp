@@ -4,11 +4,21 @@
    abwArtenFuellen(feld, arten, kategorie, behalten)  die Auswahl „Art“: nur die Arten, die zur Kategorie passen (je Art `kategorien` vom Server,
                                                       app/absence_requests.py::arten_fuer_auswahl()), vorbelegt leer. Leer heißt „keine genauere Angabe“, der Server trägt
                                                       dann den Namen der Kategorie ein. behalten: beim Wechsel der Kategorie bleibt die gewählte Art, solange sie passt.
-   abwArtText(kategorie, art)                         „Krankheit“ oder „Fortbildung (Berufsschule)“ -- kategorie ist der Name der Kategorie, die Art nur, wenn sie mehr sagt. */
+   abwArtText(kategorie, art)                         „Krankheit“ oder „Fortbildung (Berufsschule)“ -- kategorie ist der Name der Kategorie, die Art nur, wenn sie mehr sagt.
+   abwZeitraum(von, bis)                              seit 1.9.154: ein Tag „Mi 21.10.2026“, mehrere „Mo 19.10.–Mi 21.10.2026“, über den Jahreswechsel beide mit Jahr. */
 function abwArtenFuellen(feld, arten, kategorie, behalten) {
   const bisher = behalten ? feld.value : '';
   const passend = (arten || []).filter(a => (a.kategorien || []).includes(kategorie));
   feld.innerHTML = auswahlOptionen(passend, passend.some(a => a.value === bisher) ? bisher : '', a => a.label, {wert: a => a.value, leer: '— ohne —'});
+}
+function abwZeitraum(von, bis) {
+  const teile = iso => {
+    const [j, m, t] = String(iso).slice(0, 10).split('-');
+    return {j, kurz: ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][new Date(Date.UTC(+j, +m - 1, +t)).getUTCDay()] + ' ' + t + '.' + m + '.'};
+  };
+  const a = teile(von), b = teile(bis);
+  if (String(von).slice(0, 10) === String(bis).slice(0, 10)) return a.kurz + a.j;
+  return (a.j === b.j ? a.kurz : a.kurz + a.j) + '–' + b.kurz + b.j;
 }
 function abwArtText(kategorie, art) {
   return art && art !== kategorie ? kategorie + ' (' + art + ')' : (kategorie || art || '');

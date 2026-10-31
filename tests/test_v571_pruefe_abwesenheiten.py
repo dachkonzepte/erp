@@ -7,6 +7,7 @@
 """
 
 import importlib.util
+import os
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -18,6 +19,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.models import Employee, EmployeeAbsence, EmployeeAbsenceRequest
+from tests.befund_vor_echtbetrieb import pg_sitzung
 from tests.pg_schutz import pg_url_pruefen
 from tests.test_v133_invoices import db_session
 
@@ -173,3 +175,27 @@ def test_die_eigene_sitzung_schreibt_nicht(tmp_path):
             bind.dispose()
     finally:
         engine.dispose()
+
+@pytest.fixture
+def pg():
+    with pg_sitzung("pruefe_abw") as db:
+        yield db
+
+
+def test_unter_postgresql_lesen_und_nicht_schreiben(pg):
+    """Regel 27: im Wegwerf-Schema, über die eigene Sitzung des Skripts wie auf dem Server."""
+    _abwesenheit(pg, _person(pg), "krankheit", "Urlaub")
+    schema = pg.scalar(text("SELECT current_schema()"))
+    url = pg_url_pruefen(f"{os.environ['ERP_TEST_POSTGRES_URL']}?options=-csearch_path={schema}")
+    zeilen = []
+    assert _skript().main([], umgebung={"DATABASE_URL": url}, ausgabe=zeilen.append) == 1
+    assert any("Kategorie Krankheit, Art Urlaub" in z for z in zeilen)
+    sitzung = _skript().nur_lesende_sitzung(url)
+    try:
+        with pytest.raises(DBAPIError):
+            sitzung.execute(text("UPDATE employee_absences SET absence_type = 'x'"))
+        sitzung.rollback()
+    finally:
+        bind = sitzung.get_bind()
+        sitzung.close()
+        bind.dispose()

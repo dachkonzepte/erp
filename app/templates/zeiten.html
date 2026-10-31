@@ -529,10 +529,14 @@ function fehltHtml(t,i,plan){
 }
 var KATEGORIE={urlaub:'Urlaub',krankheit:'Krankheit',fortbildung:'Fortbildung',unbezahlt:'Unbezahlt',unbekannt:'Unbekannt'};
 // „· beantragt am 20.10.“, für eine andere Person gestellt (seit 1.9.101) „· beantragt von Fin Finanzen am 20.10.“
-function beantragtText(a){return a.created_at||a.beantragt_von?' · beantragt'+(a.beantragt_von?' von '+a.beantragt_von:'')+(a.created_at?' am '+berlinZeitpunkt(a.created_at,'datum').slice(0,6):''):''}
+// seit 1.9.154: ein Datum, das für sich steht, mit Jahr; ein Antrag aus der Migration wurde nie beantragt -- sein Datum ist der Tag, an dem die Abwesenheit eingetragen wurde
+function beantragtText(a){
+  if(a.aus_migration)return a.created_at?' · eingetragen am '+berlinZeitpunkt(a.created_at,'datum'):'';
+  return a.created_at||a.beantragt_von?' · beantragt'+(a.beantragt_von?' von '+a.beantragt_von:'')+(a.created_at?' am '+berlinZeitpunkt(a.created_at,'datum'):''):'';
+}
 function antragHtml(a){
   var art=a.absence_type||KATEGORIE[a.absence_category]||a.absence_category;
-  var unter=tagLang(a.start_date).replace(/\.\d{4}$/,'.')+'–'+tagLang(a.end_date)+' · '+a.arbeitstage+(a.arbeitstage===1?' Arbeitstag':' Arbeitstage')
+  var unter=abwZeitraum(a.start_date,a.end_date)+' · '+a.arbeitstage+(a.arbeitstage===1?' Arbeitstag':' Arbeitstage')
     +beantragtText(a);
   var knoepfe=RECHTE.admin&&P&&P.rechte.antraege_entscheiden
     ?'<button type="button" class="knopf knopf-neutral" data-aktion="antrag" data-entscheidung="rejected" data-id="'+a.id+'">Ablehnen</button>'
@@ -808,7 +812,7 @@ function antragHervorheben(){
 }
 function abwesenheitHtml(a){
   var art=KATEGORIE[a.absence_category]||a.absence_category,st=STATUS[a.status]||[a.status,'chip-neutral'];
-  var unter=tagLang(a.start_date).replace(/\.\d{4}$/,'.')+'–'+tagLang(a.end_date)+' · '+a.arbeitstage+(a.arbeitstage===1?' Arbeitstag':' Arbeitstage')
+  var unter=abwZeitraum(a.start_date,a.end_date)+' · '+a.arbeitstage+(a.arbeitstage===1?' Arbeitstag':' Arbeitstage')
     +beantragtText(a);
   var knoepfe='';
   if(a.darf_entscheiden)knoepfe+='<input class="antrag-notiz" type="text" id="notiz-'+a.id+'" placeholder="Notiz (optional)" aria-label="Notiz zur Entscheidung">'
@@ -825,7 +829,7 @@ function abwesenheitHtml(a){
     :'<button type="button" class="knopf knopf-neutral" data-aktion="abwl-fragen" data-id="'+a.id+'">Löschen</button>';
   return '<div class="zeile" data-abwesenheit="'+a.id+'"><div class="zeile-text"><span class="zeile-name">'+esc(a.employee_name+' · '+abwArtText(art,a.absence_type))+'</span>'
     +'<span class="zeile-unter">'+esc(unter)+'</span>'+(a.notes?'<span class="zeile-unter">'+esc(a.notes)+'</span>':'')
-    +(a.review_notes?'<span class="zeile-unter">Freigabe: '+esc(a.review_notes)+'</span>':'')+'</div>'
+    +(a.review_notes?'<span class="zeile-unter">'+(a.vom_programm?'Vermerk: ':'Freigabe: ')+esc(a.review_notes)+'</span>':'')+'</div>'
     +'<span class="chip '+esc(st[1])+'">'+esc(st[0])+'</span>'+knoepfe+'</div>';
 }
 function abwesenheitEntscheiden(id,entscheidung,knopf){
@@ -866,7 +870,7 @@ function abwSenden(){
             start_date:el('adVon').value,end_date:el('adBis').value,notes:el('adNotiz').value.trim()||null};
   knopf.disabled=true;
   return speichern('abwesenheiten',()=>api('/api/absence-requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{neuLaden:abwesenheitenUndPruefen})
-    .then(function(r){el('abwDialog').close();ergebnis('Antrag gesendet: '+r.employee_name+', '+tagLang(r.start_date)+'–'+tagLang(r.end_date))})
+    .then(function(r){el('abwDialog').close();ergebnis('Antrag gesendet: '+r.employee_name+', '+abwZeitraum(r.start_date,r.end_date))})
     .catch(function(e){st.textContent=e.message;knopf.disabled=false});
 }
 

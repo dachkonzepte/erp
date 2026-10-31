@@ -18,6 +18,7 @@ Optionen, Ablauf, Rückgabecode und Regeln (isolierte Wegwerf-Datenbank, Prozess
 """
 
 import importlib.util
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -35,6 +36,8 @@ def befuellen(db, k):
     from datetime import date
     from decimal import Decimal
 
+    from datetime import datetime as zeitpunkt
+
     from app.models import AppUser, Employee, EmployeeAbsence, Team, TeamEmployee
 
     def person(nummer, name):
@@ -49,7 +52,7 @@ def befuellen(db, k):
     db.add_all([anna, finn, berta, team]); db.flush()
     for p in (mia, ole, kai, tim):
         db.add(TeamEmployee(team_id=team.id, employee_id=p.id))
-    db.add(EmployeeAbsence(employee_id=kai.id, absence_type="Urlaub", absence_category="urlaub", start_date=date(2026, 10, 15), end_date=date(2026, 10, 16), notes="Hochzeit"))
+    db.add(EmployeeAbsence(employee_id=kai.id, absence_type="Urlaub", absence_category="urlaub", start_date=date(2026, 10, 15), end_date=date(2026, 10, 16), notes="Hochzeit", created_at=zeitpunkt(2026, 9, 2, 8, 0), updated_at=zeitpunkt(2026, 9, 2, 8, 0)))
     db.add(EmployeeAbsence(employee_id=tim.id, absence_type="Urlaub", absence_category="urlaub", start_date=date(2026, 10, 21), end_date=date(2026, 10, 21), notes="Kur"))
     db.commit()
     pfad = next((ROOT / "alembic" / "versions").glob("*_abwesenheiten_als_antraege.py"))
@@ -58,7 +61,7 @@ def befuellen(db, k):
     spec.loader.exec_module(migration)
     migration.uebernehmen(db.connection())
     db.commit()
-    return {"mia": mia.id, "ole": ole.id, "bea": bea.id, "anna": k.cookies(anna), "finn": k.cookies(finn), "berta": k.cookies(berta)}
+    return {"mia": mia.id, "ole": ole.id, "kai": kai.id, "bea": bea.id, "anna": k.cookies(anna), "finn": k.cookies(finn), "berta": k.cookies(berta)}
 
 
 BEREIT = "typeof board!=='undefined'&&board&&board.teams&&board.teams.length>0"
@@ -130,6 +133,25 @@ async def pruefen(tab, seed, p):
     await tab.oeffnen("/zeiten#abwesenheiten", "typeof A!=='undefined'&&A&&A.antraege")
     liste = await tab.js("document.getElementById('abwListe').textContent")
     p.pruefe("Zeiten: Kai aus der Migration", "Kai Test" in liste and "Auf der Plantafel eingetragen (vor 1.9.146)" in liste, True)
+    kai = await tab.js(f"document.querySelector('[data-abwesenheit=\"'+A.antraege.find(a=>a.employee_id==={seed['kai']}).id+'\"]').textContent")
+    p.pruefe("Zeiten: Kai eingetragen am ursprünglichen Tag", "eingetragen am 02.09.2026" in kai, True)
+    p.pruefe("Zeiten: Kai nie „beantragt“", "beantragt" in kai, False)
+    p.pruefe("Zeiten: Kai als Vermerk", "Vermerk: Auf der Plantafel eingetragen" in kai and "Freigabe:" not in kai, True)
+    p.pruefe("Zeiten: Zeitraum mit Jahr", "Do 15.10.–Fr 16.10.2026" in kai, True)
+    p.pruefe("Zeiten: ein Tag mit Wochentag und Jahr", "Mi 21.10.2026" in liste and "21.10.–" not in liste, True)
+    p.pruefe("Zeiten: gelöscht als Vermerk", "Vermerk: Die genehmigte Abwesenheit wurde gelöscht." in liste, True)
+    # Notiz des Admins zur Entscheidung: nur sie heißt „Freigabe:“
+    await tab.js(f"fetch('/api/absence-requests',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{employee_id:{seed['ole']},absence_category:'urlaub',start_date:'2026-12-01',end_date:'2026-12-01'}})}}).then(r=>r.json())")
+    await tab.js("void abwesenheitenLaden()")
+    await tab.warten("A.antraege.some(a=>a.status==='pending')")
+    await tab.warte_auf_ruhe()
+    offen = await tab.js("A.antraege.find(a=>a.status==='pending').id")
+    await tab.js(f"document.getElementById('notiz-{offen}').value='Vertretung geklärt';document.querySelector('[data-aktion=\"abw-entscheiden\"][data-entscheidung=\"approved\"][data-id=\"{offen}\"]').click()")
+    await tab.warten(f"A.antraege.find(a=>a.id==={offen}).status==='approved'")
+    zeile = await tab.js(f"document.querySelector('[data-abwesenheit=\"{offen}\"]').textContent")
+    p.pruefe("Zeiten: Notiz des Admins als Freigabe", "Freigabe: Vertretung geklärt" in zeile and "Vermerk:" not in zeile, True)
+    p.pruefe("Zeiten: beantragt mit Jahr", re.search(r"beantragt von Anna Admin am \d\d\.\d\d\.\d{4}", zeile) is not None, True)
+    liste = await tab.js("document.getElementById('abwListe').textContent")
     p.pruefe("D2: kein „Krankheit (Urlaub)“", "Krankheit (Urlaub)" in liste, False)
     await tab.js("document.getElementById('abwNeu').click()")
     await tab.warten("document.getElementById('abwDialog').open")

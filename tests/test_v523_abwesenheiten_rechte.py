@@ -23,7 +23,7 @@ from app.routers import zeiten as zeiten_router
 from tests import vorlagen_js as vj
 from tests.node_lauf import node_ausfuehren
 from tests.test_v471_heute_server import welt  # noqa: F401  (Fixture)
-from tests.test_v518_zeiten_seite import _funktion, _node, _skript, _text
+from tests.test_v518_zeiten_seite import _baustein, _funktion, _node, _skript, _text
 
 
 @pytest.fixture
@@ -171,7 +171,7 @@ def test_beantragt_von_in_der_zeile():
               "status": "pending", "darf_entscheiden": False, "darf_zurueckziehen": True, "beantragt_von": "Fin Finanzen"}
     html = _node(("beantragtText", "abwesenheitHtml", "antragHtml"),
                  f"return [abwesenheitHtml({json.dumps(antrag)}),antragHtml({json.dumps(antrag)})]", vorweg=vorweg)
-    assert all("Mo 02.11.–Mo 02.11.2026 · 1 Arbeitstag · beantragt von Fin Finanzen am 20.10." in _text(h) for h in html)
+    assert all("Mo 02.11.2026 · 1 Arbeitstag · beantragt von Fin Finanzen am 20.10.2026" in _text(h) for h in html)
 
 
 def test_meine_zeiten_zurueckziehen_nur_mit_darf_zurueckziehen():
@@ -188,7 +188,7 @@ def test_meine_zeiten_zurueckziehen_nur_mit_darf_zurueckziehen():
                "status": "pending", "darf_zurueckziehen": False, "beantragt_von": "Fin Finanzen"},
               {"id": 2, "absence_category": "urlaub", "absence_type": "Urlaub", "start_date": "2026-11-09", "end_date": "2026-11-09",
                "status": "pending", "darf_zurueckziehen": True, "beantragt_von": None}]
-    html = node_ausfuehren(vorweg + f"var ANTRAEGE={json.dumps(zeilen)};\n" + rumpf
+    html = node_ausfuehren(_baustein("_abwesenheit.html") + "\n" + vorweg + f"var ANTRAEGE={json.dumps(zeilen)};\n" + rumpf
                            + "\nantraegeZeichnen();process.stdout.write(JSON.stringify(el('adAntraege').innerHTML));")
     erste, zweite = re.findall(r'<div class="antrag" data-antrag-zeile="\d+">.*?</div>', html)
     assert "beantragt von Fin Finanzen" in erste and "data-antrag=" not in erste

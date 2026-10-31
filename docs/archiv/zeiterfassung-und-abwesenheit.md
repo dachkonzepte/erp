@@ -628,3 +628,22 @@ Gehört jede Art zu einer Kategorie? **Nicht jede.** Grundeinstellung: Urlaub ->
 ### Tests und Prüfung
 
 Angepasste Erwartungen (Regel 28): `klicktest_abwesenheit_ein_weg` „P2: Art und Notiz sichtbar“, altes Soll „Urlaub · Urlaub“, neues Soll „Urlaub“ (dieselbe Prüfung, die Zeile heißt jetzt anders). `test_v102::test_rejected_absence_request_creates_no_absence`: legte „Freizeitausgleich“ in der Kategorie „Unbezahlt“ an, das ist jetzt ein Widerspruch; neue Daten „Urlaub“, geprüft wird weiter das Ablehnen. Nur der Aufbau: `test_v518::_node` und `test_v519::_abwesenheit` binden `_abwesenheit.html` ein. Neu: `tests/test_v571_kategorie_und_art.py`, `tests/test_v571_pruefe_abwesenheiten.py`.
+
+## Umsetzung 1.9.154: „Zeiten → Abwesenheiten“ (Stufe 6, R1 Nachrunde, Punkt 5)
+
+Entscheidung Tobias, löst den zweiten Halbsatz der Festlegung 1.9.146 Nr. 7 ab („zeigt ihn wie jeden Vermerk als ‚Freigabe: …‘“). `request_to_dict()` liefert `aus_migration` und `vom_programm`; die Seiten entscheiden danach nur über die Beschriftung.
+
+Das Datum: die Migration `b2c7f4e19a06` schreibt `created_at` des Antrags aus `employee_absences.created_at`, also den Tag, an dem die Abwesenheit eingetragen wurde -- ein Datum der Migration steht nirgends. In den Bildern der vorigen Runde sah es danach aus, weil die Testdaten am selben Tag entstanden (`created_at` ist die echte Uhr, die Seite stand auf dem 14.10.); der Klicktest legt Kais Abwesenheit jetzt ausdrücklich am 02.09.2026 an. `employee_absences.created_at` ist seit dem Baseline-Schema Pflicht und beim Umzug auf PostgreSQL mitgekommen (`scripts/migrate_sqlite_to_postgres.py` kopiert jede Spalte); die Regel „sonst weglassen“ greift also nur, falls es doch einmal fehlte.
+
+### Festlegungen 1.9.154 (Bitte bestätigen)
+
+1. Der Antrag aus der Migration heißt „eingetragen am <Tag>“, nicht nur „am <Tag>“ und nicht ohne Datum: das Wort „beantragt“ stimmte nie.
+2. Wird die Abwesenheit gelöscht, steht im Antrag „Auf der Plantafel eingetragen (vor 1.9.146). Die genehmigte Abwesenheit wurde gelöscht.“ -- die Herkunft bleibt lesbar, und `scripts/pruefe_abwesenheiten.py` zählt ihn weiter. `downgrade()` lässt so einen Antrag stehen, wie bisher alles, was jemand angefasst hat.
+3. „Vermerk:“ gilt ebenso in „Meine Zeiten“, und `abwZeitraum()` auch dort und im Dialog der Plantafel: dieselben Daten, sonst stünde dort weiter „Freigabe: Die genehmigte Abwesenheit wurde gelöscht.“ und „21.10.–21.10.“.
+4. Über den Jahreswechsel tragen beide Tage ihr Jahr („Mo 28.12.2026–Mo 04.01.2027“); bisher stand das erste ohne.
+
+### Tests und Prüfung
+
+`tests/test_v572_abwesenheiten_anzeige.py`; `test_v571_pruefe_abwesenheiten::test_unter_postgresql_lesen_und_nicht_schreiben`; `klicktest_abwesenheit_ein_weg`: acht Prüfungen zu Kai, Zeitraum, Vermerk und Freigabe.
+
+Angepasste Erwartungen (Regel 28): `test_v519::test_antrag_knoepfe_nach_dem_server` und `test_v518` altes Soll „beantragt am 20.10.“, neues Soll „beantragt am 20.10.2026“. `test_v523::test_beantragt_von_in_der_zeile` altes Soll „Mo 02.11.–Mo 02.11.2026 · 1 Arbeitstag · beantragt von Fin Finanzen am 20.10.“, neues Soll „Mo 02.11.2026 · 1 Arbeitstag · beantragt von Fin Finanzen am 20.10.2026“. `klicktest_zeiten` „Admin: Anträge mit Genehmigen und Ablehnen“ und „Fin: „Krank“ für Tom gestellt …“: das Datum mit Jahr. Nur der Aufbau: `test_v523::test_meine_zeiten_zurueckziehen_nur_mit_darf_zurueckziehen` bindet `_abwesenheit.html` ein.

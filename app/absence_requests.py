@@ -34,6 +34,17 @@ ART_KATEGORIEN = {
 }
 # So kennzeichnet die Migration b2c7f4e19a06 einen Antrag, den es nur gibt, weil die Abwesenheit vor 1.9.146 direkt auf der Tafel entstand (dort heißt er MERKER).
 MIGRATION_VERMERK = "Auf der Plantafel eingetragen (vor 1.9.146)"
+ABWESENHEIT_GELOESCHT = "Die genehmigte Abwesenheit wurde gelöscht."
+
+
+def aus_migration(row: EmployeeAbsenceRequest) -> bool:
+    """Seit 1.9.154: den Antrag hat niemand gestellt, die Abwesenheit stand schon auf der Tafel -- der Vermerk bleibt am Anfang stehen, auch wenn sie später gelöscht wird."""
+    return (row.review_notes or "").startswith(MIGRATION_VERMERK)
+
+
+def vom_programm(notiz: str | None) -> bool:
+    """Seit 1.9.154: die Notiz am Antrag hat das Programm geschrieben (MIGRATION_VERMERK, ABWESENHEIT_GELOESCHT), nicht der Admin zu seiner Entscheidung."""
+    return bool(notiz) and (notiz.startswith(MIGRATION_VERMERK) or notiz == ABWESENHEIT_GELOESCHT)
 
 
 def art_kategorien(art: str | None) -> tuple[str, ...]:
@@ -88,6 +99,8 @@ def request_to_dict(db: Session, row: EmployeeAbsenceRequest) -> dict:
         "reviewed_by_name": (reviewer.display_name or reviewer.username) if reviewer else None,
         "reviewed_at": row.reviewed_at,
         "review_notes": row.review_notes,
+        "vom_programm": vom_programm(row.review_notes),  # seit 1.9.154: die Seiten schreiben dann „Vermerk:“ statt „Freigabe:“
+        "aus_migration": aus_migration(row),  # seit 1.9.154: nie „beantragt“, created_at ist der Tag, an dem die Abwesenheit eingetragen wurde
         "approved_absence_id": row.approved_absence_id,
         "created_at": row.created_at,
     }
@@ -204,9 +217,6 @@ def _entscheiden(db: Session, row: EmployeeAbsenceRequest, *, decision: str, rev
     db.flush()
 
 
-ABWESENHEIT_GELOESCHT = "Die genehmigte Abwesenheit wurde gelöscht."
-
-
 def abwesenheit_loeschen(db: Session, absence_id: int, *, geloescht_von_user_id: int | None = None) -> None:
     """Eine genehmigte Abwesenheit löschen (seit 1.9.146, P1): der Antrag folgt -- er ist danach zurückgezogen, mit Vermerk, und zeigt auf nichts mehr. Bis 1.9.145 scheiterte
     das Löschen unter PostgreSQL am Fremdschlüssel (500), unter SQLite blieb der Antrag „genehmigt“ und zeigte ins Leere."""
@@ -218,7 +228,7 @@ def abwesenheit_loeschen(db: Session, absence_id: int, *, geloescht_von_user_id:
         antrag.status = "cancelled"
         antrag.reviewed_by_user_id = geloescht_von_user_id
         antrag.reviewed_at = datetime.utcnow()
-        antrag.review_notes = ABWESENHEIT_GELOESCHT
+        antrag.review_notes = f"{MIGRATION_VERMERK}. {ABWESENHEIT_GELOESCHT}" if aus_migration(antrag) else ABWESENHEIT_GELOESCHT
     db.flush()
     db.delete(row)
     db.commit()

@@ -3314,6 +3314,8 @@ class EmployeeAbsenceRequestOut(BaseModel):
     reviewed_by_name: str | None = None
     reviewed_at: datetime | None = None
     review_notes: str | None = None
+    vom_programm: bool = False  # seit 1.9.154: review_notes stammt vom Programm, nicht vom Admin zur Entscheidung
+    aus_migration: bool = False  # seit 1.9.154: nie beantragt, die Abwesenheit stand schon auf der Tafel
     approved_absence_id: int | None = None
     created_at: datetime
     darf_zurueckziehen: bool = False  # seit 1.9.101: offen und von diesem Konto gestellt (app/permissions.py::darf_antrag_zurueckziehen())

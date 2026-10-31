@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.154 – „Zeiten → Abwesenheiten“: Datum, Vermerk, ein Tag (Stufe 6, R1 Nachrunde, Punkt 5)
+
+Ein Antrag aus der Migration stand da als „beantragt am …“, obwohl ihn nie jemand beantragt hat: die Abwesenheit stand schon auf der Tafel. Jetzt heißt es „eingetragen am <Tag>“, und das ist der Tag, an dem die Abwesenheit eingetragen wurde, nie der der Migration. Was das Programm schreibt („Auf der Plantafel eingetragen …“, „Die genehmigte Abwesenheit wurde gelöscht.“), heißt „Vermerk:“, „Freigabe:“ nur noch die Notiz des Admins zu seiner Entscheidung; das gilt auch in „Meine Zeiten“. Wird eine Abwesenheit aus der Migration gelöscht, bleibt ihre Herkunft im Vermerk stehen.
+
+Ein einzelner Tag steht als „Mi 21.10.2026“ statt „Mi 21.10.–Mi 21.10.2026“, ein Datum, das für sich steht, mit Jahr („beantragt am 20.10.2026“). Dieselbe Schreibweise jetzt auch in „Meine Zeiten“ und im Dialog der Plantafel (`abwZeitraum()`, `_abwesenheit.html`).
+
 ## 1.9.153 – Kategorie und Art passen zusammen (Stufe 6, R1 Nachrunde, Punkt 4, Befund D2)
 
 Bisher ließ sich „Krankheit“ mit der Art „Urlaub“ eintragen: im Dialog der Plantafel stand die Art schon auf „Urlaub“ und wechselte nicht mit, und der Server setzte ohne Art ebenfalls „Urlaub“. Das sah man in „Zeiten“ als „Krankheit (Urlaub)“. Der Befund dazu: gezählt wird nur die Kategorie, und nur an einer Stelle (Krankheitstage in den Produktivstunden); die Art ist reine Anzeige auf der Tafel. **„Monat & Lohn“ und der Lohnexport lesen gar keine Abwesenheit -- auch nicht die Kategorie: sie zählen nur gebuchte Zeiten.** Urlaub und Krankheit stehen also in keiner Lohndatei.

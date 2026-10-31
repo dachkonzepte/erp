@@ -198,7 +198,7 @@ def _abwesenheit(zurueck=None, **anders):
 def test_antrag_knoepfe_nach_dem_server():
     """Ohne Recht keine Knöpfe; Entscheiden mit Notiz nur mit darf_entscheiden; Zurückziehen mit Rückfrage in der Zeile (kein confirm())."""
     ohne = _abwesenheit()
-    assert "Tom Monteur · Urlaub Mo 02.11.–Fr 06.11.2026 · 5 Arbeitstage · beantragt am 20.10. offen" == _text(ohne) and "<button" not in ohne
+    assert "Tom Monteur · Urlaub Mo 02.11.–Fr 06.11.2026 · 5 Arbeitstage · beantragt am 20.10.2026 offen" == _text(ohne) and "<button" not in ohne
     admin = _abwesenheit(darf_entscheiden=True)
     assert 'id="notiz-4"' in admin and 'data-entscheidung="approved"' in admin and 'data-entscheidung="rejected"' in admin
     eigen = _abwesenheit(darf_zurueckziehen=True)
