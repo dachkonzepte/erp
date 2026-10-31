@@ -647,3 +647,16 @@ Das Datum: die Migration `b2c7f4e19a06` schreibt `created_at` des Antrags aus `e
 `tests/test_v572_abwesenheiten_anzeige.py`; `test_v571_pruefe_abwesenheiten::test_unter_postgresql_lesen_und_nicht_schreiben`; `klicktest_abwesenheit_ein_weg`: acht Prüfungen zu Kai, Zeitraum, Vermerk und Freigabe.
 
 Angepasste Erwartungen (Regel 28): `test_v519::test_antrag_knoepfe_nach_dem_server` und `test_v518` altes Soll „beantragt am 20.10.“, neues Soll „beantragt am 20.10.2026“. `test_v523::test_beantragt_von_in_der_zeile` altes Soll „Mo 02.11.–Mo 02.11.2026 · 1 Arbeitstag · beantragt von Fin Finanzen am 20.10.“, neues Soll „Mo 02.11.2026 · 1 Arbeitstag · beantragt von Fin Finanzen am 20.10.2026“. `klicktest_zeiten` „Admin: Anträge mit Genehmigen und Ablehnen“ und „Fin: „Krank“ für Tom gestellt …“: das Datum mit Jahr. Nur der Aufbau: `test_v523::test_meine_zeiten_zurueckziehen_nur_mit_darf_zurueckziehen` bindet `_abwesenheit.html` ein.
+
+## Umsetzung 1.9.165: Vermerk neben der Freigabe (Stufe 6, R2, Punkt 7)
+
+`review_notes` ist nur noch die Notiz des Admins, `vermerk` das, was das Programm schreibt (`MIGRATION_VERMERK`, `ABWESENHEIT_GELOESCHT`). `vom_programm` ist damit weg.
+
+### Festlegungen 1.9.165 (Bitte bestätigen)
+
+1. Eine Notiz, die das Löschen vor 1.9.165 schon überschrieben hat, kommt nicht von selbst zurück; sie steht im Änderungsprotokoll.
+2. `reviewed_by_user_id` und `reviewed_at` zeigen nach dem Löschen weiter, wer gelöscht hat (seit 1.9.146); keine Seite zeigt sie an. Wer freigegeben hat, steht im Änderungsprotokoll.
+
+### Tests und Prüfung
+
+Angepasste Erwartungen (Regel 28): `test_v566::test_…` (Vermerk statt `review_notes`), `test_v571::_antrag` (Aufbau: `vermerk`), `test_v572` (`vom_programm` -> `vermerk`, die Seiten zeigen beides nebeneinander, Testaufbau `_aus_migration()` wendet die neue Migration an), `test_v326::ERLAUBT_JE_ROUTE` um `$[].vermerk` an `/api/absence-requests`.

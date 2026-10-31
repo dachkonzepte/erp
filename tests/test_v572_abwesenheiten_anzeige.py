@@ -41,10 +41,20 @@ def _migration():
     return modul
 
 
+def _verschieben(db) -> None:
+    """Was die Migration f1b9d2c6a470 mit dem Vermerk der Migration b2c7f4e19a06 tut (seit 1.9.165)."""
+    pfad = next((Path(__file__).resolve().parent.parent / "alembic" / "versions").glob("*_abwesenheit_vermerk.py"))
+    spec = importlib.util.spec_from_file_location("abwesenheit_vermerk", pfad)
+    modul = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(modul)
+    modul.verschieben(db.connection())
+
+
 def _aus_migration(db, angelegt=datetime(2026, 9, 2, 8, 0)):
     db.add(EmployeeAbsence(employee_id=_person(db).id, absence_type="Urlaub", absence_category="urlaub", start_date=TAG, end_date=TAG, created_at=angelegt, updated_at=angelegt))
     db.commit()
     _migration().uebernehmen(db.connection())
+    _verschieben(db)
     db.commit()
     return db.scalar(select(EmployeeAbsenceRequest))
 
@@ -62,7 +72,7 @@ def test_antrag_aus_der_migration_traegt_den_tag_der_abwesenheit():
     daten = request_to_dict(db, antrag)
     assert daten["aus_migration"] is True
     assert daten["created_at"] == datetime(2026, 9, 2, 8, 0)
-    assert daten["vom_programm"] is True
+    assert daten["vermerk"] == MIGRATION_VERMERK and daten["review_notes"] is None
 
 
 def test_vermerk_der_migration_stimmt():
@@ -76,8 +86,8 @@ def test_geloeschte_abwesenheit_aus_der_migration_bleibt_erkennbar():
     db.refresh(antrag)
     daten = request_to_dict(db, antrag)
     assert daten["status"] == "cancelled"
-    assert daten["aus_migration"] is True and daten["vom_programm"] is True
-    assert daten["review_notes"] == f"{MIGRATION_VERMERK}. {ABWESENHEIT_GELOESCHT}"
+    assert daten["aus_migration"] is True
+    assert daten["vermerk"] == f"{MIGRATION_VERMERK}. {ABWESENHEIT_GELOESCHT}"
 
 
 def test_rueckweg_der_migration_laesst_den_geloeschten_stehen():
@@ -95,14 +105,14 @@ def test_rueckweg_der_migration_laesst_den_geloeschten_stehen():
 def test_normaler_antrag_ohne_notiz():
     db = db_session()
     daten = request_to_dict(db, _antrag(db))
-    assert daten["aus_migration"] is False and daten["vom_programm"] is False
+    assert daten["aus_migration"] is False and daten["vermerk"] is None
 
 
 def test_notiz_des_admins_ist_freigabe():
     db = db_session()
     antrag = review_request(db, _antrag(db).id, decision="approved", reviewed_by_user_id=None, review_notes="Vertretung geklärt")
     daten = request_to_dict(db, antrag)
-    assert (daten["vom_programm"], daten["review_notes"]) == (False, "Vertretung geklärt")
+    assert (daten["vermerk"], daten["review_notes"]) == (None, "Vertretung geklärt")
 
 
 def test_geloeschte_abwesenheit_ist_vermerk():
@@ -111,7 +121,7 @@ def test_geloeschte_abwesenheit_ist_vermerk():
     abwesenheit_loeschen(db, antrag.approved_absence_id)
     db.refresh(antrag)
     daten = request_to_dict(db, antrag)
-    assert (daten["vom_programm"], daten["review_notes"], daten["aus_migration"]) == (True, ABWESENHEIT_GELOESCHT, False)
+    assert (daten["vermerk"], daten["review_notes"], daten["aus_migration"]) == (ABWESENHEIT_GELOESCHT, None, False)
 
 
 def test_die_felder_kommen_auch_ueber_die_liste_der_antraege(threaded_db_session, router_test_client):
@@ -120,14 +130,13 @@ def test_die_felder_kommen_auch_ueber_die_liste_der_antraege(threaded_db_session
     emp = _person(db)
     create_request(db, employee_id=emp.id, absence_type="Urlaub", absence_category="urlaub", start_date=TAG, end_date=TAG)
     daten = router_test_client(db, antraege_router).get("/api/absence-requests").json()
-    assert daten[0]["vom_programm"] is False and daten[0]["aus_migration"] is False
+    assert daten[0]["vermerk"] is None and daten[0]["aus_migration"] is False
 
 
 @pytest.mark.parametrize("seite", ["zeiten.html", "mobil_zeiten.html"])
 def test_seiten_unterscheiden_vermerk_und_freigabe(seite):
     text = (TEMPLATES / seite).read_text(encoding="utf-8")
-    assert "vom_programm?'Vermerk: ':'Freigabe: ')" in text
-    assert "Freigabe: '+esc(" not in text
+    assert ".vermerk?'<span" in text and "Vermerk: '+esc(" in text and ".review_notes?'<span" in text and "Freigabe: '+esc(" in text
 
 
 # --- Datum ------------------------------------------------------------------------------------------------------------------------

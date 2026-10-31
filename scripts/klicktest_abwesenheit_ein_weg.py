@@ -60,6 +60,11 @@ def befuellen(db, k):
     migration = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(migration)
     migration.uebernehmen(db.connection())
+    pfad = next((ROOT / "alembic" / "versions").glob("*_abwesenheit_vermerk.py"))  # seit 1.9.165: wandert in die Spalte vermerk
+    spec = importlib.util.spec_from_file_location("migration_vermerk", pfad)
+    vermerk = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(vermerk)
+    vermerk.verschieben(db.connection())
     db.commit()
     return {"mia": mia.id, "ole": ole.id, "kai": kai.id, "bea": bea.id, "anna": k.cookies(anna), "finn": k.cookies(finn), "berta": k.cookies(berta)}
 
@@ -171,10 +176,14 @@ async def pruefen(tab, seed, p):
     p.pruefe("Zeiten: Mias Antrag zurückgezogen", "Mia Test" in liste and "Die genehmigte Abwesenheit wurde gelöscht." in liste, True)
     await tab.bild_ganz("zeiten_abwesenheiten_admin")
     genehmigt = await tab.js("A.antraege.filter(a=>a.status==='approved').length")
-    await tab.js("document.querySelector('[data-aktion=\"abwl-fragen\"]').click()")
+    await tab.js(f"document.querySelector('[data-abwesenheit=\"{offen}\"] [data-aktion=\"abwl-fragen\"]').click()")
     p.pruefe("Zeiten: Rückfrage", "Abwesenheit löschen?" in await tab.js("document.getElementById('abwListe').textContent"), True)
     await tab.js("document.querySelector('[data-aktion=\"abwl-ja\"]').click()")
     p.pruefe("Zeiten: gelöscht, Antrag folgt", await tab.warten(f"A.antraege.filter(a=>a.status==='approved').length==={genehmigt - 1}"), True)
+    await tab.warte_auf_ruhe()
+    zeile = await tab.js(f"document.querySelector('[data-abwesenheit=\"{offen}\"]').textContent")
+    p.pruefe("Gelöscht: die Notiz des Admins bleibt neben dem Vermerk (seit 1.9.165)", "Freigabe: Vertretung geklärt" in zeile and "Vermerk: Die genehmigte Abwesenheit wurde gelöscht." in zeile, True)
+    await tab.bild_ganz("zeiten_vermerk_und_freigabe")
     p.pruefe("Zeiten: JS-Fehler", tab.fehler, [])
 
     # --- Büro – Finanzen ---

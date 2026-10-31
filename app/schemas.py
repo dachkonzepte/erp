@@ -3321,7 +3321,7 @@ class EmployeeAbsenceRequestOut(BaseModel):
     reviewed_by_name: str | None = None
     reviewed_at: datetime | None = None
     review_notes: str | None = None
-    vom_programm: bool = False  # seit 1.9.154: review_notes stammt vom Programm, nicht vom Admin zur Entscheidung
+    vermerk: str | None = None  # seit 1.9.165: was das Programm dazu schreibt, review_notes ist nur noch die Notiz des Admins
     aus_migration: bool = False  # seit 1.9.154: nie beantragt, die Abwesenheit stand schon auf der Tafel
     approved_absence_id: int | None = None
     created_at: datetime

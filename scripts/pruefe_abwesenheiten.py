@@ -67,7 +67,7 @@ def pruefen(db) -> Stand:
             stand.widersprueche.append(Widerspruch("Abwesenheit", i, von, bis, kategorie, art))
     for i, kategorie, art, von, bis, status, vermerk in db.execute(select(
             EmployeeAbsenceRequest.id, EmployeeAbsenceRequest.absence_category, EmployeeAbsenceRequest.absence_type, EmployeeAbsenceRequest.start_date, EmployeeAbsenceRequest.end_date,
-            EmployeeAbsenceRequest.status, EmployeeAbsenceRequest.review_notes).order_by(EmployeeAbsenceRequest.start_date, EmployeeAbsenceRequest.id)):
+            EmployeeAbsenceRequest.status, EmployeeAbsenceRequest.vermerk).order_by(EmployeeAbsenceRequest.start_date, EmployeeAbsenceRequest.id)):
         stand.antraege[(kategorie, art)] += 1
         if (vermerk or "").startswith(MIGRATION_VERMERK):
             stand.aus_migration += 1

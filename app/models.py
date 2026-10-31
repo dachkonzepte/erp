@@ -2619,7 +2619,8 @@ class EmployeeAbsenceRequest(Base):
     requested_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("app_users.id"), nullable=True, index=True)
     reviewed_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("app_users.id"), nullable=True, index=True)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    review_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    review_notes: Mapped[str | None] = mapped_column(Text, nullable=True)  # die Notiz des Admins zu seiner Entscheidung
+    vermerk: Mapped[str | None] = mapped_column(Text, nullable=True)  # seit 1.9.165: was das Programm dazu schreibt (app/absence_requests.py); bis dahin stand es in review_notes und überschrieb die Notiz
     approved_absence_id: Mapped[int | None] = mapped_column(ForeignKey("employee_absences.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

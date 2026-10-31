@@ -119,6 +119,7 @@ ERLAUBT_JE_ROUTE = {
     ("/api/time-entry-groups/mine", "$[].notes"): "Notiz der Kolonnenbuchung, in der er selbst mitgebucht ist (1.7.12)",
     ("/api/absence-requests", "$[].notes"): "eigener Abwesenheitsantrag, die Notiz schreibt er selbst",
     ("/api/absence-requests", "$[].review_notes"): "Antwort des Büros auf seinen eigenen Antrag",
+    ("/api/absence-requests", "$[].vermerk"): "Was das Programm an seinem eigenen Antrag vermerkt (seit 1.9.165)",
     ("/api/time-tracking/settings", "$.datev_wage_type_*"): ("DATEV-Lohnart: Buchungsschlüssel, kein Betrag "
                                                              "(rechtekonzept.md, Vier Rollen, Etappe 2 Punkt 4)"),
     ("/api/time-tracking/settings", "$.datev_personnel_equals_erp_number"): ("Schalter des Backoffice (DATEV- gleich "

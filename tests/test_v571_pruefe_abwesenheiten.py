@@ -56,7 +56,7 @@ def _abwesenheit(db, emp, kategorie, art, von=date(2026, 3, 2), bis=date(2026, 3
 
 
 def _antrag(db, emp, kategorie, art, status="pending", vermerk=None, von=date(2026, 3, 2), bis=date(2026, 3, 4)):
-    row = EmployeeAbsenceRequest(employee_id=emp.id, absence_category=kategorie, absence_type=art, start_date=von, end_date=bis, status=status, review_notes=vermerk, notes=NOTIZ)
+    row = EmployeeAbsenceRequest(employee_id=emp.id, absence_category=kategorie, absence_type=art, start_date=von, end_date=bis, status=status, vermerk=vermerk, notes=NOTIZ)
     db.add(row)
     db.commit()
     return row

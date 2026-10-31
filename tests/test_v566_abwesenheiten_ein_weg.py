@@ -129,7 +129,7 @@ def test_genehmigte_loeschen_der_antrag_folgt(welt):
     assert antwort.status_code == 200, antwort.text
     assert _anzahl(db, EmployeeAbsence) == 0
     antrag = db.get(EmployeeAbsenceRequest, daten["antrag_id"])
-    assert (antrag.status, antrag.approved_absence_id, antrag.review_notes) == ("cancelled", None, "Die genehmigte Abwesenheit wurde gelöscht.")
+    assert (antrag.status, antrag.approved_absence_id, antrag.vermerk) == ("cancelled", None, "Die genehmigte Abwesenheit wurde gelöscht.")
 
 
 def test_loeschen_nur_der_admin_und_unbekannt_404(welt):

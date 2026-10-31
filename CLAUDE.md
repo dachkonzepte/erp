@@ -98,7 +98,7 @@ Stand, den `git log` nicht erklären kann), nicht nur ein theoretisches.
 | Dienst | `erp.service`, `gunicorn -w 2 --timeout 120` |
 | Sicherung | `/home/tobias/backup.sh`, täglich 2 Uhr UTC, 14 Tage Aufbewahrung; sichert `erp-data` vollständig (Betreiberangabe 05.10.2026) |
 | Einspielen | ausschließlich `/home/tobias/update.sh` (auf dem Server, nicht im Repo; probt eine Migration selbst gegen `spielwiese`), nie einzelne `alembic`-Befehle -- auch nicht für die Probe |
-| Notfallskripte | `scripts/reset_admin_2fa.py`, `scripts/migrate_sqlite_to_postgres.py`; erstes Konto (seit 1.8.130): `scripts/erstes_konto.py`; nur lesend (seit 1.9.119): `scripts/pruefe_stornos.py` (hebt jeder Storno sein Original genau auf?), seit 1.9.125 `scripts/pruefe_projektstatus.py` (passt der gespeicherte Projektstatus zur Ableitung?), seit 1.9.142 `scripts/pruefe_outlook.py` (Stand des Outlook-Abgleichs je Postfach, wartende und doppelte Termine, ganztägige aus dem ERP), seit 1.9.153 `scripts/pruefe_abwesenheiten.py` (Anzahl je Kategorie × Art, Widersprüche mit ID und Zeitraum ohne Namen, Anträge aus der Migration) |
+| Notfallskripte | `scripts/reset_admin_2fa.py`, `scripts/migrate_sqlite_to_postgres.py`; erstes Konto (seit 1.8.130): `scripts/erstes_konto.py`; nur lesend (seit 1.9.119): `scripts/pruefe_stornos.py` (hebt jeder Storno sein Original genau auf?), seit 1.9.125 `scripts/pruefe_projektstatus.py` (passt der gespeicherte Projektstatus zur Ableitung?), seit 1.9.142 `scripts/pruefe_outlook.py` (Stand des Outlook-Abgleichs je Postfach und Gerät, wartende und doppelte Termine, Löschaufträge, Termine ohne Besitzer, Gerät doppelt), seit 1.9.153 `scripts/pruefe_abwesenheiten.py` (Anzahl je Kategorie × Art, Widersprüche mit ID und Zeitraum ohne Namen, Anträge aus der Migration) |
 | Zeitzone | `Etc/UTC` (`timedatectl`) -- Datum und Uhrzeit deshalb nur über `app/berlin_time.py`, Regel 20 |
 
 **Korrigiert (KI-Fundament-Runde, seit 1.6.2)**: diese Datei behauptete hier bisher fälschlich
@@ -648,7 +648,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     `Enable-OrganizationCustomization`, `New-ServicePrincipal` (ObjectId der
     Unternehmensanwendung), `New-ManagementScope` mit `MemberOfGroup`-Filter,
     `New-ManagementRoleAssignment -CustomResourceScope "ERP-Zugriff"`. Ein neues Postfach wird
-    ausschließlich durch Aufnahme in die Gruppe freigeschaltet. Grund: eine Entra-Berechtigung
+    ausschließlich durch Aufnahme in die Gruppe freigeschaltet, auch das eines Geräts (direkte Mitgliedschaft, wirksam nach bis zu zwei Stunden). Grund: eine Entra-Berechtigung
     gilt für JEDES Postfach im Mandanten -- bei `Mail.Send` hieß das Senden im Namen jedes
     Postfachs, also ausdrücklich NICHT unproblematisch (eine frühere Fassung dieser Regel
     behauptete das fälschlich). Wiedererteilung in Entra nur als Notfall-Rückweg, nie als
@@ -1289,7 +1289,9 @@ Jeder Eintrag nennt die zugehörige Archivdatei -- **vor einer Änderung an dies
 - **KI-Fundament** (anbieterunabhängige Schnittstelle `call_ai()`, noch keine Fachfunktion) --
   `docs/archiv/ki-fundament.md`
 - **Kalender-Modul & Outlook-Synchronisation** (Modul `kalender`, `CalendarEvent`, Graph-Sync,
-  Echo-Erkennung) -- `docs/archiv/modul-kalender-und-outlook-sync.md`
+  Echo-Erkennung; Stufe 6, R2 ab 1.9.157: ganztägige Termine in beiden Richtungen, abgelaufener Delta-Link setzt sich zurück, Sperre je Postfach und eindeutige
+  Kennung je Postfach, Besitzer- und Postfachwechsel mit Löschaufträgen, Postfach an einem Konto oder Gerät (Kran-Kalender), Stand je Postfach in den Einstellungen)
+  -- `docs/archiv/modul-kalender-und-outlook-sync.md`
 - **Checklisten & Formulare** (Modul `checklisten`, Vorlagenfassungen, Kontexte Auftrag/Objekt/
   Betriebsmittel/Betrieb, Regeln → Aufgaben, Etappenplan 1.8.0–1.8.5 und Stufen 2–4; seit 1.8.38 Systemfelder mit
   Abschnitt und "nur Büro", Folgen nach einer Unterschrift, Regel-Aufgabe mit Link zum Anlegen; seit 1.8.41 Status
@@ -1646,6 +1648,7 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   (`_conflicts()`). Warnungen (`WARNUNG_ARTEN`: Person, Kolonne, Gerät doppelt; abwesend) -> `PlanungsWarnung`, 409 mit `warnungen` und `hinweise`, nichts gespeichert (auch keine neue
   Arbeitsvorbereitung), bis `trotzdem_planen` mitkommt; Hinweise (`HINWEIS_ARTEN`: Feiertag und betriebsfreier Tag, nur an einem Arbeitstag, Kapazität) nur in der Antwort -- seit 1.9.150 meldet ein Wochenende nichts, es ist nur kein Arbeitstag; seit 1.9.152 auch „Antrag offen“ (`FAERBT_NICHT`: nicht rot, nicht in `conflict_count`, keine Kapazität, die Art nur für Admin und Büro – Finanzen, `tests/test_v570_antrag_offen_hinweis.py`); Ändern fragt nur, wenn sich Kolonne oder
   Zeitraum ändern. Einsätze stornierter und (seit 1.9.151) abgeschlossener Aufträge zählen nicht -- kein Konflikt, keine Kapazität, der Balken bleibt mit dem Status (`tests/test_v563_konflikte_beim_speichern.py`, Klicktest `klicktest_plantafel_konflikte.py`).
+- **Ein Postfach gehört einem Konto oder einem Gerät** (seit 1.9.161; `AppUser.outlook_mailbox`, `OperationalResource.outlook_mailbox`, Pflege am Gerät nur Admin, `postfach_pruefen()` über beide Tabellen, im Code nur über `app/outlook_calendar_sync.py::Postfach`). Ein Termin hat genau einen Besitzer (CHECK); wo er in Outlook liegt, steht an ihm (`outlook_postfach`), die Kennung gilt nur dort (eindeutiger Index). Der Stand hängt an der Adresse; ein Lauf belegt das Postfach (`_sperre_nehmen()`, bedingtes UPDATE, über Prozesse, läuft nach zehn Minuten ab), Speichern während eines Laufs sendet nicht. Aus Outlook gelöscht wird nur über `OutlookDeleteOrder`. Termine am Gerät zählen beim Speichern eines Einsatzes als „Gerät doppelt“ (`termine_der_geraete()`, `tests/test_v579_geraete_postfach.py`); die Tafel zeigt sie mit R4.
 - **Die Plantafel lädt, was sie zeigt** (seit 1.9.144): `GET /api/planning` ohne Abfrage je Auftrag oder Einsatz (`_einsatz_abfrage()`, `rueckstand()`, `slot_to_dict(tafel=…)`), Konflikte nur für
   Einsätze, die den Zeitraum berühren; die Auswahl im Dialog „Einsatz planen“ erst beim Öffnen über `GET /api/planning/auftraege` (`offene_auftraege()`, nur offene). Wächter: die Zahl der Abfragen hängt
   nicht an Rückstand, Einsätzen im Bild und alten Einsätzen (`tests/test_v564_plantafel_leistung.py`).

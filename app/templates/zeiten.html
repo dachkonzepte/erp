@@ -829,7 +829,8 @@ function abwesenheitHtml(a){
     :'<button type="button" class="knopf knopf-neutral" data-aktion="abwl-fragen" data-id="'+a.id+'">Löschen</button>';
   return '<div class="zeile" data-abwesenheit="'+a.id+'"><div class="zeile-text"><span class="zeile-name">'+esc(a.employee_name+' · '+abwArtText(art,a.absence_type))+'</span>'
     +'<span class="zeile-unter">'+esc(unter)+'</span>'+(a.notes?'<span class="zeile-unter">'+esc(a.notes)+'</span>':'')
-    +(a.review_notes?'<span class="zeile-unter">'+(a.vom_programm?'Vermerk: ':'Freigabe: ')+esc(a.review_notes)+'</span>':'')+'</div>'
+    +(a.vermerk?'<span class="zeile-unter">Vermerk: '+esc(a.vermerk)+'</span>':'')
+    +(a.review_notes?'<span class="zeile-unter">Freigabe: '+esc(a.review_notes)+'</span>':'')+'</div>'
     +'<span class="chip '+esc(st[1])+'">'+esc(st[0])+'</span>'+knoepfe+'</div>';
 }
 function abwesenheitEntscheiden(id,entscheidung,knopf){

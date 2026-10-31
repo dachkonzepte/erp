@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.165 – Beim Löschen einer Abwesenheit bleibt die Freigabe-Notiz stehen (Stufe 6, R2 Outlook, Punkt 7)
+
+Löschte der Admin eine genehmigte Abwesenheit, überschrieb der Vermerk des Programms seine Notiz zur Freigabe; sie stand danach nur noch im Änderungsprotokoll. Was das Programm schreibt, hat jetzt eine eigene Spalte (`employee_absence_requests.vermerk`, Migration `f1b9d2c6a470`), „Zeiten → Abwesenheiten“ und „Meine Zeiten“ zeigen „Vermerk:“ und „Freigabe:“ nebeneinander. Tests: `tests/test_v583_vermerk_neben_freigabe.py`.
+
 ## 1.9.164 – Startseite: ein Tag ist ein Tag (Stufe 6, R2 Outlook, Punkt 7)
 
 Der Abwesenheitsantrag auf der Startseite stand bei einem einzelnen Tag als Spanne von diesem Tag bis zu demselben. Er nimmt jetzt `abwZeitraum()` wie „Zeiten → Abwesenheiten“: „Mi 21.10.2026“, mehrere Tage „Mo 19.10.–Mi 21.10.2026“. Tests: `tests/test_v582_startseite_abwesenheit.py`.

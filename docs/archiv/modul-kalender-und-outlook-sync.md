@@ -827,7 +827,7 @@ mit fälschlich gezählten Änderungen werden die jeweiligen Tests rot.
 
 #### Bekannte, bewusst offene Punkte
 
-- **Resurrection-Risiko bei fehlgeschlagener Fernlöschung.** `try_delete_remote_event()` löscht
+- *(Seit 1.9.160 erledigt, Löschauftrag `OutlookDeleteOrder`.)* **Resurrection-Risiko bei fehlgeschlagener Fernlöschung.** `try_delete_remote_event()` löscht
   IMMER lokal, auch wenn die Graph-Löschung fehlschlägt (z. B. kurzzeitige Netzwerkstörung) --
   Nutzerabsicht hat Vorrang vor einem perfekt konsistenten Zustand. Bleibt der Outlook-Termin
   dadurch bestehen, erkennt ihn der NÄCHSTE Delta-Lauf als unbekannten `outlook_event_id` und

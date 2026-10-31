@@ -632,7 +632,7 @@ function antraegeZeichnen(){
     return '<div class="antrag" data-antrag-zeile="'+r.id+'"><span class="antrag-text"><b>'+esc(KATEGORIE[r.absence_category]||r.absence_category)+'</b>'
       +'<span>'+esc(r.absence_type)+' · '+esc(abwZeitraum(r.start_date,r.end_date))+'</span>'
       +(r.beantragt_von?'<span>beantragt von '+esc(r.beantragt_von)+'</span>':'')
-      +(r.notes?'<span>'+esc(r.notes)+'</span>':'')+(r.review_notes?'<span>'+(r.vom_programm?'Vermerk: ':'Freigabe: ')+esc(r.review_notes)+'</span>':'')+'</span>'
+      +(r.notes?'<span>'+esc(r.notes)+'</span>':'')+(r.vermerk?'<span>Vermerk: '+esc(r.vermerk)+'</span>':'')+(r.review_notes?'<span>Freigabe: '+esc(r.review_notes)+'</span>':'')+'</span>'
       +'<span class="antrag-status">'+esc(STATUS[r.status]||r.status)+'</span>'+knoepfe+'</div>'}).join('')
     :'<p class="leer-text" style="margin:0">Keine Abwesenheitsanträge vorhanden.</p>';
 }
