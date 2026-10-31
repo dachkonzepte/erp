@@ -1643,7 +1643,7 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   (`PUT /api/time-backoffice/datev-nummern`), im LODAS-Kopf `[Allgemein]` (`tests/test_v513_datev_export.py`).
 - **Einsätze: Konflikte beim Speichern** (seit 1.9.143, Entscheidung Tobias „warnen, trotzdem planbar“): `app/planning.py::einsatz_konflikte()` rechnet wie die Tafel
   (`_conflicts()`). Warnungen (`WARNUNG_ARTEN`: Person, Kolonne, Gerät doppelt; abwesend) -> `PlanungsWarnung`, 409 mit `warnungen` und `hinweise`, nichts gespeichert (auch keine neue
-  Arbeitsvorbereitung), bis `trotzdem_planen` mitkommt; Hinweise (`HINWEIS_ARTEN`: Feiertag, betriebsfrei, Wochenende, Kapazität) nur in der Antwort; Ändern fragt nur, wenn sich Kolonne oder
+  Arbeitsvorbereitung), bis `trotzdem_planen` mitkommt; Hinweise (`HINWEIS_ARTEN`: Feiertag und betriebsfreier Tag, nur an einem Arbeitstag, Kapazität) nur in der Antwort -- seit 1.9.150 meldet ein Wochenende nichts, es ist nur kein Arbeitstag; Ändern fragt nur, wenn sich Kolonne oder
   Zeitraum ändern. Einsätze stornierter Aufträge zählen nicht (`tests/test_v563_konflikte_beim_speichern.py`, Klicktest `klicktest_plantafel_konflikte.py`).
 - **Die Plantafel lädt, was sie zeigt** (seit 1.9.144): `GET /api/planning` ohne Abfrage je Auftrag oder Einsatz (`_einsatz_abfrage()`, `rueckstand()`, `slot_to_dict(tafel=…)`), Konflikte nur für
   Einsätze, die den Zeitraum berühren; die Auswahl im Dialog „Einsatz planen“ erst beim Öffnen über `GET /api/planning/auftraege` (`offene_auftraege()`, nur offene). Wächter: die Zahl der Abfragen hängt

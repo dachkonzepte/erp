@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.150 – Das Wochenende ist kein Hinweis (Stufe 6, R1 Nachrunde, Punkt 1)
+
+Ein Einsatz über ein Wochenende meldet beim Speichern nichts mehr: das Wochenende ist nur kein Arbeitstag, für die Stunden zählt es ohnehin nicht. Weg ist damit auch die Variante „Kein Arbeitstag“ für einen Wochentag, an dem der Betrieb laut Einstellungen nicht arbeitet. Hinweise bleiben Feiertag, betriebsfreier Tag und Kapazität.
+
+Dabei mitgezogen: ein Feiertag oder betriebsfreier Tag an einem Tag, der ohnehin kein Arbeitstag ist (Tag der Deutschen Einheit an einem Samstag), meldet ebenfalls nichts -- sonst hätte der Einsatz über dieses Wochenende doch etwas gemeldet und auf der Tafel rot gestanden.
+
 ## 1.9.149 – Aus Stufe 5: Dateien „hochgeladen“, Projektzeile, Einzelheiten (Stufe 6, R1, Punkt 7)
 
 Im Verlauf von Kunde und Projekt heißen Dateien jetzt „hochgeladen“ statt „angelegt“ (Festlegung 1.9.140 Nr. 2, so von Tobias geändert); das Protokoll selbst bleibt. In der Projektzeile der Kundenakte steht „abgerechnet … · unbezahlt …“ unter dem Namen, rechts nur die Summe: rechts nahm die Zeile dem Namen den Platz, er wurde gekürzt, obwohl die Karte breit genug war. „Einzelheiten“ erscheinen nur noch, wenn sie mehr zeigen als die Zeile: bei einer einzigen Änderung steht schon alles in der Überschrift (`verlaufMehrEinzelheiten()`, Akte und Kundenakte). Test `tests/test_v569_verlauf_und_projektzeile.py`.

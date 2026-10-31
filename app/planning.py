@@ -31,7 +31,7 @@ from .rounding import round_half_up, round_hours
 # Seit 1.9.143 (Stufe 6, R1, Punkt 1): was beim Speichern eines Einsatzes rückfragt (409 mit Liste, bis „trotzdem planen“ mitkommt) und was nur in der
 # Antwort steht. Der Betrieb darf alles planen -- Tobias: „Konflikte warnen, trotzdem planbar“.
 WARNUNG_ARTEN = frozenset({"team", "employee", "resource", "absence"})  # Kolonne, Person, Gerät doppelt; Person abwesend
-HINWEIS_ARTEN = frozenset({"holiday", "wochenende", "capacity"})  # Feiertag, betriebsfreier Tag, Wochenende, Kapazität
+HINWEIS_ARTEN = frozenset({"holiday", "capacity"})  # Feiertag, betriebsfreier Tag, Kapazität. Seit 1.9.150 kein Wochenende: es ist nur kein Arbeitstag, ein Einsatz darüber meldet nichts
 WARNUNG_TEXT = "Der Einsatz überschneidet sich – bitte prüfen oder trotzdem planen."
 
 
@@ -968,6 +968,7 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
         visible_employee_ids = planning_visible_employee_ids(db)
     employee_ids = {x.employee_id for s in slots for x in s.team_assignment.employees if x.employee_id in visible_employee_ids}
     absence_rows = _absence_rows(db, start, end, employee_ids); absences = _absence_map(absence_rows)
+    arbeitstage = _working_weekdays(settings)
 
     for i, a in enumerate(slots):
         a_emps, a_res = _slot_members(a, visible_employee_ids)
@@ -994,7 +995,7 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
         distributions[slot.id] = distribution
         seen_absence = set()
         for day in _date_range(slot.start_date, slot.end_date):
-            if day in holiday_names:
+            if day in holiday_names and day.weekday() in arbeitstage:  # seit 1.9.150: ein Feiertag an einem Tag, der ohnehin kein Arbeitstag ist, meldet nichts
                 result[slot.id].append({"type":"holiday", "label":holiday_names[day], "date":day, "other_slot_id":None, "other_project":None, "other_project_name":None})
             for member in slot.team_assignment.employees:
                 if member.employee_id not in visible_employee_ids: continue
@@ -1014,15 +1015,6 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
     return result, distributions
 
 
-def _wochenend_hinweise(slot: PlanningSlot, settings: PlanningSettings, feiertage: dict[date, str]) -> list[dict]:
-    """Tage des Einsatzes, die kein Arbeitstag sind -- nur für die Antwort auf das Speichern; auf der Tafel färben sie den Balken nicht (ein Einsatz
-    über ein Wochenende ist der Normalfall). Ein Feiertag hat seinen eigenen Hinweis."""
-    arbeitstage = _working_weekdays(settings)
-    return [{"type": "wochenende", "stufe": "hinweis", "label": "Wochenende" if tag.weekday() >= 5 else "Kein Arbeitstag", "date": tag,
-             "other_slot_id": None, "other_project": None, "other_project_name": None}
-            for tag in _date_range(slot.start_date, slot.end_date) if tag.weekday() not in arbeitstage and tag not in feiertage]
-
-
 def einsatz_konflikte(db: Session, slot: PlanningSlot) -> dict:
     """Warnungen und Hinweise eines Einsatzes (seit 1.9.143) -- dieselbe Rechnung wie die Tafel (_conflicts()), gegen die Einsätze, die seinen Zeitraum
     berühren. Liest nur, sieht den Stand der offenen Transaktion. Ein Einsatz eines stornierten Auftrags hat keine (P8)."""
@@ -1031,8 +1023,7 @@ def einsatz_konflikte(db: Session, slot: PlanningSlot) -> dict:
     settings = load_planning_settings(db)
     andere = db.scalars(_einsatz_abfrage().where(PlanningSlot.id != slot.id, PlanningSlot.start_date <= slot.end_date, PlanningSlot.end_date >= slot.start_date)).all()
     konflikte, _ = _conflicts(db, [slot, *andere], settings)
-    feiertage, _ = _combined_holiday_map(db, slot.start_date, slot.end_date)
-    liste = list(konflikte.get(slot.id, [])) + _wochenend_hinweise(slot, settings, feiertage)
+    liste = konflikte.get(slot.id, [])
     return {"warnungen": [k for k in liste if k["stufe"] == "warnung"], "hinweise": [k for k in liste if k["stufe"] == "hinweis"]}
 
 

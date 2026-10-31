@@ -60,7 +60,7 @@ def _konflikte_fuer_rolle(konflikte: list[dict], role: AppUser) -> list[dict]:
 
 
 def _einsatz_antwort(db: Session, slot, role: AppUser) -> dict:
-    """Seit 1.9.143: der gespeicherte Einsatz mit seinen Warnungen und Hinweisen (Feiertag, Wochenende, Kapazität speichern ohne Rückfrage und stehen hier)."""
+    """Seit 1.9.143: der gespeicherte Einsatz mit seinen Warnungen und Hinweisen (Feiertag, betriebsfreier Tag, Kapazität speichern ohne Rückfrage und stehen hier)."""
     konflikte = einsatz_konflikte(db, slot)
     warnungen, hinweise = _konflikte_fuer_rolle(konflikte["warnungen"], role), _konflikte_fuer_rolle(konflikte["hinweise"], role)
     return {**slot_to_dict(slot, warnungen + hinweise, db=db), "warnungen": warnungen, "hinweise": hinweise}

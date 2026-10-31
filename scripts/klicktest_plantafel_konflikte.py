@@ -4,7 +4,8 @@ Stehende Uhr 14.10.2026 10:00. Befüllt: Kolonnen Nord (Tom, Kran) und Süd (Tom
 
     Neu         „+ Einsatz planen“ für Auftrag B auf Süd, derselbe Zeitraum -> Dialog mit Warnliste (Person doppelt, Gerät doppelt, gleichzeitig in Projekt),
                 nichts gespeichert; „Abbrechen“ -> zurück im Dialog „Einsatz planen“; „Trotzdem planen“ -> gespeichert, beide Dialoge zu, Tafel neu
-    Hinweis     Auftrag C auf West über ein Wochenende -> kein Dialog, Hinweis „Wochenende“ über der Tafel
+    Wochenende  Auftrag C auf West über ein Wochenende -> gespeichert, kein Dialog, kein Hinweis (seit 1.9.150)
+    Hinweis     Auftrag E auf Ost über einen betriebsfreien Tag -> kein Dialog, Hinweis über der Tafel
     Bearbeiten  Einsatz B auf West schieben im Dialog -> Warnliste; nur die Notiz ändern -> keine Warnliste
     Ziehen      Einsatz C mit „dropSlot“ auf Nord -> Warnliste, nichts verschoben; „Trotzdem planen“ -> verschoben
     Büro–Auftrag die Warnliste nennt bei einer Abwesenheit nur „abwesend“
@@ -33,7 +34,7 @@ def befuellen(db, k):
     from datetime import date
     from decimal import Decimal
 
-    from app.models import AppUser, Customer, Employee, EmployeeAbsence, OperationalResource, Project, Quote, QuoteItem, Team, TeamEmployee, TeamResource
+    from app.models import AppUser, Customer, Employee, EmployeeAbsence, OperationalResource, PlanningHoliday, Project, Quote, QuoteItem, Team, TeamEmployee, TeamResource
     from app.orders import create_order_from_quote, load_order
     from app.planning import create_slot
     from app.project_pipeline_columns import default_pipeline_column_id
@@ -70,11 +71,12 @@ def befuellen(db, k):
         return load_order(db, order.id)
 
     nord, sued, west, ost = kolonne("Nord", tom, geraet=kran), kolonne("Süd", tom, geraet=kran), kolonne("West", sol), kolonne("Ost", mia)
-    a, b, c, d = auftrag("A"), auftrag("B"), auftrag("C"), auftrag("D")
+    a, b, c, d, e = auftrag("A"), auftrag("B"), auftrag("C"), auftrag("D"), auftrag("E")
+    db.add(PlanningHoliday(holiday_date=date(2026, 10, 28), name="Betriebsausflug", active=True))
     create_slot(db, order_id=a.id, team_id=nord.id, start_date=date(2026, 10, 19), end_date=date(2026, 10, 21))
     db.add(EmployeeAbsence(employee_id=mia.id, absence_type="Krankheit", absence_category="krankheit", start_date=date(2026, 10, 19), end_date=date(2026, 10, 19)))
     db.commit()
-    return {"b": b.id, "c": c.id, "d": d.id, "nord": nord.id, "sued": sued.id, "west": west.id, "ost": ost.id,
+    return {"b": b.id, "c": c.id, "d": d.id, "e": e.id, "nord": nord.id, "sued": sued.id, "west": west.id, "ost": ost.id,
             "anna": k.cookies(anna), "berta": k.cookies(berta)}
 
 
@@ -115,13 +117,20 @@ async def pruefen(tab, seed, p):
     p.pruefe("Trotzdem planen: gespeichert", await tab.warten("!document.getElementById('konfliktDialog').open&&!document.getElementById('createDialog').open&&board.slots.length===2"), True)
     p.pruefe("beide rot", await tab.js("document.querySelectorAll('.slot.conflict').length"), 2)
 
-    # --- Hinweis ohne Rückfrage ---
+    # --- Über ein Wochenende: meldet nichts (seit 1.9.150) ---
     await _neu(tab, seed["c"], seed["west"], "2026-10-23", "2026-10-26")
-    p.pruefe("Hinweis: gespeichert ohne Rückfrage", await tab.warten("board.slots.length===3&&!document.getElementById('createDialog').open"), True)
+    p.pruefe("Wochenende: gespeichert ohne Rückfrage", await tab.warten("board.slots.length===3&&!document.getElementById('createDialog').open"), True)
+    p.pruefe("Wochenende: kein Warn-Dialog", await tab.js("document.getElementById('konfliktDialog').open"), False)
+    p.pruefe("Wochenende: kein Hinweis", await tab.js("document.getElementById('einsatzHinweis').textContent"), "")
+    p.pruefe("Wochenende: Balken nicht rot", await tab.js(f"board.slots.find(s=>s.order_id==={seed['c']}).conflicts.length"), 0)
+
+    # --- Hinweis ohne Rückfrage ---
+    await _neu(tab, seed["e"], seed["ost"], "2026-10-27", "2026-10-29")
+    p.pruefe("Hinweis: gespeichert ohne Rückfrage", await tab.warten("board.slots.length===4&&!document.getElementById('createDialog').open"), True)
     p.pruefe("Hinweis: kein Warn-Dialog", await tab.js("document.getElementById('konfliktDialog').open"), False)
     hinweis = await tab.js("document.getElementById('einsatzHinweis').textContent")
-    p.pruefe("Hinweis: steht über der Tafel", "Einsatz gespeichert" in hinweis and "Wochenende · 24.10." in hinweis, True)
-    await tab.bild("hinweis_wochenende")
+    p.pruefe("Hinweis: steht über der Tafel", "Einsatz gespeichert" in hinweis and "Feiertag: Betriebsausflug · 28.10." in hinweis, True)
+    await tab.bild("hinweis_betriebsfrei")
 
     # --- Bearbeiten ---
     einsatz_b = await tab.js(f"board.slots.find(s=>s.order_id==={seed['b']}).id")
@@ -148,7 +157,7 @@ async def pruefen(tab, seed, p):
     await tab.anmelden(seed["berta"])
     await tab.oeffnen("/planning", BEREIT)
     await tab.js("movePeriod(7)")
-    await tab.warten(BEREIT + "&&board.slots.length===3")
+    await tab.warten(BEREIT + "&&board.slots.length===4")
     await _neu(tab, seed["d"], seed["ost"], "2026-10-19", "2026-10-19")
     p.pruefe("Büro – Auftrag: Warnliste", await tab.warten("document.getElementById('konfliktDialog').open"), True)
     text = await tab.js("document.getElementById('konfliktWarnungen').textContent")

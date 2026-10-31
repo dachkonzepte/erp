@@ -962,3 +962,16 @@ Nachtrag 1.9.147: `tests/test_v563_konflikte_pg.py` prüft die Warnliste unter P
 ### Tests und Prüfung
 
 Angepasste Erwartung (Regel 28): `test_v390`, Eintrag `calendar.html` „start:start.toISOString(),end:end.toISOString()“ aus `ERLAUBT` gestrichen: die Stelle gibt es nicht mehr.
+
+## Umsetzung 1.9.150: das Wochenende ist kein Hinweis (Stufe 6, R1 Nachrunde, Punkt 1)
+
+Vorgabe Tobias: ein Einsatz über ein Wochenende meldet nichts, das Wochenende ist nur kein Arbeitstag (Zeichnung `bildgrundlage/entwurf-stufe6/plantafel-regeln.html`, „Zeitraum“). `_wochenend_hinweise()` ist weg, `HINWEIS_ARTEN` kennt nur noch Feiertag/betriebsfreien Tag und Kapazität. Damit ist die Festlegung 1.9.143 Nr. 2 in ihrem ersten Halbsatz überholt („Wochenende“ gibt es nicht mehr); dass Feiertag und Kapazität den Balken rot färben, bleibt bis zur Zeichnung.
+
+### Festlegungen 1.9.150 (Bitte bestätigen)
+
+1. Auch „Kein Arbeitstag“ für einen Wochentag, an dem der Betrieb laut Einstellungen nicht arbeitet, meldet nichts: dieselbe Regel, dieselbe Funktion war weg.
+2. Ein Feiertag oder betriebsfreier Tag an einem Tag, der ohnehin kein Arbeitstag ist, meldet nichts (weder beim Speichern noch auf der Tafel). Sonst meldete ein Einsatz über ein Wochenende doch etwas, sobald ein Feiertag darauf fällt.
+
+### Tests und Prüfung
+
+Angepasste Erwartungen (Regel 28): `test_v563::test_wochenende_200_mit_hinweis_und_faerbt_die_tafel_nicht` hieß so und erwartete zwei Hinweise „Wochenende“; neu `test_wochenende_meldet_nichts`, keine Hinweise. `klicktest_plantafel_konflikte`: „Hinweis: steht über der Tafel“ prüfte „Wochenende · 24.10.“; neu ein eigener Einsatz über einen betriebsfreien Tag („Feiertag: Betriebsausflug · 28.10.“), Bild `hinweis_betriebsfrei` statt `hinweis_wochenende`, dazu vier Prüfungen „Wochenende: …“ (gespeichert, kein Dialog, kein Hinweis, nicht rot); Büro – Auftrag sieht vier statt drei Einsätze, weil einer dazukam. Neu: `test_kein_arbeitstag_unter_der_woche_meldet_nichts`, `test_feiertag_am_wochenende_meldet_nichts`.

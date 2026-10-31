@@ -2,7 +2,7 @@
 
     Warnung      Person, Kolonne, Gerät doppelt, Person abwesend -> 409 mit Liste, nichts gespeichert (auch keine Arbeitsvorbereitung, keine
                  Kolonnen-Zuweisung); mit „trotzdem_planen“ 200 und die Warnungen in der Antwort
-    Hinweis      Feiertag, betriebsfreier Tag, Wochenende, Kapazität -> 200 ohne Rückfrage, in der Antwort
+    Hinweis      Feiertag, betriebsfreier Tag, Kapazität -> 200 ohne Rückfrage, in der Antwort; seit 1.9.150 meldet ein Wochenende nichts, es ist nur kein Arbeitstag
     Ändern       Kolonne oder Zeitraum geändert -> wie Anlegen; nur Notiz, Status oder Stunden -> keine Rückfrage, Konflikte in der Antwort
     P8           Einsätze stornierter Aufträge zählen nicht, weder als Warnung noch in der Kapazität der Tafel
     Rollen       die Art einer Abwesenheit im 409 nur für Admin und Büro – Finanzen (Krankheitssichtbarkeit)
@@ -18,7 +18,7 @@ from sqlalchemy import func, select
 from app.auftragsstatus import status_aendern
 from app.main import create_resource, create_team
 from app.models import Employee, EmployeeAbsence, PlanningHoliday, PlanningSlot, WorkPreparation, WorkPreparationTeamAssignment
-from app.planning import PlanungsWarnung, create_slot, planning_board, update_slot
+from app.planning import PlanungsWarnung, create_slot, planning_board, update_planning_settings, update_slot
 from app.routers.planning import router as planning_router
 from app.schemas import OperationalResourceCreate, TeamCreate, TeamEmployeeInput, TeamResourceInput
 from tests.test_v090_planning_board import setup_order
@@ -149,15 +149,42 @@ def test_betriebsfreier_tag_200_mit_hinweis(tafel):
     assert [(k["type"], k["label"]) for k in antwort.json()["hinweise"]] == [("holiday", "Betriebsausflug")]
 
 
-def test_wochenende_200_mit_hinweis_und_faerbt_die_tafel_nicht(tafel):
+def test_wochenende_meldet_nichts(tafel):
+    """Seit 1.9.150 (R1 Nachrunde, Punkt 1): weder beim Speichern noch auf der Tafel -- das Wochenende ist nur kein Arbeitstag."""
     db, client = tafel
     team = _kolonne(db, "A", [_person(db, "M-1", "Tom")])
     freitag = MONTAG + timedelta(days=4)
     antwort = client.post("/api/planning/slots", json=_body(setup_order(db, "1"), team, start=freitag, ende=freitag + timedelta(days=3)))
     assert antwort.status_code == 200
-    assert [(k["label"], k["date"]) for k in antwort.json()["hinweise"]] == [("Wochenende", "2026-11-07"), ("Wochenende", "2026-11-08")]
+    assert antwort.json()["hinweise"] == [] and antwort.json()["warnungen"] == []
     tafel_daten = planning_board(db, MONTAG, MONTAG + timedelta(days=13))
     assert tafel_daten["slots"][0]["conflicts"] == []
+    assert tafel_daten["conflict_count"] == 0
+
+
+def test_kein_arbeitstag_unter_der_woche_meldet_nichts(tafel):
+    """Dieselbe Regel für einen Wochentag, an dem der Betrieb laut Einstellungen nicht arbeitet."""
+    db, client = tafel
+    update_planning_settings(db, wednesday=False)
+    team = _kolonne(db, "A", [_person(db, "M-1", "Tom")])
+    antwort = client.post("/api/planning/slots", json=_body(setup_order(db, "1"), team, start=MONTAG, ende=MONTAG + timedelta(days=4)))
+    assert antwort.status_code == 200
+    assert antwort.json()["hinweise"] == []
+
+
+def test_feiertag_am_wochenende_meldet_nichts(tafel):
+    """Fällt ein Feiertag auf einen Tag, der ohnehin kein Arbeitstag ist, ändert er nichts; ein Feiertag im selben Einsatz unter der Woche meldet sich weiter."""
+    db, client = tafel
+    samstag, freitag = MONTAG + timedelta(days=5), MONTAG + timedelta(days=4)
+    db.add(PlanningHoliday(holiday_date=samstag, name="Am Samstag", active=True))
+    db.commit()
+    team = _kolonne(db, "A", [_person(db, "M-1", "Tom")])
+    antwort = client.post("/api/planning/slots", json=_body(setup_order(db, "1"), team, start=freitag, ende=freitag + timedelta(days=3)))
+    assert antwort.json()["hinweise"] == []
+    db.add(PlanningHoliday(holiday_date=freitag, name="Am Freitag", active=True))
+    db.commit()
+    antwort = client.post("/api/planning/slots", json=_body(setup_order(db, "2"), _kolonne(db, "B", [_person(db, "M-2", "Mia")]), start=freitag, ende=freitag + timedelta(days=3)))
+    assert [(k["type"], k["label"]) for k in antwort.json()["hinweise"]] == [("holiday", "Am Freitag")]
 
 
 def test_kapazitaet_200_mit_hinweis(tafel):
