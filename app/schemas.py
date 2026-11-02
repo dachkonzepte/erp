@@ -3294,6 +3294,25 @@ class EmployeeAbsenceRequestCreate(BaseModel):
     start_date: date
     end_date: date
     notes: str | None = None
+    halber_tag: bool = False  # seit 1.9.171: nur Urlaub, ein Tag (geprüft in app/absence_requests.py)
+
+    @model_validator(mode="after")
+    def validate_dates(self):
+        if self.end_date < self.start_date:
+            raise ValueError("Enddatum darf nicht vor dem Startdatum liegen.")
+        return self
+
+
+class AbwesenheitSammel(BaseModel):
+    """Seit 1.9.171 (Lohn L1a, Punkt 6, E9): dieselbe Abwesenheit für mehrere Personen (alle, eine Kolonne, Auswahl). Schlechtwetter über
+    POST /api/schlechtwetter."""
+    employee_ids: list[int] = Field(min_length=1, max_length=500)
+    absence_type: str | None = Field(default=None, max_length=80)
+    absence_category: str = Field(pattern="^(urlaub|krankheit|fortbildung|unbezahlt|freizeitausgleich)$")
+    start_date: date
+    end_date: date
+    notes: str | None = Field(default=None, max_length=2000)
+    halber_tag: bool = False
 
     @model_validator(mode="after")
     def validate_dates(self):
@@ -3315,6 +3334,7 @@ class EmployeeAbsenceRequestOut(BaseModel):
     absence_category: str
     start_date: date
     end_date: date
+    halber_tag: bool = False  # seit 1.9.171
     notes: str | None = None
     status: str
     requested_by_user_id: int | None = None

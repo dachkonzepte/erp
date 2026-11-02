@@ -157,6 +157,9 @@
     .mitglieder{display:flex;flex-wrap:wrap;column-gap:24px;row-gap:2px}
     .mitglied{display:flex;align-items:center;gap:10px;min-height:36px;font-size:14px;font-weight:500;color:var(--ds-text);cursor:pointer}
     .mitglied input{width:18px;height:18px;margin:0;accent-color:var(--ds-aktion)}
+    .mitglied.breit{grid-column:1/-1}
+    .ad-personen{border:0;padding:0;margin:0;min-width:0}  /* seit 1.9.171: Personen des Sammeleintrags */
+    .ad-personen legend{display:flex;align-items:center;gap:10px;padding:0;margin-bottom:6px}
 </style>
 </head>
 <body class="ds-seite">
@@ -362,11 +365,16 @@
   <div class="dialog-kopf"><h2 id="adTitel">Abwesenheit beantragen</h2>
     <button type="button" class="knopf knopf-neutral knopf-symbol" id="adZu" aria-label="Schließen"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
   <div class="dialog-felder">
+    {# seit 1.9.171 (Lohn L1a, Punkt 6, E9): für mehrere Personen (alle, eine Kolonne, Auswahl) -- nur wer für andere einträgt #}
+    <label class="mitglied breit" for="adMehrere" id="adMehrereFeld" hidden><input id="adMehrere" type="checkbox"> Für mehrere Personen</label>
     <label class="feld breit" for="adMitarbeiter" id="adMitarbeiterFeld">Mitarbeiter<select id="adMitarbeiter"></select></label>
+    <label class="feld" for="adKolonne" id="adKolonneFeld" hidden>Kolonne<select id="adKolonne"></select></label>
+    <fieldset class="feld breit ad-personen" id="adPersonenFeld" hidden><legend>Personen <button type="button" class="knopf knopf-neutral" id="adAlle">Alle</button></legend><div id="adPersonen" class="mitglieder"></div></fieldset>
     <label class="feld" for="adKategorie">Kategorie<select id="adKategorie"><option value="urlaub">Urlaub</option><option value="krankheit">Krankheit</option><option value="fortbildung">Fortbildung</option><option value="unbezahlt">Unbezahlt</option><option value="freizeitausgleich">Freizeitausgleich</option></select></label>
     <label class="feld" for="adArt">Art (genauer, optional)<select id="adArt"></select></label>
     <label class="feld" for="adVon">Von<input id="adVon" type="date"></label>
     <label class="feld" for="adBis">Bis<input id="adBis" type="date"></label>
+    <label class="mitglied breit" for="adHalb" id="adHalbFeld" hidden><input id="adHalb" type="checkbox"> Halber Tag (halbe Sollzeit, zählt 0,5 Tag)</label>
     <label class="feld breit" for="adNotiz">Notiz / Grund<input id="adNotiz" type="text" placeholder="optional"></label>
   </div>
   <div class="dialog-knoepfe"><div class="status" id="adStatus" role="status"></div><button type="button" class="knopf knopf-neutral" id="adAbbrechen">Abbrechen</button>
@@ -540,7 +548,7 @@ function beantragtText(a){
 }
 function antragHtml(a){
   var art=a.absence_type||KATEGORIE[a.absence_category]||a.absence_category;
-  var unter=abwZeitraum(a.start_date,a.end_date)+' · '+a.arbeitstage+(a.arbeitstage===1?' Arbeitstag':' Arbeitstage')
+  var unter=abwZeitraum(a.start_date,a.end_date)+(a.halber_tag?' · halber Tag':'')+' · '+zahlText(a.arbeitstage)+(Number(a.arbeitstage)===1?' Arbeitstag':' Arbeitstage')
     +beantragtText(a);
   var knoepfe=RECHTE.admin&&P&&P.rechte.antraege_entscheiden
     ?'<button type="button" class="knopf knopf-neutral" data-aktion="antrag" data-entscheidung="rejected" data-id="'+a.id+'">Ablehnen</button>'
@@ -818,7 +826,7 @@ function antragHervorheben(){
 }
 function abwesenheitHtml(a){
   var art=KATEGORIE[a.absence_category]||a.absence_category,st=STATUS[a.status]||[a.status,'chip-neutral'];
-  var unter=abwZeitraum(a.start_date,a.end_date)+' · '+a.arbeitstage+(a.arbeitstage===1?' Arbeitstag':' Arbeitstage')
+  var unter=abwZeitraum(a.start_date,a.end_date)+(a.halber_tag?' · halber Tag':'')+' · '+zahlText(a.arbeitstage)+(Number(a.arbeitstage)===1?' Arbeitstag':' Arbeitstage')
     +beantragtText(a);
   var knoepfe='';
   if(a.darf_entscheiden)knoepfe+='<input class="antrag-notiz" type="text" id="notiz-'+a.id+'" placeholder="Notiz (optional)" aria-label="Notiz zur Entscheidung">'
@@ -859,25 +867,59 @@ function abwesenheitLoeschen(absenceId,knopf){
     .catch(function(e){el('seitenStatus').textContent=e.message;knopf.disabled=false});
 }
 function abwesenheitenUndPruefen(){return Promise.all([abwesenheitenLaden(),pruefenLaden()])}
+// Seit 1.9.171: „Halber Tag“ nur bei Urlaub und einem Tag; „Für mehrere Personen“ (Kolonne, Alle, Auswahl) für den, der für andere einträgt
+function adHalbZeigen(){
+  var geht=el('adKategorie').value==='urlaub'&&el('adVon').value&&el('adVon').value===el('adBis').value;
+  el('adHalbFeld').hidden=!geht;if(!geht)el('adHalb').checked=false;
+}
+function adMehrereZeigen(){
+  var m=el('adMehrere').checked;
+  el('adMitarbeiterFeld').hidden=m||!A.fuer_andere;el('adPersonenFeld').hidden=!m;el('adKolonneFeld').hidden=!m||!(A.kolonnen||[]).length;
+}
+function adKolonneGewaehlt(){
+  var k=(A.kolonnen||[]).find(function(x){return String(x.id)===el('adKolonne').value});
+  document.querySelectorAll('[data-ad-person]').forEach(function(c){c.checked=!!k&&k.mitglieder.indexOf(Number(c.dataset.adPerson))>=0});
+}
 function abwDialogOeffnen(){
   var d=A;
   el('adMitarbeiterFeld').hidden=!d.fuer_andere;
+  el('adMehrereFeld').hidden=!d.fuer_andere;el('adMehrere').checked=false;el('adHalb').checked=false;
+  el('adKolonne').innerHTML=auswahlOptionen(d.kolonnen||[],'',function(k){return k.name},{leer:'— Personen einzeln —'});
+  el('adPersonen').innerHTML=(d.mitarbeiter||[]).map(function(m){return '<label class="mitglied"><input type="checkbox" data-ad-person="'+m.id+'"> '+esc(m.name)+'</label>'}).join('');
+  adMehrereZeigen();
   el('adMitarbeiter').innerHTML=auswahlOptionen(d.mitarbeiter,d.eigener_mitarbeiter||'',function(m){return (m.employee_number?m.employee_number+' · ':'')+m.name},{leer:'— Mitarbeiter wählen —'});
   auswahlWert(el('adKategorie'),'urlaub');
   abwArtenFuellen(el('adArt'),d.arten,'urlaub');
   el('adVon').value=berlinToday();el('adBis').value=berlinToday();el('adNotiz').value='';
-  el('adStatus').textContent='';el('adSenden').disabled=false;
+  el('adStatus').textContent='';el('adSenden').disabled=false;adHalbZeigen();
   el('abwDialog').showModal();
 }
 function abwSenden(){
   var st=el('adStatus'),knopf=el('adSenden'),wer=A.fuer_andere?el('adMitarbeiter').value:A.eigener_mitarbeiter;
   st.textContent='';
+  if(A.fuer_andere&&el('adMehrere').checked)return abwSammelSenden();
   if(!wer){st.textContent='Bitte Mitarbeiter auswählen.';return}
   var body={employee_id:wer,absence_category:el('adKategorie').value,absence_type:el('adArt').value||null,
-            start_date:el('adVon').value,end_date:el('adBis').value,notes:el('adNotiz').value.trim()||null};
+            start_date:el('adVon').value,end_date:el('adBis').value,notes:el('adNotiz').value.trim()||null,halber_tag:el('adHalb').checked};
   knopf.disabled=true;
   return speichern('abwesenheiten',()=>api('/api/absence-requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{neuLaden:abwesenheitenUndPruefen})
     .then(function(r){el('abwDialog').close();ergebnis('Antrag gesendet: '+r.employee_name+', '+abwZeitraum(r.start_date,r.end_date))})
+    .catch(function(e){st.textContent=e.message;knopf.disabled=false});
+}
+// Seit 1.9.171 (E9): dieselbe Abwesenheit für die angehakten Personen -- beim Admin gleich genehmigt, sonst Anträge; geht es für eine Person
+// nicht, nennt der Server jede mit Grund und trägt für niemanden ein
+function abwSammelSenden(){
+  var st=el('adStatus'),knopf=el('adSenden');
+  var ids=Array.prototype.slice.call(document.querySelectorAll('[data-ad-person]:checked')).map(function(c){return Number(c.dataset.adPerson)});
+  if(!ids.length){st.textContent='Bitte mindestens eine Person wählen.';return}
+  var body={employee_ids:ids,absence_category:el('adKategorie').value,absence_type:el('adArt').value||null,start_date:el('adVon').value,
+            end_date:el('adBis').value,notes:el('adNotiz').value.trim()||null,halber_tag:el('adHalb').checked};
+  knopf.disabled=true;
+  return speichern('abwesenheiten',()=>api('/api/absence-requests/sammel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),
+                   {neuLaden:abwesenheitenUndPruefen})
+    .then(function(r){el('abwDialog').close();
+      var genehmigt=r.length&&r[0].status==='approved';
+      ergebnis((genehmigt?'Eingetragen für ':'Anträge gesendet für ')+r.length+(r.length===1?' Person':' Personen')+', '+abwZeitraum(body.start_date,body.end_date))})
     .catch(function(e){st.textContent=e.message;knopf.disabled=false});
 }
 
@@ -1117,7 +1159,11 @@ function binden(){
     else if(a==='abwl-nein'){LOESCHEN=null;abwesenheitenZeichnen(A)}
     else if(a==='abwl-ja')abwesenheitLoeschen(b.dataset.id,b);
   });
-  el('adKategorie').addEventListener('change',function(){abwArtenFuellen(el('adArt'),A.arten,el('adKategorie').value,true)});
+  el('adKategorie').addEventListener('change',function(){abwArtenFuellen(el('adArt'),A.arten,el('adKategorie').value,true);adHalbZeigen()});
+  ['adVon','adBis'].forEach(function(id){el(id).addEventListener('change',adHalbZeigen)});
+  el('adMehrere').addEventListener('change',adMehrereZeigen);
+  el('adKolonne').addEventListener('change',adKolonneGewaehlt);
+  el('adAlle').addEventListener('click',function(){document.querySelectorAll('[data-ad-person]').forEach(function(c){c.checked=true});auswahlWert(el('adKolonne'),'')});
   el('adSenden').addEventListener('click',abwSenden);
   el('adAbbrechen').addEventListener('click',function(){el('abwDialog').close()});
   el('adZu').addEventListener('click',function(){el('abwDialog').close()});

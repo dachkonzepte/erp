@@ -93,6 +93,7 @@ def request_to_dict(db: Session, row: EmployeeAbsenceRequest) -> dict:
         "absence_category": row.absence_category,
         "start_date": row.start_date,
         "end_date": row.end_date,
+        "halber_tag": bool(row.halber_tag),  # seit 1.9.171
         "notes": row.notes,
         "status": row.status,
         "requested_by_user_id": row.requested_by_user_id,
@@ -123,7 +124,7 @@ def list_requests(db: Session, *, employee_id: int | None = None, status: str | 
 
 def _antrag_anlegen(
     db: Session, *, employee_id: int, absence_type: str | None = None, absence_category: str, start_date, end_date,
-    notes: str | None = None, requested_by_user_id: int | None = None,
+    notes: str | None = None, requested_by_user_id: int | None = None, halber_tag: bool = False,
 ) -> EmployeeAbsenceRequest:
     """Prüft und legt an, ohne Commit. Seit 1.9.153: ohne Art trägt sie den Namen der Kategorie (bis 1.9.152 fest „Urlaub“, das ergab „Krankheit (Urlaub)“); eine Art, die der
     Kategorie widerspricht, lehnt sie ab. Das gilt nur fürs Anlegen: was schon dasteht, bleibt -- auch beim Entscheiden eines älteren Antrags (scripts/pruefe_abwesenheiten.py nennt es)."""
@@ -139,6 +140,8 @@ def _antrag_anlegen(
         raise ValueError("Enddatum darf nicht vor dem Startdatum liegen.")
     if absence_category == "schlechtwetter" and end_date != start_date:  # seit 1.9.170: ein Ausfalltag ist ein Tag
         raise ValueError("Schlechtwetter wird je Tag eingetragen.")
+    if halber_tag and (absence_category != "urlaub" or end_date != start_date):  # seit 1.9.171 (Lohn L1a, Punkt 6)
+        raise ValueError("Ein halber Tag geht nur bei Urlaub und für einen einzelnen Tag.")
     overlap_pending = db.scalar(
         select(EmployeeAbsenceRequest.id).where(
             EmployeeAbsenceRequest.employee_id == employee_id,
@@ -152,7 +155,7 @@ def _antrag_anlegen(
     row = EmployeeAbsenceRequest(
         employee_id=employee_id, absence_type=art,
         absence_category=absence_category,
-        start_date=start_date, end_date=end_date, notes=notes or None,
+        start_date=start_date, end_date=end_date, notes=notes or None, halber_tag=bool(halber_tag),
         status="pending", requested_by_user_id=requested_by_user_id,
     )
     db.add(row); db.flush()
@@ -177,6 +180,36 @@ def eintragen(db: Session, *, gleich_genehmigt: bool, **werte) -> EmployeeAbsenc
         raise
     db.commit()
     return load_request(db, row.id)
+
+
+class SammelAbgelehnt(ValueError):
+    """Für mindestens eine Person geht der Eintrag nicht -- nichts gespeichert (422 mit Liste)."""
+
+    def __init__(self, liste: list[dict]):
+        self.liste = liste
+        super().__init__("Nicht eingetragen: " + "; ".join(x["text"].rstrip(".") for x in liste) + ".")  # ein Punkt am Ende, nicht zwei
+
+
+def sammel_eintragen(db: Session, *, employee_ids: list[int], gleich_genehmigt: bool, **werte) -> list[EmployeeAbsenceRequest]:
+    """Seit 1.9.171 (Lohn L1a, Punkt 6, Entscheidung Tobias E9): dieselbe Abwesenheit für mehrere Personen -- je Person ein Antrag über
+    _antrag_anlegen() (ein Weg), gleich genehmigt, wenn der Aufrufer entscheidet. Alles oder nichts in einem Commit: geht es für eine Person
+    nicht, SammelAbgelehnt mit jeder Person und ihrem Grund. Bewusst ohne SAVEPOINT je Person: unter SQLite ist ein SAVEPOINT vor der ersten
+    Änderung selbst die Transaktion, sein RELEASE committet (gefunden im Test „alles oder nichts“) -- ein Fehler rollt das Ganze zurück."""
+    ids = list(dict.fromkeys(int(i) for i in employee_ids))
+    antraege, fehler = [], []
+    for eid in ids:
+        try:
+            row = _antrag_anlegen(db, employee_id=eid, **werte)
+            if gleich_genehmigt:
+                _entscheiden(db, row, decision="approved", reviewed_by_user_id=werte.get("requested_by_user_id"))
+            antraege.append(row.id)
+        except ValueError as exc:
+            fehler.append({"employee_id": eid, "text": f"{_employee_name(db.get(Employee, eid)) or eid}: {exc}"})
+    if fehler:
+        db.rollback()
+        raise SammelAbgelehnt(fehler)
+    db.commit()
+    return [load_request(db, i) for i in antraege]
 
 
 def review_request(
@@ -210,7 +243,7 @@ def _entscheiden(db: Session, row: EmployeeAbsenceRequest, *, decision: str, rev
         absence = EmployeeAbsence(
             employee_id=row.employee_id, absence_type=row.absence_type,
             absence_category=row.absence_category,
-            start_date=row.start_date, end_date=row.end_date, notes=row.notes,
+            start_date=row.start_date, end_date=row.end_date, notes=row.notes, halber_tag=bool(row.halber_tag),
         )
         db.add(absence); db.flush()
         row.approved_absence_id = absence.id

@@ -31,7 +31,7 @@ class SchlechtwetterWarnung(ValueError):
 
     def __init__(self, warnungen: list[dict]):
         self.warnungen = warnungen
-        super().__init__("An diesem Tag ist schon Zeit gebucht: " + "; ".join(w["text"] for w in warnungen) + ".")
+        super().__init__("An diesem Tag ist schon Zeit gebucht: " + "; ".join(w["text"].rstrip(".") for w in warnungen) + ".")
 
 
 class SchlechtwetterAbgelehnt(ValueError):
@@ -39,7 +39,7 @@ class SchlechtwetterAbgelehnt(ValueError):
 
     def __init__(self, liste: list[dict]):
         self.liste = liste
-        super().__init__("Nicht eingetragen: " + "; ".join(x["text"] for x in liste) + ".")
+        super().__init__("Nicht eingetragen: " + "; ".join(x["text"].rstrip(".") for x in liste) + ".")  # seit 1.9.171 ein Punkt am Ende, nicht zwei
 
 
 def _name(emp: Employee | None) -> str:

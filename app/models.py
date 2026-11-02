@@ -2593,6 +2593,8 @@ class EmployeeAbsence(Base):
     absence_category: Mapped[str] = mapped_column(String(20), default="unbekannt", server_default="unbekannt", index=True)
     start_date: Mapped[date] = mapped_column(Date, index=True)
     end_date: Mapped[date] = mapped_column(Date, index=True)
+    # Seit 1.9.171 (Lohn L1a, Punkt 6): ein halber Urlaubstag (ein Tag, Kategorie Urlaub) -- halbe Sollzeit, zählt 0,5 Tag (app/sollzeit.py)
+    halber_tag: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -2614,6 +2616,7 @@ class EmployeeAbsenceRequest(Base):
     absence_category: Mapped[str] = mapped_column(String(20), default="unbekannt", server_default="unbekannt", index=True)
     start_date: Mapped[date] = mapped_column(Date, index=True)
     end_date: Mapped[date] = mapped_column(Date, index=True)
+    halber_tag: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")  # seit 1.9.171, wie EmployeeAbsence.halber_tag
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
     requested_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("app_users.id"), nullable=True, index=True)

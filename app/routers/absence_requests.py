@@ -7,15 +7,16 @@ uebernommen -- reine Verschiebung, keine Verhaltensaenderung.
 
 from fastapi import APIRouter
 from fastapi import Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from ..absence_requests import arten_fuer_auswahl, request_to_dict as absence_request_to_dict, cancel_request as cancel_absence_request_row, create_request as create_absence_request_row, list_requests as list_absence_request_rows, review_request as review_absence_request_row
+from ..absence_requests import SammelAbgelehnt, arten_fuer_auswahl, sammel_eintragen, request_to_dict as absence_request_to_dict, cancel_request as cancel_absence_request_row, create_request as create_absence_request_row, list_requests as list_absence_request_rows, review_request as review_absence_request_row
 from ..meldungen import KEIN_MITARBEITER
 from ..database import get_db
 from ..deps import require_admin
 from ..models import AppUser, EmployeeAbsenceRequest
-from ..permissions import ROLE_FIELD, darf_abwesenheiten_aller, darf_antrag_zurueckziehen, require_min_role
-from ..schemas import EmployeeAbsenceRequestCreate, EmployeeAbsenceRequestOut, EmployeeAbsenceRequestReview
+from ..permissions import ROLE_ADMIN, ROLE_FIELD, darf_abwesenheiten_aller, darf_antrag_zurueckziehen, require_min_role
+from ..schemas import AbwesenheitSammel, EmployeeAbsenceRequestCreate, EmployeeAbsenceRequestOut, EmployeeAbsenceRequestReview
 
 router = APIRouter()
 
@@ -74,10 +75,31 @@ def post_absence_request(payload: EmployeeAbsenceRequestCreate, request: Request
     user=getattr(request.state,"erp_user",None)
     employee_id=antrag_fuer(user,payload.employee_id)
     try:
-        row=create_absence_request_row(db,employee_id=employee_id,absence_type=payload.absence_type,absence_category=payload.absence_category,start_date=payload.start_date,end_date=payload.end_date,notes=payload.notes,requested_by_user_id=getattr(user,"id",None))
+        row=create_absence_request_row(db,employee_id=employee_id,absence_type=payload.absence_type,absence_category=payload.absence_category,start_date=payload.start_date,end_date=payload.end_date,notes=payload.notes,requested_by_user_id=getattr(user,"id",None),halber_tag=payload.halber_tag)
     except ValueError as exc:
         raise HTTPException(status_code=422,detail=str(exc)) from exc
     return _antrag_out(db,row,user)
+
+
+NUR_SAMMEL = "Für mehrere Personen tragen Admin und Büro – Finanzen ein."
+
+
+@router.post("/api/absence-requests/sammel")
+def post_absence_sammel(payload: AbwesenheitSammel, request: Request, db: Session = Depends(get_db, scope="function"), _role: AppUser = _any_role_dep):
+    """Seit 1.9.171 (Lohn L1a, Punkt 6, E9): dieselbe Abwesenheit für mehrere Personen -- Admin und Büro – Finanzen (darf_abwesenheiten_aller());
+    beim Admin gleich genehmigt (wie „Abwesenheit eintragen“ auf der Plantafel), bei Büro – Finanzen offene Anträge. Alles oder nichts: 422 mit
+    Liste je Person."""
+    user = getattr(request.state, "erp_user", None)
+    if not darf_abwesenheiten_aller(user):
+        raise HTTPException(status_code=403, detail=NUR_SAMMEL)
+    try:
+        rows = sammel_eintragen(db, employee_ids=payload.employee_ids, gleich_genehmigt=user is None or user.role == ROLE_ADMIN,
+                                absence_type=payload.absence_type, absence_category=payload.absence_category, start_date=payload.start_date,
+                                end_date=payload.end_date, notes=payload.notes, halber_tag=payload.halber_tag,
+                                requested_by_user_id=getattr(user, "id", None))
+    except SammelAbgelehnt as exc:
+        return JSONResponse(status_code=422, content={"detail": str(exc), "liste": exc.liste})
+    return [_antrag_out(db, r, user) for r in rows]
 
 
 @router.post("/api/absence-requests/{request_id}/review", response_model=EmployeeAbsenceRequestOut)

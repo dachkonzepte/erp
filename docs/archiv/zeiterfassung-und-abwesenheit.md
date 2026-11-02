@@ -861,3 +861,24 @@ Oberfläche: `_schlechtwetter.html` (Dialog und Bestätigen, bindet `_speichern.
 Neu: `tests/test_v588_schlechtwetter.py` -- gilt sofort für Admin, Büro – Finanzen, Kolonnenführer, Vorarbeiterin (auch außerhalb der Kolonne); Monteurin beantragt für sich, für andere 403; bestätigen durch Kolonnenführer, Vorarbeiterin, Admin, nicht Büro – Finanzen und Monteurin; ablehnen; Sa, So, Feiertag; Tag ohne Sollzeit und kaufmännisch zusammen -- nichts gespeichert; schon abwesend; Warnung und „trotzdem“; allgemeiner Weg 422; Kontext je Rolle; Kolonnenführer einer abgeschalteten Kolonne; Vorarbeiter im Mitarbeiterformular (weggelassen = unverändert); Zeitarten inaktiv in einer neuen Installation; Ist-Wert; Baustein in beiden Seiten; Migration auf einem Bestand unter SQLite und PostgreSQL. Gegenproben: Rechte für alle -> 4 rot; Feiertag nicht geprüft -> 1 rot; Warnung übergangen -> 1 rot. Klicktest neu: `klicktest_schlechtwetter.py` (20 Prüfungen, vier Bilder).
 
 Angepasste Erwartungen (Regel 28): `test_v286::test_create_request_accepts_each_real_category[schlechtwetter]` Aufbau: ein Tag statt zwei (neue Kategorie in der Liste). `klicktest_heute` „Lea: Auftrag A vorbelegt, Kacheln mit Vorschlag“ altes Soll eine Kachel mit „Vorschlag“ (Schlechtwetter), neues Soll keine und keine Kachel `weather_*`. `test_v334::BAUSTEINE` Aufbau: um `_schlechtwetter.html` (die Attrappe von „Zeiten“ in `test_v520` brauchte `swBinden()`).
+
+### Umsetzung 1.9.171: Sammeleintrag und halbe Urlaubstage (Punkt 6)
+
+`EmployeeAbsence.halber_tag` und `EmployeeAbsenceRequest.halber_tag` (Migration `f6c3a8e25b19`, server_default false). `_antrag_anlegen()` lässt ihn nur bei Urlaub an einem Tag zu (422), `_entscheiden()` übernimmt ihn. `app/sollzeit.py`: `anteil()` (halber Tag, Urlaub am 24.12./31.12. je 0,5), `abwesenheit_tage()` (Tage und Stunden einer Abwesenheit nach der Sollzeit, ohne Tage ohne Soll und ohne gesetzliche Feiertage); `soll_zeitraum()` merkt sich das Modell je Kalenderwoche. „Zeiten“ zeigt `arbeitstage` daraus (auch 0,5) und „halber Tag“.
+
+Sammeleintrag: `app/absence_requests.py::sammel_eintragen()` (je Person `_antrag_anlegen()`, beim Admin `_entscheiden()`; alles oder nichts, `SammelAbgelehnt` mit Liste), `POST /api/absence-requests/sammel` (nur `darf_abwesenheiten_aller()`, Admin gleich genehmigt, Büro – Finanzen Anträge), `GET /api/zeiten/abwesenheiten` liefert dazu die aktiven Kolonnen mit ihren aktiven Mitgliedern. Ohne SAVEPOINT je Person: unter SQLite ist ein SAVEPOINT vor der ersten Änderung selbst die Transaktion, sein RELEASE committet -- der Test „alles oder nichts“ fand das.
+
+### Festlegungen 1.9.171 (Bitte bestätigen)
+
+1. Ein halber Tag geht nur bei Urlaub und für einen einzelnen Tag (Vorgabe „Urlaub auch als halber Tag“); Krankheit und Freizeitausgleich bleiben ganze Tage.
+2. Der 24.12. und der 31.12. zählen je 0,5 Tag Urlaub, wenn sie in einem Urlaub liegen; ein Häkchen braucht es dafür nicht. Die andere Hälfte rechnet das ERP nicht (weder Arbeit noch frei), bis Tobias sie klärt. Time 4 hatte den 31.12.2025 als ganzen Tag (LIESMICH 5), den 24.12.2025 als Arbeitstag.
+3. Arbeitstage am Antrag nach der Sollzeit der Person (bis 1.9.170 Montag bis Freitag für jeden); die Plantafel rechnet ihre Kapazität weiter je ganzem Tag.
+4. Sammeleintrag: beim Admin gleich genehmigt (wie „Abwesenheit eintragen“ auf der Plantafel), bei Büro – Finanzen offene Anträge, die der Admin entscheidet. Einzeln bleibt es wie bisher ein Antrag.
+5. Alles oder nichts, wie bei Schlechtwetter: wer schon abwesend ist oder einen offenen Antrag hat, muss abgewählt werden; die Meldung nennt jede Person.
+6. „Alle“ heißt alle aktiven Mitarbeiter der Auswahl, auch kaufmännische; Schlechtwetter geht weiter nur über den eigenen Dialog.
+
+### Tests und Prüfung
+
+Neu: `tests/test_v589_sammel_und_halber_tag.py` -- halber Urlaubstag (0,5 Tag, 3,75 h), halber Tag nur Urlaub an einem Tag, 21.–31.12.2026 = 7 Tage und 52,50 h, 24.12. halb, 31.12.2027 (Freitag) halb, Krankheit am 24.12. ganz, Teilzeit Di–Do = 3 Tage, „Zeiten“ zeigt 0,5; Sammeleintrag Admin genehmigt, Büro – Finanzen Anträge, Büro – Auftrag und Monteurin 403, alles oder nichts, halber Tag und Schlechtwetter im Sammeleintrag, Kolonnen nur für Admin und Büro – Finanzen, die Seiten; Migration auf einem Bestand unter SQLite und PostgreSQL. Gegenproben: halber Tag ungeprüft -> 2 rot; 24.12./31.12. ganz -> 2 rot; Commit statt Rollback -> 1 rot. Klicktest neu: `klicktest_sammeleintrag.py` (20 Prüfungen, drei Bilder); er fand die zwei Punkte am Ende der Meldung.
+
+Angepasste Erwartungen (Regel 28): `test_v525::test_antrag_ueber_weihnachten_acht_arbeitstage` altes Soll 8 Arbeitstage, neues Soll 7 (24.12. und 31.12. je 0,5). `test_v519::_abwesenheit` Aufbau: die Attrappe bindet `_zahl.html` ein (die Zeile zeigt die Arbeitstage über `zahlText()`).

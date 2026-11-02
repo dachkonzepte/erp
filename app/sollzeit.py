@@ -77,11 +77,13 @@ def soll(db: Session, employee_id: int, tag: date) -> Decimal:
 
 
 def soll_zeitraum(db: Session, employee_id: int, start: date, ende: date) -> dict[date, Decimal]:
-    """Die Sollzeit je Tag von start bis ende in Stunden mit zwei Stellen -- eine Abfrage für Lohnstammdaten und eigene Werte, das Modell je Tag."""
+    """Die Sollzeit je Tag von start bis ende in Stunden mit zwei Stellen -- eine Abfrage für Lohnstammdaten und eigene Werte, das Modell je
+    Kalenderwoche (es hängt nur an der Woche; seit 1.9.171 zwischengespeichert, bis 1.9.170 je Tag nachgeschlagen)."""
     from datetime import timedelta
 
     payroll = _payroll(db, employee_id)
     reihe = zeilen(db, employee_id)
+    je_woche: dict[tuple[int, int], Decimal] = {}
     ergebnis: dict[date, Decimal] = {}
     tag = start
     while tag <= ende:
@@ -89,9 +91,50 @@ def soll_zeitraum(db: Session, employee_id: int, start: date, ende: date) -> dic
             ergebnis[tag] = round_hours(NULL)
         else:
             eigene = _eigene_zeile(reihe, tag)
-            ergebnis[tag] = round_hours(tarif(db, employee_id, tag) if ist_tarif(eigene) else Decimal(str(getattr(eigene, WOCHENTAGE[tag.weekday()]))))
+            if not ist_tarif(eigene):
+                wert = Decimal(str(getattr(eigene, WOCHENTAGE[tag.weekday()])))
+            elif tag.weekday() >= 5:
+                wert = NULL
+            else:
+                woche = tuple(tag.isocalendar()[:2])
+                if woche not in je_woche:
+                    je_woche[woche] = tarif(db, employee_id, tag)
+                wert = je_woche[woche]
+            ergebnis[tag] = round_hours(wert)
         tag += timedelta(days=1)
     return ergebnis
+
+
+# Vorgabe Tobias (Lohn L1a, Punkt 6): der 24.12. und der 31.12. an Wochentagen zählen je 0,5 Tag Urlaub (halbe Sollzeit); was mit der anderen
+# Hälfte ist, klärt er noch. Time 4 führte den 31.12.2025 als ganzen Urlaubstag (LIESMICH 5).
+URLAUB_HALBE_TAGE = ((12, 24), (12, 31))
+HALB = Decimal("0.5")
+
+
+def anteil(tag: date, kategorie: str | None, halber_tag: bool = False) -> Decimal:
+    """Welcher Teil des Tags eine Abwesenheit ist: ein halber Urlaubstag und Urlaub am 24.12. oder 31.12. je 0,5, sonst 1."""
+    if halber_tag or (kategorie == "urlaub" and (tag.month, tag.day) in URLAUB_HALBE_TAGE):
+        return HALB
+    return Decimal("1")
+
+
+def abwesenheit_tage(db: Session, employee_id: int, start: date, ende: date, *, kategorie: str | None, halber_tag: bool = False,
+                     feiertage: dict | None = None) -> dict:
+    """Seit 1.9.171 (Lohn L1a, Punkt 6): wie viele Tage und Stunden eine Abwesenheit zählt -- nur Tage mit Sollzeit, ohne gesetzliche
+    Feiertage (dort gilt der Feiertag), je Tag mit ihrem Anteil (anteil()). Stunden = Sollzeit × Anteil. feiertage: {Tag: Name} des
+    Bundeslands, sonst hier gelesen. Für die Anzeige („2,5 Arbeitstage“), das Urlaubskonto (L2) und den Export (L1b)."""
+    if feiertage is None:
+        from .planning import automatic_public_holidays, load_region_settings  # lokal: planning importiert viel
+        feiertage = automatic_public_holidays(load_region_settings(db).federal_state_code, range(start.year, ende.year + 1))
+    tage, stunden, je_tag = Decimal("0"), Decimal("0"), []
+    for tag, soll_tag in soll_zeitraum(db, employee_id, start, ende).items():
+        if soll_tag <= 0 or tag in feiertage:
+            continue
+        a = anteil(tag, kategorie, halber_tag)
+        tage += a
+        stunden += round_hours(soll_tag * a)
+        je_tag.append({"tag": tag, "anteil": a, "stunden": round_hours(soll_tag * a)})
+    return {"tage": tage, "stunden": round_hours(stunden), "je_tag": je_tag}
 
 
 def zeile_dict(z: EmployeeTargetHours) -> dict:

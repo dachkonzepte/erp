@@ -16,7 +16,8 @@ from ..models import AppUser, Employee
 from ..permissions import (ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, darf_abwesenheit_loeschen, darf_abwesenheiten_aller, darf_antrag_zurueckziehen, darf_lohndaten, darf_zeit_buchen,
                            darf_zeit_fuer_andere_buchen, require_lohndaten, require_min_role)
 from ..time_backoffice import locked_until
-from ..zeiten import arbeitstage, buchungen, feiertage_bundesland, monat, monat_lesen, pruefen
+from ..sollzeit import abwesenheit_tage
+from ..zeiten import buchungen, feiertage_bundesland, monat, monat_lesen, pruefen
 
 router = APIRouter()
 
@@ -56,10 +57,20 @@ def _sichtbare_antraege(db: Session, user: AppUser, status: str | None):
     return []
 
 
+def _tage(db: Session, r, land: str):
+    """Seit 1.9.171 (Lohn L1a, Punkt 6): Arbeitstage nach der Sollzeit der Person (app/sollzeit.py::abwesenheit_tage(): ohne Tage ohne Soll und
+    gesetzliche Feiertage, ein halber Tag und Urlaub am 24.12./31.12. je 0,5) -- bis 1.9.170 Montag bis Freitag ohne Feiertage für jeden gleich.
+    Nur Anzeige."""
+    from ..planning import automatic_public_holidays
+    feiertage = automatic_public_holidays(land, range(r.start_date.year, r.end_date.year + 1))
+    return abwesenheit_tage(db, r.employee_id, r.start_date, r.end_date, kategorie=r.absence_category, halber_tag=bool(r.halber_tag),
+                            feiertage=feiertage)["tage"]
+
+
 def _antraege(db: Session, user: AppUser) -> list[dict]:
     """Die offenen Anträge, die das Konto sieht (_sichtbare_antraege()), mit Arbeitstagen (Feiertage nach dem Bundesland der Plantafel)."""
     land = feiertage_bundesland(db)
-    return [{**request_to_dict(db, r), "arbeitstage": arbeitstage(r.start_date, r.end_date, land)} for r in _sichtbare_antraege(db, user, "pending")]
+    return [{**request_to_dict(db, r), "arbeitstage": _tage(db, r, land)} for r in _sichtbare_antraege(db, user, "pending")]
 
 
 def _anzahl(n: int, eins: str, mehr: str) -> str:
@@ -132,7 +143,7 @@ def zeiten_abwesenheiten(status: str | None = Query(None, max_length=20), db: Se
     # offene Anträge, die das Konto sieht (seit 1.9.109 nicht mehr die Zahl am Reiter -- die zählt nur beim Admin, GET /api/zeiten/pruefen)
     offen = len(_sichtbare_antraege(db, user, "pending"))
     return {
-        "antraege": [{**request_to_dict(db, r), "arbeitstage": arbeitstage(r.start_date, r.end_date, land),
+        "antraege": [{**request_to_dict(db, r), "arbeitstage": _tage(db, r, land),
                       "darf_entscheiden": admin and r.status == "pending",
                       "darf_zurueckziehen": r.status == "pending" and darf_antrag_zurueckziehen(user, r),
                       "darf_loeschen": r.status == "approved" and r.approved_absence_id is not None and darf_abwesenheit_loeschen(user)}  # seit 1.9.146
@@ -144,7 +155,20 @@ def zeiten_abwesenheiten(status: str | None = Query(None, max_length=20), db: Se
         if aller else [],
         "arten": arten_fuer_auswahl(db),
         "offen": offen,
+        # seit 1.9.171 (Lohn L1a, Punkt 6, E9): Kolonnen mit ihren aktiven Mitgliedern für den Sammeleintrag -- nur, wer für andere einträgt
+        "kolonnen": _kolonnen(db) if aller else [],
     }
+
+
+def _kolonnen(db: Session) -> list[dict]:
+    from sqlalchemy import select
+    from ..models import Team, TeamEmployee
+    je: dict[int, dict] = {}
+    for tid, name, eid in db.execute(select(Team.id, Team.name, TeamEmployee.employee_id).join(TeamEmployee, TeamEmployee.team_id == Team.id)
+                                     .join(Employee, Employee.id == TeamEmployee.employee_id)
+                                     .where(Team.active.is_(True), Employee.active.is_(True)).order_by(Team.name, Team.id)):
+        je.setdefault(tid, {"id": tid, "name": name, "mitglieder": []})["mitglieder"].append(eid)
+    return list(je.values())
 
 
 @router.get("/api/zeiten/monat")

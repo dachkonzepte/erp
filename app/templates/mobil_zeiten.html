@@ -262,6 +262,8 @@
     <label class="feld" for="adArt">Art (genauer, optional)<select id="adArt"></select></label>
     <label class="feld" for="adVon">Von<input id="adVon" type="date"></label>
     <label class="feld" for="adBis">Bis<input id="adBis" type="date"></label>
+    {# seit 1.9.171 (Lohn L1a, Punkt 6): halber Urlaubstag, nur bei Urlaub und einem Tag #}
+    <label class="mitglied" for="adHalb" id="adHalbFeld" hidden><input id="adHalb" type="checkbox"> Halber Tag (halbe Sollzeit, zählt 0,5 Tag)</label>
     <label class="feld breit" for="adNotiz">Notiz / Grund<textarea id="adNotiz"></textarea></label>
   </div>
   <div class="dialog-knoepfe"><div class="status" id="adStatus" role="status"></div><div class="ergebnis" id="adErgebnis" role="status"></div><button type="button" class="knopf knopf-neutral" id="adAbbrechen">Schließen</button>
@@ -637,7 +639,7 @@ function antraegeZeichnen(){
         +'<button type="button" class="knopf knopf-gefahr knopf-klein" data-antrag="ja" data-id="'+r.id+'">Zurückziehen</button>'
       :'<button type="button" class="knopf knopf-neutral knopf-klein" data-antrag="fragen" data-id="'+r.id+'">Zurückziehen</button>';
     return '<div class="antrag" data-antrag-zeile="'+r.id+'"><span class="antrag-text"><b>'+esc(KATEGORIE[r.absence_category]||r.absence_category)+'</b>'
-      +'<span>'+esc(r.absence_type)+' · '+esc(abwZeitraum(r.start_date,r.end_date))+'</span>'
+      +'<span>'+esc(r.absence_type)+' · '+esc(abwZeitraum(r.start_date,r.end_date))+(r.halber_tag?' · halber Tag':'')+'</span>'
       +(r.beantragt_von?'<span>beantragt von '+esc(r.beantragt_von)+'</span>':'')
       +(r.notes?'<span>'+esc(r.notes)+'</span>':'')+(r.vermerk?'<span>Vermerk: '+esc(r.vermerk)+'</span>':'')+(r.review_notes?'<span>Freigabe: '+esc(r.review_notes)+'</span>':'')+'</span>'
       +'<span class="antrag-status">'+esc(STATUS[r.status]||r.status)+'</span>'+knoepfe+'</div>'}).join('')
@@ -697,15 +699,18 @@ function binden(){
   el('antragKnopf').addEventListener('click',function(){
     auswahlWert(el('adKategorie'),'urlaub');
     abwArtenFuellen(el('adArt'),D?D.abwesenheitsarten:[],'urlaub');
-    el('adVon').value=berlinToday();el('adBis').value=berlinToday();el('adNotiz').value='';
+    el('adVon').value=berlinToday();el('adBis').value=berlinToday();el('adNotiz').value='';el('adHalb').checked=false;adHalbZeigen();
     el('adStatus').textContent='';el('adErgebnis').textContent='';ZURUECKZIEHEN=null;antraegeZeichnen();
     el('abwDialog').showModal();
   });
-  el('adKategorie').addEventListener('change',function(){abwArtenFuellen(el('adArt'),D?D.abwesenheitsarten:[],el('adKategorie').value,true)});
+  // seit 1.9.171: „Halber Tag“ nur bei Urlaub und einem Tag
+  function adHalbZeigen(){var geht=el('adKategorie').value==='urlaub'&&el('adVon').value&&el('adVon').value===el('adBis').value;el('adHalbFeld').hidden=!geht;if(!geht)el('adHalb').checked=false}
+  ['adVon','adBis'].forEach(function(id){el(id).addEventListener('change',adHalbZeigen)});
+  el('adKategorie').addEventListener('change',function(){abwArtenFuellen(el('adArt'),D?D.abwesenheitsarten:[],el('adKategorie').value,true);adHalbZeigen()});
   el('adSenden').addEventListener('click',function(){
     var knopf=el('adSenden');
     var body={employee_id:D.mitarbeiter_id,absence_category:el('adKategorie').value,absence_type:el('adArt').value||null,start_date:el('adVon').value,
-              end_date:el('adBis').value,notes:el('adNotiz').value.trim()||null};
+              end_date:el('adBis').value,notes:el('adNotiz').value.trim()||null,halber_tag:el('adHalb').checked};
     el('adStatus').textContent='';el('adErgebnis').textContent='';knopf.disabled=true;
     speichern('antraege',()=>api('/api/absence-requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{neuLaden:antraegeLaden})
       .then(function(){el('adErgebnis').textContent='Antrag wurde gesendet.';knopf.disabled=false})
