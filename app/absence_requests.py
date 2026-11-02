@@ -14,7 +14,9 @@ from .option_settings import get_option_group
 # lehnen ihn beim Neuanlegen ab, er kann nur ueber die Migration selbst entstehen.
 # Seit 1.9.169 (Lohn L1a, Punkt 4, Entscheidung Tobias): Freizeitausgleich ist eine eigene Kategorie -- er baut das Arbeitszeitkonto ab, ist
 # kein Urlaub (bis 1.9.168 Art „Freizeitausgleich“ in der Kategorie Urlaub, Festlegung 1.9.153 Nr. 1 entfällt).
-ABSENCE_CATEGORIES = ("urlaub", "krankheit", "fortbildung", "unbezahlt", "freizeitausgleich")
+# Seit 1.9.170 (Lohn L1a, Punkt 5, E5): Schlechtwetter -- ein Ausfalltag je Person und Tag, nur über app/schlechtwetter.py (Prüfungen, Rechte);
+# die allgemeinen Wege lassen die Kategorie nicht zu (Muster in app/schemas.py).
+ABSENCE_CATEGORIES = ("urlaub", "krankheit", "fortbildung", "unbezahlt", "freizeitausgleich", "schlechtwetter")
 ABSENCE_CATEGORY_UNKNOWN = "unbekannt"
 ABSENCE_CATEGORY_LABELS = {
     "urlaub": "Urlaub",
@@ -22,6 +24,7 @@ ABSENCE_CATEGORY_LABELS = {
     "fortbildung": "Fortbildung",
     "unbezahlt": "Unbezahlt",
     "freizeitausgleich": "Freizeitausgleich",
+    "schlechtwetter": "Schlechtwetter",
     ABSENCE_CATEGORY_UNKNOWN: "Unbekannt (Altbestand)",
 }
 
@@ -34,6 +37,7 @@ ART_KATEGORIEN = {
     "krankheit": ("krankheit",),
     "fortbildung": ("fortbildung",), "weiterbildung": ("fortbildung",), "berufsschule": ("fortbildung",),
     "unbezahlt": ("unbezahlt",),
+    "schlechtwetter": ("schlechtwetter",),
 }
 # So kennzeichnet die Migration b2c7f4e19a06 einen Antrag, den es nur gibt, weil die Abwesenheit vor 1.9.146 direkt auf der Tafel entstand (dort heißt er MERKER). Seit 1.9.165 in der Spalte vermerk.
 MIGRATION_VERMERK = "Auf der Plantafel eingetragen (vor 1.9.146)"
@@ -133,6 +137,8 @@ def _antrag_anlegen(
         raise ValueError(f"Die Art „{art}“ passt nicht zur Kategorie „{ABSENCE_CATEGORY_LABELS[absence_category]}“.")
     if end_date < start_date:
         raise ValueError("Enddatum darf nicht vor dem Startdatum liegen.")
+    if absence_category == "schlechtwetter" and end_date != start_date:  # seit 1.9.170: ein Ausfalltag ist ein Tag
+        raise ValueError("Schlechtwetter wird je Tag eingetragen.")
     overlap_pending = db.scalar(
         select(EmployeeAbsenceRequest.id).where(
             EmployeeAbsenceRequest.employee_id == employee_id,

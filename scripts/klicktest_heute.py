@@ -18,7 +18,7 @@ gestern 06:45 offen. Lea: nichts läuft. Kai und Tom: Gruppenzeit seit 07:00. Fe
                            Ole hoch 16 px zwischen den Karten; Feldrahmen auf der Signalfläche ≥ 3 : 1 hell und dunkel
     Ole                    „Deine Zeit von gestern läuft noch“, Feld 64 px, 15:45 -> Vorschau wie der Server, Feierabend eintragen ->
                            gebucht wie die Vorschau; Karte „Arbeitszeit“ mit gesperrtem „Arbeitsbeginn buchen“; „Heute und nächste Tage“
-    Lea                    nichts läuft: Auftrag A vorbelegt, Kacheln 64 px mit „Vorschlag“; seit 1.9.58 quer 3 Spalten, „⋮“ 48 px nur mit
+    Lea                    nichts läuft: Auftrag A vorbelegt, Kacheln 64 px (seit 1.9.170 ohne Schlechtwetter); seit 1.9.58 quer 3 Spalten, „⋮“ 48 px nur mit
                            „Mit Tätigkeit starten“, Dialog (Felder 52 px, Knöpfe 56 px) mit A und Baustellenzeit, Tätigkeit „Dachdeckung“
                            -> läuft mit Tätigkeit (bis 1.9.57 über die Kachel)
     Ole (seit 1.9.58)      nach dem Ende: Kacheln hoch 2 Spalten, Start über die Kachel -> läuft
@@ -375,8 +375,11 @@ async def pruefen(tab, seed, p):
     # --- Lea: nichts läuft ---
     await _ansehen(tab, seed, "lea", 1280, 620, "light")
     await tab.bild("heute_nichts_laeuft_quer_hell")
-    p.pruefe("Lea: Auftrag A vorbelegt, Kacheln mit Vorschlag", await tab.js(
-        "[document.getElementById('startAuftrag').value,document.querySelectorAll('#startKacheln .vorschlag').length]"), [str(a), 1])
+    # seit 1.9.170 ohne Kachel Schlechtwetter (die Zeitarten weather_* sind inaktiv, Schlechtwetter ist ein Ausfalltag) -- bis 1.9.169 eine
+    # Kachel mit „Vorschlag“
+    p.pruefe("Lea: Auftrag A vorbelegt, keine Kachel Schlechtwetter", await tab.js(
+        "[document.getElementById('startAuftrag').value,document.querySelectorAll('#startKacheln .vorschlag').length,"
+        "[...document.querySelectorAll('#startKacheln [data-zeitart]')].some(b=>b.dataset.zeitart.startsWith('weather_'))]"), [str(a), 0, False])
     masse = await tab.js(MASSE)
     p.pruefe(f"Maße nichts läuft {masse[1]}", masse[0], [True, True, True, True])
     # seit 1.9.58: Kacheln quer 3 Spalten; „⋮ Mit Tätigkeit starten“ (Lea führt keine Kolonne: nur dieser Eintrag)

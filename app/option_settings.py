@@ -401,11 +401,17 @@ def ensure_default_option_groups(db: Session) -> None:
                 for sort_order, label, value, is_default in option_rows:
                     db.add(SettingOption(
                         group_id=group.id, label=label, value=value, sort_order=sort_order,
-                        active=True, is_default=is_default,
+                        active=value not in NEU_INAKTIV.get(key, ()), is_default=is_default,
                     ))
         except IntegrityError:
             continue  # ein anderer Prozess hat diese Gruppe zwischen SELECT und INSERT bereits angelegt
         existing[key] = group
+
+
+# Seit 1.9.170 (Lohn L1a, Punkt 5, E5): die Schlechtwetter-Zeitarten legt eine neue Installation inaktiv an -- Schlechtwetter ist ein
+# Ausfalltag (app/schlechtwetter.py), keine Buchung auf einen Auftrag; die Migration e4b7d1a93c56 schaltet sie im Bestand ab. Gebuchtes
+# bleibt lesbar (die Bezeichnung kommt weiter aus der Gruppe).
+NEU_INAKTIV = {"time_entry_types": ("weather_winter", "weather_summer")}
 
 
 def load_option_groups(db: Session) -> list[SettingOptionGroup]:

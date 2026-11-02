@@ -1,0 +1,101 @@
+{# eigene Bausteine (dürfen mehrfach eingebunden sein): lesen()/speichern(), auswahlOptionen(), berlinToday(), abwZeitraum() #}
+{% include "_speichern.html" %}
+{% include "_auswahl.html" %}
+{% include "_berlin_date.html" %}
+{% include "_abwesenheit.html" %}
+<style>
+  /* Personen als Liste mit Häkchen (die Felder der Seiten sind sonst Eingaben über die ganze Breite), Anträge: Name, darunter die Knöpfe */
+  #swDialog .sw-personen{border:0;padding:0;margin:0;min-width:0}
+  #swDialog .sw-personen legend{padding:0;margin-bottom:6px}
+  #swPersonen{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:2px 16px}
+  #swDialog .sw-person{display:flex;align-items:center;gap:10px;min-height:44px;font-weight:500;margin:0}
+  #swDialog .sw-person input{width:22px;height:22px;min-height:0;flex:0 0 auto;margin:0;padding:0}
+  .sw-antrag{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 0}
+  .sw-antrag span{flex:1 1 100%}
+</style>
+<dialog id="swDialog" class="{{ sw_dialog_klasse|default('dialog') }}" aria-labelledby="swTitel">
+  <div class="dialog-kopf"><h2 id="swTitel">Schlechtwetter eintragen</h2>
+    <button type="button" class="knopf knopf-neutral knopf-symbol" id="swZu" aria-label="Schließen"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+  <p class="dialog-text" id="swText"></p>
+  <div class="dialog-felder">
+    <label class="feld" for="swTag">Tag<input id="swTag" type="date"></label>
+    <label class="feld" for="swKolonne" id="swKolonneFeld" hidden>Kolonne<select id="swKolonne"></select></label>
+    <fieldset class="feld breit sw-personen" id="swPersonenFeld" hidden><legend>Personen</legend><div id="swPersonen"></div></fieldset>
+    <label class="feld breit" for="swNotiz">Notiz<input id="swNotiz" type="text" placeholder="optional" maxlength="500"></label>
+  </div>
+  <div class="dialog-knoepfe"><div class="status" id="swStatus" role="status"></div>
+    <button type="button" class="knopf knopf-neutral" id="swAbbrechen">Abbrechen</button>
+    <button type="button" class="knopf knopf-neutral" id="swTrotzdem" hidden>Trotzdem eintragen</button>
+    <button type="button" class="knopf knopf-aktion" id="swSenden">Eintragen</button></div>
+</dialog>
+<script>
+/* Ausfalltag Schlechtwetter (seit 1.9.170, Lohn L1a, Punkt 5, E5) -- ein Baustein für „Zeiten“ (Büro) und „Meine Zeiten“ (Monteurin).
+   Was das Konto darf, Personen, Kolonnen und wartende Anträge kommen vom Server (GET /api/schlechtwetter/kontext): wer für andere einträgt
+   (Admin, Büro – Finanzen, Kolonnenführer, Vorarbeiter), wählt Personen oder eine Kolonne -- es gilt sofort; jede andere Person beantragt den
+   Tag für sich. Sa, So, Feiertag und Tage ohne Sollzeit lehnt der Server ab (Meldung mit Namen); ist schon Zeit gebucht, fragt er (409) --
+   „Trotzdem eintragen“ schickt dasselbe noch einmal mit trotzdem. Die Seite bindet _speichern.html, _berlin_date.html, _fehlertext.html und
+   _auswahl.html ein und hat api() und el(); swNachher wird nach dem Eintragen und nach einer Entscheidung gerufen. */
+var SW=null,swNachher=null;
+function swKontextLaden(){return lesen('schlechtwetter',()=>api('/api/schlechtwetter/kontext'),function(d){SW=d;swAntraegeZeichnen()})}
+function swOeffnen(){
+  var d=SW;if(!d)return;
+  el('swTag').value=berlinToday();el('swNotiz').value='';el('swStatus').textContent='';el('swTrotzdem').hidden=true;el('swSenden').disabled=false;
+  el('swTitel').textContent=d.fuer_andere?'Schlechtwetter eintragen':'Schlechtwetter beantragen';
+  el('swText').textContent=d.fuer_andere?'Ein Ausfalltag je Person, gilt sofort. Samstag, Sonntag, Feiertage und Tage ohne Sollzeit gehen nicht.'
+    :'Ein Ausfalltag für dich – Kolonnenführer, Vorarbeiter oder Admin bestätigen ihn.';
+  el('swKolonneFeld').hidden=!d.fuer_andere||!d.kolonnen.length;el('swPersonenFeld').hidden=!d.fuer_andere;
+  el('swKolonne').innerHTML=auswahlOptionen(d.kolonnen,'',function(k){return k.name},{leer:'— Personen einzeln —'});
+  el('swPersonen').innerHTML=d.personen.map(function(p){
+    return '<label class="sw-person"><input type="checkbox" data-sw-person="'+p.id+'"> '+esc(p.name)+'</label>'}).join('');
+  el('swDialog').showModal();
+}
+function swKolonneGewaehlt(){
+  var k=(SW&&SW.kolonnen||[]).find(function(x){return String(x.id)===el('swKolonne').value});
+  document.querySelectorAll('[data-sw-person]').forEach(function(c){c.checked=!!k&&k.mitglieder.indexOf(Number(c.dataset.swPerson))>=0});
+}
+function swPersonen(){
+  if(!SW.fuer_andere)return SW.personen.map(function(p){return p.id});
+  return Array.prototype.slice.call(document.querySelectorAll('[data-sw-person]:checked')).map(function(c){return Number(c.dataset.swPerson)});
+}
+function swSenden(trotzdem){
+  var st=el('swStatus'),ids=swPersonen(),tag=el('swTag').value;
+  st.textContent='';
+  if(!tag){st.textContent='Bitte den Tag angeben.';return Promise.resolve()}
+  if(!ids.length){st.textContent=SW.fuer_andere?'Bitte mindestens eine Person wählen.':'Für dich ist kein gewerblicher Mitarbeiter hinterlegt.';return Promise.resolve()}
+  var body={employee_ids:ids,tag:tag,notes:el('swNotiz').value.trim()||null,trotzdem:!!trotzdem};
+  el('swSenden').disabled=true;el('swTrotzdem').disabled=true;
+  return speichern('schlechtwetter',()=>api('/api/schlechtwetter',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),
+                   {neuLaden:swNachherLaden})
+    .then(function(r){el('swDialog').close();
+      var namen=r.antraege.map(function(a){return a.employee_name}).join(', ');
+      if(typeof ergebnis==='function')ergebnis((r.genehmigt?'Schlechtwetter eingetragen: ':'Schlechtwetter beantragt: ')+namen+', '+abwZeitraum(tag,tag))})
+    .catch(function(e){st.textContent=e.message;el('swSenden').disabled=false;el('swTrotzdem').disabled=false;el('swTrotzdem').hidden=e.status!==409});
+}
+function swNachherLaden(){return swKontextLaden().then(function(){return swNachher?swNachher():null})}
+// Wartende Anträge für Kolonnenführer, Vorarbeiter und Admin (#swAntraege, wenn die Seite es hat)
+function swAntraegeZeichnen(){
+  var box=document.getElementById('swAntraege');if(!box)return;
+  var offen=SW&&SW.bestaetigen?SW.antraege_offen:[];
+  box.hidden=!offen.length;
+  box.innerHTML=offen.length?'<h2 class="eb" style="margin:0 0 6px">Schlechtwetter bestätigen</h2>'+offen.map(function(a){
+    return '<div class="sw-antrag" data-sw-antrag="'+a.id+'"><span>'+esc(a.name)+' · '+esc(abwZeitraum(a.tag,a.tag))+'</span>'
+      +'<button type="button" class="knopf knopf-neutral" data-sw-entscheiden="rejected" data-id="'+a.id+'">Ablehnen</button>'
+      +'<button type="button" class="knopf knopf-aktion" data-sw-entscheiden="approved" data-id="'+a.id+'">Bestätigen</button></div>'}).join('')
+    +'<div class="status" id="swAntragStatus" role="status"></div>':'';
+}
+function swEntscheiden(id,decision){
+  return speichern('schlechtwetter',()=>api('/api/schlechtwetter/'+id+'/entscheiden',{method:'POST',headers:{'Content-Type':'application/json'},
+                   body:JSON.stringify({decision:decision})}),{neuLaden:swNachherLaden})
+    .then(function(r){if(typeof ergebnis==='function')ergebnis((decision==='approved'?'Bestätigt: ':'Abgelehnt: ')+r.employee_name+', '+abwZeitraum(r.start_date,r.end_date))})
+    .catch(function(e){var s=document.getElementById('swAntragStatus');if(s)s.textContent=e.message});
+}
+function swBinden(){
+  el('swZu').addEventListener('click',function(){el('swDialog').close()});
+  el('swAbbrechen').addEventListener('click',function(){el('swDialog').close()});
+  el('swSenden').addEventListener('click',function(){swSenden(false)});
+  el('swTrotzdem').addEventListener('click',function(){swSenden(true)});
+  el('swKolonne').addEventListener('change',swKolonneGewaehlt);
+  var box=document.getElementById('swAntraege');
+  if(box)box.addEventListener('click',function(ev){var b=ev.target.closest('[data-sw-entscheiden]');if(b)swEntscheiden(Number(b.dataset.id),b.dataset.swEntscheiden)});
+}
+</script>

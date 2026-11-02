@@ -243,6 +243,7 @@ def employee_to_dict(employee: Employee, db: Session | None = None) -> dict:
         "birthday": p.birthday if p else None,
         "important_info": p.important_info if p else None,
         "available_as_caseworker": bool(role.available_as_caseworker) if role else False,
+        "vorarbeiter": bool(role.vorarbeiter) if role else False,  # seit 1.9.170
         "show_on_planning_board": effective_planning_visibility(db, employee) if db is not None else _default_planning_visibility(employee),
         "cost_allocation": effective_cost_allocation(db, employee) if db is not None else ("labor_rate" if employee.employee_group == "gewerblich" else "excluded"),
         "active": employee.active,

@@ -29,7 +29,7 @@ weiterhin ausschließlich die gepflegten Settings-Felder, keine Doppelzählung.
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .grunddaten import einzelzeile
@@ -187,6 +187,13 @@ def weather_days_actual(db: Session, *, today: date | None = None) -> dict:
         )
     ).all()
     total_hours = sum(rows, ZERO)
+    # seit 1.9.170 (Lohn L1a, Punkt 5): Schlechtwetter ist ein Ausfalltag (Abwesenheit der Kategorie schlechtwetter, je Tag) -- je Tag die
+    # Stunden eines Tags, wie die Annahme; gebuchte Zeitarten weather_* von früher zählen weiter mit
+    from .models import EmployeeAbsence
+    ausfalltage = db.scalar(select(func.count(EmployeeAbsence.id)).where(
+        EmployeeAbsence.employee_id.in_(employee_ids), EmployeeAbsence.absence_category == "schlechtwetter",
+        EmployeeAbsence.start_date >= start, EmployeeAbsence.start_date <= end)) or 0
+    total_hours += Decimal(ausfalltage) * daily_hours
 
     activity_dates = db.scalars(
         select(TimeEntry.work_date).where(

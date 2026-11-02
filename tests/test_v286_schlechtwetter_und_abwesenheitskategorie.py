@@ -156,9 +156,11 @@ def test_create_request_rejects_unknown_category():
 def test_create_request_accepts_each_real_category(category):
     db = db_session()
     emp = make_employee(db)
+    # seit 1.9.170: Schlechtwetter ist ein Tag (Aufbau: ein Tag statt zwei; die Regeln dazu prüft tests/test_v588_schlechtwetter.py)
+    ende = date(2026, 9, 1) if category == "schlechtwetter" else date(2026, 9, 2)
     req = create_request(
         db, employee_id=emp.id, absence_type="Sonstiges", absence_category=category,
-        start_date=date(2026, 9, 1), end_date=date(2026, 9, 2),
+        start_date=date(2026, 9, 1), end_date=ende,
     )
     assert req.absence_category == category
 

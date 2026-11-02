@@ -167,6 +167,10 @@
         <h2 id="abwTitel">Abwesenheit</h2>
         <p id="abwText">Urlaub oder Krankheit beantragen.</p>
         <button type="button" class="knopf knopf-neutral knopf-breit" id="antragKnopf">+ Antrag</button>
+        {# seit 1.9.170 (Lohn L1a, Punkt 5): Ausfalltag Schlechtwetter -- Kolonnenführer und Vorarbeiter für die Kolonne, sonst für sich als
+           Antrag; darunter, was sie bestätigen #}
+        <button type="button" class="knopf knopf-neutral knopf-breit" id="swNeu" hidden>Schlechtwetter</button>
+        <div id="swAntraege" hidden></div>
       </section>
       <section class="zeiten-karte seiten-karte" id="monatKarte" aria-labelledby="monatTitel">
         <h2 id="monatTitel">Monat</h2>
@@ -274,6 +278,8 @@
 {% include "_speichern.html" %}
 {% include "_menue.html" %}
 {% include "_auftrag_text.html" %}
+{% set sw_dialog_klasse = "dialog-karte" %}
+{% include "_schlechtwetter.html" %}
 <script>
 var KEIN_MITARBEITER={{ kein_mitarbeiter|tojson }};
 function esc(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})}
@@ -614,7 +620,7 @@ function loeschen(){
 }
 
 // --- Abwesenheit (wie bisher: Antrag, eigene Anträge, Zurückziehen -- mit Rückfrage in der Zeile) ---------------------------------
-var KATEGORIE={urlaub:'Urlaub',krankheit:'Krankheit',fortbildung:'Fortbildung',unbezahlt:'Unbezahlt',freizeitausgleich:'Freizeitausgleich',unbekannt:'Unbekannt'};
+var KATEGORIE={urlaub:'Urlaub',krankheit:'Krankheit',fortbildung:'Fortbildung',unbezahlt:'Unbezahlt',freizeitausgleich:'Freizeitausgleich',schlechtwetter:'Schlechtwetter',unbekannt:'Unbekannt'};
 var STATUS={pending:'Offen',approved:'Genehmigt',rejected:'Abgelehnt',cancelled:'Zurückgezogen'};
 function antraegeLaden(){
   return lesen('antraege',()=>api('/api/absence-requests'),function(rows){ANTRAEGE=rows;antraegeZeichnen()})
@@ -684,6 +690,10 @@ function binden(){
       .then(function(){ZURUECKZIEHEN=null;antraegeZeichnen();el('adErgebnis').textContent='Antrag zurückgezogen.'})
       .catch(function(e){el('adStatus').textContent=e.message;b.disabled=false});
   });
+  // seit 1.9.170: Schlechtwetter -- der Knopf für jede gewerbliche Person (für andere nur Kolonnenführer und Vorarbeiter, Kontext vom Server)
+  swBinden();swNachher=antraegeLaden;
+  el('swNeu').addEventListener('click',swOeffnen);
+  swKontextLaden().then(function(){el('swNeu').hidden=!(SW&&(SW.fuer_andere||SW.personen.length))}).catch(function(e){el('abwText').textContent=e.message});
   el('antragKnopf').addEventListener('click',function(){
     auswahlWert(el('adKategorie'),'urlaub');
     abwArtenFuellen(el('adArt'),D?D.abwesenheitsarten:[],'urlaub');

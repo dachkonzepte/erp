@@ -134,7 +134,7 @@ FIELD_LABELS = {
     "unit_price":"Einheitspreis","position_type":"Positionstyp","gaeb_oz":"OZ","intro_text":"Vortext",
     "outro_text":"Schlusstext","vat_rate":"MwSt.","payment_terms":"Zahlungsbedingungen",
     "execution_period":"Ausführungszeitraum","internal_note":"Interne Notiz","contact_person":"Ansprechpartner",
-    "hourly_wage":"Kalkulatorischer Stundenlohn","weekly_hours":"Wochenstunden","compensation_type":"Vergütungsart","monthly_salary":"Monatsfestgehalt","cost_allocation":"Kosten-Zuordnung","allocation_type":"Kosten-Zuordnung","active":"Aktiv","available_as_caseworker":"Sachbearbeiter verfügbar","show_on_planning_board":"In Plantafel anzeigen",
+    "hourly_wage":"Kalkulatorischer Stundenlohn","weekly_hours":"Wochenstunden","compensation_type":"Vergütungsart","monthly_salary":"Monatsfestgehalt","cost_allocation":"Kosten-Zuordnung","allocation_type":"Kosten-Zuordnung","active":"Aktiv","vorarbeiter":"Vorarbeiter","available_as_caseworker":"Sachbearbeiter verfügbar","show_on_planning_board":"In Plantafel anzeigen",
     "street":"Straße","postal_code":"PLZ","city":"Ort","email":"E-Mail","phone":"Telefon","mobile":"Mobil",
     "birthday":"Geburtstag","important_info":"Wichtige Informationen","customer_number":"Kundennummer",
     "format_pattern":"Nummernformat","start_value":"Startnummer","next_value":"Nächste Nummer",

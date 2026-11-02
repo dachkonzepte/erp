@@ -3246,6 +3246,9 @@ class EmployeeRoleSettings(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), index=True)
     available_as_caseworker: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    # Seit 1.9.170 (Lohn L1a, Punkt 5): Vorarbeiter -- trägt wie ein Kolonnenführer Schlechtwetter für jeden gewerblichen Mitarbeiter ein und
+    # bestätigt Anträge (app/schlechtwetter.py). Bis dahin war „Vorarbeiter“ nur Text (Funktion, Rolle in der Kolonne), keine Rechtegrundlage.
+    vorarbeiter: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 

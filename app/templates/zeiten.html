@@ -234,6 +234,7 @@
   <div class="filter">
     <label class="feld-zeile" for="abwStatus">Status<select id="abwStatus" style="width:160px"><option value="" selected>Alle</option><option value="pending">Offen</option><option value="approved">Genehmigt</option><option value="rejected">Abgelehnt</option><option value="cancelled">Zurückgezogen</option></select></label>
     <span class="summe-auswahl" id="abwHinweis"></span>
+    <button type="button" class="knopf knopf-neutral" id="swNeu" hidden>Schlechtwetter eintragen</button>
     <button type="button" class="knopf knopf-aktion" id="abwNeu" hidden>Abwesenheit beantragen</button>
   </div>
   <section class="karte" aria-labelledby="abwTitel">
@@ -390,6 +391,9 @@
 {% include "_zahl.html" %}
 {% include "_speichern.html" %}
 {% include "_auftrag_text.html" %}
+{# seit 1.9.170 (Lohn L1a, Punkt 5): Ausfalltag Schlechtwetter, für Admin und Büro – Finanzen (Personen oder Kolonne, gilt sofort) #}
+{% set sw_dialog_klasse = "dialog" %}
+{% include "_schlechtwetter.html" %}
 <script>
 var RECHTE={{ {"zeit_buchen": zeit_buchen, "zeit_fuer_andere": zeit_fuer_andere, "lohndaten": lohndaten, "admin": admin}|tojson }};
 function esc(s){return String(s==null?'':s).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]})}
@@ -527,7 +531,7 @@ function fehltHtml(t,i,plan){
         +(t.darf_buchen?'<button type="button" class="knopf knopf-neutral" data-aktion="pause-aendern" data-i="'+i+'" data-id="'+e.id+'">Ändern</button>':'')+'</div>'}).join('')
     +'</div></div>';
 }
-var KATEGORIE={urlaub:'Urlaub',krankheit:'Krankheit',fortbildung:'Fortbildung',unbezahlt:'Unbezahlt',freizeitausgleich:'Freizeitausgleich',unbekannt:'Unbekannt'};
+var KATEGORIE={urlaub:'Urlaub',krankheit:'Krankheit',fortbildung:'Fortbildung',unbezahlt:'Unbezahlt',freizeitausgleich:'Freizeitausgleich',schlechtwetter:'Schlechtwetter',unbekannt:'Unbekannt'};
 // „· beantragt am 20.10.“, für eine andere Person gestellt (seit 1.9.101) „· beantragt von Fin Finanzen am 20.10.“
 // seit 1.9.154: ein Datum, das für sich steht, mit Jahr; ein Antrag aus der Migration wurde nie beantragt -- sein Datum ist der Tag, an dem die Abwesenheit eingetragen wurde
 function beantragtText(a){
@@ -1098,6 +1102,10 @@ function binden(){
   });
   el('abwStatus').addEventListener('change',function(){ZURUECK=null;LOESCHEN=null;abwesenheitenLaden()});
   el('abwNeu').addEventListener('click',abwDialogOeffnen);
+  // seit 1.9.170: Schlechtwetter -- der Knopf nur, wer für andere einträgt (Kontext vom Server)
+  swBinden();swNachher=abwesenheitenUndPruefen;
+  el('swNeu').addEventListener('click',swOeffnen);
+  swKontextLaden().then(function(){el('swNeu').hidden=!(SW&&SW.fuer_andere)}).catch(function(e){el('seitenStatus').textContent=e.message});
   el('reiter-abwesenheiten').addEventListener('click',function(ev){
     var b=ev.target.closest&&ev.target.closest('[data-aktion]');if(!b)return;
     var a=b.dataset.aktion;

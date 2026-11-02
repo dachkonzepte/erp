@@ -1002,6 +1002,7 @@ class EmployeeCreate(BaseModel):
     birthday: date | None = None
     important_info: str | None = None
     available_as_caseworker: bool = False
+    vorarbeiter: bool | None = None  # seit 1.9.170: None = unverändert (die Seite schickt es mit)
     show_on_planning_board: bool = True
     cost_allocation: str | None = Field(default=None, pattern="^(labor_rate|variable_overhead|excluded)$")
     active: bool = True
@@ -1058,6 +1059,7 @@ class EmployeeRosterOut(BaseModel):
     birthday: date | None = None
     important_info: str | None = None
     available_as_caseworker: bool
+    vorarbeiter: bool = False  # seit 1.9.170
     show_on_planning_board: bool
     cost_allocation: str | None = None
     active: bool
@@ -3755,6 +3757,20 @@ class EmployeePayrollSettingsUpdate(PartialUpdate):
     export_umfang: Literal["alles", "abwesenheiten", "nichts"] | None = None  # seit 1.9.168 (E3); „Export an/aus“ heißt „alles“/„nichts“
     eintritt: date | None = None
     austritt: date | None = None
+
+
+class SchlechtwetterEintragen(BaseModel):
+    """Seit 1.9.170 (Lohn L1a, Punkt 5): ein Ausfalltag Schlechtwetter für eine oder mehrere Personen an einem Tag. trotzdem: auch wenn an
+    dem Tag schon Zeit gebucht ist (sonst 409 mit der Liste)."""
+    employee_ids: list[int] = Field(min_length=1, max_length=200)
+    tag: date
+    notes: str | None = Field(default=None, max_length=500)
+    trotzdem: bool = False
+
+
+class SchlechtwetterEntscheidung(BaseModel):
+    decision: Literal["approved", "rejected"]
+    notes: str | None = Field(default=None, max_length=500)
 
 
 class LohnartZuordnungUpdate(BaseModel):
