@@ -9,7 +9,8 @@ Befüllt: Auftrag mit Einsatz (Plantafel heute ± 7 Tage) für Mia (Monteurin) u
                           Meine Zeiten (seit 1.9.59 statt der Zeiterfassung): Zeile „läuft seit 06:45“ ohne Stunden mit „Feierabend auf
                           „Heute“ eintragen“; auf „Heute“ Start gesperrt, Ende leer -> „Bitte die Uhrzeit des Feierabends angeben.“, 06:00
                           -> Meldung des Servers (vor dem Start), 16:00 -> „Feierabend gestern eingetragen: anwesend 9:15 h · Pause nach
-                          Zeitregel − 0:45 h · gebucht 8,50 h“, danach startet sie über die Kachel neu.
+                          Zeitregel − 0:30 h · gebucht 8,75 h“ (seit 1.9.166; bis dahin 0:45 h und 8,50 h), danach startet sie über
+                          die Kachel neu.
     Anna (1400 px, hell)  Zeiten (seit 1.9.98 statt der Zeiterfassung für Tom; /time-tracking?employee_id= leitet auf „Zeiten“ mit dem
                           Filter): unter „Prüfen“ Toms Zeit von gestern, „Ende um“ 15:30 mit Vorschau des Servers -> „Ende eintragen“ bucht
                           die Vorschau (Pause nach Zeitregel); im Verlauf (API) steht Anna.
@@ -164,7 +165,7 @@ async def pruefen(tab, seed, p):
     await tab.js("(f=>{f.value='16:00';f.dispatchEvent(new Event('input'))})(document.getElementById('endeZeit'))")
     await tab.warte_auf_neu_geladene_liste("document.getElementById('endeKnopf').click()", "#arbeitszeit")
     p.pruefe("Ende nachgetragen: anwesend, Pause, gebucht", await tab.js("document.getElementById('zeitErgebnis').textContent"),
-             "Feierabend gestern eingetragen: anwesend 9:15 h · Pause nach Zeitregel − 0:45 h · gebucht 8,50 h")
+             "Feierabend gestern eingetragen: anwesend 9:15 h · Pause nach Zeitregel − 0:30 h · gebucht 8,75 h")
     await tab.bild("4_ende_nachgetragen_dunkel_412")
     await tab.js(f"document.getElementById('startAuftrag').value='{seed['auftrag']}'")
     await tab.warte_auf_neu_geladene_liste("document.querySelector('#startKacheln [data-zeitart=\"site\"]').click()", "#arbeitszeit")

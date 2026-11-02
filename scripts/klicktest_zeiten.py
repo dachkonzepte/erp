@@ -3,21 +3,21 @@
 Befüllt (stehende Uhr Mo 26.10.2026, 10:00, Instanz und Browser; abgeschlossen bis 30.09.2026), Testdaten wie die Vorlagen
 bildgrundlage/entwurf-stufe4/zeiten-*.html: Aufträge AUF-2026-0001 „Halle Nord“, AUF-2026-0102 „Attika“, AUF-2026-0105 „Halle Süd“
 (abgeschlossen); Tom Monteur Baustelle seit Mo 19.10., 06:45 offen, Ole Offen Fahrzeit seit Fr 16.10., 15:30 offen; Mia Monteurin am
-Sa 10.10. ein Tag mit unpassender Pause (12:00–16:15, 45 min abgezogen, nach Zeitregel 0), am 19.10. 07:00–12:00 und 12:00–16:15, am
+Sa 10.10. ein Tag mit unpassender Pause (12:00–16:15, 30 min abgezogen, nach Zeitregel 0; bis 1.9.165 45 min), am 19.10. 07:00–12:00 und 12:00–16:15, am
 15.10. eine Dauer von 6,00 h (vom Büro); Tom am 15.10. 06:15–07:00 Fahrzeit und 07:00–16:30 Baustelle (Attika), am 16.10. 07:00–15:45 auf
 dem abgeschlossenen Auftrag; Toms Antrag Urlaub 02.–06.11. offen.
 
     Admin, hell 1440 × 900  Prüfen: Zahl am Reiter 3; „Zeiten von früher“ mit Tom und Ole; Ende um 16:00 -> Vorschau „anwesend 9:15 h ·
-                            Pause nach Zeitregel − 0:45 h · gebucht 8,50 h“, Ole ohne Uhrzeit „Ende eintragen“ gesperrt; „Pause passt
+                            Pause nach Zeitregel − 0:30 h · gebucht 8,75 h“, Ole ohne Uhrzeit „Ende eintragen“ gesperrt; „Pause passt
                             nicht“ mit Vorschau; Anträge mit Genehmigen/Ablehnen; Monat Oktober 2026 und „Vor dem Abschluss“ -- Bild;
-                            „Ende eintragen“ = Vorschau (gebucht 8,50 h, 45 min); „So buchen“ = Vorschau (0 min, 4,25 h)
+                            „Ende eintragen“ = Vorschau (gebucht 8,75 h, 30 min); „So buchen“ = Vorschau (0 min, 4,25 h) -- seit 1.9.166 Lesart A
     Büro – Finanzen         Buchungen: Spalten, „von früher“ mit „Ende eintragen“ (springt zu Prüfen, Fokus im Feld), abgeschlossener Auftrag
                             gekennzeichnet, „Dauer · vom Büro“; Filter Mitarbeiter, Auftrag, Zeitart ändern Liste und „Summe der Auswahl“
                             (= Summe der gezeigten gebuchten Zeilen, die laufende zählt nicht); Ändern mit Von–Bis: Vorschau „Anwesend 9:30
                             h · Tag zusammen 10:15 h · Pause nach Zeitregel − 0:45 h“, Knopf „8,75 h speichern“ -- Bild; Bis 16:00 -> 8,25 h
                             gespeichert; Wechsel zu „Dauer“: Von/Bis leer, Hinweis, „Pause an diesem Tag“ mit 45 vorbelegt, Vorschau vom
-                            Server „Anwesend 8:45 h · Tag zusammen 9:30 h · Pause des Tags passt“, mit 0 „… passt danach nicht – der Tag
-                            erscheint unter „Prüfen““ -- Bilder (seit 1.9.107) --, 8,00 h mit 0:45 gespeichert, Beginn und Ende leer (API);
+                            Server „Anwesend 8:45 h · Tag zusammen 9:30 h · Pause des Tags passt“, mit 0 „… passt danach nicht (nach Zeitregel
+                            0:30 h) – der Tag erscheint unter „Prüfen““ (seit 1.9.166 mit der nötigen Pause) -- Bilder (seit 1.9.107) --, 8,00 h mit 0:45 gespeichert, Beginn und Ende leer (API);
                             „+ Buchung“ für Mia 07:00–11:00 -> 4,00 h; Löschen mit Rückfrage auf der Seite (kein confirm())
     Büro – Auftrag          Prüfen und Buchungen ohne Knöpfe (kein „Ende um“, kein „So buchen“, kein „⋮“, kein „+ Buchung“), seit 1.9.102
                             „Zur Info“ statt „Wartet auf dich“ mit dem Satz, wer das Ende einträgt, keine Zahl am Reiter „Prüfen“ -- Bild; seit
@@ -116,7 +116,7 @@ def befuellen(db, k):
         row = start_timer(db, employee_id=leute[wer].id, order_id=auftraege[auftrag].id, entry_type=art, started_at=datetime.combine(tag, von))
         return stop_timer(db, row.id, ended_at=datetime.combine(tag, bis))
 
-    # Mia, Sa 10.10.: 07:00–12:00 und 12:00–16:15 (45 min), die erste gelöscht -- abgezogen 45, nach Zeitregel 0
+    # Mia, Sa 10.10.: 07:00–12:00 und 12:00–16:15 (30 min), die erste gelöscht -- abgezogen 30, nach Zeitregel 0
     erste = zeit("mia", date(2026, 10, 10), time(7), time(12), "Halle Nord")
     pause_tag = zeit("mia", date(2026, 10, 10), time(12), time(16, 15), "Halle Nord")
     delete_entry(db, erste.id)
@@ -224,12 +224,12 @@ async def pruefen(tab, seed, p):
         f"[document.getElementById('ende-vorschau-{seed['tom']}').innerText,"
         f"document.querySelector('[data-aktion=ende][data-id=\"{seed['tom']}\"]').disabled,"
         f"document.querySelector('[data-aktion=ende][data-id=\"{seed['ole']}\"]').disabled]"),
-        ["anwesend 9:15 h · Pause nach Zeitregel − 0:45 h · gebucht 8,50 h", False, True])
+        ["anwesend 9:15 h · Pause nach Zeitregel − 0:30 h · gebucht 8,75 h", False, True])
     p.pruefe("Admin: Pause passt nicht -- Zeile und Vorschau", await tab.js(
         "[document.querySelector('#pauseListe .zeile-name').innerText,document.querySelector('#pauseListe .zeile-unter').innerText,"
         "document.querySelector('#pauseListe .neu-rechnen-text').innerText.replace(/\\s+/g,' ')]"),
-        ["Mia Monteurin · Sa 10.10.", "Pause abgezogen 0:45 h · nach Zeitregel 0:00 h",
-         "Neu rechnen: Baustellenzeit 12:00–16:15 · Pause 0:45 → 0:00 h · gebucht 3,50 → 4,25 h"])
+        ["Mia Monteurin · Sa 10.10.", "Pause abgezogen 0:30 h · nach Zeitregel 0:00 h",
+         "Neu rechnen: Baustellenzeit 12:00–16:15 · Pause 0:30 → 0:00 h · gebucht 3,75 → 4,25 h"])
     p.pruefe("Admin: Anträge mit Genehmigen und Ablehnen", await tab.js(
         "[document.querySelector('#antragListe .zeile-name').innerText,document.querySelector('#antragListe .zeile-unter').innerText,"
         "[...document.querySelectorAll('#antragListe button')].map(b=>b.innerText)]"),
@@ -237,7 +237,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Admin: Monat rechts", await tab.js(
         "[document.getElementById('monatTitel').innerText,document.getElementById('monatStatus').innerText,"
         "[...document.querySelectorAll('#monatZeilen tr')].map(tr=>tr.innerText.replace(/\\s+/g,' ').trim())]"),
-        ["Oktober 2026", "offen", ["Mia Monteurin 3 18,00", "Tom Monteur 2 17,75", "Zusammen 35,75"]])  # Ole nur laufend: nicht in der Liste
+        ["Oktober 2026", "offen", ["Mia Monteurin 3 18,50", "Tom Monteur 2 17,75", "Zusammen 36,25"]])  # Ole nur laufend: nicht in der Liste
     p.pruefe("Admin: Vor dem Abschluss", await tab.js("[...document.querySelectorAll('#abschlussListe li')].slice(0,2).map(l=>l.innerText)"),
              ["2 Zeiten laufen noch", "1 Tag mit unpassender Pause"])
     p.pruefe("Admin: nichts ragt über 1440 px", await tab.ueberlauf(), [])
@@ -247,10 +247,10 @@ async def pruefen(tab, seed, p):
     p.pruefe("Admin: Ende eingetragen -- die Zeile ist weg", await tab.warten(f"!document.querySelector('[data-offen=\"{seed['tom']}\"]')", 10), True)
     tom = await _api(tab, "/api/zeiten/buchungen?monat=2026-10&mitarbeiter=" + str(seed["tom_ma"]))
     gebucht = [e for e in tom["eintraege"] if e["id"] == seed["tom"]][0]
-    p.pruefe("Admin: Ende eintragen = Vorschau (16:00, 45 min, 8,50 h)", [gebucht["ended_at"], gebucht["break_minutes"], float(gebucht["hours"])],
-             ["2026-10-19T16:00:00", 45, 8.5])
+    p.pruefe("Admin: Ende eintragen = Vorschau (16:00, 30 min, 8,75 h)", [gebucht["ended_at"], gebucht["break_minutes"], float(gebucht["hours"])],
+             ["2026-10-19T16:00:00", 30, 8.75])
     p.pruefe("Admin: Meldung", await tab.js("document.getElementById('ergebnis').innerText"),
-             "Ende eingetragen: Tom Monteur, Mo 19.10. 06:45–16:00 · gebucht 8,50 h")
+             "Ende eingetragen: Tom Monteur, Mo 19.10. 06:45–16:00 · gebucht 8,75 h")
     await tab.js("document.querySelector('[data-aktion=pause-buchen]').click()")
     p.pruefe("Admin: So buchen -- der Tag ist weg", await tab.warten("document.getElementById('pauseKarte').hidden", 10), True)
     mia = await _api(tab, "/api/zeiten/buchungen?monat=2026-10&mitarbeiter=" + str(seed["mia"]))
@@ -267,8 +267,8 @@ async def pruefen(tab, seed, p):
     # (bis 1.9.102 die neuesten zuerst: am 15.10. Tom 07:00, Tom 06:15, Mia Dauer)
     p.pruefe("Fin: Zeilen wie die Vorlage (Ausschnitt)", [z for z in zeilen if z[0] in ("Mo 19.10.", "Fr 16.10.", "Do 15.10.")], [
         ["Mo 19.10.", "Mia Monteurin", "07:00–12:00", "Baustellenzeit", "AUF-2026-0001 · Halle Nord", "0:00", "5,00"],
-        ["Mo 19.10.", "Mia Monteurin", "12:00–16:15", "Werkstattzeit", "AUF-2026-0001 · Halle Nord", "0:45", "3,50"],
-        ["Mo 19.10.", "Tom Monteur", "06:45–16:00", "Baustellenzeit", "AUF-2026-0001 · Halle Nord", "0:45", "8,50"],
+        ["Mo 19.10.", "Mia Monteurin", "12:00–16:15", "Werkstattzeit", "AUF-2026-0001 · Halle Nord", "0:30", "3,75"],
+        ["Mo 19.10.", "Tom Monteur", "06:45–16:00", "Baustellenzeit", "AUF-2026-0001 · Halle Nord", "0:30", "8,75"],
         ["Fr 16.10.", "Ole Offen", "15:30 – läuft von früher", "Fahrzeit", "AUF-2026-0105 · Halle Süd abgeschlossen", "—", "—"],
         ["Fr 16.10.", "Tom Monteur", "07:00–15:45", "Baustellenzeit", "AUF-2026-0105 · Halle Süd abgeschlossen", "0:30", "8,25"],
         ["Do 15.10.", "Mia Monteurin", "Dauer · vom Büro", "Baustellenzeit", "AUF-2026-0102 · Attika", "0:30", "6,00"],
@@ -282,13 +282,13 @@ async def pruefen(tab, seed, p):
                             "document.querySelectorAll('#buchungenZeilen tr').length]")
     alle = await summe()
     p.pruefe("Fin: Summe der Auswahl = gezeigte gebuchte Zeilen (die laufende zählt nicht)", [alle[0] == alle[1], alle[0], alle[2]],
-             [True, "45,00 h", 9])
+             [True, "45,50 h", 9])
     await tab.warte_auf_neu_geladene_liste(f"(()=>{{const s=document.getElementById('filterMitarbeiter');s.value='{seed['tom_ma']}';"
                                           "s.dispatchEvent(new Event('change',{bubbles:true}))})()", "#buchungenZeilen")
     nur_tom = await summe()
     p.pruefe("Fin: Filter Mitarbeiter Tom -- Liste und Summe", [nur_tom[0] == nur_tom[1], nur_tom[0], nur_tom[2],
              await tab.js("[...document.querySelectorAll('#buchungenZeilen tr')].every(tr=>tr.cells[1].innerText==='Tom Monteur')")],
-             [True, "26,25 h", 4, True])
+             [True, "26,50 h", 4, True])
     await tab.warte_auf_neu_geladene_liste("(()=>{const s=document.getElementById('filterZeitart');s.value='travel';"
                                           "s.dispatchEvent(new Event('change',{bubbles:true}))})()", "#buchungenZeilen")
     p.pruefe("Fin: Filter Mitarbeiter und Zeitart Fahrzeit", (await summe())[0::2], ["0,75 h", 1])
@@ -347,8 +347,8 @@ async def pruefen(tab, seed, p):
     await tab.bild("zeiten_dialog_dauer_passt")
     await _eingeben(tab, "bdPauseDauer", "0")
     p.pruefe("Fin: Pause 0 -- passt danach nicht", await tab.warten(
-        "document.getElementById('bdVorschauZeile').innerText==='Anwesend 8:00 h · Tag zusammen 8:45 h · Pause des Tags passt danach nicht – der Tag "
-        "erscheint unter „Prüfen“'", 10), True)
+        "document.getElementById('bdVorschauZeile').innerText==='Anwesend 8:00 h · Tag zusammen 8:45 h · Pause des Tags passt danach nicht (nach "
+        "Zeitregel 0:30 h) – der Tag erscheint unter „Prüfen“'", 10), True)
     await tab.bild("zeiten_dialog_dauer_passt_nicht")
     await _eingeben(tab, "bdPauseDauer", "45")
     await tab.warten("document.getElementById('bdVorschauZeile').innerText.endsWith('Pause des Tags passt')", 10)
@@ -389,8 +389,9 @@ async def pruefen(tab, seed, p):
     await tab.js("document.getElementById('kdModusDauer').click()")
     await _eingeben(tab, "kdStunden", "8")
     p.pruefe("Fin: Kolonne „Dauer“ 8,00 ohne Pause -- je Person „passt danach nicht“", await tab.warten(
-        "document.getElementById('kdVorschauZeile').innerText.replace(/\\s+/g,' ')==='Mia Monteurin 8,00 h – Pause passt danach nicht · Tom Monteur "
-        "8,00 h – Pause passt danach nicht Passt die Pause eines Tags danach nicht, erscheint er unter „Prüfen“.'", 10), True)
+        "document.getElementById('kdVorschauZeile').innerText.replace(/\\s+/g,' ')==='Mia Monteurin 8,00 h – Pause passt danach nicht (nach "
+        "Zeitregel 0:30 h) · Tom Monteur 8,00 h – Pause passt danach nicht (nach Zeitregel 0:30 h) Passt die Pause eines Tags danach nicht, "
+        "erscheint er unter „Prüfen“.'", 10), True)
     await _eingeben(tab, "kdPauseDauer", "30")
     p.pruefe("Fin: Kolonne „Dauer“ mit 30 -- passt", await tab.warten(
         "document.getElementById('kdVorschauZeile').innerText==='Mia Monteurin 8,00 h – Pause passt · Tom Monteur 8,00 h – Pause passt'", 10), True)
@@ -414,7 +415,8 @@ async def pruefen(tab, seed, p):
     await tab.js("document.getElementById('bdModusDauer').click()")
     await _eingeben(tab, "bdStunden", "8")
     p.pruefe("Fin: Mia 20.10. Dauer 8,00 ohne Pause -- passt danach nicht", await tab.warten(
-        "document.getElementById('bdVorschauZeile').innerText==='Anwesend 8:00 h · Pause des Tags passt danach nicht – der Tag erscheint unter „Prüfen“'",
+        "document.getElementById('bdVorschauZeile').innerText==='Anwesend 8:00 h · Pause des Tags passt danach nicht (nach Zeitregel 0:30 h) – der Tag "
+        "erscheint unter „Prüfen“'",
         10), True)
     await tab.warte_auf_neu_geladene_liste("document.getElementById('bdSpeichern').click()", "#buchungenZeilen")
     await tab.js("document.querySelector('.reiter a[data-reiter=pruefen]').click()")
@@ -584,8 +586,8 @@ async def pruefen(tab, seed, p):
              ["1 Zeit läuft noch Prüfen", "Lohnart fehlt: Werkstattzeit Zeitregeln", "Anträge entschieden"])
     p.pruefe("Fin: Tabelle mit Personalnummer", await tab.js(
         "[...document.querySelectorAll('#lohnZeilen tr')].map(tr=>[...tr.cells].map(c=>c.innerText.trim()).join(' | '))"),
-        ["Mia Monteurin | 1001 | 4 | 18,25 | 0,00 | 3,50 | 0,00 | 21,75", "Tom Monteur | 1002 | 4 | 29,75 | 0,75 | 0,00 | 0,00 | 30,50",
-         "Zusammen |  |  | 48,00 | 0,75 | 3,50 | 0,00 | 52,25"])
+        ["Mia Monteurin | 1001 | 4 | 18,25 | 0,00 | 3,75 | 0,00 | 22,00", "Tom Monteur | 1002 | 4 | 30,00 | 0,75 | 0,00 | 0,00 | 30,75",
+         "Zusammen |  |  | 48,25 | 0,75 | 3,75 | 0,00 | 52,75"])
     await tab.bild("zeiten_monat_hell")
     await tab.js("document.querySelector('#lohnPruefen a[data-reiter-link=pruefen]').click()")
     await tab.warten(f"!document.getElementById('reiter-pruefen').hidden&&!!document.getElementById('ende-{seed['ole']}')", 10)

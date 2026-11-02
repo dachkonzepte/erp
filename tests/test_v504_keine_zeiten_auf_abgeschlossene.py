@@ -184,8 +184,8 @@ def test_gruppenzeit_stoppen_geht_auf_abgeschlossenem(welt):  # noqa: F811
 
 
 def test_pausen_neu_rechnen_an_buchung_dort_abgelehnt_buero_rechnet(welt):  # noqa: F811
-    """Angriff: 07:00–12:00 und 12:00–16:15 (45 min) am geschlossenen Auftrag, die erste vorher gelöscht -> „Pausen neu rechnen“ würde die
-    zweite ändern: 409, sie behält 45 min. Gegenprobe: der Admin rechnet für Mia genau diese Vorschau."""
+    """Angriff: 07:00–12:00 und 12:00–16:15 (30 min, bis 1.9.165 45) am geschlossenen Auftrag, die erste vorher gelöscht -> „Pausen neu
+    rechnen“ würde die zweite ändern: 409, sie behält 30 min. Gegenprobe: der Admin rechnet für Mia genau diese Vorschau."""
     mia = _vorbereiten(welt)
     tag = welt["heute"]
     erste = _zeit(welt, welt["mia"], time(7), time(12), tag)
@@ -195,6 +195,6 @@ def test_pausen_neu_rechnen_an_buchung_dort_abgelehnt_buero_rechnet(welt):  # no
     koerper = {"work_date": tag.isoformat(), "buchungen": [{"id": zweite.id, "pause": 0}]}
     _abgelehnt(mia.post("/api/time-entries/pausen-neu-rechnen", json=koerper), "abgeschlossen")
     welt["db"].expire_all()
-    assert welt["db"].get(TimeEntry, zweite.id).break_minutes == 45
+    assert welt["db"].get(TimeEntry, zweite.id).break_minutes == 30
     buero = _buero(welt).post("/api/time-entries/pausen-neu-rechnen", json={**koerper, "employee_id": welt["mia"].id})
     assert buero.status_code == 200, buero.text

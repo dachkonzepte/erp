@@ -707,3 +707,60 @@ L1, je Punkt eine Version: 1 Pause (keine Migration), 2 Sollzeit (Modelle umstel
 L2, kein harter Termin (leitet sich aus Buchungen und Abwesenheiten ab, es braucht nur Startwerte): Urlaubskonto, Arbeitszeitkonto als Übersicht, Stundenzettel mit U, K, F und Soll.
 
 Zur Entscheidung vorgelegt (E1–E10 im Bericht): Lesart der Pause, Stichtag, wer F bekommt, Soll je Wochentag, Ausfalltag und wer ihn einträgt, Rundung 15 Minuten, Zuordnung vorbelegen, alte Formate entfallen, Sammeleintrag für Betriebsruhe, Rechte. Fragen ans Lohnbüro (LB1–LB10 im Bericht): Berufsschule, unbezahlt, Freizeitausgleich; Reihenfolge und Programm; mehrere Arten an einem Tag; F für wen und am Samstag; 8110 bei Teilausfall und im Sommer; Azubis; Startwerte; Viertelstunde; Korrekturen; Testimport.
+
+### Entscheidungen Tobias zu L0 (02.11.2026, bestätigt)
+
+- E1 Pause nach Lesart A.
+- E2 Kein Stichtag: auf dem Server sind keine echten Daten, echte Buchungen beginnen voraussichtlich im Januar 2027. Die neue Pause gilt für alle Buchungen. Tests mit festen Tagen, nicht relativ zu heute.
+- E3 Export-Umfang je Person: alles, nur Abwesenheiten oder nichts. F nur bei „alles“ und Soll > 0, nur gesetzliche Feiertage. Vor Eintritt und nach Austritt nichts.
+- E4 Sollzeit je Wochentag.
+- E5 Schlechtwetter als Abwesenheit (Kategorie schlechtwetter); Winter (01.12.–31.03.) und Sommer getrennt zuordenbar, ob mit gleichem Schlüssel, klärt das Lohnbüro. Die Zeitarten `weather_*` kommen aus der Auswahl, Altes bleibt lesbar.
+- E6 Rundung unverändert, bis das Lohnbüro antwortet.
+- E7 Zuordnung vorbelegt: 1/1000, U/8000, K/1650, F/1012, Schlechtwetter Winter 8110 als Monatszeile; dazu (Nachtrag 02.11.2026) Art Weiterbildung 1/1000 mit Sollzeit wie Fortbildung in Time 4. Schlechtwetter Sommer leer, bis der Juni-Export da ist; Berufsschule offen beim Lohnbüro. Alles andere leer = nicht exportiert, sichtbar gelistet.
+- E8 Die alten Exportformate entfallen (in L1b).
+- E9 Sammeleintrag einer Abwesenheit für mehrere Personen (alle, eine Kolonne, Auswahl).
+- E10 Personalnummern, Arbeitszeitmodelle, Pausenregeln, Sollzeiten und Zuordnung nur Admin und Büro – Finanzen.
+- Schlechtwetter eintragen: Kolonnenführer und Vorarbeiter für jeden gewerblichen Mitarbeiter, dazu Admin und Büro – Finanzen, gilt sofort. Jeder Mitarbeiter für sich selbst als Antrag, den Kolonnenführer, Vorarbeiter oder Admin bestätigt.
+- Halbe Tage: Urlaub auch als halber Tag (Stunden = halbe Sollzeit, zählt 0,5 Tag). Der 24.12. und der 31.12. an Wochentagen sind je 0,5 Tag Urlaub; was mit der anderen Hälfte ist, klärt Tobias noch. Keine Betriebsruhe.
+
+Neue Muster (Nachtrag 02.11.2026, `bildgrundlage/lohn/LIESMICH.txt`, für L1b): 12/2025 bis 10/2026 und Einzelbuchungen 09 und 10/2026. Time 4 zieht als Pause die Überschneidung mit festen Pausen des Zeitmodells ab (12:00–12:30, 16:30–16:45), ohne Zeitmodell keine. Azubis standen nur mit U und K im Export (Einstellung in Time 4). Der Wechsel der Sollzeit liegt zwischen Fr 24.04. und Mo 27.04.2026 (KW 17/18), wie angenommen. 31.12.2025 stand als ganzer Urlaubstag mit 7,50 h in Time 4, 24.12.2025 als Arbeitstag -- abweichend von der Vorgabe für L1a (je 0,5 Tag), im Bericht L1a genannt. Eine Person kann die DATEV-Nummer wechseln (91008 -> 91016 ab 10/2026).
+
+## Lohn L1a: was beim Buchen wirkt (ab 1.9.166)
+
+### Umsetzung 1.9.166: Pause nach Lesart A (Punkt 1)
+
+Eine Stelle: `app/work_time_models.py::pflichtpause()` -- je Pausenregel höchstens die ganzen Minuten über ihrer Schwelle (abgerundet; die Anwesenheit kommt mit vier Stellen, deshalb zuerst auf Hundertstel Minuten), davon das Maximum. `automatic_break_minutes_for_duration()` ruft sie mit den Regeln des Modells, das an dem Tag für die Person gilt; darüber laufen wie bisher Stopp, Gruppen-Stopp, Ende nachtragen, Nachtrag, Kolonne, Ändern, Zeitart wechseln, alle Vorschauen, „Prüfen“, „Pausen neu rechnen“ und der Abschluss.
+
+Was einem Tag mit Dauer fehlt, rechnet `fehlende_pause()`: jede Minute Pause verlängert die Anwesenheit einer Dauer, gesucht ist die kleinste Ergänzung, nach der die Pause passt -- eine Regel verlangt ihre volle Pause, sobald die Arbeitszeit über ihrer Schwelle liegt. `_pausen_stand()` nimmt sie statt `pause_nach_zeitregel(deckel=False)` (der Parameter ist weg). Die Vorschau „Dauer“ in „Zeiten“ nennt bei „passt danach nicht“ die Pause nach Zeitregel, auch je Person in „Kolonne buchen“.
+
+Probe mit dem echten Code, Tabelle aus L0 2.2: 6:01 -> 1 min, 6:15 -> 15, 6:30 -> 30, 9:01 -> 30, 9:15 -> 30, 9:30 -> 30, 9:40 -> 40, 9:45 -> 45; die Pflichtpause steigt von Minute zu Minute höchstens um eine Minute (0 bis 12 h geprüft).
+
+### Festlegungen 1.9.166 (Bitte bestätigen)
+
+1. Minuten über der Schwelle werden abgerundet, nie aufgerundet: 6:00 h und 40 s Anwesenheit ergeben keine Pause. So liegt die Arbeitszeit nie unter 6,00 bzw. 9,00 h.
+2. Eine Dauer braucht die volle Pause, sobald ihre Arbeitszeit über der Schwelle liegt (6,25 h -> 30 min, 9,25 h -> 45 min). Die Meldung nennt diese Zahl; sie ist dieselbe wie unter „Prüfen“.
+3. Lesart A gilt für jede Pausenregel eines Modells, auch für selbst angelegte; Schwellen und Pausen bleiben je Modell einstellbar.
+4. Kein Stichtag (E2): Buchungen nach der alten Regel bleiben, wie sie gebucht sind. „Prüfen“ zeigt ihren Tag als „passt nicht“ und sperrt den Abschluss, bis jemand „Pausen neu rechnen“ klickt -- auf dem Server gibt es keine echten Buchungen, die das träfe.
+
+### Tests und Prüfung
+
+Neu: `tests/test_v584_pause_lesart_a.py` (Formel, Wachstum, Fälle aus L0 2.3, Dauer, alte Buchung; fester Tag 09.11.2026). Gegenproben: die alte Formel -> 17 Tests rot; die alte Rechnung der fehlenden Pause einer Dauer -> 2 rot (`test_fehlende_pause_einer_dauer[6.25-0-30]`, `test_dauer_6_25_sagt_gleich_30`).
+
+Angepasste Erwartungen (Regel 28), altes Soll -> neues Soll:
+- `test_v104::test_work_time_models_and_automatic_break_on_timer`: 6,0167 h 30 -> 1 min, 9,0167 h 45 -> 30 min; 07:00–16:15 45 min, 8,50 h -> 30 min, 8,75 h (dazu 6,50 -> 30 und 9,75 -> 45 neu).
+- `test_v462`: 06:45–16:00 45 min, 8,50 h -> 30 min, 8,75 h (`…zieht_die_pause…`, `…feierabend_bucht…`); `test_zusaetzliche_pause_bleibt_mindestpause[20]` 45 -> 30.
+- `test_v463::test_richtiges_ende_gebucht…` und `::test_kolonnenfuehrer_schliesst…`: 45 min, 8,50 h -> 30 min, 8,75 h.
+- `test_v471::test_vorschau_und_buchung_dieselben_zahlen[9h15]`: 45 -> 30.
+- `test_v474`: Aufbau fester Tag (Fixture `fester_tag` statt `feste_uhr`); `test_schwelle_mehr_als` 6:01 30 -> 1, 9:01 45 -> 30, dazu sechs neue Fälle; `…mittags_pause_bei_der_zweiten[bis_16_15]` 45 min, 8,50 h -> 30 min, 8,75 h; `test_dauer_buchung_zaehlt…` Aufbau bis 14:30 statt 14:00 (6:15 h Tag verlangt nur noch 15 min, die schon abgezogen sind), Soll 15 bleibt; `test_echter_tag…` 45 min, 3,50 h, Tag 8,50 h -> 30 min, 3,75 h, 8,75 h; `test_vorschau_rechnet_wie_die_funktion` 45 -> 30.
+- `test_v483`: Nachtrag 12:00–16:15 nach 07:00–12:00 45 min, 3,50 h -> 30 min, 3,75 h; die zweite Buchung beim Ändern, Löschen und neu Rechnen 45 -> 30 min (Vorschau 3,50 -> 3,75), Verlauf „45“ -> „30“; die bewusst falsche Vorschau 30 -> 15 min (30 ist jetzt der gebuchte Wert).
+- `test_v489::test_kolonne_0700_1230…`: Aufbau Toms Fahrzeit ab 06:00 statt 06:15 („Tag zusammen“ 6:15 -> 6:30 h); Toms 30 min und 5,00 h bleiben.
+- `test_v504::test_pausen_neu_rechnen_an_buchung_dort…`, `test_v510::test_pausen_neu_rechnen_fuer_andere`: 45 -> 30 min.
+- `test_v511`: Büro-Nachtrag 45 min, 3,50 h -> 30 min, 3,75 h; Kolonne Mia 3,50 -> 3,75 h.
+- `test_v512::test_unpassende_pause_sperrt…`: „abgezogen 45 min“ -> „30 min“.
+- `test_v517::test_pruefen_zeiten_von_frueher` 8,50 h, 45 -> 8,75 h, 30; `::test_pruefen_pause_passt_nicht…` abgezogen 45 -> 30, Vorschau 45 -> 0 / 3,50 -> 4,25 jetzt 30 -> 0 / 3,75 -> 4,25.
+- `test_v522`: Aufbau Toms Fahrzeit ab 06:00 statt 06:15 (sonst 15 statt 30 min); die nachgestellten Fehlerwerte bleiben.
+- `test_v527::test_kolonne_dauer_je_person`: mit 0:30 Tom „passt nicht“ -> „passt“ (8:45 h Arbeit brauchen 30 min); `::test_dialog_dauer_vorschau_text` und `::test_kolonne_vorschau_text`: Text mit „(nach Zeitregel 0:30 h)“, die Attrappe trägt `noetig`.
+- `klicktest_echter_tag`: drei Prüfungen 0:45 h, 3,50 h, Tag 8,50 h -> 0:30 h, 3,75 h, 8,75 h.
+- `klicktest_meine_zeiten`: sechs Prüfungen -- Nachtrag 0:45 h, 3,50 h -> 0:30 h, 3,75 h, Tag 8,50 -> 8,75 h; Kolonne Tom 5,00 -> 5,25 h (Fahrzeit 06:15, Tag 6:15 h -> 15 min).
+- `klicktest_monteurin_regeln`: „Ende nachgetragen“ 0:45 h, 8,50 h -> 0:30 h, 8,75 h.
+- `klicktest_zeiten`: zwölf Prüfungen -- Ende 16:00 0:45 h, 8,50 h -> 0:30 h, 8,75 h (Vorschau, API, Meldung); Pause passt nicht 0:45 -> 0:30 h, 3,50 -> 3,75 h; Monat Mia 18,00 -> 18,50, zusammen 35,75 -> 36,25; Buchungen Mia 0:45/3,50 -> 0:30/3,75, Tom 0:45/8,50 -> 0:30/8,75; Summe 45,00 -> 45,50, Tom 26,25 -> 26,50; drei Texte „passt danach nicht“ mit „(nach Zeitregel 0:30 h)“; Lohn Mia 21,75 -> 22,00, Tom 30,50 -> 30,75, zusammen 52,25 -> 52,75.

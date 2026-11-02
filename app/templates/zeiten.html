@@ -699,10 +699,12 @@ function unterzeile(e){
   return e.employee_name+teil('gebucht',e.gebucht_von,e.gebucht_am)+teil('geändert',e.geaendert_von,e.geaendert_am);
 }
 // „Anwesend 8:45 h · Tag zusammen 9:30 h · Pause des Tags passt“ bzw. „… passt danach nicht – der Tag erscheint unter „Prüfen““ -- seit 1.9.107 vom
-// Server (GET /api/time-entries/dauer-vorschau, dieselbe Prüfung wie „Prüfen“); bis 1.9.106 zeigte „Dauer“ nur die Stunden, ohne Anfrage
+// Server (GET /api/time-entries/dauer-vorschau, dieselbe Prüfung wie „Prüfen“); bis 1.9.106 zeigte „Dauer“ nur die Stunden, ohne Anfrage. Seit 1.9.166 mit
+// der Pause, die der Tag nach Zeitregel braucht („nach Zeitregel 0:30 h“) -- trägt man sie ein, passt der Tag
 function dauerVorschauHtml(v){
   return teileHtml('Anwesend '+stundenUhr(Number(v.anwesend)*60)+(v.tag_buchungen>1?' · Tag zusammen '+stundenUhr(Number(v.tag_zusammen)*60):''))+' · '
-    +(v.passt?'<span class="teil">Pause des Tags passt</span>':'<span class="vorschau-warn">Pause des Tags passt danach nicht – der Tag erscheint unter „Prüfen“</span>');
+    +(v.passt?'<span class="teil">Pause des Tags passt</span>':'<span class="vorschau-warn">Pause des Tags passt danach nicht (nach Zeitregel '+esc(stundenUhr(v.noetig))
+      +') – der Tag erscheint unter „Prüfen“</span>');
 }
 function vorschauZeigen(v,fehler){
   var knopf=el('bdSpeichern');
@@ -1004,7 +1006,7 @@ function kdDauerHtml(v){
   var nicht=v.mitglieder.some(function(m){return !m.passt});
   return v.mitglieder.map(function(m){
     return '<span class="teil">'+esc(m.name+' '+stunden(m.gebucht)+(m.tag_buchungen>1?' (Tag zusammen '+stundenUhr(Number(m.tag_zusammen)*60)+')':''))+'</span> – '
-      +(m.passt?'<span class="teil">Pause passt</span>':'<span class="vorschau-warn">Pause passt danach nicht</span>')}).join(' · ')
+      +(m.passt?'<span class="teil">Pause passt</span>':'<span class="vorschau-warn">Pause passt danach nicht (nach Zeitregel '+esc(stundenUhr(m.noetig))+')</span>')}).join(' · ')
     +(nicht?'<br><span class="vorschau-warn">Passt die Pause eines Tags danach nicht, erscheint er unter „Prüfen“.</span>':'');
 }
 function kdVorschauLaden(){

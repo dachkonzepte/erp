@@ -45,18 +45,19 @@ def _mitglieder(w, gruppe_id):
 
 
 def test_kolonne_0700_1230_je_mitglied_nach_seinem_tag(welt):  # noqa: F811
-    """Angriff (Auftrag): 07:00–12:30 für Mia (ohne Vorbuchung) und Tom (Fahrzeit 06:15–07:00 am Morgen) -> Mia 5,50 h ohne Pause, Tom
-    5,00 h mit 30 min (Tag zusammen 6:15 h). Vorschau = Buchung, die Antwort nennt die Stunden je Person."""
+    """Angriff (Auftrag): 07:00–12:30 für Mia (ohne Vorbuchung) und Tom (Fahrzeit 06:00–07:00 am Morgen) -> Mia 5,50 h ohne Pause, Tom
+    5,00 h mit 30 min (Tag zusammen 6:30 h). Vorschau = Buchung, die Antwort nennt die Stunden je Person. Seit 1.9.166 Fahrzeit ab 06:00
+    (bis dahin 06:15: Tag 6:15 h verlangt nach Lesart A nur 15 min)."""
     client = _kolonne(welt)
     g = welt["gestern"]
-    _zeit(welt, welt["tom"], time(6, 15), time(7), g, art="travel")
+    _zeit(welt, welt["tom"], time(6), time(7), g, art="travel")
     v = client.get("/api/time-entry-groups/nachtrag-vorschau",
                    params={"work_date": g.isoformat(), "von": "07:00", "bis": "12:30", "team_id": welt["team"].id,
                            "employee_ids": [welt["mia"].id, welt["tom"].id]})
     assert v.status_code == 200, v.text
     assert [(m["name"], m["pause"], Decimal(str(m["gebucht"])), Decimal(str(m["tag_zusammen"])), m["tag_buchungen"])
             for m in v.json()["mitglieder"]] == [("Mia Monteurin", 0, Decimal("5.5"), Decimal("5.5"), 1),
-                                                 ("Tom Monteur", 30, Decimal("5"), Decimal("6.25"), 2)]
+                                                 ("Tom Monteur", 30, Decimal("5"), Decimal("6.5"), 2)]
     antwort = client.post("/api/time-entry-groups", json=_koerper(welt, g, von="07:00", bis="12:30"))
     assert antwort.status_code == 200, antwort.text
     assert sorted((m["employee_name"], Decimal(str(m["hours"]))) for m in antwort.json()["member_entries"]) == \

@@ -20,7 +20,8 @@ Stoppen, Zeitart wechseln, Kolonne starten und stoppen, Ende nachtragen) erreich
                    Maße (Zeilen ≥ 64, „⋮“ 48, Knöpfe 52/56); hell und dunkel; Bild neben der Vorlage
     hoch           eine Spalte: Kacheln, Buchungen, Abwesenheit, Monat; hell und dunkel
     Nachtragen     Dialog wie die Vorlage (Felder 52 px, Knöpfe 56 px), Auftrag aus ?order_id vorgewählt, Vorschau „Anwesend 4:15 h · Tag
-                   zusammen 9:15 h · Pause nach Zeitregel − 0:45 h“ und „3,50 h“, Knopf „3,50 h nachtragen“ -> gebucht wie die Vorschau,
+                   zusammen 9:15 h · Pause nach Zeitregel − 0:30 h“ und „3,75 h“, Knopf „3,75 h nachtragen“ (seit 1.9.166; bis dahin 0:45 h und
+                   3,50 h) -> gebucht wie die Vorschau,
                    Ergebnis über den Buchungen (Z13, Z14)
     Ändern         vorbelegt, Bis 16:30 -> Vorschau 8,75 h (Tag zusammen 10:15 h), „Pause mindestens“ 60 -> 1:00 h, zurück auf leer;
                    gespeichert, die Fahrzeit des Tags unverändert (Z15, Z3)
@@ -256,15 +257,15 @@ async def pruefen(tab, seed, p):
     p.pruefe("Vorschau vom Server mit „Tag zusammen“", await tab.js(
         "[document.getElementById('zdVorschauZeile').textContent,document.getElementById('zdVorschauZahl').textContent,"
         "document.getElementById('zdSpeichern').textContent]"),
-        ["Anwesend 4:15 h · Tag zusammen 9:15 h · Pause nach Zeitregel − 0:45 h", "3,50 h", "3,50 h nachtragen"])
+        ["Anwesend 4:15 h · Tag zusammen 9:15 h · Pause nach Zeitregel − 0:30 h", "3,75 h", "3,75 h nachtragen"])
     await tab.bild("meine_zeiten_nachtragen_tag_zusammen_hell")
     await tab.warte_auf_neu_geladene_liste("document.getElementById('zdSpeichern').click()", "#tage")
     p.pruefe("nachgetragen wie die Vorschau, Ergebnis über den Buchungen", await tab.js(
         "[document.getElementById('zeitDialog').open,document.getElementById('ergebnis').textContent]"),
-        [False, "Nachgetragen: anwesend 4:15 h · Tag zusammen 9:15 h · Pause nach Zeitregel − 0:45 h · gebucht 3,50 h"])
-    p.pruefe("13.10.: zwei Buchungen, Summe 8,50 h", [await tab.js(zeilen_des_tags("2026-10-13")), (await tab.js(TAGE))[1]],
+        [False, "Nachgetragen: anwesend 4:15 h · Tag zusammen 9:15 h · Pause nach Zeitregel − 0:30 h · gebucht 3,75 h"])
+    p.pruefe("13.10.: zwei Buchungen, Summe 8,75 h", [await tab.js(zeilen_des_tags("2026-10-13")), (await tab.js(TAGE))[1]],
              [[["07:00–12:00", "Baustellenzeit · AUF-2026-0001", "", "5,00 h", True],
-               ["12:00–16:15", "Werkstattzeit · AUF-2026-0001", "", "3,50 h", True]], ["Di 13.10.", "8,50 h"]])
+               ["12:00–16:15", "Werkstattzeit · AUF-2026-0001", "", "3,75 h", True]], ["Di 13.10.", "8,75 h"]])
 
     # --- Ändern: Bis 16:30, Mindestpause, die Fahrzeit des Tags bleibt -------------------------------------------------------------
     await tab.js(menue(seed["aendern"], "aendern"))
@@ -377,7 +378,7 @@ async def pruefen(tab, seed, p):
                  + setze("kdVon", "07:00") + ";" + setze("kdBis", "12:30"))
     await tab.warten("document.getElementById('kdVorschauZeile').textContent.includes('Tag zusammen')")
     p.pruefe("Nachtrag für die Kolonne: Vorschau je Mitglied nach seinem Tag", await tab.js("document.getElementById('kdVorschauZeile').textContent"),
-             "Mia Monteurin 5,50 h · Tom Mitglied 5,00 h (Tag zusammen 6:15 h)")
+             "Mia Monteurin 5,50 h · Tom Mitglied 5,25 h (Tag zusammen 6:15 h)")  # seit 1.9.166 15 min (bis dahin 30, 5,00 h)
     # seit 1.9.65: bei 1280 × 620 bleibt die Knopfleiste unten im Bild, die Vorschau steht frei über ihr
     p.pruefe("Kolonnen-Dialog 1280 × 620: „Speichern“ im Bild, Vorschau nicht verdeckt", await tab.js(
         "[(id=>{const k=document.getElementById(id),r=k.getBoundingClientRect(),d=k.closest('dialog').getBoundingClientRect();return r.top>=d.top&&r.bottom<=Math.min(d.bottom,innerHeight)+0.5&&document.elementFromPoint(r.left+r.width/2,r.top+r.height/2)===k})('kdSpeichern'),(()=>{const v=document.getElementById('kdVorschau').getBoundingClientRect(),"
@@ -386,7 +387,7 @@ async def pruefen(tab, seed, p):
     await tab.warte_auf_neu_geladene_liste("document.getElementById('kdSpeichern').click()", "#tage")
     p.pruefe("Nachtrag für die Kolonne gebucht", [await tab.js("document.getElementById('ergebnis').textContent"),
                                                   (await tab.js(TAGE))[-1]],
-             ["Für die Kolonne nachgetragen: Mia Monteurin 5,50 h · Tom Mitglied 5,00 h", ["Mi 07.10.", "5,50 h"]])
+             ["Für die Kolonne nachgetragen: Mia Monteurin 5,50 h · Tom Mitglied 5,25 h", ["Mi 07.10.", "5,50 h"]])
     await tab.js(menue(zeile_gruppe, "kolonne-loeschen"))
     p.pruefe("Kolonnenbuchung löschen: Rückfrage", await tab.js(
         "[document.getElementById('ldTitel').textContent,document.getElementById('ldFolge').textContent]"),
@@ -432,7 +433,7 @@ async def pruefen(tab, seed, p):
     await _ansehen(tab, seed, "tom", 1280, 620, "light")
     p.pruefe("Tom: Nachtrag der Kolonne „gebucht von Mia Monteurin“", await tab.js(zeilen_des_tags("2026-10-07")),
              [["06:15–07:00", "Fahrzeit · AUF-2026-0001", "", "0,75 h", True],
-              ["07:00–12:30", "Baustellenzeit · AUF-2026-0001", "gebucht von Mia Monteurin", "5,00 h", True]])
+              ["07:00–12:30", "Baustellenzeit · AUF-2026-0001", "gebucht von Mia Monteurin", "5,25 h", True]])
     await _ansehen(tab, seed, "ole", 1280, 620, "light")
     p.pruefe("Ole: läuft seit gestern, Weg zu „Heute“", await tab.js(
         "[document.querySelector('.zeile .zeile-text span').textContent,document.querySelector('.zeile a.knopf').textContent,"

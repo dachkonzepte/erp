@@ -91,7 +91,7 @@ def test_vorschau_und_buchung_dieselben_zahlen(welt, ende, pause):
     assert (Decimal(v["anwesend"]), v["pause"], Decimal(v["gebucht"])) == (
         Decimal(gebucht["anwesend"]), gebucht["pause"], Decimal(gebucht["hours"]))
     if ende == "16:00" and pause == 0:
-        assert (Decimal(v["anwesend"]), v["pause"]) == (Decimal("9.25"), 45)  # Zeitregel der Grunddaten: ab 9 h 45 Minuten
+        assert (Decimal(v["anwesend"]), v["pause"]) == (Decimal("9.25"), 30)  # über 9 h höchstens bis auf 9,00 h (seit 1.9.166; bis dahin 45)
 
 
 def test_vorschau_gruppenzeit_wie_gruppen_stopp(welt):

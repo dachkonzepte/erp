@@ -19,6 +19,7 @@ hat dort Vorrang vor dieser Fixture.
 
 import os
 import tempfile
+from datetime import date
 from pathlib import Path
 
 # Regel 16 (CLAUDE.md): kein Testlauf berührt die echte Datenbank oder den echten Datenordner.
@@ -177,6 +178,18 @@ def feste_uhr():
     """Uhr der App (app.berlin_time) läuft ab heute 10:00 Europe/Berlin -- für Tests, die sonst von
     der Tageszeit abhingen (Feierabend-Grenze an /api/field-view/today). Siehe tests/uhr.py."""
     with uhr_festhalten() as start:
+        yield start
+
+
+# Seit 1.9.166 (Lohn L1a, Entscheidung Tobias E2): Tests der Zeitregeln mit festen Tagen statt relativ zu heute. Dienstag, KW 46 -- weder
+# Monatserster noch Feiertag, ein Tag nach einem Arbeitstag.
+FESTER_TAG = date(2026, 11, 10)
+
+
+@pytest.fixture
+def fester_tag():
+    """Wie feste_uhr, aber an FESTER_TAG statt heute: berlin_today() ist dann 10.11.2026, 10:00 Uhr Europe/Berlin."""
+    with uhr_festhalten(tag=FESTER_TAG) as start:
         yield start
 
 

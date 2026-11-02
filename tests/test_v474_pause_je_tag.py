@@ -1,6 +1,8 @@
 """Seit 1.9.48 (Stufe 4, R2 Nachrunde, Punkt 1, Entscheidung Tobias): die Pausenregel je Tag, nur für neue Buchungen.
 
-    Schwelle       „mehr als“: über 6:00 h Anwesenheit 30 min, über 9:00 h 45 min (Werte aus den Grunddaten, bis 1.9.46 „ab“)
+    Schwelle       „mehr als“: über 6:00 h Anwesenheit 30 min, über 9:00 h 45 min (Werte aus den Grunddaten, bis 1.9.46 „ab“); seit
+                   1.9.166 (Lohn L1a, Lesart A) höchstens die Minuten über der Schwelle: 6:01 h -> 1 min, 6:15 h -> 15 min, 9:15 h -> 30 min
+    Fester Tag     seit 1.9.166 an einem festen Tag (Fixture fester_tag, Dienstag 10.11.2026), nicht relativ zu heute
     Tag            maßgeblich ist die Anwesenheit der Person am Starttag über alle gebuchten Zeiten samt der neuen (eine reine Dauer zählt mit
                    Stunden + Pause); die neue Buchung bekommt, was dem Tag an Pflichtpause noch fehlt (Pflichtpause − schon abgezogene
                    Pausen), mindestens die eingegebene Pause, höchstens ihre Anwesenheit; frühere Buchungen nie angefasst
@@ -28,7 +30,7 @@ from tests.test_v325_contract_basis import beauftragen, make_quote
 
 
 @pytest.fixture
-def welt(threaded_db_session, router_test_client, feste_uhr):
+def welt(threaded_db_session, router_test_client, fester_tag):
     db = threaded_db_session
     heute = berlin_time.berlin_today()
     order = beauftragen(db, make_quote(db, is_consumer=False, number="0474"))
@@ -57,8 +59,10 @@ def _als(w, emp, rolle="field"):
 
 # --- Schwelle „mehr als“ ----------------------------------------------------------------------------------------------------------
 
-@pytest.mark.parametrize("bis, pause", [((13, 0), 0), ((13, 1), 30), ((16, 0), 30), ((16, 1), 45)],
-                         ids=["genau_6h_0", "6h01_30", "genau_9h_30", "9h01_45"])
+@pytest.mark.parametrize("bis, pause", [((13, 0), 0), ((13, 1), 1), ((13, 15), 15), ((13, 30), 30), ((16, 0), 30), ((16, 1), 30),
+                                        ((16, 15), 30), ((16, 30), 30), ((16, 40), 40), ((16, 45), 45)],
+                         ids=["genau_6h_0", "6h01_1", "6h15_15", "6h30_30", "genau_9h_30", "9h01_30", "9h15_30", "9h30_30", "9h40_40",
+                              "9h45_45"])
 def test_schwelle_mehr_als(welt, bis, pause):
     row = _zeit(welt, welt["mia"], _um(welt, 7), _um(welt, *bis))
     assert row.break_minutes == pause
@@ -68,7 +72,7 @@ def test_schwelle_mehr_als(welt, bis, pause):
 
 @pytest.mark.parametrize("bis, pause_2, tag, je_buchung", [
     ((16, 0), 30, Decimal("8.5"), Decimal("9.0")),     # genau 9:00 h am Tag -> 30 min (das Beispiel der Vorgabe nennt 45 und 8,25 h)
-    ((16, 15), 45, Decimal("8.5"), Decimal("9.25")),   # 9:15 h am Tag -> 45 min
+    ((16, 15), 30, Decimal("8.75"), Decimal("9.25")),  # 9:15 h am Tag -> 30 min (seit 1.9.166; bis dahin 45 min und 8,50 h)
 ], ids=["bis_16_00", "bis_16_15"])
 def test_zeitart_wechseln_mittags_pause_bei_der_zweiten(welt, bis, pause_2, tag, je_buchung):
     """Baustelle 07:00–12:00, Wechsel, Werkstatt bis 16:00 (16:15): die erste Buchung bleibt ohne Pause (5 h), die zweite bekommt, was dem
@@ -112,10 +116,11 @@ def test_eingegebene_pause_bleibt_mindestpause(welt):
 
 
 def test_dauer_buchung_zaehlt_mit_stunden_und_pause(welt):
-    """Eine reine Dauer (4 h gebucht, 15 min Pause) zählt mit 4:15 h Anwesenheit und 15 min schon abgezogen."""
+    """Eine reine Dauer (4 h gebucht, 15 min Pause) zählt mit 4:15 h Anwesenheit und 15 min schon abgezogen. Seit 1.9.166 bis 14:30 (bis
+    dahin 14:00: Tag 6:15 h verlangt nach Lesart A nur noch 15 min, die schon abgezogen sind)."""
     create_manual_entry(welt["db"], employee_id=welt["mia"].id, order_id=welt["order"].id, work_date=welt["tag"], hours=Decimal("4"),
                         break_minutes=15)
-    row = _zeit(welt, welt["mia"], _um(welt, 12), _um(welt, 14))  # Tag 6:15 h -> 30 min, 15 schon ab -> 15 min
+    row = _zeit(welt, welt["mia"], _um(welt, 12), _um(welt, 14, 30))  # Tag 6:45 h -> 30 min, 15 schon ab -> 15 min
     assert row.break_minutes == 15
 
 
@@ -143,8 +148,8 @@ def test_fruehere_buchungen_bleiben_unveraendert(welt):
 
 
 def test_fehlende_pause_zehrt_die_letzte_buchung_auf(welt):
-    """07:00–13:00 (genau 6 h, keine Pause), dann 13:00–13:20: der Tag hat 6:20 h, ihm fehlen 30 min -- höchstens die 20 min der
-    Buchung; der Stopp schließt sie mit 0 h, ein Nachtrag mit Von/Bis wird abgelehnt (keine Arbeitszeit übrig)."""
+    """07:00–13:00 (genau 6 h, keine Pause), dann 13:00–13:20: der Tag hat 6:20 h, ihm fehlen 20 min (seit 1.9.166 Lesart A; bis dahin 30,
+    davon höchstens die 20 der Buchung) -- die Buchung bleibt mit 0 h; ein Nachtrag mit Von/Bis wird abgelehnt (keine Arbeitszeit übrig)."""
     _zeit(welt, welt["mia"], _um(welt, 7), _um(welt, 13))
     kurz = _zeit(welt, welt["mia"], _um(welt, 13), _um(welt, 13, 20))
     assert (kurz.break_minutes, kurz.hours) == (20, Decimal("0"))
@@ -182,7 +187,7 @@ def test_ohne_fruehere_buchung_tag_zusammen_gleich_anwesend(welt):
 
 def test_echter_tag_baustelle_wechsel_werkstatt(welt):
     """Der echte Tag der Vorgabe (1.9.53): Baustelle 07:00–12:00, „Zeitart wechseln“, Werkstatt bis 16:15 -> Werkstatt anwesend 4:15 h,
-    „Tag zusammen“ 9:15 h, Pause 45 min, gebucht 3,50 h; der Tag gebucht 8,50 h."""
+    „Tag zusammen“ 9:15 h, Pause 30 min, gebucht 3,75 h; der Tag gebucht 8,75 h (seit 1.9.166; bis dahin 45 min, 3,50 h und 8,50 h)."""
     db, h = welt["db"], welt["heute"]  # heute: eine Zeit von gestern wechselt die Zeitart nicht
     row = start_timer(db, employee_id=welt["mia"].id, order_id=welt["order"].id, started_at=datetime.combine(h, time(7)))
     neu = zeitart_wechseln(db, row.id, "workshop", jetzt=datetime.combine(h, time(12)))
@@ -190,15 +195,15 @@ def test_echter_tag_baustelle_wechsel_werkstatt(welt):
     from app.time_tracking import entry_to_dict, tag_stand
     d = {**entry_to_dict(zweite), **tag_stand(db, welt["mia"].id, h)}
     assert (Decimal(d["anwesend"]), Decimal(d["tag_zusammen"]), d["pause"], Decimal(d["gebucht"]), d["tag_buchungen"]) == \
-        (Decimal("4.25"), Decimal("9.25"), 45, Decimal("3.5"), 2)
+        (Decimal("4.25"), Decimal("9.25"), 30, Decimal("3.75"), 2)
     db.expire_all()
-    assert db.get(TimeEntry, row.id).hours + db.get(TimeEntry, zweite.id).hours == Decimal("8.5")
+    assert db.get(TimeEntry, row.id).hours + db.get(TimeEntry, zweite.id).hours == Decimal("8.75")
 
 
 def test_vorschau_rechnet_wie_die_funktion(welt):
     offen = start_timer(welt["db"], employee_id=welt["mia"].id, order_id=welt["order"].id, started_at=_um(welt, 7))
     v = ende_vorschau(welt["db"], offen.id, ende=_um(welt, 16, 1))
-    assert (v["pause"], v["tag_buchungen"]) == (45, 1)
+    assert (v["pause"], v["tag_buchungen"]) == (30, 1)  # 9:01 h -- seit 1.9.166 30 min (bis dahin 45)
 
 
 def test_feierabend_nennt_tag_zusammen(welt):

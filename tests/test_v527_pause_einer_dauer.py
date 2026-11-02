@@ -172,15 +172,15 @@ def _kolonne(w, rolle="buero_finanzen", employee_id=None, **params):
 
 def test_kolonne_dauer_je_person(welt):  # noqa: F811
     """„Kolonne buchen“ mit Dauer 8,00: Mia (sonst nichts am Tag) und Tom (Fahrzeit 06:15–07:00) -- ohne Pause passt keiner (Mia fehlt die Pause,
-    Toms Fahrzeit bekäme 30 min); mit 0:30 nur Mia (Tom ist dann über 9 h anwesend, er braucht 45 min); mit 0:45 beide, Tom mit „Tag zusammen“
-    9:30 h. Gebucht wie die Vorschau, die Pause je Person."""
+    Toms Fahrzeit bekäme 30 min); mit 0:30 beide (seit 1.9.166: Tom arbeitet 8:45 h, 30 min genügen; bis dahin verlangten 9:15 h Anwesenheit
+    45 min); mit 0:45 beide, Tom mit „Tag zusammen“ 9:30 h. Gebucht wie die Vorschau, die Pause je Person."""
     _buchung(welt, welt["tom"], time(6, 15), time(7), art="travel")
     params = {"work_date": welt["heute"].isoformat(), "hours": "8", "team_id": welt["team"].id, "employee_ids": [welt["mia"].id, welt["tom"].id]}
     ohne = _kolonne(welt, **params, break_minutes=0)
     assert ohne.status_code == 200, ohne.text
     assert [(m["name"], m["passt"], m["tag_buchungen"]) for m in ohne.json()["mitglieder"]] == [("Mia Monteurin", False, 1), ("Tom Monteur", False, 2)]
     halb = _kolonne(welt, **params, break_minutes=30).json()["mitglieder"]
-    assert [(m["passt"], D(m["tag_zusammen"])) for m in halb] == [(True, Decimal("8.5")), (False, Decimal("9.25"))]
+    assert [(m["passt"], D(m["tag_zusammen"])) for m in halb] == [(True, Decimal("8.5")), (True, Decimal("9.25"))]
     mit = _kolonne(welt, **params, break_minutes=45).json()["mitglieder"]
     assert [(m["name"], m["passt"], D(m["anwesend"]), D(m["tag_zusammen"])) for m in mit] == [
         ("Mia Monteurin", True, Decimal("8.75"), Decimal("8.75")), ("Tom Monteur", True, Decimal("8.75"), Decimal("9.5"))]
@@ -232,12 +232,12 @@ def test_bestehende_dauern_bleiben_unveraendert(welt):  # noqa: F811
 def test_dialog_dauer_vorschau_text():
     """Die Vorschau des Dialogs in „Dauer“ wie die Vorgabe: „Anwesend 8:45 h · Tag zusammen 9:30 h · Pause des Tags passt“ bzw. „… passt danach
     nicht – der Tag erscheint unter „Prüfen““; „Tag zusammen“ nur bei mehr als einer Buchung."""
-    passt = {"anwesend": 8.75, "tag_zusammen": 9.5, "tag_buchungen": 2, "passt": True, "gebucht": 8}
+    passt = {"anwesend": 8.75, "tag_zusammen": 9.5, "tag_buchungen": 2, "passt": True, "gebucht": 8, "noetig": 45}
     html = _node(("teileHtml", "dauerVorschauHtml"), f"return [dauerVorschauHtml({json.dumps(passt)}),"
-                 f"dauerVorschauHtml({json.dumps({**passt, 'passt': False, 'anwesend': 8, 'tag_zusammen': 8.75})}),"
+                 f"dauerVorschauHtml({json.dumps({**passt, 'passt': False, 'anwesend': 8, 'tag_zusammen': 8.75, 'noetig': 30})}),"
                  f"dauerVorschauHtml({json.dumps({**passt, 'tag_buchungen': 1})})]")
     assert [_text(h) for h in html] == ["Anwesend 8:45 h · Tag zusammen 9:30 h · Pause des Tags passt",
-                                        "Anwesend 8:00 h · Tag zusammen 8:45 h · Pause des Tags passt danach nicht – der Tag erscheint unter „Prüfen“",
+                                        "Anwesend 8:00 h · Tag zusammen 8:45 h · Pause des Tags passt danach nicht (nach Zeitregel 0:30 h) – der Tag erscheint unter „Prüfen“",
                                         "Anwesend 8:45 h · Pause des Tags passt"]
     assert 'class="vorschau-warn"' in html[1] and "vorschau-warn" not in html[0]
 
@@ -281,10 +281,10 @@ def test_pruefen_tag_nur_aus_dauern_ohne_so_buchen():
 
 
 def test_kolonne_vorschau_text():
-    v = {"mitglieder": [{"name": "Mia Monteurin", "gebucht": 8, "tag_buchungen": 1, "tag_zusammen": 8, "passt": False},
+    v = {"mitglieder": [{"name": "Mia Monteurin", "gebucht": 8, "tag_buchungen": 1, "tag_zusammen": 8, "passt": False, "noetig": 30},
                         {"name": "Tom Monteur", "gebucht": 8, "tag_buchungen": 2, "tag_zusammen": 9.25, "passt": True}]}
     html = _node(("kdDauerHtml",), f"return kdDauerHtml({json.dumps(v)})")
-    assert _text(html) == ("Mia Monteurin 8,00 h – Pause passt danach nicht · Tom Monteur 8,00 h (Tag zusammen 9:15 h) – Pause passt "
+    assert _text(html) == ("Mia Monteurin 8,00 h – Pause passt danach nicht (nach Zeitregel 0:30 h) · Tom Monteur 8,00 h (Tag zusammen 9:15 h) – Pause passt "
                            "Passt die Pause eines Tags danach nicht, erscheint er unter „Prüfen“.")
     beide = _node(("kdDauerHtml",), f"return kdDauerHtml({json.dumps({'mitglieder': [{**m, 'passt': True} for m in v['mitglieder']]})})")
     assert "Prüfen" not in beide

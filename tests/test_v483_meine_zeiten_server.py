@@ -55,14 +55,15 @@ def _zahlen(d, stunden="gebucht"):
 # --- Nachtrag: Vorschau = Buchung ---------------------------------------------------------------------------------------------------
 
 def test_nachtrag_mit_vorbuchung_pause_aus_dem_tag(welt):  # noqa: F811
-    """Angriff: Baustelle 07:00–12:00 gebucht, Nachtrag 12:00–16:15 -> der Tag hat 9:15 h, 45 min bei der Nachtragung; Vorschau = Buchung."""
+    """Angriff: Baustelle 07:00–12:00 gebucht, Nachtrag 12:00–16:15 -> der Tag hat 9:15 h, 30 min bei der Nachtragung (seit 1.9.166; bis
+    dahin 45); Vorschau = Buchung."""
     client = _monteurin(welt)
     _zeit(welt, welt["mia"], time(7), time(12))
     v = _vorschau(client, welt, "12:00", "16:15")
     assert v.status_code == 200, v.text
     b = _nachtrag(client, welt, "12:00", "16:15")
     assert b.status_code == 200, b.text
-    assert _zahlen(v.json()) == (Decimal("4.25"), 45, Decimal("3.5"), Decimal("9.25"), 2)
+    assert _zahlen(v.json()) == (Decimal("4.25"), 30, Decimal("3.75"), Decimal("9.25"), 2)
     assert _zahlen(b.json(), "hours") == _zahlen(v.json())
 
 
@@ -88,12 +89,12 @@ def test_vorschau_und_buchung_runden_gleich(welt):  # noqa: F811
 # --- Ändern über Von/Bis ----------------------------------------------------------------------------------------------------------
 
 def test_aendern_rechnet_den_tag_ohne_die_alte_fassung(welt):  # noqa: F811
-    """Angriff: 07:00–12:00 und 12:00–16:15 (45 min); die zweite auf 12:00–15:00 geändert -> der Tag ohne ihre alte Fassung hat 8:00 h,
+    """Angriff: 07:00–12:00 und 12:00–16:15 (30 min, bis 1.9.165 45); die zweite auf 12:00–15:00 geändert -> der Tag ohne ihre alte Fassung hat 8:00 h,
     30 min; die erste bleibt, wie sie ist. Vorschau mit entry_id = Ergebnis."""
     client = _monteurin(welt)
     erste = _zeit(welt, welt["mia"], time(7), time(12))
     zweite = _zeit(welt, welt["mia"], time(12), time(16, 15))
-    assert zweite.break_minutes == 45
+    assert zweite.break_minutes == 30
     vorher = (erste.hours, erste.break_minutes, erste.started_at, erste.ended_at)
     v = _vorschau(client, welt, "12:00", "15:00", entry_id=zweite.id).json()
     antwort = client.put(f"/api/time-entries/{zweite.id}", json={"von": "12:00", "bis": "15:00", "work_date": welt["heute"].isoformat()})
@@ -107,7 +108,7 @@ def test_aendern_rechnet_den_tag_ohne_die_alte_fassung(welt):  # noqa: F811
 
 
 def test_aendern_mit_mindestpause(welt):  # noqa: F811
-    """„Pause mindestens“ beim Ändern: 07:00–16:15 mit 60 min statt 45."""
+    """„Pause mindestens“ beim Ändern: 07:00–16:15 mit 60 min statt 30 (bis 1.9.165 45)."""
     client = _monteurin(welt)
     row = _zeit(welt, welt["mia"], time(7), time(16, 15))
     d = client.put(f"/api/time-entries/{row.id}", json={"von": "07:00", "bis": "16:15", "pause_minuten": 60}).json()
@@ -134,18 +135,18 @@ def test_aendern_abgelehnt_im_abgeschlossenen_monat_und_fremd(welt):  # noqa: F8
 # --- Pausen je Tag: Hinweis nach dem Löschen, neu rechnen nur auf Klick -------------------------------------------------------------
 
 def test_loeschen_hinweis_am_tag_nichts_automatisch(welt):  # noqa: F811
-    """Angriff: 07:00–12:00 und 12:00–16:15 (45 min); die erste gelöscht -> die zweite behält 45 min (nichts von selbst), der Tag meldet
-    „abgezogen 45, nach Zeitregel 0“ mit der Vorschau 45 -> 0, gebucht 3,50 -> 4,25."""
+    """Angriff: 07:00–12:00 und 12:00–16:15 (30 min); die erste gelöscht -> die zweite behält 30 min (nichts von selbst), der Tag meldet
+    „abgezogen 30, nach Zeitregel 0“ mit der Vorschau 30 -> 0, gebucht 3,75 -> 4,25 (seit 1.9.166; bis dahin 45 und 3,50)."""
     client = _monteurin(welt)
     erste = _zeit(welt, welt["mia"], time(7), time(12))
     zweite = _zeit(welt, welt["mia"], time(12), time(16, 15))
     assert client.delete(f"/api/time-entries/{erste.id}").status_code == 200
     welt["db"].expire_all()
-    assert welt["db"].get(TimeEntry, zweite.id).break_minutes == 45
+    assert welt["db"].get(TimeEntry, zweite.id).break_minutes == 30
     t = client.get("/api/time-entries/tagespause", params={"work_date": welt["heute"].isoformat()}).json()
-    assert (t["abgezogen"], t["nach_zeitregel"], t["passt"]) == (45, 0, False)
+    assert (t["abgezogen"], t["nach_zeitregel"], t["passt"]) == (30, 0, False)
     assert [(b["id"], b["pause_alt"], b["pause_neu"], Decimal(str(b["gebucht_alt"])), Decimal(str(b["gebucht_neu"]))) for b in t["buchungen"]] == \
-        [(zweite.id, 45, 0, Decimal("3.5"), Decimal("4.25"))]
+        [(zweite.id, 30, 0, Decimal("3.75"), Decimal("4.25"))]
 
 
 def test_pausen_neu_rechnen_bucht_genau_die_vorschau(welt):  # noqa: F811
@@ -156,10 +157,10 @@ def test_pausen_neu_rechnen_bucht_genau_die_vorschau(welt):  # noqa: F811
     zweite = _zeit(welt, welt["mia"], time(12), time(16, 15))
     client.delete(f"/api/time-entries/{erste.id}")
     tag = welt["heute"].isoformat()
-    falsch = client.post("/api/time-entries/pausen-neu-rechnen", json={"work_date": tag, "buchungen": [{"id": zweite.id, "pause": 30}]})
+    falsch = client.post("/api/time-entries/pausen-neu-rechnen", json={"work_date": tag, "buchungen": [{"id": zweite.id, "pause": 15}]})
     assert falsch.status_code == 409, falsch.text
     welt["db"].expire_all()
-    assert welt["db"].get(TimeEntry, zweite.id).break_minutes == 45
+    assert welt["db"].get(TimeEntry, zweite.id).break_minutes == 30
     richtig = client.post("/api/time-entries/pausen-neu-rechnen", json={"work_date": tag, "buchungen": [{"id": zweite.id, "pause": 0}]})
     assert richtig.status_code == 200, richtig.text
     assert richtig.json()["passt"] is True
@@ -167,7 +168,7 @@ def test_pausen_neu_rechnen_bucht_genau_die_vorschau(welt):  # noqa: F811
     z = welt["db"].get(TimeEntry, zweite.id)
     assert (z.break_minutes, z.hours) == (0, Decimal("4.25"))
     verlauf = welt["db"].scalars(select(AuditLog).where(AuditLog.action == "Pausen neu gerechnet")).all()
-    assert [(v.old_value, v.new_value) for v in verlauf] == [("45", "0")]
+    assert [(v.old_value, v.new_value) for v in verlauf] == [("30", "0")]
     assert client.post("/api/time-entries/pausen-neu-rechnen", json={"work_date": tag, "buchungen": [{"id": zweite.id, "pause": 0}]}).status_code == 409
 
 

@@ -120,7 +120,8 @@ def test_pruefabfrage_weit_unter_postgresql():
         # b) Kolonnen mit Von/Bis: Tom mit Fahrzeit am Morgen (30 min Pause), danach die Stunden wie der Fehler bis 1.9.89 (Mittel und
         # Pause des Kopfs) -- beide gefunden; eine richtige Kolonne und eine mit Rundung auf 15 min nicht; ein Einzelner nicht
         tag_b = date(2026, 10, 19)
-        fahrt = start_timer(db, employee_id=tom.id, order_id=order.id, entry_type="travel", started_at=datetime.combine(tag_b, time(6, 15)))
+        # seit 1.9.166 ab 06:00 (bis dahin 06:15: Tag 6:15 h verlangt nach Lesart A nur 15 min)
+        fahrt = start_timer(db, employee_id=tom.id, order_id=order.id, entry_type="travel", started_at=datetime.combine(tag_b, time(6)))
         stop_timer(db, fahrt.id, ended_at=datetime.combine(tag_b, time(7)))
         gb1, bm1, bt1, _pb1 = gruppe(tag_b, von=time(7), bis=time(12, 30))
         assert [(db.get(TimeEntry, b).hours, db.get(TimeEntry, b).break_minutes) for b in (bm1, bt1)] == [(Decimal("5.5"), 0), (Decimal("5"), 30)]

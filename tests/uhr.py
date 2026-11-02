@@ -19,7 +19,7 @@ weiter mit der echten Zeit, wie im Betrieb neben einer Ortszeit, die nur über b
 
 import time as _time
 from contextlib import contextmanager
-from datetime import datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
 from app import berlin_time
 
@@ -27,8 +27,10 @@ STANDARD_UHRZEIT = time(10, 0)
 
 
 @contextmanager
-def uhr_festhalten(uhrzeit: time = STANDARD_UHRZEIT):
-    heute = berlin_time.berlin_today()
+def uhr_festhalten(uhrzeit: time = STANDARD_UHRZEIT, tag: date | None = None):
+    """tag (seit 1.9.166, Lohn L1a): die Uhr beginnt an diesem Tag statt heute -- für Tests mit festen Tagen, deren Ergebnis nicht am Lauftag
+    hängen soll (Fixture `fester_tag`)."""
+    heute = tag or berlin_time.berlin_today()
     start = datetime.combine(heute, uhrzeit, tzinfo=berlin_time.BERLIN).astimezone(timezone.utc)
     beginn = _time.monotonic()
     vorher = berlin_time._utc_now

@@ -87,15 +87,15 @@ def test_liste_kennzeichnet_buchungen_auf_geschlossenen_auftraegen(welt):  # noq
 # --- Punkt 3: Von/Bis wie die Monteurin -------------------------------------------------------------------------------------------
 
 def test_buero_nachtrag_von_bis_pause_aus_dem_tag_vorschau_gleich_buchung(welt):  # noqa: F811
-    """Tom hat 07:00–12:00 gebucht; das Büro trägt für ihn 12:00–16:15 nach -- der Tag hat 9:15 h, 45 min bei der Nachtragung (dieselbe
-    Rechnung wie bei der Monteurin, test_v483); Vorschau = Buchung."""
+    """Tom hat 07:00–12:00 gebucht; das Büro trägt für ihn 12:00–16:15 nach -- der Tag hat 9:15 h, 30 min bei der Nachtragung (dieselbe
+    Rechnung wie bei der Monteurin, test_v483; bis 1.9.165 45 min); Vorschau = Buchung."""
     _zeit(welt, welt["tom"], time(7), time(12))
     buero = _buero(welt)
     vorschau = buero.get("/api/time-entries/nachtrag-vorschau", params={"work_date": welt["heute"].isoformat(), "von": "12:00",
                                                                         "bis": "16:15", "employee_id": welt["tom"].id}).json()
     neu = buero.post("/api/time-entries", json={"employee_id": welt["tom"].id, "order_id": welt["order"].id,
                                                 "work_date": welt["heute"].isoformat(), "von": "12:00", "bis": "16:15"}).json()
-    assert _zahlen(vorschau) == _zahlen(neu) == (Decimal("4.25"), 45, Decimal("3.5"))
+    assert _zahlen(vorschau) == _zahlen(neu) == (Decimal("4.25"), 30, Decimal("3.75"))
     assert (neu["started_at"], neu["ended_at"]) == (f"{welt['heute'].isoformat()}T12:00:00", f"{welt['heute'].isoformat()}T16:15:00")
 
 
@@ -144,7 +144,8 @@ def test_ohne_zeit_aenderung_bleiben_von_und_bis(welt, aenderung):  # noqa: F811
 
 
 def _kolonne_von_bis(w):
-    """Mia hat 07:00–12:00 gebucht; Kolonnen-Nachtrag 12:00–16:15 für Mia und Tom -- Mia 45 min Pause (3,50 h), Tom ohne (4,25 h)."""
+    """Mia hat 07:00–12:00 gebucht; Kolonnen-Nachtrag 12:00–16:15 für Mia und Tom -- Mia 30 min Pause (3,75 h; bis 1.9.165 45 min und
+    3,50 h), Tom ohne (4,25 h)."""
     _zeit(w, w["mia"], time(7), time(12))
     gruppe = create_group_manual_entry(w["db"], employee_ids=[w["mia"].id, w["tom"].id], team_id=w["team"].id, actor_employee_id=None,
                                        is_admin=True, order_id=w["order"].id, work_date=w["heute"], von=time(12), bis=time(16, 15))
@@ -161,7 +162,7 @@ def test_kolonne_nur_notiz_behaelt_die_stunden_jedes_mitglieds(welt):  # noqa: F
     """Angriff (Befund 1.9.90): bis 1.9.89 bekam jedes Mitglied beim Ändern nur der Notiz die Stunden des Kopfs (das Mittel 3,875 h)."""
     group_id = _kolonne_von_bis(welt)
     vorher = _mitglieder(welt, group_id)
-    assert vorher == {welt["mia"].id: (Decimal("3.5"), True, True), welt["tom"].id: (Decimal("4.25"), True, True)}
+    assert vorher == {welt["mia"].id: (Decimal("3.75"), True, True), welt["tom"].id: (Decimal("4.25"), True, True)}
     antwort = _buero(welt).put(f"/api/time-entry-groups/{group_id}", json={"notes": "Material nachgeholt"})
     assert antwort.status_code == 200, antwort.text
     assert _mitglieder(welt, group_id) == vorher

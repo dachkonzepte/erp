@@ -40,12 +40,13 @@ def _nachtrag(client, order, emp, **werte):
 
 
 def test_nachtrag_von_bis_zieht_die_pause_nach_der_zeitregel_ab(monkeypatch, monteurin):
-    """Angriff auf die alte Rechnung: 06:45–16:00 sind 9,25 h anwesend -- ab 9 h 45 min Pause, gebucht 8,50 h (bis 1.9.33: 9,25 h)."""
+    """Angriff auf die alte Rechnung: 06:45–16:00 sind 9,25 h anwesend -- über 9 h höchstens bis auf 9,00 h: 30 min Pause, gebucht 8,75 h
+    (seit 1.9.166; bis 1.9.165 45 min und 8,50 h, bis 1.9.33 9,25 h)."""
     db, client, order, emp = monteurin
     antwort = _nachtrag(client, order, emp, von="06:45", bis="16:00")
     assert antwort.status_code == 200, antwort.text
     d = antwort.json()
-    assert (Decimal(d["anwesend"]), d["pause"], Decimal(d["gebucht"])) == (Decimal("9.25"), 45, Decimal("8.5"))
+    assert (Decimal(d["anwesend"]), d["pause"], Decimal(d["gebucht"])) == (Decimal("9.25"), 30, Decimal("8.75"))
     assert (d["started_at"], d["ended_at"]) == ("2026-10-14T06:45:00", "2026-10-14T16:00:00")
     assert d["hours"] == d["gebucht"] and d["break_minutes"] == d["pause"]
 
@@ -70,7 +71,7 @@ def test_eine_dauer_bleibt_gebuchte_arbeitszeit(monteurin, router_test_client):
     assert (Decimal(d["gebucht"]), d["pause"], Decimal(d["anwesend"])) == (Decimal("9"), 0, Decimal("9"))
 
 
-@pytest.mark.parametrize("eingegeben, pause", [(20, 45), (60, 60)])
+@pytest.mark.parametrize("eingegeben, pause", [(20, 30), (60, 60)])  # seit 1.9.166 nach Zeitregel 30 (bis dahin 45)
 def test_zusaetzliche_pause_bleibt_mindestpause(monteurin, eingegeben, pause):
     db, client, order, emp = monteurin
     d = _nachtrag(client, order, emp, von="06:45", bis="16:00", break_minutes=eingegeben).json()
@@ -91,7 +92,7 @@ def test_feierabend_bucht_nach_derselben_regel(monteurin):
     db, client, order, emp = monteurin
     row = start_timer(db, employee_id=emp.id, order_id=order.id, started_at=datetime(2026, 10, 14, 6, 45))
     row = stop_timer(db, row.id, ended_at=datetime(2026, 10, 14, 16, 0))
-    assert (row.break_minutes, row.hours) == (45, Decimal("8.5"))
+    assert (row.break_minutes, row.hours) == (30, Decimal("8.75"))
 
 
 def _aufrufe(baum, name):

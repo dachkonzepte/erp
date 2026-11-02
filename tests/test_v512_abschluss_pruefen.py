@@ -37,7 +37,7 @@ def _zeit(w, emp, von, bis, tag):
 
 
 def _pause_passt_nicht(w, emp, tag):
-    """07:00–12:00 und 12:00–16:15 (45 min bei der zweiten), die erste gelöscht -- abgezogen 45, nach Zeitregel 0."""
+    """07:00–12:00 und 12:00–16:15 (30 min bei der zweiten, bis 1.9.165 45), die erste gelöscht -- abgezogen 30, nach Zeitregel 0."""
     erste = _zeit(w, emp, time(7), time(12), tag)
     zweite = _zeit(w, emp, time(12), time(16, 15), tag)
     delete_entry(w["db"], erste.id)
@@ -70,13 +70,13 @@ def test_heute_laufende_zeit_sperrt_nur_einen_abschluss_bis_heute(welt):  # noqa
 
 
 def test_unpassende_pause_sperrt_den_abschluss(welt):  # noqa: F811
-    """Angriff: Mias Tag gestern passt nicht (abgezogen 45, nach Zeitregel 0) -> 409 mit dem Tag. Gegenprobe: Pausen neu gerechnet -> 200."""
+    """Angriff: Mias Tag gestern passt nicht (abgezogen 30, nach Zeitregel 0) -> 409 mit dem Tag. Gegenprobe: Pausen neu gerechnet -> 200."""
     zweite = _pause_passt_nicht(welt, welt["mia"], welt["gestern"])
     antwort = _abschliessen(welt, welt["gestern"])
     assert antwort.status_code == 409
     eintrag = antwort.json()["liste"]
     assert [(x["art"], x["name"], x["tag"]) for x in eintrag] == [("pause", "Mia Monteurin", welt["gestern"].isoformat())]
-    assert eintrag[0]["text"] == f"Mia Monteurin, {welt['gestern']:%d.%m.%Y}: Pause abgezogen 45 min, nach Zeitregel 0 min"
+    assert eintrag[0]["text"] == f"Mia Monteurin, {welt['gestern']:%d.%m.%Y}: Pause abgezogen 30 min, nach Zeitregel 0 min"
     assert "1 Tag mit unpassender Pause" in antwort.json()["detail"]
     assert _als(welt).post("/api/time-entries/pausen-neu-rechnen", json={"work_date": welt["gestern"].isoformat(), "employee_id": welt["mia"].id,
                                                                      "buchungen": [{"id": zweite.id, "pause": 0}]}).status_code == 200

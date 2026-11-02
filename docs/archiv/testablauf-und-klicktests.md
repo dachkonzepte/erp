@@ -1328,3 +1328,11 @@ Vorgabe vom 26.10.2026: „den Port-Wettlauf aus dem Befund vom 24.10. beheben (
 ## Offen: `test_v419_verbindungen_unter_last::test_viele_gleichzeitige_seiten_und_abfragen` (R2 Outlook, 31.10.2026)
 
 Rot in 2 von 23 vollen Läufen (Lauf für 1.9.163, erster Endlauf auf 72cc155): 503 nach rund 8 s (Pool 2, 3 s Wartezeit, 70 Anfragen zugleich). Gemessen: längste Anfrage des Schubs 3–4 s ohne Last, 5–6 s unter 40 Rechenprozessen. Grün auf dem Stand vor R2 und dem Endstand, einzeln (8 von 8), unter Rechenlast (8 von 8), neben Migrationsketten auf derselben PostgreSQL (16 von 16). Der Test hat wenig Luft; den Auslöser in der vollen Suite konnte ich nicht nachstellen, ein Zusammenhang mit 1.9.163 ist nicht belegt und nicht ausgeschlossen. Test nicht geändert, damit ein möglicher echter Befund nicht abgeschaltet wird. Tritt er auf: einzeln wiederholen, dann die Suite; bleibt er in der Suite rot, ist es ein Befund.
+
+## Feste Tage für Tests der Zeitregeln (1.9.166, Lohn L1a)
+
+`tests/uhr.py::uhr_festhalten(tag=…)` lässt die Uhr an einem festen Tag beginnen, die Fixture `fester_tag` (`tests/conftest.py`) am Dienstag 10.11.2026, 10:00 Uhr. Anlass: Entscheidung Tobias E2 (Tests mit festen Tagen, nicht relativ zu heute) und der Fund L0 (`klicktest_monteurin_regeln` am Monatsersten rot).
+
+**Festlegungen 1.9.166 zu Werkzeug und Testablauf (Bitte bestätigen)**
+
+1. Neue Tests der Zeitregeln nehmen `fester_tag`; bestehende stellen um, wenn sie ohnehin angefasst werden (diesmal `test_v474`). Die übrigen geänderten Dateien behalten ihren Aufbau und bekommen nur die neuen Zahlen.

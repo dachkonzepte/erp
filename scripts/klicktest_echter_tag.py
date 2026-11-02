@@ -5,8 +5,9 @@ dieselbe Funktion, die der Knopf aufruft -- app/time_tracking.py::zeitart_wechse
 07:00 offen, sonst keine Buchung. Stehende Uhr: 23.10.2026, 16:15 (Instanz und Browser) -- „Feierabend“ bucht genau 16:15.
 
     Ben (1280 × 620, hell)  vor dem Feierabend: „Werkstattzeit seit 12:00“, 4:15 h; „Feierabend“ -> Ergebnis „Feierabend gebucht: anwesend
-                            4:15 h · Tag zusammen 9:15 h · Pause nach Zeitregel − 0:45 h · gebucht 3,50 h“; gebucht (API): Baustelle 5,00 h
-                            ohne Pause, Werkstatt 4,25 h anwesend, 45 min, 3,50 h; der Tag 8,50 h gebucht
+                            4:15 h · Tag zusammen 9:15 h · Pause nach Zeitregel − 0:30 h · gebucht 3,75 h“; gebucht (API): Baustelle 5,00 h
+                            ohne Pause, Werkstatt 4,25 h anwesend, 30 min, 3,75 h; der Tag 8,75 h gebucht (seit 1.9.166 Lesart A:
+                            über 9 h höchstens bis auf 9,00 h; bis dahin 45 min, 3,50 h und 8,50 h)
     Pia (1280 × 620, hell)  Zeit von gestern ohne frühere Buchung: 16:00 -> Vorschau „Anwesend 9:00 h · Pause nach Zeitregel − 0:30 h“ und
                             „Gebucht werden 8,50 h“ -- kein „Tag zusammen“ (der Tag hat keine andere Buchung; 9:00 h ist nicht „mehr als 9 h“)
 
@@ -92,14 +93,14 @@ async def pruefen(tab, seed, p):
     await tab.bild("echter_tag_vor_feierabend_hell")
     await tab.warte_auf_neu_geladene_liste("document.getElementById('feierabendKnopf').click()", "#arbeitszeit")
     p.pruefe("Ben: Ergebnis nach dem Feierabend", await tab.js("document.getElementById('zeitErgebnis').textContent"),
-             "Feierabend gebucht: anwesend 4:15 h · Tag zusammen 9:15 h · Pause nach Zeitregel − 0:45 h · gebucht 3,50 h")
+             "Feierabend gebucht: anwesend 4:15 h · Tag zusammen 9:15 h · Pause nach Zeitregel − 0:30 h · gebucht 3,75 h")
     await tab.bild("echter_tag_nach_feierabend_hell")
     gebucht = await tab.js(f"fetch('/api/time-entries?employee_id={seed['ben']}&start_date={seed['heute']}&end_date={seed['heute']}')"
                            ".then(r=>r.json()).then(l=>l.sort((x,y)=>x.started_at<y.started_at?-1:1)"
                            ".map(e=>[e.entry_type,e.started_at.slice(11,16),e.ended_at.slice(11,16),Number(e.anwesend),e.pause,Number(e.hours)]))")
-    p.pruefe("Ben: gebucht -- Baustelle 5,00 h, Werkstatt 4,25 h anwesend, 45 min, 3,50 h", gebucht,
-             [["site", "07:00", "12:00", 5, 0, 5], ["workshop", "12:00", "16:15", 4.25, 45, 3.5]])
-    p.pruefe("Ben: der Tag 8,50 h gebucht", round(sum(z[5] for z in gebucht or []), 2), 8.5)
+    p.pruefe("Ben: gebucht -- Baustelle 5,00 h, Werkstatt 4,25 h anwesend, 30 min, 3,75 h", gebucht,
+             [["site", "07:00", "12:00", 5, 0, 5], ["workshop", "12:00", "16:15", 4.25, 30, 3.75]])
+    p.pruefe("Ben: der Tag 8,75 h gebucht", round(sum(z[5] for z in gebucht or []), 2), 8.75)
     p.pruefe("Ben: keine JS-Fehler", tab.fehler, [])
 
     # --- Pia: Zeit von gestern ohne frühere Buchung -- kein „Tag zusammen“ ---

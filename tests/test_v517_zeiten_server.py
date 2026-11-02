@@ -46,7 +46,7 @@ def _abschluss(w, bis):
 
 
 def _pause_passt_nicht(w, emp, tag):
-    """07:00–12:00 und 12:00–16:15 (45 min bei der zweiten), die erste gelöscht -- abgezogen 45, nach Zeitregel 0."""
+    """07:00–12:00 und 12:00–16:15 (30 min bei der zweiten, bis 1.9.165 45), die erste gelöscht -- abgezogen 30, nach Zeitregel 0."""
     erste = _zeit(w, emp, time(7), time(12), tag)
     zweite = _zeit(w, emp, time(12), time(16, 15), tag)
     delete_entry(w["db"], erste.id)
@@ -122,7 +122,7 @@ def test_pruefen_zeiten_von_frueher(welt):  # noqa: F811
     ende = {"ende": f"{welt['gestern'].isoformat()}T16:00", "pause_minuten": 0}
     vorschau = client.get(f"/api/time-entries/{row.id}/ende-vorschau", params=ende).json()
     gebucht = client.post(f"/api/time-entries/{row.id}/ende-nachtragen", json=ende).json()
-    assert (D(vorschau["gebucht"]), vorschau["pause"]) == (D(gebucht["hours"]), gebucht["break_minutes"]) == (Decimal("8.5"), 45)
+    assert (D(vorschau["gebucht"]), vorschau["pause"]) == (D(gebucht["hours"]), gebucht["break_minutes"]) == (Decimal("8.75"), 30)  # 9:15 h (seit 1.9.166; bis dahin 8,50 und 45)
     assert _get(welt, "/api/zeiten/pruefen")["offene_zeiten"] == []
 
 
@@ -134,11 +134,11 @@ def test_pruefen_pause_passt_nicht_mit_vorschau(welt):  # noqa: F811
     p = _get(welt, "/api/zeiten/pruefen")
     stand = pausen_vorschau(welt["db"], welt["mia"].id, welt["gestern"])
     assert [(t["name"], t["tag"], t["abgezogen"], t["nach_zeitregel"]) for t in p["pausen"]] == [
-        ("Mia Monteurin", welt["gestern"].isoformat(), 45, 0)]
+        ("Mia Monteurin", welt["gestern"].isoformat(), 30, 0)]
     b = p["pausen"][0]["buchungen"]
     assert [(x["id"], x["zeitart"], x["von"], x["bis"], x["pause_alt"], x["pause_neu"], D(x["gebucht_alt"]), D(x["gebucht_neu"]))
             for x in b] == [(zweite.id, "Baustellenzeit", f"{welt['gestern'].isoformat()}T12:00:00", f"{welt['gestern'].isoformat()}T16:15:00",
-                             45, 0, Decimal("3.5"), Decimal("4.25"))]
+                             30, 0, Decimal("3.75"), Decimal("4.25"))]
     assert [(x["id"], x["pause_neu"]) for x in b] == [(x["id"], x["pause_neu"]) for x in stand["buchungen"]]
     antwort = _als(welt).post("/api/time-entries/pausen-neu-rechnen", json={
         "work_date": welt["gestern"].isoformat(), "employee_id": welt["mia"].id, "buchungen": [{"id": x["id"], "pause": x["pause_neu"]} for x in b]})

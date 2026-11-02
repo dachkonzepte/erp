@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import Decimal, ROUND_FLOOR, ROUND_HALF_UP
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
@@ -242,17 +242,47 @@ def employee_model_rows(db: Session) -> list[dict]:
     return result
 
 
-def automatic_break_minutes_for_duration(db: Session, employee_id: int, gross_hours: Decimal, on_date: date | None = None) -> int:
-    model = employee_model(db, employee_id, on_date or berlin_today())
-    if model is None:
+def _minuten_ueber(stunden: Decimal, schwelle: Decimal) -> int:
+    """Ganze Minuten über der Schwelle, abgerundet (zugunsten der Person). Die Anwesenheit kommt auf vier Stellen gerundet (20 min =
+    0,3333 h), deshalb zuerst auf Hundertstel Minuten."""
+    ueber = (stunden - schwelle) * 60
+    if ueber <= 0:
         return 0
-    gross = Decimal(str(gross_hours or 0))
-    result = 0
-    for rule in sorted(model.break_rules, key=lambda x: Decimal(x.threshold_hours)):
-        # seit 1.9.48 (Stufe 4, R2 Nachrunde) „mehr als“ die Schwelle wie § 4 ArbZG -- bis 1.9.46 „ab“ (>=)
-        if gross > Decimal(rule.threshold_hours):
-            result = max(result, int(rule.break_minutes or 0))
-    return result
+    return int(ueber.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP).to_integral_value(rounding=ROUND_FLOOR))
+
+
+def _regeln(model: WorkTimeModel | None) -> list[tuple[Decimal, int]]:
+    return sorted(((Decimal(r.threshold_hours), int(r.break_minutes or 0)) for r in (model.break_rules if model else [])))
+
+
+def pflichtpause(regeln: list[tuple[Decimal, int]], anwesend) -> int:
+    """Seit 1.9.166 (Lohn L1a, Punkt 1, Entscheidung Tobias E1, Lesart A): die gesetzliche Pause zu einer Anwesenheit -- je Regel höchstens die
+    Minuten über ihrer Schwelle, davon das Maximum. Die Pause bringt die Arbeitszeit nie unter die Schwelle: 6:15 h -> 15 min (6,00 h),
+    9:15 h -> 30 min (8,75 h), 9:30 h -> 30 min (9,00 h), 9:45 h -> 45 min. Das ist § 4 ArbZG auf die Arbeitszeit angewandt (über 6 h Arbeit
+    30 min, über 9 h 45 min) und wächst nie schneller als die Anwesenheit. Bis 1.9.165 die volle Pause, sobald die Schwelle überschritten war
+    (6:15 h -> 30 min = 5,75 h)."""
+    gross = Decimal(str(anwesend or 0))
+    return max((min(pause, _minuten_ueber(gross, schwelle)) for schwelle, pause in regeln), default=0)
+
+
+def fehlende_pause(regeln: list[tuple[Decimal, int]], anwesend, abgezogen: int) -> int:
+    """Seit 1.9.166 (Lohn L1a, Punkt 1): wie viel Pause einem Tag mit einer Dauer noch fehlt. Eine Dauer ist Arbeitszeit (netto) -- jede
+    Minute Pause, die dazukommt, verlängert ihre Anwesenheit. Gesucht ist deshalb die kleinste Ergänzung, nach der die abgezogene Pause zur
+    neuen Anwesenheit passt: eine Regel verlangt ihre volle Pause, sobald die Arbeitszeit über ihrer Schwelle liegt (6,25 h ohne Pause ->
+    30 min, nicht 15: mit 15 wären es 6:30 h Anwesenheit, die wieder 30 verlangen). anwesend: Stunden samt der schon abgezogenen Pause."""
+    gross = Decimal(str(anwesend or 0))
+    abgezogen = max(0, int(abgezogen or 0))
+    return max([0] + [pause - abgezogen for schwelle, pause in regeln if _minuten_ueber(gross, schwelle) > abgezogen])
+
+
+def automatic_break_minutes_for_duration(db: Session, employee_id: int, gross_hours: Decimal, on_date: date | None = None) -> int:
+    # seit 1.9.48 (Stufe 4, R2 Nachrunde) „mehr als“ die Schwelle wie § 4 ArbZG -- bis 1.9.46 „ab“ (>=); seit 1.9.166 Lesart A (pflichtpause())
+    return pflichtpause(_regeln(employee_model(db, employee_id, on_date or berlin_today())), gross_hours)
+
+
+def fehlende_pause_am_tag(db: Session, employee_id: int, anwesend, abgezogen: int, on_date: date) -> int:
+    """fehlende_pause() mit den Regeln des Modells, das an diesem Tag für die Person gilt."""
+    return fehlende_pause(_regeln(employee_model(db, employee_id, on_date)), anwesend, abgezogen)
 
 
 def automatic_break_minutes_for_timer(db: Session, employee_id: int, started_at: datetime, ended_at: datetime) -> int:

@@ -121,13 +121,13 @@ def test_falsches_ende_abgelehnt(welt, tag_versatz, uhrzeit, text):
 
 
 def test_richtiges_ende_gebucht_mit_pause_nach_zeitregel(welt):
-    """Gegenprobe: 06:45–16:00 am Starttag -- gebucht wie ein Feierabend um 16:00 (9,25 h anwesend, 45 min Pause, 8,50 h)."""
+    """Gegenprobe: 06:45–16:00 am Starttag -- gebucht wie ein Feierabend um 16:00 (9,25 h anwesend, 30 min Pause, 8,75 h; bis 1.9.165 45 min und 8,50 h)."""
     row = _gestern_gestartet(welt, welt["mia"])
     antwort = _ende(_als(welt, welt["mia"]), row.id, welt["gestern"], "16:00")
     assert antwort.status_code == 200, antwort.text
     d = antwort.json()
     assert (d["status"], d["ended_at"], d["laeuft_seit_frueher"]) == ("booked", f"{welt['gestern'].isoformat()}T16:00:00", False)
-    assert (Decimal(d["anwesend"]), d["pause"], Decimal(d["gebucht"])) == (Decimal("9.25"), 45, Decimal("8.5"))
+    assert (Decimal(d["anwesend"]), d["pause"], Decimal(d["gebucht"])) == (Decimal("9.25"), 30, Decimal("8.75"))
 
 
 def test_eingegebene_pause_ist_mindestpause(welt):
@@ -249,7 +249,7 @@ def test_kolonnenfuehrer_schliesst_die_ganze_gruppe(welt):
     db.expire_all()
     for entry_id in zeiten.values():
         e = db.get(TimeEntry, entry_id)
-        assert (e.status, e.ended_at, e.break_minutes, e.hours) == ("booked", datetime.combine(welt["gestern"], time(16)), 45, Decimal("8.5"))
+        assert (e.status, e.ended_at, e.break_minutes, e.hours) == ("booked", datetime.combine(welt["gestern"], time(16)), 30, Decimal("8.75"))
     assert db.get(type(gruppe), gruppe.id).status == "booked"
 
 

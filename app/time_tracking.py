@@ -14,7 +14,7 @@ from .models import (
 )
 
 from .rounding import round_half_up, round_hours
-from .work_time_models import automatic_break_minutes_for_duration
+from .work_time_models import automatic_break_minutes_for_duration, fehlende_pause_am_tag
 
 ENTRY_TYPES = {"site", "workshop", "travel", "other"}
 # Zeitarten, die NIE als produktiv gelten -- travel (Fahrzeit) sowie die beiden Schlechtwetter-
@@ -150,7 +150,7 @@ def mindestpause_der_buchung(row: TimeEntry) -> int:
 
 
 def pause_nach_zeitregel(db: Session, employee_id: int, anwesend, am: date, mindestpause: int = 0, ohne_id: int | None = None, *,
-                         vorher: tuple[Decimal, int] | None = None, deckel: bool = True) -> int:
+                         vorher: tuple[Decimal, int] | None = None) -> int:
     """Die EINE Pausenregel (seit 1.9.34) -- für Stopp, Gruppen-Stopp (je Mitglied), Ende nachtragen, den Nachtrag mit Von/Bis,
     Zeitart wechseln und die Vorschau. Seit 1.9.48 (Stufe 4, R2 Nachrunde, Entscheidung Tobias) je Tag: maßgeblich ist die Anwesenheit
     der Person am Tag `am` über alle gebuchten Zeiten samt der neuen (`anwesend`, Stunden); die Pflichtpause des Arbeitszeitmodells
@@ -159,8 +159,10 @@ def pause_nach_zeitregel(db: Session, employee_id: int, anwesend, am: date, mind
     Mindestpause, keine Summe). Frühere Buchungen werden nie angefasst. Bis 1.9.46 je Buchung (zwei Buchungen à 5 h ohne Pause).
     Seit 1.9.57 ohne_id: beim Ändern zählt der Tag ohne die alte Fassung dieser Buchung; vorher = (Anwesenheit, abgezogene Pause) der
     früheren Buchungen statt der gespeicherten -- für pausen_vorschau(), die den Tag in seiner Reihenfolge nachrechnet.
-    Seit 1.9.107 deckel=False (nur pausen_vorschau() mit anwesend 0): was dem Tag noch fehlt, ohne „höchstens ihre Anwesenheit“ -- die Pause, die
-    keine Buchung mit Uhrzeiten mehr aufnehmen kann („fehlt“ an einem Tag mit Dauer)."""
+    Seit 1.9.166 (Lohn L1a, Punkt 1) gilt die Pflichtpause nach Lesart A (app/work_time_models.py::pflichtpause()): sie bringt die Arbeitszeit
+    nie unter die Schwelle und wächst nie schneller als die Anwesenheit -- laufen alle Buchungen des Tags nach dieser Regel, nimmt die neue
+    Buchung die fehlende Pause immer ganz auf. Was einem Tag mit Dauer fehlt, rechnet seitdem fehlende_pause() (bis 1.9.165 hier mit
+    deckel=False, das bei 6,25 h ohne Pause erst 15, dann 30 min verlangte)."""
     if vorher is None:
         frueher = buchungen_am_tag(db, employee_id, am, ohne_id)
         anwesend_vorher, abgezogen = _anwesend_summe(frueher), sum(int(r.break_minutes or 0) for r in frueher)
@@ -171,7 +173,7 @@ def pause_nach_zeitregel(db: Session, employee_id: int, anwesend, am: date, mind
     fehlt = max(0, int(automatic_break_minutes_for_duration(db, employee_id, anwesend_tag, am) or 0) - abgezogen)
     # Minuten der neuen Buchung, kaufmännisch gerundet (die Anwesenheit kommt auf vier Stellen gerundet: 20 min = 0,3333 h)
     hoechstens = max(0, int((neu * 60).quantize(Decimal("1"), rounding=ROUND_HALF_UP)))
-    return max(0, int(mindestpause or 0), min(fehlt, hoechstens) if deckel else fehlt)
+    return max(0, int(mindestpause or 0), min(fehlt, hoechstens))
 
 
 def nachtrag_nach_zeitregel(db: Session, *, employee_id: int, work_date: date, von: time, bis: time, mindestpause: int = 0,
@@ -296,8 +298,9 @@ def _pausen_stand(db: Session, employee_id: int, tag: date, buchungen: list) -> 
         anwesend_vorher += anwesend
         pause_vorher += neu
     abgezogen = sum(int(r.break_minutes or 0) for r in rows)
-    # was dem ganzen Tag dann noch fehlt -- dieselbe eine Pausenregel, ohne Deckel (keine Buchung mit Uhrzeiten nimmt es mehr auf)
-    fehlt = pause_nach_zeitregel(db, employee_id, Decimal("0"), tag, vorher=(anwesend_vorher, pause_vorher), deckel=False) if dauern else 0
+    # was dem ganzen Tag dann noch fehlt -- keine Buchung mit Uhrzeiten nimmt es mehr auf, es gehört in die Pause einer Dauer; seit 1.9.166
+    # gleich so viel, dass es danach passt (fehlende_pause(): die Pause verlängert die Anwesenheit der Dauer)
+    fehlt = fehlende_pause_am_tag(db, employee_id, anwesend_vorher, pause_vorher, tag) if dauern else 0
     passt = abgezogen == pause_vorher and not fehlt
     return {"tag": tag, "abgezogen": abgezogen, "nach_zeitregel": pause_vorher, "fehlt": fehlt, "noetig": pause_vorher + fehlt,
             "passt": passt, "buchungen": [] if passt else plan}

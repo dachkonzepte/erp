@@ -132,7 +132,7 @@ def test_ende_nachtragen_fuer_andere(welt, rolle, status):  # noqa: F811
 
 @pytest.mark.parametrize("rolle, status", [("buero_finanzen", 200), ("buero_auftrag", 403)])
 def test_pausen_neu_rechnen_fuer_andere(welt, rolle, status):  # noqa: F811
-    """Toms Tag: 07:00–12:00 und 12:00–16:15 (45 min), die erste gelöscht -- die Pause passt nicht mehr. Büro – Finanzen rechnet sie neu,
+    """Toms Tag: 07:00–12:00 und 12:00–16:15 (30 min, bis 1.9.165 45), die erste gelöscht -- die Pause passt nicht mehr. Büro – Finanzen rechnet sie neu,
     Büro – Auftrag liest sie (tagespause) und rechnet nichts."""
     erste = _zeit(welt, welt["tom"], time(7), time(12))
     zweite = _zeit(welt, welt["tom"], time(12), time(16, 15))
@@ -144,7 +144,7 @@ def test_pausen_neu_rechnen_fuer_andere(welt, rolle, status):  # noqa: F811
                                                                         "buchungen": [{"id": zweite.id, "pause": 0}]})
     assert antwort.status_code == status, antwort.text
     welt["db"].expire_all()
-    assert welt["db"].get(TimeEntry, zweite.id).break_minutes == (0 if status == 200 else 45)
+    assert welt["db"].get(TimeEntry, zweite.id).break_minutes == (0 if status == 200 else 30)
 
 
 def test_im_abgeschlossenen_zeitraum_nur_der_admin(welt):  # noqa: F811
