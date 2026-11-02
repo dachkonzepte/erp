@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import csv
+import re
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from io import BytesIO, StringIO
 from html import escape
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from reportlab.lib import colors
@@ -21,6 +23,28 @@ from .rounding import round_hours
 from .time_tracking import employee_name, list_entries, entry_to_dict, pausen_vorschau, tagessumme
 from .settings import load_general_settings
 from .work_time_models import load_advanced_settings
+
+# Seit 1.9.168 (Lohn L1a, Punkt 3, Entscheidung Tobias E3): was von einer Person in die Lohndatei geht. „alles“ = Arbeit, Abwesenheiten und
+# Feiertage; „abwesenheiten“ = nur Urlaub, Krankheit und die übrigen zugeordneten Abwesenheiten (bisher z. B. Azubis in Time 4); „nichts“.
+EXPORT_UMFAENGE = {"alles": "alles", "abwesenheiten": "nur Abwesenheiten", "nichts": "nichts"}
+# Seit 1.9.168: eine DATEV-Personalnummer besteht aus 1 bis 5 Ziffern ohne führende Null -- so stehen sie in den Mustern aus Time 4 (91001,
+# 9005); „091001“ und „91001“ wären sonst zwei Nummern für dieselbe Person bei DATEV. Ein Semikolon o. Ä. zerstörte die Datei.
+PERSONALNUMMER_FORMAT = re.compile(r"^[1-9][0-9]{0,4}$")
+PERSONALNUMMER_FALSCH = "Die DATEV-Personalnummer besteht aus 1 bis 5 Ziffern ohne führende Null (z. B. 91001)."
+PERSONALNUMMER_VERGEBEN = "Diese DATEV-Personalnummer ist bereits vergeben."
+
+
+def personalnummer_gueltig(wert: str | None) -> bool:
+    return bool(wert) and PERSONALNUMMER_FORMAT.match(wert) is not None
+
+
+def export_umfang(p: EmployeePayrollSettings | None) -> str:
+    return (p.export_umfang if p is not None and p.export_umfang else "alles")
+
+
+def exportiert_arbeit(p: EmployeePayrollSettings | None) -> bool:
+    """Seit 1.9.168: stehen die gebuchten Stunden der Person in der Lohndatei? Nur beim Umfang „alles“ (bis 1.9.167 payroll_export_enabled)."""
+    return export_umfang(p) == "alles"
 
 
 def load_time_settings(db: Session) -> TimeTrackingSettings:
@@ -165,7 +189,7 @@ def load_employee_payroll(db: Session, employee_id: int) -> EmployeePayrollSetti
     DATEV-Personalnummer), die nicht in die Sitzung geht. Bis 1.8.83 legten Lohnliste, DATEV-Export und Stundenzettel die Zeile
     beim Lesen an und committeten."""
     row = db.scalar(select(EmployeePayrollSettings).where(EmployeePayrollSettings.employee_id == employee_id))
-    return row if row is not None else EmployeePayrollSettings(employee_id=employee_id, payroll_export_enabled=True,
+    return row if row is not None else EmployeePayrollSettings(employee_id=employee_id, payroll_export_enabled=True, export_umfang="alles",
                                                                 datev_personnel_number=None)
 
 
@@ -196,6 +220,7 @@ def _payroll_dict(db: Session, emp: Employee, p: EmployeePayrollSettings, sollze
         "datev_personnel_number_stored": p.datev_personnel_number,
         "datev_personnel_equals_erp_number": bool(load_advanced_settings(db).datev_personnel_equals_erp_number),
         "payroll_export_enabled": p.payroll_export_enabled,
+        "export_umfang": export_umfang(p),  # seit 1.9.168
         "eintritt": p.eintritt, "austritt": p.austritt,  # seit 1.9.167
         "sollzeiten": sollzeiten,
     }
@@ -209,34 +234,55 @@ def payroll_rows(db: Session) -> list[dict]:
 
 def set_employee_payroll(db: Session, employee_id: int, werte: dict) -> dict:
     """Seit 1.9.167 ein Teil-Update (Regel 22): nur die gesendeten Felder (bis 1.9.166 jedes, ein fehlendes Häkchen hieß „Export an“).
-    Bei „DATEV-Nr. = ERP-Nr.“ gilt wie bisher die ERP-Nummer, auch wenn keine Nummer mitkommt."""
+    Bei „DATEV-Nr. = ERP-Nr.“ gilt wie bisher die ERP-Nummer, auch wenn keine Nummer mitkommt. Seit 1.9.168 erst alles prüfen, dann
+    schreiben -- eine abgelehnte Anfrage lässt in der Sitzung nichts zurück."""
     emp=db.get(Employee, employee_id)
     if emp is None: raise ValueError("Mitarbeiter wurde nicht gefunden.")
     advanced=load_advanced_settings(db)
     row=db.scalar(select(EmployeePayrollSettings).where(EmployeePayrollSettings.employee_id == employee_id))
-    if row is None:
-        row=EmployeePayrollSettings(employee_id=employee_id, payroll_export_enabled=True)
-        db.add(row)
-    if "payroll_export_enabled" in werte:
-        row.payroll_export_enabled=bool(werte["payroll_export_enabled"])
+    # seit 1.9.168 der Export-Umfang; payroll_export_enabled folgt ihm (gelesen wird es nicht mehr) -- ein altes „Export an/aus“ wird „alles“/„nichts“
+    umfang=export_umfang(row)
+    if "export_umfang" in werte:
+        if werte["export_umfang"] not in EXPORT_UMFAENGE:
+            raise ValueError("Unbekannter Export-Umfang.")
+        umfang=werte["export_umfang"]
+    elif "payroll_export_enabled" in werte:
+        umfang="alles" if werte["payroll_export_enabled"] else "nichts"
+    exportiert=umfang != "nichts"
+    neu={feld: werte[feld] for feld in ("eintritt", "austritt") if feld in werte}  # seit 1.9.167, leer = offen
     if advanced.datev_personnel_equals_erp_number or "datev_personnel_number" in werte:
         value=((emp.employee_number or "").strip() or None) if advanced.datev_personnel_equals_erp_number else ((werte.get("datev_personnel_number") or "").strip() or None)
-        if advanced.datev_personnel_equals_erp_number and not value and row.payroll_export_enabled:
+        if advanced.datev_personnel_equals_erp_number and not value and exportiert:
             raise ValueError("ERP-Mitarbeiternummer fehlt. Bei aktivierter Gleichsetzung wird sie als DATEV-Personalnummer benötigt.")
+        # seit 1.9.168 nur Ziffern -- die ERP-Nummer (Gleichsetzung) nur, wenn etwas von der Person in die Datei geht
+        if value and not personalnummer_gueltig(value):
+            if not advanced.datev_personnel_equals_erp_number:
+                raise ValueError(PERSONALNUMMER_FALSCH)
+            if exportiert:
+                raise ValueError(f"Die ERP-Mitarbeiternummer „{value}“ taugt nicht als DATEV-Personalnummer: 1 bis 5 Ziffern ohne führende Null.")
         if value:
             duplicate=db.scalar(select(EmployeePayrollSettings).where(
                 EmployeePayrollSettings.datev_personnel_number==value,
                 EmployeePayrollSettings.employee_id!=employee_id,
             ))
-            if duplicate is not None: raise ValueError("Diese DATEV-Personalnummer ist bereits vergeben.")
-        row.datev_personnel_number=value
-    # seit 1.9.167 (Lohn L1a, Punkt 2): Eintritt und Austritt, beide Tage eingeschlossen -- leer = offen
-    for feld in ("eintritt", "austritt"):
-        if feld in werte:
-            setattr(row, feld, werte[feld])
-    if row.eintritt and row.austritt and row.austritt < row.eintritt:
+            if duplicate is not None: raise ValueError(PERSONALNUMMER_VERGEBEN)
+        neu["datev_personnel_number"]=value
+    eintritt=neu.get("eintritt", row.eintritt if row is not None else None)
+    austritt=neu.get("austritt", row.austritt if row is not None else None)
+    if eintritt and austritt and austritt < eintritt:
         raise ValueError("Der Austritt liegt vor dem Eintritt.")
-    db.commit(); db.refresh(row)
+    if row is None:
+        row=EmployeePayrollSettings(employee_id=employee_id)
+        db.add(row)
+    row.export_umfang, row.payroll_export_enabled = umfang, exportiert
+    for feld, wert in neu.items():
+        setattr(row, feld, wert)
+    try:
+        db.commit()
+    except IntegrityError as exc:  # seit 1.9.168 eindeutig in der Datenbank: zwei gleichzeitige Speichern derselben Nummer
+        db.rollback()
+        raise ValueError(PERSONALNUMMER_VERGEBEN) from exc
+    db.refresh(row)
     return _payroll_dict(db, emp, row, _sollzeiten_aller(db).get(emp.id, []))
 
 
@@ -373,10 +419,10 @@ def datev_fehlt(db: Session, start_date: date, end_date: date) -> list[dict]:
             continue
         gesehen.add(r.employee_id)
         p = payroll.get(r.employee_id) or load_employee_payroll(db, r.employee_id)
-        if p.payroll_export_enabled and not effective_datev_personnel_number(db, r.employee, p):
+        if exportiert_arbeit(p) and not effective_datev_personnel_number(db, r.employee, p):
             name = employee_name(r.employee) or f"#{r.employee_id}"
             liste.append({"art": "personalnummer", "employee_id": r.employee_id, "name": name, "text": f"Personalnummer fehlt: {name}"})
-    for typ in sorted({r.entry_type for r in rows if (payroll.get(r.employee_id) or load_employee_payroll(db, r.employee_id)).payroll_export_enabled}):
+    for typ in sorted({r.entry_type for r in rows if exportiert_arbeit(payroll.get(r.employee_id) or load_employee_payroll(db, r.employee_id))}):
         if not _wage_type(settings, typ):
             liste.append({"art": "lohnart", "zeitart": typ, "text": f"Lohnart fehlt: {labels.get(typ, typ)}"})
     fehlen = [n for n, wert in (("Beraternummer", settings.datev_beraternummer), ("Mandantennummer", settings.datev_mandantennummer)) if not wert]
@@ -414,7 +460,7 @@ def build_datev_export(db: Session, start_date: date, end_date: date) -> tuple[b
     lodas = settings.datev_target == "lodas"
     for r in rows:
         p = payroll.get(r.employee_id) or load_employee_payroll(db, r.employee_id)
-        if not p.payroll_export_enabled:
+        if not exportiert_arbeit(p):
             continue
         pnr = effective_datev_personnel_number(db, r.employee, p)
         tag = r.work_date.replace(day=1) if lodas else r.work_date

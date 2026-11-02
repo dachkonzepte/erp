@@ -138,9 +138,10 @@ def test_fehlende_personalnummer_kein_export(welt):
 
 
 def test_ohne_lohnexport_keine_personalnummer_noetig(welt):
-    """Gegenprobe: Tom ohne Lohnexport -- seine Personalnummer fehlt nicht, die Datei hat nur Mia."""
+    """Gegenprobe: Tom ohne Lohnexport -- seine Personalnummer fehlt nicht, die Datei hat nur Mia. Seit 1.9.168 über den Export-Umfang
+    „nichts“ (bis dahin payroll_export_enabled)."""
     p = welt["db"].query(EmployeePayrollSettings).filter_by(employee_id=welt["tom"].id).one()
-    p.datev_personnel_number, p.payroll_export_enabled = None, False
+    p.datev_personnel_number, p.payroll_export_enabled, p.export_umfang = None, False, "nichts"
     welt["db"].commit()
     assert {z[0] for z in _csv(_export(welt))[1:]} == {"1001"}
 

@@ -2727,12 +2727,18 @@ class TimeTrackingSettings(Base):
 class EmployeePayrollSettings(Base):
     """Lohn-/DATEV-Zuordnung eines Mitarbeiters ohne Änderung der Bestands-Mitarbeitertabelle."""
     __tablename__ = "employee_payroll_settings"
-    __table_args__ = (UniqueConstraint("employee_id", name="uq_employee_payroll_employee"),)
+    # seit 1.9.168 (Lohn L1a, Punkt 3): die DATEV-Personalnummer ist in der Datenbank eindeutig (leer beliebig oft)
+    __table_args__ = (UniqueConstraint("employee_id", name="uq_employee_payroll_employee"),
+                      UniqueConstraint("datev_personnel_number", name="uq_employee_payroll_datev_number"))
 
     id: Mapped[int] = mapped_column(primary_key=True)
     employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), index=True)
     datev_personnel_number: Mapped[str | None] = mapped_column(String(30), nullable=True, index=True)
+    # Seit 1.9.168 nur noch geschrieben (= export_umfang ungleich „nichts“), gelesen wird export_umfang
     payroll_export_enabled: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    # Seit 1.9.168 (Lohn L1a, Punkt 3, Entscheidung Tobias E3): was von der Person in die Lohndatei geht -- „alles“ (Arbeit, Abwesenheiten,
+    # Feiertage), „abwesenheiten“ (nur Urlaub, Krankheit und andere Abwesenheiten) oder „nichts“ (app/time_backoffice.py::EXPORT_UMFAENGE)
+    export_umfang: Mapped[str] = mapped_column(String(20), default="alles", server_default="alles")
     # Seit 1.9.167 (Lohn L1a, Punkt 2, Entscheidung Tobias E3): Eintritt und Austritt, beide Tage eingeschlossen -- davor und danach ist die
     # Sollzeit 0 (app/sollzeit.py), es gibt keine Zeile im Export. Leer = offen.
     eintritt: Mapped[date | None] = mapped_column(Date, nullable=True)

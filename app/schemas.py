@@ -3749,9 +3749,10 @@ class TimeTrackingLockUpdate(BaseModel):
 class EmployeePayrollSettingsUpdate(PartialUpdate):
     """Seit 1.9.167 ein Teil-Update (Regel 22, Lohn L1a, Punkt 2): nur gesendete Felder ändern sich -- bis 1.9.166 übernahm der PUT jedes Feld
     (ein weggelassenes Häkchen hieß „Export an“). Eintritt und Austritt (leer = offen) neu."""
-    NOT_NULL: ClassVar[frozenset[str]] = frozenset({"payroll_export_enabled"})
+    NOT_NULL: ClassVar[frozenset[str]] = frozenset({"payroll_export_enabled", "export_umfang"})
     datev_personnel_number: str | None = Field(default=None, max_length=30)
     payroll_export_enabled: bool | None = None
+    export_umfang: Literal["alles", "abwesenheiten", "nichts"] | None = None  # seit 1.9.168 (E3); „Export an/aus“ heißt „alles“/„nichts“
     eintritt: date | None = None
     austritt: date | None = None
 
@@ -4013,6 +4014,7 @@ class EmployeePayrollSettingsOut(BaseModel):
     employee_number: str | None = None
     datev_personnel_number: str | None = None
     payroll_export_enabled: bool = True
+    export_umfang: str = "alles"  # seit 1.9.168
     eintritt: date | None = None  # seit 1.9.167
     austritt: date | None = None
     sollzeiten: list[dict] = Field(default_factory=list)  # seit 1.9.167: eigene Sollzeiten (app/sollzeit.py::zeile_dict()), leer = Tarif

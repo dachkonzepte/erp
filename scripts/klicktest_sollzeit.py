@@ -3,7 +3,8 @@
     Büro – Finanzen  Fin: Modelle „8,00 h/Tag Mo–Fr · KW 18–48“ und „7,50 h/Tag Mo–Fr · KW 49–17“; Mia in der Tabelle mit „Tarif“; Eintritt
                      05.11.2026 gespeichert (die Personalnummer bleibt); „Sollzeit ändern“: Dialog „Sollzeit – Mia Monteurin“ ohne eigene Werte,
                      ab 01.12.2026 Di, Mi, Do je 3,00 -> Liste und Tabelle „Di 3,00 · Mi 3,00 · Do 3,00 h“; ab 01.01.2027 „wieder Tarif“ -> zwei
-                     Zeilen; die Tarif-Zeile gelöscht; „gültig ab“ im abgeschlossenen Zeitraum -> Meldung des Servers -- Bilder; keine JS-Fehler
+                     Zeilen; die Tarif-Zeile gelöscht; „gültig ab“ im abgeschlossenen Zeitraum -> Meldung des Servers -- Bilder; keine JS-Fehler.
+                     Seit 1.9.168 (Punkt 3): Personalnummer „9100A“ -> Meldung, nichts gespeichert; Export „nur Abwesenheiten“ gespeichert
     Büro – Auftrag   Bea: Hinweis „… ändern Admin und Büro – Finanzen – du kannst sie lesen.“, Felder gesperrt, kein Knopf zum Speichern, Sollzeit
                      als Text sichtbar; derselbe PUT vom Server 403 -- Bild; keine JS-Fehler
 
@@ -67,6 +68,20 @@ async def pruefen(tab, seed, p):
     p.pruefe("Fin: Eintritt gespeichert, Personalnummer bleibt", await tab.js(
         "fetch('/api/time-backoffice/payroll-employees').then(r=>r.json()).then(l=>l.map(x=>[x.datev_personnel_number,x.eintritt,x.austritt]))"),
         [["91001", "2026-11-05", None]])
+    # seit 1.9.168: nur Ziffern; Export-Umfang statt Häkchen
+    await _setze(tab, {f"pnr-{mia}": "9100A"})
+    await tab.js("document.getElementById('payrollStatus').textContent=''")
+    await tab.js(f"document.querySelector('[data-klick=lohn-speichern][data-mitarbeiter=\"{mia}\"]').click()")
+    p.pruefe("Fin: Personalnummer „9100A“ abgelehnt", await tab.warten(
+        "document.getElementById('payrollStatus').textContent==='Fehler: Die DATEV-Personalnummer besteht aus 1 bis 5 Ziffern ohne führende Null "
+        "(z. B. 91001).'", 10), True)
+    p.pruefe("Fin: Export-Umfang zur Auswahl", await tab.js(f"[...document.getElementById('pex-{mia}').options].map(o=>[o.value,o.text,o.selected])"),
+             [["alles", "alles", True], ["abwesenheiten", "nur Abwesenheiten", False], ["nichts", "nichts", False]])
+    await _setze(tab, {f"pnr-{mia}": "91001", f"pex-{mia}": "abwesenheiten"})
+    await tab.warte_auf_neu_geladene_liste(f"document.querySelector('[data-klick=lohn-speichern][data-mitarbeiter=\"{mia}\"]').click()", "#payrollRows")
+    p.pruefe("Fin: „nur Abwesenheiten“ gespeichert, Nummer bleibt", await tab.js(
+        "fetch('/api/time-backoffice/payroll-employees').then(r=>r.json()).then(l=>l.map(x=>[x.datev_personnel_number,x.export_umfang]))"),
+        [["91001", "abwesenheiten"]])
 
     await tab.js(f"document.querySelector('[data-klick=sollzeit-oeffnen][data-mitarbeiter=\"{mia}\"]').click()")
     p.pruefe("Fin: Dialog ohne eigene Werte", await tab.warten(

@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session, selectinload
 from .models import AppUser, AuditLog, Employee, EmployeePayrollSettings, Order, TimeEntry, TimeEntryGroup, TimeEntryGroupMember
 from .permissions import MOBIL_ROLLEN
 from .rounding import round_hours
-from .time_backoffice import (_entry_type_labels, abschluss_hindernisse, datev_fehlt, effective_datev_personnel_number, load_employee_payroll,
+from .time_backoffice import (_entry_type_labels, abschluss_hindernisse, datev_fehlt, effective_datev_personnel_number, exportiert_arbeit, load_employee_payroll,
                               load_time_settings, unpassende_pausen)
 from .time_tracking import auftrag_geschlossen, employee_name, entry_to_dict, laeuft_seit_frueher, list_entries, tagessumme
 
@@ -371,7 +371,7 @@ def monat(db: Session, erster: date) -> dict:
         summe["zusammen"] += zusammen
         zeilen.append({"employee_id": employee_id, "name": employee_name(emp) or f"#{employee_id}",
                        "personalnummer": effective_datev_personnel_number(db, emp, p) if emp is not None else None,
-                       "lohnexport": bool(p.payroll_export_enabled),
+                       "lohnexport": exportiert_arbeit(p),  # seit 1.9.168 der Umfang „alles“
                        "tage": len({r.work_date for r in eigene if r.status == "booked"}),
                        "stunden": {k: stunden.get(k, Decimal("0")) for k, _ in SPALTEN + (("other", ""),)}, "zusammen": zusammen})
     zeilen.sort(key=lambda x: x["name"].casefold())

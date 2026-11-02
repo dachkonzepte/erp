@@ -787,3 +787,23 @@ Rechte (E10): `app/permissions.py::darf_lohnregeln()`/`require_lohnregeln` (Admi
 Neu: `tests/test_v585_sollzeit.py` -- Tarif an Fr 24.04./Mo 27.04.2026 (7,50/8,00, wie LIESMICH 7.), Fr 27.11./Mo 30.11.2026, Sa, So, KW 53, KW 1, 01.05.; Teilzeit Di–Do und zurück zum Tarif; Eintritt und Austritt; Anlegen, Lesen, Löschen über die Schnittstelle; falsche Werte 422; abgeschlossener Zeitraum 409; Teil-Update der Lohnstammdaten; Büro – Auftrag 403 an sieben Schreibwegen, liest fünf; Migration auf einem Bestand (geänderter Winter bleibt) unter SQLite und PostgreSQL. Gegenproben: Rechte wie bisher -> `test_buero_auftrag_liest_nur` rot; Sperre aus -> `test_sollzeit_nie_im_abgeschlossenen_zeitraum` rot; Eintritt nicht beachtet -> `test_eintritt_und_austritt` rot. Klicktest neu: `klicktest_sollzeit.py` (16 Prüfungen, vier Bilder).
 
 Angepasste Erwartungen (Regel 28): `test_v109::test_time_backoffice_router_fully_uses_shared_dependency` altes Soll mindestens 11-mal `_role_dep`, neues Soll mindestens 6-mal `_role_dep` und 9-mal `_regeln_dep` (4-mal `_lohn_dep` bleibt). `test_v105::test_summer_winter_model_week_validity…` altes Soll KW 13–43 und 44–12, neues Soll KW 18–48 und 49–17. `test_v448` (beide Tests) Aufbau: Büro – Finanzen statt Büro – Auftrag speichert die Zeitregeln. `test_v513::test_formular_der_zeitregeln_laesst_die_nummern_stehen` Aufbau: Büro – Finanzen speichert das Formular statt Büro – Auftrag (das liest nur noch). `test_v329::BEKANNT` ohne `PUT /api/time-backoffice/payroll-employees/{employee_id}` (jetzt ein Teil-Update). `test_v424::ABGLEICH` um die sieben Felder der Sollzeit (0 bis 24 h, Grenze im Prüfer des Schemas).
+
+### Umsetzung 1.9.168: Personalnummer und Export-Umfang (Punkt 3)
+
+`app/time_backoffice.py`: `PERSONALNUMMER_FORMAT` (`^[1-9][0-9]{0,4}$`), `EXPORT_UMFAENGE` (alles, abwesenheiten, nichts), `exportiert_arbeit()` (nur „alles“ -- liest der heutige Export, `datev_fehlt()` und „Monat & Lohn“). `set_employee_payroll()` prüft erst alles und schreibt dann; `payroll_export_enabled` folgt dem Umfang (= nicht „nichts“), gelesen wird es nicht mehr. Ein gleichzeitiges Speichern derselben Nummer endet an der Bedingung mit „bereits vergeben“ (422), nicht mit 500. Im Änderungsprotokoll heißt das neue Feld „Export-Umfang“ (`app/audit.py`; gefunden im Lauf der Suite, `test_v436`, `test_v438`).
+
+Migration `c5a9e3f71d28`: `pruefen()` (Dubletten auf den getrimmten Nummern) vor jeder Änderung, dann Leerzeichen weg und leere Nummern NULL, Bedingung, Spalte `export_umfang` (server_default „alles“, aus false wird „nichts“). `downgrade()`: Häkchen aus dem Umfang („nur Abwesenheiten“ wird aus), Spalte und Bedingung weg. Das Format prüft die Migration nicht -- eine Nummer mit Buchstaben bleibt, die Prüfabfrage und `scripts/pruefe_zeitregeln.py` nennen sie.
+
+### Festlegungen 1.9.168 (Bitte bestätigen)
+
+1. Eine Personalnummer hat 1 bis 5 Ziffern ohne führende Null (die Muster haben 4 und 5 Stellen). Falls DATEV längere Nummern nimmt, ist das eine Zeile im Code -- zu klären mit LB2.
+2. Bei „DATEV-Nr. = ERP-Nr.“ gilt das Format für die ERP-Nummer, aber nur, solange von der Person etwas in die Datei geht; mit „nichts“ bleibt sie speicherbar (Eintritt, Sollzeit).
+3. Eine Nummer gehört einer Person auf Dauer, auch einer ausgetretenen: wechselt jemand die Nummer (LIESMICH 8: 91008 -> 91016), bekommt die Person die neue Nummer; die alte ist danach frei. Eine Liste früherer Nummern gibt es nicht.
+4. Der Umfang „nur Abwesenheiten“ wirkt im heutigen Export wie „nichts“ (er kennt noch keine Abwesenheiten); mit L1b stehen dann U, K und die übrigen zugeordneten Abwesenheiten in der Datei.
+5. Die Migration bricht bei einer Dublette ab, statt eine Nummer zu leeren: welche Person die Nummer behält, entscheidet das Büro.
+
+### Tests und Prüfung
+
+Neu: `tests/test_v586_personalnummer.py` -- sieben falsche Formate 422 ohne Zeile, vier gültige, dieselbe Nummer für zwei Personen (422 und `IntegrityError` direkt in der Datenbank), leer beliebig oft, die drei Umfänge, falscher Umfang 422, altes Häkchen, Gleichsetzung mit der ERP-Nummer, Büro – Auftrag 403, Migration auf einem Bestand mit Dublette (Abbruch, nichts geändert), danach hoch, runter, hoch unter SQLite und PostgreSQL, Prüfabfrage nur SELECT. Gegenproben: Format nicht geprüft -> 8 rot; Umfang „abwesenheiten“ als Arbeit -> 1 rot; Migration ohne `pruefen()` -> 1 rot. `klicktest_sollzeit.py`: drei Prüfungen mehr (19).
+
+Angepasste Erwartungen (Regel 28): `test_v513::test_ohne_lohnexport_keine_personalnummer_noetig` Aufbau: Tom mit Umfang „nichts“ statt nur `payroll_export_enabled = False`.
