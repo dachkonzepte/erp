@@ -21,7 +21,9 @@ Befüllt: Auftrag mit Einsatz (Plantafel heute ± 7 Tage) für Mia (Monteurin) u
                           schmaler als die Zeile; Rückfrage „Prüfpunkt „…“ löschen?“ auf der Seite -- Abbrechen: bleibt, Löschen: weg;
                           Punkt aus der Vorlage löschen (API) 409.
 
-Feste Uhr 10:00 (/mobil meldet ab 19 Uhr ab); die Daten liegen relativ zum heutigen Tag.
+Stehende Uhr Mi 11.11.2026 10:00 in Instanz und Browser (/mobil meldet ab 19 Uhr ab), „gestern“ ist Di 10.11.2026 (seit 1.9.173; bis
+1.9.172 heute 10:00 mit Daten relativ zum Lauftag -- an einem Monatsersten lag „gestern“ im Vormonat, „Meine Zeiten“ öffnete den neuen
+Monat ohne Tage und der Test war rot, ohne dass sich etwas geändert hatte).
 
 AUFRUF (aus dem Projektordner):
 
@@ -113,7 +115,7 @@ def befuellen(db, k):
             "bericht": bericht["id"], "flaeche": flaeche["id"],
             "gestern": gestern.isoformat(), "gestern_de": f"{gestern:%d.%m.%Y}",
             "gestern_kurz": ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"][gestern.weekday()] + f" {gestern:%d.%m.}",
-            "cookies": {name: k.cookies(u) for name, u in benutzer.items()}}
+            "cookies": {name: k.cookies(u) for name, u in benutzer.items()}, "uhr_ms": k.uhr_ms()}
 
 
 MOBIL_BEREIT = "!document.getElementById('assignmentsList').textContent.includes('Lädt')"
@@ -123,6 +125,7 @@ BUERO_BEREIT = "!!window.P&&document.getElementById('monatTitel').textContent!==
 
 async def pruefen(tab, seed, p):
     await tab.cmd("Page.addScriptToEvaluateOnNewDocument", source="window.alert=m=>console.error('alert(): '+m)")
+    await tab.browser_uhr_fest(seed["uhr_ms"])  # seit 1.9.173: derselbe Tag wie die Instanz
 
     # --- Mia: /mobil --------------------------------------------------------------------------------------------------------------
     await tab.anmelden(seed["cookies"]["mia"])
@@ -289,4 +292,4 @@ async def pruefen(tab, seed, p):
 
 
 if __name__ == "__main__":
-    sys.exit(klicktest_main(befuellen, pruefen, beschreibung="Regeln für die Monteurin (Stufe 4, R1)", uhr="10:00"))
+    sys.exit(klicktest_main(befuellen, pruefen, beschreibung="Regeln für die Monteurin (Stufe 4, R1)", uhr="2026-11-11 10:00"))

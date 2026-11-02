@@ -897,3 +897,11 @@ Nur lesend, Muster `scripts/pruefe_abwesenheiten.py` (`nur_lesende_sitzung()`: P
 ### Tests und Prüfung
 
 Neu: `tests/test_v590_pruefe_zeitregeln.py` (16 Tests) -- Grunddaten ohne Befund, Rundung und Abschluss, Feiertage NW 2026/2027, Berlin ohne Allerheiligen, von Hand eingetragene Tage, alte Grundwerte, Kalenderwochen 1–17 und 49–53 ohne Modell, Hinweise ohne Einfluss, Personalnummern (fehlend, nur Abwesenheiten, führende Null, doppelt mit Leerzeichen, „nichts“ und inaktiv ohne Befund), Gleichsetzung, Eintritt/Austritt/eigene Sollzeit/Zuordnung der Modelle, Zuordnung für den Export, kein Name, ohne `DATABASE_URL`, Aufruf im Kopf, Schreibschutz unter SQLite und PostgreSQL. Gegenproben: Personalnummer auch bei „nichts“ verlangt -> 1 rot; `query_only` weg -> 1 rot; alte Grundwerte nicht erkannt -> 1 rot. Angepasste Erwartungen: keine.
+
+### Nachtrag 1.9.173: Gegenproben zu 1.9.169
+
+Bei 1.9.169 nicht gefahren, mit 1.9.173 nachgeholt (`tests/test_v587_lohnarten.py`): `schlechtwetter_schluessel()` immer Winter ->
+`test_schlechtwetter_nach_datum` rot; `PUT /api/time-backoffice/lohnarten` mit der Rolle zum Lesen -> `test_schnittstelle_und_rechte` rot;
+`zuordnung()` nimmt eine vorhandene, aber leere Zeile der Art statt der Kategorie -> blieb grün. Festlegung 1.9.169 Nr. 2 („eine leere Art
+heißt wie die Kategorie“) war ungeprüft. Neu `test_geleerte_art_heisst_wie_die_kategorie` (Sonderurlaub gesetzt, dann geleert -> U/8000);
+die Gegenprobe ist damit rot.

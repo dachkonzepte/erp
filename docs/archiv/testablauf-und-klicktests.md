@@ -1336,3 +1336,16 @@ Rot in 2 von 23 vollen Läufen (Lauf für 1.9.163, erster Endlauf auf 72cc155): 
 **Festlegungen 1.9.166 zu Werkzeug und Testablauf (Bitte bestätigen)**
 
 1. Neue Tests der Zeitregeln nehmen `fester_tag`; bestehende stellen um, wenn sie ohnehin angefasst werden (diesmal `test_v474`). Die übrigen geänderten Dateien behalten ihren Aufbau und bekommen nur die neuen Zahlen.
+
+## `klicktest_monteurin_regeln` an einem festen Tag (1.9.173, Lohn L1a, Punkt 8)
+
+Bis 1.9.172 lief der Klicktest mit fester Uhrzeit (10:00) am Lauftag, die Daten relativ dazu. An einem Monatsersten lag die offene Zeit „von gestern“ im Vormonat; „Meine Zeiten“ zeigt den laufenden Monat (`app/meine_zeiten.py::meine_zeiten()`, Grenzen des Monats), der am Ersten keine Tage hat -- die Bereitschaft `D.tage.length>0` wurde nie wahr (Fund 01.11.2026, `reference_klicktest_monatserster`). Seit 1.9.173 stehende Uhr Mi 11.11.2026 10:00 (`uhr="2026-11-11 10:00"`, `tab.browser_uhr_fest(seed["uhr_ms"])`). Gegenprobe: dieselbe Datei mit `uhr="2026-12-01 10:00"` -> Rückgabe 1, 30 von 31, „/mobil/zeiten: Seite nicht bereit“; mit dem 11.11. 31 von 31.
+
+Offen, nicht gebaut (Entscheidung Tobias): „Meine Zeiten“ zeigt am Monatsersten eine noch laufende Zeit aus dem Vormonat nicht; „Heute“ zeigt sie (Signalkarte „Deine Zeit von gestern läuft noch“) und sperrt den Start, bis das Ende nachgetragen ist. Soll „Meine Zeiten“ sie zusätzlich im neuen Monat nennen?
+
+**Festlegung 1.9.173 zu Werkzeug und Testablauf (Bitte bestätigen)**
+
+Angepasste Erwartungen (Regel 28): `klicktest_monteurin_regeln`, nur der Aufbau -- stehende Uhr Mi 11.11.2026 10:00 in Instanz und Browser
+statt 10:00 am Lauftag; alle 31 Prüfungen mit demselben Soll.
+
+1. Ein Klicktest, dessen Daten an „heute“ und „gestern“ hängen, läuft mit stehender Uhr an einem festen Tag in Instanz und Browser, nicht am Lauftag (wie die Tests der Zeitregeln seit 1.9.166); bestehende Klicktests stellen um, wenn sie rot werden oder ohnehin angefasst werden.

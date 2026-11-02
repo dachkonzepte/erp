@@ -58,6 +58,17 @@ def test_art_vor_kategorie(db_session, kategorie, art, erwartet):
     assert (None if w is None else (w["kennzeichen"], w["lohnart"])) == erwartet
 
 
+def test_geleerte_art_heisst_wie_die_kategorie(db_session):
+    """Festlegung 1.9.169 Nr. 2 (seit 1.9.173 geprüft, die Gegenprobe zu 1.9.169 fand die Lücke): eine Art, deren Zeile da, aber leer ist,
+    zählt wie ihre Kategorie -- nicht „nicht exportiert“."""
+    db = db_session
+    speichern(db, "art:sonderurlaub", "S", "8100", False)
+    assert zuordnung(db, "urlaub", "Sonderurlaub", date(2026, 12, 7))["lohnart"] == "8100"
+    speichern(db, "art:sonderurlaub", None, None, False)
+    w = zuordnung(db, "urlaub", "Sonderurlaub", date(2026, 12, 7))
+    assert (w["kennzeichen"], w["lohnart"]) == ("U", "8000")
+
+
 def test_schlechtwetter_nach_datum(db_session):
     """Winter 01.12.–31.03. (Monatszeile 8110), Sommer leer (bis der Juni-Export da ist)."""
     for tag in (date(2026, 12, 1), date(2027, 3, 31), date(2027, 1, 15)):
