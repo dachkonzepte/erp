@@ -142,6 +142,7 @@ def anlegen(db: Session) -> None:
     from .document_layout import ensure_default_layout
     from .document_page_margins import ensure_default_margins
     from .employees import ensure_default_employee_functions
+    from .lohnarten import ensure_default_lohnart_zuordnungen
     from .option_settings import ensure_default_option_groups
     from .payment_terms import ensure_default_payment_terms
     from .project_pipeline_columns import ensure_default_columns as ensure_default_pipeline_columns
@@ -168,4 +169,5 @@ def anlegen(db: Session) -> None:
     ensure_default_work_time_models(db)  # nach time_backoffice_advanced_settings: setzt das Standardmodell
     ensure_default_layout(db)
     ensure_default_margins(db)
+    ensure_default_lohnart_zuordnungen(db)  # seit 1.9.169 (Lohn L1a, Punkt 4): feste Zeilen der Zuordnung, vorbelegt nach E7
     db.commit()

@@ -362,7 +362,7 @@
     <button type="button" class="knopf knopf-neutral knopf-symbol" id="adZu" aria-label="Schließen"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
   <div class="dialog-felder">
     <label class="feld breit" for="adMitarbeiter" id="adMitarbeiterFeld">Mitarbeiter<select id="adMitarbeiter"></select></label>
-    <label class="feld" for="adKategorie">Kategorie<select id="adKategorie"><option value="urlaub">Urlaub</option><option value="krankheit">Krankheit</option><option value="fortbildung">Fortbildung</option><option value="unbezahlt">Unbezahlt</option></select></label>
+    <label class="feld" for="adKategorie">Kategorie<select id="adKategorie"><option value="urlaub">Urlaub</option><option value="krankheit">Krankheit</option><option value="fortbildung">Fortbildung</option><option value="unbezahlt">Unbezahlt</option><option value="freizeitausgleich">Freizeitausgleich</option></select></label>
     <label class="feld" for="adArt">Art (genauer, optional)<select id="adArt"></select></label>
     <label class="feld" for="adVon">Von<input id="adVon" type="date"></label>
     <label class="feld" for="adBis">Bis<input id="adBis" type="date"></label>
@@ -527,7 +527,7 @@ function fehltHtml(t,i,plan){
         +(t.darf_buchen?'<button type="button" class="knopf knopf-neutral" data-aktion="pause-aendern" data-i="'+i+'" data-id="'+e.id+'">Ändern</button>':'')+'</div>'}).join('')
     +'</div></div>';
 }
-var KATEGORIE={urlaub:'Urlaub',krankheit:'Krankheit',fortbildung:'Fortbildung',unbezahlt:'Unbezahlt',unbekannt:'Unbekannt'};
+var KATEGORIE={urlaub:'Urlaub',krankheit:'Krankheit',fortbildung:'Fortbildung',unbezahlt:'Unbezahlt',freizeitausgleich:'Freizeitausgleich',unbekannt:'Unbekannt'};
 // „· beantragt am 20.10.“, für eine andere Person gestellt (seit 1.9.101) „· beantragt von Fin Finanzen am 20.10.“
 // seit 1.9.154: ein Datum, das für sich steht, mit Jahr; ein Antrag aus der Migration wurde nie beantragt -- sein Datum ist der Tag, an dem die Abwesenheit eingetragen wurde
 function beantragtText(a){

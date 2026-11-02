@@ -102,7 +102,7 @@ async def pruefen(tab, seed, p):
     zeilen = await tab.js("document.getElementById('absenceRows').textContent")
     p.pruefe("P2: Art und Notiz sichtbar", "Urlaub" in zeilen and "Hochzeit" in zeilen and "Abwesend" not in zeilen, True)
     p.pruefe("D2: Art leer vorbelegt", await tab.js("document.getElementById('absenceType').value"), "")
-    p.pruefe("D2: zu Urlaub nur passende Arten", await tab.js("[...document.getElementById('absenceType').options].map(o=>o.textContent)"), ["— ohne —", "Urlaub", "Freizeitausgleich", "Sonstiges"])
+    p.pruefe("D2: zu Urlaub nur passende Arten", await tab.js("[...document.getElementById('absenceType').options].map(o=>o.textContent)"), ["— ohne —", "Urlaub", "Sonstiges"])  # seit 1.9.169 Freizeitausgleich eigene Kategorie
     await tab.js("{const k=document.getElementById('absenceCategory');k.value='krankheit';k.dispatchEvent(new Event('change'))}")
     p.pruefe("D2: zu Krankheit nur passende Arten", await tab.js("[...document.getElementById('absenceType').options].map(o=>o.textContent)"), ["— ohne —", "Krankheit", "Sonstiges"])
     await tab.js("{const k=document.getElementById('absenceCategory');const a=document.getElementById('absenceType');a.value='Sonstiges';k.value='unbezahlt';k.dispatchEvent(new Event('change'))}")

@@ -3246,7 +3246,7 @@ class EmployeeAbsenceCreate(BaseModel):
     absence_type: str | None = Field(default=None, max_length=80)
     # Feste Kategorie (urlaub/krankheit/fortbildung/unbezahlt) -- "unbekannt" ist beim
     # Neuanlegen/Ändern bewusst NICHT erlaubt, siehe app/absence_requests.py::ABSENCE_CATEGORIES.
-    absence_category: str = Field(pattern="^(urlaub|krankheit|fortbildung|unbezahlt)$")
+    absence_category: str = Field(pattern="^(urlaub|krankheit|fortbildung|unbezahlt|freizeitausgleich)$")  # seit 1.9.169 Freizeitausgleich
     start_date: date
     end_date: date
     notes: str | None = None
@@ -3288,7 +3288,7 @@ class EmployeeAbsencePlanningOut(BaseModel):
 class EmployeeAbsenceRequestCreate(BaseModel):
     employee_id: int
     absence_type: str | None = Field(default=None, max_length=80)  # seit 1.9.153 optional, wie EmployeeAbsenceCreate
-    absence_category: str = Field(pattern="^(urlaub|krankheit|fortbildung|unbezahlt)$")
+    absence_category: str = Field(pattern="^(urlaub|krankheit|fortbildung|unbezahlt|freizeitausgleich)$")  # seit 1.9.169 Freizeitausgleich
     start_date: date
     end_date: date
     notes: str | None = None
@@ -3755,6 +3755,15 @@ class EmployeePayrollSettingsUpdate(PartialUpdate):
     export_umfang: Literal["alles", "abwesenheiten", "nichts"] | None = None  # seit 1.9.168 (E3); „Export an/aus“ heißt „alles“/„nichts“
     eintritt: date | None = None
     austritt: date | None = None
+
+
+class LohnartZuordnungUpdate(BaseModel):
+    """Seit 1.9.169 (Lohn L1a, Punkt 4): eine Zeile der Zuordnung setzen oder leeren -- alle Felder Pflicht (kein Vorgabewert, Regel 22);
+    beides leer = nicht exportiert. Format und Regeln prüft app/lohnarten.py::speichern()."""
+    schluessel: str = Field(max_length=120)
+    kennzeichen: str | None = Field(max_length=2)
+    lohnart: str | None = Field(max_length=4)
+    monatszeile: bool
 
 
 class EmployeeTargetHoursCreate(BaseModel):

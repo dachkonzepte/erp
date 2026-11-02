@@ -253,6 +253,7 @@
       <option value="krankheit">Krankheit</option>
       <option value="fortbildung">Fortbildung</option>
       <option value="unbezahlt">Unbezahlt</option>
+      <option value="freizeitausgleich">Freizeitausgleich</option>
     </select></label>
     <label class="feld" for="adArt">Art (genauer, optional)<select id="adArt"></select></label>
     <label class="feld" for="adVon">Von<input id="adVon" type="date"></label>
@@ -613,7 +614,7 @@ function loeschen(){
 }
 
 // --- Abwesenheit (wie bisher: Antrag, eigene Anträge, Zurückziehen -- mit Rückfrage in der Zeile) ---------------------------------
-var KATEGORIE={urlaub:'Urlaub',krankheit:'Krankheit',fortbildung:'Fortbildung',unbezahlt:'Unbezahlt',unbekannt:'Unbekannt'};
+var KATEGORIE={urlaub:'Urlaub',krankheit:'Krankheit',fortbildung:'Fortbildung',unbezahlt:'Unbezahlt',freizeitausgleich:'Freizeitausgleich',unbekannt:'Unbekannt'};
 var STATUS={pending:'Offen',approved:'Genehmigt',rejected:'Abgelehnt',cancelled:'Zurückgezogen'};
 function antraegeLaden(){
   return lesen('antraege',()=>api('/api/absence-requests'),function(rows){ANTRAEGE=rows;antraegeZeichnen()})

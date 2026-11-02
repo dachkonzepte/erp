@@ -807,3 +807,25 @@ Migration `c5a9e3f71d28`: `pruefen()` (Dubletten auf den getrimmten Nummern) vor
 Neu: `tests/test_v586_personalnummer.py` -- sieben falsche Formate 422 ohne Zeile, vier gültige, dieselbe Nummer für zwei Personen (422 und `IntegrityError` direkt in der Datenbank), leer beliebig oft, die drei Umfänge, falscher Umfang 422, altes Häkchen, Gleichsetzung mit der ERP-Nummer, Büro – Auftrag 403, Migration auf einem Bestand mit Dublette (Abbruch, nichts geändert), danach hoch, runter, hoch unter SQLite und PostgreSQL, Prüfabfrage nur SELECT. Gegenproben: Format nicht geprüft -> 8 rot; Umfang „abwesenheiten“ als Arbeit -> 1 rot; Migration ohne `pruefen()` -> 1 rot. `klicktest_sollzeit.py`: drei Prüfungen mehr (19).
 
 Angepasste Erwartungen (Regel 28): `test_v513::test_ohne_lohnexport_keine_personalnummer_noetig` Aufbau: Tom mit Umfang „nichts“ statt nur `payroll_export_enabled = False`.
+
+### Umsetzung 1.9.169: Zuordnung und Freizeitausgleich (Punkt 4)
+
+`LohnartZuordnung` (Tabelle `lohnart_zuordnungen`, Schlüssel eindeutig): „arbeit“, „feiertag“, „kategorie:<Kategorie>“, „schlechtwetter:winter|sommer“, „art:<Art klein>“; Kennzeichen (1–2 Zeichen, Ziffer oder Großbuchstabe), Lohnart (1–4 Ziffern), Monatszeile (nur Schlechtwetter, dann ohne Kennzeichen). `app/lohnarten.py::zuordnung(kategorie, art, tag)`: die Art, wenn sie eine eigene Lohnart hat, sonst die Kategorie, Schlechtwetter nach Datum (Winter 01.12.–31.03.); `fest()` für Arbeit und Feiertag; `liste()` für die Seite mit „Wirkt“ je Zeile (bei einer Art ohne eigene die ihrer Kategorie). `GET /api/time-backoffice/lohnarten` ab Büro – Auftrag, `PUT` (Schlüssel, Kennzeichen, Lohnart, Monatszeile, alle Pflicht) nur `require_lohnregeln`. Grunddaten: `ensure_default_lohnart_zuordnungen()` legt die festen Zeilen und „art:weiterbildung“ an, wenn sie fehlen. Die bisherigen Lohnarten je Zeitart bleiben bis L1b stehen („Lohnarten des bisherigen Exports“). Jede Änderung der Zuordnung steht im Änderungsprotokoll („Zuordnung DATEV-Export“).
+
+Kategorie „freizeitausgleich“: `ABSENCE_CATEGORIES`, Bezeichnung, `ART_KATEGORIEN` (Art Freizeitausgleich nur noch dazu), Muster in `app/schemas.py`, Auswahl und Bezeichnung in `zeiten.html`, `mobil_zeiten.html`, `planning.html`. Migration `d8f2a6c4e913`: Tabelle; Abwesenheiten und Anträge mit Art Freizeitausgleich (ohne Groß- und Kleinschreibung, Leerzeichen außen) in Kategorie Urlaub -> Freizeitausgleich; `downgrade()` jede Kategorie Freizeitausgleich zurück auf Urlaub.
+
+### Festlegungen 1.9.169 (Bitte bestätigen)
+
+1. Arbeit trägt die gebuchten Stunden, jede andere Zeile die Sollzeit des Tags (auch Weiterbildung 1/1000, wie Fortbildung in Time 4, LIESMICH 3).
+2. Eine Art geht ihrer Kategorie nur vor, wenn sie eine Lohnart hat; eine leere Art heißt „wie die Kategorie“, nicht „nicht exportiert“. Wer eine Art ausdrücklich nicht exportieren will, leert ihre Kategorie oder legt die Art in einer leeren Kategorie an.
+3. Schlechtwetter ist je Jahreszeit eine Zeile (Winter 01.12.–31.03., Sommer sonst), nicht je Art -- ob beide denselben Schlüssel bekommen, klärt das Lohnbüro (E5). Eine Monatszeile gibt es nur dort.
+4. Kennzeichen 1 bis 2 Zeichen, Lohnart 1 bis 4 Ziffern (die Muster: 1, U, K, F; 1000, 8000, 1650, 1012, 8110).
+5. Die festen Zeilen legt der Start an; eine geleerte bleibt leer. Eine Zeile je Art entsteht erst beim ersten Speichern (außer Weiterbildung).
+6. Die bisherigen Lohnarten je Zeitart (sechs Felder im Formular „Zeitregeln“) bleiben stehen, bis der neue Export sie ersetzt (E8, L1b).
+7. Freizeitausgleich im Bestand: nur Art Freizeitausgleich in der Kategorie Urlaub wird umgestellt; dieselbe Art in einer anderen Kategorie (Altbestand mit Widerspruch) bleibt und steht in `scripts/pruefe_abwesenheiten.py`.
+
+### Tests und Prüfung
+
+Neu: `tests/test_v587_lohnarten.py` -- Vorbelegung samt leeren Zeilen, Vorrang der Art (7 Fälle), Schlechtwetter nach Datum, eigene Zuordnung einer Art, Leeren übersteht einen Neustart, neun abgelehnte Eingaben, Kennzeichen groß, Schnittstelle und Rechte (Büro – Auftrag 403, PUT ohne Felder 422), Kategorie Freizeitausgleich beim Antrag, die drei Seiten, Migration auf einem Bestand unter SQLite und PostgreSQL. Klicktest neu: `klicktest_lohnarten.py` (8 Prüfungen, zwei Bilder).
+
+Angepasste Erwartungen (Regel 28): `test_v571::test_zuordnung[Freizeitausgleich]` altes Soll Kategorie Urlaub, neues Soll Freizeitausgleich; `test_v571::test_passend_200` (beide Wege) Aufbau: Freizeitausgleich in seiner Kategorie statt in Urlaub; `test_v102::test_rejected_absence_request_creates_no_absence` Aufbau ebenso; `test_v109::test_time_backoffice_router_fully_uses_shared_dependency` altes Soll 6/9, neues Soll 7/10 (`_role_dep`/`_regeln_dep`); `klicktest_abwesenheit_ein_weg` „D2: zu Urlaub nur passende Arten“ altes Soll „— ohne —, Urlaub, Freizeitausgleich, Sonstiges“, neues Soll „— ohne —, Urlaub, Sonstiges“.

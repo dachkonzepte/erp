@@ -33,8 +33,9 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, require_lohndaten, require_lohnregeln, require_min_role
-from ..schemas import DatevNummernUpdate, EmployeePayrollSettingsOut, EmployeePayrollSettingsUpdate, EmployeeTargetHoursCreate, EmployeeWorkTimeModelBulkUpdate, EmployeeWorkTimeModelUpdate, TimeTrackingLockUpdate, TimeTrackingSettingsOut, TimeTrackingSettingsUpdate, WorkTimeModelUpsert
+from ..schemas import DatevNummernUpdate, EmployeePayrollSettingsOut, EmployeePayrollSettingsUpdate, EmployeeTargetHoursCreate, LohnartZuordnungUpdate, EmployeeWorkTimeModelBulkUpdate, EmployeeWorkTimeModelUpdate, TimeTrackingLockUpdate, TimeTrackingSettingsOut, TimeTrackingSettingsUpdate, WorkTimeModelUpsert
 from ..time_backoffice import DatevExportGesperrt, abschluss_hindernisse, abschluss_meldung, backoffice_summary, build_datev_export, set_datev_nummern, build_time_csv, build_timesheet_pdf, load_time_settings, payroll_rows, set_employee_payroll, set_time_lock, time_settings_dict, update_time_settings
+from ..lohnarten import liste as lohnarten_liste, speichern as lohnart_speichern
 from ..models import Employee
 from ..sollzeit import SollzeitGesperrt, zeile_anlegen as sollzeit_anlegen, zeile_dict, zeile_loeschen as sollzeit_loeschen, zeilen as sollzeit_zeilen
 from ..work_time_models import bulk_set_employee_model, delete_model as delete_work_time_model, employee_model_rows, list_models as list_work_time_models, save_model as save_work_time_model, set_employee_model
@@ -153,6 +154,22 @@ def put_time_payroll_employee(employee_id: int, payload: EmployeePayrollSettings
     try: row=set_employee_payroll(db,employee_id,payload.model_dump(exclude_unset=True))  # seit 1.9.167 ein Teil-Update (Regel 22)
     except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
     return EmployeePayrollSettingsOut.model_validate(row)
+
+
+@router.get("/api/time-backoffice/lohnarten")
+def get_lohnarten(db: Session = Depends(get_db, scope="function"), _role=_role_dep):
+    """Seit 1.9.169 (Lohn L1a, Punkt 4): die Zuordnung für den DATEV-Export -- feste Zeilen und je Art, mit dem, was wirkt."""
+    return lohnarten_liste(db)
+
+
+@router.put("/api/time-backoffice/lohnarten")
+def put_lohnart(payload: LohnartZuordnungUpdate, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
+    """Seit 1.9.169: eine Zeile setzen oder leeren (E7, E10: Admin und Büro – Finanzen). Antwort: die ganze Liste."""
+    try:
+        lohnart_speichern(db, payload.schluessel, payload.kennzeichen, payload.lohnart, payload.monatszeile)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return lohnarten_liste(db)
 
 
 @router.get("/api/time-backoffice/sollzeiten/{employee_id}")

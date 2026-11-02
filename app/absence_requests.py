@@ -12,13 +12,16 @@ from .option_settings import get_option_group
 # "unbekannt" ist ausschliesslich der Migrations-Ruecksfallwert fuer Altbestand ohne Kategorie
 # und deshalb NICHT in ABSENCE_CATEGORIES enthalten -- create_request()/create_employee_absence()
 # lehnen ihn beim Neuanlegen ab, er kann nur ueber die Migration selbst entstehen.
-ABSENCE_CATEGORIES = ("urlaub", "krankheit", "fortbildung", "unbezahlt")
+# Seit 1.9.169 (Lohn L1a, Punkt 4, Entscheidung Tobias): Freizeitausgleich ist eine eigene Kategorie -- er baut das Arbeitszeitkonto ab, ist
+# kein Urlaub (bis 1.9.168 Art „Freizeitausgleich“ in der Kategorie Urlaub, Festlegung 1.9.153 Nr. 1 entfällt).
+ABSENCE_CATEGORIES = ("urlaub", "krankheit", "fortbildung", "unbezahlt", "freizeitausgleich")
 ABSENCE_CATEGORY_UNKNOWN = "unbekannt"
 ABSENCE_CATEGORY_LABELS = {
     "urlaub": "Urlaub",
     "krankheit": "Krankheit",
     "fortbildung": "Fortbildung",
     "unbezahlt": "Unbezahlt",
+    "freizeitausgleich": "Freizeitausgleich",
     ABSENCE_CATEGORY_UNKNOWN: "Unbekannt (Altbestand)",
 }
 
@@ -27,7 +30,7 @@ ABSENCE_CATEGORY_LABELS = {
 # Bedeutung und die Namen der Kategorien (so heißt eine Abwesenheit ohne genauere Art). „Sonstiges“ und jede in den Einstellungen selbst angelegte Art passen zu jeder Kategorie:
 # ihre Bedeutung kennt das Programm nicht. Klein geschrieben (art_kategorien() vergleicht ohne Groß- und Kleinschreibung).
 ART_KATEGORIEN = {
-    "urlaub": ("urlaub",), "freizeitausgleich": ("urlaub",),
+    "urlaub": ("urlaub",), "freizeitausgleich": ("freizeitausgleich",),  # seit 1.9.169 eigene Kategorie (bis 1.9.168 Urlaub)
     "krankheit": ("krankheit",),
     "fortbildung": ("fortbildung",), "weiterbildung": ("fortbildung",), "berufsschule": ("fortbildung",),
     "unbezahlt": ("unbezahlt",),

@@ -709,7 +709,7 @@
         <label class="inline-check"><input id="requireItem" type="checkbox"> LV-Position verpflichtend</label>
         <label class="inline-check"><input id="requireActivity" type="checkbox"> Tätigkeit verpflichtend</label>
       </div>
-      <h3 style="margin:18px 0 8px;font-size:15px">DATEV / Lohnarten</h3>
+      <h3 style="margin:18px 0 8px;font-size:15px">Lohnarten des bisherigen Exports (je Zeitart)</h3>
       <div class="time-grid">
         <div class="field"><label>Zielsystem</label><select id="datevTarget"><option value="lohn_gehalt">DATEV Lohn und Gehalt</option><option value="lodas">DATEV LODAS</option></select></div><div></div>
         <div class="field"><label>Lohnart Baustellenzeit</label><input id="wageSite"></div>
@@ -730,6 +730,13 @@
         <div class="field"><label for="datevMandant">Mandantennummer</label><input id="datevMandant" inputmode="numeric" autocomplete="off" maxlength="5"{% if not ist_admin %} disabled{% endif %}></div>
       </div>
       {% if ist_admin %}<div style="margin-top:10px"><button id="datevNummernSpeichern" onclick="saveDatevNummern()">Berater- und Mandantennummer speichern</button><span id="datevNummernStatus" class="status"></span></div>{% endif %}
+    </div>
+    {# Seit 1.9.169 (Lohn L1a, Punkt 4, E7): Kennzeichen und Lohnart je Art für den DATEV-Export (app/lohnarten.py), leer = nicht exportiert #}
+    <div class="block" id="lohnartenBlock">
+      <h3 style="margin:0 0 4px;font-size:15px">Zuordnung für den DATEV-Export</h3>
+      <div class="muted small" style="margin-bottom:8px">Je Zeile Kennzeichen und Lohnart, wie sie in der Lohndatei stehen. Arbeit trägt die gebuchten Stunden, alles andere die Sollzeit des Tags. Eine Art mit eigener Zuordnung geht ihrer Kategorie vor. Leer heißt: wird nicht exportiert. Schlechtwetter Winter steht als Monatszeile (Ausfallstunden des Monats, ohne Tag und Kennzeichen).</div>
+      <div style="overflow:auto;max-height:65vh"><table><thead><tr><th>Was</th><th>Kennzeichen</th><th>Lohnart</th><th>Monatszeile</th><th>Stunden</th><th>Wirkt</th><th></th></tr></thead><tbody id="lohnartZeilen"></tbody></table></div>
+      <span id="lohnartStatus" class="status"></span>
     </div>
     <div class="block">
       <div class="model-title"><div><h3 style="margin:0 0 4px;font-size:15px">Arbeitszeitmodelle</h3><div class="muted small">Sommer-, Winter- oder weitere Modelle mit Soll-Arbeitszeit (Montag bis Freitag) und Pausenregeln. Eine Änderung gilt auch für zurückliegende Tage – ändere Sollzeit und Kalenderwochen erst, wenn die Monate davor abgeschlossen sind.</div></div><button onclick="newModel()" data-lohnregeln-knopf>+ Modell</button></div>
@@ -1174,6 +1181,7 @@ async function load(){
     // Seit 1.8.112 hier statt im Zeiterfassungs-Backoffice: Zeitregeln und Lohnarten, Arbeitszeitmodelle, Zeit-Listen.
     lade('Zeitregeln und DATEV','zeitregeln','/api/time-backoffice/settings',null,s=>{timeRules=s;renderTimeRules()}),
     lade('Arbeitszeitmodelle','modelle','/api/time-backoffice/work-time-models',[],d=>{workModels=d;renderWorkModels()}),
+    lade('Zuordnung für den DATEV-Export','lohnarten','/api/time-backoffice/lohnarten',[],d=>{lohnarten=d;renderLohnarten()}),  // seit 1.9.169
     lade('Zeit-Listen','zeitlisten','/api/settings/option-groups',[],og=>{timeListGroups=og.filter(g=>Object.values(ZEIT_LISTEN).includes(g.group_key));renderTimeList()}),
   ];
   // Kalkulationsgrundlagen/Stundenverrechnungssatz sind fuer buero_auftrag verengt (403) --
@@ -2369,6 +2377,7 @@ aktion('modell-loeschen',el=>removeModel(Number(el.dataset.id)));
 aktion('modell-zuordnen',el=>assignOne(Number(el.dataset.mitarbeiter),el.value),'change');
 aktion('lohn-speichern',el=>savePayroll(Number(el.dataset.mitarbeiter)));
 aktion('sollzeit-oeffnen',el=>openSollzeit(Number(el.dataset.mitarbeiter)));  // seit 1.9.167
+aktion('lohnart-speichern',el=>saveLohnart(Number(el.dataset.i)));  // seit 1.9.169
 aktion('sollzeit-loeschen',el=>deleteSollzeit(Number(el.dataset.id)));
 aktion('zeitliste-loeschen',el=>deleteTimeListOption(Number(el.dataset.id)));
 function renderTimeRules(){
@@ -2443,6 +2452,11 @@ function szArtGeaendert(){document.getElementById('szTage').hidden=document.getE
 async function openSollzeit(id){szMitarbeiter=id;const p=payroll.find(x=>x.employee_id===id);document.getElementById('sollzeitTitel').textContent='Sollzeit – '+(p?p.employee_name:'');document.getElementById('sollzeitStatus').textContent='';setv('szAb','');document.getElementById('szArt').value='eigen';SZ_TAGE.forEach((t,i)=>setv('sz'+t,zahlText(i<5?8:0,2)));szArtGeaendert();document.getElementById('sollzeitDialog').showModal();try{await ladeSollzeit()}catch(e){document.getElementById('sollzeitStatus').textContent='Fehler: '+e.message}}
 async function saveSollzeit(){const st=document.getElementById('sollzeitStatus');st.textContent='';try{const ab=document.getElementById('szAb').value;if(!ab)throw Error('Bitte „Gültig ab“ angeben.');let werte=null;if(document.getElementById('szArt').value!=='tarif'){werte={};SZ_TAGE.forEach(t=>{werte[t.toLowerCase()]=zahlFeld('sz'+t,{leer:0})})}const body=JSON.stringify({valid_from:ab,werte});await speichern('sollzeit',()=>api('/api/time-backoffice/sollzeiten/'+szMitarbeiter,{method:'POST',headers:{'Content-Type':'application/json'},body}),{neuLaden:ladeSollzeit});await loadPayroll();document.getElementById('sollzeitStatus').textContent='Gespeichert.'}catch(e){st.textContent='Fehler: '+e.message}}
 async function deleteSollzeit(id){if(!confirm('Diese Sollzeit löschen?'))return;const st=document.getElementById('sollzeitStatus');st.textContent='';try{await speichern('sollzeit',()=>api('/api/time-backoffice/sollzeiten/zeile/'+id,{method:'DELETE'}),{neuLaden:ladeSollzeit});await loadPayroll();document.getElementById('sollzeitStatus').textContent='Gelöscht.'}catch(e){st.textContent='Fehler: '+e.message}}
+// Seit 1.9.169 (Lohn L1a, Punkt 4): Zuordnung für den DATEV-Export -- Bereich 'lohnarten', Liste und Texte („Wirkt“) vom Server.
+let lohnarten=[];
+function ladeLohnarten(){return lesen('lohnarten',()=>api('/api/time-backoffice/lohnarten'),d=>{lohnarten=d;renderLohnarten()})}
+function renderLohnarten(){document.getElementById('lohnartZeilen').innerHTML=lohnarten.map((z,i)=>`<tr data-lohnart="${esc(z.schluessel)}"><td>${esc(z.bezeichnung)}</td><td><input id="lzK-${i}" value="${esc(z.kennzeichen||'')}" maxlength="2" autocomplete="off" style="width:56px"></td><td><input id="lzL-${i}" value="${esc(z.lohnart||'')}" inputmode="numeric" maxlength="4" autocomplete="off" style="width:76px"></td><td>${z.monatszeile_moeglich?`<input id="lzM-${i}" type="checkbox" style="width:auto" ${z.monatszeile?'checked':''}>`:''}</td><td class="small">${esc(z.stunden)}</td><td class="small" data-wirkt>${esc(z.wirkt)}</td><td><button class="secondary" data-klick="lohnart-speichern" data-i="${i}" data-lohnregeln-knopf>Speichern</button></td></tr>`).join('');lohnregelnNurLesen()}
+async function saveLohnart(i){const st=document.getElementById('lohnartStatus');st.textContent='';const z=lohnarten[i];try{const m=document.getElementById('lzM-'+i);const body=JSON.stringify({schluessel:z.schluessel,kennzeichen:document.getElementById('lzK-'+i).value.trim()||null,lohnart:document.getElementById('lzL-'+i).value.trim()||null,monatszeile:!!(m&&m.checked)});await speichern('lohnarten',()=>api('/api/time-backoffice/lohnarten',{method:'PUT',headers:{'Content-Type':'application/json'},body}),{anwenden:d=>{lohnarten=d;renderLohnarten()}});document.getElementById('lohnartStatus').textContent='Gespeichert.'}catch(e){st.textContent='Fehler: '+e.message}}
 function setTimeList(groupKey){currentTimeList=groupKey;renderTimeList()}
 function currentTimeListGroup(){return timeListGroups.find(g=>g.group_key===currentTimeList)}
 function ladeZeitlisten(){return lesen('zeitlisten',()=>api('/api/settings/option-groups'),og=>{timeListGroups=og.filter(g=>Object.values(ZEIT_LISTEN).includes(g.group_key));renderTimeList()})}

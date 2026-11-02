@@ -90,7 +90,8 @@ def test_befund_gezaehlt_wird_nur_die_kategorie(threaded_db_session):
 # --- Zuordnung ---------------------------------------------------------------------------------------------------------------------
 
 @pytest.mark.parametrize("art, kategorien", [
-    ("Urlaub", ("urlaub",)), ("Freizeitausgleich", ("urlaub",)), ("Krankheit", ("krankheit",)), ("Weiterbildung", ("fortbildung",)), ("Berufsschule", ("fortbildung",)),
+    ("Urlaub", ("urlaub",)), ("Freizeitausgleich", ("freizeitausgleich",)),  # seit 1.9.169 (bis dahin urlaub)
+    ("Krankheit", ("krankheit",)), ("Weiterbildung", ("fortbildung",)), ("Berufsschule", ("fortbildung",)),
     ("Fortbildung", ("fortbildung",)), ("Unbezahlt", ("unbezahlt",)), ("Sonstiges", ABSENCE_CATEGORIES), ("Kur", ABSENCE_CATEGORIES), ("  krankheit ", ("krankheit",)), ("URLAUB", ("urlaub",)),
 ])
 def test_zuordnung(art, kategorien):
@@ -122,7 +123,7 @@ def test_widerspruch_422_nichts_angelegt(welt, weg, kategorie, art):
 
 
 @pytest.mark.parametrize("weg", WEGE)
-@pytest.mark.parametrize("kategorie, art", [("krankheit", "Krankheit"), ("urlaub", "Urlaub"), ("urlaub", "Freizeitausgleich"), ("fortbildung", "Berufsschule"), ("krankheit", "Sonstiges"),
+@pytest.mark.parametrize("kategorie, art", [("krankheit", "Krankheit"), ("urlaub", "Urlaub"), ("freizeitausgleich", "Freizeitausgleich"), ("fortbildung", "Berufsschule"), ("krankheit", "Sonstiges"),
                                             ("unbezahlt", "Sonstiges"), ("krankheit", "Kur")])
 def test_passend_200(welt, weg, kategorie, art):
     db, client = welt
