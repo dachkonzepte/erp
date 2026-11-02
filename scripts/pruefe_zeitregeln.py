@@ -1,0 +1,249 @@
+"""Prüfung: wie stehen Zeitregeln, Modelle, Personalnummern und Feiertage für den Lohn? (seit 1.9.172, Lohn L1a, Punkt 7)
+
+Vor dem Probemonat (Dezember 2026) und vor dem ersten echten Export: was auf dem Server eingestellt ist, ohne die Seiten einzeln abzugehen
+(Befund L0, R5: Stand des Servers unbekannt). Das Skript liest nur und nennt:
+
+    Rundung               der Zeitregeln (Entscheidung Tobias E6: bleibt, bis das Lohnbüro antwortet)
+    Arbeitszeitmodelle    Kürzel, Kalenderwochen, Soll Mo–Fr, Pausenregeln, aktiv, Standardmodell; Startmodelle mit den alten Grundwerten
+                          (KW 13–43 und 44–12, beide 8,00 h -- die Migration b7e3c91d4a52 stellt nur diese um); Kalenderwochen, die kein aktives
+                          Modell deckt oder zwei decken; Pausenregeln, die nicht 6 h -> 30 min und 9 h -> 45 min sind; Personen je Modell
+    Personalnummern       je aktive Person: fehlt (obwohl etwas exportiert wird), doppelt, nicht 1 bis 5 Ziffern ohne führende Null -- bei
+                          „DATEV-Nr. = ERP-Nr.“ die ERP-Nummer
+    Export-Umfang         Anzahl je alles / nur Abwesenheiten / nichts; Eintritt und Austritt; eigene Sollzeiten
+    Feiertage             Bundesland, „Feiertage automatisch“, die gesetzlichen Feiertage dieses und des nächsten Jahres
+    von Hand              eingetragene betriebsfreie Tage (sie zählen nicht als Feiertag F)
+    Zuordnung             Kennzeichen und Lohnart je Eintrag, was nicht exportiert wird
+
+Aufruf auf dem Server, im Projektverzeichnis, mit geladener Umgebung und dem Python des Servers:
+
+    cd /home/tobias/erp
+    set -a; source .env; set +a
+    .venv/bin/python scripts/pruefe_zeitregeln.py
+
+Nur lesen: die Sitzung ist schreibgeschützt (PostgreSQL: SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY, SQLite: PRAGMA query_only), wird
+am Ende zurückgerollt. DATABASE_URL muss gesetzt sein (sonst fiele app/database.py still auf SQLite zurück).
+
+Ausgabe ohne Namen: Personen nur mit ihrer Kennung (Mitarbeiter-ID). Rückgabe: 0 nichts zu klären, 1 etwas zu klären (Personalnummer fehlt,
+doppelt oder falsch, alte Grundwerte, Kalenderwoche ohne aktives Modell, kein Modell), 2 Umgebung fehlt. Hinweise (Zeilen mit „Hinweis:“)
+ändern die Rückgabe nicht.
+"""
+
+import argparse
+import os
+import sys
+from collections import Counter
+from dataclasses import dataclass, field
+from datetime import date
+from decimal import Decimal
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from sqlalchemy import create_engine, event, select  # noqa: E402
+from sqlalchemy.exc import SQLAlchemyError  # noqa: E402
+from sqlalchemy.orm import Session  # noqa: E402
+from sqlalchemy.pool import NullPool  # noqa: E402
+
+GRUNDWERTE = {"summer": (13, 43, Decimal("8.00")), "winter": (44, 12, Decimal("8.00"))}
+PAUSEN_ARBZG = [(Decimal("6"), 30), (Decimal("9"), 45)]
+
+
+@dataclass
+class Stand:
+    zeilen: list[str] = field(default_factory=list)
+    befunde: list[str] = field(default_factory=list)
+
+    def zeile(self, text: str = "") -> None:
+        self.zeilen.append(text)
+
+    def befund(self, text: str) -> None:
+        self.befunde.append(text)
+        self.zeilen.append("  ! " + text)
+
+
+def _h(wert) -> str:
+    return str(Decimal(str(wert)).quantize(Decimal("0.01"))).replace(".", ",")
+
+
+def _tag(wert: date) -> str:
+    return f"{wert:%d.%m.%Y}"
+
+
+def _modelle(db, stand: Stand) -> None:
+    from app.models import EmployeeWorkTimeModel, TimeBackofficeAdvancedSettings, WorkTimeBreakRule, WorkTimeModel, WorkTimeModelValidity
+    from app.work_time_models import week_in_range
+
+    erweitert = db.get(TimeBackofficeAdvancedSettings, 1)
+    standard = erweitert.default_work_time_model_id if erweitert else None
+    gueltig = {v.model_id: (v.valid_from_week, v.valid_to_week) for v in db.scalars(select(WorkTimeModelValidity))}
+    regeln: dict[int, list] = {}
+    for r in db.scalars(select(WorkTimeBreakRule).order_by(WorkTimeBreakRule.threshold_hours)):
+        regeln.setdefault(r.model_id, []).append((Decimal(str(r.threshold_hours)), int(r.break_minutes or 0)))
+    personen = Counter(m for (m,) in db.execute(select(EmployeeWorkTimeModel.model_id)))
+    modelle = list(db.scalars(select(WorkTimeModel).order_by(WorkTimeModel.sort_order, WorkTimeModel.id)))
+    stand.zeile(f"Arbeitszeitmodelle: {len(modelle)}")
+    if not modelle:
+        stand.befund("Kein Arbeitszeitmodell -- ohne Modell gibt es keine Sollzeit.")
+    for m in modelle:
+        von, bis = gueltig.get(m.id, (1, 53))
+        pausen = " · ".join(f"über {_h(s)} h -> {p} min" for s, p in regeln.get(m.id, [])) or "keine Pausenregeln"
+        stand.zeile(f"  Modell {m.id} „{m.name}“ (Kürzel {m.code or '–'}): KW {von}–{bis}, Soll Mo–Fr {_h(m.daily_target_hours)} h, {pausen}, "
+                    f"{'aktiv' if m.active else 'inaktiv'}{', Standardmodell' if m.id == standard else ''}, {personen.get(m.id, 0)} Person(en) zugeordnet")
+        alt = GRUNDWERTE.get((m.code or "").strip().lower())
+        if alt and (von, bis, Decimal(str(m.daily_target_hours))) == (alt[0], alt[1], alt[2]):
+            stand.befund(f"Modell {m.id} trägt noch die alten Grundwerte (KW {von}–{bis}, 8,00 h), nicht den Tarif (KW 18–48 8,00 h, KW 49–17 7,50 h).")
+        if m.active and regeln.get(m.id, []) != PAUSEN_ARBZG:
+            stand.zeile("    Hinweis: Pausenregeln weichen von 6 h -> 30 min und 9 h -> 45 min ab.")
+    if standard is None:
+        stand.zeile("  Hinweis: kein Standardmodell -- wer kein Modell zugeordnet hat, bekommt das erste für die Woche gültige.")
+    aktive = [m for m in modelle if m.active]
+    ohne, mehrere = [], []
+    for kw in range(1, 54):
+        deckt = [m.id for m in aktive if week_in_range(kw, *gueltig.get(m.id, (1, 53)))]
+        if not deckt:
+            ohne.append(kw)
+        elif len(deckt) > 1:
+            mehrere.append(kw)
+    if ohne:
+        stand.befund(f"Kalenderwochen ohne aktives Modell: {_bereiche(ohne)} -- dort keine Sollzeit nach Tarif.")
+    if mehrere:
+        stand.zeile(f"  Hinweis: Kalenderwochen mit mehreren aktiven Modellen: {_bereiche(mehrere)} -- es gilt das zugeordnete, sonst das Standardmodell, "
+                    "sonst das erste.")
+
+
+def _bereiche(wochen: list[int]) -> str:
+    """[1, 2, 3, 7, 49, 50] -> „1–3, 7, 49–50“."""
+    teile, start = [], wochen[0]
+    for vorher, kw in zip(wochen, wochen[1:] + [None]):
+        if kw is None or kw != vorher + 1:
+            teile.append(str(start) if vorher == start else f"{start}–{vorher}")
+            start = kw
+    return ", ".join(teile)
+
+
+def _personen(db, stand: Stand, heute: date) -> None:
+    from app.models import Employee, EmployeePayrollSettings, EmployeeTargetHours, TimeBackofficeAdvancedSettings
+    from app.time_backoffice import EXPORT_UMFAENGE, PERSONALNUMMER_FORMAT
+
+    erweitert = db.get(TimeBackofficeAdvancedSettings, 1)
+    gleich = bool(erweitert and erweitert.datev_personnel_equals_erp_number)
+    lohn = {p.employee_id: p for p in db.scalars(select(EmployeePayrollSettings))}
+    aktive = list(db.execute(select(Employee.id, Employee.employee_number, Employee.employee_group).where(Employee.active.is_(True))
+                             .order_by(Employee.id)))
+    stand.zeile(f"Personen (aktiv): {len(aktive)}; DATEV-Nr. = ERP-Nr.: {'ja' if gleich else 'nein'}")
+    umfang = Counter()
+    nummern: dict[str, list[int]] = {}
+    for eid, erp_nr, _gruppe in aktive:
+        p = lohn.get(eid)
+        u = (p.export_umfang if p is not None and p.export_umfang else "alles")
+        umfang[u] += 1
+        nummer = ((erp_nr or "").strip() if gleich else ((p.datev_personnel_number if p else None) or "").strip()) or None
+        if nummer:
+            nummern.setdefault(nummer, []).append(eid)
+            if u != "nichts" and not PERSONALNUMMER_FORMAT.match(nummer):
+                stand.befund(f"Person {eid}: Personalnummer „{nummer}“ ist nicht 1 bis 5 Ziffern ohne führende Null.")
+        elif u != "nichts":
+            stand.befund(f"Person {eid}: keine Personalnummer, Export „{EXPORT_UMFAENGE[u]}“.")
+    for nummer, ids in nummern.items():
+        if len(ids) > 1:
+            stand.befund(f"Personalnummer {nummer} tragen {len(ids)} Personen ({', '.join(map(str, ids))}).")
+    stand.zeile("  Export-Umfang: " + ", ".join(f"{EXPORT_UMFAENGE[k]} {umfang.get(k, 0)}" for k in EXPORT_UMFAENGE))
+    mit_eintritt = sum(1 for eid, _n, _g in aktive if lohn.get(eid) is not None and lohn[eid].eintritt)
+    ausgetreten = [eid for eid, _n, _g in aktive if lohn.get(eid) is not None and lohn[eid].austritt and lohn[eid].austritt < heute]
+    stand.zeile(f"  Eintritt eingetragen: {mit_eintritt} von {len(aktive)}" + (f"; aktiv, aber ausgetreten: {', '.join(map(str, ausgetreten))}" if ausgetreten else ""))
+    eigene = len({eid for (eid,) in db.execute(select(EmployeeTargetHours.employee_id))})
+    stand.zeile(f"  Personen mit eigener Sollzeit: {eigene}")
+
+
+def _feiertage(db, stand: Stand, heute: date) -> None:
+    from app.models import PlanningHoliday, PlanningRegionSettings
+    from app.planning import automatic_public_holidays
+
+    region = db.get(PlanningRegionSettings, 1)
+    land = ((region.federal_state_code if region else None) or "NW").upper()
+    stand.zeile(f"Bundesland {land}, Feiertage automatisch: {'an' if (region is None or region.auto_public_holidays) else 'aus'}")
+    for jahr in (heute.year, heute.year + 1):
+        tage = automatic_public_holidays(land, [jahr])
+        stand.zeile(f"  Gesetzliche Feiertage {jahr}: " + ", ".join(f"{_tag(t)} {n}" for t, n in sorted(tage.items())))
+    hand = list(db.execute(select(PlanningHoliday.holiday_date, PlanningHoliday.name, PlanningHoliday.active).order_by(PlanningHoliday.holiday_date)))
+    stand.zeile(f"Von Hand eingetragene Tage: {len(hand)} (zählen nicht als Feiertag F)")
+    for tag, name, aktiv in hand:
+        stand.zeile(f"  {_tag(tag)} {name}{'' if aktiv else ' (inaktiv)'}")
+
+
+def _zuordnung(db, stand: Stand) -> None:
+    from app.models import LohnartZuordnung
+    zeilen = list(db.scalars(select(LohnartZuordnung).order_by(LohnartZuordnung.schluessel)))
+    stand.zeile(f"Zuordnung für den DATEV-Export: {len(zeilen)} Einträge")
+    for z in zeilen:
+        wert = ("Monatszeile " + z.lohnart) if z.monatszeile and z.lohnart else (f"{z.kennzeichen} / {z.lohnart}" if z.lohnart else "nicht exportiert")
+        stand.zeile(f"  {z.schluessel}: {wert}")
+
+
+def pruefen(db, heute: date | None = None) -> Stand:
+    """Liest nur; Personen nur mit Kennung, nie mit Namen."""
+    from app.berlin_time import berlin_today
+    from app.models import TimeTrackingSettings
+    stand = Stand()
+    heute = heute or berlin_today()
+    zeit = db.get(TimeTrackingSettings, 1)
+    rundung = int(zeit.rounding_minutes or 0) if zeit else 0
+    stand.zeile(f"Rundung: {'keine' if not rundung else f'{rundung} Minuten'}; abgeschlossen bis: {_tag(zeit.locked_until) if zeit and zeit.locked_until else '–'}")
+    _modelle(db, stand)
+    _personen(db, stand, heute)
+    _feiertage(db, stand, heute)
+    _zuordnung(db, stand)
+    return stand
+
+
+def nur_lesende_sitzung(url: str) -> Session:
+    """Eine eigene Sitzung, die nicht schreiben kann -- jede Verbindung schreibgeschützt, bevor die erste Anfrage läuft."""
+    engine = create_engine(url, poolclass=NullPool)
+
+    @event.listens_for(engine, "connect")
+    def _schreibschutz(dbapi_verbindung, _eintrag):
+        cursor = dbapi_verbindung.cursor()
+        if engine.dialect.name == "postgresql":
+            cursor.execute("SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY")
+            dbapi_verbindung.commit()
+        elif engine.dialect.name == "sqlite":
+            cursor.execute("PRAGMA query_only = ON")
+        else:
+            raise RuntimeError(f"Datenbank {engine.dialect.name} unbekannt -- kein Schreibschutz, keine Prüfung.")
+        cursor.close()
+
+    return Session(bind=engine, autoflush=False)
+
+
+def main(argv=None, *, sitzung=None, umgebung=None, ausgabe=print, heute: date | None = None) -> int:
+    """sitzung/umgebung/ausgabe/heute nur für Tests; im Betrieb die nur lesende Sitzung aus DATABASE_URL, os.environ, print."""
+    argparse.ArgumentParser(description=__doc__.split("\n\n")[0]).parse_args(argv)
+    umgebung = os.environ if umgebung is None else umgebung
+    eigene = sitzung is None
+    if eigene:
+        url = (umgebung.get("DATABASE_URL") or "").strip()
+        if not url:
+            ausgabe("DATABASE_URL ist nicht gesetzt -- auf dem Server zuerst: set -a; source .env; set +a")
+            return 2
+        sitzung = nur_lesende_sitzung(url)
+    try:
+        stand = pruefen(sitzung, heute)
+    except SQLAlchemyError as fehler:
+        ausgabe(f"Datenbank nicht lesbar: {type(fehler).__name__}")
+        return 2
+    finally:
+        sitzung.rollback()
+        if eigene:
+            bind = sitzung.get_bind()
+            sitzung.close()
+            bind.dispose()
+    for zeile in stand.zeilen:
+        ausgabe(zeile)
+    ausgabe(f"Zu klären: {len(stand.befunde)}" if stand.befunde else "Nichts zu klären.")
+    return 1 if stand.befunde else 0
+
+
+if __name__ == "__main__":
+    if hasattr(sys.stdout, "reconfigure"):  # unter Windows sonst Abbruch an Umlauten
+        sys.stdout.reconfigure(encoding="utf-8")
+    sys.exit(main())

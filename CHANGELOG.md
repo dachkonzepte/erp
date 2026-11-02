@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.172 – Prüfskript für Zeitregeln und Personalnummern (Lohn L1a, Punkt 7)
+
+Neu: `scripts/pruefe_zeitregeln.py`, nur lesend, für den Server vor dem Probemonat. Es nennt die Rundung, jedes Arbeitszeitmodell mit Kürzel, Kalenderwochen, Sollzeit, Pausenregeln und Zahl der zugeordneten Personen, die Personalnummern (fehlend, falsch, doppelt -- bei „DATEV-Nr. = ERP-Nr.“ die ERP-Nummer), den Export-Umfang, Eintritt und Austritt, eigene Sollzeiten, Bundesland und gesetzliche Feiertage dieses und des nächsten Jahres, die von Hand eingetragenen Tage und die Zuordnung für den DATEV-Export. Personen erscheinen nur mit ihrer Kennung, nie mit Namen. Rückgabe 1, wenn etwas zu klären ist (Personalnummer, alte Grundwerte KW 13–43/44–12, Kalenderwochen ohne aktives Modell), sonst 0; Hinweise wie abweichende Pausenregeln ändern sie nicht. Die Sitzung ist schreibgeschützt wie bei `pruefe_abwesenheiten.py`. Tests: `tests/test_v590_pruefe_zeitregeln.py` (auch gegen PostgreSQL).
+
 ## 1.9.171 – Sammeleintrag einer Abwesenheit, halbe Urlaubstage (Lohn L1a, Punkt 6)
 
 Unter „Zeiten → Abwesenheiten“ trägt der Admin eine Abwesenheit jetzt für mehrere Personen auf einmal ein (Entscheidung Tobias E9): „Für mehrere Personen“, dann eine Kolonne, „Alle“ oder einzelne Häkchen. Beim Admin ist sie gleich genehmigt, bei Büro – Finanzen entstehen offene Anträge. Geht es für eine Person nicht (z. B. schon im Urlaub), wird für niemanden eingetragen, und die Meldung nennt die Person mit Grund.

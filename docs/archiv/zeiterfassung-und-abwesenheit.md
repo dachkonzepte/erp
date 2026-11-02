@@ -882,3 +882,18 @@ Sammeleintrag: `app/absence_requests.py::sammel_eintragen()` (je Person `_antrag
 Neu: `tests/test_v589_sammel_und_halber_tag.py` -- halber Urlaubstag (0,5 Tag, 3,75 h), halber Tag nur Urlaub an einem Tag, 21.–31.12.2026 = 7 Tage und 52,50 h, 24.12. halb, 31.12.2027 (Freitag) halb, Krankheit am 24.12. ganz, Teilzeit Di–Do = 3 Tage, „Zeiten“ zeigt 0,5; Sammeleintrag Admin genehmigt, Büro – Finanzen Anträge, Büro – Auftrag und Monteurin 403, alles oder nichts, halber Tag und Schlechtwetter im Sammeleintrag, Kolonnen nur für Admin und Büro – Finanzen, die Seiten; Migration auf einem Bestand unter SQLite und PostgreSQL. Gegenproben: halber Tag ungeprüft -> 2 rot; 24.12./31.12. ganz -> 2 rot; Commit statt Rollback -> 1 rot. Klicktest neu: `klicktest_sammeleintrag.py` (20 Prüfungen, drei Bilder); er fand die zwei Punkte am Ende der Meldung.
 
 Angepasste Erwartungen (Regel 28): `test_v525::test_antrag_ueber_weihnachten_acht_arbeitstage` altes Soll 8 Arbeitstage, neues Soll 7 (24.12. und 31.12. je 0,5). `test_v519::_abwesenheit` Aufbau: die Attrappe bindet `_zahl.html` ein (die Zeile zeigt die Arbeitstage über `zahlText()`).
+
+### Umsetzung 1.9.172: Prüfskript `scripts/pruefe_zeitregeln.py` (Punkt 7)
+
+Nur lesend, Muster `scripts/pruefe_abwesenheiten.py` (`nur_lesende_sitzung()`: PostgreSQL `READ ONLY`, SQLite `query_only`; `main(argv, sitzung=, umgebung=, ausgabe=, heute=)`; ohne `DATABASE_URL` Rückgabe 2). Abschnitte: Rundung und „abgeschlossen bis“; Arbeitszeitmodelle (Kürzel, Kalenderwochen, Soll Mo–Fr, Pausenregeln, aktiv, Standardmodell, zugeordnete Personen), alte Grundwerte, Kalenderwochen ohne bzw. mit mehreren aktiven Modellen; Personen (aktiv) mit Gleichsetzung, Personalnummer fehlend/falsch/doppelt nach `PERSONALNUMMER_FORMAT`, Export-Umfang, Eintritt, „aktiv, aber ausgetreten“, eigene Sollzeiten; Bundesland, „Feiertage automatisch“, gesetzliche Feiertage dieses und des nächsten Jahres (`automatic_public_holidays()`), von Hand eingetragene Tage (`PlanningHoliday`, zählen nicht als F und nicht in der Sollzeit); Zuordnung für den Export je Schlüssel. Heute aus `berlin_today()`.
+
+### Festlegungen 1.9.172 (Bitte bestätigen)
+
+1. „Zu klären“ (Rückgabe 1) ist nur, was Sollzeit oder Export falsch machte: Personalnummer fehlt bei Export ungleich „nichts“, ist nicht 1 bis 5 Ziffern ohne führende Null oder doppelt; Startmodell mit den alten Grundwerten; Kalenderwochen ohne aktives Modell; kein Modell. Abweichende Pausenregeln, mehrere Modelle in einer Woche und kein Standardmodell sind Hinweise ohne Einfluss auf die Rückgabe.
+2. Bei „DATEV-Nr. = ERP-Nr.“ prüft das Skript die ERP-Mitarbeiternummer, wie der Export sie nimmt.
+3. Geprüft werden nur aktive Mitarbeiter; „aktiv, aber ausgetreten“ wird genannt, ist aber kein Befund (nach dem Austritt geht ohnehin nichts in den Export).
+4. Personen nur mit Kennung; Modelle, Feiertage und von Hand eingetragene Tage mit ihrem Namen (keine Personendaten).
+
+### Tests und Prüfung
+
+Neu: `tests/test_v590_pruefe_zeitregeln.py` (16 Tests) -- Grunddaten ohne Befund, Rundung und Abschluss, Feiertage NW 2026/2027, Berlin ohne Allerheiligen, von Hand eingetragene Tage, alte Grundwerte, Kalenderwochen 1–17 und 49–53 ohne Modell, Hinweise ohne Einfluss, Personalnummern (fehlend, nur Abwesenheiten, führende Null, doppelt mit Leerzeichen, „nichts“ und inaktiv ohne Befund), Gleichsetzung, Eintritt/Austritt/eigene Sollzeit/Zuordnung der Modelle, Zuordnung für den Export, kein Name, ohne `DATABASE_URL`, Aufruf im Kopf, Schreibschutz unter SQLite und PostgreSQL. Gegenproben: Personalnummer auch bei „nichts“ verlangt -> 1 rot; `query_only` weg -> 1 rot; alte Grundwerte nicht erkannt -> 1 rot. Angepasste Erwartungen: keine.
