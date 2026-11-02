@@ -2733,6 +2733,31 @@ class EmployeePayrollSettings(Base):
     employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), index=True)
     datev_personnel_number: Mapped[str | None] = mapped_column(String(30), nullable=True, index=True)
     payroll_export_enabled: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    # Seit 1.9.167 (Lohn L1a, Punkt 2, Entscheidung Tobias E3): Eintritt und Austritt, beide Tage eingeschlossen -- davor und danach ist die
+    # Sollzeit 0 (app/sollzeit.py), es gibt keine Zeile im Export. Leer = offen.
+    eintritt: Mapped[date | None] = mapped_column(Date, nullable=True)
+    austritt: Mapped[date | None] = mapped_column(Date, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class EmployeeTargetHours(Base):
+    """Eigene Sollzeit einer Person ab einem Tag (seit 1.9.167, Lohn L1a, Punkt 2, Entscheidung Tobias E4) -- sieben Werte Montag bis
+    Sonntag in Stunden, z. B. Teilzeit an Di, Mi und Do. Es gilt die jüngste Zeile, deren Tag schon begonnen hat; eine Zeile ohne Werte
+    heißt „ab hier wieder Tarif“. Ohne Zeile gilt der Tarif (Arbeitszeitmodell). Gerechnet nur in app/sollzeit.py."""
+    __tablename__ = "employee_target_hours"
+    __table_args__ = (UniqueConstraint("employee_id", "valid_from", name="uq_employee_target_hours_tag"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), index=True)
+    valid_from: Mapped[date] = mapped_column(Date, index=True)
+    montag: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+    dienstag: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+    mittwoch: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+    donnerstag: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+    freitag: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+    samstag: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+    sonntag: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 

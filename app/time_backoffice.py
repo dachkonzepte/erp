@@ -177,48 +177,67 @@ def effective_datev_personnel_number(db: Session, employee: Employee, payroll: E
     return (payroll.datev_personnel_number or "").strip() or None
 
 
-def payroll_rows(db: Session) -> list[dict]:
-    employees = db.scalars(select(Employee).order_by(Employee.active.desc(), Employee.last_name, Employee.first_name)).all()
-    advanced = load_advanced_settings(db)
-    result=[]
-    for emp in employees:
-        p=load_employee_payroll(db, emp.id)
-        result.append({
-            "employee_id": emp.id,
-            "employee_name": f"{emp.first_name} {emp.last_name}".strip(),
-            "employee_number": emp.employee_number,
-            "datev_personnel_number": effective_datev_personnel_number(db, emp, p),
-            "datev_personnel_number_stored": p.datev_personnel_number,
-            "datev_personnel_equals_erp_number": bool(advanced.datev_personnel_equals_erp_number),
-            "payroll_export_enabled": p.payroll_export_enabled,
-        })
-    return result
+def _sollzeiten_aller(db: Session) -> dict[int, list[dict]]:
+    """Seit 1.9.167: die eigenen Sollzeiten aller Personen in einer Abfrage (app/sollzeit.py::zeile_dict())."""
+    from .models import EmployeeTargetHours
+    from .sollzeit import zeile_dict
+    je: dict[int, list[dict]] = {}
+    for z in db.scalars(select(EmployeeTargetHours).order_by(EmployeeTargetHours.employee_id, EmployeeTargetHours.valid_from)).all():
+        je.setdefault(z.employee_id, []).append(zeile_dict(z))
+    return je
 
 
-def set_employee_payroll(db: Session, employee_id: int, payload) -> dict:
-    emp=db.get(Employee, employee_id)
-    if emp is None: raise ValueError("Mitarbeiter wurde nicht gefunden.")
-    advanced=load_advanced_settings(db)
-    value=((emp.employee_number or "").strip() or None) if advanced.datev_personnel_equals_erp_number else ((payload.datev_personnel_number or "").strip() or None)
-    if advanced.datev_personnel_equals_erp_number and not value and payload.payroll_export_enabled:
-        raise ValueError("ERP-Mitarbeiternummer fehlt. Bei aktivierter Gleichsetzung wird sie als DATEV-Personalnummer benötigt.")
-    if value:
-        duplicate=db.scalar(select(EmployeePayrollSettings).where(
-            EmployeePayrollSettings.datev_personnel_number==value,
-            EmployeePayrollSettings.employee_id!=employee_id,
-        ))
-        if duplicate is not None: raise ValueError("Diese DATEV-Personalnummer ist bereits vergeben.")
-    row=get_employee_payroll(db, employee_id)
-    row.datev_personnel_number=value
-    row.payroll_export_enabled=bool(payload.payroll_export_enabled)
-    db.commit(); db.refresh(row)
+def _payroll_dict(db: Session, emp: Employee, p: EmployeePayrollSettings, sollzeiten: list[dict]) -> dict:
     return {
         "employee_id": emp.id,
         "employee_name": f"{emp.first_name} {emp.last_name}".strip(),
         "employee_number": emp.employee_number,
-        "datev_personnel_number": effective_datev_personnel_number(db, emp, row),
-        "payroll_export_enabled": row.payroll_export_enabled,
+        "datev_personnel_number": effective_datev_personnel_number(db, emp, p),
+        "datev_personnel_number_stored": p.datev_personnel_number,
+        "datev_personnel_equals_erp_number": bool(load_advanced_settings(db).datev_personnel_equals_erp_number),
+        "payroll_export_enabled": p.payroll_export_enabled,
+        "eintritt": p.eintritt, "austritt": p.austritt,  # seit 1.9.167
+        "sollzeiten": sollzeiten,
     }
+
+
+def payroll_rows(db: Session) -> list[dict]:
+    employees = db.scalars(select(Employee).order_by(Employee.active.desc(), Employee.last_name, Employee.first_name)).all()
+    sollzeiten = _sollzeiten_aller(db)
+    return [_payroll_dict(db, emp, load_employee_payroll(db, emp.id), sollzeiten.get(emp.id, [])) for emp in employees]
+
+
+def set_employee_payroll(db: Session, employee_id: int, werte: dict) -> dict:
+    """Seit 1.9.167 ein Teil-Update (Regel 22): nur die gesendeten Felder (bis 1.9.166 jedes, ein fehlendes Häkchen hieß „Export an“).
+    Bei „DATEV-Nr. = ERP-Nr.“ gilt wie bisher die ERP-Nummer, auch wenn keine Nummer mitkommt."""
+    emp=db.get(Employee, employee_id)
+    if emp is None: raise ValueError("Mitarbeiter wurde nicht gefunden.")
+    advanced=load_advanced_settings(db)
+    row=db.scalar(select(EmployeePayrollSettings).where(EmployeePayrollSettings.employee_id == employee_id))
+    if row is None:
+        row=EmployeePayrollSettings(employee_id=employee_id, payroll_export_enabled=True)
+        db.add(row)
+    if "payroll_export_enabled" in werte:
+        row.payroll_export_enabled=bool(werte["payroll_export_enabled"])
+    if advanced.datev_personnel_equals_erp_number or "datev_personnel_number" in werte:
+        value=((emp.employee_number or "").strip() or None) if advanced.datev_personnel_equals_erp_number else ((werte.get("datev_personnel_number") or "").strip() or None)
+        if advanced.datev_personnel_equals_erp_number and not value and row.payroll_export_enabled:
+            raise ValueError("ERP-Mitarbeiternummer fehlt. Bei aktivierter Gleichsetzung wird sie als DATEV-Personalnummer benötigt.")
+        if value:
+            duplicate=db.scalar(select(EmployeePayrollSettings).where(
+                EmployeePayrollSettings.datev_personnel_number==value,
+                EmployeePayrollSettings.employee_id!=employee_id,
+            ))
+            if duplicate is not None: raise ValueError("Diese DATEV-Personalnummer ist bereits vergeben.")
+        row.datev_personnel_number=value
+    # seit 1.9.167 (Lohn L1a, Punkt 2): Eintritt und Austritt, beide Tage eingeschlossen -- leer = offen
+    for feld in ("eintritt", "austritt"):
+        if feld in werte:
+            setattr(row, feld, werte[feld])
+    if row.eintritt and row.austritt and row.austritt < row.eintritt:
+        raise ValueError("Der Austritt liegt vor dem Eintritt.")
+    db.commit(); db.refresh(row)
+    return _payroll_dict(db, emp, row, _sollzeiten_aller(db).get(emp.id, []))
 
 
 def rounded_hours(hours: Decimal, rounding_minutes: int) -> Decimal:

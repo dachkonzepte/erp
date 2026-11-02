@@ -18,6 +18,9 @@ verengen, die gesamte Datei hebt sich deshalb einheitlich auf buero_auftrag.
 Seit 1.9.89 (Stufe 4, R5a, Entscheidung Tobias): die Lohndaten -- Stundenzettel aller, Stundendaten als CSV, DATEV-Export,
 Abschließen -- nur für Admin und Büro – Finanzen (require_lohndaten, app/permissions.py); einen Abschluss zurücknehmen oder aufheben
 weiter nur der Admin. Die Übersicht (Stunden je Mitarbeiter), Zeitmodelle und Personalnummern bleiben dem Büro.
+
+Seit 1.9.167 (Lohn L1a, Entscheidung Tobias E10): Arbeitszeitmodelle mit Pausenregeln, ihre Zuordnung, Personalnummern, Eintritt, Austritt
+und eigene Sollzeiten ändern nur Admin und Büro – Finanzen (require_lohnregeln); Büro – Auftrag liest sie.
 """
 
 from datetime import date, timedelta
@@ -29,15 +32,18 @@ from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, require_lohndaten, require_min_role
-from ..schemas import DatevNummernUpdate, EmployeePayrollSettingsOut, EmployeePayrollSettingsUpdate, EmployeeWorkTimeModelBulkUpdate, EmployeeWorkTimeModelUpdate, TimeTrackingLockUpdate, TimeTrackingSettingsOut, TimeTrackingSettingsUpdate, WorkTimeModelUpsert
+from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, require_lohndaten, require_lohnregeln, require_min_role
+from ..schemas import DatevNummernUpdate, EmployeePayrollSettingsOut, EmployeePayrollSettingsUpdate, EmployeeTargetHoursCreate, EmployeeWorkTimeModelBulkUpdate, EmployeeWorkTimeModelUpdate, TimeTrackingLockUpdate, TimeTrackingSettingsOut, TimeTrackingSettingsUpdate, WorkTimeModelUpsert
 from ..time_backoffice import DatevExportGesperrt, abschluss_hindernisse, abschluss_meldung, backoffice_summary, build_datev_export, set_datev_nummern, build_time_csv, build_timesheet_pdf, load_time_settings, payroll_rows, set_employee_payroll, set_time_lock, time_settings_dict, update_time_settings
+from ..models import Employee
+from ..sollzeit import SollzeitGesperrt, zeile_anlegen as sollzeit_anlegen, zeile_dict, zeile_loeschen as sollzeit_loeschen, zeilen as sollzeit_zeilen
 from ..work_time_models import bulk_set_employee_model, delete_model as delete_work_time_model, employee_model_rows, list_models as list_work_time_models, save_model as save_work_time_model, set_employee_model
 
 router = APIRouter()
 
 _role_dep = Depends(require_min_role(ROLE_OFFICE_AUFTRAG, message="Das Zeiterfassungs-Backoffice ist nur für Büro und Administratoren verfügbar."))
 _lohn_dep = Depends(require_lohndaten)  # seit 1.9.89: Admin und Büro – Finanzen
+_regeln_dep = Depends(require_lohnregeln)  # seit 1.9.167: Admin und Büro – Finanzen, Büro – Auftrag liest
 
 
 @router.get("/api/time-backoffice/settings", response_model=TimeTrackingSettingsOut)
@@ -46,7 +52,8 @@ def get_time_backoffice_settings(db: Session = Depends(get_db, scope="function")
 
 
 @router.put("/api/time-backoffice/settings", response_model=TimeTrackingSettingsOut)
-def put_time_backoffice_settings(payload: TimeTrackingSettingsUpdate, db: Session = Depends(get_db, scope="function"), _role=_role_dep):
+def put_time_backoffice_settings(payload: TimeTrackingSettingsUpdate, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
+    """Rundung, Standardmodell, Lohnarten, „DATEV-Nr. = ERP-Nr.“ -- seit 1.9.167 nur Admin und Büro – Finanzen (E10, bis 1.9.166 jedes Büro)."""
     try:
         row = update_time_settings(db, payload)
     except ValueError as exc:
@@ -97,7 +104,7 @@ def get_work_time_models(db: Session = Depends(get_db, scope="function"), _role=
 
 
 @router.post("/api/time-backoffice/work-time-models")
-def create_work_time_model(payload: WorkTimeModelUpsert, db: Session = Depends(get_db, scope="function"), _role=_role_dep):
+def create_work_time_model(payload: WorkTimeModelUpsert, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
     try:
         row=save_work_time_model(db,model_id=None,name=payload.name,code=payload.code,daily_target_hours=payload.daily_target_hours,valid_from_week=payload.valid_from_week,valid_to_week=payload.valid_to_week,description=payload.description,active=payload.active,sort_order=payload.sort_order,break_rules=[x.model_dump() for x in payload.break_rules])
     except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
@@ -105,7 +112,7 @@ def create_work_time_model(payload: WorkTimeModelUpsert, db: Session = Depends(g
 
 
 @router.put("/api/time-backoffice/work-time-models/{model_id}")
-def put_work_time_model(model_id: int, payload: WorkTimeModelUpsert, db: Session = Depends(get_db, scope="function"), _role=_role_dep):
+def put_work_time_model(model_id: int, payload: WorkTimeModelUpsert, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
     try:
         row=save_work_time_model(db,model_id=model_id,name=payload.name,code=payload.code,daily_target_hours=payload.daily_target_hours,valid_from_week=payload.valid_from_week,valid_to_week=payload.valid_to_week,description=payload.description,active=payload.active,sort_order=payload.sort_order,break_rules=[x.model_dump() for x in payload.break_rules])
     except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
@@ -113,7 +120,7 @@ def put_work_time_model(model_id: int, payload: WorkTimeModelUpsert, db: Session
 
 
 @router.delete("/api/time-backoffice/work-time-models/{model_id}")
-def remove_work_time_model(model_id: int, db: Session = Depends(get_db, scope="function"), _role=_role_dep):
+def remove_work_time_model(model_id: int, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
     try: delete_work_time_model(db,model_id)
     except ValueError as exc: raise HTTPException(status_code=409,detail=str(exc)) from exc
     return {"ok":True}
@@ -125,13 +132,13 @@ def get_work_time_assignments(db: Session = Depends(get_db, scope="function"), _
 
 
 @router.put("/api/time-backoffice/work-time-assignments/{employee_id}")
-def put_work_time_assignment(employee_id: int, payload: EmployeeWorkTimeModelUpdate, db: Session = Depends(get_db, scope="function"), _role=_role_dep):
+def put_work_time_assignment(employee_id: int, payload: EmployeeWorkTimeModelUpdate, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
     try: return set_employee_model(db,employee_id,payload.model_id)
     except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
 
 
 @router.post("/api/time-backoffice/work-time-assignments/bulk")
-def put_work_time_assignments_bulk(payload: EmployeeWorkTimeModelBulkUpdate, db: Session = Depends(get_db, scope="function"), _role=_role_dep):
+def put_work_time_assignments_bulk(payload: EmployeeWorkTimeModelBulkUpdate, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
     try: return bulk_set_employee_model(db,payload.employee_ids,payload.model_id)
     except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
 
@@ -142,10 +149,44 @@ def get_time_payroll_employees(db: Session = Depends(get_db, scope="function"), 
 
 
 @router.put("/api/time-backoffice/payroll-employees/{employee_id}", response_model=EmployeePayrollSettingsOut)
-def put_time_payroll_employee(employee_id: int, payload: EmployeePayrollSettingsUpdate, db: Session = Depends(get_db, scope="function"), _role=_role_dep):
-    try: row=set_employee_payroll(db,employee_id,payload)
+def put_time_payroll_employee(employee_id: int, payload: EmployeePayrollSettingsUpdate, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
+    try: row=set_employee_payroll(db,employee_id,payload.model_dump(exclude_unset=True))  # seit 1.9.167 ein Teil-Update (Regel 22)
     except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
     return EmployeePayrollSettingsOut.model_validate(row)
+
+
+@router.get("/api/time-backoffice/sollzeiten/{employee_id}")
+def get_sollzeiten(employee_id: int, db: Session = Depends(get_db, scope="function"), _role=_role_dep):
+    """Seit 1.9.167 (Lohn L1a, Punkt 2): die eigenen Sollzeiten einer Person (ab einem Tag, Montag bis Sonntag) -- leer = Tarif."""
+    if db.get(Employee, employee_id) is None:
+        raise HTTPException(status_code=404, detail="Mitarbeiter wurde nicht gefunden.")
+    return [zeile_dict(z) for z in sollzeit_zeilen(db, employee_id)]
+
+
+@router.post("/api/time-backoffice/sollzeiten/{employee_id}")
+def post_sollzeit(employee_id: int, payload: EmployeeTargetHoursCreate, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
+    """Seit 1.9.167: eigene Sollzeit ab einem Tag (ohne Werte: ab hier wieder Tarif) -- „gültig ab“ nach „Abgeschlossen bis“, sonst 409."""
+    try:
+        zeile = sollzeit_anlegen(db, employee_id, payload.valid_from, payload.werte)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except SollzeitGesperrt as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return zeile_dict(zeile)
+
+
+@router.delete("/api/time-backoffice/sollzeiten/zeile/{zeile_id}")
+def delete_sollzeit(zeile_id: int, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
+    """Seit 1.9.167: eine eigene Sollzeit löschen -- nur, solange sie keinen abgeschlossenen Zeitraum trifft (sonst 409)."""
+    try:
+        sollzeit_loeschen(db, zeile_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except SollzeitGesperrt as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"ok": True}
 
 
 @router.get("/api/time-backoffice/summary")

@@ -245,7 +245,6 @@ BEKANNT = {
     "PUT /api/tax-keys/{key_id}": _VOLLES_FORMULAR,
     "PUT /api/teams/{team_id}": _VOLLES_FORMULAR,
     "PUT /api/time-backoffice/lock": _LEEREN_GEWOLLT,
-    "PUT /api/time-backoffice/payroll-employees/{employee_id}": _VOLLES_FORMULAR,
     "PUT /api/time-backoffice/settings": _VOLLES_FORMULAR,
     "PUT /api/time-backoffice/work-time-models/{model_id}": _VOLLES_FORMULAR,
     "PUT /api/users/{user_id}": _VOLLES_FORMULAR,

@@ -764,3 +764,26 @@ Angepasste Erwartungen (Regel 28), altes Soll -> neues Soll:
 - `klicktest_meine_zeiten`: sechs Prüfungen -- Nachtrag 0:45 h, 3,50 h -> 0:30 h, 3,75 h, Tag 8,50 -> 8,75 h; Kolonne Tom 5,00 -> 5,25 h (Fahrzeit 06:15, Tag 6:15 h -> 15 min).
 - `klicktest_monteurin_regeln`: „Ende nachgetragen“ 0:45 h, 8,50 h -> 0:30 h, 8,75 h.
 - `klicktest_zeiten`: zwölf Prüfungen -- Ende 16:00 0:45 h, 8,50 h -> 0:30 h, 8,75 h (Vorschau, API, Meldung); Pause passt nicht 0:45 -> 0:30 h, 3,50 -> 3,75 h; Monat Mia 18,00 -> 18,50, zusammen 35,75 -> 36,25; Buchungen Mia 0:45/3,50 -> 0:30/3,75, Tom 0:45/8,50 -> 0:30/8,75; Summe 45,00 -> 45,50, Tom 26,25 -> 26,50; drei Texte „passt danach nicht“ mit „(nach Zeitregel 0:30 h)“; Lohn Mia 21,75 -> 22,00, Tom 30,50 -> 30,75, zusammen 52,25 -> 52,75.
+
+### Umsetzung 1.9.167: Sollzeit (Punkt 2)
+
+`app/sollzeit.py` ist die eine Rechnung: `soll(db, Person, Tag)` und `soll_zeitraum()` (Stunden mit zwei Stellen). Tarif = Montag bis Freitag `WorkTimeModel.daily_target_hours` des Modells, das `employee_model()` für den Tag liefert (zugeordnetes Modell, sonst das gültige Standardmodell, sonst das erste gültige); Samstag und Sonntag 0. Eigene Werte: `EmployeeTargetHours` (je Person und Tag eindeutig, sieben Spalten `montag` … `sonntag`, alle leer = Tarif), es gilt die jüngste Zeile mit `valid_from <= Tag`. `EmployeePayrollSettings.eintritt/austritt` (beide eingeschlossen, leer = offen): davor und danach 0. Ein Feiertag ändert die Sollzeit nicht.
+
+Migration `b7e3c91d4a52`: Spalten und Tabelle; Startmodelle (Kürzel summer/winter) nur bei genau den Grundwerten auf den Tarif; `downgrade()` stellt nur zurück, was genau dem Tarif entspricht. Neue Installationen bekommen den Tarif aus `ensure_default_work_time_models()`. Ein Fehler, den die Migrationsprobe fand: SQLite bindet in rohem SQL keinen Decimal-Wert, der Parameter hat jetzt einen Typ.
+
+Rechte (E10): `app/permissions.py::darf_lohnregeln()`/`require_lohnregeln` (Admin, Büro – Finanzen) an `PUT /api/time-backoffice/settings`, Modelle (POST, PUT, DELETE), Zuordnung (PUT, bulk), Lohnstammdaten (PUT) und Sollzeiten (POST, DELETE). Lesen bleibt ab Büro – Auftrag. Die Seite bekommt `lohnregeln` von der Seitenroute und sperrt den ganzen Bereich „Zeitregeln und DATEV“ (`lohnregelnNurLesen()` nach jedem Zeichnen).
+
+### Festlegungen 1.9.167 (Bitte bestätigen)
+
+1. Ohne eigene Werte gilt der Tarif auch für Azubis und Aushilfen; wer anders arbeitet, bekommt eigene Werte.
+2. Eigene Werte ändern sich nicht mit der Kalenderwoche (E4 sagt nur „je Wochentag“); soll eine Teilzeit im Winter anders laufen, braucht sie eine zweite Zeile ab dem Wechsel.
+3. „Gültig ab“ einer eigenen Sollzeit liegt nach „Abgeschlossen bis“, Löschen ebenso -- ein abgerechneter Monat rechnet beim nächsten Export nicht anders. Eintritt und Austritt prüfen das nicht: sie stehen meist weit zurück und ändern sich selten; der abgelegte Export (L1b) hält fest, was abgerechnet ist.
+4. Eine Änderung am Modell (Sollzeit, Kalenderwochen) gilt weiter auch rückwirkend; die Seite sagt, sie erst nach dem Abschluss der Monate davor zu ändern.
+5. Rundung, Standardmodell, Lohnarten und „DATEV-Nr. = ERP-Nr.“ (das Formular „Zeitregeln“) ändern nur noch Admin und Büro – Finanzen -- alles rechnet in die Lohndatei; E10 nannte Personalnummern, Modelle, Pausenregeln, Sollzeiten und Zuordnung.
+6. Die Sollzeit eines Tags hat zwei Nachkommastellen (`round_hours()`), auch wenn das Modell vier speichert.
+
+### Tests und Prüfung
+
+Neu: `tests/test_v585_sollzeit.py` -- Tarif an Fr 24.04./Mo 27.04.2026 (7,50/8,00, wie LIESMICH 7.), Fr 27.11./Mo 30.11.2026, Sa, So, KW 53, KW 1, 01.05.; Teilzeit Di–Do und zurück zum Tarif; Eintritt und Austritt; Anlegen, Lesen, Löschen über die Schnittstelle; falsche Werte 422; abgeschlossener Zeitraum 409; Teil-Update der Lohnstammdaten; Büro – Auftrag 403 an sieben Schreibwegen, liest fünf; Migration auf einem Bestand (geänderter Winter bleibt) unter SQLite und PostgreSQL. Gegenproben: Rechte wie bisher -> `test_buero_auftrag_liest_nur` rot; Sperre aus -> `test_sollzeit_nie_im_abgeschlossenen_zeitraum` rot; Eintritt nicht beachtet -> `test_eintritt_und_austritt` rot. Klicktest neu: `klicktest_sollzeit.py` (16 Prüfungen, vier Bilder).
+
+Angepasste Erwartungen (Regel 28): `test_v109::test_time_backoffice_router_fully_uses_shared_dependency` altes Soll mindestens 11-mal `_role_dep`, neues Soll mindestens 6-mal `_role_dep` und 9-mal `_regeln_dep` (4-mal `_lohn_dep` bleibt). `test_v105::test_summer_winter_model_week_validity…` altes Soll KW 13–43 und 44–12, neues Soll KW 18–48 und 49–17. `test_v448` (beide Tests) Aufbau: Büro – Finanzen statt Büro – Auftrag speichert die Zeitregeln. `test_v513::test_formular_der_zeitregeln_laesst_die_nummern_stehen` Aufbau: Büro – Finanzen speichert das Formular statt Büro – Auftrag (das liest nur noch). `test_v329::BEKANNT` ohne `PUT /api/time-backoffice/payroll-employees/{employee_id}` (jetzt ein Teil-Update). `test_v424::ABGLEICH` um die sieben Felder der Sollzeit (0 bis 24 h, Grenze im Prüfer des Schemas).

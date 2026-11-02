@@ -172,6 +172,18 @@ def darf_planungsgrundlagen(user: AppUser | None) -> bool:
     return user is None or has_role(user, *PLANUNGSGRUNDLAGEN_ROLLEN)
 
 
+# Seit 1.9.167 (Lohn L1a, Entscheidung Tobias E10): was in die Lohndatei rechnet -- Arbeitszeitmodelle mit Pausenregeln und Sollzeit, ihre
+# Zuordnung, eigene Sollzeiten, Eintritt und Austritt, Personalnummern und Export-Umfang (seit 1.9.168), die Zuordnung Art -> Lohnart (seit
+# 1.9.169) -- ändern Admin und Büro – Finanzen; Büro – Auftrag liest (bis 1.9.166 änderte es jedes Büro).
+LOHNREGELN_ROLLEN = frozenset({ROLE_ADMIN, ROLE_OFFICE_FINANZEN})
+LOHNREGELN_NUR_LESEN = ("Arbeitszeitmodelle, Pausenregeln, Sollzeiten und Personalnummern ändern Admin und Büro – Finanzen – du kannst sie "
+                        "lesen.")
+
+
+def darf_lohnregeln(user: AppUser | None) -> bool:
+    return user is None or has_role(user, *LOHNREGELN_ROLLEN)
+
+
 # Seit 1.9.146 (Stufe 6, R1, Punkt 4): eine genehmigte Abwesenheit löscht nur, wer Anträge entscheidet -- der Admin.
 ABWESENHEIT_LOESCHEN_ROLLEN = frozenset({ROLE_ADMIN})
 ABWESENHEIT_LOESCHEN_NUR_ADMIN = "Eine genehmigte Abwesenheit löscht nur der Admin."
@@ -312,6 +324,7 @@ require_geld = require_role(*GELD_ROLLEN, message=GELD_NUR_LESEN)  # seit 1.9.11
 # Seit 1.9.120: Mahnstufen, Zahlungsbedingungen, Steuerschlüssel, Nummernkreise speichern -- darf_geld(), bis 1.9.119 jedes Büro.
 require_geld_einstellung = require_role(*GELD_ROLLEN, message=EINSTELLUNGEN_GELD_NUR_LESEN)
 require_planungsgrundlagen = require_role(*PLANUNGSGRUNDLAGEN_ROLLEN, message=PLANUNGSGRUNDLAGEN_NUR_LESEN)  # seit 1.9.147, zu darf_planungsgrundlagen() oben
+require_lohnregeln = require_role(*LOHNREGELN_ROLLEN, message=LOHNREGELN_NUR_LESEN)  # seit 1.9.167, zu darf_lohnregeln() oben
 
 
 # Vollständigkeits-Ausnahmen für tests/test_v260_role_audit.py -- bewusst kurz und einzeln

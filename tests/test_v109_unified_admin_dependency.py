@@ -83,11 +83,13 @@ def test_time_backoffice_router_fully_uses_shared_dependency():
     # vollständig), alle 15 teilen sich weiterhin dieselbe, einmal definierte _role_dep-Variable.
     # Seit 1.9.89 (Stufe 4, R5a): die vier Endpunkte der Lohndaten (Stundenzettel, CSV, DATEV, Abschluss) teilen sich ebenso eine,
     # _lohn_dep (require_lohndaten aus app/permissions.py) -- 11 + 4 = 15.
+    # Seit 1.9.167 (Lohn L1a, E10): die schreibenden Wege der Zeitregeln, Modelle, Zuordnung, Lohnstammdaten und Sollzeiten teilen sich
+    # _regeln_dep (require_lohnregeln) -- 6 lesende mit _role_dep, 9 mit _regeln_dep, 4 mit _lohn_dep.
     src = (Path(__file__).parents[1] / "app/routers/time_backoffice.py").read_text(encoding="utf-8")
     assert "def _require_admin" not in src
     assert "_require_admin(request)" not in src
     assert "Depends(require_admin(" not in src
-    assert src.count("_role=_role_dep") >= 11 and src.count("_role=_lohn_dep") == 4
+    assert src.count("_role=_role_dep") >= 6 and src.count("_role=_regeln_dep") == 9 and src.count("_role=_lohn_dep") == 4
 
 
 def test_all_local_relative_imports_in_routers_resolve():

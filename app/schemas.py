@@ -3746,9 +3746,35 @@ class TimeTrackingLockUpdate(BaseModel):
     locked_until: date | None = None
 
 
-class EmployeePayrollSettingsUpdate(BaseModel):
+class EmployeePayrollSettingsUpdate(PartialUpdate):
+    """Seit 1.9.167 ein Teil-Update (Regel 22, Lohn L1a, Punkt 2): nur gesendete Felder ändern sich -- bis 1.9.166 übernahm der PUT jedes Feld
+    (ein weggelassenes Häkchen hieß „Export an“). Eintritt und Austritt (leer = offen) neu."""
+    NOT_NULL: ClassVar[frozenset[str]] = frozenset({"payroll_export_enabled"})
     datev_personnel_number: str | None = Field(default=None, max_length=30)
-    payroll_export_enabled: bool = True
+    payroll_export_enabled: bool | None = None
+    eintritt: date | None = None
+    austritt: date | None = None
+
+
+class EmployeeTargetHoursCreate(BaseModel):
+    """Seit 1.9.167 (Lohn L1a, Punkt 2): eigene Sollzeit ab einem Tag -- werte Montag bis Sonntag in Stunden, ohne werte „ab hier wieder
+    Tarif“. Grenzen wie im Browser (0 bis 24 h je Tag, tests/test_v424_zahlgrenzen.py)."""
+    valid_from: date
+    werte: dict[str, Decimal] | None = None
+
+    @field_validator("werte")
+    @classmethod
+    def _sieben_tage(cls, werte):
+        if werte is None:
+            return None
+        tage = ("montag", "dienstag", "mittwoch", "donnerstag", "freitag", "samstag", "sonntag")
+        fremd = sorted(set(werte) - set(tage))
+        if fremd:
+            raise ValueError("Unbekannter Wochentag: " + ", ".join(fremd))
+        for tag, wert in werte.items():
+            if wert is None or wert < 0 or wert > 24:
+                raise ValueError(f"{tag}: die Sollzeit eines Tags liegt zwischen 0 und 24 Stunden.")
+        return {t: werte.get(t, Decimal("0")) for t in tage}
 
 
 # --- Version 1.2.14: Dachflächen und Bauteile ---
@@ -3981,10 +4007,15 @@ class DocumentCategoryUpdate(BaseModel):
     is_sensitive: bool | None = None
 
 
-class EmployeePayrollSettingsOut(EmployeePayrollSettingsUpdate):
+class EmployeePayrollSettingsOut(BaseModel):
     employee_id: int
     employee_name: str
     employee_number: str | None = None
+    datev_personnel_number: str | None = None
+    payroll_export_enabled: bool = True
+    eintritt: date | None = None  # seit 1.9.167
+    austritt: date | None = None
+    sollzeiten: list[dict] = Field(default_factory=list)  # seit 1.9.167: eigene Sollzeiten (app/sollzeit.py::zeile_dict()), leer = Tarif
 
 
 

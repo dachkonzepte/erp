@@ -744,7 +744,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Datensatz), nie still umgestellt; nie `auswahlOptionen()` über eine vorher gefilterte Liste (Wächter P3); `KLASSEN` kennt dafür nur
     `vollstaendig` (Liste enthält jede speicherbare ID), `neu` oder `eigen` (`tests/test_v450_auswahl_fremdschluessel.py`).
     `tests/test_v329_update_handler_struktur.py` prüft jeden
-    PUT/PATCH-Handler per AST; die 59 Altfälle (seit 1.9.145, bis 1.9.144 60, bis 1.9.135 61, bis 1.9.65 62, bis 1.8.95 70) stehen dort als Liste, die nur kürzer werden darf.
+    PUT/PATCH-Handler per AST; die 58 Altfälle (seit 1.9.167, bis 1.9.166 59, bis 1.9.144 60, bis 1.9.135 61, bis 1.9.65 62, bis 1.8.95 70) stehen dort als Liste, die nur kürzer werden darf.
     Details: `docs/archiv/teil-updates.md`.
 
 23. **Grunddaten legt der Start an, nie ein Lesepfad -- kein GET schreibt, seit 1.8.42.** Einstellungen
@@ -1655,6 +1655,7 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   nicht an Rückstand, Einsätzen im Bild und alten Einsätzen (`tests/test_v564_plantafel_leistung.py`).
 - **Der Zeitraum der Arbeitsvorbereitung** (seit 1.9.145, F12): kein Einsatz schreibt in `planned_start`/`planned_end`, das sind nur die Eingaben von Hand. Mit Einsätzen gilt deren Zeitraum (`app/work_preparation.py::einsatz_zeitraum()`, gelesen,
   `zeitraum_aus_einsaetzen`), von Hand dann 409 (`zeitraum_ohne_einsatz_pruefen()`); wer den geplanten Zeitraum anzeigt, nimmt diese Rechnung (`tests/test_v565_av_zeitraum.py`).
+- **Lohnregeln ändern nur nach `app/permissions.py::darf_lohnregeln()`** (seit 1.9.167, E10, Admin und Büro – Finanzen): `require_lohnregeln` an Zeitregeln, Modellen samt Pausenregeln, Zuordnung, Lohnstammdaten (Personalnummer, Export, Eintritt, Austritt) und eigenen Sollzeiten; Büro – Auftrag liest gesperrt mit Hinweis (`tests/test_v585_sollzeit.py`). **Die Sollzeit** eines Tags nur aus `app/sollzeit.py::soll()` (Tarif Mo–Fr aus dem Modell des Tags, KW 18–48 8,00 h, KW 49–17 7,50 h; eigene Werte je Person ab einem Tag; vor Eintritt und nach Austritt 0).
 - **Planungsgrundlagen ändern nur nach `app/permissions.py::darf_planungsgrundlagen()`** (seit 1.9.147, Admin und Büro – Finanzen): `require_planungsgrundlagen` an `PUT /api/planning/settings`, Feiertagen und Ferien-Abgleich; Büro – Auftrag liest gesperrt mit Hinweis (`tests/test_v567_planungsgrundlagen_rechte.py`).
 - **Ausblenden statt ausgrauen**: eine für eine Rolle nicht gedachte Seite fehlt im Markup
   (`can()`-Jinja-Global, `_dk_roles`-Markierung), nicht nur deaktiviert -- ein 403 auf einer
@@ -2201,7 +2202,7 @@ zufällig (`app/audit.py`, `session.dirty`), deshalb setzt `befuellen()` den Pro
 - ~~Kolonnenführer-Rolle für Gruppenbuchungen~~ -- seit 1.7.12 gelöst über das Kennzeichen
   `TeamEmployee.is_crew_leader` (keine eigene Rolle), siehe `docs/archiv/rechtekonzept.md`,
   "Zeiterfassung für Monteure" -> "Nachtrag (seit 1.7.12)".
-- **59 Update-Handler stehen noch in `BEKANNT`** (seit 1.9.145 die Arbeitsvorbereitung, seit 1.9.136 die Stammdaten des Kunden; die sechs mit Datenverlust seit 1.8.25 behoben, die drei der
+- **58 Update-Handler stehen noch in `BEKANNT`** (seit 1.9.167 die Lohnstammdaten, seit 1.9.145 die Arbeitsvorbereitung, seit 1.9.136 die Stammdaten des Kunden; die sechs mit Datenverlust seit 1.8.25 behoben, die drei der
   Arbeitsvorbereitung seit 1.8.29, der Auftragskopf seit 1.8.32, die Dachfläche seit 1.8.46, acht mit gemerkten Werten seit 1.8.96, der
   Einsatzbericht seit 1.9.66, Regel 22;
   darunter die acht, die keine Verstöße sind): jede Oberfläche schickt dort heute alle Felder, kein akuter Datenverlust.

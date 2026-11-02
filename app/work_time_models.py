@@ -54,10 +54,11 @@ def ensure_default_work_time_models(db: Session) -> None:
         for model in db.scalars(select(WorkTimeModel)).all():
             if validity_row(db, model.id, create=False) is None:
                 code=(model.code or "").lower()
+                # seit 1.9.167 der Tarif Dachdecker (KW 18–48 und 49–17), bis 1.9.166 KW 13–43 und 44–12
                 if code == "summer" or "sommer" in (model.name or "").lower():
-                    validity_row(db, model.id, create=True, default_from=13, default_to=43)
+                    validity_row(db, model.id, create=True, default_from=18, default_to=48)
                 elif code == "winter" or "winter" in (model.name or "").lower():
-                    validity_row(db, model.id, create=True, default_from=44, default_to=12)
+                    validity_row(db, model.id, create=True, default_from=49, default_to=17)
                 else:
                     validity_row(db, model.id, create=True)
         if settings.default_work_time_model_id is None:
@@ -73,12 +74,14 @@ def ensure_default_work_time_models(db: Session) -> None:
     # schneller), gilt das als "schon gesät", kein Fehler.
     try:
         with db.begin_nested():
+            # Seit 1.9.167 (Lohn L1a, Punkt 2) der Tarif Dachdecker: Montag bis Freitag KW 18–48 8,00 h, KW 49–17 7,50 h (ISO-Kalenderwoche);
+            # bis 1.9.166 KW 13–43 und 44–12, beide 8,00 h -- die Migration b7e3c91d4a52 stellt Modelle mit diesen Grundwerten um.
             summer = WorkTimeModel(name="Sommermodell", code="summer", daily_target_hours=Decimal("8.00"), description="Arbeitszeitmodell für die Sommerperiode.", sort_order=10)
-            winter = WorkTimeModel(name="Wintermodell", code="winter", daily_target_hours=Decimal("8.00"), description="Arbeitszeitmodell für die Winterperiode.", sort_order=20)
+            winter = WorkTimeModel(name="Wintermodell", code="winter", daily_target_hours=Decimal("7.50"), description="Arbeitszeitmodell für die Winterperiode.", sort_order=20)
             db.add_all([summer, winter]); db.flush()
             db.add_all([
-                WorkTimeModelValidity(model_id=summer.id, valid_from_week=13, valid_to_week=43),
-                WorkTimeModelValidity(model_id=winter.id, valid_from_week=44, valid_to_week=12),
+                WorkTimeModelValidity(model_id=summer.id, valid_from_week=18, valid_to_week=48),
+                WorkTimeModelValidity(model_id=winter.id, valid_from_week=49, valid_to_week=17),
             ])
             # Konfigurierbare Startwerte. Sie können im Backoffice vollständig verändert/gelöscht werden.
             for model in (summer, winter):

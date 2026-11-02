@@ -41,8 +41,9 @@ def test_summer_winter_model_week_validity_and_automatic_effective_model():
     models = list_models(db)
     summer = next(x for x in models if x["code"] == "summer")
     winter = next(x for x in models if x["code"] == "winter")
-    assert (summer["valid_from_week"], summer["valid_to_week"]) == (13,43)
-    assert (winter["valid_from_week"], winter["valid_to_week"]) == (44,12)
+    # seit 1.9.167 der Tarif Dachdecker (bis 1.9.166 KW 13–43 und 44–12)
+    assert (summer["valid_from_week"], summer["valid_to_week"]) == (18,48)
+    assert (winter["valid_from_week"], winter["valid_to_week"]) == (49,17)
     assert week_in_range(1,44,12) and week_in_range(50,44,12) and not week_in_range(20,44,12)
     set_employee_model(db, emp.id, summer["id"])
     assert employee_model(db, emp.id, date(2026,7,1)).code == "summer"

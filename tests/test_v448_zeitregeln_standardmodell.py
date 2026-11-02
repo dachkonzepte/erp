@@ -17,7 +17,7 @@ from tests import vorlagen_js as vj
 
 
 def _client(db, router_test_client):
-    return router_test_client(db, time_backoffice_router, role="buero_auftrag")
+    return router_test_client(db, time_backoffice_router, role="buero_finanzen")  # seit 1.9.167 (E10; bis dahin Büro – Auftrag)
 
 
 def _abschalten(db, model_id):

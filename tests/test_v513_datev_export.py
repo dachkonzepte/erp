@@ -205,8 +205,9 @@ def test_datev_nummern_speichern_und_leeren(welt):
 
 
 def test_formular_der_zeitregeln_laesst_die_nummern_stehen(welt):
-    """Das Büro speichert die Zeitregeln (volles Formular) -- Berater- und Mandantennummer bleiben."""
-    client = _als(welt, "buero_auftrag")
+    """Das Büro speichert die Zeitregeln (volles Formular) -- Berater- und Mandantennummer bleiben. Seit 1.9.167 Büro – Finanzen (Büro – Auftrag
+    liest die Zeitregeln nur, E10)."""
+    client = _als(welt, "buero_finanzen")
     form = client.get("/api/time-backoffice/settings").json()
     form.update({"datev_beraternummer": "9999", "datev_mandantennummer": "9"})
     assert client.put("/api/time-backoffice/settings", json=form).status_code == 200
