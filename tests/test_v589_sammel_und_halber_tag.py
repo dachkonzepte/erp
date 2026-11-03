@@ -91,7 +91,8 @@ def test_tage_nach_sollzeit(welt):
 def test_zeiten_zeigt_halbe_tage(welt):
     db, mia = welt["db"], welt["mia"]
     create_request(db, employee_id=mia.id, absence_category="urlaub", start_date=date(2026, 12, 7), end_date=date(2026, 12, 7), halber_tag=True)
-    create_request(db, employee_id=mia.id, absence_category="urlaub", start_date=date(2026, 12, 21), end_date=date(2026, 12, 31))
+    create_request(db, employee_id=mia.id, absence_category="urlaub", start_date=date(2026, 12, 21), end_date=date(2026, 12, 31),
+                   kalendertag_urlaub=True)  # seit 1.9.176: Silvester als ganzer Urlaubstag
     a = _als(welt, "buero_finanzen").get("/api/zeiten/abwesenheiten").json()["antraege"]
     assert sorted((x["start_date"], x["halber_tag"], D(str(x["arbeitstage"]))) for x in a) == [
         ("2026-12-07", True, D("0.5")), ("2026-12-21", False, D("7"))]  # seit 1.9.175 ohne Heiligabend (1.9.174: 8; 1.9.171–1.9.173: 7)

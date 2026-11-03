@@ -953,3 +953,34 @@ Angepasste Erwartungen (Regel 28), altes Soll -> neues Soll:
 - `test_v424::ABGLEICH`: Aufbau um das Feld `kdSoll` (Schema `ArbeitszeitKalendertagIn.sollzeit`, 0 bis 24 h).
 - `test_v109::test_time_backoffice_router_fully_uses_shared_dependency`: altes Soll mindestens 7-mal `_role_dep` und 10-mal `_regeln_dep`, neues Soll mindestens 8 und 12 (der Kalender liest mit `_role_dep`, legt an und ändert mit `_regeln_dep`; gefunden im Lauf der Suite).
 - `klicktest_sammeleintrag` „Ada: halber Tag und … Arbeitstage in der Liste“: Tom 21.–24.12. 4 -> 3 Arbeitstage.
+
+### Umsetzung 1.9.176: Silvester, Rückfrage im Urlaub (Punkt 3)
+
+`app/arbeitszeitkalender.py`: `IM_URLAUB` um „fragen“, Vorgabe Silvester (31.12., ohne eigene Sollzeit, „Silvester – unbezahlte Freistellung“, nicht bezahlt, „fragen“); `rueckfrage_tage()` (Tage mit Rückfrage, die für die Person in einem Zeitraum lägen, nur mit Sollzeit), `urlaub_ersetzt()` (Tage, die eine genehmigte Abwesenheit der Kategorie Urlaub mit „ganzer Urlaubstag“ nimmt), `als_urlaubstag()` (leer gilt wie der Vorschlag); `abwesenheiten()` lässt ersetzte Tage weg. `app/sollzeit.py::abwesenheit_tage(…, kalendertag_urlaub)`: ein Tag mit Rückfrage zählt im Urlaub mit seiner Sollzeit, außer bei „frei“. `EmployeeAbsenceRequest.kalendertag_urlaub` und `EmployeeAbsence.kalendertag_urlaub` (Migration `2474667579d8`, leer erlaubt; `downgrade()` entfernt auch die Kalendertage mit Rückfrage samt Zuordnung -- der Stand davor kennt sie nicht). `app/absence_requests.py`: `KalendertagFrage` (bewusst kein ValueError, der Sammeleintrag sammelt ValueError als Ablehnung je Person), `_antrag_anlegen(…, kalendertag_urlaub)` fragt nach der Prüfung auf offene Anträge und speichert die Antwort nur, wenn ein solcher Tag im Urlaub liegt; `_entscheiden()` übernimmt sie; `eintragen()` und `sammel_eintragen()` rollen bei der Rückfrage zurück. Schnittstelle: `kalendertag_urlaub` in `POST /api/absence-requests`, `/sammel` und `POST /api/planning/absences`, ohne Antwort 409 mit `rueckfrage` (`kalendertag_frage_antwort()`); `EmployeeAbsenceRequestOut.kalendertag_urlaub`. Zuordnung „kalender:silvester“ mit AF ohne Lohnart. Seiten: Baustein `_kalendertag_frage.html` (`ktFrageZeigen()`, `ktWahl()`, `ktZuruecksetzen()`) in „Zeiten“, „Meine Zeiten“ und auf der Plantafel; die Listen nennen „Kalendertag als Urlaubstag“ bzw. „Kalendertag frei, kein Urlaubstag“.
+
+### Festlegungen 1.9.176 (Bitte bestätigen)
+
+1. Die Frage stellt der Server: ein Urlaub über Silvester ohne Antwort wird mit 409 abgelehnt, nichts ist gespeichert -- auf allen Wegen (Zeiten einzeln und für mehrere, Meine Zeiten, Plantafel), auch für eine Schnittstelle ohne Dialog. Beim Sammeleintrag gilt eine Antwort für alle, für die der Tag gilt.
+2. Gefragt wird nur bei der Kategorie Urlaub und nur, wenn Silvester für die Person gilt (gewerblich, Montag bis Freitag, beschäftigt, Sollzeit über 0). Krankheit und die übrigen Kategorien über Silvester zählen den Tag nicht -- es gilt die Freistellung (wie an Heiligabend, Festlegung 1.9.175 Nr. 4).
+3. Die Antwort steht an Antrag und Abwesenheit. „Ganzer Urlaubstag“ zählt den Tag mit der Sollzeit des Modells und ersetzt die Freistellung, sobald der Urlaub genehmigt ist -- bis dahin gilt die Freistellung.
+4. Ein Urlaub ohne Antwort (vor 1.9.176 angelegt) gilt wie der Vorschlag: ganzer Urlaubstag, die Freistellung entfällt.
+5. Ein halber Urlaubstag an Silvester wird abgelehnt (422, Vorgabe „Halbe Tage gibt es hier nicht“).
+6. Gebuchte Arbeit an Silvester kommt wie an Heiligabend zur Freistellung dazu (die Vorgabe nennt das nur für Heiligabend).
+7. Die Listen unter „Zeiten“ und „Meine Zeiten“ nennen die Antwort („Kalendertag als Urlaubstag“, „Kalendertag frei, kein Urlaubstag“).
+8. „Im Urlaub“ hat im Kalender jetzt zwei Werte („kein Urlaubstag“, „Rückfrage“); jeder weitere Kalendertag kann beides bekommen.
+
+### Tests und Prüfung 1.9.176
+
+Neu: `tests/test_v592_silvester.py` (15 Tests) -- Vorbelegung samt Zuordnung, Sollzeit und Freistellung (kaufmännisch und Sonntag ohne), ohne Antwort 409 auf allen drei Wegen (nichts gespeichert), Antwort „Urlaubstag“ 9 bzw. „frei“ 8 Arbeitstage, die Freistellung entfällt nur bei „Urlaubstag“, keine Frage für kaufmännisch, für einen Urlaub ohne den 31.12. und für Krankheit, kein halber Tag, alter Urlaub ohne Antwort wie der Vorschlag, die Monteurin wird gefragt, kein Schlechtwetter, Seiten, Migration auf einem Bestand unter SQLite und PostgreSQL. Gegenproben: keine Rückfrage -> 4 rot; Antwort nicht gezählt -> 6 rot; Urlaub ersetzt die Freistellung nicht -> 2 rot. Klicktest neu: `klicktest_silvester.py` (20 Prüfungen, zwei Bilder); er fand, dass die Frage auf dem Tablet nur eine halbe Spalte breit war.
+
+Angepasste Erwartungen (Regel 28), altes Soll -> neues Soll (Silvester ist jetzt vorbelegt):
+- `test_v591::test_heiligabend_ist_vorbelegt`: Aufbau -- der erste Eintrag statt genau eines.
+- `test_v591::test_der_start_legt_nichts_doppelt_an_und_laesst_geaendertes_stehen`: nur Heiligabend -> dazu Silvester (leer, aktiv).
+- `test_v591::test_abwesenheit_von_selbst`: Aufbau -- verglichen werden nur die Tage von Heiligabend; Kalendertage in der Datenbank 1 -> 2.
+- `test_v591::test_zeiten_zeigt_die_arbeitstage_und_den_kalender`: Aufbau -- der Antrag mit `kalendertag_urlaub` True (7 Arbeitstage bleiben); Kalender 2 -> 4 Tage (dazu Silvester 2026 und 2027).
+- `test_v591::test_buero_auftrag_liest_nur`: Einträge „Heiligabend“ -> „Heiligabend, Silvester“, „Im Urlaub“ „kein_urlaubstag“ -> „kein_urlaubstag, fragen“.
+- `test_v591::test_anlegen_aendern_abschalten`: Liste rosenmontag, heiligabend -> dazu silvester.
+- `test_v591::test_abgelehnte_eingaben`: 1 -> 2 Einträge nach der Ablehnung.
+- `test_v591::test_pruefskript_nennt_den_kalender`: „Arbeitszeitkalender: 1 Tage“ -> „2 Tage“.
+- `test_v589::test_zeiten_zeigt_halbe_tage`: Aufbau -- der Antrag 21.–31.12. mit `kalendertag_urlaub` True (7 Arbeitstage bleiben).
+- `klicktest_arbeitszeitkalender`: Aufbau -- Mias Antrag mit Antwort; „Rosenmontag in Kalender und Zuordnung“ dazu silvester; „nichts gespeichert“ 2 -> 3 Einträge; Karte 3 -> 5 Zeilen (Silvester 2026 und 2027); Bea 2 -> 3 Zeilen; Mias Zeile „· 7 Arbeitstage“ -> „· Kalendertag als Urlaubstag · 7 Arbeitstage“.

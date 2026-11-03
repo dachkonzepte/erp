@@ -11,7 +11,7 @@ Was steht für eine Person an einem Tag in der Lohndatei, mit welchem Kennzeiche
     art:<Art>                 eine Art mit eigener Zuordnung geht ihrer Kategorie vor (vorbelegt Weiterbildung 1 / 1000 mit Sollzeit, wie
                               Fortbildung in Time 4); ohne eigene gilt die Kategorie
     kalender:<Schlüssel>      seit 1.9.175: die Abwesenheit eines Tags im Arbeitszeitkalender (app/arbeitszeitkalender.py) mit der Sollzeit des
-                              Tags (vorbelegt Heiligabend BF, Lohnart offen -- die Lohnart nennt das Lohnbüro); hier darf das Kennzeichen ohne
+                              Tags (vorbelegt Heiligabend BF, seit 1.9.176 Silvester AF, Lohnart offen -- die Lohnart nennt das Lohnbüro); hier darf das Kennzeichen ohne
                               Lohnart stehen, exportiert wird die Zeile erst mit Lohnart
 
 Leer heißt: nicht exportiert -- die Liste in den Einstellungen nennt es, der Export (L1b) zeigt es unter „Nicht im Export“. Berufsschule,
@@ -48,6 +48,7 @@ START = {
     "schlechtwetter:winter": (None, "8110", True),
     "art:weiterbildung": ("1", "1000", False),
     "kalender:heiligabend": ("BF", None, False),  # seit 1.9.175 (L1a-Nachtrag, Punkt 2): Lohnart beim Lohnbüro
+    "kalender:silvester": ("AF", None, False),  # seit 1.9.176 (Punkt 3): unbezahlt, Lohnart beim Lohnbüro
 }
 KENNZEICHEN_FORMAT = re.compile(r"^[0-9A-Z]{1,2}$")
 LOHNART_FORMAT = re.compile(r"^[0-9]{1,4}$")

@@ -380,6 +380,8 @@
     <label class="feld" for="adVon">Von<input id="adVon" type="date"></label>
     <label class="feld" for="adBis">Bis<input id="adBis" type="date"></label>
     <label class="mitglied breit" for="adHalb" id="adHalbFeld" hidden><input id="adHalb" type="checkbox"> Halber Tag (halbe Sollzeit, zählt 0,5 Tag)</label>
+    {# seit 1.9.176 (L1a-Nachtrag, Punkt 3): Silvester im Urlaub -- ganzer Urlaubstag oder frei (_kalendertag_frage.html), erst nach der Rückfrage des Servers #}
+    <div class="kt-frage breit" id="adKalenderFrage" role="group" aria-label="Kalendertag im Urlaub" hidden></div>
     <label class="feld breit" for="adNotiz">Notiz / Grund<input id="adNotiz" type="text" placeholder="optional"></label>
   </div>
   <div class="dialog-knoepfe"><div class="status" id="adStatus" role="status"></div><button type="button" class="knopf knopf-neutral" id="adAbbrechen">Abbrechen</button>
@@ -401,6 +403,7 @@
 {% include "_fehlertext.html" %}
 {% include "_auswahl.html" %}
 {% include "_abwesenheit.html" %}
+{% include "_kalendertag_frage.html" %}
 {% include "_zahl.html" %}
 {% include "_speichern.html" %}
 {% include "_auftrag_text.html" %}
@@ -426,7 +429,7 @@ var FELDER={von:'Von',bis:'Bis',work_date:'Datum',order_id:'Auftrag',order_item_
             pause_minuten:'Pause mindestens',employee_id:'Mitarbeiter',entry_type:'Zeitart',ende:'Ende'};
 async function api(url,opt){
   var r=await fetch(url,opt);var body=null;try{body=await r.json()}catch(e){}
-  if(!r.ok){var f=new Error(fehlerText(body,r.status,FELDER));f.status=r.status;f.liste=body&&body.liste||null;throw f}
+  if(!r.ok){var f=new Error(fehlerText(body,r.status,FELDER));f.status=r.status;f.liste=body&&body.liste||null;f.rueckfrage=body&&body.rueckfrage||null;throw f}
   return body;
 }
 function teileHtml(text){return String(text).split(' · ').map(function(t){return '<span class="teil">'+esc(t)+'</span>'}).join(' · ')}
@@ -553,7 +556,7 @@ function beantragtText(a){
 }
 function antragHtml(a){
   var art=a.absence_type||KATEGORIE[a.absence_category]||a.absence_category;
-  var unter=abwZeitraum(a.start_date,a.end_date)+(a.halber_tag?' · halber Tag':'')+' · '+zahlText(a.arbeitstage)+(Number(a.arbeitstage)===1?' Arbeitstag':' Arbeitstage')
+  var unter=abwZeitraum(a.start_date,a.end_date)+(a.halber_tag?' · halber Tag':'')+(a.kalendertag_urlaub===true?' · Kalendertag als Urlaubstag':a.kalendertag_urlaub===false?' · Kalendertag frei, kein Urlaubstag':'')+' · '+zahlText(a.arbeitstage)+(Number(a.arbeitstage)===1?' Arbeitstag':' Arbeitstage')
     +beantragtText(a);
   var knoepfe=RECHTE.admin&&P&&P.rechte.antraege_entscheiden
     ?'<button type="button" class="knopf knopf-neutral" data-aktion="antrag" data-entscheidung="rejected" data-id="'+a.id+'">Ablehnen</button>'
@@ -838,7 +841,7 @@ function antragHervorheben(){
 }
 function abwesenheitHtml(a){
   var art=KATEGORIE[a.absence_category]||a.absence_category,st=STATUS[a.status]||[a.status,'chip-neutral'];
-  var unter=abwZeitraum(a.start_date,a.end_date)+(a.halber_tag?' · halber Tag':'')+' · '+zahlText(a.arbeitstage)+(Number(a.arbeitstage)===1?' Arbeitstag':' Arbeitstage')
+  var unter=abwZeitraum(a.start_date,a.end_date)+(a.halber_tag?' · halber Tag':'')+(a.kalendertag_urlaub===true?' · Kalendertag als Urlaubstag':a.kalendertag_urlaub===false?' · Kalendertag frei, kein Urlaubstag':'')+' · '+zahlText(a.arbeitstage)+(Number(a.arbeitstage)===1?' Arbeitstag':' Arbeitstage')
     +beantragtText(a);
   var knoepfe='';
   if(a.darf_entscheiden)knoepfe+='<input class="antrag-notiz" type="text" id="notiz-'+a.id+'" placeholder="Notiz (optional)" aria-label="Notiz zur Entscheidung">'
@@ -895,7 +898,7 @@ function adKolonneGewaehlt(){
 function abwDialogOeffnen(){
   var d=A;
   el('adMitarbeiterFeld').hidden=!d.fuer_andere;
-  el('adMehrereFeld').hidden=!d.fuer_andere;el('adMehrere').checked=false;el('adHalb').checked=false;
+  el('adMehrereFeld').hidden=!d.fuer_andere;el('adMehrere').checked=false;el('adHalb').checked=false;ktZuruecksetzen(el('adKalenderFrage'));
   el('adKolonne').innerHTML=auswahlOptionen(d.kolonnen||[],'',function(k){return k.name},{leer:'— Personen einzeln —'});
   el('adPersonen').innerHTML=(d.mitarbeiter||[]).map(function(m){return '<label class="mitglied"><input type="checkbox" data-ad-person="'+m.id+'"> '+esc(m.name)+'</label>'}).join('');
   adMehrereZeigen();
@@ -912,11 +915,17 @@ function abwSenden(){
   if(A.fuer_andere&&el('adMehrere').checked)return abwSammelSenden();
   if(!wer){st.textContent='Bitte Mitarbeiter auswählen.';return}
   var body={employee_id:wer,absence_category:el('adKategorie').value,absence_type:el('adArt').value||null,
-            start_date:el('adVon').value,end_date:el('adBis').value,notes:el('adNotiz').value.trim()||null,halber_tag:el('adHalb').checked};
+            start_date:el('adVon').value,end_date:el('adBis').value,notes:el('adNotiz').value.trim()||null,halber_tag:el('adHalb').checked,
+            kalendertag_urlaub:ktWahl(el('adKalenderFrage'))};
   knopf.disabled=true;
   return speichern('abwesenheiten',()=>api('/api/absence-requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{neuLaden:abwesenheitenUndPruefen})
     .then(function(r){el('abwDialog').close();ergebnis('Antrag gesendet: '+r.employee_name+', '+abwZeitraum(r.start_date,r.end_date))})
-    .catch(function(e){st.textContent=e.message;knopf.disabled=false});
+    .catch(function(e){abwFehler(e);knopf.disabled=false});
+}
+// seit 1.9.176: Silvester im Urlaub -- der Server fragt (409 mit rueckfrage), die Antwort geht beim nächsten Senden mit
+function abwFehler(e){
+  if(e.status===409&&e.rueckfrage){ktFrageZeigen(el('adKalenderFrage'),e.rueckfrage);el('adStatus').textContent='Bitte wählen und noch einmal senden.';return}
+  el('adStatus').textContent=e.message;
 }
 // Seit 1.9.171 (E9): dieselbe Abwesenheit für die angehakten Personen -- beim Admin gleich genehmigt, sonst Anträge; geht es für eine Person
 // nicht, nennt der Server jede mit Grund und trägt für niemanden ein
@@ -925,14 +934,14 @@ function abwSammelSenden(){
   var ids=Array.prototype.slice.call(document.querySelectorAll('[data-ad-person]:checked')).map(function(c){return Number(c.dataset.adPerson)});
   if(!ids.length){st.textContent='Bitte mindestens eine Person wählen.';return}
   var body={employee_ids:ids,absence_category:el('adKategorie').value,absence_type:el('adArt').value||null,start_date:el('adVon').value,
-            end_date:el('adBis').value,notes:el('adNotiz').value.trim()||null,halber_tag:el('adHalb').checked};
+            end_date:el('adBis').value,notes:el('adNotiz').value.trim()||null,halber_tag:el('adHalb').checked,kalendertag_urlaub:ktWahl(el('adKalenderFrage'))};
   knopf.disabled=true;
   return speichern('abwesenheiten',()=>api('/api/absence-requests/sammel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),
                    {neuLaden:abwesenheitenUndPruefen})
     .then(function(r){el('abwDialog').close();
       var genehmigt=r.length&&r[0].status==='approved';
       ergebnis((genehmigt?'Eingetragen für ':'Anträge gesendet für ')+r.length+(r.length===1?' Person':' Personen')+', '+abwZeitraum(body.start_date,body.end_date))})
-    .catch(function(e){st.textContent=e.message;knopf.disabled=false});
+    .catch(function(e){abwFehler(e);knopf.disabled=false});
 }
 
 // --- Monat & Lohn (nur Admin und Büro – Finanzen) -------------------------------------------------------------------------------------

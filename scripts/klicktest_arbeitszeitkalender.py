@@ -3,7 +3,7 @@
     Büro – Finanzen  Fin (1440): Heiligabend vorbelegt (24.12., 7,00 h, „Heiligabend – bezahlte Freistellung“, gewerbliche, nur Mo–Fr,
                      aktiv), Zuordnung „BF / Lohnart offen – nicht exportiert“; „+ Kalendertag“ Rosenmontag 15.02. -> neue Zeile und eine
                      Zeile in der Zuordnung; ein zweiter Eintrag am 24.12. -> Meldung, nichts gespeichert; Heiligabend mit 6,5 h -> „6,50 h“;
-                     „Zeiten → Abwesenheiten“: Karte „Arbeitszeitkalender“ mit Do 24.12.2026, Mo 15.02.2027 und Fr 24.12.2027, Mias Urlaub 21.12.–01.01.
+                     „Zeiten → Abwesenheiten“: Karte „Arbeitszeitkalender“ mit Heiligabend, Silvester (seit 1.9.176) und Rosenmontag, Mias Urlaub 21.12.–01.01.
                      zählt 7 Arbeitstage -- Bilder; keine JS-Fehler
     Büro – Auftrag   Bea: der Kalender sichtbar, ohne „+ Kalendertag“ und „Bearbeiten“; keine JS-Fehler
 
@@ -44,7 +44,8 @@ def befuellen(db, k):
     bea = AppUser(username="bea", display_name="Bea Auftrag", role="buero_auftrag", password_hash=k.passwort())
     db.add_all([fin, bea])
     db.commit()
-    create_request(db, employee_id=mia.id, absence_category="urlaub", start_date=date(2026, 12, 21), end_date=date(2027, 1, 1))
+    create_request(db, employee_id=mia.id, absence_category="urlaub", start_date=date(2026, 12, 21), end_date=date(2027, 1, 1),
+                   kalendertag_urlaub=True)  # seit 1.9.176: Silvester als ganzer Urlaubstag
     return {"fin": k.cookies(fin), "bea": k.cookies(bea), "uhr_ms": k.uhr_ms()}
 
 
@@ -78,12 +79,12 @@ async def pruefen(tab, seed, p):
     p.pruefe("Fin: neuer Kalendertag gespeichert", await _speichern(tab), "Gespeichert.")
     p.pruefe("Fin: Rosenmontag in Kalender und Zuordnung", await tab.js(
         "[[...document.querySelectorAll('#kalenderZeilen [data-kalendertag]')].map(z=>z.dataset.kalendertag),"
-        + WIRKT.format(s="rosenmontag") + "]"), [["rosenmontag", "heiligabend"], "nicht exportiert"])
+        + WIRKT.format(s="rosenmontag") + "]"), [["rosenmontag", "heiligabend", "silvester"], "nicht exportiert"])
 
     await _neu(tab, {"kdName": "Weihnachten", "kdAbwesenheit": "frei", "kdTag": "24", "kdMonat": "12"})
     p.pruefe("Fin: zweiter Eintrag am 24.12. abgelehnt", await _speichern(tab), "Fehler: Für den 24.12. steht schon „Heiligabend“ im Kalender.")
     await tab.js("document.getElementById('kalenderDialog').close()")
-    p.pruefe("Fin: nichts gespeichert", await tab.js("kalender.eintraege.length"), 2)
+    p.pruefe("Fin: nichts gespeichert", await tab.js("kalender.eintraege.length"), 3)
 
     await tab.js("document.querySelector('[data-kalendertag=\"heiligabend\"] [data-klick=kalender-oeffnen]').click()")
     p.pruefe("Fin: Dialog mit den Werten von Heiligabend", await tab.js(
@@ -102,11 +103,13 @@ async def pruefen(tab, seed, p):
         "[...document.querySelectorAll('#abwKalenderListe .zeile')].map(z=>z.querySelector('.zeile-name').innerText+' | '"
         "+z.querySelector('.zeile-unter').innerText)"),
         ["Heiligabend – bezahlte Freistellung | Do 24.12.2026 · Sollzeit 6,50 h · für gewerbliche Mitarbeiter · gilt von selbst, ohne Antrag",
+         "Silvester – unbezahlte Freistellung | Do 31.12.2026 · für gewerbliche Mitarbeiter · gilt von selbst, ohne Antrag",
          "Rosenmontag – frei | Mo 15.02.2027 · für gewerbliche Mitarbeiter · gilt von selbst, ohne Antrag",
-         "Heiligabend – bezahlte Freistellung | Fr 24.12.2027 · Sollzeit 6,50 h · für gewerbliche Mitarbeiter · gilt von selbst, ohne Antrag"])
+         "Heiligabend – bezahlte Freistellung | Fr 24.12.2027 · Sollzeit 6,50 h · für gewerbliche Mitarbeiter · gilt von selbst, ohne Antrag",
+         "Silvester – unbezahlte Freistellung | Fr 31.12.2027 · für gewerbliche Mitarbeiter · gilt von selbst, ohne Antrag"])
     p.pruefe("Fin: Mias Urlaub zählt 7 Arbeitstage", await tab.js(
-        "[...document.querySelectorAll('#abwListe .zeile-unter')].map(z=>z.innerText.split(' · ').slice(0,2).join(' · '))[0]"),
-        "Mo 21.12.2026–Fr 01.01.2027 · 7 Arbeitstage")
+        "[...document.querySelectorAll('#abwListe .zeile-unter')].map(z=>z.innerText.split(' · ').slice(0,3).join(' · '))[0]"),
+        "Mo 21.12.2026–Fr 01.01.2027 · Kalendertag als Urlaubstag · 7 Arbeitstage")  # seit 1.9.176 mit der Antwort zu Silvester
     await tab.bild("kalender_zeiten_abwesenheiten")
     p.pruefe("Fin: keine JS-Fehler in Zeiten", tab.fehler, [])
 
@@ -114,7 +117,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Bea: geladen", await tab.oeffnen("/settings?als=bea#time-rules", BEREIT), True)
     p.pruefe("Bea: Kalender sichtbar, ohne „+ Kalendertag“ und „Bearbeiten“", await tab.js(
         "[document.querySelectorAll('#kalenderZeilen [data-kalendertag]').length,document.querySelector('#kalenderBlock [data-lohnregeln-knopf]').hidden,"
-        "[...document.querySelectorAll('#kalenderZeilen [data-klick=kalender-oeffnen]')].every(k=>k.hidden)]"), [2, True, True])
+        "[...document.querySelectorAll('#kalenderZeilen [data-klick=kalender-oeffnen]')].every(k=>k.hidden)]"), [3, True, True])
     await tab.js("document.getElementById('kalenderBlock').scrollIntoView({block:'start'})")
     await tab.bild("kalender_bea")
     p.pruefe("Bea: keine JS-Fehler", tab.fehler, [])

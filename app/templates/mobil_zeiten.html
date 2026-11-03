@@ -264,6 +264,8 @@
     <label class="feld" for="adBis">Bis<input id="adBis" type="date"></label>
     {# seit 1.9.171 (Lohn L1a, Punkt 6): halber Urlaubstag, nur bei Urlaub und einem Tag #}
     <label class="mitglied" for="adHalb" id="adHalbFeld" hidden><input id="adHalb" type="checkbox"> Halber Tag (halbe Sollzeit, zählt 0,5 Tag)</label>
+    {# seit 1.9.176 (L1a-Nachtrag, Punkt 3): Silvester im Urlaub -- ganzer Urlaubstag oder frei (_kalendertag_frage.html), erst nach der Rückfrage des Servers #}
+    <div class="kt-frage breit" id="adKalenderFrage" role="group" aria-label="Kalendertag im Urlaub" hidden></div>
     <label class="feld breit" for="adNotiz">Notiz / Grund<textarea id="adNotiz"></textarea></label>
   </div>
   <div class="dialog-knoepfe"><div class="status" id="adStatus" role="status"></div><div class="ergebnis" id="adErgebnis" role="status"></div><button type="button" class="knopf knopf-neutral" id="adAbbrechen">Schließen</button>
@@ -276,6 +278,7 @@
 {% include "_fehlertext.html" %}
 {% include "_auswahl.html" %}
 {% include "_abwesenheit.html" %}
+{% include "_kalendertag_frage.html" %}
 {% include "_zahl.html" %}
 {% include "_speichern.html" %}
 {% include "_menue.html" %}
@@ -297,7 +300,7 @@ function stunden(wert){return zahlText(wert,2)+' h'}
 function monatPlus(m,n){var p=m.split('-').map(Number),i=p[0]*12+(p[1]-1)+n;return Math.floor(i/12)+'-'+pad2(i%12+1)}
 async function api(url,opt){
   var r=await fetch(url,opt);var body=null;try{body=await r.json()}catch(e){}
-  if(!r.ok){var f=new Error(fehlerText(body,r.status,{von:'Von',bis:'Bis',work_date:'Datum',order_id:'Auftrag',hours:'Stunden'}));f.status=r.status;throw f}
+  if(!r.ok){var f=new Error(fehlerText(body,r.status,{von:'Von',bis:'Bis',work_date:'Datum',order_id:'Auftrag',hours:'Stunden'}));f.status=r.status;f.rueckfrage=body&&body.rueckfrage||null;throw f}
   return body;
 }
 function ergebnisTeile(text){return String(text).split(' · ').map(function(t){return '<span class="teil">'+esc(t)+'</span>'}).join(' · ')}
@@ -639,7 +642,7 @@ function antraegeZeichnen(){
         +'<button type="button" class="knopf knopf-gefahr knopf-klein" data-antrag="ja" data-id="'+r.id+'">Zurückziehen</button>'
       :'<button type="button" class="knopf knopf-neutral knopf-klein" data-antrag="fragen" data-id="'+r.id+'">Zurückziehen</button>';
     return '<div class="antrag" data-antrag-zeile="'+r.id+'"><span class="antrag-text"><b>'+esc(KATEGORIE[r.absence_category]||r.absence_category)+'</b>'
-      +'<span>'+esc(r.absence_type)+' · '+esc(abwZeitraum(r.start_date,r.end_date))+(r.halber_tag?' · halber Tag':'')+'</span>'
+      +'<span>'+esc(r.absence_type)+' · '+esc(abwZeitraum(r.start_date,r.end_date))+(r.halber_tag?' · halber Tag':'')+(r.kalendertag_urlaub===true?' · Kalendertag als Urlaubstag':r.kalendertag_urlaub===false?' · Kalendertag frei, kein Urlaubstag':'')+'</span>'
       +(r.beantragt_von?'<span>beantragt von '+esc(r.beantragt_von)+'</span>':'')
       +(r.notes?'<span>'+esc(r.notes)+'</span>':'')+(r.vermerk?'<span>Vermerk: '+esc(r.vermerk)+'</span>':'')+(r.review_notes?'<span>Freigabe: '+esc(r.review_notes)+'</span>':'')+'</span>'
       +'<span class="antrag-status">'+esc(STATUS[r.status]||r.status)+'</span>'+knoepfe+'</div>'}).join('')
@@ -700,6 +703,7 @@ function binden(){
     auswahlWert(el('adKategorie'),'urlaub');
     abwArtenFuellen(el('adArt'),D?D.abwesenheitsarten:[],'urlaub');
     el('adVon').value=berlinToday();el('adBis').value=berlinToday();el('adNotiz').value='';el('adHalb').checked=false;adHalbZeigen();
+    ktZuruecksetzen(el('adKalenderFrage'));
     el('adStatus').textContent='';el('adErgebnis').textContent='';ZURUECKZIEHEN=null;antraegeZeichnen();
     el('abwDialog').showModal();
   });
@@ -710,11 +714,15 @@ function binden(){
   el('adSenden').addEventListener('click',function(){
     var knopf=el('adSenden');
     var body={employee_id:D.mitarbeiter_id,absence_category:el('adKategorie').value,absence_type:el('adArt').value||null,start_date:el('adVon').value,
-              end_date:el('adBis').value,notes:el('adNotiz').value.trim()||null,halber_tag:el('adHalb').checked};
+              end_date:el('adBis').value,notes:el('adNotiz').value.trim()||null,halber_tag:el('adHalb').checked,kalendertag_urlaub:ktWahl(el('adKalenderFrage'))};
     el('adStatus').textContent='';el('adErgebnis').textContent='';knopf.disabled=true;
     speichern('antraege',()=>api('/api/absence-requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),{neuLaden:antraegeLaden})
-      .then(function(){el('adErgebnis').textContent='Antrag wurde gesendet.';knopf.disabled=false})
-      .catch(function(e){el('adStatus').textContent=e.message;knopf.disabled=false});
+      .then(function(){el('adErgebnis').textContent='Antrag wurde gesendet.';ktZuruecksetzen(el('adKalenderFrage'));knopf.disabled=false})
+      .catch(function(e){
+        // seit 1.9.176: Silvester im Urlaub -- der Server fragt (409 mit rueckfrage), die Antwort geht beim nächsten Senden mit
+        if(e.status===409&&e.rueckfrage){ktFrageZeigen(el('adKalenderFrage'),e.rueckfrage);el('adStatus').textContent='Bitte wählen und noch einmal senden.'}
+        else el('adStatus').textContent=e.message;
+        knopf.disabled=false});
   });
   el('adAbbrechen').addEventListener('click',function(){el('abwDialog').close()});
   el('adZu').addEventListener('click',function(){el('abwDialog').close()});

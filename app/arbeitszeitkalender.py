@@ -6,6 +6,9 @@ DATEV“, nicht im Code. Vorbelegt beim Start (app.grunddaten.anlegen()):
     Heiligabend  24.12.  Sollzeit 7,00 h statt Modellwert, für alle gleich (auch Azubis und Teilzeit mit eigener Sollzeit); von selbst die
                          Abwesenheit „Heiligabend – bezahlte Freistellung“ mit 7,00 h; kein Urlaubstag -- ein Urlaub über den Tag zählt ihn mit
                          0 Arbeitstagen; gebuchte Arbeit kommt dazu und mindert die 7,00 h nicht; Zuordnung BF, Lohnart offen (Lohnbüro)
+    Silvester    31.12.  seit 1.9.176: Sollzeit des Modells; von selbst „Silvester – unbezahlte Freistellung“ (ohne Lohn, Arbeitszeitkonto
+                         neutral: Stunden = Sollzeit); liegt der Tag in einem Urlaub, fragt der Dialog: ganzer Urlaubstag (Vorschlag, ersetzt die
+                         Freistellung) oder unbezahlt frei -- halbe Tage gibt es dort nicht; Zuordnung AF, Lohnart offen (Lohnbüro)
 
 Ein Kalendertag gilt für eine Person an einem Tag (gilt()), wenn er aktiv ist, Monat und Tag passen, der Tag ein Montag bis Freitag ist
 (nur_mo_fr) und die Person gewerblich ist (nur_gewerblich); vor dem Eintritt und nach dem Austritt ist die Sollzeit 0, dann gibt es auch keine
@@ -24,18 +27,21 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from .models import ArbeitszeitKalendertag, Employee
+from .models import ArbeitszeitKalendertag, Employee, EmployeeAbsence
 from .rounding import round_hours
 
 # Was ein Urlaub über den Kalendertag zählt
 IM_URLAUB = {
     "kein_urlaubstag": "kein Urlaubstag – ein Urlaub über den Tag zählt ihn mit 0",
+    "fragen": "Rückfrage im Urlaub: ganzer Urlaubstag (Vorschlag) oder frei",  # seit 1.9.176
 }
 MONATE = ("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember")
 # Vorbelegung (Vorgabe Tobias, L1a-Nachtrag); ein Eintrag fehlt nur, wenn sein Schlüssel fehlt -- ein geänderter oder abgeschalteter bleibt
 VORGABEN = [
     {"schluessel": "heiligabend", "name": "Heiligabend", "monat": 12, "tag": 24, "sollzeit": Decimal("7.00"),
      "abwesenheit": "Heiligabend – bezahlte Freistellung", "bezahlt": True, "im_urlaub": "kein_urlaubstag"},
+    {"schluessel": "silvester", "name": "Silvester", "monat": 12, "tag": 31, "sollzeit": None,  # seit 1.9.176 (L1a-Nachtrag, Punkt 3)
+     "abwesenheit": "Silvester – unbezahlte Freistellung", "bezahlt": False, "im_urlaub": "fragen"},
 ]
 
 
@@ -100,16 +106,47 @@ def kalendertage_im_zeitraum(db: Session, employee_id: int, start: date, ende: d
     return ergebnis
 
 
+def als_urlaubstag(kalendertag_urlaub: bool | None) -> bool:
+    """Seit 1.9.176: die Antwort auf die Rückfrage -- leer (kein solcher Tag beim Anlegen oder vor 1.9.176) gilt wie der Vorschlag."""
+    return kalendertag_urlaub is not False
+
+
+def urlaub_ersetzt(db: Session, employee_id: int, start: date, ende: date) -> set[date]:
+    """Seit 1.9.176: die Tage, an denen eine genehmigte Abwesenheit der Kategorie Urlaub mit „ganzer Urlaubstag“ die Freistellung eines Kalendertags
+    mit Rückfrage ersetzt (für die Person, von start bis ende)."""
+    tage = {t for t, e in kalendertage_im_zeitraum(db, employee_id, start, ende) if e.im_urlaub == "fragen"}
+    if not tage:
+        return set()
+    ersetzt = set()
+    for a in db.scalars(select(EmployeeAbsence).where(EmployeeAbsence.employee_id == employee_id, EmployeeAbsence.absence_category == "urlaub",
+                                                     EmployeeAbsence.start_date <= ende, EmployeeAbsence.end_date >= start)):
+        if als_urlaubstag(a.kalendertag_urlaub):
+            ersetzt |= {t for t in tage if a.start_date <= t <= a.end_date}
+    return ersetzt
+
+
 def abwesenheiten(db: Session, employee_id: int, start: date, ende: date) -> list[dict]:
     """Die Abwesenheiten des Kalenders für eine Person von start bis ende, je Tag: Name, Abwesenheit, Stunden = Sollzeit des Tags (Heiligabend
-    7,00 h), bezahlt. Nur an Tagen mit Sollzeit (beschäftigt). Gebuchte Arbeit an dem Tag ändert nichts daran -- sie kommt dazu."""
+    7,00 h), bezahlt. Nur an Tagen mit Sollzeit (beschäftigt). Gebuchte Arbeit an dem Tag ändert nichts daran -- sie kommt dazu. Seit 1.9.176
+    fehlt ein Tag mit Rückfrage (Silvester), den ein genehmigter Urlaub als ganzen Urlaubstag nimmt."""
     from .sollzeit import soll_zeitraum  # lokal: sollzeit fragt den Kalender nach der Sollzeit
     tage = kalendertage_im_zeitraum(db, employee_id, start, ende)
     if not tage:
         return []
     soll = soll_zeitraum(db, employee_id, start, ende)
+    ersetzt = urlaub_ersetzt(db, employee_id, start, ende)
     return [{"tag": t, "schluessel": e.schluessel, "name": e.name, "abwesenheit": e.abwesenheit, "stunden": soll[t], "bezahlt": bool(e.bezahlt)}
-            for t, e in tage if soll[t] > 0]
+            for t, e in tage if soll[t] > 0 and t not in ersetzt]
+
+
+def rueckfrage_tage(db: Session, employee_id: int, start: date, ende: date) -> list[dict]:
+    """Seit 1.9.176: die Tage mit Rückfrage (Silvester), die für die Person in einem Urlaub von start bis ende lägen -- mit Sollzeit."""
+    from .sollzeit import soll_zeitraum
+    tage = [(t, e) for t, e in kalendertage_im_zeitraum(db, employee_id, start, ende) if e.im_urlaub == "fragen"]
+    if not tage:
+        return []
+    soll = soll_zeitraum(db, employee_id, start, ende)
+    return [{"tag": t, "name": e.name, "abwesenheit": e.abwesenheit} for t, e in tage if soll[t] > 0]
 
 
 def datum_text(e: ArbeitszeitKalendertag) -> str:

@@ -3252,6 +3252,9 @@ class EmployeeAbsenceCreate(BaseModel):
     start_date: date
     end_date: date
     notes: str | None = None
+    # seit 1.9.176 (L1a-Nachtrag, Punkt 3): Antwort auf die Rückfrage, wenn Silvester (ein Kalendertag mit Rückfrage) im Urlaub liegt --
+    # True ganzer Urlaubstag, False frei; fehlt sie dort, 409 mit rueckfrage
+    kalendertag_urlaub: bool | None = None
 
     @model_validator(mode="after")
     def validate_dates(self):
@@ -3295,6 +3298,9 @@ class EmployeeAbsenceRequestCreate(BaseModel):
     end_date: date
     notes: str | None = None
     halber_tag: bool = False  # seit 1.9.171: nur Urlaub, ein Tag (geprüft in app/absence_requests.py)
+    # seit 1.9.176 (L1a-Nachtrag, Punkt 3): Antwort auf die Rückfrage, wenn Silvester (ein Kalendertag mit Rückfrage) im Urlaub liegt --
+    # True ganzer Urlaubstag, False frei; fehlt sie dort, 409 mit rueckfrage
+    kalendertag_urlaub: bool | None = None
 
     @model_validator(mode="after")
     def validate_dates(self):
@@ -3313,6 +3319,9 @@ class AbwesenheitSammel(BaseModel):
     end_date: date
     notes: str | None = Field(default=None, max_length=2000)
     halber_tag: bool = False
+    # seit 1.9.176 (L1a-Nachtrag, Punkt 3): Antwort auf die Rückfrage, wenn Silvester (ein Kalendertag mit Rückfrage) im Urlaub liegt --
+    # True ganzer Urlaubstag, False frei; fehlt sie dort, 409 mit rueckfrage
+    kalendertag_urlaub: bool | None = None
 
     @model_validator(mode="after")
     def validate_dates(self):
@@ -3335,6 +3344,7 @@ class EmployeeAbsenceRequestOut(BaseModel):
     start_date: date
     end_date: date
     halber_tag: bool = False  # seit 1.9.171
+    kalendertag_urlaub: bool | None = None  # seit 1.9.176
     notes: str | None = None
     status: str
     requested_by_user_id: int | None = None

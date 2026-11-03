@@ -15,13 +15,13 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..berlin_time import berlin_today
 from ..database import get_db
-from ..absence_requests import abwesenheit_loeschen, eintragen
+from ..absence_requests import KalendertagFrage, abwesenheit_loeschen, eintragen
 from ..meldungen import KEIN_MITARBEITER
 from ..auftragsstatus import einsatz_gesperrt
 from ..models import AppUser, Employee, EmployeeAbsence, Order, PlanningHoliday
 from ..permissions import (ABWESENHEIT_LOESCHEN_NUR_ADMIN, ABWESENHEIT_LOESCHEN_ROLLEN, ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, darf_abwesenheit_loeschen,
                            darf_abwesenheiten_aller, has_min_role, require_min_role, require_planungsgrundlagen, require_role)
-from .absence_requests import antrag_fuer
+from .absence_requests import antrag_fuer, kalendertag_frage_antwort
 from ..auftragsstatus import AuftragGeschlossen
 from ..planning import GERMAN_STATES, PlanungsWarnung, create_slot, delete_slot, einsatz_konflikte, load_planning_settings, load_region_settings, offene_auftraege, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
 from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeAbsencePlanningOut, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest
@@ -182,7 +182,9 @@ def create_employee_absence(payload:EmployeeAbsenceCreate,db:Session=Depends(get
     sich (403). Bis 1.9.145 trug hier jedes Büro für jede Person jede Art ein, ohne Antrag und ohne Entscheidung (P9)."""
     employee_id=antrag_fuer(_role,payload.employee_id)
     try:
-        antrag=eintragen(db,gleich_genehmigt=_role.role==ROLE_ADMIN,employee_id=employee_id,absence_type=payload.absence_type,absence_category=payload.absence_category,start_date=payload.start_date,end_date=payload.end_date,notes=payload.notes,requested_by_user_id=_role.id)
+        antrag=eintragen(db,gleich_genehmigt=_role.role==ROLE_ADMIN,employee_id=employee_id,absence_type=payload.absence_type,absence_category=payload.absence_category,start_date=payload.start_date,end_date=payload.end_date,notes=payload.notes,requested_by_user_id=_role.id,kalendertag_urlaub=payload.kalendertag_urlaub)
+    except KalendertagFrage as exc:  # seit 1.9.176: Silvester im Urlaub -- 409 mit der Rückfrage, wie unter „Zeiten“
+        return kalendertag_frage_antwort(exc)
     except ValueError as exc:
         raise HTTPException(status_code=422,detail=str(exc)) from exc
     # "Einmal eintragen, nie wieder lesen" (siehe CLAUDE.md "Krankheitssichtbarkeit"): buero_auftrag

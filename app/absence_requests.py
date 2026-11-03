@@ -44,6 +44,20 @@ MIGRATION_VERMERK = "Auf der Plantafel eingetragen (vor 1.9.146)"
 ABWESENHEIT_GELOESCHT = "Die genehmigte Abwesenheit wurde gelöscht."
 
 
+class KalendertagFrage(Exception):
+    """Seit 1.9.176 (L1a-Nachtrag, Punkt 3): im Urlaub liegt ein Tag des Arbeitszeitkalenders mit Rückfrage (Silvester) und die Antwort fehlt --
+    nichts gespeichert, 409 mit rueckfrage; der Dialog fragt „ganzer Urlaubstag (Vorschlag) oder frei“ und schickt kalendertag_urlaub mit.
+    Bewusst kein ValueError: der Sammeleintrag sammelt ValueError je Person als Ablehnung, eine Rückfrage gilt für alle."""
+
+    def __init__(self, tage: list[dict]):
+        self.tage = tage
+        super().__init__("Im Urlaub liegt " + ", ".join(f"der {t['tag']:%d.%m.%Y} („{t['abwesenheit']}“)" for t in tage)
+                         + ": als ganzer Urlaubstag oder frei? Bitte wählen.")
+
+    def rueckfrage(self) -> dict:
+        return {"tage": [{"tag": t["tag"].isoformat(), "name": t["name"], "abwesenheit": t["abwesenheit"]} for t in self.tage]}
+
+
 def aus_migration(row: EmployeeAbsenceRequest) -> bool:
     """Seit 1.9.154: den Antrag hat niemand gestellt, die Abwesenheit stand schon auf der Tafel -- der Vermerk bleibt am Anfang stehen, auch wenn sie später gelöscht wird."""
     return (row.vermerk or "").startswith(MIGRATION_VERMERK)
@@ -94,6 +108,7 @@ def request_to_dict(db: Session, row: EmployeeAbsenceRequest) -> dict:
         "start_date": row.start_date,
         "end_date": row.end_date,
         "halber_tag": bool(row.halber_tag),  # seit 1.9.171
+        "kalendertag_urlaub": row.kalendertag_urlaub,  # seit 1.9.176: Silvester im Urlaub -- True Urlaubstag, False frei, leer kein solcher Tag
         "notes": row.notes,
         "status": row.status,
         "requested_by_user_id": row.requested_by_user_id,
@@ -124,7 +139,7 @@ def list_requests(db: Session, *, employee_id: int | None = None, status: str | 
 
 def _antrag_anlegen(
     db: Session, *, employee_id: int, absence_type: str | None = None, absence_category: str, start_date, end_date,
-    notes: str | None = None, requested_by_user_id: int | None = None, halber_tag: bool = False,
+    notes: str | None = None, requested_by_user_id: int | None = None, halber_tag: bool = False, kalendertag_urlaub: bool | None = None,
 ) -> EmployeeAbsenceRequest:
     """Prüft und legt an, ohne Commit. Seit 1.9.153: ohne Art trägt sie den Namen der Kategorie (bis 1.9.152 fest „Urlaub“, das ergab „Krankheit (Urlaub)“); eine Art, die der
     Kategorie widerspricht, lehnt sie ab. Das gilt nur fürs Anlegen: was schon dasteht, bleibt -- auch beim Entscheiden eines älteren Antrags (scripts/pruefe_abwesenheiten.py nennt es)."""
@@ -157,10 +172,18 @@ def _antrag_anlegen(
     )
     if overlap_pending:
         raise ValueError("Für diesen Zeitraum existiert bereits ein offener Abwesenheitsantrag.")
+    # seit 1.9.176 (L1a-Nachtrag, Punkt 3): ein Tag mit Rückfrage (Silvester) im Urlaub braucht die Antwort; ohne solchen Tag bleibt die Spalte leer
+    fragen = []
+    if absence_category == "urlaub":
+        from .arbeitszeitkalender import rueckfrage_tage
+        fragen = rueckfrage_tage(db, employee_id, start_date, end_date)
+    if fragen and kalendertag_urlaub is None:
+        raise KalendertagFrage(fragen)
     row = EmployeeAbsenceRequest(
         employee_id=employee_id, absence_type=art,
         absence_category=absence_category,
         start_date=start_date, end_date=end_date, notes=notes or None, halber_tag=bool(halber_tag),
+        kalendertag_urlaub=bool(kalendertag_urlaub) if fragen else None,
         status="pending", requested_by_user_id=requested_by_user_id,
     )
     db.add(row); db.flush()
@@ -180,7 +203,7 @@ def eintragen(db: Session, *, gleich_genehmigt: bool, **werte) -> EmployeeAbsenc
         row = _antrag_anlegen(db, **werte)
         if gleich_genehmigt:
             _entscheiden(db, row, decision="approved", reviewed_by_user_id=werte.get("requested_by_user_id"))
-    except ValueError:
+    except (ValueError, KalendertagFrage):
         db.rollback()
         raise
     db.commit()
@@ -210,6 +233,9 @@ def sammel_eintragen(db: Session, *, employee_ids: list[int], gleich_genehmigt: 
             antraege.append(row.id)
         except ValueError as exc:
             fehler.append({"employee_id": eid, "text": f"{_employee_name(db.get(Employee, eid)) or eid}: {exc}"})
+        except KalendertagFrage:  # seit 1.9.176: die Antwort gilt für alle -- nichts gespeichert, der Dialog fragt
+            db.rollback()
+            raise
     if fehler:
         db.rollback()
         raise SammelAbgelehnt(fehler)
@@ -249,6 +275,7 @@ def _entscheiden(db: Session, row: EmployeeAbsenceRequest, *, decision: str, rev
             employee_id=row.employee_id, absence_type=row.absence_type,
             absence_category=row.absence_category,
             start_date=row.start_date, end_date=row.end_date, notes=row.notes, halber_tag=bool(row.halber_tag),
+            kalendertag_urlaub=row.kalendertag_urlaub,  # seit 1.9.176
         )
         db.add(absence); db.flush()
         row.approved_absence_id = absence.id

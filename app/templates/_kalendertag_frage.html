@@ -1,0 +1,33 @@
+<style>
+  /* Rückfrage „Urlaub über einen Kalendertag“ (seit 1.9.176): zwei Antworten als Liste, Ziele wie die Häkchen der Dialoge */
+  .kt-frage{display:flex;flex-direction:column;gap:2px;flex:1 1 100%;margin:0}
+  .kt-frage p{margin:0 0 4px;font-weight:600}
+  .kt-frage .kt-wahl{display:flex;align-items:center;gap:10px;min-height:44px;font-weight:500;margin:0}
+  .kt-frage .kt-wahl input{width:22px;height:22px;min-height:0;flex:0 0 auto;margin:0;padding:0}
+</style>
+<script>
+/* Rückfrage „Urlaub über einen Kalendertag“ (seit 1.9.176, L1a-Nachtrag, Punkt 3) -- ein Baustein für „Zeiten“, „Meine Zeiten“ und die Plantafel.
+   Liegt ein Tag des Arbeitszeitkalenders mit Rückfrage (Silvester) im Urlaub, lehnt der Server mit 409 und rueckfrage ab (nichts gespeichert); der
+   Dialog zeigt die Frage in seinem Kasten -- Vorschlag: ganzer Urlaubstag, er ersetzt die Freistellung -- und schickt beim nächsten Senden
+   kalendertag_urlaub mit (ktWahl(): true Urlaubstag, false frei, null ohne Frage). Halbe Tage gibt es dort nicht (Server 422). Die Seite hat esc()
+   und bindet _abwesenheit.html ein (abwZeitraum()). */
+function ktFrageZeigen(box, rueckfrage) {
+  const tage = (rueckfrage && rueckfrage.tage) || [];
+  const frei = tage.map(t => t.abwesenheit).filter((x, i, a) => a.indexOf(x) === i).join(', ');
+  box.innerHTML = '<p>' + esc(tage.map(t => abwZeitraum(t.tag, t.tag) + ' (' + t.name + ')').join(', ') + ' liegt im Urlaub. Wie zählt der Tag?') + '</p>'
+    + '<label class="kt-wahl"><input type="radio" name="' + esc(box.id) + '-wahl" value="urlaub" checked> '
+    + esc('Ganzer Urlaubstag (Vorschlag) – statt „' + frei + '“') + '</label>'
+    + '<label class="kt-wahl"><input type="radio" name="' + esc(box.id) + '-wahl" value="frei"> ' + esc('„' + frei + '“ – kein Urlaubstag') + '</label>';
+  box.hidden = false;
+}
+function ktWahl(box) {
+  if (!box || box.hidden) return null;
+  const r = box.querySelector('input[type=radio]:checked');
+  return r ? r.value === 'urlaub' : null;
+}
+function ktZuruecksetzen(box) {
+  if (!box) return;
+  box.hidden = true;
+  box.innerHTML = '';
+}
+</script>

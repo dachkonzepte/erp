@@ -62,7 +62,7 @@ def _eintrag(**mehr):
 
 def test_heiligabend_ist_vorbelegt(welt):
     db = welt["db"]
-    (e,) = eintraege(db)
+    e = eintraege(db)[0]  # seit 1.9.176 danach Silvester (tests/test_v592_silvester.py)
     assert (e.schluessel, e.name, e.monat, e.tag, e.sollzeit, e.abwesenheit, e.bezahlt, e.im_urlaub, e.nur_gewerblich, e.nur_mo_fr, e.aktiv) == (
         "heiligabend", "Heiligabend", 12, 24, D("7.00"), "Heiligabend – bezahlte Freistellung", True, "kein_urlaubstag", True, True, True)
     assert kalender_zuordnung(db, "heiligabend") == {"kennzeichen": "BF", "lohnart": None, "schluessel": "kalender:heiligabend", "exportiert": False}
@@ -79,7 +79,7 @@ def test_der_start_legt_nichts_doppelt_an_und_laesst_geaendertes_stehen(welt):
     db.commit()
     anlegen(db)
     db.commit()
-    assert [(x.schluessel, x.sollzeit, x.aktiv) for x in eintraege(db)] == [("heiligabend", D("6.50"), False)]
+    assert [(x.schluessel, x.sollzeit, x.aktiv) for x in eintraege(db)] == [("heiligabend", D("6.50"), False), ("silvester", None, True)]
 
 
 # --- Sollzeit -------------------------------------------------------------------------------------------------------------------------------
@@ -114,13 +114,14 @@ def test_vor_dem_eintritt_kein_heiligabend(welt):
 
 def test_abwesenheit_von_selbst(welt):
     db, mia, kim = welt["db"], welt["mia"], welt["kim"]
-    assert abwesenheiten(db, mia.id, date(2026, 12, 1), date(2028, 12, 31)) == [
+    # seit 1.9.176 nur die Tage von Heiligabend (Silvester: tests/test_v592_silvester.py)
+    assert [a for a in abwesenheiten(db, mia.id, date(2026, 12, 1), date(2028, 12, 31)) if a["schluessel"] == "heiligabend"] == [
         {"tag": date(2026, 12, 24), "schluessel": "heiligabend", "name": "Heiligabend", "abwesenheit": "Heiligabend – bezahlte Freistellung",
          "stunden": D("7.00"), "bezahlt": True},
         {"tag": date(2027, 12, 24), "schluessel": "heiligabend", "name": "Heiligabend", "abwesenheit": "Heiligabend – bezahlte Freistellung",
          "stunden": D("7.00"), "bezahlt": True}]  # 2028: Sonntag
     assert abwesenheiten(db, kim.id, date(2026, 12, 1), date(2026, 12, 31)) == []
-    assert db.query(ArbeitszeitKalendertag).count() == 1  # nichts gespeichert außer dem Kalender
+    assert db.query(ArbeitszeitKalendertag).count() == 2  # nichts gespeichert außer dem Kalender (Heiligabend, seit 1.9.176 Silvester)
 
 
 def test_gebuchte_arbeit_mindert_die_freistellung_nicht(welt):
@@ -146,12 +147,15 @@ def test_urlaub_ueber_heiligabend_zaehlt_ihn_nicht(welt):
 
 
 def test_zeiten_zeigt_die_arbeitstage_und_den_kalender(welt):
-    create_request(welt["db"], employee_id=welt["mia"].id, absence_category="urlaub", start_date=date(2026, 12, 21), end_date=date(2027, 1, 1))
+    create_request(welt["db"], employee_id=welt["mia"].id, absence_category="urlaub", start_date=date(2026, 12, 21), end_date=date(2027, 1, 1),
+                   kalendertag_urlaub=True)  # seit 1.9.176: Silvester als ganzer Urlaubstag
     d = _als(welt, "buero_finanzen").get("/api/zeiten/abwesenheiten").json()
     assert [a["arbeitstage"] for a in d["antraege"]] == [7]
     assert [(k["tag"], k["abwesenheit"], k["fuer"]) for k in d["kalender"]] == [
         ("2026-12-24", "Heiligabend – bezahlte Freistellung", "gewerbliche Mitarbeiter"),
-        ("2027-12-24", "Heiligabend – bezahlte Freistellung", "gewerbliche Mitarbeiter")]
+        ("2026-12-31", "Silvester – unbezahlte Freistellung", "gewerbliche Mitarbeiter"),
+        ("2027-12-24", "Heiligabend – bezahlte Freistellung", "gewerbliche Mitarbeiter"),
+        ("2027-12-31", "Silvester – unbezahlte Freistellung", "gewerbliche Mitarbeiter")]
 
 
 def test_halber_urlaubstag_an_heiligabend_nur_kaufmaennisch(welt):
@@ -173,7 +177,7 @@ def test_kein_schlechtwetter_an_heiligabend(welt):
 def test_buero_auftrag_liest_nur(welt):
     client = _als(welt, "buero_auftrag")
     d = client.get(KALENDER).json()
-    assert [e["name"] for e in d["eintraege"]] == ["Heiligabend"] and [u["value"] for u in d["im_urlaub"]] == ["kein_urlaubstag"]
+    assert [e["name"] for e in d["eintraege"]] == ["Heiligabend", "Silvester"] and [u["value"] for u in d["im_urlaub"]] == ["kein_urlaubstag", "fragen"]
     assert client.post(KALENDER, json=_eintrag()).status_code == 403
     assert client.put(f"{KALENDER}/{d['eintraege'][0]['id']}", json=_eintrag()).status_code == 403
 
@@ -183,7 +187,7 @@ def test_anlegen_aendern_abschalten(welt):
     client = _als(welt, "buero_finanzen")
     r = client.post(KALENDER, json=_eintrag())
     assert r.status_code == 200, r.text
-    assert [(e["schluessel"], e["datum"]) for e in r.json()["eintraege"]] == [("rosenmontag", "15.02."), ("heiligabend", "24.12.")]
+    assert [(e["schluessel"], e["datum"]) for e in r.json()["eintraege"]] == [("rosenmontag", "15.02."), ("heiligabend", "24.12."), ("silvester", "31.12.")]
     assert "kalender:rosenmontag" in {z["schluessel"] for z in lohnarten_liste(db)}
     assert abwesenheiten(db, mia.id, date(2027, 2, 15), date(2027, 2, 15))[0]["stunden"] == D("7.50")  # Mo, Sollzeit des Modells
     heiligabend = next(e for e in r.json()["eintraege"] if e["schluessel"] == "heiligabend")
@@ -206,7 +210,7 @@ def test_anlegen_aendern_abschalten(welt):
 def test_abgelehnte_eingaben(welt, aenderung, meldung):
     r = _als(welt).post(KALENDER, json=_eintrag(**aenderung))
     assert (r.status_code, r.json()["detail"]) == (422, meldung)
-    assert len(eintraege(welt["db"])) == 1
+    assert len(eintraege(welt["db"])) == 2  # Heiligabend, seit 1.9.176 Silvester
 
 
 @pytest.mark.parametrize("feld", ["sollzeit", "aktiv", "im_urlaub"])
@@ -237,7 +241,7 @@ def test_pruefskript_nennt_den_kalender(welt):
     from tests.test_v590_pruefe_zeitregeln import _skript
     zeilen = []
     _skript().main([], sitzung=welt["db"], ausgabe=zeilen.append, heute=date(2026, 11, 10))  # Rückgabe 1: die Personen haben keine Personalnummer
-    assert "Arbeitszeitkalender: 1 Tage" in zeilen
+    assert "Arbeitszeitkalender: 2 Tage" in zeilen  # seit 1.9.176 mit Silvester
     assert ("  24.12. Heiligabend: Sollzeit 7,00 h, Heiligabend – bezahlte Freistellung, im Urlaub kein_urlaubstag, gewerbliche, nur Mo–Fr"
             in zeilen)
     assert "  kalender:heiligabend: BF / Lohnart offen" in zeilen

@@ -65,7 +65,7 @@ def _tage(db: Session, r, land: str):
     from ..planning import automatic_public_holidays
     feiertage = automatic_public_holidays(land, range(r.start_date.year, r.end_date.year + 1))
     return abwesenheit_tage(db, r.employee_id, r.start_date, r.end_date, kategorie=r.absence_category, halber_tag=bool(r.halber_tag),
-                            feiertage=feiertage)["tage"]
+                            feiertage=feiertage, kalendertag_urlaub=r.kalendertag_urlaub)["tage"]  # seit 1.9.176 mit der Antwort zu Silvester
 
 
 def _antraege(db: Session, user: AppUser) -> list[dict]:

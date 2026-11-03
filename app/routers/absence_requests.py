@@ -10,7 +10,7 @@ from fastapi import Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from ..absence_requests import SammelAbgelehnt, arten_fuer_auswahl, sammel_eintragen, request_to_dict as absence_request_to_dict, cancel_request as cancel_absence_request_row, create_request as create_absence_request_row, list_requests as list_absence_request_rows, review_request as review_absence_request_row
+from ..absence_requests import KalendertagFrage, SammelAbgelehnt, arten_fuer_auswahl, sammel_eintragen, request_to_dict as absence_request_to_dict, cancel_request as cancel_absence_request_row, create_request as create_absence_request_row, list_requests as list_absence_request_rows, review_request as review_absence_request_row
 from ..meldungen import KEIN_MITARBEITER
 from ..database import get_db
 from ..deps import require_admin
@@ -75,10 +75,17 @@ def post_absence_request(payload: EmployeeAbsenceRequestCreate, request: Request
     user=getattr(request.state,"erp_user",None)
     employee_id=antrag_fuer(user,payload.employee_id)
     try:
-        row=create_absence_request_row(db,employee_id=employee_id,absence_type=payload.absence_type,absence_category=payload.absence_category,start_date=payload.start_date,end_date=payload.end_date,notes=payload.notes,requested_by_user_id=getattr(user,"id",None),halber_tag=payload.halber_tag)
+        row=create_absence_request_row(db,employee_id=employee_id,absence_type=payload.absence_type,absence_category=payload.absence_category,start_date=payload.start_date,end_date=payload.end_date,notes=payload.notes,requested_by_user_id=getattr(user,"id",None),halber_tag=payload.halber_tag,kalendertag_urlaub=payload.kalendertag_urlaub)
+    except KalendertagFrage as exc:
+        return kalendertag_frage_antwort(exc)
     except ValueError as exc:
         raise HTTPException(status_code=422,detail=str(exc)) from exc
     return _antrag_out(db,row,user)
+
+
+def kalendertag_frage_antwort(exc: KalendertagFrage) -> JSONResponse:
+    """Seit 1.9.176 (L1a-Nachtrag, Punkt 3): 409 mit der Rückfrage -- nichts gespeichert; der Dialog fragt und schickt kalendertag_urlaub mit."""
+    return JSONResponse(status_code=409, content={"detail": str(exc), "rueckfrage": exc.rueckfrage()})
 
 
 NUR_SAMMEL = "Für mehrere Personen tragen Admin und Büro – Finanzen ein."
@@ -96,9 +103,11 @@ def post_absence_sammel(payload: AbwesenheitSammel, request: Request, db: Sessio
         rows = sammel_eintragen(db, employee_ids=payload.employee_ids, gleich_genehmigt=user is None or user.role == ROLE_ADMIN,
                                 absence_type=payload.absence_type, absence_category=payload.absence_category, start_date=payload.start_date,
                                 end_date=payload.end_date, notes=payload.notes, halber_tag=payload.halber_tag,
-                                requested_by_user_id=getattr(user, "id", None))
+                                kalendertag_urlaub=payload.kalendertag_urlaub, requested_by_user_id=getattr(user, "id", None))
     except SammelAbgelehnt as exc:
         return JSONResponse(status_code=422, content={"detail": str(exc), "liste": exc.liste})
+    except KalendertagFrage as exc:
+        return kalendertag_frage_antwort(exc)
     return [_antrag_out(db, r, user) for r in rows]
 
 
