@@ -60,7 +60,7 @@ def get_kontext(request: Request, db: Session = Depends(get_db, scope="function"
 def post_schlechtwetter(payload: SchlechtwetterEintragen, request: Request, db: Session = Depends(get_db, scope="function"),
                         _role: AppUser = _any_role_dep):
     """Ein Ausfalltag für eine oder mehrere Personen (alles oder nichts). 422 mit Liste, wenn ein Tag nicht geht; 409 mit Warnungen, wenn
-    schon Zeit gebucht ist und „trotzdem“ fehlt."""
+    schon Zeit gebucht ist oder (seit 1.9.178) der Tag als betriebsfreier Tag eingetragen ist und „trotzdem“ fehlt."""
     user = getattr(request.state, "erp_user", None)
     gleich = darf_eintragen(db, user)
     if not gleich:

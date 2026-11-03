@@ -7,7 +7,8 @@ Tag. Die Zuordnung (app/lohnarten.py) unterscheidet Winter (01.12.–31.03., Sai
                    jede andere Person für sich selbst -- ein Antrag, den Kolonnenführer, Vorarbeiter oder Admin bestätigt
     abgelehnt      Samstag, Sonntag, gesetzlicher Feiertag, Tag des Arbeitszeitkalenders (seit 1.9.175, dort gilt dessen Abwesenheit), Tag
                    ohne Sollzeit (app/sollzeit.py), nicht gewerblich -- 422 mit Grund
-    Warnung        hat die Person an dem Tag schon Zeit gebucht oder laufen, 409 mit der Liste; gespeichert erst mit „trotzdem“
+    Warnung        hat die Person an dem Tag schon Zeit gebucht oder laufen, 409 mit der Liste; gespeichert erst mit „trotzdem“ -- seit 1.9.178
+                   ebenso an einem von Hand eingetragenen betriebsfreien Tag (bis 1.9.177 ohne Rückfrage angenommen)
     Kolonnenführer TeamEmployee.is_crew_leader in einer aktiven Kolonne (seit 1.7.12); Vorarbeiter EmployeeRoleSettings.vorarbeiter
                    (seit 1.9.170 -- bis dahin war „Vorarbeiter“ nur Text: Funktion „Dachdecker Vorarbeiter“, Rolle in der Kolonne)
 
@@ -21,18 +22,23 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import Employee, EmployeeAbsenceRequest, EmployeeRoleSettings, Team, TeamEmployee, TimeEntry
+from .models import Employee, EmployeeAbsenceRequest, EmployeeRoleSettings, PlanningHoliday, Team, TeamEmployee, TimeEntry
 
 SCHLECHTWETTER = "schlechtwetter"
 WOCHENTAG = ("Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag")
 
 
 class SchlechtwetterWarnung(ValueError):
-    """An dem Tag ist schon Zeit gebucht -- gespeichert erst mit „trotzdem“ (409)."""
+    """An dem Tag ist schon Zeit gebucht oder (seit 1.9.178) er ist als betriebsfreier Tag eingetragen -- gespeichert erst mit „trotzdem“ (409)."""
 
     def __init__(self, warnungen: list[dict]):
         self.warnungen = warnungen
-        super().__init__("An diesem Tag ist schon Zeit gebucht: " + "; ".join(w["text"].rstrip(".") for w in warnungen) + ".")
+        frei = [w["text"] for w in warnungen if w.get("art") == "betriebsfrei"]
+        gebucht = [w["text"].rstrip(".") for w in warnungen if w.get("art") != "betriebsfrei"]
+        teile = [f"{frei[0]}." if frei else ""]
+        if gebucht:
+            teile.append(("Außerdem ist schon Zeit gebucht: " if frei else "An diesem Tag ist schon Zeit gebucht: ") + "; ".join(gebucht) + ".")
+        super().__init__(" ".join(t for t in teile if t))
 
 
 class SchlechtwetterAbgelehnt(ValueError):
@@ -109,10 +115,19 @@ def grund_gegen(db: Session, employee: Employee | None, tag: date) -> str | None
     return None
 
 
+def betriebsfrei(db: Session, tag: date) -> str | None:
+    """Seit 1.9.178: der Name eines von Hand eingetragenen betriebsfreien Tags (PlanningHoliday, aktiv) -- None: keiner."""
+    return db.scalar(select(PlanningHoliday.name).where(PlanningHoliday.holiday_date == tag, PlanningHoliday.active.is_(True)).limit(1))
+
+
 def warnungen(db: Session, employee_ids: list[int], tag: date) -> list[dict]:
-    """Personen, die an dem Tag schon Zeit gebucht haben oder deren Zeit läuft -- mit den Stunden."""
+    """Personen, die an dem Tag schon Zeit gebucht haben oder deren Zeit läuft -- mit den Stunden; seit 1.9.178 zuerst der Tag selbst, wenn er
+    als betriebsfreier Tag eingetragen ist (Vorgabe Tobias: Rückfrage statt stiller Annahme, Festlegung 1.9.170 Nr. 7 neu gefasst)."""
     from .rounding import round_hours
     liste = []
+    frei = betriebsfrei(db, tag)
+    if frei:
+        liste.append({"employee_id": None, "art": "betriebsfrei", "text": f"Der {tag:%d.%m.%Y} ist als betriebsfreier Tag eingetragen ({frei})"})
     for eid in employee_ids:
         rows = db.scalars(select(TimeEntry).where(TimeEntry.employee_id == eid, TimeEntry.work_date == tag,
                                                    TimeEntry.status.in_(("booked", "running")))).all()
@@ -120,7 +135,7 @@ def warnungen(db: Session, employee_ids: list[int], tag: date) -> list[dict]:
             stunden = round_hours(sum((r.hours or 0) for r in rows if r.status == "booked"))
             laeuft = any(r.status == "running" for r in rows)
             text = f"{_name(db.get(Employee, eid))} {str(stunden).replace('.', ',')} h gebucht" + (", eine Zeit läuft" if laeuft else "")
-            liste.append({"employee_id": eid, "stunden": stunden, "laeuft": laeuft, "text": text})
+            liste.append({"employee_id": eid, "art": "gebucht", "stunden": stunden, "laeuft": laeuft, "text": text})
     return liste
 
 

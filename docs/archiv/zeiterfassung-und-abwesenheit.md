@@ -852,7 +852,7 @@ Oberfläche: `_schlechtwetter.html` (Dialog und Bestätigen, bindet `_speichern.
 4. Schlechtwetter nur für gewerbliche Mitarbeiter (Funktion mit Gruppe „gewerblich“), auch für Azubis.
 5. Alles oder nichts: ist ein Tag für eine Person nicht möglich, wird für niemanden eingetragen; die Meldung nennt jede Person mit Grund.
 6. Die Warnung betrifft gebuchte und laufende Zeit an dem Tag; „trotzdem“ trägt für alle ein, die Buchungen bleiben (die Datei zeigt dann zwei Arten an einem Tag, LB3).
-7. Nur gesetzliche Feiertage werden abgelehnt; ein von Hand eingetragener betriebsfreier Tag nicht (keine Betriebsruhe, Vorgabe zu den halben Tagen).
+7. Neu gefasst mit 1.9.178 (Vorgabe Tobias 03.11.2026): nur gesetzliche Feiertage werden abgelehnt; an einem von Hand eingetragenen betriebsfreien Tag fragt der Server wie bei gebuchter Zeit nach (409, „Trotzdem eintragen“). Bis 1.9.177 hieß es: „ein von Hand eingetragener betriebsfreier Tag nicht (keine Betriebsruhe, Vorgabe zu den halben Tagen)“ -- er wurde still angenommen.
 8. Die allgemeinen Abwesenheitsdialoge bieten Schlechtwetter nicht an; der Weg ist der eigene Dialog.
 9. Die Zeitarten Schlechtwetter bleiben in der Liste (inaktiv): wer sie in den Einstellungen wieder einschaltet, bekommt die Kacheln zurück.
 
@@ -1001,3 +1001,17 @@ Angepasste Erwartungen (Regel 28), altes Soll -> neues Soll (Silvester ist jetzt
 ### Tests und Prüfung 1.9.177
 
 Neu: `tests/test_v593_personalnummer_gesperrt.py` (8 Tests) -- Nummernwechsel 91008 -> 91016 (Tom bekommt 91008 nicht, Mia wieder), nach Austritt und geleerter Nummer gesperrt, „früher“ in der Liste, eine Nummer einmal in der Datenbank, Gleichsetzung über das Mitarbeiterformular (Ändern und Anlegen 409, die eigene frühere Nummer geht), ohne Gleichsetzung nichts gemerkt, Prüfskript, Migration auf einem Bestand unter SQLite und PostgreSQL. Gegenproben: Sperre übergangen -> 3 rot; beim Speichern nicht gemerkt -> 3 rot; die bisherige Mitarbeiternummer nicht gemerkt -> 1 rot. Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.178: Schlechtwetter an einem betriebsfreien Tag (Punkt 5)
+
+`app/schlechtwetter.py::betriebsfrei()` (aktiver `PlanningHoliday` an dem Tag), `warnungen()` setzt ihn als erste Warnung (`art` „betriebsfrei“, `employee_id` leer) vor die gebuchten Zeiten (`art` „gebucht“); `SchlechtwetterWarnung` baut eine Meldung: der Tag, dann „Außerdem ist schon Zeit gebucht: …“ (nur gebuchte Zeit: die Meldung wie bisher). Der Weg bleibt derselbe: 409, „trotzdem“ trägt ein. Dialog unverändert (`_schlechtwetter.html` zeigt die Meldung und „Trotzdem eintragen“ bei jeder 409).
+
+### Festlegungen 1.9.178 (Bitte bestätigen)
+
+1. Die Rückfrage gilt für jeden aktiven, von Hand eingetragenen betriebsfreien Tag (`PlanningHoliday`, Einstellungen → Planungsgrundlagen); ein abgeschalteter fragt nicht.
+2. Eine Meldung für beides: zuerst der betriebsfreie Tag, dann die gebuchte Zeit; „Trotzdem eintragen“ gilt für alles.
+3. Beim Bestätigen eines Antrags (Kolonnenführer, Vorarbeiter, Admin) fragt der Server nicht noch einmal -- wie bei gebuchter Zeit; wer beantragt, sah die Rückfrage schon.
+
+### Tests und Prüfung 1.9.178
+
+Neu: `tests/test_v594_schlechtwetter_betriebsfrei.py` (5 Tests) -- Rückfrage und „trotzdem“, abgeschalteter Tag ohne Rückfrage, betriebsfrei und gebucht in einer Meldung, die Monteurin wird gefragt (Antrag), gesetzlicher Feiertag weiter 422 auch mit „trotzdem“. Gegenproben: betriebsfreier Tag nicht geprüft -> 3 rot; auch abgeschaltete Tage -> 1 rot. `klicktest_schlechtwetter`: Aufbau um einen betriebsfreien Tag (Do 10.12.2026, „Betriebsausflug“), zwei Prüfungen mehr (20 -> 22) und ein Bild; die übrigen Erwartungen unverändert. Angepasste Erwartungen: keine.

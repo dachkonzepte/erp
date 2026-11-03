@@ -32,7 +32,8 @@
 /* Ausfalltag Schlechtwetter (seit 1.9.170, Lohn L1a, Punkt 5, E5) -- ein Baustein für „Zeiten“ (Büro) und „Meine Zeiten“ (Monteurin).
    Was das Konto darf, Personen, Kolonnen und wartende Anträge kommen vom Server (GET /api/schlechtwetter/kontext): wer für andere einträgt
    (Admin, Büro – Finanzen, Kolonnenführer, Vorarbeiter), wählt Personen oder eine Kolonne -- es gilt sofort; jede andere Person beantragt den
-   Tag für sich. Sa, So, Feiertag und Tage ohne Sollzeit lehnt der Server ab (Meldung mit Namen); ist schon Zeit gebucht, fragt er (409) --
+   Tag für sich. Sa, So, Feiertag und Tage ohne Sollzeit lehnt der Server ab (Meldung mit Namen); ist schon Zeit gebucht oder (seit 1.9.178)
+   der Tag als betriebsfreier Tag eingetragen, fragt er (409) --
    „Trotzdem eintragen“ schickt dasselbe noch einmal mit trotzdem. Die Seite bindet _speichern.html, _berlin_date.html, _fehlertext.html und
    _auswahl.html ein und hat api() und el(); swNachher wird nach dem Eintragen und nach einer Entscheidung gerufen. */
 var SW=null,swNachher=null;

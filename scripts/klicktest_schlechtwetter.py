@@ -8,8 +8,9 @@
     Kai                              Karte „Schlechtwetter bestätigen“ mit Tom · Di 08.12.2026 -> „Bestätigen“ -> die Karte ist leer, Toms Tag
                                      genehmigt -- Bild
     Fin (Büro – Finanzen, 1440)      „Zeiten → Abwesenheiten“: „Schlechtwetter eintragen“; Uwe am 09.12.2026, an dem er Zeit gebucht hat -> Rückfrage
-                                     „An diesem Tag ist schon Zeit gebucht: Uwe …“, „Trotzdem eintragen“ -> eingetragen; die Liste zeigt „Schlechtwetter“
-                                     -- Bild
+                                     „An diesem Tag ist schon Zeit gebucht: Uwe …“, „Trotzdem eintragen“ -> eingetragen; die Liste zeigt „Schlechtwetter“;
+                                     seit 1.9.178 Uwe am Do 10.12.2026, als betriebsfreier Tag eingetragen -> Rückfrage „Der 10.12.2026 ist als
+                                     betriebsfreier Tag eingetragen (Betriebsausflug).“, „Trotzdem eintragen“ -> eingetragen -- Bilder
     überall                          keine JS-Fehler
 
 AUFRUF (aus dem Projektordner):
@@ -36,7 +37,7 @@ def befuellen(db, k):
     from datetime import date, datetime, time
     from decimal import Decimal
 
-    from app.models import AppUser, Customer, Employee, Order, Project, Team, TeamEmployee, TimeEntry
+    from app.models import AppUser, Customer, Employee, Order, PlanningHoliday, Project, Team, TeamEmployee, TimeEntry
     from app.project_pipeline_columns import default_pipeline_column_id
 
     leute = {}
@@ -58,6 +59,7 @@ def befuellen(db, k):
     db.add(TimeEntry(employee_id=leute["uwe"].id, project_id=projekt.id, order_id=auftrag.id, work_date=tag, entry_type="site",
                      hours=Decimal("2"), break_minutes=0, status="booked", started_at=datetime.combine(tag, time(7)),
                      ended_at=datetime.combine(tag, time(9))))
+    db.add(PlanningHoliday(holiday_date=date(2026, 12, 10), name="Betriebsausflug", active=True))  # seit 1.9.178: Rückfrage statt stiller Annahme
     benutzer = {
         "kai": AppUser(username="kai", display_name="Kai Kolonne", role="field", employee_id=leute["kai"].id, password_hash=k.passwort()),
         "tom": AppUser(username="tom", display_name="Tom Monteur", role="field", employee_id=leute["tom"].id, password_hash=k.passwort()),
@@ -149,6 +151,18 @@ async def pruefen(tab, seed, p):
     p.pruefe("Fin: eingetragen, in der Liste als Schlechtwetter", [await tab.js("document.getElementById('swDialog').open"),
              await tab.js("[...document.querySelectorAll('#abwListe .zeile-name')].map(z=>z.innerText).filter(t=>t.includes('Schlechtwetter')).length")],
              [False, 5])
+    await tab.js("document.getElementById('swNeu').click()")
+    await tab.js(f"document.querySelector('[data-sw-person=\"{ids['uwe']}\"]').checked=true")
+    await _setze(tab, {"swTag": "2026-12-10"})
+    await tab.js("document.getElementById('swSenden').click()")
+    p.pruefe("Fin: Rückfrage am betriebsfreien Tag", await tab.warten(
+        "!document.getElementById('swTrotzdem').hidden&&document.getElementById('swStatus').textContent==="
+        "'Der 10.12.2026 ist als betriebsfreier Tag eingetragen (Betriebsausflug).'", 10), True)
+    await tab.bild("schlechtwetter_fin_betriebsfrei")
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('swTrotzdem').click()", "#abwListe")
+    p.pruefe("Fin: am betriebsfreien Tag eingetragen", [await tab.js("document.getElementById('swDialog').open"),
+             await tab.js("[...document.querySelectorAll('#abwListe .zeile-name')].map(z=>z.innerText).filter(t=>t.includes('Schlechtwetter')).length")],
+             [False, 6])
     await tab.bild("schlechtwetter_fin_liste")
     p.pruefe("Fin: keine JS-Fehler", tab.fehler, [])
 
