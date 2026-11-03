@@ -1160,3 +1160,7 @@ Angepasste Erwartungen (Regel 28), altes Soll -> neues Soll:
 ### Tests und Prüfung 1.9.189
 
 `scripts/klicktest_personalnummer_freigeben.py` um zwei Prüfungen (15 -> 17): bei 1440 px rollt die Tabelle waagrecht; ganz nach rechts gerollt stehen Kopf- und Zeilenzelle „Mitarbeiter“ am linken Rand (Abstand 0), obenauf (`elementFromPoint`), alle vier Namen lesbar, die Spalte ERP-Nr. darunter verschwunden; Bild `lohn_tabelle_gerollt_1440`. Keine neue Prüfung in pytest: die Regel ist reines CSS, gemessen wird im Browser.
+
+### Umsetzung 1.9.190: Zähler in test_v564 (Punkt 5)
+
+Nur Tests -- beschrieben im Archiv „Testablauf und Klicktest-Werkzeug“, Abschnitt „Zähler in test_v564: Speicherbereinigung in jedem Fall zurück“ (dort auch die Festlegung 1.9.190).

@@ -69,22 +69,37 @@ class Zaehler:
     """Zählt die Anweisungen an die Datenbank der Sitzung. Seit 1.9.183 räumt die Speicherbereinigung vorher ab und läuft währenddessen nicht:
     räumt sie mitten in einer Anfrage etwas ab, das dabei einen Fehler mit Traceback protokolliert (eine fremde Verbindung eines früheren
     Tests, „SQLite objects created in a thread …“), hält der Traceback die Objekte der Anfrage fest -- spätere Zugriffe finden sie in der
-    Sitzung, die Anfrage braucht weniger Abfragen (test_abraeumen_mitten_im_zaehlen_verfaelscht_nichts)."""
+    Sitzung, die Anfrage braucht weniger Abfragen (test_abraeumen_mitten_im_zaehlen_verfaelscht_nichts).
+
+    Seit 1.9.190 kommt die Speicherbereinigung in jedem Fall in den Zustand von vorher zurück: scheitert ein Test mitten im Zählen, ruft das
+    with ohnehin __exit__ auf -- bis 1.9.189 blieb sie aber aus, wenn das Abmelden des Zählers selbst scheiterte oder schon das Anmelden
+    (dann läuft __exit__ nie), und lief danach jeder weitere Test dieses Arbeitsprozesses ohne sie (test_zaehler_stellt_die_speicherbereinigung_wieder_her)."""
     def __init__(self, db):
-        self.bind, self.anzahl = db.get_bind(), 0
+        self.bind, self.anzahl, self.vorher = db.get_bind(), 0, None
 
     def _plus(self, *_args):
         self.anzahl += 1
 
     def __enter__(self):
+        self.vorher = gc.isenabled()
         gc.collect()
         gc.disable()
-        event.listen(self.bind, "before_cursor_execute", self._plus)
+        try:
+            event.listen(self.bind, "before_cursor_execute", self._plus)
+        except BaseException:
+            self._zurueck()
+            raise
         return self
 
     def __exit__(self, *_args):
-        event.remove(self.bind, "before_cursor_execute", self._plus)
-        gc.enable()
+        try:
+            event.remove(self.bind, "before_cursor_execute", self._plus)
+        finally:
+            self._zurueck()
+
+    def _zurueck(self):
+        if self.vorher:
+            gc.enable()
 
 
 def _abfragen(db, client, von=MONTAG):
@@ -285,3 +300,50 @@ def test_pausierter_einsatz_nennt_seine_begruendung_ohne_eigene_abfrage(tafel):
     status_aendern(db, pause.id, "laeuft", None)
     _, daten = _abfragen(db, client)
     assert daten["slots"][0]["order_status_reason"] is None
+
+class _Absicht(Exception):
+    """Ein Fehler, den der Test selbst wirft."""
+
+
+@pytest.mark.parametrize("wo", ["mitten_im_zaehlen", "beim_abmelden", "beim_anmelden"])
+def test_zaehler_stellt_die_speicherbereinigung_wieder_her(tafel, monkeypatch, wo):
+    """Seit 1.9.190 (L1a Stufe 2, Punkt 5): scheitert ein Test mitten im Zählen, scheitert das Abmelden oder schon das Anmelden des Zählers, ist
+    die Speicherbereinigung danach wieder an -- sonst liefen alle weiteren Tests dieses Arbeitsprozesses ohne sie. Mitten im Zählen hielt schon
+    1.9.183 (das with ruft __exit__ auf), die beiden anderen Fälle erst seit 1.9.190 (try/finally)."""
+    db, _client = tafel
+    echt_entfernen = event.remove
+    z = Zaehler(db)
+
+    def wirft(*_args, **_kwargs):
+        raise _Absicht(wo)
+
+    assert gc.isenabled()
+    try:
+        with pytest.raises(_Absicht):
+            if wo == "beim_anmelden":
+                monkeypatch.setattr(event, "listen", wirft)
+            if wo == "beim_abmelden":
+                monkeypatch.setattr(event, "remove", wirft)
+            with z:
+                assert not gc.isenabled()  # während des Zählens aus (1.9.183)
+                if wo == "mitten_im_zaehlen":
+                    raise _Absicht(wo)
+        monkeypatch.undo()
+        assert gc.isenabled(), f"Speicherbereinigung nach dem Fehler {wo} noch aus"
+    finally:
+        monkeypatch.undo()
+        if event.contains(z.bind, "before_cursor_execute", z._plus):
+            echt_entfernen(z.bind, "before_cursor_execute", z._plus)
+        gc.enable()  # auch wenn der Test scheitert, nie ohne Speicherbereinigung weiter
+
+
+def test_zaehler_laesst_eine_ausgeschaltete_speicherbereinigung_aus(tafel):
+    """Der Zähler stellt den Zustand von vorher her -- war sie aus, bleibt sie aus (bis 1.9.189 schaltete er sie immer ein)."""
+    db, _client = tafel
+    gc.disable()
+    try:
+        with Zaehler(db):
+            pass
+        assert not gc.isenabled()
+    finally:
+        gc.enable()

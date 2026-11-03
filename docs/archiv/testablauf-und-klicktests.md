@@ -1393,6 +1393,18 @@ Die Läufe des L1a-Nachtrags lagen unter `C:\kt_nach_…` (mit `--ausgabe` so ge
 
 Test: `tests/test_v597_klicktest_ordner.py` (3 Tests: ohne Angabe und Name unter dem Ordner, direkt unter einem Laufwerk abgelehnt -- es entsteht nichts --, ein tieferer Pfad bleibt; beide Werkzeuge nehmen die Regel). Gegenprobe: Prüfung „direkt unter einem Laufwerk“ aus -> 1 rot. Angepasste Erwartungen: keine.
 
+## Zähler in test_v564: Speicherbereinigung in jedem Fall zurück (1.9.190)
+
+Vorgabe Tobias (03.11.2026, L1a Stufe 2, Punkt 5): prüfen, ob `Zaehler` (seit 1.9.183: Speicherbereinigung während des Zählens aus) sie auch dann wieder einschaltet, wenn ein Test mitten im Zählen scheitert; wenn nicht, mit try/finally absichern.
+
+Befund: mitten im Zählen ja -- der Test zählt in einem `with`, das `__exit__` auch bei einer Ausnahme aufruft (nachgestellt: Fehler im Rumpf, danach an). Nicht abgesichert waren zwei Fälle: scheiterte `event.remove()` in `__exit__`, wurde `gc.enable()` übersprungen; scheiterte `event.listen()` in `__enter__` nach `gc.disable()`, lief `__exit__` nie. Danach liefen alle weiteren Tests dieses Arbeitsprozesses ohne Speicherbereinigung (mehr Speicher, andere Zeitpunkte des Abräumens -- genau die Art Unterschied, die 1.9.183 klären musste). Dazu schaltete der Zähler sie immer ein, auch wenn sie vorher aus war.
+
+Umsetzung: `__enter__` merkt den Zustand (`gc.isenabled()`), meldet den Zähler in try an und stellt bei einem Fehler den Zustand wieder her; `__exit__` meldet ihn in try ab, `finally` stellt den Zustand von vorher her (`_zurueck()`). Neu in `tests/test_v564_plantafel_leistung.py`: `test_zaehler_stellt_die_speicherbereinigung_wieder_her` (Fehler mitten im Zählen, beim Abmelden, beim Anmelden -- danach an; der Test räumt selbst in `finally` auf, damit eine Gegenprobe den Arbeitsprozess nicht ohne Speicherbereinigung zurücklässt) und `test_zaehler_laesst_eine_ausgeschaltete_speicherbereinigung_aus`. Gegenprobe: der Zähler von 1.9.183 -> 3 rot (beim Abmelden, beim Anmelden, vorher aus), „mitten im Zählen“ grün wie im Befund.
+
+**Festlegung 1.9.190 zu Werkzeug und Testablauf (Bitte bestätigen)**
+
+1. Ein Testhelfer, der einen Zustand des ganzen Prozesses ändert (Speicherbereinigung, Uhr, Umgebung), stellt in `finally` den Zustand von vorher her -- nicht einen festen Wert --, auch wenn sein eigenes An- oder Abmelden scheitert.
+
 ## Laufende Liste der Wackler (seit 1.9.185)
 
 Ein Test oder Klicktest, der rot war und auf demselben Stand ohne Änderung grün wurde. Ein neuer kommt hier hinein: Datum, Lauf und Stand, Abweichung, Arbeitsprozess und seine Reihenfolge (seit 1.9.183 in `.pytest_cache/reihenfolge`, vor dem nächsten Lauf kopieren), Ursache und Stand. Eine Wiederholung durch `klicktest_alle.py` (seit 1.9.19) gehört ebenso hierher.

@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.190 – test_v564: der Zähler stellt die Speicherbereinigung in jedem Fall wieder her (L1a Stufe 2, Punkt 5)
+
+Geprüft: scheitert ein Test mitten im Zählen, schaltet `Zaehler` die Speicherbereinigung schon seit 1.9.183 wieder ein -- das `with` ruft `__exit__` auch bei einem Fehler auf. Zwei Lücken gab es trotzdem: scheiterte das Abmelden des Zählers (`event.remove()`), entfiel `gc.enable()`; scheiterte schon das Anmelden (`event.listen()` nach `gc.disable()`), lief `__exit__` gar nicht. In beiden Fällen liefen alle weiteren Tests dieses Arbeitsprozesses ohne Speicherbereinigung. Jetzt sichert try/finally beides ab, und der Zähler stellt den Zustand von vorher her, statt sie immer einzuschalten. Drei neue Fälle und ein Test für „vorher aus“ in `tests/test_v564_plantafel_leistung.py`; nur Tests geändert.
+
 ## 1.9.189 – Lohn-Tabelle: die Spalte Mitarbeiter bleibt beim Rollen stehen (L1a Stufe 2, Punkt 4)
 
 In Einstellungen → „Zeitregeln und DATEV“ ist die Tabelle „DATEV-Personalnummern, Eintritt und Sollzeit“ bei 1440 px breiter als ihr Platz; wer nach rechts rollte, sah Eintritt, Austritt und Sollzeit ohne den Namen. Die Spalte Mitarbeiter (Kopf und Zeilen) bleibt jetzt am linken Rand stehen, deckend in der Farbe der Karte und mit einer Linie zur nächsten Spalte (`position:sticky`, Klasse `lohn-tabelle`). `klicktest_personalnummer_freigeben` rollt die Tabelle bei 1440 px ganz nach rechts, misst die Spalte und nimmt ein Bild auf.
