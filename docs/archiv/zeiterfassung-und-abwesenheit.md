@@ -963,7 +963,7 @@ Angepasste Erwartungen (Regel 28), altes Soll -> neues Soll:
 1. Die Frage stellt der Server: ein Urlaub über Silvester ohne Antwort wird mit 409 abgelehnt, nichts ist gespeichert -- auf allen Wegen (Zeiten einzeln und für mehrere, Meine Zeiten, Plantafel), auch für eine Schnittstelle ohne Dialog. Beim Sammeleintrag gilt eine Antwort für alle, für die der Tag gilt.
 2. Gefragt wird nur bei der Kategorie Urlaub und nur, wenn Silvester für die Person gilt (gewerblich, Montag bis Freitag, beschäftigt, Sollzeit über 0). Krankheit und die übrigen Kategorien über Silvester zählen den Tag nicht -- es gilt die Freistellung (wie an Heiligabend, Festlegung 1.9.175 Nr. 4).
 3. Die Antwort steht an Antrag und Abwesenheit. „Ganzer Urlaubstag“ zählt den Tag mit der Sollzeit des Modells und ersetzt die Freistellung, sobald der Urlaub genehmigt ist -- bis dahin gilt die Freistellung.
-4. Ein Urlaub ohne Antwort (vor 1.9.176 angelegt) gilt wie der Vorschlag: ganzer Urlaubstag, die Freistellung entfällt.
+4. Ein Urlaub ohne Antwort (vor 1.9.176 angelegt) gilt wie der Vorschlag: ganzer Urlaubstag, die Freistellung entfällt. Seit 1.9.184 zählt `scripts/pruefe_zeitregeln.py` solche Anträge.
 5. Ein halber Urlaubstag an Silvester wird abgelehnt (422, Vorgabe „Halbe Tage gibt es hier nicht“).
 6. Gebuchte Arbeit an Silvester kommt wie an Heiligabend zur Freistellung dazu (die Vorgabe nennt das nur für Heiligabend).
 7. Die Listen unter „Zeiten“ und „Meine Zeiten“ nennen die Antwort („Kalendertag als Urlaubstag“, „Kalendertag frei, kein Urlaubstag“).
@@ -1080,3 +1080,16 @@ Angepasste Erwartungen (Regel 28), altes Soll -> neues Soll:
 ### Umsetzung 1.9.183: Wackler test_v564 und Reihenfolge je Testprozess (Punkt 4)
 
 Nur Tests und Testablauf -- beschrieben im Archiv „Testablauf und Klicktest-Werkzeug“, Abschnitt „Wackler test_v564 geklärt, Reihenfolge je Testprozess“ (dort auch die Festlegungen 1.9.183).
+
+### Umsetzung 1.9.184: Prüfskript zählt Urlaub über Silvester ohne Antwort (Punkt 5)
+
+`scripts/pruefe_zeitregeln.py::_urlaub_ohne_antwort()` (aus `_kalender()`): je aktivem Kalendertag mit Rückfrage die Urlaubsanträge (Kategorie Urlaub, `kalendertag_urlaub` leer), deren Zeitraum den Tag enthält und für die `app/arbeitszeitkalender.py::rueckfrage_tage()` heute fragen würde; Zeile „Urlaubsanträge über 31.12. ohne Antwort (vor 1.9.176 angelegt, zählen als ganzer Urlaubstag): N (genehmigt …, offen …, abgelehnt …, zurückgezogen …)“, nur Status mit Anträgen. Kein Befund, keine Personen. Seit 1.9.176 trägt jeder neue Antrag über einen solchen Tag die Antwort -- ein Antrag ohne Antwort stammt von davor.
+
+### Festlegungen 1.9.184 (Bitte bestätigen)
+
+1. Gezählt werden alle Status, auch abgelehnte und zurückgezogene (je für sich genannt) -- für den Lohn zählen nur die genehmigten, die übrigen zeigen, wie viele es vor 1.9.176 gab.
+2. Gezählt wird nur, wo die Frage heute gestellt würde (gewerblich, Montag bis Freitag, Sollzeit über 0 an dem Tag); ein Antrag einer kaufmännischen Kraft oder über einen 31.12. am Wochenende hat keine Antwort, weil es nichts zu fragen gibt.
+
+### Tests und Prüfung 1.9.184
+
+Neu in `tests/test_v592_silvester.py`: `test_pruefskript_zaehlt_urlaub_ueber_silvester_ohne_antwort` (drei gezählt: genehmigt, offen, zurückgezogen; nicht gezählt: mit Antwort, ohne den 31.12., kaufmännisch, Krankheit, 31.12. am Sonntag; kein Befund), `test_pruefskript_ohne_solche_antraege` (0). Gegenprobe: die Prüfung „würde heute gefragt“ übergangen -> 1 rot. Angepasste Erwartungen: keine.

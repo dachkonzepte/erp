@@ -162,6 +162,36 @@ def test_seiten():
         assert "Bitte prüfen und noch einmal" in text and "Bitte wählen und noch einmal" not in text, seite
 
 
+def test_pruefskript_zaehlt_urlaub_ueber_silvester_ohne_antwort(welt):
+    """Seit 1.9.184 (L1a-Korrekturen, Punkt 5, Festlegung 1.9.176 Nr. 4): Urlaubsanträge über den 31.12. ohne Antwort, wie vor 1.9.176
+    angelegt -- gezählt je Status, kein Befund. Nicht gezählt: mit Antwort, ohne den 31.12., kaufmännisch, Krankheit, Silvester am Sonntag."""
+    from tests.test_v590_pruefe_zeitregeln import _skript
+    db, mia, tom, kim = welt["db"], welt["mia"], welt["tom"], welt["kim"]
+
+    def antrag(emp, von, bis, status="approved", kategorie="urlaub", antwort=None):
+        db.add(EmployeeAbsenceRequest(employee_id=emp.id, absence_type="Urlaub", absence_category=kategorie, start_date=von, end_date=bis,
+                                      status=status, kalendertag_urlaub=antwort))
+    antrag(mia, date(2026, 12, 28), date(2027, 1, 8))
+    antrag(tom, date(2026, 12, 28), date(2027, 1, 8), status="pending")
+    antrag(tom, date(2029, 12, 27), date(2030, 1, 4), status="cancelled")
+    antrag(mia, date(2027, 12, 27), date(2028, 1, 7), antwort=False)  # mit Antwort
+    antrag(tom, date(2026, 12, 21), date(2026, 12, 23))  # ohne den 31.12.
+    antrag(kim, date(2026, 12, 28), date(2027, 1, 8))  # kaufmännisch: keine Frage
+    antrag(mia, date(2025, 12, 29), date(2026, 1, 2), kategorie="krankheit")
+    antrag(tom, date(2028, 12, 27), date(2029, 1, 5))  # So 31.12.2028: keine Frage
+    db.commit()
+    stand = _skript().pruefen(db, date(2026, 11, 10))
+    assert ("Urlaubsanträge über 31.12. ohne Antwort (vor 1.9.176 angelegt, zählen als ganzer Urlaubstag): 3 (genehmigt 1, offen 1, "
+            "zurückgezogen 1)") in stand.zeilen
+    assert not [b for b in stand.befunde if "Urlaub" in b]
+
+
+def test_pruefskript_ohne_solche_antraege(welt):
+    from tests.test_v590_pruefe_zeitregeln import _skript
+    stand = _skript().pruefen(welt["db"], date(2026, 11, 10))
+    assert "Urlaubsanträge über 31.12. ohne Antwort (vor 1.9.176 angelegt, zählen als ganzer Urlaubstag): 0" in stand.zeilen
+
+
 # --- Migration 2474667579d8 -----------------------------------------------------------------------------------------------------------------
 
 def _probe(url: str, engine) -> None:

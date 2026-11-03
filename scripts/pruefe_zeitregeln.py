@@ -13,7 +13,9 @@ Vor dem Probemonat (Dezember 2026) und vor dem ersten echten Export: was auf dem
     Export-Umfang         Anzahl je alles / nur Abwesenheiten / nichts; Eintritt und Austritt; eigene Sollzeiten
     Feiertage             Bundesland, „Feiertage automatisch“, die gesetzlichen Feiertage dieses und des nächsten Jahres
     von Hand              eingetragene betriebsfreie Tage (sie zählen nicht als Feiertag F)
-    Arbeitszeitkalender   seit 1.9.175: Tage, die jedes Jahr anders laufen (Heiligabend …) mit Sollzeit, Abwesenheit, für wen
+    Arbeitszeitkalender   seit 1.9.175: Tage, die jedes Jahr anders laufen (Heiligabend …) mit Sollzeit, Abwesenheit, für wen; seit 1.9.184
+                          die Urlaubsanträge über einen Tag mit Rückfrage (31.12.) ohne Antwort -- vor 1.9.176 angelegt, sie zählen wie der
+                          Vorschlag als ganzer Urlaubstag (Festlegung 1.9.176 Nr. 4); nur gezählt, kein Befund
     Zuordnung             Kennzeichen und Lohnart je Eintrag, was nicht exportiert wird
 
 Aufruf auf dem Server, im Projektverzeichnis, mit geladener Umgebung und dem Python des Servers:
@@ -191,6 +193,38 @@ def _kalender(db, stand: Stand) -> None:
         soll = f"Sollzeit {_h(e.sollzeit)} h" if e.sollzeit is not None else "Sollzeit des Modells"
         stand.zeile(f"  {e.tag:02d}.{e.monat:02d}. {e.name}: {soll}, {e.abwesenheit}, im Urlaub {e.im_urlaub}, "
                     f"{'gewerbliche' if e.nur_gewerblich else 'alle'}{', nur Mo–Fr' if e.nur_mo_fr else ''}{'' if e.aktiv else ' (abgeschaltet)'}")
+    _urlaub_ohne_antwort(db, stand, [e for e in tage if e.aktiv and e.im_urlaub == "fragen"])
+
+
+ANTRAG_STATUS = {"approved": "genehmigt", "pending": "offen", "rejected": "abgelehnt", "cancelled": "zurückgezogen"}
+
+
+def _urlaub_ohne_antwort(db, stand: Stand, fragen: list) -> None:
+    """Seit 1.9.184 (L1a-Korrekturen, Punkt 5): Urlaubsanträge über einen Tag mit Rückfrage (Silvester), für den die Frage heute gestellt würde,
+    aber ohne Antwort -- angelegt vor 1.9.176 (seitdem fragt der Server). Sie zählen wie der Vorschlag: ganzer Urlaubstag (Festlegung 1.9.176
+    Nr. 4). Nur gezählt, je Status, kein Befund."""
+    from app.arbeitszeitkalender import rueckfrage_tage
+    from app.models import EmployeeAbsenceRequest
+    tage = ", ".join(f"{e.tag:02d}.{e.monat:02d}." for e in fragen) or "–"
+    je_status: Counter = Counter()
+    for a in db.scalars(select(EmployeeAbsenceRequest).where(EmployeeAbsenceRequest.absence_category == "urlaub",
+                                                              EmployeeAbsenceRequest.kalendertag_urlaub.is_(None))):
+        if any(_im_zeitraum(a.start_date, a.end_date, e.monat, e.tag) for e in fragen) and rueckfrage_tage(db, a.employee_id, a.start_date, a.end_date):
+            je_status[a.status] += 1
+    teile = ", ".join(f"{ANTRAG_STATUS.get(s, s)} {n}" for s, n in sorted(je_status.items(), key=lambda x: list(ANTRAG_STATUS).index(x[0])
+                                                                                                  if x[0] in ANTRAG_STATUS else 9))
+    stand.zeile(f"Urlaubsanträge über {tage} ohne Antwort (vor 1.9.176 angelegt, zählen als ganzer Urlaubstag): {sum(je_status.values())}"
+                + (f" ({teile})" if teile else ""))
+
+
+def _im_zeitraum(start: date, ende: date, monat: int, tag: int) -> bool:
+    for jahr in range(start.year, ende.year + 1):
+        try:
+            if start <= date(jahr, monat, tag) <= ende:
+                return True
+        except ValueError:  # 29.02. in einem Jahr ohne Schalttag
+            continue
+    return False
 
 
 def _zuordnung(db, stand: Stand) -> None:
