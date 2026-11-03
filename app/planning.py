@@ -1281,8 +1281,8 @@ def planning_board(db: Session, start_date: date, end_date: date) -> dict:
                 if total_cap>0:
                     planned += dist.get("planned",Decimal("0"))*_employee_net_capacity(emp,settings,_slot_travel(slot,settings))/total_cap
             util=round_half_up(planned/cap*100 if cap>0 else (Decimal("100") if planned>0 else Decimal("0")),Decimal("0.1"))
-            a=absences.get((emp.id,day))
-            rows[day.isoformat()]={"capacity_hours":round_hours(cap),"planned_hours":round_hours(planned),"utilization_pct":util,"absence":a.absence_type if a else None,"holiday":holiday_names.get(day),"school_holidays":school_by_day.get(day,[])}
+            a=absences.get((emp.id,day))  # 1.9.188 (Nachtrag): eine Freistellung heißt in der schmalen Zelle nur nach ihrem Tag („Heiligabend“)
+            rows[day.isoformat()]={"capacity_hours":round_hours(cap),"planned_hours":round_hours(planned),"utilization_pct":util,"absence":(a.kalendertag if isinstance(a,Freistellung) else a.absence_type) if a else None,"holiday":holiday_names.get(day),"school_holidays":school_by_day.get(day,[])}
         employee_capacity[str(emp.id)]=rows
     resource_load={}
     zaehlend=[slot for slot in visible if not geschlossen(slot.preparation.order)]  # seit 1.9.143 (P8), seit 1.9.151 auch abgeschlossene

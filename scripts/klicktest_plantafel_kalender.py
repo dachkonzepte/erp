@@ -67,6 +67,11 @@ def befuellen(db, k):
 
 
 BEREIT = "typeof board!=='undefined'&&board&&board.teams&&board.teams.length>0&&typeof orders!=='undefined'"
+# seit 1.9.188 (Nachtrag): in Mias Zelle am 24.12. liegen Abwesenheit und Kapazität nebeneinander, die Abwesenheit ist nicht abgeschnitten
+UEBERLAPPUNG = ("(()=>{const r=[...document.querySelectorAll('.planner-row')].find(x=>x.querySelector('.row-label b').textContent==='Mia Test'),"
+                "c=r.querySelector('.day-cell[data-date=\"2026-12-24\"]'),m=c.querySelector('.absence-mark'),k=c.querySelector('.capacity-label'),"
+                "a=m.getBoundingClientRect(),b=k.getBoundingClientRect(),z=c.getBoundingClientRect();"
+                "return [b.right<=a.left&&a.left>=z.left&&a.right<=z.right,m.scrollWidth<=m.clientWidth,m.title]})()")
 
 
 def zelle(zeile: str, tag: str) -> str:
@@ -101,7 +106,10 @@ async def pruefen(tab, seed, p):
     await tab.js("document.querySelector('.viewtabs button[data-view=employees]').click()")
     await tab.warten("view==='employees'&&!!document.querySelector('.planner-row')")
     p.pruefe("Mitarbeiter am 24.12.: Mia und Tom freigestellt, Ben wie bisher", [await tab.js(zelle(f"{n} Test", "2026-12-24")) for n in ("Mia", "Tom", "Ben")],
-             ["Heiligabend – bezahlte Freistellung", "Heiligabend – bezahlte Freistellung", ""])
+             ["Heiligabend", "Heiligabend", ""])
+    # 1.9.188 (Nachtrag): sichtbar messen, nicht nur den Text -- bis dahin stand die ganze Freistellung in der 120 px schmalen Zelle über der Kapazität
+    p.pruefe("Mitarbeiter am 24.12.: Freistellung und Kapazität überlappen nicht, nichts abgeschnitten, voller Text im Tooltip", await tab.js(UEBERLAPPUNG),
+             [True, True, "Heiligabend"])
     p.pruefe("Mia am 23.12. ohne", await tab.js(zelle("Mia Test", "2026-12-23")), "")
     await tab.bild("3_mitarbeiter_heiligabend")
     await tab.js("document.querySelector('.viewtabs button[data-view=teams]').click()")

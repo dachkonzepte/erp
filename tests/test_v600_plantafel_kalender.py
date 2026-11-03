@@ -62,12 +62,14 @@ def test_tafel_zeigt_die_betroffenen_abwesend(tafel):
     assert antwort.status_code == 200, antwort.text
     board = planning_board(db, MONTAG, MONTAG + timedelta(days=6))
     mia, tom, ben = (board["employee_capacity"][str(tafel[n].id)] for n in ("mia", "tom", "ben"))
-    assert (mia["2026-12-24"]["capacity_hours"], mia["2026-12-24"]["absence"]) == (D("0"), "Heiligabend – bezahlte Freistellung")
+    # 1.9.188 (Nachtrag): in der schmalen Zelle nur der Tag -- bis dahin die ganze Freistellung, sie überdeckte die Kapazität
+    assert (mia["2026-12-24"]["capacity_hours"], mia["2026-12-24"]["absence"]) == (D("0"), "Heiligabend")
     assert mia["2026-12-23"]["capacity_hours"] > 0 and mia["2026-12-23"]["absence"] is None
-    assert tom["2026-12-24"]["absence"] == "Heiligabend – bezahlte Freistellung"
+    assert tom["2026-12-24"]["absence"] == "Heiligabend"
     assert (ben["2026-12-24"]["absence"], ben["2026-12-24"]["capacity_hours"]) == (None, ben["2026-12-23"]["capacity_hours"])  # wie bisher
     team = board["team_capacity"][str(tafel["team"].id)]
-    assert sorted(a["name"] for a in team["2026-12-24"]["absences"]) == ["Mia Test", "Tom Test"]
+    assert sorted((a["name"], a["type"]) for a in team["2026-12-24"]["absences"]) == [
+        ("Mia Test", "Heiligabend – bezahlte Freistellung"), ("Tom Test", "Heiligabend – bezahlte Freistellung")]
     assert team["2026-12-24"]["available_employee_count"] == 1 and team["2026-12-23"]["available_employee_count"] == 3
     assert team["2026-12-24"]["capacity_hours"] < team["2026-12-23"]["capacity_hours"]
     assert board["absences"] == []  # abgeleitet, nicht gespeichert -- nicht in der Liste der Abwesenheiten

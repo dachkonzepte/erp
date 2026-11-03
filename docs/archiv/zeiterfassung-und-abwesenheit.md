@@ -1149,6 +1149,12 @@ Neu: `tests/test_v600_plantafel_kalender.py` (7 Tests) -- `freistellungen()` nur
 Angepasste Erwartungen (Regel 28), altes Soll -> neues Soll:
 - `test_v563::test_feiertag_200_mit_hinweis` (Tom gewerblich, Einsatz 24.–25.12.2026): Hinweise [Feiertag 25.12.] -> [Freistellung „Heiligabend – Tom Test“ 24.12., Feiertag 25.12., „Kapazität reicht um 1,00 h nicht aus“] -- an beiden Tagen arbeitet Tom nicht mehr; gefunden im Lauf vor dem Commit.
 
+Nachtrag 1.9.188 (nach dem Endlauf auf 0af82d2, eigener Commit ohne neue Versionsnummer, Festlegung 1.8.100 Nr. 5): im Bild „Mitarbeiter“ des Endlaufs stand am 24.12. die ganze Freistellung in der 120 px schmalen Tageszelle (`.absence-mark`, rechts unten) über der Kapazität (`.capacity-label`, links unten) -- beide unleserlich. Suite und Klicktests waren grün, weil der Klicktest nur den Text las. Behoben: `planning_board()` gibt beim Mitarbeiter für eine Freistellung den Namen des Tags (`Freistellung.kalendertag`, „Heiligabend“) statt der Abwesenheit; `planning.html` kürzt `.absence-mark` auf die Zelle abzüglich 58 px mit „…“ und trägt den vollen Text als Tooltip (Absicherung für lange Arten auch anderer Abwesenheiten, ohne eigenen Test). Die Kolonne und die Hinweise nennen weiter die ganze Freistellung. `klicktest_plantafel_kalender` misst jetzt in Mias Zelle die Lage beider Angaben (nebeneinander, in der Zelle) und dass nichts abgeschnitten ist (11 -> 12 Prüfungen). Gegenproben: der lange Text zurück -> Klicktest 2 rot (Text, abgeschnitten), `test_v600` 1 rot.
+
+Angepasste Erwartungen des Nachtrags (Regel 28), altes Soll -> neues Soll:
+- `test_v600::test_tafel_zeigt_die_betroffenen_abwesend`: Mia und Tom am 24.12. „Heiligabend – bezahlte Freistellung“ -> „Heiligabend“; dazu geprüft, dass die Kolonne die ganze Freistellung nennt.
+- `klicktest_plantafel_kalender` „Mitarbeiter am 24.12.: Mia und Tom freigestellt, Ben wie bisher“: [„Heiligabend – bezahlte Freistellung“ ×2, „“] -> [„Heiligabend“ ×2, „“].
+
 ### Umsetzung 1.9.189: Spalte Mitarbeiter bleibt stehen (Punkt 4)
 
 `settings.html`: die Tabelle trägt die Klasse `lohn-tabelle`, ihr Rollbereich die ID `payrollRollen`; `.lohn-tabelle th:first-child, td:first-child` mit `position:sticky; left:0`, deckend (`--card`), rechts eine Linie (`box-shadow`), 150–220 px breit, lange Namen brechen um. Sonst nichts geändert (die Kopfzeile rollt senkrecht wie bisher mit).
