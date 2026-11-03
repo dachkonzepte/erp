@@ -13,6 +13,8 @@ Geschäftslogik: der Router entscheidet, wessen Zeiten (immer die eigenen) und o
                  wie bis dahin die Zeiterfassung der Monteurin
     Angeheftet   seit 1.9.186: die laufende Zeit, die vor dem Anfang des angezeigten Monats begann (vergessener Feierabend über den
                  Monatswechsel) -- die Tage des Monats enthalten sie nicht; ob „Beenden“ gilt, entscheidet der Router
+    Frei         seit 1.9.187: die Freistellungen des Arbeitszeitkalenders im angezeigten Monat (Heiligabend, Silvester) je Tag mit Stunden
+                 und bezahlt -- app/arbeitszeitkalender.py::abwesenheiten(), dieselbe Rechnung wie der Lohn, abgeleitet, ohne Antrag
 
 Summen: jede Summe addiert die gespeicherten Stunden (vier Nachkommastellen) und rundet erst das Ergebnis kaufmännisch auf zwei Stellen;
 die Zeilen zeigen ihre Stunden gerundet -- die Summe der angezeigten Zeilen kann deshalb um 0,01 von der angezeigten Summe abweichen
@@ -29,6 +31,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .absence_requests import arten_fuer_auswahl
+from .arbeitszeitkalender import abwesenheiten as kalender_abwesenheiten
 from .heute import taetigkeiten, zeitarten
 from .models import TimeEntryGroup, TimeEntryGroupMember
 from .planning import list_field_bookable_orders
@@ -149,6 +152,7 @@ def meine_zeiten(db: Session, employee_id: int, *, monat: date, heute: date) -> 
         "monat_produktiv": round_hours(tagessumme([r for r in booked if r.counts_as_productive])),
         "abgeschlossen_bis": lock,
         "angeheftet": angeheftet(db, employee_id, erster, arten),
+        "freistellungen": kalender_abwesenheiten(db, employee_id, erster, letzter),  # seit 1.9.187
         "tage": tag_liste,
         # seit 1.9.59 für die Dialoge der Seite
         "zeitarten": arten, "taetigkeiten": taetigkeiten(db), "auftraege": list_field_bookable_orders(db, employee_id),

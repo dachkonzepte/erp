@@ -14,7 +14,8 @@
                 Weg zu „Heute“. Passt die abgezogene Pause eines Tags nicht mehr zur Zeitregel: Hinweis in der Kopfzeile und „Pausen neu
                 rechnen“ (Vorschau je Buchung, gebucht nur mit Klick). Seit 1.9.186 oben angeheftet: eine laufende Zeit, die vor dem
                 Monatsanfang begann, mit Startdatum und „Beenden“ (Ende am Starttag wie auf „Heute“).
-       rechts   Abwesenheit (Antrag, eigene Anträge) und Monat (Summe, Tage, Fahrzeit, produktiv, Stundenzettel als PDF)
+       rechts   Abwesenheit (Antrag, eigene Anträge; seit 1.9.187 die Freistellungen des Arbeitszeitkalenders im Monat mit Stunden und
+                „bezahlt“/„unbezahlt“) und Monat (Summe, Tage, Fahrzeit, produktiv, Stundenzettel als PDF)
        hoch     unter 1000 px eine Spalte in dieser Reihenfolge
      Alles aus GET /api/field-view/meine-zeiten (app/meine_zeiten.py); die Seite rechnet keine Stunden nach. „+ Nachtragen“ und „Ändern“:
      ein Dialog mit Datum, Zeitart, Von, Bis, Auftrag (unter „Weitere Angaben“ Tätigkeit, Notiz, Pause mindestens), Vorschau vom Server
@@ -174,6 +175,8 @@
       <section class="zeiten-karte seiten-karte" id="abwesenheitKarte" aria-labelledby="abwTitel">
         <h2 id="abwTitel">Abwesenheit</h2>
         <p id="abwText">Urlaub oder Krankheit beantragen.</p>
+        {# seit 1.9.187 (L1a Stufe 2, Punkt 2): die Freistellungen des Arbeitszeitkalenders im angezeigten Monat, wie die Anträge, ohne Antrag #}
+        <div id="abwFrei" hidden></div>
         <button type="button" class="knopf knopf-neutral knopf-breit" id="antragKnopf">+ Antrag</button>
         {# seit 1.9.170 (Lohn L1a, Punkt 5): Ausfalltag Schlechtwetter -- Kolonnenführer und Vorarbeiter für die Kolonne, sonst für sich als
            Antrag; darunter, was sie bestätigen #}
@@ -372,6 +375,7 @@ function zeichnen(d){
   el('monatAnteile').textContent='davon Fahrzeit '+stunden(d.monat_fahrzeit)+' · produktiv '+stunden(d.monat_produktiv);
   el('pdfKnopf').setAttribute('href','/api/field-view/timesheet.pdf?year='+d.monat.slice(0,4)+'&month='+d.monat.slice(5));
   angeheftetZeichnen(d.angeheftet);
+  freistellungenZeichnen(d.freistellungen);
   var t=el('tage');t.className='';
   t.innerHTML=d.tage.length?d.tage.map(tagHtml).join(''):'<p class="leer-text" style="margin:0">Keine Buchungen im '+esc(d.monat_name)+'.</p>';
   t.querySelectorAll('.zeile-menue').forEach(function(a){dsMenue(a.querySelector('.knopf-symbol'),a.querySelector('.ds-menue'))});
@@ -433,6 +437,15 @@ function angeheftetZeichnen(a){
     +(a.auftrag_geschlossen?'<span>Auftrag '+esc(a.auftrag_geschlossen)+'</span>':'')
     +(a.grund?'<span class="angeheftet-grund">'+esc(a.grund)+'</span>':'')+'</span>'
     +(a.beenden?'<button type="button" class="knopf knopf-aktion knopf-klein" data-aktion="beenden">Beenden</button>':'')+'</div>';
+}
+// Seit 1.9.187 (L1a Stufe 2, Punkt 2): die Freistellungen des Arbeitszeitkalenders im angezeigten Monat (Heiligabend, Silvester) -- in der
+// Karte „Abwesenheit“ wie die Anträge, mit den Stunden und „bezahlt“/„unbezahlt“; sie gelten ohne Antrag
+function freistellungenZeichnen(liste){
+  var box=el('abwFrei');liste=liste||[];box.hidden=!liste.length;
+  box.innerHTML=liste.map(function(f){
+    return '<div class="antrag" data-freistellung="'+esc(f.tag)+'"><span class="antrag-text"><b>'+esc(f.abwesenheit)+'</b>'
+      +'<span>'+esc(teile(f.tag).wt+' '+tagLang(f.tag))+' · '+esc(stunden(f.stunden))+' · '+(f.bezahlt?'bezahlt':'unbezahlt')+'</span></span>'
+      +'<span class="antrag-status">gilt ohne Antrag</span></div>'}).join('');
 }
 function beendenOeffnen(){
   var a=D&&D.angeheftet;

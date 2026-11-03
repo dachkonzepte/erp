@@ -1115,3 +1115,17 @@ Vorgabe Tobias (03.11.2026), je Punkt eine Version: 1 „Meine Zeiten“ heftet 
 ### Tests und Prüfung 1.9.186
 
 Neu: `tests/test_v598_meine_zeiten_angeheftet.py` (9 Tests, stehende Uhr Di 01.12.2026 10:00) -- angeheftet am 01.12. mit Startdatum und „Beenden“, im November an ihrem Tag, eine heute begonnene nie angeheftet, „Beenden“ über Vorschau und Nachtragen (danach nichts angeheftet, die Buchung im November), Gruppenzeit nur der Kolonnenführer, abgeschlossener Monat und Büro – Auftrag ohne „Beenden“ mit Meldung, Seite in node (Text, Knopf, Grund, leer), Dialog über die Endpunkte. Gegenproben: nie anheften -> 3 rot; immer anheften -> 2 rot; Regeln von „Ende nachtragen“ übergangen -> 2 rot. Klicktest neu: `scripts/klicktest_meine_zeiten_angeheftet.py` (16 Prüfungen, fünf Bilder: 412 px dunkel, 1280 × 620 hell, Dialog, danach, Gruppenzeit). Beim Ansehen der Bilder gefunden und vor dem Commit behoben: die Meldung „Bitte die Uhrzeit des Feierabends angeben.“ blieb nach der Eingabe einer Uhrzeit neben der Vorschau stehen -- sie verschwindet jetzt mit jeder Eingabe (im Klicktest geprüft).
+
+### Umsetzung 1.9.187: Freistellungen in „Meine Zeiten“ (Punkt 2)
+
+`app/meine_zeiten.py::meine_zeiten()` liefert `freistellungen`: `app/arbeitszeitkalender.py::abwesenheiten()` für den angezeigten Monat (je Tag Abwesenheit, Name, Stunden = Sollzeit des Tags, bezahlt) -- dieselbe Rechnung wie der Lohn, abgeleitet, nichts gespeichert. Seite `mobil_zeiten.html`: `#abwFrei` in der Karte „Abwesenheit“ unter dem Text, je Tag eine Zeile in der Form der Anträge (`.antrag`): Abwesenheit fett, darunter Wochentag und Datum, Stunden, „bezahlt“/„unbezahlt“, rechts „gilt ohne Antrag“ (`freistellungenZeichnen()`); ohne Freistellung im Monat ausgeblendet.
+
+### Festlegungen 1.9.187 (Bitte bestätigen)
+
+1. Die Freistellungen stehen in der Karte „Abwesenheit“ für den angezeigten Monat, je Tag eine Zeile wie ein Antrag, mit „gilt ohne Antrag“ statt eines Status -- nicht unter „Meine Anträge“ (sie sind kein Antrag, Festlegung 1.9.175 Nr. 2) und nicht unter den Buchungen (sie sind keine Buchung).
+2. Die Stunden sind die Sollzeit des Tags (Heiligabend 7,00 h, Silvester die des Modells, bei Teilzeit die eigene) -- dieselbe Zahl wie für den Lohn; Kacheln und „Monat“ zählen nur Buchungen und bleiben ohne sie.
+3. Sie erscheinen nur im Monat des Kalendertags; künftige Monate öffnet „Meine Zeiten“ nicht (‹ › nur bis zum laufenden Monat) -- Heiligabend steht also ab dem 1. Dezember da.
+
+### Tests und Prüfung 1.9.187
+
+Neu: `tests/test_v599_meine_zeiten_freistellungen.py` (7 Tests) -- Dezember 2026 mit Heiligabend (7,00 h, bezahlt) und Silvester (7,50 h, unbezahlt), andere Monate leer, Teilzeit Di–Do am Donnerstag voll und Silvester mit 3,00 h, im Dezember 2029 (Montag) keine, kaufmännisch keine, Silvester fehlt nach genehmigtem Urlaub mit „ganzer Urlaubstag“ (offen noch nicht), Seite in node (Zeilen, Maskierung, leer). Gegenproben: keine Freistellungen geliefert -> 3 rot; „bezahlt“/„unbezahlt“ vertauscht -> 1 rot. Klicktest neu: `scripts/klicktest_meine_zeiten_freistellungen.py` (11 Prüfungen, drei Bilder: Mia 1280 × 620 hell und 412 px dunkel, Tom mit Urlaub über Silvester; Kim kaufmännisch ohne).
