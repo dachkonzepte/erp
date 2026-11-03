@@ -3789,6 +3789,11 @@ class EmployeePayrollSettingsUpdate(PartialUpdate):
     austritt: date | None = None
 
 
+class PersonalnummerFreigabeIn(BaseModel):
+    """Seit 1.9.181 (L1a-Korrekturen, Punkt 2): eine gemerkte Personalnummer freigeben -- nur der Admin."""
+    nummer: str = Field(min_length=1, max_length=50)
+
+
 class SchlechtwetterEintragen(BaseModel):
     """Seit 1.9.170 (Lohn L1a, Punkt 5): ein Ausfalltag Schlechtwetter für eine oder mehrere Personen an einem Tag. trotzdem: auch wenn an
     dem Tag schon Zeit gebucht ist (sonst 409 mit der Liste)."""

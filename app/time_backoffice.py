@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from io import BytesIO, StringIO
 from html import escape
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -17,6 +17,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 
+from .audit import record_audit_entry
 from .grunddaten import einzelzeile
 from .models import AppUser, Employee, EmployeePayrollSettings, PersonalnummerVergabe, TimeEntry, TimeTrackingSettings, WorkTimeModel
 from .rounding import round_hours
@@ -66,6 +67,39 @@ def fruehere_personalnummern(db: Session) -> dict[int, list[str]]:
     for nummer, eid in db.execute(select(PersonalnummerVergabe.nummer, PersonalnummerVergabe.employee_id).order_by(PersonalnummerVergabe.id)):
         je.setdefault(eid, []).append(nummer)
     return je
+
+
+class PersonalnummerGehalten(ValueError):
+    """Freigeben abgelehnt: eine Person trägt die Nummer heute (409)."""
+
+
+def personalnummer_halter(db: Session, nummer: str) -> Employee | None:
+    """Wer die Nummer heute trägt: Lohnstammdaten mit dieser DATEV-Nummer, bei „DATEV-Nr. = ERP-Nr.“ auch eine Mitarbeiternummer."""
+    eid = db.scalar(select(EmployeePayrollSettings.employee_id).where(EmployeePayrollSettings.datev_personnel_number == nummer).limit(1))
+    if eid is None and load_advanced_settings(db).datev_personnel_equals_erp_number:
+        eid = db.scalar(select(Employee.id).where(func.trim(Employee.employee_number) == nummer).limit(1))
+    return db.get(Employee, eid) if eid is not None else None
+
+
+def personalnummer_freigeben(db: Session, nummer: str | None) -> None:
+    """Seit 1.9.181 (L1a-Korrekturen, Punkt 2, Vorgabe Tobias): eine gemerkte Nummer wieder freigeben (Festlegung 1.9.177 Nr. 3 neu gefasst) --
+    der Admin (der Router fragt app/permissions.py::darf_personalnummer_freigeben()), nur solange sie niemand trägt (personalnummer_halter()).
+    Danach kann jede Person sie bekommen. Im selben Commit ein Eintrag im Änderungsprotokoll: welche Nummer, wem sie gemerkt war, wer frei gab.
+    Noch nicht gebaut (L1b): eine Nummer, die in einem abgelegten Export stand, bleibt gesperrt. Committet."""
+    nummer = (nummer or "").strip()
+    row = db.scalar(select(PersonalnummerVergabe).where(PersonalnummerVergabe.nummer == nummer).with_for_update())
+    if row is None:
+        raise LookupError(f"Die Personalnummer {nummer} ist nicht gesperrt.")
+    halter = personalnummer_halter(db, nummer)
+    if halter is not None:
+        raise PersonalnummerGehalten(f"Die Personalnummer {nummer} trägt heute {employee_name(halter) or 'eine Person'} – freigeben geht nur, "
+                                     "solange sie niemand trägt.")
+    frueher = employee_name(db.get(Employee, row.employee_id)) or "einer anderen Person"
+    record_audit_entry(db, action="Personalnummer freigegeben", entity_type="Personalnummer", entity_id=nummer,
+                       entity_label=f"Personalnummer {nummer}", field_name="nummer", field_label="Personalnummer",
+                       old_value=f"gesperrt, gehörte {frueher}", new_value="frei")
+    db.delete(row)
+    db.commit()
 
 
 def export_umfang(p: EmployeePayrollSettings | None) -> str:

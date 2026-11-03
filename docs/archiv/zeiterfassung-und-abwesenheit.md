@@ -993,7 +993,7 @@ Angepasste Erwartungen (Regel 28), altes Soll -> neues Soll (Silvester ist jetzt
 
 1. Gemerkt wird jede Nummer, die beim Speichern der Lohnstammdaten eingetragen wird; bei „DATEV-Nr. = ERP-Nr.“ auch die Mitarbeiternummer beim Anlegen und Ändern im Mitarbeiterformular (die bisherige und die neue). Das Einschalten der Gleichsetzung selbst merkt nichts.
 2. Die Sperre gilt nur gegenüber anderen Personen: dieselbe Person bekommt eine frühere Nummer wieder.
-3. Auch ein Tippfehler bleibt gemerkt: wer 91061 statt 91016 einträgt und danach korrigiert, sperrt 91061 für alle anderen. Einen Weg, eine Nummer wieder freizugeben, gibt es nicht.
+3. Neu gefasst mit 1.9.181 (Vorgabe Tobias 03.11.2026): auch ein Tippfehler bleibt gemerkt (wer 91061 statt 91016 einträgt und danach korrigiert, sperrt 91061 für alle anderen) -- aber der Admin kann eine gemerkte Nummer wieder freigeben, solange sie niemand trägt, mit Warnung im Dialog und Eintrag in der Änderungshistorie; Büro – Finanzen darf das nicht. Notiz für L1b, noch nicht gebaut: sobald L1b Exporte ablegt, bleibt eine Nummer, die in einem abgelegten Export stand, dauerhaft gesperrt und lässt sich nicht mehr freigeben. Bis 1.9.180 hieß es: „Einen Weg, eine Nummer wieder freizugeben, gibt es nicht.“
 4. Die Liste der Personalnummern zeigt je Person „früher: …“; die Meldung nennt, wem die Nummer gehörte (die Seite ist nur Admin und Büro – Finanzen zum Ändern offen, die Namen stehen dort ohnehin).
 5. Die Migration übernimmt die heutigen DATEV-Nummern und, bei Gleichsetzung, die Mitarbeiternummern; frühere Nummern kennt der Bestand nicht.
 6. `scripts/pruefe_zeitregeln.py` zählt die gemerkten Nummern; trägt eine aktive Person die gemerkte Nummer einer anderen (nur an der Sperre vorbei möglich), ist das ein Befund (Rückgabe 1).
@@ -1049,3 +1049,19 @@ Neu in `tests/test_v591_arbeitszeitkalender.py`: `test_ohne_sollzeit_am_wochenta
 
 Angepasste Erwartungen (Regel 28), altes Soll -> neues Soll:
 - `test_v591::test_sollzeit_auch_fuer_teilzeit_mit_eigener_sollzeit`, jetzt `…::test_teilzeit_an_einem_tag_mit_sollzeit_voll`: Mo 24.12.2029 bei Di–Do 3,00 h Soll 7,00 h -> 0,00 h; Aufbau: dazu die Freistellung am Do 24.12.2026 mit 7,00 h.
+
+### Umsetzung 1.9.181: eine gemerkte Personalnummer freigeben (Punkt 2)
+
+`app/permissions.py`: `darf_personalnummer_freigeben()` (nur Admin), `require_personalnummer_freigeben`. `app/time_backoffice.py`: `personalnummer_halter()` (wer die Nummer heute trägt: Lohnstammdaten mit dieser DATEV-Nummer, bei „DATEV-Nr. = ERP-Nr.“ eine Mitarbeiternummer), `personalnummer_freigeben()` (gemerkte Zeile unter Sperre, getragen -> `PersonalnummerGehalten` 409, nicht gemerkt -> 404; Eintrag im Änderungsprotokoll über `record_audit_entry()`: Aktion „Personalnummer freigegeben“, Art „Personalnummer“, alt „gesperrt, gehörte <Name>“, neu „frei“; Zeile gelöscht, ein Commit). `POST /api/time-backoffice/personalnummern/freigeben` (Körper `nummer`, Antwort: die Lohnstammdaten aller). Einstellungen: die Seitenroute gibt `personalnummer_freigeben`; beim Admin steht hinter jeder früheren Nummer „freigeben“, der Dialog `pnrFreigabeDialog` warnt und sendet über `speichern('lohn', …)`; der Text über der Liste nennt die Freigabe.
+
+Notiz für L1b (Vorgabe Tobias, noch nicht gebaut): sobald L1b Exporte ablegt, bleibt eine Nummer, die in einem abgelegten Export stand, dauerhaft gesperrt und lässt sich nicht mehr freigeben -- `personalnummer_freigeben()` prüft dann zusätzlich die Ablage.
+
+### Festlegungen 1.9.181 (Bitte bestätigen)
+
+1. „Niemand trägt sie“: keine Lohnstammdaten mit dieser DATEV-Nummer -- auch nicht die der Person, der sie gemerkt ist -- und bei „DATEV-Nr. = ERP-Nr.“ keine Mitarbeiternummer; sonst lehnt der Server mit dem Namen ab (409). Die heutige Nummer einer Person lässt sich also nicht freigeben, nur eine frühere.
+2. Freigeben löscht den Eintrag der Sperre; was frei gegeben wurde, steht nur in der Änderungshistorie (welche Nummer, wem sie gehörte, wer und wann), nicht mehr unter „früher“.
+3. Keine Begründung im Dialog: die Warnung nennt den Fall, für den es gedacht ist (Tippfehler, nie abgerechnet).
+
+### Tests und Prüfung 1.9.181
+
+Neu: `tests/test_v595_personalnummer_freigeben.py` (6 Tests) -- der Admin gibt eine frühere Nummer frei (danach frei für Tom, Eintrag im Änderungsprotokoll), Büro – Finanzen, Büro – Auftrag und Monteurin 403 (nichts geändert), eine getragene Nummer 409, eine Mitarbeiternummer bei Gleichsetzung 409 (danach frei), nicht gemerkt 404, leer 422, Seite und Regel. Gegenproben: Prüfung „trägt sie jemand“ übergangen -> 2 rot; Recht der Lohnregeln statt nur Admin -> 1 rot; kein Eintrag im Änderungsprotokoll -> 1 rot. Klicktest neu: `klicktest_personalnummer_freigeben.py` (15 Prüfungen, drei Bilder). Angepasste Erwartungen: keine.

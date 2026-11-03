@@ -235,6 +235,18 @@ def darf_storno_zuruecknehmen(user: AppUser | None) -> bool:
     return user is None or has_role(user, *STORNO_ZURUECK_ROLLEN)
 
 
+# Seit 1.9.181 (L1a-Korrekturen, Punkt 2, Vorgabe Tobias): eine gemerkte Personalnummer gibt nur der Admin wieder frei, Büro – Finanzen nicht
+# (es ändert sonst die Personalnummern). Server (POST /api/time-backoffice/personalnummern/freigeben) und Oberfläche (Seitenroute der
+# Einstellungen) fragen nur diese Regel.
+PERSONALNUMMER_FREIGEBEN_ROLLEN = frozenset({ROLE_ADMIN})
+PERSONALNUMMER_FREIGEBEN_NUR_ADMIN = "Eine gemerkte Personalnummer gibt nur der Admin wieder frei."
+
+
+def darf_personalnummer_freigeben(user: AppUser | None) -> bool:
+    """Seit 1.9.181: nur der Admin; ohne Konto (Tests ohne Anmeldung) ohne Einschränkung."""
+    return user is None or has_role(user, *PERSONALNUMMER_FREIGEBEN_ROLLEN)
+
+
 # „Durchgeführt von“ bzw. „erstellt von“ eine andere Person (Bericht, Foto, Material, Betriebsmittel, Wartungseinsatz) -- seit 1.9.121 (Stufe 5,
 # R1 Nachrunde, Punkt 3) dieselbe Regel wie für Zeiten: darf_zeit_fuer_andere_buchen() oben (Admin und Büro – Finanzen). 1.9.112–1.9.120 stand
 # hier darf_fuer_andere_erfassen() (nur der Admin, die Regel von 1.3.0). Einen Befund schreibt niemand einer anderen Person zu: „erfasst von“ ist
@@ -325,6 +337,7 @@ require_geld = require_role(*GELD_ROLLEN, message=GELD_NUR_LESEN)  # seit 1.9.11
 require_geld_einstellung = require_role(*GELD_ROLLEN, message=EINSTELLUNGEN_GELD_NUR_LESEN)
 require_planungsgrundlagen = require_role(*PLANUNGSGRUNDLAGEN_ROLLEN, message=PLANUNGSGRUNDLAGEN_NUR_LESEN)  # seit 1.9.147, zu darf_planungsgrundlagen() oben
 require_lohnregeln = require_role(*LOHNREGELN_ROLLEN, message=LOHNREGELN_NUR_LESEN)  # seit 1.9.167, zu darf_lohnregeln() oben
+require_personalnummer_freigeben = require_role(*PERSONALNUMMER_FREIGEBEN_ROLLEN, message=PERSONALNUMMER_FREIGEBEN_NUR_ADMIN)  # seit 1.9.181
 
 
 # Vollständigkeits-Ausnahmen für tests/test_v260_role_audit.py -- bewusst kurz und einzeln
