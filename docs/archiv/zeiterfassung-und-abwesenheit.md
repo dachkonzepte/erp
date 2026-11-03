@@ -669,7 +669,7 @@ Vollständiger Bericht: `bildgrundlage/bericht_lohn_l0_*.txt`. Die Muster von Ti
 
 Das ERP löst Time 4 ab, voraussichtlich ab dem Lohn Januar 2027; Dezember 2026 Probemonat mit beiden Systemen. Der DATEV-Export liefert genau das Format, das das Lohnbüro aus Time 4 importiert.
 
-- Pause: gesetzliche Pause immer abziehen, auch ohne eingetragene Pause, höchstens bis auf 6,00 bzw. 9,00 h (07:15–13:30 ohne Pause = 6,00). Ersetzt „mehr als 6 h = 30 min“.
+- Pause: gesetzliche Pause immer abziehen, auch ohne eingetragene Pause, höchstens bis auf 6,00 bzw. 9,00 h (07:15–13:30 ohne Pause = 6,00). Ersetzt „mehr als 6 h = 30 min“. (Berichtigt 1.9.179: „bis auf 9,00 h“ stimmt nicht -- zwischen 9:00 und 9:30 h Anwesenheit liegt die Arbeitszeit darunter, siehe Festlegung 1.9.166 Nr. 1.)
 - Sollzeit Mo–Fr: KW 18–48 8,00 h, KW 49–17 7,50 h (Tarif Dachdecker, ISO-Kalenderwoche); Sa/So 0; Teilzeit je Person eigene Werte.
 - Alle mit Stunden in den Export, auch Azubis (Arbeit und Feiertage). DATEV-Personalnummer je Person.
 - Zuordnung Art -> Kennzeichen und Lohnart in den Einstellungen (Admin, Büro – Finanzen); leer = nicht exportieren.
@@ -737,7 +737,7 @@ Probe mit dem echten Code, Tabelle aus L0 2.2: 6:01 -> 1 min, 6:15 -> 15, 6:30 -
 
 ### Festlegungen 1.9.166 (Bitte bestätigen)
 
-1. Minuten über der Schwelle werden abgerundet, nie aufgerundet: 6:00 h und 40 s Anwesenheit ergeben keine Pause. So liegt die Arbeitszeit nie unter 6,00 bzw. 9,00 h.
+1. Neu gefasst mit 1.9.179 (Hinweis Tobias 03.11.2026): Minuten über der Schwelle werden abgerundet, nie aufgerundet: 6:00 h und 40 s Anwesenheit ergeben keine Pause. Die Pflichtpause ist der kleinste Wert, der zur Arbeitszeit danach passt; unter 6,00 h fällt die Arbeitszeit nie. Unter 9,00 h dagegen schon: zwischen 9:00 und 9:30 h Anwesenheit verlangt § 4 ArbZG für mehr als 6 h Arbeit 30 Minuten (9:15 h -> 30 min, 8,75 h; 9:30 h -> 30 min, 9,00 h). Bis 1.9.178 hieß es fälschlich: „So liegt die Arbeitszeit nie unter 6,00 bzw. 9,00 h.“
 2. Eine Dauer braucht die volle Pause, sobald ihre Arbeitszeit über der Schwelle liegt (6,25 h -> 30 min, 9,25 h -> 45 min). Die Meldung nennt diese Zahl; sie ist dieselbe wie unter „Prüfen“.
 3. Lesart A gilt für jede Pausenregel eines Modells, auch für selbst angelegte; Schwellen und Pausen bleiben je Modell einstellbar.
 4. Kein Stichtag (E2): Buchungen nach der alten Regel bleiben, wie sie gebucht sind. „Prüfen“ zeigt ihren Tag als „passt nicht“ und sperrt den Abschluss, bis jemand „Pausen neu rechnen“ klickt -- auf dem Server gibt es keine echten Buchungen, die das träfe.
@@ -1015,3 +1015,9 @@ Neu: `tests/test_v593_personalnummer_gesperrt.py` (8 Tests) -- Nummernwechsel 91
 ### Tests und Prüfung 1.9.178
 
 Neu: `tests/test_v594_schlechtwetter_betriebsfrei.py` (5 Tests) -- Rückfrage und „trotzdem“, abgeschalteter Tag ohne Rückfrage, betriebsfrei und gebucht in einer Meldung, die Monteurin wird gefragt (Antrag), gesetzlicher Feiertag weiter 422 auch mit „trotzdem“. Gegenproben: betriebsfreier Tag nicht geprüft -> 3 rot; auch abgeschaltete Tage -> 1 rot. `klicktest_schlechtwetter`: Aufbau um einen betriebsfreien Tag (Do 10.12.2026, „Betriebsausflug“), zwei Prüfungen mehr (20 -> 22) und ein Bild; die übrigen Erwartungen unverändert. Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.179: Festlegung 1.9.166 Nr. 1 neu gefasst (Punkt 6, nur Doku)
+
+Der Satz „So liegt die Arbeitszeit nie unter 6,00 bzw. 9,00 h“ war falsch. Richtig: die Pflichtpause ist der kleinste Wert, der zur Arbeitszeit danach passt; unter 6,00 h fällt die Arbeitszeit nie, unter 9,00 h schon (zwischen 9:00 und 9:30 h Anwesenheit verlangt § 4 ArbZG 30 Minuten). Geprüft mit dem echten Code, je Minute Anwesenheit von 0 bis 12 h mit den Grundregeln (6 h -> 30 min, 9 h -> 45 min): `pflichtpause()` ist an jeder Stelle der kleinste Wert p mit p ≥ gesetzliche Pause der Arbeitszeit (Anwesenheit − p); die Arbeitszeit fällt nie unter 6,00 h; unter 9,00 h liegt sie genau bei 9:01 bis 9:29 h Anwesenheit (29 Fälle), 9:30 h ergibt 9,00 h, ab 9:31 h wächst die Pause bis 45 min.
+
+Berichtigt: Festlegung 1.9.166 Nr. 1 (oben, mit dem alten Wortlaut), die Beschreibung von Lesart A in L0 (Vermerk), CLAUDE.md („Eine Pausenregel“), die Docstrings von `app/work_time_models.py::pflichtpause()` und `tests/test_v584_pause_lesart_a.py` -- nur Text, kein ausführbarer Code; die Überschrift von 1.9.166 im CHANGELOG bleibt als Stand von damals, der Eintrag 1.9.179 nennt die Berichtigung. Tests: keine neuen, angepasste Erwartungen keine.

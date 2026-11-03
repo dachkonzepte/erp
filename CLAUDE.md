@@ -1559,7 +1559,7 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   `GET /api/field-view/today` und `POST /api/field-view/feierabend` 403 für jede andere Rolle -- das Büro wird auf `/mobil` nicht abgemeldet.
 - **Eine Pausenregel** (seit 1.9.34; seit 1.9.61 ohne Standardpause, die Spalte liest niemand mehr -- Wächter
   `tests/test_v486_keine_standardpause.py`; seit 1.9.166 Lesart A, `app/work_time_models.py::pflichtpause()`: je Regel höchstens die Minuten
-  über der Schwelle, nie unter 6,00 bzw. 9,00 h, ohne Stichtag; was einer Dauer fehlt, `fehlende_pause()`, `tests/test_v584_pause_lesart_a.py`): Stopp, Gruppen-Stopp, Ende nachtragen und Nachtrag mit Von/Bis rechnen die Pause nur über
+  über der Schwelle -- die kleinste Pause, die zur Arbeitszeit danach passt; nie unter 6,00 h, zwischen 9:00 und 9:30 h Anwesenheit aber unter 9,00 h (Festlegung 1.9.166 Nr. 1, neu gefasst 1.9.179) --, ohne Stichtag; was einer Dauer fehlt, `fehlende_pause()`, `tests/test_v584_pause_lesart_a.py`): Stopp, Gruppen-Stopp, Ende nachtragen und Nachtrag mit Von/Bis rechnen die Pause nur über
   `app/time_tracking.py::pause_nach_zeitregel()` (automatisch nach Anwesenheit, eingegebene Pause als Mindestpause); eine reine Dauer ist
   gebuchte Arbeitszeit (netto). Seit 1.9.44 rechnen Stopp, Gruppen-Stopp, Zeitart wechseln und die Vorschau von „Ende nachtragen“ über
   `ende_rechnen()` (Pause und gebuchte Stunden aus einer Funktion). Wächter `tests/test_v462_nachtrag_pausenregel.py`. **Seit 1.9.48 je

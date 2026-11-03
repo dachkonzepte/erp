@@ -1,7 +1,8 @@
 """Version 1.9.166 (Lohn L1a, Punkt 1, Entscheidung Tobias E1 und E2): die gesetzliche Pause nach Lesart A.
 
     Regel        je Pausenregel höchstens die Minuten über ihrer Schwelle, davon das Maximum (app/work_time_models.py::pflichtpause()):
-                 die Pause bringt die Arbeitszeit nie unter 6,00 bzw. 9,00 h -- 07:15–13:30 ohne Pause = 6,00 h
+                 der kleinste Wert, der zur Arbeitszeit danach passt: nie unter 6,00 h -- 07:15–13:30 ohne Pause = 6,00 h --, unter 9,00 h
+                 schon (9:15 h -> 30 min, 8,75 h; Festlegung 1.9.166 Nr. 1, neu gefasst 1.9.179)
     Tag          weiter je Tag (seit 1.9.48): die Pflichtpause wächst nie schneller als die Anwesenheit, also nimmt die neue Buchung die
                  fehlende Pause immer ganz auf -- auch eine kurze letzte Buchung (L0, Abschnitt 2.3)
     Dauer        eine Dauer ist Arbeitszeit; was ihr an Pause fehlt, rechnet fehlende_pause() so, dass es danach passt: 6,25 h ohne Pause

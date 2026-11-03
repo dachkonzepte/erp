@@ -260,9 +260,10 @@ def _regeln(model: WorkTimeModel | None) -> list[tuple[Decimal, int]]:
 
 def pflichtpause(regeln: list[tuple[Decimal, int]], anwesend) -> int:
     """Seit 1.9.166 (Lohn L1a, Punkt 1, Entscheidung Tobias E1, Lesart A): die gesetzliche Pause zu einer Anwesenheit -- je Regel höchstens die
-    Minuten über ihrer Schwelle, davon das Maximum. Die Pause bringt die Arbeitszeit nie unter die Schwelle: 6:15 h -> 15 min (6,00 h),
-    9:15 h -> 30 min (8,75 h), 9:30 h -> 30 min (9,00 h), 9:45 h -> 45 min. Das ist § 4 ArbZG auf die Arbeitszeit angewandt (über 6 h Arbeit
-    30 min, über 9 h 45 min) und wächst nie schneller als die Anwesenheit. Bis 1.9.165 die volle Pause, sobald die Schwelle überschritten war
+    Minuten über ihrer Schwelle, davon das Maximum -- der kleinste Wert, der zur Arbeitszeit danach passt: 6:15 h -> 15 min (6,00 h),
+    9:15 h -> 30 min (8,75 h), 9:30 h -> 30 min (9,00 h), 9:45 h -> 45 min. Unter 6,00 h fällt die Arbeitszeit nie, unter 9,00 h schon
+    (zwischen 9:00 und 9:30 h Anwesenheit; bis 1.9.178 stand hier „nie unter die Schwelle“). Das ist § 4 ArbZG auf die Arbeitszeit angewandt
+    (über 6 h Arbeit 30 min, über 9 h 45 min) und wächst nie schneller als die Anwesenheit. Bis 1.9.165 die volle Pause, sobald die Schwelle überschritten war
     (6:15 h -> 30 min = 5,75 h)."""
     gross = Decimal(str(anwesend or 0))
     return max((min(pause, _minuten_ueber(gross, schwelle)) for schwelle, pause in regeln), default=0)

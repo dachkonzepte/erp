@@ -1349,3 +1349,14 @@ Angepasste Erwartungen (Regel 28): `klicktest_monteurin_regeln`, nur der Aufbau 
 statt 10:00 am Lauftag; alle 31 Prüfungen mit demselben Soll.
 
 1. Ein Klicktest, dessen Daten an „heute“ und „gestern“ hängen, läuft mit stehender Uhr an einem festen Tag in Instanz und Browser, nicht am Lauftag (wie die Tests der Zeitregeln seit 1.9.166); bestehende Klicktests stellen um, wenn sie rot werden oder ohnehin angefasst werden.
+
+## Wackler `test_v564::test_alte_einsaetze_kosten_nichts` (gesehen 03.11.2026, L1a-Nachtrag)
+
+Im ersten vollen Lauf von 1.9.177 rot: `AssertionError: (30, 28)` -- der erste Aufruf von `GET /api/planning` zählte zwei Abfragen mehr als
+der zweite (der Test verlangt gleich viele). Geklärt, soweit möglich: 1.9.177 berührt die Plantafel nicht; derselbe Test war in den vollen
+Läufen von 1.9.174 bis 1.9.176 grün; auf dem Stand von 1.9.177 einzeln 5 von 5 grün; kein Zwischenspeicher auf Modulebene in den beteiligten
+Modulen; eine Probe mit erzwungener Speicherbereinigung vor dem ersten Zählen ergab gleich viele Abfragen (31/31) -- die Vermutung
+„Speicherbereinigung räumt Objekte der Sitzung ab“ trifft so nicht zu. Im Fehlerbericht stand eine abgeräumte Verbindung einer anderen
+Engine (`SingletonThreadPool`, „created in a thread …“), die nicht über die gezählte Verbindung läuft. Die volle Suite auf demselben,
+unveränderten Stand danach grün (8474 passed); erst dann committet. Ursache offen -- tritt er wieder auf, die Abfragen beider Aufrufe
+mitschreiben (Text der Anweisungen), statt nur zu zählen.
