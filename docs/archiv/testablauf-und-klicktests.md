@@ -1343,6 +1343,8 @@ Bis 1.9.172 lief der Klicktest mit fester Uhrzeit (10:00) am Lauftag, die Daten 
 
 Offen, nicht gebaut (Entscheidung Tobias): „Meine Zeiten“ zeigt am Monatsersten eine noch laufende Zeit aus dem Vormonat nicht; „Heute“ zeigt sie (Signalkarte „Deine Zeit von gestern läuft noch“) und sperrt den Start, bis das Ende nachgetragen ist. Soll „Meine Zeiten“ sie zusätzlich im neuen Monat nennen?
 
+Entschieden und gebaut mit 1.9.186 (Vorgabe Tobias 03.11.2026): angeheftet mit Startdatum und „Beenden“, Test mit stehender Uhr am 01.12.2026 (`tests/test_v598_meine_zeiten_angeheftet.py`, `scripts/klicktest_meine_zeiten_angeheftet.py`); `klicktest_monteurin_regeln` bleibt auf dem 11.11.2026 -- Archiv „Zeiterfassung und Abwesenheit“, „Lohn L1a, Stufe 2“.
+
 **Festlegung 1.9.173 zu Werkzeug und Testablauf (Bitte bestätigen)**
 
 Angepasste Erwartungen (Regel 28): `klicktest_monteurin_regeln`, nur der Aufbau -- stehende Uhr Mi 11.11.2026 10:00 in Instanz und Browser

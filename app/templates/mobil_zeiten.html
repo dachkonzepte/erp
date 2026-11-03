@@ -12,7 +12,8 @@
                 je Tag mit Kopfzeile und Summe; Zeile: Von–Bis, Zeitart · Auftrag, gebucht, „⋮“ (Ändern, Löschen; für den Kolonnenführer an
                 seiner Gruppenbuchung auch für die Kolonne); eine laufende Zeit „läuft seit HH:MM“ ohne Stunden, eine von früher mit dem
                 Weg zu „Heute“. Passt die abgezogene Pause eines Tags nicht mehr zur Zeitregel: Hinweis in der Kopfzeile und „Pausen neu
-                rechnen“ (Vorschau je Buchung, gebucht nur mit Klick).
+                rechnen“ (Vorschau je Buchung, gebucht nur mit Klick). Seit 1.9.186 oben angeheftet: eine laufende Zeit, die vor dem
+                Monatsanfang begann, mit Startdatum und „Beenden“ (Ende am Starttag wie auf „Heute“).
        rechts   Abwesenheit (Antrag, eigene Anträge) und Monat (Summe, Tage, Fahrzeit, produktiv, Stundenzettel als PDF)
        hoch     unter 1000 px eine Spalte in dieser Reihenfolge
      Alles aus GET /api/field-view/meine-zeiten (app/meine_zeiten.py); die Seite rechnet keine Stunden nach. „+ Nachtragen“ und „Ändern“:
@@ -128,6 +129,11 @@
     .antrag-text span{color:var(--ds-text-2);font-size:14px}
     .antrag-status{font-size:14px;font-weight:600;color:var(--ds-stark)}
     .laedt{color:var(--ds-text-2);font-size:15px;padding:14px 0}
+    /* seit 1.9.186: die laufende Zeit aus einem früheren Monat, oben in „Buchungen“ angeheftet (Signalfarbe wie „Wartet auf dich“ auf „Heute“) */
+    .angeheftet{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--ds-signal-hell);border-radius:var(--ds-ecke-tablet-feld);padding:10px 10px 10px 14px}
+    .angeheftet-text{flex:1;min-width:220px;display:flex;flex-direction:column;gap:2px;font-size:15px;color:var(--ds-signal-text);overflow-wrap:anywhere}
+    .angeheftet-text b{font-size:16px;font-weight:700}
+    .angeheftet-grund{font-weight:600}
 </style>
 </head>
 <body class="ds-tablet">
@@ -159,6 +165,8 @@
           </div>
         </div>
         <div class="ergebnis" id="ergebnis" role="status"></div>
+        {# seit 1.9.186 (L1a Stufe 2, Punkt 1): eine laufende Zeit, die vor dem Monatsanfang begann -- die Tage des Monats enthalten sie nicht #}
+        <div id="angeheftet" hidden></div>
         <div id="tage" class="laedt">Lädt…</div>
       </section>
     </div>
@@ -239,6 +247,23 @@
     <button type="button" class="knopf knopf-aktion" id="kdSpeichern">Speichern</button></div>
 </dialog>
 
+{# seit 1.9.186: „Beenden“ der angehefteten Zeit -- Ende am Starttag wie auf „Heute“ (POST …/ende-nachtragen, Vorschau GET …/ende-vorschau) #}
+<dialog id="beendenDialog" class="dialog-karte" aria-labelledby="bdTitel">
+  <div class="dialog-kopf"><h2 id="bdTitel">Laufende Zeit beenden</h2>
+    <button type="button" class="knopf knopf-neutral knopf-symbol" id="bdZu" aria-label="Schließen"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
+  <p class="dialog-text" id="bdText"></p>
+  <div class="dialog-felder">
+    <label class="feld" for="bdEnde"><span id="bdEndeText">Feierabend um</span><input id="bdEnde" type="time"></label>
+  </div>
+  <div class="vorschau" id="bdVorschau" aria-live="polite">
+    <div class="vorschau-text"><span id="bdVorschauZeile">Uhrzeit eintragen – dann rechnet der Server die Pause.</span>
+      <span class="klein">Gebucht wird erst mit deinem Klick. Weißt du es nicht genau, trag deine beste Schätzung ein – das Büro sieht den Nachtrag.</span></div>
+    <span class="vorschau-zahl" id="bdVorschauZahl"></span>
+  </div>
+  <div class="dialog-knoepfe"><div class="status" id="bdStatus" role="status"></div><button type="button" class="knopf knopf-neutral" id="bdAbbrechen">Abbrechen</button>
+    <button type="button" class="knopf knopf-aktion" id="bdSpeichern">Feierabend eintragen</button></div>
+</dialog>
+
 <dialog id="loeschDialog" class="dialog-karte" aria-labelledby="ldTitel">
   <div class="dialog-kopf"><h2 id="ldTitel">Buchung löschen?</h2>
     <button type="button" class="knopf knopf-neutral knopf-symbol" id="ldZu" aria-label="Schließen"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>
@@ -311,7 +336,7 @@ function buchungsText(d,gross){return (gross?'Anwesend ':'anwesend ')+stundenUhr
 var PUNKTE='<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="12" cy="19" r="1.8"></circle></svg>';
 
 // ?order_id= (Einsatzbericht „Zeiterfassung (Auftrag)“, frühere Adresse /time-tracking?order_id=) wählt den Auftrag im Dialog vor
-var VORWAHL=null,D=null,MONAT=null,ANTRAEGE=[],ZD=null,KD=null,LD=null,PV={},ZURUECKZIEHEN=null;
+var VORWAHL=null,D=null,MONAT=null,ANTRAEGE=[],ZD=null,KD=null,LD=null,BD=null,PV={},ZURUECKZIEHEN=null;
 
 // --- Laden und Zeichnen --------------------------------------------------------------------------------------------------------
 function ladeHinweis(text){var h=el('ladeHinweis');h.hidden=!text;h.textContent=text||''}
@@ -346,6 +371,7 @@ function zeichnen(d){
   el('monatSumme').textContent=stunden(d.kacheln.monat)+' an '+d.monat_tage+(d.monat_tage===1?' Tag':' Tagen');
   el('monatAnteile').textContent='davon Fahrzeit '+stunden(d.monat_fahrzeit)+' · produktiv '+stunden(d.monat_produktiv);
   el('pdfKnopf').setAttribute('href','/api/field-view/timesheet.pdf?year='+d.monat.slice(0,4)+'&month='+d.monat.slice(5));
+  angeheftetZeichnen(d.angeheftet);
   var t=el('tage');t.className='';
   t.innerHTML=d.tage.length?d.tage.map(tagHtml).join(''):'<p class="leer-text" style="margin:0">Keine Buchungen im '+esc(d.monat_name)+'.</p>';
   t.querySelectorAll('.zeile-menue').forEach(function(a){dsMenue(a.querySelector('.knopf-symbol'),a.querySelector('.ds-menue'))});
@@ -395,6 +421,51 @@ function menueHtml(z,t){
   if(!e)return '<span class="platz"></span>';
   return '<div class="menue-anker zeile-menue"><button type="button" class="knopf knopf-neutral knopf-symbol" aria-label="Weitere Aktionen">'+PUNKTE+'</button>'
     +'<div class="ds-menue" id="menue-'+z.id+'" hidden>'+e+'</div></div>';
+}
+// Seit 1.9.186 (L1a Stufe 2, Punkt 1): die laufende Zeit, die vor dem Monatsanfang begann, oben angeheftet -- mit Startdatum und „Beenden“
+// (a.beenden: dieselben Regeln wie „Ende nachtragen“, sonst a.grund)
+function angeheftetZeichnen(a){
+  var box=el('angeheftet');box.hidden=!a;
+  if(!a){box.innerHTML='';return}
+  var auftrag=[a.order_number,a.project_name].filter(Boolean).join(' · ');
+  box.innerHTML='<div class="angeheftet" data-angeheftet="'+a.id+'"><span class="angeheftet-text"><b>'+esc(a.zeitart)+' läuft seit '
+    +esc(teile(a.tag).wt+' '+tagLang(a.tag))+', '+esc(a.beginn)+'</b>'+(auftrag?'<span>'+esc(auftrag)+'</span>':'')
+    +(a.auftrag_geschlossen?'<span>Auftrag '+esc(a.auftrag_geschlossen)+'</span>':'')
+    +(a.grund?'<span class="angeheftet-grund">'+esc(a.grund)+'</span>':'')+'</span>'
+    +(a.beenden?'<button type="button" class="knopf knopf-aktion knopf-klein" data-aktion="beenden">Beenden</button>':'')+'</div>';
+}
+function beendenOeffnen(){
+  var a=D&&D.angeheftet;
+  if(!a||!a.beenden)return;
+  BD=a;
+  el('bdText').textContent=a.zeitart+' seit '+teile(a.tag).wt+' '+tagLang(a.tag)+', '+a.beginn+([a.order_number,a.project_name].filter(Boolean).map(function(x){return ' · '+x}).join(''))
+    +'. Das Ende liegt am Starttag.';
+  el('bdEndeText').textContent='Feierabend am '+tagKurz(a.tag)+' um';
+  el('bdEnde').value='';el('bdStatus').textContent='';el('bdSpeichern').disabled=false;
+  bdVorschauZeigen(null,null);
+  el('beendenDialog').showModal();
+}
+function bdVorschauZeigen(v,fehler){
+  if(v){el('bdVorschauZeile').innerHTML=ergebnisTeile(buchungsText(v,true));el('bdVorschauZahl').textContent=stunden(v.gebucht)}
+  else{el('bdVorschauZeile').textContent=fehler||'Uhrzeit eintragen – dann rechnet der Server die Pause.';el('bdVorschauZahl').textContent=''}
+}
+// Vorschau vom Server bei jeder Änderung der Uhrzeit -- ohne Uhrzeit ein Lesen ohne Anfrage (Regel 29)
+function bdVorschauLaden(){
+  var a=BD,wert=el('bdEnde').value;
+  if(!a)return Promise.resolve();
+  el('bdStatus').textContent='';  // eine Meldung zum vorigen Klick gilt nach einer neuen Eingabe nicht mehr
+  var url='/api/time-entries/'+a.id+'/ende-vorschau?ende='+encodeURIComponent(a.tag+'T'+wert);
+  return lesen('beenden-vorschau',()=>wert?api(url):Promise.resolve(null),function(v){bdVorschauZeigen(v,null)})
+    .catch(function(e){bdVorschauZeigen(null,e.message)});
+}
+function beenden(){
+  var a=BD,st=el('bdStatus'),knopf=el('bdSpeichern'),wert=el('bdEnde').value;
+  st.textContent='';
+  if(!wert){st.textContent='Bitte die Uhrzeit des Feierabends angeben.';return}
+  knopf.disabled=true;
+  return speichern('zeiten',()=>api('/api/time-entries/'+a.id+'/ende-nachtragen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ende:a.tag+'T'+wert})}),{neuLaden:laden})
+    .then(function(d){el('beendenDialog').close();ergebnis('Feierabend am '+tagKurz(a.tag)+' eingetragen: '+buchungsText(d)+' · gebucht '+stunden(d.hours))})
+    .catch(function(e){st.textContent=e.message;knopf.disabled=false});
 }
 function zeileZu(id){
   for(var i=0;i<D.tage.length;i++)for(var j=0;j<D.tage[i].zeilen.length;j++)if(String(D.tage[i].zeilen[j].id)===String(id))return D.tage[i].zeilen[j];
@@ -664,6 +735,11 @@ function binden(){
     else if(a==='pausen-abbrechen'){var v=el('pv-'+b.dataset.tag);v.hidden=true;v.innerHTML=''}
     else if(a==='pausen-buchen')pausenBuchen(b.dataset.tag,b);
   });
+  el('angeheftet').addEventListener('click',function(ev){var b=ev.target.closest&&ev.target.closest('[data-aktion="beenden"]');if(b)beendenOeffnen()});
+  ['input','change'].forEach(function(art){el('bdEnde').addEventListener(art,bdVorschauLaden)});
+  el('bdSpeichern').addEventListener('click',beenden);
+  el('bdAbbrechen').addEventListener('click',function(){el('beendenDialog').close()});
+  el('bdZu').addEventListener('click',function(){el('beendenDialog').close()});
   el('monatZurueck').addEventListener('click',function(){MONAT=monatPlus(MONAT,-1);ergebnis('');laden()});
   el('monatVor').addEventListener('click',function(){MONAT=monatPlus(MONAT,1);ergebnis('');laden()});
   ['zdDatum','zdVon','zdBis','zdPause'].forEach(function(id){el(id).addEventListener('input',vorschauLaden);el(id).addEventListener('change',vorschauLaden)});

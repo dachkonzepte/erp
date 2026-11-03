@@ -514,7 +514,7 @@ def ende_nachtragen_endpunkt(entry_id: int, payload: TimeEndeNachtragen, request
     im Verlauf). Ist der Monat des Starttags abgeschlossen, schließt sie nur ein Admin (wie jede Änderung dort). Gehört sie zu einer
     laufenden Gruppe, schließt sie nur der Kolonnenführer, der die Gruppe gestartet hat (oder wer für andere bucht) -- für die ganze
     Gruppe, wie der Gruppen-Stopp."""
-    current = _ende_nachtragen_pruefen(request, db, entry_id)
+    current = ende_nachtragen_pruefen(request, db, entry_id)
     ende = payload.ende
     if ende.tzinfo is not None:  # Beginn und Ende einer Zeitbuchung sind naive Ortszeit (Regel 20)
         ende = ende.astimezone(BERLIN).replace(tzinfo=None)
@@ -607,7 +607,7 @@ def ende_vorschau_endpunkt(entry_id: int, ende: datetime, request: Request, paus
                           db: Session = Depends(get_db, scope="function"), _role: AppUser = _buchen_dep):
     """Seit 1.9.44 (Stufe 4, R2): was „Ende nachtragen“ mit diesem Ende buchen würde -- anwesend, Pause nach der Zeitregel,
     gebucht --, ohne zu buchen (ende_vorschau(), dieselbe Rechnung wie die Buchung). Dieselben Prüfungen wie das Nachtragen."""
-    _ende_nachtragen_pruefen(request, db, entry_id)
+    ende_nachtragen_pruefen(request, db, entry_id)
     if ende.tzinfo is not None:
         ende = ende.astimezone(BERLIN).replace(tzinfo=None)
     try:
@@ -616,8 +616,9 @@ def ende_vorschau_endpunkt(entry_id: int, ende: datetime, request: Request, paus
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
-def _ende_nachtragen_pruefen(request: Request, db: Session, entry_id: int) -> TimeEntry:
-    """Rechte für Ende nachtragen und seine Vorschau (seit 1.9.35, seit 1.9.44 für beide)."""
+def ende_nachtragen_pruefen(request: Request, db: Session, entry_id: int) -> TimeEntry:
+    """Rechte für Ende nachtragen und seine Vorschau (seit 1.9.35, seit 1.9.44 für beide); seit 1.9.186 auch für „Beenden“ an der angehefteten Zeit
+    in „Meine Zeiten“ (app/routers/field_view.py, bis dahin _ende_nachtragen_pruefen)."""
     current = db.get(TimeEntry, entry_id)
     if current is None:
         raise HTTPException(status_code=404, detail="Zeiterfassung nicht gefunden.")

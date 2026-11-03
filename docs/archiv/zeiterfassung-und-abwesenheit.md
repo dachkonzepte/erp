@@ -1097,3 +1097,21 @@ Neu in `tests/test_v592_silvester.py`: `test_pruefskript_zaehlt_urlaub_ueber_sil
 ### Umsetzung 1.9.185: Klicktest-Ordner und Liste der Wackler (Punkt 6)
 
 Nur Werkzeug und Testablauf -- beschrieben im Archiv „Testablauf und Klicktest-Werkzeug“, Abschnitte „Ordner der Klicktests unter %TEMP%\erp-klicktests“ und „Laufende Liste der Wackler“ (dort auch die Festlegungen 1.9.185).
+
+## Lohn L1a, Stufe 2 (ab 1.9.186)
+
+Vorgabe Tobias (03.11.2026), je Punkt eine Version: 1 „Meine Zeiten“ heftet eine laufende Zeit an, die vor dem Monatsanfang begann (Startdatum, „Beenden“, Test mit stehender Uhr am 01.12.2026); 2 „Meine Zeiten“ zeigt die Freistellungen des Arbeitszeitkalenders mit Stunden und „bezahlt“/„unbezahlt“; 3 die Plantafel kennt den Arbeitszeitkalender (betroffene gewerbliche Mitarbeiter abwesend, Kapazität, Einplanen nach Hinweis wie am betriebsfreien Tag); 4 in Einstellungen → „Zeitregeln und DATEV“ bleibt in der Tabelle der Personalnummern die Spalte Mitarbeiter beim waagrechten Rollen stehen; 5 `Zaehler` in `test_v564`: Speicherbereinigung auch nach einem Fehler beim Zählen wieder an; 6 „freigeben“ nur, wo die Freigabe möglich ist, sonst wer die Nummer trägt.
+
+### Umsetzung 1.9.186: laufende Zeit aus dem Vormonat angeheftet (Punkt 1)
+
+`app/meine_zeiten.py::angeheftet()`: die laufende Zeit (`active_entry()`), wenn ihr Tag vor dem ersten Tag des angezeigten Monats liegt -- Startdatum, Beginn, Zeitart, Auftrag, Kennzeichen „Auftrag abgeschlossen/storniert“; `meine_zeiten()` liefert sie als `angeheftet`. `GET /api/field-view/meine-zeiten` setzt `beenden` und `grund`: „Beenden“ nur, wer Zeiten bucht (`darf_zeit_buchen()`, sonst `ZEITEN_NUR_LESEN`) und wen `app/routers/time_tracking.py::ende_nachtragen_pruefen()` durchlässt (bis 1.9.185 `_ende_nachtragen_pruefen`, jetzt öffentlich) -- sonst steht dessen Meldung als `grund` da. Seite `mobil_zeiten.html`: Zeile `#angeheftet` zwischen Kopf und Liste der Buchungen (Signalfarbe wie „Wartet auf dich“), Dialog „Laufende Zeit beenden“ mit „Feierabend am <Starttag> um“, Vorschau über `GET /api/time-entries/{id}/ende-vorschau` (`lesen()`), Buchung über `POST …/ende-nachtragen` (`speichern()`, danach neu geladen), Ergebnis „Feierabend am Mo 30.11. eingetragen: anwesend … · Pause nach Zeitregel … · gebucht …“. In ihrem eigenen Monat steht die Zeit wie bisher an ihrem Tag mit „Feierabend auf „Heute“ eintragen“.
+
+### Festlegungen 1.9.186 (Bitte bestätigen)
+
+1. „Beenden“ trägt das Ende am Starttag ein, im Dialog auf „Meine Zeiten“, mit denselben Endpunkten und Regeln wie „Feierabend eintragen“ auf „Heute“ -- kein Wechsel auf „Heute“, auch für das Büro, das „Heute“ nicht hat.
+2. Angeheftet wird nur in einem Monat nach dem Start; im Monat des Starts steht die Zeit an ihrem Tag, in einem Monat davor gar nicht.
+3. Wer die Zeit nicht beenden darf (Mitglied einer Gruppenzeit, Monteurin im abgeschlossenen Monat, Büro – Auftrag), sieht sie angeheftet ohne „Beenden“, mit der Meldung, mit der der Server das Nachtragen ablehnen würde.
+
+### Tests und Prüfung 1.9.186
+
+Neu: `tests/test_v598_meine_zeiten_angeheftet.py` (9 Tests, stehende Uhr Di 01.12.2026 10:00) -- angeheftet am 01.12. mit Startdatum und „Beenden“, im November an ihrem Tag, eine heute begonnene nie angeheftet, „Beenden“ über Vorschau und Nachtragen (danach nichts angeheftet, die Buchung im November), Gruppenzeit nur der Kolonnenführer, abgeschlossener Monat und Büro – Auftrag ohne „Beenden“ mit Meldung, Seite in node (Text, Knopf, Grund, leer), Dialog über die Endpunkte. Gegenproben: nie anheften -> 3 rot; immer anheften -> 2 rot; Regeln von „Ende nachtragen“ übergangen -> 2 rot. Klicktest neu: `scripts/klicktest_meine_zeiten_angeheftet.py` (16 Prüfungen, fünf Bilder: 412 px dunkel, 1280 × 620 hell, Dialog, danach, Gruppenzeit). Beim Ansehen der Bilder gefunden und vor dem Commit behoben: die Meldung „Bitte die Uhrzeit des Feierabends angeben.“ blieb nach der Eingabe einer Uhrzeit neben der Vorschau stehen -- sie verschwindet jetzt mit jeder Eingabe (im Klicktest geprüft).

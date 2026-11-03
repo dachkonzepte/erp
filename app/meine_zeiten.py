@@ -11,6 +11,8 @@ Geschäftslogik: der Router entscheidet, wessen Zeiten (immer die eigenen) und o
     Dialoge      seit 1.9.59: Zeitarten, Tätigkeiten, buchbare Aufträge, ob Nachtragen erlaubt ist, die Kolonnen des Kolonnenführers samt
                  seinen Gruppenbuchungen im Monat (zum Ändern und Löschen für die Kolonne), die Arten der Abwesenheit -- dieselben Quellen
                  wie bis dahin die Zeiterfassung der Monteurin
+    Angeheftet   seit 1.9.186: die laufende Zeit, die vor dem Anfang des angezeigten Monats begann (vergessener Feierabend über den
+                 Monatswechsel) -- die Tage des Monats enthalten sie nicht; ob „Beenden“ gilt, entscheidet der Router
 
 Summen: jede Summe addiert die gespeicherten Stunden (vier Nachkommastellen) und rundet erst das Ergebnis kaufmännisch auf zwei Stellen;
 die Zeilen zeigen ihre Stunden gerundet -- die Summe der angezeigten Zeilen kann deshalb um 0,01 von der angezeigten Summe abweichen
@@ -33,7 +35,7 @@ from .planning import list_field_bookable_orders
 from .rounding import round_hours
 from .time_backoffice import load_time_settings, locked_until
 from .time_tracking import (
-    _reihenfolge_am_tag, auftrag_geschlossen, crew_leader_team_ids, entry_to_dict, list_crews_for_leader, list_entries,
+    _reihenfolge_am_tag, active_entry, auftrag_geschlossen, crew_leader_team_ids, entry_to_dict, list_crews_for_leader, list_entries,
     list_groups_initiated_by, mindestpause_der_buchung, pausen_vorschau, tagessumme,
 )
 
@@ -89,9 +91,25 @@ def _zeile(row, gruppe, arten: list[dict], employee_id: int, kolonnen: set[int],
     }
 
 
+def angeheftet(db: Session, employee_id: int, erster: date, arten: list[dict]) -> dict | None:
+    """Seit 1.9.186 (L1a Stufe 2, Punkt 1): die laufende Zeit, wenn sie vor erster begann -- Startdatum, Beginn, Zeitart, Auftrag. Sonst None
+    (auch eine, die im Monat begann: sie steht dort an ihrem Tag)."""
+    row = active_entry(db, employee_id)
+    if row is None or row.started_at is None or row.work_date >= erster:
+        return None
+    return {
+        "id": row.id, "tag": row.started_at.date(), "beginn": row.started_at.strftime("%H:%M"),
+        "zeitart": next((a["label"] for a in arten if a["value"] == row.entry_type), None) or row.entry_type,
+        "order_number": row.order.order_number if row.order is not None else None,
+        "project_name": row.project.name if row.project is not None else None,
+        "auftrag_geschlossen": auftrag_geschlossen(row.order.status if row.order is not None else None),
+    }
+
+
 def meine_zeiten(db: Session, employee_id: int, *, monat: date, heute: date) -> dict:
     """Alles für „Meine Zeiten“: Kacheln (heute, diese Woche, der angezeigte Monat), die Tage des Monats mit Buchungen (neueste zuerst,
-    je Tag Summe und Pausenprüfung, die Zeilen in der Reihenfolge des Tags), der Monat und der Abschluss."""
+    je Tag Summe und Pausenprüfung, die Zeilen in der Reihenfolge des Tags), der Monat und der Abschluss; seit 1.9.186 die laufende Zeit
+    aus einem früheren Monat (angeheftet())."""
     erster, letzter = monatsgrenzen(monat)
     woche = heute - timedelta(days=heute.weekday())
     rows = list_entries(db, employee_id=employee_id, start_date=erster, end_date=letzter, limit=None)
@@ -130,6 +148,7 @@ def meine_zeiten(db: Session, employee_id: int, *, monat: date, heute: date) -> 
         "monat_fahrzeit": round_hours(tagessumme([r for r in booked if r.entry_type == "travel"])),
         "monat_produktiv": round_hours(tagessumme([r for r in booked if r.counts_as_productive])),
         "abgeschlossen_bis": lock,
+        "angeheftet": angeheftet(db, employee_id, erster, arten),
         "tage": tag_liste,
         # seit 1.9.59 für die Dialoge der Seite
         "zeitarten": arten, "taetigkeiten": taetigkeiten(db), "auftraege": list_field_bookable_orders(db, employee_id),

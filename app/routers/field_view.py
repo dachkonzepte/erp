@@ -60,7 +60,7 @@ from ..mobile_settings import load_mobile_settings, is_past_shift_end, mobile_se
 from ..models import AppUser, DocumentCategory, Order, Property
 from ..modules import is_module_enabled
 from ..orders import field_accessible_property_ids, field_may_access_order
-from ..permissions import MOBIL_ROLLEN, NUR_MONTEURSANSICHT, ROLE_FIELD, darf_zeit_buchen, hat_monteursansicht, require_min_role, require_role
+from ..permissions import MOBIL_ROLLEN, NUR_MONTEURSANSICHT, ROLE_FIELD, ZEITEN_NUR_LESEN, darf_zeit_buchen, hat_monteursansicht, require_min_role, require_role
 from ..planning import auftrag_zeile, list_field_bookable_orders, list_todays_assignments_for_employee, list_upcoming_assignments_for_employee
 from ..property_documents import (
     MAX_UPLOAD_BYTES, can_preview_type, create_property_document, is_image_type,
@@ -72,6 +72,7 @@ from ..schemas import (
     PropertyAccessOut, PropertyDocumentListItemOut, PropertySearchHitOut, ServiceReportHistoryOut,
 )
 from ..search import search_orders_for_field, search_properties_for_field
+from .time_tracking import ende_nachtragen_pruefen
 from ..service_report_pdf import build_service_report_pdf_for_field
 from ..time_tracking import offene_zeit_info
 from ..service_reports import (
@@ -208,6 +209,17 @@ def get_field_view_meine_zeiten(request: Request, monat: str | None = Query(None
         order = db.get(Order, vorwahl)
         if order is not None and (user.role != ROLE_FIELD or field_may_access_order(db, user.employee_id, order.id)):
             zeile = {**auftrag_zeile(order), "geschlossen": auftrag_geschlossen(order.status)}
+    # Seit 1.9.186 (L1a Stufe 2, Punkt 1): „Beenden“ an der angehefteten Zeit aus einem früheren Monat nach denselben Regeln wie
+    # POST /api/time-entries/{id}/ende-nachtragen (ende_nachtragen_pruefen()) -- sonst steht dort der Grund (Gruppenzeit, Monat abgeschlossen, nur lesen)
+    fest = daten["angeheftet"]
+    if fest is not None:
+        grund = None if darf_zeit_buchen(user) else ZEITEN_NUR_LESEN
+        if grund is None:
+            try:
+                ende_nachtragen_pruefen(request, db, fest["id"])
+            except HTTPException as exc:
+                grund = exc.detail
+        fest["beenden"], fest["grund"] = grund is None, grund
     # Seit 1.9.93 (Stufe 4, R5a, Punkt 6): "buero" -- ein Konto außerhalb der Monteursansicht; die Seite zeigt ihm nicht „wende dich an das
     # Büro“. Nachtragen und Ändern nur, wer Zeiten bucht (app/permissions.py::darf_zeit_buchen -- Büro – Auftrag liest nur, seit 1.9.89).
     return {**daten, "nachtragen_erlaubt": bool(daten["nachtragen_erlaubt"]) and darf_zeit_buchen(user),
