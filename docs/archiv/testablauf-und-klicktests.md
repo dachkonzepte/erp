@@ -1378,3 +1378,23 @@ mitschreiben (Text der Anweisungen), statt nur zu zählen.
 1. Abräumen vor dem Zählen und keine Speicherbereinigung währenddessen gilt für jede Zählung in `test_v564` (`Zaehler`), nicht nur für den einen Test; der Leeraufruf steht nur dort, wo die Vorgabe ihn nennt.
 2. Die Reihenfolge wird immer mitgeschrieben (keine Option), nur der letzte Lauf bleibt -- nach einem roten Lauf den Ordner kopieren, bevor der nächste beginnt.
 3. Nachgestellt wird die Reihenfolge der Dateien (`--dist loadfile` verteilt ganze Dateien), nicht die Zeit dazwischen und nicht die Last der übrigen Prozesse außer durch gleichzeitiges Nachstellen aller.
+
+## Ordner der Klicktests unter `%TEMP%\erp-klicktests` (1.9.185, L1a-Korrekturen, Punkt 6)
+
+Die Läufe des L1a-Nachtrags lagen unter `C:\kt_nach_…` (mit `--ausgabe` so gewählt, kurz wegen MAX_PATH); Löschen direkt unter `C:\` lehnt die Sicherheitsprüfung ab, 13 Ordner blieben liegen. Seit 1.9.185: `scripts/cdp_klicktest.py::klicktest_ordner()` -- ohne Angabe ein neuer Ordner unter `KLICKTEST_ORDNER` (`%TEMP%\erp-klicktests`, `ERP_KLICKTEST_ORDNER` ändert ihn), ein Name ohne Pfad dort (`--ausgabe end_185` -> `%TEMP%\erp-klicktests\end_185`), ein voller Pfad bleibt, aber nicht direkt unter einem Laufwerk (Abbruch mit Meldung). Gilt für `--arbeitsordner` jedes Klicktests und `--ausgabe` von `klicktest_alle.py`. Kurz genug für die Ablage einer Instanz (`%TEMP%\erp-klicktests` hier 47 Zeichen; im Scratchpad wurden es über 260). Einen Lauf löscht man als Ordner unter `%TEMP%\erp-klicktests`, alle zusammen mit dem Ordner selbst; geprüft: Löschen dort geht.
+
+### Festlegungen 1.9.185 zu Werkzeug und Testablauf (Bitte bestätigen)
+
+1. Ein Name ohne Pfad bei `--arbeitsordner`/`--ausgabe` landet unter `%TEMP%\erp-klicktests` (bis 1.9.184 relativ zum Projektordner).
+2. Ein Ordner direkt unter einem Laufwerk wird abgelehnt, jeder tiefere bleibt erlaubt (auch außerhalb von `%TEMP%`).
+3. Die Ordner bleiben nach dem Lauf liegen (Bilder für den Bericht); aufgeräumt wird von Hand.
+
+Test: `tests/test_v597_klicktest_ordner.py` (3 Tests: ohne Angabe und Name unter dem Ordner, direkt unter einem Laufwerk abgelehnt -- es entsteht nichts --, ein tieferer Pfad bleibt; beide Werkzeuge nehmen die Regel). Gegenprobe: Prüfung „direkt unter einem Laufwerk“ aus -> 1 rot. Angepasste Erwartungen: keine.
+
+## Laufende Liste der Wackler (seit 1.9.185)
+
+Ein Test oder Klicktest, der rot war und auf demselben Stand ohne Änderung grün wurde. Ein neuer kommt hier hinein: Datum, Lauf und Stand, Abweichung, Arbeitsprozess und seine Reihenfolge (seit 1.9.183 in `.pytest_cache/reihenfolge`, vor dem nächsten Lauf kopieren), Ursache und Stand. Eine Wiederholung durch `klicktest_alle.py` (seit 1.9.19) gehört ebenso hierher.
+
+- **`test_v564_plantafel_leistung.py::test_alte_einsaetze_kosten_nichts`** -- 03.11.2026, erster voller Lauf von 1.9.177 (gw13), `AssertionError: (30, 28)`; normal 31 und 31. Ursache geklärt mit 1.9.183: die Speicherbereinigung räumte mitten im ersten gezählten Aufruf eine Verbindung eines früheren Tests ab (`SingletonThreadPool`, „SQLite objects created in a thread …“), deren Fehler samt Traceback die Objekte der Anfrage festhielt -- spätere Zugriffe fanden sie in der Sitzung. Nachgestellt mit genau diesen Zahlen; behoben in 1.9.183 (Abschnitt „Wackler test_v564 geklärt“). Stand: behoben.
+- **`klicktest_rahmen`** -- 03.11.2026, Endlauf auf 71d7f52 (L1a-Nachtrag): `GET /api/project-pipeline-columns` kam laut Verbindungsprotokoll nie beim Server an; `klicktest_alle.py` wiederholte ihn einmal, zweiter Lauf 1435 von 1435. Bekannte Art „Anfrage nicht angekommen“ (Befund Runde 6 Punkt 2, Wiederholung seit 1.9.19): Testaufbau, nicht das Programm. Stand: abgefangen durch die Wiederholung, Ursache im Browser offen.
+- Älter, mit eigenem Abschnitt: `test_v419_verbindungen_unter_last::test_viele_gleichzeitige_seiten_und_abfragen` (31.10.2026, 2 von 23 vollen Läufen, 503 nach rund 8 s) -- offen, siehe „Offen: test_v419 …“ oben.

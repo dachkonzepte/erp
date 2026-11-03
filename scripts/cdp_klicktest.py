@@ -13,8 +13,9 @@ AUFRUF (aus dem Projektordner, in der Projekt-venv):
     --app-port N        Port der ERP-Instanz (Vorgabe 0 = freien Port wählen; seit 1.9.85 bei einem fremden Server dort ein neuer)
     --cdp-port N        Port für das DevTools-Protokoll (Vorgabe 0 = Chrome wählt ihn selbst, seit 1.9.85)
     --arbeitsordner P   Ordner für Datenbank, Daten, Chrome-Profil, Logs und Screenshots
-                        (Vorgabe: neuer Ordner unter %TEMP%\\erp-klicktest-*). Muss leer sein
-                        oder fehlen.
+                        (Vorgabe: neuer Ordner unter %TEMP%\\erp-klicktests\\erp-klicktest-*). Muss leer sein
+                        oder fehlen. Seit 1.9.185: ein Name ohne Pfad landet unter %TEMP%\\erp-klicktests
+                        (ERP_KLICKTEST_ORDNER), ein Ordner direkt unter einem Laufwerk (C:\\kt_x) wird abgelehnt.
     --chrome P          Pfad zu chrome.exe (Vorgabe: $CHROME, sonst die üblichen
                         Installationsorte von Chrome und Edge)
     --offen-lassen      Instanz und Chrome nach den Prüfungen weiterlaufen lassen (z. B. um im
@@ -162,6 +163,26 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 MARKER = ".klicktest"
+# Seit 1.9.185 (L1a-Korrekturen, Punkt 6, Vorgabe Tobias): alle Ordner der Klicktests unter einem eigenen Ordner, den man als Ganzes oder je Lauf
+# wieder löschen kann -- nie direkt unter einem Laufwerk (bis 1.9.184 lagen Läufe unter C:\kt_…, Löschen direkt unter C:\ lehnt die
+# Sicherheitsprüfung ab). Kurz genug für die Ablage einer Instanz (MAX_PATH 260, Fallstrick „--ausgabe im Scratchpad“). ERP_KLICKTEST_ORDNER
+# ändert ihn.
+KLICKTEST_ORDNER = Path(os.environ.get("ERP_KLICKTEST_ORDNER") or Path(tempfile.gettempdir()) / "erp-klicktests")
+
+
+def klicktest_ordner(pfad: Path | None, praefix: str) -> Path:
+    """Der Ordner eines Laufs (seit 1.9.185): ohne Angabe ein neuer unter KLICKTEST_ORDNER, ein Name ohne Pfad dort, sonst der Pfad selbst --
+    aber nie direkt unter einem Laufwerk."""
+    if pfad is None:
+        KLICKTEST_ORDNER.mkdir(parents=True, exist_ok=True)
+        return Path(tempfile.mkdtemp(prefix=praefix, dir=KLICKTEST_ORDNER)).resolve()
+    if not pfad.is_absolute() and len(pfad.parts) == 1:
+        return (KLICKTEST_ORDNER / pfad).resolve()
+    voll = pfad.resolve()
+    if voll.parent == Path(voll.anchor):
+        raise SystemExit(f"{voll} liegt direkt unter {voll.anchor} -- ein Ordner dort lässt sich nicht wieder löschen. Einen Namen ohne Pfad "
+                         f"angeben (landet unter {KLICKTEST_ORDNER}) oder einen Unterordner.")
+    return voll
 GEGENPROBE_MARKER = "GEGENPROBE"  # Regel 24, wie tests/test_v357_gegenprobe_marker.py
 ZEITLIMIT_GEGENPROBE = 120  # Sekunden, seit 1.8.108
 CODE_ZEITLIMIT = 3
@@ -1438,7 +1459,7 @@ def klicktest_main(befuellen, pruefen, *, beschreibung: str = "", uhr: str | Non
 
 def _ablauf(befuellen, pruefen, args, uhr: str | None, wachhund: "Wachhund | None", umgebung: dict | None = None,
             chrome_argumente: list[str] | None = None) -> int:
-    ordner = (args.arbeitsordner or Path(tempfile.mkdtemp(prefix="erp-klicktest-"))).resolve()
+    ordner = klicktest_ordner(args.arbeitsordner, "erp-klicktest-")  # seit 1.9.185 nie direkt unter einem Laufwerk
     if ordner.exists() and any(ordner.iterdir()):
         raise SystemExit(f"Arbeitsordner ist nicht leer: {ordner}")
     for sub in ("data", "shots", "chrome-profile"):

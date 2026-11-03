@@ -2125,7 +2125,7 @@ Seit 1.8.126 nimmt jeder Klicktest diesen einen Helfer (auch die SMTP-Empfänger
 Seit 1.9.85 ist eine Instanz erst bereit, wenn sie sich ausweist (Kennung `ERP_INSTANZ` an `/health`, sonst neuer Port,
 `_mit_eigenem_port()`); Chrome wählt seinen Port selbst (`--remote-debugging-port=0`, `DevToolsActivePort`) --
 `tests/test_v506_port_wettlauf.py`.
-`--ausgabe` von `klicktest_alle.py` nie tief im Scratchpad: die Ablage der Instanz überschreitet sonst die 260 Zeichen von Windows.
+`--ausgabe` von `klicktest_alle.py` nie tief im Scratchpad: die Ablage der Instanz überschreitet sonst die 260 Zeichen von Windows. Seit 1.9.185 liegen die Ordner ohne Angabe und bei einem Namen ohne Pfad unter `%TEMP%\erp-klicktests` (`klicktest_ordner()`, `ERP_KLICKTEST_ORDNER`), direkt unter einem Laufwerk lehnt das Werkzeug ab. Ein Wackler kommt in die laufende Liste im Archiv „Testablauf“ (seit 1.9.185).
 
 ### Bildgrundlage für das Redesign (seit 1.8.126)
 

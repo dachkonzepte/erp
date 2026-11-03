@@ -1093,3 +1093,7 @@ Nur Tests und Testablauf -- beschrieben im Archiv „Testablauf und Klicktest-We
 ### Tests und Prüfung 1.9.184
 
 Neu in `tests/test_v592_silvester.py`: `test_pruefskript_zaehlt_urlaub_ueber_silvester_ohne_antwort` (drei gezählt: genehmigt, offen, zurückgezogen; nicht gezählt: mit Antwort, ohne den 31.12., kaufmännisch, Krankheit, 31.12. am Sonntag; kein Befund), `test_pruefskript_ohne_solche_antraege` (0). Gegenprobe: die Prüfung „würde heute gefragt“ übergangen -> 1 rot. Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.185: Klicktest-Ordner und Liste der Wackler (Punkt 6)
+
+Nur Werkzeug und Testablauf -- beschrieben im Archiv „Testablauf und Klicktest-Werkzeug“, Abschnitte „Ordner der Klicktests unter %TEMP%\erp-klicktests“ und „Laufende Liste der Wackler“ (dort auch die Festlegungen 1.9.185).

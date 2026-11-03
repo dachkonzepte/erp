@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.185 – Klicktest-Ordner nie direkt unter C:\, laufende Liste der Wackler (L1a-Korrekturen, Punkt 6)
+
+Werkzeug: die Klicktests legen ihre Ordner nicht mehr direkt unter einem Laufwerk an (die Läufe des Nachtrags lagen unter `C:\kt_…` und ließen sich danach nicht löschen). Ohne Angabe und bei einem Namen ohne Pfad landet ein Lauf unter `%TEMP%\erp-klicktests\` (`scripts/cdp_klicktest.py::klicktest_ordner()`, `ERP_KLICKTEST_ORDNER` ändert den Ort) -- für `--arbeitsordner` eines Klicktests wie für `--ausgabe` von `klicktest_alle.py`; ein Ordner direkt unter einem Laufwerk wird abgelehnt. Im Archiv „Testablauf“ beginnt eine laufende Liste der Wackler, mit `test_v564` und `klicktest_rahmen` aus dieser Runde.
+
 ## 1.9.184 – Prüfskript zählt Urlaub über Silvester ohne Antwort (L1a-Korrekturen, Punkt 5)
 
 `scripts/pruefe_zeitregeln.py` nennt unter „Arbeitszeitkalender“ zusätzlich die Urlaubsanträge über einen Tag mit Rückfrage (31.12.) ohne Antwort -- angelegt vor 1.9.176, als der Server noch nicht fragte; sie zählen wie der Vorschlag als ganzer Urlaubstag (Festlegung 1.9.176 Nr. 4). Gezählt wird je Status (genehmigt, offen, abgelehnt, zurückgezogen), nur wo die Frage heute gestellt würde (gewerblich, Montag bis Freitag, Sollzeit); kein Befund, die Rückgabe ändert sich nicht.

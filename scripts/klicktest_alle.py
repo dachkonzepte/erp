@@ -12,8 +12,10 @@ AUFRUF (aus dem Projektordner):
                     unbekannte vorn)
     --nur TEIL      nur Klicktests, deren Name TEIL enthält (mehrfach möglich)
     --ab NAME       erst ab diesem Klicktest (alphabetisch), z. B. nach einem Abbruch
-    --ausgabe       Ordner für Protokolle, Screenshots und die Übersicht (Vorgabe: neuer Temp-Ordner); je Klicktest ein
-                    Unterordner als dessen --arbeitsordner, dazu <name>.log mit der vollen Ausgabe
+    --ausgabe       Ordner für Protokolle, Screenshots und die Übersicht (Vorgabe: neuer Ordner unter %TEMP%\\erp-klicktests); je
+                    Klicktest ein Unterordner als dessen --arbeitsordner, dazu <name>.log mit der vollen Ausgabe. Seit 1.9.185: ein Name
+                    ohne Pfad (z. B. --ausgabe end_183) landet unter %TEMP%\\erp-klicktests (ERP_KLICKTEST_ORDNER), ein Ordner direkt
+                    unter einem Laufwerk (C:\\kt_x) wird abgelehnt -- so lässt sich jeder Lauf wieder löschen
     --zeitlimit     Sekunden je Klicktest (Vorgabe 900); danach wird der Klicktest samt seinen Kindprozessen (ERP-Instanz,
                     Chrome) über die eigene PID beendet (taskkill /T, Regel 12) und als "Zeitlimit" geführt. Ein Klicktest,
                     der selbst abbricht (Rückgabecode 3: eigenes Zeitlimit, Gegenprobe), heißt ebenso "Zeitlimit".
@@ -39,6 +41,9 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from cdp_klicktest import klicktest_ordner  # noqa: E402
 
 SCRIPTS = Path(__file__).resolve().parent
 ROOT = SCRIPTS.parent
@@ -275,7 +280,7 @@ def main() -> int:
     if args.gleichzeitig < 1:
         parser.error("--gleichzeitig braucht mindestens 1")
 
-    ausgabe = (args.ausgabe or Path(tempfile.mkdtemp(prefix="erp-klicktests-"))).resolve()
+    ausgabe = klicktest_ordner(args.ausgabe, "lauf-")  # seit 1.9.185 nie direkt unter einem Laufwerk
     ausgabe.mkdir(parents=True, exist_ok=True)
     liste = klicktests(args.nur, args.ab)
     reihenfolge = gruppen(liste, args.gleichzeitig)
