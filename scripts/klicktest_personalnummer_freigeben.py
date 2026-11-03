@@ -2,12 +2,13 @@
 
     Tabelle          seit 1.9.189: bei 1440 px rollt die Tabelle waagrecht; nach rechts gerollt steht die Spalte Mitarbeiter (Kopf und Zeilen)
                      am linken Rand, obenauf, mit den Namen -- Bild
-    Admin            Ada (1440): Mia „früher: 91008 freigeben“, Pia „früher: 91030 freigeben“; 91030 trägt heute Kai (an der Sperre vorbei, wie
-                     aus einem alten Bestand) -> Dialog mit Warnung, „Freigeben“ -> Meldung des Servers im Dialog, nichts geändert; 91008 -> Dialog
+    Admin            Ada (1440): Mia „früher: 91008 freigeben“; 91030 trägt heute Kai (an der Sperre vorbei, wie aus einem alten Bestand) --
+                     seit 1.9.191 Pia „früher: 91030 (trägt heute Kai Monteur)“ ohne Knopf (bis 1.9.190 „freigeben“, der Dialog meldete
+                     dann den Fehler des Servers), derselbe POST 409, nichts geändert; 91008 -> Dialog
                      „Personalnummer 91008 freigeben“ mit Warnung (gehörte Mia Monteurin, DATEV, Tippfehler, Änderungshistorie) -- Bild;
                      „Freigeben“ -> Dialog zu, „Personalnummer 91008 freigegeben.“, Mia ohne „früher“; Tom bekommt 91008 („Gespeichert.“);
                      Änderungshistorie mit „Personalnummer freigegeben“, alt „gesperrt, gehörte Mia Monteurin“, neu „frei“ -- Bild; keine JS-Fehler
-    Büro – Finanzen  Fin: „früher: 91030“ ohne Knopf, derselbe POST vom Server 403 -- Bild; keine JS-Fehler
+    Büro – Finanzen  Fin: „früher: 91030 (trägt heute Kai Monteur)“ ohne Knopf, derselbe POST vom Server 403 -- Bild; keine JS-Fehler
 
 AUFRUF (aus dem Projektordner):
 
@@ -84,17 +85,19 @@ async def pruefen(tab, seed, p):
     await tab.js(f"{ROLLEN}.scrollLeft=0")
     p.pruefe("Ada: frühere Nummern mit „freigeben“", await tab.js(
         f"[{FRUEHER.format(id=seed['Mia'])}.innerText.trim(),{FRUEHER.format(id=seed['Pia'])}.innerText.trim()]"),
-        ["früher: 91008 freigeben", "früher: 91030 freigeben"])
+        ["früher: 91008 freigeben", "früher: 91030 (trägt heute Kai Monteur)"])
 
-    await tab.js(KNOPF.format(n="91030") + ".click()")
-    p.pruefe("Ada: Dialog zu 91030 mit Warnung", await tab.js(
-        "[document.getElementById('pnrFreigabeDialog').open,document.getElementById('pnrFreigabeTitel').textContent,"
-        "document.getElementById('pnrFreigabeWarnung').textContent.startsWith('Die Personalnummer 91030 gehörte Pia Monteurin und ist für alle "
-        "anderen gesperrt.')]"), [True, "Personalnummer 91030 freigeben", True])
-    p.pruefe("Ada: 91030 trägt Kai -- Meldung, nichts geändert", await _freigeben(tab),
-             "Dialog: Fehler: Die Personalnummer 91030 trägt heute Kai Monteur – freigeben geht nur, solange sie niemand trägt.")
-    await tab.js("document.getElementById('pnrFreigabeDialog').close()")
-    p.pruefe("Ada: Pia weiter „früher: 91030“", await tab.js(FRUEHER.format(id=seed["Pia"]) + ".innerText.trim()"), "früher: 91030 freigeben")
+    # seit 1.9.191 (L1a Stufe 2, Punkt 6): an 91030 (trägt Kai) kein Knopf -- der Server lehnt weiter ab, nichts geändert
+    p.pruefe("Ada: an 91030 kein „freigeben“, dafür wer sie trägt", await tab.js(
+        f"[!!{KNOPF.format(n='91030')},document.querySelector('[data-fruehere=\"{seed['Pia']}\"] [data-traegt=\"91030\"]').textContent]"),
+        [False, "(trägt heute Kai Monteur)"])
+    p.pruefe("Ada: 91030 trägt Kai -- der Server lehnt ab, nichts geändert", await tab.js(
+        "fetch('/api/time-backoffice/personalnummern/freigeben',{method:'POST',headers:{'Content-Type':'application/json'},"
+        "body:JSON.stringify({nummer:'91030'})}).then(async r=>[r.status,(await r.json()).detail])"),
+        [409, "Die Personalnummer 91030 trägt heute Kai Monteur – freigeben geht nur, solange sie niemand trägt."])
+    await tab.oeffnen("/settings#time-rules", BEREIT)
+    p.pruefe("Ada: Pia weiter „früher: 91030“", await tab.js(FRUEHER.format(id=seed["Pia"]) + ".innerText.trim()"),
+             "früher: 91030 (trägt heute Kai Monteur)")
 
     await tab.js(KNOPF.format(n="91008") + ".scrollIntoView({block:'center'});" + KNOPF.format(n="91008") + ".click()")
     p.pruefe("Ada: Warnung zu 91008", await tab.js("document.getElementById('pnrFreigabeWarnung').textContent"),
@@ -123,7 +126,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Fin: geladen", await tab.oeffnen("/settings?als=fin#time-rules", BEREIT), True)
     p.pruefe("Fin: „früher: 91030“ ohne Knopf", await tab.js(
         f"[{FRUEHER.format(id=seed['Pia'])}.innerText.trim(),document.querySelectorAll('[data-klick=pnr-freigeben]').length]"),
-        ["früher: 91030", 0])
+        ["früher: 91030 (trägt heute Kai Monteur)", 0])
     p.pruefe("Fin: der Server lehnt ab", await tab.js(
         "fetch('/api/time-backoffice/personalnummern/freigeben',{method:'POST',headers:{'Content-Type':'application/json'},"
         "body:JSON.stringify({nummer:'91030'})}).then(async r=>[r.status,(await r.json()).detail])"),

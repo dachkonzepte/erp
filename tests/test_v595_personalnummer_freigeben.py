@@ -81,7 +81,8 @@ def test_seite():
     from tests import vorlagen_js as vj
     html = (vj.TEMPLATES / "settings.html").read_text(encoding="utf-8")
     assert "const PNR_FREIGEBEN=\"{{ 'ja' if personalnummer_freigeben else 'nein' }}\"===\"ja\";" in html
-    assert "${PNR_FREIGEBEN?p.fruehere_personalnummern.map(" in html and 'data-klick="pnr-freigeben"' in html
+    # seit 1.9.191 über fruehereNummer(): der Knopf nur an einer Nummer, die niemand trägt (tests/test_v601_freigeben_nur_wo_moeglich.py)
+    assert "früher: ${p.fruehere_personalnummern.map(n=>fruehereNummer(p,n)).join(', ')}" in html and 'data-klick="pnr-freigeben"' in html
     assert 'id="pnrFreigabeDialog"' in html and "gib sie nur frei, wenn sie nie abgerechnet wurde" in html
     assert "await speichern('lohn',()=>api('/api/time-backoffice/personalnummern/freigeben',{method:'POST'" in html
     from app.permissions import darf_personalnummer_freigeben

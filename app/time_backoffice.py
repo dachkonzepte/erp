@@ -81,6 +81,26 @@ def personalnummer_halter(db: Session, nummer: str) -> Employee | None:
     return db.get(Employee, eid) if eid is not None else None
 
 
+def personalnummern_traeger(db: Session, nummern) -> dict[str, str]:
+    """Seit 1.9.191 (L1a Stufe 2, Punkt 6): wer die Nummern heute trägt, {Nummer: Name} -- dieselbe Regel wie personalnummer_halter() (zuerst die
+    Lohnstammdaten, bei „DATEV-Nr. = ERP-Nr.“ dann die Mitarbeiternummer), für die Liste „früher“ in einem Zug. Eine getragene Nummer lässt sich
+    nicht freigeben; die Seite zeigt statt des Knopfs, wer sie trägt."""
+    nummern = {n for n in nummern if n}
+    if not nummern:
+        return {}
+    traeger: dict[str, int] = {}
+    for nummer, eid in db.execute(select(EmployeePayrollSettings.datev_personnel_number, EmployeePayrollSettings.employee_id)
+                                  .where(EmployeePayrollSettings.datev_personnel_number.in_(nummern)).order_by(EmployeePayrollSettings.id)):
+        traeger.setdefault(nummer, eid)
+    rest = nummern - set(traeger)
+    if rest and load_advanced_settings(db).datev_personnel_equals_erp_number:
+        for nummer, eid in db.execute(select(func.trim(Employee.employee_number), Employee.id)
+                                      .where(func.trim(Employee.employee_number).in_(rest)).order_by(Employee.id)):
+            traeger.setdefault(nummer, eid)
+    namen = {e.id: employee_name(e) for e in db.scalars(select(Employee).where(Employee.id.in_(set(traeger.values()))))} if traeger else {}
+    return {nummer: namen.get(eid) or "eine Person" for nummer, eid in traeger.items()}
+
+
 def personalnummer_freigeben(db: Session, nummer: str | None) -> None:
     """Seit 1.9.181 (L1a-Korrekturen, Punkt 2, Vorgabe Tobias): eine gemerkte Nummer wieder freigeben (Festlegung 1.9.177 Nr. 3 neu gefasst) --
     der Admin (der Router fragt app/permissions.py::darf_personalnummer_freigeben()), nur solange sie niemand trägt (personalnummer_halter()).
@@ -275,10 +295,12 @@ def _sollzeiten_aller(db: Session) -> dict[int, list[dict]]:
     return je
 
 
-def _payroll_dict(db: Session, emp: Employee, p: EmployeePayrollSettings, sollzeiten: list[dict], gemerkt: list[str] | None = None) -> dict:
+def _payroll_dict(db: Session, emp: Employee, p: EmployeePayrollSettings, sollzeiten: list[dict], gemerkt: list[str] | None = None,
+                  traeger: dict[str, str] | None = None) -> dict:
     heute = effective_datev_personnel_number(db, emp, p)
     gemerkt = fruehere_personalnummern(db).get(emp.id, []) if gemerkt is None else gemerkt
     fruehere = [n for n in gemerkt if n != heute]
+    traeger = personalnummern_traeger(db, fruehere) if traeger is None else traeger
     return {
         "employee_id": emp.id,
         "employee_name": f"{emp.first_name} {emp.last_name}".strip(),
@@ -291,13 +313,17 @@ def _payroll_dict(db: Session, emp: Employee, p: EmployeePayrollSettings, sollze
         "eintritt": p.eintritt, "austritt": p.austritt,  # seit 1.9.167
         "sollzeiten": sollzeiten,
         "fruehere_personalnummern": fruehere,  # seit 1.9.177: gemerkte Nummern außer der heutigen -- dauerhaft gesperrt
+        # seit 1.9.191: wer eine frühere Nummer heute trägt (sie lässt sich nicht freigeben) -- {Nummer: Name}, nur getragene
+        "fruehere_traeger": {n: traeger[n] for n in fruehere if n in traeger},
     }
 
 
 def payroll_rows(db: Session) -> list[dict]:
     employees = db.scalars(select(Employee).order_by(Employee.active.desc(), Employee.last_name, Employee.first_name)).all()
     sollzeiten, gemerkt = _sollzeiten_aller(db), fruehere_personalnummern(db)
-    return [_payroll_dict(db, emp, load_employee_payroll(db, emp.id), sollzeiten.get(emp.id, []), gemerkt.get(emp.id, [])) for emp in employees]
+    traeger = personalnummern_traeger(db, [n for liste in gemerkt.values() for n in liste])  # seit 1.9.191, eine Abfrage für alle
+    return [_payroll_dict(db, emp, load_employee_payroll(db, emp.id), sollzeiten.get(emp.id, []), gemerkt.get(emp.id, []), traeger)
+            for emp in employees]
 
 
 def set_employee_payroll(db: Session, employee_id: int, werte: dict) -> dict:

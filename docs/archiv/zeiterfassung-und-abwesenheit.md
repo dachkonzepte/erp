@@ -1164,3 +1164,23 @@ Angepasste Erwartungen (Regel 28), altes Soll -> neues Soll:
 ### Umsetzung 1.9.190: Zähler in test_v564 (Punkt 5)
 
 Nur Tests -- beschrieben im Archiv „Testablauf und Klicktest-Werkzeug“, Abschnitt „Zähler in test_v564: Speicherbereinigung in jedem Fall zurück“ (dort auch die Festlegung 1.9.190).
+
+### Umsetzung 1.9.191: „freigeben“ nur, wo es geht (Punkt 6)
+
+`app/time_backoffice.py::personalnummern_traeger(db, nummern)`: {Nummer: Name} der heutigen Träger -- dieselbe Regel wie `personalnummer_halter()` (Lohnstammdaten mit dieser DATEV-Nummer, bei „DATEV-Nr. = ERP-Nr.“ die getrimmte Mitarbeiternummer), für alle gemerkten Nummern in einem Zug; `payroll_rows()` gibt jeder Zeile `fruehere_traeger` (nur getragene früheren Nummern), `EmployeePayrollSettingsOut.fruehere_traeger`. Seite `settings.html`: `fruehereNummer(p, n)` -- an einer getragenen Nummer „(trägt heute <Name>)“, sonst für den Admin „freigeben“, sonst die Nummer. Der Server prüft bei der Freigabe weiter selbst (409).
+
+### Festlegungen 1.9.191 (Bitte bestätigen)
+
+1. „(trägt heute <Name>)“ steht an einer getragenen Nummer für jede Rolle, die die Liste sieht (Admin, Büro – Finanzen, lesend Büro – Auftrag) -- nicht nur statt des Knopfs beim Admin.
+2. Ob eine Nummer getragen ist, entscheidet dieselbe Regel wie die Freigabe; trägt die Person ihre frühere Nummer noch in den Lohnstammdaten (bei „DATEV-Nr. = ERP-Nr.“), steht dort ihr eigener Name -- freigeben geht dann nicht, wie bisher (Festlegung 1.9.181 Nr. 1).
+
+### Tests und Prüfung 1.9.191
+
+Neu: `tests/test_v601_freigeben_nur_wo_moeglich.py` (4 Tests) -- die Liste nennt den Träger (und nach seiner Änderung nicht mehr; getragen <=> 409 beim Freigeben), bei Gleichsetzung auch die Mitarbeiternummer (mit Leerzeichen, getrimmt), Seite in node mit und ohne Recht zum Freigeben (Maskierung). Gegenproben: keine Träger geliefert -> 2 rot; Seite übergeht den Träger -> 2 rot.
+
+Angepasste Erwartungen (Regel 28), altes Soll -> neues Soll:
+- `test_v595::test_seite`, nur der Aufbau: statt `${PNR_FREIGEBEN?p.fruehere_personalnummern.map(` jetzt `früher: ${p.fruehere_personalnummern.map(n=>fruehereNummer(p,n)).join(', ')}` (der Knopf entsteht in `fruehereNummer()`).
+- `klicktest_personalnummer_freigeben` „Ada: frühere Nummern mit „freigeben““: Pia „früher: 91030 freigeben“ -> „früher: 91030 (trägt heute Kai Monteur)“.
+- dort „Ada: Dialog zu 91030 mit Warnung“ und „Ada: 91030 trägt Kai -- Meldung, nichts geändert“ (Klick auf „freigeben“, Fehler im Dialog) -> „Ada: an 91030 kein „freigeben“, dafür wer sie trägt“ und „Ada: 91030 trägt Kai -- der Server lehnt ab, nichts geändert“ (derselbe POST, 409 mit derselben Meldung).
+- dort „Ada: Pia weiter „früher: 91030““: „früher: 91030 freigeben“ -> „früher: 91030 (trägt heute Kai Monteur)“ (nach neuem Laden der Seite).
+- dort „Fin: „früher: 91030“ ohne Knopf“: „früher: 91030“ -> „früher: 91030 (trägt heute Kai Monteur)“.
