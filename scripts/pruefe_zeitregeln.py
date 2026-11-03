@@ -8,7 +8,8 @@ Vor dem Probemonat (Dezember 2026) und vor dem ersten echten Export: was auf dem
                           (KW 13–43 und 44–12, beide 8,00 h -- die Migration b7e3c91d4a52 stellt nur diese um); Kalenderwochen, die kein aktives
                           Modell deckt oder zwei decken; Pausenregeln, die nicht 6 h -> 30 min und 9 h -> 45 min sind; Personen je Modell
     Personalnummern       je aktive Person: fehlt (obwohl etwas exportiert wird), doppelt, nicht 1 bis 5 Ziffern ohne führende Null -- bei
-                          „DATEV-Nr. = ERP-Nr.“ die ERP-Nummer
+                          „DATEV-Nr. = ERP-Nr.“ die ERP-Nummer; seit 1.9.177 die gemerkten Nummern und ob eine aktive Person die Nummer
+                          einer anderen trägt
     Export-Umfang         Anzahl je alles / nur Abwesenheiten / nichts; Eintritt und Austritt; eigene Sollzeiten
     Feiertage             Bundesland, „Feiertage automatisch“, die gesetzlichen Feiertage dieses und des nächsten Jahres
     von Hand              eingetragene betriebsfreie Tage (sie zählen nicht als Feiertag F)
@@ -25,7 +26,7 @@ Nur lesen: die Sitzung ist schreibgeschützt (PostgreSQL: SET SESSION CHARACTERI
 am Ende zurückgerollt. DATABASE_URL muss gesetzt sein (sonst fiele app/database.py still auf SQLite zurück).
 
 Ausgabe ohne Namen: Personen nur mit ihrer Kennung (Mitarbeiter-ID). Rückgabe: 0 nichts zu klären, 1 etwas zu klären (Personalnummer fehlt,
-doppelt oder falsch, alte Grundwerte, Kalenderwoche ohne aktives Modell, kein Modell), 2 Umgebung fehlt. Hinweise (Zeilen mit „Hinweis:“)
+doppelt, falsch oder seit 1.9.177 die gemerkte einer anderen Person, alte Grundwerte, Kalenderwoche ohne aktives Modell, kein Modell), 2 Umgebung fehlt. Hinweise (Zeilen mit „Hinweis:“)
 ändern die Rückgabe nicht.
 """
 
@@ -148,6 +149,15 @@ def _personen(db, stand: Stand, heute: date) -> None:
     for nummer, ids in nummern.items():
         if len(ids) > 1:
             stand.befund(f"Personalnummer {nummer} tragen {len(ids)} Personen ({', '.join(map(str, ids))}).")
+    # seit 1.9.177 (L1a-Nachtrag, Punkt 4): gemerkte Nummern bleiben gesperrt -- trägt eine aktive Person die Nummer einer anderen, ist das ein Befund
+    from app.models import PersonalnummerVergabe
+    gemerkt = {n: e for n, e in db.execute(select(PersonalnummerVergabe.nummer, PersonalnummerVergabe.employee_id))}
+    for nummer, ids in nummern.items():
+        fremd = [eid for eid in ids if gemerkt.get(nummer) not in (None, eid)]
+        if fremd:
+            stand.befund(f"Personalnummer {nummer} gehörte Person {gemerkt[nummer]}, heute trägt sie Person {', '.join(map(str, fremd))}.")
+    stand.zeile(f"  Personalnummern gemerkt (dauerhaft gesperrt): {len(gemerkt)}, davon bei keiner aktiven Person: "
+                f"{sum(1 for n in gemerkt if n not in nummern)}")
     stand.zeile("  Export-Umfang: " + ", ".join(f"{EXPORT_UMFAENGE[k]} {umfang.get(k, 0)}" for k in EXPORT_UMFAENGE))
     mit_eintritt = sum(1 for eid, _n, _g in aktive if lohn.get(eid) is not None and lohn[eid].eintritt)
     ausgetreten = [eid for eid, _n, _g in aktive if lohn.get(eid) is not None and lohn[eid].austritt and lohn[eid].austritt < heute]

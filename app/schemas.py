@@ -4088,6 +4088,7 @@ class EmployeePayrollSettingsOut(BaseModel):
     eintritt: date | None = None  # seit 1.9.167
     austritt: date | None = None
     sollzeiten: list[dict] = Field(default_factory=list)  # seit 1.9.167: eigene Sollzeiten (app/sollzeit.py::zeile_dict()), leer = Tarif
+    fruehere_personalnummern: list[str] = Field(default_factory=list)  # seit 1.9.177: frühere Nummern der Person, dauerhaft gesperrt
 
 
 

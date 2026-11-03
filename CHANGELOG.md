@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.177 – Personalnummern bleiben dauerhaft gesperrt (L1a-Nachtrag, Punkt 4)
+
+Eine DATEV-Personalnummer, die einer Person einmal gehört hat, bekommt keine andere mehr -- auch nach Austritt und nach einem Nummernwechsel (bis 1.9.176 war die alte Nummer nach einem Wechsel frei, Festlegung 1.9.168 Nr. 3 ist neu gefasst). Jede Nummer wird beim Speichern gemerkt (Tabelle `personalnummern_vergeben`, Migration `1e425fe7faa6`, übernimmt die heutigen Nummern); dieselbe Person bekommt ihre frühere Nummer wieder. Bei „DATEV-Nr. = ERP-Nr.“ gilt dasselbe für die Mitarbeiternummer im Mitarbeiterformular. Die Liste der Personalnummern zeigt je Person „früher: …“, die Meldung nennt, wem die Nummer gehörte; `scripts/pruefe_zeitregeln.py` zählt die gemerkten Nummern und meldet eine aktive Person mit der Nummer einer anderen. Neu: `tests/test_v593_personalnummer_gesperrt.py`.
+
 ## 1.9.176 – Silvester im Arbeitszeitkalender, Rückfrage im Urlaub (L1a-Nachtrag, Punkt 3)
 
 Silvester steht jetzt im Arbeitszeitkalender: am 31.12., nur Montag bis Freitag und nur für gewerbliche Mitarbeiter, gilt von selbst die Abwesenheit „Silvester – unbezahlte Freistellung“ -- ohne Lohn, das Arbeitszeitkonto bleibt neutral (Stunden = Sollzeit des Modells, die Sollzeit ändert sich nicht). Zuordnung AF, die Lohnart nennt das Lohnbüro.

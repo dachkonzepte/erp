@@ -798,7 +798,7 @@ Migration `c5a9e3f71d28`: `pruefen()` (Dubletten auf den getrimmten Nummern) vor
 
 1. Eine Personalnummer hat 1 bis 5 Ziffern ohne führende Null (die Muster haben 4 und 5 Stellen). Falls DATEV längere Nummern nimmt, ist das eine Zeile im Code -- zu klären mit LB2.
 2. Bei „DATEV-Nr. = ERP-Nr.“ gilt das Format für die ERP-Nummer, aber nur, solange von der Person etwas in die Datei geht; mit „nichts“ bleibt sie speicherbar (Eintritt, Sollzeit).
-3. Eine Nummer gehört einer Person auf Dauer, auch einer ausgetretenen: wechselt jemand die Nummer (LIESMICH 8: 91008 -> 91016), bekommt die Person die neue Nummer; die alte ist danach frei. Eine Liste früherer Nummern gibt es nicht.
+3. Neu gefasst mit 1.9.177 (Vorgabe Tobias 03.11.2026): eine Nummer, die einer Person einmal gehört hat, bleibt dauerhaft gesperrt -- auch nach Austritt und nach einem Nummernwechsel (LIESMICH 8: 91008 -> 91016 bekommt die Person die neue Nummer, die alte bleibt ihr gemerkt); nur dieselbe Person bekommt sie wieder. Bis 1.9.176 hieß es: „die alte ist danach frei. Eine Liste früherer Nummern gibt es nicht.“
 4. Der Umfang „nur Abwesenheiten“ wirkt im heutigen Export wie „nichts“ (er kennt noch keine Abwesenheiten); mit L1b stehen dann U, K und die übrigen zugeordneten Abwesenheiten in der Datei.
 5. Die Migration bricht bei einer Dublette ab, statt eine Nummer zu leeren: welche Person die Nummer behält, entscheidet das Büro.
 
@@ -984,3 +984,20 @@ Angepasste Erwartungen (Regel 28), altes Soll -> neues Soll (Silvester ist jetzt
 - `test_v591::test_pruefskript_nennt_den_kalender`: „Arbeitszeitkalender: 1 Tage“ -> „2 Tage“.
 - `test_v589::test_zeiten_zeigt_halbe_tage`: Aufbau -- der Antrag 21.–31.12. mit `kalendertag_urlaub` True (7 Arbeitstage bleiben).
 - `klicktest_arbeitszeitkalender`: Aufbau -- Mias Antrag mit Antwort; „Rosenmontag in Kalender und Zuordnung“ dazu silvester; „nichts gespeichert“ 2 -> 3 Einträge; Karte 3 -> 5 Zeilen (Silvester 2026 und 2027); Bea 2 -> 3 Zeilen; Mias Zeile „· 7 Arbeitstage“ -> „· Kalendertag als Urlaubstag · 7 Arbeitstage“.
+
+### Umsetzung 1.9.177: Personalnummern dauerhaft gesperrt (Punkt 4)
+
+`PersonalnummerVergabe` (Tabelle `personalnummern_vergeben`: Nummer eindeutig, Person, vergeben am; Migration `1e425fe7faa6`). `app/time_backoffice.py`: `personalnummer_gesperrt()` (Meldung mit dem Namen der Person, der die Nummer gehörte; die eigene ist frei), `personalnummer_merken()` (ohne Commit, einmal je Nummer), `fruehere_personalnummern()`. `set_employee_payroll()` prüft die Sperre nach der Prüfung auf eine heute vergebene Nummer und merkt die neue Nummer im selben Commit (zwei gleichzeitige enden an der Bedingung mit 422). `app/routers/employees.py`: bei „DATEV-Nr. = ERP-Nr.“ prüfen Anlegen und Ändern die Mitarbeiternummer (409) und merken die bisherige und die neue. Die Lohnstammdaten liefern `fruehere_personalnummern` (ohne die heutige), die Einstellungen zeigen „früher: …“ unter der Nummer. Migration: die heutigen DATEV-Nummern (ohne Leerzeichen außen, leere nicht), bei Gleichsetzung dazu die Mitarbeiternummern, soweit nicht schon gemerkt; `downgrade()` Tabelle weg. `scripts/pruefe_zeitregeln.py`: Zahl der gemerkten Nummern, Befund, wenn eine aktive Person die Nummer einer anderen trägt.
+
+### Festlegungen 1.9.177 (Bitte bestätigen)
+
+1. Gemerkt wird jede Nummer, die beim Speichern der Lohnstammdaten eingetragen wird; bei „DATEV-Nr. = ERP-Nr.“ auch die Mitarbeiternummer beim Anlegen und Ändern im Mitarbeiterformular (die bisherige und die neue). Das Einschalten der Gleichsetzung selbst merkt nichts.
+2. Die Sperre gilt nur gegenüber anderen Personen: dieselbe Person bekommt eine frühere Nummer wieder.
+3. Auch ein Tippfehler bleibt gemerkt: wer 91061 statt 91016 einträgt und danach korrigiert, sperrt 91061 für alle anderen. Einen Weg, eine Nummer wieder freizugeben, gibt es nicht.
+4. Die Liste der Personalnummern zeigt je Person „früher: …“; die Meldung nennt, wem die Nummer gehörte (die Seite ist nur Admin und Büro – Finanzen zum Ändern offen, die Namen stehen dort ohnehin).
+5. Die Migration übernimmt die heutigen DATEV-Nummern und, bei Gleichsetzung, die Mitarbeiternummern; frühere Nummern kennt der Bestand nicht.
+6. `scripts/pruefe_zeitregeln.py` zählt die gemerkten Nummern; trägt eine aktive Person die gemerkte Nummer einer anderen (nur an der Sperre vorbei möglich), ist das ein Befund (Rückgabe 1).
+
+### Tests und Prüfung 1.9.177
+
+Neu: `tests/test_v593_personalnummer_gesperrt.py` (8 Tests) -- Nummernwechsel 91008 -> 91016 (Tom bekommt 91008 nicht, Mia wieder), nach Austritt und geleerter Nummer gesperrt, „früher“ in der Liste, eine Nummer einmal in der Datenbank, Gleichsetzung über das Mitarbeiterformular (Ändern und Anlegen 409, die eigene frühere Nummer geht), ohne Gleichsetzung nichts gemerkt, Prüfskript, Migration auf einem Bestand unter SQLite und PostgreSQL. Gegenproben: Sperre übergangen -> 3 rot; beim Speichern nicht gemerkt -> 3 rot; die bisherige Mitarbeiternummer nicht gemerkt -> 1 rot. Angepasste Erwartungen: keine.

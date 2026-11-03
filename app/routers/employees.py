@@ -15,6 +15,8 @@ from ..employees import apply_employee_payload, employee_to_dict, load_employees
 from ..models import AppUser, Employee, EmployeeProfile, EmployeeRoleSettings
 from ..permissions import ROLE_FIELD, ROLE_OFFICE_AUFTRAG, ROLE_OFFICE_FINANZEN, has_min_role, require_min_role
 from ..schemas import EmployeeCreate, EmployeeNameOut, EmployeeOut, EmployeeRosterOut, EmployeeUpdate
+from ..time_backoffice import personalnummer_gesperrt, personalnummer_merken
+from ..work_time_models import load_advanced_settings
 
 router = APIRouter()
 
@@ -83,12 +85,20 @@ def get_employee(employee_id: int, db: Session = Depends(get_db, scope="function
     return _employee_out_for_role(_role, employee_to_dict(employee, db))
 
 
+def _gleichsetzung(db: Session) -> bool:
+    """Seit 1.9.177: bei „DATEV-Nr. = ERP-Nr.“ ist die Mitarbeiternummer die Personalnummer -- sie bleibt dann ebenso dauerhaft gesperrt."""
+    return bool(load_advanced_settings(db).datev_personnel_equals_erp_number)
+
+
 @router.post("/api/employees", response_model=EmployeeOut)
 def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db, scope="function"), _role: AppUser = _finanzen_dep):
     if payload.employee_number:
         exists = db.scalar(select(Employee).where(Employee.employee_number == payload.employee_number))
         if exists:
             raise HTTPException(status_code=409, detail="Mitarbeiternummer ist bereits vergeben.")
+        gesperrt = personalnummer_gesperrt(db, payload.employee_number, 0) if _gleichsetzung(db) else None
+        if gesperrt:
+            raise HTTPException(status_code=409, detail=gesperrt)
     employee = Employee(
         first_name=payload.first_name, last_name=payload.last_name, employee_group=payload.employee_group,
         hourly_wage=payload.hourly_wage, weekly_hours=payload.weekly_hours, active=payload.active,
@@ -112,6 +122,8 @@ def create_employee(payload: EmployeeCreate, db: Session = Depends(get_db, scope
         role.vorarbeiter = bool(payload.vorarbeiter)
     set_planning_visibility(db, employee, payload.show_on_planning_board)
     set_cost_allocation(db, employee, payload.cost_allocation)
+    if _gleichsetzung(db):
+        personalnummer_merken(db, employee.employee_number, employee.id)  # seit 1.9.177
     db.commit()
     employee = db.scalar(select(Employee).options(selectinload(Employee.profile).selectinload(EmployeeProfile.function)).where(Employee.id == employee.id))
     return employee_to_dict(employee, db)
@@ -126,6 +138,10 @@ def update_employee(employee_id: int, payload: EmployeeUpdate, db: Session = Dep
         exists = db.scalar(select(Employee).where(Employee.employee_number == payload.employee_number, Employee.id != employee_id))
         if exists:
             raise HTTPException(status_code=409, detail="Mitarbeiternummer ist bereits vergeben.")
+    gleich, bisher = _gleichsetzung(db), employee.employee_number
+    gesperrt = personalnummer_gesperrt(db, payload.employee_number, employee_id) if gleich else None
+    if gesperrt:
+        raise HTTPException(status_code=409, detail=gesperrt)
     try:
         apply_employee_payload(db, employee, payload)
     except ValueError as exc:
@@ -139,6 +155,9 @@ def update_employee(employee_id: int, payload: EmployeeUpdate, db: Session = Dep
         role.vorarbeiter = bool(payload.vorarbeiter)
     set_planning_visibility(db, employee, payload.show_on_planning_board)
     set_cost_allocation(db, employee, payload.cost_allocation)
+    if gleich:  # seit 1.9.177: die bisherige und die neue Nummer bleiben der Person
+        personalnummer_merken(db, bisher, employee.id)
+        personalnummer_merken(db, employee.employee_number, employee.id)
     db.commit()
     employee = db.scalar(select(Employee).options(selectinload(Employee.profile).selectinload(EmployeeProfile.function)).where(Employee.id == employee_id))
     return employee_to_dict(employee, db)

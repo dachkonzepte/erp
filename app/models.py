@@ -2753,6 +2753,19 @@ class EmployeePayrollSettings(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class PersonalnummerVergabe(Base):
+    """Seit 1.9.177 (L1a-Nachtrag, Punkt 4, Vorgabe Tobias): jede DATEV-Personalnummer, die einer Person einmal gehört hat -- sie bleibt dauerhaft
+    gesperrt, auch nach Austritt und nach einem Nummernwechsel; nur dieselbe Person bekommt sie wieder. Eingetragen beim Speichern der
+    Lohnstammdaten und (bei „DATEV-Nr. = ERP-Nr.“) der Mitarbeiternummer, nie gelöscht (app/time_backoffice.py::personalnummer_merken())."""
+    __tablename__ = "personalnummern_vergeben"
+    __table_args__ = (UniqueConstraint("nummer", name="uq_personalnummer_vergeben_nummer"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nummer: Mapped[str] = mapped_column(String(50))
+    employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), index=True)
+    vergeben_am: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class LohnartZuordnung(Base):
     """Zuordnung für den DATEV-Export (seit 1.9.169, Lohn L1a, Punkt 4, Entscheidung Tobias E7): je Schlüssel -- „arbeit“, „feiertag“,
     „kategorie:<Kategorie>“, „schlechtwetter:winter|sommer“, „art:<Art>“ -- Kennzeichen (1, U, K, F …) und Lohnart (1000, 8000 …); „monatszeile“

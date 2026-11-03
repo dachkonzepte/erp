@@ -18,7 +18,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 
 from .grunddaten import einzelzeile
-from .models import AppUser, Employee, EmployeePayrollSettings, TimeEntry, TimeTrackingSettings, WorkTimeModel
+from .models import AppUser, Employee, EmployeePayrollSettings, PersonalnummerVergabe, TimeEntry, TimeTrackingSettings, WorkTimeModel
 from .rounding import round_hours
 from .time_tracking import employee_name, list_entries, entry_to_dict, pausen_vorschau, tagessumme
 from .settings import load_general_settings
@@ -36,6 +36,36 @@ PERSONALNUMMER_VERGEBEN = "Diese DATEV-Personalnummer ist bereits vergeben."
 
 def personalnummer_gueltig(wert: str | None) -> bool:
     return bool(wert) and PERSONALNUMMER_FORMAT.match(wert) is not None
+
+
+# Seit 1.9.177 (L1a-Nachtrag, Punkt 4, Vorgabe Tobias): eine Nummer, die einer Person einmal gehört hat, bleibt dauerhaft gesperrt -- auch nach
+# Austritt und nach einem Nummernwechsel (bis 1.9.176 war die alte Nummer nach einem Wechsel frei, Festlegung 1.9.168 Nr. 3). Nur dieselbe Person
+# bekommt sie wieder. Gemerkt in PersonalnummerVergabe, nie gelöscht.
+def personalnummer_gesperrt(db: Session, nummer: str | None, employee_id: int) -> str | None:
+    """Warum die Nummer für diese Person nicht geht -- None: frei oder schon ihre."""
+    nummer = (nummer or "").strip()
+    if not nummer:
+        return None
+    row = db.scalar(select(PersonalnummerVergabe).where(PersonalnummerVergabe.nummer == nummer))
+    if row is None or row.employee_id == employee_id:
+        return None
+    return (f"Die Personalnummer {nummer} gehörte schon {employee_name(db.get(Employee, row.employee_id)) or 'einer anderen Person'} – eine "
+            "Personalnummer bleibt dauerhaft gesperrt, auch nach Austritt und Nummernwechsel.")
+
+
+def personalnummer_merken(db: Session, nummer: str | None, employee_id: int) -> None:
+    """Die Nummer für die Person vormerken (ohne Commit; einmal je Nummer, die Bedingung fängt zwei gleichzeitige ab)."""
+    nummer = (nummer or "").strip()
+    if nummer and db.scalar(select(PersonalnummerVergabe.id).where(PersonalnummerVergabe.nummer == nummer)) is None:
+        db.add(PersonalnummerVergabe(nummer=nummer, employee_id=employee_id))
+
+
+def fruehere_personalnummern(db: Session) -> dict[int, list[str]]:
+    """Je Person die gemerkten Nummern (für die Liste der Lohnstammdaten: „früher …“)."""
+    je: dict[int, list[str]] = {}
+    for nummer, eid in db.execute(select(PersonalnummerVergabe.nummer, PersonalnummerVergabe.employee_id).order_by(PersonalnummerVergabe.id)):
+        je.setdefault(eid, []).append(nummer)
+    return je
 
 
 def export_umfang(p: EmployeePayrollSettings | None) -> str:
@@ -211,25 +241,29 @@ def _sollzeiten_aller(db: Session) -> dict[int, list[dict]]:
     return je
 
 
-def _payroll_dict(db: Session, emp: Employee, p: EmployeePayrollSettings, sollzeiten: list[dict]) -> dict:
+def _payroll_dict(db: Session, emp: Employee, p: EmployeePayrollSettings, sollzeiten: list[dict], gemerkt: list[str] | None = None) -> dict:
+    heute = effective_datev_personnel_number(db, emp, p)
+    gemerkt = fruehere_personalnummern(db).get(emp.id, []) if gemerkt is None else gemerkt
+    fruehere = [n for n in gemerkt if n != heute]
     return {
         "employee_id": emp.id,
         "employee_name": f"{emp.first_name} {emp.last_name}".strip(),
         "employee_number": emp.employee_number,
-        "datev_personnel_number": effective_datev_personnel_number(db, emp, p),
+        "datev_personnel_number": heute,
         "datev_personnel_number_stored": p.datev_personnel_number,
         "datev_personnel_equals_erp_number": bool(load_advanced_settings(db).datev_personnel_equals_erp_number),
         "payroll_export_enabled": p.payroll_export_enabled,
         "export_umfang": export_umfang(p),  # seit 1.9.168
         "eintritt": p.eintritt, "austritt": p.austritt,  # seit 1.9.167
         "sollzeiten": sollzeiten,
+        "fruehere_personalnummern": fruehere,  # seit 1.9.177: gemerkte Nummern außer der heutigen -- dauerhaft gesperrt
     }
 
 
 def payroll_rows(db: Session) -> list[dict]:
     employees = db.scalars(select(Employee).order_by(Employee.active.desc(), Employee.last_name, Employee.first_name)).all()
-    sollzeiten = _sollzeiten_aller(db)
-    return [_payroll_dict(db, emp, load_employee_payroll(db, emp.id), sollzeiten.get(emp.id, [])) for emp in employees]
+    sollzeiten, gemerkt = _sollzeiten_aller(db), fruehere_personalnummern(db)
+    return [_payroll_dict(db, emp, load_employee_payroll(db, emp.id), sollzeiten.get(emp.id, []), gemerkt.get(emp.id, [])) for emp in employees]
 
 
 def set_employee_payroll(db: Session, employee_id: int, werte: dict) -> dict:
@@ -266,6 +300,8 @@ def set_employee_payroll(db: Session, employee_id: int, werte: dict) -> dict:
                 EmployeePayrollSettings.employee_id!=employee_id,
             ))
             if duplicate is not None: raise ValueError(PERSONALNUMMER_VERGEBEN)
+            gesperrt=personalnummer_gesperrt(db, value, employee_id)  # seit 1.9.177: auch eine frühere Nummer einer anderen Person
+            if gesperrt: raise ValueError(gesperrt)
         neu["datev_personnel_number"]=value
     eintritt=neu.get("eintritt", row.eintritt if row is not None else None)
     austritt=neu.get("austritt", row.austritt if row is not None else None)
@@ -277,6 +313,8 @@ def set_employee_payroll(db: Session, employee_id: int, werte: dict) -> dict:
     row.export_umfang, row.payroll_export_enabled = umfang, exportiert
     for feld, wert in neu.items():
         setattr(row, feld, wert)
+    if neu.get("datev_personnel_number"):
+        personalnummer_merken(db, neu["datev_personnel_number"], employee_id)  # seit 1.9.177, im selben Commit
     try:
         db.commit()
     except IntegrityError as exc:  # seit 1.9.168 eindeutig in der Datenbank: zwei gleichzeitige Speichern derselben Nummer
