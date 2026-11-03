@@ -40,6 +40,9 @@
     .settings-subgroup{grid-column:1/-1;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:10px 10px 2px}
     .block{border-top:1px solid var(--line);padding-top:16px;margin-top:18px}.block>h3{margin:0 0 6px;font-size:15px}.section-title+.block{border-top:0;margin-top:4px}
     .inline-check{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:650;margin:6px 0}.inline-check input{width:auto}
+    /* seit 1.9.189 (L1a Stufe 2, Punkt 4): in „DATEV-Personalnummern, Eintritt und Sollzeit“ bleibt die Spalte Mitarbeiter beim waagrechten Rollen
+       stehen -- deckend in der Farbe der Karte, rechts eine Linie; erkennbar bleibt, zu wem eine Zeile gehört */
+    .lohn-tabelle th:first-child,.lohn-tabelle td:first-child{position:sticky;left:0;z-index:1;background:var(--card);box-shadow:inset -1px 0 0 var(--line);min-width:150px;max-width:220px;overflow-wrap:anywhere}
     .time-grid{display:grid;grid-template-columns:repeat(2,minmax(220px,1fr));gap:10px 20px;align-items:end}
     .model-card{border:1px solid var(--line);padding:12px;margin-bottom:8px;border-radius:var(--ds-ecke-karte)}.model-title{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
     .rule-row{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px}.rule-row .field{display:block;border-bottom:0;padding:0}
@@ -759,7 +762,7 @@
       <div class="muted small" style="margin:0 0 8px">Vor dem Eintritt und nach dem Austritt ist die Sollzeit 0. Ohne eigene Sollzeit gilt der Tarif: Montag bis Freitag die Soll-Arbeitszeit des Arbeitszeitmodells, Samstag und Sonntag 0.</div>
       <label class="inline-check"><input id="datevSameErp" type="checkbox" onchange="datevSameChanged()"> DATEV-Personalnummer entspricht der ERP-Mitarbeiternummer</label>
       <div class="muted small" style="margin:7px 0 12px">Bei Aktivierung wird die ERP-Mitarbeiternummer automatisch für den DATEV-Export verwendet. Separate DATEV-Nummern sind dann gesperrt. Eine Personalnummer hat 1 bis 5 Ziffern ohne führende Null. Eine Nummer, die einer Person einmal gehört hat, bleibt für alle anderen gesperrt – auch nach Austritt und Nummernwechsel; nur der Admin kann eine frühere Nummer wieder freigeben, solange sie niemand trägt. Export: „alles“ = Arbeit, Abwesenheiten und Feiertage; „nur Abwesenheiten“ = Urlaub, Krankheit und andere Abwesenheiten; „nichts“.</div>
-      <div style="overflow:auto;max-height:60vh"><table><thead><tr><th>Mitarbeiter</th><th>ERP-Nr.</th><th>DATEV Personalnr.</th><th>Export</th><th>Eintritt</th><th>Austritt</th><th>Sollzeit</th><th></th></tr></thead><tbody id="payrollRows"></tbody></table></div>
+      <div style="overflow:auto;max-height:60vh" id="payrollRollen"><table class="lohn-tabelle"><thead><tr><th>Mitarbeiter</th><th>ERP-Nr.</th><th>DATEV Personalnr.</th><th>Export</th><th>Eintritt</th><th>Austritt</th><th>Sollzeit</th><th></th></tr></thead><tbody id="payrollRows"></tbody></table></div>
       <span id="payrollStatus" class="status"></span>
     </div>
   </section>

@@ -1148,3 +1148,15 @@ Neu: `tests/test_v600_plantafel_kalender.py` (7 Tests) -- `freistellungen()` nur
 
 Angepasste Erwartungen (Regel 28), altes Soll -> neues Soll:
 - `test_v563::test_feiertag_200_mit_hinweis` (Tom gewerblich, Einsatz 24.–25.12.2026): Hinweise [Feiertag 25.12.] -> [Freistellung „Heiligabend – Tom Test“ 24.12., Feiertag 25.12., „Kapazität reicht um 1,00 h nicht aus“] -- an beiden Tagen arbeitet Tom nicht mehr; gefunden im Lauf vor dem Commit.
+
+### Umsetzung 1.9.189: Spalte Mitarbeiter bleibt stehen (Punkt 4)
+
+`settings.html`: die Tabelle trägt die Klasse `lohn-tabelle`, ihr Rollbereich die ID `payrollRollen`; `.lohn-tabelle th:first-child, td:first-child` mit `position:sticky; left:0`, deckend (`--card`), rechts eine Linie (`box-shadow`), 150–220 px breit, lange Namen brechen um. Sonst nichts geändert (die Kopfzeile rollt senkrecht wie bisher mit).
+
+### Festlegung 1.9.189 (Bitte bestätigen)
+
+1. Stehen bleibt nur die Spalte Mitarbeiter, beim waagrechten Rollen; die Kopfzeile rollt beim senkrechten Rollen weiter mit (die Tabelle hat höchstens 60 % der Fensterhöhe).
+
+### Tests und Prüfung 1.9.189
+
+`scripts/klicktest_personalnummer_freigeben.py` um zwei Prüfungen (15 -> 17): bei 1440 px rollt die Tabelle waagrecht; ganz nach rechts gerollt stehen Kopf- und Zeilenzelle „Mitarbeiter“ am linken Rand (Abstand 0), obenauf (`elementFromPoint`), alle vier Namen lesbar, die Spalte ERP-Nr. darunter verschwunden; Bild `lohn_tabelle_gerollt_1440`. Keine neue Prüfung in pytest: die Regel ist reines CSS, gemessen wird im Browser.

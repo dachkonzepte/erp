@@ -1,5 +1,7 @@
 """Klicktest: eine gemerkte Personalnummer freigeben (1.9.181, L1a-Korrekturen, Punkt 2) -- Einstellungen → Zeitregeln und DATEV.
 
+    Tabelle          seit 1.9.189: bei 1440 px rollt die Tabelle waagrecht; nach rechts gerollt steht die Spalte Mitarbeiter (Kopf und Zeilen)
+                     am linken Rand, obenauf, mit den Namen -- Bild
     Admin            Ada (1440): Mia „früher: 91008 freigeben“, Pia „früher: 91030 freigeben“; 91030 trägt heute Kai (an der Sperre vorbei, wie
                      aus einem alten Bestand) -> Dialog mit Warnung, „Freigeben“ -> Meldung des Servers im Dialog, nichts geändert; 91008 -> Dialog
                      „Personalnummer 91008 freigeben“ mit Warnung (gehörte Mia Monteurin, DATEV, Tippfehler, Änderungshistorie) -- Bild;
@@ -25,6 +27,14 @@ from cdp_klicktest import klicktest_main  # noqa: E402
 BEREIT = "typeof payroll!=='undefined'&&payroll.length>0&&!!document.querySelector('#payrollRows [data-fruehere]')"
 FRUEHER = "document.querySelector('[data-fruehere=\"{id}\"]')"
 KNOPF = "document.querySelector('[data-klick=pnr-freigeben][data-nummer=\"{n}\"]')"
+ROLLEN = "document.getElementById('payrollRollen')"
+# seit 1.9.189: Abstand der Kopf- und der ersten Zeilenzelle „Mitarbeiter“ zum linken Rand des Rollbereichs, ob sie dort obenauf liegt, die Namen,
+# und ob die Spalte ERP-Nr. links unter ihr verschwunden ist
+SPALTE = ("(r=>{const k=r.getBoundingClientRect(),kopf=r.querySelector('thead th'),z=[...document.querySelectorAll('#payrollRows tr')].map(tr=>tr.cells[0]),"
+          "erste=z[0].getBoundingClientRect(),oben=document.elementFromPoint(k.left+20,erste.top+10);"
+          "return [Math.round(kopf.getBoundingClientRect().left-k.left),Math.round(erste.left-k.left),z[0]===oben||z[0].contains(oben),"
+          "z.map(c=>c.innerText.trim()).sort(),document.querySelector('#payrollRows tr').cells[1].getBoundingClientRect().right<=erste.right]})"
+          "(document.getElementById('payrollRollen'))")
 
 
 def befuellen(db, k):
@@ -63,6 +73,15 @@ async def pruefen(tab, seed, p):
     await tab.anmelden(seed["ada"])
     await tab.fenster(1440, 900)
     p.pruefe("Ada: Personalnummern geladen", await tab.oeffnen("/settings#time-rules", BEREIT), True)
+
+    # seit 1.9.189 (L1a Stufe 2, Punkt 4): bei 1440 px rollt die Tabelle waagrecht, die Spalte Mitarbeiter bleibt stehen
+    p.pruefe("1440 px: die Tabelle rollt waagrecht", await tab.js(f"{ROLLEN}.scrollWidth>{ROLLEN}.clientWidth"), True)
+    await tab.js(f"{ROLLEN}.scrollIntoView({{block:'start'}});{ROLLEN}.scrollLeft={ROLLEN}.scrollWidth")
+    await tab.warten(f"{ROLLEN}.scrollLeft>0", 5)
+    p.pruefe("Nach rechts gerollt: Mitarbeiter am linken Rand, obenauf, Namen lesbar; ERP-Nr. darunter verschwunden", await tab.js(SPALTE),
+             [0, 0, True, sorted(["Mia Monteurin", "Tom Monteur", "Pia Monteurin", "Kai Monteur"]), True])
+    await tab.bild("lohn_tabelle_gerollt_1440")
+    await tab.js(f"{ROLLEN}.scrollLeft=0")
     p.pruefe("Ada: frühere Nummern mit „freigeben“", await tab.js(
         f"[{FRUEHER.format(id=seed['Mia'])}.innerText.trim(),{FRUEHER.format(id=seed['Pia'])}.innerText.trim()]"),
         ["früher: 91008 freigeben", "früher: 91030 freigeben"])
