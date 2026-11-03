@@ -4,8 +4,13 @@
     Abfragen     GET /api/planning: die Zahl der Abfragen hängt nicht an der Zahl der Aufträge im Rückstand, der Einsätze im Bild und der alten Einsätze
     Konflikte    nur für Einsätze, die den Zeitraum berühren -- auch gegen einen, der mit ihnen über den Rand hinaus zusammenfällt
     Rückstand    wie bisher: offene Aufträge ohne Einsatz, Soll aus der Kalkulation, Begründung der Pause, Vorschlag aus AV oder Auftrag
+    Zählen       seit 1.9.183 (L1a-Korrekturen, Punkt 4): Speicherbereinigung vor jedem gezählten Aufruf, keine währenddessen (Zaehler) -- im Lauf
+                 von 1.9.177 räumte sie mitten im ersten Aufruf eine fremde Verbindung ab, deren Fehler samt Traceback die Objekte der Anfrage
+                 festhielt (30 statt 31 Abfragen, danach 28); dazu ein Leeraufruf vor dem ersten Zählen (test_alte_einsaetze_kosten_nichts)
 """
 
+import gc
+import logging
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -61,6 +66,10 @@ def tafel(threaded_db_session, router_test_client):
 
 
 class Zaehler:
+    """Zählt die Anweisungen an die Datenbank der Sitzung. Seit 1.9.183 räumt die Speicherbereinigung vorher ab und läuft währenddessen nicht:
+    räumt sie mitten in einer Anfrage etwas ab, das dabei einen Fehler mit Traceback protokolliert (eine fremde Verbindung eines früheren
+    Tests, „SQLite objects created in a thread …“), hält der Traceback die Objekte der Anfrage fest -- spätere Zugriffe finden sie in der
+    Sitzung, die Anfrage braucht weniger Abfragen (test_abraeumen_mitten_im_zaehlen_verfaelscht_nichts)."""
     def __init__(self, db):
         self.bind, self.anzahl = db.get_bind(), 0
 
@@ -68,11 +77,14 @@ class Zaehler:
         self.anzahl += 1
 
     def __enter__(self):
+        gc.collect()
+        gc.disable()
         event.listen(self.bind, "before_cursor_execute", self._plus)
         return self
 
     def __exit__(self, *_args):
         event.remove(self.bind, "before_cursor_execute", self._plus)
+        gc.enable()
 
 
 def _abfragen(db, client, von=MONTAG):
@@ -149,6 +161,7 @@ def test_alte_einsaetze_kosten_nichts(tafel):
     db, client = tafel
     a, b = _kolonne(db, "A"), _kolonne(db, "B")
     create_slot(db, order_id=_auftrag(db).id, team_id=a.id, start_date=MONTAG, end_date=MONTAG)
+    _abfragen(db, client)  # seit 1.9.183: Leeraufruf -- der erste gezählte Aufruf ist nicht der erste der Sitzung
     ohne, _ = _abfragen(db, client)
     for woche in range(1, 11):
         tag = MONTAG - timedelta(weeks=woche)
@@ -157,6 +170,49 @@ def test_alte_einsaetze_kosten_nichts(tafel):
     mit, daten = _abfragen(db, client)
     assert mit == ohne, (ohne, mit)
     assert daten["conflict_count"] == 0
+
+
+class _FremdeVerbindung:
+    """Wie im Lauf von 1.9.177: Müll, den erst die Speicherbereinigung abräumt (ein Zyklus) und der dabei einen Fehler mit Traceback protokolliert
+    -- dort eine Verbindung eines SingletonThreadPool aus einem früheren Test, angelegt in einem anderen Thread."""
+    def __init__(self):
+        self.selbst = self
+
+    def __del__(self):
+        try:
+            raise RuntimeError("SQLite objects created in a thread can only be used in that same thread.")
+        except RuntimeError:
+            logging.getLogger("sqlalchemy.pool.impl.SingletonThreadPool").exception("Exception during reset or similar")
+
+
+def test_abraeumen_mitten_im_zaehlen_verfaelscht_nichts(tafel, monkeypatch):
+    """Seit 1.9.183 (L1a-Korrekturen, Punkt 4): die Ursache des Wacklers von 1.9.177 nachgestellt -- fremder Müll liegt bereit, die
+    Speicherbereinigung läuft mitten in der Anfrage (hier beim dritten load_region_settings()). Ohne Bereinigung vor dem Zählen zählte der
+    Aufruf weniger Abfragen (der Traceback hält die Einstellungen fest); mit ihr ist der Müll schon weg."""
+    import app.planning as planung
+
+    db, client = tafel
+    a = _kolonne(db, "A")
+    create_slot(db, order_id=_auftrag(db).id, team_id=a.id, start_date=MONTAG, end_date=MONTAG)
+    _abfragen(db, client)
+    ohne, _ = _abfragen(db, client)
+    echt, aufrufe = planung.load_region_settings, [0]
+
+    def mit_bereinigung(db_):
+        aufrufe[0] += 1
+        if aufrufe[0] == 3:
+            gc.collect()
+        return echt(db_)
+
+    monkeypatch.setattr(planung, "load_region_settings", mit_bereinigung)
+    gc.disable()  # der Müll bleibt liegen, bis jemand abräumt -- nicht schon vor dem Zählen von selbst
+    try:
+        _FremdeVerbindung()
+        mit, _ = _abfragen(db, client)
+    finally:
+        gc.enable()
+    assert aufrufe[0] >= 3
+    assert mit == ohne, (ohne, mit)
 
 
 def test_konflikte_nur_fuer_einsaetze_im_zeitraum(tafel, monkeypatch):

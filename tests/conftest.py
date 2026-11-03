@@ -48,6 +48,7 @@ from app.auth import hash_password
 from app.database import Base, get_db
 from app.models import AppUser
 from tests.grunddaten_schalter import grunddaten_aus, ohne_grunddaten
+from tests import reihenfolge
 from tests.pg_schutz import liegen_gebliebene_schemas_loeschen, schema_waechter_einrichten
 from tests.uhr import uhr_festhalten
 from tests.zeitgrenze import Uhr, grenze_fuer, marker_anmelden, option_anmelden, schon_abgelaufen
@@ -137,6 +138,16 @@ def pytest_addoption(parser):
 
 def pytest_configure(config):
     marker_anmelden(config)
+    reihenfolge.einrichten(config)  # seit 1.9.183
+
+
+def pytest_runtest_logstart(nodeid, location):
+    """Seit 1.9.183: Reihenfolge der Tests je Testprozess mitschreiben (tests/reihenfolge.py) -- ein Wackler lässt sich so nachstellen."""
+    reihenfolge.gestartet(nodeid)
+
+
+def pytest_runtest_logreport(report):
+    reihenfolge.bericht(report)
 
 
 @pytest.hookimpl(hookwrapper=True)

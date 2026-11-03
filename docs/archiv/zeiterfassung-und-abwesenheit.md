@@ -1076,3 +1076,7 @@ Neu: `tests/test_v595_personalnummer_freigeben.py` (6 Tests) -- der Admin gibt e
 
 Angepasste Erwartungen (Regel 28), altes Soll -> neues Soll:
 - `klicktest_silvester` „Ada: der Server fragt“, „Ada: Sammeleintrag -- der Server fragt“, „Mia: der Server fragt“: „Bitte wählen und noch einmal senden.“ -> „Bitte prüfen und noch einmal senden.“; „Plantafel: Frage im Dialog“: „Bitte wählen und noch einmal eintragen.“ -> „Bitte prüfen und noch einmal eintragen.“
+
+### Umsetzung 1.9.183: Wackler test_v564 und Reihenfolge je Testprozess (Punkt 4)
+
+Nur Tests und Testablauf -- beschrieben im Archiv „Testablauf und Klicktest-Werkzeug“, Abschnitt „Wackler test_v564 geklärt, Reihenfolge je Testprozess“ (dort auch die Festlegungen 1.9.183).

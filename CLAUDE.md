@@ -1902,6 +1902,11 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
   `with uhr_festhalten():` (`tests/uhr.py`, laufende Uhr ab heute 10:00 Europe/Berlin über `app.berlin_time._utc_now`).
   `pytest --wanduhr 19:30` lässt die Suite laufen, als wäre es 19:30 -- die Gegenprobe ohne Warten auf den Abend.
 
+- **Reihenfolge je Testprozess** (seit 1.9.183): jeder Lauf schreibt je Arbeitsprozess, welche Tests er in welcher Reihenfolge ausführte
+  (`.pytest_cache/reihenfolge/gw*.txt`, `ERP_TEST_REIHENFOLGE`; nur der letzte Lauf -- nach einem roten Lauf kopieren); `python -m tests.reihenfolge
+  ORDNER` stellt ihn nach (`tests/reihenfolge.py`). Abfragen zählen nur mit `gc.collect()` davor und ohne Speicherbereinigung währenddessen
+  (`tests/test_v564_plantafel_leistung.py::Zaehler`): ein Fehler beim Abräumen einer fremden Verbindung hält sonst über seinen Traceback die
+  Objekte der Anfrage fest.
 - **`pytest -q` als Standard-Aufruf** (Regel 15 oben) -- bei über 1800 Tests erzeugt die volle
   Ausgabe (inkl. `DeprecationWarning`-Sammlung) allein schon zehntausende Zeilen, ohne bei einem
   grünen Lauf zusätzliche Information zu liefern. `pytest.ini` blendet die

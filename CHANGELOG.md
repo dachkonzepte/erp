@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.183 – test_v564 zählt ohne Speicherbereinigung mittendrin, Reihenfolge je Testprozess (L1a-Korrekturen, Punkt 4)
+
+Der Wackler von `test_v564_plantafel_leistung.py::test_alte_einsaetze_kosten_nichts` (1.9.177: 30 und 28 statt 31 und 31 Abfragen) ist geklärt: die Speicherbereinigung räumte mitten im ersten gezählten Aufruf eine Verbindung eines früheren Tests ab, deren Fehler samt Traceback die Objekte der Anfrage festhielt -- spätere Zugriffe fanden sie in der Sitzung und brauchten keine Abfrage. Wie verlangt ruft der Test die Tafel jetzt einmal leer auf, bevor er zählt; das allein schließt den Fall nicht aus, deshalb räumt `Zaehler` vor jedem gezählten Aufruf ab und lässt die Speicherbereinigung währenddessen ruhen. Die Erwartung bleibt (gleich viele Abfragen); ein neuer Test stellt die Ursache nach. Dazu schreibt jeder Testprozess die Reihenfolge seiner Tests mit (`tests/reihenfolge.py`, `.pytest_cache/reihenfolge/gw*.txt`), `python -m tests.reihenfolge` stellt einen Lauf nach.
+
 ## 1.9.182 – Rückfrage zu Silvester: „Bitte prüfen und noch einmal senden“ (L1a-Korrekturen, Punkt 3)
 
 Fragt der Server bei einem Urlaub über Silvester nach, ist die Antwort im Dialog schon vorausgewählt (ganzer Urlaubstag); „Bitte wählen und noch einmal senden“ passte dazu nicht. Die Zeile heißt jetzt „Bitte prüfen und noch einmal senden“ in „Zeiten“ und „Meine Zeiten“, „Bitte prüfen und noch einmal eintragen“ auf der Plantafel; die Vorauswahl bleibt. `tests/test_v592_silvester.py` hält den Text in allen drei Seiten fest.
