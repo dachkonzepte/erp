@@ -105,24 +105,21 @@ def soll_zeitraum(db: Session, employee_id: int, start: date, ende: date) -> dic
     return ergebnis
 
 
-# Vorgabe Tobias (Lohn L1a, Punkt 6): der 24.12. und der 31.12. an Wochentagen zählen je 0,5 Tag Urlaub (halbe Sollzeit); was mit der anderen
-# Hälfte ist, klärt er noch. Time 4 führte den 31.12.2025 als ganzen Urlaubstag (LIESMICH 5).
-URLAUB_HALBE_TAGE = ((12, 24), (12, 31))
 HALB = Decimal("0.5")
 
 
-def anteil(tag: date, kategorie: str | None, halber_tag: bool = False) -> Decimal:
-    """Welcher Teil des Tags eine Abwesenheit ist: ein halber Urlaubstag und Urlaub am 24.12. oder 31.12. je 0,5, sonst 1."""
-    if halber_tag or (kategorie == "urlaub" and (tag.month, tag.day) in URLAUB_HALBE_TAGE):
-        return HALB
-    return Decimal("1")
+def anteil(halber_tag: bool = False) -> Decimal:
+    """Welcher Teil des Tags eine Abwesenheit ist: ein halber Urlaubstag 0,5, sonst 1. Seit 1.9.174 (L1a-Nachtrag, Punkt 1) ohne die
+    Halbierung von Urlaub am 24.12. und 31.12. (1.9.171–1.9.173 je 0,5, Festlegung 1.9.171 Nr. 2 zurückgezogen)."""
+    return HALB if halber_tag else Decimal("1")
 
 
 def abwesenheit_tage(db: Session, employee_id: int, start: date, ende: date, *, kategorie: str | None, halber_tag: bool = False,
                      feiertage: dict | None = None) -> dict:
     """Seit 1.9.171 (Lohn L1a, Punkt 6): wie viele Tage und Stunden eine Abwesenheit zählt -- nur Tage mit Sollzeit, ohne gesetzliche
-    Feiertage (dort gilt der Feiertag), je Tag mit ihrem Anteil (anteil()). Stunden = Sollzeit × Anteil. feiertage: {Tag: Name} des
-    Bundeslands, sonst hier gelesen. Für die Anzeige („2,5 Arbeitstage“), das Urlaubskonto (L2) und den Export (L1b)."""
+    Feiertage (dort gilt der Feiertag), je Tag mit ihrem Anteil (anteil(): ein halber Urlaubstag 0,5). Stunden = Sollzeit × Anteil.
+    feiertage: {Tag: Name} des Bundeslands, sonst hier gelesen. Für die Anzeige („2,5 Arbeitstage“), das Urlaubskonto (L2) und den Export
+    (L1b)."""
     if feiertage is None:
         from .planning import automatic_public_holidays, load_region_settings  # lokal: planning importiert viel
         feiertage = automatic_public_holidays(load_region_settings(db).federal_state_code, range(start.year, ende.year + 1))
@@ -130,7 +127,7 @@ def abwesenheit_tage(db: Session, employee_id: int, start: date, ende: date, *, 
     for tag, soll_tag in soll_zeitraum(db, employee_id, start, ende).items():
         if soll_tag <= 0 or tag in feiertage:
             continue
-        a = anteil(tag, kategorie, halber_tag)
+        a = anteil(halber_tag)
         tage += a
         stunden += round_hours(soll_tag * a)
         je_tag.append({"tag": tag, "anteil": a, "stunden": round_hours(soll_tag * a)})

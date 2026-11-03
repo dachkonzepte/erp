@@ -1,7 +1,7 @@
 """Version 1.9.171 (Lohn L1a, Punkt 6, Entscheidungen Tobias E9 und „Halbe Tage“): Sammeleintrag und halbe Urlaubstage.
 
     halber Tag    Urlaub an einem Tag als halber Tag: halbe Sollzeit, zählt 0,5 Tag; sonst 422
-    24.12./31.12. Urlaub an diesen Tagen (Wochentag) zählt je 0,5 Tag, ohne Häkchen
+    24.12./31.12. 1.9.171–1.9.173 zählte Urlaub an diesen Tagen je 0,5 Tag; seit 1.9.174 (L1a-Nachtrag, Punkt 1) ein ganzer Tag
     Tage          nach der Sollzeit der Person (app/sollzeit.py::abwesenheit_tage()): ohne Tage ohne Soll und gesetzliche Feiertage
     Sammeleintrag POST /api/absence-requests/sammel -- Admin gleich genehmigt, Büro – Finanzen Anträge, sonst 403; alles oder nichts
 
@@ -70,12 +70,15 @@ def test_halber_tag_nur_urlaub_an_einem_tag(welt, kategorie, von, bis):
     assert r.status_code == 422 and "halber Tag geht nur bei Urlaub" in r.json()["detail"]
 
 
-def test_weihnachten_und_silvester_je_halb(welt):
-    """21.12.–31.12.2026: Mo–Mi je 1, Do 24.12. 0,5, Fr 25.12. Feiertag, Mo–Mi je 1, Do 31.12. 0,5 -> 7 Tage, 52,50 h."""
-    assert _tage(welt, welt["mia"], date(2026, 12, 21), date(2026, 12, 31)) == (D("7"), D("52.50"))
-    assert _tage(welt, welt["mia"], date(2026, 12, 24), date(2026, 12, 24)) == (D("0.5"), D("3.75"))
-    assert _tage(welt, welt["mia"], date(2027, 12, 31), date(2027, 12, 31)) == (D("0.5"), D("3.75"))  # Freitag
-    assert _tage(welt, welt["mia"], date(2026, 12, 24), date(2026, 12, 24), kategorie="krankheit") == (D("1"), D("7.50"))  # nur Urlaub
+def test_weihnachten_und_silvester_ganze_tage(welt):
+    """Seit 1.9.174 (Festlegung 1.9.171 Nr. 2 zurückgezogen): 21.12.–31.12.2026: Mo–Do je 1, Fr 25.12. Feiertag, Mo–Do je 1 -> 8 Tage, 60,00 h
+    (1.9.171–1.9.173: 24.12. und 31.12. je 0,5 -> 7 Tage, 52,50 h)."""
+    assert _tage(welt, welt["mia"], date(2026, 12, 21), date(2026, 12, 31)) == (D("8"), D("60.00"))
+    assert _tage(welt, welt["mia"], date(2026, 12, 24), date(2026, 12, 24)) == (D("1"), D("7.50"))
+    assert _tage(welt, welt["mia"], date(2027, 12, 31), date(2027, 12, 31)) == (D("1"), D("7.50"))  # Freitag
+    assert _tage(welt, welt["mia"], date(2026, 12, 24), date(2026, 12, 24), kategorie="krankheit") == (D("1"), D("7.50"))
+    # ein halber Tag bleibt eine Funktion, auch am 24.12.
+    assert _tage(welt, welt["mia"], date(2026, 12, 24), date(2026, 12, 24), halber_tag=True) == (D("0.5"), D("3.75"))
 
 
 def test_tage_nach_sollzeit(welt):
@@ -90,7 +93,7 @@ def test_zeiten_zeigt_halbe_tage(welt):
     create_request(db, employee_id=mia.id, absence_category="urlaub", start_date=date(2026, 12, 21), end_date=date(2026, 12, 31))
     a = _als(welt, "buero_finanzen").get("/api/zeiten/abwesenheiten").json()["antraege"]
     assert sorted((x["start_date"], x["halber_tag"], D(str(x["arbeitstage"]))) for x in a) == [
-        ("2026-12-07", True, D("0.5")), ("2026-12-21", False, D("7"))]
+        ("2026-12-07", True, D("0.5")), ("2026-12-21", False, D("8"))]  # seit 1.9.174 (1.9.171–1.9.173: 7)
 
 
 # --- Sammeleintrag ------------------------------------------------------------------------------------------------------------------------

@@ -3,7 +3,8 @@
     Ada (Admin, 1440)       „Zeiten → Abwesenheiten“ -> „Abwesenheit beantragen“; „Für mehrere Personen“: Kolonne 1 hakt Mia und Tom an, „Alle“
                             alle drei; Urlaub Mo 28.12.–Mi 30.12.2026 für alle -> Kai hat dort schon Urlaub: Meldung mit seinem Namen, nichts
                             eingetragen; nur Kolonne 1 -> „Eingetragen für 2 Personen“; „Halber Tag“ nur bei Urlaub an einem Tag; Mia am 23.12. halber
-                            Tag -> in der Liste „halber Tag · 0,5 Arbeitstage“; Urlaub 21.–24.12. zählt 3,5 -- Bilder
+                            Tag -> in der Liste „halber Tag · 0,5 Arbeitstage“; Urlaub 21.–24.12. zählt 4 (seit 1.9.174 ohne Halbierung des 24.12.,
+                            1.9.171–1.9.173: 3,5) -- Bilder
     Fin (Büro – Finanzen)   derselbe Dialog -> „Anträge gesendet für …“ (offen, nicht genehmigt)
     Mia (Monteurin, 1280)   „Meine Zeiten“ -> „+ Antrag“: „Halber Tag“ bei Urlaub an einem Tag, nicht bei Krankheit
     überall                 keine JS-Fehler
@@ -108,8 +109,8 @@ async def pruefen(tab, seed, p):
     p.pruefe("Ada: Tom 21.–24.12. eingetragen", await _senden(tab), "Eingetragen für 1 Person, Mo 21.12.–Do 24.12.2026")
     await tab.warte_auf_neu_geladene_liste("abwesenheitenLaden()", "#abwListe")
     zeilen = await tab.js("[...document.querySelectorAll('#abwListe .zeile-unter')].map(z=>z.innerText.split(' · ').slice(0,3).join(' · '))")
-    p.pruefe("Ada: halber Tag und 3,5 Arbeitstage in der Liste", ["Mi 23.12.2026 · halber Tag · 0,5 Arbeitstage" in zeilen,
-                                                                  "Mo 21.12.–Do 24.12.2026 · 3,5 Arbeitstage" in [" · ".join(z.split(" · ")[:2]) for z in zeilen]],
+    p.pruefe("Ada: halber Tag und 4 Arbeitstage in der Liste", ["Mi 23.12.2026 · halber Tag · 0,5 Arbeitstage" in zeilen,
+                                                                "Mo 21.12.–Do 24.12.2026 · 4 Arbeitstage" in [" · ".join(z.split(" · ")[:2]) for z in zeilen]],
              [True, True])
     await tab.bild("sammeleintrag_liste")
     p.pruefe("Ada: keine JS-Fehler", tab.fehler, [])

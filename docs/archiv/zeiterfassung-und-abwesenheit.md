@@ -871,7 +871,7 @@ Sammeleintrag: `app/absence_requests.py::sammel_eintragen()` (je Person `_antrag
 ### Festlegungen 1.9.171 (Bitte bestätigen)
 
 1. Ein halber Tag geht nur bei Urlaub und für einen einzelnen Tag (Vorgabe „Urlaub auch als halber Tag“); Krankheit und Freizeitausgleich bleiben ganze Tage.
-2. Der 24.12. und der 31.12. zählen je 0,5 Tag Urlaub, wenn sie in einem Urlaub liegen; ein Häkchen braucht es dafür nicht. Die andere Hälfte rechnet das ERP nicht (weder Arbeit noch frei), bis Tobias sie klärt. Time 4 hatte den 31.12.2025 als ganzen Tag (LIESMICH 5), den 24.12.2025 als Arbeitstag.
+2. ~~Der 24.12. und der 31.12. zählen je 0,5 Tag Urlaub, wenn sie in einem Urlaub liegen; ein Häkchen braucht es dafür nicht. Die andere Hälfte rechnet das ERP nicht (weder Arbeit noch frei), bis Tobias sie klärt. Time 4 hatte den 31.12.2025 als ganzen Tag (LIESMICH 5), den 24.12.2025 als Arbeitstag.~~ Zurückgezogen von Tobias (03.11.2026), entfällt ersatzlos seit 1.9.174; die beiden Tage regelt der Arbeitszeitkalender (1.9.175, 1.9.176).
 3. Arbeitstage am Antrag nach der Sollzeit der Person (bis 1.9.170 Montag bis Freitag für jeden); die Plantafel rechnet ihre Kapazität weiter je ganzem Tag.
 4. Sammeleintrag: beim Admin gleich genehmigt (wie „Abwesenheit eintragen“ auf der Plantafel), bei Büro – Finanzen offene Anträge, die der Admin entscheidet. Einzeln bleibt es wie bisher ein Antrag.
 5. Alles oder nichts, wie bei Schlechtwetter: wer schon abwesend ist oder einen offenen Antrag hat, muss abgewählt werden; die Meldung nennt jede Person.
@@ -905,3 +905,21 @@ Bei 1.9.169 nicht gefahren, mit 1.9.173 nachgeholt (`tests/test_v587_lohnarten.p
 `zuordnung()` nimmt eine vorhandene, aber leere Zeile der Art statt der Kategorie -> blieb grün. Festlegung 1.9.169 Nr. 2 („eine leere Art
 heißt wie die Kategorie“) war ungeprüft. Neu `test_geleerte_art_heisst_wie_die_kategorie` (Sonderurlaub gesetzt, dann geleert -> U/8000);
 die Gegenprobe ist damit rot.
+
+## Lohn L1a-Nachtrag (ab 1.9.174)
+
+Vorgabe Tobias (03.11.2026), je Punkt eine Version: 1 Festlegung 1.9.171 Nr. 2 zurückgezogen (keine automatische Halbierung von 24.12. und 31.12.), 2 Heiligabend und 3 Silvester im Arbeitszeitkalender (nicht im Code), 4 Personalnummern dauerhaft gesperrt (Festlegung 1.9.168 Nr. 3 neu), 5 Schlechtwetter an einem von Hand eingetragenen betriebsfreien Tag mit Rückfrage (Festlegung 1.9.170 Nr. 7 neu), 6 Festlegung 1.9.166 Nr. 1 neu gefasst (nur Doku).
+
+### Umsetzung 1.9.174: Urlaub am 24.12. und 31.12. wieder ganze Tage (Punkt 1)
+
+`app/sollzeit.py::anteil(halber_tag)` -- 0,5 nur für den ausdrücklich gewählten halben Urlaubstag; `URLAUB_HALBE_TAGE` entfällt. `abwesenheit_tage()` rechnet sonst unverändert (Tage mit Sollzeit, ohne gesetzliche Feiertage). Die Spalte `halber_tag` und die Migration `f6c3a8e25b19` bleiben.
+
+### Tests und Prüfung 1.9.174
+
+Gegenprobe: die Halbierung von Urlaub am 24.12./31.12. wieder in `abwesenheit_tage()` -> 3 rot (`test_v589::test_weihnachten_und_silvester_ganze_tage`, `::test_zeiten_zeigt_halbe_tage`, `test_v525::test_antrag_ueber_weihnachten_acht_arbeitstage`).
+
+Angepasste Erwartungen (Regel 28), altes Soll -> neues Soll:
+- `test_v589::test_weihnachten_und_silvester_je_halb`, jetzt `…_ganze_tage`: 21.–31.12.2026 7 Tage, 52,50 h -> 8 Tage, 60,00 h; 24.12.2026 und 31.12.2027 je 0,5 Tag, 3,75 h -> 1 Tag, 7,50 h; neu: ein halber Tag am 24.12. bleibt 0,5.
+- `test_v589::test_zeiten_zeigt_halbe_tage`: Urlaub 21.–31.12.2026 7 -> 8 Arbeitstage.
+- `test_v525::test_antrag_ueber_weihnachten_acht_arbeitstage`: 7 -> 8 Arbeitstage (wie bis 1.9.170).
+- `klicktest_sammeleintrag` „Ada: halber Tag und … Arbeitstage in der Liste“: Tom 21.–24.12. 3,5 -> 4 Arbeitstage.

@@ -33,15 +33,15 @@ def test_arbeitstage_ohne_feiertage_nrw(von, bis, tage):
 
 
 def test_antrag_ueber_weihnachten_acht_arbeitstage(welt):  # noqa: F811
-    """Angriff (bis 1.9.104: 10): Urlaub Mo 21.12.2026–Fr 01.01.2027 heißt am Antrag 7 Arbeitstage -- seit 1.9.171 zählen 24.12. und 31.12. je
-    0,5 (bis 1.9.170: 8)."""
+    """Angriff (bis 1.9.104: 10): Urlaub Mo 21.12.2026–Fr 01.01.2027 heißt am Antrag 8 Arbeitstage -- 1.9.171–1.9.173 zählten 24.12. und 31.12.
+    je 0,5 (7), seit 1.9.174 wieder ganze Tage (Festlegung 1.9.171 Nr. 2 zurückgezogen)."""
     db = welt["db"]
     db.add(EmployeeAbsenceRequest(employee_id=welt["tom"].id, absence_type="Urlaub", absence_category="urlaub", start_date=date(2026, 12, 21),
                                   end_date=date(2027, 1, 1), status="pending"))
     db.commit()
     client = welt["client"](db, zeiten_router.router, role="admin")
-    assert [a["arbeitstage"] for a in client.get("/api/zeiten/abwesenheiten").json()["antraege"]] == [7]
-    assert [a["arbeitstage"] for a in client.get("/api/zeiten/pruefen").json()["antraege"]] == [7]
+    assert [a["arbeitstage"] for a in client.get("/api/zeiten/abwesenheiten").json()["antraege"]] == [8]
+    assert [a["arbeitstage"] for a in client.get("/api/zeiten/pruefen").json()["antraege"]] == [8]
 
 
 def _lock(w, rolle, bis):
