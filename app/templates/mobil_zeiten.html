@@ -720,7 +720,7 @@ function binden(){
       .then(function(){el('adErgebnis').textContent='Antrag wurde gesendet.';ktZuruecksetzen(el('adKalenderFrage'));knopf.disabled=false})
       .catch(function(e){
         // seit 1.9.176: Silvester im Urlaub -- der Server fragt (409 mit rueckfrage), die Antwort geht beim nächsten Senden mit
-        if(e.status===409&&e.rueckfrage){ktFrageZeigen(el('adKalenderFrage'),e.rueckfrage);el('adStatus').textContent='Bitte wählen und noch einmal senden.'}
+        if(e.status===409&&e.rueckfrage){ktFrageZeigen(el('adKalenderFrage'),e.rueckfrage);el('adStatus').textContent='Bitte prüfen und noch einmal senden.'}
         else el('adStatus').textContent=e.message;
         knopf.disabled=false});
   });

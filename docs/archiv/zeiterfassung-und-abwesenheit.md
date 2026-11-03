@@ -1065,3 +1065,14 @@ Notiz für L1b (Vorgabe Tobias, noch nicht gebaut): sobald L1b Exporte ablegt, b
 ### Tests und Prüfung 1.9.181
 
 Neu: `tests/test_v595_personalnummer_freigeben.py` (6 Tests) -- der Admin gibt eine frühere Nummer frei (danach frei für Tom, Eintrag im Änderungsprotokoll), Büro – Finanzen, Büro – Auftrag und Monteurin 403 (nichts geändert), eine getragene Nummer 409, eine Mitarbeiternummer bei Gleichsetzung 409 (danach frei), nicht gemerkt 404, leer 422, Seite und Regel. Gegenproben: Prüfung „trägt sie jemand“ übergangen -> 2 rot; Recht der Lohnregeln statt nur Admin -> 1 rot; kein Eintrag im Änderungsprotokoll -> 1 rot. Klicktest neu: `klicktest_personalnummer_freigeben.py` (15 Prüfungen, drei Bilder). Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.182: Text der Rückfrage zu Silvester (Punkt 3)
+
+„Bitte wählen und noch einmal senden.“ -> „Bitte prüfen und noch einmal senden.“ in `zeiten.html` und `mobil_zeiten.html`, „Bitte wählen und noch einmal eintragen.“ -> „Bitte prüfen und noch einmal eintragen.“ in `planning.html` (dort heißt der Knopf „Eintragen“). Die Vorauswahl „Ganzer Urlaubstag (Vorschlag)“ in `_kalendertag_frage.html` bleibt.
+
+### Tests und Prüfung 1.9.182
+
+`tests/test_v592_silvester.py::test_seiten`: dazu je Seite „Bitte prüfen und noch einmal“ und kein „Bitte wählen und noch einmal“. Gegenprobe: der alte Text in `zeiten.html` zurück -> 1 rot.
+
+Angepasste Erwartungen (Regel 28), altes Soll -> neues Soll:
+- `klicktest_silvester` „Ada: der Server fragt“, „Ada: Sammeleintrag -- der Server fragt“, „Mia: der Server fragt“: „Bitte wählen und noch einmal senden.“ -> „Bitte prüfen und noch einmal senden.“; „Plantafel: Frage im Dialog“: „Bitte wählen und noch einmal eintragen.“ -> „Bitte prüfen und noch einmal eintragen.“

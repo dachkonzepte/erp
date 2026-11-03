@@ -81,7 +81,7 @@ async def pruefen(tab, seed, p):
     await tab.js("document.getElementById('abwNeu').click()")
     p.pruefe("Ada: keine Frage beim Öffnen", await tab.js("document.getElementById('adKalenderFrage').hidden"), True)
     await _setze(tab, {"adMitarbeiter": str(ids["mia"]), "adKategorie": "urlaub", "adVon": "2026-12-28", "adBis": "2027-01-08"})
-    p.pruefe("Ada: der Server fragt", await _senden(tab), "Bitte wählen und noch einmal senden.")
+    p.pruefe("Ada: der Server fragt", await _senden(tab), "Bitte prüfen und noch einmal senden.")
     p.pruefe("Ada: Frage mit Vorschlag Urlaubstag", await tab.js(FRAGE),
              [True, "Do 31.12.2026 (Silvester) liegt im Urlaub. Wie zählt der Tag?", ["urlaub*", "frei"]])
     await tab.bild("silvester_zeiten_frage")
@@ -95,7 +95,7 @@ async def pruefen(tab, seed, p):
     await tab.js("{const m=document.getElementById('adMehrere');m.checked=true;m.dispatchEvent(new Event('change'))}")
     await tab.js(f"document.querySelector('[data-ad-person=\"{ids['tom']}\"]').checked=true;document.querySelector('[data-ad-person=\"{ids['kim']}\"]').checked=true")
     await _setze(tab, {"adKategorie": "urlaub", "adVon": "2026-12-30", "adBis": "2026-12-31"})
-    p.pruefe("Ada: Sammeleintrag -- der Server fragt", await _senden(tab), "Bitte wählen und noch einmal senden.")
+    p.pruefe("Ada: Sammeleintrag -- der Server fragt", await _senden(tab), "Bitte prüfen und noch einmal senden.")
     p.pruefe("Ada: Sammeleintrag mit dem Vorschlag", await _senden(tab), "Eingetragen für 2 Personen, Mi 30.12.–Do 31.12.2026")
     await tab.warte_auf_neu_geladene_liste("abwesenheitenLaden()", "#abwListe")
     zeilen = await _zeilen(tab)
@@ -116,7 +116,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Plantafel: Frage im Dialog", await tab.js(
         "[document.getElementById('absenceStatus').textContent,!document.getElementById('adKalenderFrage').hidden,"
         "[...document.querySelectorAll('#adKalenderFrage input[type=radio]')].map(r=>r.value+(r.checked?'*':''))]"),
-        ["Bitte wählen und noch einmal eintragen.", True, ["urlaub*", "frei"]])
+        ["Bitte prüfen und noch einmal eintragen.", True, ["urlaub*", "frei"]])
     await tab.js("document.getElementById('absenceStatus').textContent='';void saveAbsence()")
     await tab.warten("document.getElementById('absenceStatus').textContent.length>0")
     await tab.warte_auf_ruhe()
@@ -129,7 +129,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Mia: Meine Zeiten geladen", await tab.oeffnen("/mobil/zeiten", MEINE_BEREIT), True)
     await tab.js("document.getElementById('antragKnopf').click()")
     await _setze(tab, {"adKategorie": "urlaub", "adVon": "2027-12-27", "adBis": "2027-12-31"})
-    p.pruefe("Mia: der Server fragt", await _senden(tab), "Bitte wählen und noch einmal senden.")
+    p.pruefe("Mia: der Server fragt", await _senden(tab), "Bitte prüfen und noch einmal senden.")
     p.pruefe("Mia: Frage mit Vorschlag Urlaubstag", await tab.js(FRAGE),
              [True, "Fr 31.12.2027 (Silvester) liegt im Urlaub. Wie zählt der Tag?", ["urlaub*", "frei"]])
     await tab.bild("silvester_meine_zeiten_frage")

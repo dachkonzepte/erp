@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.182 – Rückfrage zu Silvester: „Bitte prüfen und noch einmal senden“ (L1a-Korrekturen, Punkt 3)
+
+Fragt der Server bei einem Urlaub über Silvester nach, ist die Antwort im Dialog schon vorausgewählt (ganzer Urlaubstag); „Bitte wählen und noch einmal senden“ passte dazu nicht. Die Zeile heißt jetzt „Bitte prüfen und noch einmal senden“ in „Zeiten“ und „Meine Zeiten“, „Bitte prüfen und noch einmal eintragen“ auf der Plantafel; die Vorauswahl bleibt. `tests/test_v592_silvester.py` hält den Text in allen drei Seiten fest.
+
 ## 1.9.181 – Der Admin gibt eine gemerkte Personalnummer frei (L1a-Korrekturen, Punkt 2)
 
 Eine gemerkte Personalnummer (seit 1.9.177 dauerhaft gesperrt) kann der Admin wieder freigeben, solange sie niemand trägt -- keine Lohnstammdaten mit dieser Nummer, bei „DATEV-Nr. = ERP-Nr.“ keine Mitarbeiternummer, sonst 409 mit dem Namen. In den Einstellungen steht beim Admin neben jeder früheren Nummer „freigeben“; der Dialog warnt (DATEV führte zwei Personen unter einer Nummer, wenn sie schon abgerechnet wurde -- nur nach einem Tippfehler freigeben), die Freigabe steht in der Änderungshistorie. Büro – Finanzen sieht den Knopf nicht, der Server lehnt mit 403 ab (`app/permissions.py::darf_personalnummer_freigeben()`, `POST /api/time-backoffice/personalnummern/freigeben`). Festlegung 1.9.177 Nr. 3 ist neu gefasst; für L1b festgehalten: eine Nummer aus einem abgelegten Export bleibt gesperrt. Neu: `tests/test_v595_personalnummer_freigeben.py`, `scripts/klicktest_personalnummer_freigeben.py`.

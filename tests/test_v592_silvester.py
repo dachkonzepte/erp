@@ -158,6 +158,8 @@ def test_seiten():
         text = (vj.TEMPLATES / seite).read_text(encoding="utf-8")
         for teil in ('id="adKalenderFrage"', "kalendertag_urlaub:ktWahl(", "ktFrageZeigen(", "f.rueckfrage="):
             assert teil in text, (seite, teil)
+        # seit 1.9.182 (L1a-Korrekturen, Punkt 3): die Antwort ist vorausgewählt -- „prüfen“, nicht „wählen“ (bis 1.9.181)
+        assert "Bitte prüfen und noch einmal" in text and "Bitte wählen und noch einmal" not in text, seite
 
 
 # --- Migration 2474667579d8 -----------------------------------------------------------------------------------------------------------------

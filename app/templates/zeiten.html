@@ -924,7 +924,7 @@ function abwSenden(){
 }
 // seit 1.9.176: Silvester im Urlaub -- der Server fragt (409 mit rueckfrage), die Antwort geht beim nächsten Senden mit
 function abwFehler(e){
-  if(e.status===409&&e.rueckfrage){ktFrageZeigen(el('adKalenderFrage'),e.rueckfrage);el('adStatus').textContent='Bitte wählen und noch einmal senden.';return}
+  if(e.status===409&&e.rueckfrage){ktFrageZeigen(el('adKalenderFrage'),e.rueckfrage);el('adStatus').textContent='Bitte prüfen und noch einmal senden.';return}
   el('adStatus').textContent=e.message;
 }
 // Seit 1.9.171 (E9): dieselbe Abwesenheit für die angehakten Personen -- beim Admin gleich genehmigt, sonst Anträge; geht es für eine Person
