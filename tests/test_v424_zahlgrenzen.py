@@ -161,6 +161,8 @@ ABGLEICH = [
     Z("settings.html", "id=modelValidFrom", ("WorkTimeModelUpsert.valid_from_week",)),
     Z("settings.html", "id=modelValidTo", ("WorkTimeModelUpsert.valid_to_week",)),
     # seit 1.9.167 (Lohn L1a, Punkt 2): eigene Sollzeit je Wochentag, 0 bis 24 h (Grenze im Prüfer des Schemas, die Werte stehen in einem dict)
+    # seit 1.9.175 (L1a-Nachtrag, Punkt 2): Sollzeit eines Tags im Arbeitszeitkalender, leer = Arbeitszeitmodell
+    Z("settings.html", "id=kdSoll", ("ArbeitszeitKalendertagIn.sollzeit",)),
     *[Z("settings.html", f"id=sz{tag}", (), code={"min": _g(0), "max": _g(24)}, beleg=("app/schemas.py", "wert < 0 or wert > 24"))
       for tag in ("Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag")],
     Z("settings.html", "data-feld=Pausenregel – über Brutto-Stunden", ("WorkTimeBreakRuleInput.threshold_hours",),

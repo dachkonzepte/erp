@@ -244,6 +244,11 @@
     <div class="karte-kopf"><h2 id="abwTitel">Anträge</h2><span class="karte-zahl" id="abwZahl"></span></div>
     <div id="abwListe"></div>
   </section>
+  {# seit 1.9.175 (L1a-Nachtrag, Punkt 2): die nächsten Tage des Arbeitszeitkalenders -- ihre Abwesenheit gilt von selbst, ohne Antrag #}
+  <section class="karte" aria-labelledby="abwKalenderTitel" id="abwKalender" hidden>
+    <div class="karte-kopf"><h2 id="abwKalenderTitel">Arbeitszeitkalender</h2></div>
+    <div id="abwKalenderListe"></div>
+  </section>
 </section>
 
 {% if lohndaten %}
@@ -812,6 +817,13 @@ function abwesenheitenZeichnen(d){
   el('abwZahl').textContent=d.antraege.length+(d.antraege.length===1?' Antrag':' Anträge');
   el('abwListe').innerHTML=d.antraege.length?d.antraege.map(abwesenheitHtml).join('')
     :'<p class="leer" style="margin:0;padding:10px 0;font-size:14px;color:var(--ds-text-2)">Keine Anträge'+(el('abwStatus').value==='pending'?' offen':'')+'.</p>';
+  // seit 1.9.175 (L1a-Nachtrag, Punkt 2): die nächsten Tage des Arbeitszeitkalenders -- die Abwesenheit gilt von selbst, ohne Antrag
+  var kal=d.kalender||[];
+  el('abwKalender').hidden=!kal.length;
+  el('abwKalenderListe').innerHTML=kal.map(function(t){
+    return '<div class="zeile"><div class="zeile-text"><span class="zeile-name">'+esc(t.abwesenheit)+'</span><span class="zeile-unter">'
+      +esc(abwZeitraum(t.tag,t.tag)+(t.sollzeit!==null?' · Sollzeit '+zahlText(t.sollzeit,2)+' h':'')+' · für '+t.fuer+' · gilt von selbst, ohne Antrag')
+      +'</span></div></div>'}).join('');
   antragHervorheben();
 }
 // ?absence= (Freigabe auf dem Dashboard, frühere Adresse /time-backoffice?absence=): den Antrag einmal hervorheben und ins Bild holen --

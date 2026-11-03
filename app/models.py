@@ -2786,6 +2786,32 @@ class EmployeeTargetHours(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class ArbeitszeitKalendertag(Base):
+    """Arbeitszeitkalender (seit 1.9.175, L1a-Nachtrag, Punkt 2, Vorgabe Tobias): ein Tag, der jedes Jahr am selben Datum anders läuft -- z. B.
+    Heiligabend: Sollzeit 7,00 h statt Modellwert (leer = Modellwert) und für jede betroffene Person von selbst die Abwesenheit „Heiligabend –
+    bezahlte Freistellung“. im_urlaub: was ein Urlaub über den Tag zählt (app/arbeitszeitkalender.py::IM_URLAUB). Nur gewerbliche, nur Montag bis
+    Freitag, je nach Häkchen. Die Abwesenheit wird nicht gespeichert, sondern je Tag abgeleitet (app/arbeitszeitkalender.py); die Zuordnung für den
+    Export steht unter „kalender:<schluessel>“ (app/lohnarten.py). Abschalten statt löschen (aktiv)."""
+    __tablename__ = "arbeitszeit_kalendertage"
+    __table_args__ = (UniqueConstraint("schluessel", name="uq_arbeitszeit_kalendertag_schluessel"),
+                      UniqueConstraint("monat", "tag", name="uq_arbeitszeit_kalendertag_datum"))
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    schluessel: Mapped[str] = mapped_column(String(40))
+    name: Mapped[str] = mapped_column(String(120))
+    monat: Mapped[int] = mapped_column()
+    tag: Mapped[int] = mapped_column()
+    sollzeit: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+    abwesenheit: Mapped[str] = mapped_column(String(120))
+    bezahlt: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    im_urlaub: Mapped[str] = mapped_column(String(20), default="kein_urlaubstag", server_default="kein_urlaubstag")
+    nur_gewerblich: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    nur_mo_fr: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    aktiv: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class TimeBackofficeAdvancedSettings(Base):
     """Erweiterte Backoffice-Einstellungen ohne ALTER TABLE auf Bestandsinstallationen."""
     __tablename__ = "time_backoffice_advanced_settings"

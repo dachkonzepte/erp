@@ -3802,6 +3802,21 @@ class LohnartZuordnungUpdate(BaseModel):
     monatszeile: bool
 
 
+class ArbeitszeitKalendertagIn(BaseModel):
+    """Seit 1.9.175 (L1a-Nachtrag, Punkt 2): ein Tag des Arbeitszeitkalenders anlegen oder ändern -- alle Felder Pflicht (kein Vorgabewert,
+    Regel 22), sollzeit leer = Modellwert. Datum, „Im Urlaub“ und doppelte Tage prüft app/arbeitszeitkalender.py."""
+    name: str = Field(max_length=120)
+    monat: int = Field(ge=1, le=12)
+    tag: int = Field(ge=1, le=31)
+    sollzeit: Decimal | None = Field(ge=0, le=24)
+    abwesenheit: str = Field(max_length=120)
+    bezahlt: bool
+    im_urlaub: str = Field(max_length=20)
+    nur_gewerblich: bool
+    nur_mo_fr: bool
+    aktiv: bool
+
+
 class EmployeeTargetHoursCreate(BaseModel):
     """Seit 1.9.167 (Lohn L1a, Punkt 2): eigene Sollzeit ab einem Tag -- werte Montag bis Sonntag in Stunden, ohne werte „ab hier wieder
     Tarif“. Grenzen wie im Browser (0 bis 24 h je Tag, tests/test_v424_zahlgrenzen.py)."""

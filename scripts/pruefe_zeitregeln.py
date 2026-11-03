@@ -12,6 +12,7 @@ Vor dem Probemonat (Dezember 2026) und vor dem ersten echten Export: was auf dem
     Export-Umfang         Anzahl je alles / nur Abwesenheiten / nichts; Eintritt und Austritt; eigene Sollzeiten
     Feiertage             Bundesland, „Feiertage automatisch“, die gesetzlichen Feiertage dieses und des nächsten Jahres
     von Hand              eingetragene betriebsfreie Tage (sie zählen nicht als Feiertag F)
+    Arbeitszeitkalender   seit 1.9.175: Tage, die jedes Jahr anders laufen (Heiligabend …) mit Sollzeit, Abwesenheit, für wen
     Zuordnung             Kennzeichen und Lohnart je Eintrag, was nicht exportiert wird
 
 Aufruf auf dem Server, im Projektverzeichnis, mit geladener Umgebung und dem Python des Servers:
@@ -171,12 +172,24 @@ def _feiertage(db, stand: Stand, heute: date) -> None:
         stand.zeile(f"  {_tag(tag)} {name}{'' if aktiv else ' (inaktiv)'}")
 
 
+def _kalender(db, stand: Stand) -> None:
+    """Seit 1.9.175 (L1a-Nachtrag): die Tage des Arbeitszeitkalenders -- kein Befund."""
+    from app.models import ArbeitszeitKalendertag
+    tage = list(db.scalars(select(ArbeitszeitKalendertag).order_by(ArbeitszeitKalendertag.monat, ArbeitszeitKalendertag.tag)))
+    stand.zeile(f"Arbeitszeitkalender: {len(tage)} Tage")
+    for e in tage:
+        soll = f"Sollzeit {_h(e.sollzeit)} h" if e.sollzeit is not None else "Sollzeit des Modells"
+        stand.zeile(f"  {e.tag:02d}.{e.monat:02d}. {e.name}: {soll}, {e.abwesenheit}, im Urlaub {e.im_urlaub}, "
+                    f"{'gewerbliche' if e.nur_gewerblich else 'alle'}{', nur Mo–Fr' if e.nur_mo_fr else ''}{'' if e.aktiv else ' (abgeschaltet)'}")
+
+
 def _zuordnung(db, stand: Stand) -> None:
     from app.models import LohnartZuordnung
     zeilen = list(db.scalars(select(LohnartZuordnung).order_by(LohnartZuordnung.schluessel)))
     stand.zeile(f"Zuordnung für den DATEV-Export: {len(zeilen)} Einträge")
     for z in zeilen:
-        wert = ("Monatszeile " + z.lohnart) if z.monatszeile and z.lohnart else (f"{z.kennzeichen} / {z.lohnart}" if z.lohnart else "nicht exportiert")
+        wert = ("Monatszeile " + z.lohnart) if z.monatszeile and z.lohnart else (f"{z.kennzeichen} / {z.lohnart}" if z.lohnart else
+                                                                                (f"{z.kennzeichen} / Lohnart offen" if z.kennzeichen else "nicht exportiert"))
         stand.zeile(f"  {z.schluessel}: {wert}")
 
 
@@ -192,6 +205,7 @@ def pruefen(db, heute: date | None = None) -> Stand:
     _modelle(db, stand)
     _personen(db, stand, heute)
     _feiertage(db, stand, heute)
+    _kalender(db, stand)
     _zuordnung(db, stand)
     return stand
 

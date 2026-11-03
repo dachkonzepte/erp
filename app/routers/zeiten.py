@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from ..absence_requests import arten_fuer_auswahl, list_requests, request_to_dict
+from ..arbeitszeitkalender import naechste as naechste_kalendertage
 from ..berlin_time import berlin_today
 from ..database import get_db
 from ..meldungen import KEIN_MITARBEITER
@@ -157,6 +158,8 @@ def zeiten_abwesenheiten(status: str | None = Query(None, max_length=20), db: Se
         "offen": offen,
         # seit 1.9.171 (Lohn L1a, Punkt 6, E9): Kolonnen mit ihren aktiven Mitgliedern für den Sammeleintrag -- nur, wer für andere einträgt
         "kolonnen": _kolonnen(db) if aller else [],
+        # seit 1.9.175 (L1a-Nachtrag, Punkt 2): die nächsten Tage des Arbeitszeitkalenders -- ihre Abwesenheit gilt von selbst, ohne Antrag
+        "kalender": naechste_kalendertage(db, berlin_today()),
     }
 
 

@@ -118,6 +118,7 @@ def _werte() -> dict[str, dict[str, str]]:
         "allocation_type": {"labor_rate": "Stundenkostenverrechnungssatz", "variable_overhead": "Variable Gemeinkosten",
                             "excluded": "Nicht zugeordnet"},
         "employee_group": {"gewerblich": "Gewerblich", "kaufmaennisch": "Kaufmännisch"},
+        "im_urlaub": {"kein_urlaubstag": "Kein Urlaubstag", "fragen": "Rückfrage: Urlaubstag oder frei"},  # seit 1.9.175, Arbeitszeitkalender
         "contract_basis": CONTRACT_BASES,
         "work_kind": gross(WORK_KINDS),
         "kind": {"beleg": "Beleg", "foto": "Foto", "unterschrift": "Unterschrift", **gross(KONTAKT_ARTEN), **gross(EVENT_KINDS),

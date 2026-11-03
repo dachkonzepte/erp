@@ -142,6 +142,11 @@ def _antrag_anlegen(
         raise ValueError("Schlechtwetter wird je Tag eingetragen.")
     if halber_tag and (absence_category != "urlaub" or end_date != start_date):  # seit 1.9.171 (Lohn L1a, Punkt 6)
         raise ValueError("Ein halber Tag geht nur bei Urlaub und für einen einzelnen Tag.")
+    if halber_tag:  # seit 1.9.175 (L1a-Nachtrag, Punkt 2): an einem Tag des Arbeitszeitkalenders gilt dessen Abwesenheit
+        from .arbeitszeitkalender import kalendertag
+        eintrag = kalendertag(db, employee_id, start_date)
+        if eintrag is not None:
+            raise ValueError(f"Am {start_date:%d.%m.%Y} gilt „{eintrag.abwesenheit}“ – ein halber Urlaubstag geht dort nicht.")
     overlap_pending = db.scalar(
         select(EmployeeAbsenceRequest.id).where(
             EmployeeAbsenceRequest.employee_id == employee_id,

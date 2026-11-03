@@ -10,6 +10,9 @@ Was steht für eine Person an einem Tag in der Lohndatei, mit welchem Kennzeiche
     schlechtwetter:sommer     Ausfalltag 01.04.–30.11. (leer, bis der Juni-Export da ist)
     art:<Art>                 eine Art mit eigener Zuordnung geht ihrer Kategorie vor (vorbelegt Weiterbildung 1 / 1000 mit Sollzeit, wie
                               Fortbildung in Time 4); ohne eigene gilt die Kategorie
+    kalender:<Schlüssel>      seit 1.9.175: die Abwesenheit eines Tags im Arbeitszeitkalender (app/arbeitszeitkalender.py) mit der Sollzeit des
+                              Tags (vorbelegt Heiligabend BF, Lohnart offen -- die Lohnart nennt das Lohnbüro); hier darf das Kennzeichen ohne
+                              Lohnart stehen, exportiert wird die Zeile erst mit Lohnart
 
 Leer heißt: nicht exportiert -- die Liste in den Einstellungen nennt es, der Export (L1b) zeigt es unter „Nicht im Export“. Berufsschule,
 unbezahlt und Freizeitausgleich bleiben leer, bis das Lohnbüro antwortet (LB1). Berater- und Mandantennummer stehen nicht hier.
@@ -44,6 +47,7 @@ START = {
     "kategorie:krankheit": ("K", "1650", False),
     "schlechtwetter:winter": (None, "8110", True),
     "art:weiterbildung": ("1", "1000", False),
+    "kalender:heiligabend": ("BF", None, False),  # seit 1.9.175 (L1a-Nachtrag, Punkt 2): Lohnart beim Lohnbüro
 }
 KENNZEICHEN_FORMAT = re.compile(r"^[0-9A-Z]{1,2}$")
 LOHNART_FORMAT = re.compile(r"^[0-9]{1,4}$")
@@ -51,6 +55,10 @@ LOHNART_FORMAT = re.compile(r"^[0-9]{1,4}$")
 
 def art_schluessel(art: str | None) -> str:
     return "art:" + (art or "").strip().casefold()
+
+
+def kalender_schluessel(eintrag_schluessel: str) -> str:
+    return "kalender:" + eintrag_schluessel
 
 
 def schlechtwetter_schluessel(tag: date) -> str:
@@ -62,7 +70,7 @@ def ensure_default_lohnart_zuordnungen(db: Session) -> None:
     """Anlegeschritt von app.grunddaten.anlegen(): legt fehlende feste Zeilen an, vorbelegt nach START, sonst leer -- rührt vorhandene nie an
     (ein von Hand geleerter Eintrag bleibt leer). flush, kein commit; je Zeile ein SAVEPOINT (UNIQUE auf schluessel)."""
     vorhanden = set(db.scalars(select(LohnartZuordnung.schluessel)).all())
-    for schluessel in [s for s, _b, _h in FEST] + [s for s in START if s.startswith("art:")]:
+    for schluessel in [s for s, _b, _h in FEST] + [s for s in START if s.startswith(("art:", "kalender:"))]:
         if schluessel in vorhanden:
             continue
         kennzeichen, lohnart, monatszeile = START.get(schluessel, (None, None, False))
@@ -103,7 +111,18 @@ def fest(db: Session, schluessel: str) -> dict | None:
     return _wert(_alle(db).get(schluessel))
 
 
+def kalender(db: Session, eintrag_schluessel: str) -> dict | None:
+    """Seit 1.9.175: Kennzeichen und Lohnart der Abwesenheit eines Kalendertags -- auch ohne Lohnart („BF“, Lohnart offen); exportiert wird
+    sie erst mit Lohnart (exportiert). None: beides leer."""
+    z = _alle(db).get(kalender_schluessel(eintrag_schluessel))
+    if z is None or not (z.kennzeichen or z.lohnart):
+        return None
+    return {"kennzeichen": z.kennzeichen, "lohnart": z.lohnart, "schluessel": z.schluessel, "exportiert": _gesetzt(z)}
+
+
 def _text(z: LohnartZuordnung | None) -> str:
+    if z is not None and z.kennzeichen and not z.lohnart:
+        return f"{z.kennzeichen} / Lohnart offen – nicht exportiert"
     if not _gesetzt(z):
         return "nicht exportiert"
     if z.monatszeile:
@@ -121,6 +140,15 @@ def liste(db: Session) -> list[dict]:
         zeilen.append({"schluessel": schluessel, "bezeichnung": bezeichnung, "gruppe": "fest", "stunden": stunden,
                        "kennzeichen": z.kennzeichen if z else None, "lohnart": z.lohnart if z else None, "monatszeile": bool(z and z.monatszeile),
                        "monatszeile_moeglich": schluessel.startswith("schlechtwetter:"), "wirkt": _text(z)})
+    # seit 1.9.175: je Tag des Arbeitszeitkalenders eine Zeile (auch abgeschaltete), Stunden = die Sollzeit des Tags
+    from .arbeitszeitkalender import datum_text, eintraege
+    for e in eintraege(db):
+        schluessel = kalender_schluessel(e.schluessel)
+        z = alle.get(schluessel)
+        stunden = f"{str(e.sollzeit).replace('.', ',')} h (Kalender)" if e.sollzeit is not None else "Sollzeit"
+        zeilen.append({"schluessel": schluessel, "bezeichnung": f"{e.abwesenheit} ({datum_text(e)})" + ("" if e.aktiv else " (abgeschaltet)"),
+                       "gruppe": "kalender", "stunden": stunden, "kennzeichen": z.kennzeichen if z else None,
+                       "lohnart": z.lohnart if z else None, "monatszeile": False, "monatszeile_moeglich": False, "wirkt": _text(z)})
     gruppe = get_option_group(db, "absence_types")
     arten = [(o.value, o.label, o.active) for o in sorted(gruppe.options if gruppe is not None else [], key=lambda o: (o.sort_order, o.id))]
     bekannt = {art_schluessel(v) for v, _l, _a in arten}
@@ -141,9 +169,12 @@ def liste(db: Session) -> list[dict]:
 
 def speichern(db: Session, schluessel: str, kennzeichen: str | None, lohnart: str | None, monatszeile: bool) -> LohnartZuordnung:
     """Eine Zeile setzen oder leeren (beides leer = nicht exportiert; die Zeile bleibt). Feste Schlüssel und „art:<Art>“; committet."""
+    from .arbeitszeitkalender import eintraege
+
     schluessel = (schluessel or "").strip()
     feste = {s for s, _b, _h in FEST}
-    if schluessel not in feste and not (schluessel.startswith("art:") and len(schluessel) > 4):
+    kalender_tage = {kalender_schluessel(e.schluessel) for e in eintraege(db)}
+    if schluessel not in feste and schluessel not in kalender_tage and not (schluessel.startswith("art:") and len(schluessel) > 4):
         raise ValueError("Unbekannter Eintrag der Zuordnung.")
     kennzeichen = (kennzeichen or "").strip().upper() or None
     lohnart = (lohnart or "").strip() or None
@@ -155,7 +186,7 @@ def speichern(db: Session, schluessel: str, kennzeichen: str | None, lohnart: st
         raise ValueError("Eine Monatszeile gibt es nur für Schlechtwetter.")
     if monatszeile and kennzeichen:
         raise ValueError("Eine Monatszeile hat kein Kennzeichen.")
-    if kennzeichen and not lohnart:
+    if kennzeichen and not lohnart and schluessel not in kalender_tage:  # seit 1.9.175 beim Kalendertag: Lohnart offen (Lohnbüro)
         raise ValueError("Zum Kennzeichen gehört eine Lohnart.")
     if lohnart and not kennzeichen and not monatszeile:
         raise ValueError("Zur Lohnart gehört ein Kennzeichen (oder bei Schlechtwetter die Monatszeile).")

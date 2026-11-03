@@ -138,6 +138,7 @@ def _kalkulation_anlegen(db: Session) -> None:
 
 def anlegen(db: Session) -> None:
     """Legt fehlende Grunddaten an, rührt vorhandene nie an. Idempotent; committet einmal am Ende."""
+    from .arbeitszeitkalender import ensure_default_kalendertage
     from .document_categories import ensure_default_categories
     from .document_layout import ensure_default_layout
     from .document_page_margins import ensure_default_margins
@@ -169,5 +170,7 @@ def anlegen(db: Session) -> None:
     ensure_default_work_time_models(db)  # nach time_backoffice_advanced_settings: setzt das Standardmodell
     ensure_default_layout(db)
     ensure_default_margins(db)
-    ensure_default_lohnart_zuordnungen(db)  # seit 1.9.169 (Lohn L1a, Punkt 4): feste Zeilen der Zuordnung, vorbelegt nach E7
+    ensure_default_kalendertage(db)  # seit 1.9.175 (L1a-Nachtrag, Punkt 2): Heiligabend im Arbeitszeitkalender
+    ensure_default_lohnart_zuordnungen(db)  # seit 1.9.169 (Lohn L1a, Punkt 4): feste Zeilen der Zuordnung, vorbelegt nach E7; seit 1.9.175
+    # auch die der vorbelegten Kalendertage (nach ensure_default_kalendertage)
     db.commit()

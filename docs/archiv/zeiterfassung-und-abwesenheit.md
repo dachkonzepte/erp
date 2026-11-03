@@ -923,3 +923,33 @@ Angepasste Erwartungen (Regel 28), altes Soll -> neues Soll:
 - `test_v589::test_zeiten_zeigt_halbe_tage`: Urlaub 21.–31.12.2026 7 -> 8 Arbeitstage.
 - `test_v525::test_antrag_ueber_weihnachten_acht_arbeitstage`: 7 -> 8 Arbeitstage (wie bis 1.9.170).
 - `klicktest_sammeleintrag` „Ada: halber Tag und … Arbeitstage in der Liste“: Tom 21.–24.12. 3,5 -> 4 Arbeitstage.
+
+### Umsetzung 1.9.175: Arbeitszeitkalender und Heiligabend (Punkt 2)
+
+`ArbeitszeitKalendertag` (Tabelle `arbeitszeit_kalendertage`, Migration `fcbfd2cea2da`, nur die Tabelle): Schlüssel (für die Zuordnung, aus dem Namen, bleibt), Name, Monat und Tag (eindeutig), Sollzeit (leer = Modellwert), Abwesenheit (Text), bezahlt, „Im Urlaub“ (`IM_URLAUB`: `kein_urlaubstag`), nur gewerbliche, nur Montag bis Freitag, aktiv. `app/arbeitszeitkalender.py`: `gilt()`/`fuer_tag()`/`kalendertag()` (aktiv, Datum, Wochentag, Gruppe), `abwesenheiten()` (je Tag mit Sollzeit: Name, Abwesenheit, Stunden = Sollzeit des Tags, bezahlt -- nicht gespeichert), `naechste()` (für „Zeiten“), `anlegen()`/`aendern()` (Prüfung: Name, Abwesenheit, Tag, „Im Urlaub“, 0–24 h, ein Tag je Datum; gleichzeitig angelegt endet an der Bedingung mit 422). Grunddaten: `ensure_default_kalendertage()` legt Heiligabend an, wenn der Schlüssel fehlt; `ensure_default_lohnart_zuordnungen()` danach die Zeile „kalender:heiligabend“ mit BF ohne Lohnart.
+
+`app/sollzeit.py::soll_zeitraum()`: ein Kalendertag mit Sollzeit geht Tarif und eigenen Werten vor (nur, wenn beschäftigt). `abwesenheit_tage()`: Kalendertage zählen nicht (es gilt deren Abwesenheit). `app/absence_requests.py::_antrag_anlegen()`: halber Urlaubstag an einem Kalendertag 422. `app/schlechtwetter.py::grund_gegen()`: Kalendertag 422 („gilt …“). `app/lohnarten.py`: Zeilen „kalender:<Schlüssel>“ in `liste()`, `kalender()` für den Export, Kennzeichen ohne Lohnart nur dort, `_text()` „BF / Lohnart offen – nicht exportiert“. Schnittstelle: `GET /api/time-backoffice/arbeitszeitkalender` (ab Büro – Auftrag), `POST` und `PUT …/{id}` (alle Felder Pflicht, `require_lohnregeln`). Änderungsprotokoll „Arbeitszeitkalender“ mit lesbaren Feldnamen. Seiten: Block „Arbeitszeitkalender“ mit Dialog in den Einstellungen (vor der Zuordnung, gesperrt wie der ganze Bereich ohne `darf_lohnregeln()`), Karte „Arbeitszeitkalender“ unter „Zeiten → Abwesenheiten“ (`GET /api/zeiten/abwesenheiten` liefert `kalender`).
+
+### Festlegungen 1.9.175 (Bitte bestätigen)
+
+1. Der Arbeitszeitkalender ist eine eigene Liste in Einstellungen → „Zeitregeln und DATEV“: je Tag Monat und Tag (gilt jedes Jahr), Sollzeit, Abwesenheit, bezahlt, „Im Urlaub“, nur gewerbliche, nur Montag bis Freitag, aktiv; ein Eintrag je Datum. Weitere Tage lassen sich anlegen. Ändern dürfen Admin und Büro – Finanzen (wie die Sollzeit, E10), Büro – Auftrag liest. Abschalten statt löschen.
+2. Die Abwesenheit des Kalenders wird nicht gespeichert, sondern je Tag abgeleitet: sie steht nicht unter den Anträgen, sondern in einer eigenen Karte „Arbeitszeitkalender“ unter „Zeiten → Abwesenheiten“, und lässt sich nicht einzeln löschen. Ändern sich Kalender, Funktion (gewerblich) oder Eintritt und Austritt, stimmt sie sofort.
+3. Die 7,00 h gelten wörtlich für alle gewerblichen Mitarbeiter, auch an einem Wochentag, an dem die eigene Sollzeit einer Teilzeitkraft 0 ist (z. B. Mo 24.12.2029 bei Di–Do 3,00 h): Soll 7,00 h, Freistellung 7,00 h. Vor dem Eintritt und nach dem Austritt gilt der Tag nicht.
+4. An einem Kalendertag zählt keine andere Abwesenheit: nicht nur Urlaub (Vorgabe), auch Krankheit, Fortbildung und die übrigen zählen ihn mit 0 -- es gilt die Freistellung. Ein halber Urlaubstag und Schlechtwetter werden dort abgelehnt (422).
+5. Je Kalendertag eine Zeile der Zuordnung „kalender:<Schlüssel>“; nur dort darf ein Kennzeichen ohne Lohnart stehen („BF / Lohnart offen – nicht exportiert“). Exportiert wird die Zeile erst mit Lohnart (L1b); sonst gilt weiter „Zum Kennzeichen gehört eine Lohnart“.
+6. Eine Änderung am Kalender gilt wie eine am Arbeitszeitmodell auch für zurückliegende Jahre (Festlegung 1.9.167 Nr. 4); die Seite sagt das.
+7. „Zeiten → Abwesenheiten“ zeigt die aktiven Kalendertage ab heute für dieses und das nächste Jahr, ohne Samstag und Sonntag bei „nur Mo–Fr“.
+
+Offen, nicht gebaut: die Plantafel kennt den Kalender noch nicht -- am 24.12. geplante gewerbliche Mitarbeiter stehen dort nicht als abwesend, die Kapazität rechnet den Tag wie bisher; „Meine Zeiten“ nennt die Freistellung nicht.
+
+### Tests und Prüfung 1.9.175
+
+Neu: `tests/test_v591_arbeitszeitkalender.py` (28 Tests) -- Vorbelegung samt Zuordnung, der Start legt nichts doppelt an und lässt Geändertes stehen, Sollzeit 2026 (Do), 2027 (Fr), 2028 (So), kaufmännisch, Teilzeit Di–Do am Do und am Mo 24.12.2029, vor dem Eintritt, Abwesenheit von selbst (nichts gespeichert), gebuchte Arbeit mindert sie nicht, Urlaub über Heiligabend (gewerblich 7, kaufmännisch 8 Tage), Krankheit 0, „Zeiten“ mit Arbeitstagen und Kalender, halber Urlaubstag nur kaufmännisch, kein Schlechtwetter, Rechte, anlegen/ändern/abschalten, fünf abgelehnte Eingaben, Pflichtfelder, 0–24 h, Zuordnung ohne Lohnart nur am Kalendertag, Prüfskript, Seiten, Migration auf einem Bestand unter SQLite und PostgreSQL. Gegenproben: Kalender-Sollzeit aus -> 5 rot; Kalendertage in `abwesenheit_tage()` mitgezählt -> 5 rot; „nur gewerbliche“ übergangen -> 4 rot; Anlegen mit der Rolle zum Lesen -> 1 rot; Schlechtwetter ohne Kalenderprüfung -> 1 rot. Klicktest neu: `klicktest_arbeitszeitkalender.py` (18 Prüfungen, drei Bilder).
+
+Angepasste Erwartungen (Regel 28), altes Soll -> neues Soll:
+- `test_v589::test_weihnachten_und_silvester_ganze_tage` (Mia gewerblich): 21.–31.12.2026 8 Tage, 60,00 h -> 7 Tage, 52,50 h; 24.12. 1 Tag, 7,50 h -> 0; Krankheit am 24.12. 1 Tag, 7,50 h -> 0; Aufbau: der halbe Tag am 23.12. statt 24.12. (0,5 Tag, 3,75 h bleibt).
+- `test_v589::test_zeiten_zeigt_halbe_tage`: Urlaub 21.–31.12.2026 8 -> 7 Arbeitstage.
+- `test_v525::test_antrag_ueber_weihnachten_acht_arbeitstage` (Tom gewerblich): 8 -> 7 Arbeitstage.
+- `test_v424::ABGLEICH`: Aufbau um das Feld `kdSoll` (Schema `ArbeitszeitKalendertagIn.sollzeit`, 0 bis 24 h).
+- `test_v109::test_time_backoffice_router_fully_uses_shared_dependency`: altes Soll mindestens 7-mal `_role_dep` und 10-mal `_regeln_dep`, neues Soll mindestens 8 und 12 (der Kalender liest mit `_role_dep`, legt an und ändert mit `_regeln_dep`; gefunden im Lauf der Suite).
+- `klicktest_sammeleintrag` „Ada: halber Tag und … Arbeitstage in der Liste“: Tom 21.–24.12. 4 -> 3 Arbeitstage.

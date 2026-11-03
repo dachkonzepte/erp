@@ -33,8 +33,9 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, require_lohndaten, require_lohnregeln, require_min_role
-from ..schemas import DatevNummernUpdate, EmployeePayrollSettingsOut, EmployeePayrollSettingsUpdate, EmployeeTargetHoursCreate, LohnartZuordnungUpdate, EmployeeWorkTimeModelBulkUpdate, EmployeeWorkTimeModelUpdate, TimeTrackingLockUpdate, TimeTrackingSettingsOut, TimeTrackingSettingsUpdate, WorkTimeModelUpsert
+from ..schemas import ArbeitszeitKalendertagIn, DatevNummernUpdate, EmployeePayrollSettingsOut, EmployeePayrollSettingsUpdate, EmployeeTargetHoursCreate, LohnartZuordnungUpdate, EmployeeWorkTimeModelBulkUpdate, EmployeeWorkTimeModelUpdate, TimeTrackingLockUpdate, TimeTrackingSettingsOut, TimeTrackingSettingsUpdate, WorkTimeModelUpsert
 from ..time_backoffice import DatevExportGesperrt, abschluss_hindernisse, abschluss_meldung, backoffice_summary, build_datev_export, set_datev_nummern, build_time_csv, build_timesheet_pdf, load_time_settings, payroll_rows, set_employee_payroll, set_time_lock, time_settings_dict, update_time_settings
+from ..arbeitszeitkalender import IM_URLAUB, KalendertagUngueltig, aendern as kalendertag_aendern, anlegen as kalendertag_anlegen, eintraege as kalender_eintraege, eintrag_dict as kalendertag_dict
 from ..lohnarten import liste as lohnarten_liste, speichern as lohnart_speichern
 from ..models import Employee
 from ..sollzeit import SollzeitGesperrt, zeile_anlegen as sollzeit_anlegen, zeile_dict, zeile_loeschen as sollzeit_loeschen, zeilen as sollzeit_zeilen
@@ -170,6 +171,35 @@ def put_lohnart(payload: LohnartZuordnungUpdate, db: Session = Depends(get_db, s
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return lohnarten_liste(db)
+
+
+@router.get("/api/time-backoffice/arbeitszeitkalender")
+def get_arbeitszeitkalender(db: Session = Depends(get_db, scope="function"), _role=_role_dep):
+    """Seit 1.9.175 (L1a-Nachtrag, Punkt 2): die Tage des Arbeitszeitkalenders (Heiligabend …) und die Auswahl „Im Urlaub“."""
+    return {"eintraege": [kalendertag_dict(e) for e in kalender_eintraege(db)],
+            "im_urlaub": [{"value": k, "label": v} for k, v in IM_URLAUB.items()]}
+
+
+def _kalender_antwort(db: Session, schreiben) -> dict:
+    try:
+        schreiben()
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KalendertagUngueltig as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return get_arbeitszeitkalender(db)
+
+
+@router.post("/api/time-backoffice/arbeitszeitkalender")
+def post_arbeitszeitkalender(payload: ArbeitszeitKalendertagIn, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
+    """Seit 1.9.175: einen Tag anlegen -- Admin und Büro – Finanzen (E10, wie die Sollzeit). Antwort: der ganze Kalender."""
+    return _kalender_antwort(db, lambda: kalendertag_anlegen(db, payload.model_dump()))
+
+
+@router.put("/api/time-backoffice/arbeitszeitkalender/{kalendertag_id}")
+def put_arbeitszeitkalender(kalendertag_id: int, payload: ArbeitszeitKalendertagIn, db: Session = Depends(get_db, scope="function"), _role=_regeln_dep):
+    """Seit 1.9.175: einen Tag ändern (alle Angaben, Pflicht; der Schlüssel bleibt) oder abschalten -- gelöscht wird nicht."""
+    return _kalender_antwort(db, lambda: kalendertag_aendern(db, kalendertag_id, payload.model_dump()))
 
 
 @router.get("/api/time-backoffice/sollzeiten/{employee_id}")

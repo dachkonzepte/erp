@@ -5,7 +5,8 @@ Tag. Die Zuordnung (app/lohnarten.py) unterscheidet Winter (01.12.–31.03., Sai
 
     eintragen      Admin, Büro – Finanzen, Kolonnenführer und Vorarbeiter für jeden gewerblichen Mitarbeiter -- gilt sofort (genehmigt);
                    jede andere Person für sich selbst -- ein Antrag, den Kolonnenführer, Vorarbeiter oder Admin bestätigt
-    abgelehnt      Samstag, Sonntag, gesetzlicher Feiertag, Tag ohne Sollzeit (app/sollzeit.py), nicht gewerblich -- 422 mit Grund
+    abgelehnt      Samstag, Sonntag, gesetzlicher Feiertag, Tag des Arbeitszeitkalenders (seit 1.9.175, dort gilt dessen Abwesenheit), Tag
+                   ohne Sollzeit (app/sollzeit.py), nicht gewerblich -- 422 mit Grund
     Warnung        hat die Person an dem Tag schon Zeit gebucht oder laufen, 409 mit der Liste; gespeichert erst mit „trotzdem“
     Kolonnenführer TeamEmployee.is_crew_leader in einer aktiven Kolonne (seit 1.7.12); Vorarbeiter EmployeeRoleSettings.vorarbeiter
                    (seit 1.9.170 -- bis dahin war „Vorarbeiter“ nur Text: Funktion „Dachdecker Vorarbeiter“, Rolle in der Kolonne)
@@ -99,6 +100,10 @@ def grund_gegen(db: Session, employee: Employee | None, tag: date) -> str | None
     feiertag = gesetzlicher_feiertag(db, tag)
     if feiertag:
         return f"{_name(employee)}: {tag:%d.%m.%Y} ist ein Feiertag ({feiertag})"
+    from .arbeitszeitkalender import kalendertag  # seit 1.9.175: an einem Tag des Arbeitszeitkalenders gilt schon seine Abwesenheit
+    eintrag = kalendertag(db, employee.id, tag)
+    if eintrag is not None:
+        return f"{_name(employee)}: am {tag:%d.%m.%Y} gilt „{eintrag.abwesenheit}“ (Arbeitszeitkalender)"
     if soll(db, employee.id, tag) <= 0:
         return f"{_name(employee)}: am {tag:%d.%m.%Y} keine Sollzeit"
     return None
