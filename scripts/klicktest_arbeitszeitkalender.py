@@ -1,7 +1,8 @@
 """Klicktest: Arbeitszeitkalender in Einstellungen → Zeitregeln und DATEV (1.9.175, L1a-Nachtrag, Punkt 2).
 
     Büro – Finanzen  Fin (1440): Heiligabend vorbelegt (24.12., 7,00 h, „Heiligabend – bezahlte Freistellung“, gewerbliche, nur Mo–Fr,
-                     aktiv), Zuordnung „BF / Lohnart offen – nicht exportiert“; „+ Kalendertag“ Rosenmontag 15.02. -> neue Zeile und eine
+                     aktiv), Zuordnung „BF / Lohnart offen – nicht exportiert“, Bild davon (seit 1.9.180, bevor der Test etwas ändert);
+                     „+ Kalendertag“ Rosenmontag 15.02. -> neue Zeile und eine
                      Zeile in der Zuordnung; ein zweiter Eintrag am 24.12. -> Meldung, nichts gespeichert; Heiligabend mit 6,5 h -> „6,50 h“;
                      „Zeiten → Abwesenheiten“: Karte „Arbeitszeitkalender“ mit Heiligabend, Silvester (seit 1.9.176) und Rosenmontag, Mias Urlaub 21.12.–01.01.
                      zählt 7 Arbeitstage -- Bilder; keine JS-Fehler
@@ -74,6 +75,9 @@ async def pruefen(tab, seed, p):
              ["24.12.", "Heiligabend", "7,00 h", "Heiligabend – bezahlte Freistellung", "kein Urlaubstag – ein Urlaub über den Tag zählt ihn mit 0",
               "gewerbliche Mitarbeiter, nur Mo–Fr", "aktiv"])
     p.pruefe("Fin: Zuordnung BF ohne Lohnart", await tab.js(WIRKT.format(s="heiligabend")), "BF / Lohnart offen – nicht exportiert")
+    # seit 1.9.180: ein Bild des ausgelieferten Zustands, bevor der Test etwas ändert (Bild 01 des Berichts 71d7f52 zeigte die 6,50 h von unten)
+    await tab.js("document.getElementById('kalenderBlock').scrollIntoView({block:'start'})")
+    await tab.bild("kalender_fin_ausgeliefert")
 
     await _neu(tab, {"kdName": "Rosenmontag", "kdAbwesenheit": "Rosenmontag – frei", "kdTag": "15", "kdMonat": "2"})
     p.pruefe("Fin: neuer Kalendertag gespeichert", await _speichern(tab), "Gespeichert.")
@@ -95,7 +99,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Fin: Sollzeit 6,5 h gespeichert", await _speichern(tab), "Gespeichert.")
     p.pruefe("Fin: Zeile zeigt 6,50 h", await tab.js(ZEILE.format(s="heiligabend") + "[2]"), "6,50 h")
     await tab.js("document.getElementById('kalenderBlock').scrollIntoView({block:'start'})")
-    await tab.bild("kalender_fin")
+    await tab.bild("kalender_fin_geaendert")  # Heiligabend vom Test auf 6,50 h geändert, dazu Rosenmontag
     p.pruefe("Fin: keine JS-Fehler", tab.fehler, [])
 
     p.pruefe("Fin: Zeiten geladen", await tab.oeffnen("/zeiten#abwesenheiten", ZEITEN_BEREIT + "&&!document.getElementById('abwKalender').hidden"), True)

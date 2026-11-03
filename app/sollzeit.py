@@ -10,7 +10,8 @@ Schlechtwetter lehnt Tage ohne Soll ab (Punkt 5), der halbe Urlaubstag zählt di
                   gilt die jüngste Zeile, die am Tag schon begonnen hat. Eine Zeile ohne Werte heißt „ab hier wieder Tarif“.
     Eintritt      vor dem Eintritt und nach dem Austritt (EmployeePayrollSettings.eintritt/austritt) ist die Sollzeit 0.
     Kalender      seit 1.9.175 geht ein Tag des Arbeitszeitkalenders mit eigener Sollzeit Tarif und eigenen Werten vor (Heiligabend 7,00 h für
-                  gewerbliche Mitarbeiter, app/arbeitszeitkalender.py).
+                  gewerbliche Mitarbeiter, app/arbeitszeitkalender.py) -- seit 1.9.180 nur, wo Tarif bzw. eigene Werte an dem Tag Sollzeit
+                  ergäben; dann voll, nicht anteilig.
 
 Ein Feiertag ändert die Sollzeit nicht -- die Zeile F trägt die Sollzeit des Wochentags (E3). Wer eine Zeile anlegt oder löscht, ändert nie
 einen abgeschlossenen Zeitraum: „gültig ab“ liegt nach „Abgeschlossen bis“ (sonst 409).
@@ -88,17 +89,15 @@ def soll_zeitraum(db: Session, employee_id: int, start: date, ende: date) -> dic
     payroll = _payroll(db, employee_id)
     reihe = zeilen(db, employee_id)
     # seit 1.9.175 (L1a-Nachtrag, Punkt 2): ein Tag des Arbeitszeitkalenders mit eigener Sollzeit (Heiligabend 7,00 h) geht Tarif und eigenen
-    # Werten vor -- für alle, für die er gilt, auch Azubis und Teilzeit
+    # Werten vor; seit 1.9.180 (L1a-Korrekturen, Punkt 1) nur, wo die Person an dem Tag ohne ihn Sollzeit hätte -- dann voll, nicht anteilig
+    # (Teilzeit am Donnerstag mit 3,00 h: 7,00 h; ohne Sollzeit am Wochentag: 0, keine Freistellung)
     kalender, gruppe = [e for e in aktive(db) if e.sollzeit is not None], gruppe_von(db, employee_id)
     je_woche: dict[tuple[int, int], Decimal] = {}
     ergebnis: dict[date, Decimal] = {}
     tag = start
     while tag <= ende:
-        kalendertag = fuer_tag(kalender, tag, gruppe) if kalender else None
         if not beschaeftigt_am(payroll, tag):
             ergebnis[tag] = round_hours(NULL)
-        elif kalendertag is not None:
-            ergebnis[tag] = round_hours(Decimal(str(kalendertag.sollzeit)))
         else:
             eigene = _eigene_zeile(reihe, tag)
             if not ist_tarif(eigene):
@@ -110,6 +109,9 @@ def soll_zeitraum(db: Session, employee_id: int, start: date, ende: date) -> dic
                 if woche not in je_woche:
                     je_woche[woche] = tarif(db, employee_id, tag)
                 wert = je_woche[woche]
+            kalendertag = fuer_tag(kalender, tag, gruppe) if kalender and wert > 0 else None
+            if kalendertag is not None:
+                wert = Decimal(str(kalendertag.sollzeit))
             ergebnis[tag] = round_hours(wert)
         tag += timedelta(days=1)
     return ergebnis
@@ -139,9 +141,10 @@ def abwesenheit_tage(db: Session, employee_id: int, start: date, ende: date, *, 
     # seit 1.9.175 (L1a-Nachtrag, Punkt 2): an einem Tag des Arbeitszeitkalenders gilt seine Abwesenheit (Heiligabend: bezahlte Freistellung) --
     # eine andere Abwesenheit über den Tag zählt ihn nicht, ein Urlaub dort ist kein Urlaubstag; seit 1.9.176 außer an einem Tag mit Rückfrage
     # (Silvester), den der Urlaub als ganzen Urlaubstag nimmt
-    kalender = {t: e for t, e in kalendertage_im_zeitraum(db, employee_id, start, ende)}
+    soll = soll_zeitraum(db, employee_id, start, ende)
+    kalender = {t: e for t, e in kalendertage_im_zeitraum(db, employee_id, start, ende, soll=soll)}
     tage, stunden, je_tag = Decimal("0"), Decimal("0"), []
-    for tag, soll_tag in soll_zeitraum(db, employee_id, start, ende).items():
+    for tag, soll_tag in soll.items():
         if soll_tag <= 0 or tag in feiertage:
             continue
         if tag in kalender and not (kategorie == "urlaub" and kalender[tag].im_urlaub == "fragen" and als_urlaubstag(kalendertag_urlaub)):

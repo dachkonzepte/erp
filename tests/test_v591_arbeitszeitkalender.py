@@ -1,7 +1,8 @@
 """Version 1.9.175 (L1a-Nachtrag, Punkt 2, Vorgabe Tobias 03.11.2026): Arbeitszeitkalender und Heiligabend.
 
     Kalender      Tage, die jedes Jahr am selben Datum anders laufen (ArbeitszeitKalendertag), in den Einstellungen gepflegt, nicht im Code
-    Heiligabend   24.12., nur Mo–Fr, nur gewerbliche: Sollzeit 7,00 h statt Modellwert (auch Teilzeit mit eigener Sollzeit), von selbst
+    Heiligabend   24.12., nur Mo–Fr, nur gewerbliche: Sollzeit 7,00 h statt Modellwert (auch Teilzeit mit eigener Sollzeit, voll; seit 1.9.180
+                  nur an einem Tag, an dem die Person Sollzeit hat -- sonst weder Sollzeit noch Freistellung), von selbst
                   „Heiligabend – bezahlte Freistellung“ mit 7,00 h (gebuchte Arbeit mindert sie nicht), kein Urlaubstag, Zuordnung BF ohne
                   Lohnart
     Rechte        lesen ab Büro – Auftrag, ändern Admin und Büro – Finanzen (E10, wie die Sollzeit)
@@ -93,13 +94,28 @@ def test_sollzeit_an_heiligabend(welt):
     assert soll(db, kim.id, date(2026, 12, 24)) == D("7.50")  # nur gewerbliche
 
 
-def test_sollzeit_auch_fuer_teilzeit_mit_eigener_sollzeit(welt):
-    """Vorgabe: „gilt gleich für alle, auch Azubis und Teilzeit mit eigener Sollzeit“ -- Di–Do 3,00 h: Do 24.12.2026 und Mo 24.12.2029 7,00 h."""
+def test_teilzeit_an_einem_tag_mit_sollzeit_voll(welt):
+    """Vorgabe: „gilt gleich für alle, auch Azubis und Teilzeit mit eigener Sollzeit“ -- Di–Do 3,00 h: Do 24.12.2026 7,00 h, nicht anteilig,
+    Freistellung 7,00 h. Seit 1.9.180 (Festlegung 1.9.175 Nr. 3 neu gefasst): Mo 24.12.2029 ohne Sollzeit -- bis 1.9.179 auch dort 7,00 h."""
     db, tom = welt["db"], welt["tom"]
     zeile_anlegen(db, tom.id, date(2026, 12, 1), {"dienstag": D("3"), "mittwoch": D("3"), "donnerstag": D("3")})
     assert soll(db, tom.id, date(2026, 12, 23)) == D("3.00")
     assert soll(db, tom.id, date(2026, 12, 24)) == D("7.00")
-    assert soll(db, tom.id, date(2029, 12, 24)) == D("7.00")
+    assert [(a["tag"], a["stunden"]) for a in abwesenheiten(db, tom.id, date(2026, 12, 24), date(2026, 12, 24))] == [(date(2026, 12, 24), D("7.00"))]
+    assert soll(db, tom.id, date(2029, 12, 24)) == D("0.00")
+
+
+def test_ohne_sollzeit_am_wochentag_weder_sollzeit_noch_freistellung(welt):
+    """Seit 1.9.180 (Vorgabe Tobias): wer an dem Wochentag keine Sollzeit hat, bekommt an Heiligabend weder Sollzeit noch Freistellung -- dieselbe
+    Bedingung wie an Silvester (Festlegung 1.9.176 Nr. 2). Tom Di–Do 3,00 h: Mo 24.12.2029 und Mo 31.12.2029."""
+    from app.arbeitszeitkalender import rueckfrage_tage
+    from app.schlechtwetter import grund_gegen
+    db, tom = welt["db"], welt["tom"]
+    zeile_anlegen(db, tom.id, date(2026, 12, 1), {"dienstag": D("3"), "mittwoch": D("3"), "donnerstag": D("3")})
+    assert abwesenheiten(db, tom.id, date(2029, 12, 24), date(2029, 12, 31)) == []
+    assert kalendertag(db, tom.id, date(2029, 12, 24)) is None and kalendertag(db, tom.id, date(2029, 12, 31)) is None
+    assert rueckfrage_tage(db, tom.id, date(2029, 12, 27), date(2030, 1, 4)) == []  # kein Silvester, nach dem gefragt würde
+    assert grund_gegen(db, tom, date(2029, 12, 24)) == "Tom Teilzeit: am 24.12.2029 keine Sollzeit"  # nicht „gilt Heiligabend …“
 
 
 def test_vor_dem_eintritt_kein_heiligabend(welt):
