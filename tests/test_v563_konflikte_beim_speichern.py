@@ -130,13 +130,17 @@ def test_person_abwesend_warnt_und_nennt_die_art_nur_finanzen_und_admin(threaded
 
 
 def test_feiertag_200_mit_hinweis(tafel):
+    """Seit 1.9.188 ist der 24.12. Heiligabend auch auf der Tafel (Freistellung, Hinweis); an beiden Tagen arbeitet Tom nicht -- dazu der Hinweis
+    zur Kapazität. Bis 1.9.187 nur der Feiertag."""
     db, client = tafel
     team = _kolonne(db, "A", [_person(db, "M-1", "Tom")])
     antwort = client.post("/api/planning/slots", json=_body(setup_order(db, "1"), team, start=date(2026, 12, 24), ende=date(2026, 12, 25)))
     assert antwort.status_code == 200, antwort.text
     daten = antwort.json()
     assert daten["warnungen"] == []
-    assert [(k["type"], k["label"], k["date"]) for k in daten["hinweise"]] == [("holiday", "1. Weihnachtstag", "2026-12-25")]
+    assert [(k["type"], k["label"], k.get("date")) for k in daten["hinweise"]] == [
+        ("kalendertag", "Heiligabend – Tom Test", "2026-12-24"), ("holiday", "1. Weihnachtstag", "2026-12-25"),
+        ("capacity", "Kapazität reicht um 1,00 h nicht aus", None)]
 
 
 def test_betriebsfreier_tag_200_mit_hinweis(tafel):

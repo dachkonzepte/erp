@@ -117,6 +117,24 @@ def soll_zeitraum(db: Session, employee_id: int, start: date, ende: date) -> dic
     return ergebnis
 
 
+def soll_an_tagen(db: Session, employee_id: int, tage: list[date]) -> dict[date, Decimal]:
+    """Seit 1.9.188: die Sollzeit an einzelnen Tagen -- je Gruppe naher Tage (höchstens 14 Tage vom ersten) ein soll_zeitraum(), nicht über
+    alle Tage dazwischen (die Plantafel fragt Heiligabend und Silvester über bis zu zwei Jahre)."""
+    from datetime import timedelta
+
+    ergebnis: dict[date, Decimal] = {}
+    reihe = sorted(set(tage))
+    i = 0
+    while i < len(reihe):
+        j = i
+        while j + 1 < len(reihe) and reihe[j + 1] - reihe[i] <= timedelta(days=14):
+            j += 1
+        werte = soll_zeitraum(db, employee_id, reihe[i], reihe[j])
+        ergebnis.update({t: werte[t] for t in reihe[i:j + 1]})
+        i = j + 1
+    return ergebnis
+
+
 HALB = Decimal("0.5")
 
 

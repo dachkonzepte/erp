@@ -1129,3 +1129,22 @@ Neu: `tests/test_v598_meine_zeiten_angeheftet.py` (9 Tests, stehende Uhr Di 01.1
 ### Tests und Prüfung 1.9.187
 
 Neu: `tests/test_v599_meine_zeiten_freistellungen.py` (7 Tests) -- Dezember 2026 mit Heiligabend (7,00 h, bezahlt) und Silvester (7,50 h, unbezahlt), andere Monate leer, Teilzeit Di–Do am Donnerstag voll und Silvester mit 3,00 h, im Dezember 2029 (Montag) keine, kaufmännisch keine, Silvester fehlt nach genehmigtem Urlaub mit „ganzer Urlaubstag“ (offen noch nicht), Seite in node (Zeilen, Maskierung, leer). Gegenproben: keine Freistellungen geliefert -> 3 rot; „bezahlt“/„unbezahlt“ vertauscht -> 1 rot. Klicktest neu: `scripts/klicktest_meine_zeiten_freistellungen.py` (11 Prüfungen, drei Bilder: Mia 1280 × 620 hell und 412 px dunkel, Tom mit Urlaub über Silvester; Kim kaufmännisch ohne).
+
+### Umsetzung 1.9.188: die Plantafel kennt den Arbeitszeitkalender (Punkt 3)
+
+`app/arbeitszeitkalender.py::freistellungen(db, personen, start, ende)`: {(Person, Tag): Kalendertag} für viele Personen auf einmal -- dieselbe Regel wie `kalendertage_im_zeitraum()` (aktiv, Datum, Wochentag, Gruppe, Sollzeit über 0); liegt kein aktiver Kalendertag im Zeitraum, bleibt es bei einer Abfrage, sonst die Sollzeit nur an den Kalendertagen (`app/sollzeit.py::soll_an_tagen()`: je Gruppe naher Tage ein `soll_zeitraum()`, nicht über bis zu zwei Jahre des Vorschlags). `app/planning.py`: `Freistellung` (abgeleitete Abwesenheit mit den Feldern, die Kapazität und Tafel lesen), `_abwesend_map()` (Abwesenheiten je Person und Tag samt Freistellungen, eine gespeicherte geht vor) in `_conflicts()`, `planning_board()` und `planning_suggestion()`; in `_conflicts()` je Einsatz und Tag ein Hinweis `kalendertag` („Heiligabend – Mia Test, Tom Test“) statt der Warnung `absence`, `HINWEIS_ARTEN` um `kalendertag`. Seite `planning.html`: `KONFLIKT_ART.kalendertag` = „Freistellung: “. Die Liste „Abwesenheiten“ der Tafel bleibt ohne sie.
+
+### Festlegungen 1.9.188 (Bitte bestätigen)
+
+1. Auf der Tafel ist die Freistellung eine Abwesenheit des Tages: die Betroffenen haben dort keine Kapazität, wie bei Urlaub. Der Einsatz bekommt aber einen Hinweis (wie am betriebsfreien Tag), keine Warnung wie bei einer Abwesenheit: gespeichert wird ohne Rückfrage, der Hinweis steht in der Antwort und über der Tafel, der Einsatz ist markiert und zählt unter „Konflikte“ -- wie der betriebsfreie Tag.
+2. Ein Hinweis je Einsatz und Tag mit allen Betroffenen („Freistellung: Heiligabend – Mia Test, Tom Test · 24.12.“).
+3. Wer betroffen ist, entscheidet die Sollzeit des Lohns (Tarif bzw. eigene Werte); die Kapazität der Tafel rechnet für alle anderen weiter mit Wochenstunden und den Arbeitstagen der Planung -- Ben (Teilzeit ohne Donnerstag) steht am 24.12. wie bisher mit Kapazität.
+4. Eine gespeicherte Abwesenheit am selben Tag geht vor (Warnung wie bisher). Büro – Auftrag sieht am Mitarbeiter „abwesend“ wie bei jeder Abwesenheit; der Hinweis am Einsatz nennt den Tag für alle Rollen (keine Krankheit).
+5. Die Freistellung steht nicht in der Liste „Abwesenheiten“ der Tafel und lässt sich dort nicht löschen -- sie wird abgeleitet (Festlegung 1.9.175 Nr. 2).
+
+### Tests und Prüfung 1.9.188
+
+Neu: `tests/test_v600_plantafel_kalender.py` (7 Tests) -- `freistellungen()` nur mit Sollzeit (Ben nicht) und ohne Kalendertag leer, Tafel (Mitarbeiter, Kolonne, Kapazität, Liste der Abwesenheiten, Hinweis, Konfliktzahl), Speichern über Silvester ohne Rückfrage mit Hinweis, gespeicherter Urlaub geht vor (Warnung für Mia, Hinweis nur Tom), abgeschalteter Kalendertag wie bisher, Planungsvorschlag, Seite. Gegenproben: Konflikte ohne Freistellungen -> 3 rot; Tafel ohne Freistellungen -> 1 rot; Bedingung Sollzeit übergangen -> 5 rot. Klicktest neu: `scripts/klicktest_plantafel_kalender.py` (11 Prüfungen, vier Bilder: Kolonnen, Dialog des Einsatzes, Mitarbeiter, Hinweis nach dem Speichern; Büro – Auftrag).
+
+Angepasste Erwartungen (Regel 28), altes Soll -> neues Soll:
+- `test_v563::test_feiertag_200_mit_hinweis` (Tom gewerblich, Einsatz 24.–25.12.2026): Hinweise [Feiertag 25.12.] -> [Freistellung „Heiligabend – Tom Test“ 24.12., Feiertag 25.12., „Kapazität reicht um 1,00 h nicht aus“] -- an beiden Tagen arbeitet Tom nicht mehr; gefunden im Lauf vor dem Commit.

@@ -33,7 +33,7 @@ from .rounding import round_half_up, round_hours
 # Seit 1.9.143 (Stufe 6, R1, Punkt 1): was beim Speichern eines Einsatzes rückfragt (409 mit Liste, bis „trotzdem planen“ mitkommt) und was nur in der
 # Antwort steht. Der Betrieb darf alles planen -- Tobias: „Konflikte warnen, trotzdem planbar“.
 WARNUNG_ARTEN = frozenset({"team", "employee", "resource", "absence"})  # Kolonne, Person, Gerät doppelt; Person abwesend
-HINWEIS_ARTEN = frozenset({"holiday", "capacity", "antrag_offen"})  # Feiertag, betriebsfreier Tag, Kapazität, offener Antrag. Seit 1.9.150 kein Wochenende: es ist nur kein Arbeitstag, ein Einsatz darüber meldet nichts
+HINWEIS_ARTEN = frozenset({"holiday", "capacity", "antrag_offen", "kalendertag"})  # Feiertag, betriebsfreier Tag, Kapazität, offener Antrag; seit 1.9.188 Freistellung des Arbeitszeitkalenders. Seit 1.9.150 kein Wochenende: es ist nur kein Arbeitstag, ein Einsatz darüber meldet nichts
 FAERBT_NICHT = frozenset({"antrag_offen"})  # seit 1.9.152: steht beim Einsatz, macht ihn aber nicht zum Konflikt -- kein rot, nicht in conflict_count
 WARNUNG_TEXT = "Der Einsatz überschneidet sich – bitte prüfen oder trotzdem planen."
 
@@ -310,6 +310,29 @@ def _absence_map(rows: list[EmployeeAbsence]) -> dict[tuple[int, date], Employee
         for day in _date_range(row.start_date, row.end_date):
             result[(row.employee_id, day)] = row
     return result
+
+
+class Freistellung:
+    """Seit 1.9.188 (L1a Stufe 2, Punkt 3): ein Tag des Arbeitszeitkalenders (Heiligabend, Silvester) als Abwesenheit auf der Plantafel --
+    abgeleitet, nicht gespeichert (keine Zeile in EmployeeAbsence, nicht in der Liste der Abwesenheiten, nicht löschbar). Trägt die Felder, die
+    Kapazität und Tafel von einer Abwesenheit lesen; ein Einsatz an dem Tag bekommt einen Hinweis (kalendertag), keine Warnung."""
+
+    absence_category = "kalender"
+    notes = None
+
+    def __init__(self, employee: Employee, tag: date, eintrag):
+        self.id = f"kalender:{employee.id}:{tag.isoformat()}"
+        self.employee_id, self.employee, self.start_date, self.end_date = employee.id, employee, tag, tag
+        self.absence_type, self.kalendertag = eintrag.abwesenheit, eintrag.name
+
+
+def _abwesend_map(db: Session, rows: list[EmployeeAbsence], personen, start: date, end: date) -> dict[tuple[int, date], EmployeeAbsence | Freistellung]:
+    """Seit 1.9.188: die Abwesenheiten je Person und Tag samt den Freistellungen des Arbeitszeitkalenders (app/arbeitszeitkalender.py::freistellungen(),
+    nur gewerbliche mit Sollzeit an dem Tag) -- eine gespeicherte Abwesenheit geht vor."""
+    from .arbeitszeitkalender import freistellungen
+    je_id = {p.id: p for p in personen if p is not None}
+    kalender = {(eid, tag): Freistellung(je_id[eid], tag, eintrag) for (eid, tag), eintrag in freistellungen(db, je_id.values(), start, end).items()}
+    return {**kalender, **_absence_map(rows)}
 
 
 def _is_workday(day: date, settings: PlanningSettings, holiday_dates: set[date]) -> bool:
@@ -983,7 +1006,8 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
     if visible_employee_ids is None:
         visible_employee_ids = planning_visible_employee_ids(db)
     employee_ids = {x.employee_id for s in slots for x in s.team_assignment.employees if x.employee_id in visible_employee_ids}
-    absence_rows = _absence_rows(db, start, end, employee_ids); absences = _absence_map(absence_rows)
+    personen = [x.employee for s in slots for x in s.team_assignment.employees if x.employee_id in visible_employee_ids and x.employee is not None]
+    absence_rows = _absence_rows(db, start, end, employee_ids); absences = _abwesend_map(db, absence_rows, personen, start, end)
     offene_antraege = _offene_antraege(db, start, end, employee_ids)
     arbeitstage = _working_weekdays(settings)
 
@@ -1014,9 +1038,13 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
         for day in _date_range(slot.start_date, slot.end_date):
             if day in holiday_names and day.weekday() in arbeitstage:  # seit 1.9.150: ein Feiertag an einem Tag, der ohnehin kein Arbeitstag ist, meldet nichts
                 result[slot.id].append({"type":"holiday", "label":holiday_names[day], "date":day, "other_slot_id":None, "other_project":None, "other_project_name":None})
+            frei = []  # seit 1.9.188: wer an dem Tag eine Freistellung des Arbeitszeitkalenders hat -- ein Hinweis je Tag, wie der betriebsfreie Tag
             for member in slot.team_assignment.employees:
                 if member.employee_id not in visible_employee_ids: continue
                 absence = absences.get((member.employee_id, day))
+                if isinstance(absence, Freistellung):
+                    frei.append((absence.kalendertag, member.employee_name_snapshot))
+                    continue
                 if absence and absence.id not in seen_absence:
                     seen_absence.add(absence.id)
                     # label_redacted ist das buero_auftrag-sichere Gegenstück (siehe CLAUDE.md
@@ -1024,6 +1052,8 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
                     # der beiden Label-Varianten in der Antwort landet, diese Funktion bleibt
                     # rollenblind.
                     result[slot.id].append({"type":"absence", "label":f"{member.employee_name_snapshot} · {absence.absence_type}", "label_redacted":f"{member.employee_name_snapshot} · abwesend", "date":day, "other_slot_id":None, "other_project":None, "other_project_name":None})
+            if frei:
+                result[slot.id].append({"type":"kalendertag", "label":f"{frei[0][0]} – {', '.join(n for _, n in frei)}", "date":day, "other_slot_id":None, "other_project":None, "other_project_name":None})
         # Seit 1.9.152 (R1 Nachrunde, Punkt 3): ein offener Antrag ist ein Hinweis -- keine Rückfrage, keine Kapazität. Die Art wie bei der Abwesenheit nur für
         # Admin und Büro – Finanzen, der Router wählt die Fassung (label_redacted).
         for member in slot.team_assignment.employees:
@@ -1115,7 +1145,7 @@ def planning_suggestion(
         raise ValueError("Für diesen Auftrag sind keine kalkulierten Soll-Stunden vorhanden.")
     horizon_end = start_date + timedelta(days=730)
     holiday_map, _holiday_meta = _combined_holiday_map(db, start_date, horizon_end); holiday_dates=set(holiday_map)
-    abs_rows = _absence_rows(db, start_date, horizon_end, {e.id for e in employees}); absences = _absence_map(abs_rows)
+    abs_rows = _absence_rows(db, start_date, horizon_end, {e.id for e in employees}); absences = _abwesend_map(db, abs_rows, employees, start_date, horizon_end)  # seit 1.9.188
     full_capacity, _, _ = _day_capacity(employees, next((d for d in _date_range(start_date, horizon_end) if _is_workday(d,tmp,set())), start_date), tmp, travel, set(), {})
     if full_capacity <= 0:
         raise ValueError("Mit den gewählten Arbeits-/Anfahrtszeiten ergibt sich keine verfügbare Tageskapazität.")
@@ -1225,7 +1255,7 @@ def planning_board(db: Session, start_date: date, end_date: date) -> dict:
     for sh in school_holidays:
         for day in _date_range(max(start_date,sh["start_date"]),min(end_date,sh["end_date"])):
             school_by_day.setdefault(day,[]).append(sh["name"])
-    absence_rows=_absence_rows(db,start_date,end_date,{x.id for x in employees}); absences=_absence_map(absence_rows)
+    absence_rows=_absence_rows(db,start_date,end_date,{x.id for x in employees}); absences=_abwesend_map(db,absence_rows,employees,start_date,end_date)  # seit 1.9.188 mit den Freistellungen des Kalenders
     dates=list(_date_range(start_date,end_date))
     team_capacity={}
     for team in teams:

@@ -15,7 +15,8 @@ Ein Kalendertag gilt für eine Person an einem Tag (gilt()), wenn er aktiv ist, 
 (nur_mo_fr) und die Person gewerblich ist (nur_gewerblich) -- und seit 1.9.180 nur, wenn sie an dem Tag Sollzeit hat
 (kalendertage_im_zeitraum()); vor dem Eintritt, nach dem Austritt und an einem Wochentag ohne Sollzeit gibt es weder Sollzeit noch Abwesenheit. Die Abwesenheit wird nicht gespeichert, abwesenheiten() leitet sie je Tag ab: ändert sich der Kalender, die Funktion oder der
 Eintritt, stimmt sie sofort, und es gibt nichts nachzutragen oder zu löschen. Rechnet nur hier und in app/sollzeit.py (Sollzeit des Tags,
-Tage einer Abwesenheit); rollenlos, die Rechte prüft der Router.
+Tage einer Abwesenheit); rollenlos, die Rechte prüft der Router. Seit 1.9.187 zeigt „Meine Zeiten“ die Abwesenheit (abwesenheiten()), seit
+1.9.188 rechnet die Plantafel mit ihr (freistellungen(): die Betroffenen stehen dort abwesend, ein Einsatz bekommt einen Hinweis).
 """
 
 from __future__ import annotations
@@ -73,10 +74,13 @@ def aktive(db: Session) -> list[ArbeitszeitKalendertag]:
     return [e for e in eintraege(db) if e.aktiv]
 
 
+def _datum_passt(eintrag: ArbeitszeitKalendertag, tag: date) -> bool:
+    return bool(eintrag.aktiv) and (eintrag.monat, eintrag.tag) == (tag.month, tag.day) and (not eintrag.nur_mo_fr or tag.weekday() < 5)
+
+
 def gilt(eintrag: ArbeitszeitKalendertag, tag: date, gruppe: str | None) -> bool:
     """Gilt der Kalendertag für eine Person dieser Gruppe an diesem Tag? (Eintritt und Austritt prüft die Sollzeit.)"""
-    return (bool(eintrag.aktiv) and (eintrag.monat, eintrag.tag) == (tag.month, tag.day)
-            and (not eintrag.nur_mo_fr or tag.weekday() < 5) and (not eintrag.nur_gewerblich or gruppe == "gewerblich"))
+    return _datum_passt(eintrag, tag) and (not eintrag.nur_gewerblich or gruppe == "gewerblich")
 
 
 def fuer_tag(liste: list[ArbeitszeitKalendertag], tag: date, gruppe: str | None) -> ArbeitszeitKalendertag | None:
@@ -115,6 +119,29 @@ def kalendertage_im_zeitraum(db: Session, employee_id: int, start: date, ende: d
         from .sollzeit import soll_zeitraum  # lokal: sollzeit fragt den Kalender nach der Sollzeit
         soll = soll_zeitraum(db, employee_id, ergebnis[0][0], ergebnis[-1][0])
     return [(t, e) for t, e in ergebnis if soll[t] > 0]
+
+
+def freistellungen(db: Session, personen, start: date, ende: date) -> dict[tuple[int, date], ArbeitszeitKalendertag]:
+    """Seit 1.9.188 (L1a Stufe 2, Punkt 3): für mehrere Personen auf einmal, welcher Kalendertag von start bis ende für wen gilt -- {(Person, Tag):
+    Kalendertag}, dieselbe Regel wie kalendertage_im_zeitraum() (aktiv, Datum, Wochentag, Gruppe, Sollzeit über 0), für die Plantafel.
+    personen: Employee-Zeilen (die Gruppe steht daran). Liegt kein aktiver Kalendertag im Zeitraum, bleibt es bei einer Abfrage."""
+    liste = aktive(db)
+    tage, tag = [], start
+    while tag <= ende:
+        if any(_datum_passt(e, tag) for e in liste):
+            tage.append(tag)
+        tag += timedelta(days=1)
+    if not tage:
+        return {}
+    from .sollzeit import soll_an_tagen  # lokal: sollzeit fragt den Kalender nach der Sollzeit
+    ergebnis: dict[tuple[int, date], ArbeitszeitKalendertag] = {}
+    for p in {p.id: p for p in personen if p is not None}.values():
+        treffer = [(t, e) for t in tage if (e := fuer_tag(liste, t, p.employee_group)) is not None]
+        if not treffer:
+            continue
+        soll = soll_an_tagen(db, p.id, [t for t, _ in treffer])
+        ergebnis.update({(p.id, t): e for t, e in treffer if soll[t] > 0})
+    return ergebnis
 
 
 def als_urlaubstag(kalendertag_urlaub: bool | None) -> bool:
