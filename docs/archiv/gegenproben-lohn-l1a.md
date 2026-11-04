@@ -432,3 +432,121 @@ Bemerkungen); der Test prüft die Aussage direkt (keine neue Zeile in der Sitzun
 vorhandenen Tests 62 rot, 15 grün -> 14 Befunde (8b und 8c sind einer) in 9 Festlegungen (1.9.175 Nr. 1, 6, 7; 1.9.176 Nr. 1, 6, 7, 8; 1.9.177
 Nr. 1; 1.9.178 Nr. 3), alle mit neuem Test in v606 jetzt rot; 5 Teilaussagen ohne Gegenprobe (kein Löschweg ×2, Export L1b, Notiz L1b, Aussage
 über den Bestand) -- jede der 24 Festlegungen hat mindestens eine Gegenprobe.
+
+## 1.9.200: Festlegungen 1.9.180–1.9.185
+
+13 Festlegungen (1.9.180 Nr. 1–2, 1.9.181 Nr. 1–3, 1.9.184 Nr. 1–2, Werkzeug 1.9.183 Nr. 1–3 und 1.9.185 Nr. 1–3), 42 Gegenproben und eine Nullprobe,
+29 sofort rot, 13 grün -> Befunde an 10 Aussagen, 10 neue Tests in `tests/test_v607_festlegungen_180_185.py`, danach alle rot; die Nullprobe blieb grün,
+wie sie soll. Ohne Gegenprobe: 5 Teilaussagen. Hinweis: `test_v564` zählt auf diesem Stand 33/32 statt der 31/30 aus dem Archiv von 1.9.183 -- `GET
+/api/planning` braucht seit dem Arbeitszeitkalender auf der Tafel (1.9.188) zwei Abfragen mehr; die Prüfung (gleich viele) bleibt.
+
+| Festlegung | Gegenprobe | Ergebnis |
+|---|---|---|
+| 1.9.180 Nr. 1 a – Kalendertag nur an einem Tag mit Sollzeit (Sollzeit) | `app/sollzeit.py::soll_zeitraum()`: Kalendertag auch bei Tageswert 0 (`and wert > 0` raus) | 7 rot: test_v591::test_teilzeit_an_einem_tag_mit_sollzeit_voll, ::test_ohne_sollzeit_am_wochentag_weder_sollzeit_noch_freistellung, test_v599::test_teilzeit_nur_an_tagen_mit_sollzeit_und_voll, test_v600::test_freistellungen_nur_mit_sollzeit, ::test_tafel_zeigt_die_betroffenen_abwesend, ::test_gespeicherte_abwesenheit_geht_vor, ::test_vorschlag_rechnet_den_tag_ohne_die_betroffenen |
+| 1.9.180 Nr. 1 b – Kalendertag (Freistellung, Rückfrage) nur mit Sollzeit über 0 | `app/arbeitszeitkalender.py::kalendertage_im_zeitraum()`: Filter `soll[t] > 0` raus | 3 rot: test_v591::test_ohne_sollzeit_am_wochentag…, ::test_vor_dem_eintritt_kein_heiligabend, test_v599::test_teilzeit_nur_an_tagen_mit_sollzeit_und_voll |
+| 1.9.180 Nr. 1 c – gilt für jeden Kalendertag, nicht nur Heiligabend | `kalendertage_im_zeitraum()`: Bedingung nur für den Schlüssel „heiligabend“ (Silvester ohne) | 3 rot: dieselben drei wie 1 b |
+| 1.9.180 Nr. 1 d – Kalendertag mit eigener Sollzeit setzt sie voll | `soll_zeitraum()`: `min(Tageswert, Kalender)` statt Kalenderwert (anteilig) | 2 rot: test_v591::test_teilzeit_an_einem_tag_mit_sollzeit_voll, test_v599::test_teilzeit_nur_an_tagen_mit_sollzeit_und_voll |
+| 1.9.180 Nr. 2 a – Schlechtwetter nennt dort „keine Sollzeit“ | `app/schlechtwetter.py::grund_gegen()`: Kalendertag über `fuer_tag(aktive(db), …)` ohne Sollzeitbedingung statt `kalendertag()` | 1 rot: test_v591::test_ohne_sollzeit_am_wochentag_weder_sollzeit_noch_freistellung |
+| 1.9.180 Nr. 2 b – halber Urlaubstag dort angenommen | `app/absence_requests.py::_antrag_anlegen()`: Prüfung „halber Tag am Kalendertag“ ohne Sollzeitbedingung | Runde 1 grün (122 passed) → **Befund**; Runde 2: 1 rot: test_v607::test_halber_urlaubstag_an_einem_kalendertag_ohne_sollzeit (422 statt 200) |
+| 1.9.180 Nr. 2 c – … und zählt 0 | `app/sollzeit.py::abwesenheit_tage()`: halber Tag an einem Tag ohne Sollzeit zählt (0,5) | Runde 1 grün → **Befund**; Runde 2: 1 rot: test_v607::test_halber_urlaubstag_an_einem_kalendertag_ohne_sollzeit (0,5 statt 0 Tage) |
+| 1.9.181 Nr. 1 a – freigeben nur, wenn niemand sie trägt (409) | `app/time_backoffice.py::personalnummer_freigeben()`: Prüfung `personalnummer_halter()` übergangen | 4 rot: test_v595::test_eine_getragene_nummer_bleibt, ::test_eine_mitarbeiternummer_bei_gleichsetzung_bleibt, test_v601::test_liste_nennt_wer_eine_fruehere_nummer_traegt, ::test_bei_gleichsetzung_auch_die_mitarbeiternummer |
+| 1.9.181 Nr. 1 b – auch nicht die Person, der sie gemerkt ist (heutige Nummer nicht freigebbar) | `personalnummer_freigeben()`: Halter = gemerkte Person zählt nicht | 1 rot: test_v595::test_eine_getragene_nummer_bleibt |
+| 1.9.181 Nr. 1 c – bei „DATEV-Nr. = ERP-Nr.“ die Mitarbeiternummer | `personalnummer_halter()`: Mitarbeiternummer nie geprüft | 2 rot: test_v595::test_eine_mitarbeiternummer_bei_gleichsetzung_bleibt, test_v601::test_bei_gleichsetzung_auch_die_mitarbeiternummer |
+| 1.9.181 Nr. 1 d – Mitarbeiternummer nur bei Gleichsetzung | `personalnummer_halter()`: Mitarbeiternummer auch ohne Gleichsetzung | Runde 1 grün → **Befund**; Runde 2: 1 rot: test_v607::test_ohne_gleichsetzung_traegt_eine_mitarbeiternummer_keine_personalnummer (409 statt 200) |
+| 1.9.181 Nr. 1 e – Ablehnung mit dem Namen | Meldung von `PersonalnummerGehalten` ohne Namen („eine Person“) | 2 rot: test_v595::test_eine_getragene_nummer_bleibt, ::test_eine_mitarbeiternummer_bei_gleichsetzung_bleibt |
+| 1.9.181 Nr. 2 a – Freigeben löscht den Eintrag, nicht mehr unter „früher“ | `personalnummer_freigeben()`: `db.delete(row)` übersprungen | 1 rot: test_v595::test_admin_gibt_eine_fruehere_nummer_frei |
+| 1.9.181 Nr. 2 b – steht in der Änderungshistorie | `record_audit_entry()` nicht aufgerufen | 1 rot: test_v595::test_admin_gibt_eine_fruehere_nummer_frei |
+| 1.9.181 Nr. 2 c – … wem sie gehörte | `old_value` ohne Namen | 1 rot: test_v595::test_admin_gibt_eine_fruehere_nummer_frei |
+| 1.9.181 Nr. 2 d – … welche Nummer | `entity_id` „?“ | 1 rot: test_v595::test_admin_gibt_eine_fruehere_nummer_frei |
+| 1.9.181 Nr. 2 e – … wer (frei gab) | `actor_name="unbekannt"` statt aus der Anfrage | Runde 1 grün → **Befund**; Runde 2: 1 rot: test_v607::test_die_freigabe_nennt_wer_und_wann |
+| 1.9.181 Nr. 2 f – … und wann | keine: der Zeitpunkt ist die Spaltenvorgabe `AuditLog.occurred_at`, nicht Teil von `personalnummer_freigeben()`; der neue Test prüft nur, dass er gesetzt ist | – |
+| 1.9.181 Nr. 3 a – Warnung nennt „nie abgerechnet“ | `settings.html::pnrFreigabeOeffnen()`: Satz ohne „nie abgerechnet“ | 1 rot: test_v595::test_seite |
+| 1.9.181 Nr. 3 b – Warnung nennt „Tippfehler“ | `pnrFreigabeOeffnen()`: ohne „(z. B. nach einem Tippfehler)“ | Runde 1 grün (Suite) → **Befund**; Runde 2: 1 rot: test_v607::test_dialog_ohne_begruendung_die_warnung_nennt_den_fall |
+| 1.9.181 Nr. 3 c – keine Begründung (Server verlangt keine) | `app/schemas.py::PersonalnummerFreigabeIn`: Pflichtfeld `begruendung` | 6 rot: test_v595::test_admin_gibt_eine_fruehere_nummer_frei, ::test_eine_getragene_nummer_bleibt, ::test_eine_mitarbeiternummer_bei_gleichsetzung_bleibt, ::test_eine_nicht_gemerkte_nummer, test_v601::test_liste_nennt_wer_eine_fruehere_nummer_traegt, ::test_bei_gleichsetzung_auch_die_mitarbeiternummer |
+| 1.9.181 Nr. 3 d – keine Begründung im Dialog | `settings.html`: Textfeld „Begründung“ im Dialog `pnrFreigabeDialog` | Runde 1 grün → **Befund**; Runde 2: 1 rot: test_v607::test_dialog_ohne_begruendung_die_warnung_nennt_den_fall |
+| 1.9.183 Nr. 1 a – Abräumen vor dem Zählen | `tests/test_v564_plantafel_leistung.py::Zaehler.__enter__`: ohne `gc.collect()` | 1 rot: test_v564::test_abraeumen_mitten_im_zaehlen_verfaelscht_nichts (33, 32) |
+| 1.9.183 Nr. 1 b – keine Speicherbereinigung während des Zählens | `Zaehler.__enter__`: ohne `gc.disable()` | 1 rot: test_v564::test_zaehler_stellt_die_speicherbereinigung_wieder_her[mitten_im_zaehlen] |
+| 1.9.183 Nr. 1 c – gilt für jede Zählung (`Zaehler`), nicht nur den einen Test | `Zaehler.__enter__`: Abräumen und Ausschalten nur, wenn `PYTEST_CURRENT_TEST` test_alte_einsaetze_kosten_nichts nennt | 2 rot: test_v564::test_abraeumen_mitten_im_zaehlen_verfaelscht_nichts, ::test_zaehler_stellt_die_speicherbereinigung_wieder_her[mitten_im_zaehlen] |
+| 1.9.183 Nr. 1 d – Leeraufruf nur dort, wo die Vorgabe ihn nennt | keine: Aussage über den Aufbau einer Testdatei (wo ein Aufruf steht), kein Verhalten; ein weiterer Leeraufruf verfälschte nichts | – |
+| 1.9.183 Nr. 2 a – Reihenfolge immer mitgeschrieben (keine Option) | `tests/reihenfolge.py::einrichten()`: nur mit Umgebungsvariable `ERP_TEST_REIHENFOLGE_AN` | 2 rot: test_v596::test_parallel_je_arbeitsprozess_eine_datei, ::test_ohne_n_eine_datei_haupt |
+| 1.9.183 Nr. 2 b – nur der letzte Lauf bleibt | `einrichten()`: Ordner zu Beginn nicht geleert | 1 rot: test_v596::test_parallel_je_arbeitsprozess_eine_datei (gw9.txt vom letzten Lauf bleibt) |
+| 1.9.183 Nr. 2 c – nach einem roten Lauf den Ordner kopieren | keine: Handlungsanweisung | – |
+| 1.9.183 Nr. 3 a – nachgestellt wird die Reihenfolge der Dateien | `reihenfolge.dateien()`: sortiert statt in Reihenfolge | 1 rot: test_v596::test_nachstellen_nennt_die_dateien_in_ihrer_reihenfolge |
+| 1.9.183 Nr. 3 b – nicht die Zeit dazwischen | keine: das Werkzeug stellt keine Zeit nach (bewusst nicht gebaut), es gibt nichts auszuhebeln | – |
+| 1.9.183 Nr. 3 c – Last der übrigen nur durch gleichzeitiges Nachstellen aller | `reihenfolge.main()`: jeden Prozess abwarten, bevor der nächste startet | Runde 1 grün → **Befund**; Runde 2: 1 rot: test_v607::test_nachstellen_startet_alle_zugleich_je_mit_seinen_dateien |
+| 1.9.184 Nr. 1 a – gezählt werden alle Status | `scripts/pruefe_zeitregeln.py::_urlaub_ohne_antwort()`: nur genehmigte | 1 rot: test_v592::test_pruefskript_zaehlt_urlaub_ueber_silvester_ohne_antwort |
+| 1.9.184 Nr. 1 b – … auch abgelehnte | `_urlaub_ohne_antwort()`: abgelehnte ausgenommen | Runde 1 grün → **Befund**; Runde 2: 1 rot: test_v607::test_pruefskript_zaehlt_auch_abgelehnte |
+| 1.9.184 Nr. 1 c – je Status für sich genannt | ohne Aufteilung nach Status | 1 rot: test_v592::test_pruefskript_zaehlt_urlaub_ueber_silvester_ohne_antwort |
+| 1.9.184 Nr. 2 a – nur, wo die Frage heute gestellt würde | Prüfung `rueckfrage_tage()` übergangen | 1 rot: test_v592::test_pruefskript_zaehlt_urlaub_ueber_silvester_ohne_antwort |
+| 1.9.184 Nr. 2 b – … gewerblich | Nachbau der Prüfung im Skript ohne Gruppe (Nullprobe mit allen drei Bedingungen: grün) | 1 rot: test_v592::test_pruefskript_zaehlt_urlaub_ueber_silvester_ohne_antwort |
+| 1.9.184 Nr. 2 c – … Montag bis Freitag | Nachbau ohne Wochentag | Runde 1 grün → **Befund**; Runde 2: 1 rot: test_v607::test_pruefskript_nur_wo_heute_gefragt_wuerde |
+| 1.9.184 Nr. 2 d – … Sollzeit über 0 | Nachbau ohne Sollzeit | Runde 1 grün → **Befund**; Runde 2: 1 rot: test_v607::test_pruefskript_nur_wo_heute_gefragt_wuerde |
+| 1.9.185 Nr. 1 a – Name ohne Pfad unter `%TEMP%\erp-klicktests` | `scripts/cdp_klicktest.py::klicktest_ordner()`: Name relativ zum Projektordner (wie bis 1.9.184) | 1 rot: test_v597::test_ohne_angabe_und_name_unter_dem_klicktest_ordner |
+| 1.9.185 Nr. 1 b – Vorgabe ist `%TEMP%\erp-klicktests` | `KLICKTEST_ORDNER` ohne Umgebung im Projektordner | Runde 1 grün → **Befund**; Runde 2: 1 rot: test_v607::test_ohne_umgebung_unter_temp_erp_klicktests |
+| 1.9.185 Nr. 1 c – gilt für `--ausgabe` (klicktest_alle.py) | `scripts/klicktest_alle.py`: `args.ausgabe` an `klicktest_ordner()` vorbei | 1 rot: test_v597::test_beide_werkzeuge_nehmen_die_regel |
+| 1.9.185 Nr. 1 d – gilt für `--arbeitsordner` (cdp_klicktest.py) | `_ablauf()`: `args.arbeitsordner` an `klicktest_ordner()` vorbei | 1 rot: test_v597::test_beide_werkzeuge_nehmen_die_regel |
+| 1.9.185 Nr. 2 a – direkt unter einem Laufwerk abgelehnt | `klicktest_ordner()`: Prüfung aus | 1 rot: test_v597::test_direkt_unter_einem_laufwerk_abgelehnt |
+| 1.9.185 Nr. 2 b – jeder tiefere erlaubt, auch außerhalb von `%TEMP%` | `klicktest_ordner()`: nur unter `%TEMP%` | Runde 1 grün → **Befund**; Runde 2: 1 rot: test_v607::test_ein_tieferer_ordner_ausserhalb_von_temp_bleibt |
+| 1.9.185 Nr. 3 a – Ordner bleiben nach dem Lauf liegen | `cdp_klicktest.py::_ablauf()`: `shutil.rmtree(ordner)` im `finally` | Runde 1 grün → **Befund**; Runde 2: 1 rot: test_v607::test_kein_werkzeug_loescht_seinen_ordner |
+| 1.9.185 Nr. 3 b – aufgeräumt wird von Hand | keine: Handlungsanweisung | – |
+
+### Befunde
+
+Neue Datei `tests/test_v607_festlegungen_180_185.py` (10 Tests, Docstrings „Seit 1.9.200 (Gegenprobe zu Festlegung …)“, allein grün:
+`10 passed`). Kein Befund ist ein Fehler im Programm -- jedes Mal tat der Code, was die Festlegung sagt, nur prüfte kein Test es.
+
+1. **1.9.180 Nr. 2** (2 b, 2 c): kein Test für einen halben Urlaubstag an einem Kalendertag ohne Sollzeit; Annahme und Zählung blieben
+   ausgehebelt grün. Neu `test_halber_urlaubstag_an_einem_kalendertag_ohne_sollzeit` (Tom Di–Do 3,00 h, Mo 24.12.2029: 200, gespeichert
+   mit halber_tag, 0 Tage, 0 h). Wiederholung: 2 b rot (422 „gilt Heiligabend …“), 2 c rot (0,5 statt 0).
+2. **1.9.181 Nr. 1** (1 d): dass eine Mitarbeiternummer ohne Gleichsetzung die Nummer nicht trägt, prüfte niemand. Neu
+   `test_ohne_gleichsetzung_traegt_eine_mitarbeiternummer_keine_personalnummer`. Wiederholung: rot (409 „trägt heute Tom Monteur“).
+3. **1.9.181 Nr. 2** (2 e): „wer“ im Eintrag ungeprüft (die Test-App setzt keinen Anfragekontext). Neu `test_die_freigabe_nennt_wer_und_wann`
+   (Kontext über `set_audit_context()` wie test_v463, Konto und Name, Zeitpunkt gesetzt). Wiederholung: rot („unbekannt“ statt „Admin Anna“).
+4. **1.9.181 Nr. 3** (3 b, 3 d): die Suite prüfte nur „nie abgerechnet“ und kein Feld im Dialog. Neu
+   `test_dialog_ohne_begruendung_die_warnung_nennt_den_fall` (kein textarea/input/select im Dialog, Senden nur `JSON.stringify({nummer})`,
+   der Satz mit „Tippfehler“). Wiederholung: 3 b rot, 3 d rot (`<textarea` gefunden).
+5. **1.9.183 Nr. 3** (3 c): `main()` ohne `--nur-zeigen` lief in keinem Test. Neu `test_nachstellen_startet_alle_zugleich_je_mit_seinen_dateien`
+   (`subprocess` im Modul durch eine Attrappe ersetzt: erst alle Starts, dann das Warten; je Prozess genau seine Dateien). Wiederholung: rot
+   (start, warten, start, warten …).
+6. **1.9.184 Nr. 1** (1 b): kein abgelehnter Antrag im Test. Neu `test_pruefskript_zaehlt_auch_abgelehnte` („4 (genehmigt 1, offen 1,
+   abgelehnt 1, zurückgezogen 1)“). Wiederholung: rot.
+7. **1.9.184 Nr. 2** (2 c, 2 d): der Sonntag 31.12.2028 schloss im Test schon die Sollzeit aus (Tarif 0 am Sonntag), eine Person ohne
+   Sollzeit am Wochentag gab es nicht -- „Mo–Fr“ und „Sollzeit über 0“ waren nicht getrennt geprüft. Neu
+   `test_pruefskript_nur_wo_heute_gefragt_wuerde` (Tom Di–Do am Mo 31.12.2029, Ole mit eigenen Werten auch sonntags am So 31.12.2028, Mia
+   als Gegenstück: „1 (genehmigt 1)“). Wiederholung: 2 c rot, 2 d rot; die Nullprobe (Nachbau mit allen drei Bedingungen) bleibt grün.
+8. **1.9.185 Nr. 1** (1 b): alle Tests setzten `ERP_KLICKTEST_ORDNER`, die Vorgabe `%TEMP%\erp-klicktests` lief nie. Neu
+   `test_ohne_umgebung_unter_temp_erp_klicktests` (nichts wird angelegt). Wiederholung: rot (Ordner im Projektordner).
+9. **1.9.185 Nr. 2** (2 b): der „tiefere“ Pfad des Tests lag unter tmp_path, also unter `%TEMP%`. Neu
+   `test_ein_tieferer_ordner_ausserhalb_von_temp_bleibt` (`<Laufwerk>\erp_v607_gibt_es_nicht\lauf`, es entsteht nichts). Wiederholung: rot
+   (SystemExit „nur unter %TEMP%“).
+10. **1.9.185 Nr. 3** (3 a): nichts prüfte, dass die Werkzeuge ihre Ordner liegen lassen. Neu `test_kein_werkzeug_loescht_seinen_ordner`
+    (AST über cdp_klicktest.py und klicktest_alle.py: kein rmtree, rmdir, unlink, removedirs, os.remove). Wiederholung: rot
+    (`cdp_klicktest.py:1548 rmtree`).
+
+### Bemerkungen
+
+- 1.9.183 Nr. 1 a: rot mit (33, 32) statt der (31, 30) aus dem Archiv -- `GET /api/planning` braucht auf diesem Stand zwei Abfragen mehr
+  (vermutlich der Arbeitszeitkalender seit 1.9.188, nicht nachgezählt); dieselbe Art Abweichung (eine weniger).
+- 1.9.183 Nr. 1 b: nur `[mitten_im_zaehlen]` rot, `[beim_abmelden]` bleibt grün: dort ersetzt die `_Absicht` aus dem gestörten
+  `event.remove` im `__exit__` den AssertionError aus dem Rumpf, `pytest.raises(_Absicht)` fängt sie -- die Prüfung „währenddessen aus“
+  greift in diesem Fall nicht. Für die Festlegung reicht der eine rote Test; nur gemeldet.
+- 1.9.183 Nr. 2 a/2 b: die gefilterte Ausgabe des Werkzeugs zeigte die Zeile `assert "1 failed, 2 passed, 1 skipped" in lauf.stdout` --
+  eine Kontextzeile des Tracebacks, nicht die rote Prüfung. Mit `--tb=short` nachgesehen: rot an Zeile 50 (gw9.txt bleibt) bzw. 64 (kein
+  haupt.txt) -- der geprüfte Grund.
+- 1.9.180 Nr. 1 a färbt auch vier Tests von test_v600 (Plantafel) rot: `freistellungen()` holt die Sollzeit über `soll_an_tagen()` ->
+  `soll_zeitraum()`. Der eigene Filter `soll[t] > 0` in `app/arbeitszeitkalender.py::freistellungen()` (1.9.188) ist hier nicht
+  einzeln geprobt -- er gehört zu den Festlegungen von 1.9.188.
+- 1.9.181 Nr. 3 b: `klicktest_personalnummer_freigeben` prüft den vollen Warntext (Zeilen 103–106, mit „Tippfehler“) und wäre rot
+  geworden; als Klicktest nicht gelaufen, weil der Text in der Vorlage steht und jetzt auch die Suite ihn prüft.
+- 1.9.184 Nr. 2 b–d: das Skript fragt `rueckfrage_tage()`, also dieselbe Regel wie der Server. Damit die Gegenprobe nur das Skript trifft,
+  ersetzt sie den Aufruf durch einen Nachbau der drei Bedingungen und lässt je eine weg; die Nullprobe (alle drei) war in beiden Runden grün.
+- „Nur der Admin gibt frei“ (Archiv-Gegenprobe zu 1.9.181 „Recht der Lohnregeln statt nur Admin“) steht im Wortlaut von Festlegung
+  1.9.177 Nr. 3 (neu gefasst), nicht in 1.9.181 Nr. 1–3 -- hier nicht geprobt.
+- Gegenproben an Testwerkzeugen (`tests/test_v564_plantafel_leistung.py`, `tests/reihenfolge.py`, `scripts/*.py`) liefen mit demselben
+  Werkzeug; der Marker steht dort nicht unter `app/`, die Dateien sind byte-genau zurück (Prüfsumme). `grep GEGENPROBE` über `app/` leer,
+  test_v357 grün; `scripts/cdp_klicktest.py` enthält den Marker nur als seine Konstante `GEGENPROBE_MARKER`.
+- „Grün“ in Runde 1 heißt grün in den genannten Testgruppen des Themas (Kalender, Personalnummer, Skript, v564, v596, Werkzeug), nicht in
+  der ganzen Suite.
+- Der Wortlaut aller 13 Festlegungen passt zum Code; keine Abweichung gefunden.
+- `git -C wt_b4 status --short` zeigt außer den vorhandenen Änderungen 1.9.192–1.9.194 (8 Dateien, unverändert) und
+  `tests/test_v602_…` nur `tests/test_v607_festlegungen_180_185.py`.

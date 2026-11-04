@@ -1255,3 +1255,9 @@ Angepasste Erwartungen: keine.
 Tabelle, Befunde und Bemerkungen: `docs/archiv/gegenproben-lohn-l1a.md`, Abschnitt „1.9.199“. 77 Gegenproben zu 24 Festlegungen; 15 blieben grün
 (14 Befunde an 1.9.175 Nr. 1, 6, 7, 1.9.176 Nr. 1, 6, 7, 8, 1.9.177 Nr. 1, 1.9.178 Nr. 3), 15 neue Tests in `tests/test_v606_festlegungen_174_179.py`,
 danach alle rot. Wortlaut und Code passen. Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.200: Gegenproben zu 1.9.180–1.9.185 (Punkt 5, Block 4)
+
+Tabelle, Befunde und Bemerkungen: `docs/archiv/gegenproben-lohn-l1a.md`, Abschnitt „1.9.200“ (die Werkzeug-Festlegungen 1.9.183 und 1.9.185 stehen
+dort mit). 42 Gegenproben zu 13 Festlegungen; 13 blieben grün (Befunde an 10 Aussagen), 10 neue Tests in `tests/test_v607_festlegungen_180_185.py`,
+danach alle rot. Wortlaut und Code passen. Angepasste Erwartungen: keine.
