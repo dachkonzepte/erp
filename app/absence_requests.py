@@ -58,6 +58,15 @@ class KalendertagFrage(Exception):
         return {"tage": [{"tag": t["tag"].isoformat(), "name": t["name"], "abwesenheit": t["abwesenheit"]} for t in self.tage]}
 
 
+class Belegt(ValueError):
+    """Seit 1.9.208: die Person ist im Zeitraum schon abwesend oder hat dort einen offenen Antrag (belegt()) -- Name und Grund getrennt: der
+    Einzelantrag meldet „Mia Monteurin: am 29.12.2026 bereits abwesend.“, der Sammeleintrag bildet daraus seine Zeile je Person."""
+
+    def __init__(self, name: str | None, grund: str):
+        self.name, self.grund = name, grund
+        super().__init__(f"{name}: {grund}." if name else f"{grund[:1].upper()}{grund[1:]}.")
+
+
 def aus_migration(row: EmployeeAbsenceRequest) -> bool:
     """Seit 1.9.154: den Antrag hat niemand gestellt, die Abwesenheit stand schon auf der Tafel -- der Vermerk bleibt am Anfang stehen, auch wenn sie später gelöscht wird."""
     return (row.vermerk or "").startswith(MIGRATION_VERMERK)
@@ -162,16 +171,12 @@ def _antrag_anlegen(
         eintrag = kalendertag(db, employee_id, start_date)
         if eintrag is not None:
             raise ValueError(f"Am {start_date:%d.%m.%Y} gilt „{eintrag.abwesenheit}“ – ein halber Urlaubstag geht dort nicht.")
-    overlap_pending = db.scalar(
-        select(EmployeeAbsenceRequest.id).where(
-            EmployeeAbsenceRequest.employee_id == employee_id,
-            EmployeeAbsenceRequest.status == "pending",
-            EmployeeAbsenceRequest.end_date >= start_date,
-            EmployeeAbsenceRequest.start_date <= end_date,
-        ).limit(1)
-    )
-    if overlap_pending:
-        raise ValueError("Für diesen Zeitraum existiert bereits ein offener Abwesenheitsantrag.")
+    # seit 1.9.208 (L1a Stufe 5, Punkt 1): schon abwesend oder ein offener Antrag -- für jeden Antrag beim Anlegen, mit Namen und Tagen wie beim
+    # Sammeleintrag (bis 1.9.207 hier nur offene Anträge, „Für diesen Zeitraum existiert bereits ein offener Abwesenheitsantrag.“; „schon
+    # abwesend“ fiel erst beim Entscheiden auf -- so seit vor 1.3.32, ohne festgehaltenen Grund). Das Entscheiden prüft weiter selbst.
+    grund = belegt(db, employee_id, start_date, end_date)
+    if grund:
+        raise Belegt(_employee_name(emp), grund)
     # seit 1.9.176 (L1a-Nachtrag, Punkt 3): ein Tag mit Rückfrage (Silvester) im Urlaub braucht die Antwort; ohne solchen Tag bleibt die Spalte leer
     fragen = []
     if absence_category == "urlaub":
@@ -249,20 +254,20 @@ def sammel_eintragen(db: Session, *, employee_ids: list[int], gleich_genehmigt: 
     _antrag_anlegen() (ein Weg), gleich genehmigt, wenn der Aufrufer entscheidet. Alles oder nichts in einem Commit: geht es für eine Person
     nicht, SammelAbgelehnt mit jeder Person und ihrem Grund. Bewusst ohne SAVEPOINT je Person: unter SQLite ist ein SAVEPOINT vor der ersten
     Änderung selbst die Transaktion, sein RELEASE committet (gefunden im Test „alles oder nichts“) -- ein Fehler rollt das Ganze zurück.
-    Seit 1.9.205 (L1a Stufe 4, Punkt 4) zuerst je Person belegt(): wer schon abwesend ist oder einen offenen Antrag hat, steht in der Liste --
-    auch bei Büro – Finanzen (bis 1.9.204 entstanden dort offene Anträge, „schon abwesend“ scheiterte erst bei der Entscheidung); das Genehmigen
-    prüft dahinter weiter selbst (zeitgleiche Einträge). Die Rückfrage zu Silvester kommt erst, wenn für keine Person etwas dagegen spricht."""
+    Seit 1.9.205 (L1a Stufe 4, Punkt 4): wer schon abwesend ist oder einen offenen Antrag hat, steht in der Liste -- auch bei Büro – Finanzen
+    (bis 1.9.204 entstanden dort offene Anträge, „schon abwesend“ scheiterte erst bei der Entscheidung); seit 1.9.208 prüft das _antrag_anlegen()
+    für jeden Antrag (Belegt), bis 1.9.207 stand die Prüfung hier vorweg. Das Genehmigen prüft dahinter weiter selbst (zeitgleiche Einträge).
+    Die Rückfrage zu Silvester kommt erst, wenn für keine Person etwas dagegen spricht."""
     ids = list(dict.fromkeys(int(i) for i in employee_ids))
     antraege, fehler, frage = [], [], None
     for eid in ids:
         try:
-            grund = belegt(db, eid, werte["start_date"], werte["end_date"])
-            if grund:
-                raise ValueError(grund)
             row = _antrag_anlegen(db, employee_id=eid, **werte)
             if gleich_genehmigt:
                 _entscheiden(db, row, decision="approved", reviewed_by_user_id=werte.get("requested_by_user_id"))
             antraege.append(row.id)
+        except Belegt as exc:
+            fehler.append({"employee_id": eid, "text": f"{exc.name or eid}: {exc.grund}"})
         except ValueError as exc:
             fehler.append({"employee_id": eid, "text": f"{_employee_name(db.get(Employee, eid)) or eid}: {exc}"})
         except KalendertagFrage as exc:  # seit 1.9.176: die Antwort gilt für alle -- nichts gespeichert, der Dialog fragt

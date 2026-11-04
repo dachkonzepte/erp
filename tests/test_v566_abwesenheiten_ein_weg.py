@@ -112,7 +112,8 @@ def test_ueberlappung_beim_admin_422_und_kein_antrag_bleibt(welt):
     assert client.post("/api/planning/absences", json=_body(mia)).status_code == 200
     antwort = client.post("/api/planning/absences", json=_body(mia, bis=MONTAG + timedelta(days=2)))
     assert antwort.status_code == 422
-    assert "bereits eine genehmigte Abwesenheit" in antwort.json()["detail"]
+    # seit 1.9.208 schon beim Anlegen (belegt()), mit Namen und Tag (bis 1.9.207 beim Genehmigen: „… bereits eine genehmigte Abwesenheit.“)
+    assert antwort.json()["detail"] == "Mia Test: am 02.11.2026 bereits abwesend."
     assert (_anzahl(db, EmployeeAbsenceRequest), _anzahl(db, EmployeeAbsence)) == (1, 1)
 
 

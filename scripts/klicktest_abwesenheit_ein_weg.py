@@ -118,7 +118,8 @@ async def pruefen(tab, seed, p):
     p.pruefe("D2: ohne Art nur die Kategorie, kein „Krankheit (Urlaub)“", "Krankheit" in zeilen and "Krankheit (Urlaub)" not in zeilen and "Krankheit · Urlaub" not in zeilen, True)
     p.pruefe("Admin: auf der Tafel", await tab.js(f"!!board.employee_capacity['{seed['mia']}']['2026-10-19'].absence"), True)
     await tab.bild("abwesenheiten_admin")
-    p.pruefe("Überlappend: Meldung", "bereits eine genehmigte Abwesenheit" in await _eintragen(tab, mitarbeiter=seed["mia"]), True)
+    # seit 1.9.208 beim Anlegen mit Namen und Tagen (bis 1.9.207 beim Genehmigen: „… bereits eine genehmigte Abwesenheit.“)
+    p.pruefe("Überlappend: Meldung", "Mia Test: vom 19.10. bis 20.10.2026 bereits abwesend." in await _eintragen(tab, mitarbeiter=seed["mia"]), True)
 
     # Löschen scheitert: Meldung statt Stille
     mias = await tab.js(f"board.absences.find(a=>a.employee_id==={seed['mia']}).id")

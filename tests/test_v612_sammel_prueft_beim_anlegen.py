@@ -4,7 +4,8 @@ ist oder einen offenen Antrag hat -- alles oder nichts, jede Person genannt, auc
     vorher    beim Admin fiel „schon abwesend“ beim Genehmigen auf (mit Namen), bei Büro – Finanzen entstanden offene Anträge (200), „schon
               abwesend“ scheiterte erst bei der Entscheidung des Admins
     jetzt     app/absence_requests.py::sammel_eintragen() fragt je Person zuerst belegt() -- 422 mit Liste, nichts angelegt; die Prüfung beim
-              Entscheiden bleibt (zeitgleiche Einträge von anderer Seite); der Einzelantrag bleibt wie seit 1.9.101
+              Entscheiden bleibt (zeitgleiche Einträge von anderer Seite); seit 1.9.208 prüft der Einzelantrag ebenso (1.9.205–1.9.207 blieb er,
+              wie er seit vor 1.3.32 war)
     Silvester die Rückfrage (1.9.176) kommt erst, wenn für keine Person etwas dagegen spricht -- vorher die Liste
 
 Feste Tage: 28.–30.12.2026 (Urlaub, wie tests/test_v589_sammel_und_halber_tag.py).
@@ -103,13 +104,12 @@ def test_zweiter_schritt_beim_admin(welt, monkeypatch):  # noqa: F811
     assert _zaehlen(welt) == vorher
 
 
-def test_einzelantrag_bleibt(welt):  # noqa: F811
-    """Der Einzelantrag von Büro – Finanzen für eine abwesende Person bleibt ein offener Antrag wie seit 1.9.101 -- die Vorgabe betrifft den
-    Sammeleintrag; die Entscheidung des Admins lehnt ab."""
+def test_einzelantrag_wie_der_sammeleintrag(welt):  # noqa: F811
+    """Seit 1.9.208 (L1a Stufe 5, Punkt 1): auch der Einzelantrag von Büro – Finanzen für eine abwesende Person wird beim Anlegen abgelehnt,
+    mit Namen und Tag wie im Sammeleintrag (1.9.205: ein offener Antrag, abgelehnt erst bei der Entscheidung des Admins)."""
     _mia_abwesend_tom_offen(welt)
-    client = _als(welt, "buero_finanzen")
-    r = client.post("/api/absence-requests", json={"employee_id": welt["mia"].id, "absence_category": "urlaub", "start_date": "2026-12-28",
-                                                    "end_date": "2026-12-30"})
-    assert (r.status_code, r.json()["status"]) == (200, "pending"), r.text
-    r = _als(welt).post(f"/api/absence-requests/{r.json()['id']}/review", json={"decision": "approved"})
-    assert r.status_code == 422, r.text
+    vorher = _zaehlen(welt)
+    r = _als(welt, "buero_finanzen").post("/api/absence-requests", json={"employee_id": welt["mia"].id, "absence_category": "urlaub",
+                                                                        "start_date": "2026-12-28", "end_date": "2026-12-30"})
+    assert (r.status_code, r.json()["detail"]) == (422, "Mia Monteurin: am 29.12.2026 bereits abwesend."), r.text
+    assert _zaehlen(welt) == vorher

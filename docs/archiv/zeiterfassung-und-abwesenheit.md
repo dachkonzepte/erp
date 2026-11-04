@@ -1332,7 +1332,7 @@ Angepasste Erwartungen (Regel 28): `klicktest_schlechtwetter` zwei Prüfungen da
 
 1. Geprüft wird der ganze Zeitraum des Sammeleintrags; die Meldung nennt je Person die Tage der Überschneidung, ohne Kategorie und Art (wie 1.9.204 Nr. 2) -- der Wortlaut für einen offenen Antrag ist jetzt „am 29.12.2026 bereits ein offener Antrag“ statt „Für diesen Zeitraum existiert bereits ein offener Abwesenheitsantrag.“
 2. Spricht gegen eine Person etwas und liegt Silvester im Zeitraum, kommt zuerst die Liste, die Rückfrage danach (bis 1.9.204 umgekehrt, wenn die Person mit der Rückfrage vor der abgelehnten stand).
-3. Der Einzelantrag (`POST /api/absence-requests`) prüft weiter nur offene Anträge beim Anlegen; „schon abwesend“ fällt dort wie seit 1.9.101 bei der Entscheidung auf -- die Vorgabe betrifft den Sammeleintrag.
+3. Neu gefasst mit 1.9.208 (Vorgabe Tobias, L1a Stufe 5, Punkt 1): Auch der Einzelantrag prüft beim Anlegen, ob die Person schon abwesend ist oder einen offenen Antrag hat (`belegt()`), mit Namen und Tagen wie der Sammeleintrag; ebenso „Abwesenheit eintragen“ auf der Plantafel. Die Prüfung beim Entscheiden bleibt. Bis 1.9.207 hieß es: „Der Einzelantrag (`POST /api/absence-requests`) prüft weiter nur offene Anträge beim Anlegen; „schon abwesend“ fällt dort wie seit 1.9.101 bei der Entscheidung auf -- die Vorgabe betrifft den Sammeleintrag.“ -- „seit 1.9.101“ war ungenau, die Lücke ist älter (Befund 1.9.208).
 
 ### Tests und Prüfung 1.9.205
 
@@ -1347,3 +1347,26 @@ Festlegung 1.9.187 Nr. 3 oben neu gefasst: die Seite öffnet keine künftigen Mo
 ### Umsetzung 1.9.207: Klicktests lesen erst nach der Antwort (Punkt 6, Werkzeug)
 
 Steht im Archiv „Testablauf und Klicktests“, Abschnitt „Klicktests lesen erst nach der Antwort (1.9.207)“: alle Klicktests mit verzögerten Antworten gemessen, 6 Stellen in 6 Klicktests umgestellt (5 lesen nach `oeffnen()`, 1 navigiert nach dem Neuladen), drei Festlegungen zum Werkzeug. Am Programm nichts geändert.
+
+## Lohn L1a, Stufe 5 (ab 1.9.208)
+
+Vorgabe Tobias (04.11.2026), je Punkt eine Version: 1 Befund, warum der Einzelantrag beim Anlegen nur offene Anträge prüft -- ohne tragenden Grund an den Sammeleintrag angleichen, die Prüfung beim Entscheiden bleibt, Festlegung 1.9.205 Nr. 3 neu fassen; 2 `klicktest_heute` mit stehender Uhr, „Tag zusammen 3:15 h“ auf genau einem Wert; 3 (Werkzeug) jede neue Festlegung bekommt in derselben Runde ihre Gegenprobe, die Lücke 1.9.202 Nr. 2 und 3 schließen; 4 Plantafel: Kapazität aus der Sollzeit des Lohns statt aus Wochenstunden und Arbeitstagen der Planung.
+
+### Befund und Umsetzung 1.9.208: der Einzelantrag prüft wie der Sammeleintrag (Punkt 1)
+
+**Befund.** `_antrag_anlegen()` prüfte beim Anlegen nur offene Anträge („Für diesen Zeitraum existiert bereits ein offener Abwesenheitsantrag.“), eine genehmigte Abwesenheit im Zeitraum erst `_entscheiden()`. Das stammt nicht aus 1.9.101 -- 1.9.101 legte nur fest, wer für wen beantragt und entscheidet --, sondern steht so schon im ersten Commit des Repos (13.09.2026, Version 1.3.32, `create_request()`); Changelog, Archiv und Code nennen keinen Grund. Der einzige denkbare: eine Krankheit während eines genehmigten Urlaubs als offener Antrag melden. Er trägt nicht -- genehmigen ließ sich ein solcher Antrag auch bisher erst, nachdem der Admin den Urlaub gelöscht hatte (eine genehmigte Abwesenheit lässt sich nicht ändern, 1.9.146), und nichts auf den Seiten führte dorthin; bis dahin stand ein Antrag, der nicht genehmigt werden konnte und weitere Anträge im Zeitraum sperrte. Also angeglichen.
+
+**Umsetzung.** `_antrag_anlegen()` fragt statt der offenen Anträge `belegt()` (1.9.204) und wirft `Belegt` (Name und Grund getrennt, Unterklasse von `ValueError`): der Einzelantrag meldet „Mia Monteurin: am 29.12.2026 bereits abwesend.“ bzw. „… bereits ein offener Antrag.“ (422), nur mit den Tagen der Überschneidung, ohne Kategorie. Das gilt für jeden Antrag: „Zeiten“ und „Meine Zeiten“ (`POST /api/absence-requests`), „Abwesenheit eintragen“ auf der Plantafel (`POST /api/planning/absences`, ein Weg seit 1.9.146), Sammeleintrag und Schlechtwetter. Der Sammeleintrag braucht seine eigene Prüfung vorweg (1.9.205) nicht mehr und bildet seine Zeile je Person aus `Belegt`; der Schlechtwetter-Dialog behält seine (er sammelt erst alle Gründe des Tags). `_entscheiden()` prüft weiter selbst.
+
+### Festlegungen 1.9.208 (Bitte bestätigen)
+
+1. Die Prüfung „schon abwesend oder offener Antrag“ sitzt in `_antrag_anlegen()` -- jeder Weg, der einen Antrag anlegt, prüft dort; der Sammeleintrag hat keine eigene Prüfung vorweg mehr.
+2. Die Meldung des Einzelantrags und der Plantafel nennt Person und Tage mit Punkt („Mia Monteurin: am 29.12.2026 bereits abwesend.“), ohne Kategorie; sie ersetzt „Für diesen Zeitraum existiert bereits ein offener Abwesenheitsantrag.“ und auf der Plantafel beim Admin „Für diesen Mitarbeiter besteht im beantragten Zeitraum bereits eine genehmigte Abwesenheit.“
+3. = Festlegung 1.9.205 Nr. 3, neu gefasst (oben): der Einzelantrag prüft wie der Sammeleintrag, das Entscheiden zusätzlich.
+4. Eine Krankheit während eines genehmigten Urlaubs meldet die Monteurin nicht mehr als Antrag: der Admin löscht den Urlaub (dessen Antrag ist danach zurückgezogen und zählt nicht) und trägt neu ein; danach geht auch der Antrag der Monteurin.
+
+### Tests und Prüfung 1.9.208
+
+Neu: `tests/test_v613_einzelantrag_belegt.py` (9 Tests) -- Einzelantrag schon abwesend (Monteurin für sich, Büro – Finanzen, Admin): 422 mit Namen und Tag, nichts angelegt; offener Antrag mit neuem Wortlaut; Tage der Überschneidung ohne Kategorie; Plantafel für Büro – Finanzen und Admin; Krankheit im Urlaub über den Admin; abgelehnte Anträge zählen nicht. `klicktest_sammeleintrag` 21 -> 22 Prüfungen (Fin: Einzelantrag für Kai, ein Bild). Gegenproben je Festlegung: Nr. 1 ohne Prüfung beim Anlegen -> 16 rot, Klicktests 19 von 22 und 48 von 49; Nr. 2 Meldung ohne Namen -> 9 rot; Nr. 3 nur offene Anträge wie bis 1.9.207 -> 13 rot; Nr. 4 zurückgezogene Anträge zählen -> 1 rot.
+
+Angepasste Erwartungen (Regel 28): `test_v612::test_einzelantrag_bleibt` (200, offener Antrag) -> `test_einzelantrag_wie_der_sammeleintrag` (422 „Mia Monteurin: am 29.12.2026 bereits abwesend.“); `test_v566::test_ueberlappung_beim_admin_422_und_kein_antrag_bleibt` altes Soll „bereits eine genehmigte Abwesenheit“ in der Meldung, neues Soll genau „Mia Test: am 02.11.2026 bereits abwesend.“; `klicktest_abwesenheit_ein_weg` „Überlappend: Meldung“ ebenso (neu „Mia Test: vom 19.10. bis 20.10.2026 bereits abwesend.“); `klicktest_sammeleintrag` eine Prüfung mehr.

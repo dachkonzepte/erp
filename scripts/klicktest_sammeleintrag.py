@@ -5,7 +5,8 @@
                             eingetragen; nur Kolonne 1 -> „Eingetragen für 2 Personen“; „Halber Tag“ nur bei Urlaub an einem Tag; Mia am 23.12. halber
                             Tag -> in der Liste „halber Tag · 0,5 Arbeitstage“; Urlaub 21.–24.12. zählt 3 (seit 1.9.175 ist der 24.12. für
                             gewerbliche Heiligabend im Arbeitszeitkalender; 1.9.174: 4, 1.9.171–1.9.173: 3,5) -- Bilder
-    Fin (Büro – Finanzen)   seit 1.9.205: Kai und Tom 28.–30.12. -> beide schon abwesend, beide genannt, keine Anträge -- Bild; derselbe
+    Fin (Büro – Finanzen)   seit 1.9.205: Kai und Tom 28.–30.12. -> beide schon abwesend, beide genannt, keine Anträge -- Bild; seit 1.9.208
+                            der Einzelantrag für Kai ebenso („Kai Kolonne: am 29.12.2026 bereits abwesend.“) -- Bild; derselbe
                             Dialog für Kai im Januar -> „Anträge gesendet für …“ (offen, nicht genehmigt)
     Mia (Monteurin, 1280)   „Meine Zeiten“ -> „+ Antrag“: „Halber Tag“ bei Urlaub an einem Tag, nicht bei Krankheit
     überall                 keine JS-Fehler
@@ -127,6 +128,13 @@ async def pruefen(tab, seed, p):
     p.pruefe("Fin: Kai und Tom schon abwesend -- beide genannt, keine Anträge", await _senden(tab),
              "Nicht eingetragen: Kai Kolonne: am 29.12.2026 bereits abwesend; Tom Monteur: vom 28.12. bis 30.12.2026 bereits abwesend.")
     await tab.bild("sammeleintrag_fin_abgelehnt")
+    await tab.js("document.getElementById('abwDialog').close()")
+    # seit 1.9.208 (L1a Stufe 5, Punkt 1): der Einzelantrag ebenso (bis 1.9.207 ein offener Antrag, abgelehnt erst beim Entscheiden)
+    await tab.js("document.getElementById('abwNeu').click()")
+    await tab.js("{const m=document.getElementById('adMehrere');m.checked=false;m.dispatchEvent(new Event('change'))}")
+    await _setze(tab, {"adMitarbeiter": str(seed["ids"]["kai"]), "adKategorie": "urlaub", "adVon": "2026-12-28", "adBis": "2026-12-30"})
+    p.pruefe("Fin: Einzelantrag für Kai -- schon abwesend, kein Antrag", await _senden(tab), "Kai Kolonne: am 29.12.2026 bereits abwesend.")
+    await tab.bild("einzelantrag_fin_abgelehnt")
     await tab.js("document.getElementById('abwDialog').close()")
     await _dialog(tab)
     await tab.js(f"document.querySelector('[data-ad-person=\"{seed['ids']['kai']}\"]').checked=true")
