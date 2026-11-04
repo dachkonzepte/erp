@@ -128,4 +128,7 @@ def test_vorschlag_rechnet_den_tag_ohne_die_betroffenen(tafel):
 
 def test_seite_nennt_die_freistellung():
     from tests import vorlagen_js as vj
-    assert "kalendertag:'Freistellung: '" in vj.seitentext("planning.html")[0]
+    text = vj.seitentext("planning.html")[0]
+    assert "kalendertag:'Freistellung: '" in text
+    # seit 1.9.193: der Satz über der Tafel nennt Freistellungen -- in der Liste „Abwesenheiten“ der Tafel stehen sie nicht (Festlegung 1.9.188 Nr. 5)
+    assert "Berücksichtigt werden Doppelbelegungen, Abwesenheiten, Freistellungen, Feiertage und unzureichende Stundenkapazität." in text

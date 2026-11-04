@@ -4,7 +4,8 @@ Stehende Uhr Mo 14.12.2026 10:00. Befüllt: Kolonne Nord mit Mia (Tarif), Tom (T
 Sollzeit); Auftrag A eingeplant 21.–24.12.2026 auf Nord; Anna (Admin), Berta (Büro – Auftrag).
 
     Kolonnen     Woche ab 21.12.: in Nord am Do 24.12. „2 abw.“ (Mia und Tom), die Tage davor ohne; der Einsatz A ist markiert wie an einem
-                 betriebsfreien Tag, im Dialog „Freistellung: Heiligabend – Mia Test, Tom Test · 24.12.“ -- Bild
+                 betriebsfreien Tag, im Dialog „Freistellung: Heiligabend – Mia Test, Tom Test · 24.12.“ -- Bild; seit 1.9.193 nennt der Satz über
+                 der Tafel auch Freistellungen (sie stehen nicht in der Liste „Abwesenheiten“)
     Mitarbeiter  Mia und Tom am 24.12. „Heiligabend – bezahlte Freistellung“, Ben nicht (keine Sollzeit am Donnerstag -- wie bisher); Bild
     Einplanen    Auftrag B auf Nord 28.–31.12.: gespeichert ohne Rückfrage, Hinweis „Einsatz gespeichert – zur Kenntnis: Freistellung: Silvester
                  – Mia Test, Tom Test · 31.12.“ -- wie am betriebsfreien Tag; Bild
@@ -94,6 +95,10 @@ async def pruefen(tab, seed, p):
     p.pruefe("Nord am 24.12.: 2 abwesend, die Tage davor nicht", [await tab.js(zelle("Nord", t)) for t in ("2026-12-22", "2026-12-23", "2026-12-24")],
              ["", "", "2 abw."])
     p.pruefe("Einsatz A markiert wie am betriebsfreien Tag", await tab.js("document.querySelectorAll('.slot.conflict').length"), 1)
+    # seit 1.9.193: die Freistellung steht nicht in der Liste „Abwesenheiten“ (Festlegung 1.9.188 Nr. 5) -- der Satz über der Tafel nennt sie
+    p.pruefe("Satz über der Tafel nennt Freistellungen", await tab.js("document.querySelector('#conflictBanner .warning').textContent"),
+             "⚠ 1 Planeinsatz mit Konflikten. Berücksichtigt werden Doppelbelegungen, Abwesenheiten, Freistellungen, Feiertage und unzureichende "
+             "Stundenkapazität.")
     await tab.bild("1_kolonnen_heiligabend")
     await tab.js(f"openEdit({seed['slot']})")
     await tab.warten("document.getElementById('editDialog').open")

@@ -1212,3 +1212,11 @@ Neu: `tests/test_v602_meine_zeiten_beenden_im_monat.py` (8 Tests, stehende Uhr M
 Angepasste Erwartungen (Regel 28), altes Soll -> neues Soll:
 - `klicktest_meine_zeiten` „Ole: läuft seit gestern, Weg zu „Heute““, jetzt „Ole: läuft seit gestern, „Beenden“ statt des Wegs zu „Heute““: [„… läuft seit 06:45“, „Feierabend auf „Heute“ eintragen“, „/mobil“] -> [„… läuft seit 06:45“, „Beenden“, kein Link, nichts angeheftet]; dazu fünf Prüfungen (Ole: Dialog, Vorschau, gebucht; Fin aus Büro – Finanzen: „Heute“ 403 und „Beenden“, gebucht), 54 -> 59, ein Bild mehr (`meine_zeiten_beenden_im_monat_hell`); Aufbau um das Konto Fin mit eigener Zeit seit Mo 12.10. 07:30.
 - `klicktest_monteurin_regeln` „Meine Zeiten: die offene Zeit „läuft seit 06:45“ ohne Stunden, Weg zu „Heute““: [„…“, „“, „Feierabend auf „Heute“ eintragen“, „/mobil“] -> [„…“, „“, „Beenden“, kein Link]; Mia beendet die Zeit danach wie bisher auf „Heute“ (31 Prüfungen).
+
+### Umsetzung 1.9.193: Freistellungen im Satz über der Tafel (Punkt 2)
+
+`planning.html`, Hinweis bei Konflikten (`#conflictBanner`): „Berücksichtigt werden Doppelbelegungen, Abwesenheiten, Freistellungen, Feiertage und unzureichende Stundenkapazität.“ (bis 1.9.192 ohne „Freistellungen“). Sonst nichts geändert -- die Liste „Abwesenheiten“ der Tafel bleibt ohne Freistellungen (Festlegung 1.9.188 Nr. 5).
+
+### Tests und Prüfung 1.9.193
+
+`tests/test_v600_plantafel_kalender.py::test_seite_nennt_die_freistellung` prüft dazu den Satz; `klicktest_plantafel_kalender` liest den Hinweis über der Tafel in der Woche von Heiligabend (12 -> 13 Prüfungen). Gegenprobe: der alte Satz zurück -> `test_v600` 1 rot, der Klicktest 12 von 13. Angepasste Erwartungen: keine; keine neue Festlegung.
