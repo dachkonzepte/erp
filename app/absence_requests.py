@@ -247,6 +247,7 @@ def review_request(
     db: Session, request_id: int, *, decision: str, reviewed_by_user_id: int | None,
     review_notes: str | None = None,
 ) -> EmployeeAbsenceRequest:
+    """Entscheiden unter „Zeiten“ (nur Admin). Seit 1.9.202 prüft _entscheiden() einen Ausfalltag Schlechtwetter wie der Dialog (grund_gegen())."""
     row = db.get(EmployeeAbsenceRequest, request_id)
     if row is None:
         raise ValueError("Abwesenheitsantrag wurde nicht gefunden.")
@@ -261,6 +262,13 @@ def _entscheiden(db: Session, row: EmployeeAbsenceRequest, *, decision: str, rev
         raise ValueError("Dieser Abwesenheitsantrag wurde bereits bearbeitet.")
     if decision not in {"approved", "rejected"}:
         raise ValueError("Ungültige Entscheidung.")
+    if decision == "approved" and row.absence_category == "schlechtwetter":
+        # seit 1.9.202 (L1a Stufe 4, Punkt 1): jede Genehmigung eines Ausfalltags prüft wie der Schlechtwetter-Dialog -- auch unter „Zeiten“
+        # (bis 1.9.201 genehmigte der Admin dort auch an einem Tag ohne Sollzeit); die Meldung ist der Grund
+        from .schlechtwetter import grund_gegen  # lokal: app/schlechtwetter.py importiert von hier
+        grund = grund_gegen(db, db.get(Employee, row.employee_id), row.start_date)
+        if grund:
+            raise ValueError(grund)
     if decision == "approved":
         overlap = db.scalar(
             select(EmployeeAbsence.id).where(

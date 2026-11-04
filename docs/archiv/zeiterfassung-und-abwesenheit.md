@@ -848,7 +848,7 @@ Oberfläche: `_schlechtwetter.html` (Dialog und Bestätigen, bindet `_speichern.
 
 1. Vorarbeiter ist ein Kennzeichen am Mitarbeiter, gesetzt im Mitarbeiterformular (Admin, Büro – Finanzen); weder die Funktion „Dachdecker Vorarbeiter“ noch die Rolle in einer Kolonne machen jemanden zum Vorarbeiter.
 2. Ein Kolonnenführer trägt für jeden gewerblichen Mitarbeiter ein, nicht nur für seine Kolonne (wie vorgegeben); er muss Kolonnenführer einer aktiven Kolonne sein.
-3. Büro – Finanzen trägt sofort ein, bestätigt aber keine Anträge (die Vorgabe nennt Kolonnenführer, Vorarbeiter und Admin); der Admin entscheidet auch unter „Zeiten“.
+3. Büro – Finanzen trägt sofort ein, bestätigt aber keine Anträge (die Vorgabe nennt Kolonnenführer, Vorarbeiter und Admin); der Admin entscheidet auch unter „Zeiten“ -- seit 1.9.202 mit denselben Prüfungen wie im Dialog (bis 1.9.201 genehmigte er dort auch an einem Tag ohne Sollzeit; Vorgabe Tobias, L1a Stufe 4, Punkt 1).
 4. Schlechtwetter nur für gewerbliche Mitarbeiter (Funktion mit Gruppe „gewerblich“), auch für Azubis.
 5. Alles oder nichts: ist ein Tag für eine Person nicht möglich, wird für niemanden eingetragen; die Meldung nennt jede Person mit Grund.
 6. Die Warnung betrifft gebuchte und laufende Zeit an dem Tag; „trotzdem“ trägt für alle ein, die Buchungen bleiben (die Datei zeigt dann zwei Arten an einem Tag, LB3).
@@ -1270,3 +1270,21 @@ Schnittstelle liefert mit `?monat=` auch einen künftigen Monat samt Freistellun
 
 Zusammen (1.9.197–1.9.201): 95 Festlegungen, 277 Gegenproben (und eine Nullprobe), 67 zuerst grün -> 56 neue Testfunktionen in fünf Dateien
 (test_v604 … test_v608), danach jede Gegenprobe rot. Ohne Gegenprobe: die Werkzeug-Festlegung 1.9.166 Nr. 1 und 19 Teilaussagen, je mit Grund.
+
+## Lohn L1a, Stufe 4 (ab 1.9.202)
+
+Vorgabe Tobias (04.11.2026): die fünf Abweichungen von Wortlaut und Code aus Stufe 3 -- vier am Code, eine nur am Wortlaut -- je eine Version: 1 der Admin genehmigt einen Ausfalltag unter „Zeiten“ nur mit den Prüfungen des Dialogs (1.9.170 Nr. 3); 2 für die Kategorie Schlechtwetter gewinnt immer die Jahreszeit, eine Zuordnung je Art wird dort abgelehnt, eine gespeicherte übergangen und vom Prüfskript genannt (1.9.169 Nr. 3); 3 die Meldung des Schlechtwetter-Dialogs nennt auch, wer schon abwesend ist, je Person mit Grund (1.9.170 Nr. 5); 4 der Sammeleintrag prüft schon beim Anlegen, wer abwesend ist oder einen offenen Antrag hat, auch bei Büro – Finanzen (1.9.171 Nr. 5); 5 Wortlaut von 1.9.187 Nr. 3 (Seite und Schnittstelle). Dazu 6 (Werkzeug): Klicktests, die einen vom Server gefüllten Wert lesen, ohne auf die Antwort zu warten.
+
+### Umsetzung 1.9.202: Genehmigen unter „Zeiten“ wie im Dialog (Punkt 1)
+
+`app/absence_requests.py::_entscheiden()` prüft beim Genehmigen eines Antrags der Kategorie Schlechtwetter `app/schlechtwetter.py::grund_gegen()` (kein Arbeitstag, Feiertag, Tag des Arbeitszeitkalenders, keine Sollzeit, nicht gewerblich, inaktiv) und lehnt mit dem Grund ab (`ValueError`, 422 aus `POST /api/absence-requests/{id}/review` wie aus `POST /api/schlechtwetter/{id}/entscheiden`); der Antrag bleibt offen, keine Abwesenheit. Die eigene Prüfung in `app/schlechtwetter.py::entscheiden()` entfällt -- eine Stelle für jeden Weg (Dialog, „Zeiten“, Eintragen mit sofortiger Genehmigung). Ablehnen bleibt ohne Prüfung. Die Seite „Zeiten“ zeigt die Meldung wie jede abgelehnte Entscheidung in der Statuszeile.
+
+### Festlegungen 1.9.202 (Bitte bestätigen)
+
+1. Geprüft wird beim Genehmigen nur, was der Dialog ablehnt (`grund_gegen()`); die Rückfragen (gebuchte Zeit, betriebsfreier Tag) gelten beim Genehmigen nicht -- wie beim Bestätigen im Dialog (Festlegung 1.9.178 Nr. 3).
+2. Die Meldung ist der Grund selbst, ohne Vorsatz („Tom Monteur: am 07.12.2026 keine Sollzeit“) -- dieselbe wie im Dialog.
+3. Die Prüfung sitzt in `_entscheiden()`: jeder Weg, der einen Ausfalltag genehmigt, prüft dort; andere Kategorien nicht (Urlaub an einem Tag ohne Sollzeit genehmigt der Admin wie bisher, er zählt 0).
+
+### Tests und Prüfung 1.9.202
+
+Neu: `tests/test_v609_schlechtwetter_unter_zeiten.py` (7 Tests) -- Tom beantragt Mo 07.12.2026, danach keine Sollzeit am Montag bzw. kaufmännisch: unter „Zeiten“ 422 mit dem Grund des Dialogs, Antrag offen, keine Abwesenheit; im Dialog dieselbe Meldung; ablehnen geht; ohne Änderung genehmigt; Urlaub an einem Tag ohne Sollzeit wie bisher genehmigt. Gegenprobe: die Prüfung in `_entscheiden()` abgeschaltet -> 4 rot (beide Wege, beide Gründe). Angepasste Erwartungen: keine (`test_v605::test_admin_entscheidet_schlechtwetter_auch_unter_zeiten` bleibt -- ein gültiger Tag).

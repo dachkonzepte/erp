@@ -173,15 +173,12 @@ def offene_antraege(db: Session) -> list[EmployeeAbsenceRequest]:
 
 
 def entscheiden(db: Session, antrag_id: int, *, decision: str, user_id: int | None, notes: str | None) -> EmployeeAbsenceRequest:
-    """Einen offenen Schlechtwetter-Antrag bestätigen oder ablehnen; beim Bestätigen gelten dieselben Regeln wie beim Eintragen."""
+    """Einen offenen Schlechtwetter-Antrag bestätigen oder ablehnen; beim Bestätigen gelten dieselben Regeln wie beim Eintragen -- seit 1.9.202
+    prüft sie _entscheiden() für jeden Weg (grund_gegen(), auch beim Genehmigen unter „Zeiten“)."""
     from .absence_requests import _entscheiden, load_request
     row = db.get(EmployeeAbsenceRequest, antrag_id)
     if row is None or row.absence_category != SCHLECHTWETTER:
         raise LookupError("Antrag nicht gefunden.")
-    if decision == "approved":
-        grund = grund_gegen(db, db.get(Employee, row.employee_id), row.start_date)
-        if grund:
-            raise ValueError(grund)
     _entscheiden(db, row, decision=decision, reviewed_by_user_id=user_id, review_notes=notes)
     db.commit()
     return load_request(db, row.id)
