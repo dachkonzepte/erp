@@ -129,7 +129,8 @@ def test_alles_oder_nichts(welt):
     vorher = welt["db"].query(EmployeeAbsenceRequest).count()
     r = _sammel(_als(welt), welt["mia"], welt["tom"], welt["kai"])
     assert r.status_code == 422
-    assert [x["text"] for x in r.json()["liste"]] == ["Tom Monteur: Für diesen Zeitraum existiert bereits ein offener Abwesenheitsantrag."]
+    # seit 1.9.205 aus belegt(), mit dem Tag (bis 1.9.204 „Tom Monteur: Für diesen Zeitraum existiert bereits ein offener Abwesenheitsantrag.“)
+    assert [x["text"] for x in r.json()["liste"]] == ["Tom Monteur: am 29.12.2026 bereits ein offener Antrag"]
     welt["db"].expire_all()
     assert welt["db"].query(EmployeeAbsenceRequest).count() == vorher and welt["db"].query(EmployeeAbsence).count() == 0
 

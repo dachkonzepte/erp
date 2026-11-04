@@ -248,23 +248,28 @@ def sammel_eintragen(db: Session, *, employee_ids: list[int], gleich_genehmigt: 
     """Seit 1.9.171 (Lohn L1a, Punkt 6, Entscheidung Tobias E9): dieselbe Abwesenheit für mehrere Personen -- je Person ein Antrag über
     _antrag_anlegen() (ein Weg), gleich genehmigt, wenn der Aufrufer entscheidet. Alles oder nichts in einem Commit: geht es für eine Person
     nicht, SammelAbgelehnt mit jeder Person und ihrem Grund. Bewusst ohne SAVEPOINT je Person: unter SQLite ist ein SAVEPOINT vor der ersten
-    Änderung selbst die Transaktion, sein RELEASE committet (gefunden im Test „alles oder nichts“) -- ein Fehler rollt das Ganze zurück."""
+    Änderung selbst die Transaktion, sein RELEASE committet (gefunden im Test „alles oder nichts“) -- ein Fehler rollt das Ganze zurück.
+    Seit 1.9.205 (L1a Stufe 4, Punkt 4) zuerst je Person belegt(): wer schon abwesend ist oder einen offenen Antrag hat, steht in der Liste --
+    auch bei Büro – Finanzen (bis 1.9.204 entstanden dort offene Anträge, „schon abwesend“ scheiterte erst bei der Entscheidung); das Genehmigen
+    prüft dahinter weiter selbst (zeitgleiche Einträge). Die Rückfrage zu Silvester kommt erst, wenn für keine Person etwas dagegen spricht."""
     ids = list(dict.fromkeys(int(i) for i in employee_ids))
-    antraege, fehler = [], []
+    antraege, fehler, frage = [], [], None
     for eid in ids:
         try:
+            grund = belegt(db, eid, werte["start_date"], werte["end_date"])
+            if grund:
+                raise ValueError(grund)
             row = _antrag_anlegen(db, employee_id=eid, **werte)
             if gleich_genehmigt:
                 _entscheiden(db, row, decision="approved", reviewed_by_user_id=werte.get("requested_by_user_id"))
             antraege.append(row.id)
         except ValueError as exc:
             fehler.append({"employee_id": eid, "text": f"{_employee_name(db.get(Employee, eid)) or eid}: {exc}"})
-        except KalendertagFrage:  # seit 1.9.176: die Antwort gilt für alle -- nichts gespeichert, der Dialog fragt
-            db.rollback()
-            raise
-    if fehler:
+        except KalendertagFrage as exc:  # seit 1.9.176: die Antwort gilt für alle -- nichts gespeichert, der Dialog fragt
+            frage = frage or exc
+    if fehler or frage:
         db.rollback()
-        raise SammelAbgelehnt(fehler)
+        raise SammelAbgelehnt(fehler) if fehler else frage
     db.commit()
     return [load_request(db, i) for i in antraege]
 

@@ -5,7 +5,8 @@
                             eingetragen; nur Kolonne 1 -> „Eingetragen für 2 Personen“; „Halber Tag“ nur bei Urlaub an einem Tag; Mia am 23.12. halber
                             Tag -> in der Liste „halber Tag · 0,5 Arbeitstage“; Urlaub 21.–24.12. zählt 3 (seit 1.9.175 ist der 24.12. für
                             gewerbliche Heiligabend im Arbeitszeitkalender; 1.9.174: 4, 1.9.171–1.9.173: 3,5) -- Bilder
-    Fin (Büro – Finanzen)   derselbe Dialog -> „Anträge gesendet für …“ (offen, nicht genehmigt)
+    Fin (Büro – Finanzen)   seit 1.9.205: Kai und Tom 28.–30.12. -> beide schon abwesend, beide genannt, keine Anträge -- Bild; derselbe
+                            Dialog für Kai im Januar -> „Anträge gesendet für …“ (offen, nicht genehmigt)
     Mia (Monteurin, 1280)   „Meine Zeiten“ -> „+ Antrag“: „Halber Tag“ bei Urlaub an einem Tag, nicht bei Krankheit
     überall                 keine JS-Fehler
 
@@ -88,8 +89,9 @@ async def pruefen(tab, seed, p):
     p.pruefe("Ada: „Alle“ hakt alle an", await tab.js(GEHAKT), ["Kai Kolonne", "Mia Monteurin", "Tom Monteur"])
     await _setze(tab, {"adKategorie": "urlaub", "adVon": "2026-12-28", "adBis": "2026-12-30"})
     p.pruefe("Ada: „Halber Tag“ nicht bei drei Tagen", await tab.js("document.getElementById('adHalbFeld').hidden"), True)
-    p.pruefe("Ada: Kai schon im Urlaub -- nichts eingetragen", await _senden(tab),
-             "Nicht eingetragen: Kai Kolonne: Für diesen Mitarbeiter besteht im beantragten Zeitraum bereits eine genehmigte Abwesenheit.")
+    # seit 1.9.205 aus belegt(), mit dem Tag (bis 1.9.204 „… Kai Kolonne: Für diesen Mitarbeiter besteht im beantragten Zeitraum bereits eine
+    # genehmigte Abwesenheit.“ -- beim Admin erst beim Genehmigen)
+    p.pruefe("Ada: Kai schon im Urlaub -- nichts eingetragen", await _senden(tab), "Nicht eingetragen: Kai Kolonne: am 29.12.2026 bereits abwesend.")
     await tab.bild("sammeleintrag_abgelehnt")
     await tab.js("{const s=document.getElementById('adKolonne');s.value=[...s.options].find(o=>o.text==='Kolonne 1').value;s.dispatchEvent(new Event('change'))}")
     p.pruefe("Ada: nur Kolonne 1 eingetragen", await _senden(tab), "Eingetragen für 2 Personen, Mo 28.12.–Mi 30.12.2026")
@@ -117,6 +119,15 @@ async def pruefen(tab, seed, p):
 
     await tab.anmelden(seed["cookies"]["fin"])
     p.pruefe("Fin: geladen", await tab.oeffnen("/zeiten?als=fin#abwesenheiten", ZEITEN_BEREIT), True)
+    # seit 1.9.205 (L1a Stufe 4, Punkt 4): auch bei Büro – Finanzen schon beim Anlegen geprüft (bis 1.9.204 zwei offene Anträge)
+    await _dialog(tab)
+    for wer in ("kai", "tom"):
+        await tab.js(f"document.querySelector('[data-ad-person=\"{seed['ids'][wer]}\"]').checked=true")
+    await _setze(tab, {"adKategorie": "urlaub", "adVon": "2026-12-28", "adBis": "2026-12-30"})
+    p.pruefe("Fin: Kai und Tom schon abwesend -- beide genannt, keine Anträge", await _senden(tab),
+             "Nicht eingetragen: Kai Kolonne: am 29.12.2026 bereits abwesend; Tom Monteur: vom 28.12. bis 30.12.2026 bereits abwesend.")
+    await tab.bild("sammeleintrag_fin_abgelehnt")
+    await tab.js("document.getElementById('abwDialog').close()")
     await _dialog(tab)
     await tab.js(f"document.querySelector('[data-ad-person=\"{seed['ids']['kai']}\"]').checked=true")
     await _setze(tab, {"adKategorie": "urlaub", "adVon": "2027-01-04", "adBis": "2027-01-05"})
