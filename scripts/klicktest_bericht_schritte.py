@@ -256,6 +256,9 @@ async def pruefen(tab, seed, p):
     gully = await tab.js("PUNKTE.find(p=>p.text.startsWith('Gully 1')).id")
     await tab.js(f"(b=>{{b.focus();b.click()}})(document.getElementById('seg-{gully}-nok'))")  # wie ein Tipp: Fokus, dann Klick
     await tab.warten(f"!!document.getElementById('befund-form-p{gully}')")
+    # seit 1.9.196: wie die Prüfungen darunter erst nach Ruhe im Netz -- „Noch offen“ kommt mit GET …/noch-offen; das Formular des Befunds
+    # steht schon vorher da (unter Last am 04.11.2026 einmal gelesen, während die Anfrage noch unterwegs war)
+    await tab.warte_auf_ruhe()
     p.pruefe("„Nicht OK“: Befund direkt unter dem Punkt, „Noch offen“ nennt ihn",
              [await tab.js(f"document.getElementById('punkt-befund-{gully}').contains(document.getElementById('befund-form-p{gully}'))"),
               await tab.js(f"{_offen()}.some(t=>t.startsWith('Befund zum Prüfpunkt „Gully 1'))")],
