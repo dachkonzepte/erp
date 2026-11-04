@@ -6,7 +6,8 @@ Tag. Die Zuordnung (app/lohnarten.py) unterscheidet Winter (01.12.–31.03., Sai
     eintragen      Admin, Büro – Finanzen, Kolonnenführer und Vorarbeiter für jeden gewerblichen Mitarbeiter -- gilt sofort (genehmigt);
                    jede andere Person für sich selbst -- ein Antrag, den Kolonnenführer, Vorarbeiter oder Admin bestätigt
     abgelehnt      Samstag, Sonntag, gesetzlicher Feiertag, Tag des Arbeitszeitkalenders (seit 1.9.175, dort gilt dessen Abwesenheit), Tag
-                   ohne Sollzeit (app/sollzeit.py), nicht gewerblich -- 422 mit Grund
+                   ohne Sollzeit (app/sollzeit.py), nicht gewerblich, seit 1.9.204 schon abwesend oder ein offener Antrag -- 422 mit Grund
+                   je Person
     Warnung        hat die Person an dem Tag schon Zeit gebucht oder laufen, 409 mit der Liste; gespeichert erst mit „trotzdem“ -- seit 1.9.178
                    ebenso an einem von Hand eingetragenen betriebsfreien Tag (bis 1.9.177 ohne Rückfrage angenommen)
     Kolonnenführer TeamEmployee.is_crew_leader in einer aktiven Kolonne (seit 1.7.12); Vorarbeiter EmployeeRoleSettings.vorarbeiter
@@ -142,12 +143,21 @@ def warnungen(db: Session, employee_ids: list[int], tag: date) -> list[dict]:
 def eintragen(db: Session, *, employee_ids: list[int], tag: date, notes: str | None, gleich_genehmigt: bool, user_id: int | None,
               trotzdem: bool) -> list[EmployeeAbsenceRequest]:
     """Ein Ausfalltag für jede genannte Person, alles oder nichts in einem Commit. Abgelehnte Tage -> SchlechtwetterAbgelehnt (422),
-    gebuchte Zeit ohne „trotzdem“ -> SchlechtwetterWarnung (409)."""
-    from .absence_requests import _antrag_anlegen, _entscheiden, load_request
+    gebuchte Zeit ohne „trotzdem“ -> SchlechtwetterWarnung (409). Seit 1.9.204 (L1a Stufe 4, Punkt 3) gehört auch „schon abwesend“ und „offener
+    Antrag“ zu den abgelehnten Tagen -- je Person mit Namen in der Liste (bis 1.9.203 erst beim Anlegen, ohne Namen und nur der erste)."""
+    from .absence_requests import _antrag_anlegen, _entscheiden, belegt, load_request
     ids = list(dict.fromkeys(int(i) for i in employee_ids))
-    gruende = [g for g in (grund_gegen(db, db.get(Employee, eid), tag) for eid in ids) if g]
+    gruende = []
+    for eid in ids:
+        emp = db.get(Employee, eid)
+        grund = grund_gegen(db, emp, tag)
+        if grund is None:
+            frei = belegt(db, eid, tag, tag)
+            grund = f"{_name(emp)}: {frei}" if frei else None
+        if grund:
+            gruende.append({"text": grund})
     if gruende:
-        raise SchlechtwetterAbgelehnt([{"text": g} for g in gruende])
+        raise SchlechtwetterAbgelehnt(gruende)
     warn = warnungen(db, ids, tag)
     if warn and not trotzdem:
         raise SchlechtwetterWarnung(warn)

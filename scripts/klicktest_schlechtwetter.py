@@ -5,7 +5,9 @@
                                      eingetragen: …“ -- Bild
     Tom (Monteur, 1280 × 620)        Dialog „Schlechtwetter beantragen“ ohne Personen und Kolonne; Dienstag 08.12.2026 -> „Schlechtwetter beantragt“,
                                      ein offener Antrag
-    Kai                              Karte „Schlechtwetter bestätigen“ mit Tom · Di 08.12.2026 -> „Bestätigen“ -> die Karte ist leer, Toms Tag
+    Kai                              seit 1.9.204: Kolonne 1 am Montag noch einmal -> „Nicht eingetragen: Kai Kolonne: am 07.12.2026 bereits
+                                     abwesend; Tom …; Mia …“ -- Bild; am Dienstag nur Tom „bereits ein offener Antrag“, für Kai und Mia nichts;
+                                     Karte „Schlechtwetter bestätigen“ mit Tom · Di 08.12.2026 -> „Bestätigen“ -> die Karte ist leer, Toms Tag
                                      genehmigt -- Bild
     Fin (Büro – Finanzen, 1440)      „Zeiten → Abwesenheiten“: „Schlechtwetter eintragen“; Uwe am 09.12.2026, an dem er Zeit gebucht hat -> Rückfrage
                                      „An diesem Tag ist schon Zeit gebucht: Uwe …“, „Trotzdem eintragen“ -> eingetragen; die Liste zeigt „Schlechtwetter“;
@@ -124,6 +126,22 @@ async def pruefen(tab, seed, p):
     # ---- Kai bestätigt -----------------------------------------------------------------------------------------------------------------
     await tab.anmelden(seed["cookies"]["kai"])
     p.pruefe("Kai: geladen", await tab.oeffnen("/mobil/zeiten?als=kai", MEINE_BEREIT), True)
+    # seit 1.9.204 (L1a Stufe 4, Punkt 3): schon abwesend oder ein offener Antrag -- jede Person mit Namen und Grund, nichts eingetragen
+    await tab.js("document.getElementById('swNeu').click()")
+    await tab.js("{const s=document.getElementById('swKolonne');s.value=[...s.options].find(o=>o.text==='Kolonne 1').value;"
+                 "s.dispatchEvent(new Event('change'))}")
+    await _setze(tab, {"swTag": "2026-12-07"})
+    await tab.js("document.getElementById('swSenden').click()")
+    p.pruefe("Kai: Montag schon eingetragen -> jede Person mit Grund", await tab.warten(
+        "document.getElementById('swStatus').textContent==='Nicht eingetragen: Kai Kolonne: am 07.12.2026 bereits abwesend; Tom Monteur: am "
+        "07.12.2026 bereits abwesend; Mia Monteurin: am 07.12.2026 bereits abwesend.'", 10), True)
+    await tab.bild("schlechtwetter_kai_schon_abwesend")
+    await _setze(tab, {"swTag": "2026-12-08"})
+    await tab.js("document.getElementById('swSenden').click()")
+    p.pruefe("Kai: Dienstag -> Tom mit offenem Antrag genannt, für Kai und Mia nichts", await tab.warten(
+        "document.getElementById('swStatus').textContent==='Nicht eingetragen: Tom Monteur: am 08.12.2026 bereits ein offener Antrag.'", 10), True)
+    await tab.warte_auf_ruhe()
+    await tab.js("document.getElementById('swAbbrechen').click()")
     p.pruefe("Kai: Antrag zum Bestätigen", await tab.js(
         "[document.getElementById('swAntraege').hidden,[...document.querySelectorAll('[data-sw-antrag] span')].map(s=>s.textContent)]"),
         [False, ["Tom Monteur · Di 08.12.2026"]])

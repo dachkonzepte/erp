@@ -190,6 +190,32 @@ def _antrag_anlegen(
     return row
 
 
+def zeitraum_text(start, ende) -> str:
+    """„am 29.12.2026“ bzw. „vom 28.12. bis 30.12.2026“ (über einen Jahreswechsel mit beiden Jahren)."""
+    if start == ende:
+        return f"am {start:%d.%m.%Y}"
+    return f"vom {start:%d.%m.} bis {ende:%d.%m.%Y}" if start.year == ende.year else f"vom {start:%d.%m.%Y} bis {ende:%d.%m.%Y}"
+
+
+def belegt(db: Session, employee_id: int, start_date, end_date) -> str | None:
+    """Seit 1.9.204 (L1a Stufe 4, Punkt 3): ist die Person im Zeitraum schon abwesend (genehmigt) oder hat sie dort einen offenen Antrag? Der
+    Grund nennt die Tage, an denen beides zusammenfällt -- ohne Kategorie und Art: die Meldung sehen auch Kolonnenführer und Vorarbeiter, welche
+    Abwesenheit es ist, nicht jeder (seit 1.5.4). None: frei. Geprüft vor dem Anlegen, damit „alles oder nichts“ jede Person nennt; beim
+    Genehmigen prüft _entscheiden() weiter selbst (zeitgleiche Einträge von anderer Seite)."""
+    ab = db.scalar(select(EmployeeAbsence).where(
+        EmployeeAbsence.employee_id == employee_id, EmployeeAbsence.end_date >= start_date, EmployeeAbsence.start_date <= end_date,
+    ).order_by(EmployeeAbsence.start_date, EmployeeAbsence.id).limit(1))
+    if ab is not None:
+        return f"{zeitraum_text(max(ab.start_date, start_date), min(ab.end_date, end_date))} bereits abwesend"
+    offen = db.scalar(select(EmployeeAbsenceRequest).where(
+        EmployeeAbsenceRequest.employee_id == employee_id, EmployeeAbsenceRequest.status == "pending",
+        EmployeeAbsenceRequest.end_date >= start_date, EmployeeAbsenceRequest.start_date <= end_date,
+    ).order_by(EmployeeAbsenceRequest.start_date, EmployeeAbsenceRequest.id).limit(1))
+    if offen is not None:
+        return f"{zeitraum_text(max(offen.start_date, start_date), min(offen.end_date, end_date))} bereits ein offener Antrag"
+    return None
+
+
 def create_request(db: Session, **werte) -> EmployeeAbsenceRequest:
     row = _antrag_anlegen(db, **werte)
     db.commit()
