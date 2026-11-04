@@ -81,39 +81,61 @@ def soll(db: Session, employee_id: int, tag: date) -> Decimal:
 
 def soll_zeitraum(db: Session, employee_id: int, start: date, ende: date) -> dict[date, Decimal]:
     """Die Sollzeit je Tag von start bis ende in Stunden mit zwei Stellen -- eine Abfrage für Lohnstammdaten und eigene Werte, das Modell je
-    Kalenderwoche (es hängt nur an der Woche; seit 1.9.171 zwischengespeichert, bis 1.9.170 je Tag nachgeschlagen)."""
+    Kalenderwoche (es hängt nur an der Woche; seit 1.9.171 zwischengespeichert, bis 1.9.170 je Tag nachgeschlagen). Seit 1.9.211 über
+    soll_fuer_personen() -- eine Rechnung für eine wie für viele Personen."""
+    return soll_fuer_personen(db, [employee_id], start, ende)[employee_id]
+
+
+def soll_fuer_personen(db: Session, employee_ids, start: date, ende: date) -> dict[int, dict[date, Decimal]]:
+    """Seit 1.9.211 (L1a Stufe 5, Punkt 4: die Plantafel rechnet mit der Sollzeit): die Sollzeit vieler Personen je Tag von start bis ende --
+    dieselbe Rechnung wie bisher soll_zeitraum() je Person, mit je einer Abfrage für Lohnstammdaten, eigene Werte, Gruppen und Zuordnung der
+    Modelle für alle; das Modell je Zuordnung und Kalenderwoche einmal (app/work_time_models.py::modell_fuer_zuordnung())."""
     from datetime import timedelta
 
-    from .arbeitszeitkalender import aktive, fuer_tag, gruppe_von
+    from .arbeitszeitkalender import aktive, fuer_tag
+    from .work_time_models import modell_fuer_zuordnung, zuordnungen
 
-    payroll = _payroll(db, employee_id)
-    reihe = zeilen(db, employee_id)
+    ids = list(dict.fromkeys(int(i) for i in employee_ids))
+    if not ids:
+        return {}
+    payrolls = {p.employee_id: p for p in db.scalars(select(EmployeePayrollSettings).where(EmployeePayrollSettings.employee_id.in_(ids)))}
+    reihen: dict[int, list[EmployeeTargetHours]] = {i: [] for i in ids}
+    for z in db.scalars(select(EmployeeTargetHours).where(EmployeeTargetHours.employee_id.in_(ids)).order_by(EmployeeTargetHours.valid_from)):
+        reihen[z.employee_id].append(z)
+    gruppen = dict(db.execute(select(Employee.id, Employee.employee_group).where(Employee.id.in_(ids))).all())
+    modelle = zuordnungen(db, ids)
     # seit 1.9.175 (L1a-Nachtrag, Punkt 2): ein Tag des Arbeitszeitkalenders mit eigener Sollzeit (Heiligabend 7,00 h) geht Tarif und eigenen
     # Werten vor; seit 1.9.180 (L1a-Korrekturen, Punkt 1) nur, wo die Person an dem Tag ohne ihn Sollzeit hätte -- dann voll, nicht anteilig
     # (Teilzeit am Donnerstag mit 3,00 h: 7,00 h; ohne Sollzeit am Wochentag: 0, keine Freistellung)
-    kalender, gruppe = [e for e in aktive(db) if e.sollzeit is not None], gruppe_von(db, employee_id)
-    je_woche: dict[tuple[int, int], Decimal] = {}
-    ergebnis: dict[date, Decimal] = {}
-    tag = start
-    while tag <= ende:
-        if not beschaeftigt_am(payroll, tag):
-            ergebnis[tag] = round_hours(NULL)
-        else:
-            eigene = _eigene_zeile(reihe, tag)
-            if not ist_tarif(eigene):
-                wert = Decimal(str(getattr(eigene, WOCHENTAGE[tag.weekday()])))
-            elif tag.weekday() >= 5:
-                wert = NULL
+    kalender = [e for e in aktive(db) if e.sollzeit is not None]
+    je_woche: dict[tuple[int | None, int, int], Decimal] = {}
+    ergebnis: dict[int, dict[date, Decimal]] = {}
+    for eid in ids:
+        payroll, reihe, gruppe, zuordnung = payrolls.get(eid), reihen[eid], gruppen.get(eid), modelle[eid]
+        tage: dict[date, Decimal] = {}
+        tag = start
+        while tag <= ende:
+            if not beschaeftigt_am(payroll, tag):
+                tage[tag] = round_hours(NULL)
             else:
-                woche = tuple(tag.isocalendar()[:2])
-                if woche not in je_woche:
-                    je_woche[woche] = tarif(db, employee_id, tag)
-                wert = je_woche[woche]
-            kalendertag = fuer_tag(kalender, tag, gruppe) if kalender and wert > 0 else None
-            if kalendertag is not None:
-                wert = Decimal(str(kalendertag.sollzeit))
-            ergebnis[tag] = round_hours(wert)
-        tag += timedelta(days=1)
+                eigene = _eigene_zeile(reihe, tag)
+                if not ist_tarif(eigene):
+                    wert = Decimal(str(getattr(eigene, WOCHENTAGE[tag.weekday()])))
+                elif tag.weekday() >= 5:
+                    wert = NULL
+                else:
+                    schluessel = (zuordnung, *tag.isocalendar()[:2])
+                    if schluessel not in je_woche:
+                        modell = modell_fuer_zuordnung(db, zuordnung, tag)
+                        je_woche[schluessel] = (Decimal(str(modell.daily_target_hours))
+                                                if modell is not None and modell.daily_target_hours is not None else NULL)
+                    wert = je_woche[schluessel]
+                kalendertag = fuer_tag(kalender, tag, gruppe) if kalender and wert > 0 else None
+                if kalendertag is not None:
+                    wert = Decimal(str(kalendertag.sollzeit))
+                tage[tag] = round_hours(wert)
+            tag += timedelta(days=1)
+        ergebnis[eid] = tage
     return ergebnis
 
 

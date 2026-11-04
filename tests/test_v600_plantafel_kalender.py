@@ -17,7 +17,7 @@ from decimal import Decimal
 import pytest
 
 from app.arbeitszeitkalender import eintraege, freistellungen
-from app.models import EmployeeAbsence, PlanningSlot
+from app.models import EmployeeAbsence, EmployeePlanningSettings, PlanningSlot, TeamEmployee
 from app.planning import planning_board, planning_suggestion
 from app.sollzeit import zeile_anlegen
 from tests.test_v090_planning_board import setup_order
@@ -66,11 +66,15 @@ def test_tafel_zeigt_die_betroffenen_abwesend(tafel):
     assert (mia["2026-12-24"]["capacity_hours"], mia["2026-12-24"]["absence"]) == (D("0"), "Heiligabend")
     assert mia["2026-12-23"]["capacity_hours"] > 0 and mia["2026-12-23"]["absence"] is None
     assert tom["2026-12-24"]["absence"] == "Heiligabend"
-    assert (ben["2026-12-24"]["absence"], ben["2026-12-24"]["capacity_hours"]) == (None, ben["2026-12-23"]["capacity_hours"])  # wie bisher
+    # seit 1.9.211 (Kapazität aus der Sollzeit): Ben (Mo–Di) hat Mittwoch und Donnerstag keine Sollzeit, also keine Kapazität -- und ist nicht
+    # freigestellt (bis 1.9.210 an beiden Tagen dieselbe Kapazität aus den Wochenstunden, Festlegung 1.9.188 Nr. 3 alt)
+    assert (ben["2026-12-24"]["absence"], ben["2026-12-24"]["capacity_hours"], ben["2026-12-23"]["capacity_hours"]) == (None, D("0"), D("0"))
+    assert ben["2026-12-22"]["capacity_hours"] == D("8")
     team = board["team_capacity"][str(tafel["team"].id)]
     assert sorted((a["name"], a["type"]) for a in team["2026-12-24"]["absences"]) == [
         ("Mia Test", "Heiligabend – bezahlte Freistellung"), ("Tom Test", "Heiligabend – bezahlte Freistellung")]
-    assert team["2026-12-24"]["available_employee_count"] == 1 and team["2026-12-23"]["available_employee_count"] == 3
+    # seit 1.9.211 an beiden Tagen ohne Ben (bis 1.9.210: 1 und 3)
+    assert team["2026-12-24"]["available_employee_count"] == 0 and team["2026-12-23"]["available_employee_count"] == 2
     assert team["2026-12-24"]["capacity_hours"] < team["2026-12-23"]["capacity_hours"]
     assert board["absences"] == []  # abgeleitet, nicht gespeichert -- nicht in der Liste der Abwesenheiten
     konflikte = board["slots"][0]["conflicts"]
@@ -117,7 +121,13 @@ def test_abgeschalteter_kalendertag_wie_bisher(tafel):
 
 
 def test_vorschlag_rechnet_den_tag_ohne_die_betroffenen(tafel):
+    """Seit 1.9.211 mit Uwe (kaufmännisch, Tarif, auf der Tafel eingeschaltet) in der Kolonne: für ihn gilt Heiligabend nicht (nur gewerbliche) --
+    er ist an dem Tag der eine Verfügbare (bis 1.9.210 Ben, der jetzt am Donnerstag ohne Sollzeit keine Kapazität hat)."""
     db = tafel["db"]
+    uwe = _person(db, "B-1", "Uwe")
+    uwe.employee_group = "kaufmaennisch"
+    db.add_all([TeamEmployee(team_id=tafel["team"].id, employee_id=uwe.id), EmployeePlanningSettings(employee_id=uwe.id, show_on_planning_board=True)])
+    db.commit()
     order = setup_order(db, "1")
     s = planning_suggestion(db, order_id=order.id, team_id=tafel["team"].id, start_date=HEILIGABEND)
     tag = next(d for d in s["days"] if d["date"] == HEILIGABEND)

@@ -200,7 +200,22 @@ def employee_model(db: Session, employee_id: int, on_date: date | None = None) -
     das erste aktive, für die Kalenderwoche gültige Modell verwendet.
     """
     on_date = on_date or berlin_today()
-    assigned_id = employee_model_id(db, employee_id)
+    return modell_fuer_zuordnung(db, employee_model_id(db, employee_id), on_date)
+
+
+def zuordnungen(db: Session, employee_ids) -> dict[int, int | None]:
+    """Seit 1.9.211: employee_model_id() für viele Personen mit einer Abfrage (dazu die Einstellungen) -- je Person das zugeordnete Modell,
+    sonst das Standardmodell."""
+    ids = list(employee_ids)
+    zugeordnet = dict(db.execute(select(EmployeeWorkTimeModel.employee_id, EmployeeWorkTimeModel.model_id)
+                                 .where(EmployeeWorkTimeModel.employee_id.in_(ids))).all()) if ids else {}
+    standard = load_advanced_settings(db).default_work_time_model_id
+    return {i: zugeordnet.get(i, standard) for i in ids}
+
+
+def modell_fuer_zuordnung(db: Session, assigned_id: int | None, on_date: date) -> WorkTimeModel | None:
+    """Seit 1.9.211 aus employee_model() herausgelöst: das Modell für eine Zuordnung (employee_model_id()) an einem Tag -- es hängt nur an der
+    Zuordnung und der Kalenderwoche, die Sollzeit vieler Personen (app/sollzeit.py::soll_fuer_personen()) schlägt es so je Paar einmal nach."""
     assigned = db.scalar(select(WorkTimeModel).options(selectinload(WorkTimeModel.break_rules)).where(WorkTimeModel.id == assigned_id)) if assigned_id else None
     if assigned is not None and assigned.active and model_is_valid_on(db, assigned.id, on_date):
         return assigned

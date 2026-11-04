@@ -7,7 +7,9 @@ Fortbildung am Di 22.12. und einer langen Art („Fortbildung Abdichtungstechnik
     Kolonnen     Woche ab 21.12.: in Nord am Do 24.12. „2 abw.“ (Mia und Tom), die Tage davor ohne; der Einsatz A ist markiert wie an einem
                  betriebsfreien Tag, im Dialog „Freistellung: Heiligabend – Mia Test, Tom Test · 24.12.“ -- Bild; seit 1.9.193 nennt der Satz über
                  der Tafel auch Freistellungen (sie stehen nicht in der Liste „Abwesenheiten“)
-    Mitarbeiter  Mia und Tom am 24.12. „Heiligabend – bezahlte Freistellung“, Ben nicht (keine Sollzeit am Donnerstag -- wie bisher); Bild;
+    Kapazität    seit 1.9.211 aus der Sollzeit: Nord Mo–Do 15,5 / 18,5 / 10,5 / 0 h, je Person Mia 7,5, Tom Di–Do 3, Ben Mo–Di 8 (bis 1.9.210
+                 aus den Wochenstunden je 8 h); seit 1.9.211 wartet der Test, bis die Tafel der neuen Woche gezeichnet ist
+    Mitarbeiter  Mia und Tom am 24.12. „Heiligabend – bezahlte Freistellung“, Ben nicht (keine Sollzeit am Donnerstag); Bild;
                  seit 1.9.194 Kais lange Art am 22.12.: in der Zelle rechts neben der Kapazität, mit „…“ gekürzt (text-overflow), voller Text
                  im Tooltip (title) -- die Absicherung des Nachtrags zu 1.9.188 für lange Arten, bis dahin ohne eigenen Test
     Einplanen    Auftrag B auf Nord 28.–31.12.: gespeichert ohne Rückfrage, Hinweis „Einsatz gespeichert – zur Kenntnis: Freistellung: Silvester
@@ -92,6 +94,16 @@ UEBERLAPPUNG = ("(()=>{const r=[...document.querySelectorAll('.planner-row')].fi
                 "return [b.right<=a.left&&a.left>=z.left&&a.right<=z.right,m.scrollWidth<=m.clientWidth,m.title]})()")
 
 
+def kapazitaeten(zeile: str, tage: list[str]) -> str:
+    """Seit 1.9.211: die Kapazitätsangaben („geplant/Kapazität h · Auslastung“) der Zeile an den Tagen."""
+    return ("(()=>{const r=[...document.querySelectorAll('.planner-row')].find(x=>x.querySelector('.row-label b')&&x.querySelector('.row-label b').textContent==="
+            + repr(zeile) + ");if(!r)return 'Zeile fehlt';return " + repr(tage) + ".map(t=>{const k=r.querySelector('.day-cell[data-date=\"'+t+'\"] .capacity-label');"
+            "return k?k.textContent:'fehlt'})})()")
+
+
+WOCHE = ["2026-12-21", "2026-12-22", "2026-12-23", "2026-12-24"]
+
+
 def zelle(zeile: str, tag: str) -> str:
     """Text der Markierung „abw.“ bzw. der Abwesenheit in der Zelle der Zeile (Name in der linken Spalte) am Tag -- leer, wenn keine."""
     return ("(()=>{const r=[...document.querySelectorAll('.planner-row')].find(x=>x.querySelector('.row-label b')&&x.querySelector('.row-label b').textContent==="
@@ -105,13 +117,18 @@ async def pruefen(tab, seed, p):
     await tab.browser_uhr_fest(seed["uhr_ms"])
     await tab.anmelden(seed["anna"])
     await tab.oeffnen("/planning", BEREIT)
-    await tab.js("movePeriod(7)")
-    await tab.warten(BEREIT + "&&iso(periodStart)==='2026-12-21'&&board.slots.length===1")
+    # seit 1.9.211: warten, bis die Tafel der neuen Woche gezeichnet ist -- „board.slots.length===1“ galt schon für die alte (zwei Wochen ab
+    # 14.12. mit demselben Einsatz); Prüfungen und Bild liefen davor (im Bild: Woche ab 14.12., „Lädt …“), die Werte waren nur zufällig gleich
+    await tab.warte_auf_neu_geladene_liste("movePeriod(7)", "#planner")
+    await tab.warten(BEREIT + "&&iso(periodStart)==='2026-12-21'&&board.start_date==='2026-12-21'&&board.slots.length===1")
 
     # --- Kolonnen ---
     p.pruefe("Nord am 24.12.: 2 abwesend, die Tage davor nicht", [await tab.js(zelle("Nord", t)) for t in ("2026-12-22", "2026-12-23", "2026-12-24")],
              ["", "", "2 abw."])
     p.pruefe("Einsatz A markiert wie am betriebsfreien Tag", await tab.js("document.querySelectorAll('.slot.conflict').length"), 1)
+    # seit 1.9.211 (L1a Stufe 5, Punkt 4): Kapazität aus der Sollzeit -- Mia 7,5 (Winter), Tom Di–Do 3, Ben Mo–Di 8; Do Mia und Tom freigestellt
+    # (bis 1.9.210 aus den Wochenstunden: 24, 24, 24, 8)
+    p.pruefe("Nord: Kapazität aus der Sollzeit", await tab.js(kapazitaeten("Nord", WOCHE)), ["0/15,5 h · 0%", "0/18,5 h · 0%", "0/10,5 h · 0%", "0/0 h · 0%"])
     # seit 1.9.193: die Freistellung steht nicht in der Liste „Abwesenheiten“ (Festlegung 1.9.188 Nr. 5) -- der Satz über der Tafel nennt sie
     p.pruefe("Satz über der Tafel nennt Freistellungen", await tab.js("document.querySelector('#conflictBanner .warning').textContent"),
              "⚠ 1 Planeinsatz mit Konflikten. Berücksichtigt werden Doppelbelegungen, Abwesenheiten, Freistellungen, Feiertage und unzureichende "
@@ -133,6 +150,10 @@ async def pruefen(tab, seed, p):
     p.pruefe("Mitarbeiter am 24.12.: Freistellung und Kapazität überlappen nicht, nichts abgeschnitten, voller Text im Tooltip", await tab.js(UEBERLAPPUNG),
              [True, True, "Heiligabend"])
     p.pruefe("Mia am 23.12. ohne", await tab.js(zelle("Mia Test", "2026-12-23")), "")
+    # seit 1.9.211: je Person die Sollzeit des Tags (bis 1.9.210 je 8 h an jedem Arbeitstag der Planung)
+    p.pruefe("Mitarbeiter: Kapazität aus der Sollzeit", [await tab.js(kapazitaeten(f"{n} Test", WOCHE)) for n in ("Mia", "Tom", "Ben")],
+             [["0/7,5 h · 0%", "0/7,5 h · 0%", "0/7,5 h · 0%", "0/0 h · 0%"], ["0/0 h · 0%", "0/3 h · 0%", "0/3 h · 0%", "0/0 h · 0%"],
+              ["0/8 h · 0%", "0/8 h · 0%", "0/0 h · 0%", "0/0 h · 0%"]])
     # seit 1.9.194: die Kürzung aus dem Nachtrag zu 1.9.188 mit einer langen Art -- Lage, „…“ und Tooltip
     p.pruefe("Kai am 22.12.: lange Art neben der Kapazität, in der Zelle, mit „…“ gekürzt, voller Text im Tooltip", await tab.js(GEKUERZT),
              [True, True, True, "ellipsis", "nowrap", LANGE_ART, LANGE_ART])
@@ -156,8 +177,8 @@ async def pruefen(tab, seed, p):
     # --- Büro – Auftrag ---
     await tab.anmelden(seed["berta"])
     await tab.oeffnen("/planning", BEREIT)
-    await tab.js("movePeriod(7)")
-    await tab.warten(BEREIT + "&&iso(periodStart)==='2026-12-21'&&board.slots.length===2")
+    await tab.warte_auf_neu_geladene_liste("movePeriod(7)", "#planner")  # seit 1.9.211 wie oben
+    await tab.warten(BEREIT + "&&iso(periodStart)==='2026-12-21'&&board.start_date==='2026-12-21'&&board.slots.length===2")
     await tab.js("document.querySelector('.viewtabs button[data-view=employees]').click()")
     await tab.warten("view==='employees'&&!!document.querySelector('.planner-row')")
     p.pruefe("Berta: am Mitarbeiter „abwesend“", await tab.js(zelle("Mia Test", "2026-12-24")), "abwesend")

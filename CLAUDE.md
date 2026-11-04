@@ -1214,7 +1214,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   Arbeitsvorbereitung friert `WorkPreparationTeamAssignment` die damalige Besetzung als
   Snapshot ein. UI: Gantt-artige Zeitachse mit Drag & Drop – **funktioniert auf Touch-Geräten
   nicht** (native HTML5-DnD-API), Klick-Fallback-Dialog aber schon. Details:
-  `docs/bestandsaufnahme.md` Abschnitt 7 und 10.
+  `docs/bestandsaufnahme.md` Abschnitt 7 und 10. **Kapazität je Person und Tag = Sollzeit des Lohns − Anfahrt** (seit 1.9.211,
+  `app/planning.py::_soll_je_tag()` über `app/sollzeit.py::soll_fuer_personen()`, nie unter 0; ohne Sollzeit 0 und weder verfügbar noch
+  abwesend; Feiertag 0): Auslastung, Verteilung, „Kapazität reicht nicht“ und Planungsvorschlag rechnen damit -- nicht mehr mit Wochenstunden,
+  Arbeitstagen der Planung oder „Arbeitsstunden je Tag“ (`tests/test_v616_plantafel_sollzeit.py`).
 - **Mustervorgang** (`Project.is_template`): technisch ein ganz normales Projekt, taucht aber
   nicht in der normalen Projektliste auf. Kopieren/Als-Mustervorgang-speichern/Neuen-Vorgang-aus-
   Muster-erstellen laufen alle über dieselbe Funktion `duplicate_project()` in `app/projects.py`.

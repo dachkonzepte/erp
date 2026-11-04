@@ -112,7 +112,8 @@ def test_kapazitaet_und_formel_deutsch(tafel):
     order = setup_order(db)
     _soll(db, order, 1440)  # 24 h
     vorschlag = planning_suggestion(db, order_id=order.id, team_id=team.id, start_date=MONTAG, daily_work_hours=Decimal("8"), travel_hours_per_employee_day=Decimal("0"))
-    assert vorschlag["formula"] == "24,00 h / (4 MA × (8,00 h − 0,00 h)) = 0,75 Teamtage"
+    # seit 1.9.211 aus der Sollzeit (Mo 02.11.2026, Sommermodell 8,00 h je MA; bis 1.9.210 „24,00 h / (4 MA × (8,00 h − 0,00 h)) = 0,75 Teamtage“)
+    assert vorschlag["formula"] == "24,00 h / 32,00 h (Sollzeit von 4 MA am 02.11.2026 − je 0,00 h Anfahrt) = 0,75 Teamtage"
     daten = _einsatz(client, order, team, MONTAG, MONTAG, planned_hours="56.5")
     assert [k["label"] for k in daten["hinweise"]] == ["Kapazität reicht um 24,50 h nicht aus"]
 

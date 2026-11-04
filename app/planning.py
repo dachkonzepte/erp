@@ -270,9 +270,9 @@ def _holiday_rows(db: Session, start: date, end: date) -> list[PlanningHoliday]:
 
 def count_workday_holidays(db: Session, start: date, end: date) -> int:
     """Feiertage im Zeitraum, die auf einen laut PlanningSettings konfigurierten Arbeitstag
-    fallen -- ein Feiertag am Wochenende zieht keine Arbeitsstunden ab. Wiederverwendet dieselbe
-    Arbeitstage-Definition wie die Kapazitätsplanung (_working_weekdays()), keine zweite,
-    abweichende "Wochenende"-Annahme -- genutzt vom Produktivstunden-Rechner
+    fallen -- ein Feiertag am Wochenende zieht keine Arbeitsstunden ab. Nimmt die Arbeitstage der
+    Planung (_working_weekdays()), keine zweite, abweichende "Wochenende"-Annahme (bis 1.9.210 auch die
+    der Kapazität; seit 1.9.211 rechnet die Kapazität mit der Sollzeit) -- genutzt vom Produktivstunden-Rechner
     (app/productive_hours.py) für den Feiertage-Vorschlag. Zählt genau die hinterlegten Zeilen,
     unabhängig davon, für welches Bundesland sie gedacht sind -- PlanningHoliday kennt keine
     Bundesland-Spalte, es ist eine einzige, unternehmensweite Liste."""
@@ -339,15 +339,33 @@ def _is_workday(day: date, settings: PlanningSettings, holiday_dates: set[date])
     return day.weekday() in _working_weekdays(settings) and day not in holiday_dates
 
 
-def _employee_daily_gross_hours(emp: Employee, settings: PlanningSettings) -> Decimal:
-    working_days = max(1, len(_working_weekdays(settings)))
-    weekly = _d(emp.weekly_hours)
-    contractual = (weekly / Decimal(working_days)) if weekly > 0 else _d(settings.daily_work_hours)
-    return min(_d(settings.daily_work_hours), contractual)
+def _soll_je_tag(db: Session, personen, start: date, end: date) -> dict[tuple[int, date], Decimal]:
+    """Seit 1.9.211 (L1a Stufe 5, Punkt 4): die Sollzeit des Lohns je Person und Tag (app/sollzeit.py, Tarif, eigene Werte, Eintritt und Austritt,
+    Arbeitszeitkalender) -- die Grundlage der Kapazität. Bis 1.9.210 rechnete die Tafel mit Wochenstunden durch die Zahl der Arbeitstage der
+    Planung, höchstens den Arbeitsstunden je Tag, an jedem Arbeitstag der Planung gleich."""
+    from .sollzeit import soll_fuer_personen
+    werte = soll_fuer_personen(db, {p.id for p in personen if p is not None}, start, end)
+    return {(eid, tag): stunden for eid, tage in werte.items() for tag, stunden in tage.items()}
 
 
-def _employee_net_capacity(emp: Employee, settings: PlanningSettings, travel_hours: Decimal) -> Decimal:
-    return max(Decimal("0"), _employee_daily_gross_hours(emp, settings) - travel_hours)
+class _SollAbschnitte:
+    """Seit 1.9.211: die Sollzeit für den Planungsvorschlag in Abschnitten von 62 Tagen nachgeladen -- er schaut bis zu zwei Jahre voraus, endet
+    aber meist nach wenigen Wochen. get() wie bei einem dict."""
+
+    def __init__(self, db: Session, personen, start: date):
+        self.db, self.personen, self.bis, self.werte = db, personen, start - timedelta(days=1), {}
+
+    def get(self, schluessel: tuple[int, date], vorgabe=Decimal("0")) -> Decimal:
+        while schluessel[1] > self.bis:
+            von = self.bis + timedelta(days=1)
+            self.bis = von + timedelta(days=61)
+            self.werte.update(_soll_je_tag(self.db, self.personen, von, self.bis))
+        return self.werte.get(schluessel, vorgabe)
+
+
+def _netto(soll: Decimal, travel_hours: Decimal) -> Decimal:
+    """Kapazität einer Person an einem Tag: die Sollzeit abzüglich der Anfahrt, nie unter 0; ohne Sollzeit 0 (auch ohne Anfahrt)."""
+    return max(Decimal("0"), soll - travel_hours) if soll > 0 else Decimal("0")
 
 
 def _team_members_from_master(team: Team, visible_employee_ids: set[int] | None = None) -> list[Employee]:
@@ -360,19 +378,25 @@ def _team_members_from_assignment(assignment: WorkPreparationTeamAssignment, vis
 
 def _day_capacity(
     employees: list[Employee], day: date, settings: PlanningSettings, travel_hours: Decimal,
-    holiday_dates: set[date], absences: dict[tuple[int, date], EmployeeAbsence],
+    holiday_dates: set[date], absences: dict[tuple[int, date], EmployeeAbsence], soll,
 ) -> tuple[Decimal, list[Employee], list[EmployeeAbsence]]:
-    if not _is_workday(day, settings, holiday_dates):
+    """Seit 1.9.211: je Person die Sollzeit des Tags (soll: (Person, Tag) -> Stunden, _soll_je_tag()) abzüglich der Anfahrt. Ohne Sollzeit an dem
+    Tag ist die Person weder verfügbar noch abwesend (wie bis 1.9.210 an einem Tag, der kein Arbeitstag der Planung war); an einem Feiertag oder
+    betriebsfreien Tag hat niemand Kapazität. Bis 1.9.210 entschieden die Arbeitstage der Planung, ob überhaupt gearbeitet wird."""
+    if day in holiday_dates:
         return Decimal("0"), [], []
     available, absent = [], []
     total = Decimal("0")
     for emp in employees:
+        stunden = soll.get((emp.id, day), Decimal("0"))
+        if stunden <= 0:
+            continue
         absence = absences.get((emp.id, day))
         if absence:
             absent.append(absence)
             continue
         available.append(emp)
-        total += _employee_net_capacity(emp, settings, travel_hours)
+        total += _netto(stunden, travel_hours)
     return round_hours(total), available, absent
 
 
@@ -609,14 +633,16 @@ def _slot_travel(slot: PlanningSlot, settings: PlanningSettings) -> Decimal:
 
 def _slot_distribution(
     db: Session, slot: PlanningSlot, settings: PlanningSettings, holiday_dates: set[date],
-    absences: dict[tuple[int, date], EmployeeAbsence], visible_employee_ids: set[int] | None = None,
+    absences: dict[tuple[int, date], EmployeeAbsence], visible_employee_ids: set[int] | None = None, soll=None,
 ) -> tuple[dict[date, dict], Decimal]:
     remaining = _infer_slot_hours(db, slot)
     travel = _slot_travel(slot, settings)
     employees = _team_members_from_assignment(slot.team_assignment, visible_employee_ids)
+    if soll is None:  # seit 1.9.211: ohne mitgegebene Sollzeit (einzelner Aufruf) für diesen Einsatz nachschlagen
+        soll = _soll_je_tag(db, employees, slot.start_date, slot.end_date)
     distribution = {}
     for day in _date_range(slot.start_date, slot.end_date):
-        capacity, available, absent = _day_capacity(employees, day, settings, travel, holiday_dates, absences)
+        capacity, available, absent = _day_capacity(employees, day, settings, travel, holiday_dates, absences, soll)
         load = min(remaining, capacity)
         remaining -= load
         distribution[day] = {
@@ -991,7 +1017,8 @@ def _einsatz_abfrage():
     )
 
 
-def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSettings, *, visible_employee_ids: set[int] | None = None) -> tuple[dict[int, list[dict]], dict[int, dict[date, dict]]]:
+def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSettings, *, visible_employee_ids: set[int] | None = None,
+               soll=None) -> tuple[dict[int, list[dict]], dict[int, dict[date, dict]]]:
     """Seit 1.9.143 (P8): Einsätze stornierter Aufträge zählen nicht -- weder als Konflikt noch in der Kapazität, seit 1.9.151 ebenso die abgeschlossener
     Aufträge (Vorgabe Tobias, Zeichnung „zählt nicht“). Jeder Konflikt trägt seine Stufe
     („warnung“ fragt beim Speichern zurück, „hinweis“ steht nur in der Antwort). Seit 1.9.144 bekommt sie nur noch die Einsätze, um die es geht (nach
@@ -1009,6 +1036,8 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
     personen = [x.employee for s in slots for x in s.team_assignment.employees if x.employee_id in visible_employee_ids and x.employee is not None]
     absence_rows = _absence_rows(db, start, end, employee_ids); absences = _abwesend_map(db, absence_rows, personen, start, end)
     offene_antraege = _offene_antraege(db, start, end, employee_ids)
+    if soll is None:  # seit 1.9.211: die Kapazität aus der Sollzeit des Lohns, einmal für alle Einsätze (die Tafel gibt ihre mit)
+        soll = _soll_je_tag(db, personen, start, end)
     arbeitstage = _working_weekdays(settings)
 
     for i, a in enumerate(slots):
@@ -1032,7 +1061,7 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
                 result[b.id].append({"type": kind, "label": label, "other_slot_id": a.id, "other_project": a.preparation.order.project.project_number, "other_project_name": a.preparation.order.project.name})
 
     for slot in slots:
-        distribution, shortfall = _slot_distribution(db, slot, settings, holiday_dates, absences, visible_employee_ids)
+        distribution, shortfall = _slot_distribution(db, slot, settings, holiday_dates, absences, visible_employee_ids, soll)
         distributions[slot.id] = distribution
         seen_absence = set()
         for day in _date_range(slot.start_date, slot.end_date):
@@ -1134,25 +1163,24 @@ def planning_suggestion(
     travel = _d(travel_hours_per_employee_day if travel_hours_per_employee_day is not None else settings.default_travel_hours_per_employee_day)
     if travel >= daily:
         raise ValueError("Anfahrtszeit muss kleiner als die tägliche Arbeitszeit sein.")
-    # Temporäre Kopie der Einstellungen für den Vorschlag, damit ein manueller Tageswert berücksichtigt wird.
-    class _Temp: pass
-    tmp = _Temp()
-    for attr in ("monday","tuesday","wednesday","thursday","friday","saturday","sunday"):
-        setattr(tmp, attr, getattr(settings, attr))
-    tmp.daily_work_hours = daily
     target = planned_hours(order)
     if target <= 0:
         raise ValueError("Für diesen Auftrag sind keine kalkulierten Soll-Stunden vorhanden.")
     horizon_end = start_date + timedelta(days=730)
     holiday_map, _holiday_meta = _combined_holiday_map(db, start_date, horizon_end); holiday_dates=set(holiday_map)
     abs_rows = _absence_rows(db, start_date, horizon_end, {e.id for e in employees}); absences = _abwesend_map(db, abs_rows, employees, start_date, horizon_end)  # seit 1.9.188
-    full_capacity, _, _ = _day_capacity(employees, next((d for d in _date_range(start_date, horizon_end) if _is_workday(d,tmp,set())), start_date), tmp, travel, set(), {})
+    # seit 1.9.211 (L1a Stufe 5, Punkt 4): Kapazität aus der Sollzeit des Lohns. Die volle Tageskapazität der Kolonne ist die des ersten Tags ab dem
+    # Start, an dem sie ohne Abwesenheiten und Feiertage Sollzeit hat (bis 1.9.210: MA × (Arbeitsstunden je Tag − Anfahrt) am ersten Arbeitstag
+    # der Planung); daily_work_hours prüft nur noch die Anfahrt
+    soll = _SollAbschnitte(db, employees, start_date)
+    voll_tag = next((d for d in _date_range(start_date, horizon_end) if _day_capacity(employees, d, settings, travel, set(), {}, soll)[0] > 0), None)
+    full_capacity, voll_da, _ = _day_capacity(employees, voll_tag, settings, travel, set(), {}, soll) if voll_tag else (Decimal("0"), [], [])
     if full_capacity <= 0:
         raise ValueError("Mit den gewählten Arbeits-/Anfahrtszeiten ergibt sich keine verfügbare Tageskapazität.")
     remaining = target
     day_rows=[]; current=start_date; last=None; workdays_used=0
     while remaining > 0 and current <= horizon_end:
-        cap, available, absent = _day_capacity(employees, current, tmp, travel, holiday_dates, absences)
+        cap, available, absent = _day_capacity(employees, current, settings, travel, holiday_dates, absences, soll)
         if cap > 0:
             assigned=min(remaining,cap); remaining-=assigned; workdays_used+=1; last=current
             day_rows.append({
@@ -1174,11 +1202,12 @@ def planning_suggestion(
     return {
         "order_id":order_id,"team_id":team_id,"team_name":team.name,"employee_count":len(employees),
         "planned_hours":target,"daily_work_hours":daily,"travel_hours_per_employee_day":travel,
-        "full_team_daily_capacity":full_capacity,"required_team_days_decimal":equivalent_days,
+        "full_team_daily_capacity":full_capacity,"full_team_capacity_date":voll_tag,"required_team_days_decimal":equivalent_days,
         "calendar_workdays_needed":workdays_used,"suggested_start":start_date,"suggested_end":last,
         "last_day_clock_hours_per_employee":last_clock,"days":day_rows,
-        # seit 1.9.148 (P13) deutsch, zwei Stellen wie „Zeiten“ (bis 1.9.147 „24.00 h / (4 MA × (8.00 h − 0 h)) = 0.75 Teamtage“)
-        "formula":f"{stunden_text(target)} / ({len(employees)} MA × ({stunden_text(daily)} − {stunden_text(travel)})) = {str(equivalent_days).replace('.', ',')} Teamtage",
+        # seit 1.9.148 (P13) deutsch, zwei Stellen wie „Zeiten“ (bis 1.9.147 „24.00 h / (4 MA × (8.00 h − 0 h)) = 0.75 Teamtage“); seit 1.9.211 mit
+        # der Kapazität aus der Sollzeit (bis 1.9.210 „… / (4 MA × (8,00 h − 0,00 h)) = …“)
+        "formula":f"{stunden_text(target)} / {stunden_text(full_capacity)} (Sollzeit von {len(voll_da)} MA am {voll_tag:%d.%m.%Y} − je {stunden_text(travel)} Anfahrt) = {str(equivalent_days).replace('.', ',')} Teamtage",
     }
 
 
@@ -1235,7 +1264,13 @@ def planning_board(db: Session, start_date: date, end_date: date) -> dict:
         if rand_start < start_date or rand_ende > end_date:
             relevant = db.scalars(_einsatz_abfrage().where(PlanningSlot.start_date <= rand_ende, PlanningSlot.end_date >= rand_start)).all()
     visible_employee_ids = planning_visible_employee_ids(db)
-    conflict_map, distributions = _conflicts(db, relevant, settings, visible_employee_ids=visible_employee_ids)
+    all_employees=db.scalars(select(Employee).options(selectinload(Employee.profile).selectinload(EmployeeProfile.function)).where(Employee.active==True).order_by(Employee.last_name,Employee.first_name)).all()
+    employees=[x for x in all_employees if x.id in visible_employee_ids]
+    # seit 1.9.211: die Sollzeit einmal für Tafel und Konflikte, über den Zeitraum der Tafel samt dem der Einsätze, die über den Rand reichen --
+    # sonst hinge die Zahl der Abfragen an den Einsätzen im Bild (test_v564)
+    soll_von = min([start_date] + [x.start_date for x in relevant]); soll_bis = max([end_date] + [x.end_date for x in relevant])
+    soll=_soll_je_tag(db,employees,soll_von,soll_bis)
+    conflict_map, distributions = _conflicts(db, relevant, settings, visible_employee_ids=visible_employee_ids, soll=soll)
 
     teams = db.scalars(select(Team).options(selectinload(Team.employees).selectinload(TeamEmployee.employee),selectinload(Team.resources).selectinload(TeamResource.resource)).order_by(Team.name)).all()
     used_team_ids = {x.team_assignment.team_id for x in visible}
@@ -1245,8 +1280,6 @@ def planning_board(db: Session, start_date: date, end_date: date) -> dict:
         team_rows.append({"id":team.id,"number":team.team_number,"name":team.name,"active":team.active,
             "employees":[{"id":x.employee_id,"name":_employee_name(x.employee),"role":x.role} for x in team.employees if x.employee and x.employee_id in visible_employee_ids],
             "resources":[{"id":x.resource_id,"name":x.resource.name,"type":x.resource.resource_type,"role":x.role} for x in team.resources if x.resource]})
-    all_employees=db.scalars(select(Employee).options(selectinload(Employee.profile).selectinload(EmployeeProfile.function)).where(Employee.active==True).order_by(Employee.last_name,Employee.first_name)).all()
-    employees=[x for x in all_employees if x.id in visible_employee_ids]
     resources=db.scalars(select(OperationalResource).where(OperationalResource.active==True).order_by(OperationalResource.resource_type,OperationalResource.name)).all()
 
     holiday_names, holiday_meta=_combined_holiday_map(db,start_date,end_date); holiday_dates=set(holiday_names)
@@ -1261,7 +1294,7 @@ def planning_board(db: Session, start_date: date, end_date: date) -> dict:
     for team in teams:
         members=_team_members_from_master(team,visible_employee_ids); rows={}
         for day in dates:
-            cap,available,absent=_day_capacity(members,day,settings,_d(settings.default_travel_hours_per_employee_day),holiday_dates,absences)
+            cap,available,absent=_day_capacity(members,day,settings,_d(settings.default_travel_hours_per_employee_day),holiday_dates,absences,soll)
             planned=sum((distributions.get(slot.id,{}).get(day,{}).get("planned",Decimal("0")) for slot in visible if slot.team_assignment.team_id==team.id),Decimal("0"))
             util=round_half_up(planned/cap*100 if cap>0 else (Decimal("100") if planned>0 else Decimal("0")),Decimal("0.1"))
             rows[day.isoformat()]={"capacity_hours":cap,"planned_hours":round_hours(planned),"utilization_pct":util,"available_employee_count":len(available),"absences":[{"employee_id":a.employee_id,"name":_employee_name(a.employee),"type":a.absence_type} for a in absent],"holiday":holiday_names.get(day),"school_holidays":school_by_day.get(day,[])}
@@ -1270,16 +1303,17 @@ def planning_board(db: Session, start_date: date, end_date: date) -> dict:
     for emp in employees:
         rows={}
         for day in dates:
-            if not _is_workday(day,settings,holiday_dates) or absences.get((emp.id,day)):
+            soll_tag=soll.get((emp.id,day),Decimal("0"))  # seit 1.9.211 (bis 1.9.210 Wochenstunden je Arbeitstag der Planung)
+            if day in holiday_dates or absences.get((emp.id,day)):
                 cap=Decimal("0")
-            else: cap=_employee_net_capacity(emp,settings,_d(settings.default_travel_hours_per_employee_day))
+            else: cap=_netto(soll_tag,_d(settings.default_travel_hours_per_employee_day))
             planned=Decimal("0")
             for slot in visible:
                 dist=distributions.get(slot.id,{}).get(day)
                 if not dist or emp.id not in dist.get("available_employee_ids",[]): continue
                 total_cap=dist.get("capacity",Decimal("0"))
                 if total_cap>0:
-                    planned += dist.get("planned",Decimal("0"))*_employee_net_capacity(emp,settings,_slot_travel(slot,settings))/total_cap
+                    planned += dist.get("planned",Decimal("0"))*_netto(soll_tag,_slot_travel(slot,settings))/total_cap
             util=round_half_up(planned/cap*100 if cap>0 else (Decimal("100") if planned>0 else Decimal("0")),Decimal("0.1"))
             a=absences.get((emp.id,day))  # 1.9.188 (Nachtrag): eine Freistellung heißt in der schmalen Zelle nur nach ihrem Tag („Heiligabend“)
             rows[day.isoformat()]={"capacity_hours":round_hours(cap),"planned_hours":round_hours(planned),"utilization_pct":util,"absence":(a.kalendertag if isinstance(a,Freistellung) else a.absence_type) if a else None,"holiday":holiday_names.get(day),"school_holidays":school_by_day.get(day,[])}

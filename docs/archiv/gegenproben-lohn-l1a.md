@@ -707,6 +707,26 @@ Hauptbaum, während dort nichts anderes lief, Datei danach byte-genau zurück (P
 | **1.9.209 Nr. 1** (Werkzeug) – `uhr_stellen()` in Instanz und Browser | Instanz liest die Datei nicht; Browser fester Wert; altes Skript bleibt (1.9.209) | je 1 rot: test_v614; unter der ersten klicktest_heute 51 von 55 („Endzeit muss nach der Startzeit liegen.“) |
 | **1.9.209 Nr. 2** (Werkzeug) – klicktest_heute steht, genau ein Wert | laufende Uhr; ein Muster statt des Werts (1.9.209) | je 1 rot: test_v614 |
 | 1.9.210 Nr. 1–3 (Werkzeug) – die Regel selbst | keine – Arbeitsweise; geprüft daran, dass diese Tabelle jede Festlegung nennt | – |
+| **1.9.211 Nr. 1a** – Kapazität = Sollzeit − Anfahrt (nicht Wochenstunden je Arbeitstag) | Kolonne wieder aus Wochenstunden / 5 je Arbeitstag der Planung (1.9.211) | vorher 2 rot: test_v600 (betroffene abwesend, Vorschlag ohne die Betroffenen); mit test_v616 7 rot; klicktest_plantafel_kalender 15 von 16 („Nord: Kapazität aus der Sollzeit“ 0/24 · 0/24 · 0/24 · 0/8 h) |
+| **1.9.211 Nr. 1b** – nie unter 0, ohne Sollzeit 0 | `_netto()` = Sollzeit − Anfahrt ohne Grenze (1.9.211) | vorher grün; mit test_v616 1 rot: test_anfahrt_abgezogen_nie_unter_null |
+| **1.9.211 Nr. 2a** – ohne Sollzeit in der Kolonne weder verfügbar noch abwesend | Abwesenheit vor der Sollzeit geprüft (1.9.211) | vorher grün; mit test_v616 1 rot: test_ohne_sollzeit_nicht_abwesend |
+| **1.9.211 Nr. 2b** – in der eigenen Zeile steht die Abwesenheit weiter da | Abwesenheit nur mit Sollzeit angezeigt (1.9.211) | vorher grün; mit test_v616 (nachgezogen) 1 rot: test_ohne_sollzeit_nicht_abwesend |
+| **1.9.211 Nr. 3a** – Feiertag 0 für die Kolonne | Feiertag in `_day_capacity()` übergangen (1.9.211) | vorher 2 rot: test_v091::test_absence_and_holiday_reduce_capacity_and_shift_suggested_end, test_v563::test_feiertag_200_mit_hinweis; mit test_v616 4 rot |
+| **1.9.211 Nr. 3b** – Feiertag 0 für die Person | Feiertag in der Zeile der Person übergangen (1.9.211) | vorher grün; mit test_v616 1 rot: test_feiertag_und_betriebsfreier_tag_null |
+| **1.9.211 Nr. 4a** – Arbeitstage der Planung zählen nicht (Kolonne) | `_day_capacity()` wieder nur an Arbeitstagen der Planung (1.9.211) | vorher grün; mit test_v616 **grün (Befund)** -- der Test prüfte nur die Person; nachgezogen (Kolonne Mi 10,50 h bei abgewähltem Mittwoch, Sa 0), danach 1 rot: test_arbeitstage_der_planung_zaehlen_nicht |
+| **1.9.211 Nr. 4b** – Arbeitstage der Planung zählen nicht (Person) | Zeile der Person wieder nur an Arbeitstagen (1.9.211) | vorher grün; mit test_v616 1 rot: test_arbeitstage_der_planung_zaehlen_nicht |
+| **1.9.211 Nr. 4c** – „Arbeitsstunden je Tag“ begrenzt nicht (Person) | Sollzeit der Person höchstens „Arbeitsstunden je Tag“ (1.9.211) | vorher grün; mit test_v616 1 rot: test_arbeitsstunden_je_tag_begrenzen_nicht |
+| **1.9.211 Nr. 4d** – „Arbeitsstunden je Tag“ begrenzt nicht (Kolonne) | Sollzeit in `_day_capacity()` höchstens „Arbeitsstunden je Tag“ (1.9.211) | vorher grün; mit test_v616 (nachgezogen mit 4a, dieselbe Lücke) 1 rot: test_arbeitsstunden_je_tag_begrenzen_nicht |
+| **1.9.211 Nr. 5a** – Vorschlag: volle Kapazität am ersten Tag mit Sollzeit | der Starttag, auch ohne Sollzeit (1.9.211) | vorher grün; mit test_v616 1 rot: test_vorschlag_mit_der_sollzeit |
+| **1.9.211 Nr. 5b** – die Formel nennt Tag und Personen | Formel ohne Tag und Personen (1.9.211) | vorher 1 rot: test_v568::test_kapazitaet_und_formel_deutsch; mit test_v616 2 rot |
+| **1.9.211 Nr. 5c** – die Seite nennt den Tag | Seite wieder mit „Arbeitsstunden je Tag“ (1.9.211) | vorher grün; mit test_v616 1 rot: test_seite_nennt_die_sollzeit |
+| **1.9.211 Nr. 6a** – Abfragen hängen nicht an der Zahl der Personen | eine Abfrage je Person in `soll_fuer_personen()` (1.9.211) | vorher grün; mit test_v616 1 rot: test_abfragen_haengen_nicht_an_der_zahl_der_personen |
+| **1.9.211 Nr. 6b** – die Tafel rechnet die Sollzeit einmal für Tafel und Konflikte | die Konflikte rechnen ihre eigene (1.9.211) | vorher 1 rot: test_v564::test_abfragen_haengen_nicht_an_den_einsaetzen_im_bild; mit test_v616 ebenso |
+| **1.9.211 Nr. 7** (= 1.9.188 Nr. 3 neu) – Kapazität aus der Sollzeit, Ben am 24.12. ohne Kapazität, nicht freigestellt | wie Nr. 1a (1.9.211) | vorher rot: test_v600::test_tafel_zeigt_die_betroffenen_abwesend; „nicht freigestellt“ unverändert seit 1.9.188 (Gegenprobe dort) |
 
 Befunde 1.9.210 (vorher grün, jetzt mit Test in `tests/test_v615_gegenproben_stufe4.py`): 1.9.204 Nr. 1b, Nr. 3a, Nr. 3b -- kein Fehler im Programm,
 nur ungeprüft. Dazu zwei Tests für 1.9.202 Nr. 1b unter „Zeiten“ (die Aussage war über den Dialog schon geprüft).
+
+Befund 1.9.211 (vor dem Commit): Nr. 4a blieb mit dem ersten `tests/test_v616_plantafel_sollzeit.py` grün -- die Kolonne rechnet auf eigenem
+Weg (`_day_capacity()`), der Test prüfte die Arbeitstage und „Arbeitsstunden je Tag“ nur an der Person. Nachgezogen: beide Tests prüfen auch die
+Kolonne, `test_ohne_sollzeit_nicht_abwesend` auch die Zeile der Person; danach 4a, 4d und 2b rot. Kein Fehler im Programm.

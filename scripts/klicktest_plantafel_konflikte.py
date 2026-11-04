@@ -116,7 +116,7 @@ async def pruefen(tab, seed, p):
     await tab.anmelden(seed["anna"])
     await tab.oeffnen("/planning", BEREIT)
     p.pruefe("Adresse: Woche von heute", await tab.js("iso(periodStart)"), "2026-10-12")
-    await tab.js("movePeriod(7)")
+    await tab.warte_auf_neu_geladene_liste("movePeriod(7)", "#planner")  # seit 1.9.211: erst die neue Tafel (die alte erfüllte die Bedingung schon)
     await tab.warten(BEREIT + "&&board.slots.length===1")
 
     # --- Neuer Einsatz: Warnliste ---
@@ -172,7 +172,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Ziehen: Trotzdem planen verschiebt", await tab.warten(f"!document.getElementById('konfliktDialog').open&&board.slots.find(s=>s.id==={einsatz_c}).team_id==={seed['nord']}"), True)
 
     # --- Einsatz eines abgeschlossenen Auftrags: zählt nicht, bleibt sichtbar (seit 1.9.151) ---
-    await tab.js("movePeriod(14)")
+    await tab.warte_auf_neu_geladene_liste("movePeriod(14)", "#planner")  # seit 1.9.211: erst die neue Tafel (die alte erfüllte die Bedingung schon)
     await tab.warten(BEREIT + "&&board.slots.length===1")
     p.pruefe("Abgeschlossen: Balken sagt es", "Auftrag abgeschlossen" in await tab.js("document.querySelector('.slot').textContent"), True)
     p.pruefe("Abgeschlossen: Zeile im Balken zu sehen", await _zeile_im_balken(tab, "Auftrag abgeschlossen"), True)
@@ -195,7 +195,7 @@ async def pruefen(tab, seed, p):
     await tab.bild("antrag_offen_admin")
 
     # --- Pausiert: dieselbe Zeile, schon seit 1.9.124 abgeschnitten (seit 1.9.156 zu sehen) ---
-    await tab.js("movePeriod(14)")
+    await tab.warte_auf_neu_geladene_liste("movePeriod(14)", "#planner")  # seit 1.9.211: erst die neue Tafel (die alte erfüllte die Bedingung schon)
     await tab.warten(BEREIT + "&&board.slots.length===1")
     p.pruefe("Pausiert: Zeile im Balken zu sehen", await _zeile_im_balken(tab, "Auftrag pausiert · Gerüst fehlt"), True)
 
@@ -226,14 +226,14 @@ async def pruefen(tab, seed, p):
     # --- Büro – Auftrag: Art der Abwesenheit nicht in der Liste ---
     await tab.anmelden(seed["berta"])
     await tab.oeffnen("/planning", BEREIT)
-    await tab.js("movePeriod(7)")
+    await tab.warte_auf_neu_geladene_liste("movePeriod(7)", "#planner")  # seit 1.9.211: erst die neue Tafel (die alte erfüllte die Bedingung schon)
     await tab.warten(BEREIT + "&&board.slots.length===4")
     await _neu(tab, seed["d"], seed["ost"], "2026-10-19", "2026-10-19")
     p.pruefe("Büro – Auftrag: Warnliste", await tab.warten("document.getElementById('konfliktDialog').open"), True)
     text = await tab.js("document.getElementById('konfliktWarnungen').textContent")
     p.pruefe("Büro – Auftrag: nur „abwesend“", "Mia Test · abwesend" in text and "Krankheit" not in text, True)
     await tab.bild("warnliste_buero_auftrag")
-    await tab.js("konfliktDialog.close();createDialog.close();movePeriod(21)")
+    await tab.warte_auf_neu_geladene_liste("konfliktDialog.close();createDialog.close();movePeriod(21)", "#planner")  # seit 1.9.211: erst die neue Tafel (die alte erfüllte die Bedingung schon)
     await tab.warten(BEREIT + "&&board.slots.some(s=>s.order_id===" + str(seed["h"]) + ")")
     p.pruefe("Büro – Auftrag: Antrag offen ohne Art", await tab.js(f"board.slots.find(s=>s.order_id==={seed['h']}).conflicts.map(c=>c.label).join()"), "Sol Test")
     p.pruefe("Büro – Auftrag: Art nicht auf dem Balken", "Krankheit" in await tab.js("[...document.querySelectorAll('.slot')].map(x=>x.textContent).join(' ')"), False)
