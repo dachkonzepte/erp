@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.194 – Plantafel: Test für die Kürzung einer langen Abwesenheit in der Zelle (L1a Stufe 3, Punkt 3)
+
+Der Nachtrag zu 1.9.188 kürzt eine zu lange Abwesenheit in der schmalen Tageszelle der Ansicht „Mitarbeiter“ mit „…“ und legt den vollen Text in den Tooltip -- als Absicherung für lange Arten, aber ohne eigenen Test. `klicktest_plantafel_kalender` legt jetzt einer Person ohne Kolonne (Kai) eine Fortbildung mit langer Art an („Fortbildung Abdichtungstechnik Flachdach mit Herstellerschulung (Teil 2)“) und misst in ihrer Zelle: die Art liegt rechts neben der Kapazität und ganz in der Zelle, ist gekürzt (sichtbar „Fortbildun…“), eine Zeile, und der Tooltip trägt den vollen Text. Dazu prüft `test_v600` die Regel `.absence-mark` und das Markup mit `title`. Am Programm nichts geändert.
+
 ## 1.9.193 – Plantafel: der Satz über der Tafel nennt auch Freistellungen (L1a Stufe 3, Punkt 2)
 
 Über der Tafel steht bei Konflikten „Berücksichtigt werden Doppelbelegungen, Abwesenheiten, Feiertage und unzureichende Stundenkapazität.“ Seit 1.9.188 zählt auch die Freistellung des Arbeitszeitkalenders (Heiligabend, Silvester) als Hinweis am Einsatz, steht aber bewusst nicht in der Liste „Abwesenheiten“ der Tafel (Festlegung 1.9.188 Nr. 5) -- wer sie dort suchte, fand sie nicht. Der Satz lautet jetzt „… Doppelbelegungen, Abwesenheiten, Freistellungen, Feiertage und unzureichende Stundenkapazität.“ `test_v600` prüft den Satz in der Seite, `klicktest_plantafel_kalender` den Text über der Tafel.

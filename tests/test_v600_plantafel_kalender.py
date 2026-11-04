@@ -132,3 +132,16 @@ def test_seite_nennt_die_freistellung():
     assert "kalendertag:'Freistellung: '" in text
     # seit 1.9.193: der Satz über der Tafel nennt Freistellungen -- in der Liste „Abwesenheiten“ der Tafel stehen sie nicht (Festlegung 1.9.188 Nr. 5)
     assert "Berücksichtigt werden Doppelbelegungen, Abwesenheiten, Freistellungen, Feiertage und unzureichende Stundenkapazität." in text
+
+
+def test_lange_abwesenheit_in_der_zelle_gekuerzt_mit_tooltip():
+    """Seit 1.9.194 (Nachtrag zu 1.9.188): eine lange Abwesenheit wird in der Zelle mit „…“ gekürzt und trägt den vollen Text im Tooltip.
+    Lage und Kürzung misst scripts/klicktest_plantafel_kalender.py im Browser (Kais lange Art am 22.12.); hier die Regel und das Markup."""
+    import re
+
+    from tests import vorlagen_js as vj
+    text = vj.seitentext("planning.html")[0]
+    [regel] = re.findall(r"\.absence-mark\{([^}]*)\}", text)
+    assert {"position:absolute", "right:3px", "bottom:3px", "max-width:calc(100% - 58px)", "overflow:hidden", "text-overflow:ellipsis",
+            "white-space:nowrap"} <= set(regel.split(";"))
+    assert '<span class="absence-mark" title="${esc(absence)}">${esc(absence)}</span>' in text

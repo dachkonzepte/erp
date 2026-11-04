@@ -1,12 +1,15 @@
 """Klicktest: die Plantafel kennt den Arbeitszeitkalender (seit 1.9.188, Lohn L1a, Stufe 2, Punkt 3).
 
 Stehende Uhr Mo 14.12.2026 10:00. Befüllt: Kolonne Nord mit Mia (Tarif), Tom (Teilzeit Di–Do) und Ben (Teilzeit Mo–Di, am Donnerstag keine
-Sollzeit); Auftrag A eingeplant 21.–24.12.2026 auf Nord; Anna (Admin), Berta (Büro – Auftrag).
+Sollzeit); Auftrag A eingeplant 21.–24.12.2026 auf Nord; Anna (Admin), Berta (Büro – Auftrag). Seit 1.9.194 dazu Kai (ohne Kolonne) mit einer
+Fortbildung am Di 22.12. und einer langen Art („Fortbildung Abdichtungstechnik Flachdach mit Herstellerschulung (Teil 2)“).
 
     Kolonnen     Woche ab 21.12.: in Nord am Do 24.12. „2 abw.“ (Mia und Tom), die Tage davor ohne; der Einsatz A ist markiert wie an einem
                  betriebsfreien Tag, im Dialog „Freistellung: Heiligabend – Mia Test, Tom Test · 24.12.“ -- Bild; seit 1.9.193 nennt der Satz über
                  der Tafel auch Freistellungen (sie stehen nicht in der Liste „Abwesenheiten“)
-    Mitarbeiter  Mia und Tom am 24.12. „Heiligabend – bezahlte Freistellung“, Ben nicht (keine Sollzeit am Donnerstag -- wie bisher); Bild
+    Mitarbeiter  Mia und Tom am 24.12. „Heiligabend – bezahlte Freistellung“, Ben nicht (keine Sollzeit am Donnerstag -- wie bisher); Bild;
+                 seit 1.9.194 Kais lange Art am 22.12.: in der Zelle rechts neben der Kapazität, mit „…“ gekürzt (text-overflow), voller Text
+                 im Tooltip (title) -- die Absicherung des Nachtrags zu 1.9.188 für lange Arten, bis dahin ohne eigenen Test
     Einplanen    Auftrag B auf Nord 28.–31.12.: gespeichert ohne Rückfrage, Hinweis „Einsatz gespeichert – zur Kenntnis: Freistellung: Silvester
                  – Mia Test, Tom Test · 31.12.“ -- wie am betriebsfreien Tag; Bild
     Büro–Auftrag am Mitarbeiter steht „abwesend“ (wie jede Abwesenheit, Krankheitssichtbarkeit), der Hinweis am Einsatz nennt den Tag
@@ -30,6 +33,7 @@ def befuellen(db, k):
     from datetime import date
     from decimal import Decimal
 
+    from app.absence_requests import eintragen
     from app.models import AppUser, Customer, Employee, Project, Quote, QuoteItem, Team, TeamEmployee
     from app.orders import create_order_from_quote, load_order
     from app.planning import create_slot
@@ -47,6 +51,11 @@ def befuellen(db, k):
     nord = Team(name="Nord", active=True)
     db.add(nord); db.flush()
     db.add_all([TeamEmployee(team_id=nord.id, employee_id=e.id) for e in leute.values()]); db.flush()
+    # seit 1.9.194: eine Abwesenheit mit langer Art bei Kai (in keiner Kolonne -- Einsatz A und die Kolonne Nord bleiben unberührt)
+    kai = Employee(employee_number="M-4", first_name="Kai", last_name="Test", employee_group="gewerblich", weekly_hours=Decimal("40"), active=True)
+    db.add(kai); db.flush()
+    eintragen(db, gleich_genehmigt=True, employee_id=kai.id, absence_type=LANGE_ART, absence_category="fortbildung", start_date=date(2026, 12, 22),
+              end_date=date(2026, 12, 22), requested_by_user_id=anna.id)
 
     def auftrag(nummer):
         projekt = Project(project_number=f"P-{nummer}", name=f"Dach {nummer}", customer_id=kunde.id, status="angebot",
@@ -68,6 +77,14 @@ def befuellen(db, k):
 
 
 BEREIT = "typeof board!=='undefined'&&board&&board.teams&&board.teams.length>0&&typeof orders!=='undefined'"
+LANGE_ART = "Fortbildung Abdichtungstechnik Flachdach mit Herstellerschulung (Teil 2)"
+# seit 1.9.194: Kais Zelle am 22.12. -- die lange Art liegt rechts neben der Kapazität und ganz in der Zelle, ist gekürzt (scrollWidth über der
+# sichtbaren Breite, text-overflow „ellipsis“, eine Zeile) und trägt den vollen Text im Tooltip
+GEKUERZT = ("(()=>{const r=[...document.querySelectorAll('.planner-row')].find(x=>x.querySelector('.row-label b')&&x.querySelector('.row-label b').textContent==='Kai Test'),"
+            "c=r.querySelector('.day-cell[data-date=\"2026-12-22\"]'),m=c.querySelector('.absence-mark'),k=c.querySelector('.capacity-label'),"
+            "a=m.getBoundingClientRect(),b=k.getBoundingClientRect(),z=c.getBoundingClientRect(),s=getComputedStyle(m);"
+            "return [b.right<=a.left,a.left>=z.left&&a.right<=z.right&&a.top>=z.top&&a.bottom<=z.bottom,m.scrollWidth>m.clientWidth,"
+            "s.textOverflow,s.whiteSpace,m.textContent,m.title]})()")
 # seit 1.9.188 (Nachtrag): in Mias Zelle am 24.12. liegen Abwesenheit und Kapazität nebeneinander, die Abwesenheit ist nicht abgeschnitten
 UEBERLAPPUNG = ("(()=>{const r=[...document.querySelectorAll('.planner-row')].find(x=>x.querySelector('.row-label b').textContent==='Mia Test'),"
                 "c=r.querySelector('.day-cell[data-date=\"2026-12-24\"]'),m=c.querySelector('.absence-mark'),k=c.querySelector('.capacity-label'),"
@@ -116,6 +133,9 @@ async def pruefen(tab, seed, p):
     p.pruefe("Mitarbeiter am 24.12.: Freistellung und Kapazität überlappen nicht, nichts abgeschnitten, voller Text im Tooltip", await tab.js(UEBERLAPPUNG),
              [True, True, "Heiligabend"])
     p.pruefe("Mia am 23.12. ohne", await tab.js(zelle("Mia Test", "2026-12-23")), "")
+    # seit 1.9.194: die Kürzung aus dem Nachtrag zu 1.9.188 mit einer langen Art -- Lage, „…“ und Tooltip
+    p.pruefe("Kai am 22.12.: lange Art neben der Kapazität, in der Zelle, mit „…“ gekürzt, voller Text im Tooltip", await tab.js(GEKUERZT),
+             [True, True, True, "ellipsis", "nowrap", LANGE_ART, LANGE_ART])
     await tab.bild("3_mitarbeiter_heiligabend")
     await tab.js("document.querySelector('.viewtabs button[data-view=teams]').click()")
     await tab.warten("view==='teams'")
