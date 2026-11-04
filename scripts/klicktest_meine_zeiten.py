@@ -9,7 +9,8 @@ für alle; Kolonne Nord mit Mia (Kolonnenführerin) und Tom; Abschluss bis 30.09
     08.10.  Kolonnenbuchung Mia + Tom je 8 h                                  -> „Für die Kolonne ändern“ 7,5 h, dann löschen
     29.09.  Baustelle 7,50 h (abgeschlossen)
     Antrag Urlaub (offen)
-Ole: Zeit von gestern seit 06:45 offen. Pia: Konto ohne Mitarbeiter.
+Ole: Zeit von gestern seit 06:45 offen. Pia: Konto ohne Mitarbeiter. Fin (Büro – Finanzen, seit 1.9.192): eigene Zeit seit Mo 12.10.
+07:30 offen.
 
 Jede Funktion aus dem Befund (docs/archiv/redesign.md, „Stufe 4, R3“, Z1–Z22 und S1–S5) wird hier oder in klicktest_heute.py (Starten,
 Stoppen, Zeitart wechseln, Kolonne starten und stoppen, Ende nachtragen) erreicht:
@@ -31,7 +32,10 @@ Stoppen, Zeitart wechseln, Kolonne starten und stoppen, Ende nachtragen) erreich
                    Kolonne löschen“ mit Rückfrage (Z9, Z10); Tom sieht „gebucht von Mia Monteurin“
     Monat          ‹ September: abgeschlossen, kein „⋮“ (Z17), › zurück; PDF des Monats 200 application/pdf (S1, S4)
     Abwesenheit    „+ Antrag“ senden -> „2 offene Anträge.“; „Zurückziehen“ mit Rückfrage in der Zeile -> 1 (Z18, Z19)
-    Ole            Zeile „läuft seit 06:45“ mit „Feierabend auf „Heute“ eintragen“ -> /mobil (Z4)
+    Ole            Zeile „läuft seit 06:45“ mit „Beenden“ (seit 1.9.192; bis 1.9.191 „Feierabend auf „Heute“ eintragen“ -> /mobil, Z4):
+                   Dialog „Feierabend am Di 13.10. um“, 16:00 -> Vorschau 8,75 h, gebucht wie die Vorschau, die Zeile 06:45–16:00
+    Fin            Büro – Finanzen (seit 1.9.192): „Heute“ gibt dem Büro keine Daten (403) -- die Zeile vom 12.10. hat „Beenden“,
+                   15:30 -> gebucht 7,50 h
     Pia            Hinweis „Konto ohne Mitarbeiter“ (Z20)
     überall        keine JS-Fehler
 
@@ -75,6 +79,10 @@ def befuellen(db, k):
     benutzer = {n: AppUser(username=n, display_name=f"{e.first_name} {e.last_name}", role="field", employee_id=e.id, password_hash=k.passwort())
                 for n, e in leute.items()}
     benutzer["pia"] = AppUser(username="pia", display_name="Pia Ohne", role="field", password_hash=k.passwort())
+    # seit 1.9.192: ein Büro-Konto mit eigener laufender Zeit von einem früheren Tag
+    fin = Employee(employee_number="E-9", first_name="Fin", last_name="Finanz", employee_group="kaufmännisch", active=True)
+    db.add(fin); db.flush()
+    benutzer["fin"] = AppUser(username="fin", display_name="Fin Finanz", role="buero_finanzen", employee_id=fin.id, password_hash=k.passwort())
     db.add_all(benutzer.values())
     kunde = Customer(name="Hallenbau GmbH", last_name="Hallenbau GmbH", is_consumer=False)
     db.add(kunde); db.flush()
@@ -132,9 +140,10 @@ def befuellen(db, k):
     set_time_lock(db, date(2026, 9, 30), user_id=None)
     # zuletzt die laufende Zeit von heute (neben einer laufenden legt nichts eine weitere an)
     start_timer(db, employee_id=mia.id, order_id=a.id, started_at=datetime.combine(heute, time(6, 45)))
-    start_timer(db, employee_id=leute["ole"].id, order_id=a.id, started_at=datetime.combine(heute - timedelta(days=1), time(6, 45)))
+    ole = start_timer(db, employee_id=leute["ole"].id, order_id=a.id, started_at=datetime.combine(heute - timedelta(days=1), time(6, 45)))
+    fin_zeit = start_timer(db, employee_id=fin.id, order_id=a.id, started_at=datetime.combine(date(2026, 10, 12), time(7, 30)))
     db.commit()
-    return {"a": a.id, "erste": erste.id, "zweite": zweite.id, "aendern": aendern.id, "gruppe": gruppe.id, "mia": mia.id,
+    return {"ole_zeit": ole.id, "fin_zeit": fin_zeit.id, "a": a.id, "erste": erste.id, "zweite": zweite.id, "aendern": aendern.id, "gruppe": gruppe.id, "mia": mia.id,
             "tom": leute["tom"].id, "uhr_ms": k.uhr_ms(), "cookies": {n: k.cookies(u) for n, u in benutzer.items()}}
 
 
@@ -435,14 +444,45 @@ async def pruefen(tab, seed, p):
              [["06:15–07:00", "Fahrzeit · AUF-2026-0001", "", "0,75 h", True],
               ["07:00–12:30", "Baustellenzeit · AUF-2026-0001", "gebucht von Mia Monteurin", "5,25 h", True]])
     await _ansehen(tab, seed, "ole", 1280, 620, "light")
-    p.pruefe("Ole: läuft seit gestern, Weg zu „Heute“", await tab.js(
-        "[document.querySelector('.zeile .zeile-text span').textContent,document.querySelector('.zeile a.knopf').textContent,"
-        "document.querySelector('.zeile a.knopf').getAttribute('href')]"),
-        ["Baustellenzeit · AUF-2026-0001 · läuft seit 06:45", "Feierabend auf „Heute“ eintragen", "/mobil"])
+    # seit 1.9.192: im Monat des Starts derselbe Dialog „Beenden“ wie an der angehefteten Zeit (bis 1.9.191 ein Link nach /mobil)
+    p.pruefe("Ole: läuft seit gestern, „Beenden“ statt des Wegs zu „Heute“", await tab.js(
+        "[document.querySelector('.zeile .zeile-text span').textContent,document.querySelector('.zeile [data-aktion=beenden]').textContent,"
+        "!!document.querySelector('.zeile a'),document.getElementById('angeheftet').hidden]"),
+        ["Baustellenzeit · AUF-2026-0001 · läuft seit 06:45", "Beenden", False, True])
     await tab.bild("meine_zeiten_zeit_von_frueher_hell")
+    await tab.js("document.querySelector('.zeile [data-aktion=beenden]').click()")
+    await tab.warten("document.getElementById('beendenDialog').open", 10)
+    p.pruefe("Ole: Dialog mit dem Starttag", await tab.js(
+        "[document.getElementById('bdEndeText').textContent,document.getElementById('bdText').textContent]"),
+        ["Feierabend am Di 13.10. um", "Baustellenzeit seit Di 13.10.2026, 06:45 · AUF-2026-0001 · Wartung. Das Ende liegt am Starttag."])
+    await tab.js(setze("bdEnde", "16:00"))
+    await tab.warten("document.getElementById('bdVorschauZahl').textContent!==''", 10)
+    p.pruefe("Ole: Vorschau des Servers", await tab.js(
+        "[document.getElementById('bdVorschauZeile').textContent,document.getElementById('bdVorschauZahl').textContent]"),
+        ["Anwesend 9:15 h · Pause nach Zeitregel − 0:30 h", "8,75 h"])
+    await tab.bild("meine_zeiten_beenden_im_monat_hell")
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('bdSpeichern').click()", "#tage")
+    p.pruefe("Ole: gebucht wie die Vorschau, die Zeile 06:45–16:00", await tab.js(
+        "[document.getElementById('beendenDialog').open,document.getElementById('ergebnis').textContent,"
+        f"(z=>[z.querySelector('.zeile-spanne').textContent,z.querySelector('.zeile-stunden').textContent])(document.querySelector('[data-zeile=\"{seed['ole_zeit']}\"]'))]"),
+        [False, "Feierabend am Di 13.10. eingetragen: anwesend 9:15 h · Pause nach Zeitregel − 0:30 h · gebucht 8,75 h", ["06:45–16:00", "8,75 h"]])
+    # seit 1.9.192: ein Büro-Konto -- „Heute“ verweigert ihm die Daten, der frühere Link führte ins Leere
+    await _ansehen(tab, seed, "fin", 1280, 620, "light")
+    p.pruefe("Fin (Büro – Finanzen): „Heute“ 403, die Zeile vom 12.10. mit „Beenden“", [await tab.js(
+        "fetch('/api/field-view/today').then(r=>r.text().then(()=>r.status))"), await tab.js(
+        "document.querySelector('.zeile [data-aktion=beenden]').textContent")], [403, "Beenden"])
+    await tab.js("document.querySelector('.zeile [data-aktion=beenden]').click()")
+    await tab.warten("document.getElementById('beendenDialog').open", 10)
+    await tab.js(setze("bdEnde", "15:30"))
+    await tab.warten("document.getElementById('bdVorschauZahl').textContent!==''", 10)
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('bdSpeichern').click()", "#tage")
+    p.pruefe("Fin: gebucht, die Zeile 07:30–15:30", await tab.js(
+        "[document.getElementById('ergebnis').textContent,"
+        f"(z=>[z.querySelector('.zeile-spanne').textContent,z.querySelector('.zeile-stunden').textContent])(document.querySelector('[data-zeile=\"{seed['fin_zeit']}\"]'))]"),
+        ["Feierabend am Mo 12.10. eingetragen: anwesend 8:00 h · Pause nach Zeitregel − 0:30 h · gebucht 7,50 h", ["07:30–15:30", "7,50 h"]])
     await _ansehen(tab, seed, "pia", 1280, 620, "light", bereit=HINWEIS_BEREIT)
     p.pruefe("Pia: Hinweis ohne Mitarbeiter", await tab.js("document.getElementById('ladeHinweis').textContent.includes('Mitarbeiter')"), True)
-    p.pruefe("Tom/Ole/Pia: keine JS-Fehler", tab.fehler, [])
+    p.pruefe("Tom/Ole/Fin/Pia: keine JS-Fehler", tab.fehler, [])
 
 
 if __name__ == "__main__":

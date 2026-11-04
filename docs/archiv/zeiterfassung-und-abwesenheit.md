@@ -1190,3 +1190,25 @@ Angepasste Erwartungen (Regel 28), altes Soll -> neues Soll:
 - dort „Ada: Dialog zu 91030 mit Warnung“ und „Ada: 91030 trägt Kai -- Meldung, nichts geändert“ (Klick auf „freigeben“, Fehler im Dialog) -> „Ada: an 91030 kein „freigeben“, dafür wer sie trägt“ und „Ada: 91030 trägt Kai -- der Server lehnt ab, nichts geändert“ (derselbe POST, 409 mit derselben Meldung).
 - dort „Ada: Pia weiter „früher: 91030““: „früher: 91030 freigeben“ -> „früher: 91030 (trägt heute Kai Monteur)“ (nach neuem Laden der Seite).
 - dort „Fin: „früher: 91030“ ohne Knopf“: „früher: 91030“ -> „früher: 91030 (trägt heute Kai Monteur)“.
+
+## Lohn L1a, Stufe 3 (ab 1.9.192)
+
+Vorgabe Tobias (04.11.2026), zuerst vier kleinere Punkte je eine Version: 1 „Meine Zeiten“, Monat des Starts -- eine laufende Zeit von einem früheren Tag desselben Monats bekommt denselben Dialog „Beenden“ wie die angeheftete Zeit, der Link nach /mobil entfällt; 2 Plantafel -- der Satz über der Tafel nennt auch Freistellungen; 3 ein Test für die Kürzung mit „…“ in der schmalen Zelle der Plantafel (Nachtrag zu 1.9.188); 4 die Testaufbauten schließen ihre Engine selbst, die Fehler beim Abräumen je vollem Lauf gehen auf 0. Danach 5: für jede Festlegung von 1.9.166 bis 1.9.191 eine Gegenprobe nach Regel 24, in Blöcken je Versionsbereich -- bleibt eine grün, fehlenden Test nachziehen und dieselbe Gegenprobe noch einmal.
+
+### Umsetzung 1.9.192: „Beenden“ im Monat des Starts (Punkt 1)
+
+`app/meine_zeiten.py::_zeile()` gibt einer laufenden Zeit ihren Starttag (`start_tag`). `GET /api/field-view/meine-zeiten` setzt „beenden“ und „grund“ jetzt an der angehefteten Zeit und an jeder Zeile mit `laeuft_seit_frueher` -- dieselbe Prüfung wie seit 1.9.186 (`darf_zeit_buchen()`, sonst `ZEITEN_NUR_LESEN`; dann `ende_nachtragen_pruefen()`, sonst dessen Meldung). Seite `mobil_zeiten.html`: an der Zeile statt des Links `<a href="/mobil">Feierabend auf „Heute“ eintragen</a>` der Knopf „Beenden“ (`data-aktion="beenden"`, `data-id`) bzw. die Meldung (`.zeile-zu`, `data-grund`); `laufendeZeit(z)` gibt dem Dialog dieselben Felder wie die angeheftete Zeit (id, Starttag, Beginn, Zeitart, Auftrag), `beendenOeffnen(a)` nimmt sie als Argument (bis 1.9.191 las er nur `D.angeheftet`).
+
+### Festlegungen 1.9.192 (Bitte bestätigen)
+
+1. „Beenden“ steht an jeder laufenden Zeit, die an einem früheren Tag begann -- im Monat des Starts an der Zeile, in einem späteren Monat angeheftet; eine heute begonnene Zeit bekommt es nicht (sie stoppt auf „Heute“ normal, das Büro unter „Zeiten“).
+2. Der Link nach /mobil entfällt für alle Rollen, auch für die Monteurin: der Dialog liegt auf der Seite, „Heute“ bleibt im Reiter.
+3. Wer nicht beenden darf, sieht an der Zeile die Meldung, mit der der Server das Nachtragen ablehnen würde -- wie an der angehefteten Zeit (Festlegung 1.9.186 Nr. 3).
+
+### Tests und Prüfung 1.9.192
+
+Neu: `tests/test_v602_meine_zeiten_beenden_im_monat.py` (8 Tests, stehende Uhr Mi 18.11.2026 10:00) -- die Zeile vom 16.11. mit Starttag und „Beenden“ (nichts angeheftet), eine heute begonnene ohne, Beenden über Vorschau und Nachtragen am Starttag, Büro – Finanzen: „Heute“ 403, „Beenden“ gilt und bucht, ohne „Beenden“ die Meldung (Gruppenzeit, Monat abgeschlossen, Büro – Auftrag), Seite in node (Knopf statt Link, Meldung maskiert, `laufendeZeit()` und der Klick in „Buchungen“). Gegenproben: der Router setzt „beenden“ nur an der angehefteten Zeit -> 3 rot; kein Starttag -> 2 rot; der alte Link an der Zeile -> 2 rot, `klicktest_meine_zeiten` 53 von 59.
+
+Angepasste Erwartungen (Regel 28), altes Soll -> neues Soll:
+- `klicktest_meine_zeiten` „Ole: läuft seit gestern, Weg zu „Heute““, jetzt „Ole: läuft seit gestern, „Beenden“ statt des Wegs zu „Heute““: [„… läuft seit 06:45“, „Feierabend auf „Heute“ eintragen“, „/mobil“] -> [„… läuft seit 06:45“, „Beenden“, kein Link, nichts angeheftet]; dazu fünf Prüfungen (Ole: Dialog, Vorschau, gebucht; Fin aus Büro – Finanzen: „Heute“ 403 und „Beenden“, gebucht), 54 -> 59, ein Bild mehr (`meine_zeiten_beenden_im_monat_hell`); Aufbau um das Konto Fin mit eigener Zeit seit Mo 12.10. 07:30.
+- `klicktest_monteurin_regeln` „Meine Zeiten: die offene Zeit „läuft seit 06:45“ ohne Stunden, Weg zu „Heute““: [„…“, „“, „Feierabend auf „Heute“ eintragen“, „/mobil“] -> [„…“, „“, „Beenden“, kein Link]; Mia beendet die Zeit danach wie bisher auf „Heute“ (31 Prüfungen).

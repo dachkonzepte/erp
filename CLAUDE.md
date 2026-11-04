@@ -1586,7 +1586,7 @@ Rechte-/Rollen-Änderung lesen, Regel 14).
   nur über `POST /api/time-entries/{id}/ende-nachtragen` (Ende am Starttag, Pausenregel; Gruppenzeit nur der Kolonnenführer, fremde nach
   `darf_zeit_fuer_andere_buchen()`, im abgeschlossenen Monat nicht die Monteurin). `tests/test_v463_ende_nachtragen.py`. Seit 1.9.186 heftet
   „Meine Zeiten“ eine Zeit, die vor dem angezeigten Monat begann, oben an (`app/meine_zeiten.py::angeheftet()`) -- „Beenden“ nur nach
-  `app/routers/time_tracking.py::ende_nachtragen_pruefen()`, sonst mit dessen Meldung (`tests/test_v598_meine_zeiten_angeheftet.py`).
+  `app/routers/time_tracking.py::ende_nachtragen_pruefen()`, sonst mit dessen Meldung (`tests/test_v598_meine_zeiten_angeheftet.py`); seit 1.9.192 ebenso an der Zeile einer Zeit von einem früheren Tag im Monat des Starts, kein Link mehr nach /mobil (`tests/test_v602_meine_zeiten_beenden_im_monat.py`).
 - **Einsatzbericht: „Noch offen“ vor jeder Unterschrift** (seit 1.9.36): die Pflichten nur aus `app/service_reports.py::noch_offen()`
   (dieselben wie seit 1.2.16/1.2.17, je mit Namen); die Seite fragt `GET /api/service-reports/{id}/noch-offen` (seit 1.9.67 vor „Bericht
   abschließen“ der Berichtsseite, bis 1.9.66 vor beiden Unterschriften) nach `nachDemSpeichern()` (`_speichern.html`); die Unterschrift lehnt mit 409 und der Liste ab. Ein

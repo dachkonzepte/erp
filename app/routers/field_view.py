@@ -210,16 +210,18 @@ def get_field_view_meine_zeiten(request: Request, monat: str | None = Query(None
         if order is not None and (user.role != ROLE_FIELD or field_may_access_order(db, user.employee_id, order.id)):
             zeile = {**auftrag_zeile(order), "geschlossen": auftrag_geschlossen(order.status)}
     # Seit 1.9.186 (L1a Stufe 2, Punkt 1): „Beenden“ an der angehefteten Zeit aus einem früheren Monat nach denselben Regeln wie
-    # POST /api/time-entries/{id}/ende-nachtragen (ende_nachtragen_pruefen()) -- sonst steht dort der Grund (Gruppenzeit, Monat abgeschlossen, nur lesen)
-    fest = daten["angeheftet"]
-    if fest is not None:
+    # POST /api/time-entries/{id}/ende-nachtragen (ende_nachtragen_pruefen()) -- sonst steht dort der Grund (Gruppenzeit, Monat abgeschlossen, nur lesen).
+    # Seit 1.9.192 (L1a Stufe 3, Punkt 1) ebenso an der Zeile einer laufenden Zeit von einem früheren Tag im Monat des Starts (bis dahin ein
+    # Link nach /mobil, für das Büro eine Seite ohne Daten)
+    laufend = [daten["angeheftet"]] + [z for t in daten["tage"] for z in t["zeilen"] if z["laeuft_seit_frueher"]]
+    for eintrag in filter(None, laufend):
         grund = None if darf_zeit_buchen(user) else ZEITEN_NUR_LESEN
         if grund is None:
             try:
-                ende_nachtragen_pruefen(request, db, fest["id"])
+                ende_nachtragen_pruefen(request, db, eintrag["id"])
             except HTTPException as exc:
                 grund = exc.detail
-        fest["beenden"], fest["grund"] = grund is None, grund
+        eintrag["beenden"], eintrag["grund"] = grund is None, grund
     # Seit 1.9.93 (Stufe 4, R5a, Punkt 6): "buero" -- ein Konto außerhalb der Monteursansicht; die Seite zeigt ihm nicht „wende dich an das
     # Büro“. Nachtragen und Ändern nur, wer Zeiten bucht (app/permissions.py::darf_zeit_buchen -- Büro – Auftrag liest nur, seit 1.9.89).
     return {**daten, "nachtragen_erlaubt": bool(daten["nachtragen_erlaubt"]) and darf_zeit_buchen(user),

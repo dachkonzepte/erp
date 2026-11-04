@@ -12,7 +12,8 @@ Geschäftslogik: der Router entscheidet, wessen Zeiten (immer die eigenen) und o
                  seinen Gruppenbuchungen im Monat (zum Ändern und Löschen für die Kolonne), die Arten der Abwesenheit -- dieselben Quellen
                  wie bis dahin die Zeiterfassung der Monteurin
     Angeheftet   seit 1.9.186: die laufende Zeit, die vor dem Anfang des angezeigten Monats begann (vergessener Feierabend über den
-                 Monatswechsel) -- die Tage des Monats enthalten sie nicht; ob „Beenden“ gilt, entscheidet der Router
+                 Monatswechsel) -- die Tage des Monats enthalten sie nicht; ob „Beenden“ gilt, entscheidet der Router (seit 1.9.192
+                 ebenso an der Zeile einer laufenden Zeit von einem früheren Tag im Monat des Starts, mit ihrem start_tag)
     Frei         seit 1.9.187: die Freistellungen des Arbeitszeitkalenders im angezeigten Monat (Heiligabend, Silvester) je Tag mit Stunden
                  und bezahlt -- app/arbeitszeitkalender.py::abwesenheiten(), dieselbe Rechnung wie der Lohn, abgeleitet, ohne Antrag
 
@@ -81,6 +82,8 @@ def _zeile(row, gruppe, arten: list[dict], employee_id: int, kolonnen: set[int],
         "von": row.started_at.strftime("%H:%M") if row.started_at else None,
         "bis": row.ended_at.strftime("%H:%M") if row.ended_at else None,
         "laeuft": laeuft, "laeuft_seit_frueher": d["laeuft_seit_frueher"],
+        # seit 1.9.192: der Starttag einer laufenden Zeit -- „Beenden“ trägt das Ende an ihm nach (wie an der angehefteten Zeit)
+        "start_tag": row.started_at.date() if laeuft and row.started_at else None,
         "activity": row.activity, "notes": row.notes,
         # „gebucht von“ nur, wenn ein anderer gebucht hat (der Kolonnenführer)
         "gebucht_von": d["booked_by_name"] if d["booked_by_employee_id"] not in (None, employee_id) else None,

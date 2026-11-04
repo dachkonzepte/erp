@@ -6,8 +6,8 @@ Befüllt: Auftrag mit Einsatz (Plantafel heute ± 7 Tage) für Mia (Monteurin) u
 (Flachdach, ein Gully) und Mias Rapportbericht mit Prüfvorlage (vier Pflichtpunkte, zwei freie) und einem von Hand ergänzten Punkt.
 
     Mia (412 px, dunkel)  /mobil: Hinweis „Deine Zeit läuft noch seit <gestern>, 06:45 Uhr“ mit Zeitart, Auftrag und „Ende nachtragen →“.
-                          Meine Zeiten (seit 1.9.59 statt der Zeiterfassung): Zeile „läuft seit 06:45“ ohne Stunden mit „Feierabend auf
-                          „Heute“ eintragen“; auf „Heute“ Start gesperrt, Ende leer -> „Bitte die Uhrzeit des Feierabends angeben.“, 06:00
+                          Meine Zeiten (seit 1.9.59 statt der Zeiterfassung): Zeile „läuft seit 06:45“ ohne Stunden mit „Beenden“
+                          (seit 1.9.192; bis 1.9.191 „Feierabend auf „Heute“ eintragen“); auf „Heute“ Start gesperrt, Ende leer -> „Bitte die Uhrzeit des Feierabends angeben.“, 06:00
                           -> Meldung des Servers (vor dem Start), 16:00 -> „Feierabend gestern eingetragen: anwesend 9:15 h · Pause nach
                           Zeitregel − 0:30 h · gebucht 8,75 h“ (seit 1.9.166; bis dahin 0:45 h und 8,50 h), danach startet sie über
                           die Kachel neu.
@@ -148,10 +148,10 @@ async def pruefen(tab, seed, p):
 
     # --- Mia: Meine Zeiten und Heute, offene Zeit (seit 1.9.59; bis dahin die Zeiterfassung der Monteurin) ------------------------
     await tab.oeffnen("/mobil/zeiten", ZEITEN_BEREIT)
-    p.pruefe("Meine Zeiten: die offene Zeit „läuft seit 06:45“ ohne Stunden, Weg zu „Heute“", await tab.js(
+    p.pruefe("Meine Zeiten: die offene Zeit „läuft seit 06:45“ ohne Stunden, „Beenden“ (seit 1.9.192)", await tab.js(
         "(z=>[z.querySelector('.zeile-text span').textContent,z.querySelector('.zeile-stunden').textContent,"
-        "z.querySelector('a.knopf').textContent,z.querySelector('a.knopf').getAttribute('href')])(document.querySelector('#tage .zeile'))"),
-        [f"Baustellenzeit · {seed['auftragsnummer']} · läuft seit 06:45", "", "Feierabend auf „Heute“ eintragen", "/mobil"])
+        "z.querySelector('[data-aktion=beenden]').textContent,!!z.querySelector('a')])(document.querySelector('#tage .zeile'))"),
+        [f"Baustellenzeit · {seed['auftragsnummer']} · läuft seit 06:45", "", "Beenden", False])
     await tab.bild("2_meine_zeiten_offene_zeit_dunkel_412")
     await tab.oeffnen("/mobil", "!!document.getElementById('endeKnopf')")
     p.pruefe("Heute: Start gesperrt, solange gestern offen ist", await tab.js(

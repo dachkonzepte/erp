@@ -10,8 +10,8 @@
      Seiten jetzt steht: docs/archiv/redesign.md, „Stufe 4, R3“, Befund Z1–Z22 und S1–S5.
        links    Kacheln Heute · Diese Woche · <Monat> (gebuchte Stunden, eine laufende Zeit zählt nicht mit), Buchungen des Monats (‹ ›)
                 je Tag mit Kopfzeile und Summe; Zeile: Von–Bis, Zeitart · Auftrag, gebucht, „⋮“ (Ändern, Löschen; für den Kolonnenführer an
-                seiner Gruppenbuchung auch für die Kolonne); eine laufende Zeit „läuft seit HH:MM“ ohne Stunden, eine von früher mit dem
-                Weg zu „Heute“. Passt die abgezogene Pause eines Tags nicht mehr zur Zeitregel: Hinweis in der Kopfzeile und „Pausen neu
+                seiner Gruppenbuchung auch für die Kolonne); eine laufende Zeit „läuft seit HH:MM“ ohne Stunden, eine von früher seit
+                1.9.192 mit „Beenden“ (bis 1.9.191 ein Link nach „Heute“). Passt die abgezogene Pause eines Tags nicht mehr zur Zeitregel: Hinweis in der Kopfzeile und „Pausen neu
                 rechnen“ (Vorschau je Buchung, gebucht nur mit Klick). Seit 1.9.186 oben angeheftet: eine laufende Zeit, die vor dem
                 Monatsanfang begann, mit Startdatum und „Beenden“ (Ende am Starttag wie auf „Heute“).
        rechts   Abwesenheit (Antrag, eigene Anträge; seit 1.9.187 die Freistellungen des Arbeitszeitkalenders im Monat mit Stunden und
@@ -407,7 +407,10 @@ function zeileHtml(z,t){
   var titel=esc(z.zeitart)+' <span class="neben">· '+esc(z.order_number||'')+(z.laeuft?' · läuft seit '+esc(z.von):'')+'</span>';
   var unter=[z.activity,z.notes,z.gebucht_von?'gebucht von '+z.gebucht_von:null].filter(Boolean).join(' · ');
   var zu=z.auftrag_geschlossen?'<span class="zeile-zu" data-geschlossen="'+esc(z.auftrag_geschlossen)+'">Auftrag '+esc(z.auftrag_geschlossen)+'</span>':'';  // seit 1.9.87
-  var weg=z.laeuft_seit_frueher?'<a class="knopf knopf-aktion knopf-klein" href="/mobil">Feierabend auf „Heute“ eintragen</a>':'';
+  // seit 1.9.192: eine Zeit von einem früheren Tag beendet derselbe Dialog wie die angeheftete (bis 1.9.191 ein Link nach /mobil, für das
+  // Büro eine Seite ohne Daten); wer nicht beenden darf, sieht die Meldung des Servers
+  var weg=!z.laeuft_seit_frueher?'':z.beenden?'<button type="button" class="knopf knopf-aktion knopf-klein" data-aktion="beenden" data-id="'+z.id+'">Beenden</button>'
+    :z.grund?'<span class="zeile-zu" data-grund>'+esc(z.grund)+'</span>':'';
   return '<div class="zeile" data-zeile="'+z.id+'"><span class="zeile-spanne">'+esc(z.laeuft?'':spanne)+'</span>'
     +'<span class="zeile-text"><span>'+titel+'</span>'+(unter?'<span class="zeile-unter">'+esc(unter)+'</span>':'')+zu+weg+'</span>'
     +'<span class="zeile-stunden">'+(z.laeuft?'':esc(stunden(z.gebucht)))+'</span>'+menueHtml(z,t)+'</div>';
@@ -447,8 +450,11 @@ function freistellungenZeichnen(liste){
       +'<span>'+esc(teile(f.tag).wt+' '+tagLang(f.tag))+' · '+esc(stunden(f.stunden))+' · '+(f.bezahlt?'bezahlt':'unbezahlt')+'</span></span>'
       +'<span class="antrag-status">gilt ohne Antrag</span></div>'}).join('');
 }
-function beendenOeffnen(){
-  var a=D&&D.angeheftet;
+// seit 1.9.192 auch für die Zeile einer laufenden Zeit von einem früheren Tag im Monat des Starts (dieselben Felder wie die angeheftete)
+function laufendeZeit(z){
+  return z&&{id:z.id,tag:z.start_tag,beginn:z.von,zeitart:z.zeitart,order_number:z.order_number,project_name:z.project_name,beenden:z.beenden};
+}
+function beendenOeffnen(a){
   if(!a||!a.beenden)return;
   BD=a;
   el('bdText').textContent=a.zeitart+' seit '+teile(a.tag).wt+' '+tagLang(a.tag)+', '+a.beginn+([a.order_number,a.project_name].filter(Boolean).map(function(x){return ' · '+x}).join(''))
@@ -747,8 +753,9 @@ function binden(){
     else if(a==='pausen')pausenVorschau(b.dataset.tag);
     else if(a==='pausen-abbrechen'){var v=el('pv-'+b.dataset.tag);v.hidden=true;v.innerHTML=''}
     else if(a==='pausen-buchen')pausenBuchen(b.dataset.tag,b);
+    else if(a==='beenden')beendenOeffnen(laufendeZeit(zeileZu(b.dataset.id)));
   });
-  el('angeheftet').addEventListener('click',function(ev){var b=ev.target.closest&&ev.target.closest('[data-aktion="beenden"]');if(b)beendenOeffnen()});
+  el('angeheftet').addEventListener('click',function(ev){var b=ev.target.closest&&ev.target.closest('[data-aktion="beenden"]');if(b)beendenOeffnen(D&&D.angeheftet)});
   ['input','change'].forEach(function(art){el('bdEnde').addEventListener(art,bdVorschauLaden)});
   el('bdSpeichern').addEventListener('click',beenden);
   el('bdAbbrechen').addEventListener('click',function(){el('beendenDialog').close()});
