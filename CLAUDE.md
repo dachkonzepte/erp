@@ -770,6 +770,10 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     Gegenprobe (`docs/archiv/abnahme-und-gewaehrleistung.md`, "Verifikation 1.8.54" und "Umsetzung 1.8.55"). **Seit 1.8.108** bricht
     jeder Klicktest nach höchstens 2 min ab, solange der Marker unter `app/` steht (eigene Prozesse über ihre PID beendet,
     Rückgabecode 3, `scripts/cdp_klicktest.py::Wachhund`) -- ein ausgehebelter Schutz lässt eine Seite sonst im Kreis laufen.
+    **Seit 1.9.210 (stehende Regel, Betreibervorgabe 04.11.2026):** jede neue Festlegung bekommt in derselben Runde ihre eigene Gegenprobe,
+    je Aussage; wo keine möglich ist (Arbeitsweise, reine Doku, reine Anzeige ohne Prüfung), steht sie mit Begründung in der Tabelle der
+    Runde. Bleibt eine grün, Test nachziehen und dieselbe Gegenprobe noch einmal. Ablauf und Tabelle: `docs/archiv/testablauf-und-klicktests.md`,
+    „Gegenprobe zu jeder neuen Festlegung“; Tabellen der Lohnrunde: `docs/archiv/gegenproben-lohn-l1a.md`.
 
 25. **Eine ID aus der Anfrage gehört zum selben Objekt, Auftrag oder Kunden, seit 1.8.70.** Wer eine fremde ID speichert, ohne
     das zu prüfen, öffnet einen Weg über fortlaufende IDs (Befund: Dachfläche eines fremden Objekts im Einsatzbericht, Position

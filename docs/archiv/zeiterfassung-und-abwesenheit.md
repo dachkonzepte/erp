@@ -1374,3 +1374,7 @@ Angepasste Erwartungen (Regel 28) zu 1.9.208: `test_v612::test_einzelantrag_blei
 ### Umsetzung 1.9.209: `klicktest_heute` mit stehender Uhr (Punkt 2, Werkzeug)
 
 Steht im Archiv „Testablauf und Klicktests“, Abschnitt „Stehende Uhr, vom Klicktest weitergestellt (1.9.209)“: eine ganz stehende Uhr reicht nicht (Wechsel und Feierabend in derselben Sekunde lehnt der Server ab); `tab.uhr_stellen()` stellt sie in Instanz und Browser genau um 10 s weiter, „Tag zusammen 3:15 h“ und „gebucht 0,00 h“ sind genau ein Wert. Am Programm nichts geändert.
+
+### Umsetzung 1.9.210: Gegenprobe zu jeder neuen Festlegung (Punkt 3, Werkzeug)
+
+Die stehende Regel steht im Archiv „Testablauf und Klicktests“, Abschnitt „Gegenprobe zu jeder neuen Festlegung in derselben Runde“, und kurz in Regel 24. Für Stufe 4 nachgeholt: genannt waren 1.9.202 Nr. 2 und Nr. 3 (beide sofort rot -- die Tests gab es, die Gegenprobe nicht); die Durchsicht aller Festlegungen von Stufe 4 fand dazu 1.9.202 Nr. 1b, 1.9.203 Nr. 3a/3b und 1.9.204 Nr. 3c (sofort rot) und drei Befunde: 1.9.204 Nr. 1b (abgelehnt vor der Rückfrage), Nr. 3a (erst die Gründe des Tags), Nr. 3b (abwesend vor offenem Antrag) -- neue Tests in `tests/test_v615_gegenproben_stufe4.py`, danach rot. Die Tabelle aller Gegenproben von Stufe 4 und 5: `docs/archiv/gegenproben-lohn-l1a.md`, „Stufe 4 und 5“. Am Programm nichts geändert.

@@ -1,4 +1,4 @@
-# Gegenproben zu den Festlegungen der Lohnrunde L1a (1.9.166–1.9.191)
+# Gegenproben zu den Festlegungen der Lohnrunde L1a (1.9.166–1.9.191, seit 1.9.210 auch Stufe 4 und 5)
 
 Vorgabe Tobias (04.11.2026, L1a Stufe 3, Punkt 5): für jede Festlegung von 1.9.166 bis 1.9.191 eine Gegenprobe nach Regel 24, in Blöcken je
 Versionsbereich, je Block eine Version und ein Commit. Wo keine Gegenprobe möglich ist (reine Doku, reine Anzeige ohne Prüfung), keine erfinden,
@@ -664,3 +664,49 @@ feste Tage über `uhr_festhalten(tag=…)` bzw. `fester_tag`). Keine bestehende 
   191 Nr. 2c „{… 'Tom Monteur'} == {}“).
 - Am Ende: `app/` und `tests/test_v564_plantafel_leistung.py` unverändert (alle Prüfsummen gleich), `git status --short` zeigt außer dem
   Ausgangsstand (1.9.192–1.9.194) nur `?? tests/test_v608_festlegungen_186_191.py`. Kein Commit, nichts im Hauptbaum.
+
+## Stufe 4 und 5 (1.9.202 ff.): je Festlegung ihre Gegenprobe
+
+Seit 1.9.210 stehende Regel (Archiv „Testablauf“, „Gegenprobe zu jeder neuen Festlegung“): jede neue Festlegung bekommt in derselben Runde ihre
+Gegenprobe, je Aussage. Für Stufe 4 nachgeholt in 1.9.210 -- genannt waren 1.9.202 Nr. 2 und Nr. 3, die Durchsicht fand dazu 1.9.202 Nr. 1b,
+1.9.203 Nr. 3, 1.9.204 Nr. 1b und Nr. 3a–3c. Jede Gegenprobe zuerst gegen die Tests vor der Version („vorher“), dann mit den neuen. Ausgeführt im
+Hauptbaum, während dort nichts anderes lief, Datei danach byte-genau zurück (Prüfsumme); gezählt nur FAILED. Version in Klammern = gefahren in.
+
+| Festlegung (Aussage) | Gegenprobe | Ergebnis |
+|---|---|---|
+| **1.9.202 Nr. 1a** – beim Genehmigen prüft `grund_gegen()` | Prüfung in `_entscheiden()` aus (1.9.202) | 4 rot: test_v609 (unter „Zeiten“ ×2, im Dialog ×2) |
+| **1.9.202 Nr. 1b** – die Rückfragen (gebuchte Zeit, betriebsfreier Tag) gelten beim Genehmigen nicht | `_entscheiden()` fragt auch nach `warnungen()` (1.9.210) | vorher 4 rot: test_v588::test_gebuchte_zeit_warnung_und_trotzdem, test_v605::test_trotzdem_laesst_die_buchungen_stehen, test_v606::test_bestaetigen_fragt_nicht_noch_einmal, test_v594::test_betriebsfreier_tag_fragt_nach; mit test_v615 dazu 2 (unter „Zeiten“) |
+| **1.9.202 Nr. 2** – die Meldung ist der Grund ohne Vorsatz | „Nicht genehmigt: “ davor (1.9.210) | vorher 4 rot: test_v609 (genaue Meldung, beide Wege) |
+| **1.9.202 Nr. 3a** – andere Kategorien nicht | Prüfung für jede Kategorie (1.9.210) | vorher 3 rot: test_v609::test_andere_kategorie_ohne_pruefung_des_dialogs, test_v605::test_alle_heisst_alle_aktiven_auch_kaufmaennische, test_v606::test_sammeleintrag_eine_antwort_fuer_alle |
+| **1.9.202 Nr. 3b** – jeder Weg, die Prüfung sitzt in `_entscheiden()` | Prüfung nur in `review_request()` (unter „Zeiten“) (1.9.210) | vorher 2 rot: test_v609::test_im_dialog_dieselbe_meldung ×2 |
+| **1.9.203 Nr. 1** – bei Schlechtwetter jede Zuordnung je Art übergangen | Art vor der Jahreszeit wie bis 1.9.202 (1.9.203) | 3 rot: test_v610 |
+| **1.9.203 Nr. 2** – Zuordnung je Art dort abgelehnt | `speichern()` ohne Ablehnung (1.9.203) | 5 rot: test_v610; klicktest_lohnarten 11 von 13 |
+| **1.9.203 Nr. 3a** – leeren geht | auch leeren abgelehnt (1.9.210) | vorher 1 rot: test_v610::test_schnittstelle_422_mit_meldung_leeren_geht |
+| **1.9.203 Nr. 3b** – gelöscht wird sie nicht, die Liste zeigt sie | geleert wird gelöscht (1.9.210) | vorher 1 rot: derselbe Test (die Zeile fehlt in der Liste) |
+| **1.9.203 Nr. 3c** – „Wirkt“ sagt es | Liste ohne Hinweis (1.9.203) | 2 rot: test_v610; klicktest_lohnarten 10 von 13 |
+| **1.9.203 Nr. 4** – wirkt nirgends, auch nicht im Altbestand | Altbestand wirkt außerhalb (1.9.203) | 1 rot: test_v610::test_altbestand_wirkt_auch_ausserhalb_nie |
+| **1.9.203 Nr. 5** – Prüfskript: Befund | ohne Befund (1.9.203) | 1 rot: test_v610::test_pruefskript_nennt_die_uebergangene_zeile |
+| **1.9.204 Nr. 1a** – schon abwesend, offener Antrag: abgelehnte Tage | ohne `belegt()` (1.9.204) | 5 rot: test_v611; klicktest_schlechtwetter 22 von 24 |
+| **1.9.204 Nr. 1b** – vor den Rückfragen (409) | die Rückfrage vor den abgelehnten Tagen (1.9.210) | vorher grün (Befund); mit test_v615 1 rot: test_schon_abwesend_vor_der_rueckfrage |
+| **1.9.204 Nr. 2** – nur die Tage, keine Kategorie, nicht der Zeitraum der Abwesenheit | ganzer Zeitraum (1.9.204); mit Art (1.9.204) | 2 rot; 4 rot: test_v611 |
+| **1.9.204 Nr. 3a** – erst die Gründe des Tags | abwesend vor `grund_gegen()` (1.9.210) | vorher grün (Befund); mit test_v615 1 rot: test_erst_der_grund_des_tags |
+| **1.9.204 Nr. 3b** – abwesend vor offenem Antrag | `belegt()`: der offene Antrag zuerst (1.9.210) | vorher grün (Befund); mit test_v615 1 rot: test_erst_abwesend_dann_offener_antrag |
+| **1.9.204 Nr. 3c** – Personen in der Reihenfolge der Auswahl | nach Namen sortiert (1.9.210) | vorher 2 rot: test_v611::test_zusammen_mit_den_uebrigen_gruenden, test_v588::test_tag_ohne_soll_und_nicht_gewerblich_nichts_gespeichert |
+| **1.9.204 Nr. 4** – wer für sich beantragt: Name und Tag | ohne Namen (1.9.204) | 5 rot: test_v611 (darunter test_fuer_sich_mit_offenem_antrag) |
+| **1.9.205 Nr. 1** – ganzer Zeitraum, Wortlaut des offenen Antrags | ohne `belegt()` im Sammeleintrag (1.9.205) | 5 rot: test_v612, test_v589::test_alles_oder_nichts; klicktest_sammeleintrag 19 von 21 |
+| **1.9.205 Nr. 2** – die Liste vor der Rückfrage zu Silvester | die Rückfrage zuerst (1.9.205) | 1 rot: test_v612::test_silvester_erst_nach_der_liste |
+| 1.9.205 Nr. 3 | neu gefasst mit 1.9.208, siehe dort | – |
+| **1.9.187 Nr. 3, neu gefasst (1.9.206)** – die Schnittstelle liefert künftige Monate | Schnittstelle nur bis zum laufenden Monat (1.9.206) | 3 rot: test_v599 |
+| **1.9.207 Nr. 1** (Werkzeug) – nach `oeffnen()` erst nach Ruhe lesen | die alten Fassungen unter verzögerten Antworten (1.9.207) | rot in Lauf A bzw. B: 5 Klicktests, je die genannte Prüfung |
+| **1.9.207 Nr. 2** (Werkzeug) – nach dem Neuladen neues Dokument und Ruhe | die alte Fassung von klicktest_abschliessen unter Zufallsverzögerung (1.9.207) | rot (Dialog „Seite verlassen?“) in Lauf B; die neue sechsmal grün |
+| 1.9.207 Nr. 3 (Werkzeug) – geprüft mit verzögerten Antworten | keine – Arbeitsweise (wie geprüft wird), nichts im Code, das sie aushebeln könnte | – |
+| **1.9.208 Nr. 1** – die Prüfung sitzt in `_antrag_anlegen()`, jeder Weg | ohne Prüfung beim Anlegen (1.9.208) | 16 rot (test_v613, test_v612, test_v589, test_v566); klicktest_sammeleintrag 19 von 22, klicktest_abwesenheit_ein_weg 48 von 49 |
+| **1.9.208 Nr. 2** – Meldung mit Person und Tagen | ohne Namen (1.9.208) | 9 rot |
+| **1.9.208 Nr. 3** (= 1.9.205 Nr. 3 neu) – der Einzelantrag wie der Sammeleintrag | nur offene Anträge wie bis 1.9.207 (1.9.208) | 13 rot |
+| **1.9.208 Nr. 4** – Krankheit im Urlaub über den Admin | zurückgezogene Anträge zählen (1.9.208) | 1 rot: test_v613::test_krankheit_im_urlaub_ueber_den_admin |
+| **1.9.209 Nr. 1** (Werkzeug) – `uhr_stellen()` in Instanz und Browser | Instanz liest die Datei nicht; Browser fester Wert; altes Skript bleibt (1.9.209) | je 1 rot: test_v614; unter der ersten klicktest_heute 51 von 55 („Endzeit muss nach der Startzeit liegen.“) |
+| **1.9.209 Nr. 2** (Werkzeug) – klicktest_heute steht, genau ein Wert | laufende Uhr; ein Muster statt des Werts (1.9.209) | je 1 rot: test_v614 |
+| 1.9.210 Nr. 1–3 (Werkzeug) – die Regel selbst | keine – Arbeitsweise; geprüft daran, dass diese Tabelle jede Festlegung nennt | – |
+
+Befunde 1.9.210 (vorher grün, jetzt mit Test in `tests/test_v615_gegenproben_stufe4.py`): 1.9.204 Nr. 1b, Nr. 3a, Nr. 3b -- kein Fehler im Programm,
+nur ungeprüft. Dazu zwei Tests für 1.9.202 Nr. 1b unter „Zeiten“ (die Aussage war über den Dialog schon geprüft).

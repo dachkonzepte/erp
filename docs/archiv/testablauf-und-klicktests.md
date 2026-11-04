@@ -1496,4 +1496,21 @@ Vorgabe Tobias (04.11.2026): `klicktest_heute` hält die Uhr an -- stehende Uhr 
 
 **Tests und Prüfung.** Neu `tests/test_v614_stehende_uhr_stellen.py` (7 Tests): die Instanz folgt der Datei (ohne Datei und unlesbar der Startpunkt), ohne `KLICKTEST_UHR_DATEI` wie bisher, der Browser folgt `__dkUhrFest`, `uhr_stellen()` schreibt die Datei, ersetzt das Skript und stellt das Dokument, nur mit stehender Uhr; `klicktest_heute` steht an einem festen Tag, ruft `browser_uhr_fest()` und zweimal `uhr_stellen()`, ohne `performance.now()`, und vergleicht „Tag zusammen“ mit genau einem Text. `klicktest_heute` 55 von 55. Gegenproben: die Instanz liest die Datei nicht -> 1 rot, Klicktest 51 von 55 („Endzeit muss nach der Startzeit liegen.“); der Browser liest den festen Wert -> 1 rot; das alte Skript bleibt -> 1 rot (der Klicktest bleibt grün, keine seiner Prüfungen liest nach dem Weiterstellen eine Zeit des Browsers in einem neuen Dokument); `klicktest_heute` mit laufender Uhr -> 1 rot; ein Muster statt des Werts -> 1 rot.
 
-Angepasste Erwartungen (Regel 28), `klicktest_heute`: „zwei Buchungen ohne Lücke und ohne Überschneidung“ altes Soll: Beginn der Fahrzeit = der gelesene Wert, neues Soll genau `<heute>T10:00:00`; „Feierabend: Ergebnis mit Tag zusammen“ altes Soll das Muster „… gebucht 0,0\d h“, neues Soll genau „… gebucht 0,00 h“; Aufbau: stehende Uhr an einem festen Tag statt laufend ab heute 10:00. 55 Prüfungen wie bisher.
+Angepasste Erwartungen (Regel 28) zu 1.9.209, `klicktest_heute`: „zwei Buchungen ohne Lücke und ohne Überschneidung“ altes Soll: Beginn der Fahrzeit = der gelesene Wert, neues Soll genau `<heute>T10:00:00`; „Feierabend: Ergebnis mit Tag zusammen“ altes Soll das Muster „… gebucht 0,0\d h“, neues Soll genau „… gebucht 0,00 h“; Aufbau: stehende Uhr an einem festen Tag statt laufend ab heute 10:00. 55 Prüfungen wie bisher.
+
+## Gegenprobe zu jeder neuen Festlegung in derselben Runde (stehende Regel seit 1.9.210, L1a Stufe 5, Punkt 3)
+
+Vorgabe Tobias (04.11.2026): jede neue Festlegung bekommt in derselben Runde ihre eigene Gegenprobe; wo keine möglich ist, mit Begründung in der Tabelle. Anlass: Stufe 4 hatte für 1.9.202 Nr. 2 und Nr. 3 keine (die Tests gab es, die Gegenprobe nicht); die Durchsicht aller Festlegungen von Stufe 4 fand weitere Teilaussagen ohne eigene Gegenprobe, drei davon auch ohne Test.
+
+**Die Regel.**
+1. Je Festlegung, die eine Runde trifft (Regel 28, „Bitte bestätigen“), je Aussage eine Gegenprobe nach Regel 24 (Nr. 1a, 1b … für die Teile einer Festlegung) -- in derselben Runde, vor dem Commit der Version, die die Festlegung trifft; auch Werkzeug-Festlegungen und neu gefasste ältere.
+2. Zuerst gegen die Tests, die es vor der Version gab, dann mit den neuen. Rot schon vorher: die Festlegung war geprüft, nur die Gegenprobe fehlte. Grün vorher, rot mit den neuen: der neue Test trägt die Aussage. Grün auch mit den neuen: Befund -- Test nachziehen, dieselbe Gegenprobe noch einmal (wie 1.9.169 Nr. 2, Nachtrag 1.9.173).
+3. Keine Gegenprobe nur, wo es nichts gibt, das sie aushebeln könnte: eine Arbeitsweise (wie geprüft oder gearbeitet wird), reine Doku, eine Anzeige ohne Prüfung, ein Stand des Servers, eine offene Frage. Dann steht die Aussage mit diesem Grund in der Tabelle -- keine erfundene Gegenprobe.
+4. Bei Werkzeug-Festlegungen über Klicktests ist die Gegenprobe die alte Fassung unter derselben Messung (z. B. verzögerte Antworten, 1.9.207) oder ein Strukturtest über die Datei.
+5. Die Tabelle steht im Archiv des Themas (Lohnrunde: `docs/archiv/gegenproben-lohn-l1a.md`), der Bericht der Runde enthält sie: Festlegung -- Gegenprobe -- Ergebnis oder Grund.
+
+**Festlegungen 1.9.210 zu Werkzeug und Testablauf (Bitte bestätigen)**
+
+1. Die Regel oben gilt ab Stufe 5 für jede Runde; für Stufe 4 ist sie nachgeholt (Tabelle „Stufe 4 und 5“ in `docs/archiv/gegenproben-lohn-l1a.md`).
+2. Je Aussage eine Gegenprobe, auch wenn ein Test mehrere Aussagen zugleich trägt -- sonst bleibt unbemerkt, welche Aussage nur nebenbei geprüft ist.
+3. Die Gegenproben dieser Regel selbst: keine (Arbeitsweise) -- geprüft wird sie daran, dass die Tabelle der Runde jede Festlegung nennt.
