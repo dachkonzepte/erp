@@ -650,7 +650,9 @@ feste Tage über `uhr_festhalten(tag=…)` bzw. `fester_tag`). Keine bestehende 
   `'href="/mobil">Feierabend' not in text` (ganzer Vorlagentext); das ist der geprüfte Grund (kein Link nach „Heute“).
 - **1.9.187 Nr. 3 – Wortlaut**: „künftige Monate öffnet „Meine Zeiten“ nicht“ gilt für die Seite (›, die Seite nimmt keinen Monat aus der Adresse);
   `GET /api/field-view/meine-zeiten?monat=2026-12` liefert am 10.11. einen künftigen Monat samt Freistellungen (test_v599 nutzt das selbst). Kein
-  Widerspruch zum Code, nur zur Lesart „Heiligabend steht ab dem 1. Dezember da“ – gemeldet, nicht geändert.
+  Widerspruch zum Code, nur zur Lesart „Heiligabend steht ab dem 1. Dezember da“ – gemeldet, nicht geändert. **Entschieden (Tobias, L1a
+  Stufe 4, Punkt 5): Wortlaut neu gefasst mit 1.9.206** (die Seite öffnet keine künftigen Monate, die Schnittstelle liefert mit `?monat=` einen
+  künftigen Monat samt Freistellungen); am Code nichts.
 - **1.9.188 Nr. 5b** ohne Gegenprobe (s. Tabelle). Den Satz über der Tafel (1.9.193) prüft test_v600::test_seite_nennt_die_freistellung; er war
   nicht Gegenstand dieses Blocks.
 - **1.9.190** gilt laut Wortlaut für jeden Testhelfer mit Prozesszustand (Speicherbereinigung, Uhr, Umgebung). Gegenproben nur am `Zaehler` (Auftrag);
