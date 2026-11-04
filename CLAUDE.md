@@ -2117,7 +2117,9 @@ hält die Uhr fest (`klicktest_main(..., uhr="10:00")`, seit 1.8.36): ab `Mobile
 meldet `/mobil` ab, eine 403-Prüfung sähe abends 401; `--wanduhr HH:MM` täuscht eine andere Uhrzeit vor (Gegenprobe),
 `tests/test_v339_feste_uhr.py` prüft, dass jeder solche Klicktest `uhr=` setzt. Den Browser nimmt die feste Uhr nur mit, wenn der Klicktest es
 will (seit 1.8.111): `k.uhr_versatz_ms()` in den Seed, `await tab.browser_uhr(seed[…])` vor dem ersten Laden -- so läuft
-`klicktest_zeitbuchungen_liste.py` immer bei 00:30 Uhr (in UTC noch gestern). Eine Seite mit `alert()` beim Laden hält den headless Chrome an --
+`klicktest_zeitbuchungen_liste.py` immer bei 00:30 Uhr (in UTC noch gestern). Eine stehende Uhr (`uhr="JJJJ-MM-TT HH:MM"`, `tab.browser_uhr_fest()`)
+stellt seit 1.9.209 nur der Klicktest weiter, mit `await tab.uhr_stellen(ms)` in Instanz und Browser zugleich -- nie über Warten auf die echte Uhr
+(`klicktest_heute`, `tests/test_v614_stehende_uhr_stellen.py`). Eine Seite mit `alert()` beim Laden hält den headless Chrome an --
 im Klicktest `window.alert` per `Page.addScriptToEvaluateOnNewDocument` umleiten (Vorlage dort). Ein neuer Klicktest kommt als weitere Datei dazu. Kein Ersatz für pytest: gezielte
 Prüfungen der Oberfläche, von Hand gestartet, nicht Teil der Suite. **Alle nacheinander** (seit 1.8.76):
 `.venv\Scripts\python.exe scripts\klicktest_alle.py` (je Test eigener Arbeitsordner unter einem Ausgabeordner, Übersicht mit

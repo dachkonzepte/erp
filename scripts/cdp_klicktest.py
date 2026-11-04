@@ -50,7 +50,8 @@ die Uhr des Browsers läuft dann um denselben Versatz weiter (Date und Date.now(
 STEHENDE UHR (seit 1.8.126): `klicktest_main(..., uhr="2026-10-14 10:00")` -- die Uhr der Instanz steht an diesem Tag auf dieser
 Uhrzeit (Befüllen und Server), `tab.browser_uhr_fest(seed["uhr_ms"])` mit `k.uhr_ms()` aus befuellen() hält auch den Browser an.
 Für Bilder, die an jedem Tag gleich sein sollen (scripts/bildgrundlage.py); gespeicherte Zeitstempel (datetime.utcnow()) setzt das
-Befüllen dort selbst fest.
+Befüllen dort selbst fest. Seit 1.9.209 stellt `await tab.uhr_stellen(ms)` die stehende Uhr weiter, in Instanz und Browser -- für zwei
+Schritte, die nicht in dieselbe Sekunde fallen dürfen (berlin_now() ist sekundengenau), statt auf die echte Uhr zu warten.
 
 Rückgabecode: 0 = alle Prüfungen wie erwartet, 1 = mindestens eine Abweichung,
 2 = Instanz oder Chrome ließ sich nicht starten, 3 = Zeitlimit (--zeitlimit oder Gegenprobe).
@@ -277,8 +278,9 @@ XMLHttpRequest.prototype.send=function(...a){z.gestartet++;z.offen++;this.addEve
 BROWSER_UHR = """(()=>{if(window.__dkUhrVersatz!==undefined)return;const V=%d;window.__dkUhrVersatz=V;const Echt=Date;
 globalThis.Date=class extends Echt{constructor(...a){super(...(a.length?a:[Echt.now()+V]))}static now(){return Echt.now()+V}};})();"""
 # Seit 1.8.126: stehende Uhr des Browsers (Tab.browser_uhr_fest()) -- new Date() ohne Argument und Date.now() immer derselbe Zeitpunkt.
+# Seit 1.9.209 aus window.__dkUhrFest gelesen: Tab.uhr_stellen() stellt sie im geladenen Dokument weiter.
 BROWSER_UHR_FEST = """(()=>{if(window.__dkUhrFest!==undefined)return;const T=%d;window.__dkUhrFest=T;const Echt=Date;
-globalThis.Date=class extends Echt{constructor(...a){super(...(a.length?a:[T]))}static now(){return T}};})();"""
+globalThis.Date=class extends Echt{constructor(...a){super(...(a.length?a:[window.__dkUhrFest]))}static now(){return window.__dkUhrFest}};})();"""
 
 ANTWORT_RUECKHALT = """(()=>{if(window.__dkRueckhalt)return;
 const R=window.__dkRueckhalt={regeln:[],gehalten:[],freigegeben:0};
@@ -761,6 +763,7 @@ class Tab:
         self.downloads: list[dict] = []  # seit 1.8.101: jeder Download, den der Tab beginnt ({"url", "name"})
         self.wachhund: "Wachhund | None" = None  # seit 1.8.126 (klicktest_main(..., zeitlimit_je_schritt=True))
         self.geraet_breite: int | None = None  # seit 1.9.138: die Breite aus fenster(), für ueberlauf()
+        self._uhr_skript: str | None = None  # seit 1.9.209: Kennung des Skripts der stehenden Browser-Uhr (browser_uhr_fest(), uhr_stellen())
 
     async def cmd(self, method: str, **params):
         self.n += 1
@@ -839,7 +842,24 @@ class Tab:
     async def browser_uhr_fest(self, zeitpunkt_ms: int) -> None:
         """Seit 1.8.126: die Uhr des Browsers steht auf zeitpunkt_ms (Millisekunden seit 1970, UTC) -- für jedes danach geladene
         Dokument; mit Werkzeug.uhr_ms() aus befuellen() derselbe Zeitpunkt wie die stehende Uhr der Instanz (STEHENDE UHR oben)."""
-        await self.cmd("Page.addScriptToEvaluateOnNewDocument", source=BROWSER_UHR_FEST % int(zeitpunkt_ms))
+        self._uhr_skript = (await self.cmd("Page.addScriptToEvaluateOnNewDocument", source=BROWSER_UHR_FEST % int(zeitpunkt_ms)))["identifier"]
+
+    async def uhr_stellen(self, zeitpunkt_ms: int) -> None:
+        """Seit 1.9.209: die stehende Uhr (klicktest_main(…, uhr="JJJJ-MM-TT HH:MM")) auf zeitpunkt_ms stellen (Millisekunden seit 1970, UTC)
+        -- in der Instanz (Datei der stehenden Uhr im Arbeitsordner, app.berlin_time._utc_now liest sie bei jedem Aufruf) und im Browser (das
+        geladene Dokument sofort, jedes danach geladene über ein neues Skript statt des alten). Statt einer Wartezeit auf die echte Uhr, wenn zwei
+        Schritte nicht in dieselbe Sekunde fallen dürfen (berlin_now() ist sekundengenau) -- die Zeiten bleiben auf genau einem Wert."""
+        from datetime import datetime, timezone
+
+        if _STEHENDE_UHR_DATEI is None:
+            raise RuntimeError('uhr_stellen() nur mit stehender Uhr: klicktest_main(…, uhr="JJJJ-MM-TT HH:MM")')
+        neu = _STEHENDE_UHR_DATEI.with_name(_STEHENDE_UHR_DATEI.name + ".neu")
+        neu.write_text(datetime.fromtimestamp(zeitpunkt_ms / 1000, timezone.utc).isoformat(), encoding="utf-8")
+        os.replace(neu, _STEHENDE_UHR_DATEI)
+        if self._uhr_skript is not None:
+            await self.cmd("Page.removeScriptToEvaluateOnNewDocument", identifier=self._uhr_skript)
+        self._uhr_skript = (await self.cmd("Page.addScriptToEvaluateOnNewDocument", source=BROWSER_UHR_FEST % int(zeitpunkt_ms)))["identifier"]
+        await self.js(f"window.__dkUhrFest={int(zeitpunkt_ms)};true")
 
     async def fenster(self, breite: int, hoehe: int, mobil: bool = False) -> None:
         self.geraet_breite = breite
@@ -1331,6 +1351,10 @@ class Wachhund:
 
 
 UHR_ENV = "KLICKTEST_UHR"
+# Seit 1.9.209: bei stehender Uhr die Datei, in die Tab.uhr_stellen() den neuen Zeitpunkt schreibt (im Arbeitsordner) -- die Instanz liest sie
+# bei jedem Blick auf die Uhr; fehlt sie, steht die Uhr auf dem Zeitpunkt aus KLICKTEST_UHR.
+UHR_DATEI_ENV = "KLICKTEST_UHR_DATEI"
+_STEHENDE_UHR_DATEI: Path | None = None
 
 
 def _uhr_marke(uhrzeit: str) -> str:
@@ -1367,7 +1391,19 @@ def _uhr_einsetzen() -> None:
     from app import berlin_time
 
     if echt_text == "fest":
-        berlin_time._utc_now = lambda: start
+        datei = os.environ.get(UHR_DATEI_ENV)
+        if not datei:
+            berlin_time._utc_now = lambda: start
+            return
+        pfad = Path(datei)
+
+        def _gestellt():  # seit 1.9.209: Tab.uhr_stellen() stellt die stehende Uhr weiter
+            try:
+                return datetime.fromisoformat(pfad.read_text(encoding="utf-8").strip())
+            except (OSError, ValueError):
+                return start
+
+        berlin_time._utc_now = _gestellt
         return
     echt = float(echt_text)
     berlin_time._utc_now = lambda: start + timedelta(seconds=time.time() - echt)
@@ -1473,6 +1509,10 @@ def _ablauf(befuellen, pruefen, args, uhr: str | None, wachhund: "Wachhund | Non
     if uhrzeit:
         env[UHR_ENV] = _uhr_marke(uhrzeit)
     stehend = bool(uhrzeit) and " " in uhrzeit.strip()
+    if stehend:  # seit 1.9.209: Tab.uhr_stellen() schreibt hierher, die Instanz liest von hier
+        global _STEHENDE_UHR_DATEI
+        _STEHENDE_UHR_DATEI = ordner / "uhr.txt"
+        env[UHR_DATEI_ENV] = str(_STEHENDE_UHR_DATEI)
     print(f"Arbeitsordner {ordner}\nERP http://127.0.0.1:{app_port}  CDP {cdp_port or 'wählt Chrome'}"
           + (f"\nUhr der Instanz: {'steht auf' if stehend else 'heute ab'} {uhrzeit} (Europe/Berlin)" if uhrzeit else ""),
           flush=True)

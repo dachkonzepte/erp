@@ -3,7 +3,8 @@
 Befüllt: Objekt „Halle Nord“ (Hallenbau GmbH, Werkstr. 5, 52531 Übach-Palenberg) mit Dachfläche Nord und Prüfvorlage, Auftrag A
 („Wartung“) und B („Rinne erneuern“); Plantafel: A gestern bis übermorgen (zwei Abschnitte), B in 5–6 Tagen; Kolonne mit Kai
 (Kolonnenführer) und Tom. Mia: Zeit läuft seit 06:45 auf A, ihr Wartungsbericht (Entwurf) und eine offene Checkliste an A. Ole: Zeit von
-gestern 06:45 offen. Lea: nichts läuft. Kai und Tom: Gruppenzeit seit 07:00. Feste Uhr 10:00.
+gestern 06:45 offen. Lea: nichts läuft. Kai und Tom: Gruppenzeit seit 07:00. Seit 1.9.209 stehende Uhr Mi 11.11.2026 10:00 in Instanz und
+Browser, weitergestellt nur über tab.uhr_stellen() (bis 1.9.208 lief sie ab heute 10:00 -- „Tag zusammen“ hing an der Dauer des Tests).
 
     Mia quer (1280 × 620)  zwei Spalten, rechts 420 px; Arbeitszeit „Baustellenzeit seit 06:45“, Dauer 3:15 h, Knöpfe 64 px; eine Karte
                            für A (zwei Abschnitte) mit Zeitraum, Route, Bericht mit „Weiter“ 56 px, Checkliste mit Pfeil; Offen: Berichte 1,
@@ -37,7 +38,6 @@ Optionen, Ablauf, Rückgabecode und Regeln (isolierte Wegwerf-Datenbank, Prozess
 scripts/cdp_klicktest.py. Dauer etwa eine Minute.
 """
 
-import re
 import sys
 from datetime import date
 from pathlib import Path
@@ -154,7 +154,7 @@ def befuellen(db, k):
             "gestern": (heute - timedelta(days=1)).isoformat(), "morgen": (heute + timedelta(days=1)).isoformat(),
             "uebermorgen": (heute + timedelta(days=2)).isoformat(), "b_von": (heute + timedelta(days=5)).isoformat(),
             "b_bis": (heute + timedelta(days=6)).isoformat(), "mia": leute["mia"].id, "ole": leute["ole"].id,
-            "cookies": {n: k.cookies(u) for n, u in benutzer.items()}}
+            "cookies": {n: k.cookies(u) for n, u in benutzer.items()}, "uhr_ms": k.uhr_ms()}
 
 
 BEREIT = "document.getElementById('arbeitszeit').innerHTML!==''&&!document.getElementById('naechsteKarte').hidden"
@@ -211,6 +211,7 @@ async def _ansehen(tab, seed, wer, breite, hoehe, thema):
 
 async def pruefen(tab, seed, p):
     await tab.cmd("Page.addScriptToEvaluateOnNewDocument", source="window.alert=m=>console.error('alert(): '+m)")
+    await tab.browser_uhr_fest(seed["uhr_ms"])  # seit 1.9.209: dieselbe stehende Uhr wie die Instanz
     a = seed["a"]
 
     # --- Mia, quer und hoch, hell und dunkel ---
@@ -302,21 +303,19 @@ async def pruefen(tab, seed, p):
              "Fahrzeit seit 10:00")
     zeilen = await tab.js(f"fetch('/api/time-entries?employee_id={seed['mia']}&start_date={seed['heute']}&end_date={seed['heute']}')"
                           ".then(r=>r.json()).then(l=>l.sort((x,y)=>x.started_at<y.started_at?-1:1).map(e=>[e.entry_type,e.status,e.started_at,e.ended_at]))")
-    # die Uhr der Instanz läuft ab 10:00 weiter: „ohne Lücke“ heißt Ende der ersten = Beginn der zweiten
+    # seit 1.9.209 steht die Uhr auf 10:00:00 -- die Fahrzeit beginnt genau dort (bis 1.9.208 lief sie, der Beginn wurde nur übernommen)
     p.pruefe("zwei Buchungen ohne Lücke und ohne Überschneidung",
              [[z[0], z[1], z[2]] for z in zeilen or []] + [bool(zeilen) and zeilen[0][3] == zeilen[1][2], bool(zeilen) and zeilen[1][3]],
-             [["site", "booked", f"{seed['heute']}T06:45:00"], ["travel", "running", (zeilen or [[None] * 4] * 2)[1][2]], True, None])
-    # berlin_now() ist sekundengenau: ein Feierabend in derselben Sekunde wie der Wechsel endete vor dem Beginn (422) -- erst weiter
-    t = await tab.js("performance.now()")
-    await tab.warten(f"performance.now()>{t + 1100}")
+             [["site", "booked", f"{seed['heute']}T06:45:00"], ["travel", "running", f"{seed['heute']}T10:00:00"], True, None])
+    # berlin_now() ist sekundengenau: ein Feierabend in derselben Sekunde wie der Wechsel endete vor dem Beginn (422) -- seit 1.9.209 stellt der
+    # Test die stehende Uhr um genau 10 s weiter (bis 1.9.208 wartete er über eine Sekunde auf die laufende Uhr, unter Last wurde aus 3:15 h 3:16 h)
+    await tab.uhr_stellen(seed["uhr_ms"] + 10_000)
     await tab.warte_auf_neu_geladene_liste("document.getElementById('feierabendKnopf').click()", "#arbeitszeit")
     p.pruefe("Feierabend: keine Meldung", await tab.js("(document.getElementById('zeitStatus')||{}).textContent||''"), "")
-    # seit 1.9.48: das Ergebnis mit „Tag zusammen“ (zwei Buchungen am Tag: 06:45–10:00 und die Fahrzeit seit dem Wechsel)
-    ergebnis = await tab.js("document.getElementById('zeitErgebnis').textContent")
-    # seit 1.9.53 wie die Vorschau: anwesend · Tag zusammen (Anwesenheit des Tages) · Pause, dann gebucht
-    p.pruefe("Feierabend: Ergebnis mit Tag zusammen", bool(re.fullmatch(
-        r"Feierabend gebucht: anwesend 0:00 h · Tag zusammen 3:15 h · Pause nach Zeitregel − 0:00 h · gebucht 0,0\d h", ergebnis or "")),
-             True)
+    # seit 1.9.48: das Ergebnis mit „Tag zusammen“ (zwei Buchungen am Tag: 06:45–10:00 und die Fahrzeit 10:00:00–10:00:10)
+    # seit 1.9.53 wie die Vorschau: anwesend · Tag zusammen (Anwesenheit des Tages) · Pause, dann gebucht; seit 1.9.209 genau ein Wert
+    p.pruefe("Feierabend: Ergebnis mit Tag zusammen", await tab.js("document.getElementById('zeitErgebnis').textContent"),
+             "Feierabend gebucht: anwesend 0:00 h · Tag zusammen 3:15 h · Pause nach Zeitregel − 0:00 h · gebucht 0,00 h")
     await tab.bild("heute_nach_feierabend_zwei_buchungen_hell")
     p.pruefe("nach dem Feierabend: nichts läuft, Auftrag vorbelegt", await tab.js("document.getElementById('startAuftrag').value"), str(a))
     p.pruefe("Mia: keine JS-Fehler", tab.fehler, [])
@@ -438,9 +437,9 @@ async def pruefen(tab, seed, p):
         "l.querySelector('input').disabled,Math.round(l.getBoundingClientRect().height)])]"),
         ["Für die Kolonne starten", "Kolonne Nord", [["Kai Kolonne (ich)", True, True, 48], ["Tom Mitglied", True, False, 48]]])
     await tab.bild("heute_fuer_die_kolonne_starten_quer_hell")
-    # berlin_now() ist sekundengenau: ein Start in derselben Sekunde wie der Feierabend begänne vor dessen Ende -- erst weiter
-    t = await tab.js("performance.now()")
-    await tab.warten(f"performance.now()>{t + 1100}")
+    # berlin_now() ist sekundengenau: ein Start in derselben Sekunde wie der Feierabend begänne vor dessen Ende -- seit 1.9.209 die stehende Uhr
+    # um weitere 10 s weiter (bis 1.9.208 über eine Sekunde Warten)
+    await tab.uhr_stellen(seed["uhr_ms"] + 20_000)
     await tab.warte_auf_neu_geladene_liste("document.getElementById('startDialogStarten').click()", "#arbeitszeit")
     p.pruefe("Kai: Gruppenzeit läuft wieder für Kai und Tom", await tab.js(
         "Promise.all([document.getElementById('feierabendGruppe').textContent,document.getElementById('startDialog').open,"
@@ -450,4 +449,4 @@ async def pruefen(tab, seed, p):
 
 
 if __name__ == "__main__":
-    sys.exit(klicktest_main(befuellen, pruefen, beschreibung="„Heute“ für die Monteurin (1.9.45)", uhr="10:00"))
+    sys.exit(klicktest_main(befuellen, pruefen, beschreibung="„Heute“ für die Monteurin (1.9.45)", uhr="2026-11-11 10:00"))
