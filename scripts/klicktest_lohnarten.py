@@ -3,7 +3,10 @@
     Büro – Finanzen  Fin: Zeilen wie vorbelegt (Arbeit 1/1000, Feiertag F/1012, Urlaub U/8000, Krankheit K/1650, Schlechtwetter Winter
                      „Monatszeile 8110“, Art Weiterbildung 1/1000; Berufsschule, Fortbildung, Freizeitausgleich, Schlechtwetter Sommer „nicht
                      exportiert“); Lohnart „10a“ -> Meldung, nichts gespeichert; Freizeitausgleich Z / 1500 gespeichert -> „Wirkt“ und die Art
-                     Freizeitausgleich danach „wie die Kategorie – Freizeitausgleich: Z / 1500“ -- Bild; keine JS-Fehler
+                     Freizeitausgleich danach „wie die Kategorie – Freizeitausgleich: Z / 1500“ -- Bild; seit 1.9.203 (L1a Stufe 4, Punkt 2):
+                     der Satz über der Tabelle nennt die Jahreszeit bei Schlechtwetter; eine gespeicherte Zeile „art:schlechtwetter“ S / 8111
+                     (Altbestand, direkt angelegt) „wird übergangen“, ein neuer Wert -> Meldung „Für Schlechtwetter gilt immer die Jahreszeit
+                     …“, nichts gespeichert -- Bild; leeren -> „nach der Jahreszeit“; keine JS-Fehler
     Büro – Auftrag   Bea: dieselben Zeilen, Felder gesperrt, kein „Speichern“ -- Bild; keine JS-Fehler
 
 AUFRUF (aus dem Projektordner):
@@ -33,11 +36,12 @@ def _index(schluessel: str) -> str:
 
 
 def befuellen(db, k):
-    from app.models import AppUser
+    from app.models import AppUser, LohnartZuordnung
 
     fin = AppUser(username="fin", display_name="Fin Finanzen", role="buero_finanzen", password_hash=k.passwort())
     bea = AppUser(username="bea", display_name="Bea Auftrag", role="buero_auftrag", password_hash=k.passwort())
-    db.add_all([fin, bea])
+    # seit 1.9.203: eine Zeile, wie sie bis 1.9.202 entstehen konnte -- am heutigen speichern() vorbei
+    db.add_all([fin, bea, LohnartZuordnung(schluessel="art:schlechtwetter", kennzeichen="S", lohnart="8111", monatszeile=False)])
     db.commit()
     return {"fin": k.cookies(fin), "bea": k.cookies(bea)}
 
@@ -65,6 +69,29 @@ async def pruefen(tab, seed, p):
         ["Z / 1500", "wie die Kategorie – Freizeitausgleich: Z / 1500", "Gespeichert."])
     await tab.js("document.getElementById('lohnartenBlock').scrollIntoView({block:'start'})")
     await tab.bild("lohnarten_fin")
+
+    # seit 1.9.203: für Schlechtwetter gilt immer die Jahreszeit
+    p.pruefe("Fin: der Satz über der Tabelle nennt die Jahreszeit bei Schlechtwetter", await tab.js(
+        "document.querySelector('#lohnartenBlock .muted').textContent.includes('Eine Art mit eigener Zuordnung geht ihrer Kategorie vor – "
+        "außer bei Schlechtwetter: dort gilt immer die Jahreszeit.')"), True)
+    sw = await tab.js(_index("art:schlechtwetter"))
+    p.pruefe("Fin: gespeicherte Zeile „art:schlechtwetter“ wird übergangen", await tab.js(f"[{sw}>=0,{_wirkt('art:schlechtwetter')}]"),
+             [True, "gespeichert S / 8111 – wird übergangen, es gilt die Jahreszeit (Schlechtwetter Winter bzw. Sommer)"])
+    await tab.js(f"document.getElementById('lzL-{sw}').value='8112'")
+    await tab.js(f"document.querySelector('[data-klick=lohnart-speichern][data-i=\"{sw}\"]').click()")
+    p.pruefe("Fin: neuer Wert für Schlechtwetter abgelehnt, Meldung auf der Seite", await tab.warten(
+        "document.getElementById('lohnartStatus').textContent==='Fehler: Für Schlechtwetter gilt immer die Jahreszeit (Zeilen "
+        "„Schlechtwetter Winter“ und „Schlechtwetter Sommer“) – eine eigene Zuordnung je Art gibt es dort nicht.'", 10), True)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Fin: nichts gespeichert", await tab.js(f"[lohnarten[{sw}].lohnart,{_wirkt('art:schlechtwetter')}]"),
+             ["8111", "gespeichert S / 8111 – wird übergangen, es gilt die Jahreszeit (Schlechtwetter Winter bzw. Sommer)"])
+    await tab.js(f"document.querySelector('[data-lohnart=\"art:schlechtwetter\"]').scrollIntoView({{block:'center'}})")
+    await tab.bild("lohnarten_schlechtwetter_abgelehnt")
+    await tab.js(f"document.getElementById('lzK-{sw}').value='';document.getElementById('lzL-{sw}').value=''")
+    await tab.warte_auf_neu_geladene_liste(f"document.querySelector('[data-klick=lohnart-speichern][data-i=\"{sw}\"]').click()", "#lohnartZeilen")
+    p.pruefe("Fin: geleert -> „nach der Jahreszeit“", await tab.js(
+        f"[{_wirkt('art:schlechtwetter')},document.getElementById('lohnartStatus').textContent]"),
+        ["nach der Jahreszeit (Schlechtwetter Winter bzw. Sommer)", "Gespeichert."])
     p.pruefe("Fin: keine JS-Fehler", tab.fehler, [])
 
     await tab.anmelden(seed["bea"])

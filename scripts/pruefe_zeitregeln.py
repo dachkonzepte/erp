@@ -16,7 +16,8 @@ Vor dem Probemonat (Dezember 2026) und vor dem ersten echten Export: was auf dem
     Arbeitszeitkalender   seit 1.9.175: Tage, die jedes Jahr anders laufen (Heiligabend …) mit Sollzeit, Abwesenheit, für wen; seit 1.9.184
                           die Urlaubsanträge über einen Tag mit Rückfrage (31.12.) ohne Antwort -- vor 1.9.176 angelegt, sie zählen wie der
                           Vorschlag als ganzer Urlaubstag (Festlegung 1.9.176 Nr. 4); nur gezählt, kein Befund
-    Zuordnung             Kennzeichen und Lohnart je Eintrag, was nicht exportiert wird
+    Zuordnung             Kennzeichen und Lohnart je Eintrag, was nicht exportiert wird; seit 1.9.203 als Befund eine gespeicherte Zeile für
+                          eine Art, die nur zu Schlechtwetter passt („art:schlechtwetter“) -- sie wird übergangen, es gilt die Jahreszeit
 
 Aufruf auf dem Server, im Projektverzeichnis, mit geladener Umgebung und dem Python des Servers:
 
@@ -28,7 +29,8 @@ Nur lesen: die Sitzung ist schreibgeschützt (PostgreSQL: SET SESSION CHARACTERI
 am Ende zurückgerollt. DATABASE_URL muss gesetzt sein (sonst fiele app/database.py still auf SQLite zurück).
 
 Ausgabe ohne Namen: Personen nur mit ihrer Kennung (Mitarbeiter-ID). Rückgabe: 0 nichts zu klären, 1 etwas zu klären (Personalnummer fehlt,
-doppelt, falsch oder seit 1.9.177 die gemerkte einer anderen Person, alte Grundwerte, Kalenderwoche ohne aktives Modell, kein Modell), 2 Umgebung fehlt. Hinweise (Zeilen mit „Hinweis:“)
+doppelt, falsch oder seit 1.9.177 die gemerkte einer anderen Person, alte Grundwerte, Kalenderwoche ohne aktives Modell, kein Modell, seit 1.9.203
+eine übergangene Zuordnung „art:schlechtwetter“), 2 Umgebung fehlt. Hinweise (Zeilen mit „Hinweis:“)
 ändern die Rückgabe nicht.
 """
 
@@ -228,6 +230,7 @@ def _im_zeitraum(start: date, ende: date, monat: int, tag: int) -> bool:
 
 
 def _zuordnung(db, stand: Stand) -> None:
+    from app.lohnarten import nur_jahreszeit
     from app.models import LohnartZuordnung
     zeilen = list(db.scalars(select(LohnartZuordnung).order_by(LohnartZuordnung.schluessel)))
     stand.zeile(f"Zuordnung für den DATEV-Export: {len(zeilen)} Einträge")
@@ -235,6 +238,10 @@ def _zuordnung(db, stand: Stand) -> None:
         wert = ("Monatszeile " + z.lohnart) if z.monatszeile and z.lohnart else (f"{z.kennzeichen} / {z.lohnart}" if z.lohnart else
                                                                                 (f"{z.kennzeichen} / Lohnart offen" if z.kennzeichen else "nicht exportiert"))
         stand.zeile(f"  {z.schluessel}: {wert}")
+        # seit 1.9.203 (L1a Stufe 4, Punkt 2): für Schlechtwetter gilt die Jahreszeit -- eine gespeicherte Zeile je Art wird übergangen, nicht gelöscht
+        if nur_jahreszeit(z.schluessel) and (z.kennzeichen or z.lohnart):
+            stand.befund(f"Zuordnung {z.schluessel} ({wert}) wird übergangen: für Schlechtwetter gilt die Jahreszeit (schlechtwetter:winter "
+                         "bzw. schlechtwetter:sommer). In den Einstellungen leeren.")
 
 
 def pruefen(db, heute: date | None = None) -> Stand:

@@ -9,7 +9,9 @@ Was steht für eine Person an einem Tag in der Lohndatei, mit welchem Kennzeiche
     schlechtwetter:winter     Ausfalltag 01.12.–31.03. (vorbelegt 8110 als Monatszeile: Soll × Ausfalltage, ohne Tag und Kennzeichen)
     schlechtwetter:sommer     Ausfalltag 01.04.–30.11. (leer, bis der Juni-Export da ist)
     art:<Art>                 eine Art mit eigener Zuordnung geht ihrer Kategorie vor (vorbelegt Weiterbildung 1 / 1000 mit Sollzeit, wie
-                              Fortbildung in Time 4); ohne eigene gilt die Kategorie
+                              Fortbildung in Time 4); ohne eigene gilt die Kategorie -- seit 1.9.203 nie bei Schlechtwetter: dort gewinnt immer
+                              die Jahreszeit (Festlegung 1.9.169 Nr. 3); eine Zeile für eine Art, die nur zu Schlechtwetter passt („art:schlechtwetter“),
+                              lehnt speichern() ab, eine schon gespeicherte wird übergangen (scripts/pruefe_zeitregeln.py nennt sie)
     kalender:<Schlüssel>      seit 1.9.175: die Abwesenheit eines Tags im Arbeitszeitkalender (app/arbeitszeitkalender.py) mit der Sollzeit des
                               Tags (vorbelegt Heiligabend BF, seit 1.9.176 Silvester AF, Lohnart offen -- die Lohnart nennt das Lohnbüro); hier darf das Kennzeichen ohne
                               Lohnart stehen, exportiert wird die Zeile erst mit Lohnart
@@ -67,6 +69,16 @@ def schlechtwetter_schluessel(tag: date) -> str:
     return "schlechtwetter:winter" if tag.month in (12, 1, 2, 3) else "schlechtwetter:sommer"
 
 
+NUR_JAHRESZEIT = ("Für Schlechtwetter gilt immer die Jahreszeit (Zeilen „Schlechtwetter Winter“ und „Schlechtwetter Sommer“) – "
+                  "eine eigene Zuordnung je Art gibt es dort nicht.")
+
+
+def nur_jahreszeit(schluessel: str | None) -> bool:
+    """Seit 1.9.203 (L1a Stufe 4, Punkt 2): eine Zeile „art:<Art>“ für eine Art, die nur zur Kategorie Schlechtwetter passt -- sie kann nie
+    wirken (dort gewinnt die Jahreszeit), speichern() lehnt einen Wert ab, zuordnung() übergeht sie."""
+    return bool(schluessel) and schluessel.startswith("art:") and art_kategorien(schluessel[4:]) == ("schlechtwetter",)
+
+
 def ensure_default_lohnart_zuordnungen(db: Session) -> None:
     """Anlegeschritt von app.grunddaten.anlegen(): legt fehlende feste Zeilen an, vorbelegt nach START, sonst leer -- rührt vorhandene nie an
     (ein von Hand geleerter Eintrag bleibt leer). flush, kein commit; je Zeile ein SAVEPOINT (UNIQUE auf schluessel)."""
@@ -96,14 +108,14 @@ def _wert(z: LohnartZuordnung | None) -> dict | None:
 
 
 def zuordnung(db: Session, kategorie: str | None, art: str | None, tag: date, *, alle: dict | None = None) -> dict | None:
-    """Kennzeichen, Lohnart und Monatszeile für eine Abwesenheit an diesem Tag -- die Art, wenn sie eine eigene hat, sonst die Kategorie
-    (Schlechtwetter je nach Datum Winter oder Sommer). None: nicht exportiert."""
+    """Kennzeichen, Lohnart und Monatszeile für eine Abwesenheit an diesem Tag -- die Art, wenn sie eine eigene hat, sonst die Kategorie;
+    Schlechtwetter seit 1.9.203 immer nach der Jahreszeit (Winter oder Sommer), ohne Blick auf die Art. None: nicht exportiert."""
     alle = alle if alle is not None else _alle(db)
-    eigene = alle.get(art_schluessel(art))
-    if _gesetzt(eigene):
-        return _wert(eigene)
     if kategorie == "schlechtwetter":
         return _wert(alle.get(schlechtwetter_schluessel(tag)))
+    eigene = alle.get(art_schluessel(art))
+    if _gesetzt(eigene) and not nur_jahreszeit(eigene.schluessel):  # seit 1.9.203: „art:schlechtwetter“ wirkt nie, auch nicht im Altbestand
+        return _wert(eigene)
     return _wert(alle.get(f"kategorie:{kategorie}"))
 
 
@@ -156,7 +168,11 @@ def liste(db: Session) -> list[dict]:
     arten += [(s[4:], s[4:], False) for s in alle if s.startswith("art:") and s not in bekannt]
     for wert, label, aktiv in arten:
         z = alle.get(art_schluessel(wert))
-        if _gesetzt(z):
+        if nur_jahreszeit(art_schluessel(wert)):  # seit 1.9.203: hier wirkt nie die Art (bis dahin „wie die Kategorie – “ ohne Kategorie)
+            wirkt = "nach der Jahreszeit (Schlechtwetter Winter bzw. Sommer)"
+            if z is not None and (z.kennzeichen or z.lohnart):
+                wirkt = f"gespeichert {_text(z)} – wird übergangen, es gilt die Jahreszeit (Schlechtwetter Winter bzw. Sommer)"
+        elif _gesetzt(z):
             wirkt = _text(z)
         else:
             je = [f"{ABSENCE_CATEGORY_LABELS[k]}: {_text(alle.get('kategorie:' + k) if k != 'schlechtwetter' else None)}"
@@ -179,6 +195,8 @@ def speichern(db: Session, schluessel: str, kennzeichen: str | None, lohnart: st
         raise ValueError("Unbekannter Eintrag der Zuordnung.")
     kennzeichen = (kennzeichen or "").strip().upper() or None
     lohnart = (lohnart or "").strip() or None
+    if nur_jahreszeit(schluessel) and (kennzeichen or lohnart or monatszeile):  # seit 1.9.203; leeren geht (dann kein Befund mehr)
+        raise ValueError(NUR_JAHRESZEIT)
     if kennzeichen and not KENNZEICHEN_FORMAT.match(kennzeichen):
         raise ValueError("Das Kennzeichen hat ein oder zwei Zeichen (Ziffer oder Großbuchstabe), z. B. 1, U, K oder F.")
     if lohnart and not LOHNART_FORMAT.match(lohnart):

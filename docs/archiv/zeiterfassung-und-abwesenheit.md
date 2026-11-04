@@ -818,7 +818,7 @@ Kategorie „freizeitausgleich“: `ABSENCE_CATEGORIES`, Bezeichnung, `ART_KATEG
 
 1. Arbeit trägt die gebuchten Stunden, jede andere Zeile die Sollzeit des Tags (auch Weiterbildung 1/1000, wie Fortbildung in Time 4, LIESMICH 3).
 2. Eine Art geht ihrer Kategorie nur vor, wenn sie eine Lohnart hat; eine leere Art heißt „wie die Kategorie“, nicht „nicht exportiert“. Wer eine Art ausdrücklich nicht exportieren will, leert ihre Kategorie oder legt die Art in einer leeren Kategorie an.
-3. Schlechtwetter ist je Jahreszeit eine Zeile (Winter 01.12.–31.03., Sommer sonst), nicht je Art -- ob beide denselben Schlüssel bekommen, klärt das Lohnbüro (E5). Eine Monatszeile gibt es nur dort.
+3. Schlechtwetter ist je Jahreszeit eine Zeile (Winter 01.12.–31.03., Sommer sonst), nicht je Art -- ob beide denselben Schlüssel bekommen, klärt das Lohnbüro (E5). Eine Monatszeile gibt es nur dort. Seit 1.9.203 auch im Code (Vorgabe Tobias, L1a Stufe 4, Punkt 2): für die Kategorie Schlechtwetter gewinnt immer die Jahreszeit, eine Zuordnung je Art wird dort abgelehnt, eine gespeicherte übergangen (bis 1.9.202 ging eine Zeile „art:schlechtwetter“ vor).
 4. Kennzeichen 1 bis 2 Zeichen, Lohnart 1 bis 4 Ziffern (die Muster: 1, U, K, F; 1000, 8000, 1650, 1012, 8110).
 5. Die festen Zeilen legt der Start an; eine geleerte bleibt leer. Eine Zeile je Art entsteht erst beim ersten Speichern (außer Weiterbildung).
 6. Die bisherigen Lohnarten je Zeitart (sechs Felder im Formular „Zeitregeln“) bleiben stehen, bis der neue Export sie ersetzt (E8, L1b).
@@ -1288,3 +1288,21 @@ Vorgabe Tobias (04.11.2026): die fünf Abweichungen von Wortlaut und Code aus St
 ### Tests und Prüfung 1.9.202
 
 Neu: `tests/test_v609_schlechtwetter_unter_zeiten.py` (7 Tests) -- Tom beantragt Mo 07.12.2026, danach keine Sollzeit am Montag bzw. kaufmännisch: unter „Zeiten“ 422 mit dem Grund des Dialogs, Antrag offen, keine Abwesenheit; im Dialog dieselbe Meldung; ablehnen geht; ohne Änderung genehmigt; Urlaub an einem Tag ohne Sollzeit wie bisher genehmigt. Gegenprobe: die Prüfung in `_entscheiden()` abgeschaltet -> 4 rot (beide Wege, beide Gründe). Angepasste Erwartungen: keine (`test_v605::test_admin_entscheidet_schlechtwetter_auch_unter_zeiten` bleibt -- ein gültiger Tag).
+
+### Umsetzung 1.9.203: für Schlechtwetter gewinnt die Jahreszeit (Punkt 2)
+
+`app/lohnarten.py`: `zuordnung()` nimmt für die Kategorie Schlechtwetter immer die Zeile der Jahreszeit (`schlechtwetter_schluessel()`), ohne Blick auf die Art -- auch nicht auf „Sonstiges“ oder eine selbst angelegte Art, die zu jeder Kategorie passt. `nur_jahreszeit(schluessel)`: eine Zeile „art:<Art>“ für eine Art, die nur zu Schlechtwetter passt (`art_kategorien()` = nur Schlechtwetter; heute nur „Schlechtwetter“). `speichern()` lehnt dort einen Wert ab (`NUR_JAHRESZEIT`, 422 aus `PUT /api/time-backoffice/lohnarten`, die Seite zeigt „Fehler: …“ unter der Tabelle); leeren geht. Eine schon gespeicherte Zeile bleibt stehen und wirkt nie, auch außerhalb der Kategorie Schlechtwetter nicht (Altbestand ohne Kategorie). `liste()` sagt in „Wirkt“ „nach der Jahreszeit (Schlechtwetter Winter bzw. Sommer)“ bzw. „gespeichert S / 8111 – wird übergangen, es gilt die Jahreszeit …“ (bis 1.9.202 stand dort „wie die Kategorie – “ ohne Kategorie). Der Satz über der Tabelle (`settings.html`): „Eine Art mit eigener Zuordnung geht ihrer Kategorie vor – außer bei Schlechtwetter: dort gilt immer die Jahreszeit.“ `scripts/pruefe_zeitregeln.py` nennt eine übergangene Zeile mit Wert als Befund (Rückgabe 1).
+
+### Festlegungen 1.9.203 (Bitte bestätigen)
+
+1. Übergangen wird bei Schlechtwetter jede Zuordnung je Art, nicht nur „art:schlechtwetter“ -- auch die einer Art, die zu jeder Kategorie passt („Sonstiges“, selbst angelegte); für die übrigen Kategorien gilt sie weiter.
+2. Abgelehnt wird nur eine Zuordnung für eine Art, die ausschließlich zu Schlechtwetter passt; Kennzeichen, Lohnart oder Monatszeile allein genügen dafür.
+3. Leeren der übergangenen Zeile geht und beendet den Befund; gelöscht wird sie nicht -- die Liste zeigt sie, solange es sie gibt.
+4. Die übergangene Zeile wirkt nirgends, auch nicht bei einer Abwesenheit ohne Kategorie (Altbestand „unbekannt“) mit der Art „Schlechtwetter“.
+5. Das Prüfskript zählt eine übergangene Zeile mit Wert zu „zu klären“ (Rückgabe 1) -- Ergänzung zu Festlegung 1.9.172 Nr. 1; eine leere nicht.
+
+### Tests und Prüfung 1.9.203
+
+Neu: `tests/test_v610_lohnart_schlechtwetter_jahreszeit.py` (12 Tests) -- welche Schlüssel nur zur Jahreszeit gehören; gespeicherte „art:schlechtwetter“ S / 8111 übergangen (Winter Monatszeile 8110, Sommer nicht exportiert, die Zeile bleibt); „Sonstiges“ X / 9999 gilt für Urlaub, nicht für Schlechtwetter; Altbestand ohne Kategorie; vier abgelehnte Eingaben (Wert, groß geschrieben, Monatszeile, nur Kennzeichen), nichts gespeichert; Schnittstelle 422 mit Meldung, leeren 200; Liste mit der Art „Schlechtwetter“; Prüfskript Befund und nach dem Leeren keiner; Satz auf der Seite. Klicktest `klicktest_lohnarten` 8 -> 13 Prüfungen (Satz, „wird übergangen“, Meldung auf der Seite, nichts gespeichert, geleert), ein Bild mehr. Gegenproben: Art vor der Jahreszeit wie bis 1.9.202 -> 3 rot; `speichern()` ohne Ablehnung -> 5 rot, Klicktest 11 von 13; Liste ohne Hinweis -> 2 rot, Klicktest 10 von 13; Altbestand wirkt außerhalb -> 1 rot; Prüfskript ohne Befund -> 1 rot; alter Satz -> 1 rot, Klicktest 12 von 13.
+
+Angepasste Erwartungen (Regel 28): `klicktest_lohnarten` -- fünf Prüfungen dazu (8 -> 13), Aufbau: eine Zeile „art:schlechtwetter“ S / 8111 im Bestand; die übrigen Soll unverändert (auch „Bea: Felder gesperrt“, das jetzt die Zeile mitzählt).

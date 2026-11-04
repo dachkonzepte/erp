@@ -113,7 +113,10 @@ Festlegung (Werkzeug 1.9.166 Nr. 1) und acht Teilaussagen (1.9.166 Nr. 4 Bestand
   Sommer 8111 statt 8110 bzw. „nicht exportiert“; die Liste zeigt dann „Art schlechtwetter (inaktiv) – S / 8111“. Der Ausfalltag trägt die Art
   „Schlechtwetter“ (Name der Kategorie). In der Oberfläche erscheint die Zeile erst, wenn es sie schon gibt oder jemand die Art „Schlechtwetter“
   unter den Abwesenheitsarten anlegt. Kein Test geschrieben (er wäre heute rot); zu entscheiden: Schlüssel „art:schlechtwetter“ ablehnen bzw.
-  bei Kategorie Schlechtwetter die Art übergehen – oder den Wortlaut anpassen.
+  bei Kategorie Schlechtwetter die Art übergehen – oder den Wortlaut anpassen. **Entschieden (Tobias, L1a Stufe 4, Punkt 2), umgesetzt in
+  1.9.203:** für Schlechtwetter gewinnt immer die Jahreszeit; eine neue Zuordnung je Art wird dort abgelehnt, eine gespeicherte übergangen und
+  von `scripts/pruefe_zeitregeln.py` als Befund genannt; `tests/test_v610_lohnart_schlechtwetter_jahreszeit.py` (damit hat auch 1.9.169 Nr. 3b
+  eine Gegenprobe: die Art vor der Jahreszeit -> 3 rot).
 - **1.9.168 Nr. 3 „nur dieselbe Person bekommt sie wieder“** gilt seit 1.9.181 nicht mehr ausnahmslos: der Admin gibt eine gemerkte, von
   niemandem getragene Nummer frei (Festlegung 1.9.177 Nr. 3, neu gefasst mit 1.9.181), danach bekommt sie jede Person. Der Wortlaut von 1.9.168
   Nr. 3 nennt das nicht – geprüft wurde der Wortlaut ohne die Freigabe; die Freigabe selbst gehört zu 1.9.181.
