@@ -17,7 +17,7 @@ import json
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, select, update
+from sqlalchemy import select, update
 from sqlalchemy.orm import sessionmaker
 
 import app.checklists as checklists_module
@@ -26,6 +26,7 @@ from app.checklist_templates import add_field, create_template, publish_draft, v
 from app.checklists import get_checklist_row
 from app.database import Base
 from app.models import ChecklistAnswer, ChecklistAttachment, ChecklistTemplate, ChecklistTemplateVersion
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v213_inspection_items import _extract_pdf_text
 from tests.test_v305_checklist_filling import _client, _fields, _jpeg, _png, world  # noqa: F401
 
@@ -330,7 +331,7 @@ def _load(name_part):
 
 @pytest.fixture
 def starter():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     with engine.begin() as conn:
         _load("checklisten_startvorlagen").insert_starter_templates(conn)

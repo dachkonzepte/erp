@@ -1,7 +1,6 @@
 from decimal import Decimal
 from pathlib import Path
 
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.company_logo import LOGO_ROOT, delete_logo, logo_path, replace_logo
@@ -17,10 +16,11 @@ from app.document_layout import (
     update_layout_block,
 )
 from app.models import DocumentLayoutBlock
+from tests.aufraeumen import wegwerf_engine
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

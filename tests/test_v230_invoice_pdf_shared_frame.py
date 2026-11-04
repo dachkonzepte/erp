@@ -11,9 +11,10 @@ import importlib.util
 from decimal import Decimal
 from pathlib import Path
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v133_invoices import db_session, make_order_with_item
 from tests.test_v213_inspection_items import _extract_pdf_text
 from tests.test_v167_pagination import count_pdf_pages
@@ -248,7 +249,7 @@ def _load_migration():
 
 
 def _new_engine_with_schema():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     with ohne_grunddaten():
         Base.metadata.create_all(engine)
     return engine

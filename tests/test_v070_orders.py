@@ -3,7 +3,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -18,10 +18,11 @@ from app.schemas import CustomerCreate, ProjectCreate, QuoteCreate, QuoteItemCre
 from app.service import persist_project
 from app.settings import update_sequence
 from app.audit import set_audit_context, reset_audit_context
+from tests.aufraeumen import wegwerf_engine
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

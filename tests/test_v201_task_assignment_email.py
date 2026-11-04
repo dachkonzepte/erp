@@ -1,16 +1,16 @@
 from unittest.mock import MagicMock, patch
 
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.email_sending import update_smtp_settings
 from app.models import Employee, EmployeeProfile
 from app.tasks import create_task, load_task_settings, update_task, update_task_settings
+from tests.aufraeumen import wegwerf_engine
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

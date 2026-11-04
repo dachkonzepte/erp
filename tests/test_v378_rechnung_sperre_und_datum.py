@@ -21,7 +21,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from sqlalchemy import create_engine, event, select
+from sqlalchemy import event, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -52,6 +52,7 @@ from app.invoices import (
 from app.models import Employee, Invoice, InvoiceItem, Order, PaymentTerm, TaxKey, TimeEntry
 from app.routers.invoices import router as invoices_router
 from app.time_tracking import list_entries
+from tests.aufraeumen import wegwerf_engine
 from tests.leistungszeitraum import ZEITRAUM_JSON, festschreiben, mit_zeitraum
 from tests.test_v133_invoices import db_session, make_order_with_item
 from tests.test_v231_invoice_item_table_width_and_quantity import _extract_pdf_text
@@ -514,7 +515,7 @@ class Beobachter:
 
 
 def _welt():
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    engine = wegwerf_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)
     db = sessionmaker(bind=engine)()
     order, _ = make_order_with_item(db)

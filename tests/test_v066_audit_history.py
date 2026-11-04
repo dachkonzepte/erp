@@ -1,5 +1,5 @@
 from pathlib import Path
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -11,10 +11,11 @@ from app.audit import set_audit_context, reset_audit_context
 from app import sitzungen
 from app.auth import hash_password, verify_password
 from app.models import AppUser
+from tests.aufraeumen import wegwerf_engine
 
 
 def new_db():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

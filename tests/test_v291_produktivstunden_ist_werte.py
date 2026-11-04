@@ -18,7 +18,6 @@ Deckt die vier Punkte der Anfrage ab:
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -36,6 +35,7 @@ from app.productive_hours import (
 )
 from app.routers.labor_rate import router as labor_rate_router
 from app.time_tracking import create_manual_entry
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v133_invoices import make_order_with_item
 
 ALL_ROLES = ("field", "buero_auftrag", "buero_finanzen", "admin")
@@ -43,7 +43,7 @@ TODAY = date(2026, 9, 19)
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

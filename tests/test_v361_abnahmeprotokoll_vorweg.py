@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import select, text
 from sqlalchemy.orm import sessionmaker
 
 from app.checklist_purposes import PURPOSES, ChecklistPurpose, SystemField
@@ -22,6 +22,7 @@ from app.checklist_templates import (
 from app.checklists import signer_text
 from app.database import Base
 from app.models import ChecklistAttachment, ChecklistTemplate
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v305_checklist_filling import _fields, world  # noqa: F401
 from tests.test_v358_unterschrift_pruefung import SIGNATUR
 from tests.test_v359_unterzeichner import _client, _sig, _sign, abnahme  # noqa: F401  (Fixtures)
@@ -208,7 +209,7 @@ def test_starter_and_purpose_templates_checked_only_the_known_exception():
     """Alle Startvorlagen (13 allgemeine, Behinderungs- und Bedenkenanzeige) über ihre Migrationen: Befund nur an der
     Behinderungsanzeige (Wegfall, Monteur oder Büro, unter den Pflichtfeldern der Anzeige) -- die bekannte Ausnahme. Jede
     Ausnahme muss einem echten Befund entsprechen (die Liste darf nur kürzer werden)."""
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     with engine.begin() as conn:
         _load("checklisten_startvorlagen").insert_starter_templates(conn)
@@ -244,7 +245,7 @@ def test_migration_adds_person_columns_and_refuses_downgrade():
     from sqlalchemy import inspect
 
     module = _load("unterzeichner_person")
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
 
     def run(name):

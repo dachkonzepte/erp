@@ -2,7 +2,6 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -21,12 +20,13 @@ from app.invoices import (
 )
 from app.models import Order, OrderItem, Customer, Project
 from app.project_pipeline_columns import default_pipeline_column_id
+from tests.aufraeumen import wegwerf_engine
 from tests.leistungszeitraum import festschreiben
 from tests.zahlung import voll_bezahlen
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

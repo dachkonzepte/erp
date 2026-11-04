@@ -46,6 +46,7 @@ from app.projects import load_quote
 from app.routers import contract_templates as contract_router
 from app.routers import orders as orders_router_module
 from app.sent_documents import read_sent_document
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v325_contract_basis import make_quote, pdf_text
 from tests.test_v335_vertragsvorlagen import SECTIONS, beauftragen, save
 from tests.test_v336_vertrag_festschreiben import (  # noqa: F401  (world ist eine Fixture)
@@ -428,7 +429,7 @@ def _run(engine, fn_name):
 
 
 def test_migration_downgrade_refuses_while_signatures_exist_and_upgrade_restores():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     with engine.begin() as conn:
         conn.execute(text("INSERT INTO contract_templates (basis_key, updated_by_name, updated_at) VALUES ('bgb', 'X', '2026-10-01 00:00:00')"))

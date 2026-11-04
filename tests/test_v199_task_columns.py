@@ -1,14 +1,14 @@
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.models import Employee
 from app.task_columns import create_column, delete_column, list_columns, reorder_columns, update_column
 from app.tasks import create_task, update_task
+from tests.aufraeumen import wegwerf_engine
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

@@ -16,7 +16,7 @@ import hashlib
 import json
 
 import pytest
-from sqlalchemy import create_engine, select, update
+from sqlalchemy import select, update
 from sqlalchemy.orm import sessionmaker
 
 import app.audit  # noqa: F401 -- registriert die Historien-Listener, wie in Produktion app.main
@@ -28,6 +28,7 @@ from app.models import (
     AuditLog, Checklist, ChecklistAnswer, ChecklistAttachment, ChecklistTemplate, ChecklistTemplateRule,
     ChecklistTemplateVersion,
 )
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v305_checklist_filling import _client, _fields, world  # noqa: F401
 from tests.test_v318_checklist_signature_sections import _load, _pdf_text, _photo, _put, _sign
 
@@ -311,7 +312,7 @@ def test_draft_has_no_completion_seal(starters, router_test_client):
 
 @pytest.fixture
 def fresh_starters():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     with engine.begin() as conn:
         _load("checklisten_startvorlagen").insert_starter_templates(conn)

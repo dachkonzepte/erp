@@ -20,7 +20,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -38,6 +38,7 @@ from app.reminders import create_reminder, ensure_default_reminder_levels, forma
 from app.rounding import round_half_up, round_hours, round_money
 from app.time_backoffice import backoffice_summary, build_datev_export, get_employee_payroll, load_time_settings
 from app.time_tracking import create_manual_entry, summarize_entries
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v133_invoices import db_session, make_order_with_item
 from tests.test_v213_inspection_items import _extract_pdf_text
 from tests.test_v283_recurring_costs import _base_payload
@@ -373,7 +374,7 @@ def _migration():
 
 
 def test_migration_marks_only_open_non_storno_drafts():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     db = sessionmaker(bind=engine)()
     order, _ = make_order_with_item(db)

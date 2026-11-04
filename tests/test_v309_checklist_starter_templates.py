@@ -13,7 +13,7 @@ import importlib.util
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
 from app.checklist_templates import (
@@ -22,6 +22,7 @@ from app.checklist_templates import (
 from app.checklists import create_checklist
 from app.database import Base
 from app.models import ChecklistTemplate, ChecklistTemplateVersion, OperationalAsset
+from tests.aufraeumen import wegwerf_engine
 
 MIGRATION = next(Path(__file__).resolve().parent.parent.joinpath("alembic", "versions").glob("*_checklisten_startvorlagen.py"))
 
@@ -36,7 +37,7 @@ def _load_migration():
 @pytest.fixture
 def seeded():
     mig = _load_migration()
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     with engine.begin() as conn:
         created = mig.insert_starter_templates(conn)
@@ -121,7 +122,7 @@ def test_contexts_readability_readiness_keys_and_rule_roles(seeded):
 
 def test_existing_label_is_not_duplicated_and_rerun_adds_nothing():
     mig = _load_migration()
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     db = sessionmaker(bind=engine)()
     create_template(db, label="Tagesbericht", contexts=["auftrag"])  # vom Büro selbst angelegt

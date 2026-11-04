@@ -22,6 +22,7 @@ from app.invoices import compute_invoice_totals, create_abschlag_leistungsstand,
     create_storno_draft, update_invoice_item
 from app.models import Invoice, InvoiceItem, Order, Payment, PaymentAllocation
 from app.payments import Line, book_payment, payable_gross, payment_state
+from tests.aufraeumen import wegwerf_engine
 from tests.leistungszeitraum import festschreiben
 from tests.test_v133_invoices import db_session
 from tests.bestand_alt import auftrag
@@ -193,7 +194,7 @@ def _migrationsprobe(url: str, engine, Session) -> None:
 
 def test_migration_takes_over_paid_invoices_and_the_way_back_restores_them(tmp_path):
     url = f"sqlite:///{(tmp_path / 'zahlungen.db').as_posix()}"
-    engine = create_engine(url)
+    engine = wegwerf_engine(url)
     _migrationsprobe(url, engine, sessionmaker(bind=engine))
 
 

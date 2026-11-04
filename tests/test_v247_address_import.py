@@ -8,17 +8,18 @@ Lieferanten hängt)."""
 import io
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
 from app import address_import as ai
 from app.database import Base
 from app.models import Customer, CustomerProfile, ImportedAddress, ImportRun, Project, Property, Supplier
 from app.project_pipeline_columns import default_pipeline_column_id
+from tests.aufraeumen import wegwerf_engine
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

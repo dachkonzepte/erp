@@ -12,7 +12,7 @@ from pathlib import Path
 
 from alembic.operations import Operations
 from alembic.runtime.migration import MigrationContext
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import select, text
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -20,11 +20,12 @@ from app.document_layout import load_layout, get_background, get_effective_backg
 from app.document_page_margins import get_margins
 from app.document_type_fallback import SHARED_DOCUMENT_TYPE, resolve_shared_document_type
 from app.models import DocumentLayoutBackground, DocumentLayoutBlock, DocumentPageMargins
+from tests.aufraeumen import wegwerf_engine
 from tests.grunddaten_schalter import ohne_grunddaten
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 
@@ -254,7 +255,7 @@ def _run_migration_step(engine, fn):
 
 def test_migration_upgrade_moves_reminder_rows_to_default_quote_untouched():
     migration = _load_migration()
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     with ohne_grunddaten():
         Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
@@ -301,7 +302,7 @@ def test_migration_upgrade_moves_reminder_rows_to_default_quote_untouched():
 
 def test_migration_downgrade_reverses_upgrade():
     migration = _load_migration()
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     with ohne_grunddaten():
         Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)

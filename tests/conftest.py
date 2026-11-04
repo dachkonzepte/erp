@@ -47,8 +47,9 @@ from sqlalchemy.pool import StaticPool
 from app.auth import hash_password
 from app.database import Base, get_db
 from app.models import AppUser
+from tests.aufraeumen import wegwerf_engine
 from tests.grunddaten_schalter import grunddaten_aus, ohne_grunddaten
-from tests import reihenfolge
+from tests import aufraeumen, reihenfolge
 from tests.pg_schutz import liegen_gebliebene_schemas_loeschen, schema_waechter_einrichten
 from tests.uhr import uhr_festhalten
 from tests.zeitgrenze import Uhr, grenze_fuer, marker_anmelden, option_anmelden, schon_abgelaufen
@@ -204,9 +205,33 @@ def fester_tag():
         yield start
 
 
+# Seit 1.9.195 (L1a Stufe 3, Punkt 4): jede über tests/aufraeumen.py::wegwerf_engine() angelegte Engine schließt das Ende ihres Aufbaus mit
+# dispose() -- des Tests, des Moduls oder des Laufs, je nachdem, wo sie entstand (autouse-Fixtures eines Umfangs laufen vor dessen übrigen
+# Fixtures an und als letzte ab). Bis dahin räumte die Speicherbereinigung sie ab, oft in einem fremden Thread (Fehler im Protokoll).
+@pytest.fixture(scope="session", autouse=True)
+def _engines_des_laufs():
+    marke = aufraeumen.marke()
+    yield
+    aufraeumen.schliessen(marke)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _engines_des_moduls():
+    marke = aufraeumen.marke()
+    yield
+    aufraeumen.schliessen(marke)
+
+
+@pytest.fixture(autouse=True)
+def _engines_des_tests():
+    marke = aufraeumen.marke()
+    yield
+    aufraeumen.schliessen(marke)
+
+
 @pytest.fixture
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine)()
     try:
@@ -223,7 +248,7 @@ def threaded_db_session():
     zuteilen ("no such table"); StaticPool erzwingt exakt dieselbe Connection über alle Threads.
     Für echte HTTP-Routen-Tests über router_test_client() -- reine In-Process-Tests bleiben bei
     der einfachen db_session-Fixture bzw. der gleichnamigen lokalen Funktion."""
-    engine = create_engine(
+    engine = wegwerf_engine(
         "sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool,
     )
     Base.metadata.create_all(engine)

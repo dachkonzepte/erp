@@ -22,7 +22,6 @@ Drei Dinge werden hier belegt:
    Kollegen."""
 
 import pytest
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.auth import hash_password
@@ -30,10 +29,11 @@ from app.database import Base
 from app.models import AppUser, Employee
 from app.permissions import ROLE_OFFICE_AUFTRAG, has_min_role
 from app.tasks import claim_task, create_task, list_tasks, list_tasks_for_user, release_task
+from tests.aufraeumen import wegwerf_engine
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

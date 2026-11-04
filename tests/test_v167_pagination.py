@@ -1,17 +1,17 @@
 from decimal import Decimal
 import re
 
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.document_layout import get_background, set_background, set_background_repeat
 from app.models import Customer, Project, Quote, QuoteItem
 from app.project_pipeline_columns import default_pipeline_column_id
+from tests.aufraeumen import wegwerf_engine
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

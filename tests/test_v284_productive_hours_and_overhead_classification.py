@@ -16,7 +16,6 @@ ansicht) ist NICHT Teil dieser Version -- wartet auf die Bestätigung des Punkt-
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -31,12 +30,13 @@ from app.productive_hours import (
 from app.recurring_costs import OVERHEAD_CLASSIFICATIONS, create_cost, overview_summary, update_cost
 from app.routers.labor_rate import router as labor_rate_router
 from app.routers.recurring_costs import router as recurring_costs_router
+from tests.aufraeumen import wegwerf_engine
 
 ALL_ROLES = ("field", "buero_auftrag", "buero_finanzen", "admin")
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

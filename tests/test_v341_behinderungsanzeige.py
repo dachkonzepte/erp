@@ -42,6 +42,7 @@ from app.models import (
 )
 from app.orders import create_order_from_quote
 from app.routers.pages import router as pages_router
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v305_checklist_filling import _client, _fields, _jpeg, _png, world  # noqa: F401 -- Fixture
 from tests.test_v325_contract_basis import make_quote
 
@@ -180,7 +181,7 @@ def test_registry_three_sections_office_section_weather_hint_and_follow_up():
 # --- Startvorlage aus der Migration ---------------------------------------------------------
 
 def test_starter_template_passes_the_real_publish_check_and_matches_the_registry():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     with engine.begin() as conn:
         assert MIG.insert_obstruction_template(conn)

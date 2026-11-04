@@ -13,6 +13,7 @@ from app.document_categories import (
     update_category,
 )
 from app.models import CustomerDocument, DocumentCategory, ProjectDocument
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v153_mahnwesen import db_session
 from tests.test_v202_maintenance_contracts import make_customer_and_property
 
@@ -336,7 +337,7 @@ def test_migration_seed_and_backfill_end_to_end_against_a_real_connection():
     import sqlalchemy as sa
 
     migration = _migration_module()
-    engine = sa.create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     with engine.begin() as bind:
         bind.execute(sa.text(
             "CREATE TABLE document_categories (id INTEGER PRIMARY KEY, key VARCHAR(80), label VARCHAR(120), "

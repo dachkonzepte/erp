@@ -13,7 +13,6 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.accounts import (
@@ -24,13 +23,14 @@ from app.incoming_invoices import create_invoice, get_invoice, is_invoice_accoun
 from app.models import Account, EnabledModule, Supplier
 from app.routers.accounts import router as accounts_router
 from app.routers.incoming_invoices import router as incoming_invoices_router
+from tests.aufraeumen import wegwerf_engine
 
 ALL_ROLES = ("field", "buero_auftrag", "buero_finanzen", "admin")
 FORBIDDEN_KEYS = {"account_number", "label", "default_tax_rate_pct"}
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

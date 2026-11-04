@@ -1,6 +1,5 @@
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app import login_security
@@ -10,10 +9,11 @@ from app.logging_config import configure_logging
 from app.models import AppUser
 from app.routers.auth import auth_login
 from app.schemas import LoginRequest
+from tests.aufraeumen import wegwerf_engine
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

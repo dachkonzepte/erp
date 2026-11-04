@@ -1,7 +1,7 @@
 from decimal import Decimal
 from pathlib import Path
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -10,10 +10,11 @@ from app.models import Employee, EmployeeFunction, EmployeeRoleSettings, QuoteEm
 from app.option_settings import ensure_default_option_groups, get_option_group, default_option_value, load_option_groups
 from app.schemas import EmployeeCreate, CustomerCreate, ProjectCreate, QuoteCreate, QuoteDocumentMetaUpdate
 from app.main import create_customer, create_project, create_quote, update_quote_document_meta
+from tests.aufraeumen import wegwerf_engine
 
 
 def new_db():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

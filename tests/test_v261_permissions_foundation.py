@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from alembic.operations import Operations
 from alembic.runtime.migration import MigrationContext
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -22,11 +22,12 @@ from app.models import AppUser, Customer, Order, Project, Property
 from app.project_pipeline_columns import default_pipeline_column_id
 from app.schemas import AppUserCreate, PropertyCreate, PropertyOut, PropertyUpdate
 from app.service_reports import get_property_context_for_order
+from tests.aufraeumen import wegwerf_engine
 
 
 @pytest.fixture
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine)()
     try:
@@ -170,7 +171,7 @@ def _run_migration_step(engine, fn):
 
 def test_migration_upgrade_turns_user_into_office_admin_untouched():
     migration = _load_role_migration()
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     with Session() as session:
@@ -188,7 +189,7 @@ def test_migration_upgrade_turns_user_into_office_admin_untouched():
 
 def test_migration_downgrade_maps_office_and_field_back_to_user():
     migration = _load_role_migration()
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     with Session() as session:

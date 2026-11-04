@@ -4,7 +4,7 @@ from pathlib import Path
 import re
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
 from app.absence_requests import create_request, review_request
@@ -16,10 +16,11 @@ from app.orders import create_order_from_quote
 from app.schemas import CustomerCreate, ProjectCreate, QuoteCreate, QuoteItemCreate
 from app.service import persist_project
 from app.time_tracking import create_group_manual_entry, start_group_timer, stop_group_timer, active_entry
+from tests.aufraeumen import wegwerf_engine
 
 
 def db_session():
-    engine=create_engine("sqlite:///:memory:")
+    engine=wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

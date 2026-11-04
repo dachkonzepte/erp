@@ -1,7 +1,6 @@
 from datetime import date
 from pathlib import Path
 
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from starlette.requests import Request
 
@@ -12,10 +11,11 @@ from app.modules import set_module_enabled
 from app.routers.tasks import delete_task_endpoint, get_tasks, post_task, put_task
 from app.schemas import TaskCreate, TaskUpdate
 from app.tasks import create_task, list_tasks, update_task
+from tests.aufraeumen import wegwerf_engine
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

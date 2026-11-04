@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -9,10 +9,11 @@ from app.labor_rate import calculate_labor_rate, load_labor_rate_settings
 from app.calculation import load_calculation_settings
 from app.models import Employee, EmployeeCompensationSettings
 from app.schemas import EmployeeCreate
+from tests.aufraeumen import wegwerf_engine
 
 
 def new_db():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

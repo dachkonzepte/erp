@@ -11,7 +11,7 @@ Herleitung: docs/archiv/vertragsgrundlage-und-vertrag.md, "Umsetzung 1.8.45".
 import hashlib
 import json
 
-from sqlalchemy import create_engine, select, update
+from sqlalchemy import select, update
 from sqlalchemy.orm import sessionmaker
 
 from app.checklist_rules import rule_matches
@@ -26,6 +26,7 @@ from app.checklists import (
 from app.database import Base
 from app.models import ChecklistAttachment, ChecklistTemplate, ChecklistTemplateField, ChecklistTemplateVersion
 from app.routers.pages import router as pages_router
+from tests.aufraeumen import wegwerf_engine
 from tests.grunddaten_schalter import ohne_grunddaten
 from tests.test_v213_inspection_items import _extract_pdf_text
 from tests.test_v305_checklist_filling import _client, _fields, _jpeg, _png, world  # noqa: F401 -- Fixture
@@ -197,7 +198,7 @@ def test_rule_filled_counts_a_receipt(world):
 # --- Punkt 1: Migration der Startvorlage und Hinweis --------------------------------------------
 
 def _fresh_db():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     with ohne_grunddaten():
         Base.metadata.create_all(engine)
     return engine, sessionmaker(bind=engine)()

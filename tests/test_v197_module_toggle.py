@@ -1,16 +1,16 @@
 from pathlib import Path
 
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.modules import OPTIONAL_MODULES, is_module_enabled, list_module_states, set_module_enabled
 from app.routers.modules import get_modules, update_module
 from app.schemas import ModuleStateUpdate
+from tests.aufraeumen import wegwerf_engine
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

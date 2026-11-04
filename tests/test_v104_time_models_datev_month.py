@@ -2,7 +2,6 @@ from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -17,11 +16,12 @@ from app.work_time_models import (
     automatic_break_minutes_for_duration, ensure_default_work_time_models,
     load_advanced_settings, list_models, set_employee_model,
 )
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v100_time_tracking import setup_order
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

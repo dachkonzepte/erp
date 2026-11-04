@@ -13,17 +13,17 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.anmeldeschranke import einbinden
 from app.database import Base, get_db
+from tests.aufraeumen import wegwerf_engine
 
 
 def neue_datenbank():
     """Eine leere In-Memory-Datenbank für mehrere Threads (TestClient) und ihre Sitzungsfabrik."""
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    engine = wegwerf_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)
     return engine, sessionmaker(bind=engine)
 

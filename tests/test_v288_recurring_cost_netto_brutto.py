@@ -7,7 +7,6 @@ Gemeinkosten-Einspeisung aus Schicht 3) rechnet ausnahmslos auf Basis von net_am
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -15,10 +14,11 @@ from app.recurring_costs import (
     TAX_RATES, create_cost, gross_amount, normalize_to_annual, overview_summary, update_cost,
 )
 from app.routers.recurring_costs import router as recurring_costs_router
+from tests.aufraeumen import wegwerf_engine
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

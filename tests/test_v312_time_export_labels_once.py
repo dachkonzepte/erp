@@ -16,12 +16,13 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import create_engine, event, select
+from sqlalchemy import event, select
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.models import Employee, SettingOption, SettingOptionGroup, TimeEntry
 from app.time_backoffice import build_time_csv, build_timesheet_pdf
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v133_invoices import make_order_with_item
 from tests.test_v213_inspection_items import _extract_pdf_text
 
@@ -34,7 +35,7 @@ EXPECTED_LABELS = {
 
 
 def _database(count):
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     db = sessionmaker(bind=engine)()
     order, item = make_order_with_item(db)

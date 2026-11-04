@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
-from sqlalchemy import create_engine, inspect, select, text
+from sqlalchemy import inspect, select, text
 from sqlalchemy.orm import sessionmaker
 
 from app.berlin_time import berlin_today
@@ -31,6 +31,7 @@ from app.orders import create_order_from_quote, load_order, order_matches_source
 from app.project_pipeline_columns import default_pipeline_column_id
 from app.projects import duplicate_project, ensure_quote_structure, load_project, load_quote, quote_to_dict
 from app.quote_framed_pdf import build_quote_framed_pdf
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v153_mahnwesen import db_session
 from tests.test_v230_invoice_pdf_shared_frame import _page_text
 from tests.grunddaten_schalter import ohne_grunddaten
@@ -86,7 +87,7 @@ def _migration():
 
 def _pre_migration_engine():
     """Schema von heute, dann alles entfernt, was die Migration anlegt -- der Stand davor."""
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     with ohne_grunddaten():
         Base.metadata.create_all(engine)
     with engine.begin() as conn:

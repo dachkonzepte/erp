@@ -1,6 +1,5 @@
 from decimal import Decimal
 
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.calculation import build_calculation, get_settings_for_catalog
@@ -15,10 +14,11 @@ from app.services import (
     remove_material_from_service,
     update_service_base_fields,
 )
+from tests.aufraeumen import wegwerf_engine
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
-from sqlalchemy import create_engine, inspect, select, text
+from sqlalchemy import inspect, select, text
 
 from app import sent_documents as sent_documents_module
 from app.berlin_time import berlin_today
@@ -37,6 +37,7 @@ from app.projects import load_quote, send_quote_email
 from app.routers import contract_templates as contract_router
 from app.routers import email_dispatches as dispatches_router_module
 from app.sent_documents import read_sent_document
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v321_email_dispatch import FakeSMTP, _attachment, _configure_smtp
 from tests.test_v325_contract_basis import make_quote, pdf_text
 from tests.test_v335_vertragsvorlagen import SECTIONS, beauftragen, save, section
@@ -440,7 +441,7 @@ def _run(engine, fn_name):
 
 
 def test_migration_downgrade_refuses_while_versions_exist_and_upgrade_restores():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     with engine.begin() as conn:
         conn.execute(text("INSERT INTO order_contracts (order_id, status, created_by_name, created_at, updated_at) "

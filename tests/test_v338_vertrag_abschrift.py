@@ -24,11 +24,12 @@ from pathlib import Path
 import pypdfium2 as pdfium
 import pytest
 
+from tests.aufraeumen import wegwerf_engine
 from tests.node_lauf import node_ausfuehren
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from PIL import Image, ImageDraw
-from sqlalchemy import create_engine, inspect, select, text, update
+from sqlalchemy import inspect, select, text, update
 
 from app import contract_versions as contract_versions_module
 from app.berlin_time import berlin_today
@@ -264,7 +265,7 @@ def _run(engine, fn_name):
 
 
 def test_migration_downgrade_refuses_while_copies_exist_and_upgrade_restores():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     with engine.begin() as conn:
         conn.execute(text("INSERT INTO order_contract_signatures (contract_id, version_id, method, signed_on, signed_content, "

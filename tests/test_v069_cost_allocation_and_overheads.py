@@ -2,7 +2,6 @@ from decimal import Decimal
 
 import pytest
 from pydantic import ValidationError
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.calculation import load_calculation_settings
@@ -11,10 +10,11 @@ from app.employees import employee_to_dict
 from app.labor_rate import calculate_labor_rate, load_labor_rate_settings, load_overhead_settings
 from app.models import Employee, EmployeeCompensationSettings, EmployeeCostAllocationSettings
 from app.schemas import EmployeeCreate
+from tests.aufraeumen import wegwerf_engine
 
 
 def new_db():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

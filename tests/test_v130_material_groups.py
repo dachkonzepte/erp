@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -15,10 +15,11 @@ from app.material_groups import (
 )
 from app.materials import create_manual_material, find_or_create_material, list_materials
 from app.models import Material, MaterialGroup
+from tests.aufraeumen import wegwerf_engine
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

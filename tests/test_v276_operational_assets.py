@@ -11,7 +11,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -21,10 +21,11 @@ from app.operational_assets import (
     is_inspection_due, is_inspection_overdue, list_assets, list_due_assets, update_asset,
     update_operational_asset_settings,
 )
+from tests.aufraeumen import wegwerf_engine
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 
@@ -174,7 +175,7 @@ def _migration_module():
 
 
 def test_migration_backfill_creates_one_linked_asset_per_existing_resource():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     with engine.begin() as conn:
         for name in ("Sprinter 1", "Sprinter 2", "Böcker AHK36"):
@@ -194,7 +195,7 @@ def test_migration_backfill_creates_one_linked_asset_per_existing_resource():
 
 
 def test_migration_backfill_is_a_noop_without_existing_resources():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     with engine.begin() as conn:
         migration = _migration_module()

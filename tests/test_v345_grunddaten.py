@@ -48,6 +48,7 @@ from app.reminders import DEFAULT_REMINDER_LEVELS
 from app.settings import DEFAULT_SEQUENCES
 from app.task_columns import DEFAULT_COLUMNS as DEFAULT_TASK_COLUMNS
 from app.tax_keys import DEFAULT_TAX_KEYS
+from tests.aufraeumen import wegwerf_engine
 from tests.grunddaten_schalter import ohne_grunddaten
 from tests.pg_schutz import pg_url_pruefen
 
@@ -86,7 +87,7 @@ def _erwartet() -> dict[str, int]:
 
 
 def _leere_datenbank(url="sqlite:///:memory:", **kwargs):
-    engine = create_engine(url, **kwargs)
+    engine = wegwerf_engine(url, **kwargs)
     with ohne_grunddaten():
         Base.metadata.create_all(engine)
     return engine, sessionmaker(bind=engine)
@@ -181,7 +182,7 @@ def _inhalt(engine) -> dict:
 def test_vorlage_im_test_hook_gleicht_einem_echten_anlegen():
     """tests/conftest.py übernimmt unter SQLite die Zeilen einer Vorlage, statt anlegen() je Datenbank laufen
     zu lassen -- der Inhalt muss derselbe sein wie nach anlegen() (ohne Zeitstempel), auch audit_logs."""
-    mit_hook = create_engine("sqlite:///:memory:")
+    mit_hook = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(mit_hook)
     echt, Session = _leere_datenbank()
     with Session() as db:
@@ -297,7 +298,7 @@ def test_start_legt_die_grunddaten_an(tmp_path):
     p = _start(url, tmp_path / "data", production=False)
     _, err = p.communicate(timeout=180)
     assert p.returncode == 0, err[-3000:]
-    with sessionmaker(bind=create_engine(url))() as db:
+    with sessionmaker(bind=wegwerf_engine(url))() as db:
         assert _bestand(db) == _erwartet()
 
 
@@ -307,7 +308,7 @@ def test_zwei_gleichzeitige_starts_in_produktion_sqlite(tmp_path):
     url = f"sqlite:///{(tmp_path / 'prod.db').as_posix()}"
     _leere_datenbank(url)
     _beide_starten(url, tmp_path)
-    with sessionmaker(bind=create_engine(url))() as db:
+    with sessionmaker(bind=wegwerf_engine(url))() as db:
         assert _bestand(db) == _erwartet()
 
 

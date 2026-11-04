@@ -22,10 +22,10 @@ from pathlib import Path
 
 import pytest
 from PIL import Image
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app import company_logo, seitendaten
+from tests.aufraeumen import wegwerf_engine
 from tests.pg_schutz import pg_url_pruefen
 from app.routers import pages as pages_router_module
 
@@ -195,7 +195,7 @@ def test_sidebar_logo_height_px_falls_back_to_default_on_error(monkeypatch):
 def _broken_session_local_factory():
     """Ein Engine OHNE Base.metadata.create_all() -- keine einzige Tabelle existiert, genau das
     Vorfall-1-Symptom (eine übersprungene Migration, hier im Extremfall: die ganze Kette)."""
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     yield sessionmaker(bind=engine)
 
 

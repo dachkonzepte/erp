@@ -29,6 +29,7 @@ from app.outlook_calendar_sync import (
     SPERRE_GILT, SperreVerloren, _apply_delta_change, _sperre_nehmen, get_or_create_sync_state, postfach_des_kontos, postfach_normal, push_event_best_effort, sync_user_calendar,
 )
 from app.routers.users import router as users_router
+from tests.aufraeumen import wegwerf_engine
 from tests.bestand_alt import auftrag
 from tests.grunddaten_schalter import ohne_grunddaten
 from tests.outlook_attrappe import Microsoft
@@ -109,7 +110,7 @@ def test_halten_erneuert_und_merkt_den_verlust():
 # --- Läufe --------------------------------------------------------------------------------------------------
 
 def _datei_db(tmp_path):
-    engine = create_engine(f"sqlite:///{(tmp_path / 'sperre.db').as_posix()}", connect_args={"timeout": 30})
+    engine = wegwerf_engine(f"sqlite:///{(tmp_path / 'sperre.db').as_posix()}", connect_args={"timeout": 30})
     Base.metadata.create_all(engine)
     return engine
 

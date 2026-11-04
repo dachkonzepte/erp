@@ -16,7 +16,7 @@ import pypdfium2 as pdfium
 import pytest
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import inspect, text
 
 from app.berlin_time import berlin_today
 from app.contract_pdf import build_contract_pdf
@@ -30,6 +30,7 @@ from app.order_pdf import build_order_pdf
 from app.orders import create_order_from_quote, load_order
 from app.placeholders import apply_placeholders, placeholders_in, unknown_placeholders
 from app.projects import ensure_quote_structure, load_quote
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v153_mahnwesen import db_session
 from tests.test_v230_invoice_pdf_shared_frame import _page_text
 from tests.test_v325_contract_basis import make_quote, pdf_text
@@ -363,7 +364,7 @@ def _run(engine, fn_name):
 
 
 def test_migration_downgrade_refuses_while_data_would_be_lost_and_upgrade_restores():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     with engine.begin() as conn:
         conn.execute(text("INSERT INTO contract_templates (basis_key, updated_at) VALUES ('vob_b', '2026-10-01 00:00:00')"))

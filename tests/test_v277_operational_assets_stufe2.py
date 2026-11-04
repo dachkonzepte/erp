@@ -22,12 +22,12 @@ from app.models import EnabledModule, OperationalAsset
 from app.operational_assets import asset_field_dict, asset_qr_target_url, create_asset, update_asset
 from app.schemas import GeneralSettingsUpdate, OperationalAssetCreate
 from app.settings import load_general_settings
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from tests.aufraeumen import wegwerf_engine
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

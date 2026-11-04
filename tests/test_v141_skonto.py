@@ -1,7 +1,6 @@
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -15,11 +14,12 @@ from app.invoices import (
 from app.models import Order, OrderItem, PaymentTerm, Customer, Project
 from app.project_pipeline_columns import default_pipeline_column_id
 from app.payment_terms import create_payment_term, update_payment_term
+from tests.aufraeumen import wegwerf_engine
 from tests.leistungszeitraum import festschreiben
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

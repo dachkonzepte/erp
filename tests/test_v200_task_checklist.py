@@ -1,14 +1,15 @@
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
 from app.auth import hash_password
 from app.database import Base
 from app.models import AppUser, Employee, TaskChecklistItem
 from app.tasks import add_checklist_item, create_task, delete_checklist_item, delete_task, list_tasks, update_checklist_item
+from tests.aufraeumen import wegwerf_engine
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

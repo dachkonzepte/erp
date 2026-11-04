@@ -35,6 +35,7 @@ from app.models import Customer, CustomerProfile, Inquiry, Invoice, Order, Proje
 from app.project_pipeline_columns import default_pipeline_column_id
 from app.reminders import create_reminder, finalize_and_send_reminder
 from app.settings import DEFAULT_SEQUENCES, _existing_column
+from tests.aufraeumen import wegwerf_engine
 from tests.befund_vor_echtbetrieb import pg_sitzung
 from tests.bestand_alt import auftrag_zeile, startspalte
 from tests.leistungszeitraum import festschreiben, mit_zeitraum
@@ -369,7 +370,7 @@ def _migrationsprobe(url: str, engine, Session) -> None:
 
 def test_migration_refuses_with_a_list_of_duplicates_and_changes_nothing(tmp_path):
     url = f"sqlite:///{(tmp_path / 'nummern.db').as_posix()}"
-    engine = create_engine(url)
+    engine = wegwerf_engine(url)
     _migrationsprobe(url, engine, sessionmaker(bind=engine))
 
 
@@ -405,7 +406,7 @@ def _rohe_tabellen(conn, ohne_bedingung: str | None):
 def test_migration_check_names_a_missing_old_constraint_and_duplicates_there():
     """Fehlt eine der fünf Bedingungen aus der Baseline (z. B. von Hand entfernt), legt die Migration sie nicht still an,
     sondern bricht ab und nennt sie -- samt der Dubletten, die sich dort inzwischen gebildet haben."""
-    engine = create_engine("sqlite://")
+    engine = wegwerf_engine("sqlite://")
     with engine.begin() as conn:
         mig = _rohe_tabellen(conn, ohne_bedingung="quotes")
         conn.execute(text("INSERT INTO quotes (id, quote_number) VALUES (1, 'A-1'), (2, 'A-1'), (3, 'A-2')"))
@@ -419,7 +420,7 @@ def test_migration_check_names_a_missing_old_constraint_and_duplicates_there():
 
 
 def test_migration_check_passes_on_a_clean_inventory():
-    engine = create_engine("sqlite://")
+    engine = wegwerf_engine("sqlite://")
     with engine.begin() as conn:
         mig = _rohe_tabellen(conn, ohne_bedingung=None)
         conn.execute(text("INSERT INTO invoices (id, invoice_number) VALUES (1, NULL), (2, NULL), (3, 'R-1'), (4, 'R-2')"))

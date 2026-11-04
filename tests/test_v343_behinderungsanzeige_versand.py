@@ -44,6 +44,7 @@ from app.routers.checklists import router as checklists_router
 from app.routers.email_dispatches import router as dispatches_router
 from app.routers.notice_letters import router as notice_router
 from app.settings import load_general_settings
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v305_checklist_filling import _client, _fields, _jpeg, _png, world  # noqa: F401 -- Fixture
 from tests.test_v321_email_dispatch import FakeSMTP, _attachment, _configure_smtp
 from tests.test_v325_contract_basis import pdf_text
@@ -574,7 +575,7 @@ def _run(engine, fn_name):
 
 
 def test_migration_creates_the_tables_and_refuses_a_lossy_downgrade():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     tables = ("notice_letters", "notice_reservations", "dispatch_authorizations")
     with engine.begin() as conn:

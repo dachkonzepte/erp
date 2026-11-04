@@ -46,7 +46,7 @@ Singletons). Die Schritte committen nicht mehr selbst. Der SAVEPOINT je Schritt 
 Absicherung, und genau den prüft diese Datei weiter: die zweite Sitzung führt den Schritt aus und
 committet (= "ein anderer Prozess war schneller"), auf einer Datenbank ohne Grunddaten."""
 
-from sqlalchemy import create_engine, event, select
+from sqlalchemy import event, select
 from sqlalchemy.orm import sessionmaker
 
 from app import (
@@ -60,6 +60,7 @@ from app.models import (
     ProjectPipelineColumn, SettingOptionGroup, TaskColumn, TimeBackofficeAdvancedSettings, WorkTimeBreakRule, WorkTimeModel,
     WorkTimeModelValidity,
 )
+from tests.aufraeumen import wegwerf_engine
 from tests.grunddaten_schalter import ohne_grunddaten
 
 
@@ -67,7 +68,7 @@ def _file_sessions(tmp_path):
     """Zwei unabhängige Sessions auf dieselbe echte SQLite-Datei -- Voraussetzung für eine
     tatsächliche, datenebenen-Interleaving-Simulation (siehe Moduldocstring)."""
     db_path = tmp_path / "race.db"
-    engine = create_engine(f"sqlite:///{db_path}")
+    engine = wegwerf_engine(f"sqlite:///{db_path}")
     with ohne_grunddaten():
         Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)

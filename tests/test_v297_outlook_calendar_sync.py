@@ -40,6 +40,7 @@ from app.outlook_calendar_sync import (
 from app.project_pipeline_columns import default_pipeline_column_id
 from app.routers.calendar_events import router as calendar_router
 from app.routers.outlook_sync_settings import router as outlook_settings_router
+from tests.aufraeumen import wegwerf_engine
 
 TOKEN_URL_MARKER = "login.microsoftonline.com"
 
@@ -52,7 +53,7 @@ def _events_url(mailbox: str, suffix: str = "") -> str:
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

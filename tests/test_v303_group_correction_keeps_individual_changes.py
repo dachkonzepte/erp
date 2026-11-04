@@ -12,11 +12,12 @@ from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.models import TimeEntry, TimeEntryGroup, TimeEntryGroupMember
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v302_crew_leader import _as, _client, _manual, _user, world  # noqa: F401 -- world ist eine Fixture
 
 TODAY = date.today()
@@ -140,7 +141,7 @@ def test_migration_backfill_marks_only_recognisably_changed_bestand_members():
     from app.time_tracking import create_group_manual_entry
     from tests.test_v264_field_time_tracking import _employee, _order
 
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     db = sessionmaker(bind=engine)()
     a, b, c = (_employee(db, f"MB-{i}", n, "X") for i, n in enumerate(("Anna", "Ben", "Cem")))

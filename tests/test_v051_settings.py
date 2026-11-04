@@ -1,7 +1,6 @@
 from datetime import datetime
 
 import pytest
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.crm import ensure_customer_profile
@@ -13,10 +12,11 @@ from app.settings import (
     preview_number,
     update_sequence,
 )
+from tests.aufraeumen import wegwerf_engine
 
 
 def new_db():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

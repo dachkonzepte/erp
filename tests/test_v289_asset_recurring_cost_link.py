@@ -16,7 +16,6 @@ import json
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -27,12 +26,13 @@ from app.operational_assets import (
 from app.recurring_costs import create_cost, get_cost
 from app.routers.operational_assets import router as assets_router
 from app.routers.recurring_costs import router as costs_router
+from tests.aufraeumen import wegwerf_engine
 
 ALL_ROLES = ("field", "buero_auftrag", "buero_finanzen", "admin")
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

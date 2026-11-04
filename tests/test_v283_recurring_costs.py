@@ -19,7 +19,6 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -35,13 +34,14 @@ from app.recurring_costs import (
 from app.routers.recurring_costs import router as recurring_costs_router
 from app.routers.tasks import router as tasks_router
 from app.tasks import claim_task, create_task, list_tasks_for_user
+from tests.aufraeumen import wegwerf_engine
 
 ALL_ROLES = ("field", "buero_auftrag", "buero_finanzen", "admin")
 FORBIDDEN_KEYS = {"label", "net_amount", "billing_interval", "annual_amount", "vendor"}
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

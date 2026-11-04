@@ -14,7 +14,6 @@ import asyncio
 import time
 
 import pytest
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.ai_adapters import MockAIAdapter, _ADAPTERS
@@ -24,13 +23,14 @@ from app.ai_types import AI_PROVIDERS, AIAttachment, AIProviderError, AIProvider
 from app.database import Base
 from app.models import AICallLog
 from app.routers.ai_settings import router as ai_settings_router
+from tests.aufraeumen import wegwerf_engine
 
 ALL_ROLES = ("field", "buero_auftrag", "buero_finanzen", "admin")
 FORBIDDEN_KEYS = {"provider", "api_base_url", "has_api_key", "model", "enabled"}
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

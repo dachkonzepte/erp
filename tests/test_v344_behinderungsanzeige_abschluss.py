@@ -27,7 +27,7 @@ from pathlib import Path
 import pytest
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
-from sqlalchemy import create_engine, inspect, select, text, update
+from sqlalchemy import inspect, select, text, update
 
 from app.berlin_time import BERLIN, berlin_today
 from app.checklist_follow_ups import list_checklists_with_open_follow_ups, run_checklist_follow_ups
@@ -44,6 +44,7 @@ from app.routers.checklists import router as checklists_router
 from app.routers.email_dispatches import router as dispatches_router
 from app.routers.notice_letters import router as notice_router
 from app.routers.projects import router as projects_router
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v305_checklist_filling import _client, world  # noqa: F401 -- Fixture
 from tests.test_v321_email_dispatch import FakeSMTP
 from tests.test_v325_contract_basis import pdf_text
@@ -573,7 +574,7 @@ def _run(engine, fn_name):
 
 
 def test_migration_adds_the_columns_and_refuses_a_lossy_downgrade():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     _run(engine, "downgrade")  # leer: läuft
     columns = lambda table: {c["name"] for c in inspect(engine).get_columns(table)}  # noqa: E731

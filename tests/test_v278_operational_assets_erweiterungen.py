@@ -14,7 +14,6 @@ Büro-Suche liefert einem Monteur kein Betriebsmittel."""
 
 from datetime import date, timedelta
 
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -25,10 +24,11 @@ from app.operational_assets import (
 )
 from app.search import search_office
 from app.tasks import list_tasks
+from tests.aufraeumen import wegwerf_engine
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

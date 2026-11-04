@@ -13,7 +13,6 @@ from datetime import datetime, timedelta
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -29,6 +28,7 @@ from app.project_pipeline_columns import default_pipeline_column_id
 from app.projects import delete_project
 from app.routers.calendar_events import router as calendar_router
 from app.routers.pages import router as pages_router
+from tests.aufraeumen import wegwerf_engine
 
 ALL_ROLES = ("field", "buero_auftrag", "buero_finanzen", "admin")
 # "title" ist bewusst NICHT enthalten -- der reduzierte Schlüssel existiert (fester Platzhalter
@@ -38,13 +38,13 @@ FORBIDDEN_KEYS = {"location", "notes", "project_id", "project_name", "quote_id",
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 
 
 def threaded_db_session():
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    engine = wegwerf_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

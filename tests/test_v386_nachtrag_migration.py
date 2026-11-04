@@ -12,6 +12,7 @@ import pytest
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
 
+from tests.aufraeumen import wegwerf_engine
 from tests.bestand_alt import auftrag
 from tests.test_v380_nummern_eindeutig import _alembic, _ok
 
@@ -111,7 +112,7 @@ def _migrationsprobe(url: str, engine, Session) -> None:
 
 def test_migration_keeps_every_row_and_the_way_back(tmp_path):
     url = f"sqlite:///{(tmp_path / 'nachtrag.db').as_posix()}"
-    engine = create_engine(url)
+    engine = wegwerf_engine(url)
     _migrationsprobe(url, engine, sessionmaker(bind=engine))
 
 

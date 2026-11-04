@@ -21,6 +21,7 @@ from app.contacts import create_contact
 from app.models import ArchiveImmutableError, ChecklistAttachment, ChecklistTemplateField, Order
 from app.project_participants import add_participant, remove_participant, store_power_of_attorney
 from app.routers.checklists import router as checklists_router
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v305_checklist_filling import _fields, world  # noqa: F401
 from tests.test_v349_abnahme_und_gewaehrleistung import PDF
 from tests.test_v358_unterschrift_pruefung import SIGNATUR, _bild
@@ -363,12 +364,12 @@ def _migration():
 def test_migration_adds_columns_and_refuses_downgrade_with_signers():
     from alembic.migration import MigrationContext
     from alembic.operations import Operations
-    from sqlalchemy import create_engine, inspect
+    from sqlalchemy import inspect
 
     from app.database import Base
 
     module = _migration()
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
 
     def run(name):

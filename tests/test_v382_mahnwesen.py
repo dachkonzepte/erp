@@ -20,7 +20,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from sqlalchemy import create_engine, delete, event, func, select, update
+from sqlalchemy import delete, event, func, select, update
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -43,6 +43,7 @@ from app.reminders import (
 from app.routers.email_dispatches import router as dispatch_router
 from app.routers.projects import router as projects_router
 from app.routers.reminders import router as reminders_router
+from tests.aufraeumen import wegwerf_engine
 from tests.leistungszeitraum import festschreiben
 from tests.mahnung import festschreiben_und_ablaufen, frist_ablaufen, zustellen
 from tests.test_v153_mahnwesen import make_sent_overdue_invoice
@@ -55,7 +56,7 @@ HEUTE = berlin_today()
 
 
 def _db():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     db = sessionmaker(bind=engine)()
     anlegen(db)
@@ -551,7 +552,7 @@ class SperrBeobachter:
 
 
 def _welt():
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    engine = wegwerf_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)
     db = sessionmaker(bind=engine)()
     anlegen(db)

@@ -39,6 +39,7 @@ from app.models import (
 from app.routers import defects as defects_router
 from app.routers.checklists import router as checklists_router
 from app.work_preparation import ensure_preparation
+from tests.aufraeumen import wegwerf_engine
 from tests.grunddaten_schalter import ohne_grunddaten
 from tests.test_v349_abnahme_und_gewaehrleistung import PDF, _welt, ablage, welt  # noqa: F401  (Fixtures)
 from tests.test_v358_unterschrift_pruefung import SIGNATUR
@@ -173,7 +174,7 @@ def test_signer_modes_and_field_types_fit_their_columns():
 
 
 def test_starter_template_passes_the_real_publish_check_and_matches_the_registry():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     with ohne_grunddaten():
         Base.metadata.create_all(engine)
     with engine.begin() as conn:

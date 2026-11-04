@@ -3,18 +3,18 @@ from decimal import Decimal
 from pathlib import Path
 import re
 
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.models import Employee
 from app.time_tracking import create_manual_entry, update_entry
 from app.work_time_models import ensure_default_work_time_models, employee_model, list_models, set_employee_model, week_in_range
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v100_time_tracking import setup_order
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

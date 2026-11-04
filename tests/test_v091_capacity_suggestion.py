@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -13,10 +13,11 @@ from app.orders import create_order_from_quote, load_order
 from app.planning import planning_suggestion, create_slot, planning_board, update_planning_settings
 from app.schemas import CustomerCreate, ProjectCreate, QuoteCreate, QuoteItemCreate, TeamCreate, TeamEmployeeInput
 from app.service import persist_project
+from tests.aufraeumen import wegwerf_engine
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

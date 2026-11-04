@@ -1909,6 +1909,10 @@ und den Verifikationsnachweis (Version 1.3.35, 13.09.2026).
   ORDNER` stellt ihn nach (`tests/reihenfolge.py`). Abfragen zählen nur mit `gc.collect()` davor und ohne Speicherbereinigung währenddessen
   (`tests/test_v564_plantafel_leistung.py::Zaehler`): ein Fehler beim Abräumen einer fremden Verbindung hält sonst über seinen Traceback die
   Objekte der Anfrage fest.
+- **Engines in Tests** (seit 1.9.195): eine Engine unter `tests/` schließt die Funktion, die sie anlegt, selbst mit `dispose()` -- sonst entsteht
+  sie über `tests/aufraeumen.py::wegwerf_engine()`, und `tests/conftest.py` schließt sie am Ende des Tests (des Moduls, des Laufs, wenn ein Aufbau
+  dieses Umfangs sie anlegte). Nie der Speicherbereinigung überlassen: sie räumte die Verbindung sonst in einem fremden Thread ab (Fehler im
+  Protokoll, 1.9.183). Wächter `tests/test_v603_engines_aufraeumen.py`.
 - **`pytest -q` als Standard-Aufruf** (Regel 15 oben) -- bei über 1800 Tests erzeugt die volle
   Ausgabe (inkl. `DeprecationWarning`-Sammlung) allein schon zehntausende Zeilen, ohne bei einem
   grünen Lauf zusätzliche Information zu liefern. `pytest.ini` blendet die

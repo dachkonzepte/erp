@@ -1,4 +1,3 @@
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -8,7 +7,7 @@ from app.projects import next_project_number
 
 
 def test_project_number_sequence():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     db = Session()
@@ -29,7 +28,7 @@ from sqlalchemy import select
 
 
 def test_customer_creates_main_property_and_extra_infos():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     db = Session()
@@ -69,10 +68,11 @@ from app.main import (
     update_property,
 )
 from app.schemas import CustomerUpdate, CustomerExtraInfoUpdate, PropertyCreate, PropertyUpdate
+from tests.aufraeumen import wegwerf_engine
 
 
 def test_customer_record_updates_main_address_and_crm_data():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     db = Session()

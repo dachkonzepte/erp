@@ -129,7 +129,7 @@ def test_every_pg_engine_in_tests_has_its_own_schema_or_only_administers():
                              if isinstance(t, ast.Name) and _pg_url_name(n.value, names)}
             for n in ast.walk(fn):
                 if not (isinstance(n, ast.Assign) and isinstance(n.value, ast.Call) and isinstance(n.value.func, ast.Name)
-                        and n.value.func.id == "create_engine" and n.value.args and _pg_url_name(n.value.args[0], local)):
+                        and n.value.func.id in ("create_engine", "wegwerf_engine") and n.value.args and _pg_url_name(n.value.args[0], local)):
                     continue
                 gesehen += 1
                 var = n.targets[0].id if isinstance(n.targets[0], ast.Name) else None

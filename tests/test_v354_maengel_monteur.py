@@ -39,6 +39,7 @@ from app.models import (
 )
 from app.routers import field_defects as field_defects_router
 from app.work_preparation import ensure_preparation
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v349_abnahme_und_gewaehrleistung import (  # noqa: F401  (Fixtures)
     GUELTIG, PDF, PG_TEST_DATABASE_URL, _erfassen, _png, _waits_for, _welt, ablage, welt,
 )
@@ -442,7 +443,7 @@ def _migration():
 
 def test_migration_adds_and_removes_the_key():
     module = _migration()
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
 
     def run(name):

@@ -2,7 +2,7 @@ from datetime import date
 from pathlib import Path
 import re
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 from starlette.requests import Request
 
@@ -14,10 +14,11 @@ from app.models import AppUser, Employee, Order, UserDashboardWidget, WorkPrepar
 from app.routers.work_preparation import get_open_work_preparation_tasks
 from app.schemas import CustomerCreate, ProjectCreate, QuoteCreate
 from app.work_preparation import list_open_tasks
+from tests.aufraeumen import wegwerf_engine
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

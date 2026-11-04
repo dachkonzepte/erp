@@ -14,7 +14,7 @@ import importlib.util
 from decimal import Decimal
 from pathlib import Path
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -29,6 +29,7 @@ from app.project_pipeline_columns import default_pipeline_column_id
 from app.projects import load_quote
 from app.quote_framed_pdf import _build_items_table, build_quote_framed_pdf
 from app.settings import load_general_settings
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v229_shared_document_layout import _run_migration_step
 
 import pypdfium2 as pdfium
@@ -36,7 +37,7 @@ from tests.grunddaten_schalter import ohne_grunddaten
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 
@@ -598,7 +599,7 @@ def _load_quote_continuation_header_migration():
 
 def test_migration_adds_continuation_header_to_already_seeded_quote_only():
     migration = _load_quote_continuation_header_migration()
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     with ohne_grunddaten():
         Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
@@ -638,7 +639,7 @@ def test_migration_adds_continuation_header_to_already_seeded_quote_only():
 
 def test_migration_is_idempotent_and_downgrade_removes_the_row():
     migration = _load_quote_continuation_header_migration()
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     with ohne_grunddaten():
         Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)

@@ -7,9 +7,10 @@ weiterhin eingefroren bleibt. Gleiches Muster wie test_v234_finding_roof_area_na
 import importlib.util
 from pathlib import Path
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v133_invoices import make_order_with_item
 from tests.test_v153_mahnwesen import db_session
 from tests.test_v202_maintenance_contracts import make_customer_and_property
@@ -112,7 +113,7 @@ def _load_migration():
 
 
 def _new_engine_with_schema():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return engine
 

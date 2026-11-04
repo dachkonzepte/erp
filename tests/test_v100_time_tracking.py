@@ -3,7 +3,7 @@ from decimal import Decimal
 from pathlib import Path
 import re
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -17,10 +17,11 @@ from app.time_tracking import (
     create_manual_entry, start_timer, stop_timer, time_tracking_context,
 )
 from app.work_preparation import ensure_preparation, preparation_to_dict
+from tests.aufraeumen import wegwerf_engine
 
 
 def db_session():
-    engine=create_engine("sqlite:///:memory:")
+    engine=wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

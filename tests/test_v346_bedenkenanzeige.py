@@ -17,7 +17,7 @@ from datetime import date
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
 from app.berlin_time import berlin_today, to_berlin
@@ -34,6 +34,7 @@ from app.models import (
 )
 from app.routers.field_view import router as field_view_router
 from app.routers.pages import router as pages_router
+from tests.aufraeumen import wegwerf_engine
 from tests.grunddaten_schalter import ohne_grunddaten
 from tests.test_v305_checklist_filling import _client, _fields, _jpeg, _png, world  # noqa: F401 -- Fixture
 from tests.uhr import uhr_festhalten
@@ -210,7 +211,7 @@ def test_registry_three_sections_office_sections_and_three_follow_ups():
 # --- Startvorlage aus der Migration ---------------------------------------------------------
 
 def test_starter_template_passes_the_real_publish_check_and_matches_the_registry():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     with ohne_grunddaten():
         Base.metadata.create_all(engine)
     with engine.begin() as conn:

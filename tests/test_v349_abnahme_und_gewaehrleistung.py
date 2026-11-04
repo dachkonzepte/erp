@@ -52,6 +52,7 @@ from app.routers import orders as orders_router
 from app.routers import project_participants as participants_router
 from app.routers import roof_areas as roof_areas_router
 from app.warranty import PROPOSALS, duration_text, warranty_end, warranty_proposal
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v325_contract_basis import make_quote
 from tests.test_v335_vertragsvorlagen import beauftragen
 
@@ -814,7 +815,7 @@ def _guarantee(engine, column):
 
 
 def test_migration_down_refuses_while_data_exists_and_up_restores():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     with engine.begin() as conn:  # Punkt 6: der Wert überlebt die Umbenennung in beide Richtungen
         conn.execute(text("INSERT INTO customers (name, last_name, created_at) VALUES ('K', 'K', '2026-10-03')"))
@@ -984,7 +985,7 @@ def _migration_1847():
 def test_migration_1847_down_refuses_while_data_exists():
     """Seit 1.8.47: Vollmacht zur Abnahme und festgehaltene Verschiebungen gehen beim Downgrade nicht still verloren."""
     module = _migration_1847()
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
 
     def run(name):

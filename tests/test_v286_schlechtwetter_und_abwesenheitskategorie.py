@@ -18,7 +18,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
 from app.absence_requests import ABSENCE_CATEGORIES, create_request, review_request
@@ -29,11 +29,12 @@ from app.routers.absence_requests import router as absence_requests_router
 from app.routers.planning import router as planning_router
 from app.time_backoffice import _wage_type, load_time_settings
 from app.time_tracking import NON_PRODUCTIVE_ENTRY_TYPES, create_manual_entry, entry_type_is_productive
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v133_invoices import make_order_with_item
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 
@@ -261,7 +262,7 @@ def _load_migration_module():
 
 def test_seed_weather_time_entry_types_is_idempotent_and_appends_to_existing_group():
     migration = _load_migration_module()
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     with engine.begin() as conn:
         conn.exec_driver_sql(
             "CREATE TABLE setting_option_groups (id INTEGER PRIMARY KEY, group_key TEXT)"
@@ -297,7 +298,7 @@ def test_seed_weather_time_entry_types_is_idempotent_and_appends_to_existing_gro
 
 def test_seed_weather_time_entry_types_is_a_noop_without_existing_group():
     migration = _load_migration_module()
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     with engine.begin() as conn:
         conn.exec_driver_sql(
             "CREATE TABLE setting_option_groups (id INTEGER PRIMARY KEY, group_key TEXT)"

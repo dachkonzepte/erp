@@ -23,11 +23,12 @@ from pathlib import Path
 import pytest
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
-from sqlalchemy import create_engine, inspect, select
+from sqlalchemy import inspect, select
 
 from app import defects as defects_module
 from app.database import Base
 from app.models import Defect, DefectEvent, EnabledModule, Task, TaskColumn
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v349_abnahme_und_gewaehrleistung import _png, _waits_for, ablage, welt  # noqa: F401  (Fixtures)
 from tests.test_v351_maengel import _abnahme, _anzahl, _iso, _mangel, _ok, _status, buero  # noqa: F401
 from tests.test_v354_maengel_monteur import (  # noqa: F401  (Fixtures)
@@ -258,7 +259,7 @@ def _migration():
 
 def test_migration_adds_and_removes_the_task_column():
     module = _migration()
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
 
     def run(name):

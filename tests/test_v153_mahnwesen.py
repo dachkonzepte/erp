@@ -2,7 +2,6 @@ from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
@@ -22,12 +21,13 @@ from app.reminders import (
     reminder_to_dict,
     update_reminder_level,
 )
+from tests.aufraeumen import wegwerf_engine
 from tests.leistungszeitraum import festschreiben
 from tests.mahnung import festschreiben_und_ablaufen, frist_ablaufen, zustellen
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

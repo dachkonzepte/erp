@@ -1,7 +1,6 @@
 import io
 from pathlib import Path
 
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from starlette.datastructures import Headers, UploadFile
 
@@ -19,10 +18,11 @@ from app.routers.customer_documents import (
 )
 from app.routers.customers import list_customer_documents, upload_customer_document
 from app.schemas import CustomerCreate, CustomerDocumentUpdate, ProjectCreate
+from tests.aufraeumen import wegwerf_engine
 
 
 def new_db():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

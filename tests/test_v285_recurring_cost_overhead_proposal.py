@@ -24,7 +24,6 @@ buero_finanzen und admin. Rekursiver Schlüssel-Scan, ein Testkonto pro Rolle.""
 import json
 from decimal import Decimal
 
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.calculation import load_calculation_settings
@@ -41,12 +40,13 @@ from app.models import Employee
 from app.recurring_costs import create_cost
 from app.routers.labor_rate import router as labor_rate_router
 from app.routers.recurring_costs import router as recurring_costs_router
+from tests.aufraeumen import wegwerf_engine
 
 ALL_ROLES = ("field", "buero_auftrag", "buero_finanzen", "admin")
 
 
 def db_session():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)()
 

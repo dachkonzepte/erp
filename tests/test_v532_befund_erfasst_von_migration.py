@@ -12,6 +12,7 @@ from sqlalchemy.orm import sessionmaker
 
 from tests import bestand_alt
 from tests.test_v380_nummern_eindeutig import _alembic, _ok
+from tests.aufraeumen import wegwerf_engine
 
 MIGRATION = "3e9b7c41d2a8"
 VORHER = "750d709a4863"
@@ -85,7 +86,7 @@ def _migrationsprobe(url: str, engine, Session) -> None:
 
 def test_migration_keeps_the_finding_and_the_way_back(tmp_path):
     url = f"sqlite:///{(tmp_path / 'befund_erfasst_von.db').as_posix()}"
-    engine = create_engine(url)
+    engine = wegwerf_engine(url)
     _migrationsprobe(url, engine, sessionmaker(bind=engine))
 
 

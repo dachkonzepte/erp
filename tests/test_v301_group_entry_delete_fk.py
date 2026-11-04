@@ -7,17 +7,18 @@ weil der wiederverwendete Auftrags-Helfer ein Angebot nur per ID vortäuscht."""
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import select, text
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.models import Team, TeamEmployee, TimeEntry, TimeEntryGroup, TimeEntryGroupMember
 from app.time_tracking import create_group_manual_entry, delete_entry
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v264_field_time_tracking import _employee, _order
 
 
 def _group_with_two_members():
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     db = sessionmaker(bind=engine)()
     a, b = _employee(db, "FK-1", "Anna", "A"), _employee(db, "FK-2", "Ben", "B")

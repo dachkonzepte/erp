@@ -17,6 +17,7 @@ from sqlalchemy.orm import sessionmaker
 
 from tests import bestand_alt
 from tests.test_v380_nummern_eindeutig import _alembic, _ok
+from tests.aufraeumen import wegwerf_engine
 
 MIGRATION = "8d3f6a2c91e7"
 VORHER = "3e9b7c41d2a8"
@@ -117,7 +118,7 @@ def _migrationsprobe(url: str, engine, Session) -> None:
 
 def test_migration_jeder_alte_wert_und_der_rueckweg(tmp_path):
     url = f"sqlite:///{(tmp_path / 'auftragsstatus.db').as_posix()}"
-    engine = create_engine(url)
+    engine = wegwerf_engine(url)
     _migrationsprobe(url, engine, sessionmaker(bind=engine))
 
 

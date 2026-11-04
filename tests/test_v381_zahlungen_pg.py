@@ -15,7 +15,7 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import create_engine, event, func, select
+from sqlalchemy import event, func, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -30,6 +30,7 @@ from app.payments import Line, PaymentRejected, allocate_rest, book_payment, inv
 from app.project_pipeline_columns import default_pipeline_column_id
 from app.projects import load_quote
 from app.routers.payments import router as payments_router
+from tests.aufraeumen import wegwerf_engine
 from tests.leistungszeitraum import festschreiben, mit_zeitraum
 from tests.test_v325_contract_basis import beauftragen, make_quote
 from tests.test_v375_rechnungen_sperren import _run, _vorbereiten, pg  # noqa: F401  (pg ist eine Fixture)
@@ -205,7 +206,7 @@ class SperrBeobachter:
 
 
 def _welt():
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    engine = wegwerf_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)
     db = sessionmaker(bind=engine)()
     anlegen(db)

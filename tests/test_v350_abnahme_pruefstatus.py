@@ -18,11 +18,12 @@ from pathlib import Path
 import pytest
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
-from sqlalchemy import create_engine, inspect, text, update
+from sqlalchemy import inspect, text, update
 
 from app import acceptances as acceptances_module
 from app.database import Base
 from app.models import OrderAcceptance
+from tests.aufraeumen import wegwerf_engine
 from tests.test_v349_abnahme_und_gewaehrleistung import (  # noqa: F401  (Fixtures)
     _dauer, _erfassen, _vorschau, ablage, buero, welt,
 )
@@ -221,7 +222,7 @@ def _migration():
 
 def test_migration_keeps_existing_entries_in_format_1_and_refuses_to_lose_format_2():
     module = _migration()
-    engine = create_engine("sqlite:///:memory:")
+    engine = wegwerf_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
 
     def run(name):

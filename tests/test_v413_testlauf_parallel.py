@@ -28,6 +28,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import create_engine, text
 
+from tests.aufraeumen import wegwerf_engine
 from tests.pg_schutz import (lauf_kennung, lauf_laeuft, liegen_gebliebene_schemas_loeschen, prozess_start,
                              schema_waechter_einrichten, waechter_aktiv)
 
@@ -108,7 +109,7 @@ def _anderer_lauf_raeumt_auf(url: str, monkeypatch) -> dict:
 
 def _katalog(url):
     """Engine für Katalog und Verwaltung (search_path pg_catalog, nicht public -- Regel 27)."""
-    return create_engine(url, connect_args={"options": "-csearch_path=pg_catalog"})
+    return wegwerf_engine(url, connect_args={"options": "-csearch_path=pg_catalog"})
 
 
 def _kommentar(katalog, schema):

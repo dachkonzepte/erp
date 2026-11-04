@@ -16,6 +16,7 @@ from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
 
 from app.reminders import DEFAULT_REMINDER_LEVELS
+from tests.aufraeumen import wegwerf_engine
 from tests.bestand_alt import auftrag
 from tests.test_v380_nummern_eindeutig import _alembic, _ok
 
@@ -115,7 +116,7 @@ def _migrationsprobe(url: str, engine, Session) -> None:
 
 def test_migration_holds_the_customer_of_orders_and_the_way_back(tmp_path):
     url = f"sqlite:///{(tmp_path / 'z2b.db').as_posix()}"
-    engine = create_engine(url)
+    engine = wegwerf_engine(url)
     _migrationsprobe(url, engine, sessionmaker(bind=engine))
 
 
