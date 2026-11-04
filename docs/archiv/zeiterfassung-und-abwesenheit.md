@@ -1249,3 +1249,9 @@ Tabelle, Befunde und Bemerkungen: `docs/archiv/gegenproben-lohn-l1a.md`, Abschni
 - 1.9.170 Nr. 3 (der Admin entscheidet auch unter „Zeiten“): `POST /api/absence-requests/{id}/review` prüft `grund_gegen()` nicht -- ein
   Schlechtwetter-Antrag an einem Tag ohne Sollzeit wird dort genehmigt, der Schlechtwetter-Dialog lehnt denselben ab (422).
 Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.199: Gegenproben zu 1.9.174–1.9.179 (Punkt 5, Block 3)
+
+Tabelle, Befunde und Bemerkungen: `docs/archiv/gegenproben-lohn-l1a.md`, Abschnitt „1.9.199“. 77 Gegenproben zu 24 Festlegungen; 15 blieben grün
+(14 Befunde an 1.9.175 Nr. 1, 6, 7, 1.9.176 Nr. 1, 6, 7, 8, 1.9.177 Nr. 1, 1.9.178 Nr. 3), 15 neue Tests in `tests/test_v606_festlegungen_174_179.py`,
+danach alle rot. Wortlaut und Code passen. Angepasste Erwartungen: keine.

@@ -256,3 +256,179 @@ Je Befund: was grün blieb, der neue Test in `tests/test_v605_festlegungen_170_1
    kein Fehler der Seite (der Fall „Monatserster“ ist in `klicktest_meine_zeiten_angeheftet` abgedeckt). Grundlauf und Gegenproben je eigene
    Instanz, Prozesse über das Werkzeug (eigene PID).
 7. `app/` ist in der Arbeitskopie unverändert: `git status --short` zeigt außer den Änderungen 1.9.192–1.9.194 nur `tests/test_v605_festlegungen_170_173.py` (die Probe-Datei für die Bemerkungen 1–3 ist wieder gelöscht).
+
+## 1.9.199: Festlegungen 1.9.174–1.9.179
+
+24 Festlegungen (1.9.175 Nr. 1–7, 1.9.176 Nr. 1–8, 1.9.177 Nr. 1–6, 1.9.178 Nr. 1–3; 1.9.174 und 1.9.179 ohne eigene Festlegung), 77 Gegenproben
+(davon zwei im Klicktest `klicktest_silvester`), 62 sofort rot, 15 grün -> 14 Befunde an 9 Festlegungen, 15 neue Tests in
+`tests/test_v606_festlegungen_174_179.py`, danach alle rot. Ohne Gegenprobe: 5 Teilaussagen. Eine Fassung (176_3e) war zuerst falsch gebaut (rot aus dem
+falschen Grund) und ist neu gebaut, siehe „Bemerkungen“. Gegenproben auch in einer Migration (1.9.177 Nr. 5) und in `scripts/pruefe_zeitregeln.py`.
+
+| Festlegung | Gegenprobe (Datei: was geändert) | Ergebnis |
+|---|---|---|
+| 1.9.175 Nr. 1a – eigene Liste in den Einstellungen | `settings.html`: `id="kalenderBlock"` umbenannt | 1 rot: v591::test_seiten |
+| 1.9.175 Nr. 1b – Anlegen nur Admin und Büro – Finanzen | `routers/time_backoffice.py`: POST Kalender mit `_role_dep` (Lesen) statt `_regeln_dep` | 2 rot: v591::test_buero_auftrag_liest_nur, v109::test_time_backoffice_router_fully_uses_shared_dependency |
+| 1.9.175 Nr. 1c – Ändern nur Admin und Büro – Finanzen | dito PUT | 2 rot: v591::test_buero_auftrag_liest_nur, v109::test_time_backoffice_router_fully_uses_shared_dependency |
+| 1.9.175 Nr. 1d – Büro – Auftrag liest | GET Kalender mit `_regeln_dep` | 1 rot: v591::test_buero_auftrag_liest_nur |
+| 1.9.175 Nr. 1e – ein Eintrag je Datum | `arbeitszeitkalender.py::_pruefen()`: Prüfung „steht schon … im Kalender“ übergangen | 1 rot: v591::test_abgelehnte_eingaben[doppelt] |
+| 1.9.175 Nr. 1f – abschalten wirkt | `aktive()` und `_datum_passt()` ohne `aktiv` (beide, siehe Bemerkungen) | 2 rot: v591::test_anlegen_aendern_abschalten, v600::test_abgeschalteter_kalendertag_wie_bisher |
+| 1.9.175 Nr. 1g – nur gewerbliche | `gilt()` ohne Gruppe | 8 rot: v591::test_sollzeit_an_heiligabend, ::test_abwesenheit_von_selbst, ::test_urlaub_ueber_heiligabend_zaehlt_ihn_nicht, ::test_halber_urlaubstag_an_heiligabend_nur_kaufmaennisch, v592::test_sollzeit_und_freistellung, ::test_ohne_silvester_keine_frage, ::test_pruefskript_zaehlt_urlaub_ueber_silvester_ohne_antwort, v599::test_kaufmaennisch_ohne |
+| 1.9.175 Nr. 1h – nur Montag bis Freitag | `_datum_passt()` ohne Wochentag | **grün -> Befund 1**; mit v606: 1 rot (v606::test_nur_mo_fr_auch_bei_eigener_sollzeit_am_wochenende) |
+| 1.9.175 Nr. 1 – „abschalten statt löschen“ (kein Löschweg) | keine | bewusst nicht gebaut: es gibt keinen Endpunkt zum Löschen, nichts zum Aushebeln |
+| 1.9.175 Nr. 2a – Abwesenheit nicht gespeichert | `abwesenheiten()` legt je Tag eine `EmployeeAbsence` an | 1 rot, nur mittelbar: v599::test_silvester_als_ganzer_urlaubstag_fehlt (die gespeicherte Zeile blockiert eine spätere Genehmigung); mit v606 dazu direkt v606::test_abwesenheit_des_kalenders_wird_nicht_gespeichert |
+| 1.9.175 Nr. 2b – eigene Karte unter „Zeiten → Abwesenheiten“ | `routers/zeiten.py`: `"kalender": []` | 1 rot: v591::test_zeiten_zeigt_die_arbeitstage_und_den_kalender |
+| 1.9.175 Nr. 2 – nicht einzeln löschbar | keine | bewusst nicht gebaut (die Abwesenheit ist nirgends gespeichert, es gibt keinen Weg) |
+| 1.9.175 Nr. 2 – „stimmt sofort“ bei Kalender, Funktion, Eintritt | siehe 1f (Kalender), 1g (Funktion), 3c (Eintritt) | dieselbe Ableitung, dort rot |
+| 1.9.175 Nr. 3a – 7,00 h nur bei Sollzeit über 0 | `sollzeit.py::soll_zeitraum()`: Kalender-Sollzeit auch bei `wert == 0` | 7 rot: v591::test_teilzeit_an_einem_tag_mit_sollzeit_voll, ::test_ohne_sollzeit_am_wochentag_weder_sollzeit_noch_freistellung, v599::test_teilzeit_nur_an_tagen_mit_sollzeit_und_voll, v600::test_freistellungen_nur_mit_sollzeit, ::test_tafel_zeigt_die_betroffenen_abwesend, ::test_gespeicherte_abwesenheit_geht_vor, ::test_vorschlag_rechnet_den_tag_ohne_die_betroffenen |
+| 1.9.175 Nr. 3b – voll, nicht anteilig | `soll_zeitraum()`: `min(wert, Kalender-Sollzeit)` | 2 rot: v591::test_teilzeit_an_einem_tag_mit_sollzeit_voll, v599::test_teilzeit_nur_an_tagen_mit_sollzeit_und_voll |
+| 1.9.175 Nr. 3c – ohne Sollzeit am Tag weder Sollzeit noch Freistellung, vor dem Eintritt nicht | `kalendertage_im_zeitraum()` ohne Bedingung `soll > 0` | 3 rot: v591::test_ohne_sollzeit_am_wochentag_weder_sollzeit_noch_freistellung, ::test_vor_dem_eintritt_kein_heiligabend, v599::test_teilzeit_nur_an_tagen_mit_sollzeit_und_voll |
+| 1.9.175 Nr. 3d – nach dem Austritt nicht | `sollzeit.py::beschaeftigt_am()` ohne Austritt | 1 rot: test_v585_sollzeit.py::test_eintritt_und_austritt (siehe Bemerkungen) |
+| 1.9.175 Nr. 4a – keine andere Abwesenheit zählt den Kalendertag | `abwesenheit_tage()` zählt Kalendertage mit | 7 rot: v591::test_urlaub_ueber_heiligabend_zaehlt_ihn_nicht, ::test_zeiten_zeigt_die_arbeitstage_und_den_kalender, v592::test_antwort_zaehlt[frei], ::test_ohne_silvester_keine_frage, test_v589::test_weihnachten_und_silvester_ganze_tage, ::test_zeiten_zeigt_halbe_tage, test_v525::test_antrag_ueber_weihnachten_acht_arbeitstage |
+| 1.9.175 Nr. 4b – auch Krankheit zählt 0 | `abwesenheit_tage()` überspringt den Kalendertag nur bei Urlaub | 3 rot: v591::test_urlaub_ueber_heiligabend_zaehlt_ihn_nicht, v592::test_ohne_silvester_keine_frage, test_v589::test_weihnachten_und_silvester_ganze_tage |
+| 1.9.175 Nr. 4c – halber Urlaubstag 422 | `absence_requests.py::_antrag_anlegen()`: Prüfung Kalendertag übergangen | 2 rot: v591::test_halber_urlaubstag_an_heiligabend_nur_kaufmaennisch, v592::test_kein_halber_tag_an_silvester |
+| 1.9.175 Nr. 4d – Schlechtwetter 422 | `schlechtwetter.py::grund_gegen()`: Kalendertag übergangen | 2 rot: v591::test_kein_schlechtwetter_an_heiligabend, v592::test_kein_schlechtwetter_an_silvester |
+| 1.9.175 Nr. 5a – Kennzeichen ohne Lohnart am Kalendertag erlaubt | `lohnarten.py::speichern()`: „Zum Kennzeichen gehört eine Lohnart“ auch am Kalendertag | 1 rot: v591::test_zuordnung_des_kalendertags |
+| 1.9.175 Nr. 5b – nur dort | dieselbe Prüfung überall übergangen | 2 rot: v591::test_zuordnung_des_kalendertags, test_v587::test_pruefungen[feiertag-F-None-False-gehört eine Lohnart] |
+| 1.9.175 Nr. 5c – je Kalendertag eine Zeile | `lohnarten.py::liste()` ohne Kalenderzeilen | 2 rot: v591::test_heiligabend_ist_vorbelegt, ::test_anlegen_aendern_abschalten |
+| 1.9.175 Nr. 5d – exportiert erst mit Lohnart | `lohnarten.py::kalender()`: `exportiert` immer wahr | 3 rot: v591::test_heiligabend_ist_vorbelegt, ::test_zuordnung_des_kalendertags, v592::test_silvester_ist_vorbelegt |
+| 1.9.175 Nr. 5e – Text „BF / Lohnart offen – nicht exportiert“ | `lohnarten.py::_text()` ohne „Lohnart offen – nicht exportiert“ | 1 rot: v591::test_heiligabend_ist_vorbelegt |
+| 1.9.175 Nr. 5 – Export der Zeile mit Lohnart (L1b) | keine | L1b ist nicht gebaut |
+| 1.9.175 Nr. 6a – Änderung gilt auch für zurückliegende Jahre | `_datum_passt()`: Kalendertag nur ab heute | **grün -> Befund 2**; mit v606: 1 rot (v606::test_aenderung_gilt_auch_fuer_zurueckliegende_jahre) |
+| 1.9.175 Nr. 6b – die Seite sagt das | `settings.html`: Satz „Eine Änderung gilt auch für zurückliegende Jahre“ entfernt | **grün -> Befund 3**; mit v606: 1 rot (v606::test_seite_sagt_zurueckliegende_jahre) |
+| 1.9.175 Nr. 7a – ab heute | `naechste()`: auch vergangene Tage | **grün -> Befund 4**; mit v606: 2 rot (v606::test_naechste_ab_heute, ::test_naechste_ganz) |
+| 1.9.175 Nr. 7b – dieses und das nächste Jahr | `naechste(jahre=3)` | **grün -> Befund 5**; mit v606: 1 rot (v606::test_naechste_ganz) |
+| 1.9.175 Nr. 7c – ohne Sa/So bei „nur Mo–Fr“ | `naechste()` ohne Wochenend-Filter | **grün -> Befund 6**; mit v606: 2 rot (v606::test_naechste_ohne_samstag_und_sonntag, ::test_naechste_ganz) |
+| 1.9.175 Nr. 7d – nur aktive Tage | `naechste()` über alle statt `aktive()` | **grün -> Befund 7**; mit v606: 2 rot (v606::test_naechste_nur_aktive_tage, ::test_naechste_ganz) |
+| 1.9.176 Nr. 1a – ohne Antwort 409 auf allen Wegen | `_antrag_anlegen()`: keine `KalendertagFrage` | 4 rot: v592::test_ohne_antwort_fragt_der_server[einzeln], [sammel], [plantafel], ::test_die_monteurin_wird_gefragt |
+| 1.9.176 Nr. 1b – nichts gespeichert (Sammeleintrag) | `sammel_eintragen()`: kein `rollback()` bei der Rückfrage | 1 rot: v592::test_ohne_antwort_fragt_der_server[sammel] |
+| 1.9.176 Nr. 1c – Plantafel 409 mit Rückfrage | `routers/planning.py`: Rückfrage als 422 ohne `rueckfrage` | 1 rot: v592::test_ohne_antwort_fragt_der_server[plantafel] |
+| 1.9.176 Nr. 1d – Sammeleintrag: eine Antwort für alle | `sammel_eintragen()`: Antwort nur für die erste Person | **grün -> Befund 8**; mit v606: 1 rot (v606::test_sammeleintrag_eine_antwort_fuer_alle) |
+| 1.9.176 Nr. 1e – … für die der Tag gilt | `_antrag_anlegen()`: Antwort auch ohne Kalendertag gespeichert | 1 rot: v592::test_ohne_silvester_keine_frage |
+| 1.9.176 Nr. 2a – nur Kategorie Urlaub | `_antrag_anlegen()`: Rückfrage für jede Kategorie | 1 rot: v592::test_ohne_silvester_keine_frage |
+| 1.9.176 Nr. 2b – nur wenn Silvester gilt (gewerblich, Mo–Fr, beschäftigt, Sollzeit) | `rueckfrage_tage()`: jeder aktive Tag nach Datum, ohne Person | 3 rot: v591::test_ohne_sollzeit_am_wochentag_weder_sollzeit_noch_freistellung, v592::test_ohne_silvester_keine_frage, ::test_pruefskript_zaehlt_urlaub_ueber_silvester_ohne_antwort |
+| 1.9.176 Nr. 2c – Krankheit zählt Silvester nicht | `abwesenheit_tage()`: Krankheit zählt den Tag mit Rückfrage wie Urlaub | 1 rot: v592::test_ohne_silvester_keine_frage |
+| 1.9.176 Nr. 3a – Antwort am Antrag | `_antrag_anlegen()`: `kalendertag_urlaub` immer leer | 3 rot: v592::test_antwort_zaehlt[urlaubstag], [frei], ::test_die_monteurin_wird_gefragt |
+| 1.9.176 Nr. 3b – Antwort an der Abwesenheit | `_entscheiden()`: `kalendertag_urlaub` nicht übernommen | 2 rot: v592::test_antwort_zaehlt[urlaubstag], [frei] |
+| 1.9.176 Nr. 3c – „ganzer Urlaubstag“ ersetzt die Freistellung | `urlaub_ersetzt()` leer | 3 rot: v592::test_antwort_zaehlt[urlaubstag], ::test_alter_urlaub_ohne_antwort_gilt_wie_der_vorschlag, v599::test_silvester_als_ganzer_urlaubstag_fehlt |
+| 1.9.176 Nr. 3d – zählt mit der Sollzeit des Modells | `abwesenheit_tage()`: Antwort nicht gezählt | 6 rot: v591::test_urlaub_ueber_heiligabend_zaehlt_ihn_nicht, ::test_zeiten_zeigt_die_arbeitstage_und_den_kalender, v592::test_antwort_zaehlt[urlaubstag], ::test_alter_urlaub_ohne_antwort_gilt_wie_der_vorschlag, test_v589::test_weihnachten_und_silvester_ganze_tage, ::test_zeiten_zeigt_halbe_tage |
+| 1.9.176 Nr. 3e – bis zur Genehmigung gilt die Freistellung | `urlaub_ersetzt()`: offene Anträge zählen dazu (176_3e2; die erste Fassung 176_3e war falsch gebaut, siehe Bemerkungen) | 1 rot: v599::test_silvester_als_ganzer_urlaubstag_fehlt („offen: zählt noch nicht“) |
+| 1.9.176 Nr. 4a – ohne Antwort wie der Vorschlag | `als_urlaubstag()`: nur `True` | 3 rot: v591::test_urlaub_ueber_heiligabend_zaehlt_ihn_nicht, v592::test_alter_urlaub_ohne_antwort_gilt_wie_der_vorschlag, test_v589::test_weihnachten_und_silvester_ganze_tage |
+| 1.9.176 Nr. 4b – Prüfskript zählt solche Anträge | `scripts/pruefe_zeitregeln.py::_urlaub_ohne_antwort()`: zählt 0 | 1 rot: v592::test_pruefskript_zaehlt_urlaub_ueber_silvester_ohne_antwort |
+| 1.9.176 Nr. 5 – kein halber Urlaubstag an Silvester | `_antrag_anlegen()`: Prüfung nur noch an Tagen ohne Rückfrage | 1 rot: v592::test_kein_halber_tag_an_silvester |
+| 1.9.176 Nr. 6 – gebuchte Arbeit an Silvester kommt dazu | `abwesenheiten()`: Tag mit Rückfrage und gebuchter Zeit fällt weg | **grün -> Befund 9**; mit v606: 1 rot (v606::test_gebuchte_arbeit_an_silvester_kommt_dazu). Querprobe ohne Einschränkung auf Silvester (176_6x): 1 rot v591::test_gebuchte_arbeit_mindert_die_freistellung_nicht |
+| 1.9.176 Nr. 7a – die Antwort steht in der Antwort der Schnittstelle | `request_to_dict()`: `kalendertag_urlaub` leer | 3 rot: v592::test_antwort_zaehlt[urlaubstag], [frei], ::test_die_monteurin_wird_gefragt |
+| 1.9.176 Nr. 7b – Liste „Zeiten → Abwesenheiten“ nennt sie | `zeiten.html::abwesenheitHtml()` ohne den Zusatz | Klicktest: klicktest_silvester rot (Rückgabe 1, 2 Prüfungen: „Ada: Liste nennt „frei“ und 8 Arbeitstage“, „Ada: Tom mit Urlaubstag, Kim ohne Frage“); Grundlauf vorher 0 |
+| 1.9.176 Nr. 7c – Liste „Meine Zeiten“ nennt sie | `mobil_zeiten.html` (Anträge) ohne den Zusatz | Klicktest: klicktest_silvester rot (Rückgabe 1, „Mia: Liste nennt den Urlaubstag“) |
+| 1.9.176 Nr. 7d – Liste „Zeiten → Prüfen“ (offene Anträge) nennt sie | `zeiten.html::antragHtml()` ohne den Zusatz | **grün -> Befund 10** (kein pytest, kein Klicktest liest sie); mit v606: 1 rot (v606::test_beide_listen_unter_zeiten_nennen_die_antwort) |
+| 1.9.176 Nr. 8a – „Im Urlaub“ hat zwei Werte | `IM_URLAUB` ohne „fragen“ | 1 rot: v591::test_buero_auftrag_liest_nur |
+| 1.9.176 Nr. 8b – jeder weitere Kalendertag kann „Rückfrage“ (fragt dann) | `rueckfrage_tage()` nur für den Schlüssel „silvester“ | **grün -> Befund 11**; mit v606: 1 rot (v606::test_ein_weiterer_kalendertag_mit_rueckfrage) |
+| 1.9.176 Nr. 8c – … und lässt sich so anlegen | `_pruefen()` lehnt „fragen“ ab | **grün -> Befund 11** (derselbe); mit v606: 1 rot (v606::test_ein_weiterer_kalendertag_mit_rueckfrage) |
+| 1.9.177 Nr. 1a – gemerkt beim Speichern der Lohnstammdaten | `set_employee_payroll()`: `personalnummer_merken()` weg | 7 rot: v593::test_nummernwechsel_sperrt_die_alte_nummer, ::test_nach_austritt_und_geleerter_nummer_gesperrt, ::test_pruefskript_nennt_die_gemerkten_nummern, v595::test_admin_gibt_eine_fruehere_nummer_frei, ::test_nur_der_admin, ::test_eine_getragene_nummer_bleibt, v601::test_liste_nennt_wer_eine_fruehere_nummer_traegt |
+| 1.9.177 Nr. 1b – Gleichsetzung: bisherige Mitarbeiternummer beim Ändern | `routers/employees.py::update_employee()`: bisherige nicht gemerkt | 2 rot: v593::test_gleichsetzung_sperrt_die_mitarbeiternummer, v601::test_bei_gleichsetzung_auch_die_mitarbeiternummer |
+| 1.9.177 Nr. 1c – Gleichsetzung: neue Mitarbeiternummer beim Ändern | dito, neue nicht gemerkt | 1 rot: v593::test_gleichsetzung_sperrt_die_mitarbeiternummer |
+| 1.9.177 Nr. 1d – Gleichsetzung: Mitarbeiternummer beim Anlegen | `create_employee()`: nicht gemerkt | **grün -> Befund 12**; mit v606: 1 rot (v606::test_anlegen_merkt_die_mitarbeiternummer_bei_gleichsetzung) |
+| 1.9.177 Nr. 1e – das Einschalten der Gleichsetzung merkt nichts | `update_time_settings()`: beim Einschalten alle Mitarbeiternummern gemerkt | **grün -> Befund 13**; mit v606: 1 rot (v606::test_einschalten_der_gleichsetzung_merkt_nichts) |
+| 1.9.177 Nr. 2 – dieselbe Person bekommt ihre Nummer wieder | `personalnummer_gesperrt()` sperrt auch die eigene | 2 rot: v593::test_nummernwechsel_sperrt_die_alte_nummer, ::test_gleichsetzung_sperrt_die_mitarbeiternummer |
+| 1.9.177 Nr. 3a – auch ein Tippfehler bleibt gemerkt | `set_employee_payroll()`: beim Wechsel die übrigen Nummern der Person gelöscht | 5 rot: v593::test_nummernwechsel_sperrt_die_alte_nummer, ::test_pruefskript_nennt_die_gemerkten_nummern, v595::test_admin_gibt_eine_fruehere_nummer_frei, ::test_nur_der_admin, v601::test_liste_nennt_wer_eine_fruehere_nummer_traegt |
+| 1.9.177 Nr. 3b – freigeben nur, solange sie niemand trägt | `personalnummer_freigeben()`: Prüfung des Trägers übergangen | 4 rot: v595::test_eine_getragene_nummer_bleibt, ::test_eine_mitarbeiternummer_bei_gleichsetzung_bleibt, v601::test_liste_nennt_wer_eine_fruehere_nummer_traegt, ::test_bei_gleichsetzung_auch_die_mitarbeiternummer |
+| 1.9.177 Nr. 3c – nur der Admin, Büro – Finanzen nicht | `permissions.py`: `PERSONALNUMMER_FREIGEBEN_ROLLEN` mit Büro – Finanzen | 2 rot: v595::test_nur_der_admin, ::test_seite |
+| 1.9.177 Nr. 3d – Eintrag in der Änderungshistorie | `personalnummer_freigeben()` ohne `record_audit_entry()` | 1 rot: v595::test_admin_gibt_eine_fruehere_nummer_frei |
+| 1.9.177 Nr. 3e – Warnung im Dialog | `settings.html`: Warnsatz geändert | 1 rot: v595::test_seite |
+| 1.9.177 Nr. 3 – Notiz für L1b (abgelegter Export sperrt dauerhaft) | keine | L1b ist nicht gebaut |
+| 1.9.177 Nr. 4a – Liste zeigt „früher: …“ | `_payroll_dict()`: `fruehere_personalnummern` leer | 4 rot: v593::test_nummernwechsel_sperrt_die_alte_nummer, ::test_nach_austritt_und_geleerter_nummer_gesperrt, v601::test_liste_nennt_wer_eine_fruehere_nummer_traegt, ::test_bei_gleichsetzung_auch_die_mitarbeiternummer |
+| 1.9.177 Nr. 4b – Meldung nennt, wem sie gehörte | `personalnummer_gesperrt()`: Meldung ohne Namen | 3 rot: v593::test_nummernwechsel_sperrt_die_alte_nummer, ::test_nach_austritt_und_geleerter_nummer_gesperrt, ::test_gleichsetzung_sperrt_die_mitarbeiternummer |
+| 1.9.177 Nr. 4c – die Seite zeigt „früher:“ | `settings.html`: „früher:“ ersetzt | 1 rot: v595::test_seite |
+| 1.9.177 Nr. 5a – Migration übernimmt die DATEV-Nummern | `alembic/versions/1e425fe7faa6_…py::nummern_uebernehmen()`: DATEV-Nummern übergangen | 2 rot: v593::test_migration_auf_einem_bestand_sqlite, ::test_migration_auf_einem_bestand_postgresql |
+| 1.9.177 Nr. 5b – … bei Gleichsetzung die Mitarbeiternummern | dito, Mitarbeiternummern übergangen | 2 rot: v593::test_migration_auf_einem_bestand_sqlite, ::test_migration_auf_einem_bestand_postgresql |
+| 1.9.177 Nr. 5 – „frühere Nummern kennt der Bestand nicht“ | keine | Aussage über den Bestand vor der Migration, kein Verhalten |
+| 1.9.177 Nr. 6a – Prüfskript zählt die gemerkten Nummern | `scripts/pruefe_zeitregeln.py`: Zahl um 1 verfälscht | 1 rot: v593::test_pruefskript_nennt_die_gemerkten_nummern |
+| 1.9.177 Nr. 6b – fremde gemerkte Nummer ist ein Befund (Rückgabe 1) | dito: Befund nur als Zeile | 1 rot: v593::test_pruefskript_nennt_die_gemerkten_nummern |
+| 1.9.178 Nr. 1a – Rückfrage an einem aktiven betriebsfreien Tag | `schlechtwetter.py::betriebsfrei()` immer leer | 3 rot: v594::test_betriebsfreier_tag_fragt_nach, ::test_betriebsfrei_und_gebucht_in_einer_meldung, ::test_die_monteurin_wird_gefragt |
+| 1.9.178 Nr. 1b – ein abgeschalteter fragt nicht | `betriebsfrei()` ohne Bedingung `active` | 1 rot: v594::test_abgeschalteter_betriebsfreier_tag_fragt_nicht |
+| 1.9.178 Nr. 2a – eine Meldung, zuerst der betriebsfreie Tag | `SchlechtwetterWarnung`: Teile der Meldung umgedreht | 1 rot: v594::test_betriebsfrei_und_gebucht_in_einer_meldung |
+| 1.9.178 Nr. 2b – … auch in der Liste `warnungen` | `warnungen()` umgedreht | 1 rot: v594::test_betriebsfrei_und_gebucht_in_einer_meldung |
+| 1.9.178 Nr. 2c – „Trotzdem eintragen“ gilt für alles | `eintragen()`: der betriebsfreie Tag fragt auch mit `trotzdem` | 2 rot: v594::test_betriebsfreier_tag_fragt_nach, ::test_die_monteurin_wird_gefragt |
+| 1.9.178 Nr. 3 – Bestätigen fragt nicht noch einmal | `schlechtwetter.py::entscheiden()`: am betriebsfreien Tag `SchlechtwetterWarnung` | **grün -> Befund 14**; mit v606: 1 rot (v606::test_bestaetigen_fragt_nicht_noch_einmal) |
+
+### Befunde
+
+Je Befund: die Gegenprobe blieb auf den vorhandenen Tests grün; neuer Test in `tests/test_v606_festlegungen_174_179.py`; dieselbe Gegenprobe noch
+einmal mit der Datei: rot (Protokoll `n4/g/b3/lauf5.txt`, endgültiger Stand der Datei).
+
+1. **1.9.175 Nr. 1, „nur Montag bis Freitag“** -- `_datum_passt()` ohne Wochentag blieb grün: bei Tarif ist die Sollzeit am Wochenende ohnehin 0,
+   der Kalendertag fällt dann über „nur mit Sollzeit“ weg. Der Schalter wirkt nur bei eigener Sollzeit am Wochenende. Neu
+   `test_nur_mo_fr_auch_bei_eigener_sollzeit_am_wochenende` (Tom So 4,00 h: So 24.12.2028 bleibt 4,00 h, kein Kalendertag; mit „nur Mo–Fr“ aus
+   7,00 h). Wiederholung: 1 rot.
+2. **1.9.175 Nr. 6, Änderung gilt auch für zurückliegende Jahre** -- „Kalendertag nur ab heute“ blieb grün (alle Tests liegen nach dem festen Tag
+   10.11.2026). Neu `test_aenderung_gilt_auch_fuer_zurueckliegende_jahre` (Heiligabend auf 6,50 h geändert -> Mi 24.12.2025 Soll 6,50 h,
+   Freistellung 6,50 h). Wiederholung: 1 rot.
+3. **1.9.175 Nr. 6, „die Seite sagt das“** -- Satz aus `settings.html` entfernt blieb grün (auch `klicktest_arbeitszeitkalender` liest ihn nicht).
+   Neu `test_seite_sagt_zurueckliegende_jahre` (der Satz im Block `kalenderBlock`). Wiederholung: 1 rot.
+4. **1.9.175 Nr. 7, ab heute** -- `naechste()` mit vergangenen Tagen blieb grün (die Vorgaben 24.12./31.12. liegen nach dem festen Tag). Neu
+   `test_naechste_ab_heute` und `test_naechste_ganz` (heute 01.03.2027, dazu Rosenmontag 15.02. aktiv und ein abgeschaltetes Betriebsfest 01.06.).
+   Wiederholung: 2 rot.
+5. **1.9.175 Nr. 7, dieses und das nächste Jahr** -- `jahre=3` blieb grün: im dritten Jahr (2028) fallen Heiligabend und Silvester auf einen Sonntag
+   und fallen über „nur Mo–Fr“ weg. Abgedeckt von `test_naechste_ganz` (2029 brächte drei Tage dazu). Wiederholung: 1 rot.
+6. **1.9.175 Nr. 7, ohne Samstag und Sonntag** -- ohne Filter blieb grün (2026/2027 fallen beide Tage auf Do/Fr). Neu
+   `test_naechste_ohne_samstag_und_sonntag`. Wiederholung: 2 rot (mit `test_naechste_ganz`).
+7. **1.9.175 Nr. 7, nur aktive Tage** -- `eintraege()` statt `aktive()` blieb grün (keine abgeschalteten Tage in den Tests). Neu
+   `test_naechste_nur_aktive_tage`. Wiederholung: 2 rot (mit `test_naechste_ganz`).
+8. **1.9.176 Nr. 1, Sammeleintrag: eine Antwort für alle** -- Antwort nur für die erste Person blieb grün (der Sammeleintrag über Silvester war nur
+   ohne Antwort geprüft; mit Antwort nur im Klicktest mit einer gewerblichen Person). Neu `test_sammeleintrag_eine_antwort_fuer_alle` (Mia, Tom
+   gewerblich, Kim kaufmännisch, „frei“ -> False, False, leer). Wiederholung: 1 rot.
+9. **1.9.176 Nr. 6, gebuchte Arbeit an Silvester kommt dazu** -- geprüft war nur Heiligabend (die Querprobe ohne Einschränkung ist dort rot). Neu
+   `test_gebuchte_arbeit_an_silvester_kommt_dazu` (4,00 h gebucht am Do 31.12.2026, Freistellung 7,50 h bleibt). Wiederholung: 1 rot.
+10. **1.9.176 Nr. 7, die Liste „Zeiten → Prüfen“ nennt die Antwort** -- `antragHtml()` (offene Anträge unter „Prüfen“) ohne den Zusatz blieb grün;
+    die Liste „Abwesenheiten“ (`abwesenheitHtml()`) prüft nur `klicktest_silvester`. Neu `test_beide_listen_unter_zeiten_nennen_die_antwort`
+    (node, beide Funktionen über die Helfer aus `test_v518`, mit True/False/leer). Wiederholung: 1 rot.
+11. **1.9.176 Nr. 8, jeder weitere Kalendertag kann „Rückfrage“ bekommen** -- zwei Gegenproben blieben grün: die Rückfrage nur für den Schlüssel
+    „silvester“, und Anlegen mit „fragen“ abgelehnt (geprüft war nur der vorbelegte Silvester). Neu `test_ein_weiterer_kalendertag_mit_rueckfrage`
+    (Büro – Finanzen legt „Brückentag“ 07.12. mit „Rückfrage“ an, ein Urlaub 07.–11.12.2026 fragt mit 409 und `rueckfrage`, mit Antwort 200).
+    Wiederholung: beide 1 rot.
+12. **1.9.177 Nr. 1, Gleichsetzung: Anlegen merkt die Mitarbeiternummer** -- nicht gemerkt blieb grün (geprüft war nur das Ändern; das Anlegen nur als
+    abgelehnter Fall). Neu `test_anlegen_merkt_die_mitarbeiternummer_bei_gleichsetzung`. Wiederholung: 1 rot.
+13. **1.9.177 Nr. 1, das Einschalten der Gleichsetzung merkt nichts** -- Merken beim Einschalten blieb grün. Neu
+    `test_einschalten_der_gleichsetzung_merkt_nichts` (PUT `/api/time-backoffice/settings` mit Gleichsetzung -> nichts gemerkt). Wiederholung: 1 rot.
+14. **1.9.178 Nr. 3, Bestätigen fragt nicht noch einmal** -- eine Rückfrage beim Bestätigen am betriebsfreien Tag blieb grün (bestätigt wurde nur an
+    einem gewöhnlichen Tag). Neu `test_bestaetigen_fragt_nicht_noch_einmal` (Uwe beantragt am betriebsfreien Mo 07.12.2026 mit „trotzdem“, der Admin
+    bestätigt: 200, Abwesenheit da). Wiederholung: 1 rot.
+
+Dazu, kein Befund: `test_abwesenheit_des_kalenders_wird_nicht_gespeichert` (1.9.175 Nr. 2) -- die Gegenprobe war rot, aber nur mittelbar (siehe
+Bemerkungen); der Test prüft die Aussage direkt (keine neue Zeile in der Sitzung, keine Abwesenheit, kein Antrag). Wiederholung: rot.
+
+`tests/test_v606_festlegungen_174_179.py` allein: 15 passed (`"$PY" -m pytest -q -p no:cacheprovider tests/test_v606_festlegungen_174_179.py`).
+
+### Bemerkungen
+
+- **176_3e zuerst falsch gebaut**: die erste Fassung ersetzte in `urlaub_ersetzt()` die genehmigten Abwesenheiten durch die Anträge (Alias-Import);
+  rot wurden v592::test_alter_urlaub_ohne_antwort_gilt_wie_der_vorschlag und v599::test_silvester_als_ganzer_urlaubstag_fehlt -- der erste, weil er
+  eine Abwesenheit ohne Antrag anlegt, also aus dem falschen Grund. Neu gebaut als 176_3e2 (offene Anträge zusätzlich zu den Abwesenheiten): rot nur
+  v599::test_silvester_als_ganzer_urlaubstag_fehlt („offen: zählt noch nicht“, seit 1.9.187) -- also kein Befund; ein dafür schon geschriebener Test
+  in v606 wurde wieder entfernt.
+- **175_2a nur mittelbar rot**: die Gegenprobe (`abwesenheiten()` speichert je Tag eine Abwesenheit) machte nur
+  v599::test_silvester_als_ganzer_urlaubstag_fehlt rot, weil die gespeicherte Zeile die spätere Genehmigung des Urlaubs mit „bereits eine genehmigte
+  Abwesenheit“ ablehnt. Rot aus der gespeicherten Zeile, aber an einer fremden Stelle; deshalb der direkte Test in v606 (siehe oben).
+- **175_1f doppelte Sicherung**: „aktiv“ prüfen sowohl `aktive()` als auch `_datum_passt()`; jede allein auszuhebeln ändert nichts. Die Gegenprobe
+  hebelt beide aus.
+- **175_1e**: ohne die Prüfung in `_pruefen()` fängt die Datenbank-Bedingung den zweiten Eintrag für dasselbe Datum weiter ab (422 mit der Meldung aus
+  `_commit()`); rot wird der Test über den Wortlaut der Meldung. Der Schutz selbst ist doppelt.
+- **175_3d (nach dem Austritt)**: rot nur in `test_v585_sollzeit.py::test_eintritt_und_austritt` -- der Kalender folgt der Sollzeit, ein
+  kalenderbezogener Test nach dem Austritt fehlt (für den Eintritt gibt es `test_vor_dem_eintritt_kein_heiligabend`). Kein Befund, weil die Sperre an
+  einer Stelle sitzt (`beschaeftigt_am()`), die dort geprüft ist.
+- **175_7b**: die Festlegung „dieses und das nächste Jahr“ war auf diesem Stand nur zufällig unsichtbar: 2028 fallen beide Vorgaben auf einen
+  Sonntag (siehe Befund 5).
+- **176_7b/7c** liefen als Klicktest-Gegenproben (`klicktest_silvester`, je 1–2 min; Grundlauf vorher Rückgabe 0). Die Listen in „Zeiten“ gibt es zweimal
+  (`antragHtml` unter „Prüfen“, `abwesenheitHtml` unter „Abwesenheiten“); nur die zweite prüfte bisher etwas -> Befund 10.
+- **177 Nr. 5 (Migration)**: die Gegenproben liefen in der Migrationsdatei `alembic/versions/1e425fe7faa6_personalnummern_gesperrt.py`, nicht unter
+  `app/`; beide Migrationstests (SQLite und PostgreSQL, Wegwerf-Schema) wurden rot, die Datei ist byte-genau zurück.
+- **Wortlaut und Code**: keine Abweichung gefunden. Hinweis zu 1.9.175 Nr. 1: der Schalter „nur Montag bis Freitag“ wirkt im Rechnen nur bei
+  eigener Sollzeit am Wochenende (Tarif: Sa/So 0) und in der Liste unter „Zeiten → Abwesenheiten“.
+- In der Arbeitskopie ist `app/`, `scripts/` und `alembic/` unverändert (`git status --short`: nur die Änderungen des Ausgangsstands 1.9.192–1.9.194
+  und die neue Testdatei `tests/test_v606_festlegungen_174_179.py`). Die Hilfsdateien liegen unter `n4/g/b3/`.
+
+### Zahlen
+
+24 Festlegungen; 77 Gegenproben (davon 2 Klicktest-Gegenproben), dazu 1 Querprobe (176_6x) und 1 verworfene Fassung (176_3e); auf den
+vorhandenen Tests 62 rot, 15 grün -> 14 Befunde (8b und 8c sind einer) in 9 Festlegungen (1.9.175 Nr. 1, 6, 7; 1.9.176 Nr. 1, 6, 7, 8; 1.9.177
+Nr. 1; 1.9.178 Nr. 3), alle mit neuem Test in v606 jetzt rot; 5 Teilaussagen ohne Gegenprobe (kein Löschweg ×2, Export L1b, Notiz L1b, Aussage
+über den Bestand) -- jede der 24 Festlegungen hat mindestens eine Gegenprobe.
