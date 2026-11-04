@@ -1343,3 +1343,7 @@ Angepasste Erwartungen (Regel 28): `test_v589::test_alles_oder_nichts` altes Sol
 ### Umsetzung 1.9.206: Wortlaut von 1.9.187 Nr. 3 (Punkt 5, nur Doku)
 
 Festlegung 1.9.187 Nr. 3 oben neu gefasst: die Seite öffnet keine künftigen Monate, die Schnittstelle liefert mit `?monat=` auch einen künftigen Monat samt Freistellungen. Am Code nichts. Beide Teile sind geprüft: die Seite in `klicktest_meine_zeiten` („zurück im Oktober, › gesperrt“; Gegenprobe 187_3b in 1.9.201: 58 von 59), die Schnittstelle in `tests/test_v599_meine_zeiten_freistellungen.py` (am festen Tag 10.11.2026 mit `monat=2026-12`). Gegenprobe zur neuen Fassung: `GET …/meine-zeiten` nimmt höchstens den laufenden Monat (`app/routers/field_view.py`) -> 3 rot (`test_v599::test_dezember_mit_heiligabend_und_silvester`, `::test_teilzeit_nur_an_tagen_mit_sollzeit_und_voll`, `::test_silvester_als_ganzer_urlaubstag_fehlt`). Keine neue Festlegung, keine angepasste Erwartung.
+
+### Umsetzung 1.9.207: Klicktests lesen erst nach der Antwort (Punkt 6, Werkzeug)
+
+Steht im Archiv „Testablauf und Klicktests“, Abschnitt „Klicktests lesen erst nach der Antwort (1.9.207)“: alle Klicktests mit verzögerten Antworten gemessen, 6 Stellen in 6 Klicktests umgestellt (5 lesen nach `oeffnen()`, 1 navigiert nach dem Neuladen), drei Festlegungen zum Werkzeug. Am Programm nichts geändert.

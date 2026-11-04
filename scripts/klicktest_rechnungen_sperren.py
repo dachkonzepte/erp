@@ -209,6 +209,7 @@ async def pruefen(tab, seed, p):
 
     # --- Auftrag E: Schlussrechnung als Entwurf, löschen gibt frei ---
     await tab.oeffnen(f"/orders/{seed['e']}#rechnungen", ORDER_READY)
+    await tab.warte_auf_ruhe()  # seit 1.9.207: die Rechnungsliste der Akte kommt mit einer eigenen Anfrage -- „bereit“ wartet nicht darauf
     sichtbar, text, knopf = await _art(tab, "schluss")
     p.pruefe("E Schluss neben Entwurf: gesperrt", [sichtbar, knopf, "(ein Entwurf)" in text], [True, False, True])
     # seit 1.9.129 (Befund D17): die Rechnungsliste hat kein „Löschen“ mehr (bis dahin deleteDraftFromList() an der Zeile) --

@@ -190,6 +190,9 @@ async def _ansehen(tab, seed, wer, breite, hoehe, thema, pfad="/mobil/zeiten", b
     await tab.oeffnen(pfad, bereit)
     await tab.js(f"localStorage.setItem('erp_theme','{thema}')")
     await tab.oeffnen(pfad, bereit)
+    # seit 1.9.207: die Anträge („1 offener Antrag“) kommen mit einer eigenen Anfrage -- „bereit“ wartet nicht darauf; ebenso die Höhe der Seite
+    # für die Bilder
+    await tab.warte_auf_ruhe()
 
 
 async def _ganze_seite(tab, name, breite, hoehe):

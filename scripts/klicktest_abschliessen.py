@@ -31,7 +31,6 @@ Optionen, Ablauf, Rückgabecode und Regeln (isolierte Wegwerf-Datenbank, Prozess
 scripts/cdp_klicktest.py. Dauer unter einer Minute.
 """
 
-import asyncio
 import sys
 from pathlib import Path
 
@@ -202,8 +201,12 @@ async def _zeitlimit(tab, seed, p):
              await tab.js(_sign_gesendet(bericht)), await tab.js(_status(bericht, auftrag))],
              ["Nicht ausgeführt: bei einem Speichern auf der Seite ist unklar, ob es gespeichert wurde. Bitte die Seite neu "
               "laden und prüfen.", 0, "entwurf"])
-    await tab.js("document.querySelector('#dkSpeichernUnklar button').click(); true")
-    await asyncio.sleep(1.0)
+    await tab.js("window.__dkVorDemNeuladen=true;document.querySelector('#dkSpeichernUnklar button').click(); true")
+    # seit 1.9.207: statt einer festen Sekunde, bis die neu geladene Seite da ist und nichts mehr unterwegs -- sie gleicht beim Laden ihre
+    # Prüfpunkte ab (ein Speichern); öffnete der Test danach die Seite, solange das lief, fragte der Browser „Seite verlassen?“ (bei
+    # verzögerten Antworten gemessen)
+    await tab.warten("!window.__dkVorDemNeuladen&&document.readyState==='complete'", 15)
+    await tab.warte_auf_ruhe()
     await _oeffnen_mit_pruefpunkten(tab, p, auftrag, bericht, punkt)
     p.pruefe("Zeitlimit: nach dem Neuladen steht der gespeicherte Wert da, kein Hinweis", [await tab.js(
         f"document.getElementById('text-{punkt}').value"), await tab.js(

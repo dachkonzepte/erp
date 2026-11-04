@@ -2102,6 +2102,9 @@ prüft danach die Tinte; Wächter `tests/test_v490_zeichnen_ruhig.py`. **Netzwer
 ihn vor dem Neuladen --, sondern `await tab.warte_auf_neu_geladene_liste("…click()", "#liste")` (wartet, bis keine Anfrage der Seite
 mehr unterwegs und die Liste neu gezeichnet ist; ohne Aktion nach `oeffnen()`, bevor geprüft wird, dass etwas NICHT erscheint);
 `tests/test_v397_klicktest_helfer.py`. Ruft der Test die async-Funktion der Seite direkt auf, wartet `tab.js()` ihr Ende schon ab.
+**Nach `oeffnen()`** (seit 1.9.207) liest ein Klicktest nur, worauf `bereit` wartet -- was eine weitere Anfrage der Seite füllt, erst nach
+`tab.warte_auf_ruhe()`; nach einem Neuladen auf das neue Dokument und Ruhe warten, nie eine feste Zeit. Geprüft mit verzögerten Antworten im
+Browser (Methode: `docs/archiv/testablauf-und-klicktests.md`, „Klicktests lesen erst nach der Antwort“).
 **Antwort zurückhalten** (seit 1.8.95): `await tab.zurueckhalten(r"/api/…$", "GET")` hält die nächste passende Antwort der Seite zurück
 (der Server hat sie bearbeitet), `await tab.freigeben()` gibt sie frei, `art="anfrage"` hält die Anfrage selbst; dazu `warte_bis_gehalten()`,
 `warte_auf_ruhe()` (Ruhe außer den zurückgehaltenen). Eine solche Aktion nie über `tab.js()` abwarten (`void f()` statt `f()`), sonst

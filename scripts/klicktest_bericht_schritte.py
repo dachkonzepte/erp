@@ -510,6 +510,7 @@ async def pruefen(tab, seed, p):
         "[['teDate','teType','teHours'].some(i=>!!document.getElementById(i)),document.getElementById('zeitBuchenLink')?.getAttribute('href')]"),
         [False, f"/zeiten?auftrag={a}&buchung=neu#buchungen"])
     await tab.oeffnen(f"/service-reports/{w}", BEREIT)
+    await tab.warte_auf_ruhe()  # seit 1.9.207: den Pfad füllt erst GET /api/orders/{id} -- „bereit“ wartet nicht darauf
     p.pruefe("Büro: Pfad ab Projekte bis Einsatzberichte",
              await tab.js("[...document.querySelectorAll('#seitenkopfPfad a')].map(x=>x.textContent)"),
              ["Projekte", "Hallenbau GmbH", "Wartung Halle Nord", "AUF-KT-BS", "Einsatzberichte"])

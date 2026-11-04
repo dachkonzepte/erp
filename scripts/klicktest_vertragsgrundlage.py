@@ -118,6 +118,8 @@ async def pruefen(tab, seed, p):
     # Auftragsseite
     bereit = "document.getElementById('contractBasisCurrent')?.textContent.includes('VOB/B')"
     await tab.oeffnen(f"/orders/{seed['auftrag']}", bereit)
+    # seit 1.9.207: die Auswahl der Grundlagen und die Warnung kommen mit eigenen Anfragen -- „bereit“ wartet nur auf die aktuelle Grundlage
+    await tab.warte_auf_ruhe()
     aktuell = "document.getElementById('contractBasisCurrent').textContent"
     p.pruefe("Auftrag: aus dem Angebot übernommen", "aus dem Angebot übernommen" in (await tab.js(aktuell) or ""), True)
     p.pruefe("Auftrag: keine Warnung (VOB/B geprüft)", await tab.js("document.getElementById('contractBasisWarning').style.display"), "none")

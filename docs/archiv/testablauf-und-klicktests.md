@@ -1443,3 +1443,40 @@ Herkunft im Lauf 2 (angelegt je im Hauptthread, abgeräumt im Thread eines spät
 **Tests und Prüfung.** Neu `tests/test_v603_engines_aufraeumen.py` (5 Tests): jede `create_engine()` unter `tests/` mit `dispose()` in derselben Funktion, sonst `wegwerf_engine()` (mindestens 140 bzw. 80 Fundstellen, damit der Wächter nicht ins Leere läuft); `schliessen()` schließt ab der Marke, was davor gemerkt wurde, bleibt offen; eine Sitzung mit offener Transaktion, die erst eine Speicherbereinigung in einem anderen Thread abräumt, hinterlässt nach `schliessen()` keinen Fehler im Protokoll; eine liegen gebliebene Sitzung ist danach geschlossen, `close_all_sessions()` wirft nicht; die drei Fixtures laufen. Gegenproben: `schliessen()` ohne `dispose()` -> 1 rot; ohne das Schließen der Sitzungen -> 1 rot (dazu ein Test gegen PostgreSQL mit dem Fehler aus dem ersten Lauf); beides weg -> 3 rot (auch die Sitzung, die im fremden Thread abgeräumt wird, protokolliert dann genau die beiden Zeilen); `_engines_des_tests` nicht autouse -> 1 rot; `db_session()` in `test_v133` wieder mit `create_engine()` -> 1 rot (der Wächter nennt Datei und Zeile).
 
 Angepasste Erwartungen (Regel 28), altes Soll -> neues Soll: `test_v384_pg_nicht_public::test_every_pg_engine_in_tests_has_its_own_schema_or_only_administers`, nur der Aufbau -- der Wächter erkennt eine Engine auf PostgreSQL jetzt an `create_engine()` und `wegwerf_engine()` (sonst sähe er die umgestellten nicht mehr); das Soll (eigenes Schema oder nur Verwaltung, mindestens 20 gesehen) bleibt.
+
+## Klicktests lesen erst nach der Antwort (1.9.207, L1a Stufe 4, Punkt 6)
+
+Vorgabe Tobias (04.11.2026): die Klicktests durchsehen auf Prüfungen, die einen vom Server gefüllten Wert lesen, ohne auf die Antwort zu warten -- dasselbe Muster wie bei `klicktest_bericht_schritte` (1.9.196) und `klicktest_rahmen`; gefundene Stellen auf `warte_auf_ruhe()` umstellen, die Zahl in den Bericht.
+
+**Suche von Hand zu breit.** Ein Durchgang über den Quelltext (AST, Skript im Scratchpad: Lesen nach einem Klick, einem Ereignis oder einer Eingabe ohne `warte_auf_ruhe()`/`warte_auf_neu_geladene_liste()`/`oeffnen()` dazwischen) fand 1031 Kandidaten in 94 Dateien -- die meisten lesen, was die Seite ohne Server zeichnet (ein Dialog geht auf), oder warten über `tab.warten()` genau auf den gelesenen Wert. Von Hand nicht sinnvoll zu sichten.
+
+**Gemessen statt geraten.** Eine Hülle außerhalb des Repos (`sitecustomize.py` über `PYTHONPATH`, nur in Prozessen, die `cdp_klicktest` laden) verzögert im Browser jede Antwort an die Seite (innerste Hülle um `fetch`, Zähler und Rückhalt sehen das späte Ende) und schreibt jedes `tab.js()` aus einer `klicktest_*.py` mit, das läuft, während eine Anfrage der Seite unterwegs ist (Datei, Zeile, Ausdruck, offene Adressen). Liest eine Prüfung einen Wert, bevor seine Antwort da ist, wird sie unter der Verzögerung rot. Zwei volle Läufe auf 5535a94:
+
+| Lauf | Verzögerung | Ergebnis | Lesungen während einer offenen Anfrage |
+|---|---|---|---|
+| A | jede Antwort 600 ms, zu 4 zugleich | 111 von 116 | 1206 an 1019 Stellen in 94 Dateien |
+| B | jede Antwort zufällig 0–1,5 s (auch die Reihenfolge paralleler Antworten), zu 2 zugleich | 109 von 116 | 1406 an 1196 Stellen in 98 Dateien |
+
+Dass eine Stelle während einer offenen Anfrage liest, heißt noch nichts (meist hängt der gelesene Wert an einer anderen Antwort); rot unter der Verzögerung heißt: sie hängt an dieser. Rot waren:
+
+| Klicktest | Lauf | Prüfung | Ursache |
+|---|---|---|---|
+| `klicktest_bericht_schritte` | A, B | „Büro: Pfad ab Projekte bis Einsatzberichte“ | nach `oeffnen()`: den Pfad füllt erst `GET /api/orders/{id}`, „bereit“ wartet nicht darauf |
+| `klicktest_meine_zeiten` | A, B | „Abwesenheit und Monat“ („1 offener Antrag“ fehlt) | nach `oeffnen()` im Helfer `_ansehen()`: die Anträge kommen mit einer eigenen Anfrage |
+| `klicktest_behinderungsanzeige_versand` | A | „Dunkel: … Link im Versandverlauf in der Farbe des Bausteins“ | nach `oeffnen()`: der Versandverlauf kommt mit einer eigenen Anfrage (davor auch Überlauf und Bild) |
+| `klicktest_rechnungen_sperren` | A | „E Liste: Entwurf gelistet, kein „Löschen““ | nach `oeffnen()`: die Rechnungsliste der Akte kommt mit einer eigenen Anfrage |
+| `klicktest_vertragsgrundlage` | B | „Auftrag: ohne Begründung abgelehnt“ und fünf Folgeprüfungen | nach `oeffnen()`: die Auswahl der Grundlagen füllt eine eigene Anfrage -- der Test setzte einen Wert, den es noch nicht gab |
+| `klicktest_abschliessen` | B | Dialog „Seite verlassen?“ (19 von 19, nicht geladen) | nach dem Neuladen eine feste Sekunde, dann `oeffnen()`: die neu geladene Seite gleicht beim Laden ihre Prüfpunkte ab (`POST …/inspection-items/sync`, ein Speichern) -- lief das noch, fragte der Browser |
+| `klicktest_verbindungsprotokoll` | A, B | „Seitenwechsel: am Ende 'noch offen' …“ | kein Fund: prüft das Netzprotokoll des Werkzeugs mit angehaltenen Anfragen; die Verzögerung im Browser verschiebt genau das, was er misst |
+| `klicktest_heute` | B | „Feierabend: Ergebnis mit Tag zusammen“ | anderes Muster: die Uhr der Instanz läuft, die Prüfung erwartet „Tag zusammen 3:15 h“ -- unter der Verzögerung lag zwischen Wechsel und Feierabend über eine halbe Minute (Bild: 3:16 h). Nicht geändert, gemeldet |
+| `klicktest_rahmen` | B | Zeitlimit 15 min | kein Fund: allein mit 90 min Zeitlimit unter derselben Verzögerung 1435 von 1435 (19:40) -- nur die Laufzeit |
+
+**Umgestellt: 6 Stellen in 6 Klicktests** -- 5 lesen nach `oeffnen()` und warten jetzt mit `tab.warte_auf_ruhe()` (`klicktest_bericht_schritte`, `klicktest_meine_zeiten` im Helfer `_ansehen()` -- wirkt auf seine 7 Aufrufe --, `klicktest_behinderungsanzeige_versand`, `klicktest_rechnungen_sperren`, `klicktest_vertragsgrundlage`); 1 navigiert nach dem Neuladen (`klicktest_abschliessen`: statt `asyncio.sleep(1.0)` warten, bis das neue Dokument da ist -- Merker `window.__dkVorDemNeuladen` am alten --, dann `warte_auf_ruhe()`). Zuerst hatte ich in `klicktest_abschliessen` `warte_auf_ruhe()` vor den Klick auf „Seite neu laden“ gesetzt; gemessen (Zustand von `window.__dkSpeichern` vor dem Klick, viermal): davor wartet nichts -- die Stelle kam wieder heraus. `klicktest_rahmen` (in der Vorgabe genannt) hat keine solche Stelle: sein Wackler vom 03.11. war „Anfrage nicht angekommen“ (Liste unten), unter Verzögerung ist er grün.
+
+**Nach der Umstellung** dieselben Klicktests (mit Treffern über `--nur` acht) mit verzögerten Antworten: 600 ms 8 von 8; zufällig 0–1,5 s 8 von 8; `klicktest_abschliessen` danach sechsmal zufällig verzögert 19 von 19, ohne Verzögerung 19 von 19. Die alten Fassungen sind die Gegenprobe: rot in den Läufen A und B oben.
+
+**Festlegungen 1.9.207 zu Werkzeug und Testablauf (Bitte bestätigen)**
+
+1. Nach `oeffnen()` liest ein Klicktest nur, worauf `bereit` wartet; was eine weitere Anfrage der Seite füllt (Pfad, Listen, Auswahl, Zähler, Verlauf), erst nach `tab.warte_auf_ruhe()` oder einer Bedingung genau auf den gelesenen Wert -- auch Bilder und Messungen der Seite (Überlauf, Höhe).
+2. Nach einem Neuladen wartet ein Klicktest auf das neue Dokument und Ruhe, nie eine feste Zeit, bevor er weiter navigiert.
+3. Das Muster wird mit verzögerten Antworten im Browser geprüft (gleichmäßig 600 ms und zufällig 0–1,5 s, alle Klicktests); die Hülle liegt außerhalb des Repos (wie das Zähl-Plugin von 1.9.195), die Methode steht hier. Ein Klicktest, der nur unter Verzögerung rot wird, ist ein Fund wie ein Wackler; eine Stelle, die nur während einer offenen Anfrage liest, ohne davon abzuhängen, wird nicht umgestellt.

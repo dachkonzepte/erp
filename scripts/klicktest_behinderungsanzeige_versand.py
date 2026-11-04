@@ -286,6 +286,7 @@ async def _pruefen(tab, seed, p):
     await tab.fenster(412, 900, mobil=True)
     await tab.js("localStorage.setItem('erp_theme','dark')")
     await tab.oeffnen(f"/checklisten/{cid}", f"{BEH} && {BEH}.querySelector('.badge')")
+    await tab.warte_auf_ruhe()  # seit 1.9.207: der Versandverlauf kommt mit einer eigenen Anfrage -- Überlauf, Bild und Link-Farbe erst danach
     p.pruefe("Dunkel: aktiv", await tab.js("document.documentElement.dataset.theme"), "dark")
     p.pruefe("412 px: nichts ragt über den Bildschirm", await tab.ueberlauf(), [])
     await tab.bild_ganz("breite_checkliste_buero_dunkel")
