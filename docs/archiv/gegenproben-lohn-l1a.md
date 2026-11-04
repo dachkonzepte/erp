@@ -550,3 +550,112 @@ Neue Datei `tests/test_v607_festlegungen_180_185.py` (10 Tests, Docstrings „Se
 - Der Wortlaut aller 13 Festlegungen passt zum Code; keine Abweichung gefunden.
 - `git -C wt_b4 status --short` zeigt außer den vorhandenen Änderungen 1.9.192–1.9.194 (8 Dateien, unverändert) und
   `tests/test_v602_…` nur `tests/test_v607_festlegungen_180_185.py`.
+
+## 1.9.201: Festlegungen 1.9.186–1.9.191
+
+15 Festlegungen (1.9.186 Nr. 1–3, 1.9.187 Nr. 1–3, 1.9.188 Nr. 1–5, 1.9.189 Nr. 1, 1.9.191 Nr. 1–2, Werkzeug 1.9.190 Nr. 1), geprüft auf dem Stand
+mit 1.9.192–1.9.194, 43 Gegenproben (vier davon zusätzlich im Klicktest), 35 sofort rot, 8 grün -> 7 Befunde, 7 neue Tests in
+`tests/test_v608_festlegungen_186_191.py`, danach alle rot. Ohne Gegenprobe: 1.9.188 Nr. 5b (Grund in der Tabelle).
+
+| Festlegung | Gegenprobe | Ergebnis |
+|---|---|---|
+| 1.9.186 Nr. 1a – „Beenden“ trägt das Ende am **Starttag** ein | `mobil_zeiten.html` `beenden()`: Ende `berlinToday()` statt `a.tag` | 1 rot: test_v598::test_seite_beendet_ueber_ende_nachtragen |
+| 1.9.186 Nr. 1b – dieselben Regeln wie „Ende nachtragen“ | `routers/field_view.py`: `ende_nachtragen_pruefen()` nicht aufgerufen | 3 rot: test_v598::test_gruppenzeit_beendet_nur_der_kolonnenfuehrer, test_v598::test_monat_abgeschlossen_und_nur_lesen, test_v602::test_ohne_beenden_der_grund_des_servers |
+| 1.9.186 Nr. 1c – auch für das Büro (ohne „Heute“) | `field_view.py`: „Beenden“ nur mit Monteursansicht (`hat_monteursansicht` statt `darf_zeit_buchen`) | 1 rot: test_v602::test_buero_finanzen_beendet_ohne_heute |
+| 1.9.186 Nr. 1d – im Dialog, kein Wechsel auf „Heute“ (Zeile im Monat des Starts) | `zeileHtml()`: Link nach `/mobil` statt Knopf | 2 rot: test_v602::test_seite_zeile_mit_beenden_statt_link, test_v602::test_seite_klick_oeffnet_den_dialog_mit_den_feldern_der_zeile |
+| 1.9.186 Nr. 1e – dasselbe an der angehefteten Zeile | `angeheftetZeichnen()`: Link nach `/mobil` statt Knopf | 2 rot: test_v598::test_seite_zeigt_startdatum_und_beenden, test_v602::test_seite_klick_oeffnet_den_dialog_mit_den_feldern_der_zeile |
+| 1.9.186 Nr. 2a – angeheftet im Monat nach dem Start | `meine_zeiten.py::angeheftet()` gibt immer None | 3 rot: test_v598::test_laufende_zeit_vom_vormonat_angeheftet, ::test_gruppenzeit_beendet_nur_der_kolonnenfuehrer, ::test_monat_abgeschlossen_und_nur_lesen |
+| 1.9.186 Nr. 2b – nicht im Monat des Starts | Bedingung `work_date.replace(day=1) > erster` (auch im Startmonat angeheftet) | 3 rot: test_v598::test_im_monat_des_starts_nicht_angeheftet, ::test_heute_begonnene_zeit_nie_angeheftet, test_v602::test_zeile_von_frueher_im_monat_mit_beenden |
+| 1.9.186 Nr. 2c – in einem Monat davor gar nicht | Bedingung `work_date.replace(day=1) == erster` (in Monaten vor dem Start angeheftet) | zuerst **grün** (17 passed) – Befund 1; mit neuem Test 1 rot: test_v608::test_186_2_im_monat_vor_dem_start_weder_angeheftet_noch_zeile |
+| 1.9.186 Nr. 2d – im Monat des Starts an ihrem Tag | `meine_zeiten()`: laufende Zeit von einem früheren Tag fehlt in den Zeilen | 4 rot: test_v598::test_im_monat_des_starts_nicht_angeheftet, test_v602::test_zeile_von_frueher_im_monat_mit_beenden, ::test_buero_finanzen_beendet_ohne_heute, ::test_ohne_beenden_der_grund_des_servers |
+| 1.9.186 Nr. 3a – ohne „Beenden“ mit der **Meldung des Servers** | `field_view.py`: `grund` fester Text statt `exc.detail` | 3 rot: test_v598::test_gruppenzeit_beendet_nur_der_kolonnenfuehrer, ::test_monat_abgeschlossen_und_nur_lesen, test_v602::test_ohne_beenden_der_grund_des_servers |
+| 1.9.186 Nr. 3b – Büro – Auftrag ohne „Beenden“ | `field_view.py`: `darf_zeit_buchen()` übergangen | 2 rot: test_v598::test_monat_abgeschlossen_und_nur_lesen, test_v602::test_ohne_beenden_der_grund_des_servers |
+| 1.9.186 Nr. 3c – Seite nennt den Grund (angeheftet) | `angeheftetZeichnen()` ohne Grund | 1 rot: test_v598::test_seite_ohne_beenden_nennt_den_grund_und_leer_ohne_zeit |
+| 1.9.186 Nr. 3d – Seite nennt den Grund (Zeile im Monat) | `zeileHtml()` ohne Grund | 1 rot: test_v602::test_seite_zeile_ohne_beenden_nennt_den_grund |
+| 1.9.186 Nr. 3e – kein Knopf ohne Recht (angeheftet) | Knopf auch bei `beenden=false` | 1 rot: test_v598::test_seite_ohne_beenden_nennt_den_grund_und_leer_ohne_zeit |
+| 1.9.186 Nr. 3f – kein Knopf ohne Recht (Zeile) | Knopf auch bei `beenden=false` | 1 rot: test_v602::test_seite_zeile_ohne_beenden_nennt_den_grund |
+| 1.9.187 Nr. 1a – je Tag wie ein Antrag, „gilt ohne Antrag“ statt Status | `freistellungenZeichnen()`: „genehmigt“ | 1 rot: test_v599::test_seite_wie_die_antraege_mit_stunden_und_bezahlt |
+| 1.9.187 Nr. 1b – in der Karte „Abwesenheit“, nicht unter den Buchungen | `mobil_zeiten.html`: `#abwFrei` aus der Karte „Abwesenheit“ in die Karte „Buchungen“ verschoben | pytest grün (24 passed, Lage); Klicktest klicktest_meine_zeiten_freistellungen **rot** (Rückgabe 1, 10/11): „Die Zeilen stehen in der Karte „Abwesenheit“ unter dem Text“ [False, True] |
+| 1.9.187 Nr. 2a – Stunden = Sollzeit des Tags (Zahl des Lohns) | `meine_zeiten()`: Stunden der Freistellungen fest 8,00 | 3 rot: test_v599::test_dezember_mit_heiligabend_und_silvester, ::test_teilzeit_nur_an_tagen_mit_sollzeit_und_voll, ::test_silvester_als_ganzer_urlaubstag_fehlt |
+| 1.9.187 Nr. 2b – Kacheln zählen nur Buchungen | Kachel „Monat“ + Stunden der Freistellungen | 1 rot: test_v598::test_laufende_zeit_vom_vormonat_angeheftet (nur nebenbei, s. Bemerkungen); mit neuem Test 2 rot (+ test_v608::test_187_2_kacheln_und_monat_ohne_freistellungen) |
+| 1.9.187 Nr. 2c – „Monat“ (Tage) zählt nur Buchungen | `monat_tage` + Tage der Freistellungen | zuerst **grün** (24 passed) – Befund 2; mit neuem Test 1 rot: test_v608::test_187_2_kacheln_und_monat_ohne_freistellungen |
+| 1.9.187 Nr. 3a – nur im Monat des Kalendertags | Freistellungen des ganzen Jahrs geliefert | 1 rot: test_v599::test_andere_monate_ohne |
+| 1.9.187 Nr. 3b – › nur bis zum laufenden Monat | `zeichnen()`: `monatVor.disabled=false` | pytest grün (24 passed, Anzeige); Klicktest klicktest_meine_zeiten **rot** (Rückgabe 1, 58/59): „zurück im Oktober, › gesperrt“ ['Oktober 2026', False] |
+| 1.9.188 Nr. 1a – Freistellung = Abwesenheit, Kapazität 0 | `planning_board()`: Abwesenheiten ohne Freistellungen (`_absence_map`) | 1 rot: test_v600::test_tafel_zeigt_die_betroffenen_abwesend |
+| 1.9.188 Nr. 1b – Hinweis statt Warnung, speichern ohne Rückfrage | `WARNUNG_ARTEN` + `kalendertag` | 4 rot: test_v600::test_tafel_zeigt_die_betroffenen_abwesend, ::test_speichern_ohne_rueckfrage_mit_hinweis, ::test_gespeicherte_abwesenheit_geht_vor, test_v563::test_feiertag_200_mit_hinweis |
+| 1.9.188 Nr. 1c – Einsatz markiert, zählt unter „Konflikte“ | `FAERBT_NICHT` + `kalendertag` | 1 rot: test_v600::test_tafel_zeigt_die_betroffenen_abwesend (conflict_count) |
+| 1.9.188 Nr. 1d – Hinweis über der Tafel („Freistellung: “) | `planning.html` `KONFLIKT_ART` ohne `kalendertag` | 1 rot: test_v600::test_seite_nennt_die_freistellung |
+| 1.9.188 Nr. 2 – ein Hinweis je Einsatz und Tag mit allen Betroffenen | `_conflicts()`: je Person ein Hinweis | 2 rot: test_v600::test_tafel_zeigt_die_betroffenen_abwesend, ::test_speichern_ohne_rueckfrage_mit_hinweis |
+| 1.9.188 Nr. 3 – betroffen nach der Sollzeit des Lohns (Ben wie bisher) | `arbeitszeitkalender.py::freistellungen()`: Bedingung Sollzeit > 0 übergangen | 5 rot: test_v600::test_freistellungen_nur_mit_sollzeit, ::test_tafel_zeigt_die_betroffenen_abwesend, ::test_speichern_ohne_rueckfrage_mit_hinweis, ::test_gespeicherte_abwesenheit_geht_vor, ::test_vorschlag_rechnet_den_tag_ohne_die_betroffenen |
+| 1.9.188 Nr. 4a – gespeicherte Abwesenheit geht vor | `_abwesend_map()`: Freistellung überschreibt die gespeicherte | 1 rot: test_v600::test_gespeicherte_abwesenheit_geht_vor |
+| 1.9.188 Nr. 4b – Büro – Auftrag sieht am Mitarbeiter „abwesend“ | `routers/planning.py::_redact_board_absences()`: Heiligabend/Silvester nicht geschwärzt | zuerst **grün** (29 passed) – Befund 3; mit neuem Test 1 rot: test_v608::test_188_4_buero_auftrag_sieht_abwesend_und_den_tag_im_hinweis |
+| 1.9.188 Nr. 4c – der Hinweis nennt den Tag für alle Rollen | `_conflicts()`: Hinweis bekommt `label_redacted` ohne den Tag | zuerst **grün** (29 passed) – Befund 3; mit neuem Test 1 rot: test_v608::test_188_4_buero_auftrag_sieht_abwesend_und_den_tag_im_hinweis |
+| 1.9.188 Nr. 5a – nicht in der Liste „Abwesenheiten“ der Tafel | `planning_board()`: Freistellungen in `board["absences"]` | 1 rot: test_v600::test_tafel_zeigt_die_betroffenen_abwesend |
+| 1.9.188 Nr. 5b – lässt sich dort nicht löschen | **keine**: Löschen geht nur über die ganzzahlige ID einer gespeicherten `EmployeeAbsence`; eine Freistellung hat keine Zeile und steht nach 5a in keiner Liste mit Löschknopf – eine Gegenprobe müsste einen Löschweg erst bauen | – |
+| 1.9.189 Nr. 1a – die Spalte Mitarbeiter bleibt beim waagrechten Rollen stehen | `settings.html`: `position:static` statt `sticky` | pytest zuerst grün (wie im Archiv: „reines CSS“); Klicktest klicktest_personalnummer_freigeben **rot** (Rückgabe 1, 16/17): „Nach rechts gerollt: Mitarbeiter am linken Rand …“ [-303, -303, False, …, False]; dazu jetzt 1 rot: test_v608::test_189_1_nur_die_spalte_mitarbeiter_steht_die_kopfzeile_rollt_mit |
+| 1.9.189 Nr. 1b – nur die Spalte; die Kopfzeile rollt senkrecht mit | `settings.html`: `.lohn-tabelle thead th{position:sticky;top:0}` ergänzt | pytest **grün** (10 passed), Klicktest klicktest_personalnummer_freigeben **grün** (17/17) – Befund 4; mit neuem Test 1 rot: test_v608::test_189_1_nur_die_spalte_mitarbeiter_steht_die_kopfzeile_rollt_mit |
+| 1.9.191 Nr. 1a – „(trägt heute …)“ auch ohne Recht zum Freigeben (Seite) | `fruehereNummer()`: Träger nur mit `PNR_FREIGEBEN` | 1 rot: test_v601::test_seite_ohne_recht_zum_freigeben_nennt_den_traeger_auch |
+| 1.9.191 Nr. 1b – Server liefert den Träger nicht nur dem Admin | Router `GET …/payroll-employees`: `fruehere_traeger` leer außer Admin | 2 rot: test_v601::test_liste_nennt_wer_eine_fruehere_nummer_traegt, ::test_bei_gleichsetzung_auch_die_mitarbeiternummer |
+| 1.9.191 Nr. 1c – … auch lesend Büro – Auftrag | Router: `fruehere_traeger` leer für Büro – Auftrag | zuerst **grün** (10 passed) – Befund 5; mit neuem Test 1 rot: test_v608::test_191_1_jede_rolle_der_liste_sieht_den_traeger |
+| 1.9.191 Nr. 2a – dieselbe Regel wie die Freigabe (Gleichsetzung: Mitarbeiternummer, getrimmt) | `personalnummern_traeger()`: Mitarbeiternummer nie geprüft | 1 rot: test_v601::test_bei_gleichsetzung_auch_die_mitarbeiternummer |
+| 1.9.191 Nr. 2b – die eigene frühere Nummer in den Lohnstammdaten nennt die Person selbst | `_payroll_dict()`: eigener Name aus `fruehere_traeger` gefiltert | zuerst **grün** (18 passed) – Befund 6; mit neuem Test 1 rot: test_v608::test_191_2_eigene_fruehere_nummer_in_den_lohnstammdaten_nennt_die_person_selbst |
+| 1.9.191 Nr. 2c – ohne Gleichsetzung zählt keine Mitarbeiternummer (dieselbe Regel) | `personalnummern_traeger()`: Mitarbeiternummer immer geprüft | zuerst **grün** (18 passed) – Befund 7; mit neuem Test 1 rot: test_v608::test_191_2_ohne_gleichsetzung_zaehlt_die_mitarbeiternummer_nicht |
+| 1.9.190 Nr. 1a (Werkzeug) – Zustand **von vorher**, kein fester Wert | `test_v564::Zaehler._zurueck()`: immer `gc.enable()` | 1 rot: test_v564::test_zaehler_laesst_eine_ausgeschaltete_speicherbereinigung_aus |
+| 1.9.190 Nr. 1b (Werkzeug) – auch wenn das Abmelden scheitert (finally) | `Zaehler.__exit__` ohne try/finally | 1 rot: test_v564::test_zaehler_stellt_die_speicherbereinigung_wieder_her[beim_abmelden] |
+| 1.9.190 Nr. 1c (Werkzeug) – auch wenn das Anmelden scheitert | `Zaehler.__enter__` ohne try/except | 1 rot: test_v564::test_zaehler_stellt_die_speicherbereinigung_wieder_her[beim_anmelden] |
+
+### Befunde
+
+Alle neuen Tests stehen in `tests/test_v608_festlegungen_186_191.py` (7 Tests, allein grün: `7 passed`; nur bestehende Fixtures und Helfer,
+feste Tage über `uhr_festhalten(tag=…)` bzw. `fester_tag`). Keine bestehende Testdatei geändert.
+
+1. **1.9.186 Nr. 2 („in einem Monat davor gar nicht“)** – grün blieb: `angeheftet()` heftet die Zeit in Monaten **vor** dem Start an (Bedingung
+   `== erster`); kein Test öffnete einen Monat vor dem Start. Neu: `test_186_2_im_monat_vor_dem_start_weder_angeheftet_noch_zeile` (Uhr 01.12.2026,
+   Start 30.11.: Oktober nichts, November an ihrem Tag, Dezember angeheftet). Wiederholung: 1 rot.
+2. **1.9.187 Nr. 2 („Kacheln und „Monat“ zählen nur Buchungen“)** – grün blieb: `monat_tage` zählt die Tage der Freistellungen mit; die Kachel
+   „Monat“ fing nur nebenbei test_v598 (s. Bemerkungen). Neu: `test_187_2_kacheln_und_monat_ohne_freistellungen` (Uhr Do 24.12.2026, keine Buchung:
+   Freistellungen 7,00 h und 7,50 h da, Kacheln heute/Woche/Monat 0, Tage 0, Fahrzeit und produktiv 0, keine Tage in „Buchungen“). Wiederholung:
+   2c 1 rot, 2b jetzt 2 rot.
+3. **1.9.188 Nr. 4 (Büro – Auftrag)** – grün blieben beide Gegenproben: Freistellung am Mitarbeiter für Büro – Auftrag nicht geschwärzt (4b), Hinweis
+   ohne den Tag für Büro – Auftrag (4c). test_v600 rief die Tafel nur als Admin; geprüft hatte das bisher nur `klicktest_plantafel_kalender`
+   (Berta). Neu: `test_188_4_buero_auftrag_sieht_abwesend_und_den_tag_im_hinweis` (Mia, Tom, Ben mit Krankheit am 22.12. zum Vergleich: am 24.12.
+   „abwesend“, Ben ohne; Kolonne ohne Art; Hinweis „Heiligabend – Mia Test, Tom Test“ für Admin und Büro – Auftrag gleich). Wiederholung: je 1 rot.
+4. **1.9.189 Nr. 1 („die Kopfzeile rollt beim senkrechten Rollen weiter mit“)** – grün blieb eine oben angeheftete Kopfzeile, in pytest und im
+   Klicktest (der misst nur waagrecht). Neu: `test_189_1_nur_die_spalte_mitarbeiter_steht_die_kopfzeile_rollt_mit` (statisch über die CSS-Regeln
+   der `.lohn-tabelle`: angeheftet nur `th:first-child,td:first-child` mit `left:0`, keine Regel mit `top`/`bottom`; erste Spalte „Mitarbeiter“).
+   Wiederholung: 1 rot; er fängt auch 1a.
+5. **1.9.191 Nr. 1 („lesend Büro – Auftrag“)** – grün blieb: der Server lässt den Träger für Büro – Auftrag weg; test_v601 las als Büro – Finanzen.
+   Neu: `test_191_1_jede_rolle_der_liste_sieht_den_traeger` (Admin, Büro – Finanzen, Büro – Auftrag gleich). Wiederholung: 1 rot.
+6. **1.9.191 Nr. 2 („eigener Name“)** – grün blieb: der eigene Name wird aus `fruehere_traeger` gefiltert (dann stünde „freigeben“, die Freigabe
+   lehnt aber ab). Neu: `test_191_2_eigene_fruehere_nummer_in_den_lohnstammdaten_nennt_die_person_selbst` (Mia 91008, dann „DATEV-Nr. = ERP-Nr.“:
+   Liste nennt Mia, Freigabe 409). Wiederholung: 1 rot.
+7. **1.9.191 Nr. 2 („dieselbe Regel“, ohne Gleichsetzung)** – grün blieb: die Mitarbeiternummer zählt auch ohne Gleichsetzung als Träger (die
+   Freigabe ginge, die Liste nennte trotzdem einen Träger). Neu: `test_191_2_ohne_gleichsetzung_zaehlt_die_mitarbeiternummer_nicht` (Tom mit
+   Mitarbeiternummer 91008: niemand genannt, Freigabe 200). Wiederholung: 1 rot.
+
+### Bemerkungen
+
+- **Klicktests** nur, wo die Aussage Lage oder Anzeige ist: 187 Nr. 1b (Lage der Zeilen in der Karte), 187 Nr. 3b (› gesperrt), 189 Nr. 1a/1b
+  (Rollen der Tabelle). Alle vier mit dem Zeitlimit der Gegenprobe (120 s) durchgelaufen, keiner bei 2/3. Bei 187 Nr. 3b meldete das Werkzeug
+  zusätzlich eine offene Anfrage `timesheet.pdf` (laut Server fertig, 200) – Begleiterscheinung der Meldung, rot war nur die eine Prüfung.
+- **1.9.187 Nr. 2b** fiel ohne neuen Test nur nebenbei: `test_v598::test_laufende_zeit_vom_vormonat_angeheftet` prüft im Dezember die Kachel „Monat“
+  = 0 („eine laufende Zeit zählt nicht mit“) – rot nur, weil Mia gewerblich mit Tarif ist und der Dezember Freistellungen hat. Jetzt deckt es
+  test_v608 eigens ab.
+- **1.9.186 Nr. 1a** (Ende am Starttag) prüft pytest nur als wörtlichen Text der Zeile in `beenden()`; im Browser zusätzlich
+  `klicktest_meine_zeiten_angeheftet` (nicht als Gegenprobe gelaufen, die pytest-Gegenprobe war rot).
+- **1.9.186 Nr. 1d/1e**: rot wird je auch `test_v602::test_seite_klick_oeffnet_den_dialog_mit_den_feldern_der_zeile` – über seine Prüfung
+  `'href="/mobil">Feierabend' not in text` (ganzer Vorlagentext); das ist der geprüfte Grund (kein Link nach „Heute“).
+- **1.9.187 Nr. 3 – Wortlaut**: „künftige Monate öffnet „Meine Zeiten“ nicht“ gilt für die Seite (›, die Seite nimmt keinen Monat aus der Adresse);
+  `GET /api/field-view/meine-zeiten?monat=2026-12` liefert am 10.11. einen künftigen Monat samt Freistellungen (test_v599 nutzt das selbst). Kein
+  Widerspruch zum Code, nur zur Lesart „Heiligabend steht ab dem 1. Dezember da“ – gemeldet, nicht geändert.
+- **1.9.188 Nr. 5b** ohne Gegenprobe (s. Tabelle). Den Satz über der Tafel (1.9.193) prüft test_v600::test_seite_nennt_die_freistellung; er war
+  nicht Gegenstand dieses Blocks.
+- **1.9.190** gilt laut Wortlaut für jeden Testhelfer mit Prozesszustand (Speicherbereinigung, Uhr, Umgebung). Gegenproben nur am `Zaehler` (Auftrag);
+  gelesen: `tests/uhr.py::uhr_festhalten()` stellt `berlin_time._utc_now` in `finally` auf den Wert von vorher zurück – passt.
+- Die 189-Gegenprobe 1b als CSS-Regel, nicht im Browser gemessen: test_v608 prüft die Regeln statisch (wie test_v600 die `.absence-mark`-Regel);
+  eine Messung des senkrechten Rollens bräuchte eine Änderung an `klicktest_personalnummer_freigeben.py` (nicht gemacht, nur Tests in test_v608).
+- Rot nur aus dem geprüften Grund: alle Läufe FAILED, nie ERROR; für die zehn Wiederholungen mit dem neuen Test zeigt `lauf3.txt` je die
+  AssertionError-Meldung (mit `COLUMNS=400`) – jeweils an der erwarteten Prüfung (z. B. 188 Nr. 4b „['Heiligabend', …] == ['abwesend', …]“,
+  191 Nr. 2c „{… 'Tom Monteur'} == {}“).
+- Am Ende: `app/` und `tests/test_v564_plantafel_leistung.py` unverändert (alle Prüfsummen gleich), `git status --short` zeigt außer dem
+  Ausgangsstand (1.9.192–1.9.194) nur `?? tests/test_v608_festlegungen_186_191.py`. Kein Commit, nichts im Hauptbaum.

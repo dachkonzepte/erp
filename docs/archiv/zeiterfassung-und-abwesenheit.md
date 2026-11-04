@@ -1261,3 +1261,12 @@ danach alle rot. Wortlaut und Code passen. Angepasste Erwartungen: keine.
 Tabelle, Befunde und Bemerkungen: `docs/archiv/gegenproben-lohn-l1a.md`, Abschnitt „1.9.200“ (die Werkzeug-Festlegungen 1.9.183 und 1.9.185 stehen
 dort mit). 42 Gegenproben zu 13 Festlegungen; 13 blieben grün (Befunde an 10 Aussagen), 10 neue Tests in `tests/test_v607_festlegungen_180_185.py`,
 danach alle rot. Wortlaut und Code passen. Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.201: Gegenproben zu 1.9.186–1.9.191 (Punkt 5, Block 5)
+
+Tabelle, Befunde und Bemerkungen: `docs/archiv/gegenproben-lohn-l1a.md`, Abschnitt „1.9.201“. 43 Gegenproben zu 15 Festlegungen; 8 blieben grün
+(7 Befunde), 7 neue Tests in `tests/test_v608_festlegungen_186_191.py`, danach alle rot. Gemeldet: Festlegung 1.9.187 Nr. 3 gilt für die Seite; die
+Schnittstelle liefert mit `?monat=` auch einen künftigen Monat samt Freistellungen. Angepasste Erwartungen: keine.
+
+Zusammen (1.9.197–1.9.201): 95 Festlegungen, 277 Gegenproben (und eine Nullprobe), 67 zuerst grün -> 56 neue Testfunktionen in fünf Dateien
+(test_v604 … test_v608), danach jede Gegenprobe rot. Ohne Gegenprobe: die Werkzeug-Festlegung 1.9.166 Nr. 1 und 19 Teilaussagen, je mit Grund.
