@@ -1236,3 +1236,16 @@ Tabelle, Befunde und Bemerkungen: `docs/archiv/gegenproben-lohn-l1a.md`, Abschni
 alle rot. Zwei Abweichungen von Wortlaut und Code gemeldet, nicht geändert: 1.9.169 Nr. 3 („nicht je Art“) -- `zuordnung()` prüft die Art auch bei
 Schlechtwetter vor der Jahreszeit, eine gespeicherte Zeile „art:schlechtwetter“ ginge Winter und Sommer vor (zu entscheiden: Code oder Wortlaut);
 1.9.168 Nr. 3 nannte die Freigabe von 1.9.181 nicht (oben vermerkt). Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.198: Gegenproben zu 1.9.170–1.9.173 (Punkt 5, Block 2)
+
+Tabelle, Befunde und Bemerkungen: `docs/archiv/gegenproben-lohn-l1a.md`, Abschnitt „1.9.198“. 67 Gegenproben zu 20 Festlegungen; 22 blieben grün
+(17 Befunde), neue Tests in `tests/test_v605_festlegungen_170_173.py`, danach alle rot. Gemeldet, nicht geändert, zu entscheiden:
+- 1.9.170 Nr. 5 („die Meldung nennt jede Person mit Grund“): ist jemand am Tag schon abwesend, lautet die Meldung des Schlechtwetter-Dialogs „Nicht
+  eingetragen: Für diesen Mitarbeiter besteht im beantragten Zeitraum bereits eine genehmigte Abwesenheit.“ -- ohne Namen, nur ein Grund
+  (`app/schlechtwetter.py::eintragen()` sammelt nur die Gründe aus `grund_gegen()`; „schon abwesend“ wirft erst `_antrag_anlegen()`/`_entscheiden()`).
+- 1.9.171 Nr. 5 („wer schon abwesend ist, muss abgewählt werden“): gilt nur beim Admin; trägt Büro – Finanzen ein, entstehen offene Anträge (200),
+  „schon abwesend“ scheitert erst bei der Entscheidung (wie beim Einzelantrag seit 1.9.101).
+- 1.9.170 Nr. 3 (der Admin entscheidet auch unter „Zeiten“): `POST /api/absence-requests/{id}/review` prüft `grund_gegen()` nicht -- ein
+  Schlechtwetter-Antrag an einem Tag ohne Sollzeit wird dort genehmigt, der Schlechtwetter-Dialog lehnt denselben ab (422).
+Angepasste Erwartungen: keine.
