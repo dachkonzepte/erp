@@ -798,7 +798,7 @@ Migration `c5a9e3f71d28`: `pruefen()` (Dubletten auf den getrimmten Nummern) vor
 
 1. Eine Personalnummer hat 1 bis 5 Ziffern ohne führende Null (die Muster haben 4 und 5 Stellen). Falls DATEV längere Nummern nimmt, ist das eine Zeile im Code -- zu klären mit LB2.
 2. Bei „DATEV-Nr. = ERP-Nr.“ gilt das Format für die ERP-Nummer, aber nur, solange von der Person etwas in die Datei geht; mit „nichts“ bleibt sie speicherbar (Eintritt, Sollzeit).
-3. Neu gefasst mit 1.9.177 (Vorgabe Tobias 03.11.2026): eine Nummer, die einer Person einmal gehört hat, bleibt dauerhaft gesperrt -- auch nach Austritt und nach einem Nummernwechsel (LIESMICH 8: 91008 -> 91016 bekommt die Person die neue Nummer, die alte bleibt ihr gemerkt); nur dieselbe Person bekommt sie wieder. Bis 1.9.176 hieß es: „die alte ist danach frei. Eine Liste früherer Nummern gibt es nicht.“
+3. Neu gefasst mit 1.9.177 (Vorgabe Tobias 03.11.2026): eine Nummer, die einer Person einmal gehört hat, bleibt dauerhaft gesperrt -- auch nach Austritt und nach einem Nummernwechsel (LIESMICH 8: 91008 -> 91016 bekommt die Person die neue Nummer, die alte bleibt ihr gemerkt); nur dieselbe Person bekommt sie wieder (seit 1.9.181 gibt der Admin eine gemerkte Nummer frei, solange sie niemand trägt -- Festlegung 1.9.177 Nr. 3; vermerkt mit 1.9.197). Bis 1.9.176 hieß es: „die alte ist danach frei. Eine Liste früherer Nummern gibt es nicht.“
 4. Der Umfang „nur Abwesenheiten“ wirkt im heutigen Export wie „nichts“ (er kennt noch keine Abwesenheiten); mit L1b stehen dann U, K und die übrigen zugeordneten Abwesenheiten in der Datei.
 5. Die Migration bricht bei einer Dublette ab, statt eine Nummer zu leeren: welche Person die Nummer behält, entscheidet das Büro.
 
@@ -1228,3 +1228,11 @@ Nur Tests, am Programm nichts geändert. `scripts/klicktest_plantafel_kalender.p
 ### Tests und Prüfung 1.9.194
 
 Klicktest 13 -> 14 Prüfungen, pytest ein Test mehr. Gegenproben: die Regel `.absence-mark` wie vor dem Nachtrag (ohne Höchstbreite und Kürzung) -> Klicktest 13 von 14 (Art über der Kapazität, nicht gekürzt, „clip“, „normal“), `test_v600` 1 rot; ohne `title` -> Klicktest 12 von 14 (auch Mias Tooltip „Heiligabend“), `test_v600` 1 rot. Angepasste Erwartungen: keine (Aufbau: Kai mit seiner Fortbildung dazu; die übrigen Prüfungen betreffen Kolonne Nord, Mia, Tom und Ben). Keine neue Festlegung.
+
+### Umsetzung 1.9.197: Gegenproben zu 1.9.166–1.9.169 (Punkt 5, Block 1)
+
+Tabelle, Befunde und Bemerkungen: `docs/archiv/gegenproben-lohn-l1a.md`, Abschnitt „1.9.197“. 48 Gegenproben zu 23 Festlegungen; 9 blieben grün
+(Befunde an 1.9.166 Nr. 3, 1.9.167 Nr. 1, 3, 4, 1.9.168 Nr. 2, 1.9.169 Nr. 5), 7 neue Tests in `tests/test_v604_festlegungen_166_169.py`, danach
+alle rot. Zwei Abweichungen von Wortlaut und Code gemeldet, nicht geändert: 1.9.169 Nr. 3 („nicht je Art“) -- `zuordnung()` prüft die Art auch bei
+Schlechtwetter vor der Jahreszeit, eine gespeicherte Zeile „art:schlechtwetter“ ginge Winter und Sommer vor (zu entscheiden: Code oder Wortlaut);
+1.9.168 Nr. 3 nannte die Freigabe von 1.9.181 nicht (oben vermerkt). Angepasste Erwartungen: keine.
