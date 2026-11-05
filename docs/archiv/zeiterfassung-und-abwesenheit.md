@@ -1619,3 +1619,15 @@ Neu: `tests/test_v624_monatszeile_gesperrt.py` (3 Tests) -- gezeichnet (Winter m
 ### Umsetzung 1.9.221: Grenze der Messung mit verzögerten Antworten (Punkt 4, nur Doku)
 
 Steht im Archiv „Testablauf und Klicktests“, Abschnitt „Klicktests lesen erst nach der Antwort (1.9.207)“, als „Grenze der Methode“ mit Festlegung 1.9.221 Nr. 1 (Werkzeug, ohne Gegenprobe: eine Grenze der Methode, nichts auszuhebeln). Am Programm nichts geändert; Tests keine, angepasste Erwartungen keine.
+
+### Umsetzung 1.9.222: die Zuordnung im ausgelieferten Zustand (Punkt 5)
+
+Neu `scripts/klicktest_zuordnung_ausgeliefert.py` (6 Prüfungen, ein Bild): Testdaten nur ein Konto Büro – Finanzen, die Zuordnung so, wie `app/grunddaten.py` sie beim Start anlegt; „Wirkt“ jeder festen Zeile, der Kalendertage und der vorbelegten Arten (Weiterbildung, Berufsschule), die übrigen Arten „wie die Kategorie“, Stunden „Sollzeit − gebuchte Arbeit“ bei Schlechtwetter, das Häkchen Monatszeile bei Winter gesperrt mit Hinweis und bei Sommer frei. Das Bild `zuordnung_ausgeliefert` zeigt den ganzen Block: die Tabelle ohne eigene Höhenbegrenzung, als Ausschnitt über das Fenster hinaus, feste und klebende Elemente (Kopfzeile) für die Aufnahme ausgeblendet. Am Programm nichts geändert.
+
+### Festlegungen 1.9.222 (Bitte bestätigen)
+
+1. Der ausgelieferte Zustand der Zuordnung hat einen eigenen Klicktest ohne Testdaten in der Zuordnung; er prüft jede vorbelegte Zeile und die Arten mit eigener Vorbelegung. Ändert sich eine Vorbelegung (`app/lohnarten.py::START`), ändert sich seine Erwartung -- das Bild daraus ist das Bild des ausgelieferten Zustands im Bericht.
+
+### Tests und Prüfung 1.9.222
+
+Neu `scripts/klicktest_zuordnung_ausgeliefert.py`. Gegenproben: Archiv „Gegenproben Lohn L1a“, Abschnitt „Stufe 7“. Angepasste Erwartungen: keine.

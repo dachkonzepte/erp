@@ -847,3 +847,7 @@ neuen, je Version in einer eigenen Arbeitskopie auf dem Stand der Version, Datei
 | **1.9.220 Nr. 2** – der Server lehnt weiter ab | Prüfung „kein Kennzeichen“ aus (1.9.220) | vorher 1 rot: test_v587::test_pruefungen; mit test_v624 2 rot |
 | **1.9.220 Nr. 3** – die Monatszeile bleibt als Möglichkeit | jede Monatszeile abgelehnt (1.9.220) | vorher 2 rot: test_v587::test_pruefungen, test_v620::test_monatszeile_bleibt_ein_eigener_fall; mit test_v624 3 rot |
 | 1.9.221 Nr. 1 (Werkzeug) – die Messung mit verzögerten Antworten findet nur Stellen, an denen sich alter und neuer Stand unterscheiden | keine -- eine Grenze der Methode (Arbeitsweise), nichts auszuhebeln; belegt durch die sieben Stellen der Plantafel aus 1.9.211 | – |
+| **1.9.222 Nr. 1a** – der Klicktest trägt die Vorbelegung: Silvester UU | Silvester wieder AF (1.9.222) | klicktest_zuordnung_ausgeliefert rot: „Fin: jede Zeile wie ausgeliefert“ |
+| **1.9.222 Nr. 1b** – … Berufsschule FE | Berufsschule nicht vorbelegt (1.9.222) | klicktest_zuordnung_ausgeliefert rot: „Fin: jede Zeile wie ausgeliefert“ |
+| **1.9.222 Nr. 1c** – … Stunden bei Schlechtwetter | Sommer wieder „Sollzeit“ (1.9.222) | klicktest_zuordnung_ausgeliefert rot: „Fin: Stunden bei Schlechtwetter“ |
+| 1.9.222 (Bild) – das Bild des ausgelieferten Zustands | keine -- ein Bild, nichts auszuhebeln; was es zeigt, prüft der Klicktest (oben) | – |
