@@ -1872,3 +1872,32 @@ Angepasste Erwartungen (Regel 28) zu 1.9.226:
 - `klicktest_zeiten`: „Bea: … vom Server abgelehnt“ nur Aufbau (POST statt GET, weiter [403, 403, 403]); „Fin: vollständig -- DATEV-Export als Link“ ->
   „… als Knopf“ mit leerer Liste [False, "", 0]; „Fin: DATEV-Datei“ aus der Liste der Ablage statt vom Link (Erwartung unverändert); neu „Fin: Lohndatei
   abgelegt und heruntergeladen“.
+
+### Umsetzung 1.9.227: Prüfskript `scripts/pruefe_lohndatei.py` (Punkt 4)
+
+Nach L0, Abschnitt 6: `pruefe_lohndatei.py ERP.txt TIME4.txt [--azubis …] [--gleich ALT=NEU] [--pausen 6:30,9:45]`, nur lesend, keine Datenbank,
+kein Netz. Form beider Dateien (ASCII, CRLF auch zuletzt, Kopf, 11 Felder, Tages- und Monatszeile; Formfehler -> Rückgabe 2), Köpfe, je Person und Tag
+die Kennzeichen beider Seiten (Personen über die Nummer auf 5 Stellen; `--gleich` für einen Nummernwechsel), Monatszeilen gegen die Tageszeilen WA,
+Summen je Person und Kennzeichen. Erklärt sind die erwarteten Abweichungen des L1b-Befunds, Abschnitt 3, und die Rundung: Rundung auf 0,25 h; Pause
+(Arbeit von Time 4 + feste Pause 0/30/45 min oder ein Teil davon, mit der gesetzlichen Pause nach Lesart A, je Tag auf 0,25 h -- Fälle a bis e);
+Monatszeile 8110 gegen WA je Tag mit gleicher Summe; Heiligabend FR; Silvester UU gegen Urlaub; FE; AA (Arbeit und Mehrarbeit zusammen gegen die
+Arbeit von Time 4); 4 gegen 5 Stellen; jede Zeile nur im ERP für eine Person aus `--azubis`. Alles andere zu klären (Rückgabe 1). Jede Datei gegen
+sich selbst ergibt keine Abweichung (auch alle sieben Muster).
+
+### Festlegungen 1.9.227 (Bitte bestätigen)
+
+1. Das Skript vergleicht je Person und Tag, nie Zeile für Zeile; Personen über die Nummer mit führenden Nullen auf 5 Stellen (9005 = 09005, erklärt),
+   ein Nummernwechsel nur mit `--gleich`.
+2. Erklärt ist genau, was der L1b-Befund in Abschnitt 3 erwartet, und die Rundung; die Pause gilt als erklärt, wenn die Arbeit des ERP aus der von Time 4
+   plus einer abgezogenen festen Pause von 0 bis 45 Minuten mit der Pause nach Lesart A folgt (Pausenregeln über `--pausen`, Vorgabe 6 h -> 30, 9 h -> 45).
+   Eine Abweichung, die eine solche Pause nicht erklärt, bleibt zu klären -- auch eine kleine.
+3. Arbeit und Mehrarbeit des ERP zählen am Tag zusammen gegen die Arbeit von Time 4; eine Zeile nur im ERP ist für eine Person aus `--azubis` erklärt
+   (Time 4 gab Azubis nur mit U und K aus), sonst zu klären.
+4. Die Monatszeile 8110 von Time 4 ist erklärt, wenn die Summe der Tageszeilen WA derselben Person gleich ist; dann sind auch diese Tageszeilen erklärt.
+5. Rückgabe 0 nur Erklärtes, 1 etwas zu klären, 2 Formfehler oder nicht lesbar (auch ein Formfehler in der Time-4-Datei).
+
+### Tests und Prüfung 1.9.227
+
+Neu: `tests/test_v629_pruefe_lohndatei.py` (17 Tests, Kleinstdateien) -- neun Formfehler (Rückgabe 2), gegen sich selbst, die Muster gegen sich selbst
+(nur wenn `bildgrundlage/lohn` vorliegt), Rundung und die Pausenfälle, Schlechtwetter/Heiligabend/Silvester/Berufsschule/Mehrarbeit/Nummer, Azubi mit
+und ohne `--azubis`, Nummernwechsel, zu klären (Kennzeichen, Lohnart, Stunden, Monatszeile, Kopf), Summen. Angepasste Erwartungen: keine.

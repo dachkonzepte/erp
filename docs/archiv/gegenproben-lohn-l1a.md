@@ -943,3 +943,13 @@ Scratchpad (`gegenprobe.py`, `spec<Version>.json`).
 | **1.9.226 Nr. 6b – Liste „früher“ nennt die Datei** | nie genannt | vorher grün; mit den neuen 1 rot: test_personalnummer_aus_der_ablage_bleibt_gesperrt |
 | **1.9.226 Nr. 6c – eingelesene Liste nennt die Datei** | nie genannt | vorher grün; mit den neuen 1 rot: test_personalnummer_aus_der_ablage_bleibt_gesperrt |
 | **1.9.226 Nr. 7 – `downgrade()` entfernt die Tabelle** | Tabelle bleibt | vorher grün; mit den neuen 2 rot: test_migration_postgresql, test_migration_sqlite |
+| **1.9.227 Nr. 1a – Personen über 5 Stellen** | Nummer wie geschrieben | vorher grün; mit den neuen 1 rot: test_schlechtwetter_heiligabend_silvester_berufsschule_mehrarbeit_nummer |
+| **1.9.227 Nr. 1b – Nummernwechsel nur mit `--gleich`** | `--gleich` übergangen | vorher grün; mit den neuen 1 rot: test_nummernwechsel |
+| **1.9.227 Nr. 2a – Rundung erklärt** | nie Rundung | vorher grün; mit den neuen 1 rot: test_rundung_und_pause_erklaert |
+| **1.9.227 Nr. 2b – Pause erklärt** | nie Pause | vorher grün; mit den neuen 2 rot: test_rundung_und_pause_erklaert, test_summen_je_person |
+| **1.9.227 Nr. 2c – feste Pause höchstens 45 min** | bis 120 min | vorher grün; mit den neuen 1 rot: test_zu_klaeren |
+| **1.9.227 Nr. 3a – Arbeit und Mehrarbeit zusammen** | nur die Arbeit | vorher grün; mit den neuen 1 rot: test_schlechtwetter_heiligabend_silvester_berufsschule_mehrarbeit_nummer |
+| **1.9.227 Nr. 3b – nur im ERP erklärt nur mit `--azubis`** | jede Person wie ein Azubi | vorher grün; mit den neuen 2 rot: test_azubi_nur_im_erp, test_zu_klaeren |
+| **1.9.227 Nr. 4 – Monatszeile gegen WA** | nie gleich | vorher grün; mit den neuen 1 rot: test_schlechtwetter_heiligabend_silvester_berufsschule_mehrarbeit_nummer |
+| **1.9.227 Nr. 5a – Rückgabe 1** | immer 0 | vorher grün; mit den neuen 2 rot: test_azubi_nur_im_erp, test_zu_klaeren |
+| **1.9.227 Nr. 5b – Rückgabe 2** | 1 bei Formfehler | vorher grün; mit den neuen 9 rot (v629) |
