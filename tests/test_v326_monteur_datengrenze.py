@@ -448,6 +448,7 @@ PFAD_WERTE = {
     "kind": "behinderungsanzeige",  # Briefe an den Auftraggeber (seit 1.8.40)
     "acceptance_id": 1, "file_id": 1,  # Abnahme und ihr Beleg (seit 1.8.46)
     "defect_id": 1,  # Mangel aus der Abnahme und seine Datei (seit 1.8.49)
+    "lohndatei_id": 1,  # abgelegte Lohndatei (seit 1.9.226)
 }
 # Query-Parameter: Pflichtparameter nach Namen, dazu je Route, was die Monteursicht erst füllt.
 # "@name" steht für den Wert aus den Testdaten.
@@ -668,6 +669,11 @@ def _buero_welt(db: Session) -> dict:
     Image.new("RGB", (4, 4), "white").save(buf, format="PNG")
     create_defect(db, acceptance, {"description": "Attika undicht", "remedy_due_on": None},
                   [("foto", "mangel.png", buf.getvalue())], user_id=admin.id, user_name="Anna Admin")
+    # Seit 1.9.226: eine abgelegte Lohndatei -- der Admin liest Liste und Datei mit Inhalt (Berater und Mandant erfunden).
+    from app.lohndatei import ablegen
+    ablegen(db, date(2026, 9, 1), b"1234567;12345;09/2026\r\n", "DATEV_Lohndaten_2026-09.txt", user_id=admin.id,
+            user_name="Anna Admin")
+    db.commit()
     return {**welt, "admin_id": admin.id}
 
 

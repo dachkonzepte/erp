@@ -281,11 +281,14 @@
           <span style="font-weight:600;font-size:14px">Nicht in der Datei</span>
           <ul class="liste" id="lohnNichtListe" style="font-size:14px"></ul>
         </div>
-        <a class="knopf knopf-neutral links-buendig" id="lohnDatev" href="#" hidden>DATEV-Export</a>
+        {# seit 1.9.226 (Lohn L1b, Punkt 3) ein Knopf: erzeugt die Lohndatei, legt sie ab und lädt sie herunter (bis 1.9.225 ein Link auf den GET-Export) #}
+        <button type="button" class="knopf knopf-neutral links-buendig" id="lohnDatev" hidden>DATEV-Export</button>
         <button type="button" class="knopf links-buendig" id="lohnDatevGesperrt" disabled>DATEV-Export</button>
       </div>
-      <p class="schritt-text">Der DATEV-Export (Lohndatei für DATEV Lohn und Gehalt) geht erst nach dem Abschluss und nur vollständig – fehlt etwas, entsteht keine Datei.</p>
+      <p class="schritt-text">Der DATEV-Export (Lohndatei für DATEV Lohn und Gehalt) geht erst nach dem Abschluss und nur vollständig – fehlt etwas, entsteht keine Datei. Jede erzeugte Datei bleibt auf dem Server.</p>
       <p class="fehlt" id="lohnDatevFehlt"></p>
+      {# seit 1.9.226: die abgelegten Lohndateien des Monats (wann, wer, Prüfsumme), je mit „Herunterladen“ #}
+      <ul class="liste" id="lohnDateien" style="font-size:14px"></ul>
     </section>
   </div>
   <section class="tabelle-karte" aria-labelledby="lohnTabelleTitel">
@@ -986,7 +989,10 @@ function monatZeichnen(d){
   el('lohnCsv').setAttribute('href','/api/time-backoffice/timesheet.csv?'+zeitraum(d));
   var datev=zu&&!d.datev_fehlt.length;
   el('lohnDatev').hidden=!datev;el('lohnDatevGesperrt').hidden=datev;
-  el('lohnDatev').setAttribute('href','/api/time-backoffice/datev-export?'+zeitraum(d));
+  // seit 1.9.226: die abgelegten Lohndateien des Monats -- Zeitpunkt in Berlin, wer, Anfang der Prüfsumme, „Herunterladen“ aus der Ablage
+  el('lohnDateien').innerHTML=(d.lohndateien||[]).map(function(f){return '<li data-lohndatei="'+f.id+'"><span class="text">Abgelegt '
+    +esc(berlinZeitpunkt(f.erzeugt_am))+' · '+esc(f.erzeugt_von_name)+' · Prüfsumme <span class="num" title="'+esc(f.sha256)+'">'+esc(f.sha256.slice(0,12))
+    +'…</span></span><a href="/api/time-backoffice/lohndateien/'+f.id+'/datei">Herunterladen</a></li>'}).join('');
   el('lohnDatevFehlt').textContent=d.datev_text?'Fehlt: '+d.datev_text:'';
   // seit 1.9.225 (Lohn L1b, Punkt 2): je Person, was nicht in die Datei geht, mit Grund -- die Texte vom Server
   var nicht=d.nicht_in_der_datei||[];
@@ -1008,6 +1014,16 @@ function monatZeichnen(d){
     +(d.zeilen.length?'<tr><td class="summe">Zusammen</td><td class="summe"></td><td class="summe"></td>'+d.spalten.map(function(s){return '<td class="summe r num">'+esc(zahlText(d.summe.stunden[s.key],2))+'</td>'}).join('')
       +'<td class="summe r num">'+esc(zahlText(d.summe.zusammen,2))+'</td>'+swZelle(d.summe.schlechtwetter,'summe')+'</tr>':'');
   el('lohnLeer').hidden=!!d.zeilen.length;el('lohnLeer').textContent='Keine gebuchten Zeiten im '+d.titel+'.';
+}
+// Seit 1.9.226 (Lohn L1b, Punkt 3): die Lohndatei erzeugen ist abschließend (Regel 29) -- sie wird abgelegt und bleibt; danach aus der Ablage
+// herunterladen und den Monat neu laden (die Liste der abgelegten Dateien). Fehlt etwas (409), nennt die Zeile „Fehlt“ den Grund.
+function lohndateiErzeugen(){
+  var d=M,knopf=el('lohnDatev');
+  knopf.disabled=true;
+  return abschliessen('monat',()=>api('/api/time-backoffice/lohndateien',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({monat:d.monat})}),{neuLaden:monatLaden})
+    .then(function(f){ergebnis('Lohndatei '+d.titel+' abgelegt.');location.href='/api/time-backoffice/lohndateien/'+Number(f.id)+'/datei'})
+    .catch(function(e){el('lohnDatevFehlt').textContent=e.message})
+    .finally(function(){knopf.disabled=false});
 }
 // Abschließen ist eine abschließende Aktion (Regel 29): erst wenn jedes Speichern der Seite zurück ist; der Server prüft die Lücken
 // noch einmal -- abgelehnt (409) nennt er sie, die Seite zeigt die Liste
@@ -1207,6 +1223,7 @@ function binden(){
     el('lohnZurueck').addEventListener('click',function(){LOHN_MONAT=monatPlus(LOHN_MONAT,-1);ergebnis('');monatLaden()});
     el('lohnVor').addEventListener('click',function(){LOHN_MONAT=monatPlus(LOHN_MONAT,1);ergebnis('');monatLaden()});
     el('lohnAbschliessen').addEventListener('click',monatAbschliessen);
+    el('lohnDatev').addEventListener('click',lohndateiErzeugen);  // seit 1.9.226
   }
   var aufh=el('abschlussAufheben');if(aufh)aufh.addEventListener('click',aufhebenOeffnen);
   el('ahAufheben').addEventListener('click',aufheben);

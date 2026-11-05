@@ -183,9 +183,11 @@ async def _buchungen(tab):
 
 async def _exporte(tab):
     """Stundenzettel PDF und CSV und DATEV-Export für Oktober 2026 (seit 1.9.98 aus klicktest_backoffice_buero) -- den Körper lesen: sonst
-    hält Chrome die Anfrage offen."""
-    return await tab.js("Promise.all(['timesheet.pdf','timesheet.csv','datev-export'].map(x=>fetch('/api/time-backoffice/'+x+"
-                        "'?start_date=2026-10-01&end_date=2026-10-31').then(r=>r.arrayBuffer().then(()=>r.status))))")
+    hält Chrome die Anfrage offen. Seit 1.9.226 die Lohndatei per POST (erzeugen und ablegen; bis 1.9.225 GET …/datev-export)."""
+    return await tab.js("Promise.all(['timesheet.pdf','timesheet.csv'].map(x=>fetch('/api/time-backoffice/'+x+"
+                        "'?start_date=2026-10-01&end_date=2026-10-31').then(r=>r.arrayBuffer().then(()=>r.status))).concat(["
+                        "fetch('/api/time-backoffice/lohndateien',{method:'POST',headers:{'Content-Type':'application/json'},"
+                        "body:JSON.stringify({monat:'2026-10'})}).then(r=>r.arrayBuffer().then(()=>r.status))]))")
 
 
 async def _api(tab, url):
@@ -638,11 +640,26 @@ async def pruefen(tab, seed, p):
         await tab.js(f"fetch('/api/time-backoffice/payroll-employees/{seed['ole_ma']}',{{method:'PUT',headers:{{'Content-Type':'application/json'}},"
                      f"body:JSON.stringify({{datev_personnel_number:'01003',payroll_export_enabled:true}})}}).then(r=>r.status)")], [200])  # seit 1.9.212 fünfstellig
     await tab.js("monatLaden()")
-    p.pruefe("Fin: vollständig -- DATEV-Export als Link", await tab.js(
-        "[document.getElementById('lohnDatev').hidden,document.getElementById('lohnDatevFehlt').innerText]"), [False, ""])
-    # seit 1.9.224 die Lohndatei für DATEV Lohn und Gehalt (ASCII, Kopf Berater;Mandant;MM/JJJJ)
-    datei = await tab.js("fetch(document.getElementById('lohnDatev').href).then(r=>r.text().then(t=>[r.status,r.headers.get('content-disposition'),t.split(String.fromCharCode(13,10))[0]]))")
+    p.pruefe("Fin: vollständig -- DATEV-Export als Knopf", await tab.js(
+        "[document.getElementById('lohnDatev').hidden,document.getElementById('lohnDatevFehlt').innerText,"
+        "document.querySelectorAll('#lohnDateien li').length]"), [False, "", 0])
+    # seit 1.9.226 erzeugt der Knopf die Lohndatei, legt sie ab und lädt sie herunter; die Liste nennt die abgelegte Datei
+    await tab.cmd("Page.setDownloadBehavior", behavior="allow", downloadPath=str(tab.shots.parent / "downloads"))
+    marke = len(tab.downloads)
+    await tab.warte_auf_neu_geladene_liste("document.getElementById('lohnDatev').click()", "#lohnDateien")
+    for _ in range(100):  # das Ereignis des Downloads kommt über den Websocket, nicht über die Seite
+        if len(tab.downloads) > marke:
+            break
+        await tab.warten("true", 0.1, melden=False)
+    p.pruefe("Fin: Lohndatei abgelegt und heruntergeladen", [[d["name"] for d in tab.downloads[marke:]], await tab.js(
+        "[...document.querySelectorAll('#lohnDateien li')].map(l=>l.innerText.replace(/\\s+/g,' ').trim().replace(/\\d\\d\\.\\d\\d\\.\\d{4} \\d\\d:\\d\\d/,'…')"
+        ".replace(/Prüfsumme [0-9a-f]{12}…/,'Prüfsumme …'))")],
+        [["DATEV_Lohndaten_2026-10.txt"], ["Abgelegt … · Fin Finanzen · Prüfsumme … Herunterladen"]])
+    # seit 1.9.224 die Lohndatei für DATEV Lohn und Gehalt (ASCII, Kopf Berater;Mandant;MM/JJJJ), seit 1.9.226 aus der Ablage
+    datei = await tab.js("fetch(document.querySelector('#lohnDateien a').href).then(r=>r.text().then(t=>[r.status,r.headers.get('content-disposition'),t.split(String.fromCharCode(13,10))[0]]))")
     p.pruefe("Fin: DATEV-Datei", datei, [200, 'attachment; filename="DATEV_Lohndaten_2026-10.txt"', "12345;678;10/2026"])
+    await tab.js("document.getElementById('lohnDateien').scrollIntoView({block:'center'})")
+    await tab.bild("zeiten_monat_lohndatei")  # seit 1.9.226: Schritt „Ausgeben“ mit „Nicht in der Datei“ und der abgelegten Datei
     p.pruefe("Fin: keine JS-Fehler", tab.fehler, [])
 
     p.pruefe("Admin: Seite für „Abschluss aufheben“", await _seite(tab, seed, "admin"), True)

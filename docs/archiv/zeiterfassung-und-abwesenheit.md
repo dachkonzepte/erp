@@ -1810,3 +1810,65 @@ las das Bundesland seit 1.9.224 über `load_region_settings()`, ohne Einstellung
 `datev_fehlt()` rechnet (behoben, Festlegung 7) --, und `test_v387` (Erwartung, unten).
 Angepasste Erwartungen: `test_v387_lesepfade_ohne_anlegen.py::test_die_lesewege_legen_nichts_an_und_zeigen_die_vorgaben` -- DATEV-Export 409 mit
 `[datev_nummern]` -> `[personalnummer, personalnummer, datev_nummern]` (Neujahr gibt den beiden aktiven Personen eine Zeile F).
+### Umsetzung 1.9.226: Ablage jeder erzeugten Lohndatei (Punkt 3)
+
+Neu `Lohndatei` (Tabelle `lohndateien`, Migration `d5a8e3c71b42`): Monat, Dateiname, die Bytes (`inhalt`, in der Datenbank), SHA-256, Größe,
+erzeugt am (naives UTC), Konto (ohne Fremdschlüssel) und Name; unveränderlich über die ORM-Sperre (`ArchiveImmutableError` bei Ändern und Löschen).
+`app/lohndatei.py`: `ablegen()`, `abgelegte()`, `lesen()` (nur mit stimmender Prüfsumme, sonst `LohndateiVeraendert`), `personalnummern_der_ablage()`,
+`abgelegt_dict()`. `app/time_backoffice.py::lohndatei_erzeugen()`: `build_datev_export()` (dieselben Prüfungen) und ablegen in einem Commit;
+`personalnummer_freigeben()` lehnt eine Nummer aus einer abgelegten Datei ab (409, Notiz zu 1.9.181); Liste „früher“ (`fruehere_in_lohndatei`) und
+eingelesene Nummern (`lohndatei`) nennen die Datei. Router: `POST /api/time-backoffice/lohndateien` (201; 409 mit Liste; 422), `GET …/lohndateien?monat=`
+(ohne die Bytes), `GET …/lohndateien/{id}/datei` (über `datei_antwort()`, als Download; 404; 409 bei falscher Prüfsumme), alle drei
+`require_lohndaten`; `GET /api/time-backoffice/datev-export` entfällt (kein GET schreibt, und jede erzeugte Datei soll bleiben). „Monat & Lohn“: der
+Knopf „DATEV-Export“ erzeugt über `abschliessen()` (`lohndateiErzeugen`, in `ABSCHLIESSEND`), legt ab und lädt herunter; darunter die abgelegten
+Dateien des Monats („Abgelegt <Zeitpunkt in Berlin> · <wer> · Prüfsumme <12 Zeichen>… Herunterladen“). Einstellungen: statt „freigeben“ „in der
+Lohndatei MM/JJJJ“.
+
+### Festlegungen 1.9.226 (Bitte bestätigen)
+
+1. Jede erzeugte Lohndatei bleibt auf dem Server -- auch eine zweite für denselben Monat; nie geändert, nie gelöscht. Erzeugt wird sie nur noch per
+   POST (der Knopf „DATEV-Export“); der GET-Export entfällt.
+2. Abgelegt werden genau die Bytes der Datei mit SHA-256, Größe, Monat, Dateiname, Zeitpunkt, Konto und Name, in der Datenbank (wenige KB je Datei,
+   gesichert mit ihr) -- nicht als Datei unter `ERP_DATA_DIR`.
+3. Herunterladen nur aus der Ablage und nur mit stimmender Prüfsumme (sonst 409, nichts ausgeliefert), als Download über `datei_antwort()`
+   (`application/octet-stream`, Regel 31) -- neu gefasst: 1.9.224 Nr. 15 (Typ `text/plain; charset=us-ascii`).
+4. Erzeugen, Liste und Herunterladen nur Admin und Büro – Finanzen.
+5. „Monat & Lohn“: der Knopf erzeugt, legt ab und lädt herunter (abschließende Aktion); darunter die abgelegten Dateien des Monats, die jüngste zuerst,
+   mit Zeitpunkt in Berlin, Name und den ersten 12 Zeichen der Prüfsumme (die ganze als title), je „Herunterladen“.
+6. Eine Personalnummer, die in einer abgelegten Lohndatei steht, lässt sich nicht freigeben (409 „… steht in der abgelegten Lohndatei MM/JJJJ – sie
+   bleibt gesperrt.“); die Listen „früher“ und „eingelesen“ zeigen statt des Knopfs „in der Lohndatei MM/JJJJ“ (Regel 1.9.191: freigeben nur, wo es
+   geht). Genannt wird die älteste Datei mit der Nummer.
+7. `downgrade()` der Migration entfernt die Tabelle samt den abgelegten Dateien (vorher sichern).
+
+### Tests und Prüfung 1.9.226
+
+Neu: `tests/test_v628_lohndatei_ablage.py` (10 Tests) -- erzeugen legt ab und liefert dieselben Bytes (Prüfsumme, Name, Konto); jede erzeugte Datei bleibt
+(zwei für denselben Monat, die jüngste zuerst, ohne Bytes in der Liste, in „Monat & Lohn“); nicht abgeschlossen oder unvollständig -> 409, nichts
+abgelegt; Rechte (Büro – Auftrag und Monteurin 403 auf alle drei Wege); kein GET-Export mehr; unveränderlich (Ändern und Löschen) und falsche
+Prüfsumme -> 409, unbekannt 404; Personalnummer aus der Ablage nicht freizugeben, „früher“ und „eingelesen“ nennen die Datei; die Seiten; Migration
+`d5a8e3c71b42` auf einem Bestand unter SQLite und PostgreSQL. `klicktest_zeiten`: der Knopf erzeugt, legt ab und lädt herunter (Download über
+Page.downloadWillBegin), die Liste nennt die Datei, Herunterladen aus der Liste; ein Bild „zeiten_monat_lohndatei“. Gegenproben je Festlegung: Archiv
+„Gegenproben Lohn L1a“, Abschnitt „Lohn L1b“.
+
+Angepasste Erwartungen (Regel 28) zu 1.9.226:
+- `test_v513`: `_export()` erzeugt per POST und lädt aus der Ablage (bis 1.9.225 GET …/datev-export) -- nur Aufbau, Erwartungen unverändert.
+- `test_v626::test_schnittstelle`: altes Soll GET-Export mit `text/plain; charset=us-ascii`, 422 für einen halben Monat; neues Soll POST (201) und
+  Herunterladen mit `application/octet-stream`, 422 für „2026-12-02“.
+- `test_v387` (zwei Tests): altes Soll {datev-export: 409}; neues Soll alle Lesewege 200 (die Liste der Ablage statt des Exports).
+- `test_v422::test_jede_anfrage_der_seite_ist_dem_buero_erlaubt`: altes Soll Büro – Finanzen [200, 200, 409] (Export nicht abgeschlossen); neues Soll
+  [200, 200, 200] (Liste der Ablage), Büro – Auftrag weiter 403.
+- `test_v510::test_lohndaten_nur_admin_und_finanzen`: nur Aufbau -- POST /api/time-backoffice/lohndateien statt GET-Export, Erwartungen unverändert.
+- `test_v406::test_die_auslieferungsstellen_rufen_datei_antwort_auf`: neu „app/routers/time_backoffice.py“: 1.
+- `test_v622::test_liste_nur_ohne_person_sortiert`: altes Soll je Nummer {nummer, eingelesen_am, traegt}; neues Soll dazu „lohndatei“: None.
+- `test_v399`: neu in `ABSCHLIESSEND` („zeiten.html“, „lohndateiErzeugen“).
+- Im Lauf der vollen Suite vor dem Commit fünf rot, alle Folgen der Änderung, kein Befund:
+  - `test_v326` (Rundgang über alle GET-Endpunkte, auch für `test_v403`): neu `lohndatei_id` in `PFAD_WERTE` und eine abgelegte Datei in der
+    Büro-Welt -- nur Aufbau, Erwartungen unverändert.
+  - `test_v109::test_time_backoffice_router_fully_uses_shared_dependency`: altes Soll 4 Endpunkte mit `_lohn_dep`; neues Soll 6 (erzeugen,
+    Liste, Herunterladen statt des GET-Exports).
+  - `test_v519::test_monat_ohne_luecken_…`: altes Soll `lohnDatev` als Link auf den GET-Export; neues Soll ohne Link (ein Knopf).
+  - `test_v520` (`FUNKTIONEN`, „DATEV-Lohndaten exportieren“): altes Beleg „'/api/time-backoffice/datev-export?'“; neues
+    „'/api/time-backoffice/lohndateien'“.
+- `klicktest_zeiten`: „Bea: … vom Server abgelehnt“ nur Aufbau (POST statt GET, weiter [403, 403, 403]); „Fin: vollständig -- DATEV-Export als Link“ ->
+  „… als Knopf“ mit leerer Liste [False, "", 0]; „Fin: DATEV-Datei“ aus der Liste der Ablage statt vom Link (Erwartung unverändert); neu „Fin: Lohndatei
+  abgelegt und heruntergeladen“.

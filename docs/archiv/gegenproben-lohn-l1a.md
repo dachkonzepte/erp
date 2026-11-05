@@ -928,3 +928,18 @@ Scratchpad (`gegenprobe.py`, `spec<Version>.json`).
 | **1.9.225 Nr. 5b – „Kategorie (Art)“** | nur die Kategorie | vorher grün; mit den neuen 1 rot: test_ohne_kennzeichen |
 | **1.9.225 Nr. 6 – „Nicht in der Datei“ sperrt nicht** | sperrt den Export | vorher 6 rot (v513, v571, v626); mit den neuen grün |
 | **1.9.225 Nr. 7 – Bundesland wie „Zeiten“** | wieder `load_region_settings()` | vorher 1 rot: test_ohne_einstellung_nrw (v528); mit den neuen grün |
+| **1.9.226 Nr. 1a – jede erzeugte Datei bleibt** | gleiche Datei desselben Monats nicht noch einmal abgelegt | vorher grün; mit den neuen 1 rot: test_jede_erzeugte_datei_bleibt |
+| **1.9.226 Nr. 1b – kein GET-Export** | GET …/datev-export wieder da | vorher grün; mit den neuen 1 rot: test_kein_get_export_mehr |
+| **1.9.226 Nr. 1c – nie geändert** | ORM-Sperre beim Ändern aus | vorher grün; mit den neuen 1 rot: test_unveraenderlich_und_pruefsumme |
+| **1.9.226 Nr. 1d – nie gelöscht** | ORM-Sperre beim Löschen aus | vorher grün; mit den neuen 1 rot: test_unveraenderlich_und_pruefsumme |
+| **1.9.226 Nr. 2 – Bytes mit ihrer Prüfsumme** | Prüfsumme über andere Bytes | vorher 6 rot (v513, v626); mit den neuen 2 rot: test_erzeugen_legt_ab_und_liefert_dieselben_bytes, test_rechte |
+| **1.9.226 Nr. 3a – nur mit stimmender Prüfsumme** | ohne Prüfung ausgeliefert | vorher grün; mit den neuen 1 rot: test_unveraenderlich_und_pruefsumme |
+| **1.9.226 Nr. 3b – Download über `datei_antwort()`** | `Response` mit `text/plain` | vorher 3 rot (v406, v513, v626); mit den neuen 1 rot: test_erzeugen_legt_ab_und_liefert_dieselben_bytes |
+| **1.9.226 Nr. 4 – nur Admin und Büro – Finanzen** | Erzeugen ab Büro – Auftrag | vorher 1 rot: test_lohndaten_nur_admin_und_finanzen[buero_auftrag]; mit den neuen 1 rot: test_rechte |
+| **1.9.226 Nr. 5a – „Monat & Lohn“ nennt die abgelegten** | Liste immer leer | vorher grün; mit den neuen 1 rot: test_jede_erzeugte_datei_bleibt |
+| **1.9.226 Nr. 5b – die jüngste zuerst** | die älteste zuerst | vorher grün; mit den neuen 1 rot: test_jede_erzeugte_datei_bleibt |
+| **1.9.226 Nr. 5c – der Knopf ist abschließend (Regel 29)** | über `speichern()` | vorher 1 rot: test_final_actions_and_only_those_go_through_abschliessen[zeiten.html]; mit den neuen 1 rot: test_seiten |
+| **1.9.226 Nr. 6a – Nummer aus der Ablage nicht freizugeben** | Prüfung aus | vorher grün; mit den neuen 1 rot: test_personalnummer_aus_der_ablage_bleibt_gesperrt |
+| **1.9.226 Nr. 6b – Liste „früher“ nennt die Datei** | nie genannt | vorher grün; mit den neuen 1 rot: test_personalnummer_aus_der_ablage_bleibt_gesperrt |
+| **1.9.226 Nr. 6c – eingelesene Liste nennt die Datei** | nie genannt | vorher grün; mit den neuen 1 rot: test_personalnummer_aus_der_ablage_bleibt_gesperrt |
+| **1.9.226 Nr. 7 – `downgrade()` entfernt die Tabelle** | Tabelle bleibt | vorher grün; mit den neuen 2 rot: test_migration_postgresql, test_migration_sqlite |

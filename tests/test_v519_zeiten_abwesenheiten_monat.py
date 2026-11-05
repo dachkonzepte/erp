@@ -157,7 +157,8 @@ def test_monat_ohne_luecken_abschliessen_frei_datev_erst_abgeschlossen_und_volls
     fertig = _monat_zeichnen({**MONAT, "luecken": [], "luecken_text": "", "status": "abgeschlossen", "abgeschlossen_bis": "2026-10-31",
                               "datev_fehlt": [], "datev_text": ""})
     assert (fertig["lohnDatev"]["hidden"], fertig["lohnDatevGesperrt"]["hidden"]) == (False, True)
-    assert fertig["lohnDatev"]["href"] == "/api/time-backoffice/datev-export?start_date=2026-10-01&end_date=2026-10-31"
+    # seit 1.9.226 ein Knopf, der die Datei erzeugt und ablegt (lohndateiErzeugen(), test_v628) -- kein Link auf den GET-Export mehr
+    assert fertig["lohnDatev"].get("href") is None
 
 
 def test_monat_tabelle_mit_personalnummer():

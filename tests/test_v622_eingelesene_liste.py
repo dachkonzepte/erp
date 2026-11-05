@@ -40,8 +40,9 @@ def _client(w, rolle):
 def test_liste_nur_ohne_person_sortiert(welt):
     r = _client(welt, "admin").get("/api/time-backoffice/personalnummern/eingelesen")
     assert r.status_code == 200, r.text
-    assert r.json() == [{"nummer": "00011", "eingelesen_am": "2026-11-05", "traegt": None},
-                        {"nummer": "00205", "eingelesen_am": "2026-11-05", "traegt": None}]
+    # seit 1.9.226 dazu „lohndatei“: in welcher abgelegten Lohndatei die Nummer steht (hier in keiner)
+    assert r.json() == [{"nummer": "00011", "eingelesen_am": "2026-11-05", "traegt": None, "lohndatei": None},
+                        {"nummer": "00205", "eingelesen_am": "2026-11-05", "traegt": None, "lohndatei": None}]
 
 
 @pytest.mark.parametrize("rolle", ["buero_finanzen", "buero_auftrag", "field"])

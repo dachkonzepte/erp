@@ -169,7 +169,7 @@ def test_buero_auftrag_liest_die_zeiten_aller(welt):  # noqa: F811
 
 # --- Lohndaten -------------------------------------------------------------------------------------------------------------------
 
-LOHNDATEN = ["/api/time-backoffice/timesheet.pdf", "/api/time-backoffice/timesheet.csv", "/api/time-backoffice/datev-export"]
+LOHNDATEN = ["/api/time-backoffice/timesheet.pdf", "/api/time-backoffice/timesheet.csv"]  # seit 1.9.226 die Lohndatei per POST (unten)
 
 
 @pytest.mark.parametrize("rolle", ["admin", "buero_finanzen", "buero_auftrag"])
@@ -179,10 +179,9 @@ def test_lohndaten_nur_admin_und_finanzen(welt, rolle):  # noqa: F811
     create_manual_entry(welt["db"], employee_id=welt["tom"].id, order_id=welt["order"].id, work_date=welt["gestern"], hours=Decimal("2"))
     client = _als(welt, rolle)
     zeitraum = {"start_date": (welt["heute"] - timedelta(days=30)).isoformat(), "end_date": welt["heute"].isoformat()}
-    # seit 1.9.224 der DATEV-Export nur für einen ganzen Monat (sonst 422) -- hier der Monat von heute
-    monat = {"start_date": welt["heute"].replace(day=1).isoformat(),
-             "end_date": __import__("app.lohndatei", fromlist=["monat_ende"]).monat_ende(welt["heute"]).isoformat()}
-    antworten = [client.get(pfad, params=monat if pfad.endswith("datev-export") else zeitraum) for pfad in LOHNDATEN]
+    antworten = [client.get(pfad, params=zeitraum) for pfad in LOHNDATEN]
+    # seit 1.9.226 die Lohndatei erzeugen und ablegen (POST, ein ganzer Monat -- hier der von heute); bis 1.9.225 der GET-Export
+    antworten.append(client.post("/api/time-backoffice/lohndateien", json={"monat": welt["heute"].strftime("%Y-%m")}))
     antworten.append(client.put("/api/time-backoffice/lock", json={"locked_until": welt["gestern"].isoformat()}))
     if rolle == "buero_auftrag":
         assert [(a.status_code, a.json()["detail"]) for a in antworten] == [(403, NUR_LOHNDATEN)] * 4

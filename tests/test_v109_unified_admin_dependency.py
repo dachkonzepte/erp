@@ -86,12 +86,13 @@ def test_time_backoffice_router_fully_uses_shared_dependency():
     # Seit 1.9.167 (Lohn L1a, E10): die schreibenden Wege der Zeitregeln, Modelle, Zuordnung, Lohnstammdaten und Sollzeiten teilen sich
     # _regeln_dep (require_lohnregeln) -- 6 lesende mit _role_dep, 9 mit _regeln_dep, 4 mit _lohn_dep. Seit 1.9.169 dazu die Zuordnung für
     # den DATEV-Export (lesen _role_dep, ändern _regeln_dep): 7 und 10. Seit 1.9.175 der Arbeitszeitkalender (lesen _role_dep, anlegen und
-    # ändern _regeln_dep): 8 und 12.
+    # ändern _regeln_dep): 8 und 12. Seit 1.9.226 die Ablage der Lohndatei (erzeugen, Liste, Herunterladen -- der GET-Export entfällt):
+    # 6 mit _lohn_dep.
     src = (Path(__file__).parents[1] / "app/routers/time_backoffice.py").read_text(encoding="utf-8")
     assert "def _require_admin" not in src
     assert "_require_admin(request)" not in src
     assert "Depends(require_admin(" not in src
-    assert src.count("_role=_role_dep") >= 8 and src.count("_role=_regeln_dep") == 12 and src.count("_role=_lohn_dep") == 4
+    assert src.count("_role=_role_dep") >= 8 and src.count("_role=_regeln_dep") == 12 and src.count("_role=_lohn_dep") == 6
 
 
 def test_all_local_relative_imports_in_routers_resolve():

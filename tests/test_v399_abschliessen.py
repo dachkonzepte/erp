@@ -343,6 +343,7 @@ def test_the_email_dispatch_names_why_it_did_not_send(fall, erwartet):
 # Beauftragen und Abgleich mit dem Angebot (übernehmen den Stand der Seite).
 ABSCHLIESSEND = {
     ("zeiten.html", "monatAbschliessen"): "Monat der Zeiterfassung abschließen",  # seit 1.9.97 (Seite „Zeiten“, Monat & Lohn)
+    ("zeiten.html", "lohndateiErzeugen"): "Lohndatei erzeugen und ablegen",  # seit 1.9.226 (Lohn L1b, Punkt 3)
     ("_abnahme.html", "saveAcceptance"): "Abnahme erfassen",
     ("_auftragsstatus.html", "statusDialogSenden"): "Status des Auftrags ändern (pausieren, fortsetzen, abschließen, stornieren; seit 1.9.131 Storno zurücknehmen)",  # 1.9.124
     ("_abnahme.html", "runProtocolAcceptance"): "Abnahme aus dem Protokoll anlegen",

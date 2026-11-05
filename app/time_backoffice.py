@@ -107,11 +107,14 @@ def eingelesene_personalnummern(db: Session) -> list[dict]:
     zeilen = db.execute(select(PersonalnummerVergabe.nummer, PersonalnummerVergabe.vergeben_am)
                         .where(PersonalnummerVergabe.employee_id.is_(None)).order_by(PersonalnummerVergabe.nummer)).all()
     traeger = personalnummern_traeger(db, [n for n, _ in zeilen])
-    return [{"nummer": n, "eingelesen_am": to_berlin(am).date() if am else None, "traegt": traeger.get(n)} for n, am in zeilen]
+    from .lohndatei import personalnummern_der_ablage
+    ablage = personalnummern_der_ablage(db)  # seit 1.9.226: steht sie in einer abgelegten Lohndatei, kein „freigeben“
+    return [{"nummer": n, "eingelesen_am": to_berlin(am).date() if am else None, "traegt": traeger.get(n), "lohndatei": ablage.get(n)}
+            for n, am in zeilen]
 
 
 class PersonalnummerGehalten(ValueError):
-    """Freigeben abgelehnt: eine Person trägt die Nummer heute (409)."""
+    """Freigeben abgelehnt: eine Person trägt die Nummer heute (409) -- seit 1.9.226 auch: sie steht in einer abgelegten Lohndatei."""
 
 
 def personalnummer_halter(db: Session, nummer: str) -> Employee | None:
@@ -146,7 +149,7 @@ def personalnummer_freigeben(db: Session, nummer: str | None) -> None:
     """Seit 1.9.181 (L1a-Korrekturen, Punkt 2, Vorgabe Tobias): eine gemerkte Nummer wieder freigeben (Festlegung 1.9.177 Nr. 3 neu gefasst) --
     der Admin (der Router fragt app/permissions.py::darf_personalnummer_freigeben()), nur solange sie niemand trägt (personalnummer_halter()).
     Danach kann jede Person sie bekommen. Im selben Commit ein Eintrag im Änderungsprotokoll: welche Nummer, wem sie gemerkt war, wer frei gab.
-    Noch nicht gebaut (L1b): eine Nummer, die in einem abgelegten Export stand, bleibt gesperrt. Committet."""
+    Seit 1.9.226 (Lohn L1b, Punkt 3, Notiz zu 1.9.181): eine Nummer, die in einer abgelegten Lohndatei steht, bleibt gesperrt (409). Committet."""
     nummer = (nummer or "").strip()
     row = db.scalar(select(PersonalnummerVergabe).where(PersonalnummerVergabe.nummer == nummer).with_for_update())
     if row is None:
@@ -155,6 +158,10 @@ def personalnummer_freigeben(db: Session, nummer: str | None) -> None:
     if halter is not None:
         raise PersonalnummerGehalten(f"Die Personalnummer {nummer} trägt heute {employee_name(halter) or 'eine Person'} – freigeben geht nur, "
                                      "solange sie niemand trägt.")
+    from .lohndatei import personalnummern_der_ablage
+    monat = personalnummern_der_ablage(db).get(nummer)
+    if monat is not None:
+        raise PersonalnummerGehalten(f"Die Personalnummer {nummer} steht in der abgelegten Lohndatei {monat} – sie bleibt gesperrt.")
     if row.employee_id is None:  # seit 1.9.213: eingelesen, ohne Person
         alt = "gesperrt, eingelesen ohne Person"
     else:
@@ -331,7 +338,9 @@ def _sollzeiten_aller(db: Session) -> dict[int, list[dict]]:
 
 
 def _payroll_dict(db: Session, emp: Employee, p: EmployeePayrollSettings, sollzeiten: list[dict], gemerkt: list[str] | None = None,
-                  traeger: dict[str, str] | None = None) -> dict:
+                  traeger: dict[str, str] | None = None, ablage: dict[str, str] | None = None) -> dict:
+    from .lohndatei import personalnummern_der_ablage
+    ablage = personalnummern_der_ablage(db) if ablage is None else ablage
     heute = effective_datev_personnel_number(db, emp, p)
     gemerkt = fruehere_personalnummern(db).get(emp.id, []) if gemerkt is None else gemerkt
     fruehere = [n for n in gemerkt if n != heute]
@@ -351,6 +360,8 @@ def _payroll_dict(db: Session, emp: Employee, p: EmployeePayrollSettings, sollze
         "fruehere_personalnummern": fruehere,  # seit 1.9.177: gemerkte Nummern außer der heutigen -- dauerhaft gesperrt
         # seit 1.9.191: wer eine frühere Nummer heute trägt (sie lässt sich nicht freigeben) -- {Nummer: Name}, nur getragene
         "fruehere_traeger": {n: traeger[n] for n in fruehere if n in traeger},
+        # seit 1.9.226: in welcher abgelegten Lohndatei eine frühere Nummer steht -- {Nummer: „MM/JJJJ“}, dort kein „freigeben“
+        "fruehere_in_lohndatei": {n: ablage[n] for n in fruehere if n in ablage},
     }
 
 
@@ -358,7 +369,9 @@ def payroll_rows(db: Session) -> list[dict]:
     employees = db.scalars(select(Employee).order_by(Employee.active.desc(), Employee.last_name, Employee.first_name)).all()
     sollzeiten, gemerkt = _sollzeiten_aller(db), fruehere_personalnummern(db)
     traeger = personalnummern_traeger(db, [n for liste in gemerkt.values() for n in liste])  # seit 1.9.191, eine Abfrage für alle
-    return [_payroll_dict(db, emp, load_employee_payroll(db, emp.id), sollzeiten.get(emp.id, []), gemerkt.get(emp.id, []), traeger)
+    from .lohndatei import personalnummern_der_ablage
+    ablage = personalnummern_der_ablage(db)  # seit 1.9.226, einmal für alle
+    return [_payroll_dict(db, emp, load_employee_payroll(db, emp.id), sollzeiten.get(emp.id, []), gemerkt.get(emp.id, []), traeger, ablage)
             for emp in employees]
 
 
@@ -569,3 +582,16 @@ def build_datev_export(db: Session, start_date: date, end_date: date) -> tuple[b
     if fehlt:
         raise DatevExportGesperrt("Kein DATEV-Export: " + "; ".join(x["text"] for x in fehlt) + ".", fehlt)
     return datei(settings.datev_beraternummer, settings.datev_mandantennummer, start_date, personen), "txt"
+
+
+def lohndatei_erzeugen(db: Session, erster: date, *, user_id: int | None, user_name: str | None):
+    """Seit 1.9.226 (Lohn L1b, Punkt 3): die Lohndatei des Monats erzeugen (build_datev_export(), dieselben Prüfungen) und ablegen -- jede erzeugte
+    Datei bleibt auf dem Server (app/lohndatei.py::ablegen()); bis 1.9.225 ging sie nur an den Browser. Committet."""
+    from .lohndatei import ablegen, monat_ende
+
+    erster = erster.replace(day=1)
+    inhalt, ext = build_datev_export(db, erster, monat_ende(erster))
+    row = ablegen(db, erster, inhalt, f"DATEV_Lohndaten_{erster:%Y-%m}.{ext}", user_id=user_id, user_name=user_name)
+    db.commit()
+    db.refresh(row)
+    return row

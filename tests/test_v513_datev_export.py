@@ -62,7 +62,10 @@ def _als(w, rolle="buero_finanzen"):
 
 
 def _export(w):
-    return _als(w).get("/api/time-backoffice/datev-export", params=ZEITRAUM)
+    """Seit 1.9.226 erzeugen und ablegen (POST), bei Erfolg die abgelegte Datei herunterladen (bis 1.9.225 GET /api/time-backoffice/datev-export)."""
+    client = _als(w)
+    antwort = client.post("/api/time-backoffice/lohndateien", json={"monat": VON[:7]})
+    return client.get(f"/api/time-backoffice/lohndateien/{antwort.json()['id']}/datei") if antwort.status_code == 201 else antwort
 
 
 def _csv(antwort):

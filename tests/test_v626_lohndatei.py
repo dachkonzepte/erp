@@ -215,12 +215,16 @@ def test_schnittstelle(w, router_test_client):
     a = person(w, "M-1", "Ada", "00101")
     buchen(w, a, "8.00", tag(7))
     client = router_test_client(w["db"], backoffice_router.router)
-    r = client.get("/api/time-backoffice/datev-export", params={"start_date": "2026-12-01", "end_date": "2026-12-31"})
+    # seit 1.9.226 erzeugen und ablegen (POST), herunterladen aus der Ablage über datei_antwort() (Regel 31: unbekannter Typ als Download) --
+    # 1.9.224/1.9.225 GET /api/time-backoffice/datev-export mit text/plain; charset=us-ascii
+    f = client.post("/api/time-backoffice/lohndateien", json={"monat": "2026-12"})
+    assert f.status_code == 201
+    r = client.get(f"/api/time-backoffice/lohndateien/{f.json()['id']}/datei")
     assert r.status_code == 200
-    assert r.headers["content-type"] == "text/plain; charset=us-ascii"
+    assert r.headers["content-type"] == "application/octet-stream"
     assert 'filename="DATEV_Lohndaten_2026-12.txt"' in r.headers["content-disposition"]
     assert r.content.startswith(b"1234567;12345;12/2026\r\n00101;7;1;1000;8,00;;;;;;\r\n")
-    assert client.get("/api/time-backoffice/datev-export", params={"start_date": "2026-12-02", "end_date": "2026-12-31"}).status_code == 422
+    assert client.post("/api/time-backoffice/lohndateien", json={"monat": "2026-12-02"}).status_code == 422
 
 
 def test_berechnen_ohne_einstellungen_der_alten_formate(w):

@@ -3782,12 +3782,18 @@ class EmployeePayrollSettingsUpdate(PartialUpdate):
     azubi: bool | None = None  # seit 1.9.224 (Lohn L1b, Punkt 1)
 
 
+class LohndateiIn(BaseModel):
+    """Seit 1.9.226 (Lohn L1b, Punkt 3): die Lohndatei eines Monats erzeugen und ablegen."""
+    monat: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+
+
 class PersonalnummerEingelesenOut(BaseModel):
     """Seit 1.9.218 (L1a Stufe 7, Punkt 1): eine gemerkte Nummer ohne Person -- nur für den Admin (app/time_backoffice.py::
     eingelesene_personalnummern())."""
     nummer: str
     eingelesen_am: date | None = None
     traegt: str | None = None  # wer sie heute trägt (an der Sperre vorbei) -- dann kein „freigeben“
+    lohndatei: str | None = None  # seit 1.9.226: „MM/JJJJ“ der abgelegten Lohndatei, in der sie steht -- dann kein „freigeben“
 
 
 class PersonalnummerFreigabeIn(BaseModel):
@@ -4097,6 +4103,7 @@ class EmployeePayrollSettingsOut(BaseModel):
     sollzeiten: list[dict] = Field(default_factory=list)  # seit 1.9.167: eigene Sollzeiten (app/sollzeit.py::zeile_dict()), leer = Tarif
     fruehere_personalnummern: list[str] = Field(default_factory=list)  # seit 1.9.177: frühere Nummern der Person, dauerhaft gesperrt
     fruehere_traeger: dict[str, str] = Field(default_factory=dict)  # seit 1.9.191: wer eine frühere Nummer heute trägt -- dort kein „freigeben“
+    fruehere_in_lohndatei: dict[str, str] = Field(default_factory=dict)  # seit 1.9.226: abgelegte Lohndatei je früherer Nummer -- dort kein „freigeben“
     nummernkreis: str | None = None  # seit 1.9.212: nur in der Antwort aufs Speichern -- der Kreis der Nummer als Hinweis (keine Sperre)
 
 

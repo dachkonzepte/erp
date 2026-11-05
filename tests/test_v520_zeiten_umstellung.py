@@ -176,7 +176,7 @@ FUNKTIONEN = [
      ['id="lohnStatus"', 'id="lohnAbschliessen"', "'/api/time-backoffice/lock'"]),
     ("Backoffice", "„Abschluss aufheben“ (Admin)", "kopf", ['id="abschlussAufheben"', 'id="aufhebenDialog"', 'id="ahBis"']),
     ("Backoffice", "„DATEV-Lohndaten exportieren“ mit Stand", "monat",
-     ['id="lohnDatev"', 'id="lohnDatevFehlt"', "'/api/time-backoffice/datev-export?'"]),
+     ['id="lohnDatev"', 'id="lohnDatevFehlt"', "'/api/time-backoffice/lohndateien'"]),  # seit 1.9.226 erzeugen und ablegen
     ("Backoffice", "„Einrichtung“: Zeitregeln und DATEV, Zeit-Listen", "kopf",
      ['href="/settings#time-rules"', 'href="/settings#time-entry-types"']),
     ("Befund R5", "„Pausen neu rechnen“ (fehlte dem Büro)", "pruefen", ['id="pauseListe"', "'/api/time-entries/pausen-neu-rechnen'"]),

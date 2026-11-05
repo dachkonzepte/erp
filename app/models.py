@@ -1,6 +1,6 @@
 from datetime import date, datetime, time as dt_time
 from decimal import Decimal
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Numeric, String, Text, Time, UniqueConstraint, event, inspect
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, LargeBinary, Numeric, String, Text, Time, UniqueConstraint, event, inspect
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .berlin_time import berlin_today
 from .database import Base
@@ -2772,6 +2772,24 @@ class PersonalnummerVergabe(Base):
     nummer: Mapped[str] = mapped_column(String(50))
     employee_id: Mapped[int | None] = mapped_column(ForeignKey("employees.id"), nullable=True, index=True)
     vergeben_am: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class Lohndatei(Base):
+    """Seit 1.9.226 (Lohn L1b, Punkt 3): jede erzeugte Lohndatei für DATEV Lohn und Gehalt bleibt auf dem Server -- genau die Bytes, die an den
+    Browser gingen, mit SHA-256, Monat, Zeitpunkt (naives UTC) und Konto (app/lohndatei.py::ablegen()). Unveränderlich: kein Ändern, kein
+    Löschen (ORM-Sperre unten, ArchiveImmutableError). Ohne Fremdschlüssel auf das Konto (wie SentDocument), der Name als Schnappschuss. Die Bytes
+    stehen in der Datenbank (wenige KB je Datei) und werden mit ihr gesichert."""
+    __tablename__ = "lohndateien"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    monat: Mapped[date] = mapped_column(Date, index=True)  # der Erste des Monats
+    dateiname: Mapped[str] = mapped_column(String(80))
+    inhalt: Mapped[bytes] = mapped_column(LargeBinary)
+    sha256: Mapped[str] = mapped_column(String(64))
+    groesse: Mapped[int] = mapped_column()
+    erzeugt_am: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    erzeugt_von_user_id: Mapped[int | None] = mapped_column(nullable=True)
+    erzeugt_von_name: Mapped[str] = mapped_column(String(160), server_default="System")
 
 
 class LohnartZuordnung(Base):
@@ -6065,6 +6083,18 @@ def _sent_document_no_update(mapper, connection, target):
 @event.listens_for(SentDocument, "before_delete")
 def _sent_document_no_delete(mapper, connection, target):
     raise ArchiveImmutableError("Ein abgelegtes Dokument wird nie gelöscht.")
+
+
+# Seit 1.9.226 (Lohn L1b, Punkt 3): eine abgelegte Lohndatei wie ein abgelegtes Dokument -- nie geändert, nie gelöscht
+@event.listens_for(Lohndatei, "before_update")
+def _lohndatei_no_update(mapper, connection, target):
+    if any(attr.history.has_changes() for attr in inspect(target).attrs):
+        raise ArchiveImmutableError("Eine abgelegte Lohndatei ist unveränderlich.")
+
+
+@event.listens_for(Lohndatei, "before_delete")
+def _lohndatei_no_delete(mapper, connection, target):
+    raise ArchiveImmutableError("Eine abgelegte Lohndatei wird nie gelöscht.")
 
 
 @event.listens_for(EmailDispatch, "before_update")

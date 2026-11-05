@@ -33,8 +33,11 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, require_lohndaten, require_lohnregeln, require_min_role, require_personalnummer_freigeben
-from ..schemas import ArbeitszeitKalendertagIn, DatevNummernUpdate, EmployeePayrollSettingsOut, EmployeePayrollSettingsUpdate, EmployeeTargetHoursCreate, PersonalnummerEingelesenOut, PersonalnummerFreigabeIn, LohnartZuordnungUpdate, EmployeeWorkTimeModelBulkUpdate, EmployeeWorkTimeModelUpdate, TimeTrackingLockUpdate, TimeTrackingSettingsOut, TimeTrackingSettingsUpdate, WorkTimeModelUpsert
-from ..time_backoffice import DatevExportGesperrt, PersonalnummerGehalten, abschluss_hindernisse, abschluss_meldung, backoffice_summary, build_datev_export, set_datev_nummern, build_time_csv, build_timesheet_pdf, eingelesene_personalnummern, load_time_settings, payroll_rows, personalnummer_freigeben, set_employee_payroll, set_time_lock, time_settings_dict, update_time_settings
+from ..schemas import ArbeitszeitKalendertagIn, DatevNummernUpdate, LohndateiIn, EmployeePayrollSettingsOut, EmployeePayrollSettingsUpdate, EmployeeTargetHoursCreate, PersonalnummerEingelesenOut, PersonalnummerFreigabeIn, LohnartZuordnungUpdate, EmployeeWorkTimeModelBulkUpdate, EmployeeWorkTimeModelUpdate, TimeTrackingLockUpdate, TimeTrackingSettingsOut, TimeTrackingSettingsUpdate, WorkTimeModelUpsert
+from ..dateiauslieferung import datei_antwort
+from ..lohndatei import LohndateiVeraendert, abgelegt_dict, abgelegte, lesen as lohndatei_lesen
+from ..models import Lohndatei
+from ..time_backoffice import DatevExportGesperrt, PersonalnummerGehalten, abschluss_hindernisse, abschluss_meldung, backoffice_summary, lohndatei_erzeugen, set_datev_nummern, build_time_csv, build_timesheet_pdf, eingelesene_personalnummern, load_time_settings, payroll_rows, personalnummer_freigeben, set_employee_payroll, set_time_lock, time_settings_dict, update_time_settings
 from ..arbeitszeitkalender import IM_URLAUB, KalendertagUngueltig, aendern as kalendertag_aendern, anlegen as kalendertag_anlegen, eintraege as kalender_eintraege, eintrag_dict as kalendertag_dict
 from ..lohnarten import liste as lohnarten_liste, speichern as lohnart_speichern
 from ..models import Employee
@@ -277,16 +280,39 @@ def export_time_sheet_csv(start_date: date, end_date: date, employee_id: int | N
     return Response(content=data,media_type="text/csv; charset=utf-8",headers={"Content-Disposition":f'attachment; filename="{filename}"'})
 
 
-@router.get("/api/time-backoffice/datev-export")
-def export_datev_payroll(start_date: date, end_date: date, db: Session = Depends(get_db, scope="function"), _role=_lohn_dep):
-    """Seit 1.9.92 (Stufe 4, R5a, Punkt 5): nur für einen abgeschlossenen Zeitraum und nur vollständig -- sonst 409 mit der Meldung und der
-    Liste dessen, was fehlt (keine Datei; bis 1.9.91 fehlten Stunden still, nur als Zahl in X-DATEV-Warnings). Seit 1.9.224 (Lohn L1b, Punkt
-    1) die Lohndatei für DATEV Lohn und Gehalt (app/lohndatei.py, ASCII), nur für einen ganzen Monat (sonst 422)."""
+# Seit 1.9.226 (Lohn L1b, Punkt 3): jede erzeugte Lohndatei bleibt auf dem Server -- erzeugt wird sie nur noch über POST (kein GET schreibt,
+# Regel 23), heruntergeladen aus der Ablage. Bis 1.9.225 GET /api/time-backoffice/datev-export (die Datei ging nur an den Browser). Seit 1.9.92
+# nur abgeschlossen und vollständig (409 mit Liste), seit 1.9.224 die Lohndatei für DATEV Lohn und Gehalt, ein ganzer Monat (sonst 422).
+@router.post("/api/time-backoffice/lohndateien", status_code=201)
+def lohndatei_erzeugen_route(payload: LohndateiIn, db: Session = Depends(get_db, scope="function"), _role=_lohn_dep):
     try:
-        data,ext=build_datev_export(db,start_date,end_date)
+        row = lohndatei_erzeugen(db, date.fromisoformat(payload.monat + "-01"), user_id=getattr(_role, "id", None),
+                                 user_name=getattr(_role, "display_name", None) or getattr(_role, "username", None))
     except DatevExportGesperrt as exc:
         return JSONResponse(status_code=409, content={"detail": str(exc), "liste": jsonable_encoder(exc.liste)})
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    filename=f"DATEV_Lohndaten_{start_date.strftime('%Y-%m')}.{ext}"
-    return Response(content=data,media_type="text/plain; charset=us-ascii",headers={"Content-Disposition":f'attachment; filename="{filename}"'})
+    return jsonable_encoder(abgelegt_dict(row))
+
+
+@router.get("/api/time-backoffice/lohndateien")
+def lohndateien_liste(monat: str | None = None, db: Session = Depends(get_db, scope="function"), _role=_lohn_dep):
+    """Seit 1.9.226: die abgelegten Lohndateien (eines Monats JJJJ-MM), die jüngste zuerst -- ohne die Bytes."""
+    erster = None
+    if monat is not None:
+        try:
+            erster = date.fromisoformat(monat + "-01")
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail="Monat im Format JJJJ-MM.") from exc
+    return jsonable_encoder([abgelegt_dict(r) for r in abgelegte(db, erster)])
+
+
+@router.get("/api/time-backoffice/lohndateien/{lohndatei_id}/datei")
+def lohndatei_herunterladen(lohndatei_id: int, db: Session = Depends(get_db, scope="function"), _role=_lohn_dep):
+    """Seit 1.9.226: genau die abgelegten Bytes, nur mit stimmender Prüfsumme (sonst 409), als Download (Regel 31, datei_antwort())."""
+    row = db.get(Lohndatei, lohndatei_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Die Lohndatei wurde nicht gefunden.")
+    try:
+        inhalt = lohndatei_lesen(row)
+    except LohndateiVeraendert as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return datei_antwort(inhalt, row.dateiname, herunterladen=True)

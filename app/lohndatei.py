@@ -216,3 +216,59 @@ def datei(beraternummer: str, mandantennummer: str, erster: date, personen: list
     for p in personen:
         zeilen += [zeile_text(p.personalnummer, z) for z in p.zeilen]
     return ("\r\n".join(zeilen) + "\r\n").encode("ascii")
+
+
+# --- Ablage (seit 1.9.226, Lohn L1b, Punkt 3) -------------------------------------------------------------------------------------------------
+
+class LohndateiVeraendert(ValueError):
+    """Die abgelegten Bytes passen nicht zu ihrer Prüfsumme -- ausgeliefert wird dann nichts (409)."""
+
+
+def ablegen(db: Session, erster: date, inhalt: bytes, dateiname: str, *, user_id: int | None, user_name: str | None):
+    """Legt eine erzeugte Datei ab (flush, kein Commit -- der Aufrufer committet). Jede erzeugte Datei, auch eine zweite für denselben Monat."""
+    import hashlib
+
+    from .models import Lohndatei
+
+    row = Lohndatei(monat=erster.replace(day=1), dateiname=dateiname, inhalt=inhalt, sha256=hashlib.sha256(inhalt).hexdigest(), groesse=len(inhalt),
+                    erzeugt_von_user_id=user_id, erzeugt_von_name=user_name or "System")
+    db.add(row)
+    db.flush()
+    return row
+
+
+def abgelegte(db: Session, erster: date | None = None) -> list:
+    """Die abgelegten Dateien (eines Monats), die jüngste zuerst."""
+    from .models import Lohndatei
+
+    abfrage = select(Lohndatei).order_by(Lohndatei.erzeugt_am.desc(), Lohndatei.id.desc())
+    if erster is not None:
+        abfrage = abfrage.where(Lohndatei.monat == erster.replace(day=1))
+    return list(db.scalars(abfrage))
+
+
+def lesen(row) -> bytes:
+    """Die abgelegten Bytes -- nur, wenn sie zur Prüfsumme passen."""
+    import hashlib
+
+    if hashlib.sha256(row.inhalt).hexdigest() != row.sha256:
+        raise LohndateiVeraendert("Die abgelegte Lohndatei passt nicht zu ihrer Prüfsumme – sie wird nicht ausgeliefert.")
+    return row.inhalt
+
+
+def personalnummern_der_ablage(db: Session) -> dict[str, str]:
+    """{Personalnummer: „MM/JJJJ“ der ältesten abgelegten Datei, in der sie steht} -- eine solche Nummer bleibt gesperrt (Notiz zu 1.9.181)."""
+    from .models import Lohndatei
+
+    ergebnis: dict[str, str] = {}
+    for monat, inhalt in db.execute(select(Lohndatei.monat, Lohndatei.inhalt).order_by(Lohndatei.monat, Lohndatei.id)):
+        for zeile in inhalt.decode("ascii", errors="replace").split("\r\n")[1:]:
+            nummer = zeile.split(";", 1)[0]
+            if nummer:
+                ergebnis.setdefault(nummer, f"{monat:%m/%Y}")
+    return ergebnis
+
+
+def abgelegt_dict(row) -> dict:
+    return {"id": row.id, "monat": row.monat, "dateiname": row.dateiname, "sha256": row.sha256, "groesse": row.groesse, "erzeugt_am": row.erzeugt_am,
+            "erzeugt_von_name": row.erzeugt_von_name}

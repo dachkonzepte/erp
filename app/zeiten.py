@@ -349,7 +349,7 @@ def monat(db: Session, erster: date) -> dict:
     status = _status(erster, lock)
     luecken = [] if status == "abgeschlossen" else abschluss_hindernisse(db, ende)
     # seit 1.9.225 (Lohn L1b, Punkt 2): eine Rechnung der Lohndatei für „Fehlt“ und „Nicht in der Datei“ (app/lohndatei.py::berechnen())
-    from .lohndatei import berechnen
+    from .lohndatei import abgelegt_dict, abgelegte, berechnen
     lohndatei = berechnen(db, erster)
     fehlt = datev_fehlt(db, erster, ende, personen=lohndatei)
     rows = [r for r in list_entries(db, start_date=erster, end_date=ende, limit=None)]
@@ -403,6 +403,8 @@ def monat(db: Session, erster: date) -> dict:
             # seit 1.9.225: je Person, was nicht in die Datei geht, mit Grund (nach Nachnamen) -- über dem Knopf „DATEV-Export“
             "nicht_in_der_datei": [{"employee_id": x.employee_id, "name": x.name, "eintraege": x.nicht_texte()}
                                    for x in sorted(lohndatei, key=lambda x: (x.nachname.casefold(), x.employee_id)) if x.nicht],
+            # seit 1.9.226 (Lohn L1b, Punkt 3): die abgelegten Lohndateien des Monats, die jüngste zuerst (ohne die Bytes)
+            "lohndateien": [abgelegt_dict(r) for r in abgelegte(db, erster)],
             "antraege_offen": len(list_requests(db, status="pending")),
             "spalten": spalten, "zeilen": zeilen,
             "summe": {"stunden": {k: summe.get(k, Decimal("0")) for k, _ in SPALTEN + (("other", ""),)}, "zusammen": summe["zusammen"],
