@@ -56,6 +56,10 @@ def nummernkreis(nummer: str | None) -> str | None:
     return None
 
 
+# Seit 1.9.213 (L1a Stufe 6, Punkt 2): so heißt eine gemerkte Nummer ohne Person (scripts/personalnummern_einlesen.py) in der Meldung
+EINGELESEN = "eingelesene Liste vergebener Nummern"
+
+
 # Seit 1.9.177 (L1a-Nachtrag, Punkt 4, Vorgabe Tobias): eine Nummer, die einer Person einmal gehört hat, bleibt dauerhaft gesperrt -- auch nach
 # Austritt und nach einem Nummernwechsel (bis 1.9.176 war die alte Nummer nach einem Wechsel frei, Festlegung 1.9.168 Nr. 3). Nur dieselbe Person
 # bekommt sie wieder. Gemerkt in PersonalnummerVergabe, nie gelöscht.
@@ -67,6 +71,8 @@ def personalnummer_gesperrt(db: Session, nummer: str | None, employee_id: int) -
     row = db.scalar(select(PersonalnummerVergabe).where(PersonalnummerVergabe.nummer == nummer))
     if row is None or row.employee_id == employee_id:
         return None
+    if row.employee_id is None:  # seit 1.9.213: eingelesen aus einer Liste vergebener Nummern (scripts/personalnummern_einlesen.py)
+        return (f"Die Personalnummer {nummer} ist schon vergeben ({EINGELESEN}) – eine Personalnummer bleibt dauerhaft gesperrt.")
     return (f"Die Personalnummer {nummer} gehörte schon {employee_name(db.get(Employee, row.employee_id)) or 'einer anderen Person'} – eine "
             "Personalnummer bleibt dauerhaft gesperrt, auch nach Austritt und Nummernwechsel.")
 
@@ -79,9 +85,10 @@ def personalnummer_merken(db: Session, nummer: str | None, employee_id: int) -> 
 
 
 def fruehere_personalnummern(db: Session) -> dict[int, list[str]]:
-    """Je Person die gemerkten Nummern (für die Liste der Lohnstammdaten: „früher …“)."""
+    """Je Person die gemerkten Nummern (für die Liste der Lohnstammdaten: „früher …“) -- seit 1.9.213 ohne die eingelesenen ohne Person."""
     je: dict[int, list[str]] = {}
-    for nummer, eid in db.execute(select(PersonalnummerVergabe.nummer, PersonalnummerVergabe.employee_id).order_by(PersonalnummerVergabe.id)):
+    for nummer, eid in db.execute(select(PersonalnummerVergabe.nummer, PersonalnummerVergabe.employee_id)
+                                  .where(PersonalnummerVergabe.employee_id.is_not(None)).order_by(PersonalnummerVergabe.id)):
         je.setdefault(eid, []).append(nummer)
     return je
 
@@ -131,10 +138,13 @@ def personalnummer_freigeben(db: Session, nummer: str | None) -> None:
     if halter is not None:
         raise PersonalnummerGehalten(f"Die Personalnummer {nummer} trägt heute {employee_name(halter) or 'eine Person'} – freigeben geht nur, "
                                      "solange sie niemand trägt.")
-    frueher = employee_name(db.get(Employee, row.employee_id)) or "einer anderen Person"
+    if row.employee_id is None:  # seit 1.9.213: eingelesen, ohne Person
+        alt = "gesperrt, eingelesen ohne Person"
+    else:
+        alt = f"gesperrt, gehörte {employee_name(db.get(Employee, row.employee_id)) or 'einer anderen Person'}"
     record_audit_entry(db, action="Personalnummer freigegeben", entity_type="Personalnummer", entity_id=nummer,
                        entity_label=f"Personalnummer {nummer}", field_name="nummer", field_label="Personalnummer",
-                       old_value=f"gesperrt, gehörte {frueher}", new_value="frei")
+                       old_value=alt, new_value="frei")
     db.delete(row)
     db.commit()
 

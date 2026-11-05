@@ -1440,3 +1440,24 @@ Angepasste Erwartungen (Regel 28) zu 1.9.212:
 - `klicktest_zeiten` „Fin: Lohnart Werkstatt und Oles Personalnummer gespeichert“: nur Aufbau, Oles Nummer „1003“ -> „01003“ (Soll 200 bleibt).
 - `test_v387::test_lohnstammdaten_entstehen_erst_beim_speichern`: nur Aufbau, gespeicherte Nummer „77“ -> „00077“ (gefunden im ersten Lauf der Kette: 422 statt 200).
 - `klicktest_personalnummer_freigeben` „Ada: Tom bekommt 91008“: altes Soll [„Gespeichert.“, 91008], neues Soll [„Gespeichert. Die Personalnummer 91008 liegt im Kreis Azubis (ab 00200).“, 91008] (gefunden im zweiten Lauf der Kette).
+
+### Umsetzung 1.9.213: vergebene Personalnummern einlesen (Punkt 2)
+
+`scripts/personalnummern_einlesen.py` (Muster `scripts/erstes_konto.py`: `DATABASE_URL` Pflicht, `main(argv, sitzung=, umgebung=, ausgabe=)`): `lesen()` zerlegt die Datei (UTF-8, Byte-Order-Mark erlaubt), `einlesen()` merkt je Nummer, die noch nicht gemerkt ist, einen Eintrag -- mit der Person, die sie heute trägt (`app/time_backoffice.py::personalnummer_halter()`, dieselbe Regel wie beim Freigeben), sonst ohne Person; ein Commit am Ende, bei `--probe` keiner. Migration `8b4c2f9e1d07`: `personalnummern_vergeben.employee_id` leer erlaubt (`downgrade()` löscht die Nummern ohne Person und verlangt die Person wieder). `app/time_backoffice.py`: `personalnummer_gesperrt()` nennt bei einer Nummer ohne Person „eingelesene Liste vergebener Nummern“ (`EINGELESEN`), `fruehere_personalnummern()` nur Nummern mit Person, `personalnummer_freigeben()` schreibt „gesperrt, eingelesen ohne Person“. `scripts/pruefe_zeitregeln.py`: Zeile „davon eingelesen ohne Person“ (nur wenn es welche gibt), Befund, wenn eine aktive Person eine solche Nummer trägt.
+
+Aufruf auf dem Server: `set -a; source .env; set +a` und `.venv/bin/python scripts/personalnummern_einlesen.py /home/tobias/erp-data/<datei> --probe`, danach ohne `--probe`. Die Datei gehört nach `erp-data` (außerhalb von Git, von `backup.sh` gesichert) oder wird nach dem Einlesen gelöscht -- beides entscheidet der Betreiber.
+
+### Festlegungen 1.9.213 (Bitte bestätigen)
+
+1. Die Datei liegt auf dem Server, ihr Pfad ist das Argument; eine Datei unter dem Projektordner lehnt das Skript ab, bevor es sie liest (Rückgabe 2).
+2. Trägt eine Person im ERP eine eingelesene Nummer heute (Lohnstammdaten, bei „DATEV-Nr. = ERP-Nr.“ die Mitarbeiternummer), wird sie ihr gemerkt und sie behält sie; sonst steht die Nummer ohne Person und bekommt keine Person im ERP. Die Meldung beim Speichern nennt dann keinen Namen, sondern „eingelesene Liste vergebener Nummern“.
+3. Mehrfach ausführbar: eine schon gemerkte Nummer bleibt, wie sie ist (auch, wem sie gemerkt ist). Gemeldet werden die neuen Nummern (eine Person nur mit ihrer Kennung) und die schon gemerkten, jeweils mit der Nummer.
+4. Aufbau der Datei: je Zeile eine Nummer, bei CSV das erste Feld vor „;“, „,“ oder Tabulator; leere Zeilen und Zeilen mit „#“ zählen nicht; eine Zeile, deren erstes Feld keine Zahl ist, wird übersprungen und nur mit ihrer Zeilennummer genannt (dort kann ein Name stehen); 1 bis 4 Ziffern werden links auf 5 aufgefüllt (wie die Migration 5d2e8a71c4f3 -- eine Tabellenkalkulation lässt führende Nullen weg); mehr als 5 Ziffern: Abbruch, nichts gemerkt (Rückgabe 1); doppelte zählen einmal.
+5. `--probe` meldet dasselbe, schreibt nichts; ohne `--probe` ein Commit für alle Nummern.
+6. Nummern ohne Person stehen auf der Seite nirgends (die Liste „früher“ ist je Person). Freigeben kann der Admin sie wie jede gemerkte, aber nur über die Schnittstelle (`POST /api/time-backoffice/personalnummern/freigeben`) -- eine Liste der eingelesenen Nummern auf der Seite ist nicht gebaut.
+7. `scripts/pruefe_zeitregeln.py` zählt die Nummern ohne Person; trägt eine aktive Person eine davon (nur an der Sperre vorbei möglich), ist das ein Befund.
+8. `downgrade()` löscht die Nummern ohne Person; nach einem erneuten Einspielen das Skript noch einmal laufen lassen.
+
+### Tests und Prüfung 1.9.213
+
+Neu: `tests/test_v618_personalnummern_einlesen.py` (12 Tests, alle Nummern erfunden) -- zwei Läufe (neu, schon gemerkt, die Trägerin behält ihre), danach gesperrt für eine andere Person, freigeben einer eingelesenen, `--probe`, Aufbau der Datei (Überschrift, Kommentar, CSV, Auffüllen, doppelt, kein Name in der Ausgabe), mehr als 5 Ziffern, Datei im Projektordner, ohne `DATABASE_URL`, Prüfskript, keine Datei mit Personalnummern im Repository, Migration auf einem Bestand unter SQLite und PostgreSQL. Gegenproben je Festlegung: Archiv „Gegenproben Lohn L1a“, Abschnitt „Stufe 6“. Angepasste Erwartungen: keine.

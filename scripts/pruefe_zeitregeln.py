@@ -7,9 +7,9 @@ Vor dem Probemonat (Dezember 2026) und vor dem ersten echten Export: was auf dem
     Arbeitszeitmodelle    Kürzel, Kalenderwochen, Soll Mo–Fr, Pausenregeln, aktiv, Standardmodell; Startmodelle mit den alten Grundwerten
                           (KW 13–43 und 44–12, beide 8,00 h -- die Migration b7e3c91d4a52 stellt nur diese um); Kalenderwochen, die kein aktives
                           Modell deckt oder zwei decken; Pausenregeln, die nicht 6 h -> 30 min und 9 h -> 45 min sind; Personen je Modell
-    Personalnummern       je aktive Person: fehlt (obwohl etwas exportiert wird), doppelt, nicht 1 bis 5 Ziffern ohne führende Null -- bei
+    Personalnummern       je aktive Person: fehlt (obwohl etwas exportiert wird), doppelt, nicht genau 5 Ziffern (bis 1.9.211: 1 bis 5 ohne führende Null) -- bei
                           „DATEV-Nr. = ERP-Nr.“ die ERP-Nummer; seit 1.9.177 die gemerkten Nummern und ob eine aktive Person die Nummer
-                          einer anderen trägt
+                          einer anderen trägt; seit 1.9.212 genau 5 Ziffern und je Kreis gezählt; seit 1.9.213 die eingelesenen ohne Person
     Export-Umfang         Anzahl je alles / nur Abwesenheiten / nichts; Eintritt und Austritt; eigene Sollzeiten
     Feiertage             Bundesland, „Feiertage automatisch“, die gesetzlichen Feiertage dieses und des nächsten Jahres
     von Hand              eingetragene betriebsfreie Tage (sie zählen nicht als Feiertag F)
@@ -157,11 +157,16 @@ def _personen(db, stand: Stand, heute: date) -> None:
     from app.models import PersonalnummerVergabe
     gemerkt = {n: e for n, e in db.execute(select(PersonalnummerVergabe.nummer, PersonalnummerVergabe.employee_id))}
     for nummer, ids in nummern.items():
-        fremd = [eid for eid in ids if gemerkt.get(nummer) not in (None, eid)]
-        if fremd:
+        fremd = [eid for eid in ids if nummer in gemerkt and gemerkt[nummer] != eid]
+        if fremd and gemerkt[nummer] is None:  # seit 1.9.213: eingelesen ohne Person (scripts/personalnummern_einlesen.py)
+            stand.befund(f"Personalnummer {nummer} steht in der eingelesenen Liste (ohne Person), heute trägt sie Person {', '.join(map(str, fremd))}.")
+        elif fremd:
             stand.befund(f"Personalnummer {nummer} gehörte Person {gemerkt[nummer]}, heute trägt sie Person {', '.join(map(str, fremd))}.")
     stand.zeile(f"  Personalnummern gemerkt (dauerhaft gesperrt): {len(gemerkt)}, davon bei keiner aktiven Person: "
                 f"{sum(1 for n in gemerkt if n not in nummern)}")
+    ohne = sum(1 for e in gemerkt.values() if e is None)
+    if ohne:  # seit 1.9.213
+        stand.zeile(f"    davon eingelesen ohne Person: {ohne}")
     # seit 1.9.212 (L1a Stufe 6, Punkt 1): je Kreis des Lohnbüros, wie viele gültige Nummern aktive Personen tragen -- nur gezählt, kein Befund
     kreise = Counter(next(name for von, bis, name, _b in NUMMERNKREISE if von <= int(n) <= bis) for n in nummern if PERSONALNUMMER_FORMAT.match(n))
     stand.zeile("  Personalnummern je Kreis: " + ", ".join(f"{name} {kreise.get(name, 0)}" for _v, _b, name, _x in NUMMERNKREISE))

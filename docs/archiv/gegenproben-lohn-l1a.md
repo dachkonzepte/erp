@@ -752,3 +752,23 @@ byte-genau zurück (Prüfsumme); gezählt nur FAILED. Version in Klammern = gefa
 | **1.9.212 Nr. 5c** – nur 1 bis 4 Ziffern aufgefüllt | auch mit Buchstaben aufgefüllt (1.9.212) | vorher grün; mit test_v617 3 rot: test_aufgefuellt_und_zurueck, test_migration_auf_einem_bestand (beide) |
 | **1.9.212 Nr. 6** – Prüfskript zählt je Kreis | Zeile „Personalnummern je Kreis“ fehlt (1.9.212) | vorher grün; mit test_v617 1 rot: test_pruefskript_format_und_kreise |
 | **1.9.212 Nr. 7** – `downgrade()` nimmt die Nullen weg | `downgrade()` ohne Wirkung (1.9.212) | vorher grün; mit test_v617 2 rot: test_migration_auf_einem_bestand (SQLite, PostgreSQL) |
+| **1.9.213 Nr. 1** – Datei im Projektordner abgelehnt | Prüfung auf den Projektordner aus (1.9.213) | vorher grün; mit test_v618 1 rot: test_datei_im_projektordner_abgelehnt |
+| **1.9.213 Nr. 2a** – wer die Nummer trägt, behält sie | eingelesene Nummern nie der Trägerin gemerkt (1.9.213) | vorher grün; mit test_v618 2 rot: test_einlesen_und_zweiter_lauf, test_danach_gesperrt_und_die_traegerin_behaelt_ihre |
+| **1.9.213 Nr. 2b** – ohne Person gesperrt | eine Nummer ohne Person gilt als frei (1.9.213) | vorher grün; mit test_v618 1 rot: test_danach_gesperrt_und_die_traegerin_behaelt_ihre |
+| **1.9.213 Nr. 2c** – Meldung „eingelesene Liste vergebener Nummern“ | Meldung wie mit Person (1.9.213) | vorher grün; mit test_v618 1 rot: test_danach_gesperrt_und_die_traegerin_behaelt_ihre |
+| **1.9.213 Nr. 3a** – mehrfach ausführbar | schon gemerkte noch einmal angelegt (1.9.213) | vorher grün; mit test_v618 1 rot: test_einlesen_und_zweiter_lauf |
+| **1.9.213 Nr. 3b** – meldet die schon gemerkten mit Nummer | „Schon gemerkt“ ohne die Nummern (1.9.213) | vorher grün; mit test_v618 1 rot: test_einlesen_und_zweiter_lauf |
+| **1.9.213 Nr. 4a** – 1 bis 4 Ziffern aufgefüllt | nicht aufgefüllt (1.9.213) | vorher grün; mit test_v618 1 rot: test_aufbau_der_datei |
+| **1.9.213 Nr. 4b** – übersprungene Zeile nur mit Nummer, nie mit Inhalt | mit Inhalt genannt (1.9.213) | vorher grün; mit test_v618 1 rot: test_aufbau_der_datei |
+| **1.9.213 Nr. 4c** – mehr als 5 Ziffern: Abbruch | weiter trotz zu langer Zeile (1.9.213) | vorher grün; mit test_v618 1 rot: test_mehr_als_fuenf_ziffern_nichts_gemerkt |
+| **1.9.213 Nr. 4d** – doppelte zählen einmal | doppelt zweimal gezählt (1.9.213) | vorher grün; mit test_v618 1 rot: test_aufbau_der_datei |
+| **1.9.213 Nr. 5** – `--probe` schreibt nichts | erst nur Commit statt Rollback: **grün (Befund)** -- die Probe ist doppelt geschützt (legt nichts an und rollt zurück); dann beides ausgehebelt (1.9.213) | vorher grün; mit test_v618 1 rot: test_probe_schreibt_nichts |
+| **1.9.213 Nr. 6** – freigeben einer eingelesenen (Protokoll „eingelesen ohne Person“) | Text wie mit Person (1.9.213) | vorher grün; mit test_v618 1 rot: test_freigeben_einer_eingelesenen |
+| 1.9.213 Nr. 6 (Teil) – Nummern ohne Person stehen nirgends auf der Seite | keine -- die Liste „früher“ ist je Person, eine Nummer ohne Person kann dort strukturell nicht stehen (der Filter in `fruehere_personalnummern()` ist nur Ordnung) | – |
+| **1.9.213 Nr. 7a** – Prüfskript zählt die Nummern ohne Person | Zeile fehlt (1.9.213) | vorher grün; mit test_v618 1 rot: test_pruefskript_zaehlt_die_eingelesenen |
+| **1.9.213 Nr. 7b** – Befund, wenn eine aktive Person eine trägt | Befund wie bis 1.9.212 (ohne Person kein Befund) (1.9.213) | vorher grün; mit test_v618 1 rot: test_pruefskript_zaehlt_die_eingelesenen |
+| **1.9.213 Nr. 8** – `downgrade()` löscht die Nummern ohne Person | nichts gelöscht (1.9.213) | vorher grün; mit test_v618 2 rot: test_migration_auf_einem_bestand (SQLite, PostgreSQL) |
+
+Befund 1.9.213 (Gegenprobe Nr. 5): „Commit statt Rollback bei `--probe`“ blieb grün -- kein Fehler und keine Lücke im Test, sondern ein doppelter
+Schutz (`einlesen()` legt bei `--probe` nichts an und rollt zusätzlich zurück); eine Gegenprobe, die nur einen der beiden weg nimmt, kann nicht rot
+werden. Gefahren mit beiden ausgehebelt: rot.

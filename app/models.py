@@ -2756,13 +2756,15 @@ class EmployeePayrollSettings(Base):
 class PersonalnummerVergabe(Base):
     """Seit 1.9.177 (L1a-Nachtrag, Punkt 4, Vorgabe Tobias): jede DATEV-Personalnummer, die einer Person einmal gehört hat -- sie bleibt dauerhaft
     gesperrt, auch nach Austritt und nach einem Nummernwechsel; nur dieselbe Person bekommt sie wieder. Eingetragen beim Speichern der
-    Lohnstammdaten und (bei „DATEV-Nr. = ERP-Nr.“) der Mitarbeiternummer, nie gelöscht (app/time_backoffice.py::personalnummer_merken())."""
+    Lohnstammdaten und (bei „DATEV-Nr. = ERP-Nr.“) der Mitarbeiternummer, nie gelöscht (app/time_backoffice.py::personalnummer_merken()).
+    Seit 1.9.213 (L1a Stufe 6, Punkt 2) auch eingelesen aus einer Liste vergebener Nummern (scripts/personalnummern_einlesen.py) -- trägt die
+    Nummer niemand im ERP, ohne Person (employee_id leer): dann bekommt sie keine Person."""
     __tablename__ = "personalnummern_vergeben"
     __table_args__ = (UniqueConstraint("nummer", name="uq_personalnummer_vergeben_nummer"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     nummer: Mapped[str] = mapped_column(String(50))
-    employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), index=True)
+    employee_id: Mapped[int | None] = mapped_column(ForeignKey("employees.id"), nullable=True, index=True)
     vergeben_am: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
