@@ -768,6 +768,17 @@ byte-genau zurück (Prüfsumme); gezählt nur FAILED. Version in Klammern = gefa
 | **1.9.213 Nr. 7a** – Prüfskript zählt die Nummern ohne Person | Zeile fehlt (1.9.213) | vorher grün; mit test_v618 1 rot: test_pruefskript_zaehlt_die_eingelesenen |
 | **1.9.213 Nr. 7b** – Befund, wenn eine aktive Person eine trägt | Befund wie bis 1.9.212 (ohne Person kein Befund) (1.9.213) | vorher grün; mit test_v618 1 rot: test_pruefskript_zaehlt_die_eingelesenen |
 | **1.9.213 Nr. 8** – `downgrade()` löscht die Nummern ohne Person | nichts gelöscht (1.9.213) | vorher grün; mit test_v618 2 rot: test_migration_auf_einem_bestand (SQLite, PostgreSQL) |
+| **1.9.214 Nr. 1a** (= 1.9.169 Nr. 3 neu) – Winter WA / 8195 je Tag | Winter wieder Monatszeile 8110 (1.9.214) | vorher 5 rot (test_v587, test_v590, test_v610, die mit 1.9.214 angepassten Erwartungen); mit test_v619 7 rot |
+| **1.9.214 Nr. 1b** – Winter keine Monatszeile | WA / 8195 als Monatszeile (1.9.214) | vorher 4 rot; mit test_v619 6 rot, darunter test_vorbelegung_mit_den_werten_des_lohnbueros, test_schlechtwetter_winter_je_tag |
+| **1.9.214 Nr. 1c** – Sommer bleibt leer | Sommer wie Winter vorbelegt (1.9.214) | vorher 4 rot; mit test_v619 6 rot, darunter test_vorbelegung_mit_den_werten_des_lohnbueros |
+| **1.9.214 Nr. 2a** – Heiligabend FR / 1080 | Heiligabend wieder BF ohne Lohnart (1.9.214) | vorher 2 rot: test_v591 (vorbelegt, Prüfskript); mit test_v619 4 rot |
+| **1.9.214 Nr. 2b** – Silvester UU | Silvester wieder AF (1.9.214) | vorher 1 rot: test_v592::test_silvester_ist_vorbelegt; mit test_v619 2 rot |
+| **1.9.214 Nr. 2c** – Silvester ohne Lohnart | Silvester UU mit Lohnart (1.9.214) | vorher 1 rot: test_v592::test_silvester_ist_vorbelegt; mit test_v619 2 rot |
+| **1.9.214 Nr. 3a** – Migration nur bei genau dem bisherigen Vorgabewert | auch eine von Hand geänderte Zeile umgestellt (1.9.214) | vorher grün; mit test_v619 2 rot: test_migration_auf_einem_bestand (SQLite, PostgreSQL) |
+| **1.9.214 Nr. 3b** – eine geänderte Zeile steht in der Ausgabe | keine Ausgabe (1.9.214) | vorher grün; mit test_v619 2 rot: test_migration_auf_einem_bestand (SQLite, PostgreSQL) |
+| **1.9.214 Nr. 3c** – `downgrade()` stellt zurück | `downgrade()` ohne Wirkung (1.9.214) | vorher grün; mit test_v619 2 rot: test_migration_auf_einem_bestand (SQLite, PostgreSQL) |
+| **1.9.214 Nr. 4** – Berufsschule vorbelegt | Berufsschule nicht in `START` (1.9.214) | vorher 2 rot: test_v587::test_vorbelegt_nach_e7, test_v604::test_zeile_je_art_erst_beim_ersten_speichern; mit test_v619 3 rot |
+| 1.9.214 Notiz L1b – Mehrarbeit von Azubis AA / 1900 | keine – nicht gebaut, nur notiert | – |
 
 Befund 1.9.213 (Gegenprobe Nr. 5): „Commit statt Rollback bei `--probe`“ blieb grün -- kein Fehler und keine Lücke im Test, sondern ein doppelter
 Schutz (`einlesen()` legt bei `--probe` nichts an und rollt zusätzlich zurück); eine Gegenprobe, die nur einen der beiden weg nimmt, kann nicht rot

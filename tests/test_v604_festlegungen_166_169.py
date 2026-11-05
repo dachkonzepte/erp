@@ -135,8 +135,8 @@ def test_gleichsetzung_nur_abwesenheiten_verlangt_das_format(welt):
 # --- 1.9.169 Nr. 5: eine Zeile je Art erst beim Speichern --------------------------------------------------------------------------------
 
 def test_zeile_je_art_erst_beim_ersten_speichern(db_session):
-    """Nach dem Start (Grunddaten) gibt es unter „art:“ nur Weiterbildung; Berufsschule, Freizeitausgleich und die übrigen Arten zeigt die
-    Liste ohne eigene Zeile („wie die Kategorie“). Erst Speichern legt die Zeile einer Art an."""
+    """Nach dem Start (Grunddaten) gibt es unter „art:“ nur Weiterbildung und (seit 1.9.214) Berufsschule; Freizeitausgleich und die übrigen
+    Arten zeigt die Liste ohne eigene Zeile („wie die Kategorie“). Erst Speichern legt die Zeile einer Art an."""
     from app.grunddaten import anlegen
     from app.lohnarten import speichern
 
@@ -144,6 +144,6 @@ def test_zeile_je_art_erst_beim_ersten_speichern(db_session):
         return sorted(s for (s,) in db_session.query(LohnartZuordnung.schluessel) if s.startswith("art:"))
 
     anlegen(db_session)  # ein zweiter Start legt ebenso keine an
-    assert arten() == ["art:weiterbildung"]
+    assert arten() == ["art:berufsschule", "art:weiterbildung"]  # seit 1.9.214 mit Berufsschule
     speichern(db_session, "art:sonderurlaub", "S", "8100", False)
-    assert arten() == ["art:sonderurlaub", "art:weiterbildung"]
+    assert arten() == ["art:berufsschule", "art:sonderurlaub", "art:weiterbildung"]

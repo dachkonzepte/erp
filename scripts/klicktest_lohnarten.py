@@ -1,8 +1,8 @@
 """Klicktest: Zuordnung für den DATEV-Export in Einstellungen → Zeitregeln und DATEV (1.9.169, Lohn L1a, Punkt 4, E7, E10).
 
     Büro – Finanzen  Fin: Zeilen wie vorbelegt (Arbeit 1/1000, Feiertag F/1012, Urlaub U/8000, Krankheit K/1650, Schlechtwetter Winter
-                     „Monatszeile 8110“, Art Weiterbildung 1/1000; Berufsschule, Fortbildung, Freizeitausgleich, Schlechtwetter Sommer „nicht
-                     exportiert“); Lohnart „10a“ -> Meldung, nichts gespeichert; Freizeitausgleich Z / 1500 gespeichert -> „Wirkt“ und die Art
+                     WA/8195 (seit 1.9.214, bis 1.9.213 „Monatszeile 8110“), Art Weiterbildung 1/1000; Berufsschule (seit 1.9.214 FE ohne
+                     Lohnart), Fortbildung, Freizeitausgleich, Schlechtwetter Sommer „nicht exportiert“); Lohnart „10a“ -> Meldung, nichts gespeichert; Freizeitausgleich Z / 1500 gespeichert -> „Wirkt“ und die Art
                      Freizeitausgleich danach „wie die Kategorie – Freizeitausgleich: Z / 1500“ -- Bild; seit 1.9.203 (L1a Stufe 4, Punkt 2):
                      der Satz über der Tabelle nennt die Jahreszeit bei Schlechtwetter; eine gespeicherte Zeile „art:schlechtwetter“ S / 8111
                      (Altbestand, direkt angelegt) „wird übergangen“, ein neuer Wert -> Meldung „Für Schlechtwetter gilt immer die Jahreszeit
@@ -49,7 +49,7 @@ def befuellen(db, k):
 async def pruefen(tab, seed, p):
     await tab.cmd("Page.addScriptToEvaluateOnNewDocument", source="window.alert=m=>console.error('alert(): '+m)")
     vorbelegt = {"arbeit": "1 / 1000", "feiertag": "F / 1012", "kategorie:urlaub": "U / 8000", "kategorie:krankheit": "K / 1650",
-                 "schlechtwetter:winter": "Monatszeile 8110", "art:weiterbildung": "1 / 1000", "kategorie:fortbildung": "nicht exportiert",
+                 "schlechtwetter:winter": "WA / 8195", "art:weiterbildung": "1 / 1000", "kategorie:fortbildung": "nicht exportiert",  # seit 1.9.214 WA / 8195
                  "kategorie:freizeitausgleich": "nicht exportiert", "schlechtwetter:sommer": "nicht exportiert",
                  "art:berufsschule": "wie die Kategorie – Fortbildung: nicht exportiert"}
     liste = "[" + ",".join(_wirkt(s) for s in vorbelegt) + "]"

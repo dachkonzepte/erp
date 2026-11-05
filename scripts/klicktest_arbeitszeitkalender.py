@@ -1,7 +1,7 @@
 """Klicktest: Arbeitszeitkalender in Einstellungen → Zeitregeln und DATEV (1.9.175, L1a-Nachtrag, Punkt 2).
 
     Büro – Finanzen  Fin (1440): Heiligabend vorbelegt (24.12., 7,00 h, „Heiligabend – bezahlte Freistellung“, gewerbliche, nur Mo–Fr,
-                     aktiv), Zuordnung „BF / Lohnart offen – nicht exportiert“, Bild davon (seit 1.9.180, bevor der Test etwas ändert);
+                     aktiv), Zuordnung „FR / 1080“ (seit 1.9.214, bis 1.9.213 „BF / Lohnart offen – nicht exportiert“), Bild davon (seit 1.9.180, bevor der Test etwas ändert);
                      „+ Kalendertag“ Rosenmontag 15.02. -> neue Zeile und eine
                      Zeile in der Zuordnung; ein zweiter Eintrag am 24.12. -> Meldung, nichts gespeichert; Heiligabend mit 6,5 h -> „6,50 h“;
                      „Zeiten → Abwesenheiten“: Karte „Arbeitszeitkalender“ mit Heiligabend, Silvester (seit 1.9.176) und Rosenmontag, Mias Urlaub 21.12.–01.01.
@@ -74,7 +74,8 @@ async def pruefen(tab, seed, p):
     p.pruefe("Fin: Heiligabend vorbelegt", await tab.js(ZEILE.format(s="heiligabend")),
              ["24.12.", "Heiligabend", "7,00 h", "Heiligabend – bezahlte Freistellung", "kein Urlaubstag – ein Urlaub über den Tag zählt ihn mit 0",
               "gewerbliche Mitarbeiter, nur Mo–Fr", "aktiv"])
-    p.pruefe("Fin: Zuordnung BF ohne Lohnart", await tab.js(WIRKT.format(s="heiligabend")), "BF / Lohnart offen – nicht exportiert")
+    # seit 1.9.214 FR / 1080 (Lohnbüro; bis 1.9.213 „Zuordnung BF ohne Lohnart“, „BF / Lohnart offen – nicht exportiert“)
+    p.pruefe("Fin: Zuordnung FR / 1080", await tab.js(WIRKT.format(s="heiligabend")), "FR / 1080")
     # seit 1.9.180: ein Bild des ausgelieferten Zustands, bevor der Test etwas ändert (Bild 01 des Berichts 71d7f52 zeigte die 6,50 h von unten)
     await tab.js("document.getElementById('kalenderBlock').scrollIntoView({block:'start'})")
     await tab.bild("kalender_fin_ausgeliefert")

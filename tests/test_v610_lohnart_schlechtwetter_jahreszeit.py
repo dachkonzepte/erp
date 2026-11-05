@@ -40,10 +40,11 @@ def test_nur_jahreszeit_erkennt_die_art():
 
 
 def test_gespeicherte_art_wird_uebergangen(db_session):
-    """Winter: die Monatszeile 8110 statt S / 8111; Sommer: nicht exportiert (die Zeile Sommer ist leer) -- die Zeile bleibt stehen."""
+    """Winter: WA / 8195 (seit 1.9.214, bis 1.9.213 die Monatszeile 8110) statt S / 8111; Sommer: nicht exportiert (die Zeile Sommer ist leer)
+    -- die Zeile bleibt stehen."""
     db = db_session
     _altbestand(db)
-    assert _kurz(zuordnung(db, "schlechtwetter", "Schlechtwetter", WINTER)) == (None, "8110", True, "schlechtwetter:winter")
+    assert _kurz(zuordnung(db, "schlechtwetter", "Schlechtwetter", WINTER)) == ("WA", "8195", False, "schlechtwetter:winter")
     assert zuordnung(db, "schlechtwetter", "Schlechtwetter", SOMMER) is None
     zeile = db.query(LohnartZuordnung).filter_by(schluessel="art:schlechtwetter").one()
     assert (zeile.kennzeichen, zeile.lohnart) == ("S", "8111")
@@ -54,7 +55,7 @@ def test_auch_eine_art_fuer_jede_kategorie_nicht(db_session):
     db = db_session
     speichern(db, "art:sonstiges", "X", "9999", False)
     assert _kurz(zuordnung(db, "urlaub", "Sonstiges", WINTER)) == ("X", "9999", False, "art:sonstiges")
-    assert _kurz(zuordnung(db, "schlechtwetter", "Sonstiges", WINTER)) == (None, "8110", True, "schlechtwetter:winter")
+    assert _kurz(zuordnung(db, "schlechtwetter", "Sonstiges", WINTER)) == ("WA", "8195", False, "schlechtwetter:winter")  # seit 1.9.214
 
 
 def test_altbestand_wirkt_auch_ausserhalb_nie(db_session):

@@ -66,10 +66,11 @@ def test_heiligabend_ist_vorbelegt(welt):
     e = eintraege(db)[0]  # seit 1.9.176 danach Silvester (tests/test_v592_silvester.py)
     assert (e.schluessel, e.name, e.monat, e.tag, e.sollzeit, e.abwesenheit, e.bezahlt, e.im_urlaub, e.nur_gewerblich, e.nur_mo_fr, e.aktiv) == (
         "heiligabend", "Heiligabend", 12, 24, D("7.00"), "Heiligabend – bezahlte Freistellung", True, "kein_urlaubstag", True, True, True)
-    assert kalender_zuordnung(db, "heiligabend") == {"kennzeichen": "BF", "lohnart": None, "schluessel": "kalender:heiligabend", "exportiert": False}
+    # seit 1.9.214 FR / 1080 (Lohnbüro; bis 1.9.213 BF, Lohnart offen)
+    assert kalender_zuordnung(db, "heiligabend") == {"kennzeichen": "FR", "lohnart": "1080", "schluessel": "kalender:heiligabend", "exportiert": True}
     zeile = next(z for z in lohnarten_liste(db) if z["schluessel"] == "kalender:heiligabend")
     assert (zeile["bezeichnung"], zeile["stunden"], zeile["wirkt"]) == (
-        "Heiligabend – bezahlte Freistellung (24.12.)", "7,00 h (Kalender)", "BF / Lohnart offen – nicht exportiert")
+        "Heiligabend – bezahlte Freistellung (24.12.)", "7,00 h (Kalender)", "FR / 1080")
 
 
 def test_der_start_legt_nichts_doppelt_an_und_laesst_geaendertes_stehen(welt):
@@ -260,7 +261,7 @@ def test_pruefskript_nennt_den_kalender(welt):
     assert "Arbeitszeitkalender: 2 Tage" in zeilen  # seit 1.9.176 mit Silvester
     assert ("  24.12. Heiligabend: Sollzeit 7,00 h, Heiligabend – bezahlte Freistellung, im Urlaub kein_urlaubstag, gewerbliche, nur Mo–Fr"
             in zeilen)
-    assert "  kalender:heiligabend: BF / Lohnart offen" in zeilen
+    assert "  kalender:heiligabend: FR / 1080" in zeilen  # seit 1.9.214 (bis 1.9.213 BF / Lohnart offen)
 
 
 def test_seiten():

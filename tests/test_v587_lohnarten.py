@@ -36,11 +36,12 @@ def test_vorbelegt_nach_e7(db_session):
     assert z["feiertag"] == ("F", "1012", False, "F / 1012")
     assert z["kategorie:urlaub"] == ("U", "8000", False, "U / 8000")
     assert z["kategorie:krankheit"] == ("K", "1650", False, "K / 1650")
-    assert z["schlechtwetter:winter"] == (None, "8110", True, "Monatszeile 8110")
+    assert z["schlechtwetter:winter"] == ("WA", "8195", False, "WA / 8195")  # seit 1.9.214 (bis 1.9.213 Monatszeile 8110)
     assert z["art:weiterbildung"] == ("1", "1000", False, "1 / 1000")
     for leer in ("kategorie:fortbildung", "kategorie:unbezahlt", "kategorie:freizeitausgleich", "schlechtwetter:sommer"):
         assert z[leer] == (None, None, False, "nicht exportiert"), leer
-    assert z["art:berufsschule"][:3] == (None, None, False) and z["art:berufsschule"][3] == "wie die Kategorie – Fortbildung: nicht exportiert"
+    # seit 1.9.214 FE ohne Lohnart (bis 1.9.213 leer); wirkt bis 1.9.214 noch wie die Kategorie (ohne Lohnart nicht exportiert)
+    assert z["art:berufsschule"][:3] == ("FE", None, False) and z["art:berufsschule"][3] == "wie die Kategorie – Fortbildung: nicht exportiert"
     assert z["art:freizeitausgleich"][3] == "wie die Kategorie – Freizeitausgleich: nicht exportiert"
 
 
@@ -70,9 +71,9 @@ def test_geleerte_art_heisst_wie_die_kategorie(db_session):
 
 
 def test_schlechtwetter_nach_datum(db_session):
-    """Winter 01.12.–31.03. (Monatszeile 8110), Sommer leer (bis der Juni-Export da ist)."""
+    """Winter 01.12.–31.03. (seit 1.9.214 WA / 8195 je Tag, bis 1.9.213 Monatszeile 8110), Sommer leer."""
     for tag in (date(2026, 12, 1), date(2027, 3, 31), date(2027, 1, 15)):
-        assert zuordnung(db_session, "schlechtwetter", "Schlechtwetter", tag)["lohnart"] == "8110", tag
+        assert zuordnung(db_session, "schlechtwetter", "Schlechtwetter", tag)["lohnart"] == "8195", tag
     for tag in (date(2026, 11, 30), date(2027, 4, 1), date(2027, 6, 15)):
         assert zuordnung(db_session, "schlechtwetter", "Schlechtwetter", tag) is None, tag
 

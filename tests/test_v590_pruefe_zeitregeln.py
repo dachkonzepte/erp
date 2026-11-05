@@ -210,7 +210,7 @@ def test_zuordnung_fuer_den_export():
     zuordnung = zeilen[i + 1:-1]
     assert "  arbeit: 1 / 1000" in zuordnung
     assert "  kategorie:urlaub: U / 8000" in zuordnung
-    assert "  schlechtwetter:winter: Monatszeile 8110" in zuordnung
+    assert "  schlechtwetter:winter: WA / 8195" in zuordnung  # seit 1.9.214 (bis 1.9.213 Monatszeile 8110)
     assert "  schlechtwetter:sommer: nicht exportiert" in zuordnung
     assert "  art:weiterbildung: 1 / 1000" in zuordnung
 

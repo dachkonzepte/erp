@@ -818,9 +818,9 @@ Kategorie „freizeitausgleich“: `ABSENCE_CATEGORIES`, Bezeichnung, `ART_KATEG
 
 1. Arbeit trägt die gebuchten Stunden, jede andere Zeile die Sollzeit des Tags (auch Weiterbildung 1/1000, wie Fortbildung in Time 4, LIESMICH 3).
 2. Eine Art geht ihrer Kategorie nur vor, wenn sie eine Lohnart hat; eine leere Art heißt „wie die Kategorie“, nicht „nicht exportiert“. Wer eine Art ausdrücklich nicht exportieren will, leert ihre Kategorie oder legt die Art in einer leeren Kategorie an.
-3. Schlechtwetter ist je Jahreszeit eine Zeile (Winter 01.12.–31.03., Sommer sonst), nicht je Art -- ob beide denselben Schlüssel bekommen, klärt das Lohnbüro (E5). Eine Monatszeile gibt es nur dort. Seit 1.9.203 auch im Code (Vorgabe Tobias, L1a Stufe 4, Punkt 2): für die Kategorie Schlechtwetter gewinnt immer die Jahreszeit, eine Zuordnung je Art wird dort abgelehnt, eine gespeicherte übergangen (bis 1.9.202 ging eine Zeile „art:schlechtwetter“ vor).
+3. Neu gefasst mit 1.9.214 (Antwort des Lohnbüros, Vorgabe Tobias 05.11.2026): Schlechtwetter ist je Jahreszeit eine Zeile (Winter 01.12.–31.03., Sommer sonst), nicht je Art -- für die Kategorie Schlechtwetter gewinnt immer die Jahreszeit (seit 1.9.203), eine Zuordnung je Art wird abgelehnt, eine gespeicherte übergangen. Winter steht als WA / 8195 je Ausfalltag (eine Zeile je Tag, keine Monatszeile), Sommer bleibt leer (nicht exportiert). Bis 1.9.213 hieß es: „Schlechtwetter ist je Jahreszeit eine Zeile (Winter 01.12.–31.03., Sommer sonst), nicht je Art -- ob beide denselben Schlüssel bekommen, klärt das Lohnbüro (E5). Eine Monatszeile gibt es nur dort. Seit 1.9.203 auch im Code (Vorgabe Tobias, L1a Stufe 4, Punkt 2): für die Kategorie Schlechtwetter gewinnt immer die Jahreszeit, eine Zuordnung je Art wird dort abgelehnt, eine gespeicherte übergangen (bis 1.9.202 ging eine Zeile „art:schlechtwetter“ vor).“ (vorbelegt war Winter 8110 als Monatszeile).
 4. Kennzeichen 1 bis 2 Zeichen, Lohnart 1 bis 4 Ziffern (die Muster: 1, U, K, F; 1000, 8000, 1650, 1012, 8110).
-5. Die festen Zeilen legt der Start an; eine geleerte bleibt leer. Eine Zeile je Art entsteht erst beim ersten Speichern (außer Weiterbildung).
+5. Die festen Zeilen legt der Start an; eine geleerte bleibt leer. Eine Zeile je Art entsteht erst beim ersten Speichern (außer Weiterbildung; seit 1.9.214 auch außer Berufsschule, FE ohne Lohnart -- Festlegung 1.9.214 Nr. 4).
 6. Die bisherigen Lohnarten je Zeitart (sechs Felder im Formular „Zeitregeln“) bleiben stehen, bis der neue Export sie ersetzt (E8, L1b).
 7. Freizeitausgleich im Bestand: nur Art Freizeitausgleich in der Kategorie Urlaub wird umgestellt; dieselbe Art in einer anderen Kategorie (Altbestand mit Widerspruch) bleibt und steht in `scripts/pruefe_abwesenheiten.py`.
 
@@ -1461,3 +1461,36 @@ Aufruf auf dem Server: `set -a; source .env; set +a` und `.venv/bin/python scrip
 ### Tests und Prüfung 1.9.213
 
 Neu: `tests/test_v618_personalnummern_einlesen.py` (12 Tests, alle Nummern erfunden) -- zwei Läufe (neu, schon gemerkt, die Trägerin behält ihre), danach gesperrt für eine andere Person, freigeben einer eingelesenen, `--probe`, Aufbau der Datei (Überschrift, Kommentar, CSV, Auffüllen, doppelt, kein Name in der Ausgabe), mehr als 5 Ziffern, Datei im Projektordner, ohne `DATABASE_URL`, Prüfskript, keine Datei mit Personalnummern im Repository, Migration auf einem Bestand unter SQLite und PostgreSQL. Gegenproben je Festlegung: Archiv „Gegenproben Lohn L1a“, Abschnitt „Stufe 6“. Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.214: Zuordnung mit den Werten des Lohnbüros (Punkt 3)
+
+`app/lohnarten.py::START`: `kalender:heiligabend` FR / 1080, `kalender:silvester` UU ohne Lohnart, `schlechtwetter:winter` WA / 8195 ohne Monatszeile, neu `art:berufsschule` FE ohne Lohnart (legt `ensure_default_lohnart_zuordnungen()` an, wenn sie fehlt); `schlechtwetter:sommer` bleibt leer. Migration `a3f61c8d2b95`: dieselben vier Zeilen, nur wo genau der bisherige Vorgabewert steht (Heiligabend BF ohne Lohnart, Silvester AF ohne Lohnart, Winter Monatszeile 8110, Berufsschule leer); eine andere bleibt und die Migration schreibt „Zuordnung …: von Hand geändert, nicht umgestellt“ in ihre Ausgabe (also in die von `update.sh`); eine fehlende legt der Start an. `downgrade()` stellt nur zurück, was genau den neuen Wert trägt. Der Satz über der Tabelle der Einstellungen sagt jetzt, dass Schlechtwetter je Ausfalltag in der Datei steht und die Monatszeile nirgends vorbelegt ist.
+
+Bis 1.9.215 gilt die alte Regel „zum Kennzeichen gehört eine Lohnart“ (Festlegung 1.9.175 Nr. 5): Silvester und Berufsschule wirken in 1.9.214 wie eine Zeile ohne Lohnart -- Silvester „UU / Lohnart offen – nicht exportiert“, Berufsschule „wie die Kategorie – Fortbildung: nicht exportiert“; in 1.9.214 lässt sich die Zeile Berufsschule mit FE ohne Lohnart nicht speichern (das kann erst 1.9.215).
+
+### Festlegungen 1.9.214 (Bitte bestätigen)
+
+1. = Festlegung 1.9.169 Nr. 3, neu gefasst (oben): Schlechtwetter Winter WA / 8195 je Ausfalltag, keine Monatszeile; Sommer leer.
+2. Die Werte des Lohnbüros sind die Vorbelegung einer neuen Installation: Heiligabend FR / 1080, Silvester UU ohne Lohnart, Schlechtwetter Winter WA / 8195, Berufsschule FE ohne Lohnart, Schlechtwetter Sommer leer.
+3. Eine bestehende Installation stellt die Migration nur dort um, wo noch genau der bisherige Vorgabewert steht (wie die Sollzeit in `b7e3c91d4a52`); eine von Hand geänderte Zeile bleibt und wird in der Ausgabe genannt -- das Büro entscheidet. `downgrade()` ebenso nur bei genau dem neuen Wert.
+4. Berufsschule bekommt als zweite Art (nach Weiterbildung) eine vorbelegte Zeile (Festlegung 1.9.169 Nr. 5 ergänzt); eine leere Zeile Berufsschule (wie die Kategorie) zählt für die Migration als bisheriger Vorgabewert.
+
+### Notiz für L1b (nicht gebaut)
+
+- Mehrarbeit von Azubis: AA / 1900, je Tag (Antwort des Lohnbüros, Vorgabe Tobias 05.11.2026). Was „Mehrarbeit“ eines Azubis an einem Tag ist (Arbeit über der Sollzeit?) und ob die Stunden dann nicht unter 1 / 1000 stehen, ist mit dem Export zu klären.
+
+### Tests und Prüfung 1.9.214
+
+Neu: `tests/test_v619_zuordnung_lohnbuero.py` (5 Tests) -- Vorbelegung, Schlechtwetter Winter je Tag ohne Monatszeile (Sommer nicht exportiert), ein Neustart lässt Geändertes und Geleertes stehen, Migration auf einem Bestand unter SQLite und PostgreSQL (Heiligabend und Winter umgestellt, Silvester von Hand geändert bleibt und steht in der Ausgabe, Berufsschule fehlt -> bleibt dem Start; leer -> FE, zurück leer; hoch, runter, hoch). Gegenproben je Festlegung: Archiv „Gegenproben Lohn L1a“, Abschnitt „Stufe 6“.
+
+Angepasste Erwartungen (Regel 28) zu 1.9.214:
+- `test_v587::test_vorbelegt_nach_e7`: Schlechtwetter Winter altes Soll (–, 8110, Monatszeile, „Monatszeile 8110“), neues Soll (WA, 8195, ohne, „WA / 8195“); Berufsschule altes Soll (–, –, ohne), neues Soll (FE, –, ohne), „Wirkt“ unverändert „wie die Kategorie – Fortbildung: nicht exportiert“.
+- `test_v587::test_schlechtwetter_nach_datum`: Lohnart im Winter altes Soll 8110, neues Soll 8195.
+- `test_v590::test_zuordnung_fuer_den_export`: altes Soll „schlechtwetter:winter: Monatszeile 8110“, neues Soll „schlechtwetter:winter: WA / 8195“.
+- `test_v591::test_heiligabend_ist_vorbelegt`: Zuordnung altes Soll BF ohne Lohnart, nicht exportiert, „BF / Lohnart offen – nicht exportiert“, neues Soll FR / 1080, exportiert, „FR / 1080“.
+- `test_v591::test_pruefskript_nennt_den_kalender`: altes Soll „kalender:heiligabend: BF / Lohnart offen“, neues Soll „kalender:heiligabend: FR / 1080“.
+- `test_v592::test_silvester_ist_vorbelegt`: Kennzeichen altes Soll AF, neues Soll UU (ohne Lohnart, nicht exportiert bleibt).
+- `test_v610::test_gespeicherte_art_wird_uebergangen` und `::test_auch_eine_art_fuer_jede_kategorie_nicht`: Winter altes Soll (–, 8110, Monatszeile), neues Soll (WA, 8195, ohne).
+- `test_v604::test_zeile_je_art_erst_beim_ersten_speichern`: nach dem Start altes Soll nur `art:weiterbildung`, neues Soll dazu `art:berufsschule`.
+- `klicktest_lohnarten` „Fin: vorbelegt nach E7, Leeres sichtbar“: Winter altes Soll „Monatszeile 8110“, neues Soll „WA / 8195“.
+- `klicktest_arbeitszeitkalender` „Fin: Zuordnung BF ohne Lohnart“, jetzt „Fin: Zuordnung FR / 1080“: altes Soll „BF / Lohnart offen – nicht exportiert“, neues Soll „FR / 1080“.

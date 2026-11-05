@@ -6,18 +6,20 @@ Was steht für eine Person an einem Tag in der Lohndatei, mit welchem Kennzeiche
     arbeit                    die gebuchten Stunden des Tags, alle Zeitarten zusammen (vorbelegt 1 / 1000)
     feiertag                  gesetzlicher Feiertag mit Sollzeit, nur beim Export-Umfang „alles“ (vorbelegt F / 1012)
     kategorie:<Kategorie>     eine Abwesenheit dieser Kategorie mit der Sollzeit des Tags (vorbelegt Urlaub U / 8000, Krankheit K / 1650)
-    schlechtwetter:winter     Ausfalltag 01.12.–31.03. (vorbelegt 8110 als Monatszeile: Soll × Ausfalltage, ohne Tag und Kennzeichen)
-    schlechtwetter:sommer     Ausfalltag 01.04.–30.11. (leer, bis der Juni-Export da ist)
+    schlechtwetter:winter     Ausfalltag 01.12.–31.03. (vorbelegt seit 1.9.214 WA / 8195 je Tag, Antwort des Lohnbüros; 1.9.169–1.9.213 8110
+                              als Monatszeile: Soll × Ausfalltage, ohne Tag und Kennzeichen)
+    schlechtwetter:sommer     Ausfalltag 01.04.–30.11. (leer -- seit 1.9.214 auch nach der Antwort des Lohnbüros)
     art:<Art>                 eine Art mit eigener Zuordnung geht ihrer Kategorie vor (vorbelegt Weiterbildung 1 / 1000 mit Sollzeit, wie
-                              Fortbildung in Time 4); ohne eigene gilt die Kategorie -- seit 1.9.203 nie bei Schlechtwetter: dort gewinnt immer
+                              Fortbildung in Time 4; seit 1.9.214 Berufsschule FE ohne Lohnart); ohne eigene gilt die Kategorie -- seit 1.9.203 nie bei Schlechtwetter: dort gewinnt immer
                               die Jahreszeit (Festlegung 1.9.169 Nr. 3); eine Zeile für eine Art, die nur zu Schlechtwetter passt („art:schlechtwetter“),
                               lehnt speichern() ab, eine schon gespeicherte wird übergangen (scripts/pruefe_zeitregeln.py nennt sie)
     kalender:<Schlüssel>      seit 1.9.175: die Abwesenheit eines Tags im Arbeitszeitkalender (app/arbeitszeitkalender.py) mit der Sollzeit des
-                              Tags (vorbelegt Heiligabend BF, seit 1.9.176 Silvester AF, Lohnart offen -- die Lohnart nennt das Lohnbüro); hier darf das Kennzeichen ohne
-                              Lohnart stehen, exportiert wird die Zeile erst mit Lohnart
+                              Tags (vorbelegt seit 1.9.214 Heiligabend FR / 1080 und Silvester UU ohne Lohnart, Antwort des Lohnbüros;
+                              1.9.175–1.9.213 BF bzw. AF, Lohnart offen); hier darf das Kennzeichen ohne Lohnart stehen, exportiert wird die
+                              Zeile erst mit Lohnart
 
-Leer heißt: nicht exportiert -- die Liste in den Einstellungen nennt es, der Export (L1b) zeigt es unter „Nicht im Export“. Berufsschule,
-unbezahlt und Freizeitausgleich bleiben leer, bis das Lohnbüro antwortet (LB1). Berater- und Mandantennummer stehen nicht hier.
+Leer heißt: nicht exportiert -- die Liste in den Einstellungen nennt es, der Export (L1b) zeigt es unter „Nicht im Export“. Unbezahlt und
+Freizeitausgleich bleiben leer (LB1). Berater- und Mandantennummer stehen nicht hier.
 """
 
 from __future__ import annotations
@@ -41,16 +43,18 @@ FEST = [
     ("schlechtwetter:winter", "Schlechtwetter Winter (01.12.–31.03.)", "Sollzeit"),
     ("schlechtwetter:sommer", "Schlechtwetter Sommer (01.04.–30.11.)", "Sollzeit"),
 ]
-# E7 und Nachtrag 02.11.2026: vorbelegt; alles andere leer
+# E7 und Nachtrag 02.11.2026: vorbelegt; alles andere leer. Seit 1.9.214 (L1a Stufe 6, Punkt 3) mit den Werten des Lohnbüros -- eine bestehende
+# Installation stellt die Migration a3f61c8d2b95 um, nur wo noch der bisherige Vorgabewert steht.
 START = {
     "arbeit": ("1", "1000", False),
     "feiertag": ("F", "1012", False),
     "kategorie:urlaub": ("U", "8000", False),
     "kategorie:krankheit": ("K", "1650", False),
-    "schlechtwetter:winter": (None, "8110", True),
+    "schlechtwetter:winter": ("WA", "8195", False),  # seit 1.9.214 je Tag (1.9.169–1.9.213: 8110 als Monatszeile)
     "art:weiterbildung": ("1", "1000", False),
-    "kalender:heiligabend": ("BF", None, False),  # seit 1.9.175 (L1a-Nachtrag, Punkt 2): Lohnart beim Lohnbüro
-    "kalender:silvester": ("AF", None, False),  # seit 1.9.176 (Punkt 3): unbezahlt, Lohnart beim Lohnbüro
+    "art:berufsschule": ("FE", None, False),  # seit 1.9.214: ohne Lohnart
+    "kalender:heiligabend": ("FR", "1080", False),  # seit 1.9.214 (1.9.175–1.9.213: BF, Lohnart offen)
+    "kalender:silvester": ("UU", None, False),  # seit 1.9.214 ohne Lohnart (1.9.176–1.9.213: AF, Lohnart offen)
 }
 KENNZEICHEN_FORMAT = re.compile(r"^[0-9A-Z]{1,2}$")
 LOHNART_FORMAT = re.compile(r"^[0-9]{1,4}$")
