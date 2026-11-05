@@ -3,7 +3,8 @@
     genutzt     00000–00099 sv-pflichtig Beschäftigte, 00100–00199 Minijobber, 00200–00299 Azubis (je Hundert wie die beiden ersten)
     darüber     „Die Personalnummer 91008 liegt außerhalb der vom Lohnbüro genannten Bereiche (genutzt: 00000–00299) – bitte prüfen.“
                 (bis 1.9.218: „… liegt im Kreis Azubis (ab 00200).“) -- weiter nur ein Hinweis, keine Sperre
-    Grenze      fest im Code, nicht aus den vergebenen Nummern: die Sperrliste trägt die Nummern aus Time 4 (91…)
+    Grenze      fest im Code, nicht aus den vergebenen Nummern: eine aus den Daten abgeleitete Grenze zöge jede Fehleingabe mit (Begründung
+                berichtigt 1.9.229 -- die 91… der Tests sind erfundene Musternummern, auf dem Server steht keine)
 """
 
 import pytest

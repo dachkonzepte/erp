@@ -35,11 +35,13 @@ EXPORT_UMFAENGE = {"alles": "alles", "abwesenheiten": "nur Abwesenheiten", "nich
 PERSONALNUMMER_FORMAT = re.compile(r"^[0-9]{5}$")
 PERSONALNUMMER_FALSCH = "Die DATEV-Personalnummer hat genau 5 Ziffern, führende Nullen gehören dazu (z. B. 00101)."
 PERSONALNUMMER_VERGEBEN = "Diese DATEV-Personalnummer ist bereits vergeben."
-# Seit 1.9.212: die Nummernkreise des Lohnbüros -- nur ein Hinweis beim Speichern, keine Sperre. Das ERP kennt weder Minijob noch Azubi als
-# Merkmal einer Person (die Funktion ist frei benennbar), deshalb nennt der Hinweis nur den Kreis der Nummer.
+# Seit 1.9.212: die Nummernkreise des Lohnbüros -- nur ein Hinweis beim Speichern, keine Sperre. Der Hinweis nennt nur den Kreis der Nummer und
+# prüft nicht gegen ein Merkmal der Person (Minijob gibt es als Merkmal nicht; Azubi seit 1.9.224, EmployeePayrollSettings.azubi, wirkt nur in der
+# Lohndatei).
 # Seit 1.9.219 (L1a Stufe 7, Punkt 2): die Azubis reichen bis 00299 -- genutzt sind die Kreise je Hundert wie die beiden ersten; darüber sagt der
 # Hinweis, dass die Nummer außerhalb der vom Lohnbüro genannten Bereiche liegt (bis 1.9.218 hieß auch 91008 „Kreis Azubis“). Die Grenze steht fest
-# hier, nicht aus den vergebenen Nummern abgeleitet: die Sperrliste trägt die Nummern aus Time 4 (91…), eine abgeleitete Grenze läge darüber.
+# hier, nicht aus den vergebenen Nummern abgeleitet: eine aus den Daten abgeleitete Grenze zöge jede Fehleingabe mit (berichtigt 1.9.229 -- die
+# bis dahin genannte Begründung „die Sperrliste trägt die Nummern aus Time 4 (91…)“ war nicht belegt, die 91… sind erfundene Musternummern).
 NUMMERNKREISE = ((0, 99, "sv-pflichtig Beschäftigte", "00000–00099"), (100, 199, "Minijobber", "00100–00199"), (200, 299, "Azubis", "ab 00200"))
 GENUTZT_BIS = NUMMERNKREISE[-1][1]
 

@@ -957,3 +957,4 @@ Scratchpad (`gegenprobe.py`, `spec<Version>.json`).
 | **1.9.228 Nr. 1b – AT nicht übernommen, genannt** | nicht genannt | mit den neuen 1 rot: test_nachtragsweg_pause_samstag_azubi_at |
 | 1.9.228 Nr. 2 – nur gegen eine Wegwerf-SQLite (Regel 16) | keine -- eine Gegenprobe müsste die echte Datenbank treffen; `test_echte_datenbank_unberuehrt` hält fest, dass sich `dachkonzepte_erp.db` nicht ändert | – |
 | **1.9.228 Nr. 3 – Teilzeit aus `--teilzeit`** | `--teilzeit` übergangen | mit den neuen 1 rot: test_teilzeit_und_zu_klaeren |
+| 1.9.229 – Stufe 7 bestätigt, Begründung 1.9.219 Nr. 2 berichtigt, LB1–LB10 | keine -- reine Doku und zwei Kommentare, keine neue Festlegung (Regel 24) | – |

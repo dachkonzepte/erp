@@ -1570,7 +1570,7 @@ Vorgabe Tobias (05.11.2026), kleine Nacharbeiten vor dem Einspielen, je Punkt ei
 
 `app/time_backoffice.py::eingelesene_personalnummern()`: die Nummern aus `personalnummern_vergeben` ohne Person, sortiert nach Nummer, je Nummer der Tag des Einlesens in Berlin (`to_berlin()`) und wer sie heute trägt (`personalnummern_traeger()`, dieselbe Regel wie 1.9.191). `GET /api/time-backoffice/personalnummern/eingelesen` mit `require_personalnummer_freigeben` (nur der Admin, wie das Freigeben; Schema `PersonalnummerEingelesenOut`). Einstellungen: Block „Eingelesene Personalnummern ohne Person“ unter den Personalnummern, nur `{% if personalnummer_freigeben %}`; `ladeEingelesene()`/`renderEingelesene()` (Bereich „eingelesen“); „freigeben“ trägt `data-name=""` -- `pnrFreigabeOeffnen()` nennt dann im ersten Satz „steht in der eingelesenen Liste vergebener Nummern und ist für alle gesperrt“, der Rest der Warnung ist derselbe; nach dem Freigeben laden Personalnummern und Liste neu, die Meldung steht unter der Liste, aus der freigegeben wurde.
 
-### Festlegungen 1.9.218 (Bitte bestätigen)
+### Festlegungen 1.9.218 (bestätigt am 05.11.2026)
 
 1. = Festlegung 1.9.213 Nr. 6, neu gefasst (oben): eigene, kurze Liste unter „Zeitregeln und DATEV“ (unter den Personalnummern), nur für den Admin -- der Block fehlt im Markup aller anderen, die Schnittstelle antwortet ihnen mit 403.
 2. Je Zeile Nummer, eingelesen am (Tag in Berlin) und „freigeben“ über denselben Dialog mit derselben Warnung; nur der erste Satz nennt statt der Person die eingelesene Liste („… steht in der eingelesenen Liste vergebener Nummern und ist für alle gesperrt.“).
@@ -1585,10 +1585,12 @@ Neu: `tests/test_v622_eingelesene_liste.py` (9 Tests, Nummern erfunden) -- nur N
 
 `app/time_backoffice.py`: `NUMMERNKREISE` mit Azubis 00200–00299 (Text weiter „ab 00200“, wie vom Lohnbüro genannt), `GENUTZT_BIS`; `nummernkreis()` sagt über 00299 „Die Personalnummer … liegt außerhalb der vom Lohnbüro genannten Bereiche (genutzt: 00000–00299) – bitte prüfen.“ `scripts/pruefe_zeitregeln.py`: „Personalnummern je Kreis“ mit „außerhalb“ (kein Befund). Einstellungen: der Hilfetext nennt die Grenze.
 
-### Festlegungen 1.9.219 (Bitte bestätigen)
+### Festlegungen 1.9.219 (bestätigt am 05.11.2026; Nr. 2 mit berichtigter Begründung, 1.9.229)
 
 1. Genutzt sind die Kreise bis 00299 -- je Hundert wie die beiden ersten (Azubis 00200–00299); darüber nennt der Hinweis die Nummer „außerhalb der vom Lohnbüro genannten Bereiche (genutzt: 00000–00299) – bitte prüfen“, auch 91008. Weiter keine Sperre; im Kreis Azubis bleibt der Text „(ab 00200)“ wie vom Lohnbüro genannt.
-2. Die Grenze steht fest im Code (`NUMMERNKREISE`, eine Zeile), nicht aus den vergebenen Nummern abgeleitet: die Sperrliste trägt die Nummern aus Time 4 (91…), eine abgeleitete Grenze läge über 91008 und der Hinweis beruhigte wieder. Kommen mehr als 100 Azubis, ist die Grenze dort anzuheben.
+2. Die Grenze steht fest im Code (`NUMMERNKREISE`, eine Zeile), nicht aus den vergebenen Nummern abgeleitet: eine aus den Daten abgeleitete Grenze
+   zöge jede Fehleingabe mit (berichtigt 1.9.229, Vorgabe Tobias; bis dahin stand hier „die Sperrliste trägt die Nummern aus Time 4 (91…)“ -- die
+   91… sind erfundene Musternummern, auf dem Server steht keine davon). Kommen mehr als 100 Azubis, ist die Grenze dort anzuheben.
 3. `scripts/pruefe_zeitregeln.py` zählt „außerhalb“ als eigene Gruppe neben den Kreisen, ohne Befund.
 4. = Festlegung 1.9.212 Nr. 2, neu gefasst (oben).
 
@@ -1606,7 +1608,7 @@ Angepasste Erwartungen (Regel 28) zu 1.9.219:
 
 Einstellungen, Zuordnung: `renderLohnarten()` sperrt das Häkchen (`lzM-…`) einer Zeile mit Kennzeichen und zeigt darunter den Hinweis (`lzMH-…`); das Feld Kennzeichen trägt `data-eingabe="lohnart-kennzeichen"`, `monatszeileSperren()` gleicht beim Tippen ab (Kennzeichen da: gesperrt, abgehakt, Hinweis; leer: frei, ohne Hinweis). Für Büro – Auftrag bleibt wie bisher alles gesperrt (`lohnregelnNurLesen()`). `app/lohnarten.py::speichern()` unverändert.
 
-### Festlegungen 1.9.220 (Bitte bestätigen)
+### Festlegungen 1.9.220 (bestätigt am 05.11.2026)
 
 1. Das Häkchen „Monatszeile“ (nur bei Schlechtwetter Winter und Sommer) ist gesperrt, solange im Feld Kennzeichen etwas steht -- gespeichert oder getippt; darunter „Für die Monatszeile zuerst das Kennzeichen leeren.“ Leert man das Feld, wird es frei; tippt man ein Kennzeichen, wird es gesperrt und abgehakt.
 2. Der Server lehnt eine Monatszeile mit Kennzeichen weiter ab („Eine Monatszeile hat kein Kennzeichen.“) -- die Sperre auf der Seite ersetzt die Prüfung nicht.
@@ -1624,7 +1626,7 @@ Steht im Archiv „Testablauf und Klicktests“, Abschnitt „Klicktests lesen e
 
 Neu `scripts/klicktest_zuordnung_ausgeliefert.py` (6 Prüfungen, ein Bild): Testdaten nur ein Konto Büro – Finanzen, die Zuordnung so, wie `app/grunddaten.py` sie beim Start anlegt; „Wirkt“ jeder festen Zeile, der Kalendertage und der vorbelegten Arten (Weiterbildung, Berufsschule), die übrigen Arten „wie die Kategorie“, Stunden „Sollzeit − gebuchte Arbeit“ bei Schlechtwetter, das Häkchen Monatszeile bei Winter gesperrt mit Hinweis und bei Sommer frei. Das Bild `zuordnung_ausgeliefert` zeigt den ganzen Block: die Tabelle ohne eigene Höhenbegrenzung, als Ausschnitt über das Fenster hinaus, feste und klebende Elemente (Kopfzeile) für die Aufnahme ausgeblendet. Am Programm nichts geändert.
 
-### Festlegungen 1.9.222 (Bitte bestätigen)
+### Festlegungen 1.9.222 (bestätigt am 05.11.2026)
 
 1. Der ausgelieferte Zustand der Zuordnung hat einen eigenen Klicktest ohne Testdaten in der Zuordnung; er prüft jede vorbelegte Zeile und die Arten mit eigener Vorbelegung. Ändert sich eine Vorbelegung (`app/lohnarten.py::START`), ändert sich seine Erwartung -- das Bild daraus ist das Bild des ausgelieferten Zustands im Bericht.
 
@@ -1925,3 +1927,39 @@ Optionen.
 Neu: `tests/test_v630_vorprobe_time4.py` (3 Tests, eigener Prozess) -- Nachtragsweg mit fester Pause, Samstag, Urlaub, Azubi mit Mehrarbeit und AT
 (nicht übernommen, genannt); Teilzeit mit Urlaub und eine Stunde zu klären (Rückgabe 1); die Datenbank der Entwicklung bleibt unberührt.
 Ergebnis der Vorprobe je Person: Bericht `bildgrundlage/bericht_lohn_l1b_*.txt`. Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.229: Lohn und Gehalt, Stand der Fragen LB1–LB10 (Punkt 6, nur Doku und zwei Kommentare)
+
+Das Lohnbüro rechnet mit **DATEV Lohn und Gehalt** ab, nicht mit LODAS (Angabe Tobias, 05.11.2026). Damit ist von LB2 das Programm beantwortet; die
+Lohndatei des ERP (1.9.224) folgt dem Format der Time-4-Dateien, die das Lohnbüro mit Lohn und Gehalt einliest. Neu vom Steuerbüro (05.11.2026): eine
+Zeile ohne Lohnart hat ein leeres Feld (`00201;31;UU;;7,50;;;;;;`), mehrere Zeilen je Person und Tag sind erlaubt. Offen beim Steuerbüro, nichts
+angenommen: der Freizeitausgleich (bleibt in der Zuordnung leer).
+
+Stand der Fragen aus L0 (Bericht `bildgrundlage/bericht_lohn_l0_11b0a63.txt`, Abschnitt 8), mit Quelle der Antwort:
+
+| Frage | Stand | Antwort und Quelle | offen |
+|---|---|---|---|
+| LB1 Berufsschule, unbezahlt, Freizeitausgleich; Weiterbildung, Sonderurlaub | teilweise | Berufsschule FE ohne Lohnart (Lohnbüro, 1.9.214); Silvester UU ohne Lohnart (Lohnbüro, 1.9.214) | unbezahlter Urlaub außer Silvester (Kategorie leer), Freizeitausgleich (beim Steuerbüro), Sonderurlaub; Weiterbildung 1 / 1000 ist Vorgabe Tobias (E7), nicht Lohnbüro |
+| LB2 Reihenfolge, Programm, Satzbeschreibung, Dateiname | teilweise | Programm: DATEV Lohn und Gehalt (Tobias, 05.11.2026); Zeile ohne Lohnart mit leerem Feld (Steuerbüro, 05.11.2026) | Reihenfolge der Personen, Satzbeschreibung, Dateiname -- das ERP schreibt aufsteigend nach Nummer, `DATEV_Lohndaten_JJJJ-MM.txt` (Festlegungen 1.9.224 Nr. 3 und 15) |
+| LB3 mehrere Arten an einem Tag | beantwortet | mehrere Zeilen je Person und Tag erlaubt (Steuerbüro, 05.11.2026) | welche Stunden in Einzelfällen (Arbeit an einem Krankheitstag) -- das ERP schreibt beide Zeilen mit ihren Stunden |
+| LB4 Feiertag für wen, am Samstag | offen beim Lohnbüro | im ERP nach E3 (Tobias): F nur bei Umfang „alles“ und Sollzeit, auch Azubis, am Samstag keine Zeile | ja |
+| LB5 Schlechtwetter: Teilausfall, Sommer, Azubis, Arbeitszeitkonto | teilweise | Winter WA / 8195 je Tag (Lohnbüro, 1.9.214); Stunden = Sollzeit − Arbeit (Tobias, 1.9.216) | Sommer (leer, bis der Juni-Export da ist), Azubis, Arbeitszeitkonto |
+| LB6 Azubis: Sollzeit, Berufsschule | teilweise | Mehrarbeit AA / 1900 je Tag (Lohnbüro, Notiz 1.9.214); Berufsschule FE (Lohnbüro) | Sollzeit der Azubis (das ERP: Tarif); was „Mehrarbeit“ genau ist (Festlegung 1.9.224 Nr. 10 ist eine Annahme) |
+| LB7 Startwerte (Arbeitszeitkonto, Urlaub) | offen | -- | ja (L2) |
+| LB8 Viertelstunde oder exakt | beantwortet (Tobias) | die Tagessumme Arbeit nach der Pause kaufmännisch auf 0,25 h, die Buchungen minutengenau (Tobias, 05.11.2026; 1.9.223) | ob das Lohnbüro es so will, ist nicht vermerkt |
+| LB9 Korrekturen nach dem Import | offen | -- (jede erzeugte Datei bleibt seit 1.9.226 abgelegt) | ja |
+| LB10 Testmandant für die Dezember-Datei | offen | -- | ja |
+
+### Festlegungen der Stufe 7 bestätigt, Begründung 1.9.219 Nr. 2 berichtigt
+
+Bestätigt (Vorgabe Tobias, 05.11.2026): alle Festlegungen aus L1a Stufe 7 (1.9.218 Nr. 1–4, 1.9.219 Nr. 1–4, 1.9.220 Nr. 1–3, 1.9.221 Nr. 1, 1.9.222
+Nr. 1). 1.9.219 Nr. 2 bleibt (die Grenze steht fest im Code), mit berichtigter Begründung -- siehe dort; der Kommentar an `NUMMERNKREISE`
+(`app/time_backoffice.py`) sagt dasselbe. Gefunden im L1b-Befund (Abschnitt 3.6): die bisherige Begründung „die Sperrliste trägt die Nummern aus Time 4
+(91…)“ war nicht belegt -- die 91… sind die erfundenen Nummern der Muster, auf dem Server steht keine davon.
+
+### Tests und Prüfung 1.9.229
+
+Nur Doku und zwei Kommentare (`NUMMERNKREISE` in `app/time_backoffice.py`, Kopf von `tests/test_v623_nummernkreis_ausserhalb.py`); keine neue
+Festlegung, keine Gegenprobe (reine Doku, Zeile in „Gegenproben Lohn L1a“). Ein Wackler aus dem Lauf vor dem Commit von 1.9.224
+(`test_v399_teil_updates_geld.py::test_postgresql_eingangsrechnung_speichern_und_loeschen_ohne_deadlock`) steht in der „Laufenden Liste der Wackler“
+(Archiv „Testablauf“). Angepasste Erwartungen: keine.
