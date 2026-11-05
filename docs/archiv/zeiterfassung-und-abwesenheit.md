@@ -1767,3 +1767,46 @@ Angepasste Erwartungen (Regel 28) zu 1.9.224:
   „Zeitregeln nach dem Neuladen“ altes Soll [15, 1000], neues [15].
 - `klicktest_datev_nummern`: nur Aufbau -- Vergleichsfeld „Rundung“ statt „Lohnart Baustelle“, Knopf „Zeitregeln speichern“.
 - `klicktest_zuordnung_ausgeliefert`: „Fin: jede Zeile wie ausgeliefert“ zusätzlich „mehrarbeit_azubi“: „AA / 1900 – exportiert mit Lohnart“.
+### Umsetzung 1.9.225: Vollständigkeit und „Nicht in der Datei“ (Punkt 2)
+
+`app/lohndatei.py::berechnen()` hält je Person, was nicht in die Datei geht (`Person.nicht`, `nicht_merken()`, `nicht_texte()`): je Art und Grund die
+Tage und Stunden; Gründe `UMFANG_ABWESENHEITEN` (Arbeit, Feiertag -- der Feiertag wird dafür auch bei „nur Abwesenheiten“ berechnet), `UMFANG_NICHTS`
+(gebuchte Arbeit, eingetragene Abwesenheiten), `OHNE_KENNZEICHEN` (jede Zeile), `AUSSERHALB` (Arbeit vor dem Eintritt oder nach dem Austritt);
+`Person.nachname` für die Reihenfolge. `app/time_backoffice.py::datev_fehlt()` verlangt die Personalnummer jeder Person mit einer Zeile (aus
+`berechnen()`, nach Nachnamen; `personen=`, wenn der Aufrufer schon gerechnet hat); `build_datev_export()` rechnet einmal und prüft nur noch dort
+(bis 1.9.224 eine zweite Prüfung im Export). `app/zeiten.py::monat()`: eine Rechnung für „Fehlt“ und `nicht_in_der_datei` (je Person, nach Nachnamen,
+mit Texten); „Vor dem Abschluss“ über `datev_fehlt()`. „Monat & Lohn“, Schritt „Ausgeben“: Block „Nicht in der Datei“ (`lohnNicht`) direkt über dem
+Knopf „DATEV-Export“, die Texte vom Server; ohne Einträge „Nichts – alles aus dem Monat geht in die Datei.“
+
+### Festlegungen 1.9.225 (Bitte bestätigen)
+
+1. „Vor dem Abschluss“, „Monat & Lohn“ („Fehlt“) und der Export verlangen die Personalnummer von jeder Person, die eine Zeile bekäme -- auch nur mit
+   Abwesenheit, Ausfalltag, Heiligabend, Silvester oder Feiertag (im Dezember also von jeder aktiven Person mit Umfang „alles“ -- Feiertag -- und
+   jeder gewerblichen mit „nur Abwesenheiten“ -- Heiligabend, Silvester); nicht beim Umfang „nichts“ und nicht ohne Zeile; nach Nachnamen. Bis
+   1.9.224 nur bei Buchungen und Umfang „alles“.
+2. Dieselbe Rechnung (`berechnen()`) für die Prüfung, „Nicht in der Datei“ und die Datei.
+3. „Nicht in der Datei“ steht direkt über dem Knopf „DATEV-Export“, je Person nach Nachnamen, je Art und Grund ein Text „Art: n Tage, x h – Grund“;
+   ohne Einträge „Nichts – alles aus dem Monat geht in die Datei.“
+4. Gründe: Export-Umfang „nur Abwesenheiten“ (Arbeit, Feiertag); Export-Umfang „nichts“ (gebuchte Arbeit und eingetragene Abwesenheiten -- Feiertage
+   und Kalendertage einer Person ohne Export nennt die Liste nicht, eine aktive Person ohne Einträge steht nicht darin); ohne Kennzeichen in der
+   Zuordnung (jede Art, auch Kalendertag und Schlechtwetter Sommer); Arbeit vor dem Eintritt oder nach dem Austritt.
+5. Die Art einer Abwesenheit heißt „Kategorie (Art)“, wenn die Art anders heißt als die Kategorie; ein Kalendertag mit seiner Abwesenheit
+   („Silvester – unbezahlte Freistellung“); Schlechtwetter mit Jahreszeit. Was 0,00 h hätte, steht nicht in der Liste.
+6. Was nicht in der Datei steht, sperrt weder Abschluss noch Export -- ein Hinweis; sperren nur Personalnummer und DATEV-Nummern.
+7. Die gesetzlichen Feiertage der Lohndatei nach dem Bundesland wie „Zeiten“ (`app/zeiten.py::feiertage_bundesland()`, ohne Einstellung
+   Nordrhein-Westfalen); bis dahin über `load_region_settings()`, das ohne Zeile `GrunddatenFehlen` wirft.
+
+### Tests und Prüfung 1.9.225
+
+Neu: `tests/test_v627_lohndatei_vollstaendig.py` (10 Tests, Dezember, März und Juni 2026) -- Personalnummer auch ohne Buchung (Urlaub; nur Feiertag,
+Heiligabend und Silvester), nach Nachnamen; Ausfalltag allein; ohne Zeile keine Nummer nötig („nichts“, „nur Abwesenheiten“ in einem Monat ohne
+Feiertag, inaktiv) -- im Dezember fehlt sie bei „nur Abwesenheiten“ wegen Heiligabend und Silvester; „Vor dem Abschluss“ und Export; „Nicht in der
+Datei“ für beide Umfänge, ohne Kennzeichen (Unbezahlt, Fortbildung mit Art „Sonstiges“, Silvester geleert), Schlechtwetter Sommer und vor dem
+Eintritt, nichts bei vollständiger Zuordnung; „Monat & Lohn“ liefert die Liste; die Seite (direkt über dem Knopf). `klicktest_zeiten`: eine Prüfung mehr
+(„Nicht in der Datei“ direkt über dem Knopf, im Oktober leer). Gegenproben je Festlegung: Archiv „Gegenproben Lohn L1a“, Abschnitt „Lohn L1b“.
+
+Im Lauf der vollen Suite vor dem Commit zwei rot: `test_v528_arbeitstage_bundesland.py::test_ohne_einstellung_nrw` -- ein Befund: `berechnen()`
+las das Bundesland seit 1.9.224 über `load_region_settings()`, ohne Einstellung `GrunddatenFehlen`; sichtbar erst, seit „Monat & Lohn“ über
+`datev_fehlt()` rechnet (behoben, Festlegung 7) --, und `test_v387` (Erwartung, unten).
+Angepasste Erwartungen: `test_v387_lesepfade_ohne_anlegen.py::test_die_lesewege_legen_nichts_an_und_zeigen_die_vorgaben` -- DATEV-Export 409 mit
+`[datev_nummern]` -> `[personalnummer, personalnummer, datev_nummern]` (Neujahr gibt den beiden aktiven Personen eine Zeile F).

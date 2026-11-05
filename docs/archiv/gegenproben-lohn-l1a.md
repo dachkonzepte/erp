@@ -911,3 +911,20 @@ Scratchpad (`gegenprobe.py`, `spec<Version>.json`).
 | **1.9.224 Nr. 14c – Einstellungen ohne alte Felder** | Feld „wageSite“ wieder auf der Seite | vorher grün; mit den neuen 1 rot: test_seite_azubi_und_ohne_alte_lohnarten |
 | **1.9.224 Nr. 15 – Dateiname und Typ** | Typ `text/csv` | vorher grün; mit den neuen 1 rot: test_schnittstelle |
 | **1.9.224 Nr. 16 – Zeile Mehrarbeit vorbelegt AA / 1900** | ohne Lohnart vorbelegt | vorher grün; mit den neuen 3 rot (v626); klicktest_zuordnung_ausgeliefert rot: „Fin: jede Zeile wie ausgeliefert“ |
+| **1.9.225 Nr. 1a – Personalnummer auch ohne Buchung** | nur bei einer Zeile Arbeit (`datev_fehlt()`) | vorher 1 rot: test_personalnummer_fehlt_kein_stilles_weglassen; mit den neuen 4 rot (v627) |
+| **1.9.225 Nr. 1b – nur wer eine Zeile bekäme** | jede Person ohne Nummer | vorher 3 rot (v513, v517, v626); mit den neuen 1 rot: test_ohne_zeile_keine_nummer_noetig |
+| **1.9.225 Nr. 1c – nach Nachnamen** | nach Vornamen | vorher 1 rot: test_pruefen_monat_und_vor_dem_abschluss; mit den neuen 1 rot: test_auch_ohne_buchung |
+| **1.9.225 Nr. 2 – dieselbe Rechnung für Prüfung und Datei** | der Export prüft eine leere Liste | vorher 3 rot (v513, v626); mit den neuen 1 rot: test_vor_dem_abschluss_und_export |
+| **1.9.225 Nr. 3a – direkt über dem Knopf (erster Anlauf)** | falsch gebaut: ein leerer Block unter den Knöpfen, die Liste blieb oben -- grün, kein Befund des Tests | vorher grün; mit den neuen grün |
+| **1.9.225 Nr. 3a – direkt über dem Knopf** | Liste unter die Knöpfe verschoben | vorher grün; mit den neuen 1 rot: test_seite_direkt_ueber_dem_knopf; klicktest_zeiten rot: „Fin: Nicht in der Datei direkt über dem Knopf“ |
+| **1.9.225 Nr. 3b – Satz ohne Einträge** | nur „Nichts.“ | vorher grün; mit den neuen 1 rot: test_seite_direkt_ueber_dem_knopf |
+| **1.9.225 Nr. 3c – „Monat & Lohn“ liefert die Liste** | Liste immer leer | vorher grün; mit den neuen 1 rot: test_monat_und_lohn_liefert_die_liste |
+| **1.9.225 Nr. 3d – Liste nach Nachnamen** | nach Vornamen | vorher grün; mit den neuen 1 rot: test_monat_und_lohn_liefert_die_liste |
+| **1.9.225 Nr. 4a – Feiertag bei „nur Abwesenheiten“ genannt** | Feiertag nicht genannt (Zeile ohne Kennzeichen-Grund) | vorher 1 rot: test_umfang_nur_abwesenheiten_und_nichts; mit den neuen 2 rot: test_monat_und_lohn_liefert_die_liste, test_umfang_nur_abwesenheiten_und_nichts |
+| **1.9.225 Nr. 4b – bei „nichts“ keine Feiertage und Kalendertage** | auch Feiertage und Kalendertage | vorher grün; mit den neuen 1 rot: test_umfang_nur_abwesenheiten_und_nichts |
+| **1.9.225 Nr. 4c – ohne Kennzeichen genannt** | still übergangen | vorher grün; mit den neuen 3 rot (v627) |
+| **1.9.225 Nr. 4d – Arbeit vor dem Eintritt genannt** | nicht gemerkt | vorher grün; mit den neuen 1 rot: test_schlechtwetter_sommer_und_vor_dem_eintritt |
+| **1.9.225 Nr. 5a – Tage je Art und Grund** | nur der erste Tag gezählt | vorher grün; mit den neuen 2 rot: test_ohne_kennzeichen, test_umfang_nur_abwesenheiten_und_nichts |
+| **1.9.225 Nr. 5b – „Kategorie (Art)“** | nur die Kategorie | vorher grün; mit den neuen 1 rot: test_ohne_kennzeichen |
+| **1.9.225 Nr. 6 – „Nicht in der Datei“ sperrt nicht** | sperrt den Export | vorher 6 rot (v513, v571, v626); mit den neuen grün |
+| **1.9.225 Nr. 7 – Bundesland wie „Zeiten“** | wieder `load_region_settings()` | vorher 1 rot: test_ohne_einstellung_nrw (v528); mit den neuen grün |

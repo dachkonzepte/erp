@@ -24,6 +24,11 @@ Was je Person und Tag hineinkommt (Kennzeichen und Lohnart aus der Zuordnung, ap
 Umfang „nur Abwesenheiten“: Kalendertag, Abwesenheit, Schlechtwetter -- keine Arbeit, keine Mehrarbeit, kein Feiertag. Umfang „nichts“: keine
 Zeile. Vor dem Eintritt und nach dem Austritt nichts (die Sollzeit ist dort 0; gebuchte Arbeit dort geht nicht in die Datei).
 
+Was nicht in die Datei geht (seit 1.9.225, Lohn L1b, Punkt 2), je Person mit Grund (Person.nicht, „Monat & Lohn“ über dem Knopf): Arbeit, Mehrarbeit
+und Feiertage beim Umfang „nur Abwesenheiten“; gebuchte Arbeit und eingetragene Abwesenheiten beim Umfang „nichts“ (Feiertage und Kalendertage einer
+Person ohne Export nennt die Liste nicht); jede Zeile ohne Kennzeichen in der Zuordnung; Arbeit vor dem Eintritt oder nach dem Austritt. Je Art und
+Grund die Zahl der Tage und die Stunden. Zeilen mit 0,00 Stunden fehlen nicht -- es gibt nichts.
+
 Rollenlos und nur lesend; wer ausgeben darf und ob der Monat abgeschlossen und vollständig ist, prüfen app/time_backoffice.py und der Router.
 """
 
@@ -42,6 +47,10 @@ from .rounding import round_hours
 NULL = Decimal("0")
 # Reihenfolge der Zeilen eines Tags
 REIHE = ("arbeit", "mehrarbeit", "feiertag", "kalender", "abwesenheit", "schlechtwetter")
+UMFANG_NICHTS = "Export-Umfang „nichts“"
+UMFANG_ABWESENHEITEN = "Export-Umfang „nur Abwesenheiten“"
+OHNE_KENNZEICHEN = "ohne Kennzeichen in der Zuordnung"
+AUSSERHALB = "vor dem Eintritt oder nach dem Austritt"
 
 
 @dataclass
@@ -60,7 +69,23 @@ class Person:
     personalnummer: str | None
     umfang: str
     azubi: bool
+    nachname: str = ""
     zeilen: list[Zeile] = field(default_factory=list)
+    # seit 1.9.225: was nicht in die Datei geht -- je (Art, Grund) {"was", "grund", "tage", "stunden"}
+    nicht: list[dict] = field(default_factory=list)
+
+    def nicht_merken(self, was: str, grund: str, tag: date, stunden: Decimal) -> None:
+        for n in self.nicht:
+            if (n["was"], n["grund"]) == (was, grund):
+                n["tage"].add(tag)
+                n["stunden"] += stunden
+                return
+        self.nicht.append({"was": was, "grund": grund, "tage": {tag}, "stunden": stunden})
+
+    def nicht_texte(self) -> list[str]:
+        """„Arbeit: 2 Tage, 15,50 h – Export-Umfang „nur Abwesenheiten““ je Art und Grund."""
+        return [f"{n['was']}: {len(n['tage'])} {'Tag' if len(n['tage']) == 1 else 'Tage'}, {_stunden_text(n['stunden'])} h – {n['grund']}"
+                for n in self.nicht]
 
 
 def monat_ende(erster: date) -> date:
@@ -74,9 +99,10 @@ def _stunden_text(wert: Decimal) -> str:
 def berechnen(db: Session, erster: date) -> list[Person]:
     """Je Person, die im Monat aktiv ist oder Buchungen bzw. Abwesenheiten hat, ihre Zeilen (sortiert wie in der Datei); Personen mit Umfang
     „nichts“ ohne Zeilen. Reihenfolge der Personen: nach Personalnummer, ohne Nummer nach Namen dahinter."""
+    from .absence_requests import ABSENCE_CATEGORY_LABELS
     from .arbeitszeitkalender import abwesenheiten as kalender_abwesenheiten
     from .lohnarten import _alle, fest, kalender, zuordnung
-    from .planning import automatic_public_holidays, load_region_settings
+    from .planning import automatic_public_holidays
     from .schlechtwetter import SCHLECHTWETTER, ausfall
     from .sollzeit import abwesenheit_tage, beschaeftigt_am, soll_fuer_personen
     from .time_backoffice import effective_datev_personnel_number, export_umfang, load_employee_payroll
@@ -91,7 +117,9 @@ def berechnen(db: Session, erster: date) -> list[Person]:
     mit_daten = {e for e, _ in buchungen} | {a.employee_id for a in abwesend}
     personen = list(db.scalars(select(Employee).where(or_(Employee.active == True, Employee.id.in_(mit_daten or {0})))))  # noqa: E712
     payrolls = {p.employee_id: p for p in db.scalars(select(EmployeePayrollSettings))}
-    feiertage = automatic_public_holidays(load_region_settings(db).federal_state_code, range(erster.year - 1, erster.year + 2))
+    # seit 1.9.225 das Bundesland wie „Zeiten“ (ohne Einstellung Nordrhein-Westfalen; bis dahin load_region_settings(), das ohne Zeile wirft)
+    from .zeiten import feiertage_bundesland
+    feiertage = automatic_public_holidays(feiertage_bundesland(db), range(erster.year - 1, erster.year + 2))
     soll = soll_fuer_personen(db, [e.id for e in personen], erster, ende)
     alle = _alle(db)
     z_arbeit, z_mehr, z_feiertag = fest(db, "arbeit", alle=alle), fest(db, "mehrarbeit_azubi", alle=alle), fest(db, "feiertag", alle=alle)
@@ -103,47 +131,61 @@ def berechnen(db: Session, erster: date) -> list[Person]:
     for emp in personen:
         p = payrolls.get(emp.id) or load_employee_payroll(db, emp.id)
         umfang = export_umfang(p)
-        person = Person(emp.id, employee_name(emp) or f"#{emp.id}", effective_datev_personnel_number(db, emp, p), umfang, bool(getattr(p, "azubi", False)))
+        person = Person(emp.id, employee_name(emp) or f"#{emp.id}", effective_datev_personnel_number(db, emp, p), umfang, bool(getattr(p, "azubi", False)),
+                        emp.last_name or "")
         ergebnis.append(person)
-        if umfang == "nichts":
-            continue
-        alles = umfang == "alles"
-        je_tag: dict[date, list[tuple[str, Decimal, dict | None]]] = {}  # Tag -> (Quelle, Stunden, Zuordnung) außer der Arbeit
+        alles, nichts = umfang == "alles", umfang == "nichts"
+        # Tag -> (Quelle, Stunden, Zuordnung, Bezeichnung) außer der Arbeit; Feiertag und Kalendertag nur für eine Person mit Export (seit 1.9.225 der
+        # Feiertag auch bei „nur Abwesenheiten“ -- er steht dann unter „Nicht in der Datei“)
+        je_tag: dict[date, list[tuple[str, Decimal, dict | None, str]]] = {}
         soll_p = soll[emp.id]
-        if alles:
+        if not nichts:
             for tag, s in soll_p.items():
                 if tag in feiertage and s > 0:
-                    je_tag.setdefault(tag, []).append(("feiertag", s, z_feiertag))
-        for k in kalender_abwesenheiten(db, emp.id, erster, ende):
-            if k["tag"] not in feiertage:
-                z = kalender(db, k["schluessel"], alle=alle)
-                je_tag.setdefault(k["tag"], []).append(("kalender", k["stunden"], z if z and z["exportiert"] else None))
+                    je_tag.setdefault(tag, []).append(("feiertag", s, z_feiertag, "Feiertag"))
+            for k in kalender_abwesenheiten(db, emp.id, erster, ende):
+                if k["tag"] not in feiertage:
+                    z = kalender(db, k["schluessel"], alle=alle)
+                    je_tag.setdefault(k["tag"], []).append(("kalender", k["stunden"], z if z and z["exportiert"] else None, k["abwesenheit"]))
         for a in (a for a in abwesend if a.employee_id == emp.id):
             von, bis = max(a.start_date, erster), min(a.end_date, ende)
             if a.absence_category == SCHLECHTWETTER:
                 for tag in _tage(von, bis):
                     if beschaeftigt_am(p, tag):
                         je_tag.setdefault(tag, []).append(("schlechtwetter", sw_stunden[(emp.id, tag)]["stunden"],
-                                                           zuordnung(db, SCHLECHTWETTER, None, tag, alle=alle)))
+                                                           zuordnung(db, SCHLECHTWETTER, None, tag, alle=alle),
+                                                           "Schlechtwetter " + ("Winter" if tag.month in (12, 1, 2, 3) else "Sommer")))
                 continue
             stand = abwesenheit_tage(db, emp.id, von, bis, kategorie=a.absence_category, halber_tag=bool(a.halber_tag), feiertage=feiertage,
                                      kalendertag_urlaub=a.kalendertag_urlaub)
+            kategorie = ABSENCE_CATEGORY_LABELS.get(a.absence_category, a.absence_category)
+            was = kategorie + (f" ({a.absence_type})" if a.absence_type and a.absence_type.casefold() != kategorie.casefold() else "")
             for t in stand["je_tag"]:
                 je_tag.setdefault(t["tag"], []).append(("abwesenheit", t["stunden"], zuordnung(db, a.absence_category, a.absence_type, t["tag"],
-                                                                                                  alle=alle)))
-        tage = sorted(set(je_tag) | ({t for (e, t) in buchungen if e == emp.id and beschaeftigt_am(p, t)} if alles else set()))
+                                                                                                  alle=alle), was))
+        gebucht = {t for (e, t) in buchungen if e == emp.id}
         monat: dict[str, Decimal] = {}
-        for tag in tage:
+        for tag in sorted(set(je_tag) | gebucht):
             posten = je_tag.get(tag, [])
-            if alles and (emp.id, tag) in buchungen:
+            if tag in gebucht:
                 arbeit = arbeit_des_tags(buchungen[(emp.id, tag)])
-                mehr = NULL
-                if person.azubi and z_mehr is not None:
-                    mehr = min(arbeit, max(NULL, arbeit + sum((h for _q, h, _z in posten), NULL) - soll_p.get(tag, NULL)))
-                if z_arbeit is not None:
-                    posten = [("arbeit", arbeit - mehr, z_arbeit), ("mehrarbeit", mehr, z_mehr)] + posten
-            for quelle, stunden, z in sorted(posten, key=lambda x: REIHE.index(x[0])):
-                if z is None or stunden <= 0:
+                if not beschaeftigt_am(p, tag):
+                    if arbeit > 0:
+                        person.nicht_merken("Arbeit", AUSSERHALB, tag, arbeit)
+                elif not alles:
+                    posten = [("arbeit", arbeit, z_arbeit, "Arbeit")] + posten
+                else:
+                    mehr = NULL
+                    if person.azubi and z_mehr is not None:
+                        mehr = min(arbeit, max(NULL, arbeit + sum((h for _q, h, _z, _w in posten), NULL) - soll_p.get(tag, NULL)))
+                    posten = [("arbeit", arbeit - mehr, z_arbeit, "Arbeit"), ("mehrarbeit", mehr, z_mehr, "Mehrarbeit")] + posten
+            for quelle, stunden, z, was in sorted(posten, key=lambda x: REIHE.index(x[0])):
+                if stunden <= 0:
+                    continue
+                grund = (UMFANG_NICHTS if nichts else UMFANG_ABWESENHEITEN if not alles and quelle in ("arbeit", "mehrarbeit", "feiertag")
+                         else OHNE_KENNZEICHEN if z is None else None)
+                if grund:
+                    person.nicht_merken(was, grund, tag, stunden)
                     continue
                 if z.get("monatszeile"):
                     monat[z["lohnart"]] = monat.get(z["lohnart"], NULL) + stunden

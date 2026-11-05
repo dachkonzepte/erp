@@ -583,6 +583,11 @@ async def pruefen(tab, seed, p):
         "document.getElementById('lohnDatevGesperrt').disabled]"), [True, "Fehlt: 1 laufende Zeit", "", True, True])
     p.pruefe("Fin: Schritt Prüfen", await tab.js("[...document.querySelectorAll('#lohnPruefen li')].map(l=>l.innerText.replace(/\\s+/g,' ').trim())"),
              ["1 Zeit läuft noch Prüfen", "Anträge entschieden"])
+    # seit 1.9.225 (Lohn L1b, Punkt 2): „Nicht in der Datei“ direkt über dem Knopf -- im Oktober geht alles hinein
+    p.pruefe("Fin: Nicht in der Datei direkt über dem Knopf", await tab.js(
+        "(()=>{const l=document.getElementById('lohnNicht').getBoundingClientRect(),k=document.getElementById('lohnDatevGesperrt').getBoundingClientRect();"
+        "return [document.getElementById('lohnNichtListe').innerText.trim(),l.bottom<=k.top+1,k.top-l.bottom<24]})()"),
+        ["Nichts – alles aus dem Monat geht in die Datei.", True, True])
     p.pruefe("Fin: Tabelle mit Personalnummer", await tab.js(
         "[...document.querySelectorAll('#lohnZeilen tr')].map(tr=>[...tr.cells].map(c=>c.innerText.trim()).join(' | '))"),
         ["Mia Monteurin | 1001 | 4 | 18,25 | 0,00 | 3,75 | 0,00 | 22,00", "Tom Monteur | 1002 | 4 | 30,00 | 0,75 | 0,00 | 0,00 | 30,75",

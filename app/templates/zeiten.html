@@ -276,6 +276,11 @@
       <div style="display:flex;flex-direction:column;gap:8px">
         <a class="knopf knopf-neutral links-buendig" id="lohnPdf" href="#">Stundenzettel aller als PDF</a>
         <a class="knopf knopf-neutral links-buendig" id="lohnCsv" href="#">Stundendaten als CSV</a>
+        {# seit 1.9.225 (Lohn L1b, Punkt 2): direkt über dem Knopf, was nicht in die Lohndatei geht -- je Person mit Grund (vom Server) #}
+        <div id="lohnNicht" style="display:flex;flex-direction:column;gap:4px;margin-top:6px">
+          <span style="font-weight:600;font-size:14px">Nicht in der Datei</span>
+          <ul class="liste" id="lohnNichtListe" style="font-size:14px"></ul>
+        </div>
         <a class="knopf knopf-neutral links-buendig" id="lohnDatev" href="#" hidden>DATEV-Export</a>
         <button type="button" class="knopf links-buendig" id="lohnDatevGesperrt" disabled>DATEV-Export</button>
       </div>
@@ -983,6 +988,11 @@ function monatZeichnen(d){
   el('lohnDatev').hidden=!datev;el('lohnDatevGesperrt').hidden=datev;
   el('lohnDatev').setAttribute('href','/api/time-backoffice/datev-export?'+zeitraum(d));
   el('lohnDatevFehlt').textContent=d.datev_text?'Fehlt: '+d.datev_text:'';
+  // seit 1.9.225 (Lohn L1b, Punkt 2): je Person, was nicht in die Datei geht, mit Grund -- die Texte vom Server
+  var nicht=d.nicht_in_der_datei||[];
+  el('lohnNichtListe').innerHTML=nicht.length?nicht.map(function(x){return '<li data-mitarbeiter="'+x.employee_id+'"><span class="text"><strong>'+esc(x.name)
+    +'</strong>: '+x.eintraege.map(function(t){return esc(t)}).join('; ')+'</span></li>'}).join('')
+    :'<li><span class="text mut">Nichts – alles aus dem Monat geht in die Datei.</span></li>';
   // Stunden je Mitarbeiter und Zeitart, mit Personalnummer; seit 1.9.216 (L1a Stufe 6, Punkt 5) dazu Schlechtwetter -- Ausfallstunden (Sollzeit
   // minus gebuchte Arbeit, vom Server) und -tage, nur wenn es im Monat welche gibt; nicht in „Zusammen“ (das ist die Arbeit). „Ausfall
   // Schlechtwetter“, nicht „Schlechtwetter“: so heißt schon die Spalte der gebuchten Stunden der alten Zeitarten weather_* (Teil der Arbeit)

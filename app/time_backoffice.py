@@ -531,23 +531,17 @@ class DatevExportGesperrt(ValueError):
         self.liste = liste or []
 
 
-def datev_fehlt(db: Session, start_date: date, end_date: date) -> list[dict]:
-    """Seit 1.9.92: was dem DATEV-Export für den Zeitraum fehlt -- je Mitarbeiter mit Lohnexport und Buchungen die Personalnummer, Berater-
-    und Mandantennummer. Leer = vollständig. Je Eintrag art und ein Text. Seit 1.9.224 ohne die Lohnart je Zeitart (E8: die Lohndatei nimmt
-    die Zuordnung, eine Zeile ohne Lohnart ist erlaubt)."""
+def datev_fehlt(db: Session, start_date: date, end_date: date, *, personen=None) -> list[dict]:
+    """Seit 1.9.92: was dem DATEV-Export für den Monat fehlt -- Personalnummern, Berater- und Mandantennummer. Leer = vollständig. Je Eintrag art
+    und ein Text. Seit 1.9.225 (Lohn L1b, Punkt 2) die Personalnummer von jedem, der eine Zeile in der Lohndatei bekäme (app/lohndatei.py::
+    berechnen(), auch nur mit Abwesenheiten, Ausfalltagen, Heiligabend oder Silvester; bis 1.9.224 nur von Personen mit Buchungen und Umfang
+    „alles“), nach Nachnamen; seit 1.9.224 ohne die Lohnart je Zeitart. personen: das Ergebnis von berechnen(), wenn der Aufrufer es schon hat."""
+    from .lohndatei import berechnen
+
     settings = load_time_settings(db)
-    rows = [r for r in list_entries(db, start_date=start_date, end_date=end_date, limit=None) if r.status == "booked"]
-    payroll = {x.employee_id: x for x in db.scalars(select(EmployeePayrollSettings)).all()}
-    liste: list[dict] = []
-    gesehen: set = set()
-    for r in sorted(rows, key=lambda x: ((x.employee.last_name or "") if x.employee else "", x.employee_id)):
-        if r.employee_id in gesehen:
-            continue
-        gesehen.add(r.employee_id)
-        p = payroll.get(r.employee_id) or load_employee_payroll(db, r.employee_id)
-        if exportiert_arbeit(p) and not effective_datev_personnel_number(db, r.employee, p):
-            name = employee_name(r.employee) or f"#{r.employee_id}"
-            liste.append({"art": "personalnummer", "employee_id": r.employee_id, "name": name, "text": f"Personalnummer fehlt: {name}"})
+    personen = personen if personen is not None else berechnen(db, start_date.replace(day=1))
+    liste: list[dict] = [{"art": "personalnummer", "employee_id": x.employee_id, "name": x.name, "text": f"Personalnummer fehlt: {x.name}"}
+                         for x in sorted(personen, key=lambda x: (x.nachname.casefold(), x.employee_id)) if x.zeilen and not x.personalnummer]
     fehlen = [n for n, wert in (("Beraternummer", settings.datev_beraternummer), ("Mandantennummer", settings.datev_mandantennummer)) if not wert]
     if fehlen:
         liste.append({"art": "datev_nummern", "text": (" und ".join(fehlen) + (" fehlen" if len(fehlen) > 1 else " fehlt"))})
@@ -560,7 +554,7 @@ NUR_EIN_MONAT = "Die Lohndatei gibt es nur für einen ganzen Monat (vom Ersten b
 def build_datev_export(db: Session, start_date: date, end_date: date) -> tuple[bytes, str]:
     """Die Lohndatei für DATEV Lohn und Gehalt (seit 1.9.224, Lohn L1b, Punkt 1: app/lohndatei.py; bis 1.9.223 Lohn und Gehalt als CSV oder
     LODAS, E8). Ein ganzer Monat (sonst ValueError), nur abgeschlossen (end_date bis zum Abschluss) und vollständig (datev_fehlt() leer) --
-    sonst DatevExportGesperrt, keine Datei (seit 1.9.92). Bekäme eine Person ohne Personalnummer eine Zeile, ebenso (kein stilles Weglassen)."""
+    sonst DatevExportGesperrt, keine Datei (seit 1.9.92); seit 1.9.225 verlangt datev_fehlt() die Personalnummer jeder Person mit einer Zeile."""
     from .lohndatei import berechnen, datei, monat_ende
 
     if start_date.day != 1 or end_date != monat_ende(start_date):
@@ -570,12 +564,8 @@ def build_datev_export(db: Session, start_date: date, end_date: date) -> tuple[b
     if lock is None or end_date > lock:
         stand = f"abgeschlossen ist bis {lock:%d.%m.%Y}" if lock is not None else "noch ist nichts abgeschlossen"
         raise DatevExportGesperrt(f"Der DATEV-Export geht nur für abgeschlossene Zeiträume – {stand}.")
-    fehlt = datev_fehlt(db, start_date, end_date)
+    personen = berechnen(db, start_date)
+    fehlt = datev_fehlt(db, start_date, end_date, personen=personen)  # seit 1.9.225 jede Person mit einer Zeile (bis 1.9.224 eine zweite Prüfung hier)
     if fehlt:
         raise DatevExportGesperrt("Kein DATEV-Export: " + "; ".join(x["text"] for x in fehlt) + ".", fehlt)
-    personen = berechnen(db, start_date)
-    ohne = [{"art": "personalnummer", "employee_id": p.employee_id, "name": p.name, "text": f"Personalnummer fehlt: {p.name}"}
-            for p in personen if p.zeilen and not p.personalnummer]
-    if ohne:
-        raise DatevExportGesperrt("Kein DATEV-Export: " + "; ".join(x["text"] for x in ohne) + ".", ohne)
     return datei(settings.datev_beraternummer, settings.datev_mandantennummer, start_date, personen), "txt"

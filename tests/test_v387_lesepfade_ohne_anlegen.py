@@ -115,7 +115,8 @@ def test_die_lesewege_legen_nichts_an_und_zeigen_die_vorgaben(threaded_db_sessio
         aus()
     datev = "/api/time-backoffice/datev-export?start_date=2026-01-01&end_date=2026-01-31"
     assert {p: r.status_code for p, r in antworten.items() if r.status_code != 200} == {datev: 409}
-    assert [x["art"] for x in antworten[datev].json()["liste"]] == ["datev_nummern"]
+    # seit 1.9.225 fehlt die Personalnummer jeder Person mit einer Zeile -- Neujahr gibt den beiden aktiven Personen eine Zeile F
+    assert [x["art"] for x in antworten[datev].json()["liste"]] == ["personalnummer", "personalnummer", "datev_nummern"]
     assert gefunden == []
     assert _zaehlen(db) == vorher
     # Was das Lesen zeigt -- die Vorgabe, die bis 1.8.83 angelegt worden wäre.

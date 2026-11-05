@@ -340,14 +340,18 @@ def buchungen(db: Session, erster: date, *, employee_id: int | None = None, orde
 
 def monat(db: Session, erster: date) -> dict:
     """„Monat & Lohn“: Status und Abschluss, die Lücken der Zeiten (abschluss_hindernisse() bis zum Monatsende -- sperren das Abschließen),
-    was dem DATEV-Export fehlt (datev_fehlt() -- sperrt den Export, nicht den Abschluss) und die Stunden je Mitarbeiter und Zeitart mit
+    was dem DATEV-Export fehlt (datev_fehlt() -- sperrt den Export, nicht den Abschluss), seit 1.9.225 was nicht in die Lohndatei geht (je Person
+    mit Grund, app/lohndatei.py) und die Stunden je Mitarbeiter und Zeitart mit
     Personalnummer (je Zeitart minutengenau wie der Stundenzettel; seit 1.9.223 „Zusammen“ die Arbeit für den Lohn, je Tag auf 0,25 h)."""
     settings = load_time_settings(db)
     lock = settings.locked_until
     ende = monat_ende(erster)
     status = _status(erster, lock)
     luecken = [] if status == "abgeschlossen" else abschluss_hindernisse(db, ende)
-    fehlt = datev_fehlt(db, erster, ende)
+    # seit 1.9.225 (Lohn L1b, Punkt 2): eine Rechnung der Lohndatei für „Fehlt“ und „Nicht in der Datei“ (app/lohndatei.py::berechnen())
+    from .lohndatei import berechnen
+    lohndatei = berechnen(db, erster)
+    fehlt = datev_fehlt(db, erster, ende, personen=lohndatei)
     rows = [r for r in list_entries(db, start_date=erster, end_date=ende, limit=None)]
     je = defaultdict(list)
     for r in rows:
@@ -396,6 +400,9 @@ def monat(db: Session, erster: date) -> dict:
     from .absence_requests import list_requests
     return {**_monat_kopf(erster), "status": status, "abgeschlossen_bis": lock, "abgeschlossen_am": settings.locked_at,
             "luecken": luecken, "luecken_text": luecken_text(luecken), "datev_fehlt": fehlt, "datev_text": datev_text(fehlt),
+            # seit 1.9.225: je Person, was nicht in die Datei geht, mit Grund (nach Nachnamen) -- über dem Knopf „DATEV-Export“
+            "nicht_in_der_datei": [{"employee_id": x.employee_id, "name": x.name, "eintraege": x.nicht_texte()}
+                                   for x in sorted(lohndatei, key=lambda x: (x.nachname.casefold(), x.employee_id)) if x.nicht],
             "antraege_offen": len(list_requests(db, status="pending")),
             "spalten": spalten, "zeilen": zeilen,
             "summe": {"stunden": {k: summe.get(k, Decimal("0")) for k, _ in SPALTEN + (("other", ""),)}, "zusammen": summe["zusammen"],
