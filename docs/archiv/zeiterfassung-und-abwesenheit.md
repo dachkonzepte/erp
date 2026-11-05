@@ -1901,3 +1901,27 @@ sich selbst ergibt keine Abweichung (auch alle sieben Muster).
 Neu: `tests/test_v629_pruefe_lohndatei.py` (17 Tests, Kleinstdateien) -- neun Formfehler (Rückgabe 2), gegen sich selbst, die Muster gegen sich selbst
 (nur wenn `bildgrundlage/lohn` vorliegt), Rundung und die Pausenfälle, Schlechtwetter/Heiligabend/Silvester/Berufsschule/Mehrarbeit/Nummer, Azubi mit
 und ohne `--azubis`, Nummernwechsel, zu klären (Kennzeichen, Lohnart, Stunden, Monatszeile, Kopf), Summen. Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.228: Vorprobe mit den Buchungen aus September und Oktober (Punkt 5)
+
+Neu `scripts/vorprobe_time4.py BUCHUNGEN.csv TIME4.txt [--azubis …] [--teilzeit NR=Mo,Di,Mi,Do,Fr] [--gleich …] [--ausgabe ERP.txt]`: eine Wegwerf-
+Datenbank (SQLite im Temp-Ordner, danach gelöscht; `DATABASE_URL` setzt das Skript selbst) mit den Grunddaten des Starts; je Personalnummer eine
+gewerbliche Person (Umfang „alles“, Nummer auf 5 Stellen, Tarif oder eigene Werte, Merkmal Azubi); V als Nachtrag mit Von/Bis ohne eingetragene Pause
+über `nachtrag_nach_zeitregel()` und `create_manual_entry()` (wie `POST /api/time-entries`), ohne Uhrzeit als Dauer; P nicht gebucht; U, K, BS, FB, UU
+als genehmigte Abwesenheit (`absence_requests.eintragen()`), SWW/SWS als Ausfalltag; F kennt das ERP selbst; AT nicht übernommen (genannt). Berater
+und Mandant aus dem Kopf der Time-4-Datei, der Monat abgeschlossen, die Datei über `build_datev_export()`, dann `pruefe_lohndatei.py` mit denselben
+Optionen.
+
+### Festlegungen 1.9.228 (Bitte bestätigen)
+
+1. Die Vorprobe bucht über die Funktionen des echten Nachtragswegs (wie `POST /api/time-entries`), nicht über die Schnittstelle selbst; P wird nicht
+   gebucht, AT nicht übernommen.
+2. Sie läuft nur gegen eine Wegwerf-SQLite im Temp-Ordner (Regel 16), nie gegen die echte Datenbank; die erzeugte Datei bleibt nur mit `--ausgabe`.
+3. Für September und Oktober 2026: `--azubis 91010,91012`, `--teilzeit 91006=0,3,3,3,0` (Di–Do 3,00 h, wie im L1b-Befund aus U und K der Muster
+   abgeleitet); 91008 und 91016 als zwei Personen (je Monat nur eine).
+
+### Tests und Prüfung 1.9.228
+
+Neu: `tests/test_v630_vorprobe_time4.py` (3 Tests, eigener Prozess) -- Nachtragsweg mit fester Pause, Samstag, Urlaub, Azubi mit Mehrarbeit und AT
+(nicht übernommen, genannt); Teilzeit mit Urlaub und eine Stunde zu klären (Rückgabe 1); die Datenbank der Entwicklung bleibt unberührt.
+Ergebnis der Vorprobe je Person: Bericht `bildgrundlage/bericht_lohn_l1b_*.txt`. Angepasste Erwartungen: keine.

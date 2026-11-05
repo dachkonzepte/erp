@@ -953,3 +953,7 @@ Scratchpad (`gegenprobe.py`, `spec<Version>.json`).
 | **1.9.227 Nr. 4 – Monatszeile gegen WA** | nie gleich | vorher grün; mit den neuen 1 rot: test_schlechtwetter_heiligabend_silvester_berufsschule_mehrarbeit_nummer |
 | **1.9.227 Nr. 5a – Rückgabe 1** | immer 0 | vorher grün; mit den neuen 2 rot: test_azubi_nur_im_erp, test_zu_klaeren |
 | **1.9.227 Nr. 5b – Rückgabe 2** | 1 bei Formfehler | vorher grün; mit den neuen 9 rot (v629) |
+| **1.9.228 Nr. 1a – über den Nachtragsweg** | Anwesenheit ohne Pause gebucht | mit den neuen 1 rot: test_nachtragsweg_pause_samstag_azubi_at |
+| **1.9.228 Nr. 1b – AT nicht übernommen, genannt** | nicht genannt | mit den neuen 1 rot: test_nachtragsweg_pause_samstag_azubi_at |
+| 1.9.228 Nr. 2 – nur gegen eine Wegwerf-SQLite (Regel 16) | keine -- eine Gegenprobe müsste die echte Datenbank treffen; `test_echte_datenbank_unberuehrt` hält fest, dass sich `dachkonzepte_erp.db` nicht ändert | – |
+| **1.9.228 Nr. 3 – Teilzeit aus `--teilzeit`** | `--teilzeit` übergangen | mit den neuen 1 rot: test_teilzeit_und_zu_klaeren |

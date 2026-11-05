@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.228 – Vorprobe: Time-4-Buchungen durch den echten Nachtragsweg (Lohn L1b, Punkt 5)
+
+Neu `scripts/vorprobe_time4.py`: bucht die Einzelbuchungen aus Time 4 über die Funktionen des Nachtragswegs in eine Wegwerf-Datenbank, trägt Urlaub, Krankheit, Berufsschule und die übrigen Abwesenheiten ein, erzeugt die Lohndatei und vergleicht sie mit `pruefe_lohndatei.py` mit der Datei aus Time 4. Für September und Oktober 2026 bleibt nichts zu klären: September 45 Abweichungen, Oktober 48, alle erklärt (Pause, Rundung, Azubis, Berufsschule, Mehrarbeit).
+
 ## 1.9.227 – Prüfskript: Lohndatei des ERP gegen die Datei aus Time 4 (Lohn L1b, Punkt 4)
 
 Neu `scripts/pruefe_lohndatei.py ERP.txt TIME4.txt` für den Probemonat: prüft beide Dateien auf Form, vergleicht die Köpfe und je Person und Tag die Kennzeichen, die Monatszeile 8110 gegen die Tageszeilen WA und die Summen je Person. Als „erklärt“ gelten die erwarteten Abweichungen aus dem L1b-Befund (Pause nach Lesart A statt der festen Pausen von Time 4, Schlechtwetter je Tag, Heiligabend, Silvester, Berufsschule, Mehrarbeit der Azubis, fünfstellige Nummern, Azubis nur im ERP) und die Rundung auf 0,25 h; alles andere ist „zu klären“. Rückgabe 0, 1 oder 2 (Formfehler). Jedes der sieben Muster gegen sich selbst ergibt keine Abweichung.
