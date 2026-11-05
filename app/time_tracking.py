@@ -13,7 +13,7 @@ from .models import (
     TimeEntryGroup, TimeEntryGroupMember,
 )
 
-from .rounding import round_half_up, round_hours
+from .rounding import round_half_up, round_hours, round_quarter_hours
 from .work_time_models import automatic_break_minutes_for_duration, fehlende_pause_am_tag
 
 ENTRY_TYPES = {"site", "workshop", "travel", "other"}
@@ -640,6 +640,23 @@ def tagessumme(rows) -> Decimal:
     Übersicht, den Stundenzettel und den DATEV-Export des Büros (app/time_backoffice.py) -- bis dahin in app/meine_zeiten.py; gerundet wird
     erst das Ergebnis (round_hours()), keine zweite Rundung."""
     return sum((Decimal(str(r.hours or 0)) for r in rows if r.status == "booked"), Decimal("0"))
+
+
+def arbeit_des_tags(rows) -> Decimal:
+    """Seit 1.9.223 (Lohn L1b, Vorgabe Tobias): die Arbeit einer Person an einem Tag für den Lohn -- die gebuchten Stunden des Tags
+    (tagessumme(), die Pause ist schon abgezogen) kaufmännisch auf 0,25 h (round_quarter_hours()); die Buchungen selbst bleiben minutengenau.
+    Dieselbe Zahl in der Lohndatei, in „Monat & Lohn“ und in allem, was daraus rechnet (Schlechtwetter = Sollzeit − Arbeit)."""
+    return round_quarter_hours(tagessumme(rows))
+
+
+def arbeit_im_lohn(rows) -> Decimal:
+    """Seit 1.9.223: die Arbeit mehrerer Tage (auch mehrerer Personen) für den Lohn -- je Person und Tag arbeit_des_tags(), dann
+    zusammengezählt; eine laufende Zeit zählt nicht mit."""
+    je_tag: dict[tuple, list] = {}
+    for r in rows:
+        if r.status == "booked":
+            je_tag.setdefault((r.employee_id, r.work_date), []).append(r)
+    return round_hours(sum((arbeit_des_tags(v) for v in je_tag.values()), Decimal("0")))
 
 
 def entry_to_dict(row: TimeEntry) -> dict:

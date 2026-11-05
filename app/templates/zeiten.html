@@ -284,7 +284,7 @@
     </section>
   </div>
   <section class="tabelle-karte" aria-labelledby="lohnTabelleTitel">
-    <div class="tabelle-kopf"><h2 id="lohnTabelleTitel">Stunden je Mitarbeiter</h2><span class="mut" style="font-size:13px">wie im Stundenzettel und im DATEV-Export – eine Rechnung</span></div>
+    <div class="tabelle-kopf"><h2 id="lohnTabelleTitel">Stunden je Mitarbeiter</h2><span class="mut" style="font-size:13px">Zeitarten minutengenau wie im Stundenzettel – „Zusammen“ ist die Arbeit für den Lohn, je Tag auf 0,25 h gerundet</span></div>
     <table><thead id="lohnKopf"></thead><tbody id="lohnZeilen"></tbody></table>
     <p class="leer" id="lohnLeer" hidden></p>
   </section>
@@ -988,7 +988,7 @@ function monatZeichnen(d){
   // Schlechtwetter“, nicht „Schlechtwetter“: so heißt schon die Spalte der gebuchten Stunden der alten Zeitarten weather_* (Teil der Arbeit)
   var sw=!!d.schlechtwetter;
   function swZelle(x,klasse){return sw?'<td class="'+klasse+' r num"'+(x.tage?' title="'+esc(x.tage)+(x.tage===1?' Ausfalltag':' Ausfalltage')+'"':'')+'>'+(x.tage?esc(zahlText(x.stunden,2))+' <span class="mut">('+esc(x.tage)+' T.)</span>':'–')+'</td>':''}
-  el('lohnKopf').innerHTML='<tr><th>Mitarbeiter</th><th>Personalnr.</th><th class="r">Tage</th>'+d.spalten.map(function(s){return '<th class="r">'+esc(s.label)+'</th>'}).join('')+'<th class="r">Zusammen</th>'+(sw?'<th class="r" title="Ausfalltage Schlechtwetter: Sollzeit minus gebuchte Arbeit">Ausfall Schlechtwetter</th>':'')+'</tr>';
+  el('lohnKopf').innerHTML='<tr><th>Mitarbeiter</th><th>Personalnr.</th><th class="r">Tage</th>'+d.spalten.map(function(s){return '<th class="r">'+esc(s.label)+'</th>'}).join('')+'<th class="r" title="Arbeit für den Lohn: je Tag auf 0,25 h gerundet">Zusammen</th>'+(sw?'<th class="r" title="Ausfalltage Schlechtwetter: Sollzeit minus gebuchte Arbeit">Ausfall Schlechtwetter</th>':'')+'</tr>';
   el('lohnZeilen').innerHTML=d.zeilen.map(function(r){
     var pnr=r.personalnummer?esc(r.personalnummer):r.lohnexport?'<span class="chip chip-signal">fehlt</span>':'<span class="mut">ohne Export</span>';
     return '<tr data-mitarbeiter="'+r.employee_id+'"><td><a href="/api/time-backoffice/timesheet.pdf?'+zeitraum(d)+'&employee_id='+r.employee_id+'" title="Stundenzettel als PDF">'+esc(r.name)+'</a></td>'

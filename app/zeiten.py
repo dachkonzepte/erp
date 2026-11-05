@@ -17,7 +17,7 @@ from .permissions import MOBIL_ROLLEN
 from .rounding import round_hours
 from .time_backoffice import (_entry_type_labels, abschluss_hindernisse, datev_fehlt, effective_datev_personnel_number, exportiert_arbeit, load_employee_payroll,
                               load_time_settings, unpassende_pausen)
-from .time_tracking import auftrag_geschlossen, employee_name, entry_to_dict, laeuft_seit_frueher, list_entries, tagessumme
+from .time_tracking import arbeit_im_lohn, auftrag_geschlossen, employee_name, entry_to_dict, laeuft_seit_frueher, list_entries, tagessumme
 
 MONATE = ("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember")
 
@@ -341,7 +341,7 @@ def buchungen(db: Session, erster: date, *, employee_id: int | None = None, orde
 def monat(db: Session, erster: date) -> dict:
     """„Monat & Lohn“: Status und Abschluss, die Lücken der Zeiten (abschluss_hindernisse() bis zum Monatsende -- sperren das Abschließen),
     was dem DATEV-Export fehlt (datev_fehlt() -- sperrt den Export, nicht den Abschluss) und die Stunden je Mitarbeiter und Zeitart mit
-    Personalnummer (dieselbe Summe wie Stundenzettel und DATEV-Export)."""
+    Personalnummer (je Zeitart minutengenau wie der Stundenzettel; seit 1.9.223 „Zusammen“ die Arbeit für den Lohn, je Tag auf 0,25 h)."""
     settings = load_time_settings(db)
     lock = settings.locked_until
     ende = monat_ende(erster)
@@ -372,7 +372,9 @@ def monat(db: Session, erster: date) -> dict:
         sonstige = sonstige or stunden.get("other", Decimal("0")) != 0
         for k, v in stunden.items():
             summe[k] += v
-        zusammen = round_hours(tagessumme(eigene))
+        # seit 1.9.223 (Lohn L1b, Vorgabe Tobias): „Zusammen“ ist die Arbeit für den Lohn -- je Tag auf 0,25 h gerundet (arbeit_im_lohn()), wie
+        # in der Lohndatei; die Spalten je Zeitart bleiben minutengenau (bis 1.9.222 war „Zusammen“ ihre Summe)
+        zusammen = arbeit_im_lohn(eigene)
         summe["zusammen"] += zusammen
         zeilen.append({"employee_id": employee_id, "name": employee_name(emp) or f"#{employee_id}",
                        "personalnummer": effective_datev_personnel_number(db, emp, p) if emp is not None else None,

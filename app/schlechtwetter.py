@@ -184,7 +184,8 @@ def _stunden_text(wert) -> str:
 def ausfall(db: Session, paare) -> dict[tuple[int, date], dict]:
     """Seit 1.9.216 (L1a Stufe 6, Punkt 5): die Stunden eines Ausfalltags -- abgeleitet, nie gespeichert (der Eintrag bleibt ein ganzer Tag ohne
     Stundenfeld): Sollzeit des Tags (app/sollzeit.py) minus die gebuchte Arbeitszeit der Person an dem Tag, nie unter 0. Gebucht = alle Zeitarten,
-    nur gebuchte (eine laufende Zeit zählt erst gestoppt), gerundet -- dieselbe Summe wie die Arbeit im Lohn (app/time_tracking.py::tagessumme()).
+    nur gebuchte (eine laufende Zeit zählt erst gestoppt) -- seit 1.9.223 die Arbeit des Tags im Lohn, auf 0,25 h gerundet
+    (app/time_tracking.py::arbeit_des_tags(); bis 1.9.222 minutengenau).
     An einem reinen Ausfalltag die volle Sollzeit; wird danach noch gebucht, stimmt die Zahl beim nächsten Lesen von selbst.
     paare: (Person, Tag). Je Paar soll, gebucht, stunden und text („Ausfall 6,00 h (Sollzeit 8,00 h − gebucht 2,00 h)“) -- eine Abfrage für
     die Sollzeit aller und eine für die Buchungen."""
@@ -193,7 +194,7 @@ def ausfall(db: Session, paare) -> dict[tuple[int, date], dict]:
 
     from .rounding import round_hours
     from .sollzeit import soll_fuer_personen
-    from .time_tracking import tagessumme
+    from .time_tracking import arbeit_des_tags
 
     paare = set(paare)
     if not paare:
@@ -206,7 +207,7 @@ def ausfall(db: Session, paare) -> dict[tuple[int, date], dict]:
     aus = {}
     for eid, tag in paare:
         s = round_hours(soll.get(eid, {}).get(tag, Decimal("0")))
-        g = round_hours(tagessumme(buchungen.get((eid, tag), [])))
+        g = arbeit_des_tags(buchungen.get((eid, tag), []))  # seit 1.9.223 die Arbeit des Tags im Lohn, auf 0,25 h (bis 1.9.222 minutengenau)
         h = max(Decimal("0"), s - g)
         text = f"Ausfall {_stunden_text(h)}" + (f" (Sollzeit {_stunden_text(s)} − gebucht {_stunden_text(g)})" if g else "")
         aus[(eid, tag)] = {"soll": s, "gebucht": g, "stunden": h, "text": text}

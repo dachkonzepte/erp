@@ -1631,3 +1631,47 @@ Neu `scripts/klicktest_zuordnung_ausgeliefert.py` (6 Prüfungen, ein Bild): Test
 ### Tests und Prüfung 1.9.222
 
 Neu `scripts/klicktest_zuordnung_ausgeliefert.py`. Gegenproben: Archiv „Gegenproben Lohn L1a“, Abschnitt „Stufe 7“. Angepasste Erwartungen: keine.
+
+## Lohn L1b: Export und Vergleich (ab 1.9.223)
+
+Befund vorab: `bildgrundlage/bericht_lohn_l1b_befund_cf29fad.txt` (05.11.2026, nichts gebaut). Vorgabe Tobias (05.11.2026), je Punkt eine Version, jede
+Festlegung mit eigener Gegenprobe: bestätigt alle Festlegungen aus L1a Stufe 7; 1.9.219 Nr. 2 bleibt, die Begründung wird berichtigt. Neu vom
+Steuerbüro: eine Zeile ohne Lohnart hat ein leeres Feld (`00201;31;UU;;7,50;;;;;;`), mehrere Zeilen je Person und Tag sind erlaubt. Rundung
+(Tobias): die Tagessumme Arbeit nach der Pause kaufmännisch auf 0,25 h, die einzelnen Buchungen bleiben minutengenau -- für Export, „Monat & Lohn“
+und alles, was daraus rechnet (Schlechtwetter = Sollzeit − Arbeit, Mehrarbeit der Azubis). Offen beim Steuerbüro, nichts angenommen: der
+Freizeitausgleich (bleibt in der Zuordnung leer). Punkte: 1 Export neu im Format der Muster, ersetzt Lohn und Gehalt und LODAS (E8), mit Merkmal
+„Azubi“ und AA / 1900; 2 Vollständigkeit -- Personalnummer von jedem, der eine Zeile bekäme, und „Nicht in der Datei“ über dem Knopf; 3 Ablage jeder
+erzeugten Datei; 4 `scripts/pruefe_lohndatei.py`; 5 Vorprobe mit den Buchungen aus September und Oktober; 6 Archiv: Lohn und Gehalt, LB1–LB10.
+
+### Umsetzung 1.9.223: die Arbeit eines Tags auf 0,25 h (Vorgabe Rundung)
+
+`app/rounding.py::round_quarter_hours()` (kaufmännisch auf die Viertelstunde, zwei Stellen); `app/time_tracking.py::arbeit_des_tags()` (die
+gebuchten Stunden einer Person an einem Tag, `tagessumme()`, gerundet) und `arbeit_im_lohn()` (je Person und Tag gerundet, dann zusammengezählt).
+`app/zeiten.py::monat()`: „Zusammen“ je Person und in der Summe über `arbeit_im_lohn()`; die Spalten je Zeitart bleiben minutengenau. `app/schlechtwetter.py::ausfall()`:
+gebucht = `arbeit_des_tags()` -- der Ausfall ist Sollzeit minus die gerundete Arbeit. „Monat & Lohn“: der Satz über der Tabelle sagt es („Zeitarten
+minutengenau wie im Stundenzettel – „Zusammen“ ist die Arbeit für den Lohn, je Tag auf 0,25 h gerundet“), die Spalte „Zusammen“ trägt es als title.
+Unverändert minutengenau: die Buchungen (`TimeEntry.hours`), Stundenzettel (PDF, CSV), Übersicht, „Meine Zeiten“, „Prüfen“ und der bisherige
+DATEV-Export (er entfällt mit 1.9.224).
+
+### Festlegungen 1.9.223 (Bitte bestätigen)
+
+1. Die Arbeit eines Tags im Lohn sind die gebuchten Stunden der Person an dem Tag (nach der Pause), kaufmännisch auf 0,25 h gerundet: die Hälfte
+   rundet auf (8,125 -> 8,25; 0,625 -> 0,75), darunter ab (8,12 -> 8,00; 0,10 -> 0,00 -- ein Tag mit 6 Minuten hat keine Arbeit im Lohn).
+2. Gerundet wird je Person und Tag über alle Zeitarten zusammen -- nie je Buchung, je Zeitart oder je Monat; der Monat ist die Summe der gerundeten
+   Tage. Eine laufende Zeit zählt nicht.
+3. „Monat & Lohn“: „Zusammen“ (je Person und in der Summe) ist diese Arbeit; die Spalten je Zeitart bleiben minutengenau und ergeben zusammen nicht
+   unbedingt „Zusammen“ -- der Satz über der Tabelle sagt das.
+4. Schlechtwetter: der Ausfall eines Tags ist Sollzeit minus diese Arbeit (nie unter 0); der Text nennt die gerundete Arbeit („gebucht 2,00 h“ bei
+   2,10 h gebucht).
+5. Minutengenau bleiben die Buchungen selbst, Stundenzettel (PDF, CSV), Übersicht, „Meine Zeiten“ und „Prüfen“.
+6. Die Einstellung „Rundung“ der Zeitregeln (je neue Buchung, Vorgabe 0 = minutengenau) bleibt, wie sie ist -- steht dort ein Wert, wird jede neue
+   Buchung wie bisher gerundet und die Tagessumme danach noch einmal. Ob die Einstellung entfallen soll, entscheidest du; das Prüfskript
+   `scripts/pruefe_zeitregeln.py` nennt ihren Wert.
+
+### Tests und Prüfung 1.9.223
+
+Neu: `tests/test_v625_arbeit_viertelstunde.py` (19 Tests, feste Tage im Dezember 2026) -- die Viertelstunde kaufmännisch (auch 0,625 -> 0,75, wo
+halb-gerade 0,50 gäbe), der Tag über alle Zeitarten (4,10 + 4,10 = 8,25, je Buchung wären es 8,00), der Monat als Summe der Tage (8,25, gerundet als
+Monat 8,50), je Person, die Buchungen unverändert, „Monat & Lohn“ (Zusammen 8,25, Baustelle 4,40, Werkstatt 4,10), Schlechtwetter (2,10 h gebucht ->
+Ausfall 5,50), die Übersicht minutengenau, der Satz über der Tabelle. Gegenproben je Festlegung: Archiv „Gegenproben Lohn L1a“, Abschnitt „Lohn L1b“.
+Angepasste Erwartungen: keine.

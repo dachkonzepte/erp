@@ -851,3 +851,23 @@ neuen, je Version in einer eigenen Arbeitskopie auf dem Stand der Version, Datei
 | **1.9.222 Nr. 1b** – … Berufsschule FE | Berufsschule nicht vorbelegt (1.9.222) | klicktest_zuordnung_ausgeliefert rot: „Fin: jede Zeile wie ausgeliefert“ |
 | **1.9.222 Nr. 1c** – … Stunden bei Schlechtwetter | Sommer wieder „Sollzeit“ (1.9.222) | klicktest_zuordnung_ausgeliefert rot: „Fin: Stunden bei Schlechtwetter“ |
 | 1.9.222 (Bild) – das Bild des ausgelieferten Zustands | keine -- ein Bild, nichts auszuhebeln; was es zeigt, prüft der Klicktest (oben) | – |
+
+## Lohn L1b (1.9.223 ff.): je Festlegung ihre Gegenprobe
+
+Wie Stufe 7: je Aussage; „vorher“ = die Tests des Themas vor der Version, „mit“ = dazu die neue Testdatei der Version; je Version in einer
+eigenen Arbeitskopie auf dem Stand der Version, Datei danach byte-genau zurück (Prüfsumme); gezählt nur FAILED. Werkzeug und Vorgaben lagen im
+Scratchpad (`gegenprobe.py`, `spec<Version>.json`).
+
+| Festlegung (Aussage) | Gegenprobe | Ergebnis |
+|---|---|---|
+| **1.9.223 Nr. 1a** – kaufmännisch, die Hälfte auf | halb-gerade (`round_quarter_hours()`) | vorher grün; mit test_v625 4 rot (0,125, 0,625 zweimal, 8,125) |
+| **1.9.223 Nr. 1b** – auf 0,25 h | nur auf 0,01 (`round_quarter_hours()`) | vorher grün; mit test_v625 14 rot |
+| **1.9.223 Nr. 2a** – je Tag, nicht je Monat | Monat gerundet statt Summe der Tage (`arbeit_im_lohn()`) | vorher grün; mit test_v625 2 rot |
+| **1.9.223 Nr. 2b** – nicht je Buchung | je Buchung gerundet (`arbeit_des_tags()`) | vorher grün; mit test_v625 3 rot |
+| **1.9.223 Nr. 2c** – je Person | je Tag über alle Personen (`arbeit_im_lohn()`) | vorher grün; mit test_v625 1 rot: test_monat_ist_die_summe_der_gerundeten_tage |
+| **1.9.223 Nr. 3a** – „Zusammen“ ist die gerundete Arbeit | „Zusammen“ wieder minutengenau (`app/zeiten.py::monat()`) | vorher grün, klicktest_zeiten grün; mit test_v625 2 rot |
+| **1.9.223 Nr. 3b** – die Spalten bleiben minutengenau | Spalten je Zeitart gerundet (`monat()`) | vorher 1 rot: test_v517::test_monat_tabelle_eine_rechnung_mit_dem_datev_export; mit test_v625 1 rot |
+| **1.9.223 Nr. 4** – Schlechtwetter mit der gerundeten Arbeit | wieder minutengenau (`ausfall()`) | vorher grün, klicktest_schlechtwetter grün; mit test_v625 1 rot |
+| **1.9.223 Nr. 5** – Übersicht und Stundenzettel minutengenau | Übersicht gerundet (`backoffice_summary()`) | vorher grün; mit test_v625 1 rot: test_uebersicht_bleibt_minutengenau |
+| **1.9.223** (Seite) – der Satz über der Tabelle | Satz entfernt | vorher grün; mit test_v625 1 rot: test_seite_nennt_die_rundung (nur Anzeige, als Text geprüft) |
+| 1.9.223 Nr. 6 – die Einstellung „Rundung“ je Buchung bleibt | keine -- nichts geändert; die Rundung je Buchung hält test_v466 fest | – |

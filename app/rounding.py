@@ -41,3 +41,11 @@ def round_hours(value) -> Decimal:
     """Stunden auf zwei Nachkommastellen (Anzeige, Summen, Export). Gespeichert werden Stunden mit
     vier Nachkommastellen (TimeEntry.hours), dort über round_half_up(value, Decimal("0.0001"))."""
     return round_half_up(value, HUNDREDTH_HOUR)
+
+
+def round_quarter_hours(value) -> Decimal:
+    """Seit 1.9.223 (Lohn L1b, Vorgabe Tobias): Stunden kaufmännisch auf die Viertelstunde, mit zwei Stellen -- 8,125 -> 8,25,
+    8,12 -> 8,00, 0,10 -> 0,00. Nur für die Arbeit eines Tags im Lohn (app/time_tracking.py::arbeit_des_tags()); die Buchungen
+    selbst bleiben minutengenau."""
+    stunden = Decimal(str(value)) if isinstance(value, float) else Decimal(value or 0)
+    return round_hours(round_half_up(stunden * 4, Decimal("1")) / 4)

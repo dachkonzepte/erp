@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.223 – Die Arbeit eines Tags im Lohn auf 0,25 h (Lohn L1b, Vorgabe Rundung)
+
+Die Arbeit eines Tags im Lohn ist jetzt die Summe der gebuchten Stunden der Person an dem Tag, nach der Pause, kaufmännisch auf die Viertelstunde gerundet (8,20 -> 8,25; 0,10 -> 0,00). Gerundet wird je Person und Tag über alle Zeitarten zusammen, nie je Buchung oder je Monat; die Buchungen selbst bleiben minutengenau. „Monat & Lohn“ zeigt in „Zusammen“ diese Arbeit, die Spalten je Zeitart bleiben minutengenau wie der Stundenzettel -- der Satz über der Tabelle sagt das. Der Ausfall eines Schlechtwetter-Tags rechnet Sollzeit minus diese gerundete Arbeit. Die Einstellung „Rundung“ je Buchung bleibt unverändert (Vorgabe aus).
+
 ## 1.9.222 – Klicktest und Bild: die Zuordnung im ausgelieferten Zustand (L1a Stufe 7, Punkt 5)
 
 Neu `scripts/klicktest_zuordnung_ausgeliefert.py`: eine frische Installation, in der Zuordnung nichts angelegt oder geändert -- nur, was der Start anlegt. Er prüft jede Zeile, wie sie ausgeliefert wird (Arbeit 1/1000, Feiertag F/1012, Urlaub U/8000, Krankheit K/1650, Schlechtwetter Winter WA/8195, Heiligabend FR/1080, Silvester UU ohne Lohnart, Weiterbildung 1/1000, Berufsschule FE ohne Lohnart, der Rest „nicht exportiert“ bzw. „wie die Kategorie“), die Stunden bei Schlechtwetter und das gesperrte Häkchen der Monatszeile, und nimmt die ganze Zuordnung als ein Bild auf -- die bisherigen Bilder stammten aus `klicktest_lohnarten`, der vorher Zeilen ändert, und zeigten Silvester und Berufsschule nicht.
