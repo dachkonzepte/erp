@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.221 – Testablauf: die Grenze der Messung mit verzögerten Antworten festgehalten (L1a Stufe 7, Punkt 4, nur Doku)
+
+Im Archiv „Testablauf“ steht bei der Messung mit verzögerten Antworten (1.9.207) jetzt ausdrücklich ihre Grenze: sie macht eine Stelle nur rot, wenn sich alter und neuer Stand im gelesenen Wert unterscheiden. Liest ein Klicktest nach einem Wechsel der Ansicht zu früh, zeigt die alte Fassung aber dieselben Werte, bleibt er grün -- so blieben die sieben Stellen der Plantafel unentdeckt, die erst 1.9.211 am Bild auffielen. Ein grüner Lauf unter der Verzögerung ist deshalb kein Nachweis, dass jede Stelle wartet. Am Programm nichts geändert.
+
 ## 1.9.220 – Monatszeile: das Häkchen ist gesperrt, solange ein Kennzeichen steht (L1a Stufe 7, Punkt 3)
 
 Die Monatszeile bleibt als Möglichkeit. Bis jetzt ließ sich ihr Häkchen bei Schlechtwetter Winter anklicken, das Speichern brach aber mit „Eine Monatszeile hat kein Kennzeichen.“ ab, weil dort WA steht. Jetzt ist das Häkchen gesperrt, solange im Feld Kennzeichen etwas steht, und darunter steht „Für die Monatszeile zuerst das Kennzeichen leeren.“ Das gilt schon beim Tippen: leert man das Feld, wird das Häkchen frei; tippt man ein Kennzeichen, wird es wieder gesperrt und abgehakt. Der Server lehnt eine Monatszeile mit Kennzeichen weiter ab.

@@ -1615,3 +1615,7 @@ Einstellungen, Zuordnung: `renderLohnarten()` sperrt das Häkchen (`lzM-…`) ei
 ### Tests und Prüfung 1.9.220
 
 Neu: `tests/test_v624_monatszeile_gesperrt.py` (3 Tests) -- gezeichnet (Winter mit WA gesperrt mit Hinweis, Sommer frei ohne), beim Tippen (leeren frei, Kennzeichen gesperrt und abgehakt, nur Leerzeichen gilt als leer) in node, der Server lehnt weiter ab und speichert eine Monatszeile ohne Kennzeichen. `klicktest_lohnarten`: fünf Prüfungen mehr (Winter gesperrt mit Hinweis, geleert frei, als Monatszeile gespeichert, WA getippt gesperrt, wieder WA / 8195). Gegenproben je Festlegung: Archiv „Gegenproben Lohn L1a“, Abschnitt „Stufe 7“. Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.221: Grenze der Messung mit verzögerten Antworten (Punkt 4, nur Doku)
+
+Steht im Archiv „Testablauf und Klicktests“, Abschnitt „Klicktests lesen erst nach der Antwort (1.9.207)“, als „Grenze der Methode“ mit Festlegung 1.9.221 Nr. 1 (Werkzeug, ohne Gegenprobe: eine Grenze der Methode, nichts auszuhebeln). Am Programm nichts geändert; Tests keine, angepasste Erwartungen keine.

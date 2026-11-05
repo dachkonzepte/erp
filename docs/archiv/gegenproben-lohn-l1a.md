@@ -846,3 +846,4 @@ neuen, je Version in einer eigenen Arbeitskopie auf dem Stand der Version, Datei
 | **1.9.220 Nr. 1d** – ein getipptes Kennzeichen hakt ab | gesperrt, aber angehakt gelassen (1.9.220) | vorher grün; mit test_v624 1 rot: test_beim_tippen |
 | **1.9.220 Nr. 2** – der Server lehnt weiter ab | Prüfung „kein Kennzeichen“ aus (1.9.220) | vorher 1 rot: test_v587::test_pruefungen; mit test_v624 2 rot |
 | **1.9.220 Nr. 3** – die Monatszeile bleibt als Möglichkeit | jede Monatszeile abgelehnt (1.9.220) | vorher 2 rot: test_v587::test_pruefungen, test_v620::test_monatszeile_bleibt_ein_eigener_fall; mit test_v624 3 rot |
+| 1.9.221 Nr. 1 (Werkzeug) – die Messung mit verzögerten Antworten findet nur Stellen, an denen sich alter und neuer Stand unterscheiden | keine -- eine Grenze der Methode (Arbeitsweise), nichts auszuhebeln; belegt durch die sieben Stellen der Plantafel aus 1.9.211 | – |

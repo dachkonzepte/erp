@@ -1483,6 +1483,19 @@ Dass eine Stelle während einer offenen Anfrage liest, heißt noch nichts (meist
 
 **Nachtrag 1.9.211 (L1a Stufe 5, Punkt 4): eine Stelle, die die Messung nicht finden konnte.** Beim Vorher-Bild der Plantafel zeigte `klicktest_plantafel_kalender` noch die Woche ab 14.12. mit „Lädt …“: nach `movePeriod(7)` wartete er auf `iso(periodStart)==='2026-12-21'&&board.slots.length===1` -- `periodStart` setzt die Seite sofort, und die alte Tafel (zwei Wochen ab 14.12.) hatte denselben einen Einsatz. Prüfungen und Bild liefen also vor der neuen Woche; die Prüfungen blieben grün, weil die alte Tafel an den geprüften Tagen dieselben Werte zeigte. **Lücke der Methode:** verzögerte Antworten machen eine solche Stelle nur rot, wenn alter und neuer Stand sich im gelesenen Wert unterscheiden -- hier taten sie es nicht, deshalb fehlte sie in der Tabelle oben. Dasselbe Muster (Wechsel der Woche, danach eine Bedingung, die die alte Tafel schon erfüllt) stand an fünf Stellen in `klicktest_plantafel_konflikte`. Alle sieben warten jetzt mit `warte_auf_neu_geladene_liste("movePeriod(…)", "#planner")`, in `klicktest_plantafel_kalender` zusätzlich auf `board.start_date`. Keine neue Festlegung: die Stellen verletzten Festlegung 1.9.207 Nr. 1 sinngemäß (gelesen, bevor die Anfrage, die den Wert füllt, zurück ist). Mit den sechs Stellen von 1.9.207 sind es 13 umgestellte Stellen in 8 Klicktests.
 
+**Grenze der Methode (festgehalten 1.9.221, L1a Stufe 7, Punkt 4).** Die Messung mit verzögerten Antworten findet nur Stellen, an denen sich alter
+und neuer Stand im gelesenen Wert unterscheiden: sie verschiebt das Eintreffen einer Antwort, und rot wird eine Prüfung erst, wenn sie in dieser Zeit
+einen anderen Wert liest als nach der Antwort. Liest ein Klicktest nach einem Wechsel der Ansicht (Woche, Monat, Filter, Reiter) zu früh, zeigt die
+alte Fassung aber an den geprüften Stellen dieselben Werte, bleibt er unter jeder Verzögerung grün -- die sieben Stellen der Plantafel aus 1.9.211
+(`klicktest_plantafel_kalender`, `klicktest_plantafel_konflikte`, Nachtrag oben) fehlten deshalb in der Tabelle von 1.9.207 und fielen erst am Bild
+auf. Ein grüner Lauf unter der Verzögerung ist also kein Nachweis, dass jede Stelle auf ihre Antwort wartet. Was die Grenze ausgleicht, steht schon in
+Festlegung 1.9.207 Nr. 1 und im Nachtrag 1.9.211: nach einem Wechsel auf eine Bedingung warten, die die alte Fassung ausschließt (eine Kennung des neuen
+Stands wie `board.start_date`, oder `warte_auf_neu_geladene_liste()` mit der Aktion), und die Bilder eines Laufs ansehen.
+
+**Festlegung 1.9.221 zu Werkzeug und Testablauf (Bitte bestätigen)**
+
+1. Die Messung mit verzögerten Antworten (1.9.207) findet nur Stellen, an denen sich alter und neuer Stand im gelesenen Wert unterscheiden; ein grüner Lauf darunter belegt nicht, dass jede Stelle wartet. Bei einem Wechsel der Ansicht mit gleichem Inhalt ergänzen die Wartebedingung auf den neuen Stand und das Ansehen der Bilder die Messung. Gegenprobe: keine -- die Festlegung beschreibt eine Grenze der Methode (Arbeitsweise), es gibt nichts, das sich aushebeln ließe.
+
 ## Stehende Uhr, vom Klicktest weitergestellt (1.9.209, L1a Stufe 5, Punkt 2)
 
 Vorgabe Tobias (04.11.2026): `klicktest_heute` hält die Uhr an -- stehende Uhr in Instanz und Browser wie `klicktest_monteurin_regeln` seit 1.9.173 --, damit „Tag zusammen 3:15 h“ unter Last nicht zu 3:16 h wird (Fund der Messung 1.9.207); die Erwartung bleibt auf genau einem Wert.
