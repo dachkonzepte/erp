@@ -75,7 +75,7 @@ async def pruefen(tab, seed, p):
              ["24.12.", "Heiligabend", "7,00 h", "Heiligabend – bezahlte Freistellung", "kein Urlaubstag – ein Urlaub über den Tag zählt ihn mit 0",
               "gewerbliche Mitarbeiter, nur Mo–Fr", "aktiv"])
     # seit 1.9.214 FR / 1080 (Lohnbüro; bis 1.9.213 „Zuordnung BF ohne Lohnart“, „BF / Lohnart offen – nicht exportiert“)
-    p.pruefe("Fin: Zuordnung FR / 1080", await tab.js(WIRKT.format(s="heiligabend")), "FR / 1080")
+    p.pruefe("Fin: Zuordnung FR / 1080", await tab.js(WIRKT.format(s="heiligabend")), "FR / 1080 – exportiert mit Lohnart")  # seit 1.9.215 mit dem Fall
     # seit 1.9.180: ein Bild des ausgelieferten Zustands, bevor der Test etwas ändert (Bild 01 des Berichts 71d7f52 zeigte die 6,50 h von unten)
     await tab.js("document.getElementById('kalenderBlock').scrollIntoView({block:'start'})")
     await tab.bild("kalender_fin_ausgeliefert")

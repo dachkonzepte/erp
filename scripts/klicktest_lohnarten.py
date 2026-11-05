@@ -3,7 +3,8 @@
     Büro – Finanzen  Fin: Zeilen wie vorbelegt (Arbeit 1/1000, Feiertag F/1012, Urlaub U/8000, Krankheit K/1650, Schlechtwetter Winter
                      WA/8195 (seit 1.9.214, bis 1.9.213 „Monatszeile 8110“), Art Weiterbildung 1/1000; Berufsschule (seit 1.9.214 FE ohne
                      Lohnart), Fortbildung, Freizeitausgleich, Schlechtwetter Sommer „nicht exportiert“); Lohnart „10a“ -> Meldung, nichts gespeichert; Freizeitausgleich Z / 1500 gespeichert -> „Wirkt“ und die Art
-                     Freizeitausgleich danach „wie die Kategorie – Freizeitausgleich: Z / 1500“ -- Bild; seit 1.9.203 (L1a Stufe 4, Punkt 2):
+                     Freizeitausgleich danach „wie die Kategorie – Freizeitausgleich: Z / 1500“ (seit 1.9.215 je mit „– exportiert mit
+                     Lohnart“); seit 1.9.215 Unbezahlt UB ohne Lohnart -> „UB – exportiert, Stunden ohne Lohnart“ -- Bild; seit 1.9.203 (L1a Stufe 4, Punkt 2):
                      der Satz über der Tabelle nennt die Jahreszeit bei Schlechtwetter; eine gespeicherte Zeile „art:schlechtwetter“ S / 8111
                      (Altbestand, direkt angelegt) „wird übergangen“, ein neuer Wert -> Meldung „Für Schlechtwetter gilt immer die Jahreszeit
                      …“, nichts gespeichert -- Bild; leeren -> „nach der Jahreszeit“; keine JS-Fehler
@@ -48,10 +49,11 @@ def befuellen(db, k):
 
 async def pruefen(tab, seed, p):
     await tab.cmd("Page.addScriptToEvaluateOnNewDocument", source="window.alert=m=>console.error('alert(): '+m)")
-    vorbelegt = {"arbeit": "1 / 1000", "feiertag": "F / 1012", "kategorie:urlaub": "U / 8000", "kategorie:krankheit": "K / 1650",
-                 "schlechtwetter:winter": "WA / 8195", "art:weiterbildung": "1 / 1000", "kategorie:fortbildung": "nicht exportiert",  # seit 1.9.214 WA / 8195
+    # seit 1.9.215 sagt „Wirkt“ den Fall (bis 1.9.214 „1 / 1000“ usw.); Schlechtwetter Winter seit 1.9.214 WA / 8195, Berufsschule FE ohne Lohnart
+    vorbelegt = {"arbeit": "1 / 1000 – exportiert mit Lohnart", "feiertag": "F / 1012 – exportiert mit Lohnart", "kategorie:urlaub": "U / 8000 – exportiert mit Lohnart", "kategorie:krankheit": "K / 1650 – exportiert mit Lohnart",
+                 "schlechtwetter:winter": "WA / 8195 – exportiert mit Lohnart", "art:weiterbildung": "1 / 1000 – exportiert mit Lohnart", "kategorie:fortbildung": "nicht exportiert",
                  "kategorie:freizeitausgleich": "nicht exportiert", "schlechtwetter:sommer": "nicht exportiert",
-                 "art:berufsschule": "wie die Kategorie – Fortbildung: nicht exportiert"}
+                 "art:berufsschule": "FE – exportiert, Stunden ohne Lohnart"}
     liste = "[" + ",".join(_wirkt(s) for s in vorbelegt) + "]"
 
     await tab.anmelden(seed["fin"])
@@ -66,7 +68,14 @@ async def pruefen(tab, seed, p):
     await tab.warte_auf_neu_geladene_liste(f"document.querySelector('[data-klick=lohnart-speichern][data-i=\"{i}\"]').click()", "#lohnartZeilen")
     p.pruefe("Fin: Freizeitausgleich Z / 1500, die Art folgt der Kategorie", await tab.js(
         f"[{_wirkt('kategorie:freizeitausgleich')},{_wirkt('art:freizeitausgleich')},document.getElementById('lohnartStatus').textContent]"),
-        ["Z / 1500", "wie die Kategorie – Freizeitausgleich: Z / 1500", "Gespeichert."])
+        ["Z / 1500 – exportiert mit Lohnart", "wie die Kategorie – Freizeitausgleich: Z / 1500 – exportiert mit Lohnart", "Gespeichert."])
+    # seit 1.9.215 (L1a Stufe 6, Punkt 4): ein Kennzeichen ohne Lohnart wird gespeichert und exportiert (bis 1.9.214 „Zum Kennzeichen gehört eine Lohnart.“)
+    u = await tab.js(_index("kategorie:unbezahlt"))
+    await tab.js(f"document.getElementById('lzK-{u}').value='UB';document.getElementById('lzL-{u}').value=''")
+    await tab.warte_auf_neu_geladene_liste(f"document.querySelector('[data-klick=lohnart-speichern][data-i=\"{u}\"]').click()", "#lohnartZeilen")
+    p.pruefe("Fin: Unbezahlt UB ohne Lohnart -- exportiert, Stunden ohne Lohnart", await tab.js(
+        f"[{_wirkt('kategorie:unbezahlt')},document.getElementById('lohnartStatus').textContent]"),
+        ["UB – exportiert, Stunden ohne Lohnart", "Gespeichert."])
     await tab.js("document.getElementById('lohnartenBlock').scrollIntoView({block:'start'})")
     await tab.bild("lohnarten_fin")
 
@@ -99,7 +108,7 @@ async def pruefen(tab, seed, p):
     p.pruefe("Bea: Felder gesperrt, kein Speichern, Werte sichtbar", await tab.js(
         "[[...document.querySelectorAll('#lohnartZeilen input')].every(f=>f.disabled),"
         "[...document.querySelectorAll('#lohnartZeilen [data-klick=lohnart-speichern]')].every(k=>k.hidden),"
-        f"{_wirkt('kategorie:freizeitausgleich')}]"), [True, True, "Z / 1500"])
+        f"{_wirkt('kategorie:freizeitausgleich')}]"), [True, True, "Z / 1500 – exportiert mit Lohnart"])
     await tab.js("document.getElementById('lohnartenBlock').scrollIntoView({block:'start'})")
     await tab.bild("lohnarten_bea")
     p.pruefe("Bea: keine JS-Fehler", tab.fehler, [])

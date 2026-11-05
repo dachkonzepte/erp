@@ -113,7 +113,7 @@ def test_pruefskript_nennt_die_uebergangene_zeile(db_session):
     _altbestand(db)
     rc, zeilen = _lauf(db)
     assert rc == 1, zeilen
-    assert "  art:schlechtwetter: S / 8111" in zeilen
+    assert "  art:schlechtwetter: gespeichert S / 8111 – wird übergangen" in zeilen  # seit 1.9.215 (bis 1.9.214 „S / 8111“)
     assert ("  ! Zuordnung art:schlechtwetter (S / 8111) wird übergangen: für Schlechtwetter gilt die Jahreszeit (schlechtwetter:winter "
             "bzw. schlechtwetter:sommer). In den Einstellungen leeren.") in zeilen
     assert zeilen[-1] == "Zu klären: 1"

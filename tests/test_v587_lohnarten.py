@@ -32,22 +32,23 @@ def _zeilen(db):
 
 def test_vorbelegt_nach_e7(db_session):
     z = _zeilen(db_session)
-    assert z["arbeit"] == ("1", "1000", False, "1 / 1000")
-    assert z["feiertag"] == ("F", "1012", False, "F / 1012")
-    assert z["kategorie:urlaub"] == ("U", "8000", False, "U / 8000")
-    assert z["kategorie:krankheit"] == ("K", "1650", False, "K / 1650")
-    assert z["schlechtwetter:winter"] == ("WA", "8195", False, "WA / 8195")  # seit 1.9.214 (bis 1.9.213 Monatszeile 8110)
-    assert z["art:weiterbildung"] == ("1", "1000", False, "1 / 1000")
+    # seit 1.9.215 sagt „Wirkt“ den Fall („… – exportiert mit Lohnart“; bis 1.9.214 nur „1 / 1000“ usw.)
+    assert z["arbeit"] == ("1", "1000", False, "1 / 1000 – exportiert mit Lohnart")
+    assert z["feiertag"] == ("F", "1012", False, "F / 1012 – exportiert mit Lohnart")
+    assert z["kategorie:urlaub"] == ("U", "8000", False, "U / 8000 – exportiert mit Lohnart")
+    assert z["kategorie:krankheit"] == ("K", "1650", False, "K / 1650 – exportiert mit Lohnart")
+    assert z["schlechtwetter:winter"] == ("WA", "8195", False, "WA / 8195 – exportiert mit Lohnart")  # seit 1.9.214 (bis 1.9.213 Monatszeile 8110)
+    assert z["art:weiterbildung"] == ("1", "1000", False, "1 / 1000 – exportiert mit Lohnart")
     for leer in ("kategorie:fortbildung", "kategorie:unbezahlt", "kategorie:freizeitausgleich", "schlechtwetter:sommer"):
         assert z[leer] == (None, None, False, "nicht exportiert"), leer
-    # seit 1.9.214 FE ohne Lohnart (bis 1.9.213 leer); wirkt bis 1.9.214 noch wie die Kategorie (ohne Lohnart nicht exportiert)
-    assert z["art:berufsschule"][:3] == ("FE", None, False) and z["art:berufsschule"][3] == "wie die Kategorie – Fortbildung: nicht exportiert"
+    # seit 1.9.214 FE ohne Lohnart (bis 1.9.213 leer); seit 1.9.215 exportiert ohne Lohnart (1.9.214 noch wie die Kategorie: nicht exportiert)
+    assert z["art:berufsschule"] == ("FE", None, False, "FE – exportiert, Stunden ohne Lohnart")
     assert z["art:freizeitausgleich"][3] == "wie die Kategorie – Freizeitausgleich: nicht exportiert"
 
 
 @pytest.mark.parametrize("kategorie, art, erwartet", [
     ("fortbildung", "Weiterbildung", ("1", "1000")),   # Art vor Kategorie
-    ("fortbildung", "Berufsschule", None),             # offen beim Lohnbüro
+    ("fortbildung", "Berufsschule", ("FE", None)),     # seit 1.9.215 FE ohne Lohnart (bis 1.9.214 None: offen beim Lohnbüro)
     ("fortbildung", "Fortbildung", None),
     ("urlaub", "Sonstiges", ("U", "8000")),            # ohne eigene Zuordnung die Kategorie
     ("krankheit", "Kind krank", ("K", "1650")),        # selbst angelegte Art
@@ -94,7 +95,6 @@ def test_eigene_zuordnung_einer_art_und_leeren(db_session):
     ("arbeit", "1", "10a", False, "1 bis 4 Ziffern"),
     ("arbeit", None, "1000", True, "nur für Schlechtwetter"),
     ("schlechtwetter:winter", "S", "8110", True, "kein Kennzeichen"),
-    ("feiertag", "F", None, False, "gehört eine Lohnart"),
     ("feiertag", None, "1012", False, "gehört ein Kennzeichen"),
     ("lohn:irgendwas", "1", "1000", False, "Unbekannter Eintrag"),
     ("art:", "1", "1000", False, "Unbekannter Eintrag"),
@@ -118,7 +118,7 @@ def test_schnittstelle_und_rechte(threaded_db_session, router_test_client):
     finanzen = router_test_client(db, time_backoffice_router.router, role="buero_finanzen")
     r = finanzen.put("/api/time-backoffice/lohnarten", json=koerper)
     assert r.status_code == 200, r.text
-    assert {z["schluessel"]: z["wirkt"] for z in r.json()}["kategorie:freizeitausgleich"] == "Z / 1500"
+    assert {z["schluessel"]: z["wirkt"] for z in r.json()}["kategorie:freizeitausgleich"] == "Z / 1500 – exportiert mit Lohnart"  # seit 1.9.215 mit dem Fall
     falsch = finanzen.put("/api/time-backoffice/lohnarten", json={**koerper, "lohnart": "abc"})
     assert falsch.status_code == 422 and "1 bis 4 Ziffern" in falsch.json()["detail"]
     assert finanzen.put("/api/time-backoffice/lohnarten", json={"schluessel": "arbeit"}).status_code == 422  # kein Feld mit Vorgabewert

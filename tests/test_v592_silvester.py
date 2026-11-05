@@ -68,7 +68,7 @@ def test_silvester_ist_vorbelegt(welt):
     assert (s.monat, s.tag, s.sollzeit, s.abwesenheit, s.bezahlt, s.im_urlaub, s.nur_gewerblich, s.nur_mo_fr, s.aktiv) == (
         12, 31, None, "Silvester – unbezahlte Freistellung", False, "fragen", True, True, True)
     # seit 1.9.214 UU ohne Lohnart (Lohnbüro; bis 1.9.213 AF, Lohnart offen)
-    assert kalender_zuordnung(db, "silvester") == {"kennzeichen": "UU", "lohnart": None, "schluessel": "kalender:silvester", "exportiert": False}
+    assert kalender_zuordnung(db, "silvester") == {"kennzeichen": "UU", "lohnart": None, "schluessel": "kalender:silvester", "exportiert": True}  # seit 1.9.215
 
 
 def test_sollzeit_und_freistellung(welt):

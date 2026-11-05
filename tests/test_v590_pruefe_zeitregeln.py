@@ -208,11 +208,12 @@ def test_zuordnung_fuer_den_export():
     _, zeilen = _lauf(db)
     i = next(n for n, z in enumerate(zeilen) if z.startswith("Zuordnung für den DATEV-Export: "))
     zuordnung = zeilen[i + 1:-1]
-    assert "  arbeit: 1 / 1000" in zuordnung
-    assert "  kategorie:urlaub: U / 8000" in zuordnung
-    assert "  schlechtwetter:winter: WA / 8195" in zuordnung  # seit 1.9.214 (bis 1.9.213 Monatszeile 8110)
+    # seit 1.9.215 mit dem Fall wie „Wirkt“ (bis 1.9.214 nur der Wert)
+    assert "  arbeit: 1 / 1000 – exportiert mit Lohnart" in zuordnung
+    assert "  kategorie:urlaub: U / 8000 – exportiert mit Lohnart" in zuordnung
+    assert "  schlechtwetter:winter: WA / 8195 – exportiert mit Lohnart" in zuordnung  # seit 1.9.214 (bis 1.9.213 Monatszeile 8110)
     assert "  schlechtwetter:sommer: nicht exportiert" in zuordnung
-    assert "  art:weiterbildung: 1 / 1000" in zuordnung
+    assert "  art:weiterbildung: 1 / 1000 – exportiert mit Lohnart" in zuordnung
 
 
 def test_kein_name_in_der_ausgabe():

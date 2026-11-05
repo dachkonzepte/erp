@@ -2771,7 +2771,8 @@ class PersonalnummerVergabe(Base):
 class LohnartZuordnung(Base):
     """Zuordnung für den DATEV-Export (seit 1.9.169, Lohn L1a, Punkt 4, Entscheidung Tobias E7): je Schlüssel -- „arbeit“, „feiertag“,
     „kategorie:<Kategorie>“, „schlechtwetter:winter|sommer“, „art:<Art>“ -- Kennzeichen (1, U, K, F …) und Lohnart (1000, 8000 …); „monatszeile“
-    = eine Zeile je Person und Monat ohne Tag und Kennzeichen (Saison-Kurzarbeitergeld 8110). Leer = nicht exportiert. Eine Art mit eigener
+    = eine Zeile je Person und Monat ohne Tag und Kennzeichen (Saison-Kurzarbeitergeld 8110; seit 1.9.214 nutzt sie keine Zeile). Seit 1.9.215:
+    ohne Kennzeichen nicht exportiert, mit Kennzeichen ohne Lohnart exportiert ohne Lohnart, mit beidem mit Lohnart. Eine Art mit eigener
     Zuordnung geht ihrer Kategorie vor. Gerechnet nur in app/lohnarten.py; die festen Schlüssel legt app.grunddaten.anlegen() an."""
     __tablename__ = "lohnart_zuordnungen"
     __table_args__ = (UniqueConstraint("schluessel", name="uq_lohnart_zuordnung_schluessel"),)

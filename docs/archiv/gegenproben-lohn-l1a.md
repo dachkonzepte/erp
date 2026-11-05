@@ -779,6 +779,16 @@ byte-genau zurück (Prüfsumme); gezählt nur FAILED. Version in Klammern = gefa
 | **1.9.214 Nr. 3c** – `downgrade()` stellt zurück | `downgrade()` ohne Wirkung (1.9.214) | vorher grün; mit test_v619 2 rot: test_migration_auf_einem_bestand (SQLite, PostgreSQL) |
 | **1.9.214 Nr. 4** – Berufsschule vorbelegt | Berufsschule nicht in `START` (1.9.214) | vorher 2 rot: test_v587::test_vorbelegt_nach_e7, test_v604::test_zeile_je_art_erst_beim_ersten_speichern; mit test_v619 3 rot |
 | 1.9.214 Notiz L1b – Mehrarbeit von Azubis AA / 1900 | keine – nicht gebaut, nur notiert | – |
+| **1.9.215 Nr. 1a** (= 1.9.175 Nr. 5 neu) – exportiert, sobald ein Kennzeichen steht | exportiert nur mit Lohnart wie bis 1.9.214 (1.9.215) | vorher 4 rot (test_v587, test_v591, test_v592 mit den in 1.9.215 angepassten Erwartungen); mit test_v620 12 rot |
+| **1.9.215 Nr. 1b** – „Zum Kennzeichen gehört eine Lohnart“ entfällt | die Regel wieder in `speichern()` (1.9.215) | vorher 1 rot: test_v591::test_zuordnung_des_kalendertags; mit test_v620 8 rot; klicktest_lohnarten rot („Fin: Unbezahlt UB ohne Lohnart …“ ‚nicht exportiert‘, gespeichert wurde nicht) |
+| **1.9.215 Nr. 1c** – „Wirkt“ nennt den Fall (mit Lohnart) | „FR / 1080“ ohne den Fall (1.9.215) | vorher 5 rot; mit test_v620 9 rot |
+| **1.9.215 Nr. 1d** – „Wirkt“ nennt den Fall (ohne Lohnart) | „UU / Lohnart offen – nicht exportiert“ wie bis 1.9.214 (1.9.215) | vorher 1 rot: test_v587::test_vorbelegt_nach_e7; mit test_v620 7 rot |
+| **1.9.215 Nr. 2** (= 1.9.169 Nr. 2 neu) – eine Art geht vor, sobald sie ein Kennzeichen hat | die Art nur mit Lohnart (1.9.215) | vorher 1 rot: test_v587::test_art_vor_kategorie; mit test_v620 3 rot |
+| **1.9.215 Nr. 3** – Lohnart ohne Kennzeichen weiter abgelehnt | Prüfung aus (1.9.215) | vorher 1 rot: test_v587::test_pruefungen; mit test_v620 2 rot |
+| **1.9.215 Nr. 4** – die Monatszeile bleibt ein eigener Fall | eine Monatszeile ohne Kennzeichen gilt als nicht exportiert (1.9.215) | vorher grün; mit test_v620 1 rot: test_monatszeile_bleibt_ein_eigener_fall |
+| **1.9.215 Nr. 5a** – Prüfskript nennt den Fall | nur der Wert (1.9.215) | vorher 3 rot: test_v590, test_v591, test_v610 (die Prüfskript-Tests); mit test_v620 ebenso |
+| **1.9.215 Nr. 5b** – übergangene Zeile nur mit ihrem Wert | die übergangene mit dem Fall (1.9.215) | vorher 1 rot: test_v610::test_pruefskript_nennt_die_uebergangene_zeile; mit test_v620 ebenso |
+| 1.9.215 (Seite) – der Satz über der Tabelle nennt die drei Fälle | der alte Satz (1.9.215) | vorher grün; mit test_v620 1 rot: test_seite_nennt_die_drei_faelle (nur Anzeige, als Text geprüft) |
 
 Befund 1.9.213 (Gegenprobe Nr. 5): „Commit statt Rollback bei `--probe`“ blieb grün -- kein Fehler und keine Lücke im Test, sondern ein doppelter
 Schutz (`einlesen()` legt bei `--probe` nichts an und rollt zusätzlich zurück); eine Gegenprobe, die nur einen der beiden weg nimmt, kann nicht rot

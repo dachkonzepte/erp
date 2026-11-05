@@ -238,14 +238,16 @@ def _im_zeitraum(start: date, ende: date, monat: int, tag: int) -> bool:
 
 
 def _zuordnung(db, stand: Stand) -> None:
-    from app.lohnarten import nur_jahreszeit
+    from app.lohnarten import kurz, nur_jahreszeit, wirkt
     from app.models import LohnartZuordnung
     zeilen = list(db.scalars(select(LohnartZuordnung).order_by(LohnartZuordnung.schluessel)))
     stand.zeile(f"Zuordnung für den DATEV-Export: {len(zeilen)} Einträge")
     for z in zeilen:
-        wert = ("Monatszeile " + z.lohnart) if z.monatszeile and z.lohnart else (f"{z.kennzeichen} / {z.lohnart}" if z.lohnart else
-                                                                                (f"{z.kennzeichen} / Lohnart offen" if z.kennzeichen else "nicht exportiert"))
-        stand.zeile(f"  {z.schluessel}: {wert}")
+        wert = kurz(z)
+        # seit 1.9.215 der Fall wie „Wirkt“ in den Einstellungen (bis 1.9.214 „BF / Lohnart offen“ u. a.); eine übergangene Zeile je Art bei
+        # Schlechtwetter wirkt nie -- dort nur der gespeicherte Wert
+        uebergangen = nur_jahreszeit(z.schluessel) and (z.kennzeichen or z.lohnart)
+        stand.zeile(f"  {z.schluessel}: " + (f"gespeichert {wert} – wird übergangen" if uebergangen else wirkt(z)))
         # seit 1.9.203 (L1a Stufe 4, Punkt 2): für Schlechtwetter gilt die Jahreszeit -- eine gespeicherte Zeile je Art wird übergangen, nicht gelöscht
         if nur_jahreszeit(z.schluessel) and (z.kennzeichen or z.lohnart):
             stand.befund(f"Zuordnung {z.schluessel} ({wert}) wird übergangen: für Schlechtwetter gilt die Jahreszeit (schlechtwetter:winter "
