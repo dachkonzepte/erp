@@ -833,3 +833,10 @@ neuen, je Version in einer eigenen Arbeitskopie auf dem Stand der Version, Datei
 | **1.9.218 Nr. 3** – wer sie trägt statt „freigeben“ | Trägerin nie genannt (1.9.218) | vorher grün; mit test_v622 1 rot: test_wer_sie_traegt_statt_freigeben |
 | **1.9.218 Nr. 4a** – nach Nummer sortiert | nach Anlage (1.9.218) | vorher grün; mit test_v622 2 rot |
 | **1.9.218 Nr. 4b** – leer mit dem Satz | ohne Satz (1.9.218) | vorher grün; mit test_v622 1 rot: test_liste_gezeichnet_leer_und_mit_traeger |
+| **1.9.219 Nr. 1a** – genutzt bis 00299, darüber „außerhalb“ | Azubis wieder bis 99999 (1.9.219) | vorher grün; mit test_v623 6 rot; klicktest_sollzeit rot: „Fin: Hinweis zum Nummernkreis nach dem Speichern“ ‚… liegt im Kreis Azubis (ab 00200).‘ |
+| **1.9.219 Nr. 1b** – der Text „außerhalb der vom Lohnbüro genannten Bereiche“ | kein Hinweis über 00299 (1.9.219) | vorher grün; mit test_v623 5 rot |
+| **1.9.219 Nr. 1c** – weiter keine Sperre | über 00299 abgelehnt (1.9.219) | vorher 3 rot (test_v593 speichert 91008/91016); mit test_v623 4 rot, darunter test_ausserhalb_ist_keine_sperre |
+| 1.9.219 Nr. 2 – die Grenze fest im Code, nicht aus den vergebenen Nummern | keine -- `nummernkreis()` bekommt keine Datenbank, eine Abhängigkeit von der Sperrliste ließe sich nur mit einem Umbau herstellen; `test_grenze_haengt_nicht_an_den_vergebenen_nummern` hält das Verhalten fest (Sperrliste bis 91030, 91008 außerhalb) | – |
+| **1.9.219 Nr. 3** – Prüfskript zählt „außerhalb“ | ohne „außerhalb“ (1.9.219) | vorher 1 rot: test_v617::test_pruefskript_format_und_kreise; mit test_v623 2 rot |
+| 1.9.219 Nr. 4 (= 1.9.212 Nr. 2 neu) | wie Nr. 1a | – |
+| **1.9.219** (Seite) – der Hilfetext nennt die Grenze | Satz ohne die Grenze (1.9.219) | vorher grün; mit test_v623 1 rot: test_seite_nennt_die_grenze (nur Anzeige, als Text geprüft) |

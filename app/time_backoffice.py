@@ -37,7 +37,11 @@ PERSONALNUMMER_FALSCH = "Die DATEV-Personalnummer hat genau 5 Ziffern, führende
 PERSONALNUMMER_VERGEBEN = "Diese DATEV-Personalnummer ist bereits vergeben."
 # Seit 1.9.212: die Nummernkreise des Lohnbüros -- nur ein Hinweis beim Speichern, keine Sperre. Das ERP kennt weder Minijob noch Azubi als
 # Merkmal einer Person (die Funktion ist frei benennbar), deshalb nennt der Hinweis nur den Kreis der Nummer.
-NUMMERNKREISE = ((0, 99, "sv-pflichtig Beschäftigte", "00000–00099"), (100, 199, "Minijobber", "00100–00199"), (200, 99999, "Azubis", "ab 00200"))
+# Seit 1.9.219 (L1a Stufe 7, Punkt 2): die Azubis reichen bis 00299 -- genutzt sind die Kreise je Hundert wie die beiden ersten; darüber sagt der
+# Hinweis, dass die Nummer außerhalb der vom Lohnbüro genannten Bereiche liegt (bis 1.9.218 hieß auch 91008 „Kreis Azubis“). Die Grenze steht fest
+# hier, nicht aus den vergebenen Nummern abgeleitet: die Sperrliste trägt die Nummern aus Time 4 (91…), eine abgeleitete Grenze läge darüber.
+NUMMERNKREISE = ((0, 99, "sv-pflichtig Beschäftigte", "00000–00099"), (100, 199, "Minijobber", "00100–00199"), (200, 299, "Azubis", "ab 00200"))
+GENUTZT_BIS = NUMMERNKREISE[-1][1]
 
 
 def personalnummer_gueltig(wert: str | None) -> bool:
@@ -46,14 +50,15 @@ def personalnummer_gueltig(wert: str | None) -> bool:
 
 def nummernkreis(nummer: str | None) -> str | None:
     """Seit 1.9.212: der Hinweis zum Kreis einer gültigen Nummer, z. B. „Die Personalnummer 00150 liegt im Kreis Minijobber (00100–00199).“ --
-    None ohne gültige Nummer."""
+    seit 1.9.219 über 00299 „… liegt außerhalb der vom Lohnbüro genannten Bereiche …“; None ohne gültige Nummer."""
     if not personalnummer_gueltig(nummer):
         return None
     wert = int(nummer)
     for von, bis, name, bereich in NUMMERNKREISE:
         if von <= wert <= bis:
             return f"Die Personalnummer {nummer} liegt im Kreis {name} ({bereich})."
-    return None
+    return (f"Die Personalnummer {nummer} liegt außerhalb der vom Lohnbüro genannten Bereiche (genutzt: 00000–{GENUTZT_BIS:05d}) – "
+            "bitte prüfen.")  # seit 1.9.219
 
 
 # Seit 1.9.213 (L1a Stufe 6, Punkt 2): so heißt eine gemerkte Nummer ohne Person (scripts/personalnummern_einlesen.py) in der Meldung

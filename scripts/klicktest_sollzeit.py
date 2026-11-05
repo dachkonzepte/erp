@@ -85,7 +85,8 @@ async def pruefen(tab, seed, p):
         [["91001", "abwesenheiten"]])
     # seit 1.9.212 (L1a Stufe 6, Punkt 1): nach dem Speichern der Kreis der Nummer als Hinweis -- gespeichert ist trotzdem
     p.pruefe("Fin: Hinweis zum Nummernkreis nach dem Speichern", await tab.js("document.getElementById('payrollStatus').textContent"),
-             "Gespeichert. Die Personalnummer 91001 liegt im Kreis Azubis (ab 00200).")
+             "Gespeichert. Die Personalnummer 91001 liegt außerhalb der vom Lohnbüro genannten Bereiche (genutzt: 00000–00299) – bitte prüfen.")
+    # seit 1.9.219 (bis 1.9.218 „… liegt im Kreis Azubis (ab 00200).“)
 
     await tab.js(f"document.querySelector('[data-klick=sollzeit-oeffnen][data-mitarbeiter=\"{mia}\"]').click()")
     p.pruefe("Fin: Dialog ohne eigene Werte", await tab.warten(

@@ -1419,7 +1419,7 @@ Vorgabe Tobias (05.11.2026): Antworten des Lohnbüros einarbeiten, je Punkt eine
 ### Festlegungen 1.9.212 (Bitte bestätigen)
 
 1. = Festlegung 1.9.168 Nr. 1, neu gefasst (oben): genau 5 Ziffern, führende Nullen gehören dazu; beim Speichern wird nichts aufgefüllt („101“ -> Meldung).
-2. Die Kreise sind nur ein Hinweis in der Antwort aufs Speichern der Lohnstammdaten („Gespeichert. Die Personalnummer … liegt im Kreis …“) -- keine Sperre und keine Rückfrage. Er nennt nur den Kreis der Nummer: das ERP kennt weder Minijob noch Azubi als Merkmal einer Person (die Funktion ist frei benennbar). 00200 bis 99999 heißt „Azubis“, auch 91001 aus den alten Mustern.
+2. Neu gefasst mit 1.9.219 (Vorgabe Tobias 05.11.2026, L1a Stufe 7, Punkt 2): die Kreise sind nur ein Hinweis in der Antwort aufs Speichern der Lohnstammdaten -- keine Sperre und keine Rückfrage; er nennt nur den Kreis der Nummer (Minijob und Azubi kennt das ERP nicht). Genutzt sind die Kreise bis 00299; darüber sagt er, dass die Nummer außerhalb der vom Lohnbüro genannten Bereiche liegt (Festlegung 1.9.219 Nr. 1). Bis 1.9.218 hieß es: „Die Kreise sind nur ein Hinweis in der Antwort aufs Speichern der Lohnstammdaten („Gespeichert. Die Personalnummer … liegt im Kreis …“) -- keine Sperre und keine Rückfrage. Er nennt nur den Kreis der Nummer: das ERP kennt weder Minijob noch Azubi als Merkmal einer Person (die Funktion ist frei benennbar). 00200 bis 99999 heißt „Azubis“, auch 91001 aus den alten Mustern.“
 3. Bei „DATEV-Nr. = ERP-Nr.“ verlangt das Speichern der Lohnstammdaten die 5 Ziffern von der ERP-Mitarbeiternummer (mit Export, wie Festlegung 1.9.168 Nr. 2), der Hinweis nennt dann deren Kreis. Das Mitarbeiterformular prüft das Format weiter nicht und zeigt keinen Hinweis.
 4. Die Migration füllt die Lohnstammdaten und die gemerkten Nummern auf, nicht die ERP-Mitarbeiternummer -- auch nicht bei Gleichsetzung: sie gehört den Stammdaten, das Büro ändert sie im Mitarbeiterformular; bis dahin nennt das Prüfskript sie, und das Speichern der Lohnstammdaten mit Export lehnt ab. Eine gemerkte frühere ERP-Nummer („12“ -> „00012“) passt danach zur neuen ERP-Nummer „00012“ derselben Person.
 5. Aufgefüllt wird nur eine Nummer aus 1 bis 4 Ziffern; eine mit Buchstaben, Leerzeichen oder mehr Ziffern bleibt. Trügen danach zwei Zeilen derselben Tabelle dieselbe Nummer, bricht die Migration ab, ohne etwas zu ändern (wie Festlegung 1.9.168 Nr. 5).
@@ -1580,3 +1580,24 @@ Vorgabe Tobias (05.11.2026), kleine Nacharbeiten vor dem Einspielen, je Punkt ei
 ### Tests und Prüfung 1.9.218
 
 Neu: `tests/test_v622_eingelesene_liste.py` (9 Tests, Nummern erfunden) -- nur Nummern ohne Person, sortiert, Tag in Berlin (23:30 UTC am 04.11. ist der 05.11.); Büro – Finanzen, Büro – Auftrag und Monteurin 403; wer sie trägt statt „freigeben“, Freigeben dann 409; freigegeben verschwindet; der Block nur im Markup des Admins; dieselbe Warnung ohne Namen (in node); die Liste gezeichnet -- leer mit dem Satz, mit Trägerin ihr Name statt „freigeben“ (in node). `klicktest_personalnummer_freigeben`: vier Prüfungen mehr (Liste, Warnung, freigegeben, Fin ohne Liste) und zwei Bilder. Gegenproben je Festlegung: Archiv „Gegenproben Lohn L1a“, Abschnitt „Stufe 7“. Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.219: „außerhalb der genannten Bereiche“ (Punkt 2)
+
+`app/time_backoffice.py`: `NUMMERNKREISE` mit Azubis 00200–00299 (Text weiter „ab 00200“, wie vom Lohnbüro genannt), `GENUTZT_BIS`; `nummernkreis()` sagt über 00299 „Die Personalnummer … liegt außerhalb der vom Lohnbüro genannten Bereiche (genutzt: 00000–00299) – bitte prüfen.“ `scripts/pruefe_zeitregeln.py`: „Personalnummern je Kreis“ mit „außerhalb“ (kein Befund). Einstellungen: der Hilfetext nennt die Grenze.
+
+### Festlegungen 1.9.219 (Bitte bestätigen)
+
+1. Genutzt sind die Kreise bis 00299 -- je Hundert wie die beiden ersten (Azubis 00200–00299); darüber nennt der Hinweis die Nummer „außerhalb der vom Lohnbüro genannten Bereiche (genutzt: 00000–00299) – bitte prüfen“, auch 91008. Weiter keine Sperre; im Kreis Azubis bleibt der Text „(ab 00200)“ wie vom Lohnbüro genannt.
+2. Die Grenze steht fest im Code (`NUMMERNKREISE`, eine Zeile), nicht aus den vergebenen Nummern abgeleitet: die Sperrliste trägt die Nummern aus Time 4 (91…), eine abgeleitete Grenze läge über 91008 und der Hinweis beruhigte wieder. Kommen mehr als 100 Azubis, ist die Grenze dort anzuheben.
+3. `scripts/pruefe_zeitregeln.py` zählt „außerhalb“ als eigene Gruppe neben den Kreisen, ohne Befund.
+4. = Festlegung 1.9.212 Nr. 2, neu gefasst (oben).
+
+### Tests und Prüfung 1.9.219
+
+Neu: `tests/test_v623_nummernkreis_ausserhalb.py` (9 Tests) -- die Grenze (00204, 00299 Azubis; 00300, 91008, 99999 außerhalb); außerhalb keine Sperre; die Grenze hängt nicht an der Sperrliste (91016, 91030 gemerkt); Prüfskript zählt „außerhalb“ ohne Befund; der Hilfetext. Gegenproben je Festlegung: Archiv „Gegenproben Lohn L1a“, Abschnitt „Stufe 7“.
+
+Angepasste Erwartungen (Regel 28) zu 1.9.219:
+- `test_v617::test_fuenf_ziffern_mit_hinweis_zum_kreis[91001-…]`: altes Soll „liegt im Kreis Azubis (ab 00200)“ für 91001; der Fall ist jetzt 00299 (Azubis), 91001/91008 prüft `test_v623` als „außerhalb“.
+- `test_v617::test_pruefskript_format_und_kreise`: altes Soll „Personalnummern je Kreis: sv-pflichtig Beschäftigte 1, Minijobber 1, Azubis 1“, neues Soll dazu „, außerhalb 0“.
+- `klicktest_sollzeit` „Fin: Hinweis zum Nummernkreis nach dem Speichern“: altes Soll „Gespeichert. Die Personalnummer 91001 liegt im Kreis Azubis (ab 00200).“, neues Soll „Gespeichert. Die Personalnummer 91001 liegt außerhalb der vom Lohnbüro genannten Bereiche (genutzt: 00000–00299) – bitte prüfen.“
+- `klicktest_personalnummer_freigeben` „Ada: Tom bekommt 91008“: ebenso für 91008.

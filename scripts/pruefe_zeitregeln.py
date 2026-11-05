@@ -168,8 +168,10 @@ def _personen(db, stand: Stand, heute: date) -> None:
     if ohne:  # seit 1.9.213
         stand.zeile(f"    davon eingelesen ohne Person: {ohne}")
     # seit 1.9.212 (L1a Stufe 6, Punkt 1): je Kreis des Lohnbüros, wie viele gültige Nummern aktive Personen tragen -- nur gezählt, kein Befund
-    kreise = Counter(next(name for von, bis, name, _b in NUMMERNKREISE if von <= int(n) <= bis) for n in nummern if PERSONALNUMMER_FORMAT.match(n))
-    stand.zeile("  Personalnummern je Kreis: " + ", ".join(f"{name} {kreise.get(name, 0)}" for _v, _b, name, _x in NUMMERNKREISE))
+    # seit 1.9.219 dazu „außerhalb“: über der obersten genutzten Grenze (00299), ebenfalls kein Befund
+    kreise = Counter(next((name for von, bis, name, _b in NUMMERNKREISE if von <= int(n) <= bis), "außerhalb") for n in nummern
+                     if PERSONALNUMMER_FORMAT.match(n))
+    stand.zeile("  Personalnummern je Kreis: " + ", ".join(f"{name} {kreise.get(name, 0)}" for name in [k[2] for k in NUMMERNKREISE] + ["außerhalb"]))
     stand.zeile("  Export-Umfang: " + ", ".join(f"{EXPORT_UMFAENGE[k]} {umfang.get(k, 0)}" for k in EXPORT_UMFAENGE))
     mit_eintritt = sum(1 for eid, _n, _g in aktive if lohn.get(eid) is not None and lohn[eid].eintritt)
     ausgetreten = [eid for eid, _n, _g in aktive if lohn.get(eid) is not None and lohn[eid].austritt and lohn[eid].austritt < heute]

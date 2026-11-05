@@ -124,7 +124,8 @@ async def pruefen(tab, seed, p):
                                            "#payrollRows")
     p.pruefe("Ada: Tom bekommt 91008", await tab.js(
         f"[document.getElementById('payrollStatus').textContent,document.getElementById('pnr-{seed['Tom']}').value]"),
-        ["Gespeichert. Die Personalnummer 91008 liegt im Kreis Azubis (ab 00200).", "91008"])  # seit 1.9.212 mit dem Kreis (bis 1.9.211 „Gespeichert.“)
+        ["Gespeichert. Die Personalnummer 91008 liegt außerhalb der vom Lohnbüro genannten Bereiche (genutzt: 00000–00299) – bitte prüfen.", "91008"])
+    # seit 1.9.212 mit dem Kreis (bis 1.9.211 „Gespeichert.“), seit 1.9.219 „außerhalb“ (1.9.212–1.9.218 „… liegt im Kreis Azubis (ab 00200).“)
     p.pruefe("Ada: Änderungshistorie", await tab.js(
         "fetch('/api/audit-logs?entity_type=Personalnummer').then(r=>r.json()).then(l=>l.map(x=>[x.action,x.entity_id,x.old_value,x.new_value,"
         "x.actor_name]))"), [["Personalnummer freigegeben", "91008", "gesperrt, gehörte Mia Monteurin", "frei", "Ada Admin"]])

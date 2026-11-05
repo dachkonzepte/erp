@@ -51,7 +51,7 @@ def test_nicht_fuenf_ziffern_abgelehnt(welt, nummer):
 @pytest.mark.parametrize("nummer, kreis", [
     ("00000", "sv-pflichtig Beschäftigte (00000–00099)"), ("00099", "sv-pflichtig Beschäftigte (00000–00099)"),
     ("00100", "Minijobber (00100–00199)"), ("00199", "Minijobber (00100–00199)"),
-    ("00200", "Azubis (ab 00200)"), ("00204", "Azubis (ab 00200)"), ("91001", "Azubis (ab 00200)"),
+    ("00200", "Azubis (ab 00200)"), ("00204", "Azubis (ab 00200)"), ("00299", "Azubis (ab 00200)"),  # seit 1.9.219 bis 00299 (bis 1.9.218 auch 91001)
 ])
 def test_fuenf_ziffern_mit_hinweis_zum_kreis(welt, nummer, kreis):
     r = _put(welt, welt["mia"], datev_personnel_number=nummer)
@@ -97,7 +97,7 @@ def test_pruefskript_format_und_kreise():
     rc, zeilen = _lauf(db)
     assert rc == 1
     assert [z for z in zeilen if z.startswith("  ! ")] == [f"  ! Person {kurz.id}: Personalnummer „9005“ hat nicht genau 5 Ziffern."]
-    assert "  Personalnummern je Kreis: sv-pflichtig Beschäftigte 1, Minijobber 1, Azubis 1" in zeilen
+    assert "  Personalnummern je Kreis: sv-pflichtig Beschäftigte 1, Minijobber 1, Azubis 1, außerhalb 0" in zeilen  # seit 1.9.219 mit „außerhalb“
     assert not any(f"Person {a.id}:" in z for z in zeilen)
 
 
