@@ -840,3 +840,9 @@ neuen, je Version in einer eigenen Arbeitskopie auf dem Stand der Version, Datei
 | **1.9.219 Nr. 3** – Prüfskript zählt „außerhalb“ | ohne „außerhalb“ (1.9.219) | vorher 1 rot: test_v617::test_pruefskript_format_und_kreise; mit test_v623 2 rot |
 | 1.9.219 Nr. 4 (= 1.9.212 Nr. 2 neu) | wie Nr. 1a | – |
 | **1.9.219** (Seite) – der Hilfetext nennt die Grenze | Satz ohne die Grenze (1.9.219) | vorher grün; mit test_v623 1 rot: test_seite_nennt_die_grenze (nur Anzeige, als Text geprüft) |
+| **1.9.220 Nr. 1a** – gesperrt, solange ein Kennzeichen steht | Häkchen nie gesperrt (1.9.220) | vorher grün; mit test_v624 1 rot: test_gezeichnet_gesperrt_mit_kennzeichen; klicktest_lohnarten rot: „Fin: Winter mit WA -- Monatszeile gesperrt, Hinweis“ |
+| **1.9.220 Nr. 1b** – mit Hinweis darunter | Hinweis immer verborgen (1.9.220) | vorher grün; mit test_v624 1 rot: test_gezeichnet_gesperrt_mit_kennzeichen |
+| **1.9.220 Nr. 1c** – schon beim Tippen | ohne Abgleich beim Tippen (1.9.220) | klicktest_lohnarten rot: „Fin: Kennzeichen geleert -- frei, ohne Hinweis“ [True, …] |
+| **1.9.220 Nr. 1d** – ein getipptes Kennzeichen hakt ab | gesperrt, aber angehakt gelassen (1.9.220) | vorher grün; mit test_v624 1 rot: test_beim_tippen |
+| **1.9.220 Nr. 2** – der Server lehnt weiter ab | Prüfung „kein Kennzeichen“ aus (1.9.220) | vorher 1 rot: test_v587::test_pruefungen; mit test_v624 2 rot |
+| **1.9.220 Nr. 3** – die Monatszeile bleibt als Möglichkeit | jede Monatszeile abgelehnt (1.9.220) | vorher 2 rot: test_v587::test_pruefungen, test_v620::test_monatszeile_bleibt_ein_eigener_fall; mit test_v624 3 rot |

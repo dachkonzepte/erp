@@ -1601,3 +1601,17 @@ Angepasste Erwartungen (Regel 28) zu 1.9.219:
 - `test_v617::test_pruefskript_format_und_kreise`: altes Soll „Personalnummern je Kreis: sv-pflichtig Beschäftigte 1, Minijobber 1, Azubis 1“, neues Soll dazu „, außerhalb 0“.
 - `klicktest_sollzeit` „Fin: Hinweis zum Nummernkreis nach dem Speichern“: altes Soll „Gespeichert. Die Personalnummer 91001 liegt im Kreis Azubis (ab 00200).“, neues Soll „Gespeichert. Die Personalnummer 91001 liegt außerhalb der vom Lohnbüro genannten Bereiche (genutzt: 00000–00299) – bitte prüfen.“
 - `klicktest_personalnummer_freigeben` „Ada: Tom bekommt 91008“: ebenso für 91008.
+
+### Umsetzung 1.9.220: Häkchen der Monatszeile gesperrt (Punkt 3)
+
+Einstellungen, Zuordnung: `renderLohnarten()` sperrt das Häkchen (`lzM-…`) einer Zeile mit Kennzeichen und zeigt darunter den Hinweis (`lzMH-…`); das Feld Kennzeichen trägt `data-eingabe="lohnart-kennzeichen"`, `monatszeileSperren()` gleicht beim Tippen ab (Kennzeichen da: gesperrt, abgehakt, Hinweis; leer: frei, ohne Hinweis). Für Büro – Auftrag bleibt wie bisher alles gesperrt (`lohnregelnNurLesen()`). `app/lohnarten.py::speichern()` unverändert.
+
+### Festlegungen 1.9.220 (Bitte bestätigen)
+
+1. Das Häkchen „Monatszeile“ (nur bei Schlechtwetter Winter und Sommer) ist gesperrt, solange im Feld Kennzeichen etwas steht -- gespeichert oder getippt; darunter „Für die Monatszeile zuerst das Kennzeichen leeren.“ Leert man das Feld, wird es frei; tippt man ein Kennzeichen, wird es gesperrt und abgehakt.
+2. Der Server lehnt eine Monatszeile mit Kennzeichen weiter ab („Eine Monatszeile hat kein Kennzeichen.“) -- die Sperre auf der Seite ersetzt die Prüfung nicht.
+3. Die Monatszeile bleibt als Möglichkeit (Vorgabe Tobias; Befund 1.9.217): ohne Kennzeichen, mit Lohnart, gespeichert und „Monatszeile 8195 – exportiert als eine Zeile je Monat“.
+
+### Tests und Prüfung 1.9.220
+
+Neu: `tests/test_v624_monatszeile_gesperrt.py` (3 Tests) -- gezeichnet (Winter mit WA gesperrt mit Hinweis, Sommer frei ohne), beim Tippen (leeren frei, Kennzeichen gesperrt und abgehakt, nur Leerzeichen gilt als leer) in node, der Server lehnt weiter ab und speichert eine Monatszeile ohne Kennzeichen. `klicktest_lohnarten`: fünf Prüfungen mehr (Winter gesperrt mit Hinweis, geleert frei, als Monatszeile gespeichert, WA getippt gesperrt, wieder WA / 8195). Gegenproben je Festlegung: Archiv „Gegenproben Lohn L1a“, Abschnitt „Stufe 7“. Angepasste Erwartungen: keine.

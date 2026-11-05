@@ -4,7 +4,9 @@
                      WA/8195 (seit 1.9.214, bis 1.9.213 „Monatszeile 8110“), Art Weiterbildung 1/1000; Berufsschule (seit 1.9.214 FE ohne
                      Lohnart), Fortbildung, Freizeitausgleich, Schlechtwetter Sommer „nicht exportiert“); Lohnart „10a“ -> Meldung, nichts gespeichert; Freizeitausgleich Z / 1500 gespeichert -> „Wirkt“ und die Art
                      Freizeitausgleich danach „wie die Kategorie – Freizeitausgleich: Z / 1500“ (seit 1.9.215 je mit „– exportiert mit
-                     Lohnart“); seit 1.9.215 Unbezahlt UB ohne Lohnart -> „UB – exportiert, Stunden ohne Lohnart“ -- Bild; seit 1.9.203 (L1a Stufe 4, Punkt 2):
+                     Lohnart“); seit 1.9.215 Unbezahlt UB ohne Lohnart -> „UB – exportiert, Stunden ohne Lohnart“; seit 1.9.220 Winter:
+                     Monatszeile gesperrt mit Hinweis, Kennzeichen geleert -> frei, als Monatszeile gespeichert, WA getippt -> gesperrt und
+                     abgehakt, wieder WA / 8195 -- Bild; seit 1.9.203 (L1a Stufe 4, Punkt 2):
                      der Satz über der Tabelle nennt die Jahreszeit bei Schlechtwetter; eine gespeicherte Zeile „art:schlechtwetter“ S / 8111
                      (Altbestand, direkt angelegt) „wird übergangen“, ein neuer Wert -> Meldung „Für Schlechtwetter gilt immer die Jahreszeit
                      …“, nichts gespeichert -- Bild; leeren -> „nach der Jahreszeit“; keine JS-Fehler
@@ -76,6 +78,23 @@ async def pruefen(tab, seed, p):
     p.pruefe("Fin: Unbezahlt UB ohne Lohnart -- exportiert, Stunden ohne Lohnart", await tab.js(
         f"[{_wirkt('kategorie:unbezahlt')},document.getElementById('lohnartStatus').textContent]"),
         ["UB – exportiert, Stunden ohne Lohnart", "Gespeichert."])
+    # seit 1.9.220 (L1a Stufe 7, Punkt 3): das Häkchen „Monatszeile“ ist gesperrt, solange ein Kennzeichen steht -- mit Hinweis; leeren gibt frei
+    w = await tab.js(_index("schlechtwetter:winter"))
+    zustand = f"[document.getElementById('lzM-{w}').disabled,document.getElementById('lzM-{w}').checked,!document.getElementById('lzMH-{w}').hidden,document.getElementById('lzMH-{w}').textContent]"
+    p.pruefe("Fin: Winter mit WA -- Monatszeile gesperrt, Hinweis", await tab.js(zustand),
+             [True, False, True, "Für die Monatszeile zuerst das Kennzeichen leeren."])
+    await tab.js(f"(f=>{{f.value='';f.dispatchEvent(new Event('input',{{bubbles:true}}))}})(document.getElementById('lzK-{w}'))")
+    p.pruefe("Fin: Kennzeichen geleert -- frei, ohne Hinweis", await tab.js(zustand),
+             [False, False, False, "Für die Monatszeile zuerst das Kennzeichen leeren."])
+    await tab.js(f"document.getElementById('lzM-{w}').click()")
+    await tab.warte_auf_neu_geladene_liste(f"document.querySelector('[data-klick=lohnart-speichern][data-i=\"{w}\"]').click()", "#lohnartZeilen")
+    p.pruefe("Fin: als Monatszeile gespeichert", await tab.js(f"[{_wirkt('schlechtwetter:winter')},document.getElementById('lohnartStatus').textContent]"),
+             ["Monatszeile 8195 – exportiert als eine Zeile je Monat", "Gespeichert."])
+    await tab.js(f"(f=>{{f.value='WA';f.dispatchEvent(new Event('input',{{bubbles:true}}))}})(document.getElementById('lzK-{w}'))")
+    p.pruefe("Fin: Kennzeichen getippt -- gesperrt und abgehakt, Hinweis", await tab.js(zustand),
+             [True, False, True, "Für die Monatszeile zuerst das Kennzeichen leeren."])
+    await tab.warte_auf_neu_geladene_liste(f"document.querySelector('[data-klick=lohnart-speichern][data-i=\"{w}\"]').click()", "#lohnartZeilen")
+    p.pruefe("Fin: wieder WA / 8195 je Tag", await tab.js(_wirkt("schlechtwetter:winter")), "WA / 8195 – exportiert mit Lohnart")
     await tab.js("document.getElementById('lohnartenBlock').scrollIntoView({block:'start'})")
     await tab.bild("lohnarten_fin")
 

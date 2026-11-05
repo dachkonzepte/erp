@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.220 – Monatszeile: das Häkchen ist gesperrt, solange ein Kennzeichen steht (L1a Stufe 7, Punkt 3)
+
+Die Monatszeile bleibt als Möglichkeit. Bis jetzt ließ sich ihr Häkchen bei Schlechtwetter Winter anklicken, das Speichern brach aber mit „Eine Monatszeile hat kein Kennzeichen.“ ab, weil dort WA steht. Jetzt ist das Häkchen gesperrt, solange im Feld Kennzeichen etwas steht, und darunter steht „Für die Monatszeile zuerst das Kennzeichen leeren.“ Das gilt schon beim Tippen: leert man das Feld, wird das Häkchen frei; tippt man ein Kennzeichen, wird es wieder gesperrt und abgehakt. Der Server lehnt eine Monatszeile mit Kennzeichen weiter ab.
+
 ## 1.9.219 – Nummernkreis: oberhalb der genutzten Kreise ein Hinweis „außerhalb“ statt „Azubis“ (L1a Stufe 7, Punkt 2)
 
 Der Hinweis zum Nummernkreis beruhigte auch dort, wo er stutzig machen sollte: 91008 bekam „liegt im Kreis Azubis (ab 00200)“, obwohl die Nummern des Lohnbüros bei 00204 enden. Jetzt reichen die genutzten Kreise bis 00299 (je Hundert wie die beiden ersten); darüber heißt es „Die Personalnummer 91008 liegt außerhalb der vom Lohnbüro genannten Bereiche (genutzt: 00000–00299) – bitte prüfen.“ Gespeichert wird weiter -- es bleibt ein Hinweis, keine Sperre. Die Grenze steht fest im Code (`app/time_backoffice.py::NUMMERNKREISE`), nicht aus den vergebenen Nummern abgeleitet: die Sperrliste trägt die bisherigen Nummern aus Time 4 (91…), eine daraus abgeleitete Grenze läge über 91008. Das Prüfskript zählt „außerhalb“ als eigene Gruppe.
