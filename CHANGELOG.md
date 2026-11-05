@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.217 – Befund: wo die Monatszeile noch wirkt, seit keine Zeile sie nutzt (L1a Stufe 6, Punkt 6, nur Doku)
+
+Seit 1.9.214 steht Schlechtwetter Winter je Tag (WA / 8195); keine Zeile der Zuordnung nutzt mehr die Monatszeile (eine Zeile je Person und Monat ohne Tag und Kennzeichen, bis dahin 8110). Der Befund für L1b steht im Archiv „Zeiterfassung“, Abschnitt „Befund 1.9.217“: die Spalte `lohnart_zuordnungen.monatszeile`, das Pflichtfeld `monatszeile` im Schema des Speicherns, drei Prüfungen in `app/lohnarten.py::speichern()`, ihr eigener Fall in `_gesetzt()`/`wirkt()`/`kurz()`, die Spalte „Monatszeile“ mit Häkchen bei Schlechtwetter in den Einstellungen, der Satz darüber, das Prüfskript, das Änderungsprotokoll, zwei Migrationen und sechs Testdateien. Am Programm ist nichts geändert.
+
 ## 1.9.216 – Schlechtwetter bekommt Stunden: Sollzeit minus gebuchte Arbeit, abgeleitet (L1a Stufe 6, Punkt 5)
 
 Ein Ausfalltag Schlechtwetter hat jetzt Stunden -- abgeleitet, nicht gespeichert: die Sollzeit des Tags minus die Arbeitszeit, die die Person an dem Tag gebucht hat (alle Zeitarten, dieselbe Summe, die der Lohn als Arbeit ausweist), nie unter 0 (`app/schlechtwetter.py::ausfall()`). Der Eintrag selbst bleibt ein ganzer Ausfalltag ohne Stundenfeld. An einem reinen Ausfalltag ergibt das die volle Sollzeit; wird nach dem Eintrag noch gebucht, stimmt die Zahl beim nächsten Lesen von selbst (eine laufende Zeit zählt erst, wenn sie gestoppt ist).
