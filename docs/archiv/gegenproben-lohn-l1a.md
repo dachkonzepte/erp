@@ -789,7 +789,28 @@ byte-genau zurück (Prüfsumme); gezählt nur FAILED. Version in Klammern = gefa
 | **1.9.215 Nr. 5a** – Prüfskript nennt den Fall | nur der Wert (1.9.215) | vorher 3 rot: test_v590, test_v591, test_v610 (die Prüfskript-Tests); mit test_v620 ebenso |
 | **1.9.215 Nr. 5b** – übergangene Zeile nur mit ihrem Wert | die übergangene mit dem Fall (1.9.215) | vorher 1 rot: test_v610::test_pruefskript_nennt_die_uebergangene_zeile; mit test_v620 ebenso |
 | 1.9.215 (Seite) – der Satz über der Tabelle nennt die drei Fälle | der alte Satz (1.9.215) | vorher grün; mit test_v620 1 rot: test_seite_nennt_die_drei_faelle (nur Anzeige, als Text geprüft) |
+| **1.9.216 Nr. 1a** (= 1.9.169 Nr. 1 neu) – Sollzeit minus gebuchte Arbeit | die volle Sollzeit, nichts abgezogen (1.9.216) | vorher grün; mit test_v621 5 rot |
+| **1.9.216 Nr. 1b** – nie unter 0 | auch unter 0 (1.9.216) | vorher grün; mit test_v621 1 rot: test_nie_unter_null |
+| **1.9.216 Nr. 2a** – alle Zeitarten | nur Baustelle (1.9.216) | vorher grün; mit test_v621 1 rot: test_gebuchte_arbeit_wird_abgezogen |
+| **1.9.216 Nr. 2b** – eine laufende Zeit zählt erst gestoppt | auch laufende (1.9.216) | vorher grün; mit test_v621 1 rot: test_nachher_gebucht_stimmt_von_selbst |
+| **1.9.216 Nr. 2c** – andere Tage zählen nicht | erst der Vortag zusätzlich unter dem Schlüssel: **grün (Befund)** -- die Abfrage filtert schon nach Tag; dann Filter und Schlüssel ausgehebelt (1.9.216) | vorher grün; mit test_v621 2 rot: test_andere_tage_und_personen_zaehlen_nicht, test_monat_und_lohn |
+| **1.9.216 Nr. 2d** – andere Personen zählen nicht | jede Buchung des Tags für jede Person (1.9.216) | vorher grün; mit test_v621 3 rot |
+| **1.9.216 Nr. 3a** – wer nur Ausfalltage hat, steht in „Monat & Lohn“ | ohne diese Personen (1.9.216) | vorher grün; mit test_v621 1 rot: test_monat_und_lohn |
+| **1.9.216 Nr. 3b** – nicht in „Zusammen“ | Ausfall in „Zusammen“ (1.9.216) | vorher grün; mit test_v621 1 rot: test_monat_und_lohn |
+| **1.9.216 Nr. 3c** – nur genehmigte Ausfalltage | auch offene Anträge (1.9.216) | vorher grün; mit test_v621 1 rot: test_monat_und_lohn |
+| **1.9.216 Nr. 3d** – die Seite zeigt die Spalte | Spalte ausgeblendet (1.9.216) | klicktest_schlechtwetter rot: „Fin: Monat & Lohn mit der Spalte Ausfall Schlechtwetter“, „Fin: Ausfallstunden je Person …“ |
+| **1.9.216 Nr. 4a** – offene Anträge mit Stunden | nur genehmigte (1.9.216) | vorher grün; mit test_v621 1 rot: test_listen_unter_zeiten |
+| **1.9.216 Nr. 4b** – abgelehnte ohne | auch abgelehnte (1.9.216) | vorher grün; mit test_v621 1 rot: test_listen_unter_zeiten |
+| **1.9.216 Nr. 4c** – „Prüfen“ zeichnet den Text | `antragHtml()` ohne den Text: erst **grün (Befund)** -- nur ein Textvergleich der Vorlage; nach dem node-Test (1.9.216) | vorher grün; mit test_v621 1 rot: test_beide_listen_zeichnen_die_stunden |
+| **1.9.216 Nr. 4d** – „Abwesenheiten“ zeichnet den Text | `abwesenheitHtml()` ohne den Text (1.9.216) | vorher grün; mit test_v621 1 rot: test_beide_listen_zeichnen_die_stunden; klicktest_schlechtwetter rot: „Fin: Uwe am 09.12. mit Stunden …“ [False, False] |
+| 1.9.216 Nr. 5 – „Meine Zeiten“, Plantafel, Produktivstunden, Stundenzettel, Export unverändert | keine -- eine Abgrenzung, nichts gebaut | – |
+| **1.9.216 Nr. 6** – die neue Spalte heißt „Ausfall Schlechtwetter“ | wieder „Schlechtwetter“ (1.9.216) | klicktest_schlechtwetter rot: „Fin: Monat & Lohn mit der Spalte Ausfall Schlechtwetter“ |
 
 Befund 1.9.213 (Gegenprobe Nr. 5): „Commit statt Rollback bei `--probe`“ blieb grün -- kein Fehler und keine Lücke im Test, sondern ein doppelter
 Schutz (`einlesen()` legt bei `--probe` nichts an und rollt zusätzlich zurück); eine Gegenprobe, die nur einen der beiden weg nimmt, kann nicht rot
 werden. Gefahren mit beiden ausgehebelt: rot.
+
+Befund 1.9.216 (vor dem Commit): zwei Gegenproben blieben zuerst grün. Nr. 2c („andere Tage zählen nicht“): die Abfrage der Buchungen filtert
+schon nach den Tagen, der Schlüssel je Tag ist ein zweiter Schutz -- eine Gegenprobe gegen nur einen kann nicht rot werden; mit beiden
+ausgehebelt rot. Nr. 4c („Prüfen“ zeichnet den Text): geprüft war nur, dass der Ausdruck zweimal in der Vorlage steht, nicht, dass eine
+Zeile ihn zeigt -- nachgezogen `test_beide_listen_zeichnen_die_stunden` (beide Listen in node), danach rot. Kein Fehler im Programm.

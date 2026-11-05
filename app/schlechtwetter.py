@@ -1,7 +1,8 @@
 """Ausfalltag Schlechtwetter -- seit 1.9.170 (Lohn L1a, Punkt 5, Entscheidung Tobias E5).
 
 Schlechtwetter ist eine Abwesenheit der Kategorie „schlechtwetter“ (EmployeeAbsence, „ein Weg“ über app/absence_requests.py), je Person und
-Tag. Die Zuordnung (app/lohnarten.py) unterscheidet Winter (01.12.–31.03., Saison-Kurzarbeitergeld 8110 als Monatszeile) und Sommer.
+Tag. Die Zuordnung (app/lohnarten.py) unterscheidet Winter (01.12.–31.03., seit 1.9.214 WA / 8195 je Tag; bis 1.9.213 Saison-Kurzarbeitergeld
+8110 als Monatszeile) und Sommer. Seit 1.9.216 hat ein Ausfalltag Stunden, abgeleitet: Sollzeit minus gebuchte Arbeit (ausfall()).
 
     eintragen      Admin, Büro – Finanzen, Kolonnenführer und Vorarbeiter für jeden gewerblichen Mitarbeiter -- gilt sofort (genehmigt);
                    jede andere Person für sich selbst -- ein Antrag, den Kolonnenführer, Vorarbeiter oder Admin bestätigt
@@ -174,6 +175,59 @@ def eintragen(db: Session, *, employee_ids: list[int], tag: date, notes: str | N
         raise SchlechtwetterAbgelehnt([{"text": str(exc)}]) from exc
     db.commit()
     return [load_request(db, i) for i in antraege]
+
+
+def _stunden_text(wert) -> str:
+    return f"{wert:.2f}".replace(".", ",") + " h"
+
+
+def ausfall(db: Session, paare) -> dict[tuple[int, date], dict]:
+    """Seit 1.9.216 (L1a Stufe 6, Punkt 5): die Stunden eines Ausfalltags -- abgeleitet, nie gespeichert (der Eintrag bleibt ein ganzer Tag ohne
+    Stundenfeld): Sollzeit des Tags (app/sollzeit.py) minus die gebuchte Arbeitszeit der Person an dem Tag, nie unter 0. Gebucht = alle Zeitarten,
+    nur gebuchte (eine laufende Zeit zählt erst gestoppt), gerundet -- dieselbe Summe wie die Arbeit im Lohn (app/time_tracking.py::tagessumme()).
+    An einem reinen Ausfalltag die volle Sollzeit; wird danach noch gebucht, stimmt die Zahl beim nächsten Lesen von selbst.
+    paare: (Person, Tag). Je Paar soll, gebucht, stunden und text („Ausfall 6,00 h (Sollzeit 8,00 h − gebucht 2,00 h)“) -- eine Abfrage für
+    die Sollzeit aller und eine für die Buchungen."""
+    from collections import defaultdict
+    from decimal import Decimal
+
+    from .rounding import round_hours
+    from .sollzeit import soll_fuer_personen
+    from .time_tracking import tagessumme
+
+    paare = set(paare)
+    if not paare:
+        return {}
+    ids, tage = sorted({e for e, _ in paare}), sorted({t for _, t in paare})
+    soll = soll_fuer_personen(db, ids, tage[0], tage[-1])
+    buchungen = defaultdict(list)
+    for r in db.scalars(select(TimeEntry).where(TimeEntry.employee_id.in_(ids), TimeEntry.work_date.in_(tage), TimeEntry.status == "booked")):
+        buchungen[(r.employee_id, r.work_date)].append(r)
+    aus = {}
+    for eid, tag in paare:
+        s = round_hours(soll.get(eid, {}).get(tag, Decimal("0")))
+        g = round_hours(tagessumme(buchungen.get((eid, tag), [])))
+        h = max(Decimal("0"), s - g)
+        text = f"Ausfall {_stunden_text(h)}" + (f" (Sollzeit {_stunden_text(s)} − gebucht {_stunden_text(g)})" if g else "")
+        aus[(eid, tag)] = {"soll": s, "gebucht": g, "stunden": h, "text": text}
+    return aus
+
+
+def ausfalltage(db: Session, start: date, ende: date) -> dict[int, dict]:
+    """Seit 1.9.216: die genehmigten Ausfalltage im Zeitraum je Person -- Zahl der Tage und Stunden zusammen (ausfall()), für „Monat & Lohn“."""
+    from decimal import Decimal
+
+    from .models import EmployeeAbsence
+    tage = [(a.employee_id, a.start_date) for a in db.scalars(select(EmployeeAbsence).where(
+        EmployeeAbsence.absence_category == SCHLECHTWETTER, EmployeeAbsence.start_date <= ende, EmployeeAbsence.end_date >= start))
+        if start <= a.start_date <= ende]
+    stunden = ausfall(db, tage)
+    je: dict[int, dict] = {}
+    for eid, tag in sorted(set(tage)):
+        z = je.setdefault(eid, {"tage": 0, "stunden": Decimal("0")})
+        z["tage"] += 1
+        z["stunden"] += stunden[(eid, tag)]["stunden"]
+    return je
 
 
 def offene_antraege(db: Session) -> list[EmployeeAbsenceRequest]:

@@ -17,6 +17,7 @@ from ..models import AppUser, Employee
 from ..permissions import (ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, darf_abwesenheit_loeschen, darf_abwesenheiten_aller, darf_antrag_zurueckziehen, darf_lohndaten, darf_zeit_buchen,
                            darf_zeit_fuer_andere_buchen, require_lohndaten, require_min_role)
 from ..time_backoffice import locked_until
+from ..schlechtwetter import SCHLECHTWETTER, ausfall
 from ..sollzeit import abwesenheit_tage
 from ..zeiten import buchungen, feiertage_bundesland, monat, monat_lesen, pruefen
 
@@ -68,10 +69,21 @@ def _tage(db: Session, r, land: str):
                             feiertage=feiertage, kalendertag_urlaub=r.kalendertag_urlaub)["tage"]  # seit 1.9.176 mit der Antwort zu Silvester
 
 
+def _ausfall(db: Session, rows) -> dict:
+    """Seit 1.9.216 (L1a Stufe 6, Punkt 5): je offenem oder genehmigtem Schlechtwetter-Antrag der Text seiner Stunden („Ausfall 6,00 h (Sollzeit
+    8,00 h − gebucht 2,00 h)“, app/schlechtwetter.py::ausfall()) -- abgeleitet, eine Rechnung für die ganze Liste. {Antrag-ID: Text}."""
+    sw = [r for r in rows if r.absence_category == SCHLECHTWETTER and r.status in ("pending", "approved")]
+    stunden = ausfall(db, [(r.employee_id, r.start_date) for r in sw])
+    return {r.id: stunden[(r.employee_id, r.start_date)]["text"] for r in sw}
+
+
 def _antraege(db: Session, user: AppUser) -> list[dict]:
-    """Die offenen Anträge, die das Konto sieht (_sichtbare_antraege()), mit Arbeitstagen (Feiertage nach dem Bundesland der Plantafel)."""
+    """Die offenen Anträge, die das Konto sieht (_sichtbare_antraege()), mit Arbeitstagen (Feiertage nach dem Bundesland der Plantafel) und
+    seit 1.9.216 bei Schlechtwetter den Stunden (ausfall)."""
     land = feiertage_bundesland(db)
-    return [{**request_to_dict(db, r), "arbeitstage": _tage(db, r, land)} for r in _sichtbare_antraege(db, user, "pending")]
+    rows = _sichtbare_antraege(db, user, "pending")
+    aus = _ausfall(db, rows)
+    return [{**request_to_dict(db, r), "arbeitstage": _tage(db, r, land), "ausfall": aus.get(r.id)} for r in rows]
 
 
 def _anzahl(n: int, eins: str, mehr: str) -> str:
@@ -141,10 +153,11 @@ def zeiten_abwesenheiten(status: str | None = Query(None, max_length=20), db: Se
     aller = darf_abwesenheiten_aller(user)
     rows = _sichtbare_antraege(db, user, status or None)
     land = feiertage_bundesland(db)
+    aus = _ausfall(db, rows)
     # offene Anträge, die das Konto sieht (seit 1.9.109 nicht mehr die Zahl am Reiter -- die zählt nur beim Admin, GET /api/zeiten/pruefen)
     offen = len(_sichtbare_antraege(db, user, "pending"))
     return {
-        "antraege": [{**request_to_dict(db, r), "arbeitstage": _tage(db, r, land),
+        "antraege": [{**request_to_dict(db, r), "arbeitstage": _tage(db, r, land), "ausfall": aus.get(r.id),  # seit 1.9.216
                       "darf_entscheiden": admin and r.status == "pending",
                       "darf_zurueckziehen": r.status == "pending" and darf_antrag_zurueckziehen(user, r),
                       "darf_loeschen": r.status == "approved" and r.approved_absence_id is not None and darf_abwesenheit_loeschen(user)}  # seit 1.9.146

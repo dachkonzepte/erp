@@ -12,7 +12,9 @@
     Fin (Büro – Finanzen, 1440)      „Zeiten → Abwesenheiten“: „Schlechtwetter eintragen“; Uwe am 09.12.2026, an dem er Zeit gebucht hat -> Rückfrage
                                      „An diesem Tag ist schon Zeit gebucht: Uwe …“, „Trotzdem eintragen“ -> eingetragen; die Liste zeigt „Schlechtwetter“;
                                      seit 1.9.178 Uwe am Do 10.12.2026, als betriebsfreier Tag eingetragen -> Rückfrage „Der 10.12.2026 ist als
-                                     betriebsfreier Tag eingetragen (Betriebsausflug).“, „Trotzdem eintragen“ -> eingetragen -- Bilder
+                                     betriebsfreier Tag eingetragen (Betriebsausflug).“, „Trotzdem eintragen“ -> eingetragen -- Bilder;
+                                     seit 1.9.216 Uwes Ausfalltage mit Stunden („Ausfall 5,50 h (Sollzeit 7,50 h − gebucht 2,00 h)“, „Ausfall
+                                     7,50 h“), „Monat & Lohn“ mit Spalte „Ausfall Schlechtwetter“ je Person (auch ohne Buchung) und zusammen -- Bild
     überall                          keine JS-Fehler
 
 AUFRUF (aus dem Projektordner):
@@ -181,7 +183,20 @@ async def pruefen(tab, seed, p):
     p.pruefe("Fin: am betriebsfreien Tag eingetragen", [await tab.js("document.getElementById('swDialog').open"),
              await tab.js("[...document.querySelectorAll('#abwListe .zeile-name')].map(z=>z.innerText).filter(t=>t.includes('Schlechtwetter')).length")],
              [False, 6])
+    # seit 1.9.216 (L1a Stufe 6, Punkt 5): Stunden je Ausfalltag, abgeleitet -- Sollzeit minus gebuchte Arbeit (Uwe am 09.12.: 7,50 − 2,00)
+    p.pruefe("Fin: Uwe am 09.12. mit Stunden (Sollzeit minus gebucht), am 10.12. die volle Sollzeit", await tab.js(
+        "[...document.querySelectorAll('#abwListe .zeile')].map(z=>z.innerText).filter(t=>t.includes('Uwe Ohnekolonne'))"
+        ".map(t=>t.includes('09.12.2026')?t.includes('Ausfall 5,50 h (Sollzeit 7,50 h − gebucht 2,00 h)'):t.includes('Ausfall 7,50 h')).sort()"), [True, True])
     await tab.bild("schlechtwetter_fin_liste")
+    await tab.warte_auf_neu_geladene_liste("document.querySelector('.reiter a[data-reiter=monat]').click()", "#lohnZeilen")
+    p.pruefe("Fin: Monat & Lohn mit der Spalte Ausfall Schlechtwetter", await tab.js(
+        "[...document.querySelectorAll('#lohnKopf th')].map(th=>th.textContent.trim()).slice(-2)"), ["Zusammen", "Ausfall Schlechtwetter"])
+    p.pruefe("Fin: Ausfallstunden je Person (auch ohne Buchung) und zusammen", await tab.js(
+        "[...document.querySelectorAll('#lohnZeilen tr')].map(tr=>[tr.cells[0].innerText.trim(),tr.cells[tr.cells.length-2].innerText.trim(),"
+        "tr.cells[tr.cells.length-1].innerText.trim()])"),
+        [["Kai Kolonne", "0,00", "7,50 (1 T.)"], ["Mia Monteurin", "0,00", "7,50 (1 T.)"], ["Tom Monteur", "0,00", "15,00 (2 T.)"],
+         ["Uwe Ohnekolonne", "2,00", "13,00 (2 T.)"], ["Zusammen", "2,00", "43,00 (6 T.)"]])
+    await tab.bild("schlechtwetter_fin_monat_und_lohn")
     p.pruefe("Fin: keine JS-Fehler", tab.fehler, [])
 
 

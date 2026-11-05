@@ -353,6 +353,11 @@ def monat(db: Session, erster: date) -> dict:
     for r in rows:
         je[r.employee_id].append(r)
     payroll = {x.employee_id: x for x in db.scalars(select(EmployeePayrollSettings)).all()}
+    # seit 1.9.216 (L1a Stufe 6, Punkt 5): die Ausfalltage Schlechtwetter je Person mit ihren Stunden (abgeleitet: Sollzeit minus gebuchte Arbeit,
+    # app/schlechtwetter.py::ausfall()) -- auch wer im Monat nichts gebucht hat, steht dann in der Liste
+    from .schlechtwetter import ausfalltage
+    schlechtwetter = ausfalltage(db, erster, ende)
+    ohne_sw = {"tage": 0, "stunden": Decimal("0")}
     zeilen, summe = [], defaultdict(Decimal)
     sonstige = False
     for employee_id, eigene in je.items():
@@ -373,7 +378,17 @@ def monat(db: Session, erster: date) -> dict:
                        "personalnummer": effective_datev_personnel_number(db, emp, p) if emp is not None else None,
                        "lohnexport": exportiert_arbeit(p),  # seit 1.9.168 der Umfang „alles“
                        "tage": len({r.work_date for r in eigene if r.status == "booked"}),
-                       "stunden": {k: stunden.get(k, Decimal("0")) for k, _ in SPALTEN + (("other", ""),)}, "zusammen": zusammen})
+                       "stunden": {k: stunden.get(k, Decimal("0")) for k, _ in SPALTEN + (("other", ""),)}, "zusammen": zusammen,
+                       "schlechtwetter": schlechtwetter.get(employee_id, ohne_sw)})
+    gezeigt = {z["employee_id"] for z in zeilen}
+    for employee_id in [i for i in schlechtwetter if i not in gezeigt]:
+        emp = db.get(Employee, employee_id)
+        p = payroll.get(employee_id) or load_employee_payroll(db, employee_id)
+        zeilen.append({"employee_id": employee_id, "name": employee_name(emp) or f"#{employee_id}",
+                       "personalnummer": effective_datev_personnel_number(db, emp, p) if emp is not None else None,
+                       "lohnexport": exportiert_arbeit(p), "tage": 0,
+                       "stunden": {k: Decimal("0") for k, _ in SPALTEN + (("other", ""),)}, "zusammen": Decimal("0"),
+                       "schlechtwetter": schlechtwetter[employee_id]})
     zeilen.sort(key=lambda x: x["name"].casefold())
     spalten = [{"key": k, "label": label} for k, label in SPALTEN] + ([{"key": "other", "label": "Sonstige"}] if sonstige else [])
     from .absence_requests import list_requests
@@ -381,4 +396,8 @@ def monat(db: Session, erster: date) -> dict:
             "luecken": luecken, "luecken_text": luecken_text(luecken), "datev_fehlt": fehlt, "datev_text": datev_text(fehlt),
             "antraege_offen": len(list_requests(db, status="pending")),
             "spalten": spalten, "zeilen": zeilen,
-            "summe": {"stunden": {k: summe.get(k, Decimal("0")) for k, _ in SPALTEN + (("other", ""),)}, "zusammen": summe["zusammen"]}}
+            "summe": {"stunden": {k: summe.get(k, Decimal("0")) for k, _ in SPALTEN + (("other", ""),)}, "zusammen": summe["zusammen"],
+                      # seit 1.9.216: Ausfalltage und -stunden Schlechtwetter zusammen; „schlechtwetter“ oben: gibt es im Monat welche (Spalte)
+                      "schlechtwetter": {"tage": sum(z["tage"] for z in schlechtwetter.values()),
+                                         "stunden": sum((z["stunden"] for z in schlechtwetter.values()), Decimal("0"))}},
+            "schlechtwetter": bool(schlechtwetter)}

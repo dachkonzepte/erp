@@ -554,10 +554,11 @@ function beantragtText(a){
   if(a.aus_migration)return a.created_at?' · eingetragen am '+berlinZeitpunkt(a.created_at,'datum'):'';
   return a.created_at||a.beantragt_von?' · beantragt'+(a.beantragt_von?' von '+a.beantragt_von:'')+(a.created_at?' am '+berlinZeitpunkt(a.created_at,'datum'):''):'';
 }
+// seit 1.9.216 (L1a Stufe 6, Punkt 5): bei Schlechtwetter die Stunden des Ausfalltags (Text vom Server, a.ausfall: Sollzeit minus gebuchte Arbeit)
 function antragHtml(a){
   var art=a.absence_type||KATEGORIE[a.absence_category]||a.absence_category;
   var unter=abwZeitraum(a.start_date,a.end_date)+(a.halber_tag?' · halber Tag':'')+(a.kalendertag_urlaub===true?' · Kalendertag als Urlaubstag':a.kalendertag_urlaub===false?' · Kalendertag frei, kein Urlaubstag':'')+' · '+zahlText(a.arbeitstage)+(Number(a.arbeitstage)===1?' Arbeitstag':' Arbeitstage')
-    +beantragtText(a);
+    +(a.ausfall?' · '+a.ausfall:'')+beantragtText(a);
   var knoepfe=RECHTE.admin&&P&&P.rechte.antraege_entscheiden
     ?'<button type="button" class="knopf knopf-neutral" data-aktion="antrag" data-entscheidung="rejected" data-id="'+a.id+'">Ablehnen</button>'
      +'<button type="button" class="knopf knopf-aktion" data-aktion="antrag" data-entscheidung="approved" data-id="'+a.id+'">Genehmigen</button>':'';
@@ -842,7 +843,7 @@ function antragHervorheben(){
 function abwesenheitHtml(a){
   var art=KATEGORIE[a.absence_category]||a.absence_category,st=STATUS[a.status]||[a.status,'chip-neutral'];
   var unter=abwZeitraum(a.start_date,a.end_date)+(a.halber_tag?' · halber Tag':'')+(a.kalendertag_urlaub===true?' · Kalendertag als Urlaubstag':a.kalendertag_urlaub===false?' · Kalendertag frei, kein Urlaubstag':'')+' · '+zahlText(a.arbeitstage)+(Number(a.arbeitstage)===1?' Arbeitstag':' Arbeitstage')
-    +beantragtText(a);
+    +(a.ausfall?' · '+a.ausfall:'')+beantragtText(a);
   var knoepfe='';
   if(a.darf_entscheiden)knoepfe+='<input class="antrag-notiz" type="text" id="notiz-'+a.id+'" placeholder="Notiz (optional)" aria-label="Notiz zur Entscheidung">'
     +'<button type="button" class="knopf knopf-neutral" data-aktion="abw-entscheiden" data-entscheidung="rejected" data-id="'+a.id+'">Ablehnen</button>'
@@ -982,16 +983,20 @@ function monatZeichnen(d){
   el('lohnDatev').hidden=!datev;el('lohnDatevGesperrt').hidden=datev;
   el('lohnDatev').setAttribute('href','/api/time-backoffice/datev-export?'+zeitraum(d));
   el('lohnDatevFehlt').textContent=d.datev_text?'Fehlt: '+d.datev_text:'';
-  // Stunden je Mitarbeiter und Zeitart, mit Personalnummer
-  el('lohnKopf').innerHTML='<tr><th>Mitarbeiter</th><th>Personalnr.</th><th class="r">Tage</th>'+d.spalten.map(function(s){return '<th class="r">'+esc(s.label)+'</th>'}).join('')+'<th class="r">Zusammen</th></tr>';
+  // Stunden je Mitarbeiter und Zeitart, mit Personalnummer; seit 1.9.216 (L1a Stufe 6, Punkt 5) dazu Schlechtwetter -- Ausfallstunden (Sollzeit
+  // minus gebuchte Arbeit, vom Server) und -tage, nur wenn es im Monat welche gibt; nicht in „Zusammen“ (das ist die Arbeit). „Ausfall
+  // Schlechtwetter“, nicht „Schlechtwetter“: so heißt schon die Spalte der gebuchten Stunden der alten Zeitarten weather_* (Teil der Arbeit)
+  var sw=!!d.schlechtwetter;
+  function swZelle(x,klasse){return sw?'<td class="'+klasse+' r num"'+(x.tage?' title="'+esc(x.tage)+(x.tage===1?' Ausfalltag':' Ausfalltage')+'"':'')+'>'+(x.tage?esc(zahlText(x.stunden,2))+' <span class="mut">('+esc(x.tage)+' T.)</span>':'–')+'</td>':''}
+  el('lohnKopf').innerHTML='<tr><th>Mitarbeiter</th><th>Personalnr.</th><th class="r">Tage</th>'+d.spalten.map(function(s){return '<th class="r">'+esc(s.label)+'</th>'}).join('')+'<th class="r">Zusammen</th>'+(sw?'<th class="r" title="Ausfalltage Schlechtwetter: Sollzeit minus gebuchte Arbeit">Ausfall Schlechtwetter</th>':'')+'</tr>';
   el('lohnZeilen').innerHTML=d.zeilen.map(function(r){
     var pnr=r.personalnummer?esc(r.personalnummer):r.lohnexport?'<span class="chip chip-signal">fehlt</span>':'<span class="mut">ohne Export</span>';
     return '<tr data-mitarbeiter="'+r.employee_id+'"><td><a href="/api/time-backoffice/timesheet.pdf?'+zeitraum(d)+'&employee_id='+r.employee_id+'" title="Stundenzettel als PDF">'+esc(r.name)+'</a></td>'
       +'<td class="num">'+pnr+'</td><td class="r num">'+esc(r.tage)+'</td>'
       +d.spalten.map(function(s){return '<td class="r num">'+esc(zahlText(r.stunden[s.key],2))+'</td>'}).join('')
-      +'<td class="r num" style="font-weight:600">'+esc(zahlText(r.zusammen,2))+'</td></tr>'}).join('')
+      +'<td class="r num" style="font-weight:600">'+esc(zahlText(r.zusammen,2))+'</td>'+swZelle(r.schlechtwetter,'')+'</tr>'}).join('')
     +(d.zeilen.length?'<tr><td class="summe">Zusammen</td><td class="summe"></td><td class="summe"></td>'+d.spalten.map(function(s){return '<td class="summe r num">'+esc(zahlText(d.summe.stunden[s.key],2))+'</td>'}).join('')
-      +'<td class="summe r num">'+esc(zahlText(d.summe.zusammen,2))+'</td></tr>':'');
+      +'<td class="summe r num">'+esc(zahlText(d.summe.zusammen,2))+'</td>'+swZelle(d.summe.schlechtwetter,'summe')+'</tr>':'');
   el('lohnLeer').hidden=!!d.zeilen.length;el('lohnLeer').textContent='Keine gebuchten Zeiten im '+d.titel+'.';
 }
 // Abschließen ist eine abschließende Aktion (Regel 29): erst wenn jedes Speichern der Seite zurück ist; der Server prüft die Lücken
