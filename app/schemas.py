@@ -4095,6 +4095,7 @@ class EmployeePayrollSettingsOut(BaseModel):
     sollzeiten: list[dict] = Field(default_factory=list)  # seit 1.9.167: eigene Sollzeiten (app/sollzeit.py::zeile_dict()), leer = Tarif
     fruehere_personalnummern: list[str] = Field(default_factory=list)  # seit 1.9.177: frühere Nummern der Person, dauerhaft gesperrt
     fruehere_traeger: dict[str, str] = Field(default_factory=dict)  # seit 1.9.191: wer eine frühere Nummer heute trägt -- dort kein „freigeben“
+    nummernkreis: str | None = None  # seit 1.9.212: nur in der Antwort aufs Speichern -- der Kreis der Nummer als Hinweis (keine Sperre)
 
 
 

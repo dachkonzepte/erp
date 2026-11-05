@@ -28,15 +28,32 @@ from .work_time_models import load_advanced_settings
 # Seit 1.9.168 (Lohn L1a, Punkt 3, Entscheidung Tobias E3): was von einer Person in die Lohndatei geht. „alles“ = Arbeit, Abwesenheiten und
 # Feiertage; „abwesenheiten“ = nur Urlaub, Krankheit und die übrigen zugeordneten Abwesenheiten (bisher z. B. Azubis in Time 4); „nichts“.
 EXPORT_UMFAENGE = {"alles": "alles", "abwesenheiten": "nur Abwesenheiten", "nichts": "nichts"}
-# Seit 1.9.168: eine DATEV-Personalnummer besteht aus 1 bis 5 Ziffern ohne führende Null -- so stehen sie in den Mustern aus Time 4 (91001,
-# 9005); „091001“ und „91001“ wären sonst zwei Nummern für dieselbe Person bei DATEV. Ein Semikolon o. Ä. zerstörte die Datei.
-PERSONALNUMMER_FORMAT = re.compile(r"^[1-9][0-9]{0,4}$")
-PERSONALNUMMER_FALSCH = "Die DATEV-Personalnummer besteht aus 1 bis 5 Ziffern ohne führende Null (z. B. 91001)."
+# Seit 1.9.212 (L1a Stufe 6, Punkt 1, Antwort des Lohnbüros): eine DATEV-Personalnummer hat genau 5 Ziffern, führende Nullen gehören dazu
+# (00001, 00101, 00204) -- „101“ und „00101“ wären sonst zwei Nummern für dieselbe Person. Kein Auffüllen beim Speichern: wer „101“ einträgt,
+# bekommt die Meldung (aufgefüllt hat nur die Migration 5d2e8a71c4f3 den Bestand). 1.9.168–1.9.211: 1 bis 5 Ziffern ohne führende Null.
+# Ein Semikolon o. Ä. zerstörte die Datei.
+PERSONALNUMMER_FORMAT = re.compile(r"^[0-9]{5}$")
+PERSONALNUMMER_FALSCH = "Die DATEV-Personalnummer hat genau 5 Ziffern, führende Nullen gehören dazu (z. B. 00101)."
 PERSONALNUMMER_VERGEBEN = "Diese DATEV-Personalnummer ist bereits vergeben."
+# Seit 1.9.212: die Nummernkreise des Lohnbüros -- nur ein Hinweis beim Speichern, keine Sperre. Das ERP kennt weder Minijob noch Azubi als
+# Merkmal einer Person (die Funktion ist frei benennbar), deshalb nennt der Hinweis nur den Kreis der Nummer.
+NUMMERNKREISE = ((0, 99, "sv-pflichtig Beschäftigte", "00000–00099"), (100, 199, "Minijobber", "00100–00199"), (200, 99999, "Azubis", "ab 00200"))
 
 
 def personalnummer_gueltig(wert: str | None) -> bool:
     return bool(wert) and PERSONALNUMMER_FORMAT.match(wert) is not None
+
+
+def nummernkreis(nummer: str | None) -> str | None:
+    """Seit 1.9.212: der Hinweis zum Kreis einer gültigen Nummer, z. B. „Die Personalnummer 00150 liegt im Kreis Minijobber (00100–00199).“ --
+    None ohne gültige Nummer."""
+    if not personalnummer_gueltig(nummer):
+        return None
+    wert = int(nummer)
+    for von, bis, name, bereich in NUMMERNKREISE:
+        if von <= wert <= bis:
+            return f"Die Personalnummer {nummer} liegt im Kreis {name} ({bereich})."
+    return None
 
 
 # Seit 1.9.177 (L1a-Nachtrag, Punkt 4, Vorgabe Tobias): eine Nummer, die einer Person einmal gehört hat, bleibt dauerhaft gesperrt -- auch nach
@@ -353,7 +370,8 @@ def set_employee_payroll(db: Session, employee_id: int, werte: dict) -> dict:
             if not advanced.datev_personnel_equals_erp_number:
                 raise ValueError(PERSONALNUMMER_FALSCH)
             if exportiert:
-                raise ValueError(f"Die ERP-Mitarbeiternummer „{value}“ taugt nicht als DATEV-Personalnummer: 1 bis 5 Ziffern ohne führende Null.")
+                raise ValueError(f"Die ERP-Mitarbeiternummer „{value}“ taugt nicht als DATEV-Personalnummer: genau 5 Ziffern, führende Nullen "
+                                 "gehören dazu.")
         if value:
             duplicate=db.scalar(select(EmployeePayrollSettings).where(
                 EmployeePayrollSettings.datev_personnel_number==value,
@@ -381,7 +399,9 @@ def set_employee_payroll(db: Session, employee_id: int, werte: dict) -> dict:
         db.rollback()
         raise ValueError(PERSONALNUMMER_VERGEBEN) from exc
     db.refresh(row)
-    return _payroll_dict(db, emp, row, _sollzeiten_aller(db).get(emp.id, []))
+    antwort = _payroll_dict(db, emp, row, _sollzeiten_aller(db).get(emp.id, []))
+    antwort["nummernkreis"] = nummernkreis(antwort["datev_personnel_number"])  # seit 1.9.212: Hinweis beim Speichern, keine Sperre
+    return antwort
 
 
 def rounded_hours(hours: Decimal, rounding_minutes: int) -> Decimal:

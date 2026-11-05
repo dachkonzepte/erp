@@ -635,7 +635,7 @@ async def pruefen(tab, seed, p):
                      "headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign(s,{datev_wage_type_workshop:'300'}))}))"
                      ".then(r=>r.status)"),
         await tab.js(f"fetch('/api/time-backoffice/payroll-employees/{seed['ole_ma']}',{{method:'PUT',headers:{{'Content-Type':'application/json'}},"
-                     f"body:JSON.stringify({{datev_personnel_number:'1003',payroll_export_enabled:true}})}}).then(r=>r.status)")], [200, 200])
+                     f"body:JSON.stringify({{datev_personnel_number:'01003',payroll_export_enabled:true}})}}).then(r=>r.status)")], [200, 200])  # seit 1.9.212 fünfstellig
     await tab.js("monatLaden()")
     p.pruefe("Fin: vollständig -- DATEV-Export als Link", await tab.js(
         "[document.getElementById('lohnDatev').hidden,document.getElementById('lohnDatevFehlt').innerText]"), [False, ""])

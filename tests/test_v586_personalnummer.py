@@ -1,6 +1,7 @@
 """Version 1.9.168 (Lohn L1a, Punkt 3, Entscheidung Tobias E3): DATEV-Personalnummer nur Ziffern und eindeutig, Export-Umfang je Person.
 
-    Format        1 bis 5 Ziffern ohne führende Null (wie in den Mustern aus Time 4) -- sonst 422; bei „DATEV-Nr. = ERP-Nr.“ nur, wenn von der
+    Format        seit 1.9.212 genau 5 Ziffern, führende Nullen gehören dazu (bis 1.9.211: 1 bis 5 Ziffern ohne führende Null, wie in den Mustern
+                  aus Time 4; tests/test_v617_personalnummer_fuenf_stellen.py) -- sonst 422; bei „DATEV-Nr. = ERP-Nr.“ nur, wenn von der
                   Person etwas in die Datei geht
     eindeutig     in der Datenbank (uq_employee_payroll_datev_number); die Migration c5a9e3f71d28 bricht bei einer Dublette ab, ohne etwas zu
                   ändern; Leerzeichen um eine Nummer zählen nicht, eine leere wird NULL
@@ -38,14 +39,14 @@ def _put(w, emp, rolle="buero_finanzen", **koerper):
     return w["client"](w["db"], time_backoffice_router.router, role=rolle).put(f"/api/time-backoffice/payroll-employees/{emp.id}", json=koerper)
 
 
-@pytest.mark.parametrize("nummer", ["9100A", "091001", "123456", "0", "91 001", "91;01", "-5"])
+@pytest.mark.parametrize("nummer", ["9100A", "091001", "123456", "0", "91 001", "91;01", "-5", "1", "9005"])  # seit 1.9.212 auch 1 und 9005
 def test_personalnummer_nur_ziffern(welt, nummer):
     r = _put(welt, welt["mia"], datev_personnel_number=nummer)
-    assert r.status_code == 422 and "1 bis 5 Ziffern ohne führende Null" in r.json()["detail"], r.text
+    assert r.status_code == 422 and "genau 5 Ziffern, führende Nullen gehören dazu" in r.json()["detail"], r.text
     assert welt["db"].query(EmployeePayrollSettings).filter_by(employee_id=welt["mia"].id).count() == 0
 
 
-@pytest.mark.parametrize("nummer", ["1", "9005", "91001", " 91001 "])
+@pytest.mark.parametrize("nummer", ["00001", "09005", "91001", " 91001 "])  # seit 1.9.212 fünfstellig (bis 1.9.211 „1“ und „9005“)
 def test_gueltige_personalnummer(welt, nummer):
     r = _put(welt, welt["mia"], datev_personnel_number=nummer)
     assert (r.status_code, r.json()["datev_personnel_number"]) == (200, nummer.strip())
@@ -173,6 +174,6 @@ def test_pruefabfrage_nur_lesen():
     sql = Path("scripts/pruefabfrage_personalnummern.sql").read_text(encoding="utf-8")
     anweisungen = [s.strip() for s in "\n".join(z for z in sql.splitlines() if not z.strip().startswith("--")).split(";") if s.strip()]
     assert len(anweisungen) == 3 and all(a.upper().startswith("SELECT") for a in anweisungen)
-    assert "'^[1-9][0-9]{0,4}$'" in sql
+    assert "'^[0-9]{5}$'" in sql  # seit 1.9.212 (bis 1.9.211 '^[1-9][0-9]{0,4}$')
     from app.time_backoffice import PERSONALNUMMER_FORMAT
-    assert PERSONALNUMMER_FORMAT.pattern == "^[1-9][0-9]{0,4}$"
+    assert PERSONALNUMMER_FORMAT.pattern == "^[0-9]{5}$"

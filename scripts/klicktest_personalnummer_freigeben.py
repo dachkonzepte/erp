@@ -113,7 +113,8 @@ async def pruefen(tab, seed, p):
     await tab.warte_auf_neu_geladene_liste(f"document.querySelector('[data-klick=lohn-speichern][data-mitarbeiter=\"{seed['Tom']}\"]').click()",
                                            "#payrollRows")
     p.pruefe("Ada: Tom bekommt 91008", await tab.js(
-        f"[document.getElementById('payrollStatus').textContent,document.getElementById('pnr-{seed['Tom']}').value]"), ["Gespeichert.", "91008"])
+        f"[document.getElementById('payrollStatus').textContent,document.getElementById('pnr-{seed['Tom']}').value]"),
+        ["Gespeichert. Die Personalnummer 91008 liegt im Kreis Azubis (ab 00200).", "91008"])  # seit 1.9.212 mit dem Kreis (bis 1.9.211 „Gespeichert.“)
     p.pruefe("Ada: Änderungshistorie", await tab.js(
         "fetch('/api/audit-logs?entity_type=Personalnummer').then(r=>r.json()).then(l=>l.map(x=>[x.action,x.entity_id,x.old_value,x.new_value,"
         "x.actor_name]))"), [["Personalnummer freigegeben", "91008", "gesperrt, gehörte Mia Monteurin", "frei", "Ada Admin"]])

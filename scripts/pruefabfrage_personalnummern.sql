@@ -6,7 +6,7 @@
 --
 -- Drei Ergebnisse, ohne Namen (nur die Kennung der Person):
 --   1. Dubletten: jede Nummer, die mehr als eine Person trägt (Leerzeichen um die Nummer zählen nicht).
---   2. Format: jede Nummer, die nicht aus 1 bis 5 Ziffern ohne führende Null besteht (seit 1.9.168 lehnt das Speichern sie ab).
+--   2. Format: jede Nummer, die nicht aus genau 5 Ziffern besteht (seit 1.9.212; 1.9.168–1.9.211 aus 1 bis 5 Ziffern ohne führende Null).
 --   3. Leer oder nur Leerzeichen gespeichert (die Migration macht daraus NULL).
 -- Gilt „DATEV-Nr. = ERP-Nr.“ (Einstellungen -> Zeitregeln und DATEV), nimmt der Export die ERP-Nummer; die prüft scripts/pruefe_zeitregeln.py.
 
@@ -21,7 +21,7 @@ ORDER BY nummer;
 SELECT 'Format' AS befund, employee_id AS mitarbeiter_id, datev_personnel_number AS nummer
 FROM employee_payroll_settings
 WHERE datev_personnel_number IS NOT NULL AND TRIM(datev_personnel_number) <> ''
-  AND TRIM(datev_personnel_number) !~ '^[1-9][0-9]{0,4}$'
+  AND TRIM(datev_personnel_number) !~ '^[0-9]{5}$'
 ORDER BY employee_id;
 
 SELECT 'leer' AS befund, employee_id AS mitarbeiter_id

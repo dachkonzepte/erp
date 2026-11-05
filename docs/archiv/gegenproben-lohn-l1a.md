@@ -730,3 +730,25 @@ nur ungeprüft. Dazu zwei Tests für 1.9.202 Nr. 1b unter „Zeiten“ (die Auss
 Befund 1.9.211 (vor dem Commit): Nr. 4a blieb mit dem ersten `tests/test_v616_plantafel_sollzeit.py` grün -- die Kolonne rechnet auf eigenem
 Weg (`_day_capacity()`), der Test prüfte die Arbeitstage und „Arbeitsstunden je Tag“ nur an der Person. Nachgezogen: beide Tests prüfen auch die
 Kolonne, `test_ohne_sollzeit_nicht_abwesend` auch die Zeile der Person; danach 4a, 4d und 2b rot. Kein Fehler im Programm.
+
+## Stufe 6 (1.9.212 ff.): je Festlegung ihre Gegenprobe
+
+Nach der stehenden Regel seit 1.9.210, je Aussage. Jede Gegenprobe zuerst gegen die Tests vor der Version („vorher“), dann mit den neuen;
+ausgeführt in einer eigenen Arbeitskopie auf dem Stand der Version (nicht im Hauptbaum, dort lief die nächste Version weiter), Datei danach
+byte-genau zurück (Prüfsumme); gezählt nur FAILED. Version in Klammern = gefahren in.
+
+| Festlegung (Aussage) | Gegenprobe | Ergebnis |
+|---|---|---|
+| **1.9.212 Nr. 1a** (= 1.9.168 Nr. 1 neu) – genau 5 Ziffern | das Format bis 1.9.211 (1.9.212) | vorher 7 rot (test_v586, test_v590); mit test_v617 20 rot |
+| **1.9.212 Nr. 1b** – beim Speichern nichts aufgefüllt | „101“ beim Speichern auf „00101“ aufgefüllt (1.9.212) | vorher 3 rot: test_v586::test_personalnummer_nur_ziffern; mit test_v617 8 rot |
+| **1.9.212 Nr. 2a** – Grenzen der Kreise | Grenze sv-pflichtig/Minijobber um eins verschoben (1.9.212) | vorher grün; mit test_v617 1 rot: test_fuenf_ziffern_mit_hinweis_zum_kreis |
+| **1.9.212 Nr. 2b** – der Kreis sperrt nicht | Nummern ab 00200 abgelehnt (1.9.212) | vorher 11 rot (alte Tests speichern 91001 u. a.); mit test_v617 15 rot, darunter test_kreis_ist_keine_sperre |
+| **1.9.212 Nr. 2c** – Hinweis in der Antwort aufs Speichern | `nummernkreis` immer leer (1.9.212) | vorher grün; mit test_v617 8 rot |
+| **1.9.212 Nr. 2d** – die Seite zeigt den Hinweis nach „Gespeichert.“ | `savePayroll()` ohne den Hinweis (1.9.212) | klicktest_sollzeit rot: „Fin: Hinweis zum Nummernkreis nach dem Speichern“ ‚Gespeichert.‘ |
+| **1.9.212 Nr. 3** – bei Gleichsetzung 5 Ziffern für die ERP-Nummer | Format bei Gleichsetzung nicht geprüft (1.9.212) | vorher 1 rot: test_v586::test_gleichsetzung_mit_erp_nummer; mit test_v617 2 rot |
+| **1.9.212 Nr. 4** – die ERP-Mitarbeiternummer bleibt | Migration füllt auch `employees.employee_number` auf (1.9.212) | vorher grün; mit test_v617 2 rot: test_migration_auf_einem_bestand (SQLite, PostgreSQL) |
+| **1.9.212 Nr. 5a** – auch die gemerkten Nummern | Migration ohne `personalnummern_vergeben` (1.9.212) | vorher grün; mit test_v617 2 rot: test_migration_auf_einem_bestand (SQLite, PostgreSQL) |
+| **1.9.212 Nr. 5b** – Abbruch bei einer Kollision, nichts geändert | Migration ohne `pruefen()` (1.9.212) | vorher grün; mit test_v617 2 rot: test_migration_bricht_bei_einer_kollision_ab (SQLite, PostgreSQL) |
+| **1.9.212 Nr. 5c** – nur 1 bis 4 Ziffern aufgefüllt | auch mit Buchstaben aufgefüllt (1.9.212) | vorher grün; mit test_v617 3 rot: test_aufgefuellt_und_zurueck, test_migration_auf_einem_bestand (beide) |
+| **1.9.212 Nr. 6** – Prüfskript zählt je Kreis | Zeile „Personalnummern je Kreis“ fehlt (1.9.212) | vorher grün; mit test_v617 1 rot: test_pruefskript_format_und_kreise |
+| **1.9.212 Nr. 7** – `downgrade()` nimmt die Nullen weg | `downgrade()` ohne Wirkung (1.9.212) | vorher grün; mit test_v617 2 rot: test_migration_auf_einem_bestand (SQLite, PostgreSQL) |

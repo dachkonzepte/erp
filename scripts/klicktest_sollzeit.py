@@ -5,6 +5,7 @@
                      ab 01.12.2026 Di, Mi, Do je 3,00 -> Liste und Tabelle „Di 3,00 · Mi 3,00 · Do 3,00 h“; ab 01.01.2027 „wieder Tarif“ -> zwei
                      Zeilen; die Tarif-Zeile gelöscht; „gültig ab“ im abgeschlossenen Zeitraum -> Meldung des Servers -- Bilder; keine JS-Fehler.
                      Seit 1.9.168 (Punkt 3): Personalnummer „9100A“ -> Meldung, nichts gespeichert; Export „nur Abwesenheiten“ gespeichert
+                     Seit 1.9.212 (L1a Stufe 6, Punkt 1): nach dem Speichern „Gespeichert.“ mit dem Kreis der Nummer
     Büro – Auftrag   Bea: Hinweis „… ändern Admin und Büro – Finanzen – du kannst sie lesen.“, Felder gesperrt, kein Knopf zum Speichern, Sollzeit
                      als Text sichtbar; derselbe PUT vom Server 403 -- Bild; keine JS-Fehler
 
@@ -73,8 +74,8 @@ async def pruefen(tab, seed, p):
     await tab.js("document.getElementById('payrollStatus').textContent=''")
     await tab.js(f"document.querySelector('[data-klick=lohn-speichern][data-mitarbeiter=\"{mia}\"]').click()")
     p.pruefe("Fin: Personalnummer „9100A“ abgelehnt", await tab.warten(
-        "document.getElementById('payrollStatus').textContent==='Fehler: Die DATEV-Personalnummer besteht aus 1 bis 5 Ziffern ohne führende Null "
-        "(z. B. 91001).'", 10), True)
+        "document.getElementById('payrollStatus').textContent==='Fehler: Die DATEV-Personalnummer hat genau 5 Ziffern, führende Nullen gehören "
+        "dazu (z. B. 00101).'", 10), True)  # seit 1.9.212 (bis 1.9.211: „besteht aus 1 bis 5 Ziffern ohne führende Null (z. B. 91001).“)
     p.pruefe("Fin: Export-Umfang zur Auswahl", await tab.js(f"[...document.getElementById('pex-{mia}').options].map(o=>[o.value,o.text,o.selected])"),
              [["alles", "alles", True], ["abwesenheiten", "nur Abwesenheiten", False], ["nichts", "nichts", False]])
     await _setze(tab, {f"pnr-{mia}": "91001", f"pex-{mia}": "abwesenheiten"})
@@ -82,6 +83,9 @@ async def pruefen(tab, seed, p):
     p.pruefe("Fin: „nur Abwesenheiten“ gespeichert, Nummer bleibt", await tab.js(
         "fetch('/api/time-backoffice/payroll-employees').then(r=>r.json()).then(l=>l.map(x=>[x.datev_personnel_number,x.export_umfang]))"),
         [["91001", "abwesenheiten"]])
+    # seit 1.9.212 (L1a Stufe 6, Punkt 1): nach dem Speichern der Kreis der Nummer als Hinweis -- gespeichert ist trotzdem
+    p.pruefe("Fin: Hinweis zum Nummernkreis nach dem Speichern", await tab.js("document.getElementById('payrollStatus').textContent"),
+             "Gespeichert. Die Personalnummer 91001 liegt im Kreis Azubis (ab 00200).")
 
     await tab.js(f"document.querySelector('[data-klick=sollzeit-oeffnen][data-mitarbeiter=\"{mia}\"]').click()")
     p.pruefe("Fin: Dialog ohne eigene Werte", await tab.warten(

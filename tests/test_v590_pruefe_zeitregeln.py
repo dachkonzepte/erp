@@ -168,7 +168,7 @@ def test_personalnummern_fehlend_falsch_doppelt():
     assert befunde == [
         f"  ! Person {fehlt.id}: keine Personalnummer, Export „alles“.",
         f"  ! Person {nur_abw.id}: keine Personalnummer, Export „nur Abwesenheiten“.",
-        f"  ! Person {null.id}: Personalnummer „091001“ ist nicht 1 bis 5 Ziffern ohne führende Null.",
+        f"  ! Person {null.id}: Personalnummer „091001“ hat nicht genau 5 Ziffern.",  # seit 1.9.212
         f"  ! Personalnummer 91001 tragen 2 Personen ({gut.id}, {doppelt.id}).",
     ]
     assert "Personen (aktiv): 6; DATEV-Nr. = ERP-Nr.: nein" in zeilen
@@ -179,20 +179,20 @@ def test_gleichsetzung_prueft_die_erp_nummer():
     db = db_session()
     db.get(TimeBackofficeAdvancedSettings, 1).datev_personnel_equals_erp_number = True
     db.commit()
-    ziffern = _person(db, "9005")
+    ziffern = _person(db, "09005")  # seit 1.9.212 fünfstellig (bis 1.9.211 „9005“)
     buchstaben = _person(db, "M-17")
     rc, zeilen = _lauf(db)
     assert rc == 1
     assert "Personen (aktiv): 2; DATEV-Nr. = ERP-Nr.: ja" in zeilen
-    assert f"  ! Person {buchstaben.id}: Personalnummer „M-17“ ist nicht 1 bis 5 Ziffern ohne führende Null." in zeilen
+    assert f"  ! Person {buchstaben.id}: Personalnummer „M-17“ hat nicht genau 5 Ziffern." in zeilen  # seit 1.9.212
     assert not any(f"Person {ziffern.id}:" in z for z in zeilen)
 
 
 def test_eintritt_austritt_eigene_sollzeit_und_zuordnung_der_modelle():
     db = db_session()
-    a = _person(db, "E-1", datev="1", eintritt=date(2020, 4, 1))
-    b = _person(db, "E-2", datev="2", eintritt=date(2021, 1, 1), austritt=date(2026, 10, 31))
-    _person(db, "E-3", datev="3", austritt=date(2027, 3, 31))     # Austritt erst später
+    a = _person(db, "E-1", datev="00001", eintritt=date(2020, 4, 1))  # seit 1.9.212 fünfstellig (bis 1.9.211 „1“, „2“, „3“)
+    b = _person(db, "E-2", datev="00002", eintritt=date(2021, 1, 1), austritt=date(2026, 10, 31))
+    _person(db, "E-3", datev="00003", austritt=date(2027, 3, 31))     # Austritt erst später
     db.add(EmployeeTargetHours(employee_id=a.id, valid_from=date(2026, 1, 1), dienstag=Decimal("8"), mittwoch=Decimal("8")))
     db.add(EmployeeWorkTimeModel(employee_id=a.id, model_id=_modell(db, "winter").id))
     db.commit()

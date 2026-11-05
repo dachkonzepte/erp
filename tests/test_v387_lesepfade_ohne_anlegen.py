@@ -211,9 +211,9 @@ def test_lohnstammdaten_entstehen_erst_beim_speichern(threaded_db_session, route
     assert client.get("/api/time-backoffice/payroll-employees").status_code == 200
     assert db.scalar(select(func.count()).select_from(EmployeePayrollSettings)) == 0
     gespeichert = client.put(f"/api/time-backoffice/payroll-employees/{leute[0].id}",
-                             json={"datev_personnel_number": "77", "payroll_export_enabled": True})
+                             json={"datev_personnel_number": "00077", "payroll_export_enabled": True})  # seit 1.9.212 fünfstellig (bis 1.9.211 „77“)
     assert gespeichert.status_code == 200, gespeichert.text
-    assert db.scalar(select(EmployeePayrollSettings.datev_personnel_number)) == "77"
+    assert db.scalar(select(EmployeePayrollSettings.datev_personnel_number)) == "00077"
 
 
 def test_pg_gleichzeitige_lesewege_ohne_fehler_und_ohne_schreiben():

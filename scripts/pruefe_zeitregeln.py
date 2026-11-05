@@ -129,7 +129,7 @@ def _bereiche(wochen: list[int]) -> str:
 
 def _personen(db, stand: Stand, heute: date) -> None:
     from app.models import Employee, EmployeePayrollSettings, EmployeeTargetHours, TimeBackofficeAdvancedSettings
-    from app.time_backoffice import EXPORT_UMFAENGE, PERSONALNUMMER_FORMAT
+    from app.time_backoffice import EXPORT_UMFAENGE, NUMMERNKREISE, PERSONALNUMMER_FORMAT
 
     erweitert = db.get(TimeBackofficeAdvancedSettings, 1)
     gleich = bool(erweitert and erweitert.datev_personnel_equals_erp_number)
@@ -147,7 +147,7 @@ def _personen(db, stand: Stand, heute: date) -> None:
         if nummer:
             nummern.setdefault(nummer, []).append(eid)
             if u != "nichts" and not PERSONALNUMMER_FORMAT.match(nummer):
-                stand.befund(f"Person {eid}: Personalnummer „{nummer}“ ist nicht 1 bis 5 Ziffern ohne führende Null.")
+                stand.befund(f"Person {eid}: Personalnummer „{nummer}“ hat nicht genau 5 Ziffern.")  # seit 1.9.212 (bis 1.9.211: 1 bis 5 ohne führende Null)
         elif u != "nichts":
             stand.befund(f"Person {eid}: keine Personalnummer, Export „{EXPORT_UMFAENGE[u]}“.")
     for nummer, ids in nummern.items():
@@ -162,6 +162,9 @@ def _personen(db, stand: Stand, heute: date) -> None:
             stand.befund(f"Personalnummer {nummer} gehörte Person {gemerkt[nummer]}, heute trägt sie Person {', '.join(map(str, fremd))}.")
     stand.zeile(f"  Personalnummern gemerkt (dauerhaft gesperrt): {len(gemerkt)}, davon bei keiner aktiven Person: "
                 f"{sum(1 for n in gemerkt if n not in nummern)}")
+    # seit 1.9.212 (L1a Stufe 6, Punkt 1): je Kreis des Lohnbüros, wie viele gültige Nummern aktive Personen tragen -- nur gezählt, kein Befund
+    kreise = Counter(next(name for von, bis, name, _b in NUMMERNKREISE if von <= int(n) <= bis) for n in nummern if PERSONALNUMMER_FORMAT.match(n))
+    stand.zeile("  Personalnummern je Kreis: " + ", ".join(f"{name} {kreise.get(name, 0)}" for _v, _b, name, _x in NUMMERNKREISE))
     stand.zeile("  Export-Umfang: " + ", ".join(f"{EXPORT_UMFAENGE[k]} {umfang.get(k, 0)}" for k in EXPORT_UMFAENGE))
     mit_eintritt = sum(1 for eid, _n, _g in aktive if lohn.get(eid) is not None and lohn[eid].eintritt)
     ausgetreten = [eid for eid, _n, _g in aktive if lohn.get(eid) is not None and lohn[eid].austritt and lohn[eid].austritt < heute]
