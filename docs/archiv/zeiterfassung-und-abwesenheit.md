@@ -1675,3 +1675,95 @@ halb-gerade 0,50 gäbe), der Tag über alle Zeitarten (4,10 + 4,10 = 8,25, je Bu
 Monat 8,50), je Person, die Buchungen unverändert, „Monat & Lohn“ (Zusammen 8,25, Baustelle 4,40, Werkstatt 4,10), Schlechtwetter (2,10 h gebucht ->
 Ausfall 5,50), die Übersicht minutengenau, der Satz über der Tabelle. Gegenproben je Festlegung: Archiv „Gegenproben Lohn L1a“, Abschnitt „Lohn L1b“.
 Angepasste Erwartungen: keine.
+
+### Umsetzung 1.9.224: die Lohndatei (Punkt 1)
+
+Neu `app/lohndatei.py`: `berechnen(db, erster)` je Person (aktiv oder mit Buchungen bzw. Abwesenheiten im Monat) die Zeilen, `datei()` die Bytes,
+`zeile_text()` eine Zeile. Gelesen werden die Zuordnung (`app/lohnarten.py`, `fest()`/`kalender()` nehmen dafür `alle=`), die Sollzeit
+(`soll_fuer_personen()`), genehmigte Abwesenheiten (`abwesenheit_tage()` je Abwesenheit, mit halbem Tag und der Antwort zu Silvester), die
+gesetzlichen Feiertage des Bundeslands (`automatic_public_holidays()`), der Arbeitszeitkalender (`arbeitszeitkalender.abwesenheiten()`), die
+Ausfalltage (`schlechtwetter.ausfall()`), Umfang, Eintritt und Austritt; die Arbeit über `arbeit_des_tags()` (1.9.223). `app/time_backoffice.py::
+build_datev_export()` gibt nur noch diese Datei aus (ganzer Monat, sonst `ValueError` -> 422; abgeschlossen und vollständig wie seit 1.9.92; eine Person
+mit Zeilen ohne Personalnummer -> `DatevExportGesperrt`); `datev_fehlt()` ohne die Lohnart je Zeitart; `_wage_type()` und `_lodas_kopf()` entfallen.
+Router: `text/plain; charset=us-ascii`, `DATEV_Lohndaten_JJJJ-MM.txt`. Merkmal „Azubi“: `EmployeePayrollSettings.azubi` (Migration `c7e2b94a1f60`,
+NOT NULL, `server_default` false), im Teil-Update der Lohnstammdaten (`NOT_NULL`), in der Liste und als Häkchen in der Tabelle der Personalnummern
+(Einstellungen → „Zeitregeln und DATEV“), Änderungsprotokoll „Azubi“. Zuordnung: neue feste Zeile `mehrarbeit_azubi` „Mehrarbeit Azubis (Arbeit
+über der Sollzeit)“, vorbelegt AA / 1900 (legt der Start an, wie jede fehlende feste Zeile). Einstellungen: Zielsystem und „Lohnarten des bisherigen
+Exports“ entfallen samt Schnittstelle (`TimeTrackingSettingsOut`/`update_time_settings()`); die Spalten bleiben ungenutzt stehen (keine Migration),
+das Änderungsprotokoll nennt sie weiter. „Monat & Lohn“, Schritt „Ausgeben“: der Satz nennt die Lohndatei.
+
+### Festlegungen 1.9.224 (Bitte bestätigen)
+
+1. Format wie die Muster: ASCII, CRLF auch nach der letzten Zeile, jede Zeile 11 Felder. Kopf `Beraternummer;Mandantennummer;MM/JJJJ`. Tageszeile
+   `Personalnummer;Tag;Kennzeichen;Lohnart;Stunden;;;;;;` -- Tag ohne führende Null, Stunden mit Komma und zwei Stellen, ohne Lohnart ein leeres Feld
+   (Steuerbüro). Monatszeile `Personalnummer;;;Lohnart;;;Stunden;;;;`.
+2. Ein ganzer Monat (Erster bis Letzter, sonst 422); weiter nur abgeschlossen und vollständig (seit 1.9.92).
+3. Reihenfolge: Personen aufsteigend nach Personalnummer; je Person die Tage aufsteigend; im Tag Arbeit, Mehrarbeit, Feiertag, Kalendertag,
+   Abwesenheit, Schlechtwetter; die Monatszeilen der Person nach ihren Tagen.
+4. Wer: jede aktive Person und jede mit Buchungen oder Abwesenheiten im Monat; Umfang „nichts“ ohne Zeile (auch ohne Personalnummer).
+5. Arbeit: die Arbeit des Tags im Lohn (1.9.223), alle Zeitarten zusammen, auch Samstag und Sonntag -- nur beim Umfang „alles“.
+6. Feiertag: gesetzlicher Feiertag des Bundeslands mit Sollzeit, Stunden = Sollzeit, nur beim Umfang „alles“ (E3), auch für Azubis; an einem
+   Feiertag ohne Sollzeit (Samstag) keine Zeile; liegt ein Kalendertag auf einem Feiertag, gilt nur der Feiertag.
+7. Kalendertag: die Freistellung des Arbeitszeitkalenders (Heiligabend FR / 1080, Silvester UU) mit der Sollzeit des Tags, bei „alles“ und „nur
+   Abwesenheiten“; gebuchte Arbeit an dem Tag kommt als eigene Zeile dazu.
+8. Abwesenheit: jede genehmigte außer Schlechtwetter, je Tag Sollzeit × Anteil (halber Urlaubstag halbe Sollzeit), ohne Feiertage und Kalendertage;
+   Silvester mit „ganzer Urlaubstag“ steht als Urlaub, nicht als UU. Kennzeichen und Lohnart nach Art vor Kategorie (1.9.215).
+9. Schlechtwetter: je Ausfalltag Sollzeit minus Arbeit (1.9.216, 1.9.223), Winter oder Sommer nach dem Tag; mit Monatszeile in der Zuordnung eine Zeile
+   je Lohnart und Person über den Monat statt der Tageszeilen.
+10. Mehrarbeit (nur Azubis, Merkmal an den Lohnstammdaten, vorbelegt nein, ändern Admin und Büro – Finanzen): Arbeit + die übrigen Stunden des Tags
+    (Feiertag, Kalendertag, Abwesenheit, Schlechtwetter, auch nicht exportierte) − Sollzeit, zwischen 0 und der Arbeit (Samstag: alles; Berufsschultag
+    mit Arbeit danach: die Arbeit). Diese Stunden stehen unter Mehrarbeit (AA / 1900), der Rest unter Arbeit -- keine Stunde doppelt. Ohne Kennzeichen
+    der Mehrarbeit bleibt alles unter Arbeit. Annahme zur Antwort des Lohnbüros („AA / 1900 je Tag“), die „Mehrarbeit“ nicht bestimmt.
+11. Eine Zeile mit 0,00 Stunden entfällt; ohne Kennzeichen in der Zuordnung keine Zeile.
+12. Vor dem Eintritt und nach dem Austritt keine Zeile, auch keine gebuchte Arbeit.
+13. Bekäme eine Person ohne Personalnummer eine Zeile, entsteht keine Datei (409 mit Liste); „Vor dem Abschluss“ nennt das erst mit 1.9.225.
+14. Zielsystem und die sechs Lohnarten je Zeitart entfallen aus Einstellungen und Schnittstelle; die Spalten bleiben ungenutzt mit ihrem letzten Wert,
+    nichts liest oder schreibt sie.
+15. Dateiname `DATEV_Lohndaten_JJJJ-MM.txt`, Typ `text/plain; charset=us-ascii` (offen beim Lohnbüro: LB2).
+16. Zuordnung: feste Zeile „Mehrarbeit Azubis“, vorbelegt AA / 1900; eine bestehende Installation bekommt sie beim Start.
+
+### Tests und Prüfung 1.9.224
+
+Neu: `tests/test_v626_lohndatei.py` (21 Tests, Dezember 2026, Berater und Mandant wie in den Mustern erfunden) -- Format, Kopf und Reihenfolge; ein
+ganzer Monat einer Person Zeile für Zeile (Arbeit, U, K, Schlechtwetter 5,50, Samstag, Heiligabend mit Arbeit, Feiertag, Samstag ohne F, UU); Azubi
+mit Mehrarbeit (über der Sollzeit, Berufsschultag, Samstag) und ohne Merkmal; ohne Kennzeichen der Mehrarbeit; „nur Abwesenheiten“ und „nichts“;
+Eintritt und kaufmännisch; Silvester als Urlaubstag, halber Tag; leere Zuordnung und 0,00 h; Monatszeile; ganzer Monat und abgeschlossen; ohne
+Personalnummer kein stilles Weglassen; Schnittstelle; alte Einstellungen wirkungslos; Feiertag vor Kalendertag; Mehrarbeit höchstens die Arbeit;
+Einstellungen ohne alte Felder; Merkmal in den Lohnstammdaten (Teil-Update); Zuordnung vorbelegt; Seite; Migration `c7e2b94a1f60` auf einem Bestand
+unter SQLite und PostgreSQL (Wegwerf-Schema). Gegenproben je Festlegung: Archiv „Gegenproben Lohn L1a“, Abschnitt „Lohn L1b“.
+
+Angepasste Erwartungen (Regel 28) zu 1.9.224:
+- `test_v513::test_datev_summe_gleich_stundenzettel_und_uebersicht` -> `test_datev_je_tag_gerundet_stundenzettel_und_uebersicht_minutengenau`: altes Soll
+  CSV „Lohn und Gehalt“, Datei = Stundenzettel = Übersicht (9,92 / 8,08 h); neues Soll die Lohndatei je Tag (2,75, 7,25, 8,00), Stundenzettel und
+  Übersicht weiter 9,92 / 8,08 h.
+- `test_v513::test_fehlende_lohnart_kein_export_auch_nicht_unter_sonstige` -> `test_alte_lohnart_je_zeitart_sperrt_nicht_mehr`: altes Soll 409 „Lohnart
+  fehlt: Fahrzeit“; neues Soll 200, die Fahrzeit in der Arbeit des Tags.
+- `test_v513::test_mehreres_fehlt_alles_in_der_liste`: altes Soll [personalnummer, lohnart, datev_nummern]; neues Soll ohne lohnart.
+- `test_v513::test_lodas_mit_kopf_und_einer_zeile_je_monat_und_lohnart` -> `test_lodas_entfaellt`: altes Soll die LODAS-Datei; neues Soll die Lohndatei
+  (Kopf „1234567;12345;09/2026“) trotz gespeichertem Zielsystem LODAS.
+- `test_v517::test_pruefen_monat_und_vor_dem_abschluss`: altes Soll mit „Lohnart fehlt: Baustellenzeit“ und „… Fahrzeit“; neues Soll ohne.
+- `test_v517::test_monat_luecken_und_datev`: altes Soll „1 Personalnummer, 1 Lohnart, DATEV-Nummern“; neues Soll „1 Personalnummer, DATEV-Nummern“.
+- `test_v517::test_monat_tabelle_eine_rechnung_mit_dem_datev_export`: altes Soll die Datei je Zeitart (2,33, 0,42, 3,00); neues Soll je Person und Tag
+  die Arbeit (2,75, 3,00) = „Zusammen“.
+- `test_v103::test_backoffice_summary_pdf_csv_and_datev_export`: altes Soll CSV mit „14;Max Lohn“; neues Soll „1001;1;09/2026“, „14;7;1;1000;9,00;;;;;;“.
+- `test_v104::test_datev_can_use_erp_employee_number`: altes Soll CSV „MA-0042;Max Dach“; neues Soll „MA-0042;1;1;1000;8,00;;;;;;“.
+- `test_v311::test_datev_export_contains_all_2001_hours`: altes Soll ein Export über das Jahr (Summe der CSV 2001 h); neues Soll zwölf Monatsdateien,
+  Summe der Zeilen mit Kennzeichen 1 = 2001 h.
+- `test_v315::test_datev_export_hours_half_hundredth_round_up`: altes Soll 1,13 (Lohn und Gehalt und LODAS); neues Soll 1,25 (Viertelstunde, 1.9.223).
+- `test_v387` (zwei Tests): nur Aufbau -- der Export für Januar statt das ganze Jahr, Erwartung 409 mit „datev_nummern“ unverändert.
+- `test_v510::test_lohndaten_nur_admin_und_finanzen`: nur Aufbau -- der Export für den Monat von heute statt 30 Tagen, Erwartungen unverändert.
+- `test_v447::test_klassen_ohne_veraltete_eintraege`: Eintrag („settings.html“, „P2“, „datevTarget“) gestrichen (die Auswahl gibt es nicht mehr).
+- `test_v571::test_befund_lohnexport_und_monat_zaehlen_keine_abwesenheit` -> `test_lohndatei_mit_abwesenheit_monat_und_lohn_ohne`: altes Soll Datei mit
+  und ohne Abwesenheit gleich (Befund 1.9.153); neues Soll K und U je Tag in der Datei (Unbezahlt leer), „Monat & Lohn“ unverändert.
+- `test_v286`: die zwei Tests zu `_wage_type()` entfallen mit der Funktion.
+- `test_v326`: Ausnahme („/api/time-tracking/settings“, „$.datev_wage_type_*“) gestrichen -- die Felder stehen in keiner Antwort mehr.
+- `test_v521::test_datev_nummern_speichern_wie_zeitregeln_speichern`: nur Aufbau -- der Knopf heißt „Zeitregeln speichern“ (bis 1.9.223 „… und
+  Lohnarten speichern“).
+- `klicktest_zeiten`: „Fin: Lücke …“ altes Soll „Fehlt: 1 Lohnart“, neues Soll leer; „Fin: Schritt Prüfen“ ohne „Lohnart fehlt: Werkstattzeit“;
+  „Fin: ohne Lücke …“ altes Soll „Fehlt: 1 Personalnummer, 1 Lohnart“, neues „Fehlt: 1 Personalnummer“; „Fin: Lohnart Werkstatt und Oles
+  Personalnummer gespeichert“ [200, 200] -> „Fin: Oles Personalnummer gespeichert“ [200]; „Fin: DATEV-Datei“ altes Soll „….csv“ und CSV-Kopf, neues
+  „….txt“ und „12345;678;10/2026“.
+- `klicktest_neue_ordnung`: „Zeitregeln gespeichert (Meldung)“ altes Soll „Zeitregeln und Lohnarten gespeichert.“, neues „Zeitregeln gespeichert.“;
+  „Zeitregeln nach dem Neuladen“ altes Soll [15, 1000], neues [15].
+- `klicktest_datev_nummern`: nur Aufbau -- Vergleichsfeld „Rundung“ statt „Lohnart Baustelle“, Knopf „Zeitregeln speichern“.
+- `klicktest_zuordnung_ausgeliefert`: „Fin: jede Zeile wie ausgeliefert“ zusätzlich „mehrarbeit_azubi“: „AA / 1900 – exportiert mit Lohnart“.

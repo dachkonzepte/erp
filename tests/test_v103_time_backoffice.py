@@ -34,13 +34,13 @@ def test_backoffice_summary_pdf_csv_and_datev_export():
     assert build_timesheet_pdf(db,date(2026,9,1),date(2026,9,30)).startswith(b"%PDF")
     assert b"Mitarbeiter" in build_time_csv(db,date(2026,9,1),date(2026,9,30))
     p=get_employee_payroll(db,emp.id);p.datev_personnel_number="14";db.commit()
-    ts=load_time_settings(db);ts.datev_target="lohn_gehalt";ts.datev_wage_type_site="200";ts.datev_wage_type_travel="201"
+    ts=load_time_settings(db)  # seit 1.9.224 ohne Zielsystem und Lohnarten je Zeitart (die Lohndatei nimmt die Zuordnung)
     # seit 1.9.92: der Export nur für einen abgeschlossenen Zeitraum, nur mit Berater- und Mandantennummer; ohne Warnungen (fehlt etwas, 409)
     ts.locked_until=date(2026,9,30);ts.datev_beraternummer="1001";ts.datev_mandantennummer="1";db.commit()
     data,ext=build_datev_export(db,date(2026,9,1),date(2026,9,30))
-    text=data.decode("utf-8-sig")
-    assert ext=="csv" and "Personalnummer" in text and ";14;" not in text  # number is first field on data row
-    assert "14;Max Lohn" in text
+    text=data.decode("ascii")
+    # seit 1.9.224 die Lohndatei: Kopf Berater;Mandant;Monat, je Tag eine Zeile Arbeit (Baustelle und Fahrzeit zusammen); bis 1.9.223 CSV mit Namen
+    assert ext=="txt" and text.split("\r\n")[:2]==["1001;1;09/2026","14;7;1;1000;9,00;;;;;;"]
 
 
 def test_time_settings_default_and_backoffice_ui_structure():

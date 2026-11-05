@@ -270,15 +270,14 @@ def test_datev_export_hours_half_hundredth_round_up():
     emp = _hours_setup(db, "1.125")
     get_employee_payroll(db, emp.id).datev_personnel_number = "14"
     settings = load_time_settings(db)
-    settings.datev_target, settings.datev_wage_type_site, settings.rounding_minutes = "lohn_gehalt", "200", 0
+    settings.rounding_minutes = 0  # seit 1.9.224 ohne Zielsystem und Lohnarten je Zeitart
     # seit 1.9.92: der Export nur abgeschlossen und mit Berater- und Mandantennummer (fehlt etwas: 409, keine Warnungen mehr)
     settings.locked_until, settings.datev_beraternummer, settings.datev_mandantennummer = date(2026, 9, 30), "1001", "1"
     db.commit()
     data, _ = build_datev_export(db, date(2026, 9, 1), date(2026, 9, 30))
-    text_ = data.decode("utf-8-sig")
-    assert ";1,13;" in text_ and "1,12" not in text_, text_   # alt 1,12
-    settings.datev_target = "lodas"; db.commit()
-    assert ";1,13;" in build_datev_export(db, date(2026, 9, 1), date(2026, 9, 30))[0].decode("utf-8-sig")
+    text_ = data.decode("ascii")
+    # seit 1.9.223/1.9.224 die Arbeit des Tags auf 0,25 h, die Hälfte auf: 1,125 -> 1,25 (halb-gerade gäbe 1,00); bis 1.9.223 1,13 (alt 1,12)
+    assert ";1,25;" in text_ and ";1,00;" not in text_, text_
 
 
 def test_hour_sums_half_hundredth_round_up():

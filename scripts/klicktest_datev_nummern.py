@@ -26,10 +26,10 @@ BEREIT = "document.getElementById('datevBerater')&&typeof timeRules!=='undefined
 WERTE = "[document.getElementById('datevBerater').value,document.getElementById('datevMandant').value]"
 GESPEICHERT = ("fetch('/api/time-backoffice/settings').then(r=>r.json())"
                ".then(s=>[s.datev_beraternummer,s.datev_mandantennummer])")
-# Berater gesperrt: Fläche und Schrift anders als die Lohnart Baustelle (bearbeitbar), Fläche = --ds-feld-gesperrt, Schrift = --muted, Mauszeiger,
+# Berater gesperrt: Fläche und Schrift anders als die Rundung (bearbeitbar; bis 1.9.223 die Lohnart Baustelle, die mit 1.9.224 entfiel), Fläche = --ds-feld-gesperrt, Schrift = --muted, Mauszeiger,
 # dazu die Fläche als Farbwert
 GESPERRT_WIE_SOLL = (
-    "(()=>{const s=id=>getComputedStyle(document.getElementById(id));const b=s('datevBerater'),l=s('wageSite');"
+    "(()=>{const s=id=>getComputedStyle(document.getElementById(id));const b=s('datevBerater'),l=s('rounding');"
     "const t=document.createElement('div');t.style.background='var(--ds-feld-gesperrt)';t.style.color='var(--muted)';document.body.appendChild(t);"
     "const ts=getComputedStyle(t);const soll=[ts.backgroundColor,ts.color];t.remove();"
     "return [b.backgroundColor!==l.backgroundColor,b.color!==l.color,b.backgroundColor===soll[0],b.color===soll[1],b.cursor,b.backgroundColor]})()")
@@ -74,10 +74,10 @@ async def pruefen(tab, seed, p):
     # eine eigene Query: dieselbe Adresse mit #hash lädt nicht neu
     p.pruefe("Ada: nach dem Neuladen", [await tab.oeffnen("/settings?neu=1#time-rules", BEREIT), await tab.js(WERTE)],
              [True, ["1234567", "12345"]])
-    # seit 1.9.99 der grüne Hauptknopf wie „Zeitregeln und Lohnarten speichern“ (bis 1.9.98 „secondary“, ohne Fläche)
+    # seit 1.9.99 der grüne Hauptknopf wie „Zeitregeln speichern“ (bis 1.9.98 „secondary“, ohne Fläche; bis 1.9.223 „… und Lohnarten speichern“)
     p.pruefe("Ada: „Berater- und Mandantennummer speichern“ grün wie die übrigen Speichern-Knöpfe", await tab.js(
         "(()=>{const f=b=>{const s=getComputedStyle(b);return [s.backgroundColor,s.color]};"
-        "const z=[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Zeitregeln und Lohnarten speichern');"
+        "const z=[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Zeitregeln speichern');"
         "const d=document.getElementById('datevNummernSpeichern');const t=document.createElement('div');t.style.color='var(--ds-aktion)';"
         "document.body.appendChild(t);const gruen=getComputedStyle(t).color;t.remove();"
         "return [JSON.stringify(f(d))===JSON.stringify(f(z)),f(d)[0]===gruen,d.className]})()"), [True, True, ""])

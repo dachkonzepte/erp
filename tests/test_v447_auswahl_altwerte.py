@@ -302,7 +302,6 @@ KLASSEN = {
     ('settings.html', 'P1', 's.reset_yearly'): ('ja_nein', 'Ja/Nein'),
     ('settings.html', 'P2', 'acTaxRate'): ('server_fest', 'Steuersatz des Kontos'),
     ('settings.html', 'P2', 'aiProvider'): ('server_fest', 'AI_PROVIDERS'),
-    ('settings.html', 'P2', 'datevTarget'): ('server_fest', 'DATEV-Ziele'),
     ('settings.html', 'P2', 'emailSendMethod'): ('server_fest', 'smtp/graph'),
     ('settings.html', 'P2', 'fixedOverheadMode'): ('server_fest', 'eur/pct'),
     ('settings.html', 'P2', 'functionActive'): ('ja_nein', 'Ja/Nein'),

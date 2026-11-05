@@ -100,9 +100,8 @@ def befuellen(db, k):
         auftraege[titel] = o
     einstellungen = db.get(TimeTrackingSettings, 1)
     einstellungen.locked_until = date(2026, 9, 30)
-    # DATEV: Lohnart für Baustelle und Fahrzeit, nicht für Werkstatt; Personalnummern für Mia und Tom, nicht für Ole; Berater und Mandant
-    einstellungen.datev_target = "lohn_gehalt"
-    einstellungen.datev_wage_type_site, einstellungen.datev_wage_type_travel = "100", "200"
+    # DATEV: Personalnummern für Mia und Tom, nicht für Ole; Berater und Mandant (seit 1.9.224 ohne Zielsystem und Lohnarten je Zeitart -- die
+    # Lohndatei nimmt die Zuordnung, eine fehlende Lohnart gibt es nicht mehr)
     einstellungen.datev_beraternummer, einstellungen.datev_mandantennummer = "12345", "678"
     for wer, nummer in (("mia", "1001"), ("tom", "1002"), ("ole", None)):
         db.add(EmployeePayrollSettings(employee_id=leute[wer].id, datev_personnel_number=nummer, payroll_export_enabled=True))
@@ -581,9 +580,9 @@ async def pruefen(tab, seed, p):
     p.pruefe("Fin: Lücke -- Abschließen gesperrt, Fehlt nur die Zeiten, DATEV getrennt und gesperrt", await tab.js(
         "[document.getElementById('lohnAbschliessen').disabled,document.getElementById('lohnFehlt').innerText,"
         "document.getElementById('lohnDatevFehlt').innerText,document.getElementById('lohnDatev').hidden,"
-        "document.getElementById('lohnDatevGesperrt').disabled]"), [True, "Fehlt: 1 laufende Zeit", "Fehlt: 1 Lohnart", True, True])
+        "document.getElementById('lohnDatevGesperrt').disabled]"), [True, "Fehlt: 1 laufende Zeit", "", True, True])
     p.pruefe("Fin: Schritt Prüfen", await tab.js("[...document.querySelectorAll('#lohnPruefen li')].map(l=>l.innerText.replace(/\\s+/g,' ').trim())"),
-             ["1 Zeit läuft noch Prüfen", "Lohnart fehlt: Werkstattzeit Zeitregeln", "Anträge entschieden"])
+             ["1 Zeit läuft noch Prüfen", "Anträge entschieden"])
     p.pruefe("Fin: Tabelle mit Personalnummer", await tab.js(
         "[...document.querySelectorAll('#lohnZeilen tr')].map(tr=>[...tr.cells].map(c=>c.innerText.trim()).join(' | '))"),
         ["Mia Monteurin | 1001 | 4 | 18,25 | 0,00 | 3,75 | 0,00 | 22,00", "Tom Monteur | 1002 | 4 | 30,00 | 0,75 | 0,00 | 0,00 | 30,75",
@@ -596,8 +595,8 @@ async def pruefen(tab, seed, p):
     await tab.js(f"document.querySelector('[data-aktion=ende][data-id=\"{seed['ole']}\"]').click()")
     await tab.warten(f"!document.querySelector('[data-offen=\"{seed['ole']}\"]')", 10)
     await tab.js("document.querySelector('.reiter a[data-reiter=monat]').click()")
-    p.pruefe("Fin: ohne Lücke -- Abschließen frei, DATEV nennt jetzt auch die Personalnummer", await tab.warten(
-        "!document.getElementById('lohnAbschliessen').disabled&&document.getElementById('lohnDatevFehlt').innerText==='Fehlt: 1 Personalnummer, 1 Lohnart'", 10),
+    p.pruefe("Fin: ohne Lücke -- Abschließen frei, DATEV nennt jetzt die Personalnummer", await tab.warten(
+        "!document.getElementById('lohnAbschliessen').disabled&&document.getElementById('lohnDatevFehlt').innerText==='Fehlt: 1 Personalnummer'", 10),
         True)
     # eine neue Lücke nach dem Laden: Mias Zeit läuft seit heute 08:00 -- der Server lehnt den Abschluss ab, die Seite zeigt die Liste
     neu = await tab.js(f"fetch('/api/time-entries/start',{{method:'POST',headers:{{'Content-Type':'application/json'}},"
@@ -614,7 +613,7 @@ async def pruefen(tab, seed, p):
     await tab.js("monatLaden()")
     p.pruefe("Fin: wieder ohne Lücke -- Abschließen frei", await tab.js("document.getElementById('lohnAbschliessen').disabled"), False)
     await tab.warte_auf_neu_geladene_liste("document.getElementById('lohnAbschliessen').click()", "#lohnZeilen")
-    p.pruefe("Fin: abgeschlossen -- Status, kein Knopf, DATEV noch gesperrt (Lohnart, Personalnummer)", await tab.js(
+    p.pruefe("Fin: abgeschlossen -- Status, kein Knopf, DATEV noch gesperrt (Personalnummer)", await tab.js(
         "[document.getElementById('lohnStatus').innerText,document.getElementById('lohnAbschliessen').hidden,document.getElementById('lohnDatev').hidden,"
         "document.getElementById('ergebnis').innerText]"), ["abgeschlossen", True, True, "Oktober 2026 abgeschlossen."])
     # seit 1.9.98 aus klicktest_backoffice_buero: abgeschlossen ändert nur der Admin, zurücknehmen auch
@@ -629,19 +628,16 @@ async def pruefen(tab, seed, p):
         "fetch('/api/time-backoffice/lock',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({locked_until:'2026-09-30'})})"
         ".then(r=>r.json().then(d=>[r.status,d.detail]))"), [403, "Einen abgeschlossenen Zeitraum wieder öffnen darf nur ein Administrator."])
     await tab.js("document.querySelector('.reiter a[data-reiter=monat]').click()")
-    # Lohnart Werkstatt und Oles Personalnummer nachtragen (die Zeitregeln speichert der PUT als Ganzes: erst lesen, dann ergänzen)
-    p.pruefe("Fin: Lohnart Werkstatt und Oles Personalnummer gespeichert", [
-        await tab.js("fetch('/api/time-backoffice/settings').then(r=>r.json()).then(s=>fetch('/api/time-backoffice/settings',{method:'PUT',"
-                     "headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign(s,{datev_wage_type_workshop:'300'}))}))"
-                     ".then(r=>r.status)"),
+    # Oles Personalnummer nachtragen (seit 1.9.224 ohne Lohnart Werkstatt -- die gibt es nicht mehr)
+    p.pruefe("Fin: Oles Personalnummer gespeichert", [
         await tab.js(f"fetch('/api/time-backoffice/payroll-employees/{seed['ole_ma']}',{{method:'PUT',headers:{{'Content-Type':'application/json'}},"
-                     f"body:JSON.stringify({{datev_personnel_number:'01003',payroll_export_enabled:true}})}}).then(r=>r.status)")], [200, 200])  # seit 1.9.212 fünfstellig
+                     f"body:JSON.stringify({{datev_personnel_number:'01003',payroll_export_enabled:true}})}}).then(r=>r.status)")], [200])  # seit 1.9.212 fünfstellig
     await tab.js("monatLaden()")
     p.pruefe("Fin: vollständig -- DATEV-Export als Link", await tab.js(
         "[document.getElementById('lohnDatev').hidden,document.getElementById('lohnDatevFehlt').innerText]"), [False, ""])
-    # r.text() liest ohne das BOM am Anfang der Datei
+    # seit 1.9.224 die Lohndatei für DATEV Lohn und Gehalt (ASCII, Kopf Berater;Mandant;MM/JJJJ)
     datei = await tab.js("fetch(document.getElementById('lohnDatev').href).then(r=>r.text().then(t=>[r.status,r.headers.get('content-disposition'),t.split(String.fromCharCode(13,10))[0]]))")
-    p.pruefe("Fin: DATEV-Datei", datei, [200, 'attachment; filename="DATEV_Lohndaten_2026-10.csv"', "Personalnummer;Name;Kalendertag;Stundenanzahl;Lohnart;Zeitart"])
+    p.pruefe("Fin: DATEV-Datei", datei, [200, 'attachment; filename="DATEV_Lohndaten_2026-10.txt"', "12345;678;10/2026"])
     p.pruefe("Fin: keine JS-Fehler", tab.fehler, [])
 
     p.pruefe("Admin: Seite für „Abschluss aufheben“", await _seite(tab, seed, "admin"), True)

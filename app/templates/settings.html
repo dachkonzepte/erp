@@ -712,17 +712,9 @@
         <label class="inline-check"><input id="requireItem" type="checkbox"> LV-Position verpflichtend</label>
         <label class="inline-check"><input id="requireActivity" type="checkbox"> Tätigkeit verpflichtend</label>
       </div>
-      <h3 style="margin:18px 0 8px;font-size:15px">Lohnarten des bisherigen Exports (je Zeitart)</h3>
-      <div class="time-grid">
-        <div class="field"><label>Zielsystem</label><select id="datevTarget"><option value="lohn_gehalt">DATEV Lohn und Gehalt</option><option value="lodas">DATEV LODAS</option></select></div><div></div>
-        <div class="field"><label>Lohnart Baustellenzeit</label><input id="wageSite"></div>
-        <div class="field"><label>Lohnart Fahrzeit</label><input id="wageTravel"></div>
-        <div class="field"><label>Lohnart Werkstattzeit</label><input id="wageWorkshop"></div>
-        <div class="field"><label>Lohnart Sonstige Zeit</label><input id="wageOther"></div>
-        <div class="field"><label>Lohnart Schlechtwetter Winter</label><input id="wageWeatherWinter"></div>
-        <div class="field"><label>Lohnart Schlechtwetter Sommer</label><input id="wageWeatherSummer"></div>
-      </div>
-      <div style="margin-top:14px"><button onclick="saveTimeRules()" data-lohnregeln-knopf>Zeitregeln und Lohnarten speichern</button><span id="timeRulesStatus" class="status"></span></div>
+      {# seit 1.9.224 (Lohn L1b, Punkt 1, E8) ohne Zielsystem und „Lohnarten des bisherigen Exports“: die Lohndatei für DATEV Lohn und Gehalt
+         nimmt Kennzeichen und Lohnart aus der Zuordnung unten #}
+      <div style="margin-top:14px"><button onclick="saveTimeRules()" data-lohnregeln-knopf>Zeitregeln speichern</button><span id="timeRulesStatus" class="status"></span></div>
       {# Seit 1.9.92 (Stufe 4, R5a, Punkt 5): Berater- und Mandantennummer -- eigener Endpunkt nur für Admins (das Formular darüber speichert
          jedes Büro), Format nach DATEV; ohne sie lehnt der DATEV-Export ab. Seit 1.9.106 für das Büro gesperrt (disabled, grau wie jedes gesperrte
          Feld der Einstellungen) statt nur readonly -- vorher sahen die Felder bearbeitbar aus #}
@@ -762,7 +754,7 @@
       <div class="muted small" style="margin:0 0 8px">Vor dem Eintritt und nach dem Austritt ist die Sollzeit 0. Ohne eigene Sollzeit gilt der Tarif: Montag bis Freitag die Soll-Arbeitszeit des Arbeitszeitmodells, Samstag und Sonntag 0.</div>
       <label class="inline-check"><input id="datevSameErp" type="checkbox" onchange="datevSameChanged()"> DATEV-Personalnummer entspricht der ERP-Mitarbeiternummer</label>
       <div class="muted small" style="margin:7px 0 12px">Bei Aktivierung wird die ERP-Mitarbeiternummer automatisch für den DATEV-Export verwendet. Separate DATEV-Nummern sind dann gesperrt. Eine Personalnummer hat genau 5 Ziffern, führende Nullen gehören dazu (00001, 00101, 00204). Kreise des Lohnbüros: 00000–00099 sv-pflichtig Beschäftigte, 00100–00199 Minijobber, ab 00200 Azubis – beim Speichern ein Hinweis, keine Sperre; über 00299 sagt er, dass die Nummer außerhalb der genannten Bereiche liegt. Eine Nummer, die einer Person einmal gehört hat, bleibt für alle anderen gesperrt – auch nach Austritt und Nummernwechsel; nur der Admin kann eine frühere Nummer wieder freigeben, solange sie niemand trägt. Export: „alles“ = Arbeit, Abwesenheiten und Feiertage; „nur Abwesenheiten“ = Urlaub, Krankheit und andere Abwesenheiten; „nichts“.</div>
-      <div style="overflow:auto;max-height:60vh" id="payrollRollen"><table class="lohn-tabelle"><thead><tr><th>Mitarbeiter</th><th>ERP-Nr.</th><th>DATEV Personalnr.</th><th>Export</th><th>Eintritt</th><th>Austritt</th><th>Sollzeit</th><th></th></tr></thead><tbody id="payrollRows"></tbody></table></div>
+      <div style="overflow:auto;max-height:60vh" id="payrollRollen"><table class="lohn-tabelle"><thead><tr><th>Mitarbeiter</th><th>ERP-Nr.</th><th>DATEV Personalnr.</th><th>Export</th><th>Azubi</th><th>Eintritt</th><th>Austritt</th><th>Sollzeit</th><th></th></tr></thead><tbody id="payrollRows"></tbody></table></div>
       <span id="payrollStatus" class="status"></span>
     </div>
     {# Seit 1.9.218 (L1a Stufe 7, Punkt 1): eingelesene Nummern ohne Person -- nur für den Admin im Markup (darf_personalnummer_freigeben()) #}
@@ -2414,23 +2406,20 @@ function renderTimeRules(){
   setv('rounding',String(s.rounding_minutes));
   document.getElementById('allowManual').checked=!!s.allow_manual_entries;document.getElementById('allowGroup').checked=!!s.allow_group_bookings;
   document.getElementById('requireItem').checked=!!s.require_order_item;document.getElementById('requireActivity').checked=!!s.require_activity;
-  setv('datevTarget',s.datev_target);setv('wageSite',s.datev_wage_type_site);setv('wageTravel',s.datev_wage_type_travel);
-  setv('wageWorkshop',s.datev_wage_type_workshop);setv('wageOther',s.datev_wage_type_other);
-  setv('wageWeatherWinter',s.datev_wage_type_weather_winter);setv('wageWeatherSummer',s.datev_wage_type_weather_summer);
   setv('datevBerater',s.datev_beraternummer);setv('datevMandant',s.datev_mandantennummer);  // seit 1.9.92
   document.getElementById('datevSameErp').checked=!!s.datev_personnel_equals_erp_number;
   renderDefaultModelSelect();
   lohnregelnNurLesen();
 }
 function renderDefaultModelSelect(){if(!timeRules||!workModels.length)return;document.getElementById('defaultWorkModel').innerHTML=auswahlOptionen(workModels,timeRules.default_work_time_model_id,m=>m.name)}
-// Wie im Backoffice ein Formular für Zeitregeln und Lohnarten (der PUT ist kein Teil-Update) -- auch "DATEV-Nr. = ERP-Nr." geht mit.
+// Wie im Backoffice ein Formular für die Zeitregeln (der PUT ist kein Teil-Update; seit 1.9.224 ohne Lohnarten) -- auch "DATEV-Nr. = ERP-Nr." geht mit.
 // Gibt zurück, ob gespeichert wurde.
 async function saveTimeRules(silent=false){
   const st=document.getElementById('timeRulesStatus');
   try{
-    const body=JSON.stringify({rounding_minutes:Number(document.getElementById('rounding').value),allow_manual_entries:document.getElementById('allowManual').checked,allow_group_bookings:document.getElementById('allowGroup').checked,require_order_item:document.getElementById('requireItem').checked,require_activity:document.getElementById('requireActivity').checked,datev_target:v('datevTarget'),datev_wage_type_site:nv('wageSite'),datev_wage_type_travel:nv('wageTravel'),datev_wage_type_workshop:nv('wageWorkshop'),datev_wage_type_other:nv('wageOther'),datev_wage_type_weather_winter:nv('wageWeatherWinter'),datev_wage_type_weather_summer:nv('wageWeatherSummer'),datev_personnel_equals_erp_number:document.getElementById('datevSameErp').checked,default_work_time_model_id:v('defaultWorkModel')?Number(v('defaultWorkModel')):null});
+    const body=JSON.stringify({rounding_minutes:Number(document.getElementById('rounding').value),allow_manual_entries:document.getElementById('allowManual').checked,allow_group_bookings:document.getElementById('allowGroup').checked,require_order_item:document.getElementById('requireItem').checked,require_activity:document.getElementById('requireActivity').checked,datev_personnel_equals_erp_number:document.getElementById('datevSameErp').checked,default_work_time_model_id:v('defaultWorkModel')?Number(v('defaultWorkModel')):null});
     await speichern('zeitregeln',()=>api('/api/time-backoffice/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body}),{anwenden:d=>{timeRules=d}});
-    if(!silent)document.getElementById('timeRulesStatus').textContent='Zeitregeln und Lohnarten gespeichert.';
+    if(!silent)document.getElementById('timeRulesStatus').textContent='Zeitregeln gespeichert.';
     return true;
   }catch(e){st.textContent='Fehler: '+e.message;return false}
 }
@@ -2465,7 +2454,7 @@ async function assignOne(employeeId,modelId){const st=document.getElementById('w
 function toggleAllAssignments(an){document.querySelectorAll('.assignment-check').forEach(x=>x.checked=an)}
 function selectCommercial(){document.querySelectorAll('.assignment-check').forEach(x=>x.checked=x.dataset.group==='gewerblich')}
 async function assignBulkModel(){const st=document.getElementById('workAssignmentStatus');const ids=[...document.querySelectorAll('.assignment-check:checked')].map(x=>Number(x.dataset.id));if(!ids.length){st.textContent='Bitte Mitarbeiter markieren.';return}try{const body=JSON.stringify({employee_ids:ids,model_id:Number(v('bulkModel'))});await speichern('zuordnungen',()=>api('/api/time-backoffice/work-time-assignments/bulk',{method:'POST',headers:{'Content-Type':'application/json'},body}),{neuLaden:loadWorkAssignments});st.textContent='Gespeichert.'}catch(e){st.textContent='Fehler: '+e.message}}
-function loadPayroll(){return lesen('lohn',()=>api('/api/time-backoffice/payroll-employees'),d=>{payroll=d;const same=!!(timeRules&&timeRules.datev_personnel_equals_erp_number);document.getElementById('datevSameErp').checked=same;document.getElementById('payrollRows').innerHTML=payroll.map(p=>`<tr><td>${esc(p.employee_name)}</td><td>${esc(p.employee_number||'—')}</td><td><input id="pnr-${p.employee_id}" value="${esc(p.datev_personnel_number||'')}" inputmode="numeric" maxlength="5" autocomplete="off" style="width:100px" ${same?'disabled':''}>${(p.fruehere_personalnummern||[]).length?`<div class="small muted" data-fruehere="${p.employee_id}">früher: ${p.fruehere_personalnummern.map(n=>fruehereNummer(p,n)).join(', ')}</div>`:''}</td><td><select id="pex-${p.employee_id}" style="width:auto">${auswahlOptionen(EXPORT_UMFAENGE,p.export_umfang,x=>x.name)}</select></td><td><input id="pein-${p.employee_id}" type="date" value="${esc(p.eintritt||'')}" style="width:140px"></td><td><input id="paus-${p.employee_id}" type="date" value="${esc(p.austritt||'')}" style="width:140px"></td><td data-sollzeit="${p.employee_id}" style="min-width:210px">${sollzeitText(p.sollzeiten)}<div><button class="secondary" data-klick="sollzeit-oeffnen" data-mitarbeiter="${p.employee_id}" data-lohnregeln-knopf>Sollzeit ändern</button></div></td><td><button class="secondary" data-klick="lohn-speichern" data-mitarbeiter="${p.employee_id}" data-lohnregeln-knopf>Speichern</button></td></tr>`).join('')||'<tr><td colspan="8" class="muted">Keine Mitarbeiter.</td></tr>';lohnregelnNurLesen()})}
+function loadPayroll(){return lesen('lohn',()=>api('/api/time-backoffice/payroll-employees'),d=>{payroll=d;const same=!!(timeRules&&timeRules.datev_personnel_equals_erp_number);document.getElementById('datevSameErp').checked=same;document.getElementById('payrollRows').innerHTML=payroll.map(p=>`<tr><td>${esc(p.employee_name)}</td><td>${esc(p.employee_number||'—')}</td><td><input id="pnr-${p.employee_id}" value="${esc(p.datev_personnel_number||'')}" inputmode="numeric" maxlength="5" autocomplete="off" style="width:100px" ${same?'disabled':''}>${(p.fruehere_personalnummern||[]).length?`<div class="small muted" data-fruehere="${p.employee_id}">früher: ${p.fruehere_personalnummern.map(n=>fruehereNummer(p,n)).join(', ')}</div>`:''}</td><td><select id="pex-${p.employee_id}" style="width:auto">${auswahlOptionen(EXPORT_UMFAENGE,p.export_umfang,x=>x.name)}</select></td><td><label class="inline-check" title="Arbeit über der Sollzeit des Tags als Mehrarbeit in der Lohndatei"><input id="pazubi-${p.employee_id}" type="checkbox" ${p.azubi?'checked':''}> Azubi</label></td><td><input id="pein-${p.employee_id}" type="date" value="${esc(p.eintritt||'')}" style="width:140px"></td><td><input id="paus-${p.employee_id}" type="date" value="${esc(p.austritt||'')}" style="width:140px"></td><td data-sollzeit="${p.employee_id}" style="min-width:210px">${sollzeitText(p.sollzeiten)}<div><button class="secondary" data-klick="sollzeit-oeffnen" data-mitarbeiter="${p.employee_id}" data-lohnregeln-knopf>Sollzeit ändern</button></div></td><td><button class="secondary" data-klick="lohn-speichern" data-mitarbeiter="${p.employee_id}" data-lohnregeln-knopf>Speichern</button></td></tr>`).join('')||'<tr><td colspan="9" class="muted">Keine Mitarbeiter.</td></tr>';lohnregelnNurLesen()})}
 // Seit 1.9.181 (L1a-Korrekturen, Punkt 2): eine gemerkte Personalnummer freigeben -- der Dialog warnt, der Server prüft, dass sie niemand trägt
 // (sonst 409), und schreibt die Freigabe ins Änderungsprotokoll; danach die Liste neu (Bereich 'lohn' wie das Speichern einer Zeile).
 let pnrNummer=null,pnrStatus='payrollStatus';
@@ -2486,7 +2475,7 @@ function sollzeitText(zeilen){return (zeilen||[]).length?zeilen.map(z=>`<div cla
 // „01.12.2026“ aus „2026-12-01“ -- ein Kalendertag (kein Zeitpunkt), wie die übrigen Tage der Zeiten-Seiten mit führender Null
 function szDatum(s){return s?s.slice(8,10)+'.'+s.slice(5,7)+'.'+s.slice(0,4):''}
 // seit 1.9.212 (L1a Stufe 6, Punkt 1): nach dem Speichern der Kreis der Nummer als Hinweis (Text vom Server, app/time_backoffice.py::nummernkreis())
-async function savePayroll(id){const st=document.getElementById('payrollStatus');try{const body=JSON.stringify({datev_personnel_number:document.getElementById('pnr-'+id).value.trim()||null,export_umfang:document.getElementById('pex-'+id).value,eintritt:document.getElementById('pein-'+id).value||null,austritt:document.getElementById('paus-'+id).value||null});const r=await speichern('lohn',()=>api(`/api/time-backoffice/payroll-employees/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body}),{neuLaden:loadPayroll});st.textContent='Gespeichert.'+(r&&r.nummernkreis?' '+r.nummernkreis:'')}catch(e){st.textContent='Fehler: '+e.message}}
+async function savePayroll(id){const st=document.getElementById('payrollStatus');try{const body=JSON.stringify({datev_personnel_number:document.getElementById('pnr-'+id).value.trim()||null,export_umfang:document.getElementById('pex-'+id).value,azubi:document.getElementById('pazubi-'+id).checked,eintritt:document.getElementById('pein-'+id).value||null,austritt:document.getElementById('paus-'+id).value||null});const r=await speichern('lohn',()=>api(`/api/time-backoffice/payroll-employees/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body}),{neuLaden:loadPayroll});st.textContent='Gespeichert.'+(r&&r.nummernkreis?' '+r.nummernkreis:'')}catch(e){st.textContent='Fehler: '+e.message}}
 // Seit 1.9.167 (Lohn L1a, Punkt 2): eigene Sollzeit je Person ab einem Tag -- Bereich 'sollzeit' (die Liste im Dialog), danach die Tabelle neu.
 const SZ_TAGE=['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'];
 let szMitarbeiter=null;

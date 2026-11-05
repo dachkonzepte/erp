@@ -93,7 +93,7 @@ GET_WEGE = [
     "/api/quotes/{quote_id}", "/api/projects/{project_id}/quotes", "/api/projects/{project_id}/orders",
     "/api/orders/{order_id}", "/api/quotes/{quote_id}/order", "/api/quotes/{quote_id}/items/{item_id}/calculation",
     "/api/orders/{order_id}/work-preparation", "/api/time-backoffice/payroll-employees",
-    "/api/time-backoffice/datev-export?start_date=2026-01-01&end_date=2026-12-31",
+    "/api/time-backoffice/datev-export?start_date=2026-01-01&end_date=2026-01-31",  # seit 1.9.224 ein ganzer Monat
 ]
 
 
@@ -113,7 +113,7 @@ def test_die_lesewege_legen_nichts_an_und_zeigen_die_vorgaben(threaded_db_sessio
         antworten = {pfad: client.get(pfad.format(**welt)) for pfad in GET_WEGE}
     finally:
         aus()
-    datev = "/api/time-backoffice/datev-export?start_date=2026-01-01&end_date=2026-12-31"
+    datev = "/api/time-backoffice/datev-export?start_date=2026-01-01&end_date=2026-01-31"
     assert {p: r.status_code for p, r in antworten.items() if r.status_code != 200} == {datev: 409}
     assert [x["art"] for x in antworten[datev].json()["liste"]] == ["datev_nummern"]
     assert gefunden == []

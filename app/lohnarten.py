@@ -4,6 +4,8 @@ Was steht für eine Person an einem Tag in der Lohndatei, mit welchem Kennzeiche
 (LohnartZuordnung):
 
     arbeit                    die gebuchten Stunden des Tags, alle Zeitarten zusammen (vorbelegt 1 / 1000)
+    mehrarbeit_azubi          seit 1.9.224: nur Azubis, der Teil der Arbeit über der Sollzeit des Tags (vorbelegt AA / 1900, Antwort des
+                              Lohnbüros; leer: alles bleibt unter „arbeit“) -- app/lohndatei.py
     feiertag                  gesetzlicher Feiertag mit Sollzeit, nur beim Export-Umfang „alles“ (vorbelegt F / 1012)
     kategorie:<Kategorie>     eine Abwesenheit dieser Kategorie mit der Sollzeit des Tags (vorbelegt Urlaub U / 8000, Krankheit K / 1650)
     schlechtwetter:winter     Ausfalltag 01.12.–31.03. (vorbelegt seit 1.9.214 WA / 8195 je Tag, Antwort des Lohnbüros; 1.9.169–1.9.213 8110
@@ -43,6 +45,8 @@ from .option_settings import get_option_group
 # (Schlüssel, Bezeichnung, Stunden) -- die festen Zeilen in der Reihenfolge der Seite
 FEST = [
     ("arbeit", "Arbeit (alle Zeitarten zusammen)", "gebuchte Stunden"),
+    # seit 1.9.224 (Lohn L1b, Punkt 1): nur Azubis -- der Teil der Arbeit über der Sollzeit des Tags (app/lohndatei.py)
+    ("mehrarbeit_azubi", "Mehrarbeit Azubis (Arbeit über der Sollzeit)", "Arbeit über der Sollzeit"),
     ("feiertag", "Feiertag (gesetzlich, nur Export „alles“)", "Sollzeit"),
     *[(f"kategorie:{k}", f"Kategorie {ABSENCE_CATEGORY_LABELS[k]}", "Sollzeit") for k in ABSENCE_CATEGORIES if k != "schlechtwetter"],
     # seit 1.9.216 (Nachtrag): die Stunden eines Ausfalltags sind Sollzeit minus gebuchte Arbeit (app/schlechtwetter.py::ausfall())
@@ -53,6 +57,7 @@ FEST = [
 # Installation stellt die Migration a3f61c8d2b95 um, nur wo noch der bisherige Vorgabewert steht.
 START = {
     "arbeit": ("1", "1000", False),
+    "mehrarbeit_azubi": ("AA", "1900", False),  # seit 1.9.224, Antwort des Lohnbüros (Notiz 1.9.214)
     "feiertag": ("F", "1012", False),
     "kategorie:urlaub": ("U", "8000", False),
     "kategorie:krankheit": ("K", "1650", False),
@@ -134,15 +139,15 @@ def zuordnung(db: Session, kategorie: str | None, art: str | None, tag: date, *,
     return _wert(alle.get(f"kategorie:{kategorie}"))
 
 
-def fest(db: Session, schluessel: str) -> dict | None:
-    """„arbeit“ oder „feiertag“ -- None: nicht exportiert."""
-    return _wert(_alle(db).get(schluessel))
+def fest(db: Session, schluessel: str, *, alle: dict | None = None) -> dict | None:
+    """„arbeit“, „mehrarbeit_azubi“ (seit 1.9.224) oder „feiertag“ -- None: nicht exportiert."""
+    return _wert((alle if alle is not None else _alle(db)).get(schluessel))
 
 
-def kalender(db: Session, eintrag_schluessel: str) -> dict | None:
+def kalender(db: Session, eintrag_schluessel: str, *, alle: dict | None = None) -> dict | None:
     """Seit 1.9.175: Kennzeichen und Lohnart der Abwesenheit eines Kalendertags -- exportiert seit 1.9.215 mit Kennzeichen, auch ohne Lohnart
     (bis 1.9.214 erst mit Lohnart). None: beides leer."""
-    z = _alle(db).get(kalender_schluessel(eintrag_schluessel))
+    z = (alle if alle is not None else _alle(db)).get(kalender_schluessel(eintrag_schluessel))
     if z is None or not (z.kennzeichen or z.lohnart):
         return None
     return {"kennzeichen": z.kennzeichen, "lohnart": z.lohnart, "schluessel": z.schluessel, "exportiert": _gesetzt(z)}

@@ -27,7 +27,6 @@ from app.invoices import create_invoice_from_time_entries
 from app.models import Employee, EmployeeAbsence, InvoiceItem, TimeTrackingSettings
 from app.routers.absence_requests import router as absence_requests_router
 from app.routers.planning import router as planning_router
-from app.time_backoffice import _wage_type, load_time_settings
 from app.time_tracking import NON_PRODUCTIVE_ENTRY_TYPES, create_manual_entry, entry_type_is_productive
 from tests.aufraeumen import wegwerf_engine
 from tests.test_v133_invoices import make_order_with_item
@@ -117,28 +116,8 @@ def test_invoice_from_time_entries_rejects_when_only_weather_booked():
         create_invoice_from_time_entries(db, order, [weather], [])
 
 
-# --- DATEV-Lohnarten: kein stiller Rückfall auf "Sonstige" fuer Schlechtwetter ---
-
-def test_wage_type_has_no_fallback_to_other_for_weather_types():
-    db = db_session()
-    settings = load_time_settings(db)
-    settings.datev_wage_type_other = "900"
-    db.commit()
-    assert _wage_type(settings, "weather_winter") is None
-    assert _wage_type(settings, "weather_summer") is None
-    assert _wage_type(settings, "other") == "900"
-    # Ein unkonfigurierter, unbekannter Wert (kein Schlechtwetter) faellt weiterhin auf "other".
-    assert _wage_type(settings, "some_future_type") == "900"
-
-
-def test_wage_type_returns_configured_weather_lohnart():
-    db = db_session()
-    settings = load_time_settings(db)
-    settings.datev_wage_type_weather_winter = "911"
-    settings.datev_wage_type_weather_summer = "912"
-    db.commit()
-    assert _wage_type(settings, "weather_winter") == "911"
-    assert _wage_type(settings, "weather_summer") == "912"
+# --- DATEV-Lohnarten je Zeitart (_wage_type) seit 1.9.224 entfallen: die Lohndatei nimmt die Zuordnung (app/lohnarten.py), Schlechtwetter
+# Winter und Sommer haben dort je eine eigene Zeile ohne Rückfall (tests/test_v626_lohndatei.py) ---
 
 
 # --- Punkt 1: Abwesenheitskategorie ---

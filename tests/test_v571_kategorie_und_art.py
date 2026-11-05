@@ -53,8 +53,10 @@ WEGE = ["/api/absence-requests", "/api/planning/absences"]
 
 # --- Befund: wer zählt was -------------------------------------------------------------------------------------------------------
 
-def test_befund_lohnexport_und_monat_zaehlen_keine_abwesenheit(threaded_db_session):
-    """Dieselbe Datei und dieselben Zeilen mit und ohne Abwesenheit: Urlaub und Krankheit stehen in keiner Lohndatei. Festgehalten, nicht gebaut -- ändert das jemand, fällt es hier auf."""
+def test_lohndatei_mit_abwesenheit_monat_und_lohn_ohne(threaded_db_session):
+    """Seit 1.9.224 (Lohn L1b, Punkt 1) stehen Urlaub und Krankheit in der Lohndatei (U / 8000, K / 1650 mit der Sollzeit, Kategorie Unbezahlt leer =
+    keine Zeile); die Zeilen von „Monat & Lohn“ bleiben ohne Abwesenheit. Bis 1.9.223 hielt dieser Test fest, dass die Datei mit und ohne Abwesenheit
+    gleich war (test_befund_lohnexport_und_monat_zaehlen_keine_abwesenheit)."""
     db = threaded_db_session
     order, _ = make_order_with_item(db)
     mia = _person(db)
@@ -70,7 +72,10 @@ def test_befund_lohnexport_und_monat_zaehlen_keine_abwesenheit(threaded_db_sessi
     for kategorie, art in (("krankheit", "Krankheit"), ("urlaub", "Urlaub"), ("unbezahlt", "Unbezahlt")):
         db.add(EmployeeAbsence(employee_id=mia.id, absence_category=kategorie, absence_type=art, start_date=date(2026, 9, 2), end_date=date(2026, 9, 3)))
     db.commit()
-    assert build_datev_export(db, date(2026, 9, 1), date(2026, 9, 30)) == datei_vorher
+    datei = build_datev_export(db, date(2026, 9, 1), date(2026, 9, 30))[0].decode("ascii").split("\r\n")
+    assert datei != datei_vorher[0].decode("ascii").split("\r\n")
+    assert [z for z in datei if z.startswith(("1001;2;", "1001;3;"))] == [
+        "1001;2;K;1650;8,00;;;;;;", "1001;2;U;8000;8,00;;;;;;", "1001;3;K;1650;8,00;;;;;;", "1001;3;U;8000;8,00;;;;;;"]
     assert monat(db, date(2026, 9, 1))["zeilen"] == zeilen_vorher
 
 

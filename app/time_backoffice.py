@@ -188,13 +188,7 @@ def time_settings_dict(row: TimeTrackingSettings, db: Session | None = None) -> 
         "allow_group_bookings": row.allow_group_bookings,
         "require_order_item": row.require_order_item,
         "require_activity": row.require_activity,
-        "datev_target": row.datev_target,
-        "datev_wage_type_site": row.datev_wage_type_site,
-        "datev_wage_type_travel": row.datev_wage_type_travel,
-        "datev_wage_type_workshop": row.datev_wage_type_workshop,
-        "datev_wage_type_other": row.datev_wage_type_other,
-        "datev_wage_type_weather_winter": row.datev_wage_type_weather_winter,
-        "datev_wage_type_weather_summer": row.datev_wage_type_weather_summer,
+        # seit 1.9.224 ohne Zielsystem und Lohnarten je Zeitart (E8, die Lohndatei nimmt die Zuordnung)
         "datev_beraternummer": row.datev_beraternummer, "datev_mandantennummer": row.datev_mandantennummer,  # seit 1.9.92
         "datev_personnel_equals_erp_number": bool(advanced.datev_personnel_equals_erp_number) if advanced else False,
         "default_work_time_model_id": advanced.default_work_time_model_id if advanced else None,
@@ -274,10 +268,7 @@ def update_time_settings(db: Session, payload) -> TimeTrackingSettings:
     row = load_time_settings(db)
     for key in (
         "rounding_minutes", "allow_manual_entries",  # seit 1.9.61 ohne Standardpause
-        "allow_group_bookings", "require_order_item", "require_activity",
-        "datev_target", "datev_wage_type_site", "datev_wage_type_travel",
-        "datev_wage_type_workshop", "datev_wage_type_other",
-        "datev_wage_type_weather_winter", "datev_wage_type_weather_summer",
+        "allow_group_bookings", "require_order_item", "require_activity",  # seit 1.9.224 ohne Zielsystem und Lohnarten (E8)
     ):
         setattr(row, key, getattr(payload, key))
     advanced = load_advanced_settings(db)
@@ -318,7 +309,7 @@ def load_employee_payroll(db: Session, employee_id: int) -> EmployeePayrollSetti
     beim Lesen an und committeten."""
     row = db.scalar(select(EmployeePayrollSettings).where(EmployeePayrollSettings.employee_id == employee_id))
     return row if row is not None else EmployeePayrollSettings(employee_id=employee_id, payroll_export_enabled=True, export_umfang="alles",
-                                                                datev_personnel_number=None)
+                                                                datev_personnel_number=None, azubi=False)
 
 
 def effective_datev_personnel_number(db: Session, employee: Employee, payroll: EmployeePayrollSettings | None = None) -> str | None:
@@ -355,6 +346,7 @@ def _payroll_dict(db: Session, emp: Employee, p: EmployeePayrollSettings, sollze
         "payroll_export_enabled": p.payroll_export_enabled,
         "export_umfang": export_umfang(p),  # seit 1.9.168
         "eintritt": p.eintritt, "austritt": p.austritt,  # seit 1.9.167
+        "azubi": bool(p.azubi),  # seit 1.9.224
         "sollzeiten": sollzeiten,
         "fruehere_personalnummern": fruehere,  # seit 1.9.177: gemerkte Nummern außer der heutigen -- dauerhaft gesperrt
         # seit 1.9.191: wer eine frühere Nummer heute trägt (sie lässt sich nicht freigeben) -- {Nummer: Name}, nur getragene
@@ -388,6 +380,8 @@ def set_employee_payroll(db: Session, employee_id: int, werte: dict) -> dict:
         umfang="alles" if werte["payroll_export_enabled"] else "nichts"
     exportiert=umfang != "nichts"
     neu={feld: werte[feld] for feld in ("eintritt", "austritt") if feld in werte}  # seit 1.9.167, leer = offen
+    if "azubi" in werte:  # seit 1.9.224 (Lohn L1b, Punkt 1)
+        neu["azubi"]=bool(werte["azubi"])
     if advanced.datev_personnel_equals_erp_number or "datev_personnel_number" in werte:
         value=((emp.employee_number or "").strip() or None) if advanced.datev_personnel_equals_erp_number else ((werte.get("datev_personnel_number") or "").strip() or None)
         if advanced.datev_personnel_equals_erp_number and not value and exportiert:
@@ -508,19 +502,6 @@ def build_time_csv(db: Session, start_date: date, end_date: date, employee_id: i
     return ("\ufeff"+out.getvalue()).encode("utf-8")
 
 
-def _wage_type(settings: TimeTrackingSettings, entry_type: str) -> str | None:
-    mapping={"site":settings.datev_wage_type_site,"travel":settings.datev_wage_type_travel,"workshop":settings.datev_wage_type_workshop,"other":settings.datev_wage_type_other,"weather_winter":settings.datev_wage_type_weather_winter,"weather_summer":settings.datev_wage_type_weather_summer}
-    # Bewusst KEIN Rueckfall auf "other" fuer die beiden Schlechtwetter-Zeitarten: Saison-
-    # Kurzarbeitergeld (Winter) und tarifliches Ausfallgeld (Sommer) sind eigene Lohnarten,
-    # eine stillschweigende Buchung unter "Sonstige Arbeitszeit" waere tariflich falsch.
-    # Seit 1.9.92 (Stufe 4, R5a, Punkt 5) ebenso fuer Baustelle, Fahrzeit und Werkstatt: jede Zeitart mit eigener Einstellung braucht ihre
-    # Lohnart, sonst lehnt build_datev_export() mit der Liste ab (bis 1.9.91 still unter "Sonstige"). Nur eine Zeitart ohne eigene
-    # Einstellung (aus der Liste der Zeitarten) nimmt weiter die Lohnart "Sonstige".
-    if entry_type in mapping:
-        return mapping[entry_type] or None
-    return settings.datev_wage_type_other or None
-
-
 _ENTRY_TYPE_FALLBACK_LABELS = {
     "site": "Baustellenzeit", "travel": "Fahrzeit", "workshop": "Werkstattzeit",
     "other": "Sonstige Arbeitszeit", "weather_winter": "Schlechtwetter Winter",
@@ -551,11 +532,11 @@ class DatevExportGesperrt(ValueError):
 
 
 def datev_fehlt(db: Session, start_date: date, end_date: date) -> list[dict]:
-    """Seit 1.9.92: was dem DATEV-Export für den Zeitraum fehlt -- je Mitarbeiter mit Lohnexport und Buchungen die Personalnummer, je
-    gebuchter Zeitart die Lohnart (_wage_type()), Berater- und Mandantennummer. Leer = vollständig. Je Eintrag art und ein Text."""
+    """Seit 1.9.92: was dem DATEV-Export für den Zeitraum fehlt -- je Mitarbeiter mit Lohnexport und Buchungen die Personalnummer, Berater-
+    und Mandantennummer. Leer = vollständig. Je Eintrag art und ein Text. Seit 1.9.224 ohne die Lohnart je Zeitart (E8: die Lohndatei nimmt
+    die Zuordnung, eine Zeile ohne Lohnart ist erlaubt)."""
     settings = load_time_settings(db)
     rows = [r for r in list_entries(db, start_date=start_date, end_date=end_date, limit=None) if r.status == "booked"]
-    labels = _entry_type_labels(db)
     payroll = {x.employee_id: x for x in db.scalars(select(EmployeePayrollSettings)).all()}
     liste: list[dict] = []
     gesehen: set = set()
@@ -567,30 +548,23 @@ def datev_fehlt(db: Session, start_date: date, end_date: date) -> list[dict]:
         if exportiert_arbeit(p) and not effective_datev_personnel_number(db, r.employee, p):
             name = employee_name(r.employee) or f"#{r.employee_id}"
             liste.append({"art": "personalnummer", "employee_id": r.employee_id, "name": name, "text": f"Personalnummer fehlt: {name}"})
-    for typ in sorted({r.entry_type for r in rows if exportiert_arbeit(payroll.get(r.employee_id) or load_employee_payroll(db, r.employee_id))}):
-        if not _wage_type(settings, typ):
-            liste.append({"art": "lohnart", "zeitart": typ, "text": f"Lohnart fehlt: {labels.get(typ, typ)}"})
     fehlen = [n for n, wert in (("Beraternummer", settings.datev_beraternummer), ("Mandantennummer", settings.datev_mandantennummer)) if not wert]
     if fehlen:
         liste.append({"art": "datev_nummern", "text": (" und ".join(fehlen) + (" fehlen" if len(fehlen) > 1 else " fehlt"))})
     return liste
 
 
-def _lodas_kopf(settings: TimeTrackingSettings) -> list[str]:
-    """Seit 1.9.92: der Kopf einer LODAS-Importdatei -- [Allgemein] mit Berater- und Mandantennummer, [Satzbeschreibung] der Buchungen."""
-    return ["[Allgemein]", "Ziel=LODAS", "Version_SST=1.0", f"BeraterNr={settings.datev_beraternummer}",
-            f"MandantenNr={settings.datev_mandantennummer}", "Datumsformat=TT/MM/JJJJ", "Feldtrennzeichen=;", "Zahlenkomma=,", "",
-            "[Satzbeschreibung]",
-            "3;u_lod_bwd_buchung_standard;abrechnung_zeitraum#bwd;bs_wert_butab#bwd;bs_nr#bwd;la_eigene#bwd;pnr#bwd;", ""]
+NUR_EIN_MONAT = "Die Lohndatei gibt es nur für einen ganzen Monat (vom Ersten bis zum Letzten)."
 
 
 def build_datev_export(db: Session, start_date: date, end_date: date) -> tuple[bytes, str]:
-    """Die Lohndaten für DATEV. Seit 1.9.92 (Stufe 4, R5a, Punkt 5, Entscheidung Tobias): nur für einen abgeschlossenen Zeitraum (end_date
-    bis zum Abschluss), nur vollständig (datev_fehlt() leer) -- sonst DatevExportGesperrt, keine Datei; bis 1.9.91 fehlten Stunden ohne
-    Personalnummer oder Lohnart still (nur als Zahl in einer Kopfzeile). Stunden = die gespeicherten, summiert über tagessumme() wie
-    Stundenzettel und Übersicht -- keine zweite Rundung (bis 1.9.91 wurde jede Buchung nach den Zeitregeln erneut gerundet). LODAS: Kopf mit
-    Berater- und Mandantennummer, je Personalnummer, Monat und Lohnart eine Zeile (der Satz trägt nur den Monat); Lohn und Gehalt: je
-    Personalnummer, Tag, Zeitart und Lohnart."""
+    """Die Lohndatei für DATEV Lohn und Gehalt (seit 1.9.224, Lohn L1b, Punkt 1: app/lohndatei.py; bis 1.9.223 Lohn und Gehalt als CSV oder
+    LODAS, E8). Ein ganzer Monat (sonst ValueError), nur abgeschlossen (end_date bis zum Abschluss) und vollständig (datev_fehlt() leer) --
+    sonst DatevExportGesperrt, keine Datei (seit 1.9.92). Bekäme eine Person ohne Personalnummer eine Zeile, ebenso (kein stilles Weglassen)."""
+    from .lohndatei import berechnen, datei, monat_ende
+
+    if start_date.day != 1 or end_date != monat_ende(start_date):
+        raise ValueError(NUR_EIN_MONAT)
     settings = load_time_settings(db)
     lock = settings.locked_until
     if lock is None or end_date > lock:
@@ -599,27 +573,9 @@ def build_datev_export(db: Session, start_date: date, end_date: date) -> tuple[b
     fehlt = datev_fehlt(db, start_date, end_date)
     if fehlt:
         raise DatevExportGesperrt("Kein DATEV-Export: " + "; ".join(x["text"] for x in fehlt) + ".", fehlt)
-    rows = [r for r in list_entries(db, start_date=start_date, end_date=end_date, limit=None) if r.status == "booked"]
-    payroll = {x.employee_id: x for x in db.scalars(select(EmployeePayrollSettings)).all()}
-    gruppen: dict[tuple, list] = defaultdict(list)
-    lodas = settings.datev_target == "lodas"
-    for r in rows:
-        p = payroll.get(r.employee_id) or load_employee_payroll(db, r.employee_id)
-        if not exportiert_arbeit(p):
-            continue
-        pnr = effective_datev_personnel_number(db, r.employee, p)
-        tag = r.work_date.replace(day=1) if lodas else r.work_date
-        gruppen[(r.employee_id, pnr, tag, "" if lodas else r.entry_type, _wage_type(settings, r.entry_type))].append(r)
-    reihe = sorted(gruppen.items(), key=lambda x: (x[0][2], x[0][1], x[0][4], x[0][3]))
-    if lodas:
-        lines = _lodas_kopf(settings) + ["[Bewegungsdaten]"]
-        for (emp_id, pnr, monat, _, wage), eintraege in reihe:
-            # DATEV LODAS Standard-Buchungen: Tabelle 3; Abrechnungszeitraum; Wert; BS 01 Stunden; Lohnart; Personalnummer.
-            lines.append(";".join(["3", monat.strftime("01/%m/%Y"), _fmt_h(tagessumme(eintraege)), "01", str(wage), str(pnr)]))
-        return ("\r\n".join(lines) + "\r\n").encode("cp1252", errors="replace"), "txt"
-    out = StringIO(newline=""); w = csv.writer(out, delimiter=";", lineterminator="\r\n")
-    w.writerow(["Personalnummer", "Name", "Kalendertag", "Stundenanzahl", "Lohnart", "Zeitart"])
-    for (emp_id, pnr, day, typ, wage), eintraege in reihe:
-        emp = db.get(Employee, emp_id); name = f"{emp.first_name} {emp.last_name}" if emp else ""
-        w.writerow([pnr, name, day.strftime("%d.%m.%Y"), _fmt_h(tagessumme(eintraege)), wage, typ])
-    return ("\ufeff" + out.getvalue()).encode("utf-8"), "csv"
+    personen = berechnen(db, start_date)
+    ohne = [{"art": "personalnummer", "employee_id": p.employee_id, "name": p.name, "text": f"Personalnummer fehlt: {p.name}"}
+            for p in personen if p.zeilen and not p.personalnummer]
+    if ohne:
+        raise DatevExportGesperrt("Kein DATEV-Export: " + "; ".join(x["text"] for x in ohne) + ".", ohne)
+    return datei(settings.datev_beraternummer, settings.datev_mandantennummer, start_date, personen), "txt"

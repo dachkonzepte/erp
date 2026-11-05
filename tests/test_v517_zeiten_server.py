@@ -193,8 +193,8 @@ def test_pruefen_monat_und_vor_dem_abschluss(welt):  # noqa: F811
     assert [(x["name"], x["tage"], D(x["stunden"])) for x in m["mitarbeiter"]] == [
         ("Mia Monteurin", 1, Decimal("5")), ("Tom Monteur", 1, Decimal("1"))]
     assert [x["text"] for x in p["vor_dem_abschluss"]] == [
-        "1 Zeit läuft noch", "Personalnummer fehlt: Tom Monteur", "Personalnummer fehlt: Mia Monteurin", "Lohnart fehlt: Baustellenzeit",
-        "Lohnart fehlt: Fahrzeit", "Beraternummer und Mandantennummer fehlen"]
+        "1 Zeit läuft noch", "Personalnummer fehlt: Tom Monteur", "Personalnummer fehlt: Mia Monteurin",
+        "Beraternummer und Mandantennummer fehlen"]  # seit 1.9.224 ohne „Lohnart fehlt: …“ (E8)
 
 
 def test_pruef_monat_ist_der_erste_offene(welt):  # noqa: F811
@@ -270,8 +270,8 @@ def test_monat_luecken_und_datev(welt):  # noqa: F811
     assert [x["text"] for x in m["luecken"]] == [x["text"] for x in abschluss_hindernisse(welt["db"], ende)]
     assert m["luecken_text"] == "1 laufende Zeit, 1 Pause" == luecken_text(abschluss_hindernisse(welt["db"], ende))
     assert m["status"] == "offen" and "Personalnummer" not in m["luecken_text"]
-    assert m["datev_text"] == "1 Personalnummer, 1 Lohnart, DATEV-Nummern"
-    assert [x["art"] for x in m["datev_fehlt"]] == ["personalnummer", "lohnart", "datev_nummern"]
+    assert m["datev_text"] == "1 Personalnummer, DATEV-Nummern"  # seit 1.9.224 ohne Lohnart (E8)
+    assert [x["art"] for x in m["datev_fehlt"]] == ["personalnummer", "datev_nummern"]
     _als(welt, "admin").post(f"/api/time-entries/{row.id}/ende-nachtragen", json={"ende": f"{tag.isoformat()}T07:45", "pause_minuten": 0})
     welt["db"].query(TimeEntry).filter(TimeEntry.employee_id == welt["mia"].id).delete()
     welt["db"].commit()
@@ -283,12 +283,10 @@ def test_monat_luecken_und_datev(welt):  # noqa: F811
 
 
 def test_monat_tabelle_eine_rechnung_mit_dem_datev_export(welt):  # noqa: F811
-    """Stunden je Mitarbeiter und Zeitart mit Personalnummer -- dieselben Zahlen wie der DATEV-Export (eine Rechnung); „Sonstige“ nur mit
-    Stunden; eine Personalnummer, die fehlt, ist leer (die Seite zeigt „fehlt“)."""
+    """Stunden je Mitarbeiter und Zeitart mit Personalnummer -- „Zusammen“ ist die Arbeit der Lohndatei (seit 1.9.223 je Tag auf 0,25 h), die
+    Zeitarten minutengenau; „Sonstige“ nur mit Stunden; eine Personalnummer, die fehlt, ist leer (die Seite zeigt „fehlt“)."""
     db, tag = welt["db"], welt["gestern"]
     s = db.get(TimeTrackingSettings, 1)
-    s.datev_target = "lohn_gehalt"
-    s.datev_wage_type_site, s.datev_wage_type_travel, s.datev_wage_type_workshop = "100", "200", "300"
     s.datev_beraternummer, s.datev_mandantennummer = "1234", "56"
     db.add_all([EmployeePayrollSettings(employee_id=welt["mia"].id, datev_personnel_number="1001", payroll_export_enabled=True),
                 EmployeePayrollSettings(employee_id=welt["tom"].id, datev_personnel_number=None, payroll_export_enabled=True)])
@@ -308,8 +306,10 @@ def test_monat_tabelle_eine_rechnung_mit_dem_datev_export(welt):  # noqa: F811
     db.commit()
     _abschluss(welt, date.fromisoformat(m["ende"]))
     daten, _ = build_datev_export(db, date.fromisoformat(m["start"]), date.fromisoformat(m["ende"]))
-    zeilen_datei = daten.decode("utf-8-sig").splitlines()[1:]
-    assert sorted(z.split(";")[3] for z in zeilen_datei) == sorted(["2,33", "0,42", "3,00"])
+    zeilen_datei = daten.decode("ascii").split("\r\n")[1:-1]
+    # seit 1.9.224 die Lohndatei: je Person und Tag eine Zeile Arbeit (bis 1.9.223 je Zeitart: 2,33, 0,42, 3,00)
+    assert sorted(z.split(";")[4] for z in zeilen_datei if z.split(";")[2] == "1") == ["2,75", "3,00"]
+    assert (D(mia["zusammen"]), D(tom["zusammen"])) == (Decimal("2.75"), Decimal("3"))
     create_manual_entry(db, employee_id=welt["tom"].id, order_id=welt["order"].id, work_date=tag, entry_type="other", hours=Decimal("1"),
                         break_minutes=0)
     m = _get(welt, "/api/zeiten/monat", monat=_monat(tag))

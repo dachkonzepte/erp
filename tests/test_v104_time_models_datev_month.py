@@ -47,7 +47,7 @@ def test_datev_can_use_erp_employee_number():
     current.locked_until, current.datev_beraternummer, current.datev_mandantennummer = date(2026,9,30), "1001", "1"
     db.commit()
     data, ext = build_datev_export(db, date(2026,9,1), date(2026,9,30))
-    assert ext == "csv" and "MA-0042;Max Dach" in data.decode("utf-8-sig")
+    assert ext == "txt" and "MA-0042;1;1;1000;8,00;;;;;;" in data.decode("ascii")  # seit 1.9.224 die Lohndatei (bis 1.9.223 CSV mit Namen)
 
 
 def test_work_time_models_and_automatic_break_on_timer():

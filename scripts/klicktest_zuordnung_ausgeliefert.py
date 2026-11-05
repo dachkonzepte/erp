@@ -27,7 +27,7 @@ BEREIT = "typeof lohnarten!=='undefined'&&lohnarten.length>0&&!!document.querySe
 MIT = " – exportiert mit Lohnart"
 OHNE = " – exportiert, Stunden ohne Lohnart"
 AUSGELIEFERT = {
-    "arbeit": "1 / 1000" + MIT, "feiertag": "F / 1012" + MIT, "kategorie:urlaub": "U / 8000" + MIT, "kategorie:krankheit": "K / 1650" + MIT,
+    "arbeit": "1 / 1000" + MIT, "mehrarbeit_azubi": "AA / 1900" + MIT, "feiertag": "F / 1012" + MIT, "kategorie:urlaub": "U / 8000" + MIT, "kategorie:krankheit": "K / 1650" + MIT,
     "kategorie:fortbildung": "nicht exportiert", "kategorie:unbezahlt": "nicht exportiert", "kategorie:freizeitausgleich": "nicht exportiert",
     "schlechtwetter:winter": "WA / 8195" + MIT, "schlechtwetter:sommer": "nicht exportiert",
     "kalender:heiligabend": "FR / 1080" + MIT, "kalender:silvester": "UU" + OHNE,

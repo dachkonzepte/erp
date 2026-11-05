@@ -9,6 +9,10 @@ gespeicherten Stunden.
     LODAS         Kopf [Allgemein] mit BeraterNr und MandantenNr, [Satzbeschreibung], je Personalnummer, Monat und Lohnart eine Zeile
     Nummern       Berater- und Mandantennummer nur der Admin (PUT /api/time-backoffice/datev-nummern), Format nach DATEV (422); das allgemeine
                   Formular der Zeitregeln lässt sie stehen
+
+Seit 1.9.224 (Lohn L1b, Punkt 1) ist die Datei die Lohndatei für DATEV Lohn und Gehalt (app/lohndatei.py, tests/test_v626_lohndatei.py): ohne
+Lohnart je Zeitart (eine fehlende sperrt nichts mehr), ohne LODAS, die Arbeit je Tag auf 0,25 h (1.9.223) -- Stundenzettel und Übersicht bleiben
+minutengenau.
 """
 
 import csv
@@ -87,15 +91,12 @@ def test_offener_zeitraum_kein_export(welt):
 
 # --- eine Summe --------------------------------------------------------------------------------------------------------------------
 
-def test_datev_summe_gleich_stundenzettel_und_uebersicht(welt):
-    """Je Mitarbeiter: DATEV (Lohn und Gehalt, je Tag und Zeitart) = Stundenzettel als PDF (Summenzeile) = Übersicht -- Mia 9,92 h, Tom
-    8,08 h, keine zweite Rundung."""
-    zeilen = _csv(_export(welt))
-    assert zeilen[0] == ["Personalnummer", "Name", "Kalendertag", "Stundenanzahl", "Lohnart", "Zeitart"]
-    datev: dict[str, Decimal] = {}
-    for pnr, _, _, stunden, _, _ in zeilen[1:]:
-        datev[pnr] = datev.get(pnr, Decimal("0")) + Decimal(stunden.replace(",", "."))
-    assert datev == {"1001": Decimal("9.92"), "1002": Decimal("8.08")}
+def test_datev_je_tag_gerundet_stundenzettel_und_uebersicht_minutengenau(welt):
+    """Seit 1.9.224: die Lohndatei je Person und Tag die Arbeit auf 0,25 h (Mia 01.09. 2,33 + 0,42 = 2,75, 02.09. 7,17 -> 7,25; Tom 8,08 ->
+    8,00), alle Zeitarten in einer Zeile 1 / 1000. Stundenzettel als PDF (Summenzeile) und Übersicht bleiben minutengenau: Mia 9,92 h, Tom 8,08 h.
+    Bis 1.9.223 hatten alle drei dieselbe Summe (9,92 / 8,08)."""
+    zeilen = _export(welt).content.decode("ascii").split("\r\n")
+    assert zeilen == ["1234567;12345;09/2026", "1001;1;1;1000;2,75;;;;;;", "1001;2;1;1000;7,25;;;;;;", "1002;2;1;1000;8,00;;;;;;", ""]
     client = _als(welt)
     uebersicht = {e["employee_name"]: Decimal(str(e["hours"])) for e in client.get("/api/time-backoffice/summary", params=ZEITRAUM).json()["employees"]}
     assert uebersicht == {"Mia Monteurin": Decimal("9.92"), "Tom Monteur": Decimal("8.08")}
@@ -118,14 +119,13 @@ def test_laufende_zeit_zaehlt_in_keiner_summe(welt):
 
 # --- vollständig oder kein Export --------------------------------------------------------------------------------------------------
 
-def test_fehlende_lohnart_kein_export_auch_nicht_unter_sonstige(welt):
-    """Angriff: Fahrzeit ohne Lohnart -- bis 1.9.91 still unter „Sonstige“ (900); jetzt 409 mit Liste, keine Datei."""
+def test_alte_lohnart_je_zeitart_sperrt_nicht_mehr(welt):
+    """Seit 1.9.224: die Lohnarten je Zeitart gehören zum alten Export -- Fahrzeit ohne Lohnart sperrt nichts mehr (1.9.92–1.9.223: 409 „Lohnart
+    fehlt: Fahrzeit“); die Fahrzeit steht mit der Arbeit des Tags unter 1 / 1000."""
     welt["db"].get(TimeTrackingSettings, 1).datev_wage_type_travel = None
     welt["db"].commit()
     antwort = _export(welt)
-    assert antwort.status_code == 409
-    assert antwort.json()["liste"] == [{"art": "lohnart", "zeitart": "travel", "text": "Lohnart fehlt: Fahrzeit"}]
-    assert antwort.json()["detail"] == "Kein DATEV-Export: Lohnart fehlt: Fahrzeit."
+    assert antwort.status_code == 200 and b"1001;1;1;1000;2,75;;;;;;" in antwort.content
 
 
 def test_fehlende_personalnummer_kein_export(welt):
@@ -161,22 +161,19 @@ def test_mehreres_fehlt_alles_in_der_liste(welt):
     s.datev_wage_type_site = s.datev_beraternummer = None
     welt["db"].query(EmployeePayrollSettings).filter_by(employee_id=welt["mia"].id).one().datev_personnel_number = None
     welt["db"].commit()
-    assert [x["art"] for x in _export(welt).json()["liste"]] == ["personalnummer", "lohnart", "datev_nummern"]
+    assert [x["art"] for x in _export(welt).json()["liste"]] == ["personalnummer", "datev_nummern"]  # seit 1.9.224 ohne „lohnart“
 
 
-# --- LODAS ---------------------------------------------------------------------------------------------------------------------------
+# --- LODAS (seit 1.9.224 entfallen, E8) ---------------------------------------------------------------------------------------------
 
-def test_lodas_mit_kopf_und_einer_zeile_je_monat_und_lohnart(welt):
+def test_lodas_entfaellt(welt):
+    """Ein gespeichertes Zielsystem LODAS wirkt nicht mehr: die Datei ist die Lohndatei (bis 1.9.223 der LODAS-Kopf mit [Allgemein] und je
+    Personalnummer, Monat und Lohnart eine Zeile)."""
     welt["db"].get(TimeTrackingSettings, 1).datev_target = "lodas"
     welt["db"].commit()
     antwort = _export(welt)
     assert antwort.status_code == 200
-    zeilen = antwort.content.decode("cp1252").split("\r\n")
-    assert zeilen == [
-        "[Allgemein]", "Ziel=LODAS", "Version_SST=1.0", "BeraterNr=1234567", "MandantenNr=12345", "Datumsformat=TT/MM/JJJJ",
-        "Feldtrennzeichen=;", "Zahlenkomma=,", "",
-        "[Satzbeschreibung]", "3;u_lod_bwd_buchung_standard;abrechnung_zeitraum#bwd;bs_wert_butab#bwd;bs_nr#bwd;la_eigene#bwd;pnr#bwd;", "",
-        "[Bewegungsdaten]", "3;01/09/2026;9,50;01;100;1001", "3;01/09/2026;0,42;01;200;1001", "3;01/09/2026;8,08;01;100;1002", ""]
+    assert antwort.content.decode("ascii").split("\r\n")[0] == "1234567;12345;09/2026"
 
 
 # --- Berater- und Mandantennummer --------------------------------------------------------------------------------------------------

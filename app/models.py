@@ -2705,6 +2705,9 @@ class TimeTrackingSettings(Base):
     allow_group_bookings: Mapped[bool] = mapped_column(Boolean, default=True)
     require_order_item: Mapped[bool] = mapped_column(Boolean, default=False)
     require_activity: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Seit 1.9.224 (Lohn L1b, Punkt 1, E8) nirgends mehr gelesen oder geschrieben: Zielsystem und die sechs Lohnarten je Zeitart gehörten zu den
+    # alten Formaten (Lohn und Gehalt als CSV, LODAS); die Lohndatei (app/lohndatei.py) nimmt die Zuordnung (app/lohnarten.py). Die Spalten
+    # bleiben mit ihrem letzten Wert (keine Migration).
     datev_target: Mapped[str] = mapped_column(String(30), default="lohn_gehalt")
     datev_wage_type_site: Mapped[str | None] = mapped_column(String(30), nullable=True)
     datev_wage_type_travel: Mapped[str | None] = mapped_column(String(30), nullable=True)
@@ -2750,6 +2753,9 @@ class EmployeePayrollSettings(Base):
     # Sollzeit 0 (app/sollzeit.py), es gibt keine Zeile im Export. Leer = offen.
     eintritt: Mapped[date | None] = mapped_column(Date, nullable=True)
     austritt: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Seit 1.9.224 (Lohn L1b, Punkt 1): Azubi -- die Arbeit über der Sollzeit des Tags steht in der Lohndatei als Mehrarbeit (AA / 1900,
+    # app/lohndatei.py); bis dahin kannte das ERP Azubis nur als Kreis der Personalnummer (ein Hinweis, kein Merkmal)
+    azubi: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 

@@ -3745,13 +3745,7 @@ class TimeTrackingSettingsOut(BaseModel):
     allow_group_bookings: bool = True
     require_order_item: bool = False
     require_activity: bool = False
-    datev_target: str = "lohn_gehalt"
-    datev_wage_type_site: str | None = None
-    datev_wage_type_travel: str | None = None
-    datev_wage_type_workshop: str | None = None
-    datev_wage_type_other: str | None = None
-    datev_wage_type_weather_winter: str | None = None
-    datev_wage_type_weather_summer: str | None = None
+    # seit 1.9.224 (Lohn L1b, Punkt 1, E8) ohne Zielsystem und die sechs Lohnarten des alten Exports -- die Lohndatei nimmt die Zuordnung
     # seit 1.9.92 nur lesend hier -- gesetzt ausschließlich über PUT /api/time-backoffice/datev-nummern (nur Admin)
     datev_beraternummer: str | None = None
     datev_mandantennummer: str | None = None
@@ -3769,8 +3763,6 @@ class TimeTrackingSettingsUpdate(TimeTrackingSettingsOut):
     def validate_values(self):
         if self.rounding_minutes not in {0, 5, 10, 15, 30}:
             raise ValueError("Rundung muss 0, 5, 10, 15 oder 30 Minuten betragen.")
-        if self.datev_target not in {"lohn_gehalt", "lodas"}:
-            raise ValueError("DATEV-Ziel muss Lohn und Gehalt oder LODAS sein.")
         return self
 
 
@@ -3781,12 +3773,13 @@ class TimeTrackingLockUpdate(BaseModel):
 class EmployeePayrollSettingsUpdate(PartialUpdate):
     """Seit 1.9.167 ein Teil-Update (Regel 22, Lohn L1a, Punkt 2): nur gesendete Felder ändern sich -- bis 1.9.166 übernahm der PUT jedes Feld
     (ein weggelassenes Häkchen hieß „Export an“). Eintritt und Austritt (leer = offen) neu."""
-    NOT_NULL: ClassVar[frozenset[str]] = frozenset({"payroll_export_enabled", "export_umfang"})
+    NOT_NULL: ClassVar[frozenset[str]] = frozenset({"payroll_export_enabled", "export_umfang", "azubi"})
     datev_personnel_number: str | None = Field(default=None, max_length=30)
     payroll_export_enabled: bool | None = None
     export_umfang: Literal["alles", "abwesenheiten", "nichts"] | None = None  # seit 1.9.168 (E3); „Export an/aus“ heißt „alles“/„nichts“
     eintritt: date | None = None
     austritt: date | None = None
+    azubi: bool | None = None  # seit 1.9.224 (Lohn L1b, Punkt 1)
 
 
 class PersonalnummerEingelesenOut(BaseModel):
@@ -4100,6 +4093,7 @@ class EmployeePayrollSettingsOut(BaseModel):
     export_umfang: str = "alles"  # seit 1.9.168
     eintritt: date | None = None  # seit 1.9.167
     austritt: date | None = None
+    azubi: bool = False  # seit 1.9.224 (Lohn L1b, Punkt 1): Mehrarbeit in der Lohndatei
     sollzeiten: list[dict] = Field(default_factory=list)  # seit 1.9.167: eigene Sollzeiten (app/sollzeit.py::zeile_dict()), leer = Tarif
     fruehere_personalnummern: list[str] = Field(default_factory=list)  # seit 1.9.177: frühere Nummern der Person, dauerhaft gesperrt
     fruehere_traeger: dict[str, str] = Field(default_factory=dict)  # seit 1.9.191: wer eine frühere Nummer heute trägt -- dort kein „freigeben“

@@ -93,7 +93,12 @@ def test_datev_export_contains_all_2001_hours(bookings):
     einstellungen = load_time_settings(bookings.db)
     einstellungen.locked_until, einstellungen.datev_beraternummer, einstellungen.datev_mandantennummer = END, "1001", "1"
     bookings.db.commit()
-    content, fmt = build_datev_export(bookings.db, START, END)
-    rows = list(csv.DictReader(io.StringIO(content.decode("utf-8-sig")), delimiter=";"))
-    assert fmt == "csv"
-    assert sum(Decimal(r["Stundenanzahl"].replace(",", ".")) for r in rows) == Decimal("2001")
+    # seit 1.9.224 die Lohndatei je Monat: die zwölf Monate zusammen tragen jede der 2001 Stunden als Arbeit (Kennzeichen 1)
+    from app.lohndatei import monat_ende
+    summe = Decimal("0")
+    for monat in range(1, 13):
+        content, fmt = build_datev_export(bookings.db, date(2026, monat, 1), monat_ende(date(2026, monat, 1)))
+        assert fmt == "txt"
+        summe += sum((Decimal(f[4].replace(",", ".")) for f in (z.split(";") for z in content.decode("ascii").split("\r\n")[1:-1]) if f[2] == "1"),
+                     Decimal("0"))
+    assert summe == Decimal("2001")

@@ -871,3 +871,43 @@ Scratchpad (`gegenprobe.py`, `spec<Version>.json`).
 | **1.9.223 Nr. 5** – Übersicht und Stundenzettel minutengenau | Übersicht gerundet (`backoffice_summary()`) | vorher grün; mit test_v625 1 rot: test_uebersicht_bleibt_minutengenau |
 | **1.9.223** (Seite) – der Satz über der Tabelle | Satz entfernt | vorher grün; mit test_v625 1 rot: test_seite_nennt_die_rundung (nur Anzeige, als Text geprüft) |
 | 1.9.223 Nr. 6 – die Einstellung „Rundung“ je Buchung bleibt | keine -- nichts geändert; die Rundung je Buchung hält test_v466 fest | – |
+| **1.9.224 Nr. 1a – CRLF** | LF statt CRLF (`datei()`) | vorher 5 rot (v103, v513, v517, v571); mit den neuen 12 rot (v626) |
+| **1.9.224 Nr. 1b – CRLF auch nach der letzten Zeile** | ohne Zeilenende am Schluss | vorher 2 rot: test_datev_je_tag_gerundet_stundenzettel_und_uebersicht_minutengenau, test_monat_tabelle_eine_rechnung_mit_dem_datev_export; mit den neuen 11 rot (v626) |
+| **1.9.224 Nr. 1c – 11 Felder** | Tageszeile mit 10 Feldern (`zeile_text()`) | vorher 5 rot (v103, v104, v513, v571); mit den neuen 12 rot (v626) |
+| **1.9.224 Nr. 1d – ohne Lohnart ein leeres Feld** | statt leer „0000“ | vorher grün; mit den neuen 6 rot (v626) |
+| **1.9.224 Nr. 1e – Tag ohne führende Null** | Tag mit zwei Stellen | vorher 5 rot (v103, v104, v513, v571); mit den neuen 9 rot (v626) |
+| **1.9.224 Nr. 1f – Kopf Berater;Mandant;MM/JJJJ** | Monat als MM.JJJJ | vorher 3 rot (v103, v513); mit den neuen 5 rot (v626) |
+| **1.9.224 Nr. 1g – Form der Monatszeile** | Stunden in Feld 5 statt 7 | vorher grün; mit den neuen 1 rot: test_monatszeile_zuletzt |
+| **1.9.224 Nr. 2 – nur ein ganzer Monat** | jeder Zeitraum erlaubt | vorher grün; mit den neuen 2 rot: test_nur_ganzer_monat_und_abgeschlossen, test_schnittstelle |
+| **1.9.224 Nr. 3a – Personen nach Personalnummer** | nach Anlage (ID) | vorher grün; mit den neuen 2 rot: test_eintritt_und_kaufmaennisch, test_format_kopf_und_reihenfolge |
+| **1.9.224 Nr. 3b – im Tag Arbeit, Mehrarbeit, …** | Mehrarbeit vor Arbeit | vorher grün; mit den neuen 1 rot: test_azubi_mehrarbeit |
+| **1.9.224 Nr. 3c – Monatszeile zuletzt** | Monatszeile zuerst | vorher grün; mit den neuen 1 rot: test_monatszeile_zuletzt |
+| **1.9.224 Nr. 4a – jede aktive Person** | nur Personen mit Buchungen oder Abwesenheiten | vorher grün; mit den neuen 2 rot: test_eintritt_und_kaufmaennisch, test_feiertag_geht_dem_kalendertag_vor |
+| **1.9.224 Nr. 4b – Umfang „nichts“ ohne Zeile** | „nichts“ wie „nur Abwesenheiten“ | vorher grün; mit den neuen 1 rot: test_umfang_nur_abwesenheiten_und_nichts |
+| **1.9.224 Nr. 5a – Arbeit nur bei „alles“** | Arbeit bei jedem Umfang (zwei Stellen) | vorher grün; mit den neuen 1 rot: test_umfang_nur_abwesenheiten_und_nichts |
+| **1.9.224 Nr. 5b – Arbeit = Arbeit des Tags im Lohn** | Summe der Buchungen ohne Rundung | vorher 2 rot: test_datev_export_hours_half_hundredth_round_up, test_datev_je_tag_gerundet_stundenzettel_und_uebersicht_minutengenau; mit den neuen 2 rot: test_ein_monat_einer_person, test_format_kopf_und_reihenfolge |
+| **1.9.224 Nr. 6a – Feiertag nur bei „alles“** | Feiertag bei jedem Umfang | vorher grün; mit den neuen 1 rot: test_umfang_nur_abwesenheiten_und_nichts |
+| **1.9.224 Nr. 6b – kein F an einem Feiertag ohne Sollzeit** | beide Stellen zugleich: F auch ohne Sollzeit und Zeilen mit 0,00 | vorher 1 rot: test_datev_je_tag_gerundet_stundenzettel_und_uebersicht_minutengenau; mit den neuen 7 rot (v626) |
+| **1.9.224 Nr. 6c – Feiertag geht dem Kalendertag vor** | Kalendertag auch am Feiertag | vorher grün; mit den neuen 1 rot: test_feiertag_geht_dem_kalendertag_vor |
+| **1.9.224 Nr. 7a – Kalendertag auch bei „nur Abwesenheiten“** | Kalendertag nur bei „alles“ | vorher grün; mit den neuen 1 rot: test_umfang_nur_abwesenheiten_und_nichts |
+| **1.9.224 Nr. 7b – Arbeit am Kalendertag als eigene Zeile** | keine Arbeit an einem Kalendertag | vorher grün; mit den neuen 1 rot: test_ein_monat_einer_person |
+| **1.9.224 Nr. 8a – halber Tag halbe Sollzeit** | halber Tag als ganzer | vorher grün; mit den neuen 1 rot: test_silvester_als_urlaubstag_und_halber_tag |
+| **1.9.224 Nr. 8b – Silvester mit „ganzer Urlaubstag“ als Urlaub** | Antwort immer „frei“ | vorher grün; mit den neuen 1 rot: test_silvester_als_urlaubstag_und_halber_tag |
+| **1.9.224 Nr. 9a – Schlechtwetter Sollzeit − Arbeit** | volle Sollzeit | vorher grün; mit den neuen 3 rot (v626) |
+| **1.9.224 Nr. 9b – Monatszeile statt Tageszeilen** | Monatszeile übergangen | vorher grün; mit den neuen 1 rot: test_monatszeile_zuletzt |
+| **1.9.224 Nr. 10a – Mehrarbeit mit den übrigen Stunden des Tags** | nur Arbeit − Sollzeit | vorher grün; mit den neuen 2 rot: test_azubi_mehrarbeit, test_mehrarbeit_hoechstens_die_arbeit |
+| **1.9.224 Nr. 10b – Mehrarbeit höchstens die Arbeit** | ohne Obergrenze | vorher grün; mit den neuen 1 rot: test_mehrarbeit_hoechstens_die_arbeit |
+| **1.9.224 Nr. 10c – keine Stunde doppelt** | Arbeit voll unter 1 / 1000 | vorher grün; mit den neuen 2 rot: test_azubi_mehrarbeit, test_mehrarbeit_hoechstens_die_arbeit |
+| **1.9.224 Nr. 10d – ohne Kennzeichen der Mehrarbeit alles Arbeit** | Aufteilung auch ohne Kennzeichen | vorher grün; mit den neuen 1 rot: test_mehrarbeit_ohne_kennzeichen_bleibt_arbeit |
+| **1.9.224 Nr. 10e – Merkmal Azubi** | Merkmal übergangen | vorher grün; mit den neuen 2 rot: test_azubi_mehrarbeit, test_mehrarbeit_hoechstens_die_arbeit |
+| **1.9.224 Nr. 10f – Merkmal im Teil-Update** | „azubi“ nicht gespeichert | vorher grün; mit den neuen 1 rot: test_azubi_in_den_lohnstammdaten |
+| **1.9.224 Nr. 10g – vorbelegt nein (Migration)** | `server_default` wahr | vorher grün; mit den neuen 2 rot: test_migration_auf_einem_bestand_postgresql, test_migration_auf_einem_bestand_sqlite |
+| **1.9.224 Nr. 11a – 0,00 h ohne Zeile** | Zeilen mit 0,00 | vorher 1 rot: test_datev_je_tag_gerundet_stundenzettel_und_uebersicht_minutengenau; mit den neuen 6 rot (v626) |
+| **1.9.224 Nr. 11b – ohne Kennzeichen keine Zeile** | Abwesenheit ohne Zuordnung als „XX“ | vorher 1 rot: test_lohndatei_mit_abwesenheit_monat_und_lohn_ohne; mit den neuen 1 rot: test_leere_zuordnung_keine_zeile_und_null_stunden |
+| **1.9.224 Nr. 12 – vor dem Eintritt keine Arbeit** | Buchungen vor dem Eintritt ausgegeben | vorher grün; mit den neuen 1 rot: test_eintritt_und_kaufmaennisch |
+| **1.9.224 Nr. 13 – ohne Personalnummer keine Datei** | Prüfung aus | vorher grün; mit den neuen 1 rot: test_personalnummer_fehlt_kein_stilles_weglassen |
+| **1.9.224 Nr. 14a – Zielsystem wirkt nicht** | LODAS lehnt ab | vorher 1 rot: test_lodas_entfaellt; mit den neuen 1 rot: test_berechnen_ohne_einstellungen_der_alten_formate |
+| **1.9.224 Nr. 14b – Schnittstelle ohne alte Felder** | Zielsystem wieder in Schema und Antwort | vorher grün; mit den neuen 1 rot: test_einstellungen_ohne_alte_felder |
+| **1.9.224 Nr. 14c – Einstellungen ohne alte Felder** | Feld „wageSite“ wieder auf der Seite | vorher grün; mit den neuen 1 rot: test_seite_azubi_und_ohne_alte_lohnarten |
+| **1.9.224 Nr. 15 – Dateiname und Typ** | Typ `text/csv` | vorher grün; mit den neuen 1 rot: test_schnittstelle |
+| **1.9.224 Nr. 16 – Zeile Mehrarbeit vorbelegt AA / 1900** | ohne Lohnart vorbelegt | vorher grün; mit den neuen 3 rot (v626); klicktest_zuordnung_ausgeliefert rot: „Fin: jede Zeile wie ausgeliefert“ |

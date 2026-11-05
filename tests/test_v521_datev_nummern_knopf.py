@@ -13,7 +13,7 @@ def _klasse(attribute: str) -> str:
 
 def test_datev_nummern_speichern_wie_zeitregeln_speichern(threaded_db_session, router_test_client):
     text = router_test_client(threaded_db_session, pages_router, role="admin").get("/settings").text
-    zeitregeln = re.search(r"<button([^>]*)>Zeitregeln und Lohnarten speichern</button>", text).group(1)
+    zeitregeln = re.search(r"<button([^>]*)>Zeitregeln speichern</button>", text).group(1)  # seit 1.9.224 ohne „und Lohnarten“
     datev = re.search(r"<button([^>]*)>Berater- und Mandantennummer speichern</button>", text).group(1)
     assert 'id="datevNummernSpeichern"' in datev
     assert _klasse(datev) == _klasse(zeitregeln) == ""

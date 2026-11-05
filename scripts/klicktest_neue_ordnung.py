@@ -253,13 +253,13 @@ async def pruefen(tab, seed, p):
                      await tab.js("document.getElementById('documentLayoutBlockLogo').checked"), not vorher)
         if rolle == "admin":
             await einstellungen_oeffnen(tab, "#time-rules")
-            await tab.js("document.getElementById('rounding').value='15';document.getElementById('wageSite').value='1000'")
+            await tab.js("document.getElementById('rounding').value='15'")  # seit 1.9.224 ohne Lohnart Baustelle (E8)
             await tab.warte_auf_neu_geladene_liste("saveTimeRules()")
             p.pruefe(f"{rolle}: Zeitregeln gespeichert (Meldung)",
-                     await tab.js("document.getElementById('timeRulesStatus').textContent"), "Zeitregeln und Lohnarten gespeichert.")
+                     await tab.js("document.getElementById('timeRulesStatus').textContent"), "Zeitregeln gespeichert.")
             await einstellungen_oeffnen(tab, "#time-rules")
             p.pruefe(f"{rolle}: Zeitregeln nach dem Neuladen", await tab.js(
-                "[document.getElementById('rounding').value,document.getElementById('wageSite').value]"), ["15", "1000"])
+                "[document.getElementById('rounding').value]"), ["15"])
             await einstellungen_oeffnen(tab, "#deadlines")
             await tab.js("document.getElementById('maintenanceLeadDays').value='45'")
             await tab.warte_auf_neu_geladene_liste("saveMaintenanceSettings('maintenanceLeadStatus')")

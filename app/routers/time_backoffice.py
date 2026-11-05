@@ -280,11 +280,13 @@ def export_time_sheet_csv(start_date: date, end_date: date, employee_id: int | N
 @router.get("/api/time-backoffice/datev-export")
 def export_datev_payroll(start_date: date, end_date: date, db: Session = Depends(get_db, scope="function"), _role=_lohn_dep):
     """Seit 1.9.92 (Stufe 4, R5a, Punkt 5): nur für einen abgeschlossenen Zeitraum und nur vollständig -- sonst 409 mit der Meldung und der
-    Liste dessen, was fehlt (keine Datei; bis 1.9.91 fehlten Stunden still, nur als Zahl in X-DATEV-Warnings)."""
+    Liste dessen, was fehlt (keine Datei; bis 1.9.91 fehlten Stunden still, nur als Zahl in X-DATEV-Warnings). Seit 1.9.224 (Lohn L1b, Punkt
+    1) die Lohndatei für DATEV Lohn und Gehalt (app/lohndatei.py, ASCII), nur für einen ganzen Monat (sonst 422)."""
     try:
         data,ext=build_datev_export(db,start_date,end_date)
     except DatevExportGesperrt as exc:
         return JSONResponse(status_code=409, content={"detail": str(exc), "liste": jsonable_encoder(exc.liste)})
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     filename=f"DATEV_Lohndaten_{start_date.strftime('%Y-%m')}.{ext}"
-    media="text/plain; charset=windows-1252" if ext=="txt" else "text/csv; charset=utf-8"
-    return Response(content=data,media_type=media,headers={"Content-Disposition":f'attachment; filename="{filename}"'})
+    return Response(content=data,media_type="text/plain; charset=us-ascii",headers={"Content-Disposition":f'attachment; filename="{filename}"'})
