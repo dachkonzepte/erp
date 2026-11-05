@@ -805,6 +805,8 @@ byte-genau zurück (Prüfsumme); gezählt nur FAILED. Version in Klammern = gefa
 | **1.9.216 Nr. 4d** – „Abwesenheiten“ zeichnet den Text | `abwesenheitHtml()` ohne den Text (1.9.216) | vorher grün; mit test_v621 1 rot: test_beide_listen_zeichnen_die_stunden; klicktest_schlechtwetter rot: „Fin: Uwe am 09.12. mit Stunden …“ [False, False] |
 | 1.9.216 Nr. 5 – „Meine Zeiten“, Plantafel, Produktivstunden, Stundenzettel, Export unverändert | keine -- eine Abgrenzung, nichts gebaut | – |
 | **1.9.216 Nr. 6** – die neue Spalte heißt „Ausfall Schlechtwetter“ | wieder „Schlechtwetter“ (1.9.216) | klicktest_schlechtwetter rot: „Fin: Monat & Lohn mit der Spalte Ausfall Schlechtwetter“ |
+| **1.9.216 Nr. 1 (Nachtrag, Anzeige)** – die Zuordnung nennt bei Schlechtwetter „Sollzeit − gebuchte Arbeit“ | „Sollzeit“ wie bis zum Nachtrag (1.9.216 Nachtrag) | vorher grün; mit test_v621 1 rot: test_zuordnung_nennt_die_stunden |
+| **1.9.216 Nr. 1 (Nachtrag, Satz)** – der Satz über der Tabelle nennt Schlechtwetter | der alte Satz (1.9.216 Nachtrag) | vorher grün; mit test_v621 1 rot: test_zuordnung_nennt_die_stunden |
 
 Befund 1.9.213 (Gegenprobe Nr. 5): „Commit statt Rollback bei `--probe`“ blieb grün -- kein Fehler und keine Lücke im Test, sondern ein doppelter
 Schutz (`einlesen()` legt bei `--probe` nichts an und rollt zusätzlich zurück); eine Gegenprobe, die nur einen der beiden weg nimmt, kann nicht rot

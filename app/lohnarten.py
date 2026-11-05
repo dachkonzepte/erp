@@ -45,8 +45,9 @@ FEST = [
     ("arbeit", "Arbeit (alle Zeitarten zusammen)", "gebuchte Stunden"),
     ("feiertag", "Feiertag (gesetzlich, nur Export „alles“)", "Sollzeit"),
     *[(f"kategorie:{k}", f"Kategorie {ABSENCE_CATEGORY_LABELS[k]}", "Sollzeit") for k in ABSENCE_CATEGORIES if k != "schlechtwetter"],
-    ("schlechtwetter:winter", "Schlechtwetter Winter (01.12.–31.03.)", "Sollzeit"),
-    ("schlechtwetter:sommer", "Schlechtwetter Sommer (01.04.–30.11.)", "Sollzeit"),
+    # seit 1.9.216 (Nachtrag): die Stunden eines Ausfalltags sind Sollzeit minus gebuchte Arbeit (app/schlechtwetter.py::ausfall())
+    ("schlechtwetter:winter", "Schlechtwetter Winter (01.12.–31.03.)", "Sollzeit − gebuchte Arbeit"),
+    ("schlechtwetter:sommer", "Schlechtwetter Sommer (01.04.–30.11.)", "Sollzeit − gebuchte Arbeit"),
 ]
 # E7 und Nachtrag 02.11.2026: vorbelegt; alles andere leer. Seit 1.9.214 (L1a Stufe 6, Punkt 3) mit den Werten des Lohnbüros -- eine bestehende
 # Installation stellt die Migration a3f61c8d2b95 um, nur wo noch der bisherige Vorgabewert steht.

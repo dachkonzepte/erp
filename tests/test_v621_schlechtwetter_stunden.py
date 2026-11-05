@@ -163,3 +163,15 @@ def test_beide_listen_zeichnen_die_stunden():
                  f"return [abwesenheitHtml({json.dumps({**antrag, 'ausfall': None})}),antragHtml({json.dumps({**antrag, 'ausfall': None})})]",
                  vorweg=vorweg)
     assert all("Ausfall" not in _text(h) for h in ohne)
+
+
+def test_zuordnung_nennt_die_stunden(db_session):
+    """1.9.216 (Nachtrag): in der Zuordnung steht bei Schlechtwetter „Sollzeit − gebuchte Arbeit“ (bis dahin „Sollzeit“), der Satz über der
+    Tabelle sagt dasselbe."""
+    from pathlib import Path
+    from app.lohnarten import liste
+    stunden = {z["schluessel"]: z["stunden"] for z in liste(db_session)}
+    assert (stunden["schlechtwetter:winter"], stunden["schlechtwetter:sommer"]) == ("Sollzeit − gebuchte Arbeit", "Sollzeit − gebuchte Arbeit")
+    assert stunden["kategorie:urlaub"] == "Sollzeit" and stunden["arbeit"] == "gebuchte Stunden"
+    text = (Path(__file__).resolve().parent.parent / "app" / "templates" / "settings.html").read_text(encoding="utf-8")
+    assert "Arbeit trägt die gebuchten Stunden, Schlechtwetter die Sollzeit minus die gebuchte Arbeit des Tags, alles andere die Sollzeit" in text
