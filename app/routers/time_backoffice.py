@@ -33,8 +33,8 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..permissions import ROLE_ADMIN, ROLE_OFFICE_AUFTRAG, require_lohndaten, require_lohnregeln, require_min_role, require_personalnummer_freigeben
-from ..schemas import ArbeitszeitKalendertagIn, DatevNummernUpdate, EmployeePayrollSettingsOut, EmployeePayrollSettingsUpdate, EmployeeTargetHoursCreate, PersonalnummerFreigabeIn, LohnartZuordnungUpdate, EmployeeWorkTimeModelBulkUpdate, EmployeeWorkTimeModelUpdate, TimeTrackingLockUpdate, TimeTrackingSettingsOut, TimeTrackingSettingsUpdate, WorkTimeModelUpsert
-from ..time_backoffice import DatevExportGesperrt, PersonalnummerGehalten, abschluss_hindernisse, abschluss_meldung, backoffice_summary, build_datev_export, set_datev_nummern, build_time_csv, build_timesheet_pdf, load_time_settings, payroll_rows, personalnummer_freigeben, set_employee_payroll, set_time_lock, time_settings_dict, update_time_settings
+from ..schemas import ArbeitszeitKalendertagIn, DatevNummernUpdate, EmployeePayrollSettingsOut, EmployeePayrollSettingsUpdate, EmployeeTargetHoursCreate, PersonalnummerEingelesenOut, PersonalnummerFreigabeIn, LohnartZuordnungUpdate, EmployeeWorkTimeModelBulkUpdate, EmployeeWorkTimeModelUpdate, TimeTrackingLockUpdate, TimeTrackingSettingsOut, TimeTrackingSettingsUpdate, WorkTimeModelUpsert
+from ..time_backoffice import DatevExportGesperrt, PersonalnummerGehalten, abschluss_hindernisse, abschluss_meldung, backoffice_summary, build_datev_export, set_datev_nummern, build_time_csv, build_timesheet_pdf, eingelesene_personalnummern, load_time_settings, payroll_rows, personalnummer_freigeben, set_employee_payroll, set_time_lock, time_settings_dict, update_time_settings
 from ..arbeitszeitkalender import IM_URLAUB, KalendertagUngueltig, aendern as kalendertag_aendern, anlegen as kalendertag_anlegen, eintraege as kalender_eintraege, eintrag_dict as kalendertag_dict
 from ..lohnarten import liste as lohnarten_liste, speichern as lohnart_speichern
 from ..models import Employee
@@ -155,6 +155,13 @@ def put_time_payroll_employee(employee_id: int, payload: EmployeePayrollSettings
     try: row=set_employee_payroll(db,employee_id,payload.model_dump(exclude_unset=True))  # seit 1.9.167 ein Teil-Update (Regel 22)
     except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc)) from exc
     return EmployeePayrollSettingsOut.model_validate(row)
+
+
+@router.get("/api/time-backoffice/personalnummern/eingelesen", response_model=list[PersonalnummerEingelesenOut])
+def get_eingelesene_personalnummern(db: Session = Depends(get_db, scope="function"), _role=Depends(require_personalnummer_freigeben)):
+    """Seit 1.9.218 (L1a Stufe 7, Punkt 1): die eingelesenen Nummern ohne Person -- nur der Admin (darf_personalnummer_freigeben()), wie das
+    Freigeben selbst; Büro – Finanzen 403 und sieht die Liste auf der Seite nicht."""
+    return [PersonalnummerEingelesenOut.model_validate(x) for x in eingelesene_personalnummern(db)]
 
 
 @router.post("/api/time-backoffice/personalnummern/freigeben", response_model=list[EmployeePayrollSettingsOut])

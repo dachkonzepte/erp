@@ -3789,6 +3789,14 @@ class EmployeePayrollSettingsUpdate(PartialUpdate):
     austritt: date | None = None
 
 
+class PersonalnummerEingelesenOut(BaseModel):
+    """Seit 1.9.218 (L1a Stufe 7, Punkt 1): eine gemerkte Nummer ohne Person -- nur für den Admin (app/time_backoffice.py::
+    eingelesene_personalnummern())."""
+    nummer: str
+    eingelesen_am: date | None = None
+    traegt: str | None = None  # wer sie heute trägt (an der Sperre vorbei) -- dann kein „freigeben“
+
+
 class PersonalnummerFreigabeIn(BaseModel):
     """Seit 1.9.181 (L1a-Korrekturen, Punkt 2): eine gemerkte Personalnummer freigeben -- nur der Admin."""
     nummer: str = Field(min_length=1, max_length=50)

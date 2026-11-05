@@ -8,7 +8,11 @@
                      „Personalnummer 91008 freigeben“ mit Warnung (gehörte Mia Monteurin, DATEV, Tippfehler, Änderungshistorie) -- Bild;
                      „Freigeben“ -> Dialog zu, „Personalnummer 91008 freigegeben.“, Mia ohne „früher“; Tom bekommt 91008 („Gespeichert.“);
                      Änderungshistorie mit „Personalnummer freigegeben“, alt „gesperrt, gehörte Mia Monteurin“, neu „frei“ -- Bild; keine JS-Fehler
-    Büro – Finanzen  Fin: „früher: 91030 (trägt heute Kai Monteur)“ ohne Knopf, derselbe POST vom Server 403 -- Bild; keine JS-Fehler
+                     Seit 1.9.218 (L1a Stufe 7, Punkt 1): eigene Liste „Eingelesene Personalnummern ohne Person“ mit 00011 und 00012 -- Bild;
+                     00011 „freigeben“ -> dieselbe Warnung, vorn „steht in der eingelesenen Liste vergebener Nummern“ -- Bild; freigegeben,
+                     die Liste zeigt nur noch 00012
+    Büro – Finanzen  Fin: „früher: 91030 (trägt heute Kai Monteur)“ ohne Knopf, derselbe POST vom Server 403 -- Bild; seit 1.9.218 keine Liste
+                     der eingelesenen Nummern; keine JS-Fehler
 
 AUFRUF (aus dem Projektordner):
 
@@ -29,6 +33,7 @@ BEREIT = "typeof payroll!=='undefined'&&payroll.length>0&&!!document.querySelect
 FRUEHER = "document.querySelector('[data-fruehere=\"{id}\"]')"
 KNOPF = "document.querySelector('[data-klick=pnr-freigeben][data-nummer=\"{n}\"]')"
 ROLLEN = "document.getElementById('payrollRollen')"
+EINGELESEN = "[...document.querySelectorAll('#eingeleseneZeilen tr')].map(tr=>[...tr.cells].map(c=>c.textContent.trim()))"  # seit 1.9.218
 # seit 1.9.189: Abstand der Kopf- und der ersten Zeilenzelle „Mitarbeiter“ zum linken Rand des Rollbereichs, ob sie dort obenauf liegt, die Namen,
 # und ob die Spalte ERP-Nr. links unter ihr verschwunden ist
 SPALTE = ("(r=>{const k=r.getBoundingClientRect(),kopf=r.querySelector('thead th'),z=[...document.querySelectorAll('#payrollRows tr')].map(tr=>tr.cells[0]),"
@@ -39,6 +44,8 @@ SPALTE = ("(r=>{const k=r.getBoundingClientRect(),kopf=r.querySelector('thead th
 
 
 def befuellen(db, k):
+    from datetime import datetime
+
     from app.models import AppUser, Employee, EmployeePayrollSettings, PersonalnummerVergabe
 
     ada = AppUser(username="ada", display_name="Ada Admin", role="admin", password_hash=k.passwort())
@@ -54,7 +61,10 @@ def befuellen(db, k):
                 EmployeePayrollSettings(employee_id=leute["Kai"].id, datev_personnel_number="91030", payroll_export_enabled=True),
                 PersonalnummerVergabe(nummer="91008", employee_id=leute["Mia"].id),
                 PersonalnummerVergabe(nummer="91016", employee_id=leute["Mia"].id),
-                PersonalnummerVergabe(nummer="91030", employee_id=leute["Pia"].id)])
+                PersonalnummerVergabe(nummer="91030", employee_id=leute["Pia"].id),
+                # seit 1.9.218: eingelesen, ohne Person (erfundene Nummern)
+                PersonalnummerVergabe(nummer="00011", employee_id=None, vergeben_am=datetime(2026, 11, 5, 9, 0)),
+                PersonalnummerVergabe(nummer="00012", employee_id=None, vergeben_am=datetime(2026, 11, 5, 9, 0))])
     db.commit()
     return {"ada": k.cookies(ada), "fin": k.cookies(fin), **{v: e.id for v, e in leute.items()}}
 
@@ -120,6 +130,26 @@ async def pruefen(tab, seed, p):
         "x.actor_name]))"), [["Personalnummer freigegeben", "91008", "gesperrt, gehörte Mia Monteurin", "frei", "Ada Admin"]])
     await tab.js("document.getElementById('payrollRows').scrollIntoView({block:'start'})")
     await tab.bild("freigeben_danach")
+
+    # seit 1.9.218 (L1a Stufe 7, Punkt 1): die eingelesenen Nummern ohne Person -- eigene Liste nur für den Admin, freigeben mit derselben Warnung
+    await tab.warte_auf_ruhe()
+    p.pruefe("Ada: Liste der eingelesenen Nummern", await tab.js(EINGELESEN),
+             [["00011", "05.11.2026", "freigeben"], ["00012", "05.11.2026", "freigeben"]])
+    await tab.js("document.getElementById('eingeleseneBlock').scrollIntoView({block:'start'})")
+    await tab.bild("eingelesene_liste")
+    await tab.js(KNOPF.format(n="00011") + ".click()")
+    p.pruefe("Ada: dieselbe Warnung, vorn die eingelesene Liste", await tab.js("document.getElementById('pnrFreigabeWarnung').textContent"),
+             "Die Personalnummer 00011 steht in der eingelesenen Liste vergebener Nummern und ist für alle gesperrt. Gibst du sie frei, kann jede "
+             "andere Person sie bekommen. Stand sie schon in einer Lohnabrechnung, führt DATEV danach zwei Personen unter derselben Nummer – gib "
+             "sie nur frei, wenn sie nie abgerechnet wurde (z. B. nach einem Tippfehler). Die Freigabe steht in der Änderungshistorie.")
+    await tab.bild("eingelesen_dialog")
+    await tab.js("document.getElementById('pnrFreigabeStatus').textContent='';document.getElementById('eingeleseneStatus').textContent='';pnrFreigeben()")
+    await tab.warten("document.getElementById('pnrFreigabeStatus').textContent!==''||document.getElementById('eingeleseneStatus').textContent!==''", 10)
+    await tab.warte_auf_ruhe()
+    p.pruefe("Ada: 00011 freigegeben, die Liste zeigt nur noch 00012", [
+        await tab.js("document.getElementById('pnrFreigabeDialog').open?'Dialog: '+document.getElementById('pnrFreigabeStatus').textContent"
+                     ":document.getElementById('eingeleseneStatus').textContent"), await tab.js(EINGELESEN)],
+        ["Personalnummer 00011 freigegeben.", [["00012", "05.11.2026", "freigeben"]]])
     p.pruefe("Ada: keine JS-Fehler", tab.fehler, [])
 
     # ---- Büro – Finanzen ------------------------------------------------------------------------------------------------------------
@@ -132,6 +162,8 @@ async def pruefen(tab, seed, p):
         "fetch('/api/time-backoffice/personalnummern/freigeben',{method:'POST',headers:{'Content-Type':'application/json'},"
         "body:JSON.stringify({nummer:'91030'})}).then(async r=>[r.status,(await r.json()).detail])"),
         [403, "Eine gemerkte Personalnummer gibt nur der Admin wieder frei."])
+    p.pruefe("Fin: keine Liste der eingelesenen Nummern (seit 1.9.218)", await tab.js(
+        "[!!document.getElementById('eingeleseneBlock'),document.body.textContent.includes('Eingelesene Personalnummern')]"), [False, False])
     await tab.js(f"{FRUEHER.format(id=seed['Pia'])}.scrollIntoView({{block:'center'}})")
     await tab.bild("freigeben_finanzen")
     p.pruefe("Fin: keine JS-Fehler", tab.fehler, [])

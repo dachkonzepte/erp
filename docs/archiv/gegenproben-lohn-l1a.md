@@ -816,3 +816,20 @@ Befund 1.9.216 (vor dem Commit): zwei Gegenproben blieben zuerst grün. Nr. 2c (
 schon nach den Tagen, der Schlüssel je Tag ist ein zweiter Schutz -- eine Gegenprobe gegen nur einen kann nicht rot werden; mit beiden
 ausgehebelt rot. Nr. 4c („Prüfen“ zeichnet den Text): geprüft war nur, dass der Ausdruck zweimal in der Vorlage steht, nicht, dass eine
 Zeile ihn zeigt -- nachgezogen `test_beide_listen_zeichnen_die_stunden` (beide Listen in node), danach rot. Kein Fehler im Programm.
+
+## Stufe 7 (1.9.218 ff.): je Festlegung ihre Gegenprobe
+
+Nach der stehenden Regel seit 1.9.210, je Aussage; jede Gegenprobe zuerst gegen die Tests vor der Version („vorher“), dann mit den
+neuen, je Version in einer eigenen Arbeitskopie auf dem Stand der Version, Datei danach byte-genau zurück; gezählt nur FAILED.
+
+| Festlegung (Aussage) | Gegenprobe | Ergebnis |
+|---|---|---|
+| **1.9.218 Nr. 1a** (= 1.9.213 Nr. 6 neu) – die Schnittstelle nur für den Admin | Liste ab Büro – Auftrag (1.9.218) | vorher grün; mit test_v622 2 rot: test_nur_der_admin (Büro – Finanzen, Büro – Auftrag) |
+| **1.9.218 Nr. 1b** – der Block nur im Markup des Admins | Block für jede Rolle (1.9.218) | vorher grün; mit test_v622 1 rot: test_block_nur_im_markup_des_admins; klicktest_personalnummer_freigeben rot: „Fin: keine Liste der eingelesenen Nummern“ [True, True] |
+| **1.9.218 Nr. 1c** – nur Nummern ohne Person | auch Nummern mit Person (1.9.218) | vorher grün; mit test_v622 3 rot |
+| **1.9.218 Nr. 2a** – dieselbe Warnung, vorn die eingelesene Liste | ein Satz mehr in der Warnung (1.9.218) | vorher grün; mit test_v622 1 rot: test_dieselbe_warnung_ohne_namen |
+| **1.9.218 Nr. 2b** – ohne Namen keine Person in der Warnung | Warnung immer mit „gehörte …“ (1.9.218) | klicktest_personalnummer_freigeben rot: „Ada: dieselbe Warnung, vorn die eingelesene Liste“ (‚gehörte  und ist für alle anderen gesperrt‘) |
+| **1.9.218 Nr. 2c** – eingelesen am = Tag in Berlin | Tag in UTC (1.9.218) | vorher grün; mit test_v622 1 rot: test_liste_nur_ohne_person_sortiert |
+| **1.9.218 Nr. 3** – wer sie trägt statt „freigeben“ | Trägerin nie genannt (1.9.218) | vorher grün; mit test_v622 1 rot: test_wer_sie_traegt_statt_freigeben |
+| **1.9.218 Nr. 4a** – nach Nummer sortiert | nach Anlage (1.9.218) | vorher grün; mit test_v622 2 rot |
+| **1.9.218 Nr. 4b** – leer mit dem Satz | ohne Satz (1.9.218) | vorher grün; mit test_v622 1 rot: test_liste_gezeichnet_leer_und_mit_traeger |

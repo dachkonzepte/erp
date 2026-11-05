@@ -93,6 +93,18 @@ def fruehere_personalnummern(db: Session) -> dict[int, list[str]]:
     return je
 
 
+def eingelesene_personalnummern(db: Session) -> list[dict]:
+    """Seit 1.9.218 (L1a Stufe 7, Punkt 1): die gemerkten Nummern ohne Person (eingelesen aus einer Liste vergebener Nummern) für die eigene
+    Liste unter „Zeitregeln und DATEV“ -- nur der Admin sieht sie (der Router fragt darf_personalnummer_freigeben()). Je Nummer: der Tag des
+    Einlesens in Berlin und wer sie heute trägt (nur an der Sperre vorbei möglich; dann kein „freigeben“, dieselbe Regel wie seit 1.9.191).
+    Sortiert nach Nummer."""
+    from .berlin_time import to_berlin
+    zeilen = db.execute(select(PersonalnummerVergabe.nummer, PersonalnummerVergabe.vergeben_am)
+                        .where(PersonalnummerVergabe.employee_id.is_(None)).order_by(PersonalnummerVergabe.nummer)).all()
+    traeger = personalnummern_traeger(db, [n for n, _ in zeilen])
+    return [{"nummer": n, "eingelesen_am": to_berlin(am).date() if am else None, "traegt": traeger.get(n)} for n, am in zeilen]
+
+
 class PersonalnummerGehalten(ValueError):
     """Freigeben abgelehnt: eine Person trägt die Nummer heute (409)."""
 
