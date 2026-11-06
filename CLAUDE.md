@@ -1211,7 +1211,8 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
 - **Plantafel**: verplant wird ein Einsatz (`PlanningSlot`) je Auftrag, nicht eine einzelne LV-Position. Seit 1.9.233 (Stufe 6, R3a)
   stehen seine Personen am Einsatz (`PlanningSlotEmployee`, „Besetzung“): die Kolonne schlägt ihre heutigen aktiven Mitglieder vor, „ohne
   Kolonne“ (`team_assignment_id` leer) wählt Personen einzeln; Tafel, Kapazität, Konflikte, „Heute“ und der Zugriff der Monteurin lesen die
-  Besetzung (`tests/test_v633_besetzung_je_einsatz.py`). `Team`/`TeamEmployee` ist eine dauerhafte, zeitlose n:m-Mitgliedschaft;
+  Besetzung (`tests/test_v633_besetzung_je_einsatz.py`); seit 1.9.234 ebenso die Geräte (`PlanningSlotResource`, alle oder einzelne Tage,
+  `tests/test_v634_geraete_je_einsatz.py`). `Team`/`TeamEmployee` ist eine dauerhafte, zeitlose n:m-Mitgliedschaft;
   `WorkPreparationTeamAssignment` (Kolonne an der AV, Schnappschuss) bleibt für die AV-Seite und den Zugriff. UI: Gantt-artige Zeitachse mit Drag & Drop – **funktioniert auf Touch-Geräten
   nicht** (native HTML5-DnD-API), Klick-Fallback-Dialog aber schon. Details:
   `docs/bestandsaufnahme.md` Abschnitt 7 und 10. **Kapazität je Person und Tag = Sollzeit des Lohns − Anfahrt** (seit 1.9.211,

@@ -3150,12 +3150,19 @@ class WorkPreparationMaterialBulkAssign(BaseModel):
     delivery_note_id: int | None = None
 
 
+class PlanningSlotGeraet(BaseModel):
+    """Seit 1.9.234 (Stufe 6, R3a, Punkt 3): ein Gerät am Einsatz -- tage leer (null) = alle Tage, sonst einzelne Tage innerhalb des Einsatzes."""
+    resource_id: int
+    tage: list[date] | None = None
+
+
 class PlanningSlotCreate(BaseModel):
     order_id: int
     # seit 1.9.233 (Stufe 6, R3a, Punkt 2): ohne team_id „ohne Kolonne“ -- dann employee_ids mit mindestens einer Person; mit team_id und ohne
     # employee_ids schlägt die Kolonne ihre aktiven Mitglieder vor
     team_id: int | None = None
     employee_ids: list[int] | None = None
+    geraete: list[PlanningSlotGeraet] | None = None  # seit 1.9.234: ohne Angabe schlägt die Kolonne ihre Geräte vor
     start_date: date
     end_date: date
     status: str = Field(default="geplant", max_length=40)
@@ -3179,9 +3186,11 @@ class PlanningSlotUpdate(PartialUpdate):
     update_slot() auf gespeichertem Stand + gesendeten Werten; hier nur, wenn beide gesendet sind. team_id, Planstunden und
     Anfahrt: null hieß bis 1.8.95 "unverändert", seither 422 (weglassen heißt unverändert). Seit 1.9.233: team_id null heißt „ohne Kolonne“ (die
     Personen bleiben), employee_ids setzt die Besetzung (null 422, weglassen = unverändert, eine andere Kolonne schlägt ihre Mitglieder vor)."""
-    NOT_NULL = frozenset({"start_date", "end_date", "status", "planned_hours", "travel_hours_per_employee_day", "trotzdem_planen", "employee_ids"})
+    NOT_NULL = frozenset({"start_date", "end_date", "status", "planned_hours", "travel_hours_per_employee_day", "trotzdem_planen", "employee_ids",
+                          "geraete"})
     team_id: int | None = None
     employee_ids: list[int] | None = None
+    geraete: list[PlanningSlotGeraet] | None = None  # seit 1.9.234: setzt die Geräte genau so (weglassen = unverändert, null 422)
     start_date: date | None = None
     end_date: date | None = None
     status: str | None = Field(default=None, max_length=40)

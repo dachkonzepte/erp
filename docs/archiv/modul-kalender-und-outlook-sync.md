@@ -1279,3 +1279,37 @@ Datengrenze), `test_v346` (Hinweis je Einsatz), `test_v471` (Einsätze für „H
   `_zeiten_abgeschlossen`, `_beleg_und_hinweis`, `_meine_zeiten`, `_meine_zeiten_angeheftet`, `_meine_zeiten_freistellungen`, `_monteurin_regeln` und
   `scripts/bildgrundlage.py` legen Einsätze direkt an; danach ruft jede `besetzung_wie_migration()` (neu in `scripts/cdp_klicktest.py`, dieselbe Regel wie
   die Migration). Ohne sie hatten die Einsätze keine Personen, sechs Klicktests waren im ersten Gesamtlauf rot (fünf davon aus diesem Grund).
+
+### Umsetzung 1.9.234: Geräte je Einsatz, alle oder einzelne Tage (Punkt 3)
+
+- Modell: `PlanningSlotResource` (Tabelle `planning_slot_resources`: Einsatz, Gerät = `OperationalResource`, `tage` als JSON-Liste einzelner Tage, leer = alle
+  Tage; je Einsatz ein Gerät einmal; `PlanningSlot.geraete`). Migration `f2c8d4a61e93`.
+- `app/planning.py`: ohne `geraete` schlägt die Kolonne ihre aktiven Geräte vor (`_kolonne_schlaegt_geraete_vor()`, jede Rolle, alle Tage), ohne Kolonne
+  keine; mit `geraete` genau diese (`_geraete_pruefen()`: bekannt, aktiv, Tage im Einsatz, keine leere Liste -- `GeraeteUngueltig`, 422). Beim Ändern setzt eine
+  andere Kolonne ohne `geraete` ihre Geräte, „ohne Kolonne“ lässt sie; ein neuer Zeitraum nimmt einzelne Tage mit (`_tage_mitnehmen()`: gleiche Dauer =
+  verschoben, sonst nur die Tage im neuen Zeitraum, ein Gerät ohne Tag fällt weg). Geänderte Geräte fragen zurück wie Besetzung, Kolonne und Zeitraum.
+- Leser: „Gerät doppelt“ nur, wenn sich die Tage des Geräts in beiden Einsätzen treffen (`_geraet_tage()`); Termine im Kalender eines Geräts
+  (`termine_der_geraete()`) nur an seinen Tagen (an Arbeitstagen, wie bisher); Belegung der Tafel (`resource_load`) nur an seinen Tagen; `slot_to_dict()`
+  `resources` mit Name live, Rolle aus der Kolonne und `tage`. Ein Gerät an einem Einsatz wird nicht gelöscht, sondern abgeschaltet
+  (`resource_planning.py::delete_resource()`). Änderungsprotokoll: „Plantafel-Gerät“ (Kennung = Einsatz, Feld „Tage“), im Verlauf der Akte unter „Termin“.
+- Oberfläche: eine Kolonne wählen setzt auch ihre Geräte; die Ansicht „Fahrzeuge / Maschinen“ liest die Geräte des Einsatzes. Geräte und Tage wählen kommt
+  mit R4 (heute über die Schnittstelle).
+
+### Festlegungen 1.9.234 (Bitte bestätigen)
+
+1. Die Kolonne schlägt ihre aktiven Geräte jeder Rolle vor (auch „bei Bedarf“), für alle Tage -- wie bis 1.9.233 der Schnappschuss; ohne Kolonne keine.
+2. `geraete` setzt die Geräte genau so; unbekannt oder inaktiv, ein Tag außerhalb des Einsatzes oder eine leere Tagesliste 422; doppelt genannt zählt das erste.
+3. Wechsel der Kolonne ohne `geraete` setzt deren Geräte; „ohne Kolonne“ lässt die Geräte.
+4. Neuer Zeitraum: bei gleicher Dauer wandern einzelne Tage mit; sonst bleiben nur die Tage im neuen Zeitraum, ein Gerät ohne verbleibenden Tag fällt weg.
+5. „Gerät doppelt“ nur, wenn sich die Tage treffen; der Kalender des Geräts zählt nur an seinen Tagen; die Tafel belegt das Gerät nur an seinen Tagen.
+6. Geänderte Geräte fragen beim Speichern zurück.
+7. Ein Gerät, das an einem Einsatz steht, wird beim Löschen nur abgeschaltet (wie mit Kolonne oder Kalender).
+8. Die Migration übernimmt je Einsatz die Geräte seines Kolonnen-Schnappschusses für alle Tage; downgrade() verwirft die Geräte je Einsatz.
+
+### Tests und Prüfung 1.9.234
+
+Neu: `tests/test_v634_geraete_je_einsatz.py` (Vorschlag der Kolonne, ohne Kolonne, einzelne Tage, ungültige Geräte, Wechsel, Tage beim Verschieben,
+Gerät doppelt nach Tagen, Kalender des Geräts nach Tagen, Belegung der Tafel, Löschschutz, Änderungsprotokoll, Migration auf einem Bestand unter SQLite und
+PostgreSQL). `tests/besetzung.py::wie_migration()` und `scripts/cdp_klicktest.py::besetzung_wie_migration()` übernehmen dazu die Geräte des Schnappschusses
+(wie die Migration). Gegenproben: Archiv `gegenproben-stufe6-r3a.md` (21, alle rot; eine erst aus dem falschen Grund).
+Angepasste Erwartungen: keine (die neue Feldbeschriftung „Tage“ in `app/audit.py::FIELD_LABELS` verlangen `test_v436`/`test_v438` ohnehin).

@@ -2498,6 +2498,7 @@ class PlanningSlot(Base):
     team_assignment: Mapped[WorkPreparationTeamAssignment | None] = relationship()
     capacity: Mapped["PlanningSlotCapacity | None"] = relationship(back_populates="slot", cascade="all, delete-orphan", uselist=False)
     besetzung: Mapped[list["PlanningSlotEmployee"]] = relationship(cascade="all, delete-orphan", order_by="PlanningSlotEmployee.id")
+    geraete: Mapped[list["PlanningSlotResource"]] = relationship(cascade="all, delete-orphan", order_by="PlanningSlotResource.id")  # seit 1.9.234
 
 
 class PlanningSlotEmployee(Base):
@@ -2513,6 +2514,22 @@ class PlanningSlotEmployee(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     employee: Mapped["Employee"] = relationship()
+
+
+class PlanningSlotResource(Base):
+    """Seit 1.9.234 (Stufe 6, R3a, Punkt 3): ein Gerät eines Einsatzes (Fahrzeug, Kran, Maschine = OperationalResource), für alle Tage des
+    Einsatzes oder einzelne. tage: JSON-Liste von Tagen (ISO, sortiert) innerhalb des Einsatzes, leer (NULL) = alle Tage. Die Kolonne schlägt ihre
+    Geräte vor (beim Anlegen und beim Wechsel der Kolonne); bis 1.9.233 hingen Geräte nur an der Kolonnen-Zuweisung der AV. Name live aus dem Gerät."""
+    __tablename__ = "planning_slot_resources"
+    __table_args__ = (UniqueConstraint("slot_id", "resource_id", name="uq_planning_slot_resource"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    slot_id: Mapped[int] = mapped_column(ForeignKey("planning_slots.id", ondelete="CASCADE"), index=True)
+    resource_id: Mapped[int] = mapped_column(ForeignKey("operational_resources.id"), index=True)
+    tage: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    resource: Mapped["OperationalResource"] = relationship()
 
 
 class PlanningSettings(Base):

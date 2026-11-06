@@ -42,7 +42,7 @@ ART_JE_TYP = {
     "Zahlungseingang": "zahlung", "Nebenforderung": "zahlung", "Verzugsbeginn": "zahlung",
     "Einsatzbericht": "bericht", "Befund": "bericht", "Checkliste": "bericht", "Checklisten-Unterschrift": "bericht", "Checklisten-Foto": "bericht",
     "Auftragsstatus": "status",
-    "Termin": "termin", "Plantafel-Einsatz": "termin", "Plantafel-Kapazität": "termin", "Plantafel-Besetzung": "termin",
+    "Termin": "termin", "Plantafel-Einsatz": "termin", "Plantafel-Kapazität": "termin", "Plantafel-Besetzung": "termin", "Plantafel-Gerät": "termin",
 }
 NICHT_IM_STROM = {"Zeitbuchung", "Gruppen-Zeitbuchung", "Gruppenbuchungs-Mitglied"}
 # Welche Zeile einer Gruppe die Überschrift trägt: die Art weiter vorn; bei gleicher Art „angelegt“ vor „geändert“.
@@ -122,11 +122,11 @@ def auftraege_je_zeile(db: Session, zeilen) -> dict[int, set[int]]:
         karte[typ] = {a: b for a, b in db.execute(select(modell.id, WorkPreparation.order_id)
                                                   .join(WorkPreparation, modell.preparation_id == WorkPreparation.id)
                                                   .where(modell.id.in_(ids or [-1])))}
-    slot_ids = sorted({int(x) for t in ("Plantafel-Einsatz", "Plantafel-Kapazität", "Plantafel-Besetzung") for x in je_typ.get(t, []) if x and str(x).isdigit()})
+    slot_ids = sorted({int(x) for t in ("Plantafel-Einsatz", "Plantafel-Kapazität", "Plantafel-Besetzung", "Plantafel-Gerät") for x in je_typ.get(t, []) if x and str(x).isdigit()})
     slots = {a: b for a, b in db.execute(select(PlanningSlot.id, WorkPreparation.order_id)
                                          .join(WorkPreparation, PlanningSlot.preparation_id == WorkPreparation.id)
                                          .where(PlanningSlot.id.in_(slot_ids or [-1])))}
-    karte["Plantafel-Einsatz"] = karte["Plantafel-Kapazität"] = karte["Plantafel-Besetzung"] = slots  # Besetzung seit 1.9.233
+    karte["Plantafel-Einsatz"] = karte["Plantafel-Kapazität"] = karte["Plantafel-Besetzung"] = karte["Plantafel-Gerät"] = slots  # Besetzung seit 1.9.233, Geräte seit 1.9.234
     angebote = {q: o for q, o in db.execute(select(Order.source_quote_id, Order.id).where(Order.source_quote_id.in_(list(karte["Angebot"]) or [-1])))}
     karte["Angebot"] = angebote
     befunde = sorted({int(x) for x in je_typ.get("Befund", []) if x and str(x).isdigit()})

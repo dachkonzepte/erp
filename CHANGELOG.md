@@ -4,6 +4,12 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.234 – Plantafel: Geräte je Einsatz, für alle oder einzelne Tage (Stufe 6, R3a, Punkt 3)
+
+Fahrzeuge, Kran und Maschinen hängen jetzt am Einsatz selbst und nicht mehr nur an der Kolonne. Wählt man eine Kolonne, schlägt sie ihre aktiven Geräte für alle Tage vor; über die Schnittstelle lassen sich die Geräte genau setzen, auch nur für einzelne Tage („der Kran nur am Mittwoch“). Verschiebt man einen Einsatz, wandern einzelne Tage mit; wird er kürzer, fallen Tage außerhalb weg. „Gerät doppelt“ meldet sich nur noch, wenn sich die Tage wirklich treffen, ebenso der Abgleich mit dem Kalender eines Geräts; die Ansicht „Fahrzeuge / Maschinen“ belegt ein Gerät nur an seinen Tagen. Ein Gerät, das an einem Einsatz steht, wird beim Löschen abgeschaltet statt gelöscht.
+
+Die Migration `f2c8d4a61e93` übernimmt je Einsatz die Geräte, die bisher über seine Kolonne an ihm hingen, für alle Tage.
+
 ## 1.9.233 – Plantafel: Besetzung je Einsatz (Stufe 6, R3a, Punkte 1 und 2)
 
 Ein Einsatz der Plantafel trägt jetzt seine eigenen Personen. Wählt man eine Kolonne, schlägt sie ihre heutigen aktiven Mitglieder vor -- nicht mehr den Schnappschuss, den die Arbeitsvorbereitung beim ersten Zuweisen gezogen hatte; eine neue Kollegin kommt so in den nächsten Einsatz, und eine spätere Änderung der Kolonne lässt bestehende Einsätze, wie sie sind. Über die Schnittstelle lassen sich die Personen genau setzen, auch aus anderen Kolonnen, und ein Einsatz kann „ohne Kolonne“ mit einzeln gewählten Personen entstehen; er steht dann auf der Tafel in der Zeile „Ohne Kolonne“. Kapazität, Konflikte, „Heute“, „Nächste Tage“, der Zugriff der Monteurin auf den Auftrag, die Akte und das Änderungsprotokoll lesen die Besetzung.

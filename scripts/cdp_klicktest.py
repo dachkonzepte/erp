@@ -205,11 +205,12 @@ if hasattr(sys.stdout, "reconfigure"):
 def besetzung_wie_migration(db) -> None:
     """Seit 1.9.233 (Stufe 6, R3a, Punkt 2): Einsätze, die Testdaten direkt anlegen (wie ein Bestand von vor 1.9.233: Kolonnen-Zuweisung mit
     Schnappschuss, Einzelzuweisung an der AV), bekommen die Besetzung, die die Migration e4b1c9d27a35 ihnen gäbe -- erst die Personen des
-    Schnappschusses, dann die Einzelzuweisungen der AV, jede einmal. Nur Einsätze ohne Besetzung; flusht, committet nicht. Dieselbe Regel wie
-    tests/besetzung.py::wie_migration()."""
+    Schnappschusses, dann die Einzelzuweisungen der AV, jede einmal. Seit 1.9.234 ebenso die Geräte des Schnappschusses für alle Tage (Migration
+    f2c8d4a61e93). Nur Einsätze ohne Besetzung; flusht, committet nicht. Dieselbe Regel wie tests/besetzung.py::wie_migration()."""
     from sqlalchemy import select
 
-    from app.models import PlanningSlot, PlanningSlotEmployee, WorkPreparationEmployee, WorkPreparationTeamEmployee
+    from app.models import (PlanningSlot, PlanningSlotEmployee, PlanningSlotResource, WorkPreparationEmployee, WorkPreparationTeamEmployee,
+                            WorkPreparationTeamResource)
     db.flush()
     for slot in db.scalars(select(PlanningSlot)).all():
         if db.scalar(select(PlanningSlotEmployee.id).where(PlanningSlotEmployee.slot_id == slot.id).limit(1)) is not None:
@@ -225,6 +226,13 @@ def besetzung_wie_migration(db) -> None:
             if eid not in gesehen:
                 gesehen.append(eid)
                 db.add(PlanningSlotEmployee(slot_id=slot.id, employee_id=eid))
+        if slot.team_assignment_id is not None and db.scalar(select(PlanningSlotResource.id).where(PlanningSlotResource.slot_id == slot.id).limit(1)) is None:
+            geraete = []
+            for rid in db.scalars(select(WorkPreparationTeamResource.resource_id)
+                                  .where(WorkPreparationTeamResource.assignment_id == slot.team_assignment_id).order_by(WorkPreparationTeamResource.id)):
+                if rid is not None and rid not in geraete:
+                    geraete.append(rid)
+                    db.add(PlanningSlotResource(slot_id=slot.id, resource_id=rid))
     db.flush()
 
 

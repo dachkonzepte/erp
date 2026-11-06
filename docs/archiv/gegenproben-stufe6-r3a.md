@@ -103,3 +103,32 @@ Dict fällt dort heraus. Die Gegenprobe am Schema (`231_2d`) ist rot. Kein Marke
 | Nr. 9 – wer bleibt, behält seinen Platz | alle Zeilen neu (`233_15`) | rot: v633 (2; Eindeutigkeit Einsatz/Person) |
 
 Kein Marker unter `app/` nach dem Lauf.
+
+## 1.9.234 (Punkt 3): Geräte je Einsatz
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – nur aktive Geräte der Kolonne | auch inaktive (`234_1a`) | rot: v634 (2) |
+| Nr. 1 – die Kolonne schlägt ihre Geräte vor | kein Vorschlag (`234_1b`) | rot: v634 (2) |
+| Nr. 2 – unbekannt 422 | Prüfung weg (`234_2a`) | rot: v634 |
+| Nr. 2 – inaktiv 422 | Prüfung weg (`234_2b`) | rot: v634 |
+| Nr. 2 – Tag außerhalb 422 | Prüfung weg (`234_2c`) | rot: v634 (2) |
+| Nr. 2 – leere Tagesliste 422 | Prüfung weg (`234_2d`) | rot: v634 |
+| Nr. 2 – doppelt genannt: das erste zählt | das letzte zählt (`234_2e`) | rot: v634 |
+| Nr. 3 – Wechsel der Kolonne setzt ihre Geräte | Wechsel lässt die Geräte (`234_3a`) | rot: v634 |
+| Nr. 3 – „ohne Kolonne“ lässt die Geräte | auch ohne Kolonne neu gesetzt (`234_3b`) | rot: v634 |
+| Nr. 4 – gleiche Dauer: Tage wandern mit | nie verschieben (`234_4a`) | rot: v634 |
+| Nr. 4 – ohne verbleibenden Tag fällt das Gerät weg | dann alle Tage (`234_4b`) | rot: v634 |
+| Nr. 5 – Gerät doppelt nur bei gemeinsamen Tagen | Tage egal (`234_5a`) | rot: v634 |
+| Nr. 5 – Kalender des Geräts nur an seinen Tagen | alle Arbeitstage (`234_5b`) | rot: v634 |
+| Nr. 5 – Tafel belegt nur an seinen Tagen | ganzer Einsatz (`234_5c`) | Runde 1 rot **aus dem falschen Grund** (Marker als Kommentar mitten im Ausdruck: Sammelfehler); Runde 2 (Marker als Zeichenkette): rot, v634::test_tafel_belegung_nur_an_den_tagen |
+| Nr. 6 – geänderte Geräte fragen zurück | Vergleich ohne Geräte (`234_6`) | rot: v634 |
+| Nr. 7 – Gerät am Einsatz nur abgeschaltet | Prüfung weg (`234_7`) | rot: v634 |
+| Nr. 8 – Migration übernimmt die Geräte | keine (`234_8a`) | rot: v634 Migration SQLite und PostgreSQL |
+| Nr. 8 – alle Tage | leere Liste statt leer (`234_8b`) | rot: dito |
+| Änderungsprotokoll „Plantafel-Gerät“ | Zweig weg (`234_9a`) | rot: v634 |
+| Verlauf der Akte „Termin“ | Art fehlt (`234_9b`) | rot: v634 |
+| Name live aus dem Gerät | „?“ (`234_10`) | rot: v634 |
+
+Kein Marker unter `app/` nach dem Lauf. Geprüft für alle Gegenproben der Runde: jede rote nennt einen gescheiterten Test (FAILED), keinen Sammelfehler -- außer
+`234_5c` in Runde 1 (oben).
