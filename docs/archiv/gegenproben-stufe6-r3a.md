@@ -154,3 +154,18 @@ betrifft nur ihre eigene Stelle.
 | Nr. 2 – downgrade | ohne Rückweg (`235_2b`) | rot: v635 Migration |
 | Prüfabfrage kennt die zwei Werte | „geplant“ statt „vorlaeufig“ (`235_2c`) | rot: v447 (2) |
 | Nr. 3 – vorläufig zählt wie fest | vorläufige Einsätze aus den Konflikten (`235_3`) | rot: v635 |
+
+## 1.9.236 (Punkt 5): Konflikte auf dem neuen Modell
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – kein „Kolonne doppelt“ | Prüfung wieder da (`236_1`) | rot: v563, v636 |
+| Nr. 1 – … nicht unter den Warnungen | „team“ wieder in `WARNUNG_ARTEN` (`236_1b`) | rot: v636 |
+| Nr. 2 – Prüffrist wird geprüft | keine Prüfungen geladen (`236_2a`) | rot: v636 |
+| Nr. 2 – der Fälligkeitstag gilt noch | „ab“ statt „nach“ (`236_2b`) | rot: v636 (2) |
+| Nr. 2 – Warnung, nicht Hinweis | `pruefung` nicht in `WARNUNG_ARTEN` (`236_2c`) | rot: v636 (2) |
+| Nr. 2 – mit dem ersten Tag danach | letzter Tag (`236_2d`) | rot: v636 |
+| Nr. 3 – nur mit Betriebsmittelverwaltung | auch ohne (`236_3a`) | rot: v636 |
+| Nr. 3 – ohne Fälligkeit keine Warnung | Prüfungen ohne Fälligkeit mitgenommen (`236_3b`) | rot: v636 |
+| Nr. 4 – nur an den Tagen des Geräts | alle Tage des Einsatzes (`236_4`) | rot: v636 |
+| Tafel: „Prüffrist abgelaufen“, kein „Kolonne doppelt“ | Beschriftung zurück (`236_5`) | rot: v636 |

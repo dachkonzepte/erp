@@ -260,7 +260,7 @@ def test_konflikt_ueber_den_rand_des_zeitraums_bleibt(tafel):
     danach = create_slot(db, order_id=_auftrag(db).id, team_id=a.id, start_date=ende + timedelta(days=3), end_date=ende + timedelta(days=4), trotzdem_planen=True)
     _, daten = _abfragen(db, client)
     assert [s["id"] for s in daten["slots"]] == [lang.id]
-    assert ("team", danach.id) in [(k["type"], k["other_slot_id"]) for k in daten["slots"][0]["conflicts"]]
+    assert ("employee", danach.id) in [(k["type"], k["other_slot_id"]) for k in daten["slots"][0]["conflicts"]]  # seit 1.9.236 (bis dahin „team“)
 
 
 def test_rueckstand_wie_bisher(tafel):

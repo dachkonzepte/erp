@@ -16,7 +16,7 @@ from .grunddaten import einzelzeile
 from .berlin_time import berlin_today
 from .calendar_events import BUSY_PLACEHOLDER_TITLE
 from .models import (
-    CalendarEvent, OutlookSeriesOccurrence,
+    CalendarEvent, OutlookSeriesOccurrence, OperationalAsset, OperationalAssetInspection,
     Employee, EmployeeAbsence, EmployeeAbsenceRequest, EmployeePlanningSettings, EmployeeProfile, OperationalResource, Order, OrderItem, PlanningHoliday,
     PlanningSettings, PlanningRegionSettings, PlanningSchoolHoliday, PlanningSchoolHolidaySync, PlanningSlot, PlanningSlotCapacity, PlanningSlotEmployee,
     PlanningSlotResource, Project, Property, ServiceReport, Team, TeamEmployee,
@@ -33,7 +33,9 @@ from .rounding import round_half_up, round_hours
 
 # Seit 1.9.143 (Stufe 6, R1, Punkt 1): was beim Speichern eines Einsatzes rückfragt (409 mit Liste, bis „trotzdem planen“ mitkommt) und was nur in der
 # Antwort steht. Der Betrieb darf alles planen -- Tobias: „Konflikte warnen, trotzdem planbar“.
-WARNUNG_ARTEN = frozenset({"team", "employee", "resource", "absence"})  # Kolonne, Person, Gerät doppelt; Person abwesend
+# Seit 1.9.236 (Stufe 6, R3a, Punkt 5, Zeichnung „Konflikte“): ohne „team“ (Kolonne doppelt -- es zählen die Personen), dazu „pruefung“ (Gerät mit
+# abgelaufener Prüffrist). Bis 1.9.235: team, employee, resource, absence.
+WARNUNG_ARTEN = frozenset({"employee", "resource", "absence", "pruefung"})  # Kolonne, Person, Gerät doppelt; Person abwesend
 HINWEIS_ARTEN = frozenset({"holiday", "capacity", "antrag_offen", "kalendertag"})  # Feiertag, betriebsfreier Tag, Kapazität, offener Antrag; seit 1.9.188 Freistellung des Arbeitszeitkalenders. Seit 1.9.150 kein Wochenende: es ist nur kein Arbeitstag, ein Einsatz darüber meldet nichts
 FAERBT_NICHT = frozenset({"antrag_offen"})  # seit 1.9.152: steht beim Einsatz, macht ihn aber nicht zum Konflikt -- kein rot, nicht in conflict_count
 WARNUNG_TEXT = "Der Einsatz überschneidet sich – bitte prüfen oder trotzdem planen."
@@ -1239,6 +1241,7 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
     if soll is None:  # seit 1.9.211: die Kapazität aus der Sollzeit des Lohns, einmal für alle Einsätze (die Tafel gibt ihre mit)
         soll = _soll_je_tag(db, personen, start, end)
     arbeitstage = _working_weekdays(settings)
+    pruefungen = _pruefungen(db, {x.resource_id for s in slots for x in s.geraete})  # seit 1.9.236
 
     for i, a in enumerate(slots):
         a_emps, a_res = _slot_members(a, visible_employee_ids)
@@ -1248,8 +1251,7 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
                 break
             b_emps, b_res = _slot_members(b, visible_employee_ids)
             issues = []
-            if a.team_assignment is not None and b.team_assignment is not None and a.team_assignment.team_id == b.team_assignment.team_id:
-                issues.append(("team", a.team_assignment.team_name_snapshot))
+            # seit 1.9.236 kein „Kolonne doppelt“ mehr: zwei Einsätze derselben Kolonne mit verschiedenen Personen sind kein Konflikt (Zeichnung)
             for eid in sorted(a_emps & b_emps):
                 name = next((_employee_name(x.employee) for x in a.besetzung if x.employee_id == eid), f"Mitarbeiter #{eid}")
                 issues.append(("employee", name))
@@ -1294,6 +1296,17 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
             for antrag in offene_antraege.get(member.employee_id, ()):
                 if _ranges_overlap(antrag.start_date, antrag.end_date, slot.start_date, slot.end_date):
                     result[slot.id].append({"type":"antrag_offen", "label":f"{name} · {antrag.absence_type}", "label_redacted":name, "date":max(antrag.start_date, slot.start_date), "other_slot_id":None, "other_project":None, "other_project_name":None})
+        # Seit 1.9.236 (Punkt 5): ein Gerät, dessen Prüfung an einem seiner Tage abgelaufen ist (fällig vor dem Tag) -- eine Warnung je Gerät und
+        # Prüfung, mit dem ersten solchen Tag; gezählt werden die Arbeitstage des Geräts (hat es keinen, alle seine Tage), wie beim Kalender des Geräts.
+        for row in slot.geraete:
+            tage = sorted(_geraet_tage(slot, row))
+            tage = [t for t in tage if _is_workday(t, settings, holiday_dates)] or tage
+            for art, faellig in pruefungen.get(row.resource_id, ()):
+                spaeter = [t for t in tage if t > faellig]
+                if spaeter:
+                    name = row.resource.name if row.resource else f"Gerät #{row.resource_id}"
+                    result[slot.id].append({"type":"pruefung", "label":f"{name} · {art} fällig am {faellig:%d.%m.%Y}", "date":spaeter[0],
+                                            "other_slot_id":None, "other_project":None, "other_project_name":None})
         if shortfall > 0:
             result[slot.id].append({"type":"capacity", "label":f"Kapazität reicht um {stunden_text(shortfall)} nicht aus", "shortfall_hours":shortfall, "other_slot_id":None, "other_project":None, "other_project_name":None})
     for liste in result.values():
@@ -1340,6 +1353,22 @@ def einsatz_konflikte(db: Session, slot: PlanningSlot) -> dict:
     konflikte, _ = _conflicts(db, [slot, *andere], settings)
     liste = konflikte.get(slot.id, []) + _termine_der_geraete(db, slot, settings)
     return {"warnungen": [k for k in liste if k["stufe"] == "warnung"], "hinweise": [k for k in liste if k["stufe"] == "hinweis"]}
+
+
+def _pruefungen(db: Session, geraet_ids: set[int]) -> dict[int, list[tuple[str, date]]]:
+    """Seit 1.9.236 (Stufe 6, R3a, Punkt 5): je Gerät (OperationalResource) die Prüfungen seines Betriebsmittels mit Fälligkeit -- (Art, fällig am),
+    eine Abfrage für alle. Nur bei eingeschalteter Betriebsmittelverwaltung: ausgeschaltet pflegt niemand die Prüffristen."""
+    from .modules import is_module_enabled
+    if not geraet_ids or not is_module_enabled(db, "betriebsmittel"):
+        return {}
+    je: dict[int, list[tuple[str, date]]] = {}
+    for rid, art, faellig in db.execute(
+            select(OperationalAsset.resource_id, OperationalAssetInspection.inspection_type, OperationalAssetInspection.next_due_date)
+            .join(OperationalAssetInspection, OperationalAssetInspection.asset_id == OperationalAsset.id)
+            .where(OperationalAsset.resource_id.in_(geraet_ids), OperationalAssetInspection.next_due_date.is_not(None))
+            .order_by(OperationalAssetInspection.next_due_date, OperationalAssetInspection.id)):
+        je.setdefault(rid, []).append((art, faellig))
+    return je
 
 
 def _warnungen_pruefen(db: Session, slot_id: int) -> None:

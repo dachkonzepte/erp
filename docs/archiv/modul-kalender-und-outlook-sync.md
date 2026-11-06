@@ -1342,3 +1342,39 @@ Angepasste Erwartungen (Regel 28):
 - `test_v563::test_nur_notiz_aendern_fragt_nicht_nach_und_nennt_die_konflikte`: geändert wird `{"status": "fest"}` statt „bestaetigt“.
 - `test_v364`: `planning_slots.status` von `FESTE_LITERALE` („geplant“, sonst vom Client) nach `FESTE_WERTE` (`app.planning.EINSATZ_STATUS`).
 - `scripts/pruefabfrage_auswahlwerte.sql` (von `test_v447` gegen die Seite geprüft): `planning_slots.status IN ('vorlaeufig', 'fest')` statt der fünf alten Werte.
+
+### Umsetzung 1.9.236: Konflikte auf dem neuen Modell (Punkt 5)
+
+- `WARNUNG_ARTEN` = Person doppelt, Gerät doppelt, Person abwesend, neu **Gerät mit abgelaufener Prüffrist** (`pruefung`); „Kolonne doppelt“ (`team`)
+  entfällt -- zwei Einsätze derselben Kolonne melden ihre gemeinsamen Personen, ohne gemeinsame Person nichts. `HINWEIS_ARTEN` unverändert (Antrag offen,
+  Feiertag oder betriebsfreier Tag, Freistellung des Arbeitszeitkalenders, Kapazität).
+- Prüffrist (`_pruefungen()`, eine Abfrage für alle Geräte der Einsätze): je Gerät die Prüfungen seines Betriebsmittels (`OperationalAsset.resource_id`,
+  `OperationalAssetInspection.next_due_date`); ist an einem Arbeitstag des Geräts am Einsatz (hat es keinen, an einem seiner Tage) die Fälligkeit schon
+  vorbei (fällig vor dem Tag), eine Warnung „Kran · UVV fällig am 03.11.2026“ mit dem ersten solchen Tag. Nur bei eingeschalteter Betriebsmittelverwaltung.
+- Person doppelt aus der Besetzung (seit 1.9.233) -- damit auch einzeln Zugeordnete, aus dem Bestand übernommene Einzelzuweisungen (B5/B6) eingeschlossen;
+  Gerät doppelt aus den Geräten an ihren Tagen und den Terminen im Kalender des Geräts (seit 1.9.234); Kapazität aus der Sollzeit der Besetzung an den
+  Arbeitstagen minus Anfahrt (seit 1.9.211/1.9.233).
+- Tafel: „Prüffrist abgelaufen: …“ in der Liste des Einsatzes und der Rückfrage; „Kolonne doppelt“ steht dort nicht mehr.
+
+### Festlegungen 1.9.236 (Bitte bestätigen)
+
+1. „Kolonne doppelt“ ist kein Konflikt mehr; es zählen die Personen.
+2. Gerät mit abgelaufener Prüffrist ist eine Warnung, sobald an einem Arbeitstag des Geräts am Einsatz die Fälligkeit vorbei ist (der Fälligkeitstag selbst
+   gilt noch, wie `is_inspection_overdue()`); eine Warnung je Gerät und Prüfung, mit dem ersten solchen Tag.
+3. Ohne Fälligkeit oder ohne Betriebsmittel am Gerät keine Warnung; bei ausgeschalteter Betriebsmittelverwaltung auch keine.
+4. Ein Gerät, das nur an einzelnen Tagen am Einsatz ist, wird nur an diesen Tagen geprüft.
+
+### Tests und Prüfung 1.9.236
+
+Neu: `tests/test_v636_konflikte_neues_modell.py` (Arten, Prüffrist als Warnung mit erstem Tag und trotzdem planbar, nur an den Tagen des Geräts, nur mit
+Betriebsmittelverwaltung, ohne Fälligkeit nichts, Einzelzuweisung aus dem Bestand als Person doppelt, Kapazität mit Anfahrt, dieselbe Kolonne ohne gemeinsame
+Person). Gegenproben: Archiv `gegenproben-stufe6-r3a.md`.
+
+Angepasste Erwartungen (Regel 28):
+- `test_v563::test_kolonne_doppelt` heißt `test_kolonne_doppelt_meldet_die_personen`; alt „team“ in den Warnungen; neu genau „employee“, und ohne gemeinsame
+  Person 200 ohne Konflikt.
+- `test_v563::test_verschieben_auf_eine_belegte_kolonne_fragt_nach_und_laesst_alles_stehen`: alt „team“ in den Warnungen, neu „employee“.
+- `test_v564::test_konflikt_ueber_den_rand_des_zeitraums_bleibt`: alt ("team", Einsatz), neu ("employee", Einsatz).
+- `test_v090::test_same_team_overlap_is_conflict_and_unplanned_backlog_disappears_after_planning`: alt ein Konflikt „team“, neu „employee“.
+- `test_v563_konflikte_pg::test_pg_warnung_laesst_nichts_zurueck_und_trotzdem_planen_speichert`: alt „team“ in den Warnungen, neu „employee“; die
+  Kolonne A der PostgreSQL-Fassung bekommt dafür eine Person (Aufbau), `test_pg_verschieben_mit_warnung_gibt_die_sperre_frei` erwartet weiter 409.

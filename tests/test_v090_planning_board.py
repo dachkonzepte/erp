@@ -74,7 +74,7 @@ def test_same_team_overlap_is_conflict_and_unplanned_backlog_disappears_after_pl
     after = planning_board(db, date(2026,9,1), date(2026,9,20))
     assert order1.id not in {x["order_id"] for x in after["backlog"]}
     row = next(x for x in after["slots"] if x["id"] == s1.id)
-    assert any(x["type"] == "team" for x in row["conflicts"])
+    assert any(x["type"] == "employee" for x in row["conflicts"])  # seit 1.9.236 die Personen (bis 1.9.235 „team“)
 
 
 def test_planning_slot_updates_work_preparation_dates_and_can_switch_team():

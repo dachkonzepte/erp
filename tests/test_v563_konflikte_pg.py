@@ -1,6 +1,7 @@
 """Version 1.9.143 (Stufe 6, R1, Punkt 1), Nachtrag 1.9.147: Konflikte beim Speichern unter PostgreSQL (Regel 27: Wegwerf-Schema). SQLite kennt weder die Zeilensperre noch die Fremdschlüsselprüfung:
 
-    Anlegen      Kolonne doppelt -> 409, nichts zurückgeblieben (Einsatz, Kolonnen-Zuweisung, neue Arbeitsvorbereitung); mit „trotzdem_planen“ 200
+    Anlegen      dieselbe Kolonne doppelt -> 409 („Person doppelt“, seit 1.9.236; bis 1.9.235 „Kolonne doppelt“), nichts zurückgeblieben (Einsatz,
+                 Kolonnen-Zuweisung, neue Arbeitsvorbereitung); mit „trotzdem_planen“ 200
     Ändern       Verschieben auf eine belegte Kolonne -> 409, die Sperre der Arbeitsvorbereitung ist danach frei, ein weiteres Ändern geht
     Tafel        GET /api/planning und die Auswahl im Dialog laufen auf PostgreSQL (nur offene, Rückstand)
 """
@@ -12,7 +13,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
 from app.database import get_db
-from app.models import AppUser, PlanningSlot, Team, WorkPreparation, WorkPreparationTeamAssignment
+from app.models import AppUser, Employee, PlanningSlot, Team, TeamEmployee, WorkPreparation, WorkPreparationTeamAssignment
 from app.routers.planning import router as planning_router
 from tests.test_v375_rechnungen_sperren import _vorbereiten, pg  # noqa: F401  (pg ist eine Fixture)
 
@@ -44,7 +45,11 @@ def _client(Session):
 def _kolonnen(Session):
     def anlegen(s):
         a, b = Team(name="Kolonne A", active=True), Team(name="Kolonne B", active=True)
-        s.add_all([a, b])
+        tom = Employee(employee_number="M-1", first_name="Tom", last_name="Test", employee_group="gewerblich", hourly_wage=Decimal("20"),
+                       weekly_hours=Decimal("40"), active=True)
+        s.add_all([a, b, tom])
+        s.flush()
+        s.add(TeamEmployee(team_id=a.id, employee_id=tom.id, role="Monteur"))  # seit 1.9.236 zählen die Personen, nicht die Kolonne
         s.commit()
         return a.id, b.id
     return _vorbereiten(Session, anlegen)
@@ -65,7 +70,7 @@ def test_pg_warnung_laesst_nichts_zurueck_und_trotzdem_planen_speichert(pg):  # 
     assert client.post("/api/planning/slots", json=_body(order_id, a)).status_code == 200
     antwort = client.post("/api/planning/slots", json=_body(order_id, a))
     assert antwort.status_code == 409, antwort.text
-    assert [k["type"] for k in antwort.json()["warnungen"]] == ["team"]
+    assert [k["type"] for k in antwort.json()["warnungen"]] == ["employee"]  # bis 1.9.235 ["team"]
     assert (_zaehlen(Session, PlanningSlot), _zaehlen(Session, WorkPreparationTeamAssignment), _zaehlen(Session, WorkPreparation)) == (1, 1, 1)
     antwort = client.post("/api/planning/slots", json=_body(order_id, a, trotzdem_planen=True))
     assert antwort.status_code == 200, antwort.text

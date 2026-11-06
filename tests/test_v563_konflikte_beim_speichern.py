@@ -92,13 +92,18 @@ def test_abgelehnter_einsatz_hinterlaesst_nichts(tafel):
     assert db.scalar(select(func.count()).select_from(WorkPreparationTeamAssignment)) == 1
 
 
-def test_kolonne_doppelt(tafel):
+def test_kolonne_doppelt_meldet_die_personen(tafel):
+    """Seit 1.9.236 (Stufe 6, R3a, Punkt 5) kein „Kolonne doppelt“ mehr -- dieselbe Kolonne zweimal meldet ihre Personen (bis 1.9.235
+    test_kolonne_doppelt: „team“ in den Warnungen); ohne gemeinsame Person kein Konflikt."""
     db, client = tafel
     a = _kolonne(db, "A", [_person(db, "M-1", "Tom")])
     client.post("/api/planning/slots", json=_body(setup_order(db, "1"), a))
     antwort = client.post("/api/planning/slots", json=_body(setup_order(db, "2"), a))
     assert antwort.status_code == 409
-    assert "team" in _arten(antwort.json()["warnungen"])
+    assert _arten(antwort.json()["warnungen"]) == ["employee"]
+    mia = _person(db, "M-2", "Mia")
+    antwort = client.post("/api/planning/slots", json=_body(setup_order(db, "3"), a, employee_ids=[mia.id]))
+    assert antwort.status_code == 200 and antwort.json()["conflicts"] == [], antwort.text
 
 
 def test_geraet_doppelt(tafel):
@@ -210,7 +215,7 @@ def test_verschieben_auf_eine_belegte_kolonne_fragt_nach_und_laesst_alles_stehen
 
     antwort = client.put(url, json={"team_id": a.id})
     assert antwort.status_code == 409
-    assert "team" in _arten(antwort.json()["warnungen"])
+    assert "employee" in _arten(antwort.json()["warnungen"])  # seit 1.9.236 die Personen (bis 1.9.235 „team“)
     db.expire_all()
     slot = db.get(PlanningSlot, zweiter["id"])
     assert slot.team_assignment.team_id == b.id
