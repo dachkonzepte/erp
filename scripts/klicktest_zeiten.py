@@ -103,7 +103,8 @@ def befuellen(db, k):
     # DATEV: Personalnummern für Mia und Tom, nicht für Ole; Berater und Mandant (seit 1.9.224 ohne Zielsystem und Lohnarten je Zeitart -- die
     # Lohndatei nimmt die Zuordnung, eine fehlende Lohnart gibt es nicht mehr)
     einstellungen.datev_beraternummer, einstellungen.datev_mandantennummer = "12345", "678"
-    for wer, nummer in (("mia", "1001"), ("tom", "1002"), ("ole", None)):
+    # seit 1.9.230 (Stufe 6, R3a, Punkt 0a): Mias „1001“ steht für eine vor 1.9.212 gespeicherte Nummer -- sie sperrt die Lohndatei, bis sie 5 Ziffern hat
+    for wer, nummer in (("mia", "1001"), ("tom", "01002"), ("ole", None)):
         db.add(EmployeePayrollSettings(employee_id=leute[wer].id, datev_personnel_number=nummer, payroll_export_enabled=True))
     kolonne = Team(name="Kolonne 1", team_number="K-1", active=True)
     db.add(kolonne); db.flush()
@@ -241,6 +242,9 @@ async def pruefen(tab, seed, p):
         ["Oktober 2026", "offen", ["Mia Monteurin 3 18,50", "Tom Monteur 2 17,75", "Zusammen 36,25"]])  # Ole nur laufend: nicht in der Liste
     p.pruefe("Admin: Vor dem Abschluss", await tab.js("[...document.querySelectorAll('#abschlussListe li')].slice(0,2).map(l=>l.innerText)"),
              ["2 Zeiten laufen noch", "1 Tag mit unpassender Pause"])
+    p.pruefe("Admin: Vor dem Abschluss nennt Mias Nummer ohne 5 Ziffern (seit 1.9.230)", await tab.js(
+        "[...document.querySelectorAll('#abschlussListe li')].map(l=>l.textContent.trim()).includes('Personalnummer „1001“ hat nicht genau 5 Ziffern: Mia Monteurin')"),
+        True)
     p.pruefe("Admin: nichts ragt über 1440 px", await tab.ueberlauf(), [])
     await tab.bild("zeiten_pruefen_hell")
 
@@ -582,9 +586,10 @@ async def pruefen(tab, seed, p):
     p.pruefe("Fin: Lücke -- Abschließen gesperrt, Fehlt nur die Zeiten, DATEV getrennt und gesperrt", await tab.js(
         "[document.getElementById('lohnAbschliessen').disabled,document.getElementById('lohnFehlt').innerText,"
         "document.getElementById('lohnDatevFehlt').innerText,document.getElementById('lohnDatev').hidden,"
-        "document.getElementById('lohnDatevGesperrt').disabled]"), [True, "Fehlt: 1 laufende Zeit", "", True, True])
+        "document.getElementById('lohnDatevGesperrt').disabled]"), [True, "Fehlt: 1 laufende Zeit", "Fehlt: 1 Personalnummer", True, True])
+    # seit 1.9.230 nennen DATEV und der Schritt Prüfen schon jetzt Mias „1001“ (bis 1.9.229 DATEV ohne „Fehlt“, Prüfen nur die laufende Zeit)
     p.pruefe("Fin: Schritt Prüfen", await tab.js("[...document.querySelectorAll('#lohnPruefen li')].map(l=>l.innerText.replace(/\\s+/g,' ').trim())"),
-             ["1 Zeit läuft noch Prüfen", "Anträge entschieden"])
+             ["1 Zeit läuft noch Prüfen", "Personalnummer „1001“ hat nicht genau 5 Ziffern: Mia Monteurin Personal", "Anträge entschieden"])
     # seit 1.9.225 (Lohn L1b, Punkt 2): „Nicht in der Datei“ direkt über dem Knopf -- im Oktober geht alles hinein
     p.pruefe("Fin: Nicht in der Datei direkt über dem Knopf", await tab.js(
         "(()=>{const l=document.getElementById('lohnNicht').getBoundingClientRect(),k=document.getElementById('lohnDatevGesperrt').getBoundingClientRect();"
@@ -592,7 +597,7 @@ async def pruefen(tab, seed, p):
         ["Nichts – alles aus dem Monat geht in die Datei.", True, True])
     p.pruefe("Fin: Tabelle mit Personalnummer", await tab.js(
         "[...document.querySelectorAll('#lohnZeilen tr')].map(tr=>[...tr.cells].map(c=>c.innerText.trim()).join(' | '))"),
-        ["Mia Monteurin | 1001 | 4 | 18,25 | 0,00 | 3,75 | 0,00 | 22,00", "Tom Monteur | 1002 | 4 | 30,00 | 0,75 | 0,00 | 0,00 | 30,75",
+        ["Mia Monteurin | 1001 nicht 5 Ziffern | 4 | 18,25 | 0,00 | 3,75 | 0,00 | 22,00", "Tom Monteur | 01002 | 4 | 30,00 | 0,75 | 0,00 | 0,00 | 30,75",
          "Zusammen |  |  | 48,25 | 0,75 | 3,75 | 0,00 | 52,75"])
     await tab.bild("zeiten_monat_hell")
     await tab.js("document.querySelector('#lohnPruefen a[data-reiter-link=pruefen]').click()")
@@ -602,8 +607,9 @@ async def pruefen(tab, seed, p):
     await tab.js(f"document.querySelector('[data-aktion=ende][data-id=\"{seed['ole']}\"]').click()")
     await tab.warten(f"!document.querySelector('[data-offen=\"{seed['ole']}\"]')", 10)
     await tab.js("document.querySelector('.reiter a[data-reiter=monat]').click()")
-    p.pruefe("Fin: ohne Lücke -- Abschließen frei, DATEV nennt jetzt die Personalnummer", await tab.warten(
-        "!document.getElementById('lohnAbschliessen').disabled&&document.getElementById('lohnDatevFehlt').innerText==='Fehlt: 1 Personalnummer'", 10),
+    # seit 1.9.230 zwei: Oles fehlt, Mias hat nicht 5 Ziffern (bis 1.9.229 „Fehlt: 1 Personalnummer“)
+    p.pruefe("Fin: ohne Lücke -- Abschließen frei, DATEV nennt jetzt die Personalnummern", await tab.warten(
+        "!document.getElementById('lohnAbschliessen').disabled&&document.getElementById('lohnDatevFehlt').innerText==='Fehlt: 2 Personalnummern'", 10),
         True)
     # eine neue Lücke nach dem Laden: Mias Zeit läuft seit heute 08:00 -- der Server lehnt den Abschluss ab, die Seite zeigt die Liste
     neu = await tab.js(f"fetch('/api/time-entries/start',{{method:'POST',headers:{{'Content-Type':'application/json'}},"
@@ -636,9 +642,11 @@ async def pruefen(tab, seed, p):
         ".then(r=>r.json().then(d=>[r.status,d.detail]))"), [403, "Einen abgeschlossenen Zeitraum wieder öffnen darf nur ein Administrator."])
     await tab.js("document.querySelector('.reiter a[data-reiter=monat]').click()")
     # Oles Personalnummer nachtragen (seit 1.9.224 ohne Lohnart Werkstatt -- die gibt es nicht mehr)
-    p.pruefe("Fin: Oles Personalnummer gespeichert", [
-        await tab.js(f"fetch('/api/time-backoffice/payroll-employees/{seed['ole_ma']}',{{method:'PUT',headers:{{'Content-Type':'application/json'}},"
-                     f"body:JSON.stringify({{datev_personnel_number:'01003',payroll_export_enabled:true}})}}).then(r=>r.status)")], [200])  # seit 1.9.212 fünfstellig
+    # seit 1.9.230 dazu Mias Nummer mit 5 Ziffern (01001)
+    p.pruefe("Fin: Oles und Mias Personalnummer gespeichert", [
+        await tab.js(f"fetch('/api/time-backoffice/payroll-employees/{seed[wer]}',{{method:'PUT',headers:{{'Content-Type':'application/json'}},"
+                     f"body:JSON.stringify({{datev_personnel_number:'{nummer}',payroll_export_enabled:true}})}}).then(r=>r.status)")
+        for wer, nummer in (("ole_ma", "01003"), ("mia", "01001"))], [200, 200])  # seit 1.9.212 fünfstellig
     await tab.js("monatLaden()")
     p.pruefe("Fin: vollständig -- DATEV-Export als Knopf", await tab.js(
         "[document.getElementById('lohnDatev').hidden,document.getElementById('lohnDatevFehlt').innerText,"

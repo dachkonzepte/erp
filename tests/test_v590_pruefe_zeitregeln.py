@@ -71,7 +71,7 @@ def test_grunddaten_nichts_zu_klaeren():
         f"  Modell {winter.id} „Wintermodell“ (Kürzel winter): KW 49–17, Soll Mo–Fr 7,50 h, über 6,00 h -> 30 min · über 9,00 h -> 45 min, aktiv, "
         "0 Person(en) zugeordnet",
     ]
-    assert "Personen (aktiv): 0; DATEV-Nr. = ERP-Nr.: nein" in zeilen
+    assert "Personen (aktiv): 0" in zeilen  # seit 1.9.230 ohne „; DATEV-Nr. = ERP-Nr.: nein“ (entfallen)
     assert "Bundesland NW, Feiertage automatisch: an" in zeilen
     assert "Von Hand eingetragene Tage: 0 (zählen nicht als Feiertag F)" in zeilen
     assert zeilen[-1] == "Nichts zu klären."
@@ -171,21 +171,23 @@ def test_personalnummern_fehlend_falsch_doppelt():
         f"  ! Person {null.id}: Personalnummer „091001“ hat nicht genau 5 Ziffern.",  # seit 1.9.212
         f"  ! Personalnummer 91001 tragen 2 Personen ({gut.id}, {doppelt.id}).",
     ]
-    assert "Personen (aktiv): 6; DATEV-Nr. = ERP-Nr.: nein" in zeilen
+    assert "Personen (aktiv): 6" in zeilen  # seit 1.9.230 ohne „; DATEV-Nr. = ERP-Nr.: nein“
     assert "  Export-Umfang: alles 4, nur Abwesenheiten 1, nichts 1" in zeilen
 
 
-def test_gleichsetzung_prueft_die_erp_nummer():
+def test_alte_gleichsetzung_prueft_nur_die_datev_nummer():
+    """Seit 1.9.230 (Stufe 6, R3a, Punkt 0a): „DATEV-Nr. = ERP-Nr.“ ist entfallen (bis 1.9.229 test_gleichsetzung_prueft_die_erp_nummer). Auch mit
+    der alten Spalte auf „an“ zählt nur die DATEV-Nummer: die Mitarbeiternummer 09005 ist keine Personalnummer."""
     db = db_session()
     db.get(TimeBackofficeAdvancedSettings, 1).datev_personnel_equals_erp_number = True
     db.commit()
-    ziffern = _person(db, "09005")  # seit 1.9.212 fünfstellig (bis 1.9.211 „9005“)
-    buchstaben = _person(db, "M-17")
+    ziffern = _person(db, "09005")
+    buchstaben = _person(db, "M-17", datev="00017")
     rc, zeilen = _lauf(db)
     assert rc == 1
-    assert "Personen (aktiv): 2; DATEV-Nr. = ERP-Nr.: ja" in zeilen
-    assert f"  ! Person {buchstaben.id}: Personalnummer „M-17“ hat nicht genau 5 Ziffern." in zeilen  # seit 1.9.212
-    assert not any(f"Person {ziffern.id}:" in z for z in zeilen)
+    assert "Personen (aktiv): 2" in zeilen and not any("DATEV-Nr. = ERP-Nr." in z for z in zeilen)
+    assert f"  ! Person {ziffern.id}: keine Personalnummer, Export „alles“." in zeilen
+    assert not any(f"Person {buchstaben.id}:" in z for z in zeilen)
 
 
 def test_eintritt_austritt_eigene_sollzeit_und_zuordnung_der_modelle():

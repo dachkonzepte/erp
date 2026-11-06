@@ -3749,7 +3749,7 @@ class TimeTrackingSettingsOut(BaseModel):
     # seit 1.9.92 nur lesend hier -- gesetzt ausschließlich über PUT /api/time-backoffice/datev-nummern (nur Admin)
     datev_beraternummer: str | None = None
     datev_mandantennummer: str | None = None
-    datev_personnel_equals_erp_number: bool = False
+    # seit 1.9.230 ohne „DATEV-Nr. = ERP-Nr.“ (entfallen, Stufe 6, R3a, Punkt 0a)
     default_work_time_model_id: int | None = None
     # Seit 1.7.10 nur lesend hier -- gesetzt ausschließlich über PUT /api/time-backoffice/lock;
     # update_time_settings() übernimmt diese drei Felder bewusst nicht.

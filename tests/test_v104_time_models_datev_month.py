@@ -26,28 +26,36 @@ def db_session():
     return sessionmaker(bind=engine)()
 
 
-def test_datev_can_use_erp_employee_number():
+def test_datev_nimmt_nur_die_datev_personalnummer():
+    """Seit 1.9.230 (Stufe 6, R3a, Punkt 0a): „DATEV-Nr. = ERP-Nr.“ ist entfallen -- bis 1.9.229 hieß dieser Test
+    test_datev_can_use_erp_employee_number und die Mitarbeiternummer MA-0042 ging so in die Lohndatei. Die alte Spalte auf „an“ wirkt nicht mehr:
+    ohne DATEV-Nummer keine Datei, mit 00042 diese."""
+    import pytest
+    from app.time_backoffice import DatevExportGesperrt, set_employee_payroll
     db = db_session(); order = setup_order(db)
     emp = Employee(employee_number="MA-0042", first_name="Max", last_name="Dach", employee_group="gewerblich", hourly_wage=Decimal("22"), weekly_hours=Decimal("40"), active=True)
     db.add(emp); db.commit(); db.refresh(emp)
     get_employee_payroll(db, emp.id)
+    load_advanced_settings(db).datev_personnel_equals_erp_number = True
+    db.commit()
     current = load_time_settings(db)
-    payload = TimeTrackingSettingsUpdate(**{
-        **time_settings_dict(current, db),
-        "datev_personnel_equals_erp_number": True,
-        "datev_wage_type_site": "200",
-    })
-    update_time_settings(db, payload)
+    update_time_settings(db, TimeTrackingSettingsUpdate(**{**time_settings_dict(current, db), "datev_personnel_equals_erp_number": True}))
+    assert "datev_personnel_equals_erp_number" not in time_settings_dict(load_time_settings(db), db)
     from app.time_tracking import create_manual_entry
     create_manual_entry(db, employee_id=emp.id, order_id=order.id, work_date=date(2026,9,1), hours=Decimal("8"), entry_type="site")
     rows = payroll_rows(db)
-    assert rows[0]["datev_personnel_number"] == "MA-0042"
+    assert rows[0]["datev_personnel_number"] is None and "datev_personnel_equals_erp_number" not in rows[0]
     # seit 1.9.92: der Export nur abgeschlossen und mit Berater- und Mandantennummer (fehlt etwas: 409, keine Warnungen mehr)
     current = load_time_settings(db)
     current.locked_until, current.datev_beraternummer, current.datev_mandantennummer = date(2026,9,30), "1001", "1"
     db.commit()
+    with pytest.raises(DatevExportGesperrt) as fehler:
+        build_datev_export(db, date(2026,9,1), date(2026,9,30))
+    assert "Personalnummer fehlt: Max Dach" in str(fehler.value)
+    set_employee_payroll(db, emp.id, {"datev_personnel_number": "00042"})
     data, ext = build_datev_export(db, date(2026,9,1), date(2026,9,30))
-    assert ext == "txt" and "MA-0042;1;1;1000;8,00;;;;;;" in data.decode("ascii")  # seit 1.9.224 die Lohndatei (bis 1.9.223 CSV mit Namen)
+    text = data.decode("ascii")
+    assert ext == "txt" and "00042;1;1;1000;8,00;;;;;;" in text and "MA-0042" not in text  # seit 1.9.224 die Lohndatei
 
 
 def test_work_time_models_and_automatic_break_on_timer():

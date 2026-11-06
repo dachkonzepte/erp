@@ -1963,3 +1963,88 @@ Nur Doku und zwei Kommentare (`NUMMERNKREISE` in `app/time_backoffice.py`, Kopf 
 Festlegung, keine Gegenprobe (reine Doku, Zeile in „Gegenproben Lohn L1a“). Ein Wackler aus dem Lauf vor dem Commit von 1.9.224
 (`test_v399_teil_updates_geld.py::test_postgresql_eingangsrechnung_speichern_und_loeschen_ohne_deadlock`) steht in der „Laufenden Liste der Wackler“
 (Archiv „Testablauf“). Angepasste Erwartungen: keine.
+
+## Stufe 6, R3a: Vorweg aus Lohn L1b (ab 1.9.230)
+
+Vorgabe Tobias (06.11.2026), Runde „Stufe 6 · R3a Plantafel-Modell“, Punkt 0 „Vorweg aus L1b“, je eine Version: a) in der Lohndatei nur
+Personalnummern mit genau fünf Ziffern, sonst keine Datei und ein Eintrag unter „Prüfen“ (Bild 01 des Berichts L1b zeigte 1001/1002 in einer erzeugten
+Datei), der Schalter „DATEV-Nummer = ERP-Nummer“ entfällt (`test_v104` schrieb MA-0042); b) die Rundung je Buchung entfällt, gerundet wird nur der Tag
+(1.9.223 Nr. 6); c) Eingangsrechnung: Speichern und gleichzeitiges Löschen ergibt kein 500 mehr (Wackler `test_v399`). Bestätigt: alle Festlegungen aus
+L1b; 1.9.224 Nr. 10 (Mehrarbeit der Azubis) vorläufig, die Frage liegt beim Steuerbüro. Die Plantafel-Punkte dieser Runde stehen im Archiv
+`modul-kalender-und-outlook-sync.md`, „Stufe 6, R3a“.
+
+### Umsetzung 1.9.230: Personalnummer mit genau 5 Ziffern in der Lohndatei, „DATEV-Nr. = ERP-Nr.“ entfällt (Punkt 0a)
+
+Wie „1001“ in die Datei kam: seit 1.9.212 nimmt das Speichern nur 5 Ziffern, die Migration 5d2e8a71c4f3 hat 1 bis 4 Ziffern aufgefüllt -- geprüft wurde
+das Format aber nur beim Speichern. Eine Nummer mit Buchstaben oder 6 Ziffern (von der Migration bewusst nicht angefasst), eine direkt in die Datenbank
+geschriebene (Klicktest-Daten) und bei „DATEV-Nr. = ERP-Nr.“ jede Mitarbeiternummer gingen ungeprüft in die Datei.
+
+- `app/time_backoffice.py::datev_fehlt()`: je Person mit einer Zeile neben „Personalnummer fehlt“ jetzt auch „Personalnummer „1001“ hat nicht genau 5
+  Ziffern: Name“ (art `personalnummer_format`). Damit sperrt sie den Export (409, `build_datev_export()`), steht auf „Prüfen“ unter „Vor dem
+  Abschluss“ und in „Monat & Lohn“ in der Liste über dem Knopf (`vor_dem_abschluss()`, dieselbe Liste). `app/zeiten.py::datev_text()` zählt sie als
+  Personalnummer („Fehlt: 2 Personalnummern“).
+- `app/lohndatei.py::datei()` lehnt eine Person mit Zeilen und einer Nummer ohne genau 5 Ziffern selbst ab (`ValueError`, keine Datei) -- zweite
+  Sicherung hinter `datev_fehlt()`.
+- „Monat & Lohn“: eine solche Nummer steht mit dem Kennzeichen „nicht 5 Ziffern“ in der Tabelle (`personalnummer_gueltig` je Zeile vom Server).
+- Der Schalter: `effective_datev_personnel_number()` liest nur noch die Lohnstammdaten; Zeitregeln (`time_settings_dict()`, Schema), Lohnstammdaten
+  (`_payroll_dict()`), `set_employee_payroll()`, `personalnummer_halter()`, `personalnummern_traeger()` und das Mitarbeiterformular
+  (`app/routers/employees.py`: kein Merken und keine Sperre der Mitarbeiternummer mehr) kennen ihn nicht mehr; die Einstellungsseite hat kein Häkchen
+  mehr. Die Spalte `time_backoffice_advanced_settings.datev_personnel_equals_erp_number` bleibt ungenutzt stehen (wie Zielsystem und Lohnarten seit
+  1.9.224); `app/audit.py` behält die Beschriftung für alte Einträge des Änderungsprotokolls.
+- Migration `b6d14e8a2f73`: war der Schalter an, wird je Person die Mitarbeiternummer (ohne Leerzeichen am Rand) DATEV-Personalnummer -- nur mit genau 5
+  Ziffern, nur wenn keine andere Person sie in den Lohnstammdaten trägt und sie für keine andere (oder aus der eingelesenen Liste ohne Person) gemerkt
+  ist; eine abweichende gespeicherte wird ersetzt, ohne Lohnstammdaten entsteht eine Zeile mit der Vorgabe; gemerkt für die Person. downgrade() ändert
+  keine Daten.
+- `scripts/pruefe_zeitregeln.py`: die Zeile „Personen (aktiv): N“ ohne „; DATEV-Nr. = ERP-Nr.: …“, geprüft wird nur die DATEV-Nummer.
+
+### Festlegungen 1.9.230 (Bitte bestätigen)
+
+1. Eine gespeicherte Personalnummer ohne genau 5 Ziffern sperrt die Lohndatei wie eine fehlende: Eintrag „Personalnummer „1001“ hat nicht genau 5
+   Ziffern: Name“ unter „Vor dem Abschluss“ (Prüfen und Monat & Lohn) und in der Ablehnung des Exports; „Fehlt: …“ zählt sie als Personalnummer.
+2. Die Datei selbst nimmt keine Nummer ohne genau 5 Ziffern an (zweite Sicherung); nur Personen mit Zeilen zählen.
+3. „Monat & Lohn“ zeigt eine solche Nummer mit dem Kennzeichen „nicht 5 Ziffern“.
+4. „DATEV-Nr. = ERP-Nr.“ gibt es nicht mehr; ein mitgeschickter Wert wird nicht übernommen (200, keine 422), die Spalte bleibt ungenutzt.
+5. Die Mitarbeiternummer ist keine Personalnummer mehr: das Mitarbeiterformular merkt und sperrt sie nicht, sie „trägt“ keine gemerkte Nummer
+   (Freigabe, Liste „früher“). Schon gemerkte Mitarbeiternummern bleiben gemerkt (nur der Admin gibt frei).
+6. Die Migration übernimmt bei eingeschaltetem Schalter die Mitarbeiternummer nur mit genau 5 Ziffern und nur, wenn sie frei ist; eine abweichende
+   gespeicherte Nummer wird ersetzt (die Datei nahm die Mitarbeiternummer); sonst bleibt alles, und „Prüfen“ nennt die Person. downgrade() ändert keine
+   Daten (mit Schalter liest der Stand davor dieselbe Nummer).
+7. `scripts/pruefe_zeitregeln.py` prüft nur die DATEV-Nummer und nennt den Schalter nicht mehr.
+
+### Tests und Prüfung 1.9.230
+
+Neu: `tests/test_v631_personalnummer_in_der_lohndatei.py` -- vier Ziffern, Buchstaben und fehlende Nummer in `datev_fehlt()` und im Export, „Prüfen“,
+Kennzeichen in „Monat & Lohn“, die Datei selbst, die alte Spalte auf „an“ wirkt nicht, Seite ohne Häkchen, niemand liest die Spalte, Migration
+`b6d14e8a2f73` auf einem Bestand unter SQLite und PostgreSQL (Wegwerf-Schema) mit und ohne Schalter, downgrade(). Gegenproben: Archiv
+`gegenproben-stufe6-r3a.md` (24 rot, eine erst grün -> Test ergänzt). Klicktest `klicktest_zeiten`: neue Prüfung „Admin: Vor dem Abschluss nennt Mias
+Nummer ohne 5 Ziffern“.
+
+Angepasste Erwartungen (Regel 28):
+- `test_v104::test_datev_can_use_erp_employee_number` heißt `test_datev_nimmt_nur_die_datev_personalnummer`; alt: MA-0042 in der Datei; neu: ohne
+  DATEV-Nummer 409 „Personalnummer fehlt: Max Dach“, mit 00042 diese, MA-0042 nicht.
+- `test_v586::test_gleichsetzung_mit_erp_nummer` -> `test_alte_gleichsetzung_wirkt_nicht`; alt 422 „„M-1“ taugt nicht …“; neu 200, Nummer nicht M-1.
+- `test_v590::test_gleichsetzung_prueft_die_erp_nummer` -> `test_alte_gleichsetzung_prueft_nur_die_datev_nummer`; alt „Personen (aktiv): 2;
+  DATEV-Nr. = ERP-Nr.: ja“ und M-17 als Befund; neu „Personen (aktiv): 2“, 09005 ohne DATEV-Nummer „keine Personalnummer“, M-17 mit 00017 ohne Befund.
+- `test_v590::test_grunddaten_nichts_zu_klaeren`, `::test_personalnummern_fehlend_falsch_doppelt`: alt „Personen (aktiv): N; DATEV-Nr. = ERP-Nr.:
+  nein“, neu „Personen (aktiv): N“.
+- `test_v593::test_gleichsetzung_sperrt_die_mitarbeiternummer` -> `test_mitarbeiternummer_wird_nie_gemerkt`; alt gemerkt und 409 für Tom und Lea; neu
+  nichts gemerkt, Tom 200.
+- `test_v595::test_eine_mitarbeiternummer_bei_gleichsetzung_bleibt` -> `test_eine_mitarbeiternummer_haelt_keine_personalnummer`; alt 409; neu 200.
+- `test_v601::test_bei_gleichsetzung_auch_die_mitarbeiternummer` -> `test_eine_mitarbeiternummer_traegt_nichts`; alt Tom als Träger, 409; neu
+  (["91001"], {}), 200.
+- `test_v604::test_gleichsetzung_nur_abwesenheiten_verlangt_das_format` -> `test_alte_gleichsetzung_verlangt_kein_format`; alt 422; neu 200.
+- `test_v606::test_anlegen_merkt_die_mitarbeiternummer_bei_gleichsetzung` -> `test_anlegen_merkt_keine_mitarbeiternummer`; alt 91005 gemerkt; neu nichts.
+- `test_v606::test_einschalten_der_gleichsetzung_merkt_nichts` -> `test_den_schalter_gibt_es_nicht_mehr`; alt einschalten 200, Antwort „an“; neu der
+  Schlüssel fehlt in Stand und Antwort, die Spalte bleibt aus, nichts gemerkt.
+- `test_v608::test_191_2_eigene_fruehere_nummer_in_den_lohnstammdaten_nennt_die_person_selbst` ->
+  `test_191_2_alte_gleichsetzung_aendert_die_heutige_nummer_nicht`; alt (["91008"], {"91008": "Mia Monteurin"}); neu ([], {}); 409 bleibt.
+- `test_v617::test_gleichsetzung_braucht_fuenf_ziffern` -> `test_alte_gleichsetzung_prueft_keine_mitarbeiternummer`; alt 422 bzw. 200 mit Hinweis; neu 200.
+- `test_v519::test_monat_tabelle_mit_personalnummer`: alt „Mia Monteurin 1001 20 …“, neu „Mia Monteurin 1001 nicht 5 Ziffern 20 …“.
+- `test_v326`: Eintrag `("/api/time-tracking/settings", "$.datev_personnel_equals_erp_number")` aus `ERLAUBT_JE_ROUTE` gestrichen (das Feld gibt es nicht mehr).
+- Nur Aufbau (Testdaten mit weniger als 5 Ziffern, die jetzt die Datei sperren würden): `test_v103` (14 -> 00014, Zeile „00014;7;…“), `test_v311`
+  (1001 -> 01001), `test_v315` (14 -> 00014), `test_v513` (1001/1002 -> 01001/01002, Zeilen der Datei), `test_v517` (dito), `test_v571` (1001 ->
+  01001, Zeilen der Datei).
+- `klicktest_zeiten`: Tom 1002 -> 01002 (Mia bleibt 1001, eine Nummer von vor 1.9.212); „Fin: Lücke …“ DATEV alt „“, neu „Fehlt: 1 Personalnummer“;
+  „Fin: Schritt Prüfen“ neu mit „Personalnummer „1001“ hat nicht genau 5 Ziffern: Mia Monteurin“; „Fin: Tabelle mit Personalnummer“ alt „1001“/„1002“,
+  neu „1001 nicht 5 Ziffern“/„01002“; „Fin: ohne Lücke …“ alt „Fehlt: 1 Personalnummer“, neu „Fehlt: 2 Personalnummern“; „Fin: Oles Personalnummer
+  gespeichert“ heißt „Oles und Mias …“ (Mia bekommt 01001).

@@ -60,7 +60,7 @@ def test_lohndatei_mit_abwesenheit_monat_und_lohn_ohne(threaded_db_session):
     db = threaded_db_session
     order, _ = make_order_with_item(db)
     mia = _person(db)
-    db.add(EmployeePayrollSettings(employee_id=mia.id, datev_personnel_number="1001", payroll_export_enabled=True))
+    db.add(EmployeePayrollSettings(employee_id=mia.id, datev_personnel_number="01001", payroll_export_enabled=True))  # seit 1.9.230 fünfstellig: eine Nummer ohne 5 Ziffern sperrt die Lohndatei
     db.add(TimeEntry(employee_id=mia.id, project_id=order.project_id, order_id=order.id, work_date=date(2026, 9, 1), entry_type="site", counts_as_productive=True,
                      hours=Decimal("8"), status="booked", source="manual"))
     s = db.get(TimeTrackingSettings, 1)
@@ -74,8 +74,8 @@ def test_lohndatei_mit_abwesenheit_monat_und_lohn_ohne(threaded_db_session):
     db.commit()
     datei = build_datev_export(db, date(2026, 9, 1), date(2026, 9, 30))[0].decode("ascii").split("\r\n")
     assert datei != datei_vorher[0].decode("ascii").split("\r\n")
-    assert [z for z in datei if z.startswith(("1001;2;", "1001;3;"))] == [
-        "1001;2;K;1650;8,00;;;;;;", "1001;2;U;8000;8,00;;;;;;", "1001;3;K;1650;8,00;;;;;;", "1001;3;U;8000;8,00;;;;;;"]
+    assert [z for z in datei if z.startswith(("01001;2;", "01001;3;"))] == [
+        "01001;2;K;1650;8,00;;;;;;", "01001;2;U;8000;8,00;;;;;;", "01001;3;K;1650;8,00;;;;;;", "01001;3;U;8000;8,00;;;;;;"]
     assert monat(db, date(2026, 9, 1))["zeilen"] == zeilen_vorher
 
 

@@ -211,7 +211,12 @@ def zeile_text(pnr: str, z: Zeile) -> str:
 
 
 def datei(beraternummer: str, mandantennummer: str, erster: date, personen: list[Person]) -> bytes:
-    """Die Datei: Kopf, dann je Person mit Zeilen ihre Zeilen. Jede Person mit Zeilen braucht eine Personalnummer (prüft der Aufrufer)."""
+    """Die Datei: Kopf, dann je Person mit Zeilen ihre Zeilen. Jede Person mit Zeilen braucht eine Personalnummer mit genau 5 Ziffern (prüft der
+    Aufrufer über datev_fehlt(); seit 1.9.230 lehnt die Datei selbst jede andere ab -- ValueError, keine Datei)."""
+    from .time_backoffice import personalnummer_gueltig
+    falsch = [p.personalnummer or "ohne" for p in personen if p.zeilen and not personalnummer_gueltig(p.personalnummer)]
+    if falsch:
+        raise ValueError("Keine Lohndatei: Personalnummer ohne genau 5 Ziffern (" + ", ".join(falsch) + ").")
     zeilen = [f"{beraternummer};{mandantennummer};{erster:%m/%Y}"]
     for p in personen:
         zeilen += [zeile_text(p.personalnummer, z) for z in p.zeilen]

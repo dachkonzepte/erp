@@ -73,7 +73,7 @@ def _einzelzeilen():
         (RecurringCostSettings, {}),
         (TaskSettings, {}),
         (TimeTrackingSettings, {}),
-        (TimeBackofficeAdvancedSettings, {"datev_personnel_equals_erp_number": False}),
+        (TimeBackofficeAdvancedSettings, {}),  # seit 1.9.230 ohne „DATEV-Nr. = ERP-Nr.“ (die Spalte bleibt ungenutzt, Vorgabe aus)
     ]
 
 

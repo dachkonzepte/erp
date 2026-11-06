@@ -2861,6 +2861,8 @@ class TimeBackofficeAdvancedSettings(Base):
     __tablename__ = "time_backoffice_advanced_settings"
 
     id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    # Seit 1.9.230 ungenutzt (Stufe 6, R3a, Punkt 0a): „DATEV-Nr. = ERP-Nr.“ ist entfallen; die Migration b6d14e8a2f73 hat bei eingeschaltetem
+    # Schalter die Mitarbeiternummern übernommen. Die Spalte bleibt (wie Zielsystem und Lohnarten seit 1.9.224), nichts liest sie.
     datev_personnel_equals_erp_number: Mapped[bool] = mapped_column(Boolean, default=False)
     default_work_time_model_id: Mapped[int | None] = mapped_column(ForeignKey("work_time_models.id"), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

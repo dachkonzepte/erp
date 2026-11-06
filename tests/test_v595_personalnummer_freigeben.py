@@ -52,22 +52,15 @@ def test_eine_getragene_nummer_bleibt(welt):
     assert ("91016", welt["mia"].id) in _gemerkt(welt)
 
 
-def test_eine_mitarbeiternummer_bei_gleichsetzung_bleibt(welt):
-    """„DATEV-Nr. = ERP-Nr.“: Mia 91001 -> 91002 über das Mitarbeiterformular, Tom bekommt (an der Sperre vorbei, wie von Hand) 91001 als
-    Mitarbeiternummer -- er trägt sie, also 409."""
+def test_eine_mitarbeiternummer_haelt_keine_personalnummer(welt):
+    """Seit 1.9.230 (Stufe 6, R3a, Punkt 0a): „DATEV-Nr. = ERP-Nr.“ ist entfallen (bis 1.9.229 test_eine_mitarbeiternummer_bei_gleichsetzung_bleibt:
+    Toms Mitarbeiternummer 91001 hielt die Nummer, 409). Auch mit der alten Spalte auf „an“ trägt eine Mitarbeiternummer nichts -- freigeben geht."""
     db, mia, tom = welt["db"], welt["mia"], welt["tom"]
     db.get(TimeBackofficeAdvancedSettings, 1).datev_personnel_equals_erp_number = True
-    client = _client(welt, "admin")
-    assert _mitarbeiter_put(client, mia.id, employee_number="91001").status_code == 200
-    assert _mitarbeiter_put(client, mia.id, employee_number="91002").status_code == 200
+    db.add(PersonalnummerVergabe(nummer="91001", employee_id=mia.id))
     tom.employee_number = "91001"
     db.commit()
-    r = client.post(FREIGEBEN, json={"nummer": "91001"})
-    assert (r.status_code, r.json()["detail"]) == (
-        409, "Die Personalnummer 91001 trägt heute Tom Monteur – freigeben geht nur, solange sie niemand trägt.")
-    tom.employee_number = "M-2"
-    db.commit()
-    assert client.post(FREIGEBEN, json={"nummer": "91001"}).status_code == 200
+    assert _client(welt, "admin").post(FREIGEBEN, json={"nummer": "91001"}).status_code == 200
 
 
 def test_eine_nicht_gemerkte_nummer(welt):

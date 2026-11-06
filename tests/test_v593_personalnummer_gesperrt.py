@@ -86,21 +86,16 @@ def _mitarbeiter_put(client, emp_id, **aenderung):
     return client.put(f"/api/employees/{emp_id}", json={**koerper, **aenderung})
 
 
-def test_gleichsetzung_sperrt_die_mitarbeiternummer(welt):
-    """„DATEV-Nr. = ERP-Nr.“: Mia 91001 -> 91002 über das Mitarbeiterformular; 91001 bekommt weder Tom noch ein neuer Mitarbeiter."""
+def test_mitarbeiternummer_wird_nie_gemerkt(welt):
+    """Seit 1.9.230 (Stufe 6, R3a, Punkt 0a): „DATEV-Nr. = ERP-Nr.“ ist entfallen (bis 1.9.229 test_gleichsetzung_sperrt_die_mitarbeiternummer:
+    die Mitarbeiternummern wurden gemerkt und für andere gesperrt). Auch mit der alten Spalte auf „an“ merkt das Mitarbeiterformular nichts."""
     db, mia, tom = welt["db"], welt["mia"], welt["tom"]
     db.get(TimeBackofficeAdvancedSettings, 1).datev_personnel_equals_erp_number = True
     client = _client(welt)
     assert _mitarbeiter_put(client, mia.id, employee_number="91001").status_code == 200
     assert _mitarbeiter_put(client, mia.id, employee_number="91002").status_code == 200
-    assert _gemerkt(welt) == [("91001", mia.id), ("91002", mia.id), ("M-1", mia.id)]  # „M-1“ war ihre bisherige Nummer
-    r = _mitarbeiter_put(client, tom.id, employee_number="91001")
-    assert (r.status_code, r.json()["detail"]) == (409, GESPERRT.format(n="91001", name="Mia Monteurin"))
-    neu = {k: v for k, v in client.get(f"/api/employees/{tom.id}").json().items()
-           if k not in ("id", "function_name", "effective_hourly_wage", "annual_gross_wage")}
-    r = client.post("/api/employees", json={**neu, "employee_number": "91001", "first_name": "Lea"})
-    assert (r.status_code, r.json()["detail"]) == (409, GESPERRT.format(n="91001", name="Mia Monteurin"))
-    assert _mitarbeiter_put(client, mia.id, employee_number="91001").status_code == 200  # Mias eigene Nummer
+    assert _gemerkt(welt) == []
+    assert _mitarbeiter_put(client, tom.id, employee_number="91001").status_code == 200
 
 
 def test_ohne_gleichsetzung_bleibt_die_mitarbeiternummer_frei(welt):

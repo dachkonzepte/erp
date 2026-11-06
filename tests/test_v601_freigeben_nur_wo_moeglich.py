@@ -40,17 +40,17 @@ def test_liste_nennt_wer_eine_fruehere_nummer_traegt(welt):
     assert _client(welt, "admin").post(FREIGEBEN, json={"nummer": "91008"}).status_code == 200
 
 
-def test_bei_gleichsetzung_auch_die_mitarbeiternummer(welt):
-    """„DATEV-Nr. = ERP-Nr.“: Mia 91001 -> 91002, Tom trägt 91001 als Mitarbeiternummer -- die Liste nennt ihn wie die Freigabe (409)."""
+def test_eine_mitarbeiternummer_traegt_nichts(welt):
+    """Seit 1.9.230 (Stufe 6, R3a, Punkt 0a): „DATEV-Nr. = ERP-Nr.“ ist entfallen (bis 1.9.229 test_bei_gleichsetzung_auch_die_mitarbeiternummer:
+    die Liste nannte Tom als Träger). Auch mit der alten Spalte auf „an“: Mias frühere 91001 trägt niemand, freigeben geht -- wie die Freigabe."""
+    from app.models import PersonalnummerVergabe
     db, mia, tom = welt["db"], welt["mia"], welt["tom"]
     db.get(TimeBackofficeAdvancedSettings, 1).datev_personnel_equals_erp_number = True
-    client = _client(welt, "admin")
-    assert _mitarbeiter_put(client, mia.id, employee_number="91001").status_code == 200
-    assert _mitarbeiter_put(client, mia.id, employee_number="91002").status_code == 200
-    tom.employee_number = " 91001"  # mit Leerzeichen: dieselbe Regel wie die Freigabe (getrimmt)
+    db.add(PersonalnummerVergabe(nummer="91001", employee_id=mia.id))
+    tom.employee_number = " 91001"
     db.commit()
-    assert _zeilen(welt)["Mia Monteurin"] == (["M-1", "91001"], {"91001": "Tom Monteur"})  # M-1: ihre Nummer vor 91001, niemand trägt sie
-    assert client.post(FREIGEBEN, json={"nummer": "91001"}).status_code == 409
+    assert _zeilen(welt)["Mia Monteurin"] == (["91001"], {})
+    assert _client(welt, "admin").post(FREIGEBEN, json={"nummer": "91001"}).status_code == 200
 
 
 # --- Seite --------------------------------------------------------------------------------------------------------------------------

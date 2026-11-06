@@ -38,8 +38,8 @@ def welt(threaded_db_session, router_test_client):
     mia = Employee(employee_number="M-1", first_name="Mia", last_name="Monteurin", employee_group="gewerblich", active=True)
     tom = Employee(employee_number="M-2", first_name="Tom", last_name="Monteur", employee_group="gewerblich", active=True)
     db.add_all([mia, tom]); db.flush()
-    db.add_all([EmployeePayrollSettings(employee_id=mia.id, datev_personnel_number="1001", payroll_export_enabled=True),
-                EmployeePayrollSettings(employee_id=tom.id, datev_personnel_number="1002", payroll_export_enabled=True)])
+    db.add_all([EmployeePayrollSettings(employee_id=mia.id, datev_personnel_number="01001", payroll_export_enabled=True),
+                EmployeePayrollSettings(employee_id=tom.id, datev_personnel_number="01002", payroll_export_enabled=True)])  # seit 1.9.230 fünfstellig: eine Nummer ohne 5 Ziffern sperrt die Lohndatei
 
     def te(ma, tag, typ, stunden):
         return TimeEntry(employee_id=ma.id, project_id=order.project_id, order_id=order.id, work_date=tag, entry_type=typ,
@@ -99,7 +99,7 @@ def test_datev_je_tag_gerundet_stundenzettel_und_uebersicht_minutengenau(welt):
     8,00), alle Zeitarten in einer Zeile 1 / 1000. Stundenzettel als PDF (Summenzeile) und Übersicht bleiben minutengenau: Mia 9,92 h, Tom 8,08 h.
     Bis 1.9.223 hatten alle drei dieselbe Summe (9,92 / 8,08)."""
     zeilen = _export(welt).content.decode("ascii").split("\r\n")
-    assert zeilen == ["1234567;12345;09/2026", "1001;1;1;1000;2,75;;;;;;", "1001;2;1;1000;7,25;;;;;;", "1002;2;1;1000;8,00;;;;;;", ""]
+    assert zeilen == ["1234567;12345;09/2026", "01001;1;1;1000;2,75;;;;;;", "01001;2;1;1000;7,25;;;;;;", "01002;2;1;1000;8,00;;;;;;", ""]
     client = _als(welt)
     uebersicht = {e["employee_name"]: Decimal(str(e["hours"])) for e in client.get("/api/time-backoffice/summary", params=ZEITRAUM).json()["employees"]}
     assert uebersicht == {"Mia Monteurin": Decimal("9.92"), "Tom Monteur": Decimal("8.08")}
@@ -128,7 +128,7 @@ def test_alte_lohnart_je_zeitart_sperrt_nicht_mehr(welt):
     welt["db"].get(TimeTrackingSettings, 1).datev_wage_type_travel = None
     welt["db"].commit()
     antwort = _export(welt)
-    assert antwort.status_code == 200 and b"1001;1;1;1000;2,75;;;;;;" in antwort.content
+    assert antwort.status_code == 200 and b"01001;1;1;1000;2,75;;;;;;" in antwort.content
 
 
 def test_fehlende_personalnummer_kein_export(welt):
@@ -146,7 +146,7 @@ def test_ohne_lohnexport_keine_personalnummer_noetig(welt):
     p = welt["db"].query(EmployeePayrollSettings).filter_by(employee_id=welt["tom"].id).one()
     p.datev_personnel_number, p.payroll_export_enabled, p.export_umfang = None, False, "nichts"
     welt["db"].commit()
-    assert {z[0] for z in _csv(_export(welt))[1:]} == {"1001"}
+    assert {z[0] for z in _csv(_export(welt))[1:]} == {"01001"}
 
 
 @pytest.mark.parametrize("berater, mandant, text", [(None, "12345", "Beraternummer fehlt"), ("1234567", None, "Mandantennummer fehlt"),

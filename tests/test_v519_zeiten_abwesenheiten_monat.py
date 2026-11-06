@@ -165,7 +165,8 @@ def test_monat_tabelle_mit_personalnummer():
     e = _monat_zeichnen(MONAT)
     assert _text(e["lohnKopf"]["h"]) == "Mitarbeiter Personalnr. Tage Baustelle Fahrzeit Werkstatt Schlechtwetter Zusammen"
     zeilen = [_text(z) for z in re.findall(r"<tr[^>]*>(.*?)</tr>", e["lohnZeilen"]["h"])]
-    assert zeilen == ["Mia Monteurin 1001 20 142,75 14,25 11,50 0,00 168,50", "Ole Offen fehlt 10 73,50 8,50 0,00 0,00 82,00",
+    # seit 1.9.230 steht eine Nummer ohne genau 5 Ziffern mit dem Kennzeichen „nicht 5 Ziffern“ da
+    assert zeilen == ["Mia Monteurin 1001 nicht 5 Ziffern 20 142,75 14,25 11,50 0,00 168,50", "Ole Offen fehlt 10 73,50 8,50 0,00 0,00 82,00",
                       "Zusammen 216,25 22,75 11,50 0,00 250,50"]
     assert "timesheet.pdf?start_date=2026-10-01&amp;end_date=2026-10-31&amp;employee_id=1" in e["lohnZeilen"]["h"] or \
         "timesheet.pdf?start_date=2026-10-01&end_date=2026-10-31&employee_id=1" in e["lohnZeilen"]["h"]

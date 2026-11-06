@@ -970,7 +970,7 @@ function monatZeichnen(d){
   // je Eintrag: Art, Text, Text des Wegs, Ziel des Wegs (Reiter Prüfen, Reiter Abwesenheiten, Einstellungen → Zeitregeln und DATEV)
   if(laeuft)z.push(['offen',laeuft+(laeuft===1?' Zeit läuft noch':' Zeiten laufen noch'),'Prüfen','pruefen']);
   if(pause)z.push(['offen',pause+(pause===1?' Tag mit unpassender Pause':' Tage mit unpassender Pause'),'Prüfen','pruefen']);
-  d.datev_fehlt.forEach(function(x){z.push(['offen',x.text,x.art==='personalnummer'?'Personal':'Zeitregeln','einstellungen'])});
+  d.datev_fehlt.forEach(function(x){z.push(['offen',x.text,x.art.indexOf('personalnummer')===0?'Personal':'Zeitregeln','einstellungen'])});  // seit 1.9.230 auch „personalnummer_format“
   z.push(d.antraege_offen?['offen',d.antraege_offen+(d.antraege_offen===1?' Antrag offen':' Anträge offen'),'Abwesenheiten','abwesenheiten']:['ok','Anträge entschieden','','']);
   el('lohnPruefen').innerHTML=z.map(function(x){
     var weg=x[3]==='pruefen'?'<a href="#pruefen" data-reiter-link="pruefen">'+esc(x[2])+'</a>'
@@ -1006,7 +1006,8 @@ function monatZeichnen(d){
   function swZelle(x,klasse){return sw?'<td class="'+klasse+' r num"'+(x.tage?' title="'+esc(x.tage)+(x.tage===1?' Ausfalltag':' Ausfalltage')+'"':'')+'>'+(x.tage?esc(zahlText(x.stunden,2))+' <span class="mut">('+esc(x.tage)+' T.)</span>':'–')+'</td>':''}
   el('lohnKopf').innerHTML='<tr><th>Mitarbeiter</th><th>Personalnr.</th><th class="r">Tage</th>'+d.spalten.map(function(s){return '<th class="r">'+esc(s.label)+'</th>'}).join('')+'<th class="r" title="Arbeit für den Lohn: je Tag auf 0,25 h gerundet">Zusammen</th>'+(sw?'<th class="r" title="Ausfalltage Schlechtwetter: Sollzeit minus gebuchte Arbeit">Ausfall Schlechtwetter</th>':'')+'</tr>';
   el('lohnZeilen').innerHTML=d.zeilen.map(function(r){
-    var pnr=r.personalnummer?esc(r.personalnummer):r.lohnexport?'<span class="chip chip-signal">fehlt</span>':'<span class="mut">ohne Export</span>';
+    // seit 1.9.230: eine Nummer ohne genau 5 Ziffern steht mit Kennzeichen da (sie sperrt die Lohndatei wie eine fehlende)
+    var pnr=r.personalnummer?esc(r.personalnummer)+(r.personalnummer_gueltig?'':' <span class="chip chip-signal" data-pnr-falsch>nicht 5 Ziffern</span>'):r.lohnexport?'<span class="chip chip-signal">fehlt</span>':'<span class="mut">ohne Export</span>';
     return '<tr data-mitarbeiter="'+r.employee_id+'"><td><a href="/api/time-backoffice/timesheet.pdf?'+zeitraum(d)+'&employee_id='+r.employee_id+'" title="Stundenzettel als PDF">'+esc(r.name)+'</a></td>'
       +'<td class="num">'+pnr+'</td><td class="r num">'+esc(r.tage)+'</td>'
       +d.spalten.map(function(s){return '<td class="r num">'+esc(zahlText(r.stunden[s.key],2))+'</td>'}).join('')

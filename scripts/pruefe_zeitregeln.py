@@ -128,22 +128,20 @@ def _bereiche(wochen: list[int]) -> str:
 
 
 def _personen(db, stand: Stand, heute: date) -> None:
-    from app.models import Employee, EmployeePayrollSettings, EmployeeTargetHours, TimeBackofficeAdvancedSettings
+    from app.models import Employee, EmployeePayrollSettings, EmployeeTargetHours
     from app.time_backoffice import EXPORT_UMFAENGE, NUMMERNKREISE, PERSONALNUMMER_FORMAT
 
-    erweitert = db.get(TimeBackofficeAdvancedSettings, 1)
-    gleich = bool(erweitert and erweitert.datev_personnel_equals_erp_number)
     lohn = {p.employee_id: p for p in db.scalars(select(EmployeePayrollSettings))}
     aktive = list(db.execute(select(Employee.id, Employee.employee_number, Employee.employee_group).where(Employee.active.is_(True))
                              .order_by(Employee.id)))
-    stand.zeile(f"Personen (aktiv): {len(aktive)}; DATEV-Nr. = ERP-Nr.: {'ja' if gleich else 'nein'}")
+    stand.zeile(f"Personen (aktiv): {len(aktive)}")  # seit 1.9.230 ohne „DATEV-Nr. = ERP-Nr.“ (entfallen)
     umfang = Counter()
     nummern: dict[str, list[int]] = {}
     for eid, erp_nr, _gruppe in aktive:
         p = lohn.get(eid)
         u = (p.export_umfang if p is not None and p.export_umfang else "alles")
         umfang[u] += 1
-        nummer = ((erp_nr or "").strip() if gleich else ((p.datev_personnel_number if p else None) or "").strip()) or None
+        nummer = ((p.datev_personnel_number if p else None) or "").strip() or None  # seit 1.9.230 nur die DATEV-Nummer
         if nummer:
             nummern.setdefault(nummer, []).append(eid)
             if u != "nichts" and not PERSONALNUMMER_FORMAT.match(nummer):

@@ -218,25 +218,29 @@ def pnr(threaded_db_session, router_test_client, fester_tag):
     return {"db": db, "mia": mia, "tom": tom, "client": router_test_client}
 
 
-def test_anlegen_merkt_die_mitarbeiternummer_bei_gleichsetzung(pnr):
-    """Gegenprobe zu Festlegung 1.9.177 Nr. 1: bei „DATEV-Nr. = ERP-Nr.“ merkt das Anlegen im Mitarbeiterformular die neue Nummer (bisher
-    geprüft war nur das Ändern)."""
+def test_anlegen_merkt_keine_mitarbeiternummer(pnr):
+    """Seit 1.9.230 (Stufe 6, R3a, Punkt 0a): „DATEV-Nr. = ERP-Nr.“ ist entfallen (bis 1.9.229
+    test_anlegen_merkt_die_mitarbeiternummer_bei_gleichsetzung: das Anlegen merkte 91005). Auch mit der alten Spalte auf „an“ merkt es nichts."""
     pnr["db"].get(TimeBackofficeAdvancedSettings, 1).datev_personnel_equals_erp_number = True
     client = pnr_client(pnr)
     neu = {k: v for k, v in client.get(f"/api/employees/{pnr['tom'].id}").json().items()
            if k not in ("id", "function_name", "effective_hourly_wage", "annual_gross_wage")}
     r = client.post("/api/employees", json={**neu, "employee_number": "91005", "first_name": "Lea"})
     assert r.status_code == 200, r.text
-    assert _gemerkt(pnr) == [("91005", r.json()["id"])]
+    assert _gemerkt(pnr) == []
 
 
-def test_einschalten_der_gleichsetzung_merkt_nichts(pnr):
-    """Gegenprobe zu Festlegung 1.9.177 Nr. 1 („das Einschalten der Gleichsetzung selbst merkt nichts“): Mia M-1 und Tom M-2 bleiben ungemerkt."""
+def test_den_schalter_gibt_es_nicht_mehr(pnr):
+    """Seit 1.9.230 (Stufe 6, R3a, Punkt 0a): „DATEV-Nr. = ERP-Nr.“ ist entfallen (bis 1.9.229 test_einschalten_der_gleichsetzung_merkt_nichts:
+    einschalten ging und merkte nichts). Die Zeitregeln nennen ihn nicht, ein mitgeschickter Wert wird nicht übernommen, nichts gemerkt."""
     client = pnr_client(pnr)
     stand = client.get("/api/time-backoffice/settings").json()
+    assert "datev_personnel_equals_erp_number" not in stand
     r = client.put("/api/time-backoffice/settings", json={**stand, "datev_personnel_equals_erp_number": True})
     assert r.status_code == 200, r.text
-    assert r.json()["datev_personnel_equals_erp_number"] is True
+    assert "datev_personnel_equals_erp_number" not in r.json()
+    pnr["db"].expire_all()
+    assert not pnr["db"].get(TimeBackofficeAdvancedSettings, 1).datev_personnel_equals_erp_number
     assert _gemerkt(pnr) == []
 
 

@@ -268,7 +268,7 @@ def test_datev_export_hours_half_hundredth_round_up():
     """DATEV trägt Stunden, keine Beträge -- aber die Lohnabrechnung rechnet mit ihnen."""
     db = db_session()
     emp = _hours_setup(db, "1.125")
-    get_employee_payroll(db, emp.id).datev_personnel_number = "14"
+    get_employee_payroll(db, emp.id).datev_personnel_number = "00014"  # seit 1.9.230 fünfstellig: eine Nummer ohne 5 Ziffern sperrt die Lohndatei
     settings = load_time_settings(db)
     settings.rounding_minutes = 0  # seit 1.9.224 ohne Zielsystem und Lohnarten je Zeitart
     # seit 1.9.92: der Export nur abgeschlossen und mit Berater- und Mandantennummer (fehlt etwas: 409, keine Warnungen mehr)

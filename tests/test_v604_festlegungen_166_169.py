@@ -123,13 +123,13 @@ def test_seite_sagt_modell_erst_nach_dem_abschluss_aendern():
 
 # --- 1.9.168 Nr. 2: Gleichsetzung auch bei „nur Abwesenheiten“ ---------------------------------------------------------------------------
 
-def test_gleichsetzung_nur_abwesenheiten_verlangt_das_format(welt):
-    """„Nur Abwesenheiten“ schreibt etwas von der Person in die Datei (mit L1b U, K …) -- die ERP-Nummer „M-1“ taugt dann so wenig wie bei
-    „alles“; speicherbar bleibt sie nur bei „nichts“."""
+def test_alte_gleichsetzung_verlangt_kein_format(welt):
+    """Seit 1.9.230 (Stufe 6, R3a, Punkt 0a): „DATEV-Nr. = ERP-Nr.“ ist entfallen (bis 1.9.229
+    test_gleichsetzung_nur_abwesenheiten_verlangt_das_format: die ERP-Nummer „M-1“ 422). Die alte Spalte auf „an“ prüft keine Mitarbeiternummer."""
     db, mia = welt["db"], welt["mia"]
     db.get(TimeBackofficeAdvancedSettings, 1).datev_personnel_equals_erp_number = True
     r = _als(welt).put(f"/api/time-backoffice/payroll-employees/{mia.id}", json={"export_umfang": "abwesenheiten", "eintritt": "2026-11-05"})
-    assert r.status_code == 422 and "„M-1“ taugt nicht als DATEV-Personalnummer" in r.json()["detail"], r.text
+    assert r.status_code == 200, r.text
 
 
 # --- 1.9.169 Nr. 5: eine Zeile je Art erst beim Speichern --------------------------------------------------------------------------------

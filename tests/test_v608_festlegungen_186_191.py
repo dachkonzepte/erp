@@ -154,13 +154,14 @@ def test_191_1_jede_rolle_der_liste_sieht_den_traeger(nummern):
         rolle: (["91008"], {"91008": "Tom Monteur"}) for rolle in ("admin", "buero_finanzen", "buero_auftrag")}
 
 
-def test_191_2_eigene_fruehere_nummer_in_den_lohnstammdaten_nennt_die_person_selbst(nummern):
-    """Mia 91008 in den Lohnstammdaten, dann „DATEV-Nr. = ERP-Nr.“: ihre Nummer ist jetzt M-1, 91008 bleibt gespeichert -- die Liste nennt
-    Mia selbst als Trägerin, die Freigabe lehnt ab (409), wie Festlegung 1.9.181 Nr. 1."""
+def test_191_2_alte_gleichsetzung_aendert_die_heutige_nummer_nicht(nummern):
+    """Seit 1.9.230 (Stufe 6, R3a, Punkt 0a): „DATEV-Nr. = ERP-Nr.“ ist entfallen (bis 1.9.229
+    test_191_2_eigene_fruehere_nummer_in_den_lohnstammdaten_nennt_die_person_selbst: mit dem Schalter war M-1 ihre Nummer, 91008 „früher“). Auch mit
+    der alten Spalte auf „an“ bleibt 91008 ihre heutige Nummer -- keine „frühere“, die Freigabe lehnt ab (409, sie trägt sie)."""
     w = nummern
     assert _put(w, w["mia"], datev_personnel_number="91008").status_code == 200
     w["db"].get(TimeBackofficeAdvancedSettings, 1).datev_personnel_equals_erp_number = True
-    assert _zeile(w, "Mia Monteurin") == (["91008"], {"91008": "Mia Monteurin"})
+    assert _zeile(w, "Mia Monteurin") == ([], {})
     assert _client(w, "admin").post(FREIGEBEN, json={"nummer": "91008"}).status_code == 409
 
 

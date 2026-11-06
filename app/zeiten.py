@@ -16,6 +16,7 @@ from .models import AppUser, AuditLog, Employee, EmployeePayrollSettings, Order,
 from .permissions import MOBIL_ROLLEN
 from .rounding import round_hours
 from .time_backoffice import (_entry_type_labels, abschluss_hindernisse, datev_fehlt, effective_datev_personnel_number, exportiert_arbeit, load_employee_payroll,
+                             personalnummer_gueltig,
                               load_time_settings, unpassende_pausen)
 from .time_tracking import arbeit_im_lohn, auftrag_geschlossen, employee_name, entry_to_dict, laeuft_seit_frueher, list_entries, tagessumme
 
@@ -191,8 +192,9 @@ def luecken_text(luecken: list[dict]) -> str:
 
 
 def datev_text(fehlt: list[dict]) -> str:
-    """„1 Personalnummer, 1 Lohnart, DATEV-Nummern“ -- die Zeile „Fehlt: …“ bei „DATEV-Export“."""
-    pnr = sum(1 for x in fehlt if x["art"] == "personalnummer")
+    """„1 Personalnummer, 1 Lohnart, DATEV-Nummern“ -- die Zeile „Fehlt: …“ bei „DATEV-Export“. Seit 1.9.230 zählt eine Personalnummer ohne
+    genau 5 Ziffern als fehlende (die Liste darüber sagt, welche)."""
+    pnr = sum(1 for x in fehlt if x["art"] in ("personalnummer", "personalnummer_format"))
     lohnart = sum(1 for x in fehlt if x["art"] == "lohnart")
     teile = ([_anzahl(pnr, "Personalnummer", "Personalnummern")] if pnr else []) + \
             ([_anzahl(lohnart, "Lohnart", "Lohnarten")] if lohnart else []) + \
@@ -383,6 +385,7 @@ def monat(db: Session, erster: date) -> dict:
         zeilen.append({"employee_id": employee_id, "name": employee_name(emp) or f"#{employee_id}",
                        "personalnummer": effective_datev_personnel_number(db, emp, p) if emp is not None else None,
                        "lohnexport": exportiert_arbeit(p),  # seit 1.9.168 der Umfang „alles“
+                       "personalnummer_gueltig": emp is not None and personalnummer_gueltig(effective_datev_personnel_number(db, emp, p)),  # 1.9.230
                        "tage": len({r.work_date for r in eigene if r.status == "booked"}),
                        "stunden": {k: stunden.get(k, Decimal("0")) for k, _ in SPALTEN + (("other", ""),)}, "zusammen": zusammen,
                        "schlechtwetter": schlechtwetter.get(employee_id, ohne_sw)})
@@ -392,6 +395,7 @@ def monat(db: Session, erster: date) -> dict:
         p = payroll.get(employee_id) or load_employee_payroll(db, employee_id)
         zeilen.append({"employee_id": employee_id, "name": employee_name(emp) or f"#{employee_id}",
                        "personalnummer": effective_datev_personnel_number(db, emp, p) if emp is not None else None,
+                       "personalnummer_gueltig": emp is not None and personalnummer_gueltig(effective_datev_personnel_number(db, emp, p)),
                        "lohnexport": exportiert_arbeit(p), "tage": 0,
                        "stunden": {k: Decimal("0") for k, _ in SPALTEN + (("other", ""),)}, "zusammen": Decimal("0"),
                        "schlechtwetter": schlechtwetter[employee_id]})

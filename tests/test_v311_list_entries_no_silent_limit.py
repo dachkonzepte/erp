@@ -44,7 +44,7 @@ def bookings():
     emp = Employee(employee_number="T-1", first_name="Max", last_name="Muster",
                    employee_group="gewerblich", hourly_wage="25", active=True)
     db.add_all([order_b, emp]); db.commit()
-    db.add(EmployeePayrollSettings(employee_id=emp.id, datev_personnel_number="1001", payroll_export_enabled=True))
+    db.add(EmployeePayrollSettings(employee_id=emp.id, datev_personnel_number="01001", payroll_export_enabled=True))  # seit 1.9.230 fünfstellig: eine Nummer ohne 5 Ziffern sperrt die Lohndatei
     load_time_settings(db).datev_wage_type_site = "1000"
 
     def booking(order, work_date, activity="Reparatur"):

@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from io import BytesIO, StringIO
 from html import escape
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -120,17 +120,16 @@ class PersonalnummerGehalten(ValueError):
 
 
 def personalnummer_halter(db: Session, nummer: str) -> Employee | None:
-    """Wer die Nummer heute trägt: Lohnstammdaten mit dieser DATEV-Nummer, bei „DATEV-Nr. = ERP-Nr.“ auch eine Mitarbeiternummer."""
+    """Wer die Nummer heute trägt: Lohnstammdaten mit dieser DATEV-Nummer. Seit 1.9.230 nur diese (bis 1.9.229 bei „DATEV-Nr. = ERP-Nr.“ auch
+    eine Mitarbeiternummer -- der Schalter ist entfallen)."""
     eid = db.scalar(select(EmployeePayrollSettings.employee_id).where(EmployeePayrollSettings.datev_personnel_number == nummer).limit(1))
-    if eid is None and load_advanced_settings(db).datev_personnel_equals_erp_number:
-        eid = db.scalar(select(Employee.id).where(func.trim(Employee.employee_number) == nummer).limit(1))
     return db.get(Employee, eid) if eid is not None else None
 
 
 def personalnummern_traeger(db: Session, nummern) -> dict[str, str]:
-    """Seit 1.9.191 (L1a Stufe 2, Punkt 6): wer die Nummern heute trägt, {Nummer: Name} -- dieselbe Regel wie personalnummer_halter() (zuerst die
-    Lohnstammdaten, bei „DATEV-Nr. = ERP-Nr.“ dann die Mitarbeiternummer), für die Liste „früher“ in einem Zug. Eine getragene Nummer lässt sich
-    nicht freigeben; die Seite zeigt statt des Knopfs, wer sie trägt."""
+    """Seit 1.9.191 (L1a Stufe 2, Punkt 6): wer die Nummern heute trägt, {Nummer: Name} -- dieselbe Regel wie personalnummer_halter() (die
+    Lohnstammdaten; bis 1.9.229 bei „DATEV-Nr. = ERP-Nr.“ dann die Mitarbeiternummer), für die Liste „früher“ in einem Zug. Eine getragene Nummer
+    lässt sich nicht freigeben; die Seite zeigt statt des Knopfs, wer sie trägt."""
     nummern = {n for n in nummern if n}
     if not nummern:
         return {}
@@ -138,11 +137,6 @@ def personalnummern_traeger(db: Session, nummern) -> dict[str, str]:
     for nummer, eid in db.execute(select(EmployeePayrollSettings.datev_personnel_number, EmployeePayrollSettings.employee_id)
                                   .where(EmployeePayrollSettings.datev_personnel_number.in_(nummern)).order_by(EmployeePayrollSettings.id)):
         traeger.setdefault(nummer, eid)
-    rest = nummern - set(traeger)
-    if rest and load_advanced_settings(db).datev_personnel_equals_erp_number:
-        for nummer, eid in db.execute(select(func.trim(Employee.employee_number), Employee.id)
-                                      .where(func.trim(Employee.employee_number).in_(rest)).order_by(Employee.id)):
-            traeger.setdefault(nummer, eid)
     namen = {e.id: employee_name(e) for e in db.scalars(select(Employee).where(Employee.id.in_(set(traeger.values()))))} if traeger else {}
     return {nummer: namen.get(eid) or "eine Person" for nummer, eid in traeger.items()}
 
@@ -199,7 +193,7 @@ def time_settings_dict(row: TimeTrackingSettings, db: Session | None = None) -> 
         "require_activity": row.require_activity,
         # seit 1.9.224 ohne Zielsystem und Lohnarten je Zeitart (E8, die Lohndatei nimmt die Zuordnung)
         "datev_beraternummer": row.datev_beraternummer, "datev_mandantennummer": row.datev_mandantennummer,  # seit 1.9.92
-        "datev_personnel_equals_erp_number": bool(advanced.datev_personnel_equals_erp_number) if advanced else False,
+        # seit 1.9.230 ohne „DATEV-Nr. = ERP-Nr.“ (Stufe 6, R3a, Punkt 0a: der Schalter ist entfallen)
         "default_work_time_model_id": advanced.default_work_time_model_id if advanced else None,
         "locked_until": row.locked_until,
         "locked_at": row.locked_at,
@@ -280,8 +274,7 @@ def update_time_settings(db: Session, payload) -> TimeTrackingSettings:
         "allow_group_bookings", "require_order_item", "require_activity",  # seit 1.9.224 ohne Zielsystem und Lohnarten (E8)
     ):
         setattr(row, key, getattr(payload, key))
-    advanced = load_advanced_settings(db)
-    advanced.datev_personnel_equals_erp_number = bool(getattr(payload, "datev_personnel_equals_erp_number", False))
+    advanced = load_advanced_settings(db)  # seit 1.9.230 ohne „DATEV-Nr. = ERP-Nr.“ (entfallen; ein mitgeschickter Wert wird nicht übernommen)
     model_id = getattr(payload, "default_work_time_model_id", None)
     # Seit 1.9.14 (Regel 22): "aktiv" nur bei einem neu gewählten Modell prüfen -- ein inzwischen abgeschaltetes Standardmodell bleibt
     # gewählt, sonst ließen sich die Zeitregeln nach dem Abschalten gar nicht mehr speichern.
@@ -322,9 +315,8 @@ def load_employee_payroll(db: Session, employee_id: int) -> EmployeePayrollSetti
 
 
 def effective_datev_personnel_number(db: Session, employee: Employee, payroll: EmployeePayrollSettings | None = None) -> str | None:
-    advanced = load_advanced_settings(db)
-    if advanced.datev_personnel_equals_erp_number:
-        return (employee.employee_number or "").strip() or None
+    """Die DATEV-Personalnummer der Person: die gespeicherte der Lohnstammdaten. Seit 1.9.230 (Stufe 6, R3a, Punkt 0a) nur diese -- bis 1.9.229
+    nahm „DATEV-Nr. = ERP-Nr.“ die Mitarbeiternummer, die nie auf 5 Ziffern geprüft war (MA-0042 ging so in die Datei)."""
     payroll = payroll or load_employee_payroll(db, employee.id)
     return (payroll.datev_personnel_number or "").strip() or None
 
@@ -353,7 +345,6 @@ def _payroll_dict(db: Session, emp: Employee, p: EmployeePayrollSettings, sollze
         "employee_number": emp.employee_number,
         "datev_personnel_number": heute,
         "datev_personnel_number_stored": p.datev_personnel_number,
-        "datev_personnel_equals_erp_number": bool(load_advanced_settings(db).datev_personnel_equals_erp_number),
         "payroll_export_enabled": p.payroll_export_enabled,
         "export_umfang": export_umfang(p),  # seit 1.9.168
         "eintritt": p.eintritt, "austritt": p.austritt,  # seit 1.9.167
@@ -379,11 +370,10 @@ def payroll_rows(db: Session) -> list[dict]:
 
 def set_employee_payroll(db: Session, employee_id: int, werte: dict) -> dict:
     """Seit 1.9.167 ein Teil-Update (Regel 22): nur die gesendeten Felder (bis 1.9.166 jedes, ein fehlendes Häkchen hieß „Export an“).
-    Bei „DATEV-Nr. = ERP-Nr.“ gilt wie bisher die ERP-Nummer, auch wenn keine Nummer mitkommt. Seit 1.9.168 erst alles prüfen, dann
-    schreiben -- eine abgelehnte Anfrage lässt in der Sitzung nichts zurück."""
+    Seit 1.9.168 erst alles prüfen, dann schreiben -- eine abgelehnte Anfrage lässt in der Sitzung nichts zurück. Seit 1.9.230 ohne
+    „DATEV-Nr. = ERP-Nr.“ (bis 1.9.229 galt damit die ERP-Nummer, auch wenn keine Nummer mitkam)."""
     emp=db.get(Employee, employee_id)
     if emp is None: raise ValueError("Mitarbeiter wurde nicht gefunden.")
-    advanced=load_advanced_settings(db)
     row=db.scalar(select(EmployeePayrollSettings).where(EmployeePayrollSettings.employee_id == employee_id))
     # seit 1.9.168 der Export-Umfang; payroll_export_enabled folgt ihm (gelesen wird es nicht mehr) -- ein altes „Export an/aus“ wird „alles“/„nichts“
     umfang=export_umfang(row)
@@ -397,17 +387,10 @@ def set_employee_payroll(db: Session, employee_id: int, werte: dict) -> dict:
     neu={feld: werte[feld] for feld in ("eintritt", "austritt") if feld in werte}  # seit 1.9.167, leer = offen
     if "azubi" in werte:  # seit 1.9.224 (Lohn L1b, Punkt 1)
         neu["azubi"]=bool(werte["azubi"])
-    if advanced.datev_personnel_equals_erp_number or "datev_personnel_number" in werte:
-        value=((emp.employee_number or "").strip() or None) if advanced.datev_personnel_equals_erp_number else ((werte.get("datev_personnel_number") or "").strip() or None)
-        if advanced.datev_personnel_equals_erp_number and not value and exportiert:
-            raise ValueError("ERP-Mitarbeiternummer fehlt. Bei aktivierter Gleichsetzung wird sie als DATEV-Personalnummer benötigt.")
-        # seit 1.9.168 nur Ziffern -- die ERP-Nummer (Gleichsetzung) nur, wenn etwas von der Person in die Datei geht
-        if value and not personalnummer_gueltig(value):
-            if not advanced.datev_personnel_equals_erp_number:
-                raise ValueError(PERSONALNUMMER_FALSCH)
-            if exportiert:
-                raise ValueError(f"Die ERP-Mitarbeiternummer „{value}“ taugt nicht als DATEV-Personalnummer: genau 5 Ziffern, führende Nullen "
-                                 "gehören dazu.")
+    if "datev_personnel_number" in werte:
+        value=(werte.get("datev_personnel_number") or "").strip() or None
+        if value and not personalnummer_gueltig(value):  # seit 1.9.168 nur Ziffern, seit 1.9.212 genau 5
+            raise ValueError(PERSONALNUMMER_FALSCH)
         if value:
             duplicate=db.scalar(select(EmployeePayrollSettings).where(
                 EmployeePayrollSettings.datev_personnel_number==value,
@@ -548,15 +531,24 @@ class DatevExportGesperrt(ValueError):
 
 def datev_fehlt(db: Session, start_date: date, end_date: date, *, personen=None) -> list[dict]:
     """Seit 1.9.92: was dem DATEV-Export für den Monat fehlt -- Personalnummern, Berater- und Mandantennummer. Leer = vollständig. Je Eintrag art
-    und ein Text. Seit 1.9.225 (Lohn L1b, Punkt 2) die Personalnummer von jedem, der eine Zeile in der Lohndatei bekäme (app/lohndatei.py::
+    und ein Text. Seit 1.9.230 auch eine Personalnummer ohne genau 5 Ziffern (art „personalnummer_format“). Seit 1.9.225 (Lohn L1b, Punkt 2) die Personalnummer von jedem, der eine Zeile in der Lohndatei bekäme (app/lohndatei.py::
     berechnen(), auch nur mit Abwesenheiten, Ausfalltagen, Heiligabend oder Silvester; bis 1.9.224 nur von Personen mit Buchungen und Umfang
     „alles“), nach Nachnamen; seit 1.9.224 ohne die Lohnart je Zeitart. personen: das Ergebnis von berechnen(), wenn der Aufrufer es schon hat."""
     from .lohndatei import berechnen
 
     settings = load_time_settings(db)
     personen = personen if personen is not None else berechnen(db, start_date.replace(day=1))
-    liste: list[dict] = [{"art": "personalnummer", "employee_id": x.employee_id, "name": x.name, "text": f"Personalnummer fehlt: {x.name}"}
-                         for x in sorted(personen, key=lambda x: (x.nachname.casefold(), x.employee_id)) if x.zeilen and not x.personalnummer]
+    liste: list[dict] = []
+    for x in sorted(personen, key=lambda x: (x.nachname.casefold(), x.employee_id)):
+        if not x.zeilen:
+            continue
+        if not x.personalnummer:
+            liste.append({"art": "personalnummer", "employee_id": x.employee_id, "name": x.name, "text": f"Personalnummer fehlt: {x.name}"})
+        elif not personalnummer_gueltig(x.personalnummer):
+            # seit 1.9.230 (Stufe 6, R3a, Punkt 0a): eine gespeicherte Nummer ohne genau 5 Ziffern (vor 1.9.212 gespeichert, von der Migration
+            # 5d2e8a71c4f3 nicht aufgefüllt) sperrt die Datei wie eine fehlende -- bis 1.9.229 ging sie so hinein
+            liste.append({"art": "personalnummer_format", "employee_id": x.employee_id, "name": x.name,
+                          "text": f"Personalnummer „{x.personalnummer}“ hat nicht genau 5 Ziffern: {x.name}"})
     fehlen = [n for n, wert in (("Beraternummer", settings.datev_beraternummer), ("Mandantennummer", settings.datev_mandantennummer)) if not wert]
     if fehlen:
         liste.append({"art": "datev_nummern", "text": (" und ".join(fehlen) + (" fehlen" if len(fehlen) > 1 else " fehlt"))})

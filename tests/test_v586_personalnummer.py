@@ -85,14 +85,14 @@ def test_export_umfang_falsch_und_altes_haekchen(welt):
     assert _put(welt, welt["mia"], payroll_export_enabled=True).json()["export_umfang"] == "alles"
 
 
-def test_gleichsetzung_mit_erp_nummer(welt):
-    """„DATEV-Nr. = ERP-Nr.“: die ERP-Nummer „M-1“ taugt nicht -- abgelehnt, solange etwas von der Person in die Datei geht; mit „nichts“
-    speicherbar (Eintritt u. a. bleiben pflegbar)."""
+def test_alte_gleichsetzung_wirkt_nicht(welt):
+    """Seit 1.9.230 (Stufe 6, R3a, Punkt 0a): „DATEV-Nr. = ERP-Nr.“ ist entfallen (bis 1.9.229 test_gleichsetzung_mit_erp_nummer: die
+    ERP-Nummer „M-1“ 422 „taugt nicht“). Die alte Spalte auf „an“ prüft keine Mitarbeiternummer mehr; die Personalnummer bleibt, was gespeichert ist."""
     db = welt["db"]
     db.get(TimeBackofficeAdvancedSettings, 1).datev_personnel_equals_erp_number = True
     r = _put(welt, welt["mia"], eintritt="2026-11-05")
-    assert r.status_code == 422 and "„M-1“ taugt nicht als DATEV-Personalnummer" in r.json()["detail"]
-    assert _put(welt, welt["mia"], export_umfang="nichts", eintritt="2026-11-05").status_code == 200
+    assert r.status_code == 200, r.text
+    assert r.json()["datev_personnel_number"] != "M-1"
 
 
 def test_buero_auftrag_403(welt):

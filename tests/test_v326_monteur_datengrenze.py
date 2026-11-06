@@ -121,9 +121,7 @@ ERLAUBT_JE_ROUTE = {
     ("/api/absence-requests", "$[].review_notes"): "Antwort des Büros auf seinen eigenen Antrag",
     ("/api/absence-requests", "$[].vermerk"): "Was das Programm an seinem eigenen Antrag vermerkt (seit 1.9.165)",
     # seit 1.9.224 ohne „$.datev_wage_type_*“: die Lohnarten je Zeitart stehen in keiner Antwort mehr (Lohndatei, E8)
-    ("/api/time-tracking/settings", "$.datev_personnel_equals_erp_number"): ("Schalter des Backoffice (DATEV- gleich "
-                                                                             "ERP-Personalnummer), ein Wahrheitswert, "
-                                                                             "keine Nummer"),
+    # seit 1.9.230 ohne „$.datev_personnel_equals_erp_number“: der Schalter ist entfallen (Stufe 6, R3a, Punkt 0a)
     ("/api/checklists/asset-readiness/{asset_id}", "$.release_note"): ("Reparaturvermerk zur Einsatzbereitschaft "
                                                                        "des Geräts (modul-checklisten.md, 1.8.2)"),
     ("/api/operational-assets/{asset_id}", "$.usage_notes"): _BEDIENHINWEIS,

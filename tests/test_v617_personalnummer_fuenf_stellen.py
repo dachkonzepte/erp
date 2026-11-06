@@ -74,17 +74,14 @@ def test_ohne_nummer_kein_hinweis(welt):
     assert nummernkreis("101") is None and nummernkreis(None) is None
 
 
-def test_gleichsetzung_braucht_fuenf_ziffern(welt):
-    """„DATEV-Nr. = ERP-Nr.“: die ERP-Nummer „M-1“ bzw. „101“ taugt nicht (mit Export), „00101“ geht und bekommt den Hinweis."""
+def test_alte_gleichsetzung_prueft_keine_mitarbeiternummer(welt):
+    """Seit 1.9.230 (Stufe 6, R3a, Punkt 0a): „DATEV-Nr. = ERP-Nr.“ ist entfallen (bis 1.9.229 test_gleichsetzung_braucht_fuenf_ziffern: die
+    ERP-Nummer „101“ 422, „00101“ mit Hinweis). Auch mit der alten Spalte auf „an“ ist die Mitarbeiternummer keine Personalnummer."""
     db, mia = welt["db"], welt["mia"]
     db.get(TimeBackofficeAdvancedSettings, 1).datev_personnel_equals_erp_number = True
     mia.employee_number = "101"
     r = _put(welt, mia, export_umfang="alles")
-    assert (r.status_code, r.json()["detail"]) == (
-        422, "Die ERP-Mitarbeiternummer „101“ taugt nicht als DATEV-Personalnummer: genau 5 Ziffern, führende Nullen gehören dazu.")
-    mia.employee_number = "00101"
-    r = _put(welt, mia, export_umfang="alles")
-    assert (r.status_code, r.json()["nummernkreis"]) == (200, "Die Personalnummer 00101 liegt im Kreis Minijobber (00100–00199).")
+    assert r.status_code == 200 and r.json()["datev_personnel_number"] != "101", r.text
 
 
 def test_pruefskript_format_und_kreise():

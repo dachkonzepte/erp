@@ -288,7 +288,7 @@ def test_monat_tabelle_eine_rechnung_mit_dem_datev_export(welt):  # noqa: F811
     db, tag = welt["db"], welt["gestern"]
     s = db.get(TimeTrackingSettings, 1)
     s.datev_beraternummer, s.datev_mandantennummer = "1234", "56"
-    db.add_all([EmployeePayrollSettings(employee_id=welt["mia"].id, datev_personnel_number="1001", payroll_export_enabled=True),
+    db.add_all([EmployeePayrollSettings(employee_id=welt["mia"].id, datev_personnel_number="01001", payroll_export_enabled=True),  # seit 1.9.230 fünfstellig: eine Nummer ohne 5 Ziffern sperrt die Lohndatei
                 EmployeePayrollSettings(employee_id=welt["tom"].id, datev_personnel_number=None, payroll_export_enabled=True)])
     db.commit()
     _zeit(welt, welt["mia"], time(7), time(9, 20), tag)                    # 2,33 h
@@ -299,10 +299,10 @@ def test_monat_tabelle_eine_rechnung_mit_dem_datev_export(welt):  # noqa: F811
     zeilen = {z["name"]: z for z in m["zeilen"]}
     mia, tom = zeilen["Mia Monteurin"], zeilen["Tom Monteur"]
     assert (mia["personalnummer"], mia["tage"], D(mia["stunden"]["site"]), D(mia["stunden"]["travel"]), D(mia["zusammen"])) == (
-        "1001", 1, Decimal("2.33"), Decimal("0.42"), Decimal("2.75"))
+        "01001", 1, Decimal("2.33"), Decimal("0.42"), Decimal("2.75"))
     assert (tom["personalnummer"], D(tom["stunden"]["workshop"])) == (None, Decimal("3"))
     assert m["datev_text"] == "1 Personalnummer"
-    db.get(EmployeePayrollSettings, db.query(EmployeePayrollSettings).filter_by(employee_id=welt["tom"].id).one().id).datev_personnel_number = "1002"
+    db.get(EmployeePayrollSettings, db.query(EmployeePayrollSettings).filter_by(employee_id=welt["tom"].id).one().id).datev_personnel_number = "01002"
     db.commit()
     _abschluss(welt, date.fromisoformat(m["ende"]))
     daten, _ = build_datev_export(db, date.fromisoformat(m["start"]), date.fromisoformat(m["ende"]))
