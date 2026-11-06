@@ -2490,6 +2490,8 @@ class PlanningSlot(Base):
     start_date: Mapped[date] = mapped_column(Date, index=True)
     end_date: Mapped[date] = mapped_column(Date, index=True)
     status: Mapped[str] = mapped_column(String(40), default="vorlaeufig", index=True)  # seit 1.9.235 vorlaeufig | fest (app/planning.py::EINSATZ_STATUS)
+    # seit 1.9.240 (Stufe 6, R3b, Punkt 2): baustelle | kranvermietung (app/planning.py::EINSATZ_ARTEN); fest ab dem Anlegen
+    art: Mapped[str] = mapped_column(String(20), default="baustelle", server_default="baustelle")
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

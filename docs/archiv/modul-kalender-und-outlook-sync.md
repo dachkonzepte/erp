@@ -1406,3 +1406,75 @@ Neu: `tests/test_v637_plantafel_bedienbar.py` (Text der Besetzung im Dialog in n
 „ohne Kolonne“ fragt bei Warnungen zurück) und `scripts/klicktest_plantafel_besetzung.py` (17 Prüfungen). Gegenproben: Archiv `gegenproben-stufe6-r3a.md`.
 Angepasste Erwartungen (Regel 28): `test_v447::test_plantafel_status` nur Aufbau -- die Attrappe des Einsatzes bekommt `employees` und `resources`
 (leer), wie jede Antwort des Servers (`slot_to_dict`); ohne sie warf der neue `besetzungText()` beim Öffnen des Dialogs (Regel 36). Erwartung bleibt.
+
+## Stufe 6, R3b: Kran und „Heute“ (ab 1.9.240)
+
+Vorgabe Tobias (06.11.2026), Start bcfd155. Zeichnung `bildgrundlage/entwurf-stufe6/` (`plantafel-regeln.html`: „Kranvermietung“, „Kran-Kalender“;
+`heute-einsatz.html`). Bestätigt vor der Runde: alle Festlegungen 1.9.230–1.9.237; 1.9.235 Nr. 3 gilt auch künftig (vorläufig zählt wie fest). Vorweg
+(0a–0c) im Archiv „Buchhaltung“ und „Zeiterfassung“.
+
+### Befund (Punkt 1): Schnellauftrag, Kran und Kran-Postfach (Stand bcfd155)
+
+- **Schnellauftrag** (`app/quick_service_orders.py`, `POST /api/quick-service-orders`, nur mit Modul „Wartungen“, ab Büro – Auftrag): Kunde, Objekt (ein
+  fremdes nur mit Bestätigung), Art Reparatur/Wartung, Bezeichnung. Normale Kette Projekt -> Angebot (eine Position „<Art> nach Aufwand“, 1 pauschal,
+  0,00 €) -> Auftrag (läuft, ohne Vertragsentwurf); abgerechnet über „Rechnung aus Aufwand“ (Auftrag nach Aufwand). Er committet unterwegs dreimal
+  (Position, Struktur des Angebots, Auftrag).
+- **Kran (Gerät)**: `OperationalResource`, seit 1.9.234 je Einsatz mit Tagen (`PlanningSlotResource`). Es gibt kein Merkmal „Kran“: ein Gerät mit
+  eigenem Postfach (`outlook_mailbox`, seit 1.9.161) hat einen Kalender. Prüffrist über das Betriebsmittel (seit 1.9.236).
+- **Kran-Postfach**: Termine am Gerät sind `CalendarEvent` mit `resource_id`; Abgleich nur per Cron (Festlegung 1.9.161 Nr. 1), beide Richtungen, „letzte
+  Änderung gewinnt“; was im ERP entsteht, geht sofort hinaus. Ein Termin am Gerät warnt beim Speichern eines Einsatzes als „Gerät doppelt“. Am echten
+  Mandanten nicht eingerichtet -- getestet gegen die Graph-Attrappe.
+- **Zusammenhang heute: keiner.** Einsätze stehen nicht im Kran-Kalender, ein Termin am Kran wird kein Einsatz, ein Schnellauftrag hat keinen Einsatz.
+
+Kein Widerspruch zur Zeichnung. Verschieden formuliert: (a) „Tom hat Urlaub“ in der Zeichnung, Vorgabe Tobias „ist nicht da“, nie die Art -- gebaut
+wird die Vorgabe; (b) ob eine Kranvermietung eine Kolonne haben kann, sagt die Zeichnung nicht -- gebaut: ohne Kolonne, Bediener einzeln.
+
+### Umsetzung 1.9.240: Kranvermietung als Art des Einsatzes (Punkt 2)
+
+`PlanningSlot.art` (Migration `b5f1c7e2a948`, NOT NULL, `server_default` „baustelle“), `app/planning.py::EINSATZ_ARTEN`. `create_slot(art=…)`:
+- „baustelle“ wie bisher an einem Auftrag (`order_id`); Kunde, Objekt und Titel gehören nur zur Kranvermietung (422).
+- „kranvermietung“ an einem bestehenden Auftrag (`order_id`) oder mit Kunde (`customer_id`, wahlweise `property_id` mit `confirm_property_customer`,
+  `titel`): `app/quick_service_orders.py::auftrag_nach_aufwand(commit=False)` legt Projekt, Angebot mit der Position „Kranvermietung nach Aufwand“ (1
+  pauschal, 0,00 €) und Auftrag an (Titel wahlweise, sonst „Kranvermietung“; Ausführungsbeginn = erster Tag) -- derselbe Weg wie der Schnellauftrag
+  (`create_quick_service_order()` nimmt ihn jetzt auch), aber ohne Commit: `create_free_quote_item()`, `ensure_quote_structure()` und
+  `create_order_from_quote()` haben dafür `commit=False`. Fragt das Speichern zurück (`PlanungsWarnung`, rollback), bleibt nichts zurück.
+- Eine Kranvermietung hat keine Kolonne (422 beim Anlegen und Ändern), mindestens ein Gerät (422, auch wenn beim Kürzen des Zeitraums das letzte Gerät
+  wegfiele) und Bediener als Besetzung, auch keine. Nicht an das Modul „Wartungen“ gebunden (die Plantafel ist Kern).
+- Die Art steht in `slot_to_dict()` (`art`, `art_label`) und bleibt, wie sie angelegt wurde (kein Feld zum Ändern).
+- `create_slot()` und `update_slot()` nehmen bei einer Ablehnung (`ValueError`) alles in der Sitzung zurück (bis 1.9.239 blieb eine halbe Änderung bis
+  zum Schließen der Sitzung stehen -- im Betrieb schließt jede Anfrage ihre Sitzung, in Tests mit geteilter Sitzung lief sie in die nächste Anfrage).
+- Router: Objekt eines anderen Kunden ohne Bestätigung 409, unbekannter Kunde oder unbekanntes Objekt 404 (Regel 25: `customer_id` als FREI,
+  `property_id` als GEPRUEFT in `tests/test_v373_zugehoerigkeit_struktur.py`).
+
+Die Oberfläche bleibt in R3b, wie sie ist: eine Kranvermietung steht auf der Tafel in der Zeile „Ohne Kolonne“, in der Zeile des Geräts und bei jedem
+Bediener; anlegen nur über die Schnittstelle (`POST /api/planning/slots` mit `art`), die Knöpfe kommen mit R4.
+
+### Festlegungen 1.9.240 (Bitte bestätigen)
+
+1. Ein Einsatz ist „Baustelle“ oder „Kranvermietung“; ohne Angabe Baustelle; jeder andere Wert 422; die Art bleibt, wie sie angelegt wurde.
+2. Kranvermietung mit Kunde: Projekt, Angebot und Auftrag wie der Schnellauftrag, Position „Kranvermietung nach Aufwand“ (1 pauschal, 0,00 €), Titel
+   wahlweise, sonst „Kranvermietung“, Ausführungsbeginn der erste Tag; ein fremdes Objekt nur mit Bestätigung (409), unbekannter Kunde 404.
+3. Das geschieht in der Transaktion des Einsatzes: eine Warnung oder Ablehnung lässt nichts zurück (kein Projekt, keine Nummer verbraucht).
+4. Oder an einem bestehenden Auftrag; Auftrag und Kunde zugleich oder keins von beiden 422.
+5. Eine Kranvermietung hat keine Kolonne, mindestens ein Gerät, Bediener als Besetzung -- auch keine.
+6. Ein Einsatz auf der Baustelle braucht einen Auftrag; Kunde, Objekt und Titel gehören nur zur Kranvermietung.
+7. Abgerechnet wie jeder Auftrag nach Aufwand; die Plantafel schreibt keine Beträge.
+8. Wird das Anlegen oder Ändern eines Einsatzes abgelehnt, nimmt die Sitzung alles zurück.
+9. Die Kranvermietung hängt nicht am Modul „Wartungen“.
+10. Migration: jeder bestehende Einsatz ist „baustelle“; downgrade() lässt die Spalte fallen (eine Kranvermietung bleibt als Einsatz ohne Art).
+
+### Tests und Prüfung 1.9.240
+
+Neu: `tests/test_v640_kranvermietung.py` (mit Kunde, mit Titel und Bediener, an einem Auftrag, Warnung lässt nichts zurück, Regeln 422 über Schnittstelle,
+Schema für sich und Geschäftsfunktion, fremdes Objekt und unbekannter Kunde, Ändern, Baustelle ohne Kolonne braucht weiter eine Person, Ablehnung lässt
+nichts zurück, ohne Modul „Wartungen“, Migration unter SQLite und PostgreSQL). Gegenproben: Archiv `gegenproben-stufe6-r3b.md`.
+
+Angepasster Aufbau (Regel 28): `tests/test_v373_zugehoerigkeit_struktur.py` -- neu eingeordnet `POST /api/planning/slots customer_id` (FREI) und
+`property_id` (GEPRUEFT); der Eintrag `POST /api/planning/slots order_id` nennt `planning._create_slot` statt `planning.create_slot` (die Regeln stehen
+seit 1.9.240 dort, `create_slot()` nimmt bei einer Ablehnung zurück). Erwartungen bleiben.
+Dazu `tests/test_v364_feste_werte_spaltenlaenge.py`: `planning_slots.art` neu im Katalog (`EINSATZ_ARTEN`). Gefunden im Lauf der vollen Suite: die neue
+Spalte hatte im Änderungsprotokoll keinen Namen (`test_v436`, `test_v438` rot) -- jetzt „Art des Einsatzes“, Werte „Baustelle“/„Kranvermietung“
+(`app/audit.py`, `app/verlauf_namen.py`).
+
+Nach der Gegenprobe `240_5b` (erst grün) verlangt `test_v640::test_aendern_einer_kranvermietung` zusätzlich: Kolonne setzen mit dem Kran in derselben
+Anfrage -> 422 „keine Kolonne“ (ohne Gerät in der Anfrage lehnte die Prüfung „mindestens ein Gerät“ ab, die Kolonne-Prüfung blieb ungesehen).

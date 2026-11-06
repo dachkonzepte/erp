@@ -107,9 +107,9 @@ def quote_structure(db: Session, quote: Quote) -> tuple[QuoteDocumentMeta, list[
     return meta, sections, layouts
 
 
-def ensure_quote_structure(db: Session, quote: Quote) -> tuple[QuoteDocumentMeta, list[QuoteSection], dict[int, QuoteItemLayout]]:
+def ensure_quote_structure(db: Session, quote: Quote, *, commit: bool = True) -> tuple[QuoteDocumentMeta, list[QuoteSection], dict[int, QuoteItemLayout]]:
     """Stellt 0.6-Zusatztabellen auch für bestehende 0.5-Angebote her. Seit 1.8.84 nur in Schreibwegen (Anlegen des Angebots,
-    Beauftragen, Abgleich, Bearbeiten) -- Lesepfade nehmen quote_structure()."""
+    Beauftragen, Abgleich, Bearbeiten) -- Lesepfade nehmen quote_structure(). commit=False (seit 1.9.240): nur flush, der Aufrufer committet."""
     changed = False
     meta = db.scalar(select(QuoteDocumentMeta).where(QuoteDocumentMeta.quote_id == quote.id))
     if meta is None:
@@ -141,9 +141,11 @@ def ensure_quote_structure(db: Session, quote: Quote) -> tuple[QuoteDocumentMeta
         elif layouts[item.id].section_id not in section_ids and layouts[item.id].section_id is not None:
             layouts[item.id].section_id = None
             changed = True
-    if changed:
+    if changed and commit:
         db.commit()
         db.refresh(meta)
+    elif changed:
+        db.flush()
     return meta, sections, layouts
 
 
@@ -349,7 +351,8 @@ def add_service_to_quote(db: Session, quote: Quote, service_id: int, quantity: D
 
 def create_free_quote_item(db: Session, quote: Quote, *, short_text: str, long_text: str, quantity: Decimal,
                            unit: str, unit_price: Decimal, position_type: str, section_id: int | None,
-                           include_in_total: bool = True) -> QuoteItem:
+                           include_in_total: bool = True, commit: bool = True) -> QuoteItem:
+    """commit=False (seit 1.9.240): nur flush, der Aufrufer committet."""
     _validate_section(db, quote.id, section_id)
     max_sort = max((item.sort_order for item in quote.items), default=0)
     item = QuoteItem(
@@ -363,7 +366,10 @@ def create_free_quote_item(db: Session, quote: Quote, *, short_text: str, long_t
     db.flush()
     max_layout = db.scalar(select(QuoteItemLayout.sort_order).join(QuoteItem).where(QuoteItem.quote_id == quote.id, QuoteItemLayout.section_id == section_id).order_by(QuoteItemLayout.sort_order.desc()).limit(1)) or 0
     db.add(QuoteItemLayout(quote_item_id=item.id, section_id=section_id, sort_order=max_layout + 10, include_in_total=include_in_total))
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     return item
 
 

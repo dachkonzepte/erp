@@ -46,6 +46,11 @@ WARNUNG_TEXT = "Der Einsatz überschneidet sich – bitte prüfen oder trotzdem 
 # abgeschlossen; Befund Stufe 6, 3.3); die Migration a7d3e5f9c214 machte „geplant“ zu vorläufig, alles andere zu fest.
 EINSATZ_STATUS = {"vorlaeufig": "vorläufig", "fest": "fest"}
 EINSATZ_STATUS_FALSCH = "Der Status eines Einsatzes ist „vorläufig“ oder „fest“."
+# seit 1.9.240 (Stufe 6, R3b, Punkt 2): die Art eines Einsatzes, fest ab dem Anlegen
+EINSATZ_ARTEN = {"baustelle": "Baustelle", "kranvermietung": "Kranvermietung"}
+KRANVERMIETUNG_POSITION = "Kranvermietung nach Aufwand"
+KRAN_OHNE_GERAET = "Eine Kranvermietung braucht den Kran: bitte mindestens ein Gerät wählen."
+KRAN_OHNE_KOLONNE = "Eine Kranvermietung hat keine Kolonne; Bediener bitte einzeln wählen."
 
 
 class PlanungsWarnung(Exception):
@@ -667,11 +672,22 @@ def _remaining_order_hours(db: Session, prep: WorkPreparation) -> Decimal:
     return round_hours(max(Decimal("0"), total - assigned))
 
 
-def create_slot(
-    db: Session, *, order_id: int, team_id: int | None, start_date: date, end_date: date,
+def create_slot(db: Session, **werte) -> PlanningSlot:
+    """Seit 1.9.240: wird ein Einsatz abgelehnt (ValueError, auch nach dem Anlegen von Projekt und Auftrag einer Kranvermietung), bleibt nichts in der
+    Sitzung zurück -- rollback, dann der Fehler. Die Regeln stehen in _create_slot()."""
+    try:
+        return _create_slot(db, **werte)
+    except ValueError:
+        db.rollback()
+        raise
+
+
+def _create_slot(
+    db: Session, *, order_id: int | None, team_id: int | None, start_date: date, end_date: date,
     status: str = "vorlaeufig", notes: str | None = None, planned_hours: Decimal | None = None,
     travel_hours_per_employee_day: Decimal | None = None, trotzdem_planen: bool = False, employee_ids: list[int] | None = None,
-    geraete: list[dict] | None = None,
+    geraete: list[dict] | None = None, art: str = "baustelle", customer_id: int | None = None, property_id: int | None = None,
+    confirm_property_customer: bool = False, titel: str | None = None,
 ) -> PlanningSlot:
     """Seit 1.9.143: mit Warnungen (einsatz_konflikte()) nur mit trotzdem_planen, sonst PlanungsWarnung -- dann bleibt nichts zurück, auch keine neu
     angelegte Arbeitsvorbereitung oder Kolonnen-Zuweisung.
@@ -679,13 +695,36 @@ def create_slot(
     angegeben), mit employee_ids genau diese Personen; ohne Kolonne (team_id None) braucht es mindestens eine Person. Die Kolonnen-Zuweisung an der AV
     entsteht mit Kolonne weiter wie bisher (AV-Seite, Zugriff).
     Seit 1.9.234 (Punkt 3) die Geräte am Einsatz: ohne geraete schlägt die Kolonne ihre aktiven Geräte vor (alle Tage), ohne Kolonne keine; mit geraete
-    ([{resource_id, tage}], tage leer = alle Tage) genau diese."""
+    ([{resource_id, tage}], tage leer = alle Tage) genau diese.
+    Seit 1.9.240 (Stufe 6, R3b, Punkt 2) die Art: „baustelle“ an einem Auftrag (order_id) oder „kranvermietung“ -- an einem bestehenden Auftrag
+    (order_id) oder mit Kunde (customer_id, Objekt wahlweise): dann entstehen wie beim Schnellauftrag Projekt und Auftrag „Kranvermietung nach Aufwand“,
+    in derselben Transaktion wie der Einsatz (eine Warnung lässt nichts zurück). Eine Kranvermietung hat keine Kolonne, mindestens ein Gerät (den Kran)
+    und Bediener als Besetzung, auch keine."""
     if end_date < start_date:
         raise ValueError("Enddatum darf nicht vor dem Startdatum liegen.")
-    if team_id is None and not employee_ids:
+    if art not in EINSATZ_ARTEN:
+        raise ValueError("Die Art eines Einsatzes ist „Baustelle“ oder „Kranvermietung“.")
+    kran = art == "kranvermietung"
+    if kran and team_id is not None:
+        raise BesetzungUngueltig(KRAN_OHNE_KOLONNE)
+    if kran and not geraete:
+        raise GeraeteUngueltig(KRAN_OHNE_GERAET)
+    if (order_id is None) == (customer_id is None) if kran else (order_id is None or customer_id is not None):
+        raise ValueError("Eine Kranvermietung braucht einen Auftrag oder einen Kunden, nicht beides." if kran
+                         else "Ein Einsatz auf der Baustelle braucht einen Auftrag.")
+    if team_id is None and not employee_ids and not kran:
         raise BesetzungUngueltig("Ohne Kolonne bitte mindestens eine Person wählen.")
     if status not in EINSATZ_STATUS:  # seit 1.9.235
         raise ValueError(EINSATZ_STATUS_FALSCH)
+    if customer_id is not None:
+        # wie der Schnellauftrag, ohne Commit: Personen und Geräte prüft _besetzung_pruefen()/_geraete_pruefen() unten, eine Warnung nimmt alles zurück
+        from .quick_service_orders import auftrag_nach_aufwand
+        _besetzung_pruefen(db, employee_ids or [])
+        _geraete_pruefen(db, geraete, start_date, end_date)
+        _, neu = auftrag_nach_aufwand(db, customer_id=customer_id, property_id=property_id, title=(titel or "").strip() or "Kranvermietung",
+                                      position=KRANVERMIETUNG_POSITION, execution_start=start_date,
+                                      confirm_property_customer=confirm_property_customer, commit=False)
+        order_id = neu.id
     order = db.get(Order, order_id)
     if order is None:
         raise ValueError("Auftrag wurde nicht gefunden.")
@@ -694,7 +733,7 @@ def create_slot(
     gesperrt = einsatz_gesperrt(order)
     if gesperrt:
         raise AuftragGeschlossen(gesperrt)
-    personen = _besetzung_pruefen(db, employee_ids) if employee_ids is not None else _kolonne_schlaegt_vor(db, team_id)
+    personen = _besetzung_pruefen(db, employee_ids) if employee_ids is not None else _kolonne_schlaegt_vor(db, team_id) if team_id is not None else []
     prep = ensure_preparation(db, order_id, festschreiben=False)
     assignment = ensure_team_assignment(db, prep, team_id) if team_id is not None else None
     settings = load_planning_settings(db)
@@ -703,7 +742,7 @@ def create_slot(
         raise ValueError("Anfahrtszeit muss kleiner als die tägliche Arbeitszeit sein.")
     slot = PlanningSlot(
         preparation_id=prep.id, team_assignment_id=assignment.id if assignment is not None else None, start_date=start_date,
-        end_date=end_date, status=status, notes=notes,
+        end_date=end_date, status=status, notes=notes, art=art,
     )
     slot.besetzung = [PlanningSlotEmployee(employee_id=eid) for eid in personen]
     _geraete_setzen(slot, _geraete_pruefen(db, geraete, start_date, end_date) if geraete is not None
@@ -724,6 +763,16 @@ _SLOT_FIELDS = frozenset({"team_id", "start_date", "end_date", "status", "notes"
 
 
 def update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, **changes) -> PlanningSlot:
+    """Seit 1.9.240: wird die Änderung abgelehnt (ValueError, auch nach einem Teil der Änderung am Objekt), nimmt die Sitzung alles zurück --
+    rollback (gibt auch die Sperre frei), dann der Fehler. Die Regeln stehen in _update_slot()."""
+    try:
+        return _update_slot(db, slot_id, trotzdem_planen=trotzdem_planen, **changes)
+    except ValueError:
+        db.rollback()
+        raise
+
+
+def _update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, **changes) -> PlanningSlot:
     """Seit 1.8.96 Teil-Update (Regel 22): ändert nur die übergebenen Felder (Verschieben auf der Plantafel übergibt Team, Beginn
     und Ende). Ende vor Beginn, Anfahrtszeit und Team prüft sie vor jeder Änderung auf gespeichertem Stand + übergebenen Werten,
     unter der Sperre der Arbeitsvorbereitung: zwei gleichzeitige Änderungen (Beginn hier, Ende dort) prüften sonst je gegen den Stand vor der anderen.
@@ -761,6 +810,9 @@ def update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, **c
     if travel_hours is not None and _d(travel_hours) >= _d(settings.daily_work_hours):
         raise ValueError("Anfahrtszeit muss kleiner als die tägliche Arbeitszeit sein.")
     neues_team = changes.get("team_id", vorher_team)
+    kran = slot.art == "kranvermietung"  # seit 1.9.240: keine Kolonne, mindestens ein Gerät, Bediener auch keine
+    if kran and neues_team is not None:
+        raise BesetzungUngueltig(KRAN_OHNE_KOLONNE)
     personen = _besetzung_pruefen(db, changes["employee_ids"]) if changes.get("employee_ids") is not None else None
     if neues_team != vorher_team:
         if neues_team is None:
@@ -772,7 +824,7 @@ def update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, **c
                 personen = _kolonne_schlaegt_vor(db, neues_team)
     if personen is not None:
         _besetzung_setzen(db, slot, personen)
-    if neues_team is None and not slot.besetzung:
+    if neues_team is None and not slot.besetzung and not kran:
         raise BesetzungUngueltig("Ohne Kolonne bitte mindestens eine Person wählen.")
     slot.start_date = start_date
     slot.end_date = end_date
@@ -782,6 +834,8 @@ def update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, **c
         _geraete_setzen(slot, _kolonne_schlaegt_geraete_vor(db, neues_team))
     elif (start_date, end_date) != (alt_start, alt_ende):
         _tage_mitnehmen(slot, alt_start, alt_ende)
+    if kran and not slot.geraete:
+        raise GeraeteUngueltig(KRAN_OHNE_GERAET)
     for key in ("status", "notes"):
         if key in changes:
             setattr(slot, key, changes[key])
@@ -886,6 +940,7 @@ def slot_to_dict(slot: PlanningSlot, conflicts: list[dict] | None = None, db: Se
         "start_date": slot.start_date, "end_date": slot.end_date,
         "duration_days": (slot.end_date - slot.start_date).days + 1, "status": slot.status,
         "status_label": EINSATZ_STATUS.get(slot.status, slot.status),  # seit 1.9.235
+        "art": slot.art, "art_label": EINSATZ_ARTEN.get(slot.art, slot.art),  # seit 1.9.240
         "notes": slot.notes, "planned_hours": hours,
         "travel_hours_per_employee_day": travel,
         # seit 1.9.233 die Besetzung des Einsatzes (Name live, Rolle aus der Kolonne, wenn die Person dort steht); bis 1.9.232 der Schnappschuss der Kolonne

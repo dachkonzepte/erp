@@ -830,11 +830,12 @@ def create_order_from_quote(
     execution_end: date | None, caseworker_employee_id: int | None,
     project_manager_employee_id: int | None, payment_terms: str | None,
     remarks: str | None, actor_name: str = "System",
-    contract_draft: bool = True,
+    contract_draft: bool = True, commit: bool = True,
 ) -> Order:
     """contract_draft (seit 1.8.33): False beim Schnellauftrag (app/quick_service_orders.py) -- dort
     entsteht kein automatischer Vertragsentwurf; von Hand bleibt er auf der Auftragsseite möglich. Seit 1.9.124 beginnt jeder Auftrag mit
-    „läuft“ (bis 1.9.123 konnte der Aufrufer einen Startwert schicken, der Dialog des Angebots bot „Arbeitsvorbereitung“ an)."""
+    „läuft“ (bis 1.9.123 konnte der Aufrufer einen Startwert schicken, der Dialog des Angebots bot „Arbeitsvorbereitung“ an).
+    commit=False (seit 1.9.240, Kranvermietung): nur flush -- der Aufrufer committet Auftrag, Revision und was er dazu anlegt zusammen."""
     existing = db.scalar(select(Order).where(Order.source_quote_id == quote_id))
     if existing is not None:
         raise ValueError(f"Aus diesem Angebot existiert bereits Auftrag {existing.order_number}. Änderungen können in diesen Auftrag übernommen werden.")
@@ -847,7 +848,7 @@ def create_order_from_quote(
     # duplicate_project() nehmen an, ein Mustervorgang habe nie einen Auftrag). Vor dem ersten Schreiben.
     if quote.project.is_template:
         raise MustervorgangNichtBeauftragbar(MUSTERVORGANG_TEXT)
-    meta, _, _ = ensure_quote_structure(db, quote)
+    meta, _, _ = ensure_quote_structure(db, quote, commit=commit)
     project = quote.project
     # Seit 1.8.80: Sperre der Projektzeile -- ein gleichzeitiger Kundenwechsel am Projekt (check_client_change()) nimmt sie
     # zuerst; der Auftrag hält danach den Kunden, der dann am Projekt steht (frisch gelesen).
@@ -902,7 +903,10 @@ def create_order_from_quote(
     quote.status = "beauftragt"
     # Seit 1.9.125 ergibt sich der Projektstatus aus den Daten (app/akte.py) -- bis 1.9.124 setzte jede Beauftragung ihn auf „beauftragt“.
     create_order_revision(db, order, reason="Erstbeauftragung aus Angebot", source="quote", actor_name=actor_name)
-    db.commit()  # seit 1.8.110 Auftrag und Revision 1 in einem Commit
+    if commit:
+        db.commit()  # seit 1.8.110 Auftrag und Revision 1 in einem Commit
+    else:
+        db.flush()
     return load_order(db, order.id)
 
 

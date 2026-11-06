@@ -26,17 +26,14 @@ ORDER_TYPES = ("reparatur", "wartung")
 ORDER_TYPE_LABELS = {"reparatur": "Reparatur", "wartung": "Wartung"}
 
 
-def create_quick_service_order(
-    db: Session, *, customer_id: int, property_id: int | None, order_type: str, title: str,
-    description: str | None = None, caseworker_employee_id: int | None = None,
-    execution_start: date | None = None, confirm_property_customer: bool = False,
-) -> dict:
-    """confirm_property_customer (seit 1.8.70, Befund 2f): ein Objekt eines anderen Kunden (Generalunternehmer,
-    Hausverwaltung) nur mit Bestätigung -- sonst PropertyCustomerMismatch (Router 409). Vorher verband der Schnellauftrag
-    jeden Kunden mit jedem Objekt; Auftrag und Rechnung tragen das Objekt als Schnappschuss. Aufrufe im Prozess, die Kunde
-    und Objekt aus einem bestehenden Datensatz übernehmen (Vertrag, Mangel), bestätigen selbst."""
-    if order_type not in ORDER_TYPES:
-        raise ValueError(f"Unbekannte Auftragsart: {order_type}")
+def auftrag_nach_aufwand(
+    db: Session, *, customer_id: int, property_id: int | None, title: str, position: str, description: str | None = None,
+    caseworker_employee_id: int | None = None, execution_start: date | None = None, confirm_property_customer: bool = False,
+    commit: bool = True,
+):
+    """Projekt -> Angebot mit einer Position „<position>“ (1 pauschal, 0,00 €) -> Auftrag, ohne Vertragsentwurf: der Weg des Schnellauftrags, seit
+    1.9.240 (Stufe 6, R3b, Punkt 2) auch für die Kranvermietung der Plantafel. commit=False: nichts wird festgeschrieben, der Aufrufer committet alles
+    zusammen (die Kranvermietung: mit dem Einsatz -- eine Warnung lässt nichts zurück). Gibt (Projekt, Auftrag) zurück."""
     title = title.strip()
     if not title:
         raise ValueError("Bitte eine Bezeichnung angeben.")
@@ -54,18 +51,37 @@ def create_quick_service_order(
     db.add(quote)
     db.flush()
 
-    label = ORDER_TYPE_LABELS[order_type]
     create_free_quote_item(
-        db, quote, short_text=f"{label} nach Aufwand", long_text=f"{label} nach Aufwand",
+        db, quote, short_text=position, long_text=position,
         quantity=Decimal("1"), unit="pauschal", unit_price=Decimal("0"), position_type="normal",
-        section_id=None,
+        section_id=None, commit=commit,
     )
+    if not commit:
+        db.expire(quote)  # ohne Commit kennt quote.items die neue Position sonst nicht (create_order_from_quote() lädt das Angebot)
 
-    # Seit 1.8.33 ohne automatischen Vertragsentwurf (Wartung/Reparatur nach Aufwand); von Hand bleibt
-    # er auf der Auftragsseite möglich.
+    # Seit 1.8.33 ohne automatischen Vertragsentwurf (nach Aufwand); von Hand bleibt er auf der Auftragsseite möglich.
     order = create_order_from_quote(
         db, quote.id, order_date=berlin_today(), execution_start=execution_start, execution_end=None,
         caseworker_employee_id=caseworker_employee_id, project_manager_employee_id=None,
-        payment_terms=None, remarks=None, contract_draft=False,
+        payment_terms=None, remarks=None, contract_draft=False, commit=commit,
+    )
+    return project, order
+
+
+def create_quick_service_order(
+    db: Session, *, customer_id: int, property_id: int | None, order_type: str, title: str,
+    description: str | None = None, caseworker_employee_id: int | None = None,
+    execution_start: date | None = None, confirm_property_customer: bool = False,
+) -> dict:
+    """confirm_property_customer (seit 1.8.70, Befund 2f): ein Objekt eines anderen Kunden (Generalunternehmer,
+    Hausverwaltung) nur mit Bestätigung -- sonst PropertyCustomerMismatch (Router 409). Vorher verband der Schnellauftrag
+    jeden Kunden mit jedem Objekt; Auftrag und Rechnung tragen das Objekt als Schnappschuss. Aufrufe im Prozess, die Kunde
+    und Objekt aus einem bestehenden Datensatz übernehmen (Vertrag, Mangel), bestätigen selbst."""
+    if order_type not in ORDER_TYPES:
+        raise ValueError(f"Unbekannte Auftragsart: {order_type}")
+    project, order = auftrag_nach_aufwand(
+        db, customer_id=customer_id, property_id=property_id, title=title, position=f"{ORDER_TYPE_LABELS[order_type]} nach Aufwand",
+        description=description, caseworker_employee_id=caseworker_employee_id, execution_start=execution_start,
+        confirm_property_customer=confirm_property_customer,
     )
     return {"project_id": project.id, "order_id": order.id, "order_number": order.order_number}

@@ -103,6 +103,9 @@ GEPRUEFT = {
     # --- Objekt gehört zum Kunden (Befund 2f/2g: mit Bestätigung) ---
     "POST /api/quick-service-orders property_id":
         ("zugehoerigkeit.property_customer_mismatch", "prop.customer_id == customer_id"),
+    # seit 1.9.240 (Stufe 6, R3b, Punkt 2): Kranvermietung mit Kunde -- derselbe Weg wie der Schnellauftrag
+    "POST /api/planning/slots property_id":
+        ("zugehoerigkeit.property_customer_mismatch", "prop.customer_id == customer_id"),
     "POST /api/maintenance-contracts property_id":
         ("zugehoerigkeit.property_customer_mismatch", "prop.customer_id == customer_id"),
     "PUT /api/maintenance-contracts/{contract_id} property_id":
@@ -276,6 +279,9 @@ FREI = {
     "POST /api/quick-service-orders customer_id": (
         _BESITZER + " (Objekt dazu: property_id, mit Bestätigung)",
         "zugehoerigkeit.require_customer", "customer = db.get(Customer, customer_id) if customer is None"),
+    "POST /api/planning/slots customer_id": (  # seit 1.9.240: Kranvermietung mit Kunde, wie der Schnellauftrag
+        _BESITZER + " (Kranvermietung: Projekt und Auftrag für diesen Kunden; Objekt dazu: property_id, mit Bestätigung)",
+        "zugehoerigkeit.require_customer", "customer = db.get(Customer, customer_id) if customer is None"),
     "POST /api/maintenance-contracts customer_id": (
         _BESITZER + " (Objekt dazu: property_id, mit Bestätigung)",
         "zugehoerigkeit.require_customer", "customer = db.get(Customer, customer_id) if customer is None"),
@@ -288,7 +294,7 @@ FREI = {
         "checklists._context_snapshot", "prop = db.get(Property, property_id) if property_id else None if prop is None"),
     "POST /api/checklists order_id": (_KONTEXT, "checklists._context_snapshot",
                                       "order = db.get(Order, order_id) if order_id else None if order is None"),
-    "POST /api/planning/slots order_id": ("verplant genau diesen Auftrag (Büro)", "planning.create_slot",
+    "POST /api/planning/slots order_id": ("verplant genau diesen Auftrag (Büro)", "planning._create_slot",
                                           "order = db.get(Order, order_id) if order is None"),
     "POST /api/planning/suggestion order_id": ("rechnet nur, speichert nichts", "planning.planning_suggestion",
                                                "order = load_order(db, order_id) if order is None"),

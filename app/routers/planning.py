@@ -24,6 +24,7 @@ from ..permissions import (ABWESENHEIT_LOESCHEN_NUR_ADMIN, ABWESENHEIT_LOESCHEN_
 from .absence_requests import antrag_fuer, kalendertag_frage_antwort
 from ..auftragsstatus import AuftragGeschlossen
 from ..planning import GERMAN_STATES, BesetzungUngueltig, PlanungsWarnung, create_slot, delete_slot, einsatz_konflikte, load_planning_settings, load_region_settings, offene_auftraege, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
+from ..zugehoerigkeit import IdNichtGefunden, PropertyCustomerMismatch
 from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeAbsencePlanningOut, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest
 
 router = APIRouter()
@@ -242,6 +243,10 @@ def create_planning_slot(payload: PlanningSlotCreate, db: Session = Depends(get_
         return _warnung_antwort(exc, _role)
     except AuftragGeschlossen as exc:  # seit 1.9.124: abgeschlossen oder storniert -- kein neuer Einsatz (409)
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except PropertyCustomerMismatch as exc:  # seit 1.9.240 (Kranvermietung mit Kunde): Objekt eines anderen Kunden ohne Bestätigung
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except IdNichtGefunden as exc:  # seit 1.9.240: unbekannter Kunde bzw. unbekanntes Objekt
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:  # seit 1.9.233 auch BesetzungUngueltig (unbekannte oder inaktive Person, ohne Kolonne ohne Personen)
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _einsatz_antwort(db, slot, _role)

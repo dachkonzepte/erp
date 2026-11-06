@@ -3157,7 +3157,14 @@ class PlanningSlotGeraet(BaseModel):
 
 
 class PlanningSlotCreate(BaseModel):
-    order_id: int
+    """Seit 1.9.240 (Stufe 6, R3b, Punkt 2): art „kranvermietung“ an einem Auftrag (order_id) oder mit Kunde (customer_id, Objekt wahlweise, ein
+    fremdes nur mit Bestätigung; titel wahlweise, sonst „Kranvermietung“) -- ohne Kolonne, mit mindestens einem Gerät, Bediener als employee_ids."""
+    order_id: int | None = None
+    art: Literal["baustelle", "kranvermietung"] = "baustelle"
+    customer_id: int | None = None
+    property_id: int | None = None
+    confirm_property_customer: bool = False
+    titel: str | None = Field(default=None, max_length=255)
     # seit 1.9.233 (Stufe 6, R3a, Punkt 2): ohne team_id „ohne Kolonne“ -- dann employee_ids mit mindestens einer Person; mit team_id und ohne
     # employee_ids schlägt die Kolonne ihre aktiven Mitglieder vor
     team_id: int | None = None
@@ -3175,6 +3182,16 @@ class PlanningSlotCreate(BaseModel):
     def validate_dates(self):
         if self.end_date < self.start_date:
             raise ValueError("Enddatum darf nicht vor dem Startdatum liegen.")
+        if self.art == "kranvermietung":
+            if (self.order_id is None) == (self.customer_id is None):
+                raise ValueError("Eine Kranvermietung braucht einen Auftrag oder einen Kunden, nicht beides.")
+            if self.team_id is not None:
+                raise ValueError("Eine Kranvermietung hat keine Kolonne; Bediener bitte einzeln wählen.")
+            if not self.geraete:
+                raise ValueError("Eine Kranvermietung braucht den Kran: bitte mindestens ein Gerät wählen.")
+            return self
+        if self.order_id is None or self.customer_id is not None or self.property_id is not None or self.titel is not None:
+            raise ValueError("Ein Einsatz auf der Baustelle braucht einen Auftrag.")
         if self.team_id is None and not self.employee_ids:
             raise ValueError("Ohne Kolonne bitte mindestens eine Person wählen.")
         return self

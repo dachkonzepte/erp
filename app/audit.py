@@ -127,7 +127,7 @@ def _privat(obj) -> bool:
     return isinstance(obj, CalendarEvent) and bool(obj.is_private)
 
 FIELD_LABELS = {
-    "name":"Bezeichnung / Name","status":"Status","description":"Beschreibung","category":"Kategorie",
+    "name":"Bezeichnung / Name","status":"Status","art":"Art des Einsatzes","description":"Beschreibung","category":"Kategorie",
     "customer_id":"Kunde","property_id":"Objekt","project_number":"Projektnummer","title":"Titel",
     "original_filename":"Dateiname","document_date":"Dokumentdatum","quote_number":"Angebotsnummer","order_number":"Auftragsnummer","order_date":"Auftragsdatum","execution_start":"Ausführungsbeginn","execution_end":"Geplantes Ende","project_manager_employee_id":"Projektleiter / Vorarbeiter",
     "short_text":"Kurztext","long_text":"Langtext","quantity":"Menge","unit":"Mengeneinheit",
