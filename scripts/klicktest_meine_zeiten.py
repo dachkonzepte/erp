@@ -114,6 +114,8 @@ def befuellen(db, k):
             db.add(WorkPreparationTeamEmployee(assignment_id=zuordnung.id, employee_id=e.id, employee_name_snapshot=e.first_name))
         db.add(PlanningSlot(preparation_id=prep.id, team_assignment_id=zuordnung.id, start_date=heute - timedelta(days=20),
                             end_date=heute + timedelta(days=5)))
+    from cdp_klicktest import besetzung_wie_migration  # seit 1.9.233: die Besetzung am Einsatz wie nach der Migration
+    besetzung_wie_migration(db)
     db.commit()
 
     def zeit(emp, tag, von, bis, art="site", **mehr):

@@ -100,7 +100,10 @@ def _assign_via_team(db, order, emp):
 def _slot(db, prep_id, team_assignment_id, start, end):
     from app.models import PlanningSlot
     slot = PlanningSlot(preparation_id=prep_id, team_assignment_id=team_assignment_id, start_date=start, end_date=end)
-    db.add(slot); db.commit()
+    db.add(slot)
+    from tests.besetzung import wie_migration  # seit 1.9.233
+    wie_migration(db, slot)
+    db.commit()
     return slot
 
 

@@ -721,6 +721,8 @@ class TestObjectFilteringForFieldTeilB:
         assignment = self._assign_via_team(db, order, monteur)
         db.add(PlanningSlot(preparation_id=assignment.preparation_id, team_assignment_id=assignment.id,
                             start_date=date.today() - timedelta(days=1), end_date=date.today() + timedelta(days=1)))
+        from tests.besetzung import alle_wie_migration  # seit 1.9.233
+        alle_wie_migration(db)
         db.commit()
         field = router_test_client(db, mc_router, sr_router, role="field", employee_id=monteur.id)
         assert field.get(f"/api/maintenance-contracts/{contract['id']}").status_code == 403

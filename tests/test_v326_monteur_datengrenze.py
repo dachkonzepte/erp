@@ -323,6 +323,8 @@ def _monteur_welt(db: Session) -> dict:
                         end_date=today + timedelta(days=1), notes="Slot-Notiz der Planung"))
     db.add(WorkPreparationTask(preparation_id=prep.id, title="Gerüst prüfen", status="offen",
                                assigned_employee_id=monteur.id, notes="Aufgabennotiz"))
+    from tests.besetzung import alle_wie_migration  # seit 1.9.233: die Besetzung am Einsatz wie nach der Migration
+    alle_wie_migration(db)
     db.commit()
 
     # Eigener, unterschriebener Bericht mit allem, was ein Bericht tragen kann; ein eigener Entwurf;

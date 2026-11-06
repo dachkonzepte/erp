@@ -57,6 +57,8 @@ def _einsatz(w, order, abschnitte, leute):
         db.add(WorkPreparationTeamEmployee(assignment_id=zuordnung.id, employee_id=emp.id, employee_name_snapshot=emp.first_name))
     for von, bis in abschnitte:
         db.add(PlanningSlot(preparation_id=prep.id, team_assignment_id=zuordnung.id, start_date=von, end_date=bis))
+    from tests.besetzung import alle_wie_migration  # seit 1.9.233
+    alle_wie_migration(db)
     db.commit()
 
 

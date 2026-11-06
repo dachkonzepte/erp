@@ -281,7 +281,16 @@ def _assigned_order_id_queries(employee_id: int):
         .join(WorkPreparationTeamEmployee, WorkPreparationTeamEmployee.assignment_id == WorkPreparationTeamAssignment.id)
         .where(WorkPreparationTeamEmployee.employee_id == employee_id)
     )
-    return individual, team
+    # Seit 1.9.233 (Stufe 6, R3a, Punkt 2): dazu die Besetzung eines Einsatzes des Auftrags -- wer an einem Einsatz steht (auch einzeln, „ohne
+    # Kolonne“), kommt an den Auftrag. Als Teil der Team-Abfrage (UNION), damit beide Aufrufer unverändert zwei Wege aus der Planung sehen.
+    from .models import PlanningSlot, PlanningSlotEmployee
+    besetzung = (
+        select(WorkPreparation.order_id)
+        .join(PlanningSlot, PlanningSlot.preparation_id == WorkPreparation.id)
+        .join(PlanningSlotEmployee, PlanningSlotEmployee.slot_id == PlanningSlot.id)
+        .where(PlanningSlotEmployee.employee_id == employee_id)
+    )
+    return individual, team.union(besetzung).subquery().select()
 
 
 def employee_assigned_order_ids(db: Session, employee_id: int) -> set[int]:

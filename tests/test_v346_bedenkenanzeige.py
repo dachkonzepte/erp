@@ -493,6 +493,8 @@ def test_mobil_shows_the_hint_per_assignment(kworld, router_test_client):
         db.flush()
         db.add(PlanningSlot(preparation_id=prep.id, team_assignment_id=assignment.id, start_date=berlin_today(),
                             end_date=berlin_today()))
+        from tests.besetzung import alle_wie_migration  # seit 1.9.233
+        alle_wie_migration(db)
         db.commit()
         mobil = router_test_client(db, field_view_router, role="field", employee_id=kworld["emps"]["a"].id)
         [assignment] = mobil.get("/api/field-view/today").json()["assignments"]

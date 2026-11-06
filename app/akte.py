@@ -434,10 +434,11 @@ def einsaetze(db: Session, order_id: int) -> list[dict]:
     from .models import WorkPreparationTeamAssignment
 
     rows = db.execute(select(PlanningSlot, WorkPreparationTeamAssignment).join(WorkPreparation, PlanningSlot.preparation_id == WorkPreparation.id)
-                      .join(WorkPreparationTeamAssignment, PlanningSlot.team_assignment_id == WorkPreparationTeamAssignment.id)
+                      .outerjoin(WorkPreparationTeamAssignment, PlanningSlot.team_assignment_id == WorkPreparationTeamAssignment.id)
                       .where(WorkPreparation.order_id == order_id).order_by(PlanningSlot.start_date, PlanningSlot.id)).all()
-    return [{"id": s.id, "start_date": s.start_date, "end_date": s.end_date, "status": s.status, "team": a.team_name_snapshot,
-             "personen": len(a.employees)} for s, a in rows]
+    # seit 1.9.233: Personen = die Besetzung des Einsatzes (bis 1.9.232 der Schnappschuss der Kolonne), ohne Kolonne „Ohne Kolonne“
+    return [{"id": s.id, "start_date": s.start_date, "end_date": s.end_date, "status": s.status,
+             "team": a.team_name_snapshot if a is not None else "Ohne Kolonne", "personen": len(s.besetzung)} for s, a in rows]
 
 
 def ausfuehrung(db: Session, order: Order) -> dict:

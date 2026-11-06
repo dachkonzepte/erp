@@ -60,6 +60,8 @@ def make_admin(db, username="admin1"):
     return user
 
 
+from tests.besetzung import wie_migration  # noqa: E402 -- seit 1.9.233: Besetzung am Einsatz wie nach der Migration
+
 def make_team(db, number, name):
     t = Team(team_number=number, name=name)
     db.add(t); db.commit()
@@ -74,7 +76,9 @@ def make_slot_for_team(db, order, team, employee, start_date, end_date):
     db.add(WorkPreparationTeamEmployee(assignment_id=assignment.id, employee_id=employee.id,
                                         employee_name_snapshot=f"{employee.first_name} {employee.last_name}"))
     slot = PlanningSlot(preparation_id=prep.id, team_assignment_id=assignment.id, start_date=start_date, end_date=end_date)
-    db.add(slot); db.commit()
+    db.add(slot)
+    wie_migration(db, slot)
+    db.commit()
     return slot, prep
 
 
@@ -88,7 +92,9 @@ def make_slot_for_individual(db, order, team, employee, start_date, end_date):
     assignment = WorkPreparationTeamAssignment(preparation_id=prep.id, team_id=team.id, team_name_snapshot=team.name)
     db.add(assignment); db.flush()
     slot = PlanningSlot(preparation_id=prep.id, team_assignment_id=assignment.id, start_date=start_date, end_date=end_date)
-    db.add(slot); db.commit()
+    db.add(slot)
+    wie_migration(db, slot)  # seit 1.9.233: die Einzelzuweisung an der AV steht danach in der Besetzung (wie die Migration es übernahm)
+    db.commit()
     return slot, prep
 
 

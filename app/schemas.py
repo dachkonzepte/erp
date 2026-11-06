@@ -3152,7 +3152,10 @@ class WorkPreparationMaterialBulkAssign(BaseModel):
 
 class PlanningSlotCreate(BaseModel):
     order_id: int
-    team_id: int
+    # seit 1.9.233 (Stufe 6, R3a, Punkt 2): ohne team_id „ohne Kolonne“ -- dann employee_ids mit mindestens einer Person; mit team_id und ohne
+    # employee_ids schlägt die Kolonne ihre aktiven Mitglieder vor
+    team_id: int | None = None
+    employee_ids: list[int] | None = None
     start_date: date
     end_date: date
     status: str = Field(default="geplant", max_length=40)
@@ -3165,6 +3168,8 @@ class PlanningSlotCreate(BaseModel):
     def validate_dates(self):
         if self.end_date < self.start_date:
             raise ValueError("Enddatum darf nicht vor dem Startdatum liegen.")
+        if self.team_id is None and not self.employee_ids:
+            raise ValueError("Ohne Kolonne bitte mindestens eine Person wählen.")
         return self
 
 
@@ -3172,9 +3177,11 @@ class PlanningSlotUpdate(PartialUpdate):
     """Seit 1.8.96 Teil-Update (Regel 22): Verschieben auf der Plantafel schickt nur Team, Beginn und Ende -- vorher gingen
     Status, Notiz, Planstunden und Anfahrt mit dem beim Laden gemerkten Stand mit. Ende vor Beginn prüft app/planning.py::
     update_slot() auf gespeichertem Stand + gesendeten Werten; hier nur, wenn beide gesendet sind. team_id, Planstunden und
-    Anfahrt: null hieß bis 1.8.95 "unverändert", seither 422 (weglassen heißt unverändert)."""
-    NOT_NULL = frozenset({"team_id", "start_date", "end_date", "status", "planned_hours", "travel_hours_per_employee_day", "trotzdem_planen"})
+    Anfahrt: null hieß bis 1.8.95 "unverändert", seither 422 (weglassen heißt unverändert). Seit 1.9.233: team_id null heißt „ohne Kolonne“ (die
+    Personen bleiben), employee_ids setzt die Besetzung (null 422, weglassen = unverändert, eine andere Kolonne schlägt ihre Mitglieder vor)."""
+    NOT_NULL = frozenset({"start_date", "end_date", "status", "planned_hours", "travel_hours_per_employee_day", "trotzdem_planen", "employee_ids"})
     team_id: int | None = None
+    employee_ids: list[int] | None = None
     start_date: date | None = None
     end_date: date | None = None
     status: str | None = Field(default=None, max_length=40)

@@ -96,6 +96,8 @@ def befuellen(db, k):
         for n in wer:
             db.add(WorkPreparationTeamEmployee(assignment_id=zuordnung.id, employee_id=leute[n].id, employee_name_snapshot=leute[n].first_name))
         db.add(PlanningSlot(preparation_id=prep.id, team_assignment_id=zuordnung.id, start_date=von, end_date=bis))
+    from cdp_klicktest import besetzung_wie_migration  # seit 1.9.233: die Besetzung am Einsatz wie nach der Migration
+    besetzung_wie_migration(db)
     db.commit()
     create_report(db, s.id, "rapport", "Vor dem Storno", created_by_employee_id=leute["mia"].id)  # ihr Zugang zur Seite von S
     s.status = "storniert"

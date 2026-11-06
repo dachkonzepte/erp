@@ -71,6 +71,8 @@ def befuellen(db, k):
     db.add_all([WorkPreparationEmployee(preparation_id=prep.id, employee_id=leute[n].id) for n in ("Mia", "Tom")]
                + [PlanningSlot(preparation_id=prep.id, team_assignment_id=zuordnung.id, start_date=date(2026, 11, 23),
                                end_date=date(2026, 12, 18))])
+    from cdp_klicktest import besetzung_wie_migration  # seit 1.9.233: die Besetzung am Einsatz wie nach der Migration
+    besetzung_wie_migration(db)
     db.commit()
     antrag = create_request(db, employee_id=leute["Tom"].id, absence_category="urlaub", start_date=date(2026, 12, 28),
                             end_date=date(2026, 12, 31), kalendertag_urlaub=True)

@@ -72,7 +72,10 @@ def _slot(db, prep_id, team_assignment_id, start=None, end=None):
     from app.models import PlanningSlot
     slot = PlanningSlot(preparation_id=prep_id, team_assignment_id=team_assignment_id,
                          start_date=start or date.today(), end_date=end or date.today())
-    db.add(slot); db.commit()
+    db.add(slot)
+    from tests.besetzung import wie_migration  # seit 1.9.233
+    wie_migration(db, slot)
+    db.commit()
     return slot
 
 

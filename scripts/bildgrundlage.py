@@ -334,6 +334,8 @@ def befuellen(db, k):
     db.add(WorkPreparationTeamEmployee(assignment_id=zuweisung.id, employee_id=mia.id, employee_name_snapshot="Mia Monteurin"))
     db.add(PlanningSlot(preparation_id=vorbereitung.id, team_assignment_id=zuweisung.id, start_date=heute,
                         end_date=heute + timedelta(days=2)))
+    from cdp_klicktest import besetzung_wie_migration  # seit 1.9.233: die Besetzung am Einsatz wie nach der Migration
+    besetzung_wie_migration(db)
     db.commit()
     rechnung = create_abschlag_pauschal(db, auftrag, lump_sum_net=Decimal("12000"), progress_description="1. Abschlag Abdichtung",
                                         due_date=heute + timedelta(days=14))

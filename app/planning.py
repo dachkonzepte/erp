@@ -18,7 +18,8 @@ from .calendar_events import BUSY_PLACEHOLDER_TITLE
 from .models import (
     CalendarEvent, OutlookSeriesOccurrence,
     Employee, EmployeeAbsence, EmployeeAbsenceRequest, EmployeePlanningSettings, EmployeeProfile, OperationalResource, Order, OrderItem, PlanningHoliday,
-    PlanningSettings, PlanningRegionSettings, PlanningSchoolHoliday, PlanningSchoolHolidaySync, PlanningSlot, PlanningSlotCapacity, Project, Property, ServiceReport, Team, TeamEmployee,
+    PlanningSettings, PlanningRegionSettings, PlanningSchoolHoliday, PlanningSchoolHolidaySync, PlanningSlot, PlanningSlotCapacity, PlanningSlotEmployee,
+    Project, Property, ServiceReport, Team, TeamEmployee,
     TeamResource, WorkPreparation, WorkPreparationEmployee, WorkPreparationTeamAssignment,
     WorkPreparationTeamEmployee, WorkPreparationTeamResource,
 )
@@ -372,8 +373,57 @@ def _team_members_from_master(team: Team, visible_employee_ids: set[int] | None 
     return [x.employee for x in team.employees if x.employee and x.employee.active and (visible_employee_ids is None or x.employee_id in visible_employee_ids)]
 
 
-def _team_members_from_assignment(assignment: WorkPreparationTeamAssignment, visible_employee_ids: set[int] | None = None) -> list[Employee]:
-    return [x.employee for x in assignment.employees if x.employee and x.employee.active and (visible_employee_ids is None or x.employee_id in visible_employee_ids)]
+def _besetzung(slot: PlanningSlot, visible_employee_ids: set[int] | None = None) -> list[Employee]:
+    """Seit 1.9.233 (Stufe 6, R3a, Punkt 2): die Personen des Einsatzes, die zählen -- aktiv und (wenn angegeben) auf der Plantafel sichtbar, in der
+    Reihenfolge der Besetzung. Bis 1.9.232 _team_members_from_assignment(): der Schnappschuss der Kolonne an der Arbeitsvorbereitung."""
+    return [x.employee for x in slot.besetzung if x.employee and x.employee.active and (visible_employee_ids is None or x.employee_id in visible_employee_ids)]
+
+
+def _rolle_in_kolonne(slot: PlanningSlot, employee_id: int) -> str | None:
+    """Die Rolle der Person in der Kolonne des Einsatzes (Schnappschuss an der AV), sonst keine -- nur zur Anzeige."""
+    if slot.team_assignment is None:
+        return None
+    return next((x.role_snapshot for x in slot.team_assignment.employees if x.employee_id == employee_id), None)
+
+
+class BesetzungUngueltig(ValueError):
+    """Seit 1.9.233: eine Besetzung, die nicht geht (unbekannte oder inaktive Person, ohne Kolonne ohne Personen) -- 422."""
+
+
+def _kolonne_schlaegt_vor(db: Session, team_id: int) -> list[int]:
+    """Die Personen, die eine Kolonne heute vorschlägt: ihre aktiven Mitglieder aus den Stammdaten, in ihrer Reihenfolge (seit 1.9.233; bis 1.9.232
+    der Schnappschuss beim ersten Zuweisen an der AV, für jeden späteren Einsatz derselbe)."""
+    team = _load_team(db, team_id)
+    if team is None or not team.active:
+        raise ValueError("Kolonne / Team wurde nicht gefunden oder ist inaktiv.")
+    return [m.employee_id for m in team.employees if m.employee and m.employee.active]
+
+
+def _besetzung_pruefen(db: Session, employee_ids) -> list[int]:
+    """Gewählte Personen: jede bekannt und aktiv, jede einmal (Reihenfolge der Anfrage). Unbekannt oder inaktiv: BesetzungUngueltig."""
+    ids: list[int] = []
+    for eid in employee_ids:
+        if eid not in ids:
+            ids.append(int(eid))
+    if ids:
+        personen = {e.id: e for e in db.scalars(select(Employee).where(Employee.id.in_(ids)))}
+        fehlt = [i for i in ids if i not in personen]
+        if fehlt:
+            raise BesetzungUngueltig(f"Mitarbeiter #{fehlt[0]} wurde nicht gefunden.")
+        inaktiv = [personen[i] for i in ids if not personen[i].active]
+        if inaktiv:
+            raise BesetzungUngueltig(f"{_employee_name(inaktiv[0])} ist nicht aktiv und kann nicht eingeplant werden.")
+    return ids
+
+
+def _besetzung_setzen(db: Session, slot: PlanningSlot, employee_ids: list[int]) -> bool:
+    """Die Besetzung genau auf diese Personen setzen (Reihenfolge wie gegeben); True, wenn sich etwas geändert hat. Wer bleibt, behält seine Zeile."""
+    vorher = [x.employee_id for x in slot.besetzung]
+    if vorher == employee_ids:
+        return False
+    bleiben = {x.employee_id: x for x in slot.besetzung}
+    slot.besetzung = [bleiben.get(eid) or PlanningSlotEmployee(employee_id=eid) for eid in employee_ids]
+    return True
 
 
 def _day_capacity(
@@ -474,6 +524,7 @@ def _load_slot(db: Session, slot_id: int, *, frisch: bool = False) -> PlanningSl
             selectinload(PlanningSlot.team_assignment)
             .selectinload(WorkPreparationTeamAssignment.resources)
             .selectinload(WorkPreparationTeamResource.resource),
+            selectinload(PlanningSlot.besetzung).selectinload(PlanningSlotEmployee.employee),
         )
         .where(PlanningSlot.id == slot_id)
         .execution_options(populate_existing=frisch)
@@ -511,14 +562,19 @@ def _remaining_order_hours(db: Session, prep: WorkPreparation) -> Decimal:
 
 
 def create_slot(
-    db: Session, *, order_id: int, team_id: int, start_date: date, end_date: date,
+    db: Session, *, order_id: int, team_id: int | None, start_date: date, end_date: date,
     status: str = "geplant", notes: str | None = None, planned_hours: Decimal | None = None,
-    travel_hours_per_employee_day: Decimal | None = None, trotzdem_planen: bool = False,
+    travel_hours_per_employee_day: Decimal | None = None, trotzdem_planen: bool = False, employee_ids: list[int] | None = None,
 ) -> PlanningSlot:
     """Seit 1.9.143: mit Warnungen (einsatz_konflikte()) nur mit trotzdem_planen, sonst PlanungsWarnung -- dann bleibt nichts zurück, auch keine neu
-    angelegte Arbeitsvorbereitung oder Kolonnen-Zuweisung."""
+    angelegte Arbeitsvorbereitung oder Kolonnen-Zuweisung.
+    Seit 1.9.233 (Stufe 6, R3a, Punkt 2) die Besetzung am Einsatz: mit Kolonne schlägt sie ihre heutigen aktiven Mitglieder vor (employee_ids nicht
+    angegeben), mit employee_ids genau diese Personen; ohne Kolonne (team_id None) braucht es mindestens eine Person. Die Kolonnen-Zuweisung an der AV
+    entsteht mit Kolonne weiter wie bisher (AV-Seite, Zugriff)."""
     if end_date < start_date:
         raise ValueError("Enddatum darf nicht vor dem Startdatum liegen.")
+    if team_id is None and not employee_ids:
+        raise BesetzungUngueltig("Ohne Kolonne bitte mindestens eine Person wählen.")
     order = db.get(Order, order_id)
     if order is None:
         raise ValueError("Auftrag wurde nicht gefunden.")
@@ -527,16 +583,18 @@ def create_slot(
     gesperrt = einsatz_gesperrt(order)
     if gesperrt:
         raise AuftragGeschlossen(gesperrt)
+    personen = _besetzung_pruefen(db, employee_ids) if employee_ids is not None else _kolonne_schlaegt_vor(db, team_id)
     prep = ensure_preparation(db, order_id, festschreiben=False)
-    assignment = ensure_team_assignment(db, prep, team_id)
+    assignment = ensure_team_assignment(db, prep, team_id) if team_id is not None else None
     settings = load_planning_settings(db)
     travel = _d(travel_hours_per_employee_day if travel_hours_per_employee_day is not None else settings.default_travel_hours_per_employee_day)
     if travel >= _d(settings.daily_work_hours):
         raise ValueError("Anfahrtszeit muss kleiner als die tägliche Arbeitszeit sein.")
     slot = PlanningSlot(
-        preparation_id=prep.id, team_assignment_id=assignment.id, start_date=start_date,
+        preparation_id=prep.id, team_assignment_id=assignment.id if assignment is not None else None, start_date=start_date,
         end_date=end_date, status=status, notes=notes,
     )
+    slot.besetzung = [PlanningSlotEmployee(employee_id=eid) for eid in personen]
     db.add(slot)
     db.flush()
     hours = _remaining_order_hours(db, prep) if planned_hours is None else _d(planned_hours)
@@ -549,7 +607,7 @@ def create_slot(
 
 
 _SLOT_FIELDS = frozenset({"team_id", "start_date", "end_date", "status", "notes", "planned_hours",
-                          "travel_hours_per_employee_day"})
+                          "travel_hours_per_employee_day", "employee_ids"})
 
 
 def update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, **changes) -> PlanningSlot:
@@ -559,7 +617,10 @@ def update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, **c
     Seit 1.9.145 schreibt ein Einsatz nicht mehr in die Arbeitsvorbereitung (F12, app/work_preparation.py::einsatz_zeitraum()).
     team_id, planned_hours, travel_hours_per_employee_day: None heißt wie bisher unverändert (die API lehnt null ab).
     Seit 1.9.143: ändert sich Kolonne oder Zeitraum, fragen Warnungen zurück (PlanungsWarnung, nichts gespeichert), bis trotzdem_planen kommt; wer
-    nur Notiz, Status oder Stunden ändert, wird nicht erneut gefragt -- die Konflikte stehen in der Antwort."""
+    nur Notiz, Status oder Stunden ändert, wird nicht erneut gefragt -- die Konflikte stehen in der Antwort.
+    Seit 1.9.233 (Stufe 6, R3a, Punkt 2): team_id None heißt „ohne Kolonne“ (die Personen bleiben); eine andere Kolonne setzt deren heutige aktive
+    Mitglieder als Besetzung (auch beim Ziehen in ihre Zeile), employee_ids setzt die Besetzung genau so. Eine geänderte Besetzung fragt wie Kolonne
+    und Zeitraum zurück. Ohne Kolonne bleibt mindestens eine Person."""
     unbekannt = set(changes) - _SLOT_FIELDS
     if unbekannt:
         raise TypeError("Unbekannte Felder: " + ", ".join(sorted(unbekannt)))
@@ -570,7 +631,8 @@ def update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, **c
     slot = _load_slot(db, slot_id, frisch=True)  # nach der Sperre: der Stand nach einer gleichzeitigen Änderung
     if slot is None:
         raise ValueError("Planeinsatz wurde nicht gefunden.")
-    vorher = (slot.team_assignment.team_id, slot.start_date, slot.end_date)
+    vorher_team = slot.team_assignment.team_id if slot.team_assignment is not None else None
+    vorher = (vorher_team, slot.start_date, slot.end_date, tuple(x.employee_id for x in slot.besetzung))
     start_date = changes.get("start_date", slot.start_date)
     end_date = changes.get("end_date", slot.end_date)
     if end_date < start_date:
@@ -579,9 +641,20 @@ def update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, **c
     travel_hours = changes.get("travel_hours_per_employee_day")
     if travel_hours is not None and _d(travel_hours) >= _d(settings.daily_work_hours):
         raise ValueError("Anfahrtszeit muss kleiner als die tägliche Arbeitszeit sein.")
-    team_id = changes.get("team_id")
-    if team_id is not None and team_id != slot.team_assignment.team_id:
-        slot.team_assignment_id = ensure_team_assignment(db, slot.preparation, team_id).id
+    neues_team = changes.get("team_id", vorher_team)
+    personen = _besetzung_pruefen(db, changes["employee_ids"]) if changes.get("employee_ids") is not None else None
+    if neues_team != vorher_team:
+        if neues_team is None:
+            slot.team_assignment_id, slot.team_assignment = None, None
+        else:
+            assignment = ensure_team_assignment(db, slot.preparation, neues_team)
+            slot.team_assignment_id, slot.team_assignment = assignment.id, assignment
+            if personen is None:
+                personen = _kolonne_schlaegt_vor(db, neues_team)
+    if personen is not None:
+        _besetzung_setzen(db, slot, personen)
+    if neues_team is None and not slot.besetzung:
+        raise BesetzungUngueltig("Ohne Kolonne bitte mindestens eine Person wählen.")
     slot.start_date = start_date
     slot.end_date = end_date
     for key in ("status", "notes"):
@@ -599,7 +672,7 @@ def update_slot(db: Session, slot_id: int, *, trotzdem_planen: bool = False, **c
     elif capacity.travel_hours_per_employee_day is None:
         capacity.travel_hours_per_employee_day = settings.default_travel_hours_per_employee_day
     db.flush()
-    if not trotzdem_planen and (team_id if team_id is not None else vorher[0], start_date, end_date) != vorher:
+    if not trotzdem_planen and (neues_team, start_date, end_date, tuple(x.employee_id for x in slot.besetzung)) != vorher:
         _warnungen_pruefen(db, slot.id)
     db.commit()
     return _load_slot(db, slot.id)
@@ -620,8 +693,9 @@ def delete_slot(db: Session, slot_id: int) -> int:
 
 
 def _slot_members(slot: PlanningSlot, visible_employee_ids: set[int] | None = None) -> tuple[set[int], set[int]]:
-    employees = {x.employee_id for x in slot.team_assignment.employees if visible_employee_ids is None or x.employee_id in visible_employee_ids}
-    resources = {x.resource_id for x in slot.team_assignment.resources}
+    """Seit 1.9.233 die Personen aus der Besetzung des Einsatzes (bis 1.9.232 aus dem Schnappschuss der Kolonne)."""
+    employees = {x.employee_id for x in slot.besetzung if visible_employee_ids is None or x.employee_id in visible_employee_ids}
+    resources = {x.resource_id for x in slot.team_assignment.resources} if slot.team_assignment is not None else set()
     return employees, resources
 
 
@@ -637,7 +711,7 @@ def _slot_distribution(
 ) -> tuple[dict[date, dict], Decimal]:
     remaining = _infer_slot_hours(db, slot)
     travel = _slot_travel(slot, settings)
-    employees = _team_members_from_assignment(slot.team_assignment, visible_employee_ids)
+    employees = _besetzung(slot, visible_employee_ids)
     if soll is None:  # seit 1.9.211: ohne mitgegebene Sollzeit (einzelner Aufruf) für diesen Einsatz nachschlagen
         soll = _soll_je_tag(db, employees, slot.start_date, slot.end_date)
     distribution = {}
@@ -680,19 +754,26 @@ def slot_to_dict(slot: PlanningSlot, conflicts: list[dict] | None = None, db: Se
         "project_number": project.project_number, "project_name": project.name,
         "customer_name": order.customer_name, "property_name": prop.name if prop else order.property_name,
         "property_address": address, "team_assignment_id": slot.team_assignment_id,
-        "team_id": slot.team_assignment.team_id, "team_name": slot.team_assignment.team_name_snapshot,
+        # seit 1.9.233: ohne Kolonne beides leer (Zeile „Ohne Kolonne“)
+        "team_id": slot.team_assignment.team_id if slot.team_assignment is not None else None,
+        "team_name": slot.team_assignment.team_name_snapshot if slot.team_assignment is not None else None,
         "start_date": slot.start_date, "end_date": slot.end_date,
         "duration_days": (slot.end_date - slot.start_date).days + 1, "status": slot.status,
         "notes": slot.notes, "planned_hours": hours,
         "travel_hours_per_employee_day": travel,
-        "employees": [{"id": x.employee_id, "name": x.employee_name_snapshot, "role": x.role_snapshot} for x in slot.team_assignment.employees if visible_ids is None or x.employee_id in visible_ids],
-        "resources": [{"id": x.resource_id, "name": x.resource_name_snapshot, "type": x.resource_type_snapshot, "role": x.role_snapshot} for x in slot.team_assignment.resources],
+        # seit 1.9.233 die Besetzung des Einsatzes (Name live, Rolle aus der Kolonne, wenn die Person dort steht); bis 1.9.232 der Schnappschuss der Kolonne
+        "employees": [{"id": x.employee_id, "name": _employee_name(x.employee), "role": _rolle_in_kolonne(slot, x.employee_id)} for x in slot.besetzung if visible_ids is None or x.employee_id in visible_ids],
+        "resources": [{"id": x.resource_id, "name": x.resource_name_snapshot, "type": x.resource_type_snapshot, "role": x.role_snapshot} for x in slot.team_assignment.resources] if slot.team_assignment is not None else [],
         "conflicts": conflicts or [],
     }
 
 
 def _employee_assignment_slot_condition(employee_id: int):
-    """Gemeinsame Zuordnungs-Bedingung Mitarbeiter -> PlanningSlot (Team- ODER Einzelzuweisung an
+    """Seit 1.9.233 (Stufe 6, R3a, Punkt 2): die Einsätze, in deren Besetzung die Person steht -- nichts sonst. Bis 1.9.232 (Text unten): Team-
+    ODER Einzelzuweisung an der Arbeitsvorbereitung; die Migration e4b1c9d27a35 hat beide in die Besetzung übernommen, eine spätere Einzelzuweisung
+    an der AV ist eine Zuweisung ohne Datum (Zugriff auf den Auftrag, kein Einsatz).
+
+    Bis 1.9.232: Gemeinsame Zuordnungs-Bedingung Mitarbeiter -> PlanningSlot (Team- ODER Einzelzuweisung an
     der Arbeitsvorbereitung) -- seit 1.3.61 aus list_todays_assignments_for_employee()
     ausgelagert, damit list_upcoming_assignments_for_employee() (siehe dort, "Eigene
     Plantafel-Einträge" auf /mobil) dieselbe Zuordnung nutzt statt sie ein zweites Mal
@@ -700,19 +781,7 @@ def _employee_assignment_slot_condition(employee_id: int):
     Team-Besetzung zum Zuweisungszeitpunkt der WorkPreparationTeamAssignment, an der der Slot
     über team_assignment_id hängt), direkte Einzelzuweisung über WorkPreparationEmployee (an der
     WorkPreparation selbst, nicht am einzelnen Slot -- jeder Slot dieser AV zählt dann)."""
-    team_slot_ids = (
-        select(PlanningSlot.id)
-        .join(WorkPreparationTeamAssignment, PlanningSlot.team_assignment_id == WorkPreparationTeamAssignment.id)
-        .join(WorkPreparationTeamEmployee, WorkPreparationTeamEmployee.assignment_id == WorkPreparationTeamAssignment.id)
-        .where(WorkPreparationTeamEmployee.employee_id == employee_id)
-    )
-    individual_slot_ids = (
-        select(PlanningSlot.id)
-        .join(WorkPreparation, PlanningSlot.preparation_id == WorkPreparation.id)
-        .join(WorkPreparationEmployee, WorkPreparationEmployee.preparation_id == WorkPreparation.id)
-        .where(WorkPreparationEmployee.employee_id == employee_id)
-    )
-    return PlanningSlot.id.in_(team_slot_ids) | PlanningSlot.id.in_(individual_slot_ids)
+    return PlanningSlot.id.in_(select(PlanningSlotEmployee.slot_id).where(PlanningSlotEmployee.employee_id == employee_id))
 
 
 def _slot_query_with_order_options():
@@ -1012,6 +1081,7 @@ def _einsatz_abfrage():
             selectinload(PlanningSlot.preparation).selectinload(WorkPreparation.order).selectinload(Order.project).selectinload(Project.property),
             selectinload(PlanningSlot.team_assignment).selectinload(WorkPreparationTeamAssignment.employees).selectinload(WorkPreparationTeamEmployee.employee),
             selectinload(PlanningSlot.team_assignment).selectinload(WorkPreparationTeamAssignment.resources).selectinload(WorkPreparationTeamResource.resource),
+            selectinload(PlanningSlot.besetzung).selectinload(PlanningSlotEmployee.employee),
         )
         .order_by(PlanningSlot.start_date, PlanningSlot.id)
     )
@@ -1032,8 +1102,9 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
     holiday_names, _holiday_meta = _combined_holiday_map(db, start, end); holiday_dates = set(holiday_names)
     if visible_employee_ids is None:
         visible_employee_ids = planning_visible_employee_ids(db)
-    employee_ids = {x.employee_id for s in slots for x in s.team_assignment.employees if x.employee_id in visible_employee_ids}
-    personen = [x.employee for s in slots for x in s.team_assignment.employees if x.employee_id in visible_employee_ids and x.employee is not None]
+    # seit 1.9.233 aus der Besetzung der Einsätze (bis 1.9.232 aus dem Schnappschuss der Kolonnen)
+    employee_ids = {x.employee_id for s in slots for x in s.besetzung if x.employee_id in visible_employee_ids}
+    personen = [x.employee for s in slots for x in s.besetzung if x.employee_id in visible_employee_ids and x.employee is not None]
     absence_rows = _absence_rows(db, start, end, employee_ids); absences = _abwesend_map(db, absence_rows, personen, start, end)
     offene_antraege = _offene_antraege(db, start, end, employee_ids)
     if soll is None:  # seit 1.9.211: die Kapazität aus der Sollzeit des Lohns, einmal für alle Einsätze (die Tafel gibt ihre mit)
@@ -1048,13 +1119,13 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
                 break
             b_emps, b_res = _slot_members(b, visible_employee_ids)
             issues = []
-            if a.team_assignment.team_id == b.team_assignment.team_id:
+            if a.team_assignment is not None and b.team_assignment is not None and a.team_assignment.team_id == b.team_assignment.team_id:
                 issues.append(("team", a.team_assignment.team_name_snapshot))
             for eid in sorted(a_emps & b_emps):
-                name = next((x.employee_name_snapshot for x in a.team_assignment.employees if x.employee_id == eid), f"Mitarbeiter #{eid}")
+                name = next((_employee_name(x.employee) for x in a.besetzung if x.employee_id == eid), f"Mitarbeiter #{eid}")
                 issues.append(("employee", name))
             for rid in sorted(a_res & b_res):
-                resource = next((x for x in a.team_assignment.resources if x.resource_id == rid), None)
+                resource = next((x for x in a.team_assignment.resources if x.resource_id == rid), None) if a.team_assignment is not None else None
                 issues.append(("resource", resource.resource_name_snapshot if resource else f"Ressource #{rid}"))
             for kind, label in issues:
                 result[a.id].append({"type": kind, "label": label, "other_slot_id": b.id, "other_project": b.preparation.order.project.project_number, "other_project_name": b.preparation.order.project.name})
@@ -1068,11 +1139,12 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
             if day in holiday_names and day.weekday() in arbeitstage:  # seit 1.9.150: ein Feiertag an einem Tag, der ohnehin kein Arbeitstag ist, meldet nichts
                 result[slot.id].append({"type":"holiday", "label":holiday_names[day], "date":day, "other_slot_id":None, "other_project":None, "other_project_name":None})
             frei = []  # seit 1.9.188: wer an dem Tag eine Freistellung des Arbeitszeitkalenders hat -- ein Hinweis je Tag, wie der betriebsfreie Tag
-            for member in slot.team_assignment.employees:
+            for member in slot.besetzung:  # seit 1.9.233 die Besetzung des Einsatzes
                 if member.employee_id not in visible_employee_ids: continue
+                name = _employee_name(member.employee)
                 absence = absences.get((member.employee_id, day))
                 if isinstance(absence, Freistellung):
-                    frei.append((absence.kalendertag, member.employee_name_snapshot))
+                    frei.append((absence.kalendertag, name))
                     continue
                 if absence and absence.id not in seen_absence:
                     seen_absence.add(absence.id)
@@ -1080,16 +1152,17 @@ def _conflicts(db: Session, slots: list[PlanningSlot], settings: PlanningSetting
                     # "Krankheitssichtbarkeit") -- der Router entscheidet anhand der Rolle, welche
                     # der beiden Label-Varianten in der Antwort landet, diese Funktion bleibt
                     # rollenblind.
-                    result[slot.id].append({"type":"absence", "label":f"{member.employee_name_snapshot} · {absence.absence_type}", "label_redacted":f"{member.employee_name_snapshot} · abwesend", "date":day, "other_slot_id":None, "other_project":None, "other_project_name":None})
+                    result[slot.id].append({"type":"absence", "label":f"{name} · {absence.absence_type}", "label_redacted":f"{name} · abwesend", "date":day, "other_slot_id":None, "other_project":None, "other_project_name":None})
             if frei:
                 result[slot.id].append({"type":"kalendertag", "label":f"{frei[0][0]} – {', '.join(n for _, n in frei)}", "date":day, "other_slot_id":None, "other_project":None, "other_project_name":None})
         # Seit 1.9.152 (R1 Nachrunde, Punkt 3): ein offener Antrag ist ein Hinweis -- keine Rückfrage, keine Kapazität. Die Art wie bei der Abwesenheit nur für
         # Admin und Büro – Finanzen, der Router wählt die Fassung (label_redacted).
-        for member in slot.team_assignment.employees:
+        for member in slot.besetzung:
             if member.employee_id not in visible_employee_ids: continue
+            name = _employee_name(member.employee)
             for antrag in offene_antraege.get(member.employee_id, ()):
                 if _ranges_overlap(antrag.start_date, antrag.end_date, slot.start_date, slot.end_date):
-                    result[slot.id].append({"type":"antrag_offen", "label":f"{member.employee_name_snapshot} · {antrag.absence_type}", "label_redacted":member.employee_name_snapshot, "date":max(antrag.start_date, slot.start_date), "other_slot_id":None, "other_project":None, "other_project_name":None})
+                    result[slot.id].append({"type":"antrag_offen", "label":f"{name} · {antrag.absence_type}", "label_redacted":name, "date":max(antrag.start_date, slot.start_date), "other_slot_id":None, "other_project":None, "other_project_name":None})
         if shortfall > 0:
             result[slot.id].append({"type":"capacity", "label":f"Kapazität reicht um {stunden_text(shortfall)} nicht aus", "shortfall_hours":shortfall, "other_slot_id":None, "other_project":None, "other_project_name":None})
     for liste in result.values():
@@ -1102,7 +1175,7 @@ def termine_der_geraete(db: Session, slot: PlanningSlot, settings: PlanningSetti
     """Einträge im Kalender eines Geräts, die die Arbeitstage eines Einsatzes berühren (seit 1.9.161, Kran-Kalender): je Eintrag Name des Geräts, Zeile und erster betroffener Tag. Ein Einsatz belegt
     ganze Tage, deshalb zählt jeder Termin an einem dieser Tage, auch einer von zwei Stunden. Tage, an denen nicht gearbeitet wird, belegen das Gerät nicht (1.9.150); hat der Einsatz gar keinen
     Arbeitstag, zählen alle seine Tage. Serienvorkommen zählen wie Einzeltermine."""
-    geraete = {x.resource_id: x.resource_name_snapshot for x in slot.team_assignment.resources}
+    geraete = {x.resource_id: x.resource_name_snapshot for x in slot.team_assignment.resources} if slot.team_assignment is not None else {}
     if not geraete:
         return []
     feiertage = set(_combined_holiday_map(db, slot.start_date, slot.end_date)[0])
@@ -1273,7 +1346,7 @@ def planning_board(db: Session, start_date: date, end_date: date) -> dict:
     conflict_map, distributions = _conflicts(db, relevant, settings, visible_employee_ids=visible_employee_ids, soll=soll)
 
     teams = db.scalars(select(Team).options(selectinload(Team.employees).selectinload(TeamEmployee.employee),selectinload(Team.resources).selectinload(TeamResource.resource)).order_by(Team.name)).all()
-    used_team_ids = {x.team_assignment.team_id for x in visible}
+    used_team_ids = {x.team_assignment.team_id for x in visible if x.team_assignment is not None}
     team_rows=[]
     for team in teams:
         if not team.active and team.id not in used_team_ids: continue
@@ -1295,7 +1368,7 @@ def planning_board(db: Session, start_date: date, end_date: date) -> dict:
         members=_team_members_from_master(team,visible_employee_ids); rows={}
         for day in dates:
             cap,available,absent=_day_capacity(members,day,settings,_d(settings.default_travel_hours_per_employee_day),holiday_dates,absences,soll)
-            planned=sum((distributions.get(slot.id,{}).get(day,{}).get("planned",Decimal("0")) for slot in visible if slot.team_assignment.team_id==team.id),Decimal("0"))
+            planned=sum((distributions.get(slot.id,{}).get(day,{}).get("planned",Decimal("0")) for slot in visible if slot.team_assignment is not None and slot.team_assignment.team_id==team.id),Decimal("0"))
             util=round_half_up(planned/cap*100 if cap>0 else (Decimal("100") if planned>0 else Decimal("0")),Decimal("0.1"))
             rows[day.isoformat()]={"capacity_hours":cap,"planned_hours":round_hours(planned),"utilization_pct":util,"available_employee_count":len(available),"absences":[{"employee_id":a.employee_id,"name":_employee_name(a.employee),"type":a.absence_type} for a in absent],"holiday":holiday_names.get(day),"school_holidays":school_by_day.get(day,[])}
         team_capacity[str(team.id)]=rows
@@ -1321,7 +1394,7 @@ def planning_board(db: Session, start_date: date, end_date: date) -> dict:
     resource_load={}
     zaehlend=[slot for slot in visible if not geschlossen(slot.preparation.order)]  # seit 1.9.143 (P8), seit 1.9.151 auch abgeschlossene
     for res in resources:
-        resource_load[str(res.id)]={day.isoformat():sum(1 for slot in zaehlend if any(x.resource_id==res.id for x in slot.team_assignment.resources) and slot.start_date<=day<=slot.end_date) for day in dates}
+        resource_load[str(res.id)]={day.isoformat():sum(1 for slot in zaehlend if slot.team_assignment is not None and any(x.resource_id==res.id for x in slot.team_assignment.resources) and slot.start_date<=day<=slot.end_date) for day in dates}
     tafel={"settings":settings,"sichtbar":visible_employee_ids,"pausen":pause_begruendungen(db,[slot.preparation.order for slot in visible])}
 
     return {"start_date":start_date,"end_date":end_date,"settings":planning_settings_dict(settings,db),"holidays":holiday_meta,"school_holidays":school_holidays,"school_holiday_warnings":school_warnings,

@@ -64,3 +64,42 @@ Dict fällt dort heraus. Die Gegenprobe am Schema (`231_2d`) ist rot. Kein Marke
 |---|---|---|
 | Nr. 1 – die Antwort entsteht vor dem Commit unter der Sperre | wieder erst `commit()`, dann neu lesen (`232_1`) | 1 rot: v399::test_postgresql_eingangsrechnung_speichern_und_loeschen_ohne_deadlock (deterministisch: der Haken an `_load` wartet nach dem Commit auf das Löschen) |
 | Nr. 2 – Beleg hochladen/entfernen bleiben | ohne Gegenprobe: nichts geändert, nur benannt | -- |
+
+## 1.9.233 (Punkte 1 und 2): Besetzung je Einsatz
+
+| Festlegung – Aussage | Gegenprobe | Ergebnis |
+|---|---|---|
+| Nr. 1 – Konflikte aus der Besetzung | `_slot_members()` liest den Schnappschuss (`233_1a`) | rot: v633 |
+| Nr. 1 – Kapazität aus der Besetzung | `_besetzung()` liest den Schnappschuss (`233_1b`) | rot: v633 |
+| Nr. 1 – Tafel zeigt die Besetzung | `slot_to_dict()` `employees` aus dem Schnappschuss (`233_1c`) | rot: v633 |
+| Nr. 1 – „Heute“ aus der Besetzung | Einsätze der Person über den Schnappschuss (`233_1d`) | rot: v633, v224 |
+| Nr. 2 – nur aktive Mitglieder | auch inaktive vorgeschlagen (`233_2a`) | rot: v633 |
+| Nr. 2 – heutige Mitglieder, nicht der Schnappschuss | Vorschlag aus dem Schnappschuss an der AV (`233_2b`) | rot: v633 |
+| Nr. 3 – spätere Änderung ändert keinen Einsatz | ein neuer Einsatz setzt die Besetzung der anderen derselben Kolonne (`233_2c`) | rot: v633 |
+| Nr. 2 – Wechsel der Kolonne setzt ihre Mitglieder | Wechsel lässt die Personen (`233_3`) | rot: v633 |
+| Nr. 4 – employee_ids genau so | mit Kolonne immer ihr Vorschlag (`233_4`) | rot: v633 |
+| Nr. 5 – ohne Kolonne mindestens eine Person (Schema) | Prüfung im Schema weg (`233_5a`) | Runde 1 **grün** (die Geschäftsfunktion lehnt ebenfalls ab) -> Befund, Test am Schema ergänzt; Runde 2: rot |
+| Nr. 5 – … beim Ändern | Prüfung in `update_slot()` weg (`233_5b`) | rot: v633 (2) |
+| Nr. 5 – „ohne Kolonne“ lässt die Personen | Wechsel auf ohne Kolonne leert sie (`233_5c`) | rot: v633 |
+| Nr. 5 – … beim Anlegen | Prüfung in `create_slot()` weg (`233_5d`) | rot: v633 |
+| Nr. 4 – inaktiv 422 | Prüfung „aktiv“ weg (`233_7a`) | rot: v633 |
+| Nr. 4 – unbekannt 422 | Prüfung „bekannt“ weg (`233_7b`) | rot: v633 (2) |
+| Nr. 4 – 422 beim Ändern, nicht 404 | eigene Ausnahme im Router nicht gefangen (`233_7c`) | rot: v633 |
+| Nr. 8 – geänderte Besetzung fragt zurück | Vergleich ohne Besetzung (`233_8`) | rot: v633 |
+| Nr. 7 – Zugriff über die Besetzung | Weg über die Besetzung weg (`233_9`) | rot: v633 |
+| Nr. 6 – neue Einzelzuweisung ist kein Einsatz | Einsätze der Person auch über die Einzelzuweisung (`233_10`) | rot: v633 |
+| Akte: Personen der Besetzung | Personen aus dem Schnappschuss (`233_11a`) | rot: v633 |
+| Akte: auch ohne Kolonne | innerer statt äußerer Join (`233_11b`) | rot: v633 |
+| Tafel: Zeile „Ohne Kolonne“ | Zeile weg (`233_12a`) | rot: v633 |
+| Dialog: „ohne Kolonne – die Personen bleiben“ | Option weg (`233_12b`) | rot: v633 |
+| Dialog: leer schickt null | `Number('')` (`233_12c`) | rot: v633 |
+| Nr. 6 – Migration mit Einzelzuweisungen | ohne Einzelzuweisungen (`233_13a`) | rot: v633 Migration SQLite und PostgreSQL |
+| Nr. 6 – Reihenfolge Kolonne, dann einzeln | umgekehrt (`233_13b`) | rot: dito |
+| Nr. 6 – jede Person einmal | doppelt (`233_13c`) | rot: dito |
+| Nr. 11 – downgrade bricht ab | ohne Abbruch (`233_13d`) | rot: dito |
+| Nr. 10 – Änderungsprotokoll je Person | Zweig „Plantafel-Besetzung“ weg (`233_14a`; erster Anlauf am Text der Typenliste nicht eindeutig, nicht gelaufen) | rot: v633 |
+| Nr. 10 – „Ohne Kolonne · …“ | Etikett „Team“ (`233_14b`) | rot: v633 |
+| Nr. 10 – im Verlauf der Akte „Termin“ | Art fehlt (`233_14c`) | rot: v633 |
+| Nr. 9 – wer bleibt, behält seinen Platz | alle Zeilen neu (`233_15`) | rot: v633 (2; Eindeutigkeit Einsatz/Person) |
+
+Kein Marker unter `app/` nach dem Lauf.

@@ -89,6 +89,8 @@ def befuellen(db, k):
         db.add(zuordnung); db.flush()
         db.add(WorkPreparationTeamEmployee(assignment_id=zuordnung.id, employee_id=mia.id, employee_name_snapshot=mia.first_name))
         db.add(PlanningSlot(preparation_id=prep.id, team_assignment_id=zuordnung.id, start_date=tag, end_date=tag))
+    from cdp_klicktest import besetzung_wie_migration  # seit 1.9.233: die Besetzung am Einsatz wie nach der Migration
+    besetzung_wie_migration(db)
     db.commit()
     row = start_timer(db, employee_id=mia.id, order_id=z.id, started_at=datetime.combine(heute, time(6)))
     buchung = stop_timer(db, row.id, ended_at=datetime.combine(heute, time(7)))

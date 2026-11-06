@@ -1208,11 +1208,11 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
   `weather_summer` (Schlechtwetter Winter/Sommer) dazu, beide `counts_as_productive=False`
   (`entry_type_is_productive()`), siehe Abschnitt "Schlechtwetter-Zeitarten und
   Abwesenheitskategorie" unten.
-- **Plantafel**: verplant wird ein Zeitabschnitt (`PlanningSlot`) je Auftrag **×** Team, nicht
-  eine einzelne LV-Position und nicht direkt ein einzelner Mitarbeiter. `Team`/`TeamEmployee`
-  ist eine dauerhafte, zeitlose n:m-Mitgliedschaft; beim Zuweisen eines Teams zu einer
-  Arbeitsvorbereitung friert `WorkPreparationTeamAssignment` die damalige Besetzung als
-  Snapshot ein. UI: Gantt-artige Zeitachse mit Drag & Drop – **funktioniert auf Touch-Geräten
+- **Plantafel**: verplant wird ein Einsatz (`PlanningSlot`) je Auftrag, nicht eine einzelne LV-Position. Seit 1.9.233 (Stufe 6, R3a)
+  stehen seine Personen am Einsatz (`PlanningSlotEmployee`, „Besetzung“): die Kolonne schlägt ihre heutigen aktiven Mitglieder vor, „ohne
+  Kolonne“ (`team_assignment_id` leer) wählt Personen einzeln; Tafel, Kapazität, Konflikte, „Heute“ und der Zugriff der Monteurin lesen die
+  Besetzung (`tests/test_v633_besetzung_je_einsatz.py`). `Team`/`TeamEmployee` ist eine dauerhafte, zeitlose n:m-Mitgliedschaft;
+  `WorkPreparationTeamAssignment` (Kolonne an der AV, Schnappschuss) bleibt für die AV-Seite und den Zugriff. UI: Gantt-artige Zeitachse mit Drag & Drop – **funktioniert auf Touch-Geräten
   nicht** (native HTML5-DnD-API), Klick-Fallback-Dialog aber schon. Details:
   `docs/bestandsaufnahme.md` Abschnitt 7 und 10. **Kapazität je Person und Tag = Sollzeit des Lohns − Anfahrt** (seit 1.9.211,
   `app/planning.py::_soll_je_tag()` über `app/sollzeit.py::soll_fuer_personen()`, nie unter 0; ohne Sollzeit 0 und weder verfügbar noch

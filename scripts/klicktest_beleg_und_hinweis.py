@@ -93,6 +93,8 @@ def befuellen(db, k):
     db.add(zuweisung); db.flush()
     db.add(PlanningSlot(preparation_id=prep.id, team_assignment_id=zuweisung.id, start_date=berlin_today(),
                         end_date=berlin_today()))
+    from cdp_klicktest import besetzung_wie_migration  # seit 1.9.233: die Besetzung am Einsatz wie nach der Migration
+    besetzung_wie_migration(db)
     db.commit()
 
     _migration("bedenkenanzeige_startvorlage").insert_concern_template(db.connection())

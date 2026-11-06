@@ -202,6 +202,32 @@ if hasattr(sys.stdout, "reconfigure"):
 # Befüllen: läuft im Kindprozess mit der isolierten Umgebung
 # ---------------------------------------------------------------------------
 
+def besetzung_wie_migration(db) -> None:
+    """Seit 1.9.233 (Stufe 6, R3a, Punkt 2): Einsätze, die Testdaten direkt anlegen (wie ein Bestand von vor 1.9.233: Kolonnen-Zuweisung mit
+    Schnappschuss, Einzelzuweisung an der AV), bekommen die Besetzung, die die Migration e4b1c9d27a35 ihnen gäbe -- erst die Personen des
+    Schnappschusses, dann die Einzelzuweisungen der AV, jede einmal. Nur Einsätze ohne Besetzung; flusht, committet nicht. Dieselbe Regel wie
+    tests/besetzung.py::wie_migration()."""
+    from sqlalchemy import select
+
+    from app.models import PlanningSlot, PlanningSlotEmployee, WorkPreparationEmployee, WorkPreparationTeamEmployee
+    db.flush()
+    for slot in db.scalars(select(PlanningSlot)).all():
+        if db.scalar(select(PlanningSlotEmployee.id).where(PlanningSlotEmployee.slot_id == slot.id).limit(1)) is not None:
+            continue
+        ids = []
+        if slot.team_assignment_id is not None:
+            ids += list(db.scalars(select(WorkPreparationTeamEmployee.employee_id)
+                                   .where(WorkPreparationTeamEmployee.assignment_id == slot.team_assignment_id).order_by(WorkPreparationTeamEmployee.id)))
+        ids += list(db.scalars(select(WorkPreparationEmployee.employee_id)
+                               .where(WorkPreparationEmployee.preparation_id == slot.preparation_id).order_by(WorkPreparationEmployee.id)))
+        gesehen = []
+        for eid in ids:
+            if eid not in gesehen:
+                gesehen.append(eid)
+                db.add(PlanningSlotEmployee(slot_id=slot.id, employee_id=eid))
+    db.flush()
+
+
 class Werkzeug:
     """Wird an befuellen(db, k) übergeben."""
 

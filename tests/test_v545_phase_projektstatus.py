@@ -64,6 +64,8 @@ def _einsatz(w, beginn):
         zuordnung = WorkPreparationTeamAssignment(preparation_id=prep.id, team_id=w["team"].id, team_name_snapshot="Kolonne")
         db.add(zuordnung); db.flush()
     db.add(PlanningSlot(preparation_id=prep.id, team_assignment_id=zuordnung.id, start_date=beginn, end_date=beginn + timedelta(days=2)))
+    from tests.besetzung import alle_wie_migration  # seit 1.9.233
+    alle_wie_migration(db)
     db.commit()
 
 

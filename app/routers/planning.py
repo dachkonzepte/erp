@@ -23,7 +23,7 @@ from ..permissions import (ABWESENHEIT_LOESCHEN_NUR_ADMIN, ABWESENHEIT_LOESCHEN_
                            darf_abwesenheiten_aller, has_min_role, require_min_role, require_planungsgrundlagen, require_role)
 from .absence_requests import antrag_fuer, kalendertag_frage_antwort
 from ..auftragsstatus import AuftragGeschlossen
-from ..planning import GERMAN_STATES, PlanungsWarnung, create_slot, delete_slot, einsatz_konflikte, load_planning_settings, load_region_settings, offene_auftraege, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
+from ..planning import GERMAN_STATES, BesetzungUngueltig, PlanungsWarnung, create_slot, delete_slot, einsatz_konflikte, load_planning_settings, load_region_settings, offene_auftraege, planning_board, planning_settings_dict, planning_suggestion, slot_to_dict, sync_school_holidays, update_planning_settings, update_slot
 from ..schemas import EmployeeAbsenceCreate, EmployeeAbsenceOut, EmployeeAbsencePlanningOut, PlanningHolidayCreate, PlanningHolidayOut, PlanningSettingsOut, PlanningSettingsUpdate, PlanningSlotCreate, PlanningSlotUpdate, PlanningSuggestionRequest
 
 router = APIRouter()
@@ -242,7 +242,7 @@ def create_planning_slot(payload: PlanningSlotCreate, db: Session = Depends(get_
         return _warnung_antwort(exc, _role)
     except AuftragGeschlossen as exc:  # seit 1.9.124: abgeschlossen oder storniert -- kein neuer Einsatz (409)
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except ValueError as exc:
+    except ValueError as exc:  # seit 1.9.233 auch BesetzungUngueltig (unbekannte oder inaktive Person, ohne Kolonne ohne Personen)
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _einsatz_antwort(db, slot, _role)
 
@@ -253,6 +253,8 @@ def put_planning_slot(slot_id: int, payload: PlanningSlotUpdate, db: Session = D
         slot = update_slot(db, slot_id, **payload.model_dump(exclude_unset=True))  # seit 1.8.96 Teil-Update (Regel 22)
     except PlanungsWarnung as exc:  # seit 1.9.143, wie beim Anlegen
         return _warnung_antwort(exc, _role)
+    except BesetzungUngueltig as exc:  # seit 1.9.233: die Besetzung geht nicht (auch eine unbekannte Person) -- 422, nicht 404 wie ein fehlender Einsatz
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except ValueError as exc:
         code = 404 if "nicht gefunden" in str(exc) else 422
         raise HTTPException(status_code=code, detail=str(exc)) from exc

@@ -2475,17 +2475,18 @@ class WorkPreparationTeamResource(Base):
 
 
 class PlanningSlot(Base):
-    """Zeitlicher Einsatz einer Kolonne in der zentralen Planungstafel.
+    """Zeitlicher Einsatz in der zentralen Planungstafel. Ein Auftrag kann mehrere Einsätze haben, auch mehrere getrennte Zeitblöcke
+    derselben Kolonne.
 
-    Die Besetzung und Ressourcen stammen aus dem Snapshot der
-    WorkPreparationTeamAssignment. Ein Auftrag kann damit mehrere Kolonnen
-    und auch mehrere getrennte Zeitblöcke je Kolonne besitzen.
+    Seit 1.9.233 (Stufe 6, R3a, Punkt 2): die Personen stehen am Einsatz selbst (besetzung, PlanningSlotEmployee) -- bis 1.9.232 kamen sie
+    aus dem Schnappschuss der Kolonnen-Zuweisung an der Arbeitsvorbereitung (für alle Einsätze dieser Kolonne derselbe). team_assignment_id
+    nennt die Kolonne des Einsatzes; leer = „ohne Kolonne“ (Personen einzeln gewählt).
     """
     __tablename__ = "planning_slots"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     preparation_id: Mapped[int] = mapped_column(ForeignKey("work_preparations.id"), index=True)
-    team_assignment_id: Mapped[int] = mapped_column(ForeignKey("work_preparation_team_assignments.id"), index=True)
+    team_assignment_id: Mapped[int | None] = mapped_column(ForeignKey("work_preparation_team_assignments.id"), index=True, nullable=True)
     start_date: Mapped[date] = mapped_column(Date, index=True)
     end_date: Mapped[date] = mapped_column(Date, index=True)
     status: Mapped[str] = mapped_column(String(40), default="geplant", index=True)
@@ -2494,8 +2495,24 @@ class PlanningSlot(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     preparation: Mapped[WorkPreparation] = relationship()
-    team_assignment: Mapped[WorkPreparationTeamAssignment] = relationship()
+    team_assignment: Mapped[WorkPreparationTeamAssignment | None] = relationship()
     capacity: Mapped["PlanningSlotCapacity | None"] = relationship(back_populates="slot", cascade="all, delete-orphan", uselist=False)
+    besetzung: Mapped[list["PlanningSlotEmployee"]] = relationship(cascade="all, delete-orphan", order_by="PlanningSlotEmployee.id")
+
+
+class PlanningSlotEmployee(Base):
+    """Seit 1.9.233 (Stufe 6, R3a, Punkt 2): eine Person der Besetzung eines Einsatzes. Die Kolonne schlägt ihre aktiven Mitglieder vor (beim
+    Anlegen und beim Wechsel der Kolonne), „ohne Kolonne“ wählt Personen einzeln; eine spätere Änderung der Kolonne ändert keinen bestehenden
+    Einsatz. Der Name kommt live aus dem Mitarbeiter (kein Schnappschuss)."""
+    __tablename__ = "planning_slot_employees"
+    __table_args__ = (UniqueConstraint("slot_id", "employee_id", name="uq_planning_slot_employee"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    slot_id: Mapped[int] = mapped_column(ForeignKey("planning_slots.id", ondelete="CASCADE"), index=True)
+    employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    employee: Mapped["Employee"] = relationship()
 
 
 class PlanningSettings(Base):

@@ -1158,3 +1158,124 @@ Einrichtung, Vorschlag freigegebenes Postfach (Quellen: Microsoft, „About shar
 Nichts in Entra, kein neues Secret, keine neue Rollenzuweisung. Danach im ERP Einstellungen → Outlook-Kalender → „Postfach für ein Gerät“. Für das Gerät ist der Cron (`scripts/sync_outlook_calendars.py`) der einzige Weg aus Outlook ins ERP.
 
 Stand 31.10.2026: nichts davon am echten Mandanten ausgeführt oder geprüft. Offen, ob ein freigegebenes Postfach ohne Lizenz über Graph mit App-Rechten antwortet (Microsoft nennt keine Pflicht, ein Forenbeitrag das Gegenteil); der erste Lauf zeigt es in den Einstellungen.
+
+## Stufe 6, R3a: Plantafel-Modell -- Besetzung, Geräte, Status (ab 1.9.233)
+
+Vorgabe Tobias (06.11.2026), Zeichnung `bildgrundlage/entwurf-stufe6/` (neue Fassung, freigegeben; neu: Zeile „Ohne Kolonne“, Kran-Kalender), Regeln
+`plantafel-regeln.html`. Punkte: 1 Befund zuerst (Modell nach den Stufen 2 bis 7, was die Zeichnung ändert, Plan der Migrationen; widerspricht etwas
+der Zeichnung: anhalten und melden); 2 Besetzung je Einsatz; 3 Geräte je Einsatz, alle oder einzelne Tage; 4 Status vorläufig | fest; 5 Konflikte auf
+dem neuen Modell; 6 die heutige Oberfläche bleibt bedienbar. Das neue Aussehen kommt mit R4, Kranvermietung, Kran-Kalender und „Heute“ mit R3b.
+
+### Befund (Punkt 1)
+
+**Das Modell bis 1.9.232** (nach Stufe 2 bis 7; Kalender seit R2, Kapazität aus der Sollzeit seit 1.9.211):
+
+    Order 1 ── 0..1 WorkPreparation „AV“
+                    ├─ n WorkPreparationEmployee            Einzelzuweisung, ohne Datum
+                    ├─ n WorkPreparationTeamAssignment       eine je AV und Kolonne (UNIQUE), Schnappschuss beim ersten Zuweisen
+                    │       ├─ n WorkPreparationTeamEmployee     Personen (Name, Rolle)
+                    │       └─ n WorkPreparationTeamResource     Geräte = OperationalResource (Name, Typ, Rolle)
+                    └─ n PlanningSlot „Einsatz“              team_assignment_id NOT NULL, start/end, status (Freitext), notes
+                            └─ 0..1 PlanningSlotCapacity     Stunden, Anfahrt je Person und Tag
+
+- Wer an einem Einsatz arbeitet, steht nirgends am Einsatz: es ist der Schnappschuss der Kolonnen-Zuweisung an der AV (für alle Einsätze dieser
+  Kolonne an diesem Auftrag derselbe), dazu für „Heute“ jede Einzelzuweisung an der AV (sieht jeden Einsatz der AV, B5).
+- Geräte ebenso nur über die Kolonnen-Zuweisung, für alle Tage. Prüffristen (`OperationalAssetInspection.next_due_date` am Betriebsmittel mit
+  `resource_id`) kennt die Plantafel nicht (W7). Termine im Kalender eines Geräts (`CalendarEvent.resource_id`, Kran-Postfach seit 1.9.161) zählen
+  beim Speichern als „Gerät doppelt“ (`termine_der_geraete()`).
+- Status: Freitext (geplant, bestaetigt, in_ausfuehrung, pausiert, abgeschlossen), ohne Wirkung (Befund Stufe 6, 3.3).
+- Kapazität je Person und Tag = Sollzeit des Lohns − Anfahrt (seit 1.9.211, `_soll_je_tag()`), Feiertag 0, Freistellung des Arbeitszeitkalenders 0.
+- Konflikte (`_conflicts()`): Warnung Kolonne doppelt, Person doppelt (nur Personen der Kolonnen-Schnappschüsse), Gerät doppelt (Kolonnen-Geräte und
+  Kalender des Geräts), Person abwesend; Hinweis Feiertag/betriebsfreier Tag, Freistellung des Kalenders, Kapazität, Antrag offen; Einsätze
+  geschlossener Aufträge zählen nicht.
+- Leser des Modells: Tafel (`planning_board()`, Zeilen je Kolonne/Person/Gerät), Konflikte und Kapazität, Speichern (`einsatz_konflikte()`),
+  „Heute“ und „Nächste Tage“ (`_employee_assignment_slot_condition()`), Zugriff der Monteurin auf den Auftrag (`app/orders.py::
+  _assigned_order_id_queries()`: AV-Kolonne, AV-Einzelzuweisung, eigener Bericht), Akte (`app/akte.py::einsaetze()`: Kolonne und Personenzahl), AV-Seite
+  (Kolonnen an der AV, Entfernen gesperrt, solange ein Einsatz daran hängt -- L2), Löschschutz einer Ressource (`resource_planning.py`).
+
+**Was die Zeichnung daran ändert:**
+
+| Zeichnung | Modell |
+|---|---|
+| Besetzung = die Personen dieses Einsatzes; die Kolonne schlägt sie vor; „ohne Kolonne“ wählt Personen einzeln; eine spätere Änderung der Kolonne ändert keinen bestehenden Einsatz | neue Tabelle `planning_slot_employees` (Einsatz, Person); `planning_slots.team_assignment_id` wird optional (leer = ohne Kolonne) |
+| Geräte je Einsatz, alle oder einzelne Tage | neue Tabelle `planning_slot_resources` (Einsatz, Gerät, Tage; leer = alle Tage) |
+| Status vorläufig (gestrichelt) oder fest; „geplant“ wird vorläufig, alles andere fest; abgeschlossen/storniert kommt vom Auftrag | `planning_slots.status` nur noch `vorlaeufig` / `fest` |
+| Warnung: Person doppelt, Person abwesend, Gerät doppelt, Gerät mit abgelaufener Prüffrist; Hinweis: Antrag offen, Feiertag/betriebsfreier Tag, Kapazität | „Kolonne doppelt“ entfällt (die Personen zählen); Prüffrist neu; alles aus Besetzung und Geräten des Einsatzes |
+| Kapazität je Einsatz | aus der Besetzung (die Rechnung je Person und Tag bleibt die aus 1.9.211) |
+
+**Kein Widerspruch zur Zeichnung.** Zwei Stellen, bei denen die Vorgabe dieser Runde und die Zeichnung verschieden formuliert sind, beide ohne
+Widerspruch im Modell:
+1. Die Zeichnung schreibt „Kapazität = Personen × Arbeitstage × (Tagesstunden − Anfahrt)“ (Dialog: „2 Personen × 3 Arbeitstage × 7,50 h“). Sie ist
+   älter als 1.9.211 (Sollzeit des Lohns); gerechnet wird nach der Vorgabe dieser Runde aus der Sollzeit der Besetzung an den Arbeitstagen minus Anfahrt
+   (je Person und Tag). In der Woche der Zeichnung (KW 45) ergibt das nach dem Tarif 8,00 h je Person und Tag (KW 18–48), die Zeichnung zeigt 7,50 h
+   (die Tagesstunden der Planung): 2 Personen × 3 Arbeitstage sind 48,00 h statt 45,00 h. Wie die Formel im Dialog steht, kommt mit R4.
+2. „Person doppelt (auch einzeln zugeordnete, Befund B5/B6)“: in der Zeichnung gibt es Einzelne nur am Einsatz („ohne Kolonne“). Die Einzelzuweisung an
+   der AV (B5/B6) bleibt eine Zuweisung ohne Datum (Zugriff auf den Auftrag); was heute an Einsätzen aus ihr folgt (die Person sieht jeden Einsatz der AV
+   auf „Heute“), übernimmt die Migration als Besetzung -- danach zählt sie wie jede Person am Einsatz (Festlegung 1.9.233 Nr. 6).
+
+**Plan der Migrationen** (je auf einem Bestand unter SQLite und PostgreSQL geprobt, mit downgrade()):
+- 1.9.233 (Punkt 2): Tabelle `planning_slot_employees`; `planning_slots.team_assignment_id` NULL erlaubt; je Einsatz die Personen des Schnappschusses
+  seiner Kolonnen-Zuweisung und die Einzelzuweisungen seiner AV. downgrade(): bricht ab, solange ein Einsatz ohne Kolonne besteht (die alte Fassung
+  kennt keinen), sonst Tabelle weg, Spalte wieder NOT NULL.
+- 1.9.234 (Punkt 3): Tabelle `planning_slot_resources`; je Einsatz die Geräte seiner Kolonnen-Zuweisung, alle Tage. downgrade(): Tabelle weg.
+- 1.9.235 (Punkt 4): Status „geplant“ -> vorlaeufig, jeder andere (auch leer) -> fest. downgrade(): vorlaeufig -> geplant, fest -> bestaetigt (die
+  übrigen Freitexte hatten keine Wirkung, Befund 3.3, und kommen nicht zurück).
+- 1.9.236 (Punkt 5) und 1.9.237 (Punkt 6): keine Migration.
+
+Nicht Teil dieser Runde (bleibt, wie es ist): die Kolonnen-Zuweisung an der AV mit Schnappschuss (AV-Seite, Zugriff der Monteurin; B7/B8 -- die alte
+Kolonne behält nach dem Umplanen den Zugriff), „Heute“ in neuer Form (R3b), das Aussehen (R4).
+
+### Umsetzung 1.9.233: Besetzung je Einsatz (Punkt 2)
+
+- Modell: `PlanningSlotEmployee` (Tabelle `planning_slot_employees`, je Einsatz eine Person einmal, `PlanningSlot.besetzung`); `PlanningSlot.team_assignment_id`
+  darf leer sein (= ohne Kolonne). Migration `e4b1c9d27a35`.
+- `app/planning.py`: `create_slot(team_id, employee_ids)` -- mit Kolonne und ohne `employee_ids` schlägt die Kolonne ihre heutigen aktiven Mitglieder vor
+  (`_kolonne_schlaegt_vor()`, Stammdaten); mit `employee_ids` genau diese (`_besetzung_pruefen()`: bekannt, aktiv, jede einmal); ohne Kolonne mindestens eine
+  Person (`BesetzungUngueltig`, 422). Die Kolonnen-Zuweisung an der AV (`ensure_team_assignment()`) entsteht mit Kolonne weiter wie bisher -- die AV-Seite und
+  der Zugriff lesen sie. `update_slot()`: `team_id` null = ohne Kolonne (die Personen bleiben), eine andere Kolonne setzt deren Mitglieder (auch beim Ziehen in
+  ihre Zeile), `employee_ids` setzt genau; wer bleibt, behält seinen Platz (`_besetzung_setzen()`); eine geänderte Besetzung fragt wie Kolonne und Zeitraum zurück.
+- Leser auf der Besetzung: `_besetzung()` (Kapazität, Verteilung), `_slot_members()` und `_conflicts()` (Person doppelt, abwesend, Freistellung, Antrag offen),
+  `slot_to_dict()` (`employees`: Name live, Rolle aus der Kolonne, falls die Person dort steht), `_employee_assignment_slot_condition()` („Heute“ und
+  „Nächste Tage“: nur noch die Besetzung), `app/orders.py::_assigned_order_id_queries()` (Zugriff der Monteurin: dazu die Besetzung eines Einsatzes des
+  Auftrags), `app/akte.py::einsaetze()` (Kolonne oder „Ohne Kolonne“, Personen = Besetzung), Änderungsprotokoll (je Person „Plantafel-Besetzung“, Kennung =
+  Einsatz; im Verlauf der Akte als „Termin“; ein Einsatz ohne Kolonne heißt „Ohne Kolonne · …“).
+- Geräte bleiben bis 1.9.234 an der Kolonnen-Zuweisung (ohne Kolonne: keine).
+- Oberfläche (bedienbar wie bisher): eine Kolonne wählen setzt ihre Mitglieder; Einsätze ohne Kolonne stehen in „Kolonnen“ in der Zeile „Ohne Kolonne“ und
+  in „Mitarbeiter“ bei jeder Person; der Dialog „Einsatz bearbeiten“ bietet „ohne Kolonne – die Personen bleiben“. Personen einzeln wählen kommt mit R4 (heute
+  über die Schnittstelle).
+
+### Festlegungen 1.9.233 (Bitte bestätigen)
+
+1. Die Besetzung am Einsatz ist die eine Quelle für Tafel, Kapazität, Konflikte und die Einsätze der Monteurin („Heute“, „Nächste Tage“).
+2. Die Kolonne schlägt ihre heutigen aktiven Mitglieder aus den Stammdaten vor -- beim Anlegen und beim Wechsel der Kolonne (auch Ziehen in ihre Zeile),
+   nicht mehr den Schnappschuss an der AV (B1: eine neue Kollegin kommt in den nächsten Einsatz).
+3. Eine spätere Änderung der Kolonne ändert keinen bestehenden Einsatz.
+4. `employee_ids` setzt die Besetzung genau so, auch mit Personen anderer Kolonnen; unbekannt oder inaktiv 422; doppelt genannt zählt einmal.
+5. Ohne Kolonne: mindestens eine Person (422); beim Wechsel auf „ohne Kolonne“ bleiben die Personen; ein Einsatz ohne Kolonne legt keine Kolonnen-Zuweisung an
+   der AV an. Mit Kolonne darf die Besetzung leer sein (wie bisher eine Kolonne ohne aktive Mitglieder).
+6. Die Migration übernimmt je Einsatz den Schnappschuss seiner Kolonne und danach die Einzelzuweisungen seiner AV (sie sahen den Einsatz bis 1.9.232 auf
+   „Heute“, B5) -- über die Vorgabe „aus der Kolonnen-Zuweisung“ hinaus, damit niemand einen Einsatz verliert, den er heute sieht, und „Person doppelt“ auch
+   die einzeln Zugeordneten findet (B6). Danach ist eine neue Einzelzuweisung an der AV eine Zuweisung ohne Datum: Zugriff auf den Auftrag, kein Einsatz.
+7. Zugriff der Monteurin auf den Auftrag: dazu die Besetzung eines Einsatzes; die Kolonnen-Zuweisung an der AV und die Einzelzuweisung bleiben Wege (B7/B8
+   bleibt, wie es ist).
+8. Eine geänderte Besetzung fragt beim Speichern zurück wie Kolonne und Zeitraum.
+9. Reihenfolge der Besetzung: wer bleibt, behält seinen Platz, neue Personen kommen dahinter.
+10. Das Änderungsprotokoll führt jede Person der Besetzung („Plantafel-Besetzung“, im Verlauf der Akte unter „Termin“); ein Einsatz ohne Kolonne heißt dort
+    „Ohne Kolonne · …“.
+11. downgrade() der Migration bricht ab, solange ein Einsatz ohne Kolonne besteht.
+
+### Tests und Prüfung 1.9.233
+
+Neu: `tests/test_v633_besetzung_je_einsatz.py` (Vorschlag der Kolonne, B1, gewählte Personen, unbekannt/inaktiv, ohne Kolonne, Wechsel, Rückfrage, Person
+doppelt ohne Kolonne, Kapazität, Tafel und Dialog, „Heute“/„Nächste Tage“/Zugriff, neue Einzelzuweisung ohne Einsatz, Akte, Änderungsprotokoll, Schema,
+Migration auf einem Bestand unter SQLite und PostgreSQL). Testhelfer `tests/besetzung.py::wie_migration()`: ein direkt angelegter Einsatz bekommt die
+Besetzung wie nach der Migration. Gegenproben: Archiv `gegenproben-stufe6-r3a.md` (32 rot, eine erst grün -> Test ergänzt).
+
+Angepasste Erwartungen (Regel 28) -- nur Aufbau: die Tests legen Einsätze direkt an wie ein Bestand von vor 1.9.233 und rufen danach
+`wie_migration()` bzw. `alle_wie_migration()` (sonst hätten die Einsätze keine Personen): `test_v224` (`make_slot_for_team`, `make_slot_for_individual`),
+`test_v260` (Einsatz für den Monteur), `test_v262`, `test_v263`, `test_v264`, `test_v265` (je der Helfer des Einsatzes), `test_v326` (Welt der
+Datengrenze), `test_v346` (Hinweis je Einsatz), `test_v471` (Einsätze für „Heute“), `test_v545` (Phase Ausführung). Die Erwartungen dieser Tests bleiben.
+- Klicktests, nur Aufbau: die Testdaten von `klicktest_bedenkenanzeige`, `_bericht_ohne_einsatz`, `_bericht_schritte`, `_heute`,
+  `_zeiten_abgeschlossen`, `_beleg_und_hinweis`, `_meine_zeiten`, `_meine_zeiten_angeheftet`, `_meine_zeiten_freistellungen`, `_monteurin_regeln` und
+  `scripts/bildgrundlage.py` legen Einsätze direkt an; danach ruft jede `besetzung_wie_migration()` (neu in `scripts/cdp_klicktest.py`, dieselbe Regel wie
+  die Migration). Ohne sie hatten die Einsätze keine Personen, sechs Klicktests waren im ersten Gesamtlauf rot (fünf davon aus diesem Grund).
