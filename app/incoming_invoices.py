@@ -34,7 +34,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from .grunddaten import einzelzeile
 from .berlin_time import berlin_today
-from .incoming_invoice_documents import delete_document_file
+from .incoming_invoice_documents import delete_document_file, store_document
 from .models import (
     Account, IncomingInvoice, IncomingInvoiceItem, IncomingInvoiceSettings, OperationalAsset,
     Project, RecurringCost, Supplier,
@@ -387,29 +387,54 @@ def delete_invoice(db: Session, invoice_id: int) -> bool:
     return True
 
 
-def set_invoice_document(db: Session, invoice_id: int, *, stored_filename: str, original_filename: str) -> dict | None:
-    """Der Router ruft vorher incoming_invoice_documents.py::replace_document() auf (löscht die
-    alte Datei bereits, schreibt die neue) -- hier nur noch die DB-Felder setzen."""
-    invoice = db.get(IncomingInvoice, invoice_id)
+def _beleg_festschreiben(db: Session, invoice_id: int, *, neu: str | None, original_filename: str | None) -> tuple[dict, str | None] | None:
+    """Unter der Sperre der Zeile: Beleg setzen (neu) oder entfernen (neu None), Antwort aus dem Stand vor dem Commit, dann Commit. Gibt Antwort
+    und alten Beleg zurück -- den löscht der Aufrufer erst jetzt. Scheitert etwas vor dem Commit, bleibt alles, wie es war (rollback)."""
+    invoice = db.scalar(select(IncomingInvoice).where(IncomingInvoice.id == invoice_id).with_for_update()
+                        .execution_options(populate_existing=True))
     if invoice is None:
         return None
-    invoice.document_filename = stored_filename
+    alt = invoice.document_filename
+    invoice.document_filename = neu
     invoice.document_original_name = original_filename
-    db.commit()
+    db.flush()
     lead_days = load_incoming_invoice_settings(db).skonto_reminder_lead_days
-    return invoice_to_dict(_load(db, invoice.id), lead_days)
+    antwort = invoice_to_dict(_load(db, invoice_id), lead_days)
+    db.commit()
+    return antwort, alt
+
+
+def set_invoice_document(db: Session, invoice_id: int, *, original_filename: str, data: bytes) -> dict | None:
+    """Seit 1.9.238 (Stufe 6, R3b, Punkt 0a) wie das Speichern seit 1.9.232: zuerst die Sperre der Zeile -- ist die Rechnung inzwischen gelöscht
+    (ein gleichzeitiges Löschen hielt die Sperre), None (404) und keine Datei abgelegt; die Antwort entsteht vor dem Commit; der alte Beleg wird
+    erst nach dem Commit gelöscht, scheitert das Speichern, fällt der neue weg und der alte bleibt. Bis 1.9.237 legte der Router die Datei ohne
+    Sperre ab und löschte dabei schon den alten Beleg, set_invoice_document() las die Rechnung nach dem Commit neu: gleichzeitig mit einem
+    Löschen 500, und die neue Datei blieb liegen (Bericht R3a, Abschnitt 3 d)."""
+    if db.scalar(select(IncomingInvoice.id).where(IncomingInvoice.id == invoice_id)) is None:
+        return None
+    neu = store_document(original_filename, data)
+    try:
+        ergebnis = _beleg_festschreiben(db, invoice_id, neu=neu, original_filename=original_filename)
+    except Exception:
+        db.rollback()
+        delete_document_file(neu)
+        raise
+    if ergebnis is None:
+        delete_document_file(neu)
+        return None
+    antwort, alt = ergebnis
+    delete_document_file(alt)
+    return antwort
 
 
 def remove_invoice_document(db: Session, invoice_id: int) -> dict | None:
-    invoice = db.get(IncomingInvoice, invoice_id)
-    if invoice is None:
+    """Seit 1.9.238 (Punkt 0a): Sperre, Antwort vor dem Commit, die Datei erst nach dem Commit (bis 1.9.237 vor dem Commit und ohne Sperre)."""
+    ergebnis = _beleg_festschreiben(db, invoice_id, neu=None, original_filename=None)
+    if ergebnis is None:
         return None
-    delete_document_file(invoice.document_filename)
-    invoice.document_filename = None
-    invoice.document_original_name = None
-    db.commit()
-    lead_days = load_incoming_invoice_settings(db).skonto_reminder_lead_days
-    return invoice_to_dict(_load(db, invoice.id), lead_days)
+    antwort, alt = ergebnis
+    delete_document_file(alt)
+    return antwort
 
 
 def open_liabilities_summary(db: Session, *, today: date | None = None) -> dict:

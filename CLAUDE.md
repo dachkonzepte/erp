@@ -773,7 +773,7 @@ wurden. Bitte in jeder neuen Sitzung beachten, nicht neu lernen müssen:
     **Seit 1.9.210 (stehende Regel, Betreibervorgabe 04.11.2026):** jede neue Festlegung bekommt in derselben Runde ihre eigene Gegenprobe,
     je Aussage; wo keine möglich ist (Arbeitsweise, reine Doku, reine Anzeige ohne Prüfung), steht sie mit Begründung in der Tabelle der
     Runde. Bleibt eine grün, Test nachziehen und dieselbe Gegenprobe noch einmal. Ablauf und Tabelle: `docs/archiv/testablauf-und-klicktests.md`,
-    „Gegenprobe zu jeder neuen Festlegung“; Tabellen der Lohnrunde: `docs/archiv/gegenproben-lohn-l1a.md`; der Runde Stufe 6, R3a: `docs/archiv/gegenproben-stufe6-r3a.md`.
+    „Gegenprobe zu jeder neuen Festlegung“; Tabellen der Lohnrunde: `docs/archiv/gegenproben-lohn-l1a.md`; der Runde Stufe 6, R3a: `docs/archiv/gegenproben-stufe6-r3a.md`; der Runde Stufe 6, R3b: `docs/archiv/gegenproben-stufe6-r3b.md`.
 
 25. **Eine ID aus der Anfrage gehört zum selben Objekt, Auftrag oder Kunden, seit 1.8.70.** Wer eine fremde ID speichert, ohne
     das zu prüfen, öffnet einen Weg über fortlaufende IDs (Befund: Dachfläche eines fremden Objekts im Einsatzbericht, Position

@@ -24,11 +24,10 @@ def document_path(stored_filename: str) -> Path:
     return DOCUMENT_ROOT / stored_filename
 
 
-def replace_document(old_stored_filename: str | None, original_filename: str, data: bytes) -> str:
-    """Legt den neuen Beleg ab und entfernt den alten (falls vorhanden). Gibt den neuen
-    stored_filename zurück, der auf IncomingInvoice.document_filename gespeichert werden muss."""
-    if old_stored_filename:
-        document_path(old_stored_filename).unlink(missing_ok=True)
+def store_document(original_filename: str, data: bytes) -> str:
+    """Legt einen neuen Beleg ab und gibt seinen stored_filename zurück (für IncomingInvoice.document_filename). Seit 1.9.238 (Stufe 6, R3b,
+    Punkt 0a) löscht sie den alten nicht mehr selbst (bis 1.9.237 replace_document()): den alten löscht app/incoming_invoices.py::
+    set_invoice_document() erst nach dem Commit -- scheitert das Speichern, bleibt der alte Beleg stehen."""
     stored = make_stored_filename(original_filename)
     document_directory()
     document_path(stored).write_bytes(data)

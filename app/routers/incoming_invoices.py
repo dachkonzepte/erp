@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from ..dateiauslieferung import datei_antwort
 from ..database import get_db
 from ..incoming_invoice_documents import (
-    ALLOWED_CONTENT_TYPES, MAX_UPLOAD_BYTES, document_path, replace_document,
+    ALLOWED_CONTENT_TYPES, MAX_UPLOAD_BYTES, document_path,
 )
 from ..incoming_invoices import (
     MODULE_KEY, check_due_skonto_and_create_reminders, create_invoice, delete_invoice,
@@ -125,8 +125,11 @@ def upload_incoming_invoice_document(
     data = file.file.read(MAX_UPLOAD_BYTES + 1)
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Datei ist größer als 10 MB.")
-    stored = replace_document(invoice.document_filename, file.filename, data)
-    return set_invoice_document(db, invoice_id, stored_filename=stored, original_filename=file.filename)
+    # seit 1.9.238: Ablegen, Sperre und alter Beleg in set_invoice_document() (bis 1.9.237 legte der Router ohne Sperre ab)
+    result = set_invoice_document(db, invoice_id, original_filename=file.filename, data=data)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Eingangsrechnung nicht gefunden.")
+    return result
 
 
 @router.get("/api/incoming-invoices/{invoice_id}/document/file")

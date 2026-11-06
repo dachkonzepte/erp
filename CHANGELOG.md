@@ -4,6 +4,10 @@ Rückwirkend rekonstruiert aus den Entwicklungssitzungen seit Version 1.0.6 (die
 
 Die Versionen 1.0.57–1.0.101 wurden nachträglich aus `seit 1.0.NN`-Vermerken im Code sowie aus dem Gesprächsverlauf der jeweiligen Entwicklungssitzung rekonstruiert, nachdem diese Datei über einen langen Zeitraum nicht mitgepflegt wurde. Für folgende Versionsnummern ließ sich im Code kein zuordenbarer Vermerk mehr finden; damit hier nichts erfunden wird, bleiben sie bewusst ohne eigenen Eintrag: 1.0.60, 1.0.62, 1.0.63, 1.0.72, 1.0.73, 1.0.75–1.0.78, 1.0.80, 1.0.81, 1.0.83, 1.0.85, 1.0.86, 1.0.88, 1.0.89, 1.0.91, 1.0.93, 1.0.95, 1.0.96.
 
+## 1.9.238 – Eingangsrechnung: Beleg hochladen und entfernen unter der Sperre (Stufe 6, R3b, Punkt 0a)
+
+Beleg hochladen und entfernen gehen jetzt den Weg, den das Speichern seit 1.9.232 geht: zuerst die Sperre der Zeile, die Antwort aus dem Stand vor dem Commit, und die alte Datei fällt erst nach dem Commit weg. Bis 1.9.237 legte der Router die neue Datei ohne Sperre ab und löschte dabei schon die alte, das Entfernen löschte die Datei vor dem Commit; gleichzeitig mit dem Löschen der Rechnung gab das ein 500, und beim Hochladen blieb die neue Datei liegen (gesehen in R3a, Bericht Abschnitt 3 d). Jetzt wartet das Hochladen bzw. Entfernen am Löschen und antwortet mit 404, ohne eine Datei liegen zu lassen; kommt das Löschen danach, antwortet das Hochladen mit seinem Stand. Scheitert das Speichern, bleibt der alte Beleg, und der neue fällt weg.
+
 ## 1.9.237 – Plantafel: bedienbar auf dem neuen Modell, Besetzung im Dialog (Stufe 6, R3a, Punkt 6)
 
 Die Plantafel bleibt, wie sie aussieht, und arbeitet mit Besetzung, Geräten und Status je Einsatz: eine Kolonne wählen setzt ihre Mitglieder und Geräte, auch beim Ziehen in ihre Zeile; ein Einsatz ohne Kolonne steht in der Zeile „Ohne Kolonne“; „Einsatz bearbeiten“ nennt jetzt unter der Kolonne, wer und was an diesem Einsatz steht, und bietet „ohne Kolonne – die Personen bleiben“. Ein neuer Klicktest geht das einmal ganz durch, mit der Rückfrage zur abgelaufenen Prüffrist eines Krans. Das neue Aussehen der Zeichnung kommt mit R4, Kranvermietung, Kran-Kalender und „Heute“ mit R3b.

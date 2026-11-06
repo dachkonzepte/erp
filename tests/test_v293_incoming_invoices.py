@@ -383,11 +383,14 @@ def test_open_liabilities_summary_sums_only_open_invoices():
     assert summary["open_gross_total"] == Decimal("119.00")
 
 
-def test_document_set_and_remove():
+def test_document_set_and_remove(tmp_path, monkeypatch):
+    # seit 1.9.238 legt set_invoice_document() die Datei selbst ab (Aufbau; bis 1.9.237 stored_filename="abc.pdf" ohne Datei)
+    from app import incoming_invoice_documents as docs_module
+    monkeypatch.setattr(docs_module, "DOCUMENT_ROOT", tmp_path)
     db = db_session()
     supplier_id = _seed_supplier(db)
     created = create_invoice(db, _base_payload(supplier_id))
-    with_doc = set_invoice_document(db, created["id"], stored_filename="abc.pdf", original_filename="Beleg.pdf")
+    with_doc = set_invoice_document(db, created["id"], original_filename="Beleg.pdf", data=b"%PDF-1.4")
     assert with_doc["has_document"] is True
     assert with_doc["document_original_name"] == "Beleg.pdf"
     without_doc = remove_invoice_document(db, created["id"])

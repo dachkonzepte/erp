@@ -430,14 +430,45 @@ immer rot, nicht nur unter Last.
 Gesehen, nicht angefasst (Vorschlag im Bericht): `set_invoice_document()` und `remove_invoice_document()` laden die Rechnung ohne Sperre (`db.get`) und
 lesen sie nach dem Commit neu -- gleichzeitig mit einem Löschen kann dort dasselbe passieren (dazu bliebe beim Hochladen die neue Datei liegen).
 
-### Festlegungen 1.9.232 (Bitte bestätigen)
+### Festlegungen 1.9.232 (bestätigt am 06.11.2026)
 
 1. Das Speichern einer Eingangsrechnung antwortet mit dem Stand, den es festschreibt -- gebaut vor dem Commit unter der Sperre der Zeile; wird die Rechnung
    gleich danach gelöscht, bleibt die Antwort 200 mit diesem Stand.
-2. Beleg hochladen und entfernen bleiben, wie sie sind (nur benannt).
+2. Beleg hochladen und entfernen bleiben, wie sie sind (nur benannt). -- Überholt durch 1.9.238 (Vorgabe Tobias, R3b, Punkt 0a).
 
 ### Tests und Prüfung 1.9.232
 
 `test_v399::test_postgresql_eingangsrechnung_speichern_und_loeschen_ohne_deadlock`: Aufbau geändert -- statt `time.sleep(1.5)` wartet er auf
 `_wartet_auf_sperre()`; neu der Haken an `_load` (nach dem Commit des Speicherns wartet er auf das Ende des Löschens). Die Erwartung bleibt (Speichern ohne
 Fehler, Löschen `{"deleted": true}`, keine Rechnung und keine Position übrig).
+
+## Umsetzung 1.9.238: Beleg hochladen und entfernen unter der Sperre (Stufe 6, R3b, Punkt 0a)
+
+Vorgabe Tobias (06.11.2026): Beleg hochladen und entfernen mit derselben Reihenfolge und Sperre wie das Speichern seit 1.9.232.
+
+`app/incoming_invoices.py`: `set_invoice_document(db, id, original_filename=…, data=…)` legt die Datei selbst ab (`store_document()`, ersetzt
+`replace_document()`, die beim Ablegen schon den alten Beleg löschte), danach `_beleg_festschreiben()`: Sperre der Zeile (`with_for_update`), Felder
+setzen, `flush()`, Antwort aus `_load()`, `commit()`. Erst nach dem Commit löscht der Aufrufer den alten Beleg. Ist die Rechnung inzwischen gelöscht
+(ein Löschen hielt die Sperre), kommt `None` zurück -- der Router antwortet 404, die gerade abgelegte Datei fällt weg. Scheitert etwas vor dem Commit,
+`rollback()`, die neue Datei fällt weg, die alte bleibt. `remove_invoice_document()` geht denselben Weg mit `neu=None`, die Datei fällt erst nach dem
+Commit weg. Der Router legt nichts mehr selbst ab.
+
+Vorher (bis 1.9.237): der Router legte ohne Sperre ab (`replace_document()` löschte den alten Beleg sofort), `set_invoice_document()` und
+`remove_invoice_document()` luden die Rechnung mit `db.get` und lasen sie nach dem Commit neu. Unter PostgreSQL mit einem gleichzeitigen Löschen: das
+UPDATE wartete an der Sperre des Löschens und fand die Zeile danach nicht mehr -- 500; die neue Datei blieb liegen, beim Entfernen war die Datei schon weg.
+
+### Festlegungen 1.9.238 (Bitte bestätigen)
+
+1. Hochladen und Entfernen sperren zuerst die Zeile; ist die Rechnung inzwischen gelöscht, antworten sie 404, und keine Datei bleibt liegen.
+2. Die Antwort entsteht vor dem Commit, aus dem Stand, der festgeschrieben wird; ein Löschen gleich danach ändert sie nicht (200).
+3. Der alte Beleg fällt erst nach dem Commit weg. Scheitert das Speichern, bleibt der alte, und der neue fällt weg; scheitert das Entfernen, bleibt
+   der Beleg.
+
+### Tests und Prüfung 1.9.238
+
+Neu: `tests/test_v638_eingangsrechnung_beleg.py` (Ersetzen erst nach dem Commit, Scheitern beim Hochladen und Entfernen, unbekannte Rechnung 404 ohne
+Datei; unter PostgreSQL: Hochladen während des Löschens 404 ohne Datei, Hochladen dann Löschen ohne 500 -- mit Haken an `_load` wie 1.9.232 --, Entfernen
+während des Löschens 404). Gegenproben: Archiv `gegenproben-stufe6-r3b.md`.
+
+Angepasster Aufbau (Regel 28): `test_v293::test_document_set_and_remove` ruft `set_invoice_document()` mit `data` statt `stored_filename` und legt die
+Datei in einem eigenen Ordner ab; die Erwartung bleibt.
